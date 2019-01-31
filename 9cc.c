@@ -1,3 +1,4 @@
+#include "assert.h"
 #include "ctype.h"
 #include "stdarg.h"
 #include "stdint.h"
@@ -108,14 +109,18 @@ void error(const char* fmt, ...) {
 // Token type value
 enum TokenType {
   TK_NUM = 256,  // Integer token
+  TK_IDENT,      // Identifier
   TK_EOF,        // Represent input end
 };
 
 // Token type
 typedef struct {
   int ty;
-  long val;
   const char *input;
+  union {
+    long val;
+    char ident;
+  };
 } Token;
 
 Vector *token_vector;
@@ -140,7 +145,7 @@ void tokenize(const char *p) {
       continue;
     }
 
-    if (*p == '+' || *p == '-' || *p == '*' || *p == '/' || *p == '(' || *p == ')') {
+    if (*p == '+' || *p == '-' || *p == '*' || *p == '/' || *p == '(' || *p == ')' || *p == '=' || *p == ';') {
       /*Token *token =*/ alloc_token(*p, p);
       ++i;
       ++p;
@@ -155,6 +160,14 @@ void tokenize(const char *p) {
       continue;
     }
 
+    if ('a' <= *p && *p <= 'z') {
+      Token *token = alloc_token(TK_IDENT, p);
+      token->ident = *p;
+      ++i;
+      ++p;
+      continue;
+    }
+
     fprintf(stderr, "Cannot tokenize: %s\n", p);
     exit(1);
   }
@@ -164,6 +177,7 @@ void tokenize(const char *p) {
 
 enum {
   ND_NUM = 256,     // Number nodes
+  ND_IDENT,         // Identifier
 };
 
 typedef struct Node {
@@ -174,6 +188,7 @@ typedef struct Node {
       struct Node *rhs;
     } bop;
     long val;
+    char name;
   };
 } Node;
 
@@ -194,6 +209,13 @@ Node *new_node_num(int val) {
   return node;
 }
 
+Node *new_node_ident(char name) {
+  Node *node = malloc(sizeof(Node));
+  node->ty = ND_IDENT;
+  node->name = name;
+  return node;
+}
+
 int consume(int ty) {
   if (get_token(pos)->ty != ty)
     return FALSE;
@@ -201,23 +223,27 @@ int consume(int ty) {
   return TRUE;
 }
 
-Node *add();
+Node *assign();
 
 Node *term() {
   if (consume('(')) {
-    Node *node = add();
+    Node *node = assign();
     if (!consume(')'))
       error("No close paren: %s", get_token(pos)->input);
     return node;
   }
 
   Token *token = get_token(pos);
-  if (token->ty == TK_NUM) {
+  switch (token->ty) {
+  case TK_NUM:
     ++pos;
     return new_node_num(token->val);
+  case TK_IDENT:
+    ++pos;
+    return new_node_ident(token->ident);
   }
 
-  error("Number or open paren expected: %s", token->input);
+  error("Number or Ident or open paren expected: %s", token->input);
   return NULL;
 }
 
@@ -247,6 +273,31 @@ Node *add() {
   }
 }
 
+Node *assign() {
+  Node *node = add();
+
+  if (consume('='))
+    return new_node('=', node, assign());
+  else
+    return node;
+}
+
+Node *stmt() {
+  Node *node = assign();
+  if (!consume(';'))
+    error("Semicolon required: %s", get_token(pos)->input);
+  return node;
+}
+
+Node *nodes[100];
+
+void program() {
+  int i = 0;
+  while (get_token(pos)->ty != TK_EOF)
+    nodes[i++] = stmt();
+  nodes[i] = NULL;
+}
+
 unsigned char* code;
 size_t codesize;
 
@@ -269,57 +320,117 @@ void add_code(const unsigned char* buf, size_t size) {
 #define MOV_I32_RDX(x)   ADD_CODE(0x48, 0xc7, 0xc2, IM32(x)) // mov $0x0,%rdx
 #define MOVSX_EAX_RDI()  ADD_CODE(0x48, 0x63, 0xf8)  // movsx %eax, %rdi
 #define MOV_RAX_RDI()    ADD_CODE(0x48, 0x89, 0xc7)  // mov %rax,%rdi
+#define MOV_RSP_RBP()    ADD_CODE(0x48, 0x89, 0xe5)  // mov %rsp,%rbp
+#define MOV_RBP_RSP()    ADD_CODE(0x48, 0x89, 0xec)  // mov %rbp,%rsp
+#define MOV_RBP_RAX()    ADD_CODE(0x48, 0x89, 0xe8)  // mov %rbp,%rax
+#define MOV_IND_RAX_RAX()  ADD_CODE(0x48, 0x8b, 0x00)  // mov (%rax),%rax
+#define MOV_RAX_IND_RAX()  ADD_CODE(0x48, 0x89, 0x00)  // mov %rax,(%rax)
+#define MOV_RDI_IND_RAX()  ADD_CODE(0x48, 0x89, 0x38)  // mov %rdi,(%rax)
 #define ADD_RDI_RAX()    ADD_CODE(0x48, 0x01, 0xf8)  // add %rdi,%rax
 #define ADD_IM32_RAX(x)  ADD_CODE(0x48, 0x05, IM32(x))  // add $12345678,%rax
 #define SUB_RDI_RAX()    ADD_CODE(0x48, 0x29, 0xf8)  // sub %rdi,%rax
 #define SUB_IM32_RAX(x)  ADD_CODE(0x48, 0x2d, IM32(x))  // sub $12345678,%rax
+#define SUB_IM32_RSP(x)  ADD_CODE(0x48, 0x81, 0xec, IM32(x))  // sub $IM32,%rsp
 #define MUL_RDI()        ADD_CODE(0x48, 0xf7, 0xe7)  // mul %rdi
 #define DIV_RDI()        ADD_CODE(0x48, 0xf7, 0xf7)  // div %rdi
 #define PUSH_RAX()       ADD_CODE(0x50)  // push %rax
+#define PUSH_RBP()       ADD_CODE(0x55)  // push %rbp
+#define PUSH_RDI()       ADD_CODE(0x57)  // push %rdi
 #define POP_RAX()        ADD_CODE(0x58)  // pop %rax
+#define POP_RBP()        ADD_CODE(0x5d)  // pop %rbp
 #define POP_RDI()        ADD_CODE(0x5f)  // pop %rdi
 
+void gen_lval(Node *node) {
+  if (node->ty != ND_IDENT)
+    error("No lvalue");
+
+  int offset = ('z' - node->name + 1) * 8;
+  MOV_RBP_RAX();
+  SUB_IM32_RAX(offset);
+  PUSH_RAX();
+}
+
 void gen(Node *node) {
-  if (node->ty == ND_NUM) {
+  switch (node->ty) {
+  case ND_NUM:
     MOV_I64_RAX(node->val);
     PUSH_RAX();
     return;
-  }
 
-  gen(node->bop.lhs);
-  gen(node->bop.rhs);
+  case ND_IDENT:
+    gen_lval(node);
+    POP_RAX();
+    MOV_IND_RAX_RAX();
+    PUSH_RAX();
+    return;
 
-  POP_RDI();
-  POP_RAX();
+  case '=':
+    gen_lval(node->bop.lhs);
+    gen(node->bop.rhs);
 
-  switch (node->ty) {
+    POP_RDI();
+    POP_RAX();
+    MOV_RDI_IND_RAX();
+    PUSH_RDI();
+    return;
+
   case '+':
-    ADD_RDI_RAX();
-    break;
   case '-':
-    SUB_RDI_RAX();
-    break;
   case '*':
-    MUL_RDI();
-    break;
   case '/':
-    MOV_I32_RDX(0);
-    DIV_RDI();
+    gen(node->bop.lhs);
+    gen(node->bop.rhs);
+
+    POP_RDI();
+    POP_RAX();
+
+    switch (node->ty) {
+    case '+':
+      ADD_RDI_RAX();
+      break;
+    case '-':
+      SUB_RDI_RAX();
+      break;
+    case '*':
+      MUL_RDI();
+      break;
+    case '/':
+      MOV_I32_RDX(0);
+      DIV_RDI();
+      break;
+    }
+
+    PUSH_RAX();
+    return;
+
+  default:
+    assert(FALSE);
     break;
   }
-
-  PUSH_RAX();
 }
 
 void compile(const char* source) {
   token_vector = new_vector();
 
   tokenize(source);
-  Node *node = add();
+  program();
 
-  gen(node);
+  // Prologue
+  // Allocate 26 variable bufer.
+  PUSH_RBP();
+  MOV_RSP_RBP();
+  SUB_IM32_RSP(8 * 26);
 
-  POP_RAX();
+  for (int i = 0; nodes[i] != NULL; ++i) {
+    gen(nodes[i]);
+
+    POP_RAX();
+  }
+
+  // Epilogue
+  // Get last value.
+  MOV_RBP_RSP();
+  POP_RBP();
 
   // Ending.
   MOV_RAX_RDI();
