@@ -1,3 +1,5 @@
+#include "ctype.h"
+#include "stdarg.h"
 #include "stdint.h"
 #include "stdio.h"
 #include "stdlib.h"
@@ -42,9 +44,58 @@
 
 ////////////////////////////////////////////////
 
-void error(const char* msg, ...) {
-  fprintf(stderr, "%s\n", msg);
+void error(const char* fmt, ...) {
+  va_list ap;
+  va_start(ap, fmt);
+  vfprintf(stderr, fmt, ap);
+  va_end(ap);
   exit(1);
+}
+// Token type value
+enum TokenType {
+  TK_NUM = 256,  // Integer token
+  TK_EOF,        // Represent input end
+};
+
+// Token type
+typedef struct {
+  int ty;
+  long val;
+  const char *input;
+} Token;
+
+Token tokens[100];
+
+void tokenize(const char *p) {
+  int i = 0;
+  while (*p != '\0') {
+    if (isspace(*p)) {
+      ++p;
+      continue;
+    }
+
+    if (*p == '+' || *p == '-') {
+      tokens[i].ty = *p;
+      tokens[i].input = p;
+      ++i;
+      ++p;
+      continue;
+    }
+
+    if (isdigit(*p)) {
+      tokens[i].ty = TK_NUM;
+      tokens[i].input = p;
+      tokens[i].val = strtol(p, (char**)&p, 10);
+      ++i;
+      continue;
+    }
+
+    fprintf(stderr, "Cannot tokenize: %s\n", p);
+    exit(1);
+  }
+
+  tokens[i].ty = TK_EOF;
+  tokens[i].input = p;
 }
 
 unsigned char* code;
@@ -74,25 +125,32 @@ void add_code(const unsigned char* buf, size_t size) {
 #define SUB_IM32_RAX(x)  ADD_CODE(0x48, 0x2d, IM32(x))  // sub $12345678,%rax
 
 void compile(const char* source) {
-  const char* p = source;
+  tokenize(source);
 
-  long x = strtol(p, (char**)&p, 10);
-  MOV_I64_RAX(x);
-  while (*p != '\0') {
-    if (*p == '+') {
-      ++p;
-      long y = strtol(p, (char**)&p, 10);
-      ADD_IM32_RAX(y);
+  if (tokens[0].ty != TK_NUM)
+    error("Illegal token: %s", tokens[0].input);
+  MOV_I64_RAX(tokens[0].val);
+
+  int i = 1;
+  while (tokens[i].ty != TK_EOF) {
+    if (tokens[i].ty == '+') {
+      ++i;
+      if (tokens[i].ty != TK_NUM)
+        error("Illegal token: %s", tokens[i].input);
+      ADD_IM32_RAX(tokens[i].val);
+      ++i;
       continue;
     }
-    if (*p == '-') {
-      ++p;
-      long y = strtol(p, (char**)&p, 10);
-      SUB_IM32_RAX(y);
+    if (tokens[i].ty == '-') {
+      ++i;
+      if (tokens[i].ty != TK_NUM)
+        error("Illegal token: %s", tokens[i].input);
+      SUB_IM32_RAX(tokens[i].val);
+      ++i;
       continue;
     }
 
-    error("Unexpected character: '%c'\n", *p);
+    error("Unexpected token: %s\n", tokens[i].input);
   }
 
   // Ending.
