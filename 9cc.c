@@ -333,13 +333,11 @@ Node *stmt() {
   return node;
 }
 
-Node *nodes[100];
+Vector *node_vector;
 
 void program() {
-  int i = 0;
   while (get_token(pos)->ty != TK_EOF)
-    nodes[i++] = stmt();
-  nodes[i] = NULL;
+    vec_push(node_vector, stmt());
 }
 
 unsigned char* code;
@@ -455,6 +453,7 @@ void gen(Node *node) {
 
 void compile(const char* source) {
   token_vector = new_vector();
+  node_vector = new_vector();
 
   tokenize(source);
   program();
@@ -465,8 +464,9 @@ void compile(const char* source) {
   MOV_RSP_RBP();
   SUB_IM32_RSP(8 * 26);
 
-  for (int i = 0; nodes[i] != NULL; ++i) {
-    gen(nodes[i]);
+  int len = node_vector->len;
+  for (int i = 0; i < len; ++i) {
+    gen(node_vector->data[i]);
 
     POP_RAX();
   }
