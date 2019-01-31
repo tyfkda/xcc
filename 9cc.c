@@ -5,6 +5,13 @@
 #include "stdlib.h"
 #include "string.h"
 
+#ifndef FALSE
+#define FALSE  (0)
+#endif
+#ifndef TRUE
+#define TRUE   (1)
+#endif
+
 #define PROG_START   (0x80)
 
 #if defined(__XV6)
@@ -74,7 +81,7 @@ void tokenize(const char *p) {
       continue;
     }
 
-    if (*p == '+' || *p == '-') {
+    if (*p == '+' || *p == '-' || *p == '*' || *p == '/' || *p == '(' || *p == ')') {
       tokens[i].ty = *p;
       tokens[i].input = p;
       ++i;
@@ -98,6 +105,88 @@ void tokenize(const char *p) {
   tokens[i].input = p;
 }
 
+enum {
+  ND_NUM = 256,     // Number nodes
+};
+
+typedef struct Node {
+  int ty;
+  union {
+    struct {
+      struct Node *lhs;
+      struct Node *rhs;
+    } bop;
+    long val;
+  };
+} Node;
+
+int pos;
+
+Node *new_node(int ty, Node *lhs, Node *rhs) {
+  Node *node = malloc(sizeof(Node));
+  node->ty = ty;
+  node->bop.lhs = lhs;
+  node->bop.rhs = rhs;
+  return node;
+}
+
+Node *new_node_num(int val) {
+  Node *node = malloc(sizeof(Node));
+  node->ty = ND_NUM;
+  node->val = val;
+  return node;
+}
+
+int consume(int ty) {
+  if (tokens[pos].ty != ty)
+    return FALSE;
+  ++pos;
+  return TRUE;
+}
+
+Node *add();
+
+Node *term() {
+  if (consume('(')) {
+    Node *node = add();
+    if (!consume(')'))
+      error("No close paren: %s", tokens[pos].input);
+    return node;
+  }
+
+  if (tokens[pos].ty == TK_NUM)
+    return new_node_num(tokens[pos++].val);
+
+  error("Number or open paren expected: %s", tokens[pos].input);
+  return NULL;
+}
+
+Node *mul() {
+  Node *node = term();
+
+  for (;;) {
+    if (consume('*'))
+      node = new_node('*', node, term());
+    else if (consume('/'))
+      node = new_node('/', node, term());
+    else
+      return node;
+  }
+}
+
+Node *add() {
+  Node *node = mul();
+
+  for (;;) {
+    if (consume('+'))
+      node = new_node('+', node, mul());
+    else if (consume('-'))
+      node = new_node('-', node, mul());
+    else
+      return node;
+  }
+}
+
 unsigned char* code;
 size_t codesize;
 
@@ -117,41 +206,58 @@ void add_code(const unsigned char* buf, size_t size) {
 #define MOV_I32_EAX(x)   ADD_CODE(0xb8, IM32(x))  // mov $0xNN,%eax
 #define MOV_I64_RAX(x)   ADD_CODE(0x48, 0xb8, IM64(x))  // mov $0x123456789abcdef0,%rax
 #define MOV_I64_RDI(x)   ADD_CODE(0x48, 0xbf, IM64(x))  // mov $0x123456789abcdef0,%rdi
+#define MOV_I32_RDX(x)   ADD_CODE(0x48, 0xc7, 0xc2, IM32(x)) // mov $0x0,%rdx
 #define MOVSX_EAX_RDI()  ADD_CODE(0x48, 0x63, 0xf8)  // movsx %eax, %rdi
 #define MOV_RAX_RDI()    ADD_CODE(0x48, 0x89, 0xc7)  // mov %rax,%rdi
 #define ADD_RDI_RAX()    ADD_CODE(0x48, 0x01, 0xf8)  // add %rdi,%rax
 #define ADD_IM32_RAX(x)  ADD_CODE(0x48, 0x05, IM32(x))  // add $12345678,%rax
 #define SUB_RDI_RAX()    ADD_CODE(0x48, 0x29, 0xf8)  // sub %rdi,%rax
 #define SUB_IM32_RAX(x)  ADD_CODE(0x48, 0x2d, IM32(x))  // sub $12345678,%rax
+#define MUL_RDI()        ADD_CODE(0x48, 0xf7, 0xe7)  // mul %rdi
+#define DIV_RDI()        ADD_CODE(0x48, 0xf7, 0xf7)  // div %rdi
+#define PUSH_RAX()       ADD_CODE(0x50)  // push %rax
+#define POP_RAX()        ADD_CODE(0x58)  // pop %rax
+#define POP_RDI()        ADD_CODE(0x5f)  // pop %rdi
+
+void gen(Node *node) {
+  if (node->ty == ND_NUM) {
+    MOV_I64_RAX(node->val);
+    PUSH_RAX();
+    return;
+  }
+
+  gen(node->bop.lhs);
+  gen(node->bop.rhs);
+
+  POP_RDI();
+  POP_RAX();
+
+  switch (node->ty) {
+  case '+':
+    ADD_RDI_RAX();
+    break;
+  case '-':
+    SUB_RDI_RAX();
+    break;
+  case '*':
+    MUL_RDI();
+    break;
+  case '/':
+    MOV_I32_RDX(0);
+    DIV_RDI();
+    break;
+  }
+
+  PUSH_RAX();
+}
 
 void compile(const char* source) {
   tokenize(source);
+  Node *node = add();
 
-  if (tokens[0].ty != TK_NUM)
-    error("Illegal token: %s", tokens[0].input);
-  MOV_I64_RAX(tokens[0].val);
+  gen(node);
 
-  int i = 1;
-  while (tokens[i].ty != TK_EOF) {
-    if (tokens[i].ty == '+') {
-      ++i;
-      if (tokens[i].ty != TK_NUM)
-        error("Illegal token: %s", tokens[i].input);
-      ADD_IM32_RAX(tokens[i].val);
-      ++i;
-      continue;
-    }
-    if (tokens[i].ty == '-') {
-      ++i;
-      if (tokens[i].ty != TK_NUM)
-        error("Illegal token: %s", tokens[i].input);
-      SUB_IM32_RAX(tokens[i].val);
-      ++i;
-      continue;
-    }
-
-    error("Unexpected token: %s\n", tokens[i].input);
-  }
+  POP_RAX();
 
   // Ending.
   MOV_RAX_RDI();
