@@ -118,7 +118,19 @@ typedef struct {
   const char *input;
 } Token;
 
-Token tokens[100];
+Vector *token_vector;
+
+Token *alloc_token(int ty, const char *input) {
+  Token *token = malloc(sizeof(*token));
+  token->ty = ty;
+  token->input = input;
+  vec_push(token_vector, token);
+  return token;
+}
+
+Token *get_token(int pos) {
+  return (Token *)token_vector->data[pos];
+}
 
 void tokenize(const char *p) {
   int i = 0;
@@ -129,17 +141,16 @@ void tokenize(const char *p) {
     }
 
     if (*p == '+' || *p == '-' || *p == '*' || *p == '/' || *p == '(' || *p == ')') {
-      tokens[i].ty = *p;
-      tokens[i].input = p;
+      /*Token *token =*/ alloc_token(*p, p);
       ++i;
       ++p;
       continue;
     }
 
     if (isdigit(*p)) {
-      tokens[i].ty = TK_NUM;
-      tokens[i].input = p;
-      tokens[i].val = strtol(p, (char**)&p, 10);
+      long val = strtol(p, (char**)&p, 10);
+      Token *token = alloc_token(TK_NUM, p);
+      token->val = val;
       ++i;
       continue;
     }
@@ -148,8 +159,7 @@ void tokenize(const char *p) {
     exit(1);
   }
 
-  tokens[i].ty = TK_EOF;
-  tokens[i].input = p;
+  alloc_token(TK_EOF, p);
 }
 
 enum {
@@ -185,7 +195,7 @@ Node *new_node_num(int val) {
 }
 
 int consume(int ty) {
-  if (tokens[pos].ty != ty)
+  if (get_token(pos)->ty != ty)
     return FALSE;
   ++pos;
   return TRUE;
@@ -197,14 +207,17 @@ Node *term() {
   if (consume('(')) {
     Node *node = add();
     if (!consume(')'))
-      error("No close paren: %s", tokens[pos].input);
+      error("No close paren: %s", get_token(pos)->input);
     return node;
   }
 
-  if (tokens[pos].ty == TK_NUM)
-    return new_node_num(tokens[pos++].val);
+  Token *token = get_token(pos);
+  if (token->ty == TK_NUM) {
+    ++pos;
+    return new_node_num(token->val);
+  }
 
-  error("Number or open paren expected: %s", tokens[pos].input);
+  error("Number or open paren expected: %s", token->input);
   return NULL;
 }
 
@@ -299,6 +312,8 @@ void gen(Node *node) {
 }
 
 void compile(const char* source) {
+  token_vector = new_vector();
+
   tokenize(source);
   Node *node = add();
 
