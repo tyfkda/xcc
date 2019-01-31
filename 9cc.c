@@ -42,7 +42,7 @@
 
 ////////////////////////////////////////////////
 
-void error(const char* msg) {
+void error(const char* msg, ...) {
   fprintf(stderr, "%s\n", msg);
   exit(1);
 }
@@ -61,16 +61,43 @@ void add_code(const unsigned char* buf, size_t size) {
 
 #define ADD_CODE(...)  do { unsigned char buf[] = {__VA_ARGS__}; add_code(buf, sizeof(buf)); } while (0)
 #define IM32(x)  (x), ((x) >> 8), ((x) >> 16), ((x) >> 24)
+#define IM64(x)  (x), ((x) >> 8), ((x) >> 16), ((x) >> 24), ((x) >> 32), ((x) >> 40), ((x) >> 48), ((x) >> 56)
 
 #define MOV_I32_EAX(x)   ADD_CODE(0xb8, IM32(x))  // mov $0xNN,%eax
+#define MOV_I64_RAX(x)   ADD_CODE(0x48, 0xb8, IM64(x))  // mov $0x123456789abcdef0,%rax
+#define MOV_I64_RDI(x)   ADD_CODE(0x48, 0xbf, IM64(x))  // mov $0x123456789abcdef0,%rdi
 #define MOVSX_EAX_RDI()  ADD_CODE(0x48, 0x63, 0xf8)  // movsx %eax, %rdi
+#define MOV_RAX_RDI()    ADD_CODE(0x48, 0x89, 0xc7)  // mov %rax,%rdi
+#define ADD_RDI_RAX()    ADD_CODE(0x48, 0x01, 0xf8)  // add %rdi,%rax
+#define ADD_IM32_RAX(x)  ADD_CODE(0x48, 0x05, IM32(x))  // add $12345678,%rax
+#define SUB_RDI_RAX()    ADD_CODE(0x48, 0x29, 0xf8)  // sub %rdi,%rax
+#define SUB_IM32_RAX(x)  ADD_CODE(0x48, 0x2d, IM32(x))  // sub $12345678,%rax
 
 void compile(const char* source) {
-  int x = atoi(source);
-  MOV_I32_EAX(x);
+  const char* p = source;
+
+  long x = strtol(p, (char**)&p, 10);
+  MOV_I64_RAX(x);
+  while (*p != '\0') {
+    if (*p == '+') {
+      ++p;
+      long y = strtol(p, (char**)&p, 10);
+      ADD_IM32_RAX(y);
+      continue;
+    }
+    if (*p == '-') {
+      ++p;
+      long y = strtol(p, (char**)&p, 10);
+      SUB_IM32_RAX(y);
+      continue;
+    }
+
+    error("Unexpected character: '%c'\n", *p);
+  }
 
   // Ending.
-  MOVSX_EAX_RDI();
+  MOV_RAX_RDI();
+
   SYSCALL(SYSCALL_EXIT);
 }
 
@@ -116,6 +143,7 @@ void out_program_header(FILE* fp, uintptr_t offset, uintptr_t vaddr, uintptr_t f
 
   fwrite(&phdr, sizeof(Elf64_Phdr), 1, fp);
 }
+
 
 int main(int argc, char* argv[]) {
   if (argc < 2) {
