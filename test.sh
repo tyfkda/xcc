@@ -1,6 +1,6 @@
 #!/bin/bash
 
-try() {
+try_direct() {
   expected="$1"
   input="$2"
 
@@ -17,6 +17,10 @@ try() {
   fi
 }
 
+try() {
+  try_direct "$1" "main(){ $2 }"
+}
+
 try 0 '0;'
 try 42 '42;'
 try 21 '5+20-4;'
@@ -28,6 +32,6 @@ try 14 "a = 3; b = 5 * 6 - 8; a + b / 2;"
 try 14 "foo = 3; bar = 5 * 6 - 8; foo + bar / 2;"
 try 1 "a = b = (c = 1) + 2; a == b;"
 try 1 "123 != 456;"
-try 23 "foo() - 100;"
+try_direct 23 "foo(){ 123; } main(){ foo() - 100; }"
 
 echo OK

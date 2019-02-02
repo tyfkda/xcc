@@ -40,6 +40,8 @@ enum TokenType {
   TK_DIV = '/',
   TK_LPAR = '(',
   TK_RPAR = ')',
+  TK_LBRACE = '{',
+  TK_RBRACE = '}',
   TK_ASSIGN = '=',
   TK_SEMICOL = ';',
   TK_NUM = 256,  // Integer token
@@ -69,6 +71,7 @@ void tokenize(const char *p);
 enum NodeType {
   ND_NUM,     // Number nodes
   ND_IDENT,   // Identifier
+  ND_DEFUN,
   ND_FUNCALL,
   ND_ADD,
   ND_SUB,
@@ -87,7 +90,12 @@ typedef struct Node {
       struct Node *rhs;
     } bop;
     long val;
-    int varidx;
+    const char *ident;
+    struct {
+      const char *name;
+      Vector *lvars;
+      Vector *stmts;
+    } defun;
     struct {
       const char *name;
     } funcall;
@@ -100,10 +108,8 @@ void program(void);
 
 // Variables
 
-extern Vector *var_vector;
-
-int var_find(const char *name);
-int var_add(const char *name);
+int var_find(Vector *vartbl, const char *name);
+int var_add(Vector *vartbl, const char *name);
 
 // Codegen
 

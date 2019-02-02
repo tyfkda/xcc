@@ -48,7 +48,8 @@ void tokenize(const char *p) {
       continue;
     }
 
-    if (*p == '+' || *p == '-' || *p == '*' || *p == '/' || *p == '(' || *p == ')' || *p == '=' || *p == ';') {
+    if (*p == '+' || *p == '-' || *p == '*' || *p == '/' || *p == '(' || *p == ')' ||
+        *p == '{' || *p == '}' || *p == '=' || *p == ';') {
       /*Token *token =*/ alloc_token((enum TokenType)*p, p);
       ++i;
       ++p;
@@ -91,29 +92,28 @@ void tokenize(const char *p) {
 
 //
 
-Vector *var_vector;
-
-int var_find(const char *name) {
-  int len = var_vector->len;
+int var_find(Vector *lvars, const char *name) {
+  int len = lvars->len;
   for (int i = 0; i < len; ++i) {
-    if (strcmp(var_vector->data[i], name) == 0)
+    if (strcmp(lvars->data[i], name) == 0)
       return i;
   }
   return -1;
 }
 
-int var_add(const char *name) {
-  int idx = var_find(name);
+int var_add(Vector *lvars, const char *name) {
+  int idx = var_find(lvars, name);
   if (idx < 0) {
-    idx = var_vector->len;
-    vec_push(var_vector, (char*)name);
+    idx = lvars->len;
+    vec_push(lvars, (char*)name);
   }
   return idx;
 }
 
 //
 
-int pos;
+static int pos;
+static Node *curfunc;
 
 Node *new_node_bop(enum NodeType type, Node *lhs, Node *rhs) {
   Node *node = malloc(sizeof(Node));
@@ -133,7 +133,16 @@ Node *new_node_num(int val) {
 Node *new_node_ident(const char *name) {
   Node *node = malloc(sizeof(Node));
   node->type = ND_IDENT;
-  node->varidx = var_add(name);
+  node->ident = name;
+  return node;
+}
+
+Node *new_node_defun(const char *name) {
+  Node *node = malloc(sizeof(Node));
+  node->type = ND_DEFUN;
+  node->defun.name = name;
+  node->defun.lvars = new_vector();
+  node->defun.stmts = NULL;
   return node;
 }
 
@@ -173,6 +182,9 @@ Node *term() {
         error("No close paren: %s", get_token(pos - 1)->input);
       return new_node_funcall(token->ident);
     } else {
+      if (curfunc != NULL) {
+        var_add(curfunc->defun.lvars, token->ident);
+      }
       return new_node_ident(token->ident);
     }
   default:
@@ -236,9 +248,35 @@ Node *stmt() {
   return node;
 }
 
+Node *toplevel() {
+  if (consume(TK_IDENT)) {
+    Token *funcname = get_token(pos - 1);
+    if (consume(TK_LPAR)) {
+      if (consume(TK_RPAR)) {
+        if (consume(TK_LBRACE)) {
+          Node *node = new_node_defun(funcname->ident);
+          curfunc = node;
+
+          Vector *stmts = new_vector();
+          while (!consume(TK_RBRACE)) {
+            Node *st = stmt();
+            vec_push(stmts, st);
+          }
+          node->defun.stmts = stmts;
+          return node;
+        }
+      }
+    }
+    error("Defun failed: %s", get_token(pos)->input);
+    return NULL;
+  }
+  error("Toplevel, %s", get_token(pos)->input);
+  return NULL;
+}
+
 Vector *node_vector;
 
 void program() {
   while (get_token(pos)->type != TK_EOF)
-    vec_push(node_vector, stmt());
+    vec_push(node_vector, toplevel());
 }

@@ -155,11 +155,14 @@ size_t fixup_locations(void) {
 #define INT(x)           ADD_CODE(0xcd, x)  // int $x
 #define SYSCALL()        ADD_CODE(0x0f, 0x05)  // syscall
 
+static Node *curfunc;
+
 void gen_lval(Node *node) {
   if (node->type != ND_IDENT)
     error("No lvalue: %d", node->type);
 
-  int offset = (node->varidx + 1) * WORD_SIZE;
+  int varidx = var_find(curfunc->defun.lvars, node->ident);
+  int offset = (varidx + 1) * WORD_SIZE;
   MOV_RBP_RAX();
   SUB_IM32_RAX(offset);
   PUSH_RAX();
@@ -188,6 +191,27 @@ void gen(Node *node) {
     MOV_RDI_IND_RAX();
     PUSH_RDI();
     return;
+
+  case ND_DEFUN:
+    curfunc = node;
+    add_label(node->defun.name);
+    // Prologue
+    // Allocate variable bufer.
+    PUSH_RBP();
+    MOV_RSP_RBP();
+    SUB_IM32_RSP(node->defun.lvars->len * WORD_SIZE);
+
+    for (int i = 0; i < node->defun.stmts->len; ++i) {
+      gen((Node*)node->defun.stmts->data[i]);
+      POP_RAX();
+    }
+
+    // Epilogue
+    MOV_RBP_RSP();
+    POP_RBP();
+    RET();
+    curfunc = NULL;
+    break;
 
   case ND_FUNCALL:
     CALL(node->funcall.name);
@@ -252,37 +276,16 @@ void compile(const char* source) {
   tokenize(source);
   program();
 
-  // Prologue
-  // Allocate variable bufer.
-  PUSH_RBP();
-  MOV_RSP_RBP();
-  SUB_IM32_RSP(var_vector->len * WORD_SIZE);
+  CALL("main");
+  MOV_RAX_RDI();
+  SYSTEMCALL(SYSCALL_EXIT);
 
   int len = node_vector->len;
   for (int i = 0; i < len; ++i) {
     gen(node_vector->data[i]);
-
-    POP_RAX();
   }
-
-  // Epilogue
-  // Get last value.
-  MOV_RBP_RSP();
-  POP_RBP();
-
-  // Ending.
-  MOV_RAX_RDI();
-
-  SYSTEMCALL(SYSCALL_EXIT);
 }
 
 void output_code(FILE* fp) {
   fwrite(code, codesize, 1, fp);
-}
-
-void add_foo() {
-  add_label("foo");
-  const long val = 123;
-  MOV_I64_RAX(val);
-  RET();
 }

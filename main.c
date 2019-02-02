@@ -78,6 +78,7 @@ void error(const char* fmt, ...) {
   va_start(ap, fmt);
   vfprintf(stderr, fmt, ap);
   va_end(ap);
+  fprintf(stderr, "\n");
   exit(1);
 }
 
@@ -85,7 +86,6 @@ void init_compiler(uintptr_t adr) {
   start_address = adr;
   token_vector = new_vector();
   node_vector = new_vector();
-  var_vector = new_vector();
   label_map = new_map();
   loc_vector = new_vector();
 }
@@ -105,7 +105,6 @@ int main(int argc, char* argv[]) {
 
   init_compiler(LOAD_ADDRESS);
   compile(argv[1]);
-  add_foo();
   size_t binsize = fixup_locations();
 
   FILE* fp = stdout;
