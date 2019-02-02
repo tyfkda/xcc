@@ -34,6 +34,14 @@ void *map_get(Map *map, char *key);
 
 // Token type value
 enum TokenType {
+  TK_ADD = '+',
+  TK_SUB = '-',
+  TK_MUL = '*',
+  TK_DIV = '/',
+  TK_LPAR = '(',
+  TK_RPAR = ')',
+  TK_ASSIGN = '=',
+  TK_SEMICOL = ';',
   TK_NUM = 256,  // Integer token
   TK_IDENT,      // Identifier
   TK_EOF,        // Represent input end
@@ -41,7 +49,7 @@ enum TokenType {
 
 // Token type
 typedef struct {
-  int ty;
+  enum TokenType type;
   const char *input;
   union {
     long val;
@@ -56,13 +64,18 @@ void tokenize(const char *p);
 
 // Node
 
-enum {
-  ND_NUM = 256,     // Number nodes
-  ND_IDENT,         // Identifier
+enum NodeType {
+  ND_NUM,     // Number nodes
+  ND_IDENT,   // Identifier
+  ND_ADD,
+  ND_SUB,
+  ND_MUL,
+  ND_DIV,
+  ND_ASSIGN,
 };
 
 typedef struct Node {
-  int ty;
+  enum NodeType type;
   union {
     struct {
       struct Node *lhs;

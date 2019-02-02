@@ -80,7 +80,7 @@ void add_code(const unsigned char* buf, size_t size) {
 #define POP_RDI()        ADD_CODE(0x5f)  // pop %rdi
 
 void gen_lval(Node *node) {
-  if (node->ty != ND_IDENT)
+  if (node->type != ND_IDENT)
     error("No lvalue");
 
   int offset = (node->varidx + 1) * WORD_SIZE;
@@ -90,7 +90,7 @@ void gen_lval(Node *node) {
 }
 
 void gen(Node *node) {
-  switch (node->ty) {
+  switch (node->type) {
   case ND_NUM:
     MOV_I64_RAX(node->val);
     PUSH_RAX();
@@ -103,7 +103,7 @@ void gen(Node *node) {
     PUSH_RAX();
     return;
 
-  case '=':
+  case ND_ASSIGN:
     gen_lval(node->bop.lhs);
     gen(node->bop.rhs);
 
@@ -113,29 +113,32 @@ void gen(Node *node) {
     PUSH_RDI();
     return;
 
-  case '+':
-  case '-':
-  case '*':
-  case '/':
+  case ND_ADD:
+  case ND_SUB:
+  case ND_MUL:
+  case ND_DIV:
     gen(node->bop.lhs);
     gen(node->bop.rhs);
 
     POP_RDI();
     POP_RAX();
 
-    switch (node->ty) {
-    case '+':
+    switch (node->type) {
+    case ND_ADD:
       ADD_RDI_RAX();
       break;
-    case '-':
+    case ND_SUB:
       SUB_RDI_RAX();
       break;
-    case '*':
+    case ND_MUL:
       MUL_RDI();
       break;
-    case '/':
+    case ND_DIV:
       MOV_I32_RDX(0);
       DIV_RDI();
+      break;
+    default:
+      assert(FALSE);
       break;
     }
 

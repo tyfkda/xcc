@@ -7,9 +7,9 @@
 
 Vector *token_vector;
 
-Token *alloc_token(int ty, const char *input) {
+Token *alloc_token(enum TokenType type, const char *input) {
   Token *token = malloc(sizeof(*token));
-  token->ty = ty;
+  token->type = type;
   token->input = input;
   vec_push(token_vector, token);
   return token;
@@ -28,7 +28,7 @@ void tokenize(const char *p) {
     }
 
     if (*p == '+' || *p == '-' || *p == '*' || *p == '/' || *p == '(' || *p == ')' || *p == '=' || *p == ';') {
-      /*Token *token =*/ alloc_token(*p, p);
+      /*Token *token =*/ alloc_token((enum TokenType)*p, p);
       ++i;
       ++p;
       continue;
@@ -94,9 +94,9 @@ int var_add(const char *name) {
 
 int pos;
 
-Node *new_node(int ty, Node *lhs, Node *rhs) {
+Node *new_node_bop(enum NodeType type, Node *lhs, Node *rhs) {
   Node *node = malloc(sizeof(Node));
-  node->ty = ty;
+  node->type = type;
   node->bop.lhs = lhs;
   node->bop.rhs = rhs;
   return node;
@@ -104,20 +104,20 @@ Node *new_node(int ty, Node *lhs, Node *rhs) {
 
 Node *new_node_num(int val) {
   Node *node = malloc(sizeof(Node));
-  node->ty = ND_NUM;
+  node->type = ND_NUM;
   node->val = val;
   return node;
 }
 
 Node *new_node_ident(const char *name) {
   Node *node = malloc(sizeof(Node));
-  node->ty = ND_IDENT;
+  node->type = ND_IDENT;
   node->varidx = var_add(name);
   return node;
 }
 
-int consume(int ty) {
-  if (get_token(pos)->ty != ty)
+int consume(enum TokenType type) {
+  if (get_token(pos)->type != type)
     return FALSE;
   ++pos;
   return TRUE;
@@ -126,35 +126,35 @@ int consume(int ty) {
 Node *assign();
 
 Node *term() {
-  if (consume('(')) {
+  if (consume(TK_LPAR)) {
     Node *node = assign();
-    if (!consume(')'))
+    if (!consume(TK_RPAR))
       error("No close paren: %s", get_token(pos)->input);
     return node;
   }
 
   Token *token = get_token(pos);
-  switch (token->ty) {
+  switch (token->type) {
   case TK_NUM:
     ++pos;
     return new_node_num(token->val);
   case TK_IDENT:
     ++pos;
     return new_node_ident(token->ident);
+  default:
+    error("Number or Ident or open paren expected: %s", token->input);
+    return NULL;
   }
-
-  error("Number or Ident or open paren expected: %s", token->input);
-  return NULL;
 }
 
 Node *mul() {
   Node *node = term();
 
   for (;;) {
-    if (consume('*'))
-      node = new_node('*', node, term());
-    else if (consume('/'))
-      node = new_node('/', node, term());
+    if (consume(TK_MUL))
+      node = new_node_bop(ND_MUL, node, term());
+    else if (consume(TK_DIV))
+      node = new_node_bop(ND_DIV, node, term());
     else
       return node;
   }
@@ -164,10 +164,10 @@ Node *add() {
   Node *node = mul();
 
   for (;;) {
-    if (consume('+'))
-      node = new_node('+', node, mul());
-    else if (consume('-'))
-      node = new_node('-', node, mul());
+    if (consume(TK_ADD))
+      node = new_node_bop(ND_ADD, node, mul());
+    else if (consume(TK_SUB))
+      node = new_node_bop(ND_SUB, node, mul());
     else
       return node;
   }
@@ -176,15 +176,15 @@ Node *add() {
 Node *assign() {
   Node *node = add();
 
-  if (consume('='))
-    return new_node('=', node, assign());
+  if (consume(TK_ASSIGN))
+    return new_node_bop(ND_ASSIGN, node, assign());
   else
     return node;
 }
 
 Node *stmt() {
   Node *node = assign();
-  if (!consume(';'))
+  if (!consume(TK_SEMICOL))
     error("Semicolon required: %s", get_token(pos)->input);
   return node;
 }
@@ -192,6 +192,6 @@ Node *stmt() {
 Vector *node_vector;
 
 void program() {
-  while (get_token(pos)->ty != TK_EOF)
+  while (get_token(pos)->type != TK_EOF)
     vec_push(node_vector, stmt());
 }
