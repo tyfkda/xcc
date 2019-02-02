@@ -10,9 +10,8 @@
 #include "../kernel/syscall.h"
 #include "../kernel/traps.h"
 
-#define SYSCALL(no)  \
-  ADD_CODE(0xb8, (no), (no) >> 8, (no) >> 16, (no) >> 24,  /* mov $EXIT, %eax */ \
-           0xcd, T_SYSCALL)                                /* int $64 */
+#define SYSTEMCALL(no)  \
+  do { MOV_I32_EAX(no); INT(T_SYSCALL); } while(0)
 
 #define SYSCALL_EXIT   (SYS_exit)
 
@@ -21,9 +20,8 @@
 #elif defined(__linux__)
 // Linux
 
-#define SYSCALL(no)  \
-  ADD_CODE(0xb8, (no), (no) >> 8, (no) >> 16, (no) >> 24,  /* mov $EXIT, %eax */ \
-           0x0f, 0x05)                                     /* syscall */
+#define SYSTEMCALL(no)  \
+  do { MOV_I32_EAX(no); SYSCALL(); } while(0)
 
 #define SYSCALL_EXIT   (60 /*__NR_exit*/)
 
@@ -82,6 +80,8 @@ void add_code(const unsigned char* buf, size_t size) {
 #define POP_RAX()        ADD_CODE(0x58)  // pop %rax
 #define POP_RBP()        ADD_CODE(0x5d)  // pop %rbp
 #define POP_RDI()        ADD_CODE(0x5f)  // pop %rdi
+#define INT(x)           ADD_CODE(0xcd, x)  // int $x
+#define SYSCALL()        ADD_CODE(0x0f, 0x05)  // syscall
 
 void gen_lval(Node *node) {
   if (node->type != ND_IDENT)
@@ -200,7 +200,7 @@ size_t compile(const char* source) {
   // Ending.
   MOV_RAX_RDI();
 
-  SYSCALL(SYSCALL_EXIT);
+  SYSTEMCALL(SYSCALL_EXIT);
 
   return codesize;
 }
