@@ -27,6 +27,27 @@ void tokenize(const char *p) {
       continue;
     }
 
+    if (*p == '=') {
+      switch (p[1]) {
+      case '=':
+        {
+          /*Token *token =*/ alloc_token(TK_EQ, p);
+          ++i;
+          p += 2;
+          continue;
+        }
+      default:
+        break;
+      }
+    }
+
+    if (*p == '!' && p[1] == '=') {
+      /*Token *token =*/ alloc_token(TK_NE, p);
+      ++i;
+      p += 2;
+      continue;
+    }
+
     if (*p == '+' || *p == '-' || *p == '*' || *p == '/' || *p == '(' || *p == ')' || *p == '=' || *p == ';') {
       /*Token *token =*/ alloc_token((enum TokenType)*p, p);
       ++i;
@@ -173,8 +194,21 @@ Node *add() {
   }
 }
 
-Node *assign() {
+Node *eq() {
   Node *node = add();
+
+  for (;;) {
+    if (consume(TK_EQ))
+      node = new_node_bop(ND_EQ, node, add());
+    else if (consume(TK_NE))
+      node = new_node_bop(ND_NE, node, add());
+    else
+      return node;
+  }
+}
+
+Node *assign() {
+  Node *node = eq();
 
   if (consume(TK_ASSIGN))
     return new_node_bop(ND_ASSIGN, node, assign());

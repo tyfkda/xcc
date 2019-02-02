@@ -45,6 +45,8 @@ enum TokenType {
   TK_NUM = 256,  // Integer token
   TK_IDENT,      // Identifier
   TK_EOF,        // Represent input end
+  TK_EQ,  // ==
+  TK_NE,  // !=
 };
 
 // Token type
@@ -72,6 +74,8 @@ enum NodeType {
   ND_MUL,
   ND_DIV,
   ND_ASSIGN,
+  ND_EQ,
+  ND_NE,
 };
 
 typedef struct Node {

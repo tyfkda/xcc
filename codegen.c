@@ -65,6 +65,7 @@ void add_code(const unsigned char* buf, size_t size) {
 #define MOV_IND_RAX_RAX()  ADD_CODE(0x48, 0x8b, 0x00)  // mov (%rax),%rax
 #define MOV_RAX_IND_RAX()  ADD_CODE(0x48, 0x89, 0x00)  // mov %rax,(%rax)
 #define MOV_RDI_IND_RAX()  ADD_CODE(0x48, 0x89, 0x38)  // mov %rdi,(%rax)
+#define MOVZB_AL_RAX()   ADD_CODE(0x48, 0x0f, 0xb6, 0xc0)  // movzbq %al,%rax
 #define ADD_RDI_RAX()    ADD_CODE(0x48, 0x01, 0xf8)  // add %rdi,%rax
 #define ADD_IM32_RAX(x)  ADD_CODE(0x48, 0x05, IM32(x))  // add $12345678,%rax
 #define SUB_RDI_RAX()    ADD_CODE(0x48, 0x29, 0xf8)  // sub %rdi,%rax
@@ -72,6 +73,9 @@ void add_code(const unsigned char* buf, size_t size) {
 #define SUB_IM32_RSP(x)  ADD_CODE(0x48, 0x81, 0xec, IM32(x))  // sub $IM32,%rsp
 #define MUL_RDI()        ADD_CODE(0x48, 0xf7, 0xe7)  // mul %rdi
 #define DIV_RDI()        ADD_CODE(0x48, 0xf7, 0xf7)  // div %rdi
+#define CMP_RAX_RDI()    ADD_CODE(0x48, 0x39, 0xc7)  // cmp %rax,%rdi
+#define SETE_AL()        ADD_CODE(0x0f, 0x94, 0xc0)  // sete %al
+#define SETNE_AL()       ADD_CODE(0x0f, 0x95, 0xc0)  // setne %al
 #define PUSH_RAX()       ADD_CODE(0x50)  // push %rax
 #define PUSH_RBP()       ADD_CODE(0x55)  // push %rbp
 #define PUSH_RDI()       ADD_CODE(0x57)  // push %rdi
@@ -81,7 +85,7 @@ void add_code(const unsigned char* buf, size_t size) {
 
 void gen_lval(Node *node) {
   if (node->type != ND_IDENT)
-    error("No lvalue");
+    error("No lvalue: %d", node->type);
 
   int offset = (node->varidx + 1) * WORD_SIZE;
   MOV_RBP_RAX();
@@ -111,6 +115,22 @@ void gen(Node *node) {
     POP_RAX();
     MOV_RDI_IND_RAX();
     PUSH_RDI();
+    return;
+
+  case ND_EQ:
+  case ND_NE:
+    gen(node->bop.lhs);
+    gen(node->bop.rhs);
+
+    POP_RAX();
+    POP_RDI();
+    CMP_RAX_RDI();
+    if (node->type == ND_EQ)
+      SETE_AL();
+    else
+      SETNE_AL();
+    MOVZB_AL_RAX();
+    PUSH_RAX();
     return;
 
   case ND_ADD:
@@ -146,7 +166,7 @@ void gen(Node *node) {
     return;
 
   default:
-    assert(FALSE);
+    error("Unhandled node: %d", node->type);
     break;
   }
 }
