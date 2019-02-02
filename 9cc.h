@@ -45,7 +45,7 @@ typedef struct {
   const char *input;
   union {
     long val;
-    char ident;
+    const char *ident;
   };
 } Token;
 
@@ -69,13 +69,20 @@ typedef struct Node {
       struct Node *rhs;
     } bop;
     long val;
-    char name;
+    int varidx;
   };
 } Node;
 
 extern Vector *node_vector;
 
 void program(void);
+
+// Variables
+
+extern Vector *var_vector;
+
+int var_find(const char *name);
+int var_add(const char *name);
 
 // Codegen
 

@@ -35,6 +35,8 @@
 
 #endif
 
+const int WORD_SIZE = 8;
+
 unsigned char* code;
 size_t codesize;
 
@@ -81,7 +83,7 @@ void gen_lval(Node *node) {
   if (node->ty != ND_IDENT)
     error("No lvalue");
 
-  int offset = ('z' - node->name + 1) * 8;
+  int offset = (node->varidx + 1) * WORD_SIZE;
   MOV_RBP_RAX();
   SUB_IM32_RAX(offset);
   PUSH_RAX();
@@ -149,15 +151,16 @@ void gen(Node *node) {
 size_t compile(const char* source) {
   token_vector = new_vector();
   node_vector = new_vector();
+  var_vector = new_vector();
 
   tokenize(source);
   program();
 
   // Prologue
-  // Allocate 26 variable bufer.
+  // Allocate variable bufer.
   PUSH_RBP();
   MOV_RSP_RBP();
-  SUB_IM32_RSP(8 * 26);
+  SUB_IM32_RSP(var_vector->len * WORD_SIZE);
 
   int len = node_vector->len;
   for (int i = 0; i < len; ++i) {

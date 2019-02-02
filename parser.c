@@ -1,6 +1,7 @@
 #include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>  // malloc
+#include <string.h>
 
 #include "9cc.h"
 
@@ -41,11 +42,22 @@ void tokenize(const char *p) {
       continue;
     }
 
-    if ('a' <= *p && *p <= 'z') {
+    if (isalpha(*p) || *p == '_') {
+      const char *q;
+      for (q = p + 1; ; ++q) {
+        if (!(isalnum(*q) || *q == '_'))
+          break;
+      }
+
+      size_t len = q - p;
+      char *dup = malloc(len + 1);
+      memcpy(dup, p, len);
+      dup[len] = '\0';
+
       Token *token = alloc_token(TK_IDENT, p);
-      token->ident = *p;
+      token->ident = dup;
       ++i;
-      ++p;
+      p = q;
       continue;
     }
 
@@ -55,6 +67,30 @@ void tokenize(const char *p) {
 
   alloc_token(TK_EOF, p);
 }
+
+//
+
+Vector *var_vector;
+
+int var_find(const char *name) {
+  int len = var_vector->len;
+  for (int i = 0; i < len; ++i) {
+    if (strcmp(var_vector->data[i], name) == 0)
+      return i;
+  }
+  return -1;
+}
+
+int var_add(const char *name) {
+  int idx = var_find(name);
+  if (idx < 0) {
+    idx = var_vector->len;
+    vec_push(var_vector, (char*)name);
+  }
+  return idx;
+}
+
+//
 
 int pos;
 
@@ -73,10 +109,10 @@ Node *new_node_num(int val) {
   return node;
 }
 
-Node *new_node_ident(char name) {
+Node *new_node_ident(const char *name) {
   Node *node = malloc(sizeof(Node));
   node->ty = ND_IDENT;
-  node->name = name;
+  node->varidx = var_add(name);
   return node;
 }
 
