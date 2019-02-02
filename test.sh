@@ -28,5 +28,6 @@ try 14 "a = 3; b = 5 * 6 - 8; a + b / 2;"
 try 14 "foo = 3; bar = 5 * 6 - 8; foo + bar / 2;"
 try 1 "a = b = (c = 1) + 2; a == b;"
 try 1 "123 != 456;"
+try 23 "foo() - 100;"
 
 echo OK

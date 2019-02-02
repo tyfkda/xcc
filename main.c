@@ -81,6 +81,17 @@ void error(const char* fmt, ...) {
   exit(1);
 }
 
+void init_compiler(uintptr_t adr) {
+  start_address = adr;
+  token_vector = new_vector();
+  node_vector = new_vector();
+  var_vector = new_vector();
+  label_map = new_map();
+  loc_vector = new_vector();
+}
+
+extern void add_foo();
+
 int main(int argc, char* argv[]) {
   if (argc < 2) {
     fprintf(stderr, "argc < 2\n");
@@ -92,7 +103,10 @@ int main(int argc, char* argv[]) {
     return 0;
   }
 
-  size_t binsize = compile(argv[1]);
+  init_compiler(LOAD_ADDRESS);
+  compile(argv[1]);
+  add_foo();
+  size_t binsize = fixup_locations();
 
   FILE* fp = stdout;
 

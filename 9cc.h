@@ -69,6 +69,7 @@ void tokenize(const char *p);
 enum NodeType {
   ND_NUM,     // Number nodes
   ND_IDENT,   // Identifier
+  ND_FUNCALL,
   ND_ADD,
   ND_SUB,
   ND_MUL,
@@ -87,6 +88,9 @@ typedef struct Node {
     } bop;
     long val;
     int varidx;
+    struct {
+      const char *name;
+    } funcall;
   };
 } Node;
 
@@ -103,8 +107,14 @@ int var_add(const char *name);
 
 // Codegen
 
-size_t compile(const char* source);
+extern Map *label_map;
+extern Vector *loc_vector;
+extern uintptr_t start_address;
+
+void compile(const char* source);
 void output_code(FILE* fp);
+void add_label(const char *label);
+size_t fixup_locations(void);
 
 // elfutil
 

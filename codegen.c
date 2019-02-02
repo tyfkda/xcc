@@ -35,8 +35,28 @@
 
 const int WORD_SIZE = 8;
 
+Map *label_map;
+
+enum LocType {
+  LOC_REL32,
+};
+
+typedef struct {
+  enum LocType type;
+  uintptr_t ip;
+  const char *label;
+  union {
+    struct {
+      uintptr_t base;
+    } rel;
+  };
+} LocInfo;
+
+uintptr_t start_address;
 unsigned char* code;
 size_t codesize;
+
+#define CURIP(ofs)  (start_address + codesize + ofs)
 
 void add_code(const unsigned char* buf, size_t size) {
   size_t newsize = codesize + size;
@@ -45,6 +65,56 @@ void add_code(const unsigned char* buf, size_t size) {
     error("not enough memory");
   memcpy(code + codesize, buf, size);
   codesize = newsize;
+}
+
+// Put label at the current.
+void add_label(const char *label) {
+  map_put(label_map, (char*)label, (void*)CURIP(0));
+}
+
+Vector *loc_vector;
+
+LocInfo *new_loc(enum LocType type, uintptr_t ip, const char *label) {
+  LocInfo *loc = malloc(sizeof(*loc));
+  loc->type = type;
+  loc->ip = ip;
+  loc->label = label;
+  vec_push(loc_vector, loc);
+  return loc;
+}
+
+void add_loc_rel32(uintptr_t ip, const char *label, uintptr_t base) {
+  LocInfo *loc = new_loc(LOC_REL32, ip, label);
+  loc->rel.base = base;
+}
+
+size_t fixup_locations(void) {
+  for (int i = 0; i < loc_vector->len; ++i) {
+    LocInfo *loc = loc_vector->data[i];
+    void *val = map_get(label_map, (char*)loc->label);
+    if (val == NULL) {
+      error("Cannot find label: `%s'", loc->label);
+    }
+
+    intptr_t v = (intptr_t)val;
+    switch (loc->type) {
+    case LOC_REL32:
+      {
+        intptr_t d = v - loc->rel.base;
+        // TODO: Check out of range
+        code[loc->ip    ] = d;
+        code[loc->ip + 1] = d >> 8;
+        code[loc->ip + 2] = d >> 16;
+        code[loc->ip + 3] = d >> 24;
+      }
+      break;
+    default:
+      assert(FALSE);
+      break;
+    }
+  }
+
+  return codesize;
 }
 
 #define ADD_CODE(...)  do { unsigned char buf[] = {__VA_ARGS__}; add_code(buf, sizeof(buf)); } while (0)
@@ -80,6 +150,8 @@ void add_code(const unsigned char* buf, size_t size) {
 #define POP_RAX()        ADD_CODE(0x58)  // pop %rax
 #define POP_RBP()        ADD_CODE(0x5d)  // pop %rbp
 #define POP_RDI()        ADD_CODE(0x5f)  // pop %rdi
+#define CALL(label)      do { add_loc_rel32(codesize + 1, label, CURIP(5)); ADD_CODE(0xe8, IM32(0)); } while(0)  // call
+#define RET()            ADD_CODE(0xc3)  // retq
 #define INT(x)           ADD_CODE(0xcd, x)  // int $x
 #define SYSCALL()        ADD_CODE(0x0f, 0x05)  // syscall
 
@@ -115,6 +187,11 @@ void gen(Node *node) {
     POP_RAX();
     MOV_RDI_IND_RAX();
     PUSH_RDI();
+    return;
+
+  case ND_FUNCALL:
+    CALL(node->funcall.name);
+    PUSH_RAX();
     return;
 
   case ND_EQ:
@@ -171,11 +248,7 @@ void gen(Node *node) {
   }
 }
 
-size_t compile(const char* source) {
-  token_vector = new_vector();
-  node_vector = new_vector();
-  var_vector = new_vector();
-
+void compile(const char* source) {
   tokenize(source);
   program();
 
@@ -201,10 +274,15 @@ size_t compile(const char* source) {
   MOV_RAX_RDI();
 
   SYSTEMCALL(SYSCALL_EXIT);
-
-  return codesize;
 }
 
 void output_code(FILE* fp) {
   fwrite(code, codesize, 1, fp);
+}
+
+void add_foo() {
+  add_label("foo");
+  const long val = 123;
+  MOV_I64_RAX(val);
+  RET();
 }

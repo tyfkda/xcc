@@ -137,6 +137,13 @@ Node *new_node_ident(const char *name) {
   return node;
 }
 
+Node *new_node_funcall(const char *name) {
+  Node *node = malloc(sizeof(Node));
+  node->type = ND_FUNCALL;
+  node->funcall.name = name;
+  return node;
+}
+
 int consume(enum TokenType type) {
   if (get_token(pos)->type != type)
     return FALSE;
@@ -161,7 +168,13 @@ Node *term() {
     return new_node_num(token->val);
   case TK_IDENT:
     ++pos;
-    return new_node_ident(token->ident);
+    if (consume(TK_LPAR)) {
+      if (!consume(TK_RPAR))
+        error("No close paren: %s", get_token(pos - 1)->input);
+      return new_node_funcall(token->ident);
+    } else {
+      return new_node_ident(token->ident);
+    }
   default:
     error("Number or Ident or open paren expected: %s", token->input);
     return NULL;
