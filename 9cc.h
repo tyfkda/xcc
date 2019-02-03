@@ -76,6 +76,7 @@ enum NodeType {
   ND_IDENT,   // Identifier
   ND_DEFUN,
   ND_FUNCALL,
+  ND_BLOCK,
   ND_ADD,
   ND_SUB,
   ND_MUL,
@@ -105,6 +106,9 @@ typedef struct Node {
       const char *name;
       Vector *args;
     } funcall;
+    struct {
+      Vector *nodes;
+    } block;
     struct {
       struct Node *cond;
       struct Node *tblock;

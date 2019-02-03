@@ -293,6 +293,14 @@ void gen(Node *node) {
       return;
     }
 
+  case ND_BLOCK:
+    for (int i = 0, len = node->block.nodes->len; i < len; ++i) {
+      gen((Node*)node->block.nodes->data[i]);
+      if (i < len - 1)
+        POP_RAX();
+    }
+    break;
+
   case ND_IF:
     {
       const char * flabel = alloc_label();

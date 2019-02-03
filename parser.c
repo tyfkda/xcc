@@ -174,6 +174,13 @@ Node *new_node_funcall(const char *name, Vector *args) {
   return node;
 }
 
+Node *new_node_block(Vector *nodes) {
+  Node *node = malloc(sizeof(Node));
+  node->type = ND_BLOCK;
+  node->block.nodes = nodes;
+  return node;
+}
+
 Node *new_node_if(Node *cond, Node *tblock, Node *fblock) {
   Node *node = malloc(sizeof(Node));
   node->type = ND_IF;
@@ -287,6 +294,15 @@ Node *assign() {
 
 Node *stmt();
 
+Node *block() {
+  Vector *nodes = new_vector();
+  for (;;) {
+    if (consume(TK_RBRACE))
+      return new_node_block(nodes);
+    vec_push(nodes, stmt());
+  }
+}
+
 Node *stmt_if() {
   if (consume(TK_LPAR)) {
     Node *cond = assign();
@@ -304,6 +320,9 @@ Node *stmt_if() {
 }
 
 Node *stmt() {
+  if (consume(TK_LBRACE))
+    return block();
+
   if (consume(TK_IF))
     return stmt_if();
 

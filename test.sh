@@ -36,5 +36,6 @@ try_direct 23 "foo(){ 123; } main(){ foo() - 100; }"
 try_direct 9 "sqsub(x, y){ xx = x * x; yy = y * y; xx - yy; } main(){ sqsub(5, 4); }"
 try 2 "if (1) 2;"
 try 3 "if (1 == 0) 2; else 3;"
+try 3 "a = b = 0; if (1) { a = 1; b = 2; } a + b;"
 
 echo OK
