@@ -38,6 +38,7 @@ enum TokenType {
   TK_SUB = '-',
   TK_MUL = '*',
   TK_DIV = '/',
+  TK_AMP = '&',
   TK_LPAR = '(',
   TK_RPAR = ')',
   TK_LBRACE = '{',
@@ -103,6 +104,8 @@ enum NodeType {
   ND_ASSIGN,
   ND_EQ,
   ND_NE,
+  ND_REF,
+  ND_DEREF,
   ND_IF,
   ND_WHILE,
 };
@@ -114,6 +117,9 @@ typedef struct Node {
       struct Node *lhs;
       struct Node *rhs;
     } bop;
+    struct {
+      struct Node *sub;
+    } unary;
     long val;
     const char *ident;
     struct {

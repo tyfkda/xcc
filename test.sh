@@ -38,5 +38,6 @@ try 2 "if (1) 2;"
 try 3 "if (1 == 0) 2; else 3;"
 try 3 "int a; int b; a = b = 0; if (1) { a = 1; b = 2; } a + b;"
 try 55 "int i; int acc; i = acc = 0; while (i != 11) { acc = acc + i; i = i + 1; } acc;"
+try 11 "int *p; int x; x = 10; p = &x; *p = *p + 1; x;"
 
 echo OK

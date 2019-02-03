@@ -191,14 +191,34 @@ size_t fixup_locations(void) {
 
 static Node *curfunc;
 
-void gen_lval(Node *node) {
-  if (node->type != ND_IDENT)
-    error("No lvalue: %d", node->type);
+void gen(Node *node);
 
-  int varidx = var_find(curfunc->defun.lvars, node->ident);
-  int offset = (varidx + 1) * WORD_SIZE;
-  MOV_RBP_RAX();
-  SUB_IM32_RAX(offset);
+void gen_lval(Node *node) {
+  switch (node->type) {
+  case ND_IDENT:
+    {
+      int varidx = var_find(curfunc->defun.lvars, node->ident);
+      int offset = (varidx + 1) * WORD_SIZE;
+      MOV_RBP_RAX();
+      SUB_IM32_RAX(offset);
+    }
+    break;
+  case ND_DEREF:
+    gen_lval(node->unary.sub);
+    MOV_IND_RAX_RAX();
+    break;
+  default:
+    error("No lvalue: %d", node->type);
+    break;
+  }
+}
+
+void gen_rval(Node *node) {
+  gen(node);  // ?
+}
+
+void gen_ref(Node *node) {
+  gen_lval(node);
 }
 
 void gen(Node *node) {
@@ -209,6 +229,15 @@ void gen(Node *node) {
 
   case ND_IDENT:
     gen_lval(node);
+    MOV_IND_RAX_RAX();
+    return;
+
+  case ND_REF:
+    gen_ref(node->unary.sub);
+    return;
+
+  case ND_DEREF:
+    gen_rval(node->unary.sub);
     MOV_IND_RAX_RAX();
     return;
 

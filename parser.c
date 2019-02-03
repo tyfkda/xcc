@@ -71,7 +71,7 @@ void tokenize(const char *p) {
       continue;
     }
 
-    if (strchr("+-*/(){}}=;,", *p) != NULL) {
+    if (strchr("+-*/&(){}}=;,", *p) != NULL) {
       alloc_token((enum TokenType)*p, p);
       ++i;
       ++p;
@@ -150,6 +150,13 @@ Node *new_node_bop(enum NodeType type, Node *lhs, Node *rhs) {
   node->type = type;
   node->bop.lhs = lhs;
   node->bop.rhs = rhs;
+  return node;
+}
+
+Node *new_node_unary(enum NodeType type, Node *sub) {
+  Node *node = malloc(sizeof(Node));
+  node->type = type;
+  node->unary.sub = sub;
   return node;
 }
 
@@ -240,6 +247,16 @@ Node *term() {
     if (!consume(TK_RPAR))
       error("No close paren: %s", get_token(pos)->input);
     return node;
+  }
+
+  if (consume(TK_AMP)) {
+    Node *node = term();
+    return new_node_unary(ND_REF, node);
+  }
+
+  if (consume(TK_MUL)) {
+    Node *node = term();
+    return new_node_unary(ND_DEREF, node);
   }
 
   Token *token = get_token(pos);
@@ -355,6 +372,14 @@ Type *parse_type() {
   Type *type = malloc(sizeof(*type));
   type->type = TY_INT;
   type->ptrof = NULL;
+
+  while (consume(TK_MUL)) {
+    Type *ptr = malloc(sizeof(*ptr));
+    ptr->type = TY_PTR;
+    ptr->ptrof = type;
+    type = ptr;
+  }
+
   return type;
 }
 
