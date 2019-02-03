@@ -50,6 +50,8 @@ enum TokenType {
   TK_EOF,        // Represent input end
   TK_EQ,  // ==
   TK_NE,  // !=
+  TK_IF,
+  TK_ELSE,
 };
 
 // Token type
@@ -81,6 +83,7 @@ enum NodeType {
   ND_ASSIGN,
   ND_EQ,
   ND_NE,
+  ND_IF,
 };
 
 typedef struct Node {
@@ -102,6 +105,11 @@ typedef struct Node {
       const char *name;
       Vector *args;
     } funcall;
+    struct {
+      struct Node *cond;
+      struct Node *tblock;
+      struct Node *fblock;
+    } if_;
   };
 } Node;
 

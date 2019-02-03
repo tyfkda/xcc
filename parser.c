@@ -26,6 +26,21 @@ Token *get_token(int pos) {
   return (Token *)token_vector->data[pos];
 }
 
+enum TokenType reserved_word(const char *word) {
+  struct {
+    const char *str;
+    enum TokenType type;
+  } table[] = {
+    { "if", TK_IF },
+    { "else", TK_ELSE },
+  };
+  for (int i = 0; i < sizeof(table) / sizeof(*table); ++i) {
+    if (strcmp(table[i].str, word) == 0)
+      return table[i].type;
+  }
+  return -1;
+}
+
 void tokenize(const char *p) {
   int i = 0;
   while (*p != '\0') {
@@ -75,8 +90,14 @@ void tokenize(const char *p) {
           break;
       }
 
-      Token *token = alloc_token(TK_IDENT, p);
-      token->ident = strndup_(p, q - p);
+      char *dup = strndup_(p, q - p);
+      enum TokenType word = reserved_word(dup);
+      if (word != -1) {
+        alloc_token(word, p);
+      } else {
+        Token *token = alloc_token(TK_IDENT, p);
+        token->ident = dup;
+      }
       ++i;
       p = q;
       continue;
@@ -150,6 +171,15 @@ Node *new_node_funcall(const char *name, Vector *args) {
   node->type = ND_FUNCALL;
   node->funcall.name = name;
   node->funcall.args = args;
+  return node;
+}
+
+Node *new_node_if(Node *cond, Node *tblock, Node *fblock) {
+  Node *node = malloc(sizeof(Node));
+  node->type = ND_IF;
+  node->if_.cond = cond;
+  node->if_.tblock = tblock;
+  node->if_.fblock = fblock;
   return node;
 }
 
@@ -255,7 +285,29 @@ Node *assign() {
     return node;
 }
 
+Node *stmt();
+
+Node *stmt_if() {
+  if (consume(TK_LPAR)) {
+    Node *cond = assign();
+    if (consume(TK_RPAR)) {
+      Node *tblock = stmt();
+      Node *fblock = NULL;
+      if (consume(TK_ELSE)) {
+        fblock = stmt();
+      }
+      return new_node_if(cond, tblock, fblock);
+    }
+  }
+  error("Parse `if' failed: %s", get_token(pos)->input);
+  return NULL;
+}
+
 Node *stmt() {
+  if (consume(TK_IF))
+    return stmt_if();
+
+  // expression statement.
   Node *node = assign();
   if (!consume(TK_SEMICOL))
     error("Semicolon required: %s", get_token(pos)->input);

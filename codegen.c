@@ -35,6 +35,13 @@
 
 const int WORD_SIZE = 8;
 
+char *strdup_(const char *str) {
+  size_t len = strlen(str);
+  char *dup = malloc(len + 1);
+  strcpy(dup, str);
+  return dup;
+}
+
 Map *label_map;
 
 enum LocType {
@@ -70,6 +77,16 @@ void add_code(const unsigned char* buf, size_t size) {
 // Put label at the current.
 void add_label(const char *label) {
   map_put(label_map, (char*)label, (void*)CURIP(0));
+}
+
+char *alloc_label() {
+  static int label_no;
+  ++label_no;
+  char buf[sizeof(int) * 3 + 1];
+  snprintf(buf, sizeof(buf), ".L%d", label_no);
+  char *dup = strdup_(buf);
+  add_label(dup);
+  return dup;
 }
 
 Vector *loc_vector;
@@ -149,6 +166,7 @@ size_t fixup_locations(void) {
 #define MUL_RDI()        ADD_CODE(0x48, 0xf7, 0xe7)  // mul %rdi
 #define DIV_RDI()        ADD_CODE(0x48, 0xf7, 0xf7)  // div %rdi
 #define CMP_RAX_RDI()    ADD_CODE(0x48, 0x39, 0xc7)  // cmp %rax,%rdi
+#define CMP_I8_RAX(x)    ADD_CODE(0x48, 0x83, 0xf8, x)  // cmp $x,%rax
 #define SETE_AL()        ADD_CODE(0x0f, 0x94, 0xc0)  // sete %al
 #define SETNE_AL()       ADD_CODE(0x0f, 0x95, 0xc0)  // setne %al
 #define PUSH_RAX()       ADD_CODE(0x50)  // push %rax
@@ -162,6 +180,9 @@ size_t fixup_locations(void) {
 #define POP_RDI()        ADD_CODE(0x5f)  // pop %rdi
 #define POP_R8()         ADD_CODE(0x41, 0x58)  // pop %r8
 #define POP_R9()         ADD_CODE(0x41, 0x59)  // pop %r9
+#define JE32(label)      do { add_loc_rel32(codesize + 2, label, CURIP(6)); ADD_CODE(0x0f, 0x84, IM32(0)); } while(0)  // je
+#define JNE32(label)     do { add_loc_rel32(codesize + 2, label, CURIP(6)); ADD_CODE(0x0f, 0x85, IM32(0)); } while(0)  // jne
+#define JMP32(label)     do { add_loc_rel32(codesize + 1, label, CURIP(5)); ADD_CODE(0xe9, IM32(0)); } while(0)  // jmp
 #define CALL(label)      do { add_loc_rel32(codesize + 1, label, CURIP(5)); ADD_CODE(0xe8, IM32(0)); } while(0)  // call
 #define RET()            ADD_CODE(0xc3)  // retq
 #define INT(x)           ADD_CODE(0xcd, x)  // int $x
@@ -267,6 +288,32 @@ void gen(Node *node) {
       PUSH_RAX();
       return;
     }
+
+  case ND_IF:
+    {
+      const char * flabel = alloc_label();
+      gen(node->if_.cond);
+      POP_RAX();
+      if (node->if_.fblock == NULL) {
+        PUSH_RAX();  // Push dummy value for the false case.
+        CMP_I8_RAX(0);
+        JE32(flabel);
+        POP_RAX();  // Drop dummy value.
+        gen(node->if_.tblock);
+        JE32(flabel);
+      } else {
+        CMP_I8_RAX(0);
+        JE32(flabel);
+        gen(node->if_.tblock);
+
+        const char * nlabel = alloc_label();
+        JMP32(nlabel);
+        add_label(flabel);
+        gen(node->if_.fblock);
+        add_label(nlabel);
+      }
+    }
+    break;
 
   case ND_EQ:
   case ND_NE:
