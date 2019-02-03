@@ -149,6 +149,7 @@ size_t fixup_locations(void) {
 #define MOV_RBP_RAX()    ADD_CODE(0x48, 0x89, 0xe8)  // mov %rbp,%rax
 #define MOV_IND_RAX_RAX()  ADD_CODE(0x48, 0x8b, 0x00)  // mov (%rax),%rax
 #define MOV_RAX_IND_RAX()  ADD_CODE(0x48, 0x89, 0x00)  // mov %rax,(%rax)
+#define MOV_RAX_IND_RDI()  ADD_CODE(0x48, 0x89, 0x07)  // mov %rax,(%rdi)
 #define MOV_RDI_IND_RAX()  ADD_CODE(0x48, 0x89, 0x38)  // mov %rdi,(%rax)
 #define MOVZB_AL_RAX()   ADD_CODE(0x48, 0x0f, 0xb6, 0xc0)  // movzbq %al,%rax
 #define MOV_RDI_IND8_RBP(ofs)  ADD_CODE(0x48, 0x89, 0x7d, ofs)  // mov %rdi,ofs(%rbp)
@@ -198,31 +199,26 @@ void gen_lval(Node *node) {
   int offset = (varidx + 1) * WORD_SIZE;
   MOV_RBP_RAX();
   SUB_IM32_RAX(offset);
-  PUSH_RAX();
 }
 
 void gen(Node *node) {
   switch (node->type) {
   case ND_NUM:
     MOV_I64_RAX(node->val);
-    PUSH_RAX();
     return;
 
   case ND_IDENT:
     gen_lval(node);
-    POP_RAX();
     MOV_IND_RAX_RAX();
-    PUSH_RAX();
     return;
 
   case ND_ASSIGN:
     gen_lval(node->bop.lhs);
+    PUSH_RAX();
     gen(node->bop.rhs);
 
     POP_RDI();
-    POP_RAX();
-    MOV_RDI_IND_RAX();
-    PUSH_RDI();
+    MOV_RAX_IND_RDI();
     return;
 
   case ND_DEFUN:
@@ -254,7 +250,6 @@ void gen(Node *node) {
       // Statements
       for (int i = 0; i < node->defun.stmts->len; ++i) {
         gen((Node*)node->defun.stmts->data[i]);
-        POP_RAX();
       }
 
       // Epilogue
@@ -275,8 +270,10 @@ void gen(Node *node) {
         if (len > 6)
           error("Param count exceeds 6 (%d)", len);
 
-        for (int i = 0; i < len; ++i)
+        for (int i = 0; i < len; ++i) {
           gen((Node*)args->data[i]);
+          PUSH_RAX();
+        }
 
         switch (len) {
         case 6:  POP_R9();  // Fall
@@ -289,35 +286,22 @@ void gen(Node *node) {
         }
       }
       CALL(node->funcall.name);
-      PUSH_RAX();
       return;
     }
 
   case ND_BLOCK:
-    for (int i = 0, len = node->block.nodes->len; i < len; ++i) {
+    for (int i = 0, len = node->block.nodes->len; i < len; ++i)
       gen((Node*)node->block.nodes->data[i]);
-      if (i < len - 1)
-        POP_RAX();
-    }
     break;
 
   case ND_IF:
     {
       const char * flabel = alloc_label();
       gen(node->if_.cond);
-      POP_RAX();
-      if (node->if_.fblock == NULL) {
-        PUSH_RAX();  // Push dummy value for the false case.
-        CMP_I8_RAX(0);
-        JE32(flabel);
-        POP_RAX();  // Drop dummy value.
-        gen(node->if_.tblock);
-        JE32(flabel);
-      } else {
-        CMP_I8_RAX(0);
-        JE32(flabel);
-        gen(node->if_.tblock);
-
+      CMP_I8_RAX(0);
+      JE32(flabel);
+      gen(node->if_.tblock);
+      if (node->if_.fblock != NULL) {
         const char * nlabel = alloc_label();
         JMP32(nlabel);
         add_label(flabel);
@@ -334,22 +318,19 @@ void gen(Node *node) {
       JMP32(clabel);
       add_label(llabel);
       gen(node->while_.body);
-      POP_RAX();
       add_label(clabel);
       gen(node->while_.cond);
-      POP_RAX();
       CMP_I8_RAX(0);
       JNE32(llabel);
-      PUSH_RAX();  // Dummy
     }
     break;
 
   case ND_EQ:
   case ND_NE:
     gen(node->bop.lhs);
+    PUSH_RAX();
     gen(node->bop.rhs);
 
-    POP_RAX();
     POP_RDI();
     CMP_RAX_RDI();
     if (node->type == ND_EQ)
@@ -357,18 +338,17 @@ void gen(Node *node) {
     else
       SETNE_AL();
     MOVZB_AL_RAX();
-    PUSH_RAX();
     return;
 
   case ND_ADD:
   case ND_SUB:
   case ND_MUL:
   case ND_DIV:
-    gen(node->bop.lhs);
     gen(node->bop.rhs);
+    PUSH_RAX();
+    gen(node->bop.lhs);
 
     POP_RDI();
-    POP_RAX();
 
     switch (node->type) {
     case ND_ADD:
@@ -388,8 +368,6 @@ void gen(Node *node) {
       assert(FALSE);
       break;
     }
-
-    PUSH_RAX();
     return;
 
   default:
