@@ -232,21 +232,23 @@ void gen(Node *node) {
       // Prologue
       // Allocate variable bufer.
       Vector *lvars = node->defun.lvars;
-      PUSH_RBP();
-      MOV_RSP_RBP();
-      SUB_IM32_RSP(lvars->len * WORD_SIZE);
-      // Store parameters into local frame.
-      int len = len = node->defun.param_count;
-      if (len > 6)
-        error("Parameter count exceeds 6 (%d)", len);
-      switch (len) {
-      case 6:  MOV_R9_IND8_RBP( -6 * WORD_SIZE);  // Fall
-      case 5:  MOV_R8_IND8_RBP( -5 * WORD_SIZE);  // Fall
-      case 4:  MOV_RCX_IND8_RBP(-4 * WORD_SIZE);  // Fall
-      case 3:  MOV_RDX_IND8_RBP(-3 * WORD_SIZE);  // Fall
-      case 2:  MOV_RSI_IND8_RBP(-2 * WORD_SIZE);  // Fall
-      case 1:  MOV_RDI_IND8_RBP(-1 * WORD_SIZE);  // Fall
-      default: break;
+      if (lvars->len > 0) {
+        PUSH_RBP();
+        MOV_RSP_RBP();
+        SUB_IM32_RSP(lvars->len * WORD_SIZE);
+        // Store parameters into local frame.
+        int len = len = node->defun.param_count;
+        if (len > 6)
+          error("Parameter count exceeds 6 (%d)", len);
+        switch (len) {
+        case 6:  MOV_R9_IND8_RBP( -6 * WORD_SIZE);  // Fall
+        case 5:  MOV_R8_IND8_RBP( -5 * WORD_SIZE);  // Fall
+        case 4:  MOV_RCX_IND8_RBP(-4 * WORD_SIZE);  // Fall
+        case 3:  MOV_RDX_IND8_RBP(-3 * WORD_SIZE);  // Fall
+        case 2:  MOV_RSI_IND8_RBP(-2 * WORD_SIZE);  // Fall
+        case 1:  MOV_RDI_IND8_RBP(-1 * WORD_SIZE);  // Fall
+        default: break;
+        }
       }
 
       // Statements
@@ -256,8 +258,10 @@ void gen(Node *node) {
       }
 
       // Epilogue
-      MOV_RBP_RSP();
-      POP_RBP();
+      if (lvars->len > 0) {
+        MOV_RBP_RSP();
+        POP_RBP();
+      }
       RET();
       curfunc = NULL;
     }
