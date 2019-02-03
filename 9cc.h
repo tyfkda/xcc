@@ -71,6 +71,23 @@ extern Vector *token_vector;
 Token *get_token(int pos);
 void tokenize(const char *p);
 
+// Type
+
+enum eType {
+  TY_INT,
+  TY_PTR,
+};
+
+typedef struct Type {
+  enum eType type;
+  struct Type *ptrof;
+} Type;
+
+typedef struct {
+  const char *name;
+  Type *type;
+} VarInfo;
+
 // Node
 
 enum NodeType {

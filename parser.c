@@ -117,7 +117,8 @@ void tokenize(const char *p) {
 int var_find(Vector *lvars, const char *name) {
   int len = lvars->len;
   for (int i = 0; i < len; ++i) {
-    if (strcmp(lvars->data[i], name) == 0)
+    VarInfo *info = (VarInfo*)lvars->data[i];
+    if (strcmp(info->name, name) == 0)
       return i;
   }
   return -1;
@@ -136,6 +137,13 @@ int var_add(Vector *lvars, const char *name) {
 
 static int pos;
 static Node *curfunc;
+
+void decl_var(Vector *lvars, const char *name, Type *type) {
+  VarInfo *info = malloc(sizeof(*info));
+  info->name = name;
+  info->type = type;
+  vec_push(lvars, info);
+}
 
 Node *new_node_bop(enum NodeType type, Node *lhs, Node *rhs) {
   Node *node = malloc(sizeof(Node));
@@ -343,14 +351,23 @@ Node *stmt_while() {
   return NULL;
 }
 
+Type *parse_type() {
+  Type *type = malloc(sizeof(*type));
+  type->type = TY_INT;
+  type->ptrof = NULL;
+  return type;
+}
+
 void vardecl() {
+  Type *type = parse_type();
+
   if (!consume(TK_IDENT))
     error("Ident expected, but %s", get_token(pos)->input);
   const char *name = get_token(pos - 1)->ident;
   if (!consume(TK_SEMICOL))
     error("Semicolon expected, but %s", get_token(pos)->input);
   assert(curfunc != NULL);
-  vec_push(curfunc->defun.lvars, (char*)name);
+  decl_var(curfunc->defun.lvars, name, type);
 }
 
 Node *stmt() {
@@ -380,9 +397,10 @@ Vector *funparams() {
     for (;;) {
       if (!consume(TK_INT))
         error("`int' expected, but %s", get_token(pos)->input);
+      Type *type = parse_type();
       if (!consume(TK_IDENT))
         error("Ident expected, but %s", get_token(pos)->input);
-      vec_push(params, (char*)get_token(pos - 1)->ident);
+      decl_var(params, get_token(pos - 1)->ident, type);
       if (consume(TK_RPAR))
         break;
       if (consume(TK_COMMA))
