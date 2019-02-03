@@ -53,6 +53,7 @@ enum TokenType {
   TK_IF,
   TK_ELSE,
   TK_WHILE,
+  TK_INT,
 };
 
 // Token type

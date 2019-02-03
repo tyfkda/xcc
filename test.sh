@@ -18,7 +18,7 @@ try_direct() {
 }
 
 try() {
-  try_direct "$1" "main(){ $2 }"
+  try_direct "$1" "int main(){ $2 }"
 }
 
 try 0 '0;'
@@ -28,15 +28,15 @@ try 41 " 12 + 34 - 5 ;"
 try 47 "5+6*7;"
 try 15 "5*(9-6);"
 try 4 "(3+5)/2;"
-try 14 "a = 3; b = 5 * 6 - 8; a + b / 2;"
-try 14 "foo = 3; bar = 5 * 6 - 8; foo + bar / 2;"
-try 1 "a = b = (c = 1) + 2; a == b;"
+try 14 "int a; int b; a = 3; b = 5 * 6 - 8; a + b / 2;"
+try 14 "int foo; int bar; foo = 3; bar = 5 * 6 - 8; foo + bar / 2;"
+try 1 "int a; int b; int c; a = b = (c = 1) + 2; a == b;"
 try 1 "123 != 456;"
-try_direct 23 "foo(){ 123; } main(){ foo() - 100; }"
-try_direct 9 "sqsub(x, y){ xx = x * x; yy = y * y; xx - yy; } main(){ sqsub(5, 4); }"
+try_direct 23 "int foo(){ 123; } int main(){ foo() - 100; }"
+try_direct 9 "int sqsub(int x, int y){ int xx; int yy; xx = x * x; yy = y * y; xx - yy; } int main(){ sqsub(5, 4); }"
 try 2 "if (1) 2;"
 try 3 "if (1 == 0) 2; else 3;"
-try 3 "a = b = 0; if (1) { a = 1; b = 2; } a + b;"
-try 55 "i = acc = 0; while (i != 11) { acc = acc + i; i = i + 1; } acc;"
+try 3 "int a; int b; a = b = 0; if (1) { a = 1; b = 2; } a + b;"
+try 55 "int i; int acc; i = acc = 0; while (i != 11) { acc = acc + i; i = i + 1; } acc;"
 
 echo OK

@@ -1,3 +1,4 @@
+#include <assert.h>
 #include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>  // malloc
@@ -34,6 +35,7 @@ enum TokenType reserved_word(const char *word) {
     { "if", TK_IF },
     { "else", TK_ELSE },
     { "while", TK_WHILE },
+    { "int", TK_INT },
   };
   for (int i = 0; i < sizeof(table) / sizeof(*table); ++i) {
     if (strcmp(table[i].str, word) == 0)
@@ -243,7 +245,8 @@ Node *term() {
       return funcall(token->ident);
     } else {
       if (curfunc != NULL) {
-        var_add(curfunc->defun.lvars, token->ident);
+        if (var_find(curfunc->defun.lvars, token->ident) < 0)
+          error("Undefined `%s'", token->ident);
       }
       return new_node_ident(token->ident);
     }
@@ -340,7 +343,21 @@ Node *stmt_while() {
   return NULL;
 }
 
+void vardecl() {
+  if (!consume(TK_IDENT))
+    error("Ident expected, but %s", get_token(pos)->input);
+  const char *name = get_token(pos - 1)->ident;
+  if (!consume(TK_SEMICOL))
+    error("Semicolon expected, but %s", get_token(pos)->input);
+  assert(curfunc != NULL);
+  vec_push(curfunc->defun.lvars, (char*)name);
+}
+
 Node *stmt() {
+  while (consume(TK_INT)) {
+    vardecl();
+  }
+
   if (consume(TK_LBRACE))
     return block();
 
@@ -361,9 +378,10 @@ Vector *funparams() {
   Vector *params = new_vector();
   if (!consume(TK_RPAR)) {
     for (;;) {
-      if (!consume(TK_IDENT)) {
+      if (!consume(TK_INT))
+        error("`int' expected, but %s", get_token(pos)->input);
+      if (!consume(TK_IDENT))
         error("Ident expected, but %s", get_token(pos)->input);
-      }
       vec_push(params, (char*)get_token(pos - 1)->ident);
       if (consume(TK_RPAR))
         break;
@@ -376,21 +394,23 @@ Vector *funparams() {
 }
 
 Node *toplevel() {
-  if (consume(TK_IDENT)) {
-    Token *funcname = get_token(pos - 1);
-    if (consume(TK_LPAR)) {
-      Vector *params = funparams();
-      if (consume(TK_LBRACE)) {
-        Node *node = new_node_defun(funcname->ident, params);
-        curfunc = node;
+  if (consume(TK_INT)) {
+    if (consume(TK_IDENT)) {
+      Token *funcname = get_token(pos - 1);
+      if (consume(TK_LPAR)) {
+        Vector *params = funparams();
+        if (consume(TK_LBRACE)) {
+          Node *node = new_node_defun(funcname->ident, params);
+          curfunc = node;
 
-        Vector *stmts = new_vector();
-        while (!consume(TK_RBRACE)) {
-          Node *st = stmt();
-          vec_push(stmts, st);
+          Vector *stmts = new_vector();
+          while (!consume(TK_RBRACE)) {
+            Node *st = stmt();
+            vec_push(stmts, st);
+          }
+          node->defun.stmts = stmts;
+          return node;
         }
-        node->defun.stmts = stmts;
-        return node;
       }
     }
     error("Defun failed: %s", get_token(pos)->input);
