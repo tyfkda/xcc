@@ -5,6 +5,13 @@
 
 #include "9cc.h"
 
+char *strndup_(const char *str, size_t size) {
+  char *dup = malloc(size + 1);
+  strncpy(dup, str, size);
+  dup[size] = '\0';
+  return dup;
+}
+
 Vector *token_vector;
 
 Token *alloc_token(enum TokenType type, const char *input) {
@@ -30,27 +37,24 @@ void tokenize(const char *p) {
     if (*p == '=') {
       switch (p[1]) {
       case '=':
-        {
-          /*Token *token =*/ alloc_token(TK_EQ, p);
-          ++i;
-          p += 2;
-          continue;
-        }
+        alloc_token(TK_EQ, p);
+        ++i;
+        p += 2;
+        continue;
       default:
         break;
       }
     }
 
     if (*p == '!' && p[1] == '=') {
-      /*Token *token =*/ alloc_token(TK_NE, p);
+      alloc_token(TK_NE, p);
       ++i;
       p += 2;
       continue;
     }
 
-    if (*p == '+' || *p == '-' || *p == '*' || *p == '/' || *p == '(' || *p == ')' ||
-        *p == '{' || *p == '}' || *p == '=' || *p == ';' || *p == ',') {
-      /*Token *token =*/ alloc_token((enum TokenType)*p, p);
+    if (strchr("+-*/(){}}=;,", *p) != NULL) {
+      alloc_token((enum TokenType)*p, p);
       ++i;
       ++p;
       continue;
@@ -71,20 +75,14 @@ void tokenize(const char *p) {
           break;
       }
 
-      size_t len = q - p;
-      char *dup = malloc(len + 1);
-      memcpy(dup, p, len);
-      dup[len] = '\0';
-
       Token *token = alloc_token(TK_IDENT, p);
-      token->ident = dup;
+      token->ident = strndup_(p, q - p);
       ++i;
       p = q;
       continue;
     }
 
-    fprintf(stderr, "Cannot tokenize: %s\n", p);
-    exit(1);
+    error("Unexpected character: %c\n", *p);
   }
 
   alloc_token(TK_EOF, p);
