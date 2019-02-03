@@ -52,6 +52,7 @@ enum TokenType {
   TK_NE,  // !=
   TK_IF,
   TK_ELSE,
+  TK_WHILE,
 };
 
 // Token type
@@ -85,6 +86,7 @@ enum NodeType {
   ND_EQ,
   ND_NE,
   ND_IF,
+  ND_WHILE,
 };
 
 typedef struct Node {
@@ -114,6 +116,10 @@ typedef struct Node {
       struct Node *tblock;
       struct Node *fblock;
     } if_;
+    struct {
+      struct Node *cond;
+      struct Node *body;
+    } while_;
   };
 } Node;
 

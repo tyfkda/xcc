@@ -327,6 +327,23 @@ void gen(Node *node) {
     }
     break;
 
+  case ND_WHILE:
+    {
+      const char * llabel = alloc_label();
+      const char * clabel = alloc_label();
+      JMP32(clabel);
+      add_label(llabel);
+      gen(node->while_.body);
+      POP_RAX();
+      add_label(clabel);
+      gen(node->while_.cond);
+      POP_RAX();
+      CMP_I8_RAX(0);
+      JNE32(llabel);
+      PUSH_RAX();  // Dummy
+    }
+    break;
+
   case ND_EQ:
   case ND_NE:
     gen(node->bop.lhs);

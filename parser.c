@@ -33,6 +33,7 @@ enum TokenType reserved_word(const char *word) {
   } table[] = {
     { "if", TK_IF },
     { "else", TK_ELSE },
+    { "while", TK_WHILE },
   };
   for (int i = 0; i < sizeof(table) / sizeof(*table); ++i) {
     if (strcmp(table[i].str, word) == 0)
@@ -190,6 +191,14 @@ Node *new_node_if(Node *cond, Node *tblock, Node *fblock) {
   return node;
 }
 
+Node *new_node_while(Node *cond, Node *body) {
+  Node *node = malloc(sizeof(Node));
+  node->type = ND_WHILE;
+  node->while_.cond = cond;
+  node->while_.body = body;
+  return node;
+}
+
 int consume(enum TokenType type) {
   if (get_token(pos)->type != type)
     return FALSE;
@@ -319,12 +328,27 @@ Node *stmt_if() {
   return NULL;
 }
 
+Node *stmt_while() {
+  if (consume(TK_LPAR)) {
+    Node *cond = assign();
+    if (consume(TK_RPAR)) {
+      Node *body = stmt();
+      return new_node_while(cond, body);
+    }
+  }
+  error("Parse `while' failed: %s", get_token(pos)->input);
+  return NULL;
+}
+
 Node *stmt() {
   if (consume(TK_LBRACE))
     return block();
 
   if (consume(TK_IF))
     return stmt_if();
+
+  if (consume(TK_WHILE))
+    return stmt_while();
 
   // expression statement.
   Node *node = assign();
