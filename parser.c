@@ -49,7 +49,7 @@ void tokenize(const char *p) {
     }
 
     if (*p == '+' || *p == '-' || *p == '*' || *p == '/' || *p == '(' || *p == ')' ||
-        *p == '{' || *p == '}' || *p == '=' || *p == ';') {
+        *p == '{' || *p == '}' || *p == '=' || *p == ';' || *p == ',') {
       /*Token *token =*/ alloc_token((enum TokenType)*p, p);
       ++i;
       ++p;
@@ -137,19 +137,21 @@ Node *new_node_ident(const char *name) {
   return node;
 }
 
-Node *new_node_defun(const char *name) {
+Node *new_node_defun(const char *name, Vector *params) {
   Node *node = malloc(sizeof(Node));
   node->type = ND_DEFUN;
   node->defun.name = name;
-  node->defun.lvars = new_vector();
+  node->defun.lvars = params;
+  node->defun.param_count = params->len;
   node->defun.stmts = NULL;
   return node;
 }
 
-Node *new_node_funcall(const char *name) {
+Node *new_node_funcall(const char *name, Vector *args) {
   Node *node = malloc(sizeof(Node));
   node->type = ND_FUNCALL;
   node->funcall.name = name;
+  node->funcall.args = args;
   return node;
 }
 
@@ -161,6 +163,22 @@ int consume(enum TokenType type) {
 }
 
 Node *assign();
+
+Node *funcall(const char *name) {
+  Vector *args = NULL;
+  if (!consume(TK_RPAR)) {
+    args = new_vector();
+    for (;;) {
+      vec_push(args, assign());
+      if (consume(TK_RPAR))
+        break;
+      if (consume(TK_COMMA))
+        continue;
+      error("Comma or `)` expected, but %s", get_token(pos)->input);
+    }
+  }
+  return new_node_funcall(name, args);
+}
 
 Node *term() {
   if (consume(TK_LPAR)) {
@@ -178,9 +196,7 @@ Node *term() {
   case TK_IDENT:
     ++pos;
     if (consume(TK_LPAR)) {
-      if (!consume(TK_RPAR))
-        error("No close paren: %s", get_token(pos - 1)->input);
-      return new_node_funcall(token->ident);
+      return funcall(token->ident);
     } else {
       if (curfunc != NULL) {
         var_add(curfunc->defun.lvars, token->ident);
@@ -248,23 +264,40 @@ Node *stmt() {
   return node;
 }
 
+Vector *funparams() {
+  Vector *params = new_vector();
+  if (!consume(TK_RPAR)) {
+    for (;;) {
+      if (!consume(TK_IDENT)) {
+        error("Ident expected, but %s", get_token(pos)->input);
+      }
+      vec_push(params, (char*)get_token(pos - 1)->ident);
+      if (consume(TK_RPAR))
+        break;
+      if (consume(TK_COMMA))
+        continue;
+      error("Comma or `}' expected, but %s", get_token(pos)->input);
+    }
+  }
+  return params;
+}
+
 Node *toplevel() {
   if (consume(TK_IDENT)) {
     Token *funcname = get_token(pos - 1);
     if (consume(TK_LPAR)) {
-      if (consume(TK_RPAR)) {
-        if (consume(TK_LBRACE)) {
-          Node *node = new_node_defun(funcname->ident);
-          curfunc = node;
+      Vector *params = funparams();
+      if (consume(TK_LBRACE)) {
+        Node *node = new_node_defun(funcname->ident, params);
+        curfunc = node;
 
-          Vector *stmts = new_vector();
-          while (!consume(TK_RBRACE)) {
-            Node *st = stmt();
-            vec_push(stmts, st);
-          }
-          node->defun.stmts = stmts;
-          return node;
+        Vector *stmts = new_vector();
+        while (!consume(TK_RBRACE)) {
+          Node *st = stmt();
+          vec_push(stmts, st);
         }
+        node->defun.stmts = stmts;
+        return node;
       }
     }
     error("Defun failed: %s", get_token(pos)->input);

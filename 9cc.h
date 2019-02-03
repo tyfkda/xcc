@@ -44,6 +44,7 @@ enum TokenType {
   TK_RBRACE = '}',
   TK_ASSIGN = '=',
   TK_SEMICOL = ';',
+  TK_COMMA = ',',
   TK_NUM = 256,  // Integer token
   TK_IDENT,      // Identifier
   TK_EOF,        // Represent input end
@@ -95,9 +96,11 @@ typedef struct Node {
       const char *name;
       Vector *lvars;
       Vector *stmts;
+      int param_count;
     } defun;
     struct {
       const char *name;
+      Vector *args;
     } funcall;
   };
 } Node;

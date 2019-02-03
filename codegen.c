@@ -134,8 +134,15 @@ size_t fixup_locations(void) {
 #define MOV_RAX_IND_RAX()  ADD_CODE(0x48, 0x89, 0x00)  // mov %rax,(%rax)
 #define MOV_RDI_IND_RAX()  ADD_CODE(0x48, 0x89, 0x38)  // mov %rdi,(%rax)
 #define MOVZB_AL_RAX()   ADD_CODE(0x48, 0x0f, 0xb6, 0xc0)  // movzbq %al,%rax
+#define MOV_RDI_IND8_RBP(ofs)  ADD_CODE(0x48, 0x89, 0x7d, ofs)  // mov %rdi,ofs(%rbp)
+#define MOV_RSI_IND8_RBP(ofs)  ADD_CODE(0x48, 0x89, 0x75, ofs)  // mov %rsi,ofs(%rbp)
+#define MOV_RDX_IND8_RBP(ofs)  ADD_CODE(0x48, 0x89, 0x55, ofs)  // mov %rdx,ofs(%rbp)
+#define MOV_RCX_IND8_RBP(ofs)  ADD_CODE(0x48, 0x89, 0x4d, ofs)  // mov %rcx,ofs(%rbp)
+#define MOV_R8_IND8_RBP(ofs)   ADD_CODE(0x4c, 0x89, 0x45, ofs)  // mov %r8,ofs(%rbp)
+#define MOV_R9_IND8_RBP(ofs)   ADD_CODE(0x4c, 0x89, 0x4d, ofs)  // mov %r9,ofs(%rbp)
 #define ADD_RDI_RAX()    ADD_CODE(0x48, 0x01, 0xf8)  // add %rdi,%rax
 #define ADD_IM32_RAX(x)  ADD_CODE(0x48, 0x05, IM32(x))  // add $12345678,%rax
+#define ADD_IM32_RSP(x)  ADD_CODE(0x48, 0x81, 0xc4, IM32(x))  // add $IM32,%rsp
 #define SUB_RDI_RAX()    ADD_CODE(0x48, 0x29, 0xf8)  // sub %rdi,%rax
 #define SUB_IM32_RAX(x)  ADD_CODE(0x48, 0x2d, IM32(x))  // sub $12345678,%rax
 #define SUB_IM32_RSP(x)  ADD_CODE(0x48, 0x81, 0xec, IM32(x))  // sub $IM32,%rsp
@@ -148,8 +155,13 @@ size_t fixup_locations(void) {
 #define PUSH_RBP()       ADD_CODE(0x55)  // push %rbp
 #define PUSH_RDI()       ADD_CODE(0x57)  // push %rdi
 #define POP_RAX()        ADD_CODE(0x58)  // pop %rax
+#define POP_RCX()        ADD_CODE(0x59)  // pop %rcx
+#define POP_RDX()        ADD_CODE(0x5a)  // pop %rdx
 #define POP_RBP()        ADD_CODE(0x5d)  // pop %rbp
+#define POP_RSI()        ADD_CODE(0x5e)  // pop %rsi
 #define POP_RDI()        ADD_CODE(0x5f)  // pop %rdi
+#define POP_R8()         ADD_CODE(0x41, 0x58)  // pop %r8
+#define POP_R9()         ADD_CODE(0x41, 0x59)  // pop %r9
 #define CALL(label)      do { add_loc_rel32(codesize + 1, label, CURIP(5)); ADD_CODE(0xe8, IM32(0)); } while(0)  // call
 #define RET()            ADD_CODE(0xc3)  // retq
 #define INT(x)           ADD_CODE(0xcd, x)  // int $x
@@ -193,30 +205,68 @@ void gen(Node *node) {
     return;
 
   case ND_DEFUN:
-    curfunc = node;
-    add_label(node->defun.name);
-    // Prologue
-    // Allocate variable bufer.
-    PUSH_RBP();
-    MOV_RSP_RBP();
-    SUB_IM32_RSP(node->defun.lvars->len * WORD_SIZE);
+    {
+      curfunc = node;
+      add_label(node->defun.name);
+      // Prologue
+      // Allocate variable bufer.
+      Vector *lvars = node->defun.lvars;
+      PUSH_RBP();
+      MOV_RSP_RBP();
+      SUB_IM32_RSP(lvars->len * WORD_SIZE);
+      // Store parameters into local frame.
+      int len = len = node->defun.param_count;
+      if (len > 6)
+        error("Parameter count exceeds 6 (%d)", len);
+      switch (len) {
+      case 6:  MOV_R9_IND8_RBP( -6 * WORD_SIZE);  // Fall
+      case 5:  MOV_R8_IND8_RBP( -5 * WORD_SIZE);  // Fall
+      case 4:  MOV_RCX_IND8_RBP(-4 * WORD_SIZE);  // Fall
+      case 3:  MOV_RDX_IND8_RBP(-3 * WORD_SIZE);  // Fall
+      case 2:  MOV_RSI_IND8_RBP(-2 * WORD_SIZE);  // Fall
+      case 1:  MOV_RDI_IND8_RBP(-1 * WORD_SIZE);  // Fall
+      default: break;
+      }
 
-    for (int i = 0; i < node->defun.stmts->len; ++i) {
-      gen((Node*)node->defun.stmts->data[i]);
-      POP_RAX();
+      // Statements
+      for (int i = 0; i < node->defun.stmts->len; ++i) {
+        gen((Node*)node->defun.stmts->data[i]);
+        POP_RAX();
+      }
+
+      // Epilogue
+      MOV_RBP_RSP();
+      POP_RBP();
+      RET();
+      curfunc = NULL;
     }
-
-    // Epilogue
-    MOV_RBP_RSP();
-    POP_RBP();
-    RET();
-    curfunc = NULL;
     break;
 
   case ND_FUNCALL:
-    CALL(node->funcall.name);
-    PUSH_RAX();
-    return;
+    {
+      Vector *args = node->funcall.args;
+      if (args != NULL) {
+        int len = args->len;
+        if (len > 6)
+          error("Param count exceeds 6 (%d)", len);
+
+        for (int i = 0; i < len; ++i)
+          gen((Node*)args->data[i]);
+
+        switch (len) {
+        case 6:  POP_R9();  // Fall
+        case 5:  POP_R8();  // Fall
+        case 4:  POP_RCX();  // Fall
+        case 3:  POP_RDX();  // Fall
+        case 2:  POP_RSI();  // Fall
+        case 1:  POP_RDI();  // Fall
+        default: break;
+        }
+      }
+      CALL(node->funcall.name);
+      PUSH_RAX();
+      return;
+    }
 
   case ND_EQ:
   case ND_NE:
