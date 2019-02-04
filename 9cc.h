@@ -75,13 +75,14 @@ void tokenize(const char *p);
 // Type
 
 enum eType {
+  TY_VOID,
   TY_INT,
   TY_PTR,
 };
 
 typedef struct Type {
   enum eType type;
-  struct Type *ptrof;
+  const struct Type *ptrof;
 } Type;
 
 typedef struct {
@@ -112,6 +113,7 @@ enum NodeType {
 
 typedef struct Node {
   enum NodeType type;
+  const Type *expType;
   union {
     struct {
       struct Node *lhs;

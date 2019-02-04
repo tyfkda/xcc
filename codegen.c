@@ -370,9 +370,42 @@ void gen(Node *node) {
     return;
 
   case ND_ADD:
+    if (node->bop.lhs->expType->type == TY_PTR || node->bop.rhs->expType->type == TY_PTR) {
+      Node *lhs = node->bop.lhs, *rhs = node->bop.rhs;
+      if (node->bop.rhs->expType->type == TY_PTR) {
+        Node *tmp = lhs;
+        lhs = rhs;
+        rhs = tmp;
+      }
+      gen(rhs);
+      long size = 8;
+      MOV_I64_RDI(size);  // TODO: sizeof(rhs)
+      MUL_RDI();
+      PUSH_RAX();
+      gen(lhs);
+      POP_RDI();
+      ADD_RDI_RAX();
+      break;
+    }
+    goto L_binop;
+
   case ND_SUB:
+    if (node->bop.lhs->expType->type == TY_PTR) {
+      gen(node->bop.rhs);
+      long size = 8;
+      MOV_I64_RDI(size);  // TODO: sizeof(rhs)
+      MUL_RDI();
+      PUSH_RAX();
+      gen(node->bop.lhs);
+      POP_RDI();
+      SUB_RDI_RAX();
+      break;
+    }
+    goto L_binop;
+
   case ND_MUL:
   case ND_DIV:
+L_binop:
     gen(node->bop.rhs);
     PUSH_RAX();
     gen(node->bop.lhs);

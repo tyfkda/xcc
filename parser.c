@@ -13,6 +13,9 @@ char *strndup_(const char *str, size_t size) {
   return dup;
 }
 
+const static Type tyVoid = {TY_VOID, NULL};
+const static Type tyInt = {TY_INT, NULL};
+
 Vector *token_vector;
 
 Token *alloc_token(enum TokenType type, const char *input) {
@@ -138,6 +141,13 @@ int var_add(Vector *lvars, const char *name) {
 static int pos;
 static Node *curfunc;
 
+Type* ptrof(const Type *type) {
+  Type *ptr = malloc(sizeof(*ptr));
+  ptr->type = TY_PTR;
+  ptr->ptrof = type;
+  return ptr;
+}
+
 void decl_var(Vector *lvars, const char *name, Type *type) {
   VarInfo *info = malloc(sizeof(*info));
   info->name = name;
@@ -150,12 +160,63 @@ Node *new_node_bop(enum NodeType type, Node *lhs, Node *rhs) {
   node->type = type;
   node->bop.lhs = lhs;
   node->bop.rhs = rhs;
+  switch (type) {
+  case ND_ASSIGN:
+    // Check lhs and rhs types are equal.
+    node->expType = rhs->expType;
+    break;
+  case ND_ADD:
+    if (lhs->expType->type == TY_PTR) {
+      if (rhs->expType->type == TY_PTR)
+        error("Cannot add pointers");
+      node->expType = lhs->expType;
+    } else {
+      node->expType = rhs->expType;  // Pointer or int.
+    }
+    break;
+  case ND_SUB:
+    if (lhs->expType->type == TY_PTR) {
+      if (rhs->expType->type == TY_PTR)
+        error("Cannot sub pointers");
+      node->expType = lhs->expType;
+    } else {
+      if (lhs->expType->type == TY_PTR)
+        error("Cannot sub pointer");
+      node->expType = rhs->expType;  // int.
+    }
+    break;
+  case ND_MUL:
+  case ND_DIV:
+    if (lhs->expType->type == TY_PTR || rhs->expType->type == TY_PTR) {
+      error("Cannot sub pointers");
+    } else {
+      node->expType = lhs->expType;  // int.
+    }
+    break;
+  default:
+    //assert(FALSE);
+    node->expType = lhs->expType;
+    break;
+  }
   return node;
 }
 
 Node *new_node_unary(enum NodeType type, Node *sub) {
   Node *node = malloc(sizeof(Node));
   node->type = type;
+  switch (type) {
+  case ND_REF:
+    node->expType = ptrof(sub->expType);
+    break;
+  case ND_DEREF:
+    if (sub->expType->type != TY_PTR)
+      error("Cannot dereference raw type");
+    node->expType = sub->expType->ptrof;
+    break;
+  default:
+    node->expType = sub->expType;
+    break;
+  }
   node->unary.sub = sub;
   return node;
 }
@@ -163,13 +224,15 @@ Node *new_node_unary(enum NodeType type, Node *sub) {
 Node *new_node_num(int val) {
   Node *node = malloc(sizeof(Node));
   node->type = ND_NUM;
+  node->expType = &tyInt;
   node->val = val;
   return node;
 }
 
-Node *new_node_ident(const char *name) {
+Node *new_node_ident(const char *name, const Type *type) {
   Node *node = malloc(sizeof(Node));
   node->type = ND_IDENT;
+  node->expType = type;
   node->ident = name;
   return node;
 }
@@ -177,6 +240,7 @@ Node *new_node_ident(const char *name) {
 Node *new_node_defun(const char *name, Vector *params) {
   Node *node = malloc(sizeof(Node));
   node->type = ND_DEFUN;
+  node->expType = &tyVoid;
   node->defun.name = name;
   node->defun.lvars = params;
   node->defun.param_count = params->len;
@@ -187,6 +251,7 @@ Node *new_node_defun(const char *name, Vector *params) {
 Node *new_node_funcall(const char *name, Vector *args) {
   Node *node = malloc(sizeof(Node));
   node->type = ND_FUNCALL;
+  node->expType = &tyInt;  // TODO:
   node->funcall.name = name;
   node->funcall.args = args;
   return node;
@@ -195,6 +260,7 @@ Node *new_node_funcall(const char *name, Vector *args) {
 Node *new_node_block(Vector *nodes) {
   Node *node = malloc(sizeof(Node));
   node->type = ND_BLOCK;
+  node->expType = &tyVoid;
   node->block.nodes = nodes;
   return node;
 }
@@ -202,6 +268,7 @@ Node *new_node_block(Vector *nodes) {
 Node *new_node_if(Node *cond, Node *tblock, Node *fblock) {
   Node *node = malloc(sizeof(Node));
   node->type = ND_IF;
+  node->expType = &tyVoid;
   node->if_.cond = cond;
   node->if_.tblock = tblock;
   node->if_.fblock = fblock;
@@ -211,6 +278,7 @@ Node *new_node_if(Node *cond, Node *tblock, Node *fblock) {
 Node *new_node_while(Node *cond, Node *body) {
   Node *node = malloc(sizeof(Node));
   node->type = ND_WHILE;
+  node->expType = &tyVoid;
   node->while_.cond = cond;
   node->while_.body = body;
   return node;
@@ -269,11 +337,13 @@ Node *term() {
     if (consume(TK_LPAR)) {
       return funcall(token->ident);
     } else {
-      if (curfunc != NULL) {
-        if (var_find(curfunc->defun.lvars, token->ident) < 0)
-          error("Undefined `%s'", token->ident);
-      }
-      return new_node_ident(token->ident);
+      if (curfunc == NULL)
+        error("Cannot use variable outside of function: `%s'", token->ident);
+      int idx = var_find(curfunc->defun.lvars, token->ident);
+      if (idx < 0)
+        error("Undefined `%s'", token->ident);
+      VarInfo *info = (VarInfo*)curfunc->defun.lvars->data[idx];
+      return new_node_ident(token->ident, info->type);
     }
   default:
     error("Number or Ident or open paren expected: %s", token->input);
@@ -373,12 +443,8 @@ Type *parse_type() {
   type->type = TY_INT;
   type->ptrof = NULL;
 
-  while (consume(TK_MUL)) {
-    Type *ptr = malloc(sizeof(*ptr));
-    ptr->type = TY_PTR;
-    ptr->ptrof = type;
-    type = ptr;
-  }
+  while (consume(TK_MUL))
+    type = ptrof(type);
 
   return type;
 }
