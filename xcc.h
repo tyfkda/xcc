@@ -171,7 +171,7 @@ void program(void);
 // Variables
 
 int var_find(Vector *vartbl, const char *name);
-int var_add(Vector *vartbl, const char *name);
+void var_add(Vector *lvars, const char *name, Type *type);
 
 // Codegen
 

@@ -128,13 +128,16 @@ int var_find(Vector *lvars, const char *name) {
   return -1;
 }
 
-int var_add(Vector *lvars, const char *name) {
+void var_add(Vector *lvars, const char *name, Type *type) {
   int idx = var_find(lvars, name);
-  if (idx < 0) {
-    idx = lvars->len;
-    vec_push(lvars, name);
-  }
-  return idx;
+  if (idx >= 0)
+    error("`%s' already defined", name);
+
+  VarInfo *info = malloc(sizeof(*info));
+  info->name = name;
+  info->type = type;
+  info->offset = -1;
+  vec_push(lvars, info);
 }
 
 //
@@ -155,14 +158,6 @@ Type* arrayof(const Type *type, size_t array_size) {
   arr->ptrof = type;
   arr->array_size = array_size;
   return arr;
-}
-
-void decl_var(Vector *lvars, const char *name, Type *type) {
-  VarInfo *info = malloc(sizeof(*info));
-  info->name = name;
-  info->type = type;
-  info->offset = -1;
-  vec_push(lvars, info);
 }
 
 Node *new_node_bop(enum NodeType type, Node *lhs, Node *rhs) {
@@ -510,7 +505,7 @@ void vardecl() {
   if (!consume(TK_SEMICOL))
     error("Semicolon expected, but %s", get_token(pos)->input);
   assert(curfunc != NULL);
-  decl_var(curfunc->defun.lvars, name, type);
+  var_add(curfunc->defun.lvars, name, type);
 }
 
 Node *stmt() {
@@ -546,7 +541,7 @@ Vector *funparams() {
       Type *type = parse_type();
       if (!consume(TK_IDENT))
         error("Ident expected, but %s", get_token(pos)->input);
-      decl_var(params, get_token(pos - 1)->ident, type);
+      var_add(params, get_token(pos - 1)->ident, type);
       if (consume(TK_RPAR))
         break;
       if (consume(TK_COMMA))
