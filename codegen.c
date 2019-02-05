@@ -213,9 +213,9 @@ void gen_rval(Node *node) {
 
 void gen_lval(Node *node) {
   switch (node->type) {
-  case ND_IDENT:
+  case ND_VARREF:
     {
-      int varidx = var_find(curfunc->defun.lvars, node->ident);
+      int varidx = var_find(curfunc->defun.lvars, node->varref.ident);
       int offset = ((VarInfo*)curfunc->defun.lvars->data[varidx])->offset;
       MOV_RBP_RAX();
       ADD_IM32_RAX(offset);
@@ -293,10 +293,10 @@ void gen(Node *node) {
     MOV_I64_RAX(node->val);
     return;
 
-  case ND_IDENT:
+  case ND_VARREF:
     {
       gen_lval(node);
-      int varidx = var_find(curfunc->defun.lvars, node->ident);
+      int varidx = var_find(curfunc->defun.lvars, node->varref.ident);
       VarInfo *varinfo = (VarInfo*)curfunc->defun.lvars->data[varidx];
       if (varinfo->type->type != TY_ARRAY)  // If the variable is array, use variable address as a pointer.
         MOV_IND_RAX_RAX();

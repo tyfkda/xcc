@@ -239,11 +239,11 @@ Node *new_node_num(int val) {
   return node;
 }
 
-Node *new_node_ident(const char *name, const Type *type) {
+Node *new_node_varref(const char *name, const Type *type) {
   Node *node = malloc(sizeof(Node));
-  node->type = ND_IDENT;
+  node->type = ND_VARREF;
   node->expType = type;
-  node->ident = name;
+  node->varref.ident = name;
   return node;
 }
 
@@ -366,7 +366,7 @@ Node *term() {
       Type *type = ((VarInfo*)curfunc->defun.lvars->data[idx])->type;
       if (type->type == TY_ARRAY)
         type = ptrof(type->ptrof);
-      return new_node_ident(token->ident, type);
+      return new_node_varref(token->ident, type);
     }
   default:
     error("Number or Ident or open paren expected: %s", token->input);

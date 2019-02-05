@@ -100,7 +100,7 @@ typedef struct {
 
 enum NodeType {
   ND_NUM,     // Number nodes
-  ND_IDENT,   // Identifier
+  ND_VARREF,
   ND_DEFUN,
   ND_FUNCALL,
   ND_BLOCK,
@@ -130,7 +130,9 @@ typedef struct Node {
       struct Node *sub;
     } unary;
     long val;
-    const char *ident;
+    struct {
+      const char *ident;
+    } varref;
     struct {
       const char *name;
       Vector *lvars;
