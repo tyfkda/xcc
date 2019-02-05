@@ -38,6 +38,7 @@ enum TokenType reserved_word(const char *word) {
     { "if", TK_IF },
     { "else", TK_ELSE },
     { "while", TK_WHILE },
+    { "for", TK_FOR },
     { "int", TK_INT },
   };
   for (int i = 0; i < sizeof(table) / sizeof(*table); ++i) {
@@ -284,6 +285,17 @@ Node *new_node_while(Node *cond, Node *body) {
   return node;
 }
 
+Node *new_node_for(Node *pre, Node *cond, Node *post, Node *body) {
+  Node *node = malloc(sizeof(Node));
+  node->type = ND_FOR;
+  node->expType = &tyVoid;
+  node->for_.pre = pre;
+  node->for_.cond = cond;
+  node->for_.post = post;
+  node->for_.body = body;
+  return node;
+}
+
 int consume(enum TokenType type) {
   if (get_token(pos)->type != type)
     return FALSE;
@@ -291,14 +303,14 @@ int consume(enum TokenType type) {
   return TRUE;
 }
 
-Node *assign();
+Node *expr();
 
 Node *funcall(const char *name) {
   Vector *args = NULL;
   if (!consume(TK_RPAR)) {
     args = new_vector();
     for (;;) {
-      vec_push(args, assign());
+      vec_push(args, expr());
       if (consume(TK_RPAR))
         break;
       if (consume(TK_COMMA))
@@ -311,7 +323,7 @@ Node *funcall(const char *name) {
 
 Node *term() {
   if (consume(TK_LPAR)) {
-    Node *node = assign();
+    Node *node = expr();
     if (!consume(TK_RPAR))
       error("No close paren: %s", get_token(pos)->input);
     return node;
@@ -399,6 +411,10 @@ Node *assign() {
     return node;
 }
 
+Node *expr() {
+  return assign();
+}
+
 Node *stmt();
 
 Node *block() {
@@ -412,7 +428,7 @@ Node *block() {
 
 Node *stmt_if() {
   if (consume(TK_LPAR)) {
-    Node *cond = assign();
+    Node *cond = expr();
     if (consume(TK_RPAR)) {
       Node *tblock = stmt();
       Node *fblock = NULL;
@@ -428,13 +444,27 @@ Node *stmt_if() {
 
 Node *stmt_while() {
   if (consume(TK_LPAR)) {
-    Node *cond = assign();
+    Node *cond = expr();
     if (consume(TK_RPAR)) {
       Node *body = stmt();
       return new_node_while(cond, body);
     }
   }
   error("Parse `while' failed: %s", get_token(pos)->input);
+  return NULL;
+}
+
+Node *stmt_for() {
+  if (consume(TK_LPAR)) {
+    Node *pre = NULL, *cond = NULL, *post = NULL;
+    if ((consume(TK_SEMICOL) || (pre = expr(), consume(TK_SEMICOL))) &&
+        (consume(TK_SEMICOL) || (cond = expr(), consume(TK_SEMICOL))) &&
+        (consume(TK_RPAR) || (post = expr(), consume(TK_RPAR)))) {
+      Node *body = stmt();
+      return new_node_for(pre, cond, post, body);
+    }
+  }
+  error("Syntax error `for': %s", get_token(pos)->input);
   return NULL;
 }
 
@@ -474,6 +504,9 @@ Node *stmt() {
 
   if (consume(TK_WHILE))
     return stmt_while();
+
+  if (consume(TK_FOR))
+    return stmt_for();
 
   // expression statement.
   Node *node = assign();

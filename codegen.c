@@ -354,6 +354,26 @@ void gen(Node *node) {
     }
     break;
 
+  case ND_FOR:
+    {
+      const char * l_cond = alloc_label();
+      const char * l_break = alloc_label();
+      if (node->for_.pre != NULL)
+        gen(node->for_.pre);
+      add_label(l_cond);
+      if (node->for_.cond != NULL) {
+        gen(node->for_.cond);
+        CMP_I8_RAX(0);
+        JE32(l_break);
+      }
+      gen(node->for_.body);
+      if (node->for_.post != NULL)
+        gen(node->for_.post);
+      JMP32(l_cond);
+      add_label(l_break);
+    }
+    break;
+
   case ND_EQ:
   case ND_NE:
     gen(node->bop.lhs);
