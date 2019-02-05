@@ -46,7 +46,7 @@ void out_program_header(FILE* fp, uintptr_t offset, uintptr_t vaddr, uintptr_t f
     .p_paddr  = 0, // dummy
     .p_filesz = filesz,
     .p_memsz  = memsz,
-    .p_flags  = PF_R | PF_X,
+    .p_flags  = PF_R | PF_X | PF_W,
     .p_align  = 0x10,
   };
 

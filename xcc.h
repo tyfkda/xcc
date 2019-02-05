@@ -27,6 +27,7 @@ typedef struct {
 } Map;
 
 Map *new_map(void);
+int map_count(Map *map);
 void map_put(Map *map, const char *key, const void *val);
 void *map_get(Map *map, const char *key);
 
@@ -132,8 +133,10 @@ typedef struct Node {
     long val;
     struct {
       const char *ident;
+      int global;
     } varref;
     struct {
+      Type *rettype;
       const char *name;
       Vector *lvars;
       Vector *stmts;
@@ -172,6 +175,10 @@ void program(void);
 
 int var_find(Vector *vartbl, const char *name);
 void var_add(Vector *lvars, const char *name, Type *type);
+
+Map *global;
+
+VarInfo *find_global(const char *name);
 
 // Codegen
 

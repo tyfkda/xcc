@@ -28,6 +28,10 @@ Map *new_map() {
   return map;
 }
 
+int map_count(Map *map) {
+  return map->keys->len;
+}
+
 void map_put(Map *map, const char *key, const void *val) {
   vec_push(map->keys, key);
   vec_push(map->vals, val);

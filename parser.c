@@ -140,6 +140,25 @@ void var_add(Vector *lvars, const char *name, Type *type) {
   vec_push(lvars, info);
 }
 
+// Global
+
+Map *global;
+
+VarInfo *find_global(const char *name) {
+  return (VarInfo*)map_get(global, name);
+}
+
+void define_global(Type *type, const char *name) {
+  VarInfo *varinfo = find_global(name);
+  if (varinfo != NULL)
+    error("`%s' already defined", name);
+  varinfo = malloc(sizeof(*varinfo));
+  varinfo->name = name;
+  varinfo->type = type;
+  varinfo->offset = 0;
+  map_put(global, name, varinfo);
+}
+
 //
 
 static int pos;
@@ -234,18 +253,20 @@ Node *new_node_num(int val) {
   return node;
 }
 
-Node *new_node_varref(const char *name, const Type *type) {
+Node *new_node_varref(const char *name, const Type *type, int global) {
   Node *node = malloc(sizeof(Node));
   node->type = ND_VARREF;
   node->expType = type;
   node->varref.ident = name;
+  node->varref.global = global;
   return node;
 }
 
-Node *new_node_defun(const char *name, Vector *params) {
+Node *new_node_defun(Type *rettype, const char *name, Vector *params) {
   Node *node = malloc(sizeof(Node));
   node->type = ND_DEFUN;
   node->expType = &tyVoid;
+  node->defun.rettype = rettype;
   node->defun.name = name;
   node->defun.lvars = params;
   node->defun.param_count = params->len;
@@ -355,13 +376,20 @@ Node *term() {
     } else {
       if (curfunc == NULL)
         error("Cannot use variable outside of function: `%s'", token->ident);
+      Type *type = NULL;
       int idx = var_find(curfunc->defun.lvars, token->ident);
-      if (idx < 0)
-        error("Undefined `%s'", token->ident);
-      Type *type = ((VarInfo*)curfunc->defun.lvars->data[idx])->type;
+      if (idx >= 0) {
+        type = ((VarInfo*)curfunc->defun.lvars->data[idx])->type;
+      } else {
+        VarInfo *varinfo = find_global(token->ident);
+        if (varinfo == NULL)
+          error("Undefined `%s'", token->ident);
+        type = varinfo->type;
+      }
       if (type->type == TY_ARRAY)
         type = ptrof(type->ptrof);
-      return new_node_varref(token->ident, type);
+      int global = idx < 0;
+      return new_node_varref(token->ident, type, global);
     }
   default:
     error("Number or Ident or open paren expected: %s", token->input);
@@ -554,12 +582,19 @@ Vector *funparams() {
 
 Node *toplevel() {
   if (consume(TK_INT)) {
+    Type *type = parse_type();
     if (consume(TK_IDENT)) {
-      Token *funcname = get_token(pos - 1);
+      const char *ident = get_token(pos - 1)->ident;
+
+      if (consume(TK_SEMICOL)) {  // Global variable declaration.
+        define_global(type, ident);
+        return NULL;
+      }
+
       if (consume(TK_LPAR)) {
         Vector *params = funparams();
         if (consume(TK_LBRACE)) {
-          Node *node = new_node_defun(funcname->ident, params);
+          Node *node = new_node_defun(type, ident, params);
           curfunc = node;
 
           Vector *stmts = new_vector();
@@ -582,6 +617,9 @@ Node *toplevel() {
 Vector *node_vector;
 
 void program() {
-  while (get_token(pos)->type != TK_EOF)
-    vec_push(node_vector, toplevel());
+  while (get_token(pos)->type != TK_EOF) {
+    Node *node = toplevel();
+    if (node != NULL)
+      vec_push(node_vector, node);
+  }
 }

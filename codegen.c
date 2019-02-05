@@ -120,6 +120,16 @@ void add_loc_rel32(uintptr_t ip, const char *label, uintptr_t base) {
 }
 
 size_t fixup_locations(void) {
+  // Global
+  for (int i = 0, len = map_count(global); i < len; ++i) {
+    const char *name = (const char *)global->keys->data[i];
+    const VarInfo *varinfo = (const VarInfo*)global->vals->data[i];
+    add_label(name);
+    int size = type_size(varinfo->type);
+    unsigned char *buf = calloc(size, 1);
+    add_code(buf, size);
+  }
+
   for (int i = 0; i < loc_vector->len; ++i) {
     LocInfo *loc = loc_vector->data[i];
     void *val = map_get(label_map, (char*)loc->label);
@@ -172,6 +182,8 @@ size_t fixup_locations(void) {
 #define MOV_RCX_IND8_RBP(ofs)  ADD_CODE(0x48, 0x89, 0x4d, ofs)  // mov %rcx,ofs(%rbp)
 #define MOV_R8_IND8_RBP(ofs)   ADD_CODE(0x4c, 0x89, 0x45, ofs)  // mov %r8,ofs(%rbp)
 #define MOV_R9_IND8_RBP(ofs)   ADD_CODE(0x4c, 0x89, 0x4d, ofs)  // mov %r9,ofs(%rbp)
+#define LEA_OFS32_RAX(label)      do { add_loc_rel32(codesize + 4, label, CURIP(8)); ADD_CODE(0x48, 0x8d, 0x04, 0x25, IM32(0)); } while(0)  // lea    0x0,%rax
+#define LEA_OFS32_RIP_RAX(label)  do { add_loc_rel32(codesize + 3, label, CURIP(7)); ADD_CODE(0x48, 0x8d, 0x05, IM32(0)); } while(0)  // lea    0x0(%rip),%rax
 #define ADD_RDI_RAX()    ADD_CODE(0x48, 0x01, 0xf8)  // add %rdi,%rax
 #define ADD_IM32_RAX(x)  ADD_CODE(0x48, 0x05, IM32(x))  // add $12345678,%rax
 #define ADD_IM32_RSP(x)  ADD_CODE(0x48, 0x81, 0xc4, IM32(x))  // add $IM32,%rsp
@@ -214,8 +226,11 @@ void gen_rval(Node *node) {
 void gen_lval(Node *node) {
   switch (node->type) {
   case ND_VARREF:
-    {
+    if (node->varref.global) {
+      LEA_OFS32_RIP_RAX(node->varref.ident);
+    } else {
       int varidx = var_find(curfunc->defun.lvars, node->varref.ident);
+      assert(varidx >= 0);
       int offset = ((VarInfo*)curfunc->defun.lvars->data[varidx])->offset;
       MOV_RBP_RAX();
       ADD_IM32_RAX(offset);
@@ -296,8 +311,14 @@ void gen(Node *node) {
   case ND_VARREF:
     {
       gen_lval(node);
-      int varidx = var_find(curfunc->defun.lvars, node->varref.ident);
-      VarInfo *varinfo = (VarInfo*)curfunc->defun.lvars->data[varidx];
+      VarInfo *varinfo;
+      if (node->varref.global) {
+        varinfo = find_global(node->varref.ident);
+      } else {
+        int varidx = var_find(curfunc->defun.lvars, node->varref.ident);
+        assert(varidx >= 0);
+        varinfo = (VarInfo*)curfunc->defun.lvars->data[varidx];
+      }
       if (varinfo->type->type != TY_ARRAY)  // If the variable is array, use variable address as a pointer.
         MOV_IND_RAX_RAX();
     }
