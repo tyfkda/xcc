@@ -42,6 +42,20 @@ char *strdup_(const char *str) {
   return dup;
 }
 
+int type_size(const Type *type) {
+  switch (type->type) {
+  case TY_INT:
+    return 8;  // TODO: 4
+  case TY_PTR:
+    return 8;
+  case TY_ARRAY:
+    return type_size(type->ptrof) * type->array_size;
+  default:
+    assert(FALSE);
+    break;
+  }
+}
+
 Map *label_map;
 
 enum LocType {
@@ -193,19 +207,22 @@ static Node *curfunc;
 
 void gen(Node *node);
 
+void gen_rval(Node *node) {
+  gen(node);  // ?
+}
+
 void gen_lval(Node *node) {
   switch (node->type) {
   case ND_IDENT:
     {
       int varidx = var_find(curfunc->defun.lvars, node->ident);
-      int offset = (varidx + 1) * WORD_SIZE;
+      int offset = ((VarInfo*)curfunc->defun.lvars->data[varidx])->offset;
       MOV_RBP_RAX();
-      SUB_IM32_RAX(offset);
+      ADD_IM32_RAX(offset);
     }
     break;
   case ND_DEREF:
-    gen_lval(node->unary.sub);
-    MOV_IND_RAX_RAX();
+    gen_rval(node->unary.sub);
     break;
   default:
     error("No lvalue: %d", node->type);
@@ -213,12 +230,61 @@ void gen_lval(Node *node) {
   }
 }
 
-void gen_rval(Node *node) {
-  gen(node);  // ?
-}
-
 void gen_ref(Node *node) {
   gen_lval(node);
+}
+
+void gen_defun(Node *node) {
+  curfunc = node;
+  add_label(node->defun.name);
+
+  // Calc local variable offsets.
+  // Map parameters from the bottom (to reduce offsets).
+  int frame_size = 0;
+  for (int i = 0; i < node->defun.lvars->len; ++i) {
+    VarInfo *lvar = (VarInfo*)node->defun.lvars->data[i];
+    int size = type_size(lvar->type);
+    frame_size += size;
+    lvar->offset = -frame_size;
+  }
+
+  // Prologue
+  // Allocate variable bufer.
+  Vector *lvars = node->defun.lvars;
+  if (frame_size > 0) {
+    PUSH_RBP();
+    MOV_RSP_RBP();
+    SUB_IM32_RSP(frame_size);
+    // Store parameters into local frame.
+    int len = len = node->defun.param_count;
+    if (len > 6)
+      error("Parameter count exceeds 6 (%d)", len);
+    for (int i = 0; i < len; ++i) {
+      int offset = ((VarInfo*)lvars->data[i])->offset;
+      switch (i) {
+      case 0:  MOV_RDI_IND8_RBP(offset); break;
+      case 1:  MOV_RSI_IND8_RBP(offset); break;
+      case 2:  MOV_RDX_IND8_RBP(offset); break;
+      case 3:  MOV_RCX_IND8_RBP(offset); break;
+      case 4:  MOV_R8_IND8_RBP(offset); break;
+      case 5:  MOV_R9_IND8_RBP(offset); break;
+      default: break;
+      }
+    }
+  }
+
+  // Statements
+  for (int i = 0; i < node->defun.stmts->len; ++i) {
+    gen((Node*)node->defun.stmts->data[i]);
+  }
+
+  // Epilogue
+  if (frame_size > 0) {
+    MOV_RBP_RSP();
+    POP_RBP();
+  }
+  RET();
+  curfunc = NULL;
 }
 
 void gen(Node *node) {
@@ -228,8 +294,13 @@ void gen(Node *node) {
     return;
 
   case ND_IDENT:
-    gen_lval(node);
-    MOV_IND_RAX_RAX();
+    {
+      gen_lval(node);
+      int varidx = var_find(curfunc->defun.lvars, node->ident);
+      VarInfo *varinfo = (VarInfo*)curfunc->defun.lvars->data[varidx];
+      if (varinfo->type->type != TY_ARRAY)  // If the variable is array, use variable address as a pointer.
+        MOV_IND_RAX_RAX();
+    }
     return;
 
   case ND_REF:
@@ -251,45 +322,8 @@ void gen(Node *node) {
     return;
 
   case ND_DEFUN:
-    {
-      curfunc = node;
-      add_label(node->defun.name);
-      // Prologue
-      // Allocate variable bufer.
-      Vector *lvars = node->defun.lvars;
-      if (lvars->len > 0) {
-        PUSH_RBP();
-        MOV_RSP_RBP();
-        SUB_IM32_RSP(lvars->len * WORD_SIZE);
-        // Store parameters into local frame.
-        int len = len = node->defun.param_count;
-        if (len > 6)
-          error("Parameter count exceeds 6 (%d)", len);
-        switch (len) {
-        case 6:  MOV_R9_IND8_RBP( -6 * WORD_SIZE);  // Fall
-        case 5:  MOV_R8_IND8_RBP( -5 * WORD_SIZE);  // Fall
-        case 4:  MOV_RCX_IND8_RBP(-4 * WORD_SIZE);  // Fall
-        case 3:  MOV_RDX_IND8_RBP(-3 * WORD_SIZE);  // Fall
-        case 2:  MOV_RSI_IND8_RBP(-2 * WORD_SIZE);  // Fall
-        case 1:  MOV_RDI_IND8_RBP(-1 * WORD_SIZE);  // Fall
-        default: break;
-        }
-      }
-
-      // Statements
-      for (int i = 0; i < node->defun.stmts->len; ++i) {
-        gen((Node*)node->defun.stmts->data[i]);
-      }
-
-      // Epilogue
-      if (lvars->len > 0) {
-        MOV_RBP_RSP();
-        POP_RBP();
-      }
-      RET();
-      curfunc = NULL;
-    }
-    break;
+    gen_defun(node);
+    return;
 
   case ND_FUNCALL:
     {

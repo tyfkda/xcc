@@ -75,7 +75,7 @@ void tokenize(const char *p) {
       continue;
     }
 
-    if (strchr("+-*/&(){}}=;,", *p) != NULL) {
+    if (strchr("+-*/&(){}[]=;,", *p) != NULL) {
       alloc_token((enum TokenType)*p, p);
       ++i;
       ++p;
@@ -149,10 +149,19 @@ Type* ptrof(const Type *type) {
   return ptr;
 }
 
+Type* arrayof(const Type *type, size_t array_size) {
+  Type *arr = malloc(sizeof(*arr));
+  arr->type = TY_ARRAY;
+  arr->ptrof = type;
+  arr->array_size = array_size;
+  return arr;
+}
+
 void decl_var(Vector *lvars, const char *name, Type *type) {
   VarInfo *info = malloc(sizeof(*info));
   info->name = name;
   info->type = type;
+  info->offset = -1;
   vec_push(lvars, info);
 }
 
@@ -354,8 +363,10 @@ Node *term() {
       int idx = var_find(curfunc->defun.lvars, token->ident);
       if (idx < 0)
         error("Undefined `%s'", token->ident);
-      VarInfo *info = (VarInfo*)curfunc->defun.lvars->data[idx];
-      return new_node_ident(token->ident, info->type);
+      Type *type = ((VarInfo*)curfunc->defun.lvars->data[idx])->type;
+      if (type->type == TY_ARRAY)
+        type = ptrof(type->ptrof);
+      return new_node_ident(token->ident, type);
     }
   default:
     error("Number or Ident or open paren expected: %s", token->input);
@@ -485,6 +496,17 @@ void vardecl() {
   if (!consume(TK_IDENT))
     error("Ident expected, but %s", get_token(pos)->input);
   const char *name = get_token(pos - 1)->ident;
+
+  if (consume(TK_LBRACKET)) {
+    if (consume(TK_NUM)) {  // TODO: Constant expression.
+      int count = get_token(pos - 1)->val;
+      if (count < 0)
+        error("Array size must be greater than 0, but %d", count);
+      type = arrayof(type, count);
+      if (!consume(TK_RBRACKET))
+        error("`]' expected, but %s", get_token(pos)->input);
+    }
+  }
   if (!consume(TK_SEMICOL))
     error("Semicolon expected, but %s", get_token(pos)->input);
   assert(curfunc != NULL);

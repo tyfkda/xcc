@@ -43,6 +43,8 @@ enum TokenType {
   TK_RPAR = ')',
   TK_LBRACE = '{',
   TK_RBRACE = '}',
+  TK_LBRACKET = '[',
+  TK_RBRACKET = ']',
   TK_ASSIGN = '=',
   TK_SEMICOL = ';',
   TK_COMMA = ',',
@@ -79,16 +81,19 @@ enum eType {
   TY_VOID,
   TY_INT,
   TY_PTR,
+  TY_ARRAY,
 };
 
 typedef struct Type {
   enum eType type;
   const struct Type *ptrof;
+  size_t array_size;
 } Type;
 
 typedef struct {
   const char *name;
   Type *type;
+  int offset;
 } VarInfo;
 
 // Node

@@ -41,5 +41,6 @@ try 55 "int i; int acc; i = acc = 0; while (i != 11) { acc = acc + i; i = i + 1;
 try 55 "int i; int acc; for (i = acc = 0; i != 11; i = i + 1) acc = acc + i; acc;"
 try 11 "int *p; int x; x = 10; p = &x; *p = *p + 1; x;"
 try 1 "int *p; int a; int b; int c; a = 1; b = 2; c = 3; p = &b; *(p + 1);"
+try 123 "int a[3]; int *p; p = a; p = p + 1; *p = 123; *(a + 1);"
 
 echo OK
