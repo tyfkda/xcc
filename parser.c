@@ -131,7 +131,7 @@ int var_add(Vector *lvars, const char *name) {
   int idx = var_find(lvars, name);
   if (idx < 0) {
     idx = lvars->len;
-    vec_push(lvars, (char*)name);
+    vec_push(lvars, name);
   }
   return idx;
 }

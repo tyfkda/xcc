@@ -11,12 +11,12 @@ Vector *new_vector() {
   return vec;
 }
 
-void vec_push(Vector *vec, void *elem) {
+void vec_push(Vector *vec, const void *elem) {
   if (vec->capacity == vec->len) {
     vec->capacity *= 2;
     vec->data = realloc(vec->data, sizeof(void *) * vec->capacity);
   }
-  vec->data[vec->len++] = elem;
+  vec->data[vec->len++] = (void*)elem;
 }
 
 //
@@ -28,12 +28,12 @@ Map *new_map() {
   return map;
 }
 
-void map_put(Map *map, char *key, void *val) {
+void map_put(Map *map, const char *key, const void *val) {
   vec_push(map->keys, key);
   vec_push(map->vals, val);
 }
 
-void *map_get(Map *map, char *key) {
+void *map_get(Map *map, const char *key) {
   for (int i = map->keys->len - 1; i >= 0; --i)
     if (strcmp(map->keys->data[i], key) == 0)
       return map->vals->data[i];

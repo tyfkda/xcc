@@ -19,7 +19,7 @@ typedef struct {
 } Vector;
 
 Vector *new_vector(void);
-void vec_push(Vector *vec, void *elem);
+void vec_push(Vector *vec, const void *elem);
 
 typedef struct {
   Vector *keys;
@@ -27,8 +27,8 @@ typedef struct {
 } Map;
 
 Map *new_map(void);
-void map_put(Map *map, char *key, void *val);
-void *map_get(Map *map, char *key);
+void map_put(Map *map, const char *key, const void *val);
+void *map_get(Map *map, const char *key);
 
 // Token
 
