@@ -4,7 +4,7 @@ try_direct() {
   expected="$1"
   input="$2"
 
-  ./9cc "$input" > tmp || exit 1
+  ./xcc "$input" > tmp || exit 1
   chmod +x tmp
   ./tmp
   actual="$?"

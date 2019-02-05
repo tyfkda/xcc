@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "9cc.h"
+#include "xcc.h"
 
 #if defined(__XV6)
 // XV6

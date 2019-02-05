@@ -4,7 +4,7 @@
 #include <stdlib.h>  // malloc
 #include <string.h>
 
-#include "9cc.h"
+#include "xcc.h"
 
 char *strndup_(const char *str, size_t size) {
   char *dup = malloc(size + 1);

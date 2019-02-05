@@ -1,11 +1,10 @@
-#include "assert.h"
 #include "stdarg.h"
 #include "stdint.h"
 #include "stdio.h"
 #include "stdlib.h"
 #include "string.h"
 
-#include "9cc.h"
+#include "xcc.h"
 
 #define PROG_START   (0x80)
 
