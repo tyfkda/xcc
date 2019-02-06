@@ -13,8 +13,8 @@ char *strndup_(const char *str, size_t size) {
   return dup;
 }
 
-const static Type tyVoid = {TY_VOID, NULL};
-const static Type tyInt = {TY_INT, NULL};
+const static Type tyVoid = {.type=TY_VOID, .ptrof=NULL};
+const static Type tyInt = {.type=TY_INT, .ptrof=NULL};
 
 Vector *token_vector;
 
@@ -179,6 +179,18 @@ Type* arrayof(const Type *type, size_t array_size) {
   return arr;
 }
 
+Type* new_func_type(const Type *ret, const Vector *params) {
+  Type *f = malloc(sizeof(*f));
+  f->type = TY_FUNC;
+  f->func.ret = ret;
+  // Clone params.
+  Vector *newparams = new_vector();
+  for (int i = 0; i < params->len; ++i)
+    vec_push(newparams, params->data[i]);
+  f->func.params = newparams;
+  return f;
+}
+
 Node *new_node_bop(enum NodeType type, Node *lhs, Node *rhs) {
   Node *node = malloc(sizeof(Node));
   node->type = type;
@@ -274,11 +286,11 @@ Node *new_node_defun(Type *rettype, const char *name, Vector *params) {
   return node;
 }
 
-Node *new_node_funcall(const char *name, Vector *args) {
+Node *new_node_funcall(Node *func, Vector *args) {
   Node *node = malloc(sizeof(Node));
   node->type = ND_FUNCALL;
   node->expType = &tyInt;  // TODO:
-  node->funcall.name = name;
+  node->funcall.func = func;
   node->funcall.args = args;
   return node;
 }
@@ -330,7 +342,7 @@ int consume(enum TokenType type) {
 
 Node *expr();
 
-Node *funcall(const char *name) {
+Node *funcall(Node *func) {
   Vector *args = NULL;
   if (!consume(TK_RPAR)) {
     args = new_vector();
@@ -343,25 +355,15 @@ Node *funcall(const char *name) {
       error("Comma or `)` expected, but %s", get_token(pos)->input);
     }
   }
-  return new_node_funcall(name, args);
+  return new_node_funcall(func, args);
 }
 
-Node *term() {
+Node *prim() {
   if (consume(TK_LPAR)) {
     Node *node = expr();
     if (!consume(TK_RPAR))
       error("No close paren: %s", get_token(pos)->input);
     return node;
-  }
-
-  if (consume(TK_AMP)) {
-    Node *node = term();
-    return new_node_unary(ND_REF, node);
-  }
-
-  if (consume(TK_MUL)) {
-    Node *node = term();
-    return new_node_unary(ND_DEREF, node);
   }
 
   Token *token = get_token(pos);
@@ -371,11 +373,9 @@ Node *term() {
     return new_node_num(token->val);
   case TK_IDENT:
     ++pos;
-    if (consume(TK_LPAR)) {
-      return funcall(token->ident);
+    if (curfunc == NULL) {
+      error("Cannot use variable outside of function: `%s'", token->ident);
     } else {
-      if (curfunc == NULL)
-        error("Cannot use variable outside of function: `%s'", token->ident);
       Type *type = NULL;
       int idx = var_find(curfunc->defun.lvars, token->ident);
       if (idx >= 0) {
@@ -394,6 +394,27 @@ Node *term() {
   default:
     error("Number or Ident or open paren expected: %s", token->input);
     return NULL;
+  }
+}
+
+Node *term() {
+  if (consume(TK_AMP)) {
+    Node *node = term();
+    return new_node_unary(ND_REF, node);
+  }
+
+  if (consume(TK_MUL)) {
+    Node *node = term();
+    return new_node_unary(ND_DEREF, node);
+  }
+
+  Node *node = prim();
+
+  for (;;) {
+    if (consume(TK_LPAR))
+      node = funcall(node);
+    else
+      return node;
   }
 }
 
@@ -591,10 +612,11 @@ Node *toplevel() {
         return NULL;
       }
 
-      if (consume(TK_LPAR)) {
+      if (consume(TK_LPAR)) {  // Function definition.
         Vector *params = funparams();
         if (consume(TK_LBRACE)) {
           Node *node = new_node_defun(type, ident, params);
+          define_global(new_func_type(type, params), ident);
           curfunc = node;
 
           Vector *stmts = new_vector();

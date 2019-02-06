@@ -47,6 +47,7 @@ int type_size(const Type *type) {
   case TY_INT:
     return 8;  // TODO: 4
   case TY_PTR:
+  case TY_FUNC:
     return 8;
   case TY_ARRAY:
     return type_size(type->ptrof) * type->array_size;
@@ -124,6 +125,8 @@ size_t fixup_locations(void) {
   for (int i = 0, len = map_count(global); i < len; ++i) {
     const char *name = (const char *)global->keys->data[i];
     const VarInfo *varinfo = (const VarInfo*)global->vals->data[i];
+    if (varinfo->type->type == TY_FUNC)
+      continue;
     add_label(name);
     int size = type_size(varinfo->type);
     unsigned char *buf = calloc(size, 1);
@@ -369,7 +372,10 @@ void gen(Node *node) {
         default: break;
         }
       }
-      CALL(node->funcall.name);
+      Node *func = node->funcall.func;
+      if (func->type != ND_VARREF || !func->varref.global)
+        error("Not implement");
+      CALL(func->varref.ident);
       return;
     }
 

@@ -83,12 +83,21 @@ enum eType {
   TY_INT,
   TY_PTR,
   TY_ARRAY,
+  TY_FUNC,
 };
 
 typedef struct Type {
   enum eType type;
-  const struct Type *ptrof;
-  size_t array_size;
+  union {
+    struct {
+      const struct Type *ptrof;
+      size_t array_size;
+    };
+    struct {
+      const struct Type *ret;
+      Vector *params;
+    } func;
+  };
 } Type;
 
 typedef struct {
@@ -143,7 +152,7 @@ typedef struct Node {
       int param_count;
     } defun;
     struct {
-      const char *name;
+      struct Node *func;
       Vector *args;
     } funcall;
     struct {
