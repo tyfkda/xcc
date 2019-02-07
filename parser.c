@@ -402,6 +402,13 @@ Node *funcall(Node *func) {
   return new_node_funcall(func, args);
 }
 
+Node *array_index(Node *array) {
+  Node *index = expr();
+  if (!consume(TK_RBRACKET))
+    error("`]' expected, but %s", get_token(pos)->input);
+  return new_node_unary(ND_DEREF, new_node_bop(ND_ADD, array, index));
+}
+
 Node *prim() {
   if (consume(TK_LPAR)) {
     Node *node = expr();
@@ -460,6 +467,8 @@ Node *term() {
   for (;;) {
     if (consume(TK_LPAR))
       node = funcall(node);
+    if (consume(TK_LBRACKET))
+      node = array_index(node);
     else
       return node;
   }
