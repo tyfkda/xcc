@@ -15,6 +15,8 @@ char *strndup_(const char *str, size_t size) {
 
 const static Type tyVoid = {.type=TY_VOID, .ptrof=NULL};
 const static Type tyInt = {.type=TY_INT, .ptrof=NULL};
+const static Type tyChar = {.type=TY_CHAR, .ptrof=NULL};
+const static Type tyStr = {.type=TY_PTR, .ptrof=&tyChar};
 
 Vector *token_vector;
 
@@ -107,6 +109,40 @@ void tokenize(const char *p) {
       }
       ++i;
       p = q;
+      continue;
+    }
+
+    if (*p == '"') {
+      const char *start = ++p;
+      size_t capa = 8, size = 0;
+      char *str = malloc(capa);
+      for (char c; (c = *p) != '"'; ++p) {
+        if (c == '\0')
+          error("String not closed");
+        if (size + 1 >= capa) {
+          capa <<= 1;
+          str = realloc(str, capa);
+        }
+
+        if (c == '\\') {
+          c = *(++p);
+          if (c == '\0')
+            error("String not closed");
+          switch (c) {
+          case 'n':  c = '\n'; break;
+          case 't':  c = '\t'; break;
+          case 'r':  c = '\r'; break;
+          case '\n':  continue;
+          default: break;
+          }
+        }
+        str[size++] = c;
+      }
+      str[size] = '\0';
+      Token *token = alloc_token(TK_STR, start - 1);
+      token->str = str;
+      ++p;
+      ++i;
       continue;
     }
 
@@ -265,6 +301,14 @@ Node *new_node_num(int val) {
   return node;
 }
 
+Node *new_node_str(const char *str) {
+  Node *node = malloc(sizeof(Node));
+  node->type = ND_STR;
+  node->expType = &tyStr;
+  node->str = str;
+  return node;
+}
+
 Node *new_node_varref(const char *name, const Type *type, int global) {
   Node *node = malloc(sizeof(Node));
   node->type = ND_VARREF;
@@ -371,6 +415,9 @@ Node *prim() {
   case TK_NUM:
     ++pos;
     return new_node_num(token->val);
+  case TK_STR:
+    ++pos;
+    return new_node_str(token->str);
   case TK_IDENT:
     ++pos;
     if (curfunc == NULL) {

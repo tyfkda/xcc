@@ -50,6 +50,7 @@ enum TokenType {
   TK_SEMICOL = ';',
   TK_COMMA = ',',
   TK_NUM = 256,  // Integer token
+  TK_STR,        // String literal
   TK_IDENT,      // Identifier
   TK_EOF,        // Represent input end
   TK_EQ,  // ==
@@ -68,6 +69,7 @@ typedef struct {
   union {
     long val;
     const char *ident;
+    const char *str;
   };
 } Token;
 
@@ -81,6 +83,7 @@ void tokenize(const char *p);
 enum eType {
   TY_VOID,
   TY_INT,
+  TY_CHAR,
   TY_PTR,
   TY_ARRAY,
   TY_FUNC,
@@ -110,6 +113,7 @@ typedef struct {
 
 enum NodeType {
   ND_NUM,     // Number nodes
+  ND_STR,
   ND_VARREF,
   ND_DEFUN,
   ND_FUNCALL,
@@ -132,6 +136,8 @@ typedef struct Node {
   enum NodeType type;
   const Type *expType;
   union {
+    long val;
+    const char *str;
     struct {
       struct Node *lhs;
       struct Node *rhs;
@@ -139,7 +145,6 @@ typedef struct Node {
     struct {
       struct Node *sub;
     } unary;
-    long val;
     struct {
       const char *ident;
       int global;
@@ -188,6 +193,11 @@ void var_add(Vector *lvars, const char *name, Type *type);
 Map *global;
 
 VarInfo *find_global(const char *name);
+void define_global(Type *type, const char *name);
+
+Vector *rodata_vector;
+
+void add_rodata(const char *label, const void *data, size_t size);
 
 // Codegen
 
@@ -198,6 +208,7 @@ extern uintptr_t start_address;
 void compile(const char* source);
 void output_code(FILE* fp);
 void add_label(const char *label);
+void add_code(const unsigned char* buf, size_t size);
 size_t fixup_locations(void);
 
 // elfutil

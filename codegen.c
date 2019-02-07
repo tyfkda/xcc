@@ -44,6 +44,10 @@ char *strdup_(const char *str) {
 
 int type_size(const Type *type) {
   switch (type->type) {
+  case TY_VOID:
+    return 1;  // ?
+  case TY_CHAR:
+    return 1;
   case TY_INT:
     return 8;  // TODO: 4
   case TY_PTR:
@@ -53,7 +57,7 @@ int type_size(const Type *type) {
     return type_size(type->ptrof) * type->array_size;
   default:
     assert(FALSE);
-    break;
+    return 1;
   }
 }
 
@@ -73,6 +77,22 @@ typedef struct {
     } rel;
   };
 } LocInfo;
+
+typedef struct {
+  const char *label;
+  const void *data;
+  size_t size;
+} RoData;
+
+Vector *rodata_vector;
+
+void add_rodata(const char *label, const void *data, size_t size) {
+  RoData *ro = malloc(sizeof(*ro));
+  ro->label = label;
+  ro->data = data;
+  ro->size = size;
+  vec_push(rodata_vector, ro);
+}
 
 uintptr_t start_address;
 unsigned char* code;
@@ -311,6 +331,14 @@ void gen(Node *node) {
     MOV_I64_RAX(node->val);
     return;
 
+  case ND_STR:
+    {
+      const char * label = alloc_label();
+      add_rodata(label, node->str, strlen(node->str) + 1);
+      LEA_OFS32_RIP_RAX(label);
+    }
+    return;
+
   case ND_VARREF:
     {
       gen_lval(node);
@@ -527,9 +555,14 @@ void compile(const char* source) {
   MOV_RAX_RDI();
   SYSTEMCALL(SYSCALL_EXIT);
 
-  int len = node_vector->len;
-  for (int i = 0; i < len; ++i) {
+  for (int i = 0, len = node_vector->len; i < len; ++i)
     gen(node_vector->data[i]);
+
+  // Output RoData
+  for (int i = 0, len = rodata_vector->len; i < len; ++i) {
+    const RoData *ro = (const RoData*)rodata_vector->data[i];
+    add_label(ro->label);
+    add_code(ro->data, ro->size);
   }
 }
 

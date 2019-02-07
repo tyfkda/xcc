@@ -21,6 +21,26 @@ try() {
   try_direct "$1" "int main(){ $2 }"
 }
 
+try_output_direct() {
+  expected="$1"
+  input="$2"
+
+  ./xcc "$input" > tmp || exit 1
+  chmod +x tmp
+  actual=`./tmp` || exit 1
+
+  if [ "$actual" = "$expected" ]; then
+    echo "$input => $actual"
+  else
+    echo "ERROR: $input => $expected expected, but got $actual"
+    exit 1
+  fi
+}
+
+try_output() {
+  try_output_direct "$1" "int main(){ $2 0; }"
+}
+
 try 0 '0;'
 try 42 '42;'
 try 21 '5+20-4;'
@@ -43,5 +63,6 @@ try 11 "int *p; int x; x = 10; p = &x; *p = *p + 1; x;"
 try 1 "int *p; int a; int b; int c; a = 1; b = 2; c = 3; p = &b; *(p + 1);"
 try 123 "int a[3]; int *p; p = a; p = p + 1; *p = 123; *(a + 1);"
 try_direct 11 "int x; int main(){ x = 1; x + 10; }"
+try_output 'hello' '_write(1, "hello\n", 6);'
 
 echo OK

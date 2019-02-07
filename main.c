@@ -88,6 +88,7 @@ void init_compiler(uintptr_t adr) {
   label_map = new_map();
   loc_vector = new_vector();
   global = new_map();
+  rodata_vector = new_vector();
 }
 
 extern void add_foo();
@@ -104,7 +105,29 @@ int main(int argc, char* argv[]) {
   }
 
   init_compiler(LOAD_ADDRESS);
+
+  // Test.
+  {
+    Vector *params = new_vector();
+    static Type tyInt = {.type=TY_INT, .ptrof=NULL};
+    static Type tyFunc = {.type=TY_FUNC, .func={.ret=&tyInt}};
+    tyFunc.func.params = params;
+    define_global(&tyFunc, "_write");
+  }
+
   compile(argv[1]);
+
+  // Test.
+  {
+    add_label("_write");
+    static const unsigned char _write[] = {
+      0xb8, 1, 0, 0, 0,  // mov $1,%eax
+      0x0f, 0x05,         // syscall
+      0xc3,               // ret
+    };
+    add_code(_write, sizeof(_write));
+  }
+
   size_t binsize = fixup_locations();
 
   FILE* fp = stdout;
