@@ -65,7 +65,6 @@ char backslash(char c) {
 }
 
 void tokenize(const char *p) {
-  int i = 0;
   while (*p != '\0') {
     if (isspace(*p)) {
       ++p;
@@ -76,7 +75,6 @@ void tokenize(const char *p) {
       switch (p[1]) {
       case '=':
         alloc_token(TK_EQ, p);
-        ++i;
         p += 2;
         continue;
       default:
@@ -86,14 +84,12 @@ void tokenize(const char *p) {
 
     if (*p == '!' && p[1] == '=') {
       alloc_token(TK_NE, p);
-      ++i;
       p += 2;
       continue;
     }
 
     if (strchr("+-*/%&(){}[]=;,", *p) != NULL) {
       alloc_token((enum TokenType)*p, p);
-      ++i;
       ++p;
       continue;
     }
@@ -102,7 +98,6 @@ void tokenize(const char *p) {
       long val = strtol(p, (char**)&p, 10);
       Token *token = alloc_token(TK_NUM, p);
       token->val = val;
-      ++i;
       continue;
     }
 
@@ -121,7 +116,6 @@ void tokenize(const char *p) {
         Token *token = alloc_token(TK_IDENT, p);
         token->ident = dup;
       }
-      ++i;
       p = q;
       continue;
     }
@@ -141,7 +135,6 @@ void tokenize(const char *p) {
       Token *token = alloc_token(TK_CHAR, start);
       token->val = c;
       ++p;
-      ++i;
       continue;
     }
 
@@ -169,7 +162,6 @@ void tokenize(const char *p) {
       Token *token = alloc_token(TK_STR, start);
       token->str = str;
       ++p;
-      ++i;
       continue;
     }
 
