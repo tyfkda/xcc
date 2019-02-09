@@ -61,6 +61,7 @@ enum TokenType {
   TK_ELSE,
   TK_WHILE,
   TK_FOR,
+  TK_KWVOID,
   TK_KWINT,
   TK_KWCHAR,
 };

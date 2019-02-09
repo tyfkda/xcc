@@ -58,8 +58,8 @@ void cast(const enum eType ltype, const enum eType rtype) {
   default:
     break;
   }
-  fprintf(stderr, "cast failed: ltype=%d, rtype=%d\n", ltype, rtype);
-  assert(FALSE);
+
+  error("Cannot convert from type %d to %d", rtype, ltype);
 }
 
 Map *label_map;

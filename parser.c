@@ -41,6 +41,7 @@ enum TokenType reserved_word(const char *word) {
     { "else", TK_ELSE },
     { "while", TK_WHILE },
     { "for", TK_FOR },
+    { "void", TK_KWVOID },
     { "int", TK_KWINT },
     { "char", TK_KWCHAR },
   };
@@ -259,7 +260,7 @@ Node *new_node_bop(enum NodeType type, Node *lhs, Node *rhs) {
   switch (type) {
   case ND_ASSIGN:
     // Check lhs and rhs types are equal.
-    node->expType = rhs->expType;
+    node->expType = lhs->expType;
     break;
   case ND_ADD:
     if (lhs->expType->type == TY_PTR) {
@@ -609,10 +610,10 @@ Node *stmt_for() {
 
 Type *parse_type() {
   static const enum TokenType kKeywords[] = {
-    TK_KWINT, TK_KWCHAR,
+    TK_KWVOID, TK_KWINT, TK_KWCHAR,
   };
   static const enum eType kTypes[] = {
-    TY_INT, TY_CHAR,
+    TY_VOID, TY_INT, TY_CHAR,
   };
   const int N = sizeof(kTypes) / sizeof(*kTypes);
 
@@ -638,6 +639,8 @@ void vardecl() {
     Type *type = parse_type();
     if (type == NULL)
       return;
+    if (type->type == TY_VOID)
+      error("Cannot use void for type");
 
     if (!consume(TK_IDENT))
       error("Ident expected, but %s", get_token(pos)->input);
