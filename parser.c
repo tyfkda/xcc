@@ -88,6 +88,28 @@ void tokenize(const char *p) {
       continue;
     }
 
+    if (*p == '<') {
+      const char *input = p++;
+      enum TokenType tk = TK_LT;
+      if (*p == '=') {
+        tk = TK_LE;
+        ++p;
+      }
+      alloc_token(tk, input);
+      continue;
+    }
+
+    if (*p == '>') {
+      const char *input = p++;
+      enum TokenType tk = TK_GT;
+      if (*p == '=') {
+        tk = TK_GE;
+        ++p;
+      }
+      alloc_token(tk, input);
+      continue;
+    }
+
     if (strchr("+-*/%&(){}[]=;,", *p) != NULL) {
       alloc_token((enum TokenType)*p, p);
       ++p;
@@ -538,14 +560,31 @@ Node *add() {
   }
 }
 
-Node *eq() {
+Node *cmp() {
   Node *node = add();
 
   for (;;) {
+    if (consume(TK_LT))
+      node = new_node_bop(ND_LT, node, add());
+    else if (consume(TK_GT))
+      node = new_node_bop(ND_GT, node, add());
+    else if (consume(TK_LE))
+      node = new_node_bop(ND_LE, node, add());
+    else if (consume(TK_GE))
+      node = new_node_bop(ND_GE, node, add());
+    else
+      return node;
+  }
+}
+
+Node *eq() {
+  Node *node = cmp();
+
+  for (;;) {
     if (consume(TK_EQ))
-      node = new_node_bop(ND_EQ, node, add());
+      node = new_node_bop(ND_EQ, node, cmp());
     else if (consume(TK_NE))
-      node = new_node_bop(ND_NE, node, add());
+      node = new_node_bop(ND_NE, node, cmp());
     else
       return node;
   }

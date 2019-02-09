@@ -442,16 +442,33 @@ void gen(Node *node) {
 
   case ND_EQ:
   case ND_NE:
-    gen(node->bop.lhs);
-    PUSH_RAX();
-    gen(node->bop.rhs);
+  case ND_LT:
+  case ND_GT:
+  case ND_LE:
+  case ND_GE:
+    {
+      enum NodeType type = node->type;
+      Node *lhs = node->bop.lhs;
+      Node *rhs = node->bop.rhs;
+      if (type == ND_LE || type == ND_GT) {
+        Node *tmp = lhs; lhs = rhs; rhs = tmp;
+        type = type == ND_LE ? ND_GE : ND_LT;
+      }
 
-    POP_RDI();
-    CMP_EAX_EDI();
-    if (node->type == ND_EQ)
-      SETE_AL();
-    else
-      SETNE_AL();
+      gen(lhs);
+      PUSH_RAX();
+      gen(rhs);
+
+      POP_RDI();
+      CMP_EAX_EDI();
+      switch (type) {
+      case ND_EQ:  SETE_AL(); break;
+      case ND_NE:  SETNE_AL(); break;
+      case ND_LT:  SETS_AL(); break;
+      case ND_GE:  SETNS_AL(); break;
+      default: assert(FALSE); break;
+      }
+    }
     MOVZX_AL_EAX();
     return;
 

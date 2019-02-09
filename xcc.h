@@ -41,6 +41,8 @@ enum TokenType {
   TK_DIV = '/',
   TK_MOD = '%',
   TK_AMP = '&',
+  TK_LT = '<',
+  TK_GT = '>',
   TK_LPAR = '(',
   TK_RPAR = ')',
   TK_LBRACE = '{',
@@ -57,6 +59,8 @@ enum TokenType {
   TK_EOF,        // Represent input end
   TK_EQ,  // ==
   TK_NE,  // !=
+  TK_LE,  // <=
+  TK_GE,  // >=
   TK_IF,
   TK_ELSE,
   TK_DO,
@@ -133,6 +137,10 @@ enum NodeType {
   ND_ASSIGN,
   ND_EQ,
   ND_NE,
+  ND_LT,
+  ND_GT,
+  ND_LE,
+  ND_GE,
   ND_REF,
   ND_DEREF,
   ND_IF,
