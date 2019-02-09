@@ -64,5 +64,6 @@ try 123 "int a[3]; int *p; p = a; p = p + 1; *p = 123; *(a + 1);"
 try 11 "int a[2]; *a = 1; a[1] = 10; a[0] + 1[a];"
 try_direct 11 "int x; int main(){ x = 1; _exit(x + 10); }"
 try_output 'hello' '_write(1, "hello\n", 6);'
+try_output 123 "char s[16]; s[0] = '1'; s[1] = '2'; s[2] = '3'; s[3] = '\n'; _write(1, s, 4);"
 
 echo OK

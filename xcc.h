@@ -50,6 +50,7 @@ enum TokenType {
   TK_SEMICOL = ';',
   TK_COMMA = ',',
   TK_NUM = 256,  // Integer token
+  TK_CHAR,
   TK_STR,        // String literal
   TK_IDENT,      // Identifier
   TK_EOF,        // Represent input end
@@ -59,7 +60,8 @@ enum TokenType {
   TK_ELSE,
   TK_WHILE,
   TK_FOR,
-  TK_INT,
+  TK_KWINT,
+  TK_KWCHAR,
 };
 
 // Token type
@@ -113,6 +115,7 @@ typedef struct {
 
 enum NodeType {
   ND_NUM,     // Number nodes
+  ND_CHAR,
   ND_STR,
   ND_VARREF,
   ND_DEFUN,

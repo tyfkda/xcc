@@ -36,6 +36,34 @@ int type_size(const Type *type) {
   }
 }
 
+void cast(const enum eType ltype, const enum eType rtype) {
+  switch (ltype) {
+  case TY_CHAR:
+    switch (rtype) {
+    case TY_CHAR:  return;
+    default: break;
+    }
+    break;
+  case TY_INT:
+    switch (rtype) {
+    case TY_INT:  return;
+    case TY_CHAR: MOVSX_AL_RAX(); return;
+    default: break;
+    }
+    break;
+  case TY_PTR:
+    switch (rtype) {
+    case TY_PTR:  return;
+    default: break;
+    }
+    break;
+  default:
+    break;
+  }
+  fprintf(stderr, "cast failed: ltype=%d, rtype=%d\n", ltype, rtype);
+  assert(FALSE);
+}
+
 Map *label_map;
 
 enum LocType {
@@ -247,6 +275,10 @@ void gen(Node *node) {
     MOV_I64_RAX(node->val);
     return;
 
+  case ND_CHAR:
+    MOV_I8_AL(node->val);
+    return;
+
   case ND_STR:
     {
       const char * label = alloc_label();
@@ -284,9 +316,19 @@ void gen(Node *node) {
     gen_lval(node->bop.lhs);
     PUSH_RAX();
     gen(node->bop.rhs);
+    cast(node->bop.lhs->expType->type, node->bop.rhs->expType->type);
 
     POP_RDI();
-    MOV_RAX_IND_RDI();
+    switch (node->bop.lhs->expType->type) {
+    case TY_CHAR:
+      MOV_AL_IND_RDI();
+      break;
+    case TY_INT:
+    case TY_PTR:
+    default:
+      MOV_RAX_IND_RDI();
+      break;
+    }
     return;
 
   case ND_DEFUN:
@@ -397,15 +439,17 @@ void gen(Node *node) {
   case ND_ADD:
     if (node->bop.lhs->expType->type == TY_PTR || node->bop.rhs->expType->type == TY_PTR) {
       Node *lhs = node->bop.lhs, *rhs = node->bop.rhs;
-      if (node->bop.rhs->expType->type == TY_PTR) {
+      if (rhs->expType->type == TY_PTR) {
         Node *tmp = lhs;
         lhs = rhs;
         rhs = tmp;
       }
       gen(rhs);
-      long size = 8;
-      MOV_I64_RDI(size);  // TODO: sizeof(rhs)
-      MUL_RDI();
+      long size = type_size(lhs->expType->ptrof);
+      if (size != 1) {
+        MOV_I64_RDI(size);
+        MUL_RDI();
+      }
       PUSH_RAX();
       gen(lhs);
       POP_RDI();

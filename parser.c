@@ -41,13 +41,24 @@ enum TokenType reserved_word(const char *word) {
     { "else", TK_ELSE },
     { "while", TK_WHILE },
     { "for", TK_FOR },
-    { "int", TK_INT },
+    { "int", TK_KWINT },
+    { "char", TK_KWCHAR },
   };
   for (int i = 0; i < sizeof(table) / sizeof(*table); ++i) {
     if (strcmp(table[i].str, word) == 0)
       return table[i].type;
   }
   return -1;
+}
+
+char backslash(char c) {
+  switch (c) {
+  case '0':  return '\0';
+  case 'n':  return '\n';
+  case 't':  return '\t';
+  case 'r':  return '\r';
+  default:   return c;
+  }
 }
 
 void tokenize(const char *p) {
@@ -112,8 +123,27 @@ void tokenize(const char *p) {
       continue;
     }
 
+    if (*p == '\'') {
+      const char *start = p++;
+      char c = *p;
+      if (c == '\\') {
+        c = *(++p);
+        if (c == '\0')
+          error("Character not closed");
+        c = backslash(c);
+      }
+      if (*(++p) != '\'')
+        error("Character not closed");
+
+      Token *token = alloc_token(TK_CHAR, start);
+      token->val = c;
+      ++p;
+      ++i;
+      continue;
+    }
+
     if (*p == '"') {
-      const char *start = ++p;
+      const char *start = p++;
       size_t capa = 8, size = 0;
       char *str = malloc(capa);
       for (char c; (c = *p) != '"'; ++p) {
@@ -128,18 +158,12 @@ void tokenize(const char *p) {
           c = *(++p);
           if (c == '\0')
             error("String not closed");
-          switch (c) {
-          case 'n':  c = '\n'; break;
-          case 't':  c = '\t'; break;
-          case 'r':  c = '\r'; break;
-          case '\n':  continue;
-          default: break;
-          }
+          c = backslash(c);
         }
         str[size++] = c;
       }
       str[size] = '\0';
-      Token *token = alloc_token(TK_STR, start - 1);
+      Token *token = alloc_token(TK_STR, start);
       token->str = str;
       ++p;
       ++i;
@@ -306,6 +330,12 @@ Node *new_node_num(long val) {
   return node;
 }
 
+Node *new_node_char(int val) {
+  Node *node = new_node(ND_CHAR, &tyChar);
+  node->val = val;
+  return node;
+}
+
 Node *new_node_str(const char *str) {
   Node *node = new_node(ND_STR, &tyStr);
   node->str = str;
@@ -414,6 +444,9 @@ Node *prim() {
   case TK_NUM:
     ++pos;
     return new_node_num(token->val);
+  case TK_CHAR:
+    ++pos;
+    return new_node_char(token->val);
   case TK_STR:
     ++pos;
     return new_node_str(token->str);
@@ -572,8 +605,23 @@ Node *stmt_for() {
 }
 
 Type *parse_type() {
+  static const enum TokenType kKeywords[] = {
+    TK_KWINT, TK_KWCHAR,
+  };
+  static const enum eType kTypes[] = {
+    TY_INT, TY_CHAR,
+  };
+  const int N = sizeof(kTypes) / sizeof(*kTypes);
+
+  int i;
+  for (i = 0; i < N; ++i)
+    if (consume(kKeywords[i]))
+      break;
+  if (i >= N)
+    return NULL;
+
   Type *type = malloc(sizeof(*type));
-  type->type = TY_INT;
+  type->type = kTypes[i];
   type->ptrof = NULL;
 
   while (consume(TK_MUL))
@@ -583,33 +631,33 @@ Type *parse_type() {
 }
 
 void vardecl() {
-  Type *type = parse_type();
+  for (;;) {
+    Type *type = parse_type();
+    if (type == NULL)
+      return;
 
-  if (!consume(TK_IDENT))
-    error("Ident expected, but %s", get_token(pos)->input);
-  const char *name = get_token(pos - 1)->ident;
+    if (!consume(TK_IDENT))
+      error("Ident expected, but %s", get_token(pos)->input);
+    const char *name = get_token(pos - 1)->ident;
 
-  if (consume(TK_LBRACKET)) {
-    if (consume(TK_NUM)) {  // TODO: Constant expression.
-      int count = get_token(pos - 1)->val;
-      if (count < 0)
-        error("Array size must be greater than 0, but %d", count);
-      type = arrayof(type, count);
-      if (!consume(TK_RBRACKET))
-        error("`]' expected, but %s", get_token(pos)->input);
+    if (consume(TK_LBRACKET)) {
+      if (consume(TK_NUM)) {  // TODO: Constant expression.
+        int count = get_token(pos - 1)->val;
+        if (count < 0)
+          error("Array size must be greater than 0, but %d", count);
+        type = arrayof(type, count);
+        if (!consume(TK_RBRACKET))
+          error("`]' expected, but %s", get_token(pos)->input);
+      }
     }
+    if (!consume(TK_SEMICOL))
+      error("Semicolon expected, but %s", get_token(pos)->input);
+    assert(curfunc != NULL);
+    var_add(curfunc->defun.lvars, name, type);
   }
-  if (!consume(TK_SEMICOL))
-    error("Semicolon expected, but %s", get_token(pos)->input);
-  assert(curfunc != NULL);
-  var_add(curfunc->defun.lvars, name, type);
 }
 
 Node *stmt() {
-  while (consume(TK_INT)) {
-    vardecl();
-  }
-
   if (consume(TK_LBRACE))
     return block();
 
@@ -633,9 +681,10 @@ Vector *funparams() {
   Vector *params = new_vector();
   if (!consume(TK_RPAR)) {
     for (;;) {
-      if (!consume(TK_INT))
-        error("`int' expected, but %s", get_token(pos)->input);
       Type *type = parse_type();
+      if (type == NULL)
+        error("type expected, but %s", get_token(pos)->input);
+
       if (!consume(TK_IDENT))
         error("Ident expected, but %s", get_token(pos)->input);
       var_add(params, get_token(pos - 1)->ident, type);
@@ -650,8 +699,8 @@ Vector *funparams() {
 }
 
 Node *toplevel() {
-  if (consume(TK_INT)) {
-    Type *type = parse_type();
+  Type *type = parse_type();
+  if (type != NULL) {
     if (consume(TK_IDENT)) {
       const char *ident = get_token(pos - 1)->ident;
 
@@ -666,6 +715,8 @@ Node *toplevel() {
           Node *node = new_node_defun(type, ident, params);
           define_global(new_func_type(type, params), ident);
           curfunc = node;
+
+          vardecl();
 
           Vector *stmts = new_vector();
           while (!consume(TK_RBRACE)) {
