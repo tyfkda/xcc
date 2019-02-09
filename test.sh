@@ -18,7 +18,7 @@ try_direct() {
 }
 
 try() {
-  try_direct "$1" "int main(){ $2 }"
+  try_direct "$1" "int func(){$2} int main(){ _exit(func()); }"
 }
 
 try_output_direct() {
@@ -38,7 +38,7 @@ try_output_direct() {
 }
 
 try_output() {
-  try_output_direct "$1" "int main(){ $2 0; }"
+  try_output_direct "$1" "int main(){ $2 _exit(0); }"
 }
 
 try 0 '0;'
@@ -52,8 +52,8 @@ try 14 "int a; int b; a = 3; b = 5 * 6 - 8; a + b / 2;"
 try 14 "int foo; int bar; foo = 3; bar = 5 * 6 - 8; foo + bar / 2;"
 try 1 "int a; int b; int c; a = b = (c = 1) + 2; a == b;"
 try 1 "123 != 456;"
-try_direct 23 "int foo(){ 123; } int main(){ foo() - 100; }"
-try_direct 9 "int sqsub(int x, int y){ int xx; int yy; xx = x * x; yy = y * y; xx - yy; } int main(){ sqsub(5, 4); }"
+try_direct 23 "int foo(){ 123; } int main(){ _exit(foo() - 100); }"
+try_direct 9 "int sqsub(int x, int y){ int xx; int yy; xx = x * x; yy = y * y; xx - yy; } int main(){ _exit(sqsub(5, 4)); }"
 try 2 "if (1) 2;"
 try 3 "if (1 == 0) 2; else 3;"
 try 3 "int a; int b; a = b = 0; if (1) { a = 1; b = 2; } a + b;"
@@ -62,7 +62,7 @@ try 55 "int i; int acc; for (i = acc = 0; i != 11; i = i + 1) acc = acc + i; acc
 try 11 "int *p; int x; x = 10; p = &x; *p = *p + 1; x;"
 try 123 "int a[3]; int *p; p = a; p = p + 1; *p = 123; *(a + 1);"
 try 11 "int a[2]; *a = 1; a[1] = 10; a[0] + 1[a];"
-try_direct 11 "int x; int main(){ x = 1; x + 10; }"
+try_direct 11 "int x; int main(){ x = 1; _exit(x + 10); }"
 try_output 'hello' '_write(1, "hello\n", 6);'
 
 echo OK

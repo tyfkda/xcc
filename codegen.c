@@ -4,33 +4,6 @@
 
 #include "xcc.h"
 
-#if defined(__XV6)
-// XV6
-#include "../kernel/types.h"
-#include "../kernel/syscall.h"
-#include "../kernel/traps.h"
-
-#define SYSTEMCALL(no)  do { MOV_I32_EAX(no); INT(T_SYSCALL); } while(0)
-
-#define SYSCALL_EXIT   (SYS_exit)
-
-#define START_ADDRESS    0x1000
-
-#elif defined(__linux__)
-// Linux
-
-#define SYSTEMCALL(no)  do { MOV_I32_EAX(no); SYSCALL(); } while(0)
-
-#define SYSCALL_EXIT   (60 /*__NR_exit*/)
-
-#define START_ADDRESS    (0x1000000 + PROG_START)
-
-#else
-
-#error Target not supported
-
-#endif
-
 #define CURIP(ofs)  (start_address + codesize + ofs)
 #define ADD_CODE(...)  do { unsigned char buf[] = {__VA_ARGS__}; add_code(buf, sizeof(buf)); } while (0)
 #include "x86_64.h"
@@ -155,7 +128,7 @@ size_t fixup_locations(void) {
 
   for (int i = 0; i < loc_vector->len; ++i) {
     LocInfo *loc = loc_vector->data[i];
-    void *val = map_get(label_map, (char*)loc->label);
+    void *val = map_get(label_map, loc->label);
     if (val == NULL) {
       error("Cannot find label: `%s'", loc->label);
     }
@@ -493,10 +466,6 @@ L_binop:
 void compile(const char* source) {
   tokenize(source);
   program();
-
-  CALL("main");
-  MOV_RAX_RDI();
-  SYSTEMCALL(SYSCALL_EXIT);
 
   for (int i = 0, len = node_vector->len; i < len; ++i)
     gen(node_vector->data[i]);

@@ -16,6 +16,7 @@
 
 #define SYSTEMCALL(no)  do { MOV_I32_EAX(no); INT(T_SYSCALL); } while(0)
 
+#define SYSCALL_EXIT   (SYS_exit)
 #define SYSCALL_WRITE  (SYS_write)
 
 #elif defined(__linux__)
@@ -25,6 +26,7 @@
 
 #define SYSTEMCALL(no)  do { MOV_I32_EAX(no); SYSCALL(); } while(0)
 
+#define SYSCALL_EXIT   (60 /*__NR_exit*/)
 #define SYSCALL_WRITE  (1 /*__NR_write*/)
 
 #else
@@ -119,6 +121,7 @@ int main(int argc, char* argv[]) {
     static Type tyInt = {.type=TY_INT, .ptrof=NULL};
     static Type tyFunc = {.type=TY_FUNC, .func={.ret=&tyInt}};
     tyFunc.func.params = params;
+    define_global(&tyFunc, "_exit");
     define_global(&tyFunc, "_write");
   }
 
@@ -126,6 +129,10 @@ int main(int argc, char* argv[]) {
 
   // Test.
   {
+    add_label("_exit");
+    SYSTEMCALL(SYSCALL_EXIT);
+    RET();
+
     add_label("_write");
     SYSTEMCALL(SYSCALL_WRITE);
     RET();
@@ -133,9 +140,17 @@ int main(int argc, char* argv[]) {
 
   size_t binsize = fixup_locations();
 
+  uintptr_t entry = 0;
+  {
+    void *val = map_get(label_map, "main");
+    if (val == NULL)
+      error("Cannot find label: `%s'", "main");
+    entry = (uintptr_t)val;
+  }
+
   FILE* fp = stdout;
 
-  out_elf_header(fp, LOAD_ADDRESS);
+  out_elf_header(fp, entry);
   out_program_header(fp, PROG_START, LOAD_ADDRESS, binsize, binsize);
   put_padding(fp, PROG_START);
   output_code(fp);
