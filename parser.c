@@ -293,35 +293,34 @@ Node *new_node_unary(enum NodeType type, Node *sub) {
   return node;
 }
 
-Node *new_node_num(int val) {
+Node *new_node(enum NodeType type, const Type *expType) {
   Node *node = malloc(sizeof(Node));
-  node->type = ND_NUM;
-  node->expType = &tyInt;
+  node->type = type;
+  node->expType = expType;
+  return node;
+}
+
+Node *new_node_num(long val) {
+  Node *node = new_node(ND_NUM, &tyInt);
   node->val = val;
   return node;
 }
 
 Node *new_node_str(const char *str) {
-  Node *node = malloc(sizeof(Node));
-  node->type = ND_STR;
-  node->expType = &tyStr;
+  Node *node = new_node(ND_STR, &tyStr);
   node->str = str;
   return node;
 }
 
 Node *new_node_varref(const char *name, const Type *type, int global) {
-  Node *node = malloc(sizeof(Node));
-  node->type = ND_VARREF;
-  node->expType = type;
+  Node *node = new_node(ND_VARREF, type);
   node->varref.ident = name;
   node->varref.global = global;
   return node;
 }
 
 Node *new_node_defun(Type *rettype, const char *name, Vector *params) {
-  Node *node = malloc(sizeof(Node));
-  node->type = ND_DEFUN;
-  node->expType = &tyVoid;
+  Node *node = new_node(ND_DEFUN, &tyVoid);
   node->defun.rettype = rettype;
   node->defun.name = name;
   node->defun.lvars = params;
@@ -331,26 +330,20 @@ Node *new_node_defun(Type *rettype, const char *name, Vector *params) {
 }
 
 Node *new_node_funcall(Node *func, Vector *args) {
-  Node *node = malloc(sizeof(Node));
-  node->type = ND_FUNCALL;
-  node->expType = &tyInt;  // TODO:
+  Node *node = new_node(ND_FUNCALL, func->expType->func.ret);
   node->funcall.func = func;
   node->funcall.args = args;
   return node;
 }
 
 Node *new_node_block(Vector *nodes) {
-  Node *node = malloc(sizeof(Node));
-  node->type = ND_BLOCK;
-  node->expType = &tyVoid;
+  Node *node = new_node(ND_BLOCK, &tyVoid);
   node->block.nodes = nodes;
   return node;
 }
 
 Node *new_node_if(Node *cond, Node *tblock, Node *fblock) {
-  Node *node = malloc(sizeof(Node));
-  node->type = ND_IF;
-  node->expType = &tyVoid;
+  Node *node = new_node(ND_IF, &tyVoid);
   node->if_.cond = cond;
   node->if_.tblock = tblock;
   node->if_.fblock = fblock;
@@ -358,18 +351,14 @@ Node *new_node_if(Node *cond, Node *tblock, Node *fblock) {
 }
 
 Node *new_node_while(Node *cond, Node *body) {
-  Node *node = malloc(sizeof(Node));
-  node->type = ND_WHILE;
-  node->expType = &tyVoid;
+  Node *node = new_node(ND_WHILE, &tyVoid);
   node->while_.cond = cond;
   node->while_.body = body;
   return node;
 }
 
 Node *new_node_for(Node *pre, Node *cond, Node *post, Node *body) {
-  Node *node = malloc(sizeof(Node));
-  node->type = ND_FOR;
-  node->expType = &tyVoid;
+  Node *node = new_node(ND_FOR, &tyVoid);
   node->for_.pre = pre;
   node->for_.cond = cond;
   node->for_.post = post;
@@ -387,6 +376,9 @@ int consume(enum TokenType type) {
 Node *expr();
 
 Node *funcall(Node *func) {
+  if (func->expType->type != TY_FUNC)
+    error("Cannot call except funtion");
+
   Vector *args = NULL;
   if (!consume(TK_RPAR)) {
     args = new_vector();
