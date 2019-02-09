@@ -214,6 +214,15 @@ void gen_ref(Node *node) {
   gen_lval(node);
 }
 
+void gen_cond_jmp(Node *cond, int tf, const char *label) {
+  gen(cond);
+  CMP_I8_EAX(0);
+  if (tf)
+    JNE32(label);
+  else
+    JE32(label);
+}
+
 void gen_defun(Node *node) {
   curfunc = node;
   add_label(node->defun.name);
@@ -380,9 +389,7 @@ void gen(Node *node) {
   case ND_IF:
     {
       const char * flabel = alloc_label();
-      gen(node->if_.cond);
-      CMP_I8_EAX(0);
-      JE32(flabel);
+      gen_cond_jmp(node->if_.cond, FALSE, flabel);
       gen(node->if_.tblock);
       if (node->if_.fblock != NULL) {
         const char * nlabel = alloc_label();
@@ -402,9 +409,7 @@ void gen(Node *node) {
       add_label(llabel);
       gen(node->while_.body);
       add_label(clabel);
-      gen(node->while_.cond);
-      CMP_I8_EAX(0);
-      JNE32(llabel);
+      gen_cond_jmp(node->while_.cond, TRUE, llabel);
     }
     break;
 
@@ -413,9 +418,7 @@ void gen(Node *node) {
       const char * llabel = alloc_label();
       add_label(llabel);
       gen(node->do_while.body);
-      gen(node->do_while.cond);
-      CMP_I8_EAX(0);
-      JNE32(llabel);
+      gen_cond_jmp(node->do_while.cond, TRUE, llabel);
     }
     break;
 
@@ -427,9 +430,7 @@ void gen(Node *node) {
         gen(node->for_.pre);
       add_label(l_cond);
       if (node->for_.cond != NULL) {
-        gen(node->for_.cond);
-        CMP_I8_EAX(0);
-        JE32(l_break);
+        gen_cond_jmp(node->for_.cond, FALSE, l_break);
       }
       gen(node->for_.body);
       if (node->for_.post != NULL)
