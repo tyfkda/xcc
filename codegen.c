@@ -496,6 +496,7 @@ void gen(Node *node) {
 
   case ND_MUL:
   case ND_DIV:
+  case ND_MOD:
 L_binop:
     gen(node->bop.rhs);
     PUSH_RAX();
@@ -516,6 +517,11 @@ L_binop:
     case ND_DIV:
       MOV_I32_RDX(0);
       DIV_RDI();
+      break;
+    case ND_MOD:
+      MOV_I32_RDX(0);
+      DIV_RDI();
+      MOV_RDX_RAX();
       break;
     default:
       assert(FALSE);

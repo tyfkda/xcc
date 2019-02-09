@@ -17,6 +17,7 @@
 #define MOVSX_AL_RAX()   ADD_CODE(0x48, 0x0f, 0xbe, 0xc0)  // movsbq %al,%rax
 #define MOVSX_EAX_RDI()  ADD_CODE(0x48, 0x63, 0xf8)  // movsx %eax, %rdi
 #define MOV_RAX_RDI()    ADD_CODE(0x48, 0x89, 0xc7)  // mov %rax,%rdi
+#define MOV_RDX_RAX()    ADD_CODE(0x48, 0x89, 0xd0)  // mov %rdx,%rax
 #define MOV_RSP_RBP()    ADD_CODE(0x48, 0x89, 0xe5)  // mov %rsp,%rbp
 #define MOV_RBP_RSP()    ADD_CODE(0x48, 0x89, 0xec)  // mov %rbp,%rsp
 #define MOV_RBP_RAX()    ADD_CODE(0x48, 0x89, 0xe8)  // mov %rbp,%rax

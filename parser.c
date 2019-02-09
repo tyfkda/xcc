@@ -88,7 +88,7 @@ void tokenize(const char *p) {
       continue;
     }
 
-    if (strchr("+-*/&(){}[]=;,", *p) != NULL) {
+    if (strchr("+-*/%&(){}[]=;,", *p) != NULL) {
       alloc_token((enum TokenType)*p, p);
       ++i;
       ++p;
@@ -508,6 +508,8 @@ Node *mul() {
       node = new_node_bop(ND_MUL, node, term());
     else if (consume(TK_DIV))
       node = new_node_bop(ND_DIV, node, term());
+    else if (consume(TK_MOD))
+      node = new_node_bop(ND_MOD, node, term());
     else
       return node;
   }
