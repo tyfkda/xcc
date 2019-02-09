@@ -217,6 +217,7 @@ void gen_ref(Node *node) {
 void gen_defun(Node *node) {
   curfunc = node;
   add_label(node->defun.name);
+  node->defun.ret_label = alloc_label();
 
   // Calc local variable offsets.
   // Map parameters from the bottom (to reduce offsets).
@@ -231,9 +232,9 @@ void gen_defun(Node *node) {
   // Prologue
   // Allocate variable bufer.
   Vector *lvars = node->defun.lvars;
+  PUSH_RBP();
+  MOV_RSP_RBP();
   if (frame_size > 0) {
-    PUSH_RBP();
-    MOV_RSP_RBP();
     SUB_IM32_RSP(frame_size);
     // Store parameters into local frame.
     int len = len = node->defun.param_count;
@@ -259,10 +260,9 @@ void gen_defun(Node *node) {
   }
 
   // Epilogue
-  if (frame_size > 0) {
-    MOV_RBP_RSP();
-    POP_RBP();
-  }
+  add_label(node->defun.ret_label);
+  MOV_RBP_RSP();
+  POP_RBP();
   RET();
   curfunc = NULL;
 }
@@ -333,6 +333,13 @@ void gen(Node *node) {
 
   case ND_DEFUN:
     gen_defun(node);
+    return;
+
+  case ND_RETURN:
+    if (node->return_.val != NULL)
+      gen(node->return_.val);
+    assert(curfunc != NULL);
+    JMP32(curfunc->defun.ret_label);
     return;
 
   case ND_FUNCALL:

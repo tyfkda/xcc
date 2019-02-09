@@ -61,6 +61,7 @@ enum TokenType {
   TK_ELSE,
   TK_WHILE,
   TK_FOR,
+  TK_RETURN,
   TK_KWVOID,
   TK_KWINT,
   TK_KWCHAR,
@@ -136,6 +137,7 @@ enum NodeType {
   ND_IF,
   ND_WHILE,
   ND_FOR,
+  ND_RETURN,
 };
 
 typedef struct Node {
@@ -156,11 +158,14 @@ typedef struct Node {
       int global;
     } varref;
     struct {
-      Type *rettype;
+      const Type *rettype;
       const char *name;
       Vector *lvars;
       Vector *stmts;
       int param_count;
+
+      // For codegen.
+      const char *ret_label;
     } defun;
     struct {
       struct Node *func;
@@ -184,6 +189,9 @@ typedef struct Node {
       struct Node *post;
       struct Node *body;
     } for_;
+    struct {
+      struct Node *val;
+    } return_;
   };
 } Node;
 

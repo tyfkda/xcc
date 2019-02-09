@@ -41,6 +41,7 @@ enum TokenType reserved_word(const char *word) {
     { "else", TK_ELSE },
     { "while", TK_WHILE },
     { "for", TK_FOR },
+    { "return", TK_RETURN },
     { "void", TK_KWVOID },
     { "int", TK_KWINT },
     { "char", TK_KWCHAR },
@@ -351,13 +352,14 @@ Node *new_node_varref(const char *name, const Type *type, int global) {
   return node;
 }
 
-Node *new_node_defun(Type *rettype, const char *name, Vector *params) {
+Node *new_node_defun(const Type *rettype, const char *name, Vector *params) {
   Node *node = new_node(ND_DEFUN, &tyVoid);
   node->defun.rettype = rettype;
   node->defun.name = name;
   node->defun.lvars = params;
   node->defun.param_count = params->len;
   node->defun.stmts = NULL;
+  node->defun.ret_label = NULL;
   return node;
 }
 
@@ -395,6 +397,13 @@ Node *new_node_for(Node *pre, Node *cond, Node *post, Node *body) {
   node->for_.cond = cond;
   node->for_.post = post;
   node->for_.body = body;
+  return node;
+}
+
+Node *new_node_return(Node *val) {
+  const Type *type = val != NULL ? val->expType : &tyVoid;
+  Node *node = new_node(ND_RETURN, type);
+  node->return_.val = val;
   return node;
 }
 
@@ -608,6 +617,25 @@ Node *stmt_for() {
   return NULL;
 }
 
+Node *stmt_return() {
+  assert(curfunc != NULL);
+
+  Node *val = NULL;
+  if (consume(TK_SEMICOL)) {
+    if (curfunc->defun.rettype->type != TY_VOID)
+      error("`return' required a value");
+  } else {
+    val = expr();
+    if (!consume(TK_SEMICOL))
+      error("`;' expected, but %s", get_token(pos)->input);
+
+    // TODO: Check return type.
+    if (curfunc->defun.rettype->type == TY_VOID)
+      error("void function `return' a value");
+  }
+  return new_node_return(val);
+}
+
 Type *parse_type() {
   static const enum TokenType kKeywords[] = {
     TK_KWVOID, TK_KWINT, TK_KWCHAR,
@@ -675,6 +703,9 @@ Node *stmt() {
 
   if (consume(TK_FOR))
     return stmt_for();
+
+  if (consume(TK_RETURN))
+    return stmt_return();
 
   // expression statement.
   Node *node = assign();
