@@ -5,6 +5,7 @@
 #include "string.h"
 
 #include "xcc.h"
+#include "x86_64.h"
 
 #define PROG_START   (0x80)
 
@@ -13,10 +14,18 @@
 
 #define START_ADDRESS    0x1000
 
+#define SYSTEMCALL(no)  do { MOV_I32_EAX(no); INT(T_SYSCALL); } while(0)
+
+#define SYSCALL_WRITE  (SYS_write)
+
 #elif defined(__linux__)
 // Linux
 
 #define START_ADDRESS    (0x1000000 + PROG_START)
+
+#define SYSTEMCALL(no)  do { MOV_I32_EAX(no); SYSCALL(); } while(0)
+
+#define SYSCALL_WRITE  (1 /*__NR_write*/)
 
 #else
 
@@ -91,8 +100,6 @@ void init_compiler(uintptr_t adr) {
   rodata_vector = new_vector();
 }
 
-extern void add_foo();
-
 int main(int argc, char* argv[]) {
   if (argc < 2) {
     fprintf(stderr, "argc < 2\n");
@@ -120,12 +127,8 @@ int main(int argc, char* argv[]) {
   // Test.
   {
     add_label("_write");
-    static const unsigned char _write[] = {
-      0xb8, 1, 0, 0, 0,  // mov $1,%eax
-      0x0f, 0x05,         // syscall
-      0xc3,               // ret
-    };
-    add_code(_write, sizeof(_write));
+    SYSTEMCALL(SYSCALL_WRITE);
+    RET();
   }
 
   size_t binsize = fixup_locations();

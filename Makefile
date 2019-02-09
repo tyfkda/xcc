@@ -13,3 +13,6 @@ test: xcc
 
 clean:
 	rm -f xcc *.o *~ tmp*
+
+codegen.o: codegen.c x86_64.h xcc.h
+main.o: main.c x86_64.h xcc.h

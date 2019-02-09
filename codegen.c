@@ -10,8 +10,7 @@
 #include "../kernel/syscall.h"
 #include "../kernel/traps.h"
 
-#define SYSTEMCALL(no)  \
-  do { MOV_I32_EAX(no); INT(T_SYSCALL); } while(0)
+#define SYSTEMCALL(no)  do { MOV_I32_EAX(no); INT(T_SYSCALL); } while(0)
 
 #define SYSCALL_EXIT   (SYS_exit)
 
@@ -20,8 +19,7 @@
 #elif defined(__linux__)
 // Linux
 
-#define SYSTEMCALL(no)  \
-  do { MOV_I32_EAX(no); SYSCALL(); } while(0)
+#define SYSTEMCALL(no)  do { MOV_I32_EAX(no); SYSCALL(); } while(0)
 
 #define SYSCALL_EXIT   (60 /*__NR_exit*/)
 
@@ -32,6 +30,10 @@
 #error Target not supported
 
 #endif
+
+#define CURIP(ofs)  (start_address + codesize + ofs)
+#define ADD_CODE(...)  do { unsigned char buf[] = {__VA_ARGS__}; add_code(buf, sizeof(buf)); } while (0)
+#include "x86_64.h"
 
 const int WORD_SIZE = 8;
 
@@ -97,8 +99,6 @@ void add_rodata(const char *label, const void *data, size_t size) {
 uintptr_t start_address;
 unsigned char* code;
 size_t codesize;
-
-#define CURIP(ofs)  (start_address + codesize + ofs)
 
 void add_code(const unsigned char* buf, size_t size) {
   size_t newsize = codesize + size;
@@ -180,63 +180,6 @@ size_t fixup_locations(void) {
 
   return codesize;
 }
-
-#define ADD_CODE(...)  do { unsigned char buf[] = {__VA_ARGS__}; add_code(buf, sizeof(buf)); } while (0)
-#define IM32(x)  (x), ((x) >> 8), ((x) >> 16), ((x) >> 24)
-#define IM64(x)  (x), ((x) >> 8), ((x) >> 16), ((x) >> 24), ((x) >> 32), ((x) >> 40), ((x) >> 48), ((x) >> 56)
-
-#define MOV_I32_EAX(x)   ADD_CODE(0xb8, IM32(x))  // mov $0xNN,%eax
-#define MOV_I64_RAX(x)   ADD_CODE(0x48, 0xb8, IM64(x))  // mov $0x123456789abcdef0,%rax
-#define MOV_I64_RDI(x)   ADD_CODE(0x48, 0xbf, IM64(x))  // mov $0x123456789abcdef0,%rdi
-#define MOV_I32_RDX(x)   ADD_CODE(0x48, 0xc7, 0xc2, IM32(x)) // mov $0x0,%rdx
-#define MOVSX_EAX_RDI()  ADD_CODE(0x48, 0x63, 0xf8)  // movsx %eax, %rdi
-#define MOV_RAX_RDI()    ADD_CODE(0x48, 0x89, 0xc7)  // mov %rax,%rdi
-#define MOV_RSP_RBP()    ADD_CODE(0x48, 0x89, 0xe5)  // mov %rsp,%rbp
-#define MOV_RBP_RSP()    ADD_CODE(0x48, 0x89, 0xec)  // mov %rbp,%rsp
-#define MOV_RBP_RAX()    ADD_CODE(0x48, 0x89, 0xe8)  // mov %rbp,%rax
-#define MOV_IND_RAX_RAX()  ADD_CODE(0x48, 0x8b, 0x00)  // mov (%rax),%rax
-#define MOV_RAX_IND_RAX()  ADD_CODE(0x48, 0x89, 0x00)  // mov %rax,(%rax)
-#define MOV_RAX_IND_RDI()  ADD_CODE(0x48, 0x89, 0x07)  // mov %rax,(%rdi)
-#define MOV_RDI_IND_RAX()  ADD_CODE(0x48, 0x89, 0x38)  // mov %rdi,(%rax)
-#define MOVZB_AL_RAX()   ADD_CODE(0x48, 0x0f, 0xb6, 0xc0)  // movzbq %al,%rax
-#define MOV_RDI_IND8_RBP(ofs)  ADD_CODE(0x48, 0x89, 0x7d, ofs)  // mov %rdi,ofs(%rbp)
-#define MOV_RSI_IND8_RBP(ofs)  ADD_CODE(0x48, 0x89, 0x75, ofs)  // mov %rsi,ofs(%rbp)
-#define MOV_RDX_IND8_RBP(ofs)  ADD_CODE(0x48, 0x89, 0x55, ofs)  // mov %rdx,ofs(%rbp)
-#define MOV_RCX_IND8_RBP(ofs)  ADD_CODE(0x48, 0x89, 0x4d, ofs)  // mov %rcx,ofs(%rbp)
-#define MOV_R8_IND8_RBP(ofs)   ADD_CODE(0x4c, 0x89, 0x45, ofs)  // mov %r8,ofs(%rbp)
-#define MOV_R9_IND8_RBP(ofs)   ADD_CODE(0x4c, 0x89, 0x4d, ofs)  // mov %r9,ofs(%rbp)
-#define LEA_OFS32_RAX(label)      do { add_loc_rel32(codesize + 4, label, CURIP(8)); ADD_CODE(0x48, 0x8d, 0x04, 0x25, IM32(0)); } while(0)  // lea    0x0,%rax
-#define LEA_OFS32_RIP_RAX(label)  do { add_loc_rel32(codesize + 3, label, CURIP(7)); ADD_CODE(0x48, 0x8d, 0x05, IM32(0)); } while(0)  // lea    0x0(%rip),%rax
-#define ADD_RDI_RAX()    ADD_CODE(0x48, 0x01, 0xf8)  // add %rdi,%rax
-#define ADD_IM32_RAX(x)  ADD_CODE(0x48, 0x05, IM32(x))  // add $12345678,%rax
-#define ADD_IM32_RSP(x)  ADD_CODE(0x48, 0x81, 0xc4, IM32(x))  // add $IM32,%rsp
-#define SUB_RDI_RAX()    ADD_CODE(0x48, 0x29, 0xf8)  // sub %rdi,%rax
-#define SUB_IM32_RAX(x)  ADD_CODE(0x48, 0x2d, IM32(x))  // sub $12345678,%rax
-#define SUB_IM32_RSP(x)  ADD_CODE(0x48, 0x81, 0xec, IM32(x))  // sub $IM32,%rsp
-#define MUL_RDI()        ADD_CODE(0x48, 0xf7, 0xe7)  // mul %rdi
-#define DIV_RDI()        ADD_CODE(0x48, 0xf7, 0xf7)  // div %rdi
-#define CMP_RAX_RDI()    ADD_CODE(0x48, 0x39, 0xc7)  // cmp %rax,%rdi
-#define CMP_I8_RAX(x)    ADD_CODE(0x48, 0x83, 0xf8, x)  // cmp $x,%rax
-#define SETE_AL()        ADD_CODE(0x0f, 0x94, 0xc0)  // sete %al
-#define SETNE_AL()       ADD_CODE(0x0f, 0x95, 0xc0)  // setne %al
-#define PUSH_RAX()       ADD_CODE(0x50)  // push %rax
-#define PUSH_RBP()       ADD_CODE(0x55)  // push %rbp
-#define PUSH_RDI()       ADD_CODE(0x57)  // push %rdi
-#define POP_RAX()        ADD_CODE(0x58)  // pop %rax
-#define POP_RCX()        ADD_CODE(0x59)  // pop %rcx
-#define POP_RDX()        ADD_CODE(0x5a)  // pop %rdx
-#define POP_RBP()        ADD_CODE(0x5d)  // pop %rbp
-#define POP_RSI()        ADD_CODE(0x5e)  // pop %rsi
-#define POP_RDI()        ADD_CODE(0x5f)  // pop %rdi
-#define POP_R8()         ADD_CODE(0x41, 0x58)  // pop %r8
-#define POP_R9()         ADD_CODE(0x41, 0x59)  // pop %r9
-#define JE32(label)      do { add_loc_rel32(codesize + 2, label, CURIP(6)); ADD_CODE(0x0f, 0x84, IM32(0)); } while(0)  // je
-#define JNE32(label)     do { add_loc_rel32(codesize + 2, label, CURIP(6)); ADD_CODE(0x0f, 0x85, IM32(0)); } while(0)  // jne
-#define JMP32(label)     do { add_loc_rel32(codesize + 1, label, CURIP(5)); ADD_CODE(0xe9, IM32(0)); } while(0)  // jmp
-#define CALL(label)      do { add_loc_rel32(codesize + 1, label, CURIP(5)); ADD_CODE(0xe8, IM32(0)); } while(0)  // call
-#define RET()            ADD_CODE(0xc3)  // retq
-#define INT(x)           ADD_CODE(0xcd, x)  // int $x
-#define SYSCALL()        ADD_CODE(0x0f, 0x05)  // syscall
 
 static Node *curfunc;
 
