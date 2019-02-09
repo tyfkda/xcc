@@ -460,14 +460,36 @@ void gen(Node *node) {
 
   case ND_SUB:
     if (node->bop.lhs->expType->type == TY_PTR) {
-      gen(node->bop.rhs);
-      long size = 8;
-      MOV_I64_RDI(size);  // TODO: sizeof(rhs)
-      MUL_RDI();
-      PUSH_RAX();
-      gen(node->bop.lhs);
-      POP_RDI();
-      SUB_RDI_RAX();
+      int size = type_size(node->bop.lhs->expType->ptrof);
+      if (node->bop.rhs->expType->type == TY_PTR) {
+        gen(node->bop.rhs);
+        PUSH_RAX();
+        gen(node->bop.lhs);
+        POP_RDI();
+        SUB_RDI_RAX();
+
+        switch (size) {
+        case 1:  break;
+        case 2:  SAR_RAX(); break;
+        case 4:  SAR_IM8_RAX(2); break;
+        case 8:  SAR_IM8_RAX(3); break;
+        default:
+          MOV_I64_RDI((long)size);
+          MOV_I32_RDX(0);
+          DIV_RDI();
+          break;
+        }
+      } else {
+        gen(node->bop.rhs);
+        if (size != 1) {
+          MOV_I64_RDI((long)size);
+          MUL_RDI();
+        }
+        PUSH_RAX();
+        gen(node->bop.lhs);
+        POP_RDI();
+        SUB_RDI_RAX();
+      }
       break;
     }
     goto L_binop;

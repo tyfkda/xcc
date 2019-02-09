@@ -46,6 +46,8 @@
 #define CMP_I8_RAX(x)    ADD_CODE(0x48, 0x83, 0xf8, x)  // cmp $x,%rax
 #define SETE_AL()        ADD_CODE(0x0f, 0x94, 0xc0)  // sete %al
 #define SETNE_AL()       ADD_CODE(0x0f, 0x95, 0xc0)  // setne %al
+#define SAR_RAX(x)       ADD_CODE(0x48, 0xd1, 0xf8)  // sar %rax
+#define SAR_IM8_RAX(x)   ADD_CODE(0x48, 0xc1, 0xf8, x)  // sar $x,%rax
 #define PUSH_RAX()       ADD_CODE(0x50)  // push %rax
 #define PUSH_RBP()       ADD_CODE(0x55)  // push %rbp
 #define PUSH_RDI()       ADD_CODE(0x57)  // push %rdi

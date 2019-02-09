@@ -273,8 +273,9 @@ Node *new_node_bop(enum NodeType type, Node *lhs, Node *rhs) {
   case ND_SUB:
     if (lhs->expType->type == TY_PTR) {
       if (rhs->expType->type == TY_PTR)
-        error("Cannot sub pointers");
-      node->expType = lhs->expType;
+        node->expType = &tyInt;
+      else
+        node->expType = lhs->expType;
     } else {
       if (lhs->expType->type == TY_PTR)
         error("Cannot sub pointer");
