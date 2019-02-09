@@ -8,8 +8,6 @@
 #define ADD_CODE(...)  do { unsigned char buf[] = {__VA_ARGS__}; add_code(buf, sizeof(buf)); } while (0)
 #include "x86_64.h"
 
-const int WORD_SIZE = 8;
-
 char *strdup_(const char *str) {
   size_t len = strlen(str);
   char *dup = malloc(len + 1);
@@ -24,7 +22,7 @@ int type_size(const Type *type) {
   case TY_CHAR:
     return 1;
   case TY_INT:
-    return 8;  // TODO: 4
+    return 4;
   case TY_PTR:
   case TY_FUNC:
     return 8;
@@ -244,12 +242,12 @@ void gen_defun(Node *node) {
     for (int i = 0; i < len; ++i) {
       int offset = ((VarInfo*)lvars->data[i])->offset;
       switch (i) {
-      case 0:  MOV_RDI_IND8_RBP(offset); break;
-      case 1:  MOV_RSI_IND8_RBP(offset); break;
-      case 2:  MOV_RDX_IND8_RBP(offset); break;
-      case 3:  MOV_RCX_IND8_RBP(offset); break;
-      case 4:  MOV_R8_IND8_RBP(offset); break;
-      case 5:  MOV_R9_IND8_RBP(offset); break;
+      case 0:  MOV_EDI_IND8_RBP(offset); break;
+      case 1:  MOV_ESI_IND8_RBP(offset); break;
+      case 2:  MOV_EDX_IND8_RBP(offset); break;
+      case 3:  MOV_ECX_IND8_RBP(offset); break;
+      case 4:  MOV_R8D_IND8_RBP(offset); break;
+      case 5:  MOV_R9D_IND8_RBP(offset); break;
       default: break;
       }
     }
@@ -272,7 +270,7 @@ void gen_defun(Node *node) {
 void gen(Node *node) {
   switch (node->type) {
   case ND_NUM:
-    MOV_I64_RAX(node->val);
+    MOV_I32_EAX(node->val);
     return;
 
   case ND_CHAR:
@@ -324,6 +322,8 @@ void gen(Node *node) {
       MOV_AL_IND_RDI();
       break;
     case TY_INT:
+      MOV_EAX_IND_RDI();
+      break;
     case TY_PTR:
     default:
       MOV_RAX_IND_RDI();
@@ -428,12 +428,12 @@ void gen(Node *node) {
     gen(node->bop.rhs);
 
     POP_RDI();
-    CMP_RAX_RDI();
+    CMP_EAX_EDI();
     if (node->type == ND_EQ)
       SETE_AL();
     else
       SETNE_AL();
-    MOVZB_AL_RAX();
+    MOVZX_AL_EAX();
     return;
 
   case ND_ADD:
@@ -447,8 +447,8 @@ void gen(Node *node) {
       gen(rhs);
       long size = type_size(lhs->expType->ptrof);
       if (size != 1) {
-        MOV_I64_RDI(size);
-        MUL_RDI();
+        MOV_I32_EDI(size);
+        MUL_EDI();
       }
       PUSH_RAX();
       gen(lhs);
@@ -506,22 +506,22 @@ L_binop:
 
     switch (node->type) {
     case ND_ADD:
-      ADD_RDI_RAX();
+      ADD_EDI_EAX();
       break;
     case ND_SUB:
-      SUB_RDI_RAX();
+      SUB_EDI_EAX();
       break;
     case ND_MUL:
-      MUL_RDI();
+      MUL_EDI();
       break;
     case ND_DIV:
       MOV_I32_RDX(0);
-      DIV_RDI();
+      DIV_EDI();
       break;
     case ND_MOD:
       MOV_I32_RDX(0);
-      DIV_RDI();
-      MOV_RDX_RAX();
+      DIV_EDI();
+      MOV_EDX_EAX();
       break;
     default:
       assert(FALSE);
