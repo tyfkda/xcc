@@ -39,6 +39,7 @@ enum TokenType reserved_word(const char *word) {
   } table[] = {
     { "if", TK_IF },
     { "else", TK_ELSE },
+    { "do", TK_DO },
     { "while", TK_WHILE },
     { "for", TK_FOR },
     { "return", TK_RETURN },
@@ -391,6 +392,13 @@ Node *new_node_while(Node *cond, Node *body) {
   return node;
 }
 
+Node *new_node_do_while(Node *body, Node *cond) {
+  Node *node = new_node(ND_DO_WHILE, &tyVoid);
+  node->do_while.body = body;
+  node->do_while.cond = cond;
+  return node;
+}
+
 Node *new_node_for(Node *pre, Node *cond, Node *post, Node *body) {
   Node *node = new_node(ND_FOR, &tyVoid);
   node->for_.pre = pre;
@@ -603,6 +611,20 @@ Node *stmt_while() {
   return NULL;
 }
 
+Node *stmt_do_while() {
+  Node *body = stmt();
+  if (consume(TK_WHILE)) {
+    if (consume(TK_LPAR)) {
+      Node *cond = expr();
+      if (consume(TK_RPAR) && consume(TK_SEMICOL)) {
+        return new_node_do_while(body, cond);
+      }
+    }
+  }
+  error("Parse `while' failed: %s", get_token(pos)->input);
+  return NULL;
+}
+
 Node *stmt_for() {
   if (consume(TK_LPAR)) {
     Node *pre = NULL, *cond = NULL, *post = NULL;
@@ -700,6 +722,9 @@ Node *stmt() {
 
   if (consume(TK_WHILE))
     return stmt_while();
+
+  if (consume(TK_DO))
+    return stmt_do_while();
 
   if (consume(TK_FOR))
     return stmt_for();

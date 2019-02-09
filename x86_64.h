@@ -60,6 +60,7 @@
 #define DIV_RDI()        ADD_CODE(0x48, 0xf7, 0xf7)  // div %rdi
 #define CMP_EAX_EDI()    ADD_CODE(0x39, 0xc7)  // cmp %eax,%edi
 #define CMP_RAX_RDI()    ADD_CODE(0x48, 0x39, 0xc7)  // cmp %rax,%rdi
+#define CMP_I8_EAX(x)    ADD_CODE(0x83, 0xf8, x)  // cmp $x,%eax
 #define CMP_I8_RAX(x)    ADD_CODE(0x48, 0x83, 0xf8, x)  // cmp $x,%rax
 #define SETE_AL()        ADD_CODE(0x0f, 0x94, 0xc0)  // sete %al
 #define SETNE_AL()       ADD_CODE(0x0f, 0x95, 0xc0)  // setne %al

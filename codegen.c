@@ -381,7 +381,7 @@ void gen(Node *node) {
     {
       const char * flabel = alloc_label();
       gen(node->if_.cond);
-      CMP_I8_RAX(0);
+      CMP_I8_EAX(0);
       JE32(flabel);
       gen(node->if_.tblock);
       if (node->if_.fblock != NULL) {
@@ -403,7 +403,18 @@ void gen(Node *node) {
       gen(node->while_.body);
       add_label(clabel);
       gen(node->while_.cond);
-      CMP_I8_RAX(0);
+      CMP_I8_EAX(0);
+      JNE32(llabel);
+    }
+    break;
+
+  case ND_DO_WHILE:
+    {
+      const char * llabel = alloc_label();
+      add_label(llabel);
+      gen(node->do_while.body);
+      gen(node->do_while.cond);
+      CMP_I8_EAX(0);
       JNE32(llabel);
     }
     break;
@@ -417,7 +428,7 @@ void gen(Node *node) {
       add_label(l_cond);
       if (node->for_.cond != NULL) {
         gen(node->for_.cond);
-        CMP_I8_RAX(0);
+        CMP_I8_EAX(0);
         JE32(l_break);
       }
       gen(node->for_.body);
