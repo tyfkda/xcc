@@ -14,7 +14,7 @@
 
 #define START_ADDRESS    0x1000
 
-#define SYSTEMCALL(no)  do { MOV_I32_EAX(no); INT(T_SYSCALL); } while(0)
+#define SYSTEMCALL(no)  do { MOV_IM32_EAX(no); INT(T_SYSCALL); } while(0)
 
 #define SYSCALL_EXIT   (SYS_exit)
 #define SYSCALL_WRITE  (SYS_write)
@@ -24,7 +24,7 @@
 
 #define START_ADDRESS    (0x1000000 + PROG_START)
 
-#define SYSTEMCALL(no)  do { MOV_I32_EAX(no); SYSCALL(); } while(0)
+#define SYSTEMCALL(no)  do { MOV_IM32_EAX(no); SYSCALL(); } while(0)
 
 #define SYSCALL_EXIT   (60 /*__NR_exit*/)
 #define SYSCALL_WRITE  (1 /*__NR_write*/)

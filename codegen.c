@@ -291,7 +291,7 @@ static void gen_lval(Node *node) {
 
 static void gen_cond_jmp(Node *cond, int tf, const char *label) {
   gen(cond);
-  CMP_I8_EAX(0);
+  CMP_IM8_EAX(0);
   if (tf)
     JNE32(label);
   else
@@ -479,11 +479,11 @@ static void gen_for(Node *node) {
 void gen(Node *node) {
   switch (node->type) {
   case ND_NUM:
-    MOV_I32_EAX(node->val);
+    MOV_IM32_EAX(node->val);
     return;
 
   case ND_CHAR:
-    MOV_I8_AL(node->val);
+    MOV_IM8_AL(node->val);
     return;
 
   case ND_STR:
@@ -622,7 +622,7 @@ void gen(Node *node) {
       gen(rhs);
       long size = type_size(lhs->expType->ptrof);
       if (size != 1) {
-        MOV_I32_EDI(size);
+        MOV_IM32_EDI(size);
         MUL_EDI();
       }
       PUSH_RAX();
@@ -649,15 +649,15 @@ void gen(Node *node) {
         case 4:  SAR_IM8_RAX(2); break;
         case 8:  SAR_IM8_RAX(3); break;
         default:
-          MOV_I64_RDI((long)size);
-          MOV_I32_RDX(0);
+          MOV_IM64_RDI((long)size);
+          MOV_IM32_RDX(0);
           DIV_RDI();
           break;
         }
       } else {
         gen(node->bop.rhs);
         if (size != 1) {
-          MOV_I64_RDI((long)size);
+          MOV_IM64_RDI((long)size);
           MUL_RDI();
         }
         PUSH_RAX();
@@ -690,11 +690,11 @@ L_binop:
       MUL_EDI();
       break;
     case ND_DIV:
-      MOV_I32_RDX(0);
+      MOV_IM32_RDX(0);
       DIV_EDI();
       break;
     case ND_MOD:
-      MOV_I32_RDX(0);
+      MOV_IM32_RDX(0);
       DIV_EDI();
       MOV_EDX_EAX();
       break;
