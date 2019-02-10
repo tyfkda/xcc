@@ -373,6 +373,16 @@ Node *term() {
     return new_node_unary(ND_DEREF, node);
   }
 
+  if (consume(TK_INC)) {
+    Node *node = term();
+    return new_node_unary(ND_PREINC, node);
+  }
+
+  if (consume(TK_DEC)) {
+    Node *node = term();
+    return new_node_unary(ND_PREDEC, node);
+  }
+
   Node *node = prim();
 
   for (;;) {
@@ -384,6 +394,10 @@ Node *term() {
       node = member_access(node);
     else if (consume(TK_ARROW))
       node = member_access(node);
+    else if (consume(TK_INC))
+      node = new_node_unary(ND_POSTINC, node);
+    else if (consume(TK_DEC))
+      node = new_node_unary(ND_POSTDEC, node);
     else
       return node;
   }

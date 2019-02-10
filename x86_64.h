@@ -11,6 +11,7 @@
 
 #define MOV_IM8_AL(x)    ADD_CODE(0xb0, x)  // mov $x,%al
 #define MOV_IM32_EAX(x)  ADD_CODE(0xb8, IM32(x))  // mov $0xNN,%eax
+#define MOV_IM32_RAX(x)  ADD_CODE(0x48, 0xc7, 0xc0, IM32(x))  // mov $0x12345678,%rax
 #define MOV_IM64_RAX(x)  ADD_CODE(0x48, 0xb8, IM64(x))  // mov $0x123456789abcdef0,%rax
 #define MOV_IM32_EDI(x)  ADD_CODE(0xbf, IM32(x))  // mov $0x12345678,%edi
 #define MOV_IM64_RDI(x)  ADD_CODE(0x48, 0xbf, IM64(x))  // mov $0x123456789abcdef0,%rdi
@@ -23,6 +24,7 @@
 #define MOV_RAX_RDI()    ADD_CODE(0x48, 0x89, 0xc7)  // mov %rax,%rdi
 #define MOV_EDX_EAX()    ADD_CODE(0x89, 0xd0)  // mov %edx,%eax
 #define MOV_RDX_RAX()    ADD_CODE(0x48, 0x89, 0xd0)  // mov %rdx,%rax
+#define MOV_RDI_RAX()    ADD_CODE(0x48, 0x89, 0xf8)  // mov %rdi,%rax
 #define MOV_RSP_RBP()    ADD_CODE(0x48, 0x89, 0xe5)  // mov %rsp,%rbp
 #define MOV_RBP_RSP()    ADD_CODE(0x48, 0x89, 0xec)  // mov %rbp,%rsp
 #define MOV_RBP_RAX()    ADD_CODE(0x48, 0x89, 0xe8)  // mov %rbp,%rax
@@ -30,6 +32,7 @@
 #define MOV_IND_RAX_AL()   ADD_CODE(0x8a, 0x00)  // mov (%rax),%al
 #define MOV_IND_RAX_EAX()  ADD_CODE(0x8b, 0x00)  // mov (%rax),%eax
 #define MOV_IND_RAX_RAX()  ADD_CODE(0x48, 0x8b, 0x00)  // mov (%rax),%rax
+#define MOV_IND_RAX_RDI()  ADD_CODE(0x48, 0x8b, 0x38)  // mov (%rax),%rdi
 #define MOV_RAX_IND_RAX()  ADD_CODE(0x48, 0x89, 0x00)  // mov %rax,(%rax)
 #define MOV_EAX_IND_RDI()  ADD_CODE(0x89, 0x07)  // mov %eax,(%rdi)
 #define MOV_RAX_IND_RDI()  ADD_CODE(0x48, 0x89, 0x07)  // mov %rax,(%rdi)
@@ -58,6 +61,7 @@
 #define ADD_RDI_RAX()    ADD_CODE(0x48, 0x01, 0xf8)  // add %rdi,%rax
 #define ADD_IM32_RAX(x)  ADD_CODE(0x48, 0x05, IM32(x))  // add $12345678,%rax
 #define ADD_IM32_RSP(x)  ADD_CODE(0x48, 0x81, 0xc4, IM32(x))  // add $IM32,%rsp
+#define ADD_IND_RDI_RAX()  ADD_CODE(0x48, 0x03, 0x07)  // add (%rdi),%rax
 #define SUB_EDI_EAX()    ADD_CODE(0x29, 0xf8)  // sub %edi,%eax
 #define SUB_RDI_RAX()    ADD_CODE(0x48, 0x29, 0xf8)  // sub %rdi,%rax
 #define SUB_IM32_RAX(x)  ADD_CODE(0x48, 0x2d, IM32(x))  // sub $12345678,%rax
@@ -70,6 +74,10 @@
 #define CMP_RAX_RDI()    ADD_CODE(0x48, 0x39, 0xc7)  // cmp %rax,%rdi
 #define CMP_IM8_EAX(x)   ADD_CODE(0x83, 0xf8, x)  // cmp $x,%eax
 #define CMP_IM8_RAX(x)   ADD_CODE(0x48, 0x83, 0xf8, x)  // cmp $x,%rax
+#define INCB_IND_RAX()   ADD_CODE(0xfe, 0x00)  // incb (%rax)
+#define INCL_IND_RAX()   ADD_CODE(0xff, 0x00)  // incl (%rax)
+#define DECB_IND_RAX()   ADD_CODE(0xfe, 0x08)  // decb (%rax)
+#define DECL_IND_RAX()   ADD_CODE(0xff, 0x08)  // decl (%rax)
 #define SETE_AL()        ADD_CODE(0x0f, 0x94, 0xc0)  // sete %al
 #define SETNE_AL()       ADD_CODE(0x0f, 0x95, 0xc0)  // setne %al
 #define SETS_AL()        ADD_CODE(0x0f, 0x98, 0xc0)  // sets %al

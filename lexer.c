@@ -65,15 +65,10 @@ void tokenize(const char *p) {
       continue;
     }
 
-    if (*p == '=') {
-      switch (p[1]) {
-      case '=':
-        alloc_token(TK_EQ, p);
-        p += 2;
-        continue;
-      default:
-        break;
-      }
+    if (*p == '=' && p[1] == '=') {
+      alloc_token(TK_EQ, p);
+      p += 2;
+      continue;
     }
 
     if (*p == '!' && p[1] == '=') {
@@ -82,35 +77,38 @@ void tokenize(const char *p) {
       continue;
     }
 
-    if (*p == '<') {
-      const char *input = p++;
-      enum TokenType tk = TK_LT;
-      if (*p == '=') {
-        tk = TK_LE;
-        ++p;
-      }
-      alloc_token(tk, input);
-      continue;
-    }
-
-    if (*p == '>') {
-      const char *input = p++;
-      enum TokenType tk = TK_GT;
-      if (*p == '=') {
-        tk = TK_GE;
-        ++p;
-      }
-      alloc_token(tk, input);
-      continue;
-    }
-
-    if (*p == '-' && p[1] == '>') {
-      alloc_token(TK_ARROW, p);
+    if (*p == '<' && p[1] == '=') {
+      alloc_token(TK_LE, p);
       p += 2;
       continue;
     }
 
-    if (strchr("+-*/%&(){}[]=;,.", *p) != NULL) {
+    if (*p == '>' && p[1] == '=') {
+      alloc_token(TK_GE, p);
+      p += 2;
+      continue;
+    }
+
+    if (*p == '+' && p[1] == '+') {
+      alloc_token(TK_INC, p);
+      p += 2;
+      continue;
+    }
+
+    if (*p == '-') {
+      if (p[1] == '-') {
+        alloc_token(TK_DEC, p);
+        p += 2;
+        continue;
+      }
+      if (p[1] == '>') {
+        alloc_token(TK_ARROW, p);
+        p += 2;
+        continue;
+      }
+    }
+
+    if (strchr("+-*/%&(){}[]<>=;,.", *p) != NULL) {
       alloc_token((enum TokenType)*p, p);
       ++p;
       continue;

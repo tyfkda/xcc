@@ -504,7 +504,12 @@ void gen(Node *node) {
 
   case ND_DEREF:
     gen_rval(node->unary.sub);
-    MOV_IND_RAX_RAX();
+    switch (node->expType->type) {
+    case TY_CHAR:  MOV_IND_RAX_AL(); break;
+    case TY_INT:   MOV_IND_RAX_EAX(); break;
+    case TY_PTR:   MOV_IND_RAX_RAX(); break;
+    default: assert(FALSE); break;
+    }
     return;
 
   case ND_MEMBER:
@@ -544,6 +549,62 @@ void gen(Node *node) {
       MOV_RAX_IND_RDI();
       break;
     }
+    return;
+
+  case ND_PREINC:
+  case ND_PREDEC:
+    gen_lval(node->unary.sub);
+    switch (node->expType->type) {
+    case TY_CHAR:
+      if (node->type == ND_PREINC)  INCB_IND_RAX();
+      else                          DECB_IND_RAX();
+      MOV_IND_RAX_RAX();
+      break;
+    case TY_INT:
+      if (node->type == ND_PREINC)  INCL_IND_RAX();
+      else                          DECL_IND_RAX();
+      MOV_IND_RAX_RAX();
+      break;
+    case TY_PTR:
+      {
+        MOV_RAX_RDI();
+        int size = type_size(node->expType->ptrof);
+        MOV_IM32_RAX(node->type == ND_PREINC ? size : -size);
+        ADD_IND_RDI_RAX();
+        MOV_RAX_IND_RDI();
+      }
+      break;
+    default:
+      assert(FALSE);
+      break;
+    }
+    return;
+
+  case ND_POSTINC:
+  case ND_POSTDEC:
+    gen_lval(node->unary.sub);
+    MOV_IND_RAX_RDI();
+    switch (node->expType->type) {
+    case TY_CHAR:
+      if (node->type == ND_POSTINC)  INCB_IND_RAX();
+      else                           DECB_IND_RAX();
+      break;
+    case TY_INT:
+      if (node->type == ND_POSTINC)  INCL_IND_RAX();
+      else                           DECL_IND_RAX();
+      break;
+    case TY_PTR:
+      {
+        int size = type_size(node->expType->ptrof);
+        if (node->type == ND_POSTINC)  ADD_IM32_RAX(size);
+        else                           SUB_IM32_RAX(size);
+      }
+      break;
+    default:
+      assert(FALSE);
+      break;
+    }
+    MOV_RDI_RAX();
     return;
 
   case ND_DEFUN:

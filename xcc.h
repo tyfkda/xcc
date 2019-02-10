@@ -63,6 +63,8 @@ enum TokenType {
   TK_LE,  // <=
   TK_GE,  // >=
   TK_ARROW,  // ->
+  TK_INC,
+  TK_DEC,
   TK_IF,
   TK_ELSE,
   TK_DO,
@@ -148,6 +150,10 @@ enum NodeType {
   ND_DIV,
   ND_MOD,
   ND_ASSIGN,
+  ND_PREINC,
+  ND_PREDEC,
+  ND_POSTINC,
+  ND_POSTDEC,
   ND_EQ,
   ND_NE,
   ND_LT,
