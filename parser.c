@@ -111,6 +111,12 @@ void tokenize(const char *p) {
       continue;
     }
 
+    if (*p == '-' && p[1] == '>') {
+      alloc_token(TK_ARROW, p);
+      p += 2;
+      continue;
+    }
+
     if (strchr("+-*/%&(){}[]=;,.", *p) != NULL) {
       alloc_token((enum TokenType)*p, p);
       ++p;
@@ -562,11 +568,13 @@ Node *term() {
   for (;;) {
     if (consume(TK_LPAR))
       node = funcall(node);
-    if (consume(TK_LBRACKET))
+    else if (consume(TK_LBRACKET))
       node = array_index(node);
-    if (consume(TK_DOT)) {
+    else if (consume(TK_DOT))
       node = member_access(node);
-    } else
+    else if (consume(TK_ARROW))
+      node = member_access(node);
+    else
       return node;
   }
 }

@@ -269,7 +269,10 @@ void gen_lval(Node *node) {
       assert(varidx >= 0);
       VarInfo *varinfo = (VarInfo*)members->data[varidx];
 
-      gen_ref(node->member.target);
+      if (node->member.target->expType->type == TY_PTR)
+        gen(node->member.target);
+      else
+        gen_ref(node->member.target);
       if (varinfo->offset != 0)
         ADD_IM32_RAX(varinfo->offset);
     }
