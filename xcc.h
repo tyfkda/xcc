@@ -227,9 +227,7 @@ typedef struct Node {
   };
 } Node;
 
-extern Vector *node_vector;
-
-void program(void);
+Vector *parse_program(void);
 
 // Variables
 
@@ -241,21 +239,24 @@ Map *global;
 VarInfo *find_global(const char *name);
 void define_global(Type *type, const char *name);
 
-Vector *rodata_vector;
-
-void add_rodata(const char *label, const void *data, size_t size);
-
 // Codegen
 
-extern Map *label_map;
-extern Vector *loc_vector;
-extern uintptr_t start_address;
+typedef struct {
+  const char *label;
+  const void *data;
+  size_t size;
+} RoData;
 
-void compile(const char* source);
+extern Vector *loc_vector;
+
+void init_gen(uintptr_t start_address);
+void gen(Node *node);
+void gen_rodata(void);
 void output_code(FILE* fp);
 void add_label(const char *label);
 void add_code(const unsigned char* buf, size_t size);
 size_t fixup_locations(void);
+uintptr_t label_adr(const char *label);
 
 // elfutil
 

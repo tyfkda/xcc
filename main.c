@@ -93,14 +93,20 @@ void error(const char* fmt, ...) {
 }
 
 void init_compiler(uintptr_t adr) {
-  start_address = adr;
   token_vector = new_vector();
-  node_vector = new_vector();
-  label_map = new_map();
   loc_vector = new_vector();
   struct_map = new_map();
   global = new_map();
-  rodata_vector = new_vector();
+
+  init_gen(adr);
+}
+
+void compile(const char* source) {
+  tokenize(source);
+  Vector *node_vector = parse_program();
+
+  for (int i = 0, len = node_vector->len; i < len; ++i)
+    gen(node_vector->data[i]);
 }
 
 int main(int argc, char* argv[]) {
@@ -141,13 +147,9 @@ int main(int argc, char* argv[]) {
 
   size_t binsize = fixup_locations();
 
-  uintptr_t entry = 0;
-  {
-    void *val = map_get(label_map, "main");
-    if (val == NULL)
-      error("Cannot find label: `%s'", "main");
-    entry = (uintptr_t)val;
-  }
+  uintptr_t entry = label_adr("main");
+  if (entry == (uintptr_t)-1)
+    error("Cannot find label: `%s'", "main");
 
   FILE* fp = stdout;
 

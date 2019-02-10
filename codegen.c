@@ -111,7 +111,7 @@ void cast(const enum eType ltype, const enum eType rtype) {
   error("Cannot convert from type %d to %d", rtype, ltype);
 }
 
-Map *label_map;
+static Map *label_map;
 
 enum LocType {
   LOC_REL32,
@@ -128,13 +128,7 @@ typedef struct {
   };
 } LocInfo;
 
-typedef struct {
-  const char *label;
-  const void *data;
-  size_t size;
-} RoData;
-
-Vector *rodata_vector;
+static Vector *rodata_vector;
 
 void add_rodata(const char *label, const void *data, size_t size) {
   RoData *ro = malloc(sizeof(*ro));
@@ -144,9 +138,9 @@ void add_rodata(const char *label, const void *data, size_t size) {
   vec_push(rodata_vector, ro);
 }
 
-uintptr_t start_address;
-unsigned char* code;
-size_t codesize;
+static uintptr_t start_address;
+static unsigned char* code;
+static size_t codesize;
 
 void add_code(const unsigned char* buf, size_t size) {
   size_t newsize = codesize + size;
@@ -159,7 +153,12 @@ void add_code(const unsigned char* buf, size_t size) {
 
 // Put label at the current.
 void add_label(const char *label) {
-  map_put(label_map, (char*)label, (void*)CURIP(0));
+  map_put(label_map, label, (void*)CURIP(0));
+}
+
+uintptr_t label_adr(const char *label) {
+  void *adr = map_get(label_map, label);
+  return adr != NULL ? (uintptr_t)adr : (uintptr_t)-1;
 }
 
 char *alloc_label() {
@@ -189,6 +188,13 @@ void add_loc_rel32(uintptr_t ip, const char *label, uintptr_t base) {
 }
 
 size_t fixup_locations(void) {
+  // Output RoData
+  for (int i = 0, len = rodata_vector->len; i < len; ++i) {
+    const RoData *ro = (const RoData*)rodata_vector->data[i];
+    add_label(ro->label);
+    add_code(ro->data, ro->size);
+  }
+
   // Global
   for (int i = 0, len = map_count(global); i < len; ++i) {
     const char *name = (const char *)global->keys->data[i];
@@ -201,6 +207,7 @@ size_t fixup_locations(void) {
     add_code(buf, size);
   }
 
+  // Resolve label locations.
   for (int i = 0; i < loc_vector->len; ++i) {
     LocInfo *loc = loc_vector->data[i];
     void *val = map_get(label_map, loc->label);
@@ -231,18 +238,17 @@ size_t fixup_locations(void) {
 
 static Node *curfunc;
 
-void gen(Node *node);
-void gen_lval(Node *node);
+static void gen_lval(Node *node);
 
-void gen_rval(Node *node) {
+static void gen_rval(Node *node) {
   gen(node);  // ?
 }
 
-void gen_ref(Node *node) {
+static void gen_ref(Node *node) {
   gen_lval(node);
 }
 
-void gen_lval(Node *node) {
+static void gen_lval(Node *node) {
   switch (node->type) {
   case ND_VARREF:
     if (node->varref.global) {
@@ -283,7 +289,7 @@ void gen_lval(Node *node) {
   }
 }
 
-void gen_cond_jmp(Node *cond, int tf, const char *label) {
+static void gen_cond_jmp(Node *cond, int tf, const char *label) {
   gen(cond);
   CMP_I8_EAX(0);
   if (tf)
@@ -292,7 +298,21 @@ void gen_cond_jmp(Node *cond, int tf, const char *label) {
     JE32(label);
 }
 
-void gen_defun(Node *node) {
+static void gen_varref(Node *node) {
+  gen_lval(node);
+  VarInfo *varinfo;
+  if (node->varref.global) {
+    varinfo = find_global(node->varref.ident);
+  } else {
+    int varidx = var_find(curfunc->defun.lvars, node->varref.ident);
+    assert(varidx >= 0);
+    varinfo = (VarInfo*)curfunc->defun.lvars->data[varidx];
+  }
+  if (varinfo->type->type != TY_ARRAY)  // If the variable is array, use variable address as a pointer.
+    MOV_IND_RAX_RAX();
+}
+
+static void gen_defun(Node *node) {
   curfunc = node;
   add_label(node->defun.name);
   node->defun.ret_label = alloc_label();
@@ -372,6 +392,90 @@ void gen_defun(Node *node) {
   curfunc = NULL;
 }
 
+static void gen_return(Node *node) {
+  if (node->return_.val != NULL)
+    gen(node->return_.val);
+  assert(curfunc != NULL);
+  JMP32(curfunc->defun.ret_label);
+}
+
+static void gen_funcall(Node *node) {
+  Vector *args = node->funcall.args;
+  if (args != NULL) {
+    int len = args->len;
+    if (len > 6)
+      error("Param count exceeds 6 (%d)", len);
+
+    for (int i = 0; i < len; ++i) {
+      gen((Node*)args->data[i]);
+      PUSH_RAX();
+    }
+
+    switch (len) {
+    case 6:  POP_R9();  // Fall
+    case 5:  POP_R8();  // Fall
+    case 4:  POP_RCX();  // Fall
+    case 3:  POP_RDX();  // Fall
+    case 2:  POP_RSI();  // Fall
+    case 1:  POP_RDI();  // Fall
+    default: break;
+    }
+  }
+  Node *func = node->funcall.func;
+  if (func->type == ND_VARREF && func->varref.global) {
+    CALL(func->varref.ident);
+  } else {
+    gen(func);
+    CALL_IND_RAX();
+  }
+}
+
+static void gen_if(Node *node) {
+  const char * flabel = alloc_label();
+  gen_cond_jmp(node->if_.cond, FALSE, flabel);
+  gen(node->if_.tblock);
+  if (node->if_.fblock != NULL) {
+    const char * nlabel = alloc_label();
+    JMP32(nlabel);
+    add_label(flabel);
+    gen(node->if_.fblock);
+    add_label(nlabel);
+  }
+}
+
+static void gen_while(Node *node) {
+  const char * llabel = alloc_label();
+  const char * clabel = alloc_label();
+  JMP32(clabel);
+  add_label(llabel);
+  gen(node->while_.body);
+  add_label(clabel);
+  gen_cond_jmp(node->while_.cond, TRUE, llabel);
+}
+
+static void gen_do_while(Node *node) {
+  const char * llabel = alloc_label();
+  add_label(llabel);
+  gen(node->do_while.body);
+  gen_cond_jmp(node->do_while.cond, TRUE, llabel);
+}
+
+static void gen_for(Node *node) {
+  const char * l_cond = alloc_label();
+  const char * l_break = alloc_label();
+  if (node->for_.pre != NULL)
+    gen(node->for_.pre);
+  add_label(l_cond);
+  if (node->for_.cond != NULL) {
+    gen_cond_jmp(node->for_.cond, FALSE, l_break);
+  }
+  gen(node->for_.body);
+  if (node->for_.post != NULL)
+    gen(node->for_.post);
+  JMP32(l_cond);
+  add_label(l_break);
+}
+
 void gen(Node *node) {
   switch (node->type) {
   case ND_NUM:
@@ -391,19 +495,7 @@ void gen(Node *node) {
     return;
 
   case ND_VARREF:
-    {
-      gen_lval(node);
-      VarInfo *varinfo;
-      if (node->varref.global) {
-        varinfo = find_global(node->varref.ident);
-      } else {
-        int varidx = var_find(curfunc->defun.lvars, node->varref.ident);
-        assert(varidx >= 0);
-        varinfo = (VarInfo*)curfunc->defun.lvars->data[varidx];
-      }
-      if (varinfo->type->type != TY_ARRAY)  // If the variable is array, use variable address as a pointer.
-        MOV_IND_RAX_RAX();
-    }
+    gen_varref(node);
     return;
 
   case ND_REF:
@@ -459,44 +551,12 @@ void gen(Node *node) {
     return;
 
   case ND_RETURN:
-    if (node->return_.val != NULL)
-      gen(node->return_.val);
-    assert(curfunc != NULL);
-    JMP32(curfunc->defun.ret_label);
+    gen_return(node);
     return;
 
   case ND_FUNCALL:
-    {
-      Vector *args = node->funcall.args;
-      if (args != NULL) {
-        int len = args->len;
-        if (len > 6)
-          error("Param count exceeds 6 (%d)", len);
-
-        for (int i = 0; i < len; ++i) {
-          gen((Node*)args->data[i]);
-          PUSH_RAX();
-        }
-
-        switch (len) {
-        case 6:  POP_R9();  // Fall
-        case 5:  POP_R8();  // Fall
-        case 4:  POP_RCX();  // Fall
-        case 3:  POP_RDX();  // Fall
-        case 2:  POP_RSI();  // Fall
-        case 1:  POP_RDI();  // Fall
-        default: break;
-        }
-      }
-      Node *func = node->funcall.func;
-      if (func->type == ND_VARREF && func->varref.global) {
-        CALL(func->varref.ident);
-      } else {
-        gen(func);
-        CALL_IND_RAX();
-      }
-      return;
-    }
+    gen_funcall(node);
+    return;
 
   case ND_BLOCK:
     for (int i = 0, len = node->block.nodes->len; i < len; ++i)
@@ -504,57 +564,19 @@ void gen(Node *node) {
     break;
 
   case ND_IF:
-    {
-      const char * flabel = alloc_label();
-      gen_cond_jmp(node->if_.cond, FALSE, flabel);
-      gen(node->if_.tblock);
-      if (node->if_.fblock != NULL) {
-        const char * nlabel = alloc_label();
-        JMP32(nlabel);
-        add_label(flabel);
-        gen(node->if_.fblock);
-        add_label(nlabel);
-      }
-    }
+    gen_if(node);
     break;
 
   case ND_WHILE:
-    {
-      const char * llabel = alloc_label();
-      const char * clabel = alloc_label();
-      JMP32(clabel);
-      add_label(llabel);
-      gen(node->while_.body);
-      add_label(clabel);
-      gen_cond_jmp(node->while_.cond, TRUE, llabel);
-    }
+    gen_while(node);
     break;
 
   case ND_DO_WHILE:
-    {
-      const char * llabel = alloc_label();
-      add_label(llabel);
-      gen(node->do_while.body);
-      gen_cond_jmp(node->do_while.cond, TRUE, llabel);
-    }
+    gen_do_while(node);
     break;
 
   case ND_FOR:
-    {
-      const char * l_cond = alloc_label();
-      const char * l_break = alloc_label();
-      if (node->for_.pre != NULL)
-        gen(node->for_.pre);
-      add_label(l_cond);
-      if (node->for_.cond != NULL) {
-        gen_cond_jmp(node->for_.cond, FALSE, l_break);
-      }
-      gen(node->for_.body);
-      if (node->for_.post != NULL)
-        gen(node->for_.post);
-      JMP32(l_cond);
-      add_label(l_break);
-    }
+    gen_for(node);
     break;
 
   case ND_EQ:
@@ -688,19 +710,10 @@ L_binop:
   }
 }
 
-void compile(const char* source) {
-  tokenize(source);
-  program();
-
-  for (int i = 0, len = node_vector->len; i < len; ++i)
-    gen(node_vector->data[i]);
-
-  // Output RoData
-  for (int i = 0, len = rodata_vector->len; i < len; ++i) {
-    const RoData *ro = (const RoData*)rodata_vector->data[i];
-    add_label(ro->label);
-    add_code(ro->data, ro->size);
-  }
+void init_gen(uintptr_t start_address_) {
+  start_address = start_address_;
+  label_map = new_map();
+  rodata_vector = new_vector();
 }
 
 void output_code(FILE* fp) {
