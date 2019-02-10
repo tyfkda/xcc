@@ -462,7 +462,8 @@ int consume(enum TokenType type) {
 Node *expr();
 
 Node *funcall(Node *func) {
-  if (func->expType->type != TY_FUNC)
+  if (!(func->expType->type == TY_FUNC ||
+        func->expType->type == TY_PTR))  // TODO: Restrict to function pointer.
     error("Cannot call except funtion");
 
   Vector *args = NULL;

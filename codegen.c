@@ -319,15 +319,42 @@ void gen_defun(Node *node) {
     if (len > 6)
       error("Parameter count exceeds 6 (%d)", len);
     for (int i = 0; i < len; ++i) {
-      int offset = ((VarInfo*)lvars->data[i])->offset;
-      switch (i) {
-      case 0:  MOV_EDI_IND8_RBP(offset); break;
-      case 1:  MOV_ESI_IND8_RBP(offset); break;
-      case 2:  MOV_EDX_IND8_RBP(offset); break;
-      case 3:  MOV_ECX_IND8_RBP(offset); break;
-      case 4:  MOV_R8D_IND8_RBP(offset); break;
-      case 5:  MOV_R9D_IND8_RBP(offset); break;
-      default: break;
+      const VarInfo *varinfo = (const VarInfo*)lvars->data[i];
+      int offset = varinfo->offset;
+      switch (varinfo->type->type) {
+      case TY_CHAR:  // 1
+        switch (i) {
+        case 0:  MOV_DIL_IND8_RBP(offset); break;
+        case 1:  MOV_SIL_IND8_RBP(offset); break;
+        case 2:  MOV_DL_IND8_RBP(offset); break;
+        case 3:  MOV_CL_IND8_RBP(offset); break;
+        case 4:  MOV_R8B_IND8_RBP(offset); break;
+        case 5:  MOV_R9B_IND8_RBP(offset); break;
+        default: break;
+        }
+        break;
+      case TY_INT:  // 4
+        switch (i) {
+        case 0:  MOV_EDI_IND8_RBP(offset); break;
+        case 1:  MOV_ESI_IND8_RBP(offset); break;
+        case 2:  MOV_EDX_IND8_RBP(offset); break;
+        case 3:  MOV_ECX_IND8_RBP(offset); break;
+        case 4:  MOV_R8D_IND8_RBP(offset); break;
+        case 5:  MOV_R9D_IND8_RBP(offset); break;
+        default: break;
+        }
+        break;
+      default:  // 8
+        switch (i) {
+        case 0:  MOV_RDI_IND8_RBP(offset); break;
+        case 1:  MOV_RSI_IND8_RBP(offset); break;
+        case 2:  MOV_RDX_IND8_RBP(offset); break;
+        case 3:  MOV_RCX_IND8_RBP(offset); break;
+        case 4:  MOV_R8_IND8_RBP(offset); break;
+        case 5:  MOV_R9_IND8_RBP(offset); break;
+        default: break;
+        }
+        break;
       }
     }
   }
@@ -462,9 +489,12 @@ void gen(Node *node) {
         }
       }
       Node *func = node->funcall.func;
-      if (func->type != ND_VARREF || !func->varref.global)
-        error("Not implement");
-      CALL(func->varref.ident);
+      if (func->type == ND_VARREF && func->varref.global) {
+        CALL(func->varref.ident);
+      } else {
+        gen(func);
+        CALL_IND_RAX();
+      }
       return;
     }
 
