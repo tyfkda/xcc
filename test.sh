@@ -67,5 +67,6 @@ try_direct 11 'int x; int main(){ x = 1; _exit(x + 10); }'
 try_output 'hello' '_write(1, "hello\n", 6);'
 try_output 123 "char s[16]; s[0] = '1'; s[1] = '2'; s[2] = '3'; s[3] = '\n'; _write(1, s, 4);"
 try_output_direct 12345 "void putdeci(int x) { char s[16]; char *p; p = s + 16; for (; x != 0; x = x / 10) { p = p - 1; *p = (x % 10) + '0'; } _write(1, p, (s + 16) - p); } int main() { putdeci(12345); _exit(0); }"
+try_direct 3 'struct Foo{char x; int y;}; void main(){ struct Foo foo; foo.x = 1; foo.y = 2; _exit(foo.x + foo.y);}'
 
 echo OK

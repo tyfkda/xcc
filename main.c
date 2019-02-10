@@ -98,6 +98,7 @@ void init_compiler(uintptr_t adr) {
   node_vector = new_vector();
   label_map = new_map();
   loc_vector = new_vector();
+  struct_map = new_map();
   global = new_map();
   rodata_vector = new_vector();
 }

@@ -46,6 +46,7 @@ enum TokenType reserved_word(const char *word) {
     { "void", TK_KWVOID },
     { "int", TK_KWINT },
     { "char", TK_KWCHAR },
+    { "struct", TK_STRUCT },
   };
   for (int i = 0; i < sizeof(table) / sizeof(*table); ++i) {
     if (strcmp(table[i].str, word) == 0)
@@ -110,7 +111,7 @@ void tokenize(const char *p) {
       continue;
     }
 
-    if (strchr("+-*/%&(){}[]=;,", *p) != NULL) {
+    if (strchr("+-*/%&(){}[]=;,.", *p) != NULL) {
       alloc_token((enum TokenType)*p, p);
       ++p;
       continue;
@@ -196,8 +197,7 @@ void tokenize(const char *p) {
 //
 
 int var_find(Vector *lvars, const char *name) {
-  int len = lvars->len;
-  for (int i = 0; i < len; ++i) {
+  for (int i = 0, len = lvars->len; i < len; ++i) {
     VarInfo *info = (VarInfo*)lvars->data[i];
     if (strcmp(info->name, name) == 0)
       return i;
@@ -216,6 +216,10 @@ void var_add(Vector *lvars, const char *name, Type *type) {
   info->offset = -1;
   vec_push(lvars, info);
 }
+
+// Struct
+
+Map *struct_map;
 
 // Global
 
@@ -268,35 +272,39 @@ Type* new_func_type(const Type *ret, const Vector *params) {
   return f;
 }
 
-Node *new_node_bop(enum NodeType type, Node *lhs, Node *rhs) {
+Node *new_node(enum NodeType type, const Type *expType) {
   Node *node = malloc(sizeof(Node));
   node->type = type;
-  node->bop.lhs = lhs;
-  node->bop.rhs = rhs;
+  node->expType = expType;
+  return node;
+}
+
+Node *new_node_bop(enum NodeType type, Node *lhs, Node *rhs) {
+  const Type *expType = NULL;
   switch (type) {
   case ND_ASSIGN:
-    // Check lhs and rhs types are equal.
-    node->expType = lhs->expType;
+    // TODO: Check lhs and rhs types are equal.
+    expType = lhs->expType;
     break;
   case ND_ADD:
     if (lhs->expType->type == TY_PTR) {
       if (rhs->expType->type == TY_PTR)
         error("Cannot add pointers");
-      node->expType = lhs->expType;
+      expType = lhs->expType;
     } else {
-      node->expType = rhs->expType;  // Pointer or int.
+      expType = rhs->expType;  // Pointer or int.
     }
     break;
   case ND_SUB:
     if (lhs->expType->type == TY_PTR) {
       if (rhs->expType->type == TY_PTR)
-        node->expType = &tyInt;
+        expType = &tyInt;
       else
-        node->expType = lhs->expType;
+        expType = lhs->expType;
     } else {
       if (lhs->expType->type == TY_PTR)
         error("Cannot sub pointer");
-      node->expType = rhs->expType;  // int.
+      expType = rhs->expType;  // int.
     }
     break;
   case ND_MUL:
@@ -304,41 +312,43 @@ Node *new_node_bop(enum NodeType type, Node *lhs, Node *rhs) {
     if (lhs->expType->type == TY_PTR || rhs->expType->type == TY_PTR) {
       error("Cannot sub pointers");
     } else {
-      node->expType = lhs->expType;  // int.
+      expType = lhs->expType;  // int.
     }
     break;
   default:
     //assert(FALSE);
-    node->expType = lhs->expType;
+    expType = lhs->expType;
     break;
   }
+
+  assert(expType != NULL);
+
+  Node *node = new_node(type, expType);
+  node->bop.lhs = lhs;
+  node->bop.rhs = rhs;
   return node;
 }
 
 Node *new_node_unary(enum NodeType type, Node *sub) {
-  Node *node = malloc(sizeof(Node));
-  node->type = type;
+  const Type *expType = NULL;
   switch (type) {
   case ND_REF:
-    node->expType = ptrof(sub->expType);
+    expType = ptrof(sub->expType);
     break;
   case ND_DEREF:
     if (sub->expType->type != TY_PTR)
       error("Cannot dereference raw type");
-    node->expType = sub->expType->ptrof;
+    expType = sub->expType->ptrof;
     break;
   default:
-    node->expType = sub->expType;
+    expType = sub->expType;
     break;
   }
-  node->unary.sub = sub;
-  return node;
-}
 
-Node *new_node(enum NodeType type, const Type *expType) {
-  Node *node = malloc(sizeof(Node));
-  node->type = type;
-  node->expType = expType;
+  assert(expType != NULL);
+
+  Node *node = new_node(type, expType);
+  node->unary.sub = sub;
   return node;
 }
 
@@ -364,6 +374,13 @@ Node *new_node_varref(const char *name, const Type *type, int global) {
   Node *node = new_node(ND_VARREF, type);
   node->varref.ident = name;
   node->varref.global = global;
+  return node;
+}
+
+Node *new_node_member(Node *target, const char *name, const Type *expType) {
+  Node *node = new_node(ND_MEMBER, expType);
+  node->member.target = target;
+  node->member.name = name;
   return node;
 }
 
@@ -464,6 +481,26 @@ Node *array_index(Node *array) {
   return new_node_unary(ND_DEREF, new_node_bop(ND_ADD, array, index));
 }
 
+Node *member_access(Node *target) {
+  if (!consume(TK_IDENT))
+    error("`ident' expected, but %s", get_token(pos)->input);
+  const char *name = get_token(pos - 1)->ident;
+
+  // Find member's type from struct info.
+  const Type *type = target->expType;
+  if (type->type == TY_PTR)
+    type = target->expType->ptrof;
+  if (type->type != TY_STRUCT)
+    error("`.' for non struct value");
+
+  int index = var_find(type->struct_->members, name);
+  if (index < 0)
+    error("`%s' doesn't exist in the struct");
+  VarInfo *varinfo = (VarInfo*)type->struct_->members->data[index];
+
+  return new_node_member(target, name, varinfo->type);
+}
+
 Node *prim() {
   if (consume(TK_LPAR)) {
     Node *node = expr();
@@ -527,7 +564,9 @@ Node *term() {
       node = funcall(node);
     if (consume(TK_LBRACKET))
       node = array_index(node);
-    else
+    if (consume(TK_DOT)) {
+      node = member_access(node);
+    } else
       return node;
   }
 }
@@ -689,28 +728,71 @@ Node *stmt_return() {
   return new_node_return(val);
 }
 
-Type *parse_type() {
-  static const enum TokenType kKeywords[] = {
-    TK_KWVOID, TK_KWINT, TK_KWCHAR,
-  };
-  static const enum eType kTypes[] = {
-    TY_VOID, TY_INT, TY_CHAR,
-  };
-  const int N = sizeof(kTypes) / sizeof(*kTypes);
+Type *parse_type(void);
 
-  int i;
-  for (i = 0; i < N; ++i)
-    if (consume(kKeywords[i]))
+StructInfo *parse_struct() {
+  Vector *members = new_vector();
+  for (;;) {
+    if (consume(TK_RBRACE))
       break;
-  if (i >= N)
-    return NULL;
+    Type *type = parse_type();
+    if (!consume(TK_IDENT))
+      error("ident expected, but %s", get_token(pos)->input);
+    const char *name = get_token(pos - 1)->ident;
+    if (!consume(TK_SEMICOL))
+      error("semicolon expected, but %s", get_token(pos)->input);
+    var_add(members, name, type);
+  }
 
-  Type *type = malloc(sizeof(*type));
-  type->type = kTypes[i];
-  type->ptrof = NULL;
+  StructInfo *sinfo = malloc(sizeof(*sinfo));
+  sinfo->members = members;
+  sinfo->size = 0;
+  sinfo->align = 0;
+  return sinfo;
+}
 
-  while (consume(TK_MUL))
-    type = ptrof(type);
+Type *parse_type(void) {
+  Type *type = NULL;
+
+  if (consume(TK_STRUCT)) {
+    const char *name = NULL;
+    if (consume(TK_IDENT))
+      name = get_token(pos - 1)->ident;
+
+    StructInfo *sinfo;
+    if (consume(TK_LBRACE)) {  // Definition
+      sinfo = parse_struct(name);
+      if (name != NULL)
+        map_put(struct_map, name, sinfo);  // TODO: Already defined?
+    } else {
+      sinfo = (StructInfo*)map_get(struct_map, name);
+      if (sinfo == NULL)
+        error("Undefined struct: %s", name);
+    }
+    type = malloc(sizeof(*type));
+    type->type = TY_STRUCT;
+    type->struct_ = sinfo;
+  } else {
+    static const enum TokenType kKeywords[] = {
+      TK_KWVOID, TK_KWINT, TK_KWCHAR,
+    };
+    static const enum eType kTypes[] = {
+      TY_VOID, TY_INT, TY_CHAR,
+    };
+    const int N = sizeof(kTypes) / sizeof(*kTypes);
+    for (int i = 0; i < N; ++i) {
+      if (consume(kKeywords[i])) {
+        type = malloc(sizeof(*type));
+        type->type = kTypes[i];
+        type->ptrof = NULL;
+        break;
+      }
+    }
+  }
+  if (type != NULL) {
+    while (consume(TK_MUL))
+      type = ptrof(type);
+  }
 
   return type;
 }
@@ -794,6 +876,9 @@ Vector *funparams() {
 Node *toplevel() {
   Type *type = parse_type();
   if (type != NULL) {
+    if (type->type == TY_STRUCT && consume(TK_SEMICOL))  // Just struct definition.
+      return NULL;
+
     if (consume(TK_IDENT)) {
       const char *ident = get_token(pos - 1)->ident;
 

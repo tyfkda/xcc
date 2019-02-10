@@ -52,6 +52,7 @@ enum TokenType {
   TK_ASSIGN = '=',
   TK_SEMICOL = ';',
   TK_COMMA = ',',
+  TK_DOT = '.',
   TK_NUM = 256,  // Integer token
   TK_CHAR,
   TK_STR,        // String literal
@@ -70,6 +71,7 @@ enum TokenType {
   TK_KWVOID,
   TK_KWINT,
   TK_KWCHAR,
+  TK_STRUCT,
 };
 
 // Token type
@@ -97,7 +99,14 @@ enum eType {
   TY_PTR,
   TY_ARRAY,
   TY_FUNC,
+  TY_STRUCT,
 };
+
+typedef struct {
+  Vector *members;  // <VarInfo*>
+  int size;
+  int align;
+} StructInfo;
 
 typedef struct Type {
   enum eType type;
@@ -110,6 +119,7 @@ typedef struct Type {
       const struct Type *ret;
       Vector *params;
     } func;
+    StructInfo *struct_;
   };
 } Type;
 
@@ -118,6 +128,8 @@ typedef struct {
   Type *type;
   int offset;
 } VarInfo;
+
+Map *struct_map;
 
 // Node
 
@@ -143,6 +155,7 @@ enum NodeType {
   ND_GE,
   ND_REF,
   ND_DEREF,
+  ND_MEMBER,  // x.member or x->member
   ND_IF,
   ND_WHILE,
   ND_DO_WHILE,
@@ -206,6 +219,10 @@ typedef struct Node {
     struct {
       struct Node *val;
     } return_;
+    struct {
+      struct Node *target;
+      const char *name;
+    } member;
   };
 } Node;
 

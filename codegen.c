@@ -15,6 +15,8 @@ char *strdup_(const char *str) {
   return dup;
 }
 
+void calc_struct_size(StructInfo *sinfo);
+
 int type_size(const Type *type) {
   switch (type->type) {
   case TY_VOID:
@@ -28,10 +30,56 @@ int type_size(const Type *type) {
     return 8;
   case TY_ARRAY:
     return type_size(type->ptrof) * type->array_size;
+  case TY_STRUCT:
+    if (type->struct_->size == 0)
+      calc_struct_size(type->struct_);
+    return type->struct_->size;
   default:
     assert(FALSE);
     return 1;
   }
+}
+
+int align_size(const Type *type) {
+  switch (type->type) {
+  case TY_VOID:
+    return 1;  // ?
+  case TY_CHAR:
+    return 1;
+  case TY_INT:
+    return 4;
+  case TY_PTR:
+  case TY_FUNC:
+    return 8;
+  case TY_ARRAY:
+    return align_size(type->ptrof);
+  case TY_STRUCT:
+    calc_struct_size(type->struct_);
+    return type->struct_->align;
+  default:
+    assert(FALSE);
+    return 1;
+  }
+}
+
+void calc_struct_size(StructInfo *sinfo) {
+  int size = 0;
+  int max_align = 1;
+  for (int i = 0, len = sinfo->members->len; i < len; ++i) {
+    VarInfo *varinfo = (VarInfo*)sinfo->members->data[i];
+    int sz = type_size(varinfo->type);
+    int align = align_size(varinfo->type);
+    size = (size + align - 1) & -align;
+    varinfo->offset = (int)size;
+    size += sz;
+    if (max_align < align)
+      max_align = align;
+  }
+  size = (size + max_align - 1) & -max_align;
+  if (size == 0)
+    size = 1;
+  sinfo->size = size;
+  sinfo->align = max_align;
 }
 
 void cast(const enum eType ltype, const enum eType rtype) {
@@ -39,6 +87,7 @@ void cast(const enum eType ltype, const enum eType rtype) {
   case TY_CHAR:
     switch (rtype) {
     case TY_CHAR:  return;
+    case TY_INT:  return;
     default: break;
     }
     break;
@@ -183,9 +232,14 @@ size_t fixup_locations(void) {
 static Node *curfunc;
 
 void gen(Node *node);
+void gen_lval(Node *node);
 
 void gen_rval(Node *node) {
   gen(node);  // ?
+}
+
+void gen_ref(Node *node) {
+  gen_lval(node);
 }
 
 void gen_lval(Node *node) {
@@ -204,14 +258,26 @@ void gen_lval(Node *node) {
   case ND_DEREF:
     gen_rval(node->unary.sub);
     break;
+  case ND_MEMBER:
+    {
+      const Type *type = node->member.target->expType;
+      if (type->type == TY_PTR)
+        type = type->ptrof;
+      assert(type->type == TY_STRUCT);
+      Vector *members = type->struct_->members;
+      int varidx = var_find(members, node->member.name);
+      assert(varidx >= 0);
+      VarInfo *varinfo = (VarInfo*)members->data[varidx];
+
+      gen_ref(node->member.target);
+      if (varinfo->offset != 0)
+        ADD_IM32_RAX(varinfo->offset);
+    }
+    break;
   default:
     error("No lvalue: %d", node->type);
     break;
   }
-}
-
-void gen_ref(Node *node) {
-  gen_lval(node);
 }
 
 void gen_cond_jmp(Node *cond, int tf, const char *label) {
@@ -317,6 +383,24 @@ void gen(Node *node) {
   case ND_DEREF:
     gen_rval(node->unary.sub);
     MOV_IND_RAX_RAX();
+    return;
+
+  case ND_MEMBER:
+    gen_lval(node);
+    switch (node->expType->type) {
+    case TY_CHAR:
+      MOV_IND_RAX_AL();
+      break;
+    case TY_INT:
+      MOV_IND_RAX_EAX();
+      break;
+    case TY_PTR:
+      MOV_IND_RAX_RAX();
+      break;
+    default:
+      assert(FALSE);
+      break;
+    }
     return;
 
   case ND_ASSIGN:
