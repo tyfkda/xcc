@@ -1,6 +1,8 @@
+#include <assert.h>
 #include <ctype.h>
 #include <stdlib.h>  // malloc
 #include <string.h>
+#include <sys/types.h>  // ssize_t
 
 #include "xcc.h"
 
@@ -11,18 +13,48 @@ char *strndup_(const char *str, size_t size) {
   return dup;
 }
 
-Vector *token_vector;
+ssize_t getline_(char **lineptr, size_t *n, FILE *stream) {
+  const int ADD = 16;
+  ssize_t capa = *n;
+  ssize_t size = 0;
+  char *top = *lineptr;
+  for (;;) {
+    int c = fgetc(stream);
+    if (c == EOF) {
+      if (size == 0)
+        return EOF;
+      top[size] = '\0';
+      *lineptr = top;
+      *n = capa;
+      return size;
+    }
 
-Token *alloc_token(enum TokenType type, const char *input) {
+    if (size + 2 > capa) {
+      ssize_t newcapa = capa + ADD;
+      top = realloc(top, newcapa);
+      if (top == NULL)
+        return EOF;
+      capa = newcapa;
+    }
+    top[size++] = c;
+  }
+}
+
+typedef struct {
+  FILE *fp;
+  char* line;
+  size_t line_len;
+  const char *p;
+  Token *tok;
+} Lexer;
+
+static Lexer lexer;
+
+static Token *alloc_token(enum TokenType type, const char *input) {
   Token *token = malloc(sizeof(*token));
   token->type = type;
   token->input = input;
-  vec_push(token_vector, token);
   return token;
-}
-
-Token *get_token(int pos) {
-  return (Token *)token_vector->data[pos];
 }
 
 enum TokenType reserved_word(const char *word) {
@@ -48,7 +80,7 @@ enum TokenType reserved_word(const char *word) {
   return -1;
 }
 
-char backslash(char c) {
+static char backslash(char c) {
   switch (c) {
   case '0':  return '\0';
   case 'n':  return '\n';
@@ -58,67 +90,89 @@ char backslash(char c) {
   }
 }
 
-void tokenize(const char *p) {
-  while (*p != '\0') {
-    if (isspace(*p)) {
-      ++p;
-      continue;
+void init_lexer(FILE *fp) {
+  lexer.fp = fp;
+  lexer.line = NULL;
+  lexer.line_len = 0;
+  lexer.p = "";
+  lexer.tok = NULL;
+}
+
+static Token *get_token(void) {
+  Token *tok = NULL;
+  const char *p = lexer.p;
+  if (p == NULL)
+    return alloc_token(TK_EOF, NULL);
+
+  for (;;) {
+    for (;; ++p) {
+      if (*p == '\0') {
+        lexer.line = NULL;
+        lexer.line_len = 0;
+        if (getline_(&lexer.line, &lexer.line_len, lexer.fp) == EOF) {
+          lexer.p = NULL;
+          return alloc_token(TK_EOF, NULL);
+        }
+        p = lexer.line;
+      }
+      if (!isspace(*p))
+        break;
     }
 
     if (*p == '=' && p[1] == '=') {
-      alloc_token(TK_EQ, p);
+      tok = alloc_token(TK_EQ, p);
       p += 2;
-      continue;
+      break;
     }
 
     if (*p == '!' && p[1] == '=') {
-      alloc_token(TK_NE, p);
+      tok = alloc_token(TK_NE, p);
       p += 2;
-      continue;
+      break;
     }
 
     if (*p == '<' && p[1] == '=') {
-      alloc_token(TK_LE, p);
+      tok = alloc_token(TK_LE, p);
       p += 2;
-      continue;
+      break;
     }
 
     if (*p == '>' && p[1] == '=') {
-      alloc_token(TK_GE, p);
+      tok = alloc_token(TK_GE, p);
       p += 2;
-      continue;
+      break;
     }
 
     if (*p == '+' && p[1] == '+') {
-      alloc_token(TK_INC, p);
+      tok = alloc_token(TK_INC, p);
       p += 2;
-      continue;
+      break;
     }
 
     if (*p == '-') {
       if (p[1] == '-') {
-        alloc_token(TK_DEC, p);
+        tok = alloc_token(TK_DEC, p);
         p += 2;
-        continue;
+        break;
       }
       if (p[1] == '>') {
-        alloc_token(TK_ARROW, p);
+        tok = alloc_token(TK_ARROW, p);
         p += 2;
-        continue;
+        break;
       }
     }
 
     if (strchr("+-*/%&(){}[]<>=;,.", *p) != NULL) {
-      alloc_token((enum TokenType)*p, p);
+      tok = alloc_token((enum TokenType)*p, p);
       ++p;
-      continue;
+      break;
     }
 
     if (isdigit(*p)) {
       long val = strtol(p, (char**)&p, 10);
-      Token *token = alloc_token(TK_NUM, p);
-      token->val = val;
-      continue;
+      tok = alloc_token(TK_NUM, p);
+      tok->val = val;
+      break;
     }
 
     if (isalpha(*p) || *p == '_') {
@@ -131,13 +185,14 @@ void tokenize(const char *p) {
       char *dup = strndup_(p, q - p);
       enum TokenType word = reserved_word(dup);
       if (word != -1) {
-        alloc_token(word, p);
+        free(dup);
+        tok = alloc_token(word, p);
       } else {
-        Token *token = alloc_token(TK_IDENT, p);
-        token->ident = dup;
+        tok= alloc_token(TK_IDENT, p);
+        tok->ident = dup;
       }
       p = q;
-      continue;
+      break;
     }
 
     if (*p == '\'') {
@@ -152,10 +207,10 @@ void tokenize(const char *p) {
       if (*(++p) != '\'')
         error("Character not closed");
 
-      Token *token = alloc_token(TK_CHAR, start);
-      token->val = c;
+      tok = alloc_token(TK_CHAR, start);
+      tok->val = c;
       ++p;
-      continue;
+      break;
     }
 
     if (*p == '"') {
@@ -179,14 +234,32 @@ void tokenize(const char *p) {
         str[size++] = c;
       }
       str[size] = '\0';
-      Token *token = alloc_token(TK_STR, start);
-      token->str = str;
+      tok = alloc_token(TK_STR, start);
+      tok->str = str;
       ++p;
-      continue;
+      break;
     }
 
-    error("Unexpected character: %c\n", *p);
+    error("Unexpected character `%c' at %s\n", *p, p);
+    return NULL;
   }
 
-  alloc_token(TK_EOF, p);
+  assert(tok != NULL);
+  lexer.p = p;
+  return tok;
+}
+
+Token *consume(enum TokenType type) {
+  if (lexer.tok == NULL)
+    lexer.tok = get_token();
+  Token *tok = lexer.tok;
+  if (tok->type != type)
+    return NULL;
+  if (tok->type != TK_EOF)
+    lexer.tok = NULL;
+  return tok;
+}
+
+const char *current_line(void) {
+  return lexer.p;
 }
