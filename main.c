@@ -93,7 +93,6 @@ void error(const char* fmt, ...) {
 }
 
 void init_compiler(uintptr_t adr) {
-  token_vector = new_vector();
   loc_vector = new_vector();
   struct_map = new_map();
   global = new_map();

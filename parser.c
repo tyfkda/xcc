@@ -57,7 +57,6 @@ void define_global(Type *type, const char *name) {
 
 //
 
-static int pos;
 static Node *curfunc;
 
 Type* ptrof(const Type *type) {
@@ -261,13 +260,6 @@ Node *new_node_return(Node *val) {
   return node;
 }
 
-int consume(enum TokenType type) {
-  if (get_token(pos)->type != type)
-    return FALSE;
-  ++pos;
-  return TRUE;
-}
-
 Node *expr();
 
 Node *funcall(Node *func) {
@@ -284,7 +276,7 @@ Node *funcall(Node *func) {
         break;
       if (consume(TK_COMMA))
         continue;
-      error("Comma or `)` expected, but %s", get_token(pos)->input);
+      error("Comma or `)` expected, but %s", current_line());
     }
   }
   return new_node_funcall(func, args);
@@ -293,14 +285,15 @@ Node *funcall(Node *func) {
 Node *array_index(Node *array) {
   Node *index = expr();
   if (!consume(TK_RBRACKET))
-    error("`]' expected, but %s", get_token(pos)->input);
+    error("`]' expected, but %s", current_line());
   return new_node_unary(ND_DEREF, new_node_bop(ND_ADD, array, index));
 }
 
 Node *member_access(Node *target) {
-  if (!consume(TK_IDENT))
-    error("`ident' expected, but %s", get_token(pos)->input);
-  const char *name = get_token(pos - 1)->ident;
+  Token *tok;
+  if (!(tok = consume(TK_IDENT)))
+    error("`ident' expected, but %s", current_line());
+  const char *name = tok->ident;
 
   // Find member's type from struct info.
   const Type *type = target->expType;
@@ -321,45 +314,40 @@ Node *prim() {
   if (consume(TK_LPAR)) {
     Node *node = expr();
     if (!consume(TK_RPAR))
-      error("No close paren: %s", get_token(pos)->input);
+      error("No close paren: %s", current_line());
     return node;
   }
 
-  Token *token = get_token(pos);
-  switch (token->type) {
-  case TK_NUM:
-    ++pos;
-    return new_node_num(token->val);
-  case TK_CHAR:
-    ++pos;
-    return new_node_char(token->val);
-  case TK_STR:
-    ++pos;
-    return new_node_str(token->str);
-  case TK_IDENT:
-    ++pos;
+  Token *tok;
+  if ((tok = consume(TK_NUM))) {
+    return new_node_num(tok->val);
+  } else if ((tok = consume(TK_CHAR))) {
+    return new_node_char(tok->val);
+  } else if ((tok = consume(TK_STR))) {
+    return new_node_str(tok->str);
+  } else if ((tok = consume(TK_IDENT))) {
     if (curfunc == NULL) {
-      error("Cannot use variable outside of function: `%s'", token->ident);
+      error("Cannot use variable outside of function: `%s'", tok->ident);
     } else {
       Type *type = NULL;
-      int idx = var_find(curfunc->defun.lvars, token->ident);
+      int idx = var_find(curfunc->defun.lvars, tok->ident);
       if (idx >= 0) {
         type = ((VarInfo*)curfunc->defun.lvars->data[idx])->type;
       } else {
-        VarInfo *varinfo = find_global(token->ident);
+        VarInfo *varinfo = find_global(tok->ident);
         if (varinfo == NULL)
-          error("Undefined `%s'", token->ident);
+          error("Undefined `%s'", tok->ident);
         type = varinfo->type;
       }
       if (type->type == TY_ARRAY)
         type = ptrof(type->ptrof);
       int global = idx < 0;
-      return new_node_varref(token->ident, type, global);
+      return new_node_varref(tok->ident, type, global);
     }
-  default:
-    error("Number or Ident or open paren expected: %s", token->input);
-    return NULL;
+  } else {
+    error("Number or Ident or open paren expected: %s", tok->input);
   }
+  return NULL;
 }
 
 Node *term() {
@@ -497,7 +485,7 @@ Node *stmt_if() {
       return new_node_if(cond, tblock, fblock);
     }
   }
-  error("Parse `if' failed: %s", get_token(pos)->input);
+  error("Parse `if' failed: %s", current_line());
   return NULL;
 }
 
@@ -509,7 +497,7 @@ Node *stmt_while() {
       return new_node_while(cond, body);
     }
   }
-  error("Parse `while' failed: %s", get_token(pos)->input);
+  error("Parse `while' failed: %s", current_line());
   return NULL;
 }
 
@@ -523,7 +511,7 @@ Node *stmt_do_while() {
       }
     }
   }
-  error("Parse `while' failed: %s", get_token(pos)->input);
+  error("Parse `while' failed: %s", current_line());
   return NULL;
 }
 
@@ -537,7 +525,7 @@ Node *stmt_for() {
       return new_node_for(pre, cond, post, body);
     }
   }
-  error("Syntax error `for': %s", get_token(pos)->input);
+  error("Syntax error `for': %s", current_line());
   return NULL;
 }
 
@@ -551,7 +539,7 @@ Node *stmt_return() {
   } else {
     val = expr();
     if (!consume(TK_SEMICOL))
-      error("`;' expected, but %s", get_token(pos)->input);
+      error("`;' expected, but %s", current_line());
 
     // TODO: Check return type.
     if (curfunc->defun.rettype->type == TY_VOID)
@@ -568,11 +556,12 @@ StructInfo *parse_struct() {
     if (consume(TK_RBRACE))
       break;
     Type *type = parse_type();
-    if (!consume(TK_IDENT))
-      error("ident expected, but %s", get_token(pos)->input);
-    const char *name = get_token(pos - 1)->ident;
+    Token *tok;
+    if (!(tok = consume(TK_IDENT)))
+      error("ident expected, but %s", current_line());
+    const char *name = tok->ident;
     if (!consume(TK_SEMICOL))
-      error("semicolon expected, but %s", get_token(pos)->input);
+      error("semicolon expected, but %s", current_line());
     var_add(members, name, type);
   }
 
@@ -588,8 +577,9 @@ Type *parse_type(void) {
 
   if (consume(TK_STRUCT)) {
     const char *name = NULL;
-    if (consume(TK_IDENT))
-      name = get_token(pos - 1)->ident;
+    Token *tok;
+    if ((tok = consume(TK_IDENT)))
+      name = tok->ident;
 
     StructInfo *sinfo;
     if (consume(TK_LBRACE)) {  // Definition
@@ -637,22 +627,23 @@ void vardecl() {
     if (type->type == TY_VOID)
       error("Cannot use void for type");
 
-    if (!consume(TK_IDENT))
-      error("Ident expected, but %s", get_token(pos)->input);
-    const char *name = get_token(pos - 1)->ident;
+    Token *tok;
+    if (!(tok = consume(TK_IDENT)))
+      error("Ident expected, but %s", current_line());
+    const char *name = tok->ident;
 
     if (consume(TK_LBRACKET)) {
-      if (consume(TK_NUM)) {  // TODO: Constant expression.
-        int count = get_token(pos - 1)->val;
+      if ((tok = consume(TK_NUM))) {  // TODO: Constant expression.
+        int count = tok->val;
         if (count < 0)
           error("Array size must be greater than 0, but %d", count);
         type = arrayof(type, count);
         if (!consume(TK_RBRACKET))
-          error("`]' expected, but %s", get_token(pos)->input);
+          error("`]' expected, but %s", current_line());
       }
     }
     if (!consume(TK_SEMICOL))
-      error("Semicolon expected, but %s", get_token(pos)->input);
+      error("Semicolon expected, but %s", current_line());
     assert(curfunc != NULL);
     var_add(curfunc->defun.lvars, name, type);
   }
@@ -680,7 +671,7 @@ Node *stmt() {
   // expression statement.
   Node *node = assign();
   if (!consume(TK_SEMICOL))
-    error("Semicolon required: %s", get_token(pos)->input);
+    error("Semicolon required: %s", current_line());
   return node;
 }
 
@@ -690,16 +681,17 @@ Vector *funparams() {
     for (;;) {
       Type *type = parse_type();
       if (type == NULL)
-        error("type expected, but %s", get_token(pos)->input);
+        error("type expected, but %s", current_line());
 
-      if (!consume(TK_IDENT))
-        error("Ident expected, but %s", get_token(pos)->input);
-      var_add(params, get_token(pos - 1)->ident, type);
+      Token *tok;
+      if (!(tok = consume(TK_IDENT)))
+        error("Ident expected, but %s", current_line());
+      var_add(params, tok->ident, type);
       if (consume(TK_RPAR))
         break;
       if (consume(TK_COMMA))
         continue;
-      error("Comma or `}' expected, but %s", get_token(pos)->input);
+      error("Comma or `}' expected, but %s", current_line());
     }
   }
   return params;
@@ -711,8 +703,9 @@ Node *toplevel() {
     if (type->type == TY_STRUCT && consume(TK_SEMICOL))  // Just struct definition.
       return NULL;
 
-    if (consume(TK_IDENT)) {
-      const char *ident = get_token(pos - 1)->ident;
+    Token *tok;
+    if ((tok = consume(TK_IDENT))) {
+      const char *ident = tok->ident;
 
       if (consume(TK_SEMICOL)) {  // Global variable declaration.
         define_global(type, ident);
@@ -738,16 +731,16 @@ Node *toplevel() {
         }
       }
     }
-    error("Defun failed: %s", get_token(pos)->input);
+    error("Defun failed: %s", current_line());
     return NULL;
   }
-  error("Toplevel, %s", get_token(pos)->input);
+  error("Toplevel, %s", current_line());
   return NULL;
 }
 
 Vector *parse_program(void) {
   Vector *node_vector = new_vector();
-  while (get_token(pos)->type != TK_EOF) {
+  while (!consume(TK_EOF)) {
     Node *node = toplevel();
     if (node != NULL)
       vec_push(node_vector, node);

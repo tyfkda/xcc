@@ -11,7 +11,7 @@ char *strndup_(const char *str, size_t size) {
   return dup;
 }
 
-Vector *token_vector;
+static Vector *token_vector;
 
 Token *alloc_token(enum TokenType type, const char *input) {
   Token *token = malloc(sizeof(*token));
@@ -59,6 +59,8 @@ char backslash(char c) {
 }
 
 void tokenize(const char *p) {
+  token_vector = new_vector();
+
   while (*p != '\0') {
     if (isspace(*p)) {
       ++p;
@@ -189,4 +191,19 @@ void tokenize(const char *p) {
   }
 
   alloc_token(TK_EOF, p);
+}
+
+static int pos;
+
+Token *consume(enum TokenType type) {
+  Token *tok = get_token(pos);
+  if (tok->type != type)
+    return NULL;
+  if (tok->type != TK_EOF)
+    ++pos;
+  return tok;
+}
+
+const char *current_line(void) {
+  return get_token(pos)->input;
 }

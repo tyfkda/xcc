@@ -88,10 +88,9 @@ typedef struct {
   };
 } Token;
 
-extern Vector *token_vector;
-
-Token *get_token(int pos);
 void tokenize(const char *p);
+Token *consume(enum TokenType type);
+const char *current_line(void);
 
 // Type
 
