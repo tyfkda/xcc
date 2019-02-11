@@ -2,6 +2,7 @@
 #include <ctype.h>
 #include <stdlib.h>  // malloc
 #include <string.h>
+#include <sys/types.h>  // ssize_t
 
 #include "xcc.h"
 
@@ -12,7 +13,37 @@ char *strndup_(const char *str, size_t size) {
   return dup;
 }
 
+ssize_t getline_(char **lineptr, size_t *n, FILE *stream) {
+  const int ADD = 16;
+  ssize_t capa = *n;
+  ssize_t size = 0;
+  char *top = *lineptr;
+  for (;;) {
+    int c = fgetc(stream);
+    if (c == EOF) {
+      if (size == 0)
+        return EOF;
+      top[size] = '\0';
+      *lineptr = top;
+      *n = capa;
+      return size;
+    }
+
+    if (size + 2 > capa) {
+      ssize_t newcapa = capa + ADD;
+      top = realloc(top, newcapa);
+      if (top == NULL)
+        return EOF;
+      capa = newcapa;
+    }
+    top[size++] = c;
+  }
+}
+
 typedef struct {
+  FILE *fp;
+  char* line;
+  size_t line_len;
   const char *p;
   Token *tok;
 } Lexer;
@@ -59,22 +90,33 @@ static char backslash(char c) {
   }
 }
 
-void init_lexer(const char *p) {
-  lexer.p = p;
+void init_lexer(FILE *fp) {
+  lexer.fp = fp;
+  lexer.line = NULL;
+  lexer.line_len = 0;
+  lexer.p = "";
   lexer.tok = NULL;
 }
 
 static Token *get_token(void) {
-  const char *p = lexer.p;
   Token *tok = NULL;
+  const char *p = lexer.p;
+  if (p == NULL)
+    return alloc_token(TK_EOF, NULL);
 
   for (;;) {
-    while (isspace(*p))
-      ++p;
-
-    if (*p == '\0') {
-      tok = alloc_token(TK_EOF, p);
-      break;
+    for (;; ++p) {
+      if (*p == '\0') {
+        lexer.line = NULL;
+        lexer.line_len = 0;
+        if (getline_(&lexer.line, &lexer.line_len, lexer.fp) == EOF) {
+          lexer.p = NULL;
+          return alloc_token(TK_EOF, NULL);
+        }
+        p = lexer.line;
+      }
+      if (!isspace(*p))
+        break;
     }
 
     if (*p == '=' && p[1] == '=') {
@@ -143,6 +185,7 @@ static Token *get_token(void) {
       char *dup = strndup_(p, q - p);
       enum TokenType word = reserved_word(dup);
       if (word != -1) {
+        free(dup);
         tok = alloc_token(word, p);
       } else {
         tok= alloc_token(TK_IDENT, p);

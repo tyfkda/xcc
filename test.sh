@@ -4,7 +4,7 @@ try_direct() {
   expected="$1"
   input="$2"
 
-  ./xcc "$input" > tmp || exit 1
+  echo "$input" | ./xcc > tmp || exit 1
   chmod +x tmp
   ./tmp
   actual="$?"
@@ -25,7 +25,7 @@ try_output_direct() {
   expected="$1"
   input="$2"
 
-  ./xcc "$input" > tmp || exit 1
+  echo "$input" | ./xcc > tmp || exit 1
   chmod +x tmp
   actual=`./tmp` || exit 1
 

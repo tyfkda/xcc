@@ -100,8 +100,8 @@ void init_compiler(uintptr_t adr) {
   init_gen(adr);
 }
 
-void compile(const char* source) {
-  init_lexer(source);
+void compile(FILE *fp) {
+  init_lexer(fp);
   Vector *node_vector = parse_program();
 
   for (int i = 0, len = node_vector->len; i < len; ++i)
@@ -109,12 +109,7 @@ void compile(const char* source) {
 }
 
 int main(int argc, char* argv[]) {
-  if (argc < 2) {
-    fprintf(stderr, "argc < 2\n");
-    return 1;
-  }
-
-  if (strcmp(argv[1], "-test") == 0) {
+  if (argc > 1 && strcmp(argv[1], "-test") == 0) {
     runtest();
     return 0;
   }
@@ -131,7 +126,17 @@ int main(int argc, char* argv[]) {
     define_global(&tyFunc, "_write");
   }
 
-  compile(argv[1]);
+  if (argc > 1) {
+    for (int i = 1; i < argc; ++i) {
+      FILE *fp = fopen(argv[i], "rb");
+      if (fp == NULL)
+        error("Cannot open file: %s\n", argv[i]);
+      compile(fp);
+      fclose(fp);
+    }
+  } else {
+    compile(stdin);
+  }
 
   // Test.
   {

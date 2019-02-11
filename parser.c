@@ -345,7 +345,7 @@ Node *prim() {
       return new_node_varref(tok->ident, type, global);
     }
   } else {
-    error("Number or Ident or open paren expected: %s", tok->input);
+    error("Number or Ident or open paren expected: %s", current_line());
   }
   return NULL;
 }
