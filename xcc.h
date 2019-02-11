@@ -88,7 +88,7 @@ typedef struct {
   };
 } Token;
 
-void tokenize(const char *p);
+void init_lexer(const char *p);
 Token *consume(enum TokenType type);
 const char *current_line(void);
 

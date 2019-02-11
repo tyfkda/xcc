@@ -101,7 +101,7 @@ void init_compiler(uintptr_t adr) {
 }
 
 void compile(const char* source) {
-  tokenize(source);
+  init_lexer(source);
   Vector *node_vector = parse_program();
 
   for (int i = 0, len = node_vector->len; i < len; ++i)
