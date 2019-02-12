@@ -95,7 +95,7 @@ void cast(const enum eType ltype, const enum eType rtype) {
     break;
   case TY_INT:
     switch (rtype) {
-    case TY_CHAR: MOVSX_AL_RAX(); return;
+    case TY_CHAR: MOVSX_AL_EAX(); return;
     default: break;
     }
     break;
@@ -664,7 +664,13 @@ void gen(Node *node) {
       gen(rhs);
 
       POP_RDI();
-      CMP_EAX_EDI();
+      switch (lhs->expType->type) {
+      case TY_INT:  CMP_EAX_EDI(); break;
+      case TY_CHAR: CMP_AL_DIL(); break;
+      case TY_PTR:  CMP_RAX_RDI(); break;
+      default: assert(FALSE); break;
+      }
+
       switch (type) {
       case ND_EQ:  SETE_AL(); break;
       case ND_NE:  SETNE_AL(); break;
@@ -747,22 +753,47 @@ void gen(Node *node) {
 
     switch (node->type) {
     case ND_ADD:
-      ADD_EDI_EAX();
+      switch (node->expType->type) {
+      case TY_INT:  ADD_EDI_EAX(); break;
+      case TY_CHAR: ADD_DIL_AL(); break;
+      default: assert(FALSE); break;
+      }
+
       break;
+
     case ND_SUB:
-      SUB_EDI_EAX();
+      switch (node->expType->type) {
+      case TY_INT:  SUB_EDI_EAX(); break;
+      case TY_CHAR: SUB_DIL_AL(); break;
+      default: assert(FALSE); break;
+      }
       break;
+
     case ND_MUL:
-      MUL_EDI();
+      switch (node->expType->type) {
+      case TY_INT:  MUL_EDI(); break;
+      case TY_CHAR: MUL_DIL(); break;
+      default: assert(FALSE); break;
+      }
+
       break;
+
     case ND_DIV:
       MOV_IM32_RDX(0);
-      DIV_EDI();
+      switch (node->expType->type) {
+      case TY_INT:  DIV_EDI(); break;
+      case TY_CHAR: DIV_DIL(); break;
+      default: assert(FALSE); break;
+      }
       break;
+
     case ND_MOD:
       MOV_IM32_RDX(0);
-      DIV_EDI();
-      MOV_EDX_EAX();
+      switch (node->expType->type) {
+      case TY_INT:  DIV_EDI(); MOV_EDX_EAX(); break;
+      case TY_CHAR: DIV_DIL(); MOV_DL_AL(); break;
+      default: assert(FALSE); break;
+      }
       break;
     default:
       assert(FALSE);

@@ -9,6 +9,7 @@ const static Type tyVoid = {.type=TY_VOID, .ptrof=NULL};
 const static Type tyInt = {.type=TY_INT, .ptrof=NULL};
 const static Type tyChar = {.type=TY_CHAR, .ptrof=NULL};
 const static Type tyStr = {.type=TY_PTR, .ptrof=&tyChar};
+#define tyBool  tyInt
 
 static Type *parse_type(void);
 
@@ -585,8 +586,48 @@ Node *cmp() {
     else
       return node;
 
-    node = new_node_bop(t, &tyInt, node, add());
+    Node *lhs = node, *rhs= add();
+    if (lhs->expType->type == TY_PTR || rhs->expType->type == TY_PTR) {
+      if (lhs->expType->type != TY_PTR || rhs->expType->type != TY_PTR ||
+          !same_type(lhs->expType, rhs->expType))
+        error("Cannot compare pointer to other types");
+    } else {
+      if (!is_number(lhs->expType->type) || !is_number(rhs->expType->type))
+        error("Cannot compare except numbers");
+    }
+    node = new_node_bop(t, &tyBool, lhs, rhs);
   }
+}
+
+static bool cast_numbers(Node **pLhs, Node **pRhs) {
+  if (!is_number((*pLhs)->expType->type) || !is_number((*pRhs)->expType->type))
+    return false;
+
+  switch ((*pLhs)->expType->type) {
+  case TY_INT:
+    switch ((*pRhs)->expType->type) {
+    case TY_INT:  return true;
+    case TY_CHAR:
+      *pRhs = new_node_cast(&tyInt, *pRhs, false);
+      return true;
+    default: break;
+    }
+    break;
+
+  case TY_CHAR:
+    switch ((*pRhs)->expType->type) {
+    case TY_CHAR:  return true;
+    case TY_INT:
+      *pLhs = new_node_cast(&tyInt, *pLhs, false);
+      return true;
+    default: break;
+    }
+    break;
+
+  default: break;
+  }
+  assert(false);
+  return false;
 }
 
 Node *eq() {
@@ -601,7 +642,16 @@ Node *eq() {
     else
       return node;
 
-    node = new_node_bop(t, &tyInt, node, cmp());
+    Node *lhs = node, *rhs= add();
+    if (lhs->expType->type == TY_PTR || rhs->expType->type == TY_PTR) {
+      if (lhs->expType->type != TY_PTR || rhs->expType->type != TY_PTR ||
+          !same_type(lhs->expType, rhs->expType))
+        error("Cannot compare pointer to other types");
+    } else {
+      if (!cast_numbers(&lhs, &rhs))
+        error("Cannot compare except numbers");
+    }
+    node = new_node_bop(t, &tyBool, lhs, rhs);
   }
 }
 

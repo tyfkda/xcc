@@ -22,6 +22,7 @@
 #define MOVZX_AL_RAX()   ADD_CODE(0x48, 0x0f, 0xb6, 0xc0)  // movzbq %al,%rax
 #define MOVSX_EAX_RDI()  ADD_CODE(0x48, 0x63, 0xf8)  // movsx %eax, %rdi
 #define MOV_RAX_RDI()    ADD_CODE(0x48, 0x89, 0xc7)  // mov %rax,%rdi
+#define MOV_DL_AL()      ADD_CODE(0x88, 0xd0)  // mov %dl,%al
 #define MOV_EDX_EAX()    ADD_CODE(0x89, 0xd0)  // mov %edx,%eax
 #define MOV_RDX_RAX()    ADD_CODE(0x48, 0x89, 0xd0)  // mov %rdx,%rax
 #define MOV_RDI_RAX()    ADD_CODE(0x48, 0x89, 0xf8)  // mov %rdi,%rax
@@ -57,19 +58,24 @@
 #define MOV_R9_IND8_RBP(ofs)   ADD_CODE(0x4c, 0x89, 0x4d, ofs)  // mov %r9,ofs(%rbp)
 #define LEA_OFS32_RAX(label)      do { add_loc_rel32(codesize + 4, label, CURIP(8)); ADD_CODE(0x48, 0x8d, 0x04, 0x25, IM32(0)); } while(0)  // lea    0x0,%rax
 #define LEA_OFS32_RIP_RAX(label)  do { add_loc_rel32(codesize + 3, label, CURIP(7)); ADD_CODE(0x48, 0x8d, 0x05, IM32(0)); } while(0)  // lea    0x0(%rip),%rax
+#define ADD_DIL_AL()     ADD_CODE(0x40, 0x00, 0xf8)  // add %dil,%al
 #define ADD_EDI_EAX()    ADD_CODE(0x01, 0xf8)  // add %edi,%eax
 #define ADD_RDI_RAX()    ADD_CODE(0x48, 0x01, 0xf8)  // add %rdi,%rax
 #define ADD_IM32_RAX(x)  ADD_CODE(0x48, 0x05, IM32(x))  // add $12345678,%rax
 #define ADD_IM32_RSP(x)  ADD_CODE(0x48, 0x81, 0xc4, IM32(x))  // add $IM32,%rsp
 #define ADD_IND_RDI_RAX()  ADD_CODE(0x48, 0x03, 0x07)  // add (%rdi),%rax
+#define SUB_DIL_AL()     ADD_CODE(0x40, 0x28, 0xf8)  // sub %dil,%al
 #define SUB_EDI_EAX()    ADD_CODE(0x29, 0xf8)  // sub %edi,%eax
 #define SUB_RDI_RAX()    ADD_CODE(0x48, 0x29, 0xf8)  // sub %rdi,%rax
 #define SUB_IM32_RAX(x)  ADD_CODE(0x48, 0x2d, IM32(x))  // sub $12345678,%rax
 #define SUB_IM32_RSP(x)  ADD_CODE(0x48, 0x81, 0xec, IM32(x))  // sub $IM32,%rsp
+#define MUL_DIL()        ADD_CODE(0x40, 0xf6, 0xe7)  // mul %dil
 #define MUL_EDI()        ADD_CODE(0xf7, 0xe7)  // mul %edi
 #define MUL_RDI()        ADD_CODE(0x48, 0xf7, 0xe7)  // mul %rdi
+#define DIV_DIL()        ADD_CODE(0x40, 0xf6, 0xf7)  // div %dil
 #define DIV_EDI()        ADD_CODE(0xf7, 0xf7)  // div %edi
 #define DIV_RDI()        ADD_CODE(0x48, 0xf7, 0xf7)  // div %rdi
+#define CMP_AL_DIL()     ADD_CODE(0x40, 0x38, 0xc7)  // cmp %al,%dil
 #define CMP_EAX_EDI()    ADD_CODE(0x39, 0xc7)  // cmp %eax,%edi
 #define CMP_RAX_RDI()    ADD_CODE(0x48, 0x39, 0xc7)  // cmp %rax,%rdi
 #define CMP_IM8_EAX(x)   ADD_CODE(0x83, 0xf8, x)  // cmp $x,%eax
