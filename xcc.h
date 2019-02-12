@@ -143,11 +143,11 @@ enum NodeType {
   ND_DEFUN,
   ND_FUNCALL,
   ND_BLOCK,
-  ND_ADD,
-  ND_SUB,
-  ND_MUL,
-  ND_DIV,
-  ND_MOD,
+  ND_ADD,  // num + num
+  ND_SUB,  // num - num
+  ND_MUL,  // num * num
+  ND_DIV,  // num / num
+  ND_MOD,  // num % num
   ND_ASSIGN,
   ND_PREINC,
   ND_PREDEC,
@@ -159,6 +159,9 @@ enum NodeType {
   ND_GT,
   ND_LE,
   ND_GE,
+  ND_PTRADD,  // ptr + num
+  ND_PTRSUB,  // ptr - num
+  ND_PTRDIFF,  // ptr - ptr
   ND_REF,
   ND_DEREF,
   ND_MEMBER,  // x.member or x->member

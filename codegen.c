@@ -676,15 +676,11 @@ void gen(Node *node) {
     MOVZX_AL_EAX();
     return;
 
-  case ND_ADD:
-    if (node->bop.lhs->expType->type == TY_PTR || node->bop.rhs->expType->type == TY_PTR) {
+  case ND_PTRADD:
+    {
       Node *lhs = node->bop.lhs, *rhs = node->bop.rhs;
-      if (rhs->expType->type == TY_PTR) {
-        Node *tmp = lhs;
-        lhs = rhs;
-        rhs = tmp;
-      }
       gen(rhs);
+      cast(TY_INT, rhs->expType->type);  // TODO: Fix
       long size = type_size(lhs->expType->ptrof);
       if (size != 1) {
         MOV_IM32_EDI(size);
@@ -696,48 +692,53 @@ void gen(Node *node) {
       ADD_RDI_RAX();
       break;
     }
-    goto L_binop;
+    return;
 
-  case ND_SUB:
-    if (node->bop.lhs->expType->type == TY_PTR) {
+  case ND_PTRSUB:
+    {
+      Node *lhs = node->bop.lhs, *rhs = node->bop.rhs;
+      gen(rhs);
+      cast(TY_INT, rhs->expType->type);  // TODO: Fix
       int size = type_size(node->bop.lhs->expType->ptrof);
-      if (node->bop.rhs->expType->type == TY_PTR) {
-        gen(node->bop.rhs);
-        PUSH_RAX();
-        gen(node->bop.lhs);
-        POP_RDI();
-        SUB_RDI_RAX();
-
-        switch (size) {
-        case 1:  break;
-        case 2:  SAR_RAX(); break;
-        case 4:  SAR_IM8_RAX(2); break;
-        case 8:  SAR_IM8_RAX(3); break;
-        default:
-          MOV_IM64_RDI((long)size);
-          MOV_IM32_RDX(0);
-          DIV_RDI();
-          break;
-        }
-      } else {
-        gen(node->bop.rhs);
-        if (size != 1) {
-          MOV_IM64_RDI((long)size);
-          MUL_RDI();
-        }
-        PUSH_RAX();
-        gen(node->bop.lhs);
-        POP_RDI();
-        SUB_RDI_RAX();
+      if (size != 1) {
+        MOV_IM64_RDI((long)size);
+        MUL_RDI();
       }
-      break;
+      PUSH_RAX();
+      gen(lhs);
+      POP_RDI();
+      SUB_RDI_RAX();
     }
-    goto L_binop;
+    return;
 
+  case ND_PTRDIFF:
+    {
+      gen(node->bop.rhs);
+      PUSH_RAX();
+      gen(node->bop.lhs);
+      POP_RDI();
+      SUB_RDI_RAX();
+
+      int size = type_size(node->bop.lhs->expType->ptrof);
+      switch (size) {
+      case 1:  break;
+      case 2:  SAR_RAX(); break;
+      case 4:  SAR_IM8_RAX(2); break;
+      case 8:  SAR_IM8_RAX(3); break;
+      default:
+        MOV_IM64_RDI((long)size);
+        MOV_IM32_RDX(0);
+        DIV_RDI();
+        break;
+      }
+    }
+    return;
+
+  case ND_ADD:
+  case ND_SUB:
   case ND_MUL:
   case ND_DIV:
   case ND_MOD:
-L_binop:
     gen(node->bop.rhs);
     PUSH_RAX();
     gen(node->bop.lhs);

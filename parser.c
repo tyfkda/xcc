@@ -60,7 +60,11 @@ void define_global(Type *type, const char *name) {
 
 // Type
 
-bool same_type(const Type *type1, const Type *type2) {
+static bool is_number(enum eType type) {
+  return type == TY_INT || TY_CHAR;
+}
+
+static bool same_type(const Type *type1, const Type *type2) {
   for (;;) {
     if (type1->type != type2->type)
       return false;
@@ -173,50 +177,7 @@ Node *new_node_cast(const Type *type, Node *sub, bool is_explicit) {
   return node;
 }
 
-Node *new_node_bop(enum NodeType type, Node *lhs, Node *rhs) {
-  const Type *expType = NULL;
-  switch (type) {
-  case ND_ASSIGN:
-    // TODO: Check lhs and rhs types are equal.
-    expType = lhs->expType;
-    break;
-  case ND_ADD:
-    if (lhs->expType->type == TY_PTR) {
-      if (rhs->expType->type == TY_PTR)
-        error("Cannot add pointers");
-      expType = lhs->expType;
-    } else {
-      expType = rhs->expType;  // Pointer or int.
-    }
-    break;
-  case ND_SUB:
-    if (lhs->expType->type == TY_PTR) {
-      if (rhs->expType->type == TY_PTR)
-        expType = &tyInt;
-      else
-        expType = lhs->expType;
-    } else {
-      if (lhs->expType->type == TY_PTR)
-        error("Cannot sub pointer");
-      expType = rhs->expType;  // int.
-    }
-    break;
-  case ND_MUL:
-  case ND_DIV:
-    if (lhs->expType->type == TY_PTR || rhs->expType->type == TY_PTR) {
-      error("Cannot sub pointers");
-    } else {
-      expType = lhs->expType;  // int.
-    }
-    break;
-  default:
-    //assert(FALSE);
-    expType = lhs->expType;
-    break;
-  }
-
-  assert(expType != NULL);
-
+Node *new_node_bop(enum NodeType type, const Type *expType, Node *lhs, Node *rhs) {
   Node *node = new_node(type, expType);
   node->bop.lhs = lhs;
   node->bop.rhs = rhs;
@@ -374,11 +335,93 @@ Node *funcall(Node *func) {
   return new_node_funcall(func, args);
 }
 
+static Node *add_node(Node *lhs, Node *rhs) {
+  Node *l = lhs, *r = rhs;
+
+  if (lhs->expType->type > rhs->expType->type) {
+    Node *tmp = l;
+    l = r;
+    r = tmp;
+  }
+
+  switch (l->expType->type) {
+  case TY_INT:
+    switch (r->expType->type) {
+    case TY_INT:
+    case TY_CHAR:
+      return new_node_bop(ND_ADD, l->expType, l, new_node_cast(l->expType, r, false));
+    case TY_PTR:
+      return new_node_bop(ND_PTRADD, r->expType, r, l);
+    default:
+      break;
+    }
+    break;
+
+  case TY_CHAR:
+    switch (r->expType->type) {
+    case TY_CHAR:
+      return new_node_bop(ND_ADD, l->expType, l, r);
+    default:
+      break;
+    }
+    break;
+
+  default:
+    break;
+  }
+
+  error("Illegal `+'");
+  return NULL;
+}
+
+static Node *sub_node(Node *lhs, Node *rhs) {
+  switch (lhs->expType->type) {
+  case TY_INT:
+    switch (rhs->expType->type) {
+    case TY_INT:
+    case TY_CHAR:
+      return new_node_bop(ND_SUB, lhs->expType, lhs, new_node_cast(lhs->expType, rhs, false));
+    default:
+      break;
+    }
+    break;
+
+  case TY_CHAR:
+    switch (rhs->expType->type) {
+    case TY_CHAR:
+    case TY_INT:
+      return new_node_bop(ND_SUB, rhs->expType, new_node_cast(rhs->expType, lhs, false), rhs);
+    default:
+      break;
+    }
+    break;
+
+  case TY_PTR:
+    switch (rhs->expType->type) {
+    case TY_INT:
+      return new_node_bop(ND_PTRSUB, lhs->expType, lhs, rhs);
+    case TY_PTR:
+      if (!same_type(lhs->expType, rhs->expType))
+        error("Different pointer sub");
+      return new_node_bop(ND_PTRDIFF, &tyInt, lhs, rhs);  // TODO: size_t
+    default:
+      break;
+    }
+    break;
+
+  default:
+    break;
+  }
+
+  error("Illegal `-'");
+  return NULL;
+}
+
 Node *array_index(Node *array) {
   Node *index = expr();
   if (!consume(TK_RBRACKET))
     error("`]' expected, but %s", current_line());
-  return new_node_unary(ND_DEREF, new_node_bop(ND_ADD, array, index));
+  return new_node_unary(ND_DEREF, add_node(array, index));
 }
 
 Node *member_access(Node *target) {
@@ -495,14 +538,21 @@ Node *mul() {
   Node *node = term();
 
   for (;;) {
-    if (consume(TK_MUL))
-      node = new_node_bop(ND_MUL, node, term());
-    else if (consume(TK_DIV))
-      node = new_node_bop(ND_DIV, node, term());
-    else if (consume(TK_MOD))
-      node = new_node_bop(ND_MOD, node, term());
+    enum TokenType tt;
+    enum NodeType t;
+    if (consume(tt = TK_MUL))
+      t = ND_MUL;
+    else if (consume(tt = TK_DIV))
+      t = ND_DIV;
+    else if (consume(tt = TK_MOD))
+      t = ND_MOD;
     else
       return node;
+
+    Node *lhs = node, *rhs = term();
+    if (!is_number(lhs->expType->type) || !is_number(rhs->expType->type))
+      error("Cannot use `%c' except numbers.", tt);
+    node = new_node_bop(t, node->expType, lhs, rhs);
   }
 }
 
@@ -510,11 +560,11 @@ Node *add() {
   Node *node = mul();
 
   for (;;) {
-    if (consume(TK_ADD)) {
-      node = new_node_bop(ND_ADD, node, mul());
-    } else if (consume(TK_SUB)) {
-      node = new_node_bop(ND_SUB, node, mul());
-    } else
+    if (consume(TK_ADD))
+      node = add_node(node, mul());
+    else if (consume(TK_SUB))
+      node = sub_node(node, mul());
+    else
       return node;
   }
 }
@@ -523,16 +573,19 @@ Node *cmp() {
   Node *node = add();
 
   for (;;) {
+    enum NodeType t;
     if (consume(TK_LT))
-      node = new_node_bop(ND_LT, node, add());
+      t = ND_LT;
     else if (consume(TK_GT))
-      node = new_node_bop(ND_GT, node, add());
+      t = ND_GT;
     else if (consume(TK_LE))
-      node = new_node_bop(ND_LE, node, add());
+      t = ND_LE;
     else if (consume(TK_GE))
-      node = new_node_bop(ND_GE, node, add());
+      t = ND_GE;
     else
       return node;
+
+    node = new_node_bop(t, &tyInt, node, add());
   }
 }
 
@@ -540,12 +593,15 @@ Node *eq() {
   Node *node = cmp();
 
   for (;;) {
+    enum NodeType t;
     if (consume(TK_EQ))
-      node = new_node_bop(ND_EQ, node, cmp());
+      t = ND_EQ;
     else if (consume(TK_NE))
-      node = new_node_bop(ND_NE, node, cmp());
+      t = ND_NE;
     else
       return node;
+
+    node = new_node_bop(t, &tyInt, node, cmp());
   }
 }
 
@@ -553,7 +609,7 @@ Node *assign() {
   Node *node = eq();
 
   if (consume(TK_ASSIGN))
-    return new_node_bop(ND_ASSIGN, node, new_node_cast(node->expType, assign(), false));
+    return new_node_bop(ND_ASSIGN, node->expType, node, new_node_cast(node->expType, assign(), false));
   else
     return node;
 }
