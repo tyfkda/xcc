@@ -6,19 +6,22 @@ try_direct() {
 
   echo "$input" | ./xcc > tmp || exit 1
   chmod +x tmp
+
+  echo -n "$input => "
+
   ./tmp
   actual="$?"
 
   if [ "$actual" = "$expected" ]; then
-    echo "$input => $actual"
+    echo "$actual"
   else
-    echo "ERROR: $input => $expected expected, but got $actual"
+    echo "ERROR: $expected expected, but got $actual"
     exit 1
   fi
 }
 
 try() {
-  try_direct "$1" "int func(){$2} int main(){ _exit(func()); }"
+  try_direct "$1" "int func(){$2} void main(){ _exit(func()); }"
 }
 
 try_output_direct() {
@@ -27,18 +30,21 @@ try_output_direct() {
 
   echo "$input" | ./xcc > tmp || exit 1
   chmod +x tmp
+
+  echo -n "$input => "
+
   actual=`./tmp` || exit 1
 
   if [ "$actual" = "$expected" ]; then
-    echo "$input => $actual"
+    echo "$actual"
   else
-    echo "ERROR: $input => $expected expected, but got $actual"
+    echo "ERROR: $expected expected, but got $actual"
     exit 1
   fi
 }
 
 try_output() {
-  try_output_direct "$1" "int main(){ $2 _exit(0); }"
+  try_output_direct "$1" "void main(){ $2 _exit(0); }"
 }
 
 try 0 'return 0;'

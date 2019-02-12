@@ -118,12 +118,27 @@ int main(int argc, char* argv[]) {
 
   // Test.
   {
-    Vector *params = new_vector();
+    static Type tyVoid = {.type=TY_VOID, .ptrof=NULL};
     static Type tyInt = {.type=TY_INT, .ptrof=NULL};
-    static Type tyFunc = {.type=TY_FUNC, .func={.ret=&tyInt}};
-    tyFunc.func.params = params;
-    define_global(&tyFunc, "_exit");
-    define_global(&tyFunc, "_write");
+    static Type tyChar = {.type=TY_CHAR, .ptrof=NULL};
+    static Type tyStr = {.type=TY_PTR, .ptrof=&tyChar};
+
+    static VarInfo vInt = {.name="", .type=&tyInt};
+    static VarInfo vStr = {.name="", .type=&tyStr};
+
+    Vector *exit_params = new_vector();
+    vec_push(exit_params, &vInt);
+    static Type tyExit = {.type=TY_FUNC, .func={.ret=&tyVoid }};
+    tyExit.func.params = exit_params;
+    define_global(&tyExit, "_exit");
+
+    Vector *write_params = new_vector();
+    vec_push(write_params, &vInt);
+    vec_push(write_params, &vStr);
+    vec_push(write_params, &vInt);
+    static Type tyWrite = {.type=TY_FUNC, .func={.ret=&tyInt }};
+    tyWrite.func.params = write_params;
+    define_global(&tyWrite, "_write");
   }
 
   if (argc > 1) {

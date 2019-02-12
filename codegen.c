@@ -83,24 +83,24 @@ void calc_struct_size(StructInfo *sinfo) {
 }
 
 void cast(const enum eType ltype, const enum eType rtype) {
+  if (ltype == rtype)
+    return;
+
   switch (ltype) {
   case TY_CHAR:
     switch (rtype) {
-    case TY_CHAR:  return;
     case TY_INT:  return;
     default: break;
     }
     break;
   case TY_INT:
     switch (rtype) {
-    case TY_INT:  return;
     case TY_CHAR: MOVSX_AL_RAX(); return;
     default: break;
     }
     break;
   case TY_PTR:
     switch (rtype) {
-    case TY_PTR:  return;
     default: break;
     }
     break;
@@ -108,7 +108,7 @@ void cast(const enum eType ltype, const enum eType rtype) {
     break;
   }
 
-  error("Cannot convert from type %d to %d", rtype, ltype);
+  assert(FALSE);
 }
 
 static Map *label_map;
@@ -530,11 +530,15 @@ void gen(Node *node) {
     }
     return;
 
+  case ND_CAST:
+    gen(node->cast.sub);
+    cast(node->expType->type, node->cast.sub->expType->type);
+    break;
+
   case ND_ASSIGN:
     gen_lval(node->bop.lhs);
     PUSH_RAX();
     gen(node->bop.rhs);
-    cast(node->bop.lhs->expType->type, node->bop.rhs->expType->type);
 
     POP_RDI();
     switch (node->bop.lhs->expType->type) {

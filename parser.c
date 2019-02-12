@@ -1,4 +1,5 @@
 #include <assert.h>
+#include <stdbool.h>
 #include <stdlib.h>  // malloc
 #include <string.h>
 
@@ -8,6 +9,8 @@ const static Type tyVoid = {.type=TY_VOID, .ptrof=NULL};
 const static Type tyInt = {.type=TY_INT, .ptrof=NULL};
 const static Type tyChar = {.type=TY_CHAR, .ptrof=NULL};
 const static Type tyStr = {.type=TY_PTR, .ptrof=&tyChar};
+
+static Type *parse_type(void);
 
 //
 
@@ -55,9 +58,30 @@ void define_global(Type *type, const char *name) {
   map_put(global, name, varinfo);
 }
 
-//
+// Type
 
-static Node *curfunc;
+bool same_type(const Type *type1, const Type *type2) {
+  for (;;) {
+    if (type1->type != type2->type)
+      return false;
+
+    switch (type1->type) {
+    case TY_VOID:
+    case TY_INT:
+    case TY_CHAR:
+      return true;
+    case TY_PTR:
+    case TY_ARRAY:
+      type1 = type1->ptrof;
+      type2 = type2->ptrof;
+      continue;
+    case TY_FUNC:
+      return type1 == type2;
+    case TY_STRUCT:
+      return type1->struct_ == type2->struct_;
+    }
+  }
+}
 
 Type* ptrof(const Type *type) {
   Type *ptr = malloc(sizeof(*ptr));
@@ -86,10 +110,66 @@ Type* new_func_type(const Type *ret, const Vector *params) {
   return f;
 }
 
+//
+
+static Node *curfunc;
+
 Node *new_node(enum NodeType type, const Type *expType) {
   Node *node = malloc(sizeof(Node));
   node->type = type;
   node->expType = expType;
+  return node;
+}
+
+Node *new_node_cast(const Type *type, Node *sub, bool is_explicit) {
+  if (same_type(type, sub->expType))
+    return sub;
+
+  if (type->type == TY_VOID || sub->expType->type == TY_VOID)
+    error("cannot use `void' as a value");
+
+  switch (type->type) {
+  case TY_INT:
+    switch (sub->expType->type) {
+    case TY_CHAR:  goto ok;
+    case TY_PTR:
+      if (is_explicit) {
+        // TODO: Check sizeof(int) is same as sizeof(ptr)
+        goto ok;
+      }
+      break;
+    default:  break;
+    }
+    break;
+  case TY_CHAR:
+    switch (sub->expType->type) {
+    case TY_INT:  goto ok;  // TODO: Raise warning if implicit.
+    default:  break;
+    }
+    break;
+  case TY_PTR:
+    switch (sub->expType->type) {
+    case TY_INT:
+      if (is_explicit)
+        goto ok;
+      break;
+    case TY_PTR:
+      // void* is interchangable with any pointer type.
+      if (type->ptrof->type == TY_VOID || sub->expType->ptrof->type == TY_VOID)
+        goto ok;
+      break;
+    default:  break;
+    }
+    break;
+  default:
+    break;
+  }
+  error("Cannot convert value from type %d to %d", sub->expType->type, type->type);
+  return NULL;
+
+ ok:;
+  Node *node = new_node(ND_CAST, type);
+  node->cast.sub = sub;
   return node;
 }
 
@@ -210,7 +290,8 @@ Node *new_node_defun(const Type *rettype, const char *name, Vector *params) {
 }
 
 Node *new_node_funcall(Node *func, Vector *args) {
-  Node *node = new_node(ND_FUNCALL, func->expType->func.ret);
+  const Type *rettype = func->expType->type == TY_FUNC ? func->expType->func.ret : &tyInt;  // TODO: Fix.
+  Node *node = new_node(ND_FUNCALL, rettype);
   node->funcall.func = func;
   node->funcall.args = args;
   return node;
@@ -267,11 +348,18 @@ Node *funcall(Node *func) {
         func->expType->type == TY_PTR))  // TODO: Restrict to function pointer.
     error("Cannot call except funtion");
 
+  const Type *functype = func->expType->type == TY_FUNC ? func->expType : NULL;
+
   Vector *args = NULL;
   if (!consume(TK_RPAR)) {
     args = new_vector();
     for (;;) {
-      vec_push(args, expr());
+      Node *arg = expr();
+      if (functype != NULL && args->len < functype->func.params->len) {
+        const Type * type = ((VarInfo*)functype->func.params->data[args->len])->type;
+        arg = new_node_cast(type, arg, false);
+      }
+      vec_push(args, arg);
       if (consume(TK_RPAR))
         break;
       if (consume(TK_COMMA))
@@ -279,6 +367,10 @@ Node *funcall(Node *func) {
       error("Comma or `)` expected, but %s", current_line());
     }
   }
+
+  if (functype != NULL && (args != NULL ? args->len : 0) != functype->func.params->len)
+    error("function `%s' expect %d arguments, but %d\n", func->varref.ident, functype->func.params->len, (args != NULL ? args->len : 0));
+
   return new_node_funcall(func, args);
 }
 
@@ -312,10 +404,18 @@ Node *member_access(Node *target) {
 
 Node *prim() {
   if (consume(TK_LPAR)) {
-    Node *node = expr();
-    if (!consume(TK_RPAR))
-      error("No close paren: %s", current_line());
-    return node;
+    Type *type = parse_type();
+    if (type != NULL) {  // Cast
+      if (!consume(TK_RPAR))
+        error("`)' expected, but %s", current_line());
+      Node *node = prim();
+      return new_node_cast(type, node, true);
+    } else {
+      Node *node = expr();
+      if (!consume(TK_RPAR))
+        error("No close paren: %s", current_line());
+      return node;
+    }
   }
 
   Token *tok;
@@ -329,7 +429,7 @@ Node *prim() {
     if (curfunc == NULL) {
       error("Cannot use variable outside of function: `%s'", tok->ident);
     } else {
-      Type *type = NULL;
+      const Type *type = NULL;
       int idx = var_find(curfunc->defun.lvars, tok->ident);
       if (idx >= 0) {
         type = ((VarInfo*)curfunc->defun.lvars->data[idx])->type;
@@ -410,11 +510,11 @@ Node *add() {
   Node *node = mul();
 
   for (;;) {
-    if (consume(TK_ADD))
+    if (consume(TK_ADD)) {
       node = new_node_bop(ND_ADD, node, mul());
-    else if (consume(TK_SUB))
+    } else if (consume(TK_SUB)) {
       node = new_node_bop(ND_SUB, node, mul());
-    else
+    } else
       return node;
   }
 }
@@ -453,7 +553,7 @@ Node *assign() {
   Node *node = eq();
 
   if (consume(TK_ASSIGN))
-    return new_node_bop(ND_ASSIGN, node, assign());
+    return new_node_bop(ND_ASSIGN, node, new_node_cast(node->expType, assign(), false));
   else
     return node;
 }
@@ -541,14 +641,12 @@ Node *stmt_return() {
     if (!consume(TK_SEMICOL))
       error("`;' expected, but %s", current_line());
 
-    // TODO: Check return type.
     if (curfunc->defun.rettype->type == TY_VOID)
       error("void function `return' a value");
+    val = new_node_cast(curfunc->defun.rettype, val, false);
   }
   return new_node_return(val);
 }
-
-Type *parse_type(void);
 
 StructInfo *parse_struct() {
   Vector *members = new_vector();
@@ -572,7 +670,7 @@ StructInfo *parse_struct() {
   return sinfo;
 }
 
-Type *parse_type(void) {
+static Type *parse_type(void) {
   Type *type = NULL;
 
   if (consume(TK_STRUCT)) {

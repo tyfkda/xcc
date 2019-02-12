@@ -127,7 +127,7 @@ typedef struct Type {
 
 typedef struct {
   const char *name;
-  Type *type;
+  const Type *type;
   int offset;
 } VarInfo;
 
@@ -167,6 +167,7 @@ enum NodeType {
   ND_DO_WHILE,
   ND_FOR,
   ND_RETURN,
+  ND_CAST,
 };
 
 typedef struct Node {
@@ -229,6 +230,9 @@ typedef struct Node {
       struct Node *target;
       const char *name;
     } member;
+    struct {
+      struct Node *sub;
+    } cast;
   };
 } Node;
 
