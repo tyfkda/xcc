@@ -23,10 +23,7 @@ ssize_t getline_(char **lineptr, size_t *n, FILE *stream) {
     if (c == EOF) {
       if (size == 0)
         return EOF;
-      top[size] = '\0';
-      *lineptr = top;
-      *n = capa;
-      return size;
+      break;
     }
 
     if (size + 2 > capa) {
@@ -37,7 +34,15 @@ ssize_t getline_(char **lineptr, size_t *n, FILE *stream) {
       capa = newcapa;
     }
     top[size++] = c;
+
+    if (c == '\n')
+      break;
   }
+
+  top[size] = '\0';
+  *lineptr = top;
+  *n = capa;
+  return size;
 }
 
 typedef struct {
@@ -98,6 +103,63 @@ void init_lexer(FILE *fp) {
   lexer.tok = NULL;
 }
 
+static void read_next_line(void) {
+  lexer.line = NULL;
+  lexer.line_len = 0;
+  if (getline_(&lexer.line, &lexer.line_len, lexer.fp) == EOF) {
+    lexer.p = NULL;
+  }
+  lexer.p = lexer.line;
+}
+
+static const char *skip_block_comment(const char *p) {
+  for (;;) {
+    char c = *p++;
+    if (c == '\0') {
+      read_next_line();
+      p = lexer.p;
+      if (p == NULL)
+        return NULL;
+      continue;
+    } else if (c == '*' && *p == '/')
+      return p + 1;
+  }
+}
+
+static const char *skip_line_comment(void) {
+  read_next_line();
+  return lexer.p;
+}
+
+static const char *skip_whitespace_or_comment(const char *p) {
+  for (;;) {
+    char c = *p++;
+    if (c == '\0') {
+      read_next_line();
+      p = lexer.p;
+      if (p == NULL)
+        return NULL;
+      continue;
+    } else if (isspace(c)) {
+      continue;
+    } else if (c == '/') {
+      if (*p == '*') {
+        p = skip_block_comment(p + 1);
+        if (p == NULL)
+          return NULL;
+        continue;
+      } else if (*p == '/') {
+        p = skip_line_comment();
+        if (p == NULL)
+          return NULL;
+        continue;
+      }
+    }
+    break;
+  }
+  return p - 1;
+}
+
 static Token *get_token(void) {
   Token *tok = NULL;
   const char *p = lexer.p;
@@ -105,19 +167,9 @@ static Token *get_token(void) {
     return alloc_token(TK_EOF, NULL);
 
   for (;;) {
-    for (;; ++p) {
-      if (*p == '\0') {
-        lexer.line = NULL;
-        lexer.line_len = 0;
-        if (getline_(&lexer.line, &lexer.line_len, lexer.fp) == EOF) {
-          lexer.p = NULL;
-          return alloc_token(TK_EOF, NULL);
-        }
-        p = lexer.line;
-      }
-      if (!isspace(*p))
-        break;
-    }
+    p = skip_whitespace_or_comment(p);
+    if (p == NULL)
+      return alloc_token(TK_EOF, NULL);
 
     if (*p == '=' && p[1] == '=') {
       tok = alloc_token(TK_EQ, p);

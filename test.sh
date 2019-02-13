@@ -4,7 +4,7 @@ try_direct() {
   expected="$1"
   input="$2"
 
-  echo "$input" | ./xcc > tmp || exit 1
+  echo -e "$input" | ./xcc > tmp || exit 1
   chmod +x tmp
 
   echo -n "$input => "
@@ -28,7 +28,7 @@ try_output_direct() {
   expected="$1"
   input="$2"
 
-  echo "$input" | ./xcc > tmp || exit 1
+  echo -e "$input" | ./xcc > tmp || exit 1
   chmod +x tmp
 
   echo -n "$input => "
@@ -76,11 +76,13 @@ try 11 'int a[2]; *a = 1; a[1] = 10; return a[0] + 1[a];'
 try 20 'int a[2]; int *p; a[0] = 10; a[1] = 20; p = a; return *(++p);'
 try 10 'int a[2]; int *p; a[0] = 10; a[1] = 20; p = a; return *p++;'
 try_direct 11 'int x; void main(){ x = 1; _exit(x + 10); }'
-try_output 'hello' '_write(1, "hello\n", 6);'
-try_output 123 "char s[16]; s[0] = '1'; s[1] = '2'; s[2] = '3'; s[3] = '\n'; _write(1, s, 4);"
+try_output 'hello' "_write(1, \"hello\\\\n\", 6);"
+try_output 123 "char s[16]; s[0] = '1'; s[1] = '2'; s[2] = '3'; s[3] = '\\\\n'; _write(1, s, 4);"
 try_output_direct 12345 "void putdeci(int x) { char s[16]; char *p; p = s + 16; for (; x != 0; x = x / 10) { p = p - 1; *p = (x % 10) + '0'; } _write(1, p, (s + 16) - p); } void main() { putdeci(12345); _exit(0); }"
 try_direct 3 'struct Foo{char x; int y;}; void main(){ struct Foo foo; foo.x = 1; foo.y = 2; _exit(foo.x + foo.y);}'
 try_direct 3 'struct Foo{char x; int y;}; void main(){ struct Foo foo; struct Foo *p; p = &foo; p->x = 1; p->y = 2; _exit(foo.x + foo.y);}'
 try_direct 9 'int sub(int x, int y){ return x - y; } int apply(void *f, int x, int y) { return f(x, y); } void main(){ _exit(apply(&sub, 15, 6)); }'
+try 123 '/* comment */ return 123;'
+try 123 "// comment\nreturn 123;"
 
 echo OK
