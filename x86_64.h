@@ -22,6 +22,7 @@
 #define MOVZX_AL_RAX()   ADD_CODE(0x48, 0x0f, 0xb6, 0xc0)  // movzbq %al,%rax
 #define MOVSX_EAX_RAX()  ADD_CODE(0x48, 0x63, 0xc0)  // movsx %eax,%rax
 #define MOVSX_EAX_RDI()  ADD_CODE(0x48, 0x63, 0xf8)  // movsx %eax, %rdi
+#define MOV_EAX_EDI()    ADD_CODE(0x89, 0xc7)  // mov %eax,%edi
 #define MOV_RAX_RSI()    ADD_CODE(0x48, 0x89, 0xc6)  // mov %rax,%rsi
 #define MOV_RAX_RDI()    ADD_CODE(0x48, 0x89, 0xc7)  // mov %rax,%rdi
 #define MOV_DL_AL()      ADD_CODE(0x88, 0xd0)  // mov %dl,%al

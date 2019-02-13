@@ -159,6 +159,16 @@ int main(int argc, char* argv[]) {
 
   // Test.
   {
+    add_label("_start");
+#if defined(__XV6)
+    // XCV6 calls entry point according to ABI.
+#elif __linux__
+    MOV_IND8_RSP_RDI(0);
+    LEA_OFS8_RSP_RSI(8);
+#endif
+    CALL("main");
+    MOV_EAX_EDI();
+    // Fall
     add_label("_exit");
     SYSTEMCALL(SYSCALL_EXIT);
     RET();
@@ -170,9 +180,9 @@ int main(int argc, char* argv[]) {
 
   size_t binsize = fixup_locations();
 
-  uintptr_t entry = label_adr("main");
+  uintptr_t entry = label_adr("_start");
   if (entry == (uintptr_t)-1)
-    error("Cannot find label: `%s'", "main");
+    error("Cannot find label: `%s'", "_start");
 
   FILE* fp = stdout;
 
