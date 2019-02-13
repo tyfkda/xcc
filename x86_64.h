@@ -2,8 +2,8 @@
 #ifndef ADD_CODE
 #define ADD_CODE(...)  do { unsigned char buf[] = {__VA_ARGS__}; add_code(buf, sizeof(buf)); } while (0)
 #endif
-#ifndef CURIP
-#define CURIP(ofs)  (start_address + codesize + ofs)
+#ifndef ADD_LOC_REL32
+#define ADD_LOC_REL32(label, ofs, base)  add_loc_rel32(label, ofs, base)
 #endif
 
 #define IM32(x)  (x), ((x) >> 8), ((x) >> 16), ((x) >> 24)
@@ -20,6 +20,7 @@
 #define MOVSX_AL_RAX()   ADD_CODE(0x48, 0x0f, 0xbe, 0xc0)  // movsbq %al,%rax
 #define MOVZX_AL_EAX()   ADD_CODE(0x48, 0x0f, 0xb6, 0xc0)  // movzbl %al,%eax
 #define MOVZX_AL_RAX()   ADD_CODE(0x48, 0x0f, 0xb6, 0xc0)  // movzbq %al,%rax
+#define MOVSX_EAX_RAX()  ADD_CODE(0x48, 0x63, 0xc0)  // movsx %eax,%rax
 #define MOVSX_EAX_RDI()  ADD_CODE(0x48, 0x63, 0xf8)  // movsx %eax, %rdi
 #define MOV_RAX_RDI()    ADD_CODE(0x48, 0x89, 0xc7)  // mov %rax,%rdi
 #define MOV_DL_AL()      ADD_CODE(0x88, 0xd0)  // mov %dl,%al
@@ -56,8 +57,12 @@
 #define MOV_R9B_IND8_RBP(ofs)  ADD_CODE(0x44, 0x88, 0x4d, ofs)  // mov %r9b,ofs(%rbp)
 #define MOV_R9D_IND8_RBP(ofs)  ADD_CODE(0x44, 0x89, 0x4d, ofs)  // mov %r9d,ofs(%rbp)
 #define MOV_R9_IND8_RBP(ofs)   ADD_CODE(0x4c, 0x89, 0x4d, ofs)  // mov %r9,ofs(%rbp)
-#define LEA_OFS32_RAX(label)      do { add_loc_rel32(codesize + 4, label, CURIP(8)); ADD_CODE(0x48, 0x8d, 0x04, 0x25, IM32(0)); } while(0)  // lea    0x0,%rax
-#define LEA_OFS32_RIP_RAX(label)  do { add_loc_rel32(codesize + 3, label, CURIP(7)); ADD_CODE(0x48, 0x8d, 0x05, IM32(0)); } while(0)  // lea    0x0(%rip),%rax
+#define MOV_IND8_RSP_RDI(ofs)  ADD_CODE(0x48, 0x8b, 0x7c, 0x24, ofs)  // mov ofs(%rsp),%rdi
+#define MOV_IND8_RSP_RSI(ofs)  ADD_CODE(0x48, 0x8b, 0x74, 0x24, ofs)  // mov ofs(%rsp),%rsi
+#define MOV_IND8_RSP_RDX(ofs)  ADD_CODE(0x48, 0x8b, 0x54, 0x24, ofs)  // mov ofs(%rsp),%rdx
+#define LEA_OFS8_RSP_RSI(ofs)  ADD_CODE(0x48, 0x8d, 0x74, 0x24, ofs)  // lea ofs(%rsp),%rsi
+#define LEA_OFS32_RAX(label)      do { ADD_LOC_REL32(label, 4, 8); ADD_CODE(0x48, 0x8d, 0x04, 0x25, IM32(0)); } while(0)  // lea 0x0,%rax
+#define LEA_OFS32_RIP_RAX(label)  do { ADD_LOC_REL32(label, 3, 7); ADD_CODE(0x48, 0x8d, 0x05, IM32(0)); } while(0)  // lea 0x0(%rip),%rax
 #define ADD_DIL_AL()     ADD_CODE(0x40, 0x00, 0xf8)  // add %dil,%al
 #define ADD_EDI_EAX()    ADD_CODE(0x01, 0xf8)  // add %edi,%eax
 #define ADD_RDI_RAX()    ADD_CODE(0x48, 0x01, 0xf8)  // add %rdi,%rax
@@ -101,10 +106,10 @@
 #define POP_RDI()        ADD_CODE(0x5f)  // pop %rdi
 #define POP_R8()         ADD_CODE(0x41, 0x58)  // pop %r8
 #define POP_R9()         ADD_CODE(0x41, 0x59)  // pop %r9
-#define JE32(label)      do { add_loc_rel32(codesize + 2, label, CURIP(6)); ADD_CODE(0x0f, 0x84, IM32(0)); } while(0)  // je
-#define JNE32(label)     do { add_loc_rel32(codesize + 2, label, CURIP(6)); ADD_CODE(0x0f, 0x85, IM32(0)); } while(0)  // jne
-#define JMP32(label)     do { add_loc_rel32(codesize + 1, label, CURIP(5)); ADD_CODE(0xe9, IM32(0)); } while(0)  // jmp
-#define CALL(label)      do { add_loc_rel32(codesize + 1, label, CURIP(5)); ADD_CODE(0xe8, IM32(0)); } while(0)  // call
+#define JE32(label)      do { ADD_LOC_REL32(label, 2, 6); ADD_CODE(0x0f, 0x84, IM32(0)); } while(0)  // je
+#define JNE32(label)     do { ADD_LOC_REL32(label, 2, 6); ADD_CODE(0x0f, 0x85, IM32(0)); } while(0)  // jne
+#define JMP32(label)     do { ADD_LOC_REL32(label, 1, 5); ADD_CODE(0xe9, IM32(0)); } while(0)  // jmp
+#define CALL(label)      do { ADD_LOC_REL32(label, 1, 5); ADD_CODE(0xe8, IM32(0)); } while(0)  // call
 #define CALL_IND_RAX()   ADD_CODE(0xff, 0xd0)  // call *%rax
 #define RET()            ADD_CODE(0xc3)  // retq
 #define INT(x)           ADD_CODE(0xcd, x)  // int $x

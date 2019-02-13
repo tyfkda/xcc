@@ -182,7 +182,9 @@ LocInfo *new_loc(enum LocType type, uintptr_t ip, const char *label) {
   return loc;
 }
 
-void add_loc_rel32(uintptr_t ip, const char *label, uintptr_t base) {
+void add_loc_rel32(const char *label, int ofs, int baseofs) {
+  uintptr_t ip = codesize + ofs;
+  uintptr_t base = CURIP(baseofs);
   LocInfo *loc = new_loc(LOC_REL32, ip, label);
   loc->rel.base = base;
 }
