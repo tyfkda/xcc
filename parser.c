@@ -11,7 +11,7 @@ const static Type tyChar = {.type=TY_CHAR, .ptrof=NULL};
 const static Type tyStr = {.type=TY_PTR, .ptrof=&tyChar};
 #define tyBool  tyInt
 
-static Type *parse_type(void);
+static Type *parse_type(bool allow_void);
 
 //
 
@@ -107,10 +107,14 @@ Type* new_func_type(const Type *ret, const Vector *params) {
   Type *f = malloc(sizeof(*f));
   f->type = TY_FUNC;
   f->func.ret = ret;
-  // Clone params.
-  Vector *newparams = new_vector();
-  for (int i = 0; i < params->len; ++i)
-    vec_push(newparams, params->data[i]);
+
+  Vector *newparams = NULL;
+  if (params != NULL) {
+    // Clone params.
+    newparams = new_vector();
+    for (int i = 0; i < params->len; ++i)
+      vec_push(newparams, params->data[i]);
+  }
   f->func.params = newparams;
   return f;
 }
@@ -241,11 +245,13 @@ Node *new_node_member(Node *target, const char *name, const Type *expType) {
 }
 
 Node *new_node_defun(const Type *rettype, const char *name, Vector *params) {
+  Vector *lvars = params != NULL ? params : new_vector();
+
   Node *node = new_node(ND_DEFUN, &tyVoid);
   node->defun.rettype = rettype;
   node->defun.name = name;
-  node->defun.lvars = params;
-  node->defun.param_count = params->len;
+  node->defun.param_count = params != NULL ? params->len : -1;
+  node->defun.lvars = lvars;
   node->defun.stmts = NULL;
   node->defun.ret_label = NULL;
   return node;
@@ -317,7 +323,7 @@ Node *funcall(Node *func) {
     args = new_vector();
     for (;;) {
       Node *arg = expr();
-      if (functype != NULL && args->len < functype->func.params->len) {
+      if (functype != NULL && functype->func.params != NULL && args->len < functype->func.params->len) {
         const Type * type = ((VarInfo*)functype->func.params->data[args->len])->type;
         arg = new_node_cast(type, arg, false);
       }
@@ -330,7 +336,7 @@ Node *funcall(Node *func) {
     }
   }
 
-  if (functype != NULL && (args != NULL ? args->len : 0) != functype->func.params->len)
+  if (functype != NULL && functype->func.params != NULL && (args != NULL ? args->len : 0) != functype->func.params->len)
     error("function `%s' expect %d arguments, but %d\n", func->varref.ident, functype->func.params->len, (args != NULL ? args->len : 0));
 
   return new_node_funcall(func, args);
@@ -448,7 +454,7 @@ Node *member_access(Node *target) {
 
 Node *prim() {
   if (consume(TK_LPAR)) {
-    Type *type = parse_type();
+    Type *type = parse_type(false);
     if (type != NULL) {  // Cast
       if (!consume(TK_RPAR))
         error("`)' expected, but %s", current_line());
@@ -759,7 +765,7 @@ StructInfo *parse_struct() {
   for (;;) {
     if (consume(TK_RBRACE))
       break;
-    Type *type = parse_type();
+    Type *type = parse_type(false);
     Token *tok;
     if (!(tok = consume(TK_IDENT)))
       error("ident expected, but %s", current_line());
@@ -776,7 +782,7 @@ StructInfo *parse_struct() {
   return sinfo;
 }
 
-static Type *parse_type(void) {
+static Type *parse_type(bool allow_void) {
   Type *type = NULL;
 
   if (consume(TK_STRUCT)) {
@@ -818,6 +824,9 @@ static Type *parse_type(void) {
   if (type != NULL) {
     while (consume(TK_MUL))
       type = ptrof(type);
+
+    if (!allow_void && type->type == TY_VOID)
+      error("`void' not allowed");
   }
 
   return type;
@@ -825,7 +834,7 @@ static Type *parse_type(void) {
 
 void vardecl() {
   for (;;) {
-    Type *type = parse_type();
+    Type *type = parse_type(false);
     if (type == NULL)
       return;
     if (type->type == TY_VOID)
@@ -880,12 +889,20 @@ Node *stmt() {
 }
 
 Vector *funparams() {
-  Vector *params = new_vector();
-  if (!consume(TK_RPAR)) {
+  Vector *params = NULL;
+  if (consume(TK_RPAR)) {
+    // Arbitrary funparams.
+  } else {
+    params = new_vector();
     for (;;) {
-      Type *type = parse_type();
+      Type *type = parse_type(params->len == 0);
       if (type == NULL)
         error("type expected, but %s", current_line());
+      if (type->type == TY_VOID) {  // fun(void)
+        if (!consume(TK_RPAR))
+          error("`)' expected, but %s", current_line());
+        break;
+      }
 
       Token *tok;
       if (!(tok = consume(TK_IDENT)))
@@ -902,7 +919,7 @@ Vector *funparams() {
 }
 
 Node *toplevel() {
-  Type *type = parse_type();
+  Type *type = parse_type(true);
   if (type != NULL) {
     if (type->type == TY_STRUCT && consume(TK_SEMICOL))  // Just struct definition.
       return NULL;
@@ -912,6 +929,8 @@ Node *toplevel() {
       const char *ident = tok->ident;
 
       if (consume(TK_SEMICOL)) {  // Global variable declaration.
+        if (type->type == TY_VOID)
+          error("`void' not allowed");
         define_global(type, ident);
         return NULL;
       }
