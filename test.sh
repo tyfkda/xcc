@@ -49,6 +49,21 @@ try_output() {
   try_output_direct "$1" "$2" "void main(){ $3 _exit(0); }"
 }
 
+compile_error() {
+  title="$1"
+  input="$2"
+
+  echo -n "$title => "
+
+  echo -e "$input" | ./xcc > tmp
+  result="$?"
+
+  if [ "$result" = "0" ]; then
+    echo "NG: Compile error expected, but succeeded"
+    exit 1
+  fi
+}
+
 try 'const' 0 'return 0;'
 try 'const2' 42 'return 42;'
 try '+-' 21 'return 5+20-4;'
@@ -87,5 +102,24 @@ try_direct 'func pointer' 9 'int sub(int x, int y){ return x - y; } int apply(vo
 try 'block comment' 123 '/* comment */ return 123;'
 try 'line comment' 123 "// comment\nreturn 123;"
 try_direct 'proto decl' 123 'int foo(); void main(){ _exit(foo()); } int foo(){ return 123; }'
+
+# error cases
+echo '### Error cases'
+compile_error 'no main' 'void foo(){}'
+compile_error 'undef var' 'void main(){ x = 1; }'
+compile_error 'undef funcall' 'void foo(); void main(){ foo(); }'
+compile_error 'no proto def' 'void main(){ foo(); } void foo(){}'
+compile_error 'int - ptr' 'void main(){ int *p; p = 1; 2 - p; }'
+compile_error '*num' 'void main(){ *123; }'
+compile_error '&num' 'void main(){ &123; }'
+compile_error 'implicit cast to ptr' 'void foo(int *p); void main(){ foo(123); }'
+compile_error 'struct->' 'struct Foo{int x;}; void main(){ struct Foo foo; foo->x; }'
+compile_error 'struct*.' 'struct Foo{int x;}; void main(){ struct Foo* p; p.x; }'
+compile_error 'int*->' 'void main(){ int *p; p->x; }'
+compile_error 'void var' 'void main(){ void x; }'
+compile_error 'void param' 'void main(void x){}'
+compile_error 'void expr' 'void main(){ 1 + (void)2; }'
+compile_error 'few arg num' 'void foo(int x); void main(){ foo(); }'
+compile_error 'many arg num' 'void foo(int x); void main(){ foo(1, 2); }'
 
 echo 'All tests PASS!'

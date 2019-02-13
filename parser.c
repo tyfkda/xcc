@@ -431,7 +431,7 @@ Node *array_index(Node *array) {
   return new_node_unary(ND_DEREF, add_node(array, index));
 }
 
-Node *member_access(Node *target) {
+Node *member_access(Node *target, enum TokenType toktype) {
   Token *tok;
   if (!(tok = consume(TK_IDENT)))
     error("`ident' expected, but %s", current_line());
@@ -439,10 +439,16 @@ Node *member_access(Node *target) {
 
   // Find member's type from struct info.
   const Type *type = target->expType;
-  if (type->type == TY_PTR)
+  if (toktype == TK_DOT) {
+    if (type->type != TY_STRUCT)
+      error("`.' for non struct value");
+  } else {  // TK_ARROW
+    if (type->type != TY_PTR)
+      error("`->' for non pointer value");
     type = target->expType->ptrof;
-  if (type->type != TY_STRUCT)
-    error("`.' for non struct value");
+    if (type->type != TY_STRUCT)
+      error("`->' for non struct value");
+  }
 
   int index = var_find(type->struct_->members, name);
   if (index < 0)
@@ -454,7 +460,7 @@ Node *member_access(Node *target) {
 
 Node *prim() {
   if (consume(TK_LPAR)) {
-    Type *type = parse_type(false);
+    Type *type = parse_type(true);
     if (type != NULL) {  // Cast
       if (!consume(TK_RPAR))
         error("`)' expected, but %s", current_line());
@@ -529,9 +535,9 @@ Node *term() {
     else if (consume(TK_LBRACKET))
       node = array_index(node);
     else if (consume(TK_DOT))
-      node = member_access(node);
+      node = member_access(node, TK_DOT);
     else if (consume(TK_ARROW))
-      node = member_access(node);
+      node = member_access(node, TK_ARROW);
     else if (consume(TK_INC))
       node = new_node_unary(ND_POSTINC, node);
     else if (consume(TK_DEC))
