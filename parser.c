@@ -935,11 +935,23 @@ Node *toplevel() {
         return NULL;
       }
 
-      if (consume(TK_LPAR)) {  // Function definition.
+      if (consume(TK_LPAR)) {  // Function.
         Vector *params = funparams();
-        if (consume(TK_LBRACE)) {
-          Node *node = new_node_defun(type, ident, params);
+
+        VarInfo *def = find_global(ident);
+        if (def == NULL) {
           define_global(new_func_type(type, params), ident);
+        } else {
+          if (def->type->type != TY_FUNC)
+            error("Definition conflict: `%s'", ident);
+          // TODO: Check type.
+          // TODO: Check duplicated definition.
+        }
+
+        if (consume(TK_SEMICOL))  // Prototype declaration.
+          return NULL;
+        if (consume(TK_LBRACE)) {  // Definition.
+          Node *node = new_node_defun(type, ident, params);
           curfunc = node;
 
           vardecl();
