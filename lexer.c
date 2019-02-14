@@ -160,6 +160,25 @@ static const char *skip_whitespace_or_comment(const char *p) {
   return p - 1;
 }
 
+static Token *read_num(const char **pp) {
+  const char *start = *pp, *p = start;
+  int base = 10;
+  if (*p == '0') {
+    base = 8;
+    ++p;
+    if (*p == 'x') {
+      base = 16;
+      ++p;
+    }
+  }
+  long val = strtol(p, (char**)pp, base);
+  if (*pp == p && base == 16)
+    error("Illegal literal: %s", current_line());
+  Token *tok = alloc_token(TK_NUM, start);
+  tok->val = val;
+  return tok;
+}
+
 static Token *get_token(void) {
   Token *tok = NULL;
   const char *p = lexer.p;
@@ -221,9 +240,7 @@ static Token *get_token(void) {
     }
 
     if (isdigit(*p)) {
-      long val = strtol(p, (char**)&p, 10);
-      tok = alloc_token(TK_NUM, p);
-      tok->val = val;
+      tok = read_num(&p);
       break;
     }
 
@@ -313,5 +330,5 @@ Token *consume(enum TokenType type) {
 }
 
 const char *current_line(void) {
-  return lexer.p;
+  return lexer.line;
 }

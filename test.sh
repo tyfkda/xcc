@@ -64,8 +64,10 @@ compile_error() {
   fi
 }
 
-try 'const' 0 'return 0;'
-try 'const2' 42 'return 42;'
+try 'zero' 0 'return 0;'
+try 'decimal' 42 'return 42;'
+try 'hex' 18 'return 0x12;'
+try 'octal' 83 'return 0123;'
 try '+-' 21 'return 5+20-4;'
 try 'token' 41 ' return 12 + 34 - 5 ;'
 try '*+' 47 'return 5+6*7;'
