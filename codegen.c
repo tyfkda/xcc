@@ -325,7 +325,8 @@ static void gen_defun(Node *node) {
   for (int i = 0; i < node->defun.lvars->len; ++i) {
     VarInfo *lvar = (VarInfo*)node->defun.lvars->data[i];
     int size = type_size(lvar->type);
-    frame_size += size;
+    int align = align_size(lvar->type);
+    frame_size = (frame_size + size + align - 1) & -align;
     lvar->offset = -frame_size;
   }
 
