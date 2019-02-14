@@ -62,7 +62,7 @@ void define_global(Type *type, const char *name) {
 // Type
 
 static bool is_number(enum eType type) {
-  return type == TY_INT || TY_CHAR;
+  return type == TY_INT || type == TY_CHAR;
 }
 
 static bool same_type(const Type *type1, const Type *type2) {
@@ -189,27 +189,16 @@ Node *new_node_bop(enum NodeType type, const Type *expType, Node *lhs, Node *rhs
   return node;
 }
 
-Node *new_node_unary(enum NodeType type, Node *sub) {
-  const Type *expType = NULL;
-  switch (type) {
-  case ND_REF:
-    expType = ptrof(sub->expType);
-    break;
-  case ND_DEREF:
-    if (sub->expType->type != TY_PTR)
-      error("Cannot dereference raw type");
-    expType = sub->expType->ptrof;
-    break;
-  default:
-    expType = sub->expType;
-    break;
-  }
-
-  assert(expType != NULL);
-
+Node *new_node_unary(enum NodeType type, const Type *expType, Node *sub) {
   Node *node = new_node(type, expType);
   node->unary.sub = sub;
   return node;
+}
+
+Node *new_node_deref(Node *sub) {
+  if (sub->expType->type != TY_PTR)
+    error("Cannot dereference raw type");
+  return new_node_unary(ND_DEREF, sub->expType->ptrof, sub);
 }
 
 Node *new_node_num(long val) {
@@ -428,7 +417,7 @@ Node *array_index(Node *array) {
   Node *index = expr();
   if (!consume(TK_RBRACKET))
     error("`]' expected, but %s", current_line());
-  return new_node_unary(ND_DEREF, add_node(array, index));
+  return new_node_deref(add_node(array, index));
 }
 
 Node *member_access(Node *target, enum TokenType toktype) {
@@ -507,24 +496,57 @@ Node *prim() {
 }
 
 Node *term() {
+  if (consume(TK_ADD)) {
+    Node *node = term();
+    if (!is_number(node->expType->type))
+      error("Cannot apply `+' except number types");
+    return node;
+  }
+
+  if (consume(TK_SUB)) {
+    Node *node = term();
+    if (!is_number(node->expType->type))
+      error("Cannot apply `-' except number types");
+    if (node->type == ND_NUM) {
+      node->val = -node->val;
+      return node;
+    }
+    return new_node_unary(ND_NEG, node->expType, node);
+  }
+
+  if (consume(TK_NOT)) {
+    Node *node = term();
+    switch (node->expType->type) {
+    case TY_INT:
+    case TY_CHAR:
+    case TY_PTR:
+      node = new_node_unary(ND_NOT, &tyBool, node);
+      break;
+    default:
+      error("Cannot apply `!' except number or pointer types");
+      break;
+    }
+    return node;
+  }
+
   if (consume(TK_AMP)) {
     Node *node = term();
-    return new_node_unary(ND_REF, node);
+    return new_node_unary(ND_REF, ptrof(node->expType), node);
   }
 
   if (consume(TK_MUL)) {
     Node *node = term();
-    return new_node_unary(ND_DEREF, node);
+    return new_node_deref(node);
   }
 
   if (consume(TK_INC)) {
     Node *node = term();
-    return new_node_unary(ND_PREINC, node);
+    return new_node_unary(ND_PREINC, node->expType, node);
   }
 
   if (consume(TK_DEC)) {
     Node *node = term();
-    return new_node_unary(ND_PREDEC, node);
+    return new_node_unary(ND_PREDEC, node->expType, node);
   }
 
   Node *node = prim();
@@ -539,9 +561,9 @@ Node *term() {
     else if (consume(TK_ARROW))
       node = member_access(node, TK_ARROW);
     else if (consume(TK_INC))
-      node = new_node_unary(ND_POSTINC, node);
+      node = new_node_unary(ND_POSTINC, node->expType, node);
     else if (consume(TK_DEC))
-      node = new_node_unary(ND_POSTDEC, node);
+      node = new_node_unary(ND_POSTDEC, node->expType, node);
     else
       return node;
   }

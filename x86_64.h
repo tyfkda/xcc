@@ -83,12 +83,15 @@
 #define CMP_AL_DIL()     ADD_CODE(0x40, 0x38, 0xc7)  // cmp %al,%dil
 #define CMP_EAX_EDI()    ADD_CODE(0x39, 0xc7)  // cmp %eax,%edi
 #define CMP_RAX_RDI()    ADD_CODE(0x48, 0x39, 0xc7)  // cmp %rax,%rdi
+#define CMP_IM8_AL(x)    ADD_CODE(0x3c, x)  // cmp $x,%al
 #define CMP_IM8_EAX(x)   ADD_CODE(0x83, 0xf8, x)  // cmp $x,%eax
 #define CMP_IM8_RAX(x)   ADD_CODE(0x48, 0x83, 0xf8, x)  // cmp $x,%rax
 #define INCB_IND_RAX()   ADD_CODE(0xfe, 0x00)  // incb (%rax)
 #define INCL_IND_RAX()   ADD_CODE(0xff, 0x00)  // incl (%rax)
 #define DECB_IND_RAX()   ADD_CODE(0xfe, 0x08)  // decb (%rax)
 #define DECL_IND_RAX()   ADD_CODE(0xff, 0x08)  // decl (%rax)
+#define NEG_EAX()        ADD_CODE(0xf7, 0xd8)  // neg %eax
+#define NEG_AL()         ADD_CODE(0xf6, 0xd8)  // neg %al
 #define SETE_AL()        ADD_CODE(0x0f, 0x94, 0xc0)  // sete %al
 #define SETNE_AL()       ADD_CODE(0x0f, 0x95, 0xc0)  // setne %al
 #define SETS_AL()        ADD_CODE(0x0f, 0x98, 0xc0)  // sets %al

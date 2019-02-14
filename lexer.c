@@ -233,7 +233,7 @@ static Token *get_token(void) {
       }
     }
 
-    if (strchr("+-*/%&(){}[]<>=;,.", *p) != NULL) {
+    if (strchr("+-*/%&!(){}[]<>=;,.", *p) != NULL) {
       tok = alloc_token((enum TokenType)*p, p);
       ++p;
       break;

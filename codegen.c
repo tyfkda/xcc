@@ -646,6 +646,27 @@ void gen(Node *node) {
     gen_for(node);
     break;
 
+  case ND_NEG:
+    gen(node->unary.sub);
+    switch (node->expType->type) {
+    case TY_INT:  NEG_EAX(); break;
+    case TY_CHAR: NEG_AL(); break;
+    default:  assert(FALSE); break;
+    }
+    break;
+
+  case ND_NOT:
+    gen(node->unary.sub);
+    switch (node->expType->type) {
+    case TY_INT:  CMP_IM8_EAX(0); break;
+    case TY_CHAR: CMP_IM8_AL(0); break;
+    case TY_PTR:  CMP_IM8_RAX(0); break;
+    default:  assert(FALSE); break;
+    }
+    SETE_AL();
+    MOVZX_AL_EAX();
+    break;
+
   case ND_EQ:
   case ND_NE:
   case ND_LT:

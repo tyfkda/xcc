@@ -43,6 +43,7 @@ enum TokenType {
   TK_AMP = '&',
   TK_LT = '<',
   TK_GT = '>',
+  TK_NOT = '!',
   TK_LPAR = '(',
   TK_RPAR = ')',
   TK_LBRACE = '{',
@@ -148,6 +149,8 @@ enum NodeType {
   ND_MUL,  // num * num
   ND_DIV,  // num / num
   ND_MOD,  // num % num
+  ND_NEG,  // -num
+  ND_NOT,  // !x
   ND_ASSIGN,
   ND_PREINC,
   ND_PREDEC,
