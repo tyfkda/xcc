@@ -72,6 +72,8 @@ enum TokenType reserved_word(const char *word) {
     { "do", TK_DO },
     { "while", TK_WHILE },
     { "for", TK_FOR },
+    { "break", TK_BREAK },
+    { "continue", TK_CONTINUE },
     { "return", TK_RETURN },
     { "void", TK_KWVOID },
     { "int", TK_KWINT },

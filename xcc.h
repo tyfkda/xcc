@@ -71,6 +71,8 @@ enum TokenType {
   TK_DO,
   TK_WHILE,
   TK_FOR,
+  TK_BREAK,
+  TK_CONTINUE,
   TK_RETURN,
   TK_KWVOID,
   TK_KWINT,
@@ -172,6 +174,8 @@ enum NodeType {
   ND_WHILE,
   ND_DO_WHILE,
   ND_FOR,
+  ND_BREAK,
+  ND_CONTINUE,
   ND_RETURN,
   ND_CAST,
 };

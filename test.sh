@@ -5,10 +5,10 @@ try_direct() {
   expected="$2"
   input="$3"
 
+  echo -n "$title => "
+
   echo -e "$input" | ./xcc > tmp || exit 1
   chmod +x tmp
-
-  echo -n "$title => "
 
   ./tmp
   actual="$?"
@@ -30,10 +30,10 @@ try_output_direct() {
   expected="$2"
   input="$3"
 
+  echo -n "$title => "
+
   echo -e "$input" | ./xcc > tmp || exit 1
   chmod +x tmp
-
-  echo -n "$title => "
 
   actual=`./tmp` || exit 1
 
@@ -109,8 +109,15 @@ try_direct 'func pointer' 9 'int sub(int x, int y){ return x - y; } int apply(vo
 try 'block comment' 123 '/* comment */ return 123;'
 try 'line comment' 123 "// comment\nreturn 123;"
 try_direct 'proto decl' 123 'int foo(); void main(){ _exit(foo()); } int foo(){ return 123; }'
+try 'for-break' 10 'int i; int acc; for (i = acc = 0; i <= 10; i++) { if (i == 5) break; acc = acc + i; } return acc;'
+try 'for-continue' 50 'int i; int acc; for (i = acc = 0; i <= 10; i++) { if (i == 5) continue; acc = acc + i; } return acc;'
+try 'while-break' 10 'int i; int acc; i = acc = 0; while (++i <= 10) { if (i == 5) break; acc = acc + i; } return acc;'
+try 'while-continue' 50 'int i; int acc; i = acc = 0; while (++i <= 10) { if (i == 5) continue; acc = acc + i; } return acc;'
+try 'do-while-break' 10 'int i; int acc; i = acc = 0; do { if (i == 5) break; acc = acc + i; } while (++i <= 10); return acc;'
+try 'do-while-continue' 50 'int i; int acc; i = acc = 0; do { if (i == 5) continue; acc = acc + i; } while (++i <= 10); return acc;'
 
 # error cases
+echo ''
 echo '### Error cases'
 compile_error 'no main' 'void foo(){}'
 compile_error 'undef var' 'void main(){ x = 1; }'
@@ -130,5 +137,7 @@ compile_error 'few arg num' 'void foo(int x); void main(){ foo(); }'
 compile_error 'many arg num' 'void foo(int x); void main(){ foo(1, 2); }'
 compile_error '+ str' 'void main(){ +"foo"; }'
 compile_error '- str' 'void main(){ -"foo"; }'
+compile_error 'break outside loop' 'void main(){ break; }'
+compile_error 'continue outside loop' 'void main(){ continue; }'
 
 echo 'All tests PASS!'

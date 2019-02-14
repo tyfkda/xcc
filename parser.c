@@ -121,7 +121,11 @@ Type* new_func_type(const Type *ret, const Vector *params) {
 
 //
 
+const int LF_BREAK = 1 << 0;
+const int LF_CONTINUE = 1 << 0;
+
 static Node *curfunc;
+static int curloopflag;
 
 Node *new_node(enum NodeType type, const Type *expType) {
   Node *node = malloc(sizeof(Node));
@@ -704,7 +708,7 @@ Node *expr() {
 
 Node *stmt();
 
-Node *block() {
+Node *parse_block() {
   Vector *nodes = new_vector();
   for (;;) {
     if (consume(TK_RBRACE))
@@ -713,7 +717,7 @@ Node *block() {
   }
 }
 
-Node *stmt_if() {
+Node *parse_if() {
   if (consume(TK_LPAR)) {
     Node *cond = expr();
     if (consume(TK_RPAR)) {
@@ -729,11 +733,15 @@ Node *stmt_if() {
   return NULL;
 }
 
-Node *stmt_while() {
+Node *parse_while() {
   if (consume(TK_LPAR)) {
     Node *cond = expr();
     if (consume(TK_RPAR)) {
+      int save_flag = curloopflag;
+      curloopflag = LF_BREAK | LF_CONTINUE;
       Node *body = stmt();
+      curloopflag = save_flag;
+
       return new_node_while(cond, body);
     }
   }
@@ -741,8 +749,12 @@ Node *stmt_while() {
   return NULL;
 }
 
-Node *stmt_do_while() {
+Node *parse_do_while() {
+  int save_flag = curloopflag;
+  curloopflag = LF_BREAK | LF_CONTINUE;
   Node *body = stmt();
+  curloopflag = save_flag;
+
   if (consume(TK_WHILE)) {
     if (consume(TK_LPAR)) {
       Node *cond = expr();
@@ -755,13 +767,16 @@ Node *stmt_do_while() {
   return NULL;
 }
 
-Node *stmt_for() {
+Node *parse_for() {
   if (consume(TK_LPAR)) {
     Node *pre = NULL, *cond = NULL, *post = NULL;
     if ((consume(TK_SEMICOL) || (pre = expr(), consume(TK_SEMICOL))) &&
         (consume(TK_SEMICOL) || (cond = expr(), consume(TK_SEMICOL))) &&
         (consume(TK_RPAR) || (post = expr(), consume(TK_RPAR)))) {
+      int save_flag = curloopflag;
+      curloopflag = LF_BREAK | LF_CONTINUE;
       Node *body = stmt();
+      curloopflag= save_flag;
       return new_node_for(pre, cond, post, body);
     }
   }
@@ -769,7 +784,13 @@ Node *stmt_for() {
   return NULL;
 }
 
-Node *stmt_return() {
+Node *parse_break_continue(enum NodeType type) {
+  if (!consume(TK_SEMICOL))
+    error("`;' expected, but %s", current_line());
+  return new_node(type, &tyVoid);
+}
+
+Node *parse_return() {
   assert(curfunc != NULL);
 
   Node *val = NULL;
@@ -892,22 +913,33 @@ void vardecl() {
 
 Node *stmt() {
   if (consume(TK_LBRACE))
-    return block();
+    return parse_block();
 
   if (consume(TK_IF))
-    return stmt_if();
+    return parse_if();
 
   if (consume(TK_WHILE))
-    return stmt_while();
+    return parse_while();
 
   if (consume(TK_DO))
-    return stmt_do_while();
+    return parse_do_while();
 
   if (consume(TK_FOR))
-    return stmt_for();
+    return parse_for();
+
+  if (consume(TK_BREAK)) {
+    if ((curloopflag & LF_BREAK) == 0)
+      error("`break' cannot be used outside of loop");
+    return parse_break_continue(ND_BREAK);
+  }
+  if (consume(TK_CONTINUE)) {
+    if ((curloopflag & LF_CONTINUE) == 0)
+      error("`continue' cannot be used outside of loop");
+    return parse_break_continue(ND_CONTINUE);
+  }
 
   if (consume(TK_RETURN))
-    return stmt_return();
+    return parse_return();
 
   // expression statement.
   Node *node = assign();

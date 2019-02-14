@@ -238,7 +238,35 @@ size_t fixup_locations(void) {
   return codesize;
 }
 
+//
+
+typedef struct LoopInfo {
+  struct LoopInfo *outer;
+  const char *l_break;
+  const char *l_continue;
+} LoopInfo;
+
 static Node *curfunc;
+static const char *s_break_label;
+static const char *s_continue_label;
+
+static const char *push_break_label(const char **save) {
+  *save = s_break_label;
+  return s_break_label = alloc_label();
+}
+
+static void pop_break_label(const char *save) {
+  s_break_label = save;
+}
+
+static const char *push_continue_label(const char **save) {
+  *save = s_continue_label;
+  return s_continue_label = alloc_label();
+}
+
+static void pop_continue_label(const char *save) {
+  s_continue_label = save;
+}
 
 static void gen_lval(Node *node);
 
@@ -437,7 +465,9 @@ static void gen_if(Node *node) {
   const char * flabel = alloc_label();
   gen_cond_jmp(node->if_.cond, FALSE, flabel);
   gen(node->if_.tblock);
-  if (node->if_.fblock != NULL) {
+  if (node->if_.fblock == NULL) {
+    add_label(flabel);
+  } else {
     const char * nlabel = alloc_label();
     JMP32(nlabel);
     add_label(flabel);
@@ -447,25 +477,39 @@ static void gen_if(Node *node) {
 }
 
 static void gen_while(Node *node) {
-  const char * llabel = alloc_label();
-  const char * clabel = alloc_label();
-  JMP32(clabel);
-  add_label(llabel);
+  const char *save_break, *save_cont;
+  const char *l_cond = push_continue_label(&save_cont);
+  const char *l_break = push_break_label(&save_break);
+  const char *l_loop = alloc_label();
+  JMP32(l_cond);
+  add_label(l_loop);
   gen(node->while_.body);
-  add_label(clabel);
-  gen_cond_jmp(node->while_.cond, TRUE, llabel);
+  add_label(l_cond);
+  gen_cond_jmp(node->while_.cond, TRUE, l_loop);
+  add_label(l_break);
+  pop_continue_label(save_cont);
+  pop_break_label(save_break);
 }
 
 static void gen_do_while(Node *node) {
-  const char * llabel = alloc_label();
-  add_label(llabel);
+  const char *save_break, *save_cont;
+  const char *l_cond = push_continue_label(&save_cont);
+  const char *l_break = push_break_label(&save_break);
+  const char * l_loop = alloc_label();
+  add_label(l_loop);
   gen(node->do_while.body);
-  gen_cond_jmp(node->do_while.cond, TRUE, llabel);
+  add_label(l_cond);
+  gen_cond_jmp(node->do_while.cond, TRUE, l_loop);
+  add_label(l_break);
+  pop_continue_label(save_cont);
+  pop_break_label(save_break);
 }
 
 static void gen_for(Node *node) {
+  const char *save_break, *save_cont;
+  const char *l_continue = push_continue_label(&save_cont);
+  const char *l_break = push_break_label(&save_break);
   const char * l_cond = alloc_label();
-  const char * l_break = alloc_label();
   if (node->for_.pre != NULL)
     gen(node->for_.pre);
   add_label(l_cond);
@@ -473,10 +517,23 @@ static void gen_for(Node *node) {
     gen_cond_jmp(node->for_.cond, FALSE, l_break);
   }
   gen(node->for_.body);
+  add_label(l_continue);
   if (node->for_.post != NULL)
     gen(node->for_.post);
   JMP32(l_cond);
   add_label(l_break);
+  pop_continue_label(save_cont);
+  pop_break_label(save_break);
+}
+
+static void gen_break(void) {
+  assert(s_break_label != NULL);
+  JMP32(s_break_label);
+}
+
+static void gen_continue(void) {
+  assert(s_continue_label != NULL);
+  JMP32(s_continue_label);
 }
 
 void gen(Node *node) {
@@ -645,6 +702,14 @@ void gen(Node *node) {
 
   case ND_FOR:
     gen_for(node);
+    break;
+
+  case ND_BREAK:
+    gen_break();
+    break;
+
+  case ND_CONTINUE:
+    gen_continue();
     break;
 
   case ND_NEG:
