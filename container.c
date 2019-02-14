@@ -3,7 +3,7 @@
 
 #include "xcc.h"
 
-Vector *new_vector() {
+Vector *new_vector(void) {
   Vector *vec = malloc(sizeof(Vector));
   vec->data = malloc(sizeof(void *) * 16);
   vec->capacity = 16;
@@ -21,7 +21,7 @@ void vec_push(Vector *vec, const void *elem) {
 
 //
 
-Map *new_map() {
+Map *new_map(void) {
   Map *map = malloc(sizeof(Map));
   map->keys = new_vector();
   map->vals = new_vector();

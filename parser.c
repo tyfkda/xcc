@@ -5,13 +5,15 @@
 
 #include "xcc.h"
 
-const static Type tyVoid = {.type=TY_VOID, .ptrof=NULL};
-const static Type tyInt = {.type=TY_INT, .ptrof=NULL};
-const static Type tyChar = {.type=TY_CHAR, .ptrof=NULL};
-const static Type tyStr = {.type=TY_PTR, .ptrof=&tyChar};
+static const Type tyVoid = {.type=TY_VOID, .ptrof=NULL};
+static const Type tyInt = {.type=TY_INT, .ptrof=NULL};
+static const Type tyChar = {.type=TY_CHAR, .ptrof=NULL};
+static const Type tyStr = {.type=TY_PTR, .ptrof=&tyChar};
 #define tyBool  tyInt
 
 static Type *parse_type(bool allow_void);
+static Node *stmt(void);
+static Node *expr(void);
 
 //
 
@@ -88,14 +90,14 @@ static bool same_type(const Type *type1, const Type *type2) {
   }
 }
 
-Type* ptrof(const Type *type) {
+static Type* ptrof(const Type *type) {
   Type *ptr = malloc(sizeof(*ptr));
   ptr->type = TY_PTR;
   ptr->ptrof = type;
   return ptr;
 }
 
-Type* arrayof(const Type *type, size_t array_size) {
+static Type* arrayof(const Type *type, size_t array_size) {
   Type *arr = malloc(sizeof(*arr));
   arr->type = TY_ARRAY;
   arr->ptrof = type;
@@ -103,7 +105,7 @@ Type* arrayof(const Type *type, size_t array_size) {
   return arr;
 }
 
-Type* new_func_type(const Type *ret, const Vector *params) {
+static Type* new_func_type(const Type *ret, const Vector *params) {
   Type *f = malloc(sizeof(*f));
   f->type = TY_FUNC;
   f->func.ret = ret;
@@ -127,14 +129,14 @@ const int LF_CONTINUE = 1 << 0;
 static Node *curfunc;
 static int curloopflag;
 
-Node *new_node(enum NodeType type, const Type *expType) {
+static Node *new_node(enum NodeType type, const Type *expType) {
   Node *node = malloc(sizeof(Node));
   node->type = type;
   node->expType = expType;
   return node;
 }
 
-Node *new_node_cast(const Type *type, Node *sub, bool is_explicit) {
+static Node *new_node_cast(const Type *type, Node *sub, bool is_explicit) {
   if (same_type(type, sub->expType))
     return sub;
 
@@ -186,58 +188,58 @@ Node *new_node_cast(const Type *type, Node *sub, bool is_explicit) {
   return node;
 }
 
-Node *new_node_bop(enum NodeType type, const Type *expType, Node *lhs, Node *rhs) {
+static Node *new_node_bop(enum NodeType type, const Type *expType, Node *lhs, Node *rhs) {
   Node *node = new_node(type, expType);
   node->bop.lhs = lhs;
   node->bop.rhs = rhs;
   return node;
 }
 
-Node *new_node_unary(enum NodeType type, const Type *expType, Node *sub) {
+static Node *new_node_unary(enum NodeType type, const Type *expType, Node *sub) {
   Node *node = new_node(type, expType);
   node->unary.sub = sub;
   return node;
 }
 
-Node *new_node_deref(Node *sub) {
+static Node *new_node_deref(Node *sub) {
   if (sub->expType->type != TY_PTR)
     error("Cannot dereference raw type");
   return new_node_unary(ND_DEREF, sub->expType->ptrof, sub);
 }
 
-Node *new_node_num(long val) {
+static Node *new_node_num(long val) {
   Node *node = new_node(ND_NUM, &tyInt);
   node->val = val;
   return node;
 }
 
-Node *new_node_char(int val) {
+static Node *new_node_char(int val) {
   Node *node = new_node(ND_CHAR, &tyChar);
   node->val = val;
   return node;
 }
 
-Node *new_node_str(const char *str) {
+static Node *new_node_str(const char *str) {
   Node *node = new_node(ND_STR, &tyStr);
   node->str = str;
   return node;
 }
 
-Node *new_node_varref(const char *name, const Type *type, int global) {
+static Node *new_node_varref(const char *name, const Type *type, int global) {
   Node *node = new_node(ND_VARREF, type);
   node->varref.ident = name;
   node->varref.global = global;
   return node;
 }
 
-Node *new_node_member(Node *target, const char *name, const Type *expType) {
+static Node *new_node_member(Node *target, const char *name, const Type *expType) {
   Node *node = new_node(ND_MEMBER, expType);
   node->member.target = target;
   node->member.name = name;
   return node;
 }
 
-Node *new_node_defun(const Type *rettype, const char *name, Vector *params) {
+static Node *new_node_defun(const Type *rettype, const char *name, Vector *params) {
   Vector *lvars = params != NULL ? params : new_vector();
 
   Node *node = new_node(ND_DEFUN, &tyVoid);
@@ -250,7 +252,7 @@ Node *new_node_defun(const Type *rettype, const char *name, Vector *params) {
   return node;
 }
 
-Node *new_node_funcall(Node *func, Vector *args) {
+static Node *new_node_funcall(Node *func, Vector *args) {
   const Type *rettype = func->expType->type == TY_FUNC ? func->expType->func.ret : &tyInt;  // TODO: Fix.
   Node *node = new_node(ND_FUNCALL, rettype);
   node->funcall.func = func;
@@ -258,13 +260,13 @@ Node *new_node_funcall(Node *func, Vector *args) {
   return node;
 }
 
-Node *new_node_block(Vector *nodes) {
+static Node *new_node_block(Vector *nodes) {
   Node *node = new_node(ND_BLOCK, &tyVoid);
   node->block.nodes = nodes;
   return node;
 }
 
-Node *new_node_if(Node *cond, Node *tblock, Node *fblock) {
+static Node *new_node_if(Node *cond, Node *tblock, Node *fblock) {
   Node *node = new_node(ND_IF, &tyVoid);
   node->if_.cond = cond;
   node->if_.tblock = tblock;
@@ -272,21 +274,21 @@ Node *new_node_if(Node *cond, Node *tblock, Node *fblock) {
   return node;
 }
 
-Node *new_node_while(Node *cond, Node *body) {
+static Node *new_node_while(Node *cond, Node *body) {
   Node *node = new_node(ND_WHILE, &tyVoid);
   node->while_.cond = cond;
   node->while_.body = body;
   return node;
 }
 
-Node *new_node_do_while(Node *body, Node *cond) {
+static Node *new_node_do_while(Node *body, Node *cond) {
   Node *node = new_node(ND_DO_WHILE, &tyVoid);
   node->do_while.body = body;
   node->do_while.cond = cond;
   return node;
 }
 
-Node *new_node_for(Node *pre, Node *cond, Node *post, Node *body) {
+static Node *new_node_for(Node *pre, Node *cond, Node *post, Node *body) {
   Node *node = new_node(ND_FOR, &tyVoid);
   node->for_.pre = pre;
   node->for_.cond = cond;
@@ -295,16 +297,14 @@ Node *new_node_for(Node *pre, Node *cond, Node *post, Node *body) {
   return node;
 }
 
-Node *new_node_return(Node *val) {
+static Node *new_node_return(Node *val) {
   const Type *type = val != NULL ? val->expType : &tyVoid;
   Node *node = new_node(ND_RETURN, type);
   node->return_.val = val;
   return node;
 }
 
-Node *expr();
-
-Node *funcall(Node *func) {
+static Node *funcall(Node *func) {
   if (!(func->expType->type == TY_FUNC ||
         func->expType->type == TY_PTR))  // TODO: Restrict to function pointer.
     error("Cannot call except funtion");
@@ -451,7 +451,7 @@ Node *member_access(Node *target, enum TokenType toktype) {
   return new_node_member(target, name, varinfo->type);
 }
 
-Node *prim() {
+static Node *prim(void) {
   if (consume(TK_LPAR)) {
     Type *type = parse_type(true);
     if (type != NULL) {  // Cast
@@ -499,7 +499,7 @@ Node *prim() {
   return NULL;
 }
 
-Node *term() {
+static Node *term(void) {
   if (consume(TK_ADD)) {
     Node *node = term();
     if (!is_number(node->expType->type))
@@ -573,7 +573,7 @@ Node *term() {
   }
 }
 
-Node *mul() {
+static Node *mul(void) {
   Node *node = term();
 
   for (;;) {
@@ -595,7 +595,7 @@ Node *mul() {
   }
 }
 
-Node *add() {
+static Node *add(void) {
   Node *node = mul();
 
   for (;;) {
@@ -608,7 +608,7 @@ Node *add() {
   }
 }
 
-Node *cmp() {
+static Node *cmp(void) {
   Node *node = add();
 
   for (;;) {
@@ -668,7 +668,7 @@ static bool cast_numbers(Node **pLhs, Node **pRhs) {
   return false;
 }
 
-Node *eq() {
+static Node *eq(void) {
   Node *node = cmp();
 
   for (;;) {
@@ -693,7 +693,7 @@ Node *eq() {
   }
 }
 
-Node *assign() {
+static Node *assign(void) {
   Node *node = eq();
 
   if (consume(TK_ASSIGN))
@@ -702,13 +702,11 @@ Node *assign() {
     return node;
 }
 
-Node *expr() {
+static Node *expr(void) {
   return assign();
 }
 
-Node *stmt();
-
-Node *parse_block() {
+static Node *parse_block(void) {
   Vector *nodes = new_vector();
   for (;;) {
     if (consume(TK_RBRACE))
@@ -717,7 +715,7 @@ Node *parse_block() {
   }
 }
 
-Node *parse_if() {
+static Node *parse_if(void) {
   if (consume(TK_LPAR)) {
     Node *cond = expr();
     if (consume(TK_RPAR)) {
@@ -733,7 +731,7 @@ Node *parse_if() {
   return NULL;
 }
 
-Node *parse_while() {
+static Node *parse_while(void) {
   if (consume(TK_LPAR)) {
     Node *cond = expr();
     if (consume(TK_RPAR)) {
@@ -749,7 +747,7 @@ Node *parse_while() {
   return NULL;
 }
 
-Node *parse_do_while() {
+static Node *parse_do_while(void) {
   int save_flag = curloopflag;
   curloopflag = LF_BREAK | LF_CONTINUE;
   Node *body = stmt();
@@ -767,7 +765,7 @@ Node *parse_do_while() {
   return NULL;
 }
 
-Node *parse_for() {
+static Node *parse_for(void) {
   if (consume(TK_LPAR)) {
     Node *pre = NULL, *cond = NULL, *post = NULL;
     if ((consume(TK_SEMICOL) || (pre = expr(), consume(TK_SEMICOL))) &&
@@ -784,13 +782,13 @@ Node *parse_for() {
   return NULL;
 }
 
-Node *parse_break_continue(enum NodeType type) {
+static Node *parse_break_continue(enum NodeType type) {
   if (!consume(TK_SEMICOL))
     error("`;' expected, but %s", current_line());
   return new_node(type, &tyVoid);
 }
 
-Node *parse_return() {
+static Node *parse_return(void) {
   assert(curfunc != NULL);
 
   Node *val = NULL;
@@ -809,7 +807,7 @@ Node *parse_return() {
   return new_node_return(val);
 }
 
-StructInfo *parse_struct() {
+static StructInfo *parse_struct(void) {
   Vector *members = new_vector();
   for (;;) {
     if (consume(TK_RBRACE))
@@ -842,7 +840,7 @@ static Type *parse_type(bool allow_void) {
 
     StructInfo *sinfo;
     if (consume(TK_LBRACE)) {  // Definition
-      sinfo = parse_struct(name);
+      sinfo = parse_struct();
       if (name != NULL)
         map_put(struct_map, name, sinfo);  // TODO: Already defined?
     } else {
@@ -881,7 +879,7 @@ static Type *parse_type(bool allow_void) {
   return type;
 }
 
-void vardecl() {
+static void vardecl(void) {
   for (;;) {
     Type *type = parse_type(false);
     if (type == NULL)
@@ -911,7 +909,7 @@ void vardecl() {
   }
 }
 
-Node *stmt() {
+static Node *stmt(void) {
   if (consume(TK_LBRACE))
     return parse_block();
 
@@ -948,7 +946,7 @@ Node *stmt() {
   return node;
 }
 
-Vector *funparams() {
+static Vector *funparams(void) {
   Vector *params = NULL;
   if (consume(TK_RPAR)) {
     // Arbitrary funparams.
@@ -978,7 +976,7 @@ Vector *funparams() {
   return params;
 }
 
-Node *toplevel() {
+static Node *toplevel(void) {
   Type *type = parse_type(true);
   if (type != NULL) {
     if (type->type == TY_STRUCT && consume(TK_SEMICOL))  // Just struct definition.

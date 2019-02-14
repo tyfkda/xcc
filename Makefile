@@ -1,4 +1,4 @@
-CFLAGS=-Wall -Werror -std=c11
+CFLAGS=-ansi -std=c11 -Wall -Wextra -Werror -Wold-style-definition
 SRCS=$(wildcard *.c)
 OBJS=$(SRCS:.c=.o)
 

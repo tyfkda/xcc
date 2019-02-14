@@ -62,7 +62,7 @@ static Token *alloc_token(enum TokenType type, const char *input) {
   return token;
 }
 
-enum TokenType reserved_word(const char *word) {
+static enum TokenType reserved_word(const char *word) {
   struct {
     const char *str;
     enum TokenType type;
@@ -80,7 +80,7 @@ enum TokenType reserved_word(const char *word) {
     { "char", TK_KWCHAR },
     { "struct", TK_STRUCT },
   };
-  for (int i = 0; i < sizeof(table) / sizeof(*table); ++i) {
+  for (int i = 0; i < (int)(sizeof(table) / sizeof(*table)); ++i) {
     if (strcmp(table[i].str, word) == 0)
       return table[i].type;
   }
@@ -255,7 +255,7 @@ static Token *get_token(void) {
 
       char *dup = strndup_(p, q - p);
       enum TokenType word = reserved_word(dup);
-      if (word != -1) {
+      if ((int)word != -1) {
         free(dup);
         tok = alloc_token(word, p);
       } else {

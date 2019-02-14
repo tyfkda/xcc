@@ -47,7 +47,7 @@ int expect(int line, int expected, int actual) {
   exit(1);
 }
 
-void test_vector() {
+void test_vector(void) {
   Vector *vec = new_vector();
   expect(__LINE__, 0, vec->len);
 
@@ -60,7 +60,7 @@ void test_vector() {
   expect(__LINE__, 99, (intptr_t)vec->data[99]);
 }
 
-void test_map() {
+void test_map(void) {
   Map *map = new_map();
   expect(__LINE__, 0, (intptr_t)map_get(map, "foo"));
 
@@ -74,7 +74,7 @@ void test_map() {
   expect(__LINE__, 6, (intptr_t)map_get(map, "foo"));
 }
 
-void runtest() {
+void runtest(void) {
   test_vector();
   test_map();
 

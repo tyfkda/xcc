@@ -15,9 +15,9 @@ char *strdup_(const char *str) {
   return dup;
 }
 
-void calc_struct_size(StructInfo *sinfo);
+static void calc_struct_size(StructInfo *sinfo);
 
-int type_size(const Type *type) {
+static int type_size(const Type *type) {
   switch (type->type) {
   case TY_VOID:
     return 1;  // ?
@@ -40,7 +40,7 @@ int type_size(const Type *type) {
   }
 }
 
-int align_size(const Type *type) {
+static int align_size(const Type *type) {
   switch (type->type) {
   case TY_VOID:
     return 1;  // ?
@@ -62,7 +62,7 @@ int align_size(const Type *type) {
   }
 }
 
-void calc_struct_size(StructInfo *sinfo) {
+static void calc_struct_size(StructInfo *sinfo) {
   int size = 0;
   int max_align = 1;
   for (int i = 0, len = sinfo->members->len; i < len; ++i) {
@@ -82,7 +82,7 @@ void calc_struct_size(StructInfo *sinfo) {
   sinfo->align = max_align;
 }
 
-void cast(const enum eType ltype, const enum eType rtype) {
+static void cast(const enum eType ltype, const enum eType rtype) {
   if (ltype == rtype)
     return;
 
@@ -161,7 +161,7 @@ uintptr_t label_adr(const char *label) {
   return adr != NULL ? (uintptr_t)adr : (uintptr_t)-1;
 }
 
-char *alloc_label() {
+static char *alloc_label(void) {
   static int label_no;
   ++label_no;
   char buf[sizeof(int) * 3 + 1];
@@ -173,7 +173,7 @@ char *alloc_label() {
 
 Vector *loc_vector;
 
-LocInfo *new_loc(enum LocType type, uintptr_t ip, const char *label) {
+static LocInfo *new_loc(enum LocType type, uintptr_t ip, const char *label) {
   LocInfo *loc = malloc(sizeof(*loc));
   loc->type = type;
   loc->ip = ip;
@@ -443,12 +443,12 @@ static void gen_funcall(Node *node) {
     }
 
     switch (len) {
-    case 6:  POP_R9();  // Fall
-    case 5:  POP_R8();  // Fall
-    case 4:  POP_RCX();  // Fall
-    case 3:  POP_RDX();  // Fall
-    case 2:  POP_RSI();  // Fall
-    case 1:  POP_RDI();  // Fall
+    case 6:  POP_R9();  // Fallthrough
+    case 5:  POP_R8();  // Fallthrough
+    case 4:  POP_RCX();  // Fallthrough
+    case 3:  POP_RDX();  // Fallthrough
+    case 2:  POP_RSI();  // Fallthrough
+    case 1:  POP_RDI();  // Fallthrough
     default: break;
     }
   }
