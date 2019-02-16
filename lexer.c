@@ -176,8 +176,8 @@ static Token *read_num(const char **pp) {
   long val = strtol(p, (char**)pp, base);
   if (*pp == p && base == 16)
     error("Illegal literal: %s", current_line());
-  Token *tok = alloc_token(TK_NUM, start);
-  tok->val = val;
+  Token *tok = alloc_token(TK_INTLIT, start);
+  tok->intval = val;
   return tok;
 }
 
@@ -308,8 +308,8 @@ static Token *get_token(void) {
       if (*(++p) != '\'')
         error("Character not closed");
 
-      tok = alloc_token(TK_CHAR, start);
-      tok->val = c;
+      tok = alloc_token(TK_CHARLIT, start);
+      tok->charval = c;
       ++p;
       break;
     }

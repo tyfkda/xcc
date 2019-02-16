@@ -590,12 +590,12 @@ static void gen_arith(enum NodeType nodeType, enum eType expType) {
 
 void gen(Node *node) {
   switch (node->type) {
-  case ND_NUM:
-    MOV_IM32_EAX(node->val);
+  case ND_INT:
+    MOV_IM32_EAX(node->intval);
     return;
 
   case ND_CHAR:
-    MOV_IM8_AL(node->val);
+    MOV_IM8_AL(node->charval);
     return;
 
   case ND_STR:

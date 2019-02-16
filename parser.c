@@ -207,15 +207,15 @@ static Node *new_node_deref(Node *sub) {
   return new_node_unary(ND_DEREF, sub->expType->ptrof, sub);
 }
 
-static Node *new_node_num(long val) {
-  Node *node = new_node(ND_NUM, &tyInt);
-  node->val = val;
+static Node *new_node_intlit(int val) {
+  Node *node = new_node(ND_INT, &tyInt);
+  node->intval = val;
   return node;
 }
 
-static Node *new_node_char(int val) {
+static Node *new_node_charlit(int val) {
   Node *node = new_node(ND_CHAR, &tyChar);
-  node->val = val;
+  node->charval = val;
   return node;
 }
 
@@ -480,10 +480,10 @@ static Node *prim(void) {
   }
 
   Token *tok;
-  if ((tok = consume(TK_NUM))) {
-    return new_node_num(tok->val);
-  } else if ((tok = consume(TK_CHAR))) {
-    return new_node_char(tok->val);
+  if ((tok = consume(TK_INTLIT))) {
+    return new_node_intlit(tok->intval);
+  } else if ((tok = consume(TK_CHARLIT))) {
+    return new_node_charlit(tok->charval);
   } else if ((tok = consume(TK_STR))) {
     return new_node_str(tok->str);
   } else if ((tok = consume(TK_IDENT))) {
@@ -523,8 +523,8 @@ static Node *term(void) {
     Node *node = term();
     if (!is_number(node->expType->type))
       error("Cannot apply `-' except number types");
-    if (node->type == ND_NUM) {
-      node->val = -node->val;
+    if (node->type == ND_INT) {
+      node->intval = -node->intval;
       return node;
     }
     return new_node_unary(ND_NEG, node->expType, node);
@@ -920,8 +920,8 @@ static void vardecl(Vector *stmts) {
     const char *name = tok->ident;
 
     if (consume(TK_LBRACKET)) {
-      if ((tok = consume(TK_NUM))) {  // TODO: Constant expression.
-        int count = tok->val;
+      if ((tok = consume(TK_INTLIT))) {  // TODO: Constant expression.
+        int count = tok->intval;
         if (count < 0)
           error("Array size must be greater than 0, but %d", count);
         type = arrayof(type, count);
