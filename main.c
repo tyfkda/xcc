@@ -11,6 +11,8 @@
 
 #if defined(__XV6)
 // XV6
+#include "../kernel/syscall.h"
+#include "../kernel/traps.h"
 
 #define START_ADDRESS    0x1000
 
