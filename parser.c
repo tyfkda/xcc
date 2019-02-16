@@ -942,35 +942,36 @@ static void parse_vardecl(Vector *stmts) {
     if (rawType == NULL)
       return;
 
-    const Type *type = parse_type_modifier(rawType, false);
+    do {
+      const Type *type = parse_type_modifier(rawType, false);
 
-    Token *tok;
-    Node *val = NULL;
-    if (!(tok = consume(TK_IDENT)))
-      error("Ident expected, but %s", current_line());
-    const char *name = tok->ident;
+      Token *tok;
+      if (!(tok = consume(TK_IDENT)))
+        error("Ident expected, but %s", current_line());
+      const char *name = tok->ident;
 
-    if (consume(TK_LBRACKET)) {
-      if ((tok = consume(TK_INTLIT))) {  // TODO: Constant expression.
-        int count = tok->intval;
-        if (count < 0)
-          error("Array size must be greater than 0, but %d", count);
-        type = arrayof(type, count);
-        if (!consume(TK_RBRACKET))
-          error("`]' expected, but %s", current_line());
+      if (consume(TK_LBRACKET)) {
+        if ((tok = consume(TK_INTLIT))) {  // TODO: Constant expression.
+          int count = tok->intval;
+          if (count < 0)
+            error("Array size must be greater than 0, but %d", count);
+          type = arrayof(type, count);
+          if (!consume(TK_RBRACKET))
+            error("`]' expected, but %s", current_line());
+        }
       }
-    }
-    if (consume(TK_ASSIGN))
-      val = expr();
+      var_add(curfunc->defun.lvars, name, type);
+
+      if (consume(TK_ASSIGN)) {
+        Node *val = expr();
+        Node *var = new_node_varref(name, type, false);
+        Node *node = new_node_bop(ND_ASSIGN, type, var, new_node_cast(type, val, false));
+        vec_push(stmts, node);
+      }
+    } while (consume(TK_COMMA));
+
     if (!consume(TK_SEMICOL))
       error("Semicolon expected, but %s", current_line());
-    var_add(curfunc->defun.lvars, name, type);
-
-    if (val != NULL) {
-      Node *var = new_node_varref(name, type, false);
-      Node *node = new_node_bop(ND_ASSIGN, type, var, new_node_cast(type, val, false));
-      vec_push(stmts, node);
-    }
   }
 }
 
