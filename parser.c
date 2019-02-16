@@ -345,22 +345,23 @@ static Node *add_node(Node *lhs, Node *rhs) {
   }
 
   switch (l->expType->type) {
-  case TY_INT:
+  case TY_CHAR:
     switch (r->expType->type) {
-    case TY_INT:
     case TY_CHAR:
-      return new_node_bop(ND_ADD, l->expType, l, new_node_cast(l->expType, r, false));
-    case TY_PTR:
-      return new_node_bop(ND_PTRADD, r->expType, r, l);
+      return new_node_bop(ND_ADD, l->expType, l, r);
+    case TY_INT:
+      return new_node_bop(ND_ADD, l->expType, new_node_cast(r->expType, l, false), r);
     default:
       break;
     }
     break;
 
-  case TY_CHAR:
+  case TY_INT:
     switch (r->expType->type) {
-    case TY_CHAR:
+    case TY_INT:
       return new_node_bop(ND_ADD, l->expType, l, r);
+    case TY_PTR:
+      return new_node_bop(ND_PTRADD, r->expType, r, l);
     default:
       break;
     }
@@ -415,6 +416,17 @@ static Node *sub_node(Node *lhs, Node *rhs) {
 
   error("Illegal `-'");
   return NULL;
+}
+
+static Node *arith_node(enum NodeType nodeType, Node *lhs, Node *rhs) {
+  if (!is_number(lhs->expType->type) || !is_number(rhs->expType->type))
+    error("Cannot use `%d' except numbers.", nodeType);
+
+  const Type *expType = lhs->expType;
+  if (rhs->expType->type > expType->type)
+    expType = rhs->expType;
+
+  return new_node_bop(nodeType, expType, lhs, rhs);
 }
 
 Node *array_index(Node *array) {
@@ -588,10 +600,7 @@ static Node *mul(void) {
     else
       return node;
 
-    Node *lhs = node, *rhs = term();
-    if (!is_number(lhs->expType->type) || !is_number(rhs->expType->type))
-      error("Cannot use `%c' except numbers.", tt);
-    node = new_node_bop(t, node->expType, lhs, rhs);
+    return arith_node(t, node, term());
   }
 }
 
@@ -698,8 +707,23 @@ static Node *assign(void) {
 
   if (consume(TK_ASSIGN))
     return new_node_bop(ND_ASSIGN, node->expType, node, new_node_cast(node->expType, assign(), false));
-  else
-    return node;
+  if (consume(TK_ADD_ASSIGN))
+    return new_node_unary(ND_ASSIGN_WITH, node->expType,
+                          add_node(node, assign()));
+  if (consume(TK_SUB_ASSIGN))
+    return new_node_unary(ND_ASSIGN_WITH, node->expType,
+                          sub_node(node, assign()));
+  if (consume(TK_MUL_ASSIGN))
+    return new_node_unary(ND_ASSIGN_WITH, node->expType,
+                          arith_node(ND_MUL, node, assign()));
+  if (consume(TK_DIV_ASSIGN))
+    return new_node_unary(ND_ASSIGN_WITH, node->expType,
+                          arith_node(ND_DIV, node, assign()));
+  if (consume(TK_MOD_ASSIGN))
+    return new_node_unary(ND_ASSIGN_WITH, node->expType,
+                          arith_node(ND_MOD, node, assign()));
+
+  return node;
 }
 
 static Node *expr(void) {

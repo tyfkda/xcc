@@ -64,6 +64,11 @@ enum TokenType {
   TK_LE,  // <=
   TK_GE,  // >=
   TK_ARROW,  // ->
+  TK_ADD_ASSIGN,  // +=
+  TK_SUB_ASSIGN,  // -=
+  TK_MUL_ASSIGN,  // *=
+  TK_DIV_ASSIGN,  // /=
+  TK_MOD_ASSIGN,  // %=
   TK_INC,
   TK_DEC,
   TK_IF,
@@ -99,8 +104,8 @@ const char *current_line(void);
 
 enum eType {
   TY_VOID,
+  TY_CHAR,  // Small number type should be earlier.
   TY_INT,
-  TY_CHAR,
   TY_PTR,
   TY_ARRAY,
   TY_FUNC,
@@ -154,6 +159,7 @@ enum NodeType {
   ND_NEG,  // -num
   ND_NOT,  // !x
   ND_ASSIGN,
+  ND_ASSIGN_WITH,  // +=, etc.
   ND_PREINC,
   ND_PREDEC,
   ND_POSTINC,

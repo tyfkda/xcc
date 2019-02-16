@@ -536,6 +536,58 @@ static void gen_continue(void) {
   JMP32(s_continue_label);
 }
 
+static void gen_arith(enum NodeType nodeType, enum eType expType) {
+  // lhs=rax, rhs=rdi, result=rax
+
+  switch (nodeType) {
+  case ND_ADD:
+    switch (expType) {
+    case TY_INT:  ADD_EDI_EAX(); break;
+    case TY_CHAR: ADD_DIL_AL(); break;
+    default: assert(FALSE); break;
+    }
+    break;
+
+  case ND_SUB:
+    switch (expType) {
+    case TY_INT:  SUB_EDI_EAX(); break;
+    case TY_CHAR: SUB_DIL_AL(); break;
+    default: assert(FALSE); break;
+    }
+    break;
+
+  case ND_MUL:
+    switch (expType) {
+    case TY_INT:  MUL_EDI(); break;
+    case TY_CHAR: MUL_DIL(); break;
+    default: assert(FALSE); break;
+    }
+
+    break;
+
+  case ND_DIV:
+    MOV_IM32_RDX(0);
+    switch (expType) {
+    case TY_INT:  DIV_EDI(); break;
+    case TY_CHAR: DIV_DIL(); break;
+    default: assert(FALSE); break;
+    }
+    break;
+
+  case ND_MOD:
+    MOV_IM32_RDX(0);
+    switch (expType) {
+    case TY_INT:  DIV_EDI(); MOV_EDX_EAX(); break;
+    case TY_CHAR: DIV_DIL(); MOV_DL_AL(); break;
+    default: assert(FALSE); break;
+    }
+    break;
+  default:
+    assert(FALSE);
+    break;
+  }
+}
+
 void gen(Node *node) {
   switch (node->type) {
   case ND_NUM:
@@ -602,16 +654,39 @@ void gen(Node *node) {
 
     POP_RDI();
     switch (node->bop.lhs->expType->type) {
-    case TY_CHAR:
-      MOV_AL_IND_RDI();
-      break;
-    case TY_INT:
-      MOV_EAX_IND_RDI();
-      break;
-    case TY_PTR:
+    case TY_CHAR:  MOV_AL_IND_RDI(); break;
+    case TY_INT:   MOV_EAX_IND_RDI(); break;
     default:
-      MOV_RAX_IND_RDI();
-      break;
+    case TY_PTR:   MOV_RAX_IND_RDI(); break;
+    }
+    return;
+
+  case ND_ASSIGN_WITH:
+    {
+      Node *sub = node->unary.sub;
+      gen(sub->bop.rhs);
+      PUSH_RAX();
+      gen_lval(sub->bop.lhs);
+      MOV_RAX_RSI();  // Save lhs address to %rsi.
+
+      // Move lhs to %?ax
+      switch (node->bop.lhs->expType->type) {
+      case TY_CHAR:  MOV_IND_RAX_AL(); break;
+      case TY_INT:   MOV_IND_RAX_EAX(); break;
+      default:
+      case TY_PTR:   MOV_IND_RAX_RAX(); break;
+      }
+
+      POP_RDI();  // %rdi=rhs
+      gen_arith(sub->type, sub->expType->type);
+      cast(node->expType->type, sub->expType->type);
+
+      switch (node->expType->type) {
+      case TY_CHAR:  MOV_AL_IND_RSI(); break;
+      case TY_INT:   MOV_EAX_IND_RSI(); break;
+      default:
+      case TY_PTR:   MOV_RAX_IND_RSI(); break;
+      }
     }
     return;
 
@@ -840,54 +915,7 @@ void gen(Node *node) {
 
     POP_RDI();
 
-    switch (node->type) {
-    case ND_ADD:
-      switch (node->expType->type) {
-      case TY_INT:  ADD_EDI_EAX(); break;
-      case TY_CHAR: ADD_DIL_AL(); break;
-      default: assert(FALSE); break;
-      }
-
-      break;
-
-    case ND_SUB:
-      switch (node->expType->type) {
-      case TY_INT:  SUB_EDI_EAX(); break;
-      case TY_CHAR: SUB_DIL_AL(); break;
-      default: assert(FALSE); break;
-      }
-      break;
-
-    case ND_MUL:
-      switch (node->expType->type) {
-      case TY_INT:  MUL_EDI(); break;
-      case TY_CHAR: MUL_DIL(); break;
-      default: assert(FALSE); break;
-      }
-
-      break;
-
-    case ND_DIV:
-      MOV_IM32_RDX(0);
-      switch (node->expType->type) {
-      case TY_INT:  DIV_EDI(); break;
-      case TY_CHAR: DIV_DIL(); break;
-      default: assert(FALSE); break;
-      }
-      break;
-
-    case ND_MOD:
-      MOV_IM32_RDX(0);
-      switch (node->expType->type) {
-      case TY_INT:  DIV_EDI(); MOV_EDX_EAX(); break;
-      case TY_CHAR: DIV_DIL(); MOV_DL_AL(); break;
-      default: assert(FALSE); break;
-      }
-      break;
-    default:
-      assert(FALSE);
-      break;
-    }
+    gen_arith(node->type, node->expType->type);
     return;
 
   default:

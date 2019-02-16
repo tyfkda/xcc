@@ -216,10 +216,17 @@ static Token *get_token(void) {
       break;
     }
 
-    if (*p == '+' && p[1] == '+') {
-      tok = alloc_token(TK_INC, p);
-      p += 2;
-      break;
+    if (*p == '+') {
+      if (p[1] == '+') {
+        tok = alloc_token(TK_INC, p);
+        p += 2;
+        break;
+      }
+      if (p[1] == '=') {
+        tok = alloc_token(TK_ADD_ASSIGN, p);
+        p += 2;
+        break;
+      }
     }
 
     if (*p == '-') {
@@ -233,6 +240,29 @@ static Token *get_token(void) {
         p += 2;
         break;
       }
+      if (p[1] == '=') {
+        tok = alloc_token(TK_SUB_ASSIGN, p);
+        p += 2;
+        break;
+      }
+    }
+
+    if (*p == '*' && p[1] == '=') {
+      tok = alloc_token(TK_MUL_ASSIGN, p);
+      p += 2;
+      break;
+    }
+
+    if (*p == '/' && p[1] == '=') {
+      tok = alloc_token(TK_DIV_ASSIGN, p);
+      p += 2;
+      break;
+    }
+
+    if (*p == '%' && p[1] == '=') {
+      tok = alloc_token(TK_MOD_ASSIGN, p);
+      p += 2;
+      break;
     }
 
     if (strchr("+-*/%&!(){}[]<>=;,.", *p) != NULL) {
