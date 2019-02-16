@@ -76,8 +76,9 @@ static enum TokenType reserved_word(const char *word) {
     { "continue", TK_CONTINUE },
     { "return", TK_RETURN },
     { "void", TK_KWVOID },
-    { "int", TK_KWINT },
     { "char", TK_KWCHAR },
+    { "int", TK_KWINT },
+    { "long", TK_KWLONG },
     { "struct", TK_STRUCT },
   };
   for (int i = 0; i < (int)(sizeof(table) / sizeof(*table)); ++i) {
@@ -176,8 +177,15 @@ static Token *read_num(const char **pp) {
   long val = strtol(p, (char**)pp, base);
   if (*pp == p && base == 16)
     error("Illegal literal: %s", current_line());
-  Token *tok = alloc_token(TK_NUM, start);
-  tok->val = val;
+  Token *tok;
+  if (**pp == 'L') {
+    tok = alloc_token(TK_LONGLIT, start);
+    tok->longval = val;
+    ++(*pp);
+  } else {
+    tok = alloc_token(TK_INTLIT, start);
+    tok->intval = val;
+  }
   return tok;
 }
 
@@ -308,8 +316,8 @@ static Token *get_token(void) {
       if (*(++p) != '\'')
         error("Character not closed");
 
-      tok = alloc_token(TK_CHAR, start);
-      tok->val = c;
+      tok = alloc_token(TK_CHARLIT, start);
+      tok->charval = c;
       ++p;
       break;
     }
