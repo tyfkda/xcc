@@ -12,7 +12,8 @@ static const Type tyLong = {.type=TY_LONG, .ptrof=NULL};
 static const Type tyStr = {.type=TY_PTR, .ptrof=&tyChar};
 #define tyBool  tyInt
 
-static Type *parse_type(bool allow_void);
+static const Type *parse_raw_type(void);
+static const Type *parse_type_modifier(const Type* type, bool allow_void);
 static Node *stmt(void);
 static Node *expr(void);
 
@@ -27,7 +28,7 @@ int var_find(Vector *lvars, const char *name) {
   return -1;
 }
 
-void var_add(Vector *lvars, const char *name, Type *type) {
+void var_add(Vector *lvars, const char *name, const Type *type) {
   int idx = var_find(lvars, name);
   if (idx >= 0)
     error("`%s' already defined", name);
@@ -51,7 +52,7 @@ VarInfo *find_global(const char *name) {
   return (VarInfo*)map_get(global, name);
 }
 
-void define_global(Type *type, const char *name) {
+void define_global(const Type *type, const char *name) {
   VarInfo *varinfo = find_global(name);
   if (varinfo != NULL)
     error("`%s' already defined", name);
@@ -483,8 +484,9 @@ Node *member_access(Node *target, enum TokenType toktype) {
 
 static Node *prim(void) {
   if (consume(TK_LPAR)) {
-    Type *type = parse_type(true);
+    const Type *type = parse_raw_type();
     if (type != NULL) {  // Cast
+      type = parse_type_modifier(type, true);
       if (!consume(TK_RPAR))
         error("`)' expected, but %s", current_line());
       Node *node = prim();
@@ -857,7 +859,11 @@ static StructInfo *parse_struct(void) {
   for (;;) {
     if (consume(TK_RBRACE))
       break;
-    Type *type = parse_type(false);
+    const Type *type = parse_raw_type();
+    if (type == NULL)
+      error("type expected, but %s", current_line());
+
+    type = parse_type_modifier(type, false);
     Token *tok;
     if (!(tok = consume(TK_IDENT)))
       error("ident expected, but %s", current_line());
@@ -874,7 +880,7 @@ static StructInfo *parse_struct(void) {
   return sinfo;
 }
 
-static Type *parse_type(bool allow_void) {
+static const Type *parse_raw_type(void) {
   Type *type = NULL;
 
   if (consume(TK_STRUCT)) {
@@ -913,26 +919,30 @@ static Type *parse_type(bool allow_void) {
       }
     }
   }
-  if (type != NULL) {
-    while (consume(TK_MUL))
-      type = ptrof(type);
-
-    if (!allow_void && type->type == TY_VOID)
-      error("`void' not allowed");
-  }
-
   return type;
 }
 
-static void vardecl(Vector *stmts) {
+static const Type *parse_type_modifier(const Type* type, bool allow_void) {
+  if (type == NULL)
+    return NULL;
+
+  while (consume(TK_MUL))
+    type = ptrof(type);
+
+  if (!allow_void && type->type == TY_VOID)
+    error("`void' not allowed");
+  return type;
+}
+
+static void parse_vardecl(Vector *stmts) {
   assert(curfunc != NULL);
 
   for (;;) {
-    Type *type = parse_type(false);
-    if (type == NULL)
+    const Type *rawType = parse_raw_type();
+    if (rawType == NULL)
       return;
-    if (type->type == TY_VOID)
-      error("Cannot use void for type");
+
+    const Type *type = parse_type_modifier(rawType, false);
 
     Token *tok;
     Node *val = NULL;
@@ -1011,7 +1021,7 @@ static Vector *funparams(void) {
   } else {
     params = new_vector();
     for (;;) {
-      Type *type = parse_type(params->len == 0);
+      const Type *type = parse_type_modifier(parse_raw_type(), params->len == 0);
       if (type == NULL)
         error("type expected, but %s", current_line());
       if (type->type == TY_VOID) {  // fun(void)
@@ -1035,8 +1045,9 @@ static Vector *funparams(void) {
 }
 
 static Node *toplevel(void) {
-  Type *type = parse_type(true);
+  const Type *type = parse_raw_type();
   if (type != NULL) {
+    type = parse_type_modifier(type, true);
     if (type->type == TY_STRUCT && consume(TK_SEMICOL))  // Just struct definition.
       return NULL;
 
@@ -1071,7 +1082,7 @@ static Node *toplevel(void) {
           curfunc = node;
 
           Vector *stmts = new_vector();
-          vardecl(stmts);
+          parse_vardecl(stmts);
 
           while (!consume(TK_RBRACE)) {
             Node *st = stmt();
