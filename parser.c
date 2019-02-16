@@ -934,6 +934,9 @@ static void vardecl(void) {
 }
 
 static Node *stmt(void) {
+  if (consume(TK_SEMICOL))
+    return new_node_block(NULL);
+
   if (consume(TK_LBRACE))
     return parse_block();
 
