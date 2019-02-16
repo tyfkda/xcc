@@ -266,12 +266,12 @@ Vector *parse_program(void);
 // Variables
 
 int var_find(Vector *vartbl, const char *name);
-void var_add(Vector *lvars, const char *name, Type *type);
+void var_add(Vector *lvars, const char *name, const Type *type);
 
 Map *global;
 
 VarInfo *find_global(const char *name);
-void define_global(Type *type, const char *name);
+void define_global(const Type *type, const char *name);
 
 // Codegen
 
