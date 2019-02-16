@@ -3,13 +3,6 @@
 #include <stdint.h>  // uintptr_t
 #include <stdio.h>
 
-#ifndef FALSE
-#define FALSE  (0)
-#endif
-#ifndef TRUE
-#define TRUE   (1)
-#endif
-
 // Container
 
 typedef struct {

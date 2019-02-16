@@ -1,4 +1,5 @@
 #include <assert.h>
+#include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -35,7 +36,7 @@ static int type_size(const Type *type) {
       calc_struct_size(type->struct_);
     return type->struct_->size;
   default:
-    assert(FALSE);
+    assert(false);
     return 1;
   }
 }
@@ -57,7 +58,7 @@ static int align_size(const Type *type) {
     calc_struct_size(type->struct_);
     return type->struct_->align;
   default:
-    assert(FALSE);
+    assert(false);
     return 1;
   }
 }
@@ -117,7 +118,7 @@ static void cast(const enum eType ltype, const enum eType rtype) {
     break;
   }
 
-  assert(FALSE);
+  assert(false);
 }
 
 static Map *label_map;
@@ -239,7 +240,7 @@ size_t fixup_locations(void) {
       }
       break;
     default:
-      assert(FALSE);
+      assert(false);
       break;
     }
   }
@@ -328,7 +329,7 @@ static void gen_lval(Node *node) {
   }
 }
 
-static void gen_cond_jmp(Node *cond, int tf, const char *label) {
+static void gen_cond_jmp(Node *cond, bool tf, const char *label) {
   gen(cond);
   CMP_IM8_EAX(0);
   if (tf)
@@ -472,7 +473,7 @@ static void gen_funcall(Node *node) {
 
 static void gen_if(Node *node) {
   const char * flabel = alloc_label();
-  gen_cond_jmp(node->if_.cond, FALSE, flabel);
+  gen_cond_jmp(node->if_.cond, false, flabel);
   gen(node->if_.tblock);
   if (node->if_.fblock == NULL) {
     add_label(flabel);
@@ -494,7 +495,7 @@ static void gen_while(Node *node) {
   add_label(l_loop);
   gen(node->while_.body);
   add_label(l_cond);
-  gen_cond_jmp(node->while_.cond, TRUE, l_loop);
+  gen_cond_jmp(node->while_.cond, true, l_loop);
   add_label(l_break);
   pop_continue_label(save_cont);
   pop_break_label(save_break);
@@ -508,7 +509,7 @@ static void gen_do_while(Node *node) {
   add_label(l_loop);
   gen(node->do_while.body);
   add_label(l_cond);
-  gen_cond_jmp(node->do_while.cond, TRUE, l_loop);
+  gen_cond_jmp(node->do_while.cond, true, l_loop);
   add_label(l_break);
   pop_continue_label(save_cont);
   pop_break_label(save_break);
@@ -523,7 +524,7 @@ static void gen_for(Node *node) {
     gen(node->for_.pre);
   add_label(l_cond);
   if (node->for_.cond != NULL) {
-    gen_cond_jmp(node->for_.cond, FALSE, l_break);
+    gen_cond_jmp(node->for_.cond, false, l_break);
   }
   gen(node->for_.body);
   add_label(l_continue);
@@ -553,7 +554,7 @@ static void gen_arith(enum NodeType nodeType, enum eType expType) {
     switch (expType) {
     case TY_INT:  ADD_EDI_EAX(); break;
     case TY_CHAR: ADD_DIL_AL(); break;
-    default: assert(FALSE); break;
+    default: assert(false); break;
     }
     break;
 
@@ -561,7 +562,7 @@ static void gen_arith(enum NodeType nodeType, enum eType expType) {
     switch (expType) {
     case TY_INT:  SUB_EDI_EAX(); break;
     case TY_CHAR: SUB_DIL_AL(); break;
-    default: assert(FALSE); break;
+    default: assert(false); break;
     }
     break;
 
@@ -569,7 +570,7 @@ static void gen_arith(enum NodeType nodeType, enum eType expType) {
     switch (expType) {
     case TY_INT:  MUL_EDI(); break;
     case TY_CHAR: MUL_DIL(); break;
-    default: assert(FALSE); break;
+    default: assert(false); break;
     }
 
     break;
@@ -579,7 +580,7 @@ static void gen_arith(enum NodeType nodeType, enum eType expType) {
     switch (expType) {
     case TY_INT:  DIV_EDI(); break;
     case TY_CHAR: DIV_DIL(); break;
-    default: assert(FALSE); break;
+    default: assert(false); break;
     }
     break;
 
@@ -588,11 +589,11 @@ static void gen_arith(enum NodeType nodeType, enum eType expType) {
     switch (expType) {
     case TY_INT:  DIV_EDI(); MOV_EDX_EAX(); break;
     case TY_CHAR: DIV_DIL(); MOV_DL_AL(); break;
-    default: assert(FALSE); break;
+    default: assert(false); break;
     }
     break;
   default:
-    assert(FALSE);
+    assert(false);
     break;
   }
 }
@@ -636,7 +637,7 @@ void gen(Node *node) {
     case TY_CHAR:  MOV_IND_RAX_AL(); break;
     case TY_INT:   MOV_IND_RAX_EAX(); break;
     case TY_PTR:   MOV_IND_RAX_RAX(); break;
-    default: assert(FALSE); break;
+    default: assert(false); break;
     }
     return;
 
@@ -653,7 +654,7 @@ void gen(Node *node) {
       MOV_IND_RAX_RAX();
       break;
     default:
-      assert(FALSE);
+      assert(false);
       break;
     }
     return;
@@ -730,7 +731,7 @@ void gen(Node *node) {
       }
       break;
     default:
-      assert(FALSE);
+      assert(false);
       break;
     }
     return;
@@ -756,7 +757,7 @@ void gen(Node *node) {
       }
       break;
     default:
-      assert(FALSE);
+      assert(false);
       break;
     }
     MOV_RDI_RAX();
@@ -810,7 +811,7 @@ void gen(Node *node) {
     switch (node->expType->type) {
     case TY_INT:  NEG_EAX(); break;
     case TY_CHAR: NEG_AL(); break;
-    default:  assert(FALSE); break;
+    default:  assert(false); break;
     }
     break;
 
@@ -820,7 +821,7 @@ void gen(Node *node) {
     case TY_INT:  CMP_IM8_EAX(0); break;
     case TY_CHAR: CMP_IM8_AL(0); break;
     case TY_PTR:  CMP_IM8_RAX(0); break;
-    default:  assert(FALSE); break;
+    default:  assert(false); break;
     }
     SETE_AL();
     MOVZX_AL_EAX();
@@ -850,7 +851,7 @@ void gen(Node *node) {
       case TY_INT:  CMP_EAX_EDI(); break;
       case TY_CHAR: CMP_AL_DIL(); break;
       case TY_PTR:  CMP_RAX_RDI(); break;
-      default: assert(FALSE); break;
+      default: assert(false); break;
       }
 
       switch (type) {
@@ -858,7 +859,7 @@ void gen(Node *node) {
       case ND_NE:  SETNE_AL(); break;
       case ND_LT:  SETS_AL(); break;
       case ND_GE:  SETNS_AL(); break;
-      default: assert(FALSE); break;
+      default: assert(false); break;
       }
     }
     MOVZX_AL_EAX();

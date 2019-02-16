@@ -1,4 +1,5 @@
 #include "stdarg.h"
+#include "stdbool.h"
 #include "stdint.h"
 #include "stdio.h"
 #include "stdlib.h"
@@ -41,9 +42,9 @@
 
 ////////////////////////////////////////////////
 
-int expect(int line, int expected, int actual) {
+bool expect(int line, int expected, int actual) {
   if (expected == actual)
-    return TRUE;
+    return true;
   fprintf(stderr, "%d: %d expected, but got %d\n",
           line, expected, actual);
   exit(1);
