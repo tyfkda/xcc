@@ -90,12 +90,21 @@ static void cast(const enum eType ltype, const enum eType rtype) {
   case TY_CHAR:
     switch (rtype) {
     case TY_INT:  return;
+    case TY_LONG:  return;
     default: break;
     }
     break;
   case TY_INT:
     switch (rtype) {
     case TY_CHAR: MOVSX_AL_EAX(); return;
+    case TY_LONG: return;
+    default: break;
+    }
+    break;
+  case TY_LONG:
+    switch (rtype) {
+    case TY_CHAR: MOVSX_AL_RAX(); return;
+    case TY_INT:  MOVSX_EAX_RAX(); return;
     default: break;
     }
     break;
@@ -596,6 +605,13 @@ void gen(Node *node) {
 
   case ND_CHAR:
     MOV_IM8_AL(node->charval);
+    return;
+
+  case ND_LONG:
+    if (node->longval < 0x7fffffffL && node->longval >= -0x80000000L)
+      MOV_IM32_RAX(node->longval);
+    else
+      MOV_IM64_RAX(node->longval);
     return;
 
   case ND_STR:

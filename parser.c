@@ -8,6 +8,7 @@
 static const Type tyVoid = {.type=TY_VOID, .ptrof=NULL};
 static const Type tyInt = {.type=TY_INT, .ptrof=NULL};
 static const Type tyChar = {.type=TY_CHAR, .ptrof=NULL};
+static const Type tyLong = {.type=TY_LONG, .ptrof=NULL};
 static const Type tyStr = {.type=TY_PTR, .ptrof=&tyChar};
 #define tyBool  tyInt
 
@@ -74,8 +75,9 @@ static bool same_type(const Type *type1, const Type *type2) {
 
     switch (type1->type) {
     case TY_VOID:
-    case TY_INT:
     case TY_CHAR:
+    case TY_INT:
+    case TY_LONG:
       return true;
     case TY_PTR:
     case TY_ARRAY:
@@ -144,27 +146,37 @@ static Node *new_node_cast(const Type *type, Node *sub, bool is_explicit) {
     error("cannot use `void' as a value");
 
   switch (type->type) {
+  case TY_CHAR:
+    switch (sub->expType->type) {
+    case TY_INT:  goto ok;  // TODO: Raise warning if implicit.
+    case TY_LONG:  goto ok;  // TODO: Raise warning if implicit.
+    default:  break;
+    }
+    break;
   case TY_INT:
     switch (sub->expType->type) {
     case TY_CHAR:  goto ok;
+    case TY_LONG:  goto ok;
+    default:  break;
+    }
+    break;
+  case TY_LONG:
+    switch (sub->expType->type) {
+    case TY_CHAR:  goto ok;
+    case TY_INT:  goto ok;
     case TY_PTR:
       if (is_explicit) {
-        // TODO: Check sizeof(int) is same as sizeof(ptr)
+        // TODO: Check sizeof(long) is same as sizeof(ptr)
         goto ok;
       }
       break;
     default:  break;
     }
     break;
-  case TY_CHAR:
-    switch (sub->expType->type) {
-    case TY_INT:  goto ok;  // TODO: Raise warning if implicit.
-    default:  break;
-    }
-    break;
   case TY_PTR:
     switch (sub->expType->type) {
     case TY_INT:
+    case TY_LONG:
       if (is_explicit)
         goto ok;
       break;
@@ -216,6 +228,12 @@ static Node *new_node_intlit(int val) {
 static Node *new_node_charlit(int val) {
   Node *node = new_node(ND_CHAR, &tyChar);
   node->charval = val;
+  return node;
+}
+
+static Node *new_node_longlit(long val) {
+  Node *node = new_node(ND_LONG, &tyLong);
+  node->longval = val;
   return node;
 }
 
@@ -480,13 +498,16 @@ static Node *prim(void) {
   }
 
   Token *tok;
-  if ((tok = consume(TK_INTLIT))) {
+  if ((tok = consume(TK_INTLIT)))
     return new_node_intlit(tok->intval);
-  } else if ((tok = consume(TK_CHARLIT))) {
+  if ((tok = consume(TK_CHARLIT)))
     return new_node_charlit(tok->charval);
-  } else if ((tok = consume(TK_STR))) {
+  if ((tok = consume(TK_LONGLIT)))
+    return new_node_longlit(tok->longval);
+  if ((tok = consume(TK_STR)))
     return new_node_str(tok->str);
-  } else if ((tok = consume(TK_IDENT))) {
+
+  if ((tok = consume(TK_IDENT))) {
     if (curfunc == NULL) {
       error("Cannot use variable outside of function: `%s'", tok->ident);
     } else {
@@ -877,10 +898,10 @@ static Type *parse_type(bool allow_void) {
     type->struct_ = sinfo;
   } else {
     static const enum TokenType kKeywords[] = {
-      TK_KWVOID, TK_KWINT, TK_KWCHAR,
+      TK_KWVOID, TK_KWCHAR, TK_KWINT, TK_KWLONG,
     };
     static const enum eType kTypes[] = {
-      TY_VOID, TY_INT, TY_CHAR,
+      TY_VOID, TY_CHAR, TY_INT, TY_LONG,
     };
     const int N = sizeof(kTypes) / sizeof(*kTypes);
     for (int i = 0; i < N; ++i) {

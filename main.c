@@ -121,11 +121,13 @@ int main(int argc, char* argv[]) {
   // Test.
   {
     static Type tyVoid = {.type=TY_VOID, .ptrof=NULL};
-    static Type tyInt = {.type=TY_INT, .ptrof=NULL};
     static Type tyChar = {.type=TY_CHAR, .ptrof=NULL};
+    static Type tyInt = {.type=TY_INT, .ptrof=NULL};
+    static Type tyLong = {.type=TY_LONG, .ptrof=NULL};
     static Type tyStr = {.type=TY_PTR, .ptrof=&tyChar};
 
     static VarInfo vInt = {.name="", .type=&tyInt};
+    static VarInfo vLong = {.name="", .type=&tyLong};
     static VarInfo vStr = {.name="", .type=&tyStr};
 
     Vector *exit_params = new_vector();
@@ -137,7 +139,7 @@ int main(int argc, char* argv[]) {
     Vector *write_params = new_vector();
     vec_push(write_params, &vInt);
     vec_push(write_params, &vStr);
-    vec_push(write_params, &vInt);
+    vec_push(write_params, &vLong);
     static Type tyWrite = {.type=TY_FUNC, .func={.ret=&tyInt }};
     tyWrite.func.params = write_params;
     define_global(&tyWrite, "_write");

@@ -56,6 +56,7 @@ enum TokenType {
   TK_DOT = '.',
   TK_INTLIT = 256,  // int literal
   TK_CHARLIT,  // char literal
+  TK_LONGLIT,  // long literal
   TK_STR,        // String literal
   TK_IDENT,      // Identifier
   TK_EOF,        // Represent input end
@@ -80,8 +81,9 @@ enum TokenType {
   TK_CONTINUE,
   TK_RETURN,
   TK_KWVOID,
-  TK_KWINT,
   TK_KWCHAR,
+  TK_KWINT,
+  TK_KWLONG,
   TK_STRUCT,
 };
 
@@ -92,6 +94,7 @@ typedef struct {
   union {
     const char *ident;
     const char *str;
+    long longval;
     int intval;
     char charval;
   };
@@ -107,6 +110,7 @@ enum eType {
   TY_VOID,
   TY_CHAR,  // Small number type should be earlier.
   TY_INT,
+  TY_LONG,
   TY_PTR,
   TY_ARRAY,
   TY_FUNC,
@@ -147,6 +151,7 @@ Map *struct_map;
 enum NodeType {
   ND_INT,  // int
   ND_CHAR,
+  ND_LONG,  // long
   ND_STR,
   ND_VARREF,
   ND_DEFUN,
@@ -192,6 +197,7 @@ typedef struct Node {
   const Type *expType;
   union {
     const char *str;
+    long longval;
     int intval;
     char charval;
 
