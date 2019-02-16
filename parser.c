@@ -903,7 +903,9 @@ static Type *parse_type(bool allow_void) {
   return type;
 }
 
-static void vardecl(void) {
+static void vardecl(Vector *stmts) {
+  assert(curfunc != NULL);
+
   for (;;) {
     Type *type = parse_type(false);
     if (type == NULL)
@@ -912,6 +914,7 @@ static void vardecl(void) {
       error("Cannot use void for type");
 
     Token *tok;
+    Node *val = NULL;
     if (!(tok = consume(TK_IDENT)))
       error("Ident expected, but %s", current_line());
     const char *name = tok->ident;
@@ -926,10 +929,17 @@ static void vardecl(void) {
           error("`]' expected, but %s", current_line());
       }
     }
+    if (consume(TK_ASSIGN))
+      val = expr();
     if (!consume(TK_SEMICOL))
       error("Semicolon expected, but %s", current_line());
-    assert(curfunc != NULL);
     var_add(curfunc->defun.lvars, name, type);
+
+    if (val != NULL) {
+      Node *var = new_node_varref(name, type, false);
+      Node *node = new_node_bop(ND_ASSIGN, type, var, new_node_cast(type, val, false));
+      vec_push(stmts, node);
+    }
   }
 }
 
@@ -1039,9 +1049,9 @@ static Node *toplevel(void) {
           Node *node = new_node_defun(type, ident, params);
           curfunc = node;
 
-          vardecl();
-
           Vector *stmts = new_vector();
+          vardecl(stmts);
+
           while (!consume(TK_RBRACE)) {
             Node *st = stmt();
             vec_push(stmts, st);
