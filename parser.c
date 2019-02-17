@@ -725,8 +725,28 @@ static Node *eq(void) {
   }
 }
 
-static Node *assign(void) {
+static Node *logand(void) {
   Node *node = eq();
+  for (;;) {
+    if (consume(TK_LOGAND))
+      node = new_node_bop(ND_LOGAND, &tyBool, node, eq());
+    else
+      return node;
+  }
+}
+
+static Node *logior(void) {
+  Node *node = logand();
+  for (;;) {
+    if (consume(TK_LOGIOR))
+      node = new_node_bop(ND_LOGIOR, &tyBool, node, logand());
+    else
+      return node;
+  }
+}
+
+static Node *assign(void) {
+  Node *node = logior();
 
   if (consume(TK_ASSIGN))
     return new_node_bop(ND_ASSIGN, node->expType, node, new_node_cast(node->expType, assign(), false));

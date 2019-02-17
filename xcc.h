@@ -57,6 +57,8 @@ enum TokenType {
   TK_NE,  // !=
   TK_LE,  // <=
   TK_GE,  // >=
+  TK_LOGAND,  // &&
+  TK_LOGIOR,  // ||
   TK_ARROW,  // ->
   TK_ADD_ASSIGN,  // +=
   TK_SUB_ASSIGN,  // -=
@@ -169,6 +171,8 @@ enum NodeType {
   ND_GT,
   ND_LE,
   ND_GE,
+  ND_LOGAND,
+  ND_LOGIOR,
   ND_PTRADD,  // ptr + num
   ND_PTRSUB,  // ptr - num
   ND_PTRDIFF,  // ptr - ptr

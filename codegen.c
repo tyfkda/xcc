@@ -124,6 +124,7 @@ static void cast(const enum eType ltype, const enum eType rtype) {
 static Map *label_map;
 
 enum LocType {
+  LOC_REL8,
   LOC_REL32,
 };
 
@@ -192,6 +193,13 @@ static LocInfo *new_loc(enum LocType type, uintptr_t ip, const char *label) {
   return loc;
 }
 
+void add_loc_rel8(const char *label, int ofs, int baseofs) {
+  uintptr_t ip = codesize + ofs;
+  uintptr_t base = CURIP(baseofs);
+  LocInfo *loc = new_loc(LOC_REL8, ip, label);
+  loc->rel.base = base;
+}
+
 void add_loc_rel32(const char *label, int ofs, int baseofs) {
   uintptr_t ip = codesize + ofs;
   uintptr_t base = CURIP(baseofs);
@@ -229,6 +237,13 @@ size_t fixup_locations(void) {
 
     intptr_t v = (intptr_t)val;
     switch (loc->type) {
+    case LOC_REL8:
+      {
+        intptr_t d = v - loc->rel.base;
+        // TODO: Check out of range
+        code[loc->ip] = d;
+      }
+      break;
     case LOC_REL32:
       {
         intptr_t d = v - loc->rel.base;
@@ -331,7 +346,14 @@ static void gen_lval(Node *node) {
 
 static void gen_cond_jmp(Node *cond, bool tf, const char *label) {
   gen(cond);
-  CMP_IM8_EAX(0);
+
+  switch (cond->expType->type) {
+  case TY_CHAR: CMP_IM8_AL(0); break;
+  case TY_INT:  CMP_IM8_EAX(0); break;
+  case TY_PTR:  CMP_IM8_RAX(0); break;
+  default: assert(false); break;
+  }
+
   if (tf)
     JNE32(label);
   else
@@ -863,6 +885,38 @@ void gen(Node *node) {
       }
     }
     MOVZX_AL_EAX();
+    return;
+
+  case ND_LOGAND:
+    {
+      const char * l_false = alloc_label();
+      const char * l_true = alloc_label();
+      const char * l_next = alloc_label();
+      gen_cond_jmp(node->bop.lhs, false, l_false);
+      gen_cond_jmp(node->bop.rhs, true, l_true);
+      add_label(l_false);
+      MOV_IM32_EAX(0);
+      JMP8(l_next);
+      add_label(l_true);
+      MOV_IM32_EAX(1);
+      add_label(l_next);
+    }
+    return;
+
+  case ND_LOGIOR:
+    {
+      const char * l_false = alloc_label();
+      const char * l_true = alloc_label();
+      const char * l_next = alloc_label();
+      gen_cond_jmp(node->bop.lhs, true, l_true);
+      gen_cond_jmp(node->bop.rhs, false, l_false);
+      add_label(l_true);
+      MOV_IM32_EAX(1);
+      JMP8(l_next);
+      add_label(l_false);
+      MOV_IM32_EAX(0);
+      add_label(l_next);
+    }
     return;
 
   case ND_PTRADD:

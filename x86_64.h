@@ -2,10 +2,14 @@
 #ifndef ADD_CODE
 #define ADD_CODE(...)  do { unsigned char buf[] = {__VA_ARGS__}; add_code(buf, sizeof(buf)); } while (0)
 #endif
+#ifndef ADD_LOC_REL8
+#define ADD_LOC_REL8(label, ofs, base)  add_loc_rel8(label, ofs, base)
+#endif
 #ifndef ADD_LOC_REL32
 #define ADD_LOC_REL32(label, ofs, base)  add_loc_rel32(label, ofs, base)
 #endif
 
+#define IM8(x)   (x)
 #define IM32(x)  (x), ((x) >> 8), ((x) >> 16), ((x) >> 24)
 #define IM64(x)  (x), ((x) >> 8), ((x) >> 16), ((x) >> 24), ((x) >> 32), ((x) >> 40), ((x) >> 48), ((x) >> 56)
 
@@ -116,6 +120,7 @@
 #define POP_R9()         ADD_CODE(0x41, 0x59)  // pop %r9
 #define JE32(label)      do { ADD_LOC_REL32(label, 2, 6); ADD_CODE(0x0f, 0x84, IM32(0)); } while(0)  // je
 #define JNE32(label)     do { ADD_LOC_REL32(label, 2, 6); ADD_CODE(0x0f, 0x85, IM32(0)); } while(0)  // jne
+#define JMP8(label)      do { ADD_LOC_REL8(label, 1, 2); ADD_CODE(0xeb, IM8(0)); } while(0)  // jmp
 #define JMP32(label)     do { ADD_LOC_REL32(label, 1, 5); ADD_CODE(0xe9, IM32(0)); } while(0)  // jmp
 #define CALL(label)      do { ADD_LOC_REL32(label, 1, 5); ADD_CODE(0xe8, IM32(0)); } while(0)  // call
 #define CALL_IND_RAX()   ADD_CODE(0xff, 0xd0)  // call *%rax

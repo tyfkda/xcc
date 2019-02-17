@@ -124,6 +124,10 @@ try 'while-break' 10 'int i = 0, acc = 0; while (++i <= 10) { if (i == 5) break;
 try 'while-continue' 50 'int i = 0, acc = 0; while (++i <= 10) { if (i == 5) continue; acc += i; } return acc;'
 try 'do-while-break' 10 'int i = 0, acc = 0; do { if (i == 5) break; acc += i; } while (++i <= 10); return acc;'
 try 'do-while-continue' 50 'int i = 0, acc = 0; do { if (i == 5) continue; acc += i; } while (++i <= 10); return acc;'
+try 't && t' 1 'return 1 && 2;'
+try '&& shortcut' 1 'int x = 1; 0 && (x = 0); return x;'
+try 'f || t' 1 'return 0 || 2;'
+try '|| shortcut' 1 'int x = 1; 1 || (x = 0); return x;'
 
 # error cases
 echo ''
