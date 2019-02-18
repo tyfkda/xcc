@@ -5,6 +5,8 @@
 
 #include "xcc.h"
 
+const int FRAME_ALIGN = 8;
+
 #define CURIP(ofs)  (start_address + codesize + ofs)
 #define ADD_CODE(...)  do { unsigned char buf[] = {__VA_ARGS__}; add_code(buf, sizeof(buf)); } while (0)
 #include "x86_64.h"
@@ -397,6 +399,7 @@ static void gen_defun(Node *node) {
     frame_size = (frame_size + size + align - 1) & -align;
     lvar->offset = -frame_size;
   }
+  frame_size = (frame_size + FRAME_ALIGN - 1) & -FRAME_ALIGN;
 
   // Prologue
   // Allocate variable bufer.
