@@ -156,5 +156,6 @@ compile_error 'break outside loop' 'void main(){ break; }'
 compile_error 'continue outside loop' 'void main(){ continue; }'
 compile_error 'return void' 'void main(){ return 1; }'
 compile_error 'return non-void' 'int main(){ return; }'
+compile_error 'use before decl' 'void main(){ x = 0; int x; }'
 
 echo 'All tests PASS!'

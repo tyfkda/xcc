@@ -954,13 +954,14 @@ static const Type *parse_type_modifier(const Type* type, bool allow_void) {
   return type;
 }
 
-static void parse_vardecl(Vector *stmts) {
+static Node *parse_vardecl(void) {
   assert(curfunc != NULL);
 
+  Vector *inits = NULL;
   for (;;) {
     const Type *rawType = parse_raw_type();
     if (rawType == NULL)
-      return;
+      break;
 
     do {
       const Type *type = parse_type_modifier(rawType, false);
@@ -986,16 +987,29 @@ static void parse_vardecl(Vector *stmts) {
         Node *val = expr();
         Node *var = new_node_varref(name, type, false);
         Node *node = new_node_bop(ND_ASSIGN, type, var, new_node_cast(type, val, false));
-        vec_push(stmts, node);
+
+        if (inits == NULL)
+          inits = new_vector();
+        vec_push(inits, node);
       }
     } while (consume(TK_COMMA));
 
     if (!consume(TK_SEMICOL))
       error("Semicolon expected, but %s", current_line());
   }
+
+  if (inits == NULL)
+    return NULL;
+  if (inits->len == 1)
+    return (Node*)inits->data[0];
+  return new_node_block(inits);
 }
 
 static Node *stmt(void) {
+  Node *vardecl = parse_vardecl();
+  if (vardecl != NULL)
+    return vardecl;
+
   if (consume(TK_SEMICOL))
     return new_node_block(NULL);
 
@@ -1065,6 +1079,39 @@ static Vector *funparams(void) {
   return params;
 }
 
+static Node *parse_defun(const Type *type, const char *ident) {
+  Vector *params = funparams();
+
+  VarInfo *def = find_global(ident);
+  if (def == NULL) {
+    define_global(new_func_type(type, params), ident);
+  } else {
+    if (def->type->type != TY_FUNC)
+      error("Definition conflict: `%s'", ident);
+    // TODO: Check type.
+    // TODO: Check duplicated definition.
+  }
+
+  if (consume(TK_SEMICOL))  // Prototype declaration.
+    return NULL;
+
+  if (consume(TK_LBRACE)) {  // Definition.
+    Node *node = new_node_defun(type, ident, params);
+    curfunc = node;
+
+    Vector *stmts = new_vector();
+    while (!consume(TK_RBRACE)) {
+      Node *st = stmt();
+      if (st != NULL)
+        vec_push(stmts, st);
+    }
+    node->defun.stmts = stmts;
+    return node;
+  }
+  error("Defun failed: %s", current_line());
+  return NULL;
+}
+
 static Node *toplevel(void) {
   const Type *type = parse_raw_type();
   if (type != NULL) {
@@ -1084,37 +1131,12 @@ static Node *toplevel(void) {
       }
 
       if (consume(TK_LPAR)) {  // Function.
-        Vector *params = funparams();
-
-        VarInfo *def = find_global(ident);
-        if (def == NULL) {
-          define_global(new_func_type(type, params), ident);
-        } else {
-          if (def->type->type != TY_FUNC)
-            error("Definition conflict: `%s'", ident);
-          // TODO: Check type.
-          // TODO: Check duplicated definition.
-        }
-
-        if (consume(TK_SEMICOL))  // Prototype declaration.
-          return NULL;
-        if (consume(TK_LBRACE)) {  // Definition.
-          Node *node = new_node_defun(type, ident, params);
-          curfunc = node;
-
-          Vector *stmts = new_vector();
-          parse_vardecl(stmts);
-
-          while (!consume(TK_RBRACE)) {
-            Node *st = stmt();
-            vec_push(stmts, st);
-          }
-          node->defun.stmts = stmts;
-          return node;
-        }
+        return parse_defun(type, ident);
       }
+      error("`(' expected, but %s", current_line());
+      return NULL;
     }
-    error("Defun failed: %s", current_line());
+    error("ident expected, but %s", current_line());
     return NULL;
   }
   error("Toplevel, %s", current_line());
