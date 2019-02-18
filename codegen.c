@@ -370,8 +370,16 @@ static void gen_varref(Node *node) {
     assert(varidx >= 0);
     varinfo = (VarInfo*)curfunc->defun.lvars->data[varidx];
   }
-  if (varinfo->type->type != TY_ARRAY)  // If the variable is array, use variable address as a pointer.
-    MOV_IND_RAX_RAX();
+  switch (node->expType->type) {
+  case TY_CHAR:  MOV_IND_RAX_AL(); break;
+  case TY_INT:   MOV_IND_RAX_EAX(); break;
+  case TY_LONG:  MOV_IND_RAX_RAX(); break;
+  case TY_PTR:
+    if (varinfo->type->type != TY_ARRAY)  // If the variable is array, use variable address as a pointer.
+      MOV_IND_RAX_RAX();
+    break;
+  default: assert(false); break;
+  }
 }
 
 static void gen_defun(Node *node) {
