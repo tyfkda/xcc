@@ -141,6 +141,19 @@ typedef struct {
 
 Map *struct_map;
 
+// Defun
+
+typedef struct {
+  const Type *rettype;
+  const char *name;
+  Vector *lvars;
+  Vector *stmts;
+  int param_count;
+
+  // For codegen.
+  const char *ret_label;
+} Defun;
+
 // Node
 
 enum NodeType {
@@ -209,16 +222,7 @@ typedef struct Node {
       const char *ident;
       int global;
     } varref;
-    struct {
-      const Type *rettype;
-      const char *name;
-      Vector *lvars;
-      Vector *stmts;
-      int param_count;
-
-      // For codegen.
-      const char *ret_label;
-    } defun;
+    Defun* defun;
     struct {
       struct Node *func;
       Vector *args;

@@ -311,9 +311,9 @@ static void gen_lval(Node *node) {
     if (node->varref.global) {
       LEA_OFS32_RIP_RAX(node->varref.ident);
     } else {
-      int varidx = var_find(curfunc->defun.lvars, node->varref.ident);
+      int varidx = var_find(curfunc->defun->lvars, node->varref.ident);
       assert(varidx >= 0);
-      int offset = ((VarInfo*)curfunc->defun.lvars->data[varidx])->offset;
+      int offset = ((VarInfo*)curfunc->defun->lvars->data[varidx])->offset;
       MOV_RBP_RAX();
       ADD_IM32_RAX(offset);
     }
@@ -368,9 +368,9 @@ static void gen_varref(Node *node) {
   if (node->varref.global) {
     varinfo = find_global(node->varref.ident);
   } else {
-    int varidx = var_find(curfunc->defun.lvars, node->varref.ident);
+    int varidx = var_find(curfunc->defun->lvars, node->varref.ident);
     assert(varidx >= 0);
-    varinfo = (VarInfo*)curfunc->defun.lvars->data[varidx];
+    varinfo = (VarInfo*)curfunc->defun->lvars->data[varidx];
   }
   switch (node->expType->type) {
   case TY_CHAR:  MOV_IND_RAX_AL(); break;
@@ -386,14 +386,14 @@ static void gen_varref(Node *node) {
 
 static void gen_defun(Node *node) {
   curfunc = node;
-  add_label(node->defun.name);
-  node->defun.ret_label = alloc_label();
+  add_label(node->defun->name);
+  node->defun->ret_label = alloc_label();
 
   // Calc local variable offsets.
   // Map parameters from the bottom (to reduce offsets).
   int frame_size = 0;
-  for (int i = 0; i < node->defun.lvars->len; ++i) {
-    VarInfo *lvar = (VarInfo*)node->defun.lvars->data[i];
+  for (int i = 0; i < node->defun->lvars->len; ++i) {
+    VarInfo *lvar = (VarInfo*)node->defun->lvars->data[i];
     int size = type_size(lvar->type);
     int align = align_size(lvar->type);
     frame_size = (frame_size + size + align - 1) & -align;
@@ -403,13 +403,13 @@ static void gen_defun(Node *node) {
 
   // Prologue
   // Allocate variable bufer.
-  Vector *lvars = node->defun.lvars;
+  Vector *lvars = node->defun->lvars;
   PUSH_RBP();
   MOV_RSP_RBP();
   if (frame_size > 0) {
     SUB_IM32_RSP(frame_size);
     // Store parameters into local frame.
-    int len = len = node->defun.param_count;
+    int len = len = node->defun->param_count;
     if (len > 6)
       error("Parameter count exceeds 6 (%d)", len);
     for (int i = 0; i < len; ++i) {
@@ -454,12 +454,12 @@ static void gen_defun(Node *node) {
   }
 
   // Statements
-  for (int i = 0; i < node->defun.stmts->len; ++i) {
-    gen((Node*)node->defun.stmts->data[i]);
+  for (int i = 0; i < node->defun->stmts->len; ++i) {
+    gen((Node*)node->defun->stmts->data[i]);
   }
 
   // Epilogue
-  add_label(node->defun.ret_label);
+  add_label(node->defun->ret_label);
   MOV_RBP_RSP();
   POP_RBP();
   RET();
@@ -470,7 +470,7 @@ static void gen_return(Node *node) {
   if (node->return_.val != NULL)
     gen(node->return_.val);
   assert(curfunc != NULL);
-  JMP32(curfunc->defun.ret_label);
+  JMP32(curfunc->defun->ret_label);
 }
 
 static void gen_funcall(Node *node) {

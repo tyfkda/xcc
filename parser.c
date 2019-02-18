@@ -124,6 +124,21 @@ static Type* new_func_type(const Type *ret, const Vector *params) {
   return f;
 }
 
+// Defun
+
+Defun *new_defun(const Type *rettype, const char *name, Vector *params) {
+  Vector *lvars = params != NULL ? params : new_vector();
+
+  Defun *defun = malloc(sizeof(*defun));
+  defun->rettype = rettype;
+  defun->name = name;
+  defun->param_count = params != NULL ? params->len : -1;
+  defun->lvars = lvars;
+  defun->stmts = NULL;
+  defun->ret_label = NULL;
+  return defun;
+}
+
 //
 
 const int LF_BREAK = 1 << 0;
@@ -259,15 +274,8 @@ static Node *new_node_member(Node *target, const char *name, const Type *expType
 }
 
 static Node *new_node_defun(const Type *rettype, const char *name, Vector *params) {
-  Vector *lvars = params != NULL ? params : new_vector();
-
   Node *node = new_node(ND_DEFUN, &tyVoid);
-  node->defun.rettype = rettype;
-  node->defun.name = name;
-  node->defun.param_count = params != NULL ? params->len : -1;
-  node->defun.lvars = lvars;
-  node->defun.stmts = NULL;
-  node->defun.ret_label = NULL;
+  node->defun = new_defun(rettype, name, params);
   return node;
 }
 
@@ -514,9 +522,9 @@ static Node *prim(void) {
       error("Cannot use variable outside of function: `%s'", tok->ident);
     } else {
       const Type *type = NULL;
-      int idx = var_find(curfunc->defun.lvars, tok->ident);
+      int idx = var_find(curfunc->defun->lvars, tok->ident);
       if (idx >= 0) {
-        type = ((VarInfo*)curfunc->defun.lvars->data[idx])->type;
+        type = ((VarInfo*)curfunc->defun->lvars->data[idx])->type;
       } else {
         VarInfo *varinfo = find_global(tok->ident);
         if (varinfo == NULL)
@@ -860,16 +868,16 @@ static Node *parse_return(void) {
 
   Node *val = NULL;
   if (consume(TK_SEMICOL)) {
-    if (curfunc->defun.rettype->type != TY_VOID)
+    if (curfunc->defun->rettype->type != TY_VOID)
       error("`return' required a value");
   } else {
     val = expr();
     if (!consume(TK_SEMICOL))
       error("`;' expected, but %s", current_line());
 
-    if (curfunc->defun.rettype->type == TY_VOID)
+    if (curfunc->defun->rettype->type == TY_VOID)
       error("void function `return' a value");
-    val = new_node_cast(curfunc->defun.rettype, val, false);
+    val = new_node_cast(curfunc->defun->rettype, val, false);
   }
   return new_node_return(val);
 }
@@ -981,7 +989,7 @@ static Node *parse_vardecl(void) {
             error("`]' expected, but %s", current_line());
         }
       }
-      var_add(curfunc->defun.lvars, name, type);
+      var_add(curfunc->defun->lvars, name, type);
 
       if (consume(TK_ASSIGN)) {
         Node *val = expr();
@@ -1105,7 +1113,7 @@ static Node *parse_defun(const Type *type, const char *ident) {
       if (st != NULL)
         vec_push(stmts, st);
     }
-    node->defun.stmts = stmts;
+    node->defun->stmts = stmts;
     return node;
   }
   error("Defun failed: %s", current_line());
