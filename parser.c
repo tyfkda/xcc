@@ -124,18 +124,58 @@ static Type* new_func_type(const Type *ret, const Vector *params) {
   return f;
 }
 
+// Scope
+
+Scope *new_scope(Scope *parent, Vector *vars) {
+  Scope *scope = malloc(sizeof(*scope));
+  scope->parent = parent;
+  scope->vars = vars;
+  return scope;
+}
+
+VarInfo *scope_find(Scope *scope, const char *name) {
+  for (;; scope = scope->parent) {
+    if (scope == NULL)
+      return NULL;
+    if (scope->vars != NULL) {
+      int idx = var_find(scope->vars, name);
+      if (idx >= 0)
+        return (VarInfo*)scope->vars->data[idx];
+    }
+  }
+}
+
+static void scope_add(Scope *scope, const char *name, const Type *type) {
+  if (scope->vars == NULL)
+    scope->vars = new_vector();
+  var_add(scope->vars, name, type);
+}
+
 // Defun
 
-Defun *new_defun(const Type *rettype, const char *name, Vector *params) {
-  Vector *lvars = params != NULL ? params : new_vector();
+static Scope *curscope;
 
+static Scope *enter_scope(Defun *defun, Vector *vars) {
+  Scope *scope = new_scope(curscope, vars);
+  curscope = scope;
+  vec_push(defun->all_scopes, scope);
+  return scope;
+}
+
+static void exit_scope(void) {
+  assert(curscope != NULL);
+  curscope = curscope->parent;
+}
+
+static Defun *new_defun(const Type *rettype, const char *name, Vector *params) {
   Defun *defun = malloc(sizeof(*defun));
   defun->rettype = rettype;
   defun->name = name;
-  defun->param_count = params != NULL ? params->len : -1;
-  defun->lvars = lvars;
   defun->stmts = NULL;
+  defun->all_scopes = new_vector();
   defun->ret_label = NULL;
+  defun->top_scope = enter_scope(defun, params);
+
   return defun;
 }
 
@@ -522,9 +562,9 @@ static Node *prim(void) {
       error("Cannot use variable outside of function: `%s'", tok->ident);
     } else {
       const Type *type = NULL;
-      int idx = var_find(curfunc->defun->lvars, tok->ident);
-      if (idx >= 0) {
-        type = ((VarInfo*)curfunc->defun->lvars->data[idx])->type;
+      VarInfo *varinfo = scope_find(curscope, tok->ident);
+      if (varinfo != NULL) {
+        type = varinfo->type;
       } else {
         VarInfo *varinfo = find_global(tok->ident);
         if (varinfo == NULL)
@@ -533,7 +573,7 @@ static Node *prim(void) {
       }
       if (type->type == TY_ARRAY)
         type = ptrof(type->ptrof);
-      int global = idx < 0;
+      int global = varinfo == NULL;
       return new_node_varref(tok->ident, type, global);
     }
   } else {
@@ -989,7 +1029,7 @@ static Node *parse_vardecl(void) {
             error("`]' expected, but %s", current_line());
         }
       }
-      var_add(curfunc->defun->lvars, name, type);
+      scope_add(curscope, name, type);
 
       if (consume(TK_ASSIGN)) {
         Node *val = expr();
@@ -1114,6 +1154,7 @@ static Node *parse_defun(const Type *type, const char *ident) {
         vec_push(stmts, st);
     }
     node->defun->stmts = stmts;
+    exit_scope();
     return node;
   }
   error("Defun failed: %s", current_line());

@@ -136,19 +136,33 @@ typedef struct Type {
 typedef struct {
   const char *name;
   const Type *type;
+
+  // For codegen.
   int offset;
 } VarInfo;
 
 Map *struct_map;
+
+// Scope
+
+typedef struct Scope {
+  struct Scope *parent;
+  Vector *vars;
+
+  // For codegen.
+  int size;
+} Scope;
+
+VarInfo *scope_find(Scope *scope, const char *name);
 
 // Defun
 
 typedef struct {
   const Type *rettype;
   const char *name;
-  Vector *lvars;
+  Scope *top_scope;  // = params
   Vector *stmts;
-  int param_count;
+  Vector *all_scopes;
 
   // For codegen.
   const char *ret_label;
