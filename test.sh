@@ -128,6 +128,7 @@ try 't && t' 1 'return 1 && 2;'
 try '&& shortcut' 1 'int x = 1; 0 && (x = 0); return x;'
 try 'f || t' 1 'return 0 || 2;'
 try '|| shortcut' 1 'int x = 1; 1 || (x = 0); return x;'
+try 'block scope' 1 'int x = 1; { int x = 2; } return x;'
 
 # error cases
 echo ''
@@ -157,5 +158,6 @@ compile_error 'continue outside loop' 'void main(){ continue; }'
 compile_error 'return void' 'void main(){ return 1; }'
 compile_error 'return non-void' 'int main(){ return; }'
 compile_error 'use before decl' 'void main(){ x = 0; int x; }'
+compile_error 'scope invisible' 'int main(){ {int x;} return x; }'
 
 echo 'All tests PASS!'

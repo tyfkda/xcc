@@ -184,7 +184,7 @@ static Defun *new_defun(const Type *rettype, const char *name, Vector *params) {
 const int LF_BREAK = 1 << 0;
 const int LF_CONTINUE = 1 << 0;
 
-static Node *curfunc;
+static Defun *curfunc;
 static int curloopflag;
 
 static Node *new_node(enum NodeType type, const Type *expType) {
@@ -327,8 +327,9 @@ static Node *new_node_funcall(Node *func, Vector *args) {
   return node;
 }
 
-static Node *new_node_block(Vector *nodes) {
+static Node *new_node_block(Scope *scope, Vector *nodes) {
   Node *node = new_node(ND_BLOCK, &tyVoid);
+  node->block.scope = scope;
   node->block.nodes = nodes;
   return node;
 }
@@ -822,12 +823,18 @@ static Node *expr(void) {
 }
 
 static Node *parse_block(void) {
-  Vector *nodes = new_vector();
+  assert(curfunc != NULL);
+  Scope *scope = enter_scope(curfunc, NULL);
+  Vector *nodes = NULL;
   for (;;) {
     if (consume(TK_RBRACE))
-      return new_node_block(nodes);
+      break;
+    if (nodes == NULL)
+      nodes = new_vector();
     vec_push(nodes, stmt());
   }
+  exit_scope();
+  return new_node_block(scope, nodes);
 }
 
 static Node *parse_if(void) {
@@ -908,16 +915,16 @@ static Node *parse_return(void) {
 
   Node *val = NULL;
   if (consume(TK_SEMICOL)) {
-    if (curfunc->defun->rettype->type != TY_VOID)
+    if (curfunc->rettype->type != TY_VOID)
       error("`return' required a value");
   } else {
     val = expr();
     if (!consume(TK_SEMICOL))
       error("`;' expected, but %s", current_line());
 
-    if (curfunc->defun->rettype->type == TY_VOID)
+    if (curfunc->rettype->type == TY_VOID)
       error("void function `return' a value");
-    val = new_node_cast(curfunc->defun->rettype, val, false);
+    val = new_node_cast(curfunc->rettype, val, false);
   }
   return new_node_return(val);
 }
@@ -1002,64 +1009,62 @@ static const Type *parse_type_modifier(const Type* type, bool allow_void) {
   return type;
 }
 
-static Node *parse_vardecl(void) {
+static bool parse_vardecl(Node **pnode) {
   assert(curfunc != NULL);
 
   Vector *inits = NULL;
-  for (;;) {
-    const Type *rawType = parse_raw_type();
-    if (rawType == NULL)
-      break;
+  const Type *rawType = parse_raw_type();
+  if (rawType == NULL)
+    return false;
 
-    do {
-      const Type *type = parse_type_modifier(rawType, false);
+  do {
+    const Type *type = parse_type_modifier(rawType, false);
 
-      Token *tok;
-      if (!(tok = consume(TK_IDENT)))
-        error("Ident expected, but %s", current_line());
-      const char *name = tok->ident;
+    Token *tok;
+    if (!(tok = consume(TK_IDENT)))
+      error("Ident expected, but %s", current_line());
+    const char *name = tok->ident;
 
-      if (consume(TK_LBRACKET)) {
-        if ((tok = consume(TK_INTLIT))) {  // TODO: Constant expression.
-          int count = tok->intval;
-          if (count < 0)
-            error("Array size must be greater than 0, but %d", count);
-          type = arrayof(type, count);
-          if (!consume(TK_RBRACKET))
-            error("`]' expected, but %s", current_line());
-        }
+    if (consume(TK_LBRACKET)) {
+      if ((tok = consume(TK_INTLIT))) {  // TODO: Constant expression.
+        int count = tok->intval;
+        if (count < 0)
+          error("Array size must be greater than 0, but %d", count);
+        type = arrayof(type, count);
+        if (!consume(TK_RBRACKET))
+          error("`]' expected, but %s", current_line());
       }
-      scope_add(curscope, name, type);
+    }
+    scope_add(curscope, name, type);
 
-      if (consume(TK_ASSIGN)) {
-        Node *val = expr();
-        Node *var = new_node_varref(name, type, false);
-        Node *node = new_node_bop(ND_ASSIGN, type, var, new_node_cast(type, val, false));
+    if (consume(TK_ASSIGN)) {
+      Node *val = expr();
+      Node *var = new_node_varref(name, type, false);
+      Node *node = new_node_bop(ND_ASSIGN, type, var, new_node_cast(type, val, false));
 
-        if (inits == NULL)
-          inits = new_vector();
-        vec_push(inits, node);
-      }
-    } while (consume(TK_COMMA));
+      if (inits == NULL)
+        inits = new_vector();
+      vec_push(inits, node);
+    }
+  } while (consume(TK_COMMA));
 
-    if (!consume(TK_SEMICOL))
-      error("Semicolon expected, but %s", current_line());
-  }
+  if (!consume(TK_SEMICOL))
+    error("Semicolon expected, but %s", current_line());
 
-  if (inits == NULL)
-    return NULL;
-  if (inits->len == 1)
-    return (Node*)inits->data[0];
-  return new_node_block(inits);
+  if (inits != NULL && inits->len == 1)
+    *pnode = inits->data[0];
+  else
+    *pnode = new_node_block(NULL, inits);
+  return true;
 }
 
 static Node *stmt(void) {
-  Node *vardecl = parse_vardecl();
-  if (vardecl != NULL)
+  Node *vardecl;
+  if (parse_vardecl(&vardecl))
     return vardecl;
 
   if (consume(TK_SEMICOL))
-    return new_node_block(NULL);
+    return new_node_block(NULL, NULL);
 
   if (consume(TK_LBRACE))
     return parse_block();
@@ -1145,13 +1150,11 @@ static Node *parse_defun(const Type *type, const char *ident) {
 
   if (consume(TK_LBRACE)) {  // Definition.
     Node *node = new_node_defun(type, ident, params);
-    curfunc = node;
+    curfunc = node->defun;
 
     Vector *stmts = new_vector();
     while (!consume(TK_RBRACE)) {
-      Node *st = stmt();
-      if (st != NULL)
-        vec_push(stmts, st);
+      vec_push(stmts, stmt());
     }
     node->defun->stmts = stmts;
     exit_scope();

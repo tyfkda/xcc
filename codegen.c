@@ -406,6 +406,7 @@ static void gen_defun(Node *node) {
       scope_size = (scope_size + size + align - 1) & -align;
       varinfo->offset = -scope_size;
     }
+    scope->size = scope_size;
     if (frame_size < scope_size)
       frame_size = scope_size;
   }
@@ -418,7 +419,7 @@ static void gen_defun(Node *node) {
   if (frame_size > 0) {
     SUB_IM32_RSP(frame_size);
     // Store parameters into local frame.
-    int len = len = defun->top_scope->vars->len;
+    int len = len = defun->top_scope->vars != NULL ? defun->top_scope->vars->len : 0;
     if (len > 6)
       error("Parameter count exceeds 6 (%d)", len);
     for (int i = 0; i < len; ++i) {
@@ -820,8 +821,14 @@ void gen(Node *node) {
 
   case ND_BLOCK:
     if (node->block.nodes != NULL) {
+      if (node->block.scope != NULL) {
+        assert(curscope == node->block.scope->parent);
+        curscope = node->block.scope;
+      }
       for (int i = 0, len = node->block.nodes->len; i < len; ++i)
         gen((Node*)node->block.nodes->data[i]);
+      if (node->block.scope != NULL)
+        curscope = curscope->parent;
     }
     break;
 

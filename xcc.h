@@ -242,6 +242,7 @@ typedef struct Node {
       Vector *args;
     } funcall;
     struct {
+      Scope *scope;
       Vector *nodes;
     } block;
     struct {
