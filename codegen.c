@@ -113,6 +113,7 @@ static void cast(const enum eType ltype, const enum eType rtype) {
     break;
   case TY_PTR:
     switch (rtype) {
+    case TY_ARRAY: return;
     default: break;
     }
     break;
@@ -120,6 +121,7 @@ static void cast(const enum eType ltype, const enum eType rtype) {
     break;
   }
 
+  fprintf(stderr, "ltype=%d, rtype=%d\n", ltype, rtype);
   assert(false);
 }
 
@@ -376,10 +378,8 @@ static void gen_varref(Node *node) {
   case TY_CHAR:  MOV_IND_RAX_AL(); break;
   case TY_INT:   MOV_IND_RAX_EAX(); break;
   case TY_LONG:  MOV_IND_RAX_RAX(); break;
-  case TY_PTR:
-    if (varinfo->type->type != TY_ARRAY)  // If the variable is array, use variable address as a pointer.
-      MOV_IND_RAX_RAX();
-    break;
+  case TY_PTR:   MOV_IND_RAX_RAX(); break;
+  case TY_ARRAY: break;  // Use variable address as a pointer.
   default: assert(false); break;
   }
 }
@@ -681,6 +681,7 @@ void gen(Node *node) {
     case TY_CHAR:  MOV_IND_RAX_AL(); break;
     case TY_INT:   MOV_IND_RAX_EAX(); break;
     case TY_PTR:   MOV_IND_RAX_RAX(); break;
+    case TY_ARRAY: break;
     default: assert(false); break;
     }
     return;

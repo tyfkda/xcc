@@ -133,6 +133,8 @@ typedef struct Type {
   };
 } Type;
 
+void dump_type(FILE *fp, const Type *type);
+
 typedef struct {
   const char *name;
   const Type *type;

@@ -64,6 +64,18 @@ void define_global(const Type *type, const char *name) {
 
 // Type
 
+void dump_type(FILE *fp, const Type *type) {
+  switch (type->type) {
+  case TY_VOID: fprintf(fp, "void"); break;
+  case TY_CHAR: fprintf(fp, "char"); break;
+  case TY_INT: fprintf(fp, "int"); break;
+  case TY_LONG: fprintf(fp, "long"); break;
+  case TY_PTR: dump_type(fp, type->ptrof); fprintf(fp, "*"); break;
+  case TY_ARRAY: dump_type(fp, type->ptrof); fprintf(fp, "[%d]", (int)type->array_size); break;
+  default: assert(false);
+  }
+}
+
 static bool is_number(enum eType type) {
   return type == TY_INT || type == TY_CHAR;
 }
@@ -97,6 +109,12 @@ static Type* ptrof(const Type *type) {
   ptr->type = TY_PTR;
   ptr->ptrof = type;
   return ptr;
+}
+
+static const Type *array_to_ptr(const Type *type) {
+  if (type->type != TY_ARRAY)
+    return type;
+  return ptrof(type->ptrof);
 }
 
 static Type* arrayof(const Type *type, size_t array_size) {
@@ -236,8 +254,16 @@ static Node *new_node_cast(const Type *type, Node *sub, bool is_explicit) {
         goto ok;
       break;
     case TY_PTR:
+      if (is_explicit)
+        goto ok;
       // void* is interchangable with any pointer type.
       if (type->ptrof->type == TY_VOID || sub->expType->ptrof->type == TY_VOID)
+        goto ok;
+      break;
+    case TY_ARRAY:
+      if (is_explicit)
+        goto ok;
+      if (same_type(type->ptrof, sub->expType->ptrof))
         goto ok;
       break;
     default:  break;
@@ -246,7 +272,7 @@ static Node *new_node_cast(const Type *type, Node *sub, bool is_explicit) {
   default:
     break;
   }
-  error("Cannot convert value from type %d to %d", sub->expType->type, type->type);
+  error("Cannot convert value from type %d to %d: %s", sub->expType->type, type->type, current_line());
   return NULL;
 
  ok:;
@@ -269,7 +295,7 @@ static Node *new_node_unary(enum NodeType type, const Type *expType, Node *sub) 
 }
 
 static Node *new_node_deref(Node *sub) {
-  if (sub->expType->type != TY_PTR)
+  if (sub->expType->type != TY_PTR && sub->expType->type != TY_ARRAY)
     error("Cannot dereference raw type");
   return new_node_unary(ND_DEREF, sub->expType->ptrof, sub);
 }
@@ -429,6 +455,8 @@ static Node *add_node(Node *lhs, Node *rhs) {
       return new_node_bop(ND_ADD, l->expType, l, r);
     case TY_PTR:
       return new_node_bop(ND_PTRADD, r->expType, r, l);
+    case TY_ARRAY:
+      return new_node_bop(ND_PTRADD, array_to_ptr(r->expType), r, l);
     default:
       break;
     }
@@ -438,7 +466,7 @@ static Node *add_node(Node *lhs, Node *rhs) {
     break;
   }
 
-  error("Illegal `+'");
+  error("Illegal `+' at %s", current_line());
   return NULL;
 }
 
@@ -472,6 +500,25 @@ static Node *sub_node(Node *lhs, Node *rhs) {
       if (!same_type(lhs->expType, rhs->expType))
         error("Different pointer sub");
       return new_node_bop(ND_PTRDIFF, &tyInt, lhs, rhs);  // TODO: size_t
+    case TY_ARRAY:
+      if (!same_type(lhs->expType->ptrof, rhs->expType->ptrof))
+        error("Different pointer sub");
+      return new_node_bop(ND_PTRDIFF, &tyInt, lhs, rhs);  // TODO: size_t
+    default:
+      break;
+    }
+    break;
+
+  case TY_ARRAY:
+    switch (rhs->expType->type) {
+    case TY_PTR:
+      if (!same_type(lhs->expType->ptrof, rhs->expType->ptrof))
+        error("Different pointer sub");
+      return new_node_bop(ND_PTRDIFF, &tyInt, lhs, rhs);  // TODO: size_t
+    case TY_ARRAY:
+      if (!same_type(lhs->expType, rhs->expType))
+        error("Different pointer sub");
+      return new_node_bop(ND_PTRDIFF, &tyInt, lhs, rhs);  // TODO: size_t
     default:
       break;
     }
@@ -481,7 +528,7 @@ static Node *sub_node(Node *lhs, Node *rhs) {
     break;
   }
 
-  error("Illegal `-'");
+  error("Illegal `-' at %s", current_line());
   return NULL;
 }
 
@@ -584,7 +631,26 @@ static const Type *parse_type_modifier(const Type* type, bool allow_void) {
   return type;
 }
 
-static bool parse_var_def(const Type **prawType, const Type** ptype, const char **pname) {
+static const Type *parse_var_def_suffix(const Type *type) {
+  if (!consume(TK_LBRACKET))
+    return type;
+  Token *tok;
+  int count;
+  if (consume(TK_RBRACKET)) {
+    count = -1;
+  } else if ((tok = consume(TK_INTLIT))) {  // TODO: Constant expression.
+    count = tok->intval;
+    if (count < 0)
+      error("Array size must be greater than 0, but %d", count);
+    if (!consume(TK_RBRACKET))
+      error("`]' expected, but %s", current_line());
+  } else {
+    error("syntax error: %s", current_line());
+  }
+  return arrayof(parse_var_def_suffix(type), count);
+}
+
+static bool parse_var_def(const Type **prawType, const Type** ptype, const char **pname, bool allow_void) {
   if (*prawType == NULL) {
     const Type *rawType = parse_raw_type();
     if (rawType == NULL)
@@ -592,25 +658,15 @@ static bool parse_var_def(const Type **prawType, const Type** ptype, const char 
     *prawType = rawType;
   }
 
-  const Type *type = parse_type_modifier(*prawType, false);
+  const Type *type = parse_type_modifier(*prawType, allow_void);
 
   Token *tok;
-  if (!(tok = consume(TK_IDENT)))
-    error("Ident expected, but %s", current_line());
-  const char *name = tok->ident;
-
-  while (consume(TK_LBRACKET)) {
-    int count;
-    if (consume(TK_LBRACKET)) {
-      count = -1;
-    } else if ((tok = consume(TK_INTLIT))) {  // TODO: Constant expression.
-      count = tok->intval;
-      if (count < 0)
-        error("Array size must be greater than 0, but %d", count);
-      if (!consume(TK_RBRACKET))
-        error("`]' expected, but %s", current_line());
-    }
-    type = arrayof(type, count);
+  const char *name = NULL;
+  if (!allow_void || type->type != TY_VOID) {
+    if (!(tok = consume(TK_IDENT)))
+      error("Ident expected, but %s", current_line());
+    name = tok->ident;
+    type = parse_var_def_suffix(type);
   }
 
   *ptype = type;
@@ -628,7 +684,7 @@ static StructInfo *parse_struct(void) {
     const Type *rawType = NULL;
     const Type *type;
     const char *name;
-    if (!parse_var_def(&rawType, &type, &name))
+    if (!parse_var_def(&rawType, &type, &name, false))
       error("type expected, but %s", current_line());
 
     if (!consume(TK_SEMICOL))
@@ -684,8 +740,6 @@ static Node *prim(void) {
           error("Undefined `%s'", tok->ident);
         type = varinfo->type;
       }
-      if (type->type == TY_ARRAY)
-        type = ptrof(type->ptrof);
       int global = varinfo == NULL;
       return new_node_varref(tok->ident, type, global);
     }
@@ -1050,7 +1104,7 @@ static bool parse_vardecl(Node **pnode) {
   do {
     const Type *type;
     const char *name;
-    if (!parse_var_def(&rawType, &type, &name)) {
+    if (!parse_var_def(&rawType, &type, &name, false)) {
       if (rawType != NULL)
         error("type expected, but %s", current_line());
       return false;
@@ -1141,20 +1195,22 @@ static Vector *funparams(void) {
   } else {
     params = new_vector();
     for (;;) {
-      const Type *type = parse_type_modifier(parse_raw_type(), params->len == 0);
-      if (type == NULL)
+      const Type *rawType = NULL;
+      const Type *type;
+      const char *name;
+      if (!parse_var_def(&rawType, &type, &name, params->len == 0))
         error("type expected, but %s", current_line());
+
       if (type->type == TY_VOID) {  // fun(void)
         if (!consume(TK_RPAR))
           error("`)' expected, but %s", current_line());
         break;
       }
 
-      Token *tok;
-      if (!(tok = consume(TK_IDENT)))
-        error("Ident expected, but %s", current_line());
+      // If the type is array, handle it as a pointer.
+      type = array_to_ptr(type);
 
-      var_add(params, tok->ident, type);
+      var_add(params, name, type);
       if (consume(TK_RPAR))
         break;
       if (consume(TK_COMMA))

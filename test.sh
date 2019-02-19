@@ -22,7 +22,7 @@ try_direct() {
 }
 
 try() {
-  try_direct "$1" "$2" "int func(){$3} void main(){ _exit(func()); }"
+  try_direct "$1" "$2" "int func(void){$3} void main(){ _exit(func()); }"
 }
 
 try_output_direct() {
@@ -129,6 +129,7 @@ try '&& shortcut' 1 'int x = 1; 0 && (x = 0); return x;'
 try 'f || t' 1 'return 0 || 2;'
 try '|| shortcut' 1 'int x = 1; 1 || (x = 0); return x;'
 try 'block scope' 1 'int x = 1; { int x = 2; } return x;'
+try 'nested-array' 1 'char a[2][3]; a[1][0] = 1; return ((char*)a)[3];'
 
 # error cases
 echo ''
