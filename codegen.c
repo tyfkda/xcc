@@ -510,17 +510,96 @@ static void gen_funcall(Node *node) {
 }
 
 static void gen_if(Node *node) {
-  const char * flabel = alloc_label();
+  const char *flabel = alloc_label();
   gen_cond_jmp(node->if_.cond, false, flabel);
   gen(node->if_.tblock);
   if (node->if_.fblock == NULL) {
     add_label(flabel);
   } else {
-    const char * nlabel = alloc_label();
+    const char *nlabel = alloc_label();
     JMP32(nlabel);
     add_label(flabel);
     gen(node->if_.fblock);
     add_label(nlabel);
+  }
+}
+
+static Vector *cur_case_values;
+static Vector *cur_case_labels;
+
+static void gen_switch(Node *node) {
+  Vector *save_case_values = cur_case_values;
+  Vector *save_case_labels = cur_case_labels;
+  const char *save_break;
+  const char *l_break = push_break_label(&save_break);
+
+  Vector *labels = new_vector();
+  Vector *case_values = node->switch_.case_values;
+  int len = case_values->len;
+  for (int i = 0; i < len; ++i) {
+    const char *label = alloc_label();
+    vec_push(labels, label);
+  }
+  vec_push(labels, alloc_label());  // len+0: Extra label for default.
+  vec_push(labels, l_break);  // len+1: Extra label for break.
+
+  Node *value = node->switch_.value;
+  gen(value);
+
+  enum eType valtype = value->expType->type;
+  for (int i = 0; i < len; ++i) {
+    intptr_t x = (intptr_t)case_values->data[i];
+    switch (valtype) {
+    case TY_INT:  CMP_IM32_EAX(x); break;
+    case TY_CHAR: CMP_IM8_AL(x); break;
+    case TY_LONG: MOV_IM64_RDI(x); CMP_RDI_RAX(); break;
+    default: assert(false); break;
+    }
+    JE32(labels->data[i]);
+  }
+  JMP32(labels->data[len]);
+
+  cur_case_values = case_values;
+  cur_case_labels = labels;
+
+  gen(node->switch_.body);
+
+  if (!node->switch_.has_default)
+    add_label(labels->data[len]);  // No default: Locate at the end of switch statement.
+  add_label(l_break);
+
+  cur_case_values = save_case_values;
+  cur_case_labels = save_case_labels;
+  pop_break_label(save_break);
+}
+
+static void gen_label(Node *node) {
+  switch (node->label.type) {
+  case lCASE:
+    {
+      assert(cur_case_values != NULL);
+      assert(cur_case_labels != NULL);
+      intptr_t x = node->label.case_value;
+      int i, len = cur_case_values->len;
+      for (i = 0; i < len; ++i) {
+        if ((intptr_t)cur_case_values->data[i] == x)
+          break;
+      }
+      assert(i < len);
+      assert(i < cur_case_labels->len);
+      add_label(cur_case_labels->data[i]);
+    }
+    break;
+  case lDEFAULT:
+    {
+      assert(cur_case_values != NULL);
+      assert(cur_case_labels != NULL);
+      int i = cur_case_values->len;  // Label for default is stored at the size of values.
+      assert(i < cur_case_labels->len);
+      add_label(cur_case_labels->data[i]);
+    }
+    break;
+  default: assert(false); break;
   }
 }
 
@@ -829,6 +908,14 @@ void gen(Node *node) {
 
   case ND_IF:
     gen_if(node);
+    break;
+
+  case ND_SWITCH:
+    gen_switch(node);
+    break;
+
+  case ND_LABEL:
+    gen_label(node);
     break;
 
   case ND_WHILE:

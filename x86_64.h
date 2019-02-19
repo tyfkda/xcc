@@ -92,9 +92,11 @@
 #define CMP_AL_DIL()     ADD_CODE(0x40, 0x38, 0xc7)  // cmp %al,%dil
 #define CMP_EAX_EDI()    ADD_CODE(0x39, 0xc7)  // cmp %eax,%edi
 #define CMP_RAX_RDI()    ADD_CODE(0x48, 0x39, 0xc7)  // cmp %rax,%rdi
+#define CMP_RDI_RAX()    ADD_CODE(0x48, 0x39, 0xf8)  // cmp %rdi,%rax
 #define CMP_IM8_AL(x)    ADD_CODE(0x3c, x)  // cmp $x,%al
 #define CMP_IM8_EAX(x)   ADD_CODE(0x83, 0xf8, x)  // cmp $x,%eax
 #define CMP_IM8_RAX(x)   ADD_CODE(0x48, 0x83, 0xf8, x)  // cmp $x,%rax
+#define CMP_IM32_EAX(x)  ADD_CODE(0x3d, IM32(x))  // cmp $im32,%eax
 #define INCB_IND_RAX()   ADD_CODE(0xfe, 0x00)  // incb (%rax)
 #define INCL_IND_RAX()   ADD_CODE(0xff, 0x00)  // incl (%rax)
 #define DECB_IND_RAX()   ADD_CODE(0xfe, 0x08)  // decb (%rax)

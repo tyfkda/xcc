@@ -31,6 +31,9 @@ static enum TokenType reserved_word(const char *word) {
   } table[] = {
     { "if", TK_IF },
     { "else", TK_ELSE },
+    { "switch", TK_SWITCH },
+    { "case", TK_CASE },
+    { "default", TK_DEFAULT },
     { "do", TK_DO },
     { "while", TK_WHILE },
     { "for", TK_FOR },
@@ -247,7 +250,7 @@ static Token *get_token(void) {
       break;
     }
 
-    if (strchr("+-*/%&!(){}[]<>=;,.", *p) != NULL) {
+    if (strchr("+-*/%&!(){}[]<>=:;,.", *p) != NULL) {
       tok = alloc_token((enum TokenType)*p, p);
       ++p;
       break;

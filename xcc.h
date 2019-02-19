@@ -1,5 +1,6 @@
 #pragma once
 
+#include <stdbool.h>
 #include <stdint.h>  // uintptr_t
 #include <stdio.h>  // FILE
 
@@ -26,6 +27,7 @@ enum TokenType {
   TK_LBRACKET = '[',
   TK_RBRACKET = ']',
   TK_ASSIGN = '=',
+  TK_COLON = ':',
   TK_SEMICOL = ';',
   TK_COMMA = ',',
   TK_DOT = '.',
@@ -51,6 +53,9 @@ enum TokenType {
   TK_DEC,
   TK_IF,
   TK_ELSE,
+  TK_SWITCH,
+  TK_CASE,
+  TK_DEFAULT,
   TK_DO,
   TK_WHILE,
   TK_FOR,
@@ -191,6 +196,7 @@ enum NodeType {
   ND_DEREF,
   ND_MEMBER,  // x.member or x->member
   ND_IF,
+  ND_SWITCH,
   ND_WHILE,
   ND_DO_WHILE,
   ND_FOR,
@@ -198,6 +204,7 @@ enum NodeType {
   ND_CONTINUE,
   ND_RETURN,
   ND_CAST,
+  ND_LABEL,  // case, default
 };
 
 typedef struct Node {
@@ -234,6 +241,18 @@ typedef struct Node {
       struct Node *tblock;
       struct Node *fblock;
     } if_;
+    struct {
+      struct Node *value;
+      struct Node *body;
+      Vector *case_values;
+      bool has_default;
+    } switch_;
+    struct {
+      enum {lCASE, lDEFAULT} type;
+      union {
+        int case_value;
+      };
+    } label;
     struct {
       struct Node *cond;
       struct Node *body;

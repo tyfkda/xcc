@@ -207,6 +207,7 @@ const int LF_CONTINUE = 1 << 0;
 
 static Defun *curfunc;
 static int curloopflag;
+static Node *curswitch;
 
 static Node *new_node(enum NodeType type, const Type *expType) {
   Node *node = malloc(sizeof(Node));
@@ -379,6 +380,28 @@ static Node *new_node_if(Node *cond, Node *tblock, Node *fblock) {
   node->if_.cond = cond;
   node->if_.tblock = tblock;
   node->if_.fblock = fblock;
+  return node;
+}
+
+static Node *new_node_switch(Node *value) {
+  Node *node = new_node(ND_SWITCH, &tyVoid);
+  node->switch_.value = value;
+  node->switch_.body = NULL;
+  node->switch_.case_values = NULL;
+  node->switch_.has_default = false;
+  return node;
+}
+
+static Node *new_node_case(int value) {
+  Node *node = new_node(ND_LABEL, &tyVoid);
+  node->label.type = lCASE;
+  node->label.case_value = value;
+  return node;
+}
+
+static Node *new_node_default(void) {
+  Node *node = new_node(ND_LABEL, &tyVoid);
+  node->label.type = lDEFAULT;
   return node;
 }
 
@@ -1003,21 +1026,6 @@ static Node *expr(void) {
   return assign();
 }
 
-static Node *parse_block(void) {
-  assert(curfunc != NULL);
-  Scope *scope = enter_scope(curfunc, NULL);
-  Vector *nodes = NULL;
-  for (;;) {
-    if (consume(TK_RBRACE))
-      break;
-    if (nodes == NULL)
-      nodes = new_vector();
-    vec_push(nodes, stmt());
-  }
-  exit_scope();
-  return new_node_block(scope, nodes);
-}
-
 static Node *parse_if(void) {
   if (consume(TK_LPAR)) {
     Node *cond = expr();
@@ -1034,12 +1042,81 @@ static Node *parse_if(void) {
   return NULL;
 }
 
+static Node *parse_switch(void) {
+  if (consume(TK_LPAR)) {
+    Node *value = expr();
+    if (consume(TK_RPAR)) {
+      Node *swtch = new_node_switch(value);
+
+      Node *save_switch = curswitch;
+      int save_flag = curloopflag;
+      curloopflag |= LF_BREAK;
+      curswitch = swtch;
+
+      swtch->switch_.body = stmt();
+
+      curloopflag = save_flag;
+      curswitch = save_switch;
+
+      return swtch;
+    }
+  }
+  error("Parse `if' failed: %s", current_line());
+  return NULL;
+}
+
+static Node *parse_case(void) {
+  if (curswitch == NULL)
+    error("`case' cannot use outside of `switch`: %s", current_line());
+
+  Node *valnode = expr();
+  intptr_t value;
+  switch (valnode->type) {  // TODO: Accept const expression.
+  case ND_INT:  value = valnode->intval; break;
+  case ND_CHAR: value = valnode->charval; break;
+  case ND_LONG: value = valnode->longval; break;
+  default:
+    error("Cannot use expression, but %s", current_line());
+    break;
+  }
+  if (!consume(TK_COLON))
+    error("`:' expected, but %s", current_line());
+
+  Vector *values = curswitch->switch_.case_values;
+  if (values == NULL)
+    curswitch->switch_.case_values = values = new_vector();
+
+  // Check duplication.
+  for (int i = 0, len = values->len; i < len; ++i) {
+    if ((intptr_t)values->data[i] == value)
+      error("Case value `%lld' already defined: %s", value, current_line());
+  }
+
+  vec_push(values, (void*)value);
+
+  return new_node_case(value);
+}
+
+static Node *parse_default(void) {
+  if (curswitch == NULL)
+    error("`default' cannot use outside of `switch`: %s", current_line());
+  if (curswitch->switch_.has_default)
+    error("`default' already defined in `switch`: %s", current_line());
+
+  if (!consume(TK_COLON))
+    error("`:' expected, but %s", current_line());
+
+  curswitch->switch_.has_default = true;
+
+  return new_node_default();
+}
+
 static Node *parse_while(void) {
   if (consume(TK_LPAR)) {
     Node *cond = expr();
     if (consume(TK_RPAR)) {
       int save_flag = curloopflag;
-      curloopflag = LF_BREAK | LF_CONTINUE;
+      curloopflag |= LF_BREAK | LF_CONTINUE;
       Node *body = stmt();
       curloopflag = save_flag;
 
@@ -1052,7 +1129,7 @@ static Node *parse_while(void) {
 
 static Node *parse_do_while(void) {
   int save_flag = curloopflag;
-  curloopflag = LF_BREAK | LF_CONTINUE;
+  curloopflag |= LF_BREAK | LF_CONTINUE;
   Node *body = stmt();
   curloopflag = save_flag;
 
@@ -1075,7 +1152,7 @@ static Node *parse_for(void) {
         (consume(TK_SEMICOL) || (cond = expr(), consume(TK_SEMICOL))) &&
         (consume(TK_RPAR) || (post = expr(), consume(TK_RPAR)))) {
       int save_flag = curloopflag;
-      curloopflag = LF_BREAK | LF_CONTINUE;
+      curloopflag |= LF_BREAK | LF_CONTINUE;
       Node *body = stmt();
       curloopflag= save_flag;
       return new_node_for(pre, cond, post, body);
@@ -1159,6 +1236,34 @@ static bool parse_vardecl(Node **pnode) {
   return true;
 }
 
+// Multiple stmt-s, also accept `case` and `default`.
+static Vector *read_stmts(void) {
+  Vector *nodes = NULL;
+  for (;;) {
+    if (consume(TK_RBRACE))
+      return nodes;
+    if (nodes == NULL)
+      nodes = new_vector();
+
+    Node *node;
+    if (consume(TK_CASE))
+      node = parse_case();
+    else if (consume(TK_DEFAULT))
+      node = parse_default();
+    else
+      node = stmt();
+    vec_push(nodes, node);
+  }
+}
+
+static Node *parse_block(void) {
+  assert(curfunc != NULL);
+  Scope *scope = enter_scope(curfunc, NULL);
+  Vector *nodes = read_stmts();
+  exit_scope();
+  return new_node_block(scope, nodes);
+}
+
 static Node *stmt(void) {
   Node *vardecl;
   if (parse_vardecl(&vardecl))
@@ -1172,6 +1277,9 @@ static Node *stmt(void) {
 
   if (consume(TK_IF))
     return parse_if();
+
+  if (consume(TK_SWITCH))
+    return parse_switch();
 
   if (consume(TK_WHILE))
     return parse_while();
@@ -1256,10 +1364,7 @@ static Node *parse_defun(const Type *type, const char *ident) {
     Node *node = new_node_defun(type, ident, params);
     curfunc = node->defun;
 
-    Vector *stmts = new_vector();
-    while (!consume(TK_RBRACE)) {
-      vec_push(stmts, stmt());
-    }
+    Vector *stmts = read_stmts();
     node->defun->stmts = stmts;
     exit_scope();
     return node;
