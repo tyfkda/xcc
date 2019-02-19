@@ -12,8 +12,7 @@ static const Type tyLong = {.type=TY_LONG, .ptrof=NULL};
 static const Type tyStr = {.type=TY_PTR, .ptrof=&tyChar};
 #define tyBool  tyInt
 
-static const Type *parse_raw_type(void);
-static const Type *parse_type_modifier(const Type* type, bool allow_void);
+static StructInfo *parse_struct(void);
 static Node *stmt(void);
 static Node *expr(void);
 
@@ -531,6 +530,119 @@ Node *member_access(Node *target, enum TokenType toktype) {
   return new_node_member(target, name, varinfo->type);
 }
 
+static const Type *parse_raw_type(void) {
+  Type *type = NULL;
+
+  if (consume(TK_STRUCT)) {
+    const char *name = NULL;
+    Token *tok;
+    if ((tok = consume(TK_IDENT)))
+      name = tok->ident;
+
+    StructInfo *sinfo;
+    if (consume(TK_LBRACE)) {  // Definition
+      sinfo = parse_struct();
+      if (name != NULL)
+        map_put(struct_map, name, sinfo);  // TODO: Already defined?
+    } else {
+      sinfo = (StructInfo*)map_get(struct_map, name);
+      if (sinfo == NULL)
+        error("Undefined struct: %s", name);
+    }
+    type = malloc(sizeof(*type));
+    type->type = TY_STRUCT;
+    type->struct_ = sinfo;
+  } else {
+    static const enum TokenType kKeywords[] = {
+      TK_KWVOID, TK_KWCHAR, TK_KWINT, TK_KWLONG,
+    };
+    static const enum eType kTypes[] = {
+      TY_VOID, TY_CHAR, TY_INT, TY_LONG,
+    };
+    const int N = sizeof(kTypes) / sizeof(*kTypes);
+    for (int i = 0; i < N; ++i) {
+      if (consume(kKeywords[i])) {
+        type = malloc(sizeof(*type));
+        type->type = kTypes[i];
+        type->ptrof = NULL;
+        break;
+      }
+    }
+  }
+  return type;
+}
+
+static const Type *parse_type_modifier(const Type* type, bool allow_void) {
+  if (type == NULL)
+    return NULL;
+
+  while (consume(TK_MUL))
+    type = ptrof(type);
+
+  if (!allow_void && type->type == TY_VOID)
+    error("`void' not allowed");
+  return type;
+}
+
+static bool parse_var_def(const Type **prawType, const Type** ptype, const char **pname) {
+  if (*prawType == NULL) {
+    const Type *rawType = parse_raw_type();
+    if (rawType == NULL)
+      return false;
+    *prawType = rawType;
+  }
+
+  const Type *type = parse_type_modifier(*prawType, false);
+
+  Token *tok;
+  if (!(tok = consume(TK_IDENT)))
+    error("Ident expected, but %s", current_line());
+  const char *name = tok->ident;
+
+  while (consume(TK_LBRACKET)) {
+    int count;
+    if (consume(TK_LBRACKET)) {
+      count = -1;
+    } else if ((tok = consume(TK_INTLIT))) {  // TODO: Constant expression.
+      count = tok->intval;
+      if (count < 0)
+        error("Array size must be greater than 0, but %d", count);
+      if (!consume(TK_RBRACKET))
+        error("`]' expected, but %s", current_line());
+    }
+    type = arrayof(type, count);
+  }
+
+  *ptype = type;
+  *pname = name;
+
+  return true;
+}
+
+static StructInfo *parse_struct(void) {
+  Vector *members = new_vector();
+  for (;;) {
+    if (consume(TK_RBRACE))
+      break;
+
+    const Type *rawType = NULL;
+    const Type *type;
+    const char *name;
+    if (!parse_var_def(&rawType, &type, &name))
+      error("type expected, but %s", current_line());
+
+    if (!consume(TK_SEMICOL))
+      error("semicolon expected, but %s", current_line());
+    var_add(members, name, type);
+  }
+
+  StructInfo *sinfo = malloc(sizeof(*sinfo));
+  sinfo->members = members;
+  sinfo->size = 0;
+  sinfo->align = 0;
+  return sinfo;
+}
+
 static Node *prim(void) {
   if (consume(TK_LPAR)) {
     const Type *type = parse_raw_type();
@@ -929,103 +1041,23 @@ static Node *parse_return(void) {
   return new_node_return(val);
 }
 
-static StructInfo *parse_struct(void) {
-  Vector *members = new_vector();
-  for (;;) {
-    if (consume(TK_RBRACE))
-      break;
-    const Type *type = parse_raw_type();
-    if (type == NULL)
-      error("type expected, but %s", current_line());
-
-    type = parse_type_modifier(type, false);
-    Token *tok;
-    if (!(tok = consume(TK_IDENT)))
-      error("ident expected, but %s", current_line());
-    const char *name = tok->ident;
-    if (!consume(TK_SEMICOL))
-      error("semicolon expected, but %s", current_line());
-    var_add(members, name, type);
-  }
-
-  StructInfo *sinfo = malloc(sizeof(*sinfo));
-  sinfo->members = members;
-  sinfo->size = 0;
-  sinfo->align = 0;
-  return sinfo;
-}
-
-static const Type *parse_raw_type(void) {
-  Type *type = NULL;
-
-  if (consume(TK_STRUCT)) {
-    const char *name = NULL;
-    Token *tok;
-    if ((tok = consume(TK_IDENT)))
-      name = tok->ident;
-
-    StructInfo *sinfo;
-    if (consume(TK_LBRACE)) {  // Definition
-      sinfo = parse_struct();
-      if (name != NULL)
-        map_put(struct_map, name, sinfo);  // TODO: Already defined?
-    } else {
-      sinfo = (StructInfo*)map_get(struct_map, name);
-      if (sinfo == NULL)
-        error("Undefined struct: %s", name);
-    }
-    type = malloc(sizeof(*type));
-    type->type = TY_STRUCT;
-    type->struct_ = sinfo;
-  } else {
-    static const enum TokenType kKeywords[] = {
-      TK_KWVOID, TK_KWCHAR, TK_KWINT, TK_KWLONG,
-    };
-    static const enum eType kTypes[] = {
-      TY_VOID, TY_CHAR, TY_INT, TY_LONG,
-    };
-    const int N = sizeof(kTypes) / sizeof(*kTypes);
-    for (int i = 0; i < N; ++i) {
-      if (consume(kKeywords[i])) {
-        type = malloc(sizeof(*type));
-        type->type = kTypes[i];
-        type->ptrof = NULL;
-        break;
-      }
-    }
-  }
-  return type;
-}
-
-static const Type *parse_type_modifier(const Type* type, bool allow_void) {
-  if (type == NULL)
-    return NULL;
-
-  while (consume(TK_MUL))
-    type = ptrof(type);
-
-  if (!allow_void && type->type == TY_VOID)
-    error("`void' not allowed");
-  return type;
-}
-
 static bool parse_vardecl(Node **pnode) {
   assert(curfunc != NULL);
 
   Vector *inits = NULL;
-  const Type *rawType = parse_raw_type();
-  if (rawType == NULL)
-    return false;
+  const Type *rawType = NULL;
 
   do {
-    const Type *type = parse_type_modifier(rawType, false);
-
-    Token *tok;
-    if (!(tok = consume(TK_IDENT)))
-      error("Ident expected, but %s", current_line());
-    const char *name = tok->ident;
+    const Type *type;
+    const char *name;
+    if (!parse_var_def(&rawType, &type, &name)) {
+      if (rawType != NULL)
+        error("type expected, but %s", current_line());
+      return false;
+    }
 
     if (consume(TK_LBRACKET)) {
+      Token *tok;
       if ((tok = consume(TK_INTLIT))) {  // TODO: Constant expression.
         int count = tok->intval;
         if (count < 0)
@@ -1121,6 +1153,7 @@ static Vector *funparams(void) {
       Token *tok;
       if (!(tok = consume(TK_IDENT)))
         error("Ident expected, but %s", current_line());
+
       var_add(params, tok->ident, type);
       if (consume(TK_RPAR))
         break;
