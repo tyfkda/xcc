@@ -124,12 +124,67 @@ static Type* new_func_type(const Type *ret, const Vector *params) {
   return f;
 }
 
+// Scope
+
+Scope *new_scope(Scope *parent, Vector *vars) {
+  Scope *scope = malloc(sizeof(*scope));
+  scope->parent = parent;
+  scope->vars = vars;
+  return scope;
+}
+
+VarInfo *scope_find(Scope *scope, const char *name) {
+  for (;; scope = scope->parent) {
+    if (scope == NULL)
+      return NULL;
+    if (scope->vars != NULL) {
+      int idx = var_find(scope->vars, name);
+      if (idx >= 0)
+        return (VarInfo*)scope->vars->data[idx];
+    }
+  }
+}
+
+static void scope_add(Scope *scope, const char *name, const Type *type) {
+  if (scope->vars == NULL)
+    scope->vars = new_vector();
+  var_add(scope->vars, name, type);
+}
+
+// Defun
+
+static Scope *curscope;
+
+static Scope *enter_scope(Defun *defun, Vector *vars) {
+  Scope *scope = new_scope(curscope, vars);
+  curscope = scope;
+  vec_push(defun->all_scopes, scope);
+  return scope;
+}
+
+static void exit_scope(void) {
+  assert(curscope != NULL);
+  curscope = curscope->parent;
+}
+
+static Defun *new_defun(const Type *rettype, const char *name, Vector *params) {
+  Defun *defun = malloc(sizeof(*defun));
+  defun->rettype = rettype;
+  defun->name = name;
+  defun->stmts = NULL;
+  defun->all_scopes = new_vector();
+  defun->ret_label = NULL;
+  defun->top_scope = enter_scope(defun, params);
+
+  return defun;
+}
+
 //
 
 const int LF_BREAK = 1 << 0;
 const int LF_CONTINUE = 1 << 0;
 
-static Node *curfunc;
+static Defun *curfunc;
 static int curloopflag;
 
 static Node *new_node(enum NodeType type, const Type *expType) {
@@ -259,15 +314,8 @@ static Node *new_node_member(Node *target, const char *name, const Type *expType
 }
 
 static Node *new_node_defun(const Type *rettype, const char *name, Vector *params) {
-  Vector *lvars = params != NULL ? params : new_vector();
-
   Node *node = new_node(ND_DEFUN, &tyVoid);
-  node->defun.rettype = rettype;
-  node->defun.name = name;
-  node->defun.param_count = params != NULL ? params->len : -1;
-  node->defun.lvars = lvars;
-  node->defun.stmts = NULL;
-  node->defun.ret_label = NULL;
+  node->defun = new_defun(rettype, name, params);
   return node;
 }
 
@@ -279,8 +327,9 @@ static Node *new_node_funcall(Node *func, Vector *args) {
   return node;
 }
 
-static Node *new_node_block(Vector *nodes) {
+static Node *new_node_block(Scope *scope, Vector *nodes) {
   Node *node = new_node(ND_BLOCK, &tyVoid);
+  node->block.scope = scope;
   node->block.nodes = nodes;
   return node;
 }
@@ -514,9 +563,9 @@ static Node *prim(void) {
       error("Cannot use variable outside of function: `%s'", tok->ident);
     } else {
       const Type *type = NULL;
-      int idx = var_find(curfunc->defun.lvars, tok->ident);
-      if (idx >= 0) {
-        type = ((VarInfo*)curfunc->defun.lvars->data[idx])->type;
+      VarInfo *varinfo = scope_find(curscope, tok->ident);
+      if (varinfo != NULL) {
+        type = varinfo->type;
       } else {
         VarInfo *varinfo = find_global(tok->ident);
         if (varinfo == NULL)
@@ -525,7 +574,7 @@ static Node *prim(void) {
       }
       if (type->type == TY_ARRAY)
         type = ptrof(type->ptrof);
-      int global = idx < 0;
+      int global = varinfo == NULL;
       return new_node_varref(tok->ident, type, global);
     }
   } else {
@@ -774,12 +823,18 @@ static Node *expr(void) {
 }
 
 static Node *parse_block(void) {
-  Vector *nodes = new_vector();
+  assert(curfunc != NULL);
+  Scope *scope = enter_scope(curfunc, NULL);
+  Vector *nodes = NULL;
   for (;;) {
     if (consume(TK_RBRACE))
-      return new_node_block(nodes);
+      break;
+    if (nodes == NULL)
+      nodes = new_vector();
     vec_push(nodes, stmt());
   }
+  exit_scope();
+  return new_node_block(scope, nodes);
 }
 
 static Node *parse_if(void) {
@@ -860,16 +915,16 @@ static Node *parse_return(void) {
 
   Node *val = NULL;
   if (consume(TK_SEMICOL)) {
-    if (curfunc->defun.rettype->type != TY_VOID)
+    if (curfunc->rettype->type != TY_VOID)
       error("`return' required a value");
   } else {
     val = expr();
     if (!consume(TK_SEMICOL))
       error("`;' expected, but %s", current_line());
 
-    if (curfunc->defun.rettype->type == TY_VOID)
+    if (curfunc->rettype->type == TY_VOID)
       error("void function `return' a value");
-    val = new_node_cast(curfunc->defun.rettype, val, false);
+    val = new_node_cast(curfunc->rettype, val, false);
   }
   return new_node_return(val);
 }
@@ -954,50 +1009,62 @@ static const Type *parse_type_modifier(const Type* type, bool allow_void) {
   return type;
 }
 
-static void parse_vardecl(Vector *stmts) {
+static bool parse_vardecl(Node **pnode) {
   assert(curfunc != NULL);
 
-  for (;;) {
-    const Type *rawType = parse_raw_type();
-    if (rawType == NULL)
-      return;
+  Vector *inits = NULL;
+  const Type *rawType = parse_raw_type();
+  if (rawType == NULL)
+    return false;
 
-    do {
-      const Type *type = parse_type_modifier(rawType, false);
+  do {
+    const Type *type = parse_type_modifier(rawType, false);
 
-      Token *tok;
-      if (!(tok = consume(TK_IDENT)))
-        error("Ident expected, but %s", current_line());
-      const char *name = tok->ident;
+    Token *tok;
+    if (!(tok = consume(TK_IDENT)))
+      error("Ident expected, but %s", current_line());
+    const char *name = tok->ident;
 
-      if (consume(TK_LBRACKET)) {
-        if ((tok = consume(TK_INTLIT))) {  // TODO: Constant expression.
-          int count = tok->intval;
-          if (count < 0)
-            error("Array size must be greater than 0, but %d", count);
-          type = arrayof(type, count);
-          if (!consume(TK_RBRACKET))
-            error("`]' expected, but %s", current_line());
-        }
+    if (consume(TK_LBRACKET)) {
+      if ((tok = consume(TK_INTLIT))) {  // TODO: Constant expression.
+        int count = tok->intval;
+        if (count < 0)
+          error("Array size must be greater than 0, but %d", count);
+        type = arrayof(type, count);
+        if (!consume(TK_RBRACKET))
+          error("`]' expected, but %s", current_line());
       }
-      var_add(curfunc->defun.lvars, name, type);
+    }
+    scope_add(curscope, name, type);
 
-      if (consume(TK_ASSIGN)) {
-        Node *val = expr();
-        Node *var = new_node_varref(name, type, false);
-        Node *node = new_node_bop(ND_ASSIGN, type, var, new_node_cast(type, val, false));
-        vec_push(stmts, node);
-      }
-    } while (consume(TK_COMMA));
+    if (consume(TK_ASSIGN)) {
+      Node *val = expr();
+      Node *var = new_node_varref(name, type, false);
+      Node *node = new_node_bop(ND_ASSIGN, type, var, new_node_cast(type, val, false));
 
-    if (!consume(TK_SEMICOL))
-      error("Semicolon expected, but %s", current_line());
-  }
+      if (inits == NULL)
+        inits = new_vector();
+      vec_push(inits, node);
+    }
+  } while (consume(TK_COMMA));
+
+  if (!consume(TK_SEMICOL))
+    error("Semicolon expected, but %s", current_line());
+
+  if (inits != NULL && inits->len == 1)
+    *pnode = inits->data[0];
+  else
+    *pnode = new_node_block(NULL, inits);
+  return true;
 }
 
 static Node *stmt(void) {
+  Node *vardecl;
+  if (parse_vardecl(&vardecl))
+    return vardecl;
+
   if (consume(TK_SEMICOL))
-    return new_node_block(NULL);
+    return new_node_block(NULL, NULL);
 
   if (consume(TK_LBRACE))
     return parse_block();
@@ -1065,6 +1132,38 @@ static Vector *funparams(void) {
   return params;
 }
 
+static Node *parse_defun(const Type *type, const char *ident) {
+  Vector *params = funparams();
+
+  VarInfo *def = find_global(ident);
+  if (def == NULL) {
+    define_global(new_func_type(type, params), ident);
+  } else {
+    if (def->type->type != TY_FUNC)
+      error("Definition conflict: `%s'", ident);
+    // TODO: Check type.
+    // TODO: Check duplicated definition.
+  }
+
+  if (consume(TK_SEMICOL))  // Prototype declaration.
+    return NULL;
+
+  if (consume(TK_LBRACE)) {  // Definition.
+    Node *node = new_node_defun(type, ident, params);
+    curfunc = node->defun;
+
+    Vector *stmts = new_vector();
+    while (!consume(TK_RBRACE)) {
+      vec_push(stmts, stmt());
+    }
+    node->defun->stmts = stmts;
+    exit_scope();
+    return node;
+  }
+  error("Defun failed: %s", current_line());
+  return NULL;
+}
+
 static Node *toplevel(void) {
   const Type *type = parse_raw_type();
   if (type != NULL) {
@@ -1084,37 +1183,12 @@ static Node *toplevel(void) {
       }
 
       if (consume(TK_LPAR)) {  // Function.
-        Vector *params = funparams();
-
-        VarInfo *def = find_global(ident);
-        if (def == NULL) {
-          define_global(new_func_type(type, params), ident);
-        } else {
-          if (def->type->type != TY_FUNC)
-            error("Definition conflict: `%s'", ident);
-          // TODO: Check type.
-          // TODO: Check duplicated definition.
-        }
-
-        if (consume(TK_SEMICOL))  // Prototype declaration.
-          return NULL;
-        if (consume(TK_LBRACE)) {  // Definition.
-          Node *node = new_node_defun(type, ident, params);
-          curfunc = node;
-
-          Vector *stmts = new_vector();
-          parse_vardecl(stmts);
-
-          while (!consume(TK_RBRACE)) {
-            Node *st = stmt();
-            vec_push(stmts, st);
-          }
-          node->defun.stmts = stmts;
-          return node;
-        }
+        return parse_defun(type, ident);
       }
+      error("`(' expected, but %s", current_line());
+      return NULL;
     }
-    error("Defun failed: %s", current_line());
+    error("ident expected, but %s", current_line());
     return NULL;
   }
   error("Toplevel, %s", current_line());

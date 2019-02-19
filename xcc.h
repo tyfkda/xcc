@@ -136,10 +136,37 @@ typedef struct Type {
 typedef struct {
   const char *name;
   const Type *type;
+
+  // For codegen.
   int offset;
 } VarInfo;
 
 Map *struct_map;
+
+// Scope
+
+typedef struct Scope {
+  struct Scope *parent;
+  Vector *vars;
+
+  // For codegen.
+  int size;
+} Scope;
+
+VarInfo *scope_find(Scope *scope, const char *name);
+
+// Defun
+
+typedef struct {
+  const Type *rettype;
+  const char *name;
+  Scope *top_scope;  // = params
+  Vector *stmts;
+  Vector *all_scopes;
+
+  // For codegen.
+  const char *ret_label;
+} Defun;
 
 // Node
 
@@ -209,21 +236,13 @@ typedef struct Node {
       const char *ident;
       int global;
     } varref;
-    struct {
-      const Type *rettype;
-      const char *name;
-      Vector *lvars;
-      Vector *stmts;
-      int param_count;
-
-      // For codegen.
-      const char *ret_label;
-    } defun;
+    Defun* defun;
     struct {
       struct Node *func;
       Vector *args;
     } funcall;
     struct {
+      Scope *scope;
       Vector *nodes;
     } block;
     struct {

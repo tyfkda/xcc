@@ -274,6 +274,7 @@ typedef struct LoopInfo {
 } LoopInfo;
 
 static Node *curfunc;
+static Scope *curscope;
 static const char *s_break_label;
 static const char *s_continue_label;
 
@@ -311,9 +312,9 @@ static void gen_lval(Node *node) {
     if (node->varref.global) {
       LEA_OFS32_RIP_RAX(node->varref.ident);
     } else {
-      int varidx = var_find(curfunc->defun.lvars, node->varref.ident);
-      assert(varidx >= 0);
-      int offset = ((VarInfo*)curfunc->defun.lvars->data[varidx])->offset;
+      VarInfo *varinfo = scope_find(curscope, node->varref.ident);
+      assert(varinfo != NULL);
+      int offset = varinfo->offset;
       MOV_RBP_RAX();
       ADD_IM32_RAX(offset);
     }
@@ -368,9 +369,8 @@ static void gen_varref(Node *node) {
   if (node->varref.global) {
     varinfo = find_global(node->varref.ident);
   } else {
-    int varidx = var_find(curfunc->defun.lvars, node->varref.ident);
-    assert(varidx >= 0);
-    varinfo = (VarInfo*)curfunc->defun.lvars->data[varidx];
+    varinfo = scope_find(curscope, node->varref.ident);
+    assert(varinfo != NULL);
   }
   switch (node->expType->type) {
   case TY_CHAR:  MOV_IND_RAX_AL(); break;
@@ -385,35 +385,45 @@ static void gen_varref(Node *node) {
 }
 
 static void gen_defun(Node *node) {
+  Defun *defun = node->defun;
   curfunc = node;
-  add_label(node->defun.name);
-  node->defun.ret_label = alloc_label();
+  curscope = defun->top_scope;
+  add_label(defun->name);
+  defun->ret_label = alloc_label();
 
   // Calc local variable offsets.
   // Map parameters from the bottom (to reduce offsets).
   int frame_size = 0;
-  for (int i = 0; i < node->defun.lvars->len; ++i) {
-    VarInfo *lvar = (VarInfo*)node->defun.lvars->data[i];
-    int size = type_size(lvar->type);
-    int align = align_size(lvar->type);
-    frame_size = (frame_size + size + align - 1) & -align;
-    lvar->offset = -frame_size;
+  for (int i = 0; i < defun->all_scopes->len; ++i) {
+    Scope *scope = (Scope*)defun->all_scopes->data[i];
+    if (scope->vars == NULL)
+      continue;
+    int scope_size = scope->parent != NULL ? scope->parent->size : 0;
+    for (int j = 0; j < scope->vars->len; ++j) {
+      VarInfo *varinfo = (VarInfo*)scope->vars->data[j];
+      int size = type_size(varinfo->type);
+      int align = align_size(varinfo->type);
+      scope_size = (scope_size + size + align - 1) & -align;
+      varinfo->offset = -scope_size;
+    }
+    scope->size = scope_size;
+    if (frame_size < scope_size)
+      frame_size = scope_size;
   }
   frame_size = (frame_size + FRAME_ALIGN - 1) & -FRAME_ALIGN;
 
   // Prologue
   // Allocate variable bufer.
-  Vector *lvars = node->defun.lvars;
   PUSH_RBP();
   MOV_RSP_RBP();
   if (frame_size > 0) {
     SUB_IM32_RSP(frame_size);
     // Store parameters into local frame.
-    int len = len = node->defun.param_count;
+    int len = len = defun->top_scope->vars != NULL ? defun->top_scope->vars->len : 0;
     if (len > 6)
       error("Parameter count exceeds 6 (%d)", len);
     for (int i = 0; i < len; ++i) {
-      const VarInfo *varinfo = (const VarInfo*)lvars->data[i];
+      const VarInfo *varinfo = (const VarInfo*)defun->top_scope->vars->data[i];
       int offset = varinfo->offset;
       switch (varinfo->type->type) {
       case TY_CHAR:  // 1
@@ -454,23 +464,24 @@ static void gen_defun(Node *node) {
   }
 
   // Statements
-  for (int i = 0; i < node->defun.stmts->len; ++i) {
-    gen((Node*)node->defun.stmts->data[i]);
+  for (int i = 0; i < defun->stmts->len; ++i) {
+    gen((Node*)defun->stmts->data[i]);
   }
 
   // Epilogue
-  add_label(node->defun.ret_label);
+  add_label(defun->ret_label);
   MOV_RBP_RSP();
   POP_RBP();
   RET();
   curfunc = NULL;
+  curscope = NULL;
 }
 
 static void gen_return(Node *node) {
   if (node->return_.val != NULL)
     gen(node->return_.val);
   assert(curfunc != NULL);
-  JMP32(curfunc->defun.ret_label);
+  JMP32(curfunc->defun->ret_label);
 }
 
 static void gen_funcall(Node *node) {
@@ -810,8 +821,14 @@ void gen(Node *node) {
 
   case ND_BLOCK:
     if (node->block.nodes != NULL) {
+      if (node->block.scope != NULL) {
+        assert(curscope == node->block.scope->parent);
+        curscope = node->block.scope;
+      }
       for (int i = 0, len = node->block.nodes->len; i < len; ++i)
         gen((Node*)node->block.nodes->data[i]);
+      if (node->block.scope != NULL)
+        curscope = curscope->parent;
     }
     break;
 
