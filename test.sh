@@ -130,6 +130,10 @@ try 'f || t' 1 'return 0 || 2;'
 try '|| shortcut' 1 'int x = 1; 1 || (x = 0); return x;'
 try 'block scope' 1 'int x = 1; { int x = 2; } return x;'
 try 'nested-array' 1 'char a[2][3]; a[1][0] = 1; return ((char*)a)[3];'
+try_direct 'array <= ptr' 1 'int foo(int a[]){ return a[0]; } void main(){ int a[2]; a[1] = 1;  _exit(foo(&a[1])); }'
+try_direct 'array <= ptr:2' 1 'int foo(int a[][2]){ return a[1][1]; } void main(){ int a[3][2]; a[1][1] = 1;  _exit(foo(a)); }'
+try_direct 'array <= ptr:3' 1 'int foo(int a[][3]){ return a[1][1]; } void main(){ int a[3][2]; a[2][0] = 1;  _exit(foo((int[][3])a)); }'
+try_direct 'ptr <= array' 1 'int foo(int *p){ return *p; } void main(){ int a[2]; a[0] = 1;  _exit(foo(a)); }'
 
 # error cases
 echo ''
@@ -160,5 +164,6 @@ compile_error 'return void' 'void main(){ return 1; }'
 compile_error 'return non-void' 'int main(){ return; }'
 compile_error 'use before decl' 'void main(){ x = 0; int x; }'
 compile_error 'scope invisible' 'int main(){ {int x;} return x; }'
+compile_error 'array = ptr' 'void main(){ int a[1], *p; a = p; }'
 
 echo 'All tests PASS!'

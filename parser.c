@@ -93,6 +93,9 @@ static bool same_type(const Type *type1, const Type *type2) {
       return true;
     case TY_PTR:
     case TY_ARRAY:
+      if (type1->array_size != type2->array_size &&
+          (type1->array_size > 0 && type2->array_size > 0))  // TODO:
+        return false;
       type1 = type1->ptrof;
       type2 = type2->ptrof;
       continue;
@@ -269,9 +272,20 @@ static Node *new_node_cast(const Type *type, Node *sub, bool is_explicit) {
     default:  break;
     }
     break;
+  case TY_ARRAY:
+    switch (sub->expType->type) {
+    case TY_PTR:
+    case TY_ARRAY:
+      if (is_explicit)
+        goto ok;
+      break;
+    default:  break;
+    }
+    break;
   default:
     break;
   }
+
   error("Cannot convert value from type %d to %d: %s", sub->expType->type, type->type, current_line());
   return NULL;
 
@@ -703,7 +717,7 @@ static Node *prim(void) {
   if (consume(TK_LPAR)) {
     const Type *type = parse_raw_type();
     if (type != NULL) {  // Cast
-      type = parse_type_modifier(type, true);
+      type = parse_var_def_suffix(parse_type_modifier(type, true));
       if (!consume(TK_RPAR))
         error("`)' expected, but %s", current_line());
       Node *node = prim();
