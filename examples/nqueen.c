@@ -1,6 +1,6 @@
 // How to run:
 //
-//   $ ./xcc exampples/utils.c examples/nqueen.c > tmp && ./tmp
+//   $ ./xcc exampples/util.c examples/nqueen.c > tmp && ./tmp
 
 void print_board(int board[][8]) {
   int i, j;

@@ -171,5 +171,3 @@ compile_error 'return non-void' 'int main(){ return; }'
 compile_error 'use before decl' 'void main(){ x = 0; int x; }'
 compile_error 'scope invisible' 'int main(){ {int x;} return x; }'
 compile_error 'array = ptr' 'void main(){ int a[1], *p; a = p; }'
-
-echo 'All tests PASS!'
