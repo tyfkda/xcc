@@ -312,12 +312,6 @@ void add_loc_rel32(const char *label, int ofs, int baseofs);
 size_t fixup_locations(void);
 uintptr_t label_adr(const char *label);
 
-// elfutil
-
-void out_elf_header(FILE* fp, uintptr_t entry);
-void out_program_header(FILE* fp, uintptr_t offset, uintptr_t vaddr, uintptr_t filesz, uintptr_t memsz);
-void put_padding(FILE* fp, uintptr_t prog_start);
-
 // main
 
 void error(const char* fmt, ...);

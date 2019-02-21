@@ -5,6 +5,7 @@
 #include "string.h"
 
 #include "xcc.h"
+#include "elfutil.h"
 #include "util.h"
 #include "x86_64.h"
 

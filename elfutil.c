@@ -1,3 +1,5 @@
+#include "elfutil.h"
+
 #include <stdio.h>
 #include <stdlib.h>  // calloc
 
