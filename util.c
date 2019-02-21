@@ -77,14 +77,24 @@ int map_count(Map *map) {
   return map->keys->len;
 }
 
+static int map_find(Map *map, const char *key) {
+  for (int i = map->keys->len - 1; i >= 0; --i)
+    if (strcmp(map->keys->data[i], key) == 0)
+      return i;
+  return -1;
+}
+
 void map_put(Map *map, const char *key, const void *val) {
-  vec_push(map->keys, key);
-  vec_push(map->vals, val);
+  int i = map_find(map, key);
+  if (i >= 0) {
+    map->vals->data[i] = (void*)val;
+  } else {
+    vec_push(map->keys, key);
+    vec_push(map->vals, val);
+  }
 }
 
 void *map_get(Map *map, const char *key) {
-  for (int i = map->keys->len - 1; i >= 0; --i)
-    if (strcmp(map->keys->data[i], key) == 0)
-      return map->vals->data[i];
-  return NULL;
+  int i = map_find(map, key);
+  return i >= 0 ? map->vals->data[i] : NULL;
 }
