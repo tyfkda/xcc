@@ -52,7 +52,7 @@ void runtest(void) {
   printf("OK\n");
 }
 
-int main() {
+int main(void) {
   runtest();
   return 0;
 }

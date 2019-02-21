@@ -314,4 +314,4 @@ uintptr_t label_adr(const char *label);
 
 // main
 
-void error(const char* fmt, ...);
+void error(const char* fmt, ...) __attribute((noreturn));

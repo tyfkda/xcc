@@ -1,8 +1,12 @@
+CFLAGS=-ansi -std=c11 -Wall -Wextra -Werror -Wold-style-definition -Wno-missing-field-initializers -Wno-typedef-redefinition
 
 .PHONY: test-util test-sh
 
 all:	../xcc test-util test-sh test-examples
 	@echo 'All tests PASS!'
+
+clean:
+	rm -f util_test tmp
 
 ../xcc:
 	make -C .. xcc
@@ -23,4 +27,4 @@ test-examples:	example_test.sh
 	@echo ''
 
 util_test:	util_test.c ../util.c
-	gcc -o $@ $^
+	gcc -o $@ $(CFLAGS) $^
