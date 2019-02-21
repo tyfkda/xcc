@@ -7,9 +7,8 @@ xcc: $(OBJS)
 
 $(OBJS): xcc.h
 
-test: xcc
-	./xcc -test
-	./test.sh
+test:	xcc
+	make -C tests
 
 clean:
 	rm -f xcc *.o *~ tmp*

@@ -1,5 +1,7 @@
 #!/bin/bash
 
+XCC=../xcc
+
 try_direct() {
   title="$1"
   expected="$2"
@@ -7,7 +9,7 @@ try_direct() {
 
   echo -n "$title => "
 
-  echo -e "$input" | ./xcc > tmp || exit 1
+  echo -e "$input" | $XCC > tmp || exit 1
   chmod +x tmp
 
   ./tmp
@@ -32,7 +34,7 @@ try_output_direct() {
 
   echo -n "$title => "
 
-  echo -e "$input" | ./xcc > tmp || exit 1
+  echo -e "$input" | $XCC > tmp || exit 1
   chmod +x tmp
 
   actual=`./tmp` || exit 1
@@ -55,7 +57,7 @@ compile_error() {
 
   echo -n "$title => "
 
-  echo -e "$input" | ./xcc > tmp
+  echo -e "$input" | $XCC > tmp
   result="$?"
 
   if [ "$result" = "0" ]; then

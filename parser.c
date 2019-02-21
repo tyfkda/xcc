@@ -4,6 +4,7 @@
 #include <string.h>
 
 #include "xcc.h"
+#include "util.h"
 
 static const Type tyVoid = {.type=TY_VOID, .ptrof=NULL};
 static const Type tyInt = {.type=TY_INT, .ptrof=NULL};

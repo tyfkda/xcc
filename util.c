@@ -1,7 +1,52 @@
-#include <stdlib.h>  // malloc
-#include <string.h>  // malloc
+#include "util.h"
 
-#include "xcc.h"
+#include <stdlib.h>  // malloc
+#include <string.h>  // strcmp
+
+char *strdup_(const char *str) {
+  return strndup_(str, strlen(str));
+}
+
+char *strndup_(const char *str, size_t size) {
+  char *dup = malloc(size + 1);
+  strncpy(dup, str, size);
+  dup[size] = '\0';
+  return dup;
+}
+
+ssize_t getline_(char **lineptr, size_t *n, FILE *stream) {
+  const int ADD = 16;
+  ssize_t capa = *n;
+  ssize_t size = 0;
+  char *top = *lineptr;
+  for (;;) {
+    int c = fgetc(stream);
+    if (c == EOF) {
+      if (size == 0)
+        return EOF;
+      break;
+    }
+
+    if (size + 2 > capa) {
+      ssize_t newcapa = capa + ADD;
+      top = realloc(top, newcapa);
+      if (top == NULL)
+        return EOF;
+      capa = newcapa;
+    }
+    top[size++] = c;
+
+    if (c == '\n')
+      break;
+  }
+
+  top[size] = '\0';
+  *lineptr = top;
+  *n = capa;
+  return size;
+}
+
+// Container
 
 Vector *new_vector(void) {
   Vector *vec = malloc(sizeof(Vector));

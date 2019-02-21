@@ -1,28 +1,10 @@
 #pragma once
 
 #include <stdint.h>  // uintptr_t
-#include <stdio.h>
+#include <stdio.h>  // FILE
 
-// Container
-
-typedef struct {
-  void **data;
-  int capacity;
-  int len;
-} Vector;
-
-Vector *new_vector(void);
-void vec_push(Vector *vec, const void *elem);
-
-typedef struct {
-  Vector *keys;
-  Vector *vals;
-} Map;
-
-Map *new_map(void);
-int map_count(Map *map);
-void map_put(Map *map, const char *key, const void *val);
-void *map_get(Map *map, const char *key);
+typedef struct Vector Vector;
+typedef struct Map Map;
 
 // Token
 

@@ -1,11 +1,11 @@
 #include "stdarg.h"
-#include "stdbool.h"
 #include "stdint.h"
 #include "stdio.h"
 #include "stdlib.h"
 #include "string.h"
 
 #include "xcc.h"
+#include "util.h"
 #include "x86_64.h"
 
 #define PROG_START   (0x80)
@@ -42,50 +42,6 @@
 
 ////////////////////////////////////////////////
 
-bool expect(int line, int expected, int actual) {
-  if (expected == actual)
-    return true;
-  fprintf(stderr, "%d: %d expected, but got %d\n",
-          line, expected, actual);
-  exit(1);
-}
-
-void test_vector(void) {
-  Vector *vec = new_vector();
-  expect(__LINE__, 0, vec->len);
-
-  for (int i = 0; i < 100; i++)
-    vec_push(vec, (void *)(intptr_t)i);
-
-  expect(__LINE__, 100, vec->len);
-  expect(__LINE__, 0, (intptr_t)vec->data[0]);
-  expect(__LINE__, 50, (intptr_t)vec->data[50]);
-  expect(__LINE__, 99, (intptr_t)vec->data[99]);
-}
-
-void test_map(void) {
-  Map *map = new_map();
-  expect(__LINE__, 0, (intptr_t)map_get(map, "foo"));
-
-  map_put(map, "foo", (void *)2);
-  expect(__LINE__, 2, (intptr_t)map_get(map, "foo"));
-
-  map_put(map, "bar", (void *)4);
-  expect(__LINE__, 4, (intptr_t)map_get(map, "bar"));
-
-  map_put(map, "foo", (void *)6);
-  expect(__LINE__, 6, (intptr_t)map_get(map, "foo"));
-}
-
-void runtest(void) {
-  test_vector();
-  test_map();
-
-  printf("OK\n");
-}
-
-////////////////////////////////////////////////
-
 void error(const char* fmt, ...) {
   va_list ap;
   va_start(ap, fmt);
@@ -112,11 +68,6 @@ void compile(FILE *fp) {
 }
 
 int main(int argc, char* argv[]) {
-  if (argc > 1 && strcmp(argv[1], "-test") == 0) {
-    runtest();
-    return 0;
-  }
-
   init_compiler(LOAD_ADDRESS);
 
   // Test.

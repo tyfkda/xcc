@@ -1,4 +1,5 @@
 *~
 *.o
 tmp*
-xcc
+/xcc
+/tests/util_test

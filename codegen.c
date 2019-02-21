@@ -4,19 +4,13 @@
 #include <string.h>
 
 #include "xcc.h"
+#include "util.h"
 
 const int FRAME_ALIGN = 8;
 
 #define CURIP(ofs)  (start_address + codesize + ofs)
 #define ADD_CODE(...)  do { unsigned char buf[] = {__VA_ARGS__}; add_code(buf, sizeof(buf)); } while (0)
 #include "x86_64.h"
-
-char *strdup_(const char *str) {
-  size_t len = strlen(str);
-  char *dup = malloc(len + 1);
-  strcpy(dup, str);
-  return dup;
-}
 
 static void calc_struct_size(StructInfo *sinfo);
 
