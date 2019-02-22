@@ -1099,7 +1099,7 @@ static Node *parse_switch(void) {
       return swtch;
     }
   }
-  error("Parse `if' failed: %s", current_line());
+  error("Parse `switch' failed: %s", current_line());
   return NULL;
 }
 
