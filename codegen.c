@@ -373,6 +373,11 @@ static void gen_varref(Node *node) {
 
 static void gen_defun(Node *node) {
   Defun *defun = node->defun;
+  if (defun->stmts == NULL) {
+    RET();
+    return;
+  }
+
   curfunc = node;
   curscope = defun->top_scope;
   add_label(defun->name);
