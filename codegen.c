@@ -361,13 +361,6 @@ static void gen_cond_jmp(Node *cond, bool tf, const char *label) {
 
 static void gen_varref(Node *node) {
   gen_lval(node);
-  VarInfo *varinfo;
-  if (node->varref.global) {
-    varinfo = find_global(node->varref.ident);
-  } else {
-    varinfo = scope_find(curscope, node->varref.ident);
-    assert(varinfo != NULL);
-  }
   switch (node->expType->type) {
   case TY_CHAR:  MOV_IND_RAX_AL(); break;
   case TY_INT:   MOV_IND_RAX_EAX(); break;
