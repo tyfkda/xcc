@@ -205,7 +205,7 @@ void add_loc_rel32(const char *label, int ofs, int baseofs) {
   loc->rel.base = base;
 }
 
-size_t fixup_locations(void) {
+size_t fixup_locations(size_t *pmemsz) {
   // Output RoData
   for (int i = 0, len = rodata_vector->len; i < len; ++i) {
     const RoData *ro = (const RoData*)rodata_vector->data[i];
@@ -213,16 +213,26 @@ size_t fixup_locations(void) {
     add_code(ro->data, ro->size);
   }
 
+  size_t filesize = codesize;
+
   // Global
+  unsigned char *zero = NULL;
+  size_t zerosize = 0;
   for (int i = 0, len = map_count(global); i < len; ++i) {
     const char *name = (const char *)global->keys->data[i];
     const VarInfo *varinfo = (const VarInfo*)global->vals->data[i];
     if (varinfo->type->type == TY_FUNC)
       continue;
-    add_label(name);
+    int align = align_size(varinfo->type);
+    codesize = ALIGN(codesize, align);
     int size = type_size(varinfo->type);
-    unsigned char *buf = calloc(size, 1);
-    add_code(buf, size);
+    if (zerosize < (size_t)size) {
+      zero = realloc(zero, size);
+      memset(zero + zerosize, 0x00, size - zerosize);
+      zerosize = size;
+    }
+    add_label(name);
+    add_code(zero, size);
   }
 
   // Resolve label locations.
@@ -258,7 +268,8 @@ size_t fixup_locations(void) {
     }
   }
 
-  return codesize;
+  *pmemsz = codesize;
+  return filesize;
 }
 
 //

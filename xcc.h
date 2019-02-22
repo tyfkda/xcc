@@ -309,7 +309,7 @@ void output_code(FILE* fp);
 void add_label(const char *label);
 void add_code(const unsigned char* buf, size_t size);
 void add_loc_rel32(const char *label, int ofs, int baseofs);
-size_t fixup_locations(void);
+size_t fixup_locations(size_t *pmemsz);
 uintptr_t label_adr(const char *label);
 
 // main

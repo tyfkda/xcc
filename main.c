@@ -131,7 +131,8 @@ int main(int argc, char* argv[]) {
     RET();
   }
 
-  size_t binsize = fixup_locations();
+  size_t memsz;
+  size_t filesz = fixup_locations(&memsz);
 
   uintptr_t entry = label_adr("_start");
   if (entry == (uintptr_t)-1)
@@ -140,7 +141,7 @@ int main(int argc, char* argv[]) {
   FILE* fp = stdout;
 
   out_elf_header(fp, entry);
-  out_program_header(fp, PROG_START, LOAD_ADDRESS, binsize, binsize);
+  out_program_header(fp, PROG_START, LOAD_ADDRESS, filesz, memsz);
   put_padding(fp, PROG_START);
   output_code(fp);
 
