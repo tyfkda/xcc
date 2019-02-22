@@ -669,24 +669,27 @@ static void gen_arith(enum NodeType nodeType, enum eType expType) {
   switch (nodeType) {
   case ND_ADD:
     switch (expType) {
-    case TY_INT:  ADD_EDI_EAX(); break;
     case TY_CHAR: ADD_DIL_AL(); break;
+    case TY_INT:  ADD_EDI_EAX(); break;
+    case TY_LONG: ADD_RDI_RAX(); break;
     default: assert(false); break;
     }
     break;
 
   case ND_SUB:
     switch (expType) {
-    case TY_INT:  SUB_EDI_EAX(); break;
     case TY_CHAR: SUB_DIL_AL(); break;
+    case TY_INT:  SUB_EDI_EAX(); break;
+    case TY_LONG: SUB_RDI_RAX(); break;
     default: assert(false); break;
     }
     break;
 
   case ND_MUL:
     switch (expType) {
-    case TY_INT:  MUL_EDI(); break;
     case TY_CHAR: MUL_DIL(); break;
+    case TY_INT:  MUL_EDI(); break;
+    case TY_LONG: MUL_RDI(); break;
     default: assert(false); break;
     }
 
@@ -695,8 +698,9 @@ static void gen_arith(enum NodeType nodeType, enum eType expType) {
   case ND_DIV:
     MOV_IM32_RDX(0);
     switch (expType) {
-    case TY_INT:  DIV_EDI(); break;
     case TY_CHAR: DIV_DIL(); break;
+    case TY_INT:  DIV_EDI(); break;
+    case TY_LONG: DIV_RDI(); break;
     default: assert(false); break;
     }
     break;
@@ -704,8 +708,9 @@ static void gen_arith(enum NodeType nodeType, enum eType expType) {
   case ND_MOD:
     MOV_IM32_RDX(0);
     switch (expType) {
-    case TY_INT:  DIV_EDI(); MOV_EDX_EAX(); break;
     case TY_CHAR: DIV_DIL(); MOV_DL_AL(); break;
+    case TY_INT:  DIV_EDI(); MOV_EDX_EAX(); break;
+    case TY_LONG: DIV_RDI(); MOV_RDX_RAX(); break;
     default: assert(false); break;
     }
     break;

@@ -78,7 +78,14 @@ void dump_type(FILE *fp, const Type *type) {
 }
 
 static bool is_number(enum eType type) {
-  return type == TY_INT || type == TY_CHAR;
+  switch (type) {
+  case TY_CHAR:
+  case TY_INT:
+  case TY_LONG:
+    return true;
+  default:
+    return false;
+  }
 }
 
 static bool same_type(const Type *type1, const Type *type2) {
@@ -481,7 +488,9 @@ static Node *add_node(Node *lhs, Node *rhs) {
     case TY_CHAR:
       return new_node_bop(ND_ADD, l->expType, l, r);
     case TY_INT:
-      return new_node_bop(ND_ADD, l->expType, new_node_cast(r->expType, l, false), r);
+      return new_node_bop(ND_ADD, r->expType, new_node_cast(r->expType, l, false), r);
+    case TY_LONG:
+      return new_node_bop(ND_ADD, r->expType, new_node_cast(r->expType, l, false), r);
     default:
       break;
     }
@@ -490,6 +499,21 @@ static Node *add_node(Node *lhs, Node *rhs) {
   case TY_INT:
     switch (r->expType->type) {
     case TY_INT:
+      return new_node_bop(ND_ADD, l->expType, l, r);
+    case TY_LONG:
+      return new_node_bop(ND_ADD, r->expType, new_node_cast(r->expType, l, false), r);
+    case TY_PTR:
+      return new_node_bop(ND_PTRADD, r->expType, r, l);
+    case TY_ARRAY:
+      return new_node_bop(ND_PTRADD, array_to_ptr(r->expType), r, l);
+    default:
+      break;
+    }
+    break;
+
+  case TY_LONG:
+    switch (r->expType->type) {
+    case TY_LONG:
       return new_node_bop(ND_ADD, l->expType, l, r);
     case TY_PTR:
       return new_node_bop(ND_PTRADD, r->expType, r, l);
@@ -510,21 +534,35 @@ static Node *add_node(Node *lhs, Node *rhs) {
 
 static Node *sub_node(Node *lhs, Node *rhs) {
   switch (lhs->expType->type) {
-  case TY_INT:
+  case TY_CHAR:
     switch (rhs->expType->type) {
-    case TY_INT:
     case TY_CHAR:
-      return new_node_bop(ND_SUB, lhs->expType, lhs, new_node_cast(lhs->expType, rhs, false));
+    case TY_INT:
+    case TY_LONG:
+      return new_node_bop(ND_SUB, rhs->expType, new_node_cast(rhs->expType, lhs, false), rhs);
     default:
       break;
     }
     break;
 
-  case TY_CHAR:
+  case TY_INT:
+    switch (rhs->expType->type) {
+    case TY_INT:
+    case TY_CHAR:
+      return new_node_bop(ND_SUB, lhs->expType, lhs, new_node_cast(lhs->expType, rhs, false));
+    case TY_LONG:
+      return new_node_bop(ND_SUB, rhs->expType, new_node_cast(rhs->expType, lhs, false), rhs);
+    default:
+      break;
+    }
+    break;
+
+  case TY_LONG:
     switch (rhs->expType->type) {
     case TY_CHAR:
     case TY_INT:
-      return new_node_bop(ND_SUB, rhs->expType, new_node_cast(rhs->expType, lhs, false), rhs);
+    case TY_LONG:
+      return new_node_bop(ND_SUB, lhs->expType, lhs, new_node_cast(lhs->expType, rhs, false));
     default:
       break;
     }
@@ -533,6 +571,7 @@ static Node *sub_node(Node *lhs, Node *rhs) {
   case TY_PTR:
     switch (rhs->expType->type) {
     case TY_INT:
+    case TY_LONG:
       return new_node_bop(ND_PTRSUB, lhs->expType, lhs, rhs);
     case TY_PTR:
       if (!same_type(lhs->expType, rhs->expType))
@@ -865,18 +904,17 @@ static Node *mul(void) {
   Node *node = term();
 
   for (;;) {
-    enum TokenType tt;
     enum NodeType t;
-    if (consume(tt = TK_MUL))
+    if (consume(TK_MUL))
       t = ND_MUL;
-    else if (consume(tt = TK_DIV))
+    else if (consume(TK_DIV))
       t = ND_DIV;
-    else if (consume(tt = TK_MOD))
+    else if (consume(TK_MOD))
       t = ND_MOD;
     else
       return node;
 
-    return arith_node(t, node, term());
+    node = arith_node(t, node, term());
   }
 }
 
