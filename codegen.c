@@ -175,9 +175,7 @@ static char *alloc_label(void) {
   ++label_no;
   char buf[sizeof(int) * 3 + 1];
   snprintf(buf, sizeof(buf), ".L%d", label_no);
-  char *dup = strdup_(buf);
-  add_label(dup);
-  return dup;
+  return strdup_(buf);
 }
 
 Vector *loc_vector;
