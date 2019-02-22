@@ -195,15 +195,14 @@ static void exit_scope(void) {
   curscope = curscope->parent;
 }
 
-static Defun *new_defun(const Type *rettype, const char *name, Vector *params) {
+static Defun *new_defun(const Type *rettype, const char *name) {
   Defun *defun = malloc(sizeof(*defun));
   defun->rettype = rettype;
   defun->name = name;
+  defun->top_scope = NULL;
   defun->stmts = NULL;
   defun->all_scopes = new_vector();
   defun->ret_label = NULL;
-  defun->top_scope = enter_scope(defun, params);
-
   return defun;
 }
 
@@ -361,9 +360,9 @@ static Node *new_node_member(Node *target, const char *name, const Type *expType
   return node;
 }
 
-static Node *new_node_defun(const Type *rettype, const char *name, Vector *params) {
+static Node *new_node_defun(Defun *defun) {
   Node *node = new_node(ND_DEFUN, &tyVoid);
-  node->defun = new_defun(rettype, name, params);
+  node->defun = defun;
   return node;
 }
 
@@ -1397,13 +1396,14 @@ static Node *parse_defun(const Type *type, const char *ident) {
     return NULL;
 
   if (consume(TK_LBRACE)) {  // Definition.
-    Node *node = new_node_defun(type, ident, params);
-    curfunc = node->defun;
+    Defun *defun = new_defun(type, ident);
+    curfunc = defun;
 
-    Vector *stmts = read_stmts();
-    node->defun->stmts = stmts;
+    defun->top_scope = enter_scope(defun, params);
+    defun->stmts = read_stmts();
     exit_scope();
-    return node;
+    curfunc = NULL;
+    return new_node_defun(defun);
   }
   error("Defun failed: %s", current_line());
   return NULL;
