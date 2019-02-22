@@ -1284,7 +1284,9 @@ static Vector *read_stmts(void) {
       nodes = new_vector();
 
     Node *node;
-    if (consume(TK_CASE))
+    if (parse_vardecl(&node))
+      ;
+    else if (consume(TK_CASE))
       node = parse_case();
     else if (consume(TK_DEFAULT))
       node = parse_default();
@@ -1303,10 +1305,6 @@ static Node *parse_block(void) {
 }
 
 static Node *stmt(void) {
-  Node *vardecl;
-  if (parse_vardecl(&vardecl))
-    return vardecl;
-
   if (consume(TK_SEMICOL))
     return new_node_block(NULL, NULL);
 
