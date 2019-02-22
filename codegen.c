@@ -12,6 +12,8 @@ const int FRAME_ALIGN = 8;
 #define ADD_CODE(...)  do { unsigned char buf[] = {__VA_ARGS__}; add_code(buf, sizeof(buf)); } while (0)
 #include "x86_64.h"
 
+#define ALIGN(x, align)  (((x) + (align) - 1) & -(align))  // align must be 2^n
+
 static void calc_struct_size(StructInfo *sinfo);
 
 static int type_size(const Type *type) {
@@ -66,13 +68,13 @@ static void calc_struct_size(StructInfo *sinfo) {
     VarInfo *varinfo = (VarInfo*)sinfo->members->data[i];
     int sz = type_size(varinfo->type);
     int align = align_size(varinfo->type);
-    size = (size + align - 1) & -align;
+    size = ALIGN(size, align);
     varinfo->offset = (int)size;
     size += sz;
     if (max_align < align)
       max_align = align;
   }
-  size = (size + max_align - 1) & -max_align;
+  size = ALIGN(size, max_align);
   if (size == 0)
     size = 1;
   sinfo->size = size;
@@ -393,14 +395,14 @@ static void gen_defun(Node *node) {
       VarInfo *varinfo = (VarInfo*)scope->vars->data[j];
       int size = type_size(varinfo->type);
       int align = align_size(varinfo->type);
-      scope_size = (scope_size + size + align - 1) & -align;
+      scope_size = ALIGN(scope_size + size, align);
       varinfo->offset = -scope_size;
     }
     scope->size = scope_size;
     if (frame_size < scope_size)
       frame_size = scope_size;
   }
-  frame_size = (frame_size + FRAME_ALIGN - 1) & -FRAME_ALIGN;
+  frame_size = ALIGN(frame_size, FRAME_ALIGN);
 
   // Prologue
   // Allocate variable bufer.
