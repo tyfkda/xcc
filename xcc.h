@@ -76,9 +76,7 @@ typedef struct {
   union {
     const char *ident;
     const char *str;
-    long longval;
-    int intval;
-    char charval;
+    intptr_t value;
   };
 } Token;
 
@@ -221,9 +219,7 @@ typedef struct Node {
   const Type *expType;
   union {
     const char *str;
-    long longval;
-    int intval;
-    char charval;
+    intptr_t value;
 
     struct {
       struct Node *lhs;

@@ -143,14 +143,13 @@ static Token *read_num(const char **pp) {
   if (*pp == p && base == 16)
     error("Illegal literal: %s", current_line());
   Token *tok;
+  enum TokenType tt = TK_INTLIT;
   if (**pp == 'L') {
-    tok = alloc_token(TK_LONGLIT, start);
-    tok->longval = val;
+    tt = TK_LONGLIT;
     ++(*pp);
-  } else {
-    tok = alloc_token(TK_INTLIT, start);
-    tok->intval = val;
   }
+  tok = alloc_token(tt, start);
+  tok->value = val;
   return tok;
 }
 
@@ -294,7 +293,7 @@ static Token *get_token(void) {
         error("Character not closed");
 
       tok = alloc_token(TK_CHARLIT, start);
-      tok->charval = c;
+      tok->value = c;
       ++p;
       break;
     }

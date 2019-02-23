@@ -323,21 +323,16 @@ static Node *new_node_deref(Node *sub) {
   return new_node_unary(ND_DEREF, sub->expType->ptrof, sub);
 }
 
-static Node *new_node_intlit(int val) {
-  Node *node = new_node(ND_INT, &tyInt);
-  node->intval = val;
-  return node;
-}
-
-static Node *new_node_charlit(int val) {
-  Node *node = new_node(ND_CHAR, &tyChar);
-  node->charval = val;
-  return node;
-}
-
-static Node *new_node_longlit(long val) {
-  Node *node = new_node(ND_LONG, &tyLong);
-  node->longval = val;
+static Node *new_node_numlit(enum NodeType nodetype, intptr_t val) {
+  const Type *type = NULL;
+  switch (nodetype) {
+  case ND_CHAR:  type = &tyChar; break;
+  case ND_INT:   type = &tyInt; break;
+  case ND_LONG:  type = &tyLong; break;
+  default: assert(false); break;
+  }
+  Node *node = new_node(nodetype, type);
+  node->value = val;
   return node;
 }
 
@@ -716,7 +711,7 @@ static const Type *parse_var_def_suffix(const Type *type) {
   if (consume(TK_RBRACKET)) {
     count = -1;
   } else if ((tok = consume(TK_INTLIT))) {  // TODO: Constant expression.
-    count = tok->intval;
+    count = tok->value;
     if (count < 0)
       error("Array size must be greater than 0, but %d", count);
     if (!consume(TK_RBRACKET))
@@ -794,12 +789,13 @@ static Node *prim(void) {
   }
 
   Token *tok;
-  if ((tok = consume(TK_INTLIT)))
-    return new_node_intlit(tok->intval);
-  if ((tok = consume(TK_CHARLIT)))
-    return new_node_charlit(tok->charval);
-  if ((tok = consume(TK_LONGLIT)))
-    return new_node_longlit(tok->longval);
+  {
+    enum NodeType nt;
+    if (((tok = consume(TK_CHARLIT)) != NULL && (nt = ND_CHAR, true)) ||
+        ((tok = consume(TK_INTLIT)) != NULL && (nt = ND_INT, true)) ||
+        ((tok = consume(TK_LONGLIT)) != NULL && (nt = ND_LONG, true)))
+      return new_node_numlit(nt, tok->value);
+  }
   if ((tok = consume(TK_STR)))
     return new_node_str(tok->str);
 
@@ -838,11 +834,15 @@ static Node *term(void) {
     Node *node = term();
     if (!is_number(node->expType->type))
       error("Cannot apply `-' except number types");
-    if (node->type == ND_INT) {
-      node->intval = -node->intval;
+    switch (node->type) {
+    case ND_CHAR:
+    case ND_INT:
+    case ND_LONG:
+      node->value = -node->value;
       return node;
+    default:
+      return new_node_unary(ND_NEG, node->expType, node);
     }
-    return new_node_unary(ND_NEG, node->expType, node);
   }
 
   if (consume(TK_NOT)) {
@@ -1110,9 +1110,11 @@ static Node *parse_case(void) {
   Node *valnode = expr();
   intptr_t value;
   switch (valnode->type) {  // TODO: Accept const expression.
-  case ND_INT:  value = valnode->intval; break;
-  case ND_CHAR: value = valnode->charval; break;
-  case ND_LONG: value = valnode->longval; break;
+  case ND_CHAR:
+  case ND_INT:
+  case ND_LONG:
+    value = valnode->value;
+    break;
   default:
     error("Cannot use expression, but %s", current_line());
     break;
@@ -1242,8 +1244,9 @@ static bool parse_vardecl(Node **pnode) {
 
     if (consume(TK_LBRACKET)) {
       Token *tok;
-      if ((tok = consume(TK_INTLIT))) {  // TODO: Constant expression.
-        int count = tok->intval;
+      if ((tok = consume(TK_INTLIT)) != NULL ||  // TODO: Constant expression.
+          (tok = consume(TK_LONGLIT)) != NULL) {
+        intptr_t count = tok->value;
         if (count < 0)
           error("Array size must be greater than 0, but %d", count);
         type = arrayof(type, count);

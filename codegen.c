@@ -225,9 +225,11 @@ static void put_rwdata(void) {
       continue;
     intptr_t value = 0;
     switch (varinfo->value->expType->type) {
-    case TY_CHAR: value = varinfo->value->charval; break;
-    case TY_INT:  value = varinfo->value->intval; break;
-    case TY_LONG: value = varinfo->value->longval; break;
+    case TY_CHAR:
+    case TY_INT:
+    case TY_LONG:
+      value = varinfo->value->value;
+      break;
     default:
       fprintf(stderr, "Global initial value for type %d not implemented (yet)\n", varinfo->value->expType->type);
       assert(false);
@@ -785,18 +787,18 @@ static void gen_arith(enum NodeType nodeType, enum eType expType) {
 void gen(Node *node) {
   switch (node->type) {
   case ND_INT:
-    MOV_IM32_EAX(node->intval);
+    MOV_IM32_EAX(node->value);
     return;
 
   case ND_CHAR:
-    MOV_IM8_AL(node->charval);
+    MOV_IM8_AL(node->value);
     return;
 
   case ND_LONG:
-    if (node->longval < 0x7fffffffL && node->longval >= -0x80000000L)
-      MOV_IM32_RAX(node->longval);
+    if (node->value < 0x7fffffffL && node->value >= -0x80000000L)
+      MOV_IM32_RAX(node->value);
     else
-      MOV_IM64_RAX(node->longval);
+      MOV_IM64_RAX(node->value);
     return;
 
   case ND_STR:
