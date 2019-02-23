@@ -67,6 +67,7 @@ enum TokenType {
   TK_KWINT,
   TK_KWLONG,
   TK_STRUCT,
+  TK_SIZEOF,
 };
 
 // Token type
@@ -212,6 +213,7 @@ enum NodeType {
   ND_RETURN,
   ND_CAST,
   ND_LABEL,  // case, default
+  ND_SIZEOF,
 };
 
 typedef struct Node {
@@ -282,6 +284,9 @@ typedef struct Node {
     struct {
       struct Node *sub;
     } cast;
+    struct {
+      const Type *type;
+    } sizeof_;
   } u;
 } Node;
 

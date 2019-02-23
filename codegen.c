@@ -24,6 +24,8 @@ static int type_size(const Type *type) {
     return 1;
   case TY_INT:
     return 4;
+  case TY_LONG:
+    return 8;
   case TY_PTR:
   case TY_FUNC:
     return 8;
@@ -799,6 +801,16 @@ void gen(Node *node) {
       MOV_IM32_RAX(node->u.value);
     else
       MOV_IM64_RAX(node->u.value);
+    return;
+
+  case ND_SIZEOF:
+    {
+      size_t size = type_size(node->u.sizeof_.type);
+      if (size < 0x7fffffffL)
+        MOV_IM32_RAX(size);
+      else
+        MOV_IM64_RAX(size);
+    }
     return;
 
   case ND_STR:

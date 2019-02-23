@@ -12,10 +12,12 @@ static const Type tyChar = {.type=TY_CHAR};
 static const Type tyLong = {.type=TY_LONG};
 static const Type tyStr = {.type=TY_PTR, .u={.pa={.ptrof=&tyChar}}};
 #define tyBool  tyInt
+#define tySize  tyLong
 
 static StructInfo *parse_struct(void);
 static Node *stmt(void);
 static Node *expr(void);
+static Node *prim(void);
 
 //
 
@@ -438,6 +440,12 @@ static Node *new_node_return(Node *val) {
   return node;
 }
 
+static Node *new_node_sizeof(const Type *type) {
+  Node *node = new_node(ND_SIZEOF, &tySize);
+  node->u.sizeof_.type = type;
+  return node;
+}
+
 static Node *funcall(Node *func) {
   if (!(func->expType->type == TY_FUNC ||
         func->expType->type == TY_PTR))  // TODO: Restrict to function pointer.
@@ -774,6 +782,25 @@ static StructInfo *parse_struct(void) {
   return sinfo;
 }
 
+static Node *parse_sizeof(void) {
+  const Type *type;
+  if (consume(TK_LPAR)) {
+    type = parse_raw_type();
+    if (type != NULL) {  // Type
+      type = parse_var_def_suffix(parse_type_modifier(type, true));
+    } else {
+      Node *node = expr();
+      type = node->expType;
+    }
+    if (!consume(TK_RPAR))
+      error("`)' expected, but %s", current_line());
+  } else {
+    Node *node = prim();
+    type = node->expType;
+  }
+  return new_node_sizeof(type);
+}
+
 static Node *prim(void) {
   if (consume(TK_LPAR)) {
     const Type *type = parse_raw_type();
@@ -881,6 +908,10 @@ static Node *term(void) {
   if (consume(TK_DEC)) {
     Node *node = term();
     return new_node_unary(ND_PREDEC, node->expType, node);
+  }
+
+  if (consume(TK_SIZEOF)) {
+    return parse_sizeof();
   }
 
   Node *node = prim();

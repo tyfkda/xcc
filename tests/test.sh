@@ -143,6 +143,12 @@ try_direct 'array <= ptr' 1 'int foo(int a[]){ return a[0]; } void main(){ int a
 try_direct 'array <= ptr:2' 1 'int foo(int a[][2]){ return a[1][1]; } void main(){ int a[3][2]; a[1][1] = 1;  _exit(foo(a)); }'
 try_direct 'array <= ptr:3' 1 'int foo(int a[][3]){ return a[1][1]; } void main(){ int a[3][2]; a[2][0] = 1;  _exit(foo((int[][3])a)); }'
 try_direct 'ptr <= array' 1 'int foo(int *p){ return *p; } void main(){ int a[2]; a[0] = 1;  _exit(foo(a)); }'
+try 'sizeof(int)' 4 'return sizeof(int);'
+try 'sizeof(long)' 8 'return sizeof(long);'
+try 'sizeof(array)' 3 'char a[3]; return sizeof a;'
+try 'sizeof(array len)' 5 'int a[5]; return sizeof(a) / sizeof(*a);'
+try 'sizeof(struct)' 8 'return sizeof(struct {int a; char b;});'
+try 'sizeof(expr)' 4 'return sizeof(1 + 2 * 3);'
 
 # error cases
 echo ''

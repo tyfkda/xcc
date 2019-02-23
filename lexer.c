@@ -45,6 +45,7 @@ static enum TokenType reserved_word(const char *word) {
     { "int", TK_KWINT },
     { "long", TK_KWLONG },
     { "struct", TK_STRUCT },
+    { "sizeof", TK_SIZEOF },
   };
   for (int i = 0; i < (int)(sizeof(table) / sizeof(*table)); ++i) {
     if (strcmp(table[i].str, word) == 0)
