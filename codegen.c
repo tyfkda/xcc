@@ -337,7 +337,7 @@ typedef struct LoopInfo {
   const char *l_continue;
 } LoopInfo;
 
-static Node *curfunc;
+static Defun *curfunc;
 static Scope *curscope;
 static const char *s_break_label;
 static const char *s_continue_label;
@@ -446,7 +446,7 @@ static void gen_defun(Node *node) {
     return;
   }
 
-  curfunc = node;
+  curfunc = defun;
   curscope = defun->top_scope;
   add_label(defun->name);
   defun->ret_label = alloc_label();
@@ -541,7 +541,7 @@ static void gen_return(Node *node) {
   if (node->u.return_.val != NULL)
     gen(node->u.return_.val);
   assert(curfunc != NULL);
-  JMP32(curfunc->u.defun->ret_label);
+  JMP32(curfunc->ret_label);
 }
 
 static void gen_funcall(Node *node) {
