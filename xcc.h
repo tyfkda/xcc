@@ -77,7 +77,7 @@ typedef struct {
     const char *ident;
     const char *str;
     intptr_t value;
-  };
+  } u;
 } Token;
 
 void init_lexer(FILE *fp);
@@ -106,16 +106,16 @@ typedef struct {
 typedef struct Type {
   enum eType type;
   union {
-    struct {
+    struct {  // Pointer or array.
       const struct Type *ptrof;
       size_t array_size;
-    };
+    } pa;
     struct {
       const struct Type *ret;
       Vector *params;
     } func;
     StructInfo *struct_;
-  };
+  } u;
 } Type;
 
 void dump_type(FILE *fp, const Type *type);
@@ -256,7 +256,7 @@ typedef struct Node {
       enum {lCASE, lDEFAULT} type;
       union {
         int case_value;
-      };
+      } u;
     } label;
     struct {
       struct Node *cond;
@@ -282,7 +282,7 @@ typedef struct Node {
     struct {
       struct Node *sub;
     } cast;
-  };
+  } u;
 } Node;
 
 Vector *parse_program(void);

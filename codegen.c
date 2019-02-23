@@ -28,11 +28,11 @@ static int type_size(const Type *type) {
   case TY_FUNC:
     return 8;
   case TY_ARRAY:
-    return type_size(type->ptrof) * type->array_size;
+    return type_size(type->u.pa.ptrof) * type->u.pa.array_size;
   case TY_STRUCT:
-    if (type->struct_->size == 0)
-      calc_struct_size(type->struct_);
-    return type->struct_->size;
+    if (type->u.struct_->size == 0)
+      calc_struct_size(type->u.struct_);
+    return type->u.struct_->size;
   default:
     assert(false);
     return 1;
@@ -51,10 +51,10 @@ static int align_size(const Type *type) {
   case TY_FUNC:
     return 8;
   case TY_ARRAY:
-    return align_size(type->ptrof);
+    return align_size(type->u.pa.ptrof);
   case TY_STRUCT:
-    calc_struct_size(type->struct_);
-    return type->struct_->align;
+    calc_struct_size(type->u.struct_);
+    return type->u.struct_->align;
   default:
     assert(false);
     return 1;
@@ -228,7 +228,7 @@ static void put_rwdata(void) {
     case TY_CHAR:
     case TY_INT:
     case TY_LONG:
-      value = varinfo->value->value;
+      value = varinfo->value->u.value;
       break;
     default:
       fprintf(stderr, "Global initial value for type %d not implemented (yet)\n", varinfo->value->expType->type);
@@ -371,10 +371,10 @@ static void gen_ref(Node *node) {
 static void gen_lval(Node *node) {
   switch (node->type) {
   case ND_VARREF:
-    if (node->varref.global) {
-      LEA_OFS32_RIP_RAX(node->varref.ident);
+    if (node->u.varref.global) {
+      LEA_OFS32_RIP_RAX(node->u.varref.ident);
     } else {
-      VarInfo *varinfo = scope_find(curscope, node->varref.ident);
+      VarInfo *varinfo = scope_find(curscope, node->u.varref.ident);
       assert(varinfo != NULL);
       int offset = varinfo->offset;
       MOV_RBP_RAX();
@@ -382,23 +382,23 @@ static void gen_lval(Node *node) {
     }
     break;
   case ND_DEREF:
-    gen_rval(node->unary.sub);
+    gen_rval(node->u.unary.sub);
     break;
   case ND_MEMBER:
     {
-      const Type *type = node->member.target->expType;
-      if (type->type == TY_PTR)
-        type = type->ptrof;
+      const Type *type = node->u.member.target->expType;
+      if (type->type == TY_PTR)  // TODO: Array?
+        type = type->u.pa.ptrof;
       assert(type->type == TY_STRUCT);
-      Vector *members = type->struct_->members;
-      int varidx = var_find(members, node->member.name);
+      Vector *members = type->u.struct_->members;
+      int varidx = var_find(members, node->u.member.name);
       assert(varidx >= 0);
       VarInfo *varinfo = (VarInfo*)members->data[varidx];
 
-      if (node->member.target->expType->type == TY_PTR)
-        gen(node->member.target);
+      if (node->u.member.target->expType->type == TY_PTR)
+        gen(node->u.member.target);
       else
-        gen_ref(node->member.target);
+        gen_ref(node->u.member.target);
       if (varinfo->offset != 0)
         ADD_IM32_RAX(varinfo->offset);
     }
@@ -438,7 +438,7 @@ static void gen_varref(Node *node) {
 }
 
 static void gen_defun(Node *node) {
-  Defun *defun = node->defun;
+  Defun *defun = node->u.defun;
   if (defun->stmts == NULL) {
     RET();
     return;
@@ -536,14 +536,14 @@ static void gen_defun(Node *node) {
 }
 
 static void gen_return(Node *node) {
-  if (node->return_.val != NULL)
-    gen(node->return_.val);
+  if (node->u.return_.val != NULL)
+    gen(node->u.return_.val);
   assert(curfunc != NULL);
-  JMP32(curfunc->defun->ret_label);
+  JMP32(curfunc->u.defun->ret_label);
 }
 
 static void gen_funcall(Node *node) {
-  Vector *args = node->funcall.args;
+  Vector *args = node->u.funcall.args;
   if (args != NULL) {
     int len = args->len;
     if (len > 6)
@@ -564,9 +564,9 @@ static void gen_funcall(Node *node) {
     default: break;
     }
   }
-  Node *func = node->funcall.func;
-  if (func->type == ND_VARREF && func->varref.global) {
-    CALL(func->varref.ident);
+  Node *func = node->u.funcall.func;
+  if (func->type == ND_VARREF && func->u.varref.global) {
+    CALL(func->u.varref.ident);
   } else {
     gen(func);
     CALL_IND_RAX();
@@ -575,15 +575,15 @@ static void gen_funcall(Node *node) {
 
 static void gen_if(Node *node) {
   const char *flabel = alloc_label();
-  gen_cond_jmp(node->if_.cond, false, flabel);
-  gen(node->if_.tblock);
-  if (node->if_.fblock == NULL) {
+  gen_cond_jmp(node->u.if_.cond, false, flabel);
+  gen(node->u.if_.tblock);
+  if (node->u.if_.fblock == NULL) {
     add_label(flabel);
   } else {
     const char *nlabel = alloc_label();
     JMP32(nlabel);
     add_label(flabel);
-    gen(node->if_.fblock);
+    gen(node->u.if_.fblock);
     add_label(nlabel);
   }
 }
@@ -598,7 +598,7 @@ static void gen_switch(Node *node) {
   const char *l_break = push_break_label(&save_break);
 
   Vector *labels = new_vector();
-  Vector *case_values = node->switch_.case_values;
+  Vector *case_values = node->u.switch_.case_values;
   int len = case_values->len;
   for (int i = 0; i < len; ++i) {
     const char *label = alloc_label();
@@ -607,7 +607,7 @@ static void gen_switch(Node *node) {
   vec_push(labels, alloc_label());  // len+0: Extra label for default.
   vec_push(labels, l_break);  // len+1: Extra label for break.
 
-  Node *value = node->switch_.value;
+  Node *value = node->u.switch_.value;
   gen(value);
 
   enum eType valtype = value->expType->type;
@@ -626,9 +626,9 @@ static void gen_switch(Node *node) {
   cur_case_values = case_values;
   cur_case_labels = labels;
 
-  gen(node->switch_.body);
+  gen(node->u.switch_.body);
 
-  if (!node->switch_.has_default)
+  if (!node->u.switch_.has_default)
     add_label(labels->data[len]);  // No default: Locate at the end of switch statement.
   add_label(l_break);
 
@@ -638,12 +638,12 @@ static void gen_switch(Node *node) {
 }
 
 static void gen_label(Node *node) {
-  switch (node->label.type) {
+  switch (node->u.label.type) {
   case lCASE:
     {
       assert(cur_case_values != NULL);
       assert(cur_case_labels != NULL);
-      intptr_t x = node->label.case_value;
+      intptr_t x = node->u.label.u.case_value;
       int i, len = cur_case_values->len;
       for (i = 0; i < len; ++i) {
         if ((intptr_t)cur_case_values->data[i] == x)
@@ -674,9 +674,9 @@ static void gen_while(Node *node) {
   const char *l_loop = alloc_label();
   JMP32(l_cond);
   add_label(l_loop);
-  gen(node->while_.body);
+  gen(node->u.while_.body);
   add_label(l_cond);
-  gen_cond_jmp(node->while_.cond, true, l_loop);
+  gen_cond_jmp(node->u.while_.cond, true, l_loop);
   add_label(l_break);
   pop_continue_label(save_cont);
   pop_break_label(save_break);
@@ -688,9 +688,9 @@ static void gen_do_while(Node *node) {
   const char *l_break = push_break_label(&save_break);
   const char * l_loop = alloc_label();
   add_label(l_loop);
-  gen(node->do_while.body);
+  gen(node->u.do_while.body);
   add_label(l_cond);
-  gen_cond_jmp(node->do_while.cond, true, l_loop);
+  gen_cond_jmp(node->u.do_while.cond, true, l_loop);
   add_label(l_break);
   pop_continue_label(save_cont);
   pop_break_label(save_break);
@@ -701,16 +701,16 @@ static void gen_for(Node *node) {
   const char *l_continue = push_continue_label(&save_cont);
   const char *l_break = push_break_label(&save_break);
   const char * l_cond = alloc_label();
-  if (node->for_.pre != NULL)
-    gen(node->for_.pre);
+  if (node->u.for_.pre != NULL)
+    gen(node->u.for_.pre);
   add_label(l_cond);
-  if (node->for_.cond != NULL) {
-    gen_cond_jmp(node->for_.cond, false, l_break);
+  if (node->u.for_.cond != NULL) {
+    gen_cond_jmp(node->u.for_.cond, false, l_break);
   }
-  gen(node->for_.body);
+  gen(node->u.for_.body);
   add_label(l_continue);
-  if (node->for_.post != NULL)
-    gen(node->for_.post);
+  if (node->u.for_.post != NULL)
+    gen(node->u.for_.post);
   JMP32(l_cond);
   add_label(l_break);
   pop_continue_label(save_cont);
@@ -787,24 +787,24 @@ static void gen_arith(enum NodeType nodeType, enum eType expType) {
 void gen(Node *node) {
   switch (node->type) {
   case ND_INT:
-    MOV_IM32_EAX(node->value);
+    MOV_IM32_EAX(node->u.value);
     return;
 
   case ND_CHAR:
-    MOV_IM8_AL(node->value);
+    MOV_IM8_AL(node->u.value);
     return;
 
   case ND_LONG:
-    if (node->value < 0x7fffffffL && node->value >= -0x80000000L)
-      MOV_IM32_RAX(node->value);
+    if (node->u.value < 0x7fffffffL && node->u.value >= -0x80000000L)
+      MOV_IM32_RAX(node->u.value);
     else
-      MOV_IM64_RAX(node->value);
+      MOV_IM64_RAX(node->u.value);
     return;
 
   case ND_STR:
     {
       const char * label = alloc_label();
-      add_rodata(label, node->str, strlen(node->str) + 1);
+      add_rodata(label, node->u.str, strlen(node->u.str) + 1);
       LEA_OFS32_RIP_RAX(label);
     }
     return;
@@ -814,11 +814,11 @@ void gen(Node *node) {
     return;
 
   case ND_REF:
-    gen_ref(node->unary.sub);
+    gen_ref(node->u.unary.sub);
     return;
 
   case ND_DEREF:
-    gen_rval(node->unary.sub);
+    gen_rval(node->u.unary.sub);
     switch (node->expType->type) {
     case TY_CHAR:  MOV_IND_RAX_AL(); break;
     case TY_INT:   MOV_IND_RAX_EAX(); break;
@@ -847,17 +847,17 @@ void gen(Node *node) {
     return;
 
   case ND_CAST:
-    gen(node->cast.sub);
-    cast(node->expType->type, node->cast.sub->expType->type);
+    gen(node->u.cast.sub);
+    cast(node->expType->type, node->u.cast.sub->expType->type);
     break;
 
   case ND_ASSIGN:
-    gen_lval(node->bop.lhs);
+    gen_lval(node->u.bop.lhs);
     PUSH_RAX();
-    gen(node->bop.rhs);
+    gen(node->u.bop.rhs);
 
     POP_RDI();
-    switch (node->bop.lhs->expType->type) {
+    switch (node->u.bop.lhs->expType->type) {
     case TY_CHAR:  MOV_AL_IND_RDI(); break;
     case TY_INT:   MOV_EAX_IND_RDI(); break;
     default:
@@ -867,14 +867,14 @@ void gen(Node *node) {
 
   case ND_ASSIGN_WITH:
     {
-      Node *sub = node->unary.sub;
-      gen(sub->bop.rhs);
+      Node *sub = node->u.unary.sub;
+      gen(sub->u.bop.rhs);
       PUSH_RAX();
-      gen_lval(sub->bop.lhs);
+      gen_lval(sub->u.bop.lhs);
       MOV_RAX_RSI();  // Save lhs address to %rsi.
 
       // Move lhs to %?ax
-      switch (node->bop.lhs->expType->type) {
+      switch (node->u.bop.lhs->expType->type) {
       case TY_CHAR:  MOV_IND_RAX_AL(); break;
       case TY_INT:   MOV_IND_RAX_EAX(); break;
       default:
@@ -896,7 +896,7 @@ void gen(Node *node) {
 
   case ND_PREINC:
   case ND_PREDEC:
-    gen_lval(node->unary.sub);
+    gen_lval(node->u.unary.sub);
     switch (node->expType->type) {
     case TY_CHAR:
       if (node->type == ND_PREINC)  INCB_IND_RAX();
@@ -911,7 +911,7 @@ void gen(Node *node) {
     case TY_PTR:
       {
         MOV_RAX_RDI();
-        int size = type_size(node->expType->ptrof);
+        int size = type_size(node->expType->u.pa.ptrof);
         MOV_IM32_RAX(node->type == ND_PREINC ? size : -size);
         ADD_IND_RDI_RAX();
         MOV_RAX_IND_RDI();
@@ -925,7 +925,7 @@ void gen(Node *node) {
 
   case ND_POSTINC:
   case ND_POSTDEC:
-    gen_lval(node->unary.sub);
+    gen_lval(node->u.unary.sub);
     MOV_IND_RAX_RDI();
     switch (node->expType->type) {
     case TY_CHAR:
@@ -938,7 +938,7 @@ void gen(Node *node) {
       break;
     case TY_PTR:
       {
-        int size = type_size(node->expType->ptrof);
+        int size = type_size(node->expType->u.pa.ptrof);
         if (node->type == ND_POSTINC)  ADD_IM32_RAX(size);
         else                           SUB_IM32_RAX(size);
       }
@@ -963,14 +963,14 @@ void gen(Node *node) {
     return;
 
   case ND_BLOCK:
-    if (node->block.nodes != NULL) {
-      if (node->block.scope != NULL) {
-        assert(curscope == node->block.scope->parent);
-        curscope = node->block.scope;
+    if (node->u.block.nodes != NULL) {
+      if (node->u.block.scope != NULL) {
+        assert(curscope == node->u.block.scope->parent);
+        curscope = node->u.block.scope;
       }
-      for (int i = 0, len = node->block.nodes->len; i < len; ++i)
-        gen((Node*)node->block.nodes->data[i]);
-      if (node->block.scope != NULL)
+      for (int i = 0, len = node->u.block.nodes->len; i < len; ++i)
+        gen((Node*)node->u.block.nodes->data[i]);
+      if (node->u.block.scope != NULL)
         curscope = curscope->parent;
     }
     break;
@@ -1008,7 +1008,7 @@ void gen(Node *node) {
     break;
 
   case ND_NEG:
-    gen(node->unary.sub);
+    gen(node->u.unary.sub);
     switch (node->expType->type) {
     case TY_INT:  NEG_EAX(); break;
     case TY_CHAR: NEG_AL(); break;
@@ -1017,7 +1017,7 @@ void gen(Node *node) {
     break;
 
   case ND_NOT:
-    gen(node->unary.sub);
+    gen(node->u.unary.sub);
     switch (node->expType->type) {
     case TY_INT:  CMP_IM8_EAX(0); break;
     case TY_CHAR: CMP_IM8_AL(0); break;
@@ -1036,8 +1036,8 @@ void gen(Node *node) {
   case ND_GE:
     {
       enum NodeType type = node->type;
-      Node *lhs = node->bop.lhs;
-      Node *rhs = node->bop.rhs;
+      Node *lhs = node->u.bop.lhs;
+      Node *rhs = node->u.bop.rhs;
       if (type == ND_LE || type == ND_GT) {
         Node *tmp = lhs; lhs = rhs; rhs = tmp;
         type = type == ND_LE ? ND_GE : ND_LT;
@@ -1071,8 +1071,8 @@ void gen(Node *node) {
       const char * l_false = alloc_label();
       const char * l_true = alloc_label();
       const char * l_next = alloc_label();
-      gen_cond_jmp(node->bop.lhs, false, l_false);
-      gen_cond_jmp(node->bop.rhs, true, l_true);
+      gen_cond_jmp(node->u.bop.lhs, false, l_false);
+      gen_cond_jmp(node->u.bop.rhs, true, l_true);
       add_label(l_false);
       MOV_IM32_EAX(0);
       JMP8(l_next);
@@ -1087,8 +1087,8 @@ void gen(Node *node) {
       const char * l_false = alloc_label();
       const char * l_true = alloc_label();
       const char * l_next = alloc_label();
-      gen_cond_jmp(node->bop.lhs, true, l_true);
-      gen_cond_jmp(node->bop.rhs, false, l_false);
+      gen_cond_jmp(node->u.bop.lhs, true, l_true);
+      gen_cond_jmp(node->u.bop.rhs, false, l_false);
       add_label(l_true);
       MOV_IM32_EAX(1);
       JMP8(l_next);
@@ -1100,10 +1100,10 @@ void gen(Node *node) {
 
   case ND_PTRADD:
     {
-      Node *lhs = node->bop.lhs, *rhs = node->bop.rhs;
+      Node *lhs = node->u.bop.lhs, *rhs = node->u.bop.rhs;
       gen(rhs);
       cast(TY_INT, rhs->expType->type);  // TODO: Fix
-      long size = type_size(lhs->expType->ptrof);
+      long size = type_size(lhs->expType->u.pa.ptrof);
       if (size != 1) {
         MOV_IM32_EDI(size);
         MUL_EDI();
@@ -1118,10 +1118,10 @@ void gen(Node *node) {
 
   case ND_PTRSUB:
     {
-      Node *lhs = node->bop.lhs, *rhs = node->bop.rhs;
+      Node *lhs = node->u.bop.lhs, *rhs = node->u.bop.rhs;
       gen(rhs);
       cast(TY_INT, rhs->expType->type);  // TODO: Fix
-      int size = type_size(node->bop.lhs->expType->ptrof);
+      int size = type_size(node->u.bop.lhs->expType->u.pa.ptrof);
       if (size != 1) {
         MOV_IM64_RDI((long)size);
         MUL_RDI();
@@ -1135,13 +1135,13 @@ void gen(Node *node) {
 
   case ND_PTRDIFF:
     {
-      gen(node->bop.rhs);
+      gen(node->u.bop.rhs);
       PUSH_RAX();
-      gen(node->bop.lhs);
+      gen(node->u.bop.lhs);
       POP_RDI();
       SUB_RDI_RAX();
 
-      int size = type_size(node->bop.lhs->expType->ptrof);
+      int size = type_size(node->u.bop.lhs->expType->u.pa.ptrof);
       switch (size) {
       case 1:  break;
       case 2:  SAR_RAX(); break;
@@ -1161,9 +1161,9 @@ void gen(Node *node) {
   case ND_MUL:
   case ND_DIV:
   case ND_MOD:
-    gen(node->bop.rhs);
+    gen(node->u.bop.rhs);
     PUSH_RAX();
-    gen(node->bop.lhs);
+    gen(node->u.bop.lhs);
 
     POP_RDI();
 

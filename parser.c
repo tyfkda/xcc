@@ -6,11 +6,11 @@
 #include "xcc.h"
 #include "util.h"
 
-static const Type tyVoid = {.type=TY_VOID, .ptrof=NULL};
-static const Type tyInt = {.type=TY_INT, .ptrof=NULL};
-static const Type tyChar = {.type=TY_CHAR, .ptrof=NULL};
-static const Type tyLong = {.type=TY_LONG, .ptrof=NULL};
-static const Type tyStr = {.type=TY_PTR, .ptrof=&tyChar};
+static const Type tyVoid = {.type=TY_VOID};
+static const Type tyInt = {.type=TY_INT};
+static const Type tyChar = {.type=TY_CHAR};
+static const Type tyLong = {.type=TY_LONG};
+static const Type tyStr = {.type=TY_PTR, .u={.pa={.ptrof=&tyChar}}};
 #define tyBool  tyInt
 
 static StructInfo *parse_struct(void);
@@ -72,8 +72,8 @@ void dump_type(FILE *fp, const Type *type) {
   case TY_CHAR: fprintf(fp, "char"); break;
   case TY_INT: fprintf(fp, "int"); break;
   case TY_LONG: fprintf(fp, "long"); break;
-  case TY_PTR: dump_type(fp, type->ptrof); fprintf(fp, "*"); break;
-  case TY_ARRAY: dump_type(fp, type->ptrof); fprintf(fp, "[%d]", (int)type->array_size); break;
+  case TY_PTR: dump_type(fp, type->u.pa.ptrof); fprintf(fp, "*"); break;
+  case TY_ARRAY: dump_type(fp, type->u.pa.ptrof); fprintf(fp, "[%d]", (int)type->u.pa.array_size); break;
   default: assert(false);
   }
 }
@@ -100,18 +100,19 @@ static bool same_type(const Type *type1, const Type *type2) {
     case TY_INT:
     case TY_LONG:
       return true;
-    case TY_PTR:
     case TY_ARRAY:
-      if (type1->array_size != type2->array_size &&
-          (type1->array_size > 0 && type2->array_size > 0))  // TODO:
+      if (type1->u.pa.array_size != type2->u.pa.array_size &&
+          (type1->u.pa.array_size > 0 && type2->u.pa.array_size > 0))  // TODO:
         return false;
-      type1 = type1->ptrof;
-      type2 = type2->ptrof;
+      // Fallthrough
+    case TY_PTR:
+      type1 = type1->u.pa.ptrof;
+      type2 = type2->u.pa.ptrof;
       continue;
     case TY_FUNC:
       return type1 == type2;
     case TY_STRUCT:
-      return type1->struct_ == type2->struct_;
+      return type1->u.struct_ == type2->u.struct_;
     }
   }
 }
@@ -119,28 +120,28 @@ static bool same_type(const Type *type1, const Type *type2) {
 static Type* ptrof(const Type *type) {
   Type *ptr = malloc(sizeof(*ptr));
   ptr->type = TY_PTR;
-  ptr->ptrof = type;
+  ptr->u.pa.ptrof = type;
   return ptr;
 }
 
 static const Type *array_to_ptr(const Type *type) {
   if (type->type != TY_ARRAY)
     return type;
-  return ptrof(type->ptrof);
+  return ptrof(type->u.pa.ptrof);
 }
 
 static Type* arrayof(const Type *type, size_t array_size) {
   Type *arr = malloc(sizeof(*arr));
   arr->type = TY_ARRAY;
-  arr->ptrof = type;
-  arr->array_size = array_size;
+  arr->u.pa.ptrof = type;
+  arr->u.pa.array_size = array_size;
   return arr;
 }
 
 static Type* new_func_type(const Type *ret, const Vector *params) {
   Type *f = malloc(sizeof(*f));
   f->type = TY_FUNC;
-  f->func.ret = ret;
+  f->u.func.ret = ret;
 
   Vector *newparams = NULL;
   if (params != NULL) {
@@ -149,7 +150,7 @@ static Type* new_func_type(const Type *ret, const Vector *params) {
     for (int i = 0; i < params->len; ++i)
       vec_push(newparams, params->data[i]);
   }
-  f->func.params = newparams;
+  f->u.func.params = newparams;
   return f;
 }
 
@@ -269,13 +270,13 @@ static Node *new_node_cast(const Type *type, Node *sub, bool is_explicit) {
       if (is_explicit)
         goto ok;
       // void* is interchangable with any pointer type.
-      if (type->ptrof->type == TY_VOID || sub->expType->ptrof->type == TY_VOID)
+      if (type->u.pa.ptrof->type == TY_VOID || sub->expType->u.pa.ptrof->type == TY_VOID)
         goto ok;
       break;
     case TY_ARRAY:
       if (is_explicit)
         goto ok;
-      if (same_type(type->ptrof, sub->expType->ptrof))
+      if (same_type(type->u.pa.ptrof, sub->expType->u.pa.ptrof))
         goto ok;
       break;
     default:  break;
@@ -300,27 +301,27 @@ static Node *new_node_cast(const Type *type, Node *sub, bool is_explicit) {
 
  ok:;
   Node *node = new_node(ND_CAST, type);
-  node->cast.sub = sub;
+  node->u.cast.sub = sub;
   return node;
 }
 
 static Node *new_node_bop(enum NodeType type, const Type *expType, Node *lhs, Node *rhs) {
   Node *node = new_node(type, expType);
-  node->bop.lhs = lhs;
-  node->bop.rhs = rhs;
+  node->u.bop.lhs = lhs;
+  node->u.bop.rhs = rhs;
   return node;
 }
 
 static Node *new_node_unary(enum NodeType type, const Type *expType, Node *sub) {
   Node *node = new_node(type, expType);
-  node->unary.sub = sub;
+  node->u.unary.sub = sub;
   return node;
 }
 
 static Node *new_node_deref(Node *sub) {
   if (sub->expType->type != TY_PTR && sub->expType->type != TY_ARRAY)
-    error("Cannot dereference raw type");
-  return new_node_unary(ND_DEREF, sub->expType->ptrof, sub);
+     error("Cannot dereference raw type");
+  return new_node_unary(ND_DEREF, sub->expType->u.pa.ptrof, sub);
 }
 
 static Node *new_node_numlit(enum NodeType nodetype, intptr_t val) {
@@ -332,108 +333,108 @@ static Node *new_node_numlit(enum NodeType nodetype, intptr_t val) {
   default: assert(false); break;
   }
   Node *node = new_node(nodetype, type);
-  node->value = val;
+  node->u.value = val;
   return node;
 }
 
 static Node *new_node_str(const char *str) {
   Node *node = new_node(ND_STR, &tyStr);
-  node->str = str;
+  node->u.str = str;
   return node;
 }
 
 static Node *new_node_varref(const char *name, const Type *type, int global) {
   Node *node = new_node(ND_VARREF, type);
-  node->varref.ident = name;
-  node->varref.global = global;
+  node->u.varref.ident = name;
+  node->u.varref.global = global;
   return node;
 }
 
 static Node *new_node_member(Node *target, const char *name, const Type *expType) {
   Node *node = new_node(ND_MEMBER, expType);
-  node->member.target = target;
-  node->member.name = name;
+  node->u.member.target = target;
+  node->u.member.name = name;
   return node;
 }
 
 static Node *new_node_defun(Defun *defun) {
   Node *node = new_node(ND_DEFUN, &tyVoid);
-  node->defun = defun;
+  node->u.defun = defun;
   return node;
 }
 
 static Node *new_node_funcall(Node *func, Vector *args) {
-  const Type *rettype = func->expType->type == TY_FUNC ? func->expType->func.ret : &tyInt;  // TODO: Fix.
+  const Type *rettype = func->expType->type == TY_FUNC ? func->expType->u.func.ret : &tyInt;  // TODO: Fix.
   Node *node = new_node(ND_FUNCALL, rettype);
-  node->funcall.func = func;
-  node->funcall.args = args;
+  node->u.funcall.func = func;
+  node->u.funcall.args = args;
   return node;
 }
 
 static Node *new_node_block(Scope *scope, Vector *nodes) {
   Node *node = new_node(ND_BLOCK, &tyVoid);
-  node->block.scope = scope;
-  node->block.nodes = nodes;
+  node->u.block.scope = scope;
+  node->u.block.nodes = nodes;
   return node;
 }
 
 static Node *new_node_if(Node *cond, Node *tblock, Node *fblock) {
   Node *node = new_node(ND_IF, &tyVoid);
-  node->if_.cond = cond;
-  node->if_.tblock = tblock;
-  node->if_.fblock = fblock;
+  node->u.if_.cond = cond;
+  node->u.if_.tblock = tblock;
+  node->u.if_.fblock = fblock;
   return node;
 }
 
 static Node *new_node_switch(Node *value) {
   Node *node = new_node(ND_SWITCH, &tyVoid);
-  node->switch_.value = value;
-  node->switch_.body = NULL;
-  node->switch_.case_values = NULL;
-  node->switch_.has_default = false;
+  node->u.switch_.value = value;
+  node->u.switch_.body = NULL;
+  node->u.switch_.case_values = NULL;
+  node->u.switch_.has_default = false;
   return node;
 }
 
 static Node *new_node_case(int value) {
   Node *node = new_node(ND_LABEL, &tyVoid);
-  node->label.type = lCASE;
-  node->label.case_value = value;
+  node->u.label.type = lCASE;
+  node->u.label.u.case_value = value;
   return node;
 }
 
 static Node *new_node_default(void) {
   Node *node = new_node(ND_LABEL, &tyVoid);
-  node->label.type = lDEFAULT;
+  node->u.label.type = lDEFAULT;
   return node;
 }
 
 static Node *new_node_while(Node *cond, Node *body) {
   Node *node = new_node(ND_WHILE, &tyVoid);
-  node->while_.cond = cond;
-  node->while_.body = body;
+  node->u.while_.cond = cond;
+  node->u.while_.body = body;
   return node;
 }
 
 static Node *new_node_do_while(Node *body, Node *cond) {
   Node *node = new_node(ND_DO_WHILE, &tyVoid);
-  node->do_while.body = body;
-  node->do_while.cond = cond;
+  node->u.do_while.body = body;
+  node->u.do_while.cond = cond;
   return node;
 }
 
 static Node *new_node_for(Node *pre, Node *cond, Node *post, Node *body) {
   Node *node = new_node(ND_FOR, &tyVoid);
-  node->for_.pre = pre;
-  node->for_.cond = cond;
-  node->for_.post = post;
-  node->for_.body = body;
+  node->u.for_.pre = pre;
+  node->u.for_.cond = cond;
+  node->u.for_.post = post;
+  node->u.for_.body = body;
   return node;
 }
 
 static Node *new_node_return(Node *val) {
   const Type *type = val != NULL ? val->expType : &tyVoid;
   Node *node = new_node(ND_RETURN, type);
-  node->return_.val = val;
+  node->u.return_.val = val;
   return node;
 }
 
@@ -449,8 +450,8 @@ static Node *funcall(Node *func) {
     args = new_vector();
     for (;;) {
       Node *arg = expr();
-      if (functype != NULL && functype->func.params != NULL && args->len < functype->func.params->len) {
-        const Type * type = ((VarInfo*)functype->func.params->data[args->len])->type;
+      if (functype != NULL && functype->u.func.params != NULL && args->len < functype->u.func.params->len) {
+        const Type * type = ((VarInfo*)functype->u.func.params->data[args->len])->type;
         arg = new_node_cast(type, arg, false);
       }
       vec_push(args, arg);
@@ -462,8 +463,8 @@ static Node *funcall(Node *func) {
     }
   }
 
-  if (functype != NULL && functype->func.params != NULL && (args != NULL ? args->len : 0) != functype->func.params->len)
-    error("function `%s' expect %d arguments, but %d\n", func->varref.ident, functype->func.params->len, (args != NULL ? args->len : 0));
+  if (functype != NULL && functype->u.func.params != NULL && (args != NULL ? args->len : 0) != functype->u.func.params->len)
+    error("function `%s' expect %d arguments, but %d\n", func->u.varref.ident, functype->u.func.params->len, (args != NULL ? args->len : 0));
 
   return new_node_funcall(func, args);
 }
@@ -573,7 +574,7 @@ static Node *sub_node(Node *lhs, Node *rhs) {
         error("Different pointer sub");
       return new_node_bop(ND_PTRDIFF, &tyInt, lhs, rhs);  // TODO: size_t
     case TY_ARRAY:
-      if (!same_type(lhs->expType->ptrof, rhs->expType->ptrof))
+      if (!same_type(lhs->expType->u.pa.ptrof, rhs->expType->u.pa.ptrof))
         error("Different pointer sub");
       return new_node_bop(ND_PTRDIFF, &tyInt, lhs, rhs);  // TODO: size_t
     default:
@@ -584,7 +585,7 @@ static Node *sub_node(Node *lhs, Node *rhs) {
   case TY_ARRAY:
     switch (rhs->expType->type) {
     case TY_PTR:
-      if (!same_type(lhs->expType->ptrof, rhs->expType->ptrof))
+      if (!same_type(lhs->expType->u.pa.ptrof, rhs->expType->u.pa.ptrof))
         error("Different pointer sub");
       return new_node_bop(ND_PTRDIFF, &tyInt, lhs, rhs);  // TODO: size_t
     case TY_ARRAY:
@@ -626,7 +627,7 @@ Node *member_access(Node *target, enum TokenType toktype) {
   Token *tok;
   if (!(tok = consume(TK_IDENT)))
     error("`ident' expected, but %s", current_line());
-  const char *name = tok->ident;
+  const char *name = tok->u.ident;
 
   // Find member's type from struct info.
   const Type *type = target->expType;
@@ -634,17 +635,20 @@ Node *member_access(Node *target, enum TokenType toktype) {
     if (type->type != TY_STRUCT)
       error("`.' for non struct value");
   } else {  // TK_ARROW
-    if (type->type != TY_PTR)
+    if (type->type == TY_PTR)
+      type = target->expType->u.pa.ptrof;
+    else if (type->type == TY_ARRAY)
+      type = target->expType->u.pa.ptrof;
+    else
       error("`->' for non pointer value");
-    type = target->expType->ptrof;
     if (type->type != TY_STRUCT)
       error("`->' for non struct value");
   }
 
-  int index = var_find(type->struct_->members, name);
+  int index = var_find(type->u.struct_->members, name);
   if (index < 0)
     error("`%s' doesn't exist in the struct");
-  VarInfo *varinfo = (VarInfo*)type->struct_->members->data[index];
+  VarInfo *varinfo = (VarInfo*)type->u.struct_->members->data[index];
 
   return new_node_member(target, name, varinfo->type);
 }
@@ -656,7 +660,7 @@ static const Type *parse_raw_type(void) {
     const char *name = NULL;
     Token *tok;
     if ((tok = consume(TK_IDENT)))
-      name = tok->ident;
+      name = tok->u.ident;
 
     StructInfo *sinfo;
     if (consume(TK_LBRACE)) {  // Definition
@@ -670,7 +674,7 @@ static const Type *parse_raw_type(void) {
     }
     type = malloc(sizeof(*type));
     type->type = TY_STRUCT;
-    type->struct_ = sinfo;
+    type->u.struct_ = sinfo;
   } else {
     static const enum TokenType kKeywords[] = {
       TK_KWVOID, TK_KWCHAR, TK_KWINT, TK_KWLONG,
@@ -683,7 +687,6 @@ static const Type *parse_raw_type(void) {
       if (consume(kKeywords[i])) {
         type = malloc(sizeof(*type));
         type->type = kTypes[i];
-        type->ptrof = NULL;
         break;
       }
     }
@@ -711,7 +714,7 @@ static const Type *parse_var_def_suffix(const Type *type) {
   if (consume(TK_RBRACKET)) {
     count = -1;
   } else if ((tok = consume(TK_INTLIT))) {  // TODO: Constant expression.
-    count = tok->value;
+    count = tok->u.value;
     if (count < 0)
       error("Array size must be greater than 0, but %d", count);
     if (!consume(TK_RBRACKET))
@@ -737,7 +740,7 @@ static bool parse_var_def(const Type **prawType, const Type** ptype, const char 
   if (!allow_void || type->type != TY_VOID) {
     if (!(tok = consume(TK_IDENT)))
       error("Ident expected, but %s", current_line());
-    name = tok->ident;
+    name = tok->u.ident;
     type = parse_var_def_suffix(type);
   }
 
@@ -794,27 +797,27 @@ static Node *prim(void) {
     if (((tok = consume(TK_CHARLIT)) != NULL && (nt = ND_CHAR, true)) ||
         ((tok = consume(TK_INTLIT)) != NULL && (nt = ND_INT, true)) ||
         ((tok = consume(TK_LONGLIT)) != NULL && (nt = ND_LONG, true)))
-      return new_node_numlit(nt, tok->value);
+      return new_node_numlit(nt, tok->u.value);
   }
   if ((tok = consume(TK_STR)))
-    return new_node_str(tok->str);
+    return new_node_str(tok->u.str);
 
   if ((tok = consume(TK_IDENT))) {
     if (curfunc == NULL) {
-      error("Cannot use variable outside of function: `%s'", tok->ident);
+      error("Cannot use variable outside of function: `%s'", tok->u.ident);
     } else {
       const Type *type = NULL;
-      VarInfo *varinfo = scope_find(curscope, tok->ident);
+      VarInfo *varinfo = scope_find(curscope, tok->u.ident);
       if (varinfo != NULL) {
         type = varinfo->type;
       } else {
-        GlobalVarInfo *varinfo = find_global(tok->ident);
+        GlobalVarInfo *varinfo = find_global(tok->u.ident);
         if (varinfo == NULL)
-          error("Undefined `%s'", tok->ident);
+          error("Undefined `%s'", tok->u.ident);
         type = varinfo->type;
       }
       int global = varinfo == NULL;
-      return new_node_varref(tok->ident, type, global);
+      return new_node_varref(tok->u.ident, type, global);
     }
   } else {
     error("Number or Ident or open paren expected: %s", current_line());
@@ -838,7 +841,7 @@ static Node *term(void) {
     case ND_CHAR:
     case ND_INT:
     case ND_LONG:
-      node->value = -node->value;
+      node->u.value = -node->u.value;
       return node;
     default:
       return new_node_unary(ND_NEG, node->expType, node);
@@ -1091,7 +1094,7 @@ static Node *parse_switch(void) {
       curloopflag |= LF_BREAK;
       curswitch = swtch;
 
-      swtch->switch_.body = stmt();
+      swtch->u.switch_.body = stmt();
 
       curloopflag = save_flag;
       curswitch = save_switch;
@@ -1113,7 +1116,7 @@ static Node *parse_case(void) {
   case ND_CHAR:
   case ND_INT:
   case ND_LONG:
-    value = valnode->value;
+    value = valnode->u.value;
     break;
   default:
     error("Cannot use expression, but %s", current_line());
@@ -1122,9 +1125,9 @@ static Node *parse_case(void) {
   if (!consume(TK_COLON))
     error("`:' expected, but %s", current_line());
 
-  Vector *values = curswitch->switch_.case_values;
+  Vector *values = curswitch->u.switch_.case_values;
   if (values == NULL)
-    curswitch->switch_.case_values = values = new_vector();
+    curswitch->u.switch_.case_values = values = new_vector();
 
   // Check duplication.
   for (int i = 0, len = values->len; i < len; ++i) {
@@ -1140,13 +1143,13 @@ static Node *parse_case(void) {
 static Node *parse_default(void) {
   if (curswitch == NULL)
     error("`default' cannot use outside of `switch`: %s", current_line());
-  if (curswitch->switch_.has_default)
+  if (curswitch->u.switch_.has_default)
     error("`default' already defined in `switch`: %s", current_line());
 
   if (!consume(TK_COLON))
     error("`:' expected, but %s", current_line());
 
-  curswitch->switch_.has_default = true;
+  curswitch->u.switch_.has_default = true;
 
   return new_node_default();
 }
@@ -1246,7 +1249,7 @@ static bool parse_vardecl(Node **pnode) {
       Token *tok;
       if ((tok = consume(TK_INTLIT)) != NULL ||  // TODO: Constant expression.
           (tok = consume(TK_LONGLIT)) != NULL) {
-        intptr_t count = tok->value;
+        intptr_t count = tok->u.value;
         if (count < 0)
           error("Array size must be greater than 0, but %d", count);
         type = arrayof(type, count);
@@ -1437,7 +1440,7 @@ static Node *toplevel(void) {
 
     Token *tok;
     if ((tok = consume(TK_IDENT))) {
-      const char *ident = tok->ident;
+      const char *ident = tok->u.ident;
 
       if (consume(TK_LPAR))  // Function.
         return parse_defun(type, ident);

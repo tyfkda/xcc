@@ -149,7 +149,7 @@ static Token *read_num(const char **pp) {
     ++(*pp);
   }
   tok = alloc_token(tt, start);
-  tok->value = val;
+  tok->u.value = val;
   return tok;
 }
 
@@ -274,7 +274,7 @@ static Token *get_token(void) {
         tok = alloc_token(word, p);
       } else {
         tok= alloc_token(TK_IDENT, p);
-        tok->ident = dup;
+        tok->u.ident = dup;
       }
       p = q;
       break;
@@ -293,7 +293,7 @@ static Token *get_token(void) {
         error("Character not closed");
 
       tok = alloc_token(TK_CHARLIT, start);
-      tok->value = c;
+      tok->u.value = c;
       ++p;
       break;
     }
@@ -320,7 +320,7 @@ static Token *get_token(void) {
       }
       str[size] = '\0';
       tok = alloc_token(TK_STR, start);
-      tok->str = str;
+      tok->u.str = str;
       ++p;
       break;
     }
