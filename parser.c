@@ -17,6 +17,7 @@ static const Type tyStr = {.type=TY_PTR, .u={.pa={.ptrof=&tyChar}}};
 static StructInfo *parse_struct(void);
 static Node *stmt(void);
 static Node *expr(void);
+static Node *cast_expr(void);
 static Node *prim(void);
 
 //
@@ -803,19 +804,10 @@ static Node *parse_sizeof(void) {
 
 static Node *prim(void) {
   if (consume(TK_LPAR)) {
-    const Type *type = parse_raw_type();
-    if (type != NULL) {  // Cast
-      type = parse_var_def_suffix(parse_type_modifier(type, true));
-      if (!consume(TK_RPAR))
-        error("`)' expected, but %s", current_line());
-      Node *node = prim();
-      return new_node_cast(type, node, true);
-    } else {
-      Node *node = expr();
-      if (!consume(TK_RPAR))
-        error("No close paren: %s", current_line());
-      return node;
-    }
+    Node *node = expr();
+    if (!consume(TK_RPAR))
+      error("No close paren: %s", current_line());
+    return node;
   }
 
   Token *tok;
@@ -830,90 +822,26 @@ static Node *prim(void) {
     return new_node_str(tok->u.str);
 
   if ((tok = consume(TK_IDENT))) {
-    if (curfunc == NULL) {
-      error("Cannot use variable outside of function: `%s'", tok->u.ident);
+    assert(curfunc != NULL);
+
+    const Type *type = NULL;
+    VarInfo *varinfo = scope_find(curscope, tok->u.ident);
+    if (varinfo != NULL) {
+      type = varinfo->type;
     } else {
-      const Type *type = NULL;
-      VarInfo *varinfo = scope_find(curscope, tok->u.ident);
-      if (varinfo != NULL) {
-        type = varinfo->type;
-      } else {
-        GlobalVarInfo *varinfo = find_global(tok->u.ident);
-        if (varinfo == NULL)
-          error("Undefined `%s'", tok->u.ident);
-        type = varinfo->type;
-      }
-      int global = varinfo == NULL;
-      return new_node_varref(tok->u.ident, type, global);
+      GlobalVarInfo *varinfo = find_global(tok->u.ident);
+      if (varinfo == NULL)
+        error("Undefined `%s'", tok->u.ident);
+      type = varinfo->type;
     }
-  } else {
-    error("Number or Ident or open paren expected: %s", current_line());
+    int global = varinfo == NULL;
+    return new_node_varref(tok->u.ident, type, global);
   }
+  error("Number or Ident or open paren expected: %s", current_line());
   return NULL;
 }
 
-static Node *term(void) {
-  if (consume(TK_ADD)) {
-    Node *node = term();
-    if (!is_number(node->expType->type))
-      error("Cannot apply `+' except number types");
-    return node;
-  }
-
-  if (consume(TK_SUB)) {
-    Node *node = term();
-    if (!is_number(node->expType->type))
-      error("Cannot apply `-' except number types");
-    switch (node->type) {
-    case ND_CHAR:
-    case ND_INT:
-    case ND_LONG:
-      node->u.value = -node->u.value;
-      return node;
-    default:
-      return new_node_unary(ND_NEG, node->expType, node);
-    }
-  }
-
-  if (consume(TK_NOT)) {
-    Node *node = term();
-    switch (node->expType->type) {
-    case TY_INT:
-    case TY_CHAR:
-    case TY_PTR:
-      node = new_node_unary(ND_NOT, &tyBool, node);
-      break;
-    default:
-      error("Cannot apply `!' except number or pointer types");
-      break;
-    }
-    return node;
-  }
-
-  if (consume(TK_AMP)) {
-    Node *node = term();
-    return new_node_unary(ND_REF, ptrof(node->expType), node);
-  }
-
-  if (consume(TK_MUL)) {
-    Node *node = term();
-    return new_node_deref(node);
-  }
-
-  if (consume(TK_INC)) {
-    Node *node = term();
-    return new_node_unary(ND_PREINC, node->expType, node);
-  }
-
-  if (consume(TK_DEC)) {
-    Node *node = term();
-    return new_node_unary(ND_PREDEC, node->expType, node);
-  }
-
-  if (consume(TK_SIZEOF)) {
-    return parse_sizeof();
-  }
-
+static Node *postfix(void) {
   Node *node = prim();
 
   for (;;) {
@@ -934,8 +862,89 @@ static Node *term(void) {
   }
 }
 
+static Node *unary(void) {
+  if (consume(TK_ADD)) {
+    Node *node = cast_expr();
+    if (!is_number(node->expType->type))
+      error("Cannot apply `+' except number types");
+    return node;
+  }
+
+  if (consume(TK_SUB)) {
+    Node *node = cast_expr();
+    if (!is_number(node->expType->type))
+      error("Cannot apply `-' except number types");
+    switch (node->type) {
+    case ND_CHAR:
+    case ND_INT:
+    case ND_LONG:
+      node->u.value = -node->u.value;
+      return node;
+    default:
+      return new_node_unary(ND_NEG, node->expType, node);
+    }
+  }
+
+  if (consume(TK_NOT)) {
+    Node *node = cast_expr();
+    switch (node->expType->type) {
+    case TY_INT:
+    case TY_CHAR:
+    case TY_PTR:
+      node = new_node_unary(ND_NOT, &tyBool, node);
+      break;
+    default:
+      error("Cannot apply `!' except number or pointer types");
+      break;
+    }
+    return node;
+  }
+
+  if (consume(TK_AMP)) {
+    Node *node = cast_expr();
+    return new_node_unary(ND_REF, ptrof(node->expType), node);
+  }
+
+  if (consume(TK_MUL)) {
+    Node *node = cast_expr();
+    return new_node_deref(node);
+  }
+
+  if (consume(TK_INC)) {
+    Node *node = unary();
+    return new_node_unary(ND_PREINC, node->expType, node);
+  }
+
+  if (consume(TK_DEC)) {
+    Node *node = unary();
+    return new_node_unary(ND_PREDEC, node->expType, node);
+  }
+
+  if (consume(TK_SIZEOF)) {
+    return parse_sizeof();
+  }
+
+  return postfix();
+}
+
+static Node *cast_expr(void) {
+  Token *lpar;
+  if ((lpar = consume(TK_LPAR)) != NULL) {
+    const Type *type = parse_raw_type();
+    if (type != NULL) {  // Cast
+      type = parse_var_def_suffix(parse_type_modifier(type, true));
+      if (!consume(TK_RPAR))
+        error("`)' expected, but %s", current_line());
+      Node *node = cast_expr();
+      return new_node_cast(type, node, true);
+    }
+    unget_token(lpar);
+  }
+  return unary();
+}
+
 static Node *mul(void) {
-  Node *node = term();
+  Node *node = cast_expr();
 
   for (;;) {
     enum NodeType t;
@@ -948,7 +957,7 @@ static Node *mul(void) {
     else
       return node;
 
-    node = arith_node(t, node, term());
+    node = arith_node(t, node, cast_expr());
   }
 }
 

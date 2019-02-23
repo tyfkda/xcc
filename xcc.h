@@ -83,6 +83,7 @@ typedef struct {
 
 void init_lexer(FILE *fp);
 Token *consume(enum TokenType type);
+void unget_token(Token *token);
 const char *current_line(void);
 
 // Type

@@ -7,12 +7,15 @@
 #include "xcc.h"
 #include "util.h"
 
+#define MAX_LOOKAHEAD  (2)
+
 typedef struct {
   FILE *fp;
   char* line;
   size_t line_len;
   const char *p;
-  Token *tok;
+  Token *fetched[MAX_LOOKAHEAD];
+  int idx;
 } Lexer;
 
 static Lexer lexer;
@@ -69,7 +72,7 @@ void init_lexer(FILE *fp) {
   lexer.line = NULL;
   lexer.line_len = 0;
   lexer.p = "";
-  lexer.tok = NULL;
+  lexer.idx = -1;
 }
 
 static void read_next_line(void) {
@@ -336,14 +339,21 @@ static Token *get_token(void) {
 }
 
 Token *consume(enum TokenType type) {
-  if (lexer.tok == NULL)
-    lexer.tok = get_token();
-  Token *tok = lexer.tok;
+  if (lexer.idx < 0) {
+    lexer.idx = 0;
+    lexer.fetched[0] = get_token();
+  }
+  Token *tok = lexer.fetched[lexer.idx];
   if (tok->type != type)
     return NULL;
   if (tok->type != TK_EOF)
-    lexer.tok = NULL;
+    --lexer.idx;
   return tok;
+}
+
+void unget_token(Token *token) {
+  assert(++lexer.idx < MAX_LOOKAHEAD);
+  lexer.fetched[lexer.idx] = token;
 }
 
 const char *current_line(void) {
