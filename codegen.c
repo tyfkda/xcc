@@ -14,7 +14,7 @@ const int FRAME_ALIGN = 8;
 
 #define ALIGN(x, align)  (((x) + (align) - 1) & -(align))  // align must be 2^n
 
-static void calc_struct_size(StructInfo *sinfo);
+static void calc_struct_size(StructInfo *sinfo, bool is_union);
 
 static int type_size(const Type *type) {
   switch (type->type) {
@@ -32,8 +32,9 @@ static int type_size(const Type *type) {
   case TY_ARRAY:
     return type_size(type->u.pa.ptrof) * type->u.pa.array_size;
   case TY_STRUCT:
+  case TY_UNION:
     if (type->u.struct_->size == 0)
-      calc_struct_size(type->u.struct_);
+      calc_struct_size(type->u.struct_, type->type == TY_UNION);
     return type->u.struct_->size;
   default:
     assert(false);
@@ -55,7 +56,8 @@ static int align_size(const Type *type) {
   case TY_ARRAY:
     return align_size(type->u.pa.ptrof);
   case TY_STRUCT:
-    calc_struct_size(type->u.struct_);
+  case TY_UNION:
+    calc_struct_size(type->u.struct_, type->type == TY_UNION);
     return type->u.struct_->align;
   default:
     assert(false);
@@ -63,19 +65,28 @@ static int align_size(const Type *type) {
   }
 }
 
-static void calc_struct_size(StructInfo *sinfo) {
+static void calc_struct_size(StructInfo *sinfo, bool is_union) {
   int size = 0;
+  int maxsize = 0;
   int max_align = 1;
+
   for (int i = 0, len = sinfo->members->len; i < len; ++i) {
     VarInfo *varinfo = (VarInfo*)sinfo->members->data[i];
     int sz = type_size(varinfo->type);
     int align = align_size(varinfo->type);
     size = ALIGN(size, align);
     varinfo->offset = (int)size;
-    size += sz;
+    if (!is_union)
+      size += sz;
+    else
+      if (maxsize < sz)
+        maxsize = sz;
     if (max_align < align)
       max_align = align;
   }
+
+  if (is_union)
+    size = maxsize;
   size = ALIGN(size, max_align);
   if (size == 0)
     size = 1;
@@ -391,7 +402,7 @@ static void gen_lval(Node *node) {
       const Type *type = node->u.member.target->expType;
       if (type->type == TY_PTR)  // TODO: Array?
         type = type->u.pa.ptrof;
-      assert(type->type == TY_STRUCT);
+      assert(type->type == TY_STRUCT || type->type == TY_UNION);
       Vector *members = type->u.struct_->members;
       int varidx = var_find(members, node->u.member.name);
       assert(varidx >= 0);
@@ -1063,8 +1074,9 @@ void gen(Node *node) {
 
       POP_RDI();
       switch (lhs->expType->type) {
-      case TY_INT:  CMP_EAX_EDI(); break;
       case TY_CHAR: CMP_AL_DIL(); break;
+      case TY_INT:  CMP_EAX_EDI(); break;
+      case TY_LONG: CMP_RAX_RDI(); break;
       case TY_PTR:  CMP_RAX_RDI(); break;
       default: assert(false); break;
       }

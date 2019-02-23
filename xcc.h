@@ -67,6 +67,7 @@ enum TokenType {
   TK_KWINT,
   TK_KWLONG,
   TK_STRUCT,
+  TK_UNION,
   TK_SIZEOF,
 };
 
@@ -97,6 +98,7 @@ enum eType {
   TY_ARRAY,
   TY_FUNC,
   TY_STRUCT,
+  TY_UNION,
 };
 
 typedef struct {
@@ -116,7 +118,7 @@ typedef struct Type {
       const struct Type *ret;
       Vector *params;
     } func;
-    StructInfo *struct_;
+    StructInfo *struct_;  // and union.
   } u;
 } Type;
 

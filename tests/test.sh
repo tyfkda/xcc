@@ -124,6 +124,7 @@ try_output 'char array' 123 "char s[16]; s[0] = '1'; s[1] = '2'; s[2] = '3'; s[3
 try_output_direct 'putdeci' 12345 "void putdeci(int x) { char s[16]; char *p = s + 16; for (; x != 0; x = x / 10) *(--p) = (x % 10) + '0'; _write(1, p, (s + 16) - p); } void main() { putdeci(12345); _exit(0); }"
 try_direct 'struct' 3 'struct Foo{char x; int y;}; void main(){ struct Foo foo; foo.x = 1; foo.y = 2; _exit(foo.x + foo.y);}'
 try_direct 'struct pointer' 3 'struct Foo{char x; int y;}; void main(){ struct Foo foo; struct Foo *p = &foo; p->x = 1; p->y = 2; _exit(foo.x + foo.y);}'
+try_direct 'union' 1 'union Foo{char x; int y;}; int main(){ union Foo foo; return sizeof(union Foo) == sizeof(int) && (void*)&foo.x == (void*)&foo.y;}'
 try_direct 'func pointer' 9 'int sub(int x, int y){ return x - y; } int apply(void *f, int x, int y) { return f(x, y); } void main(){ _exit(apply(&sub, 15, 6)); }'
 try 'block comment' 123 '/* comment */ return 123;'
 try 'line comment' 123 "// comment\nreturn 123;"

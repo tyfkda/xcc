@@ -92,6 +92,16 @@ static bool is_number(enum eType type) {
   }
 }
 
+static bool is_struct_or_union(enum eType type) {
+  switch (type) {
+  case TY_STRUCT:
+  case TY_UNION:
+    return true;
+  default:
+    return false;
+  }
+}
+
 static bool same_type(const Type *type1, const Type *type2) {
   for (;;) {
     if (type1->type != type2->type)
@@ -115,6 +125,7 @@ static bool same_type(const Type *type1, const Type *type2) {
     case TY_FUNC:
       return type1 == type2;
     case TY_STRUCT:
+    case TY_UNION:
       return type1->u.struct_ == type2->u.struct_;
     }
   }
@@ -641,7 +652,7 @@ Node *member_access(Node *target, enum TokenType toktype) {
   // Find member's type from struct info.
   const Type *type = target->expType;
   if (toktype == TK_DOT) {
-    if (type->type != TY_STRUCT)
+    if (!is_struct_or_union(type->type))
       error("`.' for non struct value");
   } else {  // TK_ARROW
     if (type->type == TY_PTR)
@@ -664,8 +675,10 @@ Node *member_access(Node *target, enum TokenType toktype) {
 
 static const Type *parse_raw_type(void) {
   Type *type = NULL;
+  enum eType et;
 
-  if (consume(TK_STRUCT)) {
+  if ((consume(TK_STRUCT) && (et = TY_STRUCT, true)) ||
+      (consume(TK_UNION) && (et = TY_UNION, true))) {
     const char *name = NULL;
     Token *tok;
     if ((tok = consume(TK_IDENT)))
@@ -682,7 +695,7 @@ static const Type *parse_raw_type(void) {
         error("Undefined struct: %s", name);
     }
     type = malloc(sizeof(*type));
-    type->type = TY_STRUCT;
+    type->type = et;
     type->u.struct_ = sinfo;
   } else {
     static const enum TokenType kKeywords[] = {
@@ -1004,34 +1017,15 @@ static Node *cmp(void) {
 }
 
 static bool cast_numbers(Node **pLhs, Node **pRhs) {
-  if (!is_number((*pLhs)->expType->type) || !is_number((*pRhs)->expType->type))
+  enum eType ltype = (*pLhs)->expType->type, rtype = (*pRhs)->expType->type;
+  if (!is_number(ltype) || !is_number(rtype))
     return false;
 
-  switch ((*pLhs)->expType->type) {
-  case TY_INT:
-    switch ((*pRhs)->expType->type) {
-    case TY_INT:  return true;
-    case TY_CHAR:
-      *pRhs = new_node_cast(&tyInt, *pRhs, false);
-      return true;
-    default: break;
-    }
-    break;
-
-  case TY_CHAR:
-    switch ((*pRhs)->expType->type) {
-    case TY_CHAR:  return true;
-    case TY_INT:
-      *pLhs = new_node_cast(&tyInt, *pLhs, false);
-      return true;
-    default: break;
-    }
-    break;
-
-  default: break;
-  }
-  assert(false);
-  return false;
+  if (ltype <= rtype)
+    *pLhs = new_node_cast((*pRhs)->expType, *pLhs, false);
+  else
+    *pRhs = new_node_cast((*pLhs)->expType, *pRhs, false);
+  return true;
 }
 
 static Node *eq(void) {
@@ -1475,7 +1469,7 @@ static Node *toplevel(void) {
   const Type *type = parse_raw_type();
   if (type != NULL) {
     type = parse_type_modifier(type, true);
-    if (type->type == TY_STRUCT && consume(TK_SEMICOL))  // Just struct definition.
+    if (is_struct_or_union(type->type) && consume(TK_SEMICOL))  // Just struct/union definition.
       return NULL;
 
     Token *tok;

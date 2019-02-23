@@ -48,6 +48,7 @@ static enum TokenType reserved_word(const char *word) {
     { "int", TK_KWINT },
     { "long", TK_KWLONG },
     { "struct", TK_STRUCT },
+    { "union", TK_UNION },
     { "sizeof", TK_SIZEOF },
   };
   for (int i = 0; i < (int)(sizeof(table) / sizeof(*table)); ++i) {
@@ -357,5 +358,6 @@ void unget_token(Token *token) {
 }
 
 const char *current_line(void) {
-  return lexer.line;
+  //return lexer.line;
+  return lexer.p;
 }
