@@ -152,6 +152,8 @@ try 'sizeof(array len)' 5 'int a[5]; return sizeof(a) / sizeof(*a);'
 try 'sizeof(struct)' 8 'return sizeof(struct {int a; char b;});'
 try 'sizeof(expr)' 4 'return sizeof(1 + 2 * 3);'
 try 'sizeof(str) include nul' 12 "return sizeof(\"hello\\\\0world\");"
+try 'array initializer' 1 'int a[3] = {1, 2, 3}; return a[0] == 1 && a[1] == 2 && a[2] == 3;'
+try 'array without size' 1 'int a[] = {1, 2}; return sizeof(a) == 2 * sizeof(int) && a[0] == 1 && a[1] == 2;'
 
 # error cases
 echo ''

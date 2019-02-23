@@ -1280,6 +1280,106 @@ static Node *parse_return(void) {
   return new_node_return(val);
 }
 
+typedef struct {
+  enum { vSingle, vMulti } type;
+  union {
+    Node *single;
+    Vector *multi;  // Initializer*
+  } u;
+} Initializer;
+
+static Initializer *parse_initializer(void) {
+  Initializer *result = malloc(sizeof(*result));
+  if (consume(TK_LBRACE)) {
+    Vector *multi = new_vector();
+    for (;;) {
+      Initializer *elem = parse_initializer();
+      vec_push(multi, elem);
+
+      if (consume(TK_COMMA)) {
+        if (consume(TK_RBRACE))
+          break;
+      } else {
+        if (!consume(TK_RBRACE))
+          error("`}' or `,' expected, but %s", current_line());
+        break;
+      }
+    }
+    result->type = vMulti;
+    result->u.multi = multi;
+  } else {
+    result->type = vSingle;
+    result->u.single = expr();
+  }
+  return result;
+}
+
+static Vector *clear_initial_value(Node *node, Vector *inits) {
+  if (inits == NULL)
+    inits = new_vector();
+
+  switch (node->expType->type) {
+  case TY_ARRAY:
+    {
+      size_t arr_len = node->expType->u.pa.length;
+      for (size_t i = 0; i < arr_len; ++i)
+        clear_initial_value(new_node_deref(add_node(node, new_node_numlit(ND_INT, i))), inits);
+    }
+    break;
+  case TY_STRUCT:
+  case TY_UNION:
+    assert(!"Not implemented");
+    break;
+  default:
+    vec_push(inits,
+             new_node_bop(ND_ASSIGN, node->expType, node, new_node_cast(node->expType, new_node_numlit(ND_INT, 0), false)));
+    break;
+  }
+
+  return inits;
+}
+
+static Vector *assign_initial_value(Node *node, Initializer *initializer, Vector *inits) {
+  if (inits == NULL)
+    inits = new_vector();
+
+  switch (node->expType->type) {
+  case TY_ARRAY:
+    {
+      if (initializer->type != vMulti)
+        error("Error initializer");
+      size_t arr_len = node->expType->u.pa.length;
+      if (arr_len == (size_t)-1) {
+        ((Type*)node->expType)->u.pa.length = arr_len = initializer->u.multi->len;
+      } else {
+        if ((size_t)initializer->u.multi->len > arr_len)
+          error("Initializer more than array size");
+      }
+      int len = initializer->u.multi->len;
+      for (int i = 0; i < len; ++i) {
+        assign_initial_value(new_node_deref(add_node(node, new_node_numlit(ND_INT, i))),
+                             initializer->u.multi->data[i], inits);
+      }
+      // Clear left.
+      for (size_t i = len; i < arr_len; ++i)
+        clear_initial_value(new_node_deref(add_node(node, new_node_numlit(ND_INT, i))), inits);
+    }
+    break;
+  case TY_STRUCT:
+  case TY_UNION:
+    assert(!"Not implemented");
+    break;
+  default:
+    if (initializer->type != vSingle)
+      error("Error initializer");
+    vec_push(inits,
+             new_node_bop(ND_ASSIGN, node->expType, node, new_node_cast(node->expType, initializer->u.single, false)));
+    break;
+  }
+
+  return inits;
+}
+
 static bool parse_vardecl(Node **pnode) {
   assert(curfunc != NULL);
 
@@ -1298,13 +1398,8 @@ static bool parse_vardecl(Node **pnode) {
     scope_add(curscope, name, type);
 
     if (consume(TK_ASSIGN)) {
-      Node *val = expr();
-      Node *var = new_node_varref(name, type, false);
-      Node *node = new_node_bop(ND_ASSIGN, type, var, new_node_cast(type, val, false));
-
-      if (inits == NULL)
-        inits = new_vector();
-      vec_push(inits, node);
+      Initializer *initializer = parse_initializer();
+      inits = assign_initial_value(new_node_varref(name, type, false), initializer, inits);
     }
   } while (consume(TK_COMMA));
 
