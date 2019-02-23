@@ -115,7 +115,9 @@ try 'array' 123 'int a[3], *p = a; ++p; *p = 123; return *(a + 1);'
 try 'array access' 11 'int a[2]; *a = 1; a[1] = 10; return a[0] + 1[a];'
 try 'pre-inc pointer' 20 'int a[2], *p; a[0] = 10; a[1] = 20; p = a; return *(++p);'
 try 'post-inc pointer' 10 'int a[2], *p; a[0] = 10; a[1] = 20; p = a; return *p++;'
-try_direct 'global' 11 'int x; void main(){ x = 1; _exit(x + 10); }'
+try_direct 'global cleared' 0 'int x; int main(){ return x; }'
+try_direct 'global initializer' 123 'int x = 123; int main(){ return x; }'
+try_direct 'global access' 11 'int x; int main(){ x = 1; return x + 10; }'
 try_output 'write' 'hello' "_write(1, \"hello\\\\n\", 6);"
 try_output 'char array' 123 "char s[16]; s[0] = '1'; s[1] = '2'; s[2] = '3'; s[3] = '\\\\n'; _write(1, s, 4);"
 try_output_direct 'putdeci' 12345 "void putdeci(int x) { char s[16]; char *p = s + 16; for (; x != 0; x = x / 10) *(--p) = (x % 10) + '0'; _write(1, p, (s + 16) - p); } void main() { putdeci(12345); _exit(0); }"

@@ -48,17 +48,18 @@ Map *struct_map;
 
 Map *global;
 
-VarInfo *find_global(const char *name) {
-  return (VarInfo*)map_get(global, name);
+GlobalVarInfo *find_global(const char *name) {
+  return (GlobalVarInfo*)map_get(global, name);
 }
 
-void define_global(const Type *type, const char *name) {
-  VarInfo *varinfo = find_global(name);
+void define_global(const Type *type, const char *name, Node *value) {
+  GlobalVarInfo *varinfo = find_global(name);
   if (varinfo != NULL)
     error("`%s' already defined", name);
   varinfo = malloc(sizeof(*varinfo));
   varinfo->name = name;
   varinfo->type = type;
+  varinfo->value = value;
   varinfo->offset = 0;
   map_put(global, name, varinfo);
 }
@@ -811,7 +812,7 @@ static Node *prim(void) {
       if (varinfo != NULL) {
         type = varinfo->type;
       } else {
-        VarInfo *varinfo = find_global(tok->ident);
+        GlobalVarInfo *varinfo = find_global(tok->ident);
         if (varinfo == NULL)
           error("Undefined `%s'", tok->ident);
         type = varinfo->type;
@@ -1382,31 +1383,46 @@ static Vector *funparams(void) {
 static Node *parse_defun(const Type *type, const char *ident) {
   Vector *params = funparams();
 
-  VarInfo *def = find_global(ident);
+  Defun *defun = NULL;
+  if (consume(TK_SEMICOL)) {  // Prototype declaration.
+  } else {
+    if (!consume(TK_LBRACE)) {
+      error("Defun failed: %s", current_line());
+      return NULL;
+    }
+    // Definition.
+    defun = new_defun(type, ident);
+  }
+
+  GlobalVarInfo *def = find_global(ident);
   if (def == NULL) {
-    define_global(new_func_type(type, params), ident);
+    define_global(new_func_type(type, params), ident, NULL);
   } else {
     if (def->type->type != TY_FUNC)
       error("Definition conflict: `%s'", ident);
     // TODO: Check type.
     // TODO: Check duplicated definition.
+    if (def->value != NULL)
+      error("`%s' function already defined", ident);
   }
 
-  if (consume(TK_SEMICOL))  // Prototype declaration.
-    return NULL;
-
-  if (consume(TK_LBRACE)) {  // Definition.
-    Defun *defun = new_defun(type, ident);
+  if (defun != NULL) {
     curfunc = defun;
 
     defun->top_scope = enter_scope(defun, params);
     defun->stmts = read_stmts();
     exit_scope();
     curfunc = NULL;
-    return new_node_defun(defun);
   }
-  error("Defun failed: %s", current_line());
-  return NULL;
+  return defun != NULL ? new_node_defun(defun) : NULL;
+}
+
+static void parse_global_assign(const Type *type, const char *name) {
+  Node *value = expr();
+  if (!consume(TK_SEMICOL))
+    error("`;' expected, but %s", current_line());
+  /*Node *newvalue =*/ new_node_cast(type, value, false);
+  define_global(type, name, value);  // TODO: Use newvalue
 }
 
 static Node *toplevel(void) {
@@ -1420,17 +1436,23 @@ static Node *toplevel(void) {
     if ((tok = consume(TK_IDENT))) {
       const char *ident = tok->ident;
 
+      if (consume(TK_LPAR))  // Function.
+        return parse_defun(type, ident);
+
+      if (type->type == TY_VOID)
+        error("`void' not allowed");
+
+      type = parse_var_def_suffix(type);
       if (consume(TK_SEMICOL)) {  // Global variable declaration.
-        if (type->type == TY_VOID)
-          error("`void' not allowed");
-        define_global(type, ident);
+        define_global(type, ident, NULL);
+        return NULL;
+      }
+      if (consume(TK_ASSIGN)) {
+        parse_global_assign(type, ident);
         return NULL;
       }
 
-      if (consume(TK_LPAR)) {  // Function.
-        return parse_defun(type, ident);
-      }
-      error("`(' expected, but %s", current_line());
+      error("`;' or `=' expected, but %s", current_line());
       return NULL;
     }
     error("ident expected, but %s", current_line());

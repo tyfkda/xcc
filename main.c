@@ -87,7 +87,7 @@ int main(int argc, char* argv[]) {
     vec_push(exit_params, &vInt);
     static Type tyExit = {.type=TY_FUNC, .func={.ret=&tyVoid }};
     tyExit.func.params = exit_params;
-    define_global(&tyExit, "_exit");
+    define_global(&tyExit, "_exit", NULL);
 
     Vector *write_params = new_vector();
     vec_push(write_params, &vInt);
@@ -95,7 +95,7 @@ int main(int argc, char* argv[]) {
     vec_push(write_params, &vLong);
     static Type tyWrite = {.type=TY_FUNC, .func={.ret=&tyInt }};
     tyWrite.func.params = write_params;
-    define_global(&tyWrite, "_write");
+    define_global(&tyWrite, "_write", NULL);
   }
 
   if (argc > 1) {

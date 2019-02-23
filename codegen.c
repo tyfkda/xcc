@@ -205,37 +205,79 @@ void add_loc_rel32(const char *label, int ofs, int baseofs) {
   loc->rel.base = base;
 }
 
-size_t fixup_locations(size_t *pmemsz) {
-  // Output RoData
+// Put RoData into code.
+static void put_rodata(void) {
   for (int i = 0, len = rodata_vector->len; i < len; ++i) {
     const RoData *ro = (const RoData*)rodata_vector->data[i];
     add_label(ro->label);
     add_code(ro->data, ro->size);
   }
+}
 
-  size_t filesize = codesize;
-
-  // Global
-  unsigned char *zero = NULL;
-  size_t zerosize = 0;
+// Put global with initial value (RwData).
+static void put_rwdata(void) {
+  unsigned char *buf = NULL;
+  size_t bufsize = 0;
   for (int i = 0, len = map_count(global); i < len; ++i) {
     const char *name = (const char *)global->keys->data[i];
-    const VarInfo *varinfo = (const VarInfo*)global->vals->data[i];
-    if (varinfo->type->type == TY_FUNC)
+    const GlobalVarInfo *varinfo = (const GlobalVarInfo*)global->vals->data[i];
+    if (varinfo->type->type == TY_FUNC || varinfo->value == NULL)
+      continue;
+    intptr_t value = 0;
+    switch (varinfo->value->expType->type) {
+    case TY_CHAR: value = varinfo->value->charval; break;
+    case TY_INT:  value = varinfo->value->intval; break;
+    case TY_LONG: value = varinfo->value->longval; break;
+    default:
+      fprintf(stderr, "Global initial value for type %d not implemented (yet)\n", varinfo->value->expType->type);
+      assert(false);
+      break;
+    }
+
+    int align = align_size(varinfo->type);
+    codesize = ALIGN(codesize, align);
+    int size = type_size(varinfo->type);
+    if (bufsize < (size_t)size) {
+      buf = realloc(buf, size);
+      bufsize = size;
+    }
+    add_label(name);
+
+    if (size > 8) {
+      error("Size over: %d", size);
+    } else {
+      for (int j = 0; j < size; ++j) {
+        buf[j] = value >> (j * 8);  // Little endian.
+      }
+    }
+    add_code(buf, size);
+  }
+}
+
+// Put global without initial value (bss).
+static void put_bss(void) {
+  unsigned char *buf = NULL;
+  size_t bufsize = 0;
+  for (int i = 0, len = map_count(global); i < len; ++i) {
+    const char *name = (const char *)global->keys->data[i];
+    const GlobalVarInfo *varinfo = (const GlobalVarInfo*)global->vals->data[i];
+    if (varinfo->type->type == TY_FUNC || varinfo->value != NULL)
       continue;
     int align = align_size(varinfo->type);
     codesize = ALIGN(codesize, align);
     int size = type_size(varinfo->type);
-    if (zerosize < (size_t)size) {
-      zero = realloc(zero, size);
-      memset(zero + zerosize, 0x00, size - zerosize);
-      zerosize = size;
+    if (bufsize < (size_t)size) {
+      buf = realloc(buf, size);
+      memset(buf + bufsize, 0x00, size - bufsize);
+      bufsize = size;
     }
     add_label(name);
-    add_code(zero, size);
+    add_code(buf, size);
   }
+}
 
-  // Resolve label locations.
+// Resolve label locations.
+static void resolve_label_locations(void) {
   for (int i = 0; i < loc_vector->len; ++i) {
     LocInfo *loc = loc_vector->data[i];
     void *val = map_get(label_map, loc->label);
@@ -267,6 +309,17 @@ size_t fixup_locations(size_t *pmemsz) {
       break;
     }
   }
+}
+
+size_t fixup_locations(size_t *pmemsz) {
+  put_rodata();
+  put_rwdata();
+
+  size_t filesize = codesize;
+
+  put_bss();
+
+  resolve_label_locations();
 
   *pmemsz = codesize;
   return filesize;

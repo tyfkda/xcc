@@ -130,6 +130,15 @@ typedef struct {
   int offset;
 } VarInfo;
 
+typedef struct {
+  const char *name;
+  const Type *type;
+  struct Node *value;
+
+  // For codegen.
+  int offset;
+} GlobalVarInfo;
+
 Map *struct_map;
 
 // Scope
@@ -289,8 +298,8 @@ void var_add(Vector *lvars, const char *name, const Type *type);
 
 Map *global;
 
-VarInfo *find_global(const char *name);
-void define_global(const Type *type, const char *name);
+GlobalVarInfo *find_global(const char *name);
+void define_global(const Type *type, const char *name, Node *value);
 
 // Codegen
 
