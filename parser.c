@@ -1279,18 +1279,6 @@ static bool parse_vardecl(Node **pnode) {
       return false;
     }
 
-    if (consume(TK_LBRACKET)) {
-      Token *tok;
-      if ((tok = consume(TK_INTLIT)) != NULL ||  // TODO: Constant expression.
-          (tok = consume(TK_LONGLIT)) != NULL) {
-        intptr_t count = tok->u.value;
-        if (count < 0)
-          error("Array size must be greater than 0, but %d", count);
-        type = arrayof(type, count);
-        if (!consume(TK_RBRACKET))
-          error("`]' expected, but %s", current_line());
-      }
-    }
     scope_add(curscope, name, type);
 
     if (consume(TK_ASSIGN)) {
