@@ -852,6 +852,8 @@ void gen(Node *node) {
     case TY_PTR:
       MOV_IND_RAX_RAX();
       break;
+    case TY_ARRAY:
+      break;
     default:
       assert(false);
       break;
