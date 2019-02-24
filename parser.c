@@ -76,7 +76,7 @@ void dump_type(FILE *fp, const Type *type) {
   case TY_INT: fprintf(fp, "int"); break;
   case TY_LONG: fprintf(fp, "long"); break;
   case TY_PTR: dump_type(fp, type->u.pa.ptrof); fprintf(fp, "*"); break;
-  case TY_ARRAY: dump_type(fp, type->u.pa.ptrof); fprintf(fp, "[%d]", (int)type->u.pa.array_size); break;
+  case TY_ARRAY: dump_type(fp, type->u.pa.ptrof); fprintf(fp, "[%d]", (int)type->u.pa.length); break;
   default: assert(false);
   }
 }
@@ -114,8 +114,8 @@ static bool same_type(const Type *type1, const Type *type2) {
     case TY_LONG:
       return true;
     case TY_ARRAY:
-      if (type1->u.pa.array_size != type2->u.pa.array_size &&
-          (type1->u.pa.array_size > 0 && type2->u.pa.array_size > 0))  // TODO:
+      if (type1->u.pa.length != type2->u.pa.length &&
+          (type1->u.pa.length > 0 && type2->u.pa.length > 0))  // TODO:
         return false;
       // Fallthrough
     case TY_PTR:
@@ -144,11 +144,11 @@ static const Type *array_to_ptr(const Type *type) {
   return ptrof(type->u.pa.ptrof);
 }
 
-static Type* arrayof(const Type *type, size_t array_size) {
+static Type* arrayof(const Type *type, size_t length) {
   Type *arr = malloc(sizeof(*arr));
   arr->type = TY_ARRAY;
   arr->u.pa.ptrof = type;
-  arr->u.pa.array_size = array_size;
+  arr->u.pa.length = length;
   return arr;
 }
 
@@ -728,23 +728,23 @@ static const Type *parse_type_modifier(const Type* type, bool allow_void) {
   return type;
 }
 
-static const Type *parse_var_def_suffix(const Type *type) {
+static const Type *parse_type_suffix(const Type *type) {
   if (!consume(TK_LBRACKET))
     return type;
   Token *tok;
-  int count;
+  size_t length;
   if (consume(TK_RBRACKET)) {
-    count = -1;
+    length = -1;
   } else if ((tok = consume(TK_INTLIT))) {  // TODO: Constant expression.
-    count = tok->u.value;
-    if (count < 0)
-      error("Array size must be greater than 0, but %d", count);
+    if (tok->u.value <= 0)
+      error("Array size must be greater than 0, but %d", (int)tok->u.value);
+    length = tok->u.value;
     if (!consume(TK_RBRACKET))
       error("`]' expected, but %s", current_line());
   } else {
     error("syntax error: %s", current_line());
   }
-  return arrayof(parse_var_def_suffix(type), count);
+  return arrayof(parse_type_suffix(type), length);
 }
 
 static bool parse_var_def(const Type **prawType, const Type** ptype, const char **pname, bool allow_void) {
@@ -763,7 +763,7 @@ static bool parse_var_def(const Type **prawType, const Type** ptype, const char 
     if (!(tok = consume(TK_IDENT)))
       error("Ident expected, but %s", current_line());
     name = tok->u.ident;
-    type = parse_var_def_suffix(type);
+    type = parse_type_suffix(type);
   }
 
   *ptype = type;
@@ -801,7 +801,7 @@ static Node *parse_sizeof(void) {
   if (consume(TK_LPAR)) {
     type = parse_raw_type();
     if (type != NULL) {  // Type
-      type = parse_var_def_suffix(parse_type_modifier(type, true));
+      type = parse_type_suffix(parse_type_modifier(type, true));
     } else {
       Node *node = expr();
       type = node->expType;
@@ -945,7 +945,7 @@ static Node *cast_expr(void) {
   if ((lpar = consume(TK_LPAR)) != NULL) {
     const Type *type = parse_raw_type();
     if (type != NULL) {  // Cast
-      type = parse_var_def_suffix(parse_type_modifier(type, true));
+      type = parse_type_suffix(parse_type_modifier(type, true));
       if (!consume(TK_RPAR))
         error("`)' expected, but %s", current_line());
       Node *node = cast_expr();
@@ -1470,7 +1470,7 @@ static Node *toplevel(void) {
       if (type->type == TY_VOID)
         error("`void' not allowed");
 
-      type = parse_var_def_suffix(type);
+      type = parse_type_suffix(type);
       if (consume(TK_SEMICOL)) {  // Global variable declaration.
         define_global(type, ident, NULL);
         return NULL;

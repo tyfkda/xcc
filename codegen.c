@@ -30,7 +30,7 @@ static int type_size(const Type *type) {
   case TY_FUNC:
     return 8;
   case TY_ARRAY:
-    return type_size(type->u.pa.ptrof) * type->u.pa.array_size;
+    return type_size(type->u.pa.ptrof) * type->u.pa.length;
   case TY_STRUCT:
   case TY_UNION:
     if (type->u.struct_->size == 0)

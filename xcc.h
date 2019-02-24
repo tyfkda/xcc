@@ -112,7 +112,7 @@ typedef struct Type {
   union {
     struct {  // Pointer or array.
       const struct Type *ptrof;
-      size_t array_size;
+      size_t length;  // of array. -1 represents length is not specified (= []).
     } pa;
     struct {
       const struct Type *ret;
