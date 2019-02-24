@@ -10,7 +10,6 @@ static const Type tyVoid = {.type=TY_VOID};
 static const Type tyInt = {.type=TY_INT};
 static const Type tyChar = {.type=TY_CHAR};
 static const Type tyLong = {.type=TY_LONG};
-static const Type tyStr = {.type=TY_PTR, .u={.pa={.ptrof=&tyChar}}};
 #define tyBool  tyInt
 #define tySize  tyLong
 
@@ -362,9 +361,15 @@ static Node *new_node_numlit(enum NodeType nodetype, intptr_t val) {
   return node;
 }
 
-static Node *new_node_str(const char *str) {
-  Node *node = new_node(ND_STR, &tyStr);
-  node->u.str = str;
+static Node *new_node_str(const char *str, size_t len) {
+  Type *type = malloc(sizeof(*type));
+  type->type = TY_ARRAY;
+  type->u.pa.ptrof = &tyChar;
+  type->u.pa.length = len;
+
+  Node *node = new_node(ND_STR, type);
+  node->u.str.buf = str;
+  node->u.str.len = len;
   return node;
 }
 
@@ -843,7 +848,7 @@ static Node *prim(void) {
       return new_node_numlit(nt, tok->u.value);
   }
   if ((tok = consume(TK_STR)))
-    return new_node_str(tok->u.str);
+    return new_node_str(tok->u.str.buf, tok->u.str.len);
 
   if ((tok = consume(TK_IDENT))) {
     assert(curfunc != NULL);

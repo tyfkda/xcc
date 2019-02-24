@@ -77,7 +77,10 @@ typedef struct {
   const char *input;
   union {
     const char *ident;
-    const char *str;
+    struct {
+      const char *buf;
+      size_t len;
+    } str;
     intptr_t value;
   } u;
 } Token;
@@ -223,8 +226,11 @@ typedef struct Node {
   enum NodeType type;
   const Type *expType;
   union {
-    const char *str;
     intptr_t value;
+    struct {
+      const char *buf;
+      size_t len;  // Include last '\0'.
+    } str;
 
     struct {
       struct Node *lhs;

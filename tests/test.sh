@@ -151,6 +151,7 @@ try 'sizeof(array)' 3 'char a[3]; return sizeof a;'
 try 'sizeof(array len)' 5 'int a[5]; return sizeof(a) / sizeof(*a);'
 try 'sizeof(struct)' 8 'return sizeof(struct {int a; char b;});'
 try 'sizeof(expr)' 4 'return sizeof(1 + 2 * 3);'
+try 'sizeof(str) include nul' 12 "return sizeof(\"hello\\\\0world\");"
 
 # error cases
 echo ''

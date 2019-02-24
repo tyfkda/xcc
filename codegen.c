@@ -829,7 +829,7 @@ void gen(Node *node) {
   case ND_STR:
     {
       const char * label = alloc_label();
-      add_rodata(label, node->u.str, strlen(node->u.str) + 1);
+      add_rodata(label, node->u.str.buf, node->u.str.len);
       LEA_OFS32_RIP_RAX(label);
     }
     return;

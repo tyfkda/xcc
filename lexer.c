@@ -325,7 +325,8 @@ static Token *get_token(void) {
       }
       str[size] = '\0';
       tok = alloc_token(TK_STR, start);
-      tok->u.str = str;
+      tok->u.str.buf = str;
+      tok->u.str.len = size + 1;
       ++p;
       break;
     }
