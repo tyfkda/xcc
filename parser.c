@@ -238,70 +238,73 @@ static Node *new_node(enum NodeType type, const Type *expType) {
   return node;
 }
 
-static Node *new_node_cast(const Type *type, Node *sub, bool is_explicit) {
-  if (same_type(type, sub->expType))
-    return sub;
+static bool can_cast(const Type *dst, const Type *src, bool is_explicit) {
+  if (same_type(dst, src))
+    return true;
 
-  if (type->type == TY_VOID || sub->expType->type == TY_VOID)
-    error("cannot use `void' as a value");
+  if (dst->type == TY_VOID || src->type == TY_VOID)
+    return false;
 
-  switch (type->type) {
+  switch (dst->type) {
   case TY_CHAR:
-    switch (sub->expType->type) {
-    case TY_INT:  goto ok;  // TODO: Raise warning if implicit.
-    case TY_LONG:  goto ok;  // TODO: Raise warning if implicit.
+    switch (src->type) {
+    case TY_INT:
+    case TY_LONG:
+      return true;  // TODO: Raise warning if implicit.
     default:  break;
     }
     break;
   case TY_INT:
-    switch (sub->expType->type) {
-    case TY_CHAR:  goto ok;
-    case TY_LONG:  goto ok;
+    switch (src->type) {
+    case TY_CHAR:
+    case TY_LONG:
+      return true;
     default:  break;
     }
     break;
   case TY_LONG:
-    switch (sub->expType->type) {
-    case TY_CHAR:  goto ok;
-    case TY_INT:  goto ok;
+    switch (src->type) {
+    case TY_CHAR:
+    case TY_INT:
+      return true;
     case TY_PTR:
       if (is_explicit) {
         // TODO: Check sizeof(long) is same as sizeof(ptr)
-        goto ok;
+        return true;
       }
       break;
     default:  break;
     }
     break;
   case TY_PTR:
-    switch (sub->expType->type) {
-    case TY_INT:
+    switch (src->type) {
+    case TY_INT:  // TODO: Disable.
     case TY_LONG:
       if (is_explicit)
-        goto ok;
+        return true;
       break;
     case TY_PTR:
       if (is_explicit)
-        goto ok;
+        return true;
       // void* is interchangable with any pointer type.
-      if (type->u.pa.ptrof->type == TY_VOID || sub->expType->u.pa.ptrof->type == TY_VOID)
-        goto ok;
+      if (dst->u.pa.ptrof->type == TY_VOID || src->u.pa.ptrof->type == TY_VOID)
+        return true;
       break;
     case TY_ARRAY:
       if (is_explicit)
-        goto ok;
-      if (same_type(type->u.pa.ptrof, sub->expType->u.pa.ptrof))
-        goto ok;
+        return true;
+      if (same_type(dst->u.pa.ptrof, src->u.pa.ptrof))
+        return true;
       break;
     default:  break;
     }
     break;
   case TY_ARRAY:
-    switch (sub->expType->type) {
+    switch (src->type) {
     case TY_PTR:
     case TY_ARRAY:
       if (is_explicit)
-        goto ok;
+        return true;
       break;
     default:  break;
     }
@@ -309,11 +312,19 @@ static Node *new_node_cast(const Type *type, Node *sub, bool is_explicit) {
   default:
     break;
   }
+  return false;
+}
 
-  error("Cannot convert value from type %d to %d: %s", sub->expType->type, type->type, current_line());
-  return NULL;
+static Node *new_node_cast(const Type *type, Node *sub, bool is_explicit) {
+  if (type->type == TY_VOID || sub->expType->type == TY_VOID)
+    error("cannot use `void' as a value");
 
- ok:;
+  if (!can_cast(type, sub->expType, is_explicit))
+    error("Cannot convert value from type %d to %d: %s", sub->expType->type, type->type, current_line());
+
+  if (same_type(type, sub->expType))
+    return sub;
+
   Node *node = new_node(ND_CAST, type);
   node->u.cast.sub = sub;
   return node;
