@@ -50,6 +50,8 @@ static int align_size(const Type *type) {
     return 1;
   case TY_INT:
     return 4;
+  case TY_LONG:
+    return 8;
   case TY_PTR:
   case TY_FUNC:
     return 8;
