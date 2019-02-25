@@ -113,10 +113,6 @@ static bool same_type(const Type *type1, const Type *type2) {
     case TY_LONG:
       return true;
     case TY_ARRAY:
-      if (type1->u.pa.length != type2->u.pa.length &&
-          (type1->u.pa.length > 0 && type2->u.pa.length > 0))  // TODO:
-        return false;
-      // Fallthrough
     case TY_PTR:
       type1 = type1->u.pa.ptrof;
       type2 = type2->u.pa.ptrof;
@@ -301,6 +297,9 @@ static bool can_cast(const Type *dst, const Type *src, bool is_explicit) {
   case TY_ARRAY:
     switch (src->type) {
     case TY_PTR:
+      if (is_explicit && same_type(dst->u.pa.ptrof, src->u.pa.ptrof))
+        return true;
+      // Fallthrough
     case TY_ARRAY:
       if (is_explicit)
         return true;
@@ -1339,6 +1338,40 @@ static Vector *clear_initial_value(Node *node, Vector *inits) {
   return inits;
 }
 
+static void string_initializer(Node *dst, Node *src, Vector *inits) {
+  // Initialize char[] with string literal (char s[] = "foo";).
+  assert(dst->expType->type == TY_ARRAY && dst->expType->u.pa.ptrof->type == TY_CHAR);
+  assert(src->expType->type == TY_ARRAY && src->expType->u.pa.ptrof->type == TY_CHAR);
+
+  const char *str = src->u.str.buf;
+  size_t len = src->u.str.len;
+  size_t dstlen = dst->expType->u.pa.length;
+  if (dstlen == (size_t)-1) {
+    ((Type*)dst->expType)->u.pa.length = dstlen = len;
+  } else {
+    if (dstlen < len)
+      error("Buffer is shorter than string: %d for \"%s\"", (int)dstlen, str);
+  }
+
+  for (size_t i = 0; i < len; ++i) {
+    Node *index = new_node_numlit(ND_INT, i);
+    vec_push(inits,
+             new_node_bop(ND_ASSIGN, &tyChar,
+                          new_node_deref(add_node(dst, index)),
+                          new_node_deref(add_node(src, index))));
+  }
+  if (dstlen > len) {
+    Node *zero = new_node_numlit(ND_CHAR, 0);
+    for (size_t i = len; i < dstlen; ++i) {
+      Node *index = new_node_numlit(ND_INT, i);
+      vec_push(inits,
+               new_node_bop(ND_ASSIGN, &tyChar,
+                            new_node_deref(add_node(dst, index)),
+                            zero));
+    }
+  }
+}
+
 static Vector *assign_initial_value(Node *node, Initializer *initializer, Vector *inits) {
   if (inits == NULL)
     inits = new_vector();
@@ -1346,6 +1379,14 @@ static Vector *assign_initial_value(Node *node, Initializer *initializer, Vector
   switch (node->expType->type) {
   case TY_ARRAY:
     {
+      // Special handling for string (char[]).
+      if (node->expType->u.pa.ptrof->type == TY_CHAR &&
+          initializer->type == vSingle &&
+          can_cast(node->expType, initializer->u.single->expType, false)) {
+        string_initializer(node, initializer->u.single, inits);
+        break;
+      }
+
       if (initializer->type != vMulti)
         error("Error initializer");
       size_t arr_len = node->expType->u.pa.length;

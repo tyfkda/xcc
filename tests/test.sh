@@ -154,6 +154,7 @@ try 'sizeof(expr)' 4 'return sizeof(1 + 2 * 3);'
 try 'sizeof(str) include nul' 12 "return sizeof(\"hello\\\\0world\");"
 try 'array initializer' 1 'int a[3] = {1, 2, 3}; return a[0] == 1 && a[1] == 2 && a[2] == 3;'
 try 'array without size' 1 'int a[] = {1, 2}; return sizeof(a) == 2 * sizeof(int) && a[0] == 1 && a[1] == 2;'
+try_output 'string initializer' 'aBc' "char s[] = \"abc\\\\n\"; s[1] = 'B'; _write(1, s, 4);"
 
 # error cases
 echo ''
