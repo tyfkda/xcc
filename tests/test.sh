@@ -24,7 +24,7 @@ try_direct() {
 }
 
 try() {
-  try_direct "$1" "$2" "int func(void){$3} void main(){ _exit(func()); }"
+  try_direct "$1" "$2" "int main(void){$3}"
 }
 
 try_output_direct() {
@@ -48,7 +48,7 @@ try_output_direct() {
 }
 
 try_output() {
-  try_output_direct "$1" "$2" "void main(){ $3 _exit(0); }"
+  try_output_direct "$1" "$2" "int main(){ $3 return 0; }"
 }
 
 compile_error() {
@@ -96,8 +96,8 @@ try '-=' 7 'int x = 10; x -= 3; return x;'
 try '*=' 30 'int x = 10; x *= 3; return x;'
 try '/=' 3 'int x = 10; x /= 3; return x;'
 try '%=' 1 'int x = 10; x %= 3; return x;'
-try_direct 'funcall' 23 'int foo(){ return 123; } void main(){ _exit(foo() - 100); }'
-try_direct 'func var' 9 'int sqsub(int x, int y){ int xx = x * x; int yy = y * y; return xx - yy; } void main(){ _exit(sqsub(5, 4)); }'
+try_direct 'funcall' 23 'int foo(){ return 123; } int main(){ return foo() - 100; }'
+try_direct 'func var' 9 'int sqsub(int x, int y){ int xx = x * x; int yy = y * y; return xx - yy; } int main(){ return sqsub(5, 4); }'
 try 'if' 2 'if (1) return 2; return 3;'
 try 'if-false' 3 'if (0) return 2; return 3;'
 try 'if else' 2 'if (1 == 1) return 2; else return 3; return 4;'
@@ -121,14 +121,14 @@ try_direct 'global initializer' 123 'int x = 123; int main(){ return x; }'
 try_direct 'global access' 11 'int x; int main(){ x = 1; return x + 10; }'
 try_output 'write' 'hello' "_write(1, \"hello\\\\n\", 6);"
 try_output 'char array' 123 "char s[16]; s[0] = '1'; s[1] = '2'; s[2] = '3'; s[3] = '\\\\n'; _write(1, s, 4);"
-try_output_direct 'putdeci' 12345 "void putdeci(int x) { char s[16]; char *p = s + 16; for (; x != 0; x = x / 10) *(--p) = (x % 10) + '0'; _write(1, p, (s + 16) - p); } void main() { putdeci(12345); _exit(0); }"
-try_direct 'struct' 3 'struct Foo{char x; int y;}; void main(){ struct Foo foo; foo.x = 1; foo.y = 2; _exit(foo.x + foo.y);}'
-try_direct 'struct pointer' 3 'struct Foo{char x; int y;}; void main(){ struct Foo foo; struct Foo *p = &foo; p->x = 1; p->y = 2; _exit(foo.x + foo.y);}'
+try_output_direct 'putdeci' 12345 "void putdeci(int x) { char s[16]; char *p = s + 16; for (; x != 0; x = x / 10) *(--p) = (x % 10) + '0'; _write(1, p, (s + 16) - p); } int main() { putdeci(12345); return 0; }"
+try_direct 'struct' 3 'struct Foo{char x; int y;}; int main(){ struct Foo foo; foo.x = 1; foo.y = 2; return foo.x + foo.y;}'
+try_direct 'struct pointer' 3 'struct Foo{char x; int y;}; int main(){ struct Foo foo; struct Foo *p = &foo; p->x = 1; p->y = 2; return foo.x + foo.y;}'
 try_direct 'union' 1 'union Foo{char x; int y;}; int main(){ union Foo foo; return sizeof(union Foo) == sizeof(int) && (void*)&foo.x == (void*)&foo.y;}'
-try_direct 'func pointer' 9 'int sub(int x, int y){ return x - y; } int apply(void *f, int x, int y) { return f(x, y); } void main(){ _exit(apply(&sub, 15, 6)); }'
+try_direct 'func pointer' 9 'int sub(int x, int y){ return x - y; } int apply(void *f, int x, int y) { return f(x, y); } int main(){ return apply(&sub, 15, 6); }'
 try 'block comment' 123 '/* comment */ return 123;'
 try 'line comment' 123 "// comment\nreturn 123;"
-try_direct 'proto decl' 123 'int foo(); void main(){ _exit(foo()); } int foo(){ return 123; }'
+try_direct 'proto decl' 123 'int foo(); int main(){ return foo(); } int foo(){ return 123; }'
 try 'for-break' 10 'int i, acc; for (i = acc = 0; i <= 10; i++) { if (i == 5) break; acc += i; } return acc;'
 try 'for-continue' 50 'int i, acc; for (i = acc = 0; i <= 10; i++) { if (i == 5) continue; acc += i; } return acc;'
 try 'while-break' 10 'int i = 0, acc = 0; while (++i <= 10) { if (i == 5) break; acc += i; } return acc;'
@@ -141,10 +141,10 @@ try 'f || t' 1 'return 0 || 2;'
 try '|| shortcut' 1 'int x = 1; 1 || (x = 0); return x;'
 try 'block scope' 1 'int x = 1; { int x = 2; } return x;'
 try 'nested-array' 1 'char a[2][3]; a[1][0] = 1; return ((char*)a)[3];'
-try_direct 'array <= ptr' 1 'int foo(int a[]){ return a[0]; } void main(){ int a[2]; a[1] = 1;  _exit(foo(&a[1])); }'
-try_direct 'array <= ptr:2' 1 'int foo(int a[][2]){ return a[1][1]; } void main(){ int a[3][2]; a[1][1] = 1;  _exit(foo(a)); }'
-try_direct 'array <= ptr:3' 1 'int foo(int a[][3]){ return a[1][1]; } void main(){ int a[3][2]; a[2][0] = 1;  _exit(foo((int[][3])a)); }'
-try_direct 'ptr <= array' 1 'int foo(int *p){ return *p; } void main(){ int a[2]; a[0] = 1;  _exit(foo(a)); }'
+try_direct 'array <= ptr' 1 'int foo(int a[]){ return a[0]; } int main(){ int a[2]; a[1] = 1; return foo(&a[1]); }'
+try_direct 'array <= ptr:2' 1 'int foo(int a[][2]){ return a[1][1]; } int main(){ int a[3][2]; a[1][1] = 1; return foo(a); }'
+try_direct 'array <= ptr:3' 1 'int foo(int a[][3]){ return a[1][1]; } int main(){ int a[3][2]; a[2][0] = 1; return foo((int[][3])a); }'
+try_direct 'ptr <= array' 1 'int foo(int *p){ return *p; } int main(){ int a[2]; a[0] = 1; return foo(a); }'
 try 'sizeof(int)' 4 'return sizeof(int);'
 try 'sizeof(long)' 8 'return sizeof(long);'
 try 'sizeof(array)' 3 'char a[3]; return sizeof a;'

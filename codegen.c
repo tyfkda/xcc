@@ -492,11 +492,11 @@ static void gen_defun(Node *node) {
   if (frame_size > 0) {
     SUB_IM32_RSP(frame_size);
     // Store parameters into local frame.
-    int len = len = defun->top_scope->vars != NULL ? defun->top_scope->vars->len : 0;
+    int len = len = defun->params != NULL ? defun->params->len : 0;
     if (len > 6)
       error("Parameter count exceeds 6 (%d)", len);
     for (int i = 0; i < len; ++i) {
-      const VarInfo *varinfo = (const VarInfo*)defun->top_scope->vars->data[i];
+      const VarInfo *varinfo = (const VarInfo*)defun->params->data[i];
       int offset = varinfo->offset;
       switch (varinfo->type->type) {
       case TY_CHAR:  // 1

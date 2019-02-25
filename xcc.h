@@ -163,7 +163,8 @@ VarInfo *scope_find(Scope *scope, const char *name);
 typedef struct {
   const Type *rettype;
   const char *name;
-  Scope *top_scope;  // = params
+  Vector *params;  // Vector<VarInfo*>
+  Scope *top_scope;
   Vector *stmts;
   Vector *all_scopes;
 

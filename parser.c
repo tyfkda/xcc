@@ -206,10 +206,11 @@ static void exit_scope(void) {
   curscope = curscope->parent;
 }
 
-static Defun *new_defun(const Type *rettype, const char *name) {
+static Defun *new_defun(const Type *rettype, const char *name, Vector *params) {
   Defun *defun = malloc(sizeof(*defun));
   defun->rettype = rettype;
   defun->name = name;
+  defun->params = params;
   defun->top_scope = NULL;
   defun->stmts = NULL;
   defun->all_scopes = new_vector();
@@ -1571,7 +1572,7 @@ static Node *parse_defun(const Type *type, const char *ident) {
       return NULL;
     }
     // Definition.
-    defun = new_defun(type, ident);
+    defun = new_defun(type, ident, params);
   }
 
   GlobalVarInfo *def = find_global(ident);
@@ -1589,8 +1590,10 @@ static Node *parse_defun(const Type *type, const char *ident) {
   if (defun != NULL) {
     curfunc = defun;
 
-    defun->top_scope = enter_scope(defun, params);
+    enter_scope(defun, params);  // Scope for parameters.
+    defun->top_scope = enter_scope(defun, NULL);
     defun->stmts = read_stmts();
+    exit_scope();
     exit_scope();
     curfunc = NULL;
   }
