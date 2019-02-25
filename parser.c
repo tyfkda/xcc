@@ -113,10 +113,6 @@ static bool same_type(const Type *type1, const Type *type2) {
     case TY_LONG:
       return true;
     case TY_ARRAY:
-      if (type1->u.pa.length != type2->u.pa.length &&
-          (type1->u.pa.length > 0 && type2->u.pa.length > 0))  // TODO:
-        return false;
-      // Fallthrough
     case TY_PTR:
       type1 = type1->u.pa.ptrof;
       type2 = type2->u.pa.ptrof;
@@ -301,6 +297,9 @@ static bool can_cast(const Type *dst, const Type *src, bool is_explicit) {
   case TY_ARRAY:
     switch (src->type) {
     case TY_PTR:
+      if (is_explicit && same_type(dst->u.pa.ptrof, src->u.pa.ptrof))
+        return true;
+      // Fallthrough
     case TY_ARRAY:
       if (is_explicit)
         return true;
@@ -1280,6 +1279,148 @@ static Node *parse_return(void) {
   return new_node_return(val);
 }
 
+typedef struct {
+  enum { vSingle, vMulti } type;
+  union {
+    Node *single;
+    Vector *multi;  // Initializer*
+  } u;
+} Initializer;
+
+static Initializer *parse_initializer(void) {
+  Initializer *result = malloc(sizeof(*result));
+  if (consume(TK_LBRACE)) {
+    Vector *multi = new_vector();
+    for (;;) {
+      Initializer *elem = parse_initializer();
+      vec_push(multi, elem);
+
+      if (consume(TK_COMMA)) {
+        if (consume(TK_RBRACE))
+          break;
+      } else {
+        if (!consume(TK_RBRACE))
+          error("`}' or `,' expected, but %s", current_line());
+        break;
+      }
+    }
+    result->type = vMulti;
+    result->u.multi = multi;
+  } else {
+    result->type = vSingle;
+    result->u.single = expr();
+  }
+  return result;
+}
+
+static Vector *clear_initial_value(Node *node, Vector *inits) {
+  if (inits == NULL)
+    inits = new_vector();
+
+  switch (node->expType->type) {
+  case TY_ARRAY:
+    {
+      size_t arr_len = node->expType->u.pa.length;
+      for (size_t i = 0; i < arr_len; ++i)
+        clear_initial_value(new_node_deref(add_node(node, new_node_numlit(ND_INT, i))), inits);
+    }
+    break;
+  case TY_STRUCT:
+  case TY_UNION:
+    assert(!"Not implemented");
+    break;
+  default:
+    vec_push(inits,
+             new_node_bop(ND_ASSIGN, node->expType, node, new_node_cast(node->expType, new_node_numlit(ND_INT, 0), false)));
+    break;
+  }
+
+  return inits;
+}
+
+static void string_initializer(Node *dst, Node *src, Vector *inits) {
+  // Initialize char[] with string literal (char s[] = "foo";).
+  assert(dst->expType->type == TY_ARRAY && dst->expType->u.pa.ptrof->type == TY_CHAR);
+  assert(src->expType->type == TY_ARRAY && src->expType->u.pa.ptrof->type == TY_CHAR);
+
+  const char *str = src->u.str.buf;
+  size_t len = src->u.str.len;
+  size_t dstlen = dst->expType->u.pa.length;
+  if (dstlen == (size_t)-1) {
+    ((Type*)dst->expType)->u.pa.length = dstlen = len;
+  } else {
+    if (dstlen < len)
+      error("Buffer is shorter than string: %d for \"%s\"", (int)dstlen, str);
+  }
+
+  for (size_t i = 0; i < len; ++i) {
+    Node *index = new_node_numlit(ND_INT, i);
+    vec_push(inits,
+             new_node_bop(ND_ASSIGN, &tyChar,
+                          new_node_deref(add_node(dst, index)),
+                          new_node_deref(add_node(src, index))));
+  }
+  if (dstlen > len) {
+    Node *zero = new_node_numlit(ND_CHAR, 0);
+    for (size_t i = len; i < dstlen; ++i) {
+      Node *index = new_node_numlit(ND_INT, i);
+      vec_push(inits,
+               new_node_bop(ND_ASSIGN, &tyChar,
+                            new_node_deref(add_node(dst, index)),
+                            zero));
+    }
+  }
+}
+
+static Vector *assign_initial_value(Node *node, Initializer *initializer, Vector *inits) {
+  if (inits == NULL)
+    inits = new_vector();
+
+  switch (node->expType->type) {
+  case TY_ARRAY:
+    {
+      // Special handling for string (char[]).
+      if (node->expType->u.pa.ptrof->type == TY_CHAR &&
+          initializer->type == vSingle &&
+          can_cast(node->expType, initializer->u.single->expType, false)) {
+        string_initializer(node, initializer->u.single, inits);
+        break;
+      }
+
+      if (initializer->type != vMulti)
+        error("Error initializer");
+      size_t arr_len = node->expType->u.pa.length;
+      if (arr_len == (size_t)-1) {
+        ((Type*)node->expType)->u.pa.length = arr_len = initializer->u.multi->len;
+      } else {
+        if ((size_t)initializer->u.multi->len > arr_len)
+          error("Initializer more than array size");
+      }
+      int len = initializer->u.multi->len;
+      for (int i = 0; i < len; ++i) {
+        assign_initial_value(new_node_deref(add_node(node, new_node_numlit(ND_INT, i))),
+                             initializer->u.multi->data[i], inits);
+      }
+      // Clear left.
+      for (size_t i = len; i < arr_len; ++i)
+        clear_initial_value(new_node_deref(add_node(node, new_node_numlit(ND_INT, i))), inits);
+    }
+    break;
+  case TY_STRUCT:
+  case TY_UNION:
+    assert(!"Not implemented");
+    break;
+  default:
+    if (initializer->type != vSingle)
+      error("Error initializer");
+    vec_push(inits,
+             new_node_bop(ND_ASSIGN, node->expType, node, new_node_cast(node->expType, initializer->u.single, false)));
+    break;
+  }
+
+  return inits;
+}
+
 static bool parse_vardecl(Node **pnode) {
   assert(curfunc != NULL);
 
@@ -1298,13 +1439,8 @@ static bool parse_vardecl(Node **pnode) {
     scope_add(curscope, name, type);
 
     if (consume(TK_ASSIGN)) {
-      Node *val = expr();
-      Node *var = new_node_varref(name, type, false);
-      Node *node = new_node_bop(ND_ASSIGN, type, var, new_node_cast(type, val, false));
-
-      if (inits == NULL)
-        inits = new_vector();
-      vec_push(inits, node);
+      Initializer *initializer = parse_initializer();
+      inits = assign_initial_value(new_node_varref(name, type, false), initializer, inits);
     }
   } while (consume(TK_COMMA));
 
