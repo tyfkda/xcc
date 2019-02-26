@@ -23,6 +23,7 @@ static int type_size(const Type *type) {
   case TY_CHAR:
     return 1;
   case TY_INT:
+  case TY_ENUM:
     return 4;
   case TY_LONG:
     return 8;
@@ -49,6 +50,7 @@ static int align_size(const Type *type) {
   case TY_CHAR:
     return 1;
   case TY_INT:
+  case TY_ENUM:
     return 4;
   case TY_LONG:
     return 8;
@@ -111,6 +113,7 @@ static void cast(const enum eType ltype, const enum eType rtype) {
   case TY_INT:
     switch (rtype) {
     case TY_CHAR: MOVSX_AL_EAX(); return;
+    case TY_ENUM: return;
     case TY_LONG: return;
     default: break;
     }
@@ -119,6 +122,13 @@ static void cast(const enum eType ltype, const enum eType rtype) {
     switch (rtype) {
     case TY_CHAR: MOVSX_AL_RAX(); return;
     case TY_INT:  MOVSX_EAX_RAX(); return;
+    default: break;
+    }
+    break;
+  case TY_ENUM:
+    switch (rtype) {
+    case TY_INT: return;
+    case TY_LONG: return;
     default: break;
     }
     break;
@@ -236,7 +246,8 @@ static void put_rwdata(void) {
   for (int i = 0, len = map_count(global); i < len; ++i) {
     const char *name = (const char *)global->keys->data[i];
     const GlobalVarInfo *varinfo = (const GlobalVarInfo*)global->vals->data[i];
-    if (varinfo->type->type == TY_FUNC || varinfo->value == NULL)
+    if (varinfo->type->type == TY_FUNC || varinfo->value == NULL ||
+        varinfo->type->type == TY_ENUM)
       continue;
     intptr_t value = 0;
     switch (varinfo->value->expType->type) {
@@ -446,6 +457,7 @@ static void gen_varref(Node *node) {
   case TY_CHAR:  MOV_IND_RAX_AL(); break;
   case TY_INT:   MOV_IND_RAX_EAX(); break;
   case TY_LONG:  MOV_IND_RAX_RAX(); break;
+  case TY_ENUM:  MOV_IND_RAX_EAX(); break;
   case TY_PTR:   MOV_IND_RAX_RAX(); break;
   case TY_ARRAY: break;  // Use variable address as a pointer.
   default: assert(false); break;
@@ -489,50 +501,57 @@ static void gen_defun(Node *node) {
   // Allocate variable bufer.
   PUSH_RBP();
   MOV_RSP_RBP();
-  if (frame_size > 0) {
+  if (frame_size > 0)
     SUB_IM32_RSP(frame_size);
-    // Store parameters into local frame.
-    int len = len = defun->params != NULL ? defun->params->len : 0;
-    if (len > 6)
-      error("Parameter count exceeds 6 (%d)", len);
-    for (int i = 0; i < len; ++i) {
-      const VarInfo *varinfo = (const VarInfo*)defun->params->data[i];
-      int offset = varinfo->offset;
-      switch (varinfo->type->type) {
-      case TY_CHAR:  // 1
-        switch (i) {
-        case 0:  MOV_DIL_IND8_RBP(offset); break;
-        case 1:  MOV_SIL_IND8_RBP(offset); break;
-        case 2:  MOV_DL_IND8_RBP(offset); break;
-        case 3:  MOV_CL_IND8_RBP(offset); break;
-        case 4:  MOV_R8B_IND8_RBP(offset); break;
-        case 5:  MOV_R9B_IND8_RBP(offset); break;
-        default: break;
-        }
-        break;
-      case TY_INT:  // 4
-        switch (i) {
-        case 0:  MOV_EDI_IND8_RBP(offset); break;
-        case 1:  MOV_ESI_IND8_RBP(offset); break;
-        case 2:  MOV_EDX_IND8_RBP(offset); break;
-        case 3:  MOV_ECX_IND8_RBP(offset); break;
-        case 4:  MOV_R8D_IND8_RBP(offset); break;
-        case 5:  MOV_R9D_IND8_RBP(offset); break;
-        default: break;
-        }
-        break;
-      default:  // 8
-        switch (i) {
-        case 0:  MOV_RDI_IND8_RBP(offset); break;
-        case 1:  MOV_RSI_IND8_RBP(offset); break;
-        case 2:  MOV_RDX_IND8_RBP(offset); break;
-        case 3:  MOV_RCX_IND8_RBP(offset); break;
-        case 4:  MOV_R8_IND8_RBP(offset); break;
-        case 5:  MOV_R9_IND8_RBP(offset); break;
-        default: break;
-        }
-        break;
+
+  // Store arguments into local frame.
+  int len = len = defun->params != NULL ? defun->params->len : 0;
+  if (len > 6)
+    error("Parameter count exceeds 6 (%d)", len);
+  for (int i = 0; i < len; ++i) {
+    const VarInfo *varinfo = (const VarInfo*)defun->params->data[i];
+    int offset = varinfo->offset;
+    switch (varinfo->type->type) {
+    case TY_CHAR:  // 1
+      switch (i) {
+      case 0:  MOV_DIL_IND8_RBP(offset); break;
+      case 1:  MOV_SIL_IND8_RBP(offset); break;
+      case 2:  MOV_DL_IND8_RBP(offset); break;
+      case 3:  MOV_CL_IND8_RBP(offset); break;
+      case 4:  MOV_R8B_IND8_RBP(offset); break;
+      case 5:  MOV_R9B_IND8_RBP(offset); break;
+      default: break;
       }
+      break;
+    case TY_INT:
+    case TY_ENUM:
+      // 4
+      switch (i) {
+      case 0:  MOV_EDI_IND8_RBP(offset); break;
+      case 1:  MOV_ESI_IND8_RBP(offset); break;
+      case 2:  MOV_EDX_IND8_RBP(offset); break;
+      case 3:  MOV_ECX_IND8_RBP(offset); break;
+      case 4:  MOV_R8D_IND8_RBP(offset); break;
+      case 5:  MOV_R9D_IND8_RBP(offset); break;
+      default: break;
+      }
+      break;
+    case TY_LONG:
+    case TY_PTR:
+      // 8
+      switch (i) {
+      case 0:  MOV_RDI_IND8_RBP(offset); break;
+      case 1:  MOV_RSI_IND8_RBP(offset); break;
+      case 2:  MOV_RDX_IND8_RBP(offset); break;
+      case 3:  MOV_RCX_IND8_RBP(offset); break;
+      case 4:  MOV_R8_IND8_RBP(offset); break;
+      case 5:  MOV_R9_IND8_RBP(offset); break;
+      default: break;
+      }
+      break;
+    default:
+      assert(false);
+      break;
     }
   }
 

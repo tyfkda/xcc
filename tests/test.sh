@@ -155,6 +155,9 @@ try 'sizeof(str) include nul' 12 "return sizeof(\"hello\\\\0world\");"
 try 'array initializer' 1 'int a[3] = {1, 2, 3}; return a[0] == 1 && a[1] == 2 && a[2] == 3;'
 try 'array without size' 1 'int a[] = {1, 2}; return sizeof(a) == 2 * sizeof(int) && a[0] == 1 && a[1] == 2;'
 try_output 'string initializer' 'aBc' "char s[] = \"abc\\\\n\"; s[1] = 'B'; _write(1, s, 4);"
+try_direct 'enum' 11 'enum Num { Zero, One, Two }; int main(){ return One + 10; }'
+try_direct 'enum with assign' 11 'enum Num { Ten = 10, Eleven }; int main(){ return Eleven; }'
+try_direct 'enum can use in case' 1 'enum Num { Zero, One, Two }; int main(){ switch (1) { case One: return 1; } return 0; }'
 
 # error cases
 echo ''
@@ -166,6 +169,7 @@ compile_error 'no proto def' 'void main(){ foo(); } void foo(){}'
 compile_error 'int - ptr' 'void main(){ int *p; p = 1; 2 - p; }'
 compile_error '*num' 'void main(){ *123; }'
 compile_error '&num' 'void main(){ &123; }'
+compile_error '&enum' 'enum Num { Zero }; void main(){ void *p = &Zero; }'
 compile_error 'assign to non-lhs' 'void main(){ int x; x + 1 = 3; }'
 compile_error '+= to non-lhs' 'void main(){ int x; x + 1 += 3; }'
 compile_error 'implicit cast to ptr' 'void foo(int *p); void main(){ foo(123); }'

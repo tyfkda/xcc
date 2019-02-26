@@ -68,6 +68,7 @@ enum TokenType {
   TK_KWLONG,
   TK_STRUCT,
   TK_UNION,
+  TK_ENUM,
   TK_SIZEOF,
 };
 
@@ -97,6 +98,7 @@ enum eType {
   TY_CHAR,  // Small number type should be earlier.
   TY_INT,
   TY_LONG,
+  TY_ENUM,
   TY_PTR,
   TY_ARRAY,
   TY_FUNC,

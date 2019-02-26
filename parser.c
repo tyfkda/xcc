@@ -10,6 +10,7 @@ static const Type tyVoid = {.type=TY_VOID};
 static const Type tyInt = {.type=TY_INT};
 static const Type tyChar = {.type=TY_CHAR};
 static const Type tyLong = {.type=TY_LONG};
+static const Type tyEnum = {.type=TY_ENUM};
 #define tyBool  tyInt
 #define tySize  tyLong
 
@@ -111,6 +112,8 @@ static bool same_type(const Type *type1, const Type *type2) {
     case TY_CHAR:
     case TY_INT:
     case TY_LONG:
+      return true;
+    case TY_ENUM:
       return true;
     case TY_ARRAY:
     case TY_PTR:
@@ -254,6 +257,7 @@ static bool can_cast(const Type *dst, const Type *src, bool is_explicit) {
     switch (src->type) {
     case TY_CHAR:
     case TY_LONG:
+    case TY_ENUM:
       return true;
     default:  break;
     }
@@ -263,6 +267,24 @@ static bool can_cast(const Type *dst, const Type *src, bool is_explicit) {
     case TY_CHAR:
     case TY_INT:
       return true;
+    case TY_PTR:
+      if (is_explicit) {
+        // TODO: Check sizeof(long) is same as sizeof(ptr)
+        return true;
+      }
+      break;
+    default:  break;
+    }
+    break;
+  case TY_ENUM:
+    switch (src->type) {
+    case TY_INT:
+      return true;
+    case TY_CHAR:
+    case TY_LONG:
+      if (is_explicit)
+        return true;
+      break;
     case TY_PTR:
       if (is_explicit) {
         // TODO: Check sizeof(long) is same as sizeof(ptr)
@@ -689,6 +711,40 @@ Node *member_access(Node *target, enum TokenType toktype) {
   return new_node_member(target, name, varinfo->type);
 }
 
+static const Type *parse_enum(void) {
+  const char *name = NULL;
+  Token *tok;
+  if ((tok = consume(TK_IDENT)))
+    name = tok->u.ident;
+
+  if (consume(TK_LBRACE)) {
+    if (!consume(TK_RBRACE)) {
+      int value = 0;
+      for (;;) {
+        Token *ident = consume(TK_IDENT);
+        if (ident == NULL)
+          error("ident expected, but %s", current_line());
+        if (consume(TK_ASSIGN)) {
+          Node *node = expr();
+          if (node->type != ND_INT)  // TODO: Accept constexpr.
+            error("const expected for const");
+          value = node->u.value;
+        }
+        // Define
+        (void)name;  // TODO: Define enum type with name.
+        define_global(&tyEnum, ident->u.ident, new_node_numlit(ND_INT, value));
+        ++value;
+
+        if (consume(TK_RBRACE))
+          break;
+        if (!consume(TK_COMMA))
+          error("`,' or `}' expected, but %s", current_line());
+      }
+    }
+  }
+  return &tyEnum;
+}
+
 static const Type *parse_raw_type(void) {
   Type *type = NULL;
   enum eType et;
@@ -713,6 +769,8 @@ static const Type *parse_raw_type(void) {
     type = malloc(sizeof(*type));
     type->type = et;
     type->u.struct_ = sinfo;
+  } else if (consume(TK_ENUM)) {
+    return parse_enum();
   } else {
     static const enum TokenType kKeywords[] = {
       TK_KWVOID, TK_KWCHAR, TK_KWINT, TK_KWLONG,
@@ -862,6 +920,9 @@ static Node *prim(void) {
       if (varinfo == NULL)
         error("Undefined `%s'", tok->u.ident);
       type = varinfo->type;
+      if (type->type == TY_ENUM)
+        // Enum value is embeded directly.
+        return varinfo->value;
     }
     int global = varinfo == NULL;
     return new_node_varref(tok->u.ident, type, global);
@@ -1612,7 +1673,8 @@ static Node *toplevel(void) {
   const Type *type = parse_raw_type();
   if (type != NULL) {
     type = parse_type_modifier(type, true);
-    if (is_struct_or_union(type->type) && consume(TK_SEMICOL))  // Just struct/union definition.
+    if ((is_struct_or_union(type->type) || type->type == TY_ENUM) &&
+        consume(TK_SEMICOL))  // Just struct/union definition.
       return NULL;
 
     Token *tok;
