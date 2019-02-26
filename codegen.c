@@ -1056,8 +1056,9 @@ void gen(Node *node) {
   case ND_NEG:
     gen(node->u.unary.sub);
     switch (node->expType->type) {
-    case TY_INT:  NEG_EAX(); break;
     case TY_CHAR: NEG_AL(); break;
+    case TY_INT:  NEG_EAX(); break;
+    case TY_LONG: NEG_RAX(); break;
     default:  assert(false); break;
     }
     break;

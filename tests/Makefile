@@ -1,12 +1,12 @@
 CFLAGS=-ansi -std=c11 -Wall -Wextra -Werror -Wold-style-definition -Wno-missing-field-initializers -Wno-typedef-redefinition
 
-.PHONY: test-util test-sh
+.PHONY: test-util test-val test-sh
 
-all:	../xcc test-util test-sh test-examples
+all:	../xcc test-util test-val test-sh test-examples
 	@echo 'All tests PASS!'
 
 clean:
-	rm -f util_test tmp
+	rm -f util_test valtest tmp
 
 ../xcc:
 	make -C .. xcc
@@ -14,6 +14,11 @@ clean:
 test-util:	util_test
 	@echo '## Util'
 	@./util_test
+	@echo ''
+
+test-val:	valtest
+	@echo '## valtest'
+	@./valtest
 	@echo ''
 
 test-sh:	test.sh
@@ -28,3 +33,7 @@ test-examples:	example_test.sh
 
 util_test:	util_test.c ../util.c
 	gcc -o $@ $(CFLAGS) $^
+
+valtest:	../examples/util.c valtest.c
+	../xcc $^ > valtest
+	chmod +x valtest

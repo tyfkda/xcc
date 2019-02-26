@@ -9,7 +9,7 @@ void puts(char *s) {
   _write(1, s, strlen(s));
 }
 
-void putdeci(int x) {
+void putdeci(long x) {
   char s[16];
   char *p = s + 16;
 

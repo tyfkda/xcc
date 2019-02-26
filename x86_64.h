@@ -101,8 +101,9 @@
 #define INCL_IND_RAX()   ADD_CODE(0xff, 0x00)  // incl (%rax)
 #define DECB_IND_RAX()   ADD_CODE(0xfe, 0x08)  // decb (%rax)
 #define DECL_IND_RAX()   ADD_CODE(0xff, 0x08)  // decl (%rax)
-#define NEG_EAX()        ADD_CODE(0xf7, 0xd8)  // neg %eax
 #define NEG_AL()         ADD_CODE(0xf6, 0xd8)  // neg %al
+#define NEG_EAX()        ADD_CODE(0xf7, 0xd8)  // neg %eax
+#define NEG_RAX()        ADD_CODE(0x48, 0xf7, 0xd8)  // neg %rax
 #define SETE_AL()        ADD_CODE(0x0f, 0x94, 0xc0)  // sete %al
 #define SETNE_AL()       ADD_CODE(0x0f, 0x95, 0xc0)  // setne %al
 #define SETS_AL()        ADD_CODE(0x0f, 0x98, 0xc0)  // sets %al

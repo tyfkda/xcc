@@ -7,9 +7,9 @@
 
 #define EXPECT(expected, actual)  expect(__LINE__, expected, actual)
 
-bool expect(int line, int expected, int actual) {
+void expect(int line, int expected, int actual) {
   if (expected == actual)
-    return true;
+    return;
   fprintf(stderr, "%d: %d expected, but got %d\n",
           line, expected, actual);
   exit(1);
