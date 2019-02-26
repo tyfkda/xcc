@@ -413,7 +413,7 @@ static void gen_lval(Node *node) {
   case ND_MEMBER:
     {
       const Type *type = node->u.member.target->expType;
-      if (type->type == TY_PTR)  // TODO: Array?
+      if (type->type == TY_PTR || type->type == TY_ARRAY)
         type = type->u.pa.ptrof;
       assert(type->type == TY_STRUCT || type->type == TY_UNION);
       Vector *members = type->u.struct_->members;
