@@ -47,6 +47,10 @@ void var_add(Vector *lvars, const char *name, const Type *type) {
 
 Map *struct_map;
 
+// Typedef
+
+Map *typedef_map;
+
 // Global
 
 Map *global;
@@ -748,6 +752,7 @@ static const Type *parse_enum(void) {
 static const Type *parse_raw_type(void) {
   Type *type = NULL;
   enum eType et;
+  Token *ident;
 
   if ((consume(TK_STRUCT) && (et = TY_STRUCT, true)) ||
       (consume(TK_UNION) && (et = TY_UNION, true))) {
@@ -771,6 +776,10 @@ static const Type *parse_raw_type(void) {
     type->u.struct_ = sinfo;
   } else if (consume(TK_ENUM)) {
     return parse_enum();
+  } else if ((ident = consume(TK_IDENT)) != NULL) {
+    type = map_get(typedef_map, ident->u.ident);
+    if (type == NULL)
+      unget_token(ident);
   } else {
     static const enum TokenType kKeywords[] = {
       TK_KWVOID, TK_KWCHAR, TK_KWINT, TK_KWLONG,
@@ -1669,6 +1678,23 @@ static void parse_global_assign(const Type *type, const char *name) {
   define_global(type, name, value);  // TODO: Use newvalue
 }
 
+static void parse_typedef(void) {
+  const Type *type = parse_raw_type();
+  if (type == NULL)
+    error("type expected, but %s", current_line());
+  type = parse_type_suffix(parse_type_modifier(type, false));
+
+  Token *ident = consume(TK_IDENT);
+  if (ident == NULL)
+    error("ident expected, but %s", current_line());
+  const char *name = ident->u.ident;
+
+  map_put(typedef_map, name, type);
+
+  if (!consume(TK_SEMICOL))
+    error("`;' expected, but %s", current_line());
+}
+
 static Node *toplevel(void) {
   const Type *type = parse_raw_type();
   if (type != NULL) {
@@ -1701,6 +1727,10 @@ static Node *toplevel(void) {
       return NULL;
     }
     error("ident expected, but %s", current_line());
+    return NULL;
+  }
+  if (consume(TK_TYPEDEF)) {
+    parse_typedef();
     return NULL;
   }
   error("Toplevel, %s", current_line());

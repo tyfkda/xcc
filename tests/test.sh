@@ -72,6 +72,7 @@ try_output 'string initializer' 'aBc' "char s[] = \"abc\\\\n\"; s[1] = 'B'; _wri
 try_direct 'enum' 11 'enum Num { Zero, One, Two }; int main(){ return One + 10; }'
 try_direct 'enum with assign' 11 'enum Num { Ten = 10, Eleven }; int main(){ return Eleven; }'
 try_direct 'enum can use in case' 1 'enum Num { Zero, One, Two }; int main(){ switch (1) { case One: return 1; } return 0; }'
+try_direct 'typedef' 123 'typedef struct {int x;} Foo; int main(){ Foo foo; foo.x = 123; return foo.x; }'
 
 # error cases
 echo ''

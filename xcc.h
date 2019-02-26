@@ -70,6 +70,7 @@ enum TokenType {
   TK_UNION,
   TK_ENUM,
   TK_SIZEOF,
+  TK_TYPEDEF,
 };
 
 // Token type
@@ -147,6 +148,7 @@ typedef struct {
 } GlobalVarInfo;
 
 Map *struct_map;
+Map *typedef_map;
 
 // Scope
 
