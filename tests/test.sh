@@ -9,10 +9,9 @@ try_direct() {
 
   echo -n "$title => "
 
-  echo -e "$input" | $XCC > tmp || exit 1
-  chmod +x tmp
+  echo -e "$input" | $XCC || exit 1
 
-  ./tmp
+  ./a.out
   actual="$?"
 
   if [ "$actual" = "$expected" ]; then
@@ -34,10 +33,9 @@ try_output_direct() {
 
   echo -n "$title => "
 
-  echo -e "$input" | $XCC > tmp || exit 1
-  chmod +x tmp
+  echo -e "$input" | $XCC || exit 1
 
-  actual=`./tmp` || exit 1
+  actual=`./a.out` || exit 1
 
   if [ "$actual" = "$expected" ]; then
     echo "OK"
@@ -57,7 +55,7 @@ compile_error() {
 
   echo -n "$title => "
 
-  echo -e "$input" | $XCC > tmp
+  echo -e "$input" | $XCC
   result="$?"
 
   if [ "$result" = "0" ]; then

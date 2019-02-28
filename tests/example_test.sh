@@ -9,10 +9,9 @@ try() {
 
   echo -n "$title => "
 
-  $XCC $inputs > tmp || exit 1
-  chmod +x tmp
+  $XCC $inputs || exit 1
 
-  actual=`./tmp ${@:4}` || exit 1
+  actual=`./a.out ${@:4}` || exit 1
 
   if [ "$actual" = "$expected" ]; then
     echo "OK"

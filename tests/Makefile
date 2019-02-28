@@ -6,7 +6,7 @@ all:	../xcc test-util test-val test-sh test-examples
 	@echo 'All tests PASS!'
 
 clean:
-	rm -f util_test valtest tmp
+	rm -f util_test valtest a.out
 
 ../xcc:
 	make -C .. xcc
@@ -35,5 +35,4 @@ util_test:	util_test.c ../util.c
 	gcc -o $@ $(CFLAGS) $^
 
 valtest:	../examples/util.c valtest.c
-	../xcc $^ > valtest
-	chmod +x valtest
+	../xcc -o valtest $^

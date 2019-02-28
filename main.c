@@ -26,6 +26,8 @@
 #elif defined(__linux__)
 // Linux
 
+#include <sys/stat.h>
+
 #define START_ADDRESS    (0x1000000 + PROG_START)
 
 #define SYSTEMCALL(no)  do { MOV_IM32_EAX(no); SYSCALL(); } while(0)
@@ -70,6 +72,16 @@ void compile(FILE *fp) {
 }
 
 int main(int argc, char* argv[]) {
+  const char *ofn = "a.out";
+  int iarg;
+
+  for (iarg = 1; iarg < argc; ++iarg) {
+    if (strcmp(argv[iarg], "-o") == 0 && iarg + 1 < argc)
+      ofn = argv[++iarg];
+    else
+      break;
+  }
+
   init_compiler(LOAD_ADDRESS);
 
   // Test.
@@ -99,9 +111,9 @@ int main(int argc, char* argv[]) {
     define_global(&tyWrite, "_write", NULL);
   }
 
-  if (argc > 1) {
-    for (int i = 1; i < argc; ++i) {
-      FILE *fp = fopen(argv[i], "rb");
+  if (argc > iarg) {
+    for (int i = iarg; i < argc; ++i) {
+      FILE *fp = fopen(argv[i], "r");
       if (fp == NULL)
         error("Cannot open file: %s\n", argv[i]);
       compile(fp);
@@ -139,12 +151,24 @@ int main(int argc, char* argv[]) {
   if (entry == (uintptr_t)-1)
     error("Cannot find label: `%s'", "_start");
 
-  FILE* fp = stdout;
+  FILE* fp = fopen(ofn, "wb");
+  if (fp == NULL) {
+    fprintf(stderr, "Failed to open output file: %s\n", ofn);
+    return 1;
+  }
 
   out_elf_header(fp, entry);
   out_program_header(fp, PROG_START, LOAD_ADDRESS, filesz, memsz);
   put_padding(fp, PROG_START);
   output_code(fp);
+  fclose(fp);
+
+#if !defined(__XV6) && defined(__linux__)
+  if (chmod(ofn, 0755) == -1) {
+    perror("chmod failed\n");
+    return 1;
+  }
+#endif
 
   return 0;
 }

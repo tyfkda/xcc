@@ -1,6 +1,6 @@
 *~
 *.o
-tmp*
+a.out
 /xcc
 /tests/util_test
 /tests/valtest
