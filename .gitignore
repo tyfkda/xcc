@@ -1,6 +1,7 @@
 *~
 *.o
 a.out
+/cpp
 /xcc
 /tests/util_test
 /tests/valtest
