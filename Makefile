@@ -3,8 +3,8 @@ SRCS=util.c lexer.c parser.c codegen.c elfutil.c main.c
 OBJS=$(SRCS:.c=.o)
 CPPOBJS=util.o cpp.o
 
-xcc: $(OBJS)
-	$(CC) -o $@ $^ $(LDFLAGS)
+xcc: $(OBJS) cpp
+	$(CC) -o $@ $(OBJS) $(LDFLAGS)
 
 cpp: $(CPPOBJS)
 	$(CC) -o $@ $^ $(LDFLAGS)

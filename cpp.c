@@ -49,19 +49,7 @@ void handle_include(const char *p, const char *srcname) {
       error("not closed");
   }
 
-  char *dir = dirname(strdup_(srcname));
-  char *fn;
-  if (*p == '/') {
-    fn = strndup_(p, q - p);
-  } else {
-    size_t dirlen = strlen(dir);
-    size_t fnlen = q - p;
-    fn = malloc(dirlen + fnlen + 2);
-    strcpy(fn, dir);
-    strcpy(fn + dirlen, "/");
-    memcpy(fn + dirlen + 1, p, fnlen);
-    fn[dirlen + 1 + fnlen] = '\0';
-  }
+  char *fn = cat_path(dirname(strdup_(srcname)), strndup_(p, q - p));
 
   FILE *fp = fopen(fn, "r");
   if (fp == NULL)

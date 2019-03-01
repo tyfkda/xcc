@@ -21,6 +21,6 @@ try() {
   fi
 }
 
-try 'hello' 'Hello, world!' '../examples/hello.c'
-try 'fib' 832040 '../examples/util.c ../examples/fib.c'
-try 'echo' 'foo bar baz' '../examples/util.c ../examples/echo.c' foo bar baz
+try 'hello' 'Hello, world!' ../examples/hello.c
+try 'fib' 832040 ../examples/fib.c
+try 'echo' 'foo bar baz' ../examples/echo.c foo bar baz

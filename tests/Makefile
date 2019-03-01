@@ -2,7 +2,7 @@ CFLAGS=-ansi -std=c11 -Wall -Wextra -Werror -Wold-style-definition -Wno-missing-
 
 .PHONY: test-util test-val test-sh
 
-all:	../xcc test-util test-val test-sh test-examples
+all:	../xcc ../cpp test-util test-val test-sh test-examples
 	@echo 'All tests PASS!'
 
 clean:
@@ -10,6 +10,9 @@ clean:
 
 ../xcc:
 	make -C .. xcc
+
+../cpp:
+	make -C .. cpp
 
 test-util:	util_test
 	@echo '## Util'
