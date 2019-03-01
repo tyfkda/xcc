@@ -7,6 +7,14 @@
 typedef struct Vector Vector;
 typedef struct Map Map;
 
+// Line
+
+typedef struct {
+  const char *filename;
+  int lineno;
+  const char *buf;
+} Line;
+
 // Token
 
 // Token type value
@@ -76,6 +84,7 @@ enum TokenType {
 // Token type
 typedef struct {
   enum TokenType type;
+  Line *line;
   const char *input;
   union {
     const char *ident;
@@ -87,10 +96,11 @@ typedef struct {
   } u;
 } Token;
 
-void init_lexer(FILE *fp);
+void init_lexer(FILE *fp, const char *filename);
 Token *consume(enum TokenType type);
 void unget_token(Token *token);
 const char *current_line(void);
+void show_error_line(const char *line, const char *p);
 
 // Type
 
@@ -335,7 +345,3 @@ void add_code(const unsigned char* buf, size_t size);
 void add_loc_rel32(const char *label, int ofs, int baseofs);
 size_t fixup_locations(size_t *pmemsz);
 uintptr_t label_adr(const char *label);
-
-// main
-
-void error(const char* fmt, ...) __attribute((noreturn));

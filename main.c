@@ -1,4 +1,3 @@
-#include "stdarg.h"
 #include "stdint.h"
 #include "stdio.h"
 #include "stdlib.h"
@@ -45,15 +44,6 @@
 
 ////////////////////////////////////////////////
 
-void error(const char* fmt, ...) {
-  va_list ap;
-  va_start(ap, fmt);
-  vfprintf(stderr, fmt, ap);
-  va_end(ap);
-  fprintf(stderr, "\n");
-  exit(1);
-}
-
 void init_compiler(uintptr_t adr) {
   loc_vector = new_vector();
   struct_map = new_map();
@@ -63,8 +53,8 @@ void init_compiler(uintptr_t adr) {
   init_gen(adr);
 }
 
-void compile(FILE *fp) {
-  init_lexer(fp);
+void compile(FILE *fp, const char *filename) {
+  init_lexer(fp, filename);
   Vector *node_vector = parse_program();
 
   for (int i = 0, len = node_vector->len; i < len; ++i)
@@ -113,14 +103,15 @@ int main(int argc, char* argv[]) {
 
   if (argc > iarg) {
     for (int i = iarg; i < argc; ++i) {
-      FILE *fp = fopen(argv[i], "r");
+      const char *filename = argv[i];
+      FILE *fp = fopen(filename, "r");
       if (fp == NULL)
         error("Cannot open file: %s\n", argv[i]);
-      compile(fp);
+      compile(fp, filename);
       fclose(fp);
     }
   } else {
-    compile(stdin);
+    compile(stdin, "*stdin*");
   }
 
   // Test.

@@ -1,5 +1,6 @@
 #include <assert.h>
 #include <ctype.h>
+#include <stdarg.h>
 #include <stdlib.h>  // malloc
 #include <string.h>
 #include <sys/types.h>  // ssize_t
@@ -11,18 +12,44 @@
 
 typedef struct {
   FILE *fp;
-  char* line;
-  size_t line_len;
+  const char *filename;
+  Line* line;
   const char *p;
   Token *fetched[MAX_LOOKAHEAD];
   int idx;
+  int lineno;
 } Lexer;
 
 static Lexer lexer;
 
+void show_error_line(const char *line, const char *p) {
+  fprintf(stderr, "%s\n", line);
+  size_t pos = p - line;
+  if (pos <= strlen(line)) {
+    for (size_t i = 0; i < pos; ++i)
+      fputc(line[i] == '\t' ? '\t' : ' ', stderr);
+    fprintf(stderr, "^\n");
+  }
+}
+
+void lex_error(const char *p, const char* fmt, ...) {
+  fprintf(stderr, "%s(%d): ", lexer.filename, lexer.lineno);
+
+  va_list ap;
+  va_start(ap, fmt);
+  vfprintf(stderr, fmt, ap);
+  va_end(ap);
+  fprintf(stderr, "\n");
+
+  show_error_line(lexer.line->buf, p);
+
+  exit(1);
+}
+
 static Token *alloc_token(enum TokenType type, const char *input) {
   Token *token = malloc(sizeof(*token));
   token->type = type;
+  token->line = lexer.line;
   token->input = input;
   return token;
 }
@@ -70,21 +97,33 @@ static char backslash(char c) {
   }
 }
 
-void init_lexer(FILE *fp) {
+void init_lexer(FILE *fp, const char *filename) {
   lexer.fp = fp;
+  lexer.filename = filename;
   lexer.line = NULL;
-  lexer.line_len = 0;
   lexer.p = "";
   lexer.idx = -1;
+  lexer.lineno = 0;
 }
 
 static void read_next_line(void) {
-  lexer.line = NULL;
-  lexer.line_len = 0;
-  if (getline_(&lexer.line, &lexer.line_len, lexer.fp) == EOF) {
+  char *line = NULL;
+  size_t capa = 0;
+  ssize_t len = getline_(&line, &capa, lexer.fp);
+  if (len == EOF) {
     lexer.p = NULL;
+    lexer.line = NULL;
+  } else {
+    if (len > 0 && line[len - 1] == '\n')
+      line[--len] = '\0';  // Chomp
+
+    Line *p = malloc(sizeof(*line));
+    p->filename = lexer.filename;
+    p->buf = line;
+    p->lineno = ++lexer.lineno;
+    lexer.line = p;
+    lexer.p = lexer.line->buf;
   }
-  lexer.p = lexer.line;
 }
 
 static const char *skip_block_comment(const char *p) {
@@ -148,7 +187,7 @@ static Token *read_num(const char **pp) {
   }
   long val = strtol(p, (char**)pp, base);
   if (*pp == p && base == 16)
-    error("Illegal literal: %s", current_line());
+    lex_error(p, "Illegal literal");
   Token *tok;
   enum TokenType tt = TK_INTLIT;
   if (**pp == 'L') {
@@ -293,11 +332,11 @@ static Token *get_token(void) {
       if (c == '\\') {
         c = *(++p);
         if (c == '\0')
-          error("Character not closed");
+          lex_error(p, "Character not closed");
         c = backslash(c);
       }
       if (*(++p) != '\'')
-        error("Character not closed");
+        lex_error(p, "Character not closed");
 
       tok = alloc_token(TK_CHARLIT, start);
       tok->u.value = c;
@@ -311,7 +350,7 @@ static Token *get_token(void) {
       char *str = malloc(capa);
       for (char c; (c = *p) != '"'; ++p) {
         if (c == '\0')
-          error("String not closed");
+          lex_error(p, "String not closed");
         if (size + 1 >= capa) {
           capa <<= 1;
           str = realloc(str, capa);
@@ -320,7 +359,7 @@ static Token *get_token(void) {
         if (c == '\\') {
           c = *(++p);
           if (c == '\0')
-            error("String not closed");
+            lex_error(p, "String not closed");
           c = backslash(c);
         }
         str[size++] = c;
@@ -333,7 +372,7 @@ static Token *get_token(void) {
       break;
     }
 
-    error("Unexpected character `%c' at %s\n", *p, p);
+    lex_error(p, "Unexpected character `%c'", *p);
     return NULL;
   }
 
