@@ -356,7 +356,8 @@ Token *consume(enum TokenType type) {
 }
 
 void unget_token(Token *token) {
-  assert(++lexer.idx < MAX_LOOKAHEAD);
+  ++lexer.idx;
+  assert(lexer.idx < MAX_LOOKAHEAD);
   lexer.fetched[lexer.idx] = token;
 }
 
