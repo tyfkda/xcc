@@ -54,6 +54,12 @@ static Token *alloc_token(enum TokenType type, const char *input) {
   return token;
 }
 
+Token *alloc_ident(const char *ident, const char *input) {
+  Token *tok = alloc_token(TK_IDENT, input);
+  tok->u.ident = ident;
+  return tok;
+}
+
 static enum TokenType reserved_word(const char *word) {
   struct {
     const char *str;
@@ -319,8 +325,7 @@ static Token *get_token(void) {
         free(dup);
         tok = alloc_token(word, p);
       } else {
-        tok= alloc_token(TK_IDENT, p);
-        tok->u.ident = dup;
+        tok = alloc_ident(dup, p);
       }
       p = q;
       break;
@@ -381,12 +386,16 @@ static Token *get_token(void) {
   return tok;
 }
 
-Token *consume(enum TokenType type) {
+Token *fetch_token(void) {
   if (lexer.idx < 0) {
     lexer.idx = 0;
     lexer.fetched[0] = get_token();
   }
-  Token *tok = lexer.fetched[lexer.idx];
+  return lexer.fetched[lexer.idx];
+}
+
+Token *consume(enum TokenType type) {
+  Token *tok = fetch_token();
   if (tok->type != type)
     return NULL;
   if (tok->type != TK_EOF)
@@ -398,9 +407,4 @@ void unget_token(Token *token) {
   ++lexer.idx;
   assert(lexer.idx < MAX_LOOKAHEAD);
   lexer.fetched[lexer.idx] = token;
-}
-
-const char *current_line(void) {
-  //return lexer.line;
-  return lexer.p;
 }

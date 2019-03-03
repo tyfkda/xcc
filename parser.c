@@ -1,4 +1,5 @@
 #include <assert.h>
+#include <stdarg.h>
 #include <stdbool.h>
 #include <stdlib.h>  // malloc
 #include <string.h>
@@ -20,6 +21,24 @@ static Node *expr(void);
 static Node *cast_expr(void);
 static Node *prim(void);
 
+void parse_error(const Token *token, const char* fmt, ...) {
+  if (token == NULL)
+    token = fetch_token();
+  if (token != NULL) {
+    fprintf(stderr, "%s(%d): ", token->line->filename, token->line->lineno);
+  }
+
+  va_list ap;
+  va_start(ap, fmt);
+  vfprintf(stderr, fmt, ap);
+  va_end(ap);
+  fprintf(stderr, "\n");
+
+  show_error_line(token->line->buf, token->input);
+
+  exit(1);
+}
+
 //
 
 int var_find(Vector *lvars, const char *name) {
@@ -31,10 +50,11 @@ int var_find(Vector *lvars, const char *name) {
   return -1;
 }
 
-void var_add(Vector *lvars, const char *name, const Type *type) {
+void var_add(Vector *lvars, const Token *ident, const Type *type) {
+  const char *name = ident->u.ident;
   int idx = var_find(lvars, name);
   if (idx >= 0)
-    error("`%s' already defined", name);
+    parse_error(ident, "`%s' already defined", name);
 
   VarInfo *info = malloc(sizeof(*info));
   info->name = name;
@@ -59,10 +79,11 @@ GlobalVarInfo *find_global(const char *name) {
   return (GlobalVarInfo*)map_get(global, name);
 }
 
-void define_global(const Type *type, const char *name, Node *value) {
+void define_global(const Type *type, const Token *ident, Node *value) {
+  const char *name = ident->u.ident;
   GlobalVarInfo *varinfo = find_global(name);
   if (varinfo != NULL)
-    error("`%s' already defined", name);
+    parse_error(ident, "`%s' already defined", name);
   varinfo = malloc(sizeof(*varinfo));
   varinfo->name = name;
   varinfo->type = type;
@@ -191,10 +212,10 @@ VarInfo *scope_find(Scope *scope, const char *name) {
   }
 }
 
-static void scope_add(Scope *scope, const char *name, const Type *type) {
+static void scope_add(Scope *scope, const Token *ident, const Type *type) {
   if (scope->vars == NULL)
     scope->vars = new_vector();
-  var_add(scope->vars, name, type);
+  var_add(scope->vars, ident, type);
 }
 
 // Defun
@@ -342,10 +363,10 @@ static bool can_cast(const Type *dst, const Type *src, bool is_explicit) {
 
 static Node *new_node_cast(const Type *type, Node *sub, bool is_explicit) {
   if (type->type == TY_VOID || sub->expType->type == TY_VOID)
-    error("cannot use `void' as a value");
+    parse_error(NULL, "cannot use `void' as a value");
 
   if (!can_cast(type, sub->expType, is_explicit))
-    error("Cannot convert value from type %d to %d: %s", sub->expType->type, type->type, current_line());
+    parse_error(NULL, "Cannot convert value from type %d to %d", sub->expType->type, type->type);
 
   if (same_type(type, sub->expType))
     return sub;
@@ -370,7 +391,7 @@ static Node *new_node_unary(enum NodeType type, const Type *expType, Node *sub) 
 
 static Node *new_node_deref(Node *sub) {
   if (sub->expType->type != TY_PTR && sub->expType->type != TY_ARRAY)
-     error("Cannot dereference raw type");
+    parse_error(NULL, "Cannot dereference raw type");
   return new_node_unary(ND_DEREF, sub->expType->u.pa.ptrof, sub);
 }
 
@@ -503,12 +524,13 @@ static Node *new_node_sizeof(const Type *type) {
 static Node *funcall(Node *func) {
   if (!(func->expType->type == TY_FUNC ||
         func->expType->type == TY_PTR))  // TODO: Restrict to function pointer.
-    error("Cannot call except funtion");
+    parse_error(NULL, "Cannot call except funtion");
 
   const Type *functype = func->expType->type == TY_FUNC ? func->expType : NULL;
 
   Vector *args = NULL;
-  if (!consume(TK_RPAR)) {
+  Token *tok;
+  if ((tok = consume(TK_RPAR)) == NULL) {
     args = new_vector();
     for (;;) {
       Node *arg = expr();
@@ -517,21 +539,21 @@ static Node *funcall(Node *func) {
         arg = new_node_cast(type, arg, false);
       }
       vec_push(args, arg);
-      if (consume(TK_RPAR))
+      if ((tok = consume(TK_RPAR)) != NULL)
         break;
       if (consume(TK_COMMA))
         continue;
-      error("Comma or `)` expected, but %s", current_line());
+      parse_error(NULL, "Comma or `)` expected");
     }
   }
 
   if (functype != NULL && functype->u.func.params != NULL && (args != NULL ? args->len : 0) != functype->u.func.params->len)
-    error("function `%s' expect %d arguments, but %d\n", func->u.varref.ident, functype->u.func.params->len, (args != NULL ? args->len : 0));
+    parse_error(tok, "function `%s' expect %d arguments, but %d\n", func->u.varref.ident, functype->u.func.params->len, (args != NULL ? args->len : 0));
 
   return new_node_funcall(func, args);
 }
 
-static Node *add_node(Node *lhs, Node *rhs) {
+static Node *add_node(Token *tok, Node *lhs, Node *rhs) {
   Node *l = lhs, *r = rhs;
 
   if (lhs->expType->type > rhs->expType->type) {
@@ -586,11 +608,11 @@ static Node *add_node(Node *lhs, Node *rhs) {
     break;
   }
 
-  error("Illegal `+' at %s", current_line());
+  parse_error(tok, "Illegal `+'");
   return NULL;
 }
 
-static Node *sub_node(Node *lhs, Node *rhs) {
+static Node *sub_node(Token *tok, Node *lhs, Node *rhs) {
   switch (lhs->expType->type) {
   case TY_CHAR:
     switch (rhs->expType->type) {
@@ -633,11 +655,11 @@ static Node *sub_node(Node *lhs, Node *rhs) {
       return new_node_bop(ND_PTRSUB, lhs->expType, lhs, rhs);
     case TY_PTR:
       if (!same_type(lhs->expType, rhs->expType))
-        error("Different pointer sub");
+        parse_error(tok, "Different pointer sub");
       return new_node_bop(ND_PTRDIFF, &tyInt, lhs, rhs);  // TODO: size_t
     case TY_ARRAY:
       if (!same_type(lhs->expType->u.pa.ptrof, rhs->expType->u.pa.ptrof))
-        error("Different pointer sub");
+        parse_error(tok, "Different pointer sub");
       return new_node_bop(ND_PTRDIFF, &tyInt, lhs, rhs);  // TODO: size_t
     default:
       break;
@@ -648,11 +670,11 @@ static Node *sub_node(Node *lhs, Node *rhs) {
     switch (rhs->expType->type) {
     case TY_PTR:
       if (!same_type(lhs->expType->u.pa.ptrof, rhs->expType->u.pa.ptrof))
-        error("Different pointer sub");
+        parse_error(tok, "Different pointer sub");
       return new_node_bop(ND_PTRDIFF, &tyInt, lhs, rhs);  // TODO: size_t
     case TY_ARRAY:
       if (!same_type(lhs->expType, rhs->expType))
-        error("Different pointer sub");
+        parse_error(tok, "Different pointer sub");
       return new_node_bop(ND_PTRDIFF, &tyInt, lhs, rhs);  // TODO: size_t
     default:
       break;
@@ -663,13 +685,13 @@ static Node *sub_node(Node *lhs, Node *rhs) {
     break;
   }
 
-  error("Illegal `-' at %s", current_line());
+  parse_error(tok, "Illegal `-'");
   return NULL;
 }
 
-static Node *arith_node(enum NodeType nodeType, Node *lhs, Node *rhs) {
+static Node *arith_node(Token *tok, enum NodeType nodeType, Node *lhs, Node *rhs) {
   if (!is_number(lhs->expType->type) || !is_number(rhs->expType->type))
-    error("Cannot use `%d' except numbers.", nodeType);
+    parse_error(tok, "Cannot use `%d' except numbers.", nodeType);
 
   const Type *expType = lhs->expType;
   if (rhs->expType->type > expType->type)
@@ -680,46 +702,44 @@ static Node *arith_node(enum NodeType nodeType, Node *lhs, Node *rhs) {
 
 Node *array_index(Node *array) {
   Node *index = expr();
-  if (!consume(TK_RBRACKET))
-    error("`]' expected, but %s", current_line());
-  return new_node_deref(add_node(array, index));
+  Token *tok;
+  if ((tok = consume(TK_RBRACKET)) == NULL)
+    parse_error(NULL, "`]' expected");
+  return new_node_deref(add_node(tok, array, index));
 }
 
-Node *member_access(Node *target, enum TokenType toktype) {
-  Token *tok;
-  if (!(tok = consume(TK_IDENT)))
-    error("`ident' expected, but %s", current_line());
-  const char *name = tok->u.ident;
-
+Node *member_access(Node *target, Token *acctok) {
   // Find member's type from struct info.
   const Type *type = target->expType;
-  if (toktype == TK_DOT) {
+  if (acctok->type == TK_DOT) {
     if (!is_struct_or_union(type->type))
-      error("`.' for non struct value");
+      parse_error(acctok, "`.' for non struct value");
   } else {  // TK_ARROW
     if (type->type == TY_PTR)
       type = target->expType->u.pa.ptrof;
     else if (type->type == TY_ARRAY)
       type = target->expType->u.pa.ptrof;
     else
-      error("`->' for non pointer value");
+      parse_error(acctok, "`->' for non pointer value");
     if (type->type != TY_STRUCT)
-      error("`->' for non struct value");
+      parse_error(acctok, "`->' for non struct value");
   }
+
+  Token *tok;
+  if (!(tok = consume(TK_IDENT)))
+    parse_error(NULL, "`ident' expected");
+  const char *name = tok->u.ident;
 
   int index = var_find(type->u.struct_->members, name);
   if (index < 0)
-    error("`%s' doesn't exist in the struct");
+    parse_error(tok, "`%s' doesn't exist in the struct", name);
   VarInfo *varinfo = (VarInfo*)type->u.struct_->members->data[index];
 
   return new_node_member(target, name, varinfo->type);
 }
 
 static const Type *parse_enum(void) {
-  const char *name = NULL;
-  Token *tok;
-  if ((tok = consume(TK_IDENT)))
-    name = tok->u.ident;
+  Token *typeident = consume(TK_IDENT);
 
   if (consume(TK_LBRACE)) {
     if (!consume(TK_RBRACE)) {
@@ -727,22 +747,23 @@ static const Type *parse_enum(void) {
       for (;;) {
         Token *ident = consume(TK_IDENT);
         if (ident == NULL)
-          error("ident expected, but %s", current_line());
+          parse_error(NULL, "ident expected");
         if (consume(TK_ASSIGN)) {
+          Token *tok = fetch_token();
           Node *node = expr();
           if (node->type != ND_INT)  // TODO: Accept constexpr.
-            error("const expected for const");
+            parse_error(tok, "const expected for enum");
           value = node->u.value;
         }
         // Define
-        (void)name;  // TODO: Define enum type with name.
-        define_global(&tyEnum, ident->u.ident, new_node_numlit(ND_INT, value));
+        (void)typeident;  // TODO: Define enum type with name.
+        define_global(&tyEnum, ident, new_node_numlit(ND_INT, value));
         ++value;
 
         if (consume(TK_RBRACE))
           break;
         if (!consume(TK_COMMA))
-          error("`,' or `}' expected, but %s", current_line());
+          parse_error(NULL, "`,' or `}' expected");
       }
     }
   }
@@ -751,15 +772,15 @@ static const Type *parse_enum(void) {
 
 static const Type *parse_raw_type(void) {
   Type *type = NULL;
-  enum eType et;
+  Token *structtok;
   Token *ident;
 
-  if ((consume(TK_STRUCT) && (et = TY_STRUCT, true)) ||
-      (consume(TK_UNION) && (et = TY_UNION, true))) {
+  if (((structtok = consume(TK_STRUCT)) != NULL) ||
+      ((structtok = consume(TK_UNION)) != NULL)) {
     const char *name = NULL;
-    Token *tok;
-    if ((tok = consume(TK_IDENT)))
-      name = tok->u.ident;
+    Token *ident;
+    if ((ident = consume(TK_IDENT)) != NULL)
+      name = ident->u.ident;
 
     StructInfo *sinfo;
     if (consume(TK_LBRACE)) {  // Definition
@@ -767,12 +788,16 @@ static const Type *parse_raw_type(void) {
       if (name != NULL)
         map_put(struct_map, name, sinfo);  // TODO: Already defined?
     } else {
+      if (name == NULL) {
+        // TODO: Allow forward reference.
+        parse_error(structtok, "`ident' expected");
+      }
       sinfo = (StructInfo*)map_get(struct_map, name);
       if (sinfo == NULL)
-        error("Undefined struct: %s", name);
+        parse_error(ident, "Undefined struct: %s", name);
     }
     type = malloc(sizeof(*type));
-    type->type = et;
+    type->type = (structtok->type == TK_STRUCT) ? TY_STRUCT : TY_UNION;
     type->u.struct_ = sinfo;
   } else if (consume(TK_ENUM)) {
     return parse_enum();
@@ -807,7 +832,7 @@ static const Type *parse_type_modifier(const Type* type, bool allow_void) {
     type = ptrof(type);
 
   if (!allow_void && type->type == TY_VOID)
-    error("`void' not allowed");
+    parse_error(NULL, "`void' not allowed");
   return type;
 }
 
@@ -820,17 +845,17 @@ static const Type *parse_type_suffix(const Type *type) {
     length = -1;
   } else if ((tok = consume(TK_INTLIT))) {  // TODO: Constant expression.
     if (tok->u.value <= 0)
-      error("Array size must be greater than 0, but %d", (int)tok->u.value);
+      parse_error(tok, "Array size must be greater than 0, but %d", (int)tok->u.value);
     length = tok->u.value;
     if (!consume(TK_RBRACKET))
-      error("`]' expected, but %s", current_line());
+      parse_error(NULL, "`]' expected");
   } else {
-    error("syntax error: %s", current_line());
+    parse_error(NULL, "syntax error");
   }
   return arrayof(parse_type_suffix(type), length);
 }
 
-static bool parse_var_def(const Type **prawType, const Type** ptype, const char **pname, bool allow_void) {
+static bool parse_var_def(const Type **prawType, const Type** ptype, Token **pident, bool allow_void) {
   if (*prawType == NULL) {
     const Type *rawType = parse_raw_type();
     if (rawType == NULL)
@@ -840,17 +865,15 @@ static bool parse_var_def(const Type **prawType, const Type** ptype, const char 
 
   const Type *type = parse_type_modifier(*prawType, allow_void);
 
-  Token *tok;
-  const char *name = NULL;
+  Token *ident;
   if (!allow_void || type->type != TY_VOID) {
-    if (!(tok = consume(TK_IDENT)))
-      error("Ident expected, but %s", current_line());
-    name = tok->u.ident;
+    if (!(ident = consume(TK_IDENT)))
+      parse_error(NULL, "Ident expected");
     type = parse_type_suffix(type);
   }
 
   *ptype = type;
-  *pname = name;
+  *pident = ident;
 
   return true;
 }
@@ -863,13 +886,13 @@ static StructInfo *parse_struct(void) {
 
     const Type *rawType = NULL;
     const Type *type;
-    const char *name;
-    if (!parse_var_def(&rawType, &type, &name, false))
-      error("type expected, but %s", current_line());
+    Token *ident;
+    if (!parse_var_def(&rawType, &type, &ident, false))
+      parse_error(NULL, "type expected");
 
     if (!consume(TK_SEMICOL))
-      error("semicolon expected, but %s", current_line());
-    var_add(members, name, type);
+      parse_error(NULL, "`;' expected");
+    var_add(members, ident, type);
   }
 
   StructInfo *sinfo = malloc(sizeof(*sinfo));
@@ -890,7 +913,7 @@ static Node *parse_sizeof(void) {
       type = node->expType;
     }
     if (!consume(TK_RPAR))
-      error("`)' expected, but %s", current_line());
+      parse_error(NULL, "`)' expected");
   } else {
     Node *node = prim();
     type = node->expType;
@@ -902,7 +925,7 @@ static Node *prim(void) {
   if (consume(TK_LPAR)) {
     Node *node = expr();
     if (!consume(TK_RPAR))
-      error("No close paren: %s", current_line());
+      parse_error(NULL, "No close paren");
     return node;
   }
 
@@ -917,26 +940,28 @@ static Node *prim(void) {
   if ((tok = consume(TK_STR)))
     return new_node_str(tok->u.str.buf, tok->u.str.len);
 
-  if ((tok = consume(TK_IDENT))) {
+  Token *ident;
+  if ((ident = consume(TK_IDENT)) != NULL) {
     assert(curfunc != NULL);
 
+    const char *name = ident->u.ident;
     const Type *type = NULL;
-    VarInfo *varinfo = scope_find(curscope, tok->u.ident);
+    VarInfo *varinfo = scope_find(curscope, name);
     if (varinfo != NULL) {
       type = varinfo->type;
     } else {
-      GlobalVarInfo *varinfo = find_global(tok->u.ident);
+      GlobalVarInfo *varinfo = find_global(name);
       if (varinfo == NULL)
-        error("Undefined `%s'", tok->u.ident);
+        parse_error(ident, "Undefined `%s'", name);
       type = varinfo->type;
       if (type->type == TY_ENUM)
         // Enum value is embeded directly.
         return varinfo->value;
     }
     int global = varinfo == NULL;
-    return new_node_varref(tok->u.ident, type, global);
+    return new_node_varref(name, type, global);
   }
-  error("Number or Ident or open paren expected: %s", current_line());
+  parse_error(NULL, "Number or Ident or open paren expected");
   return NULL;
 }
 
@@ -944,14 +969,15 @@ static Node *postfix(void) {
   Node *node = prim();
 
   for (;;) {
+    Token *tok;
     if (consume(TK_LPAR))
       node = funcall(node);
     else if (consume(TK_LBRACKET))
       node = array_index(node);
-    else if (consume(TK_DOT))
-      node = member_access(node, TK_DOT);
-    else if (consume(TK_ARROW))
-      node = member_access(node, TK_ARROW);
+    else if ((tok = consume(TK_DOT)) != NULL)
+      node = member_access(node, tok);
+    else if ((tok = consume(TK_ARROW)) != NULL)
+      node = member_access(node, tok);
     else if (consume(TK_INC))
       node = new_node_unary(ND_POSTINC, node->expType, node);
     else if (consume(TK_DEC))
@@ -962,17 +988,18 @@ static Node *postfix(void) {
 }
 
 static Node *unary(void) {
-  if (consume(TK_ADD)) {
+  Token *tok;
+  if ((tok = consume(TK_ADD)) != NULL) {
     Node *node = cast_expr();
     if (!is_number(node->expType->type))
-      error("Cannot apply `+' except number types");
+      parse_error(tok, "Cannot apply `+' except number types");
     return node;
   }
 
-  if (consume(TK_SUB)) {
+  if ((tok = consume(TK_SUB)) != NULL) {
     Node *node = cast_expr();
     if (!is_number(node->expType->type))
-      error("Cannot apply `-' except number types");
+      parse_error(tok, "Cannot apply `-' except number types");
     switch (node->type) {
     case ND_CHAR:
     case ND_INT:
@@ -984,16 +1011,17 @@ static Node *unary(void) {
     }
   }
 
-  if (consume(TK_NOT)) {
+  if ((tok = consume(TK_NOT)) != NULL) {
     Node *node = cast_expr();
     switch (node->expType->type) {
     case TY_INT:
     case TY_CHAR:
+    case TY_LONG:
     case TY_PTR:
       node = new_node_unary(ND_NOT, &tyBool, node);
       break;
     default:
-      error("Cannot apply `!' except number or pointer types");
+      parse_error(tok, "Cannot apply `!' except number or pointer types");
       break;
     }
     return node;
@@ -1033,7 +1061,7 @@ static Node *cast_expr(void) {
     if (type != NULL) {  // Cast
       type = parse_type_suffix(parse_type_modifier(type, true));
       if (!consume(TK_RPAR))
-        error("`)' expected, but %s", current_line());
+        parse_error(NULL, "`)' expected");
       Node *node = cast_expr();
       return new_node_cast(type, node, true);
     }
@@ -1047,16 +1075,17 @@ static Node *mul(void) {
 
   for (;;) {
     enum NodeType t;
-    if (consume(TK_MUL))
+    Token *tok;
+    if ((tok = consume(TK_MUL)) != NULL)
       t = ND_MUL;
-    else if (consume(TK_DIV))
+    else if ((tok = consume(TK_DIV)) != NULL)
       t = ND_DIV;
-    else if (consume(TK_MOD))
+    else if ((tok = consume(TK_MOD)) != NULL)
       t = ND_MOD;
     else
       return node;
 
-    node = arith_node(t, node, cast_expr());
+    node = arith_node(tok, t, node, cast_expr());
   }
 }
 
@@ -1064,10 +1093,11 @@ static Node *add(void) {
   Node *node = mul();
 
   for (;;) {
-    if (consume(TK_ADD))
-      node = add_node(node, mul());
-    else if (consume(TK_SUB))
-      node = sub_node(node, mul());
+    Token *tok;
+    if ((tok = consume(TK_ADD)) != NULL)
+      node = add_node(tok, node, mul());
+    else if ((tok = consume(TK_SUB)) != NULL)
+      node = sub_node(tok, node, mul());
     else
       return node;
   }
@@ -1078,13 +1108,14 @@ static Node *cmp(void) {
 
   for (;;) {
     enum NodeType t;
-    if (consume(TK_LT))
+    Token *tok;
+    if ((tok = consume(TK_LT)) != NULL)
       t = ND_LT;
-    else if (consume(TK_GT))
+    else if ((tok = consume(TK_GT)) != NULL)
       t = ND_GT;
-    else if (consume(TK_LE))
+    else if ((tok = consume(TK_LE)) != NULL)
       t = ND_LE;
-    else if (consume(TK_GE))
+    else if ((tok = consume(TK_GE)) != NULL)
       t = ND_GE;
     else
       return node;
@@ -1093,10 +1124,10 @@ static Node *cmp(void) {
     if (lhs->expType->type == TY_PTR || rhs->expType->type == TY_PTR) {
       if (lhs->expType->type != TY_PTR || rhs->expType->type != TY_PTR ||
           !same_type(lhs->expType, rhs->expType))
-        error("Cannot compare pointer to other types");
+        parse_error(tok, "Cannot compare pointer to other types");
     } else {
       if (!is_number(lhs->expType->type) || !is_number(rhs->expType->type))
-        error("Cannot compare except numbers");
+        parse_error(tok, "Cannot compare except numbers");
     }
     node = new_node_bop(t, &tyBool, lhs, rhs);
   }
@@ -1119,9 +1150,10 @@ static Node *eq(void) {
 
   for (;;) {
     enum NodeType t;
-    if (consume(TK_EQ))
+    Token *tok;
+    if ((tok = consume(TK_EQ)) != NULL)
       t = ND_EQ;
-    else if (consume(TK_NE))
+    else if ((tok = consume(TK_NE)) != NULL)
       t = ND_NE;
     else
       return node;
@@ -1130,10 +1162,10 @@ static Node *eq(void) {
     if (lhs->expType->type == TY_PTR || rhs->expType->type == TY_PTR) {
       if (lhs->expType->type != TY_PTR || rhs->expType->type != TY_PTR ||
           !same_type(lhs->expType, rhs->expType))
-        error("Cannot compare pointer to other types");
+        parse_error(tok, "Cannot compare pointer to other types");
     } else {
       if (!cast_numbers(&lhs, &rhs))
-        error("Cannot compare except numbers");
+        parse_error(tok, "Cannot compare except numbers");
     }
     node = new_node_bop(t, &tyBool, lhs, rhs);
   }
@@ -1164,21 +1196,22 @@ static Node *assign(void) {
 
   if (consume(TK_ASSIGN))
     return new_node_bop(ND_ASSIGN, node->expType, node, new_node_cast(node->expType, assign(), false));
-  if (consume(TK_ADD_ASSIGN))
+  Token *tok;
+  if ((tok = consume(TK_ADD_ASSIGN)) != NULL)
     return new_node_unary(ND_ASSIGN_WITH, node->expType,
-                          add_node(node, assign()));
-  if (consume(TK_SUB_ASSIGN))
+                          add_node(tok, node, assign()));
+  if ((tok = consume(TK_SUB_ASSIGN)) != NULL)
     return new_node_unary(ND_ASSIGN_WITH, node->expType,
-                          sub_node(node, assign()));
-  if (consume(TK_MUL_ASSIGN))
+                          sub_node(tok, node, assign()));
+  if ((tok = consume(TK_MUL_ASSIGN)) != NULL)
     return new_node_unary(ND_ASSIGN_WITH, node->expType,
-                          arith_node(ND_MUL, node, assign()));
-  if (consume(TK_DIV_ASSIGN))
+                          arith_node(tok, ND_MUL, node, assign()));
+  if ((tok = consume(TK_DIV_ASSIGN)) != NULL)
     return new_node_unary(ND_ASSIGN_WITH, node->expType,
-                          arith_node(ND_DIV, node, assign()));
-  if (consume(TK_MOD_ASSIGN))
+                          arith_node(tok, ND_DIV, node, assign()));
+  if ((tok = consume(TK_MOD_ASSIGN)) != NULL)
     return new_node_unary(ND_ASSIGN_WITH, node->expType,
-                          arith_node(ND_MOD, node, assign()));
+                          arith_node(tok, ND_MOD, node, assign()));
 
   return node;
 }
@@ -1199,7 +1232,7 @@ static Node *parse_if(void) {
       return new_node_if(cond, tblock, fblock);
     }
   }
-  error("Parse `if' failed: %s", current_line());
+  parse_error(NULL, "Illegal syntax in `if'");
   return NULL;
 }
 
@@ -1222,14 +1255,15 @@ static Node *parse_switch(void) {
       return swtch;
     }
   }
-  error("Parse `switch' failed: %s", current_line());
+  parse_error(NULL, "Illegal syntax in `switch'");
   return NULL;
 }
 
-static Node *parse_case(void) {
+static Node *parse_case(Token *tok) {
   if (curswitch == NULL)
-    error("`case' cannot use outside of `switch`: %s", current_line());
+    parse_error(tok, "`case' cannot use outside of `switch`");
 
+  tok = fetch_token();
   Node *valnode = expr();
   intptr_t value;
   switch (valnode->type) {  // TODO: Accept const expression.
@@ -1239,11 +1273,11 @@ static Node *parse_case(void) {
     value = valnode->u.value;
     break;
   default:
-    error("Cannot use expression, but %s", current_line());
+    parse_error(tok, "Cannot use expression");
     break;
   }
   if (!consume(TK_COLON))
-    error("`:' expected, but %s", current_line());
+    parse_error(NULL, "`:' expected");
 
   Vector *values = curswitch->u.switch_.case_values;
   if (values == NULL)
@@ -1252,7 +1286,7 @@ static Node *parse_case(void) {
   // Check duplication.
   for (int i = 0, len = values->len; i < len; ++i) {
     if ((intptr_t)values->data[i] == value)
-      error("Case value `%lld' already defined: %s", value, current_line());
+      parse_error(tok, "Case value `%lld' already defined: %s", value);
   }
 
   vec_push(values, (void*)value);
@@ -1260,14 +1294,14 @@ static Node *parse_case(void) {
   return new_node_case(value);
 }
 
-static Node *parse_default(void) {
+static Node *parse_default(Token *tok) {
   if (curswitch == NULL)
-    error("`default' cannot use outside of `switch`: %s", current_line());
+    parse_error(tok, "`default' cannot use outside of `switch'");
   if (curswitch->u.switch_.has_default)
-    error("`default' already defined in `switch`: %s", current_line());
+    parse_error(tok, "`default' already defined in `switch'");
 
   if (!consume(TK_COLON))
-    error("`:' expected, but %s", current_line());
+    parse_error(NULL, "`:' expected");
 
   curswitch->u.switch_.has_default = true;
 
@@ -1286,7 +1320,7 @@ static Node *parse_while(void) {
       return new_node_while(cond, body);
     }
   }
-  error("Parse `while' failed: %s", current_line());
+  parse_error(NULL, "Illegal syntax in `while'");
   return NULL;
 }
 
@@ -1304,7 +1338,7 @@ static Node *parse_do_while(void) {
       }
     }
   }
-  error("Parse `while' failed: %s", current_line());
+  parse_error(NULL, "Illegal syntax in `do-while'");
   return NULL;
 }
 
@@ -1321,13 +1355,13 @@ static Node *parse_for(void) {
       return new_node_for(pre, cond, post, body);
     }
   }
-  error("Syntax error `for': %s", current_line());
+  parse_error(NULL, "Illegal syntax in `for'");
   return NULL;
 }
 
 static Node *parse_break_continue(enum NodeType type) {
   if (!consume(TK_SEMICOL))
-    error("`;' expected, but %s", current_line());
+    parse_error(NULL, "`;' expected");
   return new_node(type, &tyVoid);
 }
 
@@ -1335,16 +1369,18 @@ static Node *parse_return(void) {
   assert(curfunc != NULL);
 
   Node *val = NULL;
-  if (consume(TK_SEMICOL)) {
+  Token *tok;
+  if ((tok = consume(TK_SEMICOL)) != NULL) {
     if (curfunc->rettype->type != TY_VOID)
-      error("`return' required a value");
+      parse_error(tok, "`return' required a value");
   } else {
+    tok = fetch_token();
     val = expr();
     if (!consume(TK_SEMICOL))
-      error("`;' expected, but %s", current_line());
+      parse_error(NULL, "`;' expected");
 
     if (curfunc->rettype->type == TY_VOID)
-      error("void function `return' a value");
+      parse_error(tok, "void function `return' a value");
     val = new_node_cast(curfunc->rettype, val, false);
   }
   return new_node_return(val);
@@ -1371,7 +1407,7 @@ static Initializer *parse_initializer(void) {
           break;
       } else {
         if (!consume(TK_RBRACE))
-          error("`}' or `,' expected, but %s", current_line());
+          parse_error(NULL, "`}' or `,' expected");
         break;
       }
     }
@@ -1393,7 +1429,7 @@ static Vector *clear_initial_value(Node *node, Vector *inits) {
     {
       size_t arr_len = node->expType->u.pa.length;
       for (size_t i = 0; i < arr_len; ++i)
-        clear_initial_value(new_node_deref(add_node(node, new_node_numlit(ND_INT, i))), inits);
+        clear_initial_value(new_node_deref(add_node(NULL, node, new_node_numlit(ND_INT, i))), inits);
     }
     break;
   case TY_STRUCT:
@@ -1421,15 +1457,15 @@ static void string_initializer(Node *dst, Node *src, Vector *inits) {
     ((Type*)dst->expType)->u.pa.length = dstlen = len;
   } else {
     if (dstlen < len)
-      error("Buffer is shorter than string: %d for \"%s\"", (int)dstlen, str);
+      parse_error(NULL, "Buffer is shorter than string: %d for \"%s\"", (int)dstlen, str);
   }
 
   for (size_t i = 0; i < len; ++i) {
     Node *index = new_node_numlit(ND_INT, i);
     vec_push(inits,
              new_node_bop(ND_ASSIGN, &tyChar,
-                          new_node_deref(add_node(dst, index)),
-                          new_node_deref(add_node(src, index))));
+                          new_node_deref(add_node(NULL, dst, index)),
+                          new_node_deref(add_node(NULL, src, index))));
   }
   if (dstlen > len) {
     Node *zero = new_node_numlit(ND_CHAR, 0);
@@ -1437,7 +1473,7 @@ static void string_initializer(Node *dst, Node *src, Vector *inits) {
       Node *index = new_node_numlit(ND_INT, i);
       vec_push(inits,
                new_node_bop(ND_ASSIGN, &tyChar,
-                            new_node_deref(add_node(dst, index)),
+                            new_node_deref(add_node(NULL, dst, index)),
                             zero));
     }
   }
@@ -1459,22 +1495,22 @@ static Vector *assign_initial_value(Node *node, Initializer *initializer, Vector
       }
 
       if (initializer->type != vMulti)
-        error("Error initializer");
+        parse_error(NULL, "Error initializer");
       size_t arr_len = node->expType->u.pa.length;
       if (arr_len == (size_t)-1) {
         ((Type*)node->expType)->u.pa.length = arr_len = initializer->u.multi->len;
       } else {
         if ((size_t)initializer->u.multi->len > arr_len)
-          error("Initializer more than array size");
+          parse_error(NULL, "Initializer more than array size");
       }
       int len = initializer->u.multi->len;
       for (int i = 0; i < len; ++i) {
-        assign_initial_value(new_node_deref(add_node(node, new_node_numlit(ND_INT, i))),
+        assign_initial_value(new_node_deref(add_node(NULL, node, new_node_numlit(ND_INT, i))),
                              initializer->u.multi->data[i], inits);
       }
       // Clear left.
       for (size_t i = len; i < arr_len; ++i)
-        clear_initial_value(new_node_deref(add_node(node, new_node_numlit(ND_INT, i))), inits);
+        clear_initial_value(new_node_deref(add_node(NULL, node, new_node_numlit(ND_INT, i))), inits);
     }
     break;
   case TY_STRUCT:
@@ -1483,7 +1519,7 @@ static Vector *assign_initial_value(Node *node, Initializer *initializer, Vector
     break;
   default:
     if (initializer->type != vSingle)
-      error("Error initializer");
+      parse_error(NULL, "Error initializer");
     vec_push(inits,
              new_node_bop(ND_ASSIGN, node->expType, node, new_node_cast(node->expType, initializer->u.single, false)));
     break;
@@ -1500,23 +1536,23 @@ static bool parse_vardecl(Node **pnode) {
 
   do {
     const Type *type;
-    const char *name;
-    if (!parse_var_def(&rawType, &type, &name, false)) {
+    Token *ident;
+    if (!parse_var_def(&rawType, &type, &ident, false)) {
       if (rawType != NULL)
-        error("type expected, but %s", current_line());
+        parse_error(NULL, "type expected");
       return false;
     }
 
-    scope_add(curscope, name, type);
+    scope_add(curscope, ident, type);
 
     if (consume(TK_ASSIGN)) {
       Initializer *initializer = parse_initializer();
-      inits = assign_initial_value(new_node_varref(name, type, false), initializer, inits);
+      inits = assign_initial_value(new_node_varref(ident->u.ident, type, false), initializer, inits);
     }
   } while (consume(TK_COMMA));
 
   if (!consume(TK_SEMICOL))
-    error("Semicolon expected, but %s", current_line());
+    parse_error(NULL, "`;' expected");
 
   if (inits != NULL && inits->len == 1)
     *pnode = inits->data[0];
@@ -1535,12 +1571,13 @@ static Vector *read_stmts(void) {
       nodes = new_vector();
 
     Node *node;
+    Token *tok;
     if (parse_vardecl(&node))
       ;
-    else if (consume(TK_CASE))
-      node = parse_case();
-    else if (consume(TK_DEFAULT))
-      node = parse_default();
+    else if ((tok = consume(TK_CASE)) != NULL)
+      node = parse_case(tok);
+    else if ((tok = consume(TK_DEFAULT)) != NULL)
+      node = parse_default(tok);
     else
       node = stmt();
     vec_push(nodes, node);
@@ -1577,14 +1614,15 @@ static Node *stmt(void) {
   if (consume(TK_FOR))
     return parse_for();
 
-  if (consume(TK_BREAK)) {
+  Token *tok;
+  if ((tok = consume(TK_BREAK)) != NULL) {
     if ((curloopflag & LF_BREAK) == 0)
-      error("`break' cannot be used outside of loop");
+      parse_error(tok, "`break' cannot be used outside of loop");
     return parse_break_continue(ND_BREAK);
   }
-  if (consume(TK_CONTINUE)) {
+  if ((tok = consume(TK_CONTINUE)) != NULL) {
     if ((curloopflag & LF_CONTINUE) == 0)
-      error("`continue' cannot be used outside of loop");
+      parse_error(tok, "`continue' cannot be used outside of loop");
     return parse_break_continue(ND_CONTINUE);
   }
 
@@ -1594,7 +1632,7 @@ static Node *stmt(void) {
   // expression statement.
   Node *node = assign();
   if (!consume(TK_SEMICOL))
-    error("Semicolon required: %s", current_line());
+    parse_error(NULL, "Semicolon required");
   return node;
 }
 
@@ -1607,54 +1645,55 @@ static Vector *funparams(void) {
     for (;;) {
       const Type *rawType = NULL;
       const Type *type;
-      const char *name;
-      if (!parse_var_def(&rawType, &type, &name, params->len == 0))
-        error("type expected, but %s", current_line());
+      Token *ident;
+      if (!parse_var_def(&rawType, &type, &ident, params->len == 0))
+        parse_error(NULL, "type expected");
 
       if (type->type == TY_VOID) {  // fun(void)
         if (!consume(TK_RPAR))
-          error("`)' expected, but %s", current_line());
+          parse_error(NULL, "`)' expected");
         break;
       }
 
       // If the type is array, handle it as a pointer.
       type = array_to_ptr(type);
 
-      var_add(params, name, type);
+      var_add(params, ident, type);
       if (consume(TK_RPAR))
         break;
       if (consume(TK_COMMA))
         continue;
-      error("Comma or `}' expected, but %s", current_line());
+      parse_error(NULL, "Comma or `}' expected");
     }
   }
   return params;
 }
 
-static Node *parse_defun(const Type *type, const char *ident) {
+static Node *parse_defun(const Type *type, Token *ident) {
+  const char *name = ident->u.ident;
   Vector *params = funparams();
 
   Defun *defun = NULL;
   if (consume(TK_SEMICOL)) {  // Prototype declaration.
   } else {
     if (!consume(TK_LBRACE)) {
-      error("Defun failed: %s", current_line());
+      parse_error(NULL, "`;' or `{' expected");
       return NULL;
     }
     // Definition.
-    defun = new_defun(type, ident, params);
+    defun = new_defun(type, name, params);
   }
 
-  GlobalVarInfo *def = find_global(ident);
+  GlobalVarInfo *def = find_global(name);
   if (def == NULL) {
     define_global(new_func_type(type, params), ident, NULL);
   } else {
     if (def->type->type != TY_FUNC)
-      error("Definition conflict: `%s'", ident);
+      parse_error(ident, "Definition conflict: `%s'");
     // TODO: Check type.
     // TODO: Check duplicated definition.
     if (def->value != NULL)
-      error("`%s' function already defined", ident);
+      parse_error(ident, "`%s' function already defined");
   }
 
   if (defun != NULL) {
@@ -1670,29 +1709,29 @@ static Node *parse_defun(const Type *type, const char *ident) {
   return defun != NULL ? new_node_defun(defun) : NULL;
 }
 
-static void parse_global_assign(const Type *type, const char *name) {
+static void parse_global_assign(const Type *type, const Token *ident) {
   Node *value = expr();
   if (!consume(TK_SEMICOL))
-    error("`;' expected, but %s", current_line());
+    parse_error(NULL, "`;' expected");
   /*Node *newvalue =*/ new_node_cast(type, value, false);
-  define_global(type, name, value);  // TODO: Use newvalue
+  define_global(type, ident, value);  // TODO: Use newvalue
 }
 
 static void parse_typedef(void) {
   const Type *type = parse_raw_type();
   if (type == NULL)
-    error("type expected, but %s", current_line());
+    parse_error(NULL, "type expected");
   type = parse_type_suffix(parse_type_modifier(type, false));
 
   Token *ident = consume(TK_IDENT);
   if (ident == NULL)
-    error("ident expected, but %s", current_line());
+    parse_error(NULL, "ident expected");
   const char *name = ident->u.ident;
 
   map_put(typedef_map, name, type);
 
   if (!consume(TK_SEMICOL))
-    error("`;' expected, but %s", current_line());
+    parse_error(NULL, "`;' expected");
 }
 
 static Node *toplevel(void) {
@@ -1703,15 +1742,13 @@ static Node *toplevel(void) {
         consume(TK_SEMICOL))  // Just struct/union definition.
       return NULL;
 
-    Token *tok;
-    if ((tok = consume(TK_IDENT))) {
-      const char *ident = tok->u.ident;
-
+    Token *ident;
+    if ((ident = consume(TK_IDENT)) != NULL) {
       if (consume(TK_LPAR))  // Function.
         return parse_defun(type, ident);
 
       if (type->type == TY_VOID)
-        error("`void' not allowed");
+        parse_error(ident, "`void' not allowed");
 
       type = parse_type_suffix(type);
       if (consume(TK_SEMICOL)) {  // Global variable declaration.
@@ -1723,17 +1760,17 @@ static Node *toplevel(void) {
         return NULL;
       }
 
-      error("`;' or `=' expected, but %s", current_line());
+      parse_error(NULL, "`;' or `=' expected");
       return NULL;
     }
-    error("ident expected, but %s", current_line());
+    parse_error(NULL, "ident expected");
     return NULL;
   }
   if (consume(TK_TYPEDEF)) {
     parse_typedef();
     return NULL;
   }
-  error("Toplevel, %s", current_line());
+  parse_error(NULL, "Unexpected token");
   return NULL;
 }
 

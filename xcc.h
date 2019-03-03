@@ -97,9 +97,10 @@ typedef struct {
 } Token;
 
 void init_lexer(FILE *fp, const char *filename);
+Token *fetch_token(void);
 Token *consume(enum TokenType type);
 void unget_token(Token *token);
-const char *current_line(void);
+Token *alloc_ident(const char *ident, const char *input);
 void show_error_line(const char *line, const char *p);
 
 // Type
@@ -319,12 +320,12 @@ Vector *parse_program(void);
 // Variables
 
 int var_find(Vector *vartbl, const char *name);
-void var_add(Vector *lvars, const char *name, const Type *type);
+void var_add(Vector *lvars, const Token *ident, const Type *type);
 
 Map *global;
 
 GlobalVarInfo *find_global(const char *name);
-void define_global(const Type *type, const char *name, Node *value);
+void define_global(const Type *type, const Token *ident, Node *value);
 
 // Codegen
 
