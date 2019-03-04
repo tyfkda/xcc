@@ -1409,11 +1409,15 @@ static Node *parse_return(void) {
 
 // Initializer
 
-typedef struct {
-  enum { vSingle, vMulti } type;
+typedef struct Initializer {
+  enum { vSingle, vMulti, vDot } type;
   union {
     Node *single;
     Vector *multi;  // <Initializer*>
+    struct {
+      const char *name;
+      struct Initializer *value;
+    } dot;
   } u;
 } Initializer;
 
@@ -1422,7 +1426,21 @@ static Initializer *parse_initializer(void) {
   if (consume(TK_LBRACE)) {
     Vector *multi = new_vector();
     for (;;) {
-      Initializer *elem = parse_initializer();
+      Initializer *elem;
+      if (consume(TK_DOT)) {  // .member=value
+        Token *ident = consume(TK_IDENT);
+        if (ident == NULL)
+          parse_error(NULL, "`ident' expected for dotted initializer");
+        if (!consume(TK_ASSIGN))
+          parse_error(NULL, "`=' expected for dotted initializer");
+        Initializer *value = parse_initializer();
+        elem = malloc(sizeof(*elem));
+        elem->type = vDot;
+        elem->u.dot.name = ident->u.ident;
+        elem->u.dot.value = value;
+      } else {
+        elem = parse_initializer();
+      }
       vec_push(multi, elem);
 
       if (consume(TK_COMMA)) {
@@ -1560,15 +1578,35 @@ static Vector *assign_initial_value(Node *node, Initializer *initializer, Vector
       const StructInfo *sinfo = node->expType->u.struct_;
       if (initializer->type != vMulti)
         parse_error(NULL, "`{...}' expected for initializer");
-      for (int i = 0; i < sinfo->members->len; ++i) {
+
+      int n = sinfo->members->len;
+      Initializer **values = malloc(sizeof(Initializer*) * n);
+      for (int i = 0; i < n; ++i)
+        values[i] = NULL;
+
+      int dst = -1;
+      int m = initializer->u.multi->len;
+      for (int i = 0; i < m; ++i) {
+        Initializer *value = initializer->u.multi->data[i];
+        if (value->type == vDot) {
+          int idx = var_find(sinfo->members, value->u.dot.name);
+          if (idx < 0)
+            parse_error(NULL, "`.%s' is not member of struct", value->u.dot.name);
+          values[idx] = value->u.dot.value;
+          dst = idx;
+          continue;
+        }
+        if (++dst >= n)
+          break;  // TODO: Check extra.
+        values[dst] = value;
+      }
+      for (int i = 0; i < n; ++i) {
         VarInfo* varinfo = sinfo->members->data[i];
         Node *member = new_node_member(node, varinfo->name, varinfo->type);
-        if (i < initializer->u.multi->len) {
-          Initializer *value = initializer->u.multi->data[i];
-          assign_initial_value(member, value, inits);
-        } else {
+        if (values[i] != NULL)
+          assign_initial_value(member, values[i], inits);
+        else
           clear_initial_value(member, inits);
-        }
       }
     }
     break;
