@@ -859,9 +859,9 @@ static const Type *parse_type_suffix(const Type *type) {
   if (!consume(TK_LBRACKET))
     return type;
   Token *tok;
-  size_t length;
+  size_t length = -1;
   if (consume(TK_RBRACKET)) {
-    length = -1;
+    // Arbitrary size.
   } else if ((tok = consume(TK_INTLIT))) {  // TODO: Constant expression.
     if (tok->u.value <= 0)
       parse_error(tok, "Array size must be greater than 0, but %d", (int)tok->u.value);
@@ -884,7 +884,7 @@ static bool parse_var_def(const Type **prawType, const Type** ptype, int *pflag,
 
   const Type *type = parse_type_modifier(*prawType, allow_void);
 
-  Token *ident;
+  Token *ident = NULL;
   if (!allow_void || type->type != TY_VOID) {
     if (!(ident = consume(TK_IDENT)))
       parse_error(NULL, "Ident expected");
