@@ -19,6 +19,8 @@ int g_zero;
 int g_123 = 123;
 int g_work;
 
+static int s_val = 456;
+
 int protodecl(void);
 
 int foo() {
@@ -420,6 +422,7 @@ int main(void) {
     const int x = 123;
     expect("const", 123, x);
   }
+  expect("file static", 456, s_val);
 
   return 0;
 }

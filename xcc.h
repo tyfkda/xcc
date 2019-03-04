@@ -75,6 +75,7 @@ enum TokenType {
   TK_KWINT,
   TK_KWLONG,
   TK_KWCONST,
+  TK_STATIC,
   TK_STRUCT,
   TK_UNION,
   TK_ENUM,
@@ -142,9 +143,16 @@ typedef struct Type {
 
 void dump_type(FILE *fp, const Type *type);
 
+// Varible flags.
+enum {
+  VF_CONST = 1 << 0,
+  VF_STATIC = 1 << 1,
+};
+
 typedef struct {
   const char *name;
   const Type *type;
+  int flag;
 
   // For codegen.
   int offset;
@@ -153,6 +161,7 @@ typedef struct {
 typedef struct {
   const char *name;
   const Type *type;
+  int flag;
   struct Node *value;
 
   // For codegen.
@@ -321,12 +330,12 @@ Vector *parse_program(void);
 // Variables
 
 int var_find(Vector *vartbl, const char *name);
-void var_add(Vector *lvars, const Token *ident, const Type *type);
+void var_add(Vector *lvars, const Token *ident, const Type *type, int flag);
 
 Map *global;
 
 GlobalVarInfo *find_global(const char *name);
-void define_global(const Type *type, const Token *ident, Node *value);
+void define_global(const Type *type, int flag, const Token *ident, Node *value);
 
 // Codegen
 

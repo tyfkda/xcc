@@ -50,15 +50,18 @@ int var_find(Vector *lvars, const char *name) {
   return -1;
 }
 
-void var_add(Vector *lvars, const Token *ident, const Type *type) {
+void var_add(Vector *lvars, const Token *ident, const Type *type, int flag) {
   const char *name = ident->u.ident;
   int idx = var_find(lvars, name);
   if (idx >= 0)
     parse_error(ident, "`%s' already defined", name);
+  if (flag & VF_STATIC)  // TODO: Handle static specifier in local definition.
+    parse_error(ident, "Cannot specify `static' (yet)");
 
   VarInfo *info = malloc(sizeof(*info));
   info->name = name;
   info->type = type;
+  info->flag = flag;
   info->offset = -1;
   vec_push(lvars, info);
 }
@@ -79,7 +82,7 @@ GlobalVarInfo *find_global(const char *name) {
   return (GlobalVarInfo*)map_get(global, name);
 }
 
-void define_global(const Type *type, const Token *ident, Node *value) {
+void define_global(const Type *type, int flag, const Token *ident, Node *value) {
   const char *name = ident->u.ident;
   GlobalVarInfo *varinfo = find_global(name);
   if (varinfo != NULL)
@@ -87,6 +90,7 @@ void define_global(const Type *type, const Token *ident, Node *value) {
   varinfo = malloc(sizeof(*varinfo));
   varinfo->name = name;
   varinfo->type = type;
+  varinfo->flag = flag;
   varinfo->value = value;
   varinfo->offset = 0;
   map_put(global, name, varinfo);
@@ -212,10 +216,10 @@ VarInfo *scope_find(Scope *scope, const char *name) {
   }
 }
 
-static void scope_add(Scope *scope, const Token *ident, const Type *type) {
+static void scope_add(Scope *scope, const Token *ident, const Type *type, int flag) {
   if (scope->vars == NULL)
     scope->vars = new_vector();
-  var_add(scope->vars, ident, type);
+  var_add(scope->vars, ident, type, flag);
 }
 
 // Defun
@@ -757,7 +761,7 @@ static const Type *parse_enum(void) {
         }
         // Define
         (void)typeident;  // TODO: Define enum type with name.
-        define_global(&tyEnum, ident, new_node_numlit(ND_INT, value));
+        define_global(&tyEnum, VF_CONST, ident, new_node_numlit(ND_INT, value));
         ++value;
 
         if (consume(TK_RBRACE))
@@ -770,14 +774,25 @@ static const Type *parse_enum(void) {
   return &tyEnum;
 }
 
-static const Type *parse_raw_type(void) {
+static const Type *parse_raw_type(int *pflag) {
   Type *type = NULL;
   Token *structtok;
   Token *ident;
 
-  if (consume(TK_KWCONST)) {
-    /* TODO: Handle const keyword*/;
+  int flag = 0;
+  for (;;) {
+    if (consume(TK_KWCONST)) {
+      flag |= VF_CONST;
+      continue;
+    }
+    if (consume(TK_STATIC)) {
+      flag |= VF_STATIC;
+      continue;
+    }
+    break;
   }
+  if (pflag != NULL)
+    *pflag = flag;
 
   if (((structtok = consume(TK_STRUCT)) != NULL) ||
       ((structtok = consume(TK_UNION)) != NULL)) {
@@ -859,9 +874,9 @@ static const Type *parse_type_suffix(const Type *type) {
   return arrayof(parse_type_suffix(type), length);
 }
 
-static bool parse_var_def(const Type **prawType, const Type** ptype, Token **pident, bool allow_void) {
+static bool parse_var_def(const Type **prawType, const Type** ptype, int *pflag, Token **pident, bool allow_void) {
   if (*prawType == NULL) {
-    const Type *rawType = parse_raw_type();
+    const Type *rawType = parse_raw_type(pflag);
     if (rawType == NULL)
       return false;
     *prawType = rawType;
@@ -890,13 +905,14 @@ static StructInfo *parse_struct(void) {
 
     const Type *rawType = NULL;
     const Type *type;
+    int flag;
     Token *ident;
-    if (!parse_var_def(&rawType, &type, &ident, false))
+    if (!parse_var_def(&rawType, &type, &flag, &ident, false))
       parse_error(NULL, "type expected");
 
     if (!consume(TK_SEMICOL))
       parse_error(NULL, "`;' expected");
-    var_add(members, ident, type);
+    var_add(members, ident, type, flag);
   }
 
   StructInfo *sinfo = malloc(sizeof(*sinfo));
@@ -909,7 +925,7 @@ static StructInfo *parse_struct(void) {
 static Node *parse_sizeof(void) {
   const Type *type;
   if (consume(TK_LPAR)) {
-    type = parse_raw_type();
+    type = parse_raw_type(NULL);
     if (type != NULL) {  // Type
       type = parse_type_suffix(parse_type_modifier(type, true));
     } else {
@@ -1061,7 +1077,8 @@ static Node *unary(void) {
 static Node *cast_expr(void) {
   Token *lpar;
   if ((lpar = consume(TK_LPAR)) != NULL) {
-    const Type *type = parse_raw_type();
+    int flag;
+    const Type *type = parse_raw_type(&flag);
     if (type != NULL) {  // Cast
       type = parse_type_suffix(parse_type_modifier(type, true));
       if (!consume(TK_RPAR))
@@ -1540,14 +1557,15 @@ static bool parse_vardecl(Node **pnode) {
 
   do {
     const Type *type;
+    int flag;
     Token *ident;
-    if (!parse_var_def(&rawType, &type, &ident, false)) {
+    if (!parse_var_def(&rawType, &type, &flag, &ident, false)) {
       if (rawType != NULL)
         parse_error(NULL, "type expected");
       return false;
     }
 
-    scope_add(curscope, ident, type);
+    scope_add(curscope, ident, type, flag);
 
     if (consume(TK_ASSIGN)) {
       Initializer *initializer = parse_initializer();
@@ -1649,8 +1667,9 @@ static Vector *funparams(void) {
     for (;;) {
       const Type *rawType = NULL;
       const Type *type;
+      int flag;
       Token *ident;
-      if (!parse_var_def(&rawType, &type, &ident, params->len == 0))
+      if (!parse_var_def(&rawType, &type, &flag, &ident, params->len == 0))
         parse_error(NULL, "type expected");
 
       if (type->type == TY_VOID) {  // fun(void)
@@ -1662,7 +1681,7 @@ static Vector *funparams(void) {
       // If the type is array, handle it as a pointer.
       type = array_to_ptr(type);
 
-      var_add(params, ident, type);
+      var_add(params, ident, type, flag);
       if (consume(TK_RPAR))
         break;
       if (consume(TK_COMMA))
@@ -1673,7 +1692,7 @@ static Vector *funparams(void) {
   return params;
 }
 
-static Node *parse_defun(const Type *type, Token *ident) {
+static Node *parse_defun(const Type *type, int flag, Token *ident) {
   const char *name = ident->u.ident;
   Vector *params = funparams();
 
@@ -1690,7 +1709,7 @@ static Node *parse_defun(const Type *type, Token *ident) {
 
   GlobalVarInfo *def = find_global(name);
   if (def == NULL) {
-    define_global(new_func_type(type, params), ident, NULL);
+    define_global(new_func_type(type, params), flag | VF_CONST, ident, NULL);
   } else {
     if (def->type->type != TY_FUNC)
       parse_error(ident, "Definition conflict: `%s'");
@@ -1713,16 +1732,17 @@ static Node *parse_defun(const Type *type, Token *ident) {
   return defun != NULL ? new_node_defun(defun) : NULL;
 }
 
-static void parse_global_assign(const Type *type, const Token *ident) {
+static void parse_global_assign(const Type *type, int flag, const Token *ident) {
   Node *value = expr();
   if (!consume(TK_SEMICOL))
     parse_error(NULL, "`;' expected");
   /*Node *newvalue =*/ new_node_cast(type, value, false);
-  define_global(type, ident, value);  // TODO: Use newvalue
+  define_global(type, flag, ident, value);  // TODO: Use newvalue
 }
 
 static void parse_typedef(void) {
-  const Type *type = parse_raw_type();
+  int flag;
+  const Type *type = parse_raw_type(&flag);
   if (type == NULL)
     parse_error(NULL, "type expected");
   type = parse_type_suffix(parse_type_modifier(type, false));
@@ -1739,7 +1759,8 @@ static void parse_typedef(void) {
 }
 
 static Node *toplevel(void) {
-  const Type *type = parse_raw_type();
+  int flag;
+  const Type *type = parse_raw_type(&flag);
   if (type != NULL) {
     type = parse_type_modifier(type, true);
     if ((is_struct_or_union(type->type) || type->type == TY_ENUM) &&
@@ -1749,18 +1770,18 @@ static Node *toplevel(void) {
     Token *ident;
     if ((ident = consume(TK_IDENT)) != NULL) {
       if (consume(TK_LPAR))  // Function.
-        return parse_defun(type, ident);
+        return parse_defun(type, flag, ident);
 
       if (type->type == TY_VOID)
         parse_error(ident, "`void' not allowed");
 
       type = parse_type_suffix(type);
       if (consume(TK_SEMICOL)) {  // Global variable declaration.
-        define_global(type, ident, NULL);
+        define_global(type, flag, ident, NULL);
         return NULL;
       }
       if (consume(TK_ASSIGN)) {
-        parse_global_assign(type, ident);
+        parse_global_assign(type, flag, ident);
         return NULL;
       }
 
