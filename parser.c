@@ -15,7 +15,7 @@ static const Type tyEnum = {.type=TY_ENUM};
 #define tyBool  tyInt
 #define tySize  tyLong
 
-static StructInfo *parse_struct(void);
+static StructInfo *parse_struct(bool is_union);
 static Node *stmt(void);
 static Node *expr(void);
 static Node *cast_expr(void);
@@ -552,7 +552,7 @@ static Node *funcall(Node *func) {
   }
 
   if (functype != NULL && functype->u.func.params != NULL && (args != NULL ? args->len : 0) != functype->u.func.params->len)
-    parse_error(tok, "function `%s' expect %d arguments, but %d\n", func->u.varref.ident, functype->u.func.params->len, (args != NULL ? args->len : 0));
+    parse_error(tok, "function `%s' expect %d arguments, but %d", func->u.varref.ident, functype->u.func.params->len, (args != NULL ? args->len : 0));
 
   return new_node_funcall(func, args);
 }
@@ -796,6 +796,7 @@ static const Type *parse_raw_type(int *pflag) {
 
   if (((structtok = consume(TK_STRUCT)) != NULL) ||
       ((structtok = consume(TK_UNION)) != NULL)) {
+    bool is_union = structtok->type == TK_UNION;
     const char *name = NULL;
     Token *ident;
     if ((ident = consume(TK_IDENT)) != NULL)
@@ -803,9 +804,13 @@ static const Type *parse_raw_type(int *pflag) {
 
     StructInfo *sinfo;
     if (consume(TK_LBRACE)) {  // Definition
-      sinfo = parse_struct();
-      if (name != NULL)
-        map_put(struct_map, name, sinfo);  // TODO: Already defined?
+      sinfo = parse_struct(is_union);
+      if (name != NULL) {
+        StructInfo *exist = (StructInfo*)map_get(struct_map, name);
+        if (exist != NULL)
+          parse_error(ident, "`%s' already defined", name);
+        map_put(struct_map, name, sinfo);
+      }
     } else {
       if (name == NULL) {
         // TODO: Allow forward reference.
@@ -814,6 +819,8 @@ static const Type *parse_raw_type(int *pflag) {
       sinfo = (StructInfo*)map_get(struct_map, name);
       if (sinfo == NULL)
         parse_error(ident, "Undefined struct: %s", name);
+      if (sinfo->is_union != is_union)
+        parse_error(structtok, "Wrong tag for `%s'", name);
     }
     type = malloc(sizeof(*type));
     type->type = (structtok->type == TK_STRUCT) ? TY_STRUCT : TY_UNION;
@@ -897,7 +904,8 @@ static bool parse_var_def(const Type **prawType, const Type** ptype, int *pflag,
   return true;
 }
 
-static StructInfo *parse_struct(void) {
+// Parse struct or union definition `{...}`
+static StructInfo *parse_struct(bool is_union) {
   Vector *members = new_vector();
   for (;;) {
     if (consume(TK_RBRACE))
@@ -917,6 +925,7 @@ static StructInfo *parse_struct(void) {
 
   StructInfo *sinfo = malloc(sizeof(*sinfo));
   sinfo->members = members;
+  sinfo->is_union = is_union;
   sinfo->size = 0;
   sinfo->align = 0;
   return sinfo;
@@ -1591,7 +1600,7 @@ static Vector *assign_initial_value(Node *node, Initializer *initializer, Vector
         if (value->type == vDot) {
           int idx = var_find(sinfo->members, value->u.dot.name);
           if (idx < 0)
-            parse_error(NULL, "`.%s' is not member of struct", value->u.dot.name);
+            parse_error(NULL, "`%s' is not member of struct", value->u.dot.name);
           values[idx] = value->u.dot.value;
           dst = idx;
           continue;

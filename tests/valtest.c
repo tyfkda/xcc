@@ -419,8 +419,16 @@ int main(void) {
     expect("array without size", 1, sizeof(a) == 2 * sizeof(int) && a[0] == 1 && a[1] == 2);
   }
   {
+    int a[] = {1, 2, 3,};
+    expect("array with last comma", 3 * sizeof(int), sizeof(a));
+  }
+  {
     struct {int x; int y;} s = {3};
     expect("struct initializer", 3, s.x + s.y);
+  }
+  {
+    struct {int x; int y;} s = {3, 4,};
+    expect("struct initializer with last comma", 7, s.x + s.y);
   }
   {
     struct {int x; int y;} s = {.y = 9};

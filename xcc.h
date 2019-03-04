@@ -122,6 +122,7 @@ enum eType {
 
 typedef struct {
   Vector *members;  // <VarInfo*>
+  bool is_union;
   int size;
   int align;
 } StructInfo;
@@ -168,8 +169,8 @@ typedef struct {
   int offset;
 } GlobalVarInfo;
 
-Map *struct_map;
-Map *typedef_map;
+Map *struct_map;  // <char*, StructInfo*>
+Map *typedef_map;  // <char*, Type*>
 
 // Scope
 

@@ -466,6 +466,7 @@ static void gen_varref(Node *node) {
 
 static void gen_defun(Node *node) {
   Defun *defun = node->u.defun;
+  add_label(defun->name);
   if (defun->stmts == NULL) {
     RET();
     return;
@@ -473,7 +474,6 @@ static void gen_defun(Node *node) {
 
   curfunc = defun;
   curscope = defun->top_scope;
-  add_label(defun->name);
   defun->ret_label = alloc_label();
 
   // Calc local variable offsets.
