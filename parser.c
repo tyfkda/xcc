@@ -1472,12 +1472,12 @@ static Vector *clear_initial_value(Node *node, Vector *inits) {
   case TY_ENUM:
     vec_push(inits,
              new_node_bop(ND_ASSIGN, node->expType, node,
-                          new_node_numlit(node->expType->type, 0)));
+                          new_node_cast(node->expType, new_node_numlit(ND_INT, 0), true)));
     break;
   case TY_PTR:
     vec_push(inits,
              new_node_bop(ND_ASSIGN, node->expType, node,
-                          new_node_cast(node->expType, new_node_numlit(TY_LONG, 0), true)));  // intptr_t
+                          new_node_cast(node->expType, new_node_numlit(ND_LONG, 0), true)));  // intptr_t
     break;
   case TY_ARRAY:
     {
