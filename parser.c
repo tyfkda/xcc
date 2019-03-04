@@ -775,6 +775,10 @@ static const Type *parse_raw_type(void) {
   Token *structtok;
   Token *ident;
 
+  if (consume(TK_KWCONST)) {
+    /* TODO: Handle const keyword*/;
+  }
+
   if (((structtok = consume(TK_STRUCT)) != NULL) ||
       ((structtok = consume(TK_UNION)) != NULL)) {
     const char *name = NULL;

@@ -80,6 +80,7 @@ static enum TokenType reserved_word(const char *word) {
     { "char", TK_KWCHAR },
     { "int", TK_KWINT },
     { "long", TK_KWLONG },
+    { "const", TK_KWCONST },
     { "struct", TK_STRUCT },
     { "union", TK_UNION },
     { "enum", TK_ENUM },

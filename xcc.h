@@ -74,6 +74,7 @@ enum TokenType {
   TK_KWCHAR,
   TK_KWINT,
   TK_KWLONG,
+  TK_KWCONST,
   TK_STRUCT,
   TK_UNION,
   TK_ENUM,

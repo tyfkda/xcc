@@ -416,6 +416,10 @@ int main(void) {
     int a[] = {1, 2};
     expect("array without size", 1, sizeof(a) == 2 * sizeof(int) && a[0] == 1 && a[1] == 2);
   }
+  {
+    const int x = 123;
+    expect("const", 123, x);
+  }
 
   return 0;
 }
