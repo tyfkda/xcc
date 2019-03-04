@@ -1407,11 +1407,17 @@ static Node *parse_return(void) {
   return new_node_return(val);
 }
 
-typedef struct {
-  enum { vSingle, vMulti } type;
+// Initializer
+
+typedef struct Initializer {
+  enum { vSingle, vMulti, vDot } type;
   union {
     Node *single;
-    Vector *multi;  // Initializer*
+    Vector *multi;  // <Initializer*>
+    struct {
+      const char *name;
+      struct Initializer *value;
+    } dot;
   } u;
 } Initializer;
 
@@ -1420,7 +1426,21 @@ static Initializer *parse_initializer(void) {
   if (consume(TK_LBRACE)) {
     Vector *multi = new_vector();
     for (;;) {
-      Initializer *elem = parse_initializer();
+      Initializer *elem;
+      if (consume(TK_DOT)) {  // .member=value
+        Token *ident = consume(TK_IDENT);
+        if (ident == NULL)
+          parse_error(NULL, "`ident' expected for dotted initializer");
+        if (!consume(TK_ASSIGN))
+          parse_error(NULL, "`=' expected for dotted initializer");
+        Initializer *value = parse_initializer();
+        elem = malloc(sizeof(*elem));
+        elem->type = vDot;
+        elem->u.dot.name = ident->u.ident;
+        elem->u.dot.value = value;
+      } else {
+        elem = parse_initializer();
+      }
       vec_push(multi, elem);
 
       if (consume(TK_COMMA)) {
@@ -1446,6 +1466,19 @@ static Vector *clear_initial_value(Node *node, Vector *inits) {
     inits = new_vector();
 
   switch (node->expType->type) {
+  case TY_CHAR:
+  case TY_INT:
+  case TY_LONG:
+  case TY_ENUM:
+    vec_push(inits,
+             new_node_bop(ND_ASSIGN, node->expType, node,
+                          new_node_numlit(node->expType->type, 0)));
+    break;
+  case TY_PTR:
+    vec_push(inits,
+             new_node_bop(ND_ASSIGN, node->expType, node,
+                          new_node_cast(node->expType, new_node_numlit(TY_LONG, 0), true)));  // intptr_t
+    break;
   case TY_ARRAY:
     {
       size_t arr_len = node->expType->u.pa.length;
@@ -1454,12 +1487,18 @@ static Vector *clear_initial_value(Node *node, Vector *inits) {
     }
     break;
   case TY_STRUCT:
-  case TY_UNION:
-    assert(!"Not implemented");
+    {
+      const StructInfo *sinfo = node->expType->u.struct_;
+      for (int i = 0; i < sinfo->members->len; ++i) {
+        VarInfo* varinfo = sinfo->members->data[i];
+        Node *member = new_node_member(node, varinfo->name, varinfo->type);
+        clear_initial_value(member, inits);
+      }
+    }
     break;
+  case TY_UNION:
   default:
-    vec_push(inits,
-             new_node_bop(ND_ASSIGN, node->expType, node, new_node_cast(node->expType, new_node_numlit(ND_INT, 0), false)));
+    assert(!"Not implemented");
     break;
   }
 
@@ -1535,8 +1574,44 @@ static Vector *assign_initial_value(Node *node, Initializer *initializer, Vector
     }
     break;
   case TY_STRUCT:
+    {
+      const StructInfo *sinfo = node->expType->u.struct_;
+      if (initializer->type != vMulti)
+        parse_error(NULL, "`{...}' expected for initializer");
+
+      int n = sinfo->members->len;
+      Initializer **values = malloc(sizeof(Initializer*) * n);
+      for (int i = 0; i < n; ++i)
+        values[i] = NULL;
+
+      int dst = -1;
+      int m = initializer->u.multi->len;
+      for (int i = 0; i < m; ++i) {
+        Initializer *value = initializer->u.multi->data[i];
+        if (value->type == vDot) {
+          int idx = var_find(sinfo->members, value->u.dot.name);
+          if (idx < 0)
+            parse_error(NULL, "`.%s' is not member of struct", value->u.dot.name);
+          values[idx] = value->u.dot.value;
+          dst = idx;
+          continue;
+        }
+        if (++dst >= n)
+          break;  // TODO: Check extra.
+        values[dst] = value;
+      }
+      for (int i = 0; i < n; ++i) {
+        VarInfo* varinfo = sinfo->members->data[i];
+        Node *member = new_node_member(node, varinfo->name, varinfo->type);
+        if (values[i] != NULL)
+          assign_initial_value(member, values[i], inits);
+        else
+          clear_initial_value(member, inits);
+      }
+    }
+    break;
   case TY_UNION:
-    assert(!"Not implemented");
+    parse_error(NULL, "Not implemented");
     break;
   default:
     if (initializer->type != vSingle)
