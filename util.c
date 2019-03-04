@@ -1,5 +1,6 @@
 #include "util.h"
 
+#include <stdarg.h>
 #include <stdlib.h>  // malloc
 #include <string.h>  // strcmp
 
@@ -44,6 +45,15 @@ ssize_t getline_(char **lineptr, size_t *n, FILE *stream) {
   *lineptr = top;
   *n = capa;
   return size;
+}
+
+void error(const char* fmt, ...) {
+  va_list ap;
+  va_start(ap, fmt);
+  vfprintf(stderr, fmt, ap);
+  va_end(ap);
+  fprintf(stderr, "\n");
+  exit(1);
 }
 
 // Container

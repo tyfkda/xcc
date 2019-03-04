@@ -7,6 +7,14 @@
 typedef struct Vector Vector;
 typedef struct Map Map;
 
+// Line
+
+typedef struct {
+  const char *filename;
+  int lineno;
+  const char *buf;
+} Line;
+
 // Token
 
 // Token type value
@@ -76,6 +84,7 @@ enum TokenType {
 // Token type
 typedef struct {
   enum TokenType type;
+  Line *line;
   const char *input;
   union {
     const char *ident;
@@ -87,10 +96,12 @@ typedef struct {
   } u;
 } Token;
 
-void init_lexer(FILE *fp);
+void init_lexer(FILE *fp, const char *filename);
+Token *fetch_token(void);
 Token *consume(enum TokenType type);
 void unget_token(Token *token);
-const char *current_line(void);
+Token *alloc_ident(const char *ident, const char *input);
+void show_error_line(const char *line, const char *p);
 
 // Type
 
@@ -309,12 +320,12 @@ Vector *parse_program(void);
 // Variables
 
 int var_find(Vector *vartbl, const char *name);
-void var_add(Vector *lvars, const char *name, const Type *type);
+void var_add(Vector *lvars, const Token *ident, const Type *type);
 
 Map *global;
 
 GlobalVarInfo *find_global(const char *name);
-void define_global(const Type *type, const char *name, Node *value);
+void define_global(const Type *type, const Token *ident, Node *value);
 
 // Codegen
 
@@ -335,7 +346,3 @@ void add_code(const unsigned char* buf, size_t size);
 void add_loc_rel32(const char *label, int ofs, int baseofs);
 size_t fixup_locations(size_t *pmemsz);
 uintptr_t label_adr(const char *label);
-
-// main
-
-void error(const char* fmt, ...) __attribute((noreturn));

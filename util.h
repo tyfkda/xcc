@@ -8,6 +8,8 @@ char *strdup_(const char *str);
 char *strndup_(const char *str, size_t size);
 ssize_t getline_(char **lineptr, size_t *n, FILE *stream);
 
+void error(const char* fmt, ...) __attribute((noreturn));
+
 // Container
 
 typedef struct Vector {
