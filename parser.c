@@ -1407,11 +1407,13 @@ static Node *parse_return(void) {
   return new_node_return(val);
 }
 
+// Initializer
+
 typedef struct {
   enum { vSingle, vMulti } type;
   union {
     Node *single;
-    Vector *multi;  // Initializer*
+    Vector *multi;  // <Initializer*>
   } u;
 } Initializer;
 
@@ -1446,6 +1448,19 @@ static Vector *clear_initial_value(Node *node, Vector *inits) {
     inits = new_vector();
 
   switch (node->expType->type) {
+  case TY_CHAR:
+  case TY_INT:
+  case TY_LONG:
+  case TY_ENUM:
+    vec_push(inits,
+             new_node_bop(ND_ASSIGN, node->expType, node,
+                          new_node_numlit(node->expType->type, 0)));
+    break;
+  case TY_PTR:
+    vec_push(inits,
+             new_node_bop(ND_ASSIGN, node->expType, node,
+                          new_node_cast(node->expType, new_node_numlit(TY_LONG, 0), true)));  // intptr_t
+    break;
   case TY_ARRAY:
     {
       size_t arr_len = node->expType->u.pa.length;
@@ -1454,12 +1469,18 @@ static Vector *clear_initial_value(Node *node, Vector *inits) {
     }
     break;
   case TY_STRUCT:
-  case TY_UNION:
-    assert(!"Not implemented");
+    {
+      const StructInfo *sinfo = node->expType->u.struct_;
+      for (int i = 0; i < sinfo->members->len; ++i) {
+        VarInfo* varinfo = sinfo->members->data[i];
+        Node *member = new_node_member(node, varinfo->name, varinfo->type);
+        clear_initial_value(member, inits);
+      }
+    }
     break;
+  case TY_UNION:
   default:
-    vec_push(inits,
-             new_node_bop(ND_ASSIGN, node->expType, node, new_node_cast(node->expType, new_node_numlit(ND_INT, 0), false)));
+    assert(!"Not implemented");
     break;
   }
 
@@ -1535,8 +1556,24 @@ static Vector *assign_initial_value(Node *node, Initializer *initializer, Vector
     }
     break;
   case TY_STRUCT:
+    {
+      const StructInfo *sinfo = node->expType->u.struct_;
+      if (initializer->type != vMulti)
+        parse_error(NULL, "`{...}' expected for initializer");
+      for (int i = 0; i < sinfo->members->len; ++i) {
+        VarInfo* varinfo = sinfo->members->data[i];
+        Node *member = new_node_member(node, varinfo->name, varinfo->type);
+        if (i < initializer->u.multi->len) {
+          Initializer *value = initializer->u.multi->data[i];
+          assign_initial_value(member, value, inits);
+        } else {
+          clear_initial_value(member, inits);
+        }
+      }
+    }
+    break;
   case TY_UNION:
-    assert(!"Not implemented");
+    parse_error(NULL, "Not implemented");
     break;
   default:
     if (initializer->type != vSingle)

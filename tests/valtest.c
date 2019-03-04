@@ -419,6 +419,10 @@ int main(void) {
     expect("array without size", 1, sizeof(a) == 2 * sizeof(int) && a[0] == 1 && a[1] == 2);
   }
   {
+    struct {int x; int y;} s = {3};
+    expect("struct initializer", 3, s.x + s.y);
+  }
+  {
     const int x = 123;
     expect("const", 123, x);
   }
