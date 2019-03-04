@@ -435,6 +435,18 @@ int main(void) {
     expect("struct initializer with member", 9, s.x + s.y);
   }
   {
+    union {char x; int y;} u = {0x1234};
+    expect("union initializer", 0x34, u.x);
+  }
+  {
+    union {int y; char x;} u = {0x5678};
+    expect("union initializer2", 0x5678, u.y);
+  }
+  {
+    union {char x; int y;} u = {.y=0xabcd};
+    expect("union initializer with member", 0xabcd, u.y);
+  }
+  {
     const int x = 123;
     expect("const", 123, x);
   }

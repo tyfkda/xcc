@@ -1434,31 +1434,33 @@ static Initializer *parse_initializer(void) {
   Initializer *result = malloc(sizeof(*result));
   if (consume(TK_LBRACE)) {
     Vector *multi = new_vector();
-    for (;;) {
-      Initializer *elem;
-      if (consume(TK_DOT)) {  // .member=value
-        Token *ident = consume(TK_IDENT);
-        if (ident == NULL)
-          parse_error(NULL, "`ident' expected for dotted initializer");
-        if (!consume(TK_ASSIGN))
-          parse_error(NULL, "`=' expected for dotted initializer");
-        Initializer *value = parse_initializer();
-        elem = malloc(sizeof(*elem));
-        elem->type = vDot;
-        elem->u.dot.name = ident->u.ident;
-        elem->u.dot.value = value;
-      } else {
-        elem = parse_initializer();
-      }
-      vec_push(multi, elem);
+    if (!consume(TK_RBRACE)) {
+      for (;;) {
+        Initializer *elem;
+        if (consume(TK_DOT)) {  // .member=value
+          Token *ident = consume(TK_IDENT);
+          if (ident == NULL)
+            parse_error(NULL, "`ident' expected for dotted initializer");
+          if (!consume(TK_ASSIGN))
+            parse_error(NULL, "`=' expected for dotted initializer");
+          Initializer *value = parse_initializer();
+          elem = malloc(sizeof(*elem));
+          elem->type = vDot;
+          elem->u.dot.name = ident->u.ident;
+          elem->u.dot.value = value;
+        } else {
+          elem = parse_initializer();
+        }
+        vec_push(multi, elem);
 
-      if (consume(TK_COMMA)) {
-        if (consume(TK_RBRACE))
+        if (consume(TK_COMMA)) {
+          if (consume(TK_RBRACE))
+            break;
+        } else {
+          if (!consume(TK_RBRACE))
+            parse_error(NULL, "`}' or `,' expected");
           break;
-      } else {
-        if (!consume(TK_RBRACE))
-          parse_error(NULL, "`}' or `,' expected");
-        break;
+        }
       }
     }
     result->type = vMulti;
@@ -1584,17 +1586,19 @@ static Vector *assign_initial_value(Node *node, Initializer *initializer, Vector
     break;
   case TY_STRUCT:
     {
-      const StructInfo *sinfo = node->expType->u.struct_;
       if (initializer->type != vMulti)
         parse_error(NULL, "`{...}' expected for initializer");
 
+      const StructInfo *sinfo = node->expType->u.struct_;
       int n = sinfo->members->len;
+      int m = initializer->u.multi->len;
+      if (n <= 0 && m > 0)
+        parse_error(NULL, "Initializer for empty struct");
       Initializer **values = malloc(sizeof(Initializer*) * n);
       for (int i = 0; i < n; ++i)
         values[i] = NULL;
 
       int dst = -1;
-      int m = initializer->u.multi->len;
       for (int i = 0; i < m; ++i) {
         Initializer *value = initializer->u.multi->data[i];
         if (value->type == vDot) {
@@ -1620,7 +1624,29 @@ static Vector *assign_initial_value(Node *node, Initializer *initializer, Vector
     }
     break;
   case TY_UNION:
-    parse_error(NULL, "Not implemented");
+    {
+      if (initializer->type != vMulti)
+        parse_error(NULL, "`{...}' expected for initializer");
+
+      const StructInfo *sinfo = node->expType->u.struct_;
+      int n = sinfo->members->len;
+      int m = initializer->u.multi->len;
+      if (n <= 0 && m > 0)
+        parse_error(NULL, "Initializer for empty union");
+
+      int dst = 0;
+      Initializer *value = initializer->u.multi->data[0];
+      if (value->type == vDot) {
+        int idx = var_find(sinfo->members, value->u.dot.name);
+        if (idx < 0)
+          parse_error(NULL, "`%s' is not member of struct", value->u.dot.name);
+        dst = idx;
+        value = value->u.dot.value;
+      }
+      VarInfo* varinfo = sinfo->members->data[dst];
+      Node *member = new_node_member(node, varinfo->name, varinfo->type);
+      assign_initial_value(member, value, inits);
+    }
     break;
   default:
     if (initializer->type != vSingle)

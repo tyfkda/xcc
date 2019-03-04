@@ -115,3 +115,4 @@ compile_error 'static cannot use for local yet' 'void main(){ static int x = 123
 compile_error 'same struct name' 'struct Foo{int x;}; union Foo{int y;}; int main(){ return 0; }'
 compile_error '`union` for struct' 'struct Foo{int x;}; void main(){ union Foo foo; }'
 compile_error 'non exist field initializer' 'struct Foo{int x;}; void main(){ struct Foo foo = {.y=1}; }'
+compile_error 'initializer for empty struct' 'struct Foo{}; void main(){ struct Foo foo = {1}; }'
