@@ -34,7 +34,7 @@ static int type_size(const Type *type) {
     return type_size(type->u.pa.ptrof) * type->u.pa.length;
   case TY_STRUCT:
   case TY_UNION:
-    if (type->u.struct_->size == 0)
+    if (type->u.struct_->size < 0)
       calc_struct_size(type->u.struct_, type->type == TY_UNION);
     return type->u.struct_->size;
   default:
@@ -61,7 +61,8 @@ static int align_size(const Type *type) {
     return align_size(type->u.pa.ptrof);
   case TY_STRUCT:
   case TY_UNION:
-    calc_struct_size(type->u.struct_, type->type == TY_UNION);
+    if (type->u.struct_->size < 0)
+      calc_struct_size(type->u.struct_, type->type == TY_UNION);
     return type->u.struct_->align;
   default:
     assert(false);
@@ -92,8 +93,6 @@ static void calc_struct_size(StructInfo *sinfo, bool is_union) {
   if (is_union)
     size = maxsize;
   size = ALIGN(size, max_align);
-  if (size == 0)
-    size = 1;
   sinfo->size = size;
   sinfo->align = max_align;
 }
@@ -294,6 +293,8 @@ static void put_bss(void) {
     int align = align_size(varinfo->type);
     codesize = ALIGN(codesize, align);
     int size = type_size(varinfo->type);
+    if (size < 1)
+      size = 1;
     if (bufsize < (size_t)size) {
       buf = realloc(buf, size);
       memset(buf + bufsize, 0x00, size - bufsize);
@@ -488,6 +489,8 @@ static void gen_defun(Node *node) {
       VarInfo *varinfo = (VarInfo*)scope->vars->data[j];
       int size = type_size(varinfo->type);
       int align = align_size(varinfo->type);
+      if (size < 1)
+        size = 1;
       scope_size = ALIGN(scope_size + size, align);
       varinfo->offset = -scope_size;
     }

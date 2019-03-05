@@ -408,6 +408,11 @@ int main(void) {
     expect("sizeof(array len)", 5, sizeof(a) / sizeof(*a));
   }
   expect("sizeof(struct)", 8, sizeof(struct {int a; char b;}));
+  expect("sizeof(empty struct)", 0, sizeof(struct {}));
+  {
+    struct {} a, b;
+    expect("empty struct occupy", 1, &a != &b);
+  }
   expect("sizeof(expr)", 4, sizeof(1 + 2 * 3));
   expect("sizeof(str) include nul", 12, sizeof("hello\0world"));
   {

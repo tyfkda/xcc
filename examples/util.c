@@ -19,8 +19,10 @@ void putdeci(long x) {
     minus = 1;
   }
 
-  for (; x != 0; x = x / 10)
+  do {
     *(--p) = (x % 10) + '0';
+    x /= 10;
+  } while (x != 0);
   if (minus)
     *(--p) = '-';
 

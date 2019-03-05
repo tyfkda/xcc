@@ -926,7 +926,7 @@ static StructInfo *parse_struct(bool is_union) {
   StructInfo *sinfo = malloc(sizeof(*sinfo));
   sinfo->members = members;
   sinfo->is_union = is_union;
-  sinfo->size = 0;
+  sinfo->size = -1;
   sinfo->align = 0;
   return sinfo;
 }
