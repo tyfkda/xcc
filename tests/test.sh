@@ -72,6 +72,8 @@ try_direct 'enum with assign' 11 'enum Num { Ten = 10, Eleven }; int main(){ ret
 try_direct 'enum can use in case' 1 'enum Num { Zero, One, Two }; int main(){ switch (1) { case One: return 1; } return 0; }'
 try_direct 'typedef' 123 'typedef struct {int x;} Foo; int main(){ Foo foo; foo.x = 123; return foo.x; }'
 try_output_direct 'empty function' '' 'void main(){}'
+try_direct 'Undeclared struct typedef' 8 'typedef struct FILE FILE; int main(){ return sizeof(FILE*); }'
+try_direct 'late declare struct' 42 'struct Foo *p; struct Foo {int x;}; int main(){ struct Foo foo; p = &foo; p->x = 42; return p->x; }'
 
 # error cases
 echo ''
@@ -116,3 +118,5 @@ compile_error 'same struct name' 'struct Foo{int x;}; union Foo{int y;}; int mai
 compile_error '`union` for struct' 'struct Foo{int x;}; void main(){ union Foo foo; }'
 compile_error 'non exist field initializer' 'struct Foo{int x;}; void main(){ struct Foo foo = {.y=1}; }'
 compile_error 'initializer for empty struct' 'struct Foo{}; void main(){ struct Foo foo = {1}; }'
+compile_error 'no name nor defined struct ptr' 'void main(){ struct *p; }'
+compile_error 'refer undeclared struct member' 'void main(){ struct Foo *p; p->x; }'

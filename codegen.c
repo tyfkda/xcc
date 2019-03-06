@@ -34,9 +34,9 @@ static int type_size(const Type *type) {
     return type_size(type->u.pa.ptrof) * type->u.pa.length;
   case TY_STRUCT:
   case TY_UNION:
-    if (type->u.struct_->size < 0)
-      calc_struct_size(type->u.struct_, type->type == TY_UNION);
-    return type->u.struct_->size;
+    if (type->u.struct_.info->size < 0)
+      calc_struct_size(type->u.struct_.info, type->type == TY_UNION);
+    return type->u.struct_.info->size;
   default:
     assert(false);
     return 1;
@@ -61,9 +61,9 @@ static int align_size(const Type *type) {
     return align_size(type->u.pa.ptrof);
   case TY_STRUCT:
   case TY_UNION:
-    if (type->u.struct_->size < 0)
-      calc_struct_size(type->u.struct_, type->type == TY_UNION);
-    return type->u.struct_->align;
+    if (type->u.struct_.info->size < 0)
+      calc_struct_size(type->u.struct_.info, type->type == TY_UNION);
+    return type->u.struct_.info->align;
   default:
     assert(false);
     return 1;
@@ -417,7 +417,7 @@ static void gen_lval(Node *node) {
       if (type->type == TY_PTR || type->type == TY_ARRAY)
         type = type->u.pa.ptrof;
       assert(type->type == TY_STRUCT || type->type == TY_UNION);
-      Vector *members = type->u.struct_->members;
+      Vector *members = type->u.struct_.info->members;
       int varidx = var_find(members, node->u.member.name);
       assert(varidx >= 0);
       VarInfo *varinfo = (VarInfo*)members->data[varidx];

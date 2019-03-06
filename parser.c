@@ -153,7 +153,22 @@ static bool same_type(const Type *type1, const Type *type2) {
       return type1 == type2;
     case TY_STRUCT:
     case TY_UNION:
-      return type1->u.struct_ == type2->u.struct_;
+      {
+        if (type1->u.struct_.info != NULL) {
+          if (type2->u.struct_.info != NULL)
+            return type1->u.struct_.info == type2->u.struct_.info;
+          const Type *tmp = type1;
+          type1 = type2;
+          type2 = tmp;
+        } else if (type2->u.struct_.info == NULL) {
+          return strcmp(type1->u.struct_.name, type2->u.struct_.name) == 0;
+        }
+        // Find type1 from name.
+        StructInfo *sinfo = (StructInfo*)map_get(struct_map, type1->u.struct_.name);
+        if (sinfo == NULL)
+          return false;
+        return sinfo == type2->u.struct_.info;
+      }
     }
   }
 }
@@ -712,6 +727,18 @@ Node *array_index(Node *array) {
   return new_node_deref(add_node(tok, array, index));
 }
 
+// Call before accessing struct member to ensure that struct is declared.
+static void ensure_struct(Type *type, Token *token) {
+  assert(type->type == TY_STRUCT || type->type == TY_UNION);
+  if (type->u.struct_.info == NULL) {
+    // TODO: Search from name.
+    StructInfo *sinfo = (StructInfo*)map_get(struct_map, type->u.struct_.name);
+    if (sinfo == NULL)
+      parse_error(token, "Accessing known struct(%s)'s member", type->u.struct_.name);
+    type->u.struct_.info = sinfo;
+  }
+}
+
 Node *member_access(Node *target, Token *acctok) {
   // Find member's type from struct info.
   const Type *type = target->expType;
@@ -729,15 +756,16 @@ Node *member_access(Node *target, Token *acctok) {
       parse_error(acctok, "`->' for non struct value");
   }
 
-  Token *tok;
-  if (!(tok = consume(TK_IDENT)))
+  Token *ident;
+  if (!(ident = consume(TK_IDENT)))
     parse_error(NULL, "`ident' expected");
-  const char *name = tok->u.ident;
+  const char *name = ident->u.ident;
 
-  int index = var_find(type->u.struct_->members, name);
+  ensure_struct((Type*)type, ident);
+  int index = var_find(type->u.struct_.info->members, name);
   if (index < 0)
-    parse_error(tok, "`%s' doesn't exist in the struct", name);
-  VarInfo *varinfo = (VarInfo*)type->u.struct_->members->data[index];
+    parse_error(ident, "`%s' doesn't exist in the struct", name);
+  VarInfo *varinfo = (VarInfo*)type->u.struct_.info->members->data[index];
 
   return new_node_member(target, name, varinfo->type);
 }
@@ -802,7 +830,7 @@ static const Type *parse_raw_type(int *pflag) {
     if ((ident = consume(TK_IDENT)) != NULL)
       name = ident->u.ident;
 
-    StructInfo *sinfo;
+    StructInfo *sinfo = NULL;
     if (consume(TK_LBRACE)) {  // Definition
       sinfo = parse_struct(is_union);
       if (name != NULL) {
@@ -812,19 +840,22 @@ static const Type *parse_raw_type(int *pflag) {
         map_put(struct_map, name, sinfo);
       }
     } else {
-      if (name == NULL) {
-        // TODO: Allow forward reference.
-        parse_error(structtok, "`ident' expected");
+      if (name != NULL) {
+        sinfo = (StructInfo*)map_get(struct_map, name);
+        if (sinfo != NULL) {
+          if (sinfo->is_union != is_union)
+            parse_error(structtok, "Wrong tag for `%s'", name);
+        }
       }
-      sinfo = (StructInfo*)map_get(struct_map, name);
-      if (sinfo == NULL)
-        parse_error(ident, "Undefined struct: %s", name);
-      if (sinfo->is_union != is_union)
-        parse_error(structtok, "Wrong tag for `%s'", name);
     }
+
+    if (name == NULL && sinfo == NULL)
+      parse_error(NULL, "Illegal struct/union usage");
+
     type = malloc(sizeof(*type));
     type->type = (structtok->type == TK_STRUCT) ? TY_STRUCT : TY_UNION;
-    type->u.struct_ = sinfo;
+    type->u.struct_.name = name;
+    type->u.struct_.info = sinfo;
   } else if (consume(TK_ENUM)) {
     return parse_enum();
   } else if ((ident = consume(TK_IDENT)) != NULL) {
@@ -1499,7 +1530,8 @@ static Vector *clear_initial_value(Node *node, Vector *inits) {
     break;
   case TY_STRUCT:
     {
-      const StructInfo *sinfo = node->expType->u.struct_;
+      const StructInfo *sinfo = node->expType->u.struct_.info;
+      assert(sinfo != NULL);
       for (int i = 0; i < sinfo->members->len; ++i) {
         VarInfo* varinfo = sinfo->members->data[i];
         Node *member = new_node_member(node, varinfo->name, varinfo->type);
@@ -1589,7 +1621,8 @@ static Vector *assign_initial_value(Node *node, Initializer *initializer, Vector
       if (initializer->type != vMulti)
         parse_error(NULL, "`{...}' expected for initializer");
 
-      const StructInfo *sinfo = node->expType->u.struct_;
+      const StructInfo *sinfo = node->expType->u.struct_.info;
+      ensure_struct((Type*)node->expType, NULL);
       int n = sinfo->members->len;
       int m = initializer->u.multi->len;
       if (n <= 0 && m > 0)
@@ -1628,7 +1661,8 @@ static Vector *assign_initial_value(Node *node, Initializer *initializer, Vector
       if (initializer->type != vMulti)
         parse_error(NULL, "`{...}' expected for initializer");
 
-      const StructInfo *sinfo = node->expType->u.struct_;
+      const StructInfo *sinfo = node->expType->u.struct_.info;
+      ensure_struct((Type*)node->expType, NULL);
       int n = sinfo->members->len;
       int m = initializer->u.multi->len;
       if (n <= 0 && m > 0)

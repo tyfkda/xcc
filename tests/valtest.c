@@ -415,6 +415,7 @@ int main(void) {
   }
   expect("sizeof(expr)", 4, sizeof(1 + 2 * 3));
   expect("sizeof(str) include nul", 12, sizeof("hello\0world"));
+  expect("sizeof(struct pointer)", sizeof(void*), sizeof(struct Undefined*));
   {
     int a[3] = {1, 2, 3};
     expect("array initializer", 1, a[0] == 1 && a[1] == 2 && a[2] == 3);

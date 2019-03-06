@@ -138,7 +138,10 @@ typedef struct Type {
       const struct Type *ret;
       Vector *params;
     } func;
-    StructInfo *struct_;  // and union.
+    struct {
+      const char *name;
+      StructInfo *info;
+    } struct_;  // and union.
   } u;
 } Type;
 
