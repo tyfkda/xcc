@@ -122,9 +122,6 @@ static void read_next_line(void) {
     lexer.p = NULL;
     lexer.line = NULL;
   } else {
-    if (len > 0 && line[len - 1] == '\n')
-      line[--len] = '\0';  // Chomp
-
     Line *p = malloc(sizeof(*line));
     p->filename = lexer.filename;
     p->buf = line;

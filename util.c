@@ -35,10 +35,11 @@ ssize_t getline_(char **lineptr, size_t *n, FILE *stream) {
         return EOF;
       capa = newcapa;
     }
-    top[size++] = c;
 
     if (c == '\n')
       break;
+
+    top[size++] = c;
   }
 
   top[size] = '\0';
