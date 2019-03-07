@@ -1,8 +1,8 @@
 CFLAGS=-ansi -std=c11 -Wall -Wextra -Werror -Wold-style-definition -Wno-missing-field-initializers -Wno-typedef-redefinition
 
-.PHONY: test-util test-val test-sh
+.PHONY: test-util test-val test-cpp test-sh
 
-all:	../xcc ../cpp test-util test-val test-sh test-examples
+all:	../xcc ../cpp test-util test-val test-cpp test-sh test-examples
 	@echo 'All tests PASS!'
 
 clean:
@@ -22,6 +22,11 @@ test-util:	util_test
 test-val:	valtest
 	@echo '## valtest'
 	@./valtest
+	@echo ''
+
+test-val:	cpptest.sh
+	@echo '## cpptest'
+	@./cpptest.sh
 	@echo ''
 
 test-sh:	test.sh
