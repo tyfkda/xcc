@@ -1,6 +1,7 @@
 #include "ctype.h"
 #include "libgen.h"  // dirname
 #include "stdarg.h"
+#include "stdbool.h"
 #include "stdio.h"
 #include "stdlib.h"
 #include "string.h"
@@ -41,7 +42,7 @@ const char *skip_whitespaces(const char *s) {
 
 const char *keyword(const char *s, const char *word) {
   size_t len = strlen(word);
-  if (strncmp(s, word, len) != 0 || !isspace(s[len]))
+  if (strncmp(s, word, len) != 0 || (s[len] != '\0' && !isspace(s[len])))
     return NULL;
   return skip_whitespaces(s + (len + 1));
 }
@@ -263,7 +264,19 @@ void process_line(const char *line, const char *filename, int lineno) {
   printf("%s\n", start);
 }
 
+bool handle_ifdef(const char *p) {
+  char *name = read_ident(&p);
+  if (name == NULL)
+    error("`ident' expected");
+  return map_get(macro_map, name) != NULL;
+}
+
+#define CF_ENABLE  (1 << 0)
+#define CF_ELSE    (1 << 1)
+
 void pp(FILE *fp, const char *filename) {
+  Vector *condstack = new_vector();
+  bool enable = true;
   for (int lineno = 1;; ++lineno) {
     char *line = NULL;
     size_t capa = 0;
@@ -274,19 +287,50 @@ void pp(FILE *fp, const char *filename) {
     // Find '#'
     const char *directive = find_directive(line);
     if (directive == NULL) {
-      process_line(line, filename, lineno);
+      if (enable)
+        process_line(line, filename, lineno);
       continue;
     }
 
     const char *next;
-    if ((next = keyword(directive, "include")) != NULL) {
-      handle_include(next, filename);
+    if ((next = keyword(directive, "ifdef")) != NULL) {
+      bool defined = handle_ifdef(next);
+      intptr_t flag = enable ? CF_ENABLE : 0;
+      vec_push(condstack, (void*)flag);
+      enable = enable && defined;
+    } else if ((next = keyword(directive, "ifndef")) != NULL) {
+      bool defined = handle_ifdef(next);
+      intptr_t flag = enable ? CF_ENABLE : 0;
+      vec_push(condstack, (void*)flag);
+      enable = enable && !defined;
+    } else if ((next = keyword(directive, "else")) != NULL) {
+      int last = condstack->len - 1;
+      if (last < 0)
+        error("`#else' used without `#if'");
+      intptr_t flag = (intptr_t)condstack->data[last];
+      if (flag & CF_ELSE)
+        error("Illegal #else");
+      condstack->data[last] = (void*)(flag ^ CF_ELSE);
+      enable = !enable && ((flag & CF_ENABLE) != 0);
+    } else if ((next = keyword(directive, "endif")) != NULL) {
+      int len = condstack->len;
+      if (len <= 0)
+        error("`#endif' used without `#if'");
+      enable = (((intptr_t)condstack->data[--len]) & CF_ENABLE) != 0;
+      condstack->len = len;
+    } else if ((next = keyword(directive, "include")) != NULL) {
+      if (enable)
+        handle_include(next, filename);
     } else if ((next = keyword(directive, "define")) != NULL) {
-      handle_define(next, filename, lineno);
+      if (enable)
+        handle_define(next, filename, lineno);
     } else {
       printf("unknown directive: %s", directive);
     }
   }
+
+  if (condstack->len > 0)
+    error("#if not closed");
 }
 
 int main(int argc, char* argv[]) {
