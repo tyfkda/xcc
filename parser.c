@@ -21,24 +21,6 @@ static Node *expr(void);
 static Node *cast_expr(void);
 static Node *prim(void);
 
-void parse_error(const Token *token, const char* fmt, ...) {
-  if (token == NULL)
-    token = fetch_token();
-  if (token != NULL) {
-    fprintf(stderr, "%s(%d): ", token->line->filename, token->line->lineno);
-  }
-
-  va_list ap;
-  va_start(ap, fmt);
-  vfprintf(stderr, fmt, ap);
-  va_end(ap);
-  fprintf(stderr, "\n");
-
-  show_error_line(token->line->buf, token->input);
-
-  exit(1);
-}
-
 //
 
 int var_find(Vector *lvars, const char *name) {

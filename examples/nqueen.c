@@ -1,6 +1,8 @@
 // How to run:
 //
-//   $ ./xcc exampples/util.c examples/nqueen.c > tmp && ./tmp
+//   $ ./xcc examples/nqueen.c && ./a.out
+
+#include "util.c"
 
 void print_board(int board[][8]) {
   int i, j;

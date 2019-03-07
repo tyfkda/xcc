@@ -1,7 +1,11 @@
+#include "libgen.h"  // dirname
+#include "stdarg.h"
 #include "stdint.h"
 #include "stdio.h"
 #include "stdlib.h"
 #include "string.h"
+#include "sys/wait.h"
+#include "unistd.h"  // fork, execvp
 
 #include "xcc.h"
 #include "elfutil.h"
@@ -44,6 +48,13 @@
 
 ////////////////////////////////////////////////
 
+pid_t fork1(void) {
+  pid_t pid = fork();
+  if (pid < 0)
+    error("fork failed");
+  return pid;
+}
+
 void init_compiler(uintptr_t adr) {
   loc_vector = new_vector();
   struct_map = new_map();
@@ -59,6 +70,45 @@ void compile(FILE *fp, const char *filename) {
 
   for (int i = 0, len = node_vector->len; i < len; ++i)
     gen(node_vector->data[i]);
+}
+
+// Pass preprocessor's output to this compiler
+static int pipe_pp_xcc(char **pp_argv, char ** xcc_argv) {
+  // cpp | xcc
+  int fd[2];
+  if (pipe(fd) < 0)
+    error("pipe failed");
+  pid_t pid1 = fork1();
+  if (pid1 == 0) {
+    close(STDOUT_FILENO);
+    dup(fd[1]);
+    close(fd[0]);
+    close(fd[1]);
+    if (execvp(pp_argv[0], pp_argv) < 0) {
+      perror(pp_argv[0]);
+      exit(1);
+    }
+  }
+  pid_t pid2 = fork1();
+  if (pid2 == 0) {
+    close(STDIN_FILENO);
+    dup(fd[0]);
+    close(fd[0]);
+    close(fd[1]);
+    if (execvp(xcc_argv[0], xcc_argv) < 0) {
+      perror(xcc_argv[0]);
+      exit(1);
+    }
+  }
+  close(fd[0]);
+  close(fd[1]);
+
+  int ec1, ec2;
+  int r1 = waitpid(pid1, &ec1, 0);
+  int r2 = waitpid(pid2, &ec2, 0);
+  if (r1 < 0 || r2 < 0)
+    error("wait failed");
+  return ec1 != 0 ? ec1 : ec2;
 }
 
 int main(int argc, char* argv[]) {
@@ -102,14 +152,12 @@ int main(int argc, char* argv[]) {
   }
 
   if (argc > iarg) {
-    for (int i = iarg; i < argc; ++i) {
-      const char *filename = argv[i];
-      FILE *fp = fopen(filename, "r");
-      if (fp == NULL)
-        error("Cannot open file: %s\n", argv[i]);
-      compile(fp, filename);
-      fclose(fp);
-    }
+    char **pp_argv = malloc(sizeof(char*) * (1 + argc - iarg + 1));
+    pp_argv[0] = cat_path(dirname(strdup_(argv[0])), "cpp");
+    memcpy(&pp_argv[1], &argv[iarg], sizeof(char*) * (argc - iarg + 1));
+    char **xcc_argv = argv;
+    xcc_argv[iarg] = NULL;  // Destroy!
+    return pipe_pp_xcc(pp_argv, xcc_argv);
   } else {
     compile(stdin, "*stdin*");
   }

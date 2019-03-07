@@ -15,6 +15,20 @@ char *strndup_(const char *str, size_t size) {
   return dup;
 }
 
+char *cat_path(const char *base_dir, const char *rel_path) {
+  if (*rel_path == '/')  // Absolute path?
+    return strdup_(rel_path);
+
+  size_t dirlen = strlen(base_dir);
+  size_t fnlen = strlen(rel_path);
+  char *path = malloc(dirlen + fnlen + 2);
+  strcpy(path, base_dir);
+  strcpy(path + dirlen, "/");
+  strcpy(path + dirlen + 1, rel_path);
+  path[dirlen + 1 + fnlen] = '\0';
+  return path;
+}
+
 ssize_t getline_(char **lineptr, size_t *n, FILE *stream) {
   const int ADD = 16;
   ssize_t capa = *n;
