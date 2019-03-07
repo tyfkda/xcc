@@ -46,6 +46,24 @@ void lex_error(const char *p, const char* fmt, ...) {
   exit(1);
 }
 
+void parse_error(const Token *token, const char* fmt, ...) {
+  if (token == NULL)
+    token = fetch_token();
+  if (token != NULL) {
+    fprintf(stderr, "%s(%d): ", token->line->filename, token->line->lineno);
+  }
+
+  va_list ap;
+  va_start(ap, fmt);
+  vfprintf(stderr, fmt, ap);
+  va_end(ap);
+  fprintf(stderr, "\n");
+
+  show_error_line(token->line->buf, token->input);
+
+  exit(1);
+}
+
 static Token *alloc_token(enum TokenType type, const char *input) {
   Token *token = malloc(sizeof(*token));
   token->type = type;
@@ -114,7 +132,31 @@ void init_lexer(FILE *fp, const char *filename) {
   lexer.lineno = 0;
 }
 
+void init_lexer_string(const char *line, const char *filename, int lineno) {
+  Line *p = malloc(sizeof(*line));
+  p->filename = lexer.filename;
+  p->buf = line;
+  p->lineno = lineno;
+
+  lexer.fp = NULL;
+  lexer.filename = filename;
+  lexer.line = p;
+  lexer.p = line;
+  lexer.idx = -1;
+  lexer.lineno = lineno;
+}
+
+const char *get_lex_p(void) {
+  return lexer.p;
+}
+
 static void read_next_line(void) {
+  if (lexer.fp == NULL) {
+    lexer.p = NULL;
+    lexer.line = NULL;
+    return;
+  }
+
   char *line = NULL;
   size_t capa = 0;
   ssize_t len = getline_(&line, &capa, lexer.fp);
@@ -202,6 +244,20 @@ static Token *read_num(const char **pp) {
   tok = alloc_token(tt, start);
   tok->u.value = val;
   return tok;
+}
+
+char *read_ident(const char **pp) {
+  const char *p = *pp;
+  if (isalpha(*p) || *p == '_') {
+    const char *q;
+    for (q = p + 1; ; ++q) {
+      if (!(isalnum(*q) || *q == '_'))
+        break;
+    }
+    *pp = q;
+    return strndup_(p, q - p);
+  }
+  return NULL;
 }
 
 static Token *get_token(void) {
@@ -311,22 +367,16 @@ static Token *get_token(void) {
       break;
     }
 
-    if (isalpha(*p) || *p == '_') {
-      const char *q;
-      for (q = p + 1; ; ++q) {
-        if (!(isalnum(*q) || *q == '_'))
-          break;
-      }
-
-      char *dup = strndup_(p, q - p);
-      enum TokenType word = reserved_word(dup);
+    const char *start = p;
+    char *ident = read_ident(&p);
+    if (ident != NULL) {
+      enum TokenType word = reserved_word(ident);
       if ((int)word != -1) {
-        free(dup);
-        tok = alloc_token(word, p);
+        free(ident);
+        tok = alloc_token(word, start);
       } else {
-        tok = alloc_ident(dup, p);
+        tok = alloc_ident(ident, start);
       }
-      p = q;
       break;
     }
 
@@ -395,7 +445,7 @@ Token *fetch_token(void) {
 
 Token *consume(enum TokenType type) {
   Token *tok = fetch_token();
-  if (tok->type != type)
+  if (tok->type != type && (int)type != -1)
     return NULL;
   if (tok->type != TK_EOF)
     --lexer.idx;

@@ -1,7 +1,7 @@
 CFLAGS=-ansi -std=c11 -Wall -Wextra -Werror -Wold-style-definition -Wno-missing-field-initializers -Wno-typedef-redefinition
 SRCS=util.c lexer.c parser.c codegen.c elfutil.c main.c
 OBJS=$(SRCS:.c=.o)
-CPPOBJS=util.o cpp.o
+CPPOBJS=util.o lexer.o cpp.o
 
 xcc: $(OBJS) cpp
 	$(CC) -o $@ $(OBJS) $(LDFLAGS)
