@@ -33,6 +33,7 @@
 #define MOV_EDX_EAX()    ADD_CODE(0x89, 0xd0)  // mov %edx,%eax
 #define MOV_RDX_RAX()    ADD_CODE(0x48, 0x89, 0xd0)  // mov %rdx,%rax
 #define MOV_RDI_RAX()    ADD_CODE(0x48, 0x89, 0xf8)  // mov %rdi,%rax
+#define MOV_RDI_RCX()    ADD_CODE(0x48, 0x89, 0xf9)  // mov %rdi,%rcx
 #define MOV_RSP_RBP()    ADD_CODE(0x48, 0x89, 0xe5)  // mov %rsp,%rbp
 #define MOV_RBP_RSP()    ADD_CODE(0x48, 0x89, 0xec)  // mov %rbp,%rsp
 #define MOV_RBP_RAX()    ADD_CODE(0x48, 0x89, 0xe8)  // mov %rbp,%rax
@@ -48,6 +49,8 @@
 #define MOV_RAX_IND_RSI()  ADD_CODE(0x48, 0x89, 0x06)  // mov %rax,(%rsi)
 #define MOV_RAX_IND_RDI()  ADD_CODE(0x48, 0x89, 0x07)  // mov %rax,(%rdi)
 #define MOV_RDI_IND_RAX()  ADD_CODE(0x48, 0x89, 0x38)  // mov %rdi,(%rax)
+#define MOV_EDI_ECX()    ADD_CODE(0x89, 0xf9)  // mov %edi,%ecx
+#define MOV_DIL_CL()     ADD_CODE(0x40, 0x88, 0xf9)  // mov %dil,%cl
 #define MOV_DIL_IND8_RBP(ofs)  ADD_CODE(0x40, 0x88, 0x7d, ofs)  // mov %dil,ofs(%rbp)
 #define MOV_EDI_IND8_RBP(ofs)  ADD_CODE(0x89, 0x7d, ofs)  // mov %edi,ofs(%rbp)
 #define MOV_RDI_IND8_RBP(ofs)  ADD_CODE(0x48, 0x89, 0x7d, ofs)  // mov %rdi,ofs(%rbp)
@@ -94,13 +97,22 @@
 #define CMP_RAX_RDI()    ADD_CODE(0x48, 0x39, 0xc7)  // cmp %rax,%rdi
 #define CMP_RDI_RAX()    ADD_CODE(0x48, 0x39, 0xf8)  // cmp %rdi,%rax
 #define CMP_IM8_AL(x)    ADD_CODE(0x3c, x)  // cmp $x,%al
+#define CMP_IM8_DIL(x)   ADD_CODE(0x40, 0x80, 0xff, x)  // cmp $x,%dil
 #define CMP_IM8_EAX(x)   ADD_CODE(0x83, 0xf8, x)  // cmp $x,%eax
+#define CMP_IM8_EDI(x)   ADD_CODE(0x83, 0xff, x)  // cmp $x,%edi
 #define CMP_IM8_RAX(x)   ADD_CODE(0x48, 0x83, 0xf8, x)  // cmp $x,%rax
+#define CMP_IM8_RDI(x)   ADD_CODE(0x48, 0x83, 0xff, x)  // cmp $x,%rdi
 #define CMP_IM32_EAX(x)  ADD_CODE(0x3d, IM32(x))  // cmp $im32,%eax
 #define INCB_IND_RAX()   ADD_CODE(0xfe, 0x00)  // incb (%rax)
 #define INCL_IND_RAX()   ADD_CODE(0xff, 0x00)  // incl (%rax)
 #define DECB_IND_RAX()   ADD_CODE(0xfe, 0x08)  // decb (%rax)
 #define DECL_IND_RAX()   ADD_CODE(0xff, 0x08)  // decl (%rax)
+#define SHL_CL_AL()      ADD_CODE(0xd2, 0xe0)  // shl %cl,%al
+#define SHL_CL_EAX()     ADD_CODE(0xd3, 0xe0)  // shl %cl,%eax
+#define SHL_CL_RAX()     ADD_CODE(0x48, 0xd3, 0xe0)  // shl %cl,%rax
+#define SHR_CL_AL()      ADD_CODE(0xd2, 0xe8)  // shr %cl,%al
+#define SHR_CL_EAX()     ADD_CODE(0xd3, 0xe8)  // shr %cl,%eax
+#define SHR_CL_RAX()     ADD_CODE(0x48, 0xd3, 0xe8)  // shr %cl,%rax
 #define NEG_AL()         ADD_CODE(0xf6, 0xd8)  // neg %al
 #define NEG_EAX()        ADD_CODE(0xf7, 0xd8)  // neg %eax
 #define NEG_RAX()        ADD_CODE(0x48, 0xf7, 0xd8)  // neg %rax
@@ -123,6 +135,7 @@
 #define POP_R9()         ADD_CODE(0x41, 0x59)  // pop %r9
 #define JE32(label)      do { ADD_LOC_REL32(label, 2, 6); ADD_CODE(0x0f, 0x84, IM32(0)); } while(0)  // je
 #define JNE32(label)     do { ADD_LOC_REL32(label, 2, 6); ADD_CODE(0x0f, 0x85, IM32(0)); } while(0)  // jne
+#define JA8(label)       do { ADD_LOC_REL8(label, 1, 2); ADD_CODE(0x77, IM8(0)); } while(0)  // jmp
 #define JMP8(label)      do { ADD_LOC_REL8(label, 1, 2); ADD_CODE(0xeb, IM8(0)); } while(0)  // jmp
 #define JMP32(label)     do { ADD_LOC_REL32(label, 1, 5); ADD_CODE(0xe9, IM32(0)); } while(0)  // jmp
 #define CALL(label)      do { ADD_LOC_REL32(label, 1, 5); ADD_CODE(0xe8, IM32(0)); } while(0)  // call

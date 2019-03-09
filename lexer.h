@@ -40,6 +40,8 @@ enum TokenType {
   TK_STR,        // String literal
   TK_IDENT,      // Identifier
   TK_EOF,        // Represent input end
+  TK_LSHIFT,  // <<
+  TK_RSHIFT,  // >>
   TK_EQ,  // ==
   TK_NE,  // !=
   TK_LE,  // <=

@@ -24,7 +24,7 @@ test-val:	valtest
 	@./valtest
 	@echo ''
 
-test-val:	cpptest.sh
+test-cpp:	cpptest.sh
 	@echo '## cpptest'
 	@./cpptest.sh
 	@echo ''

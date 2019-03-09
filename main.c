@@ -103,7 +103,7 @@ static int pipe_pp_xcc(char **pp_argv, char ** xcc_argv) {
   close(fd[0]);
   close(fd[1]);
 
-  int ec1, ec2;
+  int ec1 = -1, ec2 = -1;
   int r1 = waitpid(pid1, &ec1, 0);
   int r2 = waitpid(pid2, &ec2, 0);
   if (r1 < 0 || r2 < 0)
@@ -157,7 +157,7 @@ int main(int argc, char* argv[]) {
     memcpy(&pp_argv[1], &argv[iarg], sizeof(char*) * (argc - iarg + 1));
     char **xcc_argv = argv;
     xcc_argv[iarg] = NULL;  // Destroy!
-    return pipe_pp_xcc(pp_argv, xcc_argv);
+    return pipe_pp_xcc(pp_argv, xcc_argv) != 0;
   } else {
     compile(stdin, "*stdin*");
   }

@@ -764,7 +764,7 @@ static void gen_continue(void) {
   JMP32(s_continue_label);
 }
 
-static void gen_arith(enum NodeType nodeType, enum eType expType) {
+static void gen_arith(enum NodeType nodeType, enum eType expType, enum eType rhsType) {
   // lhs=rax, rhs=rdi, result=rax
 
   switch (nodeType) {
@@ -815,6 +815,32 @@ static void gen_arith(enum NodeType nodeType, enum eType expType) {
     default: assert(false); break;
     }
     break;
+
+  case ND_LSHIFT:
+  case ND_RSHIFT:
+    switch (rhsType) {
+    case TY_CHAR: MOV_DIL_CL(); break;
+    case TY_INT:  MOV_EDI_ECX(); break;
+    case TY_LONG: MOV_RDI_RCX(); break;
+    default: assert(false); break;
+    }
+    if (nodeType == ND_LSHIFT) {
+      switch (expType) {
+      case TY_CHAR: SHL_CL_AL(); break;
+      case TY_INT:  SHL_CL_EAX(); break;
+      case TY_LONG: SHL_CL_RAX(); break;
+      default: assert(false); break;
+      }
+    } else {
+      switch (expType) {
+      case TY_CHAR: SHR_CL_AL(); break;
+      case TY_INT:  SHR_CL_EAX(); break;
+      case TY_LONG: SHR_CL_RAX(); break;
+      default: assert(false); break;
+      }
+    }
+    break;
+
   default:
     assert(false);
     break;
@@ -931,7 +957,7 @@ void gen(Node *node) {
       }
 
       POP_RDI();  // %rdi=rhs
-      gen_arith(sub->type, sub->expType->type);
+      gen_arith(sub->type, sub->expType->type, sub->u.bop.rhs->expType->type);
       cast(node->expType->type, sub->expType->type);
 
       switch (node->expType->type) {
@@ -1212,13 +1238,15 @@ void gen(Node *node) {
   case ND_MUL:
   case ND_DIV:
   case ND_MOD:
+  case ND_LSHIFT:
+  case ND_RSHIFT:
     gen(node->u.bop.rhs);
     PUSH_RAX();
     gen(node->u.bop.lhs);
 
     POP_RDI();
 
-    gen_arith(node->type, node->expType->type);
+    gen_arith(node->type, node->expType->type, node->u.bop.rhs->expType->type);
     return;
 
   default:

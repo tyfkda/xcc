@@ -283,16 +283,30 @@ static Token *get_token(void) {
       break;
     }
 
-    if (*p == '<' && p[1] == '=') {
-      tok = alloc_token(TK_LE, p);
-      p += 2;
-      break;
+    if (*p == '<') {
+      if (p[1] == '=') {
+        tok = alloc_token(TK_LE, p);
+        p += 2;
+        break;
+      }
+      if (p[1] == '<') {
+        tok = alloc_token(TK_LSHIFT, p);
+        p += 2;
+        break;
+      }
     }
 
-    if (*p == '>' && p[1] == '=') {
-      tok = alloc_token(TK_GE, p);
-      p += 2;
-      break;
+    if (*p == '>') {
+      if (p[1] == '=') {
+        tok = alloc_token(TK_GE, p);
+        p += 2;
+        break;
+      }
+      if (p[1] == '>') {
+        tok = alloc_token(TK_RSHIFT, p);
+        p += 2;
+        break;
+      }
     }
 
     if (*p == '+') {

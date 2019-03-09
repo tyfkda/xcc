@@ -690,13 +690,15 @@ static Node *sub_node(Token *tok, Node *lhs, Node *rhs) {
   return NULL;
 }
 
-static Node *arith_node(Token *tok, enum NodeType nodeType, Node *lhs, Node *rhs) {
+static Node *arith_node(Token *tok, enum NodeType nodeType, Node *lhs, Node *rhs, bool cast) {
   if (!is_number(lhs->expType->type) || !is_number(rhs->expType->type))
     parse_error(tok, "Cannot use `%d' except numbers.", nodeType);
 
   const Type *expType = lhs->expType;
-  if (rhs->expType->type > expType->type)
+  if (cast && rhs->expType->type > expType->type) {
     expType = rhs->expType;
+    lhs = new_node_cast(expType, lhs, false);
+  }
 
   return new_node_bop(nodeType, expType, lhs, rhs);
 }
@@ -1128,7 +1130,7 @@ static Node *mul(void) {
     else
       return node;
 
-    node = arith_node(tok, t, node, cast_expr());
+    node = arith_node(tok, t, node, cast_expr(), true);
   }
 }
 
@@ -1146,8 +1148,26 @@ static Node *add(void) {
   }
 }
 
-static Node *cmp(void) {
+static Node *shift(void) {
   Node *node = add();
+
+  for (;;) {
+    enum NodeType t;
+    Token *tok;
+    if ((tok = consume(TK_LSHIFT)) != NULL)
+      t = ND_LSHIFT;
+    else if ((tok = consume(TK_RSHIFT)) != NULL)
+      t = ND_RSHIFT;
+    else
+      return node;
+
+    Node *lhs = node, *rhs = add();
+    node = arith_node(tok, t, lhs, rhs, false);
+  }
+}
+
+static Node *cmp(void) {
+  Node *node = shift();
 
   for (;;) {
     enum NodeType t;
@@ -1163,7 +1183,7 @@ static Node *cmp(void) {
     else
       return node;
 
-    Node *lhs = node, *rhs= add();
+    Node *lhs = node, *rhs= shift();
     if (lhs->expType->type == TY_PTR || rhs->expType->type == TY_PTR) {
       if (lhs->expType->type != TY_PTR || rhs->expType->type != TY_PTR ||
           !same_type(lhs->expType, rhs->expType))
@@ -1248,13 +1268,13 @@ static Node *assign(void) {
                           sub_node(tok, node, assign()));
   if ((tok = consume(TK_MUL_ASSIGN)) != NULL)
     return new_node_unary(ND_ASSIGN_WITH, node->expType,
-                          arith_node(tok, ND_MUL, node, assign()));
+                          arith_node(tok, ND_MUL, node, assign(), true));
   if ((tok = consume(TK_DIV_ASSIGN)) != NULL)
     return new_node_unary(ND_ASSIGN_WITH, node->expType,
-                          arith_node(tok, ND_DIV, node, assign()));
+                          arith_node(tok, ND_DIV, node, assign(), true));
   if ((tok = consume(TK_MOD_ASSIGN)) != NULL)
     return new_node_unary(ND_ASSIGN_WITH, node->expType,
-                          arith_node(tok, ND_MOD, node, assign()));
+                          arith_node(tok, ND_MOD, node, assign(), true));
 
   return node;
 }

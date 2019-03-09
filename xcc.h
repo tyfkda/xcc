@@ -123,6 +123,8 @@ enum NodeType {
   ND_MOD,  // num % num
   ND_NEG,  // -num
   ND_NOT,  // !x
+  ND_LSHIFT,  // num << num
+  ND_RSHIFT,  // num >> num
   ND_ASSIGN,
   ND_ASSIGN_WITH,  // +=, etc.
   ND_PREINC,
