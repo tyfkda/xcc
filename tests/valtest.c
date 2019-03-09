@@ -68,6 +68,8 @@ int main(void) {
   expect("%", 3, 123%10);
   expect("<<", 32, 1 << 4 + 1);
   expect(">>", 0x0a, 0xa5 >> 4);
+  expect("&", 0xa0, 0xa5 & 0xf0);
+  expect("|", 0x66, 0xc3 ^ 0xa5);
   {
     long x = 3;
     expect("long arithmetic", 3, 5L + 4L - x * 2L / 1L);

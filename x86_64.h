@@ -107,6 +107,15 @@
 #define INCL_IND_RAX()   ADD_CODE(0xff, 0x00)  // incl (%rax)
 #define DECB_IND_RAX()   ADD_CODE(0xfe, 0x08)  // decb (%rax)
 #define DECL_IND_RAX()   ADD_CODE(0xff, 0x08)  // decl (%rax)
+#define AND_DIL_AL()     ADD_CODE(0x40, 0x20, 0xf8)  // and %dil,%al
+#define AND_EDI_EAX()    ADD_CODE(0x21, 0xf8)  // and %edi,%eax
+#define AND_RDI_RAX()    ADD_CODE(0x48, 0x21, 0xf8)  // and %rdi,%rax
+#define OR_DIL_AL()      ADD_CODE(0x40, 0x08, 0xf8)  // or %dil,%al
+#define OR_EDI_EAX()     ADD_CODE(0x09, 0xf8)  // or %edi,%eax
+#define OR_RDI_RAX()     ADD_CODE(0x48, 0x09, 0xf8)  // or %rdi,%rax
+#define XOR_DIL_AL()     ADD_CODE(0x40, 0x30, 0xf8)  // xor %dil,%al
+#define XOR_EDI_EAX()    ADD_CODE(0x31, 0xf8)  // xor %edi,%eax
+#define XOR_RDI_RAX()    ADD_CODE(0x48, 0x31, 0xf8)  // xor %rdi,%rax
 #define SHL_CL_AL()      ADD_CODE(0xd2, 0xe0)  // shl %cl,%al
 #define SHL_CL_EAX()     ADD_CODE(0xd3, 0xe0)  // shl %cl,%eax
 #define SHL_CL_RAX()     ADD_CODE(0x48, 0xd3, 0xe0)  // shl %cl,%rax

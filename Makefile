@@ -10,6 +10,7 @@ cpp: $(CPPOBJS)
 	$(CC) -o $@ $^ $(LDFLAGS)
 
 $(OBJS): xcc.h
+lexer.o parser.o: lexer.h
 
 test:	xcc
 	make -C tests

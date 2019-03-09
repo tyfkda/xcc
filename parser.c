@@ -1071,7 +1071,7 @@ static Node *unary(void) {
     return node;
   }
 
-  if (consume(TK_AMP)) {
+  if (consume(TK_AND)) {
     Node *node = cast_expr();
     return new_node_unary(ND_REF, ptrof(node->expType), node);
   }
@@ -1234,11 +1234,41 @@ static Node *eq(void) {
   }
 }
 
-static Node *logand(void) {
+static Node *and(void) {
   Node *node = eq();
   for (;;) {
+    if (consume(TK_AND))
+      node = new_node_bop(ND_BITAND, &tyBool, node, eq());
+    else
+      return node;
+  }
+}
+
+static Node *xor(void) {
+  Node *node = and();
+  for (;;) {
+    if (consume(TK_HAT))
+      node = new_node_bop(ND_BITXOR, &tyBool, node, and());
+    else
+      return node;
+  }
+}
+
+static Node *or(void) {
+  Node *node = xor();
+  for (;;) {
+    if (consume(TK_OR))
+      node = new_node_bop(ND_BITOR, &tyBool, node, xor());
+    else
+      return node;
+  }
+}
+
+static Node *logand(void) {
+  Node *node = or();
+  for (;;) {
     if (consume(TK_LOGAND))
-      node = new_node_bop(ND_LOGAND, &tyBool, node, eq());
+      node = new_node_bop(ND_LOGAND, &tyBool, node, or());
     else
       return node;
   }

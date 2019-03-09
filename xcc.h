@@ -125,6 +125,9 @@ enum NodeType {
   ND_NOT,  // !x
   ND_LSHIFT,  // num << num
   ND_RSHIFT,  // num >> num
+  ND_BITAND,
+  ND_BITOR,
+  ND_BITXOR,
   ND_ASSIGN,
   ND_ASSIGN_WITH,  // +=, etc.
   ND_PREINC,

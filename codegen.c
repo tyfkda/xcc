@@ -816,6 +816,33 @@ static void gen_arith(enum NodeType nodeType, enum eType expType, enum eType rhs
     }
     break;
 
+  case ND_BITAND:
+    switch (expType) {
+    case TY_CHAR: AND_DIL_AL(); break;
+    case TY_INT:  AND_EDI_EAX(); break;
+    case TY_LONG: AND_RDI_RAX(); break;
+    default: assert(false); break;
+    }
+    break;
+
+  case ND_BITOR:
+    switch (expType) {
+    case TY_CHAR: OR_DIL_AL(); break;
+    case TY_INT:  OR_EDI_EAX(); break;
+    case TY_LONG: OR_RDI_RAX(); break;
+    default: assert(false); break;
+    }
+    break;
+
+  case ND_BITXOR:
+    switch (expType) {
+    case TY_CHAR: XOR_DIL_AL(); break;
+    case TY_INT:  XOR_EDI_EAX(); break;
+    case TY_LONG: XOR_RDI_RAX(); break;
+    default: assert(false); break;
+    }
+    break;
+
   case ND_LSHIFT:
   case ND_RSHIFT:
     switch (rhsType) {
@@ -1240,6 +1267,9 @@ void gen(Node *node) {
   case ND_MOD:
   case ND_LSHIFT:
   case ND_RSHIFT:
+  case ND_BITAND:
+  case ND_BITOR:
+  case ND_BITXOR:
     gen(node->u.bop.rhs);
     PUSH_RAX();
     gen(node->u.bop.lhs);

@@ -364,13 +364,15 @@ static Token *get_token(void) {
       break;
     }
 
-    if (*p == '|' && p[1] == '|') {
-      tok = alloc_token(TK_LOGIOR, p);
-      p += 2;
-      break;
+    if (*p == '|') {
+      if (p[1] == '|') {
+        tok = alloc_token(TK_LOGIOR, p);
+        p += 2;
+        break;
+      }
     }
 
-    if (strchr("+-*/%&!(){}[]<>=:;,.", *p) != NULL) {
+    if (strchr("+-*/%&!(){}[]<>=^|:;,.", *p) != NULL) {
       tok = alloc_token((enum TokenType)*p, p);
       ++p;
       break;
