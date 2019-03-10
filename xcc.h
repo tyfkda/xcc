@@ -50,7 +50,21 @@ typedef struct Type {
   } u;
 } Type;
 
+void ensure_struct(Type *type, Token *token);
+
 void dump_type(FILE *fp, const Type *type);
+
+typedef struct Initializer {
+  enum { vSingle, vMulti, vDot } type;
+  union {
+    struct Node *single;
+    Vector *multi;  // <Initializer*>
+    struct {
+      const char *name;
+      struct Initializer *value;
+    } dot;
+  } u;
+} Initializer;
 
 // Varible flags.
 enum {
@@ -73,7 +87,7 @@ typedef struct {
   const char *name;
   const Type *type;
   int flag;
-  struct Node *value;
+  Initializer *init;
 
   // For codegen.
   int offset;
@@ -184,7 +198,7 @@ typedef struct Node {
     } unary;
     struct {
       const char *ident;
-      int global;
+      bool global;
     } varref;
     Defun* defun;
     struct {
@@ -252,7 +266,7 @@ void var_add(Vector *lvars, const Token *ident, const Type *type, int flag);
 Map *global;
 
 GlobalVarInfo *find_global(const char *name);
-void define_global(const Type *type, int flag, const Token *ident, Node *value);
+void define_global(const Type *type, int flag, const Token *ident, Initializer *init);
 
 // Codegen
 
@@ -270,6 +284,8 @@ void gen_rodata(void);
 void output_code(FILE* fp);
 void add_label(const char *label);
 void add_code(const unsigned char* buf, size_t size);
+void add_loc_rel8(const char *label, int ofs, int baseofs);
 void add_loc_rel32(const char *label, int ofs, int baseofs);
+void add_loc_abs64(const char *label, uintptr_t pos);
 size_t fixup_locations(size_t *pmemsz);
 uintptr_t label_adr(const char *label);

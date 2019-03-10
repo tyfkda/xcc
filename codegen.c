@@ -65,6 +65,7 @@ static int align_size(const Type *type) {
     return align_size(type->u.pa.ptrof);
   case TY_STRUCT:
   case TY_UNION:
+    ensure_struct((Type*)type, NULL);
     if (type->u.struct_.info->size < 0)
       calc_struct_size(type->u.struct_.info, type->type == TY_UNION);
     return type->u.struct_.info->align;
@@ -84,7 +85,7 @@ static void calc_struct_size(StructInfo *sinfo, bool is_union) {
     int sz = type_size(varinfo->type);
     int align = align_size(varinfo->type);
     size = ALIGN(size, align);
-    varinfo->offset = (int)size;
+    varinfo->offset = size;
     if (!is_union)
       size += sz;
     else
@@ -136,6 +137,7 @@ static void cast(const enum eType ltype, const enum eType rtype) {
     case TY_CHAR:  MOVSX_AL_RAX(); return;
     case TY_SHORT: MOVSX_AX_RAX(); return;
     case TY_INT:   MOVSX_EAX_RAX(); return;
+    case TY_PTR:   return;
     default: break;
     }
     break;
@@ -167,6 +169,7 @@ static Map *label_map;
 enum LocType {
   LOC_REL8,
   LOC_REL32,
+  LOC_ABS64,
 };
 
 typedef struct {
@@ -246,12 +249,100 @@ void add_loc_rel32(const char *label, int ofs, int baseofs) {
   loc->rel.base = base;
 }
 
+void add_loc_abs64(const char *label, uintptr_t pos) {
+  new_loc(LOC_ABS64, pos, label);
+}
+
 // Put RoData into code.
 static void put_rodata(void) {
   for (int i = 0, len = rodata_vector->len; i < len; ++i) {
     const RoData *ro = (const RoData*)rodata_vector->data[i];
     add_label(ro->label);
     add_code(ro->data, ro->size);
+  }
+}
+
+void construct_initial_value(unsigned char *buf, const Type *type, Initializer *init, Vector **pptrinits) {
+  switch (type->type) {
+  case TY_CHAR:
+  case TY_SHORT:
+  case TY_INT:
+  case TY_LONG:
+    {
+      if (init->type != vSingle)
+        error("initializer type error");
+      assert(init->u.single->type == ND_INT);
+      intptr_t value = init->u.single->u.value;
+      int size = type_size(type);
+      for (int i = 0; i < size; ++i)
+        buf[i] = value >> (i * 8);  // Little endian
+    }
+    break;
+  case TY_PTR:
+    {
+      if (init->type != vSingle)
+        error("initializer type error");
+      assert(init->u.single->type == ND_REF);
+      Node *value = init->u.single->u.unary.sub;
+      if (!(value->type == ND_VARREF && value->u.varref.global))  // TODO: Initialize with array variable.
+        error("Allowed global reference only");
+
+      memset(buf, 0, type_size(type));  // Just in case.
+      void **init = malloc(sizeof(void*) * 2);
+      init[0] = buf;
+      init[1] = (void*)value->u.varref.ident;
+      if (*pptrinits == NULL)
+        *pptrinits = new_vector();
+      vec_push(*pptrinits, init);
+    }
+    break;
+  case TY_STRUCT:
+    {
+      if (init->type != vMulti)
+        error("initializer type error");
+
+      ensure_struct((Type*)type, NULL);
+      memset(buf, 0x00, type_size(type));
+      const StructInfo *sinfo = type->u.struct_.info;
+      int n = sinfo->members->len;
+      int m = init->u.multi->len;
+      if (n <= 0) {
+        if (m > 0)
+          parse_error(NULL, "Initializer for empty struct");
+        break;
+      }
+      Initializer **values = malloc(sizeof(Initializer*) * n);
+      for (int i = 0; i < n; ++i)
+        values[i] = NULL;
+
+      int dst = -1;
+      for (int i = 0; i < m; ++i) {
+        Initializer *value = init->u.multi->data[i];
+        if (value->type == vDot) {
+          int idx = var_find(sinfo->members, value->u.dot.name);
+          if (idx < 0)
+            parse_error(NULL, "`%s' is not member of struct", value->u.dot.name);
+          values[idx] = value->u.dot.value;
+          dst = idx;
+          continue;
+        }
+        if (++dst >= n)
+          break;  // TODO: Check extra.
+        values[dst] = value;
+      }
+
+      for (int i = 0; i < n; ++i) {
+        VarInfo* varinfo = sinfo->members->data[i];
+        if (values[i] != NULL) {
+          construct_initial_value(buf + varinfo->offset, varinfo->type, values[i], pptrinits);
+        }
+      }
+    }
+    break;
+  default:
+    fprintf(stderr, "Global initial value for type %d not implemented (yet)\n", type->type);
+    assert(false);
+    break;
   }
 }
 
@@ -262,22 +353,10 @@ static void put_rwdata(void) {
   for (int i = 0, len = map_count(global); i < len; ++i) {
     const char *name = (const char *)global->keys->data[i];
     const GlobalVarInfo *varinfo = (const GlobalVarInfo*)global->vals->data[i];
-    if (varinfo->type->type == TY_FUNC || varinfo->value == NULL ||
+    if (varinfo->type->type == TY_FUNC || varinfo->init == NULL ||
         (varinfo->flag & VF_EXTERN) != 0 ||
         varinfo->type->type == TY_ENUM)
       continue;
-    intptr_t value = 0;
-    switch (varinfo->value->expType->type) {
-    case TY_CHAR:
-    case TY_INT:
-    case TY_LONG:
-      value = varinfo->value->u.value;
-      break;
-    default:
-      fprintf(stderr, "Global initial value for type %d not implemented (yet)\n", varinfo->value->expType->type);
-      assert(false);
-      break;
-    }
 
     int align = align_size(varinfo->type);
     codesize = ALIGN(codesize, align);
@@ -286,15 +365,18 @@ static void put_rwdata(void) {
       buf = realloc(buf, size);
       bufsize = size;
     }
-    add_label(name);
 
-    if (size > 8) {
-      error("Size over: %d", size);
-    } else {
-      for (int j = 0; j < size; ++j) {
-        buf[j] = value >> (j * 8);  // Little endian.
+    Vector *ptrinits = NULL;
+    construct_initial_value(buf, varinfo->type, varinfo->init, &ptrinits);
+
+    if (ptrinits != NULL) {
+      for (int i = 0; i < ptrinits->len; ++i) {
+        void **pp = (void**)ptrinits->data[i];
+        add_loc_abs64((char*)pp[1], (unsigned char*)pp[0] - buf + codesize);
       }
     }
+
+    add_label(name);
     add_code(buf, size);
   }
 }
@@ -306,7 +388,7 @@ static void put_bss(void) {
   for (int i = 0, len = map_count(global); i < len; ++i) {
     const char *name = (const char *)global->keys->data[i];
     const GlobalVarInfo *varinfo = (const GlobalVarInfo*)global->vals->data[i];
-    if (varinfo->type->type == TY_FUNC || varinfo->value != NULL ||
+    if (varinfo->type->type == TY_FUNC || varinfo->init != NULL ||
         (varinfo->flag & VF_EXTERN) != 0)
       continue;
     int align = align_size(varinfo->type);
@@ -331,6 +413,7 @@ static void resolve_label_locations(void) {
     void *val = map_get(label_map, loc->label);
     if (val == NULL) {
       error("Cannot find label: `%s'", loc->label);
+      continue;
     }
 
     intptr_t v = (intptr_t)val;
@@ -346,11 +429,13 @@ static void resolve_label_locations(void) {
       {
         intptr_t d = v - loc->rel.base;
         // TODO: Check out of range
-        code[loc->ip    ] = d;
-        code[loc->ip + 1] = d >> 8;
-        code[loc->ip + 2] = d >> 16;
-        code[loc->ip + 3] = d >> 24;
+        for (int i = 0; i < 4; ++i)
+          code[loc->ip + i] = d >> (i * 8);
       }
+      break;
+    case LOC_ABS64:
+      for (int i = 0; i < 8; ++i)
+        code[loc->ip + i] = v >> (i * 8);
       break;
     default:
       assert(false);
@@ -436,6 +521,7 @@ static void gen_lval(Node *node) {
       if (type->type == TY_PTR || type->type == TY_ARRAY)
         type = type->u.pa.ptrof;
       assert(type->type == TY_STRUCT || type->type == TY_UNION);
+      calc_struct_size(type->u.struct_.info, type->type == TY_UNION);
       Vector *members = type->u.struct_.info->members;
       int varidx = var_find(members, node->u.member.name);
       assert(varidx >= 0);

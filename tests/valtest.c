@@ -19,6 +19,8 @@ int g_zero;
 int g_123 = 123;
 int g_work;
 
+struct {int x; int *p;} g_struct = { 42, &g_zero };
+
 static int s_val = 456;
 
 extern int e_val;
@@ -290,6 +292,8 @@ int main(void) {
   }
   expect("global cleared", 0, g_zero);
   expect("global initializer", 123, g_123);
+  expect("global struct initializer: int", 42, g_struct.x);
+  expect("global struct initializer: ptr", (long)&g_zero, (long)g_struct.p);
   {
     g_work = 1;
     expect("global access", 11, g_work + 10);

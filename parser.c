@@ -65,7 +65,7 @@ GlobalVarInfo *find_global(const char *name) {
   return (GlobalVarInfo*)map_get(global, name);
 }
 
-void define_global(const Type *type, int flag, const Token *ident, Node *value) {
+void define_global(const Type *type, int flag, const Token *ident, Initializer *init) {
   const char *name = ident->u.ident;
   GlobalVarInfo *varinfo = find_global(name);
   if (varinfo != NULL && !(varinfo->flag & VF_EXTERN))
@@ -74,12 +74,24 @@ void define_global(const Type *type, int flag, const Token *ident, Node *value) 
   varinfo->name = name;
   varinfo->type = type;
   varinfo->flag = flag;
-  varinfo->value = value;
+  varinfo->init = init;
   varinfo->offset = 0;
   map_put(global, name, varinfo);
 }
 
 // Type
+
+// Call before accessing struct member to ensure that struct is declared.
+void ensure_struct(Type *type, Token *token) {
+  assert(type->type == TY_STRUCT || type->type == TY_UNION);
+  if (type->u.struct_.info == NULL) {
+    // TODO: Search from name.
+    StructInfo *sinfo = (StructInfo*)map_get(struct_map, type->u.struct_.name);
+    if (sinfo == NULL)
+      parse_error(token, "Accessing known struct(%s)'s member", type->u.struct_.name);
+    type->u.struct_.info = sinfo;
+  }
+}
 
 void dump_type(FILE *fp, const Type *type) {
   switch (type->type) {
@@ -441,7 +453,7 @@ static Node *new_node_str(const char *str, size_t len) {
   return node;
 }
 
-static Node *new_node_varref(const char *name, const Type *type, int global) {
+static Node *new_node_varref(const char *name, const Type *type, bool global) {
   Node *node = new_node(ND_VARREF, type);
   node->u.varref.ident = name;
   node->u.varref.global = global;
@@ -731,18 +743,6 @@ Node *array_index(Node *array) {
   return new_node_deref(add_node(tok, array, index));
 }
 
-// Call before accessing struct member to ensure that struct is declared.
-static void ensure_struct(Type *type, Token *token) {
-  assert(type->type == TY_STRUCT || type->type == TY_UNION);
-  if (type->u.struct_.info == NULL) {
-    // TODO: Search from name.
-    StructInfo *sinfo = (StructInfo*)map_get(struct_map, type->u.struct_.name);
-    if (sinfo == NULL)
-      parse_error(token, "Accessing known struct(%s)'s member", type->u.struct_.name);
-    type->u.struct_.info = sinfo;
-  }
-}
-
 Node *member_access(Node *target, Token *acctok) {
   // Find member's type from struct info.
   const Type *type = target->expType;
@@ -793,7 +793,10 @@ static const Type *parse_enum(void) {
         }
         // Define
         (void)typeident;  // TODO: Define enum type with name.
-        define_global(&tyEnum, VF_CONST, ident, new_node_numlit(ND_INT, value));
+        Initializer *init = malloc(sizeof(*init));
+        init->type = vSingle;
+        init->u.single = new_node_numlit(ND_INT, value);
+        define_global(&tyEnum, VF_CONST, ident, init);
         ++value;
 
         if (consume(TK_RBRACE))
@@ -1014,23 +1017,29 @@ static Node *prim(void) {
 
   Token *ident;
   if ((ident = consume(TK_IDENT)) != NULL) {
-    assert(curfunc != NULL);
-
     const char *name = ident->u.ident;
     const Type *type = NULL;
-    VarInfo *varinfo = scope_find(curscope, name);
-    if (varinfo != NULL) {
-      type = varinfo->type;
-    } else {
-      GlobalVarInfo *varinfo = find_global(name);
-      if (varinfo == NULL)
-        parse_error(ident, "Undefined `%s'", name);
-      type = varinfo->type;
-      if (type->type == TY_ENUM)
-        // Enum value is embeded directly.
-        return varinfo->value;
+    bool global = false;
+    if (curfunc != NULL) {
+      VarInfo *varinfo = scope_find(curscope, name);
+      if (varinfo != NULL)
+        type = varinfo->type;
     }
-    int global = varinfo == NULL;
+    if (type == NULL) {
+      GlobalVarInfo *varinfo = find_global(name);
+      if (varinfo != NULL) {
+        global = true;
+        type = varinfo->type;
+        if (type->type == TY_ENUM) {
+          // Enum value is embeded directly.
+          assert(varinfo->init->type == vSingle);
+          return varinfo->init->u.single;
+        }
+      }
+    }
+    if (type == NULL)
+      parse_error(ident, "Undefined `%s'", name);
+
     return new_node_varref(name, type, global);
   }
   parse_error(NULL, "Number or Ident or open paren expected");
@@ -1509,25 +1518,13 @@ static Node *parse_return(void) {
 
 // Initializer
 
-typedef struct Initializer {
-  enum { vSingle, vMulti, vDot } type;
-  union {
-    Node *single;
-    Vector *multi;  // <Initializer*>
-    struct {
-      const char *name;
-      struct Initializer *value;
-    } dot;
-  } u;
-} Initializer;
-
 static Initializer *parse_initializer(void) {
   Initializer *result = malloc(sizeof(*result));
   if (consume(TK_LBRACE)) {
     Vector *multi = new_vector();
     if (!consume(TK_RBRACE)) {
       for (;;) {
-        Initializer *elem;
+        Initializer *init;
         if (consume(TK_DOT)) {  // .member=value
           Token *ident = consume(TK_IDENT);
           if (ident == NULL)
@@ -1535,14 +1532,14 @@ static Initializer *parse_initializer(void) {
           if (!consume(TK_ASSIGN))
             parse_error(NULL, "`=' expected for dotted initializer");
           Initializer *value = parse_initializer();
-          elem = malloc(sizeof(*elem));
-          elem->type = vDot;
-          elem->u.dot.name = ident->u.ident;
-          elem->u.dot.value = value;
+          init = malloc(sizeof(*init));
+          init->type = vDot;
+          init->u.dot.name = ident->u.ident;
+          init->u.dot.value = value;
         } else {
-          elem = parse_initializer();
+          init = parse_initializer();
         }
-        vec_push(multi, elem);
+        vec_push(multi, init);
 
         if (consume(TK_COMMA)) {
           if (consume(TK_RBRACE))
@@ -1642,7 +1639,7 @@ static void string_initializer(Node *dst, Node *src, Vector *inits) {
   }
 }
 
-static Vector *assign_initial_value(Node *node, Initializer *initializer, Vector *inits) {
+static Vector *assign_initial_value(Node *node, Initializer *init, Vector *inits) {
   if (inits == NULL)
     inits = new_vector();
 
@@ -1651,25 +1648,25 @@ static Vector *assign_initial_value(Node *node, Initializer *initializer, Vector
     {
       // Special handling for string (char[]).
       if (node->expType->u.pa.ptrof->type == TY_CHAR &&
-          initializer->type == vSingle &&
-          can_cast(node->expType, initializer->u.single->expType, initializer->u.single, false)) {
-        string_initializer(node, initializer->u.single, inits);
+          init->type == vSingle &&
+          can_cast(node->expType, init->u.single->expType, init->u.single, false)) {
+        string_initializer(node, init->u.single, inits);
         break;
       }
 
-      if (initializer->type != vMulti)
+      if (init->type != vMulti)
         parse_error(NULL, "Error initializer");
       size_t arr_len = node->expType->u.pa.length;
       if (arr_len == (size_t)-1) {
-        ((Type*)node->expType)->u.pa.length = arr_len = initializer->u.multi->len;
+        ((Type*)node->expType)->u.pa.length = arr_len = init->u.multi->len;
       } else {
-        if ((size_t)initializer->u.multi->len > arr_len)
+        if ((size_t)init->u.multi->len > arr_len)
           parse_error(NULL, "Initializer more than array size");
       }
-      int len = initializer->u.multi->len;
+      int len = init->u.multi->len;
       for (int i = 0; i < len; ++i) {
         assign_initial_value(new_node_deref(add_node(NULL, node, new_node_numlit(ND_INT, i))),
-                             initializer->u.multi->data[i], inits);
+                             init->u.multi->data[i], inits);
       }
       // Clear left.
       for (size_t i = len; i < arr_len; ++i)
@@ -1678,22 +1675,25 @@ static Vector *assign_initial_value(Node *node, Initializer *initializer, Vector
     break;
   case TY_STRUCT:
     {
-      if (initializer->type != vMulti)
+      if (init->type != vMulti)
         parse_error(NULL, "`{...}' expected for initializer");
 
-      const StructInfo *sinfo = node->expType->u.struct_.info;
       ensure_struct((Type*)node->expType, NULL);
+      const StructInfo *sinfo = node->expType->u.struct_.info;
       int n = sinfo->members->len;
-      int m = initializer->u.multi->len;
-      if (n <= 0 && m > 0)
-        parse_error(NULL, "Initializer for empty struct");
+      int m = init->u.multi->len;
+      if (n <= 0) {
+        if (m > 0)
+          parse_error(NULL, "Initializer for empty struct");
+        break;
+      }
       Initializer **values = malloc(sizeof(Initializer*) * n);
       for (int i = 0; i < n; ++i)
         values[i] = NULL;
 
       int dst = -1;
       for (int i = 0; i < m; ++i) {
-        Initializer *value = initializer->u.multi->data[i];
+        Initializer *value = init->u.multi->data[i];
         if (value->type == vDot) {
           int idx = var_find(sinfo->members, value->u.dot.name);
           if (idx < 0)
@@ -1718,18 +1718,18 @@ static Vector *assign_initial_value(Node *node, Initializer *initializer, Vector
     break;
   case TY_UNION:
     {
-      if (initializer->type != vMulti)
+      if (init->type != vMulti)
         parse_error(NULL, "`{...}' expected for initializer");
 
       const StructInfo *sinfo = node->expType->u.struct_.info;
       ensure_struct((Type*)node->expType, NULL);
       int n = sinfo->members->len;
-      int m = initializer->u.multi->len;
+      int m = init->u.multi->len;
       if (n <= 0 && m > 0)
         parse_error(NULL, "Initializer for empty union");
 
       int dst = 0;
-      Initializer *value = initializer->u.multi->data[0];
+      Initializer *value = init->u.multi->data[0];
       if (value->type == vDot) {
         int idx = var_find(sinfo->members, value->u.dot.name);
         if (idx < 0)
@@ -1743,10 +1743,10 @@ static Vector *assign_initial_value(Node *node, Initializer *initializer, Vector
     }
     break;
   default:
-    if (initializer->type != vSingle)
+    if (init->type != vSingle)
       parse_error(NULL, "Error initializer");
     vec_push(inits,
-             new_node_bop(ND_ASSIGN, node->expType, node, new_node_cast(node->expType, initializer->u.single, false)));
+             new_node_bop(ND_ASSIGN, node->expType, node, new_node_cast(node->expType, init->u.single, false)));
     break;
   }
 
@@ -1856,7 +1856,7 @@ static Node *stmt(void) {
     return parse_return();
 
   // expression statement.
-  Node *node = assign();
+  Node *node = expr();
   if (!consume(TK_SEMICOL))
     parse_error(NULL, "Semicolon required");
   return node;
@@ -1919,7 +1919,7 @@ static Node *parse_defun(const Type *type, int flag, Token *ident) {
       parse_error(ident, "Definition conflict: `%s'");
     // TODO: Check type.
     // TODO: Check duplicated definition.
-    if (def->value != NULL)
+    if (def->init != NULL)
       parse_error(ident, "`%s' function already defined");
   }
 
@@ -1934,14 +1934,6 @@ static Node *parse_defun(const Type *type, int flag, Token *ident) {
     curfunc = NULL;
   }
   return defun != NULL ? new_node_defun(defun) : NULL;
-}
-
-static void parse_global_assign(const Type *type, int flag, const Token *ident) {
-  Node *value = expr();
-  if (!consume(TK_SEMICOL))
-    parse_error(NULL, "`;' expected");
-  /*Node *newvalue =*/ new_node_cast(type, value, false);
-  define_global(type, flag, ident, value);  // TODO: Use newvalue
 }
 
 static void parse_typedef(void) {
@@ -1980,14 +1972,14 @@ static Node *toplevel(void) {
         parse_error(ident, "`void' not allowed");
 
       type = parse_type_suffix(type);
-      if (consume(TK_SEMICOL)) {  // Global variable declaration.
-        define_global(type, flag, ident, NULL);
-        return NULL;
-      }
+      Initializer *initializer = NULL;
       if (consume(TK_ASSIGN)) {
         if (flag & VF_EXTERN)
           parse_error(NULL, "extern with initializer");
-        parse_global_assign(type, flag, ident);
+        initializer = parse_initializer();
+      }
+      if (consume(TK_SEMICOL)) {
+        define_global(type, flag, ident, initializer);
         return NULL;
       }
 
