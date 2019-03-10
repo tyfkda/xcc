@@ -80,6 +80,7 @@ enum TokenType {
   TK_ENUM,
   TK_SIZEOF,
   TK_TYPEDEF,
+  TK_DOTDOTDOT,
 };
 
 // Token type

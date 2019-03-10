@@ -24,12 +24,14 @@ typedef struct {
 
 typedef struct {
   Vector *params;  // <const char*>
+  bool va_args;
   Vector *segments;  // <Segment*>
 } Macro;
 
-Macro *new_macro(Vector *params, Vector *segments) {
+Macro *new_macro(Vector *params, bool va_args, Vector *segments) {
   Macro *macro = malloc(sizeof(*macro));
   macro->params = params;
+  macro->va_args = va_args;
   macro->segments = segments;
   return macro;
 }
@@ -89,7 +91,7 @@ void handle_include(const char *p, const char *srcname) {
   fclose(fp);
 }
 
-Vector *parse_macro_body(const char *p, const Vector *params, const char *filename, int lineno) {
+Vector *parse_macro_body(const char *p, const Vector *params, bool va_args, const char *filename, int lineno) {
   Vector *segments = new_vector();
   if (params == NULL) {
     Segment *seg = malloc(sizeof(*seg));
@@ -104,10 +106,14 @@ Vector *parse_macro_body(const char *p, const Vector *params, const char *filena
       Token *tok;
       if ((tok = consume(TK_IDENT)) != NULL) {
         int index = -1;
-        for (int i = 0; i < param_len; ++i) {
-          if (strcmp(tok->u.ident, params->data[i]) == 0) {
-            index = i;
-            break;
+        if (va_args && strcmp(tok->u.ident, "__VA_ARGS__") == 0) {
+          index = param_len;
+        } else {
+          for (int i = 0; i < param_len; ++i) {
+            if (strcmp(tok->u.ident, params->data[i]) == 0) {
+              index = i;
+              break;
+            }
           }
         }
         if (index >= 0) {
@@ -147,6 +153,7 @@ void handle_define(const char *p, const char *filename, int lineno) {
     error("`ident' expected");
 
   Vector *params = NULL;
+  bool va_args = false;
   if (*p == '(') {
     // Macro with parameter.
     params = new_vector();
@@ -154,13 +161,20 @@ void handle_define(const char *p, const char *filename, int lineno) {
     if (!consume(TK_RPAR)) {
       for (;;) {
         Token *tok;
-        if ((tok = consume(TK_IDENT)) == NULL)
-          parse_error(NULL, "`ident' expected");
-        vec_push(params, tok->u.ident);
-        if (consume(TK_RPAR))
+        if ((tok = consume(TK_DOTDOTDOT)) != NULL) {
+          va_args = true;
+          if (!consume(TK_RPAR))
+            parse_error(NULL, "`)' expected");
           break;
-        if (!consume(TK_COMMA))
-          parse_error(NULL, "`,' or `)' expected");
+        } else if ((tok = consume(TK_IDENT)) != NULL) {
+          vec_push(params, tok->u.ident);
+          if (consume(TK_RPAR))
+            break;
+          if (!consume(TK_COMMA))
+            parse_error(NULL, "`,' or `)' expected");
+        } else {
+          parse_error(NULL, "`ident' expected");
+        }
       }
     }
     p = get_lex_p();
@@ -169,9 +183,9 @@ void handle_define(const char *p, const char *filename, int lineno) {
   Vector *segments = NULL;
   p = skip_whitespaces(p);
   if (*p != '\0') {
-    segments = parse_macro_body(skip_whitespaces(p), params, filename, lineno);
+    segments = parse_macro_body(skip_whitespaces(p), params, va_args, filename, lineno);
   }
-  map_put(macro_map, name, new_macro(params, segments));
+  map_put(macro_map, name, new_macro(params, va_args, segments));
 }
 
 Token *consume2(enum TokenType type) {
@@ -214,10 +228,31 @@ void expand(Macro *macro, const char *name) {
       }
     }
 
-    if (args->len != macro->params->len) {  // TODO: Arbitrary arguments.
+    if ((!macro->va_args && args->len != macro->params->len) ||
+        (macro->va_args && args->len <= macro->params->len)) {
       const char *cmp = args->len < macro->params->len ? "less" : "few";
       parse_error(NULL, "Too %s arguments for macro `%s'", cmp, name);
     }
+  }
+
+  // __VA_ARGS__
+  if (macro->va_args) {
+    // Concat.
+    size_t total = 0;
+    for (int i = macro->params->len; i < args->len; ++i)
+      total += strlen(args->data[i] + 1);  // +1 for ',' and last '\0'
+    char *s = malloc(total), *p = s;
+    for (int i = macro->params->len; i < args->len; ++i) {
+      if (i > macro->params->len)
+        *p++ = ',';
+      size_t len = strlen(args->data[i]);
+      strcpy(p, (char*)args->data[i]);
+      p += len;
+    }
+    if (args->len <= macro->params->len)
+      vec_push(args, s);
+    else
+      args->data[macro->params->len] = s;
   }
 
   if (macro->segments != NULL) {

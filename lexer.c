@@ -372,6 +372,12 @@ static Token *get_token(void) {
       }
     }
 
+    if (*p == '.' && p[1] == '.' && p[2] == '.') {
+      tok = alloc_token(TK_DOTDOTDOT, p);
+      p += 3;
+      break;
+    }
+
     if (strchr("+-*/%&!(){}[]<>=^|:;,.", *p) != NULL) {
       tok = alloc_token((enum TokenType)*p, p);
       ++p;
