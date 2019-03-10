@@ -1397,6 +1397,6 @@ void init_gen(uintptr_t start_address_) {
   rodata_vector = new_vector();
 }
 
-void output_code(FILE* fp) {
-  fwrite(code, codesize, 1, fp);
+void output_code(FILE* fp, size_t filesize) {
+  fwrite(code, filesize, 1, fp);
 }

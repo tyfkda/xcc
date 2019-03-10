@@ -199,7 +199,7 @@ int main(int argc, char* argv[]) {
   out_elf_header(fp, entry);
   out_program_header(fp, PROG_START, LOAD_ADDRESS, filesz, memsz);
   put_padding(fp, PROG_START);
-  output_code(fp);
+  output_code(fp, filesz);
   fclose(fp);
 
 #if !defined(__XV6) && defined(__linux__)

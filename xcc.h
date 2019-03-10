@@ -281,7 +281,7 @@ extern Vector *loc_vector;
 void init_gen(uintptr_t start_address);
 void gen(Node *node);
 void gen_rodata(void);
-void output_code(FILE* fp);
+void output_code(FILE* fp, size_t filesize);
 void add_label(const char *label);
 void add_code(const unsigned char* buf, size_t size);
 void add_loc_rel8(const char *label, int ofs, int baseofs);
