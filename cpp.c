@@ -9,6 +9,8 @@
 #include "util.h"
 #include "lexer.h"
 
+#define MAX(x, y)  ((x) >= (y) ? (x) : (y))
+
 enum SegmentType {
   ST_TEXT,
   ST_PARAM,
@@ -193,6 +195,20 @@ Token *consume2(enum TokenType type) {
   return consume(type);
 }
 
+char *append(char *str, size_t *pcapa, size_t *plen, const char *add) {
+  const size_t MINADD = 16;
+  size_t len = *plen;
+  size_t addedlen = len + strlen(add);
+  if (addedlen >= *pcapa) {
+    size_t capa = MAX(addedlen + 1, *pcapa + MINADD);  // +1 for '\0'.
+    str = realloc(str, capa);
+    *pcapa = capa;
+  }
+  strcpy(str + len, add);
+  *plen = addedlen;
+  return str;
+}
+
 void expand(Macro *macro, const char *name) {
   Vector *args = NULL;
   if (macro->params != NULL) {
@@ -238,38 +254,43 @@ void expand(Macro *macro, const char *name) {
   // __VA_ARGS__
   if (macro->va_args) {
     // Concat.
-    size_t total = 0;
-    for (int i = macro->params->len; i < args->len; ++i)
-      total += strlen(args->data[i] + 1);  // +1 for ',' and last '\0'
-    char *s = malloc(total), *p = s;
+    char *vaargs = NULL;
+    size_t capa = 0;
+    size_t len = 0;
     for (int i = macro->params->len; i < args->len; ++i) {
       if (i > macro->params->len)
-        *p++ = ',';
-      size_t len = strlen(args->data[i]);
-      strcpy(p, (char*)args->data[i]);
-      p += len;
+        vaargs = append(vaargs, &capa, &len, ",");
+      vaargs = append(vaargs, &capa, &len, (char*)args->data[i]);
     }
     if (args->len <= macro->params->len)
-      vec_push(args, s);
+      vec_push(args, vaargs);
     else
-      args->data[macro->params->len] = s;
+      args->data[macro->params->len] = vaargs;
   }
 
+  char *str = NULL;
+  size_t capa = 0;
+  size_t len = 0;
   if (macro->segments != NULL) {
+    str = NULL;
     for (int i = 0; i < macro->segments->len; ++i) {
       Segment *seg = macro->segments->data[i];
       switch (seg->type) {
       case ST_TEXT:
-        printf("%s", seg->u.text);
+        str = append(str, &capa, &len, seg->u.text);
         break;
       case ST_PARAM:
-        printf("%s", (char*)args->data[seg->u.param]);
+        str = append(str, &capa, &len, (char*)args->data[seg->u.param]);
         break;
       default:
         break;
       }
     }
+    str = append(str, &capa, &len, "\n");  // To avoid line comment.
   }
+  str = append(str, &capa, &len, get_lex_p());
+
+  init_lexer_string(str, NULL, -1);
 }
 
 void process_line(const char *line, const char *filename, int lineno) {
@@ -281,16 +302,14 @@ void process_line(const char *line, const char *filename, int lineno) {
       break;
 
     Token *ident = consume(TK_IDENT);
-    if (ident != NULL) {
-      Macro *macro = map_get(macro_map, ident->u.ident);
-      if (macro != NULL) {
-        if (ident->input != start)
-          fwrite(start, ident->input - start, 1, stdout);
+    Macro *macro;
+    if (ident != NULL && (macro = map_get(macro_map, ident->u.ident)) != NULL) {
+      if (ident->input != start)
+        fwrite(start, ident->input - start, 1, stdout);
 
-        expand(macro, ident->u.ident);
-        start = get_lex_p();
-        continue;
-      }
+      expand(macro, ident->u.ident);
+      start = get_lex_p();
+      continue;
     }
 
     consume(-1);
