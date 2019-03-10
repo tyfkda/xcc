@@ -27,19 +27,22 @@ static Node *prim(void);
 int var_find(Vector *lvars, const char *name) {
   for (int i = 0, len = lvars->len; i < len; ++i) {
     VarInfo *info = (VarInfo*)lvars->data[i];
-    if (strcmp(info->name, name) == 0)
+    if (info->name != NULL && strcmp(info->name, name) == 0)
       return i;
   }
   return -1;
 }
 
 void var_add(Vector *lvars, const Token *ident, const Type *type, int flag) {
-  const char *name = ident->u.ident;
-  int idx = var_find(lvars, name);
-  if (idx >= 0)
-    parse_error(ident, "`%s' already defined", name);
-  if (flag & VF_STATIC)  // TODO: Handle static specifier in local definition.
-    parse_error(ident, "Cannot specify `static' (yet)");
+  const char *name = NULL;
+  if (ident != NULL) {
+    name = ident->u.ident;
+    int idx = var_find(lvars, name);
+    if (idx >= 0)
+      parse_error(ident, "`%s' already defined", name);
+    if (flag & VF_STATIC)  // TODO: Handle static specifier in local definition.
+      parse_error(ident, "Cannot specify `static' (yet)");
+  }
 
   VarInfo *info = malloc(sizeof(*info));
   info->name = name;
@@ -896,15 +899,18 @@ static const Type *parse_raw_type(int *pflag) {
   return type;
 }
 
-static const Type *parse_type_modifier(const Type* type, bool allow_void) {
+static void not_void(const Type *type) {
+  if (type->type == TY_VOID)
+    parse_error(NULL, "`void' not allowed");
+}
+
+static const Type *parse_type_modifier(const Type* type) {
   if (type == NULL)
     return NULL;
 
   while (consume(TK_MUL))
     type = ptrof(type);
 
-  if (!allow_void && type->type == TY_VOID)
-    parse_error(NULL, "`void' not allowed");
   return type;
 }
 
@@ -927,7 +933,7 @@ static const Type *parse_type_suffix(const Type *type) {
   return arrayof(parse_type_suffix(type), length);
 }
 
-static bool parse_var_def(const Type **prawType, const Type** ptype, int *pflag, Token **pident, bool allow_void) {
+static bool parse_var_def(const Type **prawType, const Type** ptype, int *pflag, Token **pident, bool allow_noname) {
   if (*prawType == NULL) {
     const Type *rawType = parse_raw_type(pflag);
     if (rawType == NULL)
@@ -935,11 +941,12 @@ static bool parse_var_def(const Type **prawType, const Type** ptype, int *pflag,
     *prawType = rawType;
   }
 
-  const Type *type = parse_type_modifier(*prawType, allow_void);
+  const Type *type = parse_type_modifier(*prawType);
 
   Token *ident = NULL;
-  if (!allow_void || type->type != TY_VOID) {
-    if (!(ident = consume(TK_IDENT)))
+  if (type->type != TY_VOID) {
+    ident = consume(TK_IDENT);
+    if (ident == NULL && !allow_noname)
       parse_error(NULL, "Ident expected");
     type = parse_type_suffix(type);
   }
@@ -963,6 +970,7 @@ static StructInfo *parse_struct(bool is_union) {
     Token *ident;
     if (!parse_var_def(&rawType, &type, &flag, &ident, false))
       parse_error(NULL, "type expected");
+    not_void(type);
 
     if (!consume(TK_SEMICOL))
       parse_error(NULL, "`;' expected");
@@ -982,7 +990,7 @@ static Node *parse_sizeof(void) {
   if (consume(TK_LPAR)) {
     type = parse_raw_type(NULL);
     if (type != NULL) {  // Type
-      type = parse_type_suffix(parse_type_modifier(type, true));
+      type = parse_type_suffix(parse_type_modifier(type));
     } else {
       Node *node = expr();
       type = node->expType;
@@ -1141,7 +1149,7 @@ static Node *cast_expr(void) {
     int flag;
     const Type *type = parse_raw_type(&flag);
     if (type != NULL) {  // Cast
-      type = parse_type_suffix(parse_type_modifier(type, true));
+      type = parse_type_suffix(parse_type_modifier(type));
       if (!consume(TK_RPAR))
         parse_error(NULL, "`)' expected");
       Node *node = cast_expr();
@@ -1768,6 +1776,7 @@ static bool parse_vardecl(Node **pnode) {
         parse_error(NULL, "type expected");
       return false;
     }
+    not_void(type);
 
     scope_add(curscope, ident, type, flag);
 
@@ -1873,13 +1882,16 @@ static Vector *funparams(void) {
       const Type *type;
       int flag;
       Token *ident;
-      if (!parse_var_def(&rawType, &type, &flag, &ident, params->len == 0))
+      if (!parse_var_def(&rawType, &type, &flag, &ident, true))
         parse_error(NULL, "type expected");
-
-      if (type->type == TY_VOID) {  // fun(void)
-        if (!consume(TK_RPAR))
-          parse_error(NULL, "`)' expected");
-        break;
+      if (params->len == 0) {
+        if (type->type == TY_VOID) {  // fun(void)
+          if (!consume(TK_RPAR))
+            parse_error(NULL, "`)' expected");
+          break;
+        }
+      } else {
+        not_void(type);
       }
 
       // If the type is array, handle it as a pointer.
@@ -1941,7 +1953,8 @@ static void parse_typedef(void) {
   const Type *type = parse_raw_type(&flag);
   if (type == NULL)
     parse_error(NULL, "type expected");
-  type = parse_type_suffix(parse_type_modifier(type, false));
+  type = parse_type_suffix(parse_type_modifier(type));
+  not_void(type);
 
   Token *ident = consume(TK_IDENT);
   if (ident == NULL)
@@ -1958,7 +1971,7 @@ static Node *toplevel(void) {
   int flag;
   const Type *type = parse_raw_type(&flag);
   if (type != NULL) {
-    type = parse_type_modifier(type, true);
+    type = parse_type_modifier(type);
     if ((is_struct_or_union(type->type) || type->type == TY_ENUM) &&
         consume(TK_SEMICOL))  // Just struct/union definition.
       return NULL;

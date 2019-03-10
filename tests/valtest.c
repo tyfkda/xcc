@@ -25,7 +25,7 @@ static int s_val = 456;
 
 extern int e_val;
 
-int protodecl(void);
+int protodecl(int);
 
 int foo() {
   return 123;
@@ -318,7 +318,7 @@ int main(void) {
   expect("block comment", 123, /* comment */ 123);
   expect("line comment", 123, // comment
          123);
-  expect("proto decl", 123, protodecl());
+  expect("proto decl", 12321, protodecl(111));
   {
     int i, acc;
     for (i = acc = 0; i <= 10; i++) {
@@ -479,6 +479,6 @@ int main(void) {
 
 int e_val = 789;
 
-int protodecl() {
-  return 123;
+int protodecl(int x) {
+  return x * x;
 }
