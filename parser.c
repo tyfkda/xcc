@@ -88,7 +88,7 @@ void ensure_struct(Type *type, Token *token) {
     // TODO: Search from name.
     StructInfo *sinfo = (StructInfo*)map_get(struct_map, type->u.struct_.name);
     if (sinfo == NULL)
-      parse_error(token, "Accessing known struct(%s)'s member", type->u.struct_.name);
+      parse_error(token, "Accessing unknown struct(%s)'s member", type->u.struct_.name);
     type->u.struct_.info = sinfo;
   }
 }
