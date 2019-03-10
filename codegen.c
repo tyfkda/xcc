@@ -148,6 +148,8 @@ static void cast(const enum eType ltype, const enum eType rtype) {
     break;
   case TY_PTR:
     switch (rtype) {
+    case TY_INT:   MOVSX_EAX_RAX(); return;
+    case TY_LONG:  return;
     case TY_ARRAY: return;
     default: break;
     }

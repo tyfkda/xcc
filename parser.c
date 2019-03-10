@@ -266,7 +266,7 @@ static Node *new_node(enum NodeType type, const Type *expType) {
   return node;
 }
 
-static bool can_cast(const Type *dst, const Type *src, bool is_explicit) {
+static bool can_cast(const Type *dst, const Type *src, Node *src_node, bool is_explicit) {
   if (same_type(dst, src))
     return true;
 
@@ -337,7 +337,10 @@ static bool can_cast(const Type *dst, const Type *src, bool is_explicit) {
     break;
   case TY_PTR:
     switch (src->type) {
-    case TY_INT:  // TODO: Disable.
+    case TY_INT:
+      if (src_node->type == ND_INT && src_node->u.value == 0)  // Special handling for 0 to pointer.
+        return true;
+      break;
     case TY_LONG:
       if (is_explicit)
         return true;
@@ -352,7 +355,8 @@ static bool can_cast(const Type *dst, const Type *src, bool is_explicit) {
     case TY_ARRAY:
       if (is_explicit)
         return true;
-      if (same_type(dst->u.pa.ptrof, src->u.pa.ptrof))
+      if (same_type(dst->u.pa.ptrof, src->u.pa.ptrof) ||
+          can_cast(dst, ptrof(src->u.pa.ptrof), src_node, is_explicit))
         return true;
       break;
     default:  break;
@@ -381,7 +385,7 @@ static Node *new_node_cast(const Type *type, Node *sub, bool is_explicit) {
   if (type->type == TY_VOID || sub->expType->type == TY_VOID)
     parse_error(NULL, "cannot use `void' as a value");
 
-  if (!can_cast(type, sub->expType, is_explicit))
+  if (!can_cast(type, sub->expType, sub, is_explicit))
     parse_error(NULL, "Cannot convert value from type %d to %d", sub->expType->type, type->type);
 
   if (same_type(type, sub->expType))
@@ -1206,7 +1210,7 @@ static Node *cmp(void) {
     Node *lhs = node, *rhs= shift();
     if (lhs->expType->type == TY_PTR || rhs->expType->type == TY_PTR) {
       if (lhs->expType->type != TY_PTR || rhs->expType->type != TY_PTR ||
-          !can_cast(lhs->expType, rhs->expType, false))
+          !can_cast(lhs->expType, rhs->expType, rhs, false))
         parse_error(tok, "Cannot compare pointer to other types");
     } else {
       if (!is_number(lhs->expType->type) || !is_number(rhs->expType->type))
@@ -1244,7 +1248,7 @@ static Node *eq(void) {
     Node *lhs = node, *rhs= add();
     if (lhs->expType->type == TY_PTR || rhs->expType->type == TY_PTR) {
       if (lhs->expType->type != TY_PTR || rhs->expType->type != TY_PTR ||
-          !can_cast(lhs->expType, rhs->expType, false))
+          !can_cast(lhs->expType, rhs->expType, rhs, false))
         parse_error(tok, "Cannot compare pointer to other types");
     } else {
       if (!cast_numbers(&lhs, &rhs))
@@ -1644,7 +1648,7 @@ static Vector *assign_initial_value(Node *node, Initializer *initializer, Vector
       // Special handling for string (char[]).
       if (node->expType->u.pa.ptrof->type == TY_CHAR &&
           initializer->type == vSingle &&
-          can_cast(node->expType, initializer->u.single->expType, false)) {
+          can_cast(node->expType, initializer->u.single->expType, initializer->u.single, false)) {
         string_initializer(node, initializer->u.single, inits);
         break;
       }
