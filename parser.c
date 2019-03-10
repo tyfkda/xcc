@@ -1190,7 +1190,7 @@ static Node *cmp(void) {
     Node *lhs = node, *rhs= shift();
     if (lhs->expType->type == TY_PTR || rhs->expType->type == TY_PTR) {
       if (lhs->expType->type != TY_PTR || rhs->expType->type != TY_PTR ||
-          !same_type(lhs->expType, rhs->expType))
+          !can_cast(lhs->expType, rhs->expType, false))
         parse_error(tok, "Cannot compare pointer to other types");
     } else {
       if (!is_number(lhs->expType->type) || !is_number(rhs->expType->type))
@@ -1228,7 +1228,7 @@ static Node *eq(void) {
     Node *lhs = node, *rhs= add();
     if (lhs->expType->type == TY_PTR || rhs->expType->type == TY_PTR) {
       if (lhs->expType->type != TY_PTR || rhs->expType->type != TY_PTR ||
-          !same_type(lhs->expType, rhs->expType))
+          !can_cast(lhs->expType, rhs->expType, false))
         parse_error(tok, "Cannot compare pointer to other types");
     } else {
       if (!cast_numbers(&lhs, &rhs))
