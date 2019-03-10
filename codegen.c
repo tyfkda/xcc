@@ -263,6 +263,7 @@ static void put_rwdata(void) {
     const char *name = (const char *)global->keys->data[i];
     const GlobalVarInfo *varinfo = (const GlobalVarInfo*)global->vals->data[i];
     if (varinfo->type->type == TY_FUNC || varinfo->value == NULL ||
+        (varinfo->flag & VF_EXTERN) != 0 ||
         varinfo->type->type == TY_ENUM)
       continue;
     intptr_t value = 0;
@@ -305,7 +306,8 @@ static void put_bss(void) {
   for (int i = 0, len = map_count(global); i < len; ++i) {
     const char *name = (const char *)global->keys->data[i];
     const GlobalVarInfo *varinfo = (const GlobalVarInfo*)global->vals->data[i];
-    if (varinfo->type->type == TY_FUNC || varinfo->value != NULL)
+    if (varinfo->type->type == TY_FUNC || varinfo->value != NULL ||
+        (varinfo->flag & VF_EXTERN) != 0)
       continue;
     int align = align_size(varinfo->type);
     codesize = ALIGN(codesize, align);

@@ -21,6 +21,8 @@ int g_work;
 
 static int s_val = 456;
 
+extern int e_val;
+
 int protodecl(void);
 
 int foo() {
@@ -466,9 +468,12 @@ int main(void) {
     expect("const", 123, x);
   }
   expect("file static", 456, s_val);
+  expect("extern", 789, e_val);
 
   return 0;
 }
+
+int e_val = 789;
 
 int protodecl() {
   return 123;

@@ -68,7 +68,7 @@ GlobalVarInfo *find_global(const char *name) {
 void define_global(const Type *type, int flag, const Token *ident, Node *value) {
   const char *name = ident->u.ident;
   GlobalVarInfo *varinfo = find_global(name);
-  if (varinfo != NULL)
+  if (varinfo != NULL && !(varinfo->flag & VF_EXTERN))
     parse_error(ident, "`%s' already defined", name);
   varinfo = malloc(sizeof(*varinfo));
   varinfo->name = name;
@@ -823,6 +823,10 @@ static const Type *parse_raw_type(int *pflag) {
     }
     if (consume(TK_STATIC)) {
       flag |= VF_STATIC;
+      continue;
+    }
+    if (consume(TK_EXTERN)) {
+      flag |= VF_EXTERN;
       continue;
     }
     break;
@@ -1981,6 +1985,8 @@ static Node *toplevel(void) {
         return NULL;
       }
       if (consume(TK_ASSIGN)) {
+        if (flag & VF_EXTERN)
+          parse_error(NULL, "extern with initializer");
         parse_global_assign(type, flag, ident);
         return NULL;
       }

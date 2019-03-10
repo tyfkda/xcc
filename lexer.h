@@ -77,6 +77,7 @@ enum TokenType {
   TK_UNSIGNED,
   TK_KWCONST,
   TK_STATIC,
+  TK_EXTERN,
   TK_STRUCT,
   TK_UNION,
   TK_ENUM,
