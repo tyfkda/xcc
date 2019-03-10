@@ -71,6 +71,7 @@ enum TokenType {
   TK_RETURN,
   TK_KWVOID,
   TK_KWCHAR,
+  TK_KWSHORT,
   TK_KWINT,
   TK_KWLONG,
   TK_UNSIGNED,

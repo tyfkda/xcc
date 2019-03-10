@@ -20,8 +20,11 @@
 #define MOV_IM32_EDI(x)  ADD_CODE(0xbf, IM32(x))  // mov $0x12345678,%edi
 #define MOV_IM64_RDI(x)  ADD_CODE(0x48, 0xbf, IM64(x))  // mov $0x123456789abcdef0,%rdi
 #define MOV_IM32_RDX(x)  ADD_CODE(0x48, 0xc7, 0xc2, IM32(x)) // mov $0x0,%rdx
+#define MOVSX_AL_AX()    ADD_CODE(0x66, 0x0f, 0xbe, 0xc0)  // movsx al,%ax
 #define MOVSX_AL_EAX()   ADD_CODE(0x0f, 0xbe, 0xc0)  // movsbl %al,%eax
 #define MOVSX_AL_RAX()   ADD_CODE(0x48, 0x0f, 0xbe, 0xc0)  // movsbq %al,%rax
+#define MOVSX_AX_EAX()   ADD_CODE(0x0f, 0xbf, 0xc0)  // movsx %ax,%eax
+#define MOVSX_AX_RAX()   ADD_CODE(0x48, 0x0f, 0xbf, 0xc0)  // movsx %ax,%rax
 #define MOVZX_AL_EAX()   ADD_CODE(0x0f, 0xb6, 0xc0)  // movzbl %al,%eax
 #define MOVZX_AL_RAX()   ADD_CODE(0x48, 0x0f, 0xb6, 0xc0)  // movzbq %al,%rax
 #define MOVSX_EAX_RAX()  ADD_CODE(0x48, 0x63, 0xc0)  // movsx %eax,%rax
@@ -40,6 +43,7 @@
 #define MOV_AL_IND_RSI()   ADD_CODE(0x88, 0x06)  // mov %al,(%rsi)
 #define MOV_AL_IND_RDI()   ADD_CODE(0x88, 0x07)  // mov %al,(%rdi)
 #define MOV_IND_RAX_AL()   ADD_CODE(0x8a, 0x00)  // mov (%rax),%al
+#define MOV_IND_RAX_AX()   ADD_CODE(0x66, 0x8b, 0x00)  // mov (%rax),%al
 #define MOV_IND_RAX_EAX()  ADD_CODE(0x8b, 0x00)  // mov (%rax),%eax
 #define MOV_IND_RAX_RAX()  ADD_CODE(0x48, 0x8b, 0x00)  // mov (%rax),%rax
 #define MOV_IND_RAX_RDI()  ADD_CODE(0x48, 0x8b, 0x38)  // mov (%rax),%rdi

@@ -71,6 +71,10 @@ int main(void) {
   expect("&", 0xa0, 0xa5 & 0xf0);
   expect("|", 0x66, 0xc3 ^ 0xa5);
   {
+    short x = 3;
+    expect("short", 1, x == 3 && sizeof(x) == 2);
+  }
+  {
     long x = 3;
     expect("long arithmetic", 3, 5L + 4L - x * 2L / 1L);
   }

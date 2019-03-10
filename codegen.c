@@ -22,6 +22,8 @@ static int type_size(const Type *type) {
     return 1;  // ?
   case TY_CHAR:
     return 1;
+  case TY_SHORT:
+    return 2;
   case TY_INT:
   case TY_ENUM:
     return 4;
@@ -49,6 +51,8 @@ static int align_size(const Type *type) {
     return 1;  // ?
   case TY_CHAR:
     return 1;
+  case TY_SHORT:
+    return 2;
   case TY_INT:
   case TY_ENUM:
     return 4;
@@ -104,23 +108,34 @@ static void cast(const enum eType ltype, const enum eType rtype) {
   switch (ltype) {
   case TY_CHAR:
     switch (rtype) {
-    case TY_INT:  return;
+    case TY_SHORT: return;
+    case TY_INT:   return;
     case TY_LONG:  return;
+    default: break;
+    }
+    break;
+  case TY_SHORT:
+    switch (rtype) {
+    case TY_CHAR: MOVSX_AL_AX(); return;
+    case TY_INT:  return;
+    case TY_LONG: return;
     default: break;
     }
     break;
   case TY_INT:
     switch (rtype) {
-    case TY_CHAR: MOVSX_AL_EAX(); return;
-    case TY_ENUM: return;
-    case TY_LONG: return;
+    case TY_CHAR:  MOVSX_AL_EAX(); return;
+    case TY_SHORT: MOVSX_AX_EAX(); return;
+    case TY_ENUM:  return;
+    case TY_LONG:  return;
     default: break;
     }
     break;
   case TY_LONG:
     switch (rtype) {
-    case TY_CHAR: MOVSX_AL_RAX(); return;
-    case TY_INT:  MOVSX_EAX_RAX(); return;
+    case TY_CHAR:  MOVSX_AL_RAX(); return;
+    case TY_SHORT: MOVSX_AX_RAX(); return;
+    case TY_INT:   MOVSX_EAX_RAX(); return;
     default: break;
     }
     break;
@@ -456,6 +471,7 @@ static void gen_varref(Node *node) {
   gen_lval(node);
   switch (node->expType->type) {
   case TY_CHAR:  MOV_IND_RAX_AL(); break;
+  case TY_SHORT: MOV_IND_RAX_AX(); break;
   case TY_INT:   MOV_IND_RAX_EAX(); break;
   case TY_LONG:  MOV_IND_RAX_RAX(); break;
   case TY_ENUM:  MOV_IND_RAX_EAX(); break;

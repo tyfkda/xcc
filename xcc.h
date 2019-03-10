@@ -14,6 +14,7 @@ typedef struct Map Map;
 enum eType {
   TY_VOID,
   TY_CHAR,  // Small number type should be earlier.
+  TY_SHORT,
   TY_INT,
   TY_LONG,
   TY_ENUM,
@@ -109,8 +110,9 @@ typedef struct {
 // Node
 
 enum NodeType {
-  ND_INT,  // int
   ND_CHAR,
+  ND_SHORT,
+  ND_INT,  // int
   ND_LONG,  // long
   ND_STR,
   ND_VARREF,

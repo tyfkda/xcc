@@ -8,8 +8,9 @@
 #include "util.h"
 
 static const Type tyVoid = {.type=TY_VOID};
-static const Type tyInt = {.type=TY_INT};
 static const Type tyChar = {.type=TY_CHAR};
+static const Type tyShort = {.type=TY_SHORT};
+static const Type tyInt = {.type=TY_INT};
 static const Type tyLong = {.type=TY_LONG};
 static const Type tyEnum = {.type=TY_ENUM};
 #define tyBool  tyInt
@@ -95,6 +96,7 @@ void dump_type(FILE *fp, const Type *type) {
 static bool is_number(enum eType type) {
   switch (type) {
   case TY_CHAR:
+  case TY_SHORT:
   case TY_INT:
   case TY_LONG:
     return true;
@@ -121,6 +123,7 @@ static bool same_type(const Type *type1, const Type *type2) {
     switch (type1->type) {
     case TY_VOID:
     case TY_CHAR:
+    case TY_SHORT:
     case TY_INT:
     case TY_LONG:
       return true;
@@ -273,6 +276,16 @@ static bool can_cast(const Type *dst, const Type *src, bool is_explicit) {
   switch (dst->type) {
   case TY_CHAR:
     switch (src->type) {
+    case TY_SHORT:
+    case TY_INT:
+    case TY_LONG:
+      return true;  // TODO: Raise warning if implicit.
+    default:  break;
+    }
+    break;
+  case TY_SHORT:
+    switch (src->type) {
+    case TY_CHAR:
     case TY_INT:
     case TY_LONG:
       return true;  // TODO: Raise warning if implicit.
@@ -282,6 +295,7 @@ static bool can_cast(const Type *dst, const Type *src, bool is_explicit) {
   case TY_INT:
     switch (src->type) {
     case TY_CHAR:
+    case TY_SHORT:
     case TY_LONG:
     case TY_ENUM:
       return true;
@@ -291,6 +305,7 @@ static bool can_cast(const Type *dst, const Type *src, bool is_explicit) {
   case TY_LONG:
     switch (src->type) {
     case TY_CHAR:
+    case TY_SHORT:
     case TY_INT:
       return true;
     case TY_PTR:
@@ -400,6 +415,7 @@ static Node *new_node_numlit(enum NodeType nodetype, intptr_t val) {
   const Type *type = NULL;
   switch (nodetype) {
   case ND_CHAR:  type = &tyChar; break;
+  case ND_SHORT: type = &tyShort; break;
   case ND_INT:   type = &tyInt; break;
   case ND_LONG:  type = &tyLong; break;
   default: assert(false); break;
@@ -852,10 +868,10 @@ static const Type *parse_raw_type(int *pflag) {
       unget_token(ident);
   } else {
     static const enum TokenType kKeywords[] = {
-      TK_KWVOID, TK_KWCHAR, TK_KWINT, TK_KWLONG,
+      TK_KWVOID, TK_KWCHAR, TK_KWSHORT, TK_KWINT, TK_KWLONG,
     };
     static const enum eType kTypes[] = {
-      TY_VOID, TY_CHAR, TY_INT, TY_LONG,
+      TY_VOID, TY_CHAR, TY_SHORT, TY_INT, TY_LONG,
     };
     const int N = sizeof(kTypes) / sizeof(*kTypes);
     for (int i = 0; i < N; ++i) {

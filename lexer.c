@@ -96,6 +96,7 @@ static enum TokenType reserved_word(const char *word) {
     { "return", TK_RETURN },
     { "void", TK_KWVOID },
     { "char", TK_KWCHAR },
+    { "short", TK_KWSHORT },
     { "int", TK_KWINT },
     { "long", TK_KWLONG },
     { "const", TK_KWCONST },
