@@ -793,6 +793,10 @@ static const Type *parse_raw_type(int *pflag) {
 
   int flag = 0;
   for (;;) {
+    if (consume(TK_UNSIGNED)) {
+      flag |= VF_UNSIGNED;
+      continue;
+    }
     if (consume(TK_KWCONST)) {
       flag |= VF_CONST;
       continue;

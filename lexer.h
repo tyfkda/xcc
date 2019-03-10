@@ -73,6 +73,7 @@ enum TokenType {
   TK_KWCHAR,
   TK_KWINT,
   TK_KWLONG,
+  TK_UNSIGNED,
   TK_KWCONST,
   TK_STATIC,
   TK_STRUCT,

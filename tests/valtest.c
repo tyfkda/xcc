@@ -74,6 +74,7 @@ int main(void) {
     long x = 3;
     expect("long arithmetic", 3, 5L + 4L - x * 2L / 1L);
   }
+  expect("unsigned char", -128, (unsigned char)0x80);  // TODO: Fix
   {
     int a = 3;
     int b = 5 * 6 - 8;
