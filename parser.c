@@ -1266,7 +1266,7 @@ static Node *eq(void) {
     else
       return node;
 
-    Node *lhs = node, *rhs= add();
+    Node *lhs = node, *rhs= cmp();
     if (lhs->expType->type == TY_PTR || rhs->expType->type == TY_PTR) {
       if (lhs->expType->type != TY_PTR || rhs->expType->type != TY_PTR ||
           !can_cast(lhs->expType, rhs->expType, rhs, false))
