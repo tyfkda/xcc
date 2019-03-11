@@ -74,6 +74,7 @@ try_direct 'typedef' 123 'typedef struct {int x;} Foo; int main(){ Foo foo; foo.
 try_output_direct 'empty function' '' 'void main(){}'
 try_direct 'Undeclared struct typedef' 8 'typedef struct FILE FILE; int main(){ return sizeof(FILE*); }'
 try_direct 'late declare struct' 42 'struct Foo *p; struct Foo {int x;}; int main(){ struct Foo foo; p = &foo; p->x = 42; return p->x; }'
+try_direct 'typedef func-ptr' 84 'typedef int (*Func)(int); int twice(Func f, int x) { return f(f(x)); } int double(int x) { return x * 2; } int main(){ return twice(&double, 21); }'
 
 # error cases
 echo ''

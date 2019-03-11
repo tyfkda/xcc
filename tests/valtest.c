@@ -40,7 +40,7 @@ int sub(int x, int y) {
   return x - y;
 }
 
-int apply(void *f, int x, int y) {
+int apply(int (*f)(int, int), int x, int y) {
   return f(x, y);
 }
 
@@ -290,6 +290,10 @@ int main(void) {
     int x = 0;
     expect("cast pointer", 0, *(int*)&x);
   }
+  {
+    char x, *p = &x;
+    expect("cast pointer", 1, (void*)&x == (void(*)())p);
+  }
   expect("global cleared", 0, g_zero);
   expect("global initializer", 123, g_123);
   expect("global struct initializer: int", 42, g_struct.x);
@@ -430,7 +434,8 @@ int main(void) {
   }
   expect("sizeof(expr)", 4, sizeof(1 + 2 * 3));
   expect("sizeof(str) include nul", 12, sizeof("hello\0world"));
-  expect("sizeof(struct pointer)", sizeof(void*), sizeof(struct Undefined*));
+  expect("sizeof(struct ptr)", sizeof(void*), sizeof(struct Undefined*));
+  expect("sizeof(func ptr)", 8, sizeof(int (*)()));
   {
     int a[3] = {1, 2, 3};
     expect("array initializer", 1, a[0] == 1 && a[1] == 2 && a[2] == 3);

@@ -21,6 +21,7 @@ static Node *stmt(void);
 static Node *expr(void);
 static Node *cast_expr(void);
 static Node *prim(void);
+static Vector *funparams(void);
 
 //
 
@@ -150,7 +151,16 @@ static bool same_type(const Type *type1, const Type *type2) {
       type2 = type2->u.pa.ptrof;
       continue;
     case TY_FUNC:
-      return type1 == type2;
+      if (!same_type(type1->u.func.ret, type2->u.func.ret) ||
+          type1->u.func.params->len != type2->u.func.params->len)
+        return false;
+      for (int i = 0, len = type1->u.func.params->len; i < len; ++i) {
+        VarInfo *v1 = (VarInfo*)type1->u.func.params->data[i];
+        VarInfo *v2 = (VarInfo*)type2->u.func.params->data[i];
+        if (!same_type(v1->type, v2->type))
+          return false;
+      }
+      return true;
     case TY_STRUCT:
     case TY_UNION:
       {
@@ -557,11 +567,11 @@ static Node *new_node_sizeof(const Type *type) {
 }
 
 static Node *funcall(Node *func) {
-  if (!(func->expType->type == TY_FUNC ||
-        func->expType->type == TY_PTR))  // TODO: Restrict to function pointer.
-    parse_error(NULL, "Cannot call except funtion");
+  const Type *functype;
 
-  const Type *functype = func->expType->type == TY_FUNC ? func->expType : NULL;
+  if (!((functype = func->expType)->type == TY_FUNC ||
+        (func->expType->type == TY_PTR && (functype = func->expType->u.pa.ptrof)->type == TY_FUNC)))
+    parse_error(NULL, "Cannot call except funtion");
 
   Vector *args = NULL;
   Token *tok;
@@ -569,7 +579,7 @@ static Node *funcall(Node *func) {
     args = new_vector();
     for (;;) {
       Node *arg = expr();
-      if (functype != NULL && functype->u.func.params != NULL && args->len < functype->u.func.params->len) {
+      if (functype->u.func.params != NULL && args->len < functype->u.func.params->len) {
         const Type * type = ((VarInfo*)functype->u.func.params->data[args->len])->type;
         arg = new_node_cast(type, arg, false);
       }
@@ -582,7 +592,7 @@ static Node *funcall(Node *func) {
     }
   }
 
-  if (functype != NULL && functype->u.func.params != NULL && (args != NULL ? args->len : 0) != functype->u.func.params->len)
+  if (functype->u.func.params != NULL && (args != NULL ? args->len : 0) != functype->u.func.params->len)
     parse_error(tok, "function `%s' expect %d arguments, but %d", func->u.varref.ident, functype->u.func.params->len, (args != NULL ? args->len : 0));
 
   return new_node_funcall(func, args);
@@ -944,6 +954,9 @@ static const Type *parse_type_modifier(const Type* type) {
 }
 
 static const Type *parse_type_suffix(const Type *type) {
+  if (type == NULL)
+    return NULL;
+
   if (!consume(TK_LBRACKET))
     return type;
   Token *tok;
@@ -973,17 +986,41 @@ static bool parse_var_def(const Type **prawType, const Type** ptype, int *pflag,
   const Type *type = parse_type_modifier(*prawType);
 
   Token *ident = NULL;
-  if (type->type != TY_VOID) {
+  if (consume(TK_LPAR)) {  // Funcion type.
+    consume(TK_MUL);  // Skip `*' if exists.
     ident = consume(TK_IDENT);
     if (ident == NULL && !allow_noname)
       parse_error(NULL, "Ident expected");
-    type = parse_type_suffix(type);
+    if (!consume(TK_RPAR))
+      parse_error(NULL, "`)' expected");
+    if (!consume(TK_LPAR))
+      parse_error(NULL, "`(' expected");
+
+    Vector *params = funparams();
+    type = ptrof(new_func_type(type, params));
+  } else {
+    if (type->type != TY_VOID) {
+      ident = consume(TK_IDENT);
+      if (ident == NULL && !allow_noname)
+        parse_error(NULL, "Ident expected");
+    }
   }
+  if (type->type != TY_VOID)
+    type = parse_type_suffix(type);
 
   *ptype = type;
-  *pident = ident;
+  if (pident != NULL)
+    *pident = ident;
 
   return true;
+}
+
+static const Type *parse_full_type(int *pflag, Token **pident) {
+  const Type *rawType = NULL;
+  const Type *type;
+  if (!parse_var_def(&rawType, &type, pflag, pident, true))
+    return NULL;
+  return type;
 }
 
 // Parse struct or union definition `{...}`
@@ -1017,10 +1054,8 @@ static StructInfo *parse_struct(bool is_union) {
 static Node *parse_sizeof(void) {
   const Type *type;
   if (consume(TK_LPAR)) {
-    type = parse_raw_type(NULL);
-    if (type != NULL) {  // Type
-      type = parse_type_suffix(parse_type_modifier(type));
-    } else {
+    type = parse_full_type(NULL, NULL);
+    if (type == NULL) {
       Node *node = expr();
       type = node->expType;
     }
@@ -1176,9 +1211,8 @@ static Node *cast_expr(void) {
   Token *lpar;
   if ((lpar = consume(TK_LPAR)) != NULL) {
     int flag;
-    const Type *type = parse_raw_type(&flag);
+    const Type *type = parse_full_type(&flag, NULL);
     if (type != NULL) {  // Cast
-      type = parse_type_suffix(parse_type_modifier(type));
       if (!consume(TK_RPAR))
         parse_error(NULL, "`)' expected");
       Node *node = cast_expr();
@@ -1994,15 +2028,17 @@ static Node *parse_defun(const Type *rettype, int flag, Token *ident) {
 
 static void parse_typedef(void) {
   int flag;
-  const Type *type = parse_raw_type(&flag);
+  Token *ident;
+  const Type *type = parse_full_type(&flag, &ident);
   if (type == NULL)
     parse_error(NULL, "type expected");
-  type = parse_type_suffix(parse_type_modifier(type));
   not_void(type);
 
-  Token *ident = consume(TK_IDENT);
-  if (ident == NULL)
-    parse_error(NULL, "ident expected");
+  if (ident == NULL) {
+    ident = consume(TK_IDENT);
+    if (ident == NULL)
+      parse_error(NULL, "ident expected");
+  }
   const char *name = ident->u.ident;
 
   map_put(typedef_map, name, type);
