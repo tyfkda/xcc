@@ -572,18 +572,7 @@ static void gen_varref(Node *node) {
   }
 }
 
-static void gen_defun(Node *node) {
-  Defun *defun = node->u.defun;
-  add_label(defun->name);
-  if (defun->stmts == NULL) {
-    RET();
-    return;
-  }
-
-  curfunc = defun;
-  curscope = defun->top_scope;
-  defun->ret_label = alloc_label();
-
+static int arrange_scope_vars(Defun *defun) {
   // Calc local variable offsets.
   // Map parameters from the bottom (to reduce offsets).
   int frame_size = 0;
@@ -605,15 +594,10 @@ static void gen_defun(Node *node) {
     if (frame_size < scope_size)
       frame_size = scope_size;
   }
-  frame_size = ALIGN(frame_size, FRAME_ALIGN);
+  return ALIGN(frame_size, FRAME_ALIGN);
+}
 
-  // Prologue
-  // Allocate variable bufer.
-  PUSH_RBP();
-  MOV_RSP_RBP();
-  if (frame_size > 0)
-    SUB_IM32_RSP(frame_size);
-
+static void put_args_to_stack(Defun *defun) {
   // Store arguments into local frame.
   int len = len = defun->params != NULL ? defun->params->len : 0;
   if (len > 6)
@@ -664,11 +648,34 @@ static void gen_defun(Node *node) {
       break;
     }
   }
+}
+
+static void gen_defun(Node *node) {
+  Defun *defun = node->u.defun;
+  add_label(defun->name);
+  if (defun->stmts == NULL) {
+    RET();
+    return;
+  }
+
+  int frame_size = arrange_scope_vars(defun);
+
+  curfunc = defun;
+  curscope = defun->top_scope;
+  defun->ret_label = alloc_label();
+
+  // Prologue
+  // Allocate variable bufer.
+  PUSH_RBP();
+  MOV_RSP_RBP();
+  if (frame_size > 0)
+    SUB_IM32_RSP(frame_size);
+
+  put_args_to_stack(defun);
 
   // Statements
-  for (int i = 0; i < defun->stmts->len; ++i) {
+  for (int i = 0; i < defun->stmts->len; ++i)
     gen((Node*)defun->stmts->data[i]);
-  }
 
   // Epilogue
   add_label(defun->ret_label);
