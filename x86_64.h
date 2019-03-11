@@ -10,6 +10,7 @@
 #endif
 
 #define IM8(x)   (x)
+#define IM16(x)  (x), ((x) >> 8)
 #define IM32(x)  (x), ((x) >> 8), ((x) >> 16), ((x) >> 24)
 #define IM64(x)  (x), ((x) >> 8), ((x) >> 16), ((x) >> 24), ((x) >> 32), ((x) >> 40), ((x) >> 48), ((x) >> 56)
 
@@ -89,6 +90,8 @@
 #define ADD_RDI_RAX()    ADD_CODE(0x48, 0x01, 0xf8)  // add %rdi,%rax
 #define ADD_IM32_RAX(x)  ADD_CODE(0x48, 0x05, IM32(x))  // add $12345678,%rax
 #define ADD_IM32_RSP(x)  ADD_CODE(0x48, 0x81, 0xc4, IM32(x))  // add $IM32,%rsp
+#define ADD_IM16_IND_RAX(x)  ADD_CODE(0x66, 0x81, 0x00, IM16(x))  // addw $IM16,(%rax)
+#define ADD_IM32_IND_RAX(x)  ADD_CODE(0x81, 0x00, IM32(x))  // addl $IM32,(%rax)
 #define ADD_IND_RDI_RAX()  ADD_CODE(0x48, 0x03, 0x07)  // add (%rdi),%rax
 #define SUB_DIL_AL()     ADD_CODE(0x40, 0x28, 0xf8)  // sub %dil,%al
 #define SUB_DI_AX()      ADD_CODE(0x66, 0x29, 0xf8)  // sub %di,%ax
@@ -96,6 +99,8 @@
 #define SUB_RDI_RAX()    ADD_CODE(0x48, 0x29, 0xf8)  // sub %rdi,%rax
 #define SUB_IM32_RAX(x)  ADD_CODE(0x48, 0x2d, IM32(x))  // sub $12345678,%rax
 #define SUB_IM32_RSP(x)  ADD_CODE(0x48, 0x81, 0xec, IM32(x))  // sub $IM32,%rsp
+#define SUB_IM16_IND_RAX(x)  ADD_CODE(0x66, 0x81, 0x28, IM16(x))  // subw $IM16,(%rax)
+#define SUB_IM32_IND_RAX(x)  ADD_CODE(0x81, 0x28, IM32(x))  // subl $IM32,(%rax)
 #define MUL_DIL()        ADD_CODE(0x40, 0xf6, 0xe7)  // mul %dil
 #define MUL_DI()         ADD_CODE(0x66, 0xf7, 0xe7)  // mul %di
 #define MUL_EDI()        ADD_CODE(0xf7, 0xe7)  // mul %edi

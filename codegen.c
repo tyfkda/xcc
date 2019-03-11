@@ -1184,8 +1184,9 @@ void gen(Node *node) {
     case TY_PTR:
       {
         int size = type_size(node->expType->u.pa.ptrof);
-        if (node->type == ND_POSTINC)  ADD_IM32_RAX(size);
-        else                           SUB_IM32_RAX(size);
+        assert(size < (1 << 15));  // TODO:
+        if (node->type == ND_POSTINC)  ADD_IM16_IND_RAX(size);
+        else                           SUB_IM16_IND_RAX(size);
       }
       break;
     default:
