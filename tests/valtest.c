@@ -40,7 +40,7 @@ int sub(int x, int y) {
   return x - y;
 }
 
-int apply(void *f, int x, int y) {
+int apply(int (*f)(int, int), int x, int y) {
   return f(x, y);
 }
 
