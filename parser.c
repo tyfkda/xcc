@@ -612,6 +612,22 @@ static Node *add_node(Token *tok, Node *lhs, Node *rhs) {
     }
     break;
 
+  case TY_SHORT:
+    switch (r->expType->type) {
+    case TY_SHORT:
+      return new_node_bop(ND_ADD, l->expType, l, r);
+    case TY_INT:
+    case TY_LONG:
+      return new_node_bop(ND_ADD, l->expType, new_node_cast(r->expType, l, false), r);
+    case TY_PTR:
+      return new_node_bop(ND_PTRADD, r->expType, r, new_node_cast(&tySize, l, false));
+    case TY_ARRAY:
+      return new_node_bop(ND_PTRADD, array_to_ptr(r->expType), r,  new_node_cast(&tySize, l, false));
+    default:
+      break;
+    }
+    break;
+
   case TY_INT:
     switch (r->expType->type) {
     case TY_INT:
@@ -619,9 +635,9 @@ static Node *add_node(Token *tok, Node *lhs, Node *rhs) {
     case TY_LONG:
       return new_node_bop(ND_ADD, r->expType, new_node_cast(r->expType, l, false), r);
     case TY_PTR:
-      return new_node_bop(ND_PTRADD, r->expType, r, l);
+      return new_node_bop(ND_PTRADD, r->expType, r, new_node_cast(&tySize, l, false));
     case TY_ARRAY:
-      return new_node_bop(ND_PTRADD, array_to_ptr(r->expType), r, l);
+      return new_node_bop(ND_PTRADD, array_to_ptr(r->expType), r,  new_node_cast(&tySize, l, false));
     default:
       break;
     }
@@ -661,10 +677,24 @@ static Node *sub_node(Token *tok, Node *lhs, Node *rhs) {
     }
     break;
 
+  case TY_SHORT:
+    switch (rhs->expType->type) {
+    case TY_CHAR:
+    case TY_SHORT:
+      return new_node_bop(ND_SUB, lhs->expType, lhs, new_node_cast(lhs->expType, rhs, false));
+    case TY_INT:
+    case TY_LONG:
+      return new_node_bop(ND_SUB, rhs->expType, new_node_cast(rhs->expType, lhs, false), rhs);
+    default:
+      break;
+    }
+    break;
+
   case TY_INT:
     switch (rhs->expType->type) {
-    case TY_INT:
     case TY_CHAR:
+    case TY_SHORT:
+    case TY_INT:
       return new_node_bop(ND_SUB, lhs->expType, lhs, new_node_cast(lhs->expType, rhs, false));
     case TY_LONG:
       return new_node_bop(ND_SUB, rhs->expType, new_node_cast(rhs->expType, lhs, false), rhs);
@@ -1211,6 +1241,18 @@ static Node *shift(void) {
   }
 }
 
+static bool cast_numbers(Node **pLhs, Node **pRhs) {
+  enum eType ltype = (*pLhs)->expType->type, rtype = (*pRhs)->expType->type;
+  if (!is_number(ltype) || !is_number(rtype))
+    return false;
+
+  if (ltype < rtype)
+    *pLhs = new_node_cast((*pRhs)->expType, *pLhs, false);
+  else if (ltype > rtype)
+    *pRhs = new_node_cast((*pLhs)->expType, *pRhs, false);
+  return true;
+}
+
 static Node *cmp(void) {
   Node *node = shift();
 
@@ -1234,23 +1276,11 @@ static Node *cmp(void) {
           !can_cast(lhs->expType, rhs->expType, rhs, false))
         parse_error(tok, "Cannot compare pointer to other types");
     } else {
-      if (!is_number(lhs->expType->type) || !is_number(rhs->expType->type))
+      if (!cast_numbers(&lhs, &rhs))
         parse_error(tok, "Cannot compare except numbers");
     }
     node = new_node_bop(t, &tyBool, lhs, rhs);
   }
-}
-
-static bool cast_numbers(Node **pLhs, Node **pRhs) {
-  enum eType ltype = (*pLhs)->expType->type, rtype = (*pRhs)->expType->type;
-  if (!is_number(ltype) || !is_number(rtype))
-    return false;
-
-  if (ltype <= rtype)
-    *pLhs = new_node_cast((*pRhs)->expType, *pLhs, false);
-  else
-    *pRhs = new_node_cast((*pLhs)->expType, *pRhs, false);
-  return true;
 }
 
 static Node *eq(void) {
@@ -1282,9 +1312,13 @@ static Node *eq(void) {
 static Node *and(void) {
   Node *node = eq();
   for (;;) {
-    if (consume(TK_AND))
-      node = new_node_bop(ND_BITAND, &tyBool, node, eq());
-    else
+    Token *tok;
+    if ((tok = consume(TK_AND)) != NULL) {
+      Node *lhs = node, *rhs= eq();
+      if (!cast_numbers(&lhs, &rhs))
+        parse_error(tok, "Cannot compare except numbers");
+      node = new_node_bop(ND_BITAND, lhs->expType, lhs, rhs);
+    } else
       return node;
   }
 }
@@ -1292,9 +1326,13 @@ static Node *and(void) {
 static Node *xor(void) {
   Node *node = and();
   for (;;) {
-    if (consume(TK_HAT))
-      node = new_node_bop(ND_BITXOR, &tyBool, node, and());
-    else
+    Token *tok;
+    if ((tok = consume(TK_HAT)) != NULL) {
+      Node *lhs = node, *rhs= and();
+      if (!cast_numbers(&lhs, &rhs))
+        parse_error(tok, "Cannot compare except numbers");
+      node = new_node_bop(ND_BITXOR, lhs->expType, lhs, rhs);
+    } else
       return node;
   }
 }
@@ -1302,9 +1340,13 @@ static Node *xor(void) {
 static Node *or(void) {
   Node *node = xor();
   for (;;) {
-    if (consume(TK_OR))
-      node = new_node_bop(ND_BITOR, &tyBool, node, xor());
-    else
+    Token *tok;
+    if ((tok = consume(TK_OR)) != NULL) {
+      Node *lhs = node, *rhs= xor();
+      if (!cast_numbers(&lhs, &rhs))
+        parse_error(tok, "Cannot compare except numbers");
+      node = new_node_bop(ND_BITOR, lhs->expType, lhs, rhs);
+    } else
       return node;
   }
 }

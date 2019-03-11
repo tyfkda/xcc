@@ -112,7 +112,7 @@ static void cast(const enum eType ltype, const enum eType rtype) {
     case TY_SHORT: return;
     case TY_INT:   return;
     case TY_LONG:  return;
-    default: break;
+    default: assert(false); break;
     }
     break;
   case TY_SHORT:
@@ -120,7 +120,7 @@ static void cast(const enum eType ltype, const enum eType rtype) {
     case TY_CHAR: MOVSX_AL_AX(); return;
     case TY_INT:  return;
     case TY_LONG: return;
-    default: break;
+    default: assert(false); break;
     }
     break;
   case TY_INT:
@@ -129,7 +129,7 @@ static void cast(const enum eType ltype, const enum eType rtype) {
     case TY_SHORT: MOVSX_AX_EAX(); return;
     case TY_ENUM:  return;
     case TY_LONG:  return;
-    default: break;
+    default: assert(false); break;
     }
     break;
   case TY_LONG:
@@ -138,14 +138,14 @@ static void cast(const enum eType ltype, const enum eType rtype) {
     case TY_SHORT: MOVSX_AX_RAX(); return;
     case TY_INT:   MOVSX_EAX_RAX(); return;
     case TY_PTR:   return;
-    default: break;
+    default: assert(false); break;
     }
     break;
   case TY_ENUM:
     switch (rtype) {
     case TY_INT: return;
     case TY_LONG: return;
-    default: break;
+    default: assert(false); break;
     }
     break;
   case TY_PTR:
@@ -153,15 +153,16 @@ static void cast(const enum eType ltype, const enum eType rtype) {
     case TY_INT:   MOVSX_EAX_RAX(); return;
     case TY_LONG:  return;
     case TY_ARRAY: return;
-    default: break;
+    default: assert(false); break;
     }
     break;
   default:
+    assert(false); break;
     break;
   }
 
   fprintf(stderr, "ltype=%d, rtype=%d\n", ltype, rtype);
-  assert(false);
+  assert(!"Cast failed");
 }
 
 static Map *label_map;
@@ -876,27 +877,30 @@ static void gen_arith(enum NodeType nodeType, enum eType expType, enum eType rhs
   switch (nodeType) {
   case ND_ADD:
     switch (expType) {
-    case TY_CHAR: ADD_DIL_AL(); break;
-    case TY_INT:  ADD_EDI_EAX(); break;
-    case TY_LONG: ADD_RDI_RAX(); break;
+    case TY_CHAR:  ADD_DIL_AL(); break;
+    case TY_SHORT: ADD_DI_AX(); break;
+    case TY_INT:   ADD_EDI_EAX(); break;
+    case TY_LONG:  ADD_RDI_RAX(); break;
     default: assert(false); break;
     }
     break;
 
   case ND_SUB:
     switch (expType) {
-    case TY_CHAR: SUB_DIL_AL(); break;
-    case TY_INT:  SUB_EDI_EAX(); break;
-    case TY_LONG: SUB_RDI_RAX(); break;
+    case TY_CHAR:  SUB_DIL_AL(); break;
+    case TY_SHORT: SUB_DI_AX(); break;
+    case TY_INT:   SUB_EDI_EAX(); break;
+    case TY_LONG:  SUB_RDI_RAX(); break;
     default: assert(false); break;
     }
     break;
 
   case ND_MUL:
     switch (expType) {
-    case TY_CHAR: MUL_DIL(); break;
-    case TY_INT:  MUL_EDI(); break;
-    case TY_LONG: MUL_RDI(); break;
+    case TY_CHAR:  MUL_DIL(); break;
+    case TY_SHORT: MUL_DI(); break;
+    case TY_INT:   MUL_EDI(); break;
+    case TY_LONG:  MUL_RDI(); break;
     default: assert(false); break;
     }
 
@@ -905,9 +909,10 @@ static void gen_arith(enum NodeType nodeType, enum eType expType, enum eType rhs
   case ND_DIV:
     MOV_IM32_RDX(0);
     switch (expType) {
-    case TY_CHAR: DIV_DIL(); break;
-    case TY_INT:  DIV_EDI(); break;
-    case TY_LONG: DIV_RDI(); break;
+    case TY_CHAR:  DIV_DIL(); break;
+    case TY_SHORT: DIV_DI(); break;
+    case TY_INT:   DIV_EDI(); break;
+    case TY_LONG:  DIV_RDI(); break;
     default: assert(false); break;
     }
     break;
@@ -915,36 +920,40 @@ static void gen_arith(enum NodeType nodeType, enum eType expType, enum eType rhs
   case ND_MOD:
     MOV_IM32_RDX(0);
     switch (expType) {
-    case TY_CHAR: DIV_DIL(); MOV_DL_AL(); break;
-    case TY_INT:  DIV_EDI(); MOV_EDX_EAX(); break;
-    case TY_LONG: DIV_RDI(); MOV_RDX_RAX(); break;
+    case TY_CHAR:  DIV_DIL(); MOV_DL_AL(); break;
+    case TY_SHORT: DIV_DI();  MOV_DX_AX(); break;
+    case TY_INT:   DIV_EDI(); MOV_EDX_EAX(); break;
+    case TY_LONG:  DIV_RDI(); MOV_RDX_RAX(); break;
     default: assert(false); break;
     }
     break;
 
   case ND_BITAND:
     switch (expType) {
-    case TY_CHAR: AND_DIL_AL(); break;
-    case TY_INT:  AND_EDI_EAX(); break;
-    case TY_LONG: AND_RDI_RAX(); break;
+    case TY_CHAR:  AND_DIL_AL(); break;
+    case TY_SHORT: AND_DI_AX(); break;
+    case TY_INT:   AND_EDI_EAX(); break;
+    case TY_LONG:  AND_RDI_RAX(); break;
     default: assert(false); break;
     }
     break;
 
   case ND_BITOR:
     switch (expType) {
-    case TY_CHAR: OR_DIL_AL(); break;
-    case TY_INT:  OR_EDI_EAX(); break;
-    case TY_LONG: OR_RDI_RAX(); break;
+    case TY_CHAR:  OR_DIL_AL(); break;
+    case TY_SHORT: OR_DI_AX(); break;
+    case TY_INT:   OR_EDI_EAX(); break;
+    case TY_LONG:  OR_RDI_RAX(); break;
     default: assert(false); break;
     }
     break;
 
   case ND_BITXOR:
     switch (expType) {
-    case TY_CHAR: XOR_DIL_AL(); break;
-    case TY_INT:  XOR_EDI_EAX(); break;
-    case TY_LONG: XOR_RDI_RAX(); break;
+    case TY_CHAR:  XOR_DIL_AL(); break;
+    case TY_SHORT: XOR_DI_AX(); break;
+    case TY_INT:   XOR_EDI_EAX(); break;
+    case TY_LONG:  XOR_RDI_RAX(); break;
     default: assert(false); break;
     }
     break;
@@ -952,23 +961,26 @@ static void gen_arith(enum NodeType nodeType, enum eType expType, enum eType rhs
   case ND_LSHIFT:
   case ND_RSHIFT:
     switch (rhsType) {
-    case TY_CHAR: MOV_DIL_CL(); break;
-    case TY_INT:  MOV_EDI_ECX(); break;
-    case TY_LONG: MOV_RDI_RCX(); break;
+    case TY_CHAR:  MOV_DIL_CL(); break;
+    case TY_SHORT: MOV_DI_CX(); break;
+    case TY_INT:   MOV_EDI_ECX(); break;
+    case TY_LONG:  MOV_RDI_RCX(); break;
     default: assert(false); break;
     }
     if (nodeType == ND_LSHIFT) {
       switch (expType) {
-      case TY_CHAR: SHL_CL_AL(); break;
-      case TY_INT:  SHL_CL_EAX(); break;
-      case TY_LONG: SHL_CL_RAX(); break;
+      case TY_CHAR:  SHL_CL_AL(); break;
+      case TY_SHORT: SHL_CL_AX(); break;
+      case TY_INT:   SHL_CL_EAX(); break;
+      case TY_LONG:  SHL_CL_RAX(); break;
       default: assert(false); break;
       }
     } else {
       switch (expType) {
-      case TY_CHAR: SHR_CL_AL(); break;
-      case TY_INT:  SHR_CL_EAX(); break;
-      case TY_LONG: SHR_CL_RAX(); break;
+      case TY_CHAR:  SHR_CL_AL(); break;
+      case TY_SHORT: SHR_CL_AX(); break;
+      case TY_INT:   SHR_CL_EAX(); break;
+      case TY_LONG:  SHR_CL_RAX(); break;
       default: assert(false); break;
       }
     }
@@ -1067,9 +1079,12 @@ void gen(Node *node) {
     POP_RDI();
     switch (node->u.bop.lhs->expType->type) {
     case TY_CHAR:  MOV_AL_IND_RDI(); break;
+    case TY_SHORT: MOV_AX_IND_RDI(); break;
     case TY_INT:   MOV_EAX_IND_RDI(); break;
-    default:
-    case TY_PTR:   MOV_RAX_IND_RDI(); break;
+    case TY_LONG: case TY_PTR:
+      MOV_RAX_IND_RDI();
+      break;
+    default: assert(false); break;
     }
     return;
 
@@ -1085,8 +1100,10 @@ void gen(Node *node) {
       switch (node->u.bop.lhs->expType->type) {
       case TY_CHAR:  MOV_IND_RAX_AL(); break;
       case TY_INT:   MOV_IND_RAX_EAX(); break;
-      default:
-      case TY_PTR:   MOV_IND_RAX_RAX(); break;
+      case TY_LONG: case TY_PTR:
+        MOV_IND_RAX_RAX();
+        break;
+      default: assert(false); break;
       }
 
       POP_RDI();  // %rdi=rhs
@@ -1096,8 +1113,10 @@ void gen(Node *node) {
       switch (node->expType->type) {
       case TY_CHAR:  MOV_AL_IND_RSI(); break;
       case TY_INT:   MOV_EAX_IND_RSI(); break;
-      default:
-      case TY_PTR:   MOV_RAX_IND_RSI(); break;
+      case TY_LONG: case TY_PTR:
+        MOV_RAX_IND_RSI();
+        break;
+      default: assert(false); break;
       }
     }
     return;
@@ -1109,11 +1128,21 @@ void gen(Node *node) {
     case TY_CHAR:
       if (node->type == ND_PREINC)  INCB_IND_RAX();
       else                          DECB_IND_RAX();
-      MOV_IND_RAX_RAX();
+      MOV_IND_RAX_AL();
+      break;
+    case TY_SHORT:
+      if (node->type == ND_PREINC)  INCW_IND_RAX();
+      else                          DECW_IND_RAX();
+      MOV_IND_RAX_AX();
       break;
     case TY_INT:
       if (node->type == ND_PREINC)  INCL_IND_RAX();
       else                          DECL_IND_RAX();
+      MOV_IND_RAX_EAX();
+      break;
+    case TY_LONG:
+      if (node->type == ND_PREINC)  INCQ_IND_RAX();
+      else                          DECQ_IND_RAX();
       MOV_IND_RAX_RAX();
       break;
     case TY_PTR:
@@ -1140,9 +1169,17 @@ void gen(Node *node) {
       if (node->type == ND_POSTINC)  INCB_IND_RAX();
       else                           DECB_IND_RAX();
       break;
+    case TY_SHORT:
+      if (node->type == ND_POSTINC)  INCW_IND_RAX();
+      else                           DECW_IND_RAX();
+      break;
     case TY_INT:
       if (node->type == ND_POSTINC)  INCL_IND_RAX();
       else                           DECL_IND_RAX();
+      break;
+    case TY_LONG:
+      if (node->type == ND_POSTINC)  INCQ_IND_RAX();
+      else                           DECQ_IND_RAX();
       break;
     case TY_PTR:
       {
@@ -1247,6 +1284,7 @@ void gen(Node *node) {
       enum NodeType type = node->type;
       Node *lhs = node->u.bop.lhs;
       Node *rhs = node->u.bop.rhs;
+      assert(lhs->expType->type == rhs->expType->type);
       if (type == ND_LE || type == ND_GT) {
         Node *tmp = lhs; lhs = rhs; rhs = tmp;
         type = type == ND_LE ? ND_GE : ND_LT;
@@ -1312,11 +1350,11 @@ void gen(Node *node) {
     {
       Node *lhs = node->u.bop.lhs, *rhs = node->u.bop.rhs;
       gen(rhs);
-      cast(TY_INT, rhs->expType->type);  // TODO: Fix
+      assert(rhs->expType->type == TY_LONG);
       long size = type_size(lhs->expType->u.pa.ptrof);
       if (size != 1) {
-        MOV_IM32_EDI(size);
-        MUL_EDI();
+        MOV_IM32_RDI(size);
+        MUL_RDI();
       }
       PUSH_RAX();
       gen(lhs);
