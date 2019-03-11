@@ -954,6 +954,9 @@ static const Type *parse_type_modifier(const Type* type) {
 }
 
 static const Type *parse_type_suffix(const Type *type) {
+  if (type == NULL)
+    return NULL;
+
   if (!consume(TK_LBRACKET))
     return type;
   Token *tok;
@@ -1006,9 +1009,18 @@ static bool parse_var_def(const Type **prawType, const Type** ptype, int *pflag,
     type = parse_type_suffix(type);
 
   *ptype = type;
-  *pident = ident;
+  if (pident != NULL)
+    *pident = ident;
 
   return true;
+}
+
+static const Type *parse_full_type(int *pflag, Token **pident) {
+  const Type *rawType = NULL;
+  const Type *type;
+  if (!parse_var_def(&rawType, &type, pflag, pident, true))
+    return NULL;
+  return type;
 }
 
 // Parse struct or union definition `{...}`
@@ -1042,10 +1054,8 @@ static StructInfo *parse_struct(bool is_union) {
 static Node *parse_sizeof(void) {
   const Type *type;
   if (consume(TK_LPAR)) {
-    type = parse_raw_type(NULL);
-    if (type != NULL) {  // Type
-      type = parse_type_suffix(parse_type_modifier(type));
-    } else {
+    type = parse_full_type(NULL, NULL);
+    if (type == NULL) {
       Node *node = expr();
       type = node->expType;
     }
@@ -1201,9 +1211,8 @@ static Node *cast_expr(void) {
   Token *lpar;
   if ((lpar = consume(TK_LPAR)) != NULL) {
     int flag;
-    const Type *type = parse_raw_type(&flag);
+    const Type *type = parse_full_type(&flag, NULL);
     if (type != NULL) {  // Cast
-      type = parse_type_suffix(parse_type_modifier(type));
       if (!consume(TK_RPAR))
         parse_error(NULL, "`)' expected");
       Node *node = cast_expr();
@@ -2019,15 +2028,17 @@ static Node *parse_defun(const Type *rettype, int flag, Token *ident) {
 
 static void parse_typedef(void) {
   int flag;
-  const Type *type = parse_raw_type(&flag);
+  Token *ident;
+  const Type *type = parse_full_type(&flag, &ident);
   if (type == NULL)
     parse_error(NULL, "type expected");
-  type = parse_type_suffix(parse_type_modifier(type));
   not_void(type);
 
-  Token *ident = consume(TK_IDENT);
-  if (ident == NULL)
-    parse_error(NULL, "ident expected");
+  if (ident == NULL) {
+    ident = consume(TK_IDENT);
+    if (ident == NULL)
+      parse_error(NULL, "ident expected");
+  }
   const char *name = ident->u.ident;
 
   map_put(typedef_map, name, type);
