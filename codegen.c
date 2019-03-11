@@ -599,11 +599,12 @@ static int arrange_scope_vars(Defun *defun) {
 
 static void put_args_to_stack(Defun *defun) {
   // Store arguments into local frame.
-  int len = len = defun->params != NULL ? defun->params->len : 0;
+  Vector *params = defun->type->u.func.params;
+  int len = len = params != NULL ? params->len : 0;
   if (len > 6)
     error("Parameter count exceeds 6 (%d)", len);
   for (int i = 0; i < len; ++i) {
-    const VarInfo *varinfo = (const VarInfo*)defun->params->data[i];
+    const VarInfo *varinfo = (const VarInfo*)params->data[i];
     int offset = varinfo->offset;
     switch (varinfo->type->type) {
     case TY_CHAR:  // 1

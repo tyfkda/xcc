@@ -253,11 +253,10 @@ static void exit_scope(void) {
   curscope = curscope->parent;
 }
 
-static Defun *new_defun(const Type *rettype, const char *name, Vector *params) {
+static Defun *new_defun(const Type *type, const char *name) {
   Defun *defun = malloc(sizeof(*defun));
-  defun->rettype = rettype;
+  defun->type = type;
   defun->name = name;
-  defun->params = params;
   defun->top_scope = NULL;
   defun->stmts = NULL;
   defun->all_scopes = new_vector();
@@ -1550,8 +1549,9 @@ static Node *parse_return(void) {
 
   Node *val = NULL;
   Token *tok;
+  const Type *rettype = curfunc->type->u.func.ret;
   if ((tok = consume(TK_SEMICOL)) != NULL) {
-    if (curfunc->rettype->type != TY_VOID)
+    if (rettype->type != TY_VOID)
       parse_error(tok, "`return' required a value");
   } else {
     tok = fetch_token();
@@ -1559,9 +1559,9 @@ static Node *parse_return(void) {
     if (!consume(TK_SEMICOL))
       parse_error(NULL, "`;' expected");
 
-    if (curfunc->rettype->type == TY_VOID)
+    if (rettype->type == TY_VOID)
       parse_error(tok, "void function `return' a value");
-    val = new_node_cast(curfunc->rettype, val, false);
+    val = new_node_cast(rettype, val, false);
   }
   return new_node_return(val);
 }
@@ -1950,9 +1950,11 @@ static Vector *funparams(void) {
   return params;
 }
 
-static Node *parse_defun(const Type *type, int flag, Token *ident) {
+static Node *parse_defun(const Type *rettype, int flag, Token *ident) {
   const char *name = ident->u.ident;
   Vector *params = funparams();
+
+  const Type *functype = new_func_type(rettype, params);
 
   Defun *defun = NULL;
   if (consume(TK_SEMICOL)) {  // Prototype declaration.
@@ -1962,12 +1964,12 @@ static Node *parse_defun(const Type *type, int flag, Token *ident) {
       return NULL;
     }
     // Definition.
-    defun = new_defun(type, name, params);
+    defun = new_defun(functype, name);
   }
 
   GlobalVarInfo *def = find_global(name);
   if (def == NULL) {
-    define_global(new_func_type(type, params), flag | VF_CONST, ident, NULL);
+    define_global(functype, flag | VF_CONST, ident, NULL);
   } else {
     if (def->type->type != TY_FUNC)
       parse_error(ident, "Definition conflict: `%s'");

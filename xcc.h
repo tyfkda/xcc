@@ -41,7 +41,7 @@ typedef struct Type {
     } pa;
     struct {
       const struct Type *ret;
-      Vector *params;
+      Vector *params;  // <VarInfo*>
     } func;
     struct {
       const char *name;
@@ -111,9 +111,8 @@ VarInfo *scope_find(Scope *scope, const char *name);
 // Defun
 
 typedef struct {
-  const Type *rettype;
+  const Type *type;
   const char *name;
-  Vector *params;  // Vector<VarInfo*>
   Scope *top_scope;
   Vector *stmts;
   Vector *all_scopes;
