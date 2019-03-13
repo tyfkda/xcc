@@ -500,8 +500,8 @@ static Node *new_node_block(Scope *scope, Vector *nodes) {
   return node;
 }
 
-static Node *new_node_if(Node *cond, Node *tblock, Node *fblock) {
-  Node *node = new_node(ND_IF, &tyVoid);
+static Node *new_node_if(Node *cond, Node *tblock, Node *fblock, const Type *type) {
+  Node *node = new_node(ND_IF, type);
   node->u.if_.cond = cond;
   node->u.if_.tblock = tblock;
   node->u.if_.fblock = fblock;
@@ -1404,8 +1404,24 @@ static Node *logior(void) {
   }
 }
 
-static Node *assign(void) {
+static Node *conditional(void) {
   Node *node = logior();
+  for (;;) {
+    if (!consume(TK_QUESTION))
+      return node;
+    Node *t = expr();
+    if (!consume(TK_COLON))
+      parse_error(NULL, "`:' expected");
+    Node *f = conditional();
+    if (!same_type(t->expType, f->expType))
+      parse_error(NULL, "lhs and rhs must be same type");
+    //node = new_node_ternary(t->expType, node, t, f);
+    node = new_node_if(node, t, f, t->expType);
+  }
+}
+
+static Node *assign(void) {
+  Node *node = conditional();
 
   if (consume(TK_ASSIGN))
     return new_node_bop(ND_ASSIGN, node->expType, node, new_node_cast(node->expType, assign(), false));
@@ -1442,7 +1458,7 @@ static Node *parse_if(void) {
       if (consume(TK_ELSE)) {
         fblock = stmt();
       }
-      return new_node_if(cond, tblock, fblock);
+      return new_node_if(cond, tblock, fblock, &tyVoid);
     }
   }
   parse_error(NULL, "Illegal syntax in `if'");

@@ -478,6 +478,7 @@ int main(void) {
   }
   expect("file static", 456, s_val);
   expect("extern", 789, e_val);
+  expect("?:", 2, 1 ? 2 : 3);
 
   return 0;
 }

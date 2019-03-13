@@ -36,6 +36,7 @@ enum TokenType {
   TK_SEMICOL = ';',
   TK_COMMA = ',',
   TK_DOT = '.',
+  TK_QUESTION = '?',
   TK_INTLIT = 256,  // int literal
   TK_CHARLIT,  // char literal
   TK_LONGLIT,  // long literal
