@@ -578,17 +578,17 @@ static int arrange_scope_vars(Defun *defun) {
   int frame_size = 0;
   for (int i = 0; i < defun->all_scopes->len; ++i) {
     Scope *scope = (Scope*)defun->all_scopes->data[i];
-    if (scope->vars == NULL)
-      continue;
     int scope_size = scope->parent != NULL ? scope->parent->size : 0;
-    for (int j = 0; j < scope->vars->len; ++j) {
-      VarInfo *varinfo = (VarInfo*)scope->vars->data[j];
-      int size = type_size(varinfo->type);
-      int align = align_size(varinfo->type);
-      if (size < 1)
-        size = 1;
-      scope_size = ALIGN(scope_size + size, align);
-      varinfo->offset = -scope_size;
+    if (scope->vars != NULL) {
+      for (int j = 0; j < scope->vars->len; ++j) {
+        VarInfo *varinfo = (VarInfo*)scope->vars->data[j];
+        int size = type_size(varinfo->type);
+        int align = align_size(varinfo->type);
+        if (size < 1)
+          size = 1;
+        scope_size = ALIGN(scope_size + size, align);
+        varinfo->offset = -scope_size;
+      }
     }
     scope->size = scope_size;
     if (frame_size < scope_size)
