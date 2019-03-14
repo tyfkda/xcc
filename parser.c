@@ -841,10 +841,10 @@ static const Type *parse_enum(void) {
         define_global(&tyEnum, VF_CONST, ident, init);
         ++value;
 
+        if (consume(TK_COMMA))
+          ;
         if (consume(TK_RBRACE))
           break;
-        if (!consume(TK_COMMA))
-          parse_error(NULL, "`,' or `}' expected");
       }
     }
   }

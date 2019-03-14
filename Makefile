@@ -1,4 +1,5 @@
-CFLAGS=-ansi -std=c11 -Wall -Wextra -Werror -Wold-style-definition -Wno-missing-field-initializers -Wno-typedef-redefinition
+CFLAGS=-ansi -std=c11 -Wall -Wextra -Werror -Wold-style-definition \
+	-Wno-missing-field-initializers -Wno-typedef-redefinition -Wno-empty-body
 SRCS=util.c lexer.c parser.c codegen.c elfutil.c main.c
 OBJS=$(SRCS:.c=.o)
 CPPOBJS=util.o lexer.o cpp.o
