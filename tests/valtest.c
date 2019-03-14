@@ -15,9 +15,7 @@ void expect(char *title, long expected, long actual) {
   _exit(1);
 }
 
-int g_zero;
-int g_123 = 123;
-int g_work;
+int g_zero, g_work, g_123 = 123;
 
 struct {int x; int *p;} g_struct = { 42, &g_zero };
 

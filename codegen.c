@@ -36,8 +36,7 @@ static int type_size(const Type *type) {
     return type_size(type->u.pa.ptrof) * type->u.pa.length;
   case TY_STRUCT:
   case TY_UNION:
-    if (type->u.struct_.info->size < 0)
-      calc_struct_size(type->u.struct_.info, type->type == TY_UNION);
+    calc_struct_size(type->u.struct_.info, type->type == TY_UNION);
     return type->u.struct_.info->size;
   default:
     assert(false);
@@ -66,8 +65,7 @@ static int align_size(const Type *type) {
   case TY_STRUCT:
   case TY_UNION:
     ensure_struct((Type*)type, NULL);
-    if (type->u.struct_.info->size < 0)
-      calc_struct_size(type->u.struct_.info, type->type == TY_UNION);
+    calc_struct_size(type->u.struct_.info, type->type == TY_UNION);
     return type->u.struct_.info->align;
   default:
     assert(false);
@@ -76,6 +74,9 @@ static int align_size(const Type *type) {
 }
 
 static void calc_struct_size(StructInfo *sinfo, bool is_union) {
+  if (sinfo->size >= 0)
+    return;
+
   int size = 0;
   int maxsize = 0;
   int max_align = 1;
@@ -283,9 +284,12 @@ void construct_initial_value(unsigned char *buf, const Type *type, Initializer *
     {
       if (init->type != vSingle)
         error("initializer type error");
-      assert(init->u.single->type == ND_REF);
-      Node *value = init->u.single->u.unary.sub;
-      if (!(value->type == ND_VARREF && value->u.varref.global))  // TODO: Initialize with array variable.
+      Node *value = init->u.single;
+      if (init->u.single->type == ND_REF)
+        value = init->u.single->u.unary.sub;
+      if (value->type != ND_VARREF)
+        error("pointer initializer must be varref");
+      if (!value->u.varref.global)
         error("Allowed global reference only");
 
       memset(buf, 0, type_size(type));  // Just in case.

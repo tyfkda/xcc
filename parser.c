@@ -2087,11 +2087,42 @@ static void parse_typedef(void) {
     parse_error(NULL, "`;' expected");
 }
 
+static Node *define_global_var(const Type *rawtype, int flag, const Type *type, Token *ident) {
+  bool first = true;
+  for (;;) {
+    if (!first) {
+      type = parse_type_modifier(rawtype);
+      if ((ident = consume(TK_IDENT)) == NULL)
+        parse_error(NULL, "`ident' expected");
+    }
+    first = false;
+
+    if (type->type == TY_VOID)
+      parse_error(ident, "`void' not allowed");
+
+    type = parse_type_suffix(type);
+    Initializer *initializer = NULL;
+    if (consume(TK_ASSIGN)) {
+      if (flag & VF_EXTERN)
+        parse_error(NULL, "extern with initializer");
+      initializer = parse_initializer();
+    }
+    define_global(type, flag, ident, initializer);
+
+    if (consume(TK_COMMA))
+      continue;
+    if (!consume(TK_SEMICOL))
+      parse_error(NULL, "`;' or `,' expected");
+    break;
+  }
+  return NULL;
+}
+
 static Node *toplevel(void) {
   int flag;
-  const Type *type = parse_raw_type(&flag);
-  if (type != NULL) {
-    type = parse_type_modifier(type);
+  const Type *rawtype = parse_raw_type(&flag);
+  if (rawtype != NULL) {
+    const Type *type = parse_type_modifier(rawtype);
     if ((is_struct_or_union(type->type) || type->type == TY_ENUM) &&
         consume(TK_SEMICOL))  // Just struct/union definition.
       return NULL;
@@ -2101,22 +2132,7 @@ static Node *toplevel(void) {
       if (consume(TK_LPAR))  // Function.
         return parse_defun(type, flag, ident);
 
-      if (type->type == TY_VOID)
-        parse_error(ident, "`void' not allowed");
-
-      type = parse_type_suffix(type);
-      Initializer *initializer = NULL;
-      if (consume(TK_ASSIGN)) {
-        if (flag & VF_EXTERN)
-          parse_error(NULL, "extern with initializer");
-        initializer = parse_initializer();
-      }
-      if (consume(TK_SEMICOL)) {
-        define_global(type, flag, ident, initializer);
-        return NULL;
-      }
-
-      parse_error(NULL, "`;' or `=' expected");
+      define_global_var(rawtype, flag, type, ident);
       return NULL;
     }
     parse_error(NULL, "ident expected");
