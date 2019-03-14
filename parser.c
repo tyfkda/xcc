@@ -366,6 +366,8 @@ static bool can_cast(const Type *dst, const Type *src, Node *src_node, bool is_e
         return true;
       break;
     case TY_LONG:
+      if (src_node->type == ND_LONG && src_node->u.value == 0)  // Special handling for 0 to pointer.
+        return true;
       if (is_explicit)
         return true;
       break;
@@ -1305,9 +1307,20 @@ static Node *cmp(void) {
 
     Node *lhs = node, *rhs= shift();
     if (lhs->expType->type == TY_PTR || rhs->expType->type == TY_PTR) {
-      if (lhs->expType->type != TY_PTR || rhs->expType->type != TY_PTR ||
-          !can_cast(lhs->expType, rhs->expType, rhs, false))
+      const Type *lt = lhs->expType, *rt = rhs->expType;
+      if (lt->type != TY_PTR) {
+        const Type *tmp = lt;
+        lt = rt;
+        rt = tmp;
+      }
+      if (!can_cast(lt, rt, rhs, false))
         parse_error(tok, "Cannot compare pointer to other types");
+      if (rt->type != TY_PTR) {
+        if (lt == lhs->expType)
+          rhs = new_node_cast(lhs->expType, rhs, false);
+        else
+          lhs = new_node_cast(rhs->expType, lhs, false);
+      }
     } else {
       if (!cast_numbers(&lhs, &rhs))
         parse_error(tok, "Cannot compare except numbers");
@@ -1331,9 +1344,20 @@ static Node *eq(void) {
 
     Node *lhs = node, *rhs= cmp();
     if (lhs->expType->type == TY_PTR || rhs->expType->type == TY_PTR) {
-      if (lhs->expType->type != TY_PTR || rhs->expType->type != TY_PTR ||
-          !can_cast(lhs->expType, rhs->expType, rhs, false))
+      const Type *lt = lhs->expType, *rt = rhs->expType;
+      if (lt->type != TY_PTR) {
+        const Type *tmp = lt;
+        lt = rt;
+        rt = tmp;
+      }
+      if (!can_cast(lt, rt, rhs, false))
         parse_error(tok, "Cannot compare pointer to other types");
+      if (rt->type != TY_PTR) {
+        if (lt == lhs->expType)
+          rhs = new_node_cast(lhs->expType, rhs, false);
+        else
+          lhs = new_node_cast(rhs->expType, lhs, false);
+      }
     } else {
       if (!cast_numbers(&lhs, &rhs))
         parse_error(tok, "Cannot compare except numbers");
