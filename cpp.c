@@ -93,57 +93,71 @@ void handle_include(const char *p, const char *srcname) {
   fclose(fp);
 }
 
+char *append(char *str, const char *begin, const char *end) {
+  size_t add;
+  if (end == NULL) {
+    add = strlen(begin);
+    end = begin + add;
+  } else {
+    add = end - begin;
+  }
+  if (add == 0)
+    return str;
+  size_t len = str != NULL ? strlen(str) : 0;
+  char *newstr = realloc(str, len + add + 1);
+  memcpy(newstr + len, begin, add);
+  newstr[len + add] = '\0';
+  return newstr;
+}
+
 Vector *parse_macro_body(const char *p, const Vector *params, bool va_args, const char *filename, int lineno) {
   Vector *segments = new_vector();
-  if (params == NULL) {
-    Segment *seg = malloc(sizeof(*seg));
-    seg->type = ST_TEXT;
-    seg->u.text = p;
-    vec_push(segments, seg);
-  } else {
-    init_lexer_string(p, filename, lineno);
-    int param_len = params->len;
-    const char *start = p;
-    for (;;) {
-      Token *tok;
-      if ((tok = consume(TK_IDENT)) != NULL) {
-        int index = -1;
-        if (va_args && strcmp(tok->u.ident, "__VA_ARGS__") == 0) {
-          index = param_len;
-        } else {
-          for (int i = 0; i < param_len; ++i) {
-            if (strcmp(tok->u.ident, params->data[i]) == 0) {
-              index = i;
-              break;
-            }
+  init_lexer_string(p, filename, lineno);
+  int param_len = params != NULL ? params->len : 0;
+  char *text = NULL;
+  for (;;) {
+    Token *tok;
+    if ((tok = consume(TK_IDENT)) != NULL) {
+      int index = -1;
+      if (va_args && strcmp(tok->u.ident, "__VA_ARGS__") == 0) {
+        index = param_len;
+      } else {
+        for (int i = 0; i < param_len; ++i) {
+          if (strcmp(tok->u.ident, params->data[i]) == 0) {
+            index = i;
+            break;
           }
-        }
-        if (index >= 0) {
-          const char *end = tok->input;
-          if (end > start) {
-            Segment *seg = malloc(sizeof(*seg));
-            seg->type = ST_TEXT;
-            seg->u.text = strndup_(start, end - start);
-            vec_push(segments, seg);
-          }
-
-          Segment *seg2 = malloc(sizeof(*seg2));
-          seg2->type = ST_PARAM;
-          seg2->u.param = index;
-          vec_push(segments, seg2);
-
-          start = get_lex_p();
-          continue;
         }
       }
+      if (index >= 0) {
+        if (text != NULL) {
+          Segment *seg = malloc(sizeof(*seg));
+          seg->type = ST_TEXT;
+          seg->u.text = text;
+          vec_push(segments, seg);
+        }
+
+        Segment *seg2 = malloc(sizeof(*seg2));
+        seg2->type = ST_PARAM;
+        seg2->u.param = index;
+        vec_push(segments, seg2);
+
+        text = NULL;
+        continue;
+      }
+    } else {
       tok = consume(-1);
       if (tok->type == TK_EOF)
         break;
     }
+    text = append(text, tok->begin, tok->end);
+    text = append(text, " ", NULL);
+  }
 
+  if (text != NULL) {
     Segment *seg = malloc(sizeof(*seg));
     seg->type = ST_TEXT;
-    seg->u.text = start;
+    seg->u.text = text;
     vec_push(segments, seg);
   }
   return segments;
@@ -195,20 +209,6 @@ Token *consume2(enum TokenType type) {
   return consume(type);
 }
 
-char *append(char *str, size_t *pcapa, size_t *plen, const char *add) {
-  const size_t MINADD = 16;
-  size_t len = *plen;
-  size_t addedlen = len + strlen(add);
-  if (addedlen >= *pcapa) {
-    size_t capa = MAX(addedlen + 1, *pcapa + MINADD);  // +1 for '\0'.
-    str = realloc(str, capa);
-    *pcapa = capa;
-  }
-  strcpy(str + len, add);
-  *plen = addedlen;
-  return str;
-}
-
 void expand(Macro *macro, const char *name) {
   Vector *args = NULL;
   if (macro->params != NULL) {
@@ -217,7 +217,7 @@ void expand(Macro *macro, const char *name) {
     args = new_vector();
     if (!consume2(TK_RPAR)) {
       int paren = 0;
-      const char *start = NULL;
+      const char *begin = NULL;
       for (;;) {
         if (consume2(TK_EOF))
           parse_error(NULL, "`)' expected");
@@ -228,17 +228,17 @@ void expand(Macro *macro, const char *name) {
             --paren;
             continue;
           }
-          if (start == NULL)
+          if (begin == NULL)
             parse_error(tok, "expression expected");
-          vec_push(args, strndup_(start, tok->input - start));
-          start = NULL;
+          vec_push(args, strndup_(begin, tok->begin - begin));
+          begin = NULL;
           if (tok->type == TK_RPAR)
             break;
           continue;
         }
         tok = consume2(-1);
-        if (start == NULL)
-          start = tok->input;
+        if (begin == NULL)
+          begin = tok->begin;
         if (tok->type == TK_LPAR)
           ++paren;
       }
@@ -255,12 +255,10 @@ void expand(Macro *macro, const char *name) {
   if (macro->va_args) {
     // Concat.
     char *vaargs = NULL;
-    size_t capa = 0;
-    size_t len = 0;
     for (int i = macro->params->len; i < args->len; ++i) {
       if (i > macro->params->len)
-        vaargs = append(vaargs, &capa, &len, ",");
-      vaargs = append(vaargs, &capa, &len, (char*)args->data[i]);
+        vaargs = append(vaargs, ",", NULL);
+      vaargs = append(vaargs, (char*)args->data[i], NULL);
     }
     if (args->len <= macro->params->len)
       vec_push(args, vaargs);
@@ -269,26 +267,23 @@ void expand(Macro *macro, const char *name) {
   }
 
   char *str = NULL;
-  size_t capa = 0;
-  size_t len = 0;
   if (macro->segments != NULL) {
     str = NULL;
     for (int i = 0; i < macro->segments->len; ++i) {
       Segment *seg = macro->segments->data[i];
       switch (seg->type) {
       case ST_TEXT:
-        str = append(str, &capa, &len, seg->u.text);
+        str = append(str, seg->u.text, NULL);
         break;
       case ST_PARAM:
-        str = append(str, &capa, &len, (char*)args->data[seg->u.param]);
+        str = append(str, (char*)args->data[seg->u.param], NULL);
         break;
       default:
         break;
       }
     }
-    str = append(str, &capa, &len, "\n");  // To avoid line comment.
   }
-  str = append(str, &capa, &len, get_lex_p());
+  str = append(str, get_lex_p(), NULL);
 
   init_lexer_string(str, NULL, -1);
 }
@@ -296,7 +291,7 @@ void expand(Macro *macro, const char *name) {
 void process_line(const char *line, const char *filename, int lineno) {
   init_lexer_string(line, filename, lineno);
 
-  const char *start = get_lex_p();
+  const char *begin = get_lex_p();
   for (;;) {
     if (consume(TK_EOF))
       break;
@@ -304,18 +299,18 @@ void process_line(const char *line, const char *filename, int lineno) {
     Token *ident = consume(TK_IDENT);
     Macro *macro;
     if (ident != NULL && (macro = map_get(macro_map, ident->u.ident)) != NULL) {
-      if (ident->input != start)
-        fwrite(start, ident->input - start, 1, stdout);
+      if (ident->begin != begin)
+        fwrite(begin, ident->begin - begin, 1, stdout);
 
       expand(macro, ident->u.ident);
-      start = get_lex_p();
+      begin = get_lex_p();
       continue;
     }
 
     consume(-1);
   }
 
-  printf("%s\n", start);
+  printf("%s\n", begin);
 }
 
 bool handle_ifdef(const char *p) {

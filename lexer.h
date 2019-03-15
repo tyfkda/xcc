@@ -91,7 +91,8 @@ enum TokenType {
 typedef struct Token {
   enum TokenType type;
   Line *line;
-  const char *input;
+  const char *begin;
+  const char *end;
   union {
     const char *ident;
     struct {
@@ -108,7 +109,7 @@ Token *fetch_token(void);
 Token *consume(enum TokenType type);
 void unget_token(Token *token);
 char *read_ident(const char **pp);
-Token *alloc_ident(const char *ident, const char *input);
+Token *alloc_ident(const char *ident, const char *begin, const char *end);
 void show_error_line(const char *line, const char *p);
 void parse_error(const Token *token, const char* fmt, ...);
 const char *get_lex_p(void);

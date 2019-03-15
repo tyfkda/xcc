@@ -59,21 +59,22 @@ void parse_error(const Token *token, const char* fmt, ...) {
   va_end(ap);
   fprintf(stderr, "\n");
 
-  show_error_line(token->line->buf, token->input);
+  show_error_line(token->line->buf, token->begin);
 
   exit(1);
 }
 
-static Token *alloc_token(enum TokenType type, const char *input) {
+static Token *alloc_token(enum TokenType type, const char *begin, const char *end) {
   Token *token = malloc(sizeof(*token));
   token->type = type;
   token->line = lexer.line;
-  token->input = input;
+  token->begin = begin;
+  token->end = end;
   return token;
 }
 
-Token *alloc_ident(const char *ident, const char *input) {
-  Token *tok = alloc_token(TK_IDENT, input);
+Token *alloc_ident(const char *ident, const char *begin, const char *end) {
+  Token *tok = alloc_token(TK_IDENT, begin, end);
   tok->u.ident = ident;
   return tok;
 }
@@ -244,7 +245,7 @@ static Token *read_num(const char **pp) {
     tt = TK_LONGLIT;
     ++(*pp);
   }
-  tok = alloc_token(tt, start);
+  tok = alloc_token(tt, start, *pp);
   tok->u.value = val;
   return tok;
 }
@@ -267,33 +268,33 @@ static Token *get_token(void) {
   Token *tok = NULL;
   const char *p = lexer.p;
   if (p == NULL)
-    return alloc_token(TK_EOF, NULL);
+    return alloc_token(TK_EOF, NULL, NULL);
 
   for (;;) {
     p = skip_whitespace_or_comment(p);
     if (p == NULL)
-      return alloc_token(TK_EOF, NULL);
+      return alloc_token(TK_EOF, NULL, NULL);
 
     if (*p == '=' && p[1] == '=') {
-      tok = alloc_token(TK_EQ, p);
+      tok = alloc_token(TK_EQ, p, p + 2);
       p += 2;
       break;
     }
 
     if (*p == '!' && p[1] == '=') {
-      tok = alloc_token(TK_NE, p);
+      tok = alloc_token(TK_NE, p, p + 2);
       p += 2;
       break;
     }
 
     if (*p == '<') {
       if (p[1] == '=') {
-        tok = alloc_token(TK_LE, p);
+        tok = alloc_token(TK_LE, p, p + 2);
         p += 2;
         break;
       }
       if (p[1] == '<') {
-        tok = alloc_token(TK_LSHIFT, p);
+        tok = alloc_token(TK_LSHIFT, p, p + 2);
         p += 2;
         break;
       }
@@ -301,12 +302,12 @@ static Token *get_token(void) {
 
     if (*p == '>') {
       if (p[1] == '=') {
-        tok = alloc_token(TK_GE, p);
+        tok = alloc_token(TK_GE, p, p + 2);
         p += 2;
         break;
       }
       if (p[1] == '>') {
-        tok = alloc_token(TK_RSHIFT, p);
+        tok = alloc_token(TK_RSHIFT, p, p + 2);
         p += 2;
         break;
       }
@@ -314,12 +315,12 @@ static Token *get_token(void) {
 
     if (*p == '+') {
       if (p[1] == '+') {
-        tok = alloc_token(TK_INC, p);
+        tok = alloc_token(TK_INC, p, p + 2);
         p += 2;
         break;
       }
       if (p[1] == '=') {
-        tok = alloc_token(TK_ADD_ASSIGN, p);
+        tok = alloc_token(TK_ADD_ASSIGN, p, p + 2);
         p += 2;
         break;
       }
@@ -327,62 +328,62 @@ static Token *get_token(void) {
 
     if (*p == '-') {
       if (p[1] == '-') {
-        tok = alloc_token(TK_DEC, p);
+        tok = alloc_token(TK_DEC, p, p + 2);
         p += 2;
         break;
       }
       if (p[1] == '>') {
-        tok = alloc_token(TK_ARROW, p);
+        tok = alloc_token(TK_ARROW, p, p + 2);
         p += 2;
         break;
       }
       if (p[1] == '=') {
-        tok = alloc_token(TK_SUB_ASSIGN, p);
+        tok = alloc_token(TK_SUB_ASSIGN, p, p + 2);
         p += 2;
         break;
       }
     }
 
     if (*p == '*' && p[1] == '=') {
-      tok = alloc_token(TK_MUL_ASSIGN, p);
+      tok = alloc_token(TK_MUL_ASSIGN, p, p + 2);
       p += 2;
       break;
     }
 
     if (*p == '/' && p[1] == '=') {
-      tok = alloc_token(TK_DIV_ASSIGN, p);
+      tok = alloc_token(TK_DIV_ASSIGN, p, p + 2);
       p += 2;
       break;
     }
 
     if (*p == '%' && p[1] == '=') {
-      tok = alloc_token(TK_MOD_ASSIGN, p);
+      tok = alloc_token(TK_MOD_ASSIGN, p, p + 2);
       p += 2;
       break;
     }
 
     if (*p == '&' && p[1] == '&') {
-      tok = alloc_token(TK_LOGAND, p);
+      tok = alloc_token(TK_LOGAND, p, p + 2);
       p += 2;
       break;
     }
 
     if (*p == '|') {
       if (p[1] == '|') {
-        tok = alloc_token(TK_LOGIOR, p);
+        tok = alloc_token(TK_LOGIOR, p, p + 2);
         p += 2;
         break;
       }
     }
 
     if (*p == '.' && p[1] == '.' && p[2] == '.') {
-      tok = alloc_token(TK_DOTDOTDOT, p);
+      tok = alloc_token(TK_DOTDOTDOT, p, p + 3);
       p += 3;
       break;
     }
 
     if (strchr("+-*/%&!(){}[]<>=^|:;,.?", *p) != NULL) {
-      tok = alloc_token((enum TokenType)*p, p);
+      tok = alloc_token((enum TokenType)*p, p, p + 1);
       ++p;
       break;
     }
@@ -392,21 +393,21 @@ static Token *get_token(void) {
       break;
     }
 
-    const char *start = p;
+    const char *begin = p;
     char *ident = read_ident(&p);
     if (ident != NULL) {
       enum TokenType word = reserved_word(ident);
       if ((int)word != -1) {
         free(ident);
-        tok = alloc_token(word, start);
+        tok = alloc_token(word, begin, p);
       } else {
-        tok = alloc_ident(ident, start);
+        tok = alloc_ident(ident, begin, p);
       }
       break;
     }
 
     if (*p == '\'') {
-      const char *start = p++;
+      const char *begin = p++;
       char c = *p;
       if (c == '\\') {
         c = *(++p);
@@ -417,14 +418,14 @@ static Token *get_token(void) {
       if (*(++p) != '\'')
         lex_error(p, "Character not closed");
 
-      tok = alloc_token(TK_CHARLIT, start);
-      tok->u.value = c;
       ++p;
+      tok = alloc_token(TK_CHARLIT, begin, p);
+      tok->u.value = c;
       break;
     }
 
     if (*p == '"') {
-      const char *start = p++;
+      const char *begin = p++;
       size_t capa = 8, size = 0;
       char *str = malloc(capa);
       for (char c; (c = *p) != '"'; ++p) {
@@ -444,10 +445,10 @@ static Token *get_token(void) {
         str[size++] = c;
       }
       str[size] = '\0';
-      tok = alloc_token(TK_STR, start);
+      ++p;
+      tok = alloc_token(TK_STR, begin, p);
       tok->u.str.buf = str;
       tok->u.str.len = size + 1;
-      ++p;
       break;
     }
 
