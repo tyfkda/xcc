@@ -978,14 +978,16 @@ static const Type *parse_type_suffix(const Type *type) {
 }
 
 static bool parse_var_def(const Type **prawType, const Type** ptype, int *pflag, Token **pident, bool allow_noname) {
-  if (*prawType == NULL) {
-    const Type *rawType = parse_raw_type(pflag);
+  const Type *rawType = prawType != NULL ? *prawType : NULL;
+  if (rawType == NULL) {
+    rawType = parse_raw_type(pflag);
     if (rawType == NULL)
       return false;
-    *prawType = rawType;
+    if (prawType != NULL)
+      *prawType = rawType;
   }
 
-  const Type *type = parse_type_modifier(*prawType);
+  const Type *type = parse_type_modifier(rawType);
 
   Token *ident = NULL;
   if (consume(TK_LPAR)) {  // Funcion type.
@@ -1018,9 +1020,8 @@ static bool parse_var_def(const Type **prawType, const Type** ptype, int *pflag,
 }
 
 static const Type *parse_full_type(int *pflag, Token **pident) {
-  const Type *rawType = NULL;
   const Type *type;
-  if (!parse_var_def(&rawType, &type, pflag, pident, true))
+  if (!parse_var_def(NULL, &type, pflag, pident, true))
     return NULL;
   return type;
 }
@@ -1032,11 +1033,10 @@ static StructInfo *parse_struct(bool is_union) {
     if (consume(TK_RBRACE))
       break;
 
-    const Type *rawType = NULL;
     const Type *type;
     int flag;
     Token *ident;
-    if (!parse_var_def(&rawType, &type, &flag, &ident, false))
+    if (!parse_var_def(NULL, &type, &flag, &ident, false))
       parse_error(NULL, "type expected");
     not_void(type);
 
@@ -1595,19 +1595,55 @@ static Node *parse_do_while(void) {
   return NULL;
 }
 
+static Vector *parse_vardecl_cont(const Type *rawType, const Type *type, int flag, Token *ident);
 static Node *parse_for(void) {
+  Scope *scope = NULL;
   if (consume(TK_LPAR)) {
-    Node *pre = NULL, *cond = NULL, *post = NULL;
-    if ((consume(TK_SEMICOL) || (pre = expr(), consume(TK_SEMICOL))) &&
-        (consume(TK_SEMICOL) || (cond = expr(), consume(TK_SEMICOL))) &&
-        (consume(TK_RPAR) || (post = expr(), consume(TK_RPAR)))) {
-      int save_flag = curloopflag;
-      curloopflag |= LF_BREAK | LF_CONTINUE;
-      Node *body = stmt();
-      curloopflag= save_flag;
-      return new_node_for(pre, cond, post, body);
+    assert(curfunc != NULL);
+    Node *pre = NULL;
+    bool nopre = false;
+    Vector *stmts = NULL;
+    if (consume(TK_SEMICOL)) {
+      nopre = true;
+    } else {
+      const Type *rawType = NULL;
+      const Type *type;
+      int flag;
+      Token *ident;
+      if (parse_var_def(&rawType, &type, &flag, &ident, false)) {
+        scope = enter_scope(curfunc, NULL);
+        stmts = parse_vardecl_cont(rawType, type, flag, ident);
+        if (!consume(TK_SEMICOL))
+          scope = NULL;  // Error
+      } else {
+        pre = expr();
+        if (!consume(TK_SEMICOL))
+          pre = NULL;  // Error
+      }
+    }
+    if (nopre || pre != NULL || scope != NULL) {
+      Node *cond = NULL, *post = NULL;
+      Node *body = NULL;
+      if ((consume(TK_SEMICOL) || (cond = expr(), consume(TK_SEMICOL))) &&
+          (consume(TK_RPAR) || (post = expr(), consume(TK_RPAR)))) {
+        int save_flag = curloopflag;
+        curloopflag |= LF_BREAK | LF_CONTINUE;
+        body = stmt();
+        curloopflag= save_flag;
+
+        Node *node = new_node_for(pre, cond, post, body);
+        if (stmts != NULL) {
+          vec_push(stmts, node);
+          exit_scope();
+          return new_node_block(scope, stmts);
+        } else {
+          return node;
+        }
+      }
     }
   }
+  if (scope != NULL)
+    exit_scope();
   parse_error(NULL, "Illegal syntax in `for'");
   return NULL;
 }
@@ -1877,21 +1913,17 @@ static Vector *assign_initial_value(Node *node, Initializer *init, Vector *inits
   return inits;
 }
 
-static bool parse_vardecl(Node **pnode) {
-  assert(curfunc != NULL);
-
+static Vector *parse_vardecl_cont(const Type *rawType, const Type *type, int flag, Token *ident) {
   Vector *inits = NULL;
-  const Type *rawType = NULL;
-
+  bool first = true;
   do {
-    const Type *type;
-    int flag;
-    Token *ident;
-    if (!parse_var_def(&rawType, &type, &flag, &ident, false)) {
-      if (rawType != NULL)
-        parse_error(NULL, "type expected");
-      return false;
+    if (!first) {
+      if (!parse_var_def(&rawType, &type, &flag, &ident, false)) {
+        parse_error(NULL, "`ident' expected");
+        return false;
+      }
     }
+    first = false;
     not_void(type);
 
     scope_add(curscope, ident, type, flag);
@@ -1901,6 +1933,21 @@ static bool parse_vardecl(Node **pnode) {
       inits = assign_initial_value(new_node_varref(ident->u.ident, type, false), initializer, inits);
     }
   } while (consume(TK_COMMA));
+
+  return inits;
+}
+
+static bool parse_vardecl(Node **pnode) {
+  assert(curfunc != NULL);
+
+  const Type *rawType = NULL;
+  const Type *type;
+  int flag;
+  Token *ident;
+  if (!parse_var_def(&rawType, &type, &flag, &ident, false))
+    return false;
+
+  Vector *inits = parse_vardecl_cont(rawType, type, flag, ident);
 
   if (!consume(TK_SEMICOL))
     parse_error(NULL, "`;' expected");
@@ -1994,11 +2041,10 @@ static Vector *funparams(void) {
   } else {
     params = new_vector();
     for (;;) {
-      const Type *rawType = NULL;
       const Type *type;
       int flag;
       Token *ident;
-      if (!parse_var_def(&rawType, &type, &flag, &ident, true))
+      if (!parse_var_def(NULL, &type, &flag, &ident, true))
         parse_error(NULL, "type expected");
       if (params->len == 0) {
         if (type->type == TY_VOID) {  // fun(void)

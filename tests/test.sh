@@ -76,6 +76,7 @@ try_output_direct 'empty function' '' 'void main(){}'
 try_direct 'Undeclared struct typedef' 8 'typedef struct FILE FILE; int main(){ return sizeof(FILE*); }'
 try_direct 'late declare struct' 42 'struct Foo *p; struct Foo {int x;}; int main(){ struct Foo foo; p = &foo; p->x = 42; return p->x; }'
 try_direct 'typedef func-ptr' 84 'typedef int (*Func)(int); int twice(Func f, int x) { return f(f(x)); } int double(int x) { return x * 2; } int main(){ return twice(&double, 21); }'
+try_direct 'for-var' 55 'int main(){ int acc = 0; for (int i = 1, len = 10; i <= len; ++i) acc += i; return acc; }'
 
 # error cases
 echo ''
@@ -124,3 +125,4 @@ compile_error 'no name nor defined struct ptr' 'void main(){ struct *p; }'
 compile_error 'refer undeclared struct member' 'void main(){ struct Foo *p; p->x; }'
 compile_error 'extern only' 'extern int x; void main(){ x = 123; }'
 compile_error 'extern with init' 'extern int x = 123; void main(){}'
+compile_error 'for-var scoped' 'int main(){ for (int i = 0; i < 5; ++i) ; return i; }'
