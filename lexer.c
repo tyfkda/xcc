@@ -163,18 +163,22 @@ static void read_next_line(void) {
 
   char *line = NULL;
   size_t capa = 0;
-  ssize_t len = getline_(&line, &capa, lexer.fp);
+  ssize_t len = getline_(&line, &capa, lexer.fp, 0);
   if (len == EOF) {
     lexer.p = NULL;
     lexer.line = NULL;
-  } else {
-    Line *p = malloc(sizeof(*line));
-    p->filename = lexer.filename;
-    p->buf = line;
-    p->lineno = ++lexer.lineno;
-    lexer.line = p;
-    lexer.p = lexer.line->buf;
+    return;
   }
+  while (len > 0 && line[len - 1] == '\\') {  // Continue line.
+    len = getline_(&line, &capa, lexer.fp, len - 1);
+  }
+
+  Line *p = malloc(sizeof(*line));
+  p->filename = lexer.filename;
+  p->buf = line;
+  p->lineno = ++lexer.lineno;
+  lexer.line = p;
+  lexer.p = lexer.line->buf;
 }
 
 static const char *skip_block_comment(const char *p) {

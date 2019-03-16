@@ -329,9 +329,13 @@ void pp(FILE *fp, const char *filename) {
   for (int lineno = 1;; ++lineno) {
     char *line = NULL;
     size_t capa = 0;
-
-    if (getline_(&line, &capa, fp) == EOF)
+    ssize_t len = getline_(&line, &capa, fp, 0);
+    if (len == EOF)
       break;
+    while (len > 0 && line[len - 1] == '\\') {  // Continue line.
+      ++lineno;
+      len = getline_(&line, &capa, fp, len - 1);
+    }
 
     // Find '#'
     const char *directive = find_directive(line);

@@ -29,10 +29,10 @@ char *cat_path(const char *base_dir, const char *rel_path) {
   return path;
 }
 
-ssize_t getline_(char **lineptr, size_t *n, FILE *stream) {
+ssize_t getline_(char **lineptr, size_t *n, FILE *stream, size_t start) {
   const int ADD = 16;
   ssize_t capa = *n;
-  ssize_t size = 0;
+  ssize_t size = start;
   char *top = *lineptr;
   for (;;) {
     int c = fgetc(stream);
