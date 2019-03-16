@@ -1920,7 +1920,7 @@ static Vector *parse_vardecl_cont(const Type *rawType, const Type *type, int fla
     if (!first) {
       if (!parse_var_def(&rawType, &type, &flag, &ident, false)) {
         parse_error(NULL, "`ident' expected");
-        return false;
+        return NULL;
       }
     }
     first = false;
