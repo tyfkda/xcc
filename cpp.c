@@ -389,6 +389,13 @@ void pp(FILE *fp, const char *filename) {
 int main(int argc, char* argv[]) {
   macro_map = new_map();
 
+  // Predefeined macros.
+#if defined(__XV6)
+  map_put(macro_map, "__XV6", new_macro(NULL, false, NULL));
+#elif defined(__linux__)
+  map_put(macro_map, "__linux__", new_macro(NULL, false, NULL));
+#endif
+
   if (argc > 1) {
     for (int i = 1; i < argc; ++i) {
       const char *filename = argv[i];
