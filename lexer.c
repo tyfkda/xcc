@@ -1,3 +1,5 @@
+#include "lexer.h"
+
 #include <assert.h>
 #include <ctype.h>
 #include <stdarg.h>
@@ -5,7 +7,6 @@
 #include <string.h>
 #include <sys/types.h>  // ssize_t
 
-#include "xcc.h"
 #include "util.h"
 
 #define MAX_LOOKAHEAD  (2)
