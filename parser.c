@@ -21,7 +21,7 @@ static Node *stmt(void);
 static Node *expr(void);
 static Node *cast_expr(void);
 static Node *prim(void);
-static Vector *funparams(void);
+static Vector *funparams(bool *pvaargs);
 
 //
 
@@ -204,10 +204,11 @@ static Type* arrayof(const Type *type, size_t length) {
   return arr;
 }
 
-static Type* new_func_type(const Type *ret, const Vector *params) {
+static Type* new_func_type(const Type *ret, const Vector *params, bool vaargs) {
   Type *f = malloc(sizeof(*f));
   f->type = TY_FUNC;
   f->u.func.ret = ret;
+  f->u.func.vaargs = vaargs;
 
   Vector *newparams = NULL;
   if (params != NULL) {
@@ -594,8 +595,13 @@ static Node *funcall(Node *func) {
     }
   }
 
-  if (functype->u.func.params != NULL && (args != NULL ? args->len : 0) != functype->u.func.params->len)
-    parse_error(tok, "function `%s' expect %d arguments, but %d", func->u.varref.ident, functype->u.func.params->len, (args != NULL ? args->len : 0));
+  if (functype->u.func.params != NULL) {
+    int argc = args != NULL ? args->len : 0;
+    int paramc = functype->u.func.params->len;
+    if (!(argc == paramc ||
+          (functype->u.func.vaargs && argc >= paramc)))
+     parse_error(tok, "function `%s' expect %d arguments, but %d", func->u.varref.ident, paramc, argc);
+  }
 
   return new_node_funcall(func, args);
 }
@@ -1000,8 +1006,9 @@ static bool parse_var_def(const Type **prawType, const Type** ptype, int *pflag,
     if (!consume(TK_LPAR))
       parse_error(NULL, "`(' expected");
 
-    Vector *params = funparams();
-    type = ptrof(new_func_type(type, params));
+    bool vaargs;
+    Vector *params = funparams(&vaargs);
+    type = ptrof(new_func_type(type, params, vaargs));
   } else {
     if (type->type != TY_VOID) {
       ident = consume(TK_IDENT);
@@ -2034,13 +2041,21 @@ static Node *stmt(void) {
   return node;
 }
 
-static Vector *funparams(void) {
+static Vector *funparams(bool *pvaargs) {
   Vector *params = NULL;
+  bool vaargs = false;
   if (consume(TK_RPAR)) {
     // Arbitrary funparams.
   } else {
     params = new_vector();
     for (;;) {
+      if (consume(TK_DOTDOTDOT)) {
+        vaargs = true;
+        if (!consume(TK_RPAR))
+          parse_error(NULL, "`)' expected");
+        break;
+      }
+
       const Type *type;
       int flag;
       Token *ident;
@@ -2064,17 +2079,19 @@ static Vector *funparams(void) {
         break;
       if (consume(TK_COMMA))
         continue;
-      parse_error(NULL, "Comma or `}' expected");
+      parse_error(NULL, "Comma or `)' expected");
     }
   }
+  *pvaargs = vaargs;
   return params;
 }
 
 static Node *parse_defun(const Type *rettype, int flag, Token *ident) {
   const char *name = ident->u.ident;
-  Vector *params = funparams();
+  bool vaargs;
+  Vector *params = funparams(&vaargs);
 
-  const Type *functype = new_func_type(rettype, params);
+  const Type *functype = new_func_type(rettype, params, vaargs);
 
   Defun *defun = NULL;
   if (consume(TK_SEMICOL)) {  // Prototype declaration.

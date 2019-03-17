@@ -42,6 +42,7 @@ typedef struct Type {
     struct {
       const struct Type *ret;
       Vector *params;  // <VarInfo*>
+      bool vaargs;
     } func;
     struct {
       const char *name;
