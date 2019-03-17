@@ -1,5 +1,7 @@
 CFLAGS=-ansi -std=c11 -Wall -Wextra -Werror -Wold-style-definition -Wno-missing-field-initializers -Wno-typedef-redefinition
 
+SRC_DIR:=../src/cc
+
 .PHONY: test-util test-val test-cpp test-sh
 
 all:	../xcc ../cpp test-util test-val test-cpp test-sh test-examples
@@ -39,7 +41,7 @@ test-examples:	example_test.sh
 	@./example_test.sh
 	@echo ''
 
-util_test:	util_test.c ../util.c
+util_test:	util_test.c $(SRC_DIR)/util.c
 	gcc -o $@ $(CFLAGS) $^
 
 valtest:	../examples/util.c valtest.c ../xcc

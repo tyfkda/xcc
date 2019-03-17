@@ -3,7 +3,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include "../util.h"
+#include "../src/cc/util.h"
 
 #define EXPECT(expected, actual)  expect(__LINE__, expected, actual)
 

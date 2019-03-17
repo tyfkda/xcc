@@ -1,8 +1,10 @@
-CFLAGS=-ansi -std=c11 -Wall -Wextra -Werror -Wold-style-definition \
+CFLAGS:=-ansi -std=c11 -MD -Wall -Wextra -Werror -Wold-style-definition \
 	-Wno-missing-field-initializers -Wno-typedef-redefinition -Wno-empty-body
-SRCS=util.c lexer.c parser.c codegen.c elfutil.c main.c
-OBJS=$(SRCS:.c=.o)
-CPPOBJS=util.o lexer.o cpp.o
+SRC_DIR:=src/cc
+CPP_DIR:=src/cpp
+OBJ_DIR:=obj
+OBJS:=$(OBJ_DIR)/util.o $(OBJ_DIR)/lexer.o $(OBJ_DIR)/parser.o $(OBJ_DIR)/codegen.o $(OBJ_DIR)/elfutil.o $(OBJ_DIR)/main.o
+CPPOBJS:=$(OBJ_DIR)/util.o $(OBJ_DIR)/lexer.o $(OBJ_DIR)/cpp.o
 
 xcc: $(OBJS) cpp
 	$(CC) -o $@ $(OBJS) $(LDFLAGS)
@@ -10,15 +12,19 @@ xcc: $(OBJS) cpp
 cpp: $(CPPOBJS)
 	$(CC) -o $@ $^ $(LDFLAGS)
 
-$(OBJS): xcc.h
-lexer.o parser.o: lexer.h
+-include obj/*.d
+
+$(OBJ_DIR)/%.o: $(SRC_DIR)/%.c
+	@mkdir -p $(OBJ_DIR)
+	$(CC) $(CFLAGS) -c -o $@ $<
+
+$(OBJ_DIR)/%.o: $(CPP_DIR)/%.c
+	@mkdir -p $(OBJ_DIR)
+	$(CC) $(CFLAGS) -c -o $@ $<
 
 test:	xcc
 	make -C tests
 
 clean:
-	rm -f xcc *.o *~ tmp*
+	rm -rf xcc $(OBJ_DIR) *~ tmp*
 	make -C tests clean
-
-codegen.o: codegen.c x86_64.h xcc.h
-main.o: main.c x86_64.h xcc.h

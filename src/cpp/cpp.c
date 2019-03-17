@@ -6,8 +6,8 @@
 #include "stdlib.h"
 #include "string.h"
 
-#include "util.h"
-#include "lexer.h"
+#include "../cc/util.h"
+#include "../cc/lexer.h"
 
 #define MAX(x, y)  ((x) >= (y) ? (x) : (y))
 
