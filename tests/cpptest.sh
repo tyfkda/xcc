@@ -4,7 +4,7 @@ CPP=../cpp
 
 try() {
   title="$1"
-  expected="$2"
+  expected=$(echo -e "$2")
   input="$3"
 
   echo -n "$title => "
@@ -38,4 +38,6 @@ try 'NULL' '0 ' "#define NULL 0\nNULL"
 try 'Param' '1+ 2' "#define ADD(x,y) x+y\nADD(1,2)"
 try '#ifdef' 'x' "#define X\n#ifdef X\nx\n#else\ny\n#endif"
 try '#ifdef else' 'y' "#ifdef X\nx\n#else\ny\n#endif"
+try '__FILE__' '"*stdin*"' "__FILE__"
+try '__LINE__' "\n\n3" "\n\n__LINE__"
 compile_error '#error' '#error !!!\nvoid main(){}'

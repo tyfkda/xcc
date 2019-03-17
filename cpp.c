@@ -38,6 +38,15 @@ Macro *new_macro(Vector *params, bool va_args, Vector *segments) {
   return macro;
 }
 
+Macro *new_macro_single(const char *text) {
+  Vector *segments = new_vector();
+  Segment *seg = malloc(sizeof(*seg));
+  seg->type = ST_TEXT;
+  seg->u.text = text;
+  vec_push(segments, seg);
+  return new_macro(NULL, NULL, segments);
+}
+
 const char *skip_whitespaces(const char *s) {
   while (isspace(*s))
     ++s;
@@ -323,15 +332,30 @@ bool handle_ifdef(const char *p) {
 #define CF_ENABLE  (1 << 0)
 #define CF_ELSE    (1 << 1)
 
+static void define_file_macro(const char *filename) {
+  size_t len = strlen(filename);
+  char *buf = malloc(len + 2 + 1);
+  snprintf(buf, len + 2 + 1, "\"%s\"", filename);
+  map_put(macro_map, "__FILE__", new_macro_single(buf));
+}
+
 void pp(FILE *fp, const char *filename) {
   Vector *condstack = new_vector();
   bool enable = true;
+  char linenobuf[sizeof(int) * 3 + 1];  // Buffer for __LINE__
+
+  define_file_macro(filename);
+  map_put(macro_map, "__LINE__", new_macro_single(linenobuf));
+
   for (int lineno = 1;; ++lineno) {
     char *line = NULL;
     size_t capa = 0;
     ssize_t len = getline_(&line, &capa, fp, 0);
     if (len == EOF)
       break;
+
+    snprintf(linenobuf, sizeof(linenobuf), "%d", lineno);
+
     while (len > 0 && line[len - 1] == '\\') {  // Continue line.
       ++lineno;
       len = getline_(&line, &capa, fp, len - 1);
@@ -374,6 +398,9 @@ void pp(FILE *fp, const char *filename) {
     } else if (enable) {
       if ((next = keyword(directive, "include")) != NULL) {
         handle_include(next, filename);
+        // Redefine __FILE__ and __LINE__
+        define_file_macro(filename);
+        map_put(macro_map, "__LINE__", new_macro_single(linenobuf));
       } else if ((next = keyword(directive, "define")) != NULL) {
         handle_define(next, filename, lineno);
       } else if ((next = keyword(directive, "error")) != NULL) {
