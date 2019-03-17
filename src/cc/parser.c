@@ -793,6 +793,31 @@ Node *array_index(Node *array) {
   return new_node_deref(add_node(tok, array, index));
 }
 
+bool member_access_recur(const Type *type, Token *ident, Vector *stack) {
+  assert(type->type == TY_STRUCT || type->type == TY_UNION);
+  ensure_struct((Type*)type, ident);
+  const char *name = ident->u.ident;
+
+  Vector *lvars = type->u.struct_.info->members;
+  for (int i = 0, len = lvars->len; i < len; ++i) {
+    VarInfo *info = (VarInfo*)lvars->data[i];
+    if (info->name != NULL) {
+      if (strcmp(info->name, name) == 0) {
+        vec_push(stack, (void*)(long)i);
+        return true;
+      }
+    } else if (info->type->type == TY_STRUCT || info->type->type == TY_UNION) {
+      vec_push(stack, (void*)(long)i);
+      bool res = member_access_recur(info->type, ident, stack);
+      if (res)
+        return true;
+      //vec_pop(stack);
+      --stack->len;
+    }
+  }
+  return false;
+}
+
 Node *member_access(Node *target, Token *acctok) {
   // Find member's type from struct info.
   const Type *type = target->expType;
@@ -817,11 +842,23 @@ Node *member_access(Node *target, Token *acctok) {
 
   ensure_struct((Type*)type, ident);
   int index = var_find(type->u.struct_.info->members, name);
-  if (index < 0)
-    parse_error(ident, "`%s' doesn't exist in the struct", name);
-  VarInfo *varinfo = (VarInfo*)type->u.struct_.info->members->data[index];
+  if (index >= 0) {
+    VarInfo *varinfo = (VarInfo*)type->u.struct_.info->members->data[index];
+    return new_node_member(target, index, varinfo->type);
+  }
 
-  return new_node_member(target, index, varinfo->type);
+  Vector *stack = new_vector();
+  bool res = member_access_recur(type, ident, stack);
+  if (!res)
+    parse_error(ident, "`%s' doesn't exist in the struct", name);
+  Node *node = target;
+  for (int i = 0; i < stack->len; ++i) {
+    int index = (int)(long)stack->data[i];
+    VarInfo *varinfo = type->u.struct_.info->members->data[index];
+    node = new_node_member(node, index, varinfo->type);
+    type = varinfo->type;
+  }
+  return node;
 }
 
 static const Type *parse_enum(void) {

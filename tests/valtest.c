@@ -316,6 +316,16 @@ int main(void) {
     union {char x; int y;} foo;
     expect("union", 1, sizeof(foo) == sizeof(int) && (void*)&foo.x == (void*)&foo.y);
   }
+  {
+    struct{
+      union{
+        int x;
+      };
+    } a;
+    a.x = 596;
+    expect("anonymous", 596, a.x);
+    expect("anonymous adr", (long)&a, (long)&a.x);
+  }
   expect("func pointer", 9, apply(&sub, 15, 6));
   expect("block comment", 123, /* comment */ 123);
   expect("line comment", 123, // comment
