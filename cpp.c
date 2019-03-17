@@ -371,14 +371,16 @@ void pp(FILE *fp, const char *filename) {
         error("`#endif' used without `#if'");
       enable = (((intptr_t)condstack->data[--len]) & CF_ENABLE) != 0;
       condstack->len = len;
-    } else if ((next = keyword(directive, "include")) != NULL) {
-      if (enable)
+    } else if (enable) {
+      if ((next = keyword(directive, "include")) != NULL) {
         handle_include(next, filename);
-    } else if ((next = keyword(directive, "define")) != NULL) {
-      if (enable)
+      } else if ((next = keyword(directive, "define")) != NULL) {
         handle_define(next, filename, lineno);
-    } else {
-      printf("unknown directive: %s", directive);
+      } else if ((next = keyword(directive, "error")) != NULL) {
+        error("#error: %s", next);
+      } else {
+        error("unknown directive: %s", directive);
+      }
     }
   }
 
