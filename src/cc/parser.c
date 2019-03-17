@@ -475,10 +475,10 @@ static Node *new_node_varref(const char *name, const Type *type, bool global) {
   return node;
 }
 
-static Node *new_node_member(Node *target, const char *name, const Type *expType) {
+static Node *new_node_member(Node *target, int index, const Type *expType) {
   Node *node = new_node(ND_MEMBER, expType);
   node->u.member.target = target;
-  node->u.member.name = name;
+  node->u.member.index = index;
   return node;
 }
 
@@ -793,6 +793,31 @@ Node *array_index(Node *array) {
   return new_node_deref(add_node(tok, array, index));
 }
 
+bool member_access_recur(const Type *type, Token *ident, Vector *stack) {
+  assert(type->type == TY_STRUCT || type->type == TY_UNION);
+  ensure_struct((Type*)type, ident);
+  const char *name = ident->u.ident;
+
+  Vector *lvars = type->u.struct_.info->members;
+  for (int i = 0, len = lvars->len; i < len; ++i) {
+    VarInfo *info = (VarInfo*)lvars->data[i];
+    if (info->name != NULL) {
+      if (strcmp(info->name, name) == 0) {
+        vec_push(stack, (void*)(long)i);
+        return true;
+      }
+    } else if (info->type->type == TY_STRUCT || info->type->type == TY_UNION) {
+      vec_push(stack, (void*)(long)i);
+      bool res = member_access_recur(info->type, ident, stack);
+      if (res)
+        return true;
+      //vec_pop(stack);
+      --stack->len;
+    }
+  }
+  return false;
+}
+
 Node *member_access(Node *target, Token *acctok) {
   // Find member's type from struct info.
   const Type *type = target->expType;
@@ -817,11 +842,23 @@ Node *member_access(Node *target, Token *acctok) {
 
   ensure_struct((Type*)type, ident);
   int index = var_find(type->u.struct_.info->members, name);
-  if (index < 0)
-    parse_error(ident, "`%s' doesn't exist in the struct", name);
-  VarInfo *varinfo = (VarInfo*)type->u.struct_.info->members->data[index];
+  if (index >= 0) {
+    VarInfo *varinfo = (VarInfo*)type->u.struct_.info->members->data[index];
+    return new_node_member(target, index, varinfo->type);
+  }
 
-  return new_node_member(target, name, varinfo->type);
+  Vector *stack = new_vector();
+  bool res = member_access_recur(type, ident, stack);
+  if (!res)
+    parse_error(ident, "`%s' doesn't exist in the struct", name);
+  Node *node = target;
+  for (int i = 0; i < stack->len; ++i) {
+    int index = (int)(long)stack->data[i];
+    VarInfo *varinfo = type->u.struct_.info->members->data[index];
+    node = new_node_member(node, index, varinfo->type);
+    type = varinfo->type;
+  }
+  return node;
 }
 
 static const Type *parse_enum(void) {
@@ -983,7 +1020,7 @@ static const Type *parse_type_suffix(const Type *type) {
   return arrayof(parse_type_suffix(type), length);
 }
 
-static bool parse_var_def(const Type **prawType, const Type** ptype, int *pflag, Token **pident, bool allow_noname) {
+static bool parse_var_def(const Type **prawType, const Type** ptype, int *pflag, Token **pident) {
   const Type *rawType = prawType != NULL ? *prawType : NULL;
   if (rawType == NULL) {
     rawType = parse_raw_type(pflag);
@@ -999,8 +1036,8 @@ static bool parse_var_def(const Type **prawType, const Type** ptype, int *pflag,
   if (consume(TK_LPAR)) {  // Funcion type.
     consume(TK_MUL);  // Skip `*' if exists.
     ident = consume(TK_IDENT);
-    if (ident == NULL && !allow_noname)
-      parse_error(NULL, "Ident expected");
+    //if (ident == NULL && !allow_noname)
+    //  parse_error(NULL, "Ident expected");
     if (!consume(TK_RPAR))
       parse_error(NULL, "`)' expected");
     if (!consume(TK_LPAR))
@@ -1012,8 +1049,8 @@ static bool parse_var_def(const Type **prawType, const Type** ptype, int *pflag,
   } else {
     if (type->type != TY_VOID) {
       ident = consume(TK_IDENT);
-      if (ident == NULL && !allow_noname)
-        parse_error(NULL, "Ident expected");
+      //if (ident == NULL && !allow_noname)
+      //  parse_error(NULL, "Ident expected");
     }
   }
   if (type->type != TY_VOID)
@@ -1028,7 +1065,7 @@ static bool parse_var_def(const Type **prawType, const Type** ptype, int *pflag,
 
 static const Type *parse_full_type(int *pflag, Token **pident) {
   const Type *type;
-  if (!parse_var_def(NULL, &type, pflag, pident, true))
+  if (!parse_var_def(NULL, &type, pflag, pident))
     return NULL;
   return type;
 }
@@ -1043,7 +1080,7 @@ static StructInfo *parse_struct(bool is_union) {
     const Type *type;
     int flag;
     Token *ident;
-    if (!parse_var_def(NULL, &type, &flag, &ident, false))
+    if (!parse_var_def(NULL, &type, &flag, &ident))
       parse_error(NULL, "type expected");
     not_void(type);
 
@@ -1617,7 +1654,9 @@ static Node *parse_for(void) {
       const Type *type;
       int flag;
       Token *ident;
-      if (parse_var_def(&rawType, &type, &flag, &ident, false)) {
+      if (parse_var_def(&rawType, &type, &flag, &ident)) {
+        if (ident == NULL)
+          parse_error(NULL, "Ident expected");
         scope = enter_scope(curfunc, NULL);
         stmts = parse_vardecl_cont(rawType, type, flag, ident);
         if (!consume(TK_SEMICOL))
@@ -1758,7 +1797,7 @@ static Vector *clear_initial_value(Node *node, Vector *inits) {
       assert(sinfo != NULL);
       for (int i = 0; i < sinfo->members->len; ++i) {
         VarInfo* varinfo = sinfo->members->data[i];
-        Node *member = new_node_member(node, varinfo->name, varinfo->type);
+        Node *member = new_node_member(node, i, varinfo->type);
         clear_initial_value(member, inits);
       }
     }
@@ -1875,7 +1914,7 @@ static Vector *assign_initial_value(Node *node, Initializer *init, Vector *inits
       }
       for (int i = 0; i < n; ++i) {
         VarInfo* varinfo = sinfo->members->data[i];
-        Node *member = new_node_member(node, varinfo->name, varinfo->type);
+        Node *member = new_node_member(node, i, varinfo->type);
         if (values[i] != NULL)
           assign_initial_value(member, values[i], inits);
         else
@@ -1905,7 +1944,7 @@ static Vector *assign_initial_value(Node *node, Initializer *init, Vector *inits
         value = value->u.dot.value;
       }
       VarInfo* varinfo = sinfo->members->data[dst];
-      Node *member = new_node_member(node, varinfo->name, varinfo->type);
+      Node *member = new_node_member(node, dst, varinfo->type);
       assign_initial_value(member, value, inits);
     }
     break;
@@ -1925,7 +1964,7 @@ static Vector *parse_vardecl_cont(const Type *rawType, const Type *type, int fla
   bool first = true;
   do {
     if (!first) {
-      if (!parse_var_def(&rawType, &type, &flag, &ident, false)) {
+      if (!parse_var_def(&rawType, &type, &flag, &ident) || ident == NULL) {
         parse_error(NULL, "`ident' expected");
         return NULL;
       }
@@ -1951,8 +1990,10 @@ static bool parse_vardecl(Node **pnode) {
   const Type *type;
   int flag;
   Token *ident;
-  if (!parse_var_def(&rawType, &type, &flag, &ident, false))
+  if (!parse_var_def(&rawType, &type, &flag, &ident))
     return false;
+  if (ident == NULL)
+    parse_error(NULL, "Ident expected");
 
   Vector *inits = parse_vardecl_cont(rawType, type, flag, ident);
 
@@ -2059,7 +2100,7 @@ static Vector *funparams(bool *pvaargs) {
       const Type *type;
       int flag;
       Token *ident;
-      if (!parse_var_def(NULL, &type, &flag, &ident, true))
+      if (!parse_var_def(NULL, &type, &flag, &ident))
         parse_error(NULL, "type expected");
       if (params->len == 0) {
         if (type->type == TY_VOID) {  // fun(void)
