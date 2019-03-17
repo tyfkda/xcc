@@ -6,8 +6,9 @@
 #include "stdlib.h"
 #include "string.h"
 
-#include "../cc/util.h"
+#include "../cc/expr.h"
 #include "../cc/lexer.h"
+#include "../cc/util.h"
 
 #define MAX(x, y)  ((x) >= (y) ? (x) : (y))
 
@@ -329,6 +330,41 @@ bool handle_ifdef(const char *p) {
   return map_get(macro_map, name) != NULL;
 }
 
+intptr_t reduce(Expr *expr) {
+  switch (expr->type) {
+  case EX_CHAR:
+  case EX_SHORT:
+  case EX_INT:
+  case EX_LONG:
+    return expr->u.value;
+  case EX_FUNCALL:
+    {
+      const Expr *func = expr->u.funcall.func;
+      const Vector *args = expr->u.funcall.args;
+      if (func->type == EX_VARREF &&
+          strcmp(func->u.varref.ident, "defined") == 0 &&
+          args != NULL && args->len == 1 &&
+          ((Expr*)args->data[0])->type == EX_VARREF) {  // defined(IDENT)
+        Expr *arg = (Expr*)args->data[0];
+        return map_get(macro_map, arg->u.varref.ident) != NULL ? 1 : 0;
+      }
+    }
+    break;
+  case EX_NOT:
+    return reduce(expr->u.unary.sub) ? 0 : 1;
+  default:
+    break;
+  }
+  error("expression not handled: type=%d", expr->type);
+  return 0;
+}
+
+bool handle_if(const char *p, const char *filename, int lineno) {
+  init_lexer_string(p, filename, lineno);
+  Expr *expr = parse_expr();
+ return reduce(expr) != 0;
+}
+
 #define CF_ENABLE  (1 << 0)
 #define CF_ELSE    (1 << 1)
 
@@ -374,15 +410,17 @@ void pp(FILE *fp, const char *filename) {
 
     const char *next;
     if ((next = keyword(directive, "ifdef")) != NULL) {
+      vec_push(condstack, (void*)(intptr_t)(enable ? CF_ENABLE : 0));
       bool defined = handle_ifdef(next);
-      intptr_t flag = enable ? CF_ENABLE : 0;
-      vec_push(condstack, (void*)flag);
       enable = enable && defined;
     } else if ((next = keyword(directive, "ifndef")) != NULL) {
+      vec_push(condstack, (void*)(intptr_t)(enable ? CF_ENABLE : 0));
       bool defined = handle_ifdef(next);
-      intptr_t flag = enable ? CF_ENABLE : 0;
-      vec_push(condstack, (void*)flag);
       enable = enable && !defined;
+    } else if ((next = keyword(directive, "if")) != NULL) {
+      vec_push(condstack, (void*)(intptr_t)(enable ? CF_ENABLE : 0));
+      bool cond = handle_if(next, filename, lineno);
+      enable = enable && cond;
     } else if ((next = keyword(directive, "else")) != NULL) {
       int last = condstack->len - 1;
       if (last < 0)
