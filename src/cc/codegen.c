@@ -528,9 +528,7 @@ static void gen_lval(Node *node) {
       assert(type->type == TY_STRUCT || type->type == TY_UNION);
       calc_struct_size(type->u.struct_.info, type->type == TY_UNION);
       Vector *members = type->u.struct_.info->members;
-      int varidx = var_find(members, node->u.member.name);
-      assert(varidx >= 0);
-      VarInfo *varinfo = (VarInfo*)members->data[varidx];
+      VarInfo *varinfo = (VarInfo*)members->data[node->u.member.index];
 
       if (node->u.member.target->expType->type == TY_PTR)
         gen(node->u.member.target);

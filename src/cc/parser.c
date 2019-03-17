@@ -475,10 +475,10 @@ static Node *new_node_varref(const char *name, const Type *type, bool global) {
   return node;
 }
 
-static Node *new_node_member(Node *target, const char *name, const Type *expType) {
+static Node *new_node_member(Node *target, int index, const Type *expType) {
   Node *node = new_node(ND_MEMBER, expType);
   node->u.member.target = target;
-  node->u.member.name = name;
+  node->u.member.index = index;
   return node;
 }
 
@@ -821,7 +821,7 @@ Node *member_access(Node *target, Token *acctok) {
     parse_error(ident, "`%s' doesn't exist in the struct", name);
   VarInfo *varinfo = (VarInfo*)type->u.struct_.info->members->data[index];
 
-  return new_node_member(target, name, varinfo->type);
+  return new_node_member(target, index, varinfo->type);
 }
 
 static const Type *parse_enum(void) {
@@ -1758,7 +1758,7 @@ static Vector *clear_initial_value(Node *node, Vector *inits) {
       assert(sinfo != NULL);
       for (int i = 0; i < sinfo->members->len; ++i) {
         VarInfo* varinfo = sinfo->members->data[i];
-        Node *member = new_node_member(node, varinfo->name, varinfo->type);
+        Node *member = new_node_member(node, i, varinfo->type);
         clear_initial_value(member, inits);
       }
     }
@@ -1875,7 +1875,7 @@ static Vector *assign_initial_value(Node *node, Initializer *init, Vector *inits
       }
       for (int i = 0; i < n; ++i) {
         VarInfo* varinfo = sinfo->members->data[i];
-        Node *member = new_node_member(node, varinfo->name, varinfo->type);
+        Node *member = new_node_member(node, i, varinfo->type);
         if (values[i] != NULL)
           assign_initial_value(member, values[i], inits);
         else
@@ -1905,7 +1905,7 @@ static Vector *assign_initial_value(Node *node, Initializer *init, Vector *inits
         value = value->u.dot.value;
       }
       VarInfo* varinfo = sinfo->members->data[dst];
-      Node *member = new_node_member(node, varinfo->name, varinfo->type);
+      Node *member = new_node_member(node, dst, varinfo->type);
       assign_initial_value(member, value, inits);
     }
     break;

@@ -245,7 +245,8 @@ typedef struct Node {
     } return_;
     struct {
       struct Node *target;
-      const char *name;
+      //const char *name;
+      int index;
     } member;
     struct {
       struct Node *sub;
