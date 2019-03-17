@@ -9,6 +9,8 @@
 
 #include "xcc.h"
 #include "elfutil.h"
+#include "lexer.h"
+#include "parser.h"
 #include "util.h"
 #include "x86_64.h"
 

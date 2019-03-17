@@ -1,10 +1,11 @@
+#include "parser.h"
+
 #include <assert.h>
-#include <stdarg.h>
 #include <stdbool.h>
 #include <stdlib.h>  // malloc
 #include <string.h>
 
-#include "xcc.h"
+#include "lexer.h"
 #include "util.h"
 
 static const Type tyVoid = {.type=TY_VOID};

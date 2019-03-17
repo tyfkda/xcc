@@ -4,6 +4,7 @@
 #include <string.h>
 
 #include "xcc.h"
+#include "parser.h"
 #include "util.h"
 
 const int FRAME_ALIGN = 8;
@@ -313,7 +314,7 @@ void construct_initial_value(unsigned char *buf, const Type *type, Initializer *
       int m = init->u.multi->len;
       if (n <= 0) {
         if (m > 0)
-          parse_error(NULL, "Initializer for empty struct");
+          error("Initializer for empty struct");
         break;
       }
       Initializer **values = malloc(sizeof(Initializer*) * n);
@@ -326,7 +327,7 @@ void construct_initial_value(unsigned char *buf, const Type *type, Initializer *
         if (value->type == vDot) {
           int idx = var_find(sinfo->members, value->u.dot.name);
           if (idx < 0)
-            parse_error(NULL, "`%s' is not member of struct", value->u.dot.name);
+            error("`%s' is not member of struct", value->u.dot.name);
           values[idx] = value->u.dot.value;
           dst = idx;
           continue;
