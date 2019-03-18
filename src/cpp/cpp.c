@@ -67,7 +67,7 @@ const char *find_directive(const char *line) {
   return skip_whitespaces(p + 1);
 }
 
-Map *macro_map;
+Map *macro_map;  // <Macro*>
 
 void pp(FILE *fp, const char *filename);
 
@@ -344,6 +344,9 @@ void pp(FILE *fp, const char *filename) {
   bool enable = true;
   char linenobuf[sizeof(int) * 3 + 1];  // Buffer for __LINE__
 
+  Macro *old_file_macro = map_get(macro_map, "__FILE__");
+  Macro *old_line_macro = map_get(macro_map, "__LINE__");
+
   define_file_macro(filename);
   map_put(macro_map, "__LINE__", new_macro_single(linenobuf));
 
@@ -398,9 +401,6 @@ void pp(FILE *fp, const char *filename) {
     } else if (enable) {
       if ((next = keyword(directive, "include")) != NULL) {
         handle_include(next, filename);
-        // Redefine __FILE__ and __LINE__
-        define_file_macro(filename);
-        map_put(macro_map, "__LINE__", new_macro_single(linenobuf));
       } else if ((next = keyword(directive, "define")) != NULL) {
         handle_define(next, filename, lineno);
       } else if ((next = keyword(directive, "error")) != NULL) {
@@ -413,6 +413,9 @@ void pp(FILE *fp, const char *filename) {
 
   if (condstack->len > 0)
     error("#if not closed");
+
+  map_put(macro_map, "__FILE__", old_file_macro);
+  map_put(macro_map, "__LINE__", old_line_macro);
 }
 
 int main(int argc, char* argv[]) {
