@@ -64,10 +64,10 @@ Map *typedef_map;
 
 // Global
 
-Map *global;
+Map *gvar_map;
 
 GlobalVarInfo *find_global(const char *name) {
-  return (GlobalVarInfo*)map_get(global, name);
+  return (GlobalVarInfo*)map_get(gvar_map, name);
 }
 
 void define_global(const Type *type, int flag, const Token *ident, Initializer *init) {
@@ -81,7 +81,7 @@ void define_global(const Type *type, int flag, const Token *ident, Initializer *
   varinfo->flag = flag;
   varinfo->init = init;
   varinfo->offset = 0;
-  map_put(global, name, varinfo);
+  map_put(gvar_map, name, varinfo);
 }
 
 // Type

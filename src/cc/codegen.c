@@ -356,9 +356,9 @@ void construct_initial_value(unsigned char *buf, const Type *type, Initializer *
 static void put_rwdata(void) {
   unsigned char *buf = NULL;
   size_t bufsize = 0;
-  for (int i = 0, len = map_count(global); i < len; ++i) {
-    const char *name = (const char *)global->keys->data[i];
-    const GlobalVarInfo *varinfo = (const GlobalVarInfo*)global->vals->data[i];
+  for (int i = 0, len = map_count(gvar_map); i < len; ++i) {
+    const char *name = (const char *)gvar_map->keys->data[i];
+    const GlobalVarInfo *varinfo = (const GlobalVarInfo*)gvar_map->vals->data[i];
     if (varinfo->type->type == TY_FUNC || varinfo->init == NULL ||
         (varinfo->flag & VF_EXTERN) != 0 ||
         varinfo->type->type == TY_ENUM)
@@ -391,9 +391,9 @@ static void put_rwdata(void) {
 static void put_bss(void) {
   unsigned char *buf = NULL;
   size_t bufsize = 0;
-  for (int i = 0, len = map_count(global); i < len; ++i) {
-    const char *name = (const char *)global->keys->data[i];
-    const GlobalVarInfo *varinfo = (const GlobalVarInfo*)global->vals->data[i];
+  for (int i = 0, len = map_count(gvar_map); i < len; ++i) {
+    const char *name = (const char *)gvar_map->keys->data[i];
+    const GlobalVarInfo *varinfo = (const GlobalVarInfo*)gvar_map->vals->data[i];
     if (varinfo->type->type == TY_FUNC || varinfo->init != NULL ||
         (varinfo->flag & VF_EXTERN) != 0)
       continue;

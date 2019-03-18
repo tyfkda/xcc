@@ -93,8 +93,8 @@ typedef struct {
   int offset;
 } GlobalVarInfo;
 
-Map *struct_map;  // <char*, StructInfo*>
-Map *typedef_map;  // <char*, Type*>
+extern Map *struct_map;  // <char*, StructInfo*>
+extern Map *typedef_map;  // <char*, Type*>
 
 // Scope
 
@@ -263,7 +263,7 @@ Vector *parse_program(void);
 int var_find(Vector *vartbl, const char *name);
 void var_add(Vector *lvars, const Token *ident, const Type *type, int flag);
 
-Map *global;
+extern Map *gvar_map;
 
 GlobalVarInfo *find_global(const char *name);
 void define_global(const Type *type, int flag, const Token *ident, Initializer *init);

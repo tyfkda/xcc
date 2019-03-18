@@ -61,7 +61,7 @@ void init_compiler(uintptr_t adr) {
   loc_vector = new_vector();
   struct_map = new_map();
   typedef_map = new_map();
-  global = new_map();
+  gvar_map = new_map();
 
   init_gen(adr);
 }
