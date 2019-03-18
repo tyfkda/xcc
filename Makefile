@@ -3,7 +3,7 @@ CFLAGS:=-ansi -std=c11 -MD -Wall -Wextra -Werror -Wold-style-definition \
 SRC_DIR:=src/cc
 CPP_DIR:=src/cpp
 OBJ_DIR:=obj
-OBJS:=$(OBJ_DIR)/util.o $(OBJ_DIR)/lexer.o $(OBJ_DIR)/parser.o $(OBJ_DIR)/codegen.o $(OBJ_DIR)/elfutil.o $(OBJ_DIR)/main.o
+OBJS:=$(OBJ_DIR)/util.o $(OBJ_DIR)/lexer.o $(OBJ_DIR)/expr.o $(OBJ_DIR)/codegen.o $(OBJ_DIR)/elfutil.o $(OBJ_DIR)/main.o
 CPPOBJS:=$(OBJ_DIR)/util.o $(OBJ_DIR)/lexer.o $(OBJ_DIR)/cpp.o
 
 xcc: $(OBJS) cpp
