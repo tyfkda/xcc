@@ -18,7 +18,6 @@ static const Type tyEnum = {.type=TY_ENUM};
 
 static StructInfo *parse_struct(bool is_union);
 static Expr *cast_expr(void);
-static Expr *prim(void);
 
 //
 
@@ -239,7 +238,7 @@ VarInfo *scope_find(Scope *scope, const char *name) {
   }
 }
 
-// Defun
+// Scope
 
 static Scope *curscope;
 
@@ -262,8 +261,6 @@ void add_cur_scope(const Token *ident, const Type *type, int flag) {
 }
 
 //
-
-Defun *curfunc;
 
 Expr *new_expr(enum ExprType type , const Type *expType) {
   Expr *expr = malloc(sizeof(*expr));
@@ -389,40 +386,6 @@ bool can_cast(const Type *dst, const Type *src, Expr *src_expr, bool is_explicit
   return false;
 }
 
-Expr *new_expr_cast(const Type *type, Expr *sub, bool is_explicit) {
-  if (type->type == TY_VOID || sub->valType->type == TY_VOID)
-    parse_error(NULL, "cannot use `void' as a value");
-
-  if (!can_cast(type, sub->valType, sub, is_explicit))
-    parse_error(NULL, "Cannot convert value from type %d to %d", sub->valType->type, type->type);
-
-  if (same_type(type, sub->valType))
-    return sub;
-
-  Expr *expr = new_expr(EX_CAST, type);
-  expr->u.cast.sub = sub;
-  return expr;
-}
-
-Expr *new_expr_bop(enum ExprType type, const Type *expType, Expr *lhs, Expr *rhs) {
-  Expr *expr = new_expr(type, expType);
-  expr->u.bop.lhs = lhs;
-  expr->u.bop.rhs = rhs;
-  return expr;
-}
-
-static Expr *new_expr_unary(enum ExprType type, const Type *expType, Expr *sub) {
-  Expr *expr = new_expr(type, expType);
-  expr->u.unary.sub = sub;
-  return expr;
-}
-
-Expr *new_expr_deref(Expr *sub) {
-  if (sub->valType->type != TY_PTR && sub->valType->type != TY_ARRAY)
-    parse_error(NULL, "Cannot dereference raw type");
-  return new_expr_unary(EX_DEREF, sub->valType->u.pa.ptrof, sub);
-}
-
 Expr *new_expr_numlit(enum ExprType exprtype, intptr_t val) {
   const Type *type = NULL;
   switch (exprtype) {
@@ -456,18 +419,37 @@ Expr *new_expr_varref(const char *name, const Type *type, bool global) {
   return expr;
 }
 
-Expr *new_expr_member(Expr *target, int index, const Type *expType) {
-  Expr *expr = new_expr(EX_MEMBER, expType);
-  expr->u.member.target = target;
-  expr->u.member.index = index;
+Expr *new_expr_bop(enum ExprType type, const Type *expType, Expr *lhs, Expr *rhs) {
+  Expr *expr = new_expr(type, expType);
+  expr->u.bop.lhs = lhs;
+  expr->u.bop.rhs = rhs;
   return expr;
 }
 
-static Expr *new_expr_funcall(Expr *func, Vector *args) {
-  const Type *rettype = func->valType->type == TY_FUNC ? func->valType->u.func.ret : &tyInt;  // TODO: Fix.
-  Expr *expr = new_expr(EX_FUNCALL, rettype);
-  expr->u.funcall.func = func;
-  expr->u.funcall.args = args;
+static Expr *new_expr_unary(enum ExprType type, const Type *expType, Expr *sub) {
+  Expr *expr = new_expr(type, expType);
+  expr->u.unary.sub = sub;
+  return expr;
+}
+
+Expr *new_expr_deref(Expr *sub) {
+  if (sub->valType->type != TY_PTR && sub->valType->type != TY_ARRAY)
+    parse_error(NULL, "Cannot dereference raw type");
+  return new_expr_unary(EX_DEREF, sub->valType->u.pa.ptrof, sub);
+}
+
+Expr *new_expr_cast(const Type *type, Expr *sub, bool is_explicit) {
+  if (type->type == TY_VOID || sub->valType->type == TY_VOID)
+    parse_error(NULL, "cannot use `void' as a value");
+
+  if (!can_cast(type, sub->valType, sub, is_explicit))
+    parse_error(NULL, "Cannot convert value from type %d to %d", sub->valType->type, type->type);
+
+  if (same_type(type, sub->valType))
+    return sub;
+
+  Expr *expr = new_expr(EX_CAST, type);
+  expr->u.cast.sub = sub;
   return expr;
 }
 
@@ -479,9 +461,24 @@ static Expr *new_expr_ternary(Expr *cond, Expr *tval, Expr *fval, const Type *ty
   return expr;
 }
 
+Expr *new_expr_member(Expr *target, int index, const Type *expType) {
+  Expr *expr = new_expr(EX_MEMBER, expType);
+  expr->u.member.target = target;
+  expr->u.member.index = index;
+  return expr;
+}
+
 static Expr *new_expr_sizeof(const Type *type) {
   Expr *expr = new_expr(EX_SIZEOF, &tySize);
   expr->u.sizeof_.type = type;
+  return expr;
+}
+
+static Expr *new_expr_funcall(Expr *func, Vector *args) {
+  const Type *rettype = func->valType->type == TY_FUNC ? func->valType->u.func.ret : &tyInt;  // TODO: Fix.
+  Expr *expr = new_expr(EX_FUNCALL, rettype);
+  expr->u.funcall.func = func;
+  expr->u.funcall.args = args;
   return expr;
 }
 
@@ -1058,23 +1055,6 @@ static StructInfo *parse_struct(bool is_union) {
   return sinfo;
 }
 
-static Expr *parse_sizeof(void) {
-  const Type *type;
-  if (consume(TK_LPAR)) {
-    type = parse_full_type(NULL, NULL);
-    if (type == NULL) {
-      Expr *expr = parse_expr();
-      type = expr->valType;
-    }
-    if (!consume(TK_RPAR))
-      parse_error(NULL, "`)' expected");
-  } else {
-    Expr *expr = prim();
-    type = expr->valType;
-  }
-  return new_expr_sizeof(type);
-}
-
 static Expr *prim(void) {
   if (consume(TK_LPAR)) {
     Expr *expr = parse_expr();
@@ -1099,7 +1079,7 @@ static Expr *prim(void) {
     const char *name = ident->u.ident;
     const Type *type = NULL;
     bool global = false;
-    if (curfunc != NULL) {
+    if (curscope != NULL) {
       VarInfo *varinfo = scope_find(curscope, name);
       if (varinfo != NULL)
         type = varinfo->type;
@@ -1145,6 +1125,23 @@ static Expr *postfix(void) {
     else
       return expr;
   }
+}
+
+static Expr *parse_sizeof(void) {
+  const Type *type;
+  if (consume(TK_LPAR)) {
+    type = parse_full_type(NULL, NULL);
+    if (type == NULL) {
+      Expr *expr = parse_expr();
+      type = expr->valType;
+    }
+    if (!consume(TK_RPAR))
+      parse_error(NULL, "`)' expected");
+  } else {
+    Expr *expr = prim();
+    type = expr->valType;
+  }
+  return new_expr_sizeof(type);
 }
 
 static Expr *unary(void) {

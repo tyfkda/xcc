@@ -128,31 +128,29 @@ void add_cur_scope(const Token *ident, const Type *type, int flag);
 // Expr
 
 enum ExprType {
+  // Literals
   EX_CHAR,
   EX_SHORT,
-  EX_INT,  // int
-  EX_LONG,  // long
+  EX_INT,
+  EX_LONG,
   EX_STR,
+
   EX_VARREF,
-  EX_FUNCALL,
+
+  // Binary operators
   EX_ADD,  // num + num
   EX_SUB,  // num - num
   EX_MUL,  // num * num
   EX_DIV,  // num / num
   EX_MOD,  // num % num
-  EX_NEG,  // -num
-  EX_NOT,  // !x
-  EX_LSHIFT,  // num << num
-  EX_RSHIFT,  // num >> num
   EX_BITAND,
   EX_BITOR,
   EX_BITXOR,
-  EX_ASSIGN,
-  EX_ASSIGN_WITH,  // +=, etc.
-  EX_PREINC,
-  EX_PREDEC,
-  EX_POSTINC,
-  EX_POSTDEC,
+  EX_LSHIFT,  // num << num
+  EX_RSHIFT,  // num >> num
+  EX_PTRADD,  // ptr + num
+  EX_PTRSUB,  // ptr - num
+  EX_PTRDIFF,  // ptr - ptr
   EX_EQ,
   EX_NE,
   EX_LT,
@@ -161,15 +159,25 @@ enum ExprType {
   EX_GE,
   EX_LOGAND,
   EX_LOGIOR,
-  EX_PTRADD,  // ptr + num
-  EX_PTRSUB,  // ptr - num
-  EX_PTRDIFF,  // ptr - ptr
-  EX_TERNARY,
-  EX_REF,
-  EX_DEREF,
-  EX_MEMBER,  // x.member or x->member
+  EX_ASSIGN,
+  EX_ASSIGN_WITH,  // +=, etc.
+
+  // Unary operators
+  EX_NEG,  // -num
+  EX_NOT,  // !x
+  EX_PREINC,
+  EX_PREDEC,
+  EX_POSTINC,
+  EX_POSTDEC,
+  EX_REF,    // &x
+  EX_DEREF,  // *x
   EX_CAST,
+
+  EX_TERNARY,
+
+  EX_MEMBER,  // x.member or x->member
   EX_SIZEOF,
+  EX_FUNCALL,
 };
 
 typedef struct Expr {
@@ -181,6 +189,10 @@ typedef struct Expr {
       const char *buf;
       size_t len;  // Include last '\0'.
     } str;
+    struct {
+      const char *ident;
+      bool global;
+    } varref;
 
     struct {
       struct Expr *lhs;
@@ -190,16 +202,13 @@ typedef struct Expr {
       struct Expr *sub;
     } unary;
     struct {
-      const char *ident;
-      bool global;
-    } varref;
-    struct {
-      struct Expr *func;
-      Vector *args;
-    } funcall;
-    struct {
       struct Expr *sub;
     } cast;
+    struct {
+      struct Expr *cond;
+      struct Expr *tval;
+      struct Expr *fval;
+    } ternary;
     struct {
       struct Expr *target;
       int index;
@@ -208,10 +217,9 @@ typedef struct Expr {
       const Type *type;
     } sizeof_;
     struct {
-      struct Expr *cond;
-      struct Expr *tval;
-      struct Expr *fval;
-    } ternary;
+      struct Expr *func;
+      Vector *args;
+    } funcall;
   } u;
 } Expr;
 
@@ -312,5 +320,3 @@ Vector *funparams(bool *pvaargs);
 bool parse_var_def(const Type **prawType, const Type** ptype, int *pflag, Token **pident);
 Expr *parse_expr(void);
 Expr *new_expr_cast(const Type *type, Expr *sub, bool is_explicit);
-
-extern Defun *curfunc;

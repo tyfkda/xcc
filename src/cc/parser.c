@@ -14,6 +14,7 @@ const int LF_BREAK = 1 << 0;
 const int LF_CONTINUE = 1 << 0;
 
 static int curloopflag;
+static Defun *curfunc;
 static Node *curswitch;
 
 static Node *stmt(void);

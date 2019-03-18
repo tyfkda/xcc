@@ -472,6 +472,7 @@ typedef struct LoopInfo {
   const char *l_continue;
 } LoopInfo;
 
+static Defun *curfunc;
 static Scope *curscope;
 static const char *s_break_label;
 static const char *s_continue_label;
@@ -1016,12 +1017,12 @@ static void gen_arith(enum ExprType nodeType, enum eType expType, enum eType rhs
 
 void gen_expr(Expr *node) {
   switch (node->type) {
-  case EX_INT:
-    MOV_IM32_EAX(node->u.value);
-    return;
-
   case EX_CHAR:
     MOV_IM8_AL(node->u.value);
+    return;
+
+  case EX_INT:
+    MOV_IM32_EAX(node->u.value);
     return;
 
   case EX_LONG:
@@ -1031,6 +1032,14 @@ void gen_expr(Expr *node) {
       MOV_IM64_RAX(node->u.value);
     return;
 
+  case EX_STR:
+    {
+      const char * label = alloc_label();
+      add_rodata(label, node->u.str.buf, node->u.str.len);
+      LEA_OFS32_RIP_RAX(label);
+    }
+    return;
+
   case EX_SIZEOF:
     {
       size_t size = type_size(node->u.sizeof_.type);
@@ -1038,14 +1047,6 @@ void gen_expr(Expr *node) {
         MOV_IM32_RAX(size);
       else
         MOV_IM64_RAX(size);
-    }
-    return;
-
-  case EX_STR:
-    {
-      const char * label = alloc_label();
-      add_rodata(label, node->u.str.buf, node->u.str.len);
-      LEA_OFS32_RIP_RAX(label);
     }
     return;
 
