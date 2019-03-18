@@ -128,53 +128,53 @@ void add_cur_scope(const Token *ident, const Type *type, int flag);
 // Expr
 
 enum ExprType {
-  ND_CHAR,
-  ND_SHORT,
-  ND_INT,  // int
-  ND_LONG,  // long
-  ND_STR,
-  ND_VARREF,
-  ND_FUNCALL,
-  ND_ADD,  // num + num
-  ND_SUB,  // num - num
-  ND_MUL,  // num * num
-  ND_DIV,  // num / num
-  ND_MOD,  // num % num
-  ND_NEG,  // -num
-  ND_NOT,  // !x
-  ND_LSHIFT,  // num << num
-  ND_RSHIFT,  // num >> num
-  ND_BITAND,
-  ND_BITOR,
-  ND_BITXOR,
-  ND_ASSIGN,
-  ND_ASSIGN_WITH,  // +=, etc.
-  ND_PREINC,
-  ND_PREDEC,
-  ND_POSTINC,
-  ND_POSTDEC,
-  ND_EQ,
-  ND_NE,
-  ND_LT,
-  ND_GT,
-  ND_LE,
-  ND_GE,
-  ND_LOGAND,
-  ND_LOGIOR,
-  ND_PTRADD,  // ptr + num
-  ND_PTRSUB,  // ptr - num
-  ND_PTRDIFF,  // ptr - ptr
-  ND_TERNARY,
-  ND_REF,
-  ND_DEREF,
-  ND_MEMBER,  // x.member or x->member
-  ND_CAST,
-  ND_SIZEOF,
+  EX_CHAR,
+  EX_SHORT,
+  EX_INT,  // int
+  EX_LONG,  // long
+  EX_STR,
+  EX_VARREF,
+  EX_FUNCALL,
+  EX_ADD,  // num + num
+  EX_SUB,  // num - num
+  EX_MUL,  // num * num
+  EX_DIV,  // num / num
+  EX_MOD,  // num % num
+  EX_NEG,  // -num
+  EX_NOT,  // !x
+  EX_LSHIFT,  // num << num
+  EX_RSHIFT,  // num >> num
+  EX_BITAND,
+  EX_BITOR,
+  EX_BITXOR,
+  EX_ASSIGN,
+  EX_ASSIGN_WITH,  // +=, etc.
+  EX_PREINC,
+  EX_PREDEC,
+  EX_POSTINC,
+  EX_POSTDEC,
+  EX_EQ,
+  EX_NE,
+  EX_LT,
+  EX_GT,
+  EX_LE,
+  EX_GE,
+  EX_LOGAND,
+  EX_LOGIOR,
+  EX_PTRADD,  // ptr + num
+  EX_PTRSUB,  // ptr - num
+  EX_PTRDIFF,  // ptr - ptr
+  EX_TERNARY,
+  EX_REF,
+  EX_DEREF,
+  EX_MEMBER,  // x.member or x->member
+  EX_CAST,
+  EX_SIZEOF,
 };
 
 typedef struct Expr {
   enum ExprType type;
-  const Type *expType;
+  const Type *valType;
   union {
     intptr_t value;
     struct {
@@ -302,17 +302,15 @@ const Type *parse_type_modifier(const Type* type);
 const Type *parse_type_suffix(const Type *type);
 const Type *parse_full_type(int *pflag, Token **pident);
 
-Expr *new_node_numlit(enum ExprType nodetype, intptr_t val);
-Expr *new_node_bop(enum NodeType type, const Type *expType, Expr *lhs, Expr *rhs);
-Expr *new_node_deref(Expr *sub);
-Expr *add_node(Token *tok, Expr *lhs, Expr *rhs);
-Expr *new_node_varref(const char *name, const Type *type, bool global);
-Expr *new_node_member(Expr *target, int index, const Type *expType);
+Expr *new_expr_numlit(enum ExprType exprtype, intptr_t val);
+Expr *new_expr_bop(enum ExprType type, const Type *expType, Expr *lhs, Expr *rhs);
+Expr *new_expr_deref(Expr *sub);
+Expr *add_expr(Token *tok, Expr *lhs, Expr *rhs);
+Expr *new_expr_varref(const char *name, const Type *type, bool global);
+Expr *new_expr_member(Expr *target, int index, const Type *expType);
 Vector *funparams(bool *pvaargs);
 bool parse_var_def(const Type **prawType, const Type** ptype, int *pflag, Token **pident);
-Expr *expr(void);
-Expr *new_node_cast(const Type *type, Expr *sub, bool is_explicit);
+Expr *parse_expr(void);
+Expr *new_expr_cast(const Type *type, Expr *sub, bool is_explicit);
 
 extern Defun *curfunc;
-
-Node *stmt(void);

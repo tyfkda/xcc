@@ -268,7 +268,7 @@ Defun *curfunc;
 Expr *new_expr(enum ExprType type , const Type *expType) {
   Expr *expr = malloc(sizeof(*expr));
   expr->type = type;
-  expr->expType = expType;
+  expr->valType = expType;
   return expr;
 }
 
@@ -344,11 +344,11 @@ bool can_cast(const Type *dst, const Type *src, Expr *src_expr, bool is_explicit
   case TY_PTR:
     switch (src->type) {
     case TY_INT:
-      if (src_expr->type == ND_INT && src_expr->u.value == 0)  // Special handling for 0 to pointer.
+      if (src_expr->type == EX_INT && src_expr->u.value == 0)  // Special handling for 0 to pointer.
         return true;
       break;
     case TY_LONG:
-      if (src_expr->type == ND_LONG && src_expr->u.value == 0)  // Special handling for 0 to pointer.
+      if (src_expr->type == EX_LONG && src_expr->u.value == 0)  // Special handling for 0 to pointer.
         return true;
       if (is_explicit)
         return true;
@@ -389,107 +389,107 @@ bool can_cast(const Type *dst, const Type *src, Expr *src_expr, bool is_explicit
   return false;
 }
 
-Expr *new_node_cast(const Type *type, Expr *sub, bool is_explicit) {
-  if (type->type == TY_VOID || sub->expType->type == TY_VOID)
+Expr *new_expr_cast(const Type *type, Expr *sub, bool is_explicit) {
+  if (type->type == TY_VOID || sub->valType->type == TY_VOID)
     parse_error(NULL, "cannot use `void' as a value");
 
-  if (!can_cast(type, sub->expType, sub, is_explicit))
-    parse_error(NULL, "Cannot convert value from type %d to %d", sub->expType->type, type->type);
+  if (!can_cast(type, sub->valType, sub, is_explicit))
+    parse_error(NULL, "Cannot convert value from type %d to %d", sub->valType->type, type->type);
 
-  if (same_type(type, sub->expType))
+  if (same_type(type, sub->valType))
     return sub;
 
-  Expr *node = new_expr(ND_CAST, type);
-  node->u.cast.sub = sub;
-  return node;
+  Expr *expr = new_expr(EX_CAST, type);
+  expr->u.cast.sub = sub;
+  return expr;
 }
 
-Expr *new_node_bop(enum NodeType type, const Type *expType, Expr *lhs, Expr *rhs) {
-  Expr *node = new_expr(type, expType);
-  node->u.bop.lhs = lhs;
-  node->u.bop.rhs = rhs;
-  return node;
+Expr *new_expr_bop(enum ExprType type, const Type *expType, Expr *lhs, Expr *rhs) {
+  Expr *expr = new_expr(type, expType);
+  expr->u.bop.lhs = lhs;
+  expr->u.bop.rhs = rhs;
+  return expr;
 }
 
-static Expr *new_node_unary(enum NodeType type, const Type *expType, Expr *sub) {
-  Expr *node = new_expr(type, expType);
-  node->u.unary.sub = sub;
-  return node;
+static Expr *new_expr_unary(enum ExprType type, const Type *expType, Expr *sub) {
+  Expr *expr = new_expr(type, expType);
+  expr->u.unary.sub = sub;
+  return expr;
 }
 
-Expr *new_node_deref(Expr *sub) {
-  if (sub->expType->type != TY_PTR && sub->expType->type != TY_ARRAY)
+Expr *new_expr_deref(Expr *sub) {
+  if (sub->valType->type != TY_PTR && sub->valType->type != TY_ARRAY)
     parse_error(NULL, "Cannot dereference raw type");
-  return new_node_unary(ND_DEREF, sub->expType->u.pa.ptrof, sub);
+  return new_expr_unary(EX_DEREF, sub->valType->u.pa.ptrof, sub);
 }
 
-Expr *new_node_numlit(enum ExprType nodetype, intptr_t val) {
+Expr *new_expr_numlit(enum ExprType exprtype, intptr_t val) {
   const Type *type = NULL;
-  switch (nodetype) {
-  case ND_CHAR:  type = &tyChar; break;
-  case ND_SHORT: type = &tyShort; break;
-  case ND_INT:   type = &tyInt; break;
-  case ND_LONG:  type = &tyLong; break;
+  switch (exprtype) {
+  case EX_CHAR:  type = &tyChar; break;
+  case EX_SHORT: type = &tyShort; break;
+  case EX_INT:   type = &tyInt; break;
+  case EX_LONG:  type = &tyLong; break;
   default: assert(false); break;
   }
-  Expr *node = new_expr(nodetype, type);
-  node->u.value = val;
-  return node;
+  Expr *expr = new_expr(exprtype, type);
+  expr->u.value = val;
+  return expr;
 }
 
-static Expr *new_node_str(const char *str, size_t len) {
+static Expr *new_expr_str(const char *str, size_t len) {
   Type *type = malloc(sizeof(*type));
   type->type = TY_ARRAY;
   type->u.pa.ptrof = &tyChar;
   type->u.pa.length = len;
 
-  Expr *node = new_expr(ND_STR, type);
-  node->u.str.buf = str;
-  node->u.str.len = len;
-  return node;
+  Expr *expr = new_expr(EX_STR, type);
+  expr->u.str.buf = str;
+  expr->u.str.len = len;
+  return expr;
 }
 
-Expr *new_node_varref(const char *name, const Type *type, bool global) {
-  Expr *node = new_expr(ND_VARREF, type);
-  node->u.varref.ident = name;
-  node->u.varref.global = global;
-  return node;
+Expr *new_expr_varref(const char *name, const Type *type, bool global) {
+  Expr *expr = new_expr(EX_VARREF, type);
+  expr->u.varref.ident = name;
+  expr->u.varref.global = global;
+  return expr;
 }
 
-Expr *new_node_member(Expr *target, int index, const Type *expType) {
-  Expr *node = new_expr(ND_MEMBER, expType);
-  node->u.member.target = target;
-  node->u.member.index = index;
-  return node;
+Expr *new_expr_member(Expr *target, int index, const Type *expType) {
+  Expr *expr = new_expr(EX_MEMBER, expType);
+  expr->u.member.target = target;
+  expr->u.member.index = index;
+  return expr;
 }
 
-static Expr *new_node_funcall(Expr *func, Vector *args) {
-  const Type *rettype = func->expType->type == TY_FUNC ? func->expType->u.func.ret : &tyInt;  // TODO: Fix.
-  Expr *node = new_expr(ND_FUNCALL, rettype);
-  node->u.funcall.func = func;
-  node->u.funcall.args = args;
-  return node;
+static Expr *new_expr_funcall(Expr *func, Vector *args) {
+  const Type *rettype = func->valType->type == TY_FUNC ? func->valType->u.func.ret : &tyInt;  // TODO: Fix.
+  Expr *expr = new_expr(EX_FUNCALL, rettype);
+  expr->u.funcall.func = func;
+  expr->u.funcall.args = args;
+  return expr;
 }
 
-static Expr *new_node_ternary(Expr *cond, Expr *tval, Expr *fval, const Type *type) {
-  Expr *node = new_expr(ND_TERNARY, type);
-  node->u.ternary.cond = cond;
-  node->u.ternary.tval = tval;
-  node->u.ternary.fval = fval;
-  return node;
+static Expr *new_expr_ternary(Expr *cond, Expr *tval, Expr *fval, const Type *type) {
+  Expr *expr = new_expr(EX_TERNARY, type);
+  expr->u.ternary.cond = cond;
+  expr->u.ternary.tval = tval;
+  expr->u.ternary.fval = fval;
+  return expr;
 }
 
-static Expr *new_node_sizeof(const Type *type) {
-  Expr *node = new_expr(ND_SIZEOF, &tySize);
-  node->u.sizeof_.type = type;
-  return node;
+static Expr *new_expr_sizeof(const Type *type) {
+  Expr *expr = new_expr(EX_SIZEOF, &tySize);
+  expr->u.sizeof_.type = type;
+  return expr;
 }
 
 static Expr *funcall(Expr *func) {
   const Type *functype;
 
-  if (!((functype = func->expType)->type == TY_FUNC ||
-        (func->expType->type == TY_PTR && (functype = func->expType->u.pa.ptrof)->type == TY_FUNC)))
+  if (!((functype = func->valType)->type == TY_FUNC ||
+        (func->valType->type == TY_PTR && (functype = func->valType->u.pa.ptrof)->type == TY_FUNC)))
     parse_error(NULL, "Cannot call except funtion");
 
   Vector *args = NULL;
@@ -497,10 +497,10 @@ static Expr *funcall(Expr *func) {
   if ((tok = consume(TK_RPAR)) == NULL) {
     args = new_vector();
     for (;;) {
-      Expr *arg = expr();
+      Expr *arg = parse_expr();
       if (functype->u.func.params != NULL && args->len < functype->u.func.params->len) {
         const Type * type = ((VarInfo*)functype->u.func.params->data[args->len])->type;
-        arg = new_node_cast(type, arg, false);
+        arg = new_expr_cast(type, arg, false);
       }
       vec_push(args, arg);
       if ((tok = consume(TK_RPAR)) != NULL)
@@ -519,71 +519,71 @@ static Expr *funcall(Expr *func) {
      parse_error(tok, "function `%s' expect %d arguments, but %d", func->u.varref.ident, paramc, argc);
   }
 
-  return new_node_funcall(func, args);
+  return new_expr_funcall(func, args);
 }
 
-Expr *add_node(Token *tok, Expr *lhs, Expr *rhs) {
+Expr *add_expr(Token *tok, Expr *lhs, Expr *rhs) {
   Expr *l = lhs, *r = rhs;
 
-  if (lhs->expType->type > rhs->expType->type) {
+  if (lhs->valType->type > rhs->valType->type) {
     Expr *tmp = l;
     l = r;
     r = tmp;
   }
 
-  switch (l->expType->type) {
+  switch (l->valType->type) {
   case TY_CHAR:
-    switch (r->expType->type) {
+    switch (r->valType->type) {
     case TY_CHAR:
-      return new_node_bop(ND_ADD, l->expType, l, r);
+      return new_expr_bop(EX_ADD, l->valType, l, r);
     case TY_INT:
-      return new_node_bop(ND_ADD, r->expType, new_node_cast(r->expType, l, false), r);
+      return new_expr_bop(EX_ADD, r->valType, new_expr_cast(r->valType, l, false), r);
     case TY_LONG:
-      return new_node_bop(ND_ADD, r->expType, new_node_cast(r->expType, l, false), r);
+      return new_expr_bop(EX_ADD, r->valType, new_expr_cast(r->valType, l, false), r);
     default:
       break;
     }
     break;
 
   case TY_SHORT:
-    switch (r->expType->type) {
+    switch (r->valType->type) {
     case TY_SHORT:
-      return new_node_bop(ND_ADD, l->expType, l, r);
+      return new_expr_bop(EX_ADD, l->valType, l, r);
     case TY_INT:
     case TY_LONG:
-      return new_node_bop(ND_ADD, l->expType, new_node_cast(r->expType, l, false), r);
+      return new_expr_bop(EX_ADD, l->valType, new_expr_cast(r->valType, l, false), r);
     case TY_PTR:
-      return new_node_bop(ND_PTRADD, r->expType, r, new_node_cast(&tySize, l, false));
+      return new_expr_bop(EX_PTRADD, r->valType, r, new_expr_cast(&tySize, l, false));
     case TY_ARRAY:
-      return new_node_bop(ND_PTRADD, array_to_ptr(r->expType), r,  new_node_cast(&tySize, l, false));
+      return new_expr_bop(EX_PTRADD, array_to_ptr(r->valType), r,  new_expr_cast(&tySize, l, false));
     default:
       break;
     }
     break;
 
   case TY_INT:
-    switch (r->expType->type) {
+    switch (r->valType->type) {
     case TY_INT:
-      return new_node_bop(ND_ADD, l->expType, l, r);
+      return new_expr_bop(EX_ADD, l->valType, l, r);
     case TY_LONG:
-      return new_node_bop(ND_ADD, r->expType, new_node_cast(r->expType, l, false), r);
+      return new_expr_bop(EX_ADD, r->valType, new_expr_cast(r->valType, l, false), r);
     case TY_PTR:
-      return new_node_bop(ND_PTRADD, r->expType, r, new_node_cast(&tySize, l, false));
+      return new_expr_bop(EX_PTRADD, r->valType, r, new_expr_cast(&tySize, l, false));
     case TY_ARRAY:
-      return new_node_bop(ND_PTRADD, array_to_ptr(r->expType), r,  new_node_cast(&tySize, l, false));
+      return new_expr_bop(EX_PTRADD, array_to_ptr(r->valType), r,  new_expr_cast(&tySize, l, false));
     default:
       break;
     }
     break;
 
   case TY_LONG:
-    switch (r->expType->type) {
+    switch (r->valType->type) {
     case TY_LONG:
-      return new_node_bop(ND_ADD, l->expType, l, r);
+      return new_expr_bop(EX_ADD, l->valType, l, r);
     case TY_PTR:
-      return new_node_bop(ND_PTRADD, r->expType, r, l);
+      return new_expr_bop(EX_PTRADD, r->valType, r, l);
     case TY_ARRAY:
-      return new_node_bop(ND_PTRADD, array_to_ptr(r->expType), r, l);
+      return new_expr_bop(EX_PTRADD, array_to_ptr(r->valType), r, l);
     default:
       break;
     }
@@ -597,84 +597,84 @@ Expr *add_node(Token *tok, Expr *lhs, Expr *rhs) {
   return NULL;
 }
 
-static Expr *sub_node(Token *tok, Expr *lhs, Expr *rhs) {
-  switch (lhs->expType->type) {
+static Expr *sub_expr(Token *tok, Expr *lhs, Expr *rhs) {
+  switch (lhs->valType->type) {
   case TY_CHAR:
-    switch (rhs->expType->type) {
+    switch (rhs->valType->type) {
     case TY_CHAR:
     case TY_INT:
     case TY_LONG:
-      return new_node_bop(ND_SUB, rhs->expType, new_node_cast(rhs->expType, lhs, false), rhs);
+      return new_expr_bop(EX_SUB, rhs->valType, new_expr_cast(rhs->valType, lhs, false), rhs);
     default:
       break;
     }
     break;
 
   case TY_SHORT:
-    switch (rhs->expType->type) {
+    switch (rhs->valType->type) {
     case TY_CHAR:
     case TY_SHORT:
-      return new_node_bop(ND_SUB, lhs->expType, lhs, new_node_cast(lhs->expType, rhs, false));
+      return new_expr_bop(EX_SUB, lhs->valType, lhs, new_expr_cast(lhs->valType, rhs, false));
     case TY_INT:
     case TY_LONG:
-      return new_node_bop(ND_SUB, rhs->expType, new_node_cast(rhs->expType, lhs, false), rhs);
+      return new_expr_bop(EX_SUB, rhs->valType, new_expr_cast(rhs->valType, lhs, false), rhs);
     default:
       break;
     }
     break;
 
   case TY_INT:
-    switch (rhs->expType->type) {
+    switch (rhs->valType->type) {
     case TY_CHAR:
     case TY_SHORT:
     case TY_INT:
-      return new_node_bop(ND_SUB, lhs->expType, lhs, new_node_cast(lhs->expType, rhs, false));
+      return new_expr_bop(EX_SUB, lhs->valType, lhs, new_expr_cast(lhs->valType, rhs, false));
     case TY_LONG:
-      return new_node_bop(ND_SUB, rhs->expType, new_node_cast(rhs->expType, lhs, false), rhs);
+      return new_expr_bop(EX_SUB, rhs->valType, new_expr_cast(rhs->valType, lhs, false), rhs);
     default:
       break;
     }
     break;
 
   case TY_LONG:
-    switch (rhs->expType->type) {
+    switch (rhs->valType->type) {
     case TY_CHAR:
     case TY_INT:
     case TY_LONG:
-      return new_node_bop(ND_SUB, lhs->expType, lhs, new_node_cast(lhs->expType, rhs, false));
+      return new_expr_bop(EX_SUB, lhs->valType, lhs, new_expr_cast(lhs->valType, rhs, false));
     default:
       break;
     }
     break;
 
   case TY_PTR:
-    switch (rhs->expType->type) {
+    switch (rhs->valType->type) {
     case TY_INT:
     case TY_LONG:
-      return new_node_bop(ND_PTRSUB, lhs->expType, lhs, rhs);
+      return new_expr_bop(EX_PTRSUB, lhs->valType, lhs, rhs);
     case TY_PTR:
-      if (!same_type(lhs->expType, rhs->expType))
+      if (!same_type(lhs->valType, rhs->valType))
         parse_error(tok, "Different pointer sub");
-      return new_node_bop(ND_PTRDIFF, &tyInt, lhs, rhs);  // TODO: size_t
+      return new_expr_bop(EX_PTRDIFF, &tyInt, lhs, rhs);  // TODO: size_t
     case TY_ARRAY:
-      if (!same_type(lhs->expType->u.pa.ptrof, rhs->expType->u.pa.ptrof))
+      if (!same_type(lhs->valType->u.pa.ptrof, rhs->valType->u.pa.ptrof))
         parse_error(tok, "Different pointer sub");
-      return new_node_bop(ND_PTRDIFF, &tyInt, lhs, rhs);  // TODO: size_t
+      return new_expr_bop(EX_PTRDIFF, &tyInt, lhs, rhs);  // TODO: size_t
     default:
       break;
     }
     break;
 
   case TY_ARRAY:
-    switch (rhs->expType->type) {
+    switch (rhs->valType->type) {
     case TY_PTR:
-      if (!same_type(lhs->expType->u.pa.ptrof, rhs->expType->u.pa.ptrof))
+      if (!same_type(lhs->valType->u.pa.ptrof, rhs->valType->u.pa.ptrof))
         parse_error(tok, "Different pointer sub");
-      return new_node_bop(ND_PTRDIFF, &tyInt, lhs, rhs);  // TODO: size_t
+      return new_expr_bop(EX_PTRDIFF, &tyInt, lhs, rhs);  // TODO: size_t
     case TY_ARRAY:
-      if (!same_type(lhs->expType, rhs->expType))
+      if (!same_type(lhs->valType, rhs->valType))
         parse_error(tok, "Different pointer sub");
-      return new_node_bop(ND_PTRDIFF, &tyInt, lhs, rhs);  // TODO: size_t
+      return new_expr_bop(EX_PTRDIFF, &tyInt, lhs, rhs);  // TODO: size_t
     default:
       break;
     }
@@ -688,25 +688,25 @@ static Expr *sub_node(Token *tok, Expr *lhs, Expr *rhs) {
   return NULL;
 }
 
-static Expr *arith_node(Token *tok, enum ExprType nodeType, Expr *lhs, Expr *rhs, bool cast) {
-  if (!is_number(lhs->expType->type) || !is_number(rhs->expType->type))
-    parse_error(tok, "Cannot use `%d' except numbers.", nodeType);
+static Expr *arith_expr(Token *tok, enum ExprType exprType, Expr *lhs, Expr *rhs, bool cast) {
+  if (!is_number(lhs->valType->type) || !is_number(rhs->valType->type))
+    parse_error(tok, "Cannot use `%d' except numbers.", exprType);
 
-  const Type *expType = lhs->expType;
-  if (cast && rhs->expType->type > expType->type) {
-    expType = rhs->expType;
-    lhs = new_node_cast(expType, lhs, false);
+  const Type *expType = lhs->valType;
+  if (cast && rhs->valType->type > expType->type) {
+    expType = rhs->valType;
+    lhs = new_expr_cast(expType, lhs, false);
   }
 
-  return new_node_bop(nodeType, expType, lhs, rhs);
+  return new_expr_bop(exprType, expType, lhs, rhs);
 }
 
 Expr *array_index(Expr *array) {
-  Expr *index = expr();
+  Expr *index = parse_expr();
   Token *tok;
   if ((tok = consume(TK_RBRACKET)) == NULL)
     parse_error(NULL, "`]' expected");
-  return new_node_deref(add_node(tok, array, index));
+  return new_expr_deref(add_expr(tok, array, index));
 }
 
 bool member_access_recur(const Type *type, Token *ident, Vector *stack) {
@@ -736,15 +736,15 @@ bool member_access_recur(const Type *type, Token *ident, Vector *stack) {
 
 Expr *member_access(Expr *target, Token *acctok) {
   // Find member's type from struct info.
-  const Type *type = target->expType;
+  const Type *type = target->valType;
   if (acctok->type == TK_DOT) {
     if (!is_struct_or_union(type->type))
       parse_error(acctok, "`.' for non struct value");
   } else {  // TK_ARROW
     if (type->type == TY_PTR)
-      type = target->expType->u.pa.ptrof;
+      type = target->valType->u.pa.ptrof;
     else if (type->type == TY_ARRAY)
-      type = target->expType->u.pa.ptrof;
+      type = target->valType->u.pa.ptrof;
     else
       parse_error(acctok, "`->' for non pointer value");
     if (type->type != TY_STRUCT)
@@ -760,21 +760,21 @@ Expr *member_access(Expr *target, Token *acctok) {
   int index = var_find(type->u.struct_.info->members, name);
   if (index >= 0) {
     VarInfo *varinfo = (VarInfo*)type->u.struct_.info->members->data[index];
-    return new_node_member(target, index, varinfo->type);
+    return new_expr_member(target, index, varinfo->type);
   }
 
   Vector *stack = new_vector();
   bool res = member_access_recur(type, ident, stack);
   if (!res)
     parse_error(ident, "`%s' doesn't exist in the struct", name);
-  Expr *node = target;
+  Expr *expr = target;
   for (int i = 0; i < stack->len; ++i) {
     int index = (int)(long)stack->data[i];
     VarInfo *varinfo = type->u.struct_.info->members->data[index];
-    node = new_node_member(node, index, varinfo->type);
+    expr = new_expr_member(expr, index, varinfo->type);
     type = varinfo->type;
   }
-  return node;
+  return expr;
 }
 
 static const Type *parse_enum(void) {
@@ -789,16 +789,16 @@ static const Type *parse_enum(void) {
           parse_error(NULL, "ident expected");
         if (consume(TK_ASSIGN)) {
           Token *tok = fetch_token();
-          Expr *node = expr();
-          if (node->type != ND_INT)  // TODO: Accept constexpr.
+          Expr *expr = parse_expr();
+          if (expr->type != EX_INT)  // TODO: Accept constexpr.
             parse_error(tok, "const expected for enum");
-          value = node->u.value;
+          value = expr->u.value;
         }
         // Define
         (void)typeident;  // TODO: Define enum type with name.
         Initializer *init = malloc(sizeof(*init));
         init->type = vSingle;
-        init->u.single = new_node_numlit(ND_INT, value);
+        init->u.single = new_expr_numlit(EX_INT, value);
         define_global(&tyEnum, VF_CONST, ident, init);
         ++value;
 
@@ -1063,36 +1063,36 @@ static Expr *parse_sizeof(void) {
   if (consume(TK_LPAR)) {
     type = parse_full_type(NULL, NULL);
     if (type == NULL) {
-      Expr *node = expr();
-      type = node->expType;
+      Expr *expr = parse_expr();
+      type = expr->valType;
     }
     if (!consume(TK_RPAR))
       parse_error(NULL, "`)' expected");
   } else {
-    Expr *node = prim();
-    type = node->expType;
+    Expr *expr = prim();
+    type = expr->valType;
   }
-  return new_node_sizeof(type);
+  return new_expr_sizeof(type);
 }
 
 static Expr *prim(void) {
   if (consume(TK_LPAR)) {
-    Expr *node = expr();
+    Expr *expr = parse_expr();
     if (!consume(TK_RPAR))
       parse_error(NULL, "No close paren");
-    return node;
+    return expr;
   }
 
   Token *tok;
   {
     enum ExprType nt;
-    if (((tok = consume(TK_CHARLIT)) != NULL && (nt = ND_CHAR, true)) ||
-        ((tok = consume(TK_INTLIT)) != NULL && (nt = ND_INT, true)) ||
-        ((tok = consume(TK_LONGLIT)) != NULL && (nt = ND_LONG, true)))
-      return new_node_numlit(nt, tok->u.value);
+    if (((tok = consume(TK_CHARLIT)) != NULL && (nt = EX_CHAR, true)) ||
+        ((tok = consume(TK_INTLIT)) != NULL && (nt = EX_INT, true)) ||
+        ((tok = consume(TK_LONGLIT)) != NULL && (nt = EX_LONG, true)))
+      return new_expr_numlit(nt, tok->u.value);
   }
   if ((tok = consume(TK_STR)))
-    return new_node_str(tok->u.str.buf, tok->u.str.len);
+    return new_expr_str(tok->u.str.buf, tok->u.str.len);
 
   Token *ident;
   if ((ident = consume(TK_IDENT)) != NULL) {
@@ -1119,92 +1119,92 @@ static Expr *prim(void) {
     if (type == NULL)
       parse_error(ident, "Undefined `%s'", name);
 
-    return new_node_varref(name, type, global);
+    return new_expr_varref(name, type, global);
   }
   parse_error(NULL, "Number or Ident or open paren expected");
   return NULL;
 }
 
 static Expr *postfix(void) {
-  Expr *node = prim();
+  Expr *expr = prim();
 
   for (;;) {
     Token *tok;
     if (consume(TK_LPAR))
-      node = funcall(node);
+      expr = funcall(expr);
     else if (consume(TK_LBRACKET))
-      node = array_index(node);
+      expr = array_index(expr);
     else if ((tok = consume(TK_DOT)) != NULL)
-      node = member_access(node, tok);
+      expr = member_access(expr, tok);
     else if ((tok = consume(TK_ARROW)) != NULL)
-      node = member_access(node, tok);
+      expr = member_access(expr, tok);
     else if (consume(TK_INC))
-      node = new_node_unary(ND_POSTINC, node->expType, node);
+      expr = new_expr_unary(EX_POSTINC, expr->valType, expr);
     else if (consume(TK_DEC))
-      node = new_node_unary(ND_POSTDEC, node->expType, node);
+      expr = new_expr_unary(EX_POSTDEC, expr->valType, expr);
     else
-      return node;
+      return expr;
   }
 }
 
 static Expr *unary(void) {
   Token *tok;
   if ((tok = consume(TK_ADD)) != NULL) {
-    Expr *node = cast_expr();
-    if (!is_number(node->expType->type))
+    Expr *expr = cast_expr();
+    if (!is_number(expr->valType->type))
       parse_error(tok, "Cannot apply `+' except number types");
-    return node;
+    return expr;
   }
 
   if ((tok = consume(TK_SUB)) != NULL) {
-    Expr *node = cast_expr();
-    if (!is_number(node->expType->type))
+    Expr *expr = cast_expr();
+    if (!is_number(expr->valType->type))
       parse_error(tok, "Cannot apply `-' except number types");
-    switch (node->type) {
-    case ND_CHAR:
-    case ND_INT:
-    case ND_LONG:
-      node->u.value = -node->u.value;
-      return node;
+    switch (expr->type) {
+    case EX_CHAR:
+    case EX_INT:
+    case EX_LONG:
+      expr->u.value = -expr->u.value;
+      return expr;
     default:
-      return new_node_unary(ND_NEG, node->expType, node);
+      return new_expr_unary(EX_NEG, expr->valType, expr);
     }
   }
 
   if ((tok = consume(TK_NOT)) != NULL) {
-    Expr *node = cast_expr();
-    switch (node->expType->type) {
+    Expr *expr = cast_expr();
+    switch (expr->valType->type) {
     case TY_INT:
     case TY_CHAR:
     case TY_LONG:
     case TY_PTR:
-      node = new_node_unary(ND_NOT, &tyBool, node);
+      expr = new_expr_unary(EX_NOT, &tyBool, expr);
       break;
     default:
       parse_error(tok, "Cannot apply `!' except number or pointer types");
       break;
     }
-    return node;
+    return expr;
   }
 
   if (consume(TK_AND)) {
-    Expr *node = cast_expr();
-    return new_node_unary(ND_REF, ptrof(node->expType), node);
+    Expr *expr = cast_expr();
+    return new_expr_unary(EX_REF, ptrof(expr->valType), expr);
   }
 
   if (consume(TK_MUL)) {
-    Expr *node = cast_expr();
-    return new_node_deref(node);
+    Expr *expr = cast_expr();
+    return new_expr_deref(expr);
   }
 
   if (consume(TK_INC)) {
-    Expr *node = unary();
-    return new_node_unary(ND_PREINC, node->expType, node);
+    Expr *expr = unary();
+    return new_expr_unary(EX_PREINC, expr->valType, expr);
   }
 
   if (consume(TK_DEC)) {
-    Expr *node = unary();
-    return new_node_unary(ND_PREDEC, node->expType, node);
+    Expr *expr = unary();
+    return new_expr_unary(EX_PREDEC, expr->valType, expr);
   }
 
   if (consume(TK_SIZEOF)) {
@@ -1222,8 +1222,8 @@ static Expr *cast_expr(void) {
     if (type != NULL) {  // Cast
       if (!consume(TK_RPAR))
         parse_error(NULL, "`)' expected");
-      Expr *node = cast_expr();
-      return new_node_cast(type, node, true);
+      Expr *expr = cast_expr();
+      return new_expr_cast(type, expr, true);
     }
     unget_token(lpar);
   }
@@ -1231,88 +1231,88 @@ static Expr *cast_expr(void) {
 }
 
 static Expr *mul(void) {
-  Expr *node = cast_expr();
+  Expr *expr = cast_expr();
 
   for (;;) {
     enum ExprType t;
     Token *tok;
     if ((tok = consume(TK_MUL)) != NULL)
-      t = ND_MUL;
+      t = EX_MUL;
     else if ((tok = consume(TK_DIV)) != NULL)
-      t = ND_DIV;
+      t = EX_DIV;
     else if ((tok = consume(TK_MOD)) != NULL)
-      t = ND_MOD;
+      t = EX_MOD;
     else
-      return node;
+      return expr;
 
-    node = arith_node(tok, t, node, cast_expr(), true);
+    expr = arith_expr(tok, t, expr, cast_expr(), true);
   }
 }
 
 static Expr *add(void) {
-  Expr *node = mul();
+  Expr *expr = mul();
 
   for (;;) {
     Token *tok;
     if ((tok = consume(TK_ADD)) != NULL)
-      node = add_node(tok, node, mul());
+      expr = add_expr(tok, expr, mul());
     else if ((tok = consume(TK_SUB)) != NULL)
-      node = sub_node(tok, node, mul());
+      expr = sub_expr(tok, expr, mul());
     else
-      return node;
+      return expr;
   }
 }
 
 static Expr *shift(void) {
-  Expr *node = add();
+  Expr *expr = add();
 
   for (;;) {
     enum ExprType t;
     Token *tok;
     if ((tok = consume(TK_LSHIFT)) != NULL)
-      t = ND_LSHIFT;
+      t = EX_LSHIFT;
     else if ((tok = consume(TK_RSHIFT)) != NULL)
-      t = ND_RSHIFT;
+      t = EX_RSHIFT;
     else
-      return node;
+      return expr;
 
-    Expr *lhs = node, *rhs = add();
-    node = arith_node(tok, t, lhs, rhs, false);
+    Expr *lhs = expr, *rhs = add();
+    expr = arith_expr(tok, t, lhs, rhs, false);
   }
 }
 
 static bool cast_numbers(Expr **pLhs, Expr **pRhs) {
-  enum eType ltype = (*pLhs)->expType->type, rtype = (*pRhs)->expType->type;
+  enum eType ltype = (*pLhs)->valType->type, rtype = (*pRhs)->valType->type;
   if (!is_number(ltype) || !is_number(rtype))
     return false;
 
   if (ltype < rtype)
-    *pLhs = new_node_cast((*pRhs)->expType, *pLhs, false);
+    *pLhs = new_expr_cast((*pRhs)->valType, *pLhs, false);
   else if (ltype > rtype)
-    *pRhs = new_node_cast((*pLhs)->expType, *pRhs, false);
+    *pRhs = new_expr_cast((*pLhs)->valType, *pRhs, false);
   return true;
 }
 
 static Expr *cmp(void) {
-  Expr *node = shift();
+  Expr *expr = shift();
 
   for (;;) {
     enum ExprType t;
     Token *tok;
     if ((tok = consume(TK_LT)) != NULL)
-      t = ND_LT;
+      t = EX_LT;
     else if ((tok = consume(TK_GT)) != NULL)
-      t = ND_GT;
+      t = EX_GT;
     else if ((tok = consume(TK_LE)) != NULL)
-      t = ND_LE;
+      t = EX_LE;
     else if ((tok = consume(TK_GE)) != NULL)
-      t = ND_GE;
+      t = EX_GE;
     else
-      return node;
+      return expr;
 
-    Expr *lhs = node, *rhs= shift();
-    if (lhs->expType->type == TY_PTR || rhs->expType->type == TY_PTR) {
-      const Type *lt = lhs->expType, *rt = rhs->expType;
+    Expr *lhs = expr, *rhs= shift();
+    if (lhs->valType->type == TY_PTR || rhs->valType->type == TY_PTR) {
+      const Type *lt = lhs->valType, *rt = rhs->valType;
       if (lt->type != TY_PTR) {
         const Type *tmp = lt;
         lt = rt;
@@ -1321,35 +1321,35 @@ static Expr *cmp(void) {
       if (!can_cast(lt, rt, rhs, false))
         parse_error(tok, "Cannot compare pointer to other types");
       if (rt->type != TY_PTR) {
-        if (lt == lhs->expType)
-          rhs = new_node_cast(lhs->expType, rhs, false);
+        if (lt == lhs->valType)
+          rhs = new_expr_cast(lhs->valType, rhs, false);
         else
-          lhs = new_node_cast(rhs->expType, lhs, false);
+          lhs = new_expr_cast(rhs->valType, lhs, false);
       }
     } else {
       if (!cast_numbers(&lhs, &rhs))
         parse_error(tok, "Cannot compare except numbers");
     }
-    node = new_node_bop(t, &tyBool, lhs, rhs);
+    expr = new_expr_bop(t, &tyBool, lhs, rhs);
   }
 }
 
 static Expr *eq(void) {
-  Expr *node = cmp();
+  Expr *expr = cmp();
 
   for (;;) {
     enum ExprType t;
     Token *tok;
     if ((tok = consume(TK_EQ)) != NULL)
-      t = ND_EQ;
+      t = EX_EQ;
     else if ((tok = consume(TK_NE)) != NULL)
-      t = ND_NE;
+      t = EX_NE;
     else
-      return node;
+      return expr;
 
-    Expr *lhs = node, *rhs= cmp();
-    if (lhs->expType->type == TY_PTR || rhs->expType->type == TY_PTR) {
-      const Type *lt = lhs->expType, *rt = rhs->expType;
+    Expr *lhs = expr, *rhs= cmp();
+    if (lhs->valType->type == TY_PTR || rhs->valType->type == TY_PTR) {
+      const Type *lt = lhs->valType, *rt = rhs->valType;
       if (lt->type != TY_PTR) {
         const Type *tmp = lt;
         lt = rt;
@@ -1358,121 +1358,121 @@ static Expr *eq(void) {
       if (!can_cast(lt, rt, rhs, false))
         parse_error(tok, "Cannot compare pointer to other types");
       if (rt->type != TY_PTR) {
-        if (lt == lhs->expType)
-          rhs = new_node_cast(lhs->expType, rhs, false);
+        if (lt == lhs->valType)
+          rhs = new_expr_cast(lhs->valType, rhs, false);
         else
-          lhs = new_node_cast(rhs->expType, lhs, false);
+          lhs = new_expr_cast(rhs->valType, lhs, false);
       }
     } else {
       if (!cast_numbers(&lhs, &rhs))
         parse_error(tok, "Cannot compare except numbers");
     }
-    node = new_node_bop(t, &tyBool, lhs, rhs);
+    expr = new_expr_bop(t, &tyBool, lhs, rhs);
   }
 }
 
 static Expr *and(void) {
-  Expr *node = eq();
+  Expr *expr = eq();
   for (;;) {
     Token *tok;
     if ((tok = consume(TK_AND)) != NULL) {
-      Expr *lhs = node, *rhs= eq();
+      Expr *lhs = expr, *rhs= eq();
       if (!cast_numbers(&lhs, &rhs))
         parse_error(tok, "Cannot compare except numbers");
-      node = new_node_bop(ND_BITAND, lhs->expType, lhs, rhs);
+      expr = new_expr_bop(EX_BITAND, lhs->valType, lhs, rhs);
     } else
-      return node;
+      return expr;
   }
 }
 
 static Expr *xor(void) {
-  Expr *node = and();
+  Expr *expr = and();
   for (;;) {
     Token *tok;
     if ((tok = consume(TK_HAT)) != NULL) {
-      Expr *lhs = node, *rhs= and();
+      Expr *lhs = expr, *rhs= and();
       if (!cast_numbers(&lhs, &rhs))
         parse_error(tok, "Cannot compare except numbers");
-      node = new_node_bop(ND_BITXOR, lhs->expType, lhs, rhs);
+      expr = new_expr_bop(EX_BITXOR, lhs->valType, lhs, rhs);
     } else
-      return node;
+      return expr;
   }
 }
 
 static Expr *or(void) {
-  Expr *node = xor();
+  Expr *expr = xor();
   for (;;) {
     Token *tok;
     if ((tok = consume(TK_OR)) != NULL) {
-      Expr *lhs = node, *rhs= xor();
+      Expr *lhs = expr, *rhs= xor();
       if (!cast_numbers(&lhs, &rhs))
         parse_error(tok, "Cannot compare except numbers");
-      node = new_node_bop(ND_BITOR, lhs->expType, lhs, rhs);
+      expr = new_expr_bop(EX_BITOR, lhs->valType, lhs, rhs);
     } else
-      return node;
+      return expr;
   }
 }
 
 static Expr *logand(void) {
-  Expr *node = or();
+  Expr *expr = or();
   for (;;) {
     if (consume(TK_LOGAND))
-      node = new_node_bop(ND_LOGAND, &tyBool, node, or());
+      expr = new_expr_bop(EX_LOGAND, &tyBool, expr, or());
     else
-      return node;
+      return expr;
   }
 }
 
 static Expr *logior(void) {
-  Expr *node = logand();
+  Expr *expr = logand();
   for (;;) {
     if (consume(TK_LOGIOR))
-      node = new_node_bop(ND_LOGIOR, &tyBool, node, logand());
+      expr = new_expr_bop(EX_LOGIOR, &tyBool, expr, logand());
     else
-      return node;
+      return expr;
   }
 }
 
 static Expr *conditional(void) {
-  Expr *node = logior();
+  Expr *expr = logior();
   for (;;) {
     if (!consume(TK_QUESTION))
-      return node;
-    Expr *t = expr();
+      return expr;
+    Expr *t = parse_expr();
     if (!consume(TK_COLON))
       parse_error(NULL, "`:' expected");
     Expr *f = conditional();
-    if (!same_type(t->expType, f->expType))
+    if (!same_type(t->valType, f->valType))
       parse_error(NULL, "lhs and rhs must be same type");
-    node = new_node_ternary(node, t, f, t->expType);
+    expr = new_expr_ternary(expr, t, f, t->valType);
   }
 }
 
 static Expr *assign(void) {
-  Expr *node = conditional();
+  Expr *expr = conditional();
 
   if (consume(TK_ASSIGN))
-    return new_node_bop(ND_ASSIGN, node->expType, node, new_node_cast(node->expType, assign(), false));
+    return new_expr_bop(EX_ASSIGN, expr->valType, expr, new_expr_cast(expr->valType, assign(), false));
   Token *tok;
   if ((tok = consume(TK_ADD_ASSIGN)) != NULL)
-    return new_node_unary(ND_ASSIGN_WITH, node->expType,
-                          add_node(tok, node, assign()));
+    return new_expr_unary(EX_ASSIGN_WITH, expr->valType,
+                          add_expr(tok, expr, assign()));
   if ((tok = consume(TK_SUB_ASSIGN)) != NULL)
-    return new_node_unary(ND_ASSIGN_WITH, node->expType,
-                          sub_node(tok, node, assign()));
+    return new_expr_unary(EX_ASSIGN_WITH, expr->valType,
+                          sub_expr(tok, expr, assign()));
   if ((tok = consume(TK_MUL_ASSIGN)) != NULL)
-    return new_node_unary(ND_ASSIGN_WITH, node->expType,
-                          arith_node(tok, ND_MUL, node, assign(), true));
+    return new_expr_unary(EX_ASSIGN_WITH, expr->valType,
+                          arith_expr(tok, EX_MUL, expr, assign(), true));
   if ((tok = consume(TK_DIV_ASSIGN)) != NULL)
-    return new_node_unary(ND_ASSIGN_WITH, node->expType,
-                          arith_node(tok, ND_DIV, node, assign(), true));
+    return new_expr_unary(EX_ASSIGN_WITH, expr->valType,
+                          arith_expr(tok, EX_DIV, expr, assign(), true));
   if ((tok = consume(TK_MOD_ASSIGN)) != NULL)
-    return new_node_unary(ND_ASSIGN_WITH, node->expType,
-                          arith_node(tok, ND_MOD, node, assign(), true));
+    return new_expr_unary(EX_ASSIGN_WITH, expr->valType,
+                          arith_expr(tok, EX_MOD, expr, assign(), true));
 
-  return node;
+  return expr;
 }
 
-Expr *expr(void) {
+Expr *parse_expr(void) {
   return assign();
 }
