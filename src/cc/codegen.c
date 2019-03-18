@@ -472,7 +472,6 @@ typedef struct LoopInfo {
   const char *l_continue;
 } LoopInfo;
 
-static Defun *curfunc;
 static Scope *curscope;
 static const char *s_break_label;
 static const char *s_continue_label;

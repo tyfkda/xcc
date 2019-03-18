@@ -121,6 +121,10 @@ typedef struct {
   const char *ret_label;
 } Defun;
 
+Scope *enter_scope(Defun *defun, Vector *vars);
+void exit_scope(void);
+void add_cur_scope(const Token *ident, const Type *type, int flag);
+
 // Node
 
 enum NodeType {
@@ -267,3 +271,32 @@ extern Map *gvar_map;
 
 GlobalVarInfo *find_global(const char *name);
 void define_global(const Type *type, int flag, const Token *ident, Initializer *init);
+
+//
+
+bool is_struct_or_union(enum eType type);
+void not_void(const Type *type);
+bool can_cast(const Type *dst, const Type *src, Node *src_node, bool is_explicit);
+Type* new_func_type(const Type *ret, const Vector *params, bool vaargs);
+
+const Type *parse_raw_type(int *pflag);
+const Type *parse_type_modifier(const Type* type);
+const Type *parse_type_suffix(const Type *type);
+const Type *parse_full_type(int *pflag, Token **pident);
+
+Node *new_node(enum NodeType type, const Type *expType);
+Node *new_node_numlit(enum NodeType nodetype, intptr_t val);
+Node *new_node_bop(enum NodeType type, const Type *expType, Node *lhs, Node *rhs);
+Node *new_node_deref(Node *sub);
+Node *add_node(Token *tok, Node *lhs, Node *rhs);
+Node *new_node_varref(const char *name, const Type *type, bool global);
+Node *new_node_member(Node *target, int index, const Type *expType);
+Node *new_node_if(Node *cond, Node *tblock, Node *fblock, const Type *type);
+Vector *funparams(bool *pvaargs);
+bool parse_var_def(const Type **prawType, const Type** ptype, int *pflag, Token **pident);
+Node *expr(void);
+Node *new_node_cast(const Type *type, Node *sub, bool is_explicit);
+
+extern Defun *curfunc;
+
+Node *stmt(void);
