@@ -285,7 +285,7 @@ void construct_initial_value(unsigned char *buf, const Type *type, Initializer *
     {
       if (init->type != vSingle)
         error("initializer type error");
-      Node *value = init->u.single;
+      Expr *value = init->u.single;
       if (init->u.single->type == ND_REF)
         value = init->u.single->u.unary.sub;
       if (value->type != ND_VARREF)
@@ -494,17 +494,18 @@ static void pop_continue_label(const char *save) {
   s_continue_label = save;
 }
 
-static void gen_lval(Node *node);
+static void gen_expr(Expr *node);
+static void gen_lval(Expr *node);
 
-static void gen_rval(Node *node) {
-  gen(node);  // ?
+static void gen_rval(Expr *node) {
+  gen_expr(node);  // ?
 }
 
-static void gen_ref(Node *node) {
+static void gen_ref(Expr *node) {
   gen_lval(node);
 }
 
-static void gen_lval(Node *node) {
+static void gen_lval(Expr *node) {
   switch (node->type) {
   case ND_VARREF:
     if (node->u.varref.global) {
@@ -531,7 +532,7 @@ static void gen_lval(Node *node) {
       VarInfo *varinfo = (VarInfo*)members->data[node->u.member.index];
 
       if (node->u.member.target->expType->type == TY_PTR)
-        gen(node->u.member.target);
+        gen_expr(node->u.member.target);
       else
         gen_ref(node->u.member.target);
       if (varinfo->offset != 0)
@@ -544,8 +545,8 @@ static void gen_lval(Node *node) {
   }
 }
 
-static void gen_cond_jmp(Node *cond, bool tf, const char *label) {
-  gen(cond);
+static void gen_cond_jmp(Expr *cond, bool tf, const char *label) {
+  gen_expr(cond);
 
   switch (cond->expType->type) {
   case TY_CHAR: CMP_IM8_AL(0); break;
@@ -560,7 +561,7 @@ static void gen_cond_jmp(Node *cond, bool tf, const char *label) {
     JE32(label);
 }
 
-static void gen_varref(Node *node) {
+static void gen_varref(Expr *node) {
   gen_lval(node);
   switch (node->expType->type) {
   case TY_CHAR:  MOV_IND_RAX_AL(); break;
@@ -691,12 +692,12 @@ static void gen_defun(Node *node) {
 
 static void gen_return(Node *node) {
   if (node->u.return_.val != NULL)
-    gen(node->u.return_.val);
+    gen_expr(node->u.return_.val);
   assert(curfunc != NULL);
   JMP32(curfunc->ret_label);
 }
 
-static void gen_funcall(Node *node) {
+static void gen_funcall(Expr *node) {
   Vector *args = node->u.funcall.args;
   if (args != NULL) {
     int len = args->len;
@@ -704,7 +705,7 @@ static void gen_funcall(Node *node) {
       error("Param count exceeds 6 (%d)", len);
 
     for (int i = 0; i < len; ++i) {
-      gen((Node*)args->data[i]);
+      gen_expr((Expr*)args->data[i]);
       PUSH_RAX();
     }
 
@@ -718,11 +719,11 @@ static void gen_funcall(Node *node) {
     default: break;
     }
   }
-  Node *func = node->u.funcall.func;
+  Expr *func = node->u.funcall.func;
   if (func->type == ND_VARREF && func->u.varref.global) {
     CALL(func->u.varref.ident);
   } else {
-    gen(func);
+    gen_expr(func);
     CALL_IND_RAX();
   }
 }
@@ -740,6 +741,17 @@ static void gen_if(Node *node) {
     gen(node->u.if_.fblock);
     add_label(nlabel);
   }
+}
+
+static void gen_ternary(Expr *node) {
+  const char *nlabel = alloc_label();
+  const char *flabel = alloc_label();
+  gen_cond_jmp(node->u.ternary.cond, false, flabel);
+  gen_expr(node->u.ternary.tval);
+  JMP32(nlabel);
+  add_label(flabel);
+  gen_expr(node->u.ternary.fval);
+  add_label(nlabel);
 }
 
 static Vector *cur_case_values;
@@ -761,8 +773,8 @@ static void gen_switch(Node *node) {
   vec_push(labels, alloc_label());  // len+0: Extra label for default.
   vec_push(labels, l_break);  // len+1: Extra label for break.
 
-  Node *value = node->u.switch_.value;
-  gen(value);
+  Expr *value = node->u.switch_.value;
+  gen_expr(value);
 
   enum eType valtype = value->expType->type;
   for (int i = 0; i < len; ++i) {
@@ -856,7 +868,7 @@ static void gen_for(Node *node) {
   const char *l_break = push_break_label(&save_break);
   const char * l_cond = alloc_label();
   if (node->u.for_.pre != NULL)
-    gen(node->u.for_.pre);
+    gen_expr(node->u.for_.pre);
   add_label(l_cond);
   if (node->u.for_.cond != NULL) {
     gen_cond_jmp(node->u.for_.cond, false, l_break);
@@ -864,7 +876,7 @@ static void gen_for(Node *node) {
   gen(node->u.for_.body);
   add_label(l_continue);
   if (node->u.for_.post != NULL)
-    gen(node->u.for_.post);
+    gen_expr(node->u.for_.post);
   JMP32(l_cond);
   add_label(l_break);
   pop_continue_label(save_cont);
@@ -881,7 +893,7 @@ static void gen_continue(void) {
   JMP32(s_continue_label);
 }
 
-static void gen_arith(enum NodeType nodeType, enum eType expType, enum eType rhsType) {
+static void gen_arith(enum ExprType nodeType, enum eType expType, enum eType rhsType) {
   // lhs=rax, rhs=rdi, result=rax
 
   switch (nodeType) {
@@ -1002,7 +1014,7 @@ static void gen_arith(enum NodeType nodeType, enum eType expType, enum eType rhs
   }
 }
 
-void gen(Node *node) {
+void gen_expr(Expr *node) {
   switch (node->type) {
   case ND_INT:
     MOV_IM32_EAX(node->u.value);
@@ -1078,15 +1090,19 @@ void gen(Node *node) {
     }
     return;
 
+  case ND_TERNARY:
+    gen_ternary(node);
+    break;
+
   case ND_CAST:
-    gen(node->u.cast.sub);
+    gen_expr(node->u.cast.sub);
     cast(node->expType->type, node->u.cast.sub->expType->type);
     break;
 
   case ND_ASSIGN:
     gen_lval(node->u.bop.lhs);
     PUSH_RAX();
-    gen(node->u.bop.rhs);
+    gen_expr(node->u.bop.rhs);
 
     POP_RDI();
     switch (node->u.bop.lhs->expType->type) {
@@ -1102,8 +1118,8 @@ void gen(Node *node) {
 
   case ND_ASSIGN_WITH:
     {
-      Node *sub = node->u.unary.sub;
-      gen(sub->u.bop.rhs);
+      Expr *sub = node->u.unary.sub;
+      gen_expr(sub->u.bop.rhs);
       PUSH_RAX();
       gen_lval(sub->u.bop.lhs);
       MOV_RAX_RSI();  // Save lhs address to %rsi.
@@ -1208,65 +1224,12 @@ void gen(Node *node) {
     MOV_RDI_RAX();
     return;
 
-  case ND_DEFUN:
-    gen_defun(node);
-    return;
-
-  case ND_RETURN:
-    gen_return(node);
-    return;
-
   case ND_FUNCALL:
     gen_funcall(node);
     return;
 
-  case ND_BLOCK:
-    if (node->u.block.nodes != NULL) {
-      if (node->u.block.scope != NULL) {
-        assert(curscope == node->u.block.scope->parent);
-        curscope = node->u.block.scope;
-      }
-      for (int i = 0, len = node->u.block.nodes->len; i < len; ++i)
-        gen((Node*)node->u.block.nodes->data[i]);
-      if (node->u.block.scope != NULL)
-        curscope = curscope->parent;
-    }
-    break;
-
-  case ND_IF:
-    gen_if(node);
-    break;
-
-  case ND_SWITCH:
-    gen_switch(node);
-    break;
-
-  case ND_LABEL:
-    gen_label(node);
-    break;
-
-  case ND_WHILE:
-    gen_while(node);
-    break;
-
-  case ND_DO_WHILE:
-    gen_do_while(node);
-    break;
-
-  case ND_FOR:
-    gen_for(node);
-    break;
-
-  case ND_BREAK:
-    gen_break();
-    break;
-
-  case ND_CONTINUE:
-    gen_continue();
-    break;
-
   case ND_NEG:
-    gen(node->u.unary.sub);
+    gen_expr(node->u.unary.sub);
     switch (node->expType->type) {
     case TY_CHAR: NEG_AL(); break;
     case TY_INT:  NEG_EAX(); break;
@@ -1276,7 +1239,7 @@ void gen(Node *node) {
     break;
 
   case ND_NOT:
-    gen(node->u.unary.sub);
+    gen_expr(node->u.unary.sub);
     switch (node->expType->type) {
     case TY_INT:  CMP_IM8_EAX(0); break;
     case TY_CHAR: CMP_IM8_AL(0); break;
@@ -1294,18 +1257,18 @@ void gen(Node *node) {
   case ND_LE:
   case ND_GE:
     {
-      enum NodeType type = node->type;
-      Node *lhs = node->u.bop.lhs;
-      Node *rhs = node->u.bop.rhs;
+      enum ExprType type = node->type;
+      Expr *lhs = node->u.bop.lhs;
+      Expr *rhs = node->u.bop.rhs;
       assert(lhs->expType->type == rhs->expType->type);
       if (type == ND_LE || type == ND_GT) {
-        Node *tmp = lhs; lhs = rhs; rhs = tmp;
+        Expr *tmp = lhs; lhs = rhs; rhs = tmp;
         type = type == ND_LE ? ND_GE : ND_LT;
       }
 
-      gen(lhs);
+      gen_expr(lhs);
       PUSH_RAX();
-      gen(rhs);
+      gen_expr(rhs);
 
       POP_RDI();
       switch (lhs->expType->type) {
@@ -1361,8 +1324,8 @@ void gen(Node *node) {
 
   case ND_PTRADD:
     {
-      Node *lhs = node->u.bop.lhs, *rhs = node->u.bop.rhs;
-      gen(rhs);
+      Expr *lhs = node->u.bop.lhs, *rhs = node->u.bop.rhs;
+      gen_expr(rhs);
       assert(rhs->expType->type == TY_LONG);
       long size = type_size(lhs->expType->u.pa.ptrof);
       if (size != 1) {
@@ -1370,7 +1333,7 @@ void gen(Node *node) {
         MUL_RDI();
       }
       PUSH_RAX();
-      gen(lhs);
+      gen_expr(lhs);
       POP_RDI();
       ADD_RDI_RAX();
       break;
@@ -1379,8 +1342,8 @@ void gen(Node *node) {
 
   case ND_PTRSUB:
     {
-      Node *lhs = node->u.bop.lhs, *rhs = node->u.bop.rhs;
-      gen(rhs);
+      Expr *lhs = node->u.bop.lhs, *rhs = node->u.bop.rhs;
+      gen_expr(rhs);
       cast(TY_INT, rhs->expType->type);  // TODO: Fix
       int size = type_size(node->u.bop.lhs->expType->u.pa.ptrof);
       if (size != 1) {
@@ -1388,7 +1351,7 @@ void gen(Node *node) {
         MUL_RDI();
       }
       PUSH_RAX();
-      gen(lhs);
+      gen_expr(lhs);
       POP_RDI();
       SUB_RDI_RAX();
     }
@@ -1396,9 +1359,9 @@ void gen(Node *node) {
 
   case ND_PTRDIFF:
     {
-      gen(node->u.bop.rhs);
+      gen_expr(node->u.bop.rhs);
       PUSH_RAX();
-      gen(node->u.bop.lhs);
+      gen_expr(node->u.bop.lhs);
       POP_RDI();
       SUB_RDI_RAX();
 
@@ -1427,14 +1390,79 @@ void gen(Node *node) {
   case ND_BITAND:
   case ND_BITOR:
   case ND_BITXOR:
-    gen(node->u.bop.rhs);
+    gen_expr(node->u.bop.rhs);
     PUSH_RAX();
-    gen(node->u.bop.lhs);
+    gen_expr(node->u.bop.lhs);
 
     POP_RDI();
 
     gen_arith(node->type, node->expType->type, node->u.bop.rhs->expType->type);
     return;
+
+  default:
+    error("Unhandled expr: %d", node->type);
+    break;
+  }
+}
+
+void gen(Node *node) {
+  switch (node->type) {
+  case ND_EXPR:
+    gen_expr(node->u.expr);
+    return;
+
+  case ND_DEFUN:
+    gen_defun(node);
+    return;
+
+  case ND_RETURN:
+    gen_return(node);
+    return;
+
+  case ND_BLOCK:
+    if (node->u.block.nodes != NULL) {
+      if (node->u.block.scope != NULL) {
+        assert(curscope == node->u.block.scope->parent);
+        curscope = node->u.block.scope;
+      }
+      for (int i = 0, len = node->u.block.nodes->len; i < len; ++i)
+        gen((Node*)node->u.block.nodes->data[i]);
+      if (node->u.block.scope != NULL)
+        curscope = curscope->parent;
+    }
+    break;
+
+  case ND_IF:
+    gen_if(node);
+    break;
+
+  case ND_SWITCH:
+    gen_switch(node);
+    break;
+
+  case ND_LABEL:
+    gen_label(node);
+    break;
+
+  case ND_WHILE:
+    gen_while(node);
+    break;
+
+  case ND_DO_WHILE:
+    gen_do_while(node);
+    break;
+
+  case ND_FOR:
+    gen_for(node);
+    break;
+
+  case ND_BREAK:
+    gen_break();
+    break;
+
+  case ND_CONTINUE:
+    gen_continue();
+    break;
 
   default:
     error("Unhandled node: %d", node->type);

@@ -57,7 +57,7 @@ void dump_type(FILE *fp, const Type *type);
 typedef struct Initializer {
   enum { vSingle, vMulti, vDot } type;
   union {
-    struct Node *single;
+    struct Expr *single;
     Vector *multi;  // <Initializer*>
     struct {
       const char *name;
@@ -125,18 +125,16 @@ Scope *enter_scope(Defun *defun, Vector *vars);
 void exit_scope(void);
 void add_cur_scope(const Token *ident, const Type *type, int flag);
 
-// Node
+// Expr
 
-enum NodeType {
+enum ExprType {
   ND_CHAR,
   ND_SHORT,
   ND_INT,  // int
   ND_LONG,  // long
   ND_STR,
   ND_VARREF,
-  ND_DEFUN,
   ND_FUNCALL,
-  ND_BLOCK,
   ND_ADD,  // num + num
   ND_SUB,  // num - num
   ND_MUL,  // num * num
@@ -166,24 +164,16 @@ enum NodeType {
   ND_PTRADD,  // ptr + num
   ND_PTRSUB,  // ptr - num
   ND_PTRDIFF,  // ptr - ptr
+  ND_TERNARY,
   ND_REF,
   ND_DEREF,
   ND_MEMBER,  // x.member or x->member
-  ND_IF,
-  ND_SWITCH,
-  ND_WHILE,
-  ND_DO_WHILE,
-  ND_FOR,
-  ND_BREAK,
-  ND_CONTINUE,
-  ND_RETURN,
   ND_CAST,
-  ND_LABEL,  // case, default
   ND_SIZEOF,
 };
 
-typedef struct Node {
-  enum NodeType type;
+typedef struct Expr {
+  enum ExprType type;
   const Type *expType;
   union {
     intptr_t value;
@@ -193,32 +183,71 @@ typedef struct Node {
     } str;
 
     struct {
-      struct Node *lhs;
-      struct Node *rhs;
+      struct Expr *lhs;
+      struct Expr *rhs;
     } bop;
     struct {
-      struct Node *sub;
+      struct Expr *sub;
     } unary;
     struct {
       const char *ident;
       bool global;
     } varref;
-    Defun* defun;
     struct {
-      struct Node *func;
+      struct Expr *func;
       Vector *args;
     } funcall;
+    struct {
+      struct Expr *sub;
+    } cast;
+    struct {
+      struct Expr *target;
+      int index;
+    } member;
+    struct {
+      const Type *type;
+    } sizeof_;
+    struct {
+      struct Expr *cond;
+      struct Expr *tval;
+      struct Expr *fval;
+    } ternary;
+  } u;
+} Expr;
+
+// Node
+
+enum NodeType {
+  ND_EXPR,
+  ND_DEFUN,
+  ND_BLOCK,
+  ND_IF,
+  ND_SWITCH,
+  ND_WHILE,
+  ND_DO_WHILE,
+  ND_FOR,
+  ND_BREAK,
+  ND_CONTINUE,
+  ND_RETURN,
+  ND_LABEL,  // case, default
+};
+
+typedef struct Node {
+  enum NodeType type;
+  union {
+    Expr *expr;
+    Defun *defun;
     struct {
       Scope *scope;
       Vector *nodes;
     } block;
     struct {
-      struct Node *cond;
+      struct Expr *cond;
       struct Node *tblock;
       struct Node *fblock;
     } if_;
     struct {
-      struct Node *value;
+      struct Expr *value;
       struct Node *body;
       Vector *case_values;
       bool has_default;
@@ -230,33 +259,22 @@ typedef struct Node {
       } u;
     } label;
     struct {
-      struct Node *cond;
+      struct Expr *cond;
       struct Node *body;
     } while_;
     struct {
       struct Node *body;
-      struct Node *cond;
+      struct Expr *cond;
     } do_while;
     struct {
-      struct Node *pre;
-      struct Node *cond;
-      struct Node *post;
+      struct Expr *pre;
+      struct Expr *cond;
+      struct Expr *post;
       struct Node *body;
     } for_;
     struct {
-      struct Node *val;
+      struct Expr *val;
     } return_;
-    struct {
-      struct Node *target;
-      //const char *name;
-      int index;
-    } member;
-    struct {
-      struct Node *sub;
-    } cast;
-    struct {
-      const Type *type;
-    } sizeof_;
   } u;
 } Node;
 
@@ -276,7 +294,7 @@ void define_global(const Type *type, int flag, const Token *ident, Initializer *
 
 bool is_struct_or_union(enum eType type);
 void not_void(const Type *type);
-bool can_cast(const Type *dst, const Type *src, Node *src_node, bool is_explicit);
+bool can_cast(const Type *dst, const Type *src, Expr *src_expr, bool is_explicit);
 Type* new_func_type(const Type *ret, const Vector *params, bool vaargs);
 
 const Type *parse_raw_type(int *pflag);
@@ -284,18 +302,16 @@ const Type *parse_type_modifier(const Type* type);
 const Type *parse_type_suffix(const Type *type);
 const Type *parse_full_type(int *pflag, Token **pident);
 
-Node *new_node(enum NodeType type, const Type *expType);
-Node *new_node_numlit(enum NodeType nodetype, intptr_t val);
-Node *new_node_bop(enum NodeType type, const Type *expType, Node *lhs, Node *rhs);
-Node *new_node_deref(Node *sub);
-Node *add_node(Token *tok, Node *lhs, Node *rhs);
-Node *new_node_varref(const char *name, const Type *type, bool global);
-Node *new_node_member(Node *target, int index, const Type *expType);
-Node *new_node_if(Node *cond, Node *tblock, Node *fblock, const Type *type);
+Expr *new_node_numlit(enum ExprType nodetype, intptr_t val);
+Expr *new_node_bop(enum NodeType type, const Type *expType, Expr *lhs, Expr *rhs);
+Expr *new_node_deref(Expr *sub);
+Expr *add_node(Token *tok, Expr *lhs, Expr *rhs);
+Expr *new_node_varref(const char *name, const Type *type, bool global);
+Expr *new_node_member(Expr *target, int index, const Type *expType);
 Vector *funparams(bool *pvaargs);
 bool parse_var_def(const Type **prawType, const Type** ptype, int *pflag, Token **pident);
-Node *expr(void);
-Node *new_node_cast(const Type *type, Node *sub, bool is_explicit);
+Expr *expr(void);
+Expr *new_node_cast(const Type *type, Expr *sub, bool is_explicit);
 
 extern Defun *curfunc;
 

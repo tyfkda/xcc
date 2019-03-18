@@ -8,7 +8,6 @@
 #include "lexer.h"
 #include "util.h"
 
-static const Type tyVoid = {.type=TY_VOID};
 static const Type tyChar = {.type=TY_CHAR};
 
 const int LF_BREAK = 1 << 0;
@@ -28,15 +27,35 @@ static Defun *new_defun(const Type *type, const char *name) {
   return defun;
 }
 
+static Node *new_node(enum NodeType type) {
+  Node *node = malloc(sizeof(Node));
+  node->type = type;
+  return node;
+}
+
+static Node *new_node_expr(Expr *e) {
+  Node *node = new_node(ND_EXPR);
+  node->u.expr = e;
+  return node;
+}
+
 static Node *new_node_block(Scope *scope, Vector *nodes) {
-  Node *node = new_node(ND_BLOCK, &tyVoid);
+  Node *node = new_node(ND_BLOCK);
   node->u.block.scope = scope;
   node->u.block.nodes = nodes;
   return node;
 }
 
-static Node *new_node_switch(Node *value) {
-  Node *node = new_node(ND_SWITCH, &tyVoid);
+static Node *new_node_if(Expr *cond, Node *tblock, Node *fblock) {
+  Node *node = new_node(ND_IF);
+  node->u.if_.cond = cond;
+  node->u.if_.tblock = tblock;
+  node->u.if_.fblock = fblock;
+  return node;
+}
+
+static Node *new_node_switch(Expr *value) {
+  Node *node = new_node(ND_SWITCH);
   node->u.switch_.value = value;
   node->u.switch_.body = NULL;
   node->u.switch_.case_values = NULL;
@@ -45,34 +64,34 @@ static Node *new_node_switch(Node *value) {
 }
 
 static Node *new_node_case(int value) {
-  Node *node = new_node(ND_LABEL, &tyVoid);
+  Node *node = new_node(ND_LABEL);
   node->u.label.type = lCASE;
   node->u.label.u.case_value = value;
   return node;
 }
 
 static Node *new_node_default(void) {
-  Node *node = new_node(ND_LABEL, &tyVoid);
+  Node *node = new_node(ND_LABEL);
   node->u.label.type = lDEFAULT;
   return node;
 }
 
-static Node *new_node_while(Node *cond, Node *body) {
-  Node *node = new_node(ND_WHILE, &tyVoid);
+static Node *new_node_while(Expr *cond, Node *body) {
+  Node *node = new_node(ND_WHILE);
   node->u.while_.cond = cond;
   node->u.while_.body = body;
   return node;
 }
 
-static Node *new_node_do_while(Node *body, Node *cond) {
-  Node *node = new_node(ND_DO_WHILE, &tyVoid);
+static Node *new_node_do_while(Node *body, Expr *cond) {
+  Node *node = new_node(ND_DO_WHILE);
   node->u.do_while.body = body;
   node->u.do_while.cond = cond;
   return node;
 }
 
-static Node *new_node_for(Node *pre, Node *cond, Node *post, Node *body) {
-  Node *node = new_node(ND_FOR, &tyVoid);
+static Node *new_node_for(Expr *pre, Expr *cond, Expr *post, Node *body) {
+  Node *node = new_node(ND_FOR);
   node->u.for_.pre = pre;
   node->u.for_.cond = cond;
   node->u.for_.post = post;
@@ -80,29 +99,28 @@ static Node *new_node_for(Node *pre, Node *cond, Node *post, Node *body) {
   return node;
 }
 
-static Node *new_node_return(Node *val) {
-  const Type *type = val != NULL ? val->expType : &tyVoid;
-  Node *node = new_node(ND_RETURN, type);
+static Node *new_node_return(Expr *val) {
+  Node *node = new_node(ND_RETURN);
   node->u.return_.val = val;
   return node;
 }
 
 static Node *new_node_defun(Defun *defun) {
-  Node *node = new_node(ND_DEFUN, &tyVoid);
+  Node *node = new_node(ND_DEFUN);
   node->u.defun = defun;
   return node;
 }
 
 static Node *parse_if(void) {
   if (consume(TK_LPAR)) {
-    Node *cond = expr();
+    Expr *cond = expr();
     if (consume(TK_RPAR)) {
       Node *tblock = stmt();
       Node *fblock = NULL;
       if (consume(TK_ELSE)) {
         fblock = stmt();
       }
-      return new_node_if(cond, tblock, fblock, &tyVoid);
+      return new_node_if(cond, tblock, fblock);
     }
   }
   parse_error(NULL, "Illegal syntax in `if'");
@@ -111,7 +129,7 @@ static Node *parse_if(void) {
 
 static Node *parse_switch(void) {
   if (consume(TK_LPAR)) {
-    Node *value = expr();
+    Expr *value = expr();
     if (consume(TK_RPAR)) {
       Node *swtch = new_node_switch(value);
 
@@ -137,7 +155,7 @@ static Node *parse_case(Token *tok) {
     parse_error(tok, "`case' cannot use outside of `switch`");
 
   tok = fetch_token();
-  Node *valnode = expr();
+  Expr *valnode = expr();
   intptr_t value;
   switch (valnode->type) {  // TODO: Accept const expression.
   case ND_CHAR:
@@ -183,7 +201,7 @@ static Node *parse_default(Token *tok) {
 
 static Node *parse_while(void) {
   if (consume(TK_LPAR)) {
-    Node *cond = expr();
+    Expr *cond = expr();
     if (consume(TK_RPAR)) {
       int save_flag = curloopflag;
       curloopflag |= LF_BREAK | LF_CONTINUE;
@@ -205,7 +223,7 @@ static Node *parse_do_while(void) {
 
   if (consume(TK_WHILE)) {
     if (consume(TK_LPAR)) {
-      Node *cond = expr();
+      Expr *cond = expr();
       if (consume(TK_RPAR) && consume(TK_SEMICOL)) {
         return new_node_do_while(body, cond);
       }
@@ -220,7 +238,7 @@ static Node *parse_for(void) {
   Scope *scope = NULL;
   if (consume(TK_LPAR)) {
     assert(curfunc != NULL);
-    Node *pre = NULL;
+    Expr *pre = NULL;
     bool nopre = false;
     Vector *stmts = NULL;
     if (consume(TK_SEMICOL)) {
@@ -244,7 +262,8 @@ static Node *parse_for(void) {
       }
     }
     if (nopre || pre != NULL || scope != NULL) {
-      Node *cond = NULL, *post = NULL;
+      Expr *cond = NULL;
+      Expr *post = NULL;
       Node *body = NULL;
       if ((consume(TK_SEMICOL) || (cond = expr(), consume(TK_SEMICOL))) &&
           (consume(TK_RPAR) || (post = expr(), consume(TK_RPAR)))) {
@@ -273,13 +292,13 @@ static Node *parse_for(void) {
 static Node *parse_break_continue(enum NodeType type) {
   if (!consume(TK_SEMICOL))
     parse_error(NULL, "`;' expected");
-  return new_node(type, &tyVoid);
+  return new_node(type);
 }
 
 static Node *parse_return(void) {
   assert(curfunc != NULL);
 
-  Node *val = NULL;
+  Expr *val = NULL;
   Token *tok;
   const Type *rettype = curfunc->type->u.func.ret;
   if ((tok = consume(TK_SEMICOL)) != NULL) {
@@ -342,7 +361,7 @@ static Initializer *parse_initializer(void) {
   return result;
 }
 
-static Vector *clear_initial_value(Node *node, Vector *inits) {
+static Vector *clear_initial_value(Expr *node, Vector *inits) {
   if (inits == NULL)
     inits = new_vector();
 
@@ -352,13 +371,13 @@ static Vector *clear_initial_value(Node *node, Vector *inits) {
   case TY_LONG:
   case TY_ENUM:
     vec_push(inits,
-             new_node_bop(ND_ASSIGN, node->expType, node,
-                          new_node_cast(node->expType, new_node_numlit(ND_INT, 0), true)));
+             new_node_expr(new_node_bop(ND_ASSIGN, node->expType, node,
+                                        new_node_cast(node->expType, new_node_numlit(ND_INT, 0), true))));
     break;
   case TY_PTR:
     vec_push(inits,
-             new_node_bop(ND_ASSIGN, node->expType, node,
-                          new_node_cast(node->expType, new_node_numlit(ND_LONG, 0), true)));  // intptr_t
+             new_node_expr(new_node_bop(ND_ASSIGN, node->expType, node,
+                                        new_node_cast(node->expType, new_node_numlit(ND_LONG, 0), true))));  // intptr_t
     break;
   case TY_ARRAY:
     {
@@ -373,7 +392,7 @@ static Vector *clear_initial_value(Node *node, Vector *inits) {
       assert(sinfo != NULL);
       for (int i = 0; i < sinfo->members->len; ++i) {
         VarInfo* varinfo = sinfo->members->data[i];
-        Node *member = new_node_member(node, i, varinfo->type);
+        Expr *member = new_node_member(node, i, varinfo->type);
         clear_initial_value(member, inits);
       }
     }
@@ -387,7 +406,7 @@ static Vector *clear_initial_value(Node *node, Vector *inits) {
   return inits;
 }
 
-static void string_initializer(Node *dst, Node *src, Vector *inits) {
+static void string_initializer(Expr *dst, Expr *src, Vector *inits) {
   // Initialize char[] with string literal (char s[] = "foo";).
   assert(dst->expType->type == TY_ARRAY && dst->expType->u.pa.ptrof->type == TY_CHAR);
   assert(src->expType->type == TY_ARRAY && src->expType->u.pa.ptrof->type == TY_CHAR);
@@ -403,25 +422,25 @@ static void string_initializer(Node *dst, Node *src, Vector *inits) {
   }
 
   for (size_t i = 0; i < len; ++i) {
-    Node *index = new_node_numlit(ND_INT, i);
+    Expr *index = new_node_numlit(ND_INT, i);
     vec_push(inits,
-             new_node_bop(ND_ASSIGN, &tyChar,
-                          new_node_deref(add_node(NULL, dst, index)),
-                          new_node_deref(add_node(NULL, src, index))));
+             new_node_expr(new_node_bop(ND_ASSIGN, &tyChar,
+                                        new_node_deref(add_node(NULL, dst, index)),
+                                        new_node_deref(add_node(NULL, src, index)))));
   }
   if (dstlen > len) {
-    Node *zero = new_node_numlit(ND_CHAR, 0);
+    Expr *zero = new_node_numlit(ND_CHAR, 0);
     for (size_t i = len; i < dstlen; ++i) {
-      Node *index = new_node_numlit(ND_INT, i);
+      Expr *index = new_node_numlit(ND_INT, i);
       vec_push(inits,
-               new_node_bop(ND_ASSIGN, &tyChar,
-                            new_node_deref(add_node(NULL, dst, index)),
-                            zero));
+               new_node_expr(new_node_bop(ND_ASSIGN, &tyChar,
+                                          new_node_deref(add_node(NULL, dst, index)),
+                                          zero)));
     }
   }
 }
 
-static Vector *assign_initial_value(Node *node, Initializer *init, Vector *inits) {
+static Vector *assign_initial_value(Expr *node, Initializer *init, Vector *inits) {
   if (inits == NULL)
     inits = new_vector();
 
@@ -490,7 +509,7 @@ static Vector *assign_initial_value(Node *node, Initializer *init, Vector *inits
       }
       for (int i = 0; i < n; ++i) {
         VarInfo* varinfo = sinfo->members->data[i];
-        Node *member = new_node_member(node, i, varinfo->type);
+        Expr *member = new_node_member(node, i, varinfo->type);
         if (values[i] != NULL)
           assign_initial_value(member, values[i], inits);
         else
@@ -520,7 +539,7 @@ static Vector *assign_initial_value(Node *node, Initializer *init, Vector *inits
         value = value->u.dot.value;
       }
       VarInfo* varinfo = sinfo->members->data[dst];
-      Node *member = new_node_member(node, dst, varinfo->type);
+      Expr *member = new_node_member(node, dst, varinfo->type);
       assign_initial_value(member, value, inits);
     }
     break;
@@ -528,7 +547,7 @@ static Vector *assign_initial_value(Node *node, Initializer *init, Vector *inits
     if (init->type != vSingle)
       parse_error(NULL, "Error initializer");
     vec_push(inits,
-             new_node_bop(ND_ASSIGN, node->expType, node, new_node_cast(node->expType, init->u.single, false)));
+             new_node_expr(new_node_bop(ND_ASSIGN, node->expType, node, new_node_cast(node->expType, init->u.single, false))));
     break;
   }
 
@@ -652,10 +671,10 @@ Node *stmt(void) {
     return parse_return();
 
   // expression statement.
-  Node *node = expr();
+  Expr *val = expr();
   if (!consume(TK_SEMICOL))
     parse_error(NULL, "Semicolon required");
-  return node;
+  return new_node_expr(val);
 }
 
 static Node *parse_defun(const Type *rettype, int flag, Token *ident) {
