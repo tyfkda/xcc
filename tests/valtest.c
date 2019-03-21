@@ -102,7 +102,7 @@ int main(void) {
   {
     int a, b, c;
     a = b = (c = 1) + 2;
-    expect("negative var", 1, a == b);
+    expect("assign", 1, a == b);
   }
   expect("!=", 1, 123 != 456);
   expect("not true", 0, !(1 == 1));

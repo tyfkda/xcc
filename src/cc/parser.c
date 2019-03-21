@@ -19,6 +19,10 @@ static Node *curswitch;
 
 static Node *stmt(void);
 
+static Expr *parse_analyze_expr(void) {
+  return analyze_expr(parse_expr());
+}
+
 static Defun *new_defun(const Type *type, const char *name) {
   Defun *defun = malloc(sizeof(*defun));
   defun->type = type;
@@ -116,7 +120,7 @@ static Node *new_node_defun(Defun *defun) {
 
 static Node *parse_if(void) {
   if (consume(TK_LPAR)) {
-    Expr *cond = parse_expr();
+    Expr *cond = parse_analyze_expr();
     if (consume(TK_RPAR)) {
       Node *tblock = stmt();
       Node *fblock = NULL;
@@ -132,7 +136,7 @@ static Node *parse_if(void) {
 
 static Node *parse_switch(void) {
   if (consume(TK_LPAR)) {
-    Expr *value = parse_expr();
+    Expr *value = parse_analyze_expr();
     if (consume(TK_RPAR)) {
       Node *swtch = new_node_switch(value);
 
@@ -158,7 +162,7 @@ static Node *parse_case(Token *tok) {
     parse_error(tok, "`case' cannot use outside of `switch`");
 
   tok = fetch_token();
-  Expr *valnode = parse_expr();
+  Expr *valnode = parse_analyze_expr();
   intptr_t value;
   switch (valnode->type) {  // TODO: Accept const expression.
   case EX_CHAR:
@@ -204,7 +208,7 @@ static Node *parse_default(Token *tok) {
 
 static Node *parse_while(void) {
   if (consume(TK_LPAR)) {
-    Expr *cond = parse_expr();
+    Expr *cond = parse_analyze_expr();
     if (consume(TK_RPAR)) {
       int save_flag = curloopflag;
       curloopflag |= LF_BREAK | LF_CONTINUE;
@@ -226,7 +230,7 @@ static Node *parse_do_while(void) {
 
   if (consume(TK_WHILE)) {
     if (consume(TK_LPAR)) {
-      Expr *cond = parse_expr();
+      Expr *cond = parse_analyze_expr();
       if (consume(TK_RPAR) && consume(TK_SEMICOL)) {
         return new_node_do_while(body, cond);
       }
@@ -259,7 +263,7 @@ static Node *parse_for(void) {
         if (!consume(TK_SEMICOL))
           scope = NULL;  // Error
       } else {
-        pre = parse_expr();
+        pre = parse_analyze_expr();
         if (!consume(TK_SEMICOL))
           pre = NULL;  // Error
       }
@@ -268,8 +272,8 @@ static Node *parse_for(void) {
       Expr *cond = NULL;
       Expr *post = NULL;
       Node *body = NULL;
-      if ((consume(TK_SEMICOL) || (cond = parse_expr(), consume(TK_SEMICOL))) &&
-          (consume(TK_RPAR) || (post = parse_expr(), consume(TK_RPAR)))) {
+      if ((consume(TK_SEMICOL) || (cond = parse_analyze_expr(), consume(TK_SEMICOL))) &&
+          (consume(TK_RPAR) || (post = parse_analyze_expr(), consume(TK_RPAR)))) {
         int save_flag = curloopflag;
         curloopflag |= LF_BREAK | LF_CONTINUE;
         body = stmt();
@@ -309,7 +313,7 @@ static Node *parse_return(void) {
       parse_error(tok, "`return' required a value");
   } else {
     tok = fetch_token();
-    val = parse_expr();
+    val = parse_analyze_expr();
     if (!consume(TK_SEMICOL))
       parse_error(NULL, "`;' expected");
 
@@ -359,43 +363,43 @@ static Initializer *parse_initializer(void) {
     result->u.multi = multi;
   } else {
     result->type = vSingle;
-    result->u.single = parse_expr();
+    result->u.single = parse_analyze_expr();
   }
   return result;
 }
 
-static Vector *clear_initial_value(Expr *node, Vector *inits) {
+static Vector *clear_initial_value(Expr *expr, Vector *inits) {
   if (inits == NULL)
     inits = new_vector();
 
-  switch (node->valType->type) {
+  switch (expr->valType->type) {
   case TY_CHAR:
   case TY_INT:
   case TY_LONG:
   case TY_ENUM:
     vec_push(inits,
-             new_node_expr(new_expr_bop(EX_ASSIGN, node->valType, node,
-                                        new_expr_cast(node->valType, new_expr_numlit(EX_INT, 0), true))));
+             new_node_expr(new_expr_bop(EX_ASSIGN, expr->valType, expr,
+                                        new_expr_cast(expr->valType, new_expr_numlit(EX_INT, 0), true))));
     break;
   case TY_PTR:
     vec_push(inits,
-             new_node_expr(new_expr_bop(EX_ASSIGN, node->valType, node,
-                                        new_expr_cast(node->valType, new_expr_numlit(EX_LONG, 0), true))));  // intptr_t
+             new_node_expr(new_expr_bop(EX_ASSIGN, expr->valType, expr,
+                                        new_expr_cast(expr->valType, new_expr_numlit(EX_LONG, 0), true))));  // intptr_t
     break;
   case TY_ARRAY:
     {
-      size_t arr_len = node->valType->u.pa.length;
+      size_t arr_len = expr->valType->u.pa.length;
       for (size_t i = 0; i < arr_len; ++i)
-        clear_initial_value(new_expr_deref(add_expr(NULL, node, new_expr_numlit(EX_INT, i))), inits);
+        clear_initial_value(new_expr_deref(add_expr(NULL, expr, new_expr_numlit(EX_INT, i))), inits);
     }
     break;
   case TY_STRUCT:
     {
-      const StructInfo *sinfo = node->valType->u.struct_.info;
+      const StructInfo *sinfo = expr->valType->u.struct_.info;
       assert(sinfo != NULL);
       for (int i = 0; i < sinfo->members->len; ++i) {
         VarInfo* varinfo = sinfo->members->data[i];
-        Expr *member = new_expr_member(node, i, varinfo->type);
+        Expr *member = new_expr_member(varinfo->type, expr, NULL, NULL, i);
         clear_initial_value(member, inits);
       }
     }
@@ -443,38 +447,38 @@ static void string_initializer(Expr *dst, Expr *src, Vector *inits) {
   }
 }
 
-static Vector *assign_initial_value(Expr *node, Initializer *init, Vector *inits) {
+static Vector *assign_initial_value(Expr *expr, Initializer *init, Vector *inits) {
   if (inits == NULL)
     inits = new_vector();
 
-  switch (node->valType->type) {
+  switch (expr->valType->type) {
   case TY_ARRAY:
     {
       // Special handling for string (char[]).
-      if (node->valType->u.pa.ptrof->type == TY_CHAR &&
+      if (expr->valType->u.pa.ptrof->type == TY_CHAR &&
           init->type == vSingle &&
-          can_cast(node->valType, init->u.single->valType, init->u.single, false)) {
-        string_initializer(node, init->u.single, inits);
+          can_cast(expr->valType, init->u.single->valType, init->u.single, false)) {
+        string_initializer(expr, init->u.single, inits);
         break;
       }
 
       if (init->type != vMulti)
         parse_error(NULL, "Error initializer");
-      size_t arr_len = node->valType->u.pa.length;
+      size_t arr_len = expr->valType->u.pa.length;
       if (arr_len == (size_t)-1) {
-        ((Type*)node->valType)->u.pa.length = arr_len = init->u.multi->len;
+        ((Type*)expr->valType)->u.pa.length = arr_len = init->u.multi->len;
       } else {
         if ((size_t)init->u.multi->len > arr_len)
           parse_error(NULL, "Initializer more than array size");
       }
       int len = init->u.multi->len;
       for (int i = 0; i < len; ++i) {
-        assign_initial_value(new_expr_deref(add_expr(NULL, node, new_expr_numlit(EX_INT, i))),
+        assign_initial_value(new_expr_deref(add_expr(NULL, expr, new_expr_numlit(EX_INT, i))),
                              init->u.multi->data[i], inits);
       }
       // Clear left.
       for (size_t i = len; i < arr_len; ++i)
-        clear_initial_value(new_expr_deref(add_expr(NULL, node, new_expr_numlit(EX_INT, i))), inits);
+        clear_initial_value(new_expr_deref(add_expr(NULL, expr, new_expr_numlit(EX_INT, i))), inits);
     }
     break;
   case TY_STRUCT:
@@ -482,8 +486,8 @@ static Vector *assign_initial_value(Expr *node, Initializer *init, Vector *inits
       if (init->type != vMulti)
         parse_error(NULL, "`{...}' expected for initializer");
 
-      ensure_struct((Type*)node->valType, NULL);
-      const StructInfo *sinfo = node->valType->u.struct_.info;
+      ensure_struct((Type*)expr->valType, NULL);
+      const StructInfo *sinfo = expr->valType->u.struct_.info;
       int n = sinfo->members->len;
       int m = init->u.multi->len;
       if (n <= 0) {
@@ -512,7 +516,7 @@ static Vector *assign_initial_value(Expr *node, Initializer *init, Vector *inits
       }
       for (int i = 0; i < n; ++i) {
         VarInfo* varinfo = sinfo->members->data[i];
-        Expr *member = new_expr_member(node, i, varinfo->type);
+        Expr *member = new_expr_member(varinfo->type, expr, NULL, NULL, i);
         if (values[i] != NULL)
           assign_initial_value(member, values[i], inits);
         else
@@ -525,8 +529,8 @@ static Vector *assign_initial_value(Expr *node, Initializer *init, Vector *inits
       if (init->type != vMulti)
         parse_error(NULL, "`{...}' expected for initializer");
 
-      const StructInfo *sinfo = node->valType->u.struct_.info;
-      ensure_struct((Type*)node->valType, NULL);
+      const StructInfo *sinfo = expr->valType->u.struct_.info;
+      ensure_struct((Type*)expr->valType, NULL);
       int n = sinfo->members->len;
       int m = init->u.multi->len;
       if (n <= 0 && m > 0)
@@ -542,7 +546,7 @@ static Vector *assign_initial_value(Expr *node, Initializer *init, Vector *inits
         value = value->u.dot.value;
       }
       VarInfo* varinfo = sinfo->members->data[dst];
-      Expr *member = new_expr_member(node, dst, varinfo->type);
+      Expr *member = new_expr_member(varinfo->type, expr, NULL, NULL, dst);
       assign_initial_value(member, value, inits);
     }
     break;
@@ -550,7 +554,7 @@ static Vector *assign_initial_value(Expr *node, Initializer *init, Vector *inits
     if (init->type != vSingle)
       parse_error(NULL, "Error initializer");
     vec_push(inits,
-             new_node_expr(new_expr_bop(EX_ASSIGN, node->valType, node, new_expr_cast(node->valType, init->u.single, false))));
+             new_node_expr(new_expr_bop(EX_ASSIGN, expr->valType, expr, new_expr_cast(expr->valType, init->u.single, false))));
     break;
   }
 
@@ -674,7 +678,7 @@ static Node *stmt(void) {
     return parse_return();
 
   // expression statement.
-  Expr *val = parse_expr();
+  Expr *val = parse_analyze_expr();
   if (!consume(TK_SEMICOL))
     parse_error(NULL, "Semicolon required");
   return new_node_expr(val);

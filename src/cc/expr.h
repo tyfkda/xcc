@@ -50,7 +50,7 @@ typedef struct Type {
   } u;
 } Type;
 
-void ensure_struct(Type *type, Token *token);
+void ensure_struct(Type *type, const Token *token);
 
 void dump_type(FILE *fp, const Type *type);
 
@@ -160,9 +160,9 @@ enum ExprType {
   EX_LOGAND,
   EX_LOGIOR,
   EX_ASSIGN,
-  EX_ASSIGN_WITH,  // +=, etc.
 
   // Unary operators
+  EX_POS,  // +num
   EX_NEG,  // -num
   EX_NOT,  // !x
   EX_PREINC,
@@ -172,6 +172,7 @@ enum ExprType {
   EX_REF,    // &x
   EX_DEREF,  // *x
   EX_CAST,
+  EX_ASSIGN_WITH,  // +=, etc.
 
   EX_TERNARY,
 
@@ -211,14 +212,17 @@ typedef struct Expr {
     } ternary;
     struct {
       struct Expr *target;
+      const Token *acctok;  // TK_DOT(.) or TK_ARROW(->)
+      const Token *ident;
       int index;
     } member;
     struct {
       const Type *type;
+      struct Expr *sub;
     } sizeof_;
     struct {
       struct Expr *func;
-      Vector *args;
+      Vector *args;  // <Expr*>
     } funcall;
   } u;
 } Expr;
@@ -315,8 +319,9 @@ Expr *new_expr_bop(enum ExprType type, const Type *expType, Expr *lhs, Expr *rhs
 Expr *new_expr_deref(Expr *sub);
 Expr *add_expr(Token *tok, Expr *lhs, Expr *rhs);
 Expr *new_expr_varref(const char *name, const Type *type, bool global);
-Expr *new_expr_member(Expr *target, int index, const Type *expType);
+Expr *new_expr_member(const Type *valType, Expr *target, const Token *acctok, const Token *ident, int index);
 Vector *funparams(bool *pvaargs);
 bool parse_var_def(const Type **prawType, const Type** ptype, int *pflag, Token **pident);
 Expr *parse_expr(void);
+Expr *analyze_expr(Expr *expr);
 Expr *new_expr_cast(const Type *type, Expr *sub, bool is_explicit);

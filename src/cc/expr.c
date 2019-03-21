@@ -82,7 +82,7 @@ void define_global(const Type *type, int flag, const Token *ident, Initializer *
 // Type
 
 // Call before accessing struct member to ensure that struct is declared.
-void ensure_struct(Type *type, Token *token) {
+void ensure_struct(Type *type, const Token *token) {
   assert(type->type == TY_STRUCT || type->type == TY_UNION);
   if (type->u.struct_.info == NULL) {
     // TODO: Search from name.
@@ -262,10 +262,10 @@ void add_cur_scope(const Token *ident, const Type *type, int flag) {
 
 //
 
-Expr *new_expr(enum ExprType type , const Type *expType) {
+Expr *new_expr(enum ExprType type, const Type *valType) {
   Expr *expr = malloc(sizeof(*expr));
   expr->type = type;
-  expr->valType = expType;
+  expr->valType = valType;
   return expr;
 }
 
@@ -419,15 +419,15 @@ Expr *new_expr_varref(const char *name, const Type *type, bool global) {
   return expr;
 }
 
-Expr *new_expr_bop(enum ExprType type, const Type *expType, Expr *lhs, Expr *rhs) {
-  Expr *expr = new_expr(type, expType);
+Expr *new_expr_bop(enum ExprType type, const Type *valType, Expr *lhs, Expr *rhs) {
+  Expr *expr = new_expr(type, valType);
   expr->u.bop.lhs = lhs;
   expr->u.bop.rhs = rhs;
   return expr;
 }
 
-static Expr *new_expr_unary(enum ExprType type, const Type *expType, Expr *sub) {
-  Expr *expr = new_expr(type, expType);
+static Expr *new_expr_unary(enum ExprType type, const Type *valType, Expr *sub) {
+  Expr *expr = new_expr(type, valType);
   expr->u.unary.sub = sub;
   return expr;
 }
@@ -461,44 +461,36 @@ static Expr *new_expr_ternary(Expr *cond, Expr *tval, Expr *fval, const Type *ty
   return expr;
 }
 
-Expr *new_expr_member(Expr *target, int index, const Type *expType) {
-  Expr *expr = new_expr(EX_MEMBER, expType);
+Expr *new_expr_member(const Type *valType, Expr *target, const Token *acctok, const Token *ident, int index) {
+  Expr *expr = new_expr(EX_MEMBER, valType);
   expr->u.member.target = target;
+  expr->u.member.acctok = acctok;
+  expr->u.member.ident = ident;
   expr->u.member.index = index;
   return expr;
 }
 
-static Expr *new_expr_sizeof(const Type *type) {
+static Expr *new_expr_sizeof(const Type *type, Expr *sub) {
   Expr *expr = new_expr(EX_SIZEOF, &tySize);
   expr->u.sizeof_.type = type;
+  expr->u.sizeof_.sub = sub;
   return expr;
 }
 
 static Expr *new_expr_funcall(Expr *func, Vector *args) {
-  const Type *rettype = func->valType->type == TY_FUNC ? func->valType->u.func.ret : &tyInt;  // TODO: Fix.
-  Expr *expr = new_expr(EX_FUNCALL, rettype);
+  Expr *expr = new_expr(EX_FUNCALL, NULL);
   expr->u.funcall.func = func;
   expr->u.funcall.args = args;
   return expr;
 }
 
 static Expr *funcall(Expr *func) {
-  const Type *functype;
-
-  if (!((functype = func->valType)->type == TY_FUNC ||
-        (func->valType->type == TY_PTR && (functype = func->valType->u.pa.ptrof)->type == TY_FUNC)))
-    parse_error(NULL, "Cannot call except funtion");
-
   Vector *args = NULL;
   Token *tok;
   if ((tok = consume(TK_RPAR)) == NULL) {
     args = new_vector();
     for (;;) {
       Expr *arg = parse_expr();
-      if (functype->u.func.params != NULL && args->len < functype->u.func.params->len) {
-        const Type * type = ((VarInfo*)functype->u.func.params->data[args->len])->type;
-        arg = new_expr_cast(type, arg, false);
-      }
       vec_push(args, arg);
       if ((tok = consume(TK_RPAR)) != NULL)
         break;
@@ -506,14 +498,6 @@ static Expr *funcall(Expr *func) {
         continue;
       parse_error(NULL, "Comma or `)` expected");
     }
-  }
-
-  if (functype->u.func.params != NULL) {
-    int argc = args != NULL ? args->len : 0;
-    int paramc = functype->u.func.params->len;
-    if (!(argc == paramc ||
-          (functype->u.func.vaargs && argc >= paramc)))
-     parse_error(tok, "function `%s' expect %d arguments, but %d", func->u.varref.ident, paramc, argc);
   }
 
   return new_expr_funcall(func, args);
@@ -685,28 +669,16 @@ static Expr *sub_expr(Token *tok, Expr *lhs, Expr *rhs) {
   return NULL;
 }
 
-static Expr *arith_expr(Token *tok, enum ExprType exprType, Expr *lhs, Expr *rhs, bool cast) {
-  if (!is_number(lhs->valType->type) || !is_number(rhs->valType->type))
-    parse_error(tok, "Cannot use `%d' except numbers.", exprType);
-
-  const Type *expType = lhs->valType;
-  if (cast && rhs->valType->type > expType->type) {
-    expType = rhs->valType;
-    lhs = new_expr_cast(expType, lhs, false);
-  }
-
-  return new_expr_bop(exprType, expType, lhs, rhs);
-}
-
 Expr *array_index(Expr *array) {
   Expr *index = parse_expr();
   Token *tok;
   if ((tok = consume(TK_RBRACKET)) == NULL)
     parse_error(NULL, "`]' expected");
-  return new_expr_deref(add_expr(tok, array, index));
+  //return new_expr_deref(add_expr(tok, array, index));
+  return new_expr_unary(EX_DEREF, NULL, new_expr_bop(EX_ADD, NULL, array, index));
 }
 
-bool member_access_recur(const Type *type, Token *ident, Vector *stack) {
+bool member_access_recur(const Type *type, const Token *ident, Vector *stack) {
   assert(type->type == TY_STRUCT || type->type == TY_UNION);
   ensure_struct((Type*)type, ident);
   const char *name = ident->u.ident;
@@ -732,46 +704,11 @@ bool member_access_recur(const Type *type, Token *ident, Vector *stack) {
 }
 
 Expr *member_access(Expr *target, Token *acctok) {
-  // Find member's type from struct info.
-  const Type *type = target->valType;
-  if (acctok->type == TK_DOT) {
-    if (!is_struct_or_union(type->type))
-      parse_error(acctok, "`.' for non struct value");
-  } else {  // TK_ARROW
-    if (type->type == TY_PTR)
-      type = target->valType->u.pa.ptrof;
-    else if (type->type == TY_ARRAY)
-      type = target->valType->u.pa.ptrof;
-    else
-      parse_error(acctok, "`->' for non pointer value");
-    if (type->type != TY_STRUCT)
-      parse_error(acctok, "`->' for non struct value");
-  }
-
   Token *ident;
   if (!(ident = consume(TK_IDENT)))
     parse_error(NULL, "`ident' expected");
-  const char *name = ident->u.ident;
 
-  ensure_struct((Type*)type, ident);
-  int index = var_find(type->u.struct_.info->members, name);
-  if (index >= 0) {
-    VarInfo *varinfo = (VarInfo*)type->u.struct_.info->members->data[index];
-    return new_expr_member(target, index, varinfo->type);
-  }
-
-  Vector *stack = new_vector();
-  bool res = member_access_recur(type, ident, stack);
-  if (!res)
-    parse_error(ident, "`%s' doesn't exist in the struct", name);
-  Expr *expr = target;
-  for (int i = 0; i < stack->len; ++i) {
-    int index = (int)(long)stack->data[i];
-    VarInfo *varinfo = type->u.struct_.info->members->data[index];
-    expr = new_expr_member(expr, index, varinfo->type);
-    type = varinfo->type;
-  }
-  return expr;
+  return new_expr_member(NULL, target, acctok, ident, -1);
 }
 
 static const Type *parse_enum(void) {
@@ -1077,29 +1014,7 @@ static Expr *prim(void) {
   Token *ident;
   if ((ident = consume(TK_IDENT)) != NULL) {
     const char *name = ident->u.ident;
-    const Type *type = NULL;
-    bool global = false;
-    if (curscope != NULL) {
-      VarInfo *varinfo = scope_find(curscope, name);
-      if (varinfo != NULL)
-        type = varinfo->type;
-    }
-    if (type == NULL) {
-      GlobalVarInfo *varinfo = find_global(name);
-      if (varinfo != NULL) {
-        global = true;
-        type = varinfo->type;
-        if (type->type == TY_ENUM) {
-          // Enum value is embeded directly.
-          assert(varinfo->init->type == vSingle);
-          return varinfo->init->u.single;
-        }
-      }
-    }
-    if (type == NULL)
-      parse_error(ident, "Undefined `%s'", name);
-
-    return new_expr_varref(name, type, global);
+    return new_expr_varref(name, /*type*/NULL, /*global*/false);
   }
   parse_error(NULL, "Number or Ident or open paren expected");
   return NULL;
@@ -1119,89 +1034,85 @@ static Expr *postfix(void) {
     else if ((tok = consume(TK_ARROW)) != NULL)
       expr = member_access(expr, tok);
     else if (consume(TK_INC))
-      expr = new_expr_unary(EX_POSTINC, expr->valType, expr);
+      expr = new_expr_unary(EX_POSTINC, /*expr->valType*/NULL, expr);
     else if (consume(TK_DEC))
-      expr = new_expr_unary(EX_POSTDEC, expr->valType, expr);
+      expr = new_expr_unary(EX_POSTDEC, /*expr->valType*/NULL, expr);
     else
       return expr;
   }
 }
 
 static Expr *parse_sizeof(void) {
-  const Type *type;
+  const Type *type = NULL;
+  Expr *expr = NULL;
   if (consume(TK_LPAR)) {
     type = parse_full_type(NULL, NULL);
     if (type == NULL) {
-      Expr *expr = parse_expr();
-      type = expr->valType;
+      expr = parse_expr();
     }
     if (!consume(TK_RPAR))
       parse_error(NULL, "`)' expected");
   } else {
-    Expr *expr = prim();
-    type = expr->valType;
+    expr = prim();
   }
-  return new_expr_sizeof(type);
+  return new_expr_sizeof(type, expr);
 }
 
 static Expr *unary(void) {
   Token *tok;
   if ((tok = consume(TK_ADD)) != NULL) {
     Expr *expr = cast_expr();
-    if (!is_number(expr->valType->type))
-      parse_error(tok, "Cannot apply `+' except number types");
-    return expr;
-  }
-
-  if ((tok = consume(TK_SUB)) != NULL) {
-    Expr *expr = cast_expr();
-    if (!is_number(expr->valType->type))
-      parse_error(tok, "Cannot apply `-' except number types");
     switch (expr->type) {
     case EX_CHAR:
+    case EX_SHORT:
     case EX_INT:
     case EX_LONG:
       expr->u.value = -expr->u.value;
       return expr;
     default:
-      return new_expr_unary(EX_NEG, expr->valType, expr);
+      return new_expr_unary(EX_POS, /*expr->valType*/NULL, expr);
+    }
+
+    return expr;
+  }
+
+  if ((tok = consume(TK_SUB)) != NULL) {
+    Expr *expr = cast_expr();
+    switch (expr->type) {
+    case EX_CHAR:
+    case EX_SHORT:
+    case EX_INT:
+    case EX_LONG:
+      expr->u.value = -expr->u.value;
+      return expr;
+    default:
+      return new_expr_unary(EX_NEG, /*expr->valType*/NULL, expr);
     }
   }
 
   if ((tok = consume(TK_NOT)) != NULL) {
     Expr *expr = cast_expr();
-    switch (expr->valType->type) {
-    case TY_INT:
-    case TY_CHAR:
-    case TY_LONG:
-    case TY_PTR:
-      expr = new_expr_unary(EX_NOT, &tyBool, expr);
-      break;
-    default:
-      parse_error(tok, "Cannot apply `!' except number or pointer types");
-      break;
-    }
-    return expr;
+    return new_expr_unary(EX_NOT, &tyBool, expr);
   }
 
   if (consume(TK_AND)) {
     Expr *expr = cast_expr();
-    return new_expr_unary(EX_REF, ptrof(expr->valType), expr);
+    return new_expr_unary(EX_REF, /*ptrof(expr->valType)*/NULL, expr);
   }
 
   if (consume(TK_MUL)) {
     Expr *expr = cast_expr();
-    return new_expr_deref(expr);
+    return new_expr_unary(EX_DEREF, /*expr->valType->u.pa.ptrof*/NULL, expr);
   }
 
   if (consume(TK_INC)) {
     Expr *expr = unary();
-    return new_expr_unary(EX_PREINC, expr->valType, expr);
+    return new_expr_unary(EX_PREINC, /*expr->valType*/NULL, expr);
   }
 
   if (consume(TK_DEC)) {
     Expr *expr = unary();
-    return new_expr_unary(EX_PREDEC, expr->valType, expr);
+    return new_expr_unary(EX_PREDEC, /*expr->valType*/NULL, expr);
   }
 
   if (consume(TK_SIZEOF)) {
@@ -1219,8 +1130,10 @@ static Expr *cast_expr(void) {
     if (type != NULL) {  // Cast
       if (!consume(TK_RPAR))
         parse_error(NULL, "`)' expected");
-      Expr *expr = cast_expr();
-      return new_expr_cast(type, expr, true);
+      Expr *sub = cast_expr();
+      Expr *expr = new_expr(EX_CAST, type);
+      expr->u.cast.sub = sub;
+      return expr;
     }
     unget_token(lpar);
   }
@@ -1242,7 +1155,7 @@ static Expr *mul(void) {
     else
       return expr;
 
-    expr = arith_expr(tok, t, expr, cast_expr(), true);
+    expr = new_expr_bop(t, NULL, expr, cast_expr());
   }
 }
 
@@ -1250,13 +1163,16 @@ static Expr *add(void) {
   Expr *expr = mul();
 
   for (;;) {
+    enum ExprType t;
     Token *tok;
     if ((tok = consume(TK_ADD)) != NULL)
-      expr = add_expr(tok, expr, mul());
+      t = EX_ADD;
     else if ((tok = consume(TK_SUB)) != NULL)
-      expr = sub_expr(tok, expr, mul());
+      t = EX_SUB;
     else
       return expr;
+
+    expr = new_expr_bop(t, NULL, expr, mul());
   }
 }
 
@@ -1274,7 +1190,7 @@ static Expr *shift(void) {
       return expr;
 
     Expr *lhs = expr, *rhs = add();
-    expr = arith_expr(tok, t, lhs, rhs, false);
+    expr = new_expr_bop(t, NULL, lhs, rhs);
   }
 }
 
@@ -1308,25 +1224,6 @@ static Expr *cmp(void) {
       return expr;
 
     Expr *lhs = expr, *rhs= shift();
-    if (lhs->valType->type == TY_PTR || rhs->valType->type == TY_PTR) {
-      const Type *lt = lhs->valType, *rt = rhs->valType;
-      if (lt->type != TY_PTR) {
-        const Type *tmp = lt;
-        lt = rt;
-        rt = tmp;
-      }
-      if (!can_cast(lt, rt, rhs, false))
-        parse_error(tok, "Cannot compare pointer to other types");
-      if (rt->type != TY_PTR) {
-        if (lt == lhs->valType)
-          rhs = new_expr_cast(lhs->valType, rhs, false);
-        else
-          lhs = new_expr_cast(rhs->valType, lhs, false);
-      }
-    } else {
-      if (!cast_numbers(&lhs, &rhs))
-        parse_error(tok, "Cannot compare except numbers");
-    }
     expr = new_expr_bop(t, &tyBool, lhs, rhs);
   }
 }
@@ -1345,25 +1242,6 @@ static Expr *eq(void) {
       return expr;
 
     Expr *lhs = expr, *rhs= cmp();
-    if (lhs->valType->type == TY_PTR || rhs->valType->type == TY_PTR) {
-      const Type *lt = lhs->valType, *rt = rhs->valType;
-      if (lt->type != TY_PTR) {
-        const Type *tmp = lt;
-        lt = rt;
-        rt = tmp;
-      }
-      if (!can_cast(lt, rt, rhs, false))
-        parse_error(tok, "Cannot compare pointer to other types");
-      if (rt->type != TY_PTR) {
-        if (lt == lhs->valType)
-          rhs = new_expr_cast(lhs->valType, rhs, false);
-        else
-          lhs = new_expr_cast(rhs->valType, lhs, false);
-      }
-    } else {
-      if (!cast_numbers(&lhs, &rhs))
-        parse_error(tok, "Cannot compare except numbers");
-    }
     expr = new_expr_bop(t, &tyBool, lhs, rhs);
   }
 }
@@ -1374,9 +1252,7 @@ static Expr *and(void) {
     Token *tok;
     if ((tok = consume(TK_AND)) != NULL) {
       Expr *lhs = expr, *rhs= eq();
-      if (!cast_numbers(&lhs, &rhs))
-        parse_error(tok, "Cannot compare except numbers");
-      expr = new_expr_bop(EX_BITAND, lhs->valType, lhs, rhs);
+      expr = new_expr_bop(EX_BITAND, /*lhs->valType*/NULL, lhs, rhs);
     } else
       return expr;
   }
@@ -1388,9 +1264,7 @@ static Expr *xor(void) {
     Token *tok;
     if ((tok = consume(TK_HAT)) != NULL) {
       Expr *lhs = expr, *rhs= and();
-      if (!cast_numbers(&lhs, &rhs))
-        parse_error(tok, "Cannot compare except numbers");
-      expr = new_expr_bop(EX_BITXOR, lhs->valType, lhs, rhs);
+      expr = new_expr_bop(EX_BITXOR, /*lhs->valType*/NULL, lhs, rhs);
     } else
       return expr;
   }
@@ -1402,9 +1276,7 @@ static Expr *or(void) {
     Token *tok;
     if ((tok = consume(TK_OR)) != NULL) {
       Expr *lhs = expr, *rhs= xor();
-      if (!cast_numbers(&lhs, &rhs))
-        parse_error(tok, "Cannot compare except numbers");
-      expr = new_expr_bop(EX_BITOR, lhs->valType, lhs, rhs);
+      expr = new_expr_bop(EX_BITOR, /*lhs->valType*/NULL, lhs, rhs);
     } else
       return expr;
   }
@@ -1439,9 +1311,7 @@ static Expr *conditional(void) {
     if (!consume(TK_COLON))
       parse_error(NULL, "`:' expected");
     Expr *f = conditional();
-    if (!same_type(t->valType, f->valType))
-      parse_error(NULL, "lhs and rhs must be same type");
-    expr = new_expr_ternary(expr, t, f, t->valType);
+    expr = new_expr_ternary(expr, t, f, /*t->valType*/NULL);
   }
 }
 
@@ -1449,27 +1319,374 @@ static Expr *assign(void) {
   Expr *expr = conditional();
 
   if (consume(TK_ASSIGN))
-    return new_expr_bop(EX_ASSIGN, expr->valType, expr, new_expr_cast(expr->valType, assign(), false));
+    return new_expr_bop(EX_ASSIGN, /*expr->valType*/NULL, expr, assign());
+  enum ExprType t;
   Token *tok;
   if ((tok = consume(TK_ADD_ASSIGN)) != NULL)
-    return new_expr_unary(EX_ASSIGN_WITH, expr->valType,
-                          add_expr(tok, expr, assign()));
-  if ((tok = consume(TK_SUB_ASSIGN)) != NULL)
-    return new_expr_unary(EX_ASSIGN_WITH, expr->valType,
-                          sub_expr(tok, expr, assign()));
-  if ((tok = consume(TK_MUL_ASSIGN)) != NULL)
-    return new_expr_unary(EX_ASSIGN_WITH, expr->valType,
-                          arith_expr(tok, EX_MUL, expr, assign(), true));
-  if ((tok = consume(TK_DIV_ASSIGN)) != NULL)
-    return new_expr_unary(EX_ASSIGN_WITH, expr->valType,
-                          arith_expr(tok, EX_DIV, expr, assign(), true));
-  if ((tok = consume(TK_MOD_ASSIGN)) != NULL)
-    return new_expr_unary(EX_ASSIGN_WITH, expr->valType,
-                          arith_expr(tok, EX_MOD, expr, assign(), true));
+    t = EX_ADD;
+  else if ((tok = consume(TK_SUB_ASSIGN)) != NULL)
+    t = EX_SUB;
+  else if ((tok = consume(TK_MUL_ASSIGN)) != NULL)
+    t = EX_MUL;
+  else if ((tok = consume(TK_DIV_ASSIGN)) != NULL)
+    t = EX_DIV;
+  else if ((tok = consume(TK_MOD_ASSIGN)) != NULL)
+    t = EX_MOD;
+  else
+    return expr;
 
-  return expr;
+  return new_expr_unary(EX_ASSIGN_WITH, /*expr->valType*/NULL,
+                        new_expr_bop(t, NULL, expr, assign()));
 }
 
 Expr *parse_expr(void) {
   return assign();
+}
+
+//
+
+static void analyze_cmp(Expr *expr) {
+  Expr *lhs = expr->u.bop.lhs, *rhs = expr->u.bop.rhs;
+  if (lhs->valType->type == TY_PTR || rhs->valType->type == TY_PTR) {
+    const Type *lt = lhs->valType, *rt = rhs->valType;
+    if (lt->type != TY_PTR) {
+      const Type *tmp = lt;
+      lt = rt;
+      rt = tmp;
+    }
+    if (!can_cast(lt, rt, rhs, false))
+      parse_error(/*tok*/NULL, "Cannot compare pointer to other types");
+    if (rt->type != TY_PTR) {
+      if (lt == lhs->valType)
+        expr->u.bop.rhs = new_expr_cast(lhs->valType, rhs, false);
+      else
+        expr->u.bop.lhs = new_expr_cast(rhs->valType, lhs, false);
+    }
+  } else {
+    if (!cast_numbers(&expr->u.bop.lhs, &expr->u.bop.rhs))
+      parse_error(/*tok*/NULL, "Cannot compare except numbers");
+  }
+}
+
+// Traverse expr to check semantics and determine value type.
+Expr *analyze_expr(Expr *expr) {
+  switch (expr->type) {
+  // Literals
+  case EX_CHAR:
+  case EX_SHORT:
+  case EX_INT:
+  case EX_LONG:
+  case EX_STR:
+    assert(expr->valType != NULL);
+    break;
+
+  case EX_VARREF:
+    {
+      const char *name = expr->u.varref.ident;
+      const Type *type = NULL;
+      bool global = false;
+      if (curscope != NULL) {
+        VarInfo *varinfo = scope_find(curscope, name);
+        if (varinfo != NULL)
+          type = varinfo->type;
+      }
+      if (type == NULL) {
+        GlobalVarInfo *varinfo = find_global(name);
+        if (varinfo != NULL) {
+          global = true;
+          type = varinfo->type;
+          if (type->type == TY_ENUM) {
+            // Enum value is embeded directly.
+            assert(varinfo->init->type == vSingle);
+            return varinfo->init->u.single;
+          }
+        }
+      }
+      if (type == NULL)
+        parse_error(/*ident*/NULL, "Undefined `%s'", name);
+      expr->valType = type;
+      expr->u.varref.global = global;
+    }
+    break;
+
+  // Binary operators
+  case EX_ADD:
+  case EX_SUB:
+  case EX_MUL:
+  case EX_DIV:
+  case EX_MOD:
+  case EX_BITAND:
+  case EX_BITOR:
+  case EX_BITXOR:
+  case EX_LSHIFT:
+  case EX_RSHIFT:
+  case EX_PTRADD:
+  case EX_PTRSUB:
+  case EX_PTRDIFF:
+  case EX_EQ:
+  case EX_NE:
+  case EX_LT:
+  case EX_GT:
+  case EX_LE:
+  case EX_GE:
+  case EX_LOGAND:
+  case EX_LOGIOR:
+  case EX_ASSIGN:
+    expr->u.bop.lhs = analyze_expr(expr->u.bop.lhs);
+    expr->u.bop.rhs = analyze_expr(expr->u.bop.rhs);
+    assert(expr->u.bop.lhs->valType != NULL);
+    assert(expr->u.bop.rhs->valType != NULL);
+
+    switch (expr->type) {
+    case EX_ADD:
+      return add_expr(NULL, expr->u.bop.lhs, expr->u.bop.rhs);
+    case EX_SUB:
+      return sub_expr(NULL, expr->u.bop.lhs, expr->u.bop.rhs);
+    case EX_MUL:
+    case EX_DIV:
+    case EX_MOD:
+    case EX_BITAND:
+    case EX_BITOR:
+    case EX_BITXOR:
+      if (!cast_numbers(&expr->u.bop.lhs, &expr->u.bop.rhs))
+        parse_error(/*tok*/NULL, "Cannot use `%d' except numbers.", expr->type);
+
+      expr->valType = expr->u.bop.lhs->valType;
+      break;
+
+    case EX_LSHIFT:
+    case EX_RSHIFT:
+      {
+        enum eType t;
+        if (!is_number(t = expr->u.bop.lhs->valType->type) ||
+            !is_number(t = expr->u.bop.rhs->valType->type))
+          parse_error(/*tok*/NULL, "Cannot use `%d' except numbers.", t);
+        expr->valType = expr->u.bop.lhs->valType;
+      }
+      break;
+
+    case EX_EQ:
+    case EX_NE:
+    case EX_LT:
+    case EX_GT:
+    case EX_LE:
+    case EX_GE:
+      analyze_cmp(expr);
+      break;
+
+    case EX_LOGAND:
+    case EX_LOGIOR:
+      break;
+
+    case EX_ASSIGN:
+      expr->valType = expr->u.bop.lhs->valType;
+      expr->u.bop.rhs = new_expr_cast(expr->valType, expr->u.bop.rhs, false);
+      break;
+
+    default:
+      fprintf(stderr, "expr type=%d\n", expr->type);
+      assert(!"analyze not handled!");
+      break;
+    }
+    break;
+
+  // Unary operators
+  case EX_POS:
+  case EX_NEG:
+  case EX_NOT:
+  case EX_PREINC:
+  case EX_PREDEC:
+  case EX_POSTINC:
+  case EX_POSTDEC:
+  case EX_REF:
+  case EX_DEREF:
+  case EX_CAST:
+  case EX_ASSIGN_WITH:
+    expr->u.unary.sub = analyze_expr(expr->u.unary.sub);
+    assert(expr->u.unary.sub->valType != NULL);
+
+    switch (expr->type) {
+    case EX_POS:
+      if (!is_number(expr->u.unary.sub->valType->type))
+        parse_error(/*tok*/NULL, "Cannot apply `+' except number types");
+      return expr->u.unary.sub;
+
+    case EX_NEG:
+      if (!is_number(expr->u.unary.sub->valType->type))
+        parse_error(/*tok*/NULL, "Cannot apply `-' except number types");
+      expr->valType = expr->u.unary.sub->valType;
+      break;
+
+    case EX_NOT:
+      switch (expr->u.unary.sub->valType->type) {
+      case TY_CHAR:
+      case TY_SHORT:
+      case TY_INT:
+      case TY_LONG:
+      case TY_ENUM:
+      case TY_PTR:
+        break;
+      default:
+        parse_error(/*tok*/NULL, "Cannot apply `!' except number or pointer types");
+        break;
+      }
+      break;
+
+    case EX_PREINC:
+    case EX_PREDEC:
+    case EX_POSTINC:
+    case EX_POSTDEC:
+      expr->valType = expr->u.unary.sub->valType;
+      break;
+
+    case EX_REF:
+      expr->valType = ptrof(expr->u.unary.sub->valType);
+      break;
+
+    case EX_DEREF:
+      {
+        Expr *sub = expr->u.unary.sub;
+        if (sub->valType->type != TY_PTR && sub->valType->type != TY_ARRAY)
+          parse_error(NULL, "Cannot dereference raw type");
+        expr->valType = sub->valType->u.pa.ptrof;
+      }
+      break;
+
+    case EX_ASSIGN_WITH:
+      expr->valType = expr->u.unary.sub->u.bop.lhs->valType;
+      break;
+
+    case EX_CAST:
+      {
+        Expr *sub = expr->u.unary.sub;
+        if (same_type(expr->valType, sub->valType))
+          return sub;
+        if (!can_cast(expr->valType, sub->valType, sub, true))
+          parse_error(NULL, "Cannot convert value from type %d to %d", sub->valType->type, expr->valType->type);
+      }
+      break;
+
+    default:
+      fprintf(stderr, "expr type=%d\n", expr->type);
+      assert(!"analyze not handled!");
+      break;
+    }
+    break;
+
+  case EX_TERNARY:
+    expr->u.ternary.cond = analyze_expr(expr->u.ternary.cond);
+    expr->u.ternary.tval = analyze_expr(expr->u.ternary.tval);
+    expr->u.ternary.fval = analyze_expr(expr->u.ternary.fval);
+    if (!same_type(expr->u.ternary.tval->valType, expr->u.ternary.fval->valType))
+      parse_error(NULL, "lhs and rhs must be same type");
+    expr->valType = expr->u.ternary.tval->valType;
+    break;
+
+  case EX_MEMBER:  // x.member or x->member
+    {
+      Expr *target = expr->u.member.target;
+      expr->u.member.target = target = analyze_expr(target);
+      assert(target->valType != NULL);
+
+      const Token *acctok = expr->u.member.acctok;
+      const Token *ident = expr->u.member.ident;
+      const char *name = ident->u.ident;
+
+      // Find member's type from struct info.
+      const Type *targetType = target->valType;
+      if (acctok->type == TK_DOT) {
+        if (!is_struct_or_union(targetType->type))
+          parse_error(acctok, "`.' for non struct value");
+      } else {  // TK_ARROW
+        if (targetType->type == TY_PTR)
+          targetType = targetType->u.pa.ptrof;
+        else if (targetType->type == TY_ARRAY)
+          targetType = targetType->u.pa.ptrof;
+        else
+          parse_error(acctok, "`->' for non pointer value");
+        if (targetType->type != TY_STRUCT)
+          parse_error(acctok, "`->' for non struct value");
+      }
+
+      ensure_struct((Type*)targetType, ident);
+      int index = var_find(targetType->u.struct_.info->members, name);
+      if (index >= 0) {
+        VarInfo *varinfo = (VarInfo*)targetType->u.struct_.info->members->data[index];
+        expr->valType = varinfo->type;
+        expr->u.member.index = index;
+      } else {
+        Vector *stack = new_vector();
+        bool res = member_access_recur(targetType, ident, stack);
+        if (!res)
+          parse_error(ident, "`%s' doesn't exist in the struct", name);
+        Expr *p = target;
+        const Type *type = targetType;
+        VarInfo *varinfo;
+        for (int i = 0; i < stack->len; ++i) {
+          int index = (int)(long)stack->data[i];
+          varinfo = type->u.struct_.info->members->data[index];
+          type = varinfo->type;
+          p = new_expr_member(type, p, NULL, NULL, index);
+        }
+        expr = p;
+      }
+    }
+    break;
+
+  case EX_SIZEOF:
+    {
+      Expr *sub = expr->u.sizeof_.sub;
+      if (sub != NULL) {
+        sub = analyze_expr(sub);
+        assert(sub->valType != NULL);
+        expr->u.sizeof_.type = sub->valType;
+      }
+    }
+    break;
+
+  case EX_FUNCALL:
+    {
+      Expr *func = expr->u.funcall.func;
+      Vector *args = expr->u.funcall.args;  // <Expr*>
+      expr->u.funcall.func = func = analyze_expr(func);
+      if (args != NULL) {
+        for (int i = 0, len = args->len; i < len; ++i)
+          args->data[i] = analyze_expr(args->data[i]);
+      }
+
+      const Type *functype;
+      if (!((functype = func->valType)->type == TY_FUNC ||
+            (func->valType->type == TY_PTR && (functype = func->valType->u.pa.ptrof)->type == TY_FUNC)))
+        parse_error(NULL, "Cannot call except funtion");
+      expr->valType = functype->u.func.ret;
+
+      Vector *params = functype->u.func.params;  // <VarInfo*>
+      if (params != NULL) {
+        int argc = args != NULL ? args->len : 0;
+        int paramc = params->len;
+        if (!(argc == paramc ||
+              (functype->u.func.vaargs && argc >= paramc)))
+          parse_error(/*tok*/ NULL, "function `%s' expect %d arguments, but %d", func->u.varref.ident, paramc, argc);
+      }
+
+      if (args != NULL) {
+        for (int i = 0, len = args->len; i < len; ++i) {
+          if (params != NULL && i < params->len) {
+            const Type *type = ((VarInfo*)params->data[i])->type;
+            args->data[i] = new_expr_cast(type, args->data[i], false);
+          }
+        }
+      }
+    }
+    break;
+
+  default:
+    fprintf(stderr, "expr type=%d\n", expr->type);
+    assert(!"analyze not handled!");
+    break;
+  }
+
+if (expr->valType == NULL) { fprintf(stderr, "expr->type=%d, ", expr->type); }
+  assert(expr->valType != NULL);
+  return expr;
 }
