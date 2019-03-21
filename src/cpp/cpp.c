@@ -365,8 +365,13 @@ bool handle_if(const char *p, const char *filename, int lineno) {
  return reduce(expr) != 0;
 }
 
-#define CF_ENABLE  (1 << 0)
-#define CF_ELSE    (1 << 1)
+#define CF_ENABLE         (1 << 0)
+#define CF_SATISFY_SHIFT  (1)
+#define CF_SATISFY_MASK   (3 << CF_SATISFY_SHIFT)
+
+intptr_t cond_value(bool enable, int satisfy) {
+  return (enable ? CF_ENABLE : 0) | (satisfy << CF_SATISFY_SHIFT);
+}
 
 static void define_file_macro(const char *filename) {
   size_t len = strlen(filename);
@@ -378,6 +383,7 @@ static void define_file_macro(const char *filename) {
 void pp(FILE *fp, const char *filename) {
   Vector *condstack = new_vector();
   bool enable = true;
+  int satisfy = 0;  // #if condition: 0=not satisfied, 1=satisfied, 2=else
   char linenobuf[sizeof(int) * 3 + 1];  // Buffer for __LINE__
 
   Macro *old_file_macro = map_get(macro_map, "__FILE__");
@@ -410,31 +416,53 @@ void pp(FILE *fp, const char *filename) {
 
     const char *next;
     if ((next = keyword(directive, "ifdef")) != NULL) {
-      vec_push(condstack, (void*)(intptr_t)(enable ? CF_ENABLE : 0));
+      vec_push(condstack, (void*)cond_value(enable, satisfy));
       bool defined = handle_ifdef(next);
-      enable = enable && defined;
+      satisfy = defined ? 1 : 0;
+      enable = enable && satisfy == 1;
     } else if ((next = keyword(directive, "ifndef")) != NULL) {
-      vec_push(condstack, (void*)(intptr_t)(enable ? CF_ENABLE : 0));
+      vec_push(condstack, (void*)cond_value(enable, satisfy));
       bool defined = handle_ifdef(next);
-      enable = enable && !defined;
+      satisfy = defined ? 0 : 1;
+      enable = enable && satisfy == 1;
     } else if ((next = keyword(directive, "if")) != NULL) {
-      vec_push(condstack, (void*)(intptr_t)(enable ? CF_ENABLE : 0));
+      vec_push(condstack, (void*)cond_value(enable, satisfy));
       bool cond = handle_if(next, filename, lineno);
-      enable = enable && cond;
+      satisfy = cond ? 1 : 0;
+      enable = enable && satisfy == 1;
     } else if ((next = keyword(directive, "else")) != NULL) {
       int last = condstack->len - 1;
       if (last < 0)
         error("`#else' used without `#if'");
       intptr_t flag = (intptr_t)condstack->data[last];
-      if (flag & CF_ELSE)
+      if (satisfy == 2)
         error("Illegal #else");
-      condstack->data[last] = (void*)(flag ^ CF_ELSE);
-      enable = !enable && ((flag & CF_ENABLE) != 0);
+      enable = !enable && satisfy == 0 && ((flag & CF_ENABLE) != 0);
+      satisfy = 2;
+    } else if ((next = keyword(directive, "elif")) != NULL) {
+      int last = condstack->len - 1;
+      if (last < 0)
+        error("`#elif' used without `#if'");
+      intptr_t flag = (intptr_t)condstack->data[last];
+      if (satisfy == 2)
+        error("Illegal #elif");
+
+      bool cond = false;
+      if (satisfy == 0) {
+        cond = handle_if(next, filename, lineno);
+        if (cond)
+          satisfy = 1;
+      }
+
+      enable = !enable && cond && ((flag & CF_ENABLE) != 0);
     } else if ((next = keyword(directive, "endif")) != NULL) {
       int len = condstack->len;
       if (len <= 0)
         error("`#endif' used without `#if'");
-      enable = (((intptr_t)condstack->data[--len]) & CF_ENABLE) != 0;
+      --len;
+      int flag = (intptr_t)condstack->data[len];
+      enable = (flag & CF_ENABLE) != 0;
+      satisfy = (flag & CF_SATISFY_MASK) >> CF_SATISFY_SHIFT;
       condstack->len = len;
     } else if (enable) {
       if ((next = keyword(directive, "include")) != NULL) {
