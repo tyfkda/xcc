@@ -894,12 +894,12 @@ static void gen_continue(void) {
   JMP32(s_continue_label);
 }
 
-static void gen_arith(enum ExprType nodeType, enum eType expType, enum eType rhsType) {
+static void gen_arith(enum ExprType exprType, enum eType valType, enum eType rhsType) {
   // lhs=rax, rhs=rdi, result=rax
 
-  switch (nodeType) {
+  switch (exprType) {
   case EX_ADD:
-    switch (expType) {
+    switch (valType) {
     case TY_CHAR:  ADD_DIL_AL(); break;
     case TY_SHORT: ADD_DI_AX(); break;
     case TY_INT:   ADD_EDI_EAX(); break;
@@ -909,7 +909,7 @@ static void gen_arith(enum ExprType nodeType, enum eType expType, enum eType rhs
     break;
 
   case EX_SUB:
-    switch (expType) {
+    switch (valType) {
     case TY_CHAR:  SUB_DIL_AL(); break;
     case TY_SHORT: SUB_DI_AX(); break;
     case TY_INT:   SUB_EDI_EAX(); break;
@@ -919,7 +919,7 @@ static void gen_arith(enum ExprType nodeType, enum eType expType, enum eType rhs
     break;
 
   case EX_MUL:
-    switch (expType) {
+    switch (valType) {
     case TY_CHAR:  MUL_DIL(); break;
     case TY_SHORT: MUL_DI(); break;
     case TY_INT:   MUL_EDI(); break;
@@ -931,7 +931,7 @@ static void gen_arith(enum ExprType nodeType, enum eType expType, enum eType rhs
 
   case EX_DIV:
     MOV_IM32_RDX(0);
-    switch (expType) {
+    switch (valType) {
     case TY_CHAR:  DIV_DIL(); break;
     case TY_SHORT: DIV_DI(); break;
     case TY_INT:   DIV_EDI(); break;
@@ -942,7 +942,7 @@ static void gen_arith(enum ExprType nodeType, enum eType expType, enum eType rhs
 
   case EX_MOD:
     MOV_IM32_RDX(0);
-    switch (expType) {
+    switch (valType) {
     case TY_CHAR:  DIV_DIL(); MOV_DL_AL(); break;
     case TY_SHORT: DIV_DI();  MOV_DX_AX(); break;
     case TY_INT:   DIV_EDI(); MOV_EDX_EAX(); break;
@@ -952,7 +952,7 @@ static void gen_arith(enum ExprType nodeType, enum eType expType, enum eType rhs
     break;
 
   case EX_BITAND:
-    switch (expType) {
+    switch (valType) {
     case TY_CHAR:  AND_DIL_AL(); break;
     case TY_SHORT: AND_DI_AX(); break;
     case TY_INT:   AND_EDI_EAX(); break;
@@ -962,7 +962,7 @@ static void gen_arith(enum ExprType nodeType, enum eType expType, enum eType rhs
     break;
 
   case EX_BITOR:
-    switch (expType) {
+    switch (valType) {
     case TY_CHAR:  OR_DIL_AL(); break;
     case TY_SHORT: OR_DI_AX(); break;
     case TY_INT:   OR_EDI_EAX(); break;
@@ -972,7 +972,7 @@ static void gen_arith(enum ExprType nodeType, enum eType expType, enum eType rhs
     break;
 
   case EX_BITXOR:
-    switch (expType) {
+    switch (valType) {
     case TY_CHAR:  XOR_DIL_AL(); break;
     case TY_SHORT: XOR_DI_AX(); break;
     case TY_INT:   XOR_EDI_EAX(); break;
@@ -990,8 +990,8 @@ static void gen_arith(enum ExprType nodeType, enum eType expType, enum eType rhs
     case TY_LONG:  MOV_RDI_RCX(); break;
     default: assert(false); break;
     }
-    if (nodeType == EX_LSHIFT) {
-      switch (expType) {
+    if (exprType == EX_LSHIFT) {
+      switch (valType) {
       case TY_CHAR:  SHL_CL_AL(); break;
       case TY_SHORT: SHL_CL_AX(); break;
       case TY_INT:   SHL_CL_EAX(); break;
@@ -999,7 +999,7 @@ static void gen_arith(enum ExprType nodeType, enum eType expType, enum eType rhs
       default: assert(false); break;
       }
     } else {
-      switch (expType) {
+      switch (valType) {
       case TY_CHAR:  SHR_CL_AL(); break;
       case TY_SHORT: SHR_CL_AX(); break;
       case TY_INT:   SHR_CL_EAX(); break;
@@ -1272,7 +1272,7 @@ void gen_expr(Expr *expr) {
       gen_expr(rhs);
 
       POP_RDI();
-      switch (lhs->valType->type) {
+      switch (ltype) {
       case TY_CHAR: CMP_AL_DIL(); break;
       case TY_INT:  CMP_EAX_EDI(); break;
       case TY_LONG: CMP_RAX_RDI(); break;
