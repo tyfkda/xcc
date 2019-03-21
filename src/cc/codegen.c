@@ -125,12 +125,13 @@ static void cast(const enum eType ltype, const enum eType rtype) {
     default: assert(false); break;
     }
     break;
-  case TY_INT:
+  case TY_INT: case TY_ENUM:
     switch (rtype) {
     case TY_CHAR:  MOVSX_AL_EAX(); return;
     case TY_SHORT: MOVSX_AX_EAX(); return;
-    case TY_ENUM:  return;
+    case TY_INT:   return;
     case TY_LONG:  return;
+    case TY_ENUM:  return;
     default: assert(false); break;
     }
     break;
@@ -140,13 +141,6 @@ static void cast(const enum eType ltype, const enum eType rtype) {
     case TY_SHORT: MOVSX_AX_RAX(); return;
     case TY_INT:   MOVSX_EAX_RAX(); return;
     case TY_PTR:   return;
-    default: assert(false); break;
-    }
-    break;
-  case TY_ENUM:
-    switch (rtype) {
-    case TY_INT: return;
-    case TY_LONG: return;
     default: assert(false); break;
     }
     break;
@@ -781,7 +775,9 @@ static void gen_switch(Node *node) {
   for (int i = 0; i < len; ++i) {
     intptr_t x = (intptr_t)case_values->data[i];
     switch (valtype) {
-    case TY_INT:  CMP_IM32_EAX(x); break;
+    case TY_INT: case TY_ENUM:
+      CMP_IM32_EAX(x);
+      break;
     case TY_CHAR: CMP_IM8_AL(x); break;
     case TY_LONG: MOV_IM64_RDI(x); CMP_RDI_RAX(); break;
     default: assert(false); break;
@@ -1109,7 +1105,9 @@ void gen_expr(Expr *expr) {
     switch (expr->u.bop.lhs->valType->type) {
     case TY_CHAR:  MOV_AL_IND_RDI(); break;
     case TY_SHORT: MOV_AX_IND_RDI(); break;
-    case TY_INT:   MOV_EAX_IND_RDI(); break;
+    case TY_INT: case TY_ENUM:
+      MOV_EAX_IND_RDI();
+      break;
     case TY_LONG: case TY_PTR:
       MOV_RAX_IND_RDI();
       break;
@@ -1261,7 +1259,12 @@ void gen_expr(Expr *expr) {
       enum ExprType type = expr->type;
       Expr *lhs = expr->u.bop.lhs;
       Expr *rhs = expr->u.bop.rhs;
-      assert(lhs->valType->type == rhs->valType->type);
+      enum eType ltype = lhs->valType->type, rtype = rhs->valType->type;
+      if (ltype == TY_ENUM)
+        ltype = TY_INT;
+      if (rtype == TY_ENUM)
+        rtype = TY_INT;
+      assert(ltype == rtype);
       if (type == EX_LE || type == EX_GT) {
         Expr *tmp = lhs; lhs = rhs; rhs = tmp;
         type = type == EX_LE ? EX_GE : EX_LT;

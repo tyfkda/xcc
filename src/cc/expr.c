@@ -111,6 +111,7 @@ static bool is_number(enum eType type) {
   case TY_SHORT:
   case TY_INT:
   case TY_LONG:
+  case TY_ENUM:
     return true;
   default:
     return false;
@@ -712,7 +713,7 @@ Expr *member_access(Expr *target, Token *acctok) {
 }
 
 static const Type *parse_enum(void) {
-  Token *typeident = consume(TK_IDENT);
+  Token *typeIdent = consume(TK_IDENT);
 
   if (consume(TK_LBRACE)) {
     if (!consume(TK_RBRACE)) {
@@ -724,12 +725,20 @@ static const Type *parse_enum(void) {
         if (consume(TK_ASSIGN)) {
           Token *tok = fetch_token();
           Expr *expr = parse_expr();
-          if (expr->type != EX_INT)  // TODO: Accept constexpr.
+          switch (expr->type) {  // TODO: Accept constexpr.
+          case  EX_CHAR:
+          case  EX_SHORT:
+          case  EX_INT:
+          case  EX_LONG:
+            value = expr->u.value;
+            break;
+          default:
             parse_error(tok, "const expected for enum");
-          value = expr->u.value;
+            break;
+          }
         }
         // Define
-        (void)typeident;  // TODO: Define enum type with name.
+        (void)typeIdent;  // TODO: Define enum type with name.
         Initializer *init = malloc(sizeof(*init));
         init->type = vSingle;
         init->u.single = new_expr_numlit(EX_INT, value);
@@ -1198,6 +1207,11 @@ static bool cast_numbers(Expr **pLhs, Expr **pRhs) {
   enum eType ltype = (*pLhs)->valType->type, rtype = (*pRhs)->valType->type;
   if (!is_number(ltype) || !is_number(rtype))
     return false;
+
+  if (ltype == TY_ENUM)
+    ltype = TY_INT;
+  if (rtype == TY_ENUM)
+    rtype = TY_INT;
 
   if (ltype < rtype)
     *pLhs = new_expr_cast((*pRhs)->valType, *pLhs, false);
