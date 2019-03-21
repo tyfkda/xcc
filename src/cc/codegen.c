@@ -4,7 +4,7 @@
 #include <string.h>
 
 #include "xcc.h"
-#include "parser.h"
+#include "expr.h"
 #include "util.h"
 
 const int FRAME_ALIGN = 8;
@@ -274,7 +274,7 @@ void construct_initial_value(unsigned char *buf, const Type *type, Initializer *
     {
       if (init->type != vSingle)
         error("initializer type error");
-      assert(init->u.single->type == ND_INT);
+      assert(init->u.single->type == EX_INT);
       intptr_t value = init->u.single->u.value;
       int size = type_size(type);
       for (int i = 0; i < size; ++i)
@@ -285,10 +285,10 @@ void construct_initial_value(unsigned char *buf, const Type *type, Initializer *
     {
       if (init->type != vSingle)
         error("initializer type error");
-      Node *value = init->u.single;
-      if (init->u.single->type == ND_REF)
+      Expr *value = init->u.single;
+      if (init->u.single->type == EX_REF)
         value = init->u.single->u.unary.sub;
-      if (value->type != ND_VARREF)
+      if (value->type != EX_VARREF)
         error("pointer initializer must be varref");
       if (!value->u.varref.global)
         error("Allowed global reference only");
@@ -495,60 +495,61 @@ static void pop_continue_label(const char *save) {
   s_continue_label = save;
 }
 
-static void gen_lval(Node *node);
+static void gen_expr(Expr *expr);
+static void gen_lval(Expr *expr);
 
-static void gen_rval(Node *node) {
-  gen(node);  // ?
+static void gen_rval(Expr *expr) {
+  gen_expr(expr);  // ?
 }
 
-static void gen_ref(Node *node) {
-  gen_lval(node);
+static void gen_ref(Expr *expr) {
+  gen_lval(expr);
 }
 
-static void gen_lval(Node *node) {
-  switch (node->type) {
-  case ND_VARREF:
-    if (node->u.varref.global) {
-      LEA_OFS32_RIP_RAX(node->u.varref.ident);
+static void gen_lval(Expr *expr) {
+  switch (expr->type) {
+  case EX_VARREF:
+    if (expr->u.varref.global) {
+      LEA_OFS32_RIP_RAX(expr->u.varref.ident);
     } else {
-      VarInfo *varinfo = scope_find(curscope, node->u.varref.ident);
+      VarInfo *varinfo = scope_find(curscope, expr->u.varref.ident);
       assert(varinfo != NULL);
       int offset = varinfo->offset;
       MOV_RBP_RAX();
       ADD_IM32_RAX(offset);
     }
     break;
-  case ND_DEREF:
-    gen_rval(node->u.unary.sub);
+  case EX_DEREF:
+    gen_rval(expr->u.unary.sub);
     break;
-  case ND_MEMBER:
+  case EX_MEMBER:
     {
-      const Type *type = node->u.member.target->expType;
+      const Type *type = expr->u.member.target->valType;
       if (type->type == TY_PTR || type->type == TY_ARRAY)
         type = type->u.pa.ptrof;
       assert(type->type == TY_STRUCT || type->type == TY_UNION);
       calc_struct_size(type->u.struct_.info, type->type == TY_UNION);
       Vector *members = type->u.struct_.info->members;
-      VarInfo *varinfo = (VarInfo*)members->data[node->u.member.index];
+      VarInfo *varinfo = (VarInfo*)members->data[expr->u.member.index];
 
-      if (node->u.member.target->expType->type == TY_PTR)
-        gen(node->u.member.target);
+      if (expr->u.member.target->valType->type == TY_PTR)
+        gen_expr(expr->u.member.target);
       else
-        gen_ref(node->u.member.target);
+        gen_ref(expr->u.member.target);
       if (varinfo->offset != 0)
         ADD_IM32_RAX(varinfo->offset);
     }
     break;
   default:
-    error("No lvalue: %d", node->type);
+    error("No lvalue: %d", expr->type);
     break;
   }
 }
 
-static void gen_cond_jmp(Node *cond, bool tf, const char *label) {
-  gen(cond);
+static void gen_cond_jmp(Expr *cond, bool tf, const char *label) {
+  gen_expr(cond);
 
-  switch (cond->expType->type) {
+  switch (cond->valType->type) {
   case TY_CHAR: CMP_IM8_AL(0); break;
   case TY_INT:  CMP_IM8_EAX(0); break;
   case TY_PTR:  CMP_IM8_RAX(0); break;
@@ -561,9 +562,9 @@ static void gen_cond_jmp(Node *cond, bool tf, const char *label) {
     JE32(label);
 }
 
-static void gen_varref(Node *node) {
-  gen_lval(node);
-  switch (node->expType->type) {
+static void gen_varref(Expr *expr) {
+  gen_lval(expr);
+  switch (expr->valType->type) {
   case TY_CHAR:  MOV_IND_RAX_AL(); break;
   case TY_SHORT: MOV_IND_RAX_AX(); break;
   case TY_INT:   MOV_IND_RAX_EAX(); break;
@@ -692,20 +693,20 @@ static void gen_defun(Node *node) {
 
 static void gen_return(Node *node) {
   if (node->u.return_.val != NULL)
-    gen(node->u.return_.val);
+    gen_expr(node->u.return_.val);
   assert(curfunc != NULL);
   JMP32(curfunc->ret_label);
 }
 
-static void gen_funcall(Node *node) {
-  Vector *args = node->u.funcall.args;
+static void gen_funcall(Expr *expr) {
+  Vector *args = expr->u.funcall.args;
   if (args != NULL) {
     int len = args->len;
     if (len > 6)
       error("Param count exceeds 6 (%d)", len);
 
     for (int i = 0; i < len; ++i) {
-      gen((Node*)args->data[i]);
+      gen_expr((Expr*)args->data[i]);
       PUSH_RAX();
     }
 
@@ -719,11 +720,11 @@ static void gen_funcall(Node *node) {
     default: break;
     }
   }
-  Node *func = node->u.funcall.func;
-  if (func->type == ND_VARREF && func->u.varref.global) {
+  Expr *func = expr->u.funcall.func;
+  if (func->type == EX_VARREF && func->u.varref.global) {
     CALL(func->u.varref.ident);
   } else {
-    gen(func);
+    gen_expr(func);
     CALL_IND_RAX();
   }
 }
@@ -741,6 +742,17 @@ static void gen_if(Node *node) {
     gen(node->u.if_.fblock);
     add_label(nlabel);
   }
+}
+
+static void gen_ternary(Expr *expr) {
+  const char *nlabel = alloc_label();
+  const char *flabel = alloc_label();
+  gen_cond_jmp(expr->u.ternary.cond, false, flabel);
+  gen_expr(expr->u.ternary.tval);
+  JMP32(nlabel);
+  add_label(flabel);
+  gen_expr(expr->u.ternary.fval);
+  add_label(nlabel);
 }
 
 static Vector *cur_case_values;
@@ -762,10 +774,10 @@ static void gen_switch(Node *node) {
   vec_push(labels, alloc_label());  // len+0: Extra label for default.
   vec_push(labels, l_break);  // len+1: Extra label for break.
 
-  Node *value = node->u.switch_.value;
-  gen(value);
+  Expr *value = node->u.switch_.value;
+  gen_expr(value);
 
-  enum eType valtype = value->expType->type;
+  enum eType valtype = value->valType->type;
   for (int i = 0; i < len; ++i) {
     intptr_t x = (intptr_t)case_values->data[i];
     switch (valtype) {
@@ -857,7 +869,7 @@ static void gen_for(Node *node) {
   const char *l_break = push_break_label(&save_break);
   const char * l_cond = alloc_label();
   if (node->u.for_.pre != NULL)
-    gen(node->u.for_.pre);
+    gen_expr(node->u.for_.pre);
   add_label(l_cond);
   if (node->u.for_.cond != NULL) {
     gen_cond_jmp(node->u.for_.cond, false, l_break);
@@ -865,7 +877,7 @@ static void gen_for(Node *node) {
   gen(node->u.for_.body);
   add_label(l_continue);
   if (node->u.for_.post != NULL)
-    gen(node->u.for_.post);
+    gen_expr(node->u.for_.post);
   JMP32(l_cond);
   add_label(l_break);
   pop_continue_label(save_cont);
@@ -882,11 +894,11 @@ static void gen_continue(void) {
   JMP32(s_continue_label);
 }
 
-static void gen_arith(enum NodeType nodeType, enum eType expType, enum eType rhsType) {
+static void gen_arith(enum ExprType nodeType, enum eType expType, enum eType rhsType) {
   // lhs=rax, rhs=rdi, result=rax
 
   switch (nodeType) {
-  case ND_ADD:
+  case EX_ADD:
     switch (expType) {
     case TY_CHAR:  ADD_DIL_AL(); break;
     case TY_SHORT: ADD_DI_AX(); break;
@@ -896,7 +908,7 @@ static void gen_arith(enum NodeType nodeType, enum eType expType, enum eType rhs
     }
     break;
 
-  case ND_SUB:
+  case EX_SUB:
     switch (expType) {
     case TY_CHAR:  SUB_DIL_AL(); break;
     case TY_SHORT: SUB_DI_AX(); break;
@@ -906,7 +918,7 @@ static void gen_arith(enum NodeType nodeType, enum eType expType, enum eType rhs
     }
     break;
 
-  case ND_MUL:
+  case EX_MUL:
     switch (expType) {
     case TY_CHAR:  MUL_DIL(); break;
     case TY_SHORT: MUL_DI(); break;
@@ -917,7 +929,7 @@ static void gen_arith(enum NodeType nodeType, enum eType expType, enum eType rhs
 
     break;
 
-  case ND_DIV:
+  case EX_DIV:
     MOV_IM32_RDX(0);
     switch (expType) {
     case TY_CHAR:  DIV_DIL(); break;
@@ -928,7 +940,7 @@ static void gen_arith(enum NodeType nodeType, enum eType expType, enum eType rhs
     }
     break;
 
-  case ND_MOD:
+  case EX_MOD:
     MOV_IM32_RDX(0);
     switch (expType) {
     case TY_CHAR:  DIV_DIL(); MOV_DL_AL(); break;
@@ -939,7 +951,7 @@ static void gen_arith(enum NodeType nodeType, enum eType expType, enum eType rhs
     }
     break;
 
-  case ND_BITAND:
+  case EX_BITAND:
     switch (expType) {
     case TY_CHAR:  AND_DIL_AL(); break;
     case TY_SHORT: AND_DI_AX(); break;
@@ -949,7 +961,7 @@ static void gen_arith(enum NodeType nodeType, enum eType expType, enum eType rhs
     }
     break;
 
-  case ND_BITOR:
+  case EX_BITOR:
     switch (expType) {
     case TY_CHAR:  OR_DIL_AL(); break;
     case TY_SHORT: OR_DI_AX(); break;
@@ -959,7 +971,7 @@ static void gen_arith(enum NodeType nodeType, enum eType expType, enum eType rhs
     }
     break;
 
-  case ND_BITXOR:
+  case EX_BITXOR:
     switch (expType) {
     case TY_CHAR:  XOR_DIL_AL(); break;
     case TY_SHORT: XOR_DI_AX(); break;
@@ -969,8 +981,8 @@ static void gen_arith(enum NodeType nodeType, enum eType expType, enum eType rhs
     }
     break;
 
-  case ND_LSHIFT:
-  case ND_RSHIFT:
+  case EX_LSHIFT:
+  case EX_RSHIFT:
     switch (rhsType) {
     case TY_CHAR:  MOV_DIL_CL(); break;
     case TY_SHORT: MOV_DI_CX(); break;
@@ -978,7 +990,7 @@ static void gen_arith(enum NodeType nodeType, enum eType expType, enum eType rhs
     case TY_LONG:  MOV_RDI_RCX(); break;
     default: assert(false); break;
     }
-    if (nodeType == ND_LSHIFT) {
+    if (nodeType == EX_LSHIFT) {
       switch (expType) {
       case TY_CHAR:  SHL_CL_AL(); break;
       case TY_SHORT: SHL_CL_AX(); break;
@@ -1003,26 +1015,34 @@ static void gen_arith(enum NodeType nodeType, enum eType expType, enum eType rhs
   }
 }
 
-void gen(Node *node) {
-  switch (node->type) {
-  case ND_INT:
-    MOV_IM32_EAX(node->u.value);
+void gen_expr(Expr *expr) {
+  switch (expr->type) {
+  case EX_CHAR:
+    MOV_IM8_AL(expr->u.value);
     return;
 
-  case ND_CHAR:
-    MOV_IM8_AL(node->u.value);
+  case EX_INT:
+    MOV_IM32_EAX(expr->u.value);
     return;
 
-  case ND_LONG:
-    if (node->u.value < 0x7fffffffL && node->u.value >= -0x80000000L)
-      MOV_IM32_RAX(node->u.value);
+  case EX_LONG:
+    if (expr->u.value < 0x7fffffffL && expr->u.value >= -0x80000000L)
+      MOV_IM32_RAX(expr->u.value);
     else
-      MOV_IM64_RAX(node->u.value);
+      MOV_IM64_RAX(expr->u.value);
     return;
 
-  case ND_SIZEOF:
+  case EX_STR:
     {
-      size_t size = type_size(node->u.sizeof_.type);
+      const char * label = alloc_label();
+      add_rodata(label, expr->u.str.buf, expr->u.str.len);
+      LEA_OFS32_RIP_RAX(label);
+    }
+    return;
+
+  case EX_SIZEOF:
+    {
+      size_t size = type_size(expr->u.sizeof_.type);
       if (size < 0x7fffffffL)
         MOV_IM32_RAX(size);
       else
@@ -1030,25 +1050,17 @@ void gen(Node *node) {
     }
     return;
 
-  case ND_STR:
-    {
-      const char * label = alloc_label();
-      add_rodata(label, node->u.str.buf, node->u.str.len);
-      LEA_OFS32_RIP_RAX(label);
-    }
+  case EX_VARREF:
+    gen_varref(expr);
     return;
 
-  case ND_VARREF:
-    gen_varref(node);
+  case EX_REF:
+    gen_ref(expr->u.unary.sub);
     return;
 
-  case ND_REF:
-    gen_ref(node->u.unary.sub);
-    return;
-
-  case ND_DEREF:
-    gen_rval(node->u.unary.sub);
-    switch (node->expType->type) {
+  case EX_DEREF:
+    gen_rval(expr->u.unary.sub);
+    switch (expr->valType->type) {
     case TY_CHAR:  MOV_IND_RAX_AL(); break;
     case TY_INT:   MOV_IND_RAX_EAX(); break;
     case TY_PTR:   MOV_IND_RAX_RAX(); break;
@@ -1057,9 +1069,9 @@ void gen(Node *node) {
     }
     return;
 
-  case ND_MEMBER:
-    gen_lval(node);
-    switch (node->expType->type) {
+  case EX_MEMBER:
+    gen_lval(expr);
+    switch (expr->valType->type) {
     case TY_CHAR:
       MOV_IND_RAX_AL();
       break;
@@ -1079,18 +1091,22 @@ void gen(Node *node) {
     }
     return;
 
-  case ND_CAST:
-    gen(node->u.cast.sub);
-    cast(node->expType->type, node->u.cast.sub->expType->type);
+  case EX_TERNARY:
+    gen_ternary(expr);
     break;
 
-  case ND_ASSIGN:
-    gen_lval(node->u.bop.lhs);
+  case EX_CAST:
+    gen_expr(expr->u.cast.sub);
+    cast(expr->valType->type, expr->u.cast.sub->valType->type);
+    break;
+
+  case EX_ASSIGN:
+    gen_lval(expr->u.bop.lhs);
     PUSH_RAX();
-    gen(node->u.bop.rhs);
+    gen_expr(expr->u.bop.rhs);
 
     POP_RDI();
-    switch (node->u.bop.lhs->expType->type) {
+    switch (expr->u.bop.lhs->valType->type) {
     case TY_CHAR:  MOV_AL_IND_RDI(); break;
     case TY_SHORT: MOV_AX_IND_RDI(); break;
     case TY_INT:   MOV_EAX_IND_RDI(); break;
@@ -1101,16 +1117,16 @@ void gen(Node *node) {
     }
     return;
 
-  case ND_ASSIGN_WITH:
+  case EX_ASSIGN_WITH:
     {
-      Node *sub = node->u.unary.sub;
-      gen(sub->u.bop.rhs);
+      Expr *sub = expr->u.unary.sub;
+      gen_expr(sub->u.bop.rhs);
       PUSH_RAX();
       gen_lval(sub->u.bop.lhs);
       MOV_RAX_RSI();  // Save lhs address to %rsi.
 
       // Move lhs to %?ax
-      switch (node->u.bop.lhs->expType->type) {
+      switch (expr->u.bop.lhs->valType->type) {
       case TY_CHAR:  MOV_IND_RAX_AL(); break;
       case TY_INT:   MOV_IND_RAX_EAX(); break;
       case TY_LONG: case TY_PTR:
@@ -1120,10 +1136,10 @@ void gen(Node *node) {
       }
 
       POP_RDI();  // %rdi=rhs
-      gen_arith(sub->type, sub->expType->type, sub->u.bop.rhs->expType->type);
-      cast(node->expType->type, sub->expType->type);
+      gen_arith(sub->type, sub->valType->type, sub->u.bop.rhs->valType->type);
+      cast(expr->valType->type, sub->valType->type);
 
-      switch (node->expType->type) {
+      switch (expr->valType->type) {
       case TY_CHAR:  MOV_AL_IND_RSI(); break;
       case TY_INT:   MOV_EAX_IND_RSI(); break;
       case TY_LONG: case TY_PTR:
@@ -1134,35 +1150,35 @@ void gen(Node *node) {
     }
     return;
 
-  case ND_PREINC:
-  case ND_PREDEC:
-    gen_lval(node->u.unary.sub);
-    switch (node->expType->type) {
+  case EX_PREINC:
+  case EX_PREDEC:
+    gen_lval(expr->u.unary.sub);
+    switch (expr->valType->type) {
     case TY_CHAR:
-      if (node->type == ND_PREINC)  INCB_IND_RAX();
+      if (expr->type == EX_PREINC)  INCB_IND_RAX();
       else                          DECB_IND_RAX();
       MOV_IND_RAX_AL();
       break;
     case TY_SHORT:
-      if (node->type == ND_PREINC)  INCW_IND_RAX();
+      if (expr->type == EX_PREINC)  INCW_IND_RAX();
       else                          DECW_IND_RAX();
       MOV_IND_RAX_AX();
       break;
     case TY_INT:
-      if (node->type == ND_PREINC)  INCL_IND_RAX();
+      if (expr->type == EX_PREINC)  INCL_IND_RAX();
       else                          DECL_IND_RAX();
       MOV_IND_RAX_EAX();
       break;
     case TY_LONG:
-      if (node->type == ND_PREINC)  INCQ_IND_RAX();
+      if (expr->type == EX_PREINC)  INCQ_IND_RAX();
       else                          DECQ_IND_RAX();
       MOV_IND_RAX_RAX();
       break;
     case TY_PTR:
       {
         MOV_RAX_RDI();
-        int size = type_size(node->expType->u.pa.ptrof);
-        MOV_IM32_RAX(node->type == ND_PREINC ? size : -size);
+        int size = type_size(expr->valType->u.pa.ptrof);
+        MOV_IM32_RAX(expr->type == EX_PREINC ? size : -size);
         ADD_IND_RDI_RAX();
         MOV_RAX_IND_RDI();
       }
@@ -1173,32 +1189,32 @@ void gen(Node *node) {
     }
     return;
 
-  case ND_POSTINC:
-  case ND_POSTDEC:
-    gen_lval(node->u.unary.sub);
+  case EX_POSTINC:
+  case EX_POSTDEC:
+    gen_lval(expr->u.unary.sub);
     MOV_IND_RAX_RDI();
-    switch (node->expType->type) {
+    switch (expr->valType->type) {
     case TY_CHAR:
-      if (node->type == ND_POSTINC)  INCB_IND_RAX();
+      if (expr->type == EX_POSTINC)  INCB_IND_RAX();
       else                           DECB_IND_RAX();
       break;
     case TY_SHORT:
-      if (node->type == ND_POSTINC)  INCW_IND_RAX();
+      if (expr->type == EX_POSTINC)  INCW_IND_RAX();
       else                           DECW_IND_RAX();
       break;
     case TY_INT:
-      if (node->type == ND_POSTINC)  INCL_IND_RAX();
+      if (expr->type == EX_POSTINC)  INCL_IND_RAX();
       else                           DECL_IND_RAX();
       break;
     case TY_LONG:
-      if (node->type == ND_POSTINC)  INCQ_IND_RAX();
+      if (expr->type == EX_POSTINC)  INCQ_IND_RAX();
       else                           DECQ_IND_RAX();
       break;
     case TY_PTR:
       {
-        int size = type_size(node->expType->u.pa.ptrof);
+        int size = type_size(expr->valType->u.pa.ptrof);
         assert(size < (1 << 15));  // TODO:
-        if (node->type == ND_POSTINC)  ADD_IM16_IND_RAX(size);
+        if (expr->type == EX_POSTINC)  ADD_IM16_IND_RAX(size);
         else                           SUB_IM16_IND_RAX(size);
       }
       break;
@@ -1209,16 +1225,199 @@ void gen(Node *node) {
     MOV_RDI_RAX();
     return;
 
+  case EX_FUNCALL:
+    gen_funcall(expr);
+    return;
+
+  case EX_NEG:
+    gen_expr(expr->u.unary.sub);
+    switch (expr->valType->type) {
+    case TY_CHAR: NEG_AL(); break;
+    case TY_INT:  NEG_EAX(); break;
+    case TY_LONG: NEG_RAX(); break;
+    default:  assert(false); break;
+    }
+    break;
+
+  case EX_NOT:
+    gen_expr(expr->u.unary.sub);
+    switch (expr->valType->type) {
+    case TY_INT:  CMP_IM8_EAX(0); break;
+    case TY_CHAR: CMP_IM8_AL(0); break;
+    case TY_PTR:  CMP_IM8_RAX(0); break;
+    default:  assert(false); break;
+    }
+    SETE_AL();
+    MOVZX_AL_EAX();
+    break;
+
+  case EX_EQ:
+  case EX_NE:
+  case EX_LT:
+  case EX_GT:
+  case EX_LE:
+  case EX_GE:
+    {
+      enum ExprType type = expr->type;
+      Expr *lhs = expr->u.bop.lhs;
+      Expr *rhs = expr->u.bop.rhs;
+      assert(lhs->valType->type == rhs->valType->type);
+      if (type == EX_LE || type == EX_GT) {
+        Expr *tmp = lhs; lhs = rhs; rhs = tmp;
+        type = type == EX_LE ? EX_GE : EX_LT;
+      }
+
+      gen_expr(lhs);
+      PUSH_RAX();
+      gen_expr(rhs);
+
+      POP_RDI();
+      switch (lhs->valType->type) {
+      case TY_CHAR: CMP_AL_DIL(); break;
+      case TY_INT:  CMP_EAX_EDI(); break;
+      case TY_LONG: CMP_RAX_RDI(); break;
+      case TY_PTR:  CMP_RAX_RDI(); break;
+      default: assert(false); break;
+      }
+
+      switch (type) {
+      case EX_EQ:  SETE_AL(); break;
+      case EX_NE:  SETNE_AL(); break;
+      case EX_LT:  SETS_AL(); break;
+      case EX_GE:  SETNS_AL(); break;
+      default: assert(false); break;
+      }
+    }
+    MOVZX_AL_EAX();
+    return;
+
+  case EX_LOGAND:
+    {
+      const char * l_false = alloc_label();
+      const char * l_true = alloc_label();
+      const char * l_next = alloc_label();
+      gen_cond_jmp(expr->u.bop.lhs, false, l_false);
+      gen_cond_jmp(expr->u.bop.rhs, true, l_true);
+      add_label(l_false);
+      MOV_IM32_EAX(0);
+      JMP8(l_next);
+      add_label(l_true);
+      MOV_IM32_EAX(1);
+      add_label(l_next);
+    }
+    return;
+
+  case EX_LOGIOR:
+    {
+      const char * l_false = alloc_label();
+      const char * l_true = alloc_label();
+      const char * l_next = alloc_label();
+      gen_cond_jmp(expr->u.bop.lhs, true, l_true);
+      gen_cond_jmp(expr->u.bop.rhs, false, l_false);
+      add_label(l_true);
+      MOV_IM32_EAX(1);
+      JMP8(l_next);
+      add_label(l_false);
+      MOV_IM32_EAX(0);
+      add_label(l_next);
+    }
+    return;
+
+  case EX_PTRADD:
+    {
+      Expr *lhs = expr->u.bop.lhs, *rhs = expr->u.bop.rhs;
+      gen_expr(rhs);
+      assert(rhs->valType->type == TY_LONG);
+      long size = type_size(lhs->valType->u.pa.ptrof);
+      if (size != 1) {
+        MOV_IM32_RDI(size);
+        MUL_RDI();
+      }
+      PUSH_RAX();
+      gen_expr(lhs);
+      POP_RDI();
+      ADD_RDI_RAX();
+      break;
+    }
+    return;
+
+  case EX_PTRSUB:
+    {
+      Expr *lhs = expr->u.bop.lhs, *rhs = expr->u.bop.rhs;
+      gen_expr(rhs);
+      cast(TY_INT, rhs->valType->type);  // TODO: Fix
+      int size = type_size(expr->u.bop.lhs->valType->u.pa.ptrof);
+      if (size != 1) {
+        MOV_IM64_RDI((long)size);
+        MUL_RDI();
+      }
+      PUSH_RAX();
+      gen_expr(lhs);
+      POP_RDI();
+      SUB_RDI_RAX();
+    }
+    return;
+
+  case EX_PTRDIFF:
+    {
+      gen_expr(expr->u.bop.rhs);
+      PUSH_RAX();
+      gen_expr(expr->u.bop.lhs);
+      POP_RDI();
+      SUB_RDI_RAX();
+
+      int size = type_size(expr->u.bop.lhs->valType->u.pa.ptrof);
+      switch (size) {
+      case 1:  break;
+      case 2:  SAR_RAX(); break;
+      case 4:  SAR_IM8_RAX(2); break;
+      case 8:  SAR_IM8_RAX(3); break;
+      default:
+        MOV_IM64_RDI((long)size);
+        MOV_IM32_RDX(0);
+        DIV_RDI();
+        break;
+      }
+    }
+    return;
+
+  case EX_ADD:
+  case EX_SUB:
+  case EX_MUL:
+  case EX_DIV:
+  case EX_MOD:
+  case EX_LSHIFT:
+  case EX_RSHIFT:
+  case EX_BITAND:
+  case EX_BITOR:
+  case EX_BITXOR:
+    gen_expr(expr->u.bop.rhs);
+    PUSH_RAX();
+    gen_expr(expr->u.bop.lhs);
+
+    POP_RDI();
+
+    gen_arith(expr->type, expr->valType->type, expr->u.bop.rhs->valType->type);
+    return;
+
+  default:
+    error("Unhandled expr: %d", expr->type);
+    break;
+  }
+}
+
+void gen(Node *node) {
+  switch (node->type) {
+  case ND_EXPR:
+    gen_expr(node->u.expr);
+    return;
+
   case ND_DEFUN:
     gen_defun(node);
     return;
 
   case ND_RETURN:
     gen_return(node);
-    return;
-
-  case ND_FUNCALL:
-    gen_funcall(node);
     return;
 
   case ND_BLOCK:
@@ -1265,177 +1464,6 @@ void gen(Node *node) {
   case ND_CONTINUE:
     gen_continue();
     break;
-
-  case ND_NEG:
-    gen(node->u.unary.sub);
-    switch (node->expType->type) {
-    case TY_CHAR: NEG_AL(); break;
-    case TY_INT:  NEG_EAX(); break;
-    case TY_LONG: NEG_RAX(); break;
-    default:  assert(false); break;
-    }
-    break;
-
-  case ND_NOT:
-    gen(node->u.unary.sub);
-    switch (node->expType->type) {
-    case TY_INT:  CMP_IM8_EAX(0); break;
-    case TY_CHAR: CMP_IM8_AL(0); break;
-    case TY_PTR:  CMP_IM8_RAX(0); break;
-    default:  assert(false); break;
-    }
-    SETE_AL();
-    MOVZX_AL_EAX();
-    break;
-
-  case ND_EQ:
-  case ND_NE:
-  case ND_LT:
-  case ND_GT:
-  case ND_LE:
-  case ND_GE:
-    {
-      enum NodeType type = node->type;
-      Node *lhs = node->u.bop.lhs;
-      Node *rhs = node->u.bop.rhs;
-      assert(lhs->expType->type == rhs->expType->type);
-      if (type == ND_LE || type == ND_GT) {
-        Node *tmp = lhs; lhs = rhs; rhs = tmp;
-        type = type == ND_LE ? ND_GE : ND_LT;
-      }
-
-      gen(lhs);
-      PUSH_RAX();
-      gen(rhs);
-
-      POP_RDI();
-      switch (lhs->expType->type) {
-      case TY_CHAR: CMP_AL_DIL(); break;
-      case TY_INT:  CMP_EAX_EDI(); break;
-      case TY_LONG: CMP_RAX_RDI(); break;
-      case TY_PTR:  CMP_RAX_RDI(); break;
-      default: assert(false); break;
-      }
-
-      switch (type) {
-      case ND_EQ:  SETE_AL(); break;
-      case ND_NE:  SETNE_AL(); break;
-      case ND_LT:  SETS_AL(); break;
-      case ND_GE:  SETNS_AL(); break;
-      default: assert(false); break;
-      }
-    }
-    MOVZX_AL_EAX();
-    return;
-
-  case ND_LOGAND:
-    {
-      const char * l_false = alloc_label();
-      const char * l_true = alloc_label();
-      const char * l_next = alloc_label();
-      gen_cond_jmp(node->u.bop.lhs, false, l_false);
-      gen_cond_jmp(node->u.bop.rhs, true, l_true);
-      add_label(l_false);
-      MOV_IM32_EAX(0);
-      JMP8(l_next);
-      add_label(l_true);
-      MOV_IM32_EAX(1);
-      add_label(l_next);
-    }
-    return;
-
-  case ND_LOGIOR:
-    {
-      const char * l_false = alloc_label();
-      const char * l_true = alloc_label();
-      const char * l_next = alloc_label();
-      gen_cond_jmp(node->u.bop.lhs, true, l_true);
-      gen_cond_jmp(node->u.bop.rhs, false, l_false);
-      add_label(l_true);
-      MOV_IM32_EAX(1);
-      JMP8(l_next);
-      add_label(l_false);
-      MOV_IM32_EAX(0);
-      add_label(l_next);
-    }
-    return;
-
-  case ND_PTRADD:
-    {
-      Node *lhs = node->u.bop.lhs, *rhs = node->u.bop.rhs;
-      gen(rhs);
-      assert(rhs->expType->type == TY_LONG);
-      long size = type_size(lhs->expType->u.pa.ptrof);
-      if (size != 1) {
-        MOV_IM32_RDI(size);
-        MUL_RDI();
-      }
-      PUSH_RAX();
-      gen(lhs);
-      POP_RDI();
-      ADD_RDI_RAX();
-      break;
-    }
-    return;
-
-  case ND_PTRSUB:
-    {
-      Node *lhs = node->u.bop.lhs, *rhs = node->u.bop.rhs;
-      gen(rhs);
-      cast(TY_INT, rhs->expType->type);  // TODO: Fix
-      int size = type_size(node->u.bop.lhs->expType->u.pa.ptrof);
-      if (size != 1) {
-        MOV_IM64_RDI((long)size);
-        MUL_RDI();
-      }
-      PUSH_RAX();
-      gen(lhs);
-      POP_RDI();
-      SUB_RDI_RAX();
-    }
-    return;
-
-  case ND_PTRDIFF:
-    {
-      gen(node->u.bop.rhs);
-      PUSH_RAX();
-      gen(node->u.bop.lhs);
-      POP_RDI();
-      SUB_RDI_RAX();
-
-      int size = type_size(node->u.bop.lhs->expType->u.pa.ptrof);
-      switch (size) {
-      case 1:  break;
-      case 2:  SAR_RAX(); break;
-      case 4:  SAR_IM8_RAX(2); break;
-      case 8:  SAR_IM8_RAX(3); break;
-      default:
-        MOV_IM64_RDI((long)size);
-        MOV_IM32_RDX(0);
-        DIV_RDI();
-        break;
-      }
-    }
-    return;
-
-  case ND_ADD:
-  case ND_SUB:
-  case ND_MUL:
-  case ND_DIV:
-  case ND_MOD:
-  case ND_LSHIFT:
-  case ND_RSHIFT:
-  case ND_BITAND:
-  case ND_BITOR:
-  case ND_BITXOR:
-    gen(node->u.bop.rhs);
-    PUSH_RAX();
-    gen(node->u.bop.lhs);
-
-    POP_RDI();
-
-    gen_arith(node->type, node->expType->type, node->u.bop.rhs->expType->type);
-    return;
 
   default:
     error("Unhandled node: %d", node->type);
