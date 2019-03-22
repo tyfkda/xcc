@@ -344,6 +344,8 @@ bool can_cast(const Type *dst, const Type *src, Expr *src_expr, bool is_explicit
     case TY_INT:
       if (src_expr->type == EX_INT && src_expr->u.value == 0)  // Special handling for 0 to pointer.
         return true;
+      if (is_explicit)
+        return true;
       break;
     case TY_LONG:
       if (src_expr->type == EX_LONG && src_expr->u.value == 0)  // Special handling for 0 to pointer.

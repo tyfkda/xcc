@@ -320,6 +320,10 @@ int main(void) {
     char x, *p = &x;
     expect("cast pointer", 1, (void*)&x == (void(*)())p);
   }
+  {
+    void *p = (void*)1234;
+    expect("cast pointer", 1234L, (long)p);
+  }
   expect("global cleared", 0, g_zero);
   expect("global initializer", 123, g_123);
   expect("global struct initializer: int", 42, g_struct.x);
