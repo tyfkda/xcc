@@ -70,6 +70,21 @@ const char *find_directive(const char *line) {
 
 Map *macro_map;  // <Macro*>
 
+Vector *pragma_once_files;  // <const char*>
+
+bool registered_pragma_once(const char *filename) {
+  for (int i = 0, len = pragma_once_files->len; i < len; ++i) {
+    const char *fn = pragma_once_files->data[i];
+    if (strcmp(fn, filename) == 0)
+      return true;
+  }
+  return false;
+}
+
+void register_pragma_once(const char *filename) {
+  vec_push(pragma_once_files, filename);
+}
+
 void pp(FILE *fp, const char *filename);
 
 void handle_include(const char *p, const char *srcname) {
@@ -94,6 +109,10 @@ void handle_include(const char *p, const char *srcname) {
 
   char *fn = cat_path(dirname(strdup_(srcname)), strndup_(p, q - p));
 
+  // TODO: Get absolute path.
+  if (registered_pragma_once(fn))
+    return;
+
   FILE *fp = fopen(fn, "r");
   if (fp == NULL)
     error("Cannot open file: %s", fn);
@@ -101,6 +120,17 @@ void handle_include(const char *p, const char *srcname) {
   pp(fp, fn);
   printf("/* \"%s\" end */\n", fn);
   fclose(fp);
+}
+
+void handle_pragma(const char *p, const char *filename) {
+  char *name = read_ident(&p);
+  if (strcmp(name, "once") == 0) {
+    // TODO: Get absolute path.
+    if (!registered_pragma_once(filename))
+      register_pragma_once(filename);
+  } else {
+    fprintf(stderr, "Warning: unhandled #pragma: %s\n", p);
+  }
 }
 
 char *append(char *str, const char *begin, const char *end) {
@@ -469,6 +499,8 @@ void pp(FILE *fp, const char *filename) {
         handle_include(next, filename);
       } else if ((next = keyword(directive, "define")) != NULL) {
         handle_define(next, filename, lineno);
+      } else if ((next = keyword(directive, "pragma")) != NULL) {
+        handle_pragma(next, filename);
       } else if ((next = keyword(directive, "error")) != NULL) {
         error("#error: %s", next);
       } else {
@@ -486,6 +518,7 @@ void pp(FILE *fp, const char *filename) {
 
 int main(int argc, char* argv[]) {
   macro_map = new_map();
+  pragma_once_files = new_vector();
 
   // Predefeined macros.
 #if defined(__XV6)
