@@ -275,14 +275,23 @@ int main(void) {
     a[0] = 10;
     a[1] = 20;
     p = a;
-    expect("pre-inc pointer", 20, *(++p));
+    expect("preinc pointer", 20, *(++p));
   }
   {
     int a[2], *p;
     a[0] = 10;
     a[1] = 20;
     p = a;
-    expect("pre-inc pointer", 10, *p++);
+    expect("postinc pointer", 10, *p++);
+  }
+  {
+    int a[2], *p;
+    a[0] = 11;
+    a[1] = 22;
+    p = a;
+    *(p++) += 100;
+    expect("postinc +=, 1", 111, a[0]);
+    expect("postinc +=, 2", 22, a[1]);
   }
   {
     int x = 0;
