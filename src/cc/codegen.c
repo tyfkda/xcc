@@ -899,7 +899,9 @@ static void gen_arith(enum ExprType exprType, enum eType valType, enum eType rhs
     case TY_CHAR:  ADD_DIL_AL(); break;
     case TY_SHORT: ADD_DI_AX(); break;
     case TY_INT:   ADD_EDI_EAX(); break;
-    case TY_LONG:  ADD_RDI_RAX(); break;
+    case TY_LONG: case TY_PTR:
+      ADD_RDI_RAX();
+      break;
     default: assert(false); break;
     }
     break;
@@ -909,7 +911,9 @@ static void gen_arith(enum ExprType exprType, enum eType valType, enum eType rhs
     case TY_CHAR:  SUB_DIL_AL(); break;
     case TY_SHORT: SUB_DI_AX(); break;
     case TY_INT:   SUB_EDI_EAX(); break;
-    case TY_LONG:  SUB_RDI_RAX(); break;
+    case TY_LONG: case TY_PTR:
+      SUB_RDI_RAX();
+      break;
     default: assert(false); break;
     }
     break;
@@ -1323,64 +1327,6 @@ void gen_expr(Expr *expr) {
       add_label(l_false);
       MOV_IM32_EAX(0);
       add_label(l_next);
-    }
-    return;
-
-  case EX_PTRADD:
-    {
-      Expr *lhs = expr->u.bop.lhs, *rhs = expr->u.bop.rhs;
-      gen_expr(rhs);
-      assert(rhs->valType->type == TY_LONG);
-      long size = type_size(lhs->valType->u.pa.ptrof);
-      if (size != 1) {
-        MOV_IM32_RDI(size);
-        MUL_RDI();
-      }
-      PUSH_RAX();
-      gen_expr(lhs);
-      POP_RDI();
-      ADD_RDI_RAX();
-      break;
-    }
-    return;
-
-  case EX_PTRSUB:
-    {
-      Expr *lhs = expr->u.bop.lhs, *rhs = expr->u.bop.rhs;
-      gen_expr(rhs);
-      cast(TY_INT, rhs->valType->type);  // TODO: Fix
-      int size = type_size(expr->u.bop.lhs->valType->u.pa.ptrof);
-      if (size != 1) {
-        MOV_IM64_RDI((long)size);
-        MUL_RDI();
-      }
-      PUSH_RAX();
-      gen_expr(lhs);
-      POP_RDI();
-      SUB_RDI_RAX();
-    }
-    return;
-
-  case EX_PTRDIFF:
-    {
-      gen_expr(expr->u.bop.rhs);
-      PUSH_RAX();
-      gen_expr(expr->u.bop.lhs);
-      POP_RDI();
-      SUB_RDI_RAX();
-
-      int size = type_size(expr->u.bop.lhs->valType->u.pa.ptrof);
-      switch (size) {
-      case 1:  break;
-      case 2:  SAR_RAX(); break;
-      case 4:  SAR_IM8_RAX(2); break;
-      case 8:  SAR_IM8_RAX(3); break;
-      default:
-        MOV_IM64_RDI((long)size);
-        MOV_IM32_RDX(0);
-        DIV_RDI();
-        break;
-      }
     }
     return;
 

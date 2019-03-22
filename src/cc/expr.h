@@ -148,9 +148,6 @@ enum ExprType {
   EX_BITXOR,
   EX_LSHIFT,  // num << num
   EX_RSHIFT,  // num >> num
-  EX_PTRADD,  // ptr + num
-  EX_PTRSUB,  // ptr - num
-  EX_PTRDIFF,  // ptr - ptr
   EX_EQ,
   EX_NE,
   EX_LT,

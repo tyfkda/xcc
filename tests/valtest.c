@@ -220,6 +220,7 @@ int main(void) {
       break;
     default:
       x = 22;
+      break;
     }
     expect("switch", 11, x);
   }
@@ -231,6 +232,7 @@ int main(void) {
       break;
     default:
       x = 22;
+      break;
     }
     expect("switch default", 22, x);
   }
@@ -248,6 +250,7 @@ int main(void) {
     switch (1) {
     case 1:
       x += 1;
+      // Fallthrough
     default:
       x += 10;
     }
@@ -283,6 +286,22 @@ int main(void) {
     a[1] = 20;
     p = a;
     expect("postinc pointer", 10, *p++);
+  }
+  {
+    int a[2], *p;
+    a[0] = 98;
+    a[1] = 76;
+    p = a;
+    p += 1;
+    expect("pointer +=", 76, *p);
+  }
+  {
+    int a[2], *p;
+    a[0] = 54;
+    a[1] = 32;
+    p = &a[1];
+    p -= 1;
+    expect("pointer +=", 54, *p);
   }
   {
     int a[2], *p;

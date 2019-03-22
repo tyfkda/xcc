@@ -504,6 +504,28 @@ static Expr *funcall(Expr *func) {
   return new_expr_funcall(func, args);
 }
 
+// pointer +|- num
+static Expr *add_ptr_num(enum ExprType type, Expr *ptr, Expr *num) {
+  const Type *ptr_type = ptr->valType;
+  if (ptr_type->type == TY_ARRAY)
+    ptr_type = array_to_ptr(ptr_type);
+  return new_expr_bop(type, ptr_type, ptr,
+                      new_expr_bop(EX_MUL, &tySize,
+                                   new_expr_cast(&tySize, num, false),
+                                   new_expr_sizeof(ptr_type->u.pa.ptrof, NULL)));
+}
+
+static Expr *diff_ptr(const Token *tok, Expr *lhs, Expr *rhs) {
+  if (!same_type(lhs->valType, rhs->valType))
+    parse_error(tok, "Different pointer diff");
+  const Type *elem_type = lhs->valType;
+  if (elem_type->type == TY_PTR)
+    elem_type = elem_type->u.pa.ptrof;
+  return new_expr_bop(EX_DIV, &tySize,
+                      new_expr_bop(EX_SUB, &tySize, lhs, rhs),
+                      new_expr_sizeof(elem_type, NULL));
+}
+
 Expr *add_expr(Token *tok, Expr *lhs, Expr *rhs) {
   Expr *l = lhs, *r = rhs;
 
@@ -534,10 +556,8 @@ Expr *add_expr(Token *tok, Expr *lhs, Expr *rhs) {
     case TY_INT:
     case TY_LONG:
       return new_expr_bop(EX_ADD, l->valType, new_expr_cast(r->valType, l, false), r);
-    case TY_PTR:
-      return new_expr_bop(EX_PTRADD, r->valType, r, new_expr_cast(&tySize, l, false));
-    case TY_ARRAY:
-      return new_expr_bop(EX_PTRADD, array_to_ptr(r->valType), r,  new_expr_cast(&tySize, l, false));
+    case TY_PTR: case TY_ARRAY:
+      return add_ptr_num(EX_ADD, r, l);
     default:
       break;
     }
@@ -549,10 +569,8 @@ Expr *add_expr(Token *tok, Expr *lhs, Expr *rhs) {
       return new_expr_bop(EX_ADD, l->valType, l, r);
     case TY_LONG:
       return new_expr_bop(EX_ADD, r->valType, new_expr_cast(r->valType, l, false), r);
-    case TY_PTR:
-      return new_expr_bop(EX_PTRADD, r->valType, r, new_expr_cast(&tySize, l, false));
-    case TY_ARRAY:
-      return new_expr_bop(EX_PTRADD, array_to_ptr(r->valType), r,  new_expr_cast(&tySize, l, false));
+    case TY_PTR: case TY_ARRAY:
+      return add_ptr_num(EX_ADD, r, l);
     default:
       break;
     }
@@ -562,10 +580,8 @@ Expr *add_expr(Token *tok, Expr *lhs, Expr *rhs) {
     switch (r->valType->type) {
     case TY_LONG:
       return new_expr_bop(EX_ADD, l->valType, l, r);
-    case TY_PTR:
-      return new_expr_bop(EX_PTRADD, r->valType, r, l);
-    case TY_ARRAY:
-      return new_expr_bop(EX_PTRADD, array_to_ptr(r->valType), r, l);
+    case TY_PTR: case TY_ARRAY:
+      return add_ptr_num(EX_ADD, r, l);
     default:
       break;
     }
@@ -584,6 +600,7 @@ static Expr *sub_expr(Token *tok, Expr *lhs, Expr *rhs) {
   case TY_CHAR:
     switch (rhs->valType->type) {
     case TY_CHAR:
+    case TY_SHORT:
     case TY_INT:
     case TY_LONG:
       return new_expr_bop(EX_SUB, rhs->valType, new_expr_cast(rhs->valType, lhs, false), rhs);
@@ -621,6 +638,7 @@ static Expr *sub_expr(Token *tok, Expr *lhs, Expr *rhs) {
   case TY_LONG:
     switch (rhs->valType->type) {
     case TY_CHAR:
+    case TY_SHORT:
     case TY_INT:
     case TY_LONG:
       return new_expr_bop(EX_SUB, lhs->valType, lhs, new_expr_cast(lhs->valType, rhs, false));
@@ -631,17 +649,13 @@ static Expr *sub_expr(Token *tok, Expr *lhs, Expr *rhs) {
 
   case TY_PTR:
     switch (rhs->valType->type) {
+    case TY_CHAR:
     case TY_INT:
+    case TY_SHORT:
     case TY_LONG:
-      return new_expr_bop(EX_PTRSUB, lhs->valType, lhs, rhs);
-    case TY_PTR:
-      if (!same_type(lhs->valType, rhs->valType))
-        parse_error(tok, "Different pointer sub");
-      return new_expr_bop(EX_PTRDIFF, &tyInt, lhs, rhs);  // TODO: size_t
-    case TY_ARRAY:
-      if (!same_type(lhs->valType->u.pa.ptrof, rhs->valType->u.pa.ptrof))
-        parse_error(tok, "Different pointer sub");
-      return new_expr_bop(EX_PTRDIFF, &tyInt, lhs, rhs);  // TODO: size_t
+      return add_ptr_num(EX_SUB, lhs, rhs);
+    case TY_PTR: case TY_ARRAY:
+      return diff_ptr(tok, lhs, rhs);
     default:
       break;
     }
@@ -649,14 +663,8 @@ static Expr *sub_expr(Token *tok, Expr *lhs, Expr *rhs) {
 
   case TY_ARRAY:
     switch (rhs->valType->type) {
-    case TY_PTR:
-      if (!same_type(lhs->valType->u.pa.ptrof, rhs->valType->u.pa.ptrof))
-        parse_error(tok, "Different pointer sub");
-      return new_expr_bop(EX_PTRDIFF, &tyInt, lhs, rhs);  // TODO: size_t
-    case TY_ARRAY:
-      if (!same_type(lhs->valType, rhs->valType))
-        parse_error(tok, "Different pointer sub");
-      return new_expr_bop(EX_PTRDIFF, &tyInt, lhs, rhs);  // TODO: size_t
+    case TY_PTR: case TY_ARRAY:
+      return diff_ptr(tok, lhs, rhs);
     default:
       break;
     }
@@ -1434,9 +1442,6 @@ Expr *analyze_expr(Expr *expr) {
   case EX_BITXOR:
   case EX_LSHIFT:
   case EX_RSHIFT:
-  case EX_PTRADD:
-  case EX_PTRSUB:
-  case EX_PTRDIFF:
   case EX_EQ:
   case EX_NE:
   case EX_LT:
