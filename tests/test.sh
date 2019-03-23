@@ -2,10 +2,30 @@
 
 XCC=../xcc
 
+PROLOGUE=$(cat <<EOS
+void _start() {
+  __hexasm(0x48, 0x8b, 0x7c, 0x24, 0,
+           0x48, 0x8d, 0x74, 0x24, 8,
+           0xe8, __rel32("main"),
+           0x89, 0xc7);
+  // Fallthrough to exit.
+}
+void exit(int code) {
+  __hexasm(0xb8, 0x3c, 0x00, 0x00, 0x00,
+           0x0f, 0x05);
+}
+void write(int fd, const char *str, long len) {
+  __hexasm(0xb8, 0x01, 0x00, 0x00, 0x00,
+           0x0f, 0x05,
+           0xc3);
+}
+EOS
+)
+
 try_direct() {
   title="$1"
   expected="$2"
-  input="$3"
+  input="$PROLOGUE $3"
 
   echo -n "$title => "
 
@@ -29,7 +49,7 @@ try() {
 try_output_direct() {
   title="$1"
   expected="$2"
-  input="$3"
+  input="$PROLOGUE $3"
 
   echo -n "$title => "
 
@@ -64,9 +84,9 @@ compile_error() {
   fi
 }
 
-try_output 'write' 'hello' "_write(1, \"hello\\\\n\", 6);"
-try_output 'char array' 123 "char s[16]; s[0] = '1'; s[1] = '2'; s[2] = '3'; s[3] = '\\\\n'; _write(1, s, 4);"
-try_output 'string initializer' 'aBc' "char s[] = \"abc\\\\n\"; s[1] = 'B'; _write(1, s, 4);"
+try_output 'write' 'hello' "write(1, \"hello\\\\n\", 6);"
+try_output 'char array' 123 "char s[16]; s[0] = '1'; s[1] = '2'; s[2] = '3'; s[3] = '\\\\n'; write(1, s, 4);"
+try_output 'string initializer' 'aBc' "char s[] = \"abc\\\\n\"; s[1] = 'B'; write(1, s, 4);"
 try_direct 'enum' 11 'enum Num { Zero, One, Two }; int main(){ return One + 10; }'
 try_direct 'enum with trailing comma' 11 'enum Num { Zero, One, }; int main(){ return One + 10; }'
 try_direct 'enum with assign' 11 'enum Num { Ten = 10, Eleven }; int main(){ return Eleven; }'

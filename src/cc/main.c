@@ -129,28 +129,10 @@ int main(int argc, char* argv[]) {
   // Test.
   {
     static Type tyVoid = {.type=TY_VOID};
-    static Type tyChar = {.type=TY_CHAR};
-    static Type tyInt = {.type=TY_INT};
-    static Type tyLong = {.type=TY_LONG};
-    static Type tyStr = {.type=TY_PTR, .u={.pa={.ptrof=&tyChar}}};
-
-    static VarInfo vInt = {.name="", .type=&tyInt};
-    static VarInfo vLong = {.name="", .type=&tyLong};
-    static VarInfo vStr = {.name="", .type=&tyStr};
-
-    Vector *exit_params = new_vector();
-    vec_push(exit_params, &vInt);
-    static Type tyExit = {.type=TY_FUNC, .u={.func={.ret=&tyVoid}}};
-    tyExit.u.func.params = exit_params;
-    define_global(&tyExit, 0, alloc_ident("_exit", NULL, NULL), NULL);
-
-    Vector *write_params = new_vector();
-    vec_push(write_params, &vInt);
-    vec_push(write_params, &vStr);
-    vec_push(write_params, &vLong);
-    static Type tyWrite = {.type=TY_FUNC, .u={.func={.ret=&tyInt}}};
-    tyWrite.u.func.params = write_params;
-    define_global(&tyWrite, 0, alloc_ident("_write", NULL, NULL), NULL);
+    Vector *hexasm_params = NULL;
+    Type tyHexasm = {.type=TY_FUNC, .u={.func={.ret=&tyVoid, .params=hexasm_params, .vaargs=false}}};
+    define_global(&tyHexasm, 0, alloc_ident("__hexasm", NULL, NULL), NULL);
+    define_global(&tyHexasm, 0, alloc_ident("__rel32", NULL, NULL), NULL);
   }
 
   if (argc > iarg) {
@@ -162,27 +144,6 @@ int main(int argc, char* argv[]) {
     return pipe_pp_xcc(pp_argv, xcc_argv) != 0;
   } else {
     compile(stdin, "*stdin*");
-  }
-
-  // Test.
-  {
-    add_label("_start");
-#if defined(__XV6)
-    // XCV6 calls entry point according to ABI.
-#elif __linux__
-    MOV_IND8_RSP_RDI(0);
-    LEA_OFS8_RSP_RSI(8);
-#endif
-    CALL("main");
-    MOV_EAX_EDI();
-    // Fall
-    add_label("_exit");
-    SYSTEMCALL(SYSCALL_EXIT);
-    RET();
-
-    add_label("_write");
-    SYSTEMCALL(SYSCALL_WRITE);
-    RET();
   }
 
   size_t memsz;

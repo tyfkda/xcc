@@ -12,7 +12,7 @@ void expect(char *title, long expected, long actual) {
   puts(" expected, but got ");
   putdeci(actual);
   puts("\n");
-  _exit(1);
+  exit(1);
 }
 
 int g_zero, g_work, g_123 = 123;

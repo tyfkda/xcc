@@ -649,9 +649,70 @@ static void put_args_to_stack(Defun *defun) {
   }
 }
 
+static bool is_funcall(Expr *expr, const char *funcname) {
+  if (expr->type == EX_FUNCALL) {
+    Expr *func = expr->u.funcall.func;
+    if (func->type == EX_VARREF &&
+        strcmp(func->u.varref.ident, funcname) == 0)
+      return true;
+  }
+  return false;
+}
+
+static bool is_hexasm(Defun *defun) {
+  if (defun->stmts != NULL &&
+      defun->stmts->len == 1 &&
+      ((Node*)defun->stmts->data[0])->type == ND_EXPR) {
+    Expr *expr = ((Node*)defun->stmts->data[0])->u.expr;
+    if (is_funcall(expr, "__hexasm"))
+      return true;
+  }
+  return false;
+}
+
+static void out_hexasm(Defun *defun) {
+  Expr *funcall = ((Node*)defun->stmts->data[0])->u.expr;
+  Vector *args = funcall->u.funcall.args;
+  int len = args->len;
+  for (int i = 0; i < len; ++i) {
+    Expr *arg = (Expr*)args->data[i];
+    switch (arg->type) {
+    case EX_CHAR:
+    case EX_SHORT:
+    case EX_INT:
+    case EX_LONG:
+      {
+        unsigned char buf[1] = {arg->u.value};
+        add_code(buf, sizeof(buf));
+      }
+      break;
+    case EX_FUNCALL:
+      if (is_funcall(arg, "__rel32")) {
+        if (arg->u.funcall.args->len == 1 &&
+            ((Expr*)arg->u.funcall.args->data[0])->type == EX_STR) {
+          const char *label = ((Expr*)arg->u.funcall.args->data[0])->u.str.buf;
+          ADD_LOC_REL32(label, 0, 4);
+          unsigned char buf[4] = {0};
+          add_code(buf, sizeof(buf));
+          break;
+        }
+      }
+      // Fallthrough
+    default:
+      error("num literal expected");
+      break;
+    }
+  }
+}
+
 static void gen_defun(Node *node) {
   Defun *defun = node->u.defun;
   add_label(defun->name);
+  if (is_hexasm(defun)) {
+    out_hexasm(defun);
+    return;
+  }
+
   if (defun->stmts == NULL) {
     RET();
     return;
