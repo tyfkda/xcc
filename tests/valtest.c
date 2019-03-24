@@ -1,4 +1,5 @@
 // #include "util.c"
+#include "../inc/stdarg.h"
 
 void expect(char *title, long expected, long actual) {
   puts(title);
@@ -53,6 +54,19 @@ int array_from_ptr3(int a[][3]) {
 }
 int ptr_from_array(int *p) {
   return *(p + 1);
+}
+
+int vaargs(int n, ...) {
+  int acc = 0;
+  va_list ap;
+  va_start(ap, n);
+  acc += va_arg(ap, int);
+  if (n >= 2)
+    acc += va_arg(ap, char);
+  if (n >= 3)
+    acc += va_arg(ap, long);
+  va_end(ap);
+  return acc;
 }
 
 int main(void) {
@@ -530,6 +544,9 @@ int main(void) {
   expect("extern", 789, e_val);
   expect("?:", 2, 1 ? 2 : 3);
   expect("comma", 3333, (11, 222, 3333));
+  expect("vaargs 1", 1, vaargs(1, (int)1, (char)20, 300L));
+  expect("vaargs 2", 21, vaargs(2, (int)1, (char)20, 300L));
+  expect("vaargs 3", 321, vaargs(3, (int)1, (char)20, 300L));
 
   return 0;
 }

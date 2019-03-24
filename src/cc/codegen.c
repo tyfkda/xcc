@@ -8,6 +8,8 @@
 #include "util.h"
 
 const int FRAME_ALIGN = 8;
+const int MAX_ARGS = 6;
+const int WORD_SIZE = sizeof(void*);
 
 #define CURIP(ofs)  (start_address + codesize + ofs)
 #define ADD_CODE(...)  do { unsigned char buf[] = {__VA_ARGS__}; add_code(buf, sizeof(buf)); } while (0)
@@ -589,6 +591,16 @@ static void gen_varref(Expr *expr) {
   }
 }
 
+static int arrange_func_params(Scope *scope) {
+  // Arrange parameters increasing order in stack,
+  // and each parameter occupies sizeof(intptr_t).
+  for (int i = 0; i < scope->vars->len; ++i) {
+    VarInfo *varinfo = (VarInfo*)scope->vars->data[i];
+    varinfo->offset = (i - MAX_ARGS) * WORD_SIZE;
+  }
+  return MAX_ARGS * WORD_SIZE;
+}
+
 static int arrange_scope_vars(Defun *defun) {
   // Calc local variable offsets.
   // Map parameters from the bottom (to reduce offsets).
@@ -597,14 +609,19 @@ static int arrange_scope_vars(Defun *defun) {
     Scope *scope = (Scope*)defun->all_scopes->data[i];
     int scope_size = scope->parent != NULL ? scope->parent->size : 0;
     if (scope->vars != NULL) {
-      for (int j = 0; j < scope->vars->len; ++j) {
-        VarInfo *varinfo = (VarInfo*)scope->vars->data[j];
-        int size = type_size(varinfo->type);
-        int align = align_size(varinfo->type);
-        if (size < 1)
-          size = 1;
-        scope_size = ALIGN(scope_size + size, align);
-        varinfo->offset = -scope_size;
+      if (defun->type->u.func.vaargs && i == 0) {
+        // Special arrangement for function parameters to work va_list.
+        scope_size = arrange_func_params(scope);
+      } else {
+        for (int j = 0; j < scope->vars->len; ++j) {
+          VarInfo *varinfo = (VarInfo*)scope->vars->data[j];
+          int size = type_size(varinfo->type);
+          int align = align_size(varinfo->type);
+          if (size < 1)
+            size = 1;
+          scope_size = ALIGN(scope_size + size, align);
+          varinfo->offset = -scope_size;
+        }
       }
     }
     scope->size = scope_size;
@@ -617,13 +634,23 @@ static int arrange_scope_vars(Defun *defun) {
 static void put_args_to_stack(Defun *defun) {
   // Store arguments into local frame.
   Vector *params = defun->type->u.func.params;
-  int len = len = params != NULL ? params->len : 0;
-  if (len > 6)
-    error("Parameter count exceeds 6 (%d)", len);
-  for (int i = 0; i < len; ++i) {
-    const VarInfo *varinfo = (const VarInfo*)params->data[i];
-    int offset = varinfo->offset;
-    switch (varinfo->type->type) {
+  int len = params != NULL ? params->len : 0;
+  if (len > MAX_ARGS)
+    error("Parameter count %d exceeds %d in function `%s'", len, MAX_ARGS, defun->name);
+  int n = defun->type->u.func.vaargs ? MAX_ARGS : len;
+  for (int i = 0; i < n; ++i) {
+    enum eType type;
+    int offset;
+    if (i < len) {
+      const VarInfo *varinfo = (const VarInfo*)params->data[i];
+      type = varinfo->type->type;
+      offset = varinfo->offset;
+    } else {  // vaargs
+      type = TY_PTR;
+      offset = (i - MAX_ARGS) * WORD_SIZE;
+    }
+
+    switch (type) {
     case TY_CHAR:  // 1
       switch (i) {
       case 0:  MOV_DIL_IND8_RBP(offset); break;
