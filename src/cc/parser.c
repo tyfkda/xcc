@@ -162,10 +162,11 @@ static Node *parse_case(Token *tok) {
     parse_error(tok, "`case' cannot use outside of `switch`");
 
   tok = fetch_token();
-  Expr *valnode = parse_analyze_expr();
+  Expr *valnode = analyze_expr(parse_const(), false);
   intptr_t value;
   switch (valnode->type) {  // TODO: Accept const expression.
   case EX_CHAR:
+  case EX_SHORT:
   case EX_INT:
   case EX_LONG:
     value = valnode->u.value;
@@ -363,7 +364,7 @@ static Initializer *parse_initializer(void) {
     result->u.multi = multi;
   } else {
     result->type = vSingle;
-    result->u.single = parse_analyze_expr();
+    result->u.single = analyze_expr(parse_assign(), false);
   }
   return result;
 }

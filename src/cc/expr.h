@@ -176,6 +176,7 @@ enum ExprType {
   EX_MEMBER,  // x.member or x->member
   EX_SIZEOF,
   EX_FUNCALL,
+  EX_COMMA,
 };
 
 typedef struct Expr {
@@ -221,6 +222,9 @@ typedef struct Expr {
       struct Expr *func;
       Vector *args;  // <Expr*>
     } funcall;
+    struct {
+      Vector *list;  // <Expr*>
+    } comma;
   } u;
 } Expr;
 
@@ -319,6 +323,8 @@ Expr *new_expr_varref(const char *name, const Type *type, bool global);
 Expr *new_expr_member(const Type *valType, Expr *target, const Token *acctok, const Token *ident, int index);
 Vector *funparams(bool *pvaargs);
 bool parse_var_def(const Type **prawType, const Type** ptype, int *pflag, Token **pident);
+Expr *parse_const(void);
+Expr *parse_assign(void);
 Expr *parse_expr(void);
 Expr *analyze_expr(Expr *expr, bool keep_left);
 Expr *new_expr_cast(const Type *type, Expr *sub, bool is_explicit);

@@ -1152,6 +1152,14 @@ void gen_expr(Expr *expr) {
     }
     return;
 
+  case EX_COMMA:
+    {
+      Vector *list = expr->u.comma.list;
+      for (int i = 0, len = list->len; i < len; ++i)
+        gen_expr(list->data[i]);
+    }
+    break;
+
   case EX_TERNARY:
     gen_ternary(expr);
     break;
@@ -1413,7 +1421,8 @@ void gen_expr(Expr *expr) {
     return;
 
   default:
-    error("Unhandled expr: %d", expr->type);
+    fprintf(stderr, "Expr type=%d, ", expr->type);
+    assert(!"Unhandled in gen_expr");
     break;
   }
 }

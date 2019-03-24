@@ -18,6 +18,7 @@ static const Type tyEnum = {.type=TY_ENUM};
 
 static StructInfo *parse_struct(bool is_union);
 static Expr *cast_expr(void);
+static Expr *unary(void);
 
 //
 
@@ -487,13 +488,19 @@ static Expr *new_expr_funcall(Expr *func, Vector *args) {
   return expr;
 }
 
+static Expr *new_expr_comma(Vector *list) {
+  Expr *expr = new_expr(EX_COMMA, NULL);
+  expr->u.comma.list = list;
+  return expr;
+}
+
 static Expr *funcall(Expr *func) {
   Vector *args = NULL;
   Token *tok;
   if ((tok = consume(TK_RPAR)) == NULL) {
     args = new_vector();
     for (;;) {
-      Expr *arg = parse_expr();
+      Expr *arg = parse_assign();
       vec_push(args, arg);
       if ((tok = consume(TK_RPAR)) != NULL)
         break;
@@ -741,7 +748,7 @@ static const Type *parse_enum(void) {
           parse_error(NULL, "ident expected");
         if (consume(TK_ASSIGN)) {
           Token *tok = fetch_token();
-          Expr *expr = parse_expr();
+          Expr *expr = parse_const();
           switch (expr->type) {  // TODO: Accept constexpr.
           case  EX_CHAR:
           case  EX_SHORT:
@@ -880,18 +887,18 @@ const Type *parse_type_suffix(const Type *type) {
 
   if (!consume(TK_LBRACKET))
     return type;
-  Token *tok;
   size_t length = -1;
   if (consume(TK_RBRACKET)) {
     // Arbitrary size.
-  } else if ((tok = consume(TK_INTLIT))) {  // TODO: Constant expression.
-    if (tok->u.value <= 0)
-      parse_error(tok, "Array size must be greater than 0, but %d", (int)tok->u.value);
-    length = tok->u.value;
+  } else {
+    Expr *expr = parse_const();
+    if (expr->type != EX_INT)  // TODO: Constant expression.
+      parse_error(NULL, "syntax error");
+    if (expr->u.value <= 0)
+      parse_error(/*tok*/NULL, "Array size must be greater than 0, but %d", (int)expr->u.value);
+    length = expr->u.value;
     if (!consume(TK_RBRACKET))
       parse_error(NULL, "`]' expected");
-  } else {
-    parse_error(NULL, "syntax error");
   }
   return arrayof(parse_type_suffix(type), length);
 }
@@ -1071,15 +1078,18 @@ static Expr *postfix(void) {
 static Expr *parse_sizeof(void) {
   const Type *type = NULL;
   Expr *expr = NULL;
-  if (consume(TK_LPAR)) {
+  Token *tok;
+  if ((tok = consume(TK_LPAR)) != NULL) {
     type = parse_full_type(NULL, NULL);
-    if (type == NULL) {
-      expr = parse_expr();
+    if (type != NULL) {
+      if (!consume(TK_RPAR))
+        parse_error(NULL, "`)' expected");
+    } else {
+      unget_token(tok);
+      expr = prim();
     }
-    if (!consume(TK_RPAR))
-      parse_error(NULL, "`)' expected");
   } else {
-    expr = prim();
+    expr = unary();
   }
   return new_expr_sizeof(type, expr);
 }
@@ -1346,11 +1356,11 @@ static Expr *conditional(void) {
   }
 }
 
-static Expr *assign(void) {
+Expr *parse_assign(void) {
   Expr *expr = conditional();
 
   if (consume(TK_ASSIGN))
-    return new_expr_bop(EX_ASSIGN, /*expr->valType*/NULL, expr, assign());
+    return new_expr_bop(EX_ASSIGN, /*expr->valType*/NULL, expr, parse_assign());
   enum ExprType t;
   Token *tok;
   if ((tok = consume(TK_ADD_ASSIGN)) != NULL)
@@ -1367,11 +1377,29 @@ static Expr *assign(void) {
     return expr;
 
   return new_expr_unary(EX_ASSIGN_WITH, /*expr->valType*/NULL,
-                        new_expr_bop(t, NULL, expr, assign()));
+                        new_expr_bop(t, NULL, expr, parse_assign()));
+}
+
+Expr *parse_const(void) {
+  return conditional();
 }
 
 Expr *parse_expr(void) {
-  return assign();
+  Expr *expr;
+  Vector *list = NULL;
+  for (;;) {
+    expr = parse_assign();
+    if (!consume(TK_COMMA))
+      break;
+    if (list == NULL)
+      list = new_vector();
+    vec_push(list, expr);
+  }
+
+  if (list == NULL)
+    return expr;
+  vec_push(list, expr);
+  return new_expr_comma(list);
 }
 
 //
@@ -1705,6 +1733,16 @@ Expr *analyze_expr(Expr *expr, bool keep_left) {
           }
         }
       }
+    }
+    break;
+
+  case EX_COMMA:
+    {
+      Vector *list = expr->u.comma.list;
+      int len = list->len;
+      for (int i = 0; i < len; ++i)
+        list->data[i] = analyze_expr(list->data[i], false);
+      expr->valType = ((Expr*)list->data[len - 1])->valType;
     }
     break;
 

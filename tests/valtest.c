@@ -468,6 +468,11 @@ int main(void) {
   expect("sizeof(long)", 8, sizeof(long));
   expect("sizeof(array)", 3, sizeof(char [3]));
   {
+    int x;
+    expect("sizeof var", 4, sizeof(x));
+  }
+  expect("sizeof(expr)", 4, sizeof(5 * 9));
+  {
     int a[5];
     expect("sizeof(array len)", 5, sizeof(a) / sizeof(*a));
   }
@@ -524,6 +529,7 @@ int main(void) {
   expect("file static", 456, s_val);
   expect("extern", 789, e_val);
   expect("?:", 2, 1 ? 2 : 3);
+  expect("comma", 3333, (11, 222, 3333));
 
   return 0;
 }
