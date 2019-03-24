@@ -71,7 +71,7 @@ try_output() {
 
 compile_error() {
   title="$1"
-  input="$2"
+  input="$PROLOGUE $2"
 
   echo -n "$title => "
 
@@ -125,6 +125,7 @@ compile_error 'void expr' 'void main(){ 1 + (void)2; }'
 compile_error 'few arg num' 'void foo(int x){} void main(){ foo(); }'
 compile_error 'many arg num' 'void foo(int x){} void main(){ foo(1, 2); }'
 compile_error 'zero arg num' 'void foo(void){} void main(){ foo(1); }'
+compile_error 'param count limit' 'void foo(int a, int b, int c, int d, int e, int f, int g){} void main(){ foo(1,2,3,4,5,6,7); }'
 compile_error 'return void' 'void foo(){} void main(){ return foo(); }'
 compile_error '+ str' 'void main(){ +"foo"; }'
 compile_error '- str' 'void main(){ -"foo"; }'
