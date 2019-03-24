@@ -133,6 +133,11 @@ int main(void) {
     expect("+=", 13, x);
   }
   {
+    char x = 0x25;
+    x += (short)0x1234;
+    expect("char += short", 0x59, x);
+  }
+  {
     int x = 10;
     x -= 3;
     expect("-=", 7, x);

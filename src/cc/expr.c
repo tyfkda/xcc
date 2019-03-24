@@ -528,62 +528,73 @@ static Expr *diff_ptr(const Token *tok, Expr *lhs, Expr *rhs) {
                       new_expr_sizeof(elem_type, NULL));
 }
 
-Expr *add_expr(Token *tok, Expr *lhs, Expr *rhs) {
-  Expr *l = lhs, *r = rhs;
+Expr *add_expr(Token *tok, Expr *lhs, Expr *rhs, bool keep_left) {
+  if (is_number(lhs->valType->type) && same_type(lhs->valType, rhs->valType))
+    return new_expr_bop(EX_ADD, lhs->valType, lhs, rhs);
 
-  if (lhs->valType->type > rhs->valType->type) {
-    Expr *tmp = l;
-    l = r;
-    r = tmp;
-  }
-
-  switch (l->valType->type) {
+  switch (lhs->valType->type) {
   case TY_CHAR:
-    switch (r->valType->type) {
-    case TY_CHAR:
-      return new_expr_bop(EX_ADD, l->valType, l, r);
-    case TY_INT:
-      return new_expr_bop(EX_ADD, r->valType, new_expr_cast(r->valType, l, false), r);
-    case TY_LONG:
-      return new_expr_bop(EX_ADD, r->valType, new_expr_cast(r->valType, l, false), r);
+    switch (rhs->valType->type) {
+    case TY_SHORT: case TY_INT: case TY_LONG:
+      if (!keep_left)
+        return new_expr_bop(EX_ADD, rhs->valType, new_expr_cast(rhs->valType, lhs, false), rhs);
+      return new_expr_bop(EX_ADD, lhs->valType, lhs, new_expr_cast(lhs->valType, rhs, false));
     default:
       break;
     }
     break;
 
   case TY_SHORT:
-    switch (r->valType->type) {
-    case TY_SHORT:
-      return new_expr_bop(EX_ADD, l->valType, l, r);
-    case TY_INT:
-    case TY_LONG:
-      return new_expr_bop(EX_ADD, l->valType, new_expr_cast(r->valType, l, false), r);
+    switch (rhs->valType->type) {
+    case TY_INT: case TY_LONG:
+      if (!keep_left)
+        return new_expr_bop(EX_ADD, rhs->valType, new_expr_cast(rhs->valType, lhs, false), rhs);
+      // Fallthrough
+    case TY_CHAR:
+      return new_expr_bop(EX_ADD, lhs->valType, lhs, new_expr_cast(lhs->valType, rhs, false));
     case TY_PTR: case TY_ARRAY:
-      return add_ptr_num(EX_ADD, r, l);
+      if (!keep_left)
+        return add_ptr_num(EX_ADD, rhs, lhs);
+      break;
     default:
       break;
     }
     break;
 
   case TY_INT:
-    switch (r->valType->type) {
-    case TY_INT:
-      return new_expr_bop(EX_ADD, l->valType, l, r);
+    switch (rhs->valType->type) {
     case TY_LONG:
-      return new_expr_bop(EX_ADD, r->valType, new_expr_cast(r->valType, l, false), r);
+      if (!keep_left)
+        return new_expr_bop(EX_ADD, rhs->valType, new_expr_cast(rhs->valType, lhs, false), rhs);
+      // Fallthrough
+    case TY_CHAR: case TY_SHORT:
+      return new_expr_bop(EX_ADD, lhs->valType, lhs, new_expr_cast(lhs->valType, rhs, false));
     case TY_PTR: case TY_ARRAY:
-      return add_ptr_num(EX_ADD, r, l);
+      if (!keep_left)
+        return add_ptr_num(EX_ADD, rhs, lhs);
+      break;
     default:
       break;
     }
     break;
 
   case TY_LONG:
-    switch (r->valType->type) {
-    case TY_LONG:
-      return new_expr_bop(EX_ADD, l->valType, l, r);
+    switch (rhs->valType->type) {
+    case TY_CHAR: case TY_SHORT: case TY_INT:
+      return new_expr_bop(EX_ADD, lhs->valType, lhs, new_expr_cast(lhs->valType, rhs, false));
     case TY_PTR: case TY_ARRAY:
-      return add_ptr_num(EX_ADD, r, l);
+      if (!keep_left)
+        return add_ptr_num(EX_ADD, rhs, lhs);
+      break;
+    default:
+      break;
+    }
+    break;
+
+  case TY_PTR: case TY_ARRAY:
+    switch (rhs->valType->type) {
+    case TY_CHAR: case TY_SHORT: case TY_INT: case TY_LONG:
+      return add_ptr_num(EX_ADD, lhs, rhs);
     default:
       break;
     }
@@ -597,15 +608,17 @@ Expr *add_expr(Token *tok, Expr *lhs, Expr *rhs) {
   return NULL;
 }
 
-static Expr *sub_expr(Token *tok, Expr *lhs, Expr *rhs) {
+static Expr *sub_expr(Token *tok, Expr *lhs, Expr *rhs, bool keep_left) {
+  if (is_number(lhs->valType->type) && same_type(lhs->valType, rhs->valType))
+    return new_expr_bop(EX_SUB, lhs->valType, lhs, rhs);
+
   switch (lhs->valType->type) {
   case TY_CHAR:
     switch (rhs->valType->type) {
-    case TY_CHAR:
-    case TY_SHORT:
-    case TY_INT:
-    case TY_LONG:
-      return new_expr_bop(EX_SUB, rhs->valType, new_expr_cast(rhs->valType, lhs, false), rhs);
+    case TY_SHORT: case TY_INT: case TY_LONG:
+      if (!keep_left)
+        return new_expr_bop(EX_SUB, rhs->valType, new_expr_cast(rhs->valType, lhs, false), rhs);
+      return new_expr_bop(EX_SUB, lhs->valType, lhs, new_expr_cast(lhs->valType, rhs, false));
     default:
       break;
     }
@@ -613,12 +626,12 @@ static Expr *sub_expr(Token *tok, Expr *lhs, Expr *rhs) {
 
   case TY_SHORT:
     switch (rhs->valType->type) {
+    case TY_INT: case TY_LONG:
+      if (!keep_left)
+        return new_expr_bop(EX_SUB, rhs->valType, new_expr_cast(rhs->valType, lhs, false), rhs);
+      // Fallthrough
     case TY_CHAR:
-    case TY_SHORT:
       return new_expr_bop(EX_SUB, lhs->valType, lhs, new_expr_cast(lhs->valType, rhs, false));
-    case TY_INT:
-    case TY_LONG:
-      return new_expr_bop(EX_SUB, rhs->valType, new_expr_cast(rhs->valType, lhs, false), rhs);
     default:
       break;
     }
@@ -626,12 +639,12 @@ static Expr *sub_expr(Token *tok, Expr *lhs, Expr *rhs) {
 
   case TY_INT:
     switch (rhs->valType->type) {
-    case TY_CHAR:
-    case TY_SHORT:
-    case TY_INT:
-      return new_expr_bop(EX_SUB, lhs->valType, lhs, new_expr_cast(lhs->valType, rhs, false));
     case TY_LONG:
-      return new_expr_bop(EX_SUB, rhs->valType, new_expr_cast(rhs->valType, lhs, false), rhs);
+      if (!keep_left)
+        return new_expr_bop(EX_SUB, rhs->valType, new_expr_cast(rhs->valType, lhs, false), rhs);
+      // Fallthrough
+    case TY_CHAR: case TY_SHORT:
+      return new_expr_bop(EX_SUB, lhs->valType, lhs, new_expr_cast(lhs->valType, rhs, false));
     default:
       break;
     }
@@ -639,10 +652,7 @@ static Expr *sub_expr(Token *tok, Expr *lhs, Expr *rhs) {
 
   case TY_LONG:
     switch (rhs->valType->type) {
-    case TY_CHAR:
-    case TY_SHORT:
-    case TY_INT:
-    case TY_LONG:
+    case TY_CHAR: case TY_SHORT: case TY_INT:
       return new_expr_bop(EX_SUB, lhs->valType, lhs, new_expr_cast(lhs->valType, rhs, false));
     default:
       break;
@@ -651,10 +661,7 @@ static Expr *sub_expr(Token *tok, Expr *lhs, Expr *rhs) {
 
   case TY_PTR:
     switch (rhs->valType->type) {
-    case TY_CHAR:
-    case TY_INT:
-    case TY_SHORT:
-    case TY_LONG:
+    case TY_CHAR: case TY_INT: case TY_SHORT: case TY_LONG:
       return add_ptr_num(EX_SUB, lhs, rhs);
     case TY_PTR: case TY_ARRAY:
       return diff_ptr(tok, lhs, rhs);
@@ -1213,7 +1220,7 @@ static Expr *shift(void) {
   }
 }
 
-static bool cast_numbers(Expr **pLhs, Expr **pRhs) {
+static bool cast_numbers(Expr **pLhs, Expr **pRhs, bool keep_left) {
   enum eType ltype = (*pLhs)->valType->type, rtype = (*pRhs)->valType->type;
   if (!is_number(ltype) || !is_number(rtype))
     return false;
@@ -1223,10 +1230,10 @@ static bool cast_numbers(Expr **pLhs, Expr **pRhs) {
   if (rtype == TY_ENUM)
     rtype = TY_INT;
 
-  if (ltype < rtype)
-    *pLhs = new_expr_cast((*pRhs)->valType, *pLhs, false);
-  else if (ltype > rtype)
+  if (ltype > rtype || keep_left)
     *pRhs = new_expr_cast((*pLhs)->valType, *pRhs, false);
+  else if (ltype < rtype)
+    *pLhs = new_expr_cast((*pRhs)->valType, *pLhs, false);
   return true;
 }
 
@@ -1387,13 +1394,13 @@ static void analyze_cmp(Expr *expr) {
         expr->u.bop.lhs = new_expr_cast(rhs->valType, lhs, false);
     }
   } else {
-    if (!cast_numbers(&expr->u.bop.lhs, &expr->u.bop.rhs))
+    if (!cast_numbers(&expr->u.bop.lhs, &expr->u.bop.rhs, false))
       parse_error(/*tok*/NULL, "Cannot compare except numbers");
   }
 }
 
 // Traverse expr to check semantics and determine value type.
-Expr *analyze_expr(Expr *expr) {
+Expr *analyze_expr(Expr *expr, bool keep_left) {
   switch (expr->type) {
   // Literals
   case EX_CHAR:
@@ -1453,23 +1460,23 @@ Expr *analyze_expr(Expr *expr) {
   case EX_LOGAND:
   case EX_LOGIOR:
   case EX_ASSIGN:
-    expr->u.bop.lhs = analyze_expr(expr->u.bop.lhs);
-    expr->u.bop.rhs = analyze_expr(expr->u.bop.rhs);
+    expr->u.bop.lhs = analyze_expr(expr->u.bop.lhs, false);
+    expr->u.bop.rhs = analyze_expr(expr->u.bop.rhs, false);
     assert(expr->u.bop.lhs->valType != NULL);
     assert(expr->u.bop.rhs->valType != NULL);
 
     switch (expr->type) {
     case EX_ADD:
-      return add_expr(NULL, expr->u.bop.lhs, expr->u.bop.rhs);
+      return add_expr(NULL, expr->u.bop.lhs, expr->u.bop.rhs, keep_left);
     case EX_SUB:
-      return sub_expr(NULL, expr->u.bop.lhs, expr->u.bop.rhs);
+      return sub_expr(NULL, expr->u.bop.lhs, expr->u.bop.rhs, keep_left);
     case EX_MUL:
     case EX_DIV:
     case EX_MOD:
     case EX_BITAND:
     case EX_BITOR:
     case EX_BITXOR:
-      if (!cast_numbers(&expr->u.bop.lhs, &expr->u.bop.rhs))
+      if (!cast_numbers(&expr->u.bop.lhs, &expr->u.bop.rhs, keep_left))
         parse_error(/*tok*/NULL, "Cannot use `%d' except numbers.", expr->type);
 
       expr->valType = expr->u.bop.lhs->valType;
@@ -1523,7 +1530,7 @@ Expr *analyze_expr(Expr *expr) {
   case EX_DEREF:
   case EX_CAST:
   case EX_ASSIGN_WITH:
-    expr->u.unary.sub = analyze_expr(expr->u.unary.sub);
+    expr->u.unary.sub = analyze_expr(expr->u.unary.sub, expr->type == EX_ASSIGN_WITH);
     assert(expr->u.unary.sub->valType != NULL);
 
     switch (expr->type) {
@@ -1595,9 +1602,9 @@ Expr *analyze_expr(Expr *expr) {
     break;
 
   case EX_TERNARY:
-    expr->u.ternary.cond = analyze_expr(expr->u.ternary.cond);
-    expr->u.ternary.tval = analyze_expr(expr->u.ternary.tval);
-    expr->u.ternary.fval = analyze_expr(expr->u.ternary.fval);
+    expr->u.ternary.cond = analyze_expr(expr->u.ternary.cond, false);
+    expr->u.ternary.tval = analyze_expr(expr->u.ternary.tval, false);
+    expr->u.ternary.fval = analyze_expr(expr->u.ternary.fval, false);
     if (!same_type(expr->u.ternary.tval->valType, expr->u.ternary.fval->valType))
       parse_error(NULL, "lhs and rhs must be same type");
     expr->valType = expr->u.ternary.tval->valType;
@@ -1606,7 +1613,7 @@ Expr *analyze_expr(Expr *expr) {
   case EX_MEMBER:  // x.member or x->member
     {
       Expr *target = expr->u.member.target;
-      expr->u.member.target = target = analyze_expr(target);
+      expr->u.member.target = target = analyze_expr(target, false);
       assert(target->valType != NULL);
 
       const Token *acctok = expr->u.member.acctok;
@@ -1658,7 +1665,7 @@ Expr *analyze_expr(Expr *expr) {
     {
       Expr *sub = expr->u.sizeof_.sub;
       if (sub != NULL) {
-        sub = analyze_expr(sub);
+        sub = analyze_expr(sub, false);
         assert(sub->valType != NULL);
         expr->u.sizeof_.type = sub->valType;
       }
@@ -1669,10 +1676,10 @@ Expr *analyze_expr(Expr *expr) {
     {
       Expr *func = expr->u.funcall.func;
       Vector *args = expr->u.funcall.args;  // <Expr*>
-      expr->u.funcall.func = func = analyze_expr(func);
+      expr->u.funcall.func = func = analyze_expr(func, false);
       if (args != NULL) {
         for (int i = 0, len = args->len; i < len; ++i)
-          args->data[i] = analyze_expr(args->data[i]);
+          args->data[i] = analyze_expr(args->data[i], false);
       }
 
       const Type *functype;

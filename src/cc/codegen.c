@@ -1123,8 +1123,11 @@ void gen_expr(Expr *expr) {
     gen_rval(expr->u.unary.sub);
     switch (expr->valType->type) {
     case TY_CHAR:  MOV_IND_RAX_AL(); break;
+    case TY_SHORT: MOV_IND_RAX_AX(); break;
     case TY_INT:   MOV_IND_RAX_EAX(); break;
-    case TY_PTR:   MOV_IND_RAX_RAX(); break;
+    case TY_LONG: case TY_PTR:
+      MOV_IND_RAX_RAX();
+      break;
     case TY_ARRAY: break;
     default: assert(false); break;
     }
@@ -1133,15 +1136,12 @@ void gen_expr(Expr *expr) {
   case EX_MEMBER:
     gen_lval(expr);
     switch (expr->valType->type) {
-    case TY_CHAR:
-      MOV_IND_RAX_AL();
-      break;
-    case TY_INT:
-    case TY_ENUM:
+    case TY_CHAR:  MOV_IND_RAX_AL(); break;
+    case TY_SHORT: MOV_IND_RAX_AX(); break;
+    case TY_INT: case TY_ENUM:
       MOV_IND_RAX_EAX();
       break;
-    case TY_LONG:
-    case TY_PTR:
+    case TY_LONG: case TY_PTR:
       MOV_IND_RAX_RAX();
       break;
     case TY_ARRAY:
@@ -1191,6 +1191,7 @@ void gen_expr(Expr *expr) {
       // Move lhs to %?ax
       switch (expr->u.bop.lhs->valType->type) {
       case TY_CHAR:  MOV_IND_RAX_AL(); break;
+      case TY_SHORT: MOV_IND_RAX_AX(); break;
       case TY_INT:   MOV_IND_RAX_EAX(); break;
       case TY_LONG: case TY_PTR:
         MOV_IND_RAX_RAX();
@@ -1204,6 +1205,7 @@ void gen_expr(Expr *expr) {
 
       switch (expr->valType->type) {
       case TY_CHAR:  MOV_AL_IND_RSI(); break;
+      case TY_SHORT: MOV_AX_IND_RSI(); break;
       case TY_INT:   MOV_EAX_IND_RSI(); break;
       case TY_LONG: case TY_PTR:
         MOV_RAX_IND_RSI();

@@ -20,7 +20,7 @@ static Node *curswitch;
 static Node *stmt(void);
 
 static Expr *parse_analyze_expr(void) {
-  return analyze_expr(parse_expr());
+  return analyze_expr(parse_expr(), false);
 }
 
 static Defun *new_defun(const Type *type, const char *name) {
@@ -390,7 +390,7 @@ static Vector *clear_initial_value(Expr *expr, Vector *inits) {
     {
       size_t arr_len = expr->valType->u.pa.length;
       for (size_t i = 0; i < arr_len; ++i)
-        clear_initial_value(new_expr_deref(add_expr(NULL, expr, new_expr_numlit(EX_INT, i))), inits);
+        clear_initial_value(new_expr_deref(add_expr(NULL, expr, new_expr_numlit(EX_INT, i), true)), inits);
     }
     break;
   case TY_STRUCT:
@@ -432,8 +432,8 @@ static void string_initializer(Expr *dst, Expr *src, Vector *inits) {
     Expr *index = new_expr_numlit(EX_INT, i);
     vec_push(inits,
              new_node_expr(new_expr_bop(EX_ASSIGN, &tyChar,
-                                        new_expr_deref(add_expr(NULL, dst, index)),
-                                        new_expr_deref(add_expr(NULL, src, index)))));
+                                        new_expr_deref(add_expr(NULL, dst, index, true)),
+                                        new_expr_deref(add_expr(NULL, src, index, true)))));
   }
   if (dstlen > len) {
     Expr *zero = new_expr_numlit(EX_CHAR, 0);
@@ -441,7 +441,7 @@ static void string_initializer(Expr *dst, Expr *src, Vector *inits) {
       Expr *index = new_expr_numlit(EX_INT, i);
       vec_push(inits,
                new_node_expr(new_expr_bop(EX_ASSIGN, &tyChar,
-                                          new_expr_deref(add_expr(NULL, dst, index)),
+                                          new_expr_deref(add_expr(NULL, dst, index, true)),
                                           zero)));
     }
   }
@@ -473,12 +473,12 @@ static Vector *assign_initial_value(Expr *expr, Initializer *init, Vector *inits
       }
       int len = init->u.multi->len;
       for (int i = 0; i < len; ++i) {
-        assign_initial_value(new_expr_deref(add_expr(NULL, expr, new_expr_numlit(EX_INT, i))),
+        assign_initial_value(new_expr_deref(add_expr(NULL, expr, new_expr_numlit(EX_INT, i), true)),
                              init->u.multi->data[i], inits);
       }
       // Clear left.
       for (size_t i = len; i < arr_len; ++i)
-        clear_initial_value(new_expr_deref(add_expr(NULL, expr, new_expr_numlit(EX_INT, i))), inits);
+        clear_initial_value(new_expr_deref(add_expr(NULL, expr, new_expr_numlit(EX_INT, i), true)), inits);
     }
     break;
   case TY_STRUCT:
