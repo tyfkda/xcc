@@ -449,11 +449,11 @@ static Token *get_token(void) {
         }
         str[size++] = c;
       }
-      str[size] = '\0';
+      str[size++] = '\0';
       ++p;
       tok = alloc_token(TK_STR, begin, p);
       tok->u.str.buf = str;
-      tok->u.str.len = size + 1;
+      tok->u.str.size = size;
       break;
     }
 

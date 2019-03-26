@@ -99,7 +99,7 @@ typedef struct Token {
     const char *ident;
     struct {
       const char *buf;
-      size_t len;
+      size_t size;  // Include last '\0'.
     } str;
     intptr_t value;
   } u;

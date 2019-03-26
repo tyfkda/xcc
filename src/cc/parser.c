@@ -420,25 +420,25 @@ static void string_initializer(Expr *dst, Expr *src, Vector *inits) {
   assert(src->valType->type == TY_ARRAY && src->valType->u.pa.ptrof->type == TY_CHAR);
 
   const char *str = src->u.str.buf;
-  size_t len = src->u.str.len;
-  size_t dstlen = dst->valType->u.pa.length;
-  if (dstlen == (size_t)-1) {
-    ((Type*)dst->valType)->u.pa.length = dstlen = len;
+  size_t size = src->u.str.size;
+  size_t dstsize = dst->valType->u.pa.length;
+  if (dstsize == (size_t)-1) {
+    ((Type*)dst->valType)->u.pa.length = dstsize = size;
   } else {
-    if (dstlen < len)
-      parse_error(NULL, "Buffer is shorter than string: %d for \"%s\"", (int)dstlen, str);
+    if (dstsize < size)
+      parse_error(NULL, "Buffer is shorter than string: %d for \"%s\"", (int)dstsize, str);
   }
 
-  for (size_t i = 0; i < len; ++i) {
+  for (size_t i = 0; i < size; ++i) {
     Expr *index = new_expr_numlit(EX_INT, i);
     vec_push(inits,
              new_node_expr(new_expr_bop(EX_ASSIGN, &tyChar,
                                         new_expr_deref(add_expr(NULL, dst, index, true)),
                                         new_expr_deref(add_expr(NULL, src, index, true)))));
   }
-  if (dstlen > len) {
+  if (dstsize > size) {
     Expr *zero = new_expr_numlit(EX_CHAR, 0);
-    for (size_t i = len; i < dstlen; ++i) {
+    for (size_t i = size; i < dstsize; ++i) {
       Expr *index = new_expr_numlit(EX_INT, i);
       vec_push(inits,
                new_node_expr(new_expr_bop(EX_ASSIGN, &tyChar,
@@ -776,7 +776,7 @@ static Initializer *check_global_initializer(Type *type, Initializer *init) {
       Expr *value = init->u.single;
       if (type->u.pa.ptrof->type == TY_CHAR && value->type == EX_STR) {
         const char * label = alloc_label();
-        const Type *array_type = arrayof(type->u.pa.ptrof, value->u.str.len);
+        const Type *array_type = arrayof(type->u.pa.ptrof, value->u.str.size);
         define_global(array_type, VF_CONST | VF_STATIC, alloc_ident(label, NULL, NULL), init);
 
         init = malloc(sizeof(*init));
@@ -811,8 +811,8 @@ static Initializer *check_global_initializer(Type *type, Initializer *init) {
     case vSingle:
       if (type->u.pa.ptrof->type == TY_CHAR && init->u.single->type == EX_STR) {
         if (type->u.pa.length == (size_t)-1) {
-          type->u.pa.length = init->u.single->u.str.len;
-        } else if (type->u.pa.length < init->u.single->u.str.len) {
+          type->u.pa.length = init->u.single->u.str.size;
+        } else if (type->u.pa.length < init->u.single->u.str.size) {
           parse_error(NULL, "Array size shorter than initializer");
         }
         return init;

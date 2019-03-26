@@ -404,15 +404,15 @@ Expr *new_expr_numlit(enum ExprType exprtype, intptr_t val) {
   return expr;
 }
 
-static Expr *new_expr_str(const char *str, size_t len) {
+static Expr *new_expr_str(const char *str, size_t size) {
   Type *type = malloc(sizeof(*type));
   type->type = TY_ARRAY;
   type->u.pa.ptrof = &tyChar;
-  type->u.pa.length = len;
+  type->u.pa.length = size;
 
   Expr *expr = new_expr(EX_STR, type);
   expr->u.str.buf = str;
-  expr->u.str.len = len;
+  expr->u.str.size = size;
   return expr;
 }
 
@@ -1042,7 +1042,7 @@ static Expr *prim(void) {
       return new_expr_numlit(nt, tok->u.value);
   }
   if ((tok = consume(TK_STR)))
-    return new_expr_str(tok->u.str.buf, tok->u.str.len);
+    return new_expr_str(tok->u.str.buf, tok->u.str.size);
 
   Token *ident;
   if ((ident = consume(TK_IDENT)) != NULL) {

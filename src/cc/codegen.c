@@ -298,7 +298,7 @@ void construct_initial_value(unsigned char *buf, const Type *type, Initializer *
       break;
     case vSingle:
       if (type->u.pa.ptrof->type == TY_CHAR && init->u.single->type == EX_STR) {
-        int src_size = init->u.single->u.str.len;
+        int src_size = init->u.single->u.str.size;
         int size = type_size(type);
         int d = size - src_size;
         assert(d >= 0);
@@ -1142,7 +1142,7 @@ void gen_expr(Expr *expr) {
   case EX_STR:
     {
       const char * label = alloc_label();
-      add_rodata(label, expr->u.str.buf, expr->u.str.len);
+      add_rodata(label, expr->u.str.buf, expr->u.str.size);
       LEA_OFS32_RIP_RAX(label);
     }
     return;

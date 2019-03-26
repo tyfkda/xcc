@@ -188,7 +188,7 @@ typedef struct Expr {
     intptr_t value;
     struct {
       const char *buf;
-      size_t len;  // Include last '\0'.
+      size_t size;  // Include last '\0'.
     } str;
     struct {
       const char *ident;
