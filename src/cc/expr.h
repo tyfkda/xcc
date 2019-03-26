@@ -51,11 +51,13 @@ typedef struct Type {
 } Type;
 
 void ensure_struct(Type *type, const Token *token);
+Type* arrayof(const Type *type, size_t length);
+bool same_type(const Type *type1, const Type *type2);
 
 void dump_type(FILE *fp, const Type *type);
 
 typedef struct Initializer {
-  enum { vSingle, vMulti, vDot } type;
+  enum { vSingle, vMulti, vDot } type;  // vSingle: 123, vMulti: {...}, vDot: .x=123
   union {
     struct Expr *single;
     Vector *multi;  // <Initializer*>

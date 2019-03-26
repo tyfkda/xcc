@@ -6,6 +6,7 @@
 
 char *strdup_(const char *str);
 char *strndup_(const char *str, size_t size);
+char *alloc_label(void);
 char *cat_path(const char *base_dir, const char *rel_path);
 ssize_t getline_(char **lineptr, size_t *n, FILE *stream, size_t start);
 

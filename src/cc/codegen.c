@@ -213,14 +213,6 @@ uintptr_t label_adr(const char *label) {
   return adr != NULL ? (uintptr_t)adr : (uintptr_t)-1;
 }
 
-static char *alloc_label(void) {
-  static int label_no;
-  ++label_no;
-  char buf[sizeof(int) * 3 + 1];
-  snprintf(buf, sizeof(buf), ".L%d", label_no);
-  return strdup_(buf);
-}
-
 Vector *loc_vector;
 
 static LocInfo *new_loc(enum LocType type, uintptr_t ip, const char *label) {
@@ -266,9 +258,7 @@ void construct_initial_value(unsigned char *buf, const Type *type, Initializer *
   case TY_INT:
   case TY_LONG:
     {
-      if (init->type != vSingle)
-        error("initializer type error");
-      assert(init->u.single->type == EX_INT);
+      assert(init->type == vSingle);
       intptr_t value = init->u.single->u.value;
       int size = type_size(type);
       for (int i = 0; i < size; ++i)
@@ -277,23 +267,50 @@ void construct_initial_value(unsigned char *buf, const Type *type, Initializer *
     break;
   case TY_PTR:
     {
-      if (init->type != vSingle)
-        error("initializer type error");
+      assert(init->type == vSingle);
       Expr *value = init->u.single;
-      if (init->u.single->type == EX_REF)
-        value = init->u.single->u.unary.sub;
-      if (value->type != EX_VARREF)
-        error("pointer initializer must be varref");
-      if (!value->u.varref.global)
-        error("Allowed global reference only");
+      if (value->type == EX_REF || value->type == EX_VARREF) {
+        if (value->type == EX_REF)
+          value = value->u.unary.sub;
+        // TODO: Type check.
 
-      memset(buf, 0, type_size(type));  // Just in case.
-      void **init = malloc(sizeof(void*) * 2);
-      init[0] = buf;
-      init[1] = (void*)value->u.varref.ident;
-      if (*pptrinits == NULL)
-        *pptrinits = new_vector();
-      vec_push(*pptrinits, init);
+        assert(value->type == EX_VARREF);
+        assert(value->u.varref.global);
+
+        memset(buf, 0, type_size(type));  // Just in case.
+        void **init = malloc(sizeof(void*) * 2);
+        init[0] = buf;
+        init[1] = (void*)value->u.varref.ident;
+        if (*pptrinits == NULL)
+          *pptrinits = new_vector();
+        vec_push(*pptrinits, init);
+      } else {
+        assert(!"initializer type error");
+      }
+    }
+    break;
+  case TY_ARRAY:
+    switch (init->type) {
+    case vMulti:
+      assert(!"Global initial value for array not implemented (yet)\n");
+      break;
+    case vSingle:
+      if (type->u.pa.ptrof->type == TY_CHAR && init->u.single->type == EX_STR) {
+        int src_size = init->u.single->u.str.len;
+        int size = type_size(type);
+        int d = size - src_size;
+        assert(d >= 0);
+        memcpy(buf, init->u.single->u.str.buf, src_size);
+        if (d > 0) {
+          memset(buf + src_size, 0x00, d);
+        }
+        break;
+      }
+      // Fallthrough
+    case vDot:
+    default:
+      error("Illegal initializer");
+      break;
     }
     break;
   case TY_STRUCT:
@@ -363,6 +380,8 @@ static void put_rwdata(void) {
     int size = type_size(varinfo->type);
     if (bufsize < (size_t)size) {
       buf = realloc(buf, size);
+      if (buf == NULL)
+        error("Memory alloc failed: %d", size);
       bufsize = size;
     }
 

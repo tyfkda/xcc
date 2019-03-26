@@ -129,7 +129,7 @@ bool is_struct_or_union(enum eType type) {
   }
 }
 
-static bool same_type(const Type *type1, const Type *type2) {
+bool same_type(const Type *type1, const Type *type2) {
   for (;;) {
     if (type1->type != type2->type)
       return false;
@@ -194,7 +194,7 @@ static const Type *array_to_ptr(const Type *type) {
   return ptrof(type->u.pa.ptrof);
 }
 
-static Type* arrayof(const Type *type, size_t length) {
+Type* arrayof(const Type *type, size_t length) {
   Type *arr = malloc(sizeof(*arr));
   arr->type = TY_ARRAY;
   arr->u.pa.ptrof = type;

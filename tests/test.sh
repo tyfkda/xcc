@@ -25,7 +25,7 @@ EOS
 try_direct() {
   title="$1"
   expected="$2"
-  input="$PROLOGUE $3"
+  input="$PROLOGUE\n$3"
 
   echo -n "$title => "
 
@@ -49,7 +49,7 @@ try() {
 try_output_direct() {
   title="$1"
   expected="$2"
-  input="$PROLOGUE $3"
+  input="$PROLOGUE\n$3"
 
   echo -n "$title => "
 
@@ -71,7 +71,7 @@ try_output() {
 
 compile_error() {
   title="$1"
-  input="$PROLOGUE $2"
+  input="$PROLOGUE\n$2"
 
   echo -n "$title => "
 
@@ -99,6 +99,8 @@ try_direct 'late declare struct' 42 'struct Foo *p; struct Foo {int x;}; int mai
 try_direct 'typedef func-ptr' 84 'typedef int (*Func)(int); int twice(Func f, int x) { return f(f(x)); } int double(int x) { return x * 2; } int main(){ return twice(&double, 21); }'
 try_direct 'for-var' 55 'int main(){ int acc = 0; for (int i = 1, len = 10; i <= len; ++i) acc += i; return acc; }'
 try_direct 'args' 51 'int func(int x, ...) { return x; } int main(){ return func(51, 1, 2); }'
+try_output_direct 'global str-array init' 'StrArray' 'char g_str[] = "StrArray"; int main(){ write(1, g_str, sizeof(g_str) - 1); return 0; }'
+try_output_direct 'global str-ptr init' 'StrPtr' 'char *g_str = "StrPtr"; int main(){ write(1, g_str, 6); return 0; }'
 
 # error cases
 echo ''
@@ -149,3 +151,6 @@ compile_error 'refer undeclared struct member' 'void main(){ struct Foo *p; p->x
 compile_error 'extern only' 'extern int x; void main(){ x = 123; }'
 compile_error 'extern with init' 'extern int x = 123; void main(){}'
 compile_error 'for-var scoped' 'int main(){ for (int i = 0; i < 5; ++i) ; return i; }'
+compile_error 'global poitner init with undefined' 'char *p = &x; void main(){}'
+compile_error 'global poitner init with other type' 'int x; char *p = &x; void main(){}'
+compile_error 'global array init (yet)' 'char array[] = {1, 2, 3}; void main(){}'

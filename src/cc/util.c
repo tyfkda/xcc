@@ -15,6 +15,14 @@ char *strndup_(const char *str, size_t size) {
   return dup;
 }
 
+char *alloc_label(void) {
+  static int label_no;
+  ++label_no;
+  char buf[sizeof(int) * 3 + 1];
+  snprintf(buf, sizeof(buf), ".L%d", label_no);
+  return strdup_(buf);
+}
+
 char *cat_path(const char *base_dir, const char *rel_path) {
   if (*rel_path == '/')  // Absolute path?
     return strdup_(rel_path);
