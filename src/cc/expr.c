@@ -62,20 +62,20 @@ Map *typedef_map;
 
 Map *gvar_map;
 
-GlobalVarInfo *find_global(const char *name) {
-  return (GlobalVarInfo*)map_get(gvar_map, name);
+VarInfo *find_global(const char *name) {
+  return (VarInfo*)map_get(gvar_map, name);
 }
 
 void define_global(const Type *type, int flag, const Token *ident, Initializer *init) {
   const char *name = ident->u.ident;
-  GlobalVarInfo *varinfo = find_global(name);
+  VarInfo *varinfo = find_global(name);
   if (varinfo != NULL && !(varinfo->flag & VF_EXTERN))
     parse_error(ident, "`%s' already defined", name);
   varinfo = malloc(sizeof(*varinfo));
   varinfo->name = name;
   varinfo->type = type;
   varinfo->flag = flag;
-  varinfo->init = init;
+  varinfo->u.g.init = init;
   varinfo->offset = 0;
   map_put(gvar_map, name, varinfo);
 }
@@ -1450,14 +1450,14 @@ Expr *analyze_expr(Expr *expr, bool keep_left) {
           type = varinfo->type;
       }
       if (type == NULL) {
-        GlobalVarInfo *varinfo = find_global(name);
+        VarInfo *varinfo = find_global(name);
         if (varinfo != NULL) {
           global = true;
           type = varinfo->type;
           if (type->type == TY_ENUM) {
             // Enum value is embeded directly.
-            assert(varinfo->init->type == vSingle);
-            return varinfo->init->u.single;
+            assert(varinfo->u.g.init->type == vSingle);
+            return varinfo->u.g.init->u.single;
           }
         }
       }

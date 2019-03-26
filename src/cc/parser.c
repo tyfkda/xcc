@@ -703,7 +703,7 @@ static Node *parse_defun(const Type *rettype, int flag, Token *ident) {
     defun = new_defun(functype, name);
   }
 
-  GlobalVarInfo *def = find_global(name);
+  VarInfo *def = find_global(name);
   if (def == NULL) {
     define_global(functype, flag | VF_CONST, ident, NULL);
   } else {
@@ -711,7 +711,7 @@ static Node *parse_defun(const Type *rettype, int flag, Token *ident) {
       parse_error(ident, "Definition conflict: `%s'");
     // TODO: Check type.
     // TODO: Check duplicated definition.
-    if (def->init != NULL)
+    if (def->u.g.init != NULL)
       parse_error(ident, "`%s' function already defined");
   }
 
@@ -792,7 +792,7 @@ static Initializer *check_global_initializer(Type *type, Initializer *init) {
         if (!value->u.varref.global)
           parse_error(NULL, "Allowed global reference only");
 
-        GlobalVarInfo *info = find_global(value->u.varref.ident);
+        VarInfo *info = find_global(value->u.varref.ident);
         assert(info != NULL);
 
         if (!same_type(type->u.pa.ptrof, info->type))

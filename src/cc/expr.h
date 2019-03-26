@@ -80,20 +80,15 @@ typedef struct {
   const char *name;
   const Type *type;
   int flag;
+  union {
+    struct {  // For global.
+      Initializer *init;
+    } g;
+  } u;
 
   // For codegen.
   int offset;
 } VarInfo;
-
-typedef struct {
-  const char *name;
-  const Type *type;
-  int flag;
-  Initializer *init;
-
-  // For codegen.
-  int offset;
-} GlobalVarInfo;
 
 extern Map *struct_map;  // <char*, StructInfo*>
 extern Map *typedef_map;  // <char*, Type*>
@@ -302,7 +297,7 @@ void var_add(Vector *lvars, const Token *ident, const Type *type, int flag);
 
 extern Map *gvar_map;
 
-GlobalVarInfo *find_global(const char *name);
+VarInfo *find_global(const char *name);
 void define_global(const Type *type, int flag, const Token *ident, Initializer *init);
 
 //

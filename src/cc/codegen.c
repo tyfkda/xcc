@@ -371,8 +371,8 @@ static void put_rwdata(void) {
   size_t bufsize = 0;
   for (int i = 0, len = map_count(gvar_map); i < len; ++i) {
     const char *name = (const char *)gvar_map->keys->data[i];
-    const GlobalVarInfo *varinfo = (const GlobalVarInfo*)gvar_map->vals->data[i];
-    if (varinfo->type->type == TY_FUNC || varinfo->init == NULL ||
+    const VarInfo *varinfo = (const VarInfo*)gvar_map->vals->data[i];
+    if (varinfo->type->type == TY_FUNC || varinfo->u.g.init == NULL ||
         (varinfo->flag & VF_EXTERN) != 0 ||
         varinfo->type->type == TY_ENUM)
       continue;
@@ -388,7 +388,7 @@ static void put_rwdata(void) {
     }
 
     Vector *ptrinits = NULL;
-    construct_initial_value(buf, varinfo->type, varinfo->init, &ptrinits);
+    construct_initial_value(buf, varinfo->type, varinfo->u.g.init, &ptrinits);
 
     if (ptrinits != NULL) {
       for (int i = 0; i < ptrinits->len; ++i) {
@@ -408,8 +408,8 @@ static void put_bss(void) {
   size_t bufsize = 0;
   for (int i = 0, len = map_count(gvar_map); i < len; ++i) {
     const char *name = (const char *)gvar_map->keys->data[i];
-    const GlobalVarInfo *varinfo = (const GlobalVarInfo*)gvar_map->vals->data[i];
-    if (varinfo->type->type == TY_FUNC || varinfo->init != NULL ||
+    const VarInfo *varinfo = (const VarInfo*)gvar_map->vals->data[i];
+    if (varinfo->type->type == TY_FUNC || varinfo->u.g.init != NULL ||
         (varinfo->flag & VF_EXTERN) != 0)
       continue;
     int align = align_size(varinfo->type);
