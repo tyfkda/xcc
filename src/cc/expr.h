@@ -84,6 +84,9 @@ typedef struct {
     struct {  // For global.
       Initializer *init;
     } g;
+    struct {  // For local.
+      const char *label;  // For static variable to refer value in global.
+    } l;
   } u;
 
   // For codegen.
@@ -120,7 +123,7 @@ typedef struct {
 
 Scope *enter_scope(Defun *defun, Vector *vars);
 void exit_scope(void);
-void add_cur_scope(const Token *ident, const Type *type, int flag);
+void add_cur_scope(const Token *ident, const Type *type, int flag, Initializer *init);
 
 // Expr
 
@@ -293,7 +296,7 @@ Vector *parse_program(void);
 // Variables
 
 int var_find(Vector *vartbl, const char *name);
-void var_add(Vector *lvars, const Token *ident, const Type *type, int flag);
+void var_add(Vector *lvars, const Token *ident, const Type *type, int flag, Initializer *init);
 
 extern Map *gvar_map;
 

@@ -31,21 +31,27 @@ int var_find(Vector *lvars, const char *name) {
   return -1;
 }
 
-void var_add(Vector *lvars, const Token *ident, const Type *type, int flag) {
+void var_add(Vector *lvars, const Token *ident, const Type *type, int flag, Initializer *init) {
+  // init is only for static local variable.
   const char *name = NULL;
+  const char *label = NULL;
+  assert(init == NULL || flag & VF_STATIC);
   if (ident != NULL) {
     name = ident->u.ident;
     int idx = var_find(lvars, name);
     if (idx >= 0)
       parse_error(ident, "`%s' already defined", name);
-    if (flag & VF_STATIC)  // TODO: Handle static specifier in local definition.
-      parse_error(ident, "Cannot specify `static' (yet)");
+    if (flag & VF_STATIC) {  // TODO: Handle static specifier in local definition.
+      label = alloc_label();
+      define_global(type, flag, alloc_ident(label, NULL, NULL), init);
+    }
   }
 
   VarInfo *info = malloc(sizeof(*info));
   info->name = name;
   info->type = type;
   info->flag = flag;
+  info->u.l.label = label;
   info->offset = -1;
   vec_push(lvars, info);
 }
@@ -256,10 +262,10 @@ void exit_scope(void) {
   curscope = curscope->parent;
 }
 
-void add_cur_scope(const Token *ident, const Type *type, int flag) {
+void add_cur_scope(const Token *ident, const Type *type, int flag, Initializer *init) {
   if (curscope->vars == NULL)
     curscope->vars = new_vector();
-  var_add(curscope->vars, ident, type, flag);
+  var_add(curscope->vars, ident, type, flag, init);
 }
 
 //
@@ -986,7 +992,7 @@ Vector *funparams(bool *pvaargs) {
       // If the type is array, handle it as a pointer.
       type = array_to_ptr(type);
 
-      var_add(params, ident, type, flag);
+      var_add(params, ident, type, flag, NULL);
       if (consume(TK_RPAR))
         break;
       if (consume(TK_COMMA))
@@ -1014,7 +1020,7 @@ static StructInfo *parse_struct(bool is_union) {
 
     if (!consume(TK_SEMICOL))
       parse_error(NULL, "`;' expected");
-    var_add(members, ident, type, flag);
+    var_add(members, ident, type, flag, NULL);
   }
 
   StructInfo *sinfo = malloc(sizeof(*sinfo));

@@ -69,6 +69,11 @@ int vaargs(int n, ...) {
   return acc;
 }
 
+int static_local(void) {
+  static int x = 42;
+  return ++x;
+}
+
 int main(void) {
   expect("zero", 0, 0);
   expect("decimal", 42, 42);
@@ -547,6 +552,7 @@ int main(void) {
   expect("vaargs 1", 1, vaargs(1, (int)1, (char)20, 300L));
   expect("vaargs 2", 21, vaargs(2, (int)1, (char)20, 300L));
   expect("vaargs 3", 321, vaargs(3, (int)1, (char)20, 300L));
+  expect("static local var", 44, (static_local(), static_local()));
 
   return 0;
 }

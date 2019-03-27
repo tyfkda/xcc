@@ -575,11 +575,20 @@ static Vector *parse_vardecl_cont(const Type *rawType, const Type *type, int fla
     first = false;
     not_void(type);
 
-    add_cur_scope(ident, type, flag);
+    if (flag & VF_STATIC) {
+      Initializer *init = NULL;
+      if (consume(TK_ASSIGN))
+        init = parse_initializer();
 
-    if (consume(TK_ASSIGN)) {
-      Initializer *initializer = parse_initializer();
-      inits = assign_initial_value(new_expr_varref(ident->u.ident, type, false), initializer, inits);
+      add_cur_scope(ident, type, flag, (flag & VF_STATIC) ? init : NULL);
+      if (init != NULL && !(flag & VF_STATIC))
+        inits = assign_initial_value(new_expr_varref(ident->u.ident, type, false), init, inits);
+    } else {
+      add_cur_scope(ident, type, flag, NULL);
+      if (consume(TK_ASSIGN)) {
+        Initializer *init = parse_initializer();
+        inits = assign_initial_value(new_expr_varref(ident->u.ident, type, false), init, inits);
+      }
     }
   } while (consume(TK_COMMA));
 
