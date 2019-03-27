@@ -795,7 +795,6 @@ static Initializer *check_global_initializer(Type *type, Initializer *init) {
       }
       if (value->type == EX_REF) {
         value = value->u.unary.sub;
-        // TODO: enable array reference.
         if (value->type != EX_VARREF)
           parse_error(NULL, "pointer initializer must be varref");
         if (!value->u.varref.global)
@@ -809,7 +808,19 @@ static Initializer *check_global_initializer(Type *type, Initializer *init) {
 
         return init;
       }
-      parse_error(NULL, "initializer type error: type=%d");
+      if (value->type == EX_VARREF) {
+        if (!value->u.varref.global)
+          parse_error(NULL, "Allowed global reference only");
+
+        VarInfo *info = find_global(value->u.varref.ident);
+        assert(info != NULL);
+
+        if (info->type->type != TY_ARRAY || !same_type(type->u.pa.ptrof, info->type->u.pa.ptrof))
+          parse_error(NULL, "Illegal type");
+
+        return init;
+      }
+      parse_error(NULL, "initializer type error: type=%d", value->type);
     }
     break;
   case TY_ARRAY:
