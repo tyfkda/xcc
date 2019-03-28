@@ -18,6 +18,8 @@ void expect(char *title, long expected, long actual) {
 
 int g_zero, g_work, g_123 = 123;
 
+void *null = (void*)0;
+
 struct {int x; int *p;} g_struct = { 42, &g_zero };
 
 static int s_val = 456;
@@ -553,6 +555,7 @@ int main(void) {
   expect("vaargs 2", 21, vaargs(2, (int)1, (char)20, 300L));
   expect("vaargs 3", 321, vaargs(3, (int)1, (char)20, 300L));
   expect("static local var", 44, (static_local(), static_local()));
+  expect("null initializer", 0L, (long)null);
 
   return 0;
 }

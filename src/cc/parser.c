@@ -580,6 +580,7 @@ static Vector *parse_vardecl_cont(const Type *rawType, const Type *type, int fla
       if (consume(TK_ASSIGN))
         init = parse_initializer();
 
+      // TODO: Check `init` can be cast to `type`.
       add_cur_scope(ident, type, flag, (flag & VF_STATIC) ? init : NULL);
       if (init != NULL && !(flag & VF_STATIC))
         inits = assign_initial_value(new_expr_varref(ident->u.ident, type, false), init, inits);
@@ -771,11 +772,10 @@ static Initializer *check_global_initializer(Type *type, Initializer *init) {
       case EX_INT:
       case EX_LONG:
         return init;
-        break;
       default:
+        parse_error(NULL, "initializer type error");
         break;
       }
-      parse_error(NULL, "initializer type error");
     }
     break;
   case TY_PTR:
@@ -788,37 +788,55 @@ static Initializer *check_global_initializer(Type *type, Initializer *init) {
         const Type *array_type = arrayof(type->u.pa.ptrof, value->u.str.size);
         define_global(array_type, VF_CONST | VF_STATIC, alloc_ident(label, NULL, NULL), init);
 
-        init = malloc(sizeof(*init));
-        init->type = vSingle;
-        init->u.single = new_expr_varref(label, array_type, true);
-        return init;
+        Initializer *init2 = malloc(sizeof(*init2));
+        init2->type = vSingle;
+        init2->u.single = new_expr_varref(label, array_type, true);
+        return init2;
       }
-      if (value->type == EX_REF) {
-        value = value->u.unary.sub;
-        if (value->type != EX_VARREF)
-          parse_error(NULL, "pointer initializer must be varref");
-        if (!value->u.varref.global)
-          parse_error(NULL, "Allowed global reference only");
+      switch (value->type) {
+      case EX_REF:
+        {
+          value = value->u.unary.sub;
+          if (value->type != EX_VARREF)
+            parse_error(NULL, "pointer initializer must be varref");
+          if (!value->u.varref.global)
+            parse_error(NULL, "Allowed global reference only");
 
-        VarInfo *info = find_global(value->u.varref.ident);
-        assert(info != NULL);
+          VarInfo *info = find_global(value->u.varref.ident);
+          assert(info != NULL);
 
-        if (!same_type(type->u.pa.ptrof, info->type))
-          parse_error(NULL, "Illegal type");
+          if (!same_type(type->u.pa.ptrof, info->type))
+            parse_error(NULL, "Illegal type");
 
-        return init;
-      }
-      if (value->type == EX_VARREF) {
-        if (!value->u.varref.global)
-          parse_error(NULL, "Allowed global reference only");
+          return init;
+        }
+      case EX_VARREF:
+        {
+          if (!value->u.varref.global)
+            parse_error(NULL, "Allowed global reference only");
 
-        VarInfo *info = find_global(value->u.varref.ident);
-        assert(info != NULL);
+          VarInfo *info = find_global(value->u.varref.ident);
+          assert(info != NULL);
 
-        if (info->type->type != TY_ARRAY || !same_type(type->u.pa.ptrof, info->type->u.pa.ptrof))
-          parse_error(NULL, "Illegal type");
+          if (info->type->type != TY_ARRAY || !same_type(type->u.pa.ptrof, info->type->u.pa.ptrof))
+            parse_error(NULL, "Illegal type");
 
-        return init;
+          return init;
+        }
+      case EX_CAST:
+        {  // Handle NULL assignment.
+          while (value->type == EX_CAST)
+            value = value->u.unary.sub;
+          if (is_number(value->valType->type)) {
+            Initializer *init2 = malloc(sizeof(*init2));
+            init2->type = vSingle;
+            init2->u.single = value;
+            return init2;
+          }
+        }
+        break;
+      default:
+        break;
       }
       parse_error(NULL, "initializer type error: type=%d", value->type);
     }

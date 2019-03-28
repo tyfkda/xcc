@@ -259,6 +259,7 @@ void construct_initial_value(unsigned char *buf, const Type *type, Initializer *
   case TY_SHORT:
   case TY_INT:
   case TY_LONG:
+  case TY_ENUM:
     {
       assert(init->type == vSingle);
       intptr_t value = init->u.single->u.value;
@@ -271,6 +272,8 @@ void construct_initial_value(unsigned char *buf, const Type *type, Initializer *
     {
       assert(init->type == vSingle);
       Expr *value = init->u.single;
+      while (value->type == EX_CAST)
+        value = value->u.unary.sub;
       if (value->type == EX_REF || value->type == EX_VARREF) {
         if (value->type == EX_REF)
           value = value->u.unary.sub;
@@ -286,6 +289,10 @@ void construct_initial_value(unsigned char *buf, const Type *type, Initializer *
         if (*pptrinits == NULL)
           *pptrinits = new_vector();
         vec_push(*pptrinits, init);
+      } else if (is_number(value->valType->type)) {
+        intptr_t x = value->u.value;
+        for (int i = 0; i < 8; ++i)
+          buf[i] = x >> (i * 8);  // Little endian
       } else {
         assert(!"initializer type error");
       }

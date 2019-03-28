@@ -112,7 +112,7 @@ void dump_type(FILE *fp, const Type *type) {
   }
 }
 
-static bool is_number(enum eType type) {
+bool is_number(enum eType type) {
   switch (type) {
   case TY_CHAR:
   case TY_SHORT:
