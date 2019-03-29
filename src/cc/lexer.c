@@ -124,6 +124,8 @@ static char backslash(char c) {
   case 'n':  return '\n';
   case 't':  return '\t';
   case 'r':  return '\r';
+  case 'f':  return '\f';
+  case 'v':  return '\v';
   default:   return c;
   }
 }
