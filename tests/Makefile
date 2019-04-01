@@ -45,4 +45,4 @@ util_test:	util_test.c $(SRC_DIR)/util.c
 	gcc -o $@ $(CFLAGS) $^
 
 valtest:	../examples/util.c valtest.c ../xcc
-	../xcc -o valtest ../examples/util.c valtest.c
+	../xcc -ovaltest ../examples/util.c valtest.c

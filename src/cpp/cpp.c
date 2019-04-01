@@ -163,6 +163,7 @@ const char *find_directive(const char *line) {
 
 Map *macro_map;  // <Macro*>
 
+Vector *sys_inc_paths;  // <const char*>
 Vector *pragma_once_files;  // <const char*>
 
 bool registered_pragma_once(const char *filename) {
@@ -182,12 +183,14 @@ void pp(FILE *fp, const char *filename);
 
 void handle_include(const char *p, const char *srcname) {
   char close;
+  bool sys = false;
   switch (*p++) {
   case '"':
     close = '"';
     break;
   case '<':
     close = '>';
+    sys = true;
     break;
   default:
     error("syntax error");
@@ -626,6 +629,7 @@ void pp(FILE *fp, const char *filename) {
 
 int main(int argc, char* argv[]) {
   macro_map = new_map();
+  sys_inc_paths = new_vector();
   pragma_once_files = new_vector();
 
   // Predefeined macros.
@@ -635,8 +639,17 @@ int main(int argc, char* argv[]) {
   map_put(macro_map, "__linux__", new_macro(NULL, false, NULL));
 #endif
 
-  if (argc > 1) {
-    for (int i = 1; i < argc; ++i) {
+  int i = 1;
+  for (; i < argc; ++i) {
+    if (*argv[i] != '-')
+      break;
+    if (strncmp(argv[i], "-I", 2) == 0) {
+      vec_push(sys_inc_paths, strdup_(argv[i] + 2));
+    }
+  }
+
+  if (i < argc) {
+    for (; i < argc; ++i) {
       const char *filename = argv[i];
       FILE *fp = fopen(filename, "rb");
       if (fp == NULL)

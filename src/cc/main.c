@@ -118,10 +118,10 @@ int main(int argc, char* argv[]) {
   int iarg;
 
   for (iarg = 1; iarg < argc; ++iarg) {
-    if (strcmp(argv[iarg], "-o") == 0 && iarg + 1 < argc)
-      ofn = argv[++iarg];
-    else
+    if (*argv[iarg] != '-')
       break;
+    if (strncmp(argv[iarg], "-o", 2) == 0)
+      ofn = strdup_(argv[iarg] + 2);
   }
 
   init_compiler(LOAD_ADDRESS);
@@ -136,9 +136,9 @@ int main(int argc, char* argv[]) {
   }
 
   if (argc > iarg) {
-    char **pp_argv = malloc(sizeof(char*) * (1 + argc - iarg + 1));
+    char **pp_argv = malloc(sizeof(char*) * argc);
     pp_argv[0] = cat_path(dirname(strdup_(argv[0])), "cpp");
-    memcpy(&pp_argv[1], &argv[iarg], sizeof(char*) * (argc - iarg + 1));
+    memcpy(&pp_argv[1], &argv[1], sizeof(char*) * argc);
     char **xcc_argv = argv;
     xcc_argv[iarg] = NULL;  // Destroy!
     return pipe_pp_xcc(pp_argv, xcc_argv) != 0;
