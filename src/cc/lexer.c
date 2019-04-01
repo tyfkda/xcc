@@ -271,6 +271,43 @@ char *read_ident(const char **pp) {
   return NULL;
 }
 
+static Token *read_string(const char **pp) {
+  const char *p = *pp;
+  const char *begin = p++;
+  size_t capa = 8, size = 0;
+  char *str = malloc(capa);
+  for (;;) {
+    for (char c; (c = *p) != '"'; ++p) {
+      if (c == '\0')
+        lex_error(p, "String not closed");
+      if (size + 1 >= capa) {
+        capa <<= 1;
+        str = realloc(str, capa);
+      }
+
+      if (c == '\\') {
+        c = *(++p);
+        if (c == '\0')
+          lex_error(p, "String not closed");
+        c = backslash(c);
+      }
+      str[size++] = c;
+    }
+
+    // Continue string literal when next character is '"'
+    p = skip_whitespace_or_comment(p + 1);
+    if (p == NULL || *p != '"')
+      break;
+    ++p;
+  }
+  str[size++] = '\0';
+  Token *tok = alloc_token(TK_STR, begin, p);
+  tok->u.str.buf = str;
+  tok->u.str.size = size;
+  *pp = p;
+  return tok;
+}
+
 static Token *get_token(void) {
   Token *tok = NULL;
   const char *p = lexer.p;
@@ -432,30 +469,7 @@ static Token *get_token(void) {
     }
 
     if (*p == '"') {
-      const char *begin = p++;
-      size_t capa = 8, size = 0;
-      char *str = malloc(capa);
-      for (char c; (c = *p) != '"'; ++p) {
-        if (c == '\0')
-          lex_error(p, "String not closed");
-        if (size + 1 >= capa) {
-          capa <<= 1;
-          str = realloc(str, capa);
-        }
-
-        if (c == '\\') {
-          c = *(++p);
-          if (c == '\0')
-            lex_error(p, "String not closed");
-          c = backslash(c);
-        }
-        str[size++] = c;
-      }
-      str[size++] = '\0';
-      ++p;
-      tok = alloc_token(TK_STR, begin, p);
-      tok->u.str.buf = str;
-      tok->u.str.size = size;
+      tok = read_string(&p);
       break;
     }
 
