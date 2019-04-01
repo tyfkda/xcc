@@ -101,6 +101,7 @@ try_direct 'for-var' 55 'int main(){ int acc = 0; for (int i = 1, len = 10; i <=
 try_direct 'args' 51 'int func(int x, ...) { return x; } int main(){ return func(51, 1, 2); }'
 try_output_direct 'global str-array init' 'StrArray' 'char g_str[] = "StrArray"; int main(){ write(1, g_str, sizeof(g_str) - 1); return 0; }'
 try_output_direct 'global str-ptr init' 'StrPtr' 'char *g_str = "StrPtr"; int main(){ write(1, g_str, 6); return 0; }'
+try_direct '(void)x;' 0 'void func(int x) { (void)x; } int main(){ func(123); return 0; }'
 
 # error cases
 echo ''
@@ -153,3 +154,4 @@ compile_error 'for-var scoped' 'int main(){ for (int i = 0; i < 5; ++i) ; return
 compile_error 'global poitner init with undefined' 'char *p = &x; void main(){}'
 compile_error 'global poitner init with other type' 'int x; char *p = &x; void main(){}'
 compile_error 'global array init (yet)' 'char array[] = {1, 2, 3}; void main(){}'
+compile_error 'use void' 'void func(){} int main(){ int a = (int)func(); return 0; }'

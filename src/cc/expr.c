@@ -281,7 +281,9 @@ bool can_cast(const Type *dst, const Type *src, Expr *src_expr, bool is_explicit
   if (same_type(dst, src))
     return true;
 
-  if (dst->type == TY_VOID || src->type == TY_VOID)
+  if (dst->type == TY_VOID)
+    return src->type == TY_VOID || is_explicit;
+  if (src->type == TY_VOID)
     return false;
 
   switch (dst->type) {
@@ -396,6 +398,13 @@ bool can_cast(const Type *dst, const Type *src, Expr *src_expr, bool is_explicit
   return false;
 }
 
+static bool check_cast(const Type *dst, const Type *src, Expr *src_expr, bool is_explicit) {
+  if (can_cast(dst, src, src_expr, is_explicit))
+    return true;
+  parse_error(NULL, "Cannot convert value from type %d to %d", src->type, dst->type);
+  return false;
+}
+
 Expr *new_expr_numlit(enum ExprType exprtype, intptr_t val) {
   const Type *type = NULL;
   switch (exprtype) {
@@ -452,11 +461,10 @@ Expr *new_expr_cast(const Type *type, Expr *sub, bool is_explicit) {
   if (type->type == TY_VOID || sub->valType->type == TY_VOID)
     parse_error(NULL, "cannot use `void' as a value");
 
-  if (!can_cast(type, sub->valType, sub, is_explicit))
-    parse_error(NULL, "Cannot convert value from type %d to %d", sub->valType->type, type->type);
-
   if (same_type(type, sub->valType))
     return sub;
+
+  check_cast(type, sub->valType, sub, is_explicit);
 
   Expr *expr = new_expr(EX_CAST, type);
   expr->u.cast.sub = sub;
@@ -1623,8 +1631,7 @@ Expr *analyze_expr(Expr *expr, bool keep_left) {
         Expr *sub = expr->u.unary.sub;
         if (same_type(expr->valType, sub->valType))
           return sub;
-        if (!can_cast(expr->valType, sub->valType, sub, true))
-          parse_error(NULL, "Cannot convert value from type %d to %d", sub->valType->type, expr->valType->type);
+        check_cast(expr->valType, sub->valType, sub, true);
       }
       break;
 

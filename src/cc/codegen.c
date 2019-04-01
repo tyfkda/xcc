@@ -111,6 +111,8 @@ static void cast(const enum eType ltype, const enum eType rtype) {
     return;
 
   switch (ltype) {
+  case TY_VOID:
+    return;
   case TY_CHAR:
     switch (rtype) {
     case TY_SHORT: return;
