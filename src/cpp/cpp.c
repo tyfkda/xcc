@@ -5,12 +5,105 @@
 #include "stdio.h"
 #include "stdlib.h"
 #include "string.h"
+#include "unistd.h"
 
 #include "../cc/expr.h"
 #include "../cc/lexer.h"
 #include "../cc/util.h"
 
 #define MAX(x, y)  ((x) >= (y) ? (x) : (y))
+
+char *abspath(const char *root, const char *path) {
+  //EXPECT_STREQ("Relative", "/user/foo/inc/stdio.h", abspath("/user/foo", "inc/stdio.h"));
+  //EXPECT_STREQ("Absolute", "/inc/stdio.h", abspath("/user/foo", "/inc/stdio.h"));
+  //EXPECT_STREQ("Current", "/user/foo/inc/stdio.h", abspath("/user/foo", "./inc/stdio.h"));
+  //EXPECT_STREQ("Parent", "/user/inc/stdio.h", abspath("/user/foo", "../inc/stdio.h"));
+  //EXPECT_STREQ("Dir", "/user/foo/bar/baz/", abspath("/user/foo", "bar/baz/"));
+  //EXPECT_STREQ("Redundant slash", "/user/foo/bar/baz", abspath("/user/foo", "bar//baz"));
+  //EXPECT_STREQ("Root 1", "/", abspath("/", "."));  //
+  //EXPECT_STREQ("Root 2", "/", abspath("/user/foo", "../.."));
+  //EXPECT_STREQ("Root 3", "/", abspath("/user/foo", "../../"));
+  //EXPECT_STR_NULL("Illegal", abspath("/user/foo", "../../.."));
+  //EXPECT_STREQ("Root end with '/'", "/user/foo/inc/stdio.h", abspath("/user/foo/", "inc/stdio.h"));
+  //EXPECT_STREQ("Not root", "user/foo/inc/stdio.h", abspath("user/foo", "inc/stdio.h"));
+
+  if (*path == '/')
+    return strdup_(path);
+
+  bool is_root = *root == '/';
+
+  Vector *dirs = new_vector();  // [start, end]
+  for (const char *p = root; *p != '\0'; ) {
+    if (*p == '/')
+      if (*(++p) == '\0')
+        break;
+    vec_push(dirs, p);
+    const char *q = strchr(p, '/');
+    if (q == NULL) {
+      vec_push(dirs, p + strlen(p));
+      break;
+    }
+    vec_push(dirs, q);
+    p = q;
+  }
+
+  for (const char *p = path; *p != '\0'; ) {
+    if (*p == '/') {
+      while (*p == '/')
+        ++p;
+      if (*p == '\0') {
+        // End with '/'.
+        vec_push(dirs, p);
+        vec_push(dirs, p);
+        break;
+      }
+    }
+    const char *q = strchr(p, '/');
+    if (q == NULL)
+      q = p + strlen(p);
+    size_t size = q - p;
+    if (size == 1 && strncmp(p, ".", size) == 0) {
+      // Skip
+    } else if (size == 2 && strncmp(p, "..", size) == 0) {
+      if (dirs->len < 2)
+        return NULL;  // Illegal
+      dirs->len -= 2;
+    } else {
+      vec_push(dirs, p);
+      vec_push(dirs, q);
+    }
+    p = q;
+  }
+
+  if (dirs->len == 0)
+    return strdup_("/");
+
+  size_t total_len = 1;  // 1 for NUL-terminate.
+  for (int i = 0; i < dirs->len; i += 2) {
+    if (i != 0 || is_root)
+      total_len += 1;
+    total_len += ((char*)dirs->data[i + 1] - (char*)dirs->data[i]);
+  }
+
+  char *buf = malloc(total_len);
+  char *p = buf;
+  for (int i = 0; i < dirs->len; i += 2) {
+    if (i != 0 || is_root)
+      *p++ = '/';
+    size_t size = (char*)dirs->data[i + 1] - (char*)dirs->data[i];
+    memcpy(p, dirs->data[i], size);
+    p += size;
+  }
+  *p = '\0';
+  return buf;
+}
+
+char *abspath_cwd(const char *dir, const char *path) {
+  char *cwd = getcwd(NULL, 0);
+  char *root = abspath(cwd, dir);
+  free(cwd);
+  return abspath(root, path);
+}
 
 enum SegmentType {
   ST_TEXT,
@@ -107,15 +200,31 @@ void handle_include(const char *p, const char *srcname) {
       error("not closed");
   }
 
-  char *fn = cat_path(dirname(strdup_(srcname)), strndup_(p, q - p));
+  char *path = strndup_(p, q - p);
+  char *fn = NULL;
+  FILE *fp = NULL;
+  // Search from current directory.
+  if (!sys) {
+    fn = abspath_cwd(dirname(strdup_(srcname)), path);
+    fp = fopen(fn, "r");
+  }
+  if (fp == NULL) {
+    // Search from system include directries.
+    for (int i = 0; i < sys_inc_paths->len; ++i) {
+      fn = abspath_cwd(sys_inc_paths->data[i], path);
+      fp = fopen(fn, "r");
+      if (fp != NULL)
+        break;
+    }
+    if (fp == NULL) {
+      error("Cannot open file: %s", path);
+      return;
+    }
+  }
 
-  // TODO: Get absolute path.
   if (registered_pragma_once(fn))
     return;
 
-  FILE *fp = fopen(fn, "r");
-  if (fp == NULL)
-    error("Cannot open file: %s", fn);
   printf("/* \"%s\" start */\n", fn);
   pp(fp, fn);
   printf("/* \"%s\" end */\n", fn);
@@ -125,7 +234,6 @@ void handle_include(const char *p, const char *srcname) {
 void handle_pragma(const char *p, const char *filename) {
   char *name = read_ident(&p);
   if (strcmp(name, "once") == 0) {
-    // TODO: Get absolute path.
     if (!registered_pragma_once(filename))
       register_pragma_once(filename);
   } else {
