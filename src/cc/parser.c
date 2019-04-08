@@ -320,7 +320,7 @@ static Node *parse_return(void) {
 
     if (rettype->type == TY_VOID)
       parse_error(tok, "void function `return' a value");
-    val = new_expr_cast(rettype, val, false);
+    val = new_expr_cast(rettype, tok, val, false);
   }
   return new_node_return(val);
 }
@@ -379,19 +379,21 @@ static Vector *clear_initial_value(Expr *expr, Vector *inits) {
   case TY_LONG:
   case TY_ENUM:
     vec_push(inits,
-             new_node_expr(new_expr_bop(EX_ASSIGN, expr->valType, expr,
-                                        new_expr_cast(expr->valType, new_expr_numlit(EX_INT, 0), true))));
+             new_node_expr(new_expr_bop(EX_ASSIGN, expr->valType, NULL, expr,
+                                        new_expr_cast(expr->valType, NULL, new_expr_numlit(EX_INT, NULL, 0), true))));
     break;
   case TY_PTR:
     vec_push(inits,
-             new_node_expr(new_expr_bop(EX_ASSIGN, expr->valType, expr,
-                                        new_expr_cast(expr->valType, new_expr_numlit(EX_LONG, 0), true))));  // intptr_t
+             new_node_expr(new_expr_bop(EX_ASSIGN, expr->valType, NULL, expr,
+                                        new_expr_cast(expr->valType, NULL, new_expr_numlit(EX_LONG, NULL, 0), true))));  // intptr_t
     break;
   case TY_ARRAY:
     {
       size_t arr_len = expr->valType->u.pa.length;
       for (size_t i = 0; i < arr_len; ++i)
-        clear_initial_value(new_expr_deref(add_expr(NULL, expr, new_expr_numlit(EX_INT, i), true)), inits);
+        clear_initial_value(new_expr_deref(NULL,
+                                           add_expr(NULL, expr, new_expr_numlit(EX_INT, NULL, i), true)),
+                            inits);
     }
     break;
   case TY_STRUCT:
@@ -400,7 +402,7 @@ static Vector *clear_initial_value(Expr *expr, Vector *inits) {
       assert(sinfo != NULL);
       for (int i = 0; i < sinfo->members->len; ++i) {
         VarInfo* varinfo = sinfo->members->data[i];
-        Expr *member = new_expr_member(varinfo->type, expr, NULL, NULL, i);
+        Expr *member = new_expr_member(NULL, varinfo->type, expr, NULL, NULL, i);
         clear_initial_value(member, inits);
       }
     }
@@ -430,19 +432,19 @@ static void string_initializer(Expr *dst, Expr *src, Vector *inits) {
   }
 
   for (size_t i = 0; i < size; ++i) {
-    Expr *index = new_expr_numlit(EX_INT, i);
+    Expr *index = new_expr_numlit(EX_INT, NULL, i);
     vec_push(inits,
-             new_node_expr(new_expr_bop(EX_ASSIGN, &tyChar,
-                                        new_expr_deref(add_expr(NULL, dst, index, true)),
-                                        new_expr_deref(add_expr(NULL, src, index, true)))));
+             new_node_expr(new_expr_bop(EX_ASSIGN, &tyChar, NULL,
+                                        new_expr_deref(NULL, add_expr(NULL, dst, index, true)),
+                                        new_expr_deref(NULL, add_expr(NULL, src, index, true)))));
   }
   if (dstsize > size) {
-    Expr *zero = new_expr_numlit(EX_CHAR, 0);
+    Expr *zero = new_expr_numlit(EX_CHAR, NULL, 0);
     for (size_t i = size; i < dstsize; ++i) {
-      Expr *index = new_expr_numlit(EX_INT, i);
+      Expr *index = new_expr_numlit(EX_INT, NULL, i);
       vec_push(inits,
-               new_node_expr(new_expr_bop(EX_ASSIGN, &tyChar,
-                                          new_expr_deref(add_expr(NULL, dst, index, true)),
+               new_node_expr(new_expr_bop(EX_ASSIGN, &tyChar, NULL,
+                                          new_expr_deref(NULL, add_expr(NULL, dst, index, true)),
                                           zero)));
     }
   }
@@ -474,12 +476,12 @@ static Vector *assign_initial_value(Expr *expr, Initializer *init, Vector *inits
       }
       int len = init->u.multi->len;
       for (int i = 0; i < len; ++i) {
-        assign_initial_value(new_expr_deref(add_expr(NULL, expr, new_expr_numlit(EX_INT, i), true)),
+        assign_initial_value(new_expr_deref(NULL, add_expr(NULL, expr, new_expr_numlit(EX_INT, NULL, i), true)),
                              init->u.multi->data[i], inits);
       }
       // Clear left.
       for (size_t i = len; i < arr_len; ++i)
-        clear_initial_value(new_expr_deref(add_expr(NULL, expr, new_expr_numlit(EX_INT, i), true)), inits);
+        clear_initial_value(new_expr_deref(NULL, add_expr(NULL, expr, new_expr_numlit(EX_INT, NULL, i), true)), inits);
     }
     break;
   case TY_STRUCT:
@@ -517,7 +519,7 @@ static Vector *assign_initial_value(Expr *expr, Initializer *init, Vector *inits
       }
       for (int i = 0; i < n; ++i) {
         VarInfo* varinfo = sinfo->members->data[i];
-        Expr *member = new_expr_member(varinfo->type, expr, NULL, NULL, i);
+        Expr *member = new_expr_member(NULL, varinfo->type, expr, NULL, NULL, i);
         if (values[i] != NULL)
           assign_initial_value(member, values[i], inits);
         else
@@ -547,7 +549,7 @@ static Vector *assign_initial_value(Expr *expr, Initializer *init, Vector *inits
         value = value->u.dot.value;
       }
       VarInfo* varinfo = sinfo->members->data[dst];
-      Expr *member = new_expr_member(varinfo->type, expr, NULL, NULL, dst);
+      Expr *member = new_expr_member(NULL, varinfo->type, expr, NULL, NULL, dst);
       assign_initial_value(member, value, inits);
     }
     break;
@@ -555,7 +557,8 @@ static Vector *assign_initial_value(Expr *expr, Initializer *init, Vector *inits
     if (init->type != vSingle)
       parse_error(NULL, "Error initializer");
     vec_push(inits,
-             new_node_expr(new_expr_bop(EX_ASSIGN, expr->valType, expr, new_expr_cast(expr->valType, init->u.single, false))));
+             new_node_expr(new_expr_bop(EX_ASSIGN, expr->valType, NULL, expr,
+                                        new_expr_cast(expr->valType, NULL, init->u.single, false))));
     break;
   }
 
@@ -583,12 +586,12 @@ static Vector *parse_vardecl_cont(const Type *rawType, const Type *type, int fla
       // TODO: Check `init` can be cast to `type`.
       add_cur_scope(ident, type, flag, (flag & VF_STATIC) ? init : NULL);
       if (init != NULL && !(flag & VF_STATIC))
-        inits = assign_initial_value(new_expr_varref(ident->u.ident, type, false), init, inits);
+        inits = assign_initial_value(new_expr_varref(ident->u.ident, type, false, NULL), init, inits);
     } else {
       add_cur_scope(ident, type, flag, NULL);
       if (consume(TK_ASSIGN)) {
         Initializer *init = parse_initializer();
-        inits = assign_initial_value(new_expr_varref(ident->u.ident, type, false), init, inits);
+        inits = assign_initial_value(new_expr_varref(ident->u.ident, type, false, NULL), init, inits);
       }
     }
   } while (consume(TK_COMMA));
@@ -790,7 +793,7 @@ static Initializer *check_global_initializer(Type *type, Initializer *init) {
 
         Initializer *init2 = malloc(sizeof(*init2));
         init2->type = vSingle;
-        init2->u.single = new_expr_varref(label, array_type, true);
+        init2->u.single = new_expr_varref(label, array_type, true, NULL);
         return init2;
       }
       switch (value->type) {
@@ -889,9 +892,10 @@ static Node *define_global_var(const Type *rawtype, int flag, const Type *type, 
 
     type = parse_type_suffix(type);
     Initializer *initializer = NULL;
-    if (consume(TK_ASSIGN)) {
+    const Token *tok;
+    if ((tok = consume(TK_ASSIGN)) != NULL) {
       if (flag & VF_EXTERN)
-        parse_error(NULL, "extern with initializer");
+        parse_error(tok, "extern with initializer");
       initializer = parse_initializer();
       initializer = check_global_initializer((Type*)type, initializer);
     }

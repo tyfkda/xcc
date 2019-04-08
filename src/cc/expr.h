@@ -183,6 +183,7 @@ enum ExprType {
 typedef struct Expr {
   enum ExprType type;
   const Type *valType;
+  const Token *token;
   union {
     intptr_t value;
     struct {
@@ -316,16 +317,16 @@ const Type *parse_type_modifier(const Type* type);
 const Type *parse_type_suffix(const Type *type);
 const Type *parse_full_type(int *pflag, Token **pident);
 
-Expr *new_expr_numlit(enum ExprType exprtype, intptr_t val);
-Expr *new_expr_bop(enum ExprType type, const Type *expType, Expr *lhs, Expr *rhs);
-Expr *new_expr_deref(Expr *sub);
-Expr *add_expr(Token *tok, Expr *lhs, Expr *rhs, bool keep_left);
-Expr *new_expr_varref(const char *name, const Type *type, bool global);
-Expr *new_expr_member(const Type *valType, Expr *target, const Token *acctok, const Token *ident, int index);
+Expr *new_expr_numlit(enum ExprType exprtype, const Token *token, intptr_t val);
+Expr *new_expr_bop(enum ExprType type, const Type *valType, const Token *token, Expr *lhs, Expr *rhs);
+Expr *new_expr_deref(const Token *token, Expr *sub);
+Expr *add_expr(const Token *tok, Expr *lhs, Expr *rhs, bool keep_left);
+Expr *new_expr_varref(const char *name, const Type *type, bool global, const Token *token);
+Expr *new_expr_member(const Token *token, const Type *valType, Expr *target, const Token *acctok, const Token *ident, int index);
 Vector *funparams(bool *pvaargs);
 bool parse_var_def(const Type **prawType, const Type** ptype, int *pflag, Token **pident);
 Expr *parse_const(void);
 Expr *parse_assign(void);
 Expr *parse_expr(void);
 Expr *analyze_expr(Expr *expr, bool keep_left);
-Expr *new_expr_cast(const Type *type, Expr *sub, bool is_explicit);
+Expr *new_expr_cast(const Type *type, const Token *token, Expr *sub, bool is_explicit);

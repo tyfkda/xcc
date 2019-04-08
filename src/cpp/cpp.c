@@ -503,7 +503,7 @@ intptr_t reduce(Expr *expr) {
 bool handle_if(const char *p, const char *filename, int lineno) {
   init_lexer_string(p, filename, lineno);
   Expr *expr = parse_expr();
- return reduce(expr) != 0;
+  return reduce(expr) != 0;
 }
 
 #define CF_ENABLE         (1 << 0)
