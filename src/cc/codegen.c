@@ -438,11 +438,22 @@ static void put_bss(void) {
 
 // Resolve label locations.
 static void resolve_label_locations(void) {
+  Vector *unsolved_labels = NULL;
   for (int i = 0; i < loc_vector->len; ++i) {
     LocInfo *loc = loc_vector->data[i];
     void *val = map_get(label_map, loc->label);
     if (val == NULL) {
-      error("Cannot find label: `%s'", loc->label);
+      if (unsolved_labels == NULL)
+        unsolved_labels = new_vector();
+      bool found = false;
+      for (int j = 0; j < unsolved_labels->len; ++j) {
+        if (strcmp(unsolved_labels->data[j], loc->label) == 0) {
+          found = true;
+          break;
+        }
+      }
+      if (!found)
+        vec_push(unsolved_labels, loc->label);
       continue;
     }
 
@@ -471,6 +482,13 @@ static void resolve_label_locations(void) {
       assert(false);
       break;
     }
+  }
+
+  if (unsolved_labels != NULL) {
+    fprintf(stderr, "Link error:\n");
+    for (int i = 0; i < unsolved_labels->len; ++i)
+      fprintf(stderr, "  Cannot find label `%s'\n", (char*)unsolved_labels->data[i]);
+    exit(1);
   }
 }
 
