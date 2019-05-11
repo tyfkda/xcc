@@ -551,29 +551,36 @@ static Expr *diff_ptr(const Token *tok, Expr *lhs, Expr *rhs) {
 }
 
 Expr *add_expr(const Token *tok, Expr *lhs, Expr *rhs, bool keep_left) {
-  if (is_number(lhs->valType->type) && same_type(lhs->valType, rhs->valType))
-    return new_expr_bop(EX_ADD, lhs->valType, tok, lhs, rhs);
+  const Type *ltype = lhs->valType;
+  const Type *rtype = rhs->valType;
+  if (ltype->type == TY_ENUM)
+    ltype = &tyInt;
+  if (rtype->type == TY_ENUM)
+    rtype = &tyInt;
 
-  switch (lhs->valType->type) {
+  if (is_number(ltype->type) && same_type(ltype, rtype))
+    return new_expr_bop(EX_ADD, ltype, tok, lhs, rhs);
+
+  switch (ltype->type) {
   case TY_CHAR:
-    switch (rhs->valType->type) {
+    switch (rtype->type) {
     case TY_SHORT: case TY_INT: case TY_LONG:
       if (!keep_left)
-        return new_expr_bop(EX_ADD, rhs->valType, tok, new_expr_cast(rhs->valType, tok, lhs, false), rhs);
-      return new_expr_bop(EX_ADD, lhs->valType, tok, lhs, new_expr_cast(lhs->valType, tok, rhs, false));
+        return new_expr_bop(EX_ADD, rtype, tok, new_expr_cast(rtype, tok, lhs, false), rhs);
+      return new_expr_bop(EX_ADD, ltype, tok, lhs, new_expr_cast(ltype, tok, rhs, false));
     default:
       break;
     }
     break;
 
   case TY_SHORT:
-    switch (rhs->valType->type) {
+    switch (rtype->type) {
     case TY_INT: case TY_LONG:
       if (!keep_left)
-        return new_expr_bop(EX_ADD, rhs->valType, tok, new_expr_cast(rhs->valType, tok, lhs, false), rhs);
+        return new_expr_bop(EX_ADD, rtype, tok, new_expr_cast(rtype, tok, lhs, false), rhs);
       // Fallthrough
     case TY_CHAR:
-      return new_expr_bop(EX_ADD, lhs->valType, tok, lhs, new_expr_cast(lhs->valType, tok, rhs, false));
+      return new_expr_bop(EX_ADD, ltype, tok, lhs, new_expr_cast(ltype, tok, rhs, false));
     case TY_PTR: case TY_ARRAY:
       if (!keep_left)
         return add_ptr_num(EX_ADD, tok, rhs, lhs);
@@ -584,13 +591,13 @@ Expr *add_expr(const Token *tok, Expr *lhs, Expr *rhs, bool keep_left) {
     break;
 
   case TY_INT:
-    switch (rhs->valType->type) {
+    switch (rtype->type) {
     case TY_LONG:
       if (!keep_left)
-        return new_expr_bop(EX_ADD, rhs->valType, tok, new_expr_cast(rhs->valType, tok, lhs, false), rhs);
+        return new_expr_bop(EX_ADD, rtype, tok, new_expr_cast(rtype, tok, lhs, false), rhs);
       // Fallthrough
     case TY_CHAR: case TY_SHORT:
-      return new_expr_bop(EX_ADD, lhs->valType, tok, lhs, new_expr_cast(lhs->valType, tok, rhs, false));
+      return new_expr_bop(EX_ADD, ltype, tok, lhs, new_expr_cast(ltype, tok, rhs, false));
     case TY_PTR: case TY_ARRAY:
       if (!keep_left)
         return add_ptr_num(EX_ADD, tok, rhs, lhs);
@@ -601,8 +608,8 @@ Expr *add_expr(const Token *tok, Expr *lhs, Expr *rhs, bool keep_left) {
     break;
 
   case TY_LONG:
-    switch (rhs->valType->type) {
-    case TY_CHAR: case TY_SHORT: case TY_INT:
+    switch (rtype->type) {
+    case TY_CHAR: case TY_SHORT: case TY_INT: case TY_ENUM:
       return new_expr_bop(EX_ADD, lhs->valType, tok, lhs, new_expr_cast(lhs->valType, tok, rhs, false));
     case TY_PTR: case TY_ARRAY:
       if (!keep_left)
@@ -614,8 +621,8 @@ Expr *add_expr(const Token *tok, Expr *lhs, Expr *rhs, bool keep_left) {
     break;
 
   case TY_PTR: case TY_ARRAY:
-    switch (rhs->valType->type) {
-    case TY_CHAR: case TY_SHORT: case TY_INT: case TY_LONG:
+    switch (rtype->type) {
+    case TY_CHAR: case TY_SHORT: case TY_INT: case TY_LONG: case TY_ENUM:
       return add_ptr_num(EX_ADD, tok, lhs, rhs);
     default:
       break;
@@ -781,7 +788,9 @@ static const Type *parse_enum(void) {
         (void)typeIdent;  // TODO: Define enum type with name.
         Initializer *init = malloc(sizeof(*init));
         init->type = vSingle;
-        init->u.single = new_expr_numlit(EX_INT, numtok, value);
+        //init->u.single = new_expr_numlit(EX_INT, numtok, value);
+        init->u.single = new_expr(EX_INT, &tyEnum, numtok);
+        init->u.single->u.value = value;
         define_global(&tyEnum, VF_CONST, ident, init);
         ++value;
 
