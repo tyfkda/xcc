@@ -338,6 +338,12 @@ static Token *get_token(void) {
         break;
       }
       if (p[1] == '<') {
+        if (p[2] == '=') {
+          tok = alloc_token(TK_LSHIFT_ASSIGN, p, p + 3);
+          p += 3;
+          break;
+        }
+
         tok = alloc_token(TK_LSHIFT, p, p + 2);
         p += 2;
         break;
@@ -351,6 +357,12 @@ static Token *get_token(void) {
         break;
       }
       if (p[1] == '>') {
+        if (p[2] == '=') {
+          tok = alloc_token(TK_RSHIFT_ASSIGN, p, p + 3);
+          p += 3;
+          break;
+        }
+
         tok = alloc_token(TK_RSHIFT, p, p + 2);
         p += 2;
         break;

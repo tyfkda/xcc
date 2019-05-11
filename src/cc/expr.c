@@ -1411,6 +1411,10 @@ Expr *parse_assign(void) {
     t = EX_DIV;
   else if ((tok = consume(TK_MOD_ASSIGN)) != NULL)
     t = EX_MOD;
+  else if ((tok = consume(TK_LSHIFT_ASSIGN)) != NULL)
+    t = EX_LSHIFT;
+  else if ((tok = consume(TK_RSHIFT_ASSIGN)) != NULL)
+    t = EX_RSHIFT;
   else
     return expr;
 

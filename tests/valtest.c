@@ -178,6 +178,16 @@ int main(void) {
     x %= 3;
     expect("%=", 1, x);
   }
+  {
+    int x = 0x12;
+    x <<= 4;
+    expect("<<=", 0x120, x);
+  }
+  {
+    int x = 0x123;
+    x >>= 8;
+    expect(">>=", 0x1, x);
+  }
   expect("funcall", 23, foo() - 100);
   expect("func var", 9, sqsub(5, 4));
   {
