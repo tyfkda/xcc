@@ -578,9 +578,12 @@ static void gen_cond_jmp(Expr *cond, bool tf, const char *label) {
   gen_expr(cond);
 
   switch (cond->valType->type) {
-  case TY_CHAR: CMP_IM8_AL(0); break;
-  case TY_INT:  CMP_IM8_EAX(0); break;
-  case TY_PTR:  CMP_IM8_RAX(0); break;
+  case TY_CHAR:  CMP_IM8_AL(0); break;
+  case TY_SHORT: CMP_IM8_AX(0); break;
+  case TY_INT:   CMP_IM8_EAX(0); break;
+  case TY_LONG: case TY_PTR:
+    CMP_IM8_RAX(0);
+    break;
   default: assert(false); break;
   }
 

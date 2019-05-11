@@ -163,18 +163,10 @@ static Node *parse_case(Token *tok) {
 
   tok = fetch_token();
   Expr *valnode = analyze_expr(parse_const(), false);
-  intptr_t value;
-  switch (valnode->type) {  // TODO: Accept const expression.
-  case EX_CHAR:
-  case EX_SHORT:
-  case EX_INT:
-  case EX_LONG:
-    value = valnode->u.value;
-    break;
-  default:
+  if (!is_const(valnode))
     parse_error(tok, "Cannot use expression");
-    break;
-  }
+  intptr_t value = valnode->u.value;
+
   if (!consume(TK_COLON))
     parse_error(NULL, "`:' expected");
 

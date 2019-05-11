@@ -406,6 +406,21 @@ static bool check_cast(const Type *dst, const Type *src, Expr *src_expr, bool is
   return false;
 }
 
+bool is_const(Expr *expr) {
+  // TODO: Handle constant variable.
+
+  switch (expr->type) {
+  case EX_CHAR:
+  case EX_SHORT:
+  case EX_INT:
+  case EX_LONG:
+  case EX_STR:
+    return true;
+  default:
+    return false;
+  }
+}
+
 Expr *new_expr_numlit(enum ExprType exprtype, const Token *token, intptr_t val) {
   const Type *type = NULL;
   switch (exprtype) {
@@ -771,18 +786,11 @@ static const Type *parse_enum(void) {
           parse_error(NULL, "ident expected");
         if (consume(TK_ASSIGN)) {
           numtok = fetch_token();
-          Expr *expr = parse_const();
-          switch (expr->type) {  // TODO: Accept constexpr.
-          case  EX_CHAR:
-          case  EX_SHORT:
-          case  EX_INT:
-          case  EX_LONG:
-            value = expr->u.value;
-            break;
-          default:
+          Expr *expr = analyze_expr(parse_const(), false);
+          if (!is_const(expr)) {
             parse_error(numtok, "const expected for enum");
-            break;
           }
+          value = expr->u.value;
         }
         // Define
         (void)typeIdent;  // TODO: Define enum type with name.
@@ -917,8 +925,8 @@ const Type *parse_type_suffix(const Type *type) {
     // Arbitrary size.
   } else {
     const Token *tok = fetch_token();
-    Expr *expr = parse_const();
-    if (expr->type != EX_INT)  // TODO: Constant expression.
+    Expr *expr = analyze_expr(parse_const(), false);
+    if (!is_const(expr))
       parse_error(NULL, "syntax error");
     if (expr->u.value <= 0)
       parse_error(tok, "Array size must be greater than 0, but %d", (int)expr->u.value);
@@ -1547,6 +1555,14 @@ Expr *analyze_expr(Expr *expr, bool keep_left) {
         if (!is_number(t = expr->u.bop.lhs->valType->type) ||
             !is_number(t = expr->u.bop.rhs->valType->type))
           parse_error(expr->token, "Cannot use `%d' except numbers.", t);
+
+        if (is_const(expr->u.bop.lhs) && is_const(expr->u.bop.rhs)) {
+          intptr_t lval = expr->u.bop.lhs->u.value;
+          intptr_t rval = expr->u.bop.rhs->u.value;
+          intptr_t value = expr->type == EX_LSHIFT ? lval << rval : lval >> rval;
+          return new_expr_numlit(expr->u.bop.lhs->type, expr->u.bop.lhs->token, value);
+        }
+
         expr->valType = expr->u.bop.lhs->valType;
       }
       break;

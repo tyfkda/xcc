@@ -116,6 +116,7 @@
 #define CMP_RDI_RAX()    ADD_CODE(0x48, 0x39, 0xf8)  // cmp %rdi,%rax
 #define CMP_IM8_AL(x)    ADD_CODE(0x3c, x)  // cmp $x,%al
 #define CMP_IM8_DIL(x)   ADD_CODE(0x40, 0x80, 0xff, x)  // cmp $x,%dil
+#define CMP_IM8_AX(x)    ADD_CODE(0x66, 0x83, 0xf8, x)  // cmp $x,%ax
 #define CMP_IM8_EAX(x)   ADD_CODE(0x83, 0xf8, x)  // cmp $x,%eax
 #define CMP_IM8_EDI(x)   ADD_CODE(0x83, 0xff, x)  // cmp $x,%edi
 #define CMP_IM8_RAX(x)   ADD_CODE(0x48, 0x83, 0xf8, x)  // cmp $x,%rax

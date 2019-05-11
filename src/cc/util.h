@@ -10,7 +10,7 @@ char *alloc_label(void);
 char *cat_path(const char *base_dir, const char *rel_path);
 ssize_t getline_(char **lineptr, size_t *n, FILE *stream, size_t start);
 
-void error(const char* fmt, ...) __attribute((noreturn));
+void error(const char* fmt, ...) /*__attribute((noreturn))*/;
 
 // Container
 

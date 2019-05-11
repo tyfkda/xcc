@@ -330,3 +330,4 @@ Expr *parse_assign(void);
 Expr *parse_expr(void);
 Expr *analyze_expr(Expr *expr, bool keep_left);
 Expr *new_expr_cast(const Type *type, const Token *token, Expr *sub, bool is_explicit);
+bool is_const(Expr *expr);

@@ -138,7 +138,7 @@ Macro *new_macro_single(const char *text) {
   seg->type = ST_TEXT;
   seg->u.text = text;
   vec_push(segments, seg);
-  return new_macro(NULL, NULL, segments);
+  return new_macro(NULL, false, segments);
 }
 
 const char *skip_whitespaces(const char *s) {
@@ -525,7 +525,8 @@ void pp(FILE *fp, const char *filename) {
   Vector *condstack = new_vector();
   bool enable = true;
   int satisfy = 0;  // #if condition: 0=not satisfied, 1=satisfied, 2=else
-  char linenobuf[sizeof(int) * 3 + 1];  // Buffer for __LINE__
+  //char linenobuf[sizeof(int) * 3 + 1];  // Buffer for __LINE__
+  char linenobuf[32];  // Buffer for __LINE__
 
   Macro *old_file_macro = map_get(macro_map, "__FILE__");
   Macro *old_line_macro = map_get(macro_map, "__LINE__");

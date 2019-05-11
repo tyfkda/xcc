@@ -18,7 +18,8 @@ char *strndup_(const char *str, size_t size) {
 char *alloc_label(void) {
   static int label_no;
   ++label_no;
-  char buf[sizeof(int) * 3 + 1];
+  //char buf[sizeof(int) * 3 + 1];
+  char buf[32];
   snprintf(buf, sizeof(buf), ".L%d", label_no);
   return strdup_(buf);
 }
