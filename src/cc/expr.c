@@ -1411,6 +1411,12 @@ Expr *parse_assign(void) {
     t = EX_DIV;
   else if ((tok = consume(TK_MOD_ASSIGN)) != NULL)
     t = EX_MOD;
+  else if ((tok = consume(TK_AND_ASSIGN)) != NULL)
+    t = EX_BITAND;
+  else if ((tok = consume(TK_OR_ASSIGN)) != NULL)
+    t = EX_BITOR;
+  else if ((tok = consume(TK_HAT_ASSIGN)) != NULL)
+    t = EX_BITXOR;
   else if ((tok = consume(TK_LSHIFT_ASSIGN)) != NULL)
     t = EX_LSHIFT;
   else if ((tok = consume(TK_RSHIFT_ASSIGN)) != NULL)

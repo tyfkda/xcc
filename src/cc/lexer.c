@@ -418,15 +418,35 @@ static Token *get_token(void) {
       break;
     }
 
-    if (*p == '&' && p[1] == '&') {
-      tok = alloc_token(TK_LOGAND, p, p + 2);
-      p += 2;
-      break;
+    if (*p == '&') {
+      if (p[1] == '&') {
+        tok = alloc_token(TK_LOGAND, p, p + 2);
+        p += 2;
+        break;
+      }
+      if (p[1] == '=') {
+        tok = alloc_token(TK_AND_ASSIGN, p, p + 2);
+        p += 2;
+        break;
+      }
     }
 
     if (*p == '|') {
       if (p[1] == '|') {
         tok = alloc_token(TK_LOGIOR, p, p + 2);
+        p += 2;
+        break;
+      }
+      if (p[1] == '=') {
+        tok = alloc_token(TK_OR_ASSIGN, p, p + 2);
+        p += 2;
+        break;
+      }
+    }
+
+    if (*p == '^') {
+      if (p[1] == '=') {
+        tok = alloc_token(TK_HAT_ASSIGN, p, p + 2);
         p += 2;
         break;
       }

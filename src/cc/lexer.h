@@ -59,6 +59,9 @@ enum TokenType {
   TK_MUL_ASSIGN,  // *=
   TK_DIV_ASSIGN,  // /=
   TK_MOD_ASSIGN,  // %=
+  TK_AND_ASSIGN,  // &=
+  TK_OR_ASSIGN,  // |=
+  TK_HAT_ASSIGN,  // ^=
   TK_LSHIFT_ASSIGN,  // <<=
   TK_RSHIFT_ASSIGN,  // >>=
   TK_INC,

@@ -188,6 +188,21 @@ int main(void) {
     x >>= 8;
     expect(">>=", 0x1, x);
   }
+  {
+    int x = 0x123;
+    x &= 0xa5;
+    expect("&=", 0x21, x);
+  }
+  {
+    int x = 0x123;
+    x |= 0xa5;
+    expect("|=", 0x1a7, x);
+  }
+  {
+    int x = 0x123;
+    x ^= 0xa5;
+    expect("^=", 0x186, x);
+  }
   expect("funcall", 23, foo() - 100);
   expect("func var", 9, sqsub(5, 4));
   {
