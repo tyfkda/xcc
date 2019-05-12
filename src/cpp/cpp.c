@@ -194,7 +194,7 @@ void handle_include(const char *p, const char *srcname) {
     break;
   default:
     error("syntax error");
-    break;
+    return;
   }
 
   const char *q;

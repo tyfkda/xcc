@@ -36,6 +36,7 @@ static int type_size(const Type *type) {
   case TY_FUNC:
     return 8;
   case TY_ARRAY:
+    assert(type->u.pa.length != (size_t)-1);
     return type_size(type->u.pa.ptrof) * type->u.pa.length;
   case TY_STRUCT:
   case TY_UNION:
@@ -303,7 +304,15 @@ void construct_initial_value(unsigned char *buf, const Type *type, Initializer *
   case TY_ARRAY:
     switch (init->type) {
     case vMulti:
-      assert(!"Global initial value for array not implemented (yet)\n");
+      {
+        const Type *elem_type = type->u.pa.ptrof;
+        int elem_size = type_size(elem_type);
+        Vector *init_array = init->u.multi;
+        memset(buf, 0, type_size(type));
+        for (int i = 0, len = init_array->len; i < len; ++i) {
+          construct_initial_value(buf + (i * elem_size), elem_type, init_array->data[i], pptrinits);
+        }
+      }
       break;
     case vSingle:
       if (type->u.pa.ptrof->type == TY_CHAR && init->u.single->type == EX_STR) {

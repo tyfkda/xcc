@@ -233,7 +233,7 @@ static Node *parse_do_while(void) {
   return NULL;
 }
 
-static Vector *parse_vardecl_cont(const Type *rawType, const Type *type, int flag, Token *ident);
+static Vector *parse_vardecl_cont(const Type *rawType, Type *type, int flag, Token *ident);
 static Node *parse_for(void) {
   Scope *scope = NULL;
   if (consume(TK_LPAR)) {
@@ -245,10 +245,10 @@ static Node *parse_for(void) {
       nopre = true;
     } else {
       const Type *rawType = NULL;
-      const Type *type;
+      Type *type;
       int flag;
       Token *ident;
-      if (parse_var_def(&rawType, &type, &flag, &ident)) {
+      if (parse_var_def(&rawType, (const Type**)&type, &flag, &ident)) {
         if (ident == NULL)
           parse_error(NULL, "Ident expected");
         scope = enter_scope(curfunc, NULL);
@@ -444,6 +444,28 @@ static void string_initializer(Expr *dst, Expr *src, Vector *inits) {
   }
 }
 
+static void fix_array_size(Type *type, Initializer *init) {
+  if (type->type != TY_ARRAY)
+    return;
+
+  bool is_str = false;
+  if (init->type != vMulti &&
+      !(type->u.pa.ptrof->type == TY_CHAR &&
+        init->type == vSingle &&
+        can_cast(type, init->u.single->valType, init->u.single, false) &&
+        (is_str = true))) {
+    parse_error(NULL, "Error initializer");
+  }
+
+  size_t arr_len = type->u.pa.length;
+  if (arr_len == (size_t)-1) {
+    type->u.pa.length = is_str ? init->u.single->u.str.size : (size_t)init->u.multi->len;
+  } else {
+    if ((size_t)init->u.multi->len > arr_len)
+      parse_error(NULL, "Initializer more than array size");
+  }
+}
+
 static Vector *assign_initial_value(Expr *expr, Initializer *init, Vector *inits) {
   if (inits == NULL)
     inits = new_vector();
@@ -462,12 +484,9 @@ static Vector *assign_initial_value(Expr *expr, Initializer *init, Vector *inits
       if (init->type != vMulti)
         parse_error(NULL, "Error initializer");
       size_t arr_len = expr->valType->u.pa.length;
-      if (arr_len == (size_t)-1) {
-        ((Type*)expr->valType)->u.pa.length = arr_len = init->u.multi->len;
-      } else {
-        if ((size_t)init->u.multi->len > arr_len)
-          parse_error(NULL, "Initializer more than array size");
-      }
+      assert(arr_len != (size_t)-1);
+      if ((size_t)init->u.multi->len > arr_len)
+        parse_error(NULL, "Initializer more than array size");
       int len = init->u.multi->len;
       for (int i = 0; i < len; ++i) {
         assign_initial_value(new_expr_deref(NULL, add_expr(NULL, expr, new_expr_numlit(EX_INT, NULL, i), true)),
@@ -559,12 +578,12 @@ static Vector *assign_initial_value(Expr *expr, Initializer *init, Vector *inits
   return inits;
 }
 
-static Vector *parse_vardecl_cont(const Type *rawType, const Type *type, int flag, Token *ident) {
+static Vector *parse_vardecl_cont(const Type *rawType, Type *type, int flag, Token *ident) {
   Vector *inits = NULL;
   bool first = true;
   do {
     if (!first) {
-      if (!parse_var_def(&rawType, &type, &flag, &ident) || ident == NULL) {
+      if (!parse_var_def(&rawType, (const Type**)&type, &flag, &ident) || ident == NULL) {
         parse_error(NULL, "`ident' expected");
         return NULL;
       }
@@ -574,8 +593,10 @@ static Vector *parse_vardecl_cont(const Type *rawType, const Type *type, int fla
 
     if (flag & VF_STATIC) {
       Initializer *init = NULL;
-      if (consume(TK_ASSIGN))
+      if (consume(TK_ASSIGN)) {
         init = parse_initializer();
+        fix_array_size(type, init);
+      }
 
       // TODO: Check `init` can be cast to `type`.
       add_cur_scope(ident, type, flag, (flag & VF_STATIC) ? init : NULL);
@@ -585,6 +606,7 @@ static Vector *parse_vardecl_cont(const Type *rawType, const Type *type, int fla
       add_cur_scope(ident, type, flag, NULL);
       if (consume(TK_ASSIGN)) {
         Initializer *init = parse_initializer();
+        fix_array_size(type, init);
         inits = assign_initial_value(new_expr_varref(ident->u.ident, type, false, NULL), init, inits);
       }
     }
@@ -597,10 +619,10 @@ static bool parse_vardecl(Node **pnode) {
   assert(curfunc != NULL);
 
   const Type *rawType = NULL;
-  const Type *type;
+  Type *type;
   int flag;
   Token *ident;
-  if (!parse_var_def(&rawType, &type, &flag, &ident))
+  if (!parse_var_def(&rawType, (const Type**)&type, &flag, &ident))
     return false;
   if (ident == NULL)
     parse_error(NULL, "Ident expected");
@@ -756,7 +778,7 @@ static void parse_typedef(void) {
     parse_error(NULL, "`;' expected");
 }
 
-static Initializer *check_global_initializer(Type *type, Initializer *init) {
+static Initializer *check_global_initializer(const Type *type, Initializer *init) {
   switch (type->type) {
   case TY_CHAR:
   case TY_SHORT:
@@ -841,13 +863,11 @@ static Initializer *check_global_initializer(Type *type, Initializer *init) {
   case TY_ARRAY:
     switch (init->type) {
     case vMulti:
-      parse_error(NULL, "Global initial value for array not implemented (yet)");
       break;
     case vSingle:
       if (type->u.pa.ptrof->type == TY_CHAR && init->u.single->type == EX_STR) {
-        if (type->u.pa.length == (size_t)-1) {
-          type->u.pa.length = init->u.single->u.str.size;
-        } else if (type->u.pa.length < init->u.single->u.str.size) {
+        assert(type->u.pa.length != (size_t)-1);
+        if (type->u.pa.length < init->u.single->u.str.size) {
           parse_error(NULL, "Array size shorter than initializer");
         }
         return init;
@@ -891,7 +911,8 @@ static Node *define_global_var(const Type *rawtype, int flag, const Type *type, 
       if (flag & VF_EXTERN)
         parse_error(tok, "extern with initializer");
       initializer = parse_initializer();
-      initializer = check_global_initializer((Type*)type, initializer);
+      fix_array_size((Type*)type, initializer);
+      initializer = check_global_initializer(type, initializer);
     }
     define_global(type, flag, ident, initializer);
 
