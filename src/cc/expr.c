@@ -13,6 +13,7 @@ static const Type tyShort = {.type=TY_SHORT};
 static const Type tyInt = {.type=TY_INT};
 static const Type tyLong = {.type=TY_LONG};
 static const Type tyEnum = {.type=TY_ENUM};
+static const Type tyVoid = {.type=TY_VOID};
 #define tyBool  tyInt
 #define tySize  tyLong
 
@@ -133,6 +134,10 @@ bool is_struct_or_union(enum eType type) {
   default:
     return false;
   }
+}
+
+bool is_void_ptr(const Type *type) {
+  return type->type == TY_PTR && type->u.pa.ptrof->type == TY_VOID;
 }
 
 bool same_type(const Type *type1, const Type *type2) {
@@ -884,15 +889,13 @@ const Type *parse_raw_type(int *pflag) {
     static const enum TokenType kKeywords[] = {
       TK_KWVOID, TK_KWCHAR, TK_KWSHORT, TK_KWINT, TK_KWLONG,
     };
-    static const enum eType kTypes[] = {
-      TY_VOID, TY_CHAR, TY_SHORT, TY_INT, TY_LONG,
+    static const Type *kTypes[] = {
+      &tyVoid, &tyChar, &tyShort, &tyInt, &tyLong,
     };
     const int N = sizeof(kTypes) / sizeof(*kTypes);
     for (int i = 0; i < N; ++i) {
       if (consume(kKeywords[i])) {
-        type = malloc(sizeof(*type));
-        type->type = kTypes[i];
-        break;
+        return kTypes[i];
       }
     }
   }
@@ -1688,9 +1691,19 @@ Expr *analyze_expr(Expr *expr, bool keep_left) {
     expr->u.ternary.cond = analyze_expr(expr->u.ternary.cond, false);
     expr->u.ternary.tval = analyze_expr(expr->u.ternary.tval, false);
     expr->u.ternary.fval = analyze_expr(expr->u.ternary.fval, false);
-    if (!same_type(expr->u.ternary.tval->valType, expr->u.ternary.fval->valType))
-      parse_error(NULL, "lhs and rhs must be same type");
-    expr->valType = expr->u.ternary.tval->valType;
+    {
+      const Type *ttype = expr->u.ternary.tval->valType;
+      const Type *ftype = expr->u.ternary.fval->valType;
+      if (same_type(ttype, ftype)) {
+        expr->valType = ttype;
+      } else if (is_void_ptr(ttype) && ftype->type == TY_PTR) {
+        expr->valType = ftype;
+      } else if (is_void_ptr(ftype) && ttype->type == TY_PTR) {
+        expr->valType = ttype;
+      } else {
+        parse_error(NULL, "lhs and rhs must be same type");
+      }
+    }
     break;
 
   case EX_MEMBER:  // x.member or x->member
