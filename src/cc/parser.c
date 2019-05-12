@@ -270,12 +270,14 @@ static Node *parse_for(void) {
         int save_flag = curloopflag;
         curloopflag |= LF_BREAK | LF_CONTINUE;
         body = stmt();
-        curloopflag= save_flag;
+        curloopflag = save_flag;
 
         Node *node = new_node_for(pre, cond, post, body);
-        if (stmts != NULL) {
-          vec_push(stmts, node);
+        if (scope != NULL) {
           exit_scope();
+          if (stmts == NULL)
+            stmts = new_vector();
+          vec_push(stmts, node);
           return new_node_block(scope, stmts);
         } else {
           return node;
