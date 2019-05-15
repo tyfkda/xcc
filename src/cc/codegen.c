@@ -1215,7 +1215,9 @@ void gen_expr(Expr *expr) {
     switch (expr->valType->type) {
     case TY_CHAR:  MOV_IND_RAX_AL(); break;
     case TY_SHORT: MOV_IND_RAX_AX(); break;
-    case TY_INT:   MOV_IND_RAX_EAX(); break;
+    case TY_INT: case TY_ENUM:
+      MOV_IND_RAX_EAX();
+      break;
     case TY_LONG: case TY_PTR:
       MOV_IND_RAX_RAX();
       break;
