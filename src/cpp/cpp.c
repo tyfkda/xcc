@@ -493,10 +493,14 @@ intptr_t reduce(Expr *expr) {
     break;
   case EX_NOT:
     return reduce(expr->u.unary.sub) ? 0 : 1;
+  case EX_LOGAND:
+    return reduce(expr->u.bop.lhs) && reduce(expr->u.bop.rhs);
+  case EX_LOGIOR:
+    return reduce(expr->u.bop.lhs) || reduce(expr->u.bop.rhs);
   default:
     break;
   }
-  error("expression not handled: type=%d", expr->type);
+  error("expression not handled in preprocessor: type=%d", expr->type);
   return 0;
 }
 
