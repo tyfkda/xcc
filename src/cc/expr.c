@@ -8,12 +8,12 @@
 #include "lexer.h"
 #include "util.h"
 
-static const Type tyChar = {.type=TY_CHAR};
-static const Type tyShort = {.type=TY_SHORT};
-static const Type tyInt = {.type=TY_INT};
-static const Type tyLong = {.type=TY_LONG};
-static const Type tyEnum = {.type=TY_ENUM};
-static const Type tyVoid = {.type=TY_VOID};
+const Type tyChar = {.type=TY_CHAR};
+const Type tyShort = {.type=TY_SHORT};
+const Type tyInt = {.type=TY_INT};
+const Type tyLong = {.type=TY_LONG};
+const Type tyEnum = {.type=TY_ENUM};
+const Type tyVoid = {.type=TY_VOID};
 #define tyBool  tyInt
 #define tySize  tyLong
 

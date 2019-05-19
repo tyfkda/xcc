@@ -50,6 +50,15 @@ typedef struct Type {
   } u;
 } Type;
 
+extern const Type tyChar;
+extern const Type tyShort;
+extern const Type tyInt;
+extern const Type tyLong;
+extern const Type tyEnum;
+extern const Type tyVoid;
+#define tyBool  tyInt
+#define tySize  tyLong
+
 void ensure_struct(Type *type, const Token *token);
 Type* arrayof(const Type *type, size_t length);
 bool same_type(const Type *type1, const Type *type2);

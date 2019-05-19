@@ -9,7 +9,7 @@
 
 const int FRAME_ALIGN = 8;
 const int MAX_ARGS = 6;
-const int WORD_SIZE = sizeof(void*);
+const int WORD_SIZE = /*sizeof(void*)*/ 8;
 
 #define CURIP(ofs)  (start_address + codesize + ofs)
 #define ADD_CODE(...)  do { unsigned char buf[] = {__VA_ARGS__}; add_code(buf, sizeof(buf)); } while (0)
@@ -523,8 +523,10 @@ typedef struct LoopInfo {
   const char *l_continue;
 } LoopInfo;
 
+#ifndef __XCC
 static Defun *curfunc;
 static Scope *curscope;
+#endif
 static const char *s_break_label;
 static const char *s_continue_label;
 
@@ -1117,7 +1119,9 @@ static void gen_arith(enum ExprType exprType, enum eType valType, enum eType rhs
     switch (valType) {
     case TY_CHAR:  OR_DIL_AL(); break;
     case TY_SHORT: OR_DI_AX(); break;
-    case TY_INT:   OR_EDI_EAX(); break;
+    case TY_INT: case TY_ENUM:
+      OR_EDI_EAX();
+      break;
     case TY_LONG:  OR_RDI_RAX(); break;
     default: assert(false); break;
     }

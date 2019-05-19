@@ -8,8 +8,6 @@
 #include "lexer.h"
 #include "util.h"
 
-static const Type tyChar = {.type=TY_CHAR};
-
 const int LF_BREAK = 1 << 0;
 const int LF_CONTINUE = 1 << 0;
 
