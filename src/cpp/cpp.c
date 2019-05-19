@@ -638,6 +638,7 @@ int main(int argc, char* argv[]) {
   pragma_once_files = new_vector();
 
   // Predefeined macros.
+  map_put(macro_map, "__XCC", new_macro(NULL, false, NULL));
 #if defined(__XV6)
   map_put(macro_map, "__XV6", new_macro(NULL, false, NULL));
 #elif defined(__linux__)
