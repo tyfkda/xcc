@@ -1728,7 +1728,7 @@ Expr *analyze_expr(Expr *expr, bool keep_left) {
           targetType = targetType->u.pa.ptrof;
         else
           parse_error(acctok, "`->' for non pointer value");
-        if (targetType->type != TY_STRUCT)
+        if (!is_struct_or_union(targetType->type))
           parse_error(acctok, "`->' for non struct value");
       }
 
