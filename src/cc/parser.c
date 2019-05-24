@@ -800,16 +800,6 @@ static Initializer *check_global_initializer(const Type *type, Initializer *init
       if (init->type != vSingle)
         parse_error(NULL, "initializer type error");
       Expr *value = init->u.single;
-      if (type->u.pa.ptrof->type == TY_CHAR && value->type == EX_STR) {
-        const char * label = alloc_label();
-        const Type *array_type = arrayof(type->u.pa.ptrof, value->u.str.size);
-        define_global(array_type, VF_CONST | VF_STATIC, alloc_ident(label, NULL, NULL), init);
-
-        Initializer *init2 = malloc(sizeof(*init2));
-        init2->type = vSingle;
-        init2->u.single = new_expr_varref(label, array_type, true, NULL);
-        return init2;
-      }
       switch (value->type) {
       case EX_REF:
         {
@@ -852,6 +842,11 @@ static Initializer *check_global_initializer(const Type *type, Initializer *init
           }
         }
         break;
+      case EX_STR:
+        if (!(type->u.pa.ptrof->type == TY_CHAR && value->type == EX_STR)) {
+          parse_error(NULL, "Illegal type");
+        }
+        return init;
       default:
         break;
       }

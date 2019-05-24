@@ -2,7 +2,7 @@ CFLAGS=-ansi -std=c11 -Wall -Wextra -Werror -Wold-style-definition -Wno-missing-
 
 SRC_DIR:=../src/cc
 
-.PHONY: test-util test-cpp test-val test-sh
+.PHONY: ../xcc test-util test-cpp test-val test-sh
 
 all:	../xcc ../cpp test-util test-cpp test-val test-sh test-examples
 	@echo 'All tests PASS!'
