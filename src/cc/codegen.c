@@ -265,10 +265,14 @@ void construct_initial_value(unsigned char *buf, const Type *type, Initializer *
   case TY_ENUM:
     {
       assert(init->type == vSingle);
-      intptr_t value = init->u.single->u.value;
+      Expr *value = init->u.single;
+      if (!(is_const(value) && is_number(value->valType->type)))
+        error("Illegal initializer: constant number expected");
+
+      intptr_t v = value->u.value;
       int size = type_size(type);
       for (int i = 0; i < size; ++i)
-        buf[i] = value >> (i * 8);  // Little endian
+        buf[i] = v >> (i * 8);  // Little endian
     }
     break;
   case TY_PTR:
@@ -304,7 +308,7 @@ void construct_initial_value(unsigned char *buf, const Type *type, Initializer *
         if (*pptrinits == NULL)
           *pptrinits = new_vector();
         vec_push(*pptrinits, init);
-      } else if (is_number(value->valType->type)) {
+      } else if (is_const(value) && is_number(value->valType->type)) {
         intptr_t x = value->u.value;
         for (int i = 0; i < 8; ++i)
           buf[i] = x >> (i * 8);  // Little endian

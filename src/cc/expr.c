@@ -8,6 +8,8 @@
 #include "lexer.h"
 #include "util.h"
 
+#define MAX(a, b)  ((a) > (b) ? (a) : (b))
+
 const Type tyChar = {.type=TY_CHAR};
 const Type tyShort = {.type=TY_SHORT};
 const Type tyInt = {.type=TY_INT};
@@ -1565,6 +1567,36 @@ Expr *analyze_expr(Expr *expr, bool keep_left) {
     case EX_BITXOR:
       if (!cast_numbers(expr->token, &expr->u.bop.lhs, &expr->u.bop.rhs, keep_left))
         parse_error(expr->token, "Cannot use `%d' except numbers.", expr->type);
+
+      if (is_const(expr->u.bop.lhs) && is_const(expr->u.bop.rhs)) {
+        intptr_t lval = expr->u.bop.lhs->u.value;
+        intptr_t rval = expr->u.bop.rhs->u.value;
+        intptr_t value;
+        switch (expr->type) {
+        case EX_MUL:
+          value = lval * rval;
+          break;
+        case EX_DIV:
+          value = lval / rval;
+          break;
+        case EX_MOD:
+          value = lval % rval;
+          break;
+        case EX_BITAND:
+          value = lval & rval;
+          break;
+        case EX_BITOR:
+          value = lval | rval;
+          break;
+        case EX_BITXOR:
+          value = lval ^ rval;
+          break;
+        default:
+          assert(!"err");
+          break;
+        }
+        return new_expr_numlit(MAX(expr->u.bop.lhs->type, expr->u.bop.rhs->type), expr->u.bop.lhs->token, value);
+      }
 
       expr->valType = expr->u.bop.lhs->valType;
       break;
