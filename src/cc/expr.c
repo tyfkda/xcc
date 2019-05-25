@@ -818,9 +818,7 @@ static const Type *parse_enum(void) {
 }
 
 const Type *parse_raw_type(int *pflag) {
-  Type *type = NULL;
-  Token *structtok;
-  Token *ident;
+  const Type *type = NULL;
 
   int flag = 0;
   for (;;) {
@@ -840,65 +838,75 @@ const Type *parse_raw_type(int *pflag) {
       flag |= VF_EXTERN;
       continue;
     }
-    break;
-  }
-  if (pflag != NULL)
-    *pflag = flag;
 
-  if (((structtok = consume(TK_STRUCT)) != NULL) ||
-      ((structtok = consume(TK_UNION)) != NULL)) {
-    bool is_union = structtok->type == TK_UNION;
-    const char *name = NULL;
+    if (type != NULL)
+      break;
+
+    Token *structtok;
     Token *ident;
-    if ((ident = consume(TK_IDENT)) != NULL)
-      name = ident->u.ident;
+    if (((structtok = consume(TK_STRUCT)) != NULL) ||
+        ((structtok = consume(TK_UNION)) != NULL)) {
+      bool is_union = structtok->type == TK_UNION;
+      const char *name = NULL;
+      Token *ident;
+      if ((ident = consume(TK_IDENT)) != NULL)
+        name = ident->u.ident;
 
-    StructInfo *sinfo = NULL;
-    if (consume(TK_LBRACE)) {  // Definition
-      sinfo = parse_struct(is_union);
-      if (name != NULL) {
-        StructInfo *exist = (StructInfo*)map_get(struct_map, name);
-        if (exist != NULL)
-          parse_error(ident, "`%s' already defined", name);
-        map_put(struct_map, name, sinfo);
+      StructInfo *sinfo = NULL;
+      if (consume(TK_LBRACE)) {  // Definition
+        sinfo = parse_struct(is_union);
+        if (name != NULL) {
+          StructInfo *exist = (StructInfo*)map_get(struct_map, name);
+          if (exist != NULL)
+            parse_error(ident, "`%s' already defined", name);
+          map_put(struct_map, name, sinfo);
+        }
+      } else {
+        if (name != NULL) {
+          sinfo = (StructInfo*)map_get(struct_map, name);
+          if (sinfo != NULL) {
+            if (sinfo->is_union != is_union)
+              parse_error(structtok, "Wrong tag for `%s'", name);
+          }
+        }
       }
+
+      if (name == NULL && sinfo == NULL)
+        parse_error(NULL, "Illegal struct/union usage");
+
+      Type *stype = malloc(sizeof(*type));
+      stype->type = (structtok->type == TK_STRUCT) ? TY_STRUCT : TY_UNION;
+      stype->u.struct_.name = name;
+      stype->u.struct_.info = sinfo;
+      type = stype;
+    } else if (consume(TK_ENUM)) {
+      type = parse_enum();
+    } else if ((ident = consume(TK_IDENT)) != NULL) {
+      type = map_get(typedef_map, ident->u.ident);
+      if (type == NULL)
+        unget_token(ident);
     } else {
-      if (name != NULL) {
-        sinfo = (StructInfo*)map_get(struct_map, name);
-        if (sinfo != NULL) {
-          if (sinfo->is_union != is_union)
-            parse_error(structtok, "Wrong tag for `%s'", name);
+      static const enum TokenType kKeywords[] = {
+        TK_KWVOID, TK_KWCHAR, TK_KWSHORT, TK_KWINT, TK_KWLONG,
+      };
+      static const Type *kTypes[] = {
+        &tyVoid, &tyChar, &tyShort, &tyInt, &tyLong,
+      };
+      const int N = sizeof(kTypes) / sizeof(*kTypes);
+      for (int i = 0; i < N; ++i) {
+        if (consume(kKeywords[i])) {
+          type = kTypes[i];
+          break;
         }
       }
     }
-
-    if (name == NULL && sinfo == NULL)
-      parse_error(NULL, "Illegal struct/union usage");
-
-    type = malloc(sizeof(*type));
-    type->type = (structtok->type == TK_STRUCT) ? TY_STRUCT : TY_UNION;
-    type->u.struct_.name = name;
-    type->u.struct_.info = sinfo;
-  } else if (consume(TK_ENUM)) {
-    return parse_enum();
-  } else if ((ident = consume(TK_IDENT)) != NULL) {
-    type = map_get(typedef_map, ident->u.ident);
     if (type == NULL)
-      unget_token(ident);
-  } else {
-    static const enum TokenType kKeywords[] = {
-      TK_KWVOID, TK_KWCHAR, TK_KWSHORT, TK_KWINT, TK_KWLONG,
-    };
-    static const Type *kTypes[] = {
-      &tyVoid, &tyChar, &tyShort, &tyInt, &tyLong,
-    };
-    const int N = sizeof(kTypes) / sizeof(*kTypes);
-    for (int i = 0; i < N; ++i) {
-      if (consume(kKeywords[i])) {
-        return kTypes[i];
-      }
-    }
+      break;
   }
+
+  if (pflag != NULL)
+    *pflag = flag;
+
   return type;
 }
 
