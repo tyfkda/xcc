@@ -1680,6 +1680,7 @@ Expr *analyze_expr(Expr *expr, bool keep_left) {
       case TY_LONG:
       case TY_ENUM:
       case TY_PTR:
+      case TY_ARRAY:
         break;
       default:
         parse_error(expr->token, "Cannot apply `!' except number or pointer types");
