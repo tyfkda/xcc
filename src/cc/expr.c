@@ -44,7 +44,7 @@ void var_add(Vector *lvars, const Token *ident, const Type *type, int flag, Init
     int idx = var_find(lvars, name);
     if (idx >= 0)
       parse_error(ident, "`%s' already defined", name);
-    if (flag & VF_STATIC) {  // TODO: Handle static specifier in local definition.
+    if (flag & VF_STATIC) {
       label = alloc_label();
       define_global(type, flag, alloc_ident(label, NULL, NULL), init);
     }
@@ -1507,8 +1507,15 @@ Expr *analyze_expr(Expr *expr, bool keep_left) {
       bool global = false;
       if (curscope != NULL) {
         VarInfo *varinfo = scope_find(curscope, name);
-        if (varinfo != NULL)
-          type = varinfo->type;
+        if (varinfo != NULL) {
+          if (varinfo->flag & VF_STATIC) {
+            // Replace local variable reference to global.
+            name = varinfo->u.l.label;
+            expr = new_expr_varref(name, varinfo->type, true, expr->token);
+          } else {
+            type = varinfo->type;
+          }
+        }
       }
       if (type == NULL) {
         VarInfo *varinfo = find_global(name);

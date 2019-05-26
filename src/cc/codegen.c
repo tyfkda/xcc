@@ -583,13 +583,10 @@ static void gen_lval(Expr *expr) {
     } else {
       VarInfo *varinfo = scope_find(curscope, expr->u.varref.ident);
       assert(varinfo != NULL);
-      if (varinfo->flag & VF_STATIC) {
-        LEA_OFS32_RIP_RAX(varinfo->u.l.label);
-      } else {
-        int offset = varinfo->offset;
-        MOV_RBP_RAX();
-        ADD_IM32_RAX(offset);
-      }
+      assert(!(varinfo->flag & VF_STATIC));
+      int offset = varinfo->offset;
+      MOV_RBP_RAX();
+      ADD_IM32_RAX(offset);
     }
     break;
   case EX_DEREF:
