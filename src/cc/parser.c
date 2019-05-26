@@ -597,9 +597,7 @@ static Vector *parse_vardecl_cont(const Type *rawType, Type *type, int flag, Tok
       }
 
       // TODO: Check `init` can be cast to `type`.
-      add_cur_scope(ident, type, flag, (flag & VF_STATIC) ? init : NULL);
-      if (init != NULL && !(flag & VF_STATIC))
-        inits = assign_initial_value(new_expr_varref(ident->u.ident, type, false, NULL), init, inits);
+      add_cur_scope(ident, type, flag, init);
     } else {
       add_cur_scope(ident, type, flag, NULL);
       if (consume(TK_ASSIGN)) {
