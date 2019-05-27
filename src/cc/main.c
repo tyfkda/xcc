@@ -130,8 +130,8 @@ int main(int argc, char* argv[]) {
   {
     Vector *hexasm_params = NULL;
     Type tyHexasm = {.type=TY_FUNC, .u={.func={.ret=&tyVoid, .params=hexasm_params, .vaargs=false}}};
-    define_global(&tyHexasm, 0, alloc_ident("__hexasm", NULL, NULL), NULL);
-    define_global(&tyHexasm, 0, alloc_ident("__rel32", NULL, NULL), NULL);
+    define_global(&tyHexasm, 0, alloc_ident("__hexasm", NULL, NULL));
+    define_global(&tyHexasm, 0, alloc_ident("__rel32", NULL, NULL));
   }
 
   if (argc > iarg) {

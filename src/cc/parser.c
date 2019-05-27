@@ -589,20 +589,16 @@ static Vector *parse_vardecl_cont(const Type *rawType, Type *type, int flag, Tok
     first = false;
     not_void(type);
 
-    if (flag & VF_STATIC) {
-      Initializer *init = NULL;
-      if (consume(TK_ASSIGN)) {
-        init = parse_initializer();
-        fix_array_size(type, init);
-      }
+    VarInfo *varinfo = add_cur_scope(ident, type, flag);
+    Initializer *init = NULL;
+    if (consume(TK_ASSIGN)) {
+      init = parse_initializer();
+      fix_array_size(type, init);
 
       // TODO: Check `init` can be cast to `type`.
-      add_cur_scope(ident, type, flag, init);
-    } else {
-      add_cur_scope(ident, type, flag, NULL);
-      if (consume(TK_ASSIGN)) {
-        Initializer *init = parse_initializer();
-        fix_array_size(type, init);
+      if (flag & VF_STATIC) {
+        varinfo->u.g.init = init;
+      } else {
         inits = assign_initial_value(new_expr_varref(ident->u.ident, type, false, NULL), init, inits);
       }
     }
@@ -730,7 +726,7 @@ static Node *parse_defun(const Type *rettype, int flag, Token *ident) {
 
   VarInfo *def = find_global(name);
   if (def == NULL) {
-    define_global(functype, flag | VF_CONST, ident, NULL);
+    define_global(functype, flag | VF_CONST, ident);
   } else {
     if (def->type->type != TY_FUNC)
       parse_error(ident, "Definition conflict: `%s'");
@@ -905,7 +901,8 @@ static Node *define_global_var(const Type *rawtype, int flag, const Type *type, 
       fix_array_size((Type*)type, initializer);
       initializer = check_global_initializer(type, initializer);
     }
-    define_global(type, flag, ident, initializer);
+    VarInfo *varinfo = define_global(type, flag, ident);
+    varinfo->u.g.init = initializer;
 
     if (consume(TK_COMMA))
       continue;

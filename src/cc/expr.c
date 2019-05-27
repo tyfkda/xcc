@@ -34,11 +34,11 @@ int var_find(Vector *lvars, const char *name) {
   return -1;
 }
 
-void var_add(Vector *lvars, const Token *ident, const Type *type, int flag, Initializer *init) {
+VarInfo *var_add(Vector *lvars, const Token *ident, const Type *type, int flag) {
   // init is only for static local variable.
   const char *name = NULL;
   const char *label = NULL;
-  assert(init == NULL || flag & VF_STATIC);
+  VarInfo *ginfo = NULL;
   if (ident != NULL) {
     name = ident->u.ident;
     int idx = var_find(lvars, name);
@@ -46,7 +46,7 @@ void var_add(Vector *lvars, const Token *ident, const Type *type, int flag, Init
       parse_error(ident, "`%s' already defined", name);
     if (flag & VF_STATIC) {
       label = alloc_label();
-      define_global(type, flag, alloc_ident(label, NULL, NULL), init);
+      ginfo = define_global(type, flag, alloc_ident(label, NULL, NULL));
     }
   }
 
@@ -57,6 +57,7 @@ void var_add(Vector *lvars, const Token *ident, const Type *type, int flag, Init
   info->u.l.label = label;
   info->offset = -1;
   vec_push(lvars, info);
+  return ginfo != NULL ? ginfo : info;
 }
 
 // Struct
@@ -75,7 +76,7 @@ VarInfo *find_global(const char *name) {
   return (VarInfo*)map_get(gvar_map, name);
 }
 
-void define_global(const Type *type, int flag, const Token *ident, Initializer *init) {
+VarInfo *define_global(const Type *type, int flag, const Token *ident) {
   const char *name = ident->u.ident;
   VarInfo *varinfo = find_global(name);
   if (varinfo != NULL && !(varinfo->flag & VF_EXTERN))
@@ -84,9 +85,10 @@ void define_global(const Type *type, int flag, const Token *ident, Initializer *
   varinfo->name = name;
   varinfo->type = type;
   varinfo->flag = flag;
-  varinfo->u.g.init = init;
+  varinfo->u.g.init = NULL;
   varinfo->offset = 0;
   map_put(gvar_map, name, varinfo);
+  return varinfo;
 }
 
 // Type
@@ -269,10 +271,10 @@ void exit_scope(void) {
   curscope = curscope->parent;
 }
 
-void add_cur_scope(const Token *ident, const Type *type, int flag, Initializer *init) {
+VarInfo *add_cur_scope(const Token *ident, const Type *type, int flag) {
   if (curscope->vars == NULL)
     curscope->vars = new_vector();
-  var_add(curscope->vars, ident, type, flag, init);
+  return var_add(curscope->vars, ident, type, flag);
 }
 
 //
@@ -806,7 +808,8 @@ static const Type *parse_enum(void) {
         //init->u.single = new_expr_numlit(EX_INT, numtok, value);
         init->u.single = new_expr(EX_INT, &tyEnum, numtok);
         init->u.single->u.value = value;
-        define_global(&tyEnum, VF_CONST, ident, init);
+        VarInfo *varinfo = define_global(&tyEnum, VF_CONST, ident);
+        varinfo->u.g.init = init;
         ++value;
 
         if (consume(TK_COMMA))
@@ -1033,7 +1036,7 @@ Vector *funparams(bool *pvaargs) {
       // If the type is array, handle it as a pointer.
       type = array_to_ptr(type);
 
-      var_add(params, ident, type, flag, NULL);
+      var_add(params, ident, type, flag);
       if (consume(TK_RPAR))
         break;
       if (consume(TK_COMMA))
@@ -1061,7 +1064,7 @@ static StructInfo *parse_struct(bool is_union) {
 
     if (!consume(TK_SEMICOL))
       parse_error(NULL, "`;' expected");
-    var_add(members, ident, type, flag, NULL);
+    var_add(members, ident, type, flag);
   }
 
   StructInfo *sinfo = malloc(sizeof(*sinfo));

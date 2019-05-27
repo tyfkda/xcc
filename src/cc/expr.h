@@ -133,7 +133,7 @@ typedef struct {
 
 Scope *enter_scope(Defun *defun, Vector *vars);
 void exit_scope(void);
-void add_cur_scope(const Token *ident, const Type *type, int flag, Initializer *init);
+VarInfo *add_cur_scope(const Token *ident, const Type *type, int flag);
 
 // Expr
 
@@ -307,12 +307,12 @@ Vector *parse_program(void);
 // Variables
 
 int var_find(Vector *vartbl, const char *name);
-void var_add(Vector *lvars, const Token *ident, const Type *type, int flag, Initializer *init);
+VarInfo *var_add(Vector *lvars, const Token *ident, const Type *type, int flag);
 
 extern Map *gvar_map;
 
 VarInfo *find_global(const char *name);
-void define_global(const Type *type, int flag, const Token *ident, Initializer *init);
+VarInfo *define_global(const Type *type, int flag, const Token *ident);
 
 //
 
