@@ -867,6 +867,7 @@ static Initializer *check_global_initializer(const Type *type, Initializer *init
     }
     break;
   case TY_STRUCT:
+  case TY_UNION:
     if (init->type != vMulti)
       parse_error(NULL, "initializer type error");
     // TODO: More check.
@@ -892,6 +893,7 @@ static Node *define_global_var(const Type *rawtype, int flag, const Type *type, 
       parse_error(ident, "`void' not allowed");
 
     type = parse_type_suffix(type);
+    VarInfo *varinfo = define_global(type, flag, ident);
     Initializer *initializer = NULL;
     const Token *tok;
     if ((tok = consume(TK_ASSIGN)) != NULL) {
@@ -901,7 +903,6 @@ static Node *define_global_var(const Type *rawtype, int flag, const Type *type, 
       fix_array_size((Type*)type, initializer);
       initializer = check_global_initializer(type, initializer);
     }
-    VarInfo *varinfo = define_global(type, flag, ident);
     varinfo->u.g.init = initializer;
 
     if (consume(TK_COMMA))

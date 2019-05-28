@@ -110,6 +110,7 @@ try 'struct static const' 67 'struct {int x;} static const a[] = {{67}}; return 
 try 'self reference' 4 'int x = sizeof(x); return x;'
 try_direct '(void)x;' 0 'void func(int x) { (void)x; } int main(){ func(123); return 0; }'
 try_output 'strings' 'hello world' "write(1, \"hello \" \"world\\\\n\", 12);"
+try_direct 'init union' 77 'union { int x; struct { char a; short b; } y; } u = {.y={.b=77}}; int main(){ return u.y.b; }'
 
 # error cases
 echo ''

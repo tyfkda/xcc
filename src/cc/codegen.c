@@ -350,6 +350,8 @@ void construct_initial_value(unsigned char *buf, const Type *type, Initializer *
     }
     break;
   case TY_STRUCT:
+
+  case TY_UNION:
     {
       if (init->type != vMulti)
         error("initializer type error");
@@ -364,6 +366,9 @@ void construct_initial_value(unsigned char *buf, const Type *type, Initializer *
           error("Initializer for empty struct");
         break;
       }
+      if (type->type == TY_UNION && m > 1)
+        error("Initializer for union more than 1");
+
       Initializer **values = malloc(sizeof(Initializer*) * n);
       for (int i = 0; i < n; ++i)
         values[i] = NULL;
