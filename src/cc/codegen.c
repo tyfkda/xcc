@@ -972,34 +972,26 @@ static void gen_switch(Node *node) {
   pop_break_label(save_break);
 }
 
-static void gen_label(Node *node) {
-  switch (node->u.label.type) {
-  case lCASE:
-    {
-      assert(cur_case_values != NULL);
-      assert(cur_case_labels != NULL);
-      intptr_t x = node->u.label.u.case_value;
-      int i, len = cur_case_values->len;
-      for (i = 0; i < len; ++i) {
-        if ((intptr_t)cur_case_values->data[i] == x)
-          break;
-      }
-      assert(i < len);
-      assert(i < cur_case_labels->len);
-      add_label(cur_case_labels->data[i]);
-    }
-    break;
-  case lDEFAULT:
-    {
-      assert(cur_case_values != NULL);
-      assert(cur_case_labels != NULL);
-      int i = cur_case_values->len;  // Label for default is stored at the size of values.
-      assert(i < cur_case_labels->len);
-      add_label(cur_case_labels->data[i]);
-    }
-    break;
-  default: assert(false); break;
+static void gen_case(Node *node) {
+  assert(cur_case_values != NULL);
+  assert(cur_case_labels != NULL);
+  intptr_t x = node->u.case_.value;
+  int i, len = cur_case_values->len;
+  for (i = 0; i < len; ++i) {
+    if ((intptr_t)cur_case_values->data[i] == x)
+      break;
   }
+  assert(i < len);
+  assert(i < cur_case_labels->len);
+  add_label(cur_case_labels->data[i]);
+}
+
+static void gen_default(void) {
+  assert(cur_case_values != NULL);
+  assert(cur_case_labels != NULL);
+  int i = cur_case_values->len;  // Label for default is stored at the size of values.
+  assert(i < cur_case_labels->len);
+  add_label(cur_case_labels->data[i]);
 }
 
 static void gen_while(Node *node) {
@@ -1577,8 +1569,12 @@ void gen(Node *node) {
     gen_switch(node);
     break;
 
-  case ND_LABEL:
-    gen_label(node);
+  case ND_CASE:
+    gen_case(node);
+    break;
+
+  case ND_DEFAULT:
+    gen_default();
     break;
 
   case ND_WHILE:

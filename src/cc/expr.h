@@ -253,7 +253,8 @@ enum NodeType {
   ND_BREAK,
   ND_CONTINUE,
   ND_RETURN,
-  ND_LABEL,  // case, default
+  ND_CASE,
+  ND_DEFAULT,
 };
 
 typedef struct Node {
@@ -277,11 +278,8 @@ typedef struct Node {
       bool has_default;
     } switch_;
     struct {
-      enum {lCASE, lDEFAULT} type;
-      union {
-        int case_value;
-      } u;
-    } label;
+      intptr_t value;
+    } case_;
     struct {
       struct Expr *cond;
       struct Node *body;

@@ -69,15 +69,13 @@ static Node *new_node_switch(Expr *value) {
 }
 
 static Node *new_node_case(int value) {
-  Node *node = new_node(ND_LABEL);
-  node->u.label.type = lCASE;
-  node->u.label.u.case_value = value;
+  Node *node = new_node(ND_CASE);
+  node->u.case_.value = value;
   return node;
 }
 
 static Node *new_node_default(void) {
-  Node *node = new_node(ND_LABEL);
-  node->u.label.type = lDEFAULT;
+  Node *node = new_node(ND_DEFAULT);
   return node;
 }
 
