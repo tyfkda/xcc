@@ -297,7 +297,7 @@ void construct_initial_value(unsigned char *buf, const Type *type, Initializer *
           *pptrinits = new_vector();
         vec_push(*pptrinits, init);
       } else if (value->type == EX_STR) {
-        const char * label = alloc_label();
+        const char *label = alloc_label();
         add_label(label);
         add_code((void*)value->u.str.buf, value->u.str.size);
 
@@ -829,6 +829,13 @@ static void gen_defun(Node *node) {
     return;
   }
 
+  // Allocate labels for goto.
+  if (defun->labels != NULL) {
+    Map *labels = defun->labels;
+    for (int i = 0, n = map_count(labels); i < n; ++i)
+      labels->vals->data[i] = alloc_label();
+  }
+
   int frame_size = arrange_scope_vars(defun);
 
   curfunc = defun;
@@ -1052,6 +1059,21 @@ static void gen_break(void) {
 static void gen_continue(void) {
   assert(s_continue_label != NULL);
   JMP32(s_continue_label);
+}
+
+static void gen_goto(Node *node) {
+  assert(curfunc->labels != NULL);
+  const char *label = map_get(curfunc->labels, node->u.goto_.ident);
+  assert(label != NULL);
+  JMP32(label);
+}
+
+static void gen_label(Node *node) {
+  assert(curfunc->labels != NULL);
+  const char *label = map_get(curfunc->labels, node->u.label.name);
+  assert(label != NULL);
+  add_label(label);
+  gen(node->u.label.stmt);
 }
 
 static void gen_arith(enum ExprType exprType, enum eType valType, enum eType rhsType) {
@@ -1595,6 +1617,14 @@ void gen(Node *node) {
 
   case ND_CONTINUE:
     gen_continue();
+    break;
+
+  case ND_GOTO:
+    gen_goto(node);
+    break;
+
+  case ND_LABEL:
+    gen_label(node);
     break;
 
   default:

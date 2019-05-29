@@ -28,8 +28,24 @@ static Defun *new_defun(const Type *type, const char *name) {
   defun->top_scope = NULL;
   defun->stmts = NULL;
   defun->all_scopes = new_vector();
+  defun->labels = NULL;
+  defun->gotos = NULL;
   defun->ret_label = NULL;
   return defun;
+}
+
+static void add_func_label(const char *label) {
+  assert(curfunc != NULL);
+  if (curfunc->labels == NULL)
+    curfunc->labels = new_map();
+  map_put(curfunc->labels, label, label);  // Put dummy value.
+}
+
+static void add_func_goto(Node *node) {
+  assert(curfunc != NULL);
+  if (curfunc->gotos == NULL)
+    curfunc->gotos = new_vector();
+  vec_push(curfunc->gotos, node);
 }
 
 static Node *new_node(enum NodeType type) {
@@ -105,6 +121,20 @@ static Node *new_node_for(Expr *pre, Expr *cond, Expr *post, Node *body) {
 static Node *new_node_return(Expr *val) {
   Node *node = new_node(ND_RETURN);
   node->u.return_.val = val;
+  return node;
+}
+
+static Node *new_node_goto(const Token *label) {
+  Node *node = new_node(ND_GOTO);
+  node->u.goto_.tok = label;
+  node->u.goto_.ident = label->u.ident;
+  return node;
+}
+
+static Node *new_node_label(const char *name, Node *stmt) {
+  Node *node = new_node(ND_LABEL);
+  node->u.label.name = name;
+  node->u.label.stmt = stmt;
   return node;
 }
 
@@ -291,6 +321,18 @@ static Node *parse_break_continue(enum NodeType type) {
   if (!consume(TK_SEMICOL))
     parse_error(NULL, "`;' expected");
   return new_node(type);
+}
+
+static Node *parse_goto(void) {
+  Token *label = consume(TK_IDENT);
+  if (label == NULL)
+    parse_error(NULL, "label for goto expected");
+  if (!consume(TK_SEMICOL))
+    parse_error(NULL, "`;' expected");
+  Node *node = new_node_goto(label);
+  assert(curfunc != NULL);
+  add_func_goto(node);
+  return node;
 }
 
 static Node *parse_return(void) {
@@ -661,6 +703,15 @@ static Node *parse_block(void) {
 }
 
 static Node *stmt(void) {
+  Token *label = consume(TK_IDENT);
+  if (label != NULL) {
+    if (consume(TK_COLON)) {
+      add_func_label(label->u.ident);
+      return new_node_label(label->u.ident, stmt());
+    }
+    unget_token(label);
+  }
+
   if (consume(TK_SEMICOL))
     return new_node_block(NULL, NULL);
 
@@ -692,6 +743,9 @@ static Node *stmt(void) {
     if ((curloopflag & LF_CONTINUE) == 0)
       parse_error(tok, "`continue' cannot be used outside of loop");
     return parse_break_continue(ND_CONTINUE);
+  }
+  if ((tok = consume(TK_GOTO)) != NULL) {
+    return parse_goto();
   }
 
   if (consume(TK_RETURN))
@@ -743,6 +797,17 @@ static Node *parse_defun(const Type *rettype, int flag, Token *ident) {
     exit_scope();
     exit_scope();
     curfunc = NULL;
+
+    // Check goto labels.
+    if (defun->gotos != NULL) {
+      Vector *gotos = defun->gotos;
+      Map *labels = defun->labels;
+      for (int i = 0; i < gotos->len; ++i) {
+        Node *node = gotos->data[i];
+        if (labels == NULL || map_get(labels, node->u.goto_.ident) == NULL)
+          parse_error(node->u.goto_.tok, "`%s' not found", node->u.goto_.ident);
+      }
+    }
   }
   return defun != NULL ? new_node_defun(defun) : NULL;
 }

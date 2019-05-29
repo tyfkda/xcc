@@ -126,6 +126,8 @@ typedef struct {
   Scope *top_scope;
   Vector *stmts;
   Vector *all_scopes;
+  Map *labels;
+  Vector *gotos;
 
   // For codegen.
   const char *ret_label;
@@ -255,6 +257,8 @@ enum NodeType {
   ND_RETURN,
   ND_CASE,
   ND_DEFAULT,
+  ND_GOTO,
+  ND_LABEL,
 };
 
 typedef struct Node {
@@ -294,6 +298,14 @@ typedef struct Node {
       struct Expr *post;
       struct Node *body;
     } for_;
+    struct {
+      const Token *tok;
+      const char *ident;
+    } goto_;
+    struct {
+      const char *name;
+      struct Node *stmt;
+    } label;
     struct {
       struct Expr *val;
     } return_;

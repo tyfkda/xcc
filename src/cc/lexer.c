@@ -95,6 +95,7 @@ static enum TokenType reserved_word(const char *word) {
     { "for", TK_FOR },
     { "break", TK_BREAK },
     { "continue", TK_CONTINUE },
+    { "goto", TK_GOTO },
     { "return", TK_RETURN },
     { "void", TK_KWVOID },
     { "char", TK_KWCHAR },

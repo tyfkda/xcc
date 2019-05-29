@@ -111,6 +111,7 @@ try 'self reference' 4 'int x = sizeof(x); return x;'
 try_direct '(void)x;' 0 'void func(int x) { (void)x; } int main(){ func(123); return 0; }'
 try_output 'strings' 'hello world' "write(1, \"hello \" \"world\\\\n\", 12);"
 try_direct 'init union' 77 'union { int x; struct { char a; short b; } y; } u = {.y={.b=77}}; int main(){ return u.y.b; }'
+try_direct 'goto' 1 'int main(){ int x = 1; goto label; x = 2; label: return x; }'
 
 # error cases
 echo ''
@@ -162,3 +163,4 @@ compile_error 'for-var scoped' 'int main(){ for (int i = 0; i < 5; ++i) ; return
 compile_error 'global poitner init with undefined' 'char *p = &x; void main(){}'
 compile_error 'global poitner init with other type' 'int x; char *p = &x; void main(){}'
 compile_error 'use void' 'void func(){} int main(){ int a = (int)func(); return 0; }'
+compile_error 'goto no-label' 'int main(){ goto label; return 77; }'

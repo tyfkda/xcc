@@ -76,6 +76,7 @@ enum TokenType {
   TK_FOR,
   TK_BREAK,
   TK_CONTINUE,
+  TK_GOTO,
   TK_RETURN,
   TK_KWVOID,
   TK_KWCHAR,
