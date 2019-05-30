@@ -215,6 +215,14 @@ void add_label(const char *label) {
   map_put(label_map, label, (void*)CURIP(0));
 }
 
+void add_bss(size_t size) {
+  codesize += size;
+}
+
+void align_codesize(int align) {
+  codesize = ALIGN(codesize, align);
+}
+
 uintptr_t label_adr(const char *label) {
   void *adr = map_get(label_map, label);
   return adr != NULL ? (uintptr_t)adr : (uintptr_t)-1;
@@ -418,8 +426,7 @@ static void put_rwdata(void) {
         varinfo->type->type == TY_ENUM)
       continue;
 
-    int align = align_size(varinfo->type);
-    codesize = ALIGN(codesize, align);
+    align_codesize(align_size(varinfo->type));
     int size = type_size(varinfo->type);
     if (bufsize < (size_t)size) {
       buf = realloc(buf, size);
@@ -445,26 +452,18 @@ static void put_rwdata(void) {
 
 // Put global without initial value (bss).
 static void put_bss(void) {
-  unsigned char *buf = NULL;
-  size_t bufsize = 0;
   for (int i = 0, len = map_count(gvar_map); i < len; ++i) {
     const char *name = (const char *)gvar_map->keys->data[i];
     const VarInfo *varinfo = (const VarInfo*)gvar_map->vals->data[i];
     if (varinfo->type->type == TY_FUNC || varinfo->u.g.init != NULL ||
         (varinfo->flag & VF_EXTERN) != 0)
       continue;
-    int align = align_size(varinfo->type);
-    codesize = ALIGN(codesize, align);
+    align_codesize(align_size(varinfo->type));
     int size = type_size(varinfo->type);
     if (size < 1)
       size = 1;
-    if (bufsize < (size_t)size) {
-      buf = realloc(buf, size);
-      memset(buf + bufsize, 0x00, size - bufsize);
-      bufsize = size;
-    }
     add_label(name);
-    add_code(buf, size);
+    add_bss(size);
   }
 }
 
