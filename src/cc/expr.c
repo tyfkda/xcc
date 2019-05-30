@@ -924,8 +924,16 @@ const Type *parse_type_modifier(const Type* type) {
   if (type == NULL)
     return NULL;
 
-  while (consume(TK_MUL))
-    type = ptrof(type);
+  for (;;) {
+    if (consume(TK_KWCONST)) {
+      // TODO: Reflect to the type.
+      ;
+    }
+    if (consume(TK_MUL))
+      type = ptrof(type);
+    else
+      break;
+  }
 
   return type;
 }
