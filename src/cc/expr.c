@@ -332,6 +332,7 @@ bool can_cast(const Type *dst, const Type *src, Expr *src_expr, bool is_explicit
     case TY_INT:
       return true;
     case TY_PTR:
+    case TY_ARRAY:
       if (is_explicit) {
         // TODO: Check sizeof(long) is same as sizeof(ptr)
         return true;
@@ -351,7 +352,6 @@ bool can_cast(const Type *dst, const Type *src, Expr *src_expr, bool is_explicit
       break;
     case TY_PTR:
       if (is_explicit) {
-        // TODO: Check sizeof(long) is same as sizeof(ptr)
         return true;
       }
       break;

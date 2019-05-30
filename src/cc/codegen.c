@@ -145,7 +145,9 @@ static void cast(const enum eType ltype, const enum eType rtype) {
     case TY_CHAR:  MOVSX_AL_RAX(); return;
     case TY_SHORT: MOVSX_AX_RAX(); return;
     case TY_INT:   MOVSX_EAX_RAX(); return;
-    case TY_PTR:   return;
+    case TY_PTR:
+    case TY_ARRAY:
+      return;
     default: assert(false); break;
     }
     break;
