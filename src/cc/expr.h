@@ -3,6 +3,7 @@
 #include <stdbool.h>
 #include <stdint.h>  // intptr_t
 #include <stdio.h>  // FILE
+#include <sys/types.h>  // ssize_t
 
 typedef struct Vector Vector;
 typedef struct Map Map;
@@ -26,9 +27,9 @@ enum eType {
 
 typedef struct {
   Vector *members;  // <VarInfo*>
-  bool is_union;
-  int size;
+  ssize_t size;
   int align;
+  bool is_union;
 } StructInfo;
 
 typedef struct Type {

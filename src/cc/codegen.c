@@ -19,7 +19,7 @@ const int WORD_SIZE = /*sizeof(void*)*/ 8;
 
 static void calc_struct_size(StructInfo *sinfo, bool is_union);
 
-static int type_size(const Type *type) {
+static size_t type_size(const Type *type) {
   switch (type->type) {
   case TY_VOID:
     return 1;  // ?
@@ -81,13 +81,13 @@ static void calc_struct_size(StructInfo *sinfo, bool is_union) {
   if (sinfo->size >= 0)
     return;
 
-  int size = 0;
-  int maxsize = 0;
+  size_t size = 0;
+  size_t maxsize = 0;
   int max_align = 1;
 
   for (int i = 0, len = sinfo->members->len; i < len; ++i) {
     VarInfo *varinfo = (VarInfo*)sinfo->members->data[i];
-    int sz = type_size(varinfo->type);
+    size_t sz = type_size(varinfo->type);
     int align = align_size(varinfo->type);
     size = ALIGN(size, align);
     varinfo->offset = size;
@@ -332,10 +332,11 @@ void construct_initial_value(unsigned char *buf, const Type *type, Initializer *
     case vMulti:
       {
         const Type *elem_type = type->u.pa.ptrof;
-        int elem_size = type_size(elem_type);
+        size_t elem_size = type_size(elem_type);
         Vector *init_array = init->u.multi;
-        memset(buf, 0, type_size(type));
-        for (int i = 0, len = init_array->len; i < len; ++i) {
+        int len = init_array->len;
+        memset(buf, 0, elem_size * len);
+        for (int i = 0; i < len; ++i) {
           construct_initial_value(buf + (i * elem_size), elem_type, init_array->data[i], pptrinits);
         }
       }
@@ -343,7 +344,7 @@ void construct_initial_value(unsigned char *buf, const Type *type, Initializer *
     case vSingle:
       if (type->u.pa.ptrof->type == TY_CHAR && init->u.single->type == EX_STR) {
         int src_size = init->u.single->u.str.size;
-        int size = type_size(type);
+        size_t size = type_size(type);
         int d = size - src_size;
         assert(d >= 0);
         memcpy(buf, init->u.single->u.str.buf, src_size);
@@ -427,8 +428,8 @@ static void put_rwdata(void) {
       continue;
 
     align_codesize(align_size(varinfo->type));
-    int size = type_size(varinfo->type);
-    if (bufsize < (size_t)size) {
+    size_t size = type_size(varinfo->type);
+    if (bufsize < size) {
       buf = realloc(buf, size);
       if (buf == NULL)
         error("Memory alloc failed: %d", size);
@@ -459,7 +460,7 @@ static void put_bss(void) {
         (varinfo->flag & VF_EXTERN) != 0)
       continue;
     align_codesize(align_size(varinfo->type));
-    int size = type_size(varinfo->type);
+    size_t size = type_size(varinfo->type);
     if (size < 1)
       size = 1;
     add_label(name);
@@ -665,13 +666,13 @@ static int arrange_func_params(Scope *scope) {
   return MAX_ARGS * WORD_SIZE;
 }
 
-static int arrange_scope_vars(Defun *defun) {
+static size_t arrange_scope_vars(Defun *defun) {
   // Calc local variable offsets.
   // Map parameters from the bottom (to reduce offsets).
-  int frame_size = 0;
+  size_t frame_size = 0;
   for (int i = 0; i < defun->all_scopes->len; ++i) {
     Scope *scope = (Scope*)defun->all_scopes->data[i];
-    int scope_size = scope->parent != NULL ? scope->parent->size : 0;
+    size_t scope_size = scope->parent != NULL ? scope->parent->size : 0;
     if (scope->vars != NULL) {
       if (defun->type->u.func.vaargs && i == 0) {
         // Special arrangement for function parameters to work va_list.
@@ -681,7 +682,7 @@ static int arrange_scope_vars(Defun *defun) {
           VarInfo *varinfo = (VarInfo*)scope->vars->data[j];
           if (varinfo->flag & VF_STATIC)
             continue;  // Static variable is not allocated on stack.
-          int size = type_size(varinfo->type);
+          size_t size = type_size(varinfo->type);
           int align = align_size(varinfo->type);
           if (size < 1)
             size = 1;
@@ -837,7 +838,7 @@ static void gen_defun(Node *node) {
       labels->vals->data[i] = alloc_label();
   }
 
-  int frame_size = arrange_scope_vars(defun);
+  size_t frame_size = arrange_scope_vars(defun);
 
   curfunc = defun;
   curscope = defun->top_scope;
@@ -1380,7 +1381,7 @@ void gen_expr(Expr *expr) {
     case TY_PTR:
       {
         MOV_RAX_RDI();
-        int size = type_size(expr->valType->u.pa.ptrof);
+        size_t size = type_size(expr->valType->u.pa.ptrof);
         MOV_IM32_RAX(expr->type == EX_PREINC ? size : -size);
         ADD_IND_RDI_RAX();
         MOV_RAX_IND_RDI();
@@ -1415,7 +1416,7 @@ void gen_expr(Expr *expr) {
       break;
     case TY_PTR:
       {
-        int size = type_size(expr->valType->u.pa.ptrof);
+        size_t size = type_size(expr->valType->u.pa.ptrof);
         assert(size < (1 << 15));  // TODO:
         if (expr->type == EX_POSTINC)  ADD_IM16_IND_RAX(size);
         else                           SUB_IM16_IND_RAX(size);
