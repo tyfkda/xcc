@@ -11,8 +11,6 @@
 #include "../cc/lexer.h"
 #include "../cc/util.h"
 
-#define MAX(x, y)  ((x) >= (y) ? (x) : (y))
-
 char *abspath(const char *root, const char *path) {
   //EXPECT_STREQ("Relative", "/user/foo/inc/stdio.h", abspath("/user/foo", "inc/stdio.h"));
   //EXPECT_STREQ("Absolute", "/inc/stdio.h", abspath("/user/foo", "/inc/stdio.h"));
