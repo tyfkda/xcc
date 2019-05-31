@@ -63,8 +63,10 @@ int vaargs(int n, ...) {
   va_list ap;
   va_start(ap, n);
   acc += va_arg(ap, int);
-  if (n >= 2)
-    acc += va_arg(ap, char);
+  if (n >= 2) {
+    char v = va_arg(ap, int);  // char is promoted to int.
+    acc += v;
+  }
   if (n >= 3)
     acc += va_arg(ap, long);
   va_end(ap);
@@ -580,6 +582,10 @@ int main(void) {
   expect("vaargs 1", 1, vaargs(1, (int)1, (char)20, 300L));
   expect("vaargs 2", 21, vaargs(2, (int)1, (char)20, 300L));
   expect("vaargs 3", 321, vaargs(3, (int)1, (char)20, 300L));
+  {
+    char c = 'A';
+    expect("vaargs char", 65, vaargs(1, c));
+  }
   expect("static local var", 44, (static_local(), static_local()));
   expect("null initializer", 0L, (long)null);
 

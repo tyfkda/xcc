@@ -506,7 +506,7 @@ static Token *get_token(void) {
       break;
     }
 
-    lex_error(p, "Unexpected character `%c'", *p);
+    lex_error(p, "Unexpected character `%c'(%d)", *p, *p);
     return NULL;
   }
 

@@ -1844,20 +1844,27 @@ Expr *analyze_expr(Expr *expr, bool keep_left) {
       expr->valType = functype->u.func.ret;
 
       Vector *params = functype->u.func.params;  // <VarInfo*>
+      bool vaargs = functype->u.func.vaargs;
       if (params != NULL) {
         int argc = args != NULL ? args->len : 0;
         int paramc = params->len;
         if (!(argc == paramc ||
-              (functype->u.func.vaargs && argc >= paramc)))
+              (vaargs && argc >= paramc)))
           parse_error(func->token, "function `%s' expect %d arguments, but %d", func->u.varref.ident, paramc, argc);
       }
 
-      if (args != NULL) {
+      if (args != NULL && params != NULL) {
+        int paramc = params->len;
         for (int i = 0, len = args->len; i < len; ++i) {
-          if (params != NULL && i < params->len) {
+          if (i < params->len) {
             Expr *arg = args->data[i];
             const Type *type = ((VarInfo*)params->data[i])->type;
             args->data[i] = new_expr_cast(type, arg->token, arg, false);
+          } else if (vaargs && i >= paramc) {
+            Expr *arg = args->data[i];
+            const Type *type = arg->valType;
+            if (type->type < TY_INT)  // Promote variadic argument.
+              args->data[i] = new_expr_cast(&tyInt, arg->token, arg, false);
           }
         }
       }
