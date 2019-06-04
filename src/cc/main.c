@@ -124,6 +124,18 @@ int main(int argc, char* argv[]) {
       ofn = strdup_(argv[iarg] + 2);
   }
 
+  if (argc > iarg) {
+    // Pass sources to preprocessor.
+    char **pp_argv = malloc(sizeof(char*) * argc);
+    pp_argv[0] = cat_path(dirname(strdup_(argv[0])), "cpp");
+    memcpy(&pp_argv[1], &argv[1], sizeof(char*) * argc);
+    char **xcc_argv = argv;
+    xcc_argv[iarg] = NULL;  // Destroy!
+    return pipe_pp_xcc(pp_argv, xcc_argv) != 0;
+  }
+
+  // Compile.
+
   init_compiler(LOAD_ADDRESS);
 
   // Test.
@@ -134,16 +146,7 @@ int main(int argc, char* argv[]) {
     define_global(&tyHexasm, 0, alloc_ident("__rel32", NULL, NULL));
   }
 
-  if (argc > iarg) {
-    char **pp_argv = malloc(sizeof(char*) * argc);
-    pp_argv[0] = cat_path(dirname(strdup_(argv[0])), "cpp");
-    memcpy(&pp_argv[1], &argv[1], sizeof(char*) * argc);
-    char **xcc_argv = argv;
-    xcc_argv[iarg] = NULL;  // Destroy!
-    return pipe_pp_xcc(pp_argv, xcc_argv) != 0;
-  } else {
-    compile(stdin, "*stdin*");
-  }
+  compile(stdin, "*stdin*");
 
   size_t memsz;
   size_t filesz = fixup_locations(&memsz);
