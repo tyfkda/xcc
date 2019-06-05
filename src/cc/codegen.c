@@ -1,4 +1,6 @@
 #include <assert.h>
+#include <inttypes.h>
+#include <stdarg.h>
 #include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
@@ -12,10 +14,10 @@ const int MAX_ARGS = 6;
 const int WORD_SIZE = /*sizeof(void*)*/ 8;
 
 #define CURIP(ofs)  (start_address + codesize + ofs)
-#define ADD_CODE(...)  do { unsigned char buf[] = {__VA_ARGS__}; add_code(buf, sizeof(buf)); } while (0)
 #include "x86_64.h"
 
 #define ALIGN(x, align)  (((x) + (align) - 1) & -(align))  // align must be 2^n
+#define ALIGN_CODESIZE(align_)  do { int align = (int)(align_); if ((align) > 1) add_asm(".align %d", (int)(align)); align_codesize(align); } while (0)
 
 static void calc_struct_size(StructInfo *sinfo, bool is_union);
 
@@ -107,67 +109,6 @@ static void calc_struct_size(StructInfo *sinfo, bool is_union) {
   sinfo->align = max_align;
 }
 
-static void cast(const enum eType ltype, const enum eType rtype) {
-  if (ltype == rtype)
-    return;
-
-  switch (ltype) {
-  case TY_VOID:
-    return;
-  case TY_CHAR:
-    switch (rtype) {
-    case TY_SHORT: return;
-    case TY_INT:   return;
-    case TY_LONG:  return;
-    default: assert(false); break;
-    }
-    break;
-  case TY_SHORT:
-    switch (rtype) {
-    case TY_CHAR: MOVSX_AL_AX(); return;
-    case TY_INT:  return;
-    case TY_LONG: return;
-    default: assert(false); break;
-    }
-    break;
-  case TY_INT: case TY_ENUM:
-    switch (rtype) {
-    case TY_CHAR:  MOVSX_AL_EAX(); return;
-    case TY_SHORT: MOVSX_AX_EAX(); return;
-    case TY_INT:   return;
-    case TY_LONG:  return;
-    case TY_ENUM:  return;
-    default: assert(false); break;
-    }
-    break;
-  case TY_LONG:
-    switch (rtype) {
-    case TY_CHAR:  MOVSX_AL_RAX(); return;
-    case TY_SHORT: MOVSX_AX_RAX(); return;
-    case TY_INT:   MOVSX_EAX_RAX(); return;
-    case TY_PTR:
-    case TY_ARRAY:
-      return;
-    default: assert(false); break;
-    }
-    break;
-  case TY_PTR:
-    switch (rtype) {
-    case TY_INT:   MOVSX_EAX_RAX(); return;
-    case TY_LONG:  return;
-    case TY_ARRAY: return;
-    default: assert(false); break;
-    }
-    break;
-  default:
-    assert(false); break;
-    break;
-  }
-
-  fprintf(stderr, "ltype=%d, rtype=%d\n", ltype, rtype);
-  assert(!"Cast failed");
-}
-
 static Map *label_map;
 
 enum LocType {
@@ -190,6 +131,7 @@ typedef struct {
 static uintptr_t start_address;
 static unsigned char* code;
 static size_t codesize;
+static FILE *asm_fp;
 
 void add_code(const unsigned char* buf, size_t size) {
   size_t newsize = codesize + size;
@@ -198,6 +140,42 @@ void add_code(const unsigned char* buf, size_t size) {
     error("not enough memory");
   memcpy(code + codesize, buf, size);
   codesize = newsize;
+}
+
+static void add_asm(const char *fmt, ...) {
+  if (asm_fp == NULL)
+    return;
+
+  va_list ap;
+  va_start(ap, fmt);
+  fprintf(asm_fp, "\t");
+  vfprintf(asm_fp, fmt, ap);
+  fprintf(asm_fp, "\n");
+  va_end(ap);
+}
+
+static void add_asm_label(const char *label) {
+  if (asm_fp == NULL)
+    return;
+
+  fprintf(asm_fp, "%s:\n", label);
+}
+
+static void add_asm_comment(const char *comment, ...) {
+  if (asm_fp == NULL)
+    return;
+
+  if (comment == NULL) {
+    fprintf(asm_fp, "\n");
+    return;
+  }
+
+  va_list ap;
+  va_start(ap, comment);
+  fprintf(asm_fp, "// ");
+  vfprintf(asm_fp, comment, ap);
+  fprintf(asm_fp, "\n");
+  va_end(ap);
 }
 
 // Put label at the current.
@@ -264,6 +242,18 @@ void construct_initial_value(unsigned char *buf, const Type *type, Initializer *
       int size = type_size(type);
       for (int i = 0; i < size; ++i)
         buf[i] = v >> (i * 8);  // Little endian
+
+      const char *fmt;
+      switch (type->type) {
+      case TY_CHAR:  fmt = ".byte " PRIxPTR; break;
+      case TY_SHORT: fmt = ".word " PRIxPTR; break;
+      case TY_INT: case TY_ENUM:
+        fmt = ".long " PRIxPTR;
+        break;
+      case TY_LONG:  fmt = ".quad " PRIxPTR; break;
+      default: break;
+      }
+      add_asm(fmt, v);
     }
     break;
   case TY_PTR:
@@ -287,12 +277,16 @@ void construct_initial_value(unsigned char *buf, const Type *type, Initializer *
         if (*pptrinits == NULL)
           *pptrinits = new_vector();
         vec_push(*pptrinits, init);
+
+        add_asm(".quad %s", value->u.varref.ident);
       } else if (value->type == EX_STR) {
         assert(!"`char* s = \"...\"`; should be handled in parser");
       } else if (is_const(value) && is_number(value->valType->type)) {
         intptr_t x = value->u.value;
         for (int i = 0; i < 8; ++i)
           buf[i] = x >> (i * 8);  // Little endian
+
+        add_asm(".quad 0x%"PRIxPTR, x);
       } else {
         assert(!"initializer type error");
       }
@@ -364,18 +358,20 @@ static void put_data(const char *label, const VarInfo *varinfo) {
   if (buf == NULL)
     error("Memory alloc failed: %d", size);
 
-  Vector *ptrinits = NULL;
-  construct_initial_value(buf, varinfo->type, varinfo->u.g.init, &ptrinits);
-
-  align_codesize(align_size(varinfo->type));
+  ALIGN_CODESIZE(align_size(varinfo->type));
   size_t baseadr = codesize;
-  add_label(label);
+  ADD_LABEL(label);
+
+  Vector *ptrinits = NULL;  // <[ptr, label]>
+  construct_initial_value(buf, varinfo->type, varinfo->u.g.init, &ptrinits);
   add_code(buf, size);
 
   if (ptrinits != NULL) {
     for (int i = 0; i < ptrinits->len; ++i) {
       void **pp = (void**)ptrinits->data[i];
-      add_loc_abs64((char*)pp[1], (unsigned char*)pp[0] - buf + baseadr);
+      unsigned char *p = pp[0];
+      const char *label = pp[1];
+      add_loc_abs64(label, p - buf + baseadr);
     }
   }
 
@@ -418,11 +414,11 @@ static void put_bss(void) {
     if (varinfo->type->type == TY_FUNC || varinfo->u.g.init != NULL ||
         (varinfo->flag & VF_EXTERN) != 0)
       continue;
-    align_codesize(align_size(varinfo->type));
+    ALIGN_CODESIZE(align_size(varinfo->type));
     size_t size = type_size(varinfo->type);
     if (size < 1)
       size = 1;
-    add_label(name);
+    ADD_LABEL(name);
     add_bss(size);
   }
 }
@@ -532,6 +528,67 @@ static void pop_continue_label(const char *save) {
 
 static void gen_expr(Expr *expr);
 static void gen_lval(Expr *expr);
+
+static void cast(const enum eType ltype, const enum eType rtype) {
+  if (ltype == rtype)
+    return;
+
+  switch (ltype) {
+  case TY_VOID:
+    return;
+  case TY_CHAR:
+    switch (rtype) {
+    case TY_SHORT: return;
+    case TY_INT:   return;
+    case TY_LONG:  return;
+    default: assert(false); break;
+    }
+    break;
+  case TY_SHORT:
+    switch (rtype) {
+    case TY_CHAR: MOVSX_AL_AX(); return;
+    case TY_INT:  return;
+    case TY_LONG: return;
+    default: assert(false); break;
+    }
+    break;
+  case TY_INT: case TY_ENUM:
+    switch (rtype) {
+    case TY_CHAR:  MOVSX_AL_EAX(); return;
+    case TY_SHORT: MOVSX_AX_EAX(); return;
+    case TY_INT:   return;
+    case TY_LONG:  return;
+    case TY_ENUM:  return;
+    default: assert(false); break;
+    }
+    break;
+  case TY_LONG:
+    switch (rtype) {
+    case TY_CHAR:  MOVSX_AL_RAX(); return;
+    case TY_SHORT: MOVSX_AX_RAX(); return;
+    case TY_INT:   MOVSX_EAX_RAX(); return;
+    case TY_PTR:
+    case TY_ARRAY:
+      return;
+    default: assert(false); break;
+    }
+    break;
+  case TY_PTR:
+    switch (rtype) {
+    case TY_INT:   MOVSX_EAX_RAX(); return;
+    case TY_LONG:  return;
+    case TY_ARRAY: return;
+    default: assert(false); break;
+    }
+    break;
+  default:
+    assert(false); break;
+    break;
+  }
+
+  fprintf(stderr, "ltype=%d, rtype=%d\n", ltype, rtype);
+  assert(!"Cast failed");
+}
 
 static void gen_rval(Expr *expr) {
   gen_expr(expr);  // ?
@@ -773,7 +830,18 @@ static void out_hexasm(Node *node) {
 
 static void gen_defun(Node *node) {
   Defun *defun = node->u.defun;
-  add_label(defun->name);
+
+  bool global = true;
+  VarInfo *varinfo = find_global(defun->name);
+  if (varinfo != NULL) {
+    global = (varinfo->flag & VF_STATIC) == 0;
+  }
+  if (global)
+    add_asm(".globl %s", defun->name);
+  else
+    add_asm_comment("%s: static func", defun->name);
+
+  ADD_LABEL(defun->name);
 
   // Allocate labels for goto.
   if (defun->labels != NULL) {
@@ -823,11 +891,12 @@ static void gen_defun(Node *node) {
 
   // Epilogue
   if (!no_stmt) {
-    add_label(defun->ret_label);
+    ADD_LABEL(defun->ret_label);
     MOV_RBP_RSP();
     POP_RBP();
   }
   RET();
+  add_asm_comment(NULL);
   curfunc = NULL;
   curscope = NULL;
 }
@@ -875,13 +944,13 @@ static void gen_if(Node *node) {
   gen_cond_jmp(node->u.if_.cond, false, flabel);
   gen(node->u.if_.tblock);
   if (node->u.if_.fblock == NULL) {
-    add_label(flabel);
+    ADD_LABEL(flabel);
   } else {
     const char *nlabel = alloc_label();
     JMP32(nlabel);
-    add_label(flabel);
+    ADD_LABEL(flabel);
     gen(node->u.if_.fblock);
-    add_label(nlabel);
+    ADD_LABEL(nlabel);
   }
 }
 
@@ -891,9 +960,9 @@ static void gen_ternary(Expr *expr) {
   gen_cond_jmp(expr->u.ternary.cond, false, flabel);
   gen_expr(expr->u.ternary.tval);
   JMP32(nlabel);
-  add_label(flabel);
+  ADD_LABEL(flabel);
   gen_expr(expr->u.ternary.fval);
-  add_label(nlabel);
+  ADD_LABEL(nlabel);
 }
 
 static Vector *cur_case_values;
@@ -939,8 +1008,8 @@ static void gen_switch(Node *node) {
   gen(node->u.switch_.body);
 
   if (!node->u.switch_.has_default)
-    add_label(labels->data[len]);  // No default: Locate at the end of switch statement.
-  add_label(l_break);
+    ADD_LABEL(labels->data[len]);  // No default: Locate at the end of switch statement.
+  ADD_LABEL(l_break);
 
   cur_case_values = save_case_values;
   cur_case_labels = save_case_labels;
@@ -958,7 +1027,7 @@ static void gen_case(Node *node) {
   }
   assert(i < len);
   assert(i < cur_case_labels->len);
-  add_label(cur_case_labels->data[i]);
+  ADD_LABEL(cur_case_labels->data[i]);
 }
 
 static void gen_default(void) {
@@ -966,7 +1035,7 @@ static void gen_default(void) {
   assert(cur_case_labels != NULL);
   int i = cur_case_values->len;  // Label for default is stored at the size of values.
   assert(i < cur_case_labels->len);
-  add_label(cur_case_labels->data[i]);
+  ADD_LABEL(cur_case_labels->data[i]);
 }
 
 static void gen_while(Node *node) {
@@ -975,11 +1044,11 @@ static void gen_while(Node *node) {
   const char *l_break = push_break_label(&save_break);
   const char *l_loop = alloc_label();
   JMP32(l_cond);
-  add_label(l_loop);
+  ADD_LABEL(l_loop);
   gen(node->u.while_.body);
-  add_label(l_cond);
+  ADD_LABEL(l_cond);
   gen_cond_jmp(node->u.while_.cond, true, l_loop);
-  add_label(l_break);
+  ADD_LABEL(l_break);
   pop_continue_label(save_cont);
   pop_break_label(save_break);
 }
@@ -989,11 +1058,11 @@ static void gen_do_while(Node *node) {
   const char *l_cond = push_continue_label(&save_cont);
   const char *l_break = push_break_label(&save_break);
   const char * l_loop = alloc_label();
-  add_label(l_loop);
+  ADD_LABEL(l_loop);
   gen(node->u.do_while.body);
-  add_label(l_cond);
+  ADD_LABEL(l_cond);
   gen_cond_jmp(node->u.do_while.cond, true, l_loop);
-  add_label(l_break);
+  ADD_LABEL(l_break);
   pop_continue_label(save_cont);
   pop_break_label(save_break);
 }
@@ -1005,16 +1074,16 @@ static void gen_for(Node *node) {
   const char * l_cond = alloc_label();
   if (node->u.for_.pre != NULL)
     gen_expr(node->u.for_.pre);
-  add_label(l_cond);
+  ADD_LABEL(l_cond);
   if (node->u.for_.cond != NULL) {
     gen_cond_jmp(node->u.for_.cond, false, l_break);
   }
   gen(node->u.for_.body);
-  add_label(l_continue);
+  ADD_LABEL(l_continue);
   if (node->u.for_.post != NULL)
     gen_expr(node->u.for_.post);
   JMP32(l_cond);
-  add_label(l_break);
+  ADD_LABEL(l_break);
   pop_continue_label(save_cont);
   pop_break_label(save_break);
 }
@@ -1040,7 +1109,7 @@ static void gen_label(Node *node) {
   assert(curfunc->labels != NULL);
   const char *label = map_get(curfunc->labels, node->u.label.name);
   assert(label != NULL);
-  add_label(label);
+  ADD_LABEL(label);
   gen(node->u.label.stmt);
 }
 
@@ -1482,12 +1551,12 @@ void gen_expr(Expr *expr) {
       const char * l_next = alloc_label();
       gen_cond_jmp(expr->u.bop.lhs, false, l_false);
       gen_cond_jmp(expr->u.bop.rhs, true, l_true);
-      add_label(l_false);
+      ADD_LABEL(l_false);
       MOV_IM32_EAX(0);
       JMP8(l_next);
-      add_label(l_true);
+      ADD_LABEL(l_true);
       MOV_IM32_EAX(1);
-      add_label(l_next);
+      ADD_LABEL(l_next);
     }
     return;
 
@@ -1498,12 +1567,12 @@ void gen_expr(Expr *expr) {
       const char * l_next = alloc_label();
       gen_cond_jmp(expr->u.bop.lhs, true, l_true);
       gen_cond_jmp(expr->u.bop.rhs, false, l_false);
-      add_label(l_true);
+      ADD_LABEL(l_true);
       MOV_IM32_EAX(1);
       JMP8(l_next);
-      add_label(l_false);
+      ADD_LABEL(l_false);
       MOV_IM32_EAX(0);
-      add_label(l_next);
+      ADD_LABEL(l_next);
     }
     return;
 
@@ -1613,6 +1682,10 @@ void gen(Node *node) {
 void init_gen(uintptr_t start_address_) {
   start_address = start_address_;
   label_map = new_map();
+}
+
+void set_asm_fp(FILE *fp) {
+  asm_fp = fp;
 }
 
 void output_code(FILE* fp, size_t filesize) {
