@@ -167,7 +167,7 @@ int main(int argc, char* argv[]) {
   init_compiler(LOAD_ADDRESS);
 
   // Test.
-  define_global(new_func_type(&tyVoid, NULL, true), 0, NULL, "__hexasm");
+  define_global(new_func_type(&tyVoid, NULL, true), 0, NULL, "__asm");
   define_global(new_func_type(&tyVoid, NULL, false), 0, NULL, "__rel32");
 
   compile(stdin, "*stdin*");

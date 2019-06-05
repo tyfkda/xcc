@@ -788,16 +788,22 @@ static bool is_funcall(Expr *expr, const char *funcname) {
   return false;
 }
 
-static bool is_hexasm(Node *node) {
+static bool is_asm(Node *node) {
   return node->type == ND_EXPR &&
-    is_funcall(node->u.expr, "__hexasm");
+    is_funcall(node->u.expr, "__asm");
 }
 
-static void out_hexasm(Node *node) {
+static void out_asm(Node *node) {
   Expr *funcall = node->u.expr;
   Vector *args = funcall->u.funcall.args;
   int len = args->len;
-  for (int i = 0; i < len; ++i) {
+
+  Expr *arg0 = (Expr*)args->data[0];
+  if (arg0->type != EX_STR)
+    error("__asm takes string at 1st argument");
+  add_asm("%s", arg0->u.str.buf);
+
+  for (int i = 1; i < len; ++i) {
     Expr *arg = (Expr*)args->data[i];
     switch (arg->type) {
     case EX_CHAR:
@@ -856,7 +862,7 @@ static void gen_defun(Node *node) {
   if (defun->stmts != NULL) {
     for (int i = 0; i < defun->stmts->len; ++i) {
       Node *node = defun->stmts->data[i];
-      if (!is_hexasm(node)) {
+      if (!is_asm(node)) {
         no_stmt = false;
         break;
       }
@@ -882,8 +888,8 @@ static void gen_defun(Node *node) {
   if (defun->stmts != NULL) {
     for (int i = 0; i < defun->stmts->len; ++i) {
       Node *node = defun->stmts->data[i];
-      if (is_hexasm(node))
-        out_hexasm(node);
+      if (is_asm(node))
+        out_asm(node);
       else
         gen(node);
     }

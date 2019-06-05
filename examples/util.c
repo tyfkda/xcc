@@ -1,14 +1,14 @@
 #if defined(__XV6)
 void write(int fd, const char *str, long len) {
-  __hexasm(0xb8, 0x10, 0x00, 0x00, 0x00);  // mov $SYS_write(=16), %eax
-  __hexasm(0xcd, 0x40);                    // int $64
+  __asm("mov $16, %eax", 0xb8, 0x10, 0x00, 0x00, 0x00);  // SYS_write
+  __asm("int $64",       0xcd, 0x40);
 }
 
 #elif defined(__linux__)
 void write(int fd, const char *str, long len) {
 #if defined(__XCC)
-  __hexasm(0xb8, 0x01, 0x00, 0x00, 0x00);  // mov $__NR_write(=1), %eax
-  __hexasm(0x0f, 0x05);                    // syscall
+  __asm("mov $1, %eax", 0xb8, 0x01, 0x00, 0x00, 0x00);  // __NR_write
+  __asm("syscall",      0x0f, 0x05);
 #else
   __asm("mov $1, %eax\n"
         "syscall");
