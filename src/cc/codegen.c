@@ -772,19 +772,13 @@ static bool is_funcall(Expr *expr, const char *funcname) {
   return false;
 }
 
-static bool is_hexasm(Defun *defun) {
-  if (defun->stmts != NULL &&
-      defun->stmts->len == 1 &&
-      ((Node*)defun->stmts->data[0])->type == ND_EXPR) {
-    Expr *expr = ((Node*)defun->stmts->data[0])->u.expr;
-    if (is_funcall(expr, "__hexasm"))
-      return true;
-  }
-  return false;
+static bool is_hexasm(Node *node) {
+  return node->type == ND_EXPR &&
+    is_funcall(node->u.expr, "__hexasm");
 }
 
-static void out_hexasm(Defun *defun) {
-  Expr *funcall = ((Node*)defun->stmts->data[0])->u.expr;
+static void out_hexasm(Node *node) {
+  Expr *funcall = node->u.expr;
   Vector *args = funcall->u.funcall.args;
   int len = args->len;
   for (int i = 0; i < len; ++i) {
@@ -821,15 +815,6 @@ static void out_hexasm(Defun *defun) {
 static void gen_defun(Node *node) {
   Defun *defun = node->u.defun;
   add_label(defun->name);
-  if (is_hexasm(defun)) {
-    out_hexasm(defun);
-    return;
-  }
-
-  if (defun->stmts == NULL) {
-    RET();
-    return;
-  }
 
   // Allocate labels for goto.
   if (defun->labels != NULL) {
@@ -840,27 +825,49 @@ static void gen_defun(Node *node) {
 
   size_t frame_size = arrange_scope_vars(defun);
 
+  bool no_stmt = true;
+  if (defun->stmts != NULL) {
+    for (int i = 0; i < defun->stmts->len; ++i) {
+      Node *node = defun->stmts->data[i];
+      if (!is_hexasm(node)) {
+        no_stmt = false;
+        break;
+      }
+    }
+  }
+
   curfunc = defun;
   curscope = defun->top_scope;
   defun->ret_label = alloc_label();
 
   // Prologue
   // Allocate variable bufer.
-  PUSH_RBP();
-  MOV_RSP_RBP();
-  if (frame_size > 0)
-    SUB_IM32_RSP(frame_size);
+  if (!no_stmt) {
+    PUSH_RBP();
+    MOV_RSP_RBP();
+    if (frame_size > 0)
+      SUB_IM32_RSP(frame_size);
 
-  put_args_to_stack(defun);
+    put_args_to_stack(defun);
+  }
 
   // Statements
-  for (int i = 0; i < defun->stmts->len; ++i)
-    gen((Node*)defun->stmts->data[i]);
+  if (defun->stmts != NULL) {
+    for (int i = 0; i < defun->stmts->len; ++i) {
+      Node *node = defun->stmts->data[i];
+      if (is_hexasm(node))
+        out_hexasm(node);
+      else
+        gen(node);
+    }
+  }
 
   // Epilogue
-  add_label(defun->ret_label);
-  MOV_RBP_RSP();
-  POP_RBP();
+  if (!no_stmt) {
+    add_label(defun->ret_label);
+    MOV_RBP_RSP();
+    POP_RBP();
+  }
   RET();
   curfunc = NULL;
   curscope = NULL;
