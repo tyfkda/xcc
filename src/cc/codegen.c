@@ -298,17 +298,7 @@ void construct_initial_value(unsigned char *buf, const Type *type, Initializer *
           *pptrinits = new_vector();
         vec_push(*pptrinits, init);
       } else if (value->type == EX_STR) {
-        const char *label = alloc_label();
-        add_label(label);
-        add_code((void*)value->u.str.buf, value->u.str.size);
-
-        memset(buf, 0, type_size(type));  // Just in case.
-        void **init = malloc(sizeof(void*) * 2);
-        init[0] = buf;
-        init[1] = (void*)label;
-        if (*pptrinits == NULL)
-          *pptrinits = new_vector();
-        vec_push(*pptrinits, init);
+        assert(!"`char* s = \"...\"`; should be handled in parser");
       } else if (is_const(value) && is_number(value->valType->type)) {
         intptr_t x = value->u.value;
         for (int i = 0; i < 8; ++i)

@@ -911,10 +911,22 @@ static Initializer *check_global_initializer(const Type *type, Initializer *init
         }
         break;
       case EX_STR:
-        if (!(type->u.pa.ptrof->type == TY_CHAR && value->type == EX_STR)) {
-          parse_error(NULL, "Illegal type");
+        {
+          if (!(type->u.pa.ptrof->type == TY_CHAR && value->type == EX_STR))
+            parse_error(NULL, "Illegal type");
+
+          // Create string and point to it.
+          Type* type2 = arrayof(type->u.pa.ptrof, value->u.str.size);
+          const char *label = alloc_label();
+          const Token *ident = alloc_ident(label, NULL, NULL);
+          VarInfo *varinfo = define_global(type2, VF_CONST | VF_STATIC, ident, NULL);
+          varinfo->u.g.init = init;
+
+          Initializer *init2 = malloc(sizeof(*init2));
+          init2->type = vSingle;
+          init2->u.single = new_expr_varref(label, type2, true, ident);
+          return init2;
         }
-        return init;
       default:
         break;
       }
@@ -924,6 +936,14 @@ static Initializer *check_global_initializer(const Type *type, Initializer *init
   case TY_ARRAY:
     switch (init->type) {
     case vMulti:
+      {
+        const Type *elemtype = type->u.pa.ptrof;
+        Vector *multi = init->u.multi;
+        for (int i = 0, len = multi->len; i < len; ++i) {
+          Initializer *eleminit = multi->data[i];
+          multi->data[i] =check_global_initializer(elemtype, eleminit);
+        }
+      }
       break;
     case vSingle:
       if (type->u.pa.ptrof->type == TY_CHAR && init->u.single->type == EX_STR) {
@@ -968,16 +988,16 @@ static Node *define_global_var(const Type *rawtype, int flag, const Type *type, 
 
     type = parse_type_suffix(type);
     VarInfo *varinfo = define_global(type, flag, ident, NULL);
-    Initializer *initializer = NULL;
+    Initializer *init = NULL;
     const Token *tok;
     if ((tok = consume(TK_ASSIGN)) != NULL) {
       if (flag & VF_EXTERN)
         parse_error(tok, "extern with initializer");
-      initializer = parse_initializer();
-      fix_array_size((Type*)type, initializer);
-      initializer = check_global_initializer(type, initializer);
+      init = parse_initializer();
+      fix_array_size((Type*)type, init);
+      init = check_global_initializer(type, init);
     }
-    varinfo->u.g.init = initializer;
+    varinfo->u.g.init = init;
 
     if (consume(TK_COMMA))
       continue;
