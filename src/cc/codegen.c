@@ -361,7 +361,6 @@ void construct_initial_value(unsigned char *buf, const Type *type, Initializer *
     }
     break;
   case TY_STRUCT:
-
   case TY_UNION:
     {
       if (init->type != vMulti)
@@ -369,38 +368,11 @@ void construct_initial_value(unsigned char *buf, const Type *type, Initializer *
 
       ensure_struct((Type*)type, NULL);
       memset(buf, 0x00, type_size(type));
+
+      Initializer **values = flatten_initializer(type, init);
+
       const StructInfo *sinfo = type->u.struct_.info;
-      int n = sinfo->members->len;
-      int m = init->u.multi->len;
-      if (n <= 0) {
-        if (m > 0)
-          error("Initializer for empty struct");
-        break;
-      }
-      if (type->type == TY_UNION && m > 1)
-        error("Initializer for union more than 1");
-
-      Initializer **values = malloc(sizeof(Initializer*) * n);
-      for (int i = 0; i < n; ++i)
-        values[i] = NULL;
-
-      int dst = -1;
-      for (int i = 0; i < m; ++i) {
-        Initializer *value = init->u.multi->data[i];
-        if (value->type == vDot) {
-          int idx = var_find(sinfo->members, value->u.dot.name);
-          if (idx < 0)
-            error("`%s' is not member of struct", value->u.dot.name);
-          values[idx] = value->u.dot.value;
-          dst = idx;
-          continue;
-        }
-        if (++dst >= n)
-          break;  // TODO: Check extra.
-        values[dst] = value;
-      }
-
-      for (int i = 0; i < n; ++i) {
+      for (int i = 0, n = sinfo->members->len; i < n; ++i) {
         VarInfo* varinfo = sinfo->members->data[i];
         if (values[i] != NULL) {
           construct_initial_value(buf + varinfo->offset, varinfo->type, values[i], pptrinits);

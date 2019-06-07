@@ -79,6 +79,8 @@ typedef struct Initializer {
   } u;
 } Initializer;
 
+Initializer **flatten_initializer(const Type *type, Initializer *init);
+
 // Varible flags.
 enum {
   VF_CONST = 1 << 0,

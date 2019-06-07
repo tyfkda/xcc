@@ -504,6 +504,43 @@ static void fix_array_size(Type *type, Initializer *init) {
   }
 }
 
+Initializer **flatten_initializer(const Type *type, Initializer *init) {
+  assert(is_struct_or_union(type->type));
+  assert(init->type == vMulti);
+
+  ensure_struct((Type*)type, NULL);
+  const StructInfo *sinfo = type->u.struct_.info;
+  int n = sinfo->members->len;
+  int m = init->u.multi->len;
+  if (n <= 0) {
+    if (m > 0)
+      parse_error(NULL, "Initializer for empty struct");
+    return NULL;
+  }
+  if (type->type == TY_UNION && m > 1)
+    error("Initializer for union more than 1");
+
+  Initializer **values = malloc(sizeof(Initializer*) * n);
+  for (int i = 0; i < n; ++i)
+    values[i] = NULL;
+
+  int index = 0;
+  for (int i = 0; i < m; ++i) {
+    Initializer *value = init->u.multi->data[i];
+    if (value->type == vDot) {
+      index = var_find(sinfo->members, value->u.dot.name);
+      if (index < 0)
+        parse_error(NULL, "`%s' is not member of struct", value->u.dot.name);
+      value = value->u.dot.value;
+    }
+    if (index >= n)
+      parse_error(NULL, "Too many init values");
+    values[index++] = value;
+  }
+
+  return values;
+}
+
 static Vector *assign_initial_value(Expr *expr, Initializer *init, Vector *inits) {
   if (inits == NULL)
     inits = new_vector();
@@ -540,35 +577,10 @@ static Vector *assign_initial_value(Expr *expr, Initializer *init, Vector *inits
       if (init->type != vMulti)
         parse_error(NULL, "`{...}' expected for initializer");
 
-      ensure_struct((Type*)expr->valType, NULL);
-      const StructInfo *sinfo = expr->valType->u.struct_.info;
-      int n = sinfo->members->len;
-      int m = init->u.multi->len;
-      if (n <= 0) {
-        if (m > 0)
-          parse_error(NULL, "Initializer for empty struct");
-        break;
-      }
-      Initializer **values = malloc(sizeof(Initializer*) * n);
-      for (int i = 0; i < n; ++i)
-        values[i] = NULL;
+      Initializer **values = flatten_initializer(expr->valType, init);
 
-      int dst = -1;
-      for (int i = 0; i < m; ++i) {
-        Initializer *value = init->u.multi->data[i];
-        if (value->type == vDot) {
-          int idx = var_find(sinfo->members, value->u.dot.name);
-          if (idx < 0)
-            parse_error(NULL, "`%s' is not member of struct", value->u.dot.name);
-          values[idx] = value->u.dot.value;
-          dst = idx;
-          continue;
-        }
-        if (++dst >= n)
-          break;  // TODO: Check extra.
-        values[dst] = value;
-      }
-      for (int i = 0; i < n; ++i) {
+      const StructInfo *sinfo = expr->valType->u.struct_.info;
+      for (int i = 0, n = sinfo->members->len; i < n; ++i) {
         VarInfo* varinfo = sinfo->members->data[i];
         Expr *member = new_expr_member(NULL, varinfo->type, expr, NULL, NULL, i);
         if (values[i] != NULL)
@@ -590,17 +602,16 @@ static Vector *assign_initial_value(Expr *expr, Initializer *init, Vector *inits
       if (n <= 0 && m > 0)
         parse_error(NULL, "Initializer for empty union");
 
-      int dst = 0;
+      int index = 0;
       Initializer *value = init->u.multi->data[0];
       if (value->type == vDot) {
-        int idx = var_find(sinfo->members, value->u.dot.name);
-        if (idx < 0)
+        index = var_find(sinfo->members, value->u.dot.name);
+        if (index < 0)
           parse_error(NULL, "`%s' is not member of struct", value->u.dot.name);
-        dst = idx;
         value = value->u.dot.value;
       }
-      VarInfo* varinfo = sinfo->members->data[dst];
-      Expr *member = new_expr_member(NULL, varinfo->type, expr, NULL, NULL, dst);
+      VarInfo* varinfo = sinfo->members->data[index];
+      Expr *member = new_expr_member(NULL, varinfo->type, expr, NULL, NULL, index);
       assign_initial_value(member, value, inits);
     }
     break;
