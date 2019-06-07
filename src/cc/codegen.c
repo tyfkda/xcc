@@ -257,15 +257,6 @@ void add_loc_abs64(const char *label, uintptr_t pos) {
   new_loc(LOC_ABS64, pos, label);
 }
 
-// Put RoData into code.
-static void put_rodata(void) {
-  for (int i = 0, len = rodata_vector->len; i < len; ++i) {
-    const RoData *ro = (const RoData*)rodata_vector->data[i];
-    add_label(ro->label);
-    add_code(ro->data, ro->size);
-  }
-}
-
 void construct_initial_value(unsigned char *buf, const Type *type, Initializer *init, Vector **pptrinits) {
   switch (type->type) {
   case TY_CHAR:
@@ -387,39 +378,61 @@ void construct_initial_value(unsigned char *buf, const Type *type, Initializer *
   }
 }
 
-// Put global with initial value (RwData).
-static void put_rwdata(void) {
-  unsigned char *buf = NULL;
-  size_t bufsize = 0;
+static void put_data(const char *label, const VarInfo *varinfo) {
+  size_t size = type_size(varinfo->type);
+  unsigned char *buf = malloc(size);
+  if (buf == NULL)
+    error("Memory alloc failed: %d", size);
+
+  Vector *ptrinits = NULL;
+  construct_initial_value(buf, varinfo->type, varinfo->u.g.init, &ptrinits);
+
+  align_codesize(align_size(varinfo->type));
+  size_t baseadr = codesize;
+  add_label(label);
+  add_code(buf, size);
+
+  if (ptrinits != NULL) {
+    for (int i = 0; i < ptrinits->len; ++i) {
+      void **pp = (void**)ptrinits->data[i];
+      add_loc_abs64((char*)pp[1], (unsigned char*)pp[0] - buf + baseadr);
+    }
+  }
+
+  free(buf);
+}
+
+// Put RoData into code.
+static void put_rodata(void) {
+  for (int i = 0, len = rodata_vector->len; i < len; ++i) {
+    const RoData *ro = (const RoData*)rodata_vector->data[i];
+    add_label(ro->label);
+    add_code(ro->data, ro->size);
+  }
+
   for (int i = 0, len = map_count(gvar_map); i < len; ++i) {
-    const char *name = (const char *)gvar_map->keys->data[i];
     const VarInfo *varinfo = (const VarInfo*)gvar_map->vals->data[i];
-    if (varinfo->type->type == TY_FUNC || varinfo->u.g.init == NULL ||
-        (varinfo->flag & VF_EXTERN) != 0 ||
-        varinfo->type->type == TY_ENUM)
+    if (varinfo->type->type == TY_FUNC || varinfo->type->type == TY_ENUM ||
+        (varinfo->flag & VF_EXTERN) != 0 || varinfo->u.g.init == NULL ||
+        (varinfo->flag & VF_CONST) == 0)
       continue;
 
-    align_codesize(align_size(varinfo->type));
-    size_t size = type_size(varinfo->type);
-    if (bufsize < size) {
-      buf = realloc(buf, size);
-      if (buf == NULL)
-        error("Memory alloc failed: %d", size);
-      bufsize = size;
-    }
+    const char *name = (const char *)gvar_map->keys->data[i];
+    put_data(name, varinfo);
+  }
+}
 
-    Vector *ptrinits = NULL;
-    construct_initial_value(buf, varinfo->type, varinfo->u.g.init, &ptrinits);
+// Put global with initial value (RwData).
+static void put_rwdata(void) {
+  for (int i = 0, len = map_count(gvar_map); i < len; ++i) {
+    const VarInfo *varinfo = (const VarInfo*)gvar_map->vals->data[i];
+    if (varinfo->type->type == TY_FUNC || varinfo->type->type == TY_ENUM ||
+        (varinfo->flag & VF_EXTERN) != 0 || varinfo->u.g.init == NULL ||
+        (varinfo->flag & VF_CONST) != 0)
+      continue;
 
-    if (ptrinits != NULL) {
-      for (int i = 0; i < ptrinits->len; ++i) {
-        void **pp = (void**)ptrinits->data[i];
-        add_loc_abs64((char*)pp[1], (unsigned char*)pp[0] - buf + codesize);
-      }
-    }
-
-    add_label(name);
-    add_code(buf, size);
+    const char *name = (const char *)gvar_map->keys->data[i];
+    put_data(name, varinfo);
   }
 }
 
