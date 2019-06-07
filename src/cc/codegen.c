@@ -187,16 +187,6 @@ typedef struct {
   };
 } LocInfo;
 
-static Vector *rodata_vector;
-
-void add_rodata(const char *label, const void *data, size_t size) {
-  RoData *ro = malloc(sizeof(*ro));
-  ro->label = label;
-  ro->data = data;
-  ro->size = size;
-  vec_push(rodata_vector, ro);
-}
-
 static uintptr_t start_address;
 static unsigned char* code;
 static size_t codesize;
@@ -394,12 +384,6 @@ static void put_data(const char *label, const VarInfo *varinfo) {
 
 // Put RoData into code.
 static void put_rodata(void) {
-  for (int i = 0, len = rodata_vector->len; i < len; ++i) {
-    const RoData *ro = (const RoData*)rodata_vector->data[i];
-    add_label(ro->label);
-    add_code(ro->data, ro->size);
-  }
-
   for (int i = 0, len = map_count(gvar_map); i < len; ++i) {
     const VarInfo *varinfo = (const VarInfo*)gvar_map->vals->data[i];
     if (varinfo->type->type == TY_FUNC || varinfo->type->type == TY_ENUM ||
@@ -1206,8 +1190,17 @@ void gen_expr(Expr *expr) {
 
   case EX_STR:
     {
+      Initializer *init = malloc(sizeof(*init));
+      init->type = vSingle;
+      init->u.single = expr;
+
+      // Create string and point to it.
       const char * label = alloc_label();
-      add_rodata(label, expr->u.str.buf, expr->u.str.size);
+      Type* strtype = arrayof(&tyChar, expr->u.str.size);
+      VarInfo *varinfo = define_global(strtype, VF_CONST | VF_STATIC, NULL, label);
+
+      varinfo->u.g.init = init;
+
       LEA_OFS32_RIP_RAX(label);
     }
     return;
@@ -1620,7 +1613,6 @@ void gen(Node *node) {
 void init_gen(uintptr_t start_address_) {
   start_address = start_address_;
   label_map = new_map();
-  rodata_vector = new_vector();
 }
 
 void output_code(FILE* fp, size_t filesize) {
