@@ -789,7 +789,7 @@ static Node *parse_defun(const Type *rettype, int flag, Token *ident) {
 
   VarInfo *def = find_global(name);
   if (def == NULL) {
-    define_global(functype, flag | VF_CONST, ident);
+    define_global(functype, flag | VF_CONST, ident, NULL);
   } else {
     if (def->type->type != TY_FUNC)
       parse_error(ident, "Definition conflict: `%s'");
@@ -967,7 +967,7 @@ static Node *define_global_var(const Type *rawtype, int flag, const Type *type, 
       parse_error(ident, "`void' not allowed");
 
     type = parse_type_suffix(type);
-    VarInfo *varinfo = define_global(type, flag, ident);
+    VarInfo *varinfo = define_global(type, flag, ident, NULL);
     Initializer *initializer = NULL;
     const Token *tok;
     if ((tok = consume(TK_ASSIGN)) != NULL) {

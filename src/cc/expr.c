@@ -46,7 +46,7 @@ VarInfo *var_add(Vector *lvars, const Token *ident, const Type *type, int flag) 
       parse_error(ident, "`%s' already defined", name);
     if (flag & VF_STATIC) {
       label = alloc_label();
-      ginfo = define_global(type, flag, alloc_ident(label, NULL, NULL));
+      ginfo = define_global(type, flag, NULL, label);
     }
   }
 
@@ -76,8 +76,9 @@ VarInfo *find_global(const char *name) {
   return (VarInfo*)map_get(gvar_map, name);
 }
 
-VarInfo *define_global(const Type *type, int flag, const Token *ident) {
-  const char *name = ident->u.ident;
+VarInfo *define_global(const Type *type, int flag, const Token *ident, const char *name) {
+  if (name == NULL)
+    name = ident->u.ident;
   VarInfo *varinfo = find_global(name);
   if (varinfo != NULL && !(varinfo->flag & VF_EXTERN))
     parse_error(ident, "`%s' already defined", name);
@@ -808,7 +809,7 @@ static const Type *parse_enum(void) {
         //init->u.single = new_expr_numlit(EX_INT, numtok, value);
         init->u.single = new_expr(EX_INT, &tyEnum, numtok);
         init->u.single->u.value = value;
-        VarInfo *varinfo = define_global(&tyEnum, VF_CONST, ident);
+        VarInfo *varinfo = define_global(&tyEnum, VF_CONST, ident, NULL);
         varinfo->u.g.init = init;
         ++value;
 

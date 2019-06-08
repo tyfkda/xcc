@@ -325,7 +325,7 @@ VarInfo *var_add(Vector *lvars, const Token *ident, const Type *type, int flag);
 extern Map *gvar_map;
 
 VarInfo *find_global(const char *name);
-VarInfo *define_global(const Type *type, int flag, const Token *ident);
+VarInfo *define_global(const Type *type, int flag, const Token *ident, const char *name);
 
 //
 
