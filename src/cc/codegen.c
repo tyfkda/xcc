@@ -187,16 +187,6 @@ typedef struct {
   };
 } LocInfo;
 
-static Vector *rodata_vector;
-
-void add_rodata(const char *label, const void *data, size_t size) {
-  RoData *ro = malloc(sizeof(*ro));
-  ro->label = label;
-  ro->data = data;
-  ro->size = size;
-  vec_push(rodata_vector, ro);
-}
-
 static uintptr_t start_address;
 static unsigned char* code;
 static size_t codesize;
@@ -257,15 +247,6 @@ void add_loc_abs64(const char *label, uintptr_t pos) {
   new_loc(LOC_ABS64, pos, label);
 }
 
-// Put RoData into code.
-static void put_rodata(void) {
-  for (int i = 0, len = rodata_vector->len; i < len; ++i) {
-    const RoData *ro = (const RoData*)rodata_vector->data[i];
-    add_label(ro->label);
-    add_code(ro->data, ro->size);
-  }
-}
-
 void construct_initial_value(unsigned char *buf, const Type *type, Initializer *init, Vector **pptrinits) {
   switch (type->type) {
   case TY_CHAR:
@@ -307,17 +288,7 @@ void construct_initial_value(unsigned char *buf, const Type *type, Initializer *
           *pptrinits = new_vector();
         vec_push(*pptrinits, init);
       } else if (value->type == EX_STR) {
-        const char *label = alloc_label();
-        add_label(label);
-        add_code((void*)value->u.str.buf, value->u.str.size);
-
-        memset(buf, 0, type_size(type));  // Just in case.
-        void **init = malloc(sizeof(void*) * 2);
-        init[0] = buf;
-        init[1] = (void*)label;
-        if (*pptrinits == NULL)
-          *pptrinits = new_vector();
-        vec_push(*pptrinits, init);
+        assert(!"`char* s = \"...\"`; should be handled in parser");
       } else if (is_const(value) && is_number(value->valType->type)) {
         intptr_t x = value->u.value;
         for (int i = 0; i < 8; ++i)
@@ -387,39 +358,55 @@ void construct_initial_value(unsigned char *buf, const Type *type, Initializer *
   }
 }
 
-// Put global with initial value (RwData).
-static void put_rwdata(void) {
-  unsigned char *buf = NULL;
-  size_t bufsize = 0;
+static void put_data(const char *label, const VarInfo *varinfo) {
+  size_t size = type_size(varinfo->type);
+  unsigned char *buf = malloc(size);
+  if (buf == NULL)
+    error("Memory alloc failed: %d", size);
+
+  Vector *ptrinits = NULL;
+  construct_initial_value(buf, varinfo->type, varinfo->u.g.init, &ptrinits);
+
+  align_codesize(align_size(varinfo->type));
+  size_t baseadr = codesize;
+  add_label(label);
+  add_code(buf, size);
+
+  if (ptrinits != NULL) {
+    for (int i = 0; i < ptrinits->len; ++i) {
+      void **pp = (void**)ptrinits->data[i];
+      add_loc_abs64((char*)pp[1], (unsigned char*)pp[0] - buf + baseadr);
+    }
+  }
+
+  free(buf);
+}
+
+// Put RoData into code.
+static void put_rodata(void) {
   for (int i = 0, len = map_count(gvar_map); i < len; ++i) {
-    const char *name = (const char *)gvar_map->keys->data[i];
     const VarInfo *varinfo = (const VarInfo*)gvar_map->vals->data[i];
-    if (varinfo->type->type == TY_FUNC || varinfo->u.g.init == NULL ||
-        (varinfo->flag & VF_EXTERN) != 0 ||
-        varinfo->type->type == TY_ENUM)
+    if (varinfo->type->type == TY_FUNC || varinfo->type->type == TY_ENUM ||
+        (varinfo->flag & VF_EXTERN) != 0 || varinfo->u.g.init == NULL ||
+        (varinfo->flag & VF_CONST) == 0)
       continue;
 
-    align_codesize(align_size(varinfo->type));
-    size_t size = type_size(varinfo->type);
-    if (bufsize < size) {
-      buf = realloc(buf, size);
-      if (buf == NULL)
-        error("Memory alloc failed: %d", size);
-      bufsize = size;
-    }
+    const char *name = (const char *)gvar_map->keys->data[i];
+    put_data(name, varinfo);
+  }
+}
 
-    Vector *ptrinits = NULL;
-    construct_initial_value(buf, varinfo->type, varinfo->u.g.init, &ptrinits);
+// Put global with initial value (RwData).
+static void put_rwdata(void) {
+  for (int i = 0, len = map_count(gvar_map); i < len; ++i) {
+    const VarInfo *varinfo = (const VarInfo*)gvar_map->vals->data[i];
+    if (varinfo->type->type == TY_FUNC || varinfo->type->type == TY_ENUM ||
+        (varinfo->flag & VF_EXTERN) != 0 || varinfo->u.g.init == NULL ||
+        (varinfo->flag & VF_CONST) != 0)
+      continue;
 
-    if (ptrinits != NULL) {
-      for (int i = 0; i < ptrinits->len; ++i) {
-        void **pp = (void**)ptrinits->data[i];
-        add_loc_abs64((char*)pp[1], (unsigned char*)pp[0] - buf + codesize);
-      }
-    }
-
-    add_label(name);
-    add_code(buf, size);
+    const char *name = (const char *)gvar_map->keys->data[i];
+    put_data(name, varinfo);
   }
 }
 
@@ -1203,8 +1190,17 @@ void gen_expr(Expr *expr) {
 
   case EX_STR:
     {
+      Initializer *init = malloc(sizeof(*init));
+      init->type = vSingle;
+      init->u.single = expr;
+
+      // Create string and point to it.
       const char * label = alloc_label();
-      add_rodata(label, expr->u.str.buf, expr->u.str.size);
+      Type* strtype = arrayof(&tyChar, expr->u.str.size);
+      VarInfo *varinfo = define_global(strtype, VF_CONST | VF_STATIC, NULL, label);
+
+      varinfo->u.g.init = init;
+
       LEA_OFS32_RIP_RAX(label);
     }
     return;
@@ -1617,7 +1613,6 @@ void gen(Node *node) {
 void init_gen(uintptr_t start_address_) {
   start_address = start_address_;
   label_map = new_map();
-  rodata_vector = new_vector();
 }
 
 void output_code(FILE* fp, size_t filesize) {

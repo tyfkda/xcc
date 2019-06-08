@@ -102,6 +102,7 @@ try_direct 'args' 51 'int func(int x, ...) { return x; } int main(){ return func
 try_output_direct 'global str-array init' 'StrArray' 'char g_str[] = "StrArray"; int main(){ write(1, g_str, sizeof(g_str) - 1); return 0; }'
 try_output_direct 'global str-ptr init' 'StrPtr' 'char *g_str = "StrPtr"; int main(){ write(1, g_str, 6); return 0; }'
 try_output_direct 'global str-array init' 'StrPtr' 'char *g_str[] = {"StrPtr"}; int main(){ write(1, g_str[0], 6); return 0; }'
+try_output_direct 'global str-in-struct init' 'StrPtr' 'struct {char *s;} g_str[] = {{"StrPtr"}}; int main(){ write(1, g_str[0].s, 6); return 0; }'
 try_direct 'global array' 42 'int array[] = {10,20,30}; int main(){ return sizeof(array) + array[2]; }'
 try_direct 'local static array' 42 'int main(){ static int array[] = {10,20,30}; return sizeof(array) + array[2]; }'
 try 'int static const' 34 'int static const a = 34; return a;'

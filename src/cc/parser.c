@@ -535,6 +535,26 @@ Initializer **flatten_initializer(const Type *type, Initializer *init) {
     }
     if (index >= n)
       parse_error(NULL, "Too many init values");
+
+    // Allocate string literal as char array.
+    if (value->type == vSingle && value->u.single->type == EX_STR) {
+      Expr *expr = value->u.single;
+      Initializer *strinit = malloc(sizeof(*strinit));
+      strinit->type = vSingle;
+      strinit->u.single = expr;
+
+      // Create string and point to it.
+      static const Type tyChar = {TY_CHAR};
+      Type* strtype = arrayof(&tyChar, expr->u.str.size);
+      const char * label = alloc_label();
+      const Token *ident = alloc_ident(label, NULL, NULL);
+      VarInfo *varinfo = define_global(strtype, VF_CONST | VF_STATIC, ident, NULL);
+      varinfo->u.g.init = strinit;
+
+      // Replace initializer from string literal to string array defined in global.
+      value->u.single = new_expr_varref(label, strtype, true, ident);
+    }
+
     values[index++] = value;
   }
 
@@ -911,10 +931,22 @@ static Initializer *check_global_initializer(const Type *type, Initializer *init
         }
         break;
       case EX_STR:
-        if (!(type->u.pa.ptrof->type == TY_CHAR && value->type == EX_STR)) {
-          parse_error(NULL, "Illegal type");
+        {
+          if (!(type->u.pa.ptrof->type == TY_CHAR && value->type == EX_STR))
+            parse_error(NULL, "Illegal type");
+
+          // Create string and point to it.
+          Type* type2 = arrayof(type->u.pa.ptrof, value->u.str.size);
+          const char *label = alloc_label();
+          const Token *ident = alloc_ident(label, NULL, NULL);
+          VarInfo *varinfo = define_global(type2, VF_CONST | VF_STATIC, ident, NULL);
+          varinfo->u.g.init = init;
+
+          Initializer *init2 = malloc(sizeof(*init2));
+          init2->type = vSingle;
+          init2->u.single = new_expr_varref(label, type2, true, ident);
+          return init2;
         }
-        return init;
       default:
         break;
       }
@@ -924,6 +956,14 @@ static Initializer *check_global_initializer(const Type *type, Initializer *init
   case TY_ARRAY:
     switch (init->type) {
     case vMulti:
+      {
+        const Type *elemtype = type->u.pa.ptrof;
+        Vector *multi = init->u.multi;
+        for (int i = 0, len = multi->len; i < len; ++i) {
+          Initializer *eleminit = multi->data[i];
+          multi->data[i] = check_global_initializer(elemtype, eleminit);
+        }
+      }
       break;
     case vSingle:
       if (type->u.pa.ptrof->type == TY_CHAR && init->u.single->type == EX_STR) {
@@ -942,9 +982,15 @@ static Initializer *check_global_initializer(const Type *type, Initializer *init
     break;
   case TY_STRUCT:
   case TY_UNION:
-    if (init->type != vMulti)
-      parse_error(NULL, "initializer type error");
-    // TODO: More check.
+    {
+      Initializer ** values = flatten_initializer(type, init);
+      const StructInfo *sinfo = type->u.struct_.info;
+      for (int i = 0, n = sinfo->members->len; i < n; ++i) {
+        VarInfo* varinfo = sinfo->members->data[i];
+        if (values[i] != NULL)
+          check_global_initializer(varinfo->type, values[i]);
+      }
+    }
     break;
   default:
     parse_error(NULL, "Global initial value for type %d not implemented (yet)\n", type->type);
@@ -968,16 +1014,16 @@ static Node *define_global_var(const Type *rawtype, int flag, const Type *type, 
 
     type = parse_type_suffix(type);
     VarInfo *varinfo = define_global(type, flag, ident, NULL);
-    Initializer *initializer = NULL;
+    Initializer *init = NULL;
     const Token *tok;
     if ((tok = consume(TK_ASSIGN)) != NULL) {
       if (flag & VF_EXTERN)
         parse_error(tok, "extern with initializer");
-      initializer = parse_initializer();
-      fix_array_size((Type*)type, initializer);
-      initializer = check_global_initializer(type, initializer);
+      init = parse_initializer();
+      fix_array_size((Type*)type, init);
+      init = check_global_initializer(type, init);
     }
-    varinfo->u.g.init = initializer;
+    varinfo->u.g.init = init;
 
     if (consume(TK_COMMA))
       continue;
