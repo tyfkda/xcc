@@ -139,12 +139,8 @@ int main(int argc, char* argv[]) {
   init_compiler(LOAD_ADDRESS);
 
   // Test.
-  {
-    Vector *hexasm_params = NULL;
-    Type tyHexasm = {.type=TY_FUNC, .u={.func={.ret=&tyVoid, .params=hexasm_params, .vaargs=false}}};
-    define_global(&tyHexasm, 0, NULL, "__hexasm");
-    define_global(&tyHexasm, 0, NULL, "__rel32");
-  }
+  define_global(new_func_type(&tyVoid, NULL, true), 0, NULL, "__hexasm");
+  define_global(new_func_type(&tyVoid, NULL, false), 0, NULL, "__rel32");
 
   compile(stdin, "*stdin*");
 
