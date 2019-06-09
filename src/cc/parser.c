@@ -561,6 +561,142 @@ Initializer **flatten_initializer(const Type *type, Initializer *init) {
   return values;
 }
 
+static Initializer *check_global_initializer(const Type *type, Initializer *init) {
+  switch (type->type) {
+  case TY_CHAR:
+  case TY_SHORT:
+  case TY_INT:
+  case TY_LONG:
+  case TY_ENUM:
+    if (init->type == vSingle) {
+      switch (init->u.single->type) {
+      case EX_CHAR:
+      case EX_SHORT:
+      case EX_INT:
+      case EX_LONG:
+        return init;
+      default:
+        parse_error(NULL, "initializer type error");
+        break;
+      }
+    }
+    break;
+  case TY_PTR:
+    {
+      if (init->type != vSingle)
+        parse_error(NULL, "initializer type error");
+      Expr *value = init->u.single;
+      switch (value->type) {
+      case EX_REF:
+        {
+          value = value->u.unary.sub;
+          if (value->type != EX_VARREF)
+            parse_error(NULL, "pointer initializer must be varref");
+          if (!value->u.varref.global)
+            parse_error(NULL, "Allowed global reference only");
+
+          VarInfo *info = find_global(value->u.varref.ident);
+          assert(info != NULL);
+
+          if (!same_type(type->u.pa.ptrof, info->type))
+            parse_error(NULL, "Illegal type");
+
+          return init;
+        }
+      case EX_VARREF:
+        {
+          if (!value->u.varref.global)
+            parse_error(NULL, "Allowed global reference only");
+
+          VarInfo *info = find_global(value->u.varref.ident);
+          assert(info != NULL);
+
+          if (info->type->type != TY_ARRAY || !same_type(type->u.pa.ptrof, info->type->u.pa.ptrof))
+            parse_error(NULL, "Illegal type");
+
+          return init;
+        }
+      case EX_CAST:
+        {  // Handle NULL assignment.
+          while (value->type == EX_CAST)
+            value = value->u.unary.sub;
+          if (is_number(value->valType->type)) {
+            Initializer *init2 = malloc(sizeof(*init2));
+            init2->type = vSingle;
+            init2->u.single = value;
+            return init2;
+          }
+        }
+        break;
+      case EX_STR:
+        {
+          if (!(type->u.pa.ptrof->type == TY_CHAR && value->type == EX_STR))
+            parse_error(NULL, "Illegal type");
+
+          // Create string and point to it.
+          Type* type2 = arrayof(type->u.pa.ptrof, value->u.str.size);
+          const char *label = alloc_label();
+          const Token *ident = alloc_ident(label, NULL, NULL);
+          VarInfo *varinfo = define_global(type2, VF_CONST | VF_STATIC, ident, NULL);
+          varinfo->u.g.init = init;
+
+          Initializer *init2 = malloc(sizeof(*init2));
+          init2->type = vSingle;
+          init2->u.single = new_expr_varref(label, type2, true, ident);
+          return init2;
+        }
+      default:
+        break;
+      }
+      parse_error(NULL, "initializer type error: type=%d", value->type);
+    }
+    break;
+  case TY_ARRAY:
+    switch (init->type) {
+    case vMulti:
+      {
+        const Type *elemtype = type->u.pa.ptrof;
+        Vector *multi = init->u.multi;
+        for (int i = 0, len = multi->len; i < len; ++i) {
+          Initializer *eleminit = multi->data[i];
+          multi->data[i] = check_global_initializer(elemtype, eleminit);
+        }
+      }
+      break;
+    case vSingle:
+      if (type->u.pa.ptrof->type == TY_CHAR && init->u.single->type == EX_STR) {
+        assert(type->u.pa.length != (size_t)-1);
+        if (type->u.pa.length < init->u.single->u.str.size) {
+          parse_error(NULL, "Array size shorter than initializer");
+        }
+        return init;
+      }
+      // Fallthrough
+    case vDot:
+    default:
+      parse_error(NULL, "Illegal initializer");
+      break;
+    }
+    break;
+  case TY_STRUCT:
+  case TY_UNION:
+    {
+      Initializer ** values = flatten_initializer(type, init);
+      const StructInfo *sinfo = type->u.struct_.info;
+      for (int i = 0, n = sinfo->members->len; i < n; ++i) {
+        VarInfo* varinfo = sinfo->members->data[i];
+        if (values[i] != NULL)
+          check_global_initializer(varinfo->type, values[i]);
+      }
+    }
+    break;
+  default:
+    parse_error(NULL, "Global initial value for type %d not implemented (yet)\n", type->type);
+    break;
+  }
+  return init;
+}
+
 static Vector *assign_initial_value(Expr *expr, Initializer *init, Vector *inits) {
   if (inits == NULL)
     inits = new_vector();
@@ -668,7 +804,7 @@ static Vector *parse_vardecl_cont(const Type *rawType, Type *type, int flag, Tok
 
       // TODO: Check `init` can be cast to `type`.
       if (flag & VF_STATIC) {
-        varinfo->u.g.init = init;
+        varinfo->u.g.init = check_global_initializer(type, init);
       } else {
         inits = assign_initial_value(new_expr_varref(ident->u.ident, type, false, NULL), init, inits);
       }
@@ -862,142 +998,6 @@ static void parse_typedef(void) {
 
   if (!consume(TK_SEMICOL))
     parse_error(NULL, "`;' expected");
-}
-
-static Initializer *check_global_initializer(const Type *type, Initializer *init) {
-  switch (type->type) {
-  case TY_CHAR:
-  case TY_SHORT:
-  case TY_INT:
-  case TY_LONG:
-  case TY_ENUM:
-    if (init->type == vSingle) {
-      switch (init->u.single->type) {
-      case EX_CHAR:
-      case EX_SHORT:
-      case EX_INT:
-      case EX_LONG:
-        return init;
-      default:
-        parse_error(NULL, "initializer type error");
-        break;
-      }
-    }
-    break;
-  case TY_PTR:
-    {
-      if (init->type != vSingle)
-        parse_error(NULL, "initializer type error");
-      Expr *value = init->u.single;
-      switch (value->type) {
-      case EX_REF:
-        {
-          value = value->u.unary.sub;
-          if (value->type != EX_VARREF)
-            parse_error(NULL, "pointer initializer must be varref");
-          if (!value->u.varref.global)
-            parse_error(NULL, "Allowed global reference only");
-
-          VarInfo *info = find_global(value->u.varref.ident);
-          assert(info != NULL);
-
-          if (!same_type(type->u.pa.ptrof, info->type))
-            parse_error(NULL, "Illegal type");
-
-          return init;
-        }
-      case EX_VARREF:
-        {
-          if (!value->u.varref.global)
-            parse_error(NULL, "Allowed global reference only");
-
-          VarInfo *info = find_global(value->u.varref.ident);
-          assert(info != NULL);
-
-          if (info->type->type != TY_ARRAY || !same_type(type->u.pa.ptrof, info->type->u.pa.ptrof))
-            parse_error(NULL, "Illegal type");
-
-          return init;
-        }
-      case EX_CAST:
-        {  // Handle NULL assignment.
-          while (value->type == EX_CAST)
-            value = value->u.unary.sub;
-          if (is_number(value->valType->type)) {
-            Initializer *init2 = malloc(sizeof(*init2));
-            init2->type = vSingle;
-            init2->u.single = value;
-            return init2;
-          }
-        }
-        break;
-      case EX_STR:
-        {
-          if (!(type->u.pa.ptrof->type == TY_CHAR && value->type == EX_STR))
-            parse_error(NULL, "Illegal type");
-
-          // Create string and point to it.
-          Type* type2 = arrayof(type->u.pa.ptrof, value->u.str.size);
-          const char *label = alloc_label();
-          const Token *ident = alloc_ident(label, NULL, NULL);
-          VarInfo *varinfo = define_global(type2, VF_CONST | VF_STATIC, ident, NULL);
-          varinfo->u.g.init = init;
-
-          Initializer *init2 = malloc(sizeof(*init2));
-          init2->type = vSingle;
-          init2->u.single = new_expr_varref(label, type2, true, ident);
-          return init2;
-        }
-      default:
-        break;
-      }
-      parse_error(NULL, "initializer type error: type=%d", value->type);
-    }
-    break;
-  case TY_ARRAY:
-    switch (init->type) {
-    case vMulti:
-      {
-        const Type *elemtype = type->u.pa.ptrof;
-        Vector *multi = init->u.multi;
-        for (int i = 0, len = multi->len; i < len; ++i) {
-          Initializer *eleminit = multi->data[i];
-          multi->data[i] = check_global_initializer(elemtype, eleminit);
-        }
-      }
-      break;
-    case vSingle:
-      if (type->u.pa.ptrof->type == TY_CHAR && init->u.single->type == EX_STR) {
-        assert(type->u.pa.length != (size_t)-1);
-        if (type->u.pa.length < init->u.single->u.str.size) {
-          parse_error(NULL, "Array size shorter than initializer");
-        }
-        return init;
-      }
-      // Fallthrough
-    case vDot:
-    default:
-      parse_error(NULL, "Illegal initializer");
-      break;
-    }
-    break;
-  case TY_STRUCT:
-  case TY_UNION:
-    {
-      Initializer ** values = flatten_initializer(type, init);
-      const StructInfo *sinfo = type->u.struct_.info;
-      for (int i = 0, n = sinfo->members->len; i < n; ++i) {
-        VarInfo* varinfo = sinfo->members->data[i];
-        if (values[i] != NULL)
-          check_global_initializer(varinfo->type, values[i]);
-      }
-    }
-    break;
-  default:
-    parse_error(NULL, "Global initial value for type %d not implemented (yet)\n", type->type);
-    break;
-  }
-  return init;
 }
 
 static Node *define_global_var(const Type *rawtype, int flag, const Type *type, Token *ident) {
