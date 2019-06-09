@@ -870,6 +870,7 @@ static Initializer *check_global_initializer(const Type *type, Initializer *init
   case TY_SHORT:
   case TY_INT:
   case TY_LONG:
+  case TY_ENUM:
     if (init->type == vSingle) {
       switch (init->u.single->type) {
       case EX_CHAR:
