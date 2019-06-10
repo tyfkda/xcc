@@ -225,6 +225,52 @@ void add_loc_abs64(const char *label, uintptr_t pos) {
   new_loc(LOC_ABS64, pos, label);
 }
 
+static const char *escape(int c) {
+  switch (c) {
+  case '\0': return "\\0";
+  case '\n': return "\\n";
+  case '\r': return "\\r";
+  case '\t': return "\\t";
+  case '"': return "\\\"";
+  default:   return NULL;
+  }
+}
+
+static char *append_str(const char *str, const char *add, size_t size) {
+  if (size == 0)
+    size = strlen(add);
+  size_t len = str == NULL ? 0 : strlen(str);
+  char *newstr = malloc(len + size + 1);
+  if (str != NULL)
+    memcpy(newstr, str, len);
+  memcpy(newstr + len, add, size);
+  newstr[len + size] = '\0';
+  return newstr;
+}
+
+static char *escape_string(const char *str, size_t size) {
+  const char *s, *p;
+  char *escaped = NULL;
+  for (s = p = str; ; ++p) {
+    bool is_end = (size_t)(p - str) >= size;
+    const char *e = NULL;
+    if (!is_end && (e = escape(*p)) == NULL)
+      continue;
+
+    if (p - s > 0) {
+      char *newstr1 = append_str(escaped, s, p - s);
+      free(escaped);
+      escaped = newstr1;
+    }
+    if (is_end)
+      return escaped;
+    char *newstr2 = append_str(escaped, e, 0);
+    free(escaped);
+    escaped = newstr2;
+    s = p + 1;
+  }
+}
+
 void construct_initial_value(unsigned char *buf, const Type *type, Initializer *init, Vector **pptrinits) {
   switch (type->type) {
   case TY_CHAR:
@@ -245,12 +291,12 @@ void construct_initial_value(unsigned char *buf, const Type *type, Initializer *
 
       const char *fmt;
       switch (type->type) {
-      case TY_CHAR:  fmt = ".byte " PRIxPTR; break;
-      case TY_SHORT: fmt = ".word " PRIxPTR; break;
+      case TY_CHAR:  fmt = ".byte %"SCNdPTR; break;
+      case TY_SHORT: fmt = ".word %"SCNdPTR; break;
       case TY_INT: case TY_ENUM:
-        fmt = ".long " PRIxPTR;
+        fmt = ".long %"SCNdPTR;
         break;
-      case TY_LONG:  fmt = ".quad " PRIxPTR; break;
+      case TY_LONG:  fmt = ".quad %"SCNdPTR; break;
       default: break;
       }
       add_asm(fmt, v);
@@ -316,6 +362,8 @@ void construct_initial_value(unsigned char *buf, const Type *type, Initializer *
         if (d > 0) {
           memset(buf + src_size, 0x00, d);
         }
+
+        add_asm(".string \"%s\"", escape_string((char*)buf, size));
         break;
       }
       // Fallthrough
