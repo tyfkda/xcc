@@ -1,3 +1,4 @@
+#include "../lib/crt0.c"
 #include "util.c"
 
 int main(int argc, char **argv) {

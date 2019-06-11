@@ -2,6 +2,7 @@
 //
 //   $ ./xcc examples/nqueen.c && ./a.out
 
+#include "../lib/crt0.c"
 #include "util.c"
 
 void print_board(int board[][8]) {

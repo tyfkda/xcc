@@ -44,5 +44,5 @@ test-examples:	example_test.sh
 util_test:	util_test.c $(SRC_DIR)/util.c
 	gcc -o $@ $(CFLAGS) $^
 
-valtest:	../examples/util.c valtest.c ../xcc
-	../xcc -ovaltest ../examples/util.c valtest.c
+valtest:	../lib/crt0.c ../examples/util.c valtest.c ../xcc
+	../xcc -ovaltest ../lib/crt0.c ../examples/util.c valtest.c
