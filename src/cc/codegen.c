@@ -473,8 +473,9 @@ static void put_bss(void) {
     size_t size = type_size(varinfo->type);
     if (size < 1)
       size = 1;
-    ADD_LABEL(name);
+    add_label(name);
     add_bss(size);
+    add_asm(".comm %s, %d", name, size);
   }
 }
 
