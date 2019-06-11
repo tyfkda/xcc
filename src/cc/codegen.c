@@ -17,7 +17,7 @@ const int WORD_SIZE = /*sizeof(void*)*/ 8;
 #include "x86_64.h"
 
 #define ALIGN(x, align)  (((x) + (align) - 1) & -(align))  // align must be 2^n
-#define ALIGN_CODESIZE(align_)  do { int align = (int)(align_); if ((align) > 1) add_asm(".align %d", (int)(align)); align_codesize(align); } while (0)
+#define ALIGN_CODESIZE(align_)  do { int align = (int)(align_); add_asm_align(align); align_codesize(align); } while (0)
 
 static void calc_struct_size(StructInfo *sinfo, bool is_union);
 
@@ -178,6 +178,11 @@ static void add_asm_comment(const char *comment, ...) {
   va_end(ap);
 }
 
+static void add_asm_align(int align) {
+  if ((align) > 1)
+    add_asm(".align %d", (int)(align));
+}
+
 // Put label at the current.
 void add_label(const char *label) {
   map_put(label_map, label, (void*)CURIP(0));
@@ -272,6 +277,8 @@ static char *escape_string(const char *str, size_t size) {
 }
 
 void construct_initial_value(unsigned char *buf, const Type *type, Initializer *init, Vector **pptrinits) {
+  add_asm_align(align_size(type));
+
   switch (type->type) {
   case TY_CHAR:
   case TY_SHORT:
