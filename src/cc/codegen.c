@@ -414,6 +414,8 @@ static void put_data(const char *label, const VarInfo *varinfo) {
     error("Memory alloc failed: %d", size);
 
   ALIGN_CODESIZE(align_size(varinfo->type));
+  if ((varinfo->flag & VF_STATIC) == 0)  // global
+    add_asm(".globl %s", label);
   size_t baseadr = codesize;
   ADD_LABEL(label);
 
@@ -536,7 +538,9 @@ static void resolve_label_locations(void) {
 }
 
 size_t fixup_locations(size_t *pmemsz) {
+  add_asm(".section .rodata");
   put_rodata();
+  add_asm(".data");
   put_rwdata();
 
   size_t filesize = codesize;
