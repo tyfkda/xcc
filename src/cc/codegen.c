@@ -237,6 +237,7 @@ static const char *escape(int c) {
   case '\r': return "\\r";
   case '\t': return "\\t";
   case '"': return "\\\"";
+  case '\\': return "\\\\";
   default:   return NULL;
   }
 }
