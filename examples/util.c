@@ -6,8 +6,13 @@ void write(int fd, const char *str, long len) {
 
 #elif defined(__linux__)
 void write(int fd, const char *str, long len) {
+#if defined(__XCC)
   __hexasm(0xb8, 0x01, 0x00, 0x00, 0x00);  // mov $__NR_write(=1), %eax
   __hexasm(0x0f, 0x05);                    // syscall
+#else
+  __asm("mov $1, %eax\n"
+        "syscall");
+#endif
 }
 
 #else

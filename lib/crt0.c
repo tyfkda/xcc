@@ -12,16 +12,29 @@ void exit(int code) {
 
 #elif defined(__linux__)
 void _start(void) {
+#if defined(__XCC)
   __hexasm(0x48, 0x8b, 0x7c, 0x24, 0);  // mov 0(%rsp),%rdi
   __hexasm(0x48, 0x8d, 0x74, 0x24, 8);  // lea 8(%rsp),%rsi
   __hexasm(0xe8, __rel32("main"));      // call main
   __hexasm(0x89, 0xc7);                 // mov %eax,%edi
   __hexasm(0xe9, __rel32("exit"));      // jmp exit
+#else
+  __asm("mov 0(%rsp), %rdi\n"
+        "lea 8(%rsp), %rsi\n"
+        "call main\n"
+        "mov %eax, %edi\n"
+        "jmp exit");
+#endif
 }
 
 void exit(int code) {
+#if defined(__XCC)
   __hexasm(0xb8, 0x3c, 0x00, 0x00, 0x00);  // mov $__NR_exit(=60), %eax
   __hexasm(0x0f, 0x05);                    // syscall
+#else
+  __asm("mov $60, %eax\n"
+        "syscall");
+#endif
 }
 
 #else
