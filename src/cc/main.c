@@ -113,8 +113,24 @@ static int pipe_pp_xcc(char **pp_argv, char ** xcc_argv) {
   return ec1 != 0 ? ec1 : ec2;
 }
 
+char *change_ext(const char *fn, const char *ext) {
+  size_t fnlen = strlen(fn), extlen = strlen(ext);
+  char *buf = malloc(fnlen + extlen + 2);  // dot + '\0'
+  strcpy(buf, fn);
+  char *p = strrchr(buf, '/');
+  if (p == NULL)
+    p = buf;
+  p = strrchr(p, '.');
+  if (p == NULL)
+    p = buf + fnlen;
+  *p++ = '.';
+  strcpy(p, ext);
+  return buf;
+}
+
 int main(int argc, char* argv[]) {
   const char *ofn = "a.out";
+  char *out_asm = NULL;
   int iarg;
 
   for (iarg = 1; iarg < argc; ++iarg) {
@@ -122,6 +138,8 @@ int main(int argc, char* argv[]) {
       break;
     if (strncmp(argv[iarg], "-o", 2) == 0)
       ofn = strdup_(argv[iarg] + 2);
+    if (strncmp(argv[iarg], "-S", 2) == 0)
+      out_asm = &argv[iarg][2];
   }
 
   if (argc > iarg) {
@@ -136,10 +154,20 @@ int main(int argc, char* argv[]) {
 
   // Compile.
 
+  FILE *asm_fp = NULL;
+  if (out_asm != NULL) {
+    const char *name = *out_asm != '\0' ? out_asm : ofn;
+    out_asm = change_ext(name, "s");
+    asm_fp = fopen(out_asm, "w");
+    if (asm_fp == NULL)
+      error("Cannot open file for asm: %s", out_asm);
+    set_asm_fp(asm_fp);
+  }
+
   init_compiler(LOAD_ADDRESS);
 
   // Test.
-  define_global(new_func_type(&tyVoid, NULL, true), 0, NULL, "__hexasm");
+  define_global(new_func_type(&tyVoid, NULL, true), 0, NULL, "__asm");
   define_global(new_func_type(&tyVoid, NULL, false), 0, NULL, "__rel32");
 
   compile(stdin, "*stdin*");
@@ -162,6 +190,8 @@ int main(int argc, char* argv[]) {
   put_padding(fp, PROG_START);
   output_code(fp, filesz);
   fclose(fp);
+  if (asm_fp != NULL)
+    fclose(asm_fp);
 
 #if !defined(__XV6) && defined(__linux__)
   if (chmod(ofn, 0755) == -1) {

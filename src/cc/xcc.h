@@ -19,6 +19,7 @@ typedef struct {
 extern Vector *loc_vector;
 
 void init_gen(uintptr_t start_address);
+void set_asm_fp(FILE *fp);
 void gen(Node *node);
 void gen_rodata(void);
 void output_code(FILE* fp, size_t filesize);
