@@ -663,14 +663,13 @@ static void gen_lval(Expr *expr) {
   switch (expr->type) {
   case EX_VARREF:
     if (expr->u.varref.global) {
-      LEA_OFS32_RIP_RAX(expr->u.varref.ident);
+      LEA_LABEL32_RIP_RAX(expr->u.varref.ident);
     } else {
       VarInfo *varinfo = scope_find(curscope, expr->u.varref.ident);
       assert(varinfo != NULL);
       assert(!(varinfo->flag & VF_STATIC));
       int offset = varinfo->offset;
-      MOV_RBP_RAX();
-      ADD_IM32_RAX(offset);
+      LEA_OFS32_RBP_RAX(offset);
     }
     break;
   case EX_DEREF:
@@ -704,11 +703,11 @@ static void gen_cond_jmp(Expr *cond, bool tf, const char *label) {
   gen_expr(cond);
 
   switch (cond->valType->type) {
-  case TY_CHAR:  CMP_IM8_AL(0); break;
-  case TY_SHORT: CMP_IM8_AX(0); break;
-  case TY_INT:   CMP_IM8_EAX(0); break;
+  case TY_CHAR:  TEST_AL_AL(); break;
+  case TY_SHORT: TEST_AX_AX(); break;
+  case TY_INT:   TEST_EAX_EAX(); break;
   case TY_LONG: case TY_PTR:
-    CMP_IM8_RAX(0);
+    TEST_RAX_RAX();
     break;
   default: assert(false); break;
   }
@@ -1058,11 +1057,22 @@ static void gen_switch(Node *node) {
   for (int i = 0; i < len; ++i) {
     intptr_t x = (intptr_t)case_values->data[i];
     switch (valtype) {
+    case TY_CHAR:
+      CMP_IM8_AL(x);
+      break;
     case TY_INT: case TY_ENUM:
       CMP_IM32_EAX(x);
       break;
-    case TY_CHAR: CMP_IM8_AL(x); break;
-    case TY_LONG: MOV_IM64_RDI(x); CMP_RDI_RAX(); break;
+    case TY_LONG:
+      if (x <= 0x7fL && x >= -0x80L) {
+        CMP_IM8_RAX(x);
+      } else if (x <= 0x7fffffffL && x >= -0x80000000L) {
+        CMP_IM32_RAX(x);
+      } else {
+        MOV_IM64_RDI(x);
+        CMP_RDI_RAX();
+      }
+      break;
     default: assert(false); break;
     }
     JE32(labels->data[i]);
@@ -1220,7 +1230,7 @@ static void gen_arith(enum ExprType exprType, enum eType valType, enum eType rhs
     break;
 
   case EX_DIV:
-    MOV_IM32_RDX(0);
+    XOR_EDX_EDX();  // MOV_IM32_RDX(0);
     switch (valType) {
     case TY_CHAR:  DIV_DIL(); break;
     case TY_SHORT: DIV_DI(); break;
@@ -1231,7 +1241,7 @@ static void gen_arith(enum ExprType exprType, enum eType valType, enum eType rhs
     break;
 
   case EX_MOD:
-    MOV_IM32_RDX(0);
+    XOR_EDX_EDX();  // MOV_IM32_RDX(0);
     switch (valType) {
     case TY_CHAR:  DIV_DIL(); MOV_DL_AL(); break;
     case TY_SHORT: DIV_DI();  MOV_DX_AX(); break;
@@ -1310,15 +1320,23 @@ static void gen_arith(enum ExprType exprType, enum eType valType, enum eType rhs
 void gen_expr(Expr *expr) {
   switch (expr->type) {
   case EX_CHAR:
-    MOV_IM8_AL(expr->u.value);
+    if (expr->u.value == 0)
+      XOR_AL_AL();
+    else
+      MOV_IM8_AL(expr->u.value);
     return;
 
   case EX_INT:
-    MOV_IM32_EAX(expr->u.value);
+    if (expr->u.value == 0)
+      XOR_EAX_EAX();
+    else
+      MOV_IM32_EAX(expr->u.value);
     return;
 
   case EX_LONG:
-    if (expr->u.value < 0x7fffffffL && expr->u.value >= -0x80000000L)
+    if (expr->u.value == 0)
+      XOR_EAX_EAX();  // upper 32bit is also cleared.
+    else if (expr->u.value <= 0x7fffffffL && expr->u.value >= -0x80000000L)
       MOV_IM32_RAX(expr->u.value);
     else
       MOV_IM64_RAX(expr->u.value);
@@ -1337,14 +1355,14 @@ void gen_expr(Expr *expr) {
 
       varinfo->u.g.init = init;
 
-      LEA_OFS32_RIP_RAX(label);
+      LEA_LABEL32_RIP_RAX(label);
     }
     return;
 
   case EX_SIZEOF:
     {
       size_t size = type_size(expr->u.sizeof_.type);
-      if (size < 0x7fffffffL)
+      if (size <= 0x7fffffffL)
         MOV_IM32_RAX(size);
       else
         MOV_IM64_RAX(size);
@@ -1557,9 +1575,9 @@ void gen_expr(Expr *expr) {
   case EX_NOT:
     gen_expr(expr->u.unary.sub);
     switch (expr->valType->type) {
-    case TY_INT:  CMP_IM8_EAX(0); break;
-    case TY_CHAR: CMP_IM8_AL(0); break;
-    case TY_PTR:  CMP_IM8_RAX(0); break;
+    case TY_CHAR: TEST_AL_AL(); break;
+    case TY_INT:  TEST_EAX_EAX(); break;
+    case TY_PTR:  TEST_RAX_RAX(); break;
     default:  assert(false); break;
     }
     SETE_AL();
@@ -1619,7 +1637,7 @@ void gen_expr(Expr *expr) {
       gen_cond_jmp(expr->u.bop.lhs, false, l_false);
       gen_cond_jmp(expr->u.bop.rhs, true, l_true);
       ADD_LABEL(l_false);
-      MOV_IM32_EAX(0);
+      XOR_EAX_EAX();  // 0
       JMP8(l_next);
       ADD_LABEL(l_true);
       MOV_IM32_EAX(1);
@@ -1638,7 +1656,7 @@ void gen_expr(Expr *expr) {
       MOV_IM32_EAX(1);
       JMP8(l_next);
       ADD_LABEL(l_false);
-      MOV_IM32_EAX(0);
+      XOR_EAX_EAX();  // 0
       ADD_LABEL(l_next);
     }
     return;

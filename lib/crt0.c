@@ -13,13 +13,13 @@ void exit(int code) {
 #elif defined(__linux__)
 void _start(void) {
 #if defined(__XCC)
-  __asm("mov 0(%rsp), %rdi", 0x48, 0x8b, 0x7c, 0x24, 0);
+  __asm("mov (%rsp), %rdi",  0x48, 0x8b, 0x3c, 0x24);
   __asm("lea 8(%rsp), %rsi", 0x48, 0x8d, 0x74, 0x24, 8);
   __asm("call main",         0xe8, __rel32("main"));
   __asm("mov %eax, %edi",    0x89, 0xc7);
   __asm("jmp exit",          0xe9, __rel32("exit"));
 #else
-  __asm("mov 0(%rsp), %rdi\n"
+  __asm("mov (%rsp), %rdi\n"
         "lea 8(%rsp), %rsi\n"
         "call main\n"
         "mov %eax, %edi\n"
