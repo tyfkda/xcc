@@ -287,12 +287,15 @@ void construct_initial_value(unsigned char *buf, const Type *type, Initializer *
   case TY_LONG:
   case TY_ENUM:
     {
-      assert(init->type == vSingle);
-      Expr *value = init->u.single;
-      if (!(is_const(value) && is_number(value->valType->type)))
-        error("Illegal initializer: constant number expected");
+      intptr_t v = 0;
+      if (init != NULL) {
+        assert(init->type == vSingle);
+        Expr *value = init->u.single;
+        if (!(is_const(value) && is_number(value->valType->type)))
+          error("Illegal initializer: constant number expected");
+        v = value->u.value;
+      }
 
-      intptr_t v = value->u.value;
       int size = type_size(type);
       for (int i = 0; i < size; ++i)
         buf[i] = v >> (i * 8);  // Little endian
@@ -311,7 +314,7 @@ void construct_initial_value(unsigned char *buf, const Type *type, Initializer *
     }
     break;
   case TY_PTR:
-    {
+    if (init != NULL) {
       assert(init->type == vSingle);
       Expr *value = init->u.single;
       while (value->type == EX_CAST)
@@ -337,31 +340,39 @@ void construct_initial_value(unsigned char *buf, const Type *type, Initializer *
         assert(!"`char* s = \"...\"`; should be handled in parser");
       } else if (is_const(value) && is_number(value->valType->type)) {
         intptr_t x = value->u.value;
-        for (int i = 0; i < 8; ++i)
+        for (int i = 0; i < WORD_SIZE; ++i)
           buf[i] = x >> (i * 8);  // Little endian
 
         add_asm(".quad 0x%"PRIxPTR, x);
       } else {
         assert(!"initializer type error");
       }
+    } else {
+      memset(buf, 0x00, WORD_SIZE);
+      add_asm(".quad 0");
     }
     break;
   case TY_ARRAY:
-    switch (init->type) {
-    case vMulti:
-      {
-        const Type *elem_type = type->u.pa.ptrof;
-        size_t elem_size = type_size(elem_type);
+    if (init == NULL || init->type == vMulti) {
+      const Type *elem_type = type->u.pa.ptrof;
+      size_t elem_size = type_size(elem_type);
+      size_t elem_count = type->u.pa.length;
+      int len = 0;
+      if (init != NULL) {
         Vector *init_array = init->u.multi;
-        int len = init_array->len;
+        len = init_array->len;
         memset(buf, 0, elem_size * len);
         for (int i = 0; i < len; ++i) {
           construct_initial_value(buf + (i * elem_size), elem_type, init_array->data[i], pptrinits);
         }
+        assert((size_t)len <= elem_count);
       }
-      break;
-    case vSingle:
-      if (type->u.pa.ptrof->type == TY_CHAR && init->u.single->type == EX_STR) {
+      for (size_t i = len; i < elem_count; ++i) {
+        construct_initial_value(buf + (i * elem_size), elem_type, NULL, pptrinits);
+      }
+    } else {
+      if (init->type == vSingle &&
+          type->u.pa.ptrof->type == TY_CHAR && init->u.single->type == EX_STR) {
         int src_size = init->u.single->u.str.size;
         size_t size = type_size(type);
         int d = size - src_size;
@@ -372,32 +383,43 @@ void construct_initial_value(unsigned char *buf, const Type *type, Initializer *
         }
 
         add_asm(".string \"%s\"", escape_string((char*)buf, size));
-        break;
+      } else {
+        error("Illegal initializer");
       }
-      // Fallthrough
-    case vDot:
-    default:
-      error("Illegal initializer");
-      break;
     }
     break;
   case TY_STRUCT:
   case TY_UNION:
     {
-      if (init->type != vMulti)
-        error("initializer type error");
+      Initializer **values = NULL;
+
+      if (init != NULL) {
+        if (init->type != vMulti)
+          error("initializer type error");
+        values = flatten_initializer(type, init);
+      }
 
       ensure_struct((Type*)type, NULL);
       memset(buf, 0x00, type_size(type));
 
-      Initializer **values = flatten_initializer(type, init);
-
       const StructInfo *sinfo = type->u.struct_.info;
+      int count = 0;
       for (int i = 0, n = sinfo->members->len; i < n; ++i) {
         VarInfo* varinfo = sinfo->members->data[i];
-        if (values[i] != NULL) {
-          construct_initial_value(buf + varinfo->offset, varinfo->type, values[i], pptrinits);
+        Initializer *mem_init;
+        if (values == NULL) {
+          if (type->type == TY_UNION)
+            continue;
+          mem_init = NULL;
+        } else {
+          mem_init = values[i];
         }
+        construct_initial_value(buf + varinfo->offset, varinfo->type, mem_init, pptrinits);
+        ++count;
+      }
+      if (type->type == TY_UNION && count <= 0) {
+        VarInfo* varinfo = sinfo->members->data[0];
+        construct_initial_value(buf + varinfo->offset, varinfo->type, NULL, pptrinits);
       }
     }
     break;
