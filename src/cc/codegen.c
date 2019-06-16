@@ -13,7 +13,7 @@ const int FRAME_ALIGN = 8;
 const int MAX_ARGS = 6;
 const int WORD_SIZE = /*sizeof(void*)*/ 8;
 
-#define CURIP(ofs)  (start_address + codesize + ofs)
+#define CURIP(ofs)  (start_address + instruction_pointer + ofs)
 #include "x86_64.h"
 
 #define ALIGN(x, align)  (((x) + (align) - 1) & -(align))  // align must be 2^n
@@ -119,7 +119,7 @@ enum LocType {
 
 typedef struct {
   enum LocType type;
-  uintptr_t ip;
+  uintptr_t adr;
   const char *label;
   union {
     struct {
@@ -131,6 +131,7 @@ typedef struct {
 static uintptr_t start_address;
 static unsigned char* code;
 static size_t codesize;
+static size_t instruction_pointer;
 static FILE *asm_fp;
 
 void add_code(const unsigned char* buf, size_t size) {
@@ -140,6 +141,7 @@ void add_code(const unsigned char* buf, size_t size) {
     error("not enough memory");
   memcpy(code + codesize, buf, size);
   codesize = newsize;
+  instruction_pointer += size;
 }
 
 static void add_asm(const char *fmt, ...) {
@@ -189,11 +191,13 @@ void add_label(const char *label) {
 }
 
 void add_bss(size_t size) {
-  codesize += size;
+  //codesize += size;
+  instruction_pointer += size;
 }
 
 void align_codesize(int align) {
   codesize = ALIGN(codesize, align);
+  instruction_pointer = ALIGN(instruction_pointer, align);
 }
 
 uintptr_t label_adr(const char *label) {
@@ -203,27 +207,25 @@ uintptr_t label_adr(const char *label) {
 
 Vector *loc_vector;
 
-static LocInfo *new_loc(enum LocType type, uintptr_t ip, const char *label) {
+static LocInfo *new_loc(enum LocType type, uintptr_t adr, const char *label) {
   LocInfo *loc = malloc(sizeof(*loc));
   loc->type = type;
-  loc->ip = ip;
+  loc->adr = adr;
   loc->label = label;
   vec_push(loc_vector, loc);
   return loc;
 }
 
 void add_loc_rel8(const char *label, int ofs, int baseofs) {
-  uintptr_t ip = codesize + ofs;
-  uintptr_t base = CURIP(baseofs);
-  LocInfo *loc = new_loc(LOC_REL8, ip, label);
-  loc->rel.base = base;
+  uintptr_t adr = instruction_pointer + ofs;
+  LocInfo *loc = new_loc(LOC_REL8, adr, label);
+  loc->rel.base = CURIP(baseofs);
 }
 
 void add_loc_rel32(const char *label, int ofs, int baseofs) {
-  uintptr_t ip = codesize + ofs;
-  uintptr_t base = CURIP(baseofs);
-  LocInfo *loc = new_loc(LOC_REL32, ip, label);
-  loc->rel.base = base;
+  uintptr_t adr = instruction_pointer + ofs;
+  LocInfo *loc = new_loc(LOC_REL32, adr, label);
+  loc->rel.base = CURIP(baseofs);
 }
 
 void add_loc_abs64(const char *label, uintptr_t pos) {
@@ -439,7 +441,7 @@ static void put_data(const char *label, const VarInfo *varinfo) {
   ALIGN_CODESIZE(align_size(varinfo->type));
   if ((varinfo->flag & VF_STATIC) == 0)  // global
     add_asm(".globl %s", label);
-  size_t baseadr = codesize;
+  size_t baseadr = instruction_pointer;
   ADD_LABEL(label);
 
   Vector *ptrinits = NULL;  // <[ptr, label]>
@@ -531,7 +533,7 @@ static void resolve_label_locations(void) {
       {
         intptr_t d = v - loc->rel.base;
         // TODO: Check out of range
-        code[loc->ip] = d;
+        code[loc->adr] = d;
       }
       break;
     case LOC_REL32:
@@ -539,12 +541,12 @@ static void resolve_label_locations(void) {
         intptr_t d = v - loc->rel.base;
         // TODO: Check out of range
         for (int i = 0; i < 4; ++i)
-          code[loc->ip + i] = d >> (i * 8);
+          code[loc->adr + i] = d >> (i * 8);
       }
       break;
     case LOC_ABS64:
       for (int i = 0; i < 8; ++i)
-        code[loc->ip + i] = v >> (i * 8);
+        code[loc->adr + i] = v >> (i * 8);
       break;
     default:
       assert(false);
@@ -566,7 +568,7 @@ size_t fixup_locations(size_t *pmemsz) {
   add_asm(".data");
   put_rwdata();
 
-  size_t filesize = codesize;
+  size_t filesize = instruction_pointer;
 
   put_bss();
 
