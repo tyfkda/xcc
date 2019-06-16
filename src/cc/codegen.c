@@ -434,7 +434,7 @@ static void put_data(const char *label, const VarInfo *varinfo) {
   size_t size = type_size(varinfo->type);
   unsigned char *buf = malloc(size);
   if (buf == NULL)
-    error("Memory alloc failed: %d", size);
+    error("Memory alloc failed: %zu", size);
 
   ALIGN_CODESIZE(align_size(varinfo->type));
   if ((varinfo->flag & VF_STATIC) == 0)  // global
