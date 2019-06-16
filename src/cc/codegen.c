@@ -128,19 +128,28 @@ typedef struct {
   };
 } LocInfo;
 
+typedef struct {
+  unsigned char* buf;
+  size_t size;
+} Section;
+
+const int SEC_CODE = 0;
+
 static uintptr_t start_address;
-static unsigned char* code;
-static size_t codesize;
+static Section sections[1];
 static size_t instruction_pointer;
 static FILE *asm_fp;
 
 void add_code(const unsigned char* buf, size_t size) {
+  Section *sec = &sections[SEC_CODE];
+  size_t codesize = sec->size;
   size_t newsize = codesize + size;
-  code = realloc(code, newsize);
+  unsigned char *code = realloc(sec->buf, newsize);
   if (code == NULL)
     error("not enough memory");
   memcpy(code + codesize, buf, size);
-  codesize = newsize;
+  sec->buf = code;
+  sec->size = newsize;
   instruction_pointer += size;
 }
 
@@ -196,7 +205,7 @@ void add_bss(size_t size) {
 }
 
 void align_codesize(int align) {
-  codesize = ALIGN(codesize, align);
+  sections[SEC_CODE].size = ALIGN(sections[SEC_CODE].size, align);
   instruction_pointer = ALIGN(instruction_pointer, align);
 }
 
@@ -528,6 +537,7 @@ static void resolve_label_locations(void) {
     }
 
     intptr_t v = (intptr_t)val;
+    unsigned char *code = sections[SEC_CODE].buf;
     switch (loc->type) {
     case LOC_REL8:
       {
@@ -565,6 +575,8 @@ static void resolve_label_locations(void) {
 size_t fixup_locations(size_t *pmemsz) {
   add_asm(".section .rodata");
   put_rodata();
+
+  add_asm("");
   add_asm(".data");
   put_rwdata();
 
@@ -574,7 +586,7 @@ size_t fixup_locations(size_t *pmemsz) {
 
   resolve_label_locations();
 
-  *pmemsz = codesize;
+  *pmemsz = sections[SEC_CODE].size;
   return filesize;
 }
 
@@ -1798,5 +1810,6 @@ void set_asm_fp(FILE *fp) {
 }
 
 void output_code(FILE* fp, size_t filesize) {
+  unsigned char *code = sections[SEC_CODE].buf;
   fwrite(code, filesize, 1, fp);
 }
