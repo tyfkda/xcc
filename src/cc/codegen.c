@@ -682,7 +682,9 @@ static void cast(const enum eType ltype, const enum eType rtype) {
     switch (rtype) {
     case TY_CHAR:  MOVSX_AL_RAX(); return;
     case TY_SHORT: MOVSX_AX_RAX(); return;
-    case TY_INT:   MOVSX_EAX_RAX(); return;
+    case TY_INT: case TY_ENUM:
+      MOVSX_EAX_RAX();
+      return;
     case TY_PTR:
     case TY_ARRAY:
       return;
