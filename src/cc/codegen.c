@@ -692,8 +692,8 @@ static void cast(const enum eType ltype, const enum eType rtype) {
   case TY_PTR:
     switch (rtype) {
     case TY_INT:   MOVSX_EAX_RAX(); return;
-    case TY_LONG:  return;
-    case TY_ARRAY: return;
+    case TY_LONG: case TY_ARRAY: case TY_FUNC:
+      return;
     default: assert(false); break;
     }
     break;
@@ -783,6 +783,7 @@ static void gen_varref(Expr *expr) {
   case TY_ENUM:  MOV_IND_RAX_EAX(); break;
   case TY_PTR:   MOV_IND_RAX_RAX(); break;
   case TY_ARRAY: break;  // Use variable address as a pointer.
+  case TY_FUNC:  break;
   default: assert(false); break;
   }
 }

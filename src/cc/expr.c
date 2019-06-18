@@ -336,6 +336,7 @@ bool can_cast(const Type *dst, const Type *src, Expr *src_expr, bool is_explicit
       return true;
     case TY_PTR:
     case TY_ARRAY:
+    case TY_FUNC:
       if (is_explicit) {
         // TODO: Check sizeof(long) is same as sizeof(ptr)
         return true;
@@ -387,6 +388,12 @@ bool can_cast(const Type *dst, const Type *src, Expr *src_expr, bool is_explicit
         return true;
       if (same_type(dst->u.pa.ptrof, src->u.pa.ptrof) ||
           can_cast(dst, ptrof(src->u.pa.ptrof), src_expr, is_explicit))
+        return true;
+      break;
+    case TY_FUNC:
+      if (is_explicit)
+        return true;
+      if (dst->u.pa.ptrof->type == TY_FUNC && same_type(dst->u.pa.ptrof, src))
         return true;
       break;
     default:  break;

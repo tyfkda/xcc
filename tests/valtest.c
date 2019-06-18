@@ -413,6 +413,7 @@ int main(void) {
     expect("anonymous adr", (long)&a, (long)&a.x);
   }
   expect("func pointer", 9, apply(&sub, 15, 6));
+  expect("func pointer w/o &", 9, apply(sub, 15, 6));
   expect("block comment", 123, /* comment */ 123);
   expect("line comment", 123, // comment
          123);
