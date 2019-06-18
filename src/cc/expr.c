@@ -312,6 +312,7 @@ bool can_cast(const Type *dst, const Type *src, Expr *src_expr, bool is_explicit
     case TY_CHAR:
     case TY_INT:
     case TY_LONG:
+    case TY_ENUM:
       return true;  // TODO: Raise warning if implicit.
     default:  break;
     }
@@ -331,6 +332,7 @@ bool can_cast(const Type *dst, const Type *src, Expr *src_expr, bool is_explicit
     case TY_CHAR:
     case TY_SHORT:
     case TY_INT:
+    case TY_ENUM:
       return true;
     case TY_PTR:
     case TY_ARRAY:
