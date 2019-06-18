@@ -16,17 +16,20 @@ typedef struct {
   size_t size;
 } RoData;
 
-extern Vector *loc_vector;
+enum SectionType {
+  SEC_CODE,
+  SEC_DATA,
+};
 
 void init_gen(uintptr_t start_address);
 void set_asm_fp(FILE *fp);
 void gen(Node *node);
 void gen_rodata(void);
-void output_code(FILE* fp, size_t filesize);
+void output_section(FILE* fp, int section);
 void add_label(const char *label);
 void add_code(const unsigned char* buf, size_t size);
 void add_loc_rel8(const char *label, int ofs, int baseofs);
 void add_loc_rel32(const char *label, int ofs, int baseofs);
-void add_loc_abs64(const char *label, uintptr_t pos);
-size_t fixup_locations(size_t *pmemsz);
+void fixup_locations(void);
+void get_section_size(int section, size_t *pfilesz, size_t *pmemsz, uintptr_t *ploadadr);
 uintptr_t label_adr(const char *label);

@@ -14,7 +14,7 @@
 #include "util.h"
 #include "x86_64.h"
 
-#define PROG_START   (0x80)
+#define PROG_START   (0x100)
 
 #if defined(__XV6)
 // XV6
@@ -33,7 +33,7 @@
 
 #include <sys/stat.h>
 
-#define START_ADDRESS    (0x1000000 + PROG_START)
+#define START_ADDRESS    (0x01000000 + PROG_START)
 
 #define SYSTEMCALL(no)  do { MOV_IM32_EAX(no); SYSCALL(); } while(0)
 
@@ -50,15 +50,14 @@
 
 ////////////////////////////////////////////////
 
-pid_t fork1(void) {
+static pid_t fork1(void) {
   pid_t pid = fork();
   if (pid < 0)
     error("fork failed");
   return pid;
 }
 
-void init_compiler(uintptr_t adr) {
-  loc_vector = new_vector();
+static void init_compiler(uintptr_t adr) {
   struct_map = new_map();
   typedef_map = new_map();
   gvar_map = new_map();
@@ -66,7 +65,7 @@ void init_compiler(uintptr_t adr) {
   init_gen(adr);
 }
 
-void compile(FILE *fp, const char *filename) {
+static void compile(FILE *fp, const char *filename) {
   init_lexer(fp, filename);
   Vector *node_vector = parse_program();
 
@@ -113,7 +112,7 @@ static int pipe_pp_xcc(char **pp_argv, char ** xcc_argv) {
   return ec1 != 0 ? ec1 : ec2;
 }
 
-char *change_ext(const char *fn, const char *ext) {
+static char *change_ext(const char *fn, const char *ext) {
   size_t fnlen = strlen(fn), extlen = strlen(ext);
   char *buf = malloc(fnlen + extlen + 2);  // dot + '\0'
   strcpy(buf, fn);
@@ -126,6 +125,16 @@ char *change_ext(const char *fn, const char *ext) {
   *p++ = '.';
   strcpy(p, ext);
   return buf;
+}
+
+static void put_padding(FILE* fp, uintptr_t start) {
+  long cur = ftell(fp);
+   if (start > (size_t)cur) {
+    size_t size = start - (uintptr_t)cur;
+    char* buf = calloc(1, size);
+    fwrite(buf, size, 1, fp);
+    free(buf);
+  }
 }
 
 int main(int argc, char* argv[]) {
@@ -172,8 +181,7 @@ int main(int argc, char* argv[]) {
 
   compile(stdin, "*stdin*");
 
-  size_t memsz;
-  size_t filesz = fixup_locations(&memsz);
+  fixup_locations();
 
   uintptr_t entry = label_adr("_start");
   if (entry == (uintptr_t)-1)
@@ -185,10 +193,25 @@ int main(int argc, char* argv[]) {
     return 1;
   }
 
-  out_elf_header(fp, entry);
-  out_program_header(fp, PROG_START, LOAD_ADDRESS, filesz, memsz);
+  size_t codefilesz, codememsz;
+  size_t datafilesz, datamemsz;
+  uintptr_t codeloadadr, dataloadadr;
+  get_section_size(0, &codefilesz, &codememsz, &codeloadadr);
+  get_section_size(1, &datafilesz, &datamemsz, &dataloadadr);
+
+  int phnum = datamemsz > 0 ? 2 : 1;
+
+  out_elf_header(fp, entry, phnum);
+  out_program_header(fp, 0, PROG_START, codeloadadr, codefilesz, codememsz);
+  if (phnum > 1)
+    out_program_header(fp, 1, ALIGN(PROG_START + codefilesz, 0x1000), dataloadadr, datafilesz, datamemsz);
+
   put_padding(fp, PROG_START);
-  output_code(fp, filesz);
+  output_section(fp, 0);
+  if (phnum > 1) {
+    put_padding(fp, ALIGN(PROG_START + codefilesz, 0x1000));
+    output_section(fp, 1);
+  }
   fclose(fp);
   if (asm_fp != NULL)
     fclose(asm_fp);

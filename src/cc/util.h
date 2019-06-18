@@ -4,6 +4,8 @@
 #include <stdio.h>  // FILE
 #include <sys/types.h>  // ssize_t
 
+#define ALIGN(x, align)  (((x) + (align) - 1) & -(align))  // align must be 2^n
+
 char *strdup_(const char *str);
 char *strndup_(const char *str, size_t size);
 char *alloc_label(void);
