@@ -13,11 +13,10 @@ const int FRAME_ALIGN = 8;
 const int MAX_ARGS = 6;
 const int WORD_SIZE = /*sizeof(void*)*/ 8;
 
-#define CURIP(ofs)  (start_address + instruction_pointer + ofs)
+#define CURIP(ofs)  (instruction_pointer + ofs)
 #include "x86_64.h"
 
-#define ALIGN(x, align)  (((x) + (align) - 1) & -(align))  // align must be 2^n
-#define ALIGN_CODESIZE(align_)  do { int align = (int)(align_); add_asm_align(align); align_codesize(align); } while (0)
+#define ALIGN_CODESIZE(sec, align_)  do { int align = (int)(align_); add_asm_align(align); align_codesize(sec, align); } while (0)
 
 static void calc_struct_size(StructInfo *sinfo, bool is_union);
 
@@ -119,6 +118,7 @@ enum LocType {
 
 typedef struct {
   enum LocType type;
+  enum SectionType section;
   uintptr_t adr;
   const char *label;
   union {
@@ -129,19 +129,17 @@ typedef struct {
 } LocInfo;
 
 typedef struct {
+  uintptr_t start;
   unsigned char* buf;
   size_t size;
 } Section;
 
-const int SEC_CODE = 0;
-
-static uintptr_t start_address;
-static Section sections[1];
+static Section sections[2];
 static size_t instruction_pointer;
 static FILE *asm_fp;
 
-void add_code(const unsigned char* buf, size_t size) {
-  Section *sec = &sections[SEC_CODE];
+static void add_section_data(enum SectionType secno, const unsigned char* buf, size_t size) {
+  Section *sec = &sections[secno];
   size_t codesize = sec->size;
   size_t newsize = codesize + size;
   unsigned char *code = realloc(sec->buf, newsize);
@@ -151,6 +149,10 @@ void add_code(const unsigned char* buf, size_t size) {
   sec->buf = code;
   sec->size = newsize;
   instruction_pointer += size;
+}
+
+void add_code(const unsigned char* buf, size_t size) {
+  add_section_data(SEC_CODE, buf, size);
 }
 
 static void add_asm(const char *fmt, ...) {
@@ -204,8 +206,8 @@ void add_bss(size_t size) {
   instruction_pointer += size;
 }
 
-void align_codesize(int align) {
-  sections[SEC_CODE].size = ALIGN(sections[SEC_CODE].size, align);
+void align_codesize(int sec, int align) {
+  sections[sec].size = ALIGN(sections[sec].size, align);
   instruction_pointer = ALIGN(instruction_pointer, align);
 }
 
@@ -214,11 +216,12 @@ uintptr_t label_adr(const char *label) {
   return adr != NULL ? (uintptr_t)adr : (uintptr_t)-1;
 }
 
-Vector *loc_vector;
+static Vector *loc_vector;
 
-static LocInfo *new_loc(enum LocType type, uintptr_t adr, const char *label) {
+static LocInfo *new_loc(enum LocType type, enum SectionType section, uintptr_t adr, const char *label) {
   LocInfo *loc = malloc(sizeof(*loc));
   loc->type = type;
+  loc->section = section;
   loc->adr = adr;
   loc->label = label;
   vec_push(loc_vector, loc);
@@ -227,18 +230,18 @@ static LocInfo *new_loc(enum LocType type, uintptr_t adr, const char *label) {
 
 void add_loc_rel8(const char *label, int ofs, int baseofs) {
   uintptr_t adr = instruction_pointer + ofs;
-  LocInfo *loc = new_loc(LOC_REL8, adr, label);
+  LocInfo *loc = new_loc(LOC_REL8, SEC_CODE, adr, label);
   loc->rel.base = CURIP(baseofs);
 }
 
 void add_loc_rel32(const char *label, int ofs, int baseofs) {
   uintptr_t adr = instruction_pointer + ofs;
-  LocInfo *loc = new_loc(LOC_REL32, adr, label);
+  LocInfo *loc = new_loc(LOC_REL32, SEC_CODE, adr, label);
   loc->rel.base = CURIP(baseofs);
 }
 
-void add_loc_abs64(const char *label, uintptr_t pos) {
-  new_loc(LOC_ABS64, pos, label);
+void add_loc_abs64(enum SectionType section, const char *label, uintptr_t pos) {
+  new_loc(LOC_ABS64, section, pos, label);
 }
 
 static const char *escape(int c) {
@@ -441,13 +444,13 @@ void construct_initial_value(unsigned char *buf, const Type *type, Initializer *
   }
 }
 
-static void put_data(const char *label, const VarInfo *varinfo) {
+static void put_data(enum SectionType sec, const char *label, const VarInfo *varinfo) {
   size_t size = type_size(varinfo->type);
   unsigned char *buf = malloc(size);
   if (buf == NULL)
     error("Memory alloc failed: %zu", size);
 
-  ALIGN_CODESIZE(align_size(varinfo->type));
+  ALIGN_CODESIZE(sec, align_size(varinfo->type));
   if ((varinfo->flag & VF_STATIC) == 0)  // global
     add_asm(".globl %s", label);
   size_t baseadr = instruction_pointer;
@@ -455,14 +458,14 @@ static void put_data(const char *label, const VarInfo *varinfo) {
 
   Vector *ptrinits = NULL;  // <[ptr, label]>
   construct_initial_value(buf, varinfo->type, varinfo->u.g.init, &ptrinits);
-  add_code(buf, size);
+  add_section_data(sec, buf, size);
 
   if (ptrinits != NULL) {
     for (int i = 0; i < ptrinits->len; ++i) {
       void **pp = (void**)ptrinits->data[i];
       unsigned char *p = pp[0];
       const char *label = pp[1];
-      add_loc_abs64(label, p - buf + baseadr);
+      add_loc_abs64(sec, label, p - buf + baseadr);
     }
   }
 
@@ -479,7 +482,7 @@ static void put_rodata(void) {
       continue;
 
     const char *name = (const char *)gvar_map->keys->data[i];
-    put_data(name, varinfo);
+    put_data(SEC_CODE, name, varinfo);
   }
 }
 
@@ -493,7 +496,7 @@ static void put_rwdata(void) {
       continue;
 
     const char *name = (const char *)gvar_map->keys->data[i];
-    put_data(name, varinfo);
+    put_data(SEC_DATA, name, varinfo);
   }
 }
 
@@ -505,7 +508,7 @@ static void put_bss(void) {
     if (varinfo->type->type == TY_FUNC || varinfo->u.g.init != NULL ||
         (varinfo->flag & VF_EXTERN) != 0)
       continue;
-    ALIGN_CODESIZE(align_size(varinfo->type));
+    ALIGN_CODESIZE(SEC_CODE, align_size(varinfo->type));
     size_t size = type_size(varinfo->type);
     if (size < 1)
       size = 1;
@@ -537,13 +540,15 @@ static void resolve_label_locations(void) {
     }
 
     intptr_t v = (intptr_t)val;
-    unsigned char *code = sections[SEC_CODE].buf;
+    Section *section = &sections[loc->section];
+    unsigned char *code = section->buf;
+    uintptr_t offset = loc->adr - section->start;
     switch (loc->type) {
     case LOC_REL8:
       {
         intptr_t d = v - loc->rel.base;
         // TODO: Check out of range
-        code[loc->adr] = d;
+        code[offset] = d;
       }
       break;
     case LOC_REL32:
@@ -551,12 +556,12 @@ static void resolve_label_locations(void) {
         intptr_t d = v - loc->rel.base;
         // TODO: Check out of range
         for (int i = 0; i < 4; ++i)
-          code[loc->adr + i] = d >> (i * 8);
+          code[offset + i] = d >> (i * 8);
       }
       break;
     case LOC_ABS64:
       for (int i = 0; i < 8; ++i)
-        code[loc->adr + i] = v >> (i * 8);
+        code[offset + i] = v >> (i * 8);
       break;
     default:
       assert(false);
@@ -572,22 +577,36 @@ static void resolve_label_locations(void) {
   }
 }
 
-size_t fixup_locations(size_t *pmemsz) {
+void fixup_locations(void) {
   add_asm(".section .rodata");
   put_rodata();
+
+  // Data section
+  sections[SEC_DATA].start = instruction_pointer = ALIGN(instruction_pointer, 0x1000);  // Page size.
 
   add_asm("");
   add_asm(".data");
   put_rwdata();
 
-  size_t filesize = instruction_pointer;
-
   put_bss();
 
   resolve_label_locations();
+}
 
-  *pmemsz = sections[SEC_CODE].size;
-  return filesize;
+void get_section_size(int section, size_t *pfilesz, size_t *pmemsz, uintptr_t *ploadadr) {
+  *pfilesz = sections[section].size;
+  *ploadadr = sections[section].start;
+  switch (section) {
+  case SEC_CODE:
+    *pmemsz = *pfilesz;
+    break;
+  case SEC_DATA:
+    *pmemsz = instruction_pointer - sections[SEC_DATA].start;  // Include bss.
+    break;
+  default:
+    assert(!"Illegal");
+    break;
+  }
 }
 
 //
@@ -908,7 +927,7 @@ static void out_asm(Node *node) {
     case EX_LONG:
       {
         unsigned char buf[1] = {arg->u.value};
-        add_code(buf, sizeof(buf));
+        add_section_data(SEC_CODE, buf, sizeof(buf));
       }
       break;
     case EX_FUNCALL:
@@ -918,7 +937,7 @@ static void out_asm(Node *node) {
           const char *label = ((Expr*)arg->u.funcall.args->data[0])->u.str.buf;
           ADD_LOC_REL32(label, 0, 4);
           unsigned char buf[4] = {0};
-          add_code(buf, sizeof(buf));
+          add_section_data(SEC_CODE, buf, sizeof(buf));
           break;
         }
       }
@@ -1801,15 +1820,17 @@ void gen(Node *node) {
 }
 
 void init_gen(uintptr_t start_address_) {
-  start_address = start_address_;
+  sections[SEC_CODE].start = instruction_pointer = start_address_;
   label_map = new_map();
+  loc_vector = new_vector();
 }
 
 void set_asm_fp(FILE *fp) {
   asm_fp = fp;
 }
 
-void output_code(FILE* fp, size_t filesize) {
-  unsigned char *code = sections[SEC_CODE].buf;
-  fwrite(code, filesize, 1, fp);
+void output_section(FILE* fp, int section) {
+  Section *p = &sections[section];
+  unsigned char *buf = p->buf;
+  fwrite(buf, p->size, 1, fp);
 }
