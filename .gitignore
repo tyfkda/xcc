@@ -3,6 +3,7 @@
 *.o
 a.out
 /cpp
+/gen2
 /xcc
 /tests/util_test
 /tests/valtest

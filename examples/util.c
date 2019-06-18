@@ -5,7 +5,7 @@ void write(int fd, const char *str, long len) {
 }
 
 #elif defined(__linux__)
-void write(int fd, const char *str, long len) {
+long write(int fd, const char *str, long len) {
 #if defined(__XCC)
   __asm("mov $1, %eax", 0xb8, 0x01, 0x00, 0x00, 0x00);  // __NR_write
   __asm("syscall",      0x0f, 0x05);
