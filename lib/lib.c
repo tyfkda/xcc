@@ -393,9 +393,9 @@ int fgetc(FILE* fp) {
 }
 
 int fputc(int c, FILE* fp) {
-  fprintf(stderr, "fputc: not implmented\n");
-  exit(1);
-  return 0;
+  unsigned char cc = c;
+  int len = write(fp->fd, &cc, 1);
+  return len == 1 ? c : EOF;
 }
 
 char *getcwd(char *buffer, size_t size) {

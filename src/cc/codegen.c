@@ -428,8 +428,10 @@ void construct_initial_value(unsigned char *buf, const Type *type, Initializer *
         } else {
           mem_init = values[i];
         }
-        construct_initial_value(buf + varinfo->offset, varinfo->type, mem_init, pptrinits);
-        ++count;
+        if (mem_init != NULL || type->type != TY_UNION) {
+          construct_initial_value(buf + varinfo->offset, varinfo->type, mem_init, pptrinits);
+          ++count;
+        }
       }
       if (type->type == TY_UNION && count <= 0) {
         VarInfo* varinfo = sinfo->members->data[0];
