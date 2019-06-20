@@ -613,12 +613,6 @@ void get_section_size(int section, size_t *pfilesz, size_t *pmemsz, uintptr_t *p
 
 //
 
-typedef struct LoopInfo {
-  struct LoopInfo *outer;
-  const char *l_break;
-  const char *l_continue;
-} LoopInfo;
-
 #ifndef __XCC
 static Defun *curfunc;
 static Scope *curscope;
