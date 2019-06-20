@@ -69,7 +69,6 @@ static int align_size(const Type *type) {
     return align_size(type->u.pa.ptrof);
   case TY_STRUCT:
   case TY_UNION:
-    ensure_struct((Type*)type, NULL);
     calc_struct_size(type->u.struct_.info, type->type == TY_UNION);
     return type->u.struct_.info->align;
   default:
@@ -79,6 +78,7 @@ static int align_size(const Type *type) {
 }
 
 static void calc_struct_size(StructInfo *sinfo, bool is_union) {
+  assert(sinfo != NULL);
   if (sinfo->size >= 0)
     return;
 
