@@ -174,7 +174,7 @@ static void read_next_line(void) {
     return;
   }
   while (len > 0 && line[len - 1] == '\\') {  // Continue line.
-    len = getline_(&line, &capa, lexer.fp, len - 1);
+    len = getline_(&line, &capa, lexer.fp, len - 1);  // -1 for overwrite on '\'
   }
 
   Line *p = malloc(sizeof(*line));
@@ -273,34 +273,39 @@ char *read_ident(const char **pp) {
 }
 
 static Token *read_string(const char **pp) {
+  const int ADD = 16;
   const char *p = *pp;
-  const char *begin = p++;
-  size_t capa = 8, size = 0;
+  const char *begin = p++;  // Skip first '"'
+  size_t capa = 16, size = 0;
   char *str = malloc(capa);
   for (;;) {
-    for (char c; (c = *p) != '"'; ++p) {
+    for (char c; (c = *p++) != '"'; ) {
       if (c == '\0')
-        lex_error(p, "String not closed");
+        lex_error(p - 1, "String not closed");
       if (size + 1 >= capa) {
-        capa <<= 1;
+        capa += ADD;
         str = realloc(str, capa);
+        if (str == NULL)
+          lex_error(p, "Out of memory");
       }
 
       if (c == '\\') {
-        c = *(++p);
+        c = *p++;
         if (c == '\0')
           lex_error(p, "String not closed");
         c = backslash(c);
       }
+      assert(size < capa);
       str[size++] = c;
     }
 
     // Continue string literal when next character is '"'
-    p = skip_whitespace_or_comment(p + 1);
+    p = skip_whitespace_or_comment(p);
     if (p == NULL || *p != '"')
       break;
     ++p;
   }
+  assert(size < capa);
   str[size++] = '\0';
   Token *tok = alloc_token(TK_STR, begin, p);
   tok->u.str.buf = str;

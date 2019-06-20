@@ -321,9 +321,7 @@ char *dirname(char *path) {
     *p = '\0';
     return path;
   }
-
-  fprintf(stderr, "dirname: not implemented\n");
-  return NULL;
+  return ".";
 }
 
 FILE* fopen(const char* fileName, const char* mode) {

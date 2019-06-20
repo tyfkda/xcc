@@ -3,6 +3,7 @@
 #include <stdarg.h>
 #include <stdlib.h>  // malloc
 #include <string.h>  // strcmp
+#include <assert.h>
 
 char *strdup_(const char *str) {
   return strndup_(str, strlen(str));
@@ -38,9 +39,9 @@ char *cat_path(const char *base_dir, const char *rel_path) {
   return path;
 }
 
-ssize_t getline_(char **lineptr, size_t *n, FILE *stream, size_t start) {
+ssize_t getline_(char **lineptr, size_t *pcapa, FILE *stream, size_t start) {
   const int ADD = 16;
-  ssize_t capa = *n;
+  ssize_t capa = *pcapa;
   ssize_t size = start;
   char *top = *lineptr;
   for (;;) {
@@ -51,23 +52,27 @@ ssize_t getline_(char **lineptr, size_t *n, FILE *stream, size_t start) {
       break;
     }
 
-    if (size + 2 > capa) {
+    if (size + 1 >= capa) {
       ssize_t newcapa = capa + ADD;
       top = realloc(top, newcapa);
-      if (top == NULL)
+      if (top == NULL) {
+        error("Out of memory");
         return EOF;
+      }
       capa = newcapa;
     }
 
     if (c == '\n')
       break;
 
+    assert(size < capa);
     top[size++] = c;
   }
 
+  assert(size < capa);
   top[size] = '\0';
   *lineptr = top;
-  *n = capa;
+  *pcapa = capa;
   return size;
 }
 

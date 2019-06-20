@@ -138,21 +138,21 @@ static Section sections[2];
 static size_t instruction_pointer;
 static FILE *asm_fp;
 
-static void add_section_data(enum SectionType secno, const unsigned char* buf, size_t size) {
+static void add_section_data(enum SectionType secno, const unsigned char* data, size_t bytes) {
   Section *sec = &sections[secno];
-  size_t codesize = sec->size;
-  size_t newsize = codesize + size;
-  unsigned char *code = realloc(sec->buf, newsize);
-  if (code == NULL)
+  size_t size = sec->size;
+  size_t newsize = size + bytes;
+  unsigned char *buf = realloc(sec->buf, newsize);
+  if (buf == NULL)
     error("not enough memory");
-  memcpy(code + codesize, buf, size);
-  sec->buf = code;
+  memcpy(buf + size, data, bytes);
+  sec->buf = buf;
   sec->size = newsize;
-  instruction_pointer += size;
+  instruction_pointer += bytes;
 }
 
-void add_code(const unsigned char* buf, size_t size) {
-  add_section_data(SEC_CODE, buf, size);
+void add_code(const unsigned char* buf, size_t bytes) {
+  add_section_data(SEC_CODE, buf, bytes);
 }
 
 static void add_asm(const char *fmt, ...) {
@@ -341,7 +341,6 @@ void construct_initial_value(unsigned char *buf, const Type *type, Initializer *
         assert(value->type == EX_VARREF);
         assert(value->u.varref.global);
 
-        memset(buf, 0, type_size(type));  // Just in case.
         void **init = malloc(sizeof(void*) * 2);
         init[0] = buf;
         init[1] = (void*)value->u.varref.ident;
@@ -362,7 +361,6 @@ void construct_initial_value(unsigned char *buf, const Type *type, Initializer *
         assert(!"initializer type error");
       }
     } else {
-      memset(buf, 0x00, WORD_SIZE);
       add_asm(".quad 0");
     }
     break;
@@ -375,7 +373,6 @@ void construct_initial_value(unsigned char *buf, const Type *type, Initializer *
       if (init != NULL) {
         Vector *init_array = init->u.multi;
         len = init_array->len;
-        memset(buf, 0, elem_size * len);
         for (int i = 0; i < len; ++i) {
           construct_initial_value(buf + (i * elem_size), elem_type, init_array->data[i], pptrinits);
         }
@@ -392,9 +389,6 @@ void construct_initial_value(unsigned char *buf, const Type *type, Initializer *
         int d = size - src_size;
         assert(d >= 0);
         memcpy(buf, init->u.single->u.str.buf, src_size);
-        if (d > 0) {
-          memset(buf + src_size, 0x00, d);
-        }
 
         add_asm(".string \"%s\"", escape_string((char*)buf, size));
       } else {
@@ -414,7 +408,6 @@ void construct_initial_value(unsigned char *buf, const Type *type, Initializer *
       }
 
       ensure_struct((Type*)type, NULL);
-      memset(buf, 0x00, type_size(type));
 
       const StructInfo *sinfo = type->u.struct_.info;
       int count = 0;
@@ -448,9 +441,9 @@ void construct_initial_value(unsigned char *buf, const Type *type, Initializer *
 
 static void put_data(enum SectionType sec, const char *label, const VarInfo *varinfo) {
   size_t size = type_size(varinfo->type);
-  unsigned char *buf = malloc(size);
+  unsigned char *buf = calloc(size, 1);
   if (buf == NULL)
-    error("Memory alloc failed: %zu", size);
+    error("Out of memory");
 
   ALIGN_CODESIZE(sec, align_size(varinfo->type));
   if ((varinfo->flag & VF_STATIC) == 0)  // global

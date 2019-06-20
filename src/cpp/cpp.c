@@ -547,7 +547,7 @@ void pp(FILE *fp, const char *filename) {
 
     while (len > 0 && line[len - 1] == '\\') {  // Continue line.
       ++lineno;
-      len = getline_(&line, &capa, fp, len - 1);
+      len = getline_(&line, &capa, fp, len - 1);  // -1 for overwrite on '\'
     }
 
     // Find '#'
