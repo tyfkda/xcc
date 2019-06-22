@@ -619,6 +619,10 @@ static Scope *curscope;
 #endif
 static const char *s_break_label;
 static const char *s_continue_label;
+static int stackpos;
+
+#define PUSH_STACK_POS()  do { stackpos += 8; } while (0)
+#define POP_STACK_POS()   do { stackpos -= 8; } while (0)
 
 static const char *push_break_label(const char **save) {
   *save = s_break_label;
@@ -949,6 +953,7 @@ static void out_asm(Node *node) {
 }
 
 static void gen_defun(Node *node) {
+  assert(stackpos == 0);
   Defun *defun = node->u.defun;
 
   bool global = true;
@@ -990,10 +995,12 @@ static void gen_defun(Node *node) {
   // Prologue
   // Allocate variable bufer.
   if (!no_stmt) {
-    PUSH_RBP();
+    PUSH_RBP(); PUSH_STACK_POS();
     MOV_RSP_RBP();
-    if (frame_size > 0)
+    if (frame_size > 0) {
       SUB_IM32_RSP(frame_size);
+      stackpos += frame_size;
+    }
 
     put_args_to_stack(defun);
   }
@@ -1013,12 +1020,14 @@ static void gen_defun(Node *node) {
   if (!no_stmt) {
     ADD_LABEL(defun->ret_label);
     MOV_RBP_RSP();
-    POP_RBP();
+    stackpos -= frame_size;
+    POP_RBP(); POP_STACK_POS();
   }
   RET();
   add_asm_comment(NULL);
   curfunc = NULL;
   curscope = NULL;
+  assert(stackpos == 0);
 }
 
 static void gen_return(Node *node) {
@@ -1050,6 +1059,11 @@ static void gen_funcall(Expr *expr) {
     default: break;
     }
   }
+
+  bool align_stack = (stackpos & 15) != 0;
+  if (align_stack)
+    SUB_IM8_RSP(8);
+
   Expr *func = expr->u.funcall.func;
   if (func->type == EX_VARREF && func->u.varref.global) {
     CALL(func->u.varref.ident);
@@ -1057,6 +1071,9 @@ static void gen_funcall(Expr *expr) {
     gen_expr(func);
     CALL_IND_RAX();
   }
+
+  if (align_stack)
+    ADD_IM8_RSP(8);
 }
 
 static void gen_if(Node *node) {
@@ -1485,10 +1502,10 @@ void gen_expr(Expr *expr) {
 
   case EX_ASSIGN:
     gen_lval(expr->u.bop.lhs);
-    PUSH_RAX();
+    PUSH_RAX(); PUSH_STACK_POS();
     gen_expr(expr->u.bop.rhs);
 
-    POP_RDI();
+    POP_RDI(); POP_STACK_POS();
     switch (expr->u.bop.lhs->valType->type) {
     case TY_CHAR:  MOV_AL_IND_RDI(); break;
     case TY_SHORT: MOV_AX_IND_RDI(); break;
@@ -1506,7 +1523,7 @@ void gen_expr(Expr *expr) {
     {
       Expr *sub = expr->u.unary.sub;
       gen_expr(sub->u.bop.rhs);
-      PUSH_RAX();
+      PUSH_RAX(); PUSH_STACK_POS();
       gen_lval(sub->u.bop.lhs);
       MOV_RAX_RSI();  // Save lhs address to %rsi.
 
@@ -1521,7 +1538,7 @@ void gen_expr(Expr *expr) {
       default: assert(false); break;
       }
 
-      POP_RDI();  // %rdi=rhs
+      POP_RDI(); POP_STACK_POS();  // %rdi=rhs
       gen_arith(sub->type, sub->valType->type, sub->u.bop.rhs->valType->type);
       cast(expr->valType->type, sub->valType->type);
 
@@ -1660,10 +1677,10 @@ void gen_expr(Expr *expr) {
       }
 
       gen_expr(lhs);
-      PUSH_RAX();
+      PUSH_RAX(); PUSH_STACK_POS();
       gen_expr(rhs);
 
-      POP_RDI();
+      POP_RDI(); POP_STACK_POS();
       switch (ltype) {
       case TY_CHAR: CMP_AL_DIL(); break;
       case TY_INT:  CMP_EAX_EDI(); break;
@@ -1726,10 +1743,10 @@ void gen_expr(Expr *expr) {
   case EX_BITOR:
   case EX_BITXOR:
     gen_expr(expr->u.bop.rhs);
-    PUSH_RAX();
+    PUSH_RAX(); PUSH_STACK_POS();
     gen_expr(expr->u.bop.lhs);
 
-    POP_RDI();
+    POP_RDI(); POP_STACK_POS();
 
     gen_arith(expr->type, expr->valType->type, expr->u.bop.rhs->valType->type);
     return;
