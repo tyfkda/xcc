@@ -755,7 +755,9 @@ static void gen_cond_jmp(Expr *cond, bool tf, const char *label) {
   switch (cond->valType->type) {
   case TY_CHAR:  TEST_AL_AL(); break;
   case TY_SHORT: TEST_AX_AX(); break;
-  case TY_INT:   TEST_EAX_EAX(); break;
+  case TY_INT: case TY_ENUM:
+    TEST_EAX_EAX();
+    break;
   case TY_LONG: case TY_PTR:
     TEST_RAX_RAX();
     break;
@@ -773,10 +775,12 @@ static void gen_varref(Expr *expr) {
   switch (expr->valType->type) {
   case TY_CHAR:  MOV_IND_RAX_AL(); break;
   case TY_SHORT: MOV_IND_RAX_AX(); break;
-  case TY_INT:   MOV_IND_RAX_EAX(); break;
-  case TY_LONG:  MOV_IND_RAX_RAX(); break;
-  case TY_ENUM:  MOV_IND_RAX_EAX(); break;
-  case TY_PTR:   MOV_IND_RAX_RAX(); break;
+  case TY_INT: case TY_ENUM:
+    MOV_IND_RAX_EAX();
+    break;
+  case TY_LONG: case TY_PTR:
+    MOV_IND_RAX_RAX();
+    break;
   case TY_ARRAY: break;  // Use variable address as a pointer.
   case TY_FUNC:  break;
   default: assert(false); break;
