@@ -40,10 +40,10 @@ gen2: gen2/cpp gen2/xcc
 
 gen2/cpp: xcc cpp $(CPP_SRCS)
 	mkdir -p gen2
-	./xcc -o$@ -Iinc $(CPP_SRCS) \
+	./xcc -S -o$@ -Iinc $(CPP_SRCS) \
 	      lib/lib.c lib/umalloc.c lib/sprintf.c lib/crt0.c
 
 gen2/xcc: xcc cpp $(CC_SRCS)
 	mkdir -p gen2
-	./xcc -o$@ -Iinc $(CC_SRCS) \
+	./xcc -S -o$@ -Iinc $(CC_SRCS) \
 	      lib/lib.c lib/umalloc.c lib/sprintf.c lib/crt0.c
