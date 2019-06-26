@@ -108,7 +108,7 @@ static void calc_struct_size(StructInfo *sinfo, bool is_union) {
   sinfo->align = max_align;
 }
 
-static Map *label_map;
+static Map *label_map;  // <uintptr_t adr>
 
 enum LocType {
   LOC_REL8,
@@ -572,6 +572,15 @@ static void resolve_label_locations(void) {
   }
 }
 
+static void dump_labels(void) {
+  add_asm_comment(NULL);
+  for (int i = 0, n = map_count(label_map); i < n; ++i) {
+    const char *name = label_map->keys->data[i];
+    uintptr_t adr = (uintptr_t)label_map->vals->data[i];
+    add_asm_comment("%08x: %s", adr, name);
+  }
+}
+
 void fixup_locations(void) {
   add_asm(".section .rodata");
   put_rodata();
@@ -579,13 +588,15 @@ void fixup_locations(void) {
   // Data section
   sections[SEC_DATA].start = instruction_pointer = ALIGN(instruction_pointer, 0x1000);  // Page size.
 
-  add_asm("");
+  add_asm_comment(NULL);
   add_asm(".data");
   put_rwdata();
 
   put_bss();
 
   resolve_label_locations();
+
+  dump_labels();
 }
 
 void get_section_size(int section, size_t *pfilesz, size_t *pmemsz, uintptr_t *ploadadr) {
