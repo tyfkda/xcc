@@ -4,6 +4,7 @@
 a.out
 /cpp
 /gen2
+/gen3
 /xcc
 /tests/util_test
 /tests/valtest

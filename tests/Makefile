@@ -2,20 +2,21 @@ CFLAGS=-ansi -std=c11 -Wall -Wextra -Werror -Wold-style-definition -Wno-missing-
 
 SRC_DIR:=../src/cc
 
-.PHONY: ../xcc test-util test-cpp test-val test-sh
+EXEDIR:=.
+XCC:=../$(EXEDIR)/xcc
+CPP:=../$(EXEDIR)/cpp
 
-all:	../xcc ../cpp test-util test-cpp test-val test-sh test-examples
+.PHONY: test-util test-cpp test-val test-sh
+
+all:	unit-tests all-tests
+
+unit-tests:	test-util
+
+all-tests:	test-cpp test-val test-sh test-examples
 	@echo 'All tests PASS!'
 
 clean:
 	rm -f util_test valtest a.out
-
-../xcc:
-	make -C .. xcc
-
-../cpp:
-	make -C .. cpp
-
 test-util:	util_test
 	@echo '## Util'
 	@./util_test
@@ -26,23 +27,25 @@ test-val:	valtest
 	@./valtest
 	@echo ''
 
-test-cpp:	cpptest.sh
+test-cpp: # $(CPP)
 	@echo '## cpptest'
-	@./cpptest.sh
+	CPP=$(CPP) ./cpptest.sh
 	@echo ''
 
-test-sh:	test.sh
+test-sh: # $(XCC)
 	@echo '## test.sh'
-	@./test.sh
+	XCC=$(XCC) ./test.sh
 	@echo ''
 
-test-examples:	example_test.sh
+test-examples: # $(XCC)
 	@echo '## Example test'
-	@./example_test.sh
+	XCC=$(XCC) ./example_test.sh
 	@echo ''
 
-util_test:	util_test.c $(SRC_DIR)/util.c
+UTIL_SRCS:=util_test.c $(SRC_DIR)/util.c
+util_test:	$(UTIL_SRCS)
 	gcc -o $@ $(CFLAGS) $^
 
-valtest:	../lib/crt0.c ../examples/util.c valtest.c ../xcc
-	../xcc -ovaltest ../lib/crt0.c ../examples/util.c valtest.c
+VAL_SRCS:=../lib/crt0.c ../examples/util.c valtest.c
+valtest:	$(VAL_SRCS) # $(XCC)
+	$(XCC) -o$@ $(VAL_SRCS)

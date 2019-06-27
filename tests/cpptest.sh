@@ -1,6 +1,6 @@
 #!/bin/bash
 
-CPP=../cpp
+CPP=${CPP:-../cpp}
 
 try() {
   title="$1"

@@ -1,6 +1,6 @@
 #!/bin/bash
 
-XCC=../xcc
+XCC=${XCC:-../xcc}
 
 PROLOGUE=$(cat <<EOS
 void _start() {

@@ -5,4 +5,4 @@ compiler:
 os:
   - linux
 script:
-  - make test
+  - make test test-gen2

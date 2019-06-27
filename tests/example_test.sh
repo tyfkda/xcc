@@ -1,6 +1,6 @@
 #!/bin/bash
 
-XCC=../xcc
+XCC=${XCC:-../xcc}
 
 try() {
   title="$1"
