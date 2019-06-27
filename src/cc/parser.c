@@ -79,7 +79,7 @@ static Node *new_node_switch(Expr *value) {
   Node *node = new_node(ND_SWITCH);
   node->u.switch_.value = value;
   node->u.switch_.body = NULL;
-  node->u.switch_.case_values = NULL;
+  node->u.switch_.case_values = new_vector();
   node->u.switch_.has_default = false;
   return node;
 }
@@ -197,8 +197,6 @@ static Node *parse_case(Token *tok) {
     parse_error(NULL, "`:' expected");
 
   Vector *values = curswitch->u.switch_.case_values;
-  if (values == NULL)
-    curswitch->u.switch_.case_values = values = new_vector();
 
   // Check duplication.
   for (int i = 0, len = values->len; i < len; ++i) {

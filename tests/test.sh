@@ -115,6 +115,7 @@ try_output 'strings' 'hello world' "write(1, \"hello \" \"world\\\\n\", 12);"
 try_direct 'init union' 77 'union { int x; struct { char a; short b; } y; } u = {.y={.b=77}}; int main(){ return u.y.b; }'
 try_direct 'goto' 1 'int main(){ int x = 1; goto label; x = 2; label: return x; }'
 try_output '*const' foobar 'const char* const str = "foobar"; write(1, str, 6);'
+try_direct 'switch w/o case' 1 'int main(){ int x = 0; switch (0) {default: x = 1; break;} return x; }'
 
 # error cases
 echo ''
