@@ -1625,9 +1625,14 @@ void gen_expr(Expr *expr) {
     case TY_PTR:
       {
         size_t size = type_size(expr->valType->u.pa.ptrof);
-        assert(size < (1 << 15));  // TODO:
-        if (expr->type == EX_POSTINC)  ADD_IM16_IND_RAX(size);
-        else                           SUB_IM16_IND_RAX(size);
+        assert(size < ((size_t)1 << 31));  // TODO:
+        if (expr->type == EX_POSTINC) {
+          if (size < 256)  ADDQ_IM8_IND_RAX(size);
+          else             ADDQ_IM32_IND_RAX(size);
+        } else {
+          if (size < 256)  SUBQ_IM8_IND_RAX(size);
+          else             SUBQ_IM32_IND_RAX(size);
+        }
       }
       break;
     default:

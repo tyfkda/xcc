@@ -116,6 +116,7 @@ try_direct 'init union' 77 'union { int x; struct { char a; short b; } y; } u = 
 try_direct 'goto' 1 'int main(){ int x = 1; goto label; x = 2; label: return x; }'
 try_output '*const' foobar 'const char* const str = "foobar"; write(1, str, 6);'
 try_direct 'switch w/o case' 1 'int main(){ int x = 0; switch (0) {default: x = 1; break;} return x; }'
+try 'post inc pointer' 1 'char *p = (char*)(-1L); p++; return p == 0;'
 
 # error cases
 echo ''
