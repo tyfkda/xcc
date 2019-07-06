@@ -1621,6 +1621,7 @@ Expr *analyze_expr(Expr *expr, bool keep_left) {
           break;
         default:
           assert(!"err");
+          value = -1;  // Dummy
           break;
         }
         return new_expr_numlit(MAX(expr->u.bop.lhs->type, expr->u.bop.rhs->type), expr->u.bop.lhs->token, value);

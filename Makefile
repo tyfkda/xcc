@@ -5,6 +5,7 @@ CFLAGS:=-ansi -std=c11 -MD -Wall -Wextra -Werror -Wold-style-definition \
 SRC_DIR:=src/cc
 CPP_DIR:=src/cpp
 OBJ_DIR:=obj
+CFLAGS+=-I $(SRC_DIR)
 
 CC_SRCS:=$(SRC_DIR)/util.c $(SRC_DIR)/lexer.c $(SRC_DIR)/expr.c $(SRC_DIR)/parser.c \
 	$(SRC_DIR)/codegen.c $(SRC_DIR)/elfutil.c $(SRC_DIR)/main.c
@@ -60,7 +61,7 @@ test-self-hosting:
 
 $(TARGET)/cpp:	$(HOST)/xcc $(HOST)/cpp $(CPP_SRCS)
 	mkdir -p $(TARGET)
-	$(HOST)/xcc -o$(TARGET)/cpp -Iinc $(CPP_SRCS) \
+	$(HOST)/xcc -o$(TARGET)/cpp -Iinc -I$(SRC_DIR) $(CPP_SRCS) \
 	      lib/lib.c lib/umalloc.c lib/sprintf.c lib/crt0.c
 
 $(TARGET)/xcc:	$(HOST)/xcc $(HOST)/cpp $(CC_SRCS)

@@ -1,8 +1,8 @@
 #if defined(__XV6)
 void _start(void) {
-  __asm(0xe8, __rel32("main"));     // call main
-  __asm(0x89, 0xc7);                // mov %eax,%edi
-  __asm(0xe9, __rel32("exit"));     // jmp exit
+  __asm("call main",      0xe8, __rel32("main"));
+  __asm("mov %eax, %edi", 0x89, 0xc7);
+  __asm("jmp exit",       0xe9, __rel32("exit"));
 }
 
 void exit(int code) {

@@ -318,11 +318,11 @@ void construct_initial_value(unsigned char *buf, const Type *type, Initializer *
       switch (type->type) {
       case TY_CHAR:  fmt = ".byte %"SCNdPTR; break;
       case TY_SHORT: fmt = ".word %"SCNdPTR; break;
+      case TY_LONG:  fmt = ".quad %"SCNdPTR; break;
+      default:
       case TY_INT: case TY_ENUM:
         fmt = ".long %"SCNdPTR;
         break;
-      case TY_LONG:  fmt = ".quad %"SCNdPTR; break;
-      default: break;
       }
       add_asm(fmt, v);
     }
@@ -386,8 +386,7 @@ void construct_initial_value(unsigned char *buf, const Type *type, Initializer *
           type->u.pa.ptrof->type == TY_CHAR && init->u.single->type == EX_STR) {
         int src_size = init->u.single->u.str.size;
         size_t size = type_size(type);
-        int d = size - src_size;
-        assert(d >= 0);
+        assert(size >= (size_t)src_size);
         memcpy(buf, init->u.single->u.str.buf, src_size);
 
         add_asm(".string \"%s\"", escape_string((char*)buf, size));

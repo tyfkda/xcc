@@ -7,9 +7,9 @@
 #include "string.h"
 #include "unistd.h"
 
-#include "../cc/expr.h"
-#include "../cc/lexer.h"
-#include "../cc/util.h"
+#include "expr.h"
+#include "lexer.h"
+#include "util.h"
 
 char *abspath(const char *root, const char *path) {
   //EXPECT_STREQ("Relative", "/user/foo/inc/stdio.h", abspath("/user/foo", "inc/stdio.h"));
