@@ -153,9 +153,10 @@ int main(int argc, char* argv[]) {
 
   if (argc > iarg) {
     // Pass sources to preprocessor.
-    char **pp_argv = malloc(sizeof(char*) * argc);
+    char **pp_argv = malloc(sizeof(char*) * (argc + 1));
     pp_argv[0] = cat_path(dirname(strdup_(argv[0])), "cpp");
     memcpy(&pp_argv[1], &argv[1], sizeof(char*) * argc);
+    pp_argv[argc] = NULL;
     char **xcc_argv = argv;
     xcc_argv[iarg] = NULL;  // Destroy!
     return pipe_pp_xcc(pp_argv, xcc_argv) != 0;
