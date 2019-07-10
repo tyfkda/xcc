@@ -16,7 +16,7 @@ const int WORD_SIZE = /*sizeof(void*)*/ 8;
 #define CURIP(ofs)  (instruction_pointer + ofs)
 #include "x86_64.h"
 
-#define ALIGN_CODESIZE(sec, align_)  do { int align = (int)(align_); add_asm_align(align); align_codesize(sec, align); } while (0)
+#define ALIGN_SECTION_SIZE(sec, align_)  do { int align = (int)(align_); add_asm_align(align); align_section_size(sec, align); } while (0)
 
 static void calc_struct_size(StructInfo *sinfo, bool is_union);
 
@@ -206,9 +206,18 @@ void add_bss(size_t size) {
   instruction_pointer += size;
 }
 
-void align_codesize(int sec, int align) {
-  sections[sec].size = ALIGN(sections[sec].size, align);
-  instruction_pointer = ALIGN(instruction_pointer, align);
+void align_section_size(int sec, int align) {
+  size_t size = sections[sec].size;
+  size_t aligned_size = ALIGN(size, align);
+  size_t add = aligned_size - size;
+  if (add <= 0)
+    return;
+
+  void* zero = calloc(add, 1);
+  add_section_data(sec, zero, add);
+  free(zero);
+
+  assert(sections[sec].size == aligned_size);
 }
 
 uintptr_t label_adr(const char *label) {
@@ -444,7 +453,7 @@ static void put_data(enum SectionType sec, const char *label, const VarInfo *var
   if (buf == NULL)
     error("Out of memory");
 
-  ALIGN_CODESIZE(sec, align_size(varinfo->type));
+  ALIGN_SECTION_SIZE(sec, align_size(varinfo->type));
   if ((varinfo->flag & VF_STATIC) == 0)  // global
     add_asm(".globl %s", label);
   size_t baseadr = instruction_pointer;
@@ -502,7 +511,7 @@ static void put_bss(void) {
     if (varinfo->type->type == TY_FUNC || varinfo->u.g.init != NULL ||
         (varinfo->flag & VF_EXTERN) != 0)
       continue;
-    //ALIGN_CODESIZE(SEC_DATA, align_size(varinfo->type));
+    //ALIGN_SECTION_SIZE(SEC_DATA, align_size(varinfo->type));
     int align = align_size(varinfo->type);
     add_asm_align(align);
     instruction_pointer = ALIGN(instruction_pointer, align);
