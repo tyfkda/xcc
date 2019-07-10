@@ -497,7 +497,9 @@ static void fix_array_size(Type *type, Initializer *init) {
   if (arr_len == (size_t)-1) {
     type->u.pa.length = is_str ? init->u.single->u.str.size : (size_t)init->u.multi->len;
   } else {
-    if ((size_t)init->u.multi->len > arr_len)
+    assert(!is_str || init->u.single->type == EX_STR);
+    size_t init_len = is_str ? init->u.single->u.str.size : (size_t)init->u.multi->len;
+    if (init_len > arr_len)
       parse_error(NULL, "Initializer more than array size");
   }
 }
