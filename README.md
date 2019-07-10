@@ -12,3 +12,23 @@ XCC
 ### TODO
 
   * Optimization
+
+
+### Missing features
+
+Compiler:
+
+  * Struct assignment
+  * Bit field
+  * Anonymous union member initializer
+
+Preprocessor:
+
+  * String concatenation
+  * Self recursive macro expansion
+
+
+### Reference
+
+  * [低レイヤを知りたい人のためのCコンパイラ作成入門](https://www.sigbus.info/compilerbook)
+  * [rui314/9cc: A Small C Compiler](https://github.com/rui314/9cc)
