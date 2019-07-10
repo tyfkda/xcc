@@ -536,23 +536,27 @@ Initializer **flatten_initializer(const Type *type, Initializer *init) {
     if (index >= n)
       parse_error(NULL, "Too many init values");
 
-    // Allocate string literal as char array.
+    // Allocate string literal for char* as a char array.
     if (value->type == vSingle && value->u.single->type == EX_STR) {
-      Expr *expr = value->u.single;
-      Initializer *strinit = malloc(sizeof(*strinit));
-      strinit->type = vSingle;
-      strinit->u.single = expr;
+      const VarInfo *member = sinfo->members->data[index];
+      if (member->type->type == TY_PTR &&
+          member->type->u.pa.ptrof->type == TY_CHAR) {
+        Expr *expr = value->u.single;
+        Initializer *strinit = malloc(sizeof(*strinit));
+        strinit->type = vSingle;
+        strinit->u.single = expr;
 
-      // Create string and point to it.
-      static const Type tyChar = {TY_CHAR};
-      Type* strtype = arrayof(&tyChar, expr->u.str.size);
-      const char * label = alloc_label();
-      const Token *ident = alloc_ident(label, NULL, NULL);
-      VarInfo *varinfo = define_global(strtype, VF_CONST | VF_STATIC, ident, NULL);
-      varinfo->u.g.init = strinit;
+        // Create string and point to it.
+        static const Type tyChar = {TY_CHAR};
+        Type* strtype = arrayof(&tyChar, expr->u.str.size);
+        const char * label = alloc_label();
+        const Token *ident = alloc_ident(label, NULL, NULL);
+        VarInfo *varinfo = define_global(strtype, VF_CONST | VF_STATIC, ident, NULL);
+        varinfo->u.g.init = strinit;
 
-      // Replace initializer from string literal to string array defined in global.
-      value->u.single = new_expr_varref(label, strtype, true, ident);
+        // Replace initializer from string literal to string array defined in global.
+        value->u.single = new_expr_varref(label, strtype, true, ident);
+      }
     }
 
     values[index++] = value;
