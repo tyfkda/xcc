@@ -1,3 +1,7 @@
+#if defined(__XV6)
+#define NO_ASM_OUTPUT
+#endif
+
 #include <assert.h>
 #include <inttypes.h>
 #include <stdarg.h>
@@ -8,6 +12,13 @@
 #include "xcc.h"
 #include "expr.h"
 #include "util.h"
+
+#if defined(NO_ASM_OUTPUT)
+#define ADD_ASM(...)  // ignore
+#define add_asm(...)  // ignore
+#endif
+
+#define UNUSED(x)  ((void)(x))
 
 const int FRAME_ALIGN = 8;
 const int MAX_ARGS = 6;
@@ -155,6 +166,7 @@ void add_code(const unsigned char* buf, size_t bytes) {
   add_section_data(SEC_CODE, buf, bytes);
 }
 
+#if !defined(NO_ASM_OUTPUT)
 static void add_asm(const char *fmt, ...) {
   if (asm_fp == NULL)
     return;
@@ -166,6 +178,7 @@ static void add_asm(const char *fmt, ...) {
   fprintf(asm_fp, "\n");
   va_end(ap);
 }
+#endif
 
 static void add_asm_label(const char *label) {
   if (asm_fp == NULL)
@@ -253,6 +266,7 @@ void add_loc_abs64(enum SectionType section, const char *label, uintptr_t pos) {
   new_loc(LOC_ABS64, section, pos, label);
 }
 
+#if !defined(NO_ASM_OUTPUT)
 static const char *escape(int c) {
   switch (c) {
   case '\0': return "\\0";
@@ -299,6 +313,7 @@ static char *escape_string(const char *str, size_t size) {
     s = p + 1;
   }
 }
+#endif
 
 void construct_initial_value(unsigned char *buf, const Type *type, Initializer *init, Vector **pptrinits) {
   add_asm_align(align_size(type));
@@ -333,6 +348,7 @@ void construct_initial_value(unsigned char *buf, const Type *type, Initializer *
         fmt = ".long %"SCNdPTR;
         break;
       }
+      UNUSED(fmt);
       add_asm(fmt, v);
     }
     break;
@@ -398,6 +414,7 @@ void construct_initial_value(unsigned char *buf, const Type *type, Initializer *
         assert(size >= (size_t)src_size);
         memcpy(buf, init->u.single->u.str.buf, src_size);
 
+        UNUSED(size);
         add_asm(".string \"%s\"", escape_string((char*)buf, size));
       } else {
         error("Illegal initializer");
@@ -1866,7 +1883,11 @@ void init_gen(uintptr_t start_address_) {
 }
 
 void set_asm_fp(FILE *fp) {
+#if !defined(NO_ASM_OUTPUT)
   asm_fp = fp;
+#else
+  (void)fp;
+#endif
 }
 
 void output_section(FILE* fp, int section) {
