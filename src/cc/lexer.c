@@ -314,6 +314,67 @@ static Token *read_string(const char **pp) {
   return tok;
 }
 
+static const struct {
+  const char ident[4];
+  enum TokenType type;
+} kMultiOperators[] = {
+  // Must align from long to short keyword.
+  {"<<=", TK_LSHIFT_ASSIGN},
+  {">>=", TK_RSHIFT_ASSIGN},
+  {"...", TK_DOTDOTDOT},
+  {"==", TK_EQ},
+  {"!=", TK_NE},
+  {"<=", TK_LE},
+  {">=", TK_GE},
+  {"+=", TK_ADD_ASSIGN},
+  {"-=", TK_SUB_ASSIGN},
+  {"*=", TK_MUL_ASSIGN},
+  {"/=", TK_DIV_ASSIGN},
+  {"%=", TK_MOD_ASSIGN},
+  {"&=", TK_AND_ASSIGN},
+  {"|=", TK_OR_ASSIGN},
+  {"^=", TK_HAT_ASSIGN},
+  {"++", TK_INC},
+  {"--", TK_DEC},
+  {"->", TK_ARROW},
+  {"&&", TK_LOGAND},
+  {"||", TK_LOGIOR},
+  {"<<", TK_LSHIFT},
+  {">>", TK_RSHIFT},
+};
+
+static const char kSingleOperators[] = "+-*/%&!(){}[]<>=^|:;,.?";
+
+static Token *get_op_token(const char **pp) {
+  const char *p = *pp;
+  if (isalnum(*p))
+    return NULL;
+
+  Token *tok = NULL;
+  for (int i = 0, n = sizeof(kMultiOperators) / sizeof(*kMultiOperators); i < n; ++i) {
+    const char *ident = kMultiOperators[i].ident;
+    size_t len = strlen(ident);
+    if (strncmp(p, ident, len) == 0) {
+      const char *q = p + len;
+      tok = alloc_token(kMultiOperators[i].type, p, q);
+      p = q;
+      break;
+    }
+  }
+
+  if (tok == NULL) {
+    if (strchr(kSingleOperators, *p) != NULL) {
+      tok = alloc_token((enum TokenType)*p, p, p + 1);
+      ++p;
+    }
+  }
+
+  if (tok != NULL)
+    *pp = p;
+
+  return tok;
+}
+
 static Token *get_token(void) {
   Token *tok = NULL;
   const char *p = lexer.p;
@@ -325,150 +386,9 @@ static Token *get_token(void) {
     if (p == NULL)
       return alloc_token(TK_EOF, NULL, NULL);
 
-    if (*p == '=' && p[1] == '=') {
-      tok = alloc_token(TK_EQ, p, p + 2);
-      p += 2;
+    tok = get_op_token(&p);
+    if (tok != NULL)
       break;
-    }
-
-    if (*p == '!' && p[1] == '=') {
-      tok = alloc_token(TK_NE, p, p + 2);
-      p += 2;
-      break;
-    }
-
-    if (*p == '<') {
-      if (p[1] == '=') {
-        tok = alloc_token(TK_LE, p, p + 2);
-        p += 2;
-        break;
-      }
-      if (p[1] == '<') {
-        if (p[2] == '=') {
-          tok = alloc_token(TK_LSHIFT_ASSIGN, p, p + 3);
-          p += 3;
-          break;
-        }
-
-        tok = alloc_token(TK_LSHIFT, p, p + 2);
-        p += 2;
-        break;
-      }
-    }
-
-    if (*p == '>') {
-      if (p[1] == '=') {
-        tok = alloc_token(TK_GE, p, p + 2);
-        p += 2;
-        break;
-      }
-      if (p[1] == '>') {
-        if (p[2] == '=') {
-          tok = alloc_token(TK_RSHIFT_ASSIGN, p, p + 3);
-          p += 3;
-          break;
-        }
-
-        tok = alloc_token(TK_RSHIFT, p, p + 2);
-        p += 2;
-        break;
-      }
-    }
-
-    if (*p == '+') {
-      if (p[1] == '+') {
-        tok = alloc_token(TK_INC, p, p + 2);
-        p += 2;
-        break;
-      }
-      if (p[1] == '=') {
-        tok = alloc_token(TK_ADD_ASSIGN, p, p + 2);
-        p += 2;
-        break;
-      }
-    }
-
-    if (*p == '-') {
-      if (p[1] == '-') {
-        tok = alloc_token(TK_DEC, p, p + 2);
-        p += 2;
-        break;
-      }
-      if (p[1] == '>') {
-        tok = alloc_token(TK_ARROW, p, p + 2);
-        p += 2;
-        break;
-      }
-      if (p[1] == '=') {
-        tok = alloc_token(TK_SUB_ASSIGN, p, p + 2);
-        p += 2;
-        break;
-      }
-    }
-
-    if (*p == '*' && p[1] == '=') {
-      tok = alloc_token(TK_MUL_ASSIGN, p, p + 2);
-      p += 2;
-      break;
-    }
-
-    if (*p == '/' && p[1] == '=') {
-      tok = alloc_token(TK_DIV_ASSIGN, p, p + 2);
-      p += 2;
-      break;
-    }
-
-    if (*p == '%' && p[1] == '=') {
-      tok = alloc_token(TK_MOD_ASSIGN, p, p + 2);
-      p += 2;
-      break;
-    }
-
-    if (*p == '&') {
-      if (p[1] == '&') {
-        tok = alloc_token(TK_LOGAND, p, p + 2);
-        p += 2;
-        break;
-      }
-      if (p[1] == '=') {
-        tok = alloc_token(TK_AND_ASSIGN, p, p + 2);
-        p += 2;
-        break;
-      }
-    }
-
-    if (*p == '|') {
-      if (p[1] == '|') {
-        tok = alloc_token(TK_LOGIOR, p, p + 2);
-        p += 2;
-        break;
-      }
-      if (p[1] == '=') {
-        tok = alloc_token(TK_OR_ASSIGN, p, p + 2);
-        p += 2;
-        break;
-      }
-    }
-
-    if (*p == '^') {
-      if (p[1] == '=') {
-        tok = alloc_token(TK_HAT_ASSIGN, p, p + 2);
-        p += 2;
-        break;
-      }
-    }
-
-    if (*p == '.' && p[1] == '.' && p[2] == '.') {
-      tok = alloc_token(TK_DOTDOTDOT, p, p + 3);
-      p += 3;
-      break;
-    }
-
-    if (strchr("+-*/%&!(){}[]<>=^|:;,.?", *p) != NULL) {
-      tok = alloc_token((enum TokenType)*p, p, p + 1);
-      ++p;
-      break;
-    }
 
     if (isdigit(*p)) {
       tok = read_num(&p);
