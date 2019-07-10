@@ -502,7 +502,10 @@ static void put_bss(void) {
     if (varinfo->type->type == TY_FUNC || varinfo->u.g.init != NULL ||
         (varinfo->flag & VF_EXTERN) != 0)
       continue;
-    ALIGN_CODESIZE(SEC_CODE, align_size(varinfo->type));
+    //ALIGN_CODESIZE(SEC_DATA, align_size(varinfo->type));
+    int align = align_size(varinfo->type);
+    add_asm_align(align);
+    instruction_pointer = ALIGN(instruction_pointer, align);
     size_t size = type_size(varinfo->type);
     if (size < 1)
       size = 1;
