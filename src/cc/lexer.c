@@ -11,6 +11,69 @@
 
 #define MAX_LOOKAHEAD  (2)
 
+static const struct {
+  const char *str;
+  enum TokenType type;
+} kReservedWords[] = {
+  { "if", TK_IF },
+  { "else", TK_ELSE },
+  { "switch", TK_SWITCH },
+  { "case", TK_CASE },
+  { "default", TK_DEFAULT },
+  { "do", TK_DO },
+  { "while", TK_WHILE },
+  { "for", TK_FOR },
+  { "break", TK_BREAK },
+  { "continue", TK_CONTINUE },
+  { "goto", TK_GOTO },
+  { "return", TK_RETURN },
+  { "void", TK_KWVOID },
+  { "char", TK_KWCHAR },
+  { "short", TK_KWSHORT },
+  { "int", TK_KWINT },
+  { "long", TK_KWLONG },
+  { "const", TK_KWCONST },
+  { "unsigned", TK_UNSIGNED },
+  { "static", TK_STATIC },
+  { "extern", TK_EXTERN },
+  { "struct", TK_STRUCT },
+  { "union", TK_UNION },
+  { "enum", TK_ENUM },
+  { "sizeof", TK_SIZEOF },
+  { "typedef", TK_TYPEDEF },
+};
+
+static const struct {
+  const char ident[4];
+  enum TokenType type;
+} kMultiOperators[] = {
+  // Must align from long to short keyword.
+  {"<<=", TK_LSHIFT_ASSIGN},
+  {">>=", TK_RSHIFT_ASSIGN},
+  {"...", TK_DOTDOTDOT},
+  {"==", TK_EQ},
+  {"!=", TK_NE},
+  {"<=", TK_LE},
+  {">=", TK_GE},
+  {"+=", TK_ADD_ASSIGN},
+  {"-=", TK_SUB_ASSIGN},
+  {"*=", TK_MUL_ASSIGN},
+  {"/=", TK_DIV_ASSIGN},
+  {"%=", TK_MOD_ASSIGN},
+  {"&=", TK_AND_ASSIGN},
+  {"|=", TK_OR_ASSIGN},
+  {"^=", TK_HAT_ASSIGN},
+  {"++", TK_INC},
+  {"--", TK_DEC},
+  {"->", TK_ARROW},
+  {"&&", TK_LOGAND},
+  {"||", TK_LOGIOR},
+  {"<<", TK_LSHIFT},
+  {">>", TK_RSHIFT},
+};
+
+static const char kSingleOperators[] = "+-*/%&!(){}[]<>=^|:;,.?";
+
 typedef struct {
   FILE *fp;
   const char *filename;
@@ -81,40 +144,9 @@ Token *alloc_ident(const char *ident, const char *begin, const char *end) {
 }
 
 static enum TokenType reserved_word(const char *word) {
-  struct {
-    const char *str;
-    enum TokenType type;
-  } table[] = {
-    { "if", TK_IF },
-    { "else", TK_ELSE },
-    { "switch", TK_SWITCH },
-    { "case", TK_CASE },
-    { "default", TK_DEFAULT },
-    { "do", TK_DO },
-    { "while", TK_WHILE },
-    { "for", TK_FOR },
-    { "break", TK_BREAK },
-    { "continue", TK_CONTINUE },
-    { "goto", TK_GOTO },
-    { "return", TK_RETURN },
-    { "void", TK_KWVOID },
-    { "char", TK_KWCHAR },
-    { "short", TK_KWSHORT },
-    { "int", TK_KWINT },
-    { "long", TK_KWLONG },
-    { "const", TK_KWCONST },
-    { "unsigned", TK_UNSIGNED },
-    { "static", TK_STATIC },
-    { "extern", TK_EXTERN },
-    { "struct", TK_STRUCT },
-    { "union", TK_UNION },
-    { "enum", TK_ENUM },
-    { "sizeof", TK_SIZEOF },
-    { "typedef", TK_TYPEDEF },
-  };
-  for (int i = 0; i < (int)(sizeof(table) / sizeof(*table)); ++i) {
-    if (strcmp(table[i].str, word) == 0)
-      return table[i].type;
+  for (int i = 0; i < (int)(sizeof(kReservedWords) / sizeof(*kReservedWords)); ++i) {
+    if (strcmp(kReservedWords[i].str, word) == 0)
+      return kReservedWords[i].type;
   }
   return -1;
 }
@@ -313,37 +345,6 @@ static Token *read_string(const char **pp) {
   *pp = p;
   return tok;
 }
-
-static const struct {
-  const char ident[4];
-  enum TokenType type;
-} kMultiOperators[] = {
-  // Must align from long to short keyword.
-  {"<<=", TK_LSHIFT_ASSIGN},
-  {">>=", TK_RSHIFT_ASSIGN},
-  {"...", TK_DOTDOTDOT},
-  {"==", TK_EQ},
-  {"!=", TK_NE},
-  {"<=", TK_LE},
-  {">=", TK_GE},
-  {"+=", TK_ADD_ASSIGN},
-  {"-=", TK_SUB_ASSIGN},
-  {"*=", TK_MUL_ASSIGN},
-  {"/=", TK_DIV_ASSIGN},
-  {"%=", TK_MOD_ASSIGN},
-  {"&=", TK_AND_ASSIGN},
-  {"|=", TK_OR_ASSIGN},
-  {"^=", TK_HAT_ASSIGN},
-  {"++", TK_INC},
-  {"--", TK_DEC},
-  {"->", TK_ARROW},
-  {"&&", TK_LOGAND},
-  {"||", TK_LOGIOR},
-  {"<<", TK_LSHIFT},
-  {">>", TK_RSHIFT},
-};
-
-static const char kSingleOperators[] = "+-*/%&!(){}[]<>=^|:;,.?";
 
 static Token *get_op_token(const char **pp) {
   const char *p = *pp;
