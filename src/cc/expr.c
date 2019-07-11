@@ -1171,7 +1171,6 @@ static Expr *unary(void) {
     case EX_SHORT:
     case EX_INT:
     case EX_LONG:
-      expr->u.value = -expr->u.value;
       return expr;
     default:
       return new_expr_unary(EX_POS, /*expr->valType*/NULL, tok, expr);
