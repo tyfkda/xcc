@@ -1,4 +1,4 @@
-.PHONY: clean test gen2 gen3 self-hosting
+.PHONY: clean test gen2 gen3 test-gen2 gen3 diff-gen23 self-hosting test-self-hosting
 
 CFLAGS:=-ansi -std=c11 -MD -Wall -Wextra -Werror -Wold-style-definition \
 	-Wno-missing-field-initializers -Wno-typedef-redefinition -Wno-empty-body
@@ -35,7 +35,7 @@ $(OBJ_DIR)/%.o: $(CPP_DIR)/%.c
 test:	all
 	$(MAKE) -C tests clean all
 
-test-all: test test-gen2 test-gen3
+test-all: test test-gen2 diff-gen23
 
 clean:
 	rm -rf xcc cpp $(OBJ_DIR) *~ tmp* a.out gen2 gen3
@@ -50,14 +50,14 @@ test-gen2: gen2
 
 gen3: gen2
 	$(MAKE) HOST=gen2 TARGET=gen3 self-hosting
-test-gen3: gen3
-	$(MAKE) TARGET=gen3 test-self-hosting
 
+diff-gen23:	gen2 gen3
+	diff -b gen2/cpp gen3/cpp && diff -b gen2/xcc gen3/xcc
 
 self-hosting:	$(TARGET)/cpp $(TARGET)/xcc
 
 test-self-hosting:
-	$(MAKE) EXEDIR=$(TARGET) -C tests clean all
+	$(MAKE) EXEDIR=$(TARGET) -C tests clean cc-tests
 
 $(TARGET)/cpp:	$(HOST)/xcc $(HOST)/cpp $(CPP_SRCS)
 	mkdir -p $(TARGET)

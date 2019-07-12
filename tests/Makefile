@@ -8,12 +8,14 @@ CPP:=../$(EXEDIR)/cpp
 
 .PHONY: test-util test-cpp test-val test-sh
 
-all:	unit-tests all-tests
+all:	unit-tests cpp-tests cc-tests
+	@echo 'All tests PASS!'
 
 unit-tests:	test-util
 
-all-tests:	test-cpp test-val test-sh test-examples
-	@echo 'All tests PASS!'
+cpp-tests:	test-cpp
+
+cc-tests:	test-val test-sh test-examples
 
 clean:
 	rm -f util_test valtest a.out
