@@ -191,7 +191,7 @@ static Node *parse_case(Token *tok) {
   Expr *valnode = analyze_expr(parse_const(), false);
   if (!is_const(valnode))
     parse_error(tok, "Cannot use expression");
-  intptr_t value = valnode->u.value;
+  intptr_t value = valnode->u.num.ival;
 
   if (!consume(TK_COLON))
     parse_error(NULL, "`:' expected");
@@ -404,26 +404,33 @@ static Vector *clear_initial_value(Expr *expr, Vector *inits) {
     inits = new_vector();
 
   switch (expr->valType->type) {
-  case TY_CHAR:
-  case TY_INT:
-  case TY_LONG:
-  case TY_ENUM:
-    vec_push(inits,
-             new_node_expr(new_expr_bop(EX_ASSIGN, expr->valType, NULL, expr,
-                                        new_expr_cast(expr->valType, NULL, new_expr_numlit(EX_INT, NULL, 0), true))));
+  case TY_NUM:
+    {
+      Num num = {0};
+      Expr *zero = new_expr_numlit(expr->valType, NULL, &num);
+      vec_push(inits,
+               new_node_expr(new_expr_bop(EX_ASSIGN, expr->valType, NULL,
+                                          expr, zero)));
+    }
     break;
   case TY_PTR:
-    vec_push(inits,
-             new_node_expr(new_expr_bop(EX_ASSIGN, expr->valType, NULL, expr,
-                                        new_expr_cast(expr->valType, NULL, new_expr_numlit(EX_LONG, NULL, 0), true))));  // intptr_t
+    {
+      Num num = {0};
+      Expr *zero = new_expr_numlit(expr->valType, NULL, &num);
+      vec_push(inits,
+               new_node_expr(new_expr_bop(EX_ASSIGN, expr->valType, NULL, expr,
+                                          new_expr_cast(expr->valType, NULL, zero, true))));  // intptr_t
+    }
     break;
   case TY_ARRAY:
     {
       size_t arr_len = expr->valType->u.pa.length;
-      for (size_t i = 0; i < arr_len; ++i)
-        clear_initial_value(new_expr_deref(NULL,
-                                           add_expr(NULL, expr, new_expr_numlit(EX_INT, NULL, i), true)),
-                            inits);
+      for (size_t i = 0; i < arr_len; ++i) {
+        Num ofs = {.ival=i};
+        Expr *add = add_expr(NULL, expr,
+                             new_expr_numlit(&tyInt, NULL, &ofs), true);
+        clear_initial_value(new_expr_deref(NULL, add), inits);
+      }
     }
     break;
   case TY_STRUCT:
@@ -448,8 +455,8 @@ static Vector *clear_initial_value(Expr *expr, Vector *inits) {
 
 static void string_initializer(Expr *dst, Expr *src, Vector *inits) {
   // Initialize char[] with string literal (char s[] = "foo";).
-  assert(dst->valType->type == TY_ARRAY && dst->valType->u.pa.ptrof->type == TY_CHAR);
-  assert(src->valType->type == TY_ARRAY && src->valType->u.pa.ptrof->type == TY_CHAR);
+  assert(dst->valType->type == TY_ARRAY && is_char_type(dst->valType->u.pa.ptrof));
+  assert(src->valType->type == TY_ARRAY && is_char_type(src->valType->u.pa.ptrof));
 
   const char *str = src->u.str.buf;
   size_t size = src->u.str.size;
@@ -462,16 +469,19 @@ static void string_initializer(Expr *dst, Expr *src, Vector *inits) {
   }
 
   for (size_t i = 0; i < size; ++i) {
-    Expr *index = new_expr_numlit(EX_INT, NULL, i);
+    Num n = {.ival=i};
+    Expr *index = new_expr_numlit(&tyInt, NULL, &n);
     vec_push(inits,
              new_node_expr(new_expr_bop(EX_ASSIGN, &tyChar, NULL,
                                         new_expr_deref(NULL, add_expr(NULL, dst, index, true)),
                                         new_expr_deref(NULL, add_expr(NULL, src, index, true)))));
   }
   if (dstsize > size) {
-    Expr *zero = new_expr_numlit(EX_CHAR, NULL, 0);
+    Num z = {.ival=0};
+    Expr *zero = new_expr_numlit(&tyChar, NULL, &z);
     for (size_t i = size; i < dstsize; ++i) {
-      Expr *index = new_expr_numlit(EX_INT, NULL, i);
+      Num n = {.ival=i};
+      Expr *index = new_expr_numlit(&tyInt, NULL, &n);
       vec_push(inits,
                new_node_expr(new_expr_bop(EX_ASSIGN, &tyChar, NULL,
                                           new_expr_deref(NULL, add_expr(NULL, dst, index, true)),
@@ -486,7 +496,7 @@ static void fix_array_size(Type *type, Initializer *init) {
 
   bool is_str = false;
   if (init->type != vMulti &&
-      !(type->u.pa.ptrof->type == TY_CHAR &&
+      !(is_char_type(type->u.pa.ptrof) &&
         init->type == vSingle &&
         can_cast(type, init->u.single->valType, init->u.single, false) &&
         (is_str = true))) {
@@ -540,14 +550,13 @@ Initializer **flatten_initializer(const Type *type, Initializer *init) {
     if (value->type == vSingle && value->u.single->type == EX_STR) {
       const VarInfo *member = sinfo->members->data[index];
       if (member->type->type == TY_PTR &&
-          member->type->u.pa.ptrof->type == TY_CHAR) {
+          is_char_type(member->type->u.pa.ptrof)) {
         Expr *expr = value->u.single;
         Initializer *strinit = malloc(sizeof(*strinit));
         strinit->type = vSingle;
         strinit->u.single = expr;
 
         // Create string and point to it.
-        static const Type tyChar = {TY_CHAR};
         Type* strtype = arrayof(&tyChar, expr->u.str.size);
         const char * label = alloc_label();
         const Token *ident = alloc_ident(label, NULL, NULL);
@@ -567,17 +576,10 @@ Initializer **flatten_initializer(const Type *type, Initializer *init) {
 
 static Initializer *check_global_initializer(const Type *type, Initializer *init) {
   switch (type->type) {
-  case TY_CHAR:
-  case TY_SHORT:
-  case TY_INT:
-  case TY_LONG:
-  case TY_ENUM:
+  case TY_NUM:
     if (init->type == vSingle) {
       switch (init->u.single->type) {
-      case EX_CHAR:
-      case EX_SHORT:
-      case EX_INT:
-      case EX_LONG:
+      case EX_NUM:
         return init;
       default:
         parse_error(NULL, "initializer type error");
@@ -634,7 +636,7 @@ static Initializer *check_global_initializer(const Type *type, Initializer *init
         break;
       case EX_STR:
         {
-          if (!(type->u.pa.ptrof->type == TY_CHAR && value->type == EX_STR))
+          if (!(is_char_type(type->u.pa.ptrof) && value->type == EX_STR))
             parse_error(NULL, "Illegal type");
 
           // Create string and point to it.
@@ -668,7 +670,7 @@ static Initializer *check_global_initializer(const Type *type, Initializer *init
       }
       break;
     case vSingle:
-      if (type->u.pa.ptrof->type == TY_CHAR && init->u.single->type == EX_STR) {
+      if (is_char_type(type->u.pa.ptrof) && init->u.single->type == EX_STR) {
         assert(type->u.pa.length != (size_t)-1);
         if (type->u.pa.length < init->u.single->u.str.size) {
           parse_error(NULL, "Array size shorter than initializer");
@@ -709,7 +711,7 @@ static Vector *assign_initial_value(Expr *expr, Initializer *init, Vector *inits
   case TY_ARRAY:
     {
       // Special handling for string (char[]).
-      if (expr->valType->u.pa.ptrof->type == TY_CHAR &&
+      if (is_char_type(expr->valType->u.pa.ptrof) &&
           init->type == vSingle &&
           can_cast(expr->valType, init->u.single->valType, init->u.single, false)) {
         string_initializer(expr, init->u.single, inits);
@@ -724,12 +726,17 @@ static Vector *assign_initial_value(Expr *expr, Initializer *init, Vector *inits
         parse_error(NULL, "Initializer more than array size");
       int len = init->u.multi->len;
       for (int i = 0; i < len; ++i) {
-        assign_initial_value(new_expr_deref(NULL, add_expr(NULL, expr, new_expr_numlit(EX_INT, NULL, i), true)),
+        Num n = {.ival=i};
+        Expr *add = add_expr(NULL, expr, new_expr_numlit(&tyInt, NULL, &n), true);
+        assign_initial_value(new_expr_deref(NULL, add),
                              init->u.multi->data[i], inits);
       }
       // Clear left.
-      for (size_t i = len; i < arr_len; ++i)
-        clear_initial_value(new_expr_deref(NULL, add_expr(NULL, expr, new_expr_numlit(EX_INT, NULL, i), true)), inits);
+      for (size_t i = len; i < arr_len; ++i) {
+        Num n = {.ival=i};
+        Expr *add = add_expr(NULL, expr, new_expr_numlit(&tyInt, NULL, &n), true);
+        clear_initial_value(new_expr_deref(NULL, add), inits);
+      }
     }
     break;
   case TY_STRUCT:
@@ -1044,7 +1051,8 @@ static Node *toplevel(void) {
   const Type *rawtype = parse_raw_type(&flag);
   if (rawtype != NULL) {
     const Type *type = parse_type_modifier(rawtype);
-    if ((is_struct_or_union(type->type) || type->type == TY_ENUM) &&
+    if ((is_struct_or_union(type->type) ||
+         (type->type == TY_NUM && type->u.numtype == NUM_ENUM)) &&
         consume(TK_SEMICOL))  // Just struct/union definition.
       return NULL;
 

@@ -1,3 +1,4 @@
+#include "assert.h"
 #include "ctype.h"
 #include "libgen.h"  // dirname
 #include "stdarg.h"
@@ -471,11 +472,16 @@ bool handle_ifdef(const char *p) {
 
 intptr_t reduce(Expr *expr) {
   switch (expr->type) {
-  case EX_CHAR:
-  case EX_SHORT:
-  case EX_INT:
-  case EX_LONG:
-    return expr->u.value;
+  case EX_NUM:
+    switch (expr->valType->u.numtype) {
+    case NUM_CHAR:
+    case NUM_SHORT:
+    case NUM_INT:
+    case NUM_LONG:
+      return expr->u.num.ival;
+    default: assert(false); break;
+    }
+    break;
   case EX_FUNCALL:
     {
       const Expr *func = expr->u.funcall.func;

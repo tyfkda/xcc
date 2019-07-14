@@ -35,15 +35,21 @@ static size_t type_size(const Type *type) {
   switch (type->type) {
   case TY_VOID:
     return 1;  // ?
-  case TY_CHAR:
-    return 1;
-  case TY_SHORT:
-    return 2;
-  case TY_INT:
-  case TY_ENUM:
-    return 4;
-  case TY_LONG:
-    return 8;
+  case TY_NUM:
+    switch (type->u.numtype) {
+    case NUM_CHAR:
+      return 1;
+    case NUM_SHORT:
+      return 2;
+    case NUM_INT:
+    case NUM_ENUM:
+      return 4;
+    case NUM_LONG:
+      return 8;
+    default:
+      assert(!"Error");
+      return 1;
+    }
   case TY_PTR:
   case TY_FUNC:
     return 8;
@@ -64,15 +70,21 @@ static int align_size(const Type *type) {
   switch (type->type) {
   case TY_VOID:
     return 1;  // ?
-  case TY_CHAR:
-    return 1;
-  case TY_SHORT:
-    return 2;
-  case TY_INT:
-  case TY_ENUM:
-    return 4;
-  case TY_LONG:
-    return 8;
+  case TY_NUM:
+    switch (type->u.numtype) {
+    case NUM_CHAR:
+      return 1;
+    case NUM_SHORT:
+      return 2;
+    case NUM_INT:
+    case NUM_ENUM:
+      return 4;
+    case NUM_LONG:
+      return 8;
+    default:
+      assert(!"Error");
+      return 1;
+    }
   case TY_PTR:
   case TY_FUNC:
     return 8;
@@ -319,11 +331,7 @@ void construct_initial_value(unsigned char *buf, const Type *type, Initializer *
   add_asm_align(align_size(type));
 
   switch (type->type) {
-  case TY_CHAR:
-  case TY_SHORT:
-  case TY_INT:
-  case TY_LONG:
-  case TY_ENUM:
+  case TY_NUM:
     {
       intptr_t v = 0;
       if (init != NULL) {
@@ -331,7 +339,7 @@ void construct_initial_value(unsigned char *buf, const Type *type, Initializer *
         Expr *value = init->u.single;
         if (!(is_const(value) && is_number(value->valType->type)))
           error("Illegal initializer: constant number expected");
-        v = value->u.value;
+        v = value->u.num.ival;
       }
 
       int size = type_size(type);
@@ -339,12 +347,12 @@ void construct_initial_value(unsigned char *buf, const Type *type, Initializer *
         buf[i] = v >> (i * 8);  // Little endian
 
       const char *fmt;
-      switch (type->type) {
-      case TY_CHAR:  fmt = ".byte %"SCNdPTR; break;
-      case TY_SHORT: fmt = ".word %"SCNdPTR; break;
-      case TY_LONG:  fmt = ".quad %"SCNdPTR; break;
+      switch (type->u.numtype) {
+      case NUM_CHAR:  fmt = ".byte %"SCNdPTR; break;
+      case NUM_SHORT: fmt = ".word %"SCNdPTR; break;
+      case NUM_LONG:  fmt = ".quad %"SCNdPTR; break;
       default:
-      case TY_INT: case TY_ENUM:
+      case NUM_INT: case NUM_ENUM:
         fmt = ".long %"SCNdPTR;
         break;
       }
@@ -377,7 +385,7 @@ void construct_initial_value(unsigned char *buf, const Type *type, Initializer *
       } else if (value->type == EX_STR) {
         assert(!"`char* s = \"...\"`; should be handled in parser");
       } else if (is_const(value) && is_number(value->valType->type)) {
-        intptr_t x = value->u.value;
+        intptr_t x = value->u.num.ival;
         for (int i = 0; i < WORD_SIZE; ++i)
           buf[i] = x >> (i * 8);  // Little endian
 
@@ -408,7 +416,7 @@ void construct_initial_value(unsigned char *buf, const Type *type, Initializer *
       }
     } else {
       if (init->type == vSingle &&
-          type->u.pa.ptrof->type == TY_CHAR && init->u.single->type == EX_STR) {
+          is_char_type(type->u.pa.ptrof) && init->u.single->type == EX_STR) {
         int src_size = init->u.single->u.str.size;
         size_t size = type_size(type);
         assert(size >= (size_t)src_size);
@@ -496,7 +504,8 @@ static void put_data(enum SectionType sec, const char *label, const VarInfo *var
 static void put_rodata(void) {
   for (int i = 0, len = map_count(gvar_map); i < len; ++i) {
     const VarInfo *varinfo = (const VarInfo*)gvar_map->vals->data[i];
-    if (varinfo->type->type == TY_FUNC || varinfo->type->type == TY_ENUM ||
+    if (varinfo->type->type == TY_FUNC ||
+        (varinfo->type->type == TY_NUM && varinfo->type->u.numtype == NUM_ENUM) ||
         (varinfo->flag & VF_EXTERN) != 0 || varinfo->u.g.init == NULL ||
         (varinfo->flag & VF_CONST) == 0)
       continue;
@@ -510,7 +519,8 @@ static void put_rodata(void) {
 static void put_rwdata(void) {
   for (int i = 0, len = map_count(gvar_map); i < len; ++i) {
     const VarInfo *varinfo = (const VarInfo*)gvar_map->vals->data[i];
-    if (varinfo->type->type == TY_FUNC || varinfo->type->type == TY_ENUM ||
+    if (varinfo->type->type == TY_FUNC ||
+        (varinfo->type->type == TY_NUM && varinfo->type->u.numtype == NUM_ENUM) ||
         (varinfo->flag & VF_EXTERN) != 0 || varinfo->u.g.init == NULL ||
         (varinfo->flag & VF_CONST) != 0)
       continue;
@@ -677,63 +687,89 @@ static void pop_continue_label(const char *save) {
 static void gen_expr(Expr *expr);
 static void gen_lval(Expr *expr);
 
-static void cast(const enum eType ltype, const enum eType rtype) {
-  if (ltype == rtype)
+static void cast(const Type *ltypep, const Type *rtypep) {
+  enum eType ltype = ltypep->type;
+  enum eType rtype = rtypep->type;
+
+  if (ltype == rtype) {
+    if (ltype == TY_NUM) {
+      enum NumType lnumtype = ltypep->u.numtype;
+      enum NumType rnumtype = rtypep->u.numtype;
+      if (lnumtype == rnumtype)
+        return;
+
+      switch (lnumtype) {
+      case NUM_CHAR:
+        switch (rnumtype) {
+        case NUM_SHORT: return;
+        case NUM_INT:   return;
+        case NUM_LONG:  return;
+        default: assert(false); break;
+        }
+        break;
+      case NUM_SHORT:
+        switch (rnumtype) {
+        case NUM_CHAR: MOVSX_AL_AX(); return;
+        case NUM_INT:  return;
+        case NUM_LONG: return;
+        default: assert(false); break;
+        }
+        break;
+      case NUM_INT: case NUM_ENUM:
+        switch (rnumtype) {
+        case NUM_CHAR:  MOVSX_AL_EAX(); return;
+        case NUM_SHORT: MOVSX_AX_EAX(); return;
+        case NUM_INT:   return;
+        case NUM_LONG:  return;
+        case NUM_ENUM:  return;
+        default: assert(false); break;
+        }
+        break;
+      case NUM_LONG:
+        switch (rnumtype) {
+        case NUM_CHAR:  MOVSX_AL_RAX(); return;
+        case NUM_SHORT: MOVSX_AX_RAX(); return;
+        case NUM_INT: case NUM_ENUM:
+          MOVSX_EAX_RAX();
+          return;
+        default: assert(false); break;
+        }
+        break;
+      default: assert(false); break;
+      }
+    }
     return;
+  }
 
   switch (ltype) {
   case TY_VOID:
     return;
-  case TY_CHAR:
+  case TY_NUM:
     switch (rtype) {
-    case TY_SHORT: return;
-    case TY_INT:   return;
-    case TY_LONG:  return;
-    default: assert(false); break;
-    }
-    break;
-  case TY_SHORT:
-    switch (rtype) {
-    case TY_CHAR: MOVSX_AL_AX(); return;
-    case TY_INT:  return;
-    case TY_LONG: return;
-    default: assert(false); break;
-    }
-    break;
-  case TY_INT: case TY_ENUM:
-    switch (rtype) {
-    case TY_CHAR:  MOVSX_AL_EAX(); return;
-    case TY_SHORT: MOVSX_AX_EAX(); return;
-    case TY_INT:   return;
-    case TY_LONG:  return;
-    case TY_ENUM:  return;
-    default: assert(false); break;
-    }
-    break;
-  case TY_LONG:
-    switch (rtype) {
-    case TY_CHAR:  MOVSX_AL_RAX(); return;
-    case TY_SHORT: MOVSX_AX_RAX(); return;
-    case TY_INT: case TY_ENUM:
-      MOVSX_EAX_RAX();
-      return;
     case TY_PTR:
     case TY_ARRAY:
-      return;
+      if (ltypep->u.numtype == NUM_LONG)
+        return;
+      break;
     default: assert(false); break;
     }
     break;
   case TY_PTR:
     switch (rtype) {
-    case TY_INT:   MOVSX_EAX_RAX(); return;
-    case TY_LONG: case TY_ARRAY: case TY_FUNC:
+    case TY_NUM:
+      switch (rtypep->u.numtype) {
+      case NUM_INT:   MOVSX_EAX_RAX(); return;
+      case NUM_LONG:  return;
+      default: break;
+      }
+      break;
+    case TY_ARRAY: case TY_FUNC:
       return;
-    default: assert(false); break;
+    default: break;
     }
+    assert(false);
     break;
-  default:
-    assert(false); break;
-    break;
+  default: assert(false); break;
   }
 
   fprintf(stderr, "ltype=%d, rtype=%d\n", ltype, rtype);
@@ -792,12 +828,20 @@ static void gen_cond_jmp(Expr *cond, bool tf, const char *label) {
   gen_expr(cond);
 
   switch (cond->valType->type) {
-  case TY_CHAR:  TEST_AL_AL(); break;
-  case TY_SHORT: TEST_AX_AX(); break;
-  case TY_INT: case TY_ENUM:
-    TEST_EAX_EAX();
+  case TY_NUM:
+    switch (cond->valType->u.numtype) {
+    case NUM_CHAR:  TEST_AL_AL(); break;
+    case NUM_SHORT: TEST_AX_AX(); break;
+    case NUM_INT: case NUM_ENUM:
+      TEST_EAX_EAX();
+      break;
+    case NUM_LONG:
+      TEST_RAX_RAX();
+      break;
+    default: assert(false); break;
+    }
     break;
-  case TY_LONG: case TY_PTR:
+  case TY_PTR:
     TEST_RAX_RAX();
     break;
   default: assert(false); break;
@@ -812,14 +856,18 @@ static void gen_cond_jmp(Expr *cond, bool tf, const char *label) {
 static void gen_varref(Expr *expr) {
   gen_lval(expr);
   switch (expr->valType->type) {
-  case TY_CHAR:  MOV_IND_RAX_AL(); break;
-  case TY_SHORT: MOV_IND_RAX_AX(); break;
-  case TY_INT: case TY_ENUM:
-    MOV_IND_RAX_EAX();
+  case TY_NUM:
+    switch (expr->valType->u.numtype) {
+    case NUM_CHAR:  MOV_IND_RAX_AL(); break;
+    case NUM_SHORT: MOV_IND_RAX_AX(); break;
+    case NUM_INT: case NUM_ENUM:
+      MOV_IND_RAX_EAX();
+      break;
+    case NUM_LONG:  MOV_IND_RAX_RAX(); break;
+    default: assert(false); break;
+    }
     break;
-  case TY_LONG: case TY_PTR:
-    MOV_IND_RAX_RAX();
-    break;
+  case TY_PTR: MOV_IND_RAX_RAX(); break;
   case TY_ARRAY: break;  // Use variable address as a pointer.
   case TY_FUNC:  break;
   default: assert(false); break;
@@ -876,19 +924,36 @@ static void put_args_to_stack(Defun *defun) {
     error("Parameter count %d exceeds %d in function `%s'", len, MAX_ARGS, defun->name);
   int n = defun->type->u.func.vaargs ? MAX_ARGS : len;
   for (int i = 0; i < n; ++i) {
-    enum eType type;
+    const Type *type;
     int offset;
     if (i < len) {
       const VarInfo *varinfo = (const VarInfo*)params->data[i];
-      type = varinfo->type->type;
+      type = varinfo->type;
       offset = varinfo->offset;
     } else {  // vaargs
-      type = TY_PTR;
+      type = &tyLong;
       offset = (i - MAX_ARGS) * WORD_SIZE;
     }
 
-    switch (type) {
-    case TY_CHAR:  // 1
+    int size = 0;
+    switch (type->type) {
+    case TY_NUM:
+      switch (type->u.numtype) {
+      case NUM_CHAR:  size = 1; break;
+      case NUM_INT:
+      case NUM_ENUM:
+        size = 4;
+        break;
+      case NUM_LONG:  size = 8; break;
+      default: break;
+      }
+      break;
+    case TY_PTR:  size = 8; break;
+    default:
+      break;
+    }
+    switch (size) {
+    case 1:
       switch (i) {
       case 0:  MOV_DIL_IND8_RBP(offset); break;
       case 1:  MOV_SIL_IND8_RBP(offset); break;
@@ -899,9 +964,7 @@ static void put_args_to_stack(Defun *defun) {
       default: break;
       }
       break;
-    case TY_INT:
-    case TY_ENUM:
-      // 4
+    case 4:
       switch (i) {
       case 0:  MOV_EDI_IND8_RBP(offset); break;
       case 1:  MOV_ESI_IND8_RBP(offset); break;
@@ -912,9 +975,7 @@ static void put_args_to_stack(Defun *defun) {
       default: break;
       }
       break;
-    case TY_LONG:
-    case TY_PTR:
-      // 8
+    case 8:
       switch (i) {
       case 0:  MOV_RDI_IND8_RBP(offset); break;
       case 1:  MOV_RSI_IND8_RBP(offset); break;
@@ -960,13 +1021,20 @@ static void out_asm(Node *node) {
   for (int i = 1; i < len; ++i) {
     Expr *arg = (Expr*)args->data[i];
     switch (arg->type) {
-    case EX_CHAR:
-    case EX_SHORT:
-    case EX_INT:
-    case EX_LONG:
-      {
-        unsigned char buf[1] = {arg->u.value};
-        add_section_data(SEC_CODE, buf, sizeof(buf));
+    case EX_NUM:
+      switch (arg->valType->u.numtype) {
+      case NUM_CHAR:
+      case NUM_SHORT:
+      case NUM_INT:
+      case NUM_LONG:
+        {
+          unsigned char buf[1] = {arg->u.num.ival};
+          add_section_data(SEC_CODE, buf, sizeof(buf));
+        }
+        break;
+      default:
+        assert(false);
+        break;
       }
       break;
     case EX_FUNCALL:
@@ -1160,17 +1228,17 @@ static void gen_switch(Node *node) {
   Expr *value = node->u.switch_.value;
   gen_expr(value);
 
-  enum eType valtype = value->valType->type;
+  enum NumType valtype = value->valType->u.numtype;
   for (int i = 0; i < len; ++i) {
     intptr_t x = (intptr_t)case_values->data[i];
     switch (valtype) {
-    case TY_CHAR:
+    case NUM_CHAR:
       CMP_IM8_AL(x);
       break;
-    case TY_INT: case TY_ENUM:
+    case NUM_INT: case NUM_ENUM:
       CMP_IM32_EAX(x);
       break;
-    case TY_LONG:
+    case NUM_LONG:
       if (x <= 0x7fL && x >= -0x80L) {
         CMP_IM8_RAX(x);
       } else if (x <= 0x7fffffffL && x >= -0x80000000L) {
@@ -1297,122 +1365,137 @@ static void gen_label(Node *node) {
   gen(node->u.label.stmt);
 }
 
-static void gen_arith(enum ExprType exprType, enum eType valType, enum eType rhsType) {
+static void gen_arith(enum ExprType exprType, const Type *valType, const Type *rhsType) {
   // lhs=rax, rhs=rdi, result=rax
 
   switch (exprType) {
   case EX_ADD:
-    switch (valType) {
-    case TY_CHAR:  ADD_DIL_AL(); break;
-    case TY_SHORT: ADD_DI_AX(); break;
-    case TY_INT:   ADD_EDI_EAX(); break;
-    case TY_LONG: case TY_PTR:
-      ADD_RDI_RAX();
+    switch (valType->type) {
+    case TY_NUM:
+      switch (valType->u.numtype) {
+      case NUM_CHAR:  ADD_DIL_AL(); break;
+      case NUM_SHORT: ADD_DI_AX(); break;
+      case NUM_INT:   ADD_EDI_EAX(); break;
+      case NUM_LONG:  ADD_RDI_RAX(); break;
+      default: assert(false); break;
+      }
       break;
+    case TY_PTR:  ADD_RDI_RAX(); break;
     default: assert(false); break;
     }
     break;
 
   case EX_SUB:
-    switch (valType) {
-    case TY_CHAR:  SUB_DIL_AL(); break;
-    case TY_SHORT: SUB_DI_AX(); break;
-    case TY_INT:   SUB_EDI_EAX(); break;
-    case TY_LONG: case TY_PTR:
-      SUB_RDI_RAX();
+    switch (valType->type) {
+    case TY_NUM:
+      switch (valType->u.numtype) {
+      case NUM_CHAR:  SUB_DIL_AL(); break;
+      case NUM_SHORT: SUB_DI_AX(); break;
+      case NUM_INT:   SUB_EDI_EAX(); break;
+      case NUM_LONG:  SUB_RDI_RAX(); break;
+      default: assert(false); break;
+      }
       break;
+    case TY_PTR:  SUB_RDI_RAX(); break;
     default: assert(false); break;
     }
     break;
 
   case EX_MUL:
-    switch (valType) {
-    case TY_CHAR:  MUL_DIL(); break;
-    case TY_SHORT: MUL_DI(); break;
-    case TY_INT:   MUL_EDI(); break;
-    case TY_LONG:  MUL_RDI(); break;
+    assert(valType->type == TY_NUM);
+    switch (valType->u.numtype) {
+    case NUM_CHAR:  MUL_DIL(); break;
+    case NUM_SHORT: MUL_DI(); break;
+    case NUM_INT:   MUL_EDI(); break;
+    case NUM_LONG:  MUL_RDI(); break;
     default: assert(false); break;
     }
-
     break;
 
   case EX_DIV:
     XOR_EDX_EDX();  // MOV_IM32_RDX(0);
-    switch (valType) {
-    case TY_CHAR:  DIV_DIL(); break;
-    case TY_SHORT: DIV_DI(); break;
-    case TY_INT:   DIV_EDI(); break;
-    case TY_LONG:  DIV_RDI(); break;
+    assert(valType->type == TY_NUM);
+    switch (valType->u.numtype) {
+    case NUM_CHAR:  DIV_DIL(); break;
+    case NUM_SHORT: DIV_DI(); break;
+    case NUM_INT:   DIV_EDI(); break;
+    case NUM_LONG:  DIV_RDI(); break;
     default: assert(false); break;
     }
     break;
 
   case EX_MOD:
     XOR_EDX_EDX();  // MOV_IM32_RDX(0);
-    switch (valType) {
-    case TY_CHAR:  DIV_DIL(); MOV_DL_AL(); break;
-    case TY_SHORT: DIV_DI();  MOV_DX_AX(); break;
-    case TY_INT:   DIV_EDI(); MOV_EDX_EAX(); break;
-    case TY_LONG:  DIV_RDI(); MOV_RDX_RAX(); break;
+    assert(valType->type == TY_NUM);
+    switch (valType->u.numtype) {
+    case NUM_CHAR:  DIV_DIL(); MOV_DL_AL(); break;
+    case NUM_SHORT: DIV_DI();  MOV_DX_AX(); break;
+    case NUM_INT:   DIV_EDI(); MOV_EDX_EAX(); break;
+    case NUM_LONG:  DIV_RDI(); MOV_RDX_RAX(); break;
     default: assert(false); break;
     }
     break;
 
   case EX_BITAND:
-    switch (valType) {
-    case TY_CHAR:  AND_DIL_AL(); break;
-    case TY_SHORT: AND_DI_AX(); break;
-    case TY_INT:   AND_EDI_EAX(); break;
-    case TY_LONG:  AND_RDI_RAX(); break;
+    assert(valType->type == TY_NUM);
+    switch (valType->u.numtype) {
+    case NUM_CHAR:  AND_DIL_AL(); break;
+    case NUM_SHORT: AND_DI_AX(); break;
+    case NUM_INT:   AND_EDI_EAX(); break;
+    case NUM_LONG:  AND_RDI_RAX(); break;
     default: assert(false); break;
     }
     break;
 
   case EX_BITOR:
-    switch (valType) {
-    case TY_CHAR:  OR_DIL_AL(); break;
-    case TY_SHORT: OR_DI_AX(); break;
-    case TY_INT: case TY_ENUM:
+    assert(valType->type == TY_NUM);
+    switch (valType->u.numtype) {
+    case NUM_CHAR:  OR_DIL_AL(); break;
+    case NUM_SHORT: OR_DI_AX(); break;
+    case NUM_INT: case NUM_ENUM:
       OR_EDI_EAX();
       break;
-    case TY_LONG:  OR_RDI_RAX(); break;
+    case NUM_LONG:  OR_RDI_RAX(); break;
     default: assert(false); break;
     }
     break;
 
   case EX_BITXOR:
-    switch (valType) {
-    case TY_CHAR:  XOR_DIL_AL(); break;
-    case TY_SHORT: XOR_DI_AX(); break;
-    case TY_INT:   XOR_EDI_EAX(); break;
-    case TY_LONG:  XOR_RDI_RAX(); break;
+    assert(valType->type == TY_NUM);
+    switch (valType->u.numtype) {
+    case NUM_CHAR:  XOR_DIL_AL(); break;
+    case NUM_SHORT: XOR_DI_AX(); break;
+    case NUM_INT:   XOR_EDI_EAX(); break;
+    case NUM_LONG:  XOR_RDI_RAX(); break;
     default: assert(false); break;
     }
     break;
 
   case EX_LSHIFT:
   case EX_RSHIFT:
-    switch (rhsType) {
-    case TY_CHAR:  MOV_DIL_CL(); break;
-    case TY_SHORT: MOV_DI_CX(); break;
-    case TY_INT:   MOV_EDI_ECX(); break;
-    case TY_LONG:  MOV_RDI_RCX(); break;
+    assert(rhsType->type == TY_NUM);
+    switch (rhsType->u.numtype) {
+    case NUM_CHAR:  MOV_DIL_CL(); break;
+    case NUM_SHORT: MOV_DI_CX(); break;
+    case NUM_INT:   MOV_EDI_ECX(); break;
+    case NUM_LONG:  MOV_RDI_RCX(); break;
     default: assert(false); break;
     }
+    assert(valType->type == TY_NUM);
     if (exprType == EX_LSHIFT) {
-      switch (valType) {
-      case TY_CHAR:  SHL_CL_AL(); break;
-      case TY_SHORT: SHL_CL_AX(); break;
-      case TY_INT:   SHL_CL_EAX(); break;
-      case TY_LONG:  SHL_CL_RAX(); break;
+      switch (valType->u.numtype) {
+      case NUM_CHAR:  SHL_CL_AL(); break;
+      case NUM_SHORT: SHL_CL_AX(); break;
+      case NUM_INT:   SHL_CL_EAX(); break;
+      case NUM_LONG:  SHL_CL_RAX(); break;
       default: assert(false); break;
       }
     } else {
-      switch (valType) {
-      case TY_CHAR:  SHR_CL_AL(); break;
-      case TY_SHORT: SHR_CL_AX(); break;
-      case TY_INT:   SHR_CL_EAX(); break;
-      case TY_LONG:  SHR_CL_RAX(); break;
+      switch (valType->u.numtype) {
+      case NUM_CHAR:  SHR_CL_AL(); break;
+      case NUM_SHORT: SHR_CL_AX(); break;
+      case NUM_INT:   SHR_CL_EAX(); break;
+      case NUM_LONG:  SHR_CL_RAX(); break;
       default: assert(false); break;
       }
     }
@@ -1426,28 +1509,35 @@ static void gen_arith(enum ExprType exprType, enum eType valType, enum eType rhs
 
 void gen_expr(Expr *expr) {
   switch (expr->type) {
-  case EX_CHAR:
-    if (expr->u.value == 0)
-      XOR_AL_AL();
-    else
-      MOV_IM8_AL(expr->u.value);
-    return;
+  case EX_NUM:
+    switch (expr->valType->u.numtype) {
+    case NUM_CHAR:
+      if (expr->u.num.ival == 0)
+        XOR_AL_AL();
+      else
+        MOV_IM8_AL(expr->u.num.ival);
+      return;
 
-  case EX_INT:
-    if (expr->u.value == 0)
-      XOR_EAX_EAX();
-    else
-      MOV_IM32_EAX(expr->u.value);
-    return;
+    case NUM_INT:
+    case NUM_ENUM:
+      if (expr->u.num.ival == 0)
+        XOR_EAX_EAX();
+      else
+        MOV_IM32_EAX(expr->u.num.ival);
+      return;
 
-  case EX_LONG:
-    if (expr->u.value == 0)
-      XOR_EAX_EAX();  // upper 32bit is also cleared.
-    else if (expr->u.value <= 0x7fffffffL && expr->u.value >= -0x80000000L)
-      MOV_IM32_RAX(expr->u.value);
-    else
-      MOV_IM64_RAX(expr->u.value);
-    return;
+    case NUM_LONG:
+      if (expr->u.num.ival == 0)
+        XOR_EAX_EAX();  // upper 32bit is also cleared.
+      else if (expr->u.num.ival <= 0x7fffffffL && expr->u.num.ival >= -0x80000000L)
+        MOV_IM32_RAX(expr->u.num.ival);
+      else
+        MOV_IM64_RAX(expr->u.num.ival);
+      return;
+
+    default: assert(false); break;
+    }
+    break;
 
   case EX_STR:
     {
@@ -1487,14 +1577,18 @@ void gen_expr(Expr *expr) {
   case EX_DEREF:
     gen_rval(expr->u.unary.sub);
     switch (expr->valType->type) {
-    case TY_CHAR:  MOV_IND_RAX_AL(); break;
-    case TY_SHORT: MOV_IND_RAX_AX(); break;
-    case TY_INT: case TY_ENUM:
-      MOV_IND_RAX_EAX();
+    case TY_NUM:
+      switch (expr->valType->u.numtype) {
+      case NUM_CHAR:  MOV_IND_RAX_AL(); break;
+      case NUM_SHORT: MOV_IND_RAX_AX(); break;
+      case NUM_INT: case NUM_ENUM:
+        MOV_IND_RAX_EAX();
+        break;
+      case NUM_LONG:  MOV_IND_RAX_RAX(); break;
+      default: assert(false); break;
+      }
       break;
-    case TY_LONG: case TY_PTR:
-      MOV_IND_RAX_RAX();
-      break;
+    case TY_PTR:  MOV_IND_RAX_RAX(); break;
     case TY_ARRAY: break;
     default: assert(false); break;
     }
@@ -1503,14 +1597,18 @@ void gen_expr(Expr *expr) {
   case EX_MEMBER:
     gen_lval(expr);
     switch (expr->valType->type) {
-    case TY_CHAR:  MOV_IND_RAX_AL(); break;
-    case TY_SHORT: MOV_IND_RAX_AX(); break;
-    case TY_INT: case TY_ENUM:
-      MOV_IND_RAX_EAX();
+    case TY_NUM:
+      switch (expr->valType->u.numtype) {
+      case NUM_CHAR:  MOV_IND_RAX_AL(); break;
+      case NUM_SHORT: MOV_IND_RAX_AX(); break;
+      case NUM_INT: case NUM_ENUM:
+        MOV_IND_RAX_EAX();
+        break;
+      case NUM_LONG:  MOV_IND_RAX_RAX(); break;
+      default: assert(false); break;
+      }
       break;
-    case TY_LONG: case TY_PTR:
-      MOV_IND_RAX_RAX();
-      break;
+    case TY_PTR:  MOV_IND_RAX_RAX(); break;
     case TY_ARRAY:
       break;
     default:
@@ -1533,7 +1631,7 @@ void gen_expr(Expr *expr) {
 
   case EX_CAST:
     gen_expr(expr->u.cast.sub);
-    cast(expr->valType->type, expr->u.cast.sub->valType->type);
+    cast(expr->valType, expr->u.cast.sub->valType);
     break;
 
   case EX_ASSIGN:
@@ -1543,14 +1641,18 @@ void gen_expr(Expr *expr) {
 
     POP_RDI(); POP_STACK_POS();
     switch (expr->u.bop.lhs->valType->type) {
-    case TY_CHAR:  MOV_AL_IND_RDI(); break;
-    case TY_SHORT: MOV_AX_IND_RDI(); break;
-    case TY_INT: case TY_ENUM:
-      MOV_EAX_IND_RDI();
+    case TY_NUM:
+      switch (expr->u.bop.lhs->valType->u.numtype) {
+      case NUM_CHAR:  MOV_AL_IND_RDI(); break;
+      case NUM_SHORT: MOV_AX_IND_RDI(); break;
+      case NUM_INT: case NUM_ENUM:
+        MOV_EAX_IND_RDI();
+        break;
+      case NUM_LONG:  MOV_RAX_IND_RDI(); break;
+      default: assert(false); break;
+      }
       break;
-    case TY_LONG: case TY_PTR:
-      MOV_RAX_IND_RDI();
-      break;
+    case TY_PTR:  MOV_RAX_IND_RDI(); break;
     default: assert(false); break;
     }
     return;
@@ -1565,26 +1667,34 @@ void gen_expr(Expr *expr) {
 
       // Move lhs to %?ax
       switch (expr->u.bop.lhs->valType->type) {
-      case TY_CHAR:  MOV_IND_RAX_AL(); break;
-      case TY_SHORT: MOV_IND_RAX_AX(); break;
-      case TY_INT:   MOV_IND_RAX_EAX(); break;
-      case TY_LONG: case TY_PTR:
-        MOV_IND_RAX_RAX();
+      case TY_NUM:
+        switch (expr->u.bop.lhs->valType->u.numtype) {
+        case NUM_CHAR:  MOV_IND_RAX_AL(); break;
+        case NUM_SHORT: MOV_IND_RAX_AX(); break;
+        case NUM_INT:   MOV_IND_RAX_EAX(); break;
+        case NUM_LONG:  MOV_IND_RAX_RAX(); break;
+        default: assert(false); break;
+        }
         break;
+      case TY_PTR:  MOV_IND_RAX_RAX(); break;
       default: assert(false); break;
       }
 
       POP_RDI(); POP_STACK_POS();  // %rdi=rhs
-      gen_arith(sub->type, sub->valType->type, sub->u.bop.rhs->valType->type);
-      cast(expr->valType->type, sub->valType->type);
+      gen_arith(sub->type, sub->valType, sub->u.bop.rhs->valType);
+      cast(expr->valType, sub->valType);
 
       switch (expr->valType->type) {
-      case TY_CHAR:  MOV_AL_IND_RSI(); break;
-      case TY_SHORT: MOV_AX_IND_RSI(); break;
-      case TY_INT:   MOV_EAX_IND_RSI(); break;
-      case TY_LONG: case TY_PTR:
-        MOV_RAX_IND_RSI();
+      case TY_NUM:
+        switch (expr->valType->u.numtype) {
+        case NUM_CHAR:  MOV_AL_IND_RSI(); break;
+        case NUM_SHORT: MOV_AX_IND_RSI(); break;
+        case NUM_INT:   MOV_EAX_IND_RSI(); break;
+        case NUM_LONG:  MOV_RAX_IND_RSI(); break;
+        default: assert(false); break;
+        }
         break;
+      case TY_PTR:  MOV_RAX_IND_RSI(); break;
       default: assert(false); break;
       }
     }
@@ -1594,25 +1704,30 @@ void gen_expr(Expr *expr) {
   case EX_PREDEC:
     gen_lval(expr->u.unary.sub);
     switch (expr->valType->type) {
-    case TY_CHAR:
-      if (expr->type == EX_PREINC)  INCB_IND_RAX();
-      else                          DECB_IND_RAX();
-      MOV_IND_RAX_AL();
-      break;
-    case TY_SHORT:
-      if (expr->type == EX_PREINC)  INCW_IND_RAX();
-      else                          DECW_IND_RAX();
-      MOV_IND_RAX_AX();
-      break;
-    case TY_INT:
-      if (expr->type == EX_PREINC)  INCL_IND_RAX();
-      else                          DECL_IND_RAX();
-      MOV_IND_RAX_EAX();
-      break;
-    case TY_LONG:
-      if (expr->type == EX_PREINC)  INCQ_IND_RAX();
-      else                          DECQ_IND_RAX();
-      MOV_IND_RAX_RAX();
+    case TY_NUM:
+      switch (expr->valType->u.numtype) {
+      case NUM_CHAR:
+        if (expr->type == EX_PREINC)  INCB_IND_RAX();
+        else                          DECB_IND_RAX();
+        MOV_IND_RAX_AL();
+        break;
+      case NUM_SHORT:
+        if (expr->type == EX_PREINC)  INCW_IND_RAX();
+        else                          DECW_IND_RAX();
+        MOV_IND_RAX_AX();
+        break;
+      case NUM_INT:
+        if (expr->type == EX_PREINC)  INCL_IND_RAX();
+        else                          DECL_IND_RAX();
+        MOV_IND_RAX_EAX();
+        break;
+      case NUM_LONG:
+        if (expr->type == EX_PREINC)  INCQ_IND_RAX();
+        else                          DECQ_IND_RAX();
+        MOV_IND_RAX_RAX();
+        break;
+      default: assert(false); break;
+      }
       break;
     case TY_PTR:
       {
@@ -1634,21 +1749,26 @@ void gen_expr(Expr *expr) {
     gen_lval(expr->u.unary.sub);
     MOV_IND_RAX_RDI();
     switch (expr->valType->type) {
-    case TY_CHAR:
-      if (expr->type == EX_POSTINC)  INCB_IND_RAX();
-      else                           DECB_IND_RAX();
-      break;
-    case TY_SHORT:
-      if (expr->type == EX_POSTINC)  INCW_IND_RAX();
-      else                           DECW_IND_RAX();
-      break;
-    case TY_INT:
-      if (expr->type == EX_POSTINC)  INCL_IND_RAX();
-      else                           DECL_IND_RAX();
-      break;
-    case TY_LONG:
-      if (expr->type == EX_POSTINC)  INCQ_IND_RAX();
-      else                           DECQ_IND_RAX();
+    case TY_NUM:
+      switch (expr->valType->u.numtype) {
+      case NUM_CHAR:
+        if (expr->type == EX_POSTINC)  INCB_IND_RAX();
+        else                           DECB_IND_RAX();
+        break;
+      case NUM_SHORT:
+        if (expr->type == EX_POSTINC)  INCW_IND_RAX();
+        else                           DECW_IND_RAX();
+        break;
+      case NUM_INT:
+        if (expr->type == EX_POSTINC)  INCL_IND_RAX();
+        else                           DECL_IND_RAX();
+        break;
+      case NUM_LONG:
+        if (expr->type == EX_POSTINC)  INCQ_IND_RAX();
+        else                           DECQ_IND_RAX();
+        break;
+      default: assert(false); break;
+      }
       break;
     case TY_PTR:
       {
@@ -1676,10 +1796,11 @@ void gen_expr(Expr *expr) {
 
   case EX_NEG:
     gen_expr(expr->u.unary.sub);
-    switch (expr->valType->type) {
-    case TY_CHAR: NEG_AL(); break;
-    case TY_INT:  NEG_EAX(); break;
-    case TY_LONG: NEG_RAX(); break;
+    assert(expr->valType->type == TY_NUM);
+    switch (expr->valType->u.numtype) {
+    case NUM_CHAR: NEG_AL(); break;
+    case NUM_INT:  NEG_EAX(); break;
+    case NUM_LONG: NEG_RAX(); break;
     default:  assert(false); break;
     }
     break;
@@ -1687,8 +1808,13 @@ void gen_expr(Expr *expr) {
   case EX_NOT:
     gen_expr(expr->u.unary.sub);
     switch (expr->valType->type) {
-    case TY_CHAR: TEST_AL_AL(); break;
-    case TY_INT:  TEST_EAX_EAX(); break;
+    case TY_NUM:
+      switch (expr->valType->u.numtype) {
+      case NUM_CHAR: TEST_AL_AL(); break;
+      case NUM_INT:  TEST_EAX_EAX(); break;
+      default:  assert(false); break;
+      }
+      break;
     case TY_PTR:  TEST_RAX_RAX(); break;
     default:  assert(false); break;
     }
@@ -1706,12 +1832,9 @@ void gen_expr(Expr *expr) {
       enum ExprType type = expr->type;
       Expr *lhs = expr->u.bop.lhs;
       Expr *rhs = expr->u.bop.rhs;
-      enum eType ltype = lhs->valType->type, rtype = rhs->valType->type;
-      if (ltype == TY_ENUM)
-        ltype = TY_INT;
-      if (rtype == TY_ENUM)
-        rtype = TY_INT;
-      assert(ltype == rtype);
+      const Type *ltype = lhs->valType;
+
+      assert(ltype->type == rhs->valType->type && (ltype->type != TY_NUM || ltype->u.numtype == rhs->valType->u.numtype));
       if (type == EX_LE || type == EX_GT) {
         Expr *tmp = lhs; lhs = rhs; rhs = tmp;
         type = type == EX_LE ? EX_GE : EX_LT;
@@ -1722,10 +1845,17 @@ void gen_expr(Expr *expr) {
       gen_expr(rhs);
 
       POP_RDI(); POP_STACK_POS();
-      switch (ltype) {
-      case TY_CHAR: CMP_AL_DIL(); break;
-      case TY_INT:  CMP_EAX_EDI(); break;
-      case TY_LONG: CMP_RAX_RDI(); break;
+      switch (ltype->type) {
+      case TY_NUM:
+        switch (ltype->u.numtype) {
+        case NUM_CHAR: CMP_AL_DIL(); break;
+        case NUM_INT: case NUM_ENUM:
+          CMP_EAX_EDI();
+          break;
+        case NUM_LONG: CMP_RAX_RDI(); break;
+        default: assert(false); break;
+        }
+        break;
       case TY_PTR:  CMP_RAX_RDI(); break;
       default: assert(false); break;
       }
@@ -1789,7 +1919,7 @@ void gen_expr(Expr *expr) {
 
     POP_RDI(); POP_STACK_POS();
 
-    gen_arith(expr->type, expr->valType->type, expr->u.bop.rhs->valType->type);
+    gen_arith(expr->type, expr->valType, expr->u.bop.rhs->valType);
     return;
 
   default:

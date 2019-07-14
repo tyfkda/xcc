@@ -9,15 +9,25 @@ typedef struct Vector Vector;
 typedef struct Map Map;
 typedef struct Token Token;
 
+// Num
+
+enum NumType {
+  NUM_CHAR,  // Small number type should be earlier.
+  NUM_SHORT,
+  NUM_INT,
+  NUM_LONG,
+  NUM_ENUM,
+};
+
+typedef union {
+  intptr_t ival;
+} Num;
+
 // Type
 
 enum eType {
   TY_VOID,
-  TY_CHAR,  // Small number type should be earlier.
-  TY_SHORT,
-  TY_INT,
-  TY_LONG,
-  TY_ENUM,
+  TY_NUM,
   TY_PTR,
   TY_ARRAY,
   TY_FUNC,
@@ -35,6 +45,7 @@ typedef struct {
 typedef struct Type {
   enum eType type;
   union {
+    enum NumType numtype;
     struct {  // Pointer or array.
       const struct Type *ptrof;
       size_t length;  // of array. -1 represents length is not specified (= []).
@@ -64,6 +75,7 @@ void ensure_struct(Type *type, const Token *token);
 Type* arrayof(const Type *type, size_t length);
 bool same_type(const Type *type1, const Type *type2);
 bool is_number(enum eType type);
+bool is_char_type(const Type *type);
 
 void dump_type(FILE *fp, const Type *type);
 
@@ -144,10 +156,7 @@ VarInfo *add_cur_scope(const Token *ident, const Type *type, int flag);
 
 enum ExprType {
   // Literals
-  EX_CHAR,
-  EX_SHORT,
-  EX_INT,
-  EX_LONG,
+  EX_NUM,
   EX_STR,
 
   EX_VARREF,
@@ -199,7 +208,7 @@ typedef struct Expr {
   const Type *valType;
   const Token *token;
   union {
-    intptr_t value;
+    Num num;
     struct {
       const char *buf;
       size_t size;  // Include last '\0'.
@@ -339,7 +348,7 @@ const Type *parse_type_modifier(const Type* type);
 const Type *parse_type_suffix(const Type *type);
 const Type *parse_full_type(int *pflag, Token **pident);
 
-Expr *new_expr_numlit(enum ExprType exprtype, const Token *token, intptr_t val);
+Expr *new_expr_numlit(const Type *type, const Token *token, const Num *num);
 Expr *new_expr_bop(enum ExprType type, const Type *valType, const Token *token, Expr *lhs, Expr *rhs);
 Expr *new_expr_deref(const Token *token, Expr *sub);
 Expr *add_expr(const Token *tok, Expr *lhs, Expr *rhs, bool keep_left);
