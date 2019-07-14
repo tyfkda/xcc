@@ -40,7 +40,8 @@ void out_elf_header(FILE* fp, uintptr_t entry, int phnum) {
   fwrite(&ehdr, sizeof(Elf64_Ehdr), 1, fp);
 }
 
-void out_program_header(FILE* fp, int sec, uintptr_t offset, uintptr_t vaddr, uintptr_t filesz, uintptr_t memsz) {
+void out_program_header(FILE* fp, int sec, uintptr_t offset, uintptr_t vaddr,
+                        uintptr_t filesz, uintptr_t memsz) {
   static const int kFlags[] = {
     PF_R | PF_X,  // code
     PF_R | PF_W,  // rwdata

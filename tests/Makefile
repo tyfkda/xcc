@@ -1,6 +1,8 @@
-CFLAGS=-ansi -std=c11 -Wall -Wextra -Werror -Wold-style-definition -Wno-missing-field-initializers -Wno-typedef-redefinition
-
 SRC_DIR:=../src/cc
+UTIL_DIR:=../src/util
+
+CFLAGS=-ansi -std=c11 -Wall -Wextra -Werror -Wold-style-definition -Wno-missing-field-initializers -Wno-typedef-redefinition
+CFLAGS+=-I$(SRC_DIR) -I$(UTIL_DIR)
 
 EXEDIR:=.
 XCC:=../$(EXEDIR)/xcc
@@ -44,7 +46,7 @@ test-examples: # $(XCC)
 	XCC=$(XCC) ./example_test.sh
 	@echo ''
 
-UTIL_SRCS:=util_test.c $(SRC_DIR)/util.c
+UTIL_SRCS:=util_test.c $(UTIL_DIR)/util.c
 util_test:	$(UTIL_SRCS)
 	gcc -o $@ $(CFLAGS) $^
 

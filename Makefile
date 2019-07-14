@@ -1,15 +1,18 @@
 .PHONY: clean test gen2 gen3 test-gen2 gen3 diff-gen23 self-hosting test-self-hosting
 
-CFLAGS:=-ansi -std=c11 -MD -Wall -Wextra -Werror -Wold-style-definition \
-	-Wno-missing-field-initializers -Wno-typedef-redefinition -Wno-empty-body
 SRC_DIR:=src/cc
 CPP_DIR:=src/cpp
+UTIL_DIR:=src/util
 OBJ_DIR:=obj
-CFLAGS+=-I $(SRC_DIR)
 
-CC_SRCS:=$(SRC_DIR)/util.c $(SRC_DIR)/lexer.c $(SRC_DIR)/expr.c $(SRC_DIR)/parser.c \
-	$(SRC_DIR)/codegen.c $(SRC_DIR)/elfutil.c $(SRC_DIR)/main.c
-CPP_SRCS:=$(CPP_DIR)/cpp.c $(SRC_DIR)/lexer.c $(SRC_DIR)/expr.c $(SRC_DIR)/util.c
+CFLAGS:=-ansi -std=c11 -MD -Wall -Wextra -Werror -Wold-style-definition \
+	-Wno-missing-field-initializers -Wno-typedef-redefinition -Wno-empty-body
+CFLAGS+=-I$(SRC_DIR) -I$(UTIL_DIR)
+
+CC_SRCS:=$(SRC_DIR)/lexer.c $(SRC_DIR)/expr.c $(SRC_DIR)/parser.c $(SRC_DIR)/codegen.c $(SRC_DIR)/main.c \
+	$(UTIL_DIR)/util.c $(UTIL_DIR)/elfutil.c
+CPP_SRCS:=$(CPP_DIR)/cpp.c $(SRC_DIR)/lexer.c $(SRC_DIR)/expr.c \
+	$(UTIL_DIR)/util.c
 
 CC_OBJS:=$(addprefix $(OBJ_DIR)/,$(notdir $(CC_SRCS:.c=.o)))
 CPP_OBJS:=$(addprefix $(OBJ_DIR)/,$(notdir $(CPP_SRCS:.c=.o)))
@@ -29,6 +32,10 @@ $(OBJ_DIR)/%.o: $(SRC_DIR)/%.c
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 $(OBJ_DIR)/%.o: $(CPP_DIR)/%.c
+	@mkdir -p $(OBJ_DIR)
+	$(CC) $(CFLAGS) -c -o $@ $<
+
+$(OBJ_DIR)/%.o: $(UTIL_DIR)/%.c
 	@mkdir -p $(OBJ_DIR)
 	$(CC) $(CFLAGS) -c -o $@ $<
 
@@ -61,10 +68,10 @@ test-self-hosting:
 
 $(TARGET)/cpp:	$(HOST)/xcc $(HOST)/cpp $(CPP_SRCS)
 	mkdir -p $(TARGET)
-	$(HOST)/xcc -o$(TARGET)/cpp -Iinc -I$(SRC_DIR) $(CPP_SRCS) \
+	$(HOST)/xcc -o$(TARGET)/cpp -Iinc -I$(SRC_DIR) -I$(UTIL_DIR) $(CPP_SRCS) \
 	      lib/lib.c lib/umalloc.c lib/sprintf.c lib/crt0.c
 
 $(TARGET)/xcc:	$(HOST)/xcc $(HOST)/cpp $(CC_SRCS)
 	mkdir -p $(TARGET)
-	$(HOST)/xcc -o$(TARGET)/xcc -Iinc $(CC_SRCS) \
+	$(HOST)/xcc -o$(TARGET)/xcc -Iinc -I$(UTIL_DIR) $(CC_SRCS) \
 	      lib/lib.c lib/umalloc.c lib/sprintf.c lib/crt0.c
