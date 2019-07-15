@@ -21,10 +21,11 @@ static Expr *parse_analyze_expr(void) {
   return analyze_expr(parse_expr(), false);
 }
 
-static Defun *new_defun(const Type *type, const char *name) {
+static Defun *new_defun(const Type *type, const char *name, Vector *params) {
   Defun *defun = malloc(sizeof(*defun));
   defun->type = type;
   defun->name = name;
+  defun->params = params;
   defun->top_scope = NULL;
   defun->stmts = NULL;
   defun->all_scopes = new_vector();
@@ -940,8 +941,13 @@ static Node *parse_defun(const Type *rettype, int flag, Token *ident) {
   const char *name = ident->u.ident;
   bool vaargs;
   Vector *params = funparams(&vaargs);
-
-  const Type *functype = new_func_type(rettype, params, vaargs);
+  Vector *param_types = NULL;
+  if (params != NULL) {
+    param_types = new_vector();
+    for (int i = 0, len = params->len; i < len; ++i)
+      vec_push(param_types, ((VarInfo*)params->data[i])->type);
+  }
+  const Type *functype = new_func_type(rettype, param_types, vaargs);
 
   Defun *defun = NULL;
   if (consume(TK_SEMICOL)) {  // Prototype declaration.
@@ -951,7 +957,7 @@ static Node *parse_defun(const Type *rettype, int flag, Token *ident) {
       return NULL;
     }
     // Definition.
-    defun = new_defun(functype, name);
+    defun = new_defun(functype, name, params);
   }
 
   VarInfo *def = find_global(name);

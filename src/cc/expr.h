@@ -52,7 +52,7 @@ typedef struct Type {
     } pa;
     struct {
       const struct Type *ret;
-      Vector *params;  // <VarInfo*>
+      Vector *param_types;  // <Type*>
       bool vaargs;
     } func;
     struct {
@@ -138,6 +138,7 @@ VarInfo *scope_find(Scope *scope, const char *name);
 typedef struct {
   const Type *type;
   const char *name;
+  Vector *params;  // <VarInfo*>
   Scope *top_scope;
   Vector *stmts;
   Vector *all_scopes;
@@ -341,7 +342,7 @@ VarInfo *define_global(const Type *type, int flag, const Token *ident, const cha
 bool is_struct_or_union(enum eType type);
 void not_void(const Type *type);
 bool can_cast(const Type *dst, const Type *src, Expr *src_expr, bool is_explicit);
-Type* new_func_type(const Type *ret, const Vector *params, bool vaargs);
+Type* new_func_type(const Type *ret, Vector *param_types, bool vaargs);
 
 const Type *parse_raw_type(int *pflag);
 const Type *parse_type_modifier(const Type* type);

@@ -918,7 +918,7 @@ static size_t arrange_scope_vars(Defun *defun) {
 
 static void put_args_to_stack(Defun *defun) {
   // Store arguments into local frame.
-  Vector *params = defun->type->u.func.params;
+  Vector *params = defun->params;
   int len = params != NULL ? params->len : 0;
   if (len > MAX_ARGS)
     error("Parameter count %d exceeds %d in function `%s'", len, MAX_ARGS, defun->name);

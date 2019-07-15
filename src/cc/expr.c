@@ -163,12 +163,12 @@ bool same_type(const Type *type1, const Type *type2) {
       continue;
     case TY_FUNC:
       if (!same_type(type1->u.func.ret, type2->u.func.ret) ||
-          type1->u.func.params->len != type2->u.func.params->len)
+          type1->u.func.param_types->len != type2->u.func.param_types->len)
         return false;
-      for (int i = 0, len = type1->u.func.params->len; i < len; ++i) {
-        VarInfo *v1 = (VarInfo*)type1->u.func.params->data[i];
-        VarInfo *v2 = (VarInfo*)type2->u.func.params->data[i];
-        if (!same_type(v1->type, v2->type))
+      for (int i = 0, len = type1->u.func.param_types->len; i < len; ++i) {
+        const Type *t1 = (const Type*)type1->u.func.param_types->data[i];
+        const Type *t2 = (const Type*)type2->u.func.param_types->data[i];
+        if (!same_type(t1, t2))
           return false;
       }
       return true;
@@ -215,20 +215,12 @@ Type* arrayof(const Type *type, size_t length) {
   return arr;
 }
 
-Type* new_func_type(const Type *ret, const Vector *params, bool vaargs) {
+Type* new_func_type(const Type *ret, Vector *param_types, bool vaargs) {
   Type *f = malloc(sizeof(*f));
   f->type = TY_FUNC;
   f->u.func.ret = ret;
   f->u.func.vaargs = vaargs;
-
-  Vector *newparams = NULL;
-  if (params != NULL) {
-    // Clone params.
-    newparams = new_vector();
-    for (int i = 0; i < params->len; ++i)
-      vec_push(newparams, params->data[i]);
-  }
-  f->u.func.params = newparams;
+  f->u.func.param_types = param_types;
   return f;
 }
 
@@ -872,7 +864,13 @@ bool parse_var_def(const Type **prawType, const Type** ptype, int *pflag, Token 
 
     bool vaargs;
     Vector *params = funparams(&vaargs);
-    type = ptrof(new_func_type(type, params, vaargs));
+    Vector *param_types = NULL;
+    if (params != NULL) {
+      param_types = new_vector();
+      for (int i = 0, len = params->len; i < len; ++i)
+        vec_push(param_types, ((VarInfo*)params->data[i])->type);
+    }
+    type = ptrof(new_func_type(type, param_types, vaargs));
   } else {
     if (type->type != TY_VOID) {
       ident = consume(TK_IDENT);
@@ -897,7 +895,7 @@ const Type *parse_full_type(int *pflag, Token **pident) {
   return type;
 }
 
-Vector *funparams(bool *pvaargs) {
+Vector *funparams(bool *pvaargs) {  // Vector<VarInfo*>
   Vector *params = NULL;
   bool vaargs = false;
   if (consume(TK_RPAR)) {
@@ -1725,22 +1723,22 @@ Expr *analyze_expr(Expr *expr, bool keep_left) {
         parse_error(NULL, "Cannot call except funtion");
       expr->valType = functype->u.func.ret;
 
-      Vector *params = functype->u.func.params;  // <VarInfo*>
+      Vector *param_types = functype->u.func.param_types;  // <const Type*>
       bool vaargs = functype->u.func.vaargs;
-      if (params != NULL) {
+      if (param_types != NULL) {
         int argc = args != NULL ? args->len : 0;
-        int paramc = params->len;
+        int paramc = param_types->len;
         if (!(argc == paramc ||
               (vaargs && argc >= paramc)))
           parse_error(func->token, "function `%s' expect %d arguments, but %d", func->u.varref.ident, paramc, argc);
       }
 
-      if (args != NULL && params != NULL) {
-        int paramc = params->len;
+      if (args != NULL && param_types != NULL) {
+        int paramc = param_types->len;
         for (int i = 0, len = args->len; i < len; ++i) {
-          if (i < params->len) {
+          if (i < param_types->len) {
             Expr *arg = args->data[i];
-            const Type *type = ((VarInfo*)params->data[i])->type;
+            const Type *type = (const Type*)param_types->data[i];
             args->data[i] = new_expr_cast(type, arg->token, arg, false);
           } else if (vaargs && i >= paramc) {
             Expr *arg = args->data[i];
