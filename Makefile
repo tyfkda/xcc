@@ -9,10 +9,10 @@ CFLAGS:=-ansi -std=c11 -MD -Wall -Wextra -Werror -Wold-style-definition \
 	-Wno-missing-field-initializers -Wno-typedef-redefinition -Wno-empty-body
 CFLAGS+=-I$(SRC_DIR) -I$(UTIL_DIR)
 
-CC_SRCS:=$(SRC_DIR)/lexer.c $(SRC_DIR)/type.c $(SRC_DIR)/var.c $(SRC_DIR)/expr.c $(SRC_DIR)/parser.c \
+CC_SRCS:=$(SRC_DIR)/lexer.c $(SRC_DIR)/type.c $(SRC_DIR)/var.c $(SRC_DIR)/expr.c $(SRC_DIR)/analyze.c $(SRC_DIR)/parser.c \
 	$(SRC_DIR)/codegen.c $(SRC_DIR)/codegen_expr.c $(SRC_DIR)/main.c \
 	$(UTIL_DIR)/util.c $(UTIL_DIR)/elfutil.c
-CPP_SRCS:=$(CPP_DIR)/cpp.c $(SRC_DIR)/lexer.c $(SRC_DIR)/type.c $(SRC_DIR)/var.c $(SRC_DIR)/expr.c \
+CPP_SRCS:=$(CPP_DIR)/cpp.c $(SRC_DIR)/lexer.c $(SRC_DIR)/type.c $(SRC_DIR)/var.c $(SRC_DIR)/expr.c $(SRC_DIR)/analyze.c \
 	$(UTIL_DIR)/util.c
 
 CC_OBJS:=$(addprefix $(OBJ_DIR)/,$(notdir $(CC_SRCS:.c=.o)))
