@@ -13,6 +13,7 @@
 #include "expr.h"
 #include "type.h"
 #include "util.h"
+#include "var.h"
 
 #if defined(NO_ASM_OUTPUT)
 #define ADD_ASM(...)  // ignore

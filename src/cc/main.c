@@ -13,6 +13,7 @@
 #include "lexer.h"
 #include "type.h"
 #include "util.h"
+#include "var.h"
 
 #define PROG_START   (0x100)
 

@@ -8,6 +8,7 @@
 #include "lexer.h"
 #include "type.h"
 #include "util.h"
+#include "var.h"
 
 const int LF_BREAK = 1 << 0;
 const int LF_CONTINUE = 1 << 0;
