@@ -21,16 +21,6 @@ bool is_char_type(const Type *type) {
   return type->type == TY_NUM && type->u.numtype == NUM_CHAR;
 }
 
-bool is_struct_or_union(enum eType type) {
-  switch (type) {
-  case TY_STRUCT:
-  case TY_UNION:
-    return true;
-  default:
-    return false;
-  }
-}
-
 bool is_void_ptr(const Type *type) {
   return type->type == TY_PTR && type->u.pa.ptrof->type == TY_VOID;
 }
@@ -62,7 +52,6 @@ bool same_type(const Type *type1, const Type *type2) {
       }
       return true;
     case TY_STRUCT:
-    case TY_UNION:
       {
         if (type1->u.struct_.info != NULL) {
           if (type2->u.struct_.info != NULL)

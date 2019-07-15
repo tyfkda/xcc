@@ -29,7 +29,7 @@ enum SectionType {
 void set_asm_fp(FILE *fp);
 void gen_expr(Expr *expr);
 size_t type_size(const Type *type);
-void calc_struct_size(StructInfo *sinfo, bool is_union);
+void calc_struct_size(StructInfo *sinfo);
 void gen_rodata(void);
 void output_section(FILE* fp, int section);
 void add_label(const char *label);

@@ -164,7 +164,7 @@ static bool cast_numbers(Expr **pLhs, Expr **pRhs, bool keep_left) {
 }
 
 static bool member_access_recur(const Type *type, const Token *ident, Vector *stack) {
-  assert(type->type == TY_STRUCT || type->type == TY_UNION);
+  assert(type->type == TY_STRUCT);
   ensure_struct((Type*)type, ident);
   const char *name = ident->u.ident;
 
@@ -176,7 +176,7 @@ static bool member_access_recur(const Type *type, const Token *ident, Vector *st
         vec_push(stack, (void*)(long)i);
         return true;
       }
-    } else if (info->type->type == TY_STRUCT || info->type->type == TY_UNION) {
+    } else if (info->type->type == TY_STRUCT) {
       vec_push(stack, (void*)(long)i);
       bool res = member_access_recur(info->type, ident, stack);
       if (res)
@@ -488,7 +488,7 @@ Expr *analyze_expr(Expr *expr, bool keep_left) {
       // Find member's type from struct info.
       const Type *targetType = target->valType;
       if (acctok->type == TK_DOT) {
-        if (!is_struct_or_union(targetType->type))
+        if (targetType->type != TY_STRUCT)
           parse_error(acctok, "`.' for non struct value");
       } else {  // TK_ARROW
         if (targetType->type == TY_PTR)
@@ -497,7 +497,7 @@ Expr *analyze_expr(Expr *expr, bool keep_left) {
           targetType = targetType->u.pa.ptrof;
         else
           parse_error(acctok, "`->' for non pointer value");
-        if (!is_struct_or_union(targetType->type))
+        if (targetType->type != TY_STRUCT)
           parse_error(acctok, "`->' for non struct value");
       }
 

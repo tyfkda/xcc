@@ -20,7 +20,7 @@ Map *typedef_map;
 
 // Call before accessing struct member to ensure that struct is declared.
 void ensure_struct(Type *type, const Token *token) {
-  assert(type->type == TY_STRUCT || type->type == TY_UNION);
+  assert(type->type == TY_STRUCT);
   if (type->u.struct_.info == NULL) {
     // TODO: Search from name.
     StructInfo *sinfo = (StructInfo*)map_get(struct_map, type->u.struct_.name);
@@ -385,7 +385,7 @@ const Type *parse_raw_type(int *pflag) {
         parse_error(NULL, "Illegal struct/union usage");
 
       Type *stype = malloc(sizeof(*type));
-      stype->type = (structtok->type == TK_STRUCT) ? TY_STRUCT : TY_UNION;
+      stype->type = TY_STRUCT;
       stype->u.struct_.name = name;
       stype->u.struct_.info = sinfo;
       type = stype;

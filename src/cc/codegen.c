@@ -58,8 +58,7 @@ size_t type_size(const Type *type) {
     assert(type->u.pa.length != (size_t)-1);
     return type_size(type->u.pa.ptrof) * type->u.pa.length;
   case TY_STRUCT:
-  case TY_UNION:
-    calc_struct_size(type->u.struct_.info, type->type == TY_UNION);
+    calc_struct_size(type->u.struct_.info);
     return type->u.struct_.info->size;
   default:
     assert(false);
@@ -92,8 +91,7 @@ static int align_size(const Type *type) {
   case TY_ARRAY:
     return align_size(type->u.pa.ptrof);
   case TY_STRUCT:
-  case TY_UNION:
-    calc_struct_size(type->u.struct_.info, type->type == TY_UNION);
+    calc_struct_size(type->u.struct_.info);
     return type->u.struct_.info->align;
   default:
     assert(false);
@@ -101,7 +99,7 @@ static int align_size(const Type *type) {
   }
 }
 
-void calc_struct_size(StructInfo *sinfo, bool is_union) {
+void calc_struct_size(StructInfo *sinfo) {
   assert(sinfo != NULL);
   if (sinfo->size >= 0)
     return;
@@ -116,7 +114,7 @@ void calc_struct_size(StructInfo *sinfo, bool is_union) {
     int align = align_size(varinfo->type);
     size = ALIGN(size, align);
     varinfo->offset = size;
-    if (!is_union)
+    if (!sinfo->is_union)
       size += sz;
     else
       if (maxsize < sz)
@@ -125,7 +123,7 @@ void calc_struct_size(StructInfo *sinfo, bool is_union) {
       max_align = align;
   }
 
-  if (is_union)
+  if (sinfo->is_union)
     size = maxsize;
   size = ALIGN(size, max_align);
   sinfo->size = size;
@@ -431,7 +429,6 @@ void construct_initial_value(unsigned char *buf, const Type *type, Initializer *
     }
     break;
   case TY_STRUCT:
-  case TY_UNION:
     {
       Initializer **values = NULL;
 
@@ -449,18 +446,18 @@ void construct_initial_value(unsigned char *buf, const Type *type, Initializer *
         VarInfo* varinfo = sinfo->members->data[i];
         Initializer *mem_init;
         if (values == NULL) {
-          if (type->type == TY_UNION)
+          if (sinfo->is_union)
             continue;
           mem_init = NULL;
         } else {
           mem_init = values[i];
         }
-        if (mem_init != NULL || type->type != TY_UNION) {
+        if (mem_init != NULL || !sinfo->is_union) {
           construct_initial_value(buf + varinfo->offset, varinfo->type, mem_init, pptrinits);
           ++count;
         }
       }
-      if (type->type == TY_UNION && count <= 0) {
+      if (sinfo->is_union && count <= 0) {
         VarInfo* varinfo = sinfo->members->data[0];
         construct_initial_value(buf + varinfo->offset, varinfo->type, NULL, pptrinits);
       }

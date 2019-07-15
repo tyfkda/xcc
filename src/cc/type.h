@@ -27,8 +27,7 @@ enum eType {
   TY_PTR,
   TY_ARRAY,
   TY_FUNC,
-  TY_STRUCT,
-  TY_UNION,
+  TY_STRUCT,  // include union
 };
 
 typedef struct StructInfo {
@@ -69,7 +68,6 @@ extern const Type tyVoid;
 
 bool is_number(enum eType type);
 bool is_char_type(const Type *type);
-bool is_struct_or_union(enum eType type);
 bool is_void_ptr(const Type *type);
 bool same_type(const Type *type1, const Type *type2);
 Type* ptrof(const Type *type);

@@ -438,6 +438,7 @@ static Vector *clear_initial_value(Expr *expr, Vector *inits) {
   case TY_STRUCT:
     {
       const StructInfo *sinfo = expr->valType->u.struct_.info;
+      assert(!sinfo->is_union || !"Not implemented");
       assert(sinfo != NULL);
       for (int i = 0; i < sinfo->members->len; ++i) {
         VarInfo* varinfo = sinfo->members->data[i];
@@ -446,7 +447,6 @@ static Vector *clear_initial_value(Expr *expr, Vector *inits) {
       }
     }
     break;
-  case TY_UNION:
   default:
     assert(!"Not implemented");
     break;
@@ -517,7 +517,7 @@ static void fix_array_size(Type *type, Initializer *init) {
 }
 
 Initializer **flatten_initializer(const Type *type, Initializer *init) {
-  assert(is_struct_or_union(type->type));
+  assert(type->type == TY_STRUCT);
   assert(init->type == vMulti);
 
   ensure_struct((Type*)type, NULL);
@@ -529,7 +529,7 @@ Initializer **flatten_initializer(const Type *type, Initializer *init) {
       parse_error(NULL, "Initializer for empty struct");
     return NULL;
   }
-  if (type->type == TY_UNION && m > 1)
+  if (sinfo->is_union && m > 1)
     error("Initializer for union more than 1");
 
   Initializer **values = malloc(sizeof(Initializer*) * n);
@@ -687,7 +687,6 @@ static Initializer *check_global_initializer(const Type *type, Initializer *init
     }
     break;
   case TY_STRUCT:
-  case TY_UNION:
     {
       Initializer ** values = flatten_initializer(type, init);
       const StructInfo *sinfo = type->u.struct_.info;
@@ -746,42 +745,35 @@ static Vector *assign_initial_value(Expr *expr, Initializer *init, Vector *inits
       if (init->type != vMulti)
         parse_error(NULL, "`{...}' expected for initializer");
 
-      Initializer **values = flatten_initializer(expr->valType, init);
-
       const StructInfo *sinfo = expr->valType->u.struct_.info;
-      for (int i = 0, n = sinfo->members->len; i < n; ++i) {
-        VarInfo* varinfo = sinfo->members->data[i];
-        Expr *member = new_expr_member(NULL, varinfo->type, expr, NULL, NULL, i);
-        if (values[i] != NULL)
-          assign_initial_value(member, values[i], inits);
-        else
-          clear_initial_value(member, inits);
-      }
-    }
-    break;
-  case TY_UNION:
-    {
-      if (init->type != vMulti)
-        parse_error(NULL, "`{...}' expected for initializer");
+      if (!sinfo->is_union) {
+        Initializer **values = flatten_initializer(expr->valType, init);
+        for (int i = 0, n = sinfo->members->len; i < n; ++i) {
+          VarInfo* varinfo = sinfo->members->data[i];
+          Expr *member = new_expr_member(NULL, varinfo->type, expr, NULL, NULL, i);
+          if (values[i] != NULL)
+            assign_initial_value(member, values[i], inits);
+          else
+            clear_initial_value(member, inits);
+        }
+      } else {
+        int n = sinfo->members->len;
+        int m = init->u.multi->len;
+        if (n <= 0 && m > 0)
+          parse_error(NULL, "Initializer for empty union");
 
-      const StructInfo *sinfo = expr->valType->u.struct_.info;
-      ensure_struct((Type*)expr->valType, NULL);
-      int n = sinfo->members->len;
-      int m = init->u.multi->len;
-      if (n <= 0 && m > 0)
-        parse_error(NULL, "Initializer for empty union");
-
-      int index = 0;
-      Initializer *value = init->u.multi->data[0];
-      if (value->type == vDot) {
-        index = var_find(sinfo->members, value->u.dot.name);
-        if (index < 0)
-          parse_error(NULL, "`%s' is not member of struct", value->u.dot.name);
-        value = value->u.dot.value;
+        int index = 0;
+        Initializer *value = init->u.multi->data[0];
+        if (value->type == vDot) {
+          index = var_find(sinfo->members, value->u.dot.name);
+          if (index < 0)
+            parse_error(NULL, "`%s' is not member of struct", value->u.dot.name);
+          value = value->u.dot.value;
+        }
+        VarInfo* varinfo = sinfo->members->data[index];
+        Expr *member = new_expr_member(NULL, varinfo->type, expr, NULL, NULL, index);
+        assign_initial_value(member, value, inits);
       }
-      VarInfo* varinfo = sinfo->members->data[index];
-      Expr *member = new_expr_member(NULL, varinfo->type, expr, NULL, NULL, index);
-      assign_initial_value(member, value, inits);
     }
     break;
   default:
@@ -1058,7 +1050,7 @@ static Node *toplevel(void) {
   const Type *rawtype = parse_raw_type(&flag);
   if (rawtype != NULL) {
     const Type *type = parse_type_modifier(rawtype);
-    if ((is_struct_or_union(type->type) ||
+    if ((type->type == TY_STRUCT ||
          (type->type == TY_NUM && type->u.numtype == NUM_ENUM)) &&
         consume(TK_SEMICOL))  // Just struct/union definition.
       return NULL;

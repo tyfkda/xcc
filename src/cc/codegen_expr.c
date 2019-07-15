@@ -130,8 +130,8 @@ static void gen_lval(Expr *expr) {
       const Type *type = expr->u.member.target->valType;
       if (type->type == TY_PTR || type->type == TY_ARRAY)
         type = type->u.pa.ptrof;
-      assert(type->type == TY_STRUCT || type->type == TY_UNION);
-      calc_struct_size(type->u.struct_.info, type->type == TY_UNION);
+      assert(type->type == TY_STRUCT);
+      calc_struct_size(type->u.struct_.info);
       Vector *members = type->u.struct_.info->members;
       VarInfo *varinfo = (VarInfo*)members->data[expr->u.member.index];
 
