@@ -301,7 +301,7 @@ static const Type *parse_enum(void) {
         if (consume(TK_ASSIGN)) {
           numtok = fetch_token();
           Expr *expr = analyze_expr(parse_const(), false);
-          if (!(is_const(expr) && !is_number(expr->type))) {
+          if (!(is_const(expr) && is_number(expr->valType->type))) {
             parse_error(numtok, "const expected for enum");
           }
           value = expr->u.num.ival;
@@ -455,7 +455,7 @@ const Type *parse_type_suffix(const Type *type) {
   } else {
     const Token *tok = fetch_token();
     Expr *expr = analyze_expr(parse_const(), false);
-    if (!(is_const(expr) && !is_number(expr->type)))
+    if (!(is_const(expr) && is_number(expr->valType->type)))
       parse_error(NULL, "syntax error");
     if (expr->u.num.ival <= 0)
       parse_error(tok, "Array size must be greater than 0, but %d", (int)expr->u.num.ival);
