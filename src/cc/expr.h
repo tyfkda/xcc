@@ -43,7 +43,7 @@ extern Map *typedef_map;  // <char*, Type*>
 
 // Defun
 
-typedef struct {
+typedef struct Defun {
   const Type *type;
   const char *name;
   Vector *params;  // <VarInfo*>
@@ -163,79 +163,6 @@ typedef struct Expr {
     } comma;
   } u;
 } Expr;
-
-// Node
-
-enum NodeType {
-  ND_EXPR,
-  ND_DEFUN,
-  ND_BLOCK,
-  ND_IF,
-  ND_SWITCH,
-  ND_WHILE,
-  ND_DO_WHILE,
-  ND_FOR,
-  ND_BREAK,
-  ND_CONTINUE,
-  ND_RETURN,
-  ND_CASE,
-  ND_DEFAULT,
-  ND_GOTO,
-  ND_LABEL,
-};
-
-typedef struct Node {
-  enum NodeType type;
-  union {
-    Expr *expr;
-    Defun *defun;
-    struct {
-      Scope *scope;
-      Vector *nodes;
-    } block;
-    struct {
-      struct Expr *cond;
-      struct Node *tblock;
-      struct Node *fblock;
-    } if_;
-    struct {
-      struct Expr *value;
-      struct Node *body;
-      Vector *case_values;
-      bool has_default;
-    } switch_;
-    struct {
-      intptr_t value;
-    } case_;
-    struct {
-      struct Expr *cond;
-      struct Node *body;
-    } while_;
-    struct {
-      struct Node *body;
-      struct Expr *cond;
-    } do_while;
-    struct {
-      struct Expr *pre;
-      struct Expr *cond;
-      struct Expr *post;
-      struct Node *body;
-    } for_;
-    struct {
-      const Token *tok;
-      const char *ident;
-    } goto_;
-    struct {
-      const char *name;
-      struct Node *stmt;
-    } label;
-    struct {
-      struct Expr *val;
-    } return_;
-  } u;
-} Node;
-
-Vector *parse_program(void);
 
 //
 

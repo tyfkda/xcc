@@ -12,6 +12,7 @@
 #include <string.h>
 
 #include "expr.h"
+#include "parser.h"
 #include "type.h"
 #include "util.h"
 #include "var.h"

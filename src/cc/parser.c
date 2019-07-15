@@ -1,3 +1,5 @@
+#include "parser.h"
+
 #include <assert.h>
 #include <stdbool.h>
 #include <stdlib.h>  // malloc
