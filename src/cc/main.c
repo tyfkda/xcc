@@ -7,7 +7,7 @@
 #include "sys/wait.h"
 #include "unistd.h"  // fork, execvp
 
-#include "xcc.h"
+#include "codegen.h"
 #include "elfutil.h"
 #include "expr.h"
 #include "lexer.h"

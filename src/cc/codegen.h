@@ -1,33 +1,41 @@
 #pragma once
 
 #include <stdbool.h>
-#include <stdint.h>  // uintptr_t, intptr_t
+#include <stdint.h>  // uintptr_t
 #include <stdio.h>  // FILE
 
-typedef struct Vector Vector;
-typedef struct Map Map;
+typedef struct Expr Expr;
 typedef struct Node Node;
+typedef struct StructInfo StructInfo;
+typedef struct Type Type;
 
-// Codegen
+// Public
 
-typedef struct {
-  const char *label;
-  const void *data;
-  size_t size;
-} RoData;
+void init_gen(uintptr_t start_address);
+void gen(Node *node);
+
+// Private
+
+#define PUSH_STACK_POS()  do { stackpos += 8; } while (0)
+#define POP_STACK_POS()   do { stackpos -= 8; } while (0)
+
+extern int stackpos;
 
 enum SectionType {
   SEC_CODE,
   SEC_DATA,
 };
 
-void init_gen(uintptr_t start_address);
 void set_asm_fp(FILE *fp);
-void gen(Node *node);
+void gen_expr(Expr *expr);
+size_t type_size(const Type *type);
+void calc_struct_size(StructInfo *sinfo, bool is_union);
 void gen_rodata(void);
 void output_section(FILE* fp, int section);
 void add_label(const char *label);
+void add_asm_label(const char *label);
 void add_code(const unsigned char* buf, size_t size);
+void add_asm(const char *fmt, ...);
 void add_loc_rel8(const char *label, int ofs, int baseofs);
 void add_loc_rel32(const char *label, int ofs, int baseofs);
 void fixup_locations(void);

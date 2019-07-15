@@ -3,7 +3,6 @@
 #include <stdlib.h>  // malloc
 #include <string.h>
 
-#include "xcc.h"
 #include "expr.h"
 #include "lexer.h"
 #include "type.h"

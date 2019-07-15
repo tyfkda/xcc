@@ -34,7 +34,7 @@ void ensure_struct(Type *type, const Token *token) {
 
 // Scope
 
-static Scope *curscope;
+Scope *curscope;
 
 Scope *enter_scope(Defun *defun, Vector *vars) {
   Scope *scope = new_scope(curscope, vars);

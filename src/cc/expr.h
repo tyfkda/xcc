@@ -61,6 +61,8 @@ Scope *enter_scope(Defun *defun, Vector *vars);
 void exit_scope(void);
 VarInfo *add_cur_scope(const Token *ident, const Type *type, int flag);
 
+extern Scope *curscope;
+
 // Expr
 
 enum ExprType {

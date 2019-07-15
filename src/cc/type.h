@@ -31,7 +31,7 @@ enum eType {
   TY_UNION,
 };
 
-typedef struct {
+typedef struct StructInfo {
   Vector *members;  // <VarInfo*>
   ssize_t size;
   int align;
