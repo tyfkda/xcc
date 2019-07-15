@@ -6,6 +6,7 @@
 #include "xcc.h"
 #include "expr.h"
 #include "lexer.h"
+#include "type.h"
 #include "util.h"
 
 const int LF_BREAK = 1 << 0;

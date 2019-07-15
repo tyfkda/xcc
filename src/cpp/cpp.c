@@ -10,6 +10,7 @@
 
 #include "expr.h"
 #include "lexer.h"
+#include "type.h"
 #include "util.h"
 
 char *abspath(const char *root, const char *path) {

@@ -8,16 +8,10 @@
 typedef struct Vector Vector;
 typedef struct Map Map;
 typedef struct Token Token;
+typedef struct Type Type;
+enum eType;
 
 // Num
-
-enum NumType {
-  NUM_CHAR,  // Small number type should be earlier.
-  NUM_SHORT,
-  NUM_INT,
-  NUM_LONG,
-  NUM_ENUM,
-};
 
 typedef union {
   intptr_t ival;
@@ -25,59 +19,9 @@ typedef union {
 
 // Type
 
-enum eType {
-  TY_VOID,
-  TY_NUM,
-  TY_PTR,
-  TY_ARRAY,
-  TY_FUNC,
-  TY_STRUCT,
-  TY_UNION,
-};
-
-typedef struct {
-  Vector *members;  // <VarInfo*>
-  ssize_t size;
-  int align;
-  bool is_union;
-} StructInfo;
-
-typedef struct Type {
-  enum eType type;
-  union {
-    enum NumType numtype;
-    struct {  // Pointer or array.
-      const struct Type *ptrof;
-      size_t length;  // of array. -1 represents length is not specified (= []).
-    } pa;
-    struct {
-      const struct Type *ret;
-      Vector *param_types;  // <Type*>
-      bool vaargs;
-    } func;
-    struct {
-      const char *name;
-      StructInfo *info;
-    } struct_;  // and union.
-  } u;
-} Type;
-
-extern const Type tyChar;
-extern const Type tyShort;
-extern const Type tyInt;
-extern const Type tyLong;
-extern const Type tyEnum;
-extern const Type tyVoid;
-#define tyBool  tyInt
-#define tySize  tyLong
-
 void ensure_struct(Type *type, const Token *token);
-Type* arrayof(const Type *type, size_t length);
-bool same_type(const Type *type1, const Type *type2);
-bool is_number(enum eType type);
-bool is_char_type(const Type *type);
 
-void dump_type(FILE *fp, const Type *type);
+// Initializer
 
 typedef struct Initializer {
   enum { vSingle, vMulti, vDot } type;  // vSingle: 123, vMulti: {...}, vDot: .x=123
@@ -118,7 +62,6 @@ typedef struct {
   int offset;
 } VarInfo;
 
-extern Map *struct_map;  // <char*, StructInfo*>
 extern Map *typedef_map;  // <char*, Type*>
 
 // Scope
@@ -339,10 +282,8 @@ VarInfo *define_global(const Type *type, int flag, const Token *ident, const cha
 
 //
 
-bool is_struct_or_union(enum eType type);
 void not_void(const Type *type);
 bool can_cast(const Type *dst, const Type *src, Expr *src_expr, bool is_explicit);
-Type* new_func_type(const Type *ret, Vector *param_types, bool vaargs);
 
 const Type *parse_raw_type(int *pflag);
 const Type *parse_type_modifier(const Type* type);

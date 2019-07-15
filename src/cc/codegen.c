@@ -11,6 +11,7 @@
 
 #include "xcc.h"
 #include "expr.h"
+#include "type.h"
 #include "util.h"
 
 #if defined(NO_ASM_OUTPUT)

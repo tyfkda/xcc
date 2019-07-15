@@ -11,8 +11,8 @@
 #include "elfutil.h"
 #include "expr.h"
 #include "lexer.h"
+#include "type.h"
 #include "util.h"
-#include "x86_64.h"
 
 #define PROG_START   (0x100)
 
