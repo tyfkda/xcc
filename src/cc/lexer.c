@@ -190,6 +190,43 @@ const char *get_lex_p(void) {
   return lexer.p;
 }
 
+static int scan_linemarker(const char *line, long *pnum, char **pfn, int *pflag) {
+  const char *p = line;
+  if (p[0] != '#' || p[1] != ' ')
+    return 0;
+  p += 2;
+
+  int n = 0;
+  const char *next = p;
+  long num = strtol(next, (char**)&next, 10);
+  if (next > p) {
+    ++n;
+    *pnum = num;
+    p = next;
+
+    if (p[0] == ' ' && p[1] == '"') {
+      p += 2;
+      const char *q = strchr(p, '"');
+      if (q != NULL) {
+        ++n;
+        *pfn = strndup_(p, q - p);
+        p = q + 1;
+
+        if (p[0] == ' ') {
+          p += 1;
+          next = p;
+          int flag = strtol(next, (char**)&next, 10);
+          if (next > p) {
+            ++n;
+            *pflag = flag;
+          }
+        }
+      }
+    }
+  }
+  return n;
+}
+
 static void read_next_line(void) {
   if (lexer.fp == NULL) {
     lexer.p = NULL;
@@ -199,14 +236,30 @@ static void read_next_line(void) {
 
   char *line = NULL;
   size_t capa = 0;
-  ssize_t len = getline_(&line, &capa, lexer.fp, 0);
-  if (len == EOF) {
-    lexer.p = NULL;
-    lexer.line = NULL;
-    return;
-  }
-  while (len > 0 && line[len - 1] == '\\') {  // Continue line.
-    len = getline_(&line, &capa, lexer.fp, len - 1);  // -1 for overwrite on '\'
+  ssize_t len;
+  for (;;) {
+    len = getline_(&line, &capa, lexer.fp, 0);
+    if (len == EOF) {
+      lexer.p = NULL;
+      lexer.line = NULL;
+      return;
+    }
+    while (len > 0 && line[len - 1] == '\\') {  // Continue line.
+      len = getline_(&line, &capa, lexer.fp, len - 1);  // -1 for overwrite on '\'
+    }
+
+    if (line[0] != '#')
+      break;
+
+    // linemarkers: # linenum filename flags
+    long num = -1;
+    char *fn;
+    int flag = -1;
+    int n = scan_linemarker(line, &num, &fn, &flag);
+    if (n >= 2) {
+      lexer.lineno = num - 1;
+      lexer.filename = fn;
+    }
   }
 
   Line *p = malloc(sizeof(*line));

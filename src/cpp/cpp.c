@@ -94,7 +94,7 @@ void register_pragma_once(const char *filename) {
   vec_push(pragma_once_files, filename);
 }
 
-void pp(FILE *fp, const char *filename);
+int pp(FILE *fp, const char *filename);
 
 void handle_include(const char *p, const char *srcname) {
   char close;
@@ -143,9 +143,9 @@ void handle_include(const char *p, const char *srcname) {
   if (registered_pragma_once(fn))
     return;
 
-  printf("/* \"%s\" start */\n", fn);
-  pp(fp, fn);
-  printf("/* \"%s\" end */\n", fn);
+  printf("# 1 \"%s\" 1\n", fn);
+  int lineno = pp(fp, fn);
+  printf("# %d \"%s\" 2\n", lineno, fn);
   fclose(fp);
 }
 
@@ -445,7 +445,7 @@ static void define_file_macro(const char *filename) {
   map_put(macro_map, "__FILE__", new_macro_single(buf));
 }
 
-void pp(FILE *fp, const char *filename) {
+int pp(FILE *fp, const char *filename) {
   Vector *condstack = new_vector();
   bool enable = true;
   int satisfy = 0;  // #if condition: 0=not satisfied, 1=satisfied, 2=else
@@ -458,7 +458,8 @@ void pp(FILE *fp, const char *filename) {
   define_file_macro(filename);
   map_put(macro_map, "__LINE__", new_macro_single(linenobuf));
 
-  for (int lineno = 1;; ++lineno) {
+  int lineno;
+  for (lineno = 1;; ++lineno) {
     char *line = NULL;
     size_t capa = 0;
     ssize_t len = getline_(&line, &capa, fp, 0);
@@ -477,8 +478,11 @@ void pp(FILE *fp, const char *filename) {
     if (directive == NULL) {
       if (enable)
         process_line(line, filename, lineno);
+      else
+        printf("\n");
       continue;
     }
+    printf("\n");
 
     const char *next;
     if ((next = keyword(directive, "ifdef")) != NULL) {
@@ -533,6 +537,7 @@ void pp(FILE *fp, const char *filename) {
     } else if (enable) {
       if ((next = keyword(directive, "include")) != NULL) {
         handle_include(next, filename);
+        printf("# %d \"%s\" 1\n", lineno + 1, filename);
       } else if ((next = keyword(directive, "define")) != NULL) {
         handle_define(next, filename, lineno);
       } else if ((next = keyword(directive, "pragma")) != NULL) {
@@ -550,6 +555,8 @@ void pp(FILE *fp, const char *filename) {
 
   map_put(macro_map, "__FILE__", old_file_macro);
   map_put(macro_map, "__LINE__", old_line_macro);
+
+  return lineno;
 }
 
 int main(int argc, char* argv[]) {
@@ -577,9 +584,10 @@ int main(int argc, char* argv[]) {
   if (i < argc) {
     for (; i < argc; ++i) {
       const char *filename = argv[i];
-      FILE *fp = fopen(filename, "rb");
+      FILE *fp = fopen(filename, "r");
       if (fp == NULL)
-        error("Cannot open file: %s\n", argv[i]);
+        error("Cannot open file: %s\n", filename);
+      printf("# 1 \"%s\" 1\n", filename);
       pp(fp, filename);
       fclose(fp);
     }

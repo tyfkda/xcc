@@ -9,7 +9,7 @@ try() {
 
   echo -n "$title => "
 
-  actual=$(echo -e "$input" | $CPP) || exit 1
+  actual=$(echo -e "$input" | $CPP | tr -d '\n') || exit 1
 
   if [ "$actual" = "$expected" ]; then
     echo "OK"
@@ -50,5 +50,5 @@ try '#if &&-2' '4' "#if 1 && 0\n3\n#else\n4\n#endif"
 try '#if ||' '3' "#if 0 || 1\n3\n#else\n4\n#endif"
 try '#if ||-2' '4' "#if 0 || 0\n3\n#else\n4\n#endif"
 try '__FILE__' '"*stdin*"' "__FILE__"
-try '__LINE__' "\n\n3" "\n\n__LINE__"
+try '__LINE__' "3" "\n\n__LINE__"
 compile_error '#error' '#error !!!\nvoid main(){}'
