@@ -1,6 +1,7 @@
 #include "util.h"
 
 #include <stdarg.h>
+#include <stdbool.h>
 #include <stdlib.h>  // malloc
 #include <string.h>  // strcmp
 #include <assert.h>
@@ -74,6 +75,78 @@ ssize_t getline_(char **lineptr, size_t *pcapa, FILE *stream, size_t start) {
   *lineptr = top;
   *pcapa = capa;
   return size;
+}
+
+char *abspath(const char *root, const char *path) {
+  if (*path == '/')
+    return strdup_(path);
+
+  bool is_root = *root == '/';
+
+  Vector *dirs = new_vector();  // [start, end]
+  for (const char *p = root; *p != '\0'; ) {
+    if (*p == '/')
+      if (*(++p) == '\0')
+        break;
+    vec_push(dirs, p);
+    const char *q = strchr(p, '/');
+    if (q == NULL) {
+      vec_push(dirs, p + strlen(p));
+      break;
+    }
+    vec_push(dirs, q);
+    p = q;
+  }
+
+  for (const char *p = path; *p != '\0'; ) {
+    if (*p == '/') {
+      while (*p == '/')
+        ++p;
+      if (*p == '\0') {
+        // End with '/'.
+        vec_push(dirs, p);
+        vec_push(dirs, p);
+        break;
+      }
+    }
+    const char *q = strchr(p, '/');
+    if (q == NULL)
+      q = p + strlen(p);
+    size_t size = q - p;
+    if (size == 1 && strncmp(p, ".", size) == 0) {
+      // Skip
+    } else if (size == 2 && strncmp(p, "..", size) == 0) {
+      if (dirs->len < 2)
+        return NULL;  // Illegal
+      dirs->len -= 2;
+    } else {
+      vec_push(dirs, p);
+      vec_push(dirs, q);
+    }
+    p = q;
+  }
+
+  if (dirs->len == 0)
+    return strdup_("/");
+
+  size_t total_len = 1;  // 1 for NUL-terminate.
+  for (int i = 0; i < dirs->len; i += 2) {
+    if (i != 0 || is_root)
+      total_len += 1;
+    total_len += ((char*)dirs->data[i + 1] - (char*)dirs->data[i]);
+  }
+
+  char *buf = malloc(total_len);
+  char *p = buf;
+  for (int i = 0; i < dirs->len; i += 2) {
+    if (i != 0 || is_root)
+      *p++ = '/';
+    size_t size = (char*)dirs->data[i + 1] - (char*)dirs->data[i];
+    memcpy(p, dirs->data[i], size);
+    p += size;
+  }
+  *p = '\0';
+  return buf;
 }
 
 void error(const char* fmt, ...) {
