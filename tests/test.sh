@@ -93,7 +93,7 @@ try_direct 'enum can use in case' 1 'enum Num { Zero, One, Two }; int main(){ sw
 try_direct 'compare enum' 0 'enum Num { Zero, One, Two }; int main(){ enum Num num = Zero; return num == One; }'
 try_direct 'enum initializer' 0 'enum Num { Zero } num = Zero; int main(){ return num; }'
 try_direct 'enum initializer2' 67 'enum Num { Zero } num = 67; int main(){ return num; }'
-try_direct 'typedef' 123 'typedef struct {int x;} Foo; int main(){ Foo foo; foo.x = 123; return foo.x; }'
+try_direct 'typedef' 123 'typedef struct {int x, y;} Foo; int main(){ Foo foo; foo.x = 123; return foo.x; }'
 try_output_direct 'empty function' '' 'void main(){}'
 try_direct 'Undeclared struct typedef' 8 'typedef struct FILE FILE; int main(){ return sizeof(FILE*); }'
 try_direct 'late declare struct' 42 'struct Foo *p; struct Foo {int x;}; int main(){ struct Foo foo; p = &foo; p->x = 42; return p->x; }'

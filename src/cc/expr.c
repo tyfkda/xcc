@@ -574,16 +574,22 @@ static StructInfo *parse_struct(bool is_union) {
     if (consume(TK_RBRACE))
       break;
 
-    const Type *type;
-    int flag;
-    Token *ident;
-    if (!parse_var_def(NULL, &type, &flag, &ident))
-      parse_error(NULL, "type expected");
-    not_void(type);
+    const Type *rawType = NULL;
+    for (;;) {
+      const Type *type;
+      int flag;
+      Token *ident;
+      if (!parse_var_def(&rawType, &type, &flag, &ident))
+        parse_error(NULL, "type expected");
+      not_void(type);
+      var_add(members, ident, type, flag);
 
-    if (!consume(TK_SEMICOL))
-      parse_error(NULL, "`;' expected");
-    var_add(members, ident, type, flag);
+      if (consume(TK_COMMA))
+        continue;
+      if (!consume(TK_SEMICOL))
+        parse_error(NULL, "`;' expected");
+      break;
+    }
   }
 
   StructInfo *sinfo = malloc(sizeof(*sinfo));
