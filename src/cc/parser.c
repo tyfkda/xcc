@@ -108,8 +108,8 @@ static Node *new_node_while(Expr *cond, Node *body) {
 
 static Node *new_node_do_while(Node *body, Expr *cond) {
   Node *node = new_node(ND_DO_WHILE);
-  node->u.do_while.body = body;
-  node->u.do_while.cond = cond;
+  node->u.while_.body = body;
+  node->u.while_.cond = cond;
   return node;
 }
 

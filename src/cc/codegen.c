@@ -1108,9 +1108,9 @@ static void gen_do_while(Node *node) {
   const char *l_break = push_break_label(&save_break);
   const char * l_loop = alloc_label();
   ADD_LABEL(l_loop);
-  gen(node->u.do_while.body);
+  gen(node->u.while_.body);
   ADD_LABEL(l_cond);
-  gen_cond_jmp(node->u.do_while.cond, true, l_loop);
+  gen_cond_jmp(node->u.while_.cond, true, l_loop);
   ADD_LABEL(l_break);
   pop_continue_label(save_cont);
   pop_break_label(save_break);

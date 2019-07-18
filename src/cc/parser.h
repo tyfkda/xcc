@@ -61,10 +61,6 @@ typedef struct Node {
       struct Node *body;
     } while_;
     struct {
-      struct Node *body;
-      struct Expr *cond;
-    } do_while;
-    struct {
       struct Expr *pre;
       struct Expr *cond;
       struct Expr *post;
