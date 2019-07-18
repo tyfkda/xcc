@@ -12,6 +12,7 @@
 #include "expr.h"
 #include "lexer.h"
 #include "parser.h"
+#include "sema.h"
 #include "type.h"
 #include "util.h"
 #include "var.h"
@@ -70,6 +71,7 @@ static void init_compiler(uintptr_t adr) {
 static void compile(FILE *fp, const char *filename) {
   init_lexer(fp, filename);
   Node *node = parse_program();
+  node = sema(node);
   gen(node);
 }
 

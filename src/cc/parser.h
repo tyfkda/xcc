@@ -5,6 +5,7 @@
 
 typedef struct Defun Defun;
 typedef struct Expr Expr;
+typedef struct Initializer Initializer;
 typedef struct Map Map;
 typedef struct Scope Scope;
 typedef struct Token Token;
@@ -30,8 +31,16 @@ enum NodeType {
   ND_DEFAULT,
   ND_GOTO,
   ND_LABEL,
+  ND_VARDECL,
   ND_TOPLEVEL,
 };
+
+typedef struct VarDecl {
+  const Type *type;
+  const Token *ident;
+  Initializer *init;
+  int flag;
+} VarDecl;
 
 typedef struct Node {
   enum NodeType type;
@@ -78,9 +87,15 @@ typedef struct Node {
       struct Expr *val;
     } return_;
     struct {
+      Vector *decls;  // <VarDecl*>
+      Vector *inits;  // <Node*>
+    } vardecl;
+    struct {
       Vector *nodes;
     } toplevel;
   } u;
 } Node;
+
+Node *new_node_expr(Expr *e);
 
 Node *parse_program(void);

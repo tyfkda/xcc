@@ -113,7 +113,7 @@ void lex_error(const char *p, const char* fmt, ...) {
 void parse_error(const Token *token, const char* fmt, ...) {
   if (token == NULL)
     token = fetch_token();
-  if (token != NULL) {
+  if (token != NULL && token->line != NULL) {
     fprintf(stderr, "%s(%d): ", token->line->filename, token->line->lineno);
   }
 
@@ -123,7 +123,8 @@ void parse_error(const Token *token, const char* fmt, ...) {
   va_end(ap);
   fprintf(stderr, "\n");
 
-  show_error_line(token->line->buf, token->begin);
+  if (token != NULL && token->line != NULL && token->begin != NULL)
+    show_error_line(token->line->buf, token->begin);
 
   exit(1);
 }
