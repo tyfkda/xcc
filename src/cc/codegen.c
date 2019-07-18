@@ -1162,6 +1162,12 @@ static void gen_label(Node *node) {
   gen(node->u.label.stmt);
 }
 
+static void gen_toplevel(Node *node) {
+  Vector *nodes = node->u.toplevel.nodes;
+  for (int i = 0, len = nodes->len; i < len; ++i)
+    gen(nodes->data[i]);
+}
+
 void gen(Node *node) {
   switch (node->type) {
   case ND_EXPR:  gen_expr(node->u.expr); break;
@@ -1179,6 +1185,7 @@ void gen(Node *node) {
   case ND_CONTINUE:  gen_continue(); break;
   case ND_GOTO:  gen_goto(node); break;
   case ND_LABEL:  gen_label(node); break;
+  case ND_TOPLEVEL:  gen_toplevel(node); break;
 
   default:
     error("Unhandled node: %d", node->type);

@@ -30,6 +30,7 @@ enum NodeType {
   ND_DEFAULT,
   ND_GOTO,
   ND_LABEL,
+  ND_TOPLEVEL,
 };
 
 typedef struct Node {
@@ -80,7 +81,10 @@ typedef struct Node {
     struct {
       struct Expr *val;
     } return_;
+    struct {
+      Vector *nodes;
+    } toplevel;
   } u;
 } Node;
 
-Vector *parse_program(void);
+Node *parse_program(void);

@@ -1076,12 +1076,15 @@ static Node *toplevel(void) {
   return NULL;
 }
 
-Vector *parse_program(void) {
-  Vector *node_vector = new_vector();
+Node *parse_program(void) {
+  Vector *nodes = new_vector();
   while (!consume(TK_EOF)) {
     Node *node = toplevel();
     if (node != NULL)
-      vec_push(node_vector, node);
+      vec_push(nodes, node);
   }
-  return node_vector;
+
+  Node *node = new_node(ND_TOPLEVEL);
+  node->u.toplevel.nodes = nodes;
+  return node;
 }

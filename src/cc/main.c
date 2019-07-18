@@ -69,10 +69,8 @@ static void init_compiler(uintptr_t adr) {
 
 static void compile(FILE *fp, const char *filename) {
   init_lexer(fp, filename);
-  Vector *node_vector = parse_program();
-
-  for (int i = 0, len = node_vector->len; i < len; ++i)
-    gen(node_vector->data[i]);
+  Node *node = parse_program();
+  gen(node);
 }
 
 // Pass preprocessor's output to this compiler
