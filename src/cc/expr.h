@@ -5,6 +5,7 @@
 #include <stdio.h>  // FILE
 #include <sys/types.h>  // ssize_t
 
+typedef struct Expr Expr;
 typedef struct Map Map;
 typedef struct Scope Scope;
 typedef struct Token Token;
@@ -22,14 +23,18 @@ typedef union {
 // Initializer
 
 typedef struct Initializer {
-  enum { vSingle, vMulti, vDot } type;  // vSingle: 123, vMulti: {...}, vDot: .x=123
+  enum { vSingle, vMulti, vDot, vArr } type;  // vSingle: 123, vMulti: {...}, vDot: .x=123, vArr: [n]=123
   union {
-    struct Expr *single;
+    Expr *single;
     Vector *multi;  // <Initializer*>
     struct {
       const char *name;
       struct Initializer *value;
     } dot;
+    struct {
+      Expr *index;
+      struct Initializer *value;
+    } arr;
   } u;
 } Initializer;
 

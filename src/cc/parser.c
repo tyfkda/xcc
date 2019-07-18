@@ -161,6 +161,16 @@ static Initializer *parse_initializer(void) {
           init->type = vDot;
           init->u.dot.name = ident->u.ident;
           init->u.dot.value = value;
+        } else if (consume(TK_LBRACKET)) {
+          Expr *index = parse_const();
+          if (!consume(TK_RBRACKET))
+            parse_error(NULL, "`]' expected");
+          consume(TK_ASSIGN);  // both accepted: `[1] = 2`, and `[1] 2`
+          Initializer *value = parse_initializer();
+          init = malloc(sizeof(*init));
+          init->type = vArr;
+          init->u.arr.index = index;
+          init->u.arr.value = value;
         } else {
           init = parse_initializer();
         }

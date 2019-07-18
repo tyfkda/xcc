@@ -38,11 +38,8 @@ static VarInfo *add_cur_scope(const Token *ident, const Type *type, int flag) {
 }
 
 static void fix_array_size(Type *type, Initializer *init) {
-  if (init == NULL)
-    return;
-
-  if (type->type != TY_ARRAY)
-    return;
+  assert(init != NULL);
+  assert(type->type == TY_ARRAY);
 
   bool is_str = false;
   if (init->type != vMulti &&
@@ -55,7 +52,24 @@ static void fix_array_size(Type *type, Initializer *init) {
 
   size_t arr_len = type->u.pa.length;
   if (arr_len == (size_t)-1) {
-    type->u.pa.length = is_str ? init->u.single->u.str.size : (size_t)init->u.multi->len;
+    if (is_str) {
+      type->u.pa.length = init->u.single->u.str.size;
+    } else {
+      size_t index = 0;
+      size_t max_index = 0;
+      size_t i, len = init->u.multi->len;
+      for (i = 0; i < len; ++i) {
+        Initializer *init_elem = init->u.multi->data[i];
+        if (init_elem->type == vArr) {
+          assert(init_elem->u.arr.index->type == EX_NUM);
+          index = init_elem->u.arr.index->u.num.ival;
+        }
+        ++index;
+        if (max_index < index)
+          max_index = index;
+      }
+      type->u.pa.length = max_index;
+    }
   } else {
     assert(!is_str || init->u.single->type == EX_STR);
     size_t init_len = is_str ? init->u.single->u.str.size : (size_t)init->u.multi->len;
@@ -92,6 +106,9 @@ static Initializer *analyze_initializer(Initializer *init) {
     break;
   case vDot:
     init->u.dot.value = analyze_initializer(init->u.dot.value);
+    break;
+  case vArr:
+    init->u.arr.value = analyze_initializer(init->u.arr.value);
     break;
   }
   return init;
@@ -189,76 +206,113 @@ static void string_initializer(Expr *dst, Expr *src, Vector *inits) {
 }
 
 Initializer *flatten_initializer(const Type *type, Initializer *init) {
-  assert(type->type == TY_STRUCT);
-  assert(init->type == vMulti);
-
-  ensure_struct((Type*)type, NULL);
-  const StructInfo *sinfo = type->u.struct_.info;
-  int n = sinfo->members->len;
-  int m = init->u.multi->len;
-  if (n <= 0) {
-    if (m > 0)
-      parse_error(NULL, "Initializer for empty struct");
+  if (init == NULL)
     return NULL;
-  }
-  if (sinfo->is_union && m > 1)
-    error("Initializer for union more than 1");
 
-  Initializer **values = malloc(sizeof(Initializer*) * n);
-  for (int i = 0; i < n; ++i)
-    values[i] = NULL;
+  switch (type->type) {
+  case TY_STRUCT:
+    {
+      if (init->type != vMulti)
+        parse_error(NULL, "`{...}' expected for initializer");
 
-  int index = 0;
-  for (int i = 0; i < m; ++i) {
-    Initializer *value = init->u.multi->data[i];
-    if (value->type == vDot) {
-      index = var_find(sinfo->members, value->u.dot.name);
-      if (index < 0)
-        parse_error(NULL, "`%s' is not member of struct", value->u.dot.name);
-      value = value->u.dot.value;
-    }
-    if (index >= n)
-      parse_error(NULL, "Too many init values");
-
-    // Allocate string literal for char* as a char array.
-    if (value->type == vSingle && value->u.single->type == EX_STR) {
-      const VarInfo *member = sinfo->members->data[index];
-      if (member->type->type == TY_PTR &&
-          is_char_type(member->type->u.pa.ptrof)) {
-        Expr *expr = value->u.single;
-        Initializer *strinit = malloc(sizeof(*strinit));
-        strinit->type = vSingle;
-        strinit->u.single = expr;
-
-        // Create string and point to it.
-        Type* strtype = arrayof(&tyChar, expr->u.str.size);
-        const char * label = alloc_label();
-        const Token *ident = alloc_ident(label, NULL, NULL);
-        VarInfo *varinfo = define_global(strtype, VF_CONST | VF_STATIC, ident, NULL);
-        varinfo->u.g.init = strinit;
-
-        // Replace initializer from string literal to string array defined in global.
-        value->u.single = new_expr_varref(label, strtype, true, ident);
+      ensure_struct((Type*)type, NULL);
+      const StructInfo *sinfo = type->u.struct_.info;
+      int n = sinfo->members->len;
+      int m = init->u.multi->len;
+      if (n <= 0) {
+        if (m > 0)
+          parse_error(NULL, "Initializer for empty struct");
+        return NULL;
       }
+      if (sinfo->is_union && m > 1)
+        parse_error(NULL, "Initializer for union more than 1");
+
+      Initializer **values = malloc(sizeof(Initializer*) * n);
+      for (int i = 0; i < n; ++i)
+        values[i] = NULL;
+
+      int index = 0;
+      for (int i = 0; i < m; ++i) {
+        Initializer *value = init->u.multi->data[i];
+        if (value->type == vArr)
+          parse_error(NULL, "indexed initializer for array");
+
+        if (value->type == vDot) {
+          index = var_find(sinfo->members, value->u.dot.name);
+          if (index < 0)
+            parse_error(NULL, "`%s' is not member of struct", value->u.dot.name);
+          value = value->u.dot.value;
+        }
+        if (index >= n)
+          parse_error(NULL, "Too many init values");
+
+        // Allocate string literal for char* as a char array.
+        if (value->type == vSingle && value->u.single->type == EX_STR) {
+          const VarInfo *member = sinfo->members->data[index];
+          if (member->type->type == TY_PTR &&
+              is_char_type(member->type->u.pa.ptrof)) {
+            Expr *expr = value->u.single;
+            Initializer *strinit = malloc(sizeof(*strinit));
+            strinit->type = vSingle;
+            strinit->u.single = expr;
+
+            // Create string and point to it.
+            Type* strtype = arrayof(&tyChar, expr->u.str.size);
+            const char * label = alloc_label();
+            const Token *ident = alloc_ident(label, NULL, NULL);
+            VarInfo *varinfo = define_global(strtype, VF_CONST | VF_STATIC, ident, NULL);
+            varinfo->u.g.init = strinit;
+
+            // Replace initializer from string literal to string array defined in global.
+            value->u.single = new_expr_varref(label, strtype, true, ident);
+          }
+        }
+
+        values[index++] = value;
+      }
+
+      Initializer *flat = malloc(sizeof(*flat));
+      flat->type = vMulti;
+      //flat->u.multi = new_vector();
+      Vector *v = malloc(sizeof(*v));
+      v->len = v->capacity = n;
+      v->data = (void**)values;
+      flat->u.multi = v;
+
+      return flat;
     }
-
-    values[index++] = value;
+  case TY_ARRAY:
+    switch (init->type) {
+    case vMulti:
+      if (init->type != vMulti)
+        parse_error(NULL, "`{...}' expected for initializer");
+      // Check whether vDot exists.
+      for (int i = 0, len = init->u.multi->len; i < len; ++i) {
+        Initializer *init_elem = init->u.multi->data[i];
+        if (init_elem->type == vDot)
+          parse_error(NULL, "dot initializer for array");
+      }
+      break;
+    case vSingle:
+      // Special handling for string (char[]).
+      if (can_cast(type, init->u.single->valType, init->u.single, false))
+        break;
+      // Fallthrough
+    default:
+      parse_error(NULL, "Illegal initializer");
+      break;
+    }
+  default:
+    break;
   }
-
-  Initializer *flat = malloc(sizeof(*flat));
-  flat->type = vMulti;
-  //flat->u.multi = new_vector();
-  Vector *v = malloc(sizeof(*v));
-  v->len = v->capacity = n;
-  v->data = (void**)values;
-  flat->u.multi = v;
-
-  return flat;
+  return init;
 }
 
 static Initializer *check_global_initializer(const Type *type, Initializer *init) {
   if (init == NULL)
     return NULL;
+
+  init = flatten_initializer(type, init);
 
   switch (type->type) {
   case TY_NUM:
@@ -371,7 +425,6 @@ static Initializer *check_global_initializer(const Type *type, Initializer *init
     break;
   case TY_STRUCT:
     {
-      init = flatten_initializer(type, init);
       const StructInfo *sinfo = type->u.struct_.info;
       for (int i = 0, n = sinfo->members->len; i < n; ++i) {
         VarInfo* varinfo = sinfo->members->data[i];
@@ -392,36 +445,48 @@ static Vector *assign_initial_value(Expr *expr, Initializer *init, Vector *inits
   if (inits == NULL)
     inits = new_vector();
 
+  Initializer *org_init = init;
+  init = flatten_initializer(expr->valType, init);
+
   switch (expr->valType->type) {
   case TY_ARRAY:
-    {
+    switch (init->type) {
+    case vMulti:
+      {
+        size_t arr_len = expr->valType->u.pa.length;
+        assert(arr_len != (size_t)-1);
+        if ((size_t)init->u.multi->len > arr_len)
+          parse_error(NULL, "Initializer more than array size");
+        size_t len = init->u.multi->len;
+        size_t index = 0;
+        for (size_t i = 0; i < len; ++i, ++index) {
+          Initializer *init_elem = init->u.multi->data[i];
+          if (init_elem->type == vArr) {
+            Expr *ind = init_elem->u.arr.index;
+            if (ind->type != EX_NUM)
+              parse_error(NULL, "Number required");
+            index = ind->u.num.ival;
+            init_elem = init_elem->u.arr.value;
+          }
+
+          Num n = {.ival=index};
+          Expr *add = add_expr(NULL, expr, new_expr_numlit(&tyInt, NULL, &n), true);
+
+          assign_initial_value(new_expr_deref(NULL, add), init_elem, inits);
+        }
+      }
+      break;
+    case vSingle:
       // Special handling for string (char[]).
-      if (is_char_type(expr->valType->u.pa.ptrof) &&
-          init->type == vSingle &&
-          can_cast(expr->valType, init->u.single->valType, init->u.single, false)) {
+      if (can_cast(expr->valType, init->u.single->valType, init->u.single, false)) {
         string_initializer(expr, init->u.single, inits);
         break;
       }
+      // Fallthrough
+    default:
+      parse_error(NULL, "Error initializer");
+      break;
 
-      if (init->type != vMulti)
-        parse_error(NULL, "Error initializer");
-      size_t arr_len = expr->valType->u.pa.length;
-      assert(arr_len != (size_t)-1);
-      if ((size_t)init->u.multi->len > arr_len)
-        parse_error(NULL, "Initializer more than array size");
-      int len = init->u.multi->len;
-      for (int i = 0; i < len; ++i) {
-        Num n = {.ival=i};
-        Expr *add = add_expr(NULL, expr, new_expr_numlit(&tyInt, NULL, &n), true);
-        assign_initial_value(new_expr_deref(NULL, add),
-                             init->u.multi->data[i], inits);
-      }
-      // Clear left.
-      for (size_t i = len; i < arr_len; ++i) {
-        Num n = {.ival=i};
-        Expr *add = add_expr(NULL, expr, new_expr_numlit(&tyInt, NULL, &n), true);
-        clear_initial_value(new_expr_deref(NULL, add), inits);
-      }
     }
     break;
   case TY_STRUCT:
@@ -431,11 +496,10 @@ static Vector *assign_initial_value(Expr *expr, Initializer *init, Vector *inits
 
       const StructInfo *sinfo = expr->valType->u.struct_.info;
       if (!sinfo->is_union) {
-        Initializer *flat = flatten_initializer(expr->valType, init);
         for (int i = 0, n = sinfo->members->len; i < n; ++i) {
           VarInfo* varinfo = sinfo->members->data[i];
           Expr *member = new_expr_member(NULL, varinfo->type, expr, NULL, NULL, i);
-          Initializer *init_elem = flat->u.multi->data[i];
+          Initializer *init_elem = init->u.multi->data[i];
           if (init_elem != NULL)
             assign_initial_value(member, init_elem, inits);
           else
@@ -446,18 +510,18 @@ static Vector *assign_initial_value(Expr *expr, Initializer *init, Vector *inits
         int m = init->u.multi->len;
         if (n <= 0 && m > 0)
           parse_error(NULL, "Initializer for empty union");
+        if (org_init->u.multi->len > 1)
+          parse_error(NULL, "More than one initializer for union");
 
-        int index = 0;
-        Initializer *value = init->u.multi->data[0];
-        if (value->type == vDot) {
-          index = var_find(sinfo->members, value->u.dot.name);
-          if (index < 0)
-            parse_error(NULL, "`%s' is not member of struct", value->u.dot.name);
-          value = value->u.dot.value;
+        for (int i = 0; i < n; ++i) {
+          Initializer *init_elem = init->u.multi->data[i];
+          if (init_elem == NULL)
+            continue;
+          VarInfo* varinfo = sinfo->members->data[i];
+          Expr *member = new_expr_member(NULL, varinfo->type, expr, NULL, NULL, i);
+          assign_initial_value(member, init_elem, inits);
+          break;
         }
-        VarInfo* varinfo = sinfo->members->data[index];
-        Expr *member = new_expr_member(NULL, varinfo->type, expr, NULL, NULL, index);
-        assign_initial_value(member, value, inits);
       }
     }
     break;
@@ -483,7 +547,9 @@ static Node *sema_vardecl(Node *node) {
     const Token *ident = decl->ident;
     int flag = decl->flag;
     Initializer *init = decl->init;
-    fix_array_size((Type*)type, init);
+
+    if (type->type == TY_ARRAY && init != NULL)
+      fix_array_size((Type*)type, init);
 
     if (curfunc != NULL) {
       VarInfo *varinfo = add_cur_scope(ident, type, flag);
@@ -492,14 +558,11 @@ static Node *sema_vardecl(Node *node) {
       // TODO: Check `init` can be cast to `type`.
       if (flag & VF_STATIC) {
         varinfo->u.g.init = check_global_initializer(type, init);
-        continue;  // static variable initializer is handled in codegen, same as global variable.
+        // static variable initializer is handled in codegen, same as global variable.
+      } else if (init != NULL) {
+        inits = assign_initial_value(
+            new_expr_varref(ident->u.ident, type, false, NULL), init, inits);
       }
-
-      if (init == NULL)
-        continue;
-
-      inits = assign_initial_value(
-          new_expr_varref(ident->u.ident, type, false, NULL), init, inits);
     } else {
       if (flag & VF_EXTERN && init != NULL)
         parse_error(/*tok*/ NULL, "extern with initializer");

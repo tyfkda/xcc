@@ -405,17 +405,19 @@ void construct_initial_value(unsigned char *buf, const Type *type, Initializer *
       const Type *elem_type = type->u.pa.ptrof;
       size_t elem_size = type_size(elem_type);
       size_t elem_count = type->u.pa.length;
-      int len = 0;
       if (init != NULL) {
         Vector *init_array = init->u.multi;
-        len = init_array->len;
-        for (int i = 0; i < len; ++i) {
-          construct_initial_value(buf + (i * elem_size), elem_type, init_array->data[i], pptrinits);
+        size_t index = 0;
+        size_t len = init_array->len;
+        for (size_t i = 0; i < len; ++i, ++index) {
+          Initializer *init_elem = init_array->data[i];
+          if (init_elem->type == vArr) {
+            index = init_elem->u.arr.index->u.num.ival;
+            init_elem = init_elem->u.arr.value;
+          }
+          construct_initial_value(buf + (index * elem_size), elem_type, init_elem, pptrinits);
         }
         assert((size_t)len <= elem_count);
-      }
-      for (size_t i = len; i < elem_count; ++i) {
-        construct_initial_value(buf + (i * elem_size), elem_type, NULL, pptrinits);
       }
     } else {
       if (init->type == vSingle &&

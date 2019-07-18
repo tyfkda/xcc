@@ -590,6 +590,21 @@ int main(void) {
   }
   expect("file static", 456, s_val);
   expect("extern", 789, e_val);
+  {
+    int desig[] = {[2] = 100, [1] 200};
+    //expect("desig[0]",   0, desig[0]);
+    expect("desig[1]", 200, desig[1]);
+    expect("desig[2]", 100, desig[2]);
+    expect("sizeof(desig)", 3, sizeof(desig) / sizeof(*desig));
+  }
+  {
+    static int desig[] = {[2] = 1000, 2000};
+    expect("static desig[0]",    0, desig[0]);
+    expect("static desig[1]",    0, desig[1]);
+    expect("static desig[2]", 1000, desig[2]);
+    expect("static desig[3]", 2000, desig[3]);
+    expect("sizeof(static desig)", 4, sizeof(desig) / sizeof(*desig));
+  }
   expect("?:", 2, 1 ? 2 : 3);
   expect("comma", 3333, (11, 222, 3333));
   expect("vaargs 1", 1, vaargs(1, (int)1, (char)20, 300L));
