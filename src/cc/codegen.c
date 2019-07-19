@@ -890,6 +890,21 @@ static void out_asm(Node *node) {
   }
 }
 
+static void gen_nodes(Vector *nodes) {
+  if (nodes == NULL)
+    return;
+
+  for (int i = 0, len = nodes->len; i < len; ++i) {
+    Node *node = nodes->data[i];
+    if (node == NULL)
+      continue;
+    if (is_asm(node))
+      out_asm(node);
+    else
+      gen(node);
+  }
+}
+
 static void gen_defun(Node *node) {
   assert(stackpos == 0);
   Defun *defun = node->u.defun;
@@ -944,15 +959,7 @@ static void gen_defun(Node *node) {
   }
 
   // Statements
-  if (defun->stmts != NULL) {
-    for (int i = 0; i < defun->stmts->len; ++i) {
-      Node *node = defun->stmts->data[i];
-      if (is_asm(node))
-        out_asm(node);
-      else
-        gen(node);
-    }
-  }
+  gen_nodes(defun->stmts);
 
   // Epilogue
   if (!no_stmt) {
@@ -974,8 +981,7 @@ static void gen_block(Node *node) {
       assert(curscope == node->u.block.scope->parent);
       curscope = node->u.block.scope;
     }
-    for (int i = 0, len = node->u.block.nodes->len; i < len; ++i)
-      gen((Node*)node->u.block.nodes->data[i]);
+    gen_nodes(node->u.block.nodes);
     if (node->u.block.scope != NULL)
       curscope = curscope->parent;
   }
@@ -1163,9 +1169,7 @@ static void gen_label(Node *node) {
 }
 
 static void gen_toplevel(Node *node) {
-  Vector *nodes = node->u.toplevel.nodes;
-  for (int i = 0, len = nodes->len; i < len; ++i)
-    gen(nodes->data[i]);
+  gen_nodes(node->u.toplevel.nodes);
 }
 
 void gen(Node *node) {
