@@ -5,9 +5,10 @@ CPP_DIR:=src/cpp
 UTIL_DIR:=src/util
 OBJ_DIR:=obj
 
+OPTIMIZE:=-O0 -g3
 CFLAGS:=-ansi -std=c11 -MD -Wall -Wextra -Werror -Wold-style-definition \
 	-Wno-missing-field-initializers -Wno-typedef-redefinition -Wno-empty-body
-CFLAGS+=-I$(SRC_DIR) -I$(UTIL_DIR)
+CFLAGS+=-I$(SRC_DIR) -I$(UTIL_DIR) $(OPTIMIZE)
 
 CC_SRCS:=$(SRC_DIR)/lexer.c $(SRC_DIR)/type.c $(SRC_DIR)/var.c $(SRC_DIR)/expr.c $(SRC_DIR)/analyze.c $(SRC_DIR)/parser.c \
 	$(SRC_DIR)/codegen.c $(SRC_DIR)/codegen_expr.c $(SRC_DIR)/main.c \
@@ -19,6 +20,9 @@ CC_OBJS:=$(addprefix $(OBJ_DIR)/,$(notdir $(CC_SRCS:.c=.o)))
 CPP_OBJS:=$(addprefix $(OBJ_DIR)/,$(notdir $(CPP_SRCS:.c=.o)))
 
 all:	xcc cpp
+
+release:
+	$(MAKE) OPTIMIZE=-O2
 
 xcc: $(CC_OBJS)
 	$(CC) -o $@ $(CC_OBJS) $(LDFLAGS)

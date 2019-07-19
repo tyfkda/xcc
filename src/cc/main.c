@@ -82,7 +82,8 @@ static int pipe_pp_xcc(char **pp_argv, char ** xcc_argv) {
   pid_t pid1 = fork1();
   if (pid1 == 0) {
     close(STDOUT_FILENO);
-    dup(fd[1]);
+    if (dup(fd[1]) == -1)
+      error("dup failed");
     close(fd[0]);
     close(fd[1]);
     if (execvp(pp_argv[0], pp_argv) < 0) {
@@ -93,7 +94,8 @@ static int pipe_pp_xcc(char **pp_argv, char ** xcc_argv) {
   pid_t pid2 = fork1();
   if (pid2 == 0) {
     close(STDIN_FILENO);
-    dup(fd[0]);
+    if (dup(fd[0]) == -1)
+      error("dup failed");
     close(fd[0]);
     close(fd[1]);
     if (execvp(xcc_argv[0], xcc_argv) < 0) {
