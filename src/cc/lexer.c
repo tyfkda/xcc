@@ -430,10 +430,12 @@ static Token *get_op_token(const char **pp) {
 }
 
 static Token *get_token(void) {
+  static Token kEofToken = {.type = TK_EOF};
+
   Token *tok = NULL;
   const char *p = lexer.p;
   if (p == NULL)
-    return alloc_token(TK_EOF, NULL, NULL);
+    return &kEofToken;
 
   for (;;) {
     p = skip_whitespace_or_comment(p);
