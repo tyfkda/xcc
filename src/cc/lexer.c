@@ -346,16 +346,36 @@ static Token *read_num(const char **pp) {
 
 char *read_ident(const char **pp) {
   const char *p = *pp;
-  if (isalpha(*p) || *p == '_') {
-    const char *q;
-    for (q = p + 1; ; ++q) {
-      if (!(isalnum(*q) || *q == '_'))
-        break;
-    }
-    *pp = q;
-    return strndup_(p, q - p);
+  if (!isalpha(*p) && *p != '_')
+    return NULL;
+
+  const char *q;
+  for (q = p + 1; ; ++q) {
+    if (!(isalnum(*q) || *q == '_'))
+      break;
   }
-  return NULL;
+  *pp = q;
+  return strndup_(p, q - p);
+}
+
+static Token *read_char(const char **pp) {
+  const char *p = *pp;
+  const char *begin = p++;
+  char c = *p;
+  if (c == '\\') {
+    c = *(++p);
+    if (c == '\0')
+      lex_error(p, "Character not closed");
+    c = backslash(c);
+  }
+  if (*(++p) != '\'')
+    lex_error(p, "Character not closed");
+
+  ++p;
+  Token *tok = alloc_token(TK_CHARLIT, begin, p);
+  tok->u.value = c;
+  *pp = p;
+  return tok;
 }
 
 static Token *read_string(const char **pp) {
@@ -433,61 +453,34 @@ static Token *get_op_token(const char **pp) {
 static Token *get_token(void) {
   static Token kEofToken = {.type = TK_EOF};
 
-  Token *tok = NULL;
   const char *p = lexer.p;
   if (p == NULL)
     return &kEofToken;
 
-  for (;;) {
-    p = skip_whitespace_or_comment(p);
-    if (p == NULL)
-      return alloc_token(TK_EOF, NULL, NULL);
+  p = skip_whitespace_or_comment(p);
+  if (p == NULL)
+    return &kEofToken;
 
-    tok = get_op_token(&p);
-    if (tok != NULL)
-      break;
-
-    if (isdigit(*p)) {
-      tok = read_num(&p);
-      break;
+  Token *tok = NULL;
+  const char *begin = p;
+  char *ident = read_ident(&p);
+  if (ident != NULL) {
+    enum TokenType word = reserved_word(ident);
+    if ((int)word != -1) {
+      free(ident);
+      tok = alloc_token(word, begin, p);
+    } else {
+      tok = alloc_ident(ident, begin, p);
     }
-
-    const char *begin = p;
-    char *ident = read_ident(&p);
-    if (ident != NULL) {
-      enum TokenType word = reserved_word(ident);
-      if ((int)word != -1) {
-        free(ident);
-        tok = alloc_token(word, begin, p);
-      } else {
-        tok = alloc_ident(ident, begin, p);
-      }
-      break;
-    }
-
-    if (*p == '\'') {
-      const char *begin = p++;
-      char c = *p;
-      if (c == '\\') {
-        c = *(++p);
-        if (c == '\0')
-          lex_error(p, "Character not closed");
-        c = backslash(c);
-      }
-      if (*(++p) != '\'')
-        lex_error(p, "Character not closed");
-
-      ++p;
-      tok = alloc_token(TK_CHARLIT, begin, p);
-      tok->u.value = c;
-      break;
-    }
-
-    if (*p == '"') {
-      tok = read_string(&p);
-      break;
-    }
-
+  } else if ((tok = get_op_token(&p)) != NULL) {
+    // Ok.
+  } else if (isdigit(*p)) {
+    tok = read_num(&p);
+  } else if (*p == '\'') {
+    tok = read_char(&p);
+  } else if (*p == '"') {
+    tok = read_string(&p);
+  } else {
     lex_error(p, "Unexpected character `%c'(%d)", *p, *p);
     return NULL;
   }
