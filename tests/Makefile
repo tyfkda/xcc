@@ -10,7 +10,9 @@ CPP:=../$(EXEDIR)/cpp
 
 .PHONY: test-util test-cpp test-val test-sh
 
-all:	unit-tests cpp-tests cc-tests
+all:	test
+
+test:	unit-tests cpp-tests cc-tests
 	@echo 'All tests PASS!'
 
 unit-tests:	test-util
