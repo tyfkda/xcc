@@ -18,40 +18,6 @@ static Expr *unary(void);
 
 Map *typedef_map;
 
-// Call before accessing struct member to ensure that struct is declared.
-void ensure_struct(Type *type, const Token *token) {
-  assert(type->type == TY_STRUCT);
-  if (type->u.struct_.info == NULL) {
-    // TODO: Search from name.
-    StructInfo *sinfo = (StructInfo*)map_get(struct_map, type->u.struct_.name);
-    if (sinfo == NULL)
-      parse_error(token, "Accessing unknown struct(%s)'s member", type->u.struct_.name);
-    type->u.struct_.info = sinfo;
-  }
-}
-
-// Scope
-
-Scope *curscope;
-
-Scope *enter_scope(Defun *defun, Vector *vars) {
-  Scope *scope = new_scope(curscope, vars);
-  curscope = scope;
-  vec_push(defun->all_scopes, scope);
-  return scope;
-}
-
-void exit_scope(void) {
-  assert(curscope != NULL);
-  curscope = curscope->parent;
-}
-
-VarInfo *add_cur_scope(const Token *ident, const Type *type, int flag) {
-  if (curscope->vars == NULL)
-    curscope->vars = new_vector();
-  return var_add(curscope->vars, ident, type, flag);
-}
-
 //
 
 Expr *new_expr(enum ExprType type, const Type *valType, const Token *token) {
@@ -60,89 +26,6 @@ Expr *new_expr(enum ExprType type, const Type *valType, const Token *token) {
   expr->valType = valType;
   expr->token = token;
   return expr;
-}
-
-bool can_cast(const Type *dst, const Type *src, Expr *src_expr, bool is_explicit) {
-  if (same_type(dst, src))
-    return true;
-
-  if (dst->type == TY_VOID)
-    return src->type == TY_VOID || is_explicit;
-  if (src->type == TY_VOID)
-    return false;
-
-  switch (dst->type) {
-  case TY_NUM:
-    switch (src->type) {
-    case TY_NUM:
-      return true;
-    case TY_PTR:
-    case TY_ARRAY:
-    case TY_FUNC:
-      if (is_explicit) {
-        // TODO: Check sizeof(long) is same as sizeof(ptr)
-        return true;
-      }
-      break;
-    default:
-      break;
-    }
-    break;
-  case TY_PTR:
-    switch (src->type) {
-    case TY_NUM:
-      if (src_expr->type == EX_NUM && src_expr->u.num.ival == 0)  // Special handling for 0 to pointer.
-        return true;
-      if (is_explicit)
-        return true;
-      break;
-    case TY_PTR:
-      if (is_explicit)
-        return true;
-      // void* is interchangable with any pointer type.
-      if (dst->u.pa.ptrof->type == TY_VOID || src->u.pa.ptrof->type == TY_VOID)
-        return true;
-      break;
-    case TY_ARRAY:
-      if (is_explicit)
-        return true;
-      if (same_type(dst->u.pa.ptrof, src->u.pa.ptrof) ||
-          can_cast(dst, ptrof(src->u.pa.ptrof), src_expr, is_explicit))
-        return true;
-      break;
-    case TY_FUNC:
-      if (is_explicit)
-        return true;
-      if (dst->u.pa.ptrof->type == TY_FUNC && same_type(dst->u.pa.ptrof, src))
-        return true;
-      break;
-    default:  break;
-    }
-    break;
-  case TY_ARRAY:
-    switch (src->type) {
-    case TY_PTR:
-      if (is_explicit && same_type(dst->u.pa.ptrof, src->u.pa.ptrof))
-        return true;
-      // Fallthrough
-    case TY_ARRAY:
-      if (is_explicit)
-        return true;
-      break;
-    default:  break;
-    }
-    break;
-  default:
-    break;
-  }
-  return false;
-}
-
-bool check_cast(const Type *dst, const Type *src, Expr *src_expr, bool is_explicit) {
-  if (can_cast(dst, src, src_expr, is_explicit))
-    return true;
-  parse_error(NULL, "Cannot convert value from type %d to %d", src->type, dst->type);
-  return false;
 }
 
 bool is_const(Expr *expr) {
@@ -205,20 +88,6 @@ Expr *new_expr_deref(const Token *token, Expr *sub) {
   if (sub->valType->type != TY_PTR && sub->valType->type != TY_ARRAY)
     parse_error(token, "Cannot dereference raw type");
   return new_expr_unary(EX_DEREF, sub->valType->u.pa.ptrof, token, sub);
-}
-
-Expr *new_expr_cast(const Type *type, const Token *token, Expr *sub, bool is_explicit) {
-  if (type->type == TY_VOID || sub->valType->type == TY_VOID)
-    parse_error(NULL, "cannot use `void' as a value");
-
-  if (same_type(type, sub->valType))
-    return sub;
-
-  check_cast(type, sub->valType, sub, is_explicit);
-
-  Expr *expr = new_expr(EX_CAST, type, token);
-  expr->u.cast.sub = sub;
-  return expr;
 }
 
 static Expr *new_expr_ternary(const Token *token, Expr *cond, Expr *tval, Expr *fval, const Type *type) {

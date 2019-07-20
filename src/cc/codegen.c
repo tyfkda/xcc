@@ -13,6 +13,7 @@
 
 #include "expr.h"
 #include "parser.h"
+#include "sema.h"
 #include "type.h"
 #include "util.h"
 #include "var.h"
@@ -439,8 +440,6 @@ void construct_initial_value(unsigned char *buf, const Type *type, Initializer *
         values = flatten_initializer(type, init);
       }
 
-      ensure_struct((Type*)type, NULL);
-
       const StructInfo *sinfo = type->u.struct_.info;
       int count = 0;
       for (int i = 0, n = sinfo->members->len; i < n; ++i) {
@@ -654,9 +653,6 @@ void get_section_size(int section, size_t *pfilesz, size_t *pmemsz, uintptr_t *p
 
 //
 
-#ifndef __XCC
-static Defun *curfunc;
-#endif
 static const char *s_break_label;
 static const char *s_continue_label;
 int stackpos;
@@ -908,6 +904,8 @@ static void gen_nodes(Vector *nodes) {
 static void gen_defun(Node *node) {
   assert(stackpos == 0);
   Defun *defun = node->u.defun;
+  if (defun->top_scope == NULL)  // Prototype definition
+    return;
 
   bool global = true;
   VarInfo *varinfo = find_global(defun->name);
@@ -934,6 +932,8 @@ static void gen_defun(Node *node) {
   if (defun->stmts != NULL) {
     for (int i = 0; i < defun->stmts->len; ++i) {
       Node *node = defun->stmts->data[i];
+      if (node == NULL)
+        continue;
       if (!is_asm(node)) {
         no_stmt = false;
         break;
@@ -1168,11 +1168,18 @@ static void gen_label(Node *node) {
   gen(node->u.label.stmt);
 }
 
+static void gen_vardecl(Node *node) {
+  gen_nodes(node->u.vardecl.inits);
+}
+
 static void gen_toplevel(Node *node) {
   gen_nodes(node->u.toplevel.nodes);
 }
 
 void gen(Node *node) {
+  if (node == NULL)
+    return;
+
   switch (node->type) {
   case ND_EXPR:  gen_expr(node->u.expr); break;
   case ND_DEFUN:  gen_defun(node); break;
@@ -1189,6 +1196,7 @@ void gen(Node *node) {
   case ND_CONTINUE:  gen_continue(); break;
   case ND_GOTO:  gen_goto(node); break;
   case ND_LABEL:  gen_label(node); break;
+  case ND_VARDECL:  gen_vardecl(node); break;
   case ND_TOPLEVEL:  gen_toplevel(node); break;
 
   default:

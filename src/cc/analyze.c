@@ -10,6 +10,117 @@
 
 static const Type *tyNumTable[] = { &tyChar, &tyShort, &tyInt, &tyLong, &tyEnum };
 
+Scope *curscope;
+
+// Call before accessing struct member to ensure that struct is declared.
+void ensure_struct(Type *type, const Token *token) {
+  assert(type->type == TY_STRUCT);
+  if (type->u.struct_.info == NULL) {
+    // TODO: Search from name.
+    StructInfo *sinfo = (StructInfo*)map_get(struct_map, type->u.struct_.name);
+    if (sinfo == NULL)
+      parse_error(token, "Accessing unknown struct(%s)'s member", type->u.struct_.name);
+    type->u.struct_.info = sinfo;
+  }
+}
+
+bool can_cast(const Type *dst, const Type *src, Expr *src_expr, bool is_explicit) {
+  if (same_type(dst, src))
+    return true;
+
+  if (dst->type == TY_VOID)
+    return src->type == TY_VOID || is_explicit;
+  if (src->type == TY_VOID)
+    return false;
+
+  switch (dst->type) {
+  case TY_NUM:
+    switch (src->type) {
+    case TY_NUM:
+      return true;
+    case TY_PTR:
+    case TY_ARRAY:
+    case TY_FUNC:
+      if (is_explicit) {
+        // TODO: Check sizeof(long) is same as sizeof(ptr)
+        return true;
+      }
+      break;
+    default:
+      break;
+    }
+    break;
+  case TY_PTR:
+    switch (src->type) {
+    case TY_NUM:
+      if (src_expr->type == EX_NUM && src_expr->u.num.ival == 0)  // Special handling for 0 to pointer.
+        return true;
+      if (is_explicit)
+        return true;
+      break;
+    case TY_PTR:
+      if (is_explicit)
+        return true;
+      // void* is interchangable with any pointer type.
+      if (dst->u.pa.ptrof->type == TY_VOID || src->u.pa.ptrof->type == TY_VOID)
+        return true;
+      break;
+    case TY_ARRAY:
+      if (is_explicit)
+        return true;
+      if (same_type(dst->u.pa.ptrof, src->u.pa.ptrof) ||
+          can_cast(dst, ptrof(src->u.pa.ptrof), src_expr, is_explicit))
+        return true;
+      break;
+    case TY_FUNC:
+      if (is_explicit)
+        return true;
+      if (dst->u.pa.ptrof->type == TY_FUNC && same_type(dst->u.pa.ptrof, src))
+        return true;
+      break;
+    default:  break;
+    }
+    break;
+  case TY_ARRAY:
+    switch (src->type) {
+    case TY_PTR:
+      if (is_explicit && same_type(dst->u.pa.ptrof, src->u.pa.ptrof))
+        return true;
+      // Fallthrough
+    case TY_ARRAY:
+      if (is_explicit)
+        return true;
+      break;
+    default:  break;
+    }
+    break;
+  default:
+    break;
+  }
+  return false;
+}
+
+bool check_cast(const Type *dst, const Type *src, Expr *src_expr, bool is_explicit) {
+  if (can_cast(dst, src, src_expr, is_explicit))
+    return true;
+  parse_error(NULL, "Cannot convert value from type %d to %d", src->type, dst->type);
+  return false;
+}
+
+Expr *new_expr_cast(const Type *type, const Token *token, Expr *sub, bool is_explicit) {
+  if (type->type == TY_VOID || sub->valType->type == TY_VOID)
+    parse_error(NULL, "cannot use `void' as a value");
+
+  if (same_type(type, sub->valType))
+    return sub;
+
+  check_cast(type, sub->valType, sub, is_explicit);
+
+  Expr *expr = new_expr(EX_CAST, type, token);
+  expr->u.cast.sub = sub;
+  return expr;
+}
+
 Expr *new_expr_sizeof(const Token *token, const Type *type, Expr *sub) {
   Expr *expr = new_expr(EX_SIZEOF, &tySize, token);
   expr->u.sizeof_.type = type;
@@ -213,6 +324,9 @@ static void analyze_cmp(Expr *expr) {
 
 // Traverse expr to check semantics and determine value type.
 Expr *analyze_expr(Expr *expr, bool keep_left) {
+  if (expr == NULL)
+    return NULL;
+
   switch (expr->type) {
   // Literals
   case EX_NUM:
@@ -232,6 +346,7 @@ Expr *analyze_expr(Expr *expr, bool keep_left) {
             // Replace local variable reference to global.
             name = varinfo->u.l.label;
             expr = new_expr_varref(name, varinfo->type, true, expr->token);
+            global = true;
           } else {
             type = varinfo->type;
           }

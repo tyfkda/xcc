@@ -19,10 +19,6 @@ typedef union {
   intptr_t ival;
 } Num;
 
-// Type
-
-void ensure_struct(Type *type, const Token *token);
-
 // Initializer
 
 typedef struct Initializer {
@@ -37,18 +33,20 @@ typedef struct Initializer {
   } u;
 } Initializer;
 
-Initializer **flatten_initializer(const Type *type, Initializer *init);
-
 extern Map *typedef_map;  // <char*, Type*>
 
 // Defun
 
 typedef struct Defun {
-  const Type *type;
+  const Type *rettype;
   const char *name;
   Vector *params;  // <VarInfo*>
+  Vector *stmts;  // NULL => Prototype definition.
+  int flag;
+  bool vaargs;
+
+  const Type *type;
   Scope *top_scope;
-  Vector *stmts;
   Vector *all_scopes;
   Map *labels;
   Vector *gotos;
@@ -56,10 +54,6 @@ typedef struct Defun {
   // For codegen.
   const char *ret_label;
 } Defun;
-
-Scope *enter_scope(Defun *defun, Vector *vars);
-void exit_scope(void);
-VarInfo *add_cur_scope(const Token *ident, const Type *type, int flag);
 
 extern Scope *curscope;
 
