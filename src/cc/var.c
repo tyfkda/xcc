@@ -77,14 +77,20 @@ Scope *new_scope(Scope *parent, Vector *vars) {
   return scope;
 }
 
-VarInfo *scope_find(Scope *scope, const char *name) {
+VarInfo *scope_find(Scope **pscope, const char *name) {
+  Scope *scope = *pscope;
+  VarInfo *varinfo = NULL;
   for (;; scope = scope->parent) {
     if (scope == NULL)
-      return NULL;
+      break;
     if (scope->vars != NULL) {
       int idx = var_find(scope->vars, name);
-      if (idx >= 0)
-        return (VarInfo*)scope->vars->data[idx];
+      if (idx >= 0) {
+        varinfo = (VarInfo*)scope->vars->data[idx];
+        break;
+      }
     }
   }
+  *pscope = scope;
+  return varinfo;
 }

@@ -279,7 +279,7 @@ Initializer *flatten_initializer(const Type *type, Initializer *init) {
             varinfo->u.g.init = strinit;
 
             // Replace initializer from string literal to string array defined in global.
-            value->u.single = new_expr_varref(label, strtype, true, ident);
+            value->u.single = new_expr_varref(label, strtype, ident);
           }
         }
 
@@ -345,7 +345,7 @@ static Initializer *check_global_initializer(const Type *type, Initializer *init
           value = value->u.unary.sub;
           if (value->type != EX_VARREF)
             parse_error(NULL, "pointer initializer must be varref");
-          if (!value->u.varref.global)
+          if (value->u.varref.scope != NULL)
             parse_error(NULL, "Allowed global reference only");
 
           VarInfo *info = find_global(value->u.varref.ident);
@@ -358,7 +358,7 @@ static Initializer *check_global_initializer(const Type *type, Initializer *init
         }
       case EX_VARREF:
         {
-          if (!value->u.varref.global)
+          if (value->u.varref.scope != NULL)
             parse_error(NULL, "Allowed global reference only");
 
           VarInfo *info = find_global(value->u.varref.ident);
@@ -398,7 +398,7 @@ static Initializer *check_global_initializer(const Type *type, Initializer *init
 
           Initializer *init2 = malloc(sizeof(*init2));
           init2->type = vSingle;
-          init2->u.single = new_expr_varref(label, type2, true, ident);
+          init2->u.single = new_expr_varref(label, type2, ident);
           return init2;
         }
       default:
@@ -572,8 +572,9 @@ static Node *sema_vardecl(Node *node) {
         varinfo->u.g.init = check_global_initializer(type, init);
         // static variable initializer is handled in codegen, same as global variable.
       } else if (init != NULL) {
-        inits = assign_initial_value(
-            new_expr_varref(ident->u.ident, type, false, NULL), init, inits);
+        Expr *varref = new_expr_varref(ident->u.ident, type, NULL);
+        varref->u.varref.scope = curscope;
+        inits = assign_initial_value(varref, init, inits);
       }
     } else {
       intptr_t eval;

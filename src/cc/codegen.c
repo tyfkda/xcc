@@ -248,7 +248,7 @@ void construct_initial_value(unsigned char *buf, const Type *type, Initializer *
         // TODO: Type check.
 
         assert(value->type == EX_VARREF);
-        assert(value->u.varref.global);
+        assert(value->u.varref.scope == NULL);
 
         void **init = malloc(sizeof(void*) * 2);
         init[0] = buf;
@@ -912,7 +912,8 @@ static void gen_vardecl(Node *node) {
       VarDecl *decl = decls->data[i];
       if (decl->init == NULL)
         continue;
-      VarInfo *varinfo = scope_find(curscope, decl->ident->u.ident);
+      Scope *scope = curscope;
+      VarInfo *varinfo = scope_find(&scope, decl->ident->u.ident);
       if (varinfo == NULL || (varinfo->flag & VF_STATIC) ||
           !(varinfo->type->type == TY_STRUCT ||
             varinfo->type->type == TY_ARRAY))

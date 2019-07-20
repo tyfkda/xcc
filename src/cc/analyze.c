@@ -365,15 +365,16 @@ Expr *analyze_expr(Expr *expr, bool keep_left) {
     {
       const char *name = expr->u.varref.ident;
       const Type *type = NULL;
-      bool global = false;
+      Scope *scope = NULL;
       if (curscope != NULL) {
-        VarInfo *varinfo = scope_find(curscope, name);
+        scope = curscope;
+        VarInfo *varinfo = scope_find(&scope, name);
         if (varinfo != NULL) {
           if (varinfo->flag & VF_STATIC) {
             // Replace local variable reference to global.
             name = varinfo->u.l.label;
-            expr = new_expr_varref(name, varinfo->type, true, expr->token);
-            global = true;
+            expr = new_expr_varref(name, varinfo->type, expr->token);
+            scope = NULL;
           } else {
             type = varinfo->type;
           }
@@ -382,7 +383,6 @@ Expr *analyze_expr(Expr *expr, bool keep_left) {
       if (type == NULL) {
         VarInfo *varinfo = find_global(name);
         if (varinfo != NULL) {
-          global = true;
           type = varinfo->type;
         }
       }
@@ -396,7 +396,7 @@ Expr *analyze_expr(Expr *expr, bool keep_left) {
       if (type == NULL)
         parse_error(expr->token, "Undefined `%s'", name);
       expr->valType = type;
-      expr->u.varref.global = global;
+      expr->u.varref.scope = scope;
     }
     break;
 

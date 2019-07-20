@@ -302,10 +302,11 @@ static void gen_ref(Expr *expr) {
 static void gen_lval(Expr *expr) {
   switch (expr->type) {
   case EX_VARREF:
-    if (expr->u.varref.global) {
+    if (expr->u.varref.scope == NULL) {
       LEA_LABEL32_RIP_RAX(expr->u.varref.ident);
     } else {
-      VarInfo *varinfo = scope_find(curscope, expr->u.varref.ident);
+      Scope *scope = expr->u.varref.scope;
+      VarInfo *varinfo = scope_find(&scope, expr->u.varref.ident);
       assert(varinfo != NULL);
       assert(!(varinfo->flag & VF_STATIC));
       int offset = varinfo->offset;
@@ -386,7 +387,7 @@ static void gen_funcall(Expr *expr) {
     int len = args->len;
     if (len >= MAX_REG_ARGS) {
       bool vaargs = false;
-      if (func->type == EX_VARREF && func->u.varref.global) {
+      if (func->type == EX_VARREF && func->u.varref.scope == NULL) {
         VarInfo *varinfo = find_global(func->u.varref.ident);
         assert(varinfo != NULL && varinfo->type->type == TY_FUNC);
         vaargs = varinfo->type->u.func.vaargs;
@@ -418,7 +419,7 @@ static void gen_funcall(Expr *expr) {
     }
   }
 
-  if (func->type == EX_VARREF && func->u.varref.global) {
+  if (func->type == EX_VARREF && func->u.varref.scope == NULL) {
     CALL(func->u.varref.ident);
   } else {
     gen_expr(func);

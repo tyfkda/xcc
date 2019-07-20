@@ -64,10 +64,10 @@ static Expr *new_expr_str(const Token *token, const char *str, size_t size) {
   return expr;
 }
 
-Expr *new_expr_varref(const char *name, const Type *type, bool global, const Token *token) {
+Expr *new_expr_varref(const char *name, const Type *type, const Token *token) {
   Expr *expr = new_expr(EX_VARREF, type, token);
   expr->u.varref.ident = name;
-  expr->u.varref.global = global;
+  expr->u.varref.scope = NULL;
   return expr;
 }
 
@@ -504,7 +504,7 @@ static Expr *prim(void) {
   Token *ident;
   if ((ident = consume(TK_IDENT)) != NULL) {
     const char *name = ident->u.ident;
-    return new_expr_varref(name, /*type*/NULL, /*global*/false, ident);
+    return new_expr_varref(name, /*type*/NULL, ident);
   }
   parse_error(NULL, "Number or Ident or open paren expected");
   return NULL;

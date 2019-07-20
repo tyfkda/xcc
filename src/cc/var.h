@@ -51,4 +51,4 @@ typedef struct Scope {
 } Scope;
 
 Scope *new_scope(Scope *parent, Vector *vars);
-VarInfo *scope_find(Scope *scope, const char *name);
+VarInfo *scope_find(Scope **pscope, const char *name);
