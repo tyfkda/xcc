@@ -423,7 +423,7 @@ void construct_initial_value(unsigned char *buf, const Type *type, Initializer *
         memcpy(buf, init->u.single->u.str.buf, src_size);
 
         UNUSED(size);
-        add_asm(".string \"%s\"", escape_string((char*)buf, size));
+        add_asm(".ascii \"%s\"", escape_string((char*)buf, size));
       } else {
         error("Illegal initializer");
       }
