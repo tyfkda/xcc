@@ -9,8 +9,122 @@
 #include "var.h"
 #include "x86_64.h"
 
-void gen_cond_jmp(Expr *cond, bool tf, const char *label);
 static void gen_lval(Expr *expr);
+
+// Compare operator might swap operand oreder.
+//   EX_LE => EX_GE
+//   EX_GT => EX_LT
+static enum ExprType gen_expr_compare(enum ExprType type, Expr *lhs, Expr *rhs) {
+  const Type *ltype = lhs->valType;
+
+  assert(ltype->type == rhs->valType->type && (ltype->type != TY_NUM || ltype->u.numtype == rhs->valType->u.numtype));
+  if (type == EX_LE || type == EX_GT) {
+    Expr *tmp = lhs; lhs = rhs; rhs = tmp;
+    type = type == EX_LE ? EX_GE : EX_LT;
+  }
+
+  gen_expr(lhs);
+  PUSH_RAX(); PUSH_STACK_POS();
+  gen_expr(rhs);
+
+  POP_RDI(); POP_STACK_POS();
+  return type;
+}
+
+// cmp %eax, %edi, and so on.
+static void gen_cmp_opcode(const Type *type) {
+  switch (type->type) {
+  case TY_NUM:
+    switch (type->u.numtype) {
+    case NUM_CHAR: CMP_AL_DIL(); break;
+    case NUM_SHORT: CMP_AX_DI(); break;
+    case NUM_INT: case NUM_ENUM:
+      CMP_EAX_EDI();
+      break;
+    case NUM_LONG: CMP_RAX_RDI(); break;
+    default: assert(false); break;
+    }
+    break;
+  case TY_PTR:  CMP_RAX_RDI(); break;
+  default: assert(false); break;
+  }
+}
+
+// test %eax, %eax, and so on.
+static void gen_test_opcode(const Type *type) {
+  switch (type->type) {
+  case TY_NUM:
+    switch (type->u.numtype) {
+    case NUM_CHAR:  TEST_AL_AL(); break;
+    case NUM_SHORT: TEST_AX_AX(); break;
+    case NUM_INT: case NUM_ENUM:
+      TEST_EAX_EAX();
+      break;
+    case NUM_LONG:
+      TEST_RAX_RAX();
+      break;
+    default: assert(false); break;
+    }
+    break;
+  case TY_PTR: case TY_ARRAY: case TY_FUNC:
+    TEST_RAX_RAX();
+    break;
+  default: assert(false); break;
+  }
+}
+
+void gen_cond_jmp(Expr *cond, bool tf, const char *label) {
+  // Local optimization: if `cond` is compare expression, then
+  // jump using flags after CMP directly.
+  switch (cond->type) {
+  case EX_NUM:
+    if (cond->u.num.ival == 0)
+      tf = !tf;
+    if (tf)
+      JMP32(label);
+    return;
+
+  case EX_EQ:
+  case EX_NE:
+    gen_expr_compare(cond->type, cond->u.bop.lhs, cond->u.bop.rhs);
+    gen_cmp_opcode(cond->u.bop.lhs->valType);
+    if (cond->type != EX_EQ)
+      tf = !tf;
+    if (tf)
+      JE32(label);
+    else
+      JNE32(label);
+    return;
+  case EX_LT:
+  case EX_GT:
+  case EX_LE:
+  case EX_GE:
+    {
+      enum ExprType type = gen_expr_compare(cond->type, cond->u.bop.lhs, cond->u.bop.rhs);
+      gen_cmp_opcode(cond->u.bop.lhs->valType);
+      if (type != EX_LT)
+        tf = !tf;
+      if (tf)
+        JL32(label);
+      else
+        JGE32(label);
+    }
+    return;
+  case EX_NOT:
+    gen_cond_jmp(cond->u.unary.sub, !tf, label);
+    return;
+  default:
+    break;
+  }
+
+  gen_expr(cond);
+  gen_test_opcode(cond->valType);
+
+  if (tf)
+    JNE32(label);
+  else
+    JE32(label);
+}
 
 static void cast(const Type *ltypep, const Type *rtypep) {
   enum eType ltype = ltypep->type;
@@ -689,22 +803,8 @@ void gen_expr(Expr *expr) {
   case EX_LE:
   case EX_GE:
     {
-      enum ExprType type = expr->type;
-      Expr *lhs = expr->u.bop.lhs;
-      Expr *rhs = expr->u.bop.rhs;
-      const Type *ltype = lhs->valType;
-
-      assert(ltype->type == rhs->valType->type && (ltype->type != TY_NUM || ltype->u.numtype == rhs->valType->u.numtype));
-      if (type == EX_LE || type == EX_GT) {
-        Expr *tmp = lhs; lhs = rhs; rhs = tmp;
-        type = type == EX_LE ? EX_GE : EX_LT;
-      }
-
-      gen_expr(lhs);
-      PUSH_RAX(); PUSH_STACK_POS();
-      gen_expr(rhs);
-
-      POP_RDI(); POP_STACK_POS();
+      enum ExprType type = gen_expr_compare(expr->type, expr->u.bop.lhs, expr->u.bop.rhs);
+      const Type *ltype = expr->u.bop.lhs->valType;
       switch (ltype->type) {
       case TY_NUM:
         switch (ltype->u.numtype) {

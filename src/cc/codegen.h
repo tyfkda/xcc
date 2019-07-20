@@ -41,3 +41,5 @@ void add_loc_rel32(const char *label, int ofs, int baseofs);
 void fixup_locations(void);
 void get_section_size(int section, size_t *pfilesz, size_t *pmemsz, uintptr_t *ploadadr);
 uintptr_t label_adr(const char *label);
+
+void gen_cond_jmp(Expr *cond, bool tf, const char *label);

@@ -675,35 +675,6 @@ static void pop_continue_label(const char *save) {
   s_continue_label = save;
 }
 
-void gen_cond_jmp(Expr *cond, bool tf, const char *label) {
-  gen_expr(cond);
-
-  switch (cond->valType->type) {
-  case TY_NUM:
-    switch (cond->valType->u.numtype) {
-    case NUM_CHAR:  TEST_AL_AL(); break;
-    case NUM_SHORT: TEST_AX_AX(); break;
-    case NUM_INT: case NUM_ENUM:
-      TEST_EAX_EAX();
-      break;
-    case NUM_LONG:
-      TEST_RAX_RAX();
-      break;
-    default: assert(false); break;
-    }
-    break;
-  case TY_PTR:
-    TEST_RAX_RAX();
-    break;
-  default: assert(false); break;
-  }
-
-  if (tf)
-    JNE32(label);
-  else
-    JE32(label);
-}
-
 static int arrange_func_params(Scope *scope) {
   // Arrange parameters increasing order in stack,
   // and each parameter occupies sizeof(intptr_t).

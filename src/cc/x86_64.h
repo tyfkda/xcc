@@ -191,6 +191,8 @@
 #define POP_R9()         do { ADD_ASM("pop %%r9"); ADD_CODE(0x41, 0x59); } while (0)
 #define JE32(label)      do { ADD_ASM("je %s", label); ADD_LOC_REL32(label, 2, 6); ADD_CODE(0x0f, 0x84, IM32(0)); } while(0)
 #define JNE32(label)     do { ADD_ASM("jne %s", label); ADD_LOC_REL32(label, 2, 6); ADD_CODE(0x0f, 0x85, IM32(0)); } while(0)
+#define JL32(label)      do { ADD_ASM("jl %s", label); ADD_LOC_REL32(label, 2, 6); ADD_CODE(0x0f, 0x8c, IM32(0)); } while(0)
+#define JGE32(label)     do { ADD_ASM("jge %s", label); ADD_LOC_REL32(label, 2, 6); ADD_CODE(0x0f, 0x8d, IM32(0)); } while(0)
 #define JA8(label)       do { ADD_ASM("ja %s", label); ADD_LOC_REL8(label, 1, 2); ADD_CODE(0x77, IM8(0)); } while(0)
 #define JMP8(label)      do { ADD_ASM("jmp %s", label); ADD_LOC_REL8(label, 1, 2); ADD_CODE(0xeb, IM8(0)); } while(0)
 #define JMP32(label)     do { ADD_ASM("jmp %s", label); ADD_LOC_REL32(label, 1, 5); ADD_CODE(0xe9, IM32(0)); } while(0)
