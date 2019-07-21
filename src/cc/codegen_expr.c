@@ -113,6 +113,28 @@ void gen_cond_jmp(Expr *cond, bool tf, const char *label) {
   case EX_NOT:
     gen_cond_jmp(cond->u.unary.sub, !tf, label);
     return;
+  case EX_LOGAND:
+    if (!tf) {
+      gen_cond_jmp(cond->u.bop.lhs, false, label);
+      gen_cond_jmp(cond->u.bop.rhs, false, label);
+    } else {
+      const char *skip = alloc_label();
+      gen_cond_jmp(cond->u.bop.lhs, false, skip);
+      gen_cond_jmp(cond->u.bop.rhs, true, label);
+      ADD_LABEL(skip);
+    }
+    return;
+  case EX_LOGIOR:
+    if (tf) {
+      gen_cond_jmp(cond->u.bop.lhs, true, label);
+      gen_cond_jmp(cond->u.bop.rhs, true, label);
+    } else {
+      const char *skip = alloc_label();
+      gen_cond_jmp(cond->u.bop.lhs, true, skip);
+      gen_cond_jmp(cond->u.bop.rhs, false, label);
+      ADD_LABEL(skip);
+    }
+    return;
   default:
     break;
   }
@@ -834,32 +856,28 @@ void gen_expr(Expr *expr) {
 
   case EX_LOGAND:
     {
-      const char * l_false = alloc_label();
-      const char * l_true = alloc_label();
-      const char * l_next = alloc_label();
+      const char *l_false = alloc_label();
+      const char *l_next = alloc_label();
       gen_cond_jmp(expr->u.bop.lhs, false, l_false);
-      gen_cond_jmp(expr->u.bop.rhs, true, l_true);
+      gen_cond_jmp(expr->u.bop.rhs, false, l_false);
+      MOV_IM32_EAX(1);
+      JMP8(l_next);
       ADD_LABEL(l_false);
       XOR_EAX_EAX();  // 0
-      JMP8(l_next);
-      ADD_LABEL(l_true);
-      MOV_IM32_EAX(1);
       ADD_LABEL(l_next);
     }
     return;
 
   case EX_LOGIOR:
     {
-      const char * l_false = alloc_label();
-      const char * l_true = alloc_label();
-      const char * l_next = alloc_label();
+      const char *l_true = alloc_label();
+      const char *l_next = alloc_label();
       gen_cond_jmp(expr->u.bop.lhs, true, l_true);
-      gen_cond_jmp(expr->u.bop.rhs, false, l_false);
+      gen_cond_jmp(expr->u.bop.rhs, true, l_true);
+      XOR_EAX_EAX();  // 0
+      JMP8(l_next);
       ADD_LABEL(l_true);
       MOV_IM32_EAX(1);
-      JMP8(l_next);
-      ADD_LABEL(l_false);
-      XOR_EAX_EAX();  // 0
       ADD_LABEL(l_next);
     }
     return;

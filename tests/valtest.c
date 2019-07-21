@@ -485,6 +485,18 @@ int main(void) {
     expect("|| shortcut", 1, x);
   }
   {
+    int x = 0;
+    if (!(1 && 0))
+      x = 1;
+    expect("conditional !(t && t)", 1, x);
+  }
+  {
+    int x = 0;
+    if (0 || 1)
+      x = 1;
+    expect("conditional (f || t)", 1, x);
+  }
+  {
     int x = 1;
     { int x = 2; }
     expect("block scope", 1, x);
