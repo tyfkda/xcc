@@ -475,13 +475,13 @@ int main(void) {
   expect("t && t", 1, 1 && 2);
   {
     int x = 1;
-    0 && (x == 0);
+    0 && (x = 0);
     expect("&& shortcut", 1, x);
   }
   expect("f || t", 1, 0 || 2);
   {
     int x = 1;
-    1 || (x == 0);
+    1 || (x = 0);
     expect("|| shortcut", 1, x);
   }
   {
