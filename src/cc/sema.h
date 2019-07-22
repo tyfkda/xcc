@@ -10,5 +10,5 @@ extern Defun *curfunc;
 
 Node *sema(Node *node);
 
-Initializer **flatten_initializer(const Type *type, Initializer *init);
+Initializer *flatten_initializer(const Type *type, Initializer *init);
 void ensure_struct(Type *type, const Token *token);

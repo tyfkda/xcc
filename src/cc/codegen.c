@@ -329,6 +329,8 @@ static char *escape_string(const char *str, size_t size) {
 #endif
 
 void construct_initial_value(unsigned char *buf, const Type *type, Initializer *init, Vector **pptrinits) {
+  assert(init == NULL || init->type != vDot);
+
   add_asm_align(align_size(type));
 
   switch (type->type) {
@@ -432,25 +434,19 @@ void construct_initial_value(unsigned char *buf, const Type *type, Initializer *
     break;
   case TY_STRUCT:
     {
-      Initializer **values = NULL;
-
-      if (init != NULL) {
-        if (init->type != vMulti)
-          error("initializer type error");
-        values = flatten_initializer(type, init);
-      }
+      assert(init == NULL || init->type == vMulti);
 
       const StructInfo *sinfo = type->u.struct_.info;
       int count = 0;
       for (int i = 0, n = sinfo->members->len; i < n; ++i) {
         VarInfo* varinfo = sinfo->members->data[i];
         Initializer *mem_init;
-        if (values == NULL) {
+        if (init == NULL) {
           if (sinfo->is_union)
             continue;
           mem_init = NULL;
         } else {
-          mem_init = values[i];
+          mem_init = init->u.multi->data[i];
         }
         if (mem_init != NULL || !sinfo->is_union) {
           construct_initial_value(buf + varinfo->offset, varinfo->type, mem_init, pptrinits);

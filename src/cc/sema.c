@@ -188,7 +188,7 @@ static void string_initializer(Expr *dst, Expr *src, Vector *inits) {
   }
 }
 
-Initializer **flatten_initializer(const Type *type, Initializer *init) {
+Initializer *flatten_initializer(const Type *type, Initializer *init) {
   assert(type->type == TY_STRUCT);
   assert(init->type == vMulti);
 
@@ -245,7 +245,15 @@ Initializer **flatten_initializer(const Type *type, Initializer *init) {
     values[index++] = value;
   }
 
-  return values;
+  Initializer *flat = malloc(sizeof(*flat));
+  flat->type = vMulti;
+  //flat->u.multi = new_vector();
+  Vector *v = malloc(sizeof(*v));
+  v->len = v->capacity = n;
+  v->data = (void**)values;
+  flat->u.multi = v;
+
+  return flat;
 }
 
 static Initializer *check_global_initializer(const Type *type, Initializer *init) {
@@ -363,12 +371,13 @@ static Initializer *check_global_initializer(const Type *type, Initializer *init
     break;
   case TY_STRUCT:
     {
-      Initializer ** values = flatten_initializer(type, init);
+      init = flatten_initializer(type, init);
       const StructInfo *sinfo = type->u.struct_.info;
       for (int i = 0, n = sinfo->members->len; i < n; ++i) {
         VarInfo* varinfo = sinfo->members->data[i];
-        if (values[i] != NULL)
-          check_global_initializer(varinfo->type, values[i]);
+        Initializer *init_elem = init->u.multi->data[i];
+        if (init_elem != NULL)
+          init->u.multi->data[i] = check_global_initializer(varinfo->type, init_elem);
       }
     }
     break;
@@ -422,12 +431,13 @@ static Vector *assign_initial_value(Expr *expr, Initializer *init, Vector *inits
 
       const StructInfo *sinfo = expr->valType->u.struct_.info;
       if (!sinfo->is_union) {
-        Initializer **values = flatten_initializer(expr->valType, init);
+        Initializer *flat = flatten_initializer(expr->valType, init);
         for (int i = 0, n = sinfo->members->len; i < n; ++i) {
           VarInfo* varinfo = sinfo->members->data[i];
           Expr *member = new_expr_member(NULL, varinfo->type, expr, NULL, NULL, i);
-          if (values[i] != NULL)
-            assign_initial_value(member, values[i], inits);
+          Initializer *init_elem = flat->u.multi->data[i];
+          if (init_elem != NULL)
+            assign_initial_value(member, init_elem, inits);
           else
             clear_initial_value(member, inits);
         }
