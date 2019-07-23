@@ -12,6 +12,7 @@
 #include <string.h>
 
 #include "expr.h"
+#include "lexer.h"
 #include "parser.h"
 #include "sema.h"
 #include "type.h"
@@ -1137,7 +1138,35 @@ static void gen_label(Node *node) {
   gen(node->u.label.stmt);
 }
 
+static void gen_clear_local_var(const VarInfo *varinfo) {
+  // Fill with zeros regardless of variable type.
+  int offset = varinfo->offset;
+  const char *loop = alloc_label();
+  LEA_OFS32_RBP_RSI(offset);
+  MOV_IM32_EDI(type_size(varinfo->type));
+  XOR_AL_AL();
+  ADD_LABEL(loop);
+  MOV_AL_IND_RSI();
+  INC_RSI();
+  DEC_EDI();
+  JNE8(loop);
+}
+
 static void gen_vardecl(Node *node) {
+  if (curfunc != NULL) {
+    Vector *decls = node->u.vardecl.decls;
+    for (int i = 0; i < decls->len; ++i) {
+      VarDecl *decl = decls->data[i];
+      if (decl->init == NULL)
+        continue;
+      VarInfo *varinfo = scope_find(curscope, decl->ident->u.ident);
+      if (varinfo == NULL || (varinfo->flag & VF_STATIC) ||
+          !(varinfo->type->type == TY_STRUCT ||
+            varinfo->type->type == TY_ARRAY))
+        continue;
+      gen_clear_local_var(varinfo);
+    }
+  }
   gen_nodes(node->u.vardecl.inits);
 }
 

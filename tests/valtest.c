@@ -592,7 +592,7 @@ int main(void) {
   expect("extern", 789, e_val);
   {
     int desig[] = {[2] = 100, [1] 200};
-    //expect("desig[0]",   0, desig[0]);
+    expect("desig[0]",   0, desig[0]);
     expect("desig[1]", 200, desig[1]);
     expect("desig[2]", 100, desig[2]);
     expect("sizeof(desig)", 3, sizeof(desig) / sizeof(*desig));

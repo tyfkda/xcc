@@ -114,60 +114,6 @@ static Initializer *analyze_initializer(Initializer *init) {
   return init;
 }
 
-static Vector *clear_initial_value(Expr *expr, Vector *inits) {
-  if (inits == NULL)
-    inits = new_vector();
-
-  switch (expr->valType->type) {
-  case TY_NUM:
-    {
-      Num num = {0};
-      Expr *zero = new_expr_numlit(expr->valType, NULL, &num);
-      vec_push(inits,
-               new_node_expr(new_expr_bop(EX_ASSIGN, expr->valType, NULL,
-                                          expr, zero)));
-    }
-    break;
-  case TY_PTR:
-    {
-      Num num = {0};
-      Expr *zero = new_expr_numlit(expr->valType, NULL, &num);
-      vec_push(inits,
-               new_node_expr(new_expr_bop(EX_ASSIGN, expr->valType, NULL, expr,
-                                          new_expr_cast(expr->valType, NULL, zero, true))));  // intptr_t
-    }
-    break;
-  case TY_ARRAY:
-    {
-      size_t arr_len = expr->valType->u.pa.length;
-      for (size_t i = 0; i < arr_len; ++i) {
-        Num ofs = {.ival=i};
-        Expr *add = add_expr(NULL, expr,
-                             new_expr_numlit(&tyInt, NULL, &ofs), true);
-        clear_initial_value(new_expr_deref(NULL, add), inits);
-      }
-    }
-    break;
-  case TY_STRUCT:
-    {
-      const StructInfo *sinfo = expr->valType->u.struct_.info;
-      assert(!sinfo->is_union || !"Not implemented");
-      assert(sinfo != NULL);
-      for (int i = 0; i < sinfo->members->len; ++i) {
-        VarInfo* varinfo = sinfo->members->data[i];
-        Expr *member = new_expr_member(NULL, varinfo->type, expr, NULL, NULL, i);
-        clear_initial_value(member, inits);
-      }
-    }
-    break;
-  default:
-    assert(!"Not implemented");
-    break;
-  }
-
-  return inits;
-}
-
 static void string_initializer(Expr *dst, Expr *src, Vector *inits) {
   // Initialize char[] with string literal (char s[] = "foo";).
   assert(dst->valType->type == TY_ARRAY && is_char_type(dst->valType->u.pa.ptrof));
@@ -191,18 +137,87 @@ static void string_initializer(Expr *dst, Expr *src, Vector *inits) {
                                         new_expr_deref(NULL, add_expr(NULL, dst, index, true)),
                                         new_expr_deref(NULL, add_expr(NULL, src, index, true)))));
   }
-  if (dstsize > size) {
-    Num z = {.ival=0};
-    Expr *zero = new_expr_numlit(&tyChar, NULL, &z);
-    for (size_t i = size; i < dstsize; ++i) {
-      Num n = {.ival=i};
-      Expr *index = new_expr_numlit(&tyInt, NULL, &n);
-      vec_push(inits,
-               new_node_expr(new_expr_bop(EX_ASSIGN, &tyChar, NULL,
-                                          new_expr_deref(NULL, add_expr(NULL, dst, index, true)),
-                                          zero)));
+}
+
+static int compare_desig_start(const void *a, const void *b) {
+  const size_t *pa = *(size_t**)a;
+  const size_t *pb = *(size_t**)b;
+  intptr_t d = *pa - *pb;
+  return d > 0 ? 1 : d < 0 ? -1 : 0;
+}
+
+static Initializer *flatten_array_initializer(Initializer *init) {
+  // Check whether vDot or vArr exists.
+  int i = 0, len = init->u.multi->len;
+  for (; i < len; ++i) {
+    Initializer *init_elem = init->u.multi->data[i];
+    if (init_elem->type == vDot)
+      parse_error(NULL, "dot initializer for array");
+    if (init_elem->type == vArr)
+      break;
+  }
+  if (i >= len)  // vArr not exits.
+    return init;
+
+  // Enumerate designated initializer.
+  Vector *ranges = new_vector();  // <(start, count)>
+  size_t lastStartIndex = 0;
+  size_t lastStart = 0;
+  size_t index = i;
+  for (; i <= len; ++i, ++index) {  // '+1' is for last range.
+    Initializer *init_elem;
+    if (i >= len || (init_elem = init->u.multi->data[i])->type == vArr) {
+      if (init_elem->u.arr.index->type != EX_NUM)
+        parse_error(NULL, "Constant value expected");
+      if ((size_t)i > lastStartIndex) {
+        size_t *range = malloc(sizeof(size_t) * 3);
+        range[0] = lastStart;
+        range[1] = lastStartIndex;
+        range[2] = index - lastStart;
+        vec_push(ranges, range);
+      }
+      if (i >= len)
+        break;
+      lastStart = index = init_elem->u.arr.index->u.num.ival;
+      lastStartIndex = i;
+    } else if (init_elem->type == vDot)
+      parse_error(NULL, "dot initializer for array");
+  }
+
+  // Sort
+  qsort(ranges->data, ranges->len, sizeof(size_t*), compare_desig_start);
+
+  // Reorder
+  Vector *reordered = new_vector();
+  index = 0;
+  for (int i = 0; i < ranges->len; ++i) {
+    size_t *p = ranges->data[i];
+    size_t start = p[0];
+    size_t index = p[1];
+    size_t count = p[2];
+    if (i > 0) {
+      size_t *q = ranges->data[i - 1];
+      if (start < q[0] + q[2])
+        parse_error(NULL, "Initializer for array overlapped");
+    }
+    for (size_t j = 0; j < count; ++j) {
+      Initializer *elem = init->u.multi->data[index + j];
+      if (j == 0 && index != start && elem->type != vArr) {
+        Initializer *arr = malloc(sizeof(*arr));
+        arr->type = vArr;
+        Num n = {.ival = start};
+        arr->u.arr.index = new_expr_numlit(&tyInt, NULL, &n);
+        arr->u.arr.value = elem;
+        elem = arr;
+      }
+      vec_push(reordered, elem);
     }
   }
+
+  Initializer *init2 = malloc(sizeof(*init2));
+  init2->type = vMulti;
+  init2->u.multi = reordered;
+  return init2;
 }
 
 Initializer *flatten_initializer(const Type *type, Initializer *init) {
@@ -284,14 +299,7 @@ Initializer *flatten_initializer(const Type *type, Initializer *init) {
   case TY_ARRAY:
     switch (init->type) {
     case vMulti:
-      if (init->type != vMulti)
-        parse_error(NULL, "`{...}' expected for initializer");
-      // Check whether vDot exists.
-      for (int i = 0, len = init->u.multi->len; i < len; ++i) {
-        Initializer *init_elem = init->u.multi->data[i];
-        if (init_elem->type == vDot)
-          parse_error(NULL, "dot initializer for array");
-      }
+      init = flatten_array_initializer(init);
       break;
     case vSingle:
       // Special handling for string (char[]).
@@ -442,6 +450,9 @@ static Initializer *check_global_initializer(const Type *type, Initializer *init
 }
 
 static Vector *assign_initial_value(Expr *expr, Initializer *init, Vector *inits) {
+  if (init == NULL)
+    return inits;
+
   if (inits == NULL)
     inits = new_vector();
 
@@ -502,8 +513,6 @@ static Vector *assign_initial_value(Expr *expr, Initializer *init, Vector *inits
           Initializer *init_elem = init->u.multi->data[i];
           if (init_elem != NULL)
             assign_initial_value(member, init_elem, inits);
-          else
-            clear_initial_value(member, inits);
         }
       } else {
         int n = sinfo->members->len;
