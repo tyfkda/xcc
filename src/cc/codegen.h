@@ -9,6 +9,9 @@ typedef struct Node Node;
 typedef struct StructInfo StructInfo;
 typedef struct Type Type;
 
+#define MAX_REG_ARGS  (6)
+#define WORD_SIZE  (8)  /*sizeof(void*)*/
+
 // Public
 
 void init_gen(uintptr_t start_address);

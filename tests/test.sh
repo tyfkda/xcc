@@ -118,6 +118,7 @@ try_direct 'goto' 1 'int main(){ int x = 1; goto label; x = 2; label: return x; 
 try_output '*const' foobar 'const char* const str = "foobar"; write(1, str, 6);'
 try_direct 'switch w/o case' 1 'int main(){ int x = 0; switch (0) {default: x = 1; break;} return x; }'
 try 'post inc pointer' 1 'char *p = (char*)(-1L); p++; return p == 0;'
+try_direct 'more params' 36 'int func(int a, int b, int c, int d, int e, int f, char g, long h) { return a + b + c + d + e + f + g + h; } int main(){ return func(1, 2, 3, 4, 5, 6, 7, 8); }'
 
 # error cases
 echo ''
@@ -144,7 +145,7 @@ compile_error 'void expr' 'void main(){ 1 + (void)2; }'
 compile_error 'few arg num' 'void foo(int x){} void main(){ foo(); }'
 compile_error 'many arg num' 'void foo(int x){} void main(){ foo(1, 2); }'
 compile_error 'zero arg num' 'void foo(void){} void main(){ foo(1); }'
-compile_error 'param count limit' 'void foo(int a, int b, int c, int d, int e, int f, int g){} void main(){ foo(1,2,3,4,5,6,7); }'
+compile_error 'variadic param count limit' 'void foo(const char *fmt, ...){} void main(){ foo("fmt", 1,2,3,4,5,6); }'
 compile_error '+ str' 'void main(){ +"foo"; }'
 compile_error '- str' 'void main(){ -"foo"; }'
 compile_error 'break outside loop' 'void main(){ break; }'

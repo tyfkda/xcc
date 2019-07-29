@@ -319,33 +319,52 @@ static void gen_ternary(Expr *expr) {
 }
 
 static void gen_funcall(Expr *expr) {
+  Expr *func = expr->u.funcall.func;
   Vector *args = expr->u.funcall.args;
+  int arg_count = args != NULL ? args->len : 0;
+
+  int stack_args = MAX(arg_count - MAX_REG_ARGS, 0);
+  bool align_stack = ((stackpos + stack_args * WORD_SIZE) & 15) != 0;
+  if (align_stack) {
+    SUB_IM8_RSP(8); PUSH_STACK_POS();
+  }
+
   if (args != NULL) {
     int len = args->len;
-    if (len > 6)
-      error("Param count exceeds 6 (%d)", len);
+    if (len >= MAX_REG_ARGS) {
+      bool vaargs = false;
+      if (func->type == EX_VARREF && func->u.varref.global) {
+        VarInfo *varinfo = find_global(func->u.varref.ident);
+        assert(varinfo != NULL && varinfo->type->type == TY_FUNC);
+        vaargs = varinfo->type->u.func.vaargs;
+      } else {
+        // TODO:
+      }
 
-    for (int i = 0; i < len; ++i) {
-      gen_expr((Expr*)args->data[i]);
-      PUSH_RAX();
+      if (vaargs)
+        error("Param count exceeds %d (%d)", MAX_REG_ARGS, len);
     }
 
-    switch (len) {
-    case 6:  POP_R9();  // Fallthrough
-    case 5:  POP_R8();  // Fallthrough
-    case 4:  POP_RCX();  // Fallthrough
-    case 3:  POP_RDX();  // Fallthrough
-    case 2:  POP_RSI();  // Fallthrough
-    case 1:  POP_RDI();  // Fallthrough
-    default: break;
+    for (int i = len; --i >= 0; ) {
+      gen_expr((Expr*)args->data[i]);
+      PUSH_RAX(); PUSH_STACK_POS();
+    }
+
+    int reg_args = MIN(len, MAX_REG_ARGS);
+    for (int i = 0; i < reg_args; ++i) {
+      switch (i) {
+      case 0:  POP_RDI(); break;
+      case 1:  POP_RSI(); break;
+      case 2:  POP_RDX(); break;
+      case 3:  POP_RCX(); break;
+      case 4:  POP_R8(); break;
+      case 5:  POP_R9(); break;
+      default: break;
+      }
+      POP_STACK_POS();
     }
   }
 
-  bool align_stack = (stackpos & 15) != 0;
-  if (align_stack)
-    SUB_IM8_RSP(8);
-
-  Expr *func = expr->u.funcall.func;
   if (func->type == EX_VARREF && func->u.varref.global) {
     CALL(func->u.varref.ident);
   } else {
@@ -353,8 +372,12 @@ static void gen_funcall(Expr *expr) {
     CALL_IND_RAX();
   }
 
-  if (align_stack)
-    ADD_IM8_RSP(8);
+  for (int i = 0; i < stack_args; ++i)
+    POP_STACK_POS();
+
+  if (align_stack) {
+    ADD_IM8_RSP(8); POP_STACK_POS();
+  }
 }
 
 void gen_arith(enum ExprType exprType, const Type *valType, const Type *rhsType) {

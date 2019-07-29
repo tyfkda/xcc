@@ -5,6 +5,8 @@
 #include <stdio.h>  // FILE
 #include <sys/types.h>  // ssize_t
 
+#define MIN(a, b)  ((a) < (b) ? (a) : (b))
+#define MAX(a, b)  ((a) > (b) ? (a) : (b))
 #define ALIGN(x, align)  (((x) + (align) - 1) & -(align))  // align must be 2^n
 
 char *strdup_(const char *str);
