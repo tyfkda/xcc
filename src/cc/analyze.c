@@ -139,8 +139,8 @@ static Expr *add_num(enum ExprType exprType, const Token *tok, Expr *lhs, Expr *
   const Type *ltype = lhs->valType;
   const Type *rtype = rhs->valType;
   assert(ltype->type == TY_NUM && rtype->type == TY_NUM);
-  enum NumType lnt = ltype->u.numtype;
-  enum NumType rnt = rtype->u.numtype;
+  enum NumType lnt = ltype->u.num.type;
+  enum NumType rnt = rtype->u.num.type;
   if (lnt == NUM_ENUM)
     lnt = NUM_INT;
   if (rnt == NUM_ENUM)
@@ -286,8 +286,8 @@ static bool cast_numbers(Expr **pLhs, Expr **pRhs, bool keep_left) {
       !is_number((*pRhs)->valType->type))
     return false;
 
-  enum NumType ltype = (*pLhs)->valType->u.numtype;
-  enum NumType rtype = (*pRhs)->valType->u.numtype;
+  enum NumType ltype = (*pLhs)->valType->u.num.type;
+  enum NumType rtype = (*pRhs)->valType->u.num.type;
   if (ltype == NUM_ENUM)
     ltype = NUM_INT;
   if (rtype == NUM_ENUM)
@@ -384,7 +384,7 @@ Expr *analyze_expr(Expr *expr, bool keep_left) {
         if (varinfo != NULL) {
           global = true;
           type = varinfo->type;
-          if (type->type == TY_NUM && type->u.numtype == NUM_ENUM) {
+          if (type->type == TY_NUM && type->u.num.type == NUM_ENUM) {
             // Enum value is embeded directly.
             assert(varinfo->u.g.init->type == vSingle);
             return varinfo->u.g.init->u.single;
@@ -467,7 +467,7 @@ Expr *analyze_expr(Expr *expr, bool keep_left) {
           break;
         }
         Num num = {value};
-        const Type *type = lhs->valType->u.numtype >= rhs->valType->u.numtype ? lhs->valType : rhs->valType;
+        const Type *type = lhs->valType->u.num.type >= rhs->valType->u.num.type ? lhs->valType : rhs->valType;
         return new_expr_numlit(type, lhs->token, &num);
       }
 
@@ -715,7 +715,7 @@ Expr *analyze_expr(Expr *expr, bool keep_left) {
           } else if (vaargs && i >= paramc) {
             Expr *arg = args->data[i];
             const Type *type = arg->valType;
-            if (type->type == TY_NUM && type->u.numtype < NUM_INT)  // Promote variadic argument.
+            if (type->type == TY_NUM && type->u.num.type < NUM_INT)  // Promote variadic argument.
               args->data[i] = new_expr_cast(&tyInt, arg->token, arg, false);
           }
         }

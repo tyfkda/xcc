@@ -40,7 +40,9 @@ typedef struct StructInfo {
 typedef struct Type {
   enum eType type;
   union {
-    enum NumType numtype;
+    struct {
+      enum NumType type;
+    } num;
     struct {  // Pointer or array.
       const struct Type *ptrof;
       size_t length;  // of array. -1 represents length is not specified (= []).
