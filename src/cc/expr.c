@@ -335,6 +335,17 @@ const Type *parse_type_suffix(const Type *type) {
   return arrayof(parse_type_suffix(type), length);
 }
 
+static Vector *parse_funparam_types(bool *pvaargs) {  // Vector<Type*>
+  Vector *params = parse_funparams(pvaargs);
+  Vector *param_types = NULL;
+  if (params != NULL) {
+    param_types = new_vector();
+    for (int i = 0, len = params->len; i < len; ++i)
+      vec_push(param_types, ((VarInfo*)params->data[i])->type);
+  }
+  return param_types;
+}
+
 bool parse_var_def(const Type **prawType, const Type** ptype, int *pflag, Token **pident) {
   const Type *rawType = prawType != NULL ? *prawType : NULL;
   if (rawType == NULL) {
@@ -359,13 +370,7 @@ bool parse_var_def(const Type **prawType, const Type** ptype, int *pflag, Token 
       parse_error(NULL, "`(' expected");
 
     bool vaargs;
-    Vector *params = funparams(&vaargs);
-    Vector *param_types = NULL;
-    if (params != NULL) {
-      param_types = new_vector();
-      for (int i = 0, len = params->len; i < len; ++i)
-        vec_push(param_types, ((VarInfo*)params->data[i])->type);
-    }
+    Vector *param_types = parse_funparam_types(&vaargs);
     type = ptrof(new_func_type(type, param_types, vaargs));
   } else {
     if (type->type != TY_VOID) {
@@ -391,7 +396,7 @@ const Type *parse_full_type(int *pflag, Token **pident) {
   return type;
 }
 
-Vector *funparams(bool *pvaargs) {  // Vector<VarInfo*>
+Vector *parse_funparams(bool *pvaargs) {  // Vector<VarInfo*>, NULL=>old style.
   Vector *params = NULL;
   bool vaargs = false;
   if (consume(TK_RPAR)) {

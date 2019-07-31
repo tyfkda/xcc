@@ -474,7 +474,7 @@ static Node *stmt(void) {
 static Node *parse_defun(const Type *rettype, int flag, Token *ident) {
   const char *name = ident->u.ident;
   bool vaargs;
-  Vector *params = funparams(&vaargs);
+  Vector *params = parse_funparams(&vaargs);
 
   // Definition.
   Defun *defun = new_defun(rettype, name, params, flag, vaargs);
