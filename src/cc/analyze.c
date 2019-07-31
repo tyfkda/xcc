@@ -140,6 +140,27 @@ static Expr *add_num(enum ExprType exprType, const Token *tok, Expr *lhs, Expr *
   if (rnt == NUM_ENUM)
     rnt = NUM_INT;
 
+  if (is_const(lhs) && is_const(rhs)) {
+    intptr_t lval = lhs->u.num.ival;
+    intptr_t rval = rhs->u.num.ival;
+    intptr_t value;
+    switch (exprType) {
+    case EX_ADD:
+      value = lval + rval;
+      break;
+    case EX_SUB:
+      value = lval - rval;
+      break;
+    default:
+      assert(false);
+      value = -1;
+      break;
+    }
+    Num num = {value};
+    const Type *type = lnt >= rnt ? lhs->valType : rhs->valType;
+    return new_expr_numlit(type, lhs->token, &num);
+  }
+
   const Type *type;
   if (lnt >= rnt || keep_left) {
     type = tyNumTable[lnt];
@@ -171,10 +192,10 @@ Expr *add_expr(const Token *tok, Expr *lhs, Expr *rhs, bool keep_left) {
   //  rtype = &tyInt;
 
   if (is_number(ltype->type)) {
-    if (same_type(ltype, rtype))
-      return new_expr_bop(EX_ADD, ltype, tok, lhs, rhs);
     if (is_number(rtype->type))
       return add_num(EX_ADD, tok, lhs, rhs, keep_left);
+    if (same_type(ltype, rtype))
+      return new_expr_bop(EX_ADD, ltype, tok, lhs, rhs);
   }
 
   switch (ltype->type) {
@@ -219,10 +240,10 @@ static Expr *diff_ptr(const Token *tok, Expr *lhs, Expr *rhs) {
 
 static Expr *sub_expr(const Token *tok, Expr *lhs, Expr *rhs, bool keep_left) {
   if (is_number(lhs->valType->type)) {
-    if (same_type(lhs->valType, rhs->valType))
-      return new_expr_bop(EX_SUB, lhs->valType, tok, lhs, rhs);
     if (is_number(rhs->valType->type))
       return add_num(EX_SUB, tok, lhs, rhs, keep_left);
+    if (same_type(lhs->valType, rhs->valType))
+      return new_expr_bop(EX_SUB, lhs->valType, tok, lhs, rhs);
   }
 
   switch (lhs->valType->type) {
