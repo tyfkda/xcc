@@ -210,3 +210,11 @@ void *map_get(Map *map, const char *key) {
   int i = map_find(map, key);
   return i >= 0 ? map->vals->data[i] : NULL;
 }
+
+bool map_try_get(Map *map, const char *key, void **output) {
+  int i = map_find(map, key);
+  if (i < 0)
+    return false;
+  *output = map->vals->data[i];
+  return true;
+}

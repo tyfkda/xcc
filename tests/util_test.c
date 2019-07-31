@@ -62,6 +62,12 @@ void test_map(void) {
   EXPECT(6, (intptr_t)map_get(map, "foo"));
 
   EXPECT(2, map_count(map));
+
+  intptr_t value = -1;
+  EXPECT(false, map_try_get(map, "qux", (void**)&value));
+  map_put(map, "qux", (void *)0);
+  EXPECT(true, map_try_get(map, "qux", (void**)&value));
+  EXPECT(0, value);
 }
 
 void test_abspath(void) {
