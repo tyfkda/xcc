@@ -416,6 +416,11 @@ Vector *parse_funparams(bool *pvaargs) {  // Vector<VarInfo*>, NULL=>old style.
       Token *ident;
       if (!parse_var_def(NULL, &type, &flag, &ident))
         parse_error(NULL, "type expected");
+      if (flag & VF_STATIC)
+        parse_error(ident, "`static' for function parameter");
+      if (flag & VF_EXTERN)
+        parse_error(ident, "`extern' for function parameter");
+
       if (params->len == 0) {
         if (type->type == TY_VOID) {  // fun(void)
           if (!consume(TK_RPAR))
