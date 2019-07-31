@@ -53,8 +53,11 @@ VarInfo *define_global(const Type *type, int flag, const Token *ident, const cha
   if (name == NULL)
     name = ident->u.ident;
   VarInfo *varinfo = find_global(name);
-  if (varinfo != NULL && !(varinfo->flag & VF_EXTERN))
+  if (varinfo != NULL && !(varinfo->flag & VF_EXTERN)) {
+    if (flag & VF_EXTERN)
+      return varinfo;
     parse_error(ident, "`%s' already defined", name);
+  }
   varinfo = malloc(sizeof(*varinfo));
   varinfo->name = name;
   varinfo->type = type;

@@ -3,10 +3,12 @@
 typedef struct Defun Defun;
 typedef struct Initializer Initializer;
 typedef struct Node Node;
+typedef struct Scope Scope;
 typedef struct Token Token;
 typedef struct Type Type;
 
 extern Defun *curfunc;
+extern Scope *curscope;
 
 Node *sema(Node *node);
 

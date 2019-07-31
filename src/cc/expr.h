@@ -10,9 +10,7 @@ typedef struct Map Map;
 typedef struct Scope Scope;
 typedef struct Token Token;
 typedef struct Type Type;
-typedef struct VarInfo VarInfo;
 typedef struct Vector Vector;
-enum eType;
 
 // Num
 
@@ -59,8 +57,6 @@ typedef struct Defun {
   // For codegen.
   const char *ret_label;
 } Defun;
-
-extern Scope *curscope;
 
 // Expr
 
@@ -129,32 +125,32 @@ typedef struct Expr {
     } varref;
 
     struct {
-      struct Expr *lhs;
-      struct Expr *rhs;
+      Expr *lhs;
+      Expr *rhs;
     } bop;
     struct {
-      struct Expr *sub;
+      Expr *sub;
     } unary;
     struct {
-      struct Expr *sub;
+      Expr *sub;
     } cast;
     struct {
-      struct Expr *cond;
-      struct Expr *tval;
-      struct Expr *fval;
+      Expr *cond;
+      Expr *tval;
+      Expr *fval;
     } ternary;
     struct {
-      struct Expr *target;
+      Expr *target;
       const Token *acctok;  // TK_DOT(.) or TK_ARROW(->)
       const Token *ident;
       int index;
     } member;
     struct {
       const Type *type;
-      struct Expr *sub;
+      Expr *sub;
     } sizeof_;
     struct {
-      struct Expr *func;
+      Expr *func;
       Vector *args;  // <Expr*>
     } funcall;
     struct {
