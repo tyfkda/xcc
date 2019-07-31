@@ -5,6 +5,7 @@
 #include <string.h>
 
 #include "util.h"
+#include "lexer.h"
 
 const Type tyChar =  {.type=TY_NUM, .u={.num={.type=NUM_CHAR}}};
 const Type tyShort = {.type=TY_NUM, .u={.num={.type=NUM_SHORT}}};
@@ -112,6 +113,43 @@ StructInfo *find_struct(const char *name) {
 
 void define_struct(const char *name, StructInfo *sinfo) {
   map_put(struct_map, name, sinfo);
+}
+
+// Enum
+
+Map *enum_map;
+Map *enum_value_map;
+
+Type *find_enum(const char *name) {
+  return map_get(enum_map, name);
+}
+
+Type *define_enum(const Token *ident) {
+  Type *type = malloc(sizeof(*type));
+  type->type = TY_NUM;
+  type->u.num.type = NUM_ENUM;
+  type->u.num.enum_.ident = ident;
+  type->u.num.enum_.members = new_vector();
+
+  if (ident != NULL) {
+    map_put(enum_map, ident->u.ident, type);
+  }
+
+  return type;
+}
+
+void add_enum_member(Type *type, const Token *ident, int value) {
+  assert(type->type == TY_NUM && type->u.num.type == NUM_ENUM);
+  EnumMember *member = malloc(sizeof(*member));
+  member->ident = ident;
+  member->value = value;
+  vec_push(type->u.num.enum_.members, member);
+
+  map_put(enum_value_map, ident->u.ident, (void*)(intptr_t)value);
+}
+
+bool find_enum_value(const char *name, intptr_t *output) {
+  return map_try_get(enum_value_map, name, (void**)output);
 }
 
 #if 0

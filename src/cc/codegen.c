@@ -366,7 +366,6 @@ static void put_rodata(void) {
   for (int i = 0, len = map_count(gvar_map); i < len; ++i) {
     const VarInfo *varinfo = (const VarInfo*)gvar_map->vals->data[i];
     if (varinfo->type->type == TY_FUNC ||
-        (varinfo->type->type == TY_NUM && varinfo->type->u.num.type == NUM_ENUM) ||
         (varinfo->flag & VF_EXTERN) != 0 || varinfo->u.g.init == NULL ||
         (varinfo->flag & VF_CONST) == 0)
       continue;
@@ -381,7 +380,6 @@ static void put_rwdata(void) {
   for (int i = 0, len = map_count(gvar_map); i < len; ++i) {
     const VarInfo *varinfo = (const VarInfo*)gvar_map->vals->data[i];
     if (varinfo->type->type == TY_FUNC ||
-        (varinfo->type->type == TY_NUM && varinfo->type->u.num.type == NUM_ENUM) ||
         (varinfo->flag & VF_EXTERN) != 0 || varinfo->u.g.init == NULL ||
         (varinfo->flag & VF_CONST) != 0)
       continue;

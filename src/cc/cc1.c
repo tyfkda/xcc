@@ -17,6 +17,8 @@
 
 static void init_compiler(FILE *fp) {
   init_gen(fp);
+  enum_map = new_map();
+  enum_value_map = new_map();
   struct_map = new_map();
   typedef_map = new_map();
   gvar_map = new_map();

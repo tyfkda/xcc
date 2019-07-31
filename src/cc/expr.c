@@ -158,8 +158,12 @@ Expr *member_access(Expr *target, Token *acctok) {
 
 static const Type *parse_enum(void) {
   Token *typeIdent = consume(TK_IDENT);
-
+  Type *type = typeIdent != NULL ? find_enum(typeIdent->u.ident) : NULL;
   if (consume(TK_LBRACE)) {
+    // TODO: Duplicate check.
+    if (type != NULL)
+      parse_error(typeIdent, "Duplicate enum type");
+    type = define_enum(typeIdent);
     if (!consume(TK_RBRACE)) {
       int value = 0;
       for (;;) {
@@ -175,15 +179,9 @@ static const Type *parse_enum(void) {
           }
           value = expr->u.num.ival;
         }
-        // Define
-        (void)typeIdent;  // TODO: Define enum type with name.
-        Initializer *init = malloc(sizeof(*init));
-        init->type = vSingle;
-        //init->u.single = new_expr_numlit(EX_INT, numtok, value);
-        init->u.single = new_expr(EX_NUM, &tyEnum, numtok);
-        init->u.single->u.num.ival = value;
-        VarInfo *varinfo = define_global(&tyEnum, VF_CONST, ident, NULL);
-        varinfo->u.g.init = init;
+
+        // TODO: Check whether symbol is not defined.
+        add_enum_member(type, ident, value);
         ++value;
 
         if (consume(TK_COMMA))
@@ -192,8 +190,11 @@ static const Type *parse_enum(void) {
           break;
       }
     }
+  } else {
+    if (type == NULL)
+      parse_error(typeIdent, "Unknown enum type");
   }
-  return &tyEnum;
+  return type;
 }
 
 const Type *parse_raw_type(int *pflag) {

@@ -384,11 +384,13 @@ Expr *analyze_expr(Expr *expr, bool keep_left) {
         if (varinfo != NULL) {
           global = true;
           type = varinfo->type;
-          if (type->type == TY_NUM && type->u.num.type == NUM_ENUM) {
-            // Enum value is embeded directly.
-            assert(varinfo->u.g.init->type == vSingle);
-            return varinfo->u.g.init->u.single;
-          }
+        }
+      }
+      if (type == NULL) {
+        intptr_t value;
+        if (find_enum_value(name, &value)) {
+          Num num = {.ival = value};
+          return new_expr_numlit(&tyInt, NULL, &num);
         }
       }
       if (type == NULL)

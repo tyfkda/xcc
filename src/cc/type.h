@@ -1,6 +1,7 @@
 #pragma once
 
 #include <stdbool.h>
+#include <stdint.h>  // intptr_t
 #include <stdio.h>  // FILE
 #include <sys/types.h>  // ssize_t
 
@@ -37,11 +38,20 @@ typedef struct StructInfo {
   bool is_union;
 } StructInfo;
 
+typedef struct {
+  const Token *ident;
+  int value;
+} EnumMember;
+
 typedef struct Type {
   enum eType type;
   union {
     struct {
       enum NumType type;
+      struct {
+        const Token *ident;
+        Vector *members;  // <EnumMember*>
+      } enum_;
     } num;
     struct {  // Pointer or array.
       const struct Type *ptrof;
@@ -80,6 +90,13 @@ Type* new_func_type(const Type *ret, Vector *param_types, bool vaargs);
 // Struct
 
 extern Map *struct_map;  // <char*, StructInfo*>
+extern Map *enum_map;  // <char*, EnumInfo*>
+extern Map *enum_value_map;  // <char*, intptr_t>
 
 StructInfo *find_struct(const char *name);
 void define_struct(const char *name, StructInfo *sinfo);
+
+Type *find_enum(const char *name);
+Type *define_enum(const Token *ident);
+void add_enum_member(Type *type, const Token *ident, int value);
+bool find_enum_value(const char *name, intptr_t *output);
