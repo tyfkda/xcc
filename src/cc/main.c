@@ -8,7 +8,6 @@
 #include "unistd.h"  // fork, execvp
 
 #include "codegen.h"
-#include "elfutil.h"
 #include "expr.h"
 #include "lexer.h"
 #include "parser.h"
@@ -49,8 +48,6 @@
 
 #endif
 
-#define LOAD_ADDRESS    START_ADDRESS
-
 ////////////////////////////////////////////////
 
 static pid_t fork1(void) {
@@ -60,12 +57,11 @@ static pid_t fork1(void) {
   return pid;
 }
 
-static void init_compiler(uintptr_t adr) {
+static void init_compiler(FILE *fp) {
+  init_gen(fp);
   struct_map = new_map();
   typedef_map = new_map();
   gvar_map = new_map();
-
-  init_gen(adr);
 }
 
 static void compile(FILE *fp, const char *filename) {
@@ -131,16 +127,6 @@ static char *change_ext(const char *fn, const char *ext) {
   return buf;
 }
 
-static void put_padding(FILE* fp, uintptr_t start) {
-  long cur = ftell(fp);
-   if (start > (size_t)cur) {
-    size_t size = start - (uintptr_t)cur;
-    char* buf = calloc(1, size);
-    fwrite(buf, size, 1, fp);
-    free(buf);
-  }
-}
-
 int main(int argc, char* argv[]) {
   const char *ofn = "a.out";
   char *out_asm = NULL;
@@ -168,65 +154,26 @@ int main(int argc, char* argv[]) {
 
   // Compile.
 
-  FILE *asm_fp = NULL;
+  FILE *asm_fp = stdout;
   if (out_asm != NULL) {
     const char *name = *out_asm != '\0' ? out_asm : ofn;
     out_asm = change_ext(name, "s");
     asm_fp = fopen(out_asm, "w");
     if (asm_fp == NULL)
       error("Cannot open file for asm: %s", out_asm);
-    set_asm_fp(asm_fp);
   }
 
-  init_compiler(LOAD_ADDRESS);
+  init_compiler(asm_fp);
 
   // Test.
   define_global(new_func_type(&tyVoid, NULL, true), 0, NULL, "__asm");
-  define_global(new_func_type(&tyVoid, NULL, false), 0, NULL, "__rel32");
 
   compile(stdin, "*stdin*");
 
   fixup_locations();
 
-  uintptr_t entry = label_adr("_start");
-  if (entry == (uintptr_t)-1)
-    error("Cannot find label: `%s'", "_start");
-
-  FILE* fp = fopen(ofn, "wb");
-  if (fp == NULL) {
-    fprintf(stderr, "Failed to open output file: %s\n", ofn);
-    return 1;
-  }
-
-  size_t codefilesz, codememsz;
-  size_t datafilesz, datamemsz;
-  uintptr_t codeloadadr, dataloadadr;
-  get_section_size(0, &codefilesz, &codememsz, &codeloadadr);
-  get_section_size(1, &datafilesz, &datamemsz, &dataloadadr);
-
-  int phnum = datamemsz > 0 ? 2 : 1;
-
-  out_elf_header(fp, entry, phnum);
-  out_program_header(fp, 0, PROG_START, codeloadadr, codefilesz, codememsz);
-  if (phnum > 1)
-    out_program_header(fp, 1, ALIGN(PROG_START + codefilesz, 0x1000), dataloadadr, datafilesz, datamemsz);
-
-  put_padding(fp, PROG_START);
-  output_section(fp, 0);
-  if (phnum > 1) {
-    put_padding(fp, ALIGN(PROG_START + codefilesz, 0x1000));
-    output_section(fp, 1);
-  }
-  fclose(fp);
-  if (asm_fp != NULL)
+  if (out_asm != NULL)
     fclose(asm_fp);
-
-#if !defined(__XV6) && defined(__linux__)
-  if (chmod(ofn, 0755) == -1) {
-    perror("chmod failed\n");
-    return 1;
-  }
-#endif
 
   return 0;
 }

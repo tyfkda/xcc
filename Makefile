@@ -13,7 +13,7 @@ CFLAGS+=-I$(SRC_DIR) -I$(UTIL_DIR) $(OPTIMIZE)
 
 CC_SRCS:=$(SRC_DIR)/lexer.c $(SRC_DIR)/type.c $(SRC_DIR)/var.c $(SRC_DIR)/expr.c $(SRC_DIR)/analyze.c $(SRC_DIR)/parser.c \
 	$(SRC_DIR)/sema.c $(SRC_DIR)/codegen.c $(SRC_DIR)/codegen_expr.c $(SRC_DIR)/main.c \
-	$(UTIL_DIR)/util.c $(UTIL_DIR)/elfutil.c
+	$(UTIL_DIR)/util.c
 CPP_SRCS:=$(CPP_DIR)/cpp.c $(SRC_DIR)/lexer.c $(SRC_DIR)/type.c $(SRC_DIR)/var.c $(SRC_DIR)/expr.c $(SRC_DIR)/analyze.c \
 	$(UTIL_DIR)/util.c
 AS_SRCS:=$(AS_DIR)/as.c $(AS_DIR)/gen.c $(UTIL_DIR)/util.c $(UTIL_DIR)/elfutil.c

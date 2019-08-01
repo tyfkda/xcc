@@ -1,23 +1,23 @@
 #if defined(__XV6)
 void _start(void) {
-  __asm("call main",      0xe8, __rel32("main"));
-  __asm("mov %eax, %edi", 0x89, 0xc7);
-  __asm("jmp exit",       0xe9, __rel32("exit"));
+  __asm("call main");
+  __asm("mov %eax, %edi");
+  __asm("jmp exit");
 }
 
 void exit(int code) {
-  __asm("mov $2, %eax", 0xb8, 0x02, 0x00, 0x00, 0x00);  // SYS_exit
-  __asm("int $64",      0xcd, 0x40);
+  __asm("mov $2, %eax");  // SYS_exit
+  __asm("int $64");
 }
 
 #elif defined(__linux__)
 void _start(void) {
 #if defined(__XCC)
-  __asm("mov (%rsp), %rdi",  0x48, 0x8b, 0x3c, 0x24);
-  __asm("lea 8(%rsp), %rsi", 0x48, 0x8d, 0x74, 0x24, 8);
-  __asm("call main",         0xe8, __rel32("main"));
-  __asm("mov %eax, %edi",    0x89, 0xc7);
-  __asm("jmp exit",          0xe9, __rel32("exit"));
+  __asm("mov (%rsp), %rdi");
+  __asm("lea 8(%rsp), %rsi");
+  __asm("call main");
+  __asm("mov %eax, %edi");
+  __asm("jmp exit");
 #else
   __asm("mov (%rsp), %rdi\n"
         "lea 8(%rsp), %rsi\n"
@@ -29,8 +29,8 @@ void _start(void) {
 
 void exit(int code) {
 #if defined(__XCC)
-  __asm("mov $60, %eax", 0xb8, 0x3c, 0x00, 0x00, 0x00);  // __NR_exit
-  __asm("syscall",       0x0f, 0x05);
+  __asm("mov $60, %eax");  // __NR_exit
+  __asm("syscall");
 #else
   __asm("mov $60, %eax\n"
         "syscall");

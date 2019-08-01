@@ -9,15 +9,15 @@
 
 #if defined(__XV6)
 ssize_t write(int fd, const char *str, long len) {
-  __asm("mov $16, %eax", 0xb8, 0x10, 0x00, 0x00, 0x00);  // SYS_write
-  __asm("int $64",       0xcd, 0x40);
+  __asm("mov $16, %eax");  // SYS_write
+  __asm("int $64");
 }
 
 #elif defined(__linux__)
 ssize_t write(int fd, const char *str, long len) {
 #if defined(__XCC)
-  __asm("mov $1, %eax", 0xb8, 0x01, 0x00, 0x00, 0x00);  // __NR_write
-  __asm("syscall",      0x0f, 0x05);
+  __asm("mov $1, %eax");  // __NR_write
+  __asm("syscall");
 #else
   __asm("mov $1, %eax\n"
         "syscall\n");
