@@ -167,7 +167,7 @@ static Initializer *flatten_array_initializer(Initializer *init) {
   for (; i <= len; ++i, ++index) {  // '+1' is for last range.
     Initializer *init_elem;
     if (i >= len || (init_elem = init->u.multi->data[i])->type == vArr) {
-      if (init_elem->u.arr.index->type != EX_NUM)
+      if (i < len && init_elem->u.arr.index->type != EX_NUM)
         parse_error(NULL, "Constant value expected");
       if ((size_t)i > lastStartIndex) {
         size_t *range = malloc(sizeof(size_t) * 3);

@@ -17,7 +17,7 @@ static void gen_lval(Expr *expr);
 //   EX_GT => EX_LT
 static enum ExprType gen_expr_compare(enum ExprType type, Expr *lhs, Expr *rhs) {
   const Type *ltype = lhs->valType;
-
+  UNUSED(ltype);
   assert(ltype->type == rhs->valType->type && (ltype->type != TY_NUM || ltype->u.numtype == rhs->valType->u.numtype));
   if (type == EX_LE || type == EX_GT) {
     Expr *tmp = lhs; lhs = rhs; rhs = tmp;

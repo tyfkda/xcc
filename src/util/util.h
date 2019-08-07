@@ -8,6 +8,7 @@
 #define MIN(a, b)  ((a) < (b) ? (a) : (b))
 #define MAX(a, b)  ((a) > (b) ? (a) : (b))
 #define ALIGN(x, align)  (((x) + (align) - 1) & -(align))  // align must be 2^n
+#define UNUSED(x)  ((void)(x))
 
 char *strdup_(const char *str);
 char *strndup_(const char *str, size_t size);

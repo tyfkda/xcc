@@ -24,8 +24,6 @@
 #define add_asm(...)  // ignore
 #endif
 
-#define UNUSED(x)  ((void)(x))
-
 const int FRAME_ALIGN = 8;
 const int STACK_PARAM_BASE_OFFSET = (2 - MAX_REG_ARGS) * 8;
 
@@ -404,7 +402,6 @@ void construct_initial_value(unsigned char *buf, const Type *type, Initializer *
     if (init == NULL || init->type == vMulti) {
       const Type *elem_type = type->u.pa.ptrof;
       size_t elem_size = type_size(elem_type);
-      size_t elem_count = type->u.pa.length;
       if (init != NULL) {
         Vector *init_array = init->u.multi;
         size_t index = 0;
@@ -417,7 +414,7 @@ void construct_initial_value(unsigned char *buf, const Type *type, Initializer *
           }
           construct_initial_value(buf + (index * elem_size), elem_type, init_elem, pptrinits);
         }
-        assert((size_t)len <= elem_count);
+        assert((size_t)len <= type->u.pa.length);
       }
     } else {
       if (init->type == vSingle &&
