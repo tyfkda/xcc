@@ -652,25 +652,30 @@ void gen_expr(Expr *expr) {
   case EX_NEG:
     gen_expr(expr->u.unary.sub);
     assert(expr->valType->type == TY_NUM);
-    switch (expr->valType->u.numtype) {
-    case NUM_CHAR: NEG_AL(); break;
-    case NUM_INT:  NEG_EAX(); break;
-    case NUM_LONG: NEG_RAX(); break;
+    switch (expr->u.unary.sub->valType->u.numtype) {
+    case NUM_CHAR:   NEG_AL(); break;
+    case NUM_SHORT:  NEG_AX(); break;
+    case NUM_INT:    NEG_EAX(); break;
+    case NUM_LONG:   NEG_RAX(); break;
     default:  assert(false); break;
     }
     break;
 
   case EX_NOT:
     gen_expr(expr->u.unary.sub);
-    switch (expr->valType->type) {
+    switch (expr->u.unary.sub->valType->type) {
     case TY_NUM:
-      switch (expr->valType->u.numtype) {
-      case NUM_CHAR: TEST_AL_AL(); break;
-      case NUM_INT:  TEST_EAX_EAX(); break;
+      switch (expr->u.unary.sub->valType->u.numtype) {
+      case NUM_CHAR:   TEST_AL_AL(); break;
+      case NUM_SHORT:  TEST_AX_AX(); break;
+      case NUM_INT:    TEST_EAX_EAX(); break;
+      case NUM_LONG:   TEST_RAX_RAX(); break;
       default:  assert(false); break;
       }
       break;
-    case TY_PTR:  TEST_RAX_RAX(); break;
+    case TY_PTR: case TY_ARRAY: case TY_FUNC:
+      TEST_RAX_RAX();
+      break;
     default:  assert(false); break;
     }
     SETE_AL();
@@ -704,6 +709,7 @@ void gen_expr(Expr *expr) {
       case TY_NUM:
         switch (ltype->u.numtype) {
         case NUM_CHAR: CMP_AL_DIL(); break;
+        case NUM_SHORT: CMP_AX_DI(); break;
         case NUM_INT: case NUM_ENUM:
           CMP_EAX_EDI();
           break;
