@@ -409,7 +409,10 @@ void construct_initial_value(unsigned char *buf, const Type *type, Initializer *
         for (size_t i = 0; i < len; ++i, ++index) {
           Initializer *init_elem = init_array->data[i];
           if (init_elem->type == vArr) {
-            index = init_elem->u.arr.index->u.num.ival;
+            size_t next = init_elem->u.arr.index->u.num.ival;
+            for (size_t j = index; j < next; ++j)
+              construct_initial_value(buf + (j * elem_size), elem_type, NULL, pptrinits);
+            index = next;
             init_elem = init_elem->u.arr.value;
           }
           construct_initial_value(buf + (index * elem_size), elem_type, init_elem, pptrinits);
@@ -623,6 +626,8 @@ void fixup_locations(void) {
   add_asm(".data");
   put_rwdata();
 
+  add_asm_comment(NULL);
+  add_asm_comment("bss");
   put_bss();
 
   resolve_label_locations();
