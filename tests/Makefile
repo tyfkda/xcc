@@ -22,7 +22,8 @@ cpp-tests:	test-cpp
 cc-tests:	test-val test-sh test-examples
 
 clean:
-	rm -f util_test valtest a.out
+	rm -f util_test valtest a.out tmp.s
+
 test-util:	util_test
 	@echo '## Util'
 	@./util_test
@@ -54,4 +55,5 @@ util_test:	$(UTIL_SRCS)
 
 VAL_SRCS:=../lib/crt0.c ../examples/util.c valtest.c
 valtest:	$(VAL_SRCS) # $(XCC)
-	$(XCC) -o$@ $(VAL_SRCS)
+	$(XCC) $(VAL_SRCS) > tmp.s
+	gcc -o$@ -nostdlib -nodefaultlibs tmp.s

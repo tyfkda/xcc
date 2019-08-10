@@ -4,19 +4,19 @@ XCC=${XCC:-../xcc}
 
 PROLOGUE=$(cat <<EOS
 void _start() {
-  __asm("", 0x48, 0x8b, 0x3c, 0x24,
-            0x48, 0x8d, 0x74, 0x24, 8,
-            0xe8, __rel32("main"),
-            0x89, 0xc7,
-            0xe9, __rel32("exit"));
+  __asm("mov (%rsp), %rdi");
+  __asm("lea 8(%rsp), %rsi");
+  __asm("call main");
+  __asm("mov %eax, %edi");
+  __asm("jmp exit");
 }
 void exit(int code) {
-  __asm("", 0xb8, 0x3c, 0x00, 0x00, 0x00,
-            0x0f, 0x05);
+  __asm("mov \$60, %eax");  // __NR_exit
+  __asm("syscall");
 }
 void write(int fd, const char *str, long len) {
-  __asm("", 0xb8, 0x01, 0x00, 0x00, 0x00,
-            0x0f, 0x05);
+  __asm("mov \$1, %eax");  // __NR_write
+  __asm("syscall");
 }
 EOS
 )
@@ -28,7 +28,8 @@ try_direct() {
 
   echo -n "$title => "
 
-  echo -e "$input" | $XCC || exit 1
+  echo -e "$input" | $XCC > tmp.s || exit 1
+  gcc -nostdlib -nodefaultlibs tmp.s || exit 1
 
   ./a.out
   actual="$?"
@@ -52,7 +53,8 @@ try_output_direct() {
 
   echo -n "$title => "
 
-  echo -e "$input" | $XCC || exit 1
+  echo -e "$input" | $XCC > tmp.s || exit 1
+  gcc -nostdlib -nodefaultlibs tmp.s || exit 1
 
   actual=`./a.out` || exit 1
 
@@ -74,12 +76,16 @@ compile_error() {
 
   echo -n "$title => "
 
-  echo -e "$input" | $XCC
+  echo -e "$input" | $XCC > tmp.s
   result="$?"
 
   if [ "$result" = "0" ]; then
-    echo "NG: Compile error expected, but succeeded"
-    exit 1
+    gcc -nostdlib -nodefaultlibs tmp.s
+    result2="$?"
+    if [ "$result2" = "0" ]; then
+      echo "NG: Compile error expected, but succeeded"
+      exit 1
+    fi
   fi
 }
 

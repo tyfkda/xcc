@@ -9,7 +9,8 @@ try() {
 
   echo -n "$title => "
 
-  $XCC $inputs || exit 1
+  $XCC $inputs > tmp.s || exit 1
+  gcc -nostdlib -nodefaultlibs tmp.s || exit 1
 
   actual=`./a.out ${@:4}` || exit 1
 

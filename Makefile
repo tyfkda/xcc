@@ -85,19 +85,16 @@ $(TARGET)/cpp:	$(HOST)/xcc $(HOST)/cpp $(CPP_SRCS)
 	mkdir -p $(TARGET)
 	$(HOST)/xcc -S -o$@ -Iinc -I$(SRC_DIR) -I$(UTIL_DIR) $(CPP_SRCS) \
 	      lib/lib.c lib/umalloc.c lib/sprintf.c lib/crt0.c
-	rm $@
 	$(HOST)/as -o$@ $(TARGET)/cpp.s
 
 $(TARGET)/xcc:	$(HOST)/xcc $(HOST)/cpp $(CC_SRCS)
 	mkdir -p $(TARGET)
 	$(HOST)/xcc -S -o$@ -Iinc -I$(UTIL_DIR) $(CC_SRCS) \
 	      lib/lib.c lib/umalloc.c lib/sprintf.c lib/crt0.c
-	rm $@
 	$(HOST)/as -o$@ $(TARGET)/xcc.s
 
 $(TARGET)/as:	$(HOST)/as $(AS_SRCS)
 	mkdir -p $(TARGET)
 	$(HOST)/xcc -S -o$@ -Iinc -I$(UTIL_DIR) $(AS_SRCS) \
 	      lib/lib.c lib/umalloc.c lib/sprintf.c lib/crt0.c
-	rm $@
 	$(HOST)/as -o$@ $(TARGET)/as.s

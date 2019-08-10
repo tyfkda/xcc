@@ -225,8 +225,8 @@ char **environ = NULL;
 
 int open(const char *fn, int flag) {
 #if defined(__XCC)
-  __asm("mov $2, %eax", 0xb8, 0x02, 0x00, 0x00, 0x00);  // __NR_open
-  __asm("syscall", 0x0f, 0x05);
+  __asm("mov $2, %eax");  // __NR_open
+  __asm("syscall");
 #else
   __asm("mov $2, %eax\n"
         "syscall\n");
@@ -235,8 +235,8 @@ int open(const char *fn, int flag) {
 
 int close(int fd) {
 #if defined(__XCC)
-  __asm("mov $3, %eax", 0xb8, 0x03, 0x00, 0x00, 0x00);  // __NR_close
-  __asm("syscall", 0x0f, 0x05);
+  __asm("mov $3, %eax");  // __NR_close
+  __asm("syscall");
 #else
   __asm("mov $3, %eax\n"
         "syscall\n");
@@ -245,8 +245,8 @@ int close(int fd) {
 
 size_t read(int fd, void *buf, size_t size) {
 #if defined(__XCC)
-  __asm("mov $0, %eax", 0xb8, 0x00, 0x00, 0x00, 0x00);  // __NR_read
-  __asm("syscall", 0x0f, 0x05);
+  __asm("mov $0, %eax");  // __NR_read
+  __asm("syscall");
 #else
   __asm("mov $0, %eax\n"
         "syscall\n");
@@ -255,8 +255,8 @@ size_t read(int fd, void *buf, size_t size) {
 
 static size_t _getcwd(char *buffer, size_t size) {
 #if defined(__XCC)
-  __asm("mov $79, %eax", 0xb8, 0x4f, 0x00, 0x00, 0x00);  // __NR_getcwd
-  __asm("syscall", 0x0f, 0x05);
+  __asm("mov $79, %eax");  // __NR_getcwd
+  __asm("syscall");
 #else
   __asm("mov $79, %eax\n"
         "syscall\n");
@@ -265,8 +265,8 @@ static size_t _getcwd(char *buffer, size_t size) {
 
 pid_t fork(void) {
 #if defined(__XCC)
-  __asm("mov $57, %eax", 0xb8, 0x39, 0x00, 0x00, 0x00);  // __NR_fork
-  __asm("syscall", 0x0f, 0x05);
+  __asm("mov $57, %eax");  // __NR_fork
+  __asm("syscall");
 #else
   __asm("mov $57, %eax\n"
         "syscall\n");
@@ -275,8 +275,8 @@ pid_t fork(void) {
 
 int pipe(int *pipefd) {
 #if defined(__XCC)
-  __asm("mov $22, %eax", 0xb8, 0x16, 0x00, 0x00, 0x00);  // __NR_pipe
-  __asm("syscall", 0x0f, 0x05);
+  __asm("mov $22, %eax");  // __NR_pipe
+  __asm("syscall");
 #else
   __asm("mov $22, %eax\n"
         "syscall\n");
@@ -285,8 +285,8 @@ int pipe(int *pipefd) {
 
 int dup(int fd) {
 #if defined(__XCC)
-  __asm("mov $32, %eax", 0xb8, 0x20, 0x00, 0x00, 0x00);  // __NR_dup
-  __asm("syscall", 0x0f, 0x05);
+  __asm("mov $32, %eax");  // __NR_dup
+  __asm("syscall");
 #else
   __asm("mov $32, %eax\n"
         "syscall\n");
@@ -295,8 +295,8 @@ int dup(int fd) {
 
 int execve(const char *path, char *const args[], char *const envp[]) {
 #if defined(__XCC)
-  __asm("mov $59, %eax", 0xb8, 0x3b, 0x00, 0x00, 0x00);  // __NR_execve
-  __asm("syscall", 0x0f, 0x05);
+  __asm("mov $59, %eax");  // __NR_execve
+  __asm("syscall");
 #else
   __asm("mov $59, %eax\n"
         "syscall\n");
@@ -305,8 +305,8 @@ int execve(const char *path, char *const args[], char *const envp[]) {
 
 pid_t wait4(pid_t pid, int* status, int options, struct rusage *usage) {
 #if defined(__XCC)
-  __asm("mov $61, %eax", 0xb8, 0x3d, 0x00, 0x00, 0x00);  // __NR_wait4
-  __asm("syscall", 0x0f, 0x05);
+  __asm("mov $61, %eax");  // __NR_wait4
+  __asm("syscall");
 #else
   __asm("mov $61, %eax\n"
         "syscall\n");
@@ -315,8 +315,8 @@ pid_t wait4(pid_t pid, int* status, int options, struct rusage *usage) {
 
 int chmod(const char *pathname, /*mode_t*/int mode) {
 #if defined(__XCC)
-  __asm("mov $90, %eax", 0xb8, 0x5a, 0x00, 0x00, 0x00);  // __NR_chmod
-  __asm("syscall", 0x0f, 0x05);
+  __asm("mov $90, %eax");  // __NR_chmod
+  __asm("syscall");
 #else
   __asm("mov $90, %eax\n"
         "syscall\n");
@@ -324,8 +324,8 @@ int chmod(const char *pathname, /*mode_t*/int mode) {
 }
 
 off_t lseek(int fd, off_t offset, int whence) {
-  __asm("mov $8, %eax", 0xb8, 0x08, 0x00, 0x00, 0x00);  // __NR_lseek
-  __asm("syscall", 0x0f, 0x05);
+  __asm("mov $8, %eax");  // __NR_lseek
+  __asm("syscall");
 }
 
 #else
