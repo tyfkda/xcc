@@ -839,7 +839,7 @@ void gen_expr(Expr *expr) {
     default:  assert(false); break;
     }
     SETE_AL();
-    MOVZX_AL_EAX();
+    MOVSX_AL_EAX();
     break;
 
   case EX_EQ:
@@ -875,7 +875,7 @@ void gen_expr(Expr *expr) {
       default: assert(false); break;
       }
     }
-    MOVZX_AL_EAX();
+    MOVSX_AL_EAX();
     return;
 
   case EX_LOGAND:
