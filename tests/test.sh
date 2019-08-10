@@ -94,7 +94,7 @@ try_direct 'compare enum' 0 'enum Num { Zero, One, Two }; int main(){ enum Num n
 try_direct 'enum initializer' 0 'enum Num { Zero } num = Zero; int main(){ return num; }'
 try_direct 'enum initializer2' 67 'enum Num { Zero } num = 67; int main(){ return num; }'
 try_direct 'typedef' 123 'typedef struct {int x, y;} Foo; int main(){ Foo foo; foo.x = 123; return foo.x; }'
-try_output_direct 'empty function' '' 'void main(){}'
+try_output_direct 'empty function' '' 'void foo(){} int main(){ foo(); return 0; }'
 try_direct 'Undeclared struct typedef' 8 'typedef struct FILE FILE; int main(){ return sizeof(FILE*); }'
 try_direct 'late declare struct' 42 'struct Foo *p; struct Foo {int x;}; int main(){ struct Foo foo; p = &foo; p->x = 42; return p->x; }'
 try_direct 'typedef func-ptr' 84 'typedef int (*Func)(int); int twice(Func f, int x) { return f(f(x)); } int double(int x) { return x * 2; } int main(){ return twice(&double, 21); }'
