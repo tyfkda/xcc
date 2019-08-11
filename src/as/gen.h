@@ -17,6 +17,9 @@ enum SectionType {
 };
 
 void init_gen(uintptr_t start_address);
+void add_code(const unsigned char* buf, size_t bytes);
+void add_label(const char *label);
+
 void get_section_size(int section, size_t *pfilesz, size_t *pmemsz, uintptr_t *ploadadr);
 void output_section(FILE* fp, int section);
 void add_loc_rel8(const char *label, int ofs, int baseofs);
