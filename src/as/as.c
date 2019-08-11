@@ -86,7 +86,6 @@ enum Opcode {
 };
 
 static const char *kOpTable[] = {
-  "*noop*",
   "mov",
   "movsx",
   "lea",
@@ -201,6 +200,19 @@ typedef struct {
   } u;
 } Operand;
 
+enum DirectiveType {
+  NODIRECTIVE,
+  DT_ASCII,
+  DT_GLOBAL,
+  DT_EXTERN,
+};
+
+static const char *kDirectiveTable[] = {
+  "ascii",
+  "global",
+  "extern",
+};
+
 typedef struct {
   const char *label;
   enum Opcode op;
@@ -235,7 +247,7 @@ static const char *parse_label(const char **pp) {
   return strndup_(start, p - start);
 }
 
-static enum Opcode parse_opcode(const char **pp) {
+static int find_match_index(const char **pp, const char **table, size_t count) {
   const char *p = *pp;
   const char *start = p;
 
@@ -243,16 +255,76 @@ static enum Opcode parse_opcode(const char **pp) {
     ++p;
   if (*p == '\0' || isspace(*p)) {
     size_t n = p - start;
-    for (int i = 0, len = sizeof(kOpTable) / sizeof(*kOpTable); i < len; ++i) {
-      const char *op = kOpTable[i];
+    for (size_t i = 0; i < count; ++i) {
+      const char *op = table[i];
       size_t len = strlen(op);
       if (n == len && strncasecmp(start, op, n) == 0) {
         *pp = skip_whitespace(p);
-        return (enum Opcode)i;
+        return i;
       }
     }
   }
-  return NOOP;
+  return -1;
+}
+
+static enum Opcode parse_directive(const char **pp) {
+  return find_match_index(pp, kDirectiveTable, sizeof(kDirectiveTable) / sizeof(*kDirectiveTable)) + 1;
+}
+
+static char unescape_char(char c) {
+  switch (c) {
+  case '0':  return '\0';
+  case 'n':  return '\n';
+  case 't':  return '\t';
+  case 'r':  return '\r';
+  case '"':  return '"';
+  case '\'':  return '\'';
+  default:
+    return c;
+  }
+}
+
+static size_t unescape_string(const char *p, char *dst) {
+  size_t len = 0;
+  for (; *p != '"'; ++p, ++len) {
+    char c = *p;
+    if (c == '\0')
+      error("string not closed");
+    if (c == '\\') {
+      // TODO: Handle \x...
+      c = unescape_char(*(++p));
+    }
+    if (dst != NULL)
+      *dst++ = c;
+  }
+  return len;
+}
+
+static void handle_directive(enum DirectiveType dir, const char *p) {
+  switch (dir) {
+  case DT_ASCII:
+    {
+      if (*p != '"')
+        error("`\"' expected");
+      ++p;
+      size_t len = unescape_string(p, NULL);
+      char *str = malloc(len);
+      unescape_string(p, str);
+
+      add_code((unsigned char*)str, len);  // TODO: Detect section.
+
+      free(str);
+    }
+    break;
+
+  default:
+    fprintf(stderr, "Unhandled directive: %d, %s\n", dir, p);
+    break;
+  }
+}
+
+static enum Opcode parse_opcode(const char **pp) {
+  return find_match_index(pp, kOpTable, sizeof(kOpTable) / sizeof(*kOpTable)) + 1;
 }
 
 static enum RegType parse_register(const char **pp) {
@@ -349,7 +421,13 @@ static void parse_line(const char *str, Line *line) {
   }
 
   p = skip_whitespace(p);
-  if (*p != '\0') {
+  if (*p == '.') {
+    ++p;
+    enum DirectiveType dir = parse_directive(&p);
+    if (dir == NODIRECTIVE)
+      error("Unknown directive");
+    handle_directive(dir, p);
+  } else if (*p != '\0') {
     line->op = parse_opcode(&p);
     if (line->op != NOOP) {
       if (parse_operand(&p, &line->src)) {
@@ -361,11 +439,11 @@ static void parse_line(const char *str, Line *line) {
         }
       }
     }
-  }
 
-  if (*p != '\0' && !(*p == '/' && p[1] == '/')) {
-    //error("Syntax error");
-    fprintf(stderr, "Not handled: %s\n", p);
+    if (*p != '\0' && !(*p == '/' && p[1] == '/')) {
+      //error("Syntax error");
+      fprintf(stderr, "Not handled: %s\n", p);
+    }
   }
 }
 
