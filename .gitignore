@@ -2,6 +2,8 @@
 *.d
 *.o
 a.out
+tmp.s
+/as
 /cpp
 /gen2
 /gen3
