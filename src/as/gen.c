@@ -9,7 +9,7 @@
 #define CURIP(ofs)  (instruction_pointer + ofs)
 #include "x86_64.h"
 
-#define ALIGN_SECTION_SIZE(sec, align_)  do { int align = (int)(align_); add_asm_align(align); align_section_size(sec, align); } while (0)
+#define ALIGN_SECTION_SIZE(sec, align_)  do { int align = (int)(align_); align_section_size(sec, align); } while (0)
 
 static Map *label_map;  // <uintptr_t adr>
 

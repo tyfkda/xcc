@@ -86,10 +86,10 @@ enum Opcode {
   INCL,
   DEC,
   DECL,
-  SHL,
-  SHR,
   AND,
   OR,
+  SHL,
+  SHR,
   CMP,
   TEST,
   SETE,
@@ -134,10 +134,10 @@ static const char *kOpTable[] = {
   "incl",
   "dec",
   "decl",
-  "shl",
-  "shr",
   "and",
   "or",
+  "shl",
+  "shr",
   "cmp",
   "test",
   "sete",
@@ -157,6 +157,11 @@ enum RegType {
   SIL,
   DIL,
 
+  AX,
+  CX,
+  DX,
+  BX,
+
   EAX,
   ECX,
   EDX,
@@ -175,6 +180,15 @@ enum RegType {
   RSI,
   RDI,
 
+  R8,
+  R9,
+  R10,
+  R11,
+  R12,
+  R13,
+  R14,
+  R15,
+
   RIP,
 };
 
@@ -190,6 +204,11 @@ static const struct {
   {"bpl", BPL},
   {"sil", SIL},
   {"dil", DIL},
+
+  {"ax", AX},
+  {"cx", CX},
+  {"dx", DX},
+  {"bx", BX},
 
   {"eax", EAX},
   {"ecx", ECX},
@@ -209,6 +228,15 @@ static const struct {
   {"rsi", RSI},
   {"rdi", RDI},
 
+  {"r8", R8},
+  {"r9", R9},
+  {"r10", R10},
+  {"r11", R11},
+  {"r12", R12},
+  {"r13", R13},
+  {"r14", R14},
+  {"r15", R15},
+
   {"rip", RIP},
 };
 
@@ -220,6 +248,10 @@ static bool is_reg8x(enum RegType reg) {
   return reg >= AL && reg <= DIL;
 }
 
+static bool is_reg16(enum RegType reg) {
+  return reg >= AX && reg <= BX;
+}
+
 static bool is_reg32(enum RegType reg) {
   return reg >= EAX && reg <= EDI;
 }
@@ -228,12 +260,17 @@ static bool is_reg64(enum RegType reg) {
   return reg >= RAX && reg <= RDI;
 }
 
+static bool is_reg64x(enum RegType reg) {
+  return reg >= R8 && reg <= R15;
+}
+
 enum OperandType {
   NOOPERAND,
-  REG,
-  INDIRECT,
-  IMMEDIATE,
-  LABEL,
+  REG,        // %rax
+  INDIRECT,   // (%rax)
+  IMMEDIATE,  // $1234
+  LABEL,      // foobar
+  DEREF_REG,  // *%rax
 };
 
 typedef struct {
@@ -247,6 +284,7 @@ typedef struct {
       const char *label;
       long offset;
     } indirect;
+    enum RegType deref_reg;
   } u;
 } Operand;
 
@@ -255,6 +293,12 @@ enum DirectiveType {
   DT_ASCII,
   DT_SECTION,
   DT_DATA,
+  DT_ALIGN,
+  DT_BYTE,
+  DT_WORD,
+  DT_LONG,
+  DT_QUAD,
+  DT_COMM,
   DT_GLOBL,
   DT_EXTERN,
 };
@@ -263,6 +307,12 @@ static const char *kDirectiveTable[] = {
   "ascii",
   "section",
   "data",
+  "align",
+  "byte",
+  "word",
+  "long",
+  "quad",
+  "comm",
   "globl",
   "extern",
 };
@@ -354,6 +404,20 @@ static size_t unescape_string(const char *p, char *dst) {
   return len;
 }
 
+static bool parse_immediate(const char **pp, long *value) {
+  const char *p = *pp;
+  bool negative = false;
+  if (*p == '-') {
+    negative = true;
+    ++p;
+  }
+  if (!isdigit(*p))
+    return false;
+  long v = strtol(p, (char**)pp, 10);
+  *value = negative ? -v : v;
+  return true;
+}
+
 static void handle_directive(enum DirectiveType dir, const char *p) {
   switch (dir) {
   case DT_ASCII:
@@ -368,6 +432,23 @@ static void handle_directive(enum DirectiveType dir, const char *p) {
       add_code((unsigned char*)str, len);  // TODO: Detect section.
 
       free(str);
+    }
+    break;
+
+  case DT_COMM:
+    {
+      const char *label = parse_label(&p);
+      if (label == NULL)
+        error(".comm: label expected");
+      p = skip_whitespace(p);
+      if (*p != ',')
+        error(".comm: `,' expected");
+      p = skip_whitespace(p + 1);
+      long count;
+      if (!parse_immediate(&p, &count))
+        error(".comm: count expected");
+      add_label(label);
+      add_bss(count);
     }
     break;
 
@@ -400,28 +481,36 @@ static enum RegType parse_register(const char **pp) {
   return NOREG;
 }
 
-static bool parse_immediate(const char **pp, Operand *operand) {
-  long num = strtol(*pp, (char**)pp, 10);
-  operand->type = IMMEDIATE;
-  operand->u.immediate = num;
-  return true;
-}
-
 static bool parse_operand(const char **pp, Operand *operand) {
   const char *p = *pp;
   if (*p == '%') {
     *pp = p + 1;
     enum RegType reg = parse_register(pp);
-    if (reg == NOREG)
+    if (reg == NOREG) {
+fprintf(stderr, "%s, ", p);
       error("Illegal register");
+    }
     operand->type = REG;
     operand->u.reg = reg;
     return true;
   }
 
+  if (*p == '*' && p[1] == '%') {
+    *pp = p + 2;
+    enum RegType reg = parse_register(pp);
+    if (!is_reg64(reg))
+      error("Illegal register");
+    operand->type = DEREF_REG;
+    operand->u.deref_reg = reg;
+    return true;
+  }
+
   if (*p == '$') {
     *pp = p + 1;
-    return parse_immediate(pp, operand);
+    if (!parse_immediate(pp, &operand->u.immediate))
+      error("Syntax error");
+    operand->type = IMMEDIATE;
+    return true;
   }
 
   bool has_offset = false;
@@ -575,13 +664,38 @@ static bool assemble_mov(const Line *line) {
             }
           } else {
             if (offset == 0) {
-              ADD_CODE(0x8a, 0x04, 0x24);
+              ADD_CODE(0x8a, 0x04 + d * 8, 0x24);
               return true;
             } else if (is_im8(offset)) {
-              ADD_CODE(0x8a, 0x44, 0x24, IM8(offset));
+              ADD_CODE(0x8a, 0x44 + d * 8, 0x24, IM8(offset));
               return true;
             } else if (is_im32(offset)) {
-              ADD_CODE(0x8a, 0x84, 0x24, IM32(offset));
+              ADD_CODE(0x8a, 0x84 + d * 8, 0x24, IM32(offset));
+              return true;
+            }
+          }
+        } else if (is_reg16(line->dst.u.reg)) {
+          int d = line->dst.u.reg - AX;
+          if (line->src.u.reg != RSP) {
+            if (offset == 0 && line->src.u.reg != RBP) {
+              ADD_CODE(0x66, 0x8b, 0x00 + s + d * 8);
+              return true;
+            } else if (is_im8(offset)) {
+              ADD_CODE(0x66, 0x8b, 0x40 + s + d * 8, IM8(offset));
+              return true;
+            } else if (is_im32(offset)) {
+              ADD_CODE(0x66, 0x8b, 0x80 + s + d * 8, IM32(offset));
+              return true;
+            }
+          } else {
+            if (offset == 0) {
+              ADD_CODE(0x66, 0x8b, 0x04 + d * 8, 0x24);
+              return true;
+            } else if (is_im8(offset)) {
+              ADD_CODE(0x66, 0x8b, 0x44 + d * 8, 0x24, IM8(offset));
+              return true;
+            } else if (is_im32(offset)) {
+              ADD_CODE(0x66, 0x8b, 0x84 + d * 8, 0x24, IM32(offset));
               return true;
             }
           }
@@ -600,13 +714,13 @@ static bool assemble_mov(const Line *line) {
             }
           } else {
             if (offset == 0) {
-              ADD_CODE(0x8b, 0x04, 0x24);
+              ADD_CODE(0x8b, 0x04 + d * 8, 0x24);
               return true;
             } else if (is_im8(offset)) {
-              ADD_CODE(0x8b, 0x44, 0x24, IM8(offset));
+              ADD_CODE(0x8b, 0x44 + d * 8, 0x24, IM8(offset));
               return true;
             } else if (is_im32(offset)) {
-              ADD_CODE(0x8b, 0x84, 0x24, IM32(offset));
+              ADD_CODE(0x8b, 0x84 + d * 8, 0x24, IM32(offset));
               return true;
             }
           }
@@ -625,13 +739,13 @@ static bool assemble_mov(const Line *line) {
             }
           } else {
             if (offset == 0) {
-              ADD_CODE(0x48, 0x8b, 0x04, 0x24);
+              ADD_CODE(0x48, 0x8b, 0x04 + d * 8, 0x24);
               return true;
             } else if (is_im8(offset)) {
-              ADD_CODE(0x48, 0x8b, 0x44, 0x24, IM8(offset));
+              ADD_CODE(0x48, 0x8b, 0x44 + d * 8, 0x24, IM8(offset));
               return true;
             } else if (is_im32(offset)) {
-              ADD_CODE(0x48, 0x8b, 0x84, 0x24, IM32(offset));
+              ADD_CODE(0x48, 0x8b, 0x84 + d * 8, 0x24, IM32(offset));
               return true;
             }
           }
@@ -658,13 +772,38 @@ static bool assemble_mov(const Line *line) {
           }
         } else {
           if (offset == 0) {
-            ADD_CODE(0x88, 0x04, 0x24);
+            ADD_CODE(0x88, 0x04 + s * 8, 0x24);
             return true;
           } else if (is_im8(offset)) {
-            ADD_CODE(0x88, 0x44, 0x24, IM8(offset));
+            ADD_CODE(0x88, 0x44 + s * 8, 0x24, IM8(offset));
             return true;
           } else if (is_im32(offset)) {
-            ADD_CODE(0x89, 0x84, 0x24, IM32(offset));
+            ADD_CODE(0x89, 0x84 + s * 8, 0x24, IM32(offset));
+            return true;
+          }
+        }
+      } else if (is_reg16(line->src.u.reg)) {
+        int s = line->src.u.reg - AX;
+        if (line->dst.u.indirect.reg != RSP) {
+          if (offset == 0 && line->dst.u.indirect.reg != RBP) {
+            ADD_CODE(0x66, 0x89, 0x00 + d + s * 8);
+            return true;
+          } else if (is_im8(offset)) {
+            ADD_CODE(0x66, 0x89, 0x40 + d + s * 8, IM8(offset));
+            return true;
+          } else if (is_im32(offset)) {
+            ADD_CODE(0x66, 0x89, 0x80 + d + s * 8, IM32(offset));
+            return true;
+          }
+        } else {
+          if (offset == 0) {
+            ADD_CODE(0x66, 0x89, 0x04 + s * 8, 0x24);
+            return true;
+          } else if (is_im8(offset)) {
+            ADD_CODE(0x66, 0x89, 0x44 + s * 8, 0x24, IM8(offset));
+            return true;
+          } else if (is_im32(offset)) {
+            ADD_CODE(0x66, 0x89, 0x84 + s * 8, 0x24, IM32(offset));
             return true;
           }
         }
@@ -683,13 +822,13 @@ static bool assemble_mov(const Line *line) {
           }
         } else {
           if (offset == 0) {
-            ADD_CODE(0x89, 0x04, 0x24);
+            ADD_CODE(0x89, 0x04 + s * 8, 0x24);
             return true;
           } else if (is_im8(offset)) {
-            ADD_CODE(0x89, 0x44, 0x24, IM8(offset));
+            ADD_CODE(0x89, 0x44 + s * 8, 0x24, IM8(offset));
             return true;
           } else if (is_im32(offset)) {
-            ADD_CODE(0x89, 0x84, 0x24, IM32(offset));
+            ADD_CODE(0x89, 0x84 + s * 8, 0x24, IM32(offset));
             return true;
           }
         }
@@ -708,13 +847,38 @@ static bool assemble_mov(const Line *line) {
           }
         } else {
           if (offset == 0) {
-            ADD_CODE(0x48, 0x89, 0x04, 0x24);
+            ADD_CODE(0x48, 0x89, 0x04 + s * 8, 0x24);
             return true;
           } else if (is_im8(offset)) {
-            ADD_CODE(0x48, 0x89, 0x44, 0x24, IM8(offset));
+            ADD_CODE(0x48, 0x89, 0x44 + s * 8, 0x24, IM8(offset));
             return true;
           } else if (is_im32(offset)) {
-            ADD_CODE(0x48, 0x89, 0x84, 0x24, IM32(offset));
+            ADD_CODE(0x48, 0x89, 0x84 + s * 8, 0x24, IM32(offset));
+            return true;
+          }
+        }
+      } else if (is_reg64x(line->src.u.reg)) {
+        int s = line->src.u.reg - R8;
+        if (line->dst.u.indirect.reg != RSP) {
+          if (offset == 0 && line->dst.u.indirect.reg != RBP) {
+            ADD_CODE(0x4c, 0x89, 0x00 + d + s * 8);
+            return true;
+          } else if (is_im8(offset)) {
+            ADD_CODE(0x4c, 0x89, 0x40 + d + s * 8, IM8(offset));
+            return true;
+          } else if (is_im32(offset)) {
+            ADD_CODE(0x4c, 0x89, 0x80 + d + s * 8, IM32(offset));
+            return true;
+          }
+        } else {
+          if (offset == 0) {
+            ADD_CODE(0x4c, 0x89, 0x04 + s * 8, 0x24);
+            return true;
+          } else if (is_im8(offset)) {
+            ADD_CODE(0x4c, 0x89, 0x44 + s * 8, 0x24, IM8(offset));
+            return true;
+          } else if (is_im32(offset)) {
+            ADD_CODE(0x4c, 0x89, 0x84 + s * 8, 0x24, IM32(offset));
             return true;
           }
         }
@@ -737,10 +901,20 @@ static void assemble_line(const Line *line, const char *rawline) {
     break;
   case MOVSX:
     if (line->src.type == REG && line->dst.type == REG) {
-      if (is_reg8(line->src.u.reg) && is_reg64(line->dst.u.reg)) {
+      if (is_reg8(line->src.u.reg) && is_reg32(line->dst.u.reg)) {
+        int s = line->src.u.reg - AL;
+        int d = line->dst.u.reg - EAX;
+        ADD_CODE(0x0f, 0xbe, 0xc0 + s + d * 8);
+        return;
+      } else if (is_reg8(line->src.u.reg) && is_reg64(line->dst.u.reg)) {
         int s = line->src.u.reg - AL;
         int d = line->dst.u.reg - RAX;
         ADD_CODE(0x48, 0x0f, 0xbe, 0xc0 + s + d * 8);
+        return;
+      } else if (is_reg16(line->src.u.reg) && is_reg32(line->dst.u.reg)) {
+        int s = line->src.u.reg - AX;
+        int d = line->dst.u.reg - EAX;
+        ADD_CODE(0x0f, 0xbf, 0xc0 + s + d * 8);
         return;
       } else if (is_reg32(line->src.u.reg) && is_reg64(line->dst.u.reg)) {
         int s = line->src.u.reg - EAX;
@@ -793,7 +967,17 @@ static void assemble_line(const Line *line, const char *rawline) {
     break;
   case ADD:
     if (line->src.type == REG && line->dst.type == REG) {
-      if (is_reg32(line->src.u.reg) && is_reg32(line->dst.u.reg)) {
+      if (is_reg8(line->src.u.reg) && is_reg8(line->dst.u.reg)) {
+        int s = line->src.u.reg - AL;
+        int d = line->dst.u.reg - AL;
+        ADD_CODE(0x00, 0xc0 + s * 8 + d);
+        return;
+      } if (is_reg8x(line->src.u.reg) && is_reg8x(line->dst.u.reg)) {
+        int s = line->src.u.reg - AL;
+        int d = line->dst.u.reg - AL;
+        ADD_CODE(0x40, 0x00, 0xc0 + s * 8 + d);
+        return;
+      } if (is_reg32(line->src.u.reg) && is_reg32(line->dst.u.reg)) {
         int s = line->src.u.reg - EAX;
         int d = line->dst.u.reg - EAX;
         ADD_CODE(0x01, 0xc0 + s * 8 + d);
@@ -818,7 +1002,8 @@ static void assemble_line(const Line *line, const char *rawline) {
         }
       }
     } else if (line->src.type == INDIRECT && line->dst.type == REG) {
-      if (is_reg64(line->src.u.indirect.reg) && is_reg64(line->dst.u.reg)) {
+      if (is_reg64(line->src.u.indirect.reg) && line->src.u.indirect.label == NULL &&
+          is_reg64(line->dst.u.reg)) {
         int s = line->src.u.indirect.reg - RAX;
         int d = line->dst.u.reg - RAX;
         long offset = line->src.u.indirect.offset;
@@ -832,6 +1017,64 @@ static void assemble_line(const Line *line, const char *rawline) {
             ADD_CODE(0x48, 0x03, 0x00 + s + d * 8);
           }
           return;
+        }
+      }
+    }
+    break;
+  case ADDQ:
+    if (line->src.type == IMMEDIATE && line->dst.type == INDIRECT) {
+      if (is_reg64(line->dst.u.indirect.reg) && line->dst.u.indirect.label == NULL) {
+        long value = line->src.u.immediate;
+        int d = line->dst.u.indirect.reg - RAX;
+        long offset = line->dst.u.indirect.offset;
+        if (is_im8(value)) {
+          if (line->dst.u.indirect.reg != RSP) {
+            if (offset == 0 && line->dst.u.indirect.reg != RBP) {
+              ADD_CODE(0x48, 0x83, 0x00 + d, IM8(value));
+              return;
+            } else if (is_im8(offset)) {
+              ADD_CODE(0x48, 0x83, 0x40 + d, IM8(offset), IM8(value));
+              return;
+            } else if (is_im32(offset)) {
+              ADD_CODE(0x48, 0x83, 0x80 + d, IM32(offset), IM8(value));
+              return;
+            }
+          } else {
+            if (offset == 0) {
+              ADD_CODE(0x48, 0x83, 0x04, 0x24, IM8(value));
+              return;
+            } else if (is_im8(offset)) {
+              ADD_CODE(0x48, 0x83, 0x44, 0x24, IM8(offset), IM8(value));
+              return;
+            } else if (is_im32(offset)) {
+              ADD_CODE(0x48, 0x83, 0x84, 0x24, IM32(offset), IM8(value));
+              return;
+            }
+          }
+        } else if (is_im32(value)) {
+          if (line->dst.u.indirect.reg != RSP) {
+            if (offset == 0 && line->dst.u.indirect.reg != RBP) {
+              ADD_CODE(0x48, 0x81, 0x00 + d, IM32(value));
+              return;
+            } else if (is_im8(offset)) {
+              ADD_CODE(0x48, 0x81, 0x40 + d, IM8(offset), IM32(value));
+              return;
+            } else if (is_im32(offset)) {
+              ADD_CODE(0x48, 0x81, 0x80 + d, IM32(offset), IM32(value));
+              return;
+            }
+          } else {
+            if (offset == 0) {
+              ADD_CODE(0x48, 0x81, 0x04, 0x24, IM32(value));
+              return;
+            } else if (is_im8(offset)) {
+              ADD_CODE(0x48, 0x81, 0x44, 0x24, IM8(offset), IM32(value));
+              return;
+            } else if (is_im32(offset)) {
+              ADD_CODE(0x48, 0x81, 0x84, 0x24, IM32(offset), IM32(value));
+              return;
+            }
+          }
         }
       }
     }
@@ -902,9 +1145,26 @@ static void assemble_line(const Line *line, const char *rawline) {
     break;
   case NEG:
     if (line->src.type == REG && line->dst.type == NOOPERAND) {
-      if (is_reg64(line->src.u.reg)) {
+      if (is_reg32(line->src.u.reg)) {
+        int s = line->src.u.reg - EAX;
+        ADD_CODE(0xf7, 0xd8 + s);
+        return;
+      } else if (is_reg64(line->src.u.reg)) {
         int s = line->src.u.reg - RAX;
         ADD_CODE(0x48, 0xf7, 0xd8 + s);
+        return;
+      }
+    }
+    break;
+  case INC:
+    if (line->src.type == REG && line->dst.type == NOOPERAND) {
+      if (is_reg32(line->src.u.reg)) {
+        int s = line->src.u.reg - EAX;
+        ADD_CODE(0xff, 0xc0 + s);
+        return;
+      } else if (is_reg64(line->src.u.reg)) {
+        int s = line->src.u.reg - RAX;
+        ADD_CODE(0x48, 0xff, 0xc0 + s);
         return;
       }
     }
@@ -939,6 +1199,89 @@ static void assemble_line(const Line *line, const char *rawline) {
       }
     }
     break;
+  case DEC:
+    if (line->src.type == REG && line->dst.type == NOOPERAND) {
+      if (is_reg32(line->src.u.reg)) {
+        int s = line->src.u.reg - EAX;
+        ADD_CODE(0xff, 0xc8 + s);
+        return;
+      } else if (is_reg64(line->src.u.reg)) {
+        int s = line->src.u.reg - RAX;
+        ADD_CODE(0x48, 0xff, 0xc8 + s);
+        return;
+      }
+    }
+    break;
+  case DECL:
+    if (line->src.type == INDIRECT && line->dst.type == NOOPERAND &&
+        is_reg64(line->src.u.reg)) {
+      int s = line->src.u.indirect.reg - RAX;
+      long offset = line->src.u.indirect.offset;
+      if (line->src.u.indirect.reg != RSP) {
+        if (offset == 0 && line->src.u.indirect.reg != RBP) {
+          ADD_CODE(0xff, 0x08 + s);
+          return;
+        } else if (is_im8(offset)) {
+          ADD_CODE(0xff, 0x48 + s, IM8(offset));
+          return;
+        } else if (is_im32(offset)) {
+          ADD_CODE(0xff, 0x88 + s, IM32(offset));
+          return;
+        }
+      } else {
+        if (offset == 0) {
+          ADD_CODE(0xff, 0x0c, 0x24);
+          return;
+        } else if (is_im8(offset)) {
+          ADD_CODE(0xff, 0x4c, 0x24, IM8(offset));
+          return;
+        } else if (is_im32(offset)) {
+          ADD_CODE(0xff, 0x8c, 0x24, IM32(offset));
+          return;
+        }
+      }
+    }
+    break;
+  case AND:
+    if (line->src.type == REG && line->dst.type == REG) {
+      if (is_reg32(line->src.u.reg) && is_reg32(line->dst.u.reg)) {
+        int s = line->src.u.reg - EAX;
+        int d = line->dst.u.reg - EAX;
+        ADD_CODE(0x21, 0xc0 + s * 8 + d);
+        return;
+      }
+    }
+    break;
+  case OR:
+    if (line->src.type == REG && line->dst.type == REG) {
+      if (is_reg32(line->src.u.reg) && is_reg32(line->dst.u.reg)) {
+        int s = line->src.u.reg - EAX;
+        int d = line->dst.u.reg - EAX;
+        ADD_CODE(0x09, 0xc0 + s * 8 + d);
+        return;
+      }
+    }
+    break;
+  case SHL:
+    if (line->src.type == REG && line->dst.type == REG &&
+        line->src.u.reg == CL) {
+      if (is_reg32(line->dst.u.reg)) {
+        int d = line->dst.u.reg - EAX;
+        ADD_CODE(0xd3, 0xe0 + d);
+        return;
+      }
+    }
+    break;
+  case SHR:
+    if (line->src.type == REG && line->dst.type == REG &&
+        line->src.u.reg == CL) {
+      if (is_reg32(line->dst.u.reg)) {
+        int d = line->dst.u.reg - EAX;
+        ADD_CODE(0xd3, 0xe8 + d);
+        return;
+      }
+    }
+    break;
   case CMP:
     if (line->src.type == REG && line->dst.type == REG) {
       if (is_reg8(line->src.u.reg) && is_reg8(line->dst.u.reg)) {
@@ -962,6 +1305,23 @@ static void assemble_line(const Line *line, const char *rawline) {
         ADD_CODE(0x48, 0x39, 0xc0 + s * 8 + d);
         return;
       }
+    } else if (line->src.type == IMMEDIATE && line->dst.type == REG) {
+      long value = line->src.u.immediate;
+      if (is_reg32(line->dst.u.reg)) {
+        int d = line->dst.u.reg - EAX;
+        if (is_im8(value)) {
+          ADD_CODE(0x83, 0xf8 + d, IM8(value));
+          return;
+        } else if (is_im32(value)) {
+          if (line->dst.u.reg == EAX) {
+            ADD_CODE(0x3d, IM32(value));
+            return;
+          } else {
+            ADD_CODE(0x81, 0xf8 + d, IM32(value));
+            return;
+          }
+        }
+      }
     }
     break;
   case TEST:
@@ -970,6 +1330,29 @@ static void assemble_line(const Line *line, const char *rawline) {
         int s = line->src.u.reg - EAX;
         int d = line->dst.u.reg - EAX;
         ADD_CODE(0x85, 0xc0 + s * 8 + d);
+        return;
+      } else if (is_reg64(line->src.u.reg) && is_reg64(line->src.u.reg)) {
+        int s = line->src.u.reg - RAX;
+        int d = line->dst.u.reg - RAX;
+        ADD_CODE(0x48, 0x85, 0xc0 + s * 8 + d);
+        return;
+      }
+    }
+    break;
+  case SETE:
+    if (line->src.type == REG && line->dst.type == NOOPERAND) {
+      if (is_reg8(line->src.u.reg)) {
+        int s = line->src.u.reg - AL;
+        ADD_CODE(0x0f, 0x94, 0xc0 + s);
+        return;
+      }
+    }
+    break;
+  case SETNE:
+    if (line->src.type == REG && line->dst.type == NOOPERAND) {
+      if (is_reg8(line->src.u.reg)) {
+        int s = line->src.u.reg - AL;
+        ADD_CODE(0x0f, 0x95, 0xc0 + s);
         return;
       }
     }
@@ -1008,18 +1391,25 @@ static void assemble_line(const Line *line, const char *rawline) {
   case JGE:
   case JLE:
   case JG:
-    if (line->src.type != LABEL || line->dst.type != NOOPERAND)
-      error("Illegal oprand: Jxx");
-    // TODO: Handle short jump.
-    ADD_LOC_REL32(line->src.u.label, 2, 6);
-    ADD_CODE(0x0f, 0x80 + (line->op - JO), IM32(-1));
-    return;
+    if (line->src.type == LABEL && line->dst.type == NOOPERAND) {
+      // TODO: Handle short jump.
+      ADD_LOC_REL32(line->src.u.label, 2, 6);
+      ADD_CODE(0x0f, 0x80 + (line->op - JO), IM32(-1));
+      return;
+    }
+    break;
   case CALL:
-    if (line->src.type != LABEL || line->dst.type != NOOPERAND)
-      error("Illegal oprand: CALL");
-    ADD_LOC_REL32(line->src.u.label, 1, 5);
-    ADD_CODE(0xe8, IM32(-1));
-    return;
+    if (line->src.type == LABEL && line->dst.type == NOOPERAND) {
+      ADD_LOC_REL32(line->src.u.label, 1, 5);
+      ADD_CODE(0xe8, IM32(-1));
+      return;
+    } if (line->src.type == DEREF_REG && line->dst.type == NOOPERAND &&
+          is_reg64(line->src.u.deref_reg)) {
+      int s = line->src.u.deref_reg - RAX;
+      ADD_CODE(0xff, 0xd0 + s);
+      return;
+    }
+    break;
   case RET:
     ADD_CODE(0xc3);
     return;
