@@ -55,10 +55,22 @@ enum Opcode {
   LEA,
   CALL,
   JMP,
+  JO,
+  JNO,
+  JB,
+  JAE,
   JE,
   JNE,
-  JGE,
+  JBE,
+  JA,
+  JS,
+  JNS,
+  JP,
+  JNP,
   JL,
+  JGE,
+  JLE,
+  JG,
   RET,
   PUSH,
   POP,
@@ -91,10 +103,22 @@ static const char *kOpTable[] = {
   "lea",
   "call",
   "jmp",
+  "jo",
+  "jno",
+  "jb",
+  "jae",
   "je",
   "jne",
-  "jge",
+  "jbe",
+  "ja",
+  "js",
+  "jns",
+  "jp",
+  "jnp",
   "jl",
+  "jge",
+  "jle",
+  "jg",
   "ret",
   "push",
   "pop",
@@ -124,6 +148,15 @@ static const char *kOpTable[] = {
 enum RegType {
   NOREG,
 
+  AL,
+  CL,
+  DL,
+  BL,
+  SPL,
+  BPL,
+  SIL,
+  DIL,
+
   EAX,
   ECX,
   EDX,
@@ -149,6 +182,15 @@ static const struct {
   const char *name;
   enum RegType reg;
 } kRegisters[] = {
+  {"al", AL},
+  {"cl", CL},
+  {"dl", DL},
+  {"bl", BL},
+  {"spl", SPL},
+  {"bpl", BPL},
+  {"sil", SIL},
+  {"dil", DIL},
+
   {"eax", EAX},
   {"ecx", ECX},
   {"edx", EDX},
@@ -169,6 +211,14 @@ static const struct {
 
   {"rip", RIP},
 };
+
+static bool is_reg8(enum RegType reg) {
+  return reg >= AL && reg <= BL;
+}
+
+static bool is_reg8x(enum RegType reg) {
+  return reg >= AL && reg <= DIL;
+}
 
 static bool is_reg32(enum RegType reg) {
   return reg >= EAX && reg <= EDI;
@@ -203,13 +253,17 @@ typedef struct {
 enum DirectiveType {
   NODIRECTIVE,
   DT_ASCII,
-  DT_GLOBAL,
+  DT_SECTION,
+  DT_DATA,
+  DT_GLOBL,
   DT_EXTERN,
 };
 
 static const char *kDirectiveTable[] = {
   "ascii",
-  "global",
+  "section",
+  "data",
+  "globl",
   "extern",
 };
 
@@ -256,9 +310,9 @@ static int find_match_index(const char **pp, const char **table, size_t count) {
   if (*p == '\0' || isspace(*p)) {
     size_t n = p - start;
     for (size_t i = 0; i < count; ++i) {
-      const char *op = table[i];
-      size_t len = strlen(op);
-      if (n == len && strncasecmp(start, op, n) == 0) {
+      const char *name = table[i];
+      size_t len = strlen(name);
+      if (n == len && strncasecmp(start, name, n) == 0) {
         *pp = skip_whitespace(p);
         return i;
       }
@@ -317,6 +371,12 @@ static void handle_directive(enum DirectiveType dir, const char *p) {
     }
     break;
 
+  case DT_SECTION:
+  case DT_DATA:
+  case DT_GLOBL:
+  case DT_EXTERN:
+    break;
+
   default:
     fprintf(stderr, "Unhandled directive: %d, %s\n", dir, p);
     break;
@@ -368,10 +428,19 @@ static bool parse_operand(const char **pp, Operand *operand) {
   long offset = 0;
   const char *label = parse_label(pp);
   if (label == NULL) {
+    bool neg = false;
+    if (*p == '-') {
+      neg = true;
+      ++p;
+    }
     if (isdigit(*p)) {
       offset = strtol(p, (char**)pp, 10);
       if (*pp > p)
         has_offset = true;
+      if (neg)
+        offset = -offset;
+    } else if (neg) {
+      error("Illegal `-'");
     }
   }
   p = skip_whitespace(*pp);
@@ -447,6 +516,14 @@ static void parse_line(const char *str, Line *line) {
   }
 }
 
+static bool is_im8(long x) {
+  return x < (1L << 7) && x >= -(1L << 7);
+}
+
+static bool is_im32(long x) {
+  return x < (1L << 31) && x >= -(1L << 31);
+}
+
 static bool assemble_mov(const Line *line) {
   if (line->src.type == REG && line->dst.type == REG) {
     if (is_reg32(line->src.u.reg) && is_reg32(line->dst.u.reg)) {
@@ -461,41 +538,190 @@ static bool assemble_mov(const Line *line) {
       return true;
     }
   } else if (line->src.type == IMMEDIATE && line->dst.type == REG) {
-    if (is_reg32(line->dst.u.reg)) {
-      ADD_CODE(0xb8 + line->dst.u.reg - EAX, IM32(line->src.u.immediate));
+    if (is_reg8(line->dst.u.reg)) {
+      int d = line->dst.u.reg - AL;
+      ADD_CODE(0xb0 + d, IM8(line->src.u.immediate));
+      return true;
+    } else if (is_reg32(line->dst.u.reg)) {
+      int d = line->dst.u.reg - EAX;
+      ADD_CODE(0xb8 + d, IM32(line->src.u.immediate));
+      return true;
+    } else if (is_reg64(line->dst.u.reg)) {
+      int d = line->dst.u.reg - RAX;
+      if (is_im32(line->src.u.immediate)) {
+        ADD_CODE(0x48, 0xc7, 0xc0 + d, IM32(line->src.u.immediate));
+      } else {
+        ADD_CODE(0x48, 0xb8 + d, IM64(line->src.u.immediate));
+      }
       return true;
     }
   } else if (line->src.type == INDIRECT && line->dst.type == REG) {
-    if (line->src.u.indirect.label == NULL && line->src.u.indirect.offset == 0) {
-      if (is_reg64(line->src.u.indirect.reg) && is_reg64(line->dst.u.reg)) {
-        int d = line->dst.u.reg - RAX;
-        switch (line->src.u.indirect.reg) {
-        case RSP:
-          ADD_CODE(0x48, 0x8b, 0x04 + d * 8, 0x24);
-          break;
-        case RBP:
-          ADD_CODE(0x48, 0x8b, 0x45 + d * 8, IM8(0));
-          break;
-        default:
-          {
-            int s = line->src.u.indirect.reg - RAX;
-            ADD_CODE(0x48, 0x8b, 0x00 + s + d * 8);
+    if (line->src.u.indirect.label == NULL) {
+      if (is_reg64(line->src.u.indirect.reg)) {
+        int s = line->src.u.indirect.reg - RAX;
+        long offset = line->src.u.indirect.offset;
+        if (is_reg8(line->dst.u.reg)) {
+          int d = line->dst.u.reg - AL;
+          if (line->src.u.reg != RSP) {
+            if (offset == 0 && line->src.u.reg != RBP) {
+              ADD_CODE(0x8a, 0x00 + s + d * 8);
+              return true;
+            } else if (is_im8(offset)) {
+              ADD_CODE(0x8a, 0x40 + s + d * 8, IM8(offset));
+              return true;
+            } else if (is_im32(offset)) {
+              ADD_CODE(0x8a, 0x80 + s + d * 8, IM32(offset));
+              return true;
+            }
+          } else {
+            if (offset == 0) {
+              ADD_CODE(0x8a, 0x04, 0x24);
+              return true;
+            } else if (is_im8(offset)) {
+              ADD_CODE(0x8a, 0x44, 0x24, IM8(offset));
+              return true;
+            } else if (is_im32(offset)) {
+              ADD_CODE(0x8a, 0x84, 0x24, IM32(offset));
+              return true;
+            }
           }
-          break;
+        } else if (is_reg32(line->dst.u.reg)) {
+          int d = line->dst.u.reg - EAX;
+          if (line->src.u.reg != RSP) {
+            if (offset == 0 && line->src.u.reg != RBP) {
+              ADD_CODE(0x8b, 0x00 + s + d * 8);
+              return true;
+            } else if (is_im8(offset)) {
+              ADD_CODE(0x8b, 0x40 + s + d * 8, IM8(offset));
+              return true;
+            } else if (is_im32(offset)) {
+              ADD_CODE(0x8b, 0x80 + s + d * 8, IM32(offset));
+              return true;
+            }
+          } else {
+            if (offset == 0) {
+              ADD_CODE(0x8b, 0x04, 0x24);
+              return true;
+            } else if (is_im8(offset)) {
+              ADD_CODE(0x8b, 0x44, 0x24, IM8(offset));
+              return true;
+            } else if (is_im32(offset)) {
+              ADD_CODE(0x8b, 0x84, 0x24, IM32(offset));
+              return true;
+            }
+          }
+        } else if (is_reg64(line->dst.u.reg)) {
+          int d = line->dst.u.reg - RAX;
+          if (line->src.u.reg != RSP) {
+            if (offset == 0 && line->src.u.reg != RBP) {
+              ADD_CODE(0x48, 0x8b, 0x00 + s + d * 8);
+              return true;
+            } else if (is_im8(offset)) {
+              ADD_CODE(0x48, 0x8b, 0x40 + s + d * 8, IM8(offset));
+              return true;
+            } else if (is_im32(offset)) {
+              ADD_CODE(0x48, 0x8b, 0x80 + s + d * 8, IM32(offset));
+              return true;
+            }
+          } else {
+            if (offset == 0) {
+              ADD_CODE(0x48, 0x8b, 0x04, 0x24);
+              return true;
+            } else if (is_im8(offset)) {
+              ADD_CODE(0x48, 0x8b, 0x44, 0x24, IM8(offset));
+              return true;
+            } else if (is_im32(offset)) {
+              ADD_CODE(0x48, 0x8b, 0x84, 0x24, IM32(offset));
+              return true;
+            }
+          }
         }
-        return true;
+      }
+    }
+  } else if (line->src.type == REG && line->dst.type == INDIRECT &&
+             is_reg64(line->dst.u.indirect.reg)) {
+    if (line->dst.u.indirect.label == NULL) {
+      int d = line->dst.u.indirect.reg - RAX;
+      long offset = line->dst.u.indirect.offset;
+      if (is_reg8(line->src.u.reg)) {
+        int s = line->src.u.reg - AL;
+        if (line->dst.u.indirect.reg != RSP) {
+          if (offset == 0 && line->dst.u.indirect.reg != RBP) {
+            ADD_CODE(0x88, 0x00 + d + s * 8);
+            return true;
+          } else if (is_im8(offset)) {
+            ADD_CODE(0x88, 0x40 + d + s * 8, IM8(offset));
+            return true;
+          } else if (is_im32(offset)) {
+            ADD_CODE(0x89, 0x80 + d + s * 8, IM32(offset));
+            return true;
+          }
+        } else {
+          if (offset == 0) {
+            ADD_CODE(0x88, 0x04, 0x24);
+            return true;
+          } else if (is_im8(offset)) {
+            ADD_CODE(0x88, 0x44, 0x24, IM8(offset));
+            return true;
+          } else if (is_im32(offset)) {
+            ADD_CODE(0x89, 0x84, 0x24, IM32(offset));
+            return true;
+          }
+        }
+      } else if (is_reg32(line->src.u.reg)) {
+        int s = line->src.u.reg - EAX;
+        if (line->dst.u.indirect.reg != RSP) {
+          if (offset == 0 && line->dst.u.indirect.reg != RBP) {
+            ADD_CODE(0x89, 0x00 + d + s * 8);
+            return true;
+          } else if (is_im8(offset)) {
+            ADD_CODE(0x89, 0x40 + d + s * 8, IM8(offset));
+            return true;
+          } else if (is_im32(offset)) {
+            ADD_CODE(0x89, 0x80 + d + s * 8, IM32(offset));
+            return true;
+          }
+        } else {
+          if (offset == 0) {
+            ADD_CODE(0x89, 0x04, 0x24);
+            return true;
+          } else if (is_im8(offset)) {
+            ADD_CODE(0x89, 0x44, 0x24, IM8(offset));
+            return true;
+          } else if (is_im32(offset)) {
+            ADD_CODE(0x89, 0x84, 0x24, IM32(offset));
+            return true;
+          }
+        }
+      } else if (is_reg64(line->src.u.reg)) {
+        int s = line->src.u.reg - RAX;
+        if (line->dst.u.indirect.reg != RSP) {
+          if (offset == 0 && line->dst.u.indirect.reg != RBP) {
+            ADD_CODE(0x48, 0x89, 0x00 + d + s * 8);
+            return true;
+          } else if (is_im8(offset)) {
+            ADD_CODE(0x48, 0x89, 0x40 + d + s * 8, IM8(offset));
+            return true;
+          } else if (is_im32(offset)) {
+            ADD_CODE(0x48, 0x89, 0x80 + d + s * 8, IM32(offset));
+            return true;
+          }
+        } else {
+          if (offset == 0) {
+            ADD_CODE(0x48, 0x89, 0x04, 0x24);
+            return true;
+          } else if (is_im8(offset)) {
+            ADD_CODE(0x48, 0x89, 0x44, 0x24, IM8(offset));
+            return true;
+          } else if (is_im32(offset)) {
+            ADD_CODE(0x48, 0x89, 0x84, 0x24, IM32(offset));
+            return true;
+          }
+        }
       }
     }
   }
   return false;
-}
-
-static bool is_im8(long x) {
-  return x < (1L << 7) && x >= (1L << 7);
-}
-
-static bool is_im32(long x) {
-  return x < (1L << 31) && x >= -(1L << 31);
 }
 
 static void assemble_line(const Line *line, const char *rawline) {
@@ -510,36 +736,54 @@ static void assemble_line(const Line *line, const char *rawline) {
       return;
     break;
   case MOVSX:
-    if (line->src.type != REG || line->src.type != REG)
-      error("Illegal oprand: MOVSX");
-    if (is_reg32(line->src.u.reg) && is_reg64(line->dst.u.reg)) {
-      int s = line->src.u.reg - EAX;
-      int d = line->dst.u.reg - RAX;
-      ADD_CODE(0x48, 0x63, 0xc0 + s + d * 8);
-      return;
+    if (line->src.type == REG && line->dst.type == REG) {
+      if (is_reg8(line->src.u.reg) && is_reg64(line->dst.u.reg)) {
+        int s = line->src.u.reg - AL;
+        int d = line->dst.u.reg - RAX;
+        ADD_CODE(0x48, 0x0f, 0xbe, 0xc0 + s + d * 8);
+        return;
+      } else if (is_reg32(line->src.u.reg) && is_reg64(line->dst.u.reg)) {
+        int s = line->src.u.reg - EAX;
+        int d = line->dst.u.reg - RAX;
+        ADD_CODE(0x48, 0x63, 0xc0 + s + d * 8);
+        return;
+      }
     }
     break;
   case LEA:
-    {
-      if (line->dst.type != REG || !is_reg64(line->dst.u.reg) ||
-          line->src.type != INDIRECT)
-        error("Illegal oprand: LEA");
+    if (line->src.type == INDIRECT &&
+        line->dst.type == REG && is_reg64(line->dst.u.reg)) {
       int d = line->dst.u.reg - RAX;
-      if (line->src.u.indirect.label == NULL) {
-        if (line->src.u.indirect.reg == RSP) {
+      if (is_reg64(line->src.u.indirect.reg)) {
+        int s = line->src.u.indirect.reg - RAX;
+        if (line->src.u.indirect.label == NULL) {
           long offset = line->src.u.indirect.offset;
-          if (offset == 0) {
-            ADD_CODE(0x48, 0x8d, 0x04 + d * 8, 0x24);
-          } else if (is_im8(offset)) {
-            ADD_CODE(0x48, 0x8d, 0x44 + d * 8, 0x24, IM8(offset));
-          } else if (is_im32(offset)) {
-            ADD_CODE(0x48, 0x8d, 0x84 + d * 8, 0x24, IM32(offset));
+          if (line->src.u.indirect.reg != RSP) {
+            if (offset == 0 && line->src.u.indirect.reg != RBP) {
+              ADD_CODE(0x48, 0x8d, 0x00 + s + d * 8);
+              return;
+            } else if (is_im8(offset)) {
+              ADD_CODE(0x48, 0x8d, 0x40 + s + d * 8, IM8(offset));
+              return;
+            } else if (is_im32(offset)) {
+              ADD_CODE(0x48, 0x8d, 0x80 + s + d * 8, IM32(offset));
+              return;
+            }
+          } else {
+            if (offset == 0) {
+              ADD_CODE(0x48, 0x8d, 0x04 + d * 8, 0x24);
+              return;
+            } else if (is_im8(offset)) {
+              ADD_CODE(0x48, 0x8d, 0x44 + d * 8, 0x24, IM8(offset));
+              return;
+            } else if (is_im32(offset)) {
+              ADD_CODE(0x48, 0x8d, 0x84 + d * 8, 0x24, IM32(offset));
+              return;
+            }
           }
-          return;
         }
-      } else {
-        if (line->src.u.indirect.reg == RIP) {
-          assert(line->src.u.indirect.offset == 0);
+      } else if (line->src.u.indirect.reg == RIP) {
+        if (line->src.u.indirect.offset == 0) {
           ADD_LOC_REL32(line->src.u.indirect.label, 3, 7);
           ADD_CODE(0x48, 0x8d, 0x05 + d * 8, IM32(-1));
           return;
@@ -548,45 +792,186 @@ static void assemble_line(const Line *line, const char *rawline) {
     }
     break;
   case ADD:
-    if (line->dst.type != REG || line->src.type != IMMEDIATE)
-      error("Illegal oprand: ADD");
-    if (is_reg64(line->dst.u.reg)) {
-      if (is_im8(line->src.u.immediate)) {
-        ADD_CODE(0x48, 0x83, 0xc0 + (line->dst.u.reg - RAX), IM8(line->src.u.immediate));
+    if (line->src.type == REG && line->dst.type == REG) {
+      if (is_reg32(line->src.u.reg) && is_reg32(line->dst.u.reg)) {
+        int s = line->src.u.reg - EAX;
+        int d = line->dst.u.reg - EAX;
+        ADD_CODE(0x01, 0xc0 + s * 8 + d);
         return;
-      } else if (is_im32(line->src.u.immediate)) {
-        if (line->dst.u.reg == RAX)
-          ADD_CODE(0x48, 0x05, IM32(line->src.u.immediate));
-        else
-          ADD_CODE(0x48, 0x81, 0xc0 + (line->dst.u.reg - RAX), IM32(line->src.u.immediate));
+      } else if (is_reg64(line->src.u.reg) && is_reg64(line->dst.u.reg)) {
+        int s = line->src.u.reg - RAX;
+        int d = line->dst.u.reg - RAX;
+        ADD_CODE(0x48, 0x01, 0xc0 + s * 8 + d);
         return;
+      }
+    } else if (line->src.type == IMMEDIATE && line->dst.type == REG) {
+      if (is_reg64(line->dst.u.reg)) {
+        if (is_im8(line->src.u.immediate)) {
+          ADD_CODE(0x48, 0x83, 0xc0 + (line->dst.u.reg - RAX), IM8(line->src.u.immediate));
+          return;
+        } else if (is_im32(line->src.u.immediate)) {
+          if (line->dst.u.reg == RAX)
+            ADD_CODE(0x48, 0x05, IM32(line->src.u.immediate));
+          else
+            ADD_CODE(0x48, 0x81, 0xc0 + (line->dst.u.reg - RAX), IM32(line->src.u.immediate));
+          return;
+        }
+      }
+    } else if (line->src.type == INDIRECT && line->dst.type == REG) {
+      if (is_reg64(line->src.u.indirect.reg) && is_reg64(line->dst.u.reg)) {
+        int s = line->src.u.indirect.reg - RAX;
+        int d = line->dst.u.reg - RAX;
+        long offset = line->src.u.indirect.offset;
+        switch (line->src.u.indirect.reg) {
+        case RSP:
+        case RBP:
+          // Not implemented
+          break;
+        default:
+          if (offset == 0) {
+            ADD_CODE(0x48, 0x03, 0x00 + s + d * 8);
+          }
+          return;
+        }
       }
     }
     break;
   case SUB:
-    if (line->dst.type != REG || line->src.type != IMMEDIATE)
-      error("Illegal oprand: SUB");
-    if (is_reg64(line->dst.u.reg)) {
-      if (is_im8(line->src.u.immediate)) {
-        ADD_CODE(0x48, 0x83, 0xe8 + (line->dst.u.reg - RAX), IM8(line->src.u.immediate));
+    if (line->src.type == REG && line->dst.type == REG) {
+      if (is_reg32(line->src.u.reg) && is_reg32(line->dst.u.reg)) {
+        int s = line->src.u.reg - EAX;
+        int d = line->dst.u.reg - EAX;
+        ADD_CODE(0x29, 0xc0 + s * 8 + d);
         return;
-      } else if (is_im32(line->src.u.immediate)) {
-        if (line->dst.u.reg == RAX)
-          ADD_CODE(0x48, 0x2d, IM32(line->src.u.immediate));
-        else
-          ADD_CODE(0x48, 0x81, 0xe8 + (line->dst.u.reg - RAX), IM32(line->src.u.immediate));
+      } else if (is_reg64(line->src.u.reg) && is_reg64(line->dst.u.reg)) {
+        int s = line->src.u.reg - RAX;
+        int d = line->dst.u.reg - RAX;
+        ADD_CODE(0x48, 0x29, 0xc0 + s * 8 + d);
+        return;
+      }
+    } else if (line->dst.type == REG && line->src.type == IMMEDIATE) {
+      if (is_reg64(line->dst.u.reg)) {
+        if (is_im8(line->src.u.immediate)) {
+          ADD_CODE(0x48, 0x83, 0xe8 + (line->dst.u.reg - RAX), IM8(line->src.u.immediate));
+          return;
+        } else if (is_im32(line->src.u.immediate)) {
+          if (line->dst.u.reg == RAX)
+            ADD_CODE(0x48, 0x2d, IM32(line->src.u.immediate));
+          else
+            ADD_CODE(0x48, 0x81, 0xe8 + (line->dst.u.reg - RAX), IM32(line->src.u.immediate));
+          return;
+        }
+      }
+    }
+    break;
+  case MUL:
+    if (line->src.type == REG && line->dst.type == NOOPERAND) {
+      if (is_reg32(line->src.u.reg)) {
+        int s = line->src.u.reg - EAX;
+        ADD_CODE(0xf7, 0xe0 + s);
+        return;
+      } else if (is_reg64(line->src.u.reg)) {
+        int s = line->src.u.reg - RAX;
+        ADD_CODE(0x48, 0xf7, 0xe0 + s);
+        return;
+      }
+    }
+    break;
+  case DIV:
+    if (line->src.type == REG && line->dst.type == NOOPERAND) {
+      if (is_reg32(line->src.u.reg)) {
+        int s = line->src.u.reg - EAX;
+        ADD_CODE(0xf7, 0xf0 + s);
+        return;
+      } else if (is_reg64(line->src.u.reg)) {
+        int s = line->src.u.reg - RAX;
+        ADD_CODE(0x48, 0xf7, 0xf0 + s);
         return;
       }
     }
     break;
   case XOR:
-    if (line->src.type != REG || line->dst.type != REG)
-      error("Illegal oprand: XOR");
-    if (is_reg32(line->src.u.reg) && is_reg32(line->dst.u.reg)) {
-      int s = line->src.u.reg - EAX;
-      int d = line->dst.u.reg - EAX;
-      ADD_CODE(0x31, 0xc0 + s + d * 8);
-      return;
+    if (line->src.type == REG && line->dst.type == REG) {
+      if (is_reg32(line->src.u.reg) && is_reg32(line->dst.u.reg)) {
+        int s = line->src.u.reg - EAX;
+        int d = line->dst.u.reg - EAX;
+        ADD_CODE(0x31, 0xc0 + s * 8 + d);
+        return;
+      }
+    }
+    break;
+  case NEG:
+    if (line->src.type == REG && line->dst.type == NOOPERAND) {
+      if (is_reg64(line->src.u.reg)) {
+        int s = line->src.u.reg - RAX;
+        ADD_CODE(0x48, 0xf7, 0xd8 + s);
+        return;
+      }
+    }
+    break;
+  case INCL:
+    if (line->src.type == INDIRECT && line->dst.type == NOOPERAND &&
+        is_reg64(line->src.u.reg)) {
+      int s = line->src.u.indirect.reg - RAX;
+      long offset = line->src.u.indirect.offset;
+      if (line->src.u.indirect.reg != RSP) {
+        if (offset == 0 && line->src.u.indirect.reg != RBP) {
+          ADD_CODE(0xff, 0x00 + s);
+          return;
+        } else if (is_im8(offset)) {
+          ADD_CODE(0xff, 0x40 + s, IM8(offset));
+          return;
+        } else if (is_im32(offset)) {
+          ADD_CODE(0xff, 0x80 + s, IM32(offset));
+          return;
+        }
+      } else {
+        if (offset == 0) {
+          ADD_CODE(0xff, 0x04, 0x24);
+          return;
+        } else if (is_im8(offset)) {
+          ADD_CODE(0xff, 0x44, 0x24, IM8(offset));
+          return;
+        } else if (is_im32(offset)) {
+          ADD_CODE(0xff, 0x84, 0x24, IM32(offset));
+          return;
+        }
+      }
+    }
+    break;
+  case CMP:
+    if (line->src.type == REG && line->dst.type == REG) {
+      if (is_reg8(line->src.u.reg) && is_reg8(line->dst.u.reg)) {
+        int s = line->src.u.reg - AL;
+        int d = line->dst.u.reg - AL;
+        ADD_CODE(0x38, 0xc0 + s * 8 + d);
+        return;
+      } else if (is_reg8x(line->src.u.reg) && is_reg8x(line->dst.u.reg)) {
+        int s = line->src.u.reg - AL;
+        int d = line->dst.u.reg - AL;
+        ADD_CODE(0x40, 0x38, 0xc0 + s * 8 + d);
+        return;
+      } else if (is_reg32(line->src.u.reg) && is_reg32(line->dst.u.reg)) {
+        int s = line->src.u.reg - EAX;
+        int d = line->dst.u.reg - EAX;
+        ADD_CODE(0x39, 0xc0 + s * 8 + d);
+        return;
+      } else if (is_reg64(line->src.u.reg) && is_reg64(line->dst.u.reg)) {
+        int s = line->src.u.reg - RAX;
+        int d = line->dst.u.reg - RAX;
+        ADD_CODE(0x48, 0x39, 0xc0 + s * 8 + d);
+        return;
+      }
+    }
+    break;
+  case TEST:
+    if (line->src.type == REG && line->dst.type == REG) {
+      if (is_reg32(line->src.u.reg) && is_reg32(line->src.u.reg)) {
+        int s = line->src.u.reg - EAX;
+        int d = line->dst.u.reg - EAX;
+        ADD_CODE(0x85, 0xc0 + s * 8 + d);
+        return;
+      }
     }
     break;
   case PUSH:
@@ -600,6 +985,34 @@ static void assemble_line(const Line *line, const char *rawline) {
         !is_reg64(line->src.u.reg))
       error("Illegal oprand: POP");
     ADD_CODE(0x58 + (line->src.u.reg - RAX));
+    return;
+  case JMP:
+    if (line->src.type != LABEL || line->dst.type != NOOPERAND)
+      error("Illegal oprand: JMP");
+    ADD_LOC_REL32(line->src.u.label, 1, 5);
+    ADD_CODE(0xe9, IM32(-1));
+    return;
+  case JO:
+  case JNO:
+  case JB:
+  case JAE:
+  case JE:
+  case JNE:
+  case JBE:
+  case JA:
+  case JS:
+  case JNS:
+  case JP:
+  case JNP:
+  case JL:
+  case JGE:
+  case JLE:
+  case JG:
+    if (line->src.type != LABEL || line->dst.type != NOOPERAND)
+      error("Illegal oprand: Jxx");
+    // TODO: Handle short jump.
+    ADD_LOC_REL32(line->src.u.label, 2, 6);
+    ADD_CODE(0x0f, 0x80 + (line->op - JO), IM32(-1));
     return;
   case CALL:
     if (line->src.type != LABEL || line->dst.type != NOOPERAND)
