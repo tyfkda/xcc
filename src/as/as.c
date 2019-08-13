@@ -44,10 +44,6 @@
 #define IM32(x)  (x), ((x) >> 8), ((x) >> 16), ((x) >> 24)
 #define IM64(x)  (x), ((x) >> 8), ((x) >> 16), ((x) >> 24), ((x) >> 32), ((x) >> 40), ((x) >> 48), ((x) >> 56)
 
-static void init(uintptr_t adr) {
-  init_gen(adr);
-}
-
 enum Opcode {
   NOOP,
   MOV,
@@ -292,6 +288,7 @@ enum DirectiveType {
   NODIRECTIVE,
   DT_ASCII,
   DT_SECTION,
+  DT_TEXT,
   DT_DATA,
   DT_ALIGN,
   DT_BYTE,
@@ -306,6 +303,7 @@ enum DirectiveType {
 static const char *kDirectiveTable[] = {
   "ascii",
   "section",
+  "text",
   "data",
   "align",
   "byte",
@@ -429,7 +427,7 @@ static void handle_directive(enum DirectiveType dir, const char *p) {
       char *str = malloc(len);
       unescape_string(p, str);
 
-      add_code((unsigned char*)str, len);  // TODO: Detect section.
+      add_section_data(current_section, str, len);
 
       free(str);
     }
@@ -447,13 +445,60 @@ static void handle_directive(enum DirectiveType dir, const char *p) {
       long count;
       if (!parse_immediate(&p, &count))
         error(".comm: count expected");
-      add_label(label);
+      add_label(SEC_BSS, label);
       add_bss(count);
     }
     break;
 
-  case DT_SECTION:
+  case DT_TEXT:
+    current_section = SEC_CODE;
+    break;
+
   case DT_DATA:
+    current_section = SEC_DATA;
+    break;
+
+  case DT_ALIGN:
+    {
+      long align;
+      if (!parse_immediate(&p, &align))
+        error(".algin: number expected");
+      align_section_size(current_section, align);
+    }
+    break;
+
+  case DT_LONG:
+    {
+      long value;
+      if (!parse_immediate(&p, &value))
+        error(".long: number expected");
+      // TODO: Target endian.
+      int32_t x = value;
+      add_section_data(current_section, &x, sizeof(x));
+    }
+    break;
+
+  case DT_QUAD:
+    {
+      long value;
+      if (parse_immediate(&p, &value)) {
+        // TODO: Target endian.
+        int64_t x = value;
+        add_section_data(current_section, &x, sizeof(x));
+      } else {
+        const char *label = parse_label(&p);
+        if (label != NULL) {
+          add_loc_abs64(current_section, label, 0);
+          int64_t x = -1;
+          add_section_data(current_section, &x, sizeof(x));
+        } else {
+          error(".quad: number or label expected");
+        }
+      }
+    }
+    break;
+
+  case DT_SECTION:
   case DT_GLOBL:
   case DT_EXTERN:
     break;
@@ -890,7 +935,7 @@ static bool assemble_mov(const Line *line) {
 
 static void assemble_line(const Line *line, const char *rawline) {
   if (line->label != NULL)
-    add_label(line->label);
+    add_label(current_section, line->label);
 
   switch(line->op) {
   case NOOP:
@@ -1307,7 +1352,16 @@ static void assemble_line(const Line *line, const char *rawline) {
       }
     } else if (line->src.type == IMMEDIATE && line->dst.type == REG) {
       long value = line->src.u.immediate;
-      if (is_reg32(line->dst.u.reg)) {
+      if (is_reg8(line->dst.u.reg)) {
+        if (line->dst.u.reg == AL) {
+          ADD_CODE(0x3c, IM8(value));
+          return;
+        } else {
+          int d = line->dst.u.reg - AL;
+          ADD_CODE(0x80, 0xf8 + d, IM8(value));
+          return;
+        }
+      } else if (is_reg32(line->dst.u.reg)) {
         int d = line->dst.u.reg - EAX;
         if (is_im8(value)) {
           ADD_CODE(0x83, 0xf8 + d, IM8(value));
@@ -1458,7 +1512,8 @@ int main(int argc, char* argv[]) {
       ofn = strdup_(argv[iarg] + 2);
   }
 
-  init(LOAD_ADDRESS);
+  current_section = SEC_CODE;
+  init_gen();
 
   FILE* fp = fopen(ofn, "wb");
   if (fp == NULL) {
@@ -1478,7 +1533,7 @@ int main(int argc, char* argv[]) {
     assemble(stdin);
   }
 
-  resolve_label_locations();
+  resolve_label_locations(LOAD_ADDRESS);
 
   size_t codefilesz, codememsz;
   size_t datafilesz, datamemsz;

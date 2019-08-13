@@ -6,11 +6,6 @@
 
 #include "util.h"
 
-#define CURIP(ofs)  (instruction_pointer + ofs)
-#include "x86_64.h"
-
-#define ALIGN_SECTION_SIZE(sec, align_)  do { int align = (int)(align_); align_section_size(sec, align); } while (0)
-
 static Map *label_map;  // <uintptr_t adr>
 
 enum LocType {
@@ -32,22 +27,43 @@ typedef struct {
 } LocInfo;
 
 typedef struct {
-  uintptr_t start;
+  uintptr_t start_address;
   unsigned char* buf;
   size_t size;
 } Section;
 
-static Section sections[2];
-static size_t instruction_pointer;
+static Section sections[3];
+enum SectionType current_section;
+
+typedef struct {
+  enum SectionType section;
+  uintptr_t offset;
+} LabelInfo;
 
 // Put label at the current.
-void add_label(const char *label) {
-  map_put(label_map, label, (void*)CURIP(0));
+void add_label(enum SectionType section, const char *label) {
+  LabelInfo *label_info = malloc(sizeof(*label_info));
+  label_info->section = section;
+  label_info->offset = sections[section].size;
+  map_put(label_map, label, label_info);
 }
 
 void add_bss(size_t size) {
-  //codesize += size;
-  instruction_pointer += size;
+  sections[SEC_BSS].size += size;
+}
+
+void align_section_size(enum SectionType section, int align) {
+  size_t size = sections[section].size;
+  size_t aligned_size = ALIGN(size, align);
+  size_t add = aligned_size - size;
+  if (add <= 0)
+    return;
+
+  void* zero = calloc(add, 1);
+  add_section_data(section, zero, add);
+  free(zero);
+
+  assert(sections[section].size == aligned_size);
 }
 
 static Vector *loc_vector;
@@ -63,27 +79,32 @@ static LocInfo *new_loc(enum LocType type, enum SectionType section, uintptr_t a
 }
 
 void add_loc_rel8(const char *label, int ofs, int baseofs) {
-  uintptr_t adr = instruction_pointer + ofs;
-  LocInfo *loc = new_loc(LOC_REL8, SEC_CODE, adr, label);
-  loc->rel.base = CURIP(baseofs);
+  enum SectionType section = SEC_CODE;
+  uintptr_t offset = sections[section].size;
+  uintptr_t adr = offset + ofs;
+  LocInfo *loc = new_loc(LOC_REL8, section, adr, label);
+  loc->rel.base = offset + baseofs;
 }
 
 void add_loc_rel32(const char *label, int ofs, int baseofs) {
-  uintptr_t adr = instruction_pointer + ofs;
-  LocInfo *loc = new_loc(LOC_REL32, SEC_CODE, adr, label);
-  loc->rel.base = CURIP(baseofs);
+  enum SectionType section = SEC_CODE;
+  uintptr_t offset = sections[section].size;
+  uintptr_t adr = offset + ofs;
+  LocInfo *loc = new_loc(LOC_REL32, section, adr, label);
+  loc->rel.base = offset + baseofs;
 }
 
-void add_loc_abs64(enum SectionType section, const char *label, uintptr_t pos) {
-  new_loc(LOC_ABS64, section, pos, label);
+void add_loc_abs64(enum SectionType section, const char *label, int ofs) {
+  uintptr_t offset = sections[section].size;
+  new_loc(LOC_ABS64, section, ofs + offset, label);
 }
 
 uintptr_t label_adr(const char *label) {
-  void *adr = map_get(label_map, label);
-  return adr != NULL ? (uintptr_t)adr : (uintptr_t)-1;
+  LabelInfo *label_info = map_get(label_map, label);
+  return label_info != NULL ? label_info->offset + sections[label_info->section].start_address : (uintptr_t)-1;
 }
 
-static void add_section_data(enum SectionType secno, const unsigned char* data, size_t bytes) {
+void add_section_data(enum SectionType secno, const void* data, size_t bytes) {
   Section *sec = &sections[secno];
   size_t size = sec->size;
   size_t newsize = size + bytes;
@@ -93,20 +114,24 @@ static void add_section_data(enum SectionType secno, const unsigned char* data, 
   memcpy(buf + size, data, bytes);
   sec->buf = buf;
   sec->size = newsize;
-  instruction_pointer += bytes;
 }
 
-void add_code(const unsigned char* buf, size_t bytes) {
+void add_code(const void* buf, size_t bytes) {
   add_section_data(SEC_CODE, buf, bytes);
 }
 
 // Resolve label locations.
-void resolve_label_locations(void) {
+void resolve_label_locations(uintptr_t start_address) {
+  sections[SEC_CODE].start_address = start_address;
+  sections[SEC_DATA].start_address = ALIGN(sections[SEC_CODE].start_address + sections[SEC_CODE].size, 4096);
+  sections[SEC_DATA].size = ALIGN(sections[SEC_DATA].size, 16);  // TODO: Calc max align.
+  sections[SEC_BSS].start_address = sections[SEC_DATA].start_address + sections[SEC_DATA].size;
+
   Vector *unsolved_labels = NULL;
   for (int i = 0; i < loc_vector->len; ++i) {
     LocInfo *loc = loc_vector->data[i];
-    void *val = map_get(label_map, loc->label);
-    if (val == NULL) {
+    LabelInfo *label_info = map_get(label_map, loc->label);
+    if (label_info == NULL) {
       if (unsolved_labels == NULL)
         unsolved_labels = new_vector();
       bool found = false;
@@ -121,29 +146,30 @@ void resolve_label_locations(void) {
       continue;
     }
 
-    intptr_t v = (intptr_t)val;
     Section *section = &sections[loc->section];
-    unsigned char *code = section->buf;
-    uintptr_t offset = loc->adr - section->start;
+    unsigned char *buf = section->buf;
+    uintptr_t offset = loc->adr /* - section->start*/;
+    uintptr_t v = label_info->offset + sections[label_info->section].start_address;
+//fprintf(stderr, "  %d: %s, sec=%d, ofs=%ld, type=%d, section=%d, offset=%ld, v=%lx\n", i, loc->label, label_info->section, label_info->offset, loc->type, loc->section, offset, v);
     switch (loc->type) {
     case LOC_REL8:
       {
-        intptr_t d = v - loc->rel.base;
+        intptr_t d = v - (loc->rel.base + section->start_address);
         // TODO: Check out of range
-        code[offset] = d;
+        buf[offset] = d;
       }
       break;
     case LOC_REL32:
       {
-        intptr_t d = v - loc->rel.base;
+        intptr_t d = v - (loc->rel.base + section->start_address);
         // TODO: Check out of range
         for (int i = 0; i < 4; ++i)
-          code[offset + i] = d >> (i * 8);
+          buf[offset + i] = d >> (i * 8);
       }
       break;
     case LOC_ABS64:
       for (int i = 0; i < 8; ++i)
-        code[offset + i] = v >> (i * 8);
+        buf[offset + i] = v >> (i * 8);
       break;
     default:
       assert(false);
@@ -170,13 +196,13 @@ void resolve_label_locations(void) {
 
 void get_section_size(int section, size_t *pfilesz, size_t *pmemsz, uintptr_t *ploadadr) {
   *pfilesz = sections[section].size;
-  *ploadadr = sections[section].start;
+  *ploadadr = sections[section].start_address;
   switch (section) {
   case SEC_CODE:
     *pmemsz = *pfilesz;
     break;
   case SEC_DATA:
-    *pmemsz = instruction_pointer - sections[SEC_DATA].start;  // Include bss.
+    *pmemsz = *pfilesz + sections[SEC_BSS].size;  // Include bss.
     break;
   default:
     assert(!"Illegal");
@@ -184,8 +210,8 @@ void get_section_size(int section, size_t *pfilesz, size_t *pmemsz, uintptr_t *p
   }
 }
 
-void init_gen(uintptr_t start_address_) {
-  sections[SEC_CODE].start = instruction_pointer = start_address_;
+void init_gen(void) {
+  current_section = SEC_CODE;
   label_map = new_map();
   loc_vector = new_vector();
 }
