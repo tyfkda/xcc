@@ -762,31 +762,39 @@ void gen_expr(Expr *expr) {
   case EX_POSTINC:
   case EX_POSTDEC:
     gen_lval(expr->u.unary.sub);
-    MOV_IND_RAX_RDI();
     switch (expr->valType->type) {
     case TY_NUM:
       switch (expr->valType->u.numtype) {
       case NUM_CHAR:
+        MOV_IND_RAX_DIL();
         if (expr->type == EX_POSTINC)  INCB_IND_RAX();
         else                           DECB_IND_RAX();
+        MOV_DIL_AL();
         break;
       case NUM_SHORT:
+        MOV_IND_RAX_DI();
         if (expr->type == EX_POSTINC)  INCW_IND_RAX();
         else                           DECW_IND_RAX();
+        MOV_DI_AX();
         break;
       case NUM_INT:
+        MOV_IND_RAX_EDI();
         if (expr->type == EX_POSTINC)  INCL_IND_RAX();
         else                           DECL_IND_RAX();
+        MOV_EDI_EAX();
         break;
       case NUM_LONG:
+        MOV_IND_RAX_RDI();
         if (expr->type == EX_POSTINC)  INCQ_IND_RAX();
         else                           DECQ_IND_RAX();
+        MOV_RDI_RAX();
         break;
       default: assert(false); break;
       }
       break;
     case TY_PTR:
       {
+        MOV_IND_RAX_RDI();
         size_t size = type_size(expr->valType->u.pa.ptrof);
         assert(size < ((size_t)1 << 31));  // TODO:
         if (expr->type == EX_POSTINC) {
@@ -796,13 +804,13 @@ void gen_expr(Expr *expr) {
           if (size < 256)  SUBQ_IM8_IND_RAX(size);
           else             SUBQ_IM32_IND_RAX(size);
         }
+        MOV_RDI_RAX();
       }
       break;
     default:
       assert(false);
       break;
     }
-    MOV_RDI_RAX();
     return;
 
   case EX_FUNCALL:
