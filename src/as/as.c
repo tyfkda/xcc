@@ -49,7 +49,45 @@ enum Opcode {
   MOV,
   MOVSX,
   LEA,
-  CALL,
+
+  ADD,
+  ADDQ,
+  SUB,
+  MUL,
+  DIV,
+  NEG,
+  NOT,
+  INC,
+  INCL,
+  INCQ,
+  DEC,
+  DECL,
+  DECQ,
+  AND,
+  OR,
+  XOR,
+  SHL,
+  SHR,
+  CMP,
+  TEST,
+
+  SETO,
+  SETNO,
+  SETB,
+  SETAE,
+  SETE,
+  SETNE,
+  SETBE,
+  SETA,
+  SETS,
+  SETNS,
+  SETP,
+  SETNP,
+  SETL,
+  SETGE,
+  SETLE,
+  SETG,
+
   JMP,
   JO,
   JNO,
@@ -67,29 +105,11 @@ enum Opcode {
   JGE,
   JLE,
   JG,
+  CALL,
   RET,
   PUSH,
   POP,
-  ADD,
-  ADDQ,
-  SUB,
-  MUL,
-  DIV,
-  XOR,
-  NEG,
-  NOT,
-  INC,
-  INCL,
-  DEC,
-  DECL,
-  AND,
-  OR,
-  SHL,
-  SHR,
-  CMP,
-  TEST,
-  SETE,
-  SETNE,
+
   SYSCALL,
 };
 
@@ -97,7 +117,45 @@ static const char *kOpTable[] = {
   "mov",
   "movsx",
   "lea",
-  "call",
+
+  "add",
+  "addq",
+  "sub",
+  "mul",
+  "div",
+  "neg",
+  "not",
+  "inc",
+  "incl",
+  "incq",
+  "dec",
+  "decl",
+  "decq",
+  "and",
+  "or",
+  "xor",
+  "shl",
+  "shr",
+  "cmp",
+  "test",
+
+  "seto",
+  "setno",
+  "setb",
+  "setae",
+  "sete",
+  "setne",
+  "setbe",
+  "seta",
+  "sets",
+  "setns",
+  "setp",
+  "setnp",
+  "setl",
+  "setge",
+  "setle",
+  "setg",
+
   "jmp",
   "jo",
   "jno",
@@ -115,35 +173,18 @@ static const char *kOpTable[] = {
   "jge",
   "jle",
   "jg",
+  "call",
   "ret",
   "push",
   "pop",
-  "add",
-  "addq",
-  "sub",
-  "mul",
-  "div",
-  "xor",
-  "neg",
-  "not",
-  "inc",
-  "incl",
-  "dec",
-  "decl",
-  "and",
-  "or",
-  "shl",
-  "shr",
-  "cmp",
-  "test",
-  "sete",
-  "setne",
+
   "syscall",
 };
 
 enum RegType {
   NOREG,
 
+  // 8bit
   AL,
   CL,
   DL,
@@ -153,11 +194,23 @@ enum RegType {
   SIL,
   DIL,
 
+  // 8bit
+  R8B,
+  R9B,
+  R10B,
+  R11B,
+  R12B,
+  R13B,
+  R14B,
+  R15B,
+
+  // 16bit
   AX,
   CX,
   DX,
   BX,
 
+  // 32bit
   EAX,
   ECX,
   EDX,
@@ -167,6 +220,17 @@ enum RegType {
   ESI,
   EDI,
 
+  // 32bit
+  R8D,
+  R9D,
+  R10D,
+  R11D,
+  R12D,
+  R13D,
+  R14D,
+  R15D,
+
+  // 64bit
   RAX,
   RCX,
   RDX,
@@ -176,6 +240,7 @@ enum RegType {
   RSI,
   RDI,
 
+  // 64bit
   R8,
   R9,
   R10,
@@ -201,6 +266,15 @@ static const struct {
   {"sil", SIL},
   {"dil", DIL},
 
+  {"r8b", R8B},
+  {"r9b", R9B},
+  {"r10b", R10B},
+  {"r11b", R11B},
+  {"r12b", R12B},
+  {"r13b", R13B},
+  {"r14b", R14B},
+  {"r15b", R15B},
+
   {"ax", AX},
   {"cx", CX},
   {"dx", DX},
@@ -214,6 +288,15 @@ static const struct {
   {"ebp", EBP},
   {"esi", ESI},
   {"edi", EDI},
+
+  {"r8d", R8D},
+  {"r9d", R9D},
+  {"r10d", R10D},
+  {"r11d", R11D},
+  {"r12d", R12D},
+  {"r13d", R13D},
+  {"r14d", R14D},
+  {"r15d", R15D},
 
   {"rax", RAX},
   {"rcx", RCX},
@@ -240,8 +323,12 @@ static bool is_reg8(enum RegType reg) {
   return reg >= AL && reg <= BL;
 }
 
-static bool is_reg8x(enum RegType reg) {
+static bool is_reg8s(enum RegType reg) {
   return reg >= AL && reg <= DIL;
+}
+
+static bool is_reg8x(enum RegType reg) {
+  return reg >= R8B && reg <= R15B;
 }
 
 static bool is_reg16(enum RegType reg) {
@@ -250,6 +337,10 @@ static bool is_reg16(enum RegType reg) {
 
 static bool is_reg32(enum RegType reg) {
   return reg >= EAX && reg <= EDI;
+}
+
+static bool is_reg32x(enum RegType reg) {
+  return reg >= R8D && reg <= R15D;
 }
 
 static bool is_reg64(enum RegType reg) {
@@ -827,6 +918,56 @@ static bool assemble_mov(const Line *line) {
             return true;
           }
         }
+      } else if (is_reg8s(line->src.u.reg)) {
+        int s = line->src.u.reg - AL;
+        if (line->dst.u.indirect.reg != RSP) {
+          if (offset == 0 && line->dst.u.indirect.reg != RBP) {
+            ADD_CODE(0x40, 0x88, 0x00 + d + s * 8);
+            return true;
+          } else if (is_im8(offset)) {
+            ADD_CODE(0x40, 0x88, 0x40 + d + s * 8, IM8(offset));
+            return true;
+          } else if (is_im32(offset)) {
+            ADD_CODE(0x40, 0x89, 0x80 + d + s * 8, IM32(offset));
+            return true;
+          }
+        } else {
+          if (offset == 0) {
+            ADD_CODE(0x40, 0x88, 0x04 + s * 8, 0x24);
+            return true;
+          } else if (is_im8(offset)) {
+            ADD_CODE(0x40, 0x88, 0x44 + s * 8, 0x24, IM8(offset));
+            return true;
+          } else if (is_im32(offset)) {
+            ADD_CODE(0x40, 0x89, 0x84 + s * 8, 0x24, IM32(offset));
+            return true;
+          }
+        }
+      } else if (is_reg8x(line->src.u.reg)) {
+        int s = line->src.u.reg - R8B;
+        if (line->dst.u.indirect.reg != RSP) {
+          if (offset == 0 && line->dst.u.indirect.reg != RBP) {
+            ADD_CODE(0x44, 0x88, 0x00 + d + s * 8);
+            return true;
+          } else if (is_im8(offset)) {
+            ADD_CODE(0x44, 0x88, 0x40 + d + s * 8, IM8(offset));
+            return true;
+          } else if (is_im32(offset)) {
+            ADD_CODE(0x44, 0x89, 0x80 + d + s * 8, IM32(offset));
+            return true;
+          }
+        } else {
+          if (offset == 0) {
+            ADD_CODE(0x44, 0x88, 0x04 + s * 8, 0x24);
+            return true;
+          } else if (is_im8(offset)) {
+            ADD_CODE(0x44, 0x88, 0x44 + s * 8, 0x24, IM8(offset));
+            return true;
+          } else if (is_im32(offset)) {
+            ADD_CODE(0x44, 0x89, 0x84 + s * 8, 0x24, IM32(offset));
+            return true;
+          }
+        }
       } else if (is_reg16(line->src.u.reg)) {
         int s = line->src.u.reg - AX;
         if (line->dst.u.indirect.reg != RSP) {
@@ -874,6 +1015,31 @@ static bool assemble_mov(const Line *line) {
             return true;
           } else if (is_im32(offset)) {
             ADD_CODE(0x89, 0x84 + s * 8, 0x24, IM32(offset));
+            return true;
+          }
+        }
+      } else if (is_reg32x(line->src.u.reg)) {
+        int s = line->src.u.reg - R8D;
+        if (line->dst.u.indirect.reg != RSP) {
+          if (offset == 0 && line->dst.u.indirect.reg != RBP) {
+            ADD_CODE(0x44, 0x89, 0x00 + d + s * 8);
+            return true;
+          } else if (is_im8(offset)) {
+            ADD_CODE(0x44, 0x89, 0x40 + d + s * 8, IM8(offset));
+            return true;
+          } else if (is_im32(offset)) {
+            ADD_CODE(0x44, 0x89, 0x80 + d + s * 8, IM32(offset));
+            return true;
+          }
+        } else {
+          if (offset == 0) {
+            ADD_CODE(0x44, 0x89, 0x04 + s * 8, 0x24);
+            return true;
+          } else if (is_im8(offset)) {
+            ADD_CODE(0x44, 0x89, 0x44 + s * 8, 0x24, IM8(offset));
+            return true;
+          } else if (is_im32(offset)) {
+            ADD_CODE(0x44, 0x89, 0x84 + s * 8, 0x24, IM32(offset));
             return true;
           }
         }
@@ -1017,7 +1183,7 @@ static void assemble_line(const Line *line, const char *rawline) {
         int d = line->dst.u.reg - AL;
         ADD_CODE(0x00, 0xc0 + s * 8 + d);
         return;
-      } if (is_reg8x(line->src.u.reg) && is_reg8x(line->dst.u.reg)) {
+      } if (is_reg8s(line->src.u.reg) && is_reg8s(line->dst.u.reg)) {
         int s = line->src.u.reg - AL;
         int d = line->dst.u.reg - AL;
         ADD_CODE(0x40, 0x00, 0xc0 + s * 8 + d);
@@ -1126,7 +1292,17 @@ static void assemble_line(const Line *line, const char *rawline) {
     break;
   case SUB:
     if (line->src.type == REG && line->dst.type == REG) {
-      if (is_reg32(line->src.u.reg) && is_reg32(line->dst.u.reg)) {
+      if (is_reg8(line->src.u.reg) && is_reg8(line->dst.u.reg)) {
+        int s = line->src.u.reg - AL;
+        int d = line->dst.u.reg - AL;
+        ADD_CODE(0x28, 0xc0 + s * 8 + d);
+        return;
+      } if (is_reg8s(line->src.u.reg) && is_reg8s(line->dst.u.reg)) {
+        int s = line->src.u.reg - AL;
+        int d = line->dst.u.reg - AL;
+        ADD_CODE(0x40, 0x28, 0xc0 + s * 8 + d);
+        return;
+      } else if (is_reg32(line->src.u.reg) && is_reg32(line->dst.u.reg)) {
         int s = line->src.u.reg - EAX;
         int d = line->dst.u.reg - EAX;
         ADD_CODE(0x29, 0xc0 + s * 8 + d);
@@ -1174,16 +1350,6 @@ static void assemble_line(const Line *line, const char *rawline) {
       } else if (is_reg64(line->src.u.reg)) {
         int s = line->src.u.reg - RAX;
         ADD_CODE(0x48, 0xf7, 0xf0 + s);
-        return;
-      }
-    }
-    break;
-  case XOR:
-    if (line->src.type == REG && line->dst.type == REG) {
-      if (is_reg32(line->src.u.reg) && is_reg32(line->dst.u.reg)) {
-        int s = line->src.u.reg - EAX;
-        int d = line->dst.u.reg - EAX;
-        ADD_CODE(0x31, 0xc0 + s * 8 + d);
         return;
       }
     }
@@ -1244,6 +1410,36 @@ static void assemble_line(const Line *line, const char *rawline) {
       }
     }
     break;
+  case INCQ:
+    if (line->src.type == INDIRECT && line->dst.type == NOOPERAND &&
+        is_reg64(line->src.u.reg)) {
+      int s = line->src.u.indirect.reg - RAX;
+      long offset = line->src.u.indirect.offset;
+      if (line->src.u.indirect.reg != RSP) {
+        if (offset == 0 && line->src.u.indirect.reg != RBP) {
+          ADD_CODE(0x48, 0xff, 0x00 + s);
+          return;
+        } else if (is_im8(offset)) {
+          ADD_CODE(0x48, 0xff, 0x40 + s, IM8(offset));
+          return;
+        } else if (is_im32(offset)) {
+          ADD_CODE(0x48, 0xff, 0x80 + s, IM32(offset));
+          return;
+        }
+      } else {
+        if (offset == 0) {
+          ADD_CODE(0x48, 0xff, 0x04, 0x24);
+          return;
+        } else if (is_im8(offset)) {
+          ADD_CODE(0x48, 0xff, 0x44, 0x24, IM8(offset));
+          return;
+        } else if (is_im32(offset)) {
+          ADD_CODE(0x48, 0xff, 0x84, 0x24, IM32(offset));
+          return;
+        }
+      }
+    }
+    break;
   case DEC:
     if (line->src.type == REG && line->dst.type == NOOPERAND) {
       if (is_reg32(line->src.u.reg)) {
@@ -1287,12 +1483,47 @@ static void assemble_line(const Line *line, const char *rawline) {
       }
     }
     break;
+  case DECQ:
+    if (line->src.type == INDIRECT && line->dst.type == NOOPERAND &&
+        is_reg64(line->src.u.reg)) {
+      int s = line->src.u.indirect.reg - RAX;
+      long offset = line->src.u.indirect.offset;
+      if (line->src.u.indirect.reg != RSP) {
+        if (offset == 0 && line->src.u.indirect.reg != RBP) {
+          ADD_CODE(0x48, 0xff, 0x08 + s);
+          return;
+        } else if (is_im8(offset)) {
+          ADD_CODE(0x48, 0xff, 0x48 + s, IM8(offset));
+          return;
+        } else if (is_im32(offset)) {
+          ADD_CODE(0x48, 0xff, 0x88 + s, IM32(offset));
+          return;
+        }
+      } else {
+        if (offset == 0) {
+          ADD_CODE(0x48, 0xff, 0x0c, 0x24);
+          return;
+        } else if (is_im8(offset)) {
+          ADD_CODE(0x48, 0xff, 0x4c, 0x24, IM8(offset));
+          return;
+        } else if (is_im32(offset)) {
+          ADD_CODE(0x48, 0xff, 0x8c, 0x24, IM32(offset));
+          return;
+        }
+      }
+    }
+    break;
   case AND:
     if (line->src.type == REG && line->dst.type == REG) {
       if (is_reg32(line->src.u.reg) && is_reg32(line->dst.u.reg)) {
         int s = line->src.u.reg - EAX;
         int d = line->dst.u.reg - EAX;
         ADD_CODE(0x21, 0xc0 + s * 8 + d);
+        return;
+      } else if (is_reg64(line->src.u.reg) && is_reg64(line->dst.u.reg)) {
+        int s = line->src.u.reg - RAX;
+        int d = line->dst.u.reg - RAX;
+        ADD_CODE(0x48, 0x21, 0xc0 + s * 8 + d);
         return;
       }
     }
@@ -1304,6 +1535,26 @@ static void assemble_line(const Line *line, const char *rawline) {
         int d = line->dst.u.reg - EAX;
         ADD_CODE(0x09, 0xc0 + s * 8 + d);
         return;
+      } else if (is_reg64(line->src.u.reg) && is_reg64(line->dst.u.reg)) {
+        int s = line->src.u.reg - RAX;
+        int d = line->dst.u.reg - RAX;
+        ADD_CODE(0x48, 0x09, 0xc0 + s * 8 + d);
+        return;
+      }
+    }
+    break;
+  case XOR:
+    if (line->src.type == REG && line->dst.type == REG) {
+      if (is_reg32(line->src.u.reg) && is_reg32(line->dst.u.reg)) {
+        int s = line->src.u.reg - EAX;
+        int d = line->dst.u.reg - EAX;
+        ADD_CODE(0x31, 0xc0 + s * 8 + d);
+        return;
+      } else if (is_reg64(line->src.u.reg) && is_reg64(line->dst.u.reg)) {
+        int s = line->src.u.reg - RAX;
+        int d = line->dst.u.reg - RAX;
+        ADD_CODE(0x48, 0x31, 0xc0 + s * 8 + d);
+        return;
       }
     }
     break;
@@ -1313,6 +1564,10 @@ static void assemble_line(const Line *line, const char *rawline) {
       if (is_reg32(line->dst.u.reg)) {
         int d = line->dst.u.reg - EAX;
         ADD_CODE(0xd3, 0xe0 + d);
+        return;
+      } else if (is_reg64(line->dst.u.reg)) {
+        int d = line->dst.u.reg - RAX;
+        ADD_CODE(0x48, 0xd3, 0xe0 + d);
         return;
       }
     }
@@ -1324,6 +1579,10 @@ static void assemble_line(const Line *line, const char *rawline) {
         int d = line->dst.u.reg - EAX;
         ADD_CODE(0xd3, 0xe8 + d);
         return;
+      } else if (is_reg64(line->dst.u.reg)) {
+        int d = line->dst.u.reg - RAX;
+        ADD_CODE(0x48, 0xd3, 0xe8 + d);
+        return;
       }
     }
     break;
@@ -1334,7 +1593,7 @@ static void assemble_line(const Line *line, const char *rawline) {
         int d = line->dst.u.reg - AL;
         ADD_CODE(0x38, 0xc0 + s * 8 + d);
         return;
-      } else if (is_reg8x(line->src.u.reg) && is_reg8x(line->dst.u.reg)) {
+      } else if (is_reg8s(line->src.u.reg) && is_reg8s(line->dst.u.reg)) {
         int s = line->src.u.reg - AL;
         int d = line->dst.u.reg - AL;
         ADD_CODE(0x40, 0x38, 0xc0 + s * 8 + d);
@@ -1393,58 +1652,51 @@ static void assemble_line(const Line *line, const char *rawline) {
       }
     }
     break;
-  case SETE:
+
+  case SETO: case SETNO: case SETB:  case SETAE:
+  case SETE: case SETNE: case SETBE: case SETA:
+  case SETS: case SETNS: case SETP:  case SETNP:
+  case SETL: case SETGE: case SETLE: case SETG:
     if (line->src.type == REG && line->dst.type == NOOPERAND) {
       if (is_reg8(line->src.u.reg)) {
         int s = line->src.u.reg - AL;
-        ADD_CODE(0x0f, 0x94, 0xc0 + s);
-        return;
-      }
-    }
-    break;
-  case SETNE:
-    if (line->src.type == REG && line->dst.type == NOOPERAND) {
-      if (is_reg8(line->src.u.reg)) {
-        int s = line->src.u.reg - AL;
-        ADD_CODE(0x0f, 0x95, 0xc0 + s);
+        ADD_CODE(0x0f, 0x90 + (line->op - SETO), 0xc0 + s);
         return;
       }
     }
     break;
   case PUSH:
-    if (line->src.type != REG || line->dst.type != NOOPERAND ||
-        !is_reg64(line->src.u.reg))
-      error("Illegal oprand: PUSH");
-    ADD_CODE(0x50 + (line->src.u.reg - RAX));
-    return;
+    if (line->src.type == REG && line->dst.type == NOOPERAND) {
+      if (is_reg64(line->src.u.reg)) {
+        ADD_CODE(0x50 + (line->src.u.reg - RAX));
+        return;
+      } else if (is_reg64x(line->src.u.reg)) {
+        ADD_CODE(0x41, 0x50 + (line->src.u.reg - R8));
+        return;
+      }
+    }
+    break;
   case POP:
-    if (line->src.type != REG || line->dst.type != NOOPERAND ||
-        !is_reg64(line->src.u.reg))
-      error("Illegal oprand: POP");
-    ADD_CODE(0x58 + (line->src.u.reg - RAX));
-    return;
+    if (line->src.type == REG && line->dst.type == NOOPERAND) {
+      if (is_reg64(line->src.u.reg)) {
+        ADD_CODE(0x58 + (line->src.u.reg - RAX));
+        return;
+      } else if (is_reg64x(line->src.u.reg)) {
+        ADD_CODE(0x41, 0x58 + (line->src.u.reg - R8));
+        return;
+      }
+    }
+    break;
   case JMP:
     if (line->src.type != LABEL || line->dst.type != NOOPERAND)
       error("Illegal oprand: JMP");
     ADD_LOC_REL32(line->src.u.label, 1, 5);
     ADD_CODE(0xe9, IM32(-1));
     return;
-  case JO:
-  case JNO:
-  case JB:
-  case JAE:
-  case JE:
-  case JNE:
-  case JBE:
-  case JA:
-  case JS:
-  case JNS:
-  case JP:
-  case JNP:
-  case JL:
-  case JGE:
-  case JLE:
-  case JG:
+  case JO: case JNO: case JB:  case JAE:
+  case JE: case JNE: case JBE: case JA:
+  case JS: case JNS: case JP:  case JNP:
+  case JL: case JGE: case JLE: case JG:
     if (line->src.type == LABEL && line->dst.type == NOOPERAND) {
       // TODO: Handle short jump.
       ADD_LOC_REL32(line->src.u.label, 2, 6);
