@@ -93,6 +93,7 @@ try_direct 'enum can use in case' 1 'enum Num { Zero, One, Two }; int main(){ sw
 try_direct 'compare enum' 0 'enum Num { Zero, One, Two }; int main(){ enum Num num = Zero; return num == One; }'
 try_direct 'enum initializer' 0 'enum Num { Zero } num = Zero; int main(){ return num; }'
 try_direct 'enum initializer2' 67 'enum Num { Zero } num = 67; int main(){ return num; }'
+try_direct 'global enum variable' 1 'enum Foo { BAR, BAZ }; enum Foo foo; int main(){ foo = BAZ; return foo; }'
 try_direct 'typedef' 123 'typedef struct {int x, y;} Foo; int main(){ Foo foo; foo.x = 123; return foo.x; }'
 try_output_direct 'empty function' '' 'void foo(){} int main(){ foo(); return 0; }'
 try_direct 'Undeclared struct typedef' 8 'typedef struct FILE FILE; int main(){ return sizeof(FILE*); }'
@@ -174,3 +175,5 @@ compile_error 'use void' 'void func(){} int main(){ int a = (int)func(); return 
 compile_error 'goto no-label' 'int main(){ goto label; return 77; }'
 compile_error 'funparam static' 'int main(static int argc){ return argc > 0 ? 0 : 1; }'
 compile_error 'funparam extern' 'int main(extern int argc){ return argc > 0 ? 0 : 1; }'
+compile_error 'enum and global' 'enum Foo { BAR }; int BAR; int main(){ return 0; }'
+compile_error 'global and enum' 'int BAR; enum Foo { BAR }; int main(){ return 0; }'

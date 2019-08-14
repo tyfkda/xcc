@@ -576,11 +576,13 @@ static Node *sema_vardecl(Node *node) {
             new_expr_varref(ident->u.ident, type, false, NULL), init, inits);
       }
     } else {
+      intptr_t eval;
+      if (find_enum_value(ident->u.ident, &eval))
+        parse_error(NULL, "`%s' is already defined", ident->u.ident);
       if (flag & VF_EXTERN && init != NULL)
         parse_error(/*tok*/ NULL, "extern with initializer");
       // Toplevel
       VarInfo *varinfo = define_global(type, flag, ident, NULL);
-      assert(varinfo != NULL);
       init = analyze_initializer(init);
       varinfo->u.g.init = check_global_initializer(type, init);
     }
