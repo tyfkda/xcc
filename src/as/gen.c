@@ -33,7 +33,8 @@ typedef struct {
 } Section;
 
 static Section sections[3];
-enum SectionType current_section;
+//enum SectionType current_section;  // TODO: Use this one.
+int current_section;
 
 typedef struct {
   enum SectionType section;

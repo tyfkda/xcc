@@ -64,9 +64,22 @@ int strcmp(const char *p, const char *q) {
 }
 
 int strncmp(const char *p, const char *q, size_t n) {
-  while(n > 0 && *p == *q && *p != '\0')
+  while (n > 0 && *p == *q && *p != '\0')
     n--, p++, q++;
   return n == 0 ? 0 : (int)((unsigned char)*p - (unsigned char)*q);
+}
+
+int strncasecmp(const char *p, const char *q, size_t n) {
+  for (; n > 0; --n, ++p, ++q) {
+    int c1 = tolower((unsigned char)*p);
+    int c2 = tolower((unsigned char)*q);
+    int d = c1 - c2;
+    if (d != 0)
+      return d;
+    if (c1 == 0)
+      break;
+  }
+  return 0;
 }
 
 char* strcpy(char *s, const char *t) {
@@ -187,6 +200,10 @@ int isalnum(int c) {
 int isspace(int c) {
   return (c == ' ' || c == '\t' || c == '\n' || c == '\r' ||
           c == '\f' || c == '\v');
+}
+
+int tolower(int c) {
+  return ('A' <= c && c <= 'Z') ? c + ('a' - 'A') : c;
 }
 
 #if defined(__XV6)

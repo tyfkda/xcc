@@ -17,7 +17,8 @@ enum SectionType {
   SEC_BSS,
 };
 
-extern enum SectionType current_section;
+//extern enum SectionType current_section;
+extern int current_section;
 
 void init_gen(void);
 void add_code(const void* buf, size_t bytes);
