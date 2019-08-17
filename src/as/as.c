@@ -788,6 +788,10 @@ static bool assemble_mov(const Line *line) {
       int d = line->dst.u.reg - AL;
       ADD_CODE(0xb0 + d, IM8(line->src.u.immediate));
       return true;
+    } else if (is_reg16(line->dst.u.reg)) {
+      int d = line->dst.u.reg - AX;
+      ADD_CODE(0x66, 0xb8 + d, IM16(line->src.u.immediate));
+      return true;
     } else if (is_reg32(line->dst.u.reg)) {
       int d = line->dst.u.reg - EAX;
       ADD_CODE(0xb8 + d, IM32(line->src.u.immediate));
@@ -1624,7 +1628,17 @@ static void assemble_line(const Line *line, const char *rawline) {
     break;
   case XOR:
     if (line->src.type == REG && line->dst.type == REG) {
-      if (is_reg32(line->src.u.reg) && is_reg32(line->dst.u.reg)) {
+      if (is_reg8(line->src.u.reg) && is_reg8(line->dst.u.reg)) {
+        int s = line->src.u.reg - AL;
+        int d = line->dst.u.reg - AL;
+        ADD_CODE(0x30, 0xc0 + s * 8 + d);
+        return;
+      } else if (is_reg16(line->src.u.reg) && is_reg16(line->dst.u.reg)) {
+        int s = line->src.u.reg - AX;
+        int d = line->dst.u.reg - AX;
+        ADD_CODE(0x66, 0x31, 0xc0 + s * 8 + d);
+        return;
+      } else if (is_reg32(line->src.u.reg) && is_reg32(line->dst.u.reg)) {
         int s = line->src.u.reg - EAX;
         int d = line->dst.u.reg - EAX;
         ADD_CODE(0x31, 0xc0 + s * 8 + d);

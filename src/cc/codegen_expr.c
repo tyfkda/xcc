@@ -149,7 +149,7 @@ void gen_cond_jmp(Expr *cond, bool tf, const char *label) {
     JE32(label);
 }
 
-static void cast(const Type *ltypep, const Type *rtypep) {
+static void gen_cast(const Type *ltypep, const Type *rtypep) {
   enum eType ltype = ltypep->type;
   enum eType rtype = rtypep->type;
 
@@ -522,36 +522,47 @@ void gen_arith(enum ExprType exprType, const Type *valType, const Type *rhsType)
   }
 }
 
+static void gen_num(enum NumType numtype, intptr_t value) {
+  switch (numtype) {
+  case NUM_CHAR:
+    if (value == 0)
+      XOR_AL_AL();
+    else
+      MOV_IM8_AL(value);
+    return;
+
+  case NUM_SHORT:
+    if (value == 0)
+      XOR_AX_AX();
+    else
+      MOV_IM16_AX(value);
+    return;
+
+  case NUM_INT: case NUM_ENUM:
+    if (value == 0)
+      XOR_EAX_EAX();
+    else
+      MOV_IM32_EAX(value);
+    return;
+
+  case NUM_LONG:
+    if (value == 0)
+      XOR_EAX_EAX();  // upper 32bit is also cleared.
+    else if (value <= 0x7fffffffL && value >= -0x80000000L)
+      MOV_IM32_RAX(value);
+    else
+      MOV_IM64_RAX(value);
+    return;
+
+  default: assert(false); break;
+  }
+}
+
 void gen_expr(Expr *expr) {
   switch (expr->type) {
   case EX_NUM:
-    switch (expr->valType->u.numtype) {
-    case NUM_CHAR:
-      if (expr->u.num.ival == 0)
-        XOR_AL_AL();
-      else
-        MOV_IM8_AL(expr->u.num.ival);
-      return;
-
-    case NUM_INT:
-    case NUM_ENUM:
-      if (expr->u.num.ival == 0)
-        XOR_EAX_EAX();
-      else
-        MOV_IM32_EAX(expr->u.num.ival);
-      return;
-
-    case NUM_LONG:
-      if (expr->u.num.ival == 0)
-        XOR_EAX_EAX();  // upper 32bit is also cleared.
-      else if (expr->u.num.ival <= 0x7fffffffL && expr->u.num.ival >= -0x80000000L)
-        MOV_IM32_RAX(expr->u.num.ival);
-      else
-        MOV_IM64_RAX(expr->u.num.ival);
-      return;
-
-    default: assert(false); break;
-    }
+    assert(expr->valType->type == TY_NUM);
+    gen_num(expr->valType->u.numtype, expr->u.num.ival);
     break;
 
   case EX_STR:
@@ -645,8 +656,46 @@ void gen_expr(Expr *expr) {
     break;
 
   case EX_CAST:
-    gen_expr(expr->u.cast.sub);
-    cast(expr->valType, expr->u.cast.sub->valType);
+    if (expr->u.cast.sub->type == EX_NUM) {
+      assert(expr->u.cast.sub->valType->type == TY_NUM);
+      intptr_t value = expr->u.cast.sub->u.num.ival;
+      enum NumType numtype = expr->u.cast.sub->valType->u.numtype;
+      switch (numtype) {
+      case NUM_CHAR:
+        value = (int8_t)value;
+        break;
+      case NUM_SHORT:
+        value = (int16_t)value;
+        break;
+      case NUM_INT: case NUM_ENUM:
+        value = (int32_t)value;
+        break;
+      case NUM_LONG:
+        value = (int64_t)value;
+        break;
+      default:
+        assert(false);
+        value = -1;
+        break;
+      }
+
+      enum NumType targettype;
+      switch (expr->valType->type) {
+      case TY_NUM:
+        targettype = expr->valType->u.numtype;
+        break;
+      default:
+        assert(false);
+        // Fallthrough to avoid compile error.
+      case TY_PTR:
+        targettype = NUM_LONG;
+        break;
+      }
+      gen_num(targettype, value);
+    } else {
+      gen_expr(expr->u.cast.sub);
+      gen_cast(expr->valType, expr->u.cast.sub->valType);
+    }
     break;
 
   case EX_ASSIGN:
@@ -697,7 +746,7 @@ void gen_expr(Expr *expr) {
 
       POP_RDI(); POP_STACK_POS();  // %rdi=rhs
       gen_arith(sub->type, sub->valType, sub->u.bop.rhs->valType);
-      cast(expr->valType, sub->valType);
+      gen_cast(expr->valType, sub->valType);
 
       switch (expr->valType->type) {
       case TY_NUM:

@@ -8,6 +8,7 @@
 #endif
 
 #define MOV_IM8_AL(x)    ADD_ASM("mov $%d, %%al", (int)(x))
+#define MOV_IM16_AX(x)   ADD_ASM("mov $%d, %%ax", (int)(x))
 #define MOV_IM32_EAX(x)  ADD_ASM("mov $%d, %%eax", (int)(x))
 #define MOV_IM32_RAX(x)  ADD_ASM("mov $%d, %%rax", (int)(x))
 #define MOV_IM64_RAX(x)  ADD_ASM("mov $%ld, %%rax", (long)(x))
@@ -151,7 +152,8 @@
 #define XOR_DI_AX()      ADD_ASM("xor %%di, %%ax")
 #define XOR_EDI_EAX()    ADD_ASM("xor %%edi, %%eax")
 #define XOR_RDI_RAX()    ADD_ASM("xor %%rdi, %%rax")
-#define XOR_AL_AL()      ADD_ASM("xor %%eax, %%eax")
+#define XOR_AL_AL()      ADD_ASM("xor %%al, %%al")
+#define XOR_AX_AX()      ADD_ASM("xor %%ax, %%ax")
 #define XOR_EAX_EAX()    ADD_ASM("xor %%eax, %%eax")
 #define XOR_EDX_EDX()    ADD_ASM("xor %%edx, %%edx")
 #define SHL_CL_AL()      ADD_ASM("shl %%cl, %%al")

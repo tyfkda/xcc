@@ -260,7 +260,7 @@ void construct_initial_value(unsigned char *buf, const Type *type, Initializer *
         add_asm(".quad %s", value->u.varref.ident);
       } else if (value->type == EX_STR) {
         assert(!"`char* s = \"...\"`; should be handled in parser");
-      } else if (is_const(value) && is_number(value->valType->type)) {
+      } else if (is_const(value) && value->type == EX_NUM) {
         intptr_t x = value->u.num.ival;
         for (int i = 0; i < WORD_SIZE; ++i)
           buf[i] = x >> (i * 8);  // Little endian

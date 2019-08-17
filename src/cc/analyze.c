@@ -113,6 +113,12 @@ Expr *new_expr_cast(const Type *type, const Token *token, Expr *sub, bool is_exp
 
   if (same_type(type, sub->valType))
     return sub;
+  //if (is_const(sub)) {
+  //  // Casting number types needs its value range info,
+  //  // so handlded in codegen.
+  //  sub->valType = type;
+  //  return sub;
+  //}
 
   check_cast(type, sub->valType, sub, is_explicit);
 

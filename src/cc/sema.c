@@ -370,15 +370,18 @@ static Initializer *check_global_initializer(const Type *type, Initializer *init
           return init;
         }
       case EX_CAST:
-        {  // Handle NULL assignment.
-          while (value->type == EX_CAST)
-            value = value->u.unary.sub;
-          if (is_number(value->valType->type)) {
-            Initializer *init2 = malloc(sizeof(*init2));
-            init2->type = vSingle;
-            init2->u.single = value;
-            return init2;
-          }
+        // Handle NULL assignment.
+        while (value->type == EX_CAST)
+          value = value->u.unary.sub;
+        if (!is_number(value->valType->type))
+          break;
+        // Fallthrough
+      case EX_NUM:
+        {
+          Initializer *init2 = malloc(sizeof(*init2));
+          init2->type = vSingle;
+          init2->u.single = value;
+          return init2;
         }
         break;
       case EX_STR:
