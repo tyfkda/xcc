@@ -1152,6 +1152,11 @@ static void assemble_line(const Line *line, const char *rawline) {
         int d = line->dst.u.reg - EAX;
         ADD_CODE(0x0f, 0xbf, 0xc0 + s + d * 8);
         return;
+      } else if (is_reg16(line->src.u.reg) && is_reg64(line->dst.u.reg)) {
+        int s = line->src.u.reg - AX;
+        int d = line->dst.u.reg - RAX;
+        ADD_CODE(0x48, 0x0f, 0xbf, 0xc0 + s + d * 8);
+        return;
       } else if (is_reg32(line->src.u.reg) && is_reg64(line->dst.u.reg)) {
         int s = line->src.u.reg - EAX;
         int d = line->dst.u.reg - RAX;
@@ -1727,12 +1732,31 @@ static void assemble_line(const Line *line, const char *rawline) {
             return;
           }
         }
+      } else if (is_reg64(line->dst.u.reg)) {
+        int d = line->dst.u.reg - RAX;
+        if (is_im8(value)) {
+          ADD_CODE(0x48, 0x83, 0xf8 + d, IM8(value));
+          return;
+        } else if (is_im32(value)) {
+          if (line->dst.u.reg == EAX) {
+            ADD_CODE(0x48, 0x3d, IM32(value));
+            return;
+          } else {
+            ADD_CODE(0x48, 0x81, 0xf8 + d, IM32(value));
+            return;
+          }
+        }
       }
     }
     break;
   case TEST:
     if (line->src.type == REG && line->dst.type == REG) {
-      if (is_reg32(line->src.u.reg) && is_reg32(line->src.u.reg)) {
+      if (is_reg8(line->src.u.reg) && is_reg8(line->src.u.reg)) {
+        int s = line->src.u.reg - AL;
+        int d = line->dst.u.reg - AL;
+        ADD_CODE(0x84, 0xc0 + s * 8 + d);
+        return;
+      } else if (is_reg32(line->src.u.reg) && is_reg32(line->src.u.reg)) {
         int s = line->src.u.reg - EAX;
         int d = line->dst.u.reg - EAX;
         ADD_CODE(0x85, 0xc0 + s * 8 + d);

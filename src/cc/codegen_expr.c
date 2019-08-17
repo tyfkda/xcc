@@ -16,10 +16,24 @@ static bool is_im32(intptr_t x) {
   return x < (1L << 32) && x >= -(1L << 32);
 }
 
+static enum ExprType flip_cmp(enum ExprType type) {
+  assert(EX_EQ <= type && type <= EX_LE);
+  if (type >= EX_LT)
+    type = EX_LE - (type - EX_LT);
+  return type;
+}
+
 static enum ExprType gen_compare_expr(enum ExprType type, Expr *lhs, Expr *rhs) {
   const Type *ltype = lhs->valType;
   UNUSED(ltype);
   assert(ltype->type == rhs->valType->type && (ltype->type != TY_NUM || ltype->u.numtype == rhs->valType->u.numtype));
+
+  if (rhs->type != EX_NUM && lhs->type == EX_NUM) {
+    Expr *tmp = lhs;
+    lhs = rhs;
+    rhs = tmp;
+    type = flip_cmp(type);
+  }
 
   enum NumType numtype;
   switch (lhs->valType->type) {
@@ -35,7 +49,20 @@ static enum ExprType gen_compare_expr(enum ExprType type, Expr *lhs, Expr *rhs) 
   }
 
   gen_expr(lhs);
-  if (rhs->type == EX_NUM && !(numtype == NUM_LONG && is_im32(rhs->u.num.ival))) {
+  if (rhs->type == EX_NUM && rhs->u.num.ival == 0 &&
+      (type == EX_EQ || type == EX_NE)) {
+    switch (numtype) {
+    case NUM_CHAR: TEST_AL_AL(); break;
+    case NUM_SHORT: TEST_AX_AX(); break;
+    case NUM_INT: case NUM_ENUM:
+      TEST_EAX_EAX();
+      break;
+    case NUM_LONG:
+      TEST_RAX_RAX();
+      break;
+    default: assert(false); break;
+    }
+  } else if (rhs->type == EX_NUM && !(numtype == NUM_LONG && is_im32(rhs->u.num.ival))) {
     switch (numtype) {
     case NUM_CHAR: CMP_IM8_AL(rhs->u.num.ival); break;
     case NUM_SHORT: CMP_IM16_AX(rhs->u.num.ival); break;
