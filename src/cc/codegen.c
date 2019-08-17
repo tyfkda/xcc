@@ -224,12 +224,12 @@ void construct_initial_value(unsigned char *buf, const Type *type, Initializer *
 
       const char *fmt;
       switch (type->u.numtype) {
-      case NUM_CHAR:  fmt = ".byte %"SCNdPTR; break;
-      case NUM_SHORT: fmt = ".word %"SCNdPTR; break;
-      case NUM_LONG:  fmt = ".quad %"SCNdPTR; break;
+      case NUM_CHAR:  fmt = ".byte %"PRIdPTR; break;
+      case NUM_SHORT: fmt = ".word %"PRIdPTR; break;
+      case NUM_LONG:  fmt = ".quad %"PRIdPTR; break;
       default:
       case NUM_INT: case NUM_ENUM:
-        fmt = ".long %"SCNdPTR;
+        fmt = ".long %"PRIdPTR;
         break;
       }
       UNUSED(fmt);

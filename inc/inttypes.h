@@ -1,4 +1,4 @@
 #pragma once
 
-#define SCNdPTR  "ld"
+#define PRIdPTR  "ld"
 #define PRIxPTR  "lx"
