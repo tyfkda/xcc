@@ -1,12 +1,22 @@
 #include <assert.h>
+#include <fcntl.h>  // open
 #include <libgen.h>  // dirname
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 #include <sys/wait.h>
 #include <unistd.h>
 
 #include "util.h"
+
+static char *get_ext(const char *filename) {
+  const char *last_slash = strrchr(filename, '/');
+  if (last_slash == NULL)
+    last_slash = filename;
+  char *dot = strrchr(last_slash, '.');
+  return dot != NULL ? (char*)&dot[1]: (char*)&last_slash[strlen(last_slash)];
+}
 
 static pid_t fork1(void) {
   pid_t pid = fork();
@@ -60,6 +70,28 @@ static int pipe_command(char *const *cmd1, char *const *cmd2, int dst_fd) {
   return ec1 != 0 ? ec1 : ec2;
 }
 
+static int cat(const char *filename, int dst_fd) {
+  int ifd = open(filename, O_RDONLY);
+  if (ifd < 0)
+    return 1;
+
+  const int SIZE = 4096;
+  char *buf = malloc(SIZE);
+  for (;;) {
+    ssize_t size = read(ifd, buf, SIZE);
+    if (size < 0)
+      return 1;
+    if (size > 0)
+      write(dst_fd, buf, size);
+    if (size < SIZE)
+      break;
+  }
+  free(buf);
+
+  close(ifd);
+  return 0;
+}
+
 static void create_local_label_prefix_option(int index, char *out, size_t n) {
   static const char LOCAL_LABEL_PREFIX[] = "--local-label-prefix=";
   static const char DIGITS[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
@@ -79,6 +111,15 @@ static void create_local_label_prefix_option(int index, char *out, size_t n) {
   *p = 'L';
 
   snprintf(out, n, "%s%s", LOCAL_LABEL_PREFIX, p);
+}
+
+static int compile(const char *src, int index, Vector *cpp_cmd, char *cc1_path, int dst_fd) {
+  char prefix_option[32];
+  create_local_label_prefix_option(index, prefix_option, sizeof(prefix_option));
+
+  cpp_cmd->data[cpp_cmd->len - 2] = (void*)src;
+  char *const cc1_cmd[] = {cc1_path, prefix_option, NULL};
+  return pipe_command((char**)cpp_cmd->data, cc1_cmd, dst_fd);
 }
 
 int main(int argc, char* argv[]) {
@@ -137,15 +178,16 @@ int main(int argc, char* argv[]) {
   int dst_fd = out_asm ? -1 : fd[1];
   if (iarg < argc) {
     for (int i = iarg; i < argc; ++i) {
-      char prefix_option[32];
-      create_local_label_prefix_option(i - iarg, prefix_option, sizeof(prefix_option));
-
       char *src = argv[i];
-      cpp_cmd->data[cpp_cmd->len - 2] = src;
-      char *const cc1_cmd[] = {cc1_path, prefix_option, NULL};
-      int res = pipe_command((char**)cpp_cmd->data, cc1_cmd, dst_fd);
+      char *ext = get_ext(src);
+      int res = -1;
+      if (strcasecmp(ext, "c") == 0) {
+        res = compile(src, i - iarg, cpp_cmd, cc1_path, dst_fd);
+      } else if (strcasecmp(ext, "s") == 0) {
+        res = cat(src, dst_fd);
+      }
       if (res != 0)
-        return 1;
+        exit(1);
     }
   } else {
     // cpp is read from stdin.

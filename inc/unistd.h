@@ -16,7 +16,6 @@ typedef long off_t;
 
 void exit(int code);
 ssize_t write(int fd, const char *str, size_t len);
-int open(const char *fn, int flag);
 int close(int fd);
 ssize_t read(int fd, void *buf, size_t size);
 
