@@ -12,31 +12,47 @@
 
 static void gen_lval(Expr *expr);
 
-// Compare operator might swap operand oreder.
-//   EX_LE => EX_GE
-//   EX_GT => EX_LT
-static enum ExprType gen_expr_compare(enum ExprType type, Expr *lhs, Expr *rhs) {
+static bool is_im32(intptr_t x) {
+  return x < (1L << 32) && x >= -(1L << 32);
+}
+
+static enum ExprType gen_compare_expr(enum ExprType type, Expr *lhs, Expr *rhs) {
   const Type *ltype = lhs->valType;
   UNUSED(ltype);
   assert(ltype->type == rhs->valType->type && (ltype->type != TY_NUM || ltype->u.numtype == rhs->valType->u.numtype));
-  if (type == EX_LE || type == EX_GT) {
-    Expr *tmp = lhs; lhs = rhs; rhs = tmp;
-    type = type == EX_LE ? EX_GE : EX_LT;
+
+  enum NumType numtype;
+  switch (lhs->valType->type) {
+  case TY_NUM:
+    numtype = lhs->valType->u.numtype;
+    break;
+  default:
+    assert(false);
+    // Fallthrough to avoid compile error.
+  case TY_PTR:
+    numtype = NUM_LONG;
+    break;
   }
 
   gen_expr(lhs);
-  PUSH_RAX(); PUSH_STACK_POS();
-  gen_expr(rhs);
+  if (rhs->type == EX_NUM && !(numtype == NUM_LONG && is_im32(rhs->u.num.ival))) {
+    switch (numtype) {
+    case NUM_CHAR: CMP_IM8_AL(rhs->u.num.ival); break;
+    case NUM_SHORT: CMP_IM16_AX(rhs->u.num.ival); break;
+    case NUM_INT: case NUM_ENUM:
+      CMP_IM32_EAX(rhs->u.num.ival);
+      break;
+    case NUM_LONG:
+      CMP_IM32_RAX(rhs->u.num.ival);
+      break;
+    default: assert(false); break;
+    }
+  } else {
+    PUSH_RAX(); PUSH_STACK_POS();
+    gen_expr(rhs);
+    POP_RDI(); POP_STACK_POS();
 
-  POP_RDI(); POP_STACK_POS();
-  return type;
-}
-
-// cmp %eax, %edi, and so on.
-static void gen_cmp_opcode(const Type *type) {
-  switch (type->type) {
-  case TY_NUM:
-    switch (type->u.numtype) {
+    switch (numtype) {
     case NUM_CHAR: CMP_AL_DIL(); break;
     case NUM_SHORT: CMP_AX_DI(); break;
     case NUM_INT: case NUM_ENUM:
@@ -45,10 +61,9 @@ static void gen_cmp_opcode(const Type *type) {
     case NUM_LONG: CMP_RAX_RDI(); break;
     default: assert(false); break;
     }
-    break;
-  case TY_PTR:  CMP_RAX_RDI(); break;
-  default: assert(false); break;
   }
+
+  return type;
 }
 
 // test %eax, %eax, and so on.
@@ -87,28 +102,43 @@ void gen_cond_jmp(Expr *cond, bool tf, const char *label) {
 
   case EX_EQ:
   case EX_NE:
-    gen_expr_compare(cond->type, cond->u.bop.lhs, cond->u.bop.rhs);
-    gen_cmp_opcode(cond->u.bop.lhs->valType);
-    if (cond->type != EX_EQ)
-      tf = !tf;
-    if (tf)
-      JE32(label);
-    else
-      JNE32(label);
-    return;
+    {
+      enum ExprType type = gen_compare_expr(cond->type, cond->u.bop.lhs, cond->u.bop.rhs);
+      if (type != EX_EQ)
+        tf = !tf;
+      if (tf)
+        JE32(label);
+      else
+        JNE32(label);
+      return;
+    }
   case EX_LT:
   case EX_GT:
   case EX_LE:
   case EX_GE:
     {
-      enum ExprType type = gen_expr_compare(cond->type, cond->u.bop.lhs, cond->u.bop.rhs);
-      gen_cmp_opcode(cond->u.bop.lhs->valType);
-      if (type != EX_LT)
-        tf = !tf;
-      if (tf)
-        JL32(label);
-      else
-        JGE32(label);
+      enum ExprType type = gen_compare_expr(cond->type, cond->u.bop.lhs, cond->u.bop.rhs);
+      switch (type) {
+      case EX_LT:
+      case EX_GE:
+        if (cond->type != EX_LT)
+          tf = !tf;
+        if (tf)
+          JL32(label);
+        else
+          JGE32(label);
+        break;
+      case EX_GT:
+      case EX_LE:
+        if (cond->type != EX_GT)
+          tf = !tf;
+        if (tf)
+          JG32(label);
+        else
+          JLE32(label);
+        break;
+      default:  assert(false); break;
+      }
     }
     return;
   case EX_NOT:
@@ -906,29 +936,14 @@ void gen_expr(Expr *expr) {
   case EX_LE:
   case EX_GE:
     {
-      enum ExprType type = gen_expr_compare(expr->type, expr->u.bop.lhs, expr->u.bop.rhs);
-      const Type *ltype = expr->u.bop.lhs->valType;
-      switch (ltype->type) {
-      case TY_NUM:
-        switch (ltype->u.numtype) {
-        case NUM_CHAR: CMP_AL_DIL(); break;
-        case NUM_SHORT: CMP_AX_DI(); break;
-        case NUM_INT: case NUM_ENUM:
-          CMP_EAX_EDI();
-          break;
-        case NUM_LONG: CMP_RAX_RDI(); break;
-        default: assert(false); break;
-        }
-        break;
-      case TY_PTR:  CMP_RAX_RDI(); break;
-      default: assert(false); break;
-      }
-
+      enum ExprType type = gen_compare_expr(expr->type, expr->u.bop.lhs, expr->u.bop.rhs);
       switch (type) {
       case EX_EQ:  SETE_AL(); break;
       case EX_NE:  SETNE_AL(); break;
-      case EX_LT:  SETS_AL(); break;
-      case EX_GE:  SETNS_AL(); break;
+      case EX_LT:  SETL_AL(); break;
+      case EX_GT:  SETG_AL(); break;
+      case EX_LE:  SETLE_AL(); break;
+      case EX_GE:  SETGE_AL(); break;
       default: assert(false); break;
       }
     }
