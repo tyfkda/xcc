@@ -43,6 +43,10 @@ typedef struct {
 
 // Put label at the current.
 void add_label(enum SectionType section, const char *label) {
+  if (map_get(label_map, label) != NULL) {
+    error("Label `%s' is already defined");
+  }
+
   LabelInfo *label_info = malloc(sizeof(*label_info));
   label_info->section = section;
   label_info->offset = sections[section].size;

@@ -1,5 +1,6 @@
-// #include "util.c"
 #include "../inc/stdarg.h"
+#include "../inc/stdlib.h"  // exit
+#include "../examples/util.h"
 
 void expect(char *title, long expected, long actual) {
   puts(title);

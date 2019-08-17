@@ -28,8 +28,7 @@ try_direct() {
 
   echo -n "$title => "
 
-  echo -e "$input" | $XCC > tmp.s || exit 1
-  gcc -nostdlib -nodefaultlibs tmp.s || exit 1
+  echo -e "$input" | $XCC || exit 1
 
   ./a.out
   actual="$?"
@@ -53,8 +52,7 @@ try_output_direct() {
 
   echo -n "$title => "
 
-  echo -e "$input" | $XCC > tmp.s || exit 1
-  gcc -nostdlib -nodefaultlibs tmp.s || exit 1
+  echo -e "$input" | $XCC || exit 1
 
   actual=`./a.out` || exit 1
 
@@ -76,16 +74,12 @@ compile_error() {
 
   echo -n "$title => "
 
-  echo -e "$input" | $XCC > tmp.s
+  echo -e "$input" | $XCC
   result="$?"
 
   if [ "$result" = "0" ]; then
-    gcc -nostdlib -nodefaultlibs tmp.s
-    result2="$?"
-    if [ "$result2" = "0" ]; then
-      echo "NG: Compile error expected, but succeeded"
-      exit 1
-    fi
+    echo "NG: Compile error expected, but succeeded"
+    exit 1
   fi
 }
 

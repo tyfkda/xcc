@@ -55,5 +55,4 @@ util_test:	$(UTIL_SRCS)
 
 VAL_SRCS:=../lib/crt0.c ../examples/util.c valtest.c
 valtest:	$(VAL_SRCS) # $(XCC)
-	$(XCC) $(VAL_SRCS) > tmp.s
-	gcc -o$@ -nostdlib -nodefaultlibs tmp.s
+	$(XCC) -o$@ $(VAL_SRCS)

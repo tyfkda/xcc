@@ -927,6 +927,7 @@ static void gen_vardecl(Node *node) {
 }
 
 static void gen_toplevel(Node *node) {
+  add_asm(".text");
   gen_nodes(node->u.toplevel.nodes);
 }
 
