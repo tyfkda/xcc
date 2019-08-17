@@ -99,7 +99,7 @@ try_direct 'Undeclared struct typedef' 8 'typedef struct FILE FILE; int main(){ 
 try_direct 'late declare struct' 42 'struct Foo *p; struct Foo {int x;}; int main(){ struct Foo foo; p = &foo; p->x = 42; return p->x; }'
 try_direct 'typedef func-ptr' 84 'typedef int (*Func)(int); int twice(Func f, int x) { return f(f(x)); } int double(int x) { return x * 2; } int main(){ return twice(&double, 21); }'
 try_direct 'for-var' 55 'int main(){ int acc = 0; for (int i = 1, len = 10; i <= len; ++i) acc += i; return acc; }'
-try_direct 'for-no-initial-val' 3 'int main(){ const char *p = "abc"; int len = 0; for (char c; (c = *p) != '\''\0'\''; ++p) ++len; return len; }'
+try_direct 'for-no-initial-val' 3 "int main(){ const char *p = \"abc\"; int len = 0; for (char c; (c = *p) != '\\\\0'; ++p) ++len; return len; }"
 try_direct 'args' 51 'int func(int x, ...) { return x; } int main(){ return func(51, 1, 2); }'
 try_output_direct 'global str-array init' 'StrArray' 'char g_str[] = "StrArray"; int main(){ write(1, g_str, sizeof(g_str) - 1); return 0; }'
 try_output_direct 'global str-ptr init' 'StrPtr' 'char *g_str = "StrPtr"; int main(){ write(1, g_str, 6); return 0; }'
@@ -146,6 +146,7 @@ compile_error 'few arg num' 'void foo(int x){} void main(){ foo(); }'
 compile_error 'many arg num' 'void foo(int x){} void main(){ foo(1, 2); }'
 compile_error 'zero arg num' 'void foo(void){} void main(){ foo(1); }'
 compile_error 'variadic param count limit' 'void foo(const char *fmt, ...){} void main(){ foo("fmt", 1,2,3,4,5,6); }'
+compile_error 'empty char' "int main() { return ''; }"
 compile_error '+ str' 'void main(){ +"foo"; }'
 compile_error '- str' 'void main(){ -"foo"; }'
 compile_error 'break outside loop' 'void main(){ break; }'

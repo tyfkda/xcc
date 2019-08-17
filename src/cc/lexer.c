@@ -362,6 +362,8 @@ static Token *read_char(const char **pp) {
   const char *p = *pp;
   const char *begin = p++;
   char c = *p;
+  if (c == '\'')
+    lex_error(p, "Empty character");
   if (c == '\\') {
     c = *(++p);
     if (c == '\0')
