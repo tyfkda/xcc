@@ -22,7 +22,8 @@ cpp-tests:	test-cpp
 cc-tests:	test-val test-sh test-examples
 
 clean:
-	rm -f util_test valtest a.out
+	rm -f util_test valtest a.out tmp.s
+
 test-util:	util_test
 	@echo '## Util'
 	@./util_test

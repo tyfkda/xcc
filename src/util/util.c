@@ -17,13 +17,21 @@ char *strndup_(const char *str, size_t size) {
   return dup;
 }
 
+static char label_prefix[8] = "L";
+
 char *alloc_label(void) {
   static int label_no;
   ++label_no;
   //char buf[sizeof(int) * 3 + 1];
   char buf[32];
-  snprintf(buf, sizeof(buf), ".L%d", label_no);
+  snprintf(buf, sizeof(buf), ".%s%d", label_prefix, label_no);
   return strdup_(buf);
+}
+
+void set_local_label_prefix(const char *prefix) {
+  if (strlen(prefix) >= sizeof(label_prefix) - 1)
+    error("Label prefix too long");
+  strncpy(label_prefix, prefix, sizeof(label_prefix));
 }
 
 char *cat_path(const char *base_dir, const char *rel_path) {

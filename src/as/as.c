@@ -53,6 +53,7 @@ enum Opcode {
   ADD,
   ADDQ,
   SUB,
+  SUBQ,
   MUL,
   DIV,
   NEG,
@@ -121,6 +122,7 @@ static const char *kOpTable[] = {
   "add",
   "addq",
   "sub",
+  "subq",
   "mul",
   "div",
   "neg",
@@ -558,24 +560,41 @@ static void handle_directive(enum DirectiveType dir, const char *p) {
     }
     break;
 
+  case DT_BYTE:
+  case DT_WORD:
   case DT_LONG:
-    {
-      long value;
-      if (!parse_immediate(&p, &value))
-        error(".long: number expected");
-      // TODO: Target endian.
-      int32_t x = value;
-      add_section_data(current_section, &x, sizeof(x));
-    }
-    break;
-
   case DT_QUAD:
     {
       long value;
       if (parse_immediate(&p, &value)) {
-        // TODO: Target endian.
-        int64_t x = value;
-        add_section_data(current_section, &x, sizeof(x));
+        switch (dir) {
+        case DT_BYTE:
+          {  // TODO: Target endian.
+            int8_t x = value;
+            add_section_data(current_section, &x, sizeof(x));
+          }
+          break;
+        case DT_WORD:
+          {  // TODO: Target endian.
+            int16_t x = value;
+            add_section_data(current_section, &x, sizeof(x));
+          }
+          break;
+        case DT_LONG:
+          {  // TODO: Target endian.
+            int32_t x = value;
+            add_section_data(current_section, &x, sizeof(x));
+          }
+          break;
+        case DT_QUAD:
+          {  // TODO: Target endian.
+            int64_t x = value;
+            add_section_data(current_section, &x, sizeof(x));
+          }
+          break;
+        default:
+          break;
+        }
       } else {
         const char *label = parse_label(&p);
         if (label != NULL) {
@@ -1328,6 +1347,64 @@ static void assemble_line(const Line *line, const char *rawline) {
       }
     }
     break;
+  case SUBQ:
+    if (line->src.type == IMMEDIATE && line->dst.type == INDIRECT) {
+      if (is_reg64(line->dst.u.indirect.reg) && line->dst.u.indirect.label == NULL) {
+        long value = line->src.u.immediate;
+        int d = line->dst.u.indirect.reg - RAX;
+        long offset = line->dst.u.indirect.offset;
+        if (is_im8(value)) {
+          if (line->dst.u.indirect.reg != RSP) {
+            if (offset == 0 && line->dst.u.indirect.reg != RBP) {
+              ADD_CODE(0x48, 0x83, 0x28 + d, IM8(value));
+              return;
+            } else if (is_im8(offset)) {
+              ADD_CODE(0x48, 0x83, 0x68 + d, IM8(offset), IM8(value));
+              return;
+            } else if (is_im32(offset)) {
+              ADD_CODE(0x48, 0x83, 0xa8 + d, IM32(offset), IM8(value));
+              return;
+            }
+          } else {
+            if (offset == 0) {
+              ADD_CODE(0x48, 0x83, 0x2c, 0x24, IM8(value));
+              return;
+            } else if (is_im8(offset)) {
+              ADD_CODE(0x48, 0x83, 0x6c, 0x24, IM8(offset), IM8(value));
+              return;
+            } else if (is_im32(offset)) {
+              ADD_CODE(0x48, 0x83, 0xac, 0x24, IM32(offset), IM8(value));
+              return;
+            }
+          }
+        } else if (is_im32(value)) {
+          if (line->dst.u.indirect.reg != RSP) {
+            if (offset == 0 && line->dst.u.indirect.reg != RBP) {
+              ADD_CODE(0x48, 0x81, 0x28 + d, IM32(value));
+              return;
+            } else if (is_im8(offset)) {
+              ADD_CODE(0x48, 0x81, 0x68 + d, IM8(offset), IM32(value));
+              return;
+            } else if (is_im32(offset)) {
+              ADD_CODE(0x48, 0x81, 0xa8 + d, IM32(offset), IM32(value));
+              return;
+            }
+          } else {
+            if (offset == 0) {
+              ADD_CODE(0x48, 0x81, 0x2c, 0x24, IM32(value));
+              return;
+            } else if (is_im8(offset)) {
+              ADD_CODE(0x48, 0x81, 0x6c, 0x24, IM8(offset), IM32(value));
+              return;
+            } else if (is_im32(offset)) {
+              ADD_CODE(0x48, 0x81, 0xac, 0x24, IM32(offset), IM32(value));
+              return;
+            }
+          }
+        }
+      }
+    }
+    break;
   case MUL:
     if (line->src.type == REG && line->dst.type == NOOPERAND) {
       if (is_reg32(line->src.u.reg)) {
@@ -1792,9 +1869,6 @@ int main(int argc, char* argv[]) {
   uintptr_t codeloadadr, dataloadadr;
   get_section_size(0, &codefilesz, &codememsz, &codeloadadr);
   get_section_size(1, &datafilesz, &datamemsz, &dataloadadr);
-
-  fprintf(stderr, "codesize: %d, %d\n", (int)codefilesz, (int)codememsz);
-  fprintf(stderr, "datasize: %d, %d\n", (int)datafilesz, (int)datamemsz);
 
   uintptr_t entry = label_adr("_start");
   if (entry == (uintptr_t)-1)

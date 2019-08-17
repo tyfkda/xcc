@@ -4,6 +4,7 @@
 a.out
 tmp.s
 /as
+/cc1
 /cpp
 /gen2
 /gen3

@@ -9,19 +9,14 @@
 
 #if defined(__XV6)
 ssize_t write(int fd, const char *str, long len) {
-  __asm("mov $16, %eax", 0xb8, 0x10, 0x00, 0x00, 0x00);  // SYS_write
-  __asm("int $64",       0xcd, 0x40);
+  __asm("mov $16, %eax");  // SYS_write
+  __asm("int $64");
 }
 
 #elif defined(__linux__)
 ssize_t write(int fd, const char *str, long len) {
-#if defined(__XCC)
-  __asm("mov $1, %eax", 0xb8, 0x01, 0x00, 0x00, 0x00);  // __NR_write
-  __asm("syscall",      0x0f, 0x05);
-#else
-  __asm("mov $1, %eax\n"
-        "syscall\n");
-#endif
+  __asm(" mov $1, %eax\n"  // __NR_write
+        " syscall\n");
 }
 
 #else
@@ -67,6 +62,19 @@ int strncmp(const char *p, const char *q, size_t n) {
   while (n > 0 && *p == *q && *p != '\0')
     n--, p++, q++;
   return n == 0 ? 0 : (int)((unsigned char)*p - (unsigned char)*q);
+}
+
+int strcasecmp(const char *p, const char *q) {
+  for (;; ++p, ++q) {
+    unsigned char c1 = *p;
+    unsigned char c2 = *q;
+    int d = c1 - c2;
+    if (d != 0)
+      return d;
+    if (c1 == 0)
+      break;
+  }
+  return 0;
 }
 
 int strncasecmp(const char *p, const char *q, size_t n) {
@@ -224,108 +232,58 @@ int tolower(int c) {
 char **environ = NULL;
 
 int open(const char *fn, int flag) {
-#if defined(__XCC)
-  __asm("mov $2, %eax", 0xb8, 0x02, 0x00, 0x00, 0x00);  // __NR_open
-  __asm("syscall", 0x0f, 0x05);
-#else
-  __asm("mov $2, %eax\n"
-        "syscall\n");
-#endif
+  __asm(" mov $2, %eax\n"  // __NR_open
+        " syscall\n");
 }
 
 int close(int fd) {
-#if defined(__XCC)
-  __asm("mov $3, %eax", 0xb8, 0x03, 0x00, 0x00, 0x00);  // __NR_close
-  __asm("syscall", 0x0f, 0x05);
-#else
-  __asm("mov $3, %eax\n"
-        "syscall\n");
-#endif
+  __asm(" mov $3, %eax\n"  // __NR_close
+        " syscall\n");
 }
 
 size_t read(int fd, void *buf, size_t size) {
-#if defined(__XCC)
-  __asm("mov $0, %eax", 0xb8, 0x00, 0x00, 0x00, 0x00);  // __NR_read
-  __asm("syscall", 0x0f, 0x05);
-#else
-  __asm("mov $0, %eax\n"
-        "syscall\n");
-#endif
+  __asm(" mov $0, %eax\n"  // __NR_read
+        " syscall\n");
 }
 
 static size_t _getcwd(char *buffer, size_t size) {
-#if defined(__XCC)
-  __asm("mov $79, %eax", 0xb8, 0x4f, 0x00, 0x00, 0x00);  // __NR_getcwd
-  __asm("syscall", 0x0f, 0x05);
-#else
-  __asm("mov $79, %eax\n"
-        "syscall\n");
-#endif
+  __asm(" mov $79, %eax\n"  // __NR_getcwd
+        " syscall\n");
 }
 
 pid_t fork(void) {
-#if defined(__XCC)
-  __asm("mov $57, %eax", 0xb8, 0x39, 0x00, 0x00, 0x00);  // __NR_fork
-  __asm("syscall", 0x0f, 0x05);
-#else
-  __asm("mov $57, %eax\n"
-        "syscall\n");
-#endif
+  __asm(" mov $57, %eax\n"  // __NR_fork
+        " syscall\n");
 }
 
 int pipe(int *pipefd) {
-#if defined(__XCC)
-  __asm("mov $22, %eax", 0xb8, 0x16, 0x00, 0x00, 0x00);  // __NR_pipe
-  __asm("syscall", 0x0f, 0x05);
-#else
-  __asm("mov $22, %eax\n"
-        "syscall\n");
-#endif
+  __asm(" mov $22, %eax\n"  // __NR_pipe
+        " syscall\n");
 }
 
 int dup(int fd) {
-#if defined(__XCC)
-  __asm("mov $32, %eax", 0xb8, 0x20, 0x00, 0x00, 0x00);  // __NR_dup
-  __asm("syscall", 0x0f, 0x05);
-#else
-  __asm("mov $32, %eax\n"
-        "syscall\n");
-#endif
+  __asm(" mov $32, %eax\n"  // __NR_dup
+        " syscall\n");
 }
 
 int execve(const char *path, char *const args[], char *const envp[]) {
-#if defined(__XCC)
-  __asm("mov $59, %eax", 0xb8, 0x3b, 0x00, 0x00, 0x00);  // __NR_execve
-  __asm("syscall", 0x0f, 0x05);
-#else
-  __asm("mov $59, %eax\n"
-        "syscall\n");
-#endif
+  __asm(" mov $59, %eax\n"  // __NR_execve
+        " syscall\n");
 }
 
 pid_t wait4(pid_t pid, int* status, int options, struct rusage *usage) {
-#if defined(__XCC)
-  __asm("mov $61, %eax", 0xb8, 0x3d, 0x00, 0x00, 0x00);  // __NR_wait4
-  __asm("syscall", 0x0f, 0x05);
-#else
-  __asm("mov $61, %eax\n"
-        "syscall\n");
-#endif
+  __asm(" mov $61, %eax\n"  // __NR_wait4
+        " syscall\n");
 }
 
 int chmod(const char *pathname, /*mode_t*/int mode) {
-#if defined(__XCC)
-  __asm("mov $90, %eax", 0xb8, 0x5a, 0x00, 0x00, 0x00);  // __NR_chmod
-  __asm("syscall", 0x0f, 0x05);
-#else
-  __asm("mov $90, %eax\n"
-        "syscall\n");
-#endif
+  __asm(" mov $90, %eax\n"  // __NR_chmod
+        " syscall\n");
 }
 
 off_t lseek(int fd, off_t offset, int whence) {
-  __asm("mov $8, %eax", 0xb8, 0x08, 0x00, 0x00, 0x00);  // __NR_lseek
-  __asm("syscall", 0x0f, 0x05);
+  __asm(" mov $8, %eax\n"  // __NR_lseek
+        " syscall\n");
 }
 
 #else
