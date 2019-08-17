@@ -111,6 +111,7 @@ enum Opcode {
   PUSH,
   POP,
 
+  INT,
   SYSCALL,
 };
 
@@ -180,6 +181,7 @@ static const char *kOpTable[] = {
   "push",
   "pop",
 
+  "int",
   "syscall",
 };
 
@@ -1795,6 +1797,13 @@ static void assemble_line(const Line *line, const char *rawline) {
     break;
   case RET:
     ADD_CODE(0xc3);
+    return;
+  case INT:
+    if (line->src.type == IMMEDIATE && line->dst.type == NOOPERAND) {
+      long value = line->src.u.immediate;
+      ADD_CODE(0xcd, IM8(value));
+      return;
+    }
     return;
   case SYSCALL:
     ADD_CODE(0x0f, 0x05);
