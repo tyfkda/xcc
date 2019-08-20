@@ -609,7 +609,8 @@ static void out_asm(Node *node) {
   Expr *arg0;
   if (len != 1 || (arg0 = (Expr*)args->data[0])->type != EX_STR)
     error("__asm takes string at 1st argument");
-  add_asm("%s", arg0->u.str.buf);
+  else
+    add_asm("%s", arg0->u.str.buf);
 }
 
 static void gen_nodes(Vector *nodes) {
