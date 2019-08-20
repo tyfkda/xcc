@@ -1,4 +1,4 @@
-.PHONY: clean test gen2 gen3 test-gen2 gen3 diff-gen23 self-hosting test-self-hosting
+.PHONY: clean test test-all gen2 gen3 test-gen2 gen3 diff-gen23 self-hosting test-self-hosting
 
 XCC_DIR:=src/xcc
 CC1_DIR:=src/cc
