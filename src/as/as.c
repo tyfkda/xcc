@@ -464,7 +464,7 @@ static int find_match_index(const char **pp, const char **table, size_t count) {
   return -1;
 }
 
-static enum Opcode parse_directive(const char **pp) {
+static enum DirectiveType parse_directive(const char **pp) {
   return find_match_index(pp, kDirectiveTable, sizeof(kDirectiveTable) / sizeof(*kDirectiveTable)) + 1;
 }
 
