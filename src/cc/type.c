@@ -5,12 +5,13 @@
 #include <string.h>
 
 #include "util.h"
+#include "lexer.h"
 
-const Type tyChar =  {.type=TY_NUM, .u={.numtype=NUM_CHAR}};
-const Type tyShort = {.type=TY_NUM, .u={.numtype=NUM_SHORT}};
-const Type tyInt =   {.type=TY_NUM, .u={.numtype=NUM_INT}};
-const Type tyLong =  {.type=TY_NUM, .u={.numtype=NUM_LONG}};
-const Type tyEnum =  {.type=TY_NUM, .u={.numtype=NUM_ENUM}};
+const Type tyChar =  {.type=TY_NUM, .u={.num={.type=NUM_CHAR}}};
+const Type tyShort = {.type=TY_NUM, .u={.num={.type=NUM_SHORT}}};
+const Type tyInt =   {.type=TY_NUM, .u={.num={.type=NUM_INT}}};
+const Type tyLong =  {.type=TY_NUM, .u={.num={.type=NUM_LONG}}};
+const Type tyEnum =  {.type=TY_NUM, .u={.num={.type=NUM_ENUM}}};
 const Type tyVoid =  {.type=TY_VOID};
 
 bool is_number(enum eType type) {
@@ -18,7 +19,7 @@ bool is_number(enum eType type) {
 }
 
 bool is_char_type(const Type *type) {
-  return type->type == TY_NUM && type->u.numtype == NUM_CHAR;
+  return type->type == TY_NUM && type->u.num.type == NUM_CHAR;
 }
 
 bool is_void_ptr(const Type *type) {
@@ -34,7 +35,7 @@ bool same_type(const Type *type1, const Type *type2) {
     case TY_VOID:
       return true;
     case TY_NUM:
-      return type1->u.numtype == type2->u.numtype;
+      return type1->u.num.type == type2->u.num.type;
     case TY_ARRAY:
     case TY_PTR:
       type1 = type1->u.pa.ptrof;
@@ -114,12 +115,49 @@ void define_struct(const char *name, StructInfo *sinfo) {
   map_put(struct_map, name, sinfo);
 }
 
+// Enum
+
+Map *enum_map;
+Map *enum_value_map;
+
+Type *find_enum(const char *name) {
+  return map_get(enum_map, name);
+}
+
+Type *define_enum(const Token *ident) {
+  Type *type = malloc(sizeof(*type));
+  type->type = TY_NUM;
+  type->u.num.type = NUM_ENUM;
+  type->u.num.enum_.ident = ident;
+  type->u.num.enum_.members = new_vector();
+
+  if (ident != NULL) {
+    map_put(enum_map, ident->u.ident, type);
+  }
+
+  return type;
+}
+
+void add_enum_member(Type *type, const Token *ident, int value) {
+  assert(type->type == TY_NUM && type->u.num.type == NUM_ENUM);
+  EnumMember *member = malloc(sizeof(*member));
+  member->ident = ident;
+  member->value = value;
+  vec_push(type->u.num.enum_.members, member);
+
+  map_put(enum_value_map, ident->u.ident, (void*)(intptr_t)value);
+}
+
+bool find_enum_value(const char *name, intptr_t *output) {
+  return map_try_get(enum_value_map, name, (void**)output);
+}
+
 #if 0
 void dump_type(FILE *fp, const Type *type) {
   switch (type->type) {
   case TY_VOID: fprintf(fp, "void"); break;
   case TY_NUM:
-    switch (type->u.numtype) {
+    switch (type->u.num.type) {
     case NUM_CHAR:  fprintf(fp, "char"); break;
     case NUM_SHORT: fprintf(fp, "short"); break;
     case NUM_INT:   fprintf(fp, "int"); break;

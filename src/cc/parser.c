@@ -553,7 +553,7 @@ static Node *toplevel(void) {
   if (rawtype != NULL) {
     const Type *type = parse_type_modifier(rawtype);
     if ((type->type == TY_STRUCT ||
-         (type->type == TY_NUM && type->u.numtype == NUM_ENUM)) &&
+         (type->type == TY_NUM && type->u.num.type == NUM_ENUM)) &&
         consume(TK_SEMICOL))  // Just struct/union definition.
       return NULL;
 

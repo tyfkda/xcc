@@ -27,7 +27,7 @@ size_t type_size(const Type *type) {
   case TY_VOID:
     return 1;  // ?
   case TY_NUM:
-    switch (type->u.numtype) {
+    switch (type->u.num.type) {
     case NUM_CHAR:
       return 1;
     case NUM_SHORT:
@@ -61,7 +61,7 @@ static int align_size(const Type *type) {
   case TY_VOID:
     return 1;  // ?
   case TY_NUM:
-    switch (type->u.numtype) {
+    switch (type->u.num.type) {
     case NUM_CHAR:
       return 1;
     case NUM_SHORT:
@@ -223,7 +223,7 @@ void construct_initial_value(unsigned char *buf, const Type *type, Initializer *
         buf[i] = v >> (i * 8);  // Little endian
 
       const char *fmt;
-      switch (type->u.numtype) {
+      switch (type->u.num.type) {
       case NUM_CHAR:  fmt = ".byte %"PRIdPTR; break;
       case NUM_SHORT: fmt = ".word %"PRIdPTR; break;
       case NUM_LONG:  fmt = ".quad %"PRIdPTR; break;
@@ -366,7 +366,6 @@ static void put_rodata(void) {
   for (int i = 0, len = map_count(gvar_map); i < len; ++i) {
     const VarInfo *varinfo = (const VarInfo*)gvar_map->vals->data[i];
     if (varinfo->type->type == TY_FUNC ||
-        (varinfo->type->type == TY_NUM && varinfo->type->u.numtype == NUM_ENUM) ||
         (varinfo->flag & VF_EXTERN) != 0 || varinfo->u.g.init == NULL ||
         (varinfo->flag & VF_CONST) == 0)
       continue;
@@ -381,7 +380,6 @@ static void put_rwdata(void) {
   for (int i = 0, len = map_count(gvar_map); i < len; ++i) {
     const VarInfo *varinfo = (const VarInfo*)gvar_map->vals->data[i];
     if (varinfo->type->type == TY_FUNC ||
-        (varinfo->type->type == TY_NUM && varinfo->type->u.numtype == NUM_ENUM) ||
         (varinfo->flag & VF_EXTERN) != 0 || varinfo->u.g.init == NULL ||
         (varinfo->flag & VF_CONST) != 0)
       continue;
@@ -531,7 +529,7 @@ static void put_args_to_stack(Defun *defun) {
     int size = 0;
     switch (type->type) {
     case TY_NUM:
-      switch (type->u.numtype) {
+      switch (type->u.num.type) {
       case NUM_CHAR:  size = 1; break;
       case NUM_INT:
       case NUM_ENUM:
@@ -758,7 +756,7 @@ static void gen_switch(Node *node) {
   Expr *value = node->u.switch_.value;
   gen_expr(value);
 
-  enum NumType valtype = value->valType->u.numtype;
+  enum NumType valtype = value->valType->u.num.type;
   for (int i = 0; i < len; ++i) {
     intptr_t x = (intptr_t)case_values->data[i];
     switch (valtype) {

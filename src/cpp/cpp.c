@@ -389,7 +389,7 @@ bool handle_ifdef(const char *p) {
 intptr_t reduce(Expr *expr) {
   switch (expr->type) {
   case EX_NUM:
-    switch (expr->valType->u.numtype) {
+    switch (expr->valType->u.num.type) {
     case NUM_CHAR:
     case NUM_SHORT:
     case NUM_INT:

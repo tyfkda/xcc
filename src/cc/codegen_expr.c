@@ -26,7 +26,7 @@ static enum ExprType flip_cmp(enum ExprType type) {
 static enum ExprType gen_compare_expr(enum ExprType type, Expr *lhs, Expr *rhs) {
   const Type *ltype = lhs->valType;
   UNUSED(ltype);
-  assert(ltype->type == rhs->valType->type && (ltype->type != TY_NUM || ltype->u.numtype == rhs->valType->u.numtype));
+  assert(ltype->type == rhs->valType->type);
 
   if (rhs->type != EX_NUM && lhs->type == EX_NUM) {
     Expr *tmp = lhs;
@@ -38,7 +38,7 @@ static enum ExprType gen_compare_expr(enum ExprType type, Expr *lhs, Expr *rhs) 
   enum NumType numtype;
   switch (lhs->valType->type) {
   case TY_NUM:
-    numtype = lhs->valType->u.numtype;
+    numtype = lhs->valType->u.num.type;
     break;
   default:
     assert(false);
@@ -97,7 +97,7 @@ static enum ExprType gen_compare_expr(enum ExprType type, Expr *lhs, Expr *rhs) 
 static void gen_test_opcode(const Type *type) {
   switch (type->type) {
   case TY_NUM:
-    switch (type->u.numtype) {
+    switch (type->u.num.type) {
     case NUM_CHAR:  TEST_AL_AL(); break;
     case NUM_SHORT: TEST_AX_AX(); break;
     case NUM_INT: case NUM_ENUM:
@@ -212,8 +212,8 @@ static void gen_cast(const Type *ltypep, const Type *rtypep) {
 
   if (ltype == rtype) {
     if (ltype == TY_NUM) {
-      enum NumType lnumtype = ltypep->u.numtype;
-      enum NumType rnumtype = rtypep->u.numtype;
+      enum NumType lnumtype = ltypep->u.num.type;
+      enum NumType rnumtype = rtypep->u.num.type;
       if (lnumtype == rnumtype)
         return;
 
@@ -267,7 +267,7 @@ static void gen_cast(const Type *ltypep, const Type *rtypep) {
     switch (rtype) {
     case TY_PTR:
     case TY_ARRAY:
-      if (ltypep->u.numtype == NUM_LONG)
+      if (ltypep->u.num.type == NUM_LONG)
         return;
       break;
     default: assert(false); break;
@@ -276,7 +276,7 @@ static void gen_cast(const Type *ltypep, const Type *rtypep) {
   case TY_PTR:
     switch (rtype) {
     case TY_NUM:
-      switch (rtypep->u.numtype) {
+      switch (rtypep->u.num.type) {
       case NUM_INT:   MOVSX_EAX_RAX(); return;
       case NUM_LONG:  return;
       default: break;
@@ -347,7 +347,7 @@ static void gen_varref(Expr *expr) {
   gen_lval(expr);
   switch (expr->valType->type) {
   case TY_NUM:
-    switch (expr->valType->u.numtype) {
+    switch (expr->valType->u.num.type) {
     case NUM_CHAR:  MOV_IND_RAX_AL(); break;
     case NUM_SHORT: MOV_IND_RAX_AX(); break;
     case NUM_INT: case NUM_ENUM:
@@ -444,7 +444,7 @@ void gen_arith(enum ExprType exprType, const Type *valType, const Type *rhsType)
   case EX_ADD:
     switch (valType->type) {
     case TY_NUM:
-      switch (valType->u.numtype) {
+      switch (valType->u.num.type) {
       case NUM_CHAR:  ADD_DIL_AL(); break;
       case NUM_SHORT: ADD_DI_AX(); break;
       case NUM_INT:   ADD_EDI_EAX(); break;
@@ -460,7 +460,7 @@ void gen_arith(enum ExprType exprType, const Type *valType, const Type *rhsType)
   case EX_SUB:
     switch (valType->type) {
     case TY_NUM:
-      switch (valType->u.numtype) {
+      switch (valType->u.num.type) {
       case NUM_CHAR:  SUB_DIL_AL(); break;
       case NUM_SHORT: SUB_DI_AX(); break;
       case NUM_INT:   SUB_EDI_EAX(); break;
@@ -475,7 +475,7 @@ void gen_arith(enum ExprType exprType, const Type *valType, const Type *rhsType)
 
   case EX_MUL:
     assert(valType->type == TY_NUM);
-    switch (valType->u.numtype) {
+    switch (valType->u.num.type) {
     case NUM_CHAR:  MUL_DIL(); break;
     case NUM_SHORT: MUL_DI(); break;
     case NUM_INT:   MUL_EDI(); break;
@@ -487,7 +487,7 @@ void gen_arith(enum ExprType exprType, const Type *valType, const Type *rhsType)
   case EX_DIV:
     XOR_EDX_EDX();  // MOV_IM32_RDX(0);
     assert(valType->type == TY_NUM);
-    switch (valType->u.numtype) {
+    switch (valType->u.num.type) {
     case NUM_CHAR:  DIV_DIL(); break;
     case NUM_SHORT: DIV_DI(); break;
     case NUM_INT:   DIV_EDI(); break;
@@ -499,7 +499,7 @@ void gen_arith(enum ExprType exprType, const Type *valType, const Type *rhsType)
   case EX_MOD:
     XOR_EDX_EDX();  // MOV_IM32_RDX(0);
     assert(valType->type == TY_NUM);
-    switch (valType->u.numtype) {
+    switch (valType->u.num.type) {
     case NUM_CHAR:  DIV_DIL(); MOV_DL_AL(); break;
     case NUM_SHORT: DIV_DI();  MOV_DX_AX(); break;
     case NUM_INT:   DIV_EDI(); MOV_EDX_EAX(); break;
@@ -510,7 +510,7 @@ void gen_arith(enum ExprType exprType, const Type *valType, const Type *rhsType)
 
   case EX_BITAND:
     assert(valType->type == TY_NUM);
-    switch (valType->u.numtype) {
+    switch (valType->u.num.type) {
     case NUM_CHAR:  AND_DIL_AL(); break;
     case NUM_SHORT: AND_DI_AX(); break;
     case NUM_INT:   AND_EDI_EAX(); break;
@@ -521,7 +521,7 @@ void gen_arith(enum ExprType exprType, const Type *valType, const Type *rhsType)
 
   case EX_BITOR:
     assert(valType->type == TY_NUM);
-    switch (valType->u.numtype) {
+    switch (valType->u.num.type) {
     case NUM_CHAR:  OR_DIL_AL(); break;
     case NUM_SHORT: OR_DI_AX(); break;
     case NUM_INT: case NUM_ENUM:
@@ -534,7 +534,7 @@ void gen_arith(enum ExprType exprType, const Type *valType, const Type *rhsType)
 
   case EX_BITXOR:
     assert(valType->type == TY_NUM);
-    switch (valType->u.numtype) {
+    switch (valType->u.num.type) {
     case NUM_CHAR:  XOR_DIL_AL(); break;
     case NUM_SHORT: XOR_DI_AX(); break;
     case NUM_INT:   XOR_EDI_EAX(); break;
@@ -546,7 +546,7 @@ void gen_arith(enum ExprType exprType, const Type *valType, const Type *rhsType)
   case EX_LSHIFT:
   case EX_RSHIFT:
     assert(rhsType->type == TY_NUM);
-    switch (rhsType->u.numtype) {
+    switch (rhsType->u.num.type) {
     case NUM_CHAR:  MOV_DIL_CL(); break;
     case NUM_SHORT: MOV_DI_CX(); break;
     case NUM_INT:   MOV_EDI_ECX(); break;
@@ -555,7 +555,7 @@ void gen_arith(enum ExprType exprType, const Type *valType, const Type *rhsType)
     }
     assert(valType->type == TY_NUM);
     if (exprType == EX_LSHIFT) {
-      switch (valType->u.numtype) {
+      switch (valType->u.num.type) {
       case NUM_CHAR:  SHL_CL_AL(); break;
       case NUM_SHORT: SHL_CL_AX(); break;
       case NUM_INT:   SHL_CL_EAX(); break;
@@ -563,7 +563,7 @@ void gen_arith(enum ExprType exprType, const Type *valType, const Type *rhsType)
       default: assert(false); break;
       }
     } else {
-      switch (valType->u.numtype) {
+      switch (valType->u.num.type) {
       case NUM_CHAR:  SHR_CL_AL(); break;
       case NUM_SHORT: SHR_CL_AX(); break;
       case NUM_INT:   SHR_CL_EAX(); break;
@@ -619,7 +619,7 @@ void gen_expr(Expr *expr) {
   switch (expr->type) {
   case EX_NUM:
     assert(expr->valType->type == TY_NUM);
-    gen_num(expr->valType->u.numtype, expr->u.num.ival);
+    gen_num(expr->valType->u.num.type, expr->u.num.ival);
     break;
 
   case EX_STR:
@@ -661,7 +661,7 @@ void gen_expr(Expr *expr) {
     gen_rval(expr->u.unary.sub);
     switch (expr->valType->type) {
     case TY_NUM:
-      switch (expr->valType->u.numtype) {
+      switch (expr->valType->u.num.type) {
       case NUM_CHAR:  MOV_IND_RAX_AL(); break;
       case NUM_SHORT: MOV_IND_RAX_AX(); break;
       case NUM_INT: case NUM_ENUM:
@@ -681,7 +681,7 @@ void gen_expr(Expr *expr) {
     gen_lval(expr);
     switch (expr->valType->type) {
     case TY_NUM:
-      switch (expr->valType->u.numtype) {
+      switch (expr->valType->u.num.type) {
       case NUM_CHAR:  MOV_IND_RAX_AL(); break;
       case NUM_SHORT: MOV_IND_RAX_AX(); break;
       case NUM_INT: case NUM_ENUM:
@@ -716,7 +716,7 @@ void gen_expr(Expr *expr) {
     if (expr->u.cast.sub->type == EX_NUM) {
       assert(expr->u.cast.sub->valType->type == TY_NUM);
       intptr_t value = expr->u.cast.sub->u.num.ival;
-      enum NumType numtype = expr->u.cast.sub->valType->u.numtype;
+      enum NumType numtype = expr->u.cast.sub->valType->u.num.type;
       switch (numtype) {
       case NUM_CHAR:
         value = (int8_t)value;
@@ -739,7 +739,7 @@ void gen_expr(Expr *expr) {
       enum NumType targettype;
       switch (expr->valType->type) {
       case TY_NUM:
-        targettype = expr->valType->u.numtype;
+        targettype = expr->valType->u.num.type;
         break;
       default:
         assert(false);
@@ -763,7 +763,7 @@ void gen_expr(Expr *expr) {
     POP_RDI(); POP_STACK_POS();
     switch (expr->u.bop.lhs->valType->type) {
     case TY_NUM:
-      switch (expr->u.bop.lhs->valType->u.numtype) {
+      switch (expr->u.bop.lhs->valType->u.num.type) {
       case NUM_CHAR:  MOV_AL_IND_RDI(); break;
       case NUM_SHORT: MOV_AX_IND_RDI(); break;
       case NUM_INT: case NUM_ENUM:
@@ -789,7 +789,7 @@ void gen_expr(Expr *expr) {
       // Move lhs to %?ax
       switch (expr->u.bop.lhs->valType->type) {
       case TY_NUM:
-        switch (expr->u.bop.lhs->valType->u.numtype) {
+        switch (expr->u.bop.lhs->valType->u.num.type) {
         case NUM_CHAR:  MOV_IND_RAX_AL(); break;
         case NUM_SHORT: MOV_IND_RAX_AX(); break;
         case NUM_INT:   MOV_IND_RAX_EAX(); break;
@@ -807,7 +807,7 @@ void gen_expr(Expr *expr) {
 
       switch (expr->valType->type) {
       case TY_NUM:
-        switch (expr->valType->u.numtype) {
+        switch (expr->valType->u.num.type) {
         case NUM_CHAR:  MOV_AL_IND_RSI(); break;
         case NUM_SHORT: MOV_AX_IND_RSI(); break;
         case NUM_INT:   MOV_EAX_IND_RSI(); break;
@@ -826,7 +826,7 @@ void gen_expr(Expr *expr) {
     gen_lval(expr->u.unary.sub);
     switch (expr->valType->type) {
     case TY_NUM:
-      switch (expr->valType->u.numtype) {
+      switch (expr->valType->u.num.type) {
       case NUM_CHAR:
         if (expr->type == EX_PREINC)  INCB_IND_RAX();
         else                          DECB_IND_RAX();
@@ -870,7 +870,7 @@ void gen_expr(Expr *expr) {
     gen_lval(expr->u.unary.sub);
     switch (expr->valType->type) {
     case TY_NUM:
-      switch (expr->valType->u.numtype) {
+      switch (expr->valType->u.num.type) {
       case NUM_CHAR:
         MOV_IND_RAX_DIL();
         if (expr->type == EX_POSTINC)  INCB_IND_RAX();
@@ -926,7 +926,7 @@ void gen_expr(Expr *expr) {
   case EX_NEG:
     gen_expr(expr->u.unary.sub);
     assert(expr->valType->type == TY_NUM);
-    switch (expr->u.unary.sub->valType->u.numtype) {
+    switch (expr->u.unary.sub->valType->u.num.type) {
     case NUM_CHAR:   NEG_AL(); break;
     case NUM_SHORT:  NEG_AX(); break;
     case NUM_INT:    NEG_EAX(); break;
@@ -939,7 +939,7 @@ void gen_expr(Expr *expr) {
     gen_expr(expr->u.unary.sub);
     switch (expr->u.unary.sub->valType->type) {
     case TY_NUM:
-      switch (expr->u.unary.sub->valType->u.numtype) {
+      switch (expr->u.unary.sub->valType->u.num.type) {
       case NUM_CHAR:   TEST_AL_AL(); break;
       case NUM_SHORT:  TEST_AX_AX(); break;
       case NUM_INT:    TEST_EAX_EAX(); break;
