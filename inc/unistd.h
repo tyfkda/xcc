@@ -1,7 +1,7 @@
 #pragma once
 
 #include "stddef.h"  // size_t
-#include "sys/types.h"  // ssize_t
+#include "sys/types.h"  // ssize_t, pid_t, off_t
 
 #define STDIN_FILENO   (0)
 #define STDOUT_FILENO  (1)
@@ -10,9 +10,6 @@
 #define SEEK_SET  (0)
 #define SEEK_CUR  (1)
 #define SEEK_END  (2)
-
-typedef int pid_t;
-typedef long off_t;
 
 void exit(int code);
 ssize_t write(int fd, const char *str, size_t len);

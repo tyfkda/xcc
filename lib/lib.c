@@ -286,6 +286,11 @@ off_t lseek(int fd, off_t offset, int whence) {
         " syscall\n");
 }
 
+int kill(pid_t pid, int sig) {
+  __asm(" mov $62, %eax\n"  // __NR_kill
+        " syscall\n");
+}
+
 #else
 #error Target not supported
 #endif
