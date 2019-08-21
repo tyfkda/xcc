@@ -166,6 +166,14 @@ void error(const char* fmt, ...) {
   exit(1);
 }
 
+bool is_im8(intptr_t x) {
+  return x <= ((1L << 7) - 1) && x >= -(1L << 7);
+}
+
+bool is_im32(intptr_t x) {
+  return x <= ((1L << 31) - 1) && x >= -(1L << 31);
+}
+
 // Container
 
 Vector *new_vector(void) {

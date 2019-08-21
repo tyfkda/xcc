@@ -2,6 +2,7 @@
 
 #include <stdbool.h>
 #include <stddef.h>  // size_t
+#include <stdint.h>  // intptr_t
 #include <stdio.h>  // FILE
 #include <sys/types.h>  // ssize_t
 
@@ -19,6 +20,9 @@ ssize_t getline_(char **lineptr, size_t *n, FILE *stream, size_t start);
 char *abspath(const char *root, const char *path);
 
 void error(const char* fmt, ...) /*__attribute((noreturn))*/;
+
+bool is_im8(intptr_t x);
+bool is_im32(intptr_t x);
 
 // Container
 

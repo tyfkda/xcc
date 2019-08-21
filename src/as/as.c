@@ -764,14 +764,6 @@ static void parse_line(const char *str, Line *line) {
   }
 }
 
-static bool is_im8(long x) {
-  return x < (1L << 7) && x >= -(1L << 7);
-}
-
-static bool is_im32(long x) {
-  return x < (1L << 31) && x >= -(1L << 31);
-}
-
 static bool assemble_mov(const Line *line) {
   if (line->src.type == REG && line->dst.type == REG) {
     if (is_reg32(line->src.u.reg) && is_reg32(line->dst.u.reg)) {

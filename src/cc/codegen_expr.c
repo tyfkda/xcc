@@ -12,10 +12,6 @@
 
 static void gen_lval(Expr *expr);
 
-static bool is_im32(intptr_t x) {
-  return x < (1L << 32) && x >= -(1L << 32);
-}
-
 static enum ExprType flip_cmp(enum ExprType type) {
   assert(EX_EQ <= type && type <= EX_LE);
   if (type >= EX_LT)
@@ -62,15 +58,15 @@ static enum ExprType gen_compare_expr(enum ExprType type, Expr *lhs, Expr *rhs) 
       break;
     default: assert(false); break;
     }
-  } else if (rhs->type == EX_NUM && !(numtype == NUM_LONG && is_im32(rhs->u.num.ival))) {
+  } else if (rhs->type == EX_NUM && (numtype != NUM_LONG || is_im32(rhs->u.num.ival))) {
     switch (numtype) {
-    case NUM_CHAR: CMP_IM8_AL(rhs->u.num.ival); break;
-    case NUM_SHORT: CMP_IM16_AX(rhs->u.num.ival); break;
+    case NUM_CHAR: CMP_IM_AL(rhs->u.num.ival); break;
+    case NUM_SHORT: CMP_IM_AX(rhs->u.num.ival); break;
     case NUM_INT: case NUM_ENUM:
-      CMP_IM32_EAX(rhs->u.num.ival);
+      CMP_IM_EAX(rhs->u.num.ival);
       break;
     case NUM_LONG:
-      CMP_IM32_RAX(rhs->u.num.ival);
+      CMP_IM_RAX(rhs->u.num.ival);
       break;
     default: assert(false); break;
     }
@@ -334,7 +330,7 @@ static void gen_lval(Expr *expr) {
       else
         gen_ref(expr->u.member.target);
       if (varinfo->offset != 0)
-        ADD_IM32_RAX(varinfo->offset);
+        ADD_IM_RAX(varinfo->offset);
     }
     break;
   default:
@@ -383,7 +379,7 @@ static void gen_funcall(Expr *expr) {
   int stack_args = MAX(arg_count - MAX_REG_ARGS, 0);
   bool align_stack = ((stackpos + stack_args * WORD_SIZE) & 15) != 0;
   if (align_stack) {
-    SUB_IM8_RSP(8); PUSH_STACK_POS();
+    SUB_IM_RSP(8); PUSH_STACK_POS();
   }
 
   if (args != NULL) {
@@ -433,7 +429,7 @@ static void gen_funcall(Expr *expr) {
     POP_STACK_POS();
 
   if (align_stack) {
-    ADD_IM8_RSP(8); POP_STACK_POS();
+    ADD_IM_RSP(8); POP_STACK_POS();
   }
 }
 
@@ -485,7 +481,7 @@ void gen_arith(enum ExprType exprType, const Type *valType, const Type *rhsType)
     break;
 
   case EX_DIV:
-    XOR_EDX_EDX();  // MOV_IM32_RDX(0);
+    XOR_EDX_EDX();  // MOV_IM_RDX(0);
     assert(valType->type == TY_NUM);
     switch (valType->u.num.type) {
     case NUM_CHAR:  DIV_DIL(); break;
@@ -497,7 +493,7 @@ void gen_arith(enum ExprType exprType, const Type *valType, const Type *rhsType)
     break;
 
   case EX_MOD:
-    XOR_EDX_EDX();  // MOV_IM32_RDX(0);
+    XOR_EDX_EDX();  // MOV_IM_RDX(0);
     assert(valType->type == TY_NUM);
     switch (valType->u.num.type) {
     case NUM_CHAR:  DIV_DIL(); MOV_DL_AL(); break;
@@ -585,30 +581,28 @@ static void gen_num(enum NumType numtype, intptr_t value) {
     if (value == 0)
       XOR_AL_AL();
     else
-      MOV_IM8_AL(value);
+      MOV_IM_AL(value);
     return;
 
   case NUM_SHORT:
     if (value == 0)
       XOR_AX_AX();
     else
-      MOV_IM16_AX(value);
+      MOV_IM_AX(value);
     return;
 
   case NUM_INT: case NUM_ENUM:
     if (value == 0)
       XOR_EAX_EAX();
     else
-      MOV_IM32_EAX(value);
+      MOV_IM_EAX(value);
     return;
 
   case NUM_LONG:
     if (value == 0)
       XOR_EAX_EAX();  // upper 32bit is also cleared.
-    else if (value <= 0x7fffffffL && value >= -0x80000000L)
-      MOV_IM32_RAX(value);
     else
-      MOV_IM64_RAX(value);
+      MOV_IM_RAX(value);
     return;
 
   default: assert(false); break;
@@ -642,10 +636,7 @@ void gen_expr(Expr *expr) {
   case EX_SIZEOF:
     {
       size_t size = type_size(expr->u.sizeof_.type);
-      if (size <= 0x7fffffffL)
-        MOV_IM32_RAX(size);
-      else
-        MOV_IM64_RAX(size);
+      MOV_IM_RAX(size);
     }
     return;
 
@@ -854,7 +845,7 @@ void gen_expr(Expr *expr) {
       {
         MOV_RAX_RDI();
         size_t size = type_size(expr->valType->u.pa.ptrof);
-        MOV_IM32_RAX(expr->type == EX_PREINC ? size : -size);
+        MOV_IM_RAX(expr->type == EX_PREINC ? size : -size);
         ADD_IND_RDI_RAX();
         MOV_RAX_IND_RDI();
       }
@@ -904,11 +895,9 @@ void gen_expr(Expr *expr) {
         size_t size = type_size(expr->valType->u.pa.ptrof);
         assert(size < ((size_t)1 << 31));  // TODO:
         if (expr->type == EX_POSTINC) {
-          if (size < 256)  ADDQ_IM8_IND_RAX(size);
-          else             ADDQ_IM32_IND_RAX(size);
+          ADDQ_IM_IND_RAX(size);
         } else {
-          if (size < 256)  SUBQ_IM8_IND_RAX(size);
-          else             SUBQ_IM32_IND_RAX(size);
+          SUBQ_IM_IND_RAX(size);
         }
         MOV_RDI_RAX();
       }
@@ -983,7 +972,7 @@ void gen_expr(Expr *expr) {
       const char *l_next = alloc_label();
       gen_cond_jmp(expr->u.bop.lhs, false, l_false);
       gen_cond_jmp(expr->u.bop.rhs, false, l_false);
-      MOV_IM32_EAX(1);
+      MOV_IM_EAX(1);
       JMP8(l_next);
       ADD_LABEL(l_false);
       XOR_EAX_EAX();  // 0
@@ -1000,7 +989,7 @@ void gen_expr(Expr *expr) {
       XOR_EAX_EAX();  // 0
       JMP8(l_next);
       ADD_LABEL(l_true);
-      MOV_IM32_EAX(1);
+      MOV_IM_EAX(1);
       ADD_LABEL(l_next);
     }
     return;

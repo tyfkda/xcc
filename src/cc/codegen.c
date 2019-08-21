@@ -676,7 +676,7 @@ static void gen_defun(Node *node) {
     PUSH_RBP(); PUSH_STACK_POS();
     MOV_RSP_RBP();
     if (frame_size > 0) {
-      SUB_IM32_RSP(frame_size);
+      SUB_IM_RSP(frame_size);
       stackpos += frame_size;
     }
 
@@ -761,18 +761,16 @@ static void gen_switch(Node *node) {
     intptr_t x = (intptr_t)case_values->data[i];
     switch (valtype) {
     case NUM_CHAR:
-      CMP_IM8_AL(x);
+      CMP_IM_AL(x);
       break;
     case NUM_INT: case NUM_ENUM:
-      CMP_IM32_EAX(x);
+      CMP_IM_EAX(x);
       break;
     case NUM_LONG:
-      if (x <= 0x7fL && x >= -0x80L) {
-        CMP_IM8_RAX(x);
-      } else if (x <= 0x7fffffffL && x >= -0x80000000L) {
-        CMP_IM32_RAX(x);
+      if (is_im32(x)) {
+        CMP_IM_RAX(x);
       } else {
-        MOV_IM64_RDI(x);
+        MOV_IM_RDI(x);
         CMP_RDI_RAX();
       }
       break;
@@ -898,7 +896,7 @@ static void gen_clear_local_var(const VarInfo *varinfo) {
   int offset = varinfo->offset;
   const char *loop = alloc_label();
   LEA_OFS32_RBP_RSI(offset);
-  MOV_IM32_EDI(type_size(varinfo->type));
+  MOV_IM_EDI(type_size(varinfo->type));
   XOR_AL_AL();
   ADD_LABEL(loop);
   MOV_AL_IND_RSI();
