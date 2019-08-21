@@ -15,6 +15,7 @@ FILE* fopen(const char* fileName, const char* mode);
 int fclose(FILE* fp);
 size_t fwrite(const void* buffer, size_t size, size_t count, FILE* fp);
 long ftell(FILE *fp);
+int remove(const char *fn);
 
 int fgetc(FILE* fp);
 int fputc(int c, FILE* fp);

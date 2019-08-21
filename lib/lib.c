@@ -371,6 +371,11 @@ int fputc(int c, FILE* fp) {
   return len == 1 ? c : EOF;
 }
 
+int remove(const char *fn) {
+  // TODO: Implement
+  return 0;
+}
+
 char *getcwd(char *buffer, size_t size) {
   if (buffer == NULL) {
     if (size == 0) {

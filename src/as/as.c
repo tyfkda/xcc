@@ -417,6 +417,8 @@ typedef struct {
   Operand dst;
 } Line;
 
+bool err;
+
 static bool is_label_first_chr(char c) {
   return isalpha(c) || c == '_' || c == '.';
 }
@@ -756,8 +758,8 @@ static void parse_line(const char *str, Line *line) {
     }
 
     if (*p != '\0' && !(*p == '/' && p[1] == '/')) {
-      //error("Syntax error");
-      fprintf(stderr, "Not handled: %s\n", p);
+      fprintf(stderr, "Syntax error: %s\n", p);
+      err = true;
     }
   }
 }
@@ -1850,7 +1852,8 @@ static void assemble_line(const Line *line, const char *rawline) {
     break;
   }
 
-  printf("op=%2d: not handled: %s\n", line->op, rawline);
+  fprintf(stderr, "op=%2d: not handled: %s\n", line->op, rawline);
+  err = true;
 }
 
 static void assemble(FILE *fp) {
@@ -1907,6 +1910,14 @@ int main(int argc, char* argv[]) {
     }
   } else {
     assemble(stdin);
+  }
+
+  if (err) {
+    if (fp != NULL) {
+      fclose(fp);
+      remove(ofn);
+    }
+    return 1;
   }
 
   resolve_label_locations(LOAD_ADDRESS);
