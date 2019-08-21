@@ -545,6 +545,11 @@ Expr *analyze_expr(Expr *expr, bool keep_left) {
     case EX_NEG:
       if (!is_number(expr->u.unary.sub->valType->type))
         parse_error(expr->token, "Cannot apply `-' except number types");
+      if (is_const(expr->u.unary.sub)) {
+        Expr *sub = expr->u.unary.sub;
+        sub->u.num.ival = -sub->u.num.ival;
+        return sub;
+      }
       expr->valType = expr->u.unary.sub->valType;
       break;
 
