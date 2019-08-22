@@ -20,6 +20,23 @@ char *abspath_cwd(const char *dir, const char *path) {
   return abspath(root, path);
 }
 
+char *append(char *str, const char *begin, const char *end) {
+  size_t add;
+  if (end == NULL) {
+    add = strlen(begin);
+    end = begin + add;
+  } else {
+    add = end - begin;
+  }
+  if (add == 0)
+    return str;
+  size_t len = str != NULL ? strlen(str) : 0;
+  char *newstr = realloc(str, len + add + 1);
+  memcpy(newstr + len, begin, add);
+  newstr[len + add] = '\0';
+  return newstr;
+}
+
 enum SegmentType {
   ST_TEXT,
   ST_PARAM,
@@ -80,6 +97,14 @@ Map *macro_map;  // <Macro*>
 
 Vector *sys_inc_paths;  // <const char*>
 Vector *pragma_once_files;  // <const char*>
+
+typedef struct {
+  const char *filename;
+  FILE *fp;
+  int lineno;
+} Stream;
+
+static Stream *s_stream;
 
 bool registered_pragma_once(const char *filename) {
   for (int i = 0, len = pragma_once_files->len; i < len; ++i) {
@@ -159,26 +184,9 @@ void handle_pragma(const char *p, const char *filename) {
   }
 }
 
-char *append(char *str, const char *begin, const char *end) {
-  size_t add;
-  if (end == NULL) {
-    add = strlen(begin);
-    end = begin + add;
-  } else {
-    add = end - begin;
-  }
-  if (add == 0)
-    return str;
-  size_t len = str != NULL ? strlen(str) : 0;
-  char *newstr = realloc(str, len + add + 1);
-  memcpy(newstr + len, begin, add);
-  newstr[len + add] = '\0';
-  return newstr;
-}
-
-Vector *parse_macro_body(const char *p, const Vector *params, bool va_args, const char *filename, int lineno) {
+Vector *parse_macro_body(const char *p, const Vector *params, bool va_args, Stream *stream) {
   Vector *segments = new_vector();
-  init_lexer_string(p, filename, lineno);
+  init_lexer_string(p, stream->filename, stream->lineno);
   int param_len = params != NULL ? params->len : 0;
   char *text = NULL;
   for (;;) {
@@ -229,7 +237,7 @@ Vector *parse_macro_body(const char *p, const Vector *params, bool va_args, cons
   return segments;
 }
 
-void handle_define(const char *p, const char *filename, int lineno) {
+void handle_define(const char *p, Stream *stream) {
   char *name = read_ident(&p);
   if (name == NULL)
     error("`ident' expected");
@@ -239,7 +247,7 @@ void handle_define(const char *p, const char *filename, int lineno) {
   if (*p == '(') {
     // Macro with parameter.
     params = new_vector();
-    init_lexer_string(p + 1, filename, lineno);
+    init_lexer_string(p + 1, stream->filename, stream->lineno);
     if (!consume(TK_RPAR)) {
       for (;;) {
         Token *tok;
@@ -265,14 +273,26 @@ void handle_define(const char *p, const char *filename, int lineno) {
   Vector *segments = NULL;
   p = skip_whitespaces(p);
   if (*p != '\0') {
-    segments = parse_macro_body(skip_whitespaces(p), params, va_args, filename, lineno);
+    segments = parse_macro_body(skip_whitespaces(p), params, va_args, stream);
   }
   map_put(macro_map, name, new_macro(params, va_args, segments));
 }
 
 Token *consume2(enum TokenType type) {
-  // TODO: Handle end of line.
-  return consume(type);
+  Token *tok;
+  for (;;) {
+    tok = consume(type);
+    if (tok == NULL || tok->type != TK_EOF)
+      return tok;
+
+    char *line = NULL;
+    size_t capa = 0;
+    ssize_t len = getline_(&line, &capa, s_stream->fp, 0);
+    if (len == EOF)
+      return tok;  // EOF
+    ++s_stream->lineno;
+    init_lexer_string(line, s_stream->filename, s_stream->lineno);
+  }
 }
 
 void expand(Macro *macro, const char *name) {
@@ -354,8 +374,8 @@ void expand(Macro *macro, const char *name) {
   init_lexer_string(str, NULL, -1);
 }
 
-void process_line(const char *line, const char *filename, int lineno) {
-  init_lexer_string(line, filename, lineno);
+void process_line(const char *line, Stream *stream) {
+  init_lexer_string(line, stream->filename, stream->lineno);
 
   const char *begin = get_lex_p();
   for (;;) {
@@ -368,6 +388,7 @@ void process_line(const char *line, const char *filename, int lineno) {
       if (ident->begin != begin)
         fwrite(begin, ident->begin - begin, 1, stdout);
 
+      s_stream = stream;
       expand(macro, ident->u.ident);
       begin = get_lex_p();
       continue;
@@ -424,8 +445,8 @@ intptr_t reduce(Expr *expr) {
   return 0;
 }
 
-bool handle_if(const char *p, const char *filename, int lineno) {
-  init_lexer_string(p, filename, lineno);
+bool handle_if(const char *p, Stream *stream) {
+  init_lexer_string(p, stream->filename, stream->lineno);
   Expr *expr = parse_expr();
   return reduce(expr) != 0;
 }
@@ -458,18 +479,21 @@ int pp(FILE *fp, const char *filename) {
   define_file_macro(filename);
   map_put(macro_map, "__LINE__", new_macro_single(linenobuf));
 
-  int lineno;
-  for (lineno = 1;; ++lineno) {
+  Stream stream;
+  stream.filename = filename;
+  stream.fp = fp;
+
+  for (stream.lineno = 1;; ++stream.lineno) {
     char *line = NULL;
     size_t capa = 0;
     ssize_t len = getline_(&line, &capa, fp, 0);
     if (len == EOF)
       break;
 
-    snprintf(linenobuf, sizeof(linenobuf), "%d", lineno);
+    snprintf(linenobuf, sizeof(linenobuf), "%d", stream.lineno);
 
     while (len > 0 && line[len - 1] == '\\') {  // Continue line.
-      ++lineno;
+      ++stream.lineno;
       len = getline_(&line, &capa, fp, len - 1);  // -1 for overwrite on '\'
     }
 
@@ -477,7 +501,7 @@ int pp(FILE *fp, const char *filename) {
     const char *directive = find_directive(line);
     if (directive == NULL) {
       if (enable)
-        process_line(line, filename, lineno);
+        process_line(line, &stream);
       else
         printf("\n");
       continue;
@@ -497,7 +521,7 @@ int pp(FILE *fp, const char *filename) {
       enable = enable && satisfy == 1;
     } else if ((next = keyword(directive, "if")) != NULL) {
       vec_push(condstack, (void*)cond_value(enable, satisfy));
-      bool cond = handle_if(next, filename, lineno);
+      bool cond = handle_if(next, &stream);
       satisfy = cond ? 1 : 0;
       enable = enable && satisfy == 1;
     } else if ((next = keyword(directive, "else")) != NULL) {
@@ -519,7 +543,7 @@ int pp(FILE *fp, const char *filename) {
 
       bool cond = false;
       if (satisfy == 0) {
-        cond = handle_if(next, filename, lineno);
+        cond = handle_if(next, &stream);
         if (cond)
           satisfy = 1;
       }
@@ -537,9 +561,9 @@ int pp(FILE *fp, const char *filename) {
     } else if (enable) {
       if ((next = keyword(directive, "include")) != NULL) {
         handle_include(next, filename);
-        printf("# %d \"%s\" 1\n", lineno + 1, filename);
+        printf("# %d \"%s\" 1\n", stream.lineno + 1, filename);
       } else if ((next = keyword(directive, "define")) != NULL) {
-        handle_define(next, filename, lineno);
+        handle_define(next, &stream);
       } else if ((next = keyword(directive, "pragma")) != NULL) {
         handle_pragma(next, filename);
       } else if ((next = keyword(directive, "error")) != NULL) {
@@ -556,7 +580,7 @@ int pp(FILE *fp, const char *filename) {
   map_put(macro_map, "__FILE__", old_file_macro);
   map_put(macro_map, "__LINE__", old_line_macro);
 
-  return lineno;
+  return stream.lineno;
 }
 
 int main(int argc, char* argv[]) {
