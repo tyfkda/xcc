@@ -22,6 +22,39 @@ const int STACK_PARAM_BASE_OFFSET = (2 - MAX_REG_ARGS) * 8;
 
 #define ALIGN_SECTION_SIZE(sec, align_)  do { int align = (int)(align_); add_asm_align(align); } while (0)
 
+char *fmt(const char *s, ...) {
+  static char buf[4][64];
+  static int index;
+  char *p = buf[index];
+  if (++index >= 4)
+    index = 0;
+  va_list ap;
+  va_start(ap, s);
+  vsnprintf(p, sizeof(buf[0]), s, ap);
+  va_end(ap);
+  return p;
+}
+
+char *num(intptr_t x) {
+  return fmt("%"PRIdPTR, x);
+}
+
+char *im(intptr_t x) {
+  return fmt("$%"PRIdPTR, x);
+}
+
+char *indirect(const char *reg) {
+  return fmt("(%s)", reg);
+}
+
+char *offset_indirect(int offset, const char *reg) {
+  return fmt("%d(%s)", offset, reg);
+}
+
+char *label_indirect(const char *label, const char *reg) {
+  return fmt("%s(%s)", label, reg);
+}
+
 size_t type_size(const Type *type) {
   switch (type->type) {
   case TY_VOID:
@@ -122,13 +155,14 @@ void calc_struct_size(StructInfo *sinfo) {
 
 static FILE *asm_fp;
 
-void add_asm(const char *fmt, ...) {
-  va_list ap;
-  va_start(ap, fmt);
-  fprintf(asm_fp, "\t");
-  vfprintf(asm_fp, fmt, ap);
-  fprintf(asm_fp, "\n");
-  va_end(ap);
+void add_asm2(const char *op, const char *operand1, const char *operand2) {
+  if (operand1 == NULL) {
+    fprintf(asm_fp, "\t%s\n", op);
+  } else if (operand2 == NULL) {
+    fprintf(asm_fp, "\t%s %s\n", op, operand1);
+  } else {
+    fprintf(asm_fp, "\t%s %s, %s\n", op, operand1, operand2);
+  }
 }
 
 void add_asm_label(const char *label) {
@@ -151,7 +185,7 @@ static void add_asm_comment(const char *comment, ...) {
 
 static void add_asm_align(int align) {
   if ((align) > 1)
-    add_asm(".align %d", (int)(align));
+    _ALIGN(NUM(align));
 }
 
 static const char *escape(int c) {
@@ -222,18 +256,15 @@ void construct_initial_value(unsigned char *buf, const Type *type, Initializer *
       for (int i = 0; i < size; ++i)
         buf[i] = v >> (i * 8);  // Little endian
 
-      const char *fmt;
       switch (type->u.num.type) {
-      case NUM_CHAR:  fmt = ".byte %"PRIdPTR; break;
-      case NUM_SHORT: fmt = ".word %"PRIdPTR; break;
-      case NUM_LONG:  fmt = ".quad %"PRIdPTR; break;
+      case NUM_CHAR:  _BYTE(NUM(v)); break;
+      case NUM_SHORT: _WORD(NUM(v)); break;
+      case NUM_LONG:  _QUAD(NUM(v)); break;
       default:
       case NUM_INT: case NUM_ENUM:
-        fmt = ".long %"PRIdPTR;
+        _LONG(NUM(v));
         break;
       }
-      UNUSED(fmt);
-      add_asm(fmt, v);
     }
     break;
   case TY_PTR:
@@ -257,7 +288,7 @@ void construct_initial_value(unsigned char *buf, const Type *type, Initializer *
           *pptrinits = new_vector();
         vec_push(*pptrinits, init);
 
-        add_asm(".quad %s", value->u.varref.ident);
+        _QUAD(value->u.varref.ident);
       } else if (value->type == EX_STR) {
         assert(!"`char* s = \"...\"`; should be handled in parser");
       } else if (is_const(value) && value->type == EX_NUM) {
@@ -265,12 +296,12 @@ void construct_initial_value(unsigned char *buf, const Type *type, Initializer *
         for (int i = 0; i < WORD_SIZE; ++i)
           buf[i] = x >> (i * 8);  // Little endian
 
-        add_asm(".quad 0x%"PRIxPTR, x);
+        _QUAD(NUM(x));
       } else {
         assert(!"initializer type error");
       }
     } else {
-      add_asm(".quad 0");
+      _QUAD(NUM(0));
     }
     break;
   case TY_ARRAY:
@@ -303,7 +334,7 @@ void construct_initial_value(unsigned char *buf, const Type *type, Initializer *
         memcpy(buf, init->u.single->u.str.buf, src_size);
 
         UNUSED(size);
-        add_asm(".ascii \"%s\"", escape_string((char*)buf, size));
+        _ASCII(fmt("\"%s\"", escape_string((char*)buf, size)));
       } else {
         error("Illegal initializer");
       }
@@ -351,7 +382,7 @@ static void put_data(const char *label, const VarInfo *varinfo) {
 
   ALIGN_SECTION_SIZE(sec, align_size(varinfo->type));
   if ((varinfo->flag & VF_STATIC) == 0)  // global
-    add_asm(".globl %s", label);
+    _GLOBL(label);
   ADD_LABEL(label);
 
   Vector *ptrinits = NULL;  // <[ptr, label]>
@@ -406,19 +437,19 @@ static void put_bss(void) {
       size = 1;
     //add_label(name);
     //add_bss(size);
-    add_asm(".comm %s, %d", name, size);
+    _COMM(name, NUM(size));
   }
 }
 
 void fixup_locations(void) {
-  add_asm(".section .rodata");
+  _SECTION(".rodata");
   put_rodata();
 
   // Data section
   //sections[SEC_DATA].start = instruction_pointer = ALIGN(instruction_pointer, 0x1000);  // Page size.
 
   add_asm_comment(NULL);
-  add_asm(".data");
+  _DATA();
   put_rwdata();
 
   add_asm_comment(NULL);
@@ -546,34 +577,34 @@ static void put_args_to_stack(Defun *defun) {
     switch (size) {
     case 1:
       switch (i) {
-      case 0:  MOV_DIL_IND8_RBP(offset); break;
-      case 1:  MOV_SIL_IND8_RBP(offset); break;
-      case 2:  MOV_DL_IND8_RBP(offset); break;
-      case 3:  MOV_CL_IND8_RBP(offset); break;
-      case 4:  MOV_R8B_IND8_RBP(offset); break;
-      case 5:  MOV_R9B_IND8_RBP(offset); break;
+      case 0:  MOV(DIL, OFFSET_INDIRECT(offset, RBP)); break;
+      case 1:  MOV(SIL, OFFSET_INDIRECT(offset, RBP)); break;
+      case 2:  MOV(DL, OFFSET_INDIRECT(offset, RBP)); break;
+      case 3:  MOV(CL, OFFSET_INDIRECT(offset, RBP)); break;
+      case 4:  MOV(R8B, OFFSET_INDIRECT(offset, RBP)); break;
+      case 5:  MOV(R9B, OFFSET_INDIRECT(offset, RBP)); break;
       default: break;
       }
       break;
     case 4:
       switch (i) {
-      case 0:  MOV_EDI_IND8_RBP(offset); break;
-      case 1:  MOV_ESI_IND8_RBP(offset); break;
-      case 2:  MOV_EDX_IND8_RBP(offset); break;
-      case 3:  MOV_ECX_IND8_RBP(offset); break;
-      case 4:  MOV_R8D_IND8_RBP(offset); break;
-      case 5:  MOV_R9D_IND8_RBP(offset); break;
+      case 0:  MOV(EDI, OFFSET_INDIRECT(offset, RBP)); break;
+      case 1:  MOV(ESI, OFFSET_INDIRECT(offset, RBP)); break;
+      case 2:  MOV(EDX, OFFSET_INDIRECT(offset, RBP)); break;
+      case 3:  MOV(ECX, OFFSET_INDIRECT(offset, RBP)); break;
+      case 4:  MOV(R8D, OFFSET_INDIRECT(offset, RBP)); break;
+      case 5:  MOV(R9D, OFFSET_INDIRECT(offset, RBP)); break;
       default: break;
       }
       break;
     case 8:
       switch (i) {
-      case 0:  MOV_RDI_IND8_RBP(offset); break;
-      case 1:  MOV_RSI_IND8_RBP(offset); break;
-      case 2:  MOV_RDX_IND8_RBP(offset); break;
-      case 3:  MOV_RCX_IND8_RBP(offset); break;
-      case 4:  MOV_R8_IND8_RBP(offset); break;
-      case 5:  MOV_R9_IND8_RBP(offset); break;
+      case 0:  MOV(RDI, OFFSET_INDIRECT(offset, RBP)); break;
+      case 1:  MOV(RSI, OFFSET_INDIRECT(offset, RBP)); break;
+      case 2:  MOV(RDX, OFFSET_INDIRECT(offset, RBP)); break;
+      case 3:  MOV(RCX, OFFSET_INDIRECT(offset, RBP)); break;
+      case 4:  MOV(R8, OFFSET_INDIRECT(offset, RBP)); break;
+      case 5:  MOV(R9, OFFSET_INDIRECT(offset, RBP)); break;
       default: break;
       }
       break;
@@ -608,7 +639,7 @@ static void out_asm(Node *node) {
   if (len != 1 || (arg0 = (Expr*)args->data[0])->type != EX_STR)
     error("__asm takes string at 1st argument");
   else
-    add_asm("%s", arg0->u.str.buf);
+    ADD_ASM0(arg0->u.str.buf);
 }
 
 static void gen_nodes(Vector *nodes) {
@@ -638,7 +669,7 @@ static void gen_defun(Node *node) {
     global = (varinfo->flag & VF_STATIC) == 0;
   }
   if (global)
-    add_asm(".globl %s", defun->name);
+    _GLOBL(defun->name);
   else
     add_asm_comment("%s: static func", defun->name);
 
@@ -673,10 +704,10 @@ static void gen_defun(Node *node) {
   // Prologue
   // Allocate variable bufer.
   if (!no_stmt) {
-    PUSH_RBP(); PUSH_STACK_POS();
-    MOV_RSP_RBP();
+    PUSH(RBP); PUSH_STACK_POS();
+    MOV(RSP, RBP);
     if (frame_size > 0) {
-      SUB_IM_RSP(frame_size);
+      SUB(IM(frame_size), RSP);
       stackpos += frame_size;
     }
 
@@ -689,9 +720,9 @@ static void gen_defun(Node *node) {
   // Epilogue
   if (!no_stmt) {
     ADD_LABEL(defun->ret_label);
-    MOV_RBP_RSP();
+    MOV(RBP, RSP);
     stackpos -= frame_size;
-    POP_RBP(); POP_STACK_POS();
+    POP(RBP); POP_STACK_POS();
   }
   RET();
   add_asm_comment(NULL);
@@ -716,7 +747,7 @@ static void gen_return(Node *node) {
   if (node->u.return_.val != NULL)
     gen_expr(node->u.return_.val);
   assert(curfunc != NULL);
-  JMP32(curfunc->ret_label);
+  JMP(curfunc->ret_label);
 }
 
 static void gen_if(Node *node) {
@@ -727,7 +758,7 @@ static void gen_if(Node *node) {
     ADD_LABEL(flabel);
   } else {
     const char *nlabel = alloc_label();
-    JMP32(nlabel);
+    JMP(nlabel);
     ADD_LABEL(flabel);
     gen(node->u.if_.fblock);
     ADD_LABEL(nlabel);
@@ -761,24 +792,24 @@ static void gen_switch(Node *node) {
     intptr_t x = (intptr_t)case_values->data[i];
     switch (valtype) {
     case NUM_CHAR:
-      CMP_IM_AL(x);
+      CMP(IM(x), AL);
       break;
     case NUM_INT: case NUM_ENUM:
-      CMP_IM_EAX(x);
+      CMP(IM(x), EAX);
       break;
     case NUM_LONG:
       if (is_im32(x)) {
-        CMP_IM_RAX(x);
+        CMP(IM(x), RAX);
       } else {
-        MOV_IM_RDI(x);
-        CMP_RDI_RAX();
+        MOV(IM(x), RDI);
+        CMP(RDI, RAX);
       }
       break;
     default: assert(false); break;
     }
-    JE32(labels->data[i]);
+    JE(labels->data[i]);
   }
-  JMP32(labels->data[len]);
+  JMP(labels->data[len]);
 
   cur_case_values = case_values;
   cur_case_labels = labels;
@@ -821,7 +852,7 @@ static void gen_while(Node *node) {
   const char *l_cond = push_continue_label(&save_cont);
   const char *l_break = push_break_label(&save_break);
   const char *l_loop = alloc_label();
-  JMP32(l_cond);
+  JMP(l_cond);
   ADD_LABEL(l_loop);
   gen(node->u.while_.body);
   ADD_LABEL(l_cond);
@@ -860,7 +891,7 @@ static void gen_for(Node *node) {
   ADD_LABEL(l_continue);
   if (node->u.for_.post != NULL)
     gen_expr(node->u.for_.post);
-  JMP32(l_cond);
+  JMP(l_cond);
   ADD_LABEL(l_break);
   pop_continue_label(save_cont);
   pop_break_label(save_break);
@@ -868,19 +899,19 @@ static void gen_for(Node *node) {
 
 static void gen_break(void) {
   assert(s_break_label != NULL);
-  JMP32(s_break_label);
+  JMP(s_break_label);
 }
 
 static void gen_continue(void) {
   assert(s_continue_label != NULL);
-  JMP32(s_continue_label);
+  JMP(s_continue_label);
 }
 
 static void gen_goto(Node *node) {
   assert(curfunc->labels != NULL);
   const char *label = map_get(curfunc->labels, node->u.goto_.ident);
   assert(label != NULL);
-  JMP32(label);
+  JMP(label);
 }
 
 static void gen_label(Node *node) {
@@ -895,14 +926,14 @@ static void gen_clear_local_var(const VarInfo *varinfo) {
   // Fill with zeros regardless of variable type.
   int offset = varinfo->offset;
   const char *loop = alloc_label();
-  LEA_OFS32_RBP_RSI(offset);
-  MOV_IM_EDI(type_size(varinfo->type));
-  XOR_AL_AL();
+  LEA(OFFSET_INDIRECT(offset, RBP), RSI);
+  MOV(IM(type_size(varinfo->type)), EDI);
+  XOR(AL, AL);
   ADD_LABEL(loop);
-  MOV_AL_IND_RSI();
-  INC_RSI();
-  DEC_EDI();
-  JNE8(loop);
+  MOV(AL, INDIRECT(RSI));
+  INC(RSI);
+  DEC(EDI);
+  JNE(loop);
 }
 
 static void gen_vardecl(Node *node) {
@@ -925,7 +956,7 @@ static void gen_vardecl(Node *node) {
 }
 
 static void gen_toplevel(Node *node) {
-  add_asm(".text");
+  _TEXT();
   gen_nodes(node->u.toplevel.nodes);
 }
 

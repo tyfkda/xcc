@@ -559,7 +559,7 @@ static void handle_directive(enum DirectiveType dir, const char *p) {
     {
       long align;
       if (!parse_immediate(&p, &align))
-        error(".algin: number expected");
+        error(".align: number expected");
       align_section_size(current_section, align);
     }
     break;
