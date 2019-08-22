@@ -345,6 +345,9 @@ static void gen_varref(Expr *expr) {
   case TY_PTR: MOV(INDIRECT(RAX), RAX); break;
   case TY_ARRAY: break;  // Use variable address as a pointer.
   case TY_FUNC:  break;
+  case TY_STRUCT:
+    // struct value is handled as a pointer.
+    break;
   default: assert(false); break;
   }
 }
@@ -594,6 +597,46 @@ static void gen_num(enum NumType numtype, intptr_t value) {
   }
 }
 
+static void gen_memcpy(ssize_t size) {
+  const char *dst = RDI;
+  const char *src = RAX;
+
+  // Break %rcx, %dl
+  switch (size) {
+  case 1:
+    MOV(INDIRECT(src), DL);
+    MOV(DL, INDIRECT(dst));
+    break;
+  case 2:
+    MOV(INDIRECT(src), DX);
+    MOV(DX, INDIRECT(dst));
+    break;
+  case 4:
+    MOV(INDIRECT(src), EDX);
+    MOV(EDX, INDIRECT(dst));
+    break;
+  case 8:
+    MOV(INDIRECT(src), RDX);
+    MOV(RDX, INDIRECT(dst));
+    break;
+  default:
+    {
+      const char * label = alloc_label();
+      PUSH(RAX);
+      MOV(IM(size), RCX);
+      ADD_LABEL(label);
+      MOV(INDIRECT(src), DL);
+      MOV(DL, INDIRECT(dst));
+      INC(src);
+      INC(dst);
+      DEC(RCX);
+      JNE(label);
+      POP(RAX);
+    }
+    break;
+  }
+}
+
 void gen_expr(Expr *expr) {
   switch (expr->type) {
   case EX_NUM:
@@ -649,6 +692,9 @@ void gen_expr(Expr *expr) {
       break;
     case TY_PTR:  MOV(INDIRECT(RAX), RAX); break;
     case TY_ARRAY: break;
+    case TY_STRUCT:
+      // struct value is handled as a pointer.
+      break;
     default: assert(false); break;
     }
     return;
@@ -750,6 +796,14 @@ void gen_expr(Expr *expr) {
       }
       break;
     case TY_PTR:  MOV(RAX, INDIRECT(RDI)); break;
+    case TY_STRUCT:
+      {
+        const StructInfo *sinfo = expr->u.bop.lhs->valType->u.struct_.info;
+        ssize_t size = sinfo->size;
+        assert(size > 0);
+        gen_memcpy(size);
+      }
+      break;
     default: assert(false); break;
     }
     return;

@@ -43,12 +43,7 @@ bool is_const(Expr *expr) {
 Expr *new_expr_numlit(const Type *type, const Token *token, const Num *num) {
   assert(type->type == TY_NUM);
   Expr *expr = new_expr(EX_NUM, type, token);
-#if 0
-  // TODO: Accept this
   expr->u.num = *num;
-#else
-  expr->u.num.ival = num->ival;
-#endif
   return expr;
 }
 
