@@ -310,8 +310,9 @@ void expand(Macro *macro, const char *name) {
 
         Token *tok;
         if ((tok = consume2(TK_COMMA)) != NULL || (tok = consume2(TK_RPAR)) != NULL)  {
-          if (tok->type == TK_RPAR && paren > 0) {
-            --paren;
+          if (paren > 0) {
+            if (tok->type == TK_RPAR)
+              --paren;
             continue;
           }
           if (begin == NULL)
