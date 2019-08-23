@@ -396,8 +396,7 @@ static void gen_funcall(Expr *expr) {
 
     int reg_args = MIN(len, MAX_REG_ARGS);
     for (int i = 0; i < reg_args; ++i) {
-      POP(kReg64s[i]);
-      POP_STACK_POS();
+      POP(kReg64s[i]); POP_STACK_POS();
     }
   }
 
@@ -411,9 +410,12 @@ static void gen_funcall(Expr *expr) {
   for (int i = 0; i < stack_args; ++i)
     POP_STACK_POS();
 
+  int stack_add = stack_args * 8;
   if (align_stack) {
-    ADD(IM(8), RSP); POP_STACK_POS();
+    stack_add += 8; POP_STACK_POS();
   }
+  if (stack_add > 0)
+    ADD(IM(stack_add), RSP);
 }
 
 void gen_arith(enum ExprType exprType, const Type *valType, const Type *rhsType) {
