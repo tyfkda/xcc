@@ -50,6 +50,8 @@
 #define BP     "%bp"
 #define SI     "%si"
 #define DI     "%di"
+#define R8W    "%r8w"
+#define R9W    "%r9w"
 
 #define EAX    "%eax"
 #define ECX    "%ecx"

@@ -361,6 +361,8 @@ static void gen_ternary(Expr *expr) {
 }
 
 static void gen_funcall(Expr *expr) {
+  static const char *kReg64s[] = {RDI, RSI, RDX, RCX, R8, R9};
+
   Expr *func = expr->u.funcall.func;
   Vector *args = expr->u.funcall.args;
   int arg_count = args != NULL ? args->len : 0;
@@ -394,15 +396,7 @@ static void gen_funcall(Expr *expr) {
 
     int reg_args = MIN(len, MAX_REG_ARGS);
     for (int i = 0; i < reg_args; ++i) {
-      switch (i) {
-      case 0:  POP(RDI); break;
-      case 1:  POP(RSI); break;
-      case 2:  POP(RDX); break;
-      case 3:  POP(RCX); break;
-      case 4:  POP(R8); break;
-      case 5:  POP(R9); break;
-      default: break;
-      }
+      POP(kReg64s[i]);
       POP_STACK_POS();
     }
   }

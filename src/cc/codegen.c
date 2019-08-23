@@ -541,6 +541,11 @@ static size_t arrange_scope_vars(Defun *defun) {
 }
 
 static void put_args_to_stack(Defun *defun) {
+  static const char *kReg8s[] = {DIL, SIL, DL, CL, R8B, R9B};
+  static const char *kReg16s[] = {DI, SI, DX, CX, R8W, R9W};
+  static const char *kReg32s[] = {EDI, ESI, EDX, ECX, R8D, R9D};
+  static const char *kReg64s[] = {RDI, RSI, RDX, RCX, R8, R9};
+
   // Store arguments into local frame.
   Vector *params = defun->params;
   int len = params != NULL ? params->len : 0;
@@ -574,43 +579,25 @@ static void put_args_to_stack(Defun *defun) {
     default:
       break;
     }
-    switch (size) {
-    case 1:
-      switch (i) {
-      case 0:  MOV(DIL, OFFSET_INDIRECT(offset, RBP)); break;
-      case 1:  MOV(SIL, OFFSET_INDIRECT(offset, RBP)); break;
-      case 2:  MOV(DL, OFFSET_INDIRECT(offset, RBP)); break;
-      case 3:  MOV(CL, OFFSET_INDIRECT(offset, RBP)); break;
-      case 4:  MOV(R8B, OFFSET_INDIRECT(offset, RBP)); break;
-      case 5:  MOV(R9B, OFFSET_INDIRECT(offset, RBP)); break;
-      default: break;
+
+    if (i < MAX_REG_ARGS) {
+      switch (size) {
+      case 1:
+        MOV(kReg8s[i], OFFSET_INDIRECT(offset, RBP));
+        break;
+      case 2:
+        MOV(kReg16s[i], OFFSET_INDIRECT(offset, RBP));
+        break;
+      case 4:
+        MOV(kReg32s[i], OFFSET_INDIRECT(offset, RBP));
+        break;
+      case 8:
+        MOV(kReg64s[i], OFFSET_INDIRECT(offset, RBP));
+        break;
+      default:
+        assert(false);
+        break;
       }
-      break;
-    case 4:
-      switch (i) {
-      case 0:  MOV(EDI, OFFSET_INDIRECT(offset, RBP)); break;
-      case 1:  MOV(ESI, OFFSET_INDIRECT(offset, RBP)); break;
-      case 2:  MOV(EDX, OFFSET_INDIRECT(offset, RBP)); break;
-      case 3:  MOV(ECX, OFFSET_INDIRECT(offset, RBP)); break;
-      case 4:  MOV(R8D, OFFSET_INDIRECT(offset, RBP)); break;
-      case 5:  MOV(R9D, OFFSET_INDIRECT(offset, RBP)); break;
-      default: break;
-      }
-      break;
-    case 8:
-      switch (i) {
-      case 0:  MOV(RDI, OFFSET_INDIRECT(offset, RBP)); break;
-      case 1:  MOV(RSI, OFFSET_INDIRECT(offset, RBP)); break;
-      case 2:  MOV(RDX, OFFSET_INDIRECT(offset, RBP)); break;
-      case 3:  MOV(RCX, OFFSET_INDIRECT(offset, RBP)); break;
-      case 4:  MOV(R8, OFFSET_INDIRECT(offset, RBP)); break;
-      case 5:  MOV(R9, OFFSET_INDIRECT(offset, RBP)); break;
-      default: break;
-      }
-      break;
-    default:
-      assert(false);
-      break;
     }
   }
 }
