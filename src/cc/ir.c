@@ -73,6 +73,19 @@ IR *new_ir_jmp(enum ConditionType cond, const char *label) {
   return ir;
 }
 
+IR *new_ir_call(const char *label, int arg_count) {
+  IR *ir = new_ir(IR_CALL);
+  ir->u.call.label = label;
+  ir->u.call.arg_count = arg_count;
+  return ir;
+}
+
+IR *new_ir_addsp(int value) {
+  IR *ir = new_ir(IR_ADDSP);
+  ir->value = value;
+  return ir;
+}
+
 IR *new_ir_label(const char *label, bool global) {
   IR *ir = new_ir(IR_LABEL);
   ir->u.label.name = label;
@@ -293,6 +306,25 @@ void ir_out(const IR *ir) {
     case COND_GE:   JGE(ir->u.jmp.label); break;
     default:  assert(false); break;
     }
+    break;
+
+  case IR_CALL:
+    {
+      static const char *kReg64s[] = {RDI, RSI, RDX, RCX, R8, R9};
+      int reg_args = MIN((int)ir->u.call.arg_count, MAX_REG_ARGS);
+      for (int i = 0; i < reg_args; ++i) {
+        POP(kReg64s[i]); POP_STACK_POS();
+      }
+      CALL(ir->u.call.label);
+    }
+    break;
+
+  case IR_ADDSP:
+    if (ir->value > 0)
+      ADD(IM(ir->value), RSP);
+    else
+      SUB(IM(-ir->value), RSP);
+    stackpos -= ir->value;
     break;
 
   case IR_LABEL:

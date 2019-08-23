@@ -338,17 +338,14 @@ static void gen_ternary(Expr *expr) {
 }
 
 static void gen_funcall(Expr *expr) {
-  static const char *kReg64s[] = {RDI, RSI, RDX, RCX, R8, R9};
-
   Expr *func = expr->u.funcall.func;
   Vector *args = expr->u.funcall.args;
   int arg_count = args != NULL ? args->len : 0;
 
   int stack_args = MAX(arg_count - MAX_REG_ARGS, 0);
   bool align_stack = ((stackpos + stack_args * WORD_SIZE) & 15) != 0;
-  if (align_stack) {
-    SUB(IM(8), RSP); PUSH_STACK_POS();
-  }
+  if (align_stack)
+    new_ir_addsp(-8);
 
   if (args != NULL) {
     int len = args->len;
@@ -368,31 +365,25 @@ static void gen_funcall(Expr *expr) {
 
     for (int i = len; --i >= 0; ) {
       gen_expr((Expr*)args->data[i]);
-      PUSH(RAX); PUSH_STACK_POS();
-    }
-
-    int reg_args = MIN(len, MAX_REG_ARGS);
-    for (int i = 0; i < reg_args; ++i) {
-      POP(kReg64s[i]); POP_STACK_POS();
+      new_ir_st(IR_PUSH);
     }
   }
 
   if (func->type == EX_VARREF && func->u.varref.scope == NULL) {
-    CALL(func->u.varref.ident);
+    new_ir_call(func->u.varref.ident, arg_count);
   } else {
+    // TODO: IR
     gen_expr(func);
     CALL(fmt("*%s", RAX));
   }
 
-  for (int i = 0; i < stack_args; ++i)
-    POP_STACK_POS();
-
   int stack_add = stack_args * 8;
   if (align_stack) {
-    stack_add += 8; POP_STACK_POS();
+    stack_add += 8;
   }
-  if (stack_add > 0)
-    ADD(IM(stack_add), RSP);
+  if (stack_add > 0) {
+    new_ir_addsp(stack_add);
+  }
 }
 
 void gen_arith(enum ExprType exprType, const Type *valType, const Type *rhsType) {

@@ -20,6 +20,8 @@ enum IrType {
   IR_SET,   // SETxx: flag => 0 or 1
   IR_PUSH,
   IR_JMP,
+  IR_CALL,
+  IR_ADDSP,
   IR_LABEL,
 };
 
@@ -50,6 +52,10 @@ typedef struct {
       const char *name;
       bool global;
     } label;
+    struct {
+      const char *label;
+      size_t arg_count;
+    } call;
   } u;
 } IR;
 
@@ -62,6 +68,8 @@ IR *new_ir_op(enum IrType type, int size);
 IR *new_ir_st(enum IrType type);
 IR *new_ir_set(enum ConditionType cond);
 IR *new_ir_jmp(enum ConditionType cond, const char *label);
+IR *new_ir_call(const char *label, int arg_count);
+IR *new_ir_addsp(int value);
 IR *new_ir_label(const char *label, bool global);
 
 void ir_out(const IR *ir);
