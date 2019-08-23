@@ -13,6 +13,26 @@ typedef struct Type Type;
 typedef struct VarInfo VarInfo;
 typedef struct Vector Vector;
 
+// Defun
+
+typedef struct Defun {
+  const Type *rettype;
+  const char *name;
+  Vector *params;  // <VarInfo*>
+  Vector *stmts;  // NULL => Prototype definition.
+  int flag;
+  bool vaargs;
+
+  const Type *type;
+  Scope *top_scope;
+  Vector *all_scopes;
+  Map *labels;
+  Vector *gotos;
+
+  // For codegen.
+  const char *ret_label;
+} Defun;
+
 // Node
 
 enum NodeType {
