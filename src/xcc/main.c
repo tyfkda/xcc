@@ -203,10 +203,10 @@ int main(int argc, char* argv[]) {
     res = pipe_command((char**)cpp_cmd->data, cc1_cmd, dst_fd);
   }
 
-  if (res != 0) {
+  if (res != 0 && !out_asm) {
+    assert(pid != -1);
     kill(pid, SIGKILL);
-    if (!out_asm)
-      remove(ofn);
+    remove(ofn);
   }
 
   if (!out_asm) {
