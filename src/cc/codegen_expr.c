@@ -12,6 +12,27 @@
 
 static void gen_lval(Expr *expr);
 
+// test %eax, %eax, and so on.
+static void gen_test_opcode(const Type *type) {
+  switch (type->type) {
+  case TY_NUM:
+    switch (type->u.num.type) {
+    case NUM_CHAR:  TEST_AL_AL(); break;
+    case NUM_SHORT: TEST_AX_AX(); break;
+    case NUM_INT: case NUM_ENUM:
+      TEST_EAX_EAX();
+      break;
+    case NUM_LONG:  TEST_RAX_RAX(); break;
+    default: assert(false); break;
+    }
+    break;
+  case TY_PTR: case TY_ARRAY: case TY_FUNC:
+    TEST_RAX_RAX();
+    break;
+  default: assert(false); break;
+  }
+}
+
 static enum ExprType flip_cmp(enum ExprType type) {
   assert(EX_EQ <= type && type <= EX_LE);
   if (type >= EX_LT)
@@ -47,17 +68,7 @@ static enum ExprType gen_compare_expr(enum ExprType type, Expr *lhs, Expr *rhs) 
   gen_expr(lhs);
   if (rhs->type == EX_NUM && rhs->u.num.ival == 0 &&
       (type == EX_EQ || type == EX_NE)) {
-    switch (numtype) {
-    case NUM_CHAR: TEST_AL_AL(); break;
-    case NUM_SHORT: TEST_AX_AX(); break;
-    case NUM_INT: case NUM_ENUM:
-      TEST_EAX_EAX();
-      break;
-    case NUM_LONG:
-      TEST_RAX_RAX();
-      break;
-    default: assert(false); break;
-    }
+    gen_test_opcode(lhs->valType);
   } else if (rhs->type == EX_NUM && (numtype != NUM_LONG || is_im32(rhs->u.num.ival))) {
     switch (numtype) {
     case NUM_CHAR: CMP_IM_AL(rhs->u.num.ival); break;
@@ -87,29 +98,6 @@ static enum ExprType gen_compare_expr(enum ExprType type, Expr *lhs, Expr *rhs) 
   }
 
   return type;
-}
-
-// test %eax, %eax, and so on.
-static void gen_test_opcode(const Type *type) {
-  switch (type->type) {
-  case TY_NUM:
-    switch (type->u.num.type) {
-    case NUM_CHAR:  TEST_AL_AL(); break;
-    case NUM_SHORT: TEST_AX_AX(); break;
-    case NUM_INT: case NUM_ENUM:
-      TEST_EAX_EAX();
-      break;
-    case NUM_LONG:
-      TEST_RAX_RAX();
-      break;
-    default: assert(false); break;
-    }
-    break;
-  case TY_PTR: case TY_ARRAY: case TY_FUNC:
-    TEST_RAX_RAX();
-    break;
-  default: assert(false); break;
-  }
 }
 
 void gen_cond_jmp(Expr *cond, bool tf, const char *label) {
