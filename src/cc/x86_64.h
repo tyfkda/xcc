@@ -85,7 +85,7 @@
 #define SUB(o1, o2)    ADD_ASM2("sub", o1, o2)
 #define SUBQ(o1, o2)   ADD_ASM2("subq", o1, o2)
 #define MUL(o1)        ADD_ASM1("mul", o1)
-#define DIV(o1)        ADD_ASM1("div", o1)
+#define IDIV(o1)       ADD_ASM1("idiv", o1)
 #define CMP(o1, o2)    ADD_ASM2("cmp", o1, o2)
 #define AND(o1, o2)    ADD_ASM2("and", o1, o2)
 #define OR(o1, o2)     ADD_ASM2("or", o1, o2)
@@ -121,6 +121,8 @@
 #define SETG(o1)       ADD_ASM1("setg", o1)
 #define SETLE(o1)      ADD_ASM1("setle", o1)
 #define SETGE(o1)      ADD_ASM1("setge", o1)
+#define CLTD()         ADD_ASM0("cltd")
+#define CQTO()         ADD_ASM0("cqto")
 
 #define _BYTE(x)       ADD_ASM1(".byte", x)
 #define _WORD(x)       ADD_ASM1(".word", x)

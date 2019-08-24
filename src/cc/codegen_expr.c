@@ -472,10 +472,24 @@ void gen_arith(enum ExprType exprType, const Type *valType, const Type *rhsType)
     XOR(EDX, EDX);  // RDX = 0
     assert(valType->type == TY_NUM);
     switch (valType->u.num.type) {
-    case NUM_CHAR:  DIV(DIL); break;
-    case NUM_SHORT: DIV(DI); break;
-    case NUM_INT:   DIV(EDI); break;
-    case NUM_LONG:  DIV(RDI); break;
+    case NUM_CHAR:
+      MOVSX(DIL, RDI);
+      MOVSX(AL, EAX);
+      CLTD();
+      IDIV(EDI);
+      break;
+    case NUM_SHORT:
+      MOVSX(DI, EDI);
+      MOVSX(AX, EAX);
+      // Fallthrough
+    case NUM_INT:
+      CLTD();
+      IDIV(EDI);
+      break;
+    case NUM_LONG:
+      CQTO();
+      IDIV(RDI);
+      break;
     default: assert(false); break;
     }
     break;
@@ -484,10 +498,10 @@ void gen_arith(enum ExprType exprType, const Type *valType, const Type *rhsType)
     XOR(EDX, EDX);  // RDX = 0
     assert(valType->type == TY_NUM);
     switch (valType->u.num.type) {
-    case NUM_CHAR:  DIV(DIL); MOV(DL, AL); break;
-    case NUM_SHORT: DIV(DI);  MOV(DX, AX); break;
-    case NUM_INT:   DIV(EDI); MOV(EDX, EAX); break;
-    case NUM_LONG:  DIV(RDI); MOV(RDX, RAX); break;
+    case NUM_CHAR:  IDIV(DIL); MOV(DL, AL); break;
+    case NUM_SHORT: IDIV(DI);  MOV(DX, AX); break;
+    case NUM_INT:   IDIV(EDI); MOV(EDX, EAX); break;
+    case NUM_LONG:  IDIV(RDI); MOV(RDX, RAX); break;
     default: assert(false); break;
     }
     break;

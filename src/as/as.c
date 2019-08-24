@@ -55,7 +55,7 @@ enum Opcode {
   SUB,
   SUBQ,
   MUL,
-  DIV,
+  IDIV,
   NEG,
   NOT,
   INC,
@@ -71,6 +71,8 @@ enum Opcode {
   SHR,
   CMP,
   TEST,
+  CLTD,
+  CQTO,
 
   SETO,
   SETNO,
@@ -125,7 +127,7 @@ static const char *kOpTable[] = {
   "sub",
   "subq",
   "mul",
-  "div",
+  "idiv",
   "neg",
   "not",
   "inc",
@@ -141,6 +143,8 @@ static const char *kOpTable[] = {
   "shr",
   "cmp",
   "test",
+  "cltd",
+  "cqto",
 
   "seto",
   "setno",
@@ -1423,7 +1427,7 @@ static void assemble_line(const Line *line, const char *rawline) {
       }
     }
     break;
-  case DIV:
+  case IDIV:
     if (line->src.type == REG && line->dst.type == NOOPERAND) {
       if (is_reg32(line->src.u.reg)) {
         int s = line->src.u.reg - EAX;
@@ -1761,6 +1765,18 @@ static void assemble_line(const Line *line, const char *rawline) {
         ADD_CODE(0x48, 0x85, 0xc0 + s * 8 + d);
         return;
       }
+    }
+    break;
+  case CLTD:
+    if (line->src.type == NOOPERAND && line->dst.type == NOOPERAND) {
+      ADD_CODE(0x99);
+      return;
+    }
+    break;
+  case CQTO:
+    if (line->src.type == NOOPERAND && line->dst.type == NOOPERAND) {
+      ADD_CODE(0x48, 0x99);
+      return;
     }
     break;
 
