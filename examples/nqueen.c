@@ -6,9 +6,8 @@
 #include "util.c"
 
 void print_board(int board[][8]) {
-  int i, j;
-  for (i = 0; i < 8; i++) {
-    for (j = 0; j < 8; j++)
+  for (int i = 0; i < 8; ++i) {
+    for (int j = 0; j < 8; ++j)
       if (board[i][j])
 	puts("Q ");
       else
@@ -19,8 +18,7 @@ void print_board(int board[][8]) {
 }
 
 int conflict(int board[][8], int row, int col) {
-  int i;
-  for (i = 0; i < row; i++) {
+  for (int i = 0; i < row; ++i) {
     if (board[i][col])
       return 1;
     int j = row - i;
@@ -37,8 +35,7 @@ void solve(int board[][8], int row) {
     print_board(board);
     return;
   }
-  int i;
-  for (i = 0; i < 8; i++) {
+  for (int i = 0; i < 8; ++i) {
     if (conflict(board, row, i)) {
     } else {
       board[row][i] = 1;
@@ -50,9 +47,8 @@ void solve(int board[][8], int row) {
 
 int main() {
   int board[8][8];
-  int i, j;
-  for (i = 0; i < 8; ++i)
-    for (j = 0; j < 8; ++j)
+  for (int i = 0; i < 8; ++i)
+    for (int j = 0; j < 8; ++j)
       board[i][j] = 0;
   solve(board, 0);
   return 0;
