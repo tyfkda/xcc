@@ -419,6 +419,9 @@ typedef struct {
   enum Opcode op;
   Operand src;
   Operand dst;
+
+  enum DirectiveType dir;
+  const char *directive_line;
 } Line;
 
 bool err;
@@ -732,6 +735,7 @@ static void parse_line(const char *str, Line *line) {
   line->label = NULL;
   line->op = NOOP;
   line->src.type = line->dst.type = NOOPERAND;
+  line->dir = NODIRECTIVE;
 
   const char *p = str;
   line->label = parse_label(&p);
@@ -747,7 +751,8 @@ static void parse_line(const char *str, Line *line) {
     enum DirectiveType dir = parse_directive(&p);
     if (dir == NODIRECTIVE)
       error("Unknown directive");
-    handle_directive(dir, p);
+    line->dir = dir;
+    line->directive_line = p;
   } else if (*p != '\0') {
     line->op = parse_opcode(&p);
     if (line->op != NOOP) {
@@ -1874,7 +1879,11 @@ static void assemble(FILE *fp) {
 
     Line line;
     parse_line(rawline, &line);
-    assemble_line(&line, rawline);
+    if (line.dir == NODIRECTIVE) {
+      assemble_line(&line, rawline);
+    } else {
+      handle_directive(line.dir, line.directive_line);
+    }
   }
 }
 
