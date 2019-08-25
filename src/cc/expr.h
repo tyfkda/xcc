@@ -121,7 +121,6 @@ typedef struct Expr {
 //
 
 void not_void(const Type *type);
-bool can_cast(const Type *dst, const Type *src, Expr *src_expr, bool is_explicit);
 
 const Type *parse_raw_type(int *pflag);
 const Type *parse_type_modifier(const Type* type);
