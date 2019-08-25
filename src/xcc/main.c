@@ -205,8 +205,12 @@ int main(int argc, char* argv[]) {
 
   if (res != 0 && !out_asm) {
     assert(pid != -1);
+#if !defined(__XV6)
     kill(pid, SIGKILL);
     remove(ofn);
+#else
+    (void)ofn;
+#endif
   }
 
   if (!out_asm) {
