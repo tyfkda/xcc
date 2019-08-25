@@ -542,7 +542,7 @@ static Vector *assign_initial_value(Expr *expr, Initializer *init, Vector *inits
       parse_error(NULL, "Error initializer");
     vec_push(inits,
              new_node_expr(new_expr_bop(EX_ASSIGN, expr->valType, NULL, expr,
-                                        new_expr_cast(expr->valType, NULL, init->u.single, false))));
+                                        make_cast(expr->valType, NULL, init->u.single, false))));
     break;
   }
 
@@ -744,7 +744,7 @@ Node *sema(Node *node) {
 
         const Token *tok = NULL;
         Expr *val = analyze_expr(node->u.return_.val, false);
-        node->u.return_.val = new_expr_cast(rettype, tok, val, false);
+        node->u.return_.val = make_cast(rettype, tok, val, false);
       }
     }
     break;

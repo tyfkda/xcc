@@ -107,7 +107,7 @@ bool check_cast(const Type *dst, const Type *src, Expr *src_expr, bool is_explic
   return false;
 }
 
-Expr *new_expr_cast(const Type *type, const Token *token, Expr *sub, bool is_explicit) {
+Expr *make_cast(const Type *type, const Token *token, Expr *sub, bool is_explicit) {
   if (type->type == TY_VOID || sub->valType->type == TY_VOID)
     parse_error(NULL, "cannot use `void' as a value");
 
@@ -122,16 +122,7 @@ Expr *new_expr_cast(const Type *type, const Token *token, Expr *sub, bool is_exp
 
   check_cast(type, sub->valType, sub, is_explicit);
 
-  Expr *expr = new_expr(EX_CAST, type, token);
-  expr->u.cast.sub = sub;
-  return expr;
-}
-
-Expr *new_expr_sizeof(const Token *token, const Type *type, Expr *sub) {
-  Expr *expr = new_expr(EX_SIZEOF, &tySize, token);
-  expr->u.sizeof_.type = type;
-  expr->u.sizeof_.sub = sub;
-  return expr;
+  return new_expr_cast(type, token, sub);
 }
 
 // num +|- num
@@ -170,10 +161,10 @@ static Expr *add_num(enum ExprType exprType, const Token *tok, Expr *lhs, Expr *
   const Type *type;
   if (lnt >= rnt || keep_left) {
     type = tyNumTable[lnt];
-    rhs = new_expr_cast(type, rhs->token, rhs, false);
+    rhs = make_cast(type, rhs->token, rhs, false);
   } else {
     type = tyNumTable[rnt];
-    lhs = new_expr_cast(type, lhs->token, lhs, false);
+    lhs = make_cast(type, lhs->token, lhs, false);
   }
   return new_expr_bop(exprType, type, tok, lhs, rhs);
 }
@@ -185,7 +176,7 @@ static Expr *add_ptr_num(enum ExprType exprType, const Token *token, Expr *ptr, 
     ptr_type = array_to_ptr(ptr_type);
   return new_expr_bop(exprType, ptr_type, token, ptr,
                       new_expr_bop(EX_MUL, &tySize, token,
-                                   new_expr_cast(&tySize, token, num, false),
+                                   make_cast(&tySize, token, num, false),
                                    new_expr_sizeof(token, ptr_type->u.pa.ptrof, NULL)));
 }
 
@@ -294,9 +285,9 @@ static bool cast_numbers(Expr **pLhs, Expr **pRhs, bool keep_left) {
     rtype = NUM_INT;
   if (ltype != rtype) {
     if (ltype > rtype || keep_left)
-      *pRhs = new_expr_cast((*pLhs)->valType, (*pRhs)->token, *pRhs, false);
+      *pRhs = make_cast((*pLhs)->valType, (*pRhs)->token, *pRhs, false);
     else if (ltype < rtype)
-      *pLhs = new_expr_cast((*pRhs)->valType, (*pLhs)->token, *pLhs, false);
+      *pLhs = make_cast((*pRhs)->valType, (*pLhs)->token, *pLhs, false);
   }
   return true;
 }
@@ -341,7 +332,7 @@ static Expr *analyze_cmp(Expr *expr) {
     if (!can_cast(lt, rt, rhs, false))
       parse_error(expr->token, "Cannot compare pointer to other types");
     if (rt->type != TY_PTR)
-      expr->u.bop.rhs = new_expr_cast(lhs->valType, expr->token, rhs, false);
+      expr->u.bop.rhs = make_cast(lhs->valType, expr->token, rhs, false);
   } else {
     if (!cast_numbers(&expr->u.bop.lhs, &expr->u.bop.rhs, false))
       parse_error(expr->token, "Cannot compare except numbers");
@@ -520,7 +511,7 @@ Expr *analyze_expr(Expr *expr, bool keep_left) {
 
     case EX_ASSIGN:
       expr->valType = expr->u.bop.lhs->valType;
-      expr->u.bop.rhs = new_expr_cast(expr->valType, expr->token, expr->u.bop.rhs, false);
+      expr->u.bop.rhs = make_cast(expr->valType, expr->token, expr->u.bop.rhs, false);
       break;
 
     default:
@@ -727,12 +718,12 @@ Expr *analyze_expr(Expr *expr, bool keep_left) {
           if (i < param_types->len) {
             Expr *arg = args->data[i];
             const Type *type = (const Type*)param_types->data[i];
-            args->data[i] = new_expr_cast(type, arg->token, arg, false);
+            args->data[i] = make_cast(type, arg->token, arg, false);
           } else if (vaargs && i >= paramc) {
             Expr *arg = args->data[i];
             const Type *type = arg->valType;
             if (type->type == TY_NUM && type->u.num.type < NUM_INT)  // Promote variadic argument.
-              args->data[i] = new_expr_cast(&tyInt, arg->token, arg, false);
+              args->data[i] = make_cast(&tyInt, arg->token, arg, false);
           }
         }
       }

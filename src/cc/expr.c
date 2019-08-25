@@ -16,7 +16,7 @@ static Expr *unary(void);
 
 //
 
-Expr *new_expr(enum ExprType type, const Type *valType, const Token *token) {
+static Expr *new_expr(enum ExprType type, const Type *valType, const Token *token) {
   Expr *expr = malloc(sizeof(*expr));
   expr->type = type;
   expr->valType = valType;
@@ -115,6 +115,19 @@ static Expr *new_expr_funcall(const Token *token, Expr *func, Vector *args) {
 static Expr *new_expr_comma(Vector *list) {
   Expr *expr = new_expr(EX_COMMA, NULL, NULL);
   expr->u.comma.list = list;
+  return expr;
+}
+
+Expr *new_expr_sizeof(const Token *token, const Type *type, Expr *sub) {
+  Expr *expr = new_expr(EX_SIZEOF, &tySize, token);
+  expr->u.sizeof_.type = type;
+  expr->u.sizeof_.sub = sub;
+  return expr;
+}
+
+Expr *new_expr_cast(const Type *type, const Token *token, Expr *sub) {
+  Expr *expr = new_expr(EX_CAST, type, token);
+  expr->u.cast.sub = sub;
   return expr;
 }
 
