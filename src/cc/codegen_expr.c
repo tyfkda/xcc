@@ -743,10 +743,10 @@ void gen_expr(Expr *expr) {
     break;
 
   case EX_CAST:
-    if (expr->u.cast.sub->type == EX_NUM) {
-      assert(expr->u.cast.sub->valType->type == TY_NUM);
-      intptr_t value = expr->u.cast.sub->u.num.ival;
-      enum NumType numtype = expr->u.cast.sub->valType->u.num.type;
+    if (expr->u.unary.sub->type == EX_NUM) {
+      assert(expr->u.unary.sub->valType->type == TY_NUM);
+      intptr_t value = expr->u.unary.sub->u.num.ival;
+      enum NumType numtype = expr->u.unary.sub->valType->u.num.type;
       switch (numtype) {
       case NUM_CHAR:
         value = (int8_t)value;
@@ -780,8 +780,8 @@ void gen_expr(Expr *expr) {
       }
       gen_num(targettype, value);
     } else {
-      gen_expr(expr->u.cast.sub);
-      gen_cast(expr->valType, expr->u.cast.sub->valType);
+      gen_expr(expr->u.unary.sub);
+      gen_cast(expr->valType, expr->u.unary.sub->valType);
     }
     break;
 

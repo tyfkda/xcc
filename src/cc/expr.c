@@ -128,7 +128,7 @@ Expr *new_expr_sizeof(const Token *token, const Type *type, Expr *sub) {
 
 Expr *new_expr_cast(const Type *type, const Token *token, Expr *sub) {
   Expr *expr = new_expr(EX_CAST, type, token);
-  expr->u.cast.sub = sub;
+  expr->u.unary.sub = sub;
   return expr;
 }
 
@@ -631,7 +631,7 @@ static Expr *cast_expr(void) {
         parse_error(NULL, "`)' expected");
       Expr *sub = cast_expr();
       Expr *expr = new_expr(EX_CAST, type, token);
-      expr->u.cast.sub = sub;
+      expr->u.unary.sub = sub;
       return expr;
     }
     unget_token(lpar);

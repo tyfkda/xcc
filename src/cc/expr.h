@@ -91,9 +91,6 @@ typedef struct Expr {
       Expr *sub;
     } unary;
     struct {
-      Expr *sub;
-    } cast;
-    struct {
       Expr *cond;
       Expr *tval;
       Expr *fval;
