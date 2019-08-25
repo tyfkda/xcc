@@ -140,7 +140,6 @@ bool parse_var_def(const Type **prawType, const Type** ptype, int *pflag, Token 
 Expr *parse_const(void);
 Expr *parse_assign(void);
 Expr *parse_expr(void);
-Expr *analyze_expr(Expr *expr, bool keep_left);
 bool check_cast(const Type *dst, const Type *src, Expr *src_expr, bool is_explicit);
 bool is_const(Expr *expr);
 enum ExprType flip_cmp(enum ExprType type);

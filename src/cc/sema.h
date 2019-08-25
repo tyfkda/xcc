@@ -14,7 +14,7 @@ extern Defun *curfunc;
 extern Scope *curscope;
 
 Node *sema(Node *node);
-
+Expr *analyze_expr(Expr *expr, bool keep_left);
 bool can_cast(const Type *dst, const Type *src, Expr *src_expr, bool is_explicit);
 Initializer *flatten_initializer(const Type *type, Initializer *init);
 void ensure_struct(Type *type, const Token *token);

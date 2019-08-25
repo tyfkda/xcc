@@ -96,11 +96,11 @@ typedef struct Node {
     struct {
       struct Expr *value;
       struct Node *body;
-      Vector *case_values;
+      Vector *case_values;  // <intptr_t>
       bool has_default;
     } switch_;
     struct {
-      intptr_t value;
+      Expr *value;
     } case_;
     struct {
       struct Expr *cond;

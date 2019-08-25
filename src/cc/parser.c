@@ -74,7 +74,7 @@ static Node *new_node_switch(Expr *value) {
   return node;
 }
 
-static Node *new_node_case(int value) {
+static Node *new_node_case(Expr *value) {
   Node *node = new_node(ND_CASE);
   node->u.case_.value = value;
   return node;
@@ -269,16 +269,13 @@ static Node *parse_switch(void) {
 }
 
 static Node *parse_case(void) {
-  Token *tok = fetch_token();
-  Expr *valnode = analyze_expr(parse_const(), false);
-  if (!is_const(valnode))
-    parse_error(tok, "Cannot use expression");
-  intptr_t value = valnode->u.num.ival;
+  // Token *tok = fetch_token();
+  Expr *valnode = parse_const();
 
   if (!consume(TK_COLON))
     parse_error(NULL, "`:' expected");
 
-  return new_node_case(value);
+  return new_node_case(valnode);
 }
 
 static Node *parse_default(void) {

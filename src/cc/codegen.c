@@ -815,7 +815,9 @@ static void gen_switch(Node *node) {
 static void gen_case(Node *node) {
   assert(cur_case_values != NULL);
   assert(cur_case_labels != NULL);
-  intptr_t x = node->u.case_.value;
+  Expr *valnode = node->u.case_.value;
+  assert(is_const(valnode));
+  intptr_t x = valnode->u.num.ival;
   int i, len = cur_case_values->len;
   for (i = 0; i < len; ++i) {
     if ((intptr_t)cur_case_values->data[i] == x)

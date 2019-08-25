@@ -754,7 +754,11 @@ Node *sema(Node *node) {
       if (curswitch == NULL)
         parse_error(/*tok*/ NULL, "`case' cannot use outside of `switch`");
 
-      intptr_t value = node->u.case_.value;
+      node->u.case_.value = analyze_expr(node->u.case_.value, false);
+      if (!is_const(node->u.case_.value))
+        parse_error(/*tok*/ NULL, "Cannot use expression");
+      intptr_t value = node->u.case_.value->u.num.ival;
+
       // Check duplication.
       Vector *values = curswitch->u.switch_.case_values;
       for (int i = 0, len = values->len; i < len; ++i) {
