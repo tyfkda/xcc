@@ -4,6 +4,7 @@
 #include <stdlib.h>  // malloc
 
 #include "expr.h"
+#include "parser.h"  // Initializer
 #include "sema.h"
 #include "type.h"
 #include "util.h"

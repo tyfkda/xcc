@@ -8,7 +8,6 @@
 typedef struct Map Map;
 typedef struct Token Token;
 typedef struct Vector Vector;
-typedef struct Initializer Initializer;
 
 // Num
 

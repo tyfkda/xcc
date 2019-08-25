@@ -18,24 +18,6 @@ typedef union {
   intptr_t ival;
 } Num;
 
-// Initializer
-
-typedef struct Initializer {
-  enum { vSingle, vMulti, vDot, vArr } type;  // vSingle: 123, vMulti: {...}, vDot: .x=123, vArr: [n]=123
-  union {
-    Expr *single;
-    Vector *multi;  // <Initializer*>
-    struct {
-      const char *name;
-      struct Initializer *value;
-    } dot;
-    struct {
-      Expr *index;
-      struct Initializer *value;
-    } arr;
-  } u;
-} Initializer;
-
 extern Map *typedef_map;  // <char*, Type*>
 
 // Expr
