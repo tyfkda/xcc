@@ -19,7 +19,7 @@ CC1_SRCS:=$(CC1_DIR)/lexer.c $(CC1_DIR)/type.c $(CC1_DIR)/var.c $(CC1_DIR)/expr.
 	$(UTIL_DIR)/util.c
 CPP_SRCS:=$(CPP_DIR)/cpp.c $(CC1_DIR)/lexer.c $(CC1_DIR)/type.c $(CC1_DIR)/var.c $(CC1_DIR)/expr.c $(CC1_DIR)/analyze.c \
 	$(UTIL_DIR)/util.c
-AS_SRCS:=$(AS_DIR)/as.c $(AS_DIR)/gen.c $(UTIL_DIR)/util.c $(UTIL_DIR)/elfutil.c
+AS_SRCS:=$(AS_DIR)/as.c $(AS_DIR)/inst.c $(AS_DIR)/gen.c $(UTIL_DIR)/util.c $(UTIL_DIR)/elfutil.c
 
 XCC_OBJS:=$(addprefix $(OBJ_DIR)/,$(notdir $(XCC_SRCS:.c=.o)))
 CC1_OBJS:=$(addprefix $(OBJ_DIR)/,$(notdir $(CC1_SRCS:.c=.o)))
