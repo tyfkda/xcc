@@ -14,10 +14,6 @@ static StructInfo *parse_struct(bool is_union);
 static Expr *cast_expr(void);
 static Expr *unary(void);
 
-// Typedef
-
-Map *typedef_map;
-
 //
 
 Expr *new_expr(enum ExprType type, const Type *valType, const Token *token) {
@@ -264,7 +260,7 @@ const Type *parse_raw_type(int *pflag) {
     } else if (consume(TK_ENUM)) {
       type = parse_enum();
     } else if ((ident = consume(TK_IDENT)) != NULL) {
-      type = map_get(typedef_map, ident->u.ident);
+      type = find_typedef(ident->u.ident);
       if (type == NULL)
         unget_token(ident);
     } else {

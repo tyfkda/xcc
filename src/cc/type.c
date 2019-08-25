@@ -172,3 +172,18 @@ void dump_type(FILE *fp, const Type *type) {
   }
 }
 #endif
+
+// Typedef
+
+Map *typedef_map;  // <char*, Type*>
+
+const Type *find_typedef(const char *ident) {
+  return map_get(typedef_map, ident);
+}
+
+bool add_typedef(const char *ident, const Type *type) {
+  if (map_get(typedef_map, ident) != NULL)
+    return false;
+  map_put(typedef_map, ident, type);
+  return true;
+}

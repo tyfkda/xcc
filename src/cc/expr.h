@@ -18,8 +18,6 @@ typedef union {
   intptr_t ival;
 } Num;
 
-extern Map *typedef_map;  // <char*, Type*>
-
 // Expr
 
 enum ExprType {

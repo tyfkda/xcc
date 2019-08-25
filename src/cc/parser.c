@@ -507,8 +507,7 @@ static void parse_typedef(void) {
       parse_error(NULL, "ident expected");
   }
   const char *name = ident->u.ident;
-
-  map_put(typedef_map, name, type);
+  add_typedef(name, type);
 
   if (!consume(TK_SEMICOL))
     parse_error(NULL, "`;' expected");
