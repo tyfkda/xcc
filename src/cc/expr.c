@@ -15,16 +15,6 @@ static StructInfo *parse_struct(bool is_union);
 static Expr *cast_expr(void);
 static Expr *unary(void);
 
-//
-
-static Expr *new_expr(enum ExprType type, const Type *valType, const Token *token) {
-  Expr *expr = malloc(sizeof(*expr));
-  expr->type = type;
-  expr->valType = valType;
-  expr->token = token;
-  return expr;
-}
-
 bool is_const(Expr *expr) {
   // TODO: Handle constant variable.
 
@@ -37,11 +27,26 @@ bool is_const(Expr *expr) {
   }
 }
 
+void not_void(const Type *type) {
+  if (type->type == TY_VOID)
+    parse_error(NULL, "`void' not allowed");
+}
+
 enum ExprType flip_cmp(enum ExprType type) {
   assert(EX_EQ <= type && type <= EX_GT);
   if (type >= EX_LT)
     type = EX_GT - (type - EX_LT);
   return type;
+}
+
+//
+
+static Expr *new_expr(enum ExprType type, const Type *valType, const Token *token) {
+  Expr *expr = malloc(sizeof(*expr));
+  expr->type = type;
+  expr->valType = valType;
+  expr->token = token;
+  return expr;
 }
 
 Expr *new_expr_numlit(const Type *type, const Token *token, const Num *num) {
@@ -300,11 +305,6 @@ const Type *parse_raw_type(int *pflag) {
     *pflag = flag;
 
   return type;
-}
-
-void not_void(const Type *type) {
-  if (type->type == TY_VOID)
-    parse_error(NULL, "`void' not allowed");
 }
 
 const Type *parse_type_modifier(const Type* type) {

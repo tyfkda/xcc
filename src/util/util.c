@@ -192,6 +192,10 @@ void vec_push(Vector *vec, const void *elem) {
   vec->data[vec->len++] = (void*)elem;
 }
 
+void *vec_pop(Vector *vec) {
+  return vec->len > 0 ? vec->data[--vec->len] : NULL;
+}
+
 //
 
 Map *new_map(void) {

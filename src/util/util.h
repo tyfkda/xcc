@@ -34,6 +34,7 @@ typedef struct Vector {
 
 Vector *new_vector(void);
 void vec_push(Vector *vec, const void *elem);
+void *vec_pop(Vector *vec);
 
 typedef struct Map {
   Vector *keys;

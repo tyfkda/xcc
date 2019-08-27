@@ -16,7 +16,6 @@ Scope *curscope;
 void ensure_struct(Type *type, const Token *token) {
   assert(type->type == TY_STRUCT);
   if (type->u.struct_.info == NULL) {
-    // TODO: Search from name.
     StructInfo *sinfo = (StructInfo*)map_get(struct_map, type->u.struct_.name);
     if (sinfo == NULL)
       parse_error(token, "Accessing unknown struct(%s)'s member", type->u.struct_.name);
@@ -292,7 +291,7 @@ static bool cast_numbers(Expr **pLhs, Expr **pRhs, bool keep_left) {
   return true;
 }
 
-static bool member_access_recur(const Type *type, const Token *ident, Vector *stack) {
+static bool search_from_anonymous(const Type *type, const Token *ident, Vector *stack) {
   assert(type->type == TY_STRUCT);
   ensure_struct((Type*)type, ident);
   const char *name = ident->u.ident;
@@ -306,12 +305,11 @@ static bool member_access_recur(const Type *type, const Token *ident, Vector *st
         return true;
       }
     } else if (info->type->type == TY_STRUCT) {
-      vec_push(stack, (void*)(long)i);
-      bool res = member_access_recur(info->type, ident, stack);
+      vec_push(stack, (void*)(intptr_t)i);
+      bool res = search_from_anonymous(info->type, ident, stack);
       if (res)
         return true;
-      //vec_pop(stack);
-      --stack->len;
+      vec_pop(stack);
     }
   }
   return false;
@@ -658,7 +656,7 @@ Expr *analyze_expr(Expr *expr, bool keep_left) {
         expr->u.member.index = index;
       } else {
         Vector *stack = new_vector();
-        bool res = member_access_recur(targetType, ident, stack);
+        bool res = search_from_anonymous(targetType, ident, stack);
         if (!res)
           parse_error(ident, "`%s' doesn't exist in the struct", name);
         Expr *p = target;
@@ -746,7 +744,6 @@ Expr *analyze_expr(Expr *expr, bool keep_left) {
     break;
   }
 
-if (expr->valType == NULL) { fprintf(stderr, "expr->type=%d, ", expr->type); }
   assert(expr->valType != NULL);
   return expr;
 }

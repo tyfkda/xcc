@@ -2,11 +2,8 @@
 
 #include <stdbool.h>
 #include <stdint.h>  // intptr_t
-#include <stdio.h>  // FILE
-#include <sys/types.h>  // ssize_t
+#include <stddef.h>  // size_t
 
-typedef struct Expr Expr;
-typedef struct Map Map;
 typedef struct Scope Scope;
 typedef struct Token Token;
 typedef struct Type Type;
@@ -22,51 +19,50 @@ typedef union {
 
 enum ExprType {
   // Literals
-  EX_NUM,
-  EX_STR,
+  EX_NUM,     // 1234
+  EX_STR,     // "foobar"
 
-  EX_VARREF,
+  EX_VARREF,  // foobar
 
   // Binary operators
-  EX_ADD,  // num + num
-  EX_SUB,  // num - num
-  EX_MUL,  // num * num
-  EX_DIV,  // num / num
-  EX_MOD,  // num % num
-  EX_BITAND,
-  EX_BITOR,
-  EX_BITXOR,
-  EX_LSHIFT,  // num << num
-  EX_RSHIFT,  // num >> num
-  EX_EQ,
-  EX_NE,
-  EX_LT,
-  EX_LE,
-  EX_GE,
-  EX_GT,
-  EX_LOGAND,
-  EX_LOGIOR,
-  EX_ASSIGN,
+  EX_ADD,     // +
+  EX_SUB,     // -
+  EX_MUL,     // *
+  EX_DIV,     // /
+  EX_MOD,     // %
+  EX_BITAND,  // &
+  EX_BITOR,   // |
+  EX_BITXOR,  // ^
+  EX_LSHIFT,  // <<
+  EX_RSHIFT,  // >>
+  EX_EQ,      // ==
+  EX_NE,      // !=
+  EX_LT,      // <
+  EX_LE,      // <=
+  EX_GE,      // >=
+  EX_GT,      // >
+  EX_LOGAND,  // &&
+  EX_LOGIOR,  // ||
+  EX_ASSIGN,  // =
 
   // Unary operators
-  EX_POS,  // +num
-  EX_NEG,  // -num
-  EX_NOT,  // !x
-  EX_PREINC,
-  EX_PREDEC,
-  EX_POSTINC,
-  EX_POSTDEC,
-  EX_REF,    // &x
-  EX_DEREF,  // *x
+  EX_POS,     // +
+  EX_NEG,     // -
+  EX_NOT,     // !
+  EX_PREINC,  // ++e
+  EX_PREDEC,  // --e
+  EX_POSTINC, // e++
+  EX_POSTDEC, // e--
+  EX_REF,     // &
+  EX_DEREF,   // *
   EX_CAST,
   EX_ASSIGN_WITH,  // +=, etc.
 
-  EX_TERNARY,
-
+  EX_TERNARY, // a ? b : c
   EX_MEMBER,  // x.member or x->member
-  EX_SIZEOF,
-  EX_FUNCALL,
-  EX_COMMA,
+  EX_SIZEOF,  // sizeof(x)
+  EX_FUNCALL, // f(x, y, ...)
+  EX_COMMA,   // (a, b, ...)
 };
 
 typedef struct Expr {
@@ -84,29 +80,29 @@ typedef struct Expr {
       Scope *scope;  // NULL = global, non NULL = local
     } varref;
     struct {
-      Expr *lhs;
-      Expr *rhs;
+      struct Expr *lhs;
+      struct Expr *rhs;
     } bop;
     struct {
-      Expr *sub;
+      struct Expr *sub;
     } unary;
     struct {
-      Expr *cond;
-      Expr *tval;
-      Expr *fval;
+      struct Expr *cond;
+      struct Expr *tval;
+      struct Expr *fval;
     } ternary;
     struct {
-      Expr *target;
+      struct Expr *target;
       const Token *acctok;  // TK_DOT(.) or TK_ARROW(->)
       const Token *ident;
       int index;
     } member;
     struct {
-      const Type *type;
-      Expr *sub;
+      const Type *type;  // sizeof(Type), or
+      struct Expr *sub;  // sizeof(value)
     } sizeof_;
     struct {
-      Expr *func;
+      struct Expr *func;
       Vector *args;  // <Expr*>
     } funcall;
     struct {
@@ -116,8 +112,6 @@ typedef struct Expr {
 } Expr;
 
 //
-
-void not_void(const Type *type);
 
 const Type *parse_raw_type(int *pflag);
 const Type *parse_type_modifier(const Type* type);
@@ -139,4 +133,5 @@ Expr *parse_assign(void);
 Expr *parse_expr(void);
 bool check_cast(const Type *dst, const Type *src, Expr *src_expr, bool is_explicit);
 bool is_const(Expr *expr);
+void not_void(const Type *type);
 enum ExprType flip_cmp(enum ExprType type);
