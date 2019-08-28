@@ -723,6 +723,7 @@ void gen_expr(Expr *expr) {
       break;
     case TY_PTR:  MOV(INDIRECT(RAX), RAX); break;
     case TY_ARRAY:
+    case TY_STRUCT:
       break;
     default:
       assert(false);
