@@ -108,6 +108,18 @@ IR *new_ir_label(const char *label, bool global) {
   return ir;
 }
 
+IR *new_ir_assign_lval(int size) {
+  IR *ir = new_ir(IR_ASSIGN_LVAL);
+  ir->size = size;
+  return ir;
+}
+
+IR *new_ir_clear(size_t size) {
+  IR *ir = new_ir(IR_CLEAR);
+  ir->size = size;
+  return ir;
+}
+
 static void ir_memcpy(ssize_t size) {
   const char *dst = RDI;
   const char *src = RAX;
@@ -145,6 +157,17 @@ static void ir_memcpy(ssize_t size) {
       POP(RAX);
     }
     break;
+  }
+}
+
+static void ir_out_store(int size) {
+  // Store %rax to %rdi
+  switch (size) {
+  case 1:  MOV(AL, INDIRECT(RDI)); break;
+  case 2:  MOV(AX, INDIRECT(RDI)); break;
+  case 4:  MOV(EAX, INDIRECT(RDI)); break;
+  case 8:  MOV(RAX, INDIRECT(RDI)); break;
+  default:  assert(false); break;
   }
 }
 
@@ -264,13 +287,7 @@ void ir_out(const IR *ir) {
 
   case IR_STORE:
     POP(RDI); POP_STACK_POS();
-    switch (ir->size) {
-    case 1:  MOV(AL, INDIRECT(RDI)); break;
-    case 2:  MOV(AX, INDIRECT(RDI)); break;
-    case 4:  MOV(EAX, INDIRECT(RDI)); break;
-    case 8:  MOV(RAX, INDIRECT(RDI)); break;
-    default:  assert(false); break;
-    }
+    ir_out_store(ir->size);
     break;
 
   case IR_MEMCPY:
@@ -499,6 +516,29 @@ void ir_out(const IR *ir) {
     if (ir->u.label.global)
       _GLOBL(ir->u.label.name);
     EMIT_LABEL(ir->u.label.name);
+    break;
+
+  case IR_SAVE_LVAL:
+    MOV(RAX, RSI);  // Save lhs address to %rsi.
+    break;
+
+  case IR_ASSIGN_LVAL:
+    MOV(RSI, RDI);
+    ir_out_store(ir->size);
+    break;
+
+  case IR_CLEAR:
+    {
+      const char *loop = alloc_label();
+      MOV(RAX, RSI);
+      MOV(IM(ir->size), EDI);
+      XOR(AL, AL);
+      EMIT_LABEL(loop);
+      MOV(AL, INDIRECT(RSI));
+      INC(RSI);
+      DEC(EDI);
+      JNE(loop);
+    }
     break;
 
   default:

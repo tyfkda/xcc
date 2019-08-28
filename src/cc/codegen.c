@@ -845,15 +845,8 @@ static void gen_label(Node *node) {
 static void gen_clear_local_var(const VarInfo *varinfo) {
   // Fill with zeros regardless of variable type.
   int offset = varinfo->offset;
-  const char *loop = alloc_label();
-  LEA(OFFSET_INDIRECT(offset, RBP), RSI);
-  MOV(IM(type_size(varinfo->type)), EDI);
-  XOR(AL, AL);
-  EMIT_LABEL(loop);
-  MOV(AL, INDIRECT(RSI));
-  INC(RSI);
-  DEC(EDI);
-  JNE(loop);
+  new_ir_bofs(offset);
+  new_ir_clear(type_size(varinfo->type));
 }
 
 static void gen_vardecl(Node *node) {

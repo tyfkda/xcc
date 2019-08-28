@@ -33,6 +33,9 @@ enum IrType {
   IR_CALL,
   IR_ADDSP,
   IR_LABEL,
+  IR_SAVE_LVAL,
+  IR_ASSIGN_LVAL,
+  IR_CLEAR,
 };
 
 enum ConditionType {
@@ -90,5 +93,7 @@ IR *new_ir_jmp(enum ConditionType cond, const char *label);
 IR *new_ir_call(const char *label, int arg_count);
 IR *new_ir_addsp(int value);
 IR *new_ir_label(const char *label, bool global);
+IR *new_ir_assign_lval(int size);
+IR *new_ir_clear(size_t size);
 
 void ir_out(const IR *ir);

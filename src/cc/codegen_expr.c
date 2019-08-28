@@ -452,20 +452,13 @@ void gen_expr(Expr *expr) {
     gen_rval(expr->u.unary.sub);
     switch (expr->valType->type) {
     case TY_NUM:
-      switch (expr->valType->u.num.type) {
-      case NUM_CHAR:  MOV(INDIRECT(RAX), AL); break;
-      case NUM_SHORT: MOV(INDIRECT(RAX), AX); break;
-      case NUM_INT: case NUM_ENUM:
-        MOV(INDIRECT(RAX), EAX);
-        break;
-      case NUM_LONG:  MOV(INDIRECT(RAX), RAX); break;
-      default: assert(false); break;
-      }
+    case TY_PTR:
+      new_ir_load(type_size(expr->valType));
       break;
-    case TY_PTR:  MOV(INDIRECT(RAX), RAX); break;
-    case TY_ARRAY: break;
+
+    case TY_ARRAY:
     case TY_STRUCT:
-      // struct value is handled as a pointer.
+      // array and struct values are handled as a pointer.
       break;
     default: assert(false); break;
     }
@@ -558,42 +551,13 @@ void gen_expr(Expr *expr) {
     {
       Expr *sub = expr->u.unary.sub;
       gen_expr(sub->u.bop.rhs);
-      PUSH(RAX); PUSH_STACK_POS();
+      new_ir_st(IR_PUSH);
       gen_lval(sub->u.bop.lhs);
-      MOV(RAX, RSI);  // Save lhs address to %rsi.
-
-      // Move lhs to %?ax
-      switch (expr->u.bop.lhs->valType->type) {
-      case TY_NUM:
-        switch (expr->u.bop.lhs->valType->u.num.type) {
-        case NUM_CHAR:  MOV(INDIRECT(RAX), AL); break;
-        case NUM_SHORT: MOV(INDIRECT(RAX), AX); break;
-        case NUM_INT:   MOV(INDIRECT(RAX), EAX); break;
-        case NUM_LONG:  MOV(INDIRECT(RAX), RAX); break;
-        default: assert(false); break;
-        }
-        break;
-      case TY_PTR:  MOV(INDIRECT(RAX), RAX); break;
-      default: assert(false); break;
-      }
-
-      POP(RDI); POP_STACK_POS();  // %rdi=rhs
+      new_ir_st(IR_SAVE_LVAL);
+      new_ir_load(type_size(sub->u.bop.lhs->valType));
       gen_arith(sub->type, sub->valType, sub->u.bop.rhs->valType);
       gen_cast(expr->valType, sub->valType);
-
-      switch (expr->valType->type) {
-      case TY_NUM:
-        switch (expr->valType->u.num.type) {
-        case NUM_CHAR:  MOV(AL, INDIRECT(RSI)); break;
-        case NUM_SHORT: MOV(AX, INDIRECT(RSI)); break;
-        case NUM_INT:   MOV(EAX, INDIRECT(RSI)); break;
-        case NUM_LONG:  MOV(RAX, INDIRECT(RSI)); break;
-        default: assert(false); break;
-        }
-        break;
-      case TY_PTR:  MOV(RAX, INDIRECT(RSI)); break;
-      default: assert(false); break;
-      }
+      new_ir_assign_lval(type_size(expr->valType));
     }
     return;
 
