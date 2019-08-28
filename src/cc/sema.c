@@ -236,10 +236,7 @@ Initializer *flatten_initializer(const Type *type, Initializer *init) {
 
   switch (type->type) {
   case TY_STRUCT:
-    {
-      if (init->type != vMulti)
-        parse_error(NULL, "`{...}' expected for initializer");
-
+    if (init->type == vMulti) {
       ensure_struct((Type*)type, NULL);
       const StructInfo *sinfo = type->u.struct_.info;
       int n = sinfo->members->len;
@@ -306,6 +303,7 @@ Initializer *flatten_initializer(const Type *type, Initializer *init) {
 
       return flat;
     }
+    break;
   case TY_ARRAY:
     switch (init->type) {
     case vMulti:
@@ -515,8 +513,12 @@ static Vector *assign_initial_value(Expr *expr, Initializer *init, Vector *inits
     break;
   case TY_STRUCT:
     {
-      if (init->type != vMulti)
-        parse_error(NULL, "`{...}' expected for initializer");
+      if (init->type != vMulti) {
+        vec_push(inits,
+                 new_node_expr(new_expr_bop(EX_ASSIGN, expr->valType, NULL, expr,
+                                            init->u.single)));
+        break;
+      }
 
       const StructInfo *sinfo = expr->valType->u.struct_.info;
       if (!sinfo->is_union) {
