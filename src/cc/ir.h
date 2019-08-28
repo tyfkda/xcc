@@ -9,6 +9,7 @@
 enum IrType {
   IR_IMM,   // Immediate value
   IR_BOFS,  // basereg+ofs
+  IR_IOFS,  // label(rip)
   IR_LOAD,
   IR_STORE,
   IR_MEMCPY,
@@ -16,7 +17,16 @@ enum IrType {
   IR_SUB,
   IR_MUL,
   IR_DIV,
+  IR_MOD,
+  IR_BITAND,
+  IR_BITOR,
+  IR_BITXOR,
+  IR_LSHIFT,
+  IR_RSHIFT,
   IR_CMP,
+  IR_INCDEC,
+  IR_NEG,
+  IR_NOT,
   IR_SET,   // SETxx: flag => 0 or 1
   IR_PUSH,
   IR_JMP,
@@ -42,6 +52,13 @@ typedef struct {
 
   union {
     struct {
+      const char *label;
+    } iofs;
+    struct {
+      bool inc;
+      bool pre;
+    } incdec;
+    struct {
       enum ConditionType cond;
     } set;
     struct {
@@ -61,10 +78,12 @@ typedef struct {
 
 IR *new_ir_imm(intptr_t value, int size);
 IR *new_ir_bofs(int offset);
+IR *new_ir_iofs(const char *label);
 IR *new_ir_load(int size);
 IR *new_ir_store(int size);
 IR *new_ir_memcpy(size_t size);
 IR *new_ir_op(enum IrType type, int size);
+IR *new_ir_incdec(bool inc, bool pre, int size, intptr_t value);
 IR *new_ir_st(enum IrType type);
 IR *new_ir_set(enum ConditionType cond);
 IR *new_ir_jmp(enum ConditionType cond, const char *label);

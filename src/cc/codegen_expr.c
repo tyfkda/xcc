@@ -273,7 +273,7 @@ static void gen_lval(Expr *expr) {
   switch (expr->type) {
   case EX_VARREF:
     if (expr->u.varref.scope == NULL) {
-      LEA(LABEL_INDIRECT(expr->u.varref.ident, RIP), RAX);
+      new_ir_iofs(expr->u.varref.ident);
     } else {
       Scope *scope = expr->u.varref.scope;
       VarInfo *varinfo = scope_find(&scope, expr->u.varref.ident);
@@ -300,8 +300,11 @@ static void gen_lval(Expr *expr) {
         gen_expr(expr->u.member.target);
       else
         gen_ref(expr->u.member.target);
-      if (varinfo->offset != 0)
-        ADD(IM(varinfo->offset), RAX);
+      if (varinfo->offset != 0) {
+        new_ir_st(IR_PUSH);
+        new_ir_imm(varinfo->offset, type_size(&tyLong));
+        new_ir_op(IR_ADD, type_size(&tySize));
+      }
     }
     break;
   default:
@@ -331,10 +334,10 @@ static void gen_ternary(Expr *expr) {
   const char *flabel = alloc_label();
   gen_cond_jmp(expr->u.ternary.cond, false, flabel);
   gen_expr(expr->u.ternary.tval);
-  JMP(nlabel);
-  EMIT_LABEL(flabel);
+  new_ir_jmp(COND_ANY, nlabel);
+  new_ir_label(flabel, false);
   gen_expr(expr->u.ternary.fval);
-  EMIT_LABEL(nlabel);
+  new_ir_label(nlabel, false);
 }
 
 static void gen_funcall(Expr *expr) {
@@ -388,90 +391,20 @@ static void gen_funcall(Expr *expr) {
 
 void gen_arith(enum ExprType exprType, const Type *valType, const Type *rhsType) {
   // lhs=rax, rhs=rdi, result=rax
+  UNUSED(rhsType);
 
   switch (exprType) {
   case EX_ADD:
   case EX_SUB:
   case EX_MUL:
   case EX_DIV:
-    new_ir_op(exprType + (IR_ADD - EX_ADD), type_size(valType));
-    break;
-
   case EX_MOD:
-    XOR(EDX, EDX);  // RDX = 0
-    assert(valType->type == TY_NUM);
-    switch (valType->u.num.type) {
-    case NUM_CHAR:  IDIV(DIL); MOV(DL, AL); break;
-    case NUM_SHORT: IDIV(DI);  MOV(DX, AX); break;
-    case NUM_INT:   IDIV(EDI); MOV(EDX, EAX); break;
-    case NUM_LONG:  IDIV(RDI); MOV(RDX, RAX); break;
-    default: assert(false); break;
-    }
-    break;
-
   case EX_BITAND:
-    assert(valType->type == TY_NUM);
-    switch (valType->u.num.type) {
-    case NUM_CHAR:  AND(DIL, AL); break;
-    case NUM_SHORT: AND(DI, AX); break;
-    case NUM_INT:   AND(EDI, EAX); break;
-    case NUM_LONG:  AND(RDI, RAX); break;
-    default: assert(false); break;
-    }
-    break;
-
   case EX_BITOR:
-    assert(valType->type == TY_NUM);
-    switch (valType->u.num.type) {
-    case NUM_CHAR:  OR(DIL, AL); break;
-    case NUM_SHORT: OR(DI, AX); break;
-    case NUM_INT: case NUM_ENUM:
-      OR(EDI, EAX);
-      break;
-    case NUM_LONG:  OR(RDI, RAX); break;
-    default: assert(false); break;
-    }
-    break;
-
   case EX_BITXOR:
-    assert(valType->type == TY_NUM);
-    switch (valType->u.num.type) {
-    case NUM_CHAR:  XOR(DIL, AL); break;
-    case NUM_SHORT: XOR(DI, AX); break;
-    case NUM_INT:   XOR(EDI, EAX); break;
-    case NUM_LONG:  XOR(RDI, RAX); break;
-    default: assert(false); break;
-    }
-    break;
-
   case EX_LSHIFT:
   case EX_RSHIFT:
-    assert(rhsType->type == TY_NUM);
-    switch (rhsType->u.num.type) {
-    case NUM_CHAR:  MOV(DIL, CL); break;
-    case NUM_SHORT: MOV(DI, CX); break;
-    case NUM_INT:   MOV(EDI, ECX); break;
-    case NUM_LONG:  MOV(RDI, RCX); break;
-    default: assert(false); break;
-    }
-    assert(valType->type == TY_NUM);
-    if (exprType == EX_LSHIFT) {
-      switch (valType->u.num.type) {
-      case NUM_CHAR:  SHL(CL, AL); break;
-      case NUM_SHORT: SHL(CL, AX); break;
-      case NUM_INT:   SHL(CL, EAX); break;
-      case NUM_LONG:  SHL(CL, RAX); break;
-      default: assert(false); break;
-      }
-    } else {
-      switch (valType->u.num.type) {
-      case NUM_CHAR:  SHR(CL, AL); break;
-      case NUM_SHORT: SHR(CL, AX); break;
-      case NUM_INT:   SHR(CL, EAX); break;
-      case NUM_LONG:  SHR(CL, RAX); break;
-      default: assert(false); break;
-      }
-    }
+    new_ir_op(exprType + (IR_ADD - EX_ADD), type_size(valType));
     break;
 
   default:
@@ -497,18 +430,14 @@ void gen_expr(Expr *expr) {
       const char * label = alloc_label();
       Type* strtype = arrayof(&tyChar, expr->u.str.size);
       VarInfo *varinfo = define_global(strtype, VF_CONST | VF_STATIC, NULL, label);
-
       varinfo->u.g.init = init;
 
-      LEA(LABEL_INDIRECT(label, RIP), RAX);
+      new_ir_iofs(label);
     }
     return;
 
   case EX_SIZEOF:
-    {
-      size_t size = type_size(expr->u.sizeof_.type);
-      MOV(IM(size), RAX);
-    }
+    new_ir_imm(type_size(expr->u.sizeof_.type), type_size(expr->valType));
     return;
 
   case EX_VARREF:
@@ -670,97 +599,15 @@ void gen_expr(Expr *expr) {
 
   case EX_PREINC:
   case EX_PREDEC:
-    gen_lval(expr->u.unary.sub);
-    switch (expr->valType->type) {
-    case TY_NUM:
-      switch (expr->valType->u.num.type) {
-      case NUM_CHAR:
-        if (expr->type == EX_PREINC)  INCB(INDIRECT(RAX));
-        else                          DECB(INDIRECT(RAX));
-        MOV(INDIRECT(RAX), AL);
-        break;
-      case NUM_SHORT:
-        if (expr->type == EX_PREINC)  INCW(INDIRECT(RAX));
-        else                          DECW(INDIRECT(RAX));
-        MOV(INDIRECT(RAX), AX);
-        break;
-      case NUM_INT:
-        if (expr->type == EX_PREINC)  INCL(INDIRECT(RAX));
-        else                          DECL(INDIRECT(RAX));
-        MOV(INDIRECT(RAX), EAX);
-        break;
-      case NUM_LONG:
-        if (expr->type == EX_PREINC)  INCQ(INDIRECT(RAX));
-        else                          DECQ(INDIRECT(RAX));
-        MOV(INDIRECT(RAX), RAX);
-        break;
-      default: assert(false); break;
-      }
-      break;
-    case TY_PTR:
-      {
-        MOV(RAX, RDI);
-        size_t size = type_size(expr->valType->u.pa.ptrof);
-        MOV(IM(expr->type == EX_PREINC ? size : -size), RAX);
-        ADD(INDIRECT(RDI), RAX);
-        MOV(RAX, INDIRECT(RDI));
-      }
-      break;
-    default:
-      assert(false);
-      break;
-    }
-    return;
-
   case EX_POSTINC:
   case EX_POSTDEC:
-    gen_lval(expr->u.unary.sub);
-    switch (expr->valType->type) {
-    case TY_NUM:
-      switch (expr->valType->u.num.type) {
-      case NUM_CHAR:
-        MOV(INDIRECT(RAX), DIL);
-        if (expr->type == EX_POSTINC)  INCB(INDIRECT(RAX));
-        else                           DECB(INDIRECT(RAX));
-        MOV(DIL, AL);
-        break;
-      case NUM_SHORT:
-        MOV(INDIRECT(RAX), DI);
-        if (expr->type == EX_POSTINC)  INCW(INDIRECT(RAX));
-        else                           DECW(INDIRECT(RAX));
-        MOV(DI, AX);
-        break;
-      case NUM_INT:
-        MOV(INDIRECT(RAX), EDI);
-        if (expr->type == EX_POSTINC)  INCL(INDIRECT(RAX));
-        else                           DECL(INDIRECT(RAX));
-        MOV(EDI, EAX);
-        break;
-      case NUM_LONG:
-        MOV(INDIRECT(RAX), RDI);
-        if (expr->type == EX_POSTINC)  INCQ(INDIRECT(RAX));
-        else                           DECQ(INDIRECT(RAX));
-        MOV(RDI, RAX);
-        break;
-      default: assert(false); break;
-      }
-      break;
-    case TY_PTR:
-      {
-        MOV(INDIRECT(RAX), RDI);
-        size_t size = type_size(expr->valType->u.pa.ptrof);
-        assert(size < ((size_t)1 << 31));  // TODO:
-        if (expr->type == EX_POSTINC) {
-          ADDQ(IM(size), INDIRECT(RAX));
-        } else {
-          SUBQ(IM(size), INDIRECT(RAX));
-        }
-        MOV(RDI, RAX);
-      }
-      break;
-    default:
-      assert(false);
-      break;
+    {
+      size_t value = 1;
+      if (expr->valType->type == TY_PTR)
+        value = type_size(expr->valType->u.pa.ptrof);
+      gen_lval(expr->u.unary.sub);
+      new_ir_incdec(((expr->type - EX_PREINC) & 1) == 0, expr->type < EX_POSTINC,
+                    type_size(expr->valType), value);
     }
     return;
 
@@ -770,35 +617,21 @@ void gen_expr(Expr *expr) {
 
   case EX_NEG:
     gen_expr(expr->u.unary.sub);
-    assert(expr->valType->type == TY_NUM);
-    switch (expr->u.unary.sub->valType->u.num.type) {
-    case NUM_CHAR:   NEG(AL); break;
-    case NUM_SHORT:  NEG(AX); break;
-    case NUM_INT:    NEG(EAX); break;
-    case NUM_LONG:   NEG(RAX); break;
-    default:  assert(false); break;
-    }
+    new_ir_op(IR_NEG, type_size(expr->valType));
     break;
 
   case EX_NOT:
     gen_expr(expr->u.unary.sub);
     switch (expr->u.unary.sub->valType->type) {
-    case TY_NUM:
-      switch (expr->u.unary.sub->valType->u.num.type) {
-      case NUM_CHAR:   TEST(AL, AL); break;
-      case NUM_SHORT:  TEST(AX, AX); break;
-      case NUM_INT:    TEST(EAX, EAX); break;
-      case NUM_LONG:   TEST(RAX, RAX); break;
-      default:  assert(false); break;
-      }
+    case TY_NUM: case TY_PTR:
+      new_ir_op(IR_NOT, type_size(expr->u.unary.sub->valType));
       break;
-    case TY_PTR: case TY_ARRAY: case TY_FUNC:
-      TEST(RAX, RAX);
+    case TY_ARRAY: case TY_FUNC:
+      // Array is handled as a pointer.
+      new_ir_op(IR_NOT, WORD_SIZE);
       break;
     default:  assert(false); break;
     }
-    SETE(AL);
-    MOVSX(AL, EAX);
     break;
 
   case EX_EQ:
@@ -819,11 +652,11 @@ void gen_expr(Expr *expr) {
       const char *l_next = alloc_label();
       gen_cond_jmp(expr->u.bop.lhs, false, l_false);
       gen_cond_jmp(expr->u.bop.rhs, false, l_false);
-      MOV(IM(1), EAX);
-      JMP(l_next);
-      EMIT_LABEL(l_false);
-      XOR(EAX, EAX);  // 0
-      EMIT_LABEL(l_next);
+      new_ir_imm(true, type_size(&tyBool));
+      new_ir_jmp(COND_ANY, l_next);
+      new_ir_label(l_false, false);
+      new_ir_imm(false, type_size(&tyBool));
+      new_ir_label(l_next, false);
     }
     return;
 
@@ -833,11 +666,11 @@ void gen_expr(Expr *expr) {
       const char *l_next = alloc_label();
       gen_cond_jmp(expr->u.bop.lhs, true, l_true);
       gen_cond_jmp(expr->u.bop.rhs, true, l_true);
-      XOR(EAX, EAX);  // 0
-      JMP(l_next);
-      EMIT_LABEL(l_true);
-      MOV(IM(1), EAX);
-      EMIT_LABEL(l_next);
+      new_ir_imm(false, type_size(&tyBool));
+      new_ir_jmp(COND_ANY, l_next);
+      new_ir_label(l_true, false);
+      new_ir_imm(true, type_size(&tyBool));
+      new_ir_label(l_next, false);
     }
     return;
 

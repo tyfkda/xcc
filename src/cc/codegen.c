@@ -765,7 +765,7 @@ static void gen_default(void) {
   assert(cur_case_labels != NULL);
   int i = cur_case_values->len;  // Label for default is stored at the size of values.
   assert(i < cur_case_labels->len);
-  EMIT_LABEL(cur_case_labels->data[i]);
+  new_ir_label(cur_case_labels->data[i], false);
 }
 
 static void gen_while(Node *node) {
@@ -773,12 +773,12 @@ static void gen_while(Node *node) {
   const char *l_cond = push_continue_label(&save_cont);
   const char *l_break = push_break_label(&save_break);
   const char *l_loop = alloc_label();
-  JMP(l_cond);
-  EMIT_LABEL(l_loop);
+  new_ir_jmp(COND_ANY, l_cond);
+  new_ir_label(l_loop, false);
   gen(node->u.while_.body);
-  EMIT_LABEL(l_cond);
+  new_ir_label(l_cond, false);
   gen_cond_jmp(node->u.while_.cond, true, l_loop);
-  EMIT_LABEL(l_break);
+  new_ir_label(l_break, false);
   pop_continue_label(save_cont);
   pop_break_label(save_break);
 }
@@ -788,11 +788,11 @@ static void gen_do_while(Node *node) {
   const char *l_cond = push_continue_label(&save_cont);
   const char *l_break = push_break_label(&save_break);
   const char * l_loop = alloc_label();
-  EMIT_LABEL(l_loop);
+  new_ir_label(l_loop, false);
   gen(node->u.while_.body);
-  EMIT_LABEL(l_cond);
+  new_ir_label(l_cond, false);
   gen_cond_jmp(node->u.while_.cond, true, l_loop);
-  EMIT_LABEL(l_break);
+  new_ir_label(l_break, false);
   pop_continue_label(save_cont);
   pop_break_label(save_break);
 }
@@ -804,42 +804,41 @@ static void gen_for(Node *node) {
   const char * l_cond = alloc_label();
   if (node->u.for_.pre != NULL)
     gen_expr(node->u.for_.pre);
-  EMIT_LABEL(l_cond);
-  if (node->u.for_.cond != NULL) {
+  new_ir_label(l_cond, false);
+  if (node->u.for_.cond != NULL)
     gen_cond_jmp(node->u.for_.cond, false, l_break);
-  }
   gen(node->u.for_.body);
-  EMIT_LABEL(l_continue);
+  new_ir_label(l_continue, false);
   if (node->u.for_.post != NULL)
     gen_expr(node->u.for_.post);
-  JMP(l_cond);
-  EMIT_LABEL(l_break);
+  new_ir_jmp(COND_ANY, l_cond);
+  new_ir_label(l_break, false);
   pop_continue_label(save_cont);
   pop_break_label(save_break);
 }
 
 static void gen_break(void) {
   assert(s_break_label != NULL);
-  JMP(s_break_label);
+  new_ir_jmp(COND_ANY, s_break_label);
 }
 
 static void gen_continue(void) {
   assert(s_continue_label != NULL);
-  JMP(s_continue_label);
+  new_ir_jmp(COND_ANY, s_continue_label);
 }
 
 static void gen_goto(Node *node) {
   assert(curfunc->labels != NULL);
   const char *label = map_get(curfunc->labels, node->u.goto_.ident);
   assert(label != NULL);
-  JMP(label);
+  new_ir_jmp(COND_ANY, label);
 }
 
 static void gen_label(Node *node) {
   assert(curfunc->labels != NULL);
   const char *label = map_get(curfunc->labels, node->u.label.name);
   assert(label != NULL);
-  EMIT_LABEL(label);
+  new_ir_label(label, false);
   gen(node->u.label.stmt);
 }
 

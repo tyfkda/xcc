@@ -32,6 +32,12 @@ IR *new_ir_bofs(int offset) {
   return ir;
 }
 
+IR *new_ir_iofs(const char *label) {
+  IR *ir = new_ir(IR_IOFS);
+  ir->u.iofs.label = label;
+  return ir;
+}
+
 IR *new_ir_load(int size) {
   IR *ir = new_ir(IR_LOAD);
   ir->size = size;
@@ -53,6 +59,15 @@ IR *new_ir_memcpy(size_t size) {
 IR *new_ir_op(enum IrType type, int size) {
   IR *ir = new_ir(type);
   ir->size = size;
+  return ir;
+}
+
+IR *new_ir_incdec(bool inc, bool pre, int size, intptr_t value) {
+  IR *ir = new_ir(IR_INCDEC);
+  ir->u.incdec.inc = inc;
+  ir->u.incdec.pre = pre;
+  ir->size = size;
+  ir->value = value;
   return ir;
 }
 
@@ -133,6 +148,62 @@ static void ir_memcpy(ssize_t size) {
   }
 }
 
+static void ir_out_incdec(const IR *ir) {
+  static const char *kRegATable[] = {AL, AX, EAX, RAX};
+  static const char *kRegDiTable[] = {DIL, DI, EDI, RDI};
+
+  int size;
+  switch (ir->size) {
+  default: assert(false); // Fallthrough to suppress compile error
+  case 1:  size = 0; break;
+  case 2:  size = 1; break;
+  case 4:  size = 2; break;
+  case 8:  size = 3; break;
+  }
+
+  if (ir->value == 1) {
+    if (!ir->u.incdec.pre)
+      MOV(INDIRECT(RAX), kRegDiTable[size]);
+
+    switch (size) {
+    case 0:  if (ir->u.incdec.inc) INCB(INDIRECT(RAX)); else DECB(INDIRECT(RAX)); break;
+    case 1:  if (ir->u.incdec.inc) INCW(INDIRECT(RAX)); else DECW(INDIRECT(RAX)); break;
+    case 2:  if (ir->u.incdec.inc) INCL(INDIRECT(RAX)); else DECL(INDIRECT(RAX)); break;
+    case 3:  if (ir->u.incdec.inc) INCQ(INDIRECT(RAX)); else DECQ(INDIRECT(RAX)); break;
+    default: assert(false); break;
+    }
+
+    if (ir->u.incdec.pre)
+      MOV(INDIRECT(RAX), kRegATable[size]);
+    else
+      MOV(kRegDiTable[size], kRegATable[size]);
+  } else {
+    intptr_t value = ir->value;
+    if (ir->u.incdec.pre) {
+      if (value <= ((1L << 31) - 1)) {
+        if (ir->u.incdec.inc)  ADDQ(IM(value), INDIRECT(RAX));
+        else                   SUBQ(IM(value), INDIRECT(RAX));
+      } else {
+        MOV(IM(value), RDI);
+        if (ir->u.incdec.inc)  ADD(RDI, INDIRECT(RAX));
+        else                   SUB(RDI, INDIRECT(RAX));
+      }
+      MOV(INDIRECT(RAX), RAX);
+    } else {
+      MOV(INDIRECT(RAX), RDI);
+      if (value <= ((1L << 31) - 1)) {
+        if (ir->u.incdec.inc)  ADDQ(IM(value), INDIRECT(RAX));
+        else                   SUBQ(IM(value), INDIRECT(RAX));
+      } else {
+        MOV(IM(value), RCX);
+        if (ir->u.incdec.inc)  ADD(RCX, INDIRECT(RAX));
+        else                   SUB(RCX, INDIRECT(RAX));
+      }
+      MOV(RDI, RAX);
+    }
+  }
+}
+
 void ir_out(const IR *ir) {
   switch (ir->type) {
   case IR_IMM:
@@ -175,6 +246,10 @@ void ir_out(const IR *ir) {
 
   case IR_BOFS:
     LEA(OFFSET_INDIRECT(ir->value, RBP), RAX);
+    break;
+
+  case IR_IOFS:
+    LEA(LABEL_INDIRECT(ir->u.iofs.label, RIP), RAX);
     break;
 
   case IR_LOAD:
@@ -262,6 +337,73 @@ void ir_out(const IR *ir) {
     }
     break;
 
+  case IR_MOD:
+    POP(RDI); POP_STACK_POS();
+    XOR(EDX, EDX);  // RDX = 0
+    switch (ir->size) {
+    case 1:  IDIV(DIL); MOV(DL, AL); break;
+    case 2:  IDIV(DI);  MOV(DX, AX); break;
+    case 4:  IDIV(EDI); MOV(EDX, EAX); break;
+    case 8:  IDIV(RDI); MOV(RDX, RAX); break;
+    default: assert(false); break;
+    }
+    break;
+
+  case IR_BITAND:
+    POP(RDI); POP_STACK_POS();
+    switch (ir->size) {
+    case 1:  AND(DIL, AL); break;
+    case 2:  AND(DI, AX); break;
+    case 4:  AND(EDI, EAX); break;
+    case 8:  AND(RDI, RAX); break;
+    default: assert(false); break;
+    }
+    break;
+
+  case IR_BITOR:
+    POP(RDI); POP_STACK_POS();
+    switch (ir->size) {
+    case 1:  OR(DIL, AL); break;
+    case 2:  OR(DI, AX); break;
+    case 4:  OR(EDI, EAX); break;
+    case 8:  OR(RDI, RAX); break;
+    default: assert(false); break;
+    }
+    break;
+
+  case IR_BITXOR:
+    POP(RDI); POP_STACK_POS();
+    switch (ir->size) {
+    case 1:  XOR(DIL, AL); break;
+    case 2:  XOR(DI, AX); break;
+    case 4:  XOR(EDI, EAX); break;
+    case 8:  XOR(RDI, RAX); break;
+    default: assert(false); break;
+    }
+    break;
+
+  case IR_LSHIFT:
+  case IR_RSHIFT:
+    POP(RCX); POP_STACK_POS();
+    if (ir->type == IR_LSHIFT) {
+      switch (ir->size) {
+      case 1:  SHL(CL, AL); break;
+      case 2:  SHL(CL, AX); break;
+      case 4:  SHL(CL, EAX); break;
+      case 8:  SHL(CL, RAX); break;
+      default: assert(false); break;
+      }
+    } else {
+      switch (ir->size) {
+      case 1:  SHR(CL, AL); break;
+      case 2:  SHR(CL, AX); break;
+      case 4:  SHR(CL, EAX); break;
+      case 8:  SHR(CL, RAX); break;
+      default: assert(false); break;
+      }
+    }
+    break;
+
   case IR_CMP:
     {
       POP(RDI); POP_STACK_POS();
@@ -274,6 +416,32 @@ void ir_out(const IR *ir) {
       default: assert(false); break;
       }
     }
+    break;
+
+  case IR_INCDEC:
+    ir_out_incdec(ir);
+    break;
+
+  case IR_NEG:
+    switch (ir->size) {
+    case 1:  NEG(AL); break;
+    case 2:  NEG(AX); break;
+    case 4:  NEG(EAX); break;
+    case 8:  NEG(RAX); break;
+    default:  assert(false); break;
+    }
+    break;
+
+  case IR_NOT:
+    switch (ir->size) {
+    case 1:  TEST(AL, AL); break;
+    case 2:  TEST(AX, AX); break;
+    case 4:  TEST(EAX, EAX); break;
+    case 8:  TEST(RAX, RAX); break;
+    default:  assert(false); break;
+    }
+    SETE(AL);
+    MOVSX(AL, EAX);
     break;
 
   case IR_SET:
