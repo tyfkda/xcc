@@ -114,13 +114,14 @@ static Initializer *analyze_initializer(Initializer *init) {
   return init;
 }
 
-static void string_initializer(Expr *dst, Expr *src, Vector *inits) {
+static void string_initializer(Expr *dst, Initializer *src, Vector *inits) {
   // Initialize char[] with string literal (char s[] = "foo";).
+  assert(src->type == vSingle);
   assert(dst->valType->type == TY_ARRAY && is_char_type(dst->valType->u.pa.ptrof));
-  assert(src->valType->type == TY_ARRAY && is_char_type(src->valType->u.pa.ptrof));
+  assert(src->u.single->valType->type == TY_ARRAY && is_char_type(src->u.single->valType->u.pa.ptrof));
 
-  const char *str = src->u.str.buf;
-  size_t size = src->u.str.size;
+  const Expr *str = src->u.single;
+  size_t size = str->u.str.size;
   size_t dstsize = dst->valType->u.pa.length;
   if (dstsize == (size_t)-1) {
     ((Type*)dst->valType)->u.pa.length = dstsize = size;
@@ -129,13 +130,22 @@ static void string_initializer(Expr *dst, Expr *src, Vector *inits) {
       parse_error(NULL, "Buffer is shorter than string: %d for \"%s\"", (int)dstsize, str);
   }
 
+  // Generate string as a static variable.
+  const char * label = alloc_label();
+  const Type* strtype = dst->valType;
+  const Token *ident = alloc_ident(label, NULL, NULL);
+  VarInfo *varinfo = define_global(strtype, VF_CONST | VF_STATIC, ident, NULL);
+  varinfo->u.g.init = src;
+
+  Expr *varref = new_expr_varref(ident->u.ident, strtype, ident);
+
   for (size_t i = 0; i < size; ++i) {
     Num n = {.ival=i};
     Expr *index = new_expr_numlit(&tyInt, NULL, &n);
     vec_push(inits,
              new_node_expr(new_expr_bop(EX_ASSIGN, &tyChar, NULL,
                                         new_expr_deref(NULL, add_expr(NULL, dst, index, true)),
-                                        new_expr_deref(NULL, add_expr(NULL, src, index, true)))));
+                                        new_expr_deref(NULL, add_expr(NULL, varref, index, true)))));
   }
 }
 
@@ -493,7 +503,7 @@ static Vector *assign_initial_value(Expr *expr, Initializer *init, Vector *inits
     case vSingle:
       // Special handling for string (char[]).
       if (can_cast(expr->valType, init->u.single->valType, init->u.single, false)) {
-        string_initializer(expr, init->u.single, inits);
+        string_initializer(expr, init, inits);
         break;
       }
       // Fallthrough
