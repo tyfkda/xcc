@@ -173,92 +173,13 @@ void gen_cond_jmp(Expr *cond, bool tf, const char *label) {
 }
 
 static void gen_cast(const Type *ltypep, const Type *rtypep) {
-  enum eType ltype = ltypep->type;
-  enum eType rtype = rtypep->type;
-
-  if (ltype == rtype) {
-    if (ltype == TY_NUM) {
-      enum NumType lnumtype = ltypep->u.num.type;
-      enum NumType rnumtype = rtypep->u.num.type;
-      if (lnumtype == rnumtype)
-        return;
-
-      switch (lnumtype) {
-      case NUM_CHAR:
-        switch (rnumtype) {
-        case NUM_SHORT: return;
-        case NUM_INT:   return;
-        case NUM_LONG:  return;
-        default: assert(false); break;
-        }
-        break;
-      case NUM_SHORT:
-        switch (rnumtype) {
-        case NUM_CHAR: MOVSX(AL, AX); return;
-        case NUM_INT:  return;
-        case NUM_LONG: return;
-        default: assert(false); break;
-        }
-        break;
-      case NUM_INT: case NUM_ENUM:
-        switch (rnumtype) {
-        case NUM_CHAR:  MOVSX(AL, EAX); return;
-        case NUM_SHORT: MOVSX(AX, EAX); return;
-        case NUM_INT:   return;
-        case NUM_LONG:  return;
-        case NUM_ENUM:  return;
-        default: assert(false); break;
-        }
-        break;
-      case NUM_LONG:
-        switch (rnumtype) {
-        case NUM_CHAR:  MOVSX(AL, RAX); return;
-        case NUM_SHORT: MOVSX(AX, RAX); return;
-        case NUM_INT: case NUM_ENUM:
-          MOVSX(EAX, RAX);
-          return;
-        default: assert(false); break;
-        }
-        break;
-      default: assert(false); break;
-      }
-    }
-    return;
-  }
-
-  switch (ltype) {
-  case TY_VOID:
-    return;
-  case TY_NUM:
-    switch (rtype) {
-    case TY_PTR:
-    case TY_ARRAY:
-      if (ltypep->u.num.type == NUM_LONG)
-        return;
-      break;
-    default: assert(false); break;
-    }
-    break;
-  case TY_PTR:
-    switch (rtype) {
-    case TY_NUM:
-      switch (rtypep->u.num.type) {
-      case NUM_INT:   MOVSX(EAX, RAX); return;
-      case NUM_LONG:  return;
-      default: break;
-      }
-      break;
-    case TY_ARRAY: case TY_FUNC:
-      return;
-    default: break;
-    }
-    assert(false);
-    break;
-  default: assert(false); break;
-  }
-
-  fprintf(stderr, "ltype=%d, rtype=%d\n", ltype, rtype);
-  assert(!"Cast failed");
+  size_t dst_size = type_size(ltypep);
+  size_t src_size;
+  if (rtypep->type == TY_ARRAY)
+    src_size = WORD_SIZE;
+  else
+    src_size = type_size(rtypep);
+  new_ir_cast(dst_size, src_size);
 }
 
 static void gen_rval(Expr *expr) {
@@ -377,7 +298,7 @@ static void gen_funcall(Expr *expr) {
   } else {
     // TODO: IR
     gen_expr(func);
-    CALL(fmt("*%s", RAX));
+    new_ir_call(NULL, arg_count);
   }
 
   int stack_add = stack_args * 8;
@@ -468,17 +389,9 @@ void gen_expr(Expr *expr) {
     gen_lval(expr);
     switch (expr->valType->type) {
     case TY_NUM:
-      switch (expr->valType->u.num.type) {
-      case NUM_CHAR:  MOV(INDIRECT(RAX), AL); break;
-      case NUM_SHORT: MOV(INDIRECT(RAX), AX); break;
-      case NUM_INT: case NUM_ENUM:
-        MOV(INDIRECT(RAX), EAX);
-        break;
-      case NUM_LONG:  MOV(INDIRECT(RAX), RAX); break;
-      default: assert(false); break;
-      }
+    case TY_PTR:
+      new_ir_load(type_size(expr->valType));
       break;
-    case TY_PTR:  MOV(INDIRECT(RAX), RAX); break;
     case TY_ARRAY:
     case TY_STRUCT:
       break;

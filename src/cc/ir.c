@@ -62,6 +62,13 @@ IR *new_ir_op(enum IrType type, int size) {
   return ir;
 }
 
+IR *new_ir_cmpi(intptr_t value, int size) {
+  IR *ir = new_ir(IR_CMPI);
+  ir->value = value;
+  ir->size = size;
+  return ir;
+}
+
 IR *new_ir_incdec(bool inc, bool pre, int size, intptr_t value) {
   IR *ir = new_ir(IR_INCDEC);
   ir->u.incdec.inc = inc;
@@ -98,6 +105,13 @@ IR *new_ir_call(const char *label, int arg_count) {
 IR *new_ir_addsp(int value) {
   IR *ir = new_ir(IR_ADDSP);
   ir->value = value;
+  return ir;
+}
+
+IR *new_ir_cast(int dstsize, int srcsize) {
+  IR *ir = new_ir(IR_CAST);
+  ir->size = dstsize;
+  ir->u.cast.srcsize = srcsize;
   return ir;
 }
 
@@ -476,6 +490,26 @@ void ir_out(const IR *ir) {
     }
     break;
 
+  case IR_CMPI:
+    {
+      intptr_t x = ir->value;
+      switch (ir->size) {
+      case 1:  CMP(IM(x), AL); break;
+      case 2:  CMP(IM(x), AX); break;
+      case 4:  CMP(IM(x), EAX); break;
+      case 8:
+        if (is_im32(x)) {
+          CMP(IM(x), RAX);
+        } else {
+          MOV(IM(x), RDI);
+          CMP(RDI, RAX);
+        }
+        break;
+      default: assert(false); break;
+      }
+    }
+    break;
+
   case IR_PUSH:
     PUSH(RAX); PUSH_STACK_POS();
     break;
@@ -500,7 +534,10 @@ void ir_out(const IR *ir) {
       for (int i = 0; i < reg_args; ++i) {
         POP(kReg64s[i]); POP_STACK_POS();
       }
-      CALL(ir->u.call.label);
+      if (ir->u.call.label != NULL)
+        CALL(ir->u.call.label);
+      else
+        CALL(fmt("*%s", RAX));
     }
     break;
 
@@ -510,6 +547,36 @@ void ir_out(const IR *ir) {
     else
       SUB(IM(-ir->value), RSP);
     stackpos -= ir->value;
+    break;
+
+  case IR_CAST:
+    if (ir->size > ir->u.cast.srcsize) {
+      switch (ir->size) {
+      case 2:
+        switch (ir->u.cast.srcsize) {
+        case 1:  MOVSX(AL, AX); break;
+        default:  assert(false); break;
+        }
+        break;
+      case 4:
+        switch (ir->u.cast.srcsize) {
+        case 1:  MOVSX(AL, EAX); break;
+        case 2:  MOVSX(AX, EAX); break;
+        default:  assert(false); break;
+        }
+        break;
+      case 8:
+        switch (ir->u.cast.srcsize) {
+        case 1:  MOVSX(AL, RAX); break;
+        case 2:  MOVSX(AX, RAX); break;
+        case 4:  MOVSX(EAX, RAX); break;
+        default:
+          assert(false); break;
+        }
+        break;
+      default:  assert(false); break;
+      }
+    }
     break;
 
   case IR_LABEL:

@@ -706,29 +706,13 @@ static void gen_switch(Node *node) {
   Expr *value = node->u.switch_.value;
   gen_expr(value);
 
-  enum NumType valtype = value->valType->u.num.type;
+  int size = type_size(value->valType);
   for (int i = 0; i < len; ++i) {
     intptr_t x = (intptr_t)case_values->data[i];
-    switch (valtype) {
-    case NUM_CHAR:
-      CMP(IM(x), AL);
-      break;
-    case NUM_INT: case NUM_ENUM:
-      CMP(IM(x), EAX);
-      break;
-    case NUM_LONG:
-      if (is_im32(x)) {
-        CMP(IM(x), RAX);
-      } else {
-        MOV(IM(x), RDI);
-        CMP(RDI, RAX);
-      }
-      break;
-    default: assert(false); break;
-    }
-    JE(labels->data[i]);
+    new_ir_cmpi(x, size);
+    new_ir_jmp(COND_EQ, labels->data[i]);
   }
-  JMP(labels->data[len]);
+  new_ir_jmp(COND_ANY, labels->data[len]);  // Default.
 
   cur_case_values = case_values;
   cur_case_labels = labels;
@@ -736,8 +720,8 @@ static void gen_switch(Node *node) {
   gen(node->u.switch_.body);
 
   if (!node->u.switch_.has_default)
-    EMIT_LABEL(labels->data[len]);  // No default: Locate at the end of switch statement.
-  EMIT_LABEL(l_break);
+    new_ir_label(labels->data[len], false);  // No default: Locate at the end of switch statement.
+  new_ir_label(l_break, false);
 
   cur_case_values = save_case_values;
   cur_case_labels = save_case_labels;
@@ -757,7 +741,7 @@ static void gen_case(Node *node) {
   }
   assert(i < len);
   assert(i < cur_case_labels->len);
-  EMIT_LABEL(cur_case_labels->data[i]);
+  new_ir_label(cur_case_labels->data[i], false);
 }
 
 static void gen_default(void) {
