@@ -372,7 +372,7 @@ static void gen_funcall(Expr *expr) {
 
   if (args != NULL) {
     int len = args->len;
-    if (len >= MAX_REG_ARGS) {
+    if (len > MAX_REG_ARGS) {
       bool vaargs = false;
       if (func->type == EX_VARREF && func->u.varref.scope == NULL) {
         VarInfo *varinfo = find_global(func->u.varref.ident);

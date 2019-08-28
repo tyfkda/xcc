@@ -181,3 +181,6 @@ compile_error 'funparam static' 'int main(static int argc){ return argc > 0 ? 0 
 compile_error 'funparam extern' 'int main(extern int argc){ return argc > 0 ? 0 : 1; }'
 compile_error 'enum and global' 'enum Foo { BAR }; int BAR; int main(){ return 0; }'
 compile_error 'global and enum' 'int BAR; enum Foo { BAR }; int main(){ return 0; }'
+
+# TODO
+compile_error 'more params vaargs (yet)' 'int func(int a, ...) { return a; } int main(){ return func(1, 2, 3, 4, 5, 6, 7, 8); }'
