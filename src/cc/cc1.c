@@ -52,7 +52,5 @@ int main(int argc, char* argv[]) {
 
   compile(stdin, "*stdin*");
 
-  fixup_locations();
-
   return 0;
 }

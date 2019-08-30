@@ -26,7 +26,6 @@ extern int stackpos;
 void gen_expr(Expr *expr);
 size_t type_size(const Type *type);
 void calc_struct_size(StructInfo *sinfo);
-void fixup_locations(void);
 
 void gen_cond_jmp(Expr *cond, bool tf, const char *label);
 

@@ -366,7 +366,7 @@ static void put_bss(void) {
   }
 }
 
-void fixup_locations(void) {
+static void gen_data(void) {
   _SECTION(".rodata");
   put_rodata();
 
@@ -892,7 +892,10 @@ void gen(Node *node) {
   case ND_GOTO:  gen_goto(node); break;
   case ND_LABEL:  gen_label(node); break;
   case ND_VARDECL:  gen_vardecl(node); break;
-  case ND_TOPLEVEL:  gen_toplevel(node); break;
+  case ND_TOPLEVEL:
+    gen_toplevel(node);
+    gen_data();
+    break;
 
   default:
     error("Unhandled node: %d", node->type);
