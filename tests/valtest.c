@@ -17,7 +17,8 @@ void expect(char *title, long expected, long actual) {
   exit(1);
 }
 
-int g_zero, g_work, g_123 = 123;
+int g_zero, g_work;
+int g_init = (8 * 7 + 100 / 4 - 50 % 3) & 0x5a | 0x100;
 
 void *null = (void*)0;
 
@@ -394,7 +395,7 @@ int main(void) {
     expect("cast pointer", 1234L, (long)p);
   }
   expect("global cleared", 0, g_zero);
-  expect("global initializer", 123, g_123);
+  expect("global initializer", 330, g_init);
   expect("global struct initializer: int", 42, g_struct.x);
   expect("global struct initializer: ptr", (long)&g_zero, (long)g_struct.p);
   {

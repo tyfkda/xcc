@@ -337,7 +337,7 @@ static Initializer *check_global_initializer(const Type *type, Initializer *init
       case EX_NUM:
         return init;
       default:
-        parse_error(NULL, "initializer type error");
+        parse_error(NULL, "Constant expression expected");
         break;
       }
     }
