@@ -85,18 +85,18 @@ int main(void) {
   expect("decimal", 42, 42);
   expect("hex", 18, 0x12);
   expect("octal", 83, 0123);
-  expect("negative", -42, -42);
+  expect("negative", -42, (x=42, -x));
   expect("long", 123, 123L);
-  expect("+-", 21, 5+20-4);
-  expect("token", 41,  12 + 34 - 5 );
-  expect("*+", 47, 5+6*7);
-  expect("()", 15, 5*(9-6));
-  expect("/", 4, (3+5)/2);
-  expect("%", 3, 123%10);
-  expect("<<", 32, 1 << 4 + 1);
-  expect(">>", 0x0a, 0xa5 >> 4);
-  expect("&", 0xa0, 0xa5 & 0xf0);
-  expect("|", 0x66, 0xc3 ^ 0xa5);
+  expect("+-", 21, (x=5, x+20-4));
+  expect("*+", 47, (x=6, 5+x*7));
+  expect("()", 15, (x=9, 5*(x-6)));
+  expect("/", 4, (x=3, (x+5)/2));
+  expect("%", 3, (x=123, x%10));
+  expect("<<", 32, (x=4, 1 << x + 1));
+  expect(">>", 0x0a, (x=0xa5, x >> 4));
+  expect("&", 0xa0, (x=0xa5, x & 0xf0));
+  expect("|", 0xbc, (x=0x88, x | 0x3c));
+  expect("^", 0x66, (x=0xc3, x ^ 0xa5));
   {
     short x = 3;
     expect("short", 1, x == 3 && sizeof(x) == 2);
@@ -105,7 +105,7 @@ int main(void) {
     long x = 3;
     expect("long arithmetic", 3, 5L + 4L - x * 2L / 1L);
   }
-  expect("unsigned char", -128, (unsigned char)0x80);  // TODO: Fix
+  expect("unsigned char", -128, (x=0x80, (unsigned char)x));  // TODO: Fix
   {
     int a = 3;
     int b = 5 * 6 - 8;
@@ -116,22 +116,16 @@ int main(void) {
     int bar = 5 * 6 - 8;
     expect("variable2", 14, foo + bar / 2);
   }
-  {
-    int x = 42;
-    expect("positive var", 42, +x);
-  }
-  {
-    int x = 42;
-    expect("negative var", -42, -x);
-  }
+  expect("positive var", 42, (x=42, +x));
+  expect("negative var", -42, (x=42, -x));
   {
     int a, b, c;
     a = b = (c = 1) + 2;
     expect("assign", 1, a == b);
   }
-  expect("!=", 1, 123 != 456);
-  expect("not true", 0, !(1 == 1));
-  expect("not false", 1, !(0 == 1));
+  expect("!=", 1, (x=123, x != 456));
+  expect("not true", 0, (x=1, !(x == 1)));
+  expect("not false", 1, (x=1, !(x == 0)));
   expect("not str", 0, !"abc");
   {
     int x = 1;
@@ -565,7 +559,6 @@ int main(void) {
     struct {} a, b;
     expect("empty struct occupy", 1, &a != &b);
   }
-  expect("sizeof(expr)", 4, sizeof(1 + 2 * 3));
   expect("sizeof(str) include nul", 12, sizeof("hello\0world"));
   expect("sizeof(struct ptr)", sizeof(void*), sizeof(struct Undefined*));
   expect("sizeof(func ptr)", 8, sizeof(int (*)()));
