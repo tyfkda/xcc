@@ -26,6 +26,30 @@ IR *new_ir_imm(intptr_t value, int size) {
   return ir;
 }
 
+IR *new_ir_bofs(int offset) {
+  IR *ir = new_ir(IR_BOFS);
+  ir->value = offset;
+  return ir;
+}
+
+IR *new_ir_load(int size) {
+  IR *ir = new_ir(IR_LOAD);
+  ir->size = size;
+  return ir;
+}
+
+IR *new_ir_store(int size) {
+  IR *ir = new_ir(IR_STORE);
+  ir->size = size;
+  return ir;
+}
+
+IR *new_ir_memcpy(size_t size) {
+  IR *ir = new_ir(IR_MEMCPY);
+  ir->size = size;
+  return ir;
+}
+
 IR *new_ir_op(enum IrType type, int size) {
   IR *ir = new_ir(type);
   ir->size = size;
@@ -40,6 +64,46 @@ IR *new_ir_jmp(const char *label) {
   IR *ir = new_ir(IR_JMP);
   ir->u.jmp.label = label;
   return ir;
+}
+
+static void ir_memcpy(ssize_t size) {
+  const char *dst = RDI;
+  const char *src = RAX;
+
+  // Break %rcx, %dl
+  switch (size) {
+  case 1:
+    MOV(INDIRECT(src), DL);
+    MOV(DL, INDIRECT(dst));
+    break;
+  case 2:
+    MOV(INDIRECT(src), DX);
+    MOV(DX, INDIRECT(dst));
+    break;
+  case 4:
+    MOV(INDIRECT(src), EDX);
+    MOV(EDX, INDIRECT(dst));
+    break;
+  case 8:
+    MOV(INDIRECT(src), RDX);
+    MOV(RDX, INDIRECT(dst));
+    break;
+  default:
+    {
+      const char * label = alloc_label();
+      PUSH(RAX);
+      MOV(IM(size), RCX);
+      EMIT_LABEL(label);
+      MOV(INDIRECT(src), DL);
+      MOV(DL, INDIRECT(dst));
+      INC(src);
+      INC(dst);
+      DEC(RCX);
+      JNE(label);
+      POP(RAX);
+    }
+    break;
+  }
 }
 
 void ir_out(const IR *ir) {
@@ -80,6 +144,36 @@ void ir_out(const IR *ir) {
       }
       break;
     }
+    break;
+
+  case IR_BOFS:
+    LEA(OFFSET_INDIRECT(ir->value, RBP), RAX);
+    break;
+
+  case IR_LOAD:
+    switch (ir->size) {
+    case 1:  MOV(INDIRECT(RAX), AL); break;
+    case 2:  MOV(INDIRECT(RAX), AX); break;
+    case 4:  MOV(INDIRECT(RAX), EAX); break;
+    case 8:  MOV(INDIRECT(RAX), RAX); break;
+    default:  assert(false); break;
+    }
+    break;
+
+  case IR_STORE:
+    POP(RDI); POP_STACK_POS();
+    switch (ir->size) {
+    case 1:  MOV(AL, INDIRECT(RDI)); break;
+    case 2:  MOV(AX, INDIRECT(RDI)); break;
+    case 4:  MOV(EAX, INDIRECT(RDI)); break;
+    case 8:  MOV(RAX, INDIRECT(RDI)); break;
+    default:  assert(false); break;
+    }
+    break;
+
+  case IR_MEMCPY:
+    POP(RDI); POP_STACK_POS();
+    ir_memcpy(ir->size);
     break;
 
   case IR_ADD:

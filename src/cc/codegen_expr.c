@@ -293,7 +293,7 @@ static void gen_lval(Expr *expr) {
       assert(varinfo != NULL);
       assert(!(varinfo->flag & VF_STATIC));
       int offset = varinfo->offset;
-      LEA(OFFSET_INDIRECT(offset, RBP), RAX);
+      new_ir_bofs(offset);
     }
     break;
   case EX_DEREF:
@@ -327,17 +327,9 @@ static void gen_varref(Expr *expr) {
   gen_lval(expr);
   switch (expr->valType->type) {
   case TY_NUM:
-    switch (expr->valType->u.num.type) {
-    case NUM_CHAR:  MOV(INDIRECT(RAX), AL); break;
-    case NUM_SHORT: MOV(INDIRECT(RAX), AX); break;
-    case NUM_INT: case NUM_ENUM:
-      MOV(INDIRECT(RAX), EAX);
-      break;
-    case NUM_LONG:  MOV(INDIRECT(RAX), RAX); break;
-    default: assert(false); break;
-    }
+  case TY_PTR:
+    new_ir_load(type_size(expr->valType));
     break;
-  case TY_PTR: MOV(INDIRECT(RAX), RAX); break;
   case TY_ARRAY: break;  // Use variable address as a pointer.
   case TY_FUNC:  break;
   case TY_STRUCT:
@@ -510,46 +502,6 @@ void gen_arith(enum ExprType exprType, const Type *valType, const Type *rhsType)
   }
 }
 
-static void gen_memcpy(ssize_t size) {
-  const char *dst = RDI;
-  const char *src = RAX;
-
-  // Break %rcx, %dl
-  switch (size) {
-  case 1:
-    MOV(INDIRECT(src), DL);
-    MOV(DL, INDIRECT(dst));
-    break;
-  case 2:
-    MOV(INDIRECT(src), DX);
-    MOV(DX, INDIRECT(dst));
-    break;
-  case 4:
-    MOV(INDIRECT(src), EDX);
-    MOV(EDX, INDIRECT(dst));
-    break;
-  case 8:
-    MOV(INDIRECT(src), RDX);
-    MOV(RDX, INDIRECT(dst));
-    break;
-  default:
-    {
-      const char * label = alloc_label();
-      PUSH(RAX);
-      MOV(IM(size), RCX);
-      EMIT_LABEL(label);
-      MOV(INDIRECT(src), DL);
-      MOV(DL, INDIRECT(dst));
-      INC(src);
-      INC(dst);
-      DEC(RCX);
-      JNE(label);
-      POP(RAX);
-    }
-    break;
-  }
-}
-
 void gen_expr(Expr *expr) {
   switch (expr->type) {
   case EX_NUM:
@@ -652,8 +604,7 @@ void gen_expr(Expr *expr) {
     if (expr->u.unary.sub->type == EX_NUM) {
       assert(expr->u.unary.sub->valType->type == TY_NUM);
       intptr_t value = expr->u.unary.sub->u.num.ival;
-      enum NumType numtype = expr->u.unary.sub->valType->u.num.type;
-      switch (numtype) {
+      switch (expr->u.unary.sub->valType->u.num.type) {
       case NUM_CHAR:
         value = (int8_t)value;
         break;
@@ -681,30 +632,16 @@ void gen_expr(Expr *expr) {
 
   case EX_ASSIGN:
     gen_lval(expr->u.bop.lhs);
-    PUSH(RAX); PUSH_STACK_POS();
+    new_ir_st(IR_PUSH);
     gen_expr(expr->u.bop.rhs);
 
-    POP(RDI); POP_STACK_POS();
-    switch (expr->u.bop.lhs->valType->type) {
+    switch (expr->valType->type) {
     case TY_NUM:
-      switch (expr->u.bop.lhs->valType->u.num.type) {
-      case NUM_CHAR:  MOV(AL, INDIRECT(RDI)); break;
-      case NUM_SHORT: MOV(AX, INDIRECT(RDI)); break;
-      case NUM_INT: case NUM_ENUM:
-        MOV(EAX, INDIRECT(RDI));
-        break;
-      case NUM_LONG:  MOV(RAX, INDIRECT(RDI)); break;
-      default: assert(false); break;
-      }
+    case TY_PTR:
+      new_ir_store(type_size(expr->valType));
       break;
-    case TY_PTR:  MOV(RAX, INDIRECT(RDI)); break;
     case TY_STRUCT:
-      {
-        const StructInfo *sinfo = expr->u.bop.lhs->valType->u.struct_.info;
-        ssize_t size = sinfo->size;
-        assert(size > 0);
-        gen_memcpy(size);
-      }
+      new_ir_memcpy(expr->valType->u.struct_.info->size);
       break;
     default: assert(false); break;
     }
