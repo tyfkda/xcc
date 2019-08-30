@@ -8,6 +8,7 @@
 #include <string.h>
 
 #include "expr.h"
+#include "ir.h"
 #include "lexer.h"
 #include "parser.h"
 #include "sema.h"
@@ -577,6 +578,8 @@ static void gen_defun(Node *node) {
   if (varinfo != NULL) {
     global = (varinfo->flag & VF_STATIC) == 0;
   }
+
+  curfunc = defun;
   if (global)
     _GLOBL(defun->name);
   else
@@ -592,6 +595,7 @@ static void gen_defun(Node *node) {
   }
 
   size_t frame_size = arrange_scope_vars(defun);
+  UNUSED(frame_size);
 
   bool no_stmt = true;
   if (defun->stmts != NULL) {
@@ -606,21 +610,21 @@ static void gen_defun(Node *node) {
     }
   }
 
-  curfunc = defun;
   curscope = defun->top_scope;
   defun->ret_label = alloc_label();
 
   // Prologue
   // Allocate variable bufer.
   if (!no_stmt) {
-    PUSH(RBP); PUSH_STACK_POS();
-    MOV(RSP, RBP);
-    if (frame_size > 0) {
-      SUB(IM(frame_size), RSP);
-      stackpos += frame_size;
-    }
+    //PUSH(RBP); PUSH_STACK_POS();
+    //MOV(RSP, RBP);
+    //if (frame_size > 0) {
+    //  SUB(IM(frame_size), RSP);
+    //  stackpos += frame_size;
+    //}
 
-    put_args_to_stack(defun);
+    //put_args_to_stack(defun);
+    UNUSED(put_args_to_stack);
   }
 
   // Statements
@@ -628,11 +632,18 @@ static void gen_defun(Node *node) {
 
   // Epilogue
   if (!no_stmt) {
-    EMIT_LABEL(defun->ret_label);
-    MOV(RBP, RSP);
-    stackpos -= frame_size;
-    POP(RBP); POP_STACK_POS();
+    //EMIT_LABEL(defun->ret_label);
+    //MOV(RBP, RSP);
+    //stackpos -= frame_size;
+    //POP(RBP); POP_STACK_POS();
   }
+
+  emit_comment("IR: #%d", (int)defun->irs->len);
+  for (int i = 0; i < defun->irs->len; ++i) {
+    IR *ir = defun->irs->data[i];
+    ir_out(ir);
+  }
+
   RET();
   emit_comment(NULL);
   curfunc = NULL;
@@ -656,7 +667,7 @@ static void gen_return(Node *node) {
   if (node->u.return_.val != NULL)
     gen_expr(node->u.return_.val);
   assert(curfunc != NULL);
-  JMP(curfunc->ret_label);
+  //JMP(curfunc->ret_label);
 }
 
 static void gen_if(Node *node) {

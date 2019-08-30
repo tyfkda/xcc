@@ -5,6 +5,7 @@
 
 #include "expr.h"
 #include "parser.h"  // Initializer
+#include "ir.h"
 #include "sema.h"
 #include "type.h"
 #include "util.h"
@@ -571,40 +572,6 @@ void gen_arith(enum ExprType exprType, const Type *valType, const Type *rhsType)
   }
 }
 
-static void gen_num(enum NumType numtype, intptr_t value) {
-  switch (numtype) {
-  case NUM_CHAR:
-    if (value == 0)
-      XOR(AL, AL);
-    else
-      MOV(IM(value), AL);
-    return;
-
-  case NUM_SHORT:
-    if (value == 0)
-      XOR(AX, AX);
-    else
-      MOV(IM(value), AX);
-    return;
-
-  case NUM_INT: case NUM_ENUM:
-    if (value == 0)
-      XOR(EAX, EAX);
-    else
-      MOV(IM(value), EAX);
-    return;
-
-  case NUM_LONG:
-    if (value == 0)
-      XOR(EAX, EAX);  // upper 32bit is also cleared.
-    else
-      MOV(IM(value), RAX);
-    return;
-
-  default: assert(false); break;
-  }
-}
-
 static void gen_memcpy(ssize_t size) {
   const char *dst = RDI;
   const char *src = RAX;
@@ -649,7 +616,7 @@ void gen_expr(Expr *expr) {
   switch (expr->type) {
   case EX_NUM:
     assert(expr->valType->type == TY_NUM);
-    gen_num(expr->valType->u.num.type, expr->u.num.ival);
+    new_ir_imm(expr->u.num.ival, type_size(expr->valType));
     break;
 
   case EX_STR:
@@ -767,19 +734,7 @@ void gen_expr(Expr *expr) {
         break;
       }
 
-      enum NumType targettype;
-      switch (expr->valType->type) {
-      case TY_NUM:
-        targettype = expr->valType->u.num.type;
-        break;
-      default:
-        assert(false);
-        // Fallthrough to avoid compile error.
-      case TY_PTR:
-        targettype = NUM_LONG;
-        break;
-      }
-      gen_num(targettype, value);
+      new_ir_imm(value, type_size(expr->valType));
     } else {
       gen_expr(expr->u.unary.sub);
       gen_cast(expr->valType, expr->u.unary.sub->valType);
