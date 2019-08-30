@@ -157,7 +157,7 @@ void gen_cond_jmp(Expr *cond, bool tf, const char *label) {
       const char *skip = alloc_label();
       gen_cond_jmp(cond->u.bop.lhs, false, skip);
       gen_cond_jmp(cond->u.bop.rhs, true, label);
-      ADD_LABEL(skip);
+      EMIT_LABEL(skip);
     }
     return;
   case EX_LOGIOR:
@@ -168,7 +168,7 @@ void gen_cond_jmp(Expr *cond, bool tf, const char *label) {
       const char *skip = alloc_label();
       gen_cond_jmp(cond->u.bop.lhs, true, skip);
       gen_cond_jmp(cond->u.bop.rhs, false, label);
-      ADD_LABEL(skip);
+      EMIT_LABEL(skip);
     }
     return;
   default:
@@ -352,9 +352,9 @@ static void gen_ternary(Expr *expr) {
   gen_cond_jmp(expr->u.ternary.cond, false, flabel);
   gen_expr(expr->u.ternary.tval);
   JMP(nlabel);
-  ADD_LABEL(flabel);
+  EMIT_LABEL(flabel);
   gen_expr(expr->u.ternary.fval);
-  ADD_LABEL(nlabel);
+  EMIT_LABEL(nlabel);
 }
 
 static void gen_funcall(Expr *expr) {
@@ -632,7 +632,7 @@ static void gen_memcpy(ssize_t size) {
       const char * label = alloc_label();
       PUSH(RAX);
       MOV(IM(size), RCX);
-      ADD_LABEL(label);
+      EMIT_LABEL(label);
       MOV(INDIRECT(src), DL);
       MOV(DL, INDIRECT(dst));
       INC(src);
@@ -1022,9 +1022,9 @@ void gen_expr(Expr *expr) {
       gen_cond_jmp(expr->u.bop.rhs, false, l_false);
       MOV(IM(1), EAX);
       JMP(l_next);
-      ADD_LABEL(l_false);
+      EMIT_LABEL(l_false);
       XOR(EAX, EAX);  // 0
-      ADD_LABEL(l_next);
+      EMIT_LABEL(l_next);
     }
     return;
 
@@ -1036,9 +1036,9 @@ void gen_expr(Expr *expr) {
       gen_cond_jmp(expr->u.bop.rhs, true, l_true);
       XOR(EAX, EAX);  // 0
       JMP(l_next);
-      ADD_LABEL(l_true);
+      EMIT_LABEL(l_true);
       MOV(IM(1), EAX);
-      ADD_LABEL(l_next);
+      EMIT_LABEL(l_next);
     }
     return;
 

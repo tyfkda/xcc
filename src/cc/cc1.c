@@ -1,11 +1,11 @@
-#include "stdarg.h"
-#include "stdint.h"
-#include "stdio.h"
-#include "stdlib.h"
-#include "string.h"
+#include <stdarg.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
 #include "codegen.h"
-#include "expr.h"
+#include "emit.h"
 #include "lexer.h"
 #include "parser.h"
 #include "sema.h"
@@ -16,7 +16,7 @@
 ////////////////////////////////////////////////
 
 static void init_compiler(FILE *fp) {
-  init_gen(fp);
+  init_emit(fp);
   enum_map = new_map();
   enum_value_map = new_map();
   struct_map = new_map();

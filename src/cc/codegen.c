@@ -14,46 +14,10 @@
 #include "type.h"
 #include "util.h"
 #include "var.h"
+#include "x86_64.h"
 
 const int FRAME_ALIGN = 8;
 const int STACK_PARAM_BASE_OFFSET = (2 - MAX_REG_ARGS) * 8;
-
-#include "x86_64.h"
-
-#define ALIGN_SECTION_SIZE(sec, align_)  do { int align = (int)(align_); add_asm_align(align); } while (0)
-
-char *fmt(const char *s, ...) {
-  static char buf[4][64];
-  static int index;
-  char *p = buf[index];
-  if (++index >= 4)
-    index = 0;
-  va_list ap;
-  va_start(ap, s);
-  vsnprintf(p, sizeof(buf[0]), s, ap);
-  va_end(ap);
-  return p;
-}
-
-char *num(intptr_t x) {
-  return fmt("%"PRIdPTR, x);
-}
-
-char *im(intptr_t x) {
-  return fmt("$%"PRIdPTR, x);
-}
-
-char *indirect(const char *reg) {
-  return fmt("(%s)", reg);
-}
-
-char *offset_indirect(int offset, const char *reg) {
-  return fmt("%d(%s)", offset, reg);
-}
-
-char *label_indirect(const char *label, const char *reg) {
-  return fmt("%s(%s)", label, reg);
-}
 
 size_t type_size(const Type *type) {
   switch (type->type) {
@@ -153,41 +117,6 @@ void calc_struct_size(StructInfo *sinfo) {
   sinfo->align = max_align;
 }
 
-static FILE *asm_fp;
-
-void add_asm2(const char *op, const char *operand1, const char *operand2) {
-  if (operand1 == NULL) {
-    fprintf(asm_fp, "\t%s\n", op);
-  } else if (operand2 == NULL) {
-    fprintf(asm_fp, "\t%s %s\n", op, operand1);
-  } else {
-    fprintf(asm_fp, "\t%s %s, %s\n", op, operand1, operand2);
-  }
-}
-
-void add_asm_label(const char *label) {
-  fprintf(asm_fp, "%s:\n", label);
-}
-
-static void add_asm_comment(const char *comment, ...) {
-  if (comment == NULL) {
-    fprintf(asm_fp, "\n");
-    return;
-  }
-
-  va_list ap;
-  va_start(ap, comment);
-  fprintf(asm_fp, "// ");
-  vfprintf(asm_fp, comment, ap);
-  fprintf(asm_fp, "\n");
-  va_end(ap);
-}
-
-static void add_asm_align(int align) {
-  if ((align) > 1)
-    _ALIGN(NUM(align));
-}
-
 static const char *escape(int c) {
   switch (c) {
   case '\0': return "\\0";
@@ -238,7 +167,7 @@ static char *escape_string(const char *str, size_t size) {
 void construct_initial_value(unsigned char *buf, const Type *type, Initializer *init, Vector **pptrinits) {
   assert(init == NULL || init->type != vDot);
 
-  add_asm_align(align_size(type));
+  emit_align(align_size(type));
 
   switch (type->type) {
   case TY_NUM:
@@ -380,14 +309,14 @@ static void put_data(const char *label, const VarInfo *varinfo) {
   if (buf == NULL)
     error("Out of memory");
 
-  ALIGN_SECTION_SIZE(sec, align_size(varinfo->type));
+  emit_align(align_size(varinfo->type));
   if ((varinfo->flag & VF_STATIC) == 0)  // global
     _GLOBL(label);
-  ADD_LABEL(label);
+  EMIT_LABEL(label);
 
   Vector *ptrinits = NULL;  // <[ptr, label]>
   construct_initial_value(buf, varinfo->type, varinfo->u.g.init, &ptrinits);
-  //add_section_data(sec, buf, size);
+  //emit_section_data(sec, buf, size);
 
   free(buf);
 }
@@ -428,15 +357,11 @@ static void put_bss(void) {
     if (varinfo->type->type == TY_FUNC || varinfo->u.g.init != NULL ||
         (varinfo->flag & VF_EXTERN) != 0)
       continue;
-    //ALIGN_SECTION_SIZE(SEC_DATA, align_size(varinfo->type));
-    int align = align_size(varinfo->type);
-    add_asm_align(align);
-    //instruction_pointer = ALIGN(instruction_pointer, align);
+
+    emit_align(align_size(varinfo->type));
     size_t size = type_size(varinfo->type);
     if (size < 1)
       size = 1;
-    //add_label(name);
-    //add_bss(size);
     _COMM(name, NUM(size));
   }
 }
@@ -445,15 +370,12 @@ void fixup_locations(void) {
   _SECTION(".rodata");
   put_rodata();
 
-  // Data section
-  //sections[SEC_DATA].start = instruction_pointer = ALIGN(instruction_pointer, 0x1000);  // Page size.
-
-  add_asm_comment(NULL);
+  emit_comment(NULL);
   _DATA();
   put_rwdata();
 
-  add_asm_comment(NULL);
-  add_asm_comment("bss");
+  emit_comment(NULL);
+  emit_comment("bss");
   put_bss();
 }
 
@@ -626,7 +548,7 @@ static void out_asm(Node *node) {
   if (len != 1 || (arg0 = (Expr*)args->data[0])->type != EX_STR)
     error("__asm takes string at 1st argument");
   else
-    ADD_ASM0(arg0->u.str.buf);
+    EMIT_ASM0(arg0->u.str.buf);
 }
 
 static void gen_nodes(Vector *nodes) {
@@ -658,9 +580,9 @@ static void gen_defun(Node *node) {
   if (global)
     _GLOBL(defun->name);
   else
-    add_asm_comment("%s: static func", defun->name);
+    emit_comment("%s: static func", defun->name);
 
-  ADD_LABEL(defun->name);
+  EMIT_LABEL(defun->name);
 
   // Allocate labels for goto.
   if (defun->labels != NULL) {
@@ -706,13 +628,13 @@ static void gen_defun(Node *node) {
 
   // Epilogue
   if (!no_stmt) {
-    ADD_LABEL(defun->ret_label);
+    EMIT_LABEL(defun->ret_label);
     MOV(RBP, RSP);
     stackpos -= frame_size;
     POP(RBP); POP_STACK_POS();
   }
   RET();
-  add_asm_comment(NULL);
+  emit_comment(NULL);
   curfunc = NULL;
   curscope = NULL;
   assert(stackpos == 0);
@@ -742,13 +664,13 @@ static void gen_if(Node *node) {
   gen_cond_jmp(node->u.if_.cond, false, flabel);
   gen(node->u.if_.tblock);
   if (node->u.if_.fblock == NULL) {
-    ADD_LABEL(flabel);
+    EMIT_LABEL(flabel);
   } else {
     const char *nlabel = alloc_label();
     JMP(nlabel);
-    ADD_LABEL(flabel);
+    EMIT_LABEL(flabel);
     gen(node->u.if_.fblock);
-    ADD_LABEL(nlabel);
+    EMIT_LABEL(nlabel);
   }
 }
 
@@ -804,8 +726,8 @@ static void gen_switch(Node *node) {
   gen(node->u.switch_.body);
 
   if (!node->u.switch_.has_default)
-    ADD_LABEL(labels->data[len]);  // No default: Locate at the end of switch statement.
-  ADD_LABEL(l_break);
+    EMIT_LABEL(labels->data[len]);  // No default: Locate at the end of switch statement.
+  EMIT_LABEL(l_break);
 
   cur_case_values = save_case_values;
   cur_case_labels = save_case_labels;
@@ -825,7 +747,7 @@ static void gen_case(Node *node) {
   }
   assert(i < len);
   assert(i < cur_case_labels->len);
-  ADD_LABEL(cur_case_labels->data[i]);
+  EMIT_LABEL(cur_case_labels->data[i]);
 }
 
 static void gen_default(void) {
@@ -833,7 +755,7 @@ static void gen_default(void) {
   assert(cur_case_labels != NULL);
   int i = cur_case_values->len;  // Label for default is stored at the size of values.
   assert(i < cur_case_labels->len);
-  ADD_LABEL(cur_case_labels->data[i]);
+  EMIT_LABEL(cur_case_labels->data[i]);
 }
 
 static void gen_while(Node *node) {
@@ -842,11 +764,11 @@ static void gen_while(Node *node) {
   const char *l_break = push_break_label(&save_break);
   const char *l_loop = alloc_label();
   JMP(l_cond);
-  ADD_LABEL(l_loop);
+  EMIT_LABEL(l_loop);
   gen(node->u.while_.body);
-  ADD_LABEL(l_cond);
+  EMIT_LABEL(l_cond);
   gen_cond_jmp(node->u.while_.cond, true, l_loop);
-  ADD_LABEL(l_break);
+  EMIT_LABEL(l_break);
   pop_continue_label(save_cont);
   pop_break_label(save_break);
 }
@@ -856,11 +778,11 @@ static void gen_do_while(Node *node) {
   const char *l_cond = push_continue_label(&save_cont);
   const char *l_break = push_break_label(&save_break);
   const char * l_loop = alloc_label();
-  ADD_LABEL(l_loop);
+  EMIT_LABEL(l_loop);
   gen(node->u.while_.body);
-  ADD_LABEL(l_cond);
+  EMIT_LABEL(l_cond);
   gen_cond_jmp(node->u.while_.cond, true, l_loop);
-  ADD_LABEL(l_break);
+  EMIT_LABEL(l_break);
   pop_continue_label(save_cont);
   pop_break_label(save_break);
 }
@@ -872,16 +794,16 @@ static void gen_for(Node *node) {
   const char * l_cond = alloc_label();
   if (node->u.for_.pre != NULL)
     gen_expr(node->u.for_.pre);
-  ADD_LABEL(l_cond);
+  EMIT_LABEL(l_cond);
   if (node->u.for_.cond != NULL) {
     gen_cond_jmp(node->u.for_.cond, false, l_break);
   }
   gen(node->u.for_.body);
-  ADD_LABEL(l_continue);
+  EMIT_LABEL(l_continue);
   if (node->u.for_.post != NULL)
     gen_expr(node->u.for_.post);
   JMP(l_cond);
-  ADD_LABEL(l_break);
+  EMIT_LABEL(l_break);
   pop_continue_label(save_cont);
   pop_break_label(save_break);
 }
@@ -907,7 +829,7 @@ static void gen_label(Node *node) {
   assert(curfunc->labels != NULL);
   const char *label = map_get(curfunc->labels, node->u.label.name);
   assert(label != NULL);
-  ADD_LABEL(label);
+  EMIT_LABEL(label);
   gen(node->u.label.stmt);
 }
 
@@ -918,7 +840,7 @@ static void gen_clear_local_var(const VarInfo *varinfo) {
   LEA(OFFSET_INDIRECT(offset, RBP), RSI);
   MOV(IM(type_size(varinfo->type)), EDI);
   XOR(AL, AL);
-  ADD_LABEL(loop);
+  EMIT_LABEL(loop);
   MOV(AL, INDIRECT(RSI));
   INC(RSI);
   DEC(EDI);
@@ -976,8 +898,4 @@ void gen(Node *node) {
     error("Unhandled node: %d", node->type);
     break;
   }
-}
-
-void init_gen(FILE *fp) {
-  asm_fp = fp;
 }
