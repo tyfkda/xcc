@@ -421,72 +421,10 @@ void gen_arith(enum ExprType exprType, const Type *valType, const Type *rhsType)
 
   switch (exprType) {
   case EX_ADD:
-    switch (valType->type) {
-    case TY_NUM:
-      switch (valType->u.num.type) {
-      case NUM_CHAR:  ADD(DIL, AL); break;
-      case NUM_SHORT: ADD(DI, AX); break;
-      case NUM_INT:   ADD(EDI, EAX); break;
-      case NUM_LONG:  ADD(RDI, RAX); break;
-      default: assert(false); break;
-      }
-      break;
-    case TY_PTR:  ADD(RDI, RAX); break;
-    default: assert(false); break;
-    }
-    break;
-
   case EX_SUB:
-    switch (valType->type) {
-    case TY_NUM:
-      switch (valType->u.num.type) {
-      case NUM_CHAR:  SUB(DIL, AL); break;
-      case NUM_SHORT: SUB(DI, AX); break;
-      case NUM_INT:   SUB(EDI, EAX); break;
-      case NUM_LONG:  SUB(RDI, RAX); break;
-      default: assert(false); break;
-      }
-      break;
-    case TY_PTR:  SUB(RDI, RAX); break;
-    default: assert(false); break;
-    }
-    break;
-
   case EX_MUL:
-    assert(valType->type == TY_NUM);
-    switch (valType->u.num.type) {
-    case NUM_CHAR:  MUL(DIL); break;
-    case NUM_SHORT: MUL(DI); break;
-    case NUM_INT:   MUL(EDI); break;
-    case NUM_LONG:  MUL(RDI); break;
-    default: assert(false); break;
-    }
-    break;
-
   case EX_DIV:
-    XOR(EDX, EDX);  // RDX = 0
-    assert(valType->type == TY_NUM);
-    switch (valType->u.num.type) {
-    case NUM_CHAR:
-      MOVSX(DIL, RDI);
-      MOVSX(AL, EAX);
-      CLTD();
-      IDIV(EDI);
-      break;
-    case NUM_SHORT:
-      MOVSX(DI, EDI);
-      MOVSX(AX, EAX);
-      // Fallthrough
-    case NUM_INT:
-      CLTD();
-      IDIV(EDI);
-      break;
-    case NUM_LONG:
-      CQTO();
-      IDIV(RDI);
-      break;
-    default: assert(false); break;
-    }
+    new_ir_op(exprType + (IR_ADD - EX_ADD), type_size(valType));
     break;
 
   case EX_MOD:
@@ -1008,11 +946,8 @@ void gen_expr(Expr *expr) {
   case EX_BITOR:
   case EX_BITXOR:
     gen_expr(expr->u.bop.rhs);
-    PUSH(RAX); PUSH_STACK_POS();
+    new_ir_st(IR_PUSH);
     gen_expr(expr->u.bop.lhs);
-
-    POP(RDI); POP_STACK_POS();
-
     gen_arith(expr->type, expr->valType, expr->u.bop.rhs->valType);
     return;
 

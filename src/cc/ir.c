@@ -26,6 +26,22 @@ IR *new_ir_imm(intptr_t value, int size) {
   return ir;
 }
 
+IR *new_ir_op(enum IrType type, int size) {
+  IR *ir = new_ir(type);
+  ir->size = size;
+  return ir;
+}
+
+IR *new_ir_st(enum IrType type) {
+  return new_ir(type);
+}
+
+IR *new_ir_jmp(const char *label) {
+  IR *ir = new_ir(IR_JMP);
+  ir->u.jmp.label = label;
+  return ir;
+}
+
 void ir_out(const IR *ir) {
   switch (ir->type) {
   case IR_IMM:
@@ -64,6 +80,73 @@ void ir_out(const IR *ir) {
       }
       break;
     }
+    break;
+
+  case IR_ADD:
+    POP(RDI); POP_STACK_POS();
+    switch (ir->size) {
+    case 1:  ADD(DIL, AL); break;
+    case 2:  ADD(DI, AX); break;
+    case 4:  ADD(EDI, EAX); break;
+    case 8:  ADD(RDI, RAX); break;
+    default: assert(false); break;
+    }
+    break;
+
+  case IR_SUB:
+    POP(RDI); POP_STACK_POS();
+    switch (ir->size) {
+    case 1:  SUB(DIL, AL); break;
+    case 2:  SUB(DI, AX); break;
+    case 4:  SUB(EDI, EAX); break;
+    case 8:  SUB(RDI, RAX); break;
+    default: assert(false); break;
+    }
+    break;
+
+  case IR_MUL:
+    POP(RDI); POP_STACK_POS();
+    switch (ir->size) {
+    case 1:  MUL(DIL); break;
+    case 2:  MUL(DI); break;
+    case 4:  MUL(EDI); break;
+    case 8:  MUL(RDI); break;
+    default: assert(false); break;
+    }
+    break;
+
+  case IR_DIV:
+    POP(RDI); POP_STACK_POS();
+    XOR(EDX, EDX);  // RDX = 0
+    switch (ir->size) {
+    case 1:
+      MOVSX(DIL, RDI);
+      MOVSX(AL, EAX);
+      CLTD();
+      IDIV(EDI);
+      break;
+    case 2:
+      MOVSX(DI, EDI);
+      MOVSX(AX, EAX);
+      // Fallthrough
+    case 4:
+      CLTD();
+      IDIV(EDI);
+      break;
+    case 8:
+      CQTO();
+      IDIV(RDI);
+      break;
+    default: assert(false); break;
+    }
+    break;
+
+  case IR_PUSH:
+    PUSH(RAX); PUSH_STACK_POS();
+    break;
+
+  case IR_JMP:
+    JMP(ir->u.jmp.label);
     break;
 
   default:
