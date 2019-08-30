@@ -61,9 +61,9 @@ enum ExprType {
   EX_EQ,
   EX_NE,
   EX_LT,
-  EX_GT,
-  EX_GE,
   EX_LE,
+  EX_GE,
+  EX_GT,
   EX_LOGAND,
   EX_LOGIOR,
   EX_ASSIGN,
@@ -165,3 +165,4 @@ Expr *analyze_expr(Expr *expr, bool keep_left);
 Expr *new_expr_cast(const Type *type, const Token *token, Expr *sub, bool is_explicit);
 bool check_cast(const Type *dst, const Type *src, Expr *src_expr, bool is_explicit);
 bool is_const(Expr *expr);
+enum ExprType flip_cmp(enum ExprType type);

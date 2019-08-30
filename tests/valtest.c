@@ -80,6 +80,7 @@ int static_local(void) {
 }
 
 int main(void) {
+  int x, y;
   expect("zero", 0, 0);
   expect("decimal", 42, 42);
   expect("hex", 18, 0x12);
@@ -207,6 +208,25 @@ int main(void) {
     x ^= 0xa5;
     expect("^=", 0x186, x);
   }
+  expect("var < num", 0, (x=1, x < 0));
+  expect("var <= num", 0, (x=1, x <= 0));
+  expect("var > num", 1, (x=1, x > 0));
+  expect("var >= num", 1, (x=1, x >= 0));
+
+  expect("num > var", 0, (x=1, 0 > x));
+  expect("num >= var", 0, (x=1, 0 >= x));
+  expect("num < var", 1, (x=1, 0 < x));
+  expect("num <= var", 1, (x=1, 0 <= x));
+
+  expect("t && t", 1, (x=1, y=1, x && y));
+  expect("f && t", 0, (x=0, y=1, x && y));
+  expect("t && f", 0, (x=1, y=0, x && y));
+  expect("f && f", 0, (x=0, y=0, x && y));
+  expect("t || t", 1, (x=1, y=1, x || y));
+  expect("f || t", 1, (x=0, y=1, x || y));
+  expect("t || f", 1, (x=1, y=0, x || y));
+  expect("f || f", 0, (x=0, y=0, x || y));
+
   expect("funcall", 23, foo() - 100);
   expect("func var", 9, sqsub(5, 4));
   {

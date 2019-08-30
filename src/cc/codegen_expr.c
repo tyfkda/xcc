@@ -33,13 +33,6 @@ static void gen_test_opcode(const Type *type) {
   }
 }
 
-static enum ExprType flip_cmp(enum ExprType type) {
-  assert(EX_EQ <= type && type <= EX_LE);
-  if (type >= EX_LT)
-    type = EX_LE - (type - EX_LT);
-  return type;
-}
-
 static enum ExprType gen_compare_expr(enum ExprType type, Expr *lhs, Expr *rhs) {
   const Type *ltype = lhs->valType;
   UNUSED(ltype);
@@ -132,7 +125,7 @@ void gen_cond_jmp(Expr *cond, bool tf, const char *label) {
       switch (type) {
       case EX_LT:
       case EX_GE:
-        if (cond->type != EX_LT)
+        if (type != EX_LT)
           tf = !tf;
         if (tf)
           JL(label);
@@ -141,7 +134,7 @@ void gen_cond_jmp(Expr *cond, bool tf, const char *label) {
         break;
       case EX_GT:
       case EX_LE:
-        if (cond->type != EX_GT)
+        if (type != EX_GT)
           tf = !tf;
         if (tf)
           JG(label);

@@ -40,6 +40,13 @@ bool is_const(Expr *expr) {
   }
 }
 
+enum ExprType flip_cmp(enum ExprType type) {
+  assert(EX_EQ <= type && type <= EX_GT);
+  if (type >= EX_LT)
+    type = EX_GT - (type - EX_LT);
+  return type;
+}
+
 Expr *new_expr_numlit(const Type *type, const Token *token, const Num *num) {
   assert(type->type == TY_NUM);
   Expr *expr = new_expr(EX_NUM, type, token);

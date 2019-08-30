@@ -326,27 +326,36 @@ static bool member_access_recur(const Type *type, const Token *ident, Vector *st
   return false;
 }
 
-static void analyze_cmp(Expr *expr) {
+static Expr *analyze_cmp(Expr *expr) {
   Expr *lhs = expr->u.bop.lhs, *rhs = expr->u.bop.rhs;
   if (lhs->valType->type == TY_PTR || rhs->valType->type == TY_PTR) {
-    const Type *lt = lhs->valType, *rt = rhs->valType;
-    if (lt->type != TY_PTR) {
-      const Type *tmp = lt;
-      lt = rt;
-      rt = tmp;
+    if (lhs->valType->type != TY_PTR) {
+      Expr *tmp = lhs;
+      lhs = rhs;
+      rhs = tmp;
+      expr->u.bop.lhs = lhs;
+      expr->u.bop.rhs = rhs;
+      expr->type = flip_cmp(expr->type);
     }
+    const Type *lt = lhs->valType, *rt = rhs->valType;
     if (!can_cast(lt, rt, rhs, false))
       parse_error(expr->token, "Cannot compare pointer to other types");
-    if (rt->type != TY_PTR) {
-      if (lt == lhs->valType)
-        expr->u.bop.rhs = new_expr_cast(lhs->valType, expr->token, rhs, false);
-      else
-        expr->u.bop.lhs = new_expr_cast(rhs->valType, expr->token, lhs, false);
-    }
+    if (rt->type != TY_PTR)
+      expr->u.bop.rhs = new_expr_cast(lhs->valType, expr->token, rhs, false);
   } else {
     if (!cast_numbers(&expr->u.bop.lhs, &expr->u.bop.rhs, false))
       parse_error(expr->token, "Cannot compare except numbers");
+
+    if (is_const(lhs) && !is_const(rhs)) {
+      Expr *tmp = lhs;
+      lhs = rhs;
+      rhs = tmp;
+      expr->u.bop.lhs = lhs;
+      expr->u.bop.rhs = rhs;
+      expr->type = flip_cmp(expr->type);
+    }
   }
+  return expr;
 }
 
 // Traverse expr to check semantics and determine value type.
@@ -502,7 +511,7 @@ Expr *analyze_expr(Expr *expr, bool keep_left) {
     case EX_GT:
     case EX_LE:
     case EX_GE:
-      analyze_cmp(expr);
+      expr = analyze_cmp(expr);
       break;
 
     case EX_LOGAND:
