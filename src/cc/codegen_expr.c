@@ -16,54 +16,46 @@ static void gen_lval(Expr *expr);
 
 // test %eax, %eax, and so on.
 static void gen_test_opcode(const Type *type) {
+  int size = type_size(type);
   switch (type->type) {
-  case TY_NUM:
-    switch (type->u.num.type) {
-    case NUM_CHAR:  TEST(AL, AL); break;
-    case NUM_SHORT: TEST(AX, AX); break;
-    case NUM_INT: case NUM_ENUM:
-      TEST(EAX, EAX);
-      break;
-    case NUM_LONG:  TEST(RAX, RAX); break;
-    default: assert(false); break;
-    }
+  case TY_NUM: case TY_PTR:
     break;
-  case TY_PTR: case TY_ARRAY: case TY_FUNC:
-    TEST(RAX, RAX);
+  case TY_ARRAY: case TY_FUNC:
+    size = WORD_SIZE;
     break;
   default: assert(false); break;
   }
+
+  new_ir_st(IR_PUSH);
+  new_ir_imm(0, size);
+  new_ir_op(IR_CMP, size);
 }
 
-static enum ExprType gen_compare_expr(enum ExprType type, Expr *lhs, Expr *rhs) {
+static enum ConditionType flip_cond(enum ConditionType cond) {
+  assert(COND_EQ <= cond && cond <= COND_GT);
+  if (cond >= COND_LT)
+    cond = COND_GT - (cond - COND_LT);
+  return cond;
+}
+
+static enum ConditionType gen_compare_expr(enum ExprType type, Expr *lhs, Expr *rhs) {
   const Type *ltype = lhs->valType;
   UNUSED(ltype);
   assert(ltype->type == rhs->valType->type);
 
+  enum ConditionType cond = type + (COND_EQ - EX_EQ);
   if (rhs->type != EX_NUM && lhs->type == EX_NUM) {
     Expr *tmp = lhs;
     lhs = rhs;
     rhs = tmp;
-    type = flip_cmp(type);
-  }
-
-  enum NumType numtype;
-  switch (lhs->valType->type) {
-  case TY_NUM:
-    numtype = lhs->valType->u.num.type;
-    break;
-  default:
-    assert(false);
-    // Fallthrough to avoid compile error.
-  case TY_PTR:
-    numtype = NUM_LONG;
-    break;
+    cond = flip_cond(cond);
   }
 
   gen_expr(lhs);
   if (rhs->type == EX_NUM && rhs->u.num.ival == 0 &&
-      (type == EX_EQ || type == EX_NE)) {
+      (cond == COND_EQ || cond == COND_NE)) {
     gen_test_opcode(lhs->valType);
+#if 0  // Disable optimization for a while
   } else if (rhs->type == EX_NUM && (numtype != NUM_LONG || is_im32(rhs->u.num.ival))) {
     switch (numtype) {
     case NUM_CHAR: CMP(IM(rhs->u.num.ival), AL); break;
@@ -76,26 +68,24 @@ static enum ExprType gen_compare_expr(enum ExprType type, Expr *lhs, Expr *rhs) 
       break;
     default: assert(false); break;
     }
+#endif
   } else {
-    PUSH(RAX); PUSH_STACK_POS();
-    gen_expr(rhs);
-    POP(RDI); POP_STACK_POS();
-
-    switch (numtype) {
-    case NUM_CHAR: CMP(AL, DIL); break;
-    case NUM_SHORT: CMP(AX, DI); break;
-    case NUM_INT: case NUM_ENUM:
-      CMP(EAX, EDI);
+    switch (lhs->valType->type) {
+    case TY_NUM: case TY_PTR:
       break;
-    case NUM_LONG: CMP(RAX, RDI); break;
     default: assert(false); break;
     }
+
+    new_ir_st(IR_PUSH);
+    gen_expr(rhs);
+    new_ir_op(IR_CMP, type_size(lhs->valType));
   }
 
-  return type;
+  return cond;
 }
 
 void gen_cond_jmp(Expr *cond, bool tf, const char *label) {
+#if 0  // Disable optimization for a while
   // Local optimization: if `cond` is compare expression, then
   // jump using flags after CMP directly.
   switch (cond->type) {
@@ -175,14 +165,11 @@ void gen_cond_jmp(Expr *cond, bool tf, const char *label) {
   default:
     break;
   }
+#endif
 
   gen_expr(cond);
   gen_test_opcode(cond->valType);
-
-  if (tf)
-    JNE(label);
-  else
-    JE(label);
+  new_ir_jmp(tf ? COND_NE : COND_EQ, label);
 }
 
 static void gen_cast(const Type *ltypep, const Type *rtypep) {
@@ -830,18 +817,9 @@ void gen_expr(Expr *expr) {
   case EX_LE:
   case EX_GE:
     {
-      enum ExprType type = gen_compare_expr(expr->type, expr->u.bop.lhs, expr->u.bop.rhs);
-      switch (type) {
-      case EX_EQ:  SETE(AL); break;
-      case EX_NE:  SETNE(AL); break;
-      case EX_LT:  SETL(AL); break;
-      case EX_GT:  SETG(AL); break;
-      case EX_LE:  SETLE(AL); break;
-      case EX_GE:  SETGE(AL); break;
-      default: assert(false); break;
-      }
+      enum ConditionType cond = gen_compare_expr(expr->type, expr->u.bop.lhs, expr->u.bop.rhs);
+      new_ir_set(cond);
     }
-    MOVSX(AL, EAX);
     return;
 
   case EX_LOGAND:

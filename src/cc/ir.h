@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include <stdbool.h>
 #include <stddef.h>  // size_t
 #include <stdint.h>  // intptr_t
 
@@ -15,8 +16,21 @@ enum IrType {
   IR_SUB,
   IR_MUL,
   IR_DIV,
+  IR_CMP,
+  IR_SET,   // SETxx: flag => 0 or 1
   IR_PUSH,
   IR_JMP,
+  IR_LABEL,
+};
+
+enum ConditionType {
+  COND_ANY,
+  COND_EQ,
+  COND_NE,
+  COND_LT,
+  COND_LE,
+  COND_GE,
+  COND_GT,
 };
 
 typedef struct {
@@ -26,8 +40,16 @@ typedef struct {
 
   union {
     struct {
+      enum ConditionType cond;
+    } set;
+    struct {
       const char *label;
+      enum ConditionType cond;
     } jmp;
+    struct {
+      const char *name;
+      bool global;
+    } label;
   } u;
 } IR;
 
@@ -38,6 +60,8 @@ IR *new_ir_store(int size);
 IR *new_ir_memcpy(size_t size);
 IR *new_ir_op(enum IrType type, int size);
 IR *new_ir_st(enum IrType type);
-IR *new_ir_jmp(const char *label);
+IR *new_ir_set(enum ConditionType cond);
+IR *new_ir_jmp(enum ConditionType cond, const char *label);
+IR *new_ir_label(const char *label, bool global);
 
 void ir_out(const IR *ir);

@@ -613,35 +613,34 @@ static void gen_defun(Node *node) {
   curscope = defun->top_scope;
   defun->ret_label = alloc_label();
 
-  // Prologue
-  // Allocate variable bufer.
-  if (!no_stmt) {
-    //PUSH(RBP); PUSH_STACK_POS();
-    //MOV(RSP, RBP);
-    //if (frame_size > 0) {
-    //  SUB(IM(frame_size), RSP);
-    //  stackpos += frame_size;
-    //}
-
-    //put_args_to_stack(defun);
-    UNUSED(put_args_to_stack);
-  }
-
   // Statements
   gen_nodes(defun->stmts);
 
-  // Epilogue
+  // Prologue
+  // Allocate variable bufer.
   if (!no_stmt) {
-    //EMIT_LABEL(defun->ret_label);
-    //MOV(RBP, RSP);
-    //stackpos -= frame_size;
-    //POP(RBP); POP_STACK_POS();
+    PUSH(RBP); PUSH_STACK_POS();
+    MOV(RSP, RBP);
+    if (frame_size > 0) {
+      SUB(IM(frame_size), RSP);
+      stackpos += frame_size;
+    }
+
+    put_args_to_stack(defun);
   }
 
   emit_comment("IR: #%d", (int)defun->irs->len);
   for (int i = 0; i < defun->irs->len; ++i) {
     IR *ir = defun->irs->data[i];
     ir_out(ir);
+  }
+
+  // Epilogue
+  if (!no_stmt) {
+    EMIT_LABEL(defun->ret_label);
+    MOV(RBP, RSP);
+    stackpos -= frame_size;
+    POP(RBP); POP_STACK_POS();
   }
 
   RET();
@@ -667,7 +666,7 @@ static void gen_return(Node *node) {
   if (node->u.return_.val != NULL)
     gen_expr(node->u.return_.val);
   assert(curfunc != NULL);
-  //JMP(curfunc->ret_label);
+  new_ir_jmp(COND_ANY, curfunc->ret_label);
 }
 
 static void gen_if(Node *node) {
@@ -675,13 +674,13 @@ static void gen_if(Node *node) {
   gen_cond_jmp(node->u.if_.cond, false, flabel);
   gen(node->u.if_.tblock);
   if (node->u.if_.fblock == NULL) {
-    EMIT_LABEL(flabel);
+    new_ir_label(flabel, false);
   } else {
     const char *nlabel = alloc_label();
-    JMP(nlabel);
-    EMIT_LABEL(flabel);
+    new_ir_jmp(COND_ANY, nlabel);
+    new_ir_label(flabel, false);
     gen(node->u.if_.fblock);
-    EMIT_LABEL(nlabel);
+    new_ir_label(nlabel, false);
   }
 }
 

@@ -60,9 +60,23 @@ IR *new_ir_st(enum IrType type) {
   return new_ir(type);
 }
 
-IR *new_ir_jmp(const char *label) {
+IR *new_ir_set(enum ConditionType cond) {
+  IR *ir = new_ir(IR_SET);
+  ir->u.set.cond = cond;
+  return ir;
+}
+
+IR *new_ir_jmp(enum ConditionType cond, const char *label) {
   IR *ir = new_ir(IR_JMP);
   ir->u.jmp.label = label;
+  ir->u.jmp.cond = cond;
+  return ir;
+}
+
+IR *new_ir_label(const char *label, bool global) {
+  IR *ir = new_ir(IR_LABEL);
+  ir->u.label.name = label;
+  ir->u.label.global = global;
   return ir;
 }
 
@@ -235,12 +249,56 @@ void ir_out(const IR *ir) {
     }
     break;
 
+  case IR_CMP:
+    {
+      POP(RDI); POP_STACK_POS();
+
+      switch (ir->size) {
+      case 1:  CMP(AL, DIL); break;
+      case 2:  CMP(AX, DI); break;
+      case 4:  CMP(EAX, EDI); break;
+      case 8:  CMP(RAX, RDI); break;
+      default: assert(false); break;
+      }
+    }
+    break;
+
+  case IR_SET:
+    {
+      switch (ir->u.set.cond) {
+      case COND_EQ:  SETE(AL); break;
+      case COND_NE:  SETNE(AL); break;
+      case COND_LT:  SETL(AL); break;
+      case COND_GT:  SETG(AL); break;
+      case COND_LE:  SETLE(AL); break;
+      case COND_GE:  SETGE(AL); break;
+      default: assert(false); break;
+      }
+      MOVSX(AL, EAX);
+    }
+    break;
+
   case IR_PUSH:
     PUSH(RAX); PUSH_STACK_POS();
     break;
 
   case IR_JMP:
-    JMP(ir->u.jmp.label);
+    switch (ir->u.jmp.cond) {
+    case COND_ANY:  JMP(ir->u.jmp.label); break;
+    case COND_EQ:   JE(ir->u.jmp.label); break;
+    case COND_NE:   JNE(ir->u.jmp.label); break;
+    case COND_LT:   JL(ir->u.jmp.label); break;
+    case COND_GT:   JG(ir->u.jmp.label); break;
+    case COND_LE:   JLE(ir->u.jmp.label); break;
+    case COND_GE:   JGE(ir->u.jmp.label); break;
+    default:  assert(false); break;
+    }
+    break;
+
+  case IR_LABEL:
+    if (ir->u.label.global)
+      _GLOBL(ir->u.label.name);
+    EMIT_LABEL(ir->u.label.name);
     break;
 
   default:
