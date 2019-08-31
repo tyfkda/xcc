@@ -35,7 +35,7 @@ static Defun *new_defun(const Type *rettype, const char *name, Vector *params, i
   defun->labels = NULL;
   defun->gotos = NULL;
   defun->bbs = NULL;
-  defun->ret_label = NULL;
+  defun->ret_bb = NULL;
   return defun;
 }
 

@@ -621,6 +621,7 @@ BB *curbb;
 BB *new_bb(void) {
   BB *bb = malloc(sizeof(*bb));
   bb->next = NULL;
+  bb->label = alloc_label();
   bb->irs = new_vector();
   return bb;
 }

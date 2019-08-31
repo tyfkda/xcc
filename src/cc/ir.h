@@ -112,6 +112,7 @@ void ir_out(const IR *ir);
 
 typedef struct BB {
   struct BB *next;
+  const char *label;
   Vector *irs;  // <IR*>
 } BB;
 

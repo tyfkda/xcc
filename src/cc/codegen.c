@@ -20,6 +20,12 @@
 const int FRAME_ALIGN = 8;
 const int STACK_PARAM_BASE_OFFSET = (2 - MAX_REG_ARGS) * 8;
 
+void set_curbb(BB *bb) {
+  assert(curfunc != NULL);
+  curbb = bb;
+  vec_push(curfunc->bbs, bb);
+}
+
 size_t type_size(const Type *type) {
   switch (type->type) {
   case TY_VOID:
@@ -573,9 +579,9 @@ static void gen_defun(Node *node) {
   if (defun->top_scope == NULL)  // Prototype definition
     return;
 
+  curfunc = defun;
   defun->bbs = new_vector();
-  curbb = new_bb();
-  vec_push(defun->bbs, curbb);
+  set_curbb(new_bb());
 
   bool global = true;
   VarInfo *varinfo = find_global(defun->name);
@@ -583,7 +589,6 @@ static void gen_defun(Node *node) {
     global = (varinfo->flag & VF_STATIC) == 0;
   }
 
-  curfunc = defun;
   if (global)
     _GLOBL(defun->name);
   else
@@ -615,10 +620,12 @@ static void gen_defun(Node *node) {
   }
 
   curscope = defun->top_scope;
-  defun->ret_label = alloc_label();
+  defun->ret_bb = bb_split(curbb);
 
   // Statements
   gen_nodes(defun->stmts);
+
+  set_curbb(defun->ret_bb);
 
   // Prologue
   // Allocate variable bufer.
@@ -635,7 +642,18 @@ static void gen_defun(Node *node) {
 
   for (int i = 0; i < defun->bbs->len; ++i) {
     BB *bb = defun->bbs->data[i];
+#ifndef NDEBUG
+    // Check BB connection.
+    if (i < defun->bbs->len - 1) {
+      BB *nbb = defun->bbs->data[i + 1];
+      assert(bb->next == nbb);
+    } else {
+      assert(bb->next == NULL);
+    }
+#endif
+
     emit_comment("  BB %d/%d", i, defun->bbs->len);
+    EMIT_LABEL(bb->label);
     for (int j = 0; j < bb->irs->len; ++j) {
       IR *ir = bb->irs->data[j];
       ir_out(ir);
@@ -644,7 +662,6 @@ static void gen_defun(Node *node) {
 
   // Epilogue
   if (!no_stmt) {
-    EMIT_LABEL(defun->ret_label);
     MOV(RBP, RSP);
     stackpos -= frame_size;
     POP(RBP); POP_STACK_POS();
@@ -670,24 +687,28 @@ static void gen_block(Node *node) {
 }
 
 static void gen_return(Node *node) {
+  BB *bb = bb_split(curbb);
   if (node->u.return_.val != NULL)
     gen_expr(node->u.return_.val);
   assert(curfunc != NULL);
-  new_ir_jmp(COND_ANY, curfunc->ret_label);
+  new_ir_jmp(COND_ANY, curfunc->ret_bb->label);
+  set_curbb(bb);
 }
 
 static void gen_if(Node *node) {
-  const char *flabel = alloc_label();
-  gen_cond_jmp(node->u.if_.cond, false, flabel);
+  BB *tbb = bb_split(curbb);
+  BB *fbb = bb_split(tbb);
+  gen_cond_jmp(node->u.if_.cond, false, fbb->label);
+  set_curbb(tbb);
   gen(node->u.if_.tblock);
   if (node->u.if_.fblock == NULL) {
-    new_ir_label(flabel, false);
+    set_curbb(fbb);
   } else {
-    const char *nlabel = alloc_label();
-    new_ir_jmp(COND_ANY, nlabel);
-    new_ir_label(flabel, false);
+    BB *nbb = bb_split(fbb);
+    new_ir_jmp(COND_ANY, nbb->label);
+    set_curbb(fbb);
     gen(node->u.if_.fblock);
-    new_ir_label(nlabel, false);
+    set_curbb(nbb);
   }
 }
 
