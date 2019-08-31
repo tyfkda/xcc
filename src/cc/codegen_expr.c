@@ -237,14 +237,20 @@ static void gen_varref(Expr *expr) {
 }
 
 static void gen_ternary(Expr *expr) {
-  const char *nlabel = alloc_label();
-  const char *flabel = alloc_label();
-  gen_cond_jmp(expr->u.ternary.cond, false, flabel);
+  BB *tbb = bb_split(curbb);
+  BB *fbb = bb_split(tbb);
+  BB *nbb = bb_split(fbb);
+
+  gen_cond_jmp(expr->u.ternary.cond, false, fbb->label);
+
+  set_curbb(tbb);
   gen_expr(expr->u.ternary.tval);
-  new_ir_jmp(COND_ANY, nlabel);
-  new_ir_label(flabel, false);
+  new_ir_jmp(COND_ANY, nbb->label);
+
+  set_curbb(fbb);
   gen_expr(expr->u.ternary.fval);
-  new_ir_label(nlabel, false);
+
+  set_curbb(nbb);
 }
 
 static void gen_funcall(Expr *expr) {

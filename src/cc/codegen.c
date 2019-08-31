@@ -401,13 +401,22 @@ static void pop_break_label(const char *save) {
   s_break_label = save;
 }
 
-static const char *push_continue_label(const char **save) {
-  *save = s_continue_label;
-  return s_continue_label = alloc_label();
-}
-
 static void pop_continue_label(const char *save) {
   s_continue_label = save;
+}
+
+static BB *push_continue_bb(BB *parent_bb, const char **save) {
+  *save = s_continue_label;
+  BB *bb = bb_split(parent_bb);
+  s_continue_label = bb->label;
+  return bb;
+}
+
+static BB * push_break_bb(BB *parent_bb, const char **save) {
+  *save = s_break_label;
+  BB *bb = bb_split(parent_bb);
+  s_break_label = bb->label;
+  return bb;
 }
 
 static int arrange_variadic_func_params(Scope *scope) {
@@ -781,62 +790,84 @@ static void gen_default(void) {
 }
 
 static void gen_while(Node *node) {
+  BB *loop_bb = bb_split(curbb);
+
   const char *save_break, *save_cont;
-  const char *l_cond = push_continue_label(&save_cont);
-  const char *l_break = push_break_label(&save_break);
-  const char *l_loop = alloc_label();
-  new_ir_jmp(COND_ANY, l_cond);
-  new_ir_label(l_loop, false);
+  BB *cond_bb = push_continue_bb(loop_bb, &save_cont);
+  BB *next_bb = push_break_bb(cond_bb, &save_break);
+
+  new_ir_jmp(COND_ANY, cond_bb->label);
+
+  set_curbb(loop_bb);
   gen(node->u.while_.body);
-  new_ir_label(l_cond, false);
-  gen_cond_jmp(node->u.while_.cond, true, l_loop);
-  new_ir_label(l_break, false);
+
+  set_curbb(cond_bb);
+  gen_cond_jmp(node->u.while_.cond, true, loop_bb->label);
+
+  set_curbb(next_bb);
   pop_continue_label(save_cont);
   pop_break_label(save_break);
 }
 
 static void gen_do_while(Node *node) {
+  BB *loop_bb = bb_split(curbb);
+
   const char *save_break, *save_cont;
-  const char *l_cond = push_continue_label(&save_cont);
-  const char *l_break = push_break_label(&save_break);
-  const char * l_loop = alloc_label();
-  new_ir_label(l_loop, false);
+  BB *cond_bb = push_continue_bb(loop_bb, &save_cont);
+  BB *next_bb = push_break_bb(cond_bb, &save_break);
+
+  set_curbb(loop_bb);
   gen(node->u.while_.body);
-  new_ir_label(l_cond, false);
-  gen_cond_jmp(node->u.while_.cond, true, l_loop);
-  new_ir_label(l_break, false);
+
+  set_curbb(cond_bb);
+  gen_cond_jmp(node->u.while_.cond, true, loop_bb->label);
+
+  set_curbb(next_bb);
   pop_continue_label(save_cont);
   pop_break_label(save_break);
 }
 
 static void gen_for(Node *node) {
+  BB *cond_bb = bb_split(curbb);
+  BB *body_bb = bb_split(cond_bb);
+
   const char *save_break, *save_cont;
-  const char *l_continue = push_continue_label(&save_cont);
-  const char *l_break = push_break_label(&save_break);
-  const char * l_cond = alloc_label();
+  BB *continue_bb = push_continue_bb(body_bb, &save_cont);
+  BB *next_bb = push_break_bb(continue_bb, &save_break);
+
   if (node->u.for_.pre != NULL)
     gen_expr(node->u.for_.pre);
-  new_ir_label(l_cond, false);
+
+  set_curbb(cond_bb);
+
   if (node->u.for_.cond != NULL)
-    gen_cond_jmp(node->u.for_.cond, false, l_break);
+    gen_cond_jmp(node->u.for_.cond, false, next_bb->label);
+
+  set_curbb(body_bb);
   gen(node->u.for_.body);
-  new_ir_label(l_continue, false);
+
+  set_curbb(continue_bb);
   if (node->u.for_.post != NULL)
     gen_expr(node->u.for_.post);
-  new_ir_jmp(COND_ANY, l_cond);
-  new_ir_label(l_break, false);
+  new_ir_jmp(COND_ANY, cond_bb->label);
+
+  set_curbb(next_bb);
   pop_continue_label(save_cont);
   pop_break_label(save_break);
 }
 
 static void gen_break(void) {
   assert(s_break_label != NULL);
+  BB *bb = bb_split(curbb);
   new_ir_jmp(COND_ANY, s_break_label);
+  set_curbb(bb);
 }
 
 static void gen_continue(void) {
   assert(s_continue_label != NULL);
+  BB *bb = bb_split(curbb);
   new_ir_jmp(COND_ANY, s_continue_label);
+  set_curbb(bb);
 }
 
 static void gen_goto(Node *node) {

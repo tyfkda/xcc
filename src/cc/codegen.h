@@ -4,6 +4,7 @@
 #include <stdint.h>  // uintptr_t
 #include <stdio.h>  // FILE
 
+typedef struct BB BB;
 typedef struct Expr Expr;
 typedef struct Node Node;
 typedef struct StructInfo StructInfo;
@@ -35,3 +36,5 @@ char *im(intptr_t x);  // $x
 char *indirect(const char *reg);
 char *offset_indirect(int offset, const char *reg);
 char *label_indirect(const char *label, const char *reg);
+
+void set_curbb(BB *bb);
