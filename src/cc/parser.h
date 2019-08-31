@@ -26,7 +26,7 @@ typedef struct Defun {
   const Type *type;
   Scope *top_scope;
   Vector *all_scopes;
-  Map *labels;
+  Map *label_map;  // <const char*, BB*>
   Vector *gotos;
 
   // For codegen.

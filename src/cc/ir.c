@@ -632,3 +632,8 @@ BB *bb_split(BB *bb) {
   bb->next = cc;
   return cc;
 }
+
+void bb_insert(BB *bb, BB *cc) {
+  cc->next = bb->next;
+  bb->next = cc;
+}

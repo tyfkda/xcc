@@ -392,11 +392,6 @@ static const char *s_break_label;
 static const char *s_continue_label;
 int stackpos;
 
-static const char *push_break_label(const char **save) {
-  *save = s_break_label;
-  return s_break_label = alloc_label();
-}
-
 static void pop_break_label(const char *save) {
   s_break_label = save;
 }
@@ -606,10 +601,10 @@ static void gen_defun(Node *node) {
   EMIT_LABEL(defun->name);
 
   // Allocate labels for goto.
-  if (defun->labels != NULL) {
-    Map *labels = defun->labels;
-    for (int i = 0, n = map_count(labels); i < n; ++i)
-      labels->vals->data[i] = alloc_label();
+  if (defun->label_map != NULL) {
+    Map *label_map = defun->label_map;
+    for (int i = 0, n = map_count(label_map); i < n; ++i)
+      label_map->vals->data[i] = new_bb();
   }
 
   size_t frame_size = arrange_scope_vars(defun);
@@ -722,52 +717,64 @@ static void gen_if(Node *node) {
 }
 
 static Vector *cur_case_values;
-static Vector *cur_case_labels;
+static Vector *cur_case_bbs;
 
 static void gen_switch(Node *node) {
-  Vector *save_case_values = cur_case_values;
-  Vector *save_case_labels = cur_case_labels;
-  const char *save_break;
-  const char *l_break = push_break_label(&save_break);
+  BB *pbb = curbb;
 
-  Vector *labels = new_vector();
+  Vector *save_case_values = cur_case_values;
+  Vector *save_case_bbs = cur_case_bbs;
+  const char *save_break;
+  BB *break_bb = push_break_bb(pbb, &save_break);
+
+  Vector *bbs = new_vector();
   Vector *case_values = node->u.switch_.case_values;
   int len = case_values->len;
   for (int i = 0; i < len; ++i) {
-    const char *label = alloc_label();
-    vec_push(labels, label);
+    BB *bb = bb_split(pbb);
+    vec_push(bbs, bb);
+    pbb = bb;
   }
-  vec_push(labels, alloc_label());  // len+0: Extra label for default.
-  vec_push(labels, l_break);  // len+1: Extra label for break.
+  vec_push(bbs, new_bb());  // len+0: Extra label for default.
+  vec_push(bbs, break_bb);  // len+1: Extra label for break.
 
   Expr *value = node->u.switch_.value;
   gen_expr(value);
 
   int size = type_size(value->valType);
   for (int i = 0; i < len; ++i) {
+    BB *nextbb = bb_split(curbb);
     intptr_t x = (intptr_t)case_values->data[i];
     new_ir_cmpi(x, size);
-    new_ir_jmp(COND_EQ, labels->data[i]);
+    new_ir_jmp(COND_EQ, ((BB*)bbs->data[i])->label);
+    set_curbb(nextbb);
   }
-  new_ir_jmp(COND_ANY, labels->data[len]);  // Default.
+  new_ir_jmp(COND_ANY, ((BB*)bbs->data[len])->label);  // Jump to default.
+  set_curbb(bb_split(curbb));
+
+  // No bb setting.
 
   cur_case_values = case_values;
-  cur_case_labels = labels;
+  cur_case_bbs = bbs;
 
   gen(node->u.switch_.body);
 
-  if (!node->u.switch_.has_default)
-    new_ir_label(labels->data[len], false);  // No default: Locate at the end of switch statement.
-  new_ir_label(l_break, false);
+  if (!node->u.switch_.has_default) {
+    // No default: Locate at the end of switch statement.
+    BB *bb = bbs->data[len];
+    bb_insert(curbb, bb);
+    set_curbb(bb);
+  }
+  set_curbb(break_bb);
 
   cur_case_values = save_case_values;
-  cur_case_labels = save_case_labels;
+  cur_case_bbs = save_case_bbs;
   pop_break_label(save_break);
 }
 
 static void gen_case(Node *node) {
   assert(cur_case_values != NULL);
-  assert(cur_case_labels != NULL);
+  assert(cur_case_bbs != NULL);
   Expr *valnode = node->u.case_.value;
   assert(is_const(valnode));
   intptr_t x = valnode->u.num.ival;
@@ -777,16 +784,18 @@ static void gen_case(Node *node) {
       break;
   }
   assert(i < len);
-  assert(i < cur_case_labels->len);
-  new_ir_label(cur_case_labels->data[i], false);
+  assert(i < cur_case_bbs->len);
+  set_curbb(cur_case_bbs->data[i]);
 }
 
 static void gen_default(void) {
   assert(cur_case_values != NULL);
-  assert(cur_case_labels != NULL);
+  assert(cur_case_bbs != NULL);
   int i = cur_case_values->len;  // Label for default is stored at the size of values.
-  assert(i < cur_case_labels->len);
-  new_ir_label(cur_case_labels->data[i], false);
+  assert(i < cur_case_bbs->len);
+  BB *bb = cur_case_bbs->data[i];
+  bb_insert(curbb, bb);
+  set_curbb(bb);
 }
 
 static void gen_while(Node *node) {
@@ -871,17 +880,18 @@ static void gen_continue(void) {
 }
 
 static void gen_goto(Node *node) {
-  assert(curfunc->labels != NULL);
-  const char *label = map_get(curfunc->labels, node->u.goto_.ident);
-  assert(label != NULL);
-  new_ir_jmp(COND_ANY, label);
+  assert(curfunc->label_map != NULL);
+  BB *bb = map_get(curfunc->label_map, node->u.goto_.ident);
+  assert(bb != NULL);
+  new_ir_jmp(COND_ANY, bb->label);
 }
 
 static void gen_label(Node *node) {
-  assert(curfunc->labels != NULL);
-  const char *label = map_get(curfunc->labels, node->u.label.name);
-  assert(label != NULL);
-  new_ir_label(label, false);
+  assert(curfunc->label_map != NULL);
+  BB *bb = map_get(curfunc->label_map, node->u.label.name);
+  assert(bb != NULL);
+  bb_insert(curbb, bb);
+  set_curbb(bb);
   gen(node->u.label.stmt);
 }
 

@@ -120,3 +120,4 @@ extern BB *curbb;
 
 BB *new_bb(void);
 BB *bb_split(BB *bb);
+void bb_insert(BB *bb, BB *cc);
