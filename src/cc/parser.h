@@ -28,8 +28,8 @@ typedef struct Defun {
   Map *labels;
   Vector *gotos;
 
-  // IR
-  Vector *irs;  // <IR*>
+  // BasicBlock
+  Vector *bbs;
 
   // For codegen.
   const char *ret_label;

@@ -6,6 +6,8 @@
 #include <stddef.h>  // size_t
 #include <stdint.h>  // intptr_t
 
+typedef struct Vector Vector;
+
 enum IrType {
   IR_IMM,   // Immediate value
   IR_BOFS,  // basereg+ofs
@@ -104,3 +106,16 @@ IR *new_ir_assign_lval(int size);
 IR *new_ir_clear(size_t size);
 
 void ir_out(const IR *ir);
+
+// Basci Block:
+//   Chunk of IR codes without branching in the middle (except at the bottom).
+
+typedef struct BB {
+  struct BB *next;
+  Vector *irs;  // <IR*>
+} BB;
+
+extern BB *curbb;
+
+BB *new_bb(void);
+BB *bb_split(BB *bb);

@@ -573,6 +573,10 @@ static void gen_defun(Node *node) {
   if (defun->top_scope == NULL)  // Prototype definition
     return;
 
+  defun->bbs = new_vector();
+  curbb = new_bb();
+  vec_push(defun->bbs, curbb);
+
   bool global = true;
   VarInfo *varinfo = find_global(defun->name);
   if (varinfo != NULL) {
@@ -629,10 +633,13 @@ static void gen_defun(Node *node) {
     put_args_to_stack(defun);
   }
 
-  emit_comment("IR: #%d", (int)defun->irs->len);
-  for (int i = 0; i < defun->irs->len; ++i) {
-    IR *ir = defun->irs->data[i];
-    ir_out(ir);
+  for (int i = 0; i < defun->bbs->len; ++i) {
+    BB *bb = defun->bbs->data[i];
+    emit_comment("  BB %d/%d", i, defun->bbs->len);
+    for (int j = 0; j < bb->irs->len; ++j) {
+      IR *ir = bb->irs->data[j];
+      ir_out(ir);
+    }
   }
 
   // Epilogue

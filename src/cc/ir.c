@@ -15,7 +15,7 @@
 static IR *new_ir(enum IrType type) {
   IR *ir = malloc(sizeof(*ir));
   ir->type = type;
-  vec_push(curfunc->irs, ir);
+  vec_push(curbb->irs, ir);
   return ir;
 }
 
@@ -612,4 +612,22 @@ void ir_out(const IR *ir) {
     assert(false);
     break;
   }
+}
+
+// Basic Block
+
+BB *curbb;
+
+BB *new_bb(void) {
+  BB *bb = malloc(sizeof(*bb));
+  bb->next = NULL;
+  bb->irs = new_vector();
+  return bb;
+}
+
+BB *bb_split(BB *bb) {
+  BB *cc = new_bb();
+  cc->next = bb->next;
+  bb->next = cc;
+  return cc;
 }
