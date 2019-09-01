@@ -55,20 +55,8 @@ static enum ConditionType gen_compare_expr(enum ExprType type, Expr *lhs, Expr *
   if (rhs->type == EX_NUM && rhs->u.num.ival == 0 &&
       (cond == COND_EQ || cond == COND_NE)) {
     gen_test_opcode(lhs->valType);
-#if 0  // Disable optimization for a while
-  } else if (rhs->type == EX_NUM && (numtype != NUM_LONG || is_im32(rhs->u.num.ival))) {
-    switch (numtype) {
-    case NUM_CHAR: CMP(IM(rhs->u.num.ival), AL); break;
-    case NUM_SHORT: CMP(IM(rhs->u.num.ival), AX); break;
-    case NUM_INT: case NUM_ENUM:
-      CMP(IM(rhs->u.num.ival), EAX);
-      break;
-    case NUM_LONG:
-      CMP(IM(rhs->u.num.ival), RAX);
-      break;
-    default: assert(false); break;
-    }
-#endif
+  } else if (rhs->type == EX_NUM && (lhs->valType->u.num.type != NUM_LONG || is_im32(rhs->u.num.ival))) {
+    new_ir_cmpi(rhs->u.num.ival, type_size(lhs->valType));
   } else {
     switch (lhs->valType->type) {
     case TY_NUM: case TY_PTR:
@@ -85,7 +73,6 @@ static enum ConditionType gen_compare_expr(enum ExprType type, Expr *lhs, Expr *
 }
 
 void gen_cond_jmp(Expr *cond, bool tf, const char *label) {
-#if 0  // Disable optimization for a while
   // Local optimization: if `cond` is compare expression, then
   // jump using flags after CMP directly.
   switch (cond->type) {
@@ -93,19 +80,19 @@ void gen_cond_jmp(Expr *cond, bool tf, const char *label) {
     if (cond->u.num.ival == 0)
       tf = !tf;
     if (tf)
-      JMP(label);
+      new_ir_jmp(COND_ANY, label);
     return;
 
   case EX_EQ:
   case EX_NE:
     {
-      enum ExprType type = gen_compare_expr(cond->type, cond->u.bop.lhs, cond->u.bop.rhs);
-      if (type != EX_EQ)
+      enum ConditionType type = gen_compare_expr(cond->type, cond->u.bop.lhs, cond->u.bop.rhs);
+      if (type != COND_EQ)
         tf = !tf;
       if (tf)
-        JE(label);
+        new_ir_jmp(COND_EQ, label);
       else
-        JNE(label);
+        new_ir_jmp(COND_NE, label);
       return;
     }
   case EX_LT:
@@ -113,25 +100,25 @@ void gen_cond_jmp(Expr *cond, bool tf, const char *label) {
   case EX_LE:
   case EX_GE:
     {
-      enum ExprType type = gen_compare_expr(cond->type, cond->u.bop.lhs, cond->u.bop.rhs);
+      enum ConditionType type = gen_compare_expr(cond->type, cond->u.bop.lhs, cond->u.bop.rhs);
       switch (type) {
-      case EX_LT:
-      case EX_GE:
-        if (type != EX_LT)
+      case COND_LT:
+      case COND_GE:
+        if (type != COND_LT)
           tf = !tf;
         if (tf)
-          JL(label);
+          new_ir_jmp(COND_LT, label);
         else
-          JGE(label);
+          new_ir_jmp(COND_GE, label);
         break;
-      case EX_GT:
-      case EX_LE:
-        if (type != EX_GT)
+      case COND_GT:
+      case COND_LE:
+        if (type != COND_GT)
           tf = !tf;
         if (tf)
-          JG(label);
+          new_ir_jmp(COND_GT, label);
         else
-          JLE(label);
+          new_ir_jmp(COND_LE, label);
         break;
       default:  assert(false); break;
       }
@@ -148,7 +135,7 @@ void gen_cond_jmp(Expr *cond, bool tf, const char *label) {
       const char *skip = alloc_label();
       gen_cond_jmp(cond->u.bop.lhs, false, skip);
       gen_cond_jmp(cond->u.bop.rhs, true, label);
-      EMIT_LABEL(skip);
+      new_ir_label(skip, false);
     }
     return;
   case EX_LOGIOR:
@@ -159,13 +146,12 @@ void gen_cond_jmp(Expr *cond, bool tf, const char *label) {
       const char *skip = alloc_label();
       gen_cond_jmp(cond->u.bop.lhs, true, skip);
       gen_cond_jmp(cond->u.bop.rhs, false, label);
-      EMIT_LABEL(skip);
+      new_ir_label(skip, false);
     }
     return;
   default:
     break;
   }
-#endif
 
   gen_expr(cond);
   gen_test_opcode(cond->valType);
