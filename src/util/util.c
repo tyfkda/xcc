@@ -184,6 +184,10 @@ Vector *new_vector(void) {
   return vec;
 }
 
+void vec_clear(Vector *vec) {
+  vec->len = 0;
+}
+
 void vec_push(Vector *vec, const void *elem) {
   if (vec->capacity == vec->len) {
     vec->capacity *= 2;
