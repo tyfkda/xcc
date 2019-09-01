@@ -12,18 +12,58 @@
 #include "var.h"
 #include "x86_64.h"
 
+#define REG_COUNT  (7)
+
+static int s_regno;
+
+// Virtual register
+
+VReg *new_vreg(int vreg_no) {
+  VReg *vreg = malloc(sizeof(*vreg));
+  vreg->v = vreg_no;
+  vreg->r = -1;
+  return vreg;
+}
+
+// Register allocator
+
+static char *kReg8s[] = {BL, R10B, R11B, R12B, R13B, R14B, R15B};
+static char *kReg16s[] = {BX, R10W, R11W, R12W, R13W, R14W, R15W};
+static char *kReg32s[] = {EBX, R10D, R11D, R12D, R13D, R14D, R15D};
+static char *kReg64s[] = {RBX, R10, R11, R12, R13, R14, R15};
+static bool used[REG_COUNT];
+
+static void alloc_reg(VReg *vreg) {
+  if (vreg->r >= 0) {
+    assert(used[vreg->r]);
+    return;
+  }
+
+  for (int i = 0; i < REG_COUNT; ++i) {
+    if (used[i])
+      continue;
+    used[i] = true;
+    vreg->r = i;
+    return;
+  }
+  error("register exhausted");
+}
+
+// Intermediate Representation
+
 static IR *new_ir(enum IrType type) {
   IR *ir = malloc(sizeof(*ir));
   ir->type = type;
+  ir->dst = ir->opr1 = NULL;
   vec_push(curbb->irs, ir);
   return ir;
 }
 
-IR *new_ir_imm(intptr_t value, int size) {
+VReg *new_ir_imm(intptr_t value, int size) {
   IR *ir = new_ir(IR_IMM);
   ir->value = value;
   ir->size = size;
-  return ir;
+  return ir->dst = new_vreg(s_regno++);
 }
 
 IR *new_ir_bofs(int offset) {
@@ -125,6 +165,12 @@ IR *new_ir_clear(size_t size) {
   IR *ir = new_ir(IR_CLEAR);
   ir->size = size;
   return ir;
+}
+
+void new_ir_result(VReg *reg, int size) {
+  IR *ir = new_ir(IR_RESULT);
+  ir->opr1 = reg;
+  ir->size = size;
 }
 
 static void ir_memcpy(ssize_t size) {
@@ -234,38 +280,55 @@ static void ir_out_incdec(const IR *ir) {
   }
 }
 
+void ir_alloc_reg(IR *ir) {
+  if (ir->dst != NULL)
+    alloc_reg(ir->dst);
+  if (ir->opr1 != NULL)
+    alloc_reg(ir->opr1);
+
+  switch (ir->type) {
+  case IR_IMM:
+  case IR_RESULT:
+  case IR_JMP:
+    break;
+
+  default:  assert(false); break;
+  }
+}
+
 void ir_out(const IR *ir) {
   switch (ir->type) {
   case IR_IMM:
     {
       intptr_t value = ir->value;
+      VReg *vreg = ir->dst;
       switch (ir->size) {
       case 1:
         if (value == 0)
-          XOR(AL, AL);
+          XOR(kReg8s[vreg->r], kReg8s[vreg->r]);
         else
-          MOV(IM(value), AL);
+          MOV(IM(value), kReg8s[vreg->r]);
         return;
 
       case 2:
         if (value == 0)
-          XOR(AX, AX);
+          XOR(kReg16s[vreg->r], kReg16s[vreg->r]);
         else
-          MOV(IM(value), AX);
+          MOV(IM(value), kReg16s[vreg->r]);
         return;
 
       case 4:
         if (value == 0)
-          XOR(EAX, EAX);
+          XOR(kReg32s[vreg->r], kReg32s[vreg->r]);
         else
-          MOV(IM(value), EAX);
+          MOV(IM(value), kReg32s[vreg->r]);
         return;
 
       case 8:
         if (value == 0)
-          XOR(EAX, EAX);  // upper 32bit is also cleared.
+          XOR(kReg32s[vreg->r], kReg32s[vreg->r]);  // upper 32bit is also cleared.
         else
-          MOV(IM(value), RAX);
+          MOV(IM(value), kReg64s[vreg->r]);
         return;
 
       default: assert(false); break;
@@ -595,6 +658,16 @@ void ir_out(const IR *ir) {
     }
     break;
 
+  case IR_RESULT:
+    switch (ir->size) {
+    case 1:  MOV(kReg8s[ir->opr1->r], AL); break;
+    case 2:  MOV(kReg16s[ir->opr1->r], AX); break;
+    case 4:  MOV(kReg32s[ir->opr1->r], EAX); break;
+    case 8:  MOV(kReg64s[ir->opr1->r], RAX); break;
+    default: assert(false); break;
+    }
+    break;
+
   default:
     assert(false);
     break;
@@ -693,6 +766,13 @@ void remove_unnecessary_bb(BBContainer *bbcon) {
   }
 }
 
+static void alloc_regs(Vector *irs) {
+  for (int i = 0, len = irs->len; i < len; ++i) {
+    IR *ir = irs->data[i];
+    ir_alloc_reg(ir);
+  }
+}
+
 void emit_bb_irs(BBContainer *bbcon) {
   for (int i = 0; i < bbcon->bbs->len; ++i) {
     BB *bb = bbcon->bbs->data[i];
@@ -705,6 +785,7 @@ void emit_bb_irs(BBContainer *bbcon) {
       assert(bb->next == NULL);
     }
 #endif
+    alloc_regs(bb->irs);
 
     emit_comment("  BB %d/%d", i, bbcon->bbs->len);
     EMIT_LABEL(bb->label);

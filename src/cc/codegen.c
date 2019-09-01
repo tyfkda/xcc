@@ -676,8 +676,10 @@ static void gen_block(Node *node) {
 
 static void gen_return(Node *node) {
   BB *bb = bb_split(curbb);
-  if (node->u.return_.val != NULL)
-    gen_expr(node->u.return_.val);
+  if (node->u.return_.val != NULL) {
+    VReg *reg = gen_expr(node->u.return_.val);
+    new_ir_result(reg, type_size(node->u.return_.val->valType));
+  }
   assert(curfunc != NULL);
   new_ir_jmp(COND_ANY, curfunc->ret_bb);
   set_curbb(bb);

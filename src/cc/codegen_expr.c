@@ -338,12 +338,11 @@ void gen_arith(enum ExprType exprType, const Type *valType, const Type *rhsType)
   }
 }
 
-void gen_expr(Expr *expr) {
+VReg *gen_expr(Expr *expr) {
   switch (expr->type) {
   case EX_NUM:
     assert(expr->valType->type == TY_NUM);
-    new_ir_imm(expr->u.num.ival, type_size(expr->valType));
-    break;
+    return new_ir_imm(expr->u.num.ival, type_size(expr->valType));
 
   case EX_STR:
     {
@@ -359,19 +358,19 @@ void gen_expr(Expr *expr) {
 
       new_ir_iofs(label);
     }
-    return;
+    break;
 
   case EX_SIZEOF:
     new_ir_imm(type_size(expr->u.sizeof_.type), type_size(expr->valType));
-    return;
+    break;
 
   case EX_VARREF:
     gen_varref(expr);
-    return;
+    break;
 
   case EX_REF:
     gen_ref(expr->u.unary.sub);
-    return;
+    break;
 
   case EX_DEREF:
     gen_rval(expr->u.unary.sub);
@@ -387,7 +386,7 @@ void gen_expr(Expr *expr) {
       break;
     default: assert(false); break;
     }
-    return;
+    break;
 
   case EX_MEMBER:
     gen_lval(expr);
@@ -403,7 +402,7 @@ void gen_expr(Expr *expr) {
       assert(false);
       break;
     }
-    return;
+    break;
 
   case EX_COMMA:
     {
@@ -462,7 +461,7 @@ void gen_expr(Expr *expr) {
       break;
     default: assert(false); break;
     }
-    return;
+    break;
 
   case EX_ASSIGN_WITH:
     {
@@ -476,7 +475,7 @@ void gen_expr(Expr *expr) {
       gen_cast(expr->valType, sub->valType);
       new_ir_assign_lval(type_size(expr->valType));
     }
-    return;
+    break;
 
   case EX_PREINC:
   case EX_PREDEC:
@@ -490,11 +489,11 @@ void gen_expr(Expr *expr) {
       new_ir_incdec(((expr->type - EX_PREINC) & 1) == 0, expr->type < EX_POSTINC,
                     type_size(expr->valType), value);
     }
-    return;
+    break;
 
   case EX_FUNCALL:
     gen_funcall(expr);
-    return;
+    break;
 
   case EX_NEG:
     gen_expr(expr->u.unary.sub);
@@ -525,7 +524,7 @@ void gen_expr(Expr *expr) {
       enum ConditionType cond = gen_compare_expr(expr->type, expr->u.bop.lhs, expr->u.bop.rhs);
       new_ir_set(cond);
     }
-    return;
+    break;
 
   case EX_LOGAND:
     {
@@ -543,7 +542,7 @@ void gen_expr(Expr *expr) {
       new_ir_imm(false, type_size(&tyBool));
       set_curbb(next_bb);
     }
-    return;
+    break;
 
   case EX_LOGIOR:
     {
@@ -561,7 +560,7 @@ void gen_expr(Expr *expr) {
       new_ir_imm(true, type_size(&tyBool));
       set_curbb(next_bb);
     }
-    return;
+    break;
 
   case EX_ADD:
   case EX_SUB:
@@ -577,11 +576,13 @@ void gen_expr(Expr *expr) {
     new_ir_st(IR_PUSH);
     gen_expr(expr->u.bop.lhs);
     gen_arith(expr->type, expr->valType, expr->u.bop.rhs->valType);
-    return;
+    break;
 
   default:
     fprintf(stderr, "Expr type=%d, ", expr->type);
     assert(!"Unhandled in gen_expr");
     break;
   }
+
+  return NULL;
 }

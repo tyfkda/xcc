@@ -9,6 +9,17 @@
 typedef struct BB BB;
 typedef struct Vector Vector;
 
+// Virtual register
+
+typedef struct VReg {
+  int v;
+  int r;
+} VReg;
+
+VReg *new_vreg(int vreg_no);
+
+// Intermediate Representation
+
 enum IrType {
   IR_IMM,   // Immediate value
   IR_BOFS,  // basereg+ofs
@@ -41,6 +52,7 @@ enum IrType {
   IR_SAVE_LVAL,
   IR_ASSIGN_LVAL,
   IR_CLEAR,
+  IR_RESULT,
 };
 
 enum ConditionType {
@@ -55,6 +67,8 @@ enum ConditionType {
 
 typedef struct {
   enum IrType type;
+  VReg *dst;
+  VReg *opr1;
   int size;
   intptr_t value;
 
@@ -83,7 +97,7 @@ typedef struct {
   } u;
 } IR;
 
-IR *new_ir_imm(intptr_t value, int size);
+VReg *new_ir_imm(intptr_t value, int size);
 IR *new_ir_bofs(int offset);
 IR *new_ir_iofs(const char *label);
 IR *new_ir_load(int size);
@@ -100,7 +114,9 @@ IR *new_ir_addsp(int value);
 IR *new_ir_cast(int dstsize, int srcsize);
 IR *new_ir_assign_lval(int size);
 IR *new_ir_clear(size_t size);
+void new_ir_result(VReg *reg, int size);
 
+void ir_alloc_reg(IR *ir);
 void ir_out(const IR *ir);
 
 // Basci Block:
