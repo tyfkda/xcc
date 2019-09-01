@@ -101,11 +101,11 @@ typedef struct {
 
 VReg *new_ir_imm(intptr_t value, int size);
 VReg *new_ir_bop(enum IrType type, VReg *opr1, VReg *opr2, int size);
-IR *new_ir_bofs(int offset);
+VReg *new_ir_unary(enum IrType type, VReg *opr, int size);
+VReg *new_ir_bofs(int offset);
 IR *new_ir_iofs(const char *label);
-IR *new_ir_load(int size);
-IR *new_ir_store(int size);
-IR *new_ir_memcpy(size_t size);
+void new_ir_store(VReg *dst, VReg *src, int size);
+void new_ir_memcpy(VReg *dst, VReg *src, int size);
 IR *new_ir_op(enum IrType type, int size);
 IR *new_ir_cmpi(intptr_t value, int size);
 IR *new_ir_incdec(bool inc, bool pre, int size, intptr_t value);

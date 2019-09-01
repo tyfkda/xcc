@@ -908,6 +908,11 @@ static void gen_vardecl(Node *node) {
   gen_nodes(node->u.vardecl.inits);
 }
 
+static void gen_expr_stmt(Node *node) {
+  VReg *result = gen_expr(node->u.expr);
+  new_ir_unreg(result);
+}
+
 static void gen_toplevel(Node *node) {
   _TEXT();
   gen_nodes(node->u.toplevel.nodes);
@@ -918,7 +923,7 @@ void gen(Node *node) {
     return;
 
   switch (node->type) {
-  case ND_EXPR:  gen_expr(node->u.expr); break;
+  case ND_EXPR:  gen_expr_stmt(node); break;
   case ND_DEFUN:  gen_defun(node); break;
   case ND_RETURN:  gen_return(node); break;
   case ND_BLOCK:  gen_block(node); break;

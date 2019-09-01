@@ -12,7 +12,7 @@
 #include "var.h"
 #include "x86_64.h"
 
-static void gen_lval(Expr *expr);
+static VReg *gen_lval(Expr *expr);
 
 // test %eax, %eax, and so on.
 static void gen_test_opcode(const Type *type) {
@@ -180,18 +180,19 @@ static void gen_cast(const Type *ltypep, const Type *rtypep) {
   new_ir_cast(dst_size, src_size);
 }
 
-static void gen_rval(Expr *expr) {
-  gen_expr(expr);  // ?
+static VReg *gen_rval(Expr *expr) {
+  return gen_expr(expr);  // ?
 }
 
-static void gen_ref(Expr *expr) {
-  gen_lval(expr);
+static VReg *gen_ref(Expr *expr) {
+  return gen_lval(expr);
 }
 
-static void gen_lval(Expr *expr) {
+static VReg *gen_lval(Expr *expr) {
   switch (expr->type) {
   case EX_VARREF:
     if (expr->u.varref.scope == NULL) {
+      // TODO: Implement for IR
       new_ir_iofs(expr->u.varref.ident);
     } else {
       Scope *scope = expr->u.varref.scope;
@@ -199,7 +200,7 @@ static void gen_lval(Expr *expr) {
       assert(varinfo != NULL);
       assert(!(varinfo->flag & VF_STATIC));
       int offset = varinfo->offset;
-      new_ir_bofs(offset);
+      return new_ir_bofs(offset);
     }
     break;
   case EX_DEREF:
@@ -230,22 +231,28 @@ static void gen_lval(Expr *expr) {
     error("No lvalue: %d", expr->type);
     break;
   }
+  return NULL;
 }
 
-static void gen_varref(Expr *expr) {
-  gen_lval(expr);
+static VReg *gen_varref(Expr *expr) {
+  VReg *reg = gen_lval(expr);
+  VReg *result;
   switch (expr->valType->type) {
   case TY_NUM:
   case TY_PTR:
-    new_ir_load(type_size(expr->valType));
+    result = new_ir_unary(IR_LOAD, reg, type_size(expr->valType));
+    new_ir_unreg(reg);
     break;
-  case TY_ARRAY: break;  // Use variable address as a pointer.
-  case TY_FUNC:  break;
-  case TY_STRUCT:
-    // struct value is handled as a pointer.
+  default:
+    assert(false);
+    // Fallthrough to suppress compile error.
+  case TY_ARRAY:   // Use variable address as a pointer.
+  case TY_STRUCT:  // struct value is handled as a pointer.
+  case TY_FUNC:
+    result = reg;
     break;
-  default: assert(false); break;
   }
+  return result;
 }
 
 static void gen_ternary(Expr *expr) {
@@ -367,42 +374,52 @@ VReg *gen_expr(Expr *expr) {
     break;
 
   case EX_VARREF:
-    gen_varref(expr);
-    break;
+    return gen_varref(expr);
 
   case EX_REF:
     gen_ref(expr->u.unary.sub);
     break;
 
   case EX_DEREF:
-    gen_rval(expr->u.unary.sub);
-    switch (expr->valType->type) {
-    case TY_NUM:
-    case TY_PTR:
-      new_ir_load(type_size(expr->valType));
-      break;
+    {
+      VReg *reg = gen_rval(expr->u.unary.sub);
+      VReg *result;
+      switch (expr->valType->type) {
+      case TY_NUM:
+      case TY_PTR:
+        result = new_ir_unary(IR_LOAD, reg, type_size(expr->valType));
+        new_ir_unreg(reg);
+        return result;
 
-    case TY_ARRAY:
-    case TY_STRUCT:
-      // array and struct values are handled as a pointer.
-      break;
-    default: assert(false); break;
+      default:
+        assert(false);
+        // Fallthrough to suppress compile error.
+      case TY_ARRAY:
+      case TY_STRUCT:
+        // array and struct values are handled as a pointer.
+        return reg;
+      }
     }
-    break;
 
   case EX_MEMBER:
-    gen_lval(expr);
-    switch (expr->valType->type) {
-    case TY_NUM:
-    case TY_PTR:
-      new_ir_load(type_size(expr->valType));
-      break;
-    case TY_ARRAY:
-    case TY_STRUCT:
-      break;
-    default:
-      assert(false);
-      break;
+    {
+      VReg *reg = gen_lval(expr);
+      VReg *result;
+      switch (expr->valType->type) {
+      case TY_NUM:
+      case TY_PTR:
+        result = new_ir_unary(IR_LOAD, reg, type_size(expr->valType));
+        new_ir_unreg(reg);
+        break;
+      default:
+        assert(false);
+        // Fallthrough to suppress compile error.
+      case TY_ARRAY:
+      case TY_STRUCT:
+        result = reg;
+        break;
+      }
+      return result;
     }
     break;
 
@@ -449,19 +466,24 @@ VReg *gen_expr(Expr *expr) {
     break;
 
   case EX_ASSIGN:
-    gen_lval(expr->u.bop.lhs);
-    new_ir_st(IR_PUSH);
-    gen_expr(expr->u.bop.rhs);
+    {
+      VReg *src = gen_expr(expr->u.bop.rhs);
+      VReg *dst = gen_lval(expr->u.bop.lhs);
 
-    switch (expr->valType->type) {
-    case TY_NUM:
-    case TY_PTR:
-      new_ir_store(type_size(expr->valType));
-      break;
-    case TY_STRUCT:
-      new_ir_memcpy(expr->valType->u.struct_.info->size);
-      break;
-    default: assert(false); break;
+      switch (expr->valType->type) {
+      default:
+        assert(false);
+        // Fallthrough to suppress compiler error.
+      case TY_NUM:
+      case TY_PTR:
+        new_ir_store(dst, src, type_size(expr->valType));
+        break;
+      case TY_STRUCT:
+        new_ir_memcpy(dst, src, expr->valType->u.struct_.info->size);
+        break;
+      }
+      new_ir_unreg(dst);
+      return src;
     }
     break;
 
@@ -473,7 +495,7 @@ VReg *gen_expr(Expr *expr) {
       new_ir_st(IR_PUSH);
       gen_lval(sub->u.bop.lhs);
       new_ir_st(IR_SAVE_LVAL);
-      new_ir_load(type_size(sub->u.bop.lhs->valType));
+      new_ir_unary(IR_LOAD, type_size(sub->u.bop.lhs->valType));
       gen_arith(sub->type, sub->valType, sub->u.bop.rhs->valType);
       gen_cast(expr->valType, sub->valType);
       new_ir_assign_lval(type_size(expr->valType));

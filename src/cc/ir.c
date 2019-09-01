@@ -79,10 +79,17 @@ VReg *new_ir_bop(enum IrType type, VReg *opr1, VReg *opr2, int size) {
   return ir->dst = new_vreg(s_regno++);
 }
 
-IR *new_ir_bofs(int offset) {
+VReg *new_ir_unary(enum IrType type, VReg *opr, int size) {
+  IR *ir = new_ir(type);
+  ir->opr1 = opr;
+  ir->size = size;
+  return ir->dst = new_vreg(s_regno++);
+}
+
+VReg *new_ir_bofs(int offset) {
   IR *ir = new_ir(IR_BOFS);
   ir->value = offset;
-  return ir;
+  return ir->dst = new_vreg(s_regno++);
 }
 
 IR *new_ir_iofs(const char *label) {
@@ -91,22 +98,18 @@ IR *new_ir_iofs(const char *label) {
   return ir;
 }
 
-IR *new_ir_load(int size) {
-  IR *ir = new_ir(IR_LOAD);
-  ir->size = size;
-  return ir;
-}
-
-IR *new_ir_store(int size) {
+void new_ir_store(VReg *dst, VReg *src, int size) {
   IR *ir = new_ir(IR_STORE);
+  ir->opr1 = src;
   ir->size = size;
-  return ir;
+  ir->opr2 = dst;  // `dst` is used by indirect, so it is not actually `dst`.
 }
 
-IR *new_ir_memcpy(size_t size) {
+void new_ir_memcpy(VReg *dst, VReg *src, int size) {
   IR *ir = new_ir(IR_MEMCPY);
+  ir->dst = dst;
+  ir->opr1 = src;
   ir->size = size;
-  return ir;
 }
 
 IR *new_ir_op(enum IrType type, int size) {
@@ -312,6 +315,9 @@ void ir_alloc_reg(IR *ir) {
     break;
 
   case IR_IMM:
+  case IR_BOFS:
+  case IR_LOAD:
+  case IR_STORE:
   case IR_ADD:
   case IR_SUB:
   case IR_RESULT:
@@ -364,7 +370,7 @@ void ir_out(const IR *ir) {
     break;
 
   case IR_BOFS:
-    LEA(OFFSET_INDIRECT(ir->value, RBP), RAX);
+    LEA(OFFSET_INDIRECT(ir->value, RBP), kReg64s[ir->dst->r]);
     break;
 
   case IR_IOFS:
@@ -373,17 +379,22 @@ void ir_out(const IR *ir) {
 
   case IR_LOAD:
     switch (ir->size) {
-    case 1:  MOV(INDIRECT(RAX), AL); break;
-    case 2:  MOV(INDIRECT(RAX), AX); break;
-    case 4:  MOV(INDIRECT(RAX), EAX); break;
-    case 8:  MOV(INDIRECT(RAX), RAX); break;
+    case 1:  MOV(INDIRECT(kReg64s[ir->opr1->r]), kReg8s[ir->dst->r]); break;
+    case 2:  MOV(INDIRECT(kReg64s[ir->opr1->r]), kReg16s[ir->dst->r]); break;
+    case 4:  MOV(INDIRECT(kReg64s[ir->opr1->r]), kReg32s[ir->dst->r]); break;
+    case 8:  MOV(INDIRECT(kReg64s[ir->opr1->r]), kReg64s[ir->dst->r]); break;
     default:  assert(false); break;
     }
     break;
 
   case IR_STORE:
-    POP(RDI); POP_STACK_POS();
-    ir_out_store(ir->size);
+    switch (ir->size) {
+    case 1:  MOV(kReg8s[ir->opr1->r], INDIRECT(kReg64s[ir->opr2->r])); break;
+    case 2:  MOV(kReg16s[ir->opr1->r], INDIRECT(kReg64s[ir->opr2->r])); break;
+    case 4:  MOV(kReg32s[ir->opr1->r], INDIRECT(kReg64s[ir->opr2->r])); break;
+    case 8:  MOV(kReg64s[ir->opr1->r], INDIRECT(kReg64s[ir->opr2->r])); break;
+    default:  assert(false); break;
+    }
     break;
 
   case IR_MEMCPY:
