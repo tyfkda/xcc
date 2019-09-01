@@ -45,6 +45,8 @@ enum IrType {
   IR_CMPI,
   IR_PUSH,
   IR_JMP,
+  IR_PRECALL,
+  IR_PUSHARG,
   IR_CALL,
   IR_ADDSP,
   IR_CAST,
@@ -91,7 +93,7 @@ typedef struct {
     } jmp;
     struct {
       const char *label;
-      size_t arg_count;
+      int arg_count;
     } call;
     struct {
       int srcsize;
@@ -112,7 +114,9 @@ IR *new_ir_incdec(bool inc, bool pre, int size, intptr_t value);
 IR *new_ir_st(enum IrType type);
 IR *new_ir_set(enum ConditionType cond);
 IR *new_ir_jmp(enum ConditionType cond, BB *bb);
-IR *new_ir_call(const char *label, int arg_count);
+void new_ir_precall(int arg_count);
+void new_ir_pusharg(VReg *vreg);
+VReg *new_ir_call(const char *label, int arg_count, int result_size);
 IR *new_ir_addsp(int value);
 IR *new_ir_cast(int dstsize, int srcsize);
 IR *new_ir_assign_lval(int size);

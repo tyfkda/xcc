@@ -151,11 +151,22 @@ IR *new_ir_jmp(enum ConditionType cond, BB *bb) {
   return ir;
 }
 
-IR *new_ir_call(const char *label, int arg_count) {
+void new_ir_pusharg(VReg *vreg) {
+  IR *ir = new_ir(IR_PUSHARG);
+  ir->opr1 = vreg;
+}
+
+void new_ir_precall(int arg_count) {
+  IR *ir = new_ir(IR_PRECALL);
+  ir->u.call.arg_count = arg_count;
+}
+
+VReg *new_ir_call(const char *label, int arg_count, int result_size) {
   IR *ir = new_ir(IR_CALL);
   ir->u.call.label = label;
   ir->u.call.arg_count = arg_count;
-  return ir;
+  ir->size = result_size;
+  return ir->dst = new_vreg(s_regno++);
 }
 
 IR *new_ir_addsp(int value) {
@@ -320,6 +331,9 @@ void ir_alloc_reg(IR *ir) {
   case IR_STORE:
   case IR_ADD:
   case IR_SUB:
+  case IR_PRECALL:
+  case IR_PUSHARG:
+  case IR_CALL:
   case IR_RESULT:
   case IR_JMP:
     break;
@@ -618,17 +632,46 @@ void ir_out(const IR *ir) {
     }
     break;
 
+  case IR_PRECALL:
+    // Caller save.
+    PUSH(R10); PUSH_STACK_POS();
+    PUSH(R11); PUSH_STACK_POS();
+    break;
+
+  case IR_PUSHARG:
+    PUSH(kReg64s[ir->opr1->r]); PUSH_STACK_POS();
+    break;
+
   case IR_CALL:
     {
-      static const char *kReg64s[] = {RDI, RSI, RDX, RCX, R8, R9};
+      static const char *kArgReg64s[] = {RDI, RSI, RDX, RCX, R8, R9};
+
+      // Pop register arguments.
       int reg_args = MIN((int)ir->u.call.arg_count, MAX_REG_ARGS);
       for (int i = 0; i < reg_args; ++i) {
-        POP(kReg64s[i]); POP_STACK_POS();
+        POP(kArgReg64s[i]); POP_STACK_POS();
       }
+
       if (ir->u.call.label != NULL)
         CALL(ir->u.call.label);
       else
         CALL(fmt("*%s", RAX));
+
+      // Resore caller save registers.
+      POP(R11); POP_STACK_POS();
+      POP(R10); POP_STACK_POS();
+
+      switch (ir->size) {
+      case 1:  MOV(AL, kReg8s[ir->dst->r]); break;
+      case 2:  MOV(AX, kReg16s[ir->dst->r]); break;
+      case 4:  MOV(EAX, kReg32s[ir->dst->r]); break;
+      case 8:  MOV(RAX, kReg64s[ir->dst->r]); break;
+      default: assert(false); break;
+      }
+
+      // Drop stack arguments.
+      if (ir->u.call.arg_count > MAX_REG_ARGS)
+        ADD(IM((ir->u.call.arg_count > MAX_REG_ARGS) * WORD_SIZE), RSP);
     }
     break;
 

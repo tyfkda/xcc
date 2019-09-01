@@ -272,7 +272,7 @@ static void gen_ternary(Expr *expr) {
   set_curbb(nbb);
 }
 
-static void gen_funcall(Expr *expr) {
+static VReg *gen_funcall(Expr *expr) {
   Expr *func = expr->u.funcall.func;
   Vector *args = expr->u.funcall.args;
   int arg_count = args != NULL ? args->len : 0;
@@ -282,9 +282,10 @@ static void gen_funcall(Expr *expr) {
   if (align_stack)
     new_ir_addsp(-8);
 
+  new_ir_precall(arg_count);
+
   if (args != NULL) {
-    int len = args->len;
-    if (len > MAX_REG_ARGS) {
+    if (arg_count > MAX_REG_ARGS) {
       bool vaargs = false;
       if (func->type == EX_VARREF && func->u.varref.scope == NULL) {
         VarInfo *varinfo = find_global(func->u.varref.ident);
@@ -295,30 +296,36 @@ static void gen_funcall(Expr *expr) {
       }
 
       if (vaargs)
-        error("Param count exceeds %d (%d)", MAX_REG_ARGS, len);
+        error("Param count exceeds %d (%d)", MAX_REG_ARGS, arg_count);
     }
 
-    for (int i = len; --i >= 0; ) {
-      gen_expr((Expr*)args->data[i]);
-      new_ir_st(IR_PUSH);
+    for (int i = arg_count; --i >= 0; ) {
+      Expr *arg = args->data[i];
+      VReg *reg = gen_expr(arg);
+      new_ir_pusharg(reg);
+      new_ir_unreg(reg);
     }
   }
 
+  VReg *result_reg = NULL;
   if (func->type == EX_VARREF && func->u.varref.scope == NULL) {
-    new_ir_call(func->u.varref.ident, arg_count);
+    result_reg = new_ir_call(func->u.varref.ident, arg_count,
+                             type_size(func->valType->u.func.ret));
   } else {
     // TODO: IR
-    gen_expr(func);
-    new_ir_call(NULL, arg_count);
+    //int reg = gen_expr(func);
+    //new_ir_call(NULL, arg_regs, arg_count);
   }
 
-  int stack_add = stack_args * 8;
-  if (align_stack) {
-    stack_add += 8;
-  }
-  if (stack_add > 0) {
-    new_ir_addsp(stack_add);
-  }
+  //int stack_add = stack_args * 8;
+  //if (align_stack) {
+  //  stack_add += 8;
+  //}
+  //if (stack_add > 0) {
+  //  new_ir_addsp(stack_add);
+  //}
+
+  return result_reg;
 }
 
 VReg *gen_arith(enum ExprType exprType, const Type *valType, VReg *lhs, VReg *rhs) {
@@ -518,8 +525,7 @@ VReg *gen_expr(Expr *expr) {
     break;
 
   case EX_FUNCALL:
-    gen_funcall(expr);
-    break;
+    return gen_funcall(expr);
 
   case EX_NEG:
     gen_expr(expr->u.unary.sub);
