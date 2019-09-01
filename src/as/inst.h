@@ -103,6 +103,20 @@ enum RegType {
   CX,
   DX,
   BX,
+  SP,
+  BP,
+  SI,
+  DI,
+
+  // 16bit
+  R8W,
+  R9W,
+  R10W,
+  R11W,
+  R12W,
+  R13W,
+  R14W,
+  R15W,
 
   // 32bit
   EAX,
@@ -190,11 +204,15 @@ enum DirectiveType {
 bool is_reg8(enum RegType reg);
 bool is_reg8s(enum RegType reg);
 bool is_reg8x(enum RegType reg);
+bool is_reg8ss(enum RegType reg);
 bool is_reg16(enum RegType reg);
+bool is_reg16s(enum RegType reg);
 bool is_reg32(enum RegType reg);
 bool is_reg32x(enum RegType reg);
+bool is_reg32s(enum RegType reg);
 bool is_reg64(enum RegType reg);
 bool is_reg64x(enum RegType reg);
+bool is_reg64s(enum RegType reg);
 
 const char *skip_whitespace(const char *p);
 

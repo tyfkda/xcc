@@ -106,6 +106,19 @@ static const struct {
   {"cx", CX},
   {"dx", DX},
   {"bx", BX},
+  {"sp", SP},
+  {"bp", BP},
+  {"si", SI},
+  {"di", DI},
+
+  {"r8w", R8W},
+  {"r9w", R9W},
+  {"r10w", R10W},
+  {"r11w", R11W},
+  {"r12w", R12W},
+  {"r13w", R13W},
+  {"r14w", R14W},
+  {"r15w", R15W},
 
   {"eax", EAX},
   {"ecx", ECX},
@@ -173,8 +186,16 @@ bool is_reg8x(enum RegType reg) {
   return reg >= R8B && reg <= R15B;
 }
 
+bool is_reg8ss(enum RegType reg) {
+  return reg >= AL && reg <= R15B;
+}
+
 bool is_reg16(enum RegType reg) {
-  return reg >= AX && reg <= BX;
+  return reg >= AX && reg <= DI;
+}
+
+bool is_reg16s(enum RegType reg) {
+  return reg >= AX && reg <= R15W;
 }
 
 bool is_reg32(enum RegType reg) {
@@ -185,12 +206,20 @@ bool is_reg32x(enum RegType reg) {
   return reg >= R8D && reg <= R15D;
 }
 
+bool is_reg32s(enum RegType reg) {
+  return reg >= EAX && reg <= R15D;
+}
+
 bool is_reg64(enum RegType reg) {
   return reg >= RAX && reg <= RDI;
 }
 
 bool is_reg64x(enum RegType reg) {
   return reg >= R8 && reg <= R15;
+}
+
+bool is_reg64s(enum RegType reg) {
+  return reg >= RAX && reg <= R15;
 }
 
 const char *skip_whitespace(const char *p) {
@@ -291,7 +320,7 @@ bool parse_operand(const char **pp, Operand *operand) {
   if (*p == '*' && p[1] == '%') {
     *pp = p + 2;
     enum RegType reg = parse_register(pp);
-    if (!is_reg64(reg))
+    if (!is_reg64s(reg))
       error("Illegal register");
     operand->type = DEREF_REG;
     operand->u.deref_reg = reg;
