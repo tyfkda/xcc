@@ -54,7 +54,7 @@ static void alloc_reg(VReg *vreg) {
 static IR *new_ir(enum IrType type) {
   IR *ir = malloc(sizeof(*ir));
   ir->type = type;
-  ir->dst = ir->opr1 = NULL;
+  ir->dst = ir->opr1 = ir->opr2 = NULL;
   vec_push(curbb->irs, ir);
   return ir;
 }
@@ -62,6 +62,14 @@ static IR *new_ir(enum IrType type) {
 VReg *new_ir_imm(intptr_t value, int size) {
   IR *ir = new_ir(IR_IMM);
   ir->value = value;
+  ir->size = size;
+  return ir->dst = new_vreg(s_regno++);
+}
+
+VReg *new_ir_bop(enum IrType type, VReg *opr1, VReg *opr2, int size) {
+  IR *ir = new_ir(type);
+  ir->opr1 = opr1;
+  ir->opr2 = opr2;
   ir->size = size;
   return ir->dst = new_vreg(s_regno++);
 }
@@ -285,9 +293,13 @@ void ir_alloc_reg(IR *ir) {
     alloc_reg(ir->dst);
   if (ir->opr1 != NULL)
     alloc_reg(ir->opr1);
+  if (ir->opr2 != NULL)
+    alloc_reg(ir->opr2);
 
   switch (ir->type) {
   case IR_IMM:
+  case IR_ADD:
+  case IR_SUB:
   case IR_RESULT:
   case IR_JMP:
     break;
@@ -366,23 +378,21 @@ void ir_out(const IR *ir) {
     break;
 
   case IR_ADD:
-    POP(RDI); POP_STACK_POS();
     switch (ir->size) {
-    case 1:  ADD(DIL, AL); break;
-    case 2:  ADD(DI, AX); break;
-    case 4:  ADD(EDI, EAX); break;
-    case 8:  ADD(RDI, RAX); break;
+    case 1:  MOV(kReg8s[ir->opr1->r], kReg8s[ir->dst->r]); ADD(kReg8s[ir->opr2->r], kReg8s[ir->dst->r]); break;
+    case 2:  MOV(kReg16s[ir->opr1->r], kReg16s[ir->dst->r]); ADD(kReg16s[ir->opr2->r], kReg16s[ir->dst->r]); break;
+    case 4:  MOV(kReg32s[ir->opr1->r], kReg32s[ir->dst->r]); ADD(kReg32s[ir->opr2->r], kReg32s[ir->dst->r]); break;
+    case 8:  MOV(kReg64s[ir->opr1->r], kReg64s[ir->dst->r]); ADD(kReg64s[ir->opr2->r], kReg64s[ir->dst->r]); break;
     default: assert(false); break;
     }
     break;
 
   case IR_SUB:
-    POP(RDI); POP_STACK_POS();
     switch (ir->size) {
-    case 1:  SUB(DIL, AL); break;
-    case 2:  SUB(DI, AX); break;
-    case 4:  SUB(EDI, EAX); break;
-    case 8:  SUB(RDI, RAX); break;
+    case 1:  MOV(kReg8s[ir->opr1->r], kReg8s[ir->dst->r]); SUB(kReg8s[ir->opr2->r], kReg8s[ir->dst->r]); break;
+    case 2:  MOV(kReg16s[ir->opr1->r], kReg16s[ir->dst->r]); SUB(kReg16s[ir->opr2->r], kReg16s[ir->dst->r]); break;
+    case 4:  MOV(kReg32s[ir->opr1->r], kReg32s[ir->dst->r]); SUB(kReg32s[ir->opr2->r], kReg32s[ir->dst->r]); break;
+    case 8:  MOV(kReg64s[ir->opr1->r], kReg64s[ir->dst->r]); SUB(kReg64s[ir->opr2->r], kReg64s[ir->dst->r]); break;
     default: assert(false); break;
     }
     break;

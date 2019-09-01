@@ -69,6 +69,7 @@ typedef struct {
   enum IrType type;
   VReg *dst;
   VReg *opr1;
+  VReg *opr2;
   int size;
   intptr_t value;
 
@@ -98,6 +99,7 @@ typedef struct {
 } IR;
 
 VReg *new_ir_imm(intptr_t value, int size);
+VReg *new_ir_bop(enum IrType type, VReg *opr1, VReg *opr2, int size);
 IR *new_ir_bofs(int offset);
 IR *new_ir_iofs(const char *label);
 IR *new_ir_load(int size);

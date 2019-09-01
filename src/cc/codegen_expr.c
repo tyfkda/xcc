@@ -314,10 +314,8 @@ static void gen_funcall(Expr *expr) {
   }
 }
 
-void gen_arith(enum ExprType exprType, const Type *valType, const Type *rhsType) {
+VReg *gen_arith(enum ExprType exprType, const Type *valType, VReg *lhs, VReg *rhs) {
   // lhs=rax, rhs=rdi, result=rax
-  UNUSED(rhsType);
-
   switch (exprType) {
   case EX_ADD:
   case EX_SUB:
@@ -329,12 +327,11 @@ void gen_arith(enum ExprType exprType, const Type *valType, const Type *rhsType)
   case EX_BITXOR:
   case EX_LSHIFT:
   case EX_RSHIFT:
-    new_ir_op(exprType + (IR_ADD - EX_ADD), type_size(valType));
-    break;
+    return new_ir_bop(exprType + (IR_ADD - EX_ADD), lhs, rhs, type_size(valType));
 
   default:
     assert(false);
-    break;
+    return NULL;
   }
 }
 
@@ -463,6 +460,7 @@ VReg *gen_expr(Expr *expr) {
     }
     break;
 
+#if 0
   case EX_ASSIGN_WITH:
     {
       Expr *sub = expr->u.unary.sub;
@@ -476,6 +474,7 @@ VReg *gen_expr(Expr *expr) {
       new_ir_assign_lval(type_size(expr->valType));
     }
     break;
+#endif
 
   case EX_PREINC:
   case EX_PREDEC:
@@ -572,10 +571,11 @@ VReg *gen_expr(Expr *expr) {
   case EX_BITAND:
   case EX_BITOR:
   case EX_BITXOR:
-    gen_expr(expr->u.bop.rhs);
-    new_ir_st(IR_PUSH);
-    gen_expr(expr->u.bop.lhs);
-    gen_arith(expr->type, expr->valType, expr->u.bop.rhs->valType);
+    {
+      VReg *lhs = gen_expr(expr->u.bop.lhs);
+      VReg *rhs = gen_expr(expr->u.bop.rhs);
+      return gen_arith(expr->type, expr->valType, lhs, rhs);
+    }
     break;
 
   default:
