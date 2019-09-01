@@ -327,7 +327,12 @@ VReg *gen_arith(enum ExprType exprType, const Type *valType, VReg *lhs, VReg *rh
   case EX_BITXOR:
   case EX_LSHIFT:
   case EX_RSHIFT:
-    return new_ir_bop(exprType + (IR_ADD - EX_ADD), lhs, rhs, type_size(valType));
+    {
+      VReg *result = new_ir_bop(exprType + (IR_ADD - EX_ADD), lhs, rhs, type_size(valType));
+      new_ir_unreg(lhs);
+      new_ir_unreg(rhs);
+      return result;
+    }
 
   default:
     assert(false);

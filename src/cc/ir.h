@@ -53,6 +53,7 @@ enum IrType {
   IR_ASSIGN_LVAL,
   IR_CLEAR,
   IR_RESULT,
+  IR_UNREG,
 };
 
 enum ConditionType {
@@ -117,6 +118,7 @@ IR *new_ir_cast(int dstsize, int srcsize);
 IR *new_ir_assign_lval(int size);
 IR *new_ir_clear(size_t size);
 void new_ir_result(VReg *reg, int size);
+void new_ir_unreg(VReg *reg);
 
 void ir_alloc_reg(IR *ir);
 void ir_out(const IR *ir);

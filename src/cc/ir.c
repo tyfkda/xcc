@@ -49,6 +49,11 @@ static void alloc_reg(VReg *vreg) {
   error("register exhausted");
 }
 
+static void unreg(int reg) {
+  assert(used[reg]);
+  used[reg] = false;
+}
+
 // Intermediate Representation
 
 static IR *new_ir(enum IrType type) {
@@ -181,6 +186,11 @@ void new_ir_result(VReg *reg, int size) {
   ir->size = size;
 }
 
+void new_ir_unreg(VReg *reg) {
+  IR *ir = new_ir(IR_UNREG);
+  ir->opr1 = reg;
+}
+
 static void ir_memcpy(ssize_t size) {
   const char *dst = RDI;
   const char *src = RAX;
@@ -297,6 +307,10 @@ void ir_alloc_reg(IR *ir) {
     alloc_reg(ir->opr2);
 
   switch (ir->type) {
+  case IR_UNREG:
+    unreg(ir->opr1->r);
+    break;
+
   case IR_IMM:
   case IR_ADD:
   case IR_SUB:
@@ -676,6 +690,9 @@ void ir_out(const IR *ir) {
     case 8:  MOV(kReg64s[ir->opr1->r], RAX); break;
     default: assert(false); break;
     }
+    break;
+
+  case IR_UNREG:
     break;
 
   default:

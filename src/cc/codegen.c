@@ -679,6 +679,7 @@ static void gen_return(Node *node) {
   if (node->u.return_.val != NULL) {
     VReg *reg = gen_expr(node->u.return_.val);
     new_ir_result(reg, type_size(node->u.return_.val->valType));
+    new_ir_unreg(reg);
   }
   assert(curfunc != NULL);
   new_ir_jmp(COND_ANY, curfunc->ret_bb);
