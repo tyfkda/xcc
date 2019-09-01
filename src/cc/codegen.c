@@ -586,6 +586,7 @@ static void gen_defun(Node *node) {
   curfunc = defun;
   defun->bbcon = new_func_blocks();
   set_curbb(new_bb());
+  init_reg_alloc();
 
   bool global = true;
   VarInfo *varinfo = find_global(defun->name);

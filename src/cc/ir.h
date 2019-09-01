@@ -127,6 +127,10 @@ void new_ir_unreg(VReg *reg);
 void ir_alloc_reg(IR *ir);
 void ir_out(const IR *ir);
 
+// Register allocator
+
+void init_reg_alloc(void);
+
 // Basci Block:
 //   Chunk of IR codes without branching in the middle (except at the bottom).
 

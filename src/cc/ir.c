@@ -3,6 +3,7 @@
 #include <assert.h>
 #include <inttypes.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include "codegen.h"
 #include "parser.h"
@@ -13,8 +14,6 @@
 #include "x86_64.h"
 
 #define REG_COUNT  (7)
-
-static int s_regno;
 
 // Virtual register
 
@@ -27,31 +26,67 @@ VReg *new_vreg(int vreg_no) {
 
 // Register allocator
 
+typedef struct RegAlloc {
+  int regno;
+  Vector *vregs;
+  bool used[REG_COUNT];
+} RegAlloc;
+
 static char *kReg8s[] = {BL, R10B, R11B, R12B, R13B, R14B, R15B};
 static char *kReg16s[] = {BX, R10W, R11W, R12W, R13W, R14W, R15W};
 static char *kReg32s[] = {EBX, R10D, R11D, R12D, R13D, R14D, R15D};
 static char *kReg64s[] = {RBX, R10, R11, R12, R13, R14, R15};
-static bool used[REG_COUNT];
 
-static void alloc_reg(VReg *vreg) {
-  if (vreg->r >= 0) {
-    assert(used[vreg->r]);
+static void reg_alloc_clear(RegAlloc *ra) {
+  ra->regno = 0;
+  vec_clear(ra->vregs);
+  memset(ra->used, 0, sizeof(ra->used));
+}
+
+RegAlloc *new_reg_alloc(void) {
+  RegAlloc *ra = malloc(sizeof(*ra));
+  ra->vregs = new_vector();
+  reg_alloc_clear(ra);
+  return ra;
+}
+
+VReg *reg_alloc_spawn(RegAlloc *ra) {
+  VReg *vreg = new_vreg(ra->regno++);
+  vec_push(ra->vregs, vreg);
+  return vreg;
+}
+
+void reg_alloc_map(RegAlloc *ra, VReg *vreg) {
+  assert(vreg != NULL && vreg->v >= 0 && vreg->v < ra->regno);
+  if (vreg->r != -1) {
+    assert(ra->used[vreg->r]);
     return;
   }
 
   for (int i = 0; i < REG_COUNT; ++i) {
-    if (used[i])
+    if (ra->used[i])
       continue;
-    used[i] = true;
+    ra->used[i] = true;
     vreg->r = i;
     return;
   }
   error("register exhausted");
 }
 
-static void unreg(int reg) {
-  assert(used[reg]);
-  used[reg] = false;
+static void reg_alloc_unreg(RegAlloc *ra, VReg *vreg) {
+  int r = vreg->r;
+  assert(ra->used[r]);
+  ra->used[r] = false;
+}
+
+//
+static RegAlloc *ra;
+
+void init_reg_alloc(void) {
+  if (ra == NULL)
+    ra = new_reg_alloc();
+  else
+    reg_alloc_clear(ra);
 }
 
 // Intermediate Representation
@@ -68,7 +103,7 @@ VReg *new_ir_imm(intptr_t value, int size) {
   IR *ir = new_ir(IR_IMM);
   ir->value = value;
   ir->size = size;
-  return ir->dst = new_vreg(s_regno++);
+  return ir->dst = reg_alloc_spawn(ra);
 }
 
 VReg *new_ir_bop(enum IrType type, VReg *opr1, VReg *opr2, int size) {
@@ -76,20 +111,20 @@ VReg *new_ir_bop(enum IrType type, VReg *opr1, VReg *opr2, int size) {
   ir->opr1 = opr1;
   ir->opr2 = opr2;
   ir->size = size;
-  return ir->dst = new_vreg(s_regno++);
+  return ir->dst = reg_alloc_spawn(ra);
 }
 
 VReg *new_ir_unary(enum IrType type, VReg *opr, int size) {
   IR *ir = new_ir(type);
   ir->opr1 = opr;
   ir->size = size;
-  return ir->dst = new_vreg(s_regno++);
+  return ir->dst = reg_alloc_spawn(ra);
 }
 
 VReg *new_ir_bofs(int offset) {
   IR *ir = new_ir(IR_BOFS);
   ir->value = offset;
-  return ir->dst = new_vreg(s_regno++);
+  return ir->dst = reg_alloc_spawn(ra);
 }
 
 IR *new_ir_iofs(const char *label) {
@@ -166,7 +201,7 @@ VReg *new_ir_call(const char *label, int arg_count, int result_size) {
   ir->u.call.label = label;
   ir->u.call.arg_count = arg_count;
   ir->size = result_size;
-  return ir->dst = new_vreg(s_regno++);
+  return ir->dst = reg_alloc_spawn(ra);
 }
 
 IR *new_ir_addsp(int value) {
@@ -314,15 +349,15 @@ static void ir_out_incdec(const IR *ir) {
 
 void ir_alloc_reg(IR *ir) {
   if (ir->dst != NULL)
-    alloc_reg(ir->dst);
+    reg_alloc_map(ra, ir->dst);
   if (ir->opr1 != NULL)
-    alloc_reg(ir->opr1);
+    reg_alloc_map(ra, ir->opr1);
   if (ir->opr2 != NULL)
-    alloc_reg(ir->opr2);
+    reg_alloc_map(ra, ir->opr2);
 
   switch (ir->type) {
   case IR_UNREG:
-    unreg(ir->opr1->r);
+    reg_alloc_unreg(ra, ir->opr1);
     break;
 
   case IR_IMM:
