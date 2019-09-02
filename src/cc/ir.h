@@ -109,7 +109,7 @@ IR *new_ir_iofs(const char *label);
 void new_ir_store(VReg *dst, VReg *src, int size);
 void new_ir_memcpy(VReg *dst, VReg *src, int size);
 IR *new_ir_op(enum IrType type, int size);
-IR *new_ir_cmpi(intptr_t value, int size);
+IR *new_ir_cmpi(VReg *reg, intptr_t value, int size);
 IR *new_ir_incdec(bool inc, bool pre, int size, intptr_t value);
 IR *new_ir_st(enum IrType type);
 IR *new_ir_set(enum ConditionType cond);

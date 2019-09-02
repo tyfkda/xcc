@@ -740,18 +740,19 @@ static void gen_switch(Node *node) {
   vec_push(bbs, break_bb);  // len+1: Extra label for break.
 
   Expr *value = node->u.switch_.value;
-  gen_expr(value);
+  VReg *reg = gen_expr(value);
 
   int size = type_size(value->valType);
   for (int i = 0; i < len; ++i) {
     BB *nextbb = bb_split(curbb);
     intptr_t x = (intptr_t)case_values->data[i];
-    new_ir_cmpi(x, size);
+    new_ir_cmpi(reg, x, size);
     new_ir_jmp(COND_EQ, bbs->data[i]);
     set_curbb(nextbb);
   }
   new_ir_jmp(COND_ANY, bbs->data[len]);  // Jump to default.
   set_curbb(bb_split(curbb));
+  new_ir_unreg(reg);
 
   // No bb setting.
 

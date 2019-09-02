@@ -51,12 +51,13 @@ static enum ConditionType gen_compare_expr(enum ExprType type, Expr *lhs, Expr *
     cond = flip_cond(cond);
   }
 
-  gen_expr(lhs);
+  VReg *lhs_reg = gen_expr(lhs);
   if (rhs->type == EX_NUM && rhs->u.num.ival == 0 &&
       (cond == COND_EQ || cond == COND_NE)) {
     gen_test_opcode(lhs->valType);
   } else if (rhs->type == EX_NUM && (lhs->valType->u.num.type != NUM_LONG || is_im32(rhs->u.num.ival))) {
-    new_ir_cmpi(rhs->u.num.ival, type_size(lhs->valType));
+    new_ir_cmpi(lhs_reg, rhs->u.num.ival, type_size(lhs->valType));
+    new_ir_unreg(lhs_reg);
   } else {
     switch (lhs->valType->type) {
     case TY_NUM: case TY_PTR:
@@ -65,8 +66,10 @@ static enum ConditionType gen_compare_expr(enum ExprType type, Expr *lhs, Expr *
     }
 
     new_ir_st(IR_PUSH);
-    gen_expr(rhs);
-    new_ir_op(IR_CMP, type_size(lhs->valType));
+    VReg *rhs_reg = gen_expr(rhs);
+    new_ir_bop(IR_CMP, lhs_reg, rhs_reg, type_size(lhs->valType));
+    new_ir_unreg(lhs_reg);
+    new_ir_unreg(rhs_reg);
   }
 
   return cond;

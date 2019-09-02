@@ -153,9 +153,10 @@ IR *new_ir_op(enum IrType type, int size) {
   return ir;
 }
 
-IR *new_ir_cmpi(intptr_t value, int size) {
+IR *new_ir_cmpi(VReg *reg, intptr_t value, int size) {
   IR *ir = new_ir(IR_CMPI);
   ir->value = value;
+  ir->opr1 = reg;
   ir->size = size;
   return ir;
 }
@@ -366,6 +367,10 @@ void ir_alloc_reg(IR *ir) {
   case IR_STORE:
   case IR_ADD:
   case IR_SUB:
+  case IR_MUL:
+  case IR_DIV:
+  case IR_MOD:
+  case IR_CMPI:
   case IR_PRECALL:
   case IR_PUSHARG:
   case IR_CALL:
@@ -634,15 +639,15 @@ void ir_out(const IR *ir) {
     {
       intptr_t x = ir->value;
       switch (ir->size) {
-      case 1:  CMP(IM(x), AL); break;
-      case 2:  CMP(IM(x), AX); break;
-      case 4:  CMP(IM(x), EAX); break;
+      case 1:  CMP(IM(x), kReg8s[ir->opr1->r]); break;
+      case 2:  CMP(IM(x), kReg16s[ir->opr1->r]); break;
+      case 4:  CMP(IM(x), kReg32s[ir->opr1->r]); break;
       case 8:
         if (is_im32(x)) {
-          CMP(IM(x), RAX);
+          CMP(IM(x), kReg64s[ir->opr1->r]);
         } else {
           MOV(IM(x), RDI);
-          CMP(RDI, RAX);
+          CMP(RDI, kReg64s[ir->opr1->r]);
         }
         break;
       default: assert(false); break;
