@@ -900,8 +900,9 @@ static void gen_label(Node *node) {
 static void gen_clear_local_var(const VarInfo *varinfo) {
   // Fill with zeros regardless of variable type.
   int offset = varinfo->offset;
-  new_ir_bofs(offset);
-  new_ir_clear(type_size(varinfo->type));
+  VReg *reg = new_ir_bofs(offset);
+  new_ir_clear(reg, type_size(varinfo->type));
+  new_ir_unreg(reg);
 }
 
 static void gen_vardecl(Node *node) {

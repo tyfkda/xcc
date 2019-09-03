@@ -127,10 +127,10 @@ VReg *new_ir_bofs(int offset) {
   return ir->dst = reg_alloc_spawn(ra);
 }
 
-IR *new_ir_iofs(const char *label) {
+VReg *new_ir_iofs(const char *label) {
   IR *ir = new_ir(IR_IOFS);
   ir->u.iofs.label = label;
-  return ir;
+  return ir->dst = reg_alloc_spawn(ra);
 }
 
 void new_ir_store(VReg *dst, VReg *src, int size) {
@@ -174,10 +174,10 @@ IR *new_ir_st(enum IrType type) {
   return new_ir(type);
 }
 
-IR *new_ir_set(enum ConditionType cond) {
+VReg *new_ir_set(enum ConditionType cond) {
   IR *ir = new_ir(IR_SET);
   ir->u.set.cond = cond;
-  return ir;
+  return ir->dst = reg_alloc_spawn(ra);
 }
 
 IR *new_ir_jmp(enum ConditionType cond, BB *bb) {
@@ -197,9 +197,10 @@ void new_ir_precall(int arg_count) {
   ir->u.call.arg_count = arg_count;
 }
 
-VReg *new_ir_call(const char *label, int arg_count, int result_size) {
+VReg *new_ir_call(const char *label, VReg *freg, int arg_count, int result_size) {
   IR *ir = new_ir(IR_CALL);
   ir->u.call.label = label;
+  ir->opr1 = freg;
   ir->u.call.arg_count = arg_count;
   ir->size = result_size;
   return ir->dst = reg_alloc_spawn(ra);
@@ -211,11 +212,11 @@ IR *new_ir_addsp(int value) {
   return ir;
 }
 
-IR *new_ir_cast(int dstsize, int srcsize) {
+void new_ir_cast(VReg *vreg, int dstsize, int srcsize) {
   IR *ir = new_ir(IR_CAST);
+  ir->opr1 = vreg;
   ir->size = dstsize;
   ir->u.cast.srcsize = srcsize;
-  return ir;
 }
 
 IR *new_ir_assign_lval(int size) {
@@ -224,10 +225,10 @@ IR *new_ir_assign_lval(int size) {
   return ir;
 }
 
-IR *new_ir_clear(size_t size) {
+void new_ir_clear(VReg *reg, size_t size) {
   IR *ir = new_ir(IR_CLEAR);
   ir->size = size;
-  return ir;
+  ir->opr1 = reg;
 }
 
 void new_ir_result(VReg *reg, int size) {
@@ -363,6 +364,7 @@ void ir_alloc_reg(IR *ir) {
 
   case IR_IMM:
   case IR_BOFS:
+  case IR_IOFS:
   case IR_LOAD:
   case IR_STORE:
   case IR_ADD:
@@ -371,9 +373,12 @@ void ir_alloc_reg(IR *ir) {
   case IR_DIV:
   case IR_MOD:
   case IR_CMPI:
+  case IR_SET:
   case IR_PRECALL:
   case IR_PUSHARG:
   case IR_CALL:
+  case IR_CAST:
+  case IR_CLEAR:
   case IR_RESULT:
   case IR_JMP:
     break;
@@ -428,7 +433,7 @@ void ir_out(const IR *ir) {
     break;
 
   case IR_IOFS:
-    LEA(LABEL_INDIRECT(ir->u.iofs.label, RIP), RAX);
+    LEA(LABEL_INDIRECT(ir->u.iofs.label, RIP), kReg64s[ir->dst->r]);
     break;
 
   case IR_LOAD:
@@ -477,50 +482,69 @@ void ir_out(const IR *ir) {
     break;
 
   case IR_MUL:
-    POP(RDI); POP_STACK_POS();
     switch (ir->size) {
-    case 1:  MUL(DIL); break;
-    case 2:  MUL(DI); break;
-    case 4:  MUL(EDI); break;
-    case 8:  MUL(RDI); break;
+    case 1:  MOV(kReg8s[ir->opr1->r], AL); MUL(kReg8s[ir->opr2->r]); MOV(AL, kReg8s[ir->dst->r]); break;
+    case 2:  MOV(kReg16s[ir->opr1->r], AX); MUL(kReg16s[ir->opr2->r]); MOV(AX, kReg16s[ir->dst->r]); break;
+    case 4:  MOV(kReg32s[ir->opr1->r], EAX); MUL(kReg32s[ir->opr2->r]); MOV(EAX, kReg32s[ir->dst->r]); break;
+    case 8:  MOV(kReg64s[ir->opr1->r], RAX); MUL(kReg64s[ir->opr2->r]); MOV(RAX, kReg64s[ir->dst->r]); break;
     default: assert(false); break;
     }
     break;
 
   case IR_DIV:
-    POP(RDI); POP_STACK_POS();
-    XOR(EDX, EDX);  // RDX = 0
     switch (ir->size) {
     case 1:
-      MOVSX(DIL, RDI);
-      MOVSX(AL, EAX);
-      CLTD();
-      IDIV(EDI);
+      MOVSX(kReg8s[ir->opr1->r], AX);
+      IDIV(kReg8s[ir->opr2->r]);
+      MOV(AL, kReg8s[ir->dst->r]);
       break;
     case 2:
-      MOVSX(DI, EDI);
-      MOVSX(AX, EAX);
-      // Fallthrough
+      MOV(kReg16s[ir->opr1->r], AX);
+      CWTL();
+      IDIV(kReg16s[ir->opr2->r]);
+      MOV(AX, kReg16s[ir->dst->r]);
+      break;
     case 4:
+      MOV(kReg32s[ir->opr1->r], EAX);
       CLTD();
-      IDIV(EDI);
+      IDIV(kReg32s[ir->opr2->r]);
+      MOV(EAX, kReg32s[ir->dst->r]);
       break;
     case 8:
+      MOV(kReg64s[ir->opr1->r], RAX);
       CQTO();
-      IDIV(RDI);
+      IDIV(kReg64s[ir->opr2->r]);
+      MOV(RAX, kReg64s[ir->dst->r]);
       break;
     default: assert(false); break;
     }
     break;
 
   case IR_MOD:
-    POP(RDI); POP_STACK_POS();
-    XOR(EDX, EDX);  // RDX = 0
     switch (ir->size) {
-    case 1:  IDIV(DIL); MOV(DL, AL); break;
-    case 2:  IDIV(DI);  MOV(DX, AX); break;
-    case 4:  IDIV(EDI); MOV(EDX, EAX); break;
-    case 8:  IDIV(RDI); MOV(RDX, RAX); break;
+    case 1:
+      MOVSX(kReg8s[ir->opr1->r], AX);
+      IDIV(kReg8s[ir->opr2->r]);
+      MOV(AH, kReg8s[ir->dst->r]);
+      break;
+    case 2:
+      MOV(kReg16s[ir->opr1->r], AX);
+      CWTL();
+      IDIV(kReg16s[ir->opr2->r]);
+      MOV(DX, kReg16s[ir->dst->r]);
+      break;
+    case 4:
+      MOV(kReg32s[ir->opr1->r], EAX);
+      CLTD();
+      IDIV(kReg32s[ir->opr2->r]);
+      MOV(EDX, kReg32s[ir->dst->r]);
+      break;
+    case 8:
+      MOV(kReg64s[ir->opr1->r], RAX);
+      CQTO();
+      IDIV(kReg64s[ir->opr2->r]);
+      MOV(RDX, kReg64s[ir->dst->r]);
+      break;
     default: assert(false); break;
     }
     break;
@@ -622,16 +646,17 @@ void ir_out(const IR *ir) {
 
   case IR_SET:
     {
+      const char *dst = kReg8s[ir->dst->r];
       switch (ir->u.set.cond) {
-      case COND_EQ:  SETE(AL); break;
-      case COND_NE:  SETNE(AL); break;
-      case COND_LT:  SETL(AL); break;
-      case COND_GT:  SETG(AL); break;
-      case COND_LE:  SETLE(AL); break;
-      case COND_GE:  SETGE(AL); break;
+      case COND_EQ:  SETE(dst); break;
+      case COND_NE:  SETNE(dst); break;
+      case COND_LT:  SETL(dst); break;
+      case COND_GT:  SETG(dst); break;
+      case COND_LE:  SETLE(dst); break;
+      case COND_GE:  SETGE(dst); break;
       default: assert(false); break;
       }
-      MOVSX(AL, EAX);
+      MOVSX(dst, kReg32s[ir->dst->r]);  // Assume bool is 4 byte.
     }
     break;
 
@@ -695,7 +720,7 @@ void ir_out(const IR *ir) {
       if (ir->u.call.label != NULL)
         CALL(ir->u.call.label);
       else
-        CALL(fmt("*%s", RAX));
+        CALL(fmt("*%s", kReg64s[ir->opr1->r]));
 
       // Resore caller save registers.
       POP(R11); POP_STACK_POS();
@@ -728,22 +753,22 @@ void ir_out(const IR *ir) {
       switch (ir->size) {
       case 2:
         switch (ir->u.cast.srcsize) {
-        case 1:  MOVSX(AL, AX); break;
+        case 1:  MOVSX(kReg8s[ir->opr1->r], kReg16s[ir->opr1->r]); break;
         default:  assert(false); break;
         }
         break;
       case 4:
         switch (ir->u.cast.srcsize) {
-        case 1:  MOVSX(AL, EAX); break;
-        case 2:  MOVSX(AX, EAX); break;
+        case 1:  MOVSX(kReg8s[ir->opr1->r], kReg32s[ir->opr1->r]); break;
+        case 2:  MOVSX(kReg16s[ir->opr1->r], kReg32s[ir->opr1->r]); break;
         default:  assert(false); break;
         }
         break;
       case 8:
         switch (ir->u.cast.srcsize) {
-        case 1:  MOVSX(AL, RAX); break;
-        case 2:  MOVSX(AX, RAX); break;
-        case 4:  MOVSX(EAX, RAX); break;
+        case 1:  MOVSX(kReg8s[ir->opr1->r], kReg64s[ir->opr1->r]); break;
+        case 2:  MOVSX(kReg16s[ir->opr1->r], kReg64s[ir->opr1->r]); break;
+        case 4:  MOVSX(kReg32s[ir->opr1->r], kReg64s[ir->opr1->r]); break;
         default:
           assert(false); break;
         }
@@ -765,7 +790,7 @@ void ir_out(const IR *ir) {
   case IR_CLEAR:
     {
       const char *loop = alloc_label();
-      MOV(RAX, RSI);
+      MOV(kReg64s[ir->opr1->r], RSI);
       MOV(IM(ir->size), EDI);
       XOR(AL, AL);
       EMIT_LABEL(loop);

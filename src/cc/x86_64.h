@@ -47,6 +47,10 @@
 #define R13B   "%r13b"
 #define R14B   "%r14b"
 #define R15B   "%r15b"
+#define AH     "%ah"
+#define CH     "%ch"
+#define DH     "%dh"
+#define BH     "%bh"
 
 #define AX     "%ax"
 #define CX     "%cx"
@@ -145,6 +149,7 @@
 #define SETG(o1)       EMIT_ASM1("setg", o1)
 #define SETLE(o1)      EMIT_ASM1("setle", o1)
 #define SETGE(o1)      EMIT_ASM1("setge", o1)
+#define CWTL()         EMIT_ASM0("cwtl")
 #define CLTD()         EMIT_ASM0("cltd")
 #define CQTO()         EMIT_ASM0("cqto")
 

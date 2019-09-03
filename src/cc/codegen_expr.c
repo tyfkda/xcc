@@ -173,14 +173,15 @@ void gen_cond_jmp(Expr *cond, bool tf, BB *bb) {
   new_ir_jmp(tf ? COND_NE : COND_EQ, bb);
 }
 
-static void gen_cast(const Type *ltypep, const Type *rtypep) {
+static VReg *gen_cast(VReg *reg, const Type *ltypep, const Type *rtypep) {
   size_t dst_size = type_size(ltypep);
   size_t src_size;
   if (rtypep->type == TY_ARRAY)
     src_size = WORD_SIZE;
   else
     src_size = type_size(rtypep);
-  new_ir_cast(dst_size, src_size);
+  new_ir_cast(reg, dst_size, src_size);
+  return reg;
 }
 
 static VReg *gen_rval(Expr *expr) {
@@ -195,8 +196,7 @@ static VReg *gen_lval(Expr *expr) {
   switch (expr->type) {
   case EX_VARREF:
     if (expr->u.varref.scope == NULL) {
-      // TODO: Implement for IR
-      new_ir_iofs(expr->u.varref.ident);
+      return new_ir_iofs(expr->u.varref.ident);
     } else {
       Scope *scope = expr->u.varref.scope;
       VarInfo *varinfo = scope_find(&scope, expr->u.varref.ident);
@@ -207,8 +207,7 @@ static VReg *gen_lval(Expr *expr) {
     }
     break;
   case EX_DEREF:
-    gen_rval(expr->u.unary.sub);
-    break;
+    return gen_rval(expr->u.unary.sub);
   case EX_MEMBER:
     {
       const Type *type = expr->u.member.target->valType;
@@ -219,15 +218,18 @@ static VReg *gen_lval(Expr *expr) {
       Vector *members = type->u.struct_.info->members;
       VarInfo *varinfo = (VarInfo*)members->data[expr->u.member.index];
 
+      VReg *reg;
       if (expr->u.member.target->valType->type == TY_PTR)
-        gen_expr(expr->u.member.target);
+        reg = gen_expr(expr->u.member.target);
       else
-        gen_ref(expr->u.member.target);
-      if (varinfo->offset != 0) {
-        new_ir_st(IR_PUSH);
-        new_ir_imm(varinfo->offset, type_size(&tyLong));
-        new_ir_op(IR_ADD, type_size(&tySize));
-      }
+        reg = gen_ref(expr->u.member.target);
+      if (varinfo->offset == 0)
+        return reg;
+      VReg *imm = new_ir_imm(varinfo->offset, type_size(&tyLong));
+      VReg *result = new_ir_bop(IR_ADD, reg, imm, type_size(&tySize));
+      new_ir_unreg(reg);
+      new_ir_unreg(imm);
+      return result;
     }
     break;
   default:
@@ -312,12 +314,13 @@ static VReg *gen_funcall(Expr *expr) {
 
   VReg *result_reg = NULL;
   if (func->type == EX_VARREF && func->u.varref.scope == NULL) {
-    result_reg = new_ir_call(func->u.varref.ident, arg_count,
+    result_reg = new_ir_call(func->u.varref.ident, NULL, arg_count,
                              type_size(func->valType->u.func.ret));
   } else {
-    // TODO: IR
-    //int reg = gen_expr(func);
-    //new_ir_call(NULL, arg_regs, arg_count);
+    VReg *freg = gen_expr(func);
+    result_reg = new_ir_call(NULL, freg, arg_count,
+                             type_size(func->valType->u.func.ret));
+    new_ir_unreg(freg);
   }
 
   //int stack_add = stack_args * 8;
@@ -375,20 +378,18 @@ VReg *gen_expr(Expr *expr) {
       VarInfo *varinfo = define_global(strtype, VF_CONST | VF_STATIC, NULL, label);
       varinfo->u.g.init = init;
 
-      new_ir_iofs(label);
+      return new_ir_iofs(label);
     }
     break;
 
   case EX_SIZEOF:
-    new_ir_imm(type_size(expr->u.sizeof_.type), type_size(expr->valType));
-    break;
+    return new_ir_imm(type_size(expr->u.sizeof_.type), type_size(expr->valType));
 
   case EX_VARREF:
     return gen_varref(expr);
 
   case EX_REF:
-    gen_ref(expr->u.unary.sub);
-    break;
+    return gen_ref(expr->u.unary.sub);
 
   case EX_DEREF:
     {
@@ -468,10 +469,11 @@ VReg *gen_expr(Expr *expr) {
         break;
       }
 
-      new_ir_imm(value, type_size(expr->valType));
+      return new_ir_imm(value, type_size(expr->valType));
     } else {
-      gen_expr(expr->u.unary.sub);
-      gen_cast(expr->valType, expr->u.unary.sub->valType);
+      VReg *reg = gen_expr(expr->u.unary.sub);
+      gen_cast(reg, expr->valType, expr->u.unary.sub->valType);
+      return reg;
     }
     break;
 
@@ -557,7 +559,7 @@ VReg *gen_expr(Expr *expr) {
   case EX_GE:
     {
       enum ConditionType cond = gen_compare_expr(expr->type, expr->u.bop.lhs, expr->u.bop.rhs);
-      new_ir_set(cond);
+      return new_ir_set(cond);
     }
     break;
 
