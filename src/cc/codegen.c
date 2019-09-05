@@ -20,6 +20,8 @@
 const int FRAME_ALIGN = 8;
 const int STACK_PARAM_BASE_OFFSET = (2 - MAX_REG_ARGS) * 8;
 
+static void gen_expr_stmt(Expr *expr);
+
 void set_curbb(BB *bb) {
   assert(curfunc != NULL);
   curbb = bb;
@@ -847,7 +849,7 @@ static void gen_for(Node *node) {
   BB *next_bb = push_break_bb(continue_bb, &save_break);
 
   if (node->u.for_.pre != NULL)
-    gen_expr(node->u.for_.pre);
+    gen_expr_stmt(node->u.for_.pre);
 
   set_curbb(cond_bb);
 
@@ -859,7 +861,7 @@ static void gen_for(Node *node) {
 
   set_curbb(continue_bb);
   if (node->u.for_.post != NULL)
-    gen_expr(node->u.for_.post);
+    gen_expr_stmt(node->u.for_.post);
   new_ir_jmp(COND_ANY, cond_bb);
 
   set_curbb(next_bb);
@@ -924,8 +926,8 @@ static void gen_vardecl(Node *node) {
   gen_nodes(node->u.vardecl.inits);
 }
 
-static void gen_expr_stmt(Node *node) {
-  VReg *result = gen_expr(node->u.expr);
+static void gen_expr_stmt(Expr *expr) {
+  VReg *result = gen_expr(expr);
   new_ir_unreg(result);
 }
 
@@ -939,7 +941,7 @@ void gen(Node *node) {
     return;
 
   switch (node->type) {
-  case ND_EXPR:  gen_expr_stmt(node); break;
+  case ND_EXPR:  gen_expr_stmt(node->u.expr); break;
   case ND_DEFUN:  gen_defun(node); break;
   case ND_RETURN:  gen_return(node); break;
   case ND_BLOCK:  gen_block(node); break;

@@ -43,6 +43,7 @@ enum IrType {
   IR_NOT,
   IR_SET,   // SETxx: flag => 0 or 1
   IR_CMPI,
+  IR_TEST,
   IR_PUSH,
   IR_JMP,
   IR_PRECALL,
@@ -109,8 +110,10 @@ VReg *new_ir_iofs(const char *label);
 void new_ir_store(VReg *dst, VReg *src, int size);
 void new_ir_memcpy(VReg *dst, VReg *src, int size);
 IR *new_ir_op(enum IrType type, int size);
-IR *new_ir_cmpi(VReg *reg, intptr_t value, int size);
-IR *new_ir_incdec(bool inc, bool pre, int size, intptr_t value);
+void new_ir_cmp(VReg *opr1, VReg *opr2, int size);
+void new_ir_cmpi(VReg *reg, intptr_t value, int size);
+void new_ir_test(VReg *reg, int size);
+VReg *new_ir_incdec(VReg *reg, bool inc, bool pre, int size, intptr_t value);
 IR *new_ir_st(enum IrType type);
 VReg *new_ir_set(enum ConditionType cond);
 IR *new_ir_jmp(enum ConditionType cond, BB *bb);
@@ -130,6 +133,7 @@ void ir_out(const IR *ir);
 // Register allocator
 
 void init_reg_alloc(void);
+void check_all_reg_unused(void);
 
 // Basci Block:
 //   Chunk of IR codes without branching in the middle (except at the bottom).

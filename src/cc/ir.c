@@ -74,6 +74,7 @@ void reg_alloc_map(RegAlloc *ra, VReg *vreg) {
 }
 
 static void reg_alloc_unreg(RegAlloc *ra, VReg *vreg) {
+  assert(vreg->v >= 0 && vreg->v < ra->regno);
   int r = vreg->r;
   assert(ra->used[r]);
   ra->used[r] = false;
@@ -87,6 +88,13 @@ void init_reg_alloc(void) {
     ra = new_reg_alloc();
   else
     reg_alloc_clear(ra);
+}
+
+void check_all_reg_unused(void) {
+  for (int i = 0; i < REG_COUNT; ++i) {
+    if (ra->used[i])
+      error("reg %d is used", i);
+  }
 }
 
 // Intermediate Representation
@@ -153,21 +161,34 @@ IR *new_ir_op(enum IrType type, int size) {
   return ir;
 }
 
-IR *new_ir_cmpi(VReg *reg, intptr_t value, int size) {
+void new_ir_cmp(VReg *opr1, VReg *opr2, int size) {
+  IR *ir = new_ir(IR_CMP);
+  ir->opr1 = opr1;
+  ir->opr2 = opr2;
+  ir->size = size;
+}
+
+void new_ir_cmpi(VReg *reg, intptr_t value, int size) {
   IR *ir = new_ir(IR_CMPI);
   ir->value = value;
   ir->opr1 = reg;
   ir->size = size;
-  return ir;
 }
 
-IR *new_ir_incdec(bool inc, bool pre, int size, intptr_t value) {
+void new_ir_test(VReg *reg, int size) {
+  IR *ir = new_ir(IR_TEST);
+  ir->opr1 = reg;
+  ir->size = size;
+}
+
+VReg *new_ir_incdec(VReg *reg, bool inc, bool pre, int size, intptr_t value) {
   IR *ir = new_ir(IR_INCDEC);
+  ir->opr1 = reg;
   ir->u.incdec.inc = inc;
   ir->u.incdec.pre = pre;
   ir->size = size;
   ir->value = value;
-  return ir;
+  return ir->dst = reg_alloc_spawn(ra);
 }
 
 IR *new_ir_st(enum IrType type) {
@@ -242,9 +263,9 @@ void new_ir_unreg(VReg *reg) {
   ir->opr1 = reg;
 }
 
-static void ir_memcpy(ssize_t size) {
-  const char *dst = RDI;
-  const char *src = RAX;
+static void ir_memcpy(int dst_reg, int src_reg, ssize_t size) {
+  const char *dst = kReg64s[dst_reg];
+  const char *src = kReg64s[src_reg];
 
   // Break %rcx, %dl
   switch (size) {
@@ -267,7 +288,7 @@ static void ir_memcpy(ssize_t size) {
   default:
     {
       const char * label = alloc_label();
-      PUSH(RAX);
+      PUSH(src);
       MOV(IM(size), RCX);
       EMIT_LABEL(label);
       MOV(INDIRECT(src), DL);
@@ -276,7 +297,7 @@ static void ir_memcpy(ssize_t size) {
       INC(dst);
       DEC(RCX);
       JNE(label);
-      POP(RAX);
+      POP(src);
     }
     break;
   }
@@ -294,8 +315,7 @@ static void ir_out_store(int size) {
 }
 
 static void ir_out_incdec(const IR *ir) {
-  static const char *kRegATable[] = {AL, AX, EAX, RAX};
-  static const char *kRegDiTable[] = {DIL, DI, EDI, RDI};
+  static char **kRegTable[] = {kReg8s, kReg16s, kReg32s, kReg64s};
 
   int size;
   switch (ir->size) {
@@ -306,45 +326,43 @@ static void ir_out_incdec(const IR *ir) {
   case 8:  size = 3; break;
   }
 
+  const char *src = INDIRECT(kReg64s[ir->opr1->r]);
+  const char *dst = kRegTable[size][ir->dst->r];
   if (ir->value == 1) {
     if (!ir->u.incdec.pre)
-      MOV(INDIRECT(RAX), kRegDiTable[size]);
+      MOV(src, dst);
 
     switch (size) {
-    case 0:  if (ir->u.incdec.inc) INCB(INDIRECT(RAX)); else DECB(INDIRECT(RAX)); break;
-    case 1:  if (ir->u.incdec.inc) INCW(INDIRECT(RAX)); else DECW(INDIRECT(RAX)); break;
-    case 2:  if (ir->u.incdec.inc) INCL(INDIRECT(RAX)); else DECL(INDIRECT(RAX)); break;
-    case 3:  if (ir->u.incdec.inc) INCQ(INDIRECT(RAX)); else DECQ(INDIRECT(RAX)); break;
+    case 0:  if (ir->u.incdec.inc) INCB(src); else DECB(src); break;
+    case 1:  if (ir->u.incdec.inc) INCW(src); else DECW(src); break;
+    case 2:  if (ir->u.incdec.inc) INCL(src); else DECL(src); break;
+    case 3:  if (ir->u.incdec.inc) INCQ(src); else DECQ(src); break;
     default: assert(false); break;
     }
 
     if (ir->u.incdec.pre)
-      MOV(INDIRECT(RAX), kRegATable[size]);
-    else
-      MOV(kRegDiTable[size], kRegATable[size]);
+      MOV(src, dst);
   } else {
     intptr_t value = ir->value;
     if (ir->u.incdec.pre) {
       if (value <= ((1L << 31) - 1)) {
-        if (ir->u.incdec.inc)  ADDQ(IM(value), INDIRECT(RAX));
-        else                   SUBQ(IM(value), INDIRECT(RAX));
+        if (ir->u.incdec.inc)  ADDQ(IM(value), src);
+        else                   SUBQ(IM(value), src);
       } else {
-        MOV(IM(value), RDI);
-        if (ir->u.incdec.inc)  ADD(RDI, INDIRECT(RAX));
-        else                   SUB(RDI, INDIRECT(RAX));
+        MOV(IM(value), RAX);
+        if (ir->u.incdec.inc)  ADD(RAX, src);
+        else                   SUB(RAX, src);
       }
-      MOV(INDIRECT(RAX), RAX);
+      MOV(src, dst);
     } else {
-      MOV(INDIRECT(RAX), RDI);
       if (value <= ((1L << 31) - 1)) {
-        if (ir->u.incdec.inc)  ADDQ(IM(value), INDIRECT(RAX));
-        else                   SUBQ(IM(value), INDIRECT(RAX));
+        if (ir->u.incdec.inc)  ADDQ(IM(value), src);
+        else                   SUBQ(IM(value), src);
       } else {
-        MOV(IM(value), RCX);
-        if (ir->u.incdec.inc)  ADD(RCX, INDIRECT(RAX));
-        else                   SUB(RCX, INDIRECT(RAX));
+        MOV(IM(value), RAX);
+        if (ir->u.incdec.inc)  ADD(RAX, src);
+        else                   SUB(RAX, src);
       }
-      MOV(RDI, RAX);
     }
   }
 }
@@ -367,12 +385,17 @@ void ir_alloc_reg(IR *ir) {
   case IR_IOFS:
   case IR_LOAD:
   case IR_STORE:
+  case IR_MEMCPY:
   case IR_ADD:
   case IR_SUB:
   case IR_MUL:
   case IR_DIV:
   case IR_MOD:
+  case IR_CMP:
   case IR_CMPI:
+  case IR_TEST:
+  case IR_INCDEC:
+  case IR_NEG:
   case IR_SET:
   case IR_PRECALL:
   case IR_PUSHARG:
@@ -381,6 +404,7 @@ void ir_alloc_reg(IR *ir) {
   case IR_CLEAR:
   case IR_RESULT:
   case IR_JMP:
+  case IR_ADDSP:
     break;
 
   default:  assert(false); break;
@@ -457,8 +481,7 @@ void ir_out(const IR *ir) {
     break;
 
   case IR_MEMCPY:
-    POP(RDI); POP_STACK_POS();
-    ir_memcpy(ir->size);
+    ir_memcpy(ir->dst->r, ir->opr1->r, ir->size);
     break;
 
   case IR_ADD:
@@ -606,13 +629,11 @@ void ir_out(const IR *ir) {
 
   case IR_CMP:
     {
-      POP(RDI); POP_STACK_POS();
-
       switch (ir->size) {
-      case 1:  CMP(AL, DIL); break;
-      case 2:  CMP(AX, DI); break;
-      case 4:  CMP(EAX, EDI); break;
-      case 8:  CMP(RAX, RDI); break;
+      case 1:  CMP(kReg8s[ir->opr2->r], kReg8s[ir->opr1->r]); break;
+      case 2:  CMP(kReg16s[ir->opr2->r], kReg16s[ir->opr1->r]); break;
+      case 4:  CMP(kReg32s[ir->opr2->r], kReg32s[ir->opr1->r]); break;
+      case 8:  CMP(kReg64s[ir->opr2->r], kReg64s[ir->opr1->r]); break;
       default: assert(false); break;
       }
     }
@@ -624,10 +645,10 @@ void ir_out(const IR *ir) {
 
   case IR_NEG:
     switch (ir->size) {
-    case 1:  NEG(AL); break;
-    case 2:  NEG(AX); break;
-    case 4:  NEG(EAX); break;
-    case 8:  NEG(RAX); break;
+    case 1:  MOV(kReg8s[ir->opr1->r], kReg8s[ir->dst->r]); NEG(kReg8s[ir->dst->r]); break;
+    case 2:  MOV(kReg16s[ir->opr1->r], kReg16s[ir->dst->r]); NEG(kReg16s[ir->dst->r]); break;
+    case 4:  MOV(kReg32s[ir->opr1->r], kReg32s[ir->dst->r]); NEG(kReg32s[ir->dst->r]); break;
+    case 8:  MOV(kReg64s[ir->opr1->r], kReg64s[ir->dst->r]); NEG(kReg64s[ir->dst->r]); break;
     default:  assert(false); break;
     }
     break;
@@ -675,6 +696,18 @@ void ir_out(const IR *ir) {
           CMP(RDI, kReg64s[ir->opr1->r]);
         }
         break;
+      default: assert(false); break;
+      }
+    }
+    break;
+
+  case IR_TEST:
+    {
+      switch (ir->size) {
+      case 1:  TEST(kReg8s[ir->opr1->r], kReg8s[ir->opr1->r]); break;
+      case 2:  TEST(kReg16s[ir->opr1->r], kReg16s[ir->opr1->r]); break;
+      case 4:  TEST(kReg32s[ir->opr1->r], kReg32s[ir->opr1->r]); break;
+      case 8:  TEST(kReg64s[ir->opr1->r], kReg64s[ir->opr1->r]); break;
       default: assert(false); break;
       }
     }
@@ -733,10 +766,6 @@ void ir_out(const IR *ir) {
       case 8:  MOV(RAX, kReg64s[ir->dst->r]); break;
       default: assert(false); break;
       }
-
-      // Drop stack arguments.
-      if (ir->u.call.arg_count > MAX_REG_ARGS)
-        ADD(IM((ir->u.call.arg_count > MAX_REG_ARGS) * WORD_SIZE), RSP);
     }
     break;
 
