@@ -74,10 +74,6 @@ typedef struct {
       enum ConditionType cond;
     } jmp;
     struct {
-      const char *name;
-      bool global;
-    } label;
-    struct {
       const char *label;
       size_t arg_count;
     } call;
@@ -102,7 +98,6 @@ IR *new_ir_jmp(enum ConditionType cond, BB *bb);
 IR *new_ir_call(const char *label, int arg_count);
 IR *new_ir_addsp(int value);
 IR *new_ir_cast(int dstsize, int srcsize);
-IR *new_ir_label(const char *label, bool global);
 IR *new_ir_assign_lval(int size);
 IR *new_ir_clear(size_t size);
 

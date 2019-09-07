@@ -115,13 +115,6 @@ IR *new_ir_cast(int dstsize, int srcsize) {
   return ir;
 }
 
-IR *new_ir_label(const char *label, bool global) {
-  IR *ir = new_ir(IR_LABEL);
-  ir->u.label.name = label;
-  ir->u.label.global = global;
-  return ir;
-}
-
 IR *new_ir_assign_lval(int size) {
   IR *ir = new_ir(IR_ASSIGN_LVAL);
   ir->size = size;
@@ -577,12 +570,6 @@ void ir_out(const IR *ir) {
       default:  assert(false); break;
       }
     }
-    break;
-
-  case IR_LABEL:
-    if (ir->u.label.global)
-      _GLOBL(ir->u.label.name);
-    EMIT_LABEL(ir->u.label.name);
     break;
 
   case IR_SAVE_LVAL:
