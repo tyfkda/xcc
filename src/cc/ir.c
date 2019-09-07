@@ -155,11 +155,6 @@ void new_ir_memcpy(VReg *dst, VReg *src, int size) {
   ir->size = size;
 }
 
-IR *new_ir_op(enum IrType type, int size) {
-  IR *ir = new_ir(type);
-  ir->size = size;
-  return ir;
-}
 
 void new_ir_cmp(VReg *opr1, VReg *opr2, int size) {
   IR *ir = new_ir(IR_CMP);
@@ -181,21 +176,16 @@ void new_ir_incdec(enum IrType type, VReg *reg, int size, intptr_t value) {
   ir->value = value;
 }
 
-IR *new_ir_st(enum IrType type) {
-  return new_ir(type);
-}
-
 VReg *new_ir_set(enum ConditionType cond) {
   IR *ir = new_ir(IR_SET);
   ir->u.set.cond = cond;
   return ir->dst = reg_alloc_spawn(ra);
 }
 
-IR *new_ir_jmp(enum ConditionType cond, BB *bb) {
+void new_ir_jmp(enum ConditionType cond, BB *bb) {
   IR *ir = new_ir(IR_JMP);
   ir->u.jmp.bb = bb;
   ir->u.jmp.cond = cond;
-  return ir;
 }
 
 void new_ir_pusharg(VReg *vreg) {
@@ -217,10 +207,9 @@ VReg *new_ir_call(const char *label, VReg *freg, int arg_count, int result_size)
   return ir->dst = reg_alloc_spawn(ra);
 }
 
-IR *new_ir_addsp(int value) {
+void new_ir_addsp(int value) {
   IR *ir = new_ir(IR_ADDSP);
   ir->value = value;
-  return ir;
 }
 
 void new_ir_cast(VReg *vreg, int dstsize, int srcsize) {
@@ -228,12 +217,6 @@ void new_ir_cast(VReg *vreg, int dstsize, int srcsize) {
   ir->opr1 = vreg;
   ir->size = dstsize;
   ir->u.cast.srcsize = srcsize;
-}
-
-IR *new_ir_assign_lval(int size) {
-  IR *ir = new_ir(IR_ASSIGN_LVAL);
-  ir->size = size;
-  return ir;
 }
 
 void new_ir_clear(VReg *reg, size_t size) {
@@ -297,17 +280,6 @@ static void ir_memcpy(int dst_reg, int src_reg, ssize_t size) {
       POP(src);
     }
     break;
-  }
-}
-
-static void ir_out_store(int size) {
-  // Store %rax to %rdi
-  switch (size) {
-  case 1:  MOV(AL, INDIRECT(RDI)); break;
-  case 2:  MOV(AX, INDIRECT(RDI)); break;
-  case 4:  MOV(EAX, INDIRECT(RDI)); break;
-  case 8:  MOV(RAX, INDIRECT(RDI)); break;
-  default:  assert(false); break;
   }
 }
 
@@ -684,10 +656,6 @@ void ir_out(const IR *ir) {
     }
     break;
 
-  case IR_PUSH:
-    PUSH(RAX); PUSH_STACK_POS();
-    break;
-
   case IR_JMP:
     switch (ir->u.jmp.cond) {
     case COND_ANY:  JMP(ir->u.jmp.bb->label); break;
@@ -776,15 +744,6 @@ void ir_out(const IR *ir) {
       default:  assert(false); break;
       }
     }
-    break;
-
-  case IR_SAVE_LVAL:
-    MOV(RAX, RSI);  // Save lhs address to %rsi.
-    break;
-
-  case IR_ASSIGN_LVAL:
-    MOV(RSI, RDI);
-    ir_out_store(ir->size);
     break;
 
   case IR_CLEAR:

@@ -44,16 +44,12 @@ enum IrType {
   IR_NOT,
   IR_SET,   // SETxx: flag => 0 or 1
   IR_TEST,
-  IR_PUSH,
   IR_JMP,
   IR_PRECALL,
   IR_PUSHARG,
   IR_CALL,
   IR_ADDSP,
   IR_CAST,
-  IR_LABEL,
-  IR_SAVE_LVAL,
-  IR_ASSIGN_LVAL,
   IR_CLEAR,
   IR_COPY,
   IR_RESULT,
@@ -106,19 +102,16 @@ VReg *new_ir_bofs(int offset);
 VReg *new_ir_iofs(const char *label);
 void new_ir_store(VReg *dst, VReg *src, int size);
 void new_ir_memcpy(VReg *dst, VReg *src, int size);
-IR *new_ir_op(enum IrType type, int size);
 void new_ir_cmp(VReg *opr1, VReg *opr2, int size);
 void new_ir_test(VReg *reg, int size);
 void new_ir_incdec(enum IrType type, VReg *reg, int size, intptr_t value);
-IR *new_ir_st(enum IrType type);
 VReg *new_ir_set(enum ConditionType cond);
-IR *new_ir_jmp(enum ConditionType cond, BB *bb);
+void new_ir_jmp(enum ConditionType cond, BB *bb);
 void new_ir_precall(int arg_count);
 void new_ir_pusharg(VReg *vreg);
 VReg *new_ir_call(const char *label, VReg *freg, int arg_count, int result_size);
-IR *new_ir_addsp(int value);
+void new_ir_addsp(int value);
 void new_ir_cast(VReg *vreg, int dstsize, int srcsize);
-IR *new_ir_assign_lval(int size);
 void new_ir_clear(VReg *reg, size_t size);
 void new_ir_copy(VReg *dst, VReg *src, int size);
 void new_ir_result(VReg *reg, int size);
