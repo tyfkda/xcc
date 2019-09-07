@@ -54,6 +54,7 @@ enum IrType {
   IR_SAVE_LVAL,
   IR_ASSIGN_LVAL,
   IR_CLEAR,
+  IR_COPY,
   IR_RESULT,
   IR_UNREG,
 };
@@ -122,6 +123,7 @@ IR *new_ir_addsp(int value);
 void new_ir_cast(VReg *vreg, int dstsize, int srcsize);
 IR *new_ir_assign_lval(int size);
 void new_ir_clear(VReg *reg, size_t size);
+void new_ir_copy(VReg *dst, VReg *src, int size);
 void new_ir_result(VReg *reg, int size);
 void new_ir_unreg(VReg *reg);
 

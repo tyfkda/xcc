@@ -136,7 +136,6 @@ static Expr *add_num(enum ExprType exprType, const Token *tok, Expr *lhs, Expr *
   if (rnt == NUM_ENUM)
     rnt = NUM_INT;
 
-#if 0
   if (is_const(lhs) && is_const(rhs)) {
     intptr_t lval = lhs->u.num.ival;
     intptr_t rval = rhs->u.num.ival;
@@ -157,7 +156,6 @@ static Expr *add_num(enum ExprType exprType, const Token *tok, Expr *lhs, Expr *
     const Type *type = lnt >= rnt ? lhs->valType : rhs->valType;
     return new_expr_numlit(type, lhs->token, &num);
   }
-#endif
 
   const Type *type;
   if (lnt >= rnt || keep_left) {
@@ -442,7 +440,6 @@ Expr *analyze_expr(Expr *expr, bool keep_left) {
       if (!cast_numbers(&expr->u.bop.lhs, &expr->u.bop.rhs, keep_left))
         parse_error(expr->token, "Cannot use `%d' except numbers.", expr->type);
 
-#if 0
       if (is_const(expr->u.bop.lhs) && is_const(expr->u.bop.rhs)) {
         Expr *lhs = expr->u.bop.lhs, *rhs = expr->u.bop.rhs;
         intptr_t lval = lhs->u.num.ival;
@@ -476,7 +473,6 @@ Expr *analyze_expr(Expr *expr, bool keep_left) {
         const Type *type = lhs->valType->u.num.type >= rhs->valType->u.num.type ? lhs->valType : rhs->valType;
         return new_expr_numlit(type, lhs->token, &num);
       }
-#endif
 
       expr->valType = expr->u.bop.lhs->valType;
       break;

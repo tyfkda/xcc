@@ -245,6 +245,13 @@ void new_ir_clear(VReg *reg, size_t size) {
   ir->opr1 = reg;
 }
 
+void new_ir_copy(VReg *dst, VReg *src, int size) {
+  IR *ir = new_ir(IR_COPY);
+  ir->dst = dst;
+  ir->opr1 = src;
+  ir->size = size;
+}
+
 void new_ir_result(VReg *reg, int size) {
   IR *ir = new_ir(IR_RESULT);
   ir->opr1 = reg;
@@ -348,6 +355,7 @@ static void ir_out_incdec(const IR *ir) {
       }
       MOV(src, dst);
     } else {
+      MOV(src, dst);
       if (value <= ((1L << 31) - 1)) {
         if (ir->u.incdec.inc)  ADDQ(IM(value), src);
         else                   SUBQ(IM(value), src);
@@ -384,10 +392,17 @@ void ir_alloc_reg(IR *ir) {
   case IR_MUL:
   case IR_DIV:
   case IR_MOD:
+  case IR_BITAND:
+  case IR_BITOR:
+  case IR_BITXOR:
+  case IR_LSHIFT:
+  case IR_RSHIFT:
   case IR_CMP:
   case IR_TEST:
   case IR_INCDEC:
   case IR_NEG:
+  case IR_NOT:
+  case IR_COPY:
   case IR_SET:
   case IR_PRECALL:
   case IR_PUSHARG:
@@ -565,57 +580,53 @@ void ir_out(const IR *ir) {
     break;
 
   case IR_BITAND:
-    POP(RDI); POP_STACK_POS();
     switch (ir->size) {
-    case 1:  AND(DIL, AL); break;
-    case 2:  AND(DI, AX); break;
-    case 4:  AND(EDI, EAX); break;
-    case 8:  AND(RDI, RAX); break;
+    case 1:  MOV(kReg8s[ir->opr1->r], kReg8s[ir->dst->r]); AND(kReg8s[ir->opr2->r], kReg8s[ir->dst->r]); break;
+    case 2:  MOV(kReg16s[ir->opr1->r], kReg16s[ir->dst->r]); AND(kReg16s[ir->opr2->r], kReg16s[ir->dst->r]); break;
+    case 4:  MOV(kReg32s[ir->opr1->r], kReg32s[ir->dst->r]); AND(kReg32s[ir->opr2->r], kReg32s[ir->dst->r]); break;
+    case 8:  MOV(kReg64s[ir->opr1->r], kReg64s[ir->dst->r]); AND(kReg64s[ir->opr2->r], kReg64s[ir->dst->r]); break;
     default: assert(false); break;
     }
     break;
 
   case IR_BITOR:
-    POP(RDI); POP_STACK_POS();
     switch (ir->size) {
-    case 1:  OR(DIL, AL); break;
-    case 2:  OR(DI, AX); break;
-    case 4:  OR(EDI, EAX); break;
-    case 8:  OR(RDI, RAX); break;
+    case 1:  MOV(kReg8s[ir->opr1->r], kReg8s[ir->dst->r]); OR(kReg8s[ir->opr2->r], kReg8s[ir->dst->r]); break;
+    case 2:  MOV(kReg16s[ir->opr1->r], kReg16s[ir->dst->r]); OR(kReg16s[ir->opr2->r], kReg16s[ir->dst->r]); break;
+    case 4:  MOV(kReg32s[ir->opr1->r], kReg32s[ir->dst->r]); OR(kReg32s[ir->opr2->r], kReg32s[ir->dst->r]); break;
+    case 8:  MOV(kReg64s[ir->opr1->r], kReg64s[ir->dst->r]); OR(kReg64s[ir->opr2->r], kReg64s[ir->dst->r]); break;
     default: assert(false); break;
     }
     break;
 
   case IR_BITXOR:
-    POP(RDI); POP_STACK_POS();
     switch (ir->size) {
-    case 1:  XOR(DIL, AL); break;
-    case 2:  XOR(DI, AX); break;
-    case 4:  XOR(EDI, EAX); break;
-    case 8:  XOR(RDI, RAX); break;
+    case 1:  MOV(kReg8s[ir->opr1->r], kReg8s[ir->dst->r]); XOR(kReg8s[ir->opr2->r], kReg8s[ir->dst->r]); break;
+    case 2:  MOV(kReg16s[ir->opr1->r], kReg16s[ir->dst->r]); XOR(kReg16s[ir->opr2->r], kReg16s[ir->dst->r]); break;
+    case 4:  MOV(kReg32s[ir->opr1->r], kReg32s[ir->dst->r]); XOR(kReg32s[ir->opr2->r], kReg32s[ir->dst->r]); break;
+    case 8:  MOV(kReg64s[ir->opr1->r], kReg64s[ir->dst->r]); XOR(kReg64s[ir->opr2->r], kReg64s[ir->dst->r]); break;
     default: assert(false); break;
     }
     break;
 
   case IR_LSHIFT:
+    MOV(kReg8s[ir->opr2->r], CL);
+    switch (ir->size) {
+    case 1:  MOV(kReg8s[ir->opr1->r], kReg8s[ir->dst->r]); SHL(CL, kReg8s[ir->dst->r]); break;
+    case 2:  MOV(kReg16s[ir->opr1->r], kReg16s[ir->dst->r]); SHL(CL, kReg16s[ir->dst->r]); break;
+    case 4:  MOV(kReg32s[ir->opr1->r], kReg32s[ir->dst->r]); SHL(CL, kReg32s[ir->dst->r]); break;
+    case 8:  MOV(kReg64s[ir->opr1->r], kReg64s[ir->dst->r]); SHL(CL, kReg64s[ir->dst->r]); break;
+    default: assert(false); break;
+    }
+    break;
   case IR_RSHIFT:
-    POP(RCX); POP_STACK_POS();
-    if (ir->type == IR_LSHIFT) {
-      switch (ir->size) {
-      case 1:  SHL(CL, AL); break;
-      case 2:  SHL(CL, AX); break;
-      case 4:  SHL(CL, EAX); break;
-      case 8:  SHL(CL, RAX); break;
-      default: assert(false); break;
-      }
-    } else {
-      switch (ir->size) {
-      case 1:  SHR(CL, AL); break;
-      case 2:  SHR(CL, AX); break;
-      case 4:  SHR(CL, EAX); break;
-      case 8:  SHR(CL, RAX); break;
-      default: assert(false); break;
-      }
+    MOV(kReg8s[ir->opr2->r], CL);
+    switch (ir->size) {
+    case 1:  MOV(kReg8s[ir->opr1->r], kReg8s[ir->dst->r]); SHR(CL, kReg8s[ir->dst->r]); break;
+    case 2:  MOV(kReg16s[ir->opr1->r], kReg16s[ir->dst->r]); SHR(CL, kReg16s[ir->dst->r]); break;
+    case 4:  MOV(kReg32s[ir->opr1->r], kReg32s[ir->dst->r]); SHR(CL, kReg32s[ir->dst->r]); break;
+    case 8:  MOV(kReg64s[ir->opr1->r], kReg64s[ir->dst->r]); SHR(CL, kReg64s[ir->dst->r]); break;
+    default: assert(false); break;
     }
     break;
 
@@ -647,14 +658,14 @@ void ir_out(const IR *ir) {
 
   case IR_NOT:
     switch (ir->size) {
-    case 1:  TEST(AL, AL); break;
-    case 2:  TEST(AX, AX); break;
-    case 4:  TEST(EAX, EAX); break;
-    case 8:  TEST(RAX, RAX); break;
+    case 1:  TEST(kReg8s[ir->opr1->r], kReg8s[ir->opr1->r]); break;
+    case 2:  TEST(kReg16s[ir->opr1->r], kReg16s[ir->opr1->r]); break;
+    case 4:  TEST(kReg32s[ir->opr1->r], kReg32s[ir->opr1->r]); break;
+    case 8:  TEST(kReg64s[ir->opr1->r], kReg64s[ir->opr1->r]); break;
     default:  assert(false); break;
     }
-    SETE(AL);
-    MOVSX(AL, EAX);
+    SETE(kReg8s[ir->dst->r]);
+    MOVSX(kReg8s[ir->dst->r], kReg32s[ir->dst->r]);
     break;
 
   case IR_SET:
@@ -799,6 +810,15 @@ void ir_out(const IR *ir) {
       INC(RSI);
       DEC(EDI);
       JNE(loop);
+    }
+    break;
+
+  case IR_COPY:
+    switch (ir->size) {
+    case 1:  MOV(kReg8s[ir->opr1->r], kReg8s[ir->dst->r]); break;
+    case 2:  MOV(kReg16s[ir->opr1->r], kReg16s[ir->dst->r]); break;
+    case 4:  MOV(kReg32s[ir->opr1->r], kReg32s[ir->dst->r]); break;
+    case 8:  MOV(kReg64s[ir->opr1->r], kReg64s[ir->dst->r]); break;
     }
     break;
 

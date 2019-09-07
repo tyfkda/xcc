@@ -259,7 +259,7 @@ static VReg *gen_varref(Expr *expr) {
   return result;
 }
 
-static void gen_ternary(Expr *expr) {
+static VReg *gen_ternary(Expr *expr) {
   BB *tbb = bb_split(curbb);
   BB *fbb = bb_split(tbb);
   BB *nbb = bb_split(fbb);
@@ -267,13 +267,16 @@ static void gen_ternary(Expr *expr) {
   gen_cond_jmp(expr->u.ternary.cond, false, fbb);
 
   set_curbb(tbb);
-  gen_expr(expr->u.ternary.tval);
+  VReg *result = gen_expr(expr->u.ternary.tval);
   new_ir_jmp(COND_ANY, nbb);
 
   set_curbb(fbb);
-  gen_expr(expr->u.ternary.fval);
+  VReg *result2 = gen_expr(expr->u.ternary.fval);
+  new_ir_copy(result, result2, type_size(&tyBool));
+  new_ir_unreg(result2);
 
   set_curbb(nbb);
+  return result;
 }
 
 static VReg *gen_funcall(Expr *expr) {
@@ -435,15 +438,19 @@ VReg *gen_expr(Expr *expr) {
 
   case EX_COMMA:
     {
+      VReg *result = NULL;
       Vector *list = expr->u.comma.list;
-      for (int i = 0, len = list->len; i < len; ++i)
-        gen_expr(list->data[i]);
+      for (int i = 0, len = list->len; i < len; ++i) {
+        if (i > 0)
+          new_ir_unreg(result);
+        result = gen_expr(list->data[i]);
+      }
+      return result;
     }
     break;
 
   case EX_TERNARY:
-    gen_ternary(expr);
-    break;
+    return gen_ternary(expr);
 
   case EX_CAST:
     if (expr->u.unary.sub->type == EX_NUM) {
@@ -539,16 +546,23 @@ VReg *gen_expr(Expr *expr) {
     }
 
   case EX_NOT:
-    gen_expr(expr->u.unary.sub);
-    switch (expr->u.unary.sub->valType->type) {
-    case TY_NUM: case TY_PTR:
-      new_ir_op(IR_NOT, type_size(expr->u.unary.sub->valType));
-      break;
-    case TY_ARRAY: case TY_FUNC:
-      // Array is handled as a pointer.
-      new_ir_op(IR_NOT, WORD_SIZE);
-      break;
-    default:  assert(false); break;
+    {
+      VReg *reg = gen_expr(expr->u.unary.sub);
+      VReg *result;
+      switch (expr->u.unary.sub->valType->type) {
+      case TY_NUM: case TY_PTR:
+        result = new_ir_unary(IR_NOT, reg, type_size(expr->u.unary.sub->valType));
+        break;
+      default:
+        assert(false);
+        // Fallthrough to suppress compile error
+      case TY_ARRAY: case TY_FUNC:
+        // Array is handled as a pointer.
+        result = new_ir_unary(IR_NOT, reg, WORD_SIZE);
+        break;
+      }
+      new_ir_unreg(reg);
+      return result;
     }
     break;
 
@@ -574,13 +588,15 @@ VReg *gen_expr(Expr *expr) {
       set_curbb(bb1);
       gen_cond_jmp(expr->u.bop.rhs, false, false_bb);
       set_curbb(bb2);
-      new_ir_imm(true, type_size(&tyBool));
+      VReg *result = new_ir_imm(true, type_size(&tyBool));
       new_ir_jmp(COND_ANY, next_bb);
       set_curbb(false_bb);
-      new_ir_imm(false, type_size(&tyBool));
+      VReg *result2 = new_ir_imm(false, type_size(&tyBool));
+      new_ir_copy(result, result2, type_size(&tyBool));
+      new_ir_unreg(result2);
       set_curbb(next_bb);
+      return result;
     }
-    break;
 
   case EX_LOGIOR:
     {
@@ -592,13 +608,15 @@ VReg *gen_expr(Expr *expr) {
       set_curbb(bb1);
       gen_cond_jmp(expr->u.bop.rhs, true, true_bb);
       set_curbb(bb2);
-      new_ir_imm(false, type_size(&tyBool));
+      VReg *result = new_ir_imm(false, type_size(&tyBool));
       new_ir_jmp(COND_ANY, next_bb);
       set_curbb(true_bb);
-      new_ir_imm(true, type_size(&tyBool));
+      VReg *result2 = new_ir_imm(true, type_size(&tyBool));
+      new_ir_copy(result, result2, type_size(&tyBool));
+      new_ir_unreg(result2);
       set_curbb(next_bb);
+      return result;
     }
-    break;
 
   case EX_ADD:
   case EX_SUB:
