@@ -115,13 +115,13 @@ static void create_local_label_prefix_option(int index, char *out, size_t n) {
   snprintf(out, n, "%s%s", LOCAL_LABEL_PREFIX, p);
 }
 
-static int compile(const char *src, int index, Vector *cpp_cmd, char *cc1_path, int dst_fd) {
+static int compile(const char *src, int index, Vector *cpp_cmd, Vector *cc1_cmd, int dst_fd) {
   char prefix_option[32];
   create_local_label_prefix_option(index, prefix_option, sizeof(prefix_option));
 
   cpp_cmd->data[cpp_cmd->len - 2] = (void*)src;
-  char *const cc1_cmd[] = {cc1_path, prefix_option, NULL};
-  return pipe_command((char**)cpp_cmd->data, cc1_cmd, dst_fd);
+  cc1_cmd->data[cc1_cmd->len - 2] = prefix_option;
+  return pipe_command((char**)cpp_cmd->data, (char**)cc1_cmd->data, dst_fd);
 }
 
 int main(int argc, char* argv[]) {
@@ -136,25 +136,31 @@ int main(int argc, char* argv[]) {
   Vector *cpp_cmd = new_vector();
   vec_push(cpp_cmd, cpp_path);
 
+  Vector *cc1_cmd = new_vector();
+  vec_push(cc1_cmd, cc1_path);
+
   Vector *as_cmd = new_vector();
   vec_push(as_cmd, as_path);
 
   for (iarg = 1; iarg < argc; ++iarg) {
-    if (*argv[iarg] != '-')
+    char *arg = argv[iarg];
+    if (*arg != '-')
       break;
-    if (strncmp(argv[iarg], "-I", 2) == 0)
-      vec_push(cpp_cmd, argv[iarg]);
-    if (strncmp(argv[iarg], "-o", 2) == 0) {
-      ofn = argv[iarg] + 2;
-      vec_push(as_cmd, argv[iarg]);
+    if (strncmp(arg, "-I", 2) == 0)
+      vec_push(cpp_cmd, arg);
+    if (strncmp(arg, "-o", 2) == 0) {
+      ofn = arg + 2;
+      vec_push(as_cmd, arg);
     }
-    if (strncmp(argv[iarg], "-S", 2) == 0)
+    if (strncmp(arg, "-S", 2) == 0)
       out_asm = true;
+    vec_push(cc1_cmd, arg);
   }
 
   vec_push(cpp_cmd, NULL);  // Buffer for src.
   vec_push(cpp_cmd, NULL);  // Terminator.
-
+  vec_push(cc1_cmd, NULL);  // Buffer for label prefix.
+  vec_push(cc1_cmd, NULL);  // Terminator.
   vec_push(as_cmd, NULL);  // Terminator.
 
   int fd[2];
@@ -187,7 +193,7 @@ int main(int argc, char* argv[]) {
       char *src = argv[i];
       char *ext = get_ext(src);
       if (strcasecmp(ext, "c") == 0) {
-        res = compile(src, i - iarg, cpp_cmd, cc1_path, dst_fd);
+        res = compile(src, i - iarg, cpp_cmd, cc1_cmd, dst_fd);
       } else if (strcasecmp(ext, "s") == 0) {
         res = cat(src, dst_fd);
       } else {
@@ -199,8 +205,7 @@ int main(int argc, char* argv[]) {
     }
   } else {
     // cpp is read from stdin.
-    char *const cc1_cmd[] = {cc1_path, NULL};
-    res = pipe_command((char**)cpp_cmd->data, cc1_cmd, dst_fd);
+    res = pipe_command((char**)cpp_cmd->data, (char**)cc1_cmd->data, dst_fd);
   }
 
   if (res != 0 && !out_asm) {
