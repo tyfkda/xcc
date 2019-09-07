@@ -125,6 +125,10 @@ void new_ir_unreg(VReg *reg);
 void ir_alloc_reg(IR *ir);
 void ir_out(const IR *ir);
 
+#if !defined(SELF_HOSTING)
+void dump_ir(IR *ir);
+#endif
+
 // Register allocator
 
 void init_reg_alloc(void);
