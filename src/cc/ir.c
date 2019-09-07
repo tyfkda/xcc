@@ -343,6 +343,7 @@ void ir_alloc_reg(IR *ir) {
   case IR_DEC:
   case IR_NEG:
   case IR_NOT:
+  case IR_BITNOT:
   case IR_COPY:
   case IR_SET:
   case IR_PRECALL:
@@ -661,6 +662,17 @@ void ir_out(const IR *ir) {
     }
     SETE(kReg8s[ir->dst->r]);
     MOVSX(kReg8s[ir->dst->r], kReg32s[ir->dst->r]);
+    break;
+
+  case IR_BITNOT:
+    assert(ir->dst->r == ir->opr1->r);
+    switch (ir->size) {
+    case 1:  NOT(kReg8s[ir->dst->r]); break;
+    case 2:  NOT(kReg16s[ir->dst->r]); break;
+    case 4:  NOT(kReg32s[ir->dst->r]); break;
+    case 8:  NOT(kReg64s[ir->dst->r]); break;
+    default:  assert(false); break;
+    }
     break;
 
   case IR_SET:
@@ -983,6 +995,7 @@ static void three_to_two(BB *bb) {
     case IR_LSHIFT:
     case IR_RSHIFT:
     case IR_NEG:  // unary ops
+    case IR_BITNOT:
       {
         IR *ir2 = malloc(sizeof(*ir));
         ir2->type = IR_MOV;
@@ -1171,6 +1184,7 @@ static void insert_load_store_instructions(BBContainer *bbcon, Vector *vregs) {
       case IR_CMP:
       case IR_NEG:  // unary ops
       case IR_NOT:
+      case IR_BITNOT:
       case IR_SET:
       case IR_TEST:
       case IR_PUSHARG:
@@ -1420,6 +1434,7 @@ void dump_ir(IR *ir) {
   case IR_DEC:    fprintf(fp, "\tDEC\t(R%d)%s -= %"PRIdPTR"\n", opr1, kSize[ir->size], ir->value); break;
   case IR_NEG:    fprintf(fp, "\tNEG\tR%d%s = -R%d%s\n", dst, kSize[ir->size], opr1, kSize[ir->size]); break;
   case IR_NOT:    fprintf(fp, "\tNOT\tR%d%s = !R%d%s\n", dst, kSize[ir->size], opr1, kSize[ir->size]); break;
+  case IR_BITNOT: fprintf(fp, "\tBIT\tR%d%s = -R%d%s\n", dst, kSize[ir->size], opr1, kSize[ir->size]); break;
   case IR_SET:    fprintf(fp, "\tSET\tR%d%s = %s\n", dst, kSize[4], kCond[ir->u.set.cond]); break;
   case IR_TEST:   fprintf(fp, "\tTEST\tR%d%s\n", opr1, kSize[ir->size]); break;
   case IR_JMP:    fprintf(fp, "\tJ%s\t%s\n", kCond[ir->u.jmp.cond], ir->u.jmp.bb->label); break;

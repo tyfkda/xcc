@@ -128,6 +128,7 @@ int main(void) {
   expect("not true", 0, (x=1, !(x == 1)));
   expect("not false", 1, (x=1, !(x == 0)));
   expect("not str", 0, !"abc");
+  expect("bit not", 0x12345678, ~0xedcba987);
   {
     int x = 1;
     int y = ++x;

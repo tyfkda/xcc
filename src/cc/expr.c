@@ -582,13 +582,18 @@ static Expr *unary(void) {
       expr->u.num.ival = -expr->u.num.ival;
       return expr;
     default:
-      return new_expr_unary(EX_NEG, /*expr->valType*/NULL, tok, expr);
+      return new_expr_unary(EX_NEG, NULL, tok, expr);
     }
   }
 
   if ((tok = consume(TK_NOT)) != NULL) {
     Expr *expr = cast_expr();
     return new_expr_unary(EX_NOT, &tyBool, tok, expr);
+  }
+
+  if ((tok = consume(TK_TILDA)) != NULL) {
+    Expr *expr = cast_expr();
+    return new_expr_unary(EX_BITNOT, NULL, tok, expr);
   }
 
   if ((tok = consume(TK_AND)) != NULL) {

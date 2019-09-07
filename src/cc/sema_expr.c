@@ -526,6 +526,7 @@ Expr *analyze_expr(Expr *expr, bool keep_left) {
   case EX_POS:
   case EX_NEG:
   case EX_NOT:
+  case EX_BITNOT:
   case EX_PREINC:
   case EX_PREDEC:
   case EX_POSTINC:
@@ -562,6 +563,17 @@ Expr *analyze_expr(Expr *expr, bool keep_left) {
         break;
       default:
         parse_error(expr->token, "Cannot apply `!' except number or pointer types");
+        break;
+      }
+      break;
+
+    case EX_BITNOT:
+      switch (expr->u.unary.sub->valType->type) {
+      case TY_NUM:
+        expr->valType = expr->u.unary.sub->valType;
+        break;
+      default:
+        parse_error(expr->token, "Cannot apply `~' except number type");
         break;
       }
       break;

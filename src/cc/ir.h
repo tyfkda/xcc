@@ -47,6 +47,7 @@ enum IrType {
   IR_DEC,
   IR_NEG,
   IR_NOT,
+  IR_BITNOT,
   IR_SET,   // SETxx: flag => 0 or 1
   IR_TEST,
   IR_JMP,

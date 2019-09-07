@@ -49,6 +49,7 @@ enum ExprType {
   EX_POS,     // +
   EX_NEG,     // -
   EX_NOT,     // !
+  EX_BITNOT,  // ~x
   EX_PREINC,  // ++e
   EX_PREDEC,  // --e
   EX_POSTINC, // e++

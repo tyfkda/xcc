@@ -644,7 +644,13 @@ VReg *gen_expr(Expr *expr) {
       }
       return result;
     }
-    break;
+
+  case EX_BITNOT:
+    {
+      VReg *reg = gen_expr(expr->u.unary.sub);
+      VReg *result = new_ir_unary(IR_BITNOT, reg, type_size(expr->valType));
+      return result;
+    }
 
   case EX_EQ:
   case EX_NE:
@@ -656,7 +662,6 @@ VReg *gen_expr(Expr *expr) {
       enum ConditionType cond = gen_compare_expr(expr->type, expr->u.bop.lhs, expr->u.bop.rhs);
       return new_ir_set(cond);
     }
-    break;
 
   case EX_LOGAND:
     {
@@ -711,7 +716,6 @@ VReg *gen_expr(Expr *expr) {
       VReg *rhs = gen_expr(expr->u.bop.rhs);
       return gen_arith(expr->type, expr->valType, lhs, rhs);
     }
-    break;
 
   default:
     fprintf(stderr, "Expr type=%d, ", expr->type);

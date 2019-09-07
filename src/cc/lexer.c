@@ -72,7 +72,7 @@ static const struct {
   {">>", TK_RSHIFT},
 };
 
-static const char kSingleOperators[] = "+-*/%&!(){}[]<>=^|:;,.?";
+static const char kSingleOperators[] = "+-*/%&!(){}[]<>=^~|:;,.?";
 
 typedef struct {
   FILE *fp;
