@@ -183,8 +183,8 @@ vsnprintf(char *out, size_t n, const char *fmt_, va_list ap)
                        order, padding);
     } else if(c == 'p') {
       o += snprintstr(out + o, n - o, "0x", 0, 0, 0);
-      o += snprintuint(out + o, n - o, (uintptr_t)va_arg(ap, void*), 16,
-                       order - 2, '0');
+      o += snprintulong(out + o, n - o, (uintptr_t)va_arg(ap, void*), 16,
+                        order - 2, '0');
     } else if(c == 's'){
       // ("%5", "foo")         = "  foo"
       // ("%-5", "foo")        = "foo  "

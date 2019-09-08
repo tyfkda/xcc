@@ -1,5 +1,5 @@
 #pragma once
 
-#include "unistd.h"  // for pid_t
+#include "sys/types.h"  // pid_t
 
-pid_t waitpid(int, int*, int);
+pid_t waitpid(pid_t, int*, int);

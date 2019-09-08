@@ -398,7 +398,7 @@ int execvp(const char *path, char *const args[]) {
   return execve(path, args, environ);
 }
 
-pid_t waitpid(int pid, int* status, int options) {
+pid_t waitpid(pid_t pid, int* status, int options) {
   return wait4(pid, status, options, NULL);
 }
 
@@ -407,6 +407,9 @@ void perror(const char* msg) {
 }
 
 void qsort(void *base, size_t nmemb, size_t size, int (*compare)(const void *, const void *)) {
+  if (nmemb <= 1)
+    return;
+
   char *a = base;
   const char *px;
 
