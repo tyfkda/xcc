@@ -1,6 +1,7 @@
 #include "emit.h"
 
 #include <inttypes.h>  // PRIdPTR
+#include <stdarg.h>
 #include <stdint.h>  // intptr_t
 
 #include "x86_64.h"
