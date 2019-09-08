@@ -42,7 +42,6 @@ enum IrType {
   IR_NEG,
   IR_NOT,
   IR_SET,   // SETxx: flag => 0 or 1
-  IR_CMPI,
   IR_TEST,
   IR_PUSH,
   IR_JMP,
@@ -111,7 +110,6 @@ void new_ir_store(VReg *dst, VReg *src, int size);
 void new_ir_memcpy(VReg *dst, VReg *src, int size);
 IR *new_ir_op(enum IrType type, int size);
 void new_ir_cmp(VReg *opr1, VReg *opr2, int size);
-void new_ir_cmpi(VReg *reg, intptr_t value, int size);
 void new_ir_test(VReg *reg, int size);
 VReg *new_ir_incdec(VReg *reg, bool inc, bool pre, int size, intptr_t value);
 IR *new_ir_st(enum IrType type);

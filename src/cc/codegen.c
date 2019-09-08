@@ -748,7 +748,9 @@ static void gen_switch(Node *node) {
   for (int i = 0; i < len; ++i) {
     BB *nextbb = bb_split(curbb);
     intptr_t x = (intptr_t)case_values->data[i];
-    new_ir_cmpi(reg, x, size);
+    VReg *num = new_ir_imm(x, size);
+    new_ir_cmp(reg, num, size);
+    new_ir_unreg(num);
     new_ir_jmp(COND_EQ, bbs->data[i]);
     set_curbb(nextbb);
   }

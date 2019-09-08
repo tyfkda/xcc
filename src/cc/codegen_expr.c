@@ -55,7 +55,9 @@ static enum ConditionType gen_compare_expr(enum ExprType type, Expr *lhs, Expr *
       (cond == COND_EQ || cond == COND_NE)) {
     gen_test_opcode(lhs_reg, lhs->valType);
   } else if (rhs->type == EX_NUM && (lhs->valType->u.num.type != NUM_LONG || is_im32(rhs->u.num.ival))) {
-    new_ir_cmpi(lhs_reg, rhs->u.num.ival, type_size(lhs->valType));
+    VReg *num = new_ir_imm(rhs->u.num.ival, type_size(rhs->valType));
+    new_ir_cmp(lhs_reg, num, type_size(lhs->valType));
+    new_ir_unreg(num);
     new_ir_unreg(lhs_reg);
   } else {
     switch (lhs->valType->type) {

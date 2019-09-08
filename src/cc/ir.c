@@ -168,13 +168,6 @@ void new_ir_cmp(VReg *opr1, VReg *opr2, int size) {
   ir->size = size;
 }
 
-void new_ir_cmpi(VReg *reg, intptr_t value, int size) {
-  IR *ir = new_ir(IR_CMPI);
-  ir->value = value;
-  ir->opr1 = reg;
-  ir->size = size;
-}
-
 void new_ir_test(VReg *reg, int size) {
   IR *ir = new_ir(IR_TEST);
   ir->opr1 = reg;
@@ -392,7 +385,6 @@ void ir_alloc_reg(IR *ir) {
   case IR_DIV:
   case IR_MOD:
   case IR_CMP:
-  case IR_CMPI:
   case IR_TEST:
   case IR_INCDEC:
   case IR_NEG:
@@ -678,26 +670,6 @@ void ir_out(const IR *ir) {
       default: assert(false); break;
       }
       MOVSX(dst, kReg32s[ir->dst->r]);  // Assume bool is 4 byte.
-    }
-    break;
-
-  case IR_CMPI:
-    {
-      intptr_t x = ir->value;
-      switch (ir->size) {
-      case 1:  CMP(IM(x), kReg8s[ir->opr1->r]); break;
-      case 2:  CMP(IM(x), kReg16s[ir->opr1->r]); break;
-      case 4:  CMP(IM(x), kReg32s[ir->opr1->r]); break;
-      case 8:
-        if (is_im32(x)) {
-          CMP(IM(x), kReg64s[ir->opr1->r]);
-        } else {
-          MOV(IM(x), RDI);
-          CMP(RDI, kReg64s[ir->opr1->r]);
-        }
-        break;
-      default: assert(false); break;
-      }
     }
     break;
 
