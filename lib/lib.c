@@ -403,6 +403,7 @@ pid_t waitpid(int pid, int* status, int options) {
 }
 
 void perror(const char* msg) {
+  fprintf(stderr, "perror: %s\n", msg);
 }
 
 void qsort(void *base, size_t nmemb, size_t size, int (*compare)(const void *, const void *)) {
