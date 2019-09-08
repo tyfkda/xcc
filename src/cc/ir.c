@@ -174,14 +174,11 @@ void new_ir_test(VReg *reg, int size) {
   ir->size = size;
 }
 
-VReg *new_ir_incdec(VReg *reg, bool inc, bool pre, int size, intptr_t value) {
-  IR *ir = new_ir(IR_INCDEC);
+void new_ir_incdec(enum IrType type, VReg *reg, int size, intptr_t value) {
+  IR *ir = new_ir(type);
   ir->opr1 = reg;
-  ir->u.incdec.inc = inc;
-  ir->u.incdec.pre = pre;
   ir->size = size;
   ir->value = value;
-  return ir->dst = reg_alloc_spawn(ra);
 }
 
 IR *new_ir_st(enum IrType type) {
@@ -314,60 +311,6 @@ static void ir_out_store(int size) {
   }
 }
 
-static void ir_out_incdec(const IR *ir) {
-  static char **kRegTable[] = {kReg8s, kReg16s, kReg32s, kReg64s};
-
-  int size;
-  switch (ir->size) {
-  default: assert(false); // Fallthrough to suppress compile error
-  case 1:  size = 0; break;
-  case 2:  size = 1; break;
-  case 4:  size = 2; break;
-  case 8:  size = 3; break;
-  }
-
-  const char *src = INDIRECT(kReg64s[ir->opr1->r]);
-  const char *dst = kRegTable[size][ir->dst->r];
-  if (ir->value == 1) {
-    if (!ir->u.incdec.pre)
-      MOV(src, dst);
-
-    switch (size) {
-    case 0:  if (ir->u.incdec.inc) INCB(src); else DECB(src); break;
-    case 1:  if (ir->u.incdec.inc) INCW(src); else DECW(src); break;
-    case 2:  if (ir->u.incdec.inc) INCL(src); else DECL(src); break;
-    case 3:  if (ir->u.incdec.inc) INCQ(src); else DECQ(src); break;
-    default: assert(false); break;
-    }
-
-    if (ir->u.incdec.pre)
-      MOV(src, dst);
-  } else {
-    intptr_t value = ir->value;
-    if (ir->u.incdec.pre) {
-      if (value <= ((1L << 31) - 1)) {
-        if (ir->u.incdec.inc)  ADDQ(IM(value), src);
-        else                   SUBQ(IM(value), src);
-      } else {
-        MOV(IM(value), RAX);
-        if (ir->u.incdec.inc)  ADD(RAX, src);
-        else                   SUB(RAX, src);
-      }
-      MOV(src, dst);
-    } else {
-      MOV(src, dst);
-      if (value <= ((1L << 31) - 1)) {
-        if (ir->u.incdec.inc)  ADDQ(IM(value), src);
-        else                   SUBQ(IM(value), src);
-      } else {
-        MOV(IM(value), RAX);
-        if (ir->u.incdec.inc)  ADD(RAX, src);
-        else                   SUB(RAX, src);
-      }
-    }
-  }
-}
-
 void ir_alloc_reg(IR *ir) {
   if (ir->dst != NULL)
     reg_alloc_map(ra, ir->dst);
@@ -399,7 +342,8 @@ void ir_alloc_reg(IR *ir) {
   case IR_RSHIFT:
   case IR_CMP:
   case IR_TEST:
-  case IR_INCDEC:
+  case IR_INC:
+  case IR_DEC:
   case IR_NEG:
   case IR_NOT:
   case IR_COPY:
@@ -642,8 +586,52 @@ void ir_out(const IR *ir) {
     }
     break;
 
-  case IR_INCDEC:
-    ir_out_incdec(ir);
+  case IR_INC:
+    {
+      const char *reg = INDIRECT(kReg64s[ir->opr1->r]);
+      if (ir->value == 1) {
+        switch (ir->size) {
+        case 1:  INCB(reg); break;
+        case 2:  INCW(reg); break;
+        case 4:  INCL(reg); break;
+        case 8:  INCQ(reg); break;
+        default:  assert(false); break;
+        }
+      } else {
+        assert(ir->size == 8);
+        intptr_t value = ir->value;
+        if (value <= ((1L << 31) - 1)) {
+          ADDQ(IM(value), reg);
+        } else {
+          MOV(IM(value), RAX);
+          ADD(RAX, reg);
+        }
+      }
+    }
+    break;
+
+  case IR_DEC:
+    {
+      const char *reg = INDIRECT(kReg64s[ir->opr1->r]);
+      if (ir->value == 1) {
+        switch (ir->size) {
+        case 1:  DECB(reg); break;
+        case 2:  DECW(reg); break;
+        case 4:  DECL(reg); break;
+        case 8:  DECQ(reg); break;
+        default:  assert(false); break;
+        }
+      } else {
+        assert(ir->size == 8);
+        intptr_t value = ir->value;
+        if (value <= ((1L << 31) - 1)) {
+          SUBQ(IM(value), reg);
+        } else {
+          MOV(IM(value), RAX);
+          SUB(RAX, reg);
+        }
+      }
+    }
     break;
 
   case IR_NEG:

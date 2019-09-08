@@ -38,7 +38,8 @@ enum IrType {
   IR_LSHIFT,
   IR_RSHIFT,
   IR_CMP,
-  IR_INCDEC,
+  IR_INC,
+  IR_DEC,
   IR_NEG,
   IR_NOT,
   IR_SET,   // SETxx: flag => 0 or 1
@@ -82,10 +83,6 @@ typedef struct {
       const char *label;
     } iofs;
     struct {
-      bool inc;
-      bool pre;
-    } incdec;
-    struct {
       enum ConditionType cond;
     } set;
     struct {
@@ -112,7 +109,7 @@ void new_ir_memcpy(VReg *dst, VReg *src, int size);
 IR *new_ir_op(enum IrType type, int size);
 void new_ir_cmp(VReg *opr1, VReg *opr2, int size);
 void new_ir_test(VReg *reg, int size);
-VReg *new_ir_incdec(VReg *reg, bool inc, bool pre, int size, intptr_t value);
+void new_ir_incdec(enum IrType type, VReg *reg, int size, intptr_t value);
 IR *new_ir_st(enum IrType type);
 VReg *new_ir_set(enum ConditionType cond);
 IR *new_ir_jmp(enum ConditionType cond, BB *bb);

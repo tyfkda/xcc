@@ -521,15 +521,30 @@ VReg *gen_expr(Expr *expr) {
 
   case EX_PREINC:
   case EX_PREDEC:
+    {
+      size_t value = 1;
+      if (expr->valType->type == TY_PTR)
+        value = type_size(expr->valType->u.pa.ptrof);
+      int size = type_size(expr->valType);
+      VReg *lval = gen_lval(expr->u.unary.sub);
+      new_ir_incdec(expr->type == EX_PREINC ? IR_INC : IR_DEC,
+                    lval, size, value);
+      VReg *result = new_ir_unary(IR_LOAD, lval, size);
+      new_ir_unreg(lval);
+      return result;
+    }
+
   case EX_POSTINC:
   case EX_POSTDEC:
     {
       size_t value = 1;
       if (expr->valType->type == TY_PTR)
         value = type_size(expr->valType->u.pa.ptrof);
+      int size = type_size(expr->valType);
       VReg *lval = gen_lval(expr->u.unary.sub);
-      VReg *result = new_ir_incdec(lval, ((expr->type - EX_PREINC) & 1) == 0, expr->type < EX_POSTINC,
-                                   type_size(expr->valType), value);
+      VReg *result = new_ir_unary(IR_LOAD, lval, size);
+      new_ir_incdec(expr->type == EX_POSTINC ? IR_INC : IR_DEC,
+                    lval, size, value);
       new_ir_unreg(lval);
       return result;
     }
