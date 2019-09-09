@@ -146,7 +146,8 @@ int main(int argc, char* argv[]) {
     char *arg = argv[iarg];
     if (*arg != '-')
       break;
-    if (strncmp(arg, "-I", 2) == 0)
+    if (strncmp(arg, "-I", 2) == 0 ||
+        strncmp(arg, "-D", 2) == 0)
       vec_push(cpp_cmd, arg);
     if (strncmp(arg, "-o", 2) == 0) {
       ofn = arg + 2;

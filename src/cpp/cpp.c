@@ -584,6 +584,16 @@ int pp(FILE *fp, const char *filename) {
   return stream.lineno;
 }
 
+static void define_macro(const char *arg) {
+  char *p = strchr(arg, '=');
+  if (p == NULL) {
+    map_put(macro_map, arg, new_macro(NULL, false, NULL));
+  } else {
+    char *name = strndup_(arg, p - arg);
+    map_put(macro_map, name, new_macro_single(p + 1));
+  }
+}
+
 int main(int argc, char* argv[]) {
   macro_map = new_map();
   sys_inc_paths = new_vector();
@@ -604,6 +614,8 @@ int main(int argc, char* argv[]) {
     if (strncmp(argv[i], "-I", 2) == 0) {
       vec_push(sys_inc_paths, strdup_(argv[i] + 2));
     }
+    if (strncmp(argv[i], "-D", 2) == 0)
+      define_macro(argv[i] + 2);
   }
 
   if (i < argc) {
