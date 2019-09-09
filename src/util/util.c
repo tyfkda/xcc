@@ -230,6 +230,22 @@ void map_put(Map *map, const char *key, const void *val) {
   }
 }
 
+bool map_remove(Map *map, const char *key) {
+  int i = map_find(map, key);
+  if (i < 0)
+    return false;
+
+  // Compaction
+  int d = map->keys->len - (i + 1);
+  if (d > 0) {
+    memmove(&map->keys->data[i], &map->keys->data[i + 1], d * sizeof(*map->keys->data));
+    memmove(&map->vals->data[i], &map->vals->data[i + 1], d * sizeof(*map->vals->data));
+  }
+  --map->keys->len;
+  --map->vals->len;
+  return true;
+}
+
 void *map_get(Map *map, const char *key) {
   int i = map_find(map, key);
   return i >= 0 ? map->vals->data[i] : NULL;

@@ -278,6 +278,14 @@ void handle_define(const char *p, Stream *stream) {
   map_put(macro_map, name, new_macro(params, va_args, segments));
 }
 
+void handle_undef(const char *p) {
+  char *name = read_ident(&p);
+  if (name == NULL)
+    error("`ident' expected");
+
+  map_remove(macro_map, name);
+}
+
 Token *consume2(enum TokenType type) {
   Token *tok;
   for (;;) {
@@ -429,7 +437,8 @@ intptr_t reduce(Expr *expr) {
           args != NULL && args->len == 1 &&
           ((Expr*)args->data[0])->type == EX_VARREF) {  // defined(IDENT)
         Expr *arg = (Expr*)args->data[0];
-        return map_get(macro_map, arg->u.varref.ident) != NULL ? 1 : 0;
+        void *dummy = 0;
+        return map_try_get(macro_map, arg->u.varref.ident, &dummy) ? 1 : 0;
       }
     }
     break;
@@ -565,6 +574,8 @@ int pp(FILE *fp, const char *filename) {
         printf("# %d \"%s\" 1\n", stream.lineno + 1, filename);
       } else if ((next = keyword(directive, "define")) != NULL) {
         handle_define(next, &stream);
+      } else if ((next = keyword(directive, "undef")) != NULL) {
+        handle_undef(next);
       } else if ((next = keyword(directive, "pragma")) != NULL) {
         handle_pragma(next, filename);
       } else if ((next = keyword(directive, "error")) != NULL) {

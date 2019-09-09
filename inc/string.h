@@ -10,4 +10,5 @@ char* strncpy(char *s, const char *t, size_t n);
 long strtol(const char *p, char **pp, int base);
 
 void* memcpy(void *dst, const void *src, size_t n);
+void* memmove(void*, const void*, size_t);
 void* memset(void* buf, int val, size_t size);
