@@ -334,6 +334,9 @@ static Expr *analyze_cmp(Expr *expr) {
   } else {
     if (!cast_numbers(&expr->u.bop.lhs, &expr->u.bop.rhs, false))
       parse_error(expr->token, "Cannot compare except numbers");
+    // cast_numbers might change lhs and rhs, so need to be updated.
+    lhs = expr->u.bop.lhs;
+    rhs = expr->u.bop.rhs;
 
     if (is_const(lhs) && !is_const(rhs)) {
       Expr *tmp = lhs;
