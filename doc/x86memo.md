@@ -8,7 +8,7 @@ On register:
   * `rdi`
   * `rsi`
   * `rdx`
-  * `rcx`
+  * `rcx` (for syscall, `r10`)
   * `r8`
   * `r9`
 
