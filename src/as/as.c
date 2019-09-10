@@ -1035,18 +1035,18 @@ static void assemble_line(const Line *line, const char *rawline) {
     break;
   case IDIV:
     if (line->src.type == REG && line->dst.type == NOOPERAND) {
-      if (is_reg32(line->src.u.reg)) {
-        int s = line->src.u.reg - EAX;
-        ADD_CODE(0xf7, 0xf0 + s);
-        return;
-      } else if (is_reg32x(line->src.u.reg)) {
-        int s = line->src.u.reg - R8D;
-        ADD_CODE(0x41, 0xf7, 0xf0 + s);
+      if (is_reg32s(line->src.u.reg)) {
+        int s = (line->src.u.reg - EAX) & 7;
+        if (is_reg32(line->src.u.reg)) {
+          ADD_CODE(0xf7, 0xf8 + s);
+        } else {
+          ADD_CODE(0x41, 0xf7, 0xf8 + s);
+        }
         return;
       } else if (is_reg64s(line->src.u.reg)) {
         int pre = is_reg64(line->src.u.reg) ? 0x48 : 0x49;
-        int s = line->src.u.reg - RAX;
-        ADD_CODE(pre, 0xf7, 0xf0 + s);
+        int s = (line->src.u.reg - RAX) & 7;
+        ADD_CODE(pre, 0xf7, 0xf8 + s);
         return;
       }
     }
@@ -1063,7 +1063,7 @@ static void assemble_line(const Line *line, const char *rawline) {
         return;
       } else if (is_reg64s(line->src.u.reg)) {
         int s = (line->src.u.reg - RAX) & 7;
-        int pre = is_reg64s(line->src.u.reg) ? 0x48 : 0x49;
+        int pre = is_reg64(line->src.u.reg) ? 0x48 : 0x49;
         ADD_CODE(pre, 0xf7, 0xd8 + s);
         return;
       }
@@ -1242,7 +1242,7 @@ static void assemble_line(const Line *line, const char *rawline) {
     if (line->src.type == INDIRECT && line->dst.type == NOOPERAND &&
         is_reg64s(line->src.u.reg)) {
       int pre = is_reg64(line->src.u.reg) ? 0x48 : 0x49;
-      int s = line->src.u.indirect.reg - RAX;
+      int s = (line->src.u.indirect.reg - RAX) & 7;
       long offset = line->src.u.indirect.offset;
       if (line->src.u.indirect.reg != RSP) {
         if (offset == 0 && line->src.u.indirect.reg != RBP) {
