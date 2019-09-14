@@ -34,7 +34,7 @@ static Defun *new_defun(const Type *rettype, const char *name, Vector *params, i
   defun->all_scopes = new_vector();
   defun->label_map = NULL;
   defun->gotos = NULL;
-  defun->bbs = NULL;
+  defun->bbcon = NULL;
   defun->ret_bb = NULL;
   return defun;
 }

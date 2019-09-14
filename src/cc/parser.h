@@ -4,6 +4,7 @@
 #include <stdint.h>  // intptr_t
 
 typedef struct BB BB;
+typedef struct BBContainer BBContainer;
 typedef struct Defun Defun;
 typedef struct Expr Expr;
 typedef struct Map Map;
@@ -32,7 +33,7 @@ typedef struct Defun {
   // For codegen.
 
   // BasicBlock
-  Vector *bbs;
+  BBContainer *bbcon;
   BB *ret_bb;
 } Defun;
 

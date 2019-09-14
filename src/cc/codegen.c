@@ -23,7 +23,7 @@ const int STACK_PARAM_BASE_OFFSET = (2 - MAX_REG_ARGS) * 8;
 void set_curbb(BB *bb) {
   assert(curfunc != NULL);
   curbb = bb;
-  vec_push(curfunc->bbs, bb);
+  vec_push(curfunc->bbcon->bbs, bb);
 }
 
 size_t type_size(const Type *type) {
@@ -584,7 +584,7 @@ static void gen_defun(Node *node) {
     return;
 
   curfunc = defun;
-  defun->bbs = new_vector();
+  defun->bbcon = new_func_blocks();
   set_curbb(new_bb());
 
   bool global = true;
@@ -644,25 +644,7 @@ static void gen_defun(Node *node) {
     put_args_to_stack(defun);
   }
 
-  for (int i = 0; i < defun->bbs->len; ++i) {
-    BB *bb = defun->bbs->data[i];
-#ifndef NDEBUG
-    // Check BB connection.
-    if (i < defun->bbs->len - 1) {
-      BB *nbb = defun->bbs->data[i + 1];
-      assert(bb->next == nbb);
-    } else {
-      assert(bb->next == NULL);
-    }
-#endif
-
-    emit_comment("  BB %d/%d", i, defun->bbs->len);
-    EMIT_LABEL(bb->label);
-    for (int j = 0; j < bb->irs->len; ++j) {
-      IR *ir = bb->irs->data[j];
-      ir_out(ir);
-    }
-  }
+  emit_bb_irs(defun->bbcon);
 
   // Epilogue
   if (!no_stmt) {

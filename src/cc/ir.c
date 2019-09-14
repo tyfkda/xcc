@@ -624,3 +624,33 @@ void bb_insert(BB *bb, BB *cc) {
   cc->next = bb->next;
   bb->next = cc;
 }
+
+//
+
+BBContainer *new_func_blocks(void) {
+  BBContainer *bbcon = malloc(sizeof(*bbcon));
+  bbcon->bbs = new_vector();
+  return bbcon;
+}
+
+void emit_bb_irs(BBContainer *bbcon) {
+  for (int i = 0; i < bbcon->bbs->len; ++i) {
+    BB *bb = bbcon->bbs->data[i];
+#ifndef NDEBUG
+    // Check BB connection.
+    if (i < bbcon->bbs->len - 1) {
+      BB *nbb = bbcon->bbs->data[i + 1];
+      assert(bb->next == nbb);
+    } else {
+      assert(bb->next == NULL);
+    }
+#endif
+
+    emit_comment("  BB %d/%d", i, bbcon->bbs->len);
+    EMIT_LABEL(bb->label);
+    for (int j = 0; j < bb->irs->len; ++j) {
+      IR *ir = bb->irs->data[j];
+      ir_out(ir);
+    }
+  }
+}
