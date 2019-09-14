@@ -238,6 +238,11 @@ void new_ir_result(VReg *reg, int size) {
   ir->size = size;
 }
 
+void new_ir_asm(const char *asm_) {
+  IR *ir = new_ir(IR_ASM);
+  ir->u.asm_.str = asm_;
+}
+
 void new_ir_unreg(VReg *reg) {
   IR *ir = new_ir(IR_UNREG);
   ir->opr1 = reg;
@@ -328,6 +333,7 @@ void ir_alloc_reg(IR *ir) {
   case IR_RESULT:
   case IR_JMP:
   case IR_ADDSP:
+  case IR_ASM:
     break;
 
   default:  assert(false); break;
@@ -780,6 +786,10 @@ void ir_out(const IR *ir) {
     break;
 
   case IR_UNREG:
+    break;
+
+  case IR_ASM:
+    EMIT_ASM0(ir->u.asm_.str);
     break;
 
   default:
