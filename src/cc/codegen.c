@@ -465,6 +465,7 @@ static size_t arrange_scope_vars(Defun *defun) {
             size = 1;
           scope_size = ALIGN(scope_size + size, align);
           varinfo->offset = -scope_size;
+          varinfo->reg = add_new_reg();
         }
       }
     }

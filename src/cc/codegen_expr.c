@@ -239,24 +239,28 @@ static VReg *gen_lval(Expr *expr) {
 }
 
 static VReg *gen_varref(Expr *expr) {
-  VReg *reg = gen_lval(expr);
-  VReg *result;
   switch (expr->valType->type) {
   case TY_NUM:
   case TY_PTR:
-    result = new_ir_unary(IR_LOAD, reg, type_size(expr->valType));
-    new_ir_unreg(reg);
-    break;
+    {
+      Scope *scope = expr->u.varref.scope;
+      VarInfo *varinfo = scope_find(&scope, expr->u.varref.ident);
+      if (varinfo != NULL && !(varinfo->flag & VF_STATIC))
+        return varinfo->reg;
+
+      VReg *reg = gen_lval(expr);
+      VReg *result = new_ir_unary(IR_LOAD, reg, type_size(expr->valType));
+      new_ir_unreg(reg);
+      return result;
+    }
   default:
     assert(false);
     // Fallthrough to suppress compile error.
   case TY_ARRAY:   // Use variable address as a pointer.
   case TY_STRUCT:  // struct value is handled as a pointer.
   case TY_FUNC:
-    result = reg;
-    break;
+    return gen_lval(expr);
   }
-  return result;
 }
 
 static VReg *gen_ternary(Expr *expr) {
@@ -486,6 +490,16 @@ VReg *gen_expr(Expr *expr) {
   case EX_ASSIGN:
     {
       VReg *src = gen_expr(expr->u.bop.rhs);
+      if (expr->u.bop.lhs->type == EX_VARREF) {
+        Expr *lhs = expr->u.bop.lhs;
+        Scope *scope = lhs->u.varref.scope;
+        VarInfo *varinfo = scope_find(&scope, lhs->u.varref.ident);
+        if (varinfo != NULL && !(varinfo->flag & VF_STATIC)) {
+          new_ir_mov(varinfo->reg, src, type_size(lhs->valType));
+          return src;
+        }
+      }
+
       VReg *dst = gen_lval(expr->u.bop.lhs);
 
       switch (expr->valType->type) {

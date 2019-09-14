@@ -104,6 +104,7 @@ typedef struct {
 VReg *new_ir_imm(intptr_t value, int size);
 VReg *new_ir_bop(enum IrType type, VReg *opr1, VReg *opr2, int size);
 VReg *new_ir_unary(enum IrType type, VReg *opr, int size);
+void new_ir_mov(VReg *dst, VReg *src, int size);
 VReg *new_ir_bofs(int offset);
 VReg *new_ir_iofs(const char *label);
 void new_ir_store(VReg *dst, VReg *src, int size);
@@ -134,6 +135,7 @@ void dump_ir(IR *ir);
 // Register allocator
 
 void init_reg_alloc(void);
+VReg *add_new_reg(void);
 void check_all_reg_unused(void);
 
 // Basci Block:

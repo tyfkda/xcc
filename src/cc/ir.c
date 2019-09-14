@@ -90,6 +90,10 @@ void init_reg_alloc(void) {
     reg_alloc_clear(ra);
 }
 
+VReg *add_new_reg(void) {
+  return reg_alloc_spawn(ra);
+}
+
 void check_all_reg_unused(void) {
   for (int i = 0; i < REG_COUNT; ++i) {
     if (ra->used[i])
@@ -241,6 +245,13 @@ void new_ir_result(VReg *reg, int size) {
 void new_ir_asm(const char *asm_) {
   IR *ir = new_ir(IR_ASM);
   ir->u.asm_.str = asm_;
+}
+
+void new_ir_mov(VReg *dst, VReg *src, int size) {
+  IR *ir = new_ir(IR_MOV);
+  ir->dst = dst;
+  ir->opr1 = src;
+  ir->size = size;
 }
 
 void new_ir_unreg(VReg *reg) {
