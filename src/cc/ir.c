@@ -107,6 +107,7 @@ static IR *new_ir(enum IrType type) {
   IR *ir = malloc(sizeof(*ir));
   ir->type = type;
   ir->dst = ir->opr1 = ir->opr2 = NULL;
+  ir->size = -1;
   vec_push(curbb->irs, ir);
   return ir;
 }
@@ -255,8 +256,9 @@ void new_ir_mov(VReg *dst, VReg *src, int size) {
 }
 
 void new_ir_unreg(VReg *reg) {
-  IR *ir = new_ir(IR_UNREG);
-  ir->opr1 = reg;
+  //IR *ir = new_ir(IR_UNREG);
+  //ir->opr1 = reg;
+  UNUSED(reg);
 }
 
 static void ir_memcpy(int dst_reg, int src_reg, ssize_t size) {
@@ -922,13 +924,6 @@ void remove_unnecessary_bb(BBContainer *bbcon) {
   }
 }
 
-static void alloc_regs(Vector *irs) {
-  for (int i = 0, len = irs->len; i < len; ++i) {
-    IR *ir = irs->data[i];
-    ir_alloc_reg(ir);
-  }
-}
-
 // Rewrite `A = B op C` to `A = B; A = A op C`.
 static void three_to_two(BB *bb) {
   Vector *irs = bb->irs;
@@ -968,10 +963,153 @@ static void three_to_two(BB *bb) {
   bb->irs = irs;
 }
 
+typedef struct {
+  int vreg;
+  int rreg;
+  int start;
+  int end;
+} LiveInterval;
+
+static int insert_active(LiveInterval **active, int active_count, LiveInterval *li) {
+  int j;
+  for (j = 0; j < active_count; ++j) {
+    LiveInterval *p = active[j];
+    if (li->end < p->end)
+      break;
+  }
+  if (j < active_count)
+    memmove(&active[j + 1], &active[j], sizeof(LiveInterval*) * (active_count - j));
+  active[j] = li;
+  return j;
+}
+
+static void remove_active(LiveInterval **active, int active_count, int start, int n) {
+  if (n <= 0)
+    return;
+  int tail = active_count - (start + n);
+  assert(tail >= 0);
+
+  if (tail > 0)
+    memmove(&active[start], &active[start + n], sizeof(LiveInterval*) * tail);
+}
+
+static int sort_live_interval(LiveInterval **pa, LiveInterval **pb) {
+  LiveInterval *a = *pa, *b = *pb;
+  int d = a->start - b->start;
+  if (d == 0)
+    d = b->end - a->start;
+  return d;
+}
+
+static void split_at_interval(LiveInterval **active, int active_count, LiveInterval *li) {
+  assert(active_count > 0);
+  LiveInterval *spill = active[active_count - 1];
+  if (spill->end > li->end) {
+    li->rreg = spill->rreg;
+    // TODO: Alloc spill to stack location.
+    assert(false);
+    insert_active(active, active_count - 1, li);
+  } else {
+    assert(false);
+    // TODO: Alloc to stack location.
+  }
+}
+
+static void expire_old_intervals(LiveInterval **active, int *pactive_count, bool *used, int start) {
+  int active_count = *pactive_count;
+  int j;
+  for (j = 0; j < active_count; ++j) {
+    LiveInterval *li = active[j];
+    if (li->end > start)
+      break;
+    used[li->rreg] = false;
+  }
+  remove_active(active, active_count, 0, j);
+  *pactive_count = active_count - j;
+}
+
+static LiveInterval **check_live_interval(BBContainer *bbcon, int vreg_count, LiveInterval **pintervals) {
+  LiveInterval *intervals = malloc(sizeof(LiveInterval) * vreg_count);
+  for (int i = 0; i < vreg_count; ++i) {
+    LiveInterval *li = &intervals[i];
+    li->vreg = i;
+    li->rreg = -1;
+    li->start = li->end = -1;
+  }
+
+  int nip = 0;
+  for (int i = 0; i < bbcon->bbs->len; ++i) {
+    BB *bb = bbcon->bbs->data[i];
+    for (int j = 0; j < bb->irs->len; ++j, ++nip) {
+      IR *ir = bb->irs->data[j];
+      VReg *regs[] = {ir->dst, ir->opr1, ir->opr2};
+      for (int k = 0; k < 3; ++k) {
+        VReg *reg = regs[k];
+        if (reg == NULL)
+          continue;
+        LiveInterval *li = &intervals[reg->v];
+        if (li->start < 0)
+          li->start = nip;
+        if (li->end < nip)
+          li->end = nip;
+      }
+    }
+  }
+
+  // Sort by start, end
+  LiveInterval **sorted_intervals = malloc(sizeof(LiveInterval*) * vreg_count);
+  for (int i = 0; i < vreg_count; ++i)
+    sorted_intervals[i] = &intervals[i];
+  qsort(sorted_intervals, vreg_count, sizeof(LiveInterval*), (int (*)(const void*, const void*))sort_live_interval);
+
+  *pintervals = intervals;
+  return sorted_intervals;
+}
+
+static void linear_scan_register_allocation(LiveInterval **sorted_intervals, int vreg_count) {
+  LiveInterval *active[REG_COUNT];
+  int active_count = 0;
+  bool used[REG_COUNT];
+  memset(used, 0, sizeof(used));
+
+  for (int i = 0; i < vreg_count; ++i) {
+    LiveInterval *li = sorted_intervals[i];
+    expire_old_intervals(active, &active_count, used, li->start);
+    if (active_count >= REG_COUNT) {
+      split_at_interval(active, active_count, li);
+    } else {
+      int regno = -1;
+      for (int j = 0; j < REG_COUNT; ++j) {
+        if (!used[j]) {
+          regno = j;
+          break;
+        }
+      }
+      assert(regno >= 0);
+      li->rreg = regno;
+      used[regno] = true;
+
+      insert_active(active, active_count, li);
+      ++active_count;
+    }
+  }
+}
+
 void emit_bb_irs(BBContainer *bbcon) {
   for (int i = 0; i < bbcon->bbs->len; ++i) {
     BB *bb = bbcon->bbs->data[i];
     three_to_two(bb);
+  }
+
+  int vreg_count = ra->regno;
+  LiveInterval *intervals;
+  LiveInterval **sorted_intervals = check_live_interval(bbcon, ra->regno, &intervals);
+  linear_scan_register_allocation(sorted_intervals, vreg_count);
+
+  // Map vreg to rreg.
+  for (int i = 0; i < vreg_count; ++i) {
+    VReg *vreg = ra->vregs->data[i];
+    vreg->r = intervals[vreg->v].rreg;
   }
 
   for (int i = 0; i < bbcon->bbs->len; ++i) {
@@ -985,7 +1123,6 @@ void emit_bb_irs(BBContainer *bbcon) {
       assert(bb->next == NULL);
     }
 #endif
-    alloc_regs(bb->irs);
 
     emit_comment("  BB %d/%d", i, bbcon->bbs->len);
     EMIT_LABEL(bb->label);
