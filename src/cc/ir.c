@@ -334,6 +334,7 @@ void ir_alloc_reg(IR *ir) {
   case IR_JMP:
   case IR_ADDSP:
   case IR_ASM:
+  case IR_MOV:
     break;
 
   default:  assert(false); break;
@@ -414,21 +415,23 @@ void ir_out(const IR *ir) {
     break;
 
   case IR_ADD:
+    assert(ir->dst->r == ir->opr1->r);
     switch (ir->size) {
-    case 1:  MOV(kReg8s[ir->opr1->r], kReg8s[ir->dst->r]); ADD(kReg8s[ir->opr2->r], kReg8s[ir->dst->r]); break;
-    case 2:  MOV(kReg16s[ir->opr1->r], kReg16s[ir->dst->r]); ADD(kReg16s[ir->opr2->r], kReg16s[ir->dst->r]); break;
-    case 4:  MOV(kReg32s[ir->opr1->r], kReg32s[ir->dst->r]); ADD(kReg32s[ir->opr2->r], kReg32s[ir->dst->r]); break;
-    case 8:  MOV(kReg64s[ir->opr1->r], kReg64s[ir->dst->r]); ADD(kReg64s[ir->opr2->r], kReg64s[ir->dst->r]); break;
+    case 1:  ADD(kReg8s[ir->opr2->r], kReg8s[ir->dst->r]); break;
+    case 2:  ADD(kReg16s[ir->opr2->r], kReg16s[ir->dst->r]); break;
+    case 4:  ADD(kReg32s[ir->opr2->r], kReg32s[ir->dst->r]); break;
+    case 8:  ADD(kReg64s[ir->opr2->r], kReg64s[ir->dst->r]); break;
     default: assert(false); break;
     }
     break;
 
   case IR_SUB:
+    assert(ir->dst->r == ir->opr1->r);
     switch (ir->size) {
-    case 1:  MOV(kReg8s[ir->opr1->r], kReg8s[ir->dst->r]); SUB(kReg8s[ir->opr2->r], kReg8s[ir->dst->r]); break;
-    case 2:  MOV(kReg16s[ir->opr1->r], kReg16s[ir->dst->r]); SUB(kReg16s[ir->opr2->r], kReg16s[ir->dst->r]); break;
-    case 4:  MOV(kReg32s[ir->opr1->r], kReg32s[ir->dst->r]); SUB(kReg32s[ir->opr2->r], kReg32s[ir->dst->r]); break;
-    case 8:  MOV(kReg64s[ir->opr1->r], kReg64s[ir->dst->r]); SUB(kReg64s[ir->opr2->r], kReg64s[ir->dst->r]); break;
+    case 1:  SUB(kReg8s[ir->opr2->r], kReg8s[ir->dst->r]); break;
+    case 2:  SUB(kReg16s[ir->opr2->r], kReg16s[ir->dst->r]); break;
+    case 4:  SUB(kReg32s[ir->opr2->r], kReg32s[ir->dst->r]); break;
+    case 8:  SUB(kReg64s[ir->opr2->r], kReg64s[ir->dst->r]); break;
     default: assert(false); break;
     }
     break;
@@ -502,52 +505,57 @@ void ir_out(const IR *ir) {
     break;
 
   case IR_BITAND:
+    assert(ir->dst->r == ir->opr1->r);
     switch (ir->size) {
-    case 1:  MOV(kReg8s[ir->opr1->r], kReg8s[ir->dst->r]); AND(kReg8s[ir->opr2->r], kReg8s[ir->dst->r]); break;
-    case 2:  MOV(kReg16s[ir->opr1->r], kReg16s[ir->dst->r]); AND(kReg16s[ir->opr2->r], kReg16s[ir->dst->r]); break;
-    case 4:  MOV(kReg32s[ir->opr1->r], kReg32s[ir->dst->r]); AND(kReg32s[ir->opr2->r], kReg32s[ir->dst->r]); break;
-    case 8:  MOV(kReg64s[ir->opr1->r], kReg64s[ir->dst->r]); AND(kReg64s[ir->opr2->r], kReg64s[ir->dst->r]); break;
+    case 1:  AND(kReg8s[ir->opr2->r], kReg8s[ir->dst->r]); break;
+    case 2:  AND(kReg16s[ir->opr2->r], kReg16s[ir->dst->r]); break;
+    case 4:  AND(kReg32s[ir->opr2->r], kReg32s[ir->dst->r]); break;
+    case 8:  AND(kReg64s[ir->opr2->r], kReg64s[ir->dst->r]); break;
     default: assert(false); break;
     }
     break;
 
   case IR_BITOR:
+    assert(ir->dst->r == ir->opr1->r);
     switch (ir->size) {
-    case 1:  MOV(kReg8s[ir->opr1->r], kReg8s[ir->dst->r]); OR(kReg8s[ir->opr2->r], kReg8s[ir->dst->r]); break;
-    case 2:  MOV(kReg16s[ir->opr1->r], kReg16s[ir->dst->r]); OR(kReg16s[ir->opr2->r], kReg16s[ir->dst->r]); break;
-    case 4:  MOV(kReg32s[ir->opr1->r], kReg32s[ir->dst->r]); OR(kReg32s[ir->opr2->r], kReg32s[ir->dst->r]); break;
-    case 8:  MOV(kReg64s[ir->opr1->r], kReg64s[ir->dst->r]); OR(kReg64s[ir->opr2->r], kReg64s[ir->dst->r]); break;
+    case 1:  OR(kReg8s[ir->opr2->r], kReg8s[ir->dst->r]); break;
+    case 2:  OR(kReg16s[ir->opr2->r], kReg16s[ir->dst->r]); break;
+    case 4:  OR(kReg32s[ir->opr2->r], kReg32s[ir->dst->r]); break;
+    case 8:  OR(kReg64s[ir->opr2->r], kReg64s[ir->dst->r]); break;
     default: assert(false); break;
     }
     break;
 
   case IR_BITXOR:
+    assert(ir->dst->r == ir->opr1->r);
     switch (ir->size) {
-    case 1:  MOV(kReg8s[ir->opr1->r], kReg8s[ir->dst->r]); XOR(kReg8s[ir->opr2->r], kReg8s[ir->dst->r]); break;
-    case 2:  MOV(kReg16s[ir->opr1->r], kReg16s[ir->dst->r]); XOR(kReg16s[ir->opr2->r], kReg16s[ir->dst->r]); break;
-    case 4:  MOV(kReg32s[ir->opr1->r], kReg32s[ir->dst->r]); XOR(kReg32s[ir->opr2->r], kReg32s[ir->dst->r]); break;
-    case 8:  MOV(kReg64s[ir->opr1->r], kReg64s[ir->dst->r]); XOR(kReg64s[ir->opr2->r], kReg64s[ir->dst->r]); break;
+    case 1:  XOR(kReg8s[ir->opr2->r], kReg8s[ir->dst->r]); break;
+    case 2:  XOR(kReg16s[ir->opr2->r], kReg16s[ir->dst->r]); break;
+    case 4:  XOR(kReg32s[ir->opr2->r], kReg32s[ir->dst->r]); break;
+    case 8:  XOR(kReg64s[ir->opr2->r], kReg64s[ir->dst->r]); break;
     default: assert(false); break;
     }
     break;
 
   case IR_LSHIFT:
+    assert(ir->dst->r == ir->opr1->r);
     MOV(kReg8s[ir->opr2->r], CL);
     switch (ir->size) {
-    case 1:  MOV(kReg8s[ir->opr1->r], kReg8s[ir->dst->r]); SHL(CL, kReg8s[ir->dst->r]); break;
-    case 2:  MOV(kReg16s[ir->opr1->r], kReg16s[ir->dst->r]); SHL(CL, kReg16s[ir->dst->r]); break;
-    case 4:  MOV(kReg32s[ir->opr1->r], kReg32s[ir->dst->r]); SHL(CL, kReg32s[ir->dst->r]); break;
-    case 8:  MOV(kReg64s[ir->opr1->r], kReg64s[ir->dst->r]); SHL(CL, kReg64s[ir->dst->r]); break;
+    case 1:  SHL(CL, kReg8s[ir->dst->r]); break;
+    case 2:  SHL(CL, kReg16s[ir->dst->r]); break;
+    case 4:  SHL(CL, kReg32s[ir->dst->r]); break;
+    case 8:  SHL(CL, kReg64s[ir->dst->r]); break;
     default: assert(false); break;
     }
     break;
   case IR_RSHIFT:
+    assert(ir->dst->r == ir->opr1->r);
     MOV(kReg8s[ir->opr2->r], CL);
     switch (ir->size) {
-    case 1:  MOV(kReg8s[ir->opr1->r], kReg8s[ir->dst->r]); SHR(CL, kReg8s[ir->dst->r]); break;
-    case 2:  MOV(kReg16s[ir->opr1->r], kReg16s[ir->dst->r]); SHR(CL, kReg16s[ir->dst->r]); break;
-    case 4:  MOV(kReg32s[ir->opr1->r], kReg32s[ir->dst->r]); SHR(CL, kReg32s[ir->dst->r]); break;
-    case 8:  MOV(kReg64s[ir->opr1->r], kReg64s[ir->dst->r]); SHR(CL, kReg64s[ir->dst->r]); break;
+    case 1:  SHR(CL, kReg8s[ir->dst->r]); break;
+    case 2:  SHR(CL, kReg16s[ir->dst->r]); break;
+    case 4:  SHR(CL, kReg32s[ir->dst->r]); break;
+    case 8:  SHR(CL, kReg64s[ir->dst->r]); break;
     default: assert(false); break;
     }
     break;
@@ -613,11 +621,12 @@ void ir_out(const IR *ir) {
     break;
 
   case IR_NEG:
+    assert(ir->dst->r == ir->opr1->r);
     switch (ir->size) {
-    case 1:  MOV(kReg8s[ir->opr1->r], kReg8s[ir->dst->r]); NEG(kReg8s[ir->dst->r]); break;
-    case 2:  MOV(kReg16s[ir->opr1->r], kReg16s[ir->dst->r]); NEG(kReg16s[ir->dst->r]); break;
-    case 4:  MOV(kReg32s[ir->opr1->r], kReg32s[ir->dst->r]); NEG(kReg32s[ir->dst->r]); break;
-    case 8:  MOV(kReg64s[ir->opr1->r], kReg64s[ir->dst->r]); NEG(kReg64s[ir->dst->r]); break;
+    case 1:  NEG(kReg8s[ir->dst->r]); break;
+    case 2:  NEG(kReg16s[ir->dst->r]); break;
+    case 4:  NEG(kReg32s[ir->dst->r]); break;
+    case 8:  NEG(kReg64s[ir->dst->r]); break;
     default:  assert(false); break;
     }
     break;
@@ -792,6 +801,18 @@ void ir_out(const IR *ir) {
     EMIT_ASM0(ir->u.asm_.str);
     break;
 
+  case IR_MOV:
+    if (ir->opr1->r != ir->dst->r) {
+      switch (ir->size) {
+      case 1:  MOV(kReg8s[ir->opr1->r], kReg8s[ir->dst->r]); break;
+      case 2:  MOV(kReg16s[ir->opr1->r], kReg16s[ir->dst->r]); break;
+      case 4:  MOV(kReg32s[ir->opr1->r], kReg32s[ir->dst->r]); break;
+      case 8:  MOV(kReg64s[ir->opr1->r], kReg64s[ir->dst->r]); break;
+      default:  assert(false); break;
+      }
+    }
+    break;
+
   default:
     assert(false);
     break;
@@ -897,7 +918,51 @@ static void alloc_regs(Vector *irs) {
   }
 }
 
+// Rewrite `A = B op C` to `A = B; A = A op C`.
+static void three_to_two(BB *bb) {
+  Vector *irs = bb->irs;
+  for (int i = 0; i < irs->len; ++i) {
+    IR *ir = bb->irs->data[i];
+
+    switch (ir->type) {
+    case IR_ADD:  // binops
+    case IR_SUB:
+    case IR_MUL:
+    case IR_DIV:
+    case IR_MOD:
+    case IR_BITAND:
+    case IR_BITOR:
+    case IR_BITXOR:
+    case IR_LSHIFT:
+    case IR_RSHIFT:
+    case IR_NEG:  // unary ops
+      {
+        IR *ir2 = malloc(sizeof(*ir));
+        ir2->type = IR_MOV;
+        ir2->dst = ir->dst;
+        ir2->opr1 = ir->opr1;
+        ir2->opr2 = NULL;
+        ir2->size = ir->size;
+        vec_insert(irs, i, ir2);
+
+        ir->opr1 = ir->dst;
+        ++i;
+      }
+      break;
+
+    default:
+      break;
+    }
+  }
+  bb->irs = irs;
+}
+
 void emit_bb_irs(BBContainer *bbcon) {
+  for (int i = 0; i < bbcon->bbs->len; ++i) {
+    BB *bb = bbcon->bbs->data[i];
+    three_to_two(bb);
+  }
+
   for (int i = 0; i < bbcon->bbs->len; ++i) {
     BB *bb = bbcon->bbs->data[i];
 #ifndef NDEBUG
@@ -970,6 +1035,7 @@ void dump_ir(IR *ir) {
   case IR_RESULT: fprintf(fp, "\tRESULT\tR%d%s\n", opr1, kSize[ir->size]); break;
   case IR_ASM:    fprintf(fp, "\tASM\n"); break;
   case IR_UNREG:  fprintf(fp, "\tUNREG\tR%d\n", opr1); break;
+  case IR_MOV:    fprintf(fp, "\tMOV\tR%d%s = R%d%s\n", dst, kSize[ir->size], opr1, kSize[ir->size]); break;
 
   default: assert(false); break;
   }

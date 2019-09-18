@@ -55,6 +55,8 @@ enum IrType {
   IR_RESULT,
   IR_ASM,
   IR_UNREG,
+
+  IR_MOV,
 };
 
 enum ConditionType {
