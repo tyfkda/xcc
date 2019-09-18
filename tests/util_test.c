@@ -45,6 +45,21 @@ void test_vector(void) {
   EXPECT(0, (intptr_t)vec->data[0]);
   EXPECT(50, (intptr_t)vec->data[50]);
   EXPECT(99, (intptr_t)vec->data[99]);
+
+  vec_insert(vec, 10, (void*)(intptr_t)123);
+  EXPECT(101, vec->len);
+  EXPECT(9, (intptr_t)vec->data[9]);
+  EXPECT(123, (intptr_t)vec->data[10]);
+  EXPECT(10, (intptr_t)vec->data[11]);
+  EXPECT(99, (intptr_t)vec->data[100]);
+
+  vec_remove_at(vec, 20);
+  EXPECT(100, vec->len);
+  EXPECT(18, (intptr_t)vec->data[19]);
+  EXPECT(20, (intptr_t)vec->data[20]);
+
+  EXPECT(false, vec_contains(vec, (void*)(intptr_t)19));
+  EXPECT(true, vec_contains(vec, (void*)(intptr_t)20));
 }
 
 void test_map(void) {

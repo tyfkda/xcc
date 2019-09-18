@@ -36,6 +36,9 @@ Vector *new_vector(void);
 void vec_clear(Vector *vec);
 void vec_push(Vector *vec, const void *elem);
 void *vec_pop(Vector *vec);
+void vec_insert(Vector *vec, int pos, const void *elem);
+void vec_remove_at(Vector *vec, int index);
+bool vec_contains(Vector *vec, void* elem);
 
 typedef struct Map {
   Vector *keys;

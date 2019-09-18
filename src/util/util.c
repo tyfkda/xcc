@@ -200,6 +200,37 @@ void *vec_pop(Vector *vec) {
   return vec->len > 0 ? vec->data[--vec->len] : NULL;
 }
 
+void vec_insert(Vector *vec, int pos, const void *elem) {
+  int len = vec->len;
+  if (pos < 0 || pos > len)
+    return;
+
+  if (pos < len) {
+    vec_push(vec, NULL);
+    memmove(&vec->data[pos + 1], &vec->data[pos], sizeof(void*) * (len - pos));
+    vec->data[pos] = (void*)elem;
+  } else {
+    vec_push(vec, elem);
+  }
+}
+
+void vec_remove_at(Vector *vec, int index) {
+  if (index < 0 || index >= vec->len)
+    return;
+  int d = vec->len - index;
+  if (d > 0)
+    memmove(&vec->data[index], &vec->data[index + 1], d * sizeof(*vec->data));
+  --vec->len;
+}
+
+bool vec_contains(Vector *vec, void* elem) {
+  for (int i = 0, len = vec->len; i < len; ++i) {
+    if (vec->data[i] == elem)
+      return true;
+  }
+  return false;
+}
+
 //
 
 Map *new_map(void) {
