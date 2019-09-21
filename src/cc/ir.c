@@ -13,7 +13,8 @@
 #include "var.h"
 #include "x86_64.h"
 
-#define REG_COUNT  (7)
+#define REG_COUNT  (7 - 1)
+#define SPILLED_REG_NO  (REG_COUNT)
 
 // Virtual register
 
@@ -108,7 +109,8 @@ static IR *new_ir(enum IrType type) {
   ir->type = type;
   ir->dst = ir->opr1 = ir->opr2 = NULL;
   ir->size = -1;
-  vec_push(curbb->irs, ir);
+  if (curbb != NULL)
+    vec_push(curbb->irs, ir);
   return ir;
 }
 
@@ -253,6 +255,20 @@ void new_ir_mov(VReg *dst, VReg *src, int size) {
   ir->dst = dst;
   ir->opr1 = src;
   ir->size = size;
+}
+
+static IR *new_ir_load_spilled(int offset, int size) {
+  IR *ir = new_ir(IR_LOAD_SPILLED);
+  ir->value = offset;
+  ir->size = size;
+  return ir;
+}
+
+static IR *new_ir_store_spilled(int offset, int size) {
+  IR *ir = new_ir(IR_STORE_SPILLED);
+  ir->value = offset;
+  ir->size = size;
+  return ir;
 }
 
 void new_ir_unreg(VReg *reg) {
@@ -826,6 +842,26 @@ void ir_out(const IR *ir) {
     }
     break;
 
+  case IR_LOAD_SPILLED:
+    switch (ir->size) {
+    case 1:  MOV(OFFSET_INDIRECT(ir->value, RBP), kReg8s[SPILLED_REG_NO]); break;
+    case 2:  MOV(OFFSET_INDIRECT(ir->value, RBP), kReg16s[SPILLED_REG_NO]); break;
+    case 4:  MOV(OFFSET_INDIRECT(ir->value, RBP), kReg32s[SPILLED_REG_NO]); break;
+    case 8:  MOV(OFFSET_INDIRECT(ir->value, RBP), kReg64s[SPILLED_REG_NO]); break;
+    default: assert(false); break;
+    }
+    break;
+
+  case IR_STORE_SPILLED:
+    switch (ir->size) {
+    case 1:  MOV(kReg8s[SPILLED_REG_NO], OFFSET_INDIRECT(ir->value, RBP)); break;
+    case 2:  MOV(kReg16s[SPILLED_REG_NO], OFFSET_INDIRECT(ir->value, RBP)); break;
+    case 4:  MOV(kReg32s[SPILLED_REG_NO], OFFSET_INDIRECT(ir->value, RBP)); break;
+    case 8:  MOV(kReg64s[SPILLED_REG_NO], OFFSET_INDIRECT(ir->value, RBP)); break;
+    default: assert(false); break;
+    }
+    break;
+
   default:
     assert(false);
     break;
@@ -968,6 +1004,7 @@ typedef struct {
   int rreg;
   int start;
   int end;
+  bool spill;
 } LiveInterval;
 
 static int insert_active(LiveInterval **active, int active_count, LiveInterval *li) {
@@ -1006,12 +1043,12 @@ static void split_at_interval(LiveInterval **active, int active_count, LiveInter
   LiveInterval *spill = active[active_count - 1];
   if (spill->end > li->end) {
     li->rreg = spill->rreg;
-    // TODO: Alloc spill to stack location.
-    assert(false);
+    spill->rreg = SPILLED_REG_NO;
+    spill->spill = true;
     insert_active(active, active_count - 1, li);
   } else {
-    assert(false);
-    // TODO: Alloc to stack location.
+    li->rreg = SPILLED_REG_NO;
+    li->spill = true;
   }
 }
 
@@ -1035,6 +1072,7 @@ static LiveInterval **check_live_interval(BBContainer *bbcon, int vreg_count, Li
     li->vreg = i;
     li->rreg = -1;
     li->start = li->end = -1;
+    li->spill = false;
   }
 
   int nip = 0;
@@ -1095,7 +1133,65 @@ static void linear_scan_register_allocation(LiveInterval **sorted_intervals, int
   }
 }
 
-void emit_bb_irs(BBContainer *bbcon) {
+static void insert_load_store_instructions(BBContainer *bbcon, Vector *vregs) {
+  for (int i = 0; i < bbcon->bbs->len; ++i) {
+    BB *bb = bbcon->bbs->data[i];
+    Vector *irs = bb->irs;
+    for (int j = 0; j < irs->len; ++j) {
+      IR *ir = irs->data[j];
+
+      switch (ir->type) {
+      case IR_MOV:
+        if (ir->opr1->r == SPILLED_REG_NO)
+          vec_insert(irs, j++,
+                     new_ir_load_spilled(((VReg*)vregs->data[ir->opr1->v])->offset, ir->size));
+
+        if (ir->dst->r == SPILLED_REG_NO)
+          vec_insert(irs, ++j,
+                     new_ir_store_spilled(((VReg*)vregs->data[ir->dst->v])->offset, ir->size));
+        break;
+
+      case IR_ADD:  // binops
+      case IR_SUB:
+      case IR_MUL:
+      case IR_DIV:
+      case IR_MOD:
+      case IR_BITAND:
+      case IR_BITOR:
+      case IR_BITXOR:
+      case IR_LSHIFT:
+      case IR_RSHIFT:
+      case IR_NEG:  // unary ops
+      case IR_NOT:
+      case IR_SET:
+      case IR_TEST:
+        if (ir->opr1->r == SPILLED_REG_NO)
+          vec_insert(irs, j++,
+                     new_ir_load_spilled(((VReg*)vregs->data[ir->opr1->v])->offset, ir->size));
+
+        if (ir->opr2->r == SPILLED_REG_NO)
+          vec_insert(irs, j++,
+                     new_ir_load_spilled(((VReg*)vregs->data[ir->opr2->v])->offset, ir->size));
+
+        if (ir->dst->r == SPILLED_REG_NO)
+          vec_insert(irs, ++j,
+                     new_ir_store_spilled(((VReg*)vregs->data[ir->dst->v])->offset, ir->size));
+        break;
+
+      case IR_RESULT:
+        if (ir->opr1->r == SPILLED_REG_NO)
+          vec_insert(irs, j++,
+                     new_ir_load_spilled(((VReg*)vregs->data[ir->opr1->v])->offset, ir->size));
+        break;
+
+      default:
+        break;
+      }
+    }
+  }
+}
+
+size_t alloc_real_registers(BBContainer *bbcon) {
   for (int i = 0; i < bbcon->bbs->len; ++i) {
     BB *bb = bbcon->bbs->data[i];
     three_to_two(bb);
@@ -1112,6 +1208,24 @@ void emit_bb_irs(BBContainer *bbcon) {
     vreg->r = intervals[vreg->v].rreg;
   }
 
+  // Allocated spilled virtual registers onto stack.
+  size_t frame_size = 0;
+  for (int i = 0; i < vreg_count; ++i) {
+    LiveInterval *li = sorted_intervals[i];
+    if (!li->spill)
+      continue;
+    VReg *vreg = ra->vregs->data[li->vreg];
+    frame_size += 8;
+    vreg->offset = -frame_size;
+  }
+
+  // Insert load/store instructions for spilled registers.
+  insert_load_store_instructions(bbcon, ra->vregs);
+
+  return frame_size;
+}
+
+void emit_bb_irs(BBContainer *bbcon) {
   for (int i = 0; i < bbcon->bbs->len; ++i) {
     BB *bb = bbcon->bbs->data[i];
 #ifndef NDEBUG
@@ -1184,6 +1298,8 @@ void dump_ir(IR *ir) {
   case IR_ASM:    fprintf(fp, "\tASM\n"); break;
   case IR_UNREG:  fprintf(fp, "\tUNREG\tR%d\n", opr1); break;
   case IR_MOV:    fprintf(fp, "\tMOV\tR%d%s = R%d%s\n", dst, kSize[ir->size], opr1, kSize[ir->size]); break;
+  case IR_LOAD_SPILLED:   fprintf(fp, "\tLOAD_SPILLED %d(%s)\n", (int)ir->value, kSize[ir->size]); break;
+  case IR_STORE_SPILLED:  fprintf(fp, "\tSTORE_SPILLED %d(%s)\n", (int)ir->value, kSize[ir->size]); break;
 
   default: assert(false); break;
   }

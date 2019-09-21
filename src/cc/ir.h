@@ -14,6 +14,7 @@ typedef struct Vector Vector;
 typedef struct VReg {
   int v;
   int r;
+  int offset;  // Local offset for spilled register.
 } VReg;
 
 VReg *new_vreg(int vreg_no);
@@ -57,6 +58,8 @@ enum IrType {
   IR_UNREG,
 
   IR_MOV,
+  IR_LOAD_SPILLED,
+  IR_STORE_SPILLED,
 };
 
 enum ConditionType {
@@ -160,4 +163,5 @@ typedef struct BBContainer {
 
 BBContainer *new_func_blocks(void);
 void remove_unnecessary_bb(BBContainer *bbcon);
+size_t alloc_real_registers(BBContainer *bbcon);
 void emit_bb_irs(BBContainer *bbcon);

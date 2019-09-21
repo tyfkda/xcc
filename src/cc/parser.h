@@ -1,6 +1,7 @@
 #pragma once
 
 #include <stdbool.h>
+#include <stddef.h>  // size_t
 #include <stdint.h>  // intptr_t
 
 typedef struct BB BB;
@@ -31,6 +32,7 @@ typedef struct Defun {
   Vector *gotos;
 
   // For codegen.
+  size_t frame_size;
 
   // BasicBlock
   BBContainer *bbcon;

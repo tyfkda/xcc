@@ -416,64 +416,21 @@ static BB *push_break_bb(BB *parent_bb, BB **save) {
   return bb;
 }
 
-static int arrange_variadic_func_params(Scope *scope) {
-  // Arrange parameters increasing order in stack,
-  // and each parameter occupies sizeof(intptr_t).
-  for (int i = 0; i < scope->vars->len; ++i) {
-    VarInfo *varinfo = (VarInfo*)scope->vars->data[i];
-    varinfo->offset = (i - MAX_REG_ARGS) * WORD_SIZE;
-  }
-  return MAX_REG_ARGS * WORD_SIZE;
-}
-
-static size_t arrange_scope_vars(Defun *defun) {
-  // Calc local variable offsets.
-  // Map parameters from the bottom (to reduce offsets).
-  size_t frame_size = 0;
+static void alloc_variable_registers(Defun *defun) {
   for (int i = 0; i < defun->all_scopes->len; ++i) {
     Scope *scope = (Scope*)defun->all_scopes->data[i];
-    size_t scope_size = scope->parent != NULL ? scope->parent->size : 0;
     if (scope->vars != NULL) {
       if (i == 0) {  // Function parameters.
-        if (defun->type->u.func.vaargs) {
-          // Special arrangement for va_list.
-          scope_size = arrange_variadic_func_params(scope);
-        } else {
-          for (int j = 0; j < scope->vars->len; ++j) {
-            VarInfo *varinfo = (VarInfo*)scope->vars->data[j];
-            if (j < MAX_REG_ARGS) {
-              size_t size = type_size(varinfo->type);
-              int align = align_size(varinfo->type);
-              if (size < 1)
-                size = 1;
-              scope_size = ALIGN(scope_size + size, align);
-              varinfo->offset = -scope_size;
-            } else {
-              // Assumes little endian, and put all types in WORD_SIZE.
-              varinfo->offset = STACK_PARAM_BASE_OFFSET + j * WORD_SIZE;
-            }
-          }
-        }
       } else {
         for (int j = 0; j < scope->vars->len; ++j) {
           VarInfo *varinfo = (VarInfo*)scope->vars->data[j];
           if (varinfo->flag & VF_STATIC)
             continue;  // Static variable is not allocated on stack.
-          size_t size = type_size(varinfo->type);
-          int align = align_size(varinfo->type);
-          if (size < 1)
-            size = 1;
-          scope_size = ALIGN(scope_size + size, align);
-          varinfo->offset = -scope_size;
           varinfo->reg = add_new_reg();
         }
       }
     }
-    scope->size = scope_size;
-    if (frame_size < scope_size)
-      frame_size = scope_size;
   }
-  return ALIGN(frame_size, FRAME_ALIGN);
 }
 
 static void put_args_to_stack(Defun *defun) {
@@ -611,8 +568,9 @@ static void gen_defun(Node *node) {
       label_map->vals->data[i] = new_bb();
   }
 
-  size_t frame_size = arrange_scope_vars(defun);
-  UNUSED(frame_size);
+  //size_t frame_size = arrange_scope_vars(defun);
+  //UNUSED(frame_size);
+  alloc_variable_registers(defun);
 
   bool no_stmt = true;
   if (defun->stmts != NULL) {
@@ -634,6 +592,9 @@ static void gen_defun(Node *node) {
   gen_nodes(defun->stmts);
 
   set_curbb(defun->ret_bb);
+  curbb = NULL;
+
+  size_t frame_size = alloc_real_registers(defun->bbcon);
 
   remove_unnecessary_bb(defun->bbcon);
 
