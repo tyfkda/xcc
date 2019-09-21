@@ -245,8 +245,10 @@ static VReg *gen_varref(Expr *expr) {
     {
       Scope *scope = expr->u.varref.scope;
       VarInfo *varinfo = scope_find(&scope, expr->u.varref.ident);
-      if (varinfo != NULL && !(varinfo->flag & VF_STATIC))
+      if (varinfo != NULL && !(varinfo->flag & VF_STATIC)) {
+        assert(varinfo->reg != NULL);
         return varinfo->reg;
+      }
 
       VReg *reg = gen_lval(expr);
       VReg *result = new_ir_unary(IR_LOAD, reg, type_size(expr->valType));
@@ -495,6 +497,7 @@ VReg *gen_expr(Expr *expr) {
         Scope *scope = lhs->u.varref.scope;
         VarInfo *varinfo = scope_find(&scope, lhs->u.varref.ident);
         if (varinfo != NULL && !(varinfo->flag & VF_STATIC)) {
+          assert(varinfo->reg != NULL);
           new_ir_mov(varinfo->reg, src, type_size(lhs->valType));
           return src;
         }

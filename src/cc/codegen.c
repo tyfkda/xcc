@@ -420,14 +420,11 @@ static void alloc_variable_registers(Defun *defun) {
   for (int i = 0; i < defun->all_scopes->len; ++i) {
     Scope *scope = (Scope*)defun->all_scopes->data[i];
     if (scope->vars != NULL) {
-      if (i == 0) {  // Function parameters.
-      } else {
-        for (int j = 0; j < scope->vars->len; ++j) {
-          VarInfo *varinfo = (VarInfo*)scope->vars->data[j];
-          if (varinfo->flag & VF_STATIC)
-            continue;  // Static variable is not allocated on stack.
-          varinfo->reg = add_new_reg();
-        }
+      for (int j = 0; j < scope->vars->len; ++j) {
+        VarInfo *varinfo = (VarInfo*)scope->vars->data[j];
+        if (varinfo->flag & VF_STATIC)
+          continue;  // Static variable is not allocated on stack.
+        varinfo->reg = add_new_reg();
       }
     }
   }
@@ -449,7 +446,7 @@ static void put_args_to_stack(Defun *defun) {
     if (i < len) {
       const VarInfo *varinfo = (const VarInfo*)params->data[i];
       type = varinfo->type;
-      offset = varinfo->offset;
+      offset = varinfo->reg->offset;
     } else {  // vaargs
       type = &tyLong;
       offset = (i - MAX_REG_ARGS) * WORD_SIZE;
@@ -594,7 +591,7 @@ static void gen_defun(Node *node) {
   set_curbb(defun->ret_bb);
   curbb = NULL;
 
-  size_t frame_size = alloc_real_registers(defun->bbcon);
+  size_t frame_size = alloc_real_registers(defun);
 
   remove_unnecessary_bb(defun->bbcon);
 

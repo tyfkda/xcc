@@ -198,6 +198,7 @@ void new_ir_jmp(enum ConditionType cond, BB *bb) {
 void new_ir_pusharg(VReg *vreg) {
   IR *ir = new_ir(IR_PUSHARG);
   ir->opr1 = vreg;
+  ir->size = WORD_SIZE;
 }
 
 void new_ir_precall(int arg_count) {
@@ -1112,6 +1113,8 @@ static void linear_scan_register_allocation(LiveInterval **sorted_intervals, int
 
   for (int i = 0; i < vreg_count; ++i) {
     LiveInterval *li = sorted_intervals[i];
+    if (li->spill)
+      continue;
     expire_old_intervals(active, &active_count, used, li->start);
     if (active_count >= REG_COUNT) {
       split_at_interval(active, active_count, li);
@@ -1142,15 +1145,6 @@ static void insert_load_store_instructions(BBContainer *bbcon, Vector *vregs) {
 
       switch (ir->type) {
       case IR_MOV:
-        if (ir->opr1->r == SPILLED_REG_NO)
-          vec_insert(irs, j++,
-                     new_ir_load_spilled(((VReg*)vregs->data[ir->opr1->v])->offset, ir->size));
-
-        if (ir->dst->r == SPILLED_REG_NO)
-          vec_insert(irs, ++j,
-                     new_ir_store_spilled(((VReg*)vregs->data[ir->dst->v])->offset, ir->size));
-        break;
-
       case IR_ADD:  // binops
       case IR_SUB:
       case IR_MUL:
@@ -1165,23 +1159,20 @@ static void insert_load_store_instructions(BBContainer *bbcon, Vector *vregs) {
       case IR_NOT:
       case IR_SET:
       case IR_TEST:
-        if (ir->opr1->r == SPILLED_REG_NO)
+      case IR_PUSHARG:
+      case IR_CALL:
+      case IR_RESULT:
+        if (ir->opr1 != NULL && ir->opr1->r == SPILLED_REG_NO)
           vec_insert(irs, j++,
                      new_ir_load_spilled(((VReg*)vregs->data[ir->opr1->v])->offset, ir->size));
 
-        if (ir->opr2->r == SPILLED_REG_NO)
+        if (ir->opr2 != NULL && ir->opr2->r == SPILLED_REG_NO)
           vec_insert(irs, j++,
                      new_ir_load_spilled(((VReg*)vregs->data[ir->opr2->v])->offset, ir->size));
 
-        if (ir->dst->r == SPILLED_REG_NO)
+        if (ir->dst != NULL && ir->dst->r == SPILLED_REG_NO)
           vec_insert(irs, ++j,
                      new_ir_store_spilled(((VReg*)vregs->data[ir->dst->v])->offset, ir->size));
-        break;
-
-      case IR_RESULT:
-        if (ir->opr1->r == SPILLED_REG_NO)
-          vec_insert(irs, j++,
-                     new_ir_load_spilled(((VReg*)vregs->data[ir->opr1->v])->offset, ir->size));
         break;
 
       default:
@@ -1191,7 +1182,8 @@ static void insert_load_store_instructions(BBContainer *bbcon, Vector *vregs) {
   }
 }
 
-size_t alloc_real_registers(BBContainer *bbcon) {
+size_t alloc_real_registers(Defun *defun) {
+  BBContainer *bbcon = defun->bbcon;
   for (int i = 0; i < bbcon->bbs->len; ++i) {
     BB *bb = bbcon->bbs->data[i];
     three_to_two(bb);
@@ -1200,6 +1192,19 @@ size_t alloc_real_registers(BBContainer *bbcon) {
   int vreg_count = ra->regno;
   LiveInterval *intervals;
   LiveInterval **sorted_intervals = check_live_interval(bbcon, ra->regno, &intervals);
+
+  if (defun->params != NULL) {
+    // Make function parameters all spilled.
+    for (int i = 0; i < defun->params->len; ++i) {
+      VarInfo *varinfo = defun->params->data[i];
+
+      LiveInterval *li = &intervals[varinfo->reg->v];
+      li->start = 0;
+      li->spill = true;
+      li->rreg = SPILLED_REG_NO;
+    }
+  }
+
   linear_scan_register_allocation(sorted_intervals, vreg_count);
 
   // Map vreg to rreg.
