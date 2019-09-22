@@ -149,6 +149,10 @@ typedef struct BB {
   struct BB *next;
   const char *label;
   Vector *irs;  // <IR*>
+
+  Vector *in_regs;  // <VReg*>
+  Vector *out_regs;  // <VReg*>
+  Vector *assigned_regs;  // <VReg*>
 } BB;
 
 extern BB *curbb;

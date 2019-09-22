@@ -878,6 +878,9 @@ BB *new_bb(void) {
   bb->next = NULL;
   bb->label = alloc_label();
   bb->irs = new_vector();
+  bb->in_regs = NULL;
+  bb->out_regs = NULL;
+  bb->assigned_regs = NULL;
   return bb;
 }
 
@@ -1093,6 +1096,15 @@ static LiveInterval **check_live_interval(BBContainer *bbcon, int vreg_count, Li
           li->end = nip;
       }
     }
+
+    for (int j = 0; j < bb->out_regs->len; ++j) {
+      VReg *reg = bb->out_regs->data[j];
+      LiveInterval *li = &intervals[reg->v];
+      if (li->start < 0)
+        li->start = nip;
+      if (li->end < nip)
+        li->end = nip;
+    }
   }
 
   // Sort by start, end
@@ -1155,6 +1167,7 @@ static void insert_load_store_instructions(BBContainer *bbcon, Vector *vregs) {
       case IR_BITXOR:
       case IR_LSHIFT:
       case IR_RSHIFT:
+      case IR_CMP:
       case IR_NEG:  // unary ops
       case IR_NOT:
       case IR_SET:
@@ -1182,12 +1195,81 @@ static void insert_load_store_instructions(BBContainer *bbcon, Vector *vregs) {
   }
 }
 
+static void analyze_reg_flow(BBContainer *bbcon) {
+  // Enumerate in and defined regsiters for each BB.
+  for (int i = 0; i < bbcon->bbs->len; ++i) {
+    BB *bb = bbcon->bbs->data[i];
+    Vector *in_regs = new_vector();
+    Vector *assigned_regs = new_vector();
+    Vector *irs = bb->irs;
+    for (int j = 0; j < irs->len; ++j) {
+      IR *ir = irs->data[j];
+      VReg *regs[] = {ir->opr1, ir->opr2};
+      for (int k = 0; k < 2; ++k) {
+        VReg *reg = regs[k];
+        if (reg == NULL)
+          continue;
+        if (!vec_contains(in_regs, reg) &&
+            !vec_contains(assigned_regs, reg))
+          vec_push(in_regs, reg);
+      }
+      if (ir->dst != NULL && !vec_contains(assigned_regs, ir->dst))
+        vec_push(assigned_regs, ir->dst);
+    }
+
+    bb->in_regs = in_regs;
+    bb->out_regs = new_vector();
+    bb->assigned_regs = assigned_regs;
+  }
+
+  // Propagate in regs to previous BB.
+  bool cont;
+  do {
+    cont = false;
+    for (int i = 0; i < bbcon->bbs->len; ++i) {
+      BB *bb = bbcon->bbs->data[i];
+      Vector *irs = bb->irs;
+
+      BB *next_bbs[2];
+      next_bbs[0] = bb->next;
+      next_bbs[1] = NULL;
+
+      if (irs->len > 0) {
+        IR *ir = irs->data[irs->len - 1];
+        if (ir->type == IR_JMP) {
+          next_bbs[1] = ir->u.jmp.bb;
+          if (ir->u.jmp.cond == COND_ANY)
+            next_bbs[0] = NULL;
+        }
+      }
+      for (int j = 0; j < 2; ++j) {
+        BB *next = next_bbs[j];
+        if (next == NULL)
+          continue;
+        Vector *in_regs = next->in_regs;
+        for (int k = 0; k < in_regs->len; ++k) {
+          VReg *reg = in_regs->data[k];
+          if (!vec_contains(bb->out_regs, reg))
+            vec_push(bb->out_regs, reg);
+          if (vec_contains(bb->assigned_regs, reg) ||
+              vec_contains(bb->in_regs, reg))
+            continue;
+          vec_push(bb->in_regs, reg);
+          cont = true;
+        }
+      }
+    }
+  } while (cont);
+}
+
 size_t alloc_real_registers(Defun *defun) {
   BBContainer *bbcon = defun->bbcon;
   for (int i = 0; i < bbcon->bbs->len; ++i) {
     BB *bb = bbcon->bbs->data[i];
     three_to_two(bb);
   }
+
+  analyze_reg_flow(bbcon);
 
   int vreg_count = ra->regno;
   LiveInterval *intervals;
