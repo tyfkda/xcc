@@ -388,29 +388,29 @@ static void gen_data(void) {
 
 //
 
-static const char *s_break_label;
-static const char *s_continue_label;
+static BB *s_break_bb;
+static BB *s_continue_bb;
 int stackpos;
 
-static void pop_break_label(const char *save) {
-  s_break_label = save;
+static void pop_break_bb(BB *save) {
+  s_break_bb = save;
 }
 
-static void pop_continue_label(const char *save) {
-  s_continue_label = save;
+static void pop_continue_bb(BB *save) {
+  s_continue_bb = save;
 }
 
-static BB *push_continue_bb(BB *parent_bb, const char **save) {
-  *save = s_continue_label;
+static BB *push_continue_bb(BB *parent_bb, BB **save) {
+  *save = s_continue_bb;
   BB *bb = bb_split(parent_bb);
-  s_continue_label = bb->label;
+  s_continue_bb = bb;
   return bb;
 }
 
-static BB * push_break_bb(BB *parent_bb, const char **save) {
-  *save = s_break_label;
+static BB *push_break_bb(BB *parent_bb, BB **save) {
+  *save = s_break_bb;
   BB *bb = bb_split(parent_bb);
-  s_break_label = bb->label;
+  s_break_bb = bb;
   return bb;
 }
 
@@ -695,21 +695,21 @@ static void gen_return(Node *node) {
   if (node->u.return_.val != NULL)
     gen_expr(node->u.return_.val);
   assert(curfunc != NULL);
-  new_ir_jmp(COND_ANY, curfunc->ret_bb->label);
+  new_ir_jmp(COND_ANY, curfunc->ret_bb);
   set_curbb(bb);
 }
 
 static void gen_if(Node *node) {
   BB *tbb = bb_split(curbb);
   BB *fbb = bb_split(tbb);
-  gen_cond_jmp(node->u.if_.cond, false, fbb->label);
+  gen_cond_jmp(node->u.if_.cond, false, fbb);
   set_curbb(tbb);
   gen(node->u.if_.tblock);
   if (node->u.if_.fblock == NULL) {
     set_curbb(fbb);
   } else {
     BB *nbb = bb_split(fbb);
-    new_ir_jmp(COND_ANY, nbb->label);
+    new_ir_jmp(COND_ANY, nbb);
     set_curbb(fbb);
     gen(node->u.if_.fblock);
     set_curbb(nbb);
@@ -724,7 +724,7 @@ static void gen_switch(Node *node) {
 
   Vector *save_case_values = cur_case_values;
   Vector *save_case_bbs = cur_case_bbs;
-  const char *save_break;
+  BB *save_break;
   BB *break_bb = push_break_bb(pbb, &save_break);
 
   Vector *bbs = new_vector();
@@ -746,10 +746,10 @@ static void gen_switch(Node *node) {
     BB *nextbb = bb_split(curbb);
     intptr_t x = (intptr_t)case_values->data[i];
     new_ir_cmpi(x, size);
-    new_ir_jmp(COND_EQ, ((BB*)bbs->data[i])->label);
+    new_ir_jmp(COND_EQ, bbs->data[i]);
     set_curbb(nextbb);
   }
-  new_ir_jmp(COND_ANY, ((BB*)bbs->data[len])->label);  // Jump to default.
+  new_ir_jmp(COND_ANY, bbs->data[len]);  // Jump to default.
   set_curbb(bb_split(curbb));
 
   // No bb setting.
@@ -769,7 +769,7 @@ static void gen_switch(Node *node) {
 
   cur_case_values = save_case_values;
   cur_case_bbs = save_case_bbs;
-  pop_break_label(save_break);
+  pop_break_bb(save_break);
 }
 
 static void gen_case(Node *node) {
@@ -801,27 +801,27 @@ static void gen_default(void) {
 static void gen_while(Node *node) {
   BB *loop_bb = bb_split(curbb);
 
-  const char *save_break, *save_cont;
+  BB *save_break, *save_cont;
   BB *cond_bb = push_continue_bb(loop_bb, &save_cont);
   BB *next_bb = push_break_bb(cond_bb, &save_break);
 
-  new_ir_jmp(COND_ANY, cond_bb->label);
+  new_ir_jmp(COND_ANY, cond_bb);
 
   set_curbb(loop_bb);
   gen(node->u.while_.body);
 
   set_curbb(cond_bb);
-  gen_cond_jmp(node->u.while_.cond, true, loop_bb->label);
+  gen_cond_jmp(node->u.while_.cond, true, loop_bb);
 
   set_curbb(next_bb);
-  pop_continue_label(save_cont);
-  pop_break_label(save_break);
+  pop_continue_bb(save_cont);
+  pop_break_bb(save_break);
 }
 
 static void gen_do_while(Node *node) {
   BB *loop_bb = bb_split(curbb);
 
-  const char *save_break, *save_cont;
+  BB *save_break, *save_cont;
   BB *cond_bb = push_continue_bb(loop_bb, &save_cont);
   BB *next_bb = push_break_bb(cond_bb, &save_break);
 
@@ -829,18 +829,18 @@ static void gen_do_while(Node *node) {
   gen(node->u.while_.body);
 
   set_curbb(cond_bb);
-  gen_cond_jmp(node->u.while_.cond, true, loop_bb->label);
+  gen_cond_jmp(node->u.while_.cond, true, loop_bb);
 
   set_curbb(next_bb);
-  pop_continue_label(save_cont);
-  pop_break_label(save_break);
+  pop_continue_bb(save_cont);
+  pop_break_bb(save_break);
 }
 
 static void gen_for(Node *node) {
   BB *cond_bb = bb_split(curbb);
   BB *body_bb = bb_split(cond_bb);
 
-  const char *save_break, *save_cont;
+  BB *save_break, *save_cont;
   BB *continue_bb = push_continue_bb(body_bb, &save_cont);
   BB *next_bb = push_break_bb(continue_bb, &save_break);
 
@@ -850,7 +850,7 @@ static void gen_for(Node *node) {
   set_curbb(cond_bb);
 
   if (node->u.for_.cond != NULL)
-    gen_cond_jmp(node->u.for_.cond, false, next_bb->label);
+    gen_cond_jmp(node->u.for_.cond, false, next_bb);
 
   set_curbb(body_bb);
   gen(node->u.for_.body);
@@ -858,24 +858,24 @@ static void gen_for(Node *node) {
   set_curbb(continue_bb);
   if (node->u.for_.post != NULL)
     gen_expr(node->u.for_.post);
-  new_ir_jmp(COND_ANY, cond_bb->label);
+  new_ir_jmp(COND_ANY, cond_bb);
 
   set_curbb(next_bb);
-  pop_continue_label(save_cont);
-  pop_break_label(save_break);
+  pop_continue_bb(save_cont);
+  pop_break_bb(save_break);
 }
 
 static void gen_break(void) {
-  assert(s_break_label != NULL);
+  assert(s_break_bb != NULL);
   BB *bb = bb_split(curbb);
-  new_ir_jmp(COND_ANY, s_break_label);
+  new_ir_jmp(COND_ANY, s_break_bb);
   set_curbb(bb);
 }
 
 static void gen_continue(void) {
-  assert(s_continue_label != NULL);
+  assert(s_continue_bb != NULL);
   BB *bb = bb_split(curbb);
-  new_ir_jmp(COND_ANY, s_continue_label);
+  new_ir_jmp(COND_ANY, s_continue_bb);
   set_curbb(bb);
 }
 
@@ -883,7 +883,7 @@ static void gen_goto(Node *node) {
   assert(curfunc->label_map != NULL);
   BB *bb = map_get(curfunc->label_map, node->u.goto_.ident);
   assert(bb != NULL);
-  new_ir_jmp(COND_ANY, bb->label);
+  new_ir_jmp(COND_ANY, bb);
 }
 
 static void gen_label(Node *node) {

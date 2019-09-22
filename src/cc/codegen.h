@@ -28,7 +28,7 @@ void gen_expr(Expr *expr);
 size_t type_size(const Type *type);
 void calc_struct_size(StructInfo *sinfo);
 
-void gen_cond_jmp(Expr *cond, bool tf, const char *label);
+void gen_cond_jmp(Expr *cond, bool tf, BB *bb);
 
 char *fmt(const char *s, ...);
 char *num(intptr_t x);  // x

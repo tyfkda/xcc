@@ -6,6 +6,7 @@
 #include <stddef.h>  // size_t
 #include <stdint.h>  // intptr_t
 
+typedef struct BB BB;
 typedef struct Vector Vector;
 
 enum IrType {
@@ -69,7 +70,7 @@ typedef struct {
       enum ConditionType cond;
     } set;
     struct {
-      const char *label;
+      BB *bb;
       enum ConditionType cond;
     } jmp;
     struct {
@@ -97,7 +98,7 @@ IR *new_ir_cmpi(intptr_t value, int size);
 IR *new_ir_incdec(bool inc, bool pre, int size, intptr_t value);
 IR *new_ir_st(enum IrType type);
 IR *new_ir_set(enum ConditionType cond);
-IR *new_ir_jmp(enum ConditionType cond, const char *label);
+IR *new_ir_jmp(enum ConditionType cond, BB *bb);
 IR *new_ir_call(const char *label, int arg_count);
 IR *new_ir_addsp(int value);
 IR *new_ir_cast(int dstsize, int srcsize);

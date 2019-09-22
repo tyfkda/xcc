@@ -88,9 +88,9 @@ IR *new_ir_set(enum ConditionType cond) {
   return ir;
 }
 
-IR *new_ir_jmp(enum ConditionType cond, const char *label) {
+IR *new_ir_jmp(enum ConditionType cond, BB *bb) {
   IR *ir = new_ir(IR_JMP);
-  ir->u.jmp.label = label;
+  ir->u.jmp.bb = bb;
   ir->u.jmp.cond = cond;
   return ir;
 }
@@ -516,13 +516,13 @@ void ir_out(const IR *ir) {
 
   case IR_JMP:
     switch (ir->u.jmp.cond) {
-    case COND_ANY:  JMP(ir->u.jmp.label); break;
-    case COND_EQ:   JE(ir->u.jmp.label); break;
-    case COND_NE:   JNE(ir->u.jmp.label); break;
-    case COND_LT:   JL(ir->u.jmp.label); break;
-    case COND_GT:   JG(ir->u.jmp.label); break;
-    case COND_LE:   JLE(ir->u.jmp.label); break;
-    case COND_GE:   JGE(ir->u.jmp.label); break;
+    case COND_ANY:  JMP(ir->u.jmp.bb->label); break;
+    case COND_EQ:   JE(ir->u.jmp.bb->label); break;
+    case COND_NE:   JNE(ir->u.jmp.bb->label); break;
+    case COND_LT:   JL(ir->u.jmp.bb->label); break;
+    case COND_GT:   JG(ir->u.jmp.bb->label); break;
+    case COND_LE:   JLE(ir->u.jmp.bb->label); break;
+    case COND_GE:   JGE(ir->u.jmp.bb->label); break;
     default:  assert(false); break;
     }
     break;
