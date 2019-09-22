@@ -124,4 +124,5 @@ typedef struct BBContainer {
 } BBContainer;
 
 BBContainer *new_func_blocks(void);
+void remove_unnecessary_bb(BBContainer *bbcon);
 void emit_bb_irs(BBContainer *bbcon);

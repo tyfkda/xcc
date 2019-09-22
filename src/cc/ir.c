@@ -633,6 +633,66 @@ BBContainer *new_func_blocks(void) {
   return bbcon;
 }
 
+static bool is_last_any_jmp(BB *bb) {
+  int len;
+  IR *ir;
+  return (len = bb->irs->len) > 0 &&
+      (ir = bb->irs->data[len - 1])->type == IR_JMP &&
+      ir->u.jmp.cond == COND_ANY;
+}
+
+static void replace_jmp_target(BBContainer *bbcon, BB *src, BB *dst) {
+  Vector *bbs = bbcon->bbs;
+  for (int j = 0; j < bbs->len; ++j) {
+    BB *bb = bbs->data[j];
+    if (bb == src)
+      continue;
+
+    IR *ir;
+    if (bb->next == src) {
+      if (dst == src->next || is_last_any_jmp(bb))
+        bb->next = src->next;
+    }
+    if (bb->irs->len > 0 &&
+        (ir = bb->irs->data[bb->irs->len - 1])->type == IR_JMP &&
+        ir->u.jmp.bb == src)
+      ir->u.jmp.bb = dst;
+  }
+}
+
+void remove_unnecessary_bb(BBContainer *bbcon) {
+  Vector *bbs = bbcon->bbs;
+  for (int i = 0; i < bbs->len - 1; ++i) {  // Make last one keeps alive.
+    BB *bb = bbs->data[i];
+    if (bb->irs->len == 0) {  // Empty BB.
+      replace_jmp_target(bbcon, bb, bb->next);
+    } else if (is_last_any_jmp(bb) && bb->irs->len == 1) {  // jmp only.
+      IR *ir = bb->irs->data[bb->irs->len - 1];
+      replace_jmp_target(bbcon, bb, ir->u.jmp.bb);
+      if (i == 0)
+        continue;
+      BB *pbb = bbs->data[i - 1];
+      if (!is_last_any_jmp(pbb))  // Fallthrough pass exists: keep the bb.
+        continue;
+    } else {
+      continue;
+    }
+
+    vec_remove_at(bbs, i);
+    --i;
+  }
+
+  // Remove jmp to next instruction.
+  for (int i = 0; i < bbs->len - 1; ++i) {  // Make last one keeps alive.
+    BB *bb = bbs->data[i];
+    if (!is_last_any_jmp(bb))
+      continue;
+    IR *ir = bb->irs->data[bb->irs->len - 1];
+    if (ir->u.jmp.bb == bb->next)
+      vec_pop(bb->irs);
+  }
+}
+
 void emit_bb_irs(BBContainer *bbcon) {
   for (int i = 0; i < bbcon->bbs->len; ++i) {
     BB *bb = bbcon->bbs->data[i];

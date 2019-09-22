@@ -631,6 +631,8 @@ static void gen_defun(Node *node) {
 
   set_curbb(defun->ret_bb);
 
+  remove_unnecessary_bb(defun->bbcon);
+
   // Prologue
   // Allocate variable bufer.
   if (!no_stmt) {
