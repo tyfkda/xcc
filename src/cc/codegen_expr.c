@@ -525,14 +525,22 @@ VReg *gen_expr(Expr *expr) {
   case EX_ASSIGN_WITH:
     {
       Expr *sub = expr->u.unary.sub;
-      VReg *lval = gen_lval(sub->u.bop.lhs);
-      VReg *rhs = gen_expr(sub->u.bop.rhs);
-      VReg *lhs = new_ir_unary(IR_LOAD, lval, type_size(sub->u.bop.lhs->valType));
-      VReg *result = gen_arith(sub->type, sub->valType, lhs, rhs);
-      gen_cast(result, expr->valType, sub->valType);
-      new_ir_store(lval, result, type_size(expr->valType));
-      new_ir_unreg(lval);
-      return result;
+      if (sub->u.bop.lhs->type == EX_VARREF && sub->u.bop.lhs->u.varref.scope != NULL) {
+        VReg *lhs = gen_expr(sub->u.bop.lhs);
+        VReg *rhs = gen_expr(sub->u.bop.rhs);
+        VReg *result = gen_arith(sub->type, sub->valType, lhs, rhs);
+        new_ir_mov(lhs, result, type_size(sub->u.bop.lhs->valType));
+        return result;
+      } else {
+        VReg *lval = gen_lval(sub->u.bop.lhs);
+        VReg *rhs = gen_expr(sub->u.bop.rhs);
+        VReg *lhs = new_ir_unary(IR_LOAD, lval, type_size(sub->u.bop.lhs->valType));
+        VReg *result = gen_arith(sub->type, sub->valType, lhs, rhs);
+        gen_cast(result, expr->valType, sub->valType);
+        new_ir_store(lval, result, type_size(expr->valType));
+        new_ir_unreg(lval);
+        return result;
+      }
     }
     break;
 
@@ -543,7 +551,21 @@ VReg *gen_expr(Expr *expr) {
       if (expr->valType->type == TY_PTR)
         value = type_size(expr->valType->u.pa.ptrof);
       int size = type_size(expr->valType);
-      VReg *lval = gen_lval(expr->u.unary.sub);
+
+      Expr *sub = expr->u.unary.sub;
+      if (sub->type == EX_VARREF) {
+        Scope *scope = sub->u.varref.scope;
+        VarInfo *varinfo = scope_find(&scope, sub->u.varref.ident);
+        if (varinfo != NULL && !(varinfo->flag & VF_STATIC)) {
+          VReg *num = new_ir_imm(value, size);
+          VReg *result = new_ir_bop(expr->type == EX_PREINC ? IR_ADD : IR_SUB,
+                                    varinfo->reg, num, size);
+          new_ir_mov(varinfo->reg, result, size);
+          return result;
+        }
+      }
+
+      VReg *lval = gen_lval(sub);
       new_ir_incdec(expr->type == EX_PREINC ? IR_INC : IR_DEC,
                     lval, size, value);
       VReg *result = new_ir_unary(IR_LOAD, lval, size);
@@ -558,6 +580,22 @@ VReg *gen_expr(Expr *expr) {
       if (expr->valType->type == TY_PTR)
         value = type_size(expr->valType->u.pa.ptrof);
       int size = type_size(expr->valType);
+
+      Expr *sub = expr->u.unary.sub;
+      if (sub->type == EX_VARREF) {
+        Scope *scope = sub->u.varref.scope;
+        VarInfo *varinfo = scope_find(&scope, sub->u.varref.ident);
+        if (varinfo != NULL && !(varinfo->flag & VF_STATIC)) {
+          VReg *org_val = add_new_reg();
+          new_ir_mov(org_val, varinfo->reg, size);
+          VReg *num = new_ir_imm(value, size);
+          VReg *result = new_ir_bop(expr->type == EX_POSTINC ? IR_ADD : IR_SUB,
+                                    varinfo->reg, num, size);
+          new_ir_mov(varinfo->reg, result, size);
+          return org_val;
+        }
+      }
+
       VReg *lval = gen_lval(expr->u.unary.sub);
       VReg *result = new_ir_unary(IR_LOAD, lval, size);
       new_ir_incdec(expr->type == EX_POSTINC ? IR_INC : IR_DEC,
