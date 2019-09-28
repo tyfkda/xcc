@@ -62,7 +62,7 @@ size_t type_size(const Type *type) {
   }
 }
 
-static int align_size(const Type *type) {
+int align_size(const Type *type) {
   switch (type->type) {
   case TY_VOID:
     return 1;  // ?
@@ -424,7 +424,18 @@ static void alloc_variable_registers(Defun *defun) {
         VarInfo *varinfo = (VarInfo*)scope->vars->data[j];
         if (varinfo->flag & VF_STATIC)
           continue;  // Static variable is not allocated on stack.
-        varinfo->reg = add_new_reg();
+        VReg *vreg = add_new_reg();
+        switch (varinfo->type->type) {
+        case TY_ARRAY:
+        case TY_STRUCT:
+          // Make non-primitive variable spilled.
+          vreg_spill(vreg);
+          vreg->type = varinfo->type;
+          break;
+        default:
+          break;
+        }
+        varinfo->reg = vreg;
       }
     }
   }
@@ -862,8 +873,7 @@ static void gen_label(Node *node) {
 
 static void gen_clear_local_var(const VarInfo *varinfo) {
   // Fill with zeros regardless of variable type.
-  int offset = varinfo->offset;
-  VReg *reg = new_ir_bofs(offset);
+  VReg *reg = new_ir_bofs(varinfo->reg);
   new_ir_clear(reg, type_size(varinfo->type));
   new_ir_unreg(reg);
 }

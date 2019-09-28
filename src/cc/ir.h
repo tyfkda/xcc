@@ -8,6 +8,7 @@
 
 typedef struct BB BB;
 typedef struct Defun Defun;
+typedef struct Type Type;
 typedef struct Vector Vector;
 
 // Virtual register
@@ -15,10 +16,12 @@ typedef struct Vector Vector;
 typedef struct VReg {
   int v;
   int r;
+  const Type *type;
   int offset;  // Local offset for spilled register.
 } VReg;
 
 VReg *new_vreg(int vreg_no);
+void vreg_spill(VReg *vreg);
 
 // Intermediate Representation
 
@@ -109,7 +112,7 @@ VReg *new_ir_imm(intptr_t value, int size);
 VReg *new_ir_bop(enum IrType type, VReg *opr1, VReg *opr2, int size);
 VReg *new_ir_unary(enum IrType type, VReg *opr, int size);
 void new_ir_mov(VReg *dst, VReg *src, int size);
-VReg *new_ir_bofs(int offset);
+VReg *new_ir_bofs(VReg *src);
 VReg *new_ir_iofs(const char *label);
 void new_ir_store(VReg *dst, VReg *src, int size);
 void new_ir_memcpy(VReg *dst, VReg *src, int size);

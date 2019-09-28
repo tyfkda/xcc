@@ -22,7 +22,13 @@ VReg *new_vreg(int vreg_no) {
   VReg *vreg = malloc(sizeof(*vreg));
   vreg->v = vreg_no;
   vreg->r = -1;
+  vreg->type = NULL;
+  vreg->offset = 0;
   return vreg;
+}
+
+void vreg_spill(VReg *vreg) {
+  vreg->r = SPILLED_REG_NO;
 }
 
 // Register allocator
@@ -136,9 +142,9 @@ VReg *new_ir_unary(enum IrType type, VReg *opr, int size) {
   return ir->dst = reg_alloc_spawn(ra);
 }
 
-VReg *new_ir_bofs(int offset) {
+VReg *new_ir_bofs(VReg *src) {
   IR *ir = new_ir(IR_BOFS);
-  ir->value = offset;
+  ir->opr1 = src;
   return ir->dst = reg_alloc_spawn(ra);
 }
 
@@ -413,7 +419,7 @@ void ir_out(const IR *ir) {
     break;
 
   case IR_BOFS:
-    LEA(OFFSET_INDIRECT(ir->value, RBP), kReg64s[ir->dst->r]);
+    LEA(OFFSET_INDIRECT(ir->opr1->offset, RBP), kReg64s[ir->dst->r]);
     break;
 
   case IR_IOFS:
@@ -1275,6 +1281,15 @@ size_t alloc_real_registers(Defun *defun) {
   LiveInterval *intervals;
   LiveInterval **sorted_intervals = check_live_interval(bbcon, ra->regno, &intervals);
 
+  for (int i = 0; i < vreg_count; ++i) {
+    LiveInterval *li = &intervals[i];
+    VReg *vreg = ra->vregs->data[i];
+    if (vreg->r == SPILLED_REG_NO) {
+      li->spill = true;
+      li->rreg = vreg->r;
+    }
+  }
+
   if (defun->params != NULL) {
     // Make function parameters all spilled.
     for (int i = 0; i < defun->params->len; ++i) {
@@ -1302,7 +1317,15 @@ size_t alloc_real_registers(Defun *defun) {
     if (!li->spill)
       continue;
     VReg *vreg = ra->vregs->data[li->vreg];
-    frame_size += 8;
+    int size = WORD_SIZE, align = WORD_SIZE;
+    if (vreg->type != NULL) {
+      const Type *type = vreg->type;
+      size = type_size(type);
+      align = align_size(type);
+      if (size < 1)
+        size = 1;
+    }
+    frame_size = ALIGN(frame_size + size, align);
     vreg->offset = -frame_size;
   }
 
@@ -1346,7 +1369,7 @@ void dump_ir(IR *ir) {
   FILE *fp = stderr;
   switch (ir->type) {
   case IR_IMM:    fprintf(fp, "\tIMM\tR%d%s = %"PRIdPTR"\n", dst, kSize[ir->size], ir->value); break;
-  case IR_BOFS:   fprintf(fp, "\tBOFS\tR%d = &[rbp %c %"PRIdPTR"]\n", dst, ir->value > 0 ? '+' : '-', ir->value > 0 ? ir->value : -ir->value); break;
+  case IR_BOFS:   fprintf(fp, "\tBOFS\tR%d = &[rbp %c %d]\n", dst, ir->opr1->offset > 0 ? '+' : '-', ir->opr1->offset > 0 ? ir->opr1->offset : -ir->opr1->offset); break;
   case IR_IOFS:   fprintf(fp, "\tIOFS\tR%d = &%s\n", dst, ir->u.iofs.label); break;
   case IR_LOAD:   fprintf(fp, "\tLOAD\tR%d%s = (R%d)\n", dst, kSize[ir->size], opr1); break;
   case IR_STORE:  fprintf(fp, "\tSTORE\t(R%d) = R%d%s\n", opr2, opr1, kSize[ir->size]); break;

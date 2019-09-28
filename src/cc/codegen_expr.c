@@ -201,8 +201,7 @@ static VReg *gen_lval(Expr *expr) {
       VarInfo *varinfo = scope_find(&scope, expr->u.varref.ident);
       assert(varinfo != NULL);
       assert(!(varinfo->flag & VF_STATIC));
-      int offset = varinfo->offset;
-      return new_ir_bofs(offset);
+      return new_ir_bofs(varinfo->reg);
     }
     break;
   case EX_DEREF:

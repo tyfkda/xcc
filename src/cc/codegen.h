@@ -27,6 +27,7 @@ extern int stackpos;
 
 VReg *gen_expr(Expr *expr);
 size_t type_size(const Type *type);
+int align_size(const Type *type);
 void calc_struct_size(StructInfo *sinfo);
 
 void gen_cond_jmp(Expr *cond, bool tf, BB *bb);
