@@ -416,26 +416,45 @@ static BB *push_break_bb(BB *parent_bb, BB **save) {
   return bb;
 }
 
+static int arrange_variadic_func_params(Scope *scope) {
+  // Arrange parameters increasing order in stack,
+  // and each parameter occupies sizeof(intptr_t).
+  for (int i = 0; i < scope->vars->len; ++i) {
+    VarInfo *varinfo = (VarInfo*)scope->vars->data[i];
+    VReg *vreg = add_new_reg();
+    vreg_spill(vreg);
+    vreg->type = varinfo->type;
+    vreg->offset = (i - MAX_REG_ARGS) * WORD_SIZE;
+    varinfo->reg = vreg;
+  }
+  return MAX_REG_ARGS * WORD_SIZE;
+}
+
 static void alloc_variable_registers(Defun *defun) {
   for (int i = 0; i < defun->all_scopes->len; ++i) {
     Scope *scope = (Scope*)defun->all_scopes->data[i];
     if (scope->vars != NULL) {
-      for (int j = 0; j < scope->vars->len; ++j) {
-        VarInfo *varinfo = (VarInfo*)scope->vars->data[j];
-        if (varinfo->flag & VF_STATIC)
-          continue;  // Static variable is not allocated on stack.
-        VReg *vreg = add_new_reg();
-        switch (varinfo->type->type) {
-        case TY_ARRAY:
-        case TY_STRUCT:
-          // Make non-primitive variable spilled.
-          vreg_spill(vreg);
-          vreg->type = varinfo->type;
-          break;
-        default:
-          break;
+      if (i == 0 && defun->type->u.func.vaargs) {  // Variadic function parameters.
+        // Special arrangement for va_list.
+        arrange_variadic_func_params(scope);
+      } else {
+        for (int j = 0; j < scope->vars->len; ++j) {
+          VarInfo *varinfo = (VarInfo*)scope->vars->data[j];
+          if (varinfo->flag & VF_STATIC)
+            continue;  // Static variable is not allocated on stack.
+          VReg *vreg = add_new_reg();
+          switch (varinfo->type->type) {
+          case TY_ARRAY:
+          case TY_STRUCT:
+            // Make non-primitive variable spilled.
+            vreg_spill(vreg);
+            vreg->type = varinfo->type;
+            break;
+          default:
+            break;
+          }
+          varinfo->reg = vreg;
         }
-        varinfo->reg = vreg;
       }
     }
   }

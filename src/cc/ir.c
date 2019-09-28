@@ -1319,6 +1319,12 @@ size_t alloc_real_registers(Defun *defun) {
     VReg *vreg = ra->vregs->data[li->vreg];
     int size = WORD_SIZE, align = WORD_SIZE;
     if (vreg->type != NULL) {
+      if (vreg->offset != 0) {  // Variadic function parameter.
+        if (-vreg->offset > (int)frame_size)
+          frame_size = -vreg->offset;
+        continue;
+      }
+
       const Type *type = vreg->type;
       size = type_size(type);
       align = align_size(type);
