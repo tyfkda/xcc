@@ -490,12 +490,21 @@ VReg *gen_expr(Expr *expr) {
       VReg *src = gen_expr(expr->u.bop.rhs);
       if (expr->u.bop.lhs->type == EX_VARREF) {
         Expr *lhs = expr->u.bop.lhs;
-        Scope *scope = lhs->u.varref.scope;
-        VarInfo *varinfo = scope_find(&scope, lhs->u.varref.ident);
-        if (varinfo != NULL && !(varinfo->flag & VF_STATIC)) {
-          assert(varinfo->reg != NULL);
-          new_ir_mov(varinfo->reg, src, type_size(lhs->valType));
-          return src;
+        switch (lhs->valType->type) {
+        case TY_NUM:
+        case TY_PTR:
+          {
+            Scope *scope = lhs->u.varref.scope;
+            VarInfo *varinfo = scope_find(&scope, lhs->u.varref.ident);
+            if (varinfo != NULL && !(varinfo->flag & VF_STATIC)) {
+              assert(varinfo->reg != NULL);
+              new_ir_mov(varinfo->reg, src, type_size(lhs->valType));
+              return src;
+            }
+          }
+          break;
+        default:
+          break;
         }
       }
 

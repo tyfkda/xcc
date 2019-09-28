@@ -121,9 +121,9 @@ try_direct 'switch w/o case' 1 'int main(){ int x = 0; switch (0) {default: x = 
 try 'post inc pointer' 1 'char *p = (char*)(-1L); p++; return p == 0;'
 try_direct 'more params' 36 'int func(int a, int b, int c, int d, int e, int f, char g, long h) { return a + b + c + d + e + f + g + h; } int main(){ return func(1, 2, 3, 4, 5, 6, 7, 8); }'
 try 'shadow var' 10 'int x = 1; { x = 10; int x = 100; } return x;'
-#try_direct 'struct assign' 33 'struct Foo { int x; }; int main(){ struct Foo foo, bar; foo.x = 33; bar = foo; return bar.x; }'
-#try_direct 'struct initial assign' 55 'struct Foo { int x; }; int main(){ struct Foo foo = {55}, bar = foo; return bar.x; }'
-#try_direct 'struct deref' 44 'struct Foo { long x; }; int main(){ struct Foo foo, bar, *baz = &bar; baz->x = 44; foo = *baz; return foo.x; }'
+try_direct 'struct assign' 33 'struct Foo { int x; }; int main(){ struct Foo foo, bar; foo.x = 33; bar = foo; return bar.x; }'
+try_direct 'struct initial assign' 55 'struct Foo { int x; }; int main(){ struct Foo foo = {55}, bar = foo; return bar.x; }'
+try_direct 'struct deref' 44 'struct Foo { long x; }; int main(){ struct Foo foo, bar, *baz = &bar; baz->x = 44; foo = *baz; return foo.x; }'
 try_direct 'typedef can use in local' 61 'typedef int Foo; int main(){ int Foo = 61; return Foo; }'
 
 # error cases
