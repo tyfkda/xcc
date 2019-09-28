@@ -125,7 +125,7 @@ void new_ir_precall(int arg_count);
 void new_ir_pusharg(VReg *vreg);
 VReg *new_ir_call(const char *label, VReg *freg, int arg_count, int result_size);
 void new_ir_addsp(int value);
-void new_ir_cast(VReg *vreg, int dstsize, int srcsize);
+VReg *new_ir_cast(VReg *vreg, int dstsize, int srcsize);
 void new_ir_clear(VReg *reg, size_t size);
 void new_ir_copy(VReg *dst, VReg *src, int size);
 void new_ir_result(VReg *reg, int size);

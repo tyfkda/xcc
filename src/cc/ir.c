@@ -226,11 +226,12 @@ void new_ir_addsp(int value) {
   ir->value = value;
 }
 
-void new_ir_cast(VReg *vreg, int dstsize, int srcsize) {
+VReg *new_ir_cast(VReg *vreg, int dstsize, int srcsize) {
   IR *ir = new_ir(IR_CAST);
   ir->opr1 = vreg;
   ir->size = dstsize;
   ir->u.cast.srcsize = srcsize;
+  return ir->dst = reg_alloc_spawn(ra);
 }
 
 void new_ir_clear(VReg *reg, size_t size) {
@@ -774,26 +775,34 @@ void ir_out(const IR *ir) {
     break;
 
   case IR_CAST:
+    switch (ir->u.cast.srcsize) {
+    case 1:  MOV(kReg8s[ir->opr1->r], kReg8s[ir->dst->r]); break;
+    case 2:  MOV(kReg16s[ir->opr1->r], kReg16s[ir->dst->r]); break;
+    case 4:  MOV(kReg32s[ir->opr1->r], kReg32s[ir->dst->r]); break;
+    case 8:  MOV(kReg64s[ir->opr1->r], kReg64s[ir->dst->r]); break;
+    default: assert(false); break;
+    }
+
     if (ir->size > ir->u.cast.srcsize) {
       switch (ir->size) {
       case 2:
         switch (ir->u.cast.srcsize) {
-        case 1:  MOVSX(kReg8s[ir->opr1->r], kReg16s[ir->opr1->r]); break;
+        case 1:  MOVSX(kReg8s[ir->dst->r], kReg16s[ir->dst->r]); break;
         default:  assert(false); break;
         }
         break;
       case 4:
         switch (ir->u.cast.srcsize) {
-        case 1:  MOVSX(kReg8s[ir->opr1->r], kReg32s[ir->opr1->r]); break;
-        case 2:  MOVSX(kReg16s[ir->opr1->r], kReg32s[ir->opr1->r]); break;
+        case 1:  MOVSX(kReg8s[ir->dst->r], kReg32s[ir->dst->r]); break;
+        case 2:  MOVSX(kReg16s[ir->dst->r], kReg32s[ir->dst->r]); break;
         default:  assert(false); break;
         }
         break;
       case 8:
         switch (ir->u.cast.srcsize) {
-        case 1:  MOVSX(kReg8s[ir->opr1->r], kReg64s[ir->opr1->r]); break;
-        case 2:  MOVSX(kReg16s[ir->opr1->r], kReg64s[ir->opr1->r]); break;
-        case 4:  MOVSX(kReg32s[ir->opr1->r], kReg64s[ir->opr1->r]); break;
+        case 1:  MOVSX(kReg8s[ir->dst->r], kReg64s[ir->dst->r]); break;
+        case 2:  MOVSX(kReg16s[ir->dst->r], kReg64s[ir->dst->r]); break;
+        case 4:  MOVSX(kReg32s[ir->dst->r], kReg64s[ir->dst->r]); break;
         default:
           assert(false); break;
         }
@@ -1186,6 +1195,7 @@ static void insert_load_store_instructions(BBContainer *bbcon, Vector *vregs) {
       case IR_TEST:
       case IR_PUSHARG:
       case IR_CALL:
+      case IR_CAST:
       case IR_RESULT:
         if (ir->opr1 != NULL && ir->opr1->r == SPILLED_REG_NO)
           vec_insert(irs, j++,
@@ -1413,7 +1423,7 @@ void dump_ir(IR *ir) {
       fprintf(fp, "\tCALL\tR%d%s = *R%d\n", dst, kSize[ir->size], opr1);
     break;
   case IR_ADDSP:  fprintf(fp, "\tADDSP\t%"PRIdPTR"\n", ir->value); break;
-  case IR_CAST:   fprintf(fp, "\tCAST\tR%d (%d->%d)\n", opr1, ir->u.cast.srcsize, ir->size); break;
+  case IR_CAST:   fprintf(fp, "\tCAST\tR%d%s = R%d%s\n", dst, kSize[ir->size], opr1, kSize[ir->u.cast.srcsize]); break;
   case IR_CLEAR:  fprintf(fp, "\tCLEAR\tR%d, %d\n", opr1, ir->size); break;
   case IR_COPY:   fprintf(fp, "\tCOPY\tR%d%s = R%d%s\n", dst, kSize[ir->size], opr1, kSize[ir->size]); break;
   case IR_RESULT: fprintf(fp, "\tRESULT\tR%d%s\n", opr1, kSize[ir->size]); break;

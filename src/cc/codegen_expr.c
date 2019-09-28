@@ -173,14 +173,16 @@ void gen_cond_jmp(Expr *cond, bool tf, BB *bb) {
   new_ir_jmp(tf ? COND_NE : COND_EQ, bb);
 }
 
-static void gen_cast(VReg *reg, const Type *ltypep, const Type *rtypep) {
+static VReg *gen_cast(VReg *reg, const Type *ltypep, const Type *rtypep) {
   size_t dst_size = type_size(ltypep);
   size_t src_size;
   if (rtypep->type == TY_ARRAY)
     src_size = WORD_SIZE;
   else
     src_size = type_size(rtypep);
-  new_ir_cast(reg, dst_size, src_size);
+  if (dst_size == src_size)
+    return reg;
+  return new_ir_cast(reg, dst_size, src_size);
 }
 
 static VReg *gen_rval(Expr *expr) {
@@ -479,8 +481,7 @@ VReg *gen_expr(Expr *expr) {
       return new_ir_imm(value, type_size(expr->valType));
     } else {
       VReg *reg = gen_expr(expr->u.unary.sub);
-      gen_cast(reg, expr->valType, expr->u.unary.sub->valType);
-      return reg;
+      return gen_cast(reg, expr->valType, expr->u.unary.sub->valType);
     }
     break;
 
@@ -531,8 +532,8 @@ VReg *gen_expr(Expr *expr) {
         VReg *rhs = gen_expr(sub->u.bop.rhs);
         VReg *lhs = new_ir_unary(IR_LOAD, lval, type_size(sub->u.bop.lhs->valType));
         VReg *result = gen_arith(sub->type, sub->valType, lhs, rhs);
-        gen_cast(result, expr->valType, sub->valType);
-        new_ir_store(lval, result, type_size(expr->valType));
+        VReg *cast = gen_cast(result, expr->valType, sub->valType);
+        new_ir_store(lval, cast, type_size(expr->valType));
         new_ir_unreg(lval);
         return result;
       }
