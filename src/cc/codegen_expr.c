@@ -67,7 +67,11 @@ static enum ConditionType gen_compare_expr(enum ExprType type, Expr *lhs, Expr *
     }
 
     VReg *rhs_reg = gen_expr(rhs);
-    new_ir_cmp(lhs_reg, rhs_reg, type_size(lhs->valType));
+    // Allocate new register to avoid comparing spilled registers.
+    int size = type_size(lhs->valType);
+    VReg *tmp = add_new_reg();
+    new_ir_mov(tmp, lhs_reg, size);
+    new_ir_cmp(tmp, rhs_reg, size);
     new_ir_unreg(rhs_reg);
     new_ir_unreg(lhs_reg);
   }
