@@ -1210,6 +1210,21 @@ static void insert_load_store_instructions(BBContainer *bbcon, Vector *vregs) {
                      new_ir_store_spilled(((VReg*)vregs->data[ir->dst->v])->offset, ir->size));
         break;
 
+      case IR_LOAD:
+      case IR_STORE:
+        if (ir->opr1 != NULL && ir->opr1->r == SPILLED_REG_NO)
+          vec_insert(irs, j++,
+                     new_ir_load_spilled(((VReg*)vregs->data[ir->opr1->v])->offset, WORD_SIZE));
+
+        if (ir->opr2 != NULL && ir->opr2->r == SPILLED_REG_NO)
+          vec_insert(irs, j++,
+                     new_ir_load_spilled(((VReg*)vregs->data[ir->opr2->v])->offset, WORD_SIZE));
+
+        if (ir->dst != NULL && ir->dst->r == SPILLED_REG_NO)
+          vec_insert(irs, ++j,
+                     new_ir_store_spilled(((VReg*)vregs->data[ir->dst->v])->offset, ir->size));
+        break;
+
       default:
         break;
       }
