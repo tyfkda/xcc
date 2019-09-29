@@ -190,6 +190,13 @@ static VReg *gen_rval(Expr *expr) {
 }
 
 static VReg *gen_ref(Expr *expr) {
+  if (expr->type == EX_VARREF && expr->u.varref.scope != NULL) {
+    Scope *scope = expr->u.varref.scope;
+    VarInfo *varinfo = scope_find(&scope, expr->u.varref.ident);
+    if (!(varinfo->flag & VF_STATIC)) {
+      vreg_spill(varinfo->reg);
+    }
+  }
   return gen_lval(expr);
 }
 
