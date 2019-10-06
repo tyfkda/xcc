@@ -32,9 +32,10 @@ static Defun *new_defun(const Type *rettype, const char *name, Vector *params, i
   defun->stmts = NULL;
   defun->top_scope = NULL;
   defun->all_scopes = new_vector();
-  defun->labels = NULL;
+  defun->label_map = NULL;
   defun->gotos = NULL;
-  defun->ret_label = NULL;
+  defun->bbcon = NULL;
+  defun->ret_bb = NULL;
   return defun;
 }
 

@@ -80,9 +80,9 @@ static void fix_array_size(Type *type, Initializer *init) {
 
 static void add_func_label(const char *label) {
   assert(curfunc != NULL);
-  if (curfunc->labels == NULL)
-    curfunc->labels = new_map();
-  map_put(curfunc->labels, label, label);  // Put dummy value.
+  if (curfunc->label_map == NULL)
+    curfunc->label_map = new_map();
+  map_put(curfunc->label_map, label, NULL);  // Put dummy value.
 }
 
 static void add_func_goto(Node *node) {
@@ -648,10 +648,11 @@ static void sema_defun(Defun *defun) {
     // Check goto labels.
     if (defun->gotos != NULL) {
       Vector *gotos = defun->gotos;
-      Map *labels = defun->labels;
+      Map *label_map = defun->label_map;
       for (int i = 0; i < gotos->len; ++i) {
         Node *node = gotos->data[i];
-        if (labels == NULL || map_get(labels, node->u.goto_.ident) == NULL)
+        void *bb;
+        if (label_map == NULL || !map_try_get(label_map, node->u.goto_.ident, &bb))
           parse_error(node->u.goto_.tok, "`%s' not found", node->u.goto_.ident);
       }
     }

@@ -3,6 +3,8 @@
 #include <stdbool.h>
 #include <stdint.h>  // intptr_t
 
+typedef struct BB BB;
+typedef struct BBContainer BBContainer;
 typedef struct Defun Defun;
 typedef struct Expr Expr;
 typedef struct Map Map;
@@ -25,11 +27,14 @@ typedef struct Defun {
   const Type *type;
   Scope *top_scope;
   Vector *all_scopes;
-  Map *labels;
+  Map *label_map;  // <const char*, BB*>
   Vector *gotos;
 
   // For codegen.
-  const char *ret_label;
+
+  // BasicBlock
+  BBContainer *bbcon;
+  BB *ret_bb;
 } Defun;
 
 // Initializer
