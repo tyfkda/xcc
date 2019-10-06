@@ -72,7 +72,7 @@ static enum ConditionType gen_compare_expr(enum ExprType type, Expr *lhs, Expr *
   return cond;
 }
 
-void gen_cond_jmp(Expr *cond, bool tf, const char *label) {
+void gen_cond_jmp(Expr *cond, bool tf, BB *bb) {
   // Local optimization: if `cond` is compare expression, then
   // jump using flags after CMP directly.
   switch (cond->type) {
@@ -80,7 +80,7 @@ void gen_cond_jmp(Expr *cond, bool tf, const char *label) {
     if (cond->u.num.ival == 0)
       tf = !tf;
     if (tf)
-      new_ir_jmp(COND_ANY, label);
+      new_ir_jmp(COND_ANY, bb);
     return;
 
   case EX_EQ:
@@ -90,9 +90,9 @@ void gen_cond_jmp(Expr *cond, bool tf, const char *label) {
       if (type != COND_EQ)
         tf = !tf;
       if (tf)
-        new_ir_jmp(COND_EQ, label);
+        new_ir_jmp(COND_EQ, bb);
       else
-        new_ir_jmp(COND_NE, label);
+        new_ir_jmp(COND_NE, bb);
       return;
     }
   case EX_LT:
@@ -107,46 +107,58 @@ void gen_cond_jmp(Expr *cond, bool tf, const char *label) {
         if (type != COND_LT)
           tf = !tf;
         if (tf)
-          new_ir_jmp(COND_LT, label);
+          new_ir_jmp(COND_LT, bb);
         else
-          new_ir_jmp(COND_GE, label);
+          new_ir_jmp(COND_GE, bb);
         break;
       case COND_GT:
       case COND_LE:
         if (type != COND_GT)
           tf = !tf;
         if (tf)
-          new_ir_jmp(COND_GT, label);
+          new_ir_jmp(COND_GT, bb);
         else
-          new_ir_jmp(COND_LE, label);
+          new_ir_jmp(COND_LE, bb);
         break;
       default:  assert(false); break;
       }
     }
     return;
   case EX_NOT:
-    gen_cond_jmp(cond->u.unary.sub, !tf, label);
+    gen_cond_jmp(cond->u.unary.sub, !tf, bb);
     return;
   case EX_LOGAND:
     if (!tf) {
-      gen_cond_jmp(cond->u.bop.lhs, false, label);
-      gen_cond_jmp(cond->u.bop.rhs, false, label);
+      BB *bb1 = bb_split(curbb);
+      BB *bb2 = bb_split(bb1);
+      gen_cond_jmp(cond->u.bop.lhs, false, bb);
+      set_curbb(bb1);
+      gen_cond_jmp(cond->u.bop.rhs, false, bb);
+      set_curbb(bb2);
     } else {
-      const char *skip = alloc_label();
-      gen_cond_jmp(cond->u.bop.lhs, false, skip);
-      gen_cond_jmp(cond->u.bop.rhs, true, label);
-      new_ir_label(skip, false);
+      BB *bb1 = bb_split(curbb);
+      BB *bb2 = bb_split(bb1);
+      gen_cond_jmp(cond->u.bop.lhs, false, bb2);
+      set_curbb(bb1);
+      gen_cond_jmp(cond->u.bop.rhs, true, bb);
+      set_curbb(bb2);
     }
     return;
   case EX_LOGIOR:
     if (tf) {
-      gen_cond_jmp(cond->u.bop.lhs, true, label);
-      gen_cond_jmp(cond->u.bop.rhs, true, label);
+      BB *bb1 = bb_split(curbb);
+      BB *bb2 = bb_split(bb1);
+      gen_cond_jmp(cond->u.bop.lhs, true, bb);
+      set_curbb(bb1);
+      gen_cond_jmp(cond->u.bop.rhs, true, bb);
+      set_curbb(bb2);
     } else {
-      const char *skip = alloc_label();
-      gen_cond_jmp(cond->u.bop.lhs, true, skip);
-      gen_cond_jmp(cond->u.bop.rhs, false, label);
-      new_ir_label(skip, false);
+      BB *bb1 = bb_split(curbb);
+      BB *bb2 = bb_split(bb1);
+      gen_cond_jmp(cond->u.bop.lhs, true, bb2);
+      set_curbb(bb1);
+      gen_cond_jmp(cond->u.bop.rhs, false, bb);
+      set_curbb(bb2);
     }
     return;
   default:
@@ -155,7 +167,7 @@ void gen_cond_jmp(Expr *cond, bool tf, const char *label) {
 
   gen_expr(cond);
   gen_test_opcode(cond->valType);
-  new_ir_jmp(tf ? COND_NE : COND_EQ, label);
+  new_ir_jmp(tf ? COND_NE : COND_EQ, bb);
 }
 
 static void gen_cast(const Type *ltypep, const Type *rtypep) {
@@ -237,14 +249,20 @@ static void gen_varref(Expr *expr) {
 }
 
 static void gen_ternary(Expr *expr) {
-  const char *nlabel = alloc_label();
-  const char *flabel = alloc_label();
-  gen_cond_jmp(expr->u.ternary.cond, false, flabel);
+  BB *tbb = bb_split(curbb);
+  BB *fbb = bb_split(tbb);
+  BB *nbb = bb_split(fbb);
+
+  gen_cond_jmp(expr->u.ternary.cond, false, fbb);
+
+  set_curbb(tbb);
   gen_expr(expr->u.ternary.tval);
-  new_ir_jmp(COND_ANY, nlabel);
-  new_ir_label(flabel, false);
+  new_ir_jmp(COND_ANY, nbb);
+
+  set_curbb(fbb);
   gen_expr(expr->u.ternary.fval);
-  new_ir_label(nlabel, false);
+
+  set_curbb(nbb);
 }
 
 static void gen_funcall(Expr *expr) {
@@ -511,29 +529,37 @@ void gen_expr(Expr *expr) {
 
   case EX_LOGAND:
     {
-      const char *l_false = alloc_label();
-      const char *l_next = alloc_label();
-      gen_cond_jmp(expr->u.bop.lhs, false, l_false);
-      gen_cond_jmp(expr->u.bop.rhs, false, l_false);
+      BB *bb1 = bb_split(curbb);
+      BB *bb2 = bb_split(bb1);
+      BB *false_bb = bb_split(bb2);
+      BB *next_bb = bb_split(false_bb);
+      gen_cond_jmp(expr->u.bop.lhs, false, false_bb);
+      set_curbb(bb1);
+      gen_cond_jmp(expr->u.bop.rhs, false, false_bb);
+      set_curbb(bb2);
       new_ir_imm(true, type_size(&tyBool));
-      new_ir_jmp(COND_ANY, l_next);
-      new_ir_label(l_false, false);
+      new_ir_jmp(COND_ANY, next_bb);
+      set_curbb(false_bb);
       new_ir_imm(false, type_size(&tyBool));
-      new_ir_label(l_next, false);
+      set_curbb(next_bb);
     }
     return;
 
   case EX_LOGIOR:
     {
-      const char *l_true = alloc_label();
-      const char *l_next = alloc_label();
-      gen_cond_jmp(expr->u.bop.lhs, true, l_true);
-      gen_cond_jmp(expr->u.bop.rhs, true, l_true);
+      BB *bb1 = bb_split(curbb);
+      BB *bb2 = bb_split(bb1);
+      BB *true_bb = bb_split(bb2);
+      BB *next_bb = bb_split(true_bb);
+      gen_cond_jmp(expr->u.bop.lhs, true, true_bb);
+      set_curbb(bb1);
+      gen_cond_jmp(expr->u.bop.rhs, true, true_bb);
+      set_curbb(bb2);
       new_ir_imm(false, type_size(&tyBool));
-      new_ir_jmp(COND_ANY, l_next);
-      new_ir_label(l_true, false);
+      new_ir_jmp(COND_ANY, next_bb);
+      set_curbb(true_bb);
       new_ir_imm(true, type_size(&tyBool));
-      new_ir_label(l_next, false);
+      set_curbb(next_bb);
     }
     return;
 

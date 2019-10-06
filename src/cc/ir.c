@@ -15,7 +15,7 @@
 static IR *new_ir(enum IrType type) {
   IR *ir = malloc(sizeof(*ir));
   ir->type = type;
-  vec_push(curfunc->irs, ir);
+  vec_push(curbb->irs, ir);
   return ir;
 }
 
@@ -88,9 +88,9 @@ IR *new_ir_set(enum ConditionType cond) {
   return ir;
 }
 
-IR *new_ir_jmp(enum ConditionType cond, const char *label) {
+IR *new_ir_jmp(enum ConditionType cond, BB *bb) {
   IR *ir = new_ir(IR_JMP);
-  ir->u.jmp.label = label;
+  ir->u.jmp.bb = bb;
   ir->u.jmp.cond = cond;
   return ir;
 }
@@ -112,13 +112,6 @@ IR *new_ir_cast(int dstsize, int srcsize) {
   IR *ir = new_ir(IR_CAST);
   ir->size = dstsize;
   ir->u.cast.srcsize = srcsize;
-  return ir;
-}
-
-IR *new_ir_label(const char *label, bool global) {
-  IR *ir = new_ir(IR_LABEL);
-  ir->u.label.name = label;
-  ir->u.label.global = global;
   return ir;
 }
 
@@ -516,13 +509,13 @@ void ir_out(const IR *ir) {
 
   case IR_JMP:
     switch (ir->u.jmp.cond) {
-    case COND_ANY:  JMP(ir->u.jmp.label); break;
-    case COND_EQ:   JE(ir->u.jmp.label); break;
-    case COND_NE:   JNE(ir->u.jmp.label); break;
-    case COND_LT:   JL(ir->u.jmp.label); break;
-    case COND_GT:   JG(ir->u.jmp.label); break;
-    case COND_LE:   JLE(ir->u.jmp.label); break;
-    case COND_GE:   JGE(ir->u.jmp.label); break;
+    case COND_ANY:  JMP(ir->u.jmp.bb->label); break;
+    case COND_EQ:   JE(ir->u.jmp.bb->label); break;
+    case COND_NE:   JNE(ir->u.jmp.bb->label); break;
+    case COND_LT:   JL(ir->u.jmp.bb->label); break;
+    case COND_GT:   JG(ir->u.jmp.bb->label); break;
+    case COND_LE:   JLE(ir->u.jmp.bb->label); break;
+    case COND_GE:   JGE(ir->u.jmp.bb->label); break;
     default:  assert(false); break;
     }
     break;
@@ -579,12 +572,6 @@ void ir_out(const IR *ir) {
     }
     break;
 
-  case IR_LABEL:
-    if (ir->u.label.global)
-      _GLOBL(ir->u.label.name);
-    EMIT_LABEL(ir->u.label.name);
-    break;
-
   case IR_SAVE_LVAL:
     MOV(RAX, RSI);  // Save lhs address to %rsi.
     break;
@@ -611,5 +598,119 @@ void ir_out(const IR *ir) {
   default:
     assert(false);
     break;
+  }
+}
+
+// Basic Block
+
+BB *curbb;
+
+BB *new_bb(void) {
+  BB *bb = malloc(sizeof(*bb));
+  bb->next = NULL;
+  bb->label = alloc_label();
+  bb->irs = new_vector();
+  return bb;
+}
+
+BB *bb_split(BB *bb) {
+  BB *cc = new_bb();
+  cc->next = bb->next;
+  bb->next = cc;
+  return cc;
+}
+
+void bb_insert(BB *bb, BB *cc) {
+  cc->next = bb->next;
+  bb->next = cc;
+}
+
+//
+
+BBContainer *new_func_blocks(void) {
+  BBContainer *bbcon = malloc(sizeof(*bbcon));
+  bbcon->bbs = new_vector();
+  return bbcon;
+}
+
+static bool is_last_any_jmp(BB *bb) {
+  int len;
+  IR *ir;
+  return (len = bb->irs->len) > 0 &&
+      (ir = bb->irs->data[len - 1])->type == IR_JMP &&
+      ir->u.jmp.cond == COND_ANY;
+}
+
+static void replace_jmp_target(BBContainer *bbcon, BB *src, BB *dst) {
+  Vector *bbs = bbcon->bbs;
+  for (int j = 0; j < bbs->len; ++j) {
+    BB *bb = bbs->data[j];
+    if (bb == src)
+      continue;
+
+    IR *ir;
+    if (bb->next == src) {
+      if (dst == src->next || is_last_any_jmp(bb))
+        bb->next = src->next;
+    }
+    if (bb->irs->len > 0 &&
+        (ir = bb->irs->data[bb->irs->len - 1])->type == IR_JMP &&
+        ir->u.jmp.bb == src)
+      ir->u.jmp.bb = dst;
+  }
+}
+
+void remove_unnecessary_bb(BBContainer *bbcon) {
+  Vector *bbs = bbcon->bbs;
+  for (int i = 0; i < bbs->len - 1; ++i) {  // Make last one keeps alive.
+    BB *bb = bbs->data[i];
+    if (bb->irs->len == 0) {  // Empty BB.
+      replace_jmp_target(bbcon, bb, bb->next);
+    } else if (is_last_any_jmp(bb) && bb->irs->len == 1) {  // jmp only.
+      IR *ir = bb->irs->data[bb->irs->len - 1];
+      replace_jmp_target(bbcon, bb, ir->u.jmp.bb);
+      if (i == 0)
+        continue;
+      BB *pbb = bbs->data[i - 1];
+      if (!is_last_any_jmp(pbb))  // Fallthrough pass exists: keep the bb.
+        continue;
+    } else {
+      continue;
+    }
+
+    vec_remove_at(bbs, i);
+    --i;
+  }
+
+  // Remove jmp to next instruction.
+  for (int i = 0; i < bbs->len - 1; ++i) {  // Make last one keeps alive.
+    BB *bb = bbs->data[i];
+    if (!is_last_any_jmp(bb))
+      continue;
+    IR *ir = bb->irs->data[bb->irs->len - 1];
+    if (ir->u.jmp.bb == bb->next)
+      vec_pop(bb->irs);
+  }
+}
+
+void emit_bb_irs(BBContainer *bbcon) {
+  for (int i = 0; i < bbcon->bbs->len; ++i) {
+    BB *bb = bbcon->bbs->data[i];
+#ifndef NDEBUG
+    // Check BB connection.
+    if (i < bbcon->bbs->len - 1) {
+      BB *nbb = bbcon->bbs->data[i + 1];
+      assert(bb->next == nbb);
+    } else {
+      assert(bb->next == NULL);
+    }
+#endif
+
+    emit_comment("  BB %d/%d", i, bbcon->bbs->len);
+    EMIT_LABEL(bb->label);
+    for (int j = 0; j < bb->irs->len; ++j) {
+      IR *ir = bb->irs->data[j];
+      ir_out(ir);
+    }
   }
 }
