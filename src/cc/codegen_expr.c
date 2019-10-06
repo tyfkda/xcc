@@ -527,7 +527,16 @@ VReg *gen_expr(Expr *expr) {
         // Fallthrough to suppress compiler error.
       case TY_NUM:
       case TY_PTR:
-        new_ir_store(dst, src, type_size(expr->valType));
+#if 0
+        new_ir_store(dst, tmp, type_size(expr->valType));
+#else
+        // To avoid both spilled registers, add temporary register.
+        {
+          VReg *tmp = add_new_reg();
+          new_ir_mov(tmp, src, type_size(expr->valType));
+          new_ir_store(dst, tmp, type_size(expr->valType));
+        }
+#endif
         break;
       case TY_STRUCT:
         new_ir_memcpy(dst, src, expr->valType->u.struct_.info->size);
