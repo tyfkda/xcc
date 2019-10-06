@@ -8,6 +8,7 @@
 #include <string.h>
 
 #include "expr.h"
+#include "ir.h"
 #include "lexer.h"
 #include "parser.h"
 #include "sema.h"
@@ -577,6 +578,8 @@ static void gen_defun(Node *node) {
   if (varinfo != NULL) {
     global = (varinfo->flag & VF_STATIC) == 0;
   }
+
+  curfunc = defun;
   if (global)
     _GLOBL(defun->name);
   else
@@ -592,6 +595,7 @@ static void gen_defun(Node *node) {
   }
 
   size_t frame_size = arrange_scope_vars(defun);
+  UNUSED(frame_size);
 
   bool no_stmt = true;
   if (defun->stmts != NULL) {
@@ -606,9 +610,11 @@ static void gen_defun(Node *node) {
     }
   }
 
-  curfunc = defun;
   curscope = defun->top_scope;
   defun->ret_label = alloc_label();
+
+  // Statements
+  gen_nodes(defun->stmts);
 
   // Prologue
   // Allocate variable bufer.
@@ -623,8 +629,11 @@ static void gen_defun(Node *node) {
     put_args_to_stack(defun);
   }
 
-  // Statements
-  gen_nodes(defun->stmts);
+  emit_comment("IR: #%d", (int)defun->irs->len);
+  for (int i = 0; i < defun->irs->len; ++i) {
+    IR *ir = defun->irs->data[i];
+    ir_out(ir);
+  }
 
   // Epilogue
   if (!no_stmt) {
@@ -633,6 +642,7 @@ static void gen_defun(Node *node) {
     stackpos -= frame_size;
     POP(RBP); POP_STACK_POS();
   }
+
   RET();
   emit_comment(NULL);
   curfunc = NULL;
@@ -656,7 +666,7 @@ static void gen_return(Node *node) {
   if (node->u.return_.val != NULL)
     gen_expr(node->u.return_.val);
   assert(curfunc != NULL);
-  JMP(curfunc->ret_label);
+  new_ir_jmp(COND_ANY, curfunc->ret_label);
 }
 
 static void gen_if(Node *node) {
@@ -664,13 +674,13 @@ static void gen_if(Node *node) {
   gen_cond_jmp(node->u.if_.cond, false, flabel);
   gen(node->u.if_.tblock);
   if (node->u.if_.fblock == NULL) {
-    EMIT_LABEL(flabel);
+    new_ir_label(flabel, false);
   } else {
     const char *nlabel = alloc_label();
-    JMP(nlabel);
-    EMIT_LABEL(flabel);
+    new_ir_jmp(COND_ANY, nlabel);
+    new_ir_label(flabel, false);
     gen(node->u.if_.fblock);
-    EMIT_LABEL(nlabel);
+    new_ir_label(nlabel, false);
   }
 }
 
@@ -696,29 +706,13 @@ static void gen_switch(Node *node) {
   Expr *value = node->u.switch_.value;
   gen_expr(value);
 
-  enum NumType valtype = value->valType->u.num.type;
+  int size = type_size(value->valType);
   for (int i = 0; i < len; ++i) {
     intptr_t x = (intptr_t)case_values->data[i];
-    switch (valtype) {
-    case NUM_CHAR:
-      CMP(IM(x), AL);
-      break;
-    case NUM_INT: case NUM_ENUM:
-      CMP(IM(x), EAX);
-      break;
-    case NUM_LONG:
-      if (is_im32(x)) {
-        CMP(IM(x), RAX);
-      } else {
-        MOV(IM(x), RDI);
-        CMP(RDI, RAX);
-      }
-      break;
-    default: assert(false); break;
-    }
-    JE(labels->data[i]);
+    new_ir_cmpi(x, size);
+    new_ir_jmp(COND_EQ, labels->data[i]);
   }
-  JMP(labels->data[len]);
+  new_ir_jmp(COND_ANY, labels->data[len]);  // Default.
 
   cur_case_values = case_values;
   cur_case_labels = labels;
@@ -726,8 +720,8 @@ static void gen_switch(Node *node) {
   gen(node->u.switch_.body);
 
   if (!node->u.switch_.has_default)
-    EMIT_LABEL(labels->data[len]);  // No default: Locate at the end of switch statement.
-  EMIT_LABEL(l_break);
+    new_ir_label(labels->data[len], false);  // No default: Locate at the end of switch statement.
+  new_ir_label(l_break, false);
 
   cur_case_values = save_case_values;
   cur_case_labels = save_case_labels;
@@ -747,7 +741,7 @@ static void gen_case(Node *node) {
   }
   assert(i < len);
   assert(i < cur_case_labels->len);
-  EMIT_LABEL(cur_case_labels->data[i]);
+  new_ir_label(cur_case_labels->data[i], false);
 }
 
 static void gen_default(void) {
@@ -755,7 +749,7 @@ static void gen_default(void) {
   assert(cur_case_labels != NULL);
   int i = cur_case_values->len;  // Label for default is stored at the size of values.
   assert(i < cur_case_labels->len);
-  EMIT_LABEL(cur_case_labels->data[i]);
+  new_ir_label(cur_case_labels->data[i], false);
 }
 
 static void gen_while(Node *node) {
@@ -763,12 +757,12 @@ static void gen_while(Node *node) {
   const char *l_cond = push_continue_label(&save_cont);
   const char *l_break = push_break_label(&save_break);
   const char *l_loop = alloc_label();
-  JMP(l_cond);
-  EMIT_LABEL(l_loop);
+  new_ir_jmp(COND_ANY, l_cond);
+  new_ir_label(l_loop, false);
   gen(node->u.while_.body);
-  EMIT_LABEL(l_cond);
+  new_ir_label(l_cond, false);
   gen_cond_jmp(node->u.while_.cond, true, l_loop);
-  EMIT_LABEL(l_break);
+  new_ir_label(l_break, false);
   pop_continue_label(save_cont);
   pop_break_label(save_break);
 }
@@ -778,11 +772,11 @@ static void gen_do_while(Node *node) {
   const char *l_cond = push_continue_label(&save_cont);
   const char *l_break = push_break_label(&save_break);
   const char * l_loop = alloc_label();
-  EMIT_LABEL(l_loop);
+  new_ir_label(l_loop, false);
   gen(node->u.while_.body);
-  EMIT_LABEL(l_cond);
+  new_ir_label(l_cond, false);
   gen_cond_jmp(node->u.while_.cond, true, l_loop);
-  EMIT_LABEL(l_break);
+  new_ir_label(l_break, false);
   pop_continue_label(save_cont);
   pop_break_label(save_break);
 }
@@ -794,57 +788,49 @@ static void gen_for(Node *node) {
   const char * l_cond = alloc_label();
   if (node->u.for_.pre != NULL)
     gen_expr(node->u.for_.pre);
-  EMIT_LABEL(l_cond);
-  if (node->u.for_.cond != NULL) {
+  new_ir_label(l_cond, false);
+  if (node->u.for_.cond != NULL)
     gen_cond_jmp(node->u.for_.cond, false, l_break);
-  }
   gen(node->u.for_.body);
-  EMIT_LABEL(l_continue);
+  new_ir_label(l_continue, false);
   if (node->u.for_.post != NULL)
     gen_expr(node->u.for_.post);
-  JMP(l_cond);
-  EMIT_LABEL(l_break);
+  new_ir_jmp(COND_ANY, l_cond);
+  new_ir_label(l_break, false);
   pop_continue_label(save_cont);
   pop_break_label(save_break);
 }
 
 static void gen_break(void) {
   assert(s_break_label != NULL);
-  JMP(s_break_label);
+  new_ir_jmp(COND_ANY, s_break_label);
 }
 
 static void gen_continue(void) {
   assert(s_continue_label != NULL);
-  JMP(s_continue_label);
+  new_ir_jmp(COND_ANY, s_continue_label);
 }
 
 static void gen_goto(Node *node) {
   assert(curfunc->labels != NULL);
   const char *label = map_get(curfunc->labels, node->u.goto_.ident);
   assert(label != NULL);
-  JMP(label);
+  new_ir_jmp(COND_ANY, label);
 }
 
 static void gen_label(Node *node) {
   assert(curfunc->labels != NULL);
   const char *label = map_get(curfunc->labels, node->u.label.name);
   assert(label != NULL);
-  EMIT_LABEL(label);
+  new_ir_label(label, false);
   gen(node->u.label.stmt);
 }
 
 static void gen_clear_local_var(const VarInfo *varinfo) {
   // Fill with zeros regardless of variable type.
   int offset = varinfo->offset;
-  const char *loop = alloc_label();
-  LEA(OFFSET_INDIRECT(offset, RBP), RSI);
-  MOV(IM(type_size(varinfo->type)), EDI);
-  XOR(AL, AL);
-  EMIT_LABEL(loop);
-  MOV(AL, INDIRECT(RSI));
-  INC(RSI);
-  DEC(EDI);
-  JNE(loop);
+  new_ir_bofs(offset);
+  new_ir_clear(type_size(varinfo->type));
 }
 
 static void gen_vardecl(Node *node) {

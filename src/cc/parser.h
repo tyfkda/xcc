@@ -28,6 +28,9 @@ typedef struct Defun {
   Map *labels;
   Vector *gotos;
 
+  // IR
+  Vector *irs;  // <IR*>
+
   // For codegen.
   const char *ret_label;
 } Defun;
