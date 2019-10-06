@@ -7,6 +7,7 @@ XCC
     * Also work on Linux
   * Output ELF file format directly
   * Self hosting
+  * Register allocation (Linear scan)
 
 
 ### TODO
@@ -18,13 +19,11 @@ XCC
 
 Compiler:
 
-  * Struct assignment
   * Bit field
   * Anonymous union member initializer
 
 Preprocessor:
 
-  * String concatenation
   * Self recursive macro expansion
 
 
