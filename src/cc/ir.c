@@ -80,13 +80,6 @@ void reg_alloc_map(RegAlloc *ra, VReg *vreg) {
   error("register exhausted");
 }
 
-static void reg_alloc_unreg(RegAlloc *ra, VReg *vreg) {
-  assert(vreg->v >= 0 && vreg->v < ra->regno);
-  int r = vreg->r;
-  assert(ra->used[r]);
-  ra->used[r] = false;
-}
-
 //
 static RegAlloc *ra;
 
@@ -279,12 +272,6 @@ static IR *new_ir_store_spilled(int offset, int size) {
   return ir;
 }
 
-void new_ir_unreg(VReg *reg) {
-  //IR *ir = new_ir(IR_UNREG);
-  //ir->opr1 = reg;
-  UNUSED(reg);
-}
-
 static void ir_memcpy(int dst_reg, int src_reg, ssize_t size) {
   const char *dst = kReg64s[dst_reg];
   const char *src = kReg64s[src_reg];
@@ -334,10 +321,6 @@ void ir_alloc_reg(IR *ir) {
     reg_alloc_map(ra, ir->opr2);
 
   switch (ir->type) {
-  case IR_UNREG:
-    reg_alloc_unreg(ra, ir->opr1);
-    break;
-
   case IR_IMM:
   case IR_BOFS:
   case IR_IOFS:
@@ -843,9 +826,6 @@ void ir_out(const IR *ir) {
     case 8:  MOV(kReg64s[ir->opr1->r], RAX); break;
     default: assert(false); break;
     }
-    break;
-
-  case IR_UNREG:
     break;
 
   case IR_ASM:
@@ -1457,7 +1437,6 @@ void dump_ir(IR *ir) {
   case IR_COPY:   fprintf(fp, "\tCOPY\tR%d%s = R%d%s\n", dst, kSize[ir->size], opr1, kSize[ir->size]); break;
   case IR_RESULT: fprintf(fp, "\tRESULT\tR%d%s\n", opr1, kSize[ir->size]); break;
   case IR_ASM:    fprintf(fp, "\tASM\n"); break;
-  case IR_UNREG:  fprintf(fp, "\tUNREG\tR%d\n", opr1); break;
   case IR_MOV:    fprintf(fp, "\tMOV\tR%d%s = R%d%s\n", dst, kSize[ir->size], opr1, kSize[ir->size]); break;
   case IR_LOAD_SPILLED:   fprintf(fp, "\tLOAD_SPILLED %d(%s)\n", (int)ir->value, kSize[ir->size]); break;
   case IR_STORE_SPILLED:  fprintf(fp, "\tSTORE_SPILLED %d(%s)\n", (int)ir->value, kSize[ir->size]); break;

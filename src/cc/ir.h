@@ -59,7 +59,6 @@ enum IrType {
   IR_COPY,
   IR_RESULT,
   IR_ASM,
-  IR_UNREG,
 
   IR_MOV,
   IR_LOAD_SPILLED,
@@ -130,7 +129,6 @@ void new_ir_clear(VReg *reg, size_t size);
 void new_ir_copy(VReg *dst, VReg *src, int size);
 void new_ir_result(VReg *reg, int size);
 void new_ir_asm(const char *asm_);
-void new_ir_unreg(VReg *reg);
 
 void ir_alloc_reg(IR *ir);
 void ir_out(const IR *ir);

@@ -694,7 +694,6 @@ static void gen_return(Node *node) {
   if (node->u.return_.val != NULL) {
     VReg *reg = gen_expr(node->u.return_.val);
     new_ir_result(reg, type_size(node->u.return_.val->valType));
-    new_ir_unreg(reg);
   }
   assert(curfunc != NULL);
   new_ir_jmp(COND_ANY, curfunc->ret_bb);
@@ -749,13 +748,11 @@ static void gen_switch(Node *node) {
     intptr_t x = (intptr_t)case_values->data[i];
     VReg *num = new_ir_imm(x, size);
     new_ir_cmp(reg, num, size);
-    new_ir_unreg(num);
     new_ir_jmp(COND_EQ, bbs->data[i]);
     set_curbb(nextbb);
   }
   new_ir_jmp(COND_ANY, bbs->data[len]);  // Jump to default.
   set_curbb(bb_split(curbb));
-  new_ir_unreg(reg);
 
   // No bb setting.
 
@@ -904,7 +901,6 @@ static void gen_clear_local_var(const VarInfo *varinfo) {
   // Fill with zeros regardless of variable type.
   VReg *reg = new_ir_bofs(varinfo->reg);
   new_ir_clear(reg, type_size(varinfo->type));
-  new_ir_unreg(reg);
 }
 
 static void gen_vardecl(Node *node) {
@@ -927,8 +923,7 @@ static void gen_vardecl(Node *node) {
 }
 
 static void gen_expr_stmt(Expr *expr) {
-  VReg *result = gen_expr(expr);
-  new_ir_unreg(result);
+  gen_expr(expr);
 }
 
 static void gen_toplevel(Node *node) {
