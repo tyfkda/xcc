@@ -163,8 +163,8 @@ void new_ir_store(VReg *dst, VReg *src, int size) {
 
 void new_ir_memcpy(VReg *dst, VReg *src, int size) {
   IR *ir = new_ir(IR_MEMCPY);
-  ir->dst = dst;
   ir->opr1 = src;
+  ir->opr2 = dst;
   ir->size = size;
 }
 
@@ -448,7 +448,7 @@ void ir_out(const IR *ir) {
     break;
 
   case IR_MEMCPY:
-    ir_memcpy(ir->dst->r, ir->opr1->r, ir->size);
+    ir_memcpy(ir->opr2->r, ir->opr1->r, ir->size);
     break;
 
   case IR_ADD:
@@ -1196,6 +1196,7 @@ static void insert_load_store_instructions(BBContainer *bbcon, Vector *vregs) {
       case IR_PUSHARG:
       case IR_CALL:
       case IR_CAST:
+      case IR_COPY:
       case IR_RESULT:
         if (ir->opr1 != NULL && ir->opr1->r == SPILLED_REG_NO) {
           vec_insert(irs, j,
@@ -1218,6 +1219,7 @@ static void insert_load_store_instructions(BBContainer *bbcon, Vector *vregs) {
 
       case IR_LOAD:
       case IR_STORE:
+      case IR_MEMCPY:
         if (ir->opr1 != NULL && ir->opr1->r == SPILLED_REG_NO) {
           vec_insert(irs, j,
                      new_ir_load_spilled(((VReg*)vregs->data[ir->opr1->v])->offset, WORD_SIZE));
@@ -1422,7 +1424,7 @@ void dump_ir(IR *ir) {
   case IR_IOFS:   fprintf(fp, "\tIOFS\tR%d = &%s\n", dst, ir->u.iofs.label); break;
   case IR_LOAD:   fprintf(fp, "\tLOAD\tR%d%s = (R%d)\n", dst, kSize[ir->size], opr1); break;
   case IR_STORE:  fprintf(fp, "\tSTORE\t(R%d) = R%d%s\n", opr2, opr1, kSize[ir->size]); break;
-  case IR_MEMCPY: fprintf(fp, "\tMEMCPY(dst=R%d, src=R%d, size=%d)\n", dst, opr1, ir->size); break;
+  case IR_MEMCPY: fprintf(fp, "\tMEMCPY(dst=R%d, src=R%d, size=%d)\n", opr2, opr1, ir->size); break;
   case IR_ADD:    fprintf(fp, "\tADD\tR%d%s = R%d%s + R%d%s\n", dst, kSize[ir->size], opr1, kSize[ir->size], opr2, kSize[ir->size]); break;
   case IR_SUB:    fprintf(fp, "\tSUB\tR%d%s = R%d%s - R%d%s\n", dst, kSize[ir->size], opr1, kSize[ir->size], opr2, kSize[ir->size]); break;
   case IR_MUL:    fprintf(fp, "\tMUL\tR%d%s = R%d%s * R%d%s\n", dst, kSize[ir->size], opr1, kSize[ir->size], opr2, kSize[ir->size]); break;
