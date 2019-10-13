@@ -305,7 +305,7 @@ static const char *skip_whitespace_or_comment(const char *p) {
       if (*p == '*') {
         p = skip_block_comment(p + 1);
         if (p == NULL)
-          return NULL;
+          lex_error(p, "Block comment not closed");
         continue;
       } else if (*p == '/') {
         p = skip_line_comment();

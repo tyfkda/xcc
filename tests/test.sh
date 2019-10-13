@@ -130,6 +130,7 @@ try_direct 'typedef can use in local' 61 'typedef int Foo; int main(){ int Foo =
 echo ''
 echo '### Error cases'
 compile_error 'no main' 'void foo(){}'
+compile_error 'comment not closed' 'int main(){ return 0; } /*'
 compile_error 'undef varref' 'int main(){ return x; }'
 compile_error 'undef var assign' 'void main(){ x = 1; }'
 compile_error 'undef funcall' 'void foo(); void main(){ foo(); }'
