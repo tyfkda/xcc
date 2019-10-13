@@ -12,10 +12,10 @@
 #include "var.h"
 #include "x86_64.h"
 
-static void gen_lval(Expr *expr);
+static VReg *gen_lval(Expr *expr);
 
 // test %eax, %eax, and so on.
-static void gen_test_opcode(const Type *type) {
+static void gen_test_opcode(VReg *reg, const Type *type) {
   int size = type_size(type);
   switch (type->type) {
   case TY_NUM: case TY_PTR:
@@ -26,9 +26,7 @@ static void gen_test_opcode(const Type *type) {
   default: assert(false); break;
   }
 
-  new_ir_st(IR_PUSH);
-  new_ir_imm(0, size);
-  new_ir_op(IR_CMP, size);
+  new_ir_test(reg, size);
 }
 
 static enum ConditionType flip_cond(enum ConditionType cond) {
@@ -51,12 +49,13 @@ static enum ConditionType gen_compare_expr(enum ExprType type, Expr *lhs, Expr *
     cond = flip_cond(cond);
   }
 
-  gen_expr(lhs);
+  VReg *lhs_reg = gen_expr(lhs);
   if (rhs->type == EX_NUM && rhs->u.num.ival == 0 &&
       (cond == COND_EQ || cond == COND_NE)) {
-    gen_test_opcode(lhs->valType);
+    gen_test_opcode(lhs_reg, lhs->valType);
   } else if (rhs->type == EX_NUM && (lhs->valType->u.num.type != NUM_LONG || is_im32(rhs->u.num.ival))) {
-    new_ir_cmpi(rhs->u.num.ival, type_size(lhs->valType));
+    VReg *num = new_ir_imm(rhs->u.num.ival, type_size(rhs->valType));
+    new_ir_cmp(lhs_reg, num, type_size(lhs->valType));
   } else {
     switch (lhs->valType->type) {
     case TY_NUM: case TY_PTR:
@@ -64,9 +63,12 @@ static enum ConditionType gen_compare_expr(enum ExprType type, Expr *lhs, Expr *
     default: assert(false); break;
     }
 
-    new_ir_st(IR_PUSH);
-    gen_expr(rhs);
-    new_ir_op(IR_CMP, type_size(lhs->valType));
+    VReg *rhs_reg = gen_expr(rhs);
+    // Allocate new register to avoid comparing spilled registers.
+    int size = type_size(lhs->valType);
+    VReg *tmp = add_new_reg();
+    new_ir_mov(tmp, lhs_reg, size);
+    new_ir_cmp(tmp, rhs_reg, size);
   }
 
   return cond;
@@ -165,46 +167,53 @@ void gen_cond_jmp(Expr *cond, bool tf, BB *bb) {
     break;
   }
 
-  gen_expr(cond);
-  gen_test_opcode(cond->valType);
+  VReg *reg = gen_expr(cond);
+  gen_test_opcode(reg, cond->valType);
   new_ir_jmp(tf ? COND_NE : COND_EQ, bb);
 }
 
-static void gen_cast(const Type *ltypep, const Type *rtypep) {
+static VReg *gen_cast(VReg *reg, const Type *ltypep, const Type *rtypep) {
   size_t dst_size = type_size(ltypep);
   size_t src_size;
   if (rtypep->type == TY_ARRAY)
     src_size = WORD_SIZE;
   else
     src_size = type_size(rtypep);
-  new_ir_cast(dst_size, src_size);
+  if (dst_size == src_size)
+    return reg;
+  return new_ir_cast(reg, dst_size, src_size);
 }
 
-static void gen_rval(Expr *expr) {
-  gen_expr(expr);  // ?
+static VReg *gen_rval(Expr *expr) {
+  return gen_expr(expr);  // ?
 }
 
-static void gen_ref(Expr *expr) {
-  gen_lval(expr);
+static VReg *gen_ref(Expr *expr) {
+  if (expr->type == EX_VARREF && expr->u.varref.scope != NULL) {
+    Scope *scope = expr->u.varref.scope;
+    VarInfo *varinfo = scope_find(&scope, expr->u.varref.ident);
+    if (!(varinfo->flag & VF_STATIC)) {
+      vreg_spill(varinfo->reg);
+    }
+  }
+  return gen_lval(expr);
 }
 
-static void gen_lval(Expr *expr) {
+static VReg *gen_lval(Expr *expr) {
   switch (expr->type) {
   case EX_VARREF:
     if (expr->u.varref.scope == NULL) {
-      new_ir_iofs(expr->u.varref.ident);
+      return new_ir_iofs(expr->u.varref.ident);
     } else {
       Scope *scope = expr->u.varref.scope;
       VarInfo *varinfo = scope_find(&scope, expr->u.varref.ident);
       assert(varinfo != NULL);
       assert(!(varinfo->flag & VF_STATIC));
-      int offset = varinfo->offset;
-      new_ir_bofs(offset);
+      return new_ir_bofs(varinfo->reg);
     }
     break;
   case EX_DEREF:
-    gen_rval(expr->u.unary.sub);
-    break;
+    return gen_rval(expr->u.unary.sub);
   case EX_MEMBER:
     {
       const Type *type = expr->u.member.target->valType;
@@ -215,40 +224,52 @@ static void gen_lval(Expr *expr) {
       Vector *members = type->u.struct_.info->members;
       VarInfo *varinfo = (VarInfo*)members->data[expr->u.member.index];
 
+      VReg *reg;
       if (expr->u.member.target->valType->type == TY_PTR)
-        gen_expr(expr->u.member.target);
+        reg = gen_expr(expr->u.member.target);
       else
-        gen_ref(expr->u.member.target);
-      if (varinfo->offset != 0) {
-        new_ir_st(IR_PUSH);
-        new_ir_imm(varinfo->offset, type_size(&tyLong));
-        new_ir_op(IR_ADD, type_size(&tySize));
-      }
+        reg = gen_ref(expr->u.member.target);
+      if (varinfo->offset == 0)
+        return reg;
+      VReg *imm = new_ir_imm(varinfo->offset, type_size(&tyLong));
+      VReg *result = new_ir_bop(IR_ADD, reg, imm, type_size(&tySize));
+      return result;
     }
     break;
   default:
     error("No lvalue: %d", expr->type);
     break;
   }
+  return NULL;
 }
 
-static void gen_varref(Expr *expr) {
-  gen_lval(expr);
+static VReg *gen_varref(Expr *expr) {
   switch (expr->valType->type) {
   case TY_NUM:
   case TY_PTR:
-    new_ir_load(type_size(expr->valType));
-    break;
-  case TY_ARRAY: break;  // Use variable address as a pointer.
-  case TY_FUNC:  break;
-  case TY_STRUCT:
-    // struct value is handled as a pointer.
-    break;
-  default: assert(false); break;
+    {
+      Scope *scope = expr->u.varref.scope;
+      VarInfo *varinfo = scope_find(&scope, expr->u.varref.ident);
+      if (varinfo != NULL && !(varinfo->flag & VF_STATIC)) {
+        assert(varinfo->reg != NULL);
+        return varinfo->reg;
+      }
+
+      VReg *reg = gen_lval(expr);
+      VReg *result = new_ir_unary(IR_LOAD, reg, type_size(expr->valType));
+      return result;
+    }
+  default:
+    assert(false);
+    // Fallthrough to suppress compile error.
+  case TY_ARRAY:   // Use variable address as a pointer.
+  case TY_STRUCT:  // struct value is handled as a pointer.
+  case TY_FUNC:
+    return gen_lval(expr);
   }
 }
 
-static void gen_ternary(Expr *expr) {
+static VReg *gen_ternary(Expr *expr) {
   BB *tbb = bb_split(curbb);
   BB *fbb = bb_split(tbb);
   BB *nbb = bb_split(fbb);
@@ -256,16 +277,18 @@ static void gen_ternary(Expr *expr) {
   gen_cond_jmp(expr->u.ternary.cond, false, fbb);
 
   set_curbb(tbb);
-  gen_expr(expr->u.ternary.tval);
+  VReg *result = gen_expr(expr->u.ternary.tval);
   new_ir_jmp(COND_ANY, nbb);
 
   set_curbb(fbb);
-  gen_expr(expr->u.ternary.fval);
+  VReg *result2 = gen_expr(expr->u.ternary.fval);
+  new_ir_copy(result, result2, type_size(&tyBool));
 
   set_curbb(nbb);
+  return result;
 }
 
-static void gen_funcall(Expr *expr) {
+static VReg *gen_funcall(Expr *expr) {
   Expr *func = expr->u.funcall.func;
   Vector *args = expr->u.funcall.args;
   int arg_count = args != NULL ? args->len : 0;
@@ -275,9 +298,10 @@ static void gen_funcall(Expr *expr) {
   if (align_stack)
     new_ir_addsp(-8);
 
+  new_ir_precall(arg_count);
+
   if (args != NULL) {
-    int len = args->len;
-    if (len > MAX_REG_ARGS) {
+    if (arg_count > MAX_REG_ARGS) {
       bool vaargs = false;
       if (func->type == EX_VARREF && func->u.varref.scope == NULL) {
         VarInfo *varinfo = find_global(func->u.varref.ident);
@@ -288,36 +312,35 @@ static void gen_funcall(Expr *expr) {
       }
 
       if (vaargs)
-        error("Param count exceeds %d (%d)", MAX_REG_ARGS, len);
+        error("Param count exceeds %d (%d)", MAX_REG_ARGS, arg_count);
     }
 
-    for (int i = len; --i >= 0; ) {
-      gen_expr((Expr*)args->data[i]);
-      new_ir_st(IR_PUSH);
+    for (int i = arg_count; --i >= 0; ) {
+      Expr *arg = args->data[i];
+      VReg *reg = gen_expr(arg);
+      new_ir_pusharg(reg);
     }
   }
 
+  VReg *result_reg = NULL;
   if (func->type == EX_VARREF && func->u.varref.scope == NULL) {
-    new_ir_call(func->u.varref.ident, arg_count);
+    result_reg = new_ir_call(func->u.varref.ident, NULL, arg_count,
+                             type_size(func->valType->u.func.ret));
   } else {
-    // TODO: IR
-    gen_expr(func);
-    new_ir_call(NULL, arg_count);
+    VReg *freg = gen_expr(func);
+    result_reg = new_ir_call(NULL, freg, arg_count,
+                             type_size(func->valType->u.func.ret));
   }
 
-  int stack_add = stack_args * 8;
   if (align_stack) {
-    stack_add += 8;
+    new_ir_addsp(8);
   }
-  if (stack_add > 0) {
-    new_ir_addsp(stack_add);
-  }
+
+  return result_reg;
 }
 
-void gen_arith(enum ExprType exprType, const Type *valType, const Type *rhsType) {
+VReg *gen_arith(enum ExprType exprType, const Type *valType, VReg *lhs, VReg *rhs) {
   // lhs=rax, rhs=rdi, result=rax
-  UNUSED(rhsType);
-
   switch (exprType) {
   case EX_ADD:
   case EX_SUB:
@@ -329,21 +352,22 @@ void gen_arith(enum ExprType exprType, const Type *valType, const Type *rhsType)
   case EX_BITXOR:
   case EX_LSHIFT:
   case EX_RSHIFT:
-    new_ir_op(exprType + (IR_ADD - EX_ADD), type_size(valType));
-    break;
+    {
+      VReg *result = new_ir_bop(exprType + (IR_ADD - EX_ADD), lhs, rhs, type_size(valType));
+      return result;
+    }
 
   default:
     assert(false);
-    break;
+    return NULL;
   }
 }
 
-void gen_expr(Expr *expr) {
+VReg *gen_expr(Expr *expr) {
   switch (expr->type) {
   case EX_NUM:
     assert(expr->valType->type == TY_NUM);
-    new_ir_imm(expr->u.num.ival, type_size(expr->valType));
-    break;
+    return new_ir_imm(expr->u.num.ival, type_size(expr->valType));
 
   case EX_STR:
     {
@@ -357,65 +381,73 @@ void gen_expr(Expr *expr) {
       VarInfo *varinfo = define_global(strtype, VF_CONST | VF_STATIC, NULL, label);
       varinfo->u.g.init = init;
 
-      new_ir_iofs(label);
+      return new_ir_iofs(label);
     }
-    return;
+    break;
 
   case EX_SIZEOF:
-    new_ir_imm(type_size(expr->u.sizeof_.type), type_size(expr->valType));
-    return;
+    return new_ir_imm(type_size(expr->u.sizeof_.type), type_size(expr->valType));
 
   case EX_VARREF:
-    gen_varref(expr);
-    return;
+    return gen_varref(expr);
 
   case EX_REF:
-    gen_ref(expr->u.unary.sub);
-    return;
+    return gen_ref(expr->u.unary.sub);
 
   case EX_DEREF:
-    gen_rval(expr->u.unary.sub);
-    switch (expr->valType->type) {
-    case TY_NUM:
-    case TY_PTR:
-      new_ir_load(type_size(expr->valType));
-      break;
+    {
+      VReg *reg = gen_rval(expr->u.unary.sub);
+      VReg *result;
+      switch (expr->valType->type) {
+      case TY_NUM:
+      case TY_PTR:
+        result = new_ir_unary(IR_LOAD, reg, type_size(expr->valType));
+        return result;
 
-    case TY_ARRAY:
-    case TY_STRUCT:
-      // array and struct values are handled as a pointer.
-      break;
-    default: assert(false); break;
+      default:
+        assert(false);
+        // Fallthrough to suppress compile error.
+      case TY_ARRAY:
+      case TY_STRUCT:
+        // array and struct values are handled as a pointer.
+        return reg;
+      }
     }
-    return;
 
   case EX_MEMBER:
-    gen_lval(expr);
-    switch (expr->valType->type) {
-    case TY_NUM:
-    case TY_PTR:
-      new_ir_load(type_size(expr->valType));
-      break;
-    case TY_ARRAY:
-    case TY_STRUCT:
-      break;
-    default:
-      assert(false);
-      break;
+    {
+      VReg *reg = gen_lval(expr);
+      VReg *result;
+      switch (expr->valType->type) {
+      case TY_NUM:
+      case TY_PTR:
+        result = new_ir_unary(IR_LOAD, reg, type_size(expr->valType));
+        break;
+      default:
+        assert(false);
+        // Fallthrough to suppress compile error.
+      case TY_ARRAY:
+      case TY_STRUCT:
+        result = reg;
+        break;
+      }
+      return result;
     }
-    return;
+    break;
 
   case EX_COMMA:
     {
+      VReg *result = NULL;
       Vector *list = expr->u.comma.list;
-      for (int i = 0, len = list->len; i < len; ++i)
-        gen_expr(list->data[i]);
+      for (int i = 0, len = list->len; i < len; ++i) {
+        result = gen_expr(list->data[i]);
+      }
+      return result;
     }
     break;
 
   case EX_TERNARY:
-    gen_ternary(expr);
-    break;
+    return gen_ternary(expr);
 
   case EX_CAST:
     if (expr->u.unary.sub->type == EX_NUM) {
@@ -440,78 +472,169 @@ void gen_expr(Expr *expr) {
         break;
       }
 
-      new_ir_imm(value, type_size(expr->valType));
+      return new_ir_imm(value, type_size(expr->valType));
     } else {
-      gen_expr(expr->u.unary.sub);
-      gen_cast(expr->valType, expr->u.unary.sub->valType);
+      VReg *reg = gen_expr(expr->u.unary.sub);
+      return gen_cast(reg, expr->valType, expr->u.unary.sub->valType);
     }
     break;
 
   case EX_ASSIGN:
-    gen_lval(expr->u.bop.lhs);
-    new_ir_st(IR_PUSH);
-    gen_expr(expr->u.bop.rhs);
+    {
+      VReg *src = gen_expr(expr->u.bop.rhs);
+      if (expr->u.bop.lhs->type == EX_VARREF) {
+        Expr *lhs = expr->u.bop.lhs;
+        switch (lhs->valType->type) {
+        case TY_NUM:
+        case TY_PTR:
+          {
+            Scope *scope = lhs->u.varref.scope;
+            VarInfo *varinfo = scope_find(&scope, lhs->u.varref.ident);
+            if (varinfo != NULL && !(varinfo->flag & VF_STATIC)) {
+              assert(varinfo->reg != NULL);
+              new_ir_mov(varinfo->reg, src, type_size(lhs->valType));
+              return src;
+            }
+          }
+          break;
+        default:
+          break;
+        }
+      }
 
-    switch (expr->valType->type) {
-    case TY_NUM:
-    case TY_PTR:
-      new_ir_store(type_size(expr->valType));
-      break;
-    case TY_STRUCT:
-      new_ir_memcpy(expr->valType->u.struct_.info->size);
-      break;
-    default: assert(false); break;
+      VReg *dst = gen_lval(expr->u.bop.lhs);
+
+      switch (expr->valType->type) {
+      default:
+        assert(false);
+        // Fallthrough to suppress compiler error.
+      case TY_NUM:
+      case TY_PTR:
+#if 0
+        new_ir_store(dst, tmp, type_size(expr->valType));
+#else
+        // To avoid both spilled registers, add temporary register.
+        {
+          VReg *tmp = add_new_reg();
+          new_ir_mov(tmp, src, type_size(expr->valType));
+          new_ir_store(dst, tmp, type_size(expr->valType));
+        }
+#endif
+        break;
+      case TY_STRUCT:
+        new_ir_memcpy(dst, src, expr->valType->u.struct_.info->size);
+        break;
+      }
+      return src;
     }
-    return;
+    break;
 
   case EX_ASSIGN_WITH:
     {
       Expr *sub = expr->u.unary.sub;
-      gen_expr(sub->u.bop.rhs);
-      new_ir_st(IR_PUSH);
-      gen_lval(sub->u.bop.lhs);
-      new_ir_st(IR_SAVE_LVAL);
-      new_ir_load(type_size(sub->u.bop.lhs->valType));
-      gen_arith(sub->type, sub->valType, sub->u.bop.rhs->valType);
-      gen_cast(expr->valType, sub->valType);
-      new_ir_assign_lval(type_size(expr->valType));
+      if (sub->u.bop.lhs->type == EX_VARREF && sub->u.bop.lhs->u.varref.scope != NULL) {
+        VReg *lhs = gen_expr(sub->u.bop.lhs);
+        VReg *rhs = gen_expr(sub->u.bop.rhs);
+        VReg *result = gen_arith(sub->type, sub->valType, lhs, rhs);
+        new_ir_mov(lhs, result, type_size(sub->u.bop.lhs->valType));
+        return result;
+      } else {
+        VReg *lval = gen_lval(sub->u.bop.lhs);
+        VReg *rhs = gen_expr(sub->u.bop.rhs);
+        VReg *lhs = new_ir_unary(IR_LOAD, lval, type_size(sub->u.bop.lhs->valType));
+        VReg *result = gen_arith(sub->type, sub->valType, lhs, rhs);
+        VReg *cast = gen_cast(result, expr->valType, sub->valType);
+        new_ir_store(lval, cast, type_size(expr->valType));
+        return result;
+      }
     }
-    return;
+    break;
 
   case EX_PREINC:
   case EX_PREDEC:
+    {
+      size_t value = 1;
+      if (expr->valType->type == TY_PTR)
+        value = type_size(expr->valType->u.pa.ptrof);
+      int size = type_size(expr->valType);
+
+      Expr *sub = expr->u.unary.sub;
+      if (sub->type == EX_VARREF) {
+        Scope *scope = sub->u.varref.scope;
+        VarInfo *varinfo = scope_find(&scope, sub->u.varref.ident);
+        if (varinfo != NULL && !(varinfo->flag & VF_STATIC)) {
+          VReg *num = new_ir_imm(value, size);
+          VReg *result = new_ir_bop(expr->type == EX_PREINC ? IR_ADD : IR_SUB,
+                                    varinfo->reg, num, size);
+          new_ir_mov(varinfo->reg, result, size);
+          return result;
+        }
+      }
+
+      VReg *lval = gen_lval(sub);
+      new_ir_incdec(expr->type == EX_PREINC ? IR_INC : IR_DEC,
+                    lval, size, value);
+      VReg *result = new_ir_unary(IR_LOAD, lval, size);
+      return result;
+    }
+
   case EX_POSTINC:
   case EX_POSTDEC:
     {
       size_t value = 1;
       if (expr->valType->type == TY_PTR)
         value = type_size(expr->valType->u.pa.ptrof);
-      gen_lval(expr->u.unary.sub);
-      new_ir_incdec(((expr->type - EX_PREINC) & 1) == 0, expr->type < EX_POSTINC,
-                    type_size(expr->valType), value);
+      int size = type_size(expr->valType);
+
+      Expr *sub = expr->u.unary.sub;
+      if (sub->type == EX_VARREF) {
+        Scope *scope = sub->u.varref.scope;
+        VarInfo *varinfo = scope_find(&scope, sub->u.varref.ident);
+        if (varinfo != NULL && !(varinfo->flag & VF_STATIC)) {
+          VReg *org_val = add_new_reg();
+          new_ir_mov(org_val, varinfo->reg, size);
+          VReg *num = new_ir_imm(value, size);
+          VReg *result = new_ir_bop(expr->type == EX_POSTINC ? IR_ADD : IR_SUB,
+                                    varinfo->reg, num, size);
+          new_ir_mov(varinfo->reg, result, size);
+          return org_val;
+        }
+      }
+
+      VReg *lval = gen_lval(expr->u.unary.sub);
+      VReg *result = new_ir_unary(IR_LOAD, lval, size);
+      new_ir_incdec(expr->type == EX_POSTINC ? IR_INC : IR_DEC,
+                    lval, size, value);
+      return result;
     }
-    return;
 
   case EX_FUNCALL:
-    gen_funcall(expr);
-    return;
+    return gen_funcall(expr);
 
   case EX_NEG:
-    gen_expr(expr->u.unary.sub);
-    new_ir_op(IR_NEG, type_size(expr->valType));
-    break;
+    {
+      VReg *reg = gen_expr(expr->u.unary.sub);
+      VReg *result = new_ir_unary(IR_NEG, reg, type_size(expr->valType));
+      return result;
+    }
 
   case EX_NOT:
-    gen_expr(expr->u.unary.sub);
-    switch (expr->u.unary.sub->valType->type) {
-    case TY_NUM: case TY_PTR:
-      new_ir_op(IR_NOT, type_size(expr->u.unary.sub->valType));
-      break;
-    case TY_ARRAY: case TY_FUNC:
-      // Array is handled as a pointer.
-      new_ir_op(IR_NOT, WORD_SIZE);
-      break;
-    default:  assert(false); break;
+    {
+      VReg *reg = gen_expr(expr->u.unary.sub);
+      VReg *result;
+      switch (expr->u.unary.sub->valType->type) {
+      case TY_NUM: case TY_PTR:
+        result = new_ir_unary(IR_NOT, reg, type_size(expr->u.unary.sub->valType));
+        break;
+      default:
+        assert(false);
+        // Fallthrough to suppress compile error
+      case TY_ARRAY: case TY_FUNC:
+        // Array is handled as a pointer.
+        result = new_ir_unary(IR_NOT, reg, WORD_SIZE);
+        break;
+      }
+      return result;
     }
     break;
 
@@ -523,9 +646,9 @@ void gen_expr(Expr *expr) {
   case EX_GE:
     {
       enum ConditionType cond = gen_compare_expr(expr->type, expr->u.bop.lhs, expr->u.bop.rhs);
-      new_ir_set(cond);
+      return new_ir_set(cond);
     }
-    return;
+    break;
 
   case EX_LOGAND:
     {
@@ -537,13 +660,14 @@ void gen_expr(Expr *expr) {
       set_curbb(bb1);
       gen_cond_jmp(expr->u.bop.rhs, false, false_bb);
       set_curbb(bb2);
-      new_ir_imm(true, type_size(&tyBool));
+      VReg *result = new_ir_imm(true, type_size(&tyBool));
       new_ir_jmp(COND_ANY, next_bb);
       set_curbb(false_bb);
-      new_ir_imm(false, type_size(&tyBool));
+      VReg *result2 = new_ir_imm(false, type_size(&tyBool));
+      new_ir_copy(result, result2, type_size(&tyBool));
       set_curbb(next_bb);
+      return result;
     }
-    return;
 
   case EX_LOGIOR:
     {
@@ -555,13 +679,14 @@ void gen_expr(Expr *expr) {
       set_curbb(bb1);
       gen_cond_jmp(expr->u.bop.rhs, true, true_bb);
       set_curbb(bb2);
-      new_ir_imm(false, type_size(&tyBool));
+      VReg *result = new_ir_imm(false, type_size(&tyBool));
       new_ir_jmp(COND_ANY, next_bb);
       set_curbb(true_bb);
-      new_ir_imm(true, type_size(&tyBool));
+      VReg *result2 = new_ir_imm(true, type_size(&tyBool));
+      new_ir_copy(result, result2, type_size(&tyBool));
       set_curbb(next_bb);
+      return result;
     }
-    return;
 
   case EX_ADD:
   case EX_SUB:
@@ -573,15 +698,18 @@ void gen_expr(Expr *expr) {
   case EX_BITAND:
   case EX_BITOR:
   case EX_BITXOR:
-    gen_expr(expr->u.bop.rhs);
-    new_ir_st(IR_PUSH);
-    gen_expr(expr->u.bop.lhs);
-    gen_arith(expr->type, expr->valType, expr->u.bop.rhs->valType);
-    return;
+    {
+      VReg *lhs = gen_expr(expr->u.bop.lhs);
+      VReg *rhs = gen_expr(expr->u.bop.rhs);
+      return gen_arith(expr->type, expr->valType, lhs, rhs);
+    }
+    break;
 
   default:
     fprintf(stderr, "Expr type=%d, ", expr->type);
     assert(!"Unhandled in gen_expr");
     break;
   }
+
+  return NULL;
 }
