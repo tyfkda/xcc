@@ -62,7 +62,7 @@ size_t type_size(const Type *type) {
   }
 }
 
-static int align_size(const Type *type) {
+int align_size(const Type *type) {
   switch (type->type) {
   case TY_VOID:
     return 1;  // ?
@@ -421,58 +421,53 @@ static int arrange_variadic_func_params(Scope *scope) {
   // and each parameter occupies sizeof(intptr_t).
   for (int i = 0; i < scope->vars->len; ++i) {
     VarInfo *varinfo = (VarInfo*)scope->vars->data[i];
-    varinfo->offset = (i - MAX_REG_ARGS) * WORD_SIZE;
+    VReg *vreg = add_new_reg();
+    vreg_spill(vreg);
+    vreg->type = varinfo->type;
+    vreg->offset = (i - MAX_REG_ARGS) * WORD_SIZE;
+    varinfo->reg = vreg;
   }
   return MAX_REG_ARGS * WORD_SIZE;
 }
 
-static size_t arrange_scope_vars(Defun *defun) {
-  // Calc local variable offsets.
-  // Map parameters from the bottom (to reduce offsets).
-  size_t frame_size = 0;
+static void alloc_variable_registers(Defun *defun) {
   for (int i = 0; i < defun->all_scopes->len; ++i) {
     Scope *scope = (Scope*)defun->all_scopes->data[i];
-    size_t scope_size = scope->parent != NULL ? scope->parent->size : 0;
     if (scope->vars != NULL) {
-      if (i == 0) {  // Function parameters.
-        if (defun->type->u.func.vaargs) {
-          // Special arrangement for va_list.
-          scope_size = arrange_variadic_func_params(scope);
-        } else {
-          for (int j = 0; j < scope->vars->len; ++j) {
-            VarInfo *varinfo = (VarInfo*)scope->vars->data[j];
-            if (j < MAX_REG_ARGS) {
-              size_t size = type_size(varinfo->type);
-              int align = align_size(varinfo->type);
-              if (size < 1)
-                size = 1;
-              scope_size = ALIGN(scope_size + size, align);
-              varinfo->offset = -scope_size;
-            } else {
-              // Assumes little endian, and put all types in WORD_SIZE.
-              varinfo->offset = STACK_PARAM_BASE_OFFSET + j * WORD_SIZE;
-            }
-          }
-        }
+      if (i == 0 && defun->type->u.func.vaargs) {  // Variadic function parameters.
+        // Special arrangement for va_list.
+        arrange_variadic_func_params(scope);
       } else {
         for (int j = 0; j < scope->vars->len; ++j) {
           VarInfo *varinfo = (VarInfo*)scope->vars->data[j];
           if (varinfo->flag & VF_STATIC)
             continue;  // Static variable is not allocated on stack.
-          size_t size = type_size(varinfo->type);
-          int align = align_size(varinfo->type);
-          if (size < 1)
-            size = 1;
-          scope_size = ALIGN(scope_size + size, align);
-          varinfo->offset = -scope_size;
+
+          VReg *vreg = add_new_reg();
+          bool spill = false;
+          switch (varinfo->type->type) {
+          case TY_ARRAY:
+          case TY_STRUCT:
+            // Make non-primitive variable spilled.
+            spill = true;
+            break;
+          default:
+            break;
+          }
+          if (i == 0 && j >= MAX_REG_ARGS) {  // Function argument passed through the stack.
+            spill = true;
+            vreg->offset = (j - MAX_REG_ARGS + 2) * WORD_SIZE;
+          }
+
+          if (spill) {
+            vreg_spill(vreg);
+            vreg->type = varinfo->type;
+          }
+          varinfo->reg = vreg;
         }
       }
     }
-    scope->size = scope_size;
-    if (frame_size < scope_size)
-      frame_size = scope_size;
   }
-  return ALIGN(frame_size, FRAME_ALIGN);
 }
 
 static void put_args_to_stack(Defun *defun) {
@@ -491,7 +486,7 @@ static void put_args_to_stack(Defun *defun) {
     if (i < len) {
       const VarInfo *varinfo = (const VarInfo*)params->data[i];
       type = varinfo->type;
-      offset = varinfo->offset;
+      offset = varinfo->reg->offset;
     } else {  // vaargs
       type = &tyLong;
       offset = (i - MAX_REG_ARGS) * WORD_SIZE;
@@ -610,8 +605,9 @@ static void gen_defun(Node *node) {
       label_map->vals->data[i] = new_bb();
   }
 
-  size_t frame_size = arrange_scope_vars(defun);
-  UNUSED(frame_size);
+  //size_t frame_size = arrange_scope_vars(defun);
+  //UNUSED(frame_size);
+  alloc_variable_registers(defun);
 
   bool no_stmt = true;
   if (defun->stmts != NULL) {
@@ -633,6 +629,9 @@ static void gen_defun(Node *node) {
   gen_nodes(defun->stmts);
 
   set_curbb(defun->ret_bb);
+  curbb = NULL;
+
+  size_t frame_size = alloc_real_registers(defun);
 
   remove_unnecessary_bb(defun->bbcon);
 
@@ -695,7 +694,6 @@ static void gen_return(Node *node) {
   if (node->u.return_.val != NULL) {
     VReg *reg = gen_expr(node->u.return_.val);
     new_ir_result(reg, type_size(node->u.return_.val->valType));
-    new_ir_unreg(reg);
   }
   assert(curfunc != NULL);
   new_ir_jmp(COND_ANY, curfunc->ret_bb);
@@ -750,13 +748,11 @@ static void gen_switch(Node *node) {
     intptr_t x = (intptr_t)case_values->data[i];
     VReg *num = new_ir_imm(x, size);
     new_ir_cmp(reg, num, size);
-    new_ir_unreg(num);
     new_ir_jmp(COND_EQ, bbs->data[i]);
     set_curbb(nextbb);
   }
   new_ir_jmp(COND_ANY, bbs->data[len]);  // Jump to default.
   set_curbb(bb_split(curbb));
-  new_ir_unreg(reg);
 
   // No bb setting.
 
@@ -903,10 +899,8 @@ static void gen_label(Node *node) {
 
 static void gen_clear_local_var(const VarInfo *varinfo) {
   // Fill with zeros regardless of variable type.
-  int offset = varinfo->offset;
-  VReg *reg = new_ir_bofs(offset);
+  VReg *reg = new_ir_bofs(varinfo->reg);
   new_ir_clear(reg, type_size(varinfo->type));
-  new_ir_unreg(reg);
 }
 
 static void gen_vardecl(Node *node) {
@@ -929,8 +923,7 @@ static void gen_vardecl(Node *node) {
 }
 
 static void gen_expr_stmt(Expr *expr) {
-  VReg *result = gen_expr(expr);
-  new_ir_unreg(result);
+  gen_expr(expr);
 }
 
 static void gen_toplevel(Node *node) {

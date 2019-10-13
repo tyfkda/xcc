@@ -13,7 +13,8 @@
 #include "var.h"
 #include "x86_64.h"
 
-#define REG_COUNT  (7)
+#define REG_COUNT  (7 - 1)
+#define SPILLED_REG_NO  (REG_COUNT)
 
 // Virtual register
 
@@ -21,7 +22,13 @@ VReg *new_vreg(int vreg_no) {
   VReg *vreg = malloc(sizeof(*vreg));
   vreg->v = vreg_no;
   vreg->r = -1;
+  vreg->type = NULL;
+  vreg->offset = 0;
   return vreg;
+}
+
+void vreg_spill(VReg *vreg) {
+  vreg->r = SPILLED_REG_NO;
 }
 
 // Register allocator
@@ -73,13 +80,6 @@ void reg_alloc_map(RegAlloc *ra, VReg *vreg) {
   error("register exhausted");
 }
 
-static void reg_alloc_unreg(RegAlloc *ra, VReg *vreg) {
-  assert(vreg->v >= 0 && vreg->v < ra->regno);
-  int r = vreg->r;
-  assert(ra->used[r]);
-  ra->used[r] = false;
-}
-
 //
 static RegAlloc *ra;
 
@@ -88,6 +88,10 @@ void init_reg_alloc(void) {
     ra = new_reg_alloc();
   else
     reg_alloc_clear(ra);
+}
+
+VReg *add_new_reg(void) {
+  return reg_alloc_spawn(ra);
 }
 
 void check_all_reg_unused(void) {
@@ -103,7 +107,9 @@ static IR *new_ir(enum IrType type) {
   IR *ir = malloc(sizeof(*ir));
   ir->type = type;
   ir->dst = ir->opr1 = ir->opr2 = NULL;
-  vec_push(curbb->irs, ir);
+  ir->size = -1;
+  if (curbb != NULL)
+    vec_push(curbb->irs, ir);
   return ir;
 }
 
@@ -129,9 +135,9 @@ VReg *new_ir_unary(enum IrType type, VReg *opr, int size) {
   return ir->dst = reg_alloc_spawn(ra);
 }
 
-VReg *new_ir_bofs(int offset) {
+VReg *new_ir_bofs(VReg *src) {
   IR *ir = new_ir(IR_BOFS);
-  ir->value = offset;
+  ir->opr1 = src;
   return ir->dst = reg_alloc_spawn(ra);
 }
 
@@ -150,8 +156,8 @@ void new_ir_store(VReg *dst, VReg *src, int size) {
 
 void new_ir_memcpy(VReg *dst, VReg *src, int size) {
   IR *ir = new_ir(IR_MEMCPY);
-  ir->dst = dst;
   ir->opr1 = src;
+  ir->opr2 = dst;
   ir->size = size;
 }
 
@@ -191,6 +197,7 @@ void new_ir_jmp(enum ConditionType cond, BB *bb) {
 void new_ir_pusharg(VReg *vreg) {
   IR *ir = new_ir(IR_PUSHARG);
   ir->opr1 = vreg;
+  ir->size = WORD_SIZE;
 }
 
 void new_ir_precall(int arg_count) {
@@ -212,11 +219,12 @@ void new_ir_addsp(int value) {
   ir->value = value;
 }
 
-void new_ir_cast(VReg *vreg, int dstsize, int srcsize) {
+VReg *new_ir_cast(VReg *vreg, int dstsize, int srcsize) {
   IR *ir = new_ir(IR_CAST);
   ir->opr1 = vreg;
   ir->size = dstsize;
   ir->u.cast.srcsize = srcsize;
+  return ir->dst = reg_alloc_spawn(ra);
 }
 
 void new_ir_clear(VReg *reg, size_t size) {
@@ -243,9 +251,25 @@ void new_ir_asm(const char *asm_) {
   ir->u.asm_.str = asm_;
 }
 
-void new_ir_unreg(VReg *reg) {
-  IR *ir = new_ir(IR_UNREG);
-  ir->opr1 = reg;
+void new_ir_mov(VReg *dst, VReg *src, int size) {
+  IR *ir = new_ir(IR_MOV);
+  ir->dst = dst;
+  ir->opr1 = src;
+  ir->size = size;
+}
+
+static IR *new_ir_load_spilled(int offset, int size) {
+  IR *ir = new_ir(IR_LOAD_SPILLED);
+  ir->value = offset;
+  ir->size = size;
+  return ir;
+}
+
+static IR *new_ir_store_spilled(int offset, int size) {
+  IR *ir = new_ir(IR_STORE_SPILLED);
+  ir->value = offset;
+  ir->size = size;
+  return ir;
 }
 
 static void ir_memcpy(int dst_reg, int src_reg, ssize_t size) {
@@ -297,10 +321,6 @@ void ir_alloc_reg(IR *ir) {
     reg_alloc_map(ra, ir->opr2);
 
   switch (ir->type) {
-  case IR_UNREG:
-    reg_alloc_unreg(ra, ir->opr1);
-    break;
-
   case IR_IMM:
   case IR_BOFS:
   case IR_IOFS:
@@ -383,7 +403,7 @@ void ir_out(const IR *ir) {
     break;
 
   case IR_BOFS:
-    LEA(OFFSET_INDIRECT(ir->value, RBP), kReg64s[ir->dst->r]);
+    LEA(OFFSET_INDIRECT(ir->opr1->offset, RBP), kReg64s[ir->dst->r]);
     break;
 
   case IR_IOFS:
@@ -411,7 +431,7 @@ void ir_out(const IR *ir) {
     break;
 
   case IR_MEMCPY:
-    ir_memcpy(ir->dst->r, ir->opr1->r, ir->size);
+    ir_memcpy(ir->opr2->r, ir->opr1->r, ir->size);
     break;
 
   case IR_ADD:
@@ -709,6 +729,12 @@ void ir_out(const IR *ir) {
       else
         CALL(fmt("*%s", kReg64s[ir->opr1->r]));
 
+      if (ir->u.call.arg_count > MAX_REG_ARGS) {
+        int add = (ir->u.call.arg_count - MAX_REG_ARGS) * WORD_SIZE;
+        ADD(IM(add), RSP);
+        stackpos -= add;
+      }
+
       // Resore caller save registers.
       POP(R11); POP_STACK_POS();
       POP(R10); POP_STACK_POS();
@@ -732,26 +758,34 @@ void ir_out(const IR *ir) {
     break;
 
   case IR_CAST:
+    switch (ir->u.cast.srcsize) {
+    case 1:  MOV(kReg8s[ir->opr1->r], kReg8s[ir->dst->r]); break;
+    case 2:  MOV(kReg16s[ir->opr1->r], kReg16s[ir->dst->r]); break;
+    case 4:  MOV(kReg32s[ir->opr1->r], kReg32s[ir->dst->r]); break;
+    case 8:  MOV(kReg64s[ir->opr1->r], kReg64s[ir->dst->r]); break;
+    default: assert(false); break;
+    }
+
     if (ir->size > ir->u.cast.srcsize) {
       switch (ir->size) {
       case 2:
         switch (ir->u.cast.srcsize) {
-        case 1:  MOVSX(kReg8s[ir->opr1->r], kReg16s[ir->opr1->r]); break;
+        case 1:  MOVSX(kReg8s[ir->dst->r], kReg16s[ir->dst->r]); break;
         default:  assert(false); break;
         }
         break;
       case 4:
         switch (ir->u.cast.srcsize) {
-        case 1:  MOVSX(kReg8s[ir->opr1->r], kReg32s[ir->opr1->r]); break;
-        case 2:  MOVSX(kReg16s[ir->opr1->r], kReg32s[ir->opr1->r]); break;
+        case 1:  MOVSX(kReg8s[ir->dst->r], kReg32s[ir->dst->r]); break;
+        case 2:  MOVSX(kReg16s[ir->dst->r], kReg32s[ir->dst->r]); break;
         default:  assert(false); break;
         }
         break;
       case 8:
         switch (ir->u.cast.srcsize) {
-        case 1:  MOVSX(kReg8s[ir->opr1->r], kReg64s[ir->opr1->r]); break;
-        case 2:  MOVSX(kReg16s[ir->opr1->r], kReg64s[ir->opr1->r]); break;
-        case 4:  MOVSX(kReg32s[ir->opr1->r], kReg64s[ir->opr1->r]); break;
+        case 1:  MOVSX(kReg8s[ir->dst->r], kReg64s[ir->dst->r]); break;
+        case 2:  MOVSX(kReg16s[ir->dst->r], kReg64s[ir->dst->r]); break;
+        case 4:  MOVSX(kReg32s[ir->dst->r], kReg64s[ir->dst->r]); break;
         default:
           assert(false); break;
         }
@@ -794,9 +828,6 @@ void ir_out(const IR *ir) {
     }
     break;
 
-  case IR_UNREG:
-    break;
-
   case IR_ASM:
     EMIT_ASM0(ir->u.asm_.str);
     break;
@@ -810,6 +841,26 @@ void ir_out(const IR *ir) {
       case 8:  MOV(kReg64s[ir->opr1->r], kReg64s[ir->dst->r]); break;
       default:  assert(false); break;
       }
+    }
+    break;
+
+  case IR_LOAD_SPILLED:
+    switch (ir->size) {
+    case 1:  MOV(OFFSET_INDIRECT(ir->value, RBP), kReg8s[SPILLED_REG_NO]); break;
+    case 2:  MOV(OFFSET_INDIRECT(ir->value, RBP), kReg16s[SPILLED_REG_NO]); break;
+    case 4:  MOV(OFFSET_INDIRECT(ir->value, RBP), kReg32s[SPILLED_REG_NO]); break;
+    case 8:  MOV(OFFSET_INDIRECT(ir->value, RBP), kReg64s[SPILLED_REG_NO]); break;
+    default: assert(false); break;
+    }
+    break;
+
+  case IR_STORE_SPILLED:
+    switch (ir->size) {
+    case 1:  MOV(kReg8s[SPILLED_REG_NO], OFFSET_INDIRECT(ir->value, RBP)); break;
+    case 2:  MOV(kReg16s[SPILLED_REG_NO], OFFSET_INDIRECT(ir->value, RBP)); break;
+    case 4:  MOV(kReg32s[SPILLED_REG_NO], OFFSET_INDIRECT(ir->value, RBP)); break;
+    case 8:  MOV(kReg64s[SPILLED_REG_NO], OFFSET_INDIRECT(ir->value, RBP)); break;
+    default: assert(false); break;
     }
     break;
 
@@ -828,6 +879,9 @@ BB *new_bb(void) {
   bb->next = NULL;
   bb->label = alloc_label();
   bb->irs = new_vector();
+  bb->in_regs = NULL;
+  bb->out_regs = NULL;
+  bb->assigned_regs = NULL;
   return bb;
 }
 
@@ -911,13 +965,6 @@ void remove_unnecessary_bb(BBContainer *bbcon) {
   }
 }
 
-static void alloc_regs(Vector *irs) {
-  for (int i = 0, len = irs->len; i < len; ++i) {
-    IR *ir = irs->data[i];
-    ir_alloc_reg(ir);
-  }
-}
-
 // Rewrite `A = B op C` to `A = B; A = A op C`.
 static void three_to_two(BB *bb) {
   Vector *irs = bb->irs;
@@ -957,12 +1004,369 @@ static void three_to_two(BB *bb) {
   bb->irs = irs;
 }
 
-void emit_bb_irs(BBContainer *bbcon) {
+typedef struct {
+  int vreg;
+  int rreg;
+  int start;
+  int end;
+  bool spill;
+} LiveInterval;
+
+static int insert_active(LiveInterval **active, int active_count, LiveInterval *li) {
+  int j;
+  for (j = 0; j < active_count; ++j) {
+    LiveInterval *p = active[j];
+    if (li->end < p->end)
+      break;
+  }
+  if (j < active_count)
+    memmove(&active[j + 1], &active[j], sizeof(LiveInterval*) * (active_count - j));
+  active[j] = li;
+  return j;
+}
+
+static void remove_active(LiveInterval **active, int active_count, int start, int n) {
+  if (n <= 0)
+    return;
+  int tail = active_count - (start + n);
+  assert(tail >= 0);
+
+  if (tail > 0)
+    memmove(&active[start], &active[start + n], sizeof(LiveInterval*) * tail);
+}
+
+static int sort_live_interval(LiveInterval **pa, LiveInterval **pb) {
+  LiveInterval *a = *pa, *b = *pb;
+  int d = a->start - b->start;
+  if (d == 0)
+    d = b->end - a->start;
+  return d;
+}
+
+static void split_at_interval(LiveInterval **active, int active_count, LiveInterval *li) {
+  assert(active_count > 0);
+  LiveInterval *spill = active[active_count - 1];
+  if (spill->end > li->end) {
+    li->rreg = spill->rreg;
+    spill->rreg = SPILLED_REG_NO;
+    spill->spill = true;
+    insert_active(active, active_count - 1, li);
+  } else {
+    li->rreg = SPILLED_REG_NO;
+    li->spill = true;
+  }
+}
+
+static void expire_old_intervals(LiveInterval **active, int *pactive_count, bool *used, int start) {
+  int active_count = *pactive_count;
+  int j;
+  for (j = 0; j < active_count; ++j) {
+    LiveInterval *li = active[j];
+    if (li->end > start)
+      break;
+    used[li->rreg] = false;
+  }
+  remove_active(active, active_count, 0, j);
+  *pactive_count = active_count - j;
+}
+
+static LiveInterval **check_live_interval(BBContainer *bbcon, int vreg_count, LiveInterval **pintervals) {
+  LiveInterval *intervals = malloc(sizeof(LiveInterval) * vreg_count);
+  for (int i = 0; i < vreg_count; ++i) {
+    LiveInterval *li = &intervals[i];
+    li->vreg = i;
+    li->rreg = -1;
+    li->start = li->end = -1;
+    li->spill = false;
+  }
+
+  int nip = 0;
+  for (int i = 0; i < bbcon->bbs->len; ++i) {
+    BB *bb = bbcon->bbs->data[i];
+    for (int j = 0; j < bb->irs->len; ++j, ++nip) {
+      IR *ir = bb->irs->data[j];
+      VReg *regs[] = {ir->dst, ir->opr1, ir->opr2};
+      for (int k = 0; k < 3; ++k) {
+        VReg *reg = regs[k];
+        if (reg == NULL)
+          continue;
+        LiveInterval *li = &intervals[reg->v];
+        if (li->start < 0)
+          li->start = nip;
+        if (li->end < nip)
+          li->end = nip;
+      }
+    }
+
+    for (int j = 0; j < bb->out_regs->len; ++j) {
+      VReg *reg = bb->out_regs->data[j];
+      LiveInterval *li = &intervals[reg->v];
+      if (li->start < 0)
+        li->start = nip;
+      if (li->end < nip)
+        li->end = nip;
+    }
+  }
+
+  // Sort by start, end
+  LiveInterval **sorted_intervals = malloc(sizeof(LiveInterval*) * vreg_count);
+  for (int i = 0; i < vreg_count; ++i)
+    sorted_intervals[i] = &intervals[i];
+  qsort(sorted_intervals, vreg_count, sizeof(LiveInterval*), (int (*)(const void*, const void*))sort_live_interval);
+
+  *pintervals = intervals;
+  return sorted_intervals;
+}
+
+static void linear_scan_register_allocation(LiveInterval **sorted_intervals, int vreg_count) {
+  LiveInterval *active[REG_COUNT];
+  int active_count = 0;
+  bool used[REG_COUNT];
+  memset(used, 0, sizeof(used));
+
+  for (int i = 0; i < vreg_count; ++i) {
+    LiveInterval *li = sorted_intervals[i];
+    if (li->spill)
+      continue;
+    expire_old_intervals(active, &active_count, used, li->start);
+    if (active_count >= REG_COUNT) {
+      split_at_interval(active, active_count, li);
+    } else {
+      int regno = -1;
+      for (int j = 0; j < REG_COUNT; ++j) {
+        if (!used[j]) {
+          regno = j;
+          break;
+        }
+      }
+      assert(regno >= 0);
+      li->rreg = regno;
+      used[regno] = true;
+
+      insert_active(active, active_count, li);
+      ++active_count;
+    }
+  }
+}
+
+static void insert_load_store_instructions(BBContainer *bbcon, Vector *vregs) {
+  for (int i = 0; i < bbcon->bbs->len; ++i) {
+    BB *bb = bbcon->bbs->data[i];
+    Vector *irs = bb->irs;
+    for (int j = 0; j < irs->len; ++j) {
+      IR *ir = irs->data[j];
+
+      switch (ir->type) {
+      case IR_MOV:
+      case IR_ADD:  // binops
+      case IR_SUB:
+      case IR_MUL:
+      case IR_DIV:
+      case IR_MOD:
+      case IR_BITAND:
+      case IR_BITOR:
+      case IR_BITXOR:
+      case IR_LSHIFT:
+      case IR_RSHIFT:
+      case IR_CMP:
+      case IR_NEG:  // unary ops
+      case IR_NOT:
+      case IR_SET:
+      case IR_TEST:
+      case IR_PUSHARG:
+      case IR_CALL:
+      case IR_CAST:
+      case IR_COPY:
+      case IR_RESULT:
+        if (ir->opr1 != NULL && ir->opr1->r == SPILLED_REG_NO) {
+          vec_insert(irs, j,
+                     new_ir_load_spilled(((VReg*)vregs->data[ir->opr1->v])->offset, ir->size));
+          ++j;
+        }
+
+        if (ir->opr2 != NULL && ir->opr2->r == SPILLED_REG_NO) {
+          vec_insert(irs, j,
+                     new_ir_load_spilled(((VReg*)vregs->data[ir->opr2->v])->offset, ir->size));
+          ++j;
+        }
+
+        if (ir->dst != NULL && ir->dst->r == SPILLED_REG_NO) {
+          ++j;
+          vec_insert(irs, j,
+                     new_ir_store_spilled(((VReg*)vregs->data[ir->dst->v])->offset, ir->size));
+        }
+        break;
+
+      case IR_LOAD:
+      case IR_STORE:
+      case IR_MEMCPY:
+        if (ir->opr1 != NULL && ir->opr1->r == SPILLED_REG_NO) {
+          vec_insert(irs, j,
+                     new_ir_load_spilled(((VReg*)vregs->data[ir->opr1->v])->offset, WORD_SIZE));
+          ++j;
+        }
+
+        if (ir->opr2 != NULL && ir->opr2->r == SPILLED_REG_NO) {
+          vec_insert(irs, j,
+                     new_ir_load_spilled(((VReg*)vregs->data[ir->opr2->v])->offset, WORD_SIZE));
+          ++j;
+        }
+
+        if (ir->dst != NULL && ir->dst->r == SPILLED_REG_NO) {
+          ++j;
+          vec_insert(irs, j,
+                     new_ir_store_spilled(((VReg*)vregs->data[ir->dst->v])->offset, ir->size));
+        }
+        break;
+
+      default:
+        break;
+      }
+    }
+  }
+}
+
+static void analyze_reg_flow(BBContainer *bbcon) {
+  // Enumerate in and defined regsiters for each BB.
+  for (int i = 0; i < bbcon->bbs->len; ++i) {
+    BB *bb = bbcon->bbs->data[i];
+    Vector *in_regs = new_vector();
+    Vector *assigned_regs = new_vector();
+    Vector *irs = bb->irs;
+    for (int j = 0; j < irs->len; ++j) {
+      IR *ir = irs->data[j];
+      VReg *regs[] = {ir->opr1, ir->opr2};
+      for (int k = 0; k < 2; ++k) {
+        VReg *reg = regs[k];
+        if (reg == NULL)
+          continue;
+        if (!vec_contains(in_regs, reg) &&
+            !vec_contains(assigned_regs, reg))
+          vec_push(in_regs, reg);
+      }
+      if (ir->dst != NULL && !vec_contains(assigned_regs, ir->dst))
+        vec_push(assigned_regs, ir->dst);
+    }
+
+    bb->in_regs = in_regs;
+    bb->out_regs = new_vector();
+    bb->assigned_regs = assigned_regs;
+  }
+
+  // Propagate in regs to previous BB.
+  bool cont;
+  do {
+    cont = false;
+    for (int i = 0; i < bbcon->bbs->len; ++i) {
+      BB *bb = bbcon->bbs->data[i];
+      Vector *irs = bb->irs;
+
+      BB *next_bbs[2];
+      next_bbs[0] = bb->next;
+      next_bbs[1] = NULL;
+
+      if (irs->len > 0) {
+        IR *ir = irs->data[irs->len - 1];
+        if (ir->type == IR_JMP) {
+          next_bbs[1] = ir->u.jmp.bb;
+          if (ir->u.jmp.cond == COND_ANY)
+            next_bbs[0] = NULL;
+        }
+      }
+      for (int j = 0; j < 2; ++j) {
+        BB *next = next_bbs[j];
+        if (next == NULL)
+          continue;
+        Vector *in_regs = next->in_regs;
+        for (int k = 0; k < in_regs->len; ++k) {
+          VReg *reg = in_regs->data[k];
+          if (!vec_contains(bb->out_regs, reg))
+            vec_push(bb->out_regs, reg);
+          if (vec_contains(bb->assigned_regs, reg) ||
+              vec_contains(bb->in_regs, reg))
+            continue;
+          vec_push(bb->in_regs, reg);
+          cont = true;
+        }
+      }
+    }
+  } while (cont);
+}
+
+size_t alloc_real_registers(Defun *defun) {
+  BBContainer *bbcon = defun->bbcon;
   for (int i = 0; i < bbcon->bbs->len; ++i) {
     BB *bb = bbcon->bbs->data[i];
     three_to_two(bb);
   }
 
+  analyze_reg_flow(bbcon);
+
+  int vreg_count = ra->regno;
+  LiveInterval *intervals;
+  LiveInterval **sorted_intervals = check_live_interval(bbcon, ra->regno, &intervals);
+
+  for (int i = 0; i < vreg_count; ++i) {
+    LiveInterval *li = &intervals[i];
+    VReg *vreg = ra->vregs->data[i];
+    if (vreg->r == SPILLED_REG_NO) {
+      li->spill = true;
+      li->rreg = vreg->r;
+    }
+  }
+
+  if (defun->params != NULL) {
+    // Make function parameters all spilled.
+    for (int i = 0; i < defun->params->len; ++i) {
+      VarInfo *varinfo = defun->params->data[i];
+
+      LiveInterval *li = &intervals[varinfo->reg->v];
+      li->start = 0;
+      li->spill = true;
+      li->rreg = SPILLED_REG_NO;
+    }
+  }
+
+  linear_scan_register_allocation(sorted_intervals, vreg_count);
+
+  // Map vreg to rreg.
+  for (int i = 0; i < vreg_count; ++i) {
+    VReg *vreg = ra->vregs->data[i];
+    vreg->r = intervals[vreg->v].rreg;
+  }
+
+  // Allocated spilled virtual registers onto stack.
+  size_t frame_size = 0;
+  for (int i = 0; i < vreg_count; ++i) {
+    LiveInterval *li = sorted_intervals[i];
+    if (!li->spill)
+      continue;
+    VReg *vreg = ra->vregs->data[li->vreg];
+    int size = WORD_SIZE, align = WORD_SIZE;
+    if (vreg->type != NULL) {
+      if (vreg->offset != 0) {  // Variadic function parameter or stack parameter.
+        if (-vreg->offset > (int)frame_size)
+          frame_size = -vreg->offset;
+        continue;
+      }
+
+      const Type *type = vreg->type;
+      size = type_size(type);
+      align = align_size(type);
+      if (size < 1)
+        size = 1;
+    }
+    frame_size = ALIGN(frame_size + size, align);
+    vreg->offset = -frame_size;
+  }
+
+  // Insert load/store instructions for spilled registers.
+  insert_load_store_instructions(bbcon, ra->vregs);
+
+  return frame_size;
+}
+
+void emit_bb_irs(BBContainer *bbcon) {
   for (int i = 0; i < bbcon->bbs->len; ++i) {
     BB *bb = bbcon->bbs->data[i];
 #ifndef NDEBUG
@@ -974,7 +1378,6 @@ void emit_bb_irs(BBContainer *bbcon) {
       assert(bb->next == NULL);
     }
 #endif
-    alloc_regs(bb->irs);
 
     emit_comment("  BB %d/%d", i, bbcon->bbs->len);
     EMIT_LABEL(bb->label);
@@ -997,11 +1400,11 @@ void dump_ir(IR *ir) {
   FILE *fp = stderr;
   switch (ir->type) {
   case IR_IMM:    fprintf(fp, "\tIMM\tR%d%s = %"PRIdPTR"\n", dst, kSize[ir->size], ir->value); break;
-  case IR_BOFS:   fprintf(fp, "\tBOFS\tR%d = &[rbp %c %"PRIdPTR"]\n", dst, ir->value > 0 ? '+' : '-', ir->value > 0 ? ir->value : -ir->value); break;
+  case IR_BOFS:   fprintf(fp, "\tBOFS\tR%d = &[rbp %c %d]\n", dst, ir->opr1->offset > 0 ? '+' : '-', ir->opr1->offset > 0 ? ir->opr1->offset : -ir->opr1->offset); break;
   case IR_IOFS:   fprintf(fp, "\tIOFS\tR%d = &%s\n", dst, ir->u.iofs.label); break;
   case IR_LOAD:   fprintf(fp, "\tLOAD\tR%d%s = (R%d)\n", dst, kSize[ir->size], opr1); break;
   case IR_STORE:  fprintf(fp, "\tSTORE\t(R%d) = R%d%s\n", opr2, opr1, kSize[ir->size]); break;
-  case IR_MEMCPY: fprintf(fp, "\tMEMCPY(dst=R%d, src=R%d, size=%d)\n", dst, opr1, ir->size); break;
+  case IR_MEMCPY: fprintf(fp, "\tMEMCPY(dst=R%d, src=R%d, size=%d)\n", opr2, opr1, ir->size); break;
   case IR_ADD:    fprintf(fp, "\tADD\tR%d%s = R%d%s + R%d%s\n", dst, kSize[ir->size], opr1, kSize[ir->size], opr2, kSize[ir->size]); break;
   case IR_SUB:    fprintf(fp, "\tSUB\tR%d%s = R%d%s - R%d%s\n", dst, kSize[ir->size], opr1, kSize[ir->size], opr2, kSize[ir->size]); break;
   case IR_MUL:    fprintf(fp, "\tMUL\tR%d%s = R%d%s * R%d%s\n", dst, kSize[ir->size], opr1, kSize[ir->size], opr2, kSize[ir->size]); break;
@@ -1029,13 +1432,14 @@ void dump_ir(IR *ir) {
       fprintf(fp, "\tCALL\tR%d%s = *R%d\n", dst, kSize[ir->size], opr1);
     break;
   case IR_ADDSP:  fprintf(fp, "\tADDSP\t%"PRIdPTR"\n", ir->value); break;
-  case IR_CAST:   fprintf(fp, "\tCAST\tR%d (%d->%d)\n", opr1, ir->u.cast.srcsize, ir->size); break;
+  case IR_CAST:   fprintf(fp, "\tCAST\tR%d%s = R%d%s\n", dst, kSize[ir->size], opr1, kSize[ir->u.cast.srcsize]); break;
   case IR_CLEAR:  fprintf(fp, "\tCLEAR\tR%d, %d\n", opr1, ir->size); break;
   case IR_COPY:   fprintf(fp, "\tCOPY\tR%d%s = R%d%s\n", dst, kSize[ir->size], opr1, kSize[ir->size]); break;
   case IR_RESULT: fprintf(fp, "\tRESULT\tR%d%s\n", opr1, kSize[ir->size]); break;
   case IR_ASM:    fprintf(fp, "\tASM\n"); break;
-  case IR_UNREG:  fprintf(fp, "\tUNREG\tR%d\n", opr1); break;
   case IR_MOV:    fprintf(fp, "\tMOV\tR%d%s = R%d%s\n", dst, kSize[ir->size], opr1, kSize[ir->size]); break;
+  case IR_LOAD_SPILLED:   fprintf(fp, "\tLOAD_SPILLED %d(%s)\n", (int)ir->value, kSize[ir->size]); break;
+  case IR_STORE_SPILLED:  fprintf(fp, "\tSTORE_SPILLED %d(%s)\n", (int)ir->value, kSize[ir->size]); break;
 
   default: assert(false); break;
   }

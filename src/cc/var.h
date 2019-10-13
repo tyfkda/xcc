@@ -3,6 +3,7 @@
 typedef struct Map Map;
 typedef struct Token Token;
 typedef struct Type Type;
+typedef struct VReg VReg;
 typedef struct Vector Vector;
 
 // Varible flags.
@@ -28,6 +29,7 @@ typedef struct VarInfo {
 
   // For codegen.
   int offset;
+  VReg *reg;
 } VarInfo;
 
 // Variables

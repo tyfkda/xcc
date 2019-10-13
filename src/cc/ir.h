@@ -7,6 +7,8 @@
 #include <stdint.h>  // intptr_t
 
 typedef struct BB BB;
+typedef struct Defun Defun;
+typedef struct Type Type;
 typedef struct Vector Vector;
 
 // Virtual register
@@ -14,9 +16,12 @@ typedef struct Vector Vector;
 typedef struct VReg {
   int v;
   int r;
+  const Type *type;
+  int offset;  // Local offset for spilled register.
 } VReg;
 
 VReg *new_vreg(int vreg_no);
+void vreg_spill(VReg *vreg);
 
 // Intermediate Representation
 
@@ -54,9 +59,10 @@ enum IrType {
   IR_COPY,
   IR_RESULT,
   IR_ASM,
-  IR_UNREG,
 
   IR_MOV,
+  IR_LOAD_SPILLED,
+  IR_STORE_SPILLED,
 };
 
 enum ConditionType {
@@ -104,7 +110,8 @@ typedef struct {
 VReg *new_ir_imm(intptr_t value, int size);
 VReg *new_ir_bop(enum IrType type, VReg *opr1, VReg *opr2, int size);
 VReg *new_ir_unary(enum IrType type, VReg *opr, int size);
-VReg *new_ir_bofs(int offset);
+void new_ir_mov(VReg *dst, VReg *src, int size);
+VReg *new_ir_bofs(VReg *src);
 VReg *new_ir_iofs(const char *label);
 void new_ir_store(VReg *dst, VReg *src, int size);
 void new_ir_memcpy(VReg *dst, VReg *src, int size);
@@ -117,12 +124,11 @@ void new_ir_precall(int arg_count);
 void new_ir_pusharg(VReg *vreg);
 VReg *new_ir_call(const char *label, VReg *freg, int arg_count, int result_size);
 void new_ir_addsp(int value);
-void new_ir_cast(VReg *vreg, int dstsize, int srcsize);
+VReg *new_ir_cast(VReg *vreg, int dstsize, int srcsize);
 void new_ir_clear(VReg *reg, size_t size);
 void new_ir_copy(VReg *dst, VReg *src, int size);
 void new_ir_result(VReg *reg, int size);
 void new_ir_asm(const char *asm_);
-void new_ir_unreg(VReg *reg);
 
 void ir_alloc_reg(IR *ir);
 void ir_out(const IR *ir);
@@ -134,6 +140,7 @@ void dump_ir(IR *ir);
 // Register allocator
 
 void init_reg_alloc(void);
+VReg *add_new_reg(void);
 void check_all_reg_unused(void);
 
 // Basci Block:
@@ -143,6 +150,10 @@ typedef struct BB {
   struct BB *next;
   const char *label;
   Vector *irs;  // <IR*>
+
+  Vector *in_regs;  // <VReg*>
+  Vector *out_regs;  // <VReg*>
+  Vector *assigned_regs;  // <VReg*>
 } BB;
 
 extern BB *curbb;
@@ -158,4 +169,5 @@ typedef struct BBContainer {
 
 BBContainer *new_func_blocks(void);
 void remove_unnecessary_bb(BBContainer *bbcon);
+size_t alloc_real_registers(Defun *defun);
 void emit_bb_irs(BBContainer *bbcon);

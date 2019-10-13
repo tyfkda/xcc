@@ -37,6 +37,7 @@ VarInfo *var_add(Vector *lvars, const Token *ident, const Type *type, int flag) 
   info->flag = flag;
   info->u.l.label = label;
   info->offset = -1;
+  info->reg = NULL;
   vec_push(lvars, info);
   return ginfo != NULL ? ginfo : info;
 }
