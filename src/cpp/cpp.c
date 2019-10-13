@@ -383,11 +383,53 @@ void expand(Macro *macro, const char *name) {
   init_lexer_string(str, NULL, -1);
 }
 
+bool handle_block_comment(const char *begin, const char **pp, Stream *stream) {
+  const char *p = skip_whitespaces(*pp);
+  if (*p != '/' || p[1] != '*')
+    return false;
+
+  p += 2;
+  for (;;) {
+    if (*p == '\0') {
+      fwrite(begin, p - begin, 1, stdout);
+      fputc('\n', stdout);
+
+      char *line = NULL;
+      size_t capa = 0;
+      ssize_t len = getline_(&line, &capa, stream->fp, 0);
+      if (len == EOF) {
+        *pp = p;
+        return true;
+      }
+      ++stream->lineno;
+      begin = p = line;
+      continue;
+    }
+
+    if (*p == '*' && p[1] == '/') {
+      p += 2;
+      fwrite(begin, p - begin, 1, stdout);
+      *pp = p;
+      return true;
+    }
+
+    ++p;
+  }
+}
+
 void process_line(const char *line, Stream *stream) {
   init_lexer_string(line, stream->filename, stream->lineno);
 
   const char *begin = get_lex_p();
   for (;;) {
+    const char *p = get_lex_p();
+    if (p != NULL) {
+      if (handle_block_comment(begin, &p, stream)) {
+        begin = p;
+        init_lexer_string(begin, stream->filename, stream->lineno);
+      }
+    }
+
     if (consume(TK_EOF))
       break;
 

@@ -52,4 +52,7 @@ try '#if ||' '3' "#if 0 || 1\n3\n#else\n4\n#endif"
 try '#if ||-2' '4' "#if 0 || 0\n3\n#else\n4\n#endif"
 try '__FILE__' '"*stdin*"' "__FILE__"
 try '__LINE__' "3" "\n\n__LINE__"
+try 'Block comment' '/*block comment*/' "/*\nblock comment\n*/"
+try 'Quote in comment' "/*I'm fine*/" "/*\nI'm fine\n*/"
+
 compile_error '#error' '#error !!!\nvoid main(){}'
