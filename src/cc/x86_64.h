@@ -41,6 +41,16 @@
 #define DIL    "%dil"
 #define R8B    "%r8b"
 #define R9B    "%r9b"
+#define R10B   "%r10b"
+#define R11B   "%r11b"
+#define R12B   "%r12b"
+#define R13B   "%r13b"
+#define R14B   "%r14b"
+#define R15B   "%r15b"
+#define AH     "%ah"
+#define CH     "%ch"
+#define DH     "%dh"
+#define BH     "%bh"
 
 #define AX     "%ax"
 #define CX     "%cx"
@@ -52,6 +62,12 @@
 #define DI     "%di"
 #define R8W    "%r8w"
 #define R9W    "%r9w"
+#define R10W   "%r10w"
+#define R11W   "%r11w"
+#define R12W   "%r12w"
+#define R13W   "%r13w"
+#define R14W   "%r14w"
+#define R15W   "%r15w"
 
 #define EAX    "%eax"
 #define ECX    "%ecx"
@@ -63,6 +79,12 @@
 #define EDI    "%edi"
 #define R8D    "%r8d"
 #define R9D    "%r9d"
+#define R10D   "%r10d"
+#define R11D   "%r11d"
+#define R12D   "%r12d"
+#define R13D   "%r13d"
+#define R14D   "%r14d"
+#define R15D   "%r15d"
 
 #define RAX    "%rax"
 #define RCX    "%rcx"
@@ -74,6 +96,12 @@
 #define RDI    "%rdi"
 #define R8     "%r8"
 #define R9     "%r9"
+#define R10    "%r10"
+#define R11    "%r11"
+#define R12    "%r12"
+#define R13    "%r13"
+#define R14    "%r14"
+#define R15    "%r15"
 
 #define RIP    "%rip"
 
@@ -121,6 +149,7 @@
 #define SETG(o1)       EMIT_ASM1("setg", o1)
 #define SETLE(o1)      EMIT_ASM1("setle", o1)
 #define SETGE(o1)      EMIT_ASM1("setge", o1)
+#define CWTL()         EMIT_ASM0("cwtl")
 #define CLTD()         EMIT_ASM0("cltd")
 #define CQTO()         EMIT_ASM0("cqto")
 

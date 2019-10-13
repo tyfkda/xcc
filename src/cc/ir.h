@@ -9,6 +9,17 @@
 typedef struct BB BB;
 typedef struct Vector Vector;
 
+// Virtual register
+
+typedef struct VReg {
+  int v;
+  int r;
+} VReg;
+
+VReg *new_vreg(int vreg_no);
+
+// Intermediate Representation
+
 enum IrType {
   IR_IMM,   // Immediate value
   IR_BOFS,  // basereg+ofs
@@ -27,20 +38,25 @@ enum IrType {
   IR_LSHIFT,
   IR_RSHIFT,
   IR_CMP,
-  IR_INCDEC,
+  IR_INC,
+  IR_DEC,
   IR_NEG,
   IR_NOT,
   IR_SET,   // SETxx: flag => 0 or 1
-  IR_CMPI,
-  IR_PUSH,
+  IR_TEST,
   IR_JMP,
+  IR_PRECALL,
+  IR_PUSHARG,
   IR_CALL,
   IR_ADDSP,
   IR_CAST,
-  IR_LABEL,
-  IR_SAVE_LVAL,
-  IR_ASSIGN_LVAL,
   IR_CLEAR,
+  IR_COPY,
+  IR_RESULT,
+  IR_ASM,
+  IR_UNREG,
+
+  IR_MOV,
 };
 
 enum ConditionType {
@@ -55,6 +71,9 @@ enum ConditionType {
 
 typedef struct {
   enum IrType type;
+  VReg *dst;
+  VReg *opr1;
+  VReg *opr2;
   int size;
   intptr_t value;
 
@@ -62,10 +81,6 @@ typedef struct {
     struct {
       const char *label;
     } iofs;
-    struct {
-      bool inc;
-      bool pre;
-    } incdec;
     struct {
       enum ConditionType cond;
     } set;
@@ -75,33 +90,51 @@ typedef struct {
     } jmp;
     struct {
       const char *label;
-      size_t arg_count;
+      int arg_count;
     } call;
     struct {
       int srcsize;
     } cast;
+    struct {
+      const char *str;
+    } asm_;
   } u;
 } IR;
 
-IR *new_ir_imm(intptr_t value, int size);
-IR *new_ir_bofs(int offset);
-IR *new_ir_iofs(const char *label);
-IR *new_ir_load(int size);
-IR *new_ir_store(int size);
-IR *new_ir_memcpy(size_t size);
-IR *new_ir_op(enum IrType type, int size);
-IR *new_ir_cmpi(intptr_t value, int size);
-IR *new_ir_incdec(bool inc, bool pre, int size, intptr_t value);
-IR *new_ir_st(enum IrType type);
-IR *new_ir_set(enum ConditionType cond);
-IR *new_ir_jmp(enum ConditionType cond, BB *bb);
-IR *new_ir_call(const char *label, int arg_count);
-IR *new_ir_addsp(int value);
-IR *new_ir_cast(int dstsize, int srcsize);
-IR *new_ir_assign_lval(int size);
-IR *new_ir_clear(size_t size);
+VReg *new_ir_imm(intptr_t value, int size);
+VReg *new_ir_bop(enum IrType type, VReg *opr1, VReg *opr2, int size);
+VReg *new_ir_unary(enum IrType type, VReg *opr, int size);
+VReg *new_ir_bofs(int offset);
+VReg *new_ir_iofs(const char *label);
+void new_ir_store(VReg *dst, VReg *src, int size);
+void new_ir_memcpy(VReg *dst, VReg *src, int size);
+void new_ir_cmp(VReg *opr1, VReg *opr2, int size);
+void new_ir_test(VReg *reg, int size);
+void new_ir_incdec(enum IrType type, VReg *reg, int size, intptr_t value);
+VReg *new_ir_set(enum ConditionType cond);
+void new_ir_jmp(enum ConditionType cond, BB *bb);
+void new_ir_precall(int arg_count);
+void new_ir_pusharg(VReg *vreg);
+VReg *new_ir_call(const char *label, VReg *freg, int arg_count, int result_size);
+void new_ir_addsp(int value);
+void new_ir_cast(VReg *vreg, int dstsize, int srcsize);
+void new_ir_clear(VReg *reg, size_t size);
+void new_ir_copy(VReg *dst, VReg *src, int size);
+void new_ir_result(VReg *reg, int size);
+void new_ir_asm(const char *asm_);
+void new_ir_unreg(VReg *reg);
 
+void ir_alloc_reg(IR *ir);
 void ir_out(const IR *ir);
+
+#if !defined(SELF_HOSTING)
+void dump_ir(IR *ir);
+#endif
+
+// Register allocator
+
+void init_reg_alloc(void);
+void check_all_reg_unused(void);
 
 // Basci Block:
 //   Chunk of IR codes without branching in the middle (except at the bottom).
