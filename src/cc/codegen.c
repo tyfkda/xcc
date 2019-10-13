@@ -442,16 +442,26 @@ static void alloc_variable_registers(Defun *defun) {
           VarInfo *varinfo = (VarInfo*)scope->vars->data[j];
           if (varinfo->flag & VF_STATIC)
             continue;  // Static variable is not allocated on stack.
+
           VReg *vreg = add_new_reg();
+          bool spill = false;
           switch (varinfo->type->type) {
           case TY_ARRAY:
           case TY_STRUCT:
             // Make non-primitive variable spilled.
-            vreg_spill(vreg);
-            vreg->type = varinfo->type;
+            spill = true;
             break;
           default:
             break;
+          }
+          if (i == 0 && j >= MAX_REG_ARGS) {  // Function argument passed through the stack.
+            spill = true;
+            vreg->offset = (j - MAX_REG_ARGS + 2) * WORD_SIZE;
+          }
+
+          if (spill) {
+            vreg_spill(vreg);
+            vreg->type = varinfo->type;
           }
           varinfo->reg = vreg;
         }

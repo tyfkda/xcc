@@ -330,12 +330,8 @@ static VReg *gen_funcall(Expr *expr) {
     new_ir_unreg(freg);
   }
 
-  int stack_add = stack_args * 8;
   if (align_stack) {
-    stack_add += 8;
-  }
-  if (stack_add > 0) {
-    new_ir_addsp(stack_add);
+    new_ir_addsp(8);
   }
 
   return result_reg;

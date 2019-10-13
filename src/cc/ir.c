@@ -745,6 +745,12 @@ void ir_out(const IR *ir) {
       else
         CALL(fmt("*%s", kReg64s[ir->opr1->r]));
 
+      if (ir->u.call.arg_count > MAX_REG_ARGS) {
+        int add = (ir->u.call.arg_count - MAX_REG_ARGS) * WORD_SIZE;
+        ADD(IM(add), RSP);
+        stackpos -= add;
+      }
+
       // Resore caller save registers.
       POP(R11); POP_STACK_POS();
       POP(R10); POP_STACK_POS();
@@ -1319,7 +1325,7 @@ size_t alloc_real_registers(Defun *defun) {
     VReg *vreg = ra->vregs->data[li->vreg];
     int size = WORD_SIZE, align = WORD_SIZE;
     if (vreg->type != NULL) {
-      if (vreg->offset != 0) {  // Variadic function parameter.
+      if (vreg->offset != 0) {  // Variadic function parameter or stack parameter.
         if (-vreg->offset > (int)frame_size)
           frame_size = -vreg->offset;
         continue;
