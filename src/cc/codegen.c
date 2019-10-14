@@ -440,7 +440,7 @@ static void alloc_variable_registers(Defun *defun) {
       } else {
         for (int j = 0; j < scope->vars->len; ++j) {
           VarInfo *varinfo = (VarInfo*)scope->vars->data[j];
-          if (varinfo->flag & VF_STATIC)
+          if (varinfo->flag & (VF_STATIC | VF_EXTERN))
             continue;  // Static variable is not allocated on stack.
 
           VReg *vreg = add_new_reg();
@@ -912,7 +912,7 @@ static void gen_vardecl(Node *node) {
         continue;
       Scope *scope = curscope;
       VarInfo *varinfo = scope_find(&scope, decl->ident->u.ident);
-      if (varinfo == NULL || (varinfo->flag & VF_STATIC) ||
+      if (varinfo == NULL || (varinfo->flag & (VF_STATIC | VF_EXTERN)) ||
           !(varinfo->type->type == TY_STRUCT ||
             varinfo->type->type == TY_ARRAY))
         continue;

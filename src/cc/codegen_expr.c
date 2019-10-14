@@ -192,7 +192,8 @@ static VReg *gen_ref(Expr *expr) {
   if (expr->type == EX_VARREF && expr->u.varref.scope != NULL) {
     Scope *scope = expr->u.varref.scope;
     VarInfo *varinfo = scope_find(&scope, expr->u.varref.ident);
-    if (!(varinfo->flag & VF_STATIC)) {
+    assert(varinfo != NULL);
+    if (!(varinfo->flag & (VF_STATIC | VF_EXTERN))) {
       vreg_spill(varinfo->reg);
     }
   }
@@ -209,7 +210,10 @@ static VReg *gen_lval(Expr *expr) {
       VarInfo *varinfo = scope_find(&scope, expr->u.varref.ident);
       assert(varinfo != NULL);
       assert(!(varinfo->flag & VF_STATIC));
-      return new_ir_bofs(varinfo->reg);
+      if (varinfo->flag & VF_EXTERN)
+        return new_ir_iofs(expr->u.varref.ident);
+      else
+        return new_ir_bofs(varinfo->reg);
     }
     break;
   case EX_DEREF:
@@ -250,7 +254,7 @@ static VReg *gen_varref(Expr *expr) {
     {
       Scope *scope = expr->u.varref.scope;
       VarInfo *varinfo = scope_find(&scope, expr->u.varref.ident);
-      if (varinfo != NULL && !(varinfo->flag & VF_STATIC)) {
+      if (varinfo != NULL && !(varinfo->flag & (VF_STATIC | VF_EXTERN))) {
         assert(varinfo->reg != NULL);
         return varinfo->reg;
       }
@@ -323,7 +327,11 @@ static VReg *gen_funcall(Expr *expr) {
   }
 
   VReg *result_reg = NULL;
-  if (func->type == EX_VARREF && func->u.varref.scope == NULL) {
+  Scope *scope;
+  if (func->type == EX_VARREF &&
+      (func->u.varref.scope == NULL ||
+       ((scope = func->u.varref.scope),
+        scope_find(&scope, func->u.varref.ident)->flag & VF_EXTERN))) {
     result_reg = new_ir_call(func->u.varref.ident, NULL, arg_count,
                              type_size(func->valType->u.func.ret));
   } else {
@@ -490,7 +498,7 @@ VReg *gen_expr(Expr *expr) {
           {
             Scope *scope = lhs->u.varref.scope;
             VarInfo *varinfo = scope_find(&scope, lhs->u.varref.ident);
-            if (varinfo != NULL && !(varinfo->flag & VF_STATIC)) {
+            if (varinfo != NULL && !(varinfo->flag & (VF_STATIC | VF_EXTERN))) {
               assert(varinfo->reg != NULL);
               new_ir_mov(varinfo->reg, src, type_size(lhs->valType));
               return src;
@@ -562,7 +570,7 @@ VReg *gen_expr(Expr *expr) {
       if (sub->type == EX_VARREF) {
         Scope *scope = sub->u.varref.scope;
         VarInfo *varinfo = scope_find(&scope, sub->u.varref.ident);
-        if (varinfo != NULL && !(varinfo->flag & VF_STATIC)) {
+        if (varinfo != NULL && !(varinfo->flag & (VF_STATIC | VF_EXTERN))) {
           VReg *num = new_ir_imm(value, size);
           VReg *result = new_ir_bop(expr->type == EX_PREINC ? IR_ADD : IR_SUB,
                                     varinfo->reg, num, size);
@@ -590,7 +598,7 @@ VReg *gen_expr(Expr *expr) {
       if (sub->type == EX_VARREF) {
         Scope *scope = sub->u.varref.scope;
         VarInfo *varinfo = scope_find(&scope, sub->u.varref.ident);
-        if (varinfo != NULL && !(varinfo->flag & VF_STATIC)) {
+        if (varinfo != NULL && !(varinfo->flag & (VF_STATIC | VF_EXTERN))) {
           VReg *org_val = add_new_reg();
           new_ir_mov(org_val, varinfo->reg, size);
           VReg *num = new_ir_imm(value, size);

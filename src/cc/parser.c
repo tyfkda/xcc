@@ -8,6 +8,7 @@
 #include "lexer.h"
 #include "type.h"
 #include "util.h"
+#include "var.h"
 
 static Node *stmt(void);
 
@@ -208,11 +209,18 @@ static Vector *parse_vardecl_cont(const Type *rawType, Type *type, int flag, Tok
       }
     }
     first = false;
-    not_void(type);
 
     Initializer *init = NULL;
-    if (consume(TK_ASSIGN)) {
-      init = parse_initializer();
+    if (consume(TK_LPAR)) {  // Function prototype.
+      bool vaargs;
+      Vector *param_types = parse_funparam_types(&vaargs);
+      type = ptrof(new_func_type(type, param_types, vaargs));
+      flag |= VF_EXTERN;
+    } else {
+      not_void(type);
+      if (consume(TK_ASSIGN)) {
+        init = parse_initializer();
+      }
     }
 
     VarDecl *decl = new_vardecl(type, ident, init, flag);
@@ -325,6 +333,10 @@ static Node *parse_for(void) {
       int flag;
       Token *ident;
       if (parse_var_def(&rawType, (const Type**)&type, &flag, &ident)) {
+        if (type->type == TY_VOID && ident != NULL) {
+
+        }
+
         if (ident == NULL)
           parse_error(NULL, "Ident expected");
         decls = parse_vardecl_cont(rawType, type, flag, ident);
@@ -524,7 +536,7 @@ static Node *parse_global_var_decl(const Type *rawtype, int flag, const Type *ty
     first = false;
 
     if (type->type == TY_VOID)
-      parse_error(ident, "`void' not allowed");
+      parse_error(ident, "`void' not allowed1");
 
     type = parse_type_suffix(type);
     Initializer *init = NULL;

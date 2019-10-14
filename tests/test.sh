@@ -125,6 +125,8 @@ try_direct 'struct assign' 33 'struct Foo { int x; }; int main(){ struct Foo foo
 try_direct 'struct initial assign' 55 'struct Foo { int x; }; int main(){ struct Foo foo = {55}, bar = foo; return bar.x; }'
 try_direct 'struct deref' 44 'struct Foo { long x; }; int main(){ struct Foo foo, bar, *baz = &bar; baz->x = 44; foo = *baz; return foo.x; }'
 try_direct 'typedef can use in local' 61 'typedef int Foo; int main(){ int Foo = 61; return Foo; }'
+try_direct 'proto in func' 78 'int main(){ int sub(int); return sub(77); } int sub(int x) { return x + 1; }'
+try_direct 'extern in func' 45 'int main(){ extern int g; g = 45; return g; } int g;'
 
 # error cases
 echo ''

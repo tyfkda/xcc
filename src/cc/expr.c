@@ -348,7 +348,7 @@ const Type *parse_type_suffix(const Type *type) {
   return arrayof(parse_type_suffix(type), length);
 }
 
-static Vector *parse_funparam_types(bool *pvaargs) {  // Vector<Type*>
+Vector *parse_funparam_types(bool *pvaargs) {  // Vector<Type*>
   Vector *params = parse_funparams(pvaargs);
   Vector *param_types = NULL;
   if (params != NULL) {
@@ -386,11 +386,9 @@ bool parse_var_def(const Type **prawType, const Type** ptype, int *pflag, Token 
     Vector *param_types = parse_funparam_types(&vaargs);
     type = ptrof(new_func_type(type, param_types, vaargs));
   } else {
-    if (type->type != TY_VOID) {
-      ident = consume(TK_IDENT);
-      //if (ident == NULL && !allow_noname)
-      //  parse_error(NULL, "Ident expected");
-    }
+    ident = consume(TK_IDENT);
+    //if (ident == NULL && !allow_noname)
+    //  parse_error(NULL, "Ident expected");
   }
   if (type->type != TY_VOID)
     type = parse_type_suffix(type);
@@ -436,7 +434,7 @@ Vector *parse_funparams(bool *pvaargs) {  // Vector<VarInfo*>, NULL=>old style.
 
       if (params->len == 0) {
         if (type->type == TY_VOID) {  // fun(void)
-          if (!consume(TK_RPAR))
+          if (ident != NULL || !consume(TK_RPAR))
             parse_error(NULL, "`)' expected");
           break;
         }
