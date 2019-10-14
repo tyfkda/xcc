@@ -994,17 +994,19 @@ static void split_at_interval(LiveInterval **active, int active_count, LiveInter
   }
 }
 
-static void expire_old_intervals(LiveInterval **active, int *pactive_count, bool *used, int start) {
+static void expire_old_intervals(LiveInterval **active, int *pactive_count, short *pused_bits, int start) {
   int active_count = *pactive_count;
   int j;
+  short used_bits = *pused_bits;
   for (j = 0; j < active_count; ++j) {
     LiveInterval *li = active[j];
     if (li->end > start)
       break;
-    used[li->rreg] = false;
+    used_bits &= ~((short)1 << li->rreg);
   }
   remove_active(active, active_count, 0, j);
   *pactive_count = active_count - j;
+  *pused_bits = used_bits;
 }
 
 static LiveInterval **check_live_interval(BBContainer *bbcon, int vreg_count, LiveInterval **pintervals) {
@@ -1058,27 +1060,26 @@ static LiveInterval **check_live_interval(BBContainer *bbcon, int vreg_count, Li
 static void linear_scan_register_allocation(LiveInterval **sorted_intervals, int vreg_count) {
   LiveInterval *active[REG_COUNT];
   int active_count = 0;
-  bool used[REG_COUNT];
-  memset(used, 0, sizeof(used));
+  short used_bits = 0;
 
   for (int i = 0; i < vreg_count; ++i) {
     LiveInterval *li = sorted_intervals[i];
     if (li->spill)
       continue;
-    expire_old_intervals(active, &active_count, used, li->start);
+    expire_old_intervals(active, &active_count, &used_bits, li->start);
     if (active_count >= REG_COUNT) {
       split_at_interval(active, active_count, li);
     } else {
       int regno = -1;
       for (int j = 0; j < REG_COUNT; ++j) {
-        if (!used[j]) {
+        if (!(used_bits & (1 << j))) {
           regno = j;
           break;
         }
       }
       assert(regno >= 0);
       li->rreg = regno;
-      used[regno] = true;
+      used_bits |= 1 << regno;
 
       insert_active(active, active_count, li);
       ++active_count;
