@@ -34,9 +34,10 @@ compile_error() {
   fi
 }
 
-try 'NULL' '0 ' "#define NULL 0\nNULL"
-try 'Param' '1+ 2' "#define ADD(x,y) x+y\nADD(1,2)"
-try 'Newline in macro' '1+ 2' "#define ADD(x,y) x+y\nADD(1,\n2)"
+try 'NULL' '0' "#define NULL 0\nNULL"
+try 'Param' '1+2' "#define ADD(x,y) x+y\nADD(1,2)"
+try 'Newline in macro' '1+2' "#define ADD(x,y) x+y\nADD(1,\n2)"
+try 'Newline in macro2' '(1 + 2)' "#define FOO(x) (x)\nFOO( 1  \n + 2 )"
 try '#ifdef' 'x' "#define X\n#ifdef X\nx\n#else\ny\n#endif"
 try '#ifdef else' 'y' "#ifdef X\nx\n#else\ny\n#endif"
 try '#if 1' '2' "#if 1\n2\n#else\n3\n#endif"

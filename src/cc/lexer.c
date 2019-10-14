@@ -383,10 +383,11 @@ static Token *read_char(const char **pp) {
 static Token *read_string(const char **pp) {
   const int ADD = 16;
   const char *p = *pp;
-  const char *begin = p++;  // Skip first '"'
+  const char *begin, *end;
   size_t capa = 16, size = 0;
   char *str = malloc(capa);
   for (;;) {
+    begin = p++;  // Skip first '"'
     for (char c; (c = *p++) != '"'; ) {
       if (c == '\0')
         lex_error(p - 1, "String not closed");
@@ -406,16 +407,16 @@ static Token *read_string(const char **pp) {
       assert(size < capa);
       str[size++] = c;
     }
+    end = p;
 
     // Continue string literal when next character is '"'
     p = skip_whitespace_or_comment(p);
     if (p == NULL || *p != '"')
       break;
-    ++p;
   }
   assert(size < capa);
   str[size++] = '\0';
-  Token *tok = alloc_token(TK_STR, begin, p);
+  Token *tok = alloc_token(TK_STR, begin, end);
   tok->u.str.buf = str;
   tok->u.str.size = size;
   *pp = p;
