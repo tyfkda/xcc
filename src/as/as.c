@@ -1062,7 +1062,15 @@ static void assemble_line(const Line *line, const char *rawline) {
     break;
   case NEG:
     if (line->src.type == REG && line->dst.type == NOOPERAND) {
-      if (is_reg32s(line->src.u.reg)) {
+      if (is_reg16s(line->src.u.reg)) {
+        int s = (line->src.u.reg - AX) & 7;
+        if (is_reg16(line->src.u.reg)) {
+          ADD_CODE(0x66, 0xf7, 0xd8 + s);
+        } else {
+          ADD_CODE(0x66, 0x41, 0xf7, 0xd8 + s);
+        }
+        return;
+      } else if (is_reg32s(line->src.u.reg)) {
         int s = (line->src.u.reg - EAX) & 7;
         if (is_reg32(line->src.u.reg)) {
           ADD_CODE(0xf7, 0xd8 + s);
@@ -1074,6 +1082,27 @@ static void assemble_line(const Line *line, const char *rawline) {
         int s = (line->src.u.reg - RAX) & 7;
         int pre = is_reg64(line->src.u.reg) ? 0x48 : 0x49;
         ADD_CODE(pre, 0xf7, 0xd8 + s);
+        return;
+      }
+    }
+    break;
+  case NOT:
+    if (line->src.type == REG && line->dst.type == NOOPERAND) {
+      if (is_reg16s(line->src.u.reg)) {
+        int s = (line->src.u.reg - AX) & 7;
+        if (is_reg16(line->src.u.reg)) {
+          ADD_CODE(0x66, 0xf7, 0xd0 + s);
+        } else {
+          ADD_CODE(0x66, 0x41, 0xf7, 0xd0 + s);
+        }
+        return;
+      } else if (is_reg32s(line->src.u.reg)) {
+        int s = (line->src.u.reg - EAX) & 7;
+        if (is_reg32(line->src.u.reg)) {
+          ADD_CODE(0xf7, 0xd0 + s);
+        } else {
+          ADD_CODE(0x41, 0xf7, 0xd0 + s);
+        }
         return;
       }
     }
@@ -1280,7 +1309,17 @@ static void assemble_line(const Line *line, const char *rawline) {
     break;
   case AND:
     if (line->src.type == REG && line->dst.type == REG) {
-      if (is_reg32s(line->src.u.reg) && is_reg32s(line->dst.u.reg)) {
+      if (is_reg16s(line->src.u.reg) && is_reg16s(line->dst.u.reg)) {
+        int s = (line->src.u.reg - AX) & 7;
+        int d = (line->dst.u.reg - AX) & 7;
+        if (is_reg16(line->src.u.reg) && is_reg16(line->dst.u.reg)) {
+          ADD_CODE(0x66, 0x21, 0xc0 + s * 8 + d);
+        } else {
+          int pre = (is_reg16(line->dst.u.reg) ? 0x40 : 0x41) + (is_reg16(line->src.u.reg) ? 0 : 4);
+          ADD_CODE(0x66, pre, 0x21, 0xc0 + s * 8 + d);
+        }
+        return;
+      } if (is_reg32s(line->src.u.reg) && is_reg32s(line->dst.u.reg)) {
         int s = (line->src.u.reg - EAX) & 7;
         int d = (line->dst.u.reg - EAX) & 7;
         if (is_reg32(line->src.u.reg) && is_reg32(line->dst.u.reg)) {
@@ -1301,7 +1340,17 @@ static void assemble_line(const Line *line, const char *rawline) {
     break;
   case OR:
     if (line->src.type == REG && line->dst.type == REG) {
-      if (is_reg32s(line->src.u.reg) && is_reg32s(line->dst.u.reg)) {
+      if (is_reg16s(line->src.u.reg) && is_reg16s(line->dst.u.reg)) {
+        int s = (line->src.u.reg - AX) & 7;
+        int d = (line->dst.u.reg - AX) & 7;
+        if (is_reg16(line->src.u.reg) && is_reg16(line->dst.u.reg)) {
+          ADD_CODE(0x66, 0x09, 0xc0 + s * 8 + d);
+        } else {
+          int pre = (is_reg16(line->dst.u.reg) ? 0x40 : 0x41) + (is_reg16(line->src.u.reg) ? 0 : 4);
+          ADD_CODE(0x66, pre, 0x09, 0xc0 + s * 8 + d);
+        }
+        return;
+      } else if (is_reg32s(line->src.u.reg) && is_reg32s(line->dst.u.reg)) {
         int s = (line->src.u.reg - EAX) & 7;
         int d = (line->dst.u.reg - EAX) & 7;
         if (is_reg32(line->src.u.reg) && is_reg32(line->dst.u.reg)) {
@@ -1359,7 +1408,15 @@ static void assemble_line(const Line *line, const char *rawline) {
   case SHL:
     if (line->src.type == REG && line->dst.type == REG &&
         line->src.u.reg == CL) {
-      if (is_reg32s(line->dst.u.reg)) {
+      if (is_reg16s(line->dst.u.reg)) {
+        int d = (line->dst.u.reg - AX) & 7;
+        if (is_reg16(line->dst.u.reg)) {
+          ADD_CODE(0x66, 0xd3, 0xe0 + d);
+        } else {
+          ADD_CODE(0x66, 0x41, 0xd3, 0xe0 + d);
+        }
+        return;
+      } else if (is_reg32s(line->dst.u.reg)) {
         int d = (line->dst.u.reg - EAX) & 7;
         if (is_reg32(line->dst.u.reg)) {
           ADD_CODE(0xd3, 0xe0 + d);
