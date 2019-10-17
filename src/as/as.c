@@ -258,7 +258,7 @@ static bool assemble_mov(const Line *line) {
         ADD_CODE(0x66, 0x89, 0xc0 + d + s * 8);
       } else {
         int pre = (is_reg16(line->dst.u.reg) ? 0x40 : 0x41) + (is_reg16(line->src.u.reg) ? 0 : 4);
-        ADD_CODE(pre, 0x66, 0x89, 0xc0 + d + s * 8);
+        ADD_CODE(0x66, pre, 0x89, 0xc0 + d + s * 8);
       }
       return true;
     } else if (is_reg32s(line->src.u.reg) && is_reg32s(line->dst.u.reg)) {
