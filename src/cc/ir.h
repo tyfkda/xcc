@@ -131,7 +131,6 @@ void new_ir_copy(VReg *dst, VReg *src, int size);
 void new_ir_result(VReg *reg, int size);
 void new_ir_asm(const char *asm_);
 
-void ir_alloc_reg(IR *ir);
 void ir_out(const IR *ir);
 
 #if !defined(SELF_HOSTING)
@@ -142,7 +141,6 @@ void dump_ir(IR *ir);
 
 void init_reg_alloc(void);
 VReg *add_new_reg(void);
-void check_all_reg_unused(void);
 
 // Basci Block:
 //   Chunk of IR codes without branching in the middle (except at the bottom).

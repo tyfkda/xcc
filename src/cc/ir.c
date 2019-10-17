@@ -36,7 +36,6 @@ void vreg_spill(VReg *vreg) {
 typedef struct RegAlloc {
   int regno;
   Vector *vregs;
-  bool used[REG_COUNT];
 } RegAlloc;
 
 static char *kReg8s[] = {BL, R10B, R11B, R12B, R13B, R14B, R15B};
@@ -47,7 +46,6 @@ static char *kReg64s[] = {RBX, R10, R11, R12, R13, R14, R15};
 static void reg_alloc_clear(RegAlloc *ra) {
   ra->regno = 0;
   vec_clear(ra->vregs);
-  memset(ra->used, 0, sizeof(ra->used));
 }
 
 RegAlloc *new_reg_alloc(void) {
@@ -63,23 +61,6 @@ VReg *reg_alloc_spawn(RegAlloc *ra) {
   return vreg;
 }
 
-void reg_alloc_map(RegAlloc *ra, VReg *vreg) {
-  assert(vreg != NULL && vreg->v >= 0 && vreg->v < ra->regno);
-  if (vreg->r != -1) {
-    assert(ra->used[vreg->r]);
-    return;
-  }
-
-  for (int i = 0; i < REG_COUNT; ++i) {
-    if (ra->used[i])
-      continue;
-    ra->used[i] = true;
-    vreg->r = i;
-    return;
-  }
-  error("register exhausted");
-}
-
 //
 static RegAlloc *ra;
 
@@ -92,13 +73,6 @@ void init_reg_alloc(void) {
 
 VReg *add_new_reg(void) {
   return reg_alloc_spawn(ra);
-}
-
-void check_all_reg_unused(void) {
-  for (int i = 0; i < REG_COUNT; ++i) {
-    if (ra->used[i])
-      error("reg %d is used", i);
-  }
 }
 
 // Intermediate Representation
@@ -309,56 +283,6 @@ static void ir_memcpy(int dst_reg, int src_reg, ssize_t size) {
       POP(src);
     }
     break;
-  }
-}
-
-void ir_alloc_reg(IR *ir) {
-  if (ir->dst != NULL)
-    reg_alloc_map(ra, ir->dst);
-  if (ir->opr1 != NULL)
-    reg_alloc_map(ra, ir->opr1);
-  if (ir->opr2 != NULL)
-    reg_alloc_map(ra, ir->opr2);
-
-  switch (ir->type) {
-  case IR_IMM:
-  case IR_BOFS:
-  case IR_IOFS:
-  case IR_LOAD:
-  case IR_STORE:
-  case IR_MEMCPY:
-  case IR_ADD:
-  case IR_SUB:
-  case IR_MUL:
-  case IR_DIV:
-  case IR_MOD:
-  case IR_BITAND:
-  case IR_BITOR:
-  case IR_BITXOR:
-  case IR_LSHIFT:
-  case IR_RSHIFT:
-  case IR_CMP:
-  case IR_TEST:
-  case IR_INC:
-  case IR_DEC:
-  case IR_NEG:
-  case IR_NOT:
-  case IR_BITNOT:
-  case IR_COPY:
-  case IR_SET:
-  case IR_PRECALL:
-  case IR_PUSHARG:
-  case IR_CALL:
-  case IR_CAST:
-  case IR_CLEAR:
-  case IR_RESULT:
-  case IR_JMP:
-  case IR_ADDSP:
-  case IR_ASM:
-  case IR_MOV:
-    break;
-
-  default:  assert(false); break;
   }
 }
 
