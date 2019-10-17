@@ -1381,10 +1381,15 @@ static void assemble_line(const Line *line, const char *rawline) {
           ADD_CODE(pre, 0x30, 0xc0 + s * 8 + d);
         }
         return;
-      } else if (is_reg16(line->src.u.reg) && is_reg16(line->dst.u.reg)) {
-        int s = line->src.u.reg - AX;
-        int d = line->dst.u.reg - AX;
-        ADD_CODE(0x66, 0x31, 0xc0 + s * 8 + d);
+      } else if (is_reg16s(line->src.u.reg) && is_reg16s(line->dst.u.reg)) {
+        int s = (line->src.u.reg - AX) & 7;
+        int d = (line->dst.u.reg - AX) & 7;
+        if (is_reg16(line->src.u.reg) && is_reg16(line->dst.u.reg)) {
+          ADD_CODE(0x66, 0x31, 0xc0 + s * 8 + d);
+        } else {
+          int pre = (is_reg16(line->dst.u.reg) ? 0x40 : 0x41) + (is_reg16(line->src.u.reg) ? 0 : 4);
+          ADD_CODE(0x66, pre, 0x31, 0xc0 + s * 8 + d);
+        }
         return;
       } else if (is_reg32s(line->src.u.reg) && is_reg32s(line->dst.u.reg)) {
         int s = (line->src.u.reg - EAX) & 7;
@@ -1543,6 +1548,16 @@ static void assemble_line(const Line *line, const char *rawline) {
         } else {
           int pre = (is_reg8s(line->dst.u.reg) ? 0x40 : 0x41) + (is_reg8s(line->src.u.reg) ? 0 : 4);
           ADD_CODE(pre, 0x84, 0xc0 + s * 8 + d);
+        }
+        return;
+      } else if (is_reg16s(line->src.u.reg) && is_reg16s(line->dst.u.reg)) {
+        int s = (line->src.u.reg - AX) & 7;
+        int d = (line->dst.u.reg - AX) & 7;
+        if (is_reg16(line->src.u.reg) && is_reg16(line->dst.u.reg)) {
+          ADD_CODE(0x66, 0x85, 0xc0 + s * 8 + d);
+        } else {
+          int pre = (is_reg16(line->dst.u.reg) ? 0x40 : 0x41) + (is_reg16(line->src.u.reg) ? 0 : 4);
+          ADD_CODE(0x66, pre, 0x85, 0xc0 + s * 8 + d);
         }
         return;
       } else if (is_reg32s(line->src.u.reg) && is_reg32s(line->dst.u.reg)) {

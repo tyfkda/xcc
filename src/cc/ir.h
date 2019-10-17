@@ -167,4 +167,6 @@ typedef struct BBContainer {
 BBContainer *new_func_blocks(void);
 void remove_unnecessary_bb(BBContainer *bbcon);
 size_t alloc_real_registers(Defun *defun);
+void push_callee_save_regs(Defun *defun);
+void pop_callee_save_regs(Defun *defun);
 void emit_bb_irs(BBContainer *bbcon);

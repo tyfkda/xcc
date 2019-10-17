@@ -43,6 +43,18 @@ static char *kReg16s[] = {BX, R10W, R11W, R12W, R13W, R14W, R15W};
 static char *kReg32s[] = {EBX, R10D, R11D, R12D, R13D, R14D, R15D};
 static char *kReg64s[] = {RBX, R10, R11, R12, R13, R14, R15};
 
+#define CALLEE_SAVE_REG_COUNT  (5)
+static struct {
+  const char * reg;
+  short bit;
+} const kCalleeSaveRegs[] = {
+  {RBX, 1 << 0},
+  {R12, 1 << 3},
+  {R13, 1 << 4},
+  {R14, 1 << 5},
+  {R15, 1 << 6},
+};
+
 static void reg_alloc_clear(RegAlloc *ra) {
   ra->regno = 0;
   vec_clear(ra->vregs);
@@ -994,19 +1006,19 @@ static void split_at_interval(LiveInterval **active, int active_count, LiveInter
   }
 }
 
-static void expire_old_intervals(LiveInterval **active, int *pactive_count, short *pused_bits, int start) {
+static void expire_old_intervals(LiveInterval **active, int *pactive_count, short *pusing_bits, int start) {
   int active_count = *pactive_count;
   int j;
-  short used_bits = *pused_bits;
+  short using_bits = *pusing_bits;
   for (j = 0; j < active_count; ++j) {
     LiveInterval *li = active[j];
     if (li->end > start)
       break;
-    used_bits &= ~((short)1 << li->rreg);
+    using_bits &= ~((short)1 << li->rreg);
   }
   remove_active(active, active_count, 0, j);
   *pactive_count = active_count - j;
-  *pused_bits = used_bits;
+  *pusing_bits = using_bits;
 }
 
 static LiveInterval **check_live_interval(BBContainer *bbcon, int vreg_count, LiveInterval **pintervals) {
@@ -1057,34 +1069,37 @@ static LiveInterval **check_live_interval(BBContainer *bbcon, int vreg_count, Li
   return sorted_intervals;
 }
 
-static void linear_scan_register_allocation(LiveInterval **sorted_intervals, int vreg_count) {
+static short linear_scan_register_allocation(LiveInterval **sorted_intervals, int vreg_count) {
   LiveInterval *active[REG_COUNT];
   int active_count = 0;
+  short using_bits = 0;
   short used_bits = 0;
 
   for (int i = 0; i < vreg_count; ++i) {
     LiveInterval *li = sorted_intervals[i];
     if (li->spill)
       continue;
-    expire_old_intervals(active, &active_count, &used_bits, li->start);
+    expire_old_intervals(active, &active_count, &using_bits, li->start);
     if (active_count >= REG_COUNT) {
       split_at_interval(active, active_count, li);
     } else {
       int regno = -1;
       for (int j = 0; j < REG_COUNT; ++j) {
-        if (!(used_bits & (1 << j))) {
+        if (!(using_bits & (1 << j))) {
           regno = j;
           break;
         }
       }
       assert(regno >= 0);
       li->rreg = regno;
-      used_bits |= 1 << regno;
+      using_bits |= 1 << regno;
 
       insert_active(active, active_count, li);
       ++active_count;
     }
+    used_bits |= using_bits;
   }
+  return used_bits;
 }
 
 static void insert_load_store_instructions(BBContainer *bbcon, Vector *vregs) {
@@ -1266,7 +1281,7 @@ size_t alloc_real_registers(Defun *defun) {
     }
   }
 
-  linear_scan_register_allocation(sorted_intervals, vreg_count);
+  defun->used_reg_bits = linear_scan_register_allocation(sorted_intervals, vreg_count);
 
   // Map vreg to rreg.
   for (int i = 0; i < vreg_count; ++i) {
@@ -1303,6 +1318,24 @@ size_t alloc_real_registers(Defun *defun) {
   insert_load_store_instructions(bbcon, ra->vregs);
 
   return frame_size;
+}
+
+void push_callee_save_regs(Defun *defun) {
+  short used = defun->used_reg_bits;
+  for (int i = 0; i < CALLEE_SAVE_REG_COUNT; ++i) {
+    if (used & kCalleeSaveRegs[i].bit) {
+      PUSH(kCalleeSaveRegs[i].reg); PUSH_STACK_POS();
+    }
+  }
+}
+
+void pop_callee_save_regs(Defun *defun) {
+  short used = defun->used_reg_bits;
+  for (int i = CALLEE_SAVE_REG_COUNT; --i >= 0; ) {
+    if (used & kCalleeSaveRegs[i].bit) {
+      POP(kCalleeSaveRegs[i].reg); POP_STACK_POS();
+    }
+  }
 }
 
 void emit_bb_irs(BBContainer *bbcon) {

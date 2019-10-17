@@ -36,6 +36,7 @@ static Defun *new_defun(const Type *rettype, const char *name, Vector *params, i
   defun->label_map = NULL;
   defun->gotos = NULL;
   defun->frame_size = 0;
+  defun->used_reg_bits = 0;
   defun->bbcon = NULL;
   defun->ret_bb = NULL;
   return defun;

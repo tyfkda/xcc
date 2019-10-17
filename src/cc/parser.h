@@ -33,6 +33,7 @@ typedef struct Defun {
 
   // For codegen.
   size_t frame_size;
+  short used_reg_bits;
 
   // BasicBlock
   BBContainer *bbcon;

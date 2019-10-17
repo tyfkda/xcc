@@ -648,22 +648,14 @@ static void gen_defun(Node *node) {
     put_args_to_stack(defun);
 
     // Callee save.
-    PUSH(RBX); PUSH_STACK_POS();
-    PUSH(R12); PUSH_STACK_POS();
-    PUSH(R13); PUSH_STACK_POS();
-    PUSH(R14); PUSH_STACK_POS();
-    PUSH(R15); PUSH_STACK_POS();
+    push_callee_save_regs(defun);
   }
 
   emit_bb_irs(defun->bbcon);
 
   // Epilogue
   if (!no_stmt) {
-    POP(R15); POP_STACK_POS();
-    POP(R14); POP_STACK_POS();
-    POP(R13); POP_STACK_POS();
-    POP(R12); POP_STACK_POS();
-    POP(RBX); POP_STACK_POS();
+    pop_callee_save_regs(defun);
 
     MOV(RBP, RSP);
     stackpos -= frame_size;
