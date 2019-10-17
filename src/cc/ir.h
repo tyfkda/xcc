@@ -131,8 +131,6 @@ void new_ir_copy(VReg *dst, VReg *src, int size);
 void new_ir_result(VReg *reg, int size);
 void new_ir_asm(const char *asm_);
 
-void ir_out(const IR *ir);
-
 #if !defined(SELF_HOSTING)
 void dump_ir(IR *ir);
 #endif

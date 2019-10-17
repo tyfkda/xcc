@@ -286,7 +286,7 @@ static void ir_memcpy(int dst_reg, int src_reg, ssize_t size) {
   }
 }
 
-void ir_out(const IR *ir) {
+static void ir_out(const IR *ir) {
   switch (ir->type) {
   case IR_IMM:
     {
