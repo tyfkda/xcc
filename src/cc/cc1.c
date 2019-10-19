@@ -36,9 +36,10 @@ static void do_dump_ir(Node *node) {
       BBContainer *bbcon = defun->bbcon;
       if (bbcon == NULL)
         break;
-      fprintf(stderr, "%s: // BB=#%d\n", defun->name, bbcon->bbs->len);
+      fprintf(stderr, "%s: // BB: #%d\n", defun->name, bbcon->bbs->len);
       for (int i = 0; i < bbcon->bbs->len; ++i) {
         BB *bb = bbcon->bbs->data[i];
+        fprintf(stderr, "// BB %d\n", i);
         fprintf(stderr, "%s:\n", bb->label);
         for (int j = 0; j < bb->irs->len; ++j) {
           IR *ir = bb->irs->data[j];

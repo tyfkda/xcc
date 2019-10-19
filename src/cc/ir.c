@@ -1280,7 +1280,6 @@ void emit_bb_irs(BBContainer *bbcon) {
     }
 #endif
 
-    emit_comment("  BB %d/%d", i, bbcon->bbs->len);
     EMIT_LABEL(bb->label);
     for (int j = 0; j < bb->irs->len; ++j) {
       IR *ir = bb->irs->data[j];
