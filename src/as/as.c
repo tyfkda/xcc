@@ -46,6 +46,7 @@
 #define IM64(x)  (x), ((x) >> 8), ((x) >> 16), ((x) >> 24), ((x) >> 32), ((x) >> 40), ((x) >> 48), ((x) >> 56)
 
 typedef struct {
+  const char *rawline;
   const char *label;
   enum Opcode op;
   Operand src;
@@ -196,14 +197,15 @@ static void handle_directive(enum DirectiveType dir, const char *p) {
   }
 }
 
-static void parse_line(const char *str, Line *line) {
-  // Clear
+static Line *parse_line(const char *rawline) {
+  Line *line = malloc(sizeof(*line));
+  line->rawline = rawline;
   line->label = NULL;
   line->op = NOOP;
   line->src.type = line->dst.type = NOOPERAND;
   line->dir = NODIRECTIVE;
 
-  const char *p = str;
+  const char *p = rawline;
   line->label = parse_label(&p);
   if (line->label != NULL) {
     if (*p != ':')
@@ -237,6 +239,7 @@ static void parse_line(const char *str, Line *line) {
       err = true;
     }
   }
+  return line;
 }
 
 static char opr_regno(const Operand *opr) {
@@ -707,7 +710,7 @@ static bool assemble_mov(const Line *line) {
   return false;
 }
 
-static void assemble_line(const Line *line, const char *rawline) {
+static void assemble_line(const Line *line) {
   if (line->label != NULL)
     add_label(current_section, line->label);
 
@@ -1685,11 +1688,12 @@ static void assemble_line(const Line *line, const char *rawline) {
     break;
   }
 
-  fprintf(stderr, "op=%2d: not handled: %s\n", line->op, rawline);
+  fprintf(stderr, "op=%2d: not handled: %s\n", line->op, line->rawline);
   err = true;
 }
 
 static void assemble(FILE *fp) {
+  Vector *lines = new_vector();
   for (;;) {
     char *rawline = NULL;
     size_t capa = 0;
@@ -1697,12 +1701,16 @@ static void assemble(FILE *fp) {
     if (len == EOF)
       break;
 
-    Line line;
-    parse_line(rawline, &line);
-    if (line.dir == NODIRECTIVE) {
-      assemble_line(&line, rawline);
+    Line *line = parse_line(rawline);
+    vec_push(lines, line);
+  }
+
+  for (int i = 0, len = lines->len; i < len; ++i) {
+    Line *line = lines->data[i];
+    if (line->dir == NODIRECTIVE) {
+      assemble_line(line);
     } else {
-      handle_directive(line.dir, line.directive_line);
+      handle_directive(line->dir, line->directive_line);
     }
   }
 }
