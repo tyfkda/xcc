@@ -38,10 +38,19 @@ typedef struct RegAlloc {
   Vector *vregs;
 } RegAlloc;
 
-static char *kReg8s[] = {BL, R10B, R11B, R12B, R13B, R14B, R15B};
-static char *kReg16s[] = {BX, R10W, R11W, R12W, R13W, R14W, R15W};
-static char *kReg32s[] = {EBX, R10D, R11D, R12D, R13D, R14D, R15D};
-static char *kReg64s[] = {RBX, R10, R11, R12, R13, R14, R15};
+const char *kRegSizeTable[][7] = {
+  { BL, R10B, R11B, R12B, R13B, R14B, R15B},
+  { BX, R10W, R11W, R12W, R13W, R14W, R15W},
+  {EBX, R10D, R11D, R12D, R13D, R14D, R15D},
+  {RBX, R10,  R11,  R12,  R13,  R14,  R15},
+};
+
+#define kReg8s   (kRegSizeTable[0])
+#define kReg32s  (kRegSizeTable[2])
+#define kReg64s  (kRegSizeTable[3])
+
+const char *kRegATable[] = {AL, AX, EAX, RAX};
+const char *kRegDTable[] = {DL, DX, EDX, RDX};
 
 #define CALLEE_SAVE_REG_COUNT  (5)
 static struct {
@@ -98,6 +107,8 @@ static IR *new_ir(enum IrType type) {
     vec_push(curbb->irs, ir);
   return ir;
 }
+
+static const int kPow2Table[] = {-1, 0, 1, -1, 2, -1, -1, -1, 3};
 
 VReg *new_ir_imm(intptr_t value, int size) {
   IR *ir = new_ir(IR_IMM);
@@ -303,38 +314,14 @@ static void ir_out(const IR *ir) {
   case IR_IMM:
     {
       intptr_t value = ir->value;
-      VReg *vreg = ir->dst;
-      switch (ir->size) {
-      case 1:
-        if (value == 0)
-          XOR(kReg8s[vreg->r], kReg8s[vreg->r]);
-        else
-          MOV(IM(value), kReg8s[vreg->r]);
-        return;
-
-      case 2:
-        if (value == 0)
-          XOR(kReg16s[vreg->r], kReg16s[vreg->r]);
-        else
-          MOV(IM(value), kReg16s[vreg->r]);
-        return;
-
-      case 4:
-        if (value == 0)
-          XOR(kReg32s[vreg->r], kReg32s[vreg->r]);
-        else
-          MOV(IM(value), kReg32s[vreg->r]);
-        return;
-
-      case 8:
-        if (value == 0)
-          XOR(kReg32s[vreg->r], kReg32s[vreg->r]);  // upper 32bit is also cleared.
-        else
-          MOV(IM(value), kReg64s[vreg->r]);
-        return;
-
-      default: assert(false); break;
-      }
+      int pow = kPow2Table[ir->size];
+      assert(0 <= pow && pow < 4);
+      const char **regs = kRegSizeTable[pow];
+      const char *dst = regs[ir->dst->r];
+      if (value == 0)
+        XOR(dst, dst);
+      else
+        MOV(IM(value), dst);
       break;
     }
     break;
@@ -348,22 +335,20 @@ static void ir_out(const IR *ir) {
     break;
 
   case IR_LOAD:
-    switch (ir->size) {
-    case 1:  MOV(INDIRECT(kReg64s[ir->opr1->r]), kReg8s[ir->dst->r]); break;
-    case 2:  MOV(INDIRECT(kReg64s[ir->opr1->r]), kReg16s[ir->dst->r]); break;
-    case 4:  MOV(INDIRECT(kReg64s[ir->opr1->r]), kReg32s[ir->dst->r]); break;
-    case 8:  MOV(INDIRECT(kReg64s[ir->opr1->r]), kReg64s[ir->dst->r]); break;
-    default:  assert(false); break;
+    {
+      int pow = kPow2Table[ir->size];
+      assert(0 <= pow && pow < 4);
+      const char **regs = kRegSizeTable[pow];
+      MOV(INDIRECT(kReg64s[ir->opr1->r]), regs[ir->dst->r]);
     }
     break;
 
   case IR_STORE:
-    switch (ir->size) {
-    case 1:  MOV(kReg8s[ir->opr1->r], INDIRECT(kReg64s[ir->opr2->r])); break;
-    case 2:  MOV(kReg16s[ir->opr1->r], INDIRECT(kReg64s[ir->opr2->r])); break;
-    case 4:  MOV(kReg32s[ir->opr1->r], INDIRECT(kReg64s[ir->opr2->r])); break;
-    case 8:  MOV(kReg64s[ir->opr1->r], INDIRECT(kReg64s[ir->opr2->r])); break;
-    default:  assert(false); break;
+    {
+      int pow = kPow2Table[ir->size];
+      assert(0 <= pow && pow < 4);
+      const char **regs = kRegSizeTable[pow];
+      MOV(regs[ir->opr1->r], INDIRECT(kReg64s[ir->opr2->r]));
     }
     break;
 
@@ -372,160 +357,139 @@ static void ir_out(const IR *ir) {
     break;
 
   case IR_ADD:
-    assert(ir->dst->r == ir->opr1->r);
-    switch (ir->size) {
-    case 1:  ADD(kReg8s[ir->opr2->r], kReg8s[ir->dst->r]); break;
-    case 2:  ADD(kReg16s[ir->opr2->r], kReg16s[ir->dst->r]); break;
-    case 4:  ADD(kReg32s[ir->opr2->r], kReg32s[ir->dst->r]); break;
-    case 8:  ADD(kReg64s[ir->opr2->r], kReg64s[ir->dst->r]); break;
-    default: assert(false); break;
+    {
+      assert(ir->dst->r == ir->opr1->r);
+      int pow = kPow2Table[ir->size];
+      assert(0 <= pow && pow < 4);
+      const char **regs = kRegSizeTable[pow];
+      ADD(regs[ir->opr2->r], regs[ir->dst->r]);
     }
     break;
 
   case IR_SUB:
-    assert(ir->dst->r == ir->opr1->r);
-    switch (ir->size) {
-    case 1:  SUB(kReg8s[ir->opr2->r], kReg8s[ir->dst->r]); break;
-    case 2:  SUB(kReg16s[ir->opr2->r], kReg16s[ir->dst->r]); break;
-    case 4:  SUB(kReg32s[ir->opr2->r], kReg32s[ir->dst->r]); break;
-    case 8:  SUB(kReg64s[ir->opr2->r], kReg64s[ir->dst->r]); break;
-    default: assert(false); break;
+    {
+      assert(ir->dst->r == ir->opr1->r);
+      int pow = kPow2Table[ir->size];
+      assert(0 <= pow && pow < 4);
+      const char **regs = kRegSizeTable[pow];
+      SUB(regs[ir->opr2->r], regs[ir->dst->r]);
     }
     break;
 
   case IR_MUL:
-    switch (ir->size) {
-    case 1:  MOV(kReg8s[ir->opr1->r], AL); MUL(kReg8s[ir->opr2->r]); MOV(AL, kReg8s[ir->dst->r]); break;
-    case 2:  MOV(kReg16s[ir->opr1->r], AX); MUL(kReg16s[ir->opr2->r]); MOV(AX, kReg16s[ir->dst->r]); break;
-    case 4:  MOV(kReg32s[ir->opr1->r], EAX); MUL(kReg32s[ir->opr2->r]); MOV(EAX, kReg32s[ir->dst->r]); break;
-    case 8:  MOV(kReg64s[ir->opr1->r], RAX); MUL(kReg64s[ir->opr2->r]); MOV(RAX, kReg64s[ir->dst->r]); break;
-    default: assert(false); break;
+    {
+      int pow = kPow2Table[ir->size];
+      assert(0 <= pow && pow < 4);
+      const char **regs = kRegSizeTable[pow];
+      const char *a = kRegATable[pow];
+      MOV(regs[ir->opr1->r], a);
+      MUL(regs[ir->opr2->r]);
+      MOV(a, regs[ir->dst->r]);
     }
     break;
 
   case IR_DIV:
-    switch (ir->size) {
-    case 1:
+    if (ir->size == 1) {
       MOVSX(kReg8s[ir->opr1->r], AX);
       IDIV(kReg8s[ir->opr2->r]);
       MOV(AL, kReg8s[ir->dst->r]);
-      break;
-    case 2:
-      MOV(kReg16s[ir->opr1->r], AX);
-      CWTL();
-      IDIV(kReg16s[ir->opr2->r]);
-      MOV(AX, kReg16s[ir->dst->r]);
-      break;
-    case 4:
-      MOV(kReg32s[ir->opr1->r], EAX);
-      CLTD();
-      IDIV(kReg32s[ir->opr2->r]);
-      MOV(EAX, kReg32s[ir->dst->r]);
-      break;
-    case 8:
-      MOV(kReg64s[ir->opr1->r], RAX);
-      CQTO();
-      IDIV(kReg64s[ir->opr2->r]);
-      MOV(RAX, kReg64s[ir->dst->r]);
-      break;
-    default: assert(false); break;
+    } else {
+      int pow = kPow2Table[ir->size];
+      assert(0 <= pow && pow < 4);
+      const char **regs = kRegSizeTable[pow];
+      const char *a = kRegATable[pow];
+      MOV(regs[ir->opr1->r], a);
+      switch (pow) {
+      case 1:  CWTL(); break;
+      case 2:  CLTD(); break;
+      case 3:  CQTO(); break;
+      default: assert(false); break;
+      }
+      IDIV(regs[ir->opr2->r]);
+      MOV(a, regs[ir->dst->r]);
     }
     break;
 
   case IR_MOD:
-    switch (ir->size) {
-    case 1:
+    if (ir->size == 1) {
       MOVSX(kReg8s[ir->opr1->r], AX);
       IDIV(kReg8s[ir->opr2->r]);
       MOV(AH, kReg8s[ir->dst->r]);
-      break;
-    case 2:
-      MOV(kReg16s[ir->opr1->r], AX);
-      CWTL();
-      IDIV(kReg16s[ir->opr2->r]);
-      MOV(DX, kReg16s[ir->dst->r]);
-      break;
-    case 4:
-      MOV(kReg32s[ir->opr1->r], EAX);
-      CLTD();
-      IDIV(kReg32s[ir->opr2->r]);
-      MOV(EDX, kReg32s[ir->dst->r]);
-      break;
-    case 8:
-      MOV(kReg64s[ir->opr1->r], RAX);
-      CQTO();
-      IDIV(kReg64s[ir->opr2->r]);
-      MOV(RDX, kReg64s[ir->dst->r]);
-      break;
-    default: assert(false); break;
+    } else {
+      int pow = kPow2Table[ir->size];
+      assert(0 <= pow && pow < 4);
+      const char **regs = kRegSizeTable[pow];
+      const char *a = kRegATable[pow];
+      const char *d = kRegDTable[pow];
+      MOV(regs[ir->opr1->r], a);
+      switch (pow) {
+      case 1:  CWTL(); break;
+      case 2:  CLTD(); break;
+      case 3:  CQTO(); break;
+      default: assert(false); break;
+      }
+      IDIV(regs[ir->opr2->r]);
+      MOV(d, regs[ir->dst->r]);
     }
     break;
 
   case IR_BITAND:
-    assert(ir->dst->r == ir->opr1->r);
-    switch (ir->size) {
-    case 1:  AND(kReg8s[ir->opr2->r], kReg8s[ir->dst->r]); break;
-    case 2:  AND(kReg16s[ir->opr2->r], kReg16s[ir->dst->r]); break;
-    case 4:  AND(kReg32s[ir->opr2->r], kReg32s[ir->dst->r]); break;
-    case 8:  AND(kReg64s[ir->opr2->r], kReg64s[ir->dst->r]); break;
-    default: assert(false); break;
+    {
+      assert(ir->dst->r == ir->opr1->r);
+      int pow = kPow2Table[ir->size];
+      assert(0 <= pow && pow < 4);
+      const char **regs = kRegSizeTable[pow];
+      AND(regs[ir->opr2->r], regs[ir->dst->r]);
     }
     break;
 
   case IR_BITOR:
-    assert(ir->dst->r == ir->opr1->r);
-    switch (ir->size) {
-    case 1:  OR(kReg8s[ir->opr2->r], kReg8s[ir->dst->r]); break;
-    case 2:  OR(kReg16s[ir->opr2->r], kReg16s[ir->dst->r]); break;
-    case 4:  OR(kReg32s[ir->opr2->r], kReg32s[ir->dst->r]); break;
-    case 8:  OR(kReg64s[ir->opr2->r], kReg64s[ir->dst->r]); break;
-    default: assert(false); break;
+    {
+      assert(ir->dst->r == ir->opr1->r);
+      int pow = kPow2Table[ir->size];
+      assert(0 <= pow && pow < 4);
+      const char **regs = kRegSizeTable[pow];
+      OR(regs[ir->opr2->r], regs[ir->dst->r]);
     }
     break;
 
   case IR_BITXOR:
-    assert(ir->dst->r == ir->opr1->r);
-    switch (ir->size) {
-    case 1:  XOR(kReg8s[ir->opr2->r], kReg8s[ir->dst->r]); break;
-    case 2:  XOR(kReg16s[ir->opr2->r], kReg16s[ir->dst->r]); break;
-    case 4:  XOR(kReg32s[ir->opr2->r], kReg32s[ir->dst->r]); break;
-    case 8:  XOR(kReg64s[ir->opr2->r], kReg64s[ir->dst->r]); break;
-    default: assert(false); break;
+    {
+      assert(ir->dst->r == ir->opr1->r);
+      int pow = kPow2Table[ir->size];
+      assert(0 <= pow && pow < 4);
+      const char **regs = kRegSizeTable[pow];
+      XOR(regs[ir->opr2->r], regs[ir->dst->r]);
     }
     break;
 
   case IR_LSHIFT:
-    assert(ir->dst->r == ir->opr1->r);
-    MOV(kReg8s[ir->opr2->r], CL);
-    switch (ir->size) {
-    case 1:  SHL(CL, kReg8s[ir->dst->r]); break;
-    case 2:  SHL(CL, kReg16s[ir->dst->r]); break;
-    case 4:  SHL(CL, kReg32s[ir->dst->r]); break;
-    case 8:  SHL(CL, kReg64s[ir->dst->r]); break;
-    default: assert(false); break;
+    {
+      assert(ir->dst->r == ir->opr1->r);
+      MOV(kReg8s[ir->opr2->r], CL);
+      int pow = kPow2Table[ir->size];
+      assert(0 <= pow && pow < 4);
+      const char **regs = kRegSizeTable[pow];
+      SHL(CL, regs[ir->dst->r]);
     }
     break;
   case IR_RSHIFT:
-    assert(ir->dst->r == ir->opr1->r);
-    MOV(kReg8s[ir->opr2->r], CL);
-    switch (ir->size) {
-    case 1:  SHR(CL, kReg8s[ir->dst->r]); break;
-    case 2:  SHR(CL, kReg16s[ir->dst->r]); break;
-    case 4:  SHR(CL, kReg32s[ir->dst->r]); break;
-    case 8:  SHR(CL, kReg64s[ir->dst->r]); break;
-    default: assert(false); break;
+    {
+      assert(ir->dst->r == ir->opr1->r);
+      MOV(kReg8s[ir->opr2->r], CL);
+      int pow = kPow2Table[ir->size];
+      assert(0 <= pow && pow < 4);
+      const char **regs = kRegSizeTable[pow];
+      SHR(CL, regs[ir->dst->r]);
     }
     break;
 
   case IR_CMP:
     {
-      switch (ir->size) {
-      case 1:  CMP(kReg8s[ir->opr2->r], kReg8s[ir->opr1->r]); break;
-      case 2:  CMP(kReg16s[ir->opr2->r], kReg16s[ir->opr1->r]); break;
-      case 4:  CMP(kReg32s[ir->opr2->r], kReg32s[ir->opr1->r]); break;
-      case 8:  CMP(kReg64s[ir->opr2->r], kReg64s[ir->opr1->r]); break;
-      default: assert(false); break;
-      }
+      int pow = kPow2Table[ir->size];
+      assert(0 <= pow && pow < 4);
+      const char **regs = kRegSizeTable[pow];
+      CMP(regs[ir->opr2->r], regs[ir->opr1->r]);
     }
     break;
 
@@ -578,36 +542,35 @@ static void ir_out(const IR *ir) {
     break;
 
   case IR_NEG:
-    assert(ir->dst->r == ir->opr1->r);
-    switch (ir->size) {
-    case 1:  NEG(kReg8s[ir->dst->r]); break;
-    case 2:  NEG(kReg16s[ir->dst->r]); break;
-    case 4:  NEG(kReg32s[ir->dst->r]); break;
-    case 8:  NEG(kReg64s[ir->dst->r]); break;
-    default:  assert(false); break;
+    {
+      assert(ir->dst->r == ir->opr1->r);
+      int pow = kPow2Table[ir->size];
+      assert(0 <= pow && pow < 4);
+      const char **regs = kRegSizeTable[pow];
+      NEG(regs[ir->dst->r]);
     }
     break;
 
   case IR_NOT:
-    switch (ir->size) {
-    case 1:  TEST(kReg8s[ir->opr1->r], kReg8s[ir->opr1->r]); break;
-    case 2:  TEST(kReg16s[ir->opr1->r], kReg16s[ir->opr1->r]); break;
-    case 4:  TEST(kReg32s[ir->opr1->r], kReg32s[ir->opr1->r]); break;
-    case 8:  TEST(kReg64s[ir->opr1->r], kReg64s[ir->opr1->r]); break;
-    default:  assert(false); break;
+    {
+      int pow = kPow2Table[ir->size];
+      assert(0 <= pow && pow < 4);
+      const char **regs = kRegSizeTable[pow];
+      const char *opr1 = regs[ir->opr1->r];
+      TEST(opr1, opr1);
+      const char *dst8 = kReg8s[ir->dst->r];
+      SETE(dst8);
+      MOVSX(dst8, kReg32s[ir->dst->r]);
     }
-    SETE(kReg8s[ir->dst->r]);
-    MOVSX(kReg8s[ir->dst->r], kReg32s[ir->dst->r]);
     break;
 
   case IR_BITNOT:
-    assert(ir->dst->r == ir->opr1->r);
-    switch (ir->size) {
-    case 1:  NOT(kReg8s[ir->dst->r]); break;
-    case 2:  NOT(kReg16s[ir->dst->r]); break;
-    case 4:  NOT(kReg32s[ir->dst->r]); break;
-    case 8:  NOT(kReg64s[ir->dst->r]); break;
-    default:  assert(false); break;
+    {
+      assert(ir->dst->r == ir->opr1->r);
+      int pow = kPow2Table[ir->size];
+      assert(0 <= pow && pow < 4);
+      const char **regs = kRegSizeTable[pow];
+      NOT(regs[ir->dst->r]);
     }
     break;
 
@@ -629,13 +592,11 @@ static void ir_out(const IR *ir) {
 
   case IR_TEST:
     {
-      switch (ir->size) {
-      case 1:  TEST(kReg8s[ir->opr1->r], kReg8s[ir->opr1->r]); break;
-      case 2:  TEST(kReg16s[ir->opr1->r], kReg16s[ir->opr1->r]); break;
-      case 4:  TEST(kReg32s[ir->opr1->r], kReg32s[ir->opr1->r]); break;
-      case 8:  TEST(kReg64s[ir->opr1->r], kReg64s[ir->opr1->r]); break;
-      default: assert(false); break;
-      }
+      int pow = kPow2Table[ir->size];
+      assert(0 <= pow && pow < 4);
+      const char **regs = kRegSizeTable[pow];
+      const char *opr1 = regs[ir->opr1->r];
+      TEST(opr1, opr1);
     }
     break;
 
@@ -687,13 +648,10 @@ static void ir_out(const IR *ir) {
       POP(R11); POP_STACK_POS();
       POP(R10); POP_STACK_POS();
 
-      switch (ir->size) {
-      case 1:  MOV(AL, kReg8s[ir->dst->r]); break;
-      case 2:  MOV(AX, kReg16s[ir->dst->r]); break;
-      case 4:  MOV(EAX, kReg32s[ir->dst->r]); break;
-      case 8:  MOV(RAX, kReg64s[ir->dst->r]); break;
-      default: assert(false); break;
-      }
+      int pow = kPow2Table[ir->size];
+      assert(0 <= pow && pow < 4);
+      const char **regs = kRegSizeTable[pow];
+      MOV(kRegATable[pow], regs[ir->dst->r]);
     }
     break;
 
@@ -707,39 +665,16 @@ static void ir_out(const IR *ir) {
 
   case IR_CAST:
     if (ir->size <= ir->u.cast.srcsize) {
-      switch (ir->u.cast.srcsize) {
-      case 1:  MOV(kReg8s[ir->opr1->r], kReg8s[ir->dst->r]); break;
-      case 2:  MOV(kReg16s[ir->opr1->r], kReg16s[ir->dst->r]); break;
-      case 4:  MOV(kReg32s[ir->opr1->r], kReg32s[ir->dst->r]); break;
-      case 8:  MOV(kReg64s[ir->opr1->r], kReg64s[ir->dst->r]); break;
-      default: assert(false); break;
-      }
+      int pow = kPow2Table[ir->size];
+      assert(0 <= pow && pow < 4);
+      const char **regs = kRegSizeTable[pow];
+      MOV(regs[ir->opr1->r], regs[ir->dst->r]);
     } else {
-      switch (ir->size) {
-      case 2:
-        switch (ir->u.cast.srcsize) {
-        case 1:  MOVSX(kReg8s[ir->opr1->r], kReg16s[ir->dst->r]); break;
-        default:  assert(false); break;
-        }
-        break;
-      case 4:
-        switch (ir->u.cast.srcsize) {
-        case 1:  MOVSX(kReg8s[ir->opr1->r], kReg32s[ir->dst->r]); break;
-        case 2:  MOVSX(kReg16s[ir->opr1->r], kReg32s[ir->dst->r]); break;
-        default:  assert(false); break;
-        }
-        break;
-      case 8:
-        switch (ir->u.cast.srcsize) {
-        case 1:  MOVSX(kReg8s[ir->opr1->r], kReg64s[ir->dst->r]); break;
-        case 2:  MOVSX(kReg16s[ir->opr1->r], kReg64s[ir->dst->r]); break;
-        case 4:  MOVSX(kReg32s[ir->opr1->r], kReg64s[ir->dst->r]); break;
-        default:
-          assert(false); break;
-        }
-        break;
-      default:  assert(false); break;
-      }
+      int pows = kPow2Table[ir->u.cast.srcsize];
+      int powd = kPow2Table[ir->size];
+      assert(0 <= pows && pows < 4);
+      assert(0 <= powd && powd < 4);
+      MOVSX(kRegSizeTable[pows][ir->opr1->r], kRegSizeTable[powd][ir->dst->r]); break;
     }
     break;
 
@@ -758,21 +693,20 @@ static void ir_out(const IR *ir) {
     break;
 
   case IR_COPY:
-    switch (ir->size) {
-    case 1:  MOV(kReg8s[ir->opr1->r], kReg8s[ir->dst->r]); break;
-    case 2:  MOV(kReg16s[ir->opr1->r], kReg16s[ir->dst->r]); break;
-    case 4:  MOV(kReg32s[ir->opr1->r], kReg32s[ir->dst->r]); break;
-    case 8:  MOV(kReg64s[ir->opr1->r], kReg64s[ir->dst->r]); break;
+    {
+      int pow = kPow2Table[ir->size];
+      assert(0 <= pow && pow < 4);
+      const char **regs = kRegSizeTable[pow];
+      MOV(regs[ir->opr1->r], regs[ir->dst->r]);
     }
     break;
 
   case IR_RESULT:
-    switch (ir->size) {
-    case 1:  MOV(kReg8s[ir->opr1->r], AL); break;
-    case 2:  MOV(kReg16s[ir->opr1->r], AX); break;
-    case 4:  MOV(kReg32s[ir->opr1->r], EAX); break;
-    case 8:  MOV(kReg64s[ir->opr1->r], RAX); break;
-    default: assert(false); break;
+    {
+      int pow = kPow2Table[ir->size];
+      assert(0 <= pow && pow < 4);
+      const char **regs = kRegSizeTable[pow];
+      MOV(regs[ir->opr1->r], kRegATable[pow]);
     }
     break;
 
@@ -782,33 +716,28 @@ static void ir_out(const IR *ir) {
 
   case IR_MOV:
     if (ir->opr1->r != ir->dst->r) {
-      switch (ir->size) {
-      case 1:  MOV(kReg8s[ir->opr1->r], kReg8s[ir->dst->r]); break;
-      case 2:  MOV(kReg16s[ir->opr1->r], kReg16s[ir->dst->r]); break;
-      case 4:  MOV(kReg32s[ir->opr1->r], kReg32s[ir->dst->r]); break;
-      case 8:  MOV(kReg64s[ir->opr1->r], kReg64s[ir->dst->r]); break;
-      default:  assert(false); break;
-      }
+      int pow = kPow2Table[ir->size];
+      assert(0 <= pow && pow < 4);
+      const char **regs = kRegSizeTable[pow];
+      MOV(regs[ir->opr1->r], regs[ir->dst->r]);
     }
     break;
 
   case IR_LOAD_SPILLED:
-    switch (ir->size) {
-    case 1:  MOV(OFFSET_INDIRECT(ir->value, RBP), kReg8s[SPILLED_REG_NO]); break;
-    case 2:  MOV(OFFSET_INDIRECT(ir->value, RBP), kReg16s[SPILLED_REG_NO]); break;
-    case 4:  MOV(OFFSET_INDIRECT(ir->value, RBP), kReg32s[SPILLED_REG_NO]); break;
-    case 8:  MOV(OFFSET_INDIRECT(ir->value, RBP), kReg64s[SPILLED_REG_NO]); break;
-    default: assert(false); break;
+    {
+      int pow = kPow2Table[ir->size];
+      assert(0 <= pow && pow < 4);
+      const char **regs = kRegSizeTable[pow];
+      MOV(OFFSET_INDIRECT(ir->value, RBP), regs[SPILLED_REG_NO]);
     }
     break;
 
   case IR_STORE_SPILLED:
-    switch (ir->size) {
-    case 1:  MOV(kReg8s[SPILLED_REG_NO], OFFSET_INDIRECT(ir->value, RBP)); break;
-    case 2:  MOV(kReg16s[SPILLED_REG_NO], OFFSET_INDIRECT(ir->value, RBP)); break;
-    case 4:  MOV(kReg32s[SPILLED_REG_NO], OFFSET_INDIRECT(ir->value, RBP)); break;
-    case 8:  MOV(kReg64s[SPILLED_REG_NO], OFFSET_INDIRECT(ir->value, RBP)); break;
-    default: assert(false); break;
+    {
+      int pow = kPow2Table[ir->size];
+      assert(0 <= pow && pow < 4);
+      const char **regs = kRegSizeTable[pow];
+      MOV(regs[SPILLED_REG_NO], OFFSET_INDIRECT(ir->value, RBP));
     }
     break;
 
