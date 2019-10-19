@@ -5,9 +5,10 @@ XCC
 
   * C compiler for [XV6 (64bit)](https://github.com/tyfkda/xv6)
     * Also work on Linux
+  * Assembler
   * Output ELF file format directly
-  * Self hosting
   * Register allocation (Linear scan)
+  * Self hosting
 
 
 ### TODO
@@ -19,11 +20,14 @@ XCC
 
 Compiler:
 
+  * unsigned types (Just ignored)
+  * floating point numbers
   * Bit field
   * Anonymous union member initializer
 
 Preprocessor:
 
+  * Value evaluation
   * Self recursive macro expansion
 
 
