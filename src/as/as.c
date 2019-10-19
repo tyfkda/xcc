@@ -711,44 +711,50 @@ static void assemble_line(const Line *line, const char *rawline) {
     break;
   case MOVSX:
     if (line->src.type == REG && line->dst.type == REG) {
-      if (is_reg8ss(line->src.u.reg) && is_reg32s(line->dst.u.reg)) {
-        int s = (line->src.u.reg - AL) & 7;
-        int d = (line->dst.u.reg - EAX) & 7;
-        if (is_reg8(line->src.u.reg) && is_reg32(line->dst.u.reg)) {
-          ADD_CODE(0x0f, 0xbe, 0xc0 + s + d * 8);
-        } else {
-          int pre = (is_reg8s(line->src.u.reg) ? 0x40 : 0x41) + (is_reg32(line->dst.u.reg) ? 0 : 4);
+      if (is_reg8ss(line->src.u.reg)) {
+        if (is_reg32s(line->dst.u.reg)) {
+          int s = (line->src.u.reg - AL) & 7;
+          int d = (line->dst.u.reg - EAX) & 7;
+          if (is_reg8(line->src.u.reg) && is_reg32(line->dst.u.reg)) {
+            ADD_CODE(0x0f, 0xbe, 0xc0 + s + d * 8);
+          } else {
+            int pre = (is_reg8s(line->src.u.reg) ? 0x40 : 0x41) + (is_reg32(line->dst.u.reg) ? 0 : 4);
+            ADD_CODE(pre, 0x0f, 0xbe, 0xc0 + s + d * 8);
+          }
+          return;
+        } else if (is_reg64s(line->dst.u.reg)) {
+          int s = (line->src.u.reg - AL) & 7;
+          int d = (line->dst.u.reg - RAX) & 7;
+          int pre = (is_reg8s(line->src.u.reg) ? 0x48 : 0x49) + (is_reg64(line->dst.u.reg) ? 0 : 4);
           ADD_CODE(pre, 0x0f, 0xbe, 0xc0 + s + d * 8);
+          return;
         }
-        return;
-      } else if (is_reg8ss(line->src.u.reg) && is_reg64s(line->dst.u.reg)) {
-        int s = (line->src.u.reg - AL) & 7;
-        int d = (line->dst.u.reg - RAX) & 7;
-        int pre = (is_reg8s(line->src.u.reg) ? 0x48 : 0x49) + (is_reg64(line->dst.u.reg) ? 0 : 4);
-        ADD_CODE(pre, 0x0f, 0xbe, 0xc0 + s + d * 8);
-        return;
-      } else if (is_reg16s(line->src.u.reg) && is_reg32s(line->dst.u.reg)) {
-        int s = (line->src.u.reg - AX) & 7;
-        int d = (line->dst.u.reg - EAX) & 7;
-        if (is_reg16(line->src.u.reg) && is_reg32(line->dst.u.reg)) {
-          ADD_CODE(0x0f, 0xbf, 0xc0 + s + d * 8);
-        } else {
-          int pre = (is_reg16(line->src.u.reg) ? 0x40 : 0x41) + (is_reg32(line->dst.u.reg) ? 0 : 4);
+      } else if (is_reg16s(line->src.u.reg)) {
+        if (is_reg32s(line->dst.u.reg)) {
+          int s = (line->src.u.reg - AX) & 7;
+          int d = (line->dst.u.reg - EAX) & 7;
+          if (is_reg16(line->src.u.reg) && is_reg32(line->dst.u.reg)) {
+            ADD_CODE(0x0f, 0xbf, 0xc0 + s + d * 8);
+          } else {
+            int pre = (is_reg16(line->src.u.reg) ? 0x40 : 0x41) + (is_reg32(line->dst.u.reg) ? 0 : 4);
+            ADD_CODE(pre, 0x0f, 0xbf, 0xc0 + s + d * 8);
+          }
+          return;
+        } else if (is_reg64s(line->dst.u.reg)) {
+          int pre = (is_reg16(line->src.u.reg) ? 0x48 : 0x49) + (is_reg64(line->dst.u.reg) ? 0 : 4);
+          int s = (line->src.u.reg - AX) & 7;
+          int d = (line->dst.u.reg - RAX) & 7;
           ADD_CODE(pre, 0x0f, 0xbf, 0xc0 + s + d * 8);
+          return;
         }
-        return;
-      } else if (is_reg16s(line->src.u.reg) && is_reg64s(line->dst.u.reg)) {
-        int pre = (is_reg16(line->src.u.reg) ? 0x48 : 0x49) + (is_reg64(line->dst.u.reg) ? 0 : 4);
-        int s = (line->src.u.reg - AX) & 7;
-        int d = (line->dst.u.reg - RAX) & 7;
-        ADD_CODE(pre, 0x0f, 0xbf, 0xc0 + s + d * 8);
-        return;
-      } else if (is_reg32s(line->src.u.reg) && is_reg64s(line->dst.u.reg)) {
-        int pre = (is_reg32(line->src.u.reg) ? 0x48 : 0x49) + (is_reg64(line->dst.u.reg) ? 0 : 4);
-        int s = (line->src.u.reg - EAX) & 7;
-        int d = (line->dst.u.reg - RAX) & 7;
-        ADD_CODE(pre, 0x63, 0xc0 + s + d * 8);
-        return;
+      } else if (is_reg32s(line->src.u.reg)) {
+        if (is_reg64s(line->dst.u.reg)) {
+          int pre = (is_reg32(line->src.u.reg) ? 0x48 : 0x49) + (is_reg64(line->dst.u.reg) ? 0 : 4);
+          int s = (line->src.u.reg - EAX) & 7;
+          int d = (line->dst.u.reg - RAX) & 7;
+          ADD_CODE(pre, 0x63, 0xc0 + s + d * 8);
+          return;
+        }
       }
     }
     break;
