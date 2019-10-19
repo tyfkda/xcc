@@ -733,7 +733,7 @@ static void assemble_line(const Line *line, const char *rawline) {
         if (is_reg16(line->src.u.reg) && is_reg32(line->dst.u.reg)) {
           ADD_CODE(0x0f, 0xbf, 0xc0 + s + d * 8);
         } else {
-          int pre = (is_reg32(line->dst.u.reg) ? 0x40 : 0x41) + (is_reg16(line->src.u.reg) ? 0 : 4);
+          int pre = (is_reg16(line->src.u.reg) ? 0x40 : 0x41) + (is_reg32(line->dst.u.reg) ? 0 : 4);
           ADD_CODE(pre, 0x0f, 0xbf, 0xc0 + s + d * 8);
         }
         return;
