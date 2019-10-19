@@ -286,7 +286,7 @@ static VReg *gen_ternary(Expr *expr) {
 
   set_curbb(fbb);
   VReg *result2 = gen_expr(expr->u.ternary.fval);
-  new_ir_copy(result, result2, type_size(&tyBool));
+  new_ir_mov(result, result2, type_size(&tyBool));
 
   set_curbb(nbb);
   return result;
@@ -677,7 +677,7 @@ VReg *gen_expr(Expr *expr) {
       new_ir_jmp(COND_ANY, next_bb);
       set_curbb(false_bb);
       VReg *result2 = new_ir_imm(false, type_size(&tyBool));
-      new_ir_copy(result, result2, type_size(&tyBool));
+      new_ir_mov(result, result2, type_size(&tyBool));
       set_curbb(next_bb);
       return result;
     }
@@ -696,7 +696,7 @@ VReg *gen_expr(Expr *expr) {
       new_ir_jmp(COND_ANY, next_bb);
       set_curbb(true_bb);
       VReg *result2 = new_ir_imm(true, type_size(&tyBool));
-      new_ir_copy(result, result2, type_size(&tyBool));
+      new_ir_mov(result, result2, type_size(&tyBool));
       set_curbb(next_bb);
       return result;
     }

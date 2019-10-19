@@ -224,17 +224,17 @@ VReg *new_ir_cast(VReg *vreg, int dstsize, int srcsize) {
   return ir->dst = reg_alloc_spawn(ra);
 }
 
+void new_ir_mov(VReg *dst, VReg *src, int size) {
+  IR *ir = new_ir(IR_MOV);
+  ir->dst = dst;
+  ir->opr1 = src;
+  ir->size = size;
+}
+
 void new_ir_clear(VReg *reg, size_t size) {
   IR *ir = new_ir(IR_CLEAR);
   ir->size = size;
   ir->opr1 = reg;
-}
-
-void new_ir_copy(VReg *dst, VReg *src, int size) {
-  IR *ir = new_ir(IR_COPY);
-  ir->dst = dst;
-  ir->opr1 = src;
-  ir->size = size;
 }
 
 void new_ir_result(VReg *reg, int size) {
@@ -246,13 +246,6 @@ void new_ir_result(VReg *reg, int size) {
 void new_ir_asm(const char *asm_) {
   IR *ir = new_ir(IR_ASM);
   ir->u.asm_.str = asm_;
-}
-
-void new_ir_mov(VReg *dst, VReg *src, int size) {
-  IR *ir = new_ir(IR_MOV);
-  ir->dst = dst;
-  ir->opr1 = src;
-  ir->size = size;
 }
 
 static IR *new_ir_load_spilled(int offset, int size) {
@@ -678,6 +671,15 @@ static void ir_out(const IR *ir) {
     }
     break;
 
+  case IR_MOV:
+    if (ir->opr1->r != ir->dst->r) {
+      int pow = kPow2Table[ir->size];
+      assert(0 <= pow && pow < 4);
+      const char **regs = kRegSizeTable[pow];
+      MOV(regs[ir->opr1->r], regs[ir->dst->r]);
+    }
+    break;
+
   case IR_CLEAR:
     {
       const char *loop = alloc_label();
@@ -692,15 +694,6 @@ static void ir_out(const IR *ir) {
     }
     break;
 
-  case IR_COPY:
-    {
-      int pow = kPow2Table[ir->size];
-      assert(0 <= pow && pow < 4);
-      const char **regs = kRegSizeTable[pow];
-      MOV(regs[ir->opr1->r], regs[ir->dst->r]);
-    }
-    break;
-
   case IR_RESULT:
     {
       int pow = kPow2Table[ir->size];
@@ -712,15 +705,6 @@ static void ir_out(const IR *ir) {
 
   case IR_ASM:
     EMIT_ASM0(ir->u.asm_.str);
-    break;
-
-  case IR_MOV:
-    if (ir->opr1->r != ir->dst->r) {
-      int pow = kPow2Table[ir->size];
-      assert(0 <= pow && pow < 4);
-      const char **regs = kRegSizeTable[pow];
-      MOV(regs[ir->opr1->r], regs[ir->dst->r]);
-    }
     break;
 
   case IR_LOAD_SPILLED:
@@ -1059,7 +1043,6 @@ static void insert_load_store_instructions(BBContainer *bbcon, Vector *vregs) {
       case IR_PUSHARG:
       case IR_CALL:
       case IR_CAST:
-      case IR_COPY:
       case IR_RESULT:
         if (ir->opr1 != NULL && ir->opr1->r == SPILLED_REG_NO) {
           vec_insert(irs, j,
@@ -1334,11 +1317,10 @@ void dump_ir(IR *ir) {
     break;
   case IR_ADDSP:  fprintf(fp, "\tADDSP\t%"PRIdPTR"\n", ir->value); break;
   case IR_CAST:   fprintf(fp, "\tCAST\tR%d%s = R%d%s\n", dst, kSize[ir->size], opr1, kSize[ir->u.cast.srcsize]); break;
+  case IR_MOV:    fprintf(fp, "\tMOV\tR%d%s = R%d%s\n", dst, kSize[ir->size], opr1, kSize[ir->size]); break;
   case IR_CLEAR:  fprintf(fp, "\tCLEAR\tR%d, %d\n", opr1, ir->size); break;
-  case IR_COPY:   fprintf(fp, "\tCOPY\tR%d%s = R%d%s\n", dst, kSize[ir->size], opr1, kSize[ir->size]); break;
   case IR_RESULT: fprintf(fp, "\tRESULT\tR%d%s\n", opr1, kSize[ir->size]); break;
   case IR_ASM:    fprintf(fp, "\tASM\n"); break;
-  case IR_MOV:    fprintf(fp, "\tMOV\tR%d%s = R%d%s\n", dst, kSize[ir->size], opr1, kSize[ir->size]); break;
   case IR_LOAD_SPILLED:   fprintf(fp, "\tLOAD_SPILLED %d(%s)\n", (int)ir->value, kSize[ir->size]); break;
   case IR_STORE_SPILLED:  fprintf(fp, "\tSTORE_SPILLED %d(%s)\n", (int)ir->value, kSize[ir->size]); break;
 

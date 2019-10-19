@@ -56,12 +56,11 @@ enum IrType {
   IR_CALL,
   IR_ADDSP,
   IR_CAST,
+  IR_MOV,
   IR_CLEAR,
-  IR_COPY,
   IR_RESULT,
   IR_ASM,
 
-  IR_MOV,
   IR_LOAD_SPILLED,
   IR_STORE_SPILLED,
 };
@@ -127,7 +126,6 @@ VReg *new_ir_call(const char *label, VReg *freg, int arg_count, int result_size)
 void new_ir_addsp(int value);
 VReg *new_ir_cast(VReg *vreg, int dstsize, int srcsize);
 void new_ir_clear(VReg *reg, size_t size);
-void new_ir_copy(VReg *dst, VReg *src, int size);
 void new_ir_result(VReg *reg, int size);
 void new_ir_asm(const char *asm_);
 
