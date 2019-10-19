@@ -1015,7 +1015,8 @@ static short linear_scan_register_allocation(LiveInterval **sorted_intervals, in
   return used_bits;
 }
 
-static void insert_load_store_instructions(BBContainer *bbcon, Vector *vregs) {
+static int insert_load_store_spilled(BBContainer *bbcon, Vector *vregs) {
+  int inserted = 0;
   for (int i = 0; i < bbcon->bbs->len; ++i) {
     BB *bb = bbcon->bbs->data[i];
     Vector *irs = bb->irs;
@@ -1048,18 +1049,21 @@ static void insert_load_store_instructions(BBContainer *bbcon, Vector *vregs) {
           vec_insert(irs, j,
                      new_ir_load_spilled(((VReg*)vregs->data[ir->opr1->v])->offset, ir->size));
           ++j;
+          inserted |= 1;
         }
 
         if (ir->opr2 != NULL && ir->opr2->r == SPILLED_REG_NO) {
           vec_insert(irs, j,
                      new_ir_load_spilled(((VReg*)vregs->data[ir->opr2->v])->offset, ir->size));
           ++j;
+          inserted |= 2;
         }
 
         if (ir->dst != NULL && ir->dst->r == SPILLED_REG_NO) {
           ++j;
           vec_insert(irs, j,
                      new_ir_store_spilled(((VReg*)vregs->data[ir->dst->v])->offset, ir->size));
+          inserted |= 4;
         }
         break;
 
@@ -1070,18 +1074,21 @@ static void insert_load_store_instructions(BBContainer *bbcon, Vector *vregs) {
           vec_insert(irs, j,
                      new_ir_load_spilled(((VReg*)vregs->data[ir->opr1->v])->offset, WORD_SIZE));
           ++j;
+          inserted |= 1;
         }
 
         if (ir->opr2 != NULL && ir->opr2->r == SPILLED_REG_NO) {
           vec_insert(irs, j,
                      new_ir_load_spilled(((VReg*)vregs->data[ir->opr2->v])->offset, WORD_SIZE));
           ++j;
+          inserted |= 2;
         }
 
         if (ir->dst != NULL && ir->dst->r == SPILLED_REG_NO) {
           ++j;
           vec_insert(irs, j,
                      new_ir_store_spilled(((VReg*)vregs->data[ir->dst->v])->offset, ir->size));
+          inserted |= 4;
         }
         break;
 
@@ -1090,6 +1097,7 @@ static void insert_load_store_instructions(BBContainer *bbcon, Vector *vregs) {
       }
     }
   }
+  return inserted;
 }
 
 static void analyze_reg_flow(BBContainer *bbcon) {
@@ -1226,8 +1234,9 @@ size_t alloc_real_registers(Defun *defun) {
     vreg->offset = -frame_size;
   }
 
-  // Insert load/store instructions for spilled registers.
-  insert_load_store_instructions(bbcon, ra->vregs);
+  int inserted = insert_load_store_spilled(bbcon, ra->vregs);
+  if (inserted != 0)
+    defun->used_reg_bits |= 1 << SPILLED_REG_NO;
 
   return frame_size;
 }
