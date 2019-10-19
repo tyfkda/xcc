@@ -174,51 +174,19 @@ static const char *kDirectiveTable[] = {
   "extern",
 };
 
-bool is_reg8(enum RegType reg) {
-  return reg >= AL && reg <= BL;
-}
-
-bool is_reg8s(enum RegType reg) {
-  return reg >= AL && reg <= DIL;
-}
-
-bool is_reg8x(enum RegType reg) {
-  return reg >= R8B && reg <= R15B;
-}
-
-bool is_reg8ss(enum RegType reg) {
+static bool is_reg8(enum RegType reg) {
   return reg >= AL && reg <= R15B;
 }
 
-bool is_reg16(enum RegType reg) {
-  return reg >= AX && reg <= DI;
-}
-
-bool is_reg16s(enum RegType reg) {
+static bool is_reg16(enum RegType reg) {
   return reg >= AX && reg <= R15W;
 }
 
-bool is_reg32(enum RegType reg) {
-  return reg >= EAX && reg <= EDI;
-}
-
-bool is_reg32x(enum RegType reg) {
-  return reg >= R8D && reg <= R15D;
-}
-
-bool is_reg32s(enum RegType reg) {
+static bool is_reg32(enum RegType reg) {
   return reg >= EAX && reg <= R15D;
 }
 
-bool is_reg64(enum RegType reg) {
-  return reg >= RAX && reg <= RDI;
-}
-
-bool is_reg64x(enum RegType reg) {
-  return reg >= R8 && reg <= R15;
-}
-
-bool is_reg64s(enum RegType reg) {
+static bool is_reg64(enum RegType reg) {
   return reg >= RAX && reg <= R15;
 }
 
@@ -311,16 +279,16 @@ bool parse_operand(const char **pp, Operand *operand) {
     enum RegType reg = parse_register(pp);
     enum RegSize size;
     int no;
-    if (is_reg8ss(reg)) {
+    if (is_reg8(reg)) {
       size = REG8;
       no = reg - AL;
-    } else if (is_reg16s(reg)) {
+    } else if (is_reg16(reg)) {
       size = REG16;
       no = reg - AX;
-    } else if (is_reg32s(reg)) {
+    } else if (is_reg32(reg)) {
       size = REG32;
       no = reg - EAX;
-    } else if (is_reg64s(reg)) {
+    } else if (is_reg64(reg)) {
       size = REG64;
       no = reg - RAX;
     } else {
@@ -338,7 +306,7 @@ bool parse_operand(const char **pp, Operand *operand) {
   if (*p == '*' && p[1] == '%') {
     *pp = p + 2;
     enum RegType reg = parse_register(pp);
-    if (!is_reg64s(reg))
+    if (!is_reg64(reg))
       error("Illegal register");
 
     char no = reg - RAX;
@@ -390,7 +358,7 @@ bool parse_operand(const char **pp, Operand *operand) {
     if (p[1] == '%') {
       *pp = p + 2;
       enum RegType reg = parse_register(pp);
-      if (!(is_reg64s(reg) || reg == RIP))
+      if (!(is_reg64(reg) || reg == RIP))
         error("Register expected");
       p = skip_whitespace(*pp);
       if (*p != ')')
