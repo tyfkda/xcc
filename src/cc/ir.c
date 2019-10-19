@@ -706,34 +706,34 @@ static void ir_out(const IR *ir) {
     break;
 
   case IR_CAST:
-    switch (ir->u.cast.srcsize) {
-    case 1:  MOV(kReg8s[ir->opr1->r], kReg8s[ir->dst->r]); break;
-    case 2:  MOV(kReg16s[ir->opr1->r], kReg16s[ir->dst->r]); break;
-    case 4:  MOV(kReg32s[ir->opr1->r], kReg32s[ir->dst->r]); break;
-    case 8:  MOV(kReg64s[ir->opr1->r], kReg64s[ir->dst->r]); break;
-    default: assert(false); break;
-    }
-
-    if (ir->size > ir->u.cast.srcsize) {
+    if (ir->size <= ir->u.cast.srcsize) {
+      switch (ir->u.cast.srcsize) {
+      case 1:  MOV(kReg8s[ir->opr1->r], kReg8s[ir->dst->r]); break;
+      case 2:  MOV(kReg16s[ir->opr1->r], kReg16s[ir->dst->r]); break;
+      case 4:  MOV(kReg32s[ir->opr1->r], kReg32s[ir->dst->r]); break;
+      case 8:  MOV(kReg64s[ir->opr1->r], kReg64s[ir->dst->r]); break;
+      default: assert(false); break;
+      }
+    } else {
       switch (ir->size) {
       case 2:
         switch (ir->u.cast.srcsize) {
-        case 1:  MOVSX(kReg8s[ir->dst->r], kReg16s[ir->dst->r]); break;
+        case 1:  MOVSX(kReg8s[ir->opr1->r], kReg16s[ir->dst->r]); break;
         default:  assert(false); break;
         }
         break;
       case 4:
         switch (ir->u.cast.srcsize) {
-        case 1:  MOVSX(kReg8s[ir->dst->r], kReg32s[ir->dst->r]); break;
-        case 2:  MOVSX(kReg16s[ir->dst->r], kReg32s[ir->dst->r]); break;
+        case 1:  MOVSX(kReg8s[ir->opr1->r], kReg32s[ir->dst->r]); break;
+        case 2:  MOVSX(kReg16s[ir->opr1->r], kReg32s[ir->dst->r]); break;
         default:  assert(false); break;
         }
         break;
       case 8:
         switch (ir->u.cast.srcsize) {
-        case 1:  MOVSX(kReg8s[ir->dst->r], kReg64s[ir->dst->r]); break;
-        case 2:  MOVSX(kReg16s[ir->dst->r], kReg64s[ir->dst->r]); break;
-        case 4:  MOVSX(kReg32s[ir->dst->r], kReg64s[ir->dst->r]); break;
+        case 1:  MOVSX(kReg8s[ir->opr1->r], kReg64s[ir->dst->r]); break;
+        case 2:  MOVSX(kReg16s[ir->opr1->r], kReg64s[ir->dst->r]); break;
+        case 4:  MOVSX(kReg32s[ir->opr1->r], kReg64s[ir->dst->r]); break;
         default:
           assert(false); break;
         }
