@@ -309,11 +309,29 @@ bool parse_operand(const char **pp, Operand *operand) {
   if (*p == '%') {
     *pp = p + 1;
     enum RegType reg = parse_register(pp);
-    if (reg == NOREG) {
+    enum RegSize size;
+    int no;
+    if (is_reg8ss(reg)) {
+      size = REG8;
+      no = reg - AL;
+    } else if (is_reg16s(reg)) {
+      size = REG16;
+      no = reg - AX;
+    } else if (is_reg32s(reg)) {
+      size = REG32;
+      no = reg - EAX;
+    } else if (is_reg64s(reg)) {
+      size = REG64;
+      no = reg - RAX;
+    } else {
       error("Illegal register");
+      return false;
     }
+
     operand->type = REG;
-    operand->u.reg = reg;
+    operand->u.reg.size = size;
+    operand->u.reg.no = no & 7;
+    operand->u.reg.x = (no & 8) >> 3;
     return true;
   }
 
@@ -322,8 +340,12 @@ bool parse_operand(const char **pp, Operand *operand) {
     enum RegType reg = parse_register(pp);
     if (!is_reg64s(reg))
       error("Illegal register");
+
+    char no = reg - RAX;
     operand->type = DEREF_REG;
-    operand->u.deref_reg = reg;
+    operand->u.deref_reg.size = REG64;
+    operand->u.deref_reg.no = no & 7;
+    operand->u.deref_reg.x = (no & 8) >> 3;
     return true;
   }
 
@@ -368,14 +390,18 @@ bool parse_operand(const char **pp, Operand *operand) {
     if (p[1] == '%') {
       *pp = p + 2;
       enum RegType reg = parse_register(pp);
-      if (reg == NOREG)
+      if (!(is_reg64s(reg) || reg == RIP))
         error("Register expected");
       p = skip_whitespace(*pp);
       if (*p != ')')
         error("`)' expected");
       *pp = ++p;
+
+      char no = reg - RAX;
       operand->type = INDIRECT;
-      operand->u.indirect.reg = reg;
+      operand->u.indirect.reg.size = REG64;
+      operand->u.indirect.reg.no = reg != RIP ? no & 7 : RIP;
+      operand->u.indirect.reg.x = (no & 8) >> 3;
       operand->u.indirect.label = label;
       operand->u.indirect.offset = offset;
       return true;

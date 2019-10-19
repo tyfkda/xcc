@@ -161,6 +161,19 @@ enum RegType {
   RIP,
 };
 
+enum RegSize {
+  REG8,
+  REG16,
+  REG32,
+  REG64,
+};
+
+typedef struct {
+  char size;  // RegSize
+  char no;  // 0~7, or RIP
+  char x;   // 0 or 1
+} Reg;
+
 enum OperandType {
   NOOPERAND,
   REG,        // %rax
@@ -173,15 +186,15 @@ enum OperandType {
 typedef struct {
   enum OperandType type;
   union {
-    enum RegType reg;
+    Reg reg;
     long immediate;
     const char *label;
     struct {
-      enum RegType reg;
       const char *label;
       long offset;
+      Reg reg;
     } indirect;
-    enum RegType deref_reg;
+    Reg deref_reg;
   } u;
 } Operand;
 
