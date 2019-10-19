@@ -764,7 +764,7 @@ static void assemble_line(const Line *line, const char *rawline) {
       int d = (line->dst.u.reg - RAX) & 7;
       if (is_reg64s(line->src.u.indirect.reg)) {
         int s = (line->src.u.indirect.reg - RAX) & 7;
-        int pre = (is_reg64(line->src.u.reg) ? 0x48 : 0x49) + (is_reg64(line->dst.u.reg) ? 0 : 4);
+        int pre = (is_reg64(line->src.u.indirect.reg) ? 0x48 : 0x49) + (is_reg64(line->dst.u.reg) ? 0 : 4);
         if (line->src.u.indirect.label == NULL) {
           long offset = line->src.u.indirect.offset;
           if (line->src.u.indirect.reg != RSP) {
@@ -1122,10 +1122,10 @@ static void assemble_line(const Line *line, const char *rawline) {
     break;
   case INCL:
     if (line->src.type == INDIRECT && line->dst.type == NOOPERAND &&
-        is_reg64s(line->src.u.reg)) {
+        is_reg64s(line->src.u.indirect.reg)) {
       int s = (line->src.u.indirect.reg - RAX) & 7;
       long offset = line->src.u.indirect.offset;
-      if (is_reg64(line->src.u.reg)) {
+      if (is_reg64(line->src.u.indirect.reg)) {
         if (s != RSP - RAX) {
           if (offset == 0 && s != RBP - RAX) {
             ADD_CODE(0xff, 0x00 + s);
@@ -1178,8 +1178,8 @@ static void assemble_line(const Line *line, const char *rawline) {
     break;
   case INCQ:
     if (line->src.type == INDIRECT && line->dst.type == NOOPERAND &&
-        is_reg64s(line->src.u.reg)) {
-      int pre = is_reg64(line->src.u.reg) ? 0x48 : 0x49;
+        is_reg64s(line->src.u.indirect.reg)) {
+      int pre = is_reg64(line->src.u.indirect.reg) ? 0x48 : 0x49;
       int s = (line->src.u.indirect.reg - RAX) & 7;
       long offset = line->src.u.indirect.offset;
       if (line->src.u.indirect.reg != RSP) {
@@ -1222,10 +1222,10 @@ static void assemble_line(const Line *line, const char *rawline) {
     break;
   case DECL:
     if (line->src.type == INDIRECT && line->dst.type == NOOPERAND &&
-        is_reg64s(line->src.u.reg)) {
+        is_reg64s(line->src.u.indirect.reg)) {
       int s = (line->src.u.indirect.reg - RAX) & 7;
       long offset = line->src.u.indirect.offset;
-      if (is_reg64(line->src.u.reg)) {
+      if (is_reg64(line->src.u.indirect.reg)) {
         if (s != RSP - RAX) {
           if (offset == 0 && s != RBP - RAX) {
             ADD_CODE(0xff, 0x08 + s);
@@ -1278,8 +1278,8 @@ static void assemble_line(const Line *line, const char *rawline) {
     break;
   case DECQ:
     if (line->src.type == INDIRECT && line->dst.type == NOOPERAND &&
-        is_reg64s(line->src.u.reg)) {
-      int pre = is_reg64(line->src.u.reg) ? 0x48 : 0x49;
+        is_reg64s(line->src.u.indirect.reg)) {
+      int pre = is_reg64(line->src.u.indirect.reg) ? 0x48 : 0x49;
       int s = (line->src.u.indirect.reg - RAX) & 7;
       long offset = line->src.u.indirect.offset;
       if (line->src.u.indirect.reg != RSP) {
