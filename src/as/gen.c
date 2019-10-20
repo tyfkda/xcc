@@ -154,7 +154,6 @@ void resolve_label_locations(uintptr_t start_address) {
     unsigned char *buf = section->buf;
     uintptr_t offset = loc->adr /* - section->start*/;
     uintptr_t v = label_info->offset + sections[label_info->section].start_address;
-//fprintf(stderr, "  %d: %s, sec=%d, ofs=%ld, type=%d, section=%d, offset=%ld, v=%lx\n", i, loc->label, label_info->section, label_info->offset, loc->type, loc->section, offset, v);
     switch (loc->type) {
     case LOC_REL8:
       {
@@ -188,15 +187,6 @@ void resolve_label_locations(uintptr_t start_address) {
     exit(1);
   }
 }
-
-//static void dump_labels(void) {
-//  add_asm_comment(NULL);
-//  for (int i = 0, n = map_count(label_map); i < n; ++i) {
-//    const char *name = label_map->keys->data[i];
-//    uintptr_t adr = (uintptr_t)label_map->vals->data[i];
-//    add_asm_comment("%08x: %s", adr, name);
-//  }
-//}
 
 void get_section_size(int section, size_t *pfilesz, size_t *pmemsz, uintptr_t *ploadadr) {
   *pfilesz = sections[section].size;
