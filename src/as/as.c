@@ -36,6 +36,8 @@
 
 #define LOAD_ADDRESS    START_ADDRESS
 
+#define WORD_SIZE  (8)
+
 typedef struct {
   Inst *inst;
   char len;
@@ -79,7 +81,7 @@ enum IRType {
   IR_DATA,
   IR_BSS,
   IR_ALIGN,
-  IR_LOC_ABS64,
+  IR_ABS_QUAD,
 };
 
 typedef struct {
@@ -91,11 +93,6 @@ typedef struct {
     size_t bss;
     int align;
     int section;
-    struct {
-      const char *label;
-      int ofs;
-      int base;
-    } loc;
   } u;
 } IR;
 
@@ -135,12 +132,10 @@ static IR *new_ir_align(int align) {
   return ir;
 }
 
-static IR *new_ir_loc_abs64(const char *label, int ofs) {
+static IR *new_ir_abs_quad(const char *label) {
   IR *ir = malloc(sizeof(*ir));
-  ir->type = IR_LOC_ABS64;
-  ir->u.loc.label = label;
-  ir->u.loc.ofs = ofs;
-  ir->u.loc.base = 0;
+  ir->type = IR_ABS_QUAD;
+  ir->u.label = label;
   return ir;
 }
 
@@ -245,9 +240,7 @@ static void handle_directive(enum DirectiveType dir, const char *p, Vector **sec
         const char *label = parse_label(&p);
         if (label != NULL) {
           if (dir == DT_QUAD) {
-            vec_push(irs, new_ir_loc_abs64(label, 0));
-            void *buf = calloc(sizeof(void*), 1);
-            vec_push(irs, new_ir_data(buf, sizeof(void*)));
+            vec_push(irs, new_ir_abs_quad(label));
           } else {
             error("label can use only in .quad");
           }
@@ -1804,7 +1797,8 @@ void calc_label_address(uintptr_t start_address, Vector **section_irs, Map *labe
       case IR_ALIGN:
         address = ALIGN(address, ir->u.align);
         break;
-      case IR_LOC_ABS64:
+      case IR_ABS_QUAD:
+        address += WORD_SIZE;
         break;
       default:  assert(false); break;
       }
@@ -1886,8 +1880,19 @@ static void emit_irs(uintptr_t start_address, Vector **section_irs, Map *label_m
         align_section_size(sec, ir->u.align);
         address = ALIGN(address, ir->u.align);
         break;
-      case IR_LOC_ABS64:
-        add_loc_abs64(sec, ir->u.loc.label, ir->u.loc.ofs);
+      case IR_ABS_QUAD:
+        {
+          void *dst;
+          if (map_try_get(label_map, ir->u.label, &dst)) {
+            unsigned char buf[WORD_SIZE];
+            put_value(buf, (uintptr_t)dst, WORD_SIZE);
+            add_section_data(sec, buf, sizeof(buf));
+          } else {
+            fprintf(stderr, "%s, not found\n", ir->u.label);
+            err = true;
+          }
+          address += WORD_SIZE;
+        }
         break;
       default:  assert(false); break;
       }
