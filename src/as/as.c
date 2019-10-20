@@ -40,6 +40,23 @@
 #define ADD_CODE(...)  do { unsigned char buf[] = {__VA_ARGS__}; add_code(buf, sizeof(buf)); } while (0)
 #endif
 
+typedef struct {
+  Inst *inst;
+  char len;
+  unsigned char buf[15];
+} Code;
+
+#ifndef MAKE_CODE
+#define MAKE_CODE(inst, code, ...)  do { unsigned char buf[] = {__VA_ARGS__}; make_code(inst, code, buf, sizeof(buf)); } while (0)
+#endif
+
+void make_code(Inst *inst, Code *code, unsigned char *buf, int len) {
+  assert(len <= (int)sizeof(code->buf));
+  code->inst = inst;
+  code->len = len;
+  memcpy(code->buf, buf, len);
+}
+
 #define IM8(x)   (x)
 #define IM16(x)  (x), ((x) >> 8)
 #define IM32(x)  (x), ((x) >> 8), ((x) >> 16), ((x) >> 24)
@@ -239,78 +256,78 @@ static bool opr_reg8(const Operand *opr) {
   return opr_regno(opr) < 4;
 }
 
-static bool assemble_mov(const Line *line) {
+static bool assemble_mov(Line *line, Code *code) {
   if (line->inst.src.type == REG && line->inst.dst.type == REG) {
     if (line->inst.src.u.reg.size == REG8 && line->inst.dst.u.reg.size == REG8) {
       int s = line->inst.src.u.reg.no;
       int d = line->inst.dst.u.reg.no;
       if (opr_reg8(&line->inst.src) && opr_reg8(&line->inst.dst)) {
-        ADD_CODE(0x88, 0xc0 + d + s * 8);
+        MAKE_CODE(&line->inst, code, 0x88, 0xc0 + d + s * 8);
       } else {
         int pre = (!line->inst.dst.u.reg.x ? 0x40 : 0x41) + (!line->inst.src.u.reg.x ? 0 : 4);
-        ADD_CODE(pre, 0x88, 0xc0 + d + s * 8);
+        MAKE_CODE(&line->inst, code, pre, 0x88, 0xc0 + d + s * 8);
       }
       return true;
     } else if (line->inst.src.u.reg.size == REG16 && line->inst.dst.u.reg.size == REG16) {
       int s = line->inst.src.u.reg.no;
       int d = line->inst.dst.u.reg.no;
       if (!line->inst.src.u.reg.x && !line->inst.dst.u.reg.x) {
-        ADD_CODE(0x66, 0x89, 0xc0 + d + s * 8);
+        MAKE_CODE(&line->inst, code, 0x66, 0x89, 0xc0 + d + s * 8);
       } else {
         int pre = (!line->inst.dst.u.reg.x ? 0x40 : 0x41) + (!line->inst.src.u.reg.x ? 0 : 4);
-        ADD_CODE(0x66, pre, 0x89, 0xc0 + d + s * 8);
+        MAKE_CODE(&line->inst, code, 0x66, pre, 0x89, 0xc0 + d + s * 8);
       }
       return true;
     } else if (line->inst.src.u.reg.size == REG32 && line->inst.dst.u.reg.size == REG32) {
       int s = line->inst.src.u.reg.no;
       int d = line->inst.dst.u.reg.no;
       if (!line->inst.src.u.reg.x && !line->inst.dst.u.reg.x) {
-        ADD_CODE(0x89, 0xc0 + d + s * 8);
+        MAKE_CODE(&line->inst, code, 0x89, 0xc0 + d + s * 8);
       } else {
         int pre = (!line->inst.dst.u.reg.x ? 0x40 : 0x41) + (!line->inst.src.u.reg.x ? 0 : 4);
-        ADD_CODE(pre, 0x89, 0xc0 + d + s * 8);
+        MAKE_CODE(&line->inst, code, pre, 0x89, 0xc0 + d + s * 8);
       }
       return true;
     } else if (line->inst.src.u.reg.size == REG64 && line->inst.dst.u.reg.size == REG64) {
       int pre = (!line->inst.dst.u.reg.x ? 0x48 : 0x49) + (!line->inst.src.u.reg.x ? 0 : 4);
       int s = line->inst.src.u.reg.no;
       int d = line->inst.dst.u.reg.no;
-      ADD_CODE(pre, 0x89, 0xc0 + d + s * 8);
+      MAKE_CODE(&line->inst, code, pre, 0x89, 0xc0 + d + s * 8);
       return true;
     }
   } else if (line->inst.src.type == IMMEDIATE && line->inst.dst.type == REG) {
     if (line->inst.dst.u.reg.size == REG8) {
       int d = line->inst.dst.u.reg.no;
       if (opr_reg8(&line->inst.dst)) {
-        ADD_CODE(0xb0 + d, IM8(line->inst.src.u.immediate));
+        MAKE_CODE(&line->inst, code, 0xb0 + d, IM8(line->inst.src.u.immediate));
       } else {
         int pre = !line->inst.dst.u.reg.x ? 0x40 : 0x41;
-        ADD_CODE(pre, 0xb0 + d, IM8(line->inst.src.u.immediate));
+        MAKE_CODE(&line->inst, code, pre, 0xb0 + d, IM8(line->inst.src.u.immediate));
       }
       return true;
     } else if (line->inst.dst.u.reg.size == REG16) {
       int d = line->inst.dst.u.reg.no;
       if (!line->inst.dst.u.reg.x) {
-        ADD_CODE(0x66, 0xb8 + d, IM16(line->inst.src.u.immediate));
+        MAKE_CODE(&line->inst, code, 0x66, 0xb8 + d, IM16(line->inst.src.u.immediate));
       } else {
-        ADD_CODE(0x66, 0x41, 0xb8 + d, IM16(line->inst.src.u.immediate));
+        MAKE_CODE(&line->inst, code, 0x66, 0x41, 0xb8 + d, IM16(line->inst.src.u.immediate));
       }
       return true;
     } else if (line->inst.dst.u.reg.size == REG32) {
       int d = line->inst.dst.u.reg.no;
       if (!line->inst.dst.u.reg.x) {
-        ADD_CODE(0xb8 + d, IM32(line->inst.src.u.immediate));
+        MAKE_CODE(&line->inst, code, 0xb8 + d, IM32(line->inst.src.u.immediate));
       } else {
-        ADD_CODE(0x41, 0xb8 + d, IM32(line->inst.src.u.immediate));
+        MAKE_CODE(&line->inst, code, 0x41, 0xb8 + d, IM32(line->inst.src.u.immediate));
       }
       return true;
     } else if (line->inst.dst.u.reg.size == REG64) {
       int pre = !line->inst.dst.u.reg.x ? 0x48 : 0x49;
       int d = line->inst.dst.u.reg.no;
       if (is_im32(line->inst.src.u.immediate)) {
-        ADD_CODE(pre, 0xc7, 0xc0 + d, IM32(line->inst.src.u.immediate));
+        MAKE_CODE(&line->inst, code, pre, 0xc7, 0xc0 + d, IM32(line->inst.src.u.immediate));
       } else {
-        ADD_CODE(pre, 0xb8 + d, IM64(line->inst.src.u.immediate));
+        MAKE_CODE(&line->inst, code, pre, 0xb8 + d, IM64(line->inst.src.u.immediate));
       }
       return true;
     }
@@ -324,24 +341,24 @@ static bool assemble_mov(const Line *line) {
             int d = line->inst.dst.u.reg.no;
             if (s != RSP - RAX) {
               if (offset == 0 && s != RBP - RAX) {
-                ADD_CODE(0x8a, 0x00 + s + d * 8);
+                MAKE_CODE(&line->inst, code, 0x8a, 0x00 + s + d * 8);
                 return true;
               } else if (is_im8(offset)) {
-                ADD_CODE(0x8a, 0x40 + s + d * 8, IM8(offset));
+                MAKE_CODE(&line->inst, code, 0x8a, 0x40 + s + d * 8, IM8(offset));
                 return true;
               } else if (is_im32(offset)) {
-                ADD_CODE(0x8a, 0x80 + s + d * 8, IM32(offset));
+                MAKE_CODE(&line->inst, code, 0x8a, 0x80 + s + d * 8, IM32(offset));
                 return true;
               }
             } else {
               if (offset == 0) {
-                ADD_CODE(0x8a, 0x04 + d * 8, 0x24);
+                MAKE_CODE(&line->inst, code, 0x8a, 0x04 + d * 8, 0x24);
                 return true;
               } else if (is_im8(offset)) {
-                ADD_CODE(0x8a, 0x44 + d * 8, 0x24, IM8(offset));
+                MAKE_CODE(&line->inst, code, 0x8a, 0x44 + d * 8, 0x24, IM8(offset));
                 return true;
               } else if (is_im32(offset)) {
-                ADD_CODE(0x8a, 0x84 + d * 8, 0x24, IM32(offset));
+                MAKE_CODE(&line->inst, code, 0x8a, 0x84 + d * 8, 0x24, IM32(offset));
                 return true;
               }
             }
@@ -350,24 +367,24 @@ static bool assemble_mov(const Line *line) {
             int d = line->inst.dst.u.reg.no;
             if (s != RSP - RAX) {
               if (offset == 0 && s != RBP - RAX) {
-                ADD_CODE(pre, 0x8a, 0x00 + s + d * 8);
+                MAKE_CODE(&line->inst, code, pre, 0x8a, 0x00 + s + d * 8);
                 return true;
               } else if (is_im8(offset)) {
-                ADD_CODE(pre, 0x8a, 0x40 + s + d * 8, IM8(offset));
+                MAKE_CODE(&line->inst, code, pre, 0x8a, 0x40 + s + d * 8, IM8(offset));
                 return true;
               } else if (is_im32(offset)) {
-                ADD_CODE(pre, 0x8a, 0x80 + s + d * 8, IM32(offset));
+                MAKE_CODE(&line->inst, code, pre, 0x8a, 0x80 + s + d * 8, IM32(offset));
                 return true;
               }
             } else {
               if (offset == 0) {
-                ADD_CODE(pre, 0x8a, 0x04 + d * 8, 0x24);
+                MAKE_CODE(&line->inst, code, pre, 0x8a, 0x04 + d * 8, 0x24);
                 return true;
               } else if (is_im8(offset)) {
-                ADD_CODE(pre, 0x8a, 0x44 + d * 8, 0x24, IM8(offset));
+                MAKE_CODE(&line->inst, code, pre, 0x8a, 0x44 + d * 8, 0x24, IM8(offset));
                 return true;
               } else if (is_im32(offset)) {
-                ADD_CODE(pre, 0x8a, 0x84 + d * 8, 0x24, IM32(offset));
+                MAKE_CODE(&line->inst, code, pre, 0x8a, 0x84 + d * 8, 0x24, IM32(offset));
                 return true;
               }
             }
@@ -377,24 +394,24 @@ static bool assemble_mov(const Line *line) {
           if (!line->inst.dst.u.reg.x && !line->inst.src.u.indirect.reg.x) {
             if (s != RSP - RAX) {
               if (offset == 0 && s != RBP - RAX) {
-                ADD_CODE(0x66, 0x8b, 0x00 + s + d * 8);
+                MAKE_CODE(&line->inst, code, 0x66, 0x8b, 0x00 + s + d * 8);
                 return true;
               } else if (is_im8(offset)) {
-                ADD_CODE(0x66, 0x8b, 0x40 + s + d * 8, IM8(offset));
+                MAKE_CODE(&line->inst, code, 0x66, 0x8b, 0x40 + s + d * 8, IM8(offset));
                 return true;
               } else if (is_im32(offset)) {
-                ADD_CODE(0x66, 0x8b, 0x80 + s + d * 8, IM32(offset));
+                MAKE_CODE(&line->inst, code, 0x66, 0x8b, 0x80 + s + d * 8, IM32(offset));
                 return true;
               }
             } else {
               if (offset == 0) {
-                ADD_CODE(0x66, 0x8b, 0x04 + d * 8, 0x24);
+                MAKE_CODE(&line->inst, code, 0x66, 0x8b, 0x04 + d * 8, 0x24);
                 return true;
               } else if (is_im8(offset)) {
-                ADD_CODE(0x66, 0x8b, 0x44 + d * 8, 0x24, IM8(offset));
+                MAKE_CODE(&line->inst, code, 0x66, 0x8b, 0x44 + d * 8, 0x24, IM8(offset));
                 return true;
               } else if (is_im32(offset)) {
-                ADD_CODE(0x66, 0x8b, 0x84 + d * 8, 0x24, IM32(offset));
+                MAKE_CODE(&line->inst, code, 0x66, 0x8b, 0x84 + d * 8, 0x24, IM32(offset));
                 return true;
               }
             }
@@ -402,24 +419,24 @@ static bool assemble_mov(const Line *line) {
             int pre = (!line->inst.src.u.indirect.reg.x ? 0x40 : 0x41) + (!line->inst.dst.u.reg.x ? 0 : 4);
             if (s != RSP - RAX) {
               if (offset == 0 && s != RBP - RAX) {
-                ADD_CODE(0x66, pre, 0x8b, 0x00 + s + d * 8);
+                MAKE_CODE(&line->inst, code, 0x66, pre, 0x8b, 0x00 + s + d * 8);
                 return true;
               } else if (is_im8(offset)) {
-                ADD_CODE(0x66, pre, 0x8b, 0x40 + s + d * 8, IM8(offset));
+                MAKE_CODE(&line->inst, code, 0x66, pre, 0x8b, 0x40 + s + d * 8, IM8(offset));
                 return true;
               } else if (is_im32(offset)) {
-                ADD_CODE(0x66, pre, 0x8b, 0x80 + s + d * 8, IM32(offset));
+                MAKE_CODE(&line->inst, code, 0x66, pre, 0x8b, 0x80 + s + d * 8, IM32(offset));
                 return true;
               }
             } else {
               if (offset == 0) {
-                ADD_CODE(0x66, pre, 0x8b, 0x04 + d * 8, 0x24);
+                MAKE_CODE(&line->inst, code, 0x66, pre, 0x8b, 0x04 + d * 8, 0x24);
                 return true;
               } else if (is_im8(offset)) {
-                ADD_CODE(0x66, pre, 0x8b, 0x44 + d * 8, 0x24, IM8(offset));
+                MAKE_CODE(&line->inst, code, 0x66, pre, 0x8b, 0x44 + d * 8, 0x24, IM8(offset));
                 return true;
               } else if (is_im32(offset)) {
-                ADD_CODE(0x66, pre, 0x8b, 0x84 + d * 8, 0x24, IM32(offset));
+                MAKE_CODE(&line->inst, code, 0x66, pre, 0x8b, 0x84 + d * 8, 0x24, IM32(offset));
                 return true;
               }
             }
@@ -429,24 +446,24 @@ static bool assemble_mov(const Line *line) {
           if (!line->inst.src.u.indirect.reg.x && !line->inst.dst.u.reg.x) {
             if (s != RSP - RAX) {
               if (offset == 0 && s != RBP - RAX) {
-                ADD_CODE(0x8b, 0x00 + s + d * 8);
+                MAKE_CODE(&line->inst, code, 0x8b, 0x00 + s + d * 8);
                 return true;
               } else if (is_im8(offset)) {
-                ADD_CODE(0x8b, 0x40 + s + d * 8, IM8(offset));
+                MAKE_CODE(&line->inst, code, 0x8b, 0x40 + s + d * 8, IM8(offset));
                 return true;
               } else if (is_im32(offset)) {
-                ADD_CODE(0x8b, 0x80 + s + d * 8, IM32(offset));
+                MAKE_CODE(&line->inst, code, 0x8b, 0x80 + s + d * 8, IM32(offset));
                 return true;
               }
             } else {
               if (offset == 0) {
-                ADD_CODE(0x8b, 0x04 + d * 8, 0x24);
+                MAKE_CODE(&line->inst, code, 0x8b, 0x04 + d * 8, 0x24);
                 return true;
               } else if (is_im8(offset)) {
-                ADD_CODE(0x8b, 0x44 + d * 8, 0x24, IM8(offset));
+                MAKE_CODE(&line->inst, code, 0x8b, 0x44 + d * 8, 0x24, IM8(offset));
                 return true;
               } else if (is_im32(offset)) {
-                ADD_CODE(0x8b, 0x84 + d * 8, 0x24, IM32(offset));
+                MAKE_CODE(&line->inst, code, 0x8b, 0x84 + d * 8, 0x24, IM32(offset));
                 return true;
               }
             }
@@ -454,24 +471,24 @@ static bool assemble_mov(const Line *line) {
             int pre = (!line->inst.src.u.indirect.reg.x ? 0x40 : 0x41) + (!line->inst.dst.u.reg.x ? 0 : 4);
             if (s != RSP - RAX) {
               if (offset == 0 && s != RBP - RAX) {
-                ADD_CODE(pre, 0x8b, 0x00 + s + d * 8);
+                MAKE_CODE(&line->inst, code, pre, 0x8b, 0x00 + s + d * 8);
                 return true;
               } else if (is_im8(offset)) {
-                ADD_CODE(pre, 0x8b, 0x40 + s + d * 8, IM8(offset));
+                MAKE_CODE(&line->inst, code, pre, 0x8b, 0x40 + s + d * 8, IM8(offset));
                 return true;
               } else if (is_im32(offset)) {
-                ADD_CODE(pre, 0x8b, 0x80 + s + d * 8, IM32(offset));
+                MAKE_CODE(&line->inst, code, pre, 0x8b, 0x80 + s + d * 8, IM32(offset));
                 return true;
               }
             } else {
               if (offset == 0) {
-                ADD_CODE(pre, 0x8b, 0x04 + d * 8, 0x24);
+                MAKE_CODE(&line->inst, code, pre, 0x8b, 0x04 + d * 8, 0x24);
                 return true;
               } else if (is_im8(offset)) {
-                ADD_CODE(pre, 0x8b, 0x44 + d * 8, 0x24, IM8(offset));
+                MAKE_CODE(&line->inst, code, pre, 0x8b, 0x44 + d * 8, 0x24, IM8(offset));
                 return true;
               } else if (is_im32(offset)) {
-                ADD_CODE(pre, 0x8b, 0x84 + d * 8, 0x24, IM32(offset));
+                MAKE_CODE(&line->inst, code, pre, 0x8b, 0x84 + d * 8, 0x24, IM32(offset));
                 return true;
               }
             }
@@ -481,24 +498,24 @@ static bool assemble_mov(const Line *line) {
           int pre = (!line->inst.src.u.indirect.reg.x ? 0x48 : 0x49) + (!line->inst.dst.u.reg.x ? 0 : 4);
           if (s != RSP - RAX) {
             if (offset == 0 && s != RBP - RAX) {
-              ADD_CODE(pre, 0x8b, 0x00 + s + d * 8);
+              MAKE_CODE(&line->inst, code, pre, 0x8b, 0x00 + s + d * 8);
               return true;
             } else if (is_im8(offset)) {
-              ADD_CODE(pre, 0x8b, 0x40 + s + d * 8, IM8(offset));
+              MAKE_CODE(&line->inst, code, pre, 0x8b, 0x40 + s + d * 8, IM8(offset));
               return true;
             } else if (is_im32(offset)) {
-              ADD_CODE(pre, 0x8b, 0x80 + s + d * 8, IM32(offset));
+              MAKE_CODE(&line->inst, code, pre, 0x8b, 0x80 + s + d * 8, IM32(offset));
               return true;
             }
           } else {
             if (offset == 0) {
-              ADD_CODE(pre, 0x8b, 0x04 + d * 8, 0x24);
+              MAKE_CODE(&line->inst, code, pre, 0x8b, 0x04 + d * 8, 0x24);
               return true;
             } else if (is_im8(offset)) {
-              ADD_CODE(pre, 0x8b, 0x44 + d * 8, 0x24, IM8(offset));
+              MAKE_CODE(&line->inst, code, pre, 0x8b, 0x44 + d * 8, 0x24, IM8(offset));
               return true;
             } else if (is_im32(offset)) {
-              ADD_CODE(pre, 0x8b, 0x84 + d * 8, 0x24, IM32(offset));
+              MAKE_CODE(&line->inst, code, pre, 0x8b, 0x84 + d * 8, 0x24, IM32(offset));
               return true;
             }
           }
@@ -515,24 +532,24 @@ static bool assemble_mov(const Line *line) {
         if (opr_reg8(&line->inst.src) && !line->inst.dst.u.indirect.reg.x) {
           if (d != RSP - RAX) {
             if (offset == 0 && d != RBP - RAX) {
-              ADD_CODE(0x88, 0x00 + d + s * 8);
+              MAKE_CODE(&line->inst, code, 0x88, 0x00 + d + s * 8);
               return true;
             } else if (is_im8(offset)) {
-              ADD_CODE(0x88, 0x40 + d + s * 8, IM8(offset));
+              MAKE_CODE(&line->inst, code, 0x88, 0x40 + d + s * 8, IM8(offset));
               return true;
             } else if (is_im32(offset)) {
-              ADD_CODE(0x89, 0x80 + d + s * 8, IM32(offset));
+              MAKE_CODE(&line->inst, code, 0x89, 0x80 + d + s * 8, IM32(offset));
               return true;
             }
           } else {
             if (offset == 0) {
-              ADD_CODE(0x88, 0x04 + s * 8, 0x24);
+              MAKE_CODE(&line->inst, code, 0x88, 0x04 + s * 8, 0x24);
               return true;
             } else if (is_im8(offset)) {
-              ADD_CODE(0x88, 0x44 + s * 8, 0x24, IM8(offset));
+              MAKE_CODE(&line->inst, code, 0x88, 0x44 + s * 8, 0x24, IM8(offset));
               return true;
             } else if (is_im32(offset)) {
-              ADD_CODE(0x89, 0x84 + s * 8, 0x24, IM32(offset));
+              MAKE_CODE(&line->inst, code, 0x89, 0x84 + s * 8, 0x24, IM32(offset));
               return true;
             }
           }
@@ -540,24 +557,24 @@ static bool assemble_mov(const Line *line) {
           int pre = (!line->inst.dst.u.indirect.reg.x ? 0x40 : 0x41) + (!line->inst.src.u.reg.x ? 0 : 4);
           if (d != RSP - RAX) {
             if (offset == 0 && d != RBP - RAX) {
-              ADD_CODE(pre, 0x88, 0x00 + d + s * 8);
+              MAKE_CODE(&line->inst, code, pre, 0x88, 0x00 + d + s * 8);
               return true;
             } else if (is_im8(offset)) {
-              ADD_CODE(pre, 0x88, 0x40 + d + s * 8, IM8(offset));
+              MAKE_CODE(&line->inst, code, pre, 0x88, 0x40 + d + s * 8, IM8(offset));
               return true;
             } else if (is_im32(offset)) {
-              ADD_CODE(pre, 0x89, 0x80 + d + s * 8, IM32(offset));
+              MAKE_CODE(&line->inst, code, pre, 0x89, 0x80 + d + s * 8, IM32(offset));
               return true;
             }
           } else {
             if (offset == 0) {
-              ADD_CODE(pre, 0x88, 0x04 + s * 8, 0x24);
+              MAKE_CODE(&line->inst, code, pre, 0x88, 0x04 + s * 8, 0x24);
               return true;
             } else if (is_im8(offset)) {
-              ADD_CODE(pre, 0x88, 0x44 + s * 8, 0x24, IM8(offset));
+              MAKE_CODE(&line->inst, code, pre, 0x88, 0x44 + s * 8, 0x24, IM8(offset));
               return true;
             } else if (is_im32(offset)) {
-              ADD_CODE(pre, 0x89, 0x84 + s * 8, 0x24, IM32(offset));
+              MAKE_CODE(&line->inst, code, pre, 0x89, 0x84 + s * 8, 0x24, IM32(offset));
               return true;
             }
           }
@@ -567,24 +584,24 @@ static bool assemble_mov(const Line *line) {
         if (!line->inst.src.u.reg.x && !line->inst.dst.u.indirect.reg.x) {
           if (d != RSP - RAX) {
             if (offset == 0 && d != RBP - RAX) {
-              ADD_CODE(0x66, 0x89, 0x00 + d + s * 8);
+              MAKE_CODE(&line->inst, code, 0x66, 0x89, 0x00 + d + s * 8);
               return true;
             } else if (is_im8(offset)) {
-              ADD_CODE(0x66, 0x89, 0x40 + d + s * 8, IM8(offset));
+              MAKE_CODE(&line->inst, code, 0x66, 0x89, 0x40 + d + s * 8, IM8(offset));
               return true;
             } else if (is_im32(offset)) {
-              ADD_CODE(0x66, 0x89, 0x80 + d + s * 8, IM32(offset));
+              MAKE_CODE(&line->inst, code, 0x66, 0x89, 0x80 + d + s * 8, IM32(offset));
               return true;
             }
           } else {
             if (offset == 0) {
-              ADD_CODE(0x66, 0x89, 0x04 + s * 8, 0x24);
+              MAKE_CODE(&line->inst, code, 0x66, 0x89, 0x04 + s * 8, 0x24);
               return true;
             } else if (is_im8(offset)) {
-              ADD_CODE(0x66, 0x89, 0x44 + s * 8, 0x24, IM8(offset));
+              MAKE_CODE(&line->inst, code, 0x66, 0x89, 0x44 + s * 8, 0x24, IM8(offset));
               return true;
             } else if (is_im32(offset)) {
-              ADD_CODE(0x66, 0x89, 0x84 + s * 8, 0x24, IM32(offset));
+              MAKE_CODE(&line->inst, code, 0x66, 0x89, 0x84 + s * 8, 0x24, IM32(offset));
               return true;
             }
           }
@@ -592,24 +609,24 @@ static bool assemble_mov(const Line *line) {
           int pre = (!line->inst.dst.u.indirect.reg.x ? 0x40 : 0x41) + (!line->inst.src.u.reg.x ? 0 : 4);
           if (d != RSP - RAX) {
             if (offset == 0 && d != RBP - RAX) {
-              ADD_CODE(0x66, pre, 0x89, 0x00 + d + s * 8);
+              MAKE_CODE(&line->inst, code, 0x66, pre, 0x89, 0x00 + d + s * 8);
               return true;
             } else if (is_im8(offset)) {
-              ADD_CODE(0x66, pre, 0x89, 0x40 + d + s * 8, IM8(offset));
+              MAKE_CODE(&line->inst, code, 0x66, pre, 0x89, 0x40 + d + s * 8, IM8(offset));
               return true;
             } else if (is_im32(offset)) {
-              ADD_CODE(0x66, pre, 0x89, 0x80 + d + s * 8, IM32(offset));
+              MAKE_CODE(&line->inst, code, 0x66, pre, 0x89, 0x80 + d + s * 8, IM32(offset));
               return true;
             }
           } else {
             if (offset == 0) {
-              ADD_CODE(0x66, pre, 0x89, 0x04 + s * 8, 0x24);
+              MAKE_CODE(&line->inst, code, 0x66, pre, 0x89, 0x04 + s * 8, 0x24);
               return true;
             } else if (is_im8(offset)) {
-              ADD_CODE(0x66, pre, 0x89, 0x44 + s * 8, 0x24, IM8(offset));
+              MAKE_CODE(&line->inst, code, 0x66, pre, 0x89, 0x44 + s * 8, 0x24, IM8(offset));
               return true;
             } else if (is_im32(offset)) {
-              ADD_CODE(0x66, pre, 0x89, 0x84 + s * 8, 0x24, IM32(offset));
+              MAKE_CODE(&line->inst, code, 0x66, pre, 0x89, 0x84 + s * 8, 0x24, IM32(offset));
               return true;
             }
           }
@@ -619,24 +636,24 @@ static bool assemble_mov(const Line *line) {
         if (!line->inst.dst.u.indirect.reg.x && !line->inst.src.u.reg.x) {
           if (d != RSP - RAX) {
             if (offset == 0 && d != RBP - RAX) {
-              ADD_CODE(0x89, 0x00 + d + s * 8);
+              MAKE_CODE(&line->inst, code, 0x89, 0x00 + d + s * 8);
               return true;
             } else if (is_im8(offset)) {
-              ADD_CODE(0x89, 0x40 + d + s * 8, IM8(offset));
+              MAKE_CODE(&line->inst, code, 0x89, 0x40 + d + s * 8, IM8(offset));
               return true;
             } else if (is_im32(offset)) {
-              ADD_CODE(0x89, 0x80 + d + s * 8, IM32(offset));
+              MAKE_CODE(&line->inst, code, 0x89, 0x80 + d + s * 8, IM32(offset));
               return true;
             }
           } else {
             if (offset == 0) {
-              ADD_CODE(0x89, 0x04 + s * 8, 0x24);
+              MAKE_CODE(&line->inst, code, 0x89, 0x04 + s * 8, 0x24);
               return true;
             } else if (is_im8(offset)) {
-              ADD_CODE(0x89, 0x44 + s * 8, 0x24, IM8(offset));
+              MAKE_CODE(&line->inst, code, 0x89, 0x44 + s * 8, 0x24, IM8(offset));
               return true;
             } else if (is_im32(offset)) {
-              ADD_CODE(0x89, 0x84 + s * 8, 0x24, IM32(offset));
+              MAKE_CODE(&line->inst, code, 0x89, 0x84 + s * 8, 0x24, IM32(offset));
               return true;
             }
           }
@@ -644,24 +661,24 @@ static bool assemble_mov(const Line *line) {
           int pre = (!line->inst.dst.u.indirect.reg.x ? 0x40 : 0x41) + (!line->inst.src.u.reg.x ? 0 : 4);
           if (d != RSP - RAX) {
             if (offset == 0 && d != RBP - RAX) {
-              ADD_CODE(pre, 0x89, 0x00 + d + s * 8);
+              MAKE_CODE(&line->inst, code, pre, 0x89, 0x00 + d + s * 8);
               return true;
             } else if (is_im8(offset)) {
-              ADD_CODE(pre, 0x89, 0x40 + d + s * 8, IM8(offset));
+              MAKE_CODE(&line->inst, code, pre, 0x89, 0x40 + d + s * 8, IM8(offset));
               return true;
             } else if (is_im32(offset)) {
-              ADD_CODE(pre, 0x89, 0x80 + d + s * 8, IM32(offset));
+              MAKE_CODE(&line->inst, code, pre, 0x89, 0x80 + d + s * 8, IM32(offset));
               return true;
             }
           } else {
             if (offset == 0) {
-              ADD_CODE(pre, 0x89, 0x04 + s * 8, 0x24);
+              MAKE_CODE(&line->inst, code, pre, 0x89, 0x04 + s * 8, 0x24);
               return true;
             } else if (is_im8(offset)) {
-              ADD_CODE(pre, 0x89, 0x44 + s * 8, 0x24, IM8(offset));
+              MAKE_CODE(&line->inst, code, pre, 0x89, 0x44 + s * 8, 0x24, IM8(offset));
               return true;
             } else if (is_im32(offset)) {
-              ADD_CODE(pre, 0x89, 0x84 + s * 8, 0x24, IM32(offset));
+              MAKE_CODE(&line->inst, code, pre, 0x89, 0x84 + s * 8, 0x24, IM32(offset));
               return true;
             }
           }
@@ -671,24 +688,24 @@ static bool assemble_mov(const Line *line) {
         int s = line->inst.src.u.reg.no;
         if (d != RSP - RAX) {
           if (offset == 0 && d != RBP - RAX) {
-            ADD_CODE(pre, 0x89, 0x00 + d + s * 8);
+            MAKE_CODE(&line->inst, code, pre, 0x89, 0x00 + d + s * 8);
             return true;
           } else if (is_im8(offset)) {
-            ADD_CODE(pre, 0x89, 0x40 + d + s * 8, IM8(offset));
+            MAKE_CODE(&line->inst, code, pre, 0x89, 0x40 + d + s * 8, IM8(offset));
             return true;
           } else if (is_im32(offset)) {
-            ADD_CODE(pre, 0x89, 0x80 + d + s * 8, IM32(offset));
+            MAKE_CODE(&line->inst, code, pre, 0x89, 0x80 + d + s * 8, IM32(offset));
             return true;
           }
         } else {
           if (offset == 0) {
-            ADD_CODE(pre, 0x89, 0x04 + s * 8, 0x24);
+            MAKE_CODE(&line->inst, code, pre, 0x89, 0x04 + s * 8, 0x24);
             return true;
           } else if (is_im8(offset)) {
-            ADD_CODE(pre, 0x89, 0x44 + s * 8, 0x24, IM8(offset));
+            MAKE_CODE(&line->inst, code, pre, 0x89, 0x44 + s * 8, 0x24, IM8(offset));
             return true;
           } else if (is_im32(offset)) {
-            ADD_CODE(pre, 0x89, 0x84 + s * 8, 0x24, IM32(offset));
+            MAKE_CODE(&line->inst, code, pre, 0x89, 0x84 + s * 8, 0x24, IM32(offset));
             return true;
           }
         }
@@ -698,7 +715,9 @@ static bool assemble_mov(const Line *line) {
   return false;
 }
 
-static void assemble_line(const Line *line) {
+static void assemble_line(Line *line, Code *code) {
+  code->len = 0;
+
   if (line->label != NULL)
     add_label(current_section, line->label);
 
@@ -706,7 +725,7 @@ static void assemble_line(const Line *line) {
   case NOOP:
     return;
   case MOV:
-    if (assemble_mov(line))
+    if (assemble_mov(line, code))
       return;
     break;
   case MOVSX:
@@ -716,35 +735,35 @@ static void assemble_line(const Line *line) {
       if (line->inst.src.u.reg.size == REG8) {
         if (line->inst.dst.u.reg.size == REG32) {
           if (opr_reg8(&line->inst.src) && !line->inst.dst.u.reg.x) {
-            ADD_CODE(0x0f, 0xbe, 0xc0 + s + d * 8);
+            MAKE_CODE(&line->inst, code, 0x0f, 0xbe, 0xc0 + s + d * 8);
           } else {
             int pre = (!line->inst.src.u.reg.x ? 0x40 : 0x41) + (!line->inst.dst.u.reg.x ? 0 : 4);
-            ADD_CODE(pre, 0x0f, 0xbe, 0xc0 + s + d * 8);
+            MAKE_CODE(&line->inst, code, pre, 0x0f, 0xbe, 0xc0 + s + d * 8);
           }
           return;
         } else if (line->inst.dst.u.reg.size == REG64) {
           int pre = (!line->inst.src.u.reg.x ? 0x48 : 0x49) + (!line->inst.dst.u.reg.x ? 0 : 4);
-          ADD_CODE(pre, 0x0f, 0xbe, 0xc0 + s + d * 8);
+          MAKE_CODE(&line->inst, code, pre, 0x0f, 0xbe, 0xc0 + s + d * 8);
           return;
         }
       } else if (line->inst.src.u.reg.size == REG16) {
         if (line->inst.dst.u.reg.size == REG32) {
           if (!line->inst.src.u.reg.x && !line->inst.dst.u.reg.x) {
-            ADD_CODE(0x0f, 0xbf, 0xc0 + s + d * 8);
+            MAKE_CODE(&line->inst, code, 0x0f, 0xbf, 0xc0 + s + d * 8);
           } else {
             int pre = (!line->inst.src.u.reg.x ? 0x40 : 0x41) + (!line->inst.dst.u.reg.x ? 0 : 4);
-            ADD_CODE(pre, 0x0f, 0xbf, 0xc0 + s + d * 8);
+            MAKE_CODE(&line->inst, code, pre, 0x0f, 0xbf, 0xc0 + s + d * 8);
           }
           return;
         } else if (line->inst.dst.u.reg.size == REG64) {
           int pre = (!line->inst.src.u.reg.x ? 0x48 : 0x49) + (!line->inst.dst.u.reg.x ? 0 : 4);
-          ADD_CODE(pre, 0x0f, 0xbf, 0xc0 + s + d * 8);
+          MAKE_CODE(&line->inst, code, pre, 0x0f, 0xbf, 0xc0 + s + d * 8);
           return;
         }
       } else if (line->inst.src.u.reg.size == REG32) {
         if (line->inst.dst.u.reg.size == REG64) {
           int pre = (!line->inst.src.u.reg.x ? 0x48 : 0x49) + (!line->inst.dst.u.reg.x ? 0 : 4);
-          ADD_CODE(pre, 0x63, 0xc0 + s + d * 8);
+          MAKE_CODE(&line->inst, code, pre, 0x63, 0xc0 + s + d * 8);
           return;
         }
       }
@@ -761,24 +780,24 @@ static void assemble_line(const Line *line) {
           long offset = line->inst.src.u.indirect.offset;
           if (line->inst.src.u.indirect.reg.no != RSP - RAX) {
             if (offset == 0 && line->inst.src.u.indirect.reg.no != RBP - RAX) {
-              ADD_CODE(pre, 0x8d, 0x00 + s + d * 8);
+              MAKE_CODE(&line->inst, code, pre, 0x8d, 0x00 + s + d * 8);
               return;
             } else if (is_im8(offset)) {
-              ADD_CODE(pre, 0x8d, 0x40 + s + d * 8, IM8(offset));
+              MAKE_CODE(&line->inst, code, pre, 0x8d, 0x40 + s + d * 8, IM8(offset));
               return;
             } else if (is_im32(offset)) {
-              ADD_CODE(pre, 0x8d, 0x80 + s + d * 8, IM32(offset));
+              MAKE_CODE(&line->inst, code, pre, 0x8d, 0x80 + s + d * 8, IM32(offset));
               return;
             }
           } else {
             if (offset == 0) {
-              ADD_CODE(pre, 0x8d, 0x04 + d * 8, 0x24);
+              MAKE_CODE(&line->inst, code, pre, 0x8d, 0x04 + d * 8, 0x24);
               return;
             } else if (is_im8(offset)) {
-              ADD_CODE(pre, 0x8d, 0x44 + d * 8, 0x24, IM8(offset));
+              MAKE_CODE(&line->inst, code, pre, 0x8d, 0x44 + d * 8, 0x24, IM8(offset));
               return;
             } else if (is_im32(offset)) {
-              ADD_CODE(pre, 0x8d, 0x84 + d * 8, 0x24, IM32(offset));
+              MAKE_CODE(&line->inst, code, pre, 0x8d, 0x84 + d * 8, 0x24, IM32(offset));
               return;
             }
           }
@@ -787,7 +806,7 @@ static void assemble_line(const Line *line) {
         int pre = !line->inst.dst.u.reg.x ? 0x48 : 0x4c;
         if (line->inst.src.u.indirect.offset == 0) {
           ADD_LOC_REL32(line->inst.src.u.indirect.label, 3, 7);
-          ADD_CODE(pre, 0x8d, 0x05 + d * 8, IM32(-1));
+          MAKE_CODE(&line->inst, code, pre, 0x8d, 0x05 + d * 8, IM32(-1));
           return;
         }
       }
@@ -799,23 +818,23 @@ static void assemble_line(const Line *line) {
       int d = line->inst.dst.u.reg.no;
       if (line->inst.src.u.reg.size == REG8 && line->inst.dst.u.reg.size == REG8) {
         if (opr_reg8(&line->inst.src) && opr_reg8(&line->inst.dst)) {
-          ADD_CODE(0x00, 0xc0 + s * 8 + d);
+          MAKE_CODE(&line->inst, code, 0x00, 0xc0 + s * 8 + d);
         } else {
           int pre = (!line->inst.dst.u.reg.x ? 0x40 : 0x41) + (!line->inst.src.u.reg.x ? 0 : 4);
-          ADD_CODE(pre, 0x00, 0xc0 + s * 8 + d);
+          MAKE_CODE(&line->inst, code, pre, 0x00, 0xc0 + s * 8 + d);
         }
         return;
       } else if (line->inst.src.u.reg.size == REG32 && line->inst.dst.u.reg.size == REG32) {
         if (!line->inst.src.u.reg.x && !line->inst.dst.u.reg.x) {
-          ADD_CODE(0x01, 0xc0 + s * 8 + d);
+          MAKE_CODE(&line->inst, code, 0x01, 0xc0 + s * 8 + d);
         } else {
           int pre = (!line->inst.dst.u.reg.x ? 0x40 : 0x41) + (!line->inst.src.u.reg.x ? 0 : 4);
-          ADD_CODE(pre, 0x01, 0xc0 + s * 8 + d);
+          MAKE_CODE(&line->inst, code, pre, 0x01, 0xc0 + s * 8 + d);
         }
         return;
       } else if (line->inst.src.u.reg.size == REG64 && line->inst.dst.u.reg.size == REG64) {
         int pre = (!line->inst.dst.u.reg.x ? 0x48 : 0x49) + (!line->inst.src.u.reg.x ? 0 : 4);
-        ADD_CODE(pre, 0x01, 0xc0 + s * 8 + d);
+        MAKE_CODE(&line->inst, code, pre, 0x01, 0xc0 + s * 8 + d);
         return;
       }
     } else if (line->inst.src.type == IMMEDIATE && line->inst.dst.type == REG) {
@@ -823,13 +842,13 @@ static void assemble_line(const Line *line) {
         int pre = !line->inst.dst.u.reg.x ? 0x48 : 0x49;
         int d = line->inst.dst.u.reg.no;
         if (is_im8(line->inst.src.u.immediate)) {
-          ADD_CODE(pre, 0x83, 0xc0 + d, IM8(line->inst.src.u.immediate));
+          MAKE_CODE(&line->inst, code, pre, 0x83, 0xc0 + d, IM8(line->inst.src.u.immediate));
           return;
         } else if (is_im32(line->inst.src.u.immediate)) {
           if (opr_regno(&line->inst.dst) == RAX - RAX)
-            ADD_CODE(pre, 0x05, IM32(line->inst.src.u.immediate));
+            MAKE_CODE(&line->inst, code, pre, 0x05, IM32(line->inst.src.u.immediate));
           else
-            ADD_CODE(pre, 0x81, 0xc0 + d, IM32(line->inst.src.u.immediate));
+            MAKE_CODE(&line->inst, code, pre, 0x81, 0xc0 + d, IM32(line->inst.src.u.immediate));
           return;
         }
       }
@@ -842,19 +861,19 @@ static void assemble_line(const Line *line) {
         long offset = line->inst.src.u.indirect.offset;
         if (line->inst.src.u.indirect.reg.no != RSP - RAX) {
           if (offset == 0 && line->inst.src.u.indirect.reg.no != RBP - RAX) {
-            ADD_CODE(pre, 0x03, 0x00 + s + d * 8);
+            MAKE_CODE(&line->inst, code, pre, 0x03, 0x00 + s + d * 8);
           } else if (is_im8(offset)) {
-            ADD_CODE(pre, 0x03, 0x40 + s + d * 8, IM8(offset));
+            MAKE_CODE(&line->inst, code, pre, 0x03, 0x40 + s + d * 8, IM8(offset));
           } else if (is_im32(offset)) {
-            ADD_CODE(pre, 0x03, 0x80 + s + d * 8, IM8(offset));
+            MAKE_CODE(&line->inst, code, pre, 0x03, 0x80 + s + d * 8, IM8(offset));
           }
         } else {
           if (offset == 0 && line->inst.src.u.indirect.reg.no != RBP - RAX) {
-            ADD_CODE(pre, 0x03, 0x04 + d * 8, 0x24);
+            MAKE_CODE(&line->inst, code, pre, 0x03, 0x04 + d * 8, 0x24);
           } else if (is_im8(offset)) {
-            ADD_CODE(pre, 0x03, 0x44 + d * 8, 0x24, IM8(offset));
+            MAKE_CODE(&line->inst, code, pre, 0x03, 0x44 + d * 8, 0x24, IM8(offset));
           } else if (is_im32(offset)) {
-            ADD_CODE(pre, 0x03, 0x84 + d * 8, 0x24, IM8(offset));
+            MAKE_CODE(&line->inst, code, pre, 0x03, 0x84 + d * 8, 0x24, IM8(offset));
           }
         }
       }
@@ -870,48 +889,48 @@ static void assemble_line(const Line *line) {
         if (is_im8(value)) {
           if (d != RSP - RAX) {
             if (offset == 0 && d != RBP - RAX) {
-              ADD_CODE(pre, 0x83, 0x00 + d, IM8(value));
+              MAKE_CODE(&line->inst, code, pre, 0x83, 0x00 + d, IM8(value));
               return;
             } else if (is_im8(offset)) {
-              ADD_CODE(pre, 0x83, 0x40 + d, IM8(offset), IM8(value));
+              MAKE_CODE(&line->inst, code, pre, 0x83, 0x40 + d, IM8(offset), IM8(value));
               return;
             } else if (is_im32(offset)) {
-              ADD_CODE(pre, 0x83, 0x80 + d, IM32(offset), IM8(value));
+              MAKE_CODE(&line->inst, code, pre, 0x83, 0x80 + d, IM32(offset), IM8(value));
               return;
             }
           } else {
             if (offset == 0) {
-              ADD_CODE(pre, 0x83, 0x04, 0x24, IM8(value));
+              MAKE_CODE(&line->inst, code, pre, 0x83, 0x04, 0x24, IM8(value));
               return;
             } else if (is_im8(offset)) {
-              ADD_CODE(pre, 0x83, 0x44, 0x24, IM8(offset), IM8(value));
+              MAKE_CODE(&line->inst, code, pre, 0x83, 0x44, 0x24, IM8(offset), IM8(value));
               return;
             } else if (is_im32(offset)) {
-              ADD_CODE(pre, 0x83, 0x84, 0x24, IM32(offset), IM8(value));
+              MAKE_CODE(&line->inst, code, pre, 0x83, 0x84, 0x24, IM32(offset), IM8(value));
               return;
             }
           }
         } else if (is_im32(value)) {
           if (d != RSP - RAX) {
             if (offset == 0 && d != RBP - RAX) {
-              ADD_CODE(pre, 0x81, 0x00 + d, IM32(value));
+              MAKE_CODE(&line->inst, code, pre, 0x81, 0x00 + d, IM32(value));
               return;
             } else if (is_im8(offset)) {
-              ADD_CODE(pre, 0x81, 0x40 + d, IM8(offset), IM32(value));
+              MAKE_CODE(&line->inst, code, pre, 0x81, 0x40 + d, IM8(offset), IM32(value));
               return;
             } else if (is_im32(offset)) {
-              ADD_CODE(pre, 0x81, 0x80 + d, IM32(offset), IM32(value));
+              MAKE_CODE(&line->inst, code, pre, 0x81, 0x80 + d, IM32(offset), IM32(value));
               return;
             }
           } else {
             if (offset == 0) {
-              ADD_CODE(pre, 0x81, 0x04, 0x24, IM32(value));
+              MAKE_CODE(&line->inst, code, pre, 0x81, 0x04, 0x24, IM32(value));
               return;
             } else if (is_im8(offset)) {
-              ADD_CODE(pre, 0x81, 0x44, 0x24, IM8(offset), IM32(value));
+              MAKE_CODE(&line->inst, code, pre, 0x81, 0x44, 0x24, IM8(offset), IM32(value));
               return;
             } else if (is_im32(offset)) {
-              ADD_CODE(pre, 0x81, 0x84, 0x24, IM32(offset), IM32(value));
+              MAKE_CODE(&line->inst, code, pre, 0x81, 0x84, 0x24, IM32(offset), IM32(value));
               return;
             }
           }
@@ -925,23 +944,23 @@ static void assemble_line(const Line *line) {
       int d = line->inst.dst.u.reg.no;
       if (line->inst.src.u.reg.size == REG8 && line->inst.dst.u.reg.size == REG8) {
         if (opr_reg8(&line->inst.src) && opr_reg8(&line->inst.dst)) {
-          ADD_CODE(0x28, 0xc0 + s * 8 + d);
+          MAKE_CODE(&line->inst, code, 0x28, 0xc0 + s * 8 + d);
         } else {
           int pre = (!line->inst.dst.u.reg.x ? 0x40 : 0x41) + (!line->inst.src.u.reg.x ? 0 : 4);
-          ADD_CODE(pre, 0x28, 0xc0 + s * 8 + d);
+          MAKE_CODE(&line->inst, code, pre, 0x28, 0xc0 + s * 8 + d);
         }
         return;
       } else if (line->inst.src.u.reg.size == REG32 && line->inst.dst.u.reg.size == REG32) {
         if (!line->inst.src.u.reg.x && !line->inst.dst.u.reg.x) {
-          ADD_CODE(0x29, 0xc0 + s * 8 + d);
+          MAKE_CODE(&line->inst, code, 0x29, 0xc0 + s * 8 + d);
         } else {
           int pre = (!line->inst.dst.u.reg.x ? 0x40 : 0x41) + (!line->inst.src.u.reg.x ? 0 : 4);
-          ADD_CODE(pre, 0x29, 0xc0 + s * 8 + d);
+          MAKE_CODE(&line->inst, code, pre, 0x29, 0xc0 + s * 8 + d);
         }
         return;
       } else if (line->inst.src.u.reg.size == REG64 && line->inst.dst.u.reg.size == REG64) {
         int pre = (!line->inst.dst.u.reg.x ? 0x48 : 0x49) + (!line->inst.src.u.reg.x ? 0 : 4);
-        ADD_CODE(pre, 0x29, 0xc0 + s * 8 + d);
+        MAKE_CODE(&line->inst, code, pre, 0x29, 0xc0 + s * 8 + d);
         return;
       }
     } else if (line->inst.src.type == IMMEDIATE && line->inst.dst.type == REG) {
@@ -949,13 +968,13 @@ static void assemble_line(const Line *line) {
         int pre = !line->inst.dst.u.reg.x ? 0x48 : 0x49;
         int d = line->inst.dst.u.reg.no;
         if (is_im8(line->inst.src.u.immediate)) {
-          ADD_CODE(pre, 0x83, 0xe8 + d, IM8(line->inst.src.u.immediate));
+          MAKE_CODE(&line->inst, code, pre, 0x83, 0xe8 + d, IM8(line->inst.src.u.immediate));
           return;
         } else if (is_im32(line->inst.src.u.immediate)) {
           if (opr_regno(&line->inst.dst) == RAX - RAX)
-            ADD_CODE(pre, 0x2d, IM32(line->inst.src.u.immediate));
+            MAKE_CODE(&line->inst, code, pre, 0x2d, IM32(line->inst.src.u.immediate));
           else
-            ADD_CODE(pre, 0x81, 0xe8 + d, IM32(line->inst.src.u.immediate));
+            MAKE_CODE(&line->inst, code, pre, 0x81, 0xe8 + d, IM32(line->inst.src.u.immediate));
           return;
         }
       }
@@ -970,48 +989,48 @@ static void assemble_line(const Line *line) {
         if (is_im8(value)) {
           if (line->inst.dst.u.indirect.reg.no != RSP - RAX) {
             if (offset == 0 && line->inst.dst.u.indirect.reg.no != RBP - RAX) {
-              ADD_CODE(0x48, 0x83, 0x28 + d, IM8(value));
+              MAKE_CODE(&line->inst, code, 0x48, 0x83, 0x28 + d, IM8(value));
               return;
             } else if (is_im8(offset)) {
-              ADD_CODE(0x48, 0x83, 0x68 + d, IM8(offset), IM8(value));
+              MAKE_CODE(&line->inst, code, 0x48, 0x83, 0x68 + d, IM8(offset), IM8(value));
               return;
             } else if (is_im32(offset)) {
-              ADD_CODE(0x48, 0x83, 0xa8 + d, IM32(offset), IM8(value));
+              MAKE_CODE(&line->inst, code, 0x48, 0x83, 0xa8 + d, IM32(offset), IM8(value));
               return;
             }
           } else {
             if (offset == 0) {
-              ADD_CODE(0x48, 0x83, 0x2c, 0x24, IM8(value));
+              MAKE_CODE(&line->inst, code, 0x48, 0x83, 0x2c, 0x24, IM8(value));
               return;
             } else if (is_im8(offset)) {
-              ADD_CODE(0x48, 0x83, 0x6c, 0x24, IM8(offset), IM8(value));
+              MAKE_CODE(&line->inst, code, 0x48, 0x83, 0x6c, 0x24, IM8(offset), IM8(value));
               return;
             } else if (is_im32(offset)) {
-              ADD_CODE(0x48, 0x83, 0xac, 0x24, IM32(offset), IM8(value));
+              MAKE_CODE(&line->inst, code, 0x48, 0x83, 0xac, 0x24, IM32(offset), IM8(value));
               return;
             }
           }
         } else if (is_im32(value)) {
           if (line->inst.dst.u.indirect.reg.no != RSP - RAX) {
             if (offset == 0 && line->inst.dst.u.indirect.reg.no != RBP - RAX) {
-              ADD_CODE(0x48, 0x81, 0x28 + d, IM32(value));
+              MAKE_CODE(&line->inst, code, 0x48, 0x81, 0x28 + d, IM32(value));
               return;
             } else if (is_im8(offset)) {
-              ADD_CODE(0x48, 0x81, 0x68 + d, IM8(offset), IM32(value));
+              MAKE_CODE(&line->inst, code, 0x48, 0x81, 0x68 + d, IM8(offset), IM32(value));
               return;
             } else if (is_im32(offset)) {
-              ADD_CODE(0x48, 0x81, 0xa8 + d, IM32(offset), IM32(value));
+              MAKE_CODE(&line->inst, code, 0x48, 0x81, 0xa8 + d, IM32(offset), IM32(value));
               return;
             }
           } else {
             if (offset == 0) {
-              ADD_CODE(0x48, 0x81, 0x2c, 0x24, IM32(value));
+              MAKE_CODE(&line->inst, code, 0x48, 0x81, 0x2c, 0x24, IM32(value));
               return;
             } else if (is_im8(offset)) {
-              ADD_CODE(0x48, 0x81, 0x6c, 0x24, IM8(offset), IM32(value));
+              MAKE_CODE(&line->inst, code, 0x48, 0x81, 0x6c, 0x24, IM8(offset), IM32(value));
               return;
             } else if (is_im32(offset)) {
-              ADD_CODE(0x48, 0x81, 0xac, 0x24, IM32(offset), IM32(value));
+              MAKE_CODE(&line->inst, code, 0x48, 0x81, 0xac, 0x24, IM32(offset), IM32(value));
               return;
             }
           }
@@ -1024,15 +1043,15 @@ static void assemble_line(const Line *line) {
       if (line->inst.src.u.reg.size == REG32) {
         int s = line->inst.src.u.reg.no;
         if (!line->inst.src.u.reg.x) {
-          ADD_CODE(0xf7, 0xe0 + s);
+          MAKE_CODE(&line->inst, code, 0xf7, 0xe0 + s);
         } else {
-          ADD_CODE(0x41, 0xf7, 0xe0 + s);
+          MAKE_CODE(&line->inst, code, 0x41, 0xf7, 0xe0 + s);
         }
         return;
       } else if (line->inst.src.u.reg.size == REG64) {
         int s = line->inst.src.u.reg.no;
         int pre = !line->inst.src.u.reg.x ? 0x48 : 0x49;
-        ADD_CODE(pre, 0xf7, 0xe0 + s);
+        MAKE_CODE(&line->inst, code, pre, 0xf7, 0xe0 + s);
         return;
       }
     }
@@ -1042,15 +1061,15 @@ static void assemble_line(const Line *line) {
       if (line->inst.src.u.reg.size == REG32) {
         int s = line->inst.src.u.reg.no;
         if (!line->inst.src.u.reg.x) {
-          ADD_CODE(0xf7, 0xf8 + s);
+          MAKE_CODE(&line->inst, code, 0xf7, 0xf8 + s);
         } else {
-          ADD_CODE(0x41, 0xf7, 0xf8 + s);
+          MAKE_CODE(&line->inst, code, 0x41, 0xf7, 0xf8 + s);
         }
         return;
       } else if (line->inst.src.u.reg.size == REG64) {
         int pre = !line->inst.src.u.reg.x ? 0x48 : 0x49;
         int s = line->inst.src.u.reg.no;
-        ADD_CODE(pre, 0xf7, 0xf8 + s);
+        MAKE_CODE(&line->inst, code, pre, 0xf7, 0xf8 + s);
         return;
       }
     }
@@ -1060,21 +1079,21 @@ static void assemble_line(const Line *line) {
       int s = line->inst.src.u.reg.no;
       if (line->inst.src.u.reg.size == REG16) {
         if (!line->inst.src.u.reg.x) {
-          ADD_CODE(0x66, 0xf7, 0xd8 + s);
+          MAKE_CODE(&line->inst, code, 0x66, 0xf7, 0xd8 + s);
         } else {
-          ADD_CODE(0x66, 0x41, 0xf7, 0xd8 + s);
+          MAKE_CODE(&line->inst, code, 0x66, 0x41, 0xf7, 0xd8 + s);
         }
         return;
       } else if (line->inst.src.u.reg.size == REG32) {
         if (!line->inst.src.u.reg.x) {
-          ADD_CODE(0xf7, 0xd8 + s);
+          MAKE_CODE(&line->inst, code, 0xf7, 0xd8 + s);
         } else {
-          ADD_CODE(0x41, 0xf7, 0xd8 + s);
+          MAKE_CODE(&line->inst, code, 0x41, 0xf7, 0xd8 + s);
         }
         return;
       } else if (line->inst.src.u.reg.size == REG64) {
         int pre = !line->inst.src.u.reg.x ? 0x48 : 0x49;
-        ADD_CODE(pre, 0xf7, 0xd8 + s);
+        MAKE_CODE(&line->inst, code, pre, 0xf7, 0xd8 + s);
         return;
       }
     }
@@ -1084,16 +1103,16 @@ static void assemble_line(const Line *line) {
       int s = line->inst.src.u.reg.no;
       if (line->inst.src.u.reg.size == REG16) {
         if (!line->inst.src.u.reg.x) {
-          ADD_CODE(0x66, 0xf7, 0xd0 + s);
+          MAKE_CODE(&line->inst, code, 0x66, 0xf7, 0xd0 + s);
         } else {
-          ADD_CODE(0x66, 0x41, 0xf7, 0xd0 + s);
+          MAKE_CODE(&line->inst, code, 0x66, 0x41, 0xf7, 0xd0 + s);
         }
         return;
       } else if (line->inst.src.u.reg.size == REG32) {
         if (!line->inst.src.u.reg.x) {
-          ADD_CODE(0xf7, 0xd0 + s);
+          MAKE_CODE(&line->inst, code, 0xf7, 0xd0 + s);
         } else {
-          ADD_CODE(0x41, 0xf7, 0xd0 + s);
+          MAKE_CODE(&line->inst, code, 0x41, 0xf7, 0xd0 + s);
         }
         return;
       }
@@ -1104,15 +1123,15 @@ static void assemble_line(const Line *line) {
       if (line->inst.src.u.reg.size == REG32) {
         int s = line->inst.src.u.reg.no;
         if (!line->inst.src.u.reg.x) {
-          ADD_CODE(0xff, 0xc0 + s);
+          MAKE_CODE(&line->inst, code, 0xff, 0xc0 + s);
         } else {
-          ADD_CODE(0x41, 0xff, 0xc0 + s);
+          MAKE_CODE(&line->inst, code, 0x41, 0xff, 0xc0 + s);
         }
         return;
       } else if (line->inst.src.u.reg.size == REG64) {
         int pre = !line->inst.src.u.reg.x ? 0x48 : 0x49;
         int s = line->inst.src.u.reg.no;
-        ADD_CODE(pre, 0xff, 0xc0 + s);
+        MAKE_CODE(&line->inst, code, pre, 0xff, 0xc0 + s);
         return;
       }
     }
@@ -1125,48 +1144,48 @@ static void assemble_line(const Line *line) {
       if (!line->inst.src.u.indirect.reg.x) {
         if (s != RSP - RAX) {
           if (offset == 0 && s != RBP - RAX) {
-            ADD_CODE(0xff, 0x00 + s);
+            MAKE_CODE(&line->inst, code, 0xff, 0x00 + s);
             return;
           } else if (is_im8(offset)) {
-            ADD_CODE(0xff, 0x40 + s, IM8(offset));
+            MAKE_CODE(&line->inst, code, 0xff, 0x40 + s, IM8(offset));
             return;
           } else if (is_im32(offset)) {
-            ADD_CODE(0xff, 0x80 + s, IM32(offset));
+            MAKE_CODE(&line->inst, code, 0xff, 0x80 + s, IM32(offset));
             return;
           }
         } else {
           if (offset == 0) {
-            ADD_CODE(0xff, 0x04, 0x24);
+            MAKE_CODE(&line->inst, code, 0xff, 0x04, 0x24);
             return;
           } else if (is_im8(offset)) {
-            ADD_CODE(0xff, 0x44, 0x24, IM8(offset));
+            MAKE_CODE(&line->inst, code, 0xff, 0x44, 0x24, IM8(offset));
             return;
           } else if (is_im32(offset)) {
-            ADD_CODE(0xff, 0x84, 0x24, IM32(offset));
+            MAKE_CODE(&line->inst, code, 0xff, 0x84, 0x24, IM32(offset));
             return;
           }
         }
       } else {
         if (s != RSP - RAX) {
           if (offset == 0 && s != RBP - RAX) {
-            ADD_CODE(0x41, 0xff, 0x00 + s);
+            MAKE_CODE(&line->inst, code, 0x41, 0xff, 0x00 + s);
             return;
           } else if (is_im8(offset)) {
-            ADD_CODE(0x41, 0xff, 0x40 + s, IM8(offset));
+            MAKE_CODE(&line->inst, code, 0x41, 0xff, 0x40 + s, IM8(offset));
             return;
           } else if (is_im32(offset)) {
-            ADD_CODE(0x41, 0xff, 0x80 + s, IM32(offset));
+            MAKE_CODE(&line->inst, code, 0x41, 0xff, 0x80 + s, IM32(offset));
             return;
           }
         } else {
           if (offset == 0) {
-            ADD_CODE(0x41, 0xff, 0x04, 0x24);
+            MAKE_CODE(&line->inst, code, 0x41, 0xff, 0x04, 0x24);
             return;
           } else if (is_im8(offset)) {
-            ADD_CODE(0x41, 0xff, 0x44, 0x24, IM8(offset));
+            MAKE_CODE(&line->inst, code, 0x41, 0xff, 0x44, 0x24, IM8(offset));
             return;
           } else if (is_im32(offset)) {
-            ADD_CODE(0x41, 0xff, 0x84, 0x24, IM32(offset));
+            MAKE_CODE(&line->inst, code, 0x41, 0xff, 0x84, 0x24, IM32(offset));
             return;
           }
         }
@@ -1181,24 +1200,24 @@ static void assemble_line(const Line *line) {
       long offset = line->inst.src.u.indirect.offset;
       if (line->inst.src.u.indirect.reg.no != RSP - RAX) {
         if (offset == 0 && line->inst.src.u.indirect.reg.no != RBP - RAX) {
-          ADD_CODE(pre, 0xff, 0x00 + s);
+          MAKE_CODE(&line->inst, code, pre, 0xff, 0x00 + s);
           return;
         } else if (is_im8(offset)) {
-          ADD_CODE(pre, 0xff, 0x40 + s, IM8(offset));
+          MAKE_CODE(&line->inst, code, pre, 0xff, 0x40 + s, IM8(offset));
           return;
         } else if (is_im32(offset)) {
-          ADD_CODE(pre, 0xff, 0x80 + s, IM32(offset));
+          MAKE_CODE(&line->inst, code, pre, 0xff, 0x80 + s, IM32(offset));
           return;
         }
       } else {
         if (offset == 0) {
-          ADD_CODE(pre, 0xff, 0x04, 0x24);
+          MAKE_CODE(&line->inst, code, pre, 0xff, 0x04, 0x24);
           return;
         } else if (is_im8(offset)) {
-          ADD_CODE(pre, 0xff, 0x44, 0x24, IM8(offset));
+          MAKE_CODE(&line->inst, code, pre, 0xff, 0x44, 0x24, IM8(offset));
           return;
         } else if (is_im32(offset)) {
-          ADD_CODE(pre, 0xff, 0x84, 0x24, IM32(offset));
+          MAKE_CODE(&line->inst, code, pre, 0xff, 0x84, 0x24, IM32(offset));
           return;
         }
       }
@@ -1209,15 +1228,15 @@ static void assemble_line(const Line *line) {
       if (line->inst.src.u.reg.size == REG32) {
         int s = line->inst.src.u.reg.no;
         if (!line->inst.src.u.reg.x) {
-          ADD_CODE(0xff, 0xc8 + s);
+          MAKE_CODE(&line->inst, code, 0xff, 0xc8 + s);
         } else {
-          ADD_CODE(0x41, 0xff, 0xc8 + s);
+          MAKE_CODE(&line->inst, code, 0x41, 0xff, 0xc8 + s);
         }
         return;
       } else if (line->inst.src.u.reg.size == REG64) {
         int pre = !line->inst.src.u.reg.x ? 0x48 : 0x49;
         int s = line->inst.src.u.reg.no;
-        ADD_CODE(pre, 0xff, 0xc8 + s);
+        MAKE_CODE(&line->inst, code, pre, 0xff, 0xc8 + s);
         return;
       }
     }
@@ -1230,48 +1249,48 @@ static void assemble_line(const Line *line) {
       if (!line->inst.src.u.indirect.reg.x) {
         if (s != RSP - RAX) {
           if (offset == 0 && s != RBP - RAX) {
-            ADD_CODE(0xff, 0x08 + s);
+            MAKE_CODE(&line->inst, code, 0xff, 0x08 + s);
             return;
           } else if (is_im8(offset)) {
-            ADD_CODE(0xff, 0x48 + s, IM8(offset));
+            MAKE_CODE(&line->inst, code, 0xff, 0x48 + s, IM8(offset));
             return;
           } else if (is_im32(offset)) {
-            ADD_CODE(0xff, 0x88 + s, IM32(offset));
+            MAKE_CODE(&line->inst, code, 0xff, 0x88 + s, IM32(offset));
             return;
           }
         } else {
           if (offset == 0) {
-            ADD_CODE(0xff, 0x0c, 0x24);
+            MAKE_CODE(&line->inst, code, 0xff, 0x0c, 0x24);
             return;
           } else if (is_im8(offset)) {
-            ADD_CODE(0xff, 0x4c, 0x24, IM8(offset));
+            MAKE_CODE(&line->inst, code, 0xff, 0x4c, 0x24, IM8(offset));
             return;
           } else if (is_im32(offset)) {
-            ADD_CODE(0xff, 0x8c, 0x24, IM32(offset));
+            MAKE_CODE(&line->inst, code, 0xff, 0x8c, 0x24, IM32(offset));
             return;
           }
         }
       } else {
         if (s != RSP - RAX) {
           if (offset == 0 && s != RBP - RAX) {
-            ADD_CODE(0x41, 0xff, 0x08 + s);
+            MAKE_CODE(&line->inst, code, 0x41, 0xff, 0x08 + s);
             return;
           } else if (is_im8(offset)) {
-            ADD_CODE(0x41, 0xff, 0x48 + s, IM8(offset));
+            MAKE_CODE(&line->inst, code, 0x41, 0xff, 0x48 + s, IM8(offset));
             return;
           } else if (is_im32(offset)) {
-            ADD_CODE(0x41, 0xff, 0x88 + s, IM32(offset));
+            MAKE_CODE(&line->inst, code, 0x41, 0xff, 0x88 + s, IM32(offset));
             return;
           }
         } else {
           if (offset == 0) {
-            ADD_CODE(0x41, 0xff, 0x0c, 0x24);
+            MAKE_CODE(&line->inst, code, 0x41, 0xff, 0x0c, 0x24);
             return;
           } else if (is_im8(offset)) {
-            ADD_CODE(0x41, 0xff, 0x4c, 0x24, IM8(offset));
+            MAKE_CODE(&line->inst, code, 0x41, 0xff, 0x4c, 0x24, IM8(offset));
             return;
           } else if (is_im32(offset)) {
-            ADD_CODE(0x41, 0xff, 0x8c, 0x24, IM32(offset));
+            MAKE_CODE(&line->inst, code, 0x41, 0xff, 0x8c, 0x24, IM32(offset));
             return;
           }
         }
@@ -1286,24 +1305,24 @@ static void assemble_line(const Line *line) {
       long offset = line->inst.src.u.indirect.offset;
       if (line->inst.src.u.indirect.reg.no != RSP - RAX) {
         if (offset == 0 && line->inst.src.u.indirect.reg.no != RBP - RAX) {
-          ADD_CODE(pre, 0xff, 0x08 + s);
+          MAKE_CODE(&line->inst, code, pre, 0xff, 0x08 + s);
           return;
         } else if (is_im8(offset)) {
-          ADD_CODE(pre, 0xff, 0x48 + s, IM8(offset));
+          MAKE_CODE(&line->inst, code, pre, 0xff, 0x48 + s, IM8(offset));
           return;
         } else if (is_im32(offset)) {
-          ADD_CODE(pre, 0xff, 0x88 + s, IM32(offset));
+          MAKE_CODE(&line->inst, code, pre, 0xff, 0x88 + s, IM32(offset));
           return;
         }
       } else {
         if (offset == 0) {
-          ADD_CODE(pre, 0xff, 0x0c, 0x24);
+          MAKE_CODE(&line->inst, code, pre, 0xff, 0x0c, 0x24);
           return;
         } else if (is_im8(offset)) {
-          ADD_CODE(pre, 0xff, 0x4c, 0x24, IM8(offset));
+          MAKE_CODE(&line->inst, code, pre, 0xff, 0x4c, 0x24, IM8(offset));
           return;
         } else if (is_im32(offset)) {
-          ADD_CODE(pre, 0xff, 0x8c, 0x24, IM32(offset));
+          MAKE_CODE(&line->inst, code, pre, 0xff, 0x8c, 0x24, IM32(offset));
           return;
         }
       }
@@ -1315,23 +1334,23 @@ static void assemble_line(const Line *line) {
       int d = line->inst.dst.u.reg.no;
       if (line->inst.src.u.reg.size == REG16 && line->inst.dst.u.reg.size == REG16) {
         if (!line->inst.src.u.reg.x && !line->inst.dst.u.reg.x) {
-          ADD_CODE(0x66, 0x21, 0xc0 + s * 8 + d);
+          MAKE_CODE(&line->inst, code, 0x66, 0x21, 0xc0 + s * 8 + d);
         } else {
           int pre = (!line->inst.dst.u.reg.x ? 0x40 : 0x41) + (!line->inst.src.u.reg.x ? 0 : 4);
-          ADD_CODE(0x66, pre, 0x21, 0xc0 + s * 8 + d);
+          MAKE_CODE(&line->inst, code, 0x66, pre, 0x21, 0xc0 + s * 8 + d);
         }
         return;
       } if (line->inst.src.u.reg.size == REG32 && line->inst.dst.u.reg.size == REG32) {
         if (!line->inst.src.u.reg.x && !line->inst.dst.u.reg.x) {
-          ADD_CODE(0x21, 0xc0 + s * 8 + d);
+          MAKE_CODE(&line->inst, code, 0x21, 0xc0 + s * 8 + d);
         } else {
           int pre = (!line->inst.dst.u.reg.x ? 0x40 : 0x41) + (!line->inst.src.u.reg.x ? 0 : 4);
-          ADD_CODE(pre, 0x21, 0xc0 + s * 8 + d);
+          MAKE_CODE(&line->inst, code, pre, 0x21, 0xc0 + s * 8 + d);
         }
         return;
       } else if (line->inst.src.u.reg.size == REG64 && line->inst.dst.u.reg.size == REG64) {
         int pre = (!line->inst.dst.u.reg.x ? 0x48 : 0x49) + (!line->inst.src.u.reg.x ? 0 : 4);
-        ADD_CODE(pre, 0x21, 0xc0 + s * 8 + d);
+        MAKE_CODE(&line->inst, code, pre, 0x21, 0xc0 + s * 8 + d);
         return;
       }
     }
@@ -1342,31 +1361,31 @@ static void assemble_line(const Line *line) {
       int d = line->inst.dst.u.reg.no;
       if (line->inst.src.u.reg.size == REG8 && line->inst.dst.u.reg.size == REG8) {
         if (opr_reg8(&line->inst.src) && opr_reg8(&line->inst.dst)) {
-          ADD_CODE(0x08, 0xc0 + s * 8 + d);
+          MAKE_CODE(&line->inst, code, 0x08, 0xc0 + s * 8 + d);
         } else {
           int pre = (!line->inst.dst.u.reg.x ? 0x40 : 0x41) + (!line->inst.src.u.reg.x ? 0 : 4);
-          ADD_CODE(pre, 0x08, 0xc0 + s * 8 + d);
+          MAKE_CODE(&line->inst, code, pre, 0x08, 0xc0 + s * 8 + d);
         }
         return;
       } else if (line->inst.src.u.reg.size == REG16 && line->inst.dst.u.reg.size == REG16) {
         if (!line->inst.src.u.reg.x && !line->inst.dst.u.reg.x) {
-          ADD_CODE(0x66, 0x09, 0xc0 + s * 8 + d);
+          MAKE_CODE(&line->inst, code, 0x66, 0x09, 0xc0 + s * 8 + d);
         } else {
           int pre = (!line->inst.dst.u.reg.x ? 0x40 : 0x41) + (!line->inst.src.u.reg.x ? 0 : 4);
-          ADD_CODE(0x66, pre, 0x09, 0xc0 + s * 8 + d);
+          MAKE_CODE(&line->inst, code, 0x66, pre, 0x09, 0xc0 + s * 8 + d);
         }
         return;
       } else if (line->inst.src.u.reg.size == REG32 && line->inst.dst.u.reg.size == REG32) {
         if (!line->inst.src.u.reg.x && !line->inst.dst.u.reg.x) {
-          ADD_CODE(0x09, 0xc0 + s * 8 + d);
+          MAKE_CODE(&line->inst, code, 0x09, 0xc0 + s * 8 + d);
         } else {
           int pre = (!line->inst.dst.u.reg.x ? 0x40 : 0x41) + (!line->inst.src.u.reg.x ? 0 : 4);
-          ADD_CODE(pre, 0x09, 0xc0 + s * 8 + d);
+          MAKE_CODE(&line->inst, code, pre, 0x09, 0xc0 + s * 8 + d);
         }
         return;
       } else if (line->inst.src.u.reg.size == REG64 && line->inst.dst.u.reg.size == REG64) {
         int pre = (!line->inst.dst.u.reg.x ? 0x48 : 0x49) + (!line->inst.src.u.reg.x ? 0 : 4);
-        ADD_CODE(pre, 0x09, 0xc0 + s * 8 + d);
+        MAKE_CODE(&line->inst, code, pre, 0x09, 0xc0 + s * 8 + d);
         return;
       }
     }
@@ -1377,31 +1396,31 @@ static void assemble_line(const Line *line) {
       int d = line->inst.dst.u.reg.no;
       if (line->inst.src.u.reg.size == REG8 && line->inst.dst.u.reg.size == REG8) {
         if (opr_reg8(&line->inst.src) && opr_reg8(&line->inst.dst)) {
-          ADD_CODE(0x30, 0xc0 + s * 8 + d);
+          MAKE_CODE(&line->inst, code, 0x30, 0xc0 + s * 8 + d);
         } else {
           int pre = (!line->inst.dst.u.reg.x ? 0x40 : 0x41) + (!line->inst.src.u.reg.x ? 0 : 4);
-          ADD_CODE(pre, 0x30, 0xc0 + s * 8 + d);
+          MAKE_CODE(&line->inst, code, pre, 0x30, 0xc0 + s * 8 + d);
         }
         return;
       } else if (line->inst.src.u.reg.size == REG16 && line->inst.dst.u.reg.size == REG16) {
         if (!line->inst.src.u.reg.x && !line->inst.dst.u.reg.x) {
-          ADD_CODE(0x66, 0x31, 0xc0 + s * 8 + d);
+          MAKE_CODE(&line->inst, code, 0x66, 0x31, 0xc0 + s * 8 + d);
         } else {
           int pre = (!line->inst.dst.u.reg.x ? 0x40 : 0x41) + (!line->inst.src.u.reg.x ? 0 : 4);
-          ADD_CODE(0x66, pre, 0x31, 0xc0 + s * 8 + d);
+          MAKE_CODE(&line->inst, code, 0x66, pre, 0x31, 0xc0 + s * 8 + d);
         }
         return;
       } else if (line->inst.src.u.reg.size == REG32 && line->inst.dst.u.reg.size == REG32) {
         if (!line->inst.src.u.reg.x && !line->inst.dst.u.reg.x) {
-          ADD_CODE(0x31, 0xc0 + s * 8 + d);
+          MAKE_CODE(&line->inst, code, 0x31, 0xc0 + s * 8 + d);
         } else {
           int pre = (!line->inst.dst.u.reg.x ? 0x40 : 0x41) + (!line->inst.src.u.reg.x ? 0 : 4);
-          ADD_CODE(pre, 0x31, 0xc0 + s * 8 + d);
+          MAKE_CODE(&line->inst, code, pre, 0x31, 0xc0 + s * 8 + d);
         }
         return;
       } else if (line->inst.src.u.reg.size == REG64 && line->inst.dst.u.reg.size == REG64) {
         int pre = (!line->inst.dst.u.reg.x ? 0x48 : 0x49) + (!line->inst.src.u.reg.x ? 0 : 4);
-        ADD_CODE(pre, 0x31, 0xc0 + s * 8 + d);
+        MAKE_CODE(&line->inst, code, pre, 0x31, 0xc0 + s * 8 + d);
         return;
       }
     }
@@ -1412,29 +1431,29 @@ static void assemble_line(const Line *line) {
       int d = line->inst.dst.u.reg.no;
       if (line->inst.dst.u.reg.size == REG8) {
         if (opr_reg8(&line->inst.dst)) {
-          ADD_CODE(0xd2, 0xe0 + d);
+          MAKE_CODE(&line->inst, code, 0xd2, 0xe0 + d);
         } else {
           int pre = !line->inst.dst.u.reg.x ? 0x40 : 0x41;
-          ADD_CODE(pre, 0xd2, 0xe0 + d);
+          MAKE_CODE(&line->inst, code, pre, 0xd2, 0xe0 + d);
         }
         return;
       } else if (line->inst.dst.u.reg.size == REG16) {
         if (!line->inst.dst.u.reg.x) {
-          ADD_CODE(0x66, 0xd3, 0xe0 + d);
+          MAKE_CODE(&line->inst, code, 0x66, 0xd3, 0xe0 + d);
         } else {
-          ADD_CODE(0x66, 0x41, 0xd3, 0xe0 + d);
+          MAKE_CODE(&line->inst, code, 0x66, 0x41, 0xd3, 0xe0 + d);
         }
         return;
       } else if (line->inst.dst.u.reg.size == REG32) {
         if (!line->inst.dst.u.reg.x) {
-          ADD_CODE(0xd3, 0xe0 + d);
+          MAKE_CODE(&line->inst, code, 0xd3, 0xe0 + d);
         } else {
-          ADD_CODE(0x41, 0xd3, 0xe0 + d);
+          MAKE_CODE(&line->inst, code, 0x41, 0xd3, 0xe0 + d);
         }
         return;
       } else if (line->inst.dst.u.reg.size == REG64) {
         int pre = line->inst.dst.u.reg.size == REG64 ? 0x48 : 0x49;
-        ADD_CODE(pre, 0xd3, 0xe0 + d);
+        MAKE_CODE(&line->inst, code, pre, 0xd3, 0xe0 + d);
         return;
       }
     }
@@ -1445,14 +1464,14 @@ static void assemble_line(const Line *line) {
       int d = line->inst.dst.u.reg.no;
       if (line->inst.dst.u.reg.size == REG32) {
         if (!line->inst.dst.u.reg.x) {
-          ADD_CODE(0xd3, 0xe8 + d);
+          MAKE_CODE(&line->inst, code, 0xd3, 0xe8 + d);
         } else {
-          ADD_CODE(0x41, 0xd3, 0xe8 + d);
+          MAKE_CODE(&line->inst, code, 0x41, 0xd3, 0xe8 + d);
         }
         return;
       } else if (line->inst.dst.u.reg.size == REG64) {
         int pre = !line->inst.dst.u.reg.x ? 0x48 : 0x49;
-        ADD_CODE(pre, 0xd3, 0xe8 + d);
+        MAKE_CODE(&line->inst, code, pre, 0xd3, 0xe8 + d);
         return;
       }
     }
@@ -1463,23 +1482,23 @@ static void assemble_line(const Line *line) {
       int d = line->inst.dst.u.reg.no;
       if (line->inst.src.u.reg.size == REG8 && line->inst.dst.u.reg.size == REG8) {
         if (opr_reg8(&line->inst.src) && opr_reg8(&line->inst.dst)) {
-          ADD_CODE(0x38, 0xc0 + s * 8 + d);
+          MAKE_CODE(&line->inst, code, 0x38, 0xc0 + s * 8 + d);
         } else {
           int pre = (!line->inst.dst.u.reg.x ? 0x40 : 0x41) + (!line->inst.src.u.reg.x ? 0 : 4);
-          ADD_CODE(pre, 0x38, 0xc0 + s * 8 + d);
+          MAKE_CODE(&line->inst, code, pre, 0x38, 0xc0 + s * 8 + d);
         }
         return;
       } else if (line->inst.src.u.reg.size == REG32 && line->inst.dst.u.reg.size == REG32) {
         if (!line->inst.src.u.reg.x && !line->inst.dst.u.reg.x) {
-          ADD_CODE(0x39, 0xc0 + s * 8 + d);
+          MAKE_CODE(&line->inst, code, 0x39, 0xc0 + s * 8 + d);
         } else {
           int pre = (!line->inst.dst.u.reg.x ? 0x40 : 0x41) + (!line->inst.src.u.reg.x ? 0 : 4);
-          ADD_CODE(pre, 0x39, 0xc0 + s * 8 + d);
+          MAKE_CODE(&line->inst, code, pre, 0x39, 0xc0 + s * 8 + d);
         }
         return;
       } else if (line->inst.src.u.reg.size == REG64 && line->inst.dst.u.reg.size == REG64) {
         int pre = (!line->inst.dst.u.reg.x ? 0x48 : 0x49) + (!line->inst.src.u.reg.x ? 0 : 4);
-        ADD_CODE(pre, 0x39, 0xc0 + s * 8 + d);
+        MAKE_CODE(&line->inst, code, pre, 0x39, 0xc0 + s * 8 + d);
         return;
       }
     } else if (line->inst.src.type == IMMEDIATE && line->inst.dst.type == REG) {
@@ -1487,34 +1506,34 @@ static void assemble_line(const Line *line) {
       if (line->inst.dst.u.reg.size == REG8) {
         int d = line->inst.dst.u.reg.no;
         if (opr_regno(&line->inst.dst) == AL - AL) {
-          ADD_CODE(0x3c, IM8(value));
+          MAKE_CODE(&line->inst, code, 0x3c, IM8(value));
         } else if (opr_reg8(&line->inst.dst)) {
-          ADD_CODE(0x80, 0xf8 + d, IM8(value));
+          MAKE_CODE(&line->inst, code, 0x80, 0xf8 + d, IM8(value));
         } else {
-          ADD_CODE(0x41, 0x80, 0xf8 + d, IM8(value));
+          MAKE_CODE(&line->inst, code, 0x41, 0x80, 0xf8 + d, IM8(value));
         }
         return;
       } else if (line->inst.dst.u.reg.size == REG32) {
         int d = line->inst.dst.u.reg.no;
         if (!line->inst.dst.u.reg.x) {
           if (is_im8(value)) {
-            ADD_CODE(0x83, 0xf8 + d, IM8(value));
+            MAKE_CODE(&line->inst, code, 0x83, 0xf8 + d, IM8(value));
             return;
           } else if (is_im32(value)) {
             if (opr_regno(&line->inst.dst) == EAX - EAX) {
-              ADD_CODE(0x3d, IM32(value));
+              MAKE_CODE(&line->inst, code, 0x3d, IM32(value));
               return;
             } else {
-              ADD_CODE(0x81, 0xf8 + d, IM32(value));
+              MAKE_CODE(&line->inst, code, 0x81, 0xf8 + d, IM32(value));
               return;
             }
           }
         } else {
           if (is_im8(value)) {
-            ADD_CODE(0x41, 0x83, 0xf8 + d, IM8(value));
+            MAKE_CODE(&line->inst, code, 0x41, 0x83, 0xf8 + d, IM8(value));
             return;
           } else if (is_im32(value)) {
-            ADD_CODE(0x41, 0x81, 0xf8 + d, IM32(value));
+            MAKE_CODE(&line->inst, code, 0x41, 0x81, 0xf8 + d, IM32(value));
             return;
           }
         }
@@ -1522,14 +1541,14 @@ static void assemble_line(const Line *line) {
         int d = line->inst.dst.u.reg.no;
         int pre = !line->inst.dst.u.reg.x ? 0x48 : 0x49;
         if (is_im8(value)) {
-          ADD_CODE(pre, 0x83, 0xf8 + d, IM8(value));
+          MAKE_CODE(&line->inst, code, pre, 0x83, 0xf8 + d, IM8(value));
           return;
         } else if (is_im32(value)) {
           if (opr_regno(&line->inst.dst) == EAX - EAX) {
-            ADD_CODE(pre, 0x3d, IM32(value));
+            MAKE_CODE(&line->inst, code, pre, 0x3d, IM32(value));
             return;
           } else {
-            ADD_CODE(pre, 0x81, 0xf8 + d, IM32(value));
+            MAKE_CODE(&line->inst, code, pre, 0x81, 0xf8 + d, IM32(value));
             return;
           }
         }
@@ -1542,44 +1561,44 @@ static void assemble_line(const Line *line) {
       int d = line->inst.dst.u.reg.no;
       if (line->inst.src.u.reg.size == REG8 && line->inst.dst.u.reg.size == REG8) {
         if (opr_reg8(&line->inst.src) && opr_reg8(&line->inst.dst)) {
-          ADD_CODE(0x84, 0xc0 + s * 8 + d);
+          MAKE_CODE(&line->inst, code, 0x84, 0xc0 + s * 8 + d);
         } else {
           int pre = (!line->inst.dst.u.reg.x ? 0x40 : 0x41) + (!line->inst.src.u.reg.x ? 0 : 4);
-          ADD_CODE(pre, 0x84, 0xc0 + s * 8 + d);
+          MAKE_CODE(&line->inst, code, pre, 0x84, 0xc0 + s * 8 + d);
         }
         return;
       } else if (line->inst.src.u.reg.size == REG16 && line->inst.dst.u.reg.size == REG16) {
         if (!line->inst.src.u.reg.x && !line->inst.dst.u.reg.x) {
-          ADD_CODE(0x66, 0x85, 0xc0 + s * 8 + d);
+          MAKE_CODE(&line->inst, code, 0x66, 0x85, 0xc0 + s * 8 + d);
         } else {
           int pre = (!line->inst.dst.u.reg.x ? 0x40 : 0x41) + (!line->inst.src.u.reg.x ? 0 : 4);
-          ADD_CODE(0x66, pre, 0x85, 0xc0 + s * 8 + d);
+          MAKE_CODE(&line->inst, code, 0x66, pre, 0x85, 0xc0 + s * 8 + d);
         }
         return;
       } else if (line->inst.src.u.reg.size == REG32 && line->inst.dst.u.reg.size == REG32) {
         if (!line->inst.src.u.reg.x && !line->inst.dst.u.reg.x) {
-          ADD_CODE(0x85, 0xc0 + s * 8 + d);
+          MAKE_CODE(&line->inst, code, 0x85, 0xc0 + s * 8 + d);
         } else {
           int pre = (!line->inst.dst.u.reg.x ? 0x40 : 0x41) + (!line->inst.src.u.reg.x ? 0 : 4);
-          ADD_CODE(pre, 0x85, 0xc0 + s * 8 + d);
+          MAKE_CODE(&line->inst, code, pre, 0x85, 0xc0 + s * 8 + d);
         }
         return;
       } else if (line->inst.src.u.reg.size == REG64 && line->inst.dst.u.reg.size == REG64) {
         int pre = (!line->inst.src.u.reg.x ? 0x48 : 0x49) + (!line->inst.dst.u.reg.x ? 0 : 4);
-        ADD_CODE(pre, 0x85, 0xc0 + s * 8 + d);
+        MAKE_CODE(&line->inst, code, pre, 0x85, 0xc0 + s * 8 + d);
         return;
       }
     }
     break;
   case CLTD:
     if (line->inst.src.type == NOOPERAND && line->inst.dst.type == NOOPERAND) {
-      ADD_CODE(0x99);
+      MAKE_CODE(&line->inst, code, 0x99);
       return;
     }
     break;
   case CQTO:
     if (line->inst.src.type == NOOPERAND && line->inst.dst.type == NOOPERAND) {
-      ADD_CODE(0x48, 0x99);
+      MAKE_CODE(&line->inst, code, 0x48, 0x99);
       return;
     }
     break;
@@ -1592,10 +1611,10 @@ static void assemble_line(const Line *line) {
       int s = line->inst.src.u.reg.no;
       if (line->inst.src.u.reg.size == REG8) {
         if (opr_reg8(&line->inst.src)) {
-          ADD_CODE(0x0f, 0x90 + (line->inst.op - SETO), 0xc0 + s);
+          MAKE_CODE(&line->inst, code, 0x0f, 0x90 + (line->inst.op - SETO), 0xc0 + s);
         } else {
           int pre = !line->inst.src.u.reg.x ? 0x40 : 0x41;
-          ADD_CODE(pre, 0x0f, 0x90 + (line->inst.op - SETO), 0xc0 + s);
+          MAKE_CODE(&line->inst, code, pre, 0x0f, 0x90 + (line->inst.op - SETO), 0xc0 + s);
         }
         return;
       }
@@ -1606,9 +1625,9 @@ static void assemble_line(const Line *line) {
       if (line->inst.src.u.reg.size == REG64) {
         int d = line->inst.src.u.reg.no;
         if (!line->inst.src.u.reg.x) {
-          ADD_CODE(0x50 + d);
+          MAKE_CODE(&line->inst, code, 0x50 + d);
         } else {
-          ADD_CODE(0x41, 0x50 + d);
+          MAKE_CODE(&line->inst, code, 0x41, 0x50 + d);
         }
         return;
       }
@@ -1619,9 +1638,9 @@ static void assemble_line(const Line *line) {
       if (line->inst.src.u.reg.size == REG64) {
         int d = line->inst.src.u.reg.no;
         if (!line->inst.src.u.reg.x) {
-          ADD_CODE(0x58 + d);
+          MAKE_CODE(&line->inst, code, 0x58 + d);
         } else {
-          ADD_CODE(0x41, 0x58 + d);
+          MAKE_CODE(&line->inst, code, 0x41, 0x58 + d);
         }
         return;
       }
@@ -1631,7 +1650,7 @@ static void assemble_line(const Line *line) {
     if (line->inst.src.type != LABEL || line->inst.dst.type != NOOPERAND)
       error("Illegal oprand: JMP");
     ADD_LOC_REL32(line->inst.src.u.label, 1, 5);
-    ADD_CODE(0xe9, IM32(-1));
+    MAKE_CODE(&line->inst, code, 0xe9, IM32(-1));
     return;
   case JO: case JNO: case JB:  case JAE:
   case JE: case JNE: case JBE: case JA:
@@ -1640,37 +1659,37 @@ static void assemble_line(const Line *line) {
     if (line->inst.src.type == LABEL && line->inst.dst.type == NOOPERAND) {
       // TODO: Handle short jump.
       ADD_LOC_REL32(line->inst.src.u.label, 2, 6);
-      ADD_CODE(0x0f, 0x80 + (line->inst.op - JO), IM32(-1));
+      MAKE_CODE(&line->inst, code, 0x0f, 0x80 + (line->inst.op - JO), IM32(-1));
       return;
     }
     break;
   case CALL:
     if (line->inst.src.type == LABEL && line->inst.dst.type == NOOPERAND) {
       ADD_LOC_REL32(line->inst.src.u.label, 1, 5);
-      ADD_CODE(0xe8, IM32(-1));
+      MAKE_CODE(&line->inst, code, 0xe8, IM32(-1));
       return;
     } if (line->inst.src.type == DEREF_REG && line->inst.dst.type == NOOPERAND) {
       int s = line->inst.src.u.deref_reg.no;
       if (!line->inst.src.u.deref_reg.x) {
-        ADD_CODE(0xff, 0xd0 + s);
+        MAKE_CODE(&line->inst, code, 0xff, 0xd0 + s);
       } else {
-        ADD_CODE(0x41, 0xff, 0xd0 + s);
+        MAKE_CODE(&line->inst, code, 0x41, 0xff, 0xd0 + s);
       }
       return;
     }
     break;
   case RET:
-    ADD_CODE(0xc3);
+    MAKE_CODE(&line->inst, code, 0xc3);
     return;
   case INT:
     if (line->inst.src.type == IMMEDIATE && line->inst.dst.type == NOOPERAND) {
       long value = line->inst.src.u.immediate;
-      ADD_CODE(0xcd, IM8(value));
+      MAKE_CODE(&line->inst, code, 0xcd, IM8(value));
       return;
     }
     return;
   case SYSCALL:
-    ADD_CODE(0x0f, 0x05);
+    MAKE_CODE(&line->inst, code, 0x0f, 0x05);
     return;
   default:
     break;
@@ -1696,7 +1715,10 @@ static void assemble(FILE *fp) {
   for (int i = 0, len = lines->len; i < len; ++i) {
     Line *line = lines->data[i];
     if (line->dir == NODIRECTIVE) {
-      assemble_line(line);
+      Code code;
+      assemble_line(line, &code);
+      if (code.len > 0)
+        add_code(code.buf, code.len);
     } else {
       handle_directive(line->dir, line->directive_line);
     }
