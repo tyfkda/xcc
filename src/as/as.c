@@ -36,10 +36,6 @@
 
 #define LOAD_ADDRESS    START_ADDRESS
 
-#ifndef ADD_CODE
-#define ADD_CODE(...)  do { unsigned char buf[] = {__VA_ARGS__}; add_code(buf, sizeof(buf)); } while (0)
-#endif
-
 typedef struct {
   Inst *inst;
   char len;
@@ -57,6 +53,11 @@ void make_code(Inst *inst, Code *code, unsigned char *buf, int len) {
   memcpy(code->buf, buf, len);
 }
 
+typedef struct {
+  size_t len;
+  unsigned char *buf;
+} Data;
+
 #define IM8(x)   (x)
 #define IM16(x)  (x), ((x) >> 8)
 #define IM32(x)  (x), ((x) >> 8), ((x) >> 16), ((x) >> 24)
@@ -71,6 +72,95 @@ typedef struct {
   enum DirectiveType dir;
   const char *directive_line;
 } Line;
+
+enum IRType {
+  IR_LABEL,
+  IR_CODE,
+  IR_DATA,
+  IR_BSS,
+  IR_ALIGN,
+  IR_SECTION,
+  IR_LOC_REL32,
+  IR_LOC_ABS64,
+};
+
+typedef struct {
+  enum IRType type;
+  union {
+    const char *label;
+    Code code;
+    Data data;
+    size_t bss;
+    int align;
+    int section;
+    struct {
+      const char *label;
+      int ofs;
+      int base;
+    } loc;
+  } u;
+} IR;
+
+static IR *new_ir_label(const char *label) {
+  IR *ir = malloc(sizeof(*ir));
+  ir->type = IR_LABEL;
+  ir->u.label = label;
+  return ir;
+}
+
+static IR *new_ir_code(const Code *code) {
+  IR *ir = malloc(sizeof(*ir));
+  ir->type = IR_CODE;
+  ir->u.code = *code;
+  return ir;
+}
+
+static IR *new_ir_data(const void *data, size_t size) {
+  IR *ir = malloc(sizeof(*ir));
+  ir->type = IR_DATA;
+  ir->u.data.len = size;
+  ir->u.data.buf = (unsigned char*)data;
+  return ir;
+}
+
+static IR *new_ir_bss(size_t size) {
+  IR *ir = malloc(sizeof(*ir));
+  ir->type = IR_BSS;
+  ir->u.bss = size;
+  return ir;
+}
+
+static IR *new_ir_align(int align) {
+  IR *ir = malloc(sizeof(*ir));
+  ir->type = IR_ALIGN;
+  ir->u.align = align;
+  return ir;
+}
+
+static IR *new_ir_section(enum SectionType section) {
+  IR *ir = malloc(sizeof(*ir));
+  ir->type = IR_SECTION;
+  ir->u.section = section;
+  return ir;
+}
+
+static IR *new_ir_loc_rel32(const char *label, int ofs, int base) {
+  IR *ir = malloc(sizeof(*ir));
+  ir->type = IR_LOC_REL32;
+  ir->u.loc.label = label;
+  ir->u.loc.ofs = ofs;
+  ir->u.loc.base = base;
+  return ir;
+}
+
+static IR *new_ir_loc_abs64(const char *label, int ofs) {
+  IR *ir = malloc(sizeof(*ir));
+  ir->type = IR_LOC_ABS64;
+  ir->u.loc.label = label;
+  ir->u.loc.ofs = ofs;
+  ir->u.loc.base = 0;
+  return ir;
+}
 
 bool err;
 
@@ -103,7 +193,7 @@ static size_t unescape_string(const char *p, char *dst) {
   return len;
 }
 
-static void handle_directive(enum DirectiveType dir, const char *p) {
+static void handle_directive(enum DirectiveType dir, const char *p, Vector *irs) {
   switch (dir) {
   case DT_ASCII:
     {
@@ -114,9 +204,7 @@ static void handle_directive(enum DirectiveType dir, const char *p) {
       char *str = malloc(len);
       unescape_string(p, str);
 
-      add_section_data(current_section, str, len);
-
-      free(str);
+      vec_push(irs, new_ir_data(str, len));
     }
     break;
 
@@ -132,17 +220,18 @@ static void handle_directive(enum DirectiveType dir, const char *p) {
       long count;
       if (!parse_immediate(&p, &count))
         error(".comm: count expected");
-      add_label(SEC_BSS, label);
-      add_bss(count);
+      vec_push(irs, new_ir_section(SEC_BSS));
+      vec_push(irs, new_ir_label(label));
+      vec_push(irs, new_ir_bss(count));
     }
     break;
 
   case DT_TEXT:
-    current_section = SEC_CODE;
+    vec_push(irs, new_ir_section(SEC_CODE));
     break;
 
   case DT_DATA:
-    current_section = SEC_DATA;
+    vec_push(irs, new_ir_section(SEC_DATA));
     break;
 
   case DT_ALIGN:
@@ -150,7 +239,7 @@ static void handle_directive(enum DirectiveType dir, const char *p) {
       long align;
       if (!parse_immediate(&p, &align))
         error(".align: number expected");
-      align_section_size(current_section, align);
+      vec_push(irs, new_ir_align(align));
     }
     break;
 
@@ -161,40 +250,22 @@ static void handle_directive(enum DirectiveType dir, const char *p) {
     {
       long value;
       if (parse_immediate(&p, &value)) {
-        switch (dir) {
-        case DT_BYTE:
-          {  // TODO: Target endian.
-            int8_t x = value;
-            add_section_data(current_section, &x, sizeof(x));
-          }
-          break;
-        case DT_WORD:
-          {  // TODO: Target endian.
-            int16_t x = value;
-            add_section_data(current_section, &x, sizeof(x));
-          }
-          break;
-        case DT_LONG:
-          {  // TODO: Target endian.
-            int32_t x = value;
-            add_section_data(current_section, &x, sizeof(x));
-          }
-          break;
-        case DT_QUAD:
-          {  // TODO: Target endian.
-            int64_t x = value;
-            add_section_data(current_section, &x, sizeof(x));
-          }
-          break;
-        default:
-          break;
-        }
+        // TODO: Target endian.
+        int size = 1 << (dir - DT_BYTE);
+        unsigned char *buf = malloc(size);
+        for (int i = 0; i < size; ++i)
+          buf[i] = value >> (8 * i);
+        vec_push(irs, new_ir_data(buf, size));
       } else {
         const char *label = parse_label(&p);
         if (label != NULL) {
-          add_loc_abs64(current_section, label, 0);
-          int64_t x = -1;
-          add_section_data(current_section, &x, sizeof(x));
+          if (dir == DT_QUAD) {
+            vec_push(irs, new_ir_loc_abs64(label, 0));
+            void *buf = calloc(sizeof(void*), 1);
+            vec_push(irs, new_ir_data(buf, sizeof(void*)));
+          } else {
+            error("label can use only in .quad");
+          }
         } else {
           error(".quad: number or label expected");
         }
@@ -715,11 +786,8 @@ static bool assemble_mov(Line *line, Code *code) {
   return false;
 }
 
-static void assemble_line(Line *line, Code *code) {
+static void assemble_line(Line *line, Code *code, IR **pir) {
   code->len = 0;
-
-  if (line->label != NULL)
-    add_label(current_section, line->label);
 
   switch(line->inst.op) {
   case NOOP:
@@ -805,7 +873,7 @@ static void assemble_line(Line *line, Code *code) {
       } else {
         int pre = !line->inst.dst.u.reg.x ? 0x48 : 0x4c;
         if (line->inst.src.u.indirect.offset == 0) {
-          ADD_LOC_REL32(line->inst.src.u.indirect.label, 3, 7);
+          *pir = new_ir_loc_rel32(line->inst.src.u.indirect.label, 3, 7);
           MAKE_CODE(&line->inst, code, pre, 0x8d, 0x05 + d * 8, IM32(-1));
           return;
         }
@@ -1649,7 +1717,7 @@ static void assemble_line(Line *line, Code *code) {
   case JMP:
     if (line->inst.src.type != LABEL || line->inst.dst.type != NOOPERAND)
       error("Illegal oprand: JMP");
-    ADD_LOC_REL32(line->inst.src.u.label, 1, 5);
+    *pir = new_ir_loc_rel32(line->inst.src.u.label, 1, 5);
     MAKE_CODE(&line->inst, code, 0xe9, IM32(-1));
     return;
   case JO: case JNO: case JB:  case JAE:
@@ -1658,14 +1726,14 @@ static void assemble_line(Line *line, Code *code) {
   case JL: case JGE: case JLE: case JG:
     if (line->inst.src.type == LABEL && line->inst.dst.type == NOOPERAND) {
       // TODO: Handle short jump.
-      ADD_LOC_REL32(line->inst.src.u.label, 2, 6);
+      *pir = new_ir_loc_rel32(line->inst.src.u.label, 2, 6);
       MAKE_CODE(&line->inst, code, 0x0f, 0x80 + (line->inst.op - JO), IM32(-1));
       return;
     }
     break;
   case CALL:
     if (line->inst.src.type == LABEL && line->inst.dst.type == NOOPERAND) {
-      ADD_LOC_REL32(line->inst.src.u.label, 1, 5);
+      *pir = new_ir_loc_rel32(line->inst.src.u.label, 1, 5);
       MAKE_CODE(&line->inst, code, 0xe8, IM32(-1));
       return;
     } if (line->inst.src.type == DEREF_REG && line->inst.dst.type == NOOPERAND) {
@@ -1699,8 +1767,8 @@ static void assemble_line(Line *line, Code *code) {
   err = true;
 }
 
-static void assemble(FILE *fp) {
-  Vector *lines = new_vector();
+static Vector *assemble_file(FILE *fp) {
+  Vector *irs = new_vector();
   for (;;) {
     char *rawline = NULL;
     size_t capa = 0;
@@ -1709,20 +1777,59 @@ static void assemble(FILE *fp) {
       break;
 
     Line *line = parse_line(rawline);
-    vec_push(lines, line);
-  }
-
-  for (int i = 0, len = lines->len; i < len; ++i) {
-    Line *line = lines->data[i];
+    if (line->label != NULL)
+      vec_push(irs, new_ir_label(line->label));
     if (line->dir == NODIRECTIVE) {
+      IR *ir = NULL;
       Code code;
-      assemble_line(line, &code);
+      assemble_line(line, &code, &ir);
+      if (ir != NULL)
+        vec_push(irs, ir);
       if (code.len > 0)
-        add_code(code.buf, code.len);
+        vec_push(irs, new_ir_code(&code));
     } else {
-      handle_directive(line->dir, line->directive_line);
+      handle_directive(line->dir, line->directive_line, irs);
     }
   }
+  return irs;
+}
+
+static void emit_irs(Vector *irs) {
+  for (int i = 0, len = irs->len; i < len; ++i) {
+    IR *ir = irs->data[i];
+    switch (ir->type) {
+    case IR_LABEL:
+      add_label(current_section, ir->u.label);
+      break;
+    case IR_CODE:
+      add_code(ir->u.code.buf, ir->u.code.len);
+      break;
+    case IR_DATA:
+      add_section_data(current_section, ir->u.data.buf, ir->u.data.len);
+      break;
+    case IR_BSS:
+      add_bss(ir->u.bss);
+      break;
+    case IR_ALIGN:
+      align_section_size(current_section, ir->u.align);
+      break;
+    case IR_SECTION:
+      current_section = ir->u.section;
+      break;
+    case IR_LOC_REL32:
+      add_loc_rel32(ir->u.loc.label, ir->u.loc.ofs, ir->u.loc.base);
+      break;
+    case IR_LOC_ABS64:
+      add_loc_abs64(current_section, ir->u.loc.label, ir->u.loc.ofs);
+      break;
+    default:  assert(false); break;
+    }
+  }
+}
+
+static void assemble(FILE *fp) {
+  Vector *irs = assemble_file(fp);
+  emit_irs(irs);
 }
 
 static void put_padding(FILE* fp, uintptr_t start) {
