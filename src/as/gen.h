@@ -11,6 +11,8 @@
 #define ADD_LOC_REL32(label, ofs, base)  add_loc_rel32(label, ofs, base)
 #endif
 
+#define SECTION_COUNT  (3)
+
 enum SectionType {
   SEC_CODE,
   SEC_DATA,

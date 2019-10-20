@@ -79,7 +79,6 @@ enum IRType {
   IR_DATA,
   IR_BSS,
   IR_ALIGN,
-  IR_SECTION,
   IR_LOC_REL32,
   IR_LOC_ABS64,
 };
@@ -137,13 +136,6 @@ static IR *new_ir_align(int align) {
   return ir;
 }
 
-static IR *new_ir_section(enum SectionType section) {
-  IR *ir = malloc(sizeof(*ir));
-  ir->type = IR_SECTION;
-  ir->u.section = section;
-  return ir;
-}
-
 static IR *new_ir_loc_rel32(const char *label, int ofs, int base) {
   IR *ir = malloc(sizeof(*ir));
   ir->type = IR_LOC_REL32;
@@ -193,7 +185,9 @@ static size_t unescape_string(const char *p, char *dst) {
   return len;
 }
 
-static void handle_directive(enum DirectiveType dir, const char *p, Vector *irs) {
+static void handle_directive(enum DirectiveType dir, const char *p, Vector **section_irs) {
+  Vector *irs = section_irs[current_section];
+
   switch (dir) {
   case DT_ASCII:
     {
@@ -220,18 +214,19 @@ static void handle_directive(enum DirectiveType dir, const char *p, Vector *irs)
       long count;
       if (!parse_immediate(&p, &count))
         error(".comm: count expected");
-      vec_push(irs, new_ir_section(SEC_BSS));
+      current_section = SEC_BSS;
+      irs = section_irs[current_section];
       vec_push(irs, new_ir_label(label));
       vec_push(irs, new_ir_bss(count));
     }
     break;
 
   case DT_TEXT:
-    vec_push(irs, new_ir_section(SEC_CODE));
+    current_section = SEC_CODE;
     break;
 
   case DT_DATA:
-    vec_push(irs, new_ir_section(SEC_DATA));
+    current_section = SEC_DATA;
     break;
 
   case DT_ALIGN:
@@ -1767,8 +1762,10 @@ static void assemble_line(Line *line, Code *code, IR **pir) {
   err = true;
 }
 
-static Vector *assemble_file(FILE *fp) {
-  Vector *irs = new_vector();
+static void assemble_file(FILE *fp, Vector **section_irs) {
+  for (int i = 0; i < SECTION_COUNT; ++i)
+    section_irs[i] = new_vector();
+
   for (;;) {
     char *rawline = NULL;
     size_t capa = 0;
@@ -1776,6 +1773,7 @@ static Vector *assemble_file(FILE *fp) {
     if (len == EOF)
       break;
 
+    Vector *irs = section_irs[current_section];
     Line *line = parse_line(rawline);
     if (line->label != NULL)
       vec_push(irs, new_ir_label(line->label));
@@ -1788,48 +1786,48 @@ static Vector *assemble_file(FILE *fp) {
       if (code.len > 0)
         vec_push(irs, new_ir_code(&code));
     } else {
-      handle_directive(line->dir, line->directive_line, irs);
+      handle_directive(line->dir, line->directive_line, section_irs);
     }
   }
-  return irs;
 }
 
-static void emit_irs(Vector *irs) {
-  for (int i = 0, len = irs->len; i < len; ++i) {
-    IR *ir = irs->data[i];
-    switch (ir->type) {
-    case IR_LABEL:
-      add_label(current_section, ir->u.label);
-      break;
-    case IR_CODE:
-      add_code(ir->u.code.buf, ir->u.code.len);
-      break;
-    case IR_DATA:
-      add_section_data(current_section, ir->u.data.buf, ir->u.data.len);
-      break;
-    case IR_BSS:
-      add_bss(ir->u.bss);
-      break;
-    case IR_ALIGN:
-      align_section_size(current_section, ir->u.align);
-      break;
-    case IR_SECTION:
-      current_section = ir->u.section;
-      break;
-    case IR_LOC_REL32:
-      add_loc_rel32(ir->u.loc.label, ir->u.loc.ofs, ir->u.loc.base);
-      break;
-    case IR_LOC_ABS64:
-      add_loc_abs64(current_section, ir->u.loc.label, ir->u.loc.ofs);
-      break;
-    default:  assert(false); break;
+static void emit_irs(Vector **section_irs) {
+  for (int sec = 0; sec < SECTION_COUNT; ++sec) {
+    Vector *irs = section_irs[sec];
+    for (int i = 0, len = irs->len; i < len; ++i) {
+      IR *ir = irs->data[i];
+      switch (ir->type) {
+      case IR_LABEL:
+        add_label(sec, ir->u.label);
+        break;
+      case IR_CODE:
+        add_code(ir->u.code.buf, ir->u.code.len);
+        break;
+      case IR_DATA:
+        add_section_data(sec, ir->u.data.buf, ir->u.data.len);
+        break;
+      case IR_BSS:
+        add_bss(ir->u.bss);
+        break;
+      case IR_ALIGN:
+        align_section_size(sec, ir->u.align);
+        break;
+      case IR_LOC_REL32:
+        add_loc_rel32(ir->u.loc.label, ir->u.loc.ofs, ir->u.loc.base);
+        break;
+      case IR_LOC_ABS64:
+        add_loc_abs64(sec, ir->u.loc.label, ir->u.loc.ofs);
+        break;
+      default:  assert(false); break;
+      }
     }
   }
 }
 
 static void assemble(FILE *fp) {
-  Vector *irs = assemble_file(fp);
-  emit_irs(irs);
+  Vector *section_irs[SECTION_COUNT];
+  assemble_file(fp, section_irs);
+  emit_irs(section_irs);
 }
 
 static void put_padding(FILE* fp, uintptr_t start) {
