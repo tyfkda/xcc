@@ -13,7 +13,6 @@ typedef struct {
 } Section;
 
 static Section sections[3];
-enum SectionType current_section;
 
 typedef struct {
   enum SectionType section;
@@ -75,10 +74,6 @@ void get_section_size(int section, size_t *pfilesz, size_t *pmemsz, uintptr_t *p
     assert(!"Illegal");
     break;
   }
-}
-
-void init_gen(void) {
-  current_section = SEC_CODE;
 }
 
 void output_section(FILE* fp, int section) {

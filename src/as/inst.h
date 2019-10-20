@@ -1,7 +1,5 @@
 #pragma once
 
-#include <stdbool.h>
-
 enum Opcode {
   NOOP,
   MOV,
@@ -198,7 +196,7 @@ typedef struct {
   } u;
 } Operand;
 
-typedef struct {
+typedef struct Inst {
   enum Opcode op;
   Operand src;
   Operand dst;
@@ -219,13 +217,3 @@ enum DirectiveType {
   DT_GLOBL,
   DT_EXTERN,
 };
-
-const char *skip_whitespace(const char *p);
-
-enum Opcode parse_opcode(const char **pp);
-enum DirectiveType parse_directive(const char **pp);
-enum RegType parse_register(const char **pp);
-bool parse_immediate(const char **pp, long *value);
-const char *parse_label(const char **pp);
-bool parse_operand(const char **pp, Operand *operand);
-void parse_inst(const char **pp, Inst *inst);
