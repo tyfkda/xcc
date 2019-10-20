@@ -379,3 +379,21 @@ bool parse_operand(const char **pp, Operand *operand) {
 
   return false;
 }
+
+void parse_inst(const char **pp, Inst *inst) {
+  const char *p = *pp;
+  enum Opcode op = parse_opcode(&p);
+  inst->op = op;
+  if (op != NOOP) {
+    if (parse_operand(&p, &inst->src)) {
+      p = skip_whitespace(p);
+      if (*p == ',') {
+        p = skip_whitespace(p + 1);
+        parse_operand(&p, &inst->dst);
+        p = skip_whitespace(p);
+      }
+    }
+  }
+
+  *pp = p;
+}

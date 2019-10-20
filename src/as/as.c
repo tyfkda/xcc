@@ -48,9 +48,8 @@
 typedef struct {
   const char *rawline;
   const char *label;
-  enum Opcode op;
-  Operand src;
-  Operand dst;
+
+  Inst inst;
 
   enum DirectiveType dir;
   const char *directive_line;
@@ -201,8 +200,8 @@ static Line *parse_line(const char *rawline) {
   Line *line = malloc(sizeof(*line));
   line->rawline = rawline;
   line->label = NULL;
-  line->op = NOOP;
-  line->src.type = line->dst.type = NOOPERAND;
+  line->inst.op = NOOP;
+  line->inst.src.type = line->inst.dst.type = NOOPERAND;
   line->dir = NODIRECTIVE;
 
   const char *p = rawline;
@@ -222,18 +221,7 @@ static Line *parse_line(const char *rawline) {
     line->dir = dir;
     line->directive_line = p;
   } else if (*p != '\0') {
-    line->op = parse_opcode(&p);
-    if (line->op != NOOP) {
-      if (parse_operand(&p, &line->src)) {
-        p = skip_whitespace(p);
-        if (*p == ',') {
-          p = skip_whitespace(p + 1);
-          parse_operand(&p, &line->dst);
-          p = skip_whitespace(p);
-        }
-      }
-    }
-
+    parse_inst(&p, &line->inst);
     if (*p != '\0' && !(*p == '/' && p[1] == '/')) {
       fprintf(stderr, "Syntax error: %s\n", p);
       err = true;
@@ -252,88 +240,88 @@ static bool opr_reg8(const Operand *opr) {
 }
 
 static bool assemble_mov(const Line *line) {
-  if (line->src.type == REG && line->dst.type == REG) {
-    if (line->src.u.reg.size == REG8 && line->dst.u.reg.size == REG8) {
-      int s = line->src.u.reg.no;
-      int d = line->dst.u.reg.no;
-      if (opr_reg8(&line->src) && opr_reg8(&line->dst)) {
+  if (line->inst.src.type == REG && line->inst.dst.type == REG) {
+    if (line->inst.src.u.reg.size == REG8 && line->inst.dst.u.reg.size == REG8) {
+      int s = line->inst.src.u.reg.no;
+      int d = line->inst.dst.u.reg.no;
+      if (opr_reg8(&line->inst.src) && opr_reg8(&line->inst.dst)) {
         ADD_CODE(0x88, 0xc0 + d + s * 8);
       } else {
-        int pre = (!line->dst.u.reg.x ? 0x40 : 0x41) + (!line->src.u.reg.x ? 0 : 4);
+        int pre = (!line->inst.dst.u.reg.x ? 0x40 : 0x41) + (!line->inst.src.u.reg.x ? 0 : 4);
         ADD_CODE(pre, 0x88, 0xc0 + d + s * 8);
       }
       return true;
-    } else if (line->src.u.reg.size == REG16 && line->dst.u.reg.size == REG16) {
-      int s = line->src.u.reg.no;
-      int d = line->dst.u.reg.no;
-      if (!line->src.u.reg.x && !line->dst.u.reg.x) {
+    } else if (line->inst.src.u.reg.size == REG16 && line->inst.dst.u.reg.size == REG16) {
+      int s = line->inst.src.u.reg.no;
+      int d = line->inst.dst.u.reg.no;
+      if (!line->inst.src.u.reg.x && !line->inst.dst.u.reg.x) {
         ADD_CODE(0x66, 0x89, 0xc0 + d + s * 8);
       } else {
-        int pre = (!line->dst.u.reg.x ? 0x40 : 0x41) + (!line->src.u.reg.x ? 0 : 4);
+        int pre = (!line->inst.dst.u.reg.x ? 0x40 : 0x41) + (!line->inst.src.u.reg.x ? 0 : 4);
         ADD_CODE(0x66, pre, 0x89, 0xc0 + d + s * 8);
       }
       return true;
-    } else if (line->src.u.reg.size == REG32 && line->dst.u.reg.size == REG32) {
-      int s = line->src.u.reg.no;
-      int d = line->dst.u.reg.no;
-      if (!line->src.u.reg.x && !line->dst.u.reg.x) {
+    } else if (line->inst.src.u.reg.size == REG32 && line->inst.dst.u.reg.size == REG32) {
+      int s = line->inst.src.u.reg.no;
+      int d = line->inst.dst.u.reg.no;
+      if (!line->inst.src.u.reg.x && !line->inst.dst.u.reg.x) {
         ADD_CODE(0x89, 0xc0 + d + s * 8);
       } else {
-        int pre = (!line->dst.u.reg.x ? 0x40 : 0x41) + (!line->src.u.reg.x ? 0 : 4);
+        int pre = (!line->inst.dst.u.reg.x ? 0x40 : 0x41) + (!line->inst.src.u.reg.x ? 0 : 4);
         ADD_CODE(pre, 0x89, 0xc0 + d + s * 8);
       }
       return true;
-    } else if (line->src.u.reg.size == REG64 && line->dst.u.reg.size == REG64) {
-      int pre = (!line->dst.u.reg.x ? 0x48 : 0x49) + (!line->src.u.reg.x ? 0 : 4);
-      int s = line->src.u.reg.no;
-      int d = line->dst.u.reg.no;
+    } else if (line->inst.src.u.reg.size == REG64 && line->inst.dst.u.reg.size == REG64) {
+      int pre = (!line->inst.dst.u.reg.x ? 0x48 : 0x49) + (!line->inst.src.u.reg.x ? 0 : 4);
+      int s = line->inst.src.u.reg.no;
+      int d = line->inst.dst.u.reg.no;
       ADD_CODE(pre, 0x89, 0xc0 + d + s * 8);
       return true;
     }
-  } else if (line->src.type == IMMEDIATE && line->dst.type == REG) {
-    if (line->dst.u.reg.size == REG8) {
-      int d = line->dst.u.reg.no;
-      if (opr_reg8(&line->dst)) {
-        ADD_CODE(0xb0 + d, IM8(line->src.u.immediate));
+  } else if (line->inst.src.type == IMMEDIATE && line->inst.dst.type == REG) {
+    if (line->inst.dst.u.reg.size == REG8) {
+      int d = line->inst.dst.u.reg.no;
+      if (opr_reg8(&line->inst.dst)) {
+        ADD_CODE(0xb0 + d, IM8(line->inst.src.u.immediate));
       } else {
-        int pre = !line->dst.u.reg.x ? 0x40 : 0x41;
-        ADD_CODE(pre, 0xb0 + d, IM8(line->src.u.immediate));
+        int pre = !line->inst.dst.u.reg.x ? 0x40 : 0x41;
+        ADD_CODE(pre, 0xb0 + d, IM8(line->inst.src.u.immediate));
       }
       return true;
-    } else if (line->dst.u.reg.size == REG16) {
-      int d = line->dst.u.reg.no;
-      if (!line->dst.u.reg.x) {
-        ADD_CODE(0x66, 0xb8 + d, IM16(line->src.u.immediate));
+    } else if (line->inst.dst.u.reg.size == REG16) {
+      int d = line->inst.dst.u.reg.no;
+      if (!line->inst.dst.u.reg.x) {
+        ADD_CODE(0x66, 0xb8 + d, IM16(line->inst.src.u.immediate));
       } else {
-        ADD_CODE(0x66, 0x41, 0xb8 + d, IM16(line->src.u.immediate));
+        ADD_CODE(0x66, 0x41, 0xb8 + d, IM16(line->inst.src.u.immediate));
       }
       return true;
-    } else if (line->dst.u.reg.size == REG32) {
-      int d = line->dst.u.reg.no;
-      if (!line->dst.u.reg.x) {
-        ADD_CODE(0xb8 + d, IM32(line->src.u.immediate));
+    } else if (line->inst.dst.u.reg.size == REG32) {
+      int d = line->inst.dst.u.reg.no;
+      if (!line->inst.dst.u.reg.x) {
+        ADD_CODE(0xb8 + d, IM32(line->inst.src.u.immediate));
       } else {
-        ADD_CODE(0x41, 0xb8 + d, IM32(line->src.u.immediate));
+        ADD_CODE(0x41, 0xb8 + d, IM32(line->inst.src.u.immediate));
       }
       return true;
-    } else if (line->dst.u.reg.size == REG64) {
-      int pre = !line->dst.u.reg.x ? 0x48 : 0x49;
-      int d = line->dst.u.reg.no;
-      if (is_im32(line->src.u.immediate)) {
-        ADD_CODE(pre, 0xc7, 0xc0 + d, IM32(line->src.u.immediate));
+    } else if (line->inst.dst.u.reg.size == REG64) {
+      int pre = !line->inst.dst.u.reg.x ? 0x48 : 0x49;
+      int d = line->inst.dst.u.reg.no;
+      if (is_im32(line->inst.src.u.immediate)) {
+        ADD_CODE(pre, 0xc7, 0xc0 + d, IM32(line->inst.src.u.immediate));
       } else {
-        ADD_CODE(pre, 0xb8 + d, IM64(line->src.u.immediate));
+        ADD_CODE(pre, 0xb8 + d, IM64(line->inst.src.u.immediate));
       }
       return true;
     }
-  } else if (line->src.type == INDIRECT && line->dst.type == REG) {
-    if (line->src.u.indirect.label == NULL) {
-      if (line->src.u.indirect.reg.no != RIP) {
-        int s = line->src.u.indirect.reg.no;
-        long offset = line->src.u.indirect.offset;
-        if (line->dst.u.reg.size == REG8) {
-          if (!line->src.u.indirect.reg.x && opr_reg8(&line->dst)) {
-            int d = line->dst.u.reg.no;
+  } else if (line->inst.src.type == INDIRECT && line->inst.dst.type == REG) {
+    if (line->inst.src.u.indirect.label == NULL) {
+      if (line->inst.src.u.indirect.reg.no != RIP) {
+        int s = line->inst.src.u.indirect.reg.no;
+        long offset = line->inst.src.u.indirect.offset;
+        if (line->inst.dst.u.reg.size == REG8) {
+          if (!line->inst.src.u.indirect.reg.x && opr_reg8(&line->inst.dst)) {
+            int d = line->inst.dst.u.reg.no;
             if (s != RSP - RAX) {
               if (offset == 0 && s != RBP - RAX) {
                 ADD_CODE(0x8a, 0x00 + s + d * 8);
@@ -358,8 +346,8 @@ static bool assemble_mov(const Line *line) {
               }
             }
           } else {
-            int pre = (!line->src.u.indirect.reg.x ? 0x40 : 0x41) + (!line->dst.u.reg.x ? 0 : 4);
-            int d = line->dst.u.reg.no;
+            int pre = (!line->inst.src.u.indirect.reg.x ? 0x40 : 0x41) + (!line->inst.dst.u.reg.x ? 0 : 4);
+            int d = line->inst.dst.u.reg.no;
             if (s != RSP - RAX) {
               if (offset == 0 && s != RBP - RAX) {
                 ADD_CODE(pre, 0x8a, 0x00 + s + d * 8);
@@ -384,9 +372,9 @@ static bool assemble_mov(const Line *line) {
               }
             }
           }
-        } else if (line->dst.u.reg.size == REG16) {
-          int d = line->dst.u.reg.no;
-          if (!line->dst.u.reg.x && !line->src.u.indirect.reg.x) {
+        } else if (line->inst.dst.u.reg.size == REG16) {
+          int d = line->inst.dst.u.reg.no;
+          if (!line->inst.dst.u.reg.x && !line->inst.src.u.indirect.reg.x) {
             if (s != RSP - RAX) {
               if (offset == 0 && s != RBP - RAX) {
                 ADD_CODE(0x66, 0x8b, 0x00 + s + d * 8);
@@ -411,7 +399,7 @@ static bool assemble_mov(const Line *line) {
               }
             }
           } else {
-            int pre = (!line->src.u.indirect.reg.x ? 0x40 : 0x41) + (!line->dst.u.reg.x ? 0 : 4);
+            int pre = (!line->inst.src.u.indirect.reg.x ? 0x40 : 0x41) + (!line->inst.dst.u.reg.x ? 0 : 4);
             if (s != RSP - RAX) {
               if (offset == 0 && s != RBP - RAX) {
                 ADD_CODE(0x66, pre, 0x8b, 0x00 + s + d * 8);
@@ -436,9 +424,9 @@ static bool assemble_mov(const Line *line) {
               }
             }
           }
-        } else if (line->dst.u.reg.size == REG32) {
-          int d = line->dst.u.reg.no;
-          if (!line->src.u.indirect.reg.x && !line->dst.u.reg.x) {
+        } else if (line->inst.dst.u.reg.size == REG32) {
+          int d = line->inst.dst.u.reg.no;
+          if (!line->inst.src.u.indirect.reg.x && !line->inst.dst.u.reg.x) {
             if (s != RSP - RAX) {
               if (offset == 0 && s != RBP - RAX) {
                 ADD_CODE(0x8b, 0x00 + s + d * 8);
@@ -463,7 +451,7 @@ static bool assemble_mov(const Line *line) {
               }
             }
           } else {
-            int pre = (!line->src.u.indirect.reg.x ? 0x40 : 0x41) + (!line->dst.u.reg.x ? 0 : 4);
+            int pre = (!line->inst.src.u.indirect.reg.x ? 0x40 : 0x41) + (!line->inst.dst.u.reg.x ? 0 : 4);
             if (s != RSP - RAX) {
               if (offset == 0 && s != RBP - RAX) {
                 ADD_CODE(pre, 0x8b, 0x00 + s + d * 8);
@@ -488,9 +476,9 @@ static bool assemble_mov(const Line *line) {
               }
             }
           }
-        } else if (line->dst.u.reg.size == REG64) {
-          int d = line->dst.u.reg.no;
-          int pre = (!line->src.u.indirect.reg.x ? 0x48 : 0x49) + (!line->dst.u.reg.x ? 0 : 4);
+        } else if (line->inst.dst.u.reg.size == REG64) {
+          int d = line->inst.dst.u.reg.no;
+          int pre = (!line->inst.src.u.indirect.reg.x ? 0x48 : 0x49) + (!line->inst.dst.u.reg.x ? 0 : 4);
           if (s != RSP - RAX) {
             if (offset == 0 && s != RBP - RAX) {
               ADD_CODE(pre, 0x8b, 0x00 + s + d * 8);
@@ -517,14 +505,14 @@ static bool assemble_mov(const Line *line) {
         }
       }
     }
-  } else if (line->src.type == REG && line->dst.type == INDIRECT &&
-             line->dst.u.indirect.reg.no != RIP) {
-    if (line->dst.u.indirect.label == NULL) {
-      int d = line->dst.u.indirect.reg.no;
-      long offset = line->dst.u.indirect.offset;
-      if (line->src.u.reg.size == REG8) {
-        int s = line->src.u.reg.no;
-        if (opr_reg8(&line->src) && !line->dst.u.indirect.reg.x) {
+  } else if (line->inst.src.type == REG && line->inst.dst.type == INDIRECT &&
+             line->inst.dst.u.indirect.reg.no != RIP) {
+    if (line->inst.dst.u.indirect.label == NULL) {
+      int d = line->inst.dst.u.indirect.reg.no;
+      long offset = line->inst.dst.u.indirect.offset;
+      if (line->inst.src.u.reg.size == REG8) {
+        int s = line->inst.src.u.reg.no;
+        if (opr_reg8(&line->inst.src) && !line->inst.dst.u.indirect.reg.x) {
           if (d != RSP - RAX) {
             if (offset == 0 && d != RBP - RAX) {
               ADD_CODE(0x88, 0x00 + d + s * 8);
@@ -549,7 +537,7 @@ static bool assemble_mov(const Line *line) {
             }
           }
         } else {
-          int pre = (!line->dst.u.indirect.reg.x ? 0x40 : 0x41) + (!line->src.u.reg.x ? 0 : 4);
+          int pre = (!line->inst.dst.u.indirect.reg.x ? 0x40 : 0x41) + (!line->inst.src.u.reg.x ? 0 : 4);
           if (d != RSP - RAX) {
             if (offset == 0 && d != RBP - RAX) {
               ADD_CODE(pre, 0x88, 0x00 + d + s * 8);
@@ -574,9 +562,9 @@ static bool assemble_mov(const Line *line) {
             }
           }
         }
-      } else if (line->src.u.reg.size == REG16) {
-        int s = line->src.u.reg.no;
-        if (!line->src.u.reg.x && !line->dst.u.indirect.reg.x) {
+      } else if (line->inst.src.u.reg.size == REG16) {
+        int s = line->inst.src.u.reg.no;
+        if (!line->inst.src.u.reg.x && !line->inst.dst.u.indirect.reg.x) {
           if (d != RSP - RAX) {
             if (offset == 0 && d != RBP - RAX) {
               ADD_CODE(0x66, 0x89, 0x00 + d + s * 8);
@@ -601,7 +589,7 @@ static bool assemble_mov(const Line *line) {
             }
           }
         } else {
-          int pre = (!line->dst.u.indirect.reg.x ? 0x40 : 0x41) + (!line->src.u.reg.x ? 0 : 4);
+          int pre = (!line->inst.dst.u.indirect.reg.x ? 0x40 : 0x41) + (!line->inst.src.u.reg.x ? 0 : 4);
           if (d != RSP - RAX) {
             if (offset == 0 && d != RBP - RAX) {
               ADD_CODE(0x66, pre, 0x89, 0x00 + d + s * 8);
@@ -626,9 +614,9 @@ static bool assemble_mov(const Line *line) {
             }
           }
         }
-      } else if (line->src.u.reg.size == REG32) {
-        int s = line->src.u.reg.no;
-        if (!line->dst.u.indirect.reg.x && !line->src.u.reg.x) {
+      } else if (line->inst.src.u.reg.size == REG32) {
+        int s = line->inst.src.u.reg.no;
+        if (!line->inst.dst.u.indirect.reg.x && !line->inst.src.u.reg.x) {
           if (d != RSP - RAX) {
             if (offset == 0 && d != RBP - RAX) {
               ADD_CODE(0x89, 0x00 + d + s * 8);
@@ -653,7 +641,7 @@ static bool assemble_mov(const Line *line) {
             }
           }
         } else {
-          int pre = (!line->dst.u.indirect.reg.x ? 0x40 : 0x41) + (!line->src.u.reg.x ? 0 : 4);
+          int pre = (!line->inst.dst.u.indirect.reg.x ? 0x40 : 0x41) + (!line->inst.src.u.reg.x ? 0 : 4);
           if (d != RSP - RAX) {
             if (offset == 0 && d != RBP - RAX) {
               ADD_CODE(pre, 0x89, 0x00 + d + s * 8);
@@ -678,9 +666,9 @@ static bool assemble_mov(const Line *line) {
             }
           }
         }
-      } else if (line->src.u.reg.size == REG64) {
-        int pre = (!line->dst.u.indirect.reg.x ? 0x48 : 0x49) + (!line->src.u.reg.x ? 0 : 4);
-        int s = line->src.u.reg.no;
+      } else if (line->inst.src.u.reg.size == REG64) {
+        int pre = (!line->inst.dst.u.indirect.reg.x ? 0x48 : 0x49) + (!line->inst.src.u.reg.x ? 0 : 4);
+        int s = line->inst.src.u.reg.no;
         if (d != RSP - RAX) {
           if (offset == 0 && d != RBP - RAX) {
             ADD_CODE(pre, 0x89, 0x00 + d + s * 8);
@@ -714,7 +702,7 @@ static void assemble_line(const Line *line) {
   if (line->label != NULL)
     add_label(current_section, line->label);
 
-  switch(line->op) {
+  switch(line->inst.op) {
   case NOOP:
     return;
   case MOV:
@@ -722,40 +710,40 @@ static void assemble_line(const Line *line) {
       return;
     break;
   case MOVSX:
-    if (line->src.type == REG && line->dst.type == REG) {
-      int s = line->src.u.reg.no;
-      int d = line->dst.u.reg.no;
-      if (line->src.u.reg.size == REG8) {
-        if (line->dst.u.reg.size == REG32) {
-          if (opr_reg8(&line->src) && !line->dst.u.reg.x) {
+    if (line->inst.src.type == REG && line->inst.dst.type == REG) {
+      int s = line->inst.src.u.reg.no;
+      int d = line->inst.dst.u.reg.no;
+      if (line->inst.src.u.reg.size == REG8) {
+        if (line->inst.dst.u.reg.size == REG32) {
+          if (opr_reg8(&line->inst.src) && !line->inst.dst.u.reg.x) {
             ADD_CODE(0x0f, 0xbe, 0xc0 + s + d * 8);
           } else {
-            int pre = (!line->src.u.reg.x ? 0x40 : 0x41) + (!line->dst.u.reg.x ? 0 : 4);
+            int pre = (!line->inst.src.u.reg.x ? 0x40 : 0x41) + (!line->inst.dst.u.reg.x ? 0 : 4);
             ADD_CODE(pre, 0x0f, 0xbe, 0xc0 + s + d * 8);
           }
           return;
-        } else if (line->dst.u.reg.size == REG64) {
-          int pre = (!line->src.u.reg.x ? 0x48 : 0x49) + (!line->dst.u.reg.x ? 0 : 4);
+        } else if (line->inst.dst.u.reg.size == REG64) {
+          int pre = (!line->inst.src.u.reg.x ? 0x48 : 0x49) + (!line->inst.dst.u.reg.x ? 0 : 4);
           ADD_CODE(pre, 0x0f, 0xbe, 0xc0 + s + d * 8);
           return;
         }
-      } else if (line->src.u.reg.size == REG16) {
-        if (line->dst.u.reg.size == REG32) {
-          if (!line->src.u.reg.x && !line->dst.u.reg.x) {
+      } else if (line->inst.src.u.reg.size == REG16) {
+        if (line->inst.dst.u.reg.size == REG32) {
+          if (!line->inst.src.u.reg.x && !line->inst.dst.u.reg.x) {
             ADD_CODE(0x0f, 0xbf, 0xc0 + s + d * 8);
           } else {
-            int pre = (!line->src.u.reg.x ? 0x40 : 0x41) + (!line->dst.u.reg.x ? 0 : 4);
+            int pre = (!line->inst.src.u.reg.x ? 0x40 : 0x41) + (!line->inst.dst.u.reg.x ? 0 : 4);
             ADD_CODE(pre, 0x0f, 0xbf, 0xc0 + s + d * 8);
           }
           return;
-        } else if (line->dst.u.reg.size == REG64) {
-          int pre = (!line->src.u.reg.x ? 0x48 : 0x49) + (!line->dst.u.reg.x ? 0 : 4);
+        } else if (line->inst.dst.u.reg.size == REG64) {
+          int pre = (!line->inst.src.u.reg.x ? 0x48 : 0x49) + (!line->inst.dst.u.reg.x ? 0 : 4);
           ADD_CODE(pre, 0x0f, 0xbf, 0xc0 + s + d * 8);
           return;
         }
-      } else if (line->src.u.reg.size == REG32) {
-        if (line->dst.u.reg.size == REG64) {
-          int pre = (!line->src.u.reg.x ? 0x48 : 0x49) + (!line->dst.u.reg.x ? 0 : 4);
+      } else if (line->inst.src.u.reg.size == REG32) {
+        if (line->inst.dst.u.reg.size == REG64) {
+          int pre = (!line->inst.src.u.reg.x ? 0x48 : 0x49) + (!line->inst.dst.u.reg.x ? 0 : 4);
           ADD_CODE(pre, 0x63, 0xc0 + s + d * 8);
           return;
         }
@@ -763,16 +751,16 @@ static void assemble_line(const Line *line) {
     }
     break;
   case LEA:
-    if (line->src.type == INDIRECT &&
-        line->dst.type == REG && line->dst.u.reg.size == REG64) {
-      int d = line->dst.u.reg.no;
-      if (line->src.u.indirect.reg.no != RIP) {
-        int s = line->src.u.indirect.reg.no;
-        int pre = (!line->src.u.indirect.reg.x ? 0x48 : 0x49) + (!line->dst.u.reg.x ? 0 : 4);
-        if (line->src.u.indirect.label == NULL) {
-          long offset = line->src.u.indirect.offset;
-          if (line->src.u.indirect.reg.no != RSP - RAX) {
-            if (offset == 0 && line->src.u.indirect.reg.no != RBP - RAX) {
+    if (line->inst.src.type == INDIRECT &&
+        line->inst.dst.type == REG && line->inst.dst.u.reg.size == REG64) {
+      int d = line->inst.dst.u.reg.no;
+      if (line->inst.src.u.indirect.reg.no != RIP) {
+        int s = line->inst.src.u.indirect.reg.no;
+        int pre = (!line->inst.src.u.indirect.reg.x ? 0x48 : 0x49) + (!line->inst.dst.u.reg.x ? 0 : 4);
+        if (line->inst.src.u.indirect.label == NULL) {
+          long offset = line->inst.src.u.indirect.offset;
+          if (line->inst.src.u.indirect.reg.no != RSP - RAX) {
+            if (offset == 0 && line->inst.src.u.indirect.reg.no != RBP - RAX) {
               ADD_CODE(pre, 0x8d, 0x00 + s + d * 8);
               return;
             } else if (is_im8(offset)) {
@@ -796,9 +784,9 @@ static void assemble_line(const Line *line) {
           }
         }
       } else {
-        int pre = !line->dst.u.reg.x ? 0x48 : 0x4c;
-        if (line->src.u.indirect.offset == 0) {
-          ADD_LOC_REL32(line->src.u.indirect.label, 3, 7);
+        int pre = !line->inst.dst.u.reg.x ? 0x48 : 0x4c;
+        if (line->inst.src.u.indirect.offset == 0) {
+          ADD_LOC_REL32(line->inst.src.u.indirect.label, 3, 7);
           ADD_CODE(pre, 0x8d, 0x05 + d * 8, IM32(-1));
           return;
         }
@@ -806,54 +794,54 @@ static void assemble_line(const Line *line) {
     }
     break;
   case ADD:
-    if (line->src.type == REG && line->dst.type == REG) {
-      int s = line->src.u.reg.no;
-      int d = line->dst.u.reg.no;
-      if (line->src.u.reg.size == REG8 && line->dst.u.reg.size == REG8) {
-        if (opr_reg8(&line->src) && opr_reg8(&line->dst)) {
+    if (line->inst.src.type == REG && line->inst.dst.type == REG) {
+      int s = line->inst.src.u.reg.no;
+      int d = line->inst.dst.u.reg.no;
+      if (line->inst.src.u.reg.size == REG8 && line->inst.dst.u.reg.size == REG8) {
+        if (opr_reg8(&line->inst.src) && opr_reg8(&line->inst.dst)) {
           ADD_CODE(0x00, 0xc0 + s * 8 + d);
         } else {
-          int pre = (!line->dst.u.reg.x ? 0x40 : 0x41) + (!line->src.u.reg.x ? 0 : 4);
+          int pre = (!line->inst.dst.u.reg.x ? 0x40 : 0x41) + (!line->inst.src.u.reg.x ? 0 : 4);
           ADD_CODE(pre, 0x00, 0xc0 + s * 8 + d);
         }
         return;
-      } else if (line->src.u.reg.size == REG32 && line->dst.u.reg.size == REG32) {
-        if (!line->src.u.reg.x && !line->dst.u.reg.x) {
+      } else if (line->inst.src.u.reg.size == REG32 && line->inst.dst.u.reg.size == REG32) {
+        if (!line->inst.src.u.reg.x && !line->inst.dst.u.reg.x) {
           ADD_CODE(0x01, 0xc0 + s * 8 + d);
         } else {
-          int pre = (!line->dst.u.reg.x ? 0x40 : 0x41) + (!line->src.u.reg.x ? 0 : 4);
+          int pre = (!line->inst.dst.u.reg.x ? 0x40 : 0x41) + (!line->inst.src.u.reg.x ? 0 : 4);
           ADD_CODE(pre, 0x01, 0xc0 + s * 8 + d);
         }
         return;
-      } else if (line->src.u.reg.size == REG64 && line->dst.u.reg.size == REG64) {
-        int pre = (!line->dst.u.reg.x ? 0x48 : 0x49) + (!line->src.u.reg.x ? 0 : 4);
+      } else if (line->inst.src.u.reg.size == REG64 && line->inst.dst.u.reg.size == REG64) {
+        int pre = (!line->inst.dst.u.reg.x ? 0x48 : 0x49) + (!line->inst.src.u.reg.x ? 0 : 4);
         ADD_CODE(pre, 0x01, 0xc0 + s * 8 + d);
         return;
       }
-    } else if (line->src.type == IMMEDIATE && line->dst.type == REG) {
-      if (line->dst.u.reg.size == REG64) {
-        int pre = !line->dst.u.reg.x ? 0x48 : 0x49;
-        int d = line->dst.u.reg.no;
-        if (is_im8(line->src.u.immediate)) {
-          ADD_CODE(pre, 0x83, 0xc0 + d, IM8(line->src.u.immediate));
+    } else if (line->inst.src.type == IMMEDIATE && line->inst.dst.type == REG) {
+      if (line->inst.dst.u.reg.size == REG64) {
+        int pre = !line->inst.dst.u.reg.x ? 0x48 : 0x49;
+        int d = line->inst.dst.u.reg.no;
+        if (is_im8(line->inst.src.u.immediate)) {
+          ADD_CODE(pre, 0x83, 0xc0 + d, IM8(line->inst.src.u.immediate));
           return;
-        } else if (is_im32(line->src.u.immediate)) {
-          if (opr_regno(&line->dst) == RAX - RAX)
-            ADD_CODE(pre, 0x05, IM32(line->src.u.immediate));
+        } else if (is_im32(line->inst.src.u.immediate)) {
+          if (opr_regno(&line->inst.dst) == RAX - RAX)
+            ADD_CODE(pre, 0x05, IM32(line->inst.src.u.immediate));
           else
-            ADD_CODE(pre, 0x81, 0xc0 + d, IM32(line->src.u.immediate));
+            ADD_CODE(pre, 0x81, 0xc0 + d, IM32(line->inst.src.u.immediate));
           return;
         }
       }
-    } else if (line->src.type == INDIRECT && line->dst.type == REG) {
-      if (!line->src.u.indirect.reg.x && line->src.u.indirect.label == NULL &&
-          line->dst.u.reg.size == REG64) {
-        int pre = (!line->src.u.indirect.reg.x ? 0x48 : 0x49) + (!line->dst.u.reg.x ? 0 : 4);
-        int s = line->src.u.indirect.reg.no;
-        int d = line->dst.u.reg.no;
-        long offset = line->src.u.indirect.offset;
-        if (line->src.u.indirect.reg.no != RSP - RAX) {
-          if (offset == 0 && line->src.u.indirect.reg.no != RBP - RAX) {
+    } else if (line->inst.src.type == INDIRECT && line->inst.dst.type == REG) {
+      if (!line->inst.src.u.indirect.reg.x && line->inst.src.u.indirect.label == NULL &&
+          line->inst.dst.u.reg.size == REG64) {
+        int pre = (!line->inst.src.u.indirect.reg.x ? 0x48 : 0x49) + (!line->inst.dst.u.reg.x ? 0 : 4);
+        int s = line->inst.src.u.indirect.reg.no;
+        int d = line->inst.dst.u.reg.no;
+        long offset = line->inst.src.u.indirect.offset;
+        if (line->inst.src.u.indirect.reg.no != RSP - RAX) {
+          if (offset == 0 && line->inst.src.u.indirect.reg.no != RBP - RAX) {
             ADD_CODE(pre, 0x03, 0x00 + s + d * 8);
           } else if (is_im8(offset)) {
             ADD_CODE(pre, 0x03, 0x40 + s + d * 8, IM8(offset));
@@ -861,7 +849,7 @@ static void assemble_line(const Line *line) {
             ADD_CODE(pre, 0x03, 0x80 + s + d * 8, IM8(offset));
           }
         } else {
-          if (offset == 0 && line->src.u.indirect.reg.no != RBP - RAX) {
+          if (offset == 0 && line->inst.src.u.indirect.reg.no != RBP - RAX) {
             ADD_CODE(pre, 0x03, 0x04 + d * 8, 0x24);
           } else if (is_im8(offset)) {
             ADD_CODE(pre, 0x03, 0x44 + d * 8, 0x24, IM8(offset));
@@ -873,12 +861,12 @@ static void assemble_line(const Line *line) {
     }
     break;
   case ADDQ:
-    if (line->src.type == IMMEDIATE && line->dst.type == INDIRECT) {
-      if (!line->dst.u.indirect.reg.x && line->dst.u.indirect.label == NULL) {
-        int pre = !line->dst.u.indirect.reg.x ? 0x48 : 0x49;
-        long value = line->src.u.immediate;
-        int d = line->dst.u.indirect.reg.no;
-        long offset = line->dst.u.indirect.offset;
+    if (line->inst.src.type == IMMEDIATE && line->inst.dst.type == INDIRECT) {
+      if (!line->inst.dst.u.indirect.reg.x && line->inst.dst.u.indirect.label == NULL) {
+        int pre = !line->inst.dst.u.indirect.reg.x ? 0x48 : 0x49;
+        long value = line->inst.src.u.immediate;
+        int d = line->inst.dst.u.indirect.reg.no;
+        long offset = line->inst.dst.u.indirect.offset;
         if (is_im8(value)) {
           if (d != RSP - RAX) {
             if (offset == 0 && d != RBP - RAX) {
@@ -932,56 +920,56 @@ static void assemble_line(const Line *line) {
     }
     break;
   case SUB:
-    if (line->src.type == REG && line->dst.type == REG) {
-      int s = line->src.u.reg.no;
-      int d = line->dst.u.reg.no;
-      if (line->src.u.reg.size == REG8 && line->dst.u.reg.size == REG8) {
-        if (opr_reg8(&line->src) && opr_reg8(&line->dst)) {
+    if (line->inst.src.type == REG && line->inst.dst.type == REG) {
+      int s = line->inst.src.u.reg.no;
+      int d = line->inst.dst.u.reg.no;
+      if (line->inst.src.u.reg.size == REG8 && line->inst.dst.u.reg.size == REG8) {
+        if (opr_reg8(&line->inst.src) && opr_reg8(&line->inst.dst)) {
           ADD_CODE(0x28, 0xc0 + s * 8 + d);
         } else {
-          int pre = (!line->dst.u.reg.x ? 0x40 : 0x41) + (!line->src.u.reg.x ? 0 : 4);
+          int pre = (!line->inst.dst.u.reg.x ? 0x40 : 0x41) + (!line->inst.src.u.reg.x ? 0 : 4);
           ADD_CODE(pre, 0x28, 0xc0 + s * 8 + d);
         }
         return;
-      } else if (line->src.u.reg.size == REG32 && line->dst.u.reg.size == REG32) {
-        if (!line->src.u.reg.x && !line->dst.u.reg.x) {
+      } else if (line->inst.src.u.reg.size == REG32 && line->inst.dst.u.reg.size == REG32) {
+        if (!line->inst.src.u.reg.x && !line->inst.dst.u.reg.x) {
           ADD_CODE(0x29, 0xc0 + s * 8 + d);
         } else {
-          int pre = (!line->dst.u.reg.x ? 0x40 : 0x41) + (!line->src.u.reg.x ? 0 : 4);
+          int pre = (!line->inst.dst.u.reg.x ? 0x40 : 0x41) + (!line->inst.src.u.reg.x ? 0 : 4);
           ADD_CODE(pre, 0x29, 0xc0 + s * 8 + d);
         }
         return;
-      } else if (line->src.u.reg.size == REG64 && line->dst.u.reg.size == REG64) {
-        int pre = (!line->dst.u.reg.x ? 0x48 : 0x49) + (!line->src.u.reg.x ? 0 : 4);
+      } else if (line->inst.src.u.reg.size == REG64 && line->inst.dst.u.reg.size == REG64) {
+        int pre = (!line->inst.dst.u.reg.x ? 0x48 : 0x49) + (!line->inst.src.u.reg.x ? 0 : 4);
         ADD_CODE(pre, 0x29, 0xc0 + s * 8 + d);
         return;
       }
-    } else if (line->src.type == IMMEDIATE && line->dst.type == REG) {
-      if (line->dst.u.reg.size == REG64) {
-        int pre = !line->dst.u.reg.x ? 0x48 : 0x49;
-        int d = line->dst.u.reg.no;
-        if (is_im8(line->src.u.immediate)) {
-          ADD_CODE(pre, 0x83, 0xe8 + d, IM8(line->src.u.immediate));
+    } else if (line->inst.src.type == IMMEDIATE && line->inst.dst.type == REG) {
+      if (line->inst.dst.u.reg.size == REG64) {
+        int pre = !line->inst.dst.u.reg.x ? 0x48 : 0x49;
+        int d = line->inst.dst.u.reg.no;
+        if (is_im8(line->inst.src.u.immediate)) {
+          ADD_CODE(pre, 0x83, 0xe8 + d, IM8(line->inst.src.u.immediate));
           return;
-        } else if (is_im32(line->src.u.immediate)) {
-          if (opr_regno(&line->dst) == RAX - RAX)
-            ADD_CODE(pre, 0x2d, IM32(line->src.u.immediate));
+        } else if (is_im32(line->inst.src.u.immediate)) {
+          if (opr_regno(&line->inst.dst) == RAX - RAX)
+            ADD_CODE(pre, 0x2d, IM32(line->inst.src.u.immediate));
           else
-            ADD_CODE(pre, 0x81, 0xe8 + d, IM32(line->src.u.immediate));
+            ADD_CODE(pre, 0x81, 0xe8 + d, IM32(line->inst.src.u.immediate));
           return;
         }
       }
     }
     break;
   case SUBQ:
-    if (line->src.type == IMMEDIATE && line->dst.type == INDIRECT) {
-      if (!line->dst.u.indirect.reg.x && line->dst.u.indirect.label == NULL) {
-        long value = line->src.u.immediate;
-        int d = line->dst.u.indirect.reg.no;
-        long offset = line->dst.u.indirect.offset;
+    if (line->inst.src.type == IMMEDIATE && line->inst.dst.type == INDIRECT) {
+      if (!line->inst.dst.u.indirect.reg.x && line->inst.dst.u.indirect.label == NULL) {
+        long value = line->inst.src.u.immediate;
+        int d = line->inst.dst.u.indirect.reg.no;
+        long offset = line->inst.dst.u.indirect.offset;
         if (is_im8(value)) {
-          if (line->dst.u.indirect.reg.no != RSP - RAX) {
-            if (offset == 0 && line->dst.u.indirect.reg.no != RBP - RAX) {
+          if (line->inst.dst.u.indirect.reg.no != RSP - RAX) {
+            if (offset == 0 && line->inst.dst.u.indirect.reg.no != RBP - RAX) {
               ADD_CODE(0x48, 0x83, 0x28 + d, IM8(value));
               return;
             } else if (is_im8(offset)) {
@@ -1004,8 +992,8 @@ static void assemble_line(const Line *line) {
             }
           }
         } else if (is_im32(value)) {
-          if (line->dst.u.indirect.reg.no != RSP - RAX) {
-            if (offset == 0 && line->dst.u.indirect.reg.no != RBP - RAX) {
+          if (line->inst.dst.u.indirect.reg.no != RSP - RAX) {
+            if (offset == 0 && line->inst.dst.u.indirect.reg.no != RBP - RAX) {
               ADD_CODE(0x48, 0x81, 0x28 + d, IM32(value));
               return;
             } else if (is_im8(offset)) {
@@ -1032,77 +1020,77 @@ static void assemble_line(const Line *line) {
     }
     break;
   case MUL:
-    if (line->src.type == REG && line->dst.type == NOOPERAND) {
-      if (line->src.u.reg.size == REG32) {
-        int s = line->src.u.reg.no;
-        if (!line->src.u.reg.x) {
+    if (line->inst.src.type == REG && line->inst.dst.type == NOOPERAND) {
+      if (line->inst.src.u.reg.size == REG32) {
+        int s = line->inst.src.u.reg.no;
+        if (!line->inst.src.u.reg.x) {
           ADD_CODE(0xf7, 0xe0 + s);
         } else {
           ADD_CODE(0x41, 0xf7, 0xe0 + s);
         }
         return;
-      } else if (line->src.u.reg.size == REG64) {
-        int s = line->src.u.reg.no;
-        int pre = !line->src.u.reg.x ? 0x48 : 0x49;
+      } else if (line->inst.src.u.reg.size == REG64) {
+        int s = line->inst.src.u.reg.no;
+        int pre = !line->inst.src.u.reg.x ? 0x48 : 0x49;
         ADD_CODE(pre, 0xf7, 0xe0 + s);
         return;
       }
     }
     break;
   case IDIV:
-    if (line->src.type == REG && line->dst.type == NOOPERAND) {
-      if (line->src.u.reg.size == REG32) {
-        int s = line->src.u.reg.no;
-        if (!line->src.u.reg.x) {
+    if (line->inst.src.type == REG && line->inst.dst.type == NOOPERAND) {
+      if (line->inst.src.u.reg.size == REG32) {
+        int s = line->inst.src.u.reg.no;
+        if (!line->inst.src.u.reg.x) {
           ADD_CODE(0xf7, 0xf8 + s);
         } else {
           ADD_CODE(0x41, 0xf7, 0xf8 + s);
         }
         return;
-      } else if (line->src.u.reg.size == REG64) {
-        int pre = !line->src.u.reg.x ? 0x48 : 0x49;
-        int s = line->src.u.reg.no;
+      } else if (line->inst.src.u.reg.size == REG64) {
+        int pre = !line->inst.src.u.reg.x ? 0x48 : 0x49;
+        int s = line->inst.src.u.reg.no;
         ADD_CODE(pre, 0xf7, 0xf8 + s);
         return;
       }
     }
     break;
   case NEG:
-    if (line->src.type == REG && line->dst.type == NOOPERAND) {
-      int s = line->src.u.reg.no;
-      if (line->src.u.reg.size == REG16) {
-        if (!line->src.u.reg.x) {
+    if (line->inst.src.type == REG && line->inst.dst.type == NOOPERAND) {
+      int s = line->inst.src.u.reg.no;
+      if (line->inst.src.u.reg.size == REG16) {
+        if (!line->inst.src.u.reg.x) {
           ADD_CODE(0x66, 0xf7, 0xd8 + s);
         } else {
           ADD_CODE(0x66, 0x41, 0xf7, 0xd8 + s);
         }
         return;
-      } else if (line->src.u.reg.size == REG32) {
-        if (!line->src.u.reg.x) {
+      } else if (line->inst.src.u.reg.size == REG32) {
+        if (!line->inst.src.u.reg.x) {
           ADD_CODE(0xf7, 0xd8 + s);
         } else {
           ADD_CODE(0x41, 0xf7, 0xd8 + s);
         }
         return;
-      } else if (line->src.u.reg.size == REG64) {
-        int pre = !line->src.u.reg.x ? 0x48 : 0x49;
+      } else if (line->inst.src.u.reg.size == REG64) {
+        int pre = !line->inst.src.u.reg.x ? 0x48 : 0x49;
         ADD_CODE(pre, 0xf7, 0xd8 + s);
         return;
       }
     }
     break;
   case NOT:
-    if (line->src.type == REG && line->dst.type == NOOPERAND) {
-      int s = line->src.u.reg.no;
-      if (line->src.u.reg.size == REG16) {
-        if (!line->src.u.reg.x) {
+    if (line->inst.src.type == REG && line->inst.dst.type == NOOPERAND) {
+      int s = line->inst.src.u.reg.no;
+      if (line->inst.src.u.reg.size == REG16) {
+        if (!line->inst.src.u.reg.x) {
           ADD_CODE(0x66, 0xf7, 0xd0 + s);
         } else {
           ADD_CODE(0x66, 0x41, 0xf7, 0xd0 + s);
         }
         return;
-      } else if (line->src.u.reg.size == REG32) {
-        if (!line->src.u.reg.x) {
+      } else if (line->inst.src.u.reg.size == REG32) {
+        if (!line->inst.src.u.reg.x) {
           ADD_CODE(0xf7, 0xd0 + s);
         } else {
           ADD_CODE(0x41, 0xf7, 0xd0 + s);
@@ -1112,29 +1100,29 @@ static void assemble_line(const Line *line) {
     }
     break;
   case INC:
-    if (line->src.type == REG && line->dst.type == NOOPERAND) {
-      if (line->src.u.reg.size == REG32) {
-        int s = line->src.u.reg.no;
-        if (!line->src.u.reg.x) {
+    if (line->inst.src.type == REG && line->inst.dst.type == NOOPERAND) {
+      if (line->inst.src.u.reg.size == REG32) {
+        int s = line->inst.src.u.reg.no;
+        if (!line->inst.src.u.reg.x) {
           ADD_CODE(0xff, 0xc0 + s);
         } else {
           ADD_CODE(0x41, 0xff, 0xc0 + s);
         }
         return;
-      } else if (line->src.u.reg.size == REG64) {
-        int pre = !line->src.u.reg.x ? 0x48 : 0x49;
-        int s = line->src.u.reg.no;
+      } else if (line->inst.src.u.reg.size == REG64) {
+        int pre = !line->inst.src.u.reg.x ? 0x48 : 0x49;
+        int s = line->inst.src.u.reg.no;
         ADD_CODE(pre, 0xff, 0xc0 + s);
         return;
       }
     }
     break;
   case INCL:
-    if (line->src.type == INDIRECT && line->dst.type == NOOPERAND &&
-        line->src.u.indirect.reg.no != RIP) {
-      int s = line->src.u.indirect.reg.no;
-      long offset = line->src.u.indirect.offset;
-      if (!line->src.u.indirect.reg.x) {
+    if (line->inst.src.type == INDIRECT && line->inst.dst.type == NOOPERAND &&
+        line->inst.src.u.indirect.reg.no != RIP) {
+      int s = line->inst.src.u.indirect.reg.no;
+      long offset = line->inst.src.u.indirect.offset;
+      if (!line->inst.src.u.indirect.reg.x) {
         if (s != RSP - RAX) {
           if (offset == 0 && s != RBP - RAX) {
             ADD_CODE(0xff, 0x00 + s);
@@ -1186,13 +1174,13 @@ static void assemble_line(const Line *line) {
     }
     break;
   case INCQ:
-    if (line->src.type == INDIRECT && line->dst.type == NOOPERAND &&
-        line->src.u.indirect.reg.no != RIP) {
-      int pre = !line->src.u.indirect.reg.x ? 0x48 : 0x49;
-      int s = line->src.u.indirect.reg.no;
-      long offset = line->src.u.indirect.offset;
-      if (line->src.u.indirect.reg.no != RSP - RAX) {
-        if (offset == 0 && line->src.u.indirect.reg.no != RBP - RAX) {
+    if (line->inst.src.type == INDIRECT && line->inst.dst.type == NOOPERAND &&
+        line->inst.src.u.indirect.reg.no != RIP) {
+      int pre = !line->inst.src.u.indirect.reg.x ? 0x48 : 0x49;
+      int s = line->inst.src.u.indirect.reg.no;
+      long offset = line->inst.src.u.indirect.offset;
+      if (line->inst.src.u.indirect.reg.no != RSP - RAX) {
+        if (offset == 0 && line->inst.src.u.indirect.reg.no != RBP - RAX) {
           ADD_CODE(pre, 0xff, 0x00 + s);
           return;
         } else if (is_im8(offset)) {
@@ -1217,29 +1205,29 @@ static void assemble_line(const Line *line) {
     }
     break;
   case DEC:
-    if (line->src.type == REG && line->dst.type == NOOPERAND) {
-      if (line->src.u.reg.size == REG32) {
-        int s = line->src.u.reg.no;
-        if (!line->src.u.reg.x) {
+    if (line->inst.src.type == REG && line->inst.dst.type == NOOPERAND) {
+      if (line->inst.src.u.reg.size == REG32) {
+        int s = line->inst.src.u.reg.no;
+        if (!line->inst.src.u.reg.x) {
           ADD_CODE(0xff, 0xc8 + s);
         } else {
           ADD_CODE(0x41, 0xff, 0xc8 + s);
         }
         return;
-      } else if (line->src.u.reg.size == REG64) {
-        int pre = !line->src.u.reg.x ? 0x48 : 0x49;
-        int s = line->src.u.reg.no;
+      } else if (line->inst.src.u.reg.size == REG64) {
+        int pre = !line->inst.src.u.reg.x ? 0x48 : 0x49;
+        int s = line->inst.src.u.reg.no;
         ADD_CODE(pre, 0xff, 0xc8 + s);
         return;
       }
     }
     break;
   case DECL:
-    if (line->src.type == INDIRECT && line->dst.type == NOOPERAND &&
-        line->src.u.indirect.reg.no != RIP) {
-      int s = line->src.u.indirect.reg.no;
-      long offset = line->src.u.indirect.offset;
-      if (!line->src.u.indirect.reg.x) {
+    if (line->inst.src.type == INDIRECT && line->inst.dst.type == NOOPERAND &&
+        line->inst.src.u.indirect.reg.no != RIP) {
+      int s = line->inst.src.u.indirect.reg.no;
+      long offset = line->inst.src.u.indirect.offset;
+      if (!line->inst.src.u.indirect.reg.x) {
         if (s != RSP - RAX) {
           if (offset == 0 && s != RBP - RAX) {
             ADD_CODE(0xff, 0x08 + s);
@@ -1291,13 +1279,13 @@ static void assemble_line(const Line *line) {
     }
     break;
   case DECQ:
-    if (line->src.type == INDIRECT && line->dst.type == NOOPERAND &&
-        line->src.u.indirect.reg.no != RIP) {
-      int pre = !line->src.u.indirect.reg.x ? 0x48 : 0x49;
-      int s = line->src.u.indirect.reg.no;
-      long offset = line->src.u.indirect.offset;
-      if (line->src.u.indirect.reg.no != RSP - RAX) {
-        if (offset == 0 && line->src.u.indirect.reg.no != RBP - RAX) {
+    if (line->inst.src.type == INDIRECT && line->inst.dst.type == NOOPERAND &&
+        line->inst.src.u.indirect.reg.no != RIP) {
+      int pre = !line->inst.src.u.indirect.reg.x ? 0x48 : 0x49;
+      int s = line->inst.src.u.indirect.reg.no;
+      long offset = line->inst.src.u.indirect.offset;
+      if (line->inst.src.u.indirect.reg.no != RSP - RAX) {
+        if (offset == 0 && line->inst.src.u.indirect.reg.no != RBP - RAX) {
           ADD_CODE(pre, 0xff, 0x08 + s);
           return;
         } else if (is_im8(offset)) {
@@ -1322,198 +1310,198 @@ static void assemble_line(const Line *line) {
     }
     break;
   case AND:
-    if (line->src.type == REG && line->dst.type == REG) {
-      int s = line->src.u.reg.no;
-      int d = line->dst.u.reg.no;
-      if (line->src.u.reg.size == REG16 && line->dst.u.reg.size == REG16) {
-        if (!line->src.u.reg.x && !line->dst.u.reg.x) {
+    if (line->inst.src.type == REG && line->inst.dst.type == REG) {
+      int s = line->inst.src.u.reg.no;
+      int d = line->inst.dst.u.reg.no;
+      if (line->inst.src.u.reg.size == REG16 && line->inst.dst.u.reg.size == REG16) {
+        if (!line->inst.src.u.reg.x && !line->inst.dst.u.reg.x) {
           ADD_CODE(0x66, 0x21, 0xc0 + s * 8 + d);
         } else {
-          int pre = (!line->dst.u.reg.x ? 0x40 : 0x41) + (!line->src.u.reg.x ? 0 : 4);
+          int pre = (!line->inst.dst.u.reg.x ? 0x40 : 0x41) + (!line->inst.src.u.reg.x ? 0 : 4);
           ADD_CODE(0x66, pre, 0x21, 0xc0 + s * 8 + d);
         }
         return;
-      } if (line->src.u.reg.size == REG32 && line->dst.u.reg.size == REG32) {
-        if (!line->src.u.reg.x && !line->dst.u.reg.x) {
+      } if (line->inst.src.u.reg.size == REG32 && line->inst.dst.u.reg.size == REG32) {
+        if (!line->inst.src.u.reg.x && !line->inst.dst.u.reg.x) {
           ADD_CODE(0x21, 0xc0 + s * 8 + d);
         } else {
-          int pre = (!line->dst.u.reg.x ? 0x40 : 0x41) + (!line->src.u.reg.x ? 0 : 4);
+          int pre = (!line->inst.dst.u.reg.x ? 0x40 : 0x41) + (!line->inst.src.u.reg.x ? 0 : 4);
           ADD_CODE(pre, 0x21, 0xc0 + s * 8 + d);
         }
         return;
-      } else if (line->src.u.reg.size == REG64 && line->dst.u.reg.size == REG64) {
-        int pre = (!line->dst.u.reg.x ? 0x48 : 0x49) + (!line->src.u.reg.x ? 0 : 4);
+      } else if (line->inst.src.u.reg.size == REG64 && line->inst.dst.u.reg.size == REG64) {
+        int pre = (!line->inst.dst.u.reg.x ? 0x48 : 0x49) + (!line->inst.src.u.reg.x ? 0 : 4);
         ADD_CODE(pre, 0x21, 0xc0 + s * 8 + d);
         return;
       }
     }
     break;
   case OR:
-    if (line->src.type == REG && line->dst.type == REG) {
-      int s = line->src.u.reg.no;
-      int d = line->dst.u.reg.no;
-      if (line->src.u.reg.size == REG8 && line->dst.u.reg.size == REG8) {
-        if (opr_reg8(&line->src) && opr_reg8(&line->dst)) {
+    if (line->inst.src.type == REG && line->inst.dst.type == REG) {
+      int s = line->inst.src.u.reg.no;
+      int d = line->inst.dst.u.reg.no;
+      if (line->inst.src.u.reg.size == REG8 && line->inst.dst.u.reg.size == REG8) {
+        if (opr_reg8(&line->inst.src) && opr_reg8(&line->inst.dst)) {
           ADD_CODE(0x08, 0xc0 + s * 8 + d);
         } else {
-          int pre = (!line->dst.u.reg.x ? 0x40 : 0x41) + (!line->src.u.reg.x ? 0 : 4);
+          int pre = (!line->inst.dst.u.reg.x ? 0x40 : 0x41) + (!line->inst.src.u.reg.x ? 0 : 4);
           ADD_CODE(pre, 0x08, 0xc0 + s * 8 + d);
         }
         return;
-      } else if (line->src.u.reg.size == REG16 && line->dst.u.reg.size == REG16) {
-        if (!line->src.u.reg.x && !line->dst.u.reg.x) {
+      } else if (line->inst.src.u.reg.size == REG16 && line->inst.dst.u.reg.size == REG16) {
+        if (!line->inst.src.u.reg.x && !line->inst.dst.u.reg.x) {
           ADD_CODE(0x66, 0x09, 0xc0 + s * 8 + d);
         } else {
-          int pre = (!line->dst.u.reg.x ? 0x40 : 0x41) + (!line->src.u.reg.x ? 0 : 4);
+          int pre = (!line->inst.dst.u.reg.x ? 0x40 : 0x41) + (!line->inst.src.u.reg.x ? 0 : 4);
           ADD_CODE(0x66, pre, 0x09, 0xc0 + s * 8 + d);
         }
         return;
-      } else if (line->src.u.reg.size == REG32 && line->dst.u.reg.size == REG32) {
-        if (!line->src.u.reg.x && !line->dst.u.reg.x) {
+      } else if (line->inst.src.u.reg.size == REG32 && line->inst.dst.u.reg.size == REG32) {
+        if (!line->inst.src.u.reg.x && !line->inst.dst.u.reg.x) {
           ADD_CODE(0x09, 0xc0 + s * 8 + d);
         } else {
-          int pre = (!line->dst.u.reg.x ? 0x40 : 0x41) + (!line->src.u.reg.x ? 0 : 4);
+          int pre = (!line->inst.dst.u.reg.x ? 0x40 : 0x41) + (!line->inst.src.u.reg.x ? 0 : 4);
           ADD_CODE(pre, 0x09, 0xc0 + s * 8 + d);
         }
         return;
-      } else if (line->src.u.reg.size == REG64 && line->dst.u.reg.size == REG64) {
-        int pre = (!line->dst.u.reg.x ? 0x48 : 0x49) + (!line->src.u.reg.x ? 0 : 4);
+      } else if (line->inst.src.u.reg.size == REG64 && line->inst.dst.u.reg.size == REG64) {
+        int pre = (!line->inst.dst.u.reg.x ? 0x48 : 0x49) + (!line->inst.src.u.reg.x ? 0 : 4);
         ADD_CODE(pre, 0x09, 0xc0 + s * 8 + d);
         return;
       }
     }
     break;
   case XOR:
-    if (line->src.type == REG && line->dst.type == REG) {
-      int s = line->src.u.reg.no;
-      int d = line->dst.u.reg.no;
-      if (line->src.u.reg.size == REG8 && line->dst.u.reg.size == REG8) {
-        if (opr_reg8(&line->src) && opr_reg8(&line->dst)) {
+    if (line->inst.src.type == REG && line->inst.dst.type == REG) {
+      int s = line->inst.src.u.reg.no;
+      int d = line->inst.dst.u.reg.no;
+      if (line->inst.src.u.reg.size == REG8 && line->inst.dst.u.reg.size == REG8) {
+        if (opr_reg8(&line->inst.src) && opr_reg8(&line->inst.dst)) {
           ADD_CODE(0x30, 0xc0 + s * 8 + d);
         } else {
-          int pre = (!line->dst.u.reg.x ? 0x40 : 0x41) + (!line->src.u.reg.x ? 0 : 4);
+          int pre = (!line->inst.dst.u.reg.x ? 0x40 : 0x41) + (!line->inst.src.u.reg.x ? 0 : 4);
           ADD_CODE(pre, 0x30, 0xc0 + s * 8 + d);
         }
         return;
-      } else if (line->src.u.reg.size == REG16 && line->dst.u.reg.size == REG16) {
-        if (!line->src.u.reg.x && !line->dst.u.reg.x) {
+      } else if (line->inst.src.u.reg.size == REG16 && line->inst.dst.u.reg.size == REG16) {
+        if (!line->inst.src.u.reg.x && !line->inst.dst.u.reg.x) {
           ADD_CODE(0x66, 0x31, 0xc0 + s * 8 + d);
         } else {
-          int pre = (!line->dst.u.reg.x ? 0x40 : 0x41) + (!line->src.u.reg.x ? 0 : 4);
+          int pre = (!line->inst.dst.u.reg.x ? 0x40 : 0x41) + (!line->inst.src.u.reg.x ? 0 : 4);
           ADD_CODE(0x66, pre, 0x31, 0xc0 + s * 8 + d);
         }
         return;
-      } else if (line->src.u.reg.size == REG32 && line->dst.u.reg.size == REG32) {
-        if (!line->src.u.reg.x && !line->dst.u.reg.x) {
+      } else if (line->inst.src.u.reg.size == REG32 && line->inst.dst.u.reg.size == REG32) {
+        if (!line->inst.src.u.reg.x && !line->inst.dst.u.reg.x) {
           ADD_CODE(0x31, 0xc0 + s * 8 + d);
         } else {
-          int pre = (!line->dst.u.reg.x ? 0x40 : 0x41) + (!line->src.u.reg.x ? 0 : 4);
+          int pre = (!line->inst.dst.u.reg.x ? 0x40 : 0x41) + (!line->inst.src.u.reg.x ? 0 : 4);
           ADD_CODE(pre, 0x31, 0xc0 + s * 8 + d);
         }
         return;
-      } else if (line->src.u.reg.size == REG64 && line->dst.u.reg.size == REG64) {
-        int pre = (!line->dst.u.reg.x ? 0x48 : 0x49) + (!line->src.u.reg.x ? 0 : 4);
+      } else if (line->inst.src.u.reg.size == REG64 && line->inst.dst.u.reg.size == REG64) {
+        int pre = (!line->inst.dst.u.reg.x ? 0x48 : 0x49) + (!line->inst.src.u.reg.x ? 0 : 4);
         ADD_CODE(pre, 0x31, 0xc0 + s * 8 + d);
         return;
       }
     }
     break;
   case SHL:
-    if (line->src.type == REG && line->dst.type == REG &&
-        opr_regno(&line->src) == CL - AL) {
-      int d = line->dst.u.reg.no;
-      if (line->dst.u.reg.size == REG8) {
-        if (opr_reg8(&line->dst)) {
+    if (line->inst.src.type == REG && line->inst.dst.type == REG &&
+        opr_regno(&line->inst.src) == CL - AL) {
+      int d = line->inst.dst.u.reg.no;
+      if (line->inst.dst.u.reg.size == REG8) {
+        if (opr_reg8(&line->inst.dst)) {
           ADD_CODE(0xd2, 0xe0 + d);
         } else {
-          int pre = !line->dst.u.reg.x ? 0x40 : 0x41;
+          int pre = !line->inst.dst.u.reg.x ? 0x40 : 0x41;
           ADD_CODE(pre, 0xd2, 0xe0 + d);
         }
         return;
-      } else if (line->dst.u.reg.size == REG16) {
-        if (!line->dst.u.reg.x) {
+      } else if (line->inst.dst.u.reg.size == REG16) {
+        if (!line->inst.dst.u.reg.x) {
           ADD_CODE(0x66, 0xd3, 0xe0 + d);
         } else {
           ADD_CODE(0x66, 0x41, 0xd3, 0xe0 + d);
         }
         return;
-      } else if (line->dst.u.reg.size == REG32) {
-        if (!line->dst.u.reg.x) {
+      } else if (line->inst.dst.u.reg.size == REG32) {
+        if (!line->inst.dst.u.reg.x) {
           ADD_CODE(0xd3, 0xe0 + d);
         } else {
           ADD_CODE(0x41, 0xd3, 0xe0 + d);
         }
         return;
-      } else if (line->dst.u.reg.size == REG64) {
-        int pre = line->dst.u.reg.size == REG64 ? 0x48 : 0x49;
+      } else if (line->inst.dst.u.reg.size == REG64) {
+        int pre = line->inst.dst.u.reg.size == REG64 ? 0x48 : 0x49;
         ADD_CODE(pre, 0xd3, 0xe0 + d);
         return;
       }
     }
     break;
   case SHR:
-    if (line->src.type == REG && line->dst.type == REG &&
-        opr_regno(&line->src) == CL - AL) {
-      int d = line->dst.u.reg.no;
-      if (line->dst.u.reg.size == REG32) {
-        if (!line->dst.u.reg.x) {
+    if (line->inst.src.type == REG && line->inst.dst.type == REG &&
+        opr_regno(&line->inst.src) == CL - AL) {
+      int d = line->inst.dst.u.reg.no;
+      if (line->inst.dst.u.reg.size == REG32) {
+        if (!line->inst.dst.u.reg.x) {
           ADD_CODE(0xd3, 0xe8 + d);
         } else {
           ADD_CODE(0x41, 0xd3, 0xe8 + d);
         }
         return;
-      } else if (line->dst.u.reg.size == REG64) {
-        int pre = !line->dst.u.reg.x ? 0x48 : 0x49;
+      } else if (line->inst.dst.u.reg.size == REG64) {
+        int pre = !line->inst.dst.u.reg.x ? 0x48 : 0x49;
         ADD_CODE(pre, 0xd3, 0xe8 + d);
         return;
       }
     }
     break;
   case CMP:
-    if (line->src.type == REG && line->dst.type == REG) {
-      int s = line->src.u.reg.no;
-      int d = line->dst.u.reg.no;
-      if (line->src.u.reg.size == REG8 && line->dst.u.reg.size == REG8) {
-        if (opr_reg8(&line->src) && opr_reg8(&line->dst)) {
+    if (line->inst.src.type == REG && line->inst.dst.type == REG) {
+      int s = line->inst.src.u.reg.no;
+      int d = line->inst.dst.u.reg.no;
+      if (line->inst.src.u.reg.size == REG8 && line->inst.dst.u.reg.size == REG8) {
+        if (opr_reg8(&line->inst.src) && opr_reg8(&line->inst.dst)) {
           ADD_CODE(0x38, 0xc0 + s * 8 + d);
         } else {
-          int pre = (!line->dst.u.reg.x ? 0x40 : 0x41) + (!line->src.u.reg.x ? 0 : 4);
+          int pre = (!line->inst.dst.u.reg.x ? 0x40 : 0x41) + (!line->inst.src.u.reg.x ? 0 : 4);
           ADD_CODE(pre, 0x38, 0xc0 + s * 8 + d);
         }
         return;
-      } else if (line->src.u.reg.size == REG32 && line->dst.u.reg.size == REG32) {
-        if (!line->src.u.reg.x && !line->dst.u.reg.x) {
+      } else if (line->inst.src.u.reg.size == REG32 && line->inst.dst.u.reg.size == REG32) {
+        if (!line->inst.src.u.reg.x && !line->inst.dst.u.reg.x) {
           ADD_CODE(0x39, 0xc0 + s * 8 + d);
         } else {
-          int pre = (!line->dst.u.reg.x ? 0x40 : 0x41) + (!line->src.u.reg.x ? 0 : 4);
+          int pre = (!line->inst.dst.u.reg.x ? 0x40 : 0x41) + (!line->inst.src.u.reg.x ? 0 : 4);
           ADD_CODE(pre, 0x39, 0xc0 + s * 8 + d);
         }
         return;
-      } else if (line->src.u.reg.size == REG64 && line->dst.u.reg.size == REG64) {
-        int pre = (!line->dst.u.reg.x ? 0x48 : 0x49) + (!line->src.u.reg.x ? 0 : 4);
+      } else if (line->inst.src.u.reg.size == REG64 && line->inst.dst.u.reg.size == REG64) {
+        int pre = (!line->inst.dst.u.reg.x ? 0x48 : 0x49) + (!line->inst.src.u.reg.x ? 0 : 4);
         ADD_CODE(pre, 0x39, 0xc0 + s * 8 + d);
         return;
       }
-    } else if (line->src.type == IMMEDIATE && line->dst.type == REG) {
-      long value = line->src.u.immediate;
-      if (line->dst.u.reg.size == REG8) {
-        int d = line->dst.u.reg.no;
-        if (opr_regno(&line->dst) == AL - AL) {
+    } else if (line->inst.src.type == IMMEDIATE && line->inst.dst.type == REG) {
+      long value = line->inst.src.u.immediate;
+      if (line->inst.dst.u.reg.size == REG8) {
+        int d = line->inst.dst.u.reg.no;
+        if (opr_regno(&line->inst.dst) == AL - AL) {
           ADD_CODE(0x3c, IM8(value));
-        } else if (opr_reg8(&line->dst)) {
+        } else if (opr_reg8(&line->inst.dst)) {
           ADD_CODE(0x80, 0xf8 + d, IM8(value));
         } else {
           ADD_CODE(0x41, 0x80, 0xf8 + d, IM8(value));
         }
         return;
-      } else if (line->dst.u.reg.size == REG32) {
-        int d = line->dst.u.reg.no;
-        if (!line->dst.u.reg.x) {
+      } else if (line->inst.dst.u.reg.size == REG32) {
+        int d = line->inst.dst.u.reg.no;
+        if (!line->inst.dst.u.reg.x) {
           if (is_im8(value)) {
             ADD_CODE(0x83, 0xf8 + d, IM8(value));
             return;
           } else if (is_im32(value)) {
-            if (opr_regno(&line->dst) == EAX - EAX) {
+            if (opr_regno(&line->inst.dst) == EAX - EAX) {
               ADD_CODE(0x3d, IM32(value));
               return;
             } else {
@@ -1530,14 +1518,14 @@ static void assemble_line(const Line *line) {
             return;
           }
         }
-      } else if (line->dst.u.reg.size == REG64) {
-        int d = line->dst.u.reg.no;
-        int pre = !line->dst.u.reg.x ? 0x48 : 0x49;
+      } else if (line->inst.dst.u.reg.size == REG64) {
+        int d = line->inst.dst.u.reg.no;
+        int pre = !line->inst.dst.u.reg.x ? 0x48 : 0x49;
         if (is_im8(value)) {
           ADD_CODE(pre, 0x83, 0xf8 + d, IM8(value));
           return;
         } else if (is_im32(value)) {
-          if (opr_regno(&line->dst) == EAX - EAX) {
+          if (opr_regno(&line->inst.dst) == EAX - EAX) {
             ADD_CODE(pre, 0x3d, IM32(value));
             return;
           } else {
@@ -1549,48 +1537,48 @@ static void assemble_line(const Line *line) {
     }
     break;
   case TEST:
-    if (line->src.type == REG && line->dst.type == REG) {
-      int s = line->src.u.reg.no;
-      int d = line->dst.u.reg.no;
-      if (line->src.u.reg.size == REG8 && line->dst.u.reg.size == REG8) {
-        if (opr_reg8(&line->src) && opr_reg8(&line->dst)) {
+    if (line->inst.src.type == REG && line->inst.dst.type == REG) {
+      int s = line->inst.src.u.reg.no;
+      int d = line->inst.dst.u.reg.no;
+      if (line->inst.src.u.reg.size == REG8 && line->inst.dst.u.reg.size == REG8) {
+        if (opr_reg8(&line->inst.src) && opr_reg8(&line->inst.dst)) {
           ADD_CODE(0x84, 0xc0 + s * 8 + d);
         } else {
-          int pre = (!line->dst.u.reg.x ? 0x40 : 0x41) + (!line->src.u.reg.x ? 0 : 4);
+          int pre = (!line->inst.dst.u.reg.x ? 0x40 : 0x41) + (!line->inst.src.u.reg.x ? 0 : 4);
           ADD_CODE(pre, 0x84, 0xc0 + s * 8 + d);
         }
         return;
-      } else if (line->src.u.reg.size == REG16 && line->dst.u.reg.size == REG16) {
-        if (!line->src.u.reg.x && !line->dst.u.reg.x) {
+      } else if (line->inst.src.u.reg.size == REG16 && line->inst.dst.u.reg.size == REG16) {
+        if (!line->inst.src.u.reg.x && !line->inst.dst.u.reg.x) {
           ADD_CODE(0x66, 0x85, 0xc0 + s * 8 + d);
         } else {
-          int pre = (!line->dst.u.reg.x ? 0x40 : 0x41) + (!line->src.u.reg.x ? 0 : 4);
+          int pre = (!line->inst.dst.u.reg.x ? 0x40 : 0x41) + (!line->inst.src.u.reg.x ? 0 : 4);
           ADD_CODE(0x66, pre, 0x85, 0xc0 + s * 8 + d);
         }
         return;
-      } else if (line->src.u.reg.size == REG32 && line->dst.u.reg.size == REG32) {
-        if (!line->src.u.reg.x && !line->dst.u.reg.x) {
+      } else if (line->inst.src.u.reg.size == REG32 && line->inst.dst.u.reg.size == REG32) {
+        if (!line->inst.src.u.reg.x && !line->inst.dst.u.reg.x) {
           ADD_CODE(0x85, 0xc0 + s * 8 + d);
         } else {
-          int pre = (!line->dst.u.reg.x ? 0x40 : 0x41) + (!line->src.u.reg.x ? 0 : 4);
+          int pre = (!line->inst.dst.u.reg.x ? 0x40 : 0x41) + (!line->inst.src.u.reg.x ? 0 : 4);
           ADD_CODE(pre, 0x85, 0xc0 + s * 8 + d);
         }
         return;
-      } else if (line->src.u.reg.size == REG64 && line->dst.u.reg.size == REG64) {
-        int pre = (!line->src.u.reg.x ? 0x48 : 0x49) + (!line->dst.u.reg.x ? 0 : 4);
+      } else if (line->inst.src.u.reg.size == REG64 && line->inst.dst.u.reg.size == REG64) {
+        int pre = (!line->inst.src.u.reg.x ? 0x48 : 0x49) + (!line->inst.dst.u.reg.x ? 0 : 4);
         ADD_CODE(pre, 0x85, 0xc0 + s * 8 + d);
         return;
       }
     }
     break;
   case CLTD:
-    if (line->src.type == NOOPERAND && line->dst.type == NOOPERAND) {
+    if (line->inst.src.type == NOOPERAND && line->inst.dst.type == NOOPERAND) {
       ADD_CODE(0x99);
       return;
     }
     break;
   case CQTO:
-    if (line->src.type == NOOPERAND && line->dst.type == NOOPERAND) {
+    if (line->inst.src.type == NOOPERAND && line->inst.dst.type == NOOPERAND) {
       ADD_CODE(0x48, 0x99);
       return;
     }
@@ -1600,24 +1588,24 @@ static void assemble_line(const Line *line) {
   case SETE: case SETNE: case SETBE: case SETA:
   case SETS: case SETNS: case SETP:  case SETNP:
   case SETL: case SETGE: case SETLE: case SETG:
-    if (line->src.type == REG && line->dst.type == NOOPERAND) {
-      int s = line->src.u.reg.no;
-      if (line->src.u.reg.size == REG8) {
-        if (opr_reg8(&line->src)) {
-          ADD_CODE(0x0f, 0x90 + (line->op - SETO), 0xc0 + s);
+    if (line->inst.src.type == REG && line->inst.dst.type == NOOPERAND) {
+      int s = line->inst.src.u.reg.no;
+      if (line->inst.src.u.reg.size == REG8) {
+        if (opr_reg8(&line->inst.src)) {
+          ADD_CODE(0x0f, 0x90 + (line->inst.op - SETO), 0xc0 + s);
         } else {
-          int pre = !line->src.u.reg.x ? 0x40 : 0x41;
-          ADD_CODE(pre, 0x0f, 0x90 + (line->op - SETO), 0xc0 + s);
+          int pre = !line->inst.src.u.reg.x ? 0x40 : 0x41;
+          ADD_CODE(pre, 0x0f, 0x90 + (line->inst.op - SETO), 0xc0 + s);
         }
         return;
       }
     }
     break;
   case PUSH:
-    if (line->src.type == REG && line->dst.type == NOOPERAND) {
-      if (line->src.u.reg.size == REG64) {
-        int d = line->src.u.reg.no;
-        if (!line->src.u.reg.x) {
+    if (line->inst.src.type == REG && line->inst.dst.type == NOOPERAND) {
+      if (line->inst.src.u.reg.size == REG64) {
+        int d = line->inst.src.u.reg.no;
+        if (!line->inst.src.u.reg.x) {
           ADD_CODE(0x50 + d);
         } else {
           ADD_CODE(0x41, 0x50 + d);
@@ -1627,10 +1615,10 @@ static void assemble_line(const Line *line) {
     }
     break;
   case POP:
-    if (line->src.type == REG && line->dst.type == NOOPERAND) {
-      if (line->src.u.reg.size == REG64) {
-        int d = line->src.u.reg.no;
-        if (!line->src.u.reg.x) {
+    if (line->inst.src.type == REG && line->inst.dst.type == NOOPERAND) {
+      if (line->inst.src.u.reg.size == REG64) {
+        int d = line->inst.src.u.reg.no;
+        if (!line->inst.src.u.reg.x) {
           ADD_CODE(0x58 + d);
         } else {
           ADD_CODE(0x41, 0x58 + d);
@@ -1640,30 +1628,30 @@ static void assemble_line(const Line *line) {
     }
     break;
   case JMP:
-    if (line->src.type != LABEL || line->dst.type != NOOPERAND)
+    if (line->inst.src.type != LABEL || line->inst.dst.type != NOOPERAND)
       error("Illegal oprand: JMP");
-    ADD_LOC_REL32(line->src.u.label, 1, 5);
+    ADD_LOC_REL32(line->inst.src.u.label, 1, 5);
     ADD_CODE(0xe9, IM32(-1));
     return;
   case JO: case JNO: case JB:  case JAE:
   case JE: case JNE: case JBE: case JA:
   case JS: case JNS: case JP:  case JNP:
   case JL: case JGE: case JLE: case JG:
-    if (line->src.type == LABEL && line->dst.type == NOOPERAND) {
+    if (line->inst.src.type == LABEL && line->inst.dst.type == NOOPERAND) {
       // TODO: Handle short jump.
-      ADD_LOC_REL32(line->src.u.label, 2, 6);
-      ADD_CODE(0x0f, 0x80 + (line->op - JO), IM32(-1));
+      ADD_LOC_REL32(line->inst.src.u.label, 2, 6);
+      ADD_CODE(0x0f, 0x80 + (line->inst.op - JO), IM32(-1));
       return;
     }
     break;
   case CALL:
-    if (line->src.type == LABEL && line->dst.type == NOOPERAND) {
-      ADD_LOC_REL32(line->src.u.label, 1, 5);
+    if (line->inst.src.type == LABEL && line->inst.dst.type == NOOPERAND) {
+      ADD_LOC_REL32(line->inst.src.u.label, 1, 5);
       ADD_CODE(0xe8, IM32(-1));
       return;
-    } if (line->src.type == DEREF_REG && line->dst.type == NOOPERAND) {
-      int s = line->src.u.deref_reg.no;
-      if (!line->src.u.deref_reg.x) {
+    } if (line->inst.src.type == DEREF_REG && line->inst.dst.type == NOOPERAND) {
+      int s = line->inst.src.u.deref_reg.no;
+      if (!line->inst.src.u.deref_reg.x) {
         ADD_CODE(0xff, 0xd0 + s);
       } else {
         ADD_CODE(0x41, 0xff, 0xd0 + s);
@@ -1675,8 +1663,8 @@ static void assemble_line(const Line *line) {
     ADD_CODE(0xc3);
     return;
   case INT:
-    if (line->src.type == IMMEDIATE && line->dst.type == NOOPERAND) {
-      long value = line->src.u.immediate;
+    if (line->inst.src.type == IMMEDIATE && line->inst.dst.type == NOOPERAND) {
+      long value = line->inst.src.u.immediate;
       ADD_CODE(0xcd, IM8(value));
       return;
     }
@@ -1688,7 +1676,7 @@ static void assemble_line(const Line *line) {
     break;
   }
 
-  fprintf(stderr, "op=%2d: not handled: %s\n", line->op, line->rawline);
+  fprintf(stderr, "op=%2d: not handled: %s\n", line->inst.op, line->rawline);
   err = true;
 }
 

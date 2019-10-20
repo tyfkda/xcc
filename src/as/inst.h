@@ -198,6 +198,12 @@ typedef struct {
   } u;
 } Operand;
 
+typedef struct {
+  enum Opcode op;
+  Operand src;
+  Operand dst;
+} Inst;
+
 enum DirectiveType {
   NODIRECTIVE,
   DT_ASCII,
@@ -222,3 +228,4 @@ enum RegType parse_register(const char **pp);
 bool parse_immediate(const char **pp, long *value);
 const char *parse_label(const char **pp);
 bool parse_operand(const char **pp, Operand *operand);
+void parse_inst(const char **pp, Inst *inst);
