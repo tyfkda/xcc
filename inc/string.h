@@ -1,5 +1,7 @@
 #pragma once
 
+#include <stddef.h>  // size_t
+
 int strlen(const char *s);
 char* strchr(const char *s, char c);
 char* strrchr(const char *s, char c);
