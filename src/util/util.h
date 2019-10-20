@@ -46,6 +46,7 @@ typedef struct Map {
 } Map;
 
 Map *new_map(void);
+void map_clear(Map *map);
 int map_count(Map *map);
 void map_put(Map *map, const char *key, const void *val);
 bool map_remove(Map *map, const char *key);

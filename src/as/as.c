@@ -79,7 +79,6 @@ enum IRType {
   IR_DATA,
   IR_BSS,
   IR_ALIGN,
-  IR_LOC_REL32,
   IR_LOC_ABS64,
 };
 
@@ -133,15 +132,6 @@ static IR *new_ir_align(int align) {
   IR *ir = malloc(sizeof(*ir));
   ir->type = IR_ALIGN;
   ir->u.align = align;
-  return ir;
-}
-
-static IR *new_ir_loc_rel32(const char *label, int ofs, int base) {
-  IR *ir = malloc(sizeof(*ir));
-  ir->type = IR_LOC_REL32;
-  ir->u.loc.label = label;
-  ir->u.loc.ofs = ofs;
-  ir->u.loc.base = base;
   return ir;
 }
 
@@ -781,7 +771,7 @@ static bool assemble_mov(Line *line, Code *code) {
   return false;
 }
 
-static void assemble_line(Line *line, Code *code, IR **pir) {
+static void assemble_line(Line *line, Code *code) {
   code->len = 0;
 
   switch(line->inst.op) {
@@ -868,7 +858,6 @@ static void assemble_line(Line *line, Code *code, IR **pir) {
       } else {
         int pre = !line->inst.dst.u.reg.x ? 0x48 : 0x4c;
         if (line->inst.src.u.indirect.offset == 0) {
-          *pir = new_ir_loc_rel32(line->inst.src.u.indirect.label, 3, 7);
           MAKE_CODE(&line->inst, code, pre, 0x8d, 0x05 + d * 8, IM32(-1));
           return;
         }
@@ -1712,7 +1701,6 @@ static void assemble_line(Line *line, Code *code, IR **pir) {
   case JMP:
     if (line->inst.src.type != LABEL || line->inst.dst.type != NOOPERAND)
       error("Illegal oprand: JMP");
-    *pir = new_ir_loc_rel32(line->inst.src.u.label, 1, 5);
     MAKE_CODE(&line->inst, code, 0xe9, IM32(-1));
     return;
   case JO: case JNO: case JB:  case JAE:
@@ -1721,14 +1709,12 @@ static void assemble_line(Line *line, Code *code, IR **pir) {
   case JL: case JGE: case JLE: case JG:
     if (line->inst.src.type == LABEL && line->inst.dst.type == NOOPERAND) {
       // TODO: Handle short jump.
-      *pir = new_ir_loc_rel32(line->inst.src.u.label, 2, 6);
       MAKE_CODE(&line->inst, code, 0x0f, 0x80 + (line->inst.op - JO), IM32(-1));
       return;
     }
     break;
   case CALL:
     if (line->inst.src.type == LABEL && line->inst.dst.type == NOOPERAND) {
-      *pir = new_ir_loc_rel32(line->inst.src.u.label, 1, 5);
       MAKE_CODE(&line->inst, code, 0xe8, IM32(-1));
       return;
     } if (line->inst.src.type == DEREF_REG && line->inst.dst.type == NOOPERAND) {
@@ -1763,9 +1749,6 @@ static void assemble_line(Line *line, Code *code, IR **pir) {
 }
 
 static void assemble_file(FILE *fp, Vector **section_irs) {
-  for (int i = 0; i < SECTION_COUNT; ++i)
-    section_irs[i] = new_vector();
-
   for (;;) {
     char *rawline = NULL;
     size_t capa = 0;
@@ -1778,11 +1761,8 @@ static void assemble_file(FILE *fp, Vector **section_irs) {
     if (line->label != NULL)
       vec_push(irs, new_ir_label(line->label));
     if (line->dir == NODIRECTIVE) {
-      IR *ir = NULL;
       Code code;
-      assemble_line(line, &code, &ir);
-      if (ir != NULL)
-        vec_push(irs, ir);
+      assemble_line(line, &code);
       if (code.len > 0)
         vec_push(irs, new_ir_code(&code));
     } else {
@@ -1791,8 +1771,59 @@ static void assemble_file(FILE *fp, Vector **section_irs) {
   }
 }
 
-static void emit_irs(Vector **section_irs) {
+static uintptr_t align_next_section(enum SectionType sec, uintptr_t address) {
+  static const int kAlignTable[] = {0, 4096, 16};
+  int align = kAlignTable[sec];
+  if (align > 1)
+    address = ALIGN(address, align);
+  return address;
+}
+
+void calc_label_address(uintptr_t start_address, Vector **section_irs, Map *label_map) {
+  map_clear(label_map);
+  uintptr_t address = start_address;
   for (int sec = 0; sec < SECTION_COUNT; ++sec) {
+    address = align_next_section(sec, address);
+
+    Vector *irs = section_irs[sec];
+    for (int i = 0, len = irs->len; i < len; ++i) {
+      IR *ir = irs->data[i];
+      switch (ir->type) {
+      case IR_LABEL:
+        map_put(label_map, ir->u.label, (void*)address);
+        break;
+      case IR_CODE:
+        address += ir->u.code.len;
+        break;
+      case IR_DATA:
+        address += ir->u.data.len;
+        break;
+      case IR_BSS:
+        address += ir->u.bss;
+        break;
+      case IR_ALIGN:
+        address = ALIGN(address, ir->u.align);
+        break;
+      case IR_LOC_ABS64:
+        break;
+      default:  assert(false); break;
+      }
+    }
+  }
+}
+
+static void put_value(unsigned char *p, intptr_t value, int size) {
+  for (int i = 0; i < size; ++i) {
+    *p++ = value;
+    value >>= 8;
+  }
+}
+
+static void emit_irs(uintptr_t start_address, Vector **section_irs, Map *label_map) {
+  uintptr_t address = start_address;
+  for (int sec = 0; sec < SECTION_COUNT; ++sec) {
+    address = align_next_section(sec, address);
+
     Vector *irs = section_irs[sec];
     for (int i = 0, len = irs->len; i < len; ++i) {
       IR *ir = irs->data[i];
@@ -1801,19 +1832,59 @@ static void emit_irs(Vector **section_irs) {
         add_label(sec, ir->u.label);
         break;
       case IR_CODE:
-        add_code(ir->u.code.buf, ir->u.code.len);
+        {
+          Inst *inst = ir->u.code.inst;
+          switch (inst->op) {
+          case LEA:
+            if (inst->src.type == INDIRECT &&
+                inst->src.u.indirect.reg.no == RIP &&
+                inst->src.u.indirect.offset == 0 &&
+                inst->src.u.indirect.label != NULL) {
+              void *dst;
+              if (map_try_get(label_map, inst->src.u.indirect.label, &dst)) {
+                put_value(ir->u.code.buf + 3, (intptr_t)dst - ((intptr_t)address + ir->u.code.len), sizeof(int32_t));
+              } else {
+                fprintf(stderr, "%s: not found\n", inst->src.u.indirect.label);
+                err = true;
+              }
+            }
+            break;
+          case JMP:
+          case JO: case JNO: case JB:  case JAE:
+          case JE: case JNE: case JBE: case JA:
+          case JS: case JNS: case JP:  case JNP:
+          case JL: case JGE: case JLE: case JG:
+          case CALL:
+            if (inst->src.type == LABEL) {
+              void *dst;
+              if (map_try_get(label_map, inst->src.u.label, &dst)) {
+                int d = (inst->op == JMP || inst->op == CALL) ? 1 : 2;
+                put_value(ir->u.code.buf + d, (intptr_t)dst - ((intptr_t)address + ir->u.code.len), sizeof(int32_t));
+              } else {
+                fprintf(stderr, "JMP: %s, not found\n", inst->src.u.label);
+                err = true;
+              }
+            }
+            break;
+          default:
+            break;
+          }
+
+          add_code(ir->u.code.buf, ir->u.code.len);
+          address += ir->u.code.len;
+        }
         break;
       case IR_DATA:
         add_section_data(sec, ir->u.data.buf, ir->u.data.len);
+        address += ir->u.data.len;
         break;
       case IR_BSS:
         add_bss(ir->u.bss);
+        address += ir->u.bss;
         break;
       case IR_ALIGN:
         align_section_size(sec, ir->u.align);
-        break;
-      case IR_LOC_REL32:
-        add_loc_rel32(ir->u.loc.label, ir->u.loc.ofs, ir->u.loc.base);
+        address = ALIGN(address, ir->u.align);
         break;
       case IR_LOC_ABS64:
         add_loc_abs64(sec, ir->u.loc.label, ir->u.loc.ofs);
@@ -1822,12 +1893,6 @@ static void emit_irs(Vector **section_irs) {
       }
     }
   }
-}
-
-static void assemble(FILE *fp) {
-  Vector *section_irs[SECTION_COUNT];
-  assemble_file(fp, section_irs);
-  emit_irs(section_irs);
 }
 
 static void put_padding(FILE* fp, uintptr_t start) {
@@ -1860,17 +1925,26 @@ int main(int argc, char* argv[]) {
     return 1;
   }
 
+  Vector *section_irs[SECTION_COUNT];
+  for (int i = 0; i < SECTION_COUNT; ++i)
+    section_irs[i] = new_vector();
+
   if (iarg < argc) {
     for (int i = iarg; i < argc; ++i) {
       FILE *fp = fopen(argv[i], "r");
       if (fp == NULL)
         error("Cannot open %s\n", argv[i]);
-      assemble(fp);
+      assemble_file(fp, section_irs);
       fclose(fp);
     }
   } else {
-    assemble(stdin);
+    assemble_file(stdin, section_irs);
   }
+
+  Map *label_map = new_map();
+  calc_label_address(LOAD_ADDRESS, section_irs, label_map);
+
+  emit_irs(LOAD_ADDRESS, section_irs, label_map);
 
   if (err) {
     if (fp != NULL) {

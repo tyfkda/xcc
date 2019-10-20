@@ -240,6 +240,11 @@ Map *new_map(void) {
   return map;
 }
 
+void map_clear(Map *map) {
+  vec_clear(map->keys);
+  vec_clear(map->vals);
+}
+
 int map_count(Map *map) {
   return map->keys->len;
 }
