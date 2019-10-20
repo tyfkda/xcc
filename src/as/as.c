@@ -1823,7 +1823,6 @@ static void emit_irs(uintptr_t start_address, Vector **section_irs, Map *label_m
       IR *ir = irs->data[i];
       switch (ir->type) {
       case IR_LABEL:
-        add_label(sec, ir->u.label);
         break;
       case IR_CODE:
         {
@@ -1959,7 +1958,7 @@ int main(int argc, char* argv[]) {
     return 1;
   }
 
-  resolve_label_locations(LOAD_ADDRESS);
+  fix_section_size(LOAD_ADDRESS);
 
   size_t codefilesz, codememsz;
   size_t datafilesz, datamemsz;
@@ -1967,13 +1966,13 @@ int main(int argc, char* argv[]) {
   get_section_size(0, &codefilesz, &codememsz, &codeloadadr);
   get_section_size(1, &datafilesz, &datamemsz, &dataloadadr);
 
-  uintptr_t entry = label_adr("_start");
-  if (entry == (uintptr_t)-1)
+  void *entry;
+  if (!map_try_get(label_map, "_start", &entry))
     error("Cannot find label: `%s'", "_start");
 
   int phnum = datamemsz > 0 ? 2 : 1;
 
-  out_elf_header(fp, entry, phnum);
+  out_elf_header(fp, (uintptr_t)entry, phnum);
   out_program_header(fp, 0, PROG_START, codeloadadr, codefilesz, codememsz);
   if (phnum > 1)
     out_program_header(fp, 1, ALIGN(PROG_START + codefilesz, 0x1000), dataloadadr, datafilesz, datamemsz);
