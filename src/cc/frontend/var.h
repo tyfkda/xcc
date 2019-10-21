@@ -5,6 +5,7 @@
 #include <stdbool.h>
 
 typedef struct Declaration Declaration;
+typedef struct EnumInfo EnumInfo;
 typedef struct Function Function;
 typedef struct FrameInfo FrameInfo;
 typedef struct Initializer Initializer;
@@ -76,7 +77,7 @@ typedef struct Scope {
   Vector *vars;  // <VarInfo*>
   Table *struct_table;  // <StructInfo*>
   Table *typedef_table;  // <Type*>
-  Table *enum_table;  // <Type*>
+  Table *enum_table;  // <EnumInfo*>
 } Scope;
 
 extern Scope *global_scope;
@@ -93,5 +94,5 @@ void define_struct(Scope *scope, const Name *name, StructInfo *sinfo);
 Type *find_typedef(Scope *scope, const Name *name, Scope **pscope);
 bool add_typedef(Scope *scope, const Name *name, Type *type);
 
-Type *find_enum(Scope *scope, const Name *name);
-Type *define_enum(Scope *scope, const Name *name);
+EnumInfo *find_enum(Scope *scope, const Name *name);
+void define_enum(Scope *scope, const Name *name, EnumInfo *einfo);

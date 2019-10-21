@@ -163,23 +163,19 @@ bool add_typedef(Scope *scope, const Name *name, Type *type) {
   return true;
 }
 
-Type *find_enum(Scope *scope, const Name *name) {
+EnumInfo *find_enum(Scope *scope, const Name *name) {
   for (; scope != NULL; scope = scope->parent) {
     if (scope->enum_table == NULL)
       continue;
-    Type *type = table_get(scope->enum_table, name);
-    if (type != NULL)
-      return type;
+    EnumInfo *einfo = table_get(scope->enum_table, name);
+    if (einfo != NULL)
+      return einfo;
   }
   return NULL;
 }
 
-Type *define_enum(Scope *scope, const Name *name) {
-  Type *type = create_enum_type(name);
-  if (name != NULL) {
-    if (scope->enum_table == NULL)
-      scope->enum_table = alloc_table();
-    table_put(scope->enum_table, name, type);
-  }
-  return type;
+void define_enum(Scope *scope, const Name *name, EnumInfo *einfo) {
+  if (scope->enum_table == NULL)
+    scope->enum_table = alloc_table();
+  table_put(scope->enum_table, name, einfo);
 }

@@ -161,6 +161,9 @@ test_basic() {
   try_direct 'direct addressing' 99 'int main(int argc, char *argv[]) {(void)argv; if (argc < 0) { *(volatile short*)0x12 = 0x34; return *(volatile int*)0x5678; } return 99;}'
   try_direct 'restrict for array in funparam' 83 'int sub(int arr[restrict]) { return arr[0]; } int main(void) { int a[] = {83}; return sub(a); }'
 
+  try_direct 'extern undef enum' 99 'extern enum Foo x; int main(){ return x; } enum Foo x = 99;'
+  try_direct 'enum only' 55 'enum Foo; int sub(enum Foo); enum Foo {BAR, BAZ}; int main(){ return sub(BAR); } int sub(enum Foo foo) { return foo + 55; } '
+
   end_test_suite
 }
 
@@ -261,7 +264,7 @@ test_error() {
   compile_error '*num' 'int main(){ *123; }'
   compile_error '&num' 'int main(){ &123; }'
   compile_error '&enum' 'enum Num { Zero }; int main(){ void *p = &Zero; (void)p; }'
-  compile_error 'scoped enum name' 'int sub(){enum Num{Zero}; return Zero;} int main(){enum Num n = 0; return n;}'
+  compile_error 'scoped enum name' 'int sub(){enum Num{Zero}; return Zero;} int main(){enum Num n = Zero; return n;}'
   compile_error 'scoped enum value' 'int sub(){enum{Zero}; return Zero;} int main(){return Zero;}'
   compile_error 'assign to non-lhs' 'int main(){ int x; x + 1 = 3; }'
   compile_error 'assign to array' 'int main(){ int a[3], b[3]; a = b; (void)a; }'

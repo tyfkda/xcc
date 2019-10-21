@@ -48,7 +48,7 @@ TEST(print_type) {
   check_print_type("int*[][3]", arrayof(arrayof(ptrof(&tyInt), 3), -1));
 
   {
-    Type *type = create_enum_type(alloc_name("Enum", NULL, false));
+    Type *type = create_enum_type(NULL, alloc_name("Enum", NULL, false));
     check_print_type("enum Enum", type);
   }
 

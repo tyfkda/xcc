@@ -202,23 +202,26 @@ static Expr *parse_member_access(Expr *target, Token *acctok) {
 }
 
 static void parse_enum_members(Type *type) {
-  assert(type != NULL && type->kind == TY_FIXNUM && type->fixnum.kind == FX_ENUM);
-  Type *ctype = qualified_type(type, TQ_CONST);
+  Vector *members = type->fixnum.enum_.info->members;
   int value = 0;
   while (!match(TK_RBRACE)) {
-    Token *ident = consume(TK_IDENT, "ident expected");
-    if (ident == NULL)
+    Token *name = consume(TK_IDENT, "ident expected");
+    if (name == NULL)
       break;
     if (match(TK_ASSIGN)) {
       Expr *expr = parse_const_fixnum();
       value = expr->fixnum;
     }
 
-    if (scope_find(global_scope, ident->ident, NULL) != NULL) {
-      parse_error(PE_NOFATAL, ident, "`%.*s' is already defined", NAMES(ident->ident));
+    if (scope_find(global_scope, name->ident, NULL) != NULL) {
+      parse_error(PE_NOFATAL, name, "`%.*s' is already defined", NAMES(name->ident));
     } else {
-      define_enum_member(ctype, ident, value);
+      define_enum_member(type, name, value);
     }
+    EnumMemberInfo *m = malloc(sizeof(*m));
+    m->name = name->ident;
+    m->value = value;
+    vec_push(members, m);
     ++value;
 
     if (!match(TK_COMMA)) {
@@ -231,16 +234,30 @@ static void parse_enum_members(Type *type) {
 }
 
 static Type *parse_enum(void) {
-  Token *ident = match(TK_IDENT);
-  Type *type = ident != NULL ? find_enum(curscope, ident->ident) : NULL;
+  Token *name = match(TK_IDENT);
+  EnumInfo *einfo = name != NULL ? find_enum(curscope, name->ident) : NULL;
+  Type *type;
   if (match(TK_LBRACE)) {
-    if (type != NULL)
-      parse_error(PE_FATAL, ident, "Duplicate enum type");
-    type = define_enum(curscope, ident != NULL ? ident->ident : NULL);
+    if (einfo != NULL) {
+      parse_error(PE_NOFATAL, name, "Duplicate enum type");
+    } else {
+      einfo = malloc(sizeof(*einfo));
+      einfo->members = new_vector();
+      if (name != NULL)
+        define_enum(curscope, name->ident, einfo);
+    }
+    type = create_enum_type(einfo, name != NULL ? name->ident : NULL);
     parse_enum_members(type);
   } else {
-    if (type == NULL)
-      parse_error(PE_FATAL, ident, "Unknown enum type");
+    if (einfo == NULL) {
+      if (name == NULL) {
+        parse_error(PE_NOFATAL, NULL, "ident expected");
+      } else {
+        // Imcomplete enum (enum with unknown name): Create silently.
+        define_enum(curscope, name->ident, NULL);
+      }
+    }
+    type = create_enum_type(NULL, name != NULL ? name->ident : NULL);
   }
   return type;
 }
