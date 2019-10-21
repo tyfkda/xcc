@@ -75,7 +75,7 @@ static Expr *parse_member_access(Expr *target, Token *acctok) {
   if (ident == NULL)
     return target;
 
-  if (!ensure_struct(type, ident, curscope))
+  if (!ensure_type_info(type, ident, curscope, true))
     return new_expr_fixlit(&tyInt, acctok, 0);  // TODO
 
   int index = find_struct_member(type->struct_.info, ident->ident);
@@ -662,7 +662,7 @@ static Expr *funcall(Expr *func, Token *tok) {
   }
 
   Type *rettype = functype->func.ret;
-  ensure_struct(rettype, tok, curscope);
+  ensure_type_info(rettype, tok, curscope, true);
 
   if (func->kind == EX_VAR && is_global_scope(func->var.scope)) {
     VarInfo *varinfo = scope_find(func->var.scope, func->var.name, NULL);
@@ -708,7 +708,7 @@ static Expr *size_align_of(Token *token) {
     tok = expr->token;
   }
   assert(type != NULL);
-  if (!ensure_struct(type, tok, curscope))
+  if (!ensure_type_info(type, tok, curscope, true))
     return new_expr_fixlit(&tySize, token, 1);  // Dummy
 #ifndef __NO_VLA
   if (ptr_or_array(type) && type->pa.vla != NULL)

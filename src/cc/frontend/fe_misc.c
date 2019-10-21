@@ -221,14 +221,28 @@ void exit_scope(void) {
 }
 
 // Call before accessing struct member to ensure that struct is declared.
-bool ensure_struct(Type *type, const Token *token, Scope *scope) {
+bool ensure_type_info(Type *type, const Token *token, Scope *scope, bool raise_error) {
   switch (type->kind) {
+  case TY_FIXNUM:
+    if (type->fixnum.kind == FX_ENUM && type->fixnum.enum_.info == NULL) {
+      assert(type->fixnum.enum_.tagname != NULL);
+      Scope *scope2;
+      EnumInfo *einfo = find_enum(scope, type->fixnum.enum_.tagname, &scope2);
+      if (einfo == NULL && (raise_error || scope2 == NULL)) {
+        parse_error(raise_error ? PE_NOFATAL : PE_WARNING, token, "Imcomplete enum: `%.*s'",
+                    NAMES(type->fixnum.enum_.tagname));
+        return false;
+      }
+      type->fixnum.enum_.info = einfo;
+    }
+    break;
   case TY_STRUCT:
     {
       if (type->struct_.info == NULL) {
         StructInfo *sinfo = find_struct(scope, type->struct_.name, NULL);
         if (sinfo == NULL) {
-          parse_error(PE_NOFATAL, token, "Imcomplete struct: `%.*s'", NAMES(type->struct_.name));
+          parse_error(raise_error ? PE_NOFATAL : PE_WARNING, token, "Imcomplete struct: `%.*s'",
+                      NAMES(type->struct_.name));
           return false;
         }
         type->struct_.info = sinfo;
@@ -239,13 +253,13 @@ bool ensure_struct(Type *type, const Token *token, Scope *scope) {
       for (int i = 0; i < sinfo->member_count; ++i) {
         MemberInfo *minfo = &sinfo->members[i];
         if (minfo->type->kind == TY_STRUCT &&
-            !ensure_struct(minfo->type, token, scope))
+            !ensure_type_info(minfo->type, token, scope, raise_error))
           return false;
       }
     }
     break;
   case TY_ARRAY:
-    return ensure_struct(type->pa.ptrof, token, scope);
+    return ensure_type_info(type->pa.ptrof, token, scope, raise_error);
   default:
     break;
   }
@@ -300,6 +314,8 @@ const MemberInfo *search_from_anonymous(const Type *type, const Name *name, cons
 
 static void mark_var_used_sub(Expr *expr, bool for_func) {
   VarInfo *gvarinfo = NULL;
+
+  ensure_type_info(expr->type, expr->token, curscope, true);
 
   switch (expr->kind) {
   case EX_VAR:
@@ -485,7 +501,7 @@ void check_funcall_args(Expr *func, Vector *args, Scope *scope) {
       arg = make_cast(array_to_ptr(arg->type), arg->token, arg, false);
     if (i < paramc) {
       Type *type = types->data[i];
-      if (!ensure_struct(type, arg->token, scope))
+      if (!ensure_type_info(type, arg->token, scope, true))
         continue;
       if (type->kind == TY_ARRAY)
         type = array_to_ptr(type);  // Needed for VLA.

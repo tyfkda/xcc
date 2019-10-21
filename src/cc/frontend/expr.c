@@ -600,7 +600,7 @@ Expr *new_expr_addsub(enum ExprKind kind, const Token *tok, Expr *lhs, Expr *rhs
       if (ltype->kind == TY_ARRAY)
         type = array_to_ptr(ltype);
       // lhs + ((size_t)rhs * sizeof(*lhs))
-      if (!ensure_struct(type->pa.ptrof, tok, curscope))
+      if (!ensure_type_info(type->pa.ptrof, tok, curscope, true))
         return lhs;
       rhs = new_expr_num_bop(EX_MUL, rhs->token,
                              make_cast(&tySize, rhs->token, rhs, false),
@@ -620,7 +620,7 @@ Expr *new_expr_addsub(enum ExprKind kind, const Token *tok, Expr *lhs, Expr *rhs
         rhs = new_expr_cast(rtype, rhs->token, rhs);
       }
       // ((size_t)lhs - (size_t)rhs) / sizeof(*lhs)
-      if (!ensure_struct(ltype->pa.ptrof, tok, curscope))
+      if (!ensure_type_info(ltype->pa.ptrof, tok, curscope, true))
         return lhs;
       if (is_const(lhs) && is_const(rhs)) {
         assert(lhs->kind == EX_FIXNUM);
@@ -639,7 +639,7 @@ Expr *new_expr_addsub(enum ExprKind kind, const Token *tok, Expr *lhs, Expr *rhs
       if (type->kind == TY_ARRAY)
         type = array_to_ptr(type);
       // ((size_t)lhs * sizeof(*rhs)) + rhs
-      if (!ensure_struct(type->pa.ptrof, tok, curscope))
+      if (!ensure_type_info(type->pa.ptrof, tok, curscope, true))
         return rhs;
       Expr *tmp = new_expr_num_bop(EX_MUL, lhs->token,
                                    make_cast(&tySize, lhs->token, lhs, false),

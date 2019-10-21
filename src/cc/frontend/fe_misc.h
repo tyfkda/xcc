@@ -83,7 +83,7 @@ Expr *proc_builtin_function_name(const Token *tok);
 Scope *enter_scope(Function *func);
 void exit_scope(void);
 
-bool ensure_struct(Type *type, const Token *token, Scope *scope);
+bool ensure_type_info(Type *type, const Token *token, Scope *scope, bool raise_error);
 bool check_cast(const Type *dst, const Type *src, bool zero, bool is_explicit, const Token *token);
 const MemberInfo *search_from_anonymous(const Type *type, const Name *name, const Token *ident,
                                         Vector *stack);

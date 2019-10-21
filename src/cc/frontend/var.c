@@ -116,13 +116,15 @@ StructInfo *find_struct(Scope *scope, const Name *name, Scope **pscope) {
   for (; scope != NULL; scope = scope->parent) {
     if (scope->struct_table == NULL)
       continue;
-    StructInfo *sinfo = table_get(scope->struct_table, name);
-    if (sinfo != NULL) {
+    StructInfo *sinfo;
+    if (table_try_get(scope->struct_table, name, (void**)&sinfo)) {
       if (pscope != NULL)
         *pscope = scope;
       return sinfo;
     }
   }
+  if (pscope != NULL)
+    *pscope = NULL;
   return NULL;
 }
 
@@ -135,7 +137,7 @@ void define_struct(Scope *scope, const Name *name, StructInfo *sinfo) {
 Type *find_typedef(Scope *scope, const Name *name, Scope **pscope) {
   for (; scope != NULL; scope = scope->parent) {
     Type *type;
-    if (scope->typedef_table != NULL && (type = table_get(scope->typedef_table, name)) != NULL) {
+    if (scope->typedef_table != NULL && table_try_get(scope->typedef_table, name, (void**)&type)) {
       if (pscope != NULL)
         *pscope = scope;
       return type;
@@ -145,6 +147,8 @@ Type *find_typedef(Scope *scope, const Name *name, Scope **pscope) {
     if (var_find(scope->vars, name) >= 0)
       break;
   }
+  if (pscope != NULL)
+    *pscope = NULL;
   return NULL;
 }
 
@@ -159,23 +163,24 @@ bool add_typedef(Scope *scope, const Name *name, Type *type) {
   return true;
 }
 
-Type *find_enum(Scope *scope, const Name *name) {
+EnumInfo *find_enum(Scope *scope, const Name *name, Scope **pscope) {
   for (; scope != NULL; scope = scope->parent) {
     if (scope->enum_table == NULL)
       continue;
-    Type *type = table_get(scope->enum_table, name);
-    if (type != NULL)
-      return type;
+    EnumInfo *einfo;
+    if (table_try_get(scope->enum_table, name, (void**)&einfo)) {
+      if (pscope != NULL)
+        *pscope = scope;
+      return einfo;
+    }
   }
+  if (pscope != NULL)
+    *pscope = NULL;
   return NULL;
 }
 
-Type *define_enum(Scope *scope, const Name *name) {
-  Type *type = create_enum_type(name);
-  if (name != NULL) {
-    if (scope->enum_table == NULL)
-      scope->enum_table = alloc_table();
-    table_put(scope->enum_table, name, type);
-  }
-  return type;
+void define_enum(Scope *scope, const Name *name, EnumInfo *einfo) {
+  if (scope->enum_table == NULL)
+    scope->enum_table = alloc_table();
+  table_put(scope->enum_table, name, einfo);
 }

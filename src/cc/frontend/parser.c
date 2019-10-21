@@ -157,7 +157,7 @@ static void def_type(Type *type, Token *ident) {
 
   if (defined == NULL || (type->kind == TY_STRUCT && type->struct_.info != NULL)) {
     if (type->kind == TY_ARRAY) {
-      if (!ensure_struct(type, ident, curscope))
+      if (!ensure_type_info(type, ident, curscope, true))
         return;
     }
     add_typedef(curscope, name, type);
@@ -906,10 +906,11 @@ static Declaration *parse_defun(Type *functype, int storage, Token *ident, const
   static_vars = func->static_vars = new_vector();
   curvarinfo = varinfo;
   Vector *top_vars = new_vector();
+  ensure_type_info(functype->func.ret, ident, curscope, true);
   for (int i = 0; i < param_vars->len; ++i) {
     VarInfo *vi = param_vars->data[i];
     vec_push(top_vars, vi);
-    ensure_struct(vi->type, tok, curscope);
+    ensure_type_info(vi->type, vi->ident, curscope, true);
   }
   func->scopes = new_vector();
   Scope *scope = enter_scope(func);

@@ -18,6 +18,7 @@ extern bool parsing_stmt;
 static void parse_enum_members(Type *type) {
   assert(type != NULL && type->kind == TY_FIXNUM && type->fixnum.kind == FX_ENUM);
   Type *ctype = qualified_type(type, TQ_CONST);
+  Vector *members = type->fixnum.enum_.info->members;
   int value = 0;
   while (!match(TK_RBRACE)) {
     Token *ident = consume(TK_IDENT, "ident expected");
@@ -33,6 +34,10 @@ static void parse_enum_members(Type *type) {
     } else {
       define_enum_member(ctype, ident, value);
     }
+    EnumMemberInfo *m = calloc_or_die(sizeof(*m));
+    m->name = ident->ident;
+    m->value = value;
+    vec_push(members, m);
     ++value;
 
     if (!match(TK_COMMA)) {
@@ -45,16 +50,30 @@ static void parse_enum_members(Type *type) {
 }
 
 static Type *parse_enum(void) {
-  Token *ident = match(TK_IDENT);
-  Type *type = ident != NULL ? find_enum(curscope, ident->ident) : NULL;
+  Token *tagname = match(TK_IDENT);
+  EnumInfo *einfo = tagname != NULL ? find_enum(curscope, tagname->ident, NULL) : NULL;
+  Type *type;
   if (match(TK_LBRACE)) {
-    if (type != NULL)
-      parse_error(PE_FATAL, ident, "Duplicate enum type");
-    type = define_enum(curscope, ident != NULL ? ident->ident : NULL);
+    if (einfo != NULL) {
+      parse_error(PE_NOFATAL, tagname, "Duplicate enum type");
+    } else {
+      einfo = malloc_or_die(sizeof(*einfo));
+      einfo->members = new_vector();
+      if (tagname != NULL)
+        define_enum(curscope, tagname->ident, einfo);
+    }
+    type = create_enum_type(einfo, tagname != NULL ? tagname->ident : NULL);
     parse_enum_members(type);
   } else {
-    if (type == NULL)
-      parse_error(PE_FATAL, ident, "Unknown enum type");
+    if (einfo == NULL) {
+      if (tagname == NULL) {
+        parse_error(PE_NOFATAL, NULL, "ident expected");
+      } else {
+        // Imcomplete enum (enum with unknown name): Create silently.
+        define_enum(curscope, tagname->ident, NULL);
+      }
+    }
+    type = create_enum_type(NULL, tagname != NULL ? tagname->ident : NULL);
   }
   return type;
 }
@@ -82,7 +101,7 @@ static StructInfo *parse_struct(bool is_union) {
 
       if (!not_void(type, NULL))
         type = &tyInt;  // Deceive to continue compiling.
-      if (!ensure_struct(type, ident, curscope))
+      if (!ensure_type_info(type, ident, curscope, true))
         continue;
       Expr *bit = NULL;
 #ifndef __NO_BITFIELD
@@ -649,6 +668,8 @@ Vector *parse_funparams(bool *pvaargs) {
           break;
         default: break;
         }
+
+        ensure_type_info(type, ident, curscope, false);
 
         if (type->kind == TY_STRUCT) {
           if (type->struct_.info != NULL && type->struct_.info->is_flexible)

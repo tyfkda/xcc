@@ -373,13 +373,14 @@ int find_struct_member(const StructInfo *sinfo, const Name *name) {
 
 // Enum
 
-Type *create_enum_type(const Name *name) {
+Type *create_enum_type(EnumInfo *einfo, const Name *tagname) {
   Type *type = malloc_or_die(sizeof(*type));
   type->kind = TY_FIXNUM;
   type->qualifier = 0;
   type->fixnum.kind = FX_ENUM;
   type->fixnum.is_unsigned = false;
-  type->fixnum.enum_.ident = name;
+  type->fixnum.enum_.tagname = tagname;
+  type->fixnum.enum_.info = einfo;
   return type;
 }
 
@@ -628,8 +629,8 @@ void print_type_recur(FILE *fp, const Type *type, PrintTypeChain *parent) {
       switch (kind) {
       case FX_ENUM:
         {
-          if (type->fixnum.enum_.ident != NULL)
-            fprintf(fp, "enum %.*s", NAMES(type->fixnum.enum_.ident));
+          if (type->fixnum.enum_.tagname != NULL)
+            fprintf(fp, "enum %.*s", NAMES(type->fixnum.enum_.tagname));
           else
             fprintf(fp, "enum (anonymous)");
         }

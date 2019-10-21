@@ -75,6 +75,15 @@ typedef struct StructInfo {
   bool is_flexible;
 } StructInfo;
 
+typedef struct EnumMemberInfo {
+  const Name *name;
+  int value;
+} EnumMemberInfo;
+
+typedef struct EnumInfo {
+  Vector *members;  // <EnumMemberInfo*>
+} EnumInfo;
+
 #define LEN_UND  (-1)  // Indicate array length is not specified (= []).
 #define LEN_FAM  (-2)  // Indicate this array is flexible array member.
 #define LEN_VLA  (-3)  // Indicate this array is variable length array.
@@ -87,7 +96,8 @@ typedef struct Type {
       enum FixnumKind kind;
       bool is_unsigned;
       struct {
-        const Name *ident;
+        const Name *tagname;
+        EnumInfo *info;
       } enum_;
     } fixnum;
     struct {
@@ -162,7 +172,7 @@ StructInfo *create_struct_info(MemberInfo *members, int count, bool is_union, bo
 Type *create_struct_type(StructInfo *sinfo, const Name *name, int qualifier);
 int find_struct_member(const StructInfo *sinfo, const Name *name);
 
-Type *create_enum_type(const Name *name);
+Type *create_enum_type(EnumInfo *einfo, const Name *tagname);
 
 bool same_type_without_qualifier(const Type *type1, const Type *type2, bool ignore_qualifier);
 static inline bool same_type(const Type *type1, const Type *type2)  { return same_type_without_qualifier(type1, type2, false); }

@@ -18,6 +18,8 @@ function test_basic() {
   try_direct 'restrict for array in funparam' 83 'int sub(int arr[restrict]) { return arr[0]; } int main(void) { int a[] = {83}; return sub(a); }'
   segfault 'string literal is not const' "int main(void) {char *s = \"foo\"; s[0] = 'x'; return 0;} //-WCC"
   try_direct 'return void' 169 'int G; void f(int x) {return (void)(G = x);} int main(void) {f(169); return G;} //-WNOERR'
+  try_direct 'enum forward declaration' 55 'enum Foo; int sub(enum Foo); enum Foo {BAR, BAZ}; int main(){ return sub(BAR); } int sub(enum Foo foo) { return foo + 55; } '
+  compile_error 'incomplete enum' 'extern enum Foo x; int main(){ return x; } enum Foo x = 99;'
 
   end_test_suite
 }
