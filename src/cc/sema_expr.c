@@ -224,9 +224,11 @@ Expr *add_expr(const Token *tok, Expr *lhs, Expr *rhs, bool keep_left) {
 }
 
 static Expr *diff_ptr(const Token *tok, Expr *lhs, Expr *rhs) {
-  if (!same_type(lhs->valType, rhs->valType))
+  const Type *ltype = array_to_ptr(lhs->valType);
+  const Type *rtype = array_to_ptr(rhs->valType);
+  if (!same_type(ltype, rtype))
     parse_error(tok, "Different pointer diff");
-  const Type *elem_type = lhs->valType;
+  const Type *elem_type = ltype;
   if (elem_type->type == TY_PTR)
     elem_type = elem_type->u.pa.ptrof;
   return new_expr_bop(EX_DIV, &tySize, tok,

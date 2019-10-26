@@ -632,6 +632,11 @@ int main(void) {
   }
   expect("static local var", 44, (static_local(), static_local()));
   expect("null initializer", 0L, (long)null);
+  {
+    int buf[16], *p = buf + 13;
+    expect("diff ptr and array", 13, p - buf);
+    expect("diff ptr and array2", -13, buf - p);
+  }
 
   return 0;
 }
