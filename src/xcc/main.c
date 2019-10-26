@@ -27,52 +27,59 @@ static pid_t fork1(void) {
   return pid;
 }
 
-// cmd1 | cmd2 > dst_fd
-static int pipe_command(char *const *cmd1, char *const *cmd2, int dst_fd) {
-  int fd[2];
-  if (pipe(fd) < 0)
-    error("pipe failed");
-  pid_t pid1 = fork1();
-  if (pid1 == 0) {
-    close(STDOUT_FILENO);
-    if (dup(fd[1]) == -1)
-      error("dup failed");
-    close(fd[0]);
-    close(fd[1]);
-    if (execvp(cmd1[0], cmd1) < 0) {
-      perror(cmd1[0]);
+static int wait_process(pid_t pid) {
+  int ec = -1;
+  if (waitpid(pid, &ec, 0) < 0)
+    error("wait failed");
+  return ec;
+}
+
+// command > ofd
+static pid_t exec_with_ofd(char **command, int ofd) {
+  pid_t pid = fork1();
+  if (pid == 0) {
+    if (ofd >= 0 && ofd != STDOUT_FILENO) {
+      close(STDOUT_FILENO);
+      if (dup(ofd) == -1)
+        error("dup failed");
+    }
+
+    if (execvp(command[0], command) < 0) {
+      perror(command[0]);
       exit(1);
     }
   }
-  pid_t pid2 = fork1();
-  if (pid2 == 0) {
+  return pid;
+}
+
+// | command > ofd
+pid_t pipe_exec(char **command, int ofd, int fd[2]) {
+  if (pipe(fd) < 0)
+    error("pipe failed");
+
+  pid_t pid = fork1();
+  if (pid == 0) {
     close(STDIN_FILENO);
     if (dup(fd[0]) == -1)
       error("dup failed");
-    if (dst_fd >= 0) {
+
+    if (ofd >= 0 && ofd != STDOUT_FILENO) {
       close(STDOUT_FILENO);
-      if (dup(dst_fd) == -1)
+      if (dup(ofd) == -1)
         error("dup failed");
     }
+
     close(fd[0]);
     close(fd[1]);
-    if (execvp(cmd2[0], cmd2) < 0) {
-      perror(cmd2[0]);
+    if (execvp(command[0], command) < 0) {
+      perror(command[0]);
       exit(1);
     }
   }
-  close(fd[0]);
-  close(fd[1]);
-
-  int ec1 = -1, ec2 = -1;
-  int r1 = waitpid(pid1, &ec1, 0);
-  int r2 = waitpid(pid2, &ec2, 0);
-  if (r1 < 0 || r2 < 0)
-    error("wait failed");
-  return ec1 != 0 ? ec1 : ec2;
+  return pid;
 }
 
-static int cat(const char *filename, int dst_fd) {
+static int cat(const char *filename, int ofd) {
   int ifd = open(filename, O_RDONLY);
   if (ifd < 0)
     return 1;
@@ -84,7 +91,7 @@ static int cat(const char *filename, int dst_fd) {
     if (size < 0)
       return 1;
     if (size > 0)
-      write(dst_fd, buf, size);
+      write(ofd, buf, size);
     if (size < SIZE)
       break;
   }
@@ -115,17 +122,32 @@ static void create_local_label_prefix_option(int index, char *out, size_t n) {
   snprintf(out, n, "%s%s", LOCAL_LABEL_PREFIX, p);
 }
 
-static int compile(const char *src, int index, Vector *cpp_cmd, Vector *cc1_cmd, int dst_fd) {
-  char prefix_option[32];
-  create_local_label_prefix_option(index, prefix_option, sizeof(prefix_option));
+static int compile(const char *src, Vector *cpp_cmd, Vector *cc1_cmd, int ofd) {
+  int ofd2 = ofd;
+  int cc_fd[2];
+  pid_t cc_pid = -1;
+  if (cc1_cmd != NULL) {
+    cc_pid = pipe_exec((char**)cc1_cmd->data, ofd, cc_fd);
+    ofd2 = cc_fd[1];
+  }
 
   cpp_cmd->data[cpp_cmd->len - 2] = (void*)src;
-  cc1_cmd->data[cc1_cmd->len - 2] = prefix_option;
-  return pipe_command((char**)cpp_cmd->data, (char**)cc1_cmd->data, dst_fd);
+  pid_t cpp_pid = exec_with_ofd((char**)cpp_cmd->data, ofd2);
+  int r = wait_process(cpp_pid);
+  if (r == 0) {
+    if (cc_pid != -1) {
+      close(cc_fd[0]);
+      close(cc_fd[1]);
+      r = wait_process(cc_pid);
+    }
+  }
+  return r;
 }
+
 
 int main(int argc, char* argv[]) {
   const char *ofn = "a.out";
+  bool out_pp = false;
   bool out_asm = false;
   int iarg;
 
@@ -153,6 +175,8 @@ int main(int argc, char* argv[]) {
       ofn = arg + 2;
       vec_push(as_cmd, arg);
     }
+    if (strncmp(arg, "-E", 2) == 0)
+      out_pp = true;
     if (strncmp(arg, "-S", 2) == 0)
       out_asm = true;
     vec_push(cc1_cmd, arg);
@@ -164,39 +188,28 @@ int main(int argc, char* argv[]) {
   vec_push(cc1_cmd, NULL);  // Terminator.
   vec_push(as_cmd, NULL);  // Terminator.
 
-  int fd[2];
-  pid_t pid = -1;
+  int ofd = STDOUT_FILENO;
+  int as_fd[2];
+  pid_t as_pid = -1;
 
-  if (!out_asm) {
-    // Pipe for as.
-    if (pipe(fd) < 0)
-      error("pipe failed");
-
-    // as
-    pid = fork1();
-    if (pid == 0) {
-      close(STDIN_FILENO);
-      if (dup(fd[0]) == -1)
-        error("dup failed");
-      close(fd[0]);
-      close(fd[1]);
-      if (execvp(as_cmd->data[0], (char**)as_cmd->data) < 0) {
-        perror(as_cmd->data[0]);
-        exit(1);
-      }
-    }
+  if (!out_pp && !out_asm) {
+    as_pid = pipe_exec((char**)as_cmd->data, -1, as_fd);
+    ofd = as_fd[1];
   }
 
-  int dst_fd = out_asm ? -1 : fd[1];
-  int res;
+  int res = 0;
   if (iarg < argc) {
     for (int i = iarg; i < argc; ++i) {
       char *src = argv[i];
       char *ext = get_ext(src);
       if (strcasecmp(ext, "c") == 0) {
-        res = compile(src, i - iarg, cpp_cmd, cc1_cmd, dst_fd);
+        char prefix_option[32];
+        create_local_label_prefix_option(i - iarg, prefix_option, sizeof(prefix_option));
+        cc1_cmd->data[cc1_cmd->len - 2] = prefix_option;
+
+        res = compile(src, cpp_cmd, out_pp ? NULL : cc1_cmd, ofd);
       } else if (strcasecmp(ext, "s") == 0) {
-        res = cat(src, dst_fd);
+        res = cat(src, ofd);
       } else {
         fprintf(stderr, "Unsupported file type: %s\n", src);
         res = -1;
@@ -206,27 +219,26 @@ int main(int argc, char* argv[]) {
     }
   } else {
     // cpp is read from stdin.
-    res = pipe_command((char**)cpp_cmd->data, (char**)cc1_cmd->data, dst_fd);
+    res = compile(NULL, cpp_cmd, out_pp ? NULL : cc1_cmd, ofd);
   }
 
-  if (res != 0 && !out_asm) {
-    assert(pid != -1);
+  if (res != 0 && as_pid != -1) {
 #if !defined(__XV6)
-    kill(pid, SIGKILL);
+    kill(as_pid, SIGKILL);
     remove(ofn);
 #else
     (void)ofn;
 #endif
+    close(as_fd[0]);
+    close(as_fd[1]);
+    as_pid = -1;
   }
 
-  if (!out_asm) {
-    close(fd[0]);
-    close(fd[1]);
+  if (as_pid != -1) {
+    close(as_fd[0]);
+    close(as_fd[1]);
 
-    int ec;
-    int r1 = waitpid(pid, &ec, 0);
-    if (r1 < 0 || ec != 0)
-      return 1;
+    res = wait_process(as_pid);
   }
   return res == 0 ? 0 : 1;
 }
