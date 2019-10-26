@@ -62,6 +62,30 @@ static unsigned char *put_rex2(unsigned char *p, enum RegSize size,
   return p;
 }
 
+static unsigned char *put_rex_indirect(
+    unsigned char *p, enum RegSize size, int reg, int indirect_reg,
+    unsigned char opcode, long offset)
+{
+  p = put_rex0(p, size, reg, indirect_reg,
+               size == REG8 ? opcode : (unsigned char)(opcode + 1));
+  int d = reg & 7;
+  int s = indirect_reg & 7;
+  unsigned char code = (offset == 0 && s != RBP - RAX) ? 0x00 : is_im8(offset) ? 0x40 : 0x80;
+  *p++ = code | s | (d << 3);
+  if (s == RSP - RAX)
+    *p++ = 0x24;
+
+  if (offset == 0 && s != RBP - RAX) {
+    ;
+  } else if (is_im8(offset)) {
+    *p++ = IM8(offset);
+  } else if (is_im32(offset)) {
+    PUT_CODE(p, IM32(offset));
+    p += 4;
+  }
+  return p;
+}
+
 static bool assemble_mov(Inst *inst, const char *rawline, Code *code) {
   unsigned char *p = code->buf;
 
@@ -94,374 +118,25 @@ static bool assemble_mov(Inst *inst, const char *rawline, Code *code) {
   } else if (inst->src.type == INDIRECT && inst->dst.type == REG) {
     if (inst->src.u.indirect.label == NULL) {
       if (inst->src.u.indirect.reg.no != RIP) {
-        int s = inst->src.u.indirect.reg.no;
-        int d = inst->dst.u.reg.no;
         long offset = inst->src.u.indirect.offset;
-        if (inst->dst.u.reg.size == REG8) {
-          if (!inst->src.u.indirect.reg.x && opr_reg8(&inst->dst.u.reg)) {
-            if (s != RSP - RAX) {
-              if (offset == 0 && s != RBP - RAX) {
-                MAKE_CODE(inst, code, 0x8a, 0x00 + s + d * 8);
-                return true;
-              } else if (is_im8(offset)) {
-                MAKE_CODE(inst, code, 0x8a, 0x40 + s + d * 8, IM8(offset));
-                return true;
-              } else if (is_im32(offset)) {
-                MAKE_CODE(inst, code, 0x8a, 0x80 + s + d * 8, IM32(offset));
-                return true;
-              }
-            } else {
-              if (offset == 0) {
-                MAKE_CODE(inst, code, 0x8a, 0x04 + d * 8, 0x24);
-                return true;
-              } else if (is_im8(offset)) {
-                MAKE_CODE(inst, code, 0x8a, 0x44 + d * 8, 0x24, IM8(offset));
-                return true;
-              } else if (is_im32(offset)) {
-                MAKE_CODE(inst, code, 0x8a, 0x84 + d * 8, 0x24, IM32(offset));
-                return true;
-              }
-            }
-          } else {
-            int pre = (!inst->src.u.indirect.reg.x ? 0x40 : 0x41) + (!inst->dst.u.reg.x ? 0 : 4);
-            if (s != RSP - RAX) {
-              if (offset == 0 && s != RBP - RAX) {
-                MAKE_CODE(inst, code, pre, 0x8a, 0x00 + s + d * 8);
-                return true;
-              } else if (is_im8(offset)) {
-                MAKE_CODE(inst, code, pre, 0x8a, 0x40 + s + d * 8, IM8(offset));
-                return true;
-              } else if (is_im32(offset)) {
-                MAKE_CODE(inst, code, pre, 0x8a, 0x80 + s + d * 8, IM32(offset));
-                return true;
-              }
-            } else {
-              if (offset == 0) {
-                MAKE_CODE(inst, code, pre, 0x8a, 0x04 + d * 8, 0x24);
-                return true;
-              } else if (is_im8(offset)) {
-                MAKE_CODE(inst, code, pre, 0x8a, 0x44 + d * 8, 0x24, IM8(offset));
-                return true;
-              } else if (is_im32(offset)) {
-                MAKE_CODE(inst, code, pre, 0x8a, 0x84 + d * 8, 0x24, IM32(offset));
-                return true;
-              }
-            }
-          }
-        } else if (inst->dst.u.reg.size == REG16) {
-          if (!inst->dst.u.reg.x && !inst->src.u.indirect.reg.x) {
-            if (s != RSP - RAX) {
-              if (offset == 0 && s != RBP - RAX) {
-                MAKE_CODE(inst, code, 0x66, 0x8b, 0x00 + s + d * 8);
-                return true;
-              } else if (is_im8(offset)) {
-                MAKE_CODE(inst, code, 0x66, 0x8b, 0x40 + s + d * 8, IM8(offset));
-                return true;
-              } else if (is_im32(offset)) {
-                MAKE_CODE(inst, code, 0x66, 0x8b, 0x80 + s + d * 8, IM32(offset));
-                return true;
-              }
-            } else {
-              if (offset == 0) {
-                MAKE_CODE(inst, code, 0x66, 0x8b, 0x04 + d * 8, 0x24);
-                return true;
-              } else if (is_im8(offset)) {
-                MAKE_CODE(inst, code, 0x66, 0x8b, 0x44 + d * 8, 0x24, IM8(offset));
-                return true;
-              } else if (is_im32(offset)) {
-                MAKE_CODE(inst, code, 0x66, 0x8b, 0x84 + d * 8, 0x24, IM32(offset));
-                return true;
-              }
-            }
-          } else {
-            int pre = (!inst->src.u.indirect.reg.x ? 0x40 : 0x41) + (!inst->dst.u.reg.x ? 0 : 4);
-            if (s != RSP - RAX) {
-              if (offset == 0 && s != RBP - RAX) {
-                MAKE_CODE(inst, code, 0x66, pre, 0x8b, 0x00 + s + d * 8);
-                return true;
-              } else if (is_im8(offset)) {
-                MAKE_CODE(inst, code, 0x66, pre, 0x8b, 0x40 + s + d * 8, IM8(offset));
-                return true;
-              } else if (is_im32(offset)) {
-                MAKE_CODE(inst, code, 0x66, pre, 0x8b, 0x80 + s + d * 8, IM32(offset));
-                return true;
-              }
-            } else {
-              if (offset == 0) {
-                MAKE_CODE(inst, code, 0x66, pre, 0x8b, 0x04 + d * 8, 0x24);
-                return true;
-              } else if (is_im8(offset)) {
-                MAKE_CODE(inst, code, 0x66, pre, 0x8b, 0x44 + d * 8, 0x24, IM8(offset));
-                return true;
-              } else if (is_im32(offset)) {
-                MAKE_CODE(inst, code, 0x66, pre, 0x8b, 0x84 + d * 8, 0x24, IM32(offset));
-                return true;
-              }
-            }
-          }
-        } else if (inst->dst.u.reg.size == REG32) {
-          if (!inst->src.u.indirect.reg.x && !inst->dst.u.reg.x) {
-            if (s != RSP - RAX) {
-              if (offset == 0 && s != RBP - RAX) {
-                MAKE_CODE(inst, code, 0x8b, 0x00 + s + d * 8);
-                return true;
-              } else if (is_im8(offset)) {
-                MAKE_CODE(inst, code, 0x8b, 0x40 + s + d * 8, IM8(offset));
-                return true;
-              } else if (is_im32(offset)) {
-                MAKE_CODE(inst, code, 0x8b, 0x80 + s + d * 8, IM32(offset));
-                return true;
-              }
-            } else {
-              if (offset == 0) {
-                MAKE_CODE(inst, code, 0x8b, 0x04 + d * 8, 0x24);
-                return true;
-              } else if (is_im8(offset)) {
-                MAKE_CODE(inst, code, 0x8b, 0x44 + d * 8, 0x24, IM8(offset));
-                return true;
-              } else if (is_im32(offset)) {
-                MAKE_CODE(inst, code, 0x8b, 0x84 + d * 8, 0x24, IM32(offset));
-                return true;
-              }
-            }
-          } else {
-            int pre = (!inst->src.u.indirect.reg.x ? 0x40 : 0x41) + (!inst->dst.u.reg.x ? 0 : 4);
-            if (s != RSP - RAX) {
-              if (offset == 0 && s != RBP - RAX) {
-                MAKE_CODE(inst, code, pre, 0x8b, 0x00 + s + d * 8);
-                return true;
-              } else if (is_im8(offset)) {
-                MAKE_CODE(inst, code, pre, 0x8b, 0x40 + s + d * 8, IM8(offset));
-                return true;
-              } else if (is_im32(offset)) {
-                MAKE_CODE(inst, code, pre, 0x8b, 0x80 + s + d * 8, IM32(offset));
-                return true;
-              }
-            } else {
-              if (offset == 0) {
-                MAKE_CODE(inst, code, pre, 0x8b, 0x04 + d * 8, 0x24);
-                return true;
-              } else if (is_im8(offset)) {
-                MAKE_CODE(inst, code, pre, 0x8b, 0x44 + d * 8, 0x24, IM8(offset));
-                return true;
-              } else if (is_im32(offset)) {
-                MAKE_CODE(inst, code, pre, 0x8b, 0x84 + d * 8, 0x24, IM32(offset));
-                return true;
-              }
-            }
-          }
-        } else if (inst->dst.u.reg.size == REG64) {
-          int pre = (!inst->src.u.indirect.reg.x ? 0x48 : 0x49) + (!inst->dst.u.reg.x ? 0 : 4);
-          if (s != RSP - RAX) {
-            if (offset == 0 && s != RBP - RAX) {
-              MAKE_CODE(inst, code, pre, 0x8b, 0x00 + s + d * 8);
-              return true;
-            } else if (is_im8(offset)) {
-              MAKE_CODE(inst, code, pre, 0x8b, 0x40 + s + d * 8, IM8(offset));
-              return true;
-            } else if (is_im32(offset)) {
-              MAKE_CODE(inst, code, pre, 0x8b, 0x80 + s + d * 8, IM32(offset));
-              return true;
-            }
-          } else {
-            if (offset == 0) {
-              MAKE_CODE(inst, code, pre, 0x8b, 0x04 + d * 8, 0x24);
-              return true;
-            } else if (is_im8(offset)) {
-              MAKE_CODE(inst, code, pre, 0x8b, 0x44 + d * 8, 0x24, IM8(offset));
-              return true;
-            } else if (is_im32(offset)) {
-              MAKE_CODE(inst, code, pre, 0x8b, 0x84 + d * 8, 0x24, IM32(offset));
-              return true;
-            }
-          }
-        }
+        enum RegSize size = inst->dst.u.reg.size;
+        p = put_rex_indirect(
+            p, size,
+            opr_regno(&inst->dst.u.reg),
+            opr_regno(&inst->src.u.indirect.reg),
+            0x8a, offset);
       }
     }
-  } else if (inst->src.type == REG && inst->dst.type == INDIRECT &&
-             inst->dst.u.indirect.reg.no != RIP) {
+  } else if (inst->src.type == REG && inst->dst.type == INDIRECT) {
     if (inst->dst.u.indirect.label == NULL) {
-      int s = inst->src.u.reg.no;
-      int d = inst->dst.u.indirect.reg.no;
-      long offset = inst->dst.u.indirect.offset;
-      if (inst->src.u.reg.size == REG8) {
-        if (opr_reg8(&inst->src.u.reg) && !inst->dst.u.indirect.reg.x) {
-          if (d != RSP - RAX) {
-            if (offset == 0 && d != RBP - RAX) {
-              MAKE_CODE(inst, code, 0x88, 0x00 + d + s * 8);
-              return true;
-            } else if (is_im8(offset)) {
-              MAKE_CODE(inst, code, 0x88, 0x40 + d + s * 8, IM8(offset));
-              return true;
-            } else if (is_im32(offset)) {
-              MAKE_CODE(inst, code, 0x89, 0x80 + d + s * 8, IM32(offset));
-              return true;
-            }
-          } else {
-            if (offset == 0) {
-              MAKE_CODE(inst, code, 0x88, 0x04 + s * 8, 0x24);
-              return true;
-            } else if (is_im8(offset)) {
-              MAKE_CODE(inst, code, 0x88, 0x44 + s * 8, 0x24, IM8(offset));
-              return true;
-            } else if (is_im32(offset)) {
-              MAKE_CODE(inst, code, 0x89, 0x84 + s * 8, 0x24, IM32(offset));
-              return true;
-            }
-          }
-        } else {
-          int pre = (!inst->dst.u.indirect.reg.x ? 0x40 : 0x41) + (!inst->src.u.reg.x ? 0 : 4);
-          if (d != RSP - RAX) {
-            if (offset == 0 && d != RBP - RAX) {
-              MAKE_CODE(inst, code, pre, 0x88, 0x00 + d + s * 8);
-              return true;
-            } else if (is_im8(offset)) {
-              MAKE_CODE(inst, code, pre, 0x88, 0x40 + d + s * 8, IM8(offset));
-              return true;
-            } else if (is_im32(offset)) {
-              MAKE_CODE(inst, code, pre, 0x89, 0x80 + d + s * 8, IM32(offset));
-              return true;
-            }
-          } else {
-            if (offset == 0) {
-              MAKE_CODE(inst, code, pre, 0x88, 0x04 + s * 8, 0x24);
-              return true;
-            } else if (is_im8(offset)) {
-              MAKE_CODE(inst, code, pre, 0x88, 0x44 + s * 8, 0x24, IM8(offset));
-              return true;
-            } else if (is_im32(offset)) {
-              MAKE_CODE(inst, code, pre, 0x89, 0x84 + s * 8, 0x24, IM32(offset));
-              return true;
-            }
-          }
-        }
-      } else if (inst->src.u.reg.size == REG16) {
-        if (!inst->src.u.reg.x && !inst->dst.u.indirect.reg.x) {
-          if (d != RSP - RAX) {
-            if (offset == 0 && d != RBP - RAX) {
-              MAKE_CODE(inst, code, 0x66, 0x89, 0x00 + d + s * 8);
-              return true;
-            } else if (is_im8(offset)) {
-              MAKE_CODE(inst, code, 0x66, 0x89, 0x40 + d + s * 8, IM8(offset));
-              return true;
-            } else if (is_im32(offset)) {
-              MAKE_CODE(inst, code, 0x66, 0x89, 0x80 + d + s * 8, IM32(offset));
-              return true;
-            }
-          } else {
-            if (offset == 0) {
-              MAKE_CODE(inst, code, 0x66, 0x89, 0x04 + s * 8, 0x24);
-              return true;
-            } else if (is_im8(offset)) {
-              MAKE_CODE(inst, code, 0x66, 0x89, 0x44 + s * 8, 0x24, IM8(offset));
-              return true;
-            } else if (is_im32(offset)) {
-              MAKE_CODE(inst, code, 0x66, 0x89, 0x84 + s * 8, 0x24, IM32(offset));
-              return true;
-            }
-          }
-        } else {
-          int pre = (!inst->dst.u.indirect.reg.x ? 0x40 : 0x41) + (!inst->src.u.reg.x ? 0 : 4);
-          if (d != RSP - RAX) {
-            if (offset == 0 && d != RBP - RAX) {
-              MAKE_CODE(inst, code, 0x66, pre, 0x89, 0x00 + d + s * 8);
-              return true;
-            } else if (is_im8(offset)) {
-              MAKE_CODE(inst, code, 0x66, pre, 0x89, 0x40 + d + s * 8, IM8(offset));
-              return true;
-            } else if (is_im32(offset)) {
-              MAKE_CODE(inst, code, 0x66, pre, 0x89, 0x80 + d + s * 8, IM32(offset));
-              return true;
-            }
-          } else {
-            if (offset == 0) {
-              MAKE_CODE(inst, code, 0x66, pre, 0x89, 0x04 + s * 8, 0x24);
-              return true;
-            } else if (is_im8(offset)) {
-              MAKE_CODE(inst, code, 0x66, pre, 0x89, 0x44 + s * 8, 0x24, IM8(offset));
-              return true;
-            } else if (is_im32(offset)) {
-              MAKE_CODE(inst, code, 0x66, pre, 0x89, 0x84 + s * 8, 0x24, IM32(offset));
-              return true;
-            }
-          }
-        }
-      } else if (inst->src.u.reg.size == REG32) {
-        if (!inst->dst.u.indirect.reg.x && !inst->src.u.reg.x) {
-          if (d != RSP - RAX) {
-            if (offset == 0 && d != RBP - RAX) {
-              MAKE_CODE(inst, code, 0x89, 0x00 + d + s * 8);
-              return true;
-            } else if (is_im8(offset)) {
-              MAKE_CODE(inst, code, 0x89, 0x40 + d + s * 8, IM8(offset));
-              return true;
-            } else if (is_im32(offset)) {
-              MAKE_CODE(inst, code, 0x89, 0x80 + d + s * 8, IM32(offset));
-              return true;
-            }
-          } else {
-            if (offset == 0) {
-              MAKE_CODE(inst, code, 0x89, 0x04 + s * 8, 0x24);
-              return true;
-            } else if (is_im8(offset)) {
-              MAKE_CODE(inst, code, 0x89, 0x44 + s * 8, 0x24, IM8(offset));
-              return true;
-            } else if (is_im32(offset)) {
-              MAKE_CODE(inst, code, 0x89, 0x84 + s * 8, 0x24, IM32(offset));
-              return true;
-            }
-          }
-        } else {
-          int pre = (!inst->dst.u.indirect.reg.x ? 0x40 : 0x41) + (!inst->src.u.reg.x ? 0 : 4);
-          if (d != RSP - RAX) {
-            if (offset == 0 && d != RBP - RAX) {
-              MAKE_CODE(inst, code, pre, 0x89, 0x00 + d + s * 8);
-              return true;
-            } else if (is_im8(offset)) {
-              MAKE_CODE(inst, code, pre, 0x89, 0x40 + d + s * 8, IM8(offset));
-              return true;
-            } else if (is_im32(offset)) {
-              MAKE_CODE(inst, code, pre, 0x89, 0x80 + d + s * 8, IM32(offset));
-              return true;
-            }
-          } else {
-            if (offset == 0) {
-              MAKE_CODE(inst, code, pre, 0x89, 0x04 + s * 8, 0x24);
-              return true;
-            } else if (is_im8(offset)) {
-              MAKE_CODE(inst, code, pre, 0x89, 0x44 + s * 8, 0x24, IM8(offset));
-              return true;
-            } else if (is_im32(offset)) {
-              MAKE_CODE(inst, code, pre, 0x89, 0x84 + s * 8, 0x24, IM32(offset));
-              return true;
-            }
-          }
-        }
-      } else if (inst->src.u.reg.size == REG64) {
-        int pre = (!inst->dst.u.indirect.reg.x ? 0x48 : 0x49) + (!inst->src.u.reg.x ? 0 : 4);
-        if (d != RSP - RAX) {
-          if (offset == 0 && d != RBP - RAX) {
-            MAKE_CODE(inst, code, pre, 0x89, 0x00 + d + s * 8);
-            return true;
-          } else if (is_im8(offset)) {
-            MAKE_CODE(inst, code, pre, 0x89, 0x40 + d + s * 8, IM8(offset));
-            return true;
-          } else if (is_im32(offset)) {
-            MAKE_CODE(inst, code, pre, 0x89, 0x80 + d + s * 8, IM32(offset));
-            return true;
-          }
-        } else {
-          if (offset == 0) {
-            MAKE_CODE(inst, code, pre, 0x89, 0x04 + s * 8, 0x24);
-            return true;
-          } else if (is_im8(offset)) {
-            MAKE_CODE(inst, code, pre, 0x89, 0x44 + s * 8, 0x24, IM8(offset));
-            return true;
-          } else if (is_im32(offset)) {
-            MAKE_CODE(inst, code, pre, 0x89, 0x84 + s * 8, 0x24, IM32(offset));
-            return true;
-          }
-        }
+      if (inst->dst.u.indirect.reg.no != RIP) {
+        long offset = inst->dst.u.indirect.offset;
+        enum RegSize size = inst->src.u.reg.size;
+        p = put_rex_indirect(
+            p, size,
+            opr_regno(&inst->src.u.reg),
+            opr_regno(&inst->dst.u.indirect.reg),
+            0x88, offset);
       }
     }
   }
@@ -547,38 +222,19 @@ bool assemble_inst(Inst *inst, const char *rawline, Code *code) {
 
       int d = inst->dst.u.reg.no;
       if (inst->src.u.indirect.reg.no != RIP) {
-        int s = inst->src.u.indirect.reg.no;
-        int pre = (!inst->src.u.indirect.reg.x ? 0x48 : 0x49) + (!inst->dst.u.reg.x ? 0 : 4);
         if (inst->src.u.indirect.label == NULL) {
           long offset = inst->src.u.indirect.offset;
-          if (inst->src.u.indirect.reg.no != RSP - RAX) {
-            if (offset == 0 && inst->src.u.indirect.reg.no != RBP - RAX) {
-              MAKE_CODE(inst, code, pre, 0x8d, 0x00 + s + d * 8);
-              return true;
-            } else if (is_im8(offset)) {
-              MAKE_CODE(inst, code, pre, 0x8d, 0x40 + s + d * 8, IM8(offset));
-              return true;
-            } else if (is_im32(offset)) {
-              MAKE_CODE(inst, code, pre, 0x8d, 0x80 + s + d * 8, IM32(offset));
-              return true;
-            }
-          } else {
-            if (offset == 0) {
-              MAKE_CODE(inst, code, pre, 0x8d, 0x04 + d * 8, 0x24);
-              return true;
-            } else if (is_im8(offset)) {
-              MAKE_CODE(inst, code, pre, 0x8d, 0x44 + d * 8, 0x24, IM8(offset));
-              return true;
-            } else if (is_im32(offset)) {
-              MAKE_CODE(inst, code, pre, 0x8d, 0x84 + d * 8, 0x24, IM32(offset));
-              return true;
-            }
-          }
+          enum RegSize size = inst->dst.u.reg.size;
+          p = put_rex_indirect(
+              p, size,
+              opr_regno(&inst->dst.u.reg),
+              opr_regno(&inst->src.u.indirect.reg),
+              0x8c, offset);
         }
       } else {
         int pre = !inst->dst.u.reg.x ? 0x48 : 0x4c;
         if (inst->src.u.indirect.offset == 0) {
-          MAKE_CODE(inst, code, pre, 0x8d, 0x05 + d * 8, IM32(-1));
+          MAKE_CODE(inst, code, pre, 0x8d, 0x05 | (d << 3), IM32(-1));
           return true;
         }
       }
@@ -608,29 +264,15 @@ bool assemble_inst(Inst *inst, const char *rawline, Code *code) {
         }
       }
     } else if (inst->src.type == INDIRECT && inst->dst.type == REG) {
-      if (!inst->src.u.indirect.reg.x && inst->src.u.indirect.label == NULL &&
-          inst->dst.u.reg.size == REG64) {
-        int pre = (!inst->src.u.indirect.reg.x ? 0x48 : 0x49) + (!inst->dst.u.reg.x ? 0 : 4);
-        int s = inst->src.u.indirect.reg.no;
-        int d = inst->dst.u.reg.no;
+      if (inst->src.u.indirect.label == NULL &&
+          inst->src.u.indirect.reg.no != RIP) {
         long offset = inst->src.u.indirect.offset;
-        if (inst->src.u.indirect.reg.no != RSP - RAX) {
-          if (offset == 0 && inst->src.u.indirect.reg.no != RBP - RAX) {
-            MAKE_CODE(inst, code, pre, 0x03, 0x00 + s + d * 8);
-          } else if (is_im8(offset)) {
-            MAKE_CODE(inst, code, pre, 0x03, 0x40 + s + d * 8, IM8(offset));
-          } else if (is_im32(offset)) {
-            MAKE_CODE(inst, code, pre, 0x03, 0x80 + s + d * 8, IM8(offset));
-          }
-        } else {
-          if (offset == 0 && inst->src.u.indirect.reg.no != RBP - RAX) {
-            MAKE_CODE(inst, code, pre, 0x03, 0x04 + d * 8, 0x24);
-          } else if (is_im8(offset)) {
-            MAKE_CODE(inst, code, pre, 0x03, 0x44 + d * 8, 0x24, IM8(offset));
-          } else if (is_im32(offset)) {
-            MAKE_CODE(inst, code, pre, 0x03, 0x84 + d * 8, 0x24, IM8(offset));
-          }
-        }
+        enum RegSize size = inst->dst.u.reg.size;
+        p = put_rex_indirect(
+            p, size,
+            opr_regno(&inst->dst.u.reg),
+            opr_regno(&inst->src.u.indirect.reg),
+            0x02, offset);
       }
     }
     break;
