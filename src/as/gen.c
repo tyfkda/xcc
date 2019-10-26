@@ -8,8 +8,7 @@
 
 typedef struct {
   uintptr_t start_address;
-  unsigned char* buf;
-  size_t size;
+  Buffer buf;
 } Section;
 
 static Section sections[SECTION_COUNT - 1];  // -1 for BBS
@@ -28,17 +27,8 @@ void add_bss(size_t size) {
 
 void align_section_size(enum SectionType secno, int align) {
   if (secno != SEC_BSS) {
-    size_t size = sections[secno].size;
-    size_t aligned_size = ALIGN(size, align);
-    size_t add = aligned_size - size;
-    if (add <= 0)
-      return;
-
-    void* zero = calloc(add, 1);
-    add_section_data(secno, zero, add);
-    free(zero);
-
-    assert(sections[secno].size == aligned_size);
+    Section *sec = &sections[secno];
+    buf_align(&sec->buf, align);
   } else {
     if (align > bss_align)
       bss_align = align;
@@ -49,14 +39,7 @@ void align_section_size(enum SectionType secno, int align) {
 void add_section_data(enum SectionType secno, const void* data, size_t bytes) {
   assert(secno != SEC_BSS);
   Section *sec = &sections[secno];
-  size_t size = sec->size;
-  size_t newsize = size + bytes;
-  unsigned char *buf = realloc(sec->buf, newsize);
-  if (buf == NULL)
-    error("not enough memory");
-  memcpy(buf + size, data, bytes);
-  sec->buf = buf;
-  sec->size = newsize;
+  buf_put(&sec->buf, data, bytes);
 }
 
 void add_code(const void* buf, size_t bytes) {
@@ -65,12 +48,12 @@ void add_code(const void* buf, size_t bytes) {
 
 void fix_section_size(uintptr_t start_address) {
   sections[SEC_CODE].start_address = start_address;
-  sections[SEC_DATA].start_address = ALIGN(sections[SEC_CODE].start_address + sections[SEC_CODE].size, 4096);
-  bss_start_address = sections[SEC_DATA].start_address + ALIGN(sections[SEC_DATA].size, bss_align);
+  sections[SEC_DATA].start_address = ALIGN(sections[SEC_CODE].start_address + sections[SEC_CODE].buf.size, 4096);
+  bss_start_address = sections[SEC_DATA].start_address + ALIGN(sections[SEC_DATA].buf.size, bss_align);
 }
 
 void get_section_size(int section, size_t *pfilesz, size_t *pmemsz, uintptr_t *ploadadr) {
-  size_t size = sections[section].size;
+  size_t size = sections[section].buf.size;
   *pfilesz = size;
   *ploadadr = sections[section].start_address;
   switch (section) {
@@ -87,7 +70,7 @@ void get_section_size(int section, size_t *pfilesz, size_t *pmemsz, uintptr_t *p
 }
 
 void output_section(FILE* fp, int section) {
-  Section *p = &sections[section];
-  unsigned char *buf = p->buf;
-  fwrite(buf, p->size, 1, fp);
+  Section *sec = &sections[section];
+  const void *data = sec->buf.data;
+  fwrite(data, sec->buf.size, 1, fp);
 }

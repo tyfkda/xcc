@@ -28,6 +28,15 @@ bool is_im32(intptr_t x);
 
 // Container
 
+typedef struct Buffer {
+  unsigned char *data;
+  size_t capa;
+  size_t size;
+} Buffer;
+
+void buf_put(Buffer *buf, const void *data, size_t bytes);
+void buf_align(Buffer *buf, int align);
+
 typedef struct Vector {
   void **data;
   int capacity;

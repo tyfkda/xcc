@@ -214,6 +214,40 @@ bool is_im32(intptr_t x) {
 
 // Container
 
+#define BUF_MIN    (16 / 2)
+#define BUF_ALIGN  (16)
+
+void buf_put(Buffer *buf, const void *data, size_t bytes) {
+  size_t size = buf->size;
+  size_t newsize = size + bytes;
+
+  if (newsize > buf->capa) {
+    size_t newcapa = ALIGN(MAX(newsize, (size_t)BUF_MIN) * 2, BUF_ALIGN);
+    unsigned char *p = realloc(buf->data, newcapa);
+    if (p == NULL)
+      error("not enough memory");
+    buf->data = p;
+    buf->capa = newcapa;
+  }
+
+  memcpy(buf->data + size, data, bytes);
+  buf->size = newsize;
+}
+
+void buf_align(Buffer *buf, int align) {
+  size_t size = buf->size;
+  size_t aligned_size = ALIGN(size, align);
+  size_t add = aligned_size - size;
+  if (add <= 0)
+    return;
+
+  void* zero = calloc(add, 1);
+  buf_put(buf, zero, add);
+  free(zero);
+
+  assert(buf->size == aligned_size);
+}
+
 Vector *new_vector(void) {
   Vector *vec = malloc(sizeof(Vector));
   vec->data = malloc(sizeof(void *) * 16);
