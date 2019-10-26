@@ -10,4 +10,4 @@ typedef struct Code {
   unsigned char buf[15];
 } Code;
 
-bool assemble_inst(Inst *inst, Code *code);
+bool assemble_inst(Inst *inst, const char *rawline, Code *code);

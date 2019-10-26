@@ -52,7 +52,7 @@ void parse_file(FILE *fp, Vector **section_irs) {
       vec_push(irs, new_ir_label(line->label));
     if (line->dir == NODIRECTIVE) {
       Code code;
-      assemble_inst(&line->inst, &code);
+      assemble_inst(&line->inst, line->rawline, &code);
       if (code.len > 0)
         vec_push(irs, new_ir_code(&code));
     } else {
