@@ -12,7 +12,9 @@ typedef struct {
   size_t size;
 } Section;
 
-static Section sections[3];
+static Section sections[SECTION_COUNT - 1];  // -1 for BBS
+static uintptr_t bss_start_address;
+static size_t bss_size;
 
 typedef struct {
   enum SectionType section;
@@ -20,24 +22,29 @@ typedef struct {
 } LabelInfo;
 
 void add_bss(size_t size) {
-  sections[SEC_BSS].size += size;
+  bss_size += size;
 }
 
-void align_section_size(enum SectionType section, int align) {
-  size_t size = sections[section].size;
-  size_t aligned_size = ALIGN(size, align);
-  size_t add = aligned_size - size;
-  if (add <= 0)
-    return;
+void align_section_size(enum SectionType secno, int align) {
+  if (secno != SEC_BSS) {
+    size_t size = sections[secno].size;
+    size_t aligned_size = ALIGN(size, align);
+    size_t add = aligned_size - size;
+    if (add <= 0)
+      return;
 
-  void* zero = calloc(add, 1);
-  add_section_data(section, zero, add);
-  free(zero);
+    void* zero = calloc(add, 1);
+    add_section_data(secno, zero, add);
+    free(zero);
 
-  assert(sections[section].size == aligned_size);
+    assert(sections[secno].size == aligned_size);
+  } else {
+    bss_size = ALIGN(bss_size, align);
+  }
 }
 
 void add_section_data(enum SectionType secno, const void* data, size_t bytes) {
+  assert(secno != SEC_BSS);
   Section *sec = &sections[secno];
   size_t size = sec->size;
   size_t newsize = size + bytes;
@@ -57,7 +64,7 @@ void fix_section_size(uintptr_t start_address) {
   sections[SEC_CODE].start_address = start_address;
   sections[SEC_DATA].start_address = ALIGN(sections[SEC_CODE].start_address + sections[SEC_CODE].size, 4096);
   sections[SEC_DATA].size = ALIGN(sections[SEC_DATA].size, 16);  // TODO: Calc max align.
-  sections[SEC_BSS].start_address = sections[SEC_DATA].start_address + sections[SEC_DATA].size;
+  bss_start_address = sections[SEC_DATA].start_address + sections[SEC_DATA].size;
 }
 
 void get_section_size(int section, size_t *pfilesz, size_t *pmemsz, uintptr_t *ploadadr) {
@@ -68,7 +75,7 @@ void get_section_size(int section, size_t *pfilesz, size_t *pmemsz, uintptr_t *p
     *pmemsz = *pfilesz;
     break;
   case SEC_DATA:
-    *pmemsz = *pfilesz + sections[SEC_BSS].size;  // Include bss.
+    *pmemsz = *pfilesz + bss_size;  // Include bss.
     break;
   default:
     assert(!"Illegal");
