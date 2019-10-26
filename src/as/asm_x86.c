@@ -23,13 +23,13 @@ static void make_code(Inst *inst, Code *code, unsigned char *buf, int len) {
   memcpy(code->buf, buf, len);
 }
 
-static char opr_regno(const Operand *opr) {
-  return opr->u.reg.no | (opr->u.reg.x << 3);
+static char opr_regno(const Reg *reg) {
+  return reg->no | (reg->x << 3);
 }
 
-static bool opr_reg8(const Operand *opr) {
-  assert(opr->u.reg.size == REG8);
-  return opr_regno(opr) < 4;
+static bool opr_reg8(const Reg *reg) {
+  assert(reg->size == REG8);
+  return opr_regno(reg) < 4;
 }
 
 static bool assemble_error(const char *rawline, const char *message) {
@@ -47,7 +47,7 @@ static bool assemble_mov(Inst *inst, const char *rawline, Code *code) {
     int d = inst->dst.u.reg.no;
     switch (inst->src.u.reg.size) {
     case REG8:
-      if (opr_reg8(&inst->src) && opr_reg8(&inst->dst)) {
+      if (opr_reg8(&inst->src.u.reg) && opr_reg8(&inst->dst.u.reg)) {
         MAKE_CODE(inst, code, 0x88, 0xc0 + d + s * 8);
       } else {
         int pre = (!inst->dst.u.reg.x ? 0x40 : 0x41) + (!inst->src.u.reg.x ? 0 : 4);
@@ -83,7 +83,7 @@ static bool assemble_mov(Inst *inst, const char *rawline, Code *code) {
     int d = inst->dst.u.reg.no;
     switch (inst->dst.u.reg.size) {
     case REG8:
-      if (opr_reg8(&inst->dst)) {
+      if (opr_reg8(&inst->dst.u.reg)) {
         MAKE_CODE(inst, code, 0xb0 + d, IM8(inst->src.u.immediate));
       } else {
         int pre = !inst->dst.u.reg.x ? 0x40 : 0x41;
@@ -124,7 +124,7 @@ static bool assemble_mov(Inst *inst, const char *rawline, Code *code) {
         int d = inst->dst.u.reg.no;
         long offset = inst->src.u.indirect.offset;
         if (inst->dst.u.reg.size == REG8) {
-          if (!inst->src.u.indirect.reg.x && opr_reg8(&inst->dst)) {
+          if (!inst->src.u.indirect.reg.x && opr_reg8(&inst->dst.u.reg)) {
             if (s != RSP - RAX) {
               if (offset == 0 && s != RBP - RAX) {
                 MAKE_CODE(inst, code, 0x8a, 0x00 + s + d * 8);
@@ -311,7 +311,7 @@ static bool assemble_mov(Inst *inst, const char *rawline, Code *code) {
       int d = inst->dst.u.indirect.reg.no;
       long offset = inst->dst.u.indirect.offset;
       if (inst->src.u.reg.size == REG8) {
-        if (opr_reg8(&inst->src) && !inst->dst.u.indirect.reg.x) {
+        if (opr_reg8(&inst->src.u.reg) && !inst->dst.u.indirect.reg.x) {
           if (d != RSP - RAX) {
             if (offset == 0 && d != RBP - RAX) {
               MAKE_CODE(inst, code, 0x88, 0x00 + d + s * 8);
@@ -511,7 +511,7 @@ bool assemble_inst(Inst *inst, const char *rawline, Code *code) {
       case REG8:
         switch (inst->dst.u.reg.size) {
         case REG32:
-          if (opr_reg8(&inst->src) && !inst->dst.u.reg.x) {
+          if (opr_reg8(&inst->src.u.reg) && !inst->dst.u.reg.x) {
             MAKE_CODE(inst, code, 0x0f, 0xbe, 0xc0 + s + d * 8);
           } else {
             int pre = (!inst->src.u.reg.x ? 0x40 : 0x41) + (!inst->dst.u.reg.x ? 0 : 4);
@@ -611,7 +611,7 @@ bool assemble_inst(Inst *inst, const char *rawline, Code *code) {
       int d = inst->dst.u.reg.no;
       switch (inst->src.u.reg.size) {
       case REG8:
-        if (opr_reg8(&inst->src) && opr_reg8(&inst->dst)) {
+        if (opr_reg8(&inst->src.u.reg) && opr_reg8(&inst->dst.u.reg)) {
           MAKE_CODE(inst, code, 0x00, 0xc0 + s * 8 + d);
         } else {
           int pre = (!inst->dst.u.reg.x ? 0x40 : 0x41) + (!inst->src.u.reg.x ? 0 : 4);
@@ -643,7 +643,7 @@ bool assemble_inst(Inst *inst, const char *rawline, Code *code) {
           MAKE_CODE(inst, code, pre, 0x83, 0xc0 + d, IM8(inst->src.u.immediate));
           return true;
         } else if (is_im32(inst->src.u.immediate)) {
-          if (opr_regno(&inst->dst) == RAX - RAX)
+          if (opr_regno(&inst->dst.u.reg) == RAX - RAX)
             MAKE_CODE(inst, code, pre, 0x05, IM32(inst->src.u.immediate));
           else
             MAKE_CODE(inst, code, pre, 0x81, 0xc0 + d, IM32(inst->src.u.immediate));
@@ -745,7 +745,7 @@ bool assemble_inst(Inst *inst, const char *rawline, Code *code) {
       int d = inst->dst.u.reg.no;
       switch (inst->src.u.reg.size) {
       case REG8:
-        if (opr_reg8(&inst->src) && opr_reg8(&inst->dst)) {
+        if (opr_reg8(&inst->src.u.reg) && opr_reg8(&inst->dst.u.reg)) {
           MAKE_CODE(inst, code, 0x28, 0xc0 + s * 8 + d);
         } else {
           int pre = (!inst->dst.u.reg.x ? 0x40 : 0x41) + (!inst->src.u.reg.x ? 0 : 4);
@@ -777,7 +777,7 @@ bool assemble_inst(Inst *inst, const char *rawline, Code *code) {
           MAKE_CODE(inst, code, pre, 0x83, 0xe8 + d, IM8(inst->src.u.immediate));
           return true;
         } else if (is_im32(inst->src.u.immediate)) {
-          if (opr_regno(&inst->dst) == RAX - RAX)
+          if (opr_regno(&inst->dst.u.reg) == RAX - RAX)
             MAKE_CODE(inst, code, pre, 0x2d, IM32(inst->src.u.immediate));
           else
             MAKE_CODE(inst, code, pre, 0x81, 0xe8 + d, IM32(inst->src.u.immediate));
@@ -1208,7 +1208,7 @@ bool assemble_inst(Inst *inst, const char *rawline, Code *code) {
       int d = inst->dst.u.reg.no;
       switch (inst->src.u.reg.size) {
       case REG8:
-        if (opr_reg8(&inst->src) && opr_reg8(&inst->dst)) {
+        if (opr_reg8(&inst->src.u.reg) && opr_reg8(&inst->dst.u.reg)) {
           MAKE_CODE(inst, code, 0x08, 0xc0 + s * 8 + d);
         } else {
           int pre = (!inst->dst.u.reg.x ? 0x40 : 0x41) + (!inst->src.u.reg.x ? 0 : 4);
@@ -1251,7 +1251,7 @@ bool assemble_inst(Inst *inst, const char *rawline, Code *code) {
       int d = inst->dst.u.reg.no;
       switch (inst->src.u.reg.size) {
       case REG8:
-        if (opr_reg8(&inst->src) && opr_reg8(&inst->dst)) {
+        if (opr_reg8(&inst->src.u.reg) && opr_reg8(&inst->dst.u.reg)) {
           MAKE_CODE(inst, code, 0x30, 0xc0 + s * 8 + d);
         } else {
           int pre = (!inst->dst.u.reg.x ? 0x40 : 0x41) + (!inst->src.u.reg.x ? 0 : 4);
@@ -1287,13 +1287,13 @@ bool assemble_inst(Inst *inst, const char *rawline, Code *code) {
     break;
   case SHL:
     if (inst->src.type == REG && inst->dst.type == REG) {
-      if (opr_regno(&inst->src) != CL - AL)
+      if (opr_regno(&inst->src.u.reg) != CL - AL)
         return assemble_error(rawline, "`%cl` expected");
 
       int d = inst->dst.u.reg.no;
       switch (inst->dst.u.reg.size) {
       case REG8:
-        if (opr_reg8(&inst->dst)) {
+        if (opr_reg8(&inst->dst.u.reg)) {
           MAKE_CODE(inst, code, 0xd2, 0xe0 + d);
         } else {
           int pre = !inst->dst.u.reg.x ? 0x40 : 0x41;
@@ -1327,7 +1327,7 @@ bool assemble_inst(Inst *inst, const char *rawline, Code *code) {
     break;
   case SHR:
     if (inst->src.type == REG && inst->dst.type == REG) {
-      if (opr_regno(&inst->src) != CL - AL)
+      if (opr_regno(&inst->src.u.reg) != CL - AL)
         return assemble_error(rawline, "`%cl` expected");
 
       int d = inst->dst.u.reg.no;
@@ -1359,7 +1359,7 @@ bool assemble_inst(Inst *inst, const char *rawline, Code *code) {
       int d = inst->dst.u.reg.no;
       switch (inst->src.u.reg.size) {
       case REG8:
-        if (opr_reg8(&inst->src) && opr_reg8(&inst->dst)) {
+        if (opr_reg8(&inst->src.u.reg) && opr_reg8(&inst->dst.u.reg)) {
           MAKE_CODE(inst, code, 0x38, 0xc0 + s * 8 + d);
         } else {
           int pre = (!inst->dst.u.reg.x ? 0x40 : 0x41) + (!inst->src.u.reg.x ? 0 : 4);
@@ -1387,9 +1387,9 @@ bool assemble_inst(Inst *inst, const char *rawline, Code *code) {
       long value = inst->src.u.immediate;
       if (inst->dst.u.reg.size == REG8) {
         int d = inst->dst.u.reg.no;
-        if (opr_regno(&inst->dst) == AL - AL) {
+        if (opr_regno(&inst->dst.u.reg) == AL - AL) {
           MAKE_CODE(inst, code, 0x3c, IM8(value));
-        } else if (opr_reg8(&inst->dst)) {
+        } else if (opr_reg8(&inst->dst.u.reg)) {
           MAKE_CODE(inst, code, 0x80, 0xf8 + d, IM8(value));
         } else {
           MAKE_CODE(inst, code, 0x41, 0x80, 0xf8 + d, IM8(value));
@@ -1402,7 +1402,7 @@ bool assemble_inst(Inst *inst, const char *rawline, Code *code) {
             MAKE_CODE(inst, code, 0x83, 0xf8 + d, IM8(value));
             return true;
           } else if (is_im32(value)) {
-            if (opr_regno(&inst->dst) == EAX - EAX) {
+            if (opr_regno(&inst->dst.u.reg) == EAX - EAX) {
               MAKE_CODE(inst, code, 0x3d, IM32(value));
               return true;
             } else {
@@ -1426,7 +1426,7 @@ bool assemble_inst(Inst *inst, const char *rawline, Code *code) {
           MAKE_CODE(inst, code, pre, 0x83, 0xf8 + d, IM8(value));
           return true;
         } else if (is_im32(value)) {
-          if (opr_regno(&inst->dst) == EAX - EAX) {
+          if (opr_regno(&inst->dst.u.reg) == EAX - EAX) {
             MAKE_CODE(inst, code, pre, 0x3d, IM32(value));
             return true;
           } else {
@@ -1446,7 +1446,7 @@ bool assemble_inst(Inst *inst, const char *rawline, Code *code) {
       int d = inst->dst.u.reg.no;
       switch (inst->src.u.reg.size) {
       case REG8:
-        if (opr_reg8(&inst->src) && opr_reg8(&inst->dst)) {
+        if (opr_reg8(&inst->src.u.reg) && opr_reg8(&inst->dst.u.reg)) {
           MAKE_CODE(inst, code, 0x84, 0xc0 + s * 8 + d);
         } else {
           int pre = (!inst->dst.u.reg.x ? 0x40 : 0x41) + (!inst->src.u.reg.x ? 0 : 4);
@@ -1503,7 +1503,7 @@ bool assemble_inst(Inst *inst, const char *rawline, Code *code) {
         return assemble_error(rawline, "Illegal opeand");
 
       int s = inst->src.u.reg.no;
-      if (opr_reg8(&inst->src)) {
+      if (opr_reg8(&inst->src.u.reg)) {
         MAKE_CODE(inst, code, 0x0f, 0x90 + (inst->op - SETO), 0xc0 + s);
       } else {
         int pre = !inst->src.u.reg.x ? 0x40 : 0x41;
