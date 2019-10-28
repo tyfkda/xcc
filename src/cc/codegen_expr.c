@@ -297,12 +297,10 @@ static VReg *gen_funcall(Expr *expr) {
   Vector *args = expr->funcall.args;
   int arg_count = args != NULL ? args->len : 0;
 
-  int stack_args = MAX(arg_count - MAX_REG_ARGS, 0);
-  bool align_stack = ((stackpos + stack_args * WORD_SIZE) & 15) != 0;
-  if (align_stack)
-    new_ir_addsp(-8);
+  bool *stack_aligned = malloc(sizeof(bool));
+  *stack_aligned = false;
 
-  new_ir_precall(arg_count);
+  new_ir_precall(arg_count, stack_aligned);
 
   if (args != NULL) {
     if (arg_count > MAX_REG_ARGS) {
@@ -333,15 +331,11 @@ static VReg *gen_funcall(Expr *expr) {
        ((scope = func->varref.scope),
         scope_find(&scope, func->varref.ident)->flag & VF_EXTERN))) {
     result_reg = new_ir_call(func->varref.ident, NULL, arg_count,
-                             type_size(func->valType->func.ret));
+                             type_size(func->valType->func.ret), stack_aligned);
   } else {
     VReg *freg = gen_expr(func);
     result_reg = new_ir_call(NULL, freg, arg_count,
-                             type_size(func->valType->func.ret));
-  }
-
-  if (align_stack) {
-    new_ir_addsp(8);
+                             type_size(func->valType->func.ret), stack_aligned);
   }
 
   return result_reg;

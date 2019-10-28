@@ -396,7 +396,7 @@ static void gen_data(void) {
 
 static BB *s_break_bb;
 static BB *s_continue_bb;
-int stackpos;
+int stackpos = 8;
 
 static void pop_break_bb(BB *save) {
   s_break_bb = save;
@@ -579,7 +579,7 @@ static void gen_nodes(Vector *nodes) {
 }
 
 static void gen_defun(Node *node) {
-  assert(stackpos == 0);
+  assert(stackpos == 8);
   Defun *defun = node->defun;
   if (defun->top_scope == NULL)  // Prototype definition
     return;
@@ -670,7 +670,7 @@ static void gen_defun(Node *node) {
   emit_comment(NULL);
   curfunc = NULL;
   curscope = NULL;
-  assert(stackpos == 0);
+  assert(stackpos == 8);
 }
 
 static void gen_block(Node *node) {

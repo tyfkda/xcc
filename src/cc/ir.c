@@ -197,15 +197,17 @@ void new_ir_pusharg(VReg *vreg) {
   ir->size = WORD_SIZE;
 }
 
-void new_ir_precall(int arg_count) {
+void new_ir_precall(int arg_count, bool *stack_aligned) {
   IR *ir = new_ir(IR_PRECALL);
+  ir->call.stack_aligned = stack_aligned;
   ir->call.arg_count = arg_count;
 }
 
-VReg *new_ir_call(const char *label, VReg *freg, int arg_count, int result_size) {
+VReg *new_ir_call(const char *label, VReg *freg, int arg_count, int result_size, bool *stack_aligned) {
   IR *ir = new_ir(IR_CALL);
   ir->call.label = label;
   ir->opr1 = freg;
+  ir->call.stack_aligned = stack_aligned;
   ir->call.arg_count = arg_count;
   ir->size = result_size;
   return ir->dst = reg_alloc_spawn(ra);
@@ -607,9 +609,19 @@ static void ir_out(const IR *ir) {
     break;
 
   case IR_PRECALL:
-    // Caller save.
-    PUSH(R10); PUSH_STACK_POS();
-    PUSH(R11); PUSH_STACK_POS();
+    {
+      // Caller save.
+      PUSH(R10); PUSH_STACK_POS();
+      PUSH(R11); PUSH_STACK_POS();
+
+      int stack_args = MAX(ir->call.arg_count - MAX_REG_ARGS, 0);
+      bool align_stack = ((stackpos + stack_args * WORD_SIZE) & 15) != 0;
+      if (align_stack) {
+        SUB(IM(8), RSP);
+        stackpos += 8;
+      }
+      *ir->call.stack_aligned = align_stack;
+    }
     break;
 
   case IR_PUSHARG:
@@ -631,8 +643,10 @@ static void ir_out(const IR *ir) {
       else
         CALL(fmt("*%s", kReg64s[ir->opr1->r]));
 
-      if (ir->call.arg_count > MAX_REG_ARGS) {
-        int add = (ir->call.arg_count - MAX_REG_ARGS) * WORD_SIZE;
+      int stack_args = MAX(ir->call.arg_count - MAX_REG_ARGS, 0);
+      bool align_stack = *ir->call.stack_aligned;
+      if (stack_args > 0 || align_stack) {
+        int add = stack_args * WORD_SIZE + (align_stack ? 8 : 0);
         ADD(IM(add), RSP);
         stackpos -= add;
       }

@@ -96,6 +96,7 @@ typedef struct {
     } jmp;
     struct {
       const char *label;
+      bool *stack_aligned;
       int arg_count;
     } call;
     struct {
@@ -120,9 +121,9 @@ void new_ir_test(VReg *reg, int size);
 void new_ir_incdec(enum IrKind kind, VReg *reg, int size, intptr_t value);
 VReg *new_ir_set(enum ConditionKind cond);
 void new_ir_jmp(enum ConditionKind cond, BB *bb);
-void new_ir_precall(int arg_count);
+void new_ir_precall(int arg_count, bool *stack_aligned);
 void new_ir_pusharg(VReg *vreg);
-VReg *new_ir_call(const char *label, VReg *freg, int arg_count, int result_size);
+VReg *new_ir_call(const char *label, VReg *freg, int arg_count, int result_size, bool *stack_aligned);
 void new_ir_addsp(int value);
 VReg *new_ir_cast(VReg *vreg, int dstsize, int srcsize);
 void new_ir_clear(VReg *reg, size_t size);
