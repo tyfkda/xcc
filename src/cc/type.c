@@ -7,11 +7,11 @@
 #include "util.h"
 #include "lexer.h"
 
-const Type tyChar =  {.kind=TY_NUM, {.num={.kind=NUM_CHAR}}};
-const Type tyShort = {.kind=TY_NUM, {.num={.kind=NUM_SHORT}}};
-const Type tyInt =   {.kind=TY_NUM, {.num={.kind=NUM_INT}}};
-const Type tyLong =  {.kind=TY_NUM, {.num={.kind=NUM_LONG}}};
-const Type tyEnum =  {.kind=TY_NUM, {.num={.kind=NUM_ENUM}}};
+const Type tyChar =  {.kind=TY_NUM, .num={.kind=NUM_CHAR}};
+const Type tyShort = {.kind=TY_NUM, .num={.kind=NUM_SHORT}};
+const Type tyInt =   {.kind=TY_NUM, .num={.kind=NUM_INT}};
+const Type tyLong =  {.kind=TY_NUM, .num={.kind=NUM_LONG}};
+const Type tyEnum =  {.kind=TY_NUM, .num={.kind=NUM_ENUM}};
 const Type tyVoid =  {.kind=TY_VOID};
 
 bool is_number(enum TypeKind kind) {

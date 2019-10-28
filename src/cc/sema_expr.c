@@ -293,10 +293,9 @@ static bool cast_numbers(Expr **pLhs, Expr **pRhs, bool keep_left) {
   return true;
 }
 
-static bool search_from_anonymous(const Type *type, const Token *ident, Vector *stack) {
+bool search_from_anonymous(const Type *type, const char *name, const Token *ident, Vector *stack) {
   assert(type->kind == TY_STRUCT);
   ensure_struct((Type*)type, ident);
-  const char *name = ident->ident;
 
   Vector *lvars = type->struct_.info->members;
   for (int i = 0, len = lvars->len; i < len; ++i) {
@@ -308,7 +307,7 @@ static bool search_from_anonymous(const Type *type, const Token *ident, Vector *
       }
     } else if (info->type->kind == TY_STRUCT) {
       vec_push(stack, (void*)(intptr_t)i);
-      bool res = search_from_anonymous(info->type, ident, stack);
+      bool res = search_from_anonymous(info->type, name, ident, stack);
       if (res)
         return true;
       vec_pop(stack);
@@ -673,7 +672,7 @@ Expr *analyze_expr(Expr *expr, bool keep_left) {
         expr->member.index = index;
       } else {
         Vector *stack = new_vector();
-        bool res = search_from_anonymous(targetType, ident, stack);
+        bool res = search_from_anonymous(targetType, ident->ident, ident, stack);
         if (!res)
           parse_error(ident, "`%s' doesn't exist in the struct", name);
         Expr *p = target;

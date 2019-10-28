@@ -260,10 +260,24 @@ Initializer *flatten_initializer(const Type *type, Initializer *init) {
           parse_error(NULL, "indexed initializer for array");
 
         if (value->kind == vDot) {
-          index = var_find(sinfo->members, value->dot.name);
-          if (index < 0)
-            parse_error(NULL, "`%s' is not member of struct", value->dot.name);
-          value = value->dot.value;
+          const char *name = value->dot.name;
+          index = var_find(sinfo->members, name);
+          if (index >= 0) {
+            value = value->dot.value;
+          } else {
+            Vector *stack = new_vector();
+            bool res = search_from_anonymous(type, name, NULL, stack);
+            if (!res)
+              parse_error(NULL, "`%s' is not member of struct", name);
+
+            index = (intptr_t)stack->data[0];
+            Vector *multi = new_vector();
+            vec_push(multi, value);
+            Initializer *init2 = malloc(sizeof(*init2));
+            init2->kind = vMulti;
+            init2->multi = multi;
+            value = init2;
+          }
         }
         if (index >= n)
           parse_error(NULL, "Too many init values");
