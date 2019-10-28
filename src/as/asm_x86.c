@@ -515,53 +515,26 @@ bool assemble_inst(Inst *inst, const char *rawline, Code *code) {
                    size == REG8 ? 0x38 : 0x39);
     } else if (inst->src.type == IMMEDIATE && inst->dst.type == REG) {
       long value = inst->src.u.immediate;
-      if (inst->dst.u.reg.size == REG8) {
-        int d = inst->dst.u.reg.no;
-        if (opr_regno(&inst->dst.u.reg) == AL - AL) {
-          MAKE_CODE(inst, code, 0x3c, IM8(value));
-        } else if (opr_reg8(&inst->dst.u.reg)) {
-          MAKE_CODE(inst, code, 0x80, 0xf8 + d, IM8(value));
+      if (is_im32(value)) {
+        enum RegSize size = inst->dst.u.reg.size;
+        bool im8 = is_im8(value);
+        int d = opr_regno(&inst->dst.u.reg);
+        if (d == RAX - RAX && (size == REG8 || !im8))
+          p = put_rex0(p, size, 0, d, im8 ? 0x3c : 0x3d);
+        else
+          p = put_rex2(p, size, 7, d, im8 ? 0x83 : 0x81);  // 0xf8 = 0xc0 | (7 << 3)
+
+        if (im8) {
+          *p++ = IM8(value);
         } else {
-          MAKE_CODE(inst, code, 0x41, 0x80, 0xf8 + d, IM8(value));
-        }
-        return true;
-      } else if (inst->dst.u.reg.size == REG32) {
-        int d = inst->dst.u.reg.no;
-        if (!inst->dst.u.reg.x) {
-          if (is_im8(value)) {
-            MAKE_CODE(inst, code, 0x83, 0xf8 + d, IM8(value));
-            return true;
-          } else if (is_im32(value)) {
-            if (opr_regno(&inst->dst.u.reg) == EAX - EAX) {
-              MAKE_CODE(inst, code, 0x3d, IM32(value));
-              return true;
-            } else {
-              MAKE_CODE(inst, code, 0x81, 0xf8 + d, IM32(value));
-              return true;
-            }
-          }
-        } else {
-          if (is_im8(value)) {
-            MAKE_CODE(inst, code, 0x41, 0x83, 0xf8 + d, IM8(value));
-            return true;
-          } else if (is_im32(value)) {
-            MAKE_CODE(inst, code, 0x41, 0x81, 0xf8 + d, IM32(value));
-            return true;
-          }
-        }
-      } else if (inst->dst.u.reg.size == REG64) {
-        int d = inst->dst.u.reg.no;
-        int pre = !inst->dst.u.reg.x ? 0x48 : 0x49;
-        if (is_im8(value)) {
-          MAKE_CODE(inst, code, pre, 0x83, 0xf8 + d, IM8(value));
-          return true;
-        } else if (is_im32(value)) {
-          if (opr_regno(&inst->dst.u.reg) == EAX - EAX) {
-            MAKE_CODE(inst, code, pre, 0x3d, IM32(value));
-            return true;
-          } else {
-            MAKE_CODE(inst, code, pre, 0x81, 0xf8 + d, IM32(value));
-            return true;
+          switch (size) {
+          case REG8:   *p++ = IM8(value); break;
+          case REG16:  PUT_CODE(p, IM16(value)); p += 2; break;
+          case REG32:
+          case REG64:
+            PUT_CODE(p, IM32(value));
+            p += 4;
+            break;
           }
         }
       }
