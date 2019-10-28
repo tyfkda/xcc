@@ -263,18 +263,29 @@ bool assemble_inst(Inst *inst, const char *rawline, Code *code) {
       p = put_rex2(p, size, opr_regno(&inst->src.u.reg), opr_regno(&inst->dst.u.reg),
                    size == REG8 ? 0x00 : 0x01);
     } else if (inst->src.type == IMMEDIATE && inst->dst.type == REG) {
-      if (inst->dst.u.reg.size == REG64) {
-        int pre = !inst->dst.u.reg.x ? 0x48 : 0x49;
-        int d = inst->dst.u.reg.no;
-        if (is_im8(inst->src.u.immediate)) {
-          MAKE_CODE(inst, code, pre, 0x83, 0xc0 + d, IM8(inst->src.u.immediate));
-          return true;
-        } else if (is_im32(inst->src.u.immediate)) {
-          if (opr_regno(&inst->dst.u.reg) == RAX - RAX)
-            MAKE_CODE(inst, code, pre, 0x05, IM32(inst->src.u.immediate));
-          else
-            MAKE_CODE(inst, code, pre, 0x81, 0xc0 + d, IM32(inst->src.u.immediate));
-          return true;
+      long value = inst->src.u.immediate;
+      if (is_im32(value)) {
+        bool im8 = is_im8(value);
+        enum RegSize size = inst->dst.u.reg.size;
+        int d = opr_regno(&inst->dst.u.reg);
+        if (d == RAX - RAX && (size == REG8 || !is_im8(value)))
+          p = put_rex0(p, size, 0, d, im8 ? 0x04 : 0x05);
+        else
+          p = put_rex2(p, size, 0, d, im8 ? 0x83 : 0x81);
+
+        if (im8) {
+          *p++ = IM8(value);
+        } else {
+          switch (size) {
+          case REG8:   *p++ = IM8(value); break;
+          case REG16:  PUT_CODE(p, IM16(value)); p += 2; break;
+          case REG32:
+          case REG64:
+            PUT_CODE(p, IM32(value));
+            p += 4;
+            break;
+          default:  assert(false); break;
+          }
         }
       }
     } else if (inst->src.type == INDIRECT && inst->dst.type == REG) {
@@ -314,18 +325,29 @@ bool assemble_inst(Inst *inst, const char *rawline, Code *code) {
       p = put_rex2(p, size, opr_regno(&inst->src.u.reg), opr_regno(&inst->dst.u.reg),
                    size == REG8 ? 0x28 : 0x29);
     } else if (inst->src.type == IMMEDIATE && inst->dst.type == REG) {
-      if (inst->dst.u.reg.size == REG64) {
-        int pre = !inst->dst.u.reg.x ? 0x48 : 0x49;
-        int d = inst->dst.u.reg.no;
-        if (is_im8(inst->src.u.immediate)) {
-          MAKE_CODE(inst, code, pre, 0x83, 0xe8 + d, IM8(inst->src.u.immediate));
-          return true;
-        } else if (is_im32(inst->src.u.immediate)) {
-          if (opr_regno(&inst->dst.u.reg) == RAX - RAX)
-            MAKE_CODE(inst, code, pre, 0x2d, IM32(inst->src.u.immediate));
-          else
-            MAKE_CODE(inst, code, pre, 0x81, 0xe8 + d, IM32(inst->src.u.immediate));
-          return true;
+      long value = inst->src.u.immediate;
+      if (is_im32(value)) {
+        bool im8 = is_im8(value);
+        enum RegSize size = inst->dst.u.reg.size;
+        int d = opr_regno(&inst->dst.u.reg);
+        if (d == RAX - RAX && (size == REG8 || !is_im8(value)))
+          p = put_rex0(p, size, 0, d, im8 ? 0x2c : 0x2d);
+        else
+          p = put_rex2(p, size, 5, d, im8 ? 0x83 : 0x81);  // 0xe8 = 0xc0 | (5 << 3)
+
+        if (im8) {
+          *p++ = IM8(value);
+        } else {
+          switch (size) {
+          case REG8:   *p++ = IM8(value); break;
+          case REG16:  PUT_CODE(p, IM16(value)); p += 2; break;
+          case REG32:
+          case REG64:
+            PUT_CODE(p, IM32(value));
+            p += 4;
+            break;
+          default:  assert(false); break;
+          }
         }
       }
     }
@@ -372,26 +394,8 @@ bool assemble_inst(Inst *inst, const char *rawline, Code *code) {
       return assemble_error(rawline, "Illegal operand");
 
     if (inst->src.type == REG) {
-      int s = inst->src.u.reg.no;
-      if (inst->src.u.reg.size == REG16) {
-        if (!inst->src.u.reg.x) {
-          MAKE_CODE(inst, code, 0x66, 0xf7, 0xd8 + s);
-        } else {
-          MAKE_CODE(inst, code, 0x66, 0x41, 0xf7, 0xd8 + s);
-        }
-        return true;
-      } else if (inst->src.u.reg.size == REG32) {
-        if (!inst->src.u.reg.x) {
-          MAKE_CODE(inst, code, 0xf7, 0xd8 + s);
-        } else {
-          MAKE_CODE(inst, code, 0x41, 0xf7, 0xd8 + s);
-        }
-        return true;
-      } else if (inst->src.u.reg.size == REG64) {
-        int pre = !inst->src.u.reg.x ? 0x48 : 0x49;
-        MAKE_CODE(inst, code, pre, 0xf7, 0xd8 + s);
-        return true;
-      }
+      p = put_rex2(p, inst->src.u.reg.size,
+                   3, opr_regno(&inst->src.u.reg), 0xf7);  // 0xd8 = 0xc0 | (3 << 3)
     }
     break;
   case NOT:
@@ -399,22 +403,8 @@ bool assemble_inst(Inst *inst, const char *rawline, Code *code) {
       return assemble_error(rawline, "Illegal operand");
 
     if (inst->src.type == REG) {
-      int s = inst->src.u.reg.no;
-      if (inst->src.u.reg.size == REG16) {
-        if (!inst->src.u.reg.x) {
-          MAKE_CODE(inst, code, 0x66, 0xf7, 0xd0 + s);
-        } else {
-          MAKE_CODE(inst, code, 0x66, 0x41, 0xf7, 0xd0 + s);
-        }
-        return true;
-      } else if (inst->src.u.reg.size == REG32) {
-        if (!inst->src.u.reg.x) {
-          MAKE_CODE(inst, code, 0xf7, 0xd0 + s);
-        } else {
-          MAKE_CODE(inst, code, 0x41, 0xf7, 0xd0 + s);
-        }
-        return true;
-      }
+      p = put_rex2(p, inst->src.u.reg.size,
+                   2, opr_regno(&inst->src.u.reg), 0xf7);  // 0xd0 = 0xc0 | (2 << 3)
     }
     break;
   case INC:
@@ -422,20 +412,8 @@ bool assemble_inst(Inst *inst, const char *rawline, Code *code) {
       return assemble_error(rawline, "Illegal operand");
 
     if (inst->src.type == REG) {
-      if (inst->src.u.reg.size == REG32) {
-        int s = inst->src.u.reg.no;
-        if (!inst->src.u.reg.x) {
-          MAKE_CODE(inst, code, 0xff, 0xc0 + s);
-        } else {
-          MAKE_CODE(inst, code, 0x41, 0xff, 0xc0 + s);
-        }
-        return true;
-      } else if (inst->src.u.reg.size == REG64) {
-        int pre = !inst->src.u.reg.x ? 0x48 : 0x49;
-        int s = inst->src.u.reg.no;
-        MAKE_CODE(inst, code, pre, 0xff, 0xc0 + s);
-        return true;
-      }
+      p = put_rex2(p, inst->src.u.reg.size,
+                   0, opr_regno(&inst->src.u.reg), 0xff);
     }
     break;
   case INCL:
@@ -458,20 +436,8 @@ bool assemble_inst(Inst *inst, const char *rawline, Code *code) {
       return assemble_error(rawline, "Illegal operand");
 
     if (inst->src.type == REG) {
-      if (inst->src.u.reg.size == REG32) {
-        int s = inst->src.u.reg.no;
-        if (!inst->src.u.reg.x) {
-          MAKE_CODE(inst, code, 0xff, 0xc8 + s);
-        } else {
-          MAKE_CODE(inst, code, 0x41, 0xff, 0xc8 + s);
-        }
-        return true;
-      } else if (inst->src.u.reg.size == REG64) {
-        int pre = !inst->src.u.reg.x ? 0x48 : 0x49;
-        int s = inst->src.u.reg.no;
-        MAKE_CODE(inst, code, pre, 0xff, 0xc8 + s);
-        return true;
-      }
+      p = put_rex2(p, inst->src.u.reg.size,
+                   1, opr_regno(&inst->src.u.reg), 0xff);  // 0xc8 = 0xc0 | (1 << 3)
     }
     break;
   case DECL:
@@ -494,34 +460,9 @@ bool assemble_inst(Inst *inst, const char *rawline, Code *code) {
       if (inst->dst.u.reg.size != inst->src.u.reg.size)
         return assemble_error(rawline, "Different source and destination register size");
 
-      int s = inst->src.u.reg.no;
-      int d = inst->dst.u.reg.no;
-      switch (inst->src.u.reg.size) {
-      case REG16:
-        if (!inst->src.u.reg.x && !inst->dst.u.reg.x) {
-          MAKE_CODE(inst, code, 0x66, 0x21, 0xc0 + s * 8 + d);
-        } else {
-          int pre = (!inst->dst.u.reg.x ? 0x40 : 0x41) + (!inst->src.u.reg.x ? 0 : 4);
-          MAKE_CODE(inst, code, 0x66, pre, 0x21, 0xc0 + s * 8 + d);
-        }
-        return true;
-      case REG32:
-        if (!inst->src.u.reg.x && !inst->dst.u.reg.x) {
-          MAKE_CODE(inst, code, 0x21, 0xc0 + s * 8 + d);
-        } else {
-          int pre = (!inst->dst.u.reg.x ? 0x40 : 0x41) + (!inst->src.u.reg.x ? 0 : 4);
-          MAKE_CODE(inst, code, pre, 0x21, 0xc0 + s * 8 + d);
-        }
-        return true;
-      case REG64:
-        {
-          int pre = (!inst->dst.u.reg.x ? 0x48 : 0x49) + (!inst->src.u.reg.x ? 0 : 4);
-          MAKE_CODE(inst, code, pre, 0x21, 0xc0 + s * 8 + d);
-          return true;
-        }
-      default:
-        break;
-      }
+      enum RegSize size = inst->src.u.reg.size;
+      p = put_rex2(p, size, opr_regno(&inst->src.u.reg), opr_regno(&inst->dst.u.reg),
+                   size == REG8 ? 0x20 : 0x21);
     }
     break;
   case OR:
@@ -529,42 +470,9 @@ bool assemble_inst(Inst *inst, const char *rawline, Code *code) {
       if (inst->dst.u.reg.size != inst->src.u.reg.size)
         return assemble_error(rawline, "Different source and destination register size");
 
-      int s = inst->src.u.reg.no;
-      int d = inst->dst.u.reg.no;
-      switch (inst->src.u.reg.size) {
-      case REG8:
-        if (opr_reg8(&inst->src.u.reg) && opr_reg8(&inst->dst.u.reg)) {
-          MAKE_CODE(inst, code, 0x08, 0xc0 + s * 8 + d);
-        } else {
-          int pre = (!inst->dst.u.reg.x ? 0x40 : 0x41) + (!inst->src.u.reg.x ? 0 : 4);
-          MAKE_CODE(inst, code, pre, 0x08, 0xc0 + s * 8 + d);
-        }
-        return true;
-      case REG16:
-        if (!inst->src.u.reg.x && !inst->dst.u.reg.x) {
-          MAKE_CODE(inst, code, 0x66, 0x09, 0xc0 + s * 8 + d);
-        } else {
-          int pre = (!inst->dst.u.reg.x ? 0x40 : 0x41) + (!inst->src.u.reg.x ? 0 : 4);
-          MAKE_CODE(inst, code, 0x66, pre, 0x09, 0xc0 + s * 8 + d);
-        }
-        return true;
-      case REG32:
-        if (!inst->src.u.reg.x && !inst->dst.u.reg.x) {
-          MAKE_CODE(inst, code, 0x09, 0xc0 + s * 8 + d);
-        } else {
-          int pre = (!inst->dst.u.reg.x ? 0x40 : 0x41) + (!inst->src.u.reg.x ? 0 : 4);
-          MAKE_CODE(inst, code, pre, 0x09, 0xc0 + s * 8 + d);
-        }
-        return true;
-      case REG64:
-        {
-          int pre = (!inst->dst.u.reg.x ? 0x48 : 0x49) + (!inst->src.u.reg.x ? 0 : 4);
-          MAKE_CODE(inst, code, pre, 0x09, 0xc0 + s * 8 + d);
-          return true;
-        }
-      default:
-        break;
-      }
+      enum RegSize size = inst->src.u.reg.size;
+      p = put_rex2(p, size, opr_regno(&inst->src.u.reg), opr_regno(&inst->dst.u.reg),
+                   size == REG8 ? 0x08 : 0x09);
     }
     break;
   case XOR:
@@ -572,42 +480,9 @@ bool assemble_inst(Inst *inst, const char *rawline, Code *code) {
       if (inst->dst.u.reg.size != inst->src.u.reg.size)
         return assemble_error(rawline, "Different source and destination register size");
 
-      int s = inst->src.u.reg.no;
-      int d = inst->dst.u.reg.no;
-      switch (inst->src.u.reg.size) {
-      case REG8:
-        if (opr_reg8(&inst->src.u.reg) && opr_reg8(&inst->dst.u.reg)) {
-          MAKE_CODE(inst, code, 0x30, 0xc0 + s * 8 + d);
-        } else {
-          int pre = (!inst->dst.u.reg.x ? 0x40 : 0x41) + (!inst->src.u.reg.x ? 0 : 4);
-          MAKE_CODE(inst, code, pre, 0x30, 0xc0 + s * 8 + d);
-        }
-        return true;
-      case REG16:
-        if (!inst->src.u.reg.x && !inst->dst.u.reg.x) {
-          MAKE_CODE(inst, code, 0x66, 0x31, 0xc0 + s * 8 + d);
-        } else {
-          int pre = (!inst->dst.u.reg.x ? 0x40 : 0x41) + (!inst->src.u.reg.x ? 0 : 4);
-          MAKE_CODE(inst, code, 0x66, pre, 0x31, 0xc0 + s * 8 + d);
-        }
-        return true;
-      case REG32:
-        if (!inst->src.u.reg.x && !inst->dst.u.reg.x) {
-          MAKE_CODE(inst, code, 0x31, 0xc0 + s * 8 + d);
-        } else {
-          int pre = (!inst->dst.u.reg.x ? 0x40 : 0x41) + (!inst->src.u.reg.x ? 0 : 4);
-          MAKE_CODE(inst, code, pre, 0x31, 0xc0 + s * 8 + d);
-        }
-        return true;
-      case REG64:
-        {
-          int pre = (!inst->dst.u.reg.x ? 0x48 : 0x49) + (!inst->src.u.reg.x ? 0 : 4);
-          MAKE_CODE(inst, code, pre, 0x31, 0xc0 + s * 8 + d);
-          return true;
-        }
-      default:
-        break;
-      }
+      enum RegSize size = inst->src.u.reg.size;
+      p = put_rex2(p, size, opr_regno(&inst->src.u.reg), opr_regno(&inst->dst.u.reg),
+                   size == REG8 ? 0x30 : 0x31);
     }
     break;
   case SHL:
@@ -615,39 +490,9 @@ bool assemble_inst(Inst *inst, const char *rawline, Code *code) {
       if (opr_regno(&inst->src.u.reg) != CL - AL)
         return assemble_error(rawline, "`%cl` expected");
 
-      int d = inst->dst.u.reg.no;
-      switch (inst->dst.u.reg.size) {
-      case REG8:
-        if (opr_reg8(&inst->dst.u.reg)) {
-          MAKE_CODE(inst, code, 0xd2, 0xe0 + d);
-        } else {
-          int pre = !inst->dst.u.reg.x ? 0x40 : 0x41;
-          MAKE_CODE(inst, code, pre, 0xd2, 0xe0 + d);
-        }
-        return true;
-      case REG16:
-        if (!inst->dst.u.reg.x) {
-          MAKE_CODE(inst, code, 0x66, 0xd3, 0xe0 + d);
-        } else {
-          MAKE_CODE(inst, code, 0x66, 0x41, 0xd3, 0xe0 + d);
-        }
-        return true;
-      case REG32:
-        if (!inst->dst.u.reg.x) {
-          MAKE_CODE(inst, code, 0xd3, 0xe0 + d);
-        } else {
-          MAKE_CODE(inst, code, 0x41, 0xd3, 0xe0 + d);
-        }
-        return true;
-      case REG64:
-        {
-          int pre = inst->dst.u.reg.size == REG64 ? 0x48 : 0x49;
-          MAKE_CODE(inst, code, pre, 0xd3, 0xe0 + d);
-          return true;
-        }
-      default:
-        break;
-      }
+      enum RegSize size = inst->dst.u.reg.size;
+      p = put_rex2(p, size, 4, opr_regno(&inst->dst.u.reg),  // 0xe0 = 0xc0 | (4 << 3)
+                   size == REG8 ? 0xd2 : 0xd3);
     }
     break;
   case SHR:
@@ -655,24 +500,9 @@ bool assemble_inst(Inst *inst, const char *rawline, Code *code) {
       if (opr_regno(&inst->src.u.reg) != CL - AL)
         return assemble_error(rawline, "`%cl` expected");
 
-      int d = inst->dst.u.reg.no;
-      switch (inst->dst.u.reg.size) {
-      case REG32:
-        if (!inst->dst.u.reg.x) {
-          MAKE_CODE(inst, code, 0xd3, 0xe8 + d);
-        } else {
-          MAKE_CODE(inst, code, 0x41, 0xd3, 0xe8 + d);
-        }
-        return true;
-      case REG64:
-        {
-          int pre = !inst->dst.u.reg.x ? 0x48 : 0x49;
-          MAKE_CODE(inst, code, pre, 0xd3, 0xe8 + d);
-          return true;
-        }
-      default:
-        break;
-      }
+      enum RegSize size = inst->dst.u.reg.size;
+      p = put_rex2(p, size, 5, opr_regno(&inst->dst.u.reg),  // 0xe8 = 0xc0 | (5 << 3)
+                   size == REG8 ? 0xd2 : 0xd3);
     }
     break;
   case CMP:
@@ -680,34 +510,9 @@ bool assemble_inst(Inst *inst, const char *rawline, Code *code) {
       if (inst->dst.u.reg.size != inst->src.u.reg.size)
         return assemble_error(rawline, "Different source and destination register size");
 
-      int s = inst->src.u.reg.no;
-      int d = inst->dst.u.reg.no;
-      switch (inst->src.u.reg.size) {
-      case REG8:
-        if (opr_reg8(&inst->src.u.reg) && opr_reg8(&inst->dst.u.reg)) {
-          MAKE_CODE(inst, code, 0x38, 0xc0 + s * 8 + d);
-        } else {
-          int pre = (!inst->dst.u.reg.x ? 0x40 : 0x41) + (!inst->src.u.reg.x ? 0 : 4);
-          MAKE_CODE(inst, code, pre, 0x38, 0xc0 + s * 8 + d);
-        }
-        return true;
-      case REG32:
-        if (!inst->src.u.reg.x && !inst->dst.u.reg.x) {
-          MAKE_CODE(inst, code, 0x39, 0xc0 + s * 8 + d);
-        } else {
-          int pre = (!inst->dst.u.reg.x ? 0x40 : 0x41) + (!inst->src.u.reg.x ? 0 : 4);
-          MAKE_CODE(inst, code, pre, 0x39, 0xc0 + s * 8 + d);
-        }
-        return true;
-      case REG64:
-        {
-          int pre = (!inst->dst.u.reg.x ? 0x48 : 0x49) + (!inst->src.u.reg.x ? 0 : 4);
-          MAKE_CODE(inst, code, pre, 0x39, 0xc0 + s * 8 + d);
-          return true;
-        }
-      default:
-        break;
-      }
+      enum RegSize size = inst->src.u.reg.size;
+      p = put_rex2(p, size, opr_regno(&inst->src.u.reg), opr_regno(&inst->dst.u.reg),
+                   size == REG8 ? 0x38 : 0x39);
     } else if (inst->src.type == IMMEDIATE && inst->dst.type == REG) {
       long value = inst->src.u.immediate;
       if (inst->dst.u.reg.size == REG8) {
@@ -767,42 +572,9 @@ bool assemble_inst(Inst *inst, const char *rawline, Code *code) {
       if (inst->dst.u.reg.size != inst->src.u.reg.size)
         return assemble_error(rawline, "Different source and destination register size");
 
-      int s = inst->src.u.reg.no;
-      int d = inst->dst.u.reg.no;
-      switch (inst->src.u.reg.size) {
-      case REG8:
-        if (opr_reg8(&inst->src.u.reg) && opr_reg8(&inst->dst.u.reg)) {
-          MAKE_CODE(inst, code, 0x84, 0xc0 + s * 8 + d);
-        } else {
-          int pre = (!inst->dst.u.reg.x ? 0x40 : 0x41) + (!inst->src.u.reg.x ? 0 : 4);
-          MAKE_CODE(inst, code, pre, 0x84, 0xc0 + s * 8 + d);
-        }
-        return true;
-      case REG16:
-        if (!inst->src.u.reg.x && !inst->dst.u.reg.x) {
-          MAKE_CODE(inst, code, 0x66, 0x85, 0xc0 + s * 8 + d);
-        } else {
-          int pre = (!inst->dst.u.reg.x ? 0x40 : 0x41) + (!inst->src.u.reg.x ? 0 : 4);
-          MAKE_CODE(inst, code, 0x66, pre, 0x85, 0xc0 + s * 8 + d);
-        }
-        return true;
-      case REG32:
-        if (!inst->src.u.reg.x && !inst->dst.u.reg.x) {
-          MAKE_CODE(inst, code, 0x85, 0xc0 + s * 8 + d);
-        } else {
-          int pre = (!inst->dst.u.reg.x ? 0x40 : 0x41) + (!inst->src.u.reg.x ? 0 : 4);
-          MAKE_CODE(inst, code, pre, 0x85, 0xc0 + s * 8 + d);
-        }
-        return true;
-      case REG64:
-        {
-          int pre = (!inst->src.u.reg.x ? 0x48 : 0x49) + (!inst->dst.u.reg.x ? 0 : 4);
-          MAKE_CODE(inst, code, pre, 0x85, 0xc0 + s * 8 + d);
-          return true;
-        }
-      default:
-        break;
-      }
+      enum RegSize size = inst->src.u.reg.size;
+      p = put_rex2(p, size, opr_regno(&inst->src.u.reg), opr_regno(&inst->dst.u.reg),
+                   size == REG8 ? 0x84 : 0x85);
     }
     break;
   case CLTD:
@@ -822,48 +594,30 @@ bool assemble_inst(Inst *inst, const char *rawline, Code *code) {
   case SETE: case SETNE: case SETBE: case SETA:
   case SETS: case SETNS: case SETP:  case SETNP:
   case SETL: case SETGE: case SETLE: case SETG:
-    {
-      if (inst->dst.type != NOOPERAND || inst->src.type != REG ||
-          inst->src.u.reg.size != REG8)
-        return assemble_error(rawline, "Illegal opeand");
+    if (inst->dst.type != NOOPERAND || inst->src.type != REG ||
+        inst->src.u.reg.size != REG8)
+      return assemble_error(rawline, "Illegal opeand");
 
-      int s = inst->src.u.reg.no;
-      if (opr_reg8(&inst->src.u.reg)) {
-        MAKE_CODE(inst, code, 0x0f, 0x90 + (inst->op - SETO), 0xc0 + s);
-      } else {
-        int pre = !inst->src.u.reg.x ? 0x40 : 0x41;
-        MAKE_CODE(inst, code, pre, 0x0f, 0x90 + (inst->op - SETO), 0xc0 + s);
-      }
-      return true;
-    }
+    p = put_rex0(p, REG8, 0, opr_regno(&inst->src.u.reg), 0x0f);
+    *p++ = 0x90 | (inst->op - SETO);
+    *p++ = 0xc0 | inst->src.u.reg.no;
+    break;
   case PUSH:
-    {
-      if (inst->dst.type != NOOPERAND || inst->src.type != REG ||
-          inst->src.u.reg.size != REG64)
-        return assemble_error(rawline, "Illegal operand");
+    if (inst->dst.type != NOOPERAND || inst->src.type != REG ||
+        inst->src.u.reg.size != REG64)
+      return assemble_error(rawline, "Illegal operand");
 
-      int d = inst->src.u.reg.no;
-      if (!inst->src.u.reg.x) {
-        MAKE_CODE(inst, code, 0x50 + d);
-      } else {
-        MAKE_CODE(inst, code, 0x41, 0x50 + d);
-      }
-      return true;
-    }
+    p = put_rex0(p, REG32, 0, opr_regno(&inst->src.u.reg),
+                 0x50 | inst->src.u.reg.no);
+    break;
   case POP:
-    {
-      if (inst->dst.type != NOOPERAND || inst->src.type != REG ||
-          inst->src.u.reg.size != REG64)
-        return assemble_error(rawline, "Illegal operand");
+    if (inst->dst.type != NOOPERAND || inst->src.type != REG ||
+        inst->src.u.reg.size != REG64)
+      return assemble_error(rawline, "Illegal operand");
 
-      int d = inst->src.u.reg.no;
-      if (!inst->src.u.reg.x) {
-        MAKE_CODE(inst, code, 0x58 + d);
-      } else {
-        MAKE_CODE(inst, code, 0x41, 0x58 + d);
-      }
-      return true;
-    }
+    p = put_rex0(p, REG32, 0, opr_regno(&inst->src.u.reg),
+                 0x58 | inst->src.u.reg.no);
+    break;
   case JMP:
     if (inst->src.type != LABEL || inst->dst.type != NOOPERAND)
       return assemble_error(rawline, "Illegal operand");
