@@ -96,19 +96,19 @@ test-self-hosting:
 $(TARGET)/cpp:	$(HOST)/cc1 $(HOST)/cpp $(CPP_SRCS)
 	mkdir -p $(TARGET)
 	$(HOST)/xcc -o$@ -Iinc -I$(CC1_DIR) -I$(UTIL_DIR) -DSELF_HOSTING $(CPP_SRCS) \
-	      lib/lib.c lib/umalloc.c lib/sprintf.c lib/crt0.c
+	      lib/lib.c lib/assert.c lib/umalloc.c lib/sprintf.c lib/crt0.c
 
 $(TARGET)/cc1:	$(HOST)/xcc $(CC1_SRCS)
 	mkdir -p $(TARGET)
 	$(HOST)/xcc -o$@ -Iinc -I$(UTIL_DIR) -DSELF_HOSTING $(CC1_SRCS) \
-	      lib/lib.c lib/umalloc.c lib/sprintf.c lib/crt0.c
+	      lib/lib.c lib/assert.c lib/umalloc.c lib/sprintf.c lib/crt0.c
 
 $(TARGET)/as:	$(HOST)/xcc $(AS_SRCS)
 	mkdir -p $(TARGET)
 	$(HOST)/xcc -o$@ -Iinc -I$(UTIL_DIR) -DSELF_HOSTING $(AS_SRCS) \
-	      lib/lib.c lib/umalloc.c lib/sprintf.c lib/crt0.c
+	      lib/lib.c lib/assert.c lib/umalloc.c lib/sprintf.c lib/crt0.c
 
 $(TARGET)/xcc:	$(HOST)/xcc $(AS_SRCS)
 	mkdir -p $(TARGET)
 	$(HOST)/xcc -o$@ -Iinc -I$(UTIL_DIR) -DSELF_HOSTING $(XCC_SRCS) \
-	      lib/lib.c lib/umalloc.c lib/sprintf.c lib/crt0.c
+	      lib/lib.c lib/assert.c lib/umalloc.c lib/sprintf.c lib/crt0.c

@@ -23,11 +23,6 @@ ssize_t write(int fd, const char *str, long len) {
 #error Target not supported
 #endif
 
-int __assert_failed(const char *fn, int lineno) {
-  fprintf(stderr, "Assert failed at %s(%d)\n", fn, lineno);
-  exit(1);
-}
-
 int strlen(const char *s) {
   const char *p;
   for (p = s; *p != '\0'; ++p)
