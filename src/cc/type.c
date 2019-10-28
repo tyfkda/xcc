@@ -7,11 +7,11 @@
 #include "util.h"
 #include "lexer.h"
 
-const Type tyChar =  {.type=TY_NUM, .u={.num={.type=NUM_CHAR}}};
-const Type tyShort = {.type=TY_NUM, .u={.num={.type=NUM_SHORT}}};
-const Type tyInt =   {.type=TY_NUM, .u={.num={.type=NUM_INT}}};
-const Type tyLong =  {.type=TY_NUM, .u={.num={.type=NUM_LONG}}};
-const Type tyEnum =  {.type=TY_NUM, .u={.num={.type=NUM_ENUM}}};
+const Type tyChar =  {.type=TY_NUM, {.num={.type=NUM_CHAR}}};
+const Type tyShort = {.type=TY_NUM, {.num={.type=NUM_SHORT}}};
+const Type tyInt =   {.type=TY_NUM, {.num={.type=NUM_INT}}};
+const Type tyLong =  {.type=TY_NUM, {.num={.type=NUM_LONG}}};
+const Type tyEnum =  {.type=TY_NUM, {.num={.type=NUM_ENUM}}};
 const Type tyVoid =  {.type=TY_VOID};
 
 bool is_number(enum eType type) {
@@ -19,11 +19,11 @@ bool is_number(enum eType type) {
 }
 
 bool is_char_type(const Type *type) {
-  return type->type == TY_NUM && type->u.num.type == NUM_CHAR;
+  return type->type == TY_NUM && type->num.type == NUM_CHAR;
 }
 
 bool is_void_ptr(const Type *type) {
-  return type->type == TY_PTR && type->u.pa.ptrof->type == TY_VOID;
+  return type->type == TY_PTR && type->pa.ptrof->type == TY_VOID;
 }
 
 bool same_type(const Type *type1, const Type *type2) {
@@ -35,39 +35,39 @@ bool same_type(const Type *type1, const Type *type2) {
     case TY_VOID:
       return true;
     case TY_NUM:
-      return type1->u.num.type == type2->u.num.type;
+      return type1->num.type == type2->num.type;
     case TY_ARRAY:
     case TY_PTR:
-      type1 = type1->u.pa.ptrof;
-      type2 = type2->u.pa.ptrof;
+      type1 = type1->pa.ptrof;
+      type2 = type2->pa.ptrof;
       continue;
     case TY_FUNC:
-      if (!same_type(type1->u.func.ret, type2->u.func.ret) ||
-          type1->u.func.param_types->len != type2->u.func.param_types->len)
+      if (!same_type(type1->func.ret, type2->func.ret) ||
+          type1->func.param_types->len != type2->func.param_types->len)
         return false;
-      for (int i = 0, len = type1->u.func.param_types->len; i < len; ++i) {
-        const Type *t1 = (const Type*)type1->u.func.param_types->data[i];
-        const Type *t2 = (const Type*)type2->u.func.param_types->data[i];
+      for (int i = 0, len = type1->func.param_types->len; i < len; ++i) {
+        const Type *t1 = (const Type*)type1->func.param_types->data[i];
+        const Type *t2 = (const Type*)type2->func.param_types->data[i];
         if (!same_type(t1, t2))
           return false;
       }
       return true;
     case TY_STRUCT:
       {
-        if (type1->u.struct_.info != NULL) {
-          if (type2->u.struct_.info != NULL)
-            return type1->u.struct_.info == type2->u.struct_.info;
+        if (type1->struct_.info != NULL) {
+          if (type2->struct_.info != NULL)
+            return type1->struct_.info == type2->struct_.info;
           const Type *tmp = type1;
           type1 = type2;
           type2 = tmp;
-        } else if (type2->u.struct_.info == NULL) {
-          return strcmp(type1->u.struct_.name, type2->u.struct_.name) == 0;
+        } else if (type2->struct_.info == NULL) {
+          return strcmp(type1->struct_.name, type2->struct_.name) == 0;
         }
         // Find type1 from name.
-        StructInfo *sinfo = find_struct(type1->u.struct_.name);
+        StructInfo *sinfo = find_struct(type1->struct_.name);
         if (sinfo == NULL)
           return false;
-        return sinfo == type2->u.struct_.info;
+        return sinfo == type2->struct_.info;
       }
     }
   }
@@ -76,30 +76,30 @@ bool same_type(const Type *type1, const Type *type2) {
 Type* ptrof(const Type *type) {
   Type *ptr = malloc(sizeof(*ptr));
   ptr->type = TY_PTR;
-  ptr->u.pa.ptrof = type;
+  ptr->pa.ptrof = type;
   return ptr;
 }
 
 const Type *array_to_ptr(const Type *type) {
   if (type->type != TY_ARRAY)
     return type;
-  return ptrof(type->u.pa.ptrof);
+  return ptrof(type->pa.ptrof);
 }
 
 Type* arrayof(const Type *type, size_t length) {
   Type *arr = malloc(sizeof(*arr));
   arr->type = TY_ARRAY;
-  arr->u.pa.ptrof = type;
-  arr->u.pa.length = length;
+  arr->pa.ptrof = type;
+  arr->pa.length = length;
   return arr;
 }
 
 Type* new_func_type(const Type *ret, Vector *param_types, bool vaargs) {
   Type *f = malloc(sizeof(*f));
   f->type = TY_FUNC;
-  f->u.func.ret = ret;
-  f->u.func.vaargs = vaargs;
-  f->u.func.param_types = param_types;
+  f->func.ret = ret;
+  f->func.vaargs = vaargs;
+  f->func.param_types = param_types;
   return f;
 }
 
@@ -127,25 +127,25 @@ Type *find_enum(const char *name) {
 Type *define_enum(const Token *ident) {
   Type *type = malloc(sizeof(*type));
   type->type = TY_NUM;
-  type->u.num.type = NUM_ENUM;
-  type->u.num.enum_.ident = ident;
-  type->u.num.enum_.members = new_vector();
+  type->num.type = NUM_ENUM;
+  type->num.enum_.ident = ident;
+  type->num.enum_.members = new_vector();
 
   if (ident != NULL) {
-    map_put(enum_map, ident->u.ident, type);
+    map_put(enum_map, ident->ident, type);
   }
 
   return type;
 }
 
 void add_enum_member(Type *type, const Token *ident, int value) {
-  assert(type->type == TY_NUM && type->u.num.type == NUM_ENUM);
+  assert(type->type == TY_NUM && type->num.type == NUM_ENUM);
   EnumMember *member = malloc(sizeof(*member));
   member->ident = ident;
   member->value = value;
-  vec_push(type->u.num.enum_.members, member);
+  vec_push(type->num.enum_.members, member);
 
-  map_put(enum_value_map, ident->u.ident, (void*)(intptr_t)value);
+  map_put(enum_value_map, ident->ident, (void*)(intptr_t)value);
 }
 
 bool find_enum_value(const char *name, intptr_t *output) {
@@ -157,7 +157,7 @@ void dump_type(FILE *fp, const Type *type) {
   switch (type->type) {
   case TY_VOID: fprintf(fp, "void"); break;
   case TY_NUM:
-    switch (type->u.num.type) {
+    switch (type->num.type) {
     case NUM_CHAR:  fprintf(fp, "char"); break;
     case NUM_SHORT: fprintf(fp, "short"); break;
     case NUM_INT:   fprintf(fp, "int"); break;
@@ -166,8 +166,8 @@ void dump_type(FILE *fp, const Type *type) {
     default: assert(false); break;
     }
     break;
-  case TY_PTR: dump_type(fp, type->u.pa.ptrof); fprintf(fp, "*"); break;
-  case TY_ARRAY: dump_type(fp, type->u.pa.ptrof); fprintf(fp, "[%d]", (int)type->u.pa.length); break;
+  case TY_PTR: dump_type(fp, type->pa.ptrof); fprintf(fp, "*"); break;
+  case TY_ARRAY: dump_type(fp, type->pa.ptrof); fprintf(fp, "[%d]", (int)type->pa.length); break;
   default: assert(false); break;
   }
 }

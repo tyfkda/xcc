@@ -68,7 +68,7 @@ typedef struct {
   union {
     const char *text;
     int param;
-  } u;
+  };
 } Segment;
 
 typedef struct {
@@ -89,7 +89,7 @@ Macro *new_macro_single(const char *text) {
   Vector *segments = new_vector();
   Segment *seg = malloc(sizeof(*seg));
   seg->type = ST_TEXT;
-  seg->u.text = text;
+  seg->text = text;
   vec_push(segments, seg);
   return new_macro(NULL, false, segments);
 }
@@ -214,11 +214,11 @@ Vector *parse_macro_body(const char *p, const Vector *params, bool va_args, Stre
     Token *tok;
     if ((tok = consume(TK_IDENT)) != NULL) {
       int index = -1;
-      if (va_args && strcmp(tok->u.ident, "__VA_ARGS__") == 0) {
+      if (va_args && strcmp(tok->ident, "__VA_ARGS__") == 0) {
         index = param_len;
       } else {
         for (int i = 0; i < param_len; ++i) {
-          if (strcmp(tok->u.ident, params->data[i]) == 0) {
+          if (strcmp(tok->ident, params->data[i]) == 0) {
             index = i;
             break;
           }
@@ -228,14 +228,14 @@ Vector *parse_macro_body(const char *p, const Vector *params, bool va_args, Stre
         if (tokens->len > 0) {
           Segment *seg = malloc(sizeof(*seg));
           seg->type = ST_TEXT;
-          seg->u.text = concat_tokens(tokens);
+          seg->text = concat_tokens(tokens);
           vec_push(segments, seg);
           vec_clear(tokens);
         }
 
         Segment *seg2 = malloc(sizeof(*seg2));
         seg2->type = ST_PARAM;
-        seg2->u.param = index;
+        seg2->param = index;
         vec_push(segments, seg2);
 
         continue;
@@ -252,7 +252,7 @@ Vector *parse_macro_body(const char *p, const Vector *params, bool va_args, Stre
   if (tokens->len > 0) {
     Segment *seg = malloc(sizeof(*seg));
     seg->type = ST_TEXT;
-    seg->u.text = concat_tokens(tokens);
+    seg->text = concat_tokens(tokens);
     vec_push(segments, seg);
   }
   return segments;
@@ -278,7 +278,7 @@ void handle_define(const char *p, Stream *stream) {
             parse_error(NULL, "`)' expected");
           break;
         } else if ((tok = consume(TK_IDENT)) != NULL) {
-          vec_push(params, tok->u.ident);
+          vec_push(params, tok->ident);
           if (consume(TK_RPAR))
             break;
           if (!consume(TK_COMMA))
@@ -391,10 +391,10 @@ void expand(Macro *macro, const char *name) {
       Segment *seg = macro->segments->data[i];
       switch (seg->type) {
       case ST_TEXT:
-        str = append(str, seg->u.text, NULL);
+        str = append(str, seg->text, NULL);
         break;
       case ST_PARAM:
-        str = append(str, (char*)args->data[seg->u.param], NULL);
+        str = append(str, (char*)args->data[seg->param], NULL);
         break;
       default:
         break;
@@ -458,12 +458,12 @@ void process_line(const char *line, Stream *stream) {
 
     Token *ident = consume(TK_IDENT);
     Macro *macro;
-    if (ident != NULL && (macro = map_get(macro_map, ident->u.ident)) != NULL) {
+    if (ident != NULL && (macro = map_get(macro_map, ident->ident)) != NULL) {
       if (ident->begin != begin)
         fwrite(begin, ident->begin - begin, 1, stdout);
 
       s_stream = stream;
-      expand(macro, ident->u.ident);
+      expand(macro, ident->ident);
       begin = get_lex_p();
       continue;
     }
@@ -484,35 +484,35 @@ bool handle_ifdef(const char *p) {
 intptr_t reduce(Expr *expr) {
   switch (expr->type) {
   case EX_NUM:
-    switch (expr->valType->u.num.type) {
+    switch (expr->valType->num.type) {
     case NUM_CHAR:
     case NUM_SHORT:
     case NUM_INT:
     case NUM_LONG:
-      return expr->u.num.ival;
+      return expr->num.ival;
     default: assert(false); break;
     }
     break;
   case EX_FUNCALL:
     {
-      const Expr *func = expr->u.funcall.func;
-      const Vector *args = expr->u.funcall.args;
+      const Expr *func = expr->funcall.func;
+      const Vector *args = expr->funcall.args;
       if (func->type == EX_VARREF &&
-          strcmp(func->u.varref.ident, "defined") == 0 &&
+          strcmp(func->varref.ident, "defined") == 0 &&
           args != NULL && args->len == 1 &&
           ((Expr*)args->data[0])->type == EX_VARREF) {  // defined(IDENT)
         Expr *arg = (Expr*)args->data[0];
         void *dummy = 0;
-        return map_try_get(macro_map, arg->u.varref.ident, &dummy) ? 1 : 0;
+        return map_try_get(macro_map, arg->varref.ident, &dummy) ? 1 : 0;
       }
     }
     break;
   case EX_NOT:
-    return reduce(expr->u.unary.sub) ? 0 : 1;
+    return reduce(expr->unary.sub) ? 0 : 1;
   case EX_LOGAND:
-    return reduce(expr->u.bop.lhs) && reduce(expr->u.bop.rhs);
+    return reduce(expr->bop.lhs) && reduce(expr->bop.rhs);
   case EX_LOGIOR:
-    return reduce(expr->u.bop.lhs) || reduce(expr->u.bop.rhs);
+    return reduce(expr->bop.lhs) || reduce(expr->bop.rhs);
   default:
     break;
   }

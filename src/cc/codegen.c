@@ -33,7 +33,7 @@ size_t type_size(const Type *type) {
   case TY_VOID:
     return 1;  // ?
   case TY_NUM:
-    switch (type->u.num.type) {
+    switch (type->num.type) {
     case NUM_CHAR:
       return 1;
     case NUM_SHORT:
@@ -51,12 +51,12 @@ size_t type_size(const Type *type) {
   case TY_FUNC:
     return 8;
   case TY_ARRAY:
-    assert(type->u.pa.length != (size_t)-1);
-    return type_size(type->u.pa.ptrof) * type->u.pa.length;
+    assert(type->pa.length != (size_t)-1);
+    return type_size(type->pa.ptrof) * type->pa.length;
   case TY_STRUCT:
     ensure_struct((Type*)type, NULL);
-    calc_struct_size(type->u.struct_.info);
-    return type->u.struct_.info->size;
+    calc_struct_size(type->struct_.info);
+    return type->struct_.info->size;
   default:
     assert(false);
     return 1;
@@ -68,7 +68,7 @@ int align_size(const Type *type) {
   case TY_VOID:
     return 1;  // ?
   case TY_NUM:
-    switch (type->u.num.type) {
+    switch (type->num.type) {
     case NUM_CHAR:
       return 1;
     case NUM_SHORT:
@@ -86,11 +86,11 @@ int align_size(const Type *type) {
   case TY_FUNC:
     return 8;
   case TY_ARRAY:
-    return align_size(type->u.pa.ptrof);
+    return align_size(type->pa.ptrof);
   case TY_STRUCT:
     ensure_struct((Type*)type, NULL);
-    calc_struct_size(type->u.struct_.info);
-    return type->u.struct_.info->align;
+    calc_struct_size(type->struct_.info);
+    return type->struct_.info->align;
   default:
     assert(false);
     return 1;
@@ -188,17 +188,17 @@ void construct_initial_value(unsigned char *buf, const Type *type, Initializer *
       intptr_t v = 0;
       if (init != NULL) {
         assert(init->type == vSingle);
-        Expr *value = init->u.single;
+        Expr *value = init->single;
         if (!(is_const(value) && is_number(value->valType->type)))
           error("Illegal initializer: constant number expected");
-        v = value->u.num.ival;
+        v = value->num.ival;
       }
 
       int size = type_size(type);
       for (int i = 0; i < size; ++i)
         buf[i] = v >> (i * 8);  // Little endian
 
-      switch (type->u.num.type) {
+      switch (type->num.type) {
       case NUM_CHAR:  _BYTE(NUM(v)); break;
       case NUM_SHORT: _WORD(NUM(v)); break;
       case NUM_LONG:  _QUAD(NUM(v)); break;
@@ -212,29 +212,29 @@ void construct_initial_value(unsigned char *buf, const Type *type, Initializer *
   case TY_PTR:
     if (init != NULL) {
       assert(init->type == vSingle);
-      Expr *value = init->u.single;
+      Expr *value = init->single;
       while (value->type == EX_CAST)
-        value = value->u.unary.sub;
+        value = value->unary.sub;
       if (value->type == EX_REF || value->type == EX_VARREF) {
         if (value->type == EX_REF)
-          value = value->u.unary.sub;
+          value = value->unary.sub;
         // TODO: Type check.
 
         assert(value->type == EX_VARREF);
-        assert(value->u.varref.scope == NULL);
+        assert(value->varref.scope == NULL);
 
         void **init = malloc(sizeof(void*) * 2);
         init[0] = buf;
-        init[1] = (void*)value->u.varref.ident;
+        init[1] = (void*)value->varref.ident;
         if (*pptrinits == NULL)
           *pptrinits = new_vector();
         vec_push(*pptrinits, init);
 
-        _QUAD(value->u.varref.ident);
+        _QUAD(value->varref.ident);
       } else if (value->type == EX_STR) {
         assert(!"`char* s = \"...\"`; should be handled in parser");
       } else if (is_const(value) && value->type == EX_NUM) {
-        intptr_t x = value->u.num.ival;
+        intptr_t x = value->num.ival;
         for (int i = 0; i < WORD_SIZE; ++i)
           buf[i] = x >> (i * 8);  // Little endian
 
@@ -248,32 +248,32 @@ void construct_initial_value(unsigned char *buf, const Type *type, Initializer *
     break;
   case TY_ARRAY:
     if (init == NULL || init->type == vMulti) {
-      const Type *elem_type = type->u.pa.ptrof;
+      const Type *elem_type = type->pa.ptrof;
       size_t elem_size = type_size(elem_type);
       if (init != NULL) {
-        Vector *init_array = init->u.multi;
+        Vector *init_array = init->multi;
         size_t index = 0;
         size_t len = init_array->len;
         for (size_t i = 0; i < len; ++i, ++index) {
           Initializer *init_elem = init_array->data[i];
           if (init_elem->type == vArr) {
-            size_t next = init_elem->u.arr.index->u.num.ival;
+            size_t next = init_elem->arr.index->num.ival;
             for (size_t j = index; j < next; ++j)
               construct_initial_value(buf + (j * elem_size), elem_type, NULL, pptrinits);
             index = next;
-            init_elem = init_elem->u.arr.value;
+            init_elem = init_elem->arr.value;
           }
           construct_initial_value(buf + (index * elem_size), elem_type, init_elem, pptrinits);
         }
-        assert((size_t)len <= type->u.pa.length);
+        assert((size_t)len <= type->pa.length);
       }
     } else {
       if (init->type == vSingle &&
-          is_char_type(type->u.pa.ptrof) && init->u.single->type == EX_STR) {
-        int src_size = init->u.single->u.str.size;
+          is_char_type(type->pa.ptrof) && init->single->type == EX_STR) {
+        int src_size = init->single->str.size;
         size_t size = type_size(type);
         assert(size >= (size_t)src_size);
-        memcpy(buf, init->u.single->u.str.buf, src_size);
+        memcpy(buf, init->single->str.buf, src_size);
 
         UNUSED(size);
         _ASCII(fmt("\"%s\"", escape_string((char*)buf, size)));
@@ -286,7 +286,7 @@ void construct_initial_value(unsigned char *buf, const Type *type, Initializer *
     {
       assert(init == NULL || init->type == vMulti);
 
-      const StructInfo *sinfo = type->u.struct_.info;
+      const StructInfo *sinfo = type->struct_.info;
       int count = 0;
       for (int i = 0, n = sinfo->members->len; i < n; ++i) {
         VarInfo* varinfo = sinfo->members->data[i];
@@ -296,7 +296,7 @@ void construct_initial_value(unsigned char *buf, const Type *type, Initializer *
             continue;
           mem_init = NULL;
         } else {
-          mem_init = init->u.multi->data[i];
+          mem_init = init->multi->data[i];
         }
         if (mem_init != NULL || !sinfo->is_union) {
           construct_initial_value(buf + varinfo->offset, varinfo->type, mem_init, pptrinits);
@@ -328,7 +328,7 @@ static void put_data(const char *label, const VarInfo *varinfo) {
   EMIT_LABEL(label);
 
   Vector *ptrinits = NULL;  // <[ptr, label]>
-  construct_initial_value(buf, varinfo->type, varinfo->u.g.init, &ptrinits);
+  construct_initial_value(buf, varinfo->type, varinfo->global.init, &ptrinits);
   //emit_section_data(sec, buf, size);
 
   free(buf);
@@ -339,7 +339,7 @@ static void put_rodata(void) {
   for (int i = 0, len = map_count(gvar_map); i < len; ++i) {
     const VarInfo *varinfo = (const VarInfo*)gvar_map->vals->data[i];
     if (varinfo->type->type == TY_FUNC ||
-        (varinfo->flag & VF_EXTERN) != 0 || varinfo->u.g.init == NULL ||
+        (varinfo->flag & VF_EXTERN) != 0 || varinfo->global.init == NULL ||
         (varinfo->flag & VF_CONST) == 0)
       continue;
 
@@ -353,7 +353,7 @@ static void put_rwdata(void) {
   for (int i = 0, len = map_count(gvar_map); i < len; ++i) {
     const VarInfo *varinfo = (const VarInfo*)gvar_map->vals->data[i];
     if (varinfo->type->type == TY_FUNC ||
-        (varinfo->flag & VF_EXTERN) != 0 || varinfo->u.g.init == NULL ||
+        (varinfo->flag & VF_EXTERN) != 0 || varinfo->global.init == NULL ||
         (varinfo->flag & VF_CONST) != 0)
       continue;
 
@@ -367,7 +367,7 @@ static void put_bss(void) {
   for (int i = 0, len = map_count(gvar_map); i < len; ++i) {
     const char *name = (const char *)gvar_map->keys->data[i];
     const VarInfo *varinfo = (const VarInfo*)gvar_map->vals->data[i];
-    if (varinfo->type->type == TY_FUNC || varinfo->u.g.init != NULL ||
+    if (varinfo->type->type == TY_FUNC || varinfo->global.init != NULL ||
         (varinfo->flag & VF_EXTERN) != 0)
       continue;
 
@@ -438,7 +438,7 @@ static void alloc_variable_registers(Defun *defun) {
   for (int i = 0; i < defun->all_scopes->len; ++i) {
     Scope *scope = (Scope*)defun->all_scopes->data[i];
     if (scope->vars != NULL) {
-      if (i == 0 && defun->type->u.func.vaargs) {  // Variadic function parameters.
+      if (i == 0 && defun->type->func.vaargs) {  // Variadic function parameters.
         // Special arrangement for va_list.
         arrange_variadic_func_params(scope);
       } else {
@@ -483,7 +483,7 @@ static void put_args_to_stack(Defun *defun) {
   // Store arguments into local frame.
   Vector *params = defun->params;
   int len = params != NULL ? params->len : 0;
-  int n = defun->type->u.func.vaargs ? MAX_REG_ARGS : len;
+  int n = defun->type->func.vaargs ? MAX_REG_ARGS : len;
   for (int i = 0; i < n; ++i) {
     const Type *type;
     int offset;
@@ -499,7 +499,7 @@ static void put_args_to_stack(Defun *defun) {
     int size = 0;
     switch (type->type) {
     case TY_NUM:
-      switch (type->u.num.type) {
+      switch (type->num.type) {
       case NUM_CHAR:  size = 1; break;
       case NUM_INT:
       case NUM_ENUM:
@@ -538,9 +538,9 @@ static void put_args_to_stack(Defun *defun) {
 
 static bool is_funcall(Expr *expr, const char *funcname) {
   if (expr->type == EX_FUNCALL) {
-    Expr *func = expr->u.funcall.func;
+    Expr *func = expr->funcall.func;
     if (func->type == EX_VARREF &&
-        strcmp(func->u.varref.ident, funcname) == 0)
+        strcmp(func->varref.ident, funcname) == 0)
       return true;
   }
   return false;
@@ -548,19 +548,19 @@ static bool is_funcall(Expr *expr, const char *funcname) {
 
 static bool is_asm(Node *node) {
   return node->type == ND_EXPR &&
-    is_funcall(node->u.expr, "__asm");
+    is_funcall(node->expr, "__asm");
 }
 
 static void out_asm(Node *node) {
-  Expr *funcall = node->u.expr;
-  Vector *args = funcall->u.funcall.args;
+  Expr *funcall = node->expr;
+  Vector *args = funcall->funcall.args;
   int len = args->len;
 
   Expr *arg0;
   if (len != 1 || (arg0 = (Expr*)args->data[0])->type != EX_STR)
     error("__asm takes string at 1st argument");
   else
-    EMIT_ASM0(arg0->u.str.buf);
+    EMIT_ASM0(arg0->str.buf);
 }
 
 static void gen_nodes(Vector *nodes) {
@@ -580,7 +580,7 @@ static void gen_nodes(Vector *nodes) {
 
 static void gen_defun(Node *node) {
   assert(stackpos == 0);
-  Defun *defun = node->u.defun;
+  Defun *defun = node->defun;
   if (defun->top_scope == NULL)  // Prototype definition
     return;
 
@@ -674,22 +674,22 @@ static void gen_defun(Node *node) {
 }
 
 static void gen_block(Node *node) {
-  if (node->u.block.nodes != NULL) {
-    if (node->u.block.scope != NULL) {
-      assert(curscope == node->u.block.scope->parent);
-      curscope = node->u.block.scope;
+  if (node->block.nodes != NULL) {
+    if (node->block.scope != NULL) {
+      assert(curscope == node->block.scope->parent);
+      curscope = node->block.scope;
     }
-    gen_nodes(node->u.block.nodes);
-    if (node->u.block.scope != NULL)
+    gen_nodes(node->block.nodes);
+    if (node->block.scope != NULL)
       curscope = curscope->parent;
   }
 }
 
 static void gen_return(Node *node) {
   BB *bb = bb_split(curbb);
-  if (node->u.return_.val != NULL) {
-    VReg *reg = gen_expr(node->u.return_.val);
-    new_ir_result(reg, type_size(node->u.return_.val->valType));
+  if (node->return_.val != NULL) {
+    VReg *reg = gen_expr(node->return_.val);
+    new_ir_result(reg, type_size(node->return_.val->valType));
   }
   assert(curfunc != NULL);
   new_ir_jmp(COND_ANY, curfunc->ret_bb);
@@ -699,16 +699,16 @@ static void gen_return(Node *node) {
 static void gen_if(Node *node) {
   BB *tbb = bb_split(curbb);
   BB *fbb = bb_split(tbb);
-  gen_cond_jmp(node->u.if_.cond, false, fbb);
+  gen_cond_jmp(node->if_.cond, false, fbb);
   set_curbb(tbb);
-  gen(node->u.if_.tblock);
-  if (node->u.if_.fblock == NULL) {
+  gen(node->if_.tblock);
+  if (node->if_.fblock == NULL) {
     set_curbb(fbb);
   } else {
     BB *nbb = bb_split(fbb);
     new_ir_jmp(COND_ANY, nbb);
     set_curbb(fbb);
-    gen(node->u.if_.fblock);
+    gen(node->if_.fblock);
     set_curbb(nbb);
   }
 }
@@ -725,7 +725,7 @@ static void gen_switch(Node *node) {
   BB *break_bb = push_break_bb(pbb, &save_break);
 
   Vector *bbs = new_vector();
-  Vector *case_values = node->u.switch_.case_values;
+  Vector *case_values = node->switch_.case_values;
   int len = case_values->len;
   for (int i = 0; i < len; ++i) {
     BB *bb = bb_split(pbb);
@@ -735,7 +735,7 @@ static void gen_switch(Node *node) {
   vec_push(bbs, new_bb());  // len+0: Extra label for default.
   vec_push(bbs, break_bb);  // len+1: Extra label for break.
 
-  Expr *value = node->u.switch_.value;
+  Expr *value = node->switch_.value;
   VReg *reg = gen_expr(value);
 
   int size = type_size(value->valType);
@@ -755,9 +755,9 @@ static void gen_switch(Node *node) {
   cur_case_values = case_values;
   cur_case_bbs = bbs;
 
-  gen(node->u.switch_.body);
+  gen(node->switch_.body);
 
-  if (!node->u.switch_.has_default) {
+  if (!node->switch_.has_default) {
     // No default: Locate at the end of switch statement.
     BB *bb = bbs->data[len];
     bb_insert(curbb, bb);
@@ -773,9 +773,9 @@ static void gen_switch(Node *node) {
 static void gen_case(Node *node) {
   assert(cur_case_values != NULL);
   assert(cur_case_bbs != NULL);
-  Expr *valnode = node->u.case_.value;
+  Expr *valnode = node->case_.value;
   assert(is_const(valnode));
-  intptr_t x = valnode->u.num.ival;
+  intptr_t x = valnode->num.ival;
   int i, len = cur_case_values->len;
   for (i = 0; i < len; ++i) {
     if ((intptr_t)cur_case_values->data[i] == x)
@@ -806,10 +806,10 @@ static void gen_while(Node *node) {
   new_ir_jmp(COND_ANY, cond_bb);
 
   set_curbb(loop_bb);
-  gen(node->u.while_.body);
+  gen(node->while_.body);
 
   set_curbb(cond_bb);
-  gen_cond_jmp(node->u.while_.cond, true, loop_bb);
+  gen_cond_jmp(node->while_.cond, true, loop_bb);
 
   set_curbb(next_bb);
   pop_continue_bb(save_cont);
@@ -824,10 +824,10 @@ static void gen_do_while(Node *node) {
   BB *next_bb = push_break_bb(cond_bb, &save_break);
 
   set_curbb(loop_bb);
-  gen(node->u.while_.body);
+  gen(node->while_.body);
 
   set_curbb(cond_bb);
-  gen_cond_jmp(node->u.while_.cond, true, loop_bb);
+  gen_cond_jmp(node->while_.cond, true, loop_bb);
 
   set_curbb(next_bb);
   pop_continue_bb(save_cont);
@@ -842,20 +842,20 @@ static void gen_for(Node *node) {
   BB *continue_bb = push_continue_bb(body_bb, &save_cont);
   BB *next_bb = push_break_bb(continue_bb, &save_break);
 
-  if (node->u.for_.pre != NULL)
-    gen_expr_stmt(node->u.for_.pre);
+  if (node->for_.pre != NULL)
+    gen_expr_stmt(node->for_.pre);
 
   set_curbb(cond_bb);
 
-  if (node->u.for_.cond != NULL)
-    gen_cond_jmp(node->u.for_.cond, false, next_bb);
+  if (node->for_.cond != NULL)
+    gen_cond_jmp(node->for_.cond, false, next_bb);
 
   set_curbb(body_bb);
-  gen(node->u.for_.body);
+  gen(node->for_.body);
 
   set_curbb(continue_bb);
-  if (node->u.for_.post != NULL)
-    gen_expr_stmt(node->u.for_.post);
+  if (node->for_.post != NULL)
+    gen_expr_stmt(node->for_.post);
   new_ir_jmp(COND_ANY, cond_bb);
 
   set_curbb(next_bb);
@@ -879,18 +879,18 @@ static void gen_continue(void) {
 
 static void gen_goto(Node *node) {
   assert(curfunc->label_map != NULL);
-  BB *bb = map_get(curfunc->label_map, node->u.goto_.ident);
+  BB *bb = map_get(curfunc->label_map, node->goto_.ident);
   assert(bb != NULL);
   new_ir_jmp(COND_ANY, bb);
 }
 
 static void gen_label(Node *node) {
   assert(curfunc->label_map != NULL);
-  BB *bb = map_get(curfunc->label_map, node->u.label.name);
+  BB *bb = map_get(curfunc->label_map, node->label.name);
   assert(bb != NULL);
   bb_insert(curbb, bb);
   set_curbb(bb);
-  gen(node->u.label.stmt);
+  gen(node->label.stmt);
 }
 
 static void gen_clear_local_var(const VarInfo *varinfo) {
@@ -901,13 +901,13 @@ static void gen_clear_local_var(const VarInfo *varinfo) {
 
 static void gen_vardecl(Node *node) {
   if (curfunc != NULL) {
-    Vector *decls = node->u.vardecl.decls;
+    Vector *decls = node->vardecl.decls;
     for (int i = 0; i < decls->len; ++i) {
       VarDecl *decl = decls->data[i];
       if (decl->init == NULL)
         continue;
       Scope *scope = curscope;
-      VarInfo *varinfo = scope_find(&scope, decl->ident->u.ident);
+      VarInfo *varinfo = scope_find(&scope, decl->ident->ident);
       if (varinfo == NULL || (varinfo->flag & (VF_STATIC | VF_EXTERN)) ||
           !(varinfo->type->type == TY_STRUCT ||
             varinfo->type->type == TY_ARRAY))
@@ -915,7 +915,7 @@ static void gen_vardecl(Node *node) {
       gen_clear_local_var(varinfo);
     }
   }
-  gen_nodes(node->u.vardecl.inits);
+  gen_nodes(node->vardecl.inits);
 }
 
 static void gen_expr_stmt(Expr *expr) {
@@ -924,7 +924,7 @@ static void gen_expr_stmt(Expr *expr) {
 
 static void gen_toplevel(Node *node) {
   _TEXT();
-  gen_nodes(node->u.toplevel.nodes);
+  gen_nodes(node->toplevel.nodes);
 }
 
 void gen(Node *node) {
@@ -932,7 +932,7 @@ void gen(Node *node) {
     return;
 
   switch (node->type) {
-  case ND_EXPR:  gen_expr_stmt(node->u.expr); break;
+  case ND_EXPR:  gen_expr_stmt(node->expr); break;
   case ND_DEFUN:  gen_defun(node); break;
   case ND_RETURN:  gen_return(node); break;
   case ND_BLOCK:  gen_block(node); break;

@@ -50,37 +50,37 @@ static Node *new_node(enum NodeType type) {
 
 Node *new_node_expr(Expr *e) {
   Node *node = new_node(ND_EXPR);
-  node->u.expr = e;
+  node->expr = e;
   return node;
 }
 
 static Node *new_node_block(Vector *nodes) {
   Node *node = new_node(ND_BLOCK);
-  node->u.block.scope = NULL;
-  node->u.block.nodes = nodes;
+  node->block.scope = NULL;
+  node->block.nodes = nodes;
   return node;
 }
 
 static Node *new_node_if(Expr *cond, Node *tblock, Node *fblock) {
   Node *node = new_node(ND_IF);
-  node->u.if_.cond = cond;
-  node->u.if_.tblock = tblock;
-  node->u.if_.fblock = fblock;
+  node->if_.cond = cond;
+  node->if_.tblock = tblock;
+  node->if_.fblock = fblock;
   return node;
 }
 
 static Node *new_node_switch(Expr *value) {
   Node *node = new_node(ND_SWITCH);
-  node->u.switch_.value = value;
-  node->u.switch_.body = NULL;
-  node->u.switch_.case_values = new_vector();
-  node->u.switch_.has_default = false;
+  node->switch_.value = value;
+  node->switch_.body = NULL;
+  node->switch_.case_values = new_vector();
+  node->switch_.has_default = false;
   return node;
 }
 
 static Node *new_node_case(Expr *value) {
   Node *node = new_node(ND_CASE);
-  node->u.case_.value = value;
+  node->case_.value = value;
   return node;
 }
 
@@ -91,57 +91,57 @@ static Node *new_node_default(void) {
 
 static Node *new_node_while(Expr *cond, Node *body) {
   Node *node = new_node(ND_WHILE);
-  node->u.while_.cond = cond;
-  node->u.while_.body = body;
+  node->while_.cond = cond;
+  node->while_.body = body;
   return node;
 }
 
 static Node *new_node_do_while(Node *body, Expr *cond) {
   Node *node = new_node(ND_DO_WHILE);
-  node->u.while_.body = body;
-  node->u.while_.cond = cond;
+  node->while_.body = body;
+  node->while_.cond = cond;
   return node;
 }
 
 static Node *new_node_for(Expr *pre, Expr *cond, Expr *post, Node *body) {
   Node *node = new_node(ND_FOR);
-  node->u.for_.pre = pre;
-  node->u.for_.cond = cond;
-  node->u.for_.post = post;
-  node->u.for_.body = body;
+  node->for_.pre = pre;
+  node->for_.cond = cond;
+  node->for_.post = post;
+  node->for_.body = body;
   return node;
 }
 
 static Node *new_node_return(Expr *val) {
   Node *node = new_node(ND_RETURN);
-  node->u.return_.val = val;
+  node->return_.val = val;
   return node;
 }
 
 static Node *new_node_goto(const Token *label) {
   Node *node = new_node(ND_GOTO);
-  node->u.goto_.tok = label;
-  node->u.goto_.ident = label->u.ident;
+  node->goto_.tok = label;
+  node->goto_.ident = label->ident;
   return node;
 }
 
 static Node *new_node_label(const char *name, Node *stmt) {
   Node *node = new_node(ND_LABEL);
-  node->u.label.name = name;
-  node->u.label.stmt = stmt;
+  node->label.name = name;
+  node->label.stmt = stmt;
   return node;
 }
 
 static Node *new_node_vardecl(Vector *decls) {
   Node *node = new_node(ND_VARDECL);
-  node->u.vardecl.decls = decls;
-  node->u.vardecl.inits = NULL;
+  node->vardecl.decls = decls;
+  node->vardecl.inits = NULL;
   return node;
 }
 
 static Node *new_node_defun(Defun *defun) {
   Node *node = new_node(ND_DEFUN);
-  node->u.defun = defun;
+  node->defun = defun;
   return node;
 }
 
@@ -163,8 +163,8 @@ static Initializer *parse_initializer(void) {
           Initializer *value = parse_initializer();
           init = malloc(sizeof(*init));
           init->type = vDot;
-          init->u.dot.name = ident->u.ident;
-          init->u.dot.value = value;
+          init->dot.name = ident->ident;
+          init->dot.value = value;
         } else if (consume(TK_LBRACKET)) {
           Expr *index = parse_const();
           if (!consume(TK_RBRACKET))
@@ -173,8 +173,8 @@ static Initializer *parse_initializer(void) {
           Initializer *value = parse_initializer();
           init = malloc(sizeof(*init));
           init->type = vArr;
-          init->u.arr.index = index;
-          init->u.arr.value = value;
+          init->arr.index = index;
+          init->arr.value = value;
         } else {
           init = parse_initializer();
         }
@@ -191,10 +191,10 @@ static Initializer *parse_initializer(void) {
       }
     }
     result->type = vMulti;
-    result->u.multi = multi;
+    result->multi = multi;
   } else {
     result->type = vSingle;
-    result->u.single = parse_assign();
+    result->single = parse_assign();
   }
   return result;
 }
@@ -271,7 +271,7 @@ static Node *parse_switch(void) {
     Expr *value = parse_expr();
     if (consume(TK_RPAR)) {
       Node *swtch = new_node_switch(value);
-      swtch->u.switch_.body = stmt();
+      swtch->switch_.body = stmt();
       return swtch;
     }
   }
@@ -436,7 +436,7 @@ static Node *stmt(void) {
   Token *label = consume(TK_IDENT);
   if (label != NULL) {
     if (consume(TK_COLON)) {
-      return new_node_label(label->u.ident, stmt());
+      return new_node_label(label->ident, stmt());
     }
     unget_token(label);
   }
@@ -484,7 +484,7 @@ static Node *stmt(void) {
 }
 
 static Node *parse_defun(const Type *rettype, int flag, Token *ident) {
-  const char *name = ident->u.ident;
+  const char *name = ident->ident;
   bool vaargs;
   Vector *params = parse_funparams(&vaargs);
 
@@ -518,7 +518,7 @@ static void parse_typedef(void) {
     if (ident == NULL)
       parse_error(NULL, "ident expected");
   }
-  const char *name = ident->u.ident;
+  const char *name = ident->ident;
   add_typedef(name, type);
 
   if (!consume(TK_SEMICOL))
@@ -564,7 +564,7 @@ static Node *toplevel(void) {
   if (rawtype != NULL) {
     const Type *type = parse_type_modifier(rawtype);
     if ((type->type == TY_STRUCT ||
-         (type->type == TY_NUM && type->u.num.type == NUM_ENUM)) &&
+         (type->type == TY_NUM && type->num.type == NUM_ENUM)) &&
         consume(TK_SEMICOL))  // Just struct/union definition.
       return NULL;
 
@@ -595,6 +595,6 @@ Node *parse_program(void) {
   }
 
   Node *node = new_node(ND_TOPLEVEL);
-  node->u.toplevel.nodes = nodes;
+  node->toplevel.nodes = nodes;
   return node;
 }

@@ -104,7 +104,7 @@ typedef struct {
     struct {
       const char *str;
     } asm_;
-  } u;
+  };
 } IR;
 
 VReg *new_ir_imm(intptr_t value, int size);

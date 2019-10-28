@@ -109,7 +109,7 @@ typedef struct Token {
       size_t size;  // Include last '\0'.
     } str;
     intptr_t value;
-  } u;
+  };
 } Token;
 
 void init_lexer(FILE *fp, const char *filename);

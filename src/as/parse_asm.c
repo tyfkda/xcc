@@ -299,9 +299,9 @@ bool parse_operand(const char **pp, Operand *operand) {
     }
 
     operand->type = REG;
-    operand->u.reg.size = size;
-    operand->u.reg.no = no & 7;
-    operand->u.reg.x = (no & 8) >> 3;
+    operand->reg.size = size;
+    operand->reg.no = no & 7;
+    operand->reg.x = (no & 8) >> 3;
     return true;
   }
 
@@ -313,15 +313,15 @@ bool parse_operand(const char **pp, Operand *operand) {
 
     char no = reg - RAX;
     operand->type = DEREF_REG;
-    operand->u.deref_reg.size = REG64;
-    operand->u.deref_reg.no = no & 7;
-    operand->u.deref_reg.x = (no & 8) >> 3;
+    operand->deref_reg.size = REG64;
+    operand->deref_reg.no = no & 7;
+    operand->deref_reg.x = (no & 8) >> 3;
     return true;
   }
 
   if (*p == '$') {
     *pp = p + 1;
-    if (!parse_immediate(pp, &operand->u.immediate))
+    if (!parse_immediate(pp, &operand->immediate))
       error("Syntax error");
     operand->type = IMMEDIATE;
     return true;
@@ -350,7 +350,7 @@ bool parse_operand(const char **pp, Operand *operand) {
   if (*p != '(') {
     if (label != NULL) {
       operand->type = LABEL;
-      operand->u.label = label;
+      operand->label = label;
       *pp = p;
       return true;
     }
@@ -369,11 +369,11 @@ bool parse_operand(const char **pp, Operand *operand) {
 
       char no = reg - RAX;
       operand->type = INDIRECT;
-      operand->u.indirect.reg.size = REG64;
-      operand->u.indirect.reg.no = reg != RIP ? no & 7 : RIP;
-      operand->u.indirect.reg.x = (no & 8) >> 3;
-      operand->u.indirect.label = label;
-      operand->u.indirect.offset = offset;
+      operand->indirect.reg.size = REG64;
+      operand->indirect.reg.no = reg != RIP ? no & 7 : RIP;
+      operand->indirect.reg.x = (no & 8) >> 3;
+      operand->indirect.label = label;
+      operand->indirect.offset = offset;
       return true;
     }
     error("Illegal `('");

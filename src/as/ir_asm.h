@@ -31,7 +31,7 @@ typedef struct {
     size_t bss;
     int align;
     int section;
-  } u;
+  };
 } IR;
 
 IR *new_ir_label(const char *label);

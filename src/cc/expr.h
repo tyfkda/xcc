@@ -109,7 +109,7 @@ typedef struct Expr {
     struct {
       Vector *list;  // <Expr*>
     } comma;
-  } u;
+  };
 } Expr;
 
 //

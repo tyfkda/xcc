@@ -52,88 +52,88 @@ static Expr *new_expr(enum ExprType type, const Type *valType, const Token *toke
 Expr *new_expr_numlit(const Type *type, const Token *token, const Num *num) {
   assert(type->type == TY_NUM);
   Expr *expr = new_expr(EX_NUM, type, token);
-  expr->u.num = *num;
+  expr->num = *num;
   return expr;
 }
 
 static Expr *new_expr_str(const Token *token, const char *str, size_t size) {
   Type *type = malloc(sizeof(*type));
   type->type = TY_ARRAY;
-  type->u.pa.ptrof = &tyChar;
-  type->u.pa.length = size;
+  type->pa.ptrof = &tyChar;
+  type->pa.length = size;
 
   Expr *expr = new_expr(EX_STR, type, token);
-  expr->u.str.buf = str;
-  expr->u.str.size = size;
+  expr->str.buf = str;
+  expr->str.size = size;
   return expr;
 }
 
 Expr *new_expr_varref(const char *name, const Type *type, const Token *token) {
   Expr *expr = new_expr(EX_VARREF, type, token);
-  expr->u.varref.ident = name;
-  expr->u.varref.scope = NULL;
+  expr->varref.ident = name;
+  expr->varref.scope = NULL;
   return expr;
 }
 
 Expr *new_expr_bop(enum ExprType type, const Type *valType, const Token *token, Expr *lhs, Expr *rhs) {
   Expr *expr = new_expr(type, valType, token);
-  expr->u.bop.lhs = lhs;
-  expr->u.bop.rhs = rhs;
+  expr->bop.lhs = lhs;
+  expr->bop.rhs = rhs;
   return expr;
 }
 
 static Expr *new_expr_unary(enum ExprType type, const Type *valType, const Token *token, Expr *sub) {
   Expr *expr = new_expr(type, valType, token);
-  expr->u.unary.sub = sub;
+  expr->unary.sub = sub;
   return expr;
 }
 
 Expr *new_expr_deref(const Token *token, Expr *sub) {
   if (sub->valType->type != TY_PTR && sub->valType->type != TY_ARRAY)
     parse_error(token, "Cannot dereference raw type");
-  return new_expr_unary(EX_DEREF, sub->valType->u.pa.ptrof, token, sub);
+  return new_expr_unary(EX_DEREF, sub->valType->pa.ptrof, token, sub);
 }
 
 static Expr *new_expr_ternary(const Token *token, Expr *cond, Expr *tval, Expr *fval, const Type *type) {
   Expr *expr = new_expr(EX_TERNARY, type, token);
-  expr->u.ternary.cond = cond;
-  expr->u.ternary.tval = tval;
-  expr->u.ternary.fval = fval;
+  expr->ternary.cond = cond;
+  expr->ternary.tval = tval;
+  expr->ternary.fval = fval;
   return expr;
 }
 
 Expr *new_expr_member(const Token *token, const Type *valType, Expr *target, const Token *acctok, const Token *ident, int index) {
   Expr *expr = new_expr(EX_MEMBER, valType, token);
-  expr->u.member.target = target;
-  expr->u.member.acctok = acctok;
-  expr->u.member.ident = ident;
-  expr->u.member.index = index;
+  expr->member.target = target;
+  expr->member.acctok = acctok;
+  expr->member.ident = ident;
+  expr->member.index = index;
   return expr;
 }
 
 static Expr *new_expr_funcall(const Token *token, Expr *func, Vector *args) {
   Expr *expr = new_expr(EX_FUNCALL, NULL, token);
-  expr->u.funcall.func = func;
-  expr->u.funcall.args = args;
+  expr->funcall.func = func;
+  expr->funcall.args = args;
   return expr;
 }
 
 static Expr *new_expr_comma(Vector *list) {
   Expr *expr = new_expr(EX_COMMA, NULL, NULL);
-  expr->u.comma.list = list;
+  expr->comma.list = list;
   return expr;
 }
 
 Expr *new_expr_sizeof(const Token *token, const Type *type, Expr *sub) {
   Expr *expr = new_expr(EX_SIZEOF, &tySize, token);
-  expr->u.sizeof_.type = type;
-  expr->u.sizeof_.sub = sub;
+  expr->sizeof_.type = type;
+  expr->sizeof_.sub = sub;
   return expr;
 }
 
 Expr *new_expr_cast(const Type *type, const Token *token, Expr *sub) {
   Expr *expr = new_expr(EX_CAST, type, token);
-  expr->u.unary.sub = sub;
+  expr->unary.sub = sub;
   return expr;
 }
 
@@ -175,7 +175,7 @@ Expr *member_access(Expr *target, Token *acctok) {
 
 static const Type *parse_enum(void) {
   Token *typeIdent = consume(TK_IDENT);
-  Type *type = typeIdent != NULL ? find_enum(typeIdent->u.ident) : NULL;
+  Type *type = typeIdent != NULL ? find_enum(typeIdent->ident) : NULL;
   if (consume(TK_LBRACE)) {
     // TODO: Duplicate check.
     if (type != NULL)
@@ -194,7 +194,7 @@ static const Type *parse_enum(void) {
           if (!(is_const(expr) && is_number(expr->valType->type))) {
             parse_error(numtok, "const expected for enum");
           }
-          value = expr->u.num.ival;
+          value = expr->num.ival;
         }
 
         // TODO: Check whether symbol is not defined.
@@ -247,7 +247,7 @@ const Type *parse_raw_type(int *pflag) {
       const char *name = NULL;
       Token *ident;
       if ((ident = consume(TK_IDENT)) != NULL)
-        name = ident->u.ident;
+        name = ident->ident;
 
       StructInfo *sinfo = NULL;
       if (consume(TK_LBRACE)) {  // Definition
@@ -273,13 +273,13 @@ const Type *parse_raw_type(int *pflag) {
 
       Type *stype = malloc(sizeof(*type));
       stype->type = TY_STRUCT;
-      stype->u.struct_.name = name;
-      stype->u.struct_.info = sinfo;
+      stype->struct_.name = name;
+      stype->struct_.info = sinfo;
       type = stype;
     } else if (consume(TK_ENUM)) {
       type = parse_enum();
     } else if ((ident = consume(TK_IDENT)) != NULL) {
-      type = find_typedef(ident->u.ident);
+      type = find_typedef(ident->ident);
       if (type == NULL)
         unget_token(ident);
     } else {
@@ -339,9 +339,9 @@ const Type *parse_type_suffix(const Type *type) {
     Expr *expr = analyze_expr(parse_const(), false);
     if (!(is_const(expr) && is_number(expr->valType->type)))
       parse_error(NULL, "syntax error");
-    if (expr->u.num.ival <= 0)
-      parse_error(tok, "Array size must be greater than 0, but %d", (int)expr->u.num.ival);
-    length = expr->u.num.ival;
+    if (expr->num.ival <= 0)
+      parse_error(tok, "Array size must be greater than 0, but %d", (int)expr->num.ival);
+    length = expr->num.ival;
     if (!consume(TK_RBRACKET))
       parse_error(NULL, "`]' expected");
   }
@@ -504,16 +504,16 @@ static Expr *prim(void) {
     if (((tok = consume(TK_CHARLIT)) != NULL && (type = &tyChar, true)) ||
         ((tok = consume(TK_INTLIT)) != NULL && (type = &tyInt, true)) ||
         ((tok = consume(TK_LONGLIT)) != NULL && (type = &tyLong, true))) {
-      Num num = {tok->u.value};
+      Num num = {tok->value};
       return new_expr_numlit(type, tok, &num);
     }
   }
   if ((tok = consume(TK_STR)))
-    return new_expr_str(tok, tok->u.str.buf, tok->u.str.size);
+    return new_expr_str(tok, tok->str.buf, tok->str.size);
 
   Token *ident;
   if ((ident = consume(TK_IDENT)) != NULL) {
-    const char *name = ident->u.ident;
+    const char *name = ident->ident;
     return new_expr_varref(name, /*type*/NULL, ident);
   }
   parse_error(NULL, "Number or Ident or open paren expected");
@@ -579,7 +579,7 @@ static Expr *unary(void) {
     Expr *expr = cast_expr();
     switch (expr->type) {
     case EX_NUM:
-      expr->u.num.ival = -expr->u.num.ival;
+      expr->num.ival = -expr->num.ival;
       return expr;
     default:
       return new_expr_unary(EX_NEG, NULL, tok, expr);
@@ -603,7 +603,7 @@ static Expr *unary(void) {
 
   if ((tok = consume(TK_MUL)) != NULL) {
     Expr *expr = cast_expr();
-    return new_expr_unary(EX_DEREF, /*expr->valType->u.pa.ptrof*/NULL, tok, expr);
+    return new_expr_unary(EX_DEREF, /*expr->valType->pa.ptrof*/NULL, tok, expr);
   }
 
   if ((tok = consume(TK_INC)) != NULL) {
@@ -634,7 +634,7 @@ static Expr *cast_expr(void) {
         parse_error(NULL, "`)' expected");
       Expr *sub = cast_expr();
       Expr *expr = new_expr(EX_CAST, type, token);
-      expr->u.unary.sub = sub;
+      expr->unary.sub = sub;
       return expr;
     }
     unget_token(lpar);

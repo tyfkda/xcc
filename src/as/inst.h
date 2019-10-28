@@ -193,7 +193,7 @@ typedef struct {
       Reg reg;
     } indirect;
     Reg deref_reg;
-  } u;
+  };
 } Operand;
 
 typedef struct Inst {

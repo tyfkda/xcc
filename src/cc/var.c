@@ -21,7 +21,7 @@ VarInfo *var_add(Vector *lvars, const Token *ident, const Type *type, int flag) 
   const char *label = NULL;
   VarInfo *ginfo = NULL;
   if (ident != NULL) {
-    name = ident->u.ident;
+    name = ident->ident;
     int idx = var_find(lvars, name);
     if (idx >= 0)
       parse_error(ident, "`%s' already defined", name);
@@ -35,7 +35,7 @@ VarInfo *var_add(Vector *lvars, const Token *ident, const Type *type, int flag) 
   info->name = name;
   info->type = type;
   info->flag = flag;
-  info->u.l.label = label;
+  info->local.label = label;
   info->offset = -1;
   info->reg = NULL;
   vec_push(lvars, info);
@@ -52,7 +52,7 @@ VarInfo *find_global(const char *name) {
 
 VarInfo *define_global(const Type *type, int flag, const Token *ident, const char *name) {
   if (name == NULL)
-    name = ident->u.ident;
+    name = ident->ident;
   VarInfo *varinfo = find_global(name);
   if (varinfo != NULL && !(varinfo->flag & VF_EXTERN)) {
     if (flag & VF_EXTERN)
@@ -63,7 +63,7 @@ VarInfo *define_global(const Type *type, int flag, const Token *ident, const cha
   varinfo->name = name;
   varinfo->type = type;
   varinfo->flag = flag;
-  varinfo->u.g.init = NULL;
+  varinfo->global.init = NULL;
   varinfo->offset = 0;
   map_put(gvar_map, name, varinfo);
   return varinfo;

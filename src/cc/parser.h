@@ -55,7 +55,7 @@ typedef struct Initializer {
       Expr *index;
       struct Initializer *value;
     } arr;
-  } u;
+  };
 } Initializer;
 
 // Node
@@ -138,7 +138,7 @@ typedef struct Node {
     struct {
       Vector *nodes;
     } toplevel;
-  } u;
+  };
 } Node;
 
 Node *new_node_expr(Expr *e);

@@ -140,7 +140,7 @@ static Token *alloc_token(enum TokenType type, const char *begin, const char *en
 
 Token *alloc_ident(const char *ident, const char *begin, const char *end) {
   Token *tok = alloc_token(TK_IDENT, begin, end);
-  tok->u.ident = ident;
+  tok->ident = ident;
   return tok;
 }
 
@@ -340,7 +340,7 @@ static Token *read_num(const char **pp) {
     ++(*pp);
   }
   tok = alloc_token(tt, start, *pp);
-  tok->u.value = val;
+  tok->value = val;
   return tok;
 }
 
@@ -375,7 +375,7 @@ static Token *read_char(const char **pp) {
 
   ++p;
   Token *tok = alloc_token(TK_CHARLIT, begin, p);
-  tok->u.value = c;
+  tok->value = c;
   *pp = p;
   return tok;
 }
@@ -417,8 +417,8 @@ static Token *read_string(const char **pp) {
   assert(size < capa);
   str[size++] = '\0';
   Token *tok = alloc_token(TK_STR, begin, end);
-  tok->u.str.buf = str;
-  tok->u.str.size = size;
+  tok->str.buf = str;
+  tok->str.size = size;
   *pp = p;
   return tok;
 }

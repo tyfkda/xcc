@@ -140,7 +140,7 @@ VReg *new_ir_bofs(VReg *src) {
 
 VReg *new_ir_iofs(const char *label) {
   IR *ir = new_ir(IR_IOFS);
-  ir->u.iofs.label = label;
+  ir->iofs.label = label;
   return ir->dst = reg_alloc_spawn(ra);
 }
 
@@ -181,14 +181,14 @@ void new_ir_incdec(enum IrType type, VReg *reg, int size, intptr_t value) {
 
 VReg *new_ir_set(enum ConditionType cond) {
   IR *ir = new_ir(IR_SET);
-  ir->u.set.cond = cond;
+  ir->set.cond = cond;
   return ir->dst = reg_alloc_spawn(ra);
 }
 
 void new_ir_jmp(enum ConditionType cond, BB *bb) {
   IR *ir = new_ir(IR_JMP);
-  ir->u.jmp.bb = bb;
-  ir->u.jmp.cond = cond;
+  ir->jmp.bb = bb;
+  ir->jmp.cond = cond;
 }
 
 void new_ir_pusharg(VReg *vreg) {
@@ -199,14 +199,14 @@ void new_ir_pusharg(VReg *vreg) {
 
 void new_ir_precall(int arg_count) {
   IR *ir = new_ir(IR_PRECALL);
-  ir->u.call.arg_count = arg_count;
+  ir->call.arg_count = arg_count;
 }
 
 VReg *new_ir_call(const char *label, VReg *freg, int arg_count, int result_size) {
   IR *ir = new_ir(IR_CALL);
-  ir->u.call.label = label;
+  ir->call.label = label;
   ir->opr1 = freg;
-  ir->u.call.arg_count = arg_count;
+  ir->call.arg_count = arg_count;
   ir->size = result_size;
   return ir->dst = reg_alloc_spawn(ra);
 }
@@ -220,7 +220,7 @@ VReg *new_ir_cast(VReg *vreg, int dstsize, int srcsize) {
   IR *ir = new_ir(IR_CAST);
   ir->opr1 = vreg;
   ir->size = dstsize;
-  ir->u.cast.srcsize = srcsize;
+  ir->cast.srcsize = srcsize;
   return ir->dst = reg_alloc_spawn(ra);
 }
 
@@ -245,7 +245,7 @@ void new_ir_result(VReg *reg, int size) {
 
 void new_ir_asm(const char *asm_) {
   IR *ir = new_ir(IR_ASM);
-  ir->u.asm_.str = asm_;
+  ir->asm_.str = asm_;
 }
 
 static IR *new_ir_load_spilled(int offset, int size) {
@@ -324,7 +324,7 @@ static void ir_out(const IR *ir) {
     break;
 
   case IR_IOFS:
-    LEA(LABEL_INDIRECT(ir->u.iofs.label, RIP), kReg64s[ir->dst->r]);
+    LEA(LABEL_INDIRECT(ir->iofs.label, RIP), kReg64s[ir->dst->r]);
     break;
 
   case IR_LOAD:
@@ -570,7 +570,7 @@ static void ir_out(const IR *ir) {
   case IR_SET:
     {
       const char *dst = kReg8s[ir->dst->r];
-      switch (ir->u.set.cond) {
+      switch (ir->set.cond) {
       case COND_EQ:  SETE(dst); break;
       case COND_NE:  SETNE(dst); break;
       case COND_LT:  SETL(dst); break;
@@ -594,14 +594,14 @@ static void ir_out(const IR *ir) {
     break;
 
   case IR_JMP:
-    switch (ir->u.jmp.cond) {
-    case COND_ANY:  JMP(ir->u.jmp.bb->label); break;
-    case COND_EQ:   JE(ir->u.jmp.bb->label); break;
-    case COND_NE:   JNE(ir->u.jmp.bb->label); break;
-    case COND_LT:   JL(ir->u.jmp.bb->label); break;
-    case COND_GT:   JG(ir->u.jmp.bb->label); break;
-    case COND_LE:   JLE(ir->u.jmp.bb->label); break;
-    case COND_GE:   JGE(ir->u.jmp.bb->label); break;
+    switch (ir->jmp.cond) {
+    case COND_ANY:  JMP(ir->jmp.bb->label); break;
+    case COND_EQ:   JE(ir->jmp.bb->label); break;
+    case COND_NE:   JNE(ir->jmp.bb->label); break;
+    case COND_LT:   JL(ir->jmp.bb->label); break;
+    case COND_GT:   JG(ir->jmp.bb->label); break;
+    case COND_LE:   JLE(ir->jmp.bb->label); break;
+    case COND_GE:   JGE(ir->jmp.bb->label); break;
     default:  assert(false); break;
     }
     break;
@@ -621,18 +621,18 @@ static void ir_out(const IR *ir) {
       static const char *kArgReg64s[] = {RDI, RSI, RDX, RCX, R8, R9};
 
       // Pop register arguments.
-      int reg_args = MIN((int)ir->u.call.arg_count, MAX_REG_ARGS);
+      int reg_args = MIN((int)ir->call.arg_count, MAX_REG_ARGS);
       for (int i = 0; i < reg_args; ++i) {
         POP(kArgReg64s[i]); POP_STACK_POS();
       }
 
-      if (ir->u.call.label != NULL)
-        CALL(ir->u.call.label);
+      if (ir->call.label != NULL)
+        CALL(ir->call.label);
       else
         CALL(fmt("*%s", kReg64s[ir->opr1->r]));
 
-      if (ir->u.call.arg_count > MAX_REG_ARGS) {
-        int add = (ir->u.call.arg_count - MAX_REG_ARGS) * WORD_SIZE;
+      if (ir->call.arg_count > MAX_REG_ARGS) {
+        int add = (ir->call.arg_count - MAX_REG_ARGS) * WORD_SIZE;
         ADD(IM(add), RSP);
         stackpos -= add;
       }
@@ -657,13 +657,13 @@ static void ir_out(const IR *ir) {
     break;
 
   case IR_CAST:
-    if (ir->size <= ir->u.cast.srcsize) {
+    if (ir->size <= ir->cast.srcsize) {
       int pow = kPow2Table[ir->size];
       assert(0 <= pow && pow < 4);
       const char **regs = kRegSizeTable[pow];
       MOV(regs[ir->opr1->r], regs[ir->dst->r]);
     } else {
-      int pows = kPow2Table[ir->u.cast.srcsize];
+      int pows = kPow2Table[ir->cast.srcsize];
       int powd = kPow2Table[ir->size];
       assert(0 <= pows && pows < 4);
       assert(0 <= powd && powd < 4);
@@ -704,7 +704,7 @@ static void ir_out(const IR *ir) {
     break;
 
   case IR_ASM:
-    EMIT_ASM0(ir->u.asm_.str);
+    EMIT_ASM0(ir->asm_.str);
     break;
 
   case IR_LOAD_SPILLED:
@@ -771,7 +771,7 @@ static bool is_last_any_jmp(BB *bb) {
   IR *ir;
   return (len = bb->irs->len) > 0 &&
       (ir = bb->irs->data[len - 1])->type == IR_JMP &&
-      ir->u.jmp.cond == COND_ANY;
+      ir->jmp.cond == COND_ANY;
 }
 
 static void replace_jmp_target(BBContainer *bbcon, BB *src, BB *dst) {
@@ -788,8 +788,8 @@ static void replace_jmp_target(BBContainer *bbcon, BB *src, BB *dst) {
     }
     if (bb->irs->len > 0 &&
         (ir = bb->irs->data[bb->irs->len - 1])->type == IR_JMP &&
-        ir->u.jmp.bb == src)
-      ir->u.jmp.bb = dst;
+        ir->jmp.bb == src)
+      ir->jmp.bb = dst;
   }
 }
 
@@ -801,7 +801,7 @@ void remove_unnecessary_bb(BBContainer *bbcon) {
       replace_jmp_target(bbcon, bb, bb->next);
     } else if (is_last_any_jmp(bb) && bb->irs->len == 1) {  // jmp only.
       IR *ir = bb->irs->data[bb->irs->len - 1];
-      replace_jmp_target(bbcon, bb, ir->u.jmp.bb);
+      replace_jmp_target(bbcon, bb, ir->jmp.bb);
       if (i == 0)
         continue;
       BB *pbb = bbs->data[i - 1];
@@ -821,7 +821,7 @@ void remove_unnecessary_bb(BBContainer *bbcon) {
     if (!is_last_any_jmp(bb))
       continue;
     IR *ir = bb->irs->data[bb->irs->len - 1];
-    if (ir->u.jmp.bb == bb->next)
+    if (ir->jmp.bb == bb->next)
       vec_pop(bb->irs);
   }
 }
@@ -1142,8 +1142,8 @@ static void analyze_reg_flow(BBContainer *bbcon) {
       if (irs->len > 0) {
         IR *ir = irs->data[irs->len - 1];
         if (ir->type == IR_JMP) {
-          next_bbs[1] = ir->u.jmp.bb;
-          if (ir->u.jmp.cond == COND_ANY)
+          next_bbs[1] = ir->jmp.bb;
+          if (ir->jmp.cond == COND_ANY)
             next_bbs[0] = NULL;
         }
       }
@@ -1293,7 +1293,7 @@ void dump_ir(IR *ir) {
   switch (ir->type) {
   case IR_IMM:    fprintf(fp, "\tIMM\tR%d%s = %"PRIdPTR"\n", dst, kSize[ir->size], ir->value); break;
   case IR_BOFS:   fprintf(fp, "\tBOFS\tR%d = &[rbp %c %d]\n", dst, ir->opr1->offset > 0 ? '+' : '-', ir->opr1->offset > 0 ? ir->opr1->offset : -ir->opr1->offset); break;
-  case IR_IOFS:   fprintf(fp, "\tIOFS\tR%d = &%s\n", dst, ir->u.iofs.label); break;
+  case IR_IOFS:   fprintf(fp, "\tIOFS\tR%d = &%s\n", dst, ir->iofs.label); break;
   case IR_LOAD:   fprintf(fp, "\tLOAD\tR%d%s = (R%d)\n", dst, kSize[ir->size], opr1); break;
   case IR_STORE:  fprintf(fp, "\tSTORE\t(R%d) = R%d%s\n", opr2, opr1, kSize[ir->size]); break;
   case IR_MEMCPY: fprintf(fp, "\tMEMCPY(dst=R%d, src=R%d, size=%d)\n", opr2, opr1, ir->size); break;
@@ -1313,19 +1313,19 @@ void dump_ir(IR *ir) {
   case IR_NEG:    fprintf(fp, "\tNEG\tR%d%s = -R%d%s\n", dst, kSize[ir->size], opr1, kSize[ir->size]); break;
   case IR_NOT:    fprintf(fp, "\tNOT\tR%d%s = !R%d%s\n", dst, kSize[ir->size], opr1, kSize[ir->size]); break;
   case IR_BITNOT: fprintf(fp, "\tBIT\tR%d%s = -R%d%s\n", dst, kSize[ir->size], opr1, kSize[ir->size]); break;
-  case IR_SET:    fprintf(fp, "\tSET\tR%d%s = %s\n", dst, kSize[4], kCond[ir->u.set.cond]); break;
+  case IR_SET:    fprintf(fp, "\tSET\tR%d%s = %s\n", dst, kSize[4], kCond[ir->set.cond]); break;
   case IR_TEST:   fprintf(fp, "\tTEST\tR%d%s\n", opr1, kSize[ir->size]); break;
-  case IR_JMP:    fprintf(fp, "\tJ%s\t%s\n", kCond[ir->u.jmp.cond], ir->u.jmp.bb->label); break;
+  case IR_JMP:    fprintf(fp, "\tJ%s\t%s\n", kCond[ir->jmp.cond], ir->jmp.bb->label); break;
   case IR_PRECALL: fprintf(fp, "\tPRECALL\n"); break;
   case IR_PUSHARG: fprintf(fp, "\tPUSHARG\tR%d\n", opr1); break;
   case IR_CALL:
-    if (ir->u.call.label != NULL)
-      fprintf(fp, "\tCALL\tR%d%s = call %s\n", dst, kSize[ir->size], ir->u.call.label);
+    if (ir->call.label != NULL)
+      fprintf(fp, "\tCALL\tR%d%s = call %s\n", dst, kSize[ir->size], ir->call.label);
     else
       fprintf(fp, "\tCALL\tR%d%s = *R%d\n", dst, kSize[ir->size], opr1);
     break;
   case IR_ADDSP:  fprintf(fp, "\tADDSP\t%"PRIdPTR"\n", ir->value); break;
-  case IR_CAST:   fprintf(fp, "\tCAST\tR%d%s = R%d%s\n", dst, kSize[ir->size], opr1, kSize[ir->u.cast.srcsize]); break;
+  case IR_CAST:   fprintf(fp, "\tCAST\tR%d%s = R%d%s\n", dst, kSize[ir->size], opr1, kSize[ir->cast.srcsize]); break;
   case IR_MOV:    fprintf(fp, "\tMOV\tR%d%s = R%d%s\n", dst, kSize[ir->size], opr1, kSize[ir->size]); break;
   case IR_CLEAR:  fprintf(fp, "\tCLEAR\tR%d, %d\n", opr1, ir->size); break;
   case IR_RESULT: fprintf(fp, "\tRESULT\tR%d%s\n", opr1, kSize[ir->size]); break;

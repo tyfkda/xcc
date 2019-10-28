@@ -12,43 +12,43 @@
 IR *new_ir_label(const char *label) {
   IR *ir = malloc(sizeof(*ir));
   ir->type = IR_LABEL;
-  ir->u.label = label;
+  ir->label = label;
   return ir;
 }
 
 IR *new_ir_code(const Code *code) {
   IR *ir = malloc(sizeof(*ir));
   ir->type = IR_CODE;
-  ir->u.code = *code;
+  ir->code = *code;
   return ir;
 }
 
 IR *new_ir_data(const void *data, size_t size) {
   IR *ir = malloc(sizeof(*ir));
   ir->type = IR_DATA;
-  ir->u.data.len = size;
-  ir->u.data.buf = (unsigned char*)data;
+  ir->data.len = size;
+  ir->data.buf = (unsigned char*)data;
   return ir;
 }
 
 IR *new_ir_bss(size_t size) {
   IR *ir = malloc(sizeof(*ir));
   ir->type = IR_BSS;
-  ir->u.bss = size;
+  ir->bss = size;
   return ir;
 }
 
 IR *new_ir_align(int align) {
   IR *ir = malloc(sizeof(*ir));
   ir->type = IR_ALIGN;
-  ir->u.align = align;
+  ir->align = align;
   return ir;
 }
 
 IR *new_ir_abs_quad(const char *label) {
   IR *ir = malloc(sizeof(*ir));
   ir->type = IR_ABS_QUAD;
-  ir->u.label = label;
+  ir->label = label;
   return ir;
 }
 
@@ -71,19 +71,19 @@ void calc_label_address(uintptr_t start_address, Vector **section_irs, Map *labe
       IR *ir = irs->data[i];
       switch (ir->type) {
       case IR_LABEL:
-        map_put(label_map, ir->u.label, (void*)address);
+        map_put(label_map, ir->label, (void*)address);
         break;
       case IR_CODE:
-        address += ir->u.code.len;
+        address += ir->code.len;
         break;
       case IR_DATA:
-        address += ir->u.data.len;
+        address += ir->data.len;
         break;
       case IR_BSS:
-        address += ir->u.bss;
+        address += ir->bss;
         break;
       case IR_ALIGN:
-        address = ALIGN(address, ir->u.align);
+        address = ALIGN(address, ir->align);
         break;
       case IR_ABS_QUAD:
         address += WORD_SIZE;
@@ -127,18 +127,18 @@ void emit_irs(uintptr_t start_address, Vector **section_irs, Map *label_map) {
         break;
       case IR_CODE:
         {
-          Inst *inst = ir->u.code.inst;
+          Inst *inst = ir->code.inst;
           switch (inst->op) {
           case LEA:
             if (inst->src.type == INDIRECT &&
-                inst->src.u.indirect.reg.no == RIP &&
-                inst->src.u.indirect.offset == 0 &&
-                inst->src.u.indirect.label != NULL) {
+                inst->src.indirect.reg.no == RIP &&
+                inst->src.indirect.offset == 0 &&
+                inst->src.indirect.label != NULL) {
               void *dst;
-              if (map_try_get(label_map, inst->src.u.indirect.label, &dst)) {
-                put_value(ir->u.code.buf + 3, (intptr_t)dst - ((intptr_t)address + ir->u.code.len), sizeof(int32_t));
+              if (map_try_get(label_map, inst->src.indirect.label, &dst)) {
+                put_value(ir->code.buf + 3, (intptr_t)dst - ((intptr_t)address + ir->code.len), sizeof(int32_t));
               } else {
-                put_unresolved(&unresolved_labels, inst->src.u.indirect.label);
+                put_unresolved(&unresolved_labels, inst->src.indirect.label);
               }
             }
             break;
@@ -150,11 +150,11 @@ void emit_irs(uintptr_t start_address, Vector **section_irs, Map *label_map) {
           case CALL:
             if (inst->src.type == LABEL) {
               void *dst;
-              if (map_try_get(label_map, inst->src.u.label, &dst)) {
+              if (map_try_get(label_map, inst->src.label, &dst)) {
                 int d = (inst->op == JMP || inst->op == CALL) ? 1 : 2;
-                put_value(ir->u.code.buf + d, (intptr_t)dst - ((intptr_t)address + ir->u.code.len), sizeof(int32_t));
+                put_value(ir->code.buf + d, (intptr_t)dst - ((intptr_t)address + ir->code.len), sizeof(int32_t));
               } else {
-                put_unresolved(&unresolved_labels, inst->src.u.label);
+                put_unresolved(&unresolved_labels, inst->src.label);
               }
             }
             break;
@@ -162,31 +162,31 @@ void emit_irs(uintptr_t start_address, Vector **section_irs, Map *label_map) {
             break;
           }
 
-          add_code(ir->u.code.buf, ir->u.code.len);
-          address += ir->u.code.len;
+          add_code(ir->code.buf, ir->code.len);
+          address += ir->code.len;
         }
         break;
       case IR_DATA:
-        add_section_data(sec, ir->u.data.buf, ir->u.data.len);
-        address += ir->u.data.len;
+        add_section_data(sec, ir->data.buf, ir->data.len);
+        address += ir->data.len;
         break;
       case IR_BSS:
-        add_bss(ir->u.bss);
-        address += ir->u.bss;
+        add_bss(ir->bss);
+        address += ir->bss;
         break;
       case IR_ALIGN:
-        align_section_size(sec, ir->u.align);
-        address = ALIGN(address, ir->u.align);
+        align_section_size(sec, ir->align);
+        address = ALIGN(address, ir->align);
         break;
       case IR_ABS_QUAD:
         {
           void *dst;
-          if (map_try_get(label_map, ir->u.label, &dst)) {
+          if (map_try_get(label_map, ir->label, &dst)) {
             unsigned char buf[WORD_SIZE];
             put_value(buf, (uintptr_t)dst, WORD_SIZE);
             add_section_data(sec, buf, sizeof(buf));
           } else {
-            put_unresolved(&unresolved_labels, ir->u.label);
+            put_unresolved(&unresolved_labels, ir->label);
           }
           address += WORD_SIZE;
         }

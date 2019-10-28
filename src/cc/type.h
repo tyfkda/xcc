@@ -65,7 +65,7 @@ typedef struct Type {
       const char *name;
       StructInfo *info;
     } struct_;  // and union.
-  } u;
+  };
 } Type;
 
 extern const Type tyChar;

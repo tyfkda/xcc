@@ -23,8 +23,8 @@ static void do_dump_ir(Node *node) {
 #else
   switch (node->type) {
   case ND_TOPLEVEL:
-    for (int i = 0, len = node->u.toplevel.nodes->len; i < len; ++i) {
-      Node *child = node->u.toplevel.nodes->data[i];
+    for (int i = 0, len = node->toplevel.nodes->len; i < len; ++i) {
+      Node *child = node->toplevel.nodes->data[i];
       if (child == NULL)
         continue;
       do_dump_ir(child);
@@ -32,7 +32,7 @@ static void do_dump_ir(Node *node) {
     break;
   case ND_DEFUN:
     {
-      Defun *defun = node->u.defun;
+      Defun *defun = node->defun;
       BBContainer *bbcon = defun->bbcon;
       if (bbcon == NULL)
         break;

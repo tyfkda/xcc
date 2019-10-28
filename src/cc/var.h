@@ -21,11 +21,11 @@ typedef struct VarInfo {
   union {
     struct {  // For global.
       struct Initializer *init;
-    } g;
+    } global;
     struct {  // For local.
       const char *label;  // For static variable to refer value in global.
-    } l;
-  } u;
+    } local;
+  };
 
   // For codegen.
   int offset;
