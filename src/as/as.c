@@ -122,8 +122,8 @@ int main(int argc, char* argv[]) {
   size_t codefilesz, codememsz;
   size_t datafilesz, datamemsz;
   uintptr_t codeloadadr, dataloadadr;
-  get_section_size(0, &codefilesz, &codememsz, &codeloadadr);
-  get_section_size(1, &datafilesz, &datamemsz, &dataloadadr);
+  get_section_size(SEC_CODE, &codefilesz, &codememsz, &codeloadadr);
+  get_section_size(SEC_DATA, &datafilesz, &datamemsz, &dataloadadr);
 
   void *entry;
   if (!map_try_get(label_map, "_start", &entry))
@@ -137,10 +137,10 @@ int main(int argc, char* argv[]) {
     out_program_header(fp, 1, ALIGN(PROG_START + codefilesz, 0x1000), dataloadadr, datafilesz, datamemsz);
 
   put_padding(fp, PROG_START);
-  output_section(fp, 0);
+  output_section(fp, SEC_CODE);
   if (phnum > 1) {
     put_padding(fp, ALIGN(PROG_START + codefilesz, 0x1000));
-    output_section(fp, 1);
+    output_section(fp, SEC_DATA);
   }
   fclose(fp);
 
