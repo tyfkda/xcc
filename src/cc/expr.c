@@ -18,7 +18,7 @@ static Expr *unary(void);
 bool is_const(Expr *expr) {
   // TODO: Handle constant variable.
 
-  switch (expr->type) {
+  switch (expr->kind) {
   case EX_NUM:
   case EX_STR:
     return true;
@@ -28,29 +28,29 @@ bool is_const(Expr *expr) {
 }
 
 void not_void(const Type *type) {
-  if (type->type == TY_VOID)
+  if (type->kind == TY_VOID)
     parse_error(NULL, "`void' not allowed");
 }
 
-enum ExprType flip_cmp(enum ExprType type) {
-  assert(EX_EQ <= type && type <= EX_GT);
-  if (type >= EX_LT)
-    type = EX_GT - (type - EX_LT);
-  return type;
+enum ExprKind flip_cmp(enum ExprKind kind) {
+  assert(EX_EQ <= kind && kind <= EX_GT);
+  if (kind >= EX_LT)
+    kind = EX_GT - (kind - EX_LT);
+  return kind;
 }
 
 //
 
-static Expr *new_expr(enum ExprType type, const Type *valType, const Token *token) {
+static Expr *new_expr(enum ExprKind kind, const Type *valType, const Token *token) {
   Expr *expr = malloc(sizeof(*expr));
-  expr->type = type;
+  expr->kind = kind;
   expr->valType = valType;
   expr->token = token;
   return expr;
 }
 
 Expr *new_expr_numlit(const Type *type, const Token *token, const Num *num) {
-  assert(type->type == TY_NUM);
+  assert(type->kind == TY_NUM);
   Expr *expr = new_expr(EX_NUM, type, token);
   expr->num = *num;
   return expr;
@@ -58,7 +58,7 @@ Expr *new_expr_numlit(const Type *type, const Token *token, const Num *num) {
 
 static Expr *new_expr_str(const Token *token, const char *str, size_t size) {
   Type *type = malloc(sizeof(*type));
-  type->type = TY_ARRAY;
+  type->kind = TY_ARRAY;
   type->pa.ptrof = &tyChar;
   type->pa.length = size;
 
@@ -75,21 +75,21 @@ Expr *new_expr_varref(const char *name, const Type *type, const Token *token) {
   return expr;
 }
 
-Expr *new_expr_bop(enum ExprType type, const Type *valType, const Token *token, Expr *lhs, Expr *rhs) {
-  Expr *expr = new_expr(type, valType, token);
+Expr *new_expr_bop(enum ExprKind kind, const Type *valType, const Token *token, Expr *lhs, Expr *rhs) {
+  Expr *expr = new_expr(kind, valType, token);
   expr->bop.lhs = lhs;
   expr->bop.rhs = rhs;
   return expr;
 }
 
-static Expr *new_expr_unary(enum ExprType type, const Type *valType, const Token *token, Expr *sub) {
-  Expr *expr = new_expr(type, valType, token);
+static Expr *new_expr_unary(enum ExprKind kind, const Type *valType, const Token *token, Expr *sub) {
+  Expr *expr = new_expr(kind, valType, token);
   expr->unary.sub = sub;
   return expr;
 }
 
 Expr *new_expr_deref(const Token *token, Expr *sub) {
-  if (sub->valType->type != TY_PTR && sub->valType->type != TY_ARRAY)
+  if (sub->valType->kind != TY_PTR && sub->valType->kind != TY_ARRAY)
     parse_error(token, "Cannot dereference raw type");
   return new_expr_unary(EX_DEREF, sub->valType->pa.ptrof, token, sub);
 }
@@ -191,7 +191,7 @@ static const Type *parse_enum(void) {
         if (consume(TK_ASSIGN)) {
           numtok = fetch_token();
           Expr *expr = analyze_expr(parse_const(), false);
-          if (!(is_const(expr) && is_number(expr->valType->type))) {
+          if (!(is_const(expr) && is_number(expr->valType->kind))) {
             parse_error(numtok, "const expected for enum");
           }
           value = expr->num.ival;
@@ -243,7 +243,7 @@ const Type *parse_raw_type(int *pflag) {
     Token *ident;
     if (((structtok = consume(TK_STRUCT)) != NULL) ||
         ((structtok = consume(TK_UNION)) != NULL)) {
-      bool is_union = structtok->type == TK_UNION;
+      bool is_union = structtok->kind == TK_UNION;
       const char *name = NULL;
       Token *ident;
       if ((ident = consume(TK_IDENT)) != NULL)
@@ -272,7 +272,7 @@ const Type *parse_raw_type(int *pflag) {
         parse_error(NULL, "Illegal struct/union usage");
 
       Type *stype = malloc(sizeof(*type));
-      stype->type = TY_STRUCT;
+      stype->kind = TY_STRUCT;
       stype->struct_.name = name;
       stype->struct_.info = sinfo;
       type = stype;
@@ -283,7 +283,7 @@ const Type *parse_raw_type(int *pflag) {
       if (type == NULL)
         unget_token(ident);
     } else {
-      static const enum TokenType kKeywords[] = {
+      static const enum TokenKind kKeywords[] = {
         TK_KWVOID, TK_KWCHAR, TK_KWSHORT, TK_KWINT, TK_KWLONG,
       };
       static const Type *kTypes[] = {
@@ -337,7 +337,7 @@ const Type *parse_type_suffix(const Type *type) {
   } else {
     const Token *tok = fetch_token();
     Expr *expr = analyze_expr(parse_const(), false);
-    if (!(is_const(expr) && is_number(expr->valType->type)))
+    if (!(is_const(expr) && is_number(expr->valType->kind)))
       parse_error(NULL, "syntax error");
     if (expr->num.ival <= 0)
       parse_error(tok, "Array size must be greater than 0, but %d", (int)expr->num.ival);
@@ -390,7 +390,7 @@ bool parse_var_def(const Type **prawType, const Type** ptype, int *pflag, Token 
     //if (ident == NULL && !allow_noname)
     //  parse_error(NULL, "Ident expected");
   }
-  if (type->type != TY_VOID)
+  if (type->kind != TY_VOID)
     type = parse_type_suffix(type);
 
   *ptype = type;
@@ -433,7 +433,7 @@ Vector *parse_funparams(bool *pvaargs) {  // Vector<VarInfo*>, NULL=>old style.
         parse_error(ident, "`extern' for function parameter");
 
       if (params->len == 0) {
-        if (type->type == TY_VOID) {  // fun(void)
+        if (type->kind == TY_VOID) {  // fun(void)
           if (ident != NULL || !consume(TK_RPAR))
             parse_error(NULL, "`)' expected");
           break;
@@ -565,7 +565,7 @@ static Expr *unary(void) {
   Token *tok;
   if ((tok = consume(TK_ADD)) != NULL) {
     Expr *expr = cast_expr();
-    switch (expr->type) {
+    switch (expr->kind) {
     case EX_NUM:
       return expr;
     default:
@@ -577,7 +577,7 @@ static Expr *unary(void) {
 
   if ((tok = consume(TK_SUB)) != NULL) {
     Expr *expr = cast_expr();
-    switch (expr->type) {
+    switch (expr->kind) {
     case EX_NUM:
       expr->num.ival = -expr->num.ival;
       return expr;
@@ -646,18 +646,18 @@ static Expr *mul(void) {
   Expr *expr = cast_expr();
 
   for (;;) {
-    enum ExprType t;
+    enum ExprKind kind;
     Token *tok;
     if ((tok = consume(TK_MUL)) != NULL)
-      t = EX_MUL;
+      kind = EX_MUL;
     else if ((tok = consume(TK_DIV)) != NULL)
-      t = EX_DIV;
+      kind = EX_DIV;
     else if ((tok = consume(TK_MOD)) != NULL)
-      t = EX_MOD;
+      kind = EX_MOD;
     else
       return expr;
 
-    expr = new_expr_bop(t, NULL, tok, expr, cast_expr());
+    expr = new_expr_bop(kind, NULL, tok, expr, cast_expr());
   }
 }
 
@@ -665,7 +665,7 @@ static Expr *add(void) {
   Expr *expr = mul();
 
   for (;;) {
-    enum ExprType t;
+    enum ExprKind t;
     Token *tok;
     if ((tok = consume(TK_ADD)) != NULL)
       t = EX_ADD;
@@ -682,7 +682,7 @@ static Expr *shift(void) {
   Expr *expr = add();
 
   for (;;) {
-    enum ExprType t;
+    enum ExprKind t;
     Token *tok;
     if ((tok = consume(TK_LSHIFT)) != NULL)
       t = EX_LSHIFT;
@@ -700,7 +700,7 @@ static Expr *cmp(void) {
   Expr *expr = shift();
 
   for (;;) {
-    enum ExprType t;
+    enum ExprKind t;
     Token *tok;
     if ((tok = consume(TK_LT)) != NULL)
       t = EX_LT;
@@ -722,7 +722,7 @@ static Expr *eq(void) {
   Expr *expr = cmp();
 
   for (;;) {
-    enum ExprType t;
+    enum ExprKind t;
     Token *tok;
     if ((tok = consume(TK_EQ)) != NULL)
       t = EX_EQ;
@@ -814,7 +814,7 @@ Expr *parse_assign(void) {
   Token *tok;
   if ((tok = consume(TK_ASSIGN)) != NULL)
     return new_expr_bop(EX_ASSIGN, /*expr->valType*/NULL, tok, expr, parse_assign());
-  enum ExprType t;
+  enum ExprKind t;
   if ((tok = consume(TK_ADD_ASSIGN)) != NULL)
     t = EX_ADD;
   else if ((tok = consume(TK_SUB_ASSIGN)) != NULL)

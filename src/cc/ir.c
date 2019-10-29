@@ -98,9 +98,9 @@ VReg *add_new_reg(void) {
 
 // Intermediate Representation
 
-static IR *new_ir(enum IrType type) {
+static IR *new_ir(enum IrKind kind) {
   IR *ir = malloc(sizeof(*ir));
-  ir->type = type;
+  ir->kind = kind;
   ir->dst = ir->opr1 = ir->opr2 = NULL;
   ir->size = -1;
   if (curbb != NULL)
@@ -117,16 +117,16 @@ VReg *new_ir_imm(intptr_t value, int size) {
   return ir->dst = reg_alloc_spawn(ra);
 }
 
-VReg *new_ir_bop(enum IrType type, VReg *opr1, VReg *opr2, int size) {
-  IR *ir = new_ir(type);
+VReg *new_ir_bop(enum IrKind kind, VReg *opr1, VReg *opr2, int size) {
+  IR *ir = new_ir(kind);
   ir->opr1 = opr1;
   ir->opr2 = opr2;
   ir->size = size;
   return ir->dst = reg_alloc_spawn(ra);
 }
 
-VReg *new_ir_unary(enum IrType type, VReg *opr, int size) {
-  IR *ir = new_ir(type);
+VReg *new_ir_unary(enum IrKind kind, VReg *opr, int size) {
+  IR *ir = new_ir(kind);
   ir->opr1 = opr;
   ir->size = size;
   return ir->dst = reg_alloc_spawn(ra);
@@ -172,20 +172,20 @@ void new_ir_test(VReg *reg, int size) {
   ir->size = size;
 }
 
-void new_ir_incdec(enum IrType type, VReg *reg, int size, intptr_t value) {
-  IR *ir = new_ir(type);
+void new_ir_incdec(enum IrKind kind, VReg *reg, int size, intptr_t value) {
+  IR *ir = new_ir(kind);
   ir->opr1 = reg;
   ir->size = size;
   ir->value = value;
 }
 
-VReg *new_ir_set(enum ConditionType cond) {
+VReg *new_ir_set(enum ConditionKind cond) {
   IR *ir = new_ir(IR_SET);
   ir->set.cond = cond;
   return ir->dst = reg_alloc_spawn(ra);
 }
 
-void new_ir_jmp(enum ConditionType cond, BB *bb) {
+void new_ir_jmp(enum ConditionKind cond, BB *bb) {
   IR *ir = new_ir(IR_JMP);
   ir->jmp.bb = bb;
   ir->jmp.cond = cond;
@@ -303,7 +303,7 @@ static void ir_memcpy(int dst_reg, int src_reg, ssize_t size) {
 }
 
 static void ir_out(const IR *ir) {
-  switch (ir->type) {
+  switch (ir->kind) {
   case IR_IMM:
     {
       intptr_t value = ir->value;
@@ -770,7 +770,7 @@ static bool is_last_any_jmp(BB *bb) {
   int len;
   IR *ir;
   return (len = bb->irs->len) > 0 &&
-      (ir = bb->irs->data[len - 1])->type == IR_JMP &&
+      (ir = bb->irs->data[len - 1])->kind == IR_JMP &&
       ir->jmp.cond == COND_ANY;
 }
 
@@ -787,7 +787,7 @@ static void replace_jmp_target(BBContainer *bbcon, BB *src, BB *dst) {
         bb->next = src->next;
     }
     if (bb->irs->len > 0 &&
-        (ir = bb->irs->data[bb->irs->len - 1])->type == IR_JMP &&
+        (ir = bb->irs->data[bb->irs->len - 1])->kind == IR_JMP &&
         ir->jmp.bb == src)
       ir->jmp.bb = dst;
   }
@@ -832,7 +832,7 @@ static void three_to_two(BB *bb) {
   for (int i = 0; i < irs->len; ++i) {
     IR *ir = bb->irs->data[i];
 
-    switch (ir->type) {
+    switch (ir->kind) {
     case IR_ADD:  // binops
     case IR_SUB:
     case IR_MUL:
@@ -847,7 +847,7 @@ static void three_to_two(BB *bb) {
     case IR_BITNOT:
       {
         IR *ir2 = malloc(sizeof(*ir));
-        ir2->type = IR_MOV;
+        ir2->kind = IR_MOV;
         ir2->dst = ir->dst;
         ir2->opr1 = ir->opr1;
         ir2->opr2 = NULL;
@@ -1023,7 +1023,7 @@ static int insert_load_store_spilled(BBContainer *bbcon, Vector *vregs) {
     for (int j = 0; j < irs->len; ++j) {
       IR *ir = irs->data[j];
 
-      switch (ir->type) {
+      switch (ir->kind) {
       case IR_MOV:
       case IR_ADD:  // binops
       case IR_SUB:
@@ -1141,7 +1141,7 @@ static void analyze_reg_flow(BBContainer *bbcon) {
 
       if (irs->len > 0) {
         IR *ir = irs->data[irs->len - 1];
-        if (ir->type == IR_JMP) {
+        if (ir->kind == IR_JMP) {
           next_bbs[1] = ir->jmp.bb;
           if (ir->jmp.cond == COND_ANY)
             next_bbs[0] = NULL;
@@ -1290,7 +1290,7 @@ void dump_ir(IR *ir) {
   int opr2 = ir->opr2 != NULL ? ir->opr2->r : -1;
 
   FILE *fp = stderr;
-  switch (ir->type) {
+  switch (ir->kind) {
   case IR_IMM:    fprintf(fp, "\tIMM\tR%d%s = %"PRIdPTR"\n", dst, kSize[ir->size], ir->value); break;
   case IR_BOFS:   fprintf(fp, "\tBOFS\tR%d = &[rbp %c %d]\n", dst, ir->opr1->offset > 0 ? '+' : '-', ir->opr1->offset > 0 ? ir->opr1->offset : -ir->opr1->offset); break;
   case IR_IOFS:   fprintf(fp, "\tIOFS\tR%d = &%s\n", dst, ir->iofs.label); break;

@@ -242,7 +242,7 @@ Vector *parse_macro_body(const char *p, const Vector *params, bool va_args, Stre
       }
     } else {
       tok = consume(-1);
-      if (tok->type == TK_EOF)
+      if (tok->kind == TK_EOF)
         break;
     }
 
@@ -307,11 +307,11 @@ void handle_undef(const char *p) {
   map_remove(macro_map, name);
 }
 
-Token *consume2(enum TokenType type) {
+Token *consume2(enum TokenKind kind) {
   Token *tok;
   for (;;) {
-    tok = consume(type);
-    if (tok == NULL || tok->type != TK_EOF)
+    tok = consume(kind);
+    if (tok == NULL || tok->kind != TK_EOF)
       return tok;
 
     char *line = NULL;
@@ -341,7 +341,7 @@ void expand(Macro *macro, const char *name) {
         if ((tok = consume2(TK_COMMA)) != NULL || (tok = consume2(TK_RPAR)) != NULL)  {
           if (paren > 0) {
             vec_push(tokens, tok);
-            if (tok->type == TK_RPAR)
+            if (tok->kind == TK_RPAR)
               --paren;
             continue;
           }
@@ -351,12 +351,12 @@ void expand(Macro *macro, const char *name) {
           vec_push(args, concat_tokens(tokens));
           vec_clear(tokens);
 
-          if (tok->type == TK_RPAR)
+          if (tok->kind == TK_RPAR)
             break;
           continue;
         }
         tok = consume2(-1);
-        if (tok->type == TK_LPAR)
+        if (tok->kind == TK_LPAR)
           ++paren;
         vec_push(tokens, tok);
       }
@@ -482,9 +482,9 @@ bool handle_ifdef(const char *p) {
 }
 
 intptr_t reduce(Expr *expr) {
-  switch (expr->type) {
+  switch (expr->kind) {
   case EX_NUM:
-    switch (expr->valType->num.type) {
+    switch (expr->valType->num.kind) {
     case NUM_CHAR:
     case NUM_SHORT:
     case NUM_INT:
@@ -497,10 +497,10 @@ intptr_t reduce(Expr *expr) {
     {
       const Expr *func = expr->funcall.func;
       const Vector *args = expr->funcall.args;
-      if (func->type == EX_VARREF &&
+      if (func->kind == EX_VARREF &&
           strcmp(func->varref.ident, "defined") == 0 &&
           args != NULL && args->len == 1 &&
-          ((Expr*)args->data[0])->type == EX_VARREF) {  // defined(IDENT)
+          ((Expr*)args->data[0])->kind == EX_VARREF) {  // defined(IDENT)
         Expr *arg = (Expr*)args->data[0];
         void *dummy = 0;
         return map_try_get(macro_map, arg->varref.ident, &dummy) ? 1 : 0;
@@ -516,7 +516,7 @@ intptr_t reduce(Expr *expr) {
   default:
     break;
   }
-  error("expression not handled in preprocessor: type=%d", expr->type);
+  error("expression not handled in preprocessor: type=%d", expr->kind);
   return 0;
 }
 

@@ -17,7 +17,7 @@ typedef union {
 
 // Expr
 
-enum ExprType {
+enum ExprKind {
   // Literals
   EX_NUM,     // 1234
   EX_STR,     // "foobar"
@@ -67,7 +67,7 @@ enum ExprType {
 };
 
 typedef struct Expr {
-  enum ExprType type;
+  enum ExprKind kind;
   const Type *valType;
   const Token *token;
   union {
@@ -120,7 +120,7 @@ const Type *parse_type_suffix(const Type *type);
 const Type *parse_full_type(int *pflag, Token **pident);
 
 Expr *new_expr_numlit(const Type *type, const Token *token, const Num *num);
-Expr *new_expr_bop(enum ExprType type, const Type *valType, const Token *token, Expr *lhs, Expr *rhs);
+Expr *new_expr_bop(enum ExprKind kind, const Type *valType, const Token *token, Expr *lhs, Expr *rhs);
 Expr *new_expr_deref(const Token *token, Expr *sub);
 Expr *add_expr(const Token *tok, Expr *lhs, Expr *rhs, bool keep_left);
 Expr *new_expr_varref(const char *name, const Type *type, const Token *token);
@@ -136,4 +136,4 @@ Expr *parse_expr(void);
 bool check_cast(const Type *dst, const Type *src, Expr *src_expr, bool is_explicit);
 bool is_const(Expr *expr);
 void not_void(const Type *type);
-enum ExprType flip_cmp(enum ExprType type);
+enum ExprKind flip_cmp(enum ExprKind kind);

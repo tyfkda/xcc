@@ -13,7 +13,7 @@
 
 static const struct {
   const char *str;
-  enum TokenType type;
+  enum TokenKind kind;
 } kReservedWords[] = {
   { "if", TK_IF },
   { "else", TK_ELSE },
@@ -45,7 +45,7 @@ static const struct {
 
 static const struct {
   const char ident[4];
-  enum TokenType type;
+  enum TokenKind kind;
 } kMultiOperators[] = {
   // Must align from long to short keyword.
   {"<<=", TK_LSHIFT_ASSIGN},
@@ -129,9 +129,9 @@ void parse_error(const Token *token, const char* fmt, ...) {
   exit(1);
 }
 
-static Token *alloc_token(enum TokenType type, const char *begin, const char *end) {
+static Token *alloc_token(enum TokenKind kind, const char *begin, const char *end) {
   Token *token = malloc(sizeof(*token));
-  token->type = type;
+  token->kind = kind;
   token->line = lexer.line;
   token->begin = begin;
   token->end = end;
@@ -144,10 +144,10 @@ Token *alloc_ident(const char *ident, const char *begin, const char *end) {
   return tok;
 }
 
-static enum TokenType reserved_word(const char *word) {
+static enum TokenKind reserved_word(const char *word) {
   for (int i = 0; i < (int)(sizeof(kReservedWords) / sizeof(*kReservedWords)); ++i) {
     if (strcmp(kReservedWords[i].str, word) == 0)
-      return kReservedWords[i].type;
+      return kReservedWords[i].kind;
   }
   return -1;
 }
@@ -334,7 +334,7 @@ static Token *read_num(const char **pp) {
   if (*pp == p && base == 16)
     lex_error(p, "Illegal literal");
   Token *tok;
-  enum TokenType tt = TK_INTLIT;
+  enum TokenKind tt = TK_INTLIT;
   if (**pp == 'L') {
     tt = TK_LONGLIT;
     ++(*pp);
@@ -434,7 +434,7 @@ static Token *get_op_token(const char **pp) {
     size_t len = strlen(ident);
     if (strncmp(p, ident, len) == 0) {
       const char *q = p + len;
-      tok = alloc_token(kMultiOperators[i].type, p, q);
+      tok = alloc_token(kMultiOperators[i].kind, p, q);
       p = q;
       break;
     }
@@ -442,7 +442,7 @@ static Token *get_op_token(const char **pp) {
 
   if (tok == NULL) {
     if (strchr(kSingleOperators, *p) != NULL) {
-      tok = alloc_token((enum TokenType)*p, p, p + 1);
+      tok = alloc_token((enum TokenKind)*p, p, p + 1);
       ++p;
     }
   }
@@ -454,7 +454,7 @@ static Token *get_op_token(const char **pp) {
 }
 
 static Token *get_token(void) {
-  static Token kEofToken = {.type = TK_EOF};
+  static Token kEofToken = {.kind = TK_EOF};
 
   const char *p = lexer.p;
   if (p == NULL)
@@ -468,7 +468,7 @@ static Token *get_token(void) {
   const char *begin = p;
   char *ident = read_ident(&p);
   if (ident != NULL) {
-    enum TokenType word = reserved_word(ident);
+    enum TokenKind word = reserved_word(ident);
     if ((int)word != -1) {
       free(ident);
       tok = alloc_token(word, begin, p);
@@ -501,11 +501,11 @@ Token *fetch_token(void) {
   return lexer.fetched[lexer.idx];
 }
 
-Token *consume(enum TokenType type) {
+Token *consume(enum TokenKind kind) {
   Token *tok = fetch_token();
-  if (tok->type != type && (int)type != -1)
+  if (tok->kind != kind && (int)kind != -1)
     return NULL;
-  if (tok->type != TK_EOF)
+  if (tok->kind != TK_EOF)
     --lexer.idx;
   return tok;
 }

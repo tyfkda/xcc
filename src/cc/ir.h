@@ -25,7 +25,7 @@ void vreg_spill(VReg *vreg);
 
 // Intermediate Representation
 
-enum IrType {
+enum IrKind {
   IR_IMM,   // Immediate value
   IR_BOFS,  // basereg+ofs
   IR_IOFS,  // label(rip)
@@ -65,7 +65,7 @@ enum IrType {
   IR_STORE_SPILLED,
 };
 
-enum ConditionType {
+enum ConditionKind {
   COND_ANY,
   COND_EQ,
   COND_NE,
@@ -76,7 +76,7 @@ enum ConditionType {
 };
 
 typedef struct {
-  enum IrType type;
+  enum IrKind kind;
   VReg *dst;
   VReg *opr1;
   VReg *opr2;
@@ -88,11 +88,11 @@ typedef struct {
       const char *label;
     } iofs;
     struct {
-      enum ConditionType cond;
+      enum ConditionKind cond;
     } set;
     struct {
       BB *bb;
-      enum ConditionType cond;
+      enum ConditionKind cond;
     } jmp;
     struct {
       const char *label;
@@ -108,8 +108,8 @@ typedef struct {
 } IR;
 
 VReg *new_ir_imm(intptr_t value, int size);
-VReg *new_ir_bop(enum IrType type, VReg *opr1, VReg *opr2, int size);
-VReg *new_ir_unary(enum IrType type, VReg *opr, int size);
+VReg *new_ir_bop(enum IrKind kind, VReg *opr1, VReg *opr2, int size);
+VReg *new_ir_unary(enum IrKind kind, VReg *opr, int size);
 void new_ir_mov(VReg *dst, VReg *src, int size);
 VReg *new_ir_bofs(VReg *src);
 VReg *new_ir_iofs(const char *label);
@@ -117,9 +117,9 @@ void new_ir_store(VReg *dst, VReg *src, int size);
 void new_ir_memcpy(VReg *dst, VReg *src, int size);
 void new_ir_cmp(VReg *opr1, VReg *opr2, int size);
 void new_ir_test(VReg *reg, int size);
-void new_ir_incdec(enum IrType type, VReg *reg, int size, intptr_t value);
-VReg *new_ir_set(enum ConditionType cond);
-void new_ir_jmp(enum ConditionType cond, BB *bb);
+void new_ir_incdec(enum IrKind kind, VReg *reg, int size, intptr_t value);
+VReg *new_ir_set(enum ConditionKind cond);
+void new_ir_jmp(enum ConditionKind cond, BB *bb);
 void new_ir_precall(int arg_count);
 void new_ir_pusharg(VReg *vreg);
 VReg *new_ir_call(const char *label, VReg *freg, int arg_count, int result_size);

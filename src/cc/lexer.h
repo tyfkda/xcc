@@ -14,8 +14,8 @@ typedef struct {
 
 // Token
 
-// Token type value
-enum TokenType {
+// Token kind
+enum TokenKind {
   TK_ADD = '+',
   TK_SUB = '-',
   TK_MUL = '*',
@@ -96,9 +96,9 @@ enum TokenType {
   TK_DOTDOTDOT,
 };
 
-// Token type
+// Token
 typedef struct Token {
-  enum TokenType type;
+  enum TokenKind kind;
   Line *line;
   const char *begin;
   const char *end;
@@ -115,7 +115,7 @@ typedef struct Token {
 void init_lexer(FILE *fp, const char *filename);
 void init_lexer_string(const char *line, const char *filename, int lineno);
 Token *fetch_token(void);
-Token *consume(enum TokenType type);
+Token *consume(enum TokenKind kind);
 void unget_token(Token *token);
 char *read_ident(const char **pp);
 Token *alloc_ident(const char *ident, const char *begin, const char *end);

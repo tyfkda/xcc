@@ -39,12 +39,12 @@ static VarInfo *add_cur_scope(const Token *ident, const Type *type, int flag) {
 
 static void fix_array_size(Type *type, Initializer *init) {
   assert(init != NULL);
-  assert(type->type == TY_ARRAY);
+  assert(type->kind == TY_ARRAY);
 
   bool is_str = false;
-  if (init->type != vMulti &&
+  if (init->kind != vMulti &&
       !(is_char_type(type->pa.ptrof) &&
-        init->type == vSingle &&
+        init->kind == vSingle &&
         can_cast(type, init->single->valType, init->single, false) &&
         (is_str = true))) {
     parse_error(NULL, "Error initializer");
@@ -60,8 +60,8 @@ static void fix_array_size(Type *type, Initializer *init) {
       size_t i, len = init->multi->len;
       for (i = 0; i < len; ++i) {
         Initializer *init_elem = init->multi->data[i];
-        if (init_elem->type == vArr) {
-          assert(init_elem->arr.index->type == EX_NUM);
+        if (init_elem->kind == vArr) {
+          assert(init_elem->arr.index->kind == EX_NUM);
           index = init_elem->arr.index->num.ival;
         }
         ++index;
@@ -71,7 +71,7 @@ static void fix_array_size(Type *type, Initializer *init) {
       type->pa.length = max_index;
     }
   } else {
-    assert(!is_str || init->single->type == EX_STR);
+    assert(!is_str || init->single->kind == EX_STR);
     size_t init_len = is_str ? init->single->str.size : (size_t)init->multi->len;
     if (init_len > arr_len)
       parse_error(NULL, "Initializer more than array size");
@@ -96,7 +96,7 @@ static Initializer *analyze_initializer(Initializer *init) {
   if (init == NULL)
     return NULL;
 
-  switch (init->type) {
+  switch (init->kind) {
   case vSingle:
     init->single = analyze_expr(init->single, false);
     break;
@@ -116,9 +116,9 @@ static Initializer *analyze_initializer(Initializer *init) {
 
 static void string_initializer(Expr *dst, Initializer *src, Vector *inits) {
   // Initialize char[] with string literal (char s[] = "foo";).
-  assert(src->type == vSingle);
-  assert(dst->valType->type == TY_ARRAY && is_char_type(dst->valType->pa.ptrof));
-  assert(src->single->valType->type == TY_ARRAY && is_char_type(src->single->valType->pa.ptrof));
+  assert(src->kind == vSingle);
+  assert(dst->valType->kind == TY_ARRAY && is_char_type(dst->valType->pa.ptrof));
+  assert(src->single->valType->kind == TY_ARRAY && is_char_type(src->single->valType->pa.ptrof));
 
   const Expr *str = src->single;
   size_t size = str->str.size;
@@ -161,9 +161,9 @@ static Initializer *flatten_array_initializer(Initializer *init) {
   int i = 0, len = init->multi->len;
   for (; i < len; ++i) {
     Initializer *init_elem = init->multi->data[i];
-    if (init_elem->type == vDot)
+    if (init_elem->kind == vDot)
       parse_error(NULL, "dot initializer for array");
-    if (init_elem->type == vArr)
+    if (init_elem->kind == vArr)
       break;
   }
   if (i >= len)  // vArr not exits.
@@ -176,8 +176,8 @@ static Initializer *flatten_array_initializer(Initializer *init) {
   size_t index = i;
   for (; i <= len; ++i, ++index) {  // '+1' is for last range.
     Initializer *init_elem;
-    if (i >= len || (init_elem = init->multi->data[i])->type == vArr) {
-      if (i < len && init_elem->arr.index->type != EX_NUM)
+    if (i >= len || (init_elem = init->multi->data[i])->kind == vArr) {
+      if (i < len && init_elem->arr.index->kind != EX_NUM)
         parse_error(NULL, "Constant value expected");
       if ((size_t)i > lastStartIndex) {
         size_t *range = malloc(sizeof(size_t) * 3);
@@ -190,7 +190,7 @@ static Initializer *flatten_array_initializer(Initializer *init) {
         break;
       lastStart = index = init_elem->arr.index->num.ival;
       lastStartIndex = i;
-    } else if (init_elem->type == vDot)
+    } else if (init_elem->kind == vDot)
       parse_error(NULL, "dot initializer for array");
   }
 
@@ -212,9 +212,9 @@ static Initializer *flatten_array_initializer(Initializer *init) {
     }
     for (size_t j = 0; j < count; ++j) {
       Initializer *elem = init->multi->data[index + j];
-      if (j == 0 && index != start && elem->type != vArr) {
+      if (j == 0 && index != start && elem->kind != vArr) {
         Initializer *arr = malloc(sizeof(*arr));
-        arr->type = vArr;
+        arr->kind = vArr;
         Num n = {.ival = start};
         arr->arr.index = new_expr_numlit(&tyInt, NULL, &n);
         arr->arr.value = elem;
@@ -225,7 +225,7 @@ static Initializer *flatten_array_initializer(Initializer *init) {
   }
 
   Initializer *init2 = malloc(sizeof(*init2));
-  init2->type = vMulti;
+  init2->kind = vMulti;
   init2->multi = reordered;
   return init2;
 }
@@ -234,9 +234,9 @@ Initializer *flatten_initializer(const Type *type, Initializer *init) {
   if (init == NULL)
     return NULL;
 
-  switch (type->type) {
+  switch (type->kind) {
   case TY_STRUCT:
-    if (init->type == vMulti) {
+    if (init->kind == vMulti) {
       ensure_struct((Type*)type, NULL);
       const StructInfo *sinfo = type->struct_.info;
       int n = sinfo->members->len;
@@ -256,10 +256,10 @@ Initializer *flatten_initializer(const Type *type, Initializer *init) {
       int index = 0;
       for (int i = 0; i < m; ++i) {
         Initializer *value = init->multi->data[i];
-        if (value->type == vArr)
+        if (value->kind == vArr)
           parse_error(NULL, "indexed initializer for array");
 
-        if (value->type == vDot) {
+        if (value->kind == vDot) {
           index = var_find(sinfo->members, value->dot.name);
           if (index < 0)
             parse_error(NULL, "`%s' is not member of struct", value->dot.name);
@@ -269,13 +269,13 @@ Initializer *flatten_initializer(const Type *type, Initializer *init) {
           parse_error(NULL, "Too many init values");
 
         // Allocate string literal for char* as a char array.
-        if (value->type == vSingle && value->single->type == EX_STR) {
+        if (value->kind == vSingle && value->single->kind == EX_STR) {
           const VarInfo *member = sinfo->members->data[index];
-          if (member->type->type == TY_PTR &&
+          if (member->type->kind == TY_PTR &&
               is_char_type(member->type->pa.ptrof)) {
             Expr *expr = value->single;
             Initializer *strinit = malloc(sizeof(*strinit));
-            strinit->type = vSingle;
+            strinit->kind = vSingle;
             strinit->single = expr;
 
             // Create string and point to it.
@@ -294,7 +294,7 @@ Initializer *flatten_initializer(const Type *type, Initializer *init) {
       }
 
       Initializer *flat = malloc(sizeof(*flat));
-      flat->type = vMulti;
+      flat->kind = vMulti;
       //flat->multi = new_vector();
       Vector *v = malloc(sizeof(*v));
       v->len = v->capacity = n;
@@ -305,7 +305,7 @@ Initializer *flatten_initializer(const Type *type, Initializer *init) {
     }
     break;
   case TY_ARRAY:
-    switch (init->type) {
+    switch (init->kind) {
     case vMulti:
       init = flatten_array_initializer(init);
       break;
@@ -330,10 +330,10 @@ static Initializer *check_global_initializer(const Type *type, Initializer *init
 
   init = flatten_initializer(type, init);
 
-  switch (type->type) {
+  switch (type->kind) {
   case TY_NUM:
-    if (init->type == vSingle) {
-      switch (init->single->type) {
+    if (init->kind == vSingle) {
+      switch (init->single->kind) {
       case EX_NUM:
         return init;
       default:
@@ -344,14 +344,14 @@ static Initializer *check_global_initializer(const Type *type, Initializer *init
     break;
   case TY_PTR:
     {
-      if (init->type != vSingle)
+      if (init->kind != vSingle)
         parse_error(NULL, "initializer type error");
       Expr *value = init->single;
-      switch (value->type) {
+      switch (value->kind) {
       case EX_REF:
         {
           value = value->unary.sub;
-          if (value->type != EX_VARREF)
+          if (value->kind != EX_VARREF)
             parse_error(NULL, "pointer initializer must be varref");
           if (value->varref.scope != NULL)
             parse_error(NULL, "Allowed global reference only");
@@ -372,29 +372,29 @@ static Initializer *check_global_initializer(const Type *type, Initializer *init
           VarInfo *info = find_global(value->varref.ident);
           assert(info != NULL);
 
-          if (info->type->type != TY_ARRAY || !same_type(type->pa.ptrof, info->type->pa.ptrof))
+          if (info->type->kind != TY_ARRAY || !same_type(type->pa.ptrof, info->type->pa.ptrof))
             parse_error(NULL, "Illegal type");
 
           return init;
         }
       case EX_CAST:
         // Handle NULL assignment.
-        while (value->type == EX_CAST)
+        while (value->kind == EX_CAST)
           value = value->unary.sub;
-        if (!is_number(value->valType->type))
+        if (!is_number(value->valType->kind))
           break;
         // Fallthrough
       case EX_NUM:
         {
           Initializer *init2 = malloc(sizeof(*init2));
-          init2->type = vSingle;
+          init2->kind = vSingle;
           init2->single = value;
           return init2;
         }
         break;
       case EX_STR:
         {
-          if (!(is_char_type(type->pa.ptrof) && value->type == EX_STR))
+          if (!(is_char_type(type->pa.ptrof) && value->kind == EX_STR))
             parse_error(NULL, "Illegal type");
 
           // Create string and point to it.
@@ -405,18 +405,18 @@ static Initializer *check_global_initializer(const Type *type, Initializer *init
           varinfo->global.init = init;
 
           Initializer *init2 = malloc(sizeof(*init2));
-          init2->type = vSingle;
+          init2->kind = vSingle;
           init2->single = new_expr_varref(label, type2, ident);
           return init2;
         }
       default:
         break;
       }
-      parse_error(NULL, "initializer type error: type=%d", value->type);
+      parse_error(NULL, "initializer type error: kind=%d", value->kind);
     }
     break;
   case TY_ARRAY:
-    switch (init->type) {
+    switch (init->kind) {
     case vMulti:
       {
         const Type *elemtype = type->pa.ptrof;
@@ -428,7 +428,7 @@ static Initializer *check_global_initializer(const Type *type, Initializer *init
       }
       break;
     case vSingle:
-      if (is_char_type(type->pa.ptrof) && init->single->type == EX_STR) {
+      if (is_char_type(type->pa.ptrof) && init->single->kind == EX_STR) {
         assert(type->pa.length != (size_t)-1);
         if (type->pa.length < init->single->str.size) {
           parse_error(NULL, "Array size shorter than initializer");
@@ -454,7 +454,7 @@ static Initializer *check_global_initializer(const Type *type, Initializer *init
     }
     break;
   default:
-    parse_error(NULL, "Global initial value for type %d not implemented (yet)\n", type->type);
+    parse_error(NULL, "Global initial value for type %d not implemented (yet)\n", type->kind);
     break;
   }
   return init;
@@ -470,9 +470,9 @@ static Vector *assign_initial_value(Expr *expr, Initializer *init, Vector *inits
   Initializer *org_init = init;
   init = flatten_initializer(expr->valType, init);
 
-  switch (expr->valType->type) {
+  switch (expr->valType->kind) {
   case TY_ARRAY:
-    switch (init->type) {
+    switch (init->kind) {
     case vMulti:
       {
         size_t arr_len = expr->valType->pa.length;
@@ -483,9 +483,9 @@ static Vector *assign_initial_value(Expr *expr, Initializer *init, Vector *inits
         size_t index = 0;
         for (size_t i = 0; i < len; ++i, ++index) {
           Initializer *init_elem = init->multi->data[i];
-          if (init_elem->type == vArr) {
+          if (init_elem->kind == vArr) {
             Expr *ind = init_elem->arr.index;
-            if (ind->type != EX_NUM)
+            if (ind->kind != EX_NUM)
               parse_error(NULL, "Number required");
             index = ind->num.ival;
             init_elem = init_elem->arr.value;
@@ -513,7 +513,7 @@ static Vector *assign_initial_value(Expr *expr, Initializer *init, Vector *inits
     break;
   case TY_STRUCT:
     {
-      if (init->type != vMulti) {
+      if (init->kind != vMulti) {
         vec_push(inits,
                  new_node_expr(new_expr_bop(EX_ASSIGN, expr->valType, NULL, expr,
                                             init->single)));
@@ -550,7 +550,7 @@ static Vector *assign_initial_value(Expr *expr, Initializer *init, Vector *inits
     }
     break;
   default:
-    if (init->type != vSingle)
+    if (init->kind != vSingle)
       parse_error(NULL, "Error initializer");
     vec_push(inits,
              new_node_expr(new_expr_bop(EX_ASSIGN, expr->valType, NULL, expr,
@@ -562,7 +562,7 @@ static Vector *assign_initial_value(Expr *expr, Initializer *init, Vector *inits
 }
 
 static Node *sema_vardecl(Node *node) {
-  assert(node->type == ND_VARDECL);
+  assert(node->kind == ND_VARDECL);
   Vector *decls = node->vardecl.decls;
   Vector *inits = NULL;
   for (int i = 0, len = decls->len; i < len; ++i) {
@@ -572,7 +572,7 @@ static Node *sema_vardecl(Node *node) {
     int flag = decl->flag;
     Initializer *init = decl->init;
 
-    if (type->type == TY_ARRAY && init != NULL)
+    if (type->kind == TY_ARRAY && init != NULL)
       fix_array_size((Type*)type, init);
 
     if (curfunc != NULL) {
@@ -627,7 +627,7 @@ static void sema_defun(Defun *defun) {
   if (def == NULL) {
     define_global(defun->type, defun->flag | VF_CONST, ident, defun->name);
   } else {
-    if (def->type->type != TY_FUNC)
+    if (def->type->kind != TY_FUNC)
       parse_error(ident, "Definition conflict: `%s'");
     // TODO: Check type.
     // TODO: Check duplicated definition.
@@ -663,7 +663,7 @@ Node *sema(Node *node) {
   if (node == NULL)
     return node;
 
-  switch (node->type) {
+  switch (node->kind) {
   case ND_EXPR:
     node->expr = analyze_expr(node->expr, false);
     break;
@@ -749,10 +749,10 @@ Node *sema(Node *node) {
       Expr *val = node->return_.val;
       Token *tok = NULL;
       if (val == NULL) {
-        if (rettype->type != TY_VOID)
+        if (rettype->kind != TY_VOID)
           parse_error(tok, "`return' required a value");
       } else {
-        if (rettype->type == TY_VOID)
+        if (rettype->kind == TY_VOID)
           parse_error(tok, "void function `return' a value");
 
         const Token *tok = NULL;
@@ -808,7 +808,7 @@ Node *sema(Node *node) {
     break;
 
   default:
-    fprintf(stderr, "sema: Unhandled node, type=%d\n", node->type);
+    fprintf(stderr, "sema: Unhandled node, kind=%d\n", node->kind);
     assert(false);
     break;
   }

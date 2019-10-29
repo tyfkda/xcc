@@ -21,7 +21,7 @@ static void do_dump_ir(Node *node) {
 #if defined(SELF_HOSTING)
   UNUSED(node);
 #else
-  switch (node->type) {
+  switch (node->kind) {
   case ND_TOPLEVEL:
     for (int i = 0, len = node->toplevel.nodes->len; i < len; ++i) {
       Node *child = node->toplevel.nodes->data[i];

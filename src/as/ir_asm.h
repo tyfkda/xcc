@@ -13,7 +13,7 @@ typedef struct {
   unsigned char *buf;
 } Data;
 
-enum IRType {
+enum IrKind {
   IR_LABEL,
   IR_CODE,
   IR_DATA,
@@ -23,7 +23,7 @@ enum IRType {
 };
 
 typedef struct {
-  enum IRType type;
+  enum IrKind kind;
   union {
     const char *label;
     Code code;

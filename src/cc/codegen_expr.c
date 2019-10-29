@@ -17,7 +17,7 @@ static VReg *gen_lval(Expr *expr);
 // test %eax, %eax, and so on.
 static void gen_test_opcode(VReg *reg, const Type *type) {
   int size = type_size(type);
-  switch (type->type) {
+  switch (type->kind) {
   case TY_NUM: case TY_PTR:
     break;
   case TY_ARRAY: case TY_FUNC:
@@ -29,20 +29,20 @@ static void gen_test_opcode(VReg *reg, const Type *type) {
   new_ir_test(reg, size);
 }
 
-static enum ConditionType flip_cond(enum ConditionType cond) {
+static enum ConditionKind flip_cond(enum ConditionKind cond) {
   assert(COND_EQ <= cond && cond <= COND_GT);
   if (cond >= COND_LT)
     cond = COND_GT - (cond - COND_LT);
   return cond;
 }
 
-static enum ConditionType gen_compare_expr(enum ExprType type, Expr *lhs, Expr *rhs) {
+static enum ConditionKind gen_compare_expr(enum ExprKind kind, Expr *lhs, Expr *rhs) {
   const Type *ltype = lhs->valType;
   UNUSED(ltype);
-  assert(ltype->type == rhs->valType->type);
+  assert(ltype->kind == rhs->valType->kind);
 
-  enum ConditionType cond = type + (COND_EQ - EX_EQ);
-  if (rhs->type != EX_NUM && lhs->type == EX_NUM) {
+  enum ConditionKind cond = kind + (COND_EQ - EX_EQ);
+  if (rhs->kind != EX_NUM && lhs->kind == EX_NUM) {
     Expr *tmp = lhs;
     lhs = rhs;
     rhs = tmp;
@@ -50,14 +50,14 @@ static enum ConditionType gen_compare_expr(enum ExprType type, Expr *lhs, Expr *
   }
 
   VReg *lhs_reg = gen_expr(lhs);
-  if (rhs->type == EX_NUM && rhs->num.ival == 0 &&
+  if (rhs->kind == EX_NUM && rhs->num.ival == 0 &&
       (cond == COND_EQ || cond == COND_NE)) {
     gen_test_opcode(lhs_reg, lhs->valType);
-  } else if (rhs->type == EX_NUM && (lhs->valType->num.type != NUM_LONG || is_im32(rhs->num.ival))) {
+  } else if (rhs->kind == EX_NUM && (lhs->valType->num.kind != NUM_LONG || is_im32(rhs->num.ival))) {
     VReg *num = new_ir_imm(rhs->num.ival, type_size(rhs->valType));
     new_ir_cmp(lhs_reg, num, type_size(lhs->valType));
   } else {
-    switch (lhs->valType->type) {
+    switch (lhs->valType->kind) {
     case TY_NUM: case TY_PTR:
       break;
     default: assert(false); break;
@@ -77,7 +77,7 @@ static enum ConditionType gen_compare_expr(enum ExprType type, Expr *lhs, Expr *
 void gen_cond_jmp(Expr *cond, bool tf, BB *bb) {
   // Local optimization: if `cond` is compare expression, then
   // jump using flags after CMP directly.
-  switch (cond->type) {
+  switch (cond->kind) {
   case EX_NUM:
     if (cond->num.ival == 0)
       tf = !tf;
@@ -88,8 +88,8 @@ void gen_cond_jmp(Expr *cond, bool tf, BB *bb) {
   case EX_EQ:
   case EX_NE:
     {
-      enum ConditionType type = gen_compare_expr(cond->type, cond->bop.lhs, cond->bop.rhs);
-      if (type != COND_EQ)
+      enum ConditionKind kind = gen_compare_expr(cond->kind, cond->bop.lhs, cond->bop.rhs);
+      if (kind != COND_EQ)
         tf = !tf;
       if (tf)
         new_ir_jmp(COND_EQ, bb);
@@ -102,11 +102,11 @@ void gen_cond_jmp(Expr *cond, bool tf, BB *bb) {
   case EX_LE:
   case EX_GE:
     {
-      enum ConditionType type = gen_compare_expr(cond->type, cond->bop.lhs, cond->bop.rhs);
-      switch (type) {
+      enum ConditionKind kind = gen_compare_expr(cond->kind, cond->bop.lhs, cond->bop.rhs);
+      switch (kind) {
       case COND_LT:
       case COND_GE:
-        if (type != COND_LT)
+        if (kind != COND_LT)
           tf = !tf;
         if (tf)
           new_ir_jmp(COND_LT, bb);
@@ -115,7 +115,7 @@ void gen_cond_jmp(Expr *cond, bool tf, BB *bb) {
         break;
       case COND_GT:
       case COND_LE:
-        if (type != COND_GT)
+        if (kind != COND_GT)
           tf = !tf;
         if (tf)
           new_ir_jmp(COND_GT, bb);
@@ -175,7 +175,7 @@ void gen_cond_jmp(Expr *cond, bool tf, BB *bb) {
 static VReg *gen_cast(VReg *reg, const Type *ltypep, const Type *rtypep) {
   size_t dst_size = type_size(ltypep);
   size_t src_size;
-  if (rtypep->type == TY_ARRAY)
+  if (rtypep->kind == TY_ARRAY)
     src_size = WORD_SIZE;
   else
     src_size = type_size(rtypep);
@@ -189,7 +189,7 @@ static VReg *gen_rval(Expr *expr) {
 }
 
 static VReg *gen_ref(Expr *expr) {
-  if (expr->type == EX_VARREF && expr->varref.scope != NULL) {
+  if (expr->kind == EX_VARREF && expr->varref.scope != NULL) {
     Scope *scope = expr->varref.scope;
     VarInfo *varinfo = scope_find(&scope, expr->varref.ident);
     assert(varinfo != NULL);
@@ -201,7 +201,7 @@ static VReg *gen_ref(Expr *expr) {
 }
 
 static VReg *gen_lval(Expr *expr) {
-  switch (expr->type) {
+  switch (expr->kind) {
   case EX_VARREF:
     if (expr->varref.scope == NULL) {
       return new_ir_iofs(expr->varref.ident);
@@ -221,15 +221,15 @@ static VReg *gen_lval(Expr *expr) {
   case EX_MEMBER:
     {
       const Type *type = expr->member.target->valType;
-      if (type->type == TY_PTR || type->type == TY_ARRAY)
+      if (type->kind == TY_PTR || type->kind == TY_ARRAY)
         type = type->pa.ptrof;
-      assert(type->type == TY_STRUCT);
+      assert(type->kind == TY_STRUCT);
       calc_struct_size(type->struct_.info);
       Vector *members = type->struct_.info->members;
       VarInfo *varinfo = (VarInfo*)members->data[expr->member.index];
 
       VReg *reg;
-      if (expr->member.target->valType->type == TY_PTR)
+      if (expr->member.target->valType->kind == TY_PTR)
         reg = gen_expr(expr->member.target);
       else
         reg = gen_ref(expr->member.target);
@@ -241,14 +241,14 @@ static VReg *gen_lval(Expr *expr) {
     }
     break;
   default:
-    error("No lvalue: %d", expr->type);
+    error("No lvalue: %d", expr->kind);
     break;
   }
   return NULL;
 }
 
 static VReg *gen_varref(Expr *expr) {
-  switch (expr->valType->type) {
+  switch (expr->valType->kind) {
   case TY_NUM:
   case TY_PTR:
     {
@@ -307,9 +307,9 @@ static VReg *gen_funcall(Expr *expr) {
   if (args != NULL) {
     if (arg_count > MAX_REG_ARGS) {
       bool vaargs = false;
-      if (func->type == EX_VARREF && func->varref.scope == NULL) {
+      if (func->kind == EX_VARREF && func->varref.scope == NULL) {
         VarInfo *varinfo = find_global(func->varref.ident);
-        assert(varinfo != NULL && varinfo->type->type == TY_FUNC);
+        assert(varinfo != NULL && varinfo->type->kind == TY_FUNC);
         vaargs = varinfo->type->func.vaargs;
       } else {
         // TODO:
@@ -328,7 +328,7 @@ static VReg *gen_funcall(Expr *expr) {
 
   VReg *result_reg = NULL;
   Scope *scope;
-  if (func->type == EX_VARREF &&
+  if (func->kind == EX_VARREF &&
       (func->varref.scope == NULL ||
        ((scope = func->varref.scope),
         scope_find(&scope, func->varref.ident)->flag & VF_EXTERN))) {
@@ -347,9 +347,9 @@ static VReg *gen_funcall(Expr *expr) {
   return result_reg;
 }
 
-VReg *gen_arith(enum ExprType exprType, const Type *valType, VReg *lhs, VReg *rhs) {
+VReg *gen_arith(enum ExprKind kind, const Type *valType, VReg *lhs, VReg *rhs) {
   // lhs=rax, rhs=rdi, result=rax
-  switch (exprType) {
+  switch (kind) {
   case EX_ADD:
   case EX_SUB:
   case EX_MUL:
@@ -361,7 +361,7 @@ VReg *gen_arith(enum ExprType exprType, const Type *valType, VReg *lhs, VReg *rh
   case EX_LSHIFT:
   case EX_RSHIFT:
     {
-      VReg *result = new_ir_bop(exprType + (IR_ADD - EX_ADD), lhs, rhs, type_size(valType));
+      VReg *result = new_ir_bop(kind + (IR_ADD - EX_ADD), lhs, rhs, type_size(valType));
       return result;
     }
 
@@ -372,15 +372,15 @@ VReg *gen_arith(enum ExprType exprType, const Type *valType, VReg *lhs, VReg *rh
 }
 
 VReg *gen_expr(Expr *expr) {
-  switch (expr->type) {
+  switch (expr->kind) {
   case EX_NUM:
-    assert(expr->valType->type == TY_NUM);
+    assert(expr->valType->kind == TY_NUM);
     return new_ir_imm(expr->num.ival, type_size(expr->valType));
 
   case EX_STR:
     {
       Initializer *init = malloc(sizeof(*init));
-      init->type = vSingle;
+      init->kind = vSingle;
       init->single = expr;
 
       // Create string and point to it.
@@ -406,7 +406,7 @@ VReg *gen_expr(Expr *expr) {
     {
       VReg *reg = gen_rval(expr->unary.sub);
       VReg *result;
-      switch (expr->valType->type) {
+      switch (expr->valType->kind) {
       case TY_NUM:
       case TY_PTR:
         result = new_ir_unary(IR_LOAD, reg, type_size(expr->valType));
@@ -426,7 +426,7 @@ VReg *gen_expr(Expr *expr) {
     {
       VReg *reg = gen_lval(expr);
       VReg *result;
-      switch (expr->valType->type) {
+      switch (expr->valType->kind) {
       case TY_NUM:
       case TY_PTR:
         result = new_ir_unary(IR_LOAD, reg, type_size(expr->valType));
@@ -458,10 +458,10 @@ VReg *gen_expr(Expr *expr) {
     return gen_ternary(expr);
 
   case EX_CAST:
-    if (expr->unary.sub->type == EX_NUM) {
-      assert(expr->unary.sub->valType->type == TY_NUM);
+    if (expr->unary.sub->kind == EX_NUM) {
+      assert(expr->unary.sub->valType->kind == TY_NUM);
       intptr_t value = expr->unary.sub->num.ival;
-      switch (expr->unary.sub->valType->num.type) {
+      switch (expr->unary.sub->valType->num.kind) {
       case NUM_CHAR:
         value = (int8_t)value;
         break;
@@ -490,9 +490,9 @@ VReg *gen_expr(Expr *expr) {
   case EX_ASSIGN:
     {
       VReg *src = gen_expr(expr->bop.rhs);
-      if (expr->bop.lhs->type == EX_VARREF) {
+      if (expr->bop.lhs->kind == EX_VARREF) {
         Expr *lhs = expr->bop.lhs;
-        switch (lhs->valType->type) {
+        switch (lhs->valType->kind) {
         case TY_NUM:
         case TY_PTR:
           {
@@ -512,7 +512,7 @@ VReg *gen_expr(Expr *expr) {
 
       VReg *dst = gen_lval(expr->bop.lhs);
 
-      switch (expr->valType->type) {
+      switch (expr->valType->kind) {
       default:
         assert(false);
         // Fallthrough to suppress compiler error.
@@ -540,17 +540,17 @@ VReg *gen_expr(Expr *expr) {
   case EX_ASSIGN_WITH:
     {
       Expr *sub = expr->unary.sub;
-      if (sub->bop.lhs->type == EX_VARREF && sub->bop.lhs->varref.scope != NULL) {
+      if (sub->bop.lhs->kind == EX_VARREF && sub->bop.lhs->varref.scope != NULL) {
         VReg *lhs = gen_expr(sub->bop.lhs);
         VReg *rhs = gen_expr(sub->bop.rhs);
-        VReg *result = gen_arith(sub->type, sub->valType, lhs, rhs);
+        VReg *result = gen_arith(sub->kind, sub->valType, lhs, rhs);
         new_ir_mov(lhs, result, type_size(sub->bop.lhs->valType));
         return result;
       } else {
         VReg *lval = gen_lval(sub->bop.lhs);
         VReg *rhs = gen_expr(sub->bop.rhs);
         VReg *lhs = new_ir_unary(IR_LOAD, lval, type_size(sub->bop.lhs->valType));
-        VReg *result = gen_arith(sub->type, sub->valType, lhs, rhs);
+        VReg *result = gen_arith(sub->kind, sub->valType, lhs, rhs);
         VReg *cast = gen_cast(result, expr->valType, sub->valType);
         new_ir_store(lval, cast, type_size(expr->valType));
         return result;
@@ -562,17 +562,17 @@ VReg *gen_expr(Expr *expr) {
   case EX_PREDEC:
     {
       size_t value = 1;
-      if (expr->valType->type == TY_PTR)
+      if (expr->valType->kind == TY_PTR)
         value = type_size(expr->valType->pa.ptrof);
       int size = type_size(expr->valType);
 
       Expr *sub = expr->unary.sub;
-      if (sub->type == EX_VARREF) {
+      if (sub->kind == EX_VARREF) {
         Scope *scope = sub->varref.scope;
         VarInfo *varinfo = scope_find(&scope, sub->varref.ident);
         if (varinfo != NULL && !(varinfo->flag & (VF_STATIC | VF_EXTERN))) {
           VReg *num = new_ir_imm(value, size);
-          VReg *result = new_ir_bop(expr->type == EX_PREINC ? IR_ADD : IR_SUB,
+          VReg *result = new_ir_bop(expr->kind == EX_PREINC ? IR_ADD : IR_SUB,
                                     varinfo->reg, num, size);
           new_ir_mov(varinfo->reg, result, size);
           return result;
@@ -580,7 +580,7 @@ VReg *gen_expr(Expr *expr) {
       }
 
       VReg *lval = gen_lval(sub);
-      new_ir_incdec(expr->type == EX_PREINC ? IR_INC : IR_DEC,
+      new_ir_incdec(expr->kind == EX_PREINC ? IR_INC : IR_DEC,
                     lval, size, value);
       VReg *result = new_ir_unary(IR_LOAD, lval, size);
       return result;
@@ -590,19 +590,19 @@ VReg *gen_expr(Expr *expr) {
   case EX_POSTDEC:
     {
       size_t value = 1;
-      if (expr->valType->type == TY_PTR)
+      if (expr->valType->kind == TY_PTR)
         value = type_size(expr->valType->pa.ptrof);
       int size = type_size(expr->valType);
 
       Expr *sub = expr->unary.sub;
-      if (sub->type == EX_VARREF) {
+      if (sub->kind == EX_VARREF) {
         Scope *scope = sub->varref.scope;
         VarInfo *varinfo = scope_find(&scope, sub->varref.ident);
         if (varinfo != NULL && !(varinfo->flag & (VF_STATIC | VF_EXTERN))) {
           VReg *org_val = add_new_reg();
           new_ir_mov(org_val, varinfo->reg, size);
           VReg *num = new_ir_imm(value, size);
-          VReg *result = new_ir_bop(expr->type == EX_POSTINC ? IR_ADD : IR_SUB,
+          VReg *result = new_ir_bop(expr->kind == EX_POSTINC ? IR_ADD : IR_SUB,
                                     varinfo->reg, num, size);
           new_ir_mov(varinfo->reg, result, size);
           return org_val;
@@ -611,7 +611,7 @@ VReg *gen_expr(Expr *expr) {
 
       VReg *lval = gen_lval(expr->unary.sub);
       VReg *result = new_ir_unary(IR_LOAD, lval, size);
-      new_ir_incdec(expr->type == EX_POSTINC ? IR_INC : IR_DEC,
+      new_ir_incdec(expr->kind == EX_POSTINC ? IR_INC : IR_DEC,
                     lval, size, value);
       return result;
     }
@@ -630,7 +630,7 @@ VReg *gen_expr(Expr *expr) {
     {
       VReg *reg = gen_expr(expr->unary.sub);
       VReg *result;
-      switch (expr->unary.sub->valType->type) {
+      switch (expr->unary.sub->valType->kind) {
       case TY_NUM: case TY_PTR:
         result = new_ir_unary(IR_NOT, reg, type_size(expr->unary.sub->valType));
         break;
@@ -659,7 +659,7 @@ VReg *gen_expr(Expr *expr) {
   case EX_LE:
   case EX_GE:
     {
-      enum ConditionType cond = gen_compare_expr(expr->type, expr->bop.lhs, expr->bop.rhs);
+      enum ConditionKind cond = gen_compare_expr(expr->kind, expr->bop.lhs, expr->bop.rhs);
       return new_ir_set(cond);
     }
 
@@ -714,11 +714,11 @@ VReg *gen_expr(Expr *expr) {
     {
       VReg *lhs = gen_expr(expr->bop.lhs);
       VReg *rhs = gen_expr(expr->bop.rhs);
-      return gen_arith(expr->type, expr->valType, lhs, rhs);
+      return gen_arith(expr->kind, expr->valType, lhs, rhs);
     }
 
   default:
-    fprintf(stderr, "Expr type=%d, ", expr->type);
+    fprintf(stderr, "Expr kind=%d, ", expr->kind);
     assert(!"Unhandled in gen_expr");
     break;
   }

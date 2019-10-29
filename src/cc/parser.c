@@ -42,9 +42,9 @@ static Defun *new_defun(const Type *rettype, const char *name, Vector *params, i
   return defun;
 }
 
-static Node *new_node(enum NodeType type) {
+static Node *new_node(enum NodeKind kind) {
   Node *node = malloc(sizeof(Node));
-  node->type = type;
+  node->kind = kind;
   return node;
 }
 
@@ -162,7 +162,7 @@ static Initializer *parse_initializer(void) {
             parse_error(NULL, "`=' expected for dotted initializer");
           Initializer *value = parse_initializer();
           init = malloc(sizeof(*init));
-          init->type = vDot;
+          init->kind = vDot;
           init->dot.name = ident->ident;
           init->dot.value = value;
         } else if (consume(TK_LBRACKET)) {
@@ -172,7 +172,7 @@ static Initializer *parse_initializer(void) {
           consume(TK_ASSIGN);  // both accepted: `[1] = 2`, and `[1] 2`
           Initializer *value = parse_initializer();
           init = malloc(sizeof(*init));
-          init->type = vArr;
+          init->kind = vArr;
           init->arr.index = index;
           init->arr.value = value;
         } else {
@@ -190,10 +190,10 @@ static Initializer *parse_initializer(void) {
         }
       }
     }
-    result->type = vMulti;
+    result->kind = vMulti;
     result->multi = multi;
   } else {
-    result->type = vSingle;
+    result->kind = vSingle;
     result->single = parse_assign();
   }
   return result;
@@ -334,7 +334,7 @@ static Node *parse_for(void) {
       int flag;
       Token *ident;
       if (parse_var_def(&rawType, (const Type**)&type, &flag, &ident)) {
-        if (type->type == TY_VOID && ident != NULL) {
+        if (type->kind == TY_VOID && ident != NULL) {
 
         }
 
@@ -373,10 +373,10 @@ static Node *parse_for(void) {
   return NULL;
 }
 
-static Node *parse_break_continue(enum NodeType type) {
+static Node *parse_break_continue(enum NodeKind kind) {
   if (!consume(TK_SEMICOL))
     parse_error(NULL, "`;' expected");
-  return new_node(type);
+  return new_node(kind);
 }
 
 static Node *parse_goto(void) {
@@ -536,7 +536,7 @@ static Node *parse_global_var_decl(const Type *rawtype, int flag, const Type *ty
     }
     first = false;
 
-    if (type->type == TY_VOID)
+    if (type->kind == TY_VOID)
       parse_error(ident, "`void' not allowed1");
 
     type = parse_type_suffix(type);
@@ -563,8 +563,8 @@ static Node *toplevel(void) {
   const Type *rawtype = parse_raw_type(&flag);
   if (rawtype != NULL) {
     const Type *type = parse_type_modifier(rawtype);
-    if ((type->type == TY_STRUCT ||
-         (type->type == TY_NUM && type->num.type == NUM_ENUM)) &&
+    if ((type->kind == TY_STRUCT ||
+         (type->kind == TY_NUM && type->num.kind == NUM_ENUM)) &&
         consume(TK_SEMICOL))  // Just struct/union definition.
       return NULL;
 

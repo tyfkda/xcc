@@ -11,8 +11,8 @@ typedef struct Vector Vector;
 
 // Num
 
-enum NumType {
-  NUM_CHAR,  // Small number type should be earlier.
+enum NumKind {
+  NUM_CHAR,  // Small number kind should be earlier.
   NUM_SHORT,
   NUM_INT,
   NUM_LONG,
@@ -21,7 +21,7 @@ enum NumType {
 
 // Type
 
-enum eType {
+enum TypeKind {
   TY_VOID,
   TY_NUM,
   TY_PTR,
@@ -43,10 +43,10 @@ typedef struct {
 } EnumMember;
 
 typedef struct Type {
-  enum eType type;
+  enum TypeKind kind;
   union {
     struct {
-      enum NumType type;
+      enum NumKind kind;
       struct {
         const Token *ident;
         Vector *members;  // <EnumMember*>
@@ -77,7 +77,7 @@ extern const Type tyVoid;
 #define tyBool  tyInt
 #define tySize  tyLong
 
-bool is_number(enum eType type);
+bool is_number(enum TypeKind kind);
 bool is_char_type(const Type *type);
 bool is_void_ptr(const Type *type);
 bool same_type(const Type *type1, const Type *type2);

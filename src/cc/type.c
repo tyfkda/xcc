@@ -7,35 +7,35 @@
 #include "util.h"
 #include "lexer.h"
 
-const Type tyChar =  {.type=TY_NUM, {.num={.type=NUM_CHAR}}};
-const Type tyShort = {.type=TY_NUM, {.num={.type=NUM_SHORT}}};
-const Type tyInt =   {.type=TY_NUM, {.num={.type=NUM_INT}}};
-const Type tyLong =  {.type=TY_NUM, {.num={.type=NUM_LONG}}};
-const Type tyEnum =  {.type=TY_NUM, {.num={.type=NUM_ENUM}}};
-const Type tyVoid =  {.type=TY_VOID};
+const Type tyChar =  {.kind=TY_NUM, {.num={.kind=NUM_CHAR}}};
+const Type tyShort = {.kind=TY_NUM, {.num={.kind=NUM_SHORT}}};
+const Type tyInt =   {.kind=TY_NUM, {.num={.kind=NUM_INT}}};
+const Type tyLong =  {.kind=TY_NUM, {.num={.kind=NUM_LONG}}};
+const Type tyEnum =  {.kind=TY_NUM, {.num={.kind=NUM_ENUM}}};
+const Type tyVoid =  {.kind=TY_VOID};
 
-bool is_number(enum eType type) {
-  return type == TY_NUM;
+bool is_number(enum TypeKind kind) {
+  return kind == TY_NUM;
 }
 
 bool is_char_type(const Type *type) {
-  return type->type == TY_NUM && type->num.type == NUM_CHAR;
+  return type->kind == TY_NUM && type->num.kind == NUM_CHAR;
 }
 
 bool is_void_ptr(const Type *type) {
-  return type->type == TY_PTR && type->pa.ptrof->type == TY_VOID;
+  return type->kind == TY_PTR && type->pa.ptrof->kind == TY_VOID;
 }
 
 bool same_type(const Type *type1, const Type *type2) {
   for (;;) {
-    if (type1->type != type2->type)
+    if (type1->kind != type2->kind)
       return false;
 
-    switch (type1->type) {
+    switch (type1->kind) {
     case TY_VOID:
       return true;
     case TY_NUM:
-      return type1->num.type == type2->num.type;
+      return type1->num.kind == type2->num.kind;
     case TY_ARRAY:
     case TY_PTR:
       type1 = type1->pa.ptrof;
@@ -75,20 +75,20 @@ bool same_type(const Type *type1, const Type *type2) {
 
 Type* ptrof(const Type *type) {
   Type *ptr = malloc(sizeof(*ptr));
-  ptr->type = TY_PTR;
+  ptr->kind = TY_PTR;
   ptr->pa.ptrof = type;
   return ptr;
 }
 
 const Type *array_to_ptr(const Type *type) {
-  if (type->type != TY_ARRAY)
+  if (type->kind != TY_ARRAY)
     return type;
   return ptrof(type->pa.ptrof);
 }
 
 Type* arrayof(const Type *type, size_t length) {
   Type *arr = malloc(sizeof(*arr));
-  arr->type = TY_ARRAY;
+  arr->kind = TY_ARRAY;
   arr->pa.ptrof = type;
   arr->pa.length = length;
   return arr;
@@ -96,7 +96,7 @@ Type* arrayof(const Type *type, size_t length) {
 
 Type* new_func_type(const Type *ret, Vector *param_types, bool vaargs) {
   Type *f = malloc(sizeof(*f));
-  f->type = TY_FUNC;
+  f->kind = TY_FUNC;
   f->func.ret = ret;
   f->func.vaargs = vaargs;
   f->func.param_types = param_types;
@@ -126,8 +126,8 @@ Type *find_enum(const char *name) {
 
 Type *define_enum(const Token *ident) {
   Type *type = malloc(sizeof(*type));
-  type->type = TY_NUM;
-  type->num.type = NUM_ENUM;
+  type->kind = TY_NUM;
+  type->num.kind = NUM_ENUM;
   type->num.enum_.ident = ident;
   type->num.enum_.members = new_vector();
 
@@ -139,7 +139,7 @@ Type *define_enum(const Token *ident) {
 }
 
 void add_enum_member(Type *type, const Token *ident, int value) {
-  assert(type->type == TY_NUM && type->num.type == NUM_ENUM);
+  assert(type->kind == TY_NUM && type->num.kind == NUM_ENUM);
   EnumMember *member = malloc(sizeof(*member));
   member->ident = ident;
   member->value = value;
@@ -154,10 +154,10 @@ bool find_enum_value(const char *name, intptr_t *output) {
 
 #if 0
 void dump_type(FILE *fp, const Type *type) {
-  switch (type->type) {
+  switch (type->kind) {
   case TY_VOID: fprintf(fp, "void"); break;
   case TY_NUM:
-    switch (type->num.type) {
+    switch (type->num.kind) {
     case NUM_CHAR:  fprintf(fp, "char"); break;
     case NUM_SHORT: fprintf(fp, "short"); break;
     case NUM_INT:   fprintf(fp, "int"); break;

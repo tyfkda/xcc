@@ -43,7 +43,7 @@ typedef struct Defun {
 // Initializer
 
 typedef struct Initializer {
-  enum { vSingle, vMulti, vDot, vArr } type;  // vSingle: 123, vMulti: {...}, vDot: .x=123, vArr: [n]=123
+  enum { vSingle, vMulti, vDot, vArr } kind;  // vSingle: 123, vMulti: {...}, vDot: .x=123, vArr: [n]=123
   union {
     Expr *single;
     Vector *multi;  // <Initializer*>
@@ -60,7 +60,7 @@ typedef struct Initializer {
 
 // Node
 
-enum NodeType {
+enum NodeKind {
   ND_EXPR,
   ND_DEFUN,
   ND_BLOCK,
@@ -88,7 +88,7 @@ typedef struct VarDecl {
 } VarDecl;
 
 typedef struct Node {
-  enum NodeType type;
+  enum NodeKind kind;
   union {
     Expr *expr;
     Defun *defun;
