@@ -107,27 +107,27 @@ bool check_cast(const Type *dst, const Type *src, Expr *src_expr, bool is_explic
 }
 
 Expr *make_cast(const Type *type, const Token *token, Expr *sub, bool is_explicit) {
-  if (type->kind == TY_VOID || sub->valType->kind == TY_VOID)
+  if (type->kind == TY_VOID || sub->type->kind == TY_VOID)
     parse_error(NULL, "cannot use `void' as a value");
 
-  if (same_type(type, sub->valType))
+  if (same_type(type, sub->type))
     return sub;
   //if (is_const(sub)) {
   //  // Casting number types needs its value range info,
   //  // so handlded in codegen.
-  //  sub->valType = type;
+  //  sub->type = type;
   //  return sub;
   //}
 
-  check_cast(type, sub->valType, sub, is_explicit);
+  check_cast(type, sub->type, sub, is_explicit);
 
   return new_expr_cast(type, token, sub);
 }
 
 // num +|- num
 static Expr *add_num(enum ExprKind kind, const Token *tok, Expr *lhs, Expr *rhs, bool keep_left) {
-  const Type *ltype = lhs->valType;
-  const Type *rtype = rhs->valType;
+  const Type *ltype = lhs->type;
+  const Type *rtype = rhs->type;
   assert(ltype->kind == TY_NUM && rtype->kind == TY_NUM);
   enum NumKind lnt = ltype->num.kind;
   enum NumKind rnt = rtype->num.kind;
@@ -153,7 +153,7 @@ static Expr *add_num(enum ExprKind kind, const Token *tok, Expr *lhs, Expr *rhs,
       break;
     }
     Num num = {value};
-    const Type *type = lnt >= rnt ? lhs->valType : rhs->valType;
+    const Type *type = lnt >= rnt ? lhs->type : rhs->type;
     return new_expr_numlit(type, lhs->token, &num);
   }
 
@@ -170,7 +170,7 @@ static Expr *add_num(enum ExprKind kind, const Token *tok, Expr *lhs, Expr *rhs,
 
 // pointer +|- num
 static Expr *add_ptr_num(enum ExprKind kind, const Token *token, Expr *ptr, Expr *num) {
-  const Type *ptr_type = ptr->valType;
+  const Type *ptr_type = ptr->type;
   if (ptr_type->kind == TY_ARRAY)
     ptr_type = array_to_ptr(ptr_type);
   return new_expr_bop(kind, ptr_type, token, ptr,
@@ -180,8 +180,8 @@ static Expr *add_ptr_num(enum ExprKind kind, const Token *token, Expr *ptr, Expr
 }
 
 Expr *add_expr(const Token *tok, Expr *lhs, Expr *rhs, bool keep_left) {
-  const Type *ltype = lhs->valType;
-  const Type *rtype = rhs->valType;
+  const Type *ltype = lhs->type;
+  const Type *rtype = rhs->type;
   //if (ltype->kind == TY_ENUM)
   //  ltype = &tyInt;
   //if (rtype->kind == TY_ENUM)
@@ -224,8 +224,8 @@ Expr *add_expr(const Token *tok, Expr *lhs, Expr *rhs, bool keep_left) {
 }
 
 static Expr *diff_ptr(const Token *tok, Expr *lhs, Expr *rhs) {
-  const Type *ltype = array_to_ptr(lhs->valType);
-  const Type *rtype = array_to_ptr(rhs->valType);
+  const Type *ltype = array_to_ptr(lhs->type);
+  const Type *rtype = array_to_ptr(rhs->type);
   if (!same_type(ltype, rtype))
     parse_error(tok, "Different pointer diff");
   const Type *elem_type = ltype;
@@ -237,16 +237,16 @@ static Expr *diff_ptr(const Token *tok, Expr *lhs, Expr *rhs) {
 }
 
 static Expr *sub_expr(const Token *tok, Expr *lhs, Expr *rhs, bool keep_left) {
-  if (is_number(lhs->valType->kind)) {
-    if (is_number(rhs->valType->kind))
+  if (is_number(lhs->type->kind)) {
+    if (is_number(rhs->type->kind))
       return add_num(EX_SUB, tok, lhs, rhs, keep_left);
-    if (same_type(lhs->valType, rhs->valType))
-      return new_expr_bop(EX_SUB, lhs->valType, tok, lhs, rhs);
+    if (same_type(lhs->type, rhs->type))
+      return new_expr_bop(EX_SUB, lhs->type, tok, lhs, rhs);
   }
 
-  switch (lhs->valType->kind) {
+  switch (lhs->type->kind) {
   case TY_PTR:
-    switch (rhs->valType->kind) {
+    switch (rhs->type->kind) {
     case TY_NUM:
       return add_ptr_num(EX_SUB, tok, lhs, rhs);
     case TY_PTR: case TY_ARRAY:
@@ -257,7 +257,7 @@ static Expr *sub_expr(const Token *tok, Expr *lhs, Expr *rhs, bool keep_left) {
     break;
 
   case TY_ARRAY:
-    switch (rhs->valType->kind) {
+    switch (rhs->type->kind) {
     case TY_PTR: case TY_ARRAY:
       return diff_ptr(tok, lhs, rhs);
     default:
@@ -274,21 +274,21 @@ static Expr *sub_expr(const Token *tok, Expr *lhs, Expr *rhs, bool keep_left) {
 }
 
 static bool cast_numbers(Expr **pLhs, Expr **pRhs, bool keep_left) {
-  if (!is_number((*pLhs)->valType->kind) ||
-      !is_number((*pRhs)->valType->kind))
+  if (!is_number((*pLhs)->type->kind) ||
+      !is_number((*pRhs)->type->kind))
     return false;
 
-  enum NumKind ltype = (*pLhs)->valType->num.kind;
-  enum NumKind rtype = (*pRhs)->valType->num.kind;
+  enum NumKind ltype = (*pLhs)->type->num.kind;
+  enum NumKind rtype = (*pRhs)->type->num.kind;
   if (ltype == NUM_ENUM)
     ltype = NUM_INT;
   if (rtype == NUM_ENUM)
     rtype = NUM_INT;
   if (ltype != rtype) {
     if (ltype > rtype || keep_left)
-      *pRhs = make_cast((*pLhs)->valType, (*pRhs)->token, *pRhs, false);
+      *pRhs = make_cast((*pLhs)->type, (*pRhs)->token, *pRhs, false);
     else if (ltype < rtype)
-      *pLhs = make_cast((*pRhs)->valType, (*pLhs)->token, *pLhs, false);
+      *pLhs = make_cast((*pRhs)->type, (*pLhs)->token, *pLhs, false);
   }
   return true;
 }
@@ -318,8 +318,8 @@ bool search_from_anonymous(const Type *type, const char *name, const Token *iden
 
 static Expr *analyze_cmp(Expr *expr) {
   Expr *lhs = expr->bop.lhs, *rhs = expr->bop.rhs;
-  if (lhs->valType->kind == TY_PTR || rhs->valType->kind == TY_PTR) {
-    if (lhs->valType->kind != TY_PTR) {
+  if (lhs->type->kind == TY_PTR || rhs->type->kind == TY_PTR) {
+    if (lhs->type->kind != TY_PTR) {
       Expr *tmp = lhs;
       lhs = rhs;
       rhs = tmp;
@@ -327,11 +327,11 @@ static Expr *analyze_cmp(Expr *expr) {
       expr->bop.rhs = rhs;
       expr->kind = flip_cmp(expr->kind);
     }
-    const Type *lt = lhs->valType, *rt = rhs->valType;
+    const Type *lt = lhs->type, *rt = rhs->type;
     if (!can_cast(lt, rt, rhs, false))
       parse_error(expr->token, "Cannot compare pointer to other types");
     if (rt->kind != TY_PTR)
-      expr->bop.rhs = make_cast(lhs->valType, expr->token, rhs, false);
+      expr->bop.rhs = make_cast(lhs->type, expr->token, rhs, false);
   } else {
     if (!cast_numbers(&expr->bop.lhs, &expr->bop.rhs, false))
       parse_error(expr->token, "Cannot compare except numbers");
@@ -360,7 +360,7 @@ Expr *analyze_expr(Expr *expr, bool keep_left) {
   // Literals
   case EX_NUM:
   case EX_STR:
-    assert(expr->valType != NULL);
+    assert(expr->type != NULL);
     break;
 
   case EX_VARREF:
@@ -397,7 +397,7 @@ Expr *analyze_expr(Expr *expr, bool keep_left) {
       }
       if (type == NULL)
         parse_error(expr->token, "Undefined `%s'", name);
-      expr->valType = type;
+      expr->type = type;
       expr->varref.scope = scope;
     }
     break;
@@ -424,8 +424,8 @@ Expr *analyze_expr(Expr *expr, bool keep_left) {
   case EX_ASSIGN:
     expr->bop.lhs = analyze_expr(expr->bop.lhs, false);
     expr->bop.rhs = analyze_expr(expr->bop.rhs, false);
-    assert(expr->bop.lhs->valType != NULL);
-    assert(expr->bop.rhs->valType != NULL);
+    assert(expr->bop.lhs->type != NULL);
+    assert(expr->bop.rhs->type != NULL);
 
     switch (expr->kind) {
     case EX_ADD:
@@ -471,19 +471,19 @@ Expr *analyze_expr(Expr *expr, bool keep_left) {
           break;
         }
         Num num = {value};
-        const Type *type = lhs->valType->num.kind >= rhs->valType->num.kind ? lhs->valType : rhs->valType;
+        const Type *type = lhs->type->num.kind >= rhs->type->num.kind ? lhs->type : rhs->type;
         return new_expr_numlit(type, lhs->token, &num);
       }
 
-      expr->valType = expr->bop.lhs->valType;
+      expr->type = expr->bop.lhs->type;
       break;
 
     case EX_LSHIFT:
     case EX_RSHIFT:
       {
         enum TypeKind k;
-        if (!is_number(k = expr->bop.lhs->valType->kind) ||
-            !is_number(k = expr->bop.rhs->valType->kind))
+        if (!is_number(k = expr->bop.lhs->type->kind) ||
+            !is_number(k = expr->bop.rhs->type->kind))
           parse_error(expr->token, "Cannot use `%d' except numbers.", k);
 
         if (is_const(expr->bop.lhs) && is_const(expr->bop.rhs)) {
@@ -491,10 +491,10 @@ Expr *analyze_expr(Expr *expr, bool keep_left) {
           intptr_t rval = expr->bop.rhs->num.ival;
           intptr_t value = expr->kind == EX_LSHIFT ? lval << rval : lval >> rval;
           Num num = {value};
-          return new_expr_numlit(expr->bop.lhs->valType, expr->bop.lhs->token, &num);
+          return new_expr_numlit(expr->bop.lhs->type, expr->bop.lhs->token, &num);
         }
 
-        expr->valType = expr->bop.lhs->valType;
+        expr->type = expr->bop.lhs->type;
       }
       break;
 
@@ -512,8 +512,8 @@ Expr *analyze_expr(Expr *expr, bool keep_left) {
       break;
 
     case EX_ASSIGN:
-      expr->valType = expr->bop.lhs->valType;
-      expr->bop.rhs = make_cast(expr->valType, expr->token, expr->bop.rhs, false);
+      expr->type = expr->bop.lhs->type;
+      expr->bop.rhs = make_cast(expr->type, expr->token, expr->bop.rhs, false);
       break;
 
     default:
@@ -537,27 +537,27 @@ Expr *analyze_expr(Expr *expr, bool keep_left) {
   case EX_CAST:
   case EX_ASSIGN_WITH:
     expr->unary.sub = analyze_expr(expr->unary.sub, expr->kind == EX_ASSIGN_WITH);
-    assert(expr->unary.sub->valType != NULL);
+    assert(expr->unary.sub->type != NULL);
 
     switch (expr->kind) {
     case EX_POS:
-      if (!is_number(expr->unary.sub->valType->kind))
+      if (!is_number(expr->unary.sub->type->kind))
         parse_error(expr->token, "Cannot apply `+' except number types");
       return expr->unary.sub;
 
     case EX_NEG:
-      if (!is_number(expr->unary.sub->valType->kind))
+      if (!is_number(expr->unary.sub->type->kind))
         parse_error(expr->token, "Cannot apply `-' except number types");
       if (is_const(expr->unary.sub)) {
         Expr *sub = expr->unary.sub;
         sub->num.ival = -sub->num.ival;
         return sub;
       }
-      expr->valType = expr->unary.sub->valType;
+      expr->type = expr->unary.sub->type;
       break;
 
     case EX_NOT:
-      switch (expr->unary.sub->valType->kind) {
+      switch (expr->unary.sub->type->kind) {
       case TY_NUM:
       case TY_PTR:
       case TY_ARRAY:
@@ -569,9 +569,9 @@ Expr *analyze_expr(Expr *expr, bool keep_left) {
       break;
 
     case EX_BITNOT:
-      switch (expr->unary.sub->valType->kind) {
+      switch (expr->unary.sub->type->kind) {
       case TY_NUM:
-        expr->valType = expr->unary.sub->valType;
+        expr->type = expr->unary.sub->type;
         break;
       default:
         parse_error(expr->token, "Cannot apply `~' except number type");
@@ -583,32 +583,32 @@ Expr *analyze_expr(Expr *expr, bool keep_left) {
     case EX_PREDEC:
     case EX_POSTINC:
     case EX_POSTDEC:
-      expr->valType = expr->unary.sub->valType;
+      expr->type = expr->unary.sub->type;
       break;
 
     case EX_REF:
-      expr->valType = ptrof(expr->unary.sub->valType);
+      expr->type = ptrof(expr->unary.sub->type);
       break;
 
     case EX_DEREF:
       {
         Expr *sub = expr->unary.sub;
-        if (sub->valType->kind != TY_PTR && sub->valType->kind != TY_ARRAY)
+        if (sub->type->kind != TY_PTR && sub->type->kind != TY_ARRAY)
           parse_error(expr->token, "Cannot dereference raw type");
-        expr->valType = sub->valType->pa.ptrof;
+        expr->type = sub->type->pa.ptrof;
       }
       break;
 
     case EX_ASSIGN_WITH:
-      expr->valType = expr->unary.sub->bop.lhs->valType;
+      expr->type = expr->unary.sub->bop.lhs->type;
       break;
 
     case EX_CAST:
       {
         Expr *sub = expr->unary.sub;
-        if (same_type(expr->valType, sub->valType))
+        if (same_type(expr->type, sub->type))
           return sub;
-        check_cast(expr->valType, sub->valType, sub, true);
+        check_cast(expr->type, sub->type, sub, true);
       }
       break;
 
@@ -624,14 +624,14 @@ Expr *analyze_expr(Expr *expr, bool keep_left) {
     expr->ternary.tval = analyze_expr(expr->ternary.tval, false);
     expr->ternary.fval = analyze_expr(expr->ternary.fval, false);
     {
-      const Type *ttype = expr->ternary.tval->valType;
-      const Type *ftype = expr->ternary.fval->valType;
+      const Type *ttype = expr->ternary.tval->type;
+      const Type *ftype = expr->ternary.fval->type;
       if (same_type(ttype, ftype)) {
-        expr->valType = ttype;
+        expr->type = ttype;
       } else if (is_void_ptr(ttype) && ftype->kind == TY_PTR) {
-        expr->valType = ftype;
+        expr->type = ftype;
       } else if (is_void_ptr(ftype) && ttype->kind == TY_PTR) {
-        expr->valType = ttype;
+        expr->type = ttype;
       } else {
         parse_error(NULL, "lhs and rhs must be same type");
       }
@@ -642,14 +642,14 @@ Expr *analyze_expr(Expr *expr, bool keep_left) {
     {
       Expr *target = expr->member.target;
       expr->member.target = target = analyze_expr(target, false);
-      assert(target->valType != NULL);
+      assert(target->type != NULL);
 
       const Token *acctok = expr->member.acctok;
       const Token *ident = expr->member.ident;
       const char *name = ident->ident;
 
       // Find member's type from struct info.
-      const Type *targetType = target->valType;
+      const Type *targetType = target->type;
       if (acctok->kind == TK_DOT) {
         if (targetType->kind != TY_STRUCT)
           parse_error(acctok, "`.' for non struct value");
@@ -668,7 +668,7 @@ Expr *analyze_expr(Expr *expr, bool keep_left) {
       int index = var_find(targetType->struct_.info->members, name);
       if (index >= 0) {
         VarInfo *varinfo = (VarInfo*)targetType->struct_.info->members->data[index];
-        expr->valType = varinfo->type;
+        expr->type = varinfo->type;
         expr->member.index = index;
       } else {
         Vector *stack = new_vector();
@@ -694,8 +694,8 @@ Expr *analyze_expr(Expr *expr, bool keep_left) {
       Expr *sub = expr->sizeof_.sub;
       if (sub != NULL) {
         sub = analyze_expr(sub, false);
-        assert(sub->valType != NULL);
-        expr->sizeof_.type = sub->valType;
+        assert(sub->type != NULL);
+        expr->sizeof_.type = sub->type;
       }
     }
     break;
@@ -711,10 +711,10 @@ Expr *analyze_expr(Expr *expr, bool keep_left) {
       }
 
       const Type *functype;
-      if (!((functype = func->valType)->kind == TY_FUNC ||
-            (func->valType->kind == TY_PTR && (functype = func->valType->pa.ptrof)->kind == TY_FUNC)))
+      if (!((functype = func->type)->kind == TY_FUNC ||
+            (func->type->kind == TY_PTR && (functype = func->type->pa.ptrof)->kind == TY_FUNC)))
         parse_error(NULL, "Cannot call except funtion");
-      expr->valType = functype->func.ret;
+      expr->type = functype->func.ret;
 
       Vector *param_types = functype->func.param_types;  // <const Type*>
       bool vaargs = functype->func.vaargs;
@@ -735,7 +735,7 @@ Expr *analyze_expr(Expr *expr, bool keep_left) {
             args->data[i] = make_cast(type, arg->token, arg, false);
           } else if (vaargs && i >= paramc) {
             Expr *arg = args->data[i];
-            const Type *type = arg->valType;
+            const Type *type = arg->type;
             if (type->kind == TY_NUM && type->num.kind < NUM_INT)  // Promote variadic argument.
               args->data[i] = make_cast(&tyInt, arg->token, arg, false);
           }
@@ -750,7 +750,7 @@ Expr *analyze_expr(Expr *expr, bool keep_left) {
       int len = list->len;
       for (int i = 0; i < len; ++i)
         list->data[i] = analyze_expr(list->data[i], false);
-      expr->valType = ((Expr*)list->data[len - 1])->valType;
+      expr->type = ((Expr*)list->data[len - 1])->type;
     }
     break;
 
@@ -760,6 +760,6 @@ Expr *analyze_expr(Expr *expr, bool keep_left) {
     break;
   }
 
-  assert(expr->valType != NULL);
+  assert(expr->type != NULL);
   return expr;
 }

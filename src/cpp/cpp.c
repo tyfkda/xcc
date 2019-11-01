@@ -484,7 +484,7 @@ bool handle_ifdef(const char *p) {
 intptr_t reduce(Expr *expr) {
   switch (expr->kind) {
   case EX_NUM:
-    switch (expr->valType->num.kind) {
+    switch (expr->type->num.kind) {
     case NUM_CHAR:
     case NUM_SHORT:
     case NUM_INT:

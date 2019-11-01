@@ -189,7 +189,7 @@ void construct_initial_value(unsigned char *buf, const Type *type, Initializer *
       if (init != NULL) {
         assert(init->kind == vSingle);
         Expr *value = init->single;
-        if (!(is_const(value) && is_number(value->valType->kind)))
+        if (!(is_const(value) && is_number(value->type->kind)))
           error("Illegal initializer: constant number expected");
         v = value->num.ival;
       }
@@ -689,7 +689,7 @@ static void gen_return(Node *node) {
   BB *bb = bb_split(curbb);
   if (node->return_.val != NULL) {
     VReg *reg = gen_expr(node->return_.val);
-    new_ir_result(reg, type_size(node->return_.val->valType));
+    new_ir_result(reg, type_size(node->return_.val->type));
   }
   assert(curfunc != NULL);
   new_ir_jmp(COND_ANY, curfunc->ret_bb);
@@ -738,7 +738,7 @@ static void gen_switch(Node *node) {
   Expr *value = node->switch_.value;
   VReg *reg = gen_expr(value);
 
-  int size = type_size(value->valType);
+  int size = type_size(value->type);
   for (int i = 0; i < len; ++i) {
     BB *nextbb = bb_split(curbb);
     intptr_t x = (intptr_t)case_values->data[i];

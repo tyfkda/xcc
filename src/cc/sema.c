@@ -45,7 +45,7 @@ static void fix_array_size(Type *type, Initializer *init) {
   if (init->kind != vMulti &&
       !(is_char_type(type->pa.ptrof) &&
         init->kind == vSingle &&
-        can_cast(type, init->single->valType, init->single, false) &&
+        can_cast(type, init->single->type, init->single, false) &&
         (is_str = true))) {
     parse_error(NULL, "Error initializer");
   }
@@ -117,14 +117,14 @@ static Initializer *analyze_initializer(Initializer *init) {
 static void string_initializer(Expr *dst, Initializer *src, Vector *inits) {
   // Initialize char[] with string literal (char s[] = "foo";).
   assert(src->kind == vSingle);
-  assert(dst->valType->kind == TY_ARRAY && is_char_type(dst->valType->pa.ptrof));
-  assert(src->single->valType->kind == TY_ARRAY && is_char_type(src->single->valType->pa.ptrof));
+  assert(dst->type->kind == TY_ARRAY && is_char_type(dst->type->pa.ptrof));
+  assert(src->single->type->kind == TY_ARRAY && is_char_type(src->single->type->pa.ptrof));
 
   const Expr *str = src->single;
   size_t size = str->str.size;
-  size_t dstsize = dst->valType->pa.length;
+  size_t dstsize = dst->type->pa.length;
   if (dstsize == (size_t)-1) {
-    ((Type*)dst->valType)->pa.length = dstsize = size;
+    ((Type*)dst->type)->pa.length = dstsize = size;
   } else {
     if (dstsize < size)
       parse_error(NULL, "Buffer is shorter than string: %d for \"%s\"", (int)dstsize, str);
@@ -132,7 +132,7 @@ static void string_initializer(Expr *dst, Initializer *src, Vector *inits) {
 
   // Generate string as a static variable.
   const char * label = alloc_label();
-  const Type* strtype = dst->valType;
+  const Type* strtype = dst->type;
   const Token *ident = alloc_ident(label, NULL, NULL);
   VarInfo *varinfo = define_global(strtype, VF_CONST | VF_STATIC, ident, NULL);
   varinfo->global.init = src;
@@ -325,7 +325,7 @@ Initializer *flatten_initializer(const Type *type, Initializer *init) {
       break;
     case vSingle:
       // Special handling for string (char[]).
-      if (can_cast(type, init->single->valType, init->single, false))
+      if (can_cast(type, init->single->type, init->single, false))
         break;
       // Fallthrough
     default:
@@ -395,7 +395,7 @@ static Initializer *check_global_initializer(const Type *type, Initializer *init
         // Handle NULL assignment.
         while (value->kind == EX_CAST)
           value = value->unary.sub;
-        if (!is_number(value->valType->kind))
+        if (!is_number(value->type->kind))
           break;
         // Fallthrough
       case EX_NUM:
@@ -482,14 +482,14 @@ static Vector *assign_initial_value(Expr *expr, Initializer *init, Vector *inits
     inits = new_vector();
 
   Initializer *org_init = init;
-  init = flatten_initializer(expr->valType, init);
+  init = flatten_initializer(expr->type, init);
 
-  switch (expr->valType->kind) {
+  switch (expr->type->kind) {
   case TY_ARRAY:
     switch (init->kind) {
     case vMulti:
       {
-        size_t arr_len = expr->valType->pa.length;
+        size_t arr_len = expr->type->pa.length;
         assert(arr_len != (size_t)-1);
         if ((size_t)init->multi->len > arr_len)
           parse_error(NULL, "Initializer more than array size");
@@ -514,7 +514,7 @@ static Vector *assign_initial_value(Expr *expr, Initializer *init, Vector *inits
       break;
     case vSingle:
       // Special handling for string (char[]).
-      if (can_cast(expr->valType, init->single->valType, init->single, false)) {
+      if (can_cast(expr->type, init->single->type, init->single, false)) {
         string_initializer(expr, init, inits);
         break;
       }
@@ -529,12 +529,12 @@ static Vector *assign_initial_value(Expr *expr, Initializer *init, Vector *inits
     {
       if (init->kind != vMulti) {
         vec_push(inits,
-                 new_node_expr(new_expr_bop(EX_ASSIGN, expr->valType, NULL, expr,
+                 new_node_expr(new_expr_bop(EX_ASSIGN, expr->type, NULL, expr,
                                             init->single)));
         break;
       }
 
-      const StructInfo *sinfo = expr->valType->struct_.info;
+      const StructInfo *sinfo = expr->type->struct_.info;
       if (!sinfo->is_union) {
         for (int i = 0, n = sinfo->members->len; i < n; ++i) {
           VarInfo* varinfo = sinfo->members->data[i];
@@ -567,8 +567,8 @@ static Vector *assign_initial_value(Expr *expr, Initializer *init, Vector *inits
     if (init->kind != vSingle)
       parse_error(NULL, "Error initializer");
     vec_push(inits,
-             new_node_expr(new_expr_bop(EX_ASSIGN, expr->valType, NULL, expr,
-                                        make_cast(expr->valType, NULL, init->single, false))));
+             new_node_expr(new_expr_bop(EX_ASSIGN, expr->type, NULL, expr,
+                                        make_cast(expr->type, NULL, init->single, false))));
     break;
   }
 
