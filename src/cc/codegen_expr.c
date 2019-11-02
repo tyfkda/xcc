@@ -235,7 +235,7 @@ static VReg *gen_lval(Expr *expr) {
         reg = gen_ref(expr->member.target);
       if (varinfo->offset == 0)
         return reg;
-      VReg *imm = new_ir_imm(varinfo->offset, type_size(&tyLong));
+      VReg *imm = new_ir_imm(varinfo->offset, type_size(&tySize));
       VReg *result = new_ir_bop(IR_ADD, reg, imm, type_size(&tySize));
       return result;
     }
