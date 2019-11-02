@@ -28,7 +28,7 @@ static int s_val = 456;
 
 extern int e_val;
 
-int protodecl(int);
+short protodecl(short);
 
 int foo() {
   return 123;
@@ -643,6 +643,6 @@ int main(void) {
 
 int e_val = 789;
 
-int protodecl(int x) {
+short protodecl(short x) {
   return x * x;
 }

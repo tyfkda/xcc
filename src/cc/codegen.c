@@ -500,17 +500,16 @@ static void put_args_to_stack(Defun *defun) {
     case TY_NUM:
       switch (type->num.kind) {
       case NUM_CHAR:  size = 1; break;
-      case NUM_INT:
-      case NUM_ENUM:
+      case NUM_SHORT: size = 2; break;
+      case NUM_INT: case NUM_ENUM:
         size = 4;
         break;
       case NUM_LONG:  size = 8; break;
-      default: break;
+      default: assert(false); break;
       }
       break;
     case TY_PTR:  size = 8; break;
-    default:
-      break;
+    default: assert(false); break;
     }
 
     if (i < MAX_REG_ARGS) {
