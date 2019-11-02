@@ -1,5 +1,3 @@
-.PHONY: clean test test-all gen2 gen3 test-gen2 gen3 diff-gen23 self-hosting test-self-hosting
-
 XCC_DIR:=src/xcc
 CC1_DIR:=src/cc
 CPP_DIR:=src/cpp
@@ -27,8 +25,10 @@ CC1_OBJS:=$(addprefix $(OBJ_DIR)/,$(notdir $(CC1_SRCS:.c=.o)))
 CPP_OBJS:=$(addprefix $(OBJ_DIR)/,$(notdir $(CPP_SRCS:.c=.o)))
 AS_OBJS:=$(addprefix $(OBJ_DIR)/,$(notdir $(AS_SRCS:.c=.o)))
 
+.PHONY: all
 all:	xcc cc1 cpp as
 
+.PHONY: release
 release:
 	$(MAKE) OPTIMIZE=-O2
 
@@ -66,30 +66,39 @@ $(OBJ_DIR)/%.o: $(UTIL_DIR)/%.c
 	@mkdir -p $(OBJ_DIR)
 	$(CC) $(CFLAGS) -c -o $@ $<
 
+.PHONY: test
 test:	all
 	$(MAKE) -C tests clean all
 
+.PHONY: test-all
 test-all: test test-gen2 diff-gen23
 
+.PHONY: clean
 clean:
 	rm -rf cc1 cpp as $(OBJ_DIR) a.out gen2 gen3 tmp.s
 	$(MAKE) -C tests clean
 
 ### Self hosting
 
+.PHONY: gen2
 gen2: all
 	$(MAKE) HOST=. TARGET=gen2 self-hosting
+.PHONY: test-gen2
 test-gen2: gen2
 	$(MAKE) TARGET=gen2 test-self-hosting
 
+.PHONY: gen3
 gen3: gen2
 	$(MAKE) HOST=gen2 TARGET=gen3 self-hosting
 
+.PHONY: diff-gen23
 diff-gen23:	gen2 gen3
 	diff -b gen2/cpp gen3/cpp && diff -b gen2/cc1 gen3/cc1
 
+.PHONY: self-hosting
 self-hosting:	$(TARGET)/cpp $(TARGET)/cc1 $(TARGET)/as $(TARGET)/xcc
 
+.PHONY: test-self-hosting
 test-self-hosting:
 	$(MAKE) EXEDIR=$(TARGET) -C tests clean cc-tests
 
