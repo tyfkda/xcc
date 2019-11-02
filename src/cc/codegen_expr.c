@@ -182,10 +182,6 @@ static VReg *gen_cast(VReg *reg, const Type *ltypep, const Type *rtypep) {
   return new_ir_cast(reg, dst_size, src_size);
 }
 
-static VReg *gen_rval(Expr *expr) {
-  return gen_expr(expr);  // ?
-}
-
 static VReg *gen_lval(Expr *expr) {
   switch (expr->kind) {
   case EX_VARREF:
@@ -202,7 +198,7 @@ static VReg *gen_lval(Expr *expr) {
         return new_ir_bofs(varinfo->reg);
     }
   case EX_DEREF:
-    return gen_rval(expr->unary.sub);
+    return gen_expr(expr->unary.sub);
   case EX_MEMBER:
     {
       const Type *type = expr->member.target->type;
@@ -392,7 +388,7 @@ VReg *gen_expr(Expr *expr) {
 
   case EX_DEREF:
     {
-      VReg *reg = gen_rval(expr->unary.sub);
+      VReg *reg = gen_expr(expr->unary.sub);
       VReg *result;
       switch (expr->type->kind) {
       case TY_NUM:
