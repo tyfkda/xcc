@@ -23,7 +23,6 @@ Compiler:
   * unsigned types (Just ignored)
   * floating point numbers
   * Bit field
-  * Anonymous union member initializer
 
 Preprocessor:
 
