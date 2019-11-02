@@ -158,6 +158,7 @@ static bool assemble_mov(Inst *inst, const char *rawline, Code *code) {
   if (p > code->buf) {
     code->inst = inst;
     code->len = p - code->buf;
+    assert((size_t)code->len <= sizeof(code->buf));
     return true;
   }
 
@@ -652,6 +653,7 @@ bool assemble_inst(Inst *inst, const char *rawline, Code *code) {
   if (p > code->buf) {
     code->inst = inst;
     code->len = p - code->buf;
+    assert((size_t)code->len <= sizeof(code->buf));
     return true;
   }
 
