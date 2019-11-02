@@ -309,7 +309,6 @@ Initializer *flatten_initializer(const Type *type, Initializer *init) {
 
       Initializer *flat = malloc(sizeof(*flat));
       flat->kind = vMulti;
-      //flat->multi = new_vector();
       Vector *v = malloc(sizeof(*v));
       v->len = v->capacity = n;
       v->data = (void**)values;

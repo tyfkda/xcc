@@ -329,7 +329,6 @@ static void put_data(const char *label, const VarInfo *varinfo) {
 
   Vector *ptrinits = NULL;  // <[ptr, label]>
   construct_initial_value(buf, varinfo->type, varinfo->global.init, &ptrinits);
-  //emit_section_data(sec, buf, size);
 
   free(buf);
 }
@@ -609,8 +608,6 @@ static void gen_defun(Node *node) {
       label_map->vals->data[i] = new_bb();
   }
 
-  //size_t frame_size = arrange_scope_vars(defun);
-  //UNUSED(frame_size);
   alloc_variable_registers(defun);
 
   bool no_stmt = true;

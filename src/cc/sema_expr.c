@@ -182,10 +182,6 @@ static Expr *add_ptr_num(enum ExprKind kind, const Token *token, Expr *ptr, Expr
 Expr *add_expr(const Token *tok, Expr *lhs, Expr *rhs, bool keep_left) {
   const Type *ltype = lhs->type;
   const Type *rtype = rhs->type;
-  //if (ltype->kind == TY_ENUM)
-  //  ltype = &tyInt;
-  //if (rtype->kind == TY_ENUM)
-  //  rtype = &tyInt;
 
   if (is_number(ltype->kind)) {
     if (is_number(rtype->kind))

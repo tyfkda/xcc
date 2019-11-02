@@ -12,7 +12,6 @@
 #include "var.h"
 #include "x86_64.h"
 
-// test %eax, %eax, and so on.
 static void gen_test_opcode(VReg *reg, const Type *type) {
   int size = type_size(type);
   switch (type->kind) {
@@ -322,7 +321,6 @@ static VReg *gen_funcall(Expr *expr) {
 }
 
 VReg *gen_arith(enum ExprKind kind, const Type *type, VReg *lhs, VReg *rhs) {
-  // lhs=rax, rhs=rdi, result=rax
   switch (kind) {
   case EX_ADD:
   case EX_SUB:

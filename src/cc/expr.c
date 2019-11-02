@@ -514,7 +514,7 @@ static Expr *prim(void) {
   Token *ident;
   if ((ident = consume(TK_IDENT)) != NULL) {
     const char *name = ident->ident;
-    return new_expr_varref(name, /*type*/NULL, ident);
+    return new_expr_varref(name, NULL, ident);
   }
   parse_error(NULL, "Number or Ident or open paren expected");
   return NULL;
@@ -532,9 +532,9 @@ static Expr *postfix(void) {
     else if ((tok = consume(TK_DOT)) != NULL || (tok = consume(TK_ARROW)) != NULL)
       expr = member_access(expr, tok);
     else if ((tok = consume(TK_INC)) != NULL)
-      expr = new_expr_unary(EX_POSTINC, /*expr->type*/NULL, tok, expr);
+      expr = new_expr_unary(EX_POSTINC, NULL, tok, expr);
     else if ((tok = consume(TK_DEC)) != NULL)
-      expr = new_expr_unary(EX_POSTDEC, /*expr->type*/NULL, tok, expr);
+      expr = new_expr_unary(EX_POSTDEC, NULL, tok, expr);
     else
       return expr;
   }
@@ -567,7 +567,7 @@ static Expr *unary(void) {
     case EX_NUM:
       return expr;
     default:
-      return new_expr_unary(EX_POS, /*expr->type*/NULL, tok, expr);
+      return new_expr_unary(EX_POS, NULL, tok, expr);
     }
 
     return expr;
@@ -596,22 +596,22 @@ static Expr *unary(void) {
 
   if ((tok = consume(TK_AND)) != NULL) {
     Expr *expr = cast_expr();
-    return new_expr_unary(EX_REF, /*ptrof(expr->type)*/NULL, tok, expr);
+    return new_expr_unary(EX_REF, NULL, tok, expr);
   }
 
   if ((tok = consume(TK_MUL)) != NULL) {
     Expr *expr = cast_expr();
-    return new_expr_unary(EX_DEREF, /*expr->type->pa.ptrof*/NULL, tok, expr);
+    return new_expr_unary(EX_DEREF, NULL, tok, expr);
   }
 
   if ((tok = consume(TK_INC)) != NULL) {
     Expr *expr = unary();
-    return new_expr_unary(EX_PREINC, /*expr->type*/NULL, tok, expr);
+    return new_expr_unary(EX_PREINC, NULL, tok, expr);
   }
 
   if ((tok = consume(TK_DEC)) != NULL) {
     Expr *expr = unary();
-    return new_expr_unary(EX_PREDEC, /*expr->type*/NULL, tok, expr);
+    return new_expr_unary(EX_PREDEC, NULL, tok, expr);
   }
 
   if ((tok = consume(TK_SIZEOF)) != NULL) {
@@ -740,7 +740,7 @@ static Expr *and(void) {
     Token *tok;
     if ((tok = consume(TK_AND)) != NULL) {
       Expr *lhs = expr, *rhs= eq();
-      expr = new_expr_bop(EX_BITAND, /*lhs->type*/NULL, tok, lhs, rhs);
+      expr = new_expr_bop(EX_BITAND, NULL, tok, lhs, rhs);
     } else
       return expr;
   }
@@ -752,7 +752,7 @@ static Expr *xor(void) {
     Token *tok;
     if ((tok = consume(TK_HAT)) != NULL) {
       Expr *lhs = expr, *rhs= and();
-      expr = new_expr_bop(EX_BITXOR, /*lhs->type*/NULL, tok, lhs, rhs);
+      expr = new_expr_bop(EX_BITXOR, NULL, tok, lhs, rhs);
     } else
       return expr;
   }
@@ -764,7 +764,7 @@ static Expr *or(void) {
     Token *tok;
     if ((tok = consume(TK_OR)) != NULL) {
       Expr *lhs = expr, *rhs= xor();
-      expr = new_expr_bop(EX_BITOR, /*lhs->type*/NULL, tok, lhs, rhs);
+      expr = new_expr_bop(EX_BITOR, NULL, tok, lhs, rhs);
     } else
       return expr;
   }
@@ -802,7 +802,7 @@ static Expr *conditional(void) {
     if (!consume(TK_COLON))
       parse_error(NULL, "`:' expected");
     Expr *f = conditional();
-    expr = new_expr_ternary(tok, expr, t, f, /*t->type*/NULL);
+    expr = new_expr_ternary(tok, expr, t, f, NULL);
   }
 }
 
@@ -811,7 +811,7 @@ Expr *parse_assign(void) {
 
   Token *tok;
   if ((tok = consume(TK_ASSIGN)) != NULL)
-    return new_expr_bop(EX_ASSIGN, /*expr->type*/NULL, tok, expr, parse_assign());
+    return new_expr_bop(EX_ASSIGN, NULL, tok, expr, parse_assign());
   enum ExprKind t;
   if ((tok = consume(TK_ADD_ASSIGN)) != NULL)
     t = EX_ADD;
@@ -836,7 +836,7 @@ Expr *parse_assign(void) {
   else
     return expr;
 
-  return new_expr_unary(EX_ASSIGN_WITH, /*expr->type*/NULL, tok,
+  return new_expr_unary(EX_ASSIGN_WITH, NULL, tok,
                         new_expr_bop(t, NULL, tok, expr, parse_assign()));
 }
 
