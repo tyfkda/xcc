@@ -529,9 +529,7 @@ static Expr *postfix(void) {
       expr = funcall(expr);
     else if ((tok = consume(TK_LBRACKET)) != NULL)
       expr = array_index(tok, expr);
-    else if ((tok = consume(TK_DOT)) != NULL)
-      expr = member_access(expr, tok);
-    else if ((tok = consume(TK_ARROW)) != NULL)
+    else if ((tok = consume(TK_DOT)) != NULL || (tok = consume(TK_ARROW)) != NULL)
       expr = member_access(expr, tok);
     else if ((tok = consume(TK_INC)) != NULL)
       expr = new_expr_unary(EX_POSTINC, /*expr->type*/NULL, tok, expr);
