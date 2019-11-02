@@ -119,6 +119,7 @@ int main(int argc, char* argv[]) {
 
   if (!err) {
     calc_label_address(LOAD_ADDRESS, section_irs, label_map);
+    resolve_relative_address(section_irs, label_map);
     emit_irs(section_irs, label_map);
   }
 

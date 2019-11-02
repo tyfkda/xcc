@@ -112,17 +112,14 @@ static void put_unresolved(Map **pp, const char *label) {
   map_put(map, label, NULL);
 }
 
-void emit_irs(Vector **section_irs, Map *label_map) {
+void resolve_relative_address(Vector **section_irs, Map *label_map) {
   Map *unresolved_labels = NULL;
-
   for (int sec = 0; sec < SECTION_COUNT; ++sec) {
     Vector *irs = section_irs[sec];
     for (int i = 0, len = irs->len; i < len; ++i) {
       IR *ir = irs->data[i];
       uintptr_t address = ir->address;
       switch (ir->kind) {
-      case IR_LABEL:
-        break;
       case IR_CODE:
         {
           Inst *inst = ir->code.inst;
@@ -159,9 +156,44 @@ void emit_irs(Vector **section_irs, Map *label_map) {
           default:
             break;
           }
-
-          add_code(ir->code.buf, ir->code.len);
         }
+        break;
+      case IR_ABS_QUAD:
+        {
+          void *dst;
+          if (!map_try_get(label_map, ir->label, &dst))
+            put_unresolved(&unresolved_labels, ir->label);
+        }
+        break;
+      case IR_LABEL:
+      case IR_DATA:
+      case IR_BSS:
+      case IR_ALIGN:
+        break;
+      default:  assert(false); break;
+      }
+    }
+  }
+
+  if (unresolved_labels != NULL) {
+    for (int i = 0, len = unresolved_labels->keys->len; i < len; ++i) {
+      const char *label = unresolved_labels->keys->data[i];
+      fprintf(stderr, "Undefined reference: `%s'\n", label);
+    }
+    exit(1);
+  }
+}
+
+void emit_irs(Vector **section_irs, Map *label_map) {
+  for (int sec = 0; sec < SECTION_COUNT; ++sec) {
+    Vector *irs = section_irs[sec];
+    for (int i = 0, len = irs->len; i < len; ++i) {
+      IR *ir = irs->data[i];
+      switch (ir->kind) {
+      case IR_LABEL:
+        break;
+      case IR_CODE:
+        add_code(ir->code.buf, ir->code.len);
         break;
       case IR_DATA:
         add_section_data(sec, ir->data.buf, ir->data.len);
@@ -175,25 +207,14 @@ void emit_irs(Vector **section_irs, Map *label_map) {
       case IR_ABS_QUAD:
         {
           void *dst;
-          if (map_try_get(label_map, ir->label, &dst)) {
-            unsigned char buf[WORD_SIZE];
-            put_value(buf, (uintptr_t)dst, WORD_SIZE);
-            add_section_data(sec, buf, sizeof(buf));
-          } else {
-            put_unresolved(&unresolved_labels, ir->label);
-          }
+          bool result = map_try_get(label_map, ir->label, &dst);
+          assert(result);
+          assert(sizeof(dst) == WORD_SIZE);
+          add_section_data(sec, &dst, sizeof(dst));  // TODO: Target endian
         }
         break;
       default:  assert(false); break;
       }
     }
-  }
-
-  if (unresolved_labels != NULL) {
-    for (int i = 0, len = unresolved_labels->keys->len; i < len; ++i) {
-      const char *label = unresolved_labels->keys->data[i];
-      fprintf(stderr, "Undefined reference: `%s'\n", label);
-    }
-    exit(1);
   }
 }
