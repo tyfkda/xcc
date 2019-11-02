@@ -38,7 +38,7 @@
 
 #define LOAD_ADDRESS    START_ADDRESS
 
-void parse_file(FILE *fp, Vector **section_irs) {
+void parse_file(FILE *fp, Vector **section_irs, Map *label_map) {
   for (;;) {
     char *rawline = NULL;
     size_t capa = 0;
@@ -48,8 +48,18 @@ void parse_file(FILE *fp, Vector **section_irs) {
 
     Vector *irs = section_irs[current_section];
     Line *line = parse_line(rawline);
-    if (line->label != NULL)
+
+    if (line->label != NULL) {
       vec_push(irs, new_ir_label(line->label));
+
+      void *address;
+      if (map_try_get(label_map, line->label, &address)) {
+        fprintf(stderr, "`%s' already defined\n", line->label);
+        err = true;
+      }
+      map_put(label_map, line->label, NULL);
+    }
+
     if (line->dir == NODIRECTIVE) {
       Code code;
       assemble_inst(&line->inst, line->rawline, &code);
@@ -89,6 +99,7 @@ int main(int argc, char* argv[]) {
   }
 
   Vector *section_irs[SECTION_COUNT];
+  Map *label_map = new_map();
   for (int i = 0; i < SECTION_COUNT; ++i)
     section_irs[i] = new_vector();
 
@@ -97,17 +108,19 @@ int main(int argc, char* argv[]) {
       FILE *fp = fopen(argv[i], "r");
       if (fp == NULL)
         error("Cannot open %s\n", argv[i]);
-      parse_file(fp, section_irs);
+      parse_file(fp, section_irs, label_map);
       fclose(fp);
+      if (err)
+        break;
     }
   } else {
-    parse_file(stdin, section_irs);
+    parse_file(stdin, section_irs, label_map);
   }
 
-  Map *label_map = new_map();
-  calc_label_address(LOAD_ADDRESS, section_irs, label_map);
-
-  emit_irs(LOAD_ADDRESS, section_irs, label_map);
+  if (!err) {
+    calc_label_address(LOAD_ADDRESS, section_irs, label_map);
+    emit_irs(LOAD_ADDRESS, section_irs, label_map);
+  }
 
   if (err) {
     if (fp != NULL) {

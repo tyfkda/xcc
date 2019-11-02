@@ -61,7 +61,6 @@ static uintptr_t align_next_section(enum SectionType sec, uintptr_t address) {
 }
 
 void calc_label_address(uintptr_t start_address, Vector **section_irs, Map *label_map) {
-  map_clear(label_map);
   uintptr_t address = start_address;
   for (int sec = 0; sec < SECTION_COUNT; ++sec) {
     address = align_next_section(sec, address);
