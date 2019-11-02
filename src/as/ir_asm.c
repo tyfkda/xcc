@@ -112,8 +112,9 @@ static void put_unresolved(Map **pp, const char *label) {
   map_put(map, label, NULL);
 }
 
-void resolve_relative_address(Vector **section_irs, Map *label_map) {
+bool resolve_relative_address(Vector **section_irs, Map *label_map) {
   Map *unresolved_labels = NULL;
+  bool size_upgraded = false;
   for (int sec = 0; sec < SECTION_COUNT; ++sec) {
     Vector *irs = section_irs[sec];
     for (int i = 0, len = irs->len; i < len; ++i) {
@@ -131,7 +132,8 @@ void resolve_relative_address(Vector **section_irs, Map *label_map) {
                 inst->src.indirect.label != NULL) {
               void *dst;
               if (map_try_get(label_map, inst->src.indirect.label, &dst)) {
-                put_value(ir->code.buf + 3, (intptr_t)dst - ((intptr_t)address + ir->code.len), sizeof(int32_t));
+                intptr_t offset = (intptr_t)dst - ((intptr_t)address + ir->code.len);
+                put_value(ir->code.buf + 3, offset, sizeof(int32_t));
               } else {
                 put_unresolved(&unresolved_labels, inst->src.indirect.label);
               }
@@ -142,12 +144,41 @@ void resolve_relative_address(Vector **section_irs, Map *label_map) {
           case JE: case JNE: case JBE: case JA:
           case JS: case JNS: case JP:  case JNP:
           case JL: case JGE: case JLE: case JG:
-          case CALL:
             if (inst->src.type == LABEL) {
               void *dst;
               if (map_try_get(label_map, inst->src.label, &dst)) {
-                int d = (inst->op == JMP || inst->op == CALL) ? 1 : 2;
-                put_value(ir->code.buf + d, (intptr_t)dst - ((intptr_t)address + ir->code.len), sizeof(int32_t));
+                intptr_t offset = (intptr_t)dst - ((intptr_t)address + ir->code.len);
+                bool long_offset = ir->code.flag & INST_LONG_OFFSET;
+                if (!long_offset) {
+                  if (!is_im8(offset)) {
+                    // Change to long offset, and recalculate.
+                    ir->code.flag |= INST_LONG_OFFSET;
+                    if (inst->op == JMP)
+                      MAKE_CODE(inst, &ir->code, 0xe9, IM32(-1));
+                    else
+                      MAKE_CODE(inst, &ir->code, 0x0f, 0x80 + (inst->op - JO), IM32(-1));
+                    size_upgraded = true;
+                  } else {
+                    put_value(ir->code.buf + 1, offset, sizeof(int8_t));
+                  }
+                } else {
+                  if (!is_im32(offset))
+                    error("Jump offset too far (over 32bit)");
+
+                  int d = inst->op == JMP ? 1 : 2;
+                  put_value(ir->code.buf + d, offset, sizeof(int32_t));
+                }
+              } else {
+                put_unresolved(&unresolved_labels, inst->src.label);
+              }
+            }
+            break;
+          case CALL:
+           if (inst->src.type == LABEL) {
+              void *dst;
+              if (map_try_get(label_map, inst->src.label, &dst)) {
+                intptr_t offset = (intptr_t)dst - ((intptr_t)address + ir->code.len);
+                put_value(ir->code.buf + 1, offset, sizeof(int32_t));
               } else {
                 put_unresolved(&unresolved_labels, inst->src.label);
               }
@@ -182,6 +213,8 @@ void resolve_relative_address(Vector **section_irs, Map *label_map) {
     }
     exit(1);
   }
+
+  return !size_upgraded;
 }
 
 void emit_irs(Vector **section_irs, Map *label_map) {

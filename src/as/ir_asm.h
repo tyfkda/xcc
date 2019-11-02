@@ -43,5 +43,5 @@ IR *new_ir_align(int align);
 IR *new_ir_abs_quad(const char *label);
 
 void calc_label_address(uintptr_t start_address, Vector **section_irs, Map *label_map);
-void resolve_relative_address(Vector **section_irs, Map *label_map);
+bool resolve_relative_address(Vector **section_irs, Map *label_map);
 void emit_irs(Vector **section_irs, Map *label_map);

@@ -7,19 +7,11 @@
 #include "inst.h"
 #include "util.h"
 
-#ifndef MAKE_CODE
-#define MAKE_CODE(inst, code, ...)  do { unsigned char buf[] = {__VA_ARGS__}; make_code(inst, code, buf, sizeof(buf)); } while (0)
-#endif
 #ifndef PUT_CODE
 #define PUT_CODE(p, ...)  do { unsigned char buf[] = {__VA_ARGS__}; memcpy(p, buf, sizeof(buf)); } while (0)
 #endif
 
-#define IM8(x)   (x)
-#define IM16(x)  (x), ((x) >> 8)
-#define IM32(x)  (x), ((x) >> 8), ((x) >> 16), ((x) >> 24)
-#define IM64(x)  (x), ((x) >> 8), ((x) >> 16), ((x) >> 24), ((x) >> 32), ((x) >> 40), ((x) >> 48), ((x) >> 56)
-
-static void make_code(Inst *inst, Code *code, unsigned char *buf, int len) {
+void make_code(Inst *inst, Code *code, unsigned char *buf, int len) {
   assert(len <= (int)sizeof(code->buf));
   code->inst = inst;
   code->len = len;
@@ -168,6 +160,7 @@ static bool assemble_mov(Inst *inst, const char *rawline, Code *code) {
 bool assemble_inst(Inst *inst, const char *rawline, Code *code) {
   unsigned char *p = code->buf;
 
+  code->flag = 0;
   code->len = 0;
 
   switch(inst->op) {
@@ -595,7 +588,8 @@ bool assemble_inst(Inst *inst, const char *rawline, Code *code) {
   case JMP:
     if (inst->src.type != LABEL || inst->dst.type != NOOPERAND)
       return assemble_error(rawline, "Illegal operand");
-    MAKE_CODE(inst, code, 0xe9, IM32(-1));
+    //MAKE_CODE(inst, code, 0xe9, IM32(-1));
+    MAKE_CODE(inst, code, 0xeb, IM8(-1));  // Short jmp in default.
     return true;
   case JO: case JNO: case JB:  case JAE:
   case JE: case JNE: case JBE: case JA:
@@ -604,8 +598,8 @@ bool assemble_inst(Inst *inst, const char *rawline, Code *code) {
     if (inst->src.type != LABEL || inst->dst.type != NOOPERAND)
       return assemble_error(rawline, "Illegal operand");
 
-    // TODO: Handle short jump.
-    MAKE_CODE(inst, code, 0x0f, 0x80 + (inst->op - JO), IM32(-1));
+    //MAKE_CODE(inst, code, 0x0f, 0x80 + (inst->op - JO), IM32(-1));
+    MAKE_CODE(inst, code, 0x70 + (inst->op - JO), IM8(-1));  // Short jmp in default.
     return true;
   case CALL:
     if (inst->dst.type != NOOPERAND)
