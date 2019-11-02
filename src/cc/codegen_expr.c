@@ -12,8 +12,6 @@
 #include "var.h"
 #include "x86_64.h"
 
-static VReg *gen_lval(Expr *expr);
-
 // test %eax, %eax, and so on.
 static void gen_test_opcode(VReg *reg, const Type *type) {
   int size = type_size(type);
@@ -188,18 +186,6 @@ static VReg *gen_rval(Expr *expr) {
   return gen_expr(expr);  // ?
 }
 
-static VReg *gen_ref(Expr *expr) {
-  if (expr->kind == EX_VARREF && expr->varref.scope != NULL) {
-    Scope *scope = expr->varref.scope;
-    VarInfo *varinfo = scope_find(&scope, expr->varref.ident);
-    assert(varinfo != NULL);
-    if (!(varinfo->flag & (VF_STATIC | VF_EXTERN))) {
-      vreg_spill(varinfo->reg);
-    }
-  }
-  return gen_lval(expr);
-}
-
 static VReg *gen_lval(Expr *expr) {
   switch (expr->kind) {
   case EX_VARREF:
@@ -232,7 +218,7 @@ static VReg *gen_lval(Expr *expr) {
       if (expr->member.target->type->kind == TY_PTR)
         reg = gen_expr(expr->member.target);
       else
-        reg = gen_ref(expr->member.target);
+        reg = gen_lval(expr->member.target);
       if (varinfo->offset == 0)
         return reg;
       VReg *imm = new_ir_imm(varinfo->offset, type_size(&tySize));
@@ -394,7 +380,18 @@ VReg *gen_expr(Expr *expr) {
     return gen_varref(expr);
 
   case EX_REF:
-    return gen_ref(expr->unary.sub);
+    {
+      Expr *sub = expr->unary.sub;
+      if (sub->kind == EX_VARREF && sub->varref.scope != NULL) {
+        Scope *scope = sub->varref.scope;
+        VarInfo *varinfo = scope_find(&scope, sub->varref.ident);
+        assert(varinfo != NULL);
+        if (!(varinfo->flag & (VF_STATIC | VF_EXTERN))) {
+          vreg_spill(varinfo->reg);
+        }
+      }
+      return gen_lval(sub);
+    }
 
   case EX_DEREF:
     {
