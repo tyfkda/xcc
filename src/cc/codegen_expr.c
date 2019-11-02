@@ -201,7 +201,6 @@ static VReg *gen_lval(Expr *expr) {
       else
         return new_ir_bofs(varinfo->reg);
     }
-    break;
   case EX_DEREF:
     return gen_rval(expr->unary.sub);
   case EX_MEMBER:
@@ -225,7 +224,6 @@ static VReg *gen_lval(Expr *expr) {
       VReg *result = new_ir_bop(IR_ADD, reg, imm, type_size(&tySize));
       return result;
     }
-    break;
   default:
     error("No lvalue: %d", expr->kind);
     break;
@@ -371,7 +369,6 @@ VReg *gen_expr(Expr *expr) {
 
       return new_ir_iofs(label);
     }
-    break;
 
   case EX_SIZEOF:
     return new_ir_imm(type_size(expr->sizeof_.type), type_size(expr->type));
@@ -432,7 +429,6 @@ VReg *gen_expr(Expr *expr) {
       }
       return result;
     }
-    break;
 
   case EX_COMMA:
     {
@@ -443,7 +439,6 @@ VReg *gen_expr(Expr *expr) {
       }
       return result;
     }
-    break;
 
   case EX_TERNARY:
     return gen_ternary(expr);
@@ -476,7 +471,6 @@ VReg *gen_expr(Expr *expr) {
       VReg *reg = gen_expr(expr->unary.sub);
       return gen_cast(reg, expr->type, expr->unary.sub->type);
     }
-    break;
 
   case EX_ASSIGN:
     {
@@ -526,7 +520,6 @@ VReg *gen_expr(Expr *expr) {
       }
       return src;
     }
-    break;
 
   case EX_ASSIGN_WITH:
     {
@@ -547,7 +540,6 @@ VReg *gen_expr(Expr *expr) {
         return result;
       }
     }
-    break;
 
   case EX_PREINC:
   case EX_PREDEC:
