@@ -119,7 +119,7 @@ int main(int argc, char* argv[]) {
 
   if (!err) {
     calc_label_address(LOAD_ADDRESS, section_irs, label_map);
-    emit_irs(LOAD_ADDRESS, section_irs, label_map);
+    emit_irs(section_irs, label_map);
   }
 
   if (err) {

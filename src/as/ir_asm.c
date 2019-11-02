@@ -68,6 +68,7 @@ void calc_label_address(uintptr_t start_address, Vector **section_irs, Map *labe
     Vector *irs = section_irs[sec];
     for (int i = 0, len = irs->len; i < len; ++i) {
       IR *ir = irs->data[i];
+      ir->address = address;
       switch (ir->kind) {
       case IR_LABEL:
         map_put(label_map, ir->label, (void*)address);
@@ -111,16 +112,14 @@ static void put_unresolved(Map **pp, const char *label) {
   map_put(map, label, NULL);
 }
 
-void emit_irs(uintptr_t start_address, Vector **section_irs, Map *label_map) {
+void emit_irs(Vector **section_irs, Map *label_map) {
   Map *unresolved_labels = NULL;
 
-  uintptr_t address = start_address;
   for (int sec = 0; sec < SECTION_COUNT; ++sec) {
-    address = align_next_section(sec, address);
-
     Vector *irs = section_irs[sec];
     for (int i = 0, len = irs->len; i < len; ++i) {
       IR *ir = irs->data[i];
+      uintptr_t address = ir->address;
       switch (ir->kind) {
       case IR_LABEL:
         break;
@@ -162,20 +161,16 @@ void emit_irs(uintptr_t start_address, Vector **section_irs, Map *label_map) {
           }
 
           add_code(ir->code.buf, ir->code.len);
-          address += ir->code.len;
         }
         break;
       case IR_DATA:
         add_section_data(sec, ir->data.buf, ir->data.len);
-        address += ir->data.len;
         break;
       case IR_BSS:
         add_bss(ir->bss);
-        address += ir->bss;
         break;
       case IR_ALIGN:
         align_section_size(sec, ir->align);
-        address = ALIGN(address, ir->align);
         break;
       case IR_ABS_QUAD:
         {
@@ -187,7 +182,6 @@ void emit_irs(uintptr_t start_address, Vector **section_irs, Map *label_map) {
           } else {
             put_unresolved(&unresolved_labels, ir->label);
           }
-          address += WORD_SIZE;
         }
         break;
       default:  assert(false); break;
