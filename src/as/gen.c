@@ -15,6 +15,7 @@ typedef struct {
 static Section sections[SECTION_COUNT - 1];  // -1 for BBS
 static uintptr_t bss_start_address;
 static size_t bss_size;
+static int bss_align = 1;
 
 typedef struct {
   enum SectionType section;
@@ -39,6 +40,8 @@ void align_section_size(enum SectionType secno, int align) {
 
     assert(sections[secno].size == aligned_size);
   } else {
+    if (align > bss_align)
+      bss_align = align;
     bss_size = ALIGN(bss_size, align);
   }
 }
@@ -63,19 +66,19 @@ void add_code(const void* buf, size_t bytes) {
 void fix_section_size(uintptr_t start_address) {
   sections[SEC_CODE].start_address = start_address;
   sections[SEC_DATA].start_address = ALIGN(sections[SEC_CODE].start_address + sections[SEC_CODE].size, 4096);
-  sections[SEC_DATA].size = ALIGN(sections[SEC_DATA].size, 16);  // TODO: Calc max align.
-  bss_start_address = sections[SEC_DATA].start_address + sections[SEC_DATA].size;
+  bss_start_address = sections[SEC_DATA].start_address + ALIGN(sections[SEC_DATA].size, bss_align);
 }
 
 void get_section_size(int section, size_t *pfilesz, size_t *pmemsz, uintptr_t *ploadadr) {
-  *pfilesz = sections[section].size;
+  size_t size = sections[section].size;
+  *pfilesz = size;
   *ploadadr = sections[section].start_address;
   switch (section) {
   case SEC_CODE:
-    *pmemsz = *pfilesz;
+    *pmemsz = size;
     break;
   case SEC_DATA:
-    *pmemsz = *pfilesz + bss_size;  // Include bss.
+    *pmemsz = ALIGN(size, bss_align) + bss_size;  // Include bss.
     break;
   default:
     assert(!"Illegal");
