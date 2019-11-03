@@ -762,7 +762,7 @@ static void gen_switch_cond(Node *node) {
 #endif
   for (int i = 0; i < len; ++i)
     order[i] = i;
-  qsort(order, len, sizeof(int), compare_cases);
+  myqsort(order, len, sizeof(int), compare_cases);
 
   gen_switch_cond_recur(node, reg, order, len);
   set_curbb(bb_split(curbb));

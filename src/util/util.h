@@ -19,6 +19,8 @@ char *cat_path(const char *base_dir, const char *rel_path);
 ssize_t getline_(char **lineptr, size_t *n, FILE *stream, size_t start);
 char *abspath(const char *root, const char *path);
 
+void myqsort(void *base, size_t nmemb, size_t size, int (*compare)(const void *, const void *));
+
 void error(const char* fmt, ...) /*__attribute((noreturn))*/;
 
 bool is_im8(intptr_t x);

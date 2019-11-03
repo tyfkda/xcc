@@ -93,7 +93,7 @@ gen3: gen2
 
 .PHONY: diff-gen23
 diff-gen23:	gen2 gen3
-	diff -b gen2/cpp gen3/cpp && diff -b gen2/cc1 gen3/cc1
+	diff -b gen2/cc1 gen3/cc1 && diff -b gen2/as gen3/as && diff -b gen2/cpp gen3/cpp && diff -b gen2/xcc gen3/xcc
 
 .PHONY: self-hosting
 self-hosting:	$(TARGET)/cpp $(TARGET)/cc1 $(TARGET)/as $(TARGET)/xcc

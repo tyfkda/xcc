@@ -1017,7 +1017,7 @@ static LiveInterval **check_live_interval(BBContainer *bbcon, int vreg_count, Li
   LiveInterval **sorted_intervals = malloc(sizeof(LiveInterval*) * vreg_count);
   for (int i = 0; i < vreg_count; ++i)
     sorted_intervals[i] = &intervals[i];
-  qsort(sorted_intervals, vreg_count, sizeof(LiveInterval*), (int (*)(const void*, const void*))sort_live_interval);
+  myqsort(sorted_intervals, vreg_count, sizeof(LiveInterval*), (int (*)(const void*, const void*))sort_live_interval);
 
   *pintervals = intervals;
   return sorted_intervals;

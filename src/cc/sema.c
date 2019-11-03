@@ -196,7 +196,7 @@ static Initializer *flatten_array_initializer(Initializer *init) {
   }
 
   // Sort
-  qsort(ranges->data, ranges->len, sizeof(size_t*), compare_desig_start);
+  myqsort(ranges->data, ranges->len, sizeof(size_t*), compare_desig_start);
 
   // Reorder
   Vector *reordered = new_vector();
