@@ -1,6 +1,7 @@
 #include "sema.h"
 
 #include <assert.h>
+#include <inttypes.h>  // PRIdPTR
 #include <stdlib.h>  // malloc
 
 #include "expr.h"
@@ -789,7 +790,7 @@ Node *sema(Node *node) {
       Vector *values = curswitch->switch_.case_values;
       for (int i = 0, len = values->len; i < len; ++i) {
         if ((intptr_t)values->data[i] == value)
-          parse_error(/*tok*/ NULL, "Case value `%lld' already defined: %s", value);
+          parse_error(/*tok*/ NULL, "Case value `%"PRIdPTR"' already defined", value);
       }
       vec_push(values, (void*)value);
     }
