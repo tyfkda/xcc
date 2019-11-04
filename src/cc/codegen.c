@@ -7,6 +7,11 @@
 #include <stdlib.h>
 #include <string.h>
 
+#if defined(__linux) && !defined(__XCC)
+#define USE_ALLOCA
+#include <alloca.h>
+#endif
+
 #include "expr.h"
 #include "ir.h"
 #include "lexer.h"
@@ -712,6 +717,70 @@ static void gen_if(Node *node) {
 static Vector *cur_case_values;
 static Vector *cur_case_bbs;
 
+static int compare_cases(const void *pa, const void *pb) {
+  const int ia = *(int*)pa;
+  const int ib = *(int*)pb;
+  intptr_t d = (intptr_t)cur_case_values->data[ia] - (intptr_t)cur_case_values->data[ib];
+  return d > 0 ? 1 : d < 0 ? -1 : 0;
+}
+
+static void gen_switch_cond_recur(Node *node, VReg *reg, const int *order, int len) {
+  Vector *case_values = node->switch_.case_values;
+  Expr *value = node->switch_.value;
+  size_t size = type_size(value->type);
+
+  if (len <= 2) {
+    for (int i = 0; i < len; ++i) {
+      BB *nextbb = bb_split(curbb);
+      int index = order[i];
+      intptr_t x = (intptr_t)case_values->data[index];
+      VReg *num = new_ir_imm(x, size);
+      new_ir_cmp(reg, num, size);
+      new_ir_jmp(COND_EQ, cur_case_bbs->data[index]);
+      set_curbb(nextbb);
+    }
+    new_ir_jmp(COND_ANY, cur_case_bbs->data[cur_case_bbs->len - 2]);  // Jump to default.
+  } else {
+    BB *bbne = bb_split(curbb);
+    int m = len >> 1;
+    int index = order[m];
+    intptr_t x = (intptr_t)case_values->data[index];
+    VReg *num = new_ir_imm(x, size);
+    new_ir_cmp(reg, num, size);
+    new_ir_jmp(COND_EQ, cur_case_bbs->data[index]);
+    set_curbb(bbne);
+
+    BB *bblt = bb_split(curbb);
+    BB *bbgt = bb_split(bblt);
+    new_ir_jmp(COND_GT, bbgt);
+    set_curbb(bblt);
+    gen_switch_cond_recur(node, reg, order, m);
+    set_curbb(bbgt);
+    gen_switch_cond_recur(node, reg, order + (m + 1), len - (m + 1));
+  }
+}
+
+static void gen_switch_cond(Node *node) {
+  Vector *case_values = node->switch_.case_values;
+  int len = case_values->len;
+
+  Expr *value = node->switch_.value;
+  VReg *reg = gen_expr(value);
+
+  // Sort cases in increasing order.
+#if defined(USE_ALLOCA)
+  int *order = alloca(sizeof(int) * len);
+#else
+  int *order = malloc(sizeof(int) * len);
+#endif
+  for (int i = 0; i < len; ++i)
+    order[i] = i;
+  qsort(order, len, sizeof(int), compare_cases);
+
+  gen_switch_cond_recur(node, reg, order, len);
+  set_curbb(bb_split(curbb));
+}
+
 static void gen_switch(Node *node) {
   BB *pbb = curbb;
 
@@ -731,25 +800,12 @@ static void gen_switch(Node *node) {
   vec_push(bbs, new_bb());  // len+0: Extra label for default.
   vec_push(bbs, break_bb);  // len+1: Extra label for break.
 
-  Expr *value = node->switch_.value;
-  VReg *reg = gen_expr(value);
-
-  int size = type_size(value->type);
-  for (int i = 0; i < len; ++i) {
-    BB *nextbb = bb_split(curbb);
-    intptr_t x = (intptr_t)case_values->data[i];
-    VReg *num = new_ir_imm(x, size);
-    new_ir_cmp(reg, num, size);
-    new_ir_jmp(COND_EQ, bbs->data[i]);
-    set_curbb(nextbb);
-  }
-  new_ir_jmp(COND_ANY, bbs->data[len]);  // Jump to default.
-  set_curbb(bb_split(curbb));
-
-  // No bb setting.
-
   cur_case_values = case_values;
   cur_case_bbs = bbs;
+
+  gen_switch_cond(node);
+
+  // No bb setting.
 
   gen(node->switch_.body);
 
