@@ -147,39 +147,21 @@ static const char *escape(int c) {
   }
 }
 
-static char *append_str(const char *str, const char *add, size_t size) {
-  if (size == 0)
-    size = strlen(add);
-  size_t len = str == NULL ? 0 : strlen(str);
-  char *newstr = malloc(len + size + 1);
-  if (str != NULL)
-    memcpy(newstr, str, len);
-  memcpy(newstr + len, add, size);
-  newstr[len + size] = '\0';
-  return newstr;
-}
-
-static char *escape_string(const char *str, size_t size) {
+static void escape_string(const char *str, size_t size, StringBuffer *sb) {
   const char *s, *p;
-  char *escaped = NULL;
-  for (s = p = str; ; ++p) {
-    bool is_end = (size_t)(p - str) >= size;
-    const char *e = NULL;
-    if (!is_end && (e = escape(*p)) == NULL)
+  const char *end = str + size;
+  for (s = p = str; p < end ; ++p) {
+    const char *e = escape(*p);
+    if (e == NULL)
       continue;
 
-    if (p - s > 0) {
-      char *newstr1 = append_str(escaped, s, p - s);
-      free(escaped);
-      escaped = newstr1;
-    }
-    if (is_end)
-      return escaped;
-    char *newstr2 = append_str(escaped, e, 0);
-    free(escaped);
-    escaped = newstr2;
+    if (p > s)
+      sb_append(sb, s, p);
+    sb_append(sb, e, NULL);
     s = p + 1;
   }
+  if (p > s)
+    sb_append(sb, s, p);
 }
 
 void construct_initial_value(unsigned char *buf, const Type *type, Initializer *init, Vector **pptrinits) {
@@ -281,7 +263,12 @@ void construct_initial_value(unsigned char *buf, const Type *type, Initializer *
         memcpy(buf, init->single->str.buf, src_size);
 
         UNUSED(size);
-        _ASCII(fmt("\"%s\"", escape_string((char*)buf, size)));
+        StringBuffer sb;
+        sb_init(&sb);
+        sb_append(&sb, "\"", NULL);
+        escape_string((char*)buf, size, &sb);
+        sb_append(&sb, "\"", NULL);
+        _ASCII(sb_to_string(&sb));
       } else {
         error("Illegal initializer");
       }

@@ -52,3 +52,15 @@ void map_put(Map *map, const char *key, const void *val);
 bool map_remove(Map *map, const char *key);
 void *map_get(Map *map, const char *key);
 bool map_try_get(Map *map, const char *key, void **output);
+
+// StringBuffer
+
+typedef struct StringBuffer {
+  Vector *elems;
+} StringBuffer;
+
+void sb_init(StringBuffer *sb);
+void sb_clear(StringBuffer *sb);
+bool sb_empty(StringBuffer *sb);
+void sb_append(StringBuffer *sb, const char *start, const char *end);
+char *sb_to_string(StringBuffer *sb);

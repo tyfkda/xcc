@@ -20,44 +20,6 @@ char *abspath_cwd(const char *dir, const char *path) {
   return abspath(root, path);
 }
 
-char *append(char *str, const char *begin, const char *end) {
-  size_t add;
-  if (end == NULL) {
-    add = strlen(begin);
-    end = begin + add;
-  } else {
-    add = end - begin;
-  }
-  if (add == 0)
-    return str;
-  size_t len = str != NULL ? strlen(str) : 0;
-  char *newstr = realloc(str, len + add + 1);
-  memcpy(newstr + len, begin, add);
-  newstr[len + add] = '\0';
-  return newstr;
-}
-
-char *concat_tokens(Vector *tokens) {
-  int len = tokens->len;
-  size_t total = len - 1;  // Prepare for spaces between each token.
-  for (int i = 0; i < len; ++i) {
-    Token *tok = tokens->data[i];
-    total += tok->end - tok->begin;
-  }
-  char *str = malloc(total + 1);
-  char *p = str;
-  for (int i = 0; i < len; ++i) {
-    Token *tok = tokens->data[i];
-    size_t len = tok->end - tok->begin;
-    if (i > 0)
-      *p++ = ' ';
-    memcpy(p, tok->begin, len);
-    p += len;
-  }
-  *p = '\0';
-  return str;
-}
-
 enum SegmentType {
   ST_TEXT,
   ST_PARAM,
@@ -209,7 +171,8 @@ Vector *parse_macro_body(const char *p, const Vector *params, bool va_args, Stre
   Vector *segments = new_vector();
   init_lexer_string(p, stream->filename, stream->lineno);
   int param_len = params != NULL ? params->len : 0;
-  Vector *tokens = new_vector();
+  StringBuffer sb;
+  sb_init(&sb);
   for (;;) {
     Token *tok;
     if ((tok = consume(TK_IDENT)) != NULL) {
@@ -225,12 +188,12 @@ Vector *parse_macro_body(const char *p, const Vector *params, bool va_args, Stre
         }
       }
       if (index >= 0) {
-        if (tokens->len > 0) {
+        if (!sb_empty(&sb)) {
           Segment *seg = malloc(sizeof(*seg));
           seg->type = ST_TEXT;
-          seg->text = concat_tokens(tokens);
+          seg->text = sb_to_string(&sb);
           vec_push(segments, seg);
-          vec_clear(tokens);
+          sb_clear(&sb);
         }
 
         Segment *seg2 = malloc(sizeof(*seg2));
@@ -246,13 +209,15 @@ Vector *parse_macro_body(const char *p, const Vector *params, bool va_args, Stre
         break;
     }
 
-    vec_push(tokens, tok);
+    if (!sb_empty(&sb))
+      sb_append(&sb, " ", NULL);
+    sb_append(&sb, tok->begin, tok->end);
   }
 
-  if (tokens->len > 0) {
+  if (!sb_empty(&sb)) {
     Segment *seg = malloc(sizeof(*seg));
     seg->type = ST_TEXT;
-    seg->text = concat_tokens(tokens);
+    seg->text = sb_to_string(&sb);
     vec_push(segments, seg);
   }
   return segments;
@@ -330,7 +295,8 @@ void expand(Macro *macro, const char *name) {
     if (!consume2(TK_LPAR))
       parse_error(NULL, "`(' expected for macro `%s'", name);
     args = new_vector();
-    Vector *tokens = new_vector();
+    StringBuffer sb;
+    sb_init(&sb);
     if (!consume2(TK_RPAR)) {
       int paren = 0;
       for (;;) {
@@ -340,16 +306,16 @@ void expand(Macro *macro, const char *name) {
         Token *tok;
         if ((tok = consume2(TK_COMMA)) != NULL || (tok = consume2(TK_RPAR)) != NULL)  {
           if (paren > 0) {
-            vec_push(tokens, tok);
+            sb_append(&sb, tok->begin, tok->end);
             if (tok->kind == TK_RPAR)
               --paren;
             continue;
           }
-          if (tokens->len == 0)
+          if (sb_empty(&sb))
             parse_error(tok, "expression expected");
 
-          vec_push(args, concat_tokens(tokens));
-          vec_clear(tokens);
+          vec_push(args, sb_to_string(&sb));
+          sb_clear(&sb);
 
           if (tok->kind == TK_RPAR)
             break;
@@ -358,7 +324,9 @@ void expand(Macro *macro, const char *name) {
         tok = consume2(-1);
         if (tok->kind == TK_LPAR)
           ++paren;
-        vec_push(tokens, tok);
+        if (!sb_empty(&sb))
+          sb_append(&sb, " ", NULL);
+        sb_append(&sb, tok->begin, tok->end);
       }
     }
 
@@ -372,38 +340,42 @@ void expand(Macro *macro, const char *name) {
   // __VA_ARGS__
   if (macro->va_args) {
     // Concat.
-    char *vaargs = NULL;
-    for (int i = macro->params->len; i < args->len; ++i) {
-      if (i > macro->params->len)
-        vaargs = append(vaargs, ",", NULL);
-      vaargs = append(vaargs, (char*)args->data[i], NULL);
+    StringBuffer sb;
+    sb_init(&sb);
+    int plen = macro->params->len;
+    for (int i = plen; i < args->len; ++i) {
+      if (i > plen)
+        sb_append(&sb, ",", NULL);
+      sb_append(&sb, (char*)args->data[i], NULL);
     }
-    if (args->len <= macro->params->len)
+    char *vaargs = sb_to_string(&sb);
+
+    if (args->len <= plen)
       vec_push(args, vaargs);
     else
-      args->data[macro->params->len] = vaargs;
+      args->data[plen] = vaargs;
   }
 
-  char *str = NULL;
+  StringBuffer sb;
+  sb_init(&sb);
   if (macro->segments != NULL) {
-    str = NULL;
     for (int i = 0; i < macro->segments->len; ++i) {
       Segment *seg = macro->segments->data[i];
       switch (seg->type) {
       case ST_TEXT:
-        str = append(str, seg->text, NULL);
+        sb_append(&sb, seg->text, NULL);
         break;
       case ST_PARAM:
-        str = append(str, (char*)args->data[seg->param], NULL);
+        sb_append(&sb, (char*)args->data[seg->param], NULL);
         break;
       default:
         break;
       }
     }
   }
-  str = append(str, get_lex_p(), NULL);
+  sb_append(&sb, get_lex_p(), NULL);
 
-  init_lexer_string(str, NULL, -1);
+  init_lexer_string(sb_to_string(&sb), NULL, -1);
 }
 
 bool handle_block_comment(const char *begin, const char **pp, Stream *stream) {

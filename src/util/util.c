@@ -294,3 +294,48 @@ bool map_try_get(Map *map, const char *key, void **output) {
   *output = map->vals->data[i];
   return true;
 }
+
+// StringBuffer
+
+typedef struct {
+  const char *start;
+  size_t len;
+} StringElement;
+
+void sb_init(StringBuffer *sb) {
+  sb->elems = new_vector();
+}
+
+void sb_clear(StringBuffer *sb) {
+  vec_clear(sb->elems);
+}
+
+bool sb_empty(StringBuffer *sb) {
+  return sb->elems->len == 0;
+}
+
+void sb_append(StringBuffer *sb, const char *start, const char *end) {
+  StringElement *elem = malloc(sizeof(*elem));
+  elem->start = start;
+  elem->len = end != NULL ? (size_t)(end - start) : (size_t)strlen(start);
+  vec_push(sb->elems, elem);
+}
+
+char *sb_to_string(StringBuffer *sb) {
+  size_t total_len = 0;
+  int count = sb->elems->len;
+  for (int i = 0; i < count; ++i) {
+    StringElement *elem = sb->elems->data[i];
+    total_len += elem->len;
+  }
+
+  char *str = malloc(total_len + 1);
+  char *p = str;
+  for (int i = 0; i < count; ++i) {
+    StringElement *elem = sb->elems->data[i];
+    memcpy(p, elem->start, elem->len);
+    p += elem->len;
+  }
+  *p = '\0';
+  return str;
+}

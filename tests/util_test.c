@@ -85,6 +85,22 @@ void test_map(void) {
   EXPECT(0, value);
 }
 
+void test_sb(void) {
+  StringBuffer sb;
+  sb_init(&sb);
+
+  EXPECT_STREQ("Empty", "", sb_to_string(&sb));
+
+  sb_append(&sb, "abc", NULL);
+  const char *sub = "12345";
+  sb_append(&sb, sub, sub + 2);
+  EXPECT_STREQ("append", "abc12", sb_to_string(&sb));
+  EXPECT(false, sb_empty(&sb));
+
+  sb_clear(&sb);
+  EXPECT(true, sb_empty(&sb));
+}
+
 void test_abspath(void) {
   EXPECT_STREQ("Relative", "/user/foo/inc/stdio.h", abspath("/user/foo", "inc/stdio.h"));
   EXPECT_STREQ("Absolute", "/inc/stdio.h", abspath("/user/foo", "/inc/stdio.h"));
@@ -103,6 +119,7 @@ void test_abspath(void) {
 void runtest(void) {
   test_vector();
   test_map();
+  test_sb();
   test_abspath();
 
   printf("OK\n");
