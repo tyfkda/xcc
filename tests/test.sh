@@ -157,6 +157,7 @@ compile_error 'many arg num' 'void foo(int x){} void main(){ foo(1, 2); }'
 compile_error 'zero arg num' 'void foo(void){} void main(){ foo(1); }'
 compile_error 'variadic param count limit' 'void foo(const char *fmt, ...){} void main(){ foo("fmt", 1,2,3,4,5,6); }'
 compile_error 'empty char' "int main() { return ''; }"
+compile_error 'no single char' "int main() { return '12'; }"
 compile_error '+ str' 'void main(){ +"foo"; }'
 compile_error '- str' 'void main(){ -"foo"; }'
 compile_error 'break outside loop' 'void main(){ break; }'
