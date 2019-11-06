@@ -265,7 +265,7 @@ static VReg *gen_ternary(Expr *expr) {
 
   set_curbb(fbb);
   VReg *result2 = gen_expr(expr->ternary.fval);
-  new_ir_mov(result, result2, type_size(&tyBool));
+  new_ir_mov(result, result2, type_size(expr->ternary.fval->type));
 
   set_curbb(nbb);
   return result;

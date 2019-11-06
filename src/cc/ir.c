@@ -109,6 +109,7 @@ static IR *new_ir(enum IrKind kind) {
 }
 
 static const int kPow2Table[] = {-1, 0, 1, -1, 2, -1, -1, -1, 3};
+#define kPow2TableSize  ((int)(sizeof(kPow2Table) / sizeof(*kPow2Table)))
 
 VReg *new_ir_imm(intptr_t value, int size) {
   IR *ir = new_ir(IR_IMM);
@@ -309,6 +310,7 @@ static void ir_out(const IR *ir) {
   case IR_IMM:
     {
       intptr_t value = ir->value;
+      assert(0 <= ir->size && ir->size < kPow2TableSize);
       int pow = kPow2Table[ir->size];
       assert(0 <= pow && pow < 4);
       const char **regs = kRegSizeTable[pow];
@@ -331,6 +333,7 @@ static void ir_out(const IR *ir) {
 
   case IR_LOAD:
     {
+      assert(0 <= ir->size && ir->size < kPow2TableSize);
       int pow = kPow2Table[ir->size];
       assert(0 <= pow && pow < 4);
       const char **regs = kRegSizeTable[pow];
@@ -340,6 +343,7 @@ static void ir_out(const IR *ir) {
 
   case IR_STORE:
     {
+      assert(0 <= ir->size && ir->size < kPow2TableSize);
       int pow = kPow2Table[ir->size];
       assert(0 <= pow && pow < 4);
       const char **regs = kRegSizeTable[pow];
@@ -354,6 +358,7 @@ static void ir_out(const IR *ir) {
   case IR_ADD:
     {
       assert(ir->dst->r == ir->opr1->r);
+      assert(0 <= ir->size && ir->size < kPow2TableSize);
       int pow = kPow2Table[ir->size];
       assert(0 <= pow && pow < 4);
       const char **regs = kRegSizeTable[pow];
@@ -364,6 +369,7 @@ static void ir_out(const IR *ir) {
   case IR_SUB:
     {
       assert(ir->dst->r == ir->opr1->r);
+      assert(0 <= ir->size && ir->size < kPow2TableSize);
       int pow = kPow2Table[ir->size];
       assert(0 <= pow && pow < 4);
       const char **regs = kRegSizeTable[pow];
@@ -373,6 +379,7 @@ static void ir_out(const IR *ir) {
 
   case IR_MUL:
     {
+      assert(0 <= ir->size && ir->size < kPow2TableSize);
       int pow = kPow2Table[ir->size];
       assert(0 <= pow && pow < 4);
       const char **regs = kRegSizeTable[pow];
@@ -389,6 +396,7 @@ static void ir_out(const IR *ir) {
       IDIV(kReg8s[ir->opr2->r]);
       MOV(AL, kReg8s[ir->dst->r]);
     } else {
+      assert(0 <= ir->size && ir->size < kPow2TableSize);
       int pow = kPow2Table[ir->size];
       assert(0 <= pow && pow < 4);
       const char **regs = kRegSizeTable[pow];
@@ -411,6 +419,7 @@ static void ir_out(const IR *ir) {
       IDIV(kReg8s[ir->opr2->r]);
       MOV(AH, kReg8s[ir->dst->r]);
     } else {
+      assert(0 <= ir->size && ir->size < kPow2TableSize);
       int pow = kPow2Table[ir->size];
       assert(0 <= pow && pow < 4);
       const char **regs = kRegSizeTable[pow];
@@ -431,6 +440,7 @@ static void ir_out(const IR *ir) {
   case IR_BITAND:
     {
       assert(ir->dst->r == ir->opr1->r);
+      assert(0 <= ir->size && ir->size < kPow2TableSize);
       int pow = kPow2Table[ir->size];
       assert(0 <= pow && pow < 4);
       const char **regs = kRegSizeTable[pow];
@@ -441,6 +451,7 @@ static void ir_out(const IR *ir) {
   case IR_BITOR:
     {
       assert(ir->dst->r == ir->opr1->r);
+      assert(0 <= ir->size && ir->size < kPow2TableSize);
       int pow = kPow2Table[ir->size];
       assert(0 <= pow && pow < 4);
       const char **regs = kRegSizeTable[pow];
@@ -451,6 +462,7 @@ static void ir_out(const IR *ir) {
   case IR_BITXOR:
     {
       assert(ir->dst->r == ir->opr1->r);
+      assert(0 <= ir->size && ir->size < kPow2TableSize);
       int pow = kPow2Table[ir->size];
       assert(0 <= pow && pow < 4);
       const char **regs = kRegSizeTable[pow];
@@ -462,6 +474,7 @@ static void ir_out(const IR *ir) {
     {
       assert(ir->dst->r == ir->opr1->r);
       MOV(kReg8s[ir->opr2->r], CL);
+      assert(0 <= ir->size && ir->size < kPow2TableSize);
       int pow = kPow2Table[ir->size];
       assert(0 <= pow && pow < 4);
       const char **regs = kRegSizeTable[pow];
@@ -472,6 +485,7 @@ static void ir_out(const IR *ir) {
     {
       assert(ir->dst->r == ir->opr1->r);
       MOV(kReg8s[ir->opr2->r], CL);
+      assert(0 <= ir->size && ir->size < kPow2TableSize);
       int pow = kPow2Table[ir->size];
       assert(0 <= pow && pow < 4);
       const char **regs = kRegSizeTable[pow];
@@ -481,6 +495,7 @@ static void ir_out(const IR *ir) {
 
   case IR_CMP:
     {
+      assert(0 <= ir->size && ir->size < kPow2TableSize);
       int pow = kPow2Table[ir->size];
       assert(0 <= pow && pow < 4);
       const char **regs = kRegSizeTable[pow];
@@ -539,6 +554,7 @@ static void ir_out(const IR *ir) {
   case IR_NEG:
     {
       assert(ir->dst->r == ir->opr1->r);
+      assert(0 <= ir->size && ir->size < kPow2TableSize);
       int pow = kPow2Table[ir->size];
       assert(0 <= pow && pow < 4);
       const char **regs = kRegSizeTable[pow];
@@ -548,6 +564,7 @@ static void ir_out(const IR *ir) {
 
   case IR_NOT:
     {
+      assert(0 <= ir->size && ir->size < kPow2TableSize);
       int pow = kPow2Table[ir->size];
       assert(0 <= pow && pow < 4);
       const char **regs = kRegSizeTable[pow];
@@ -562,6 +579,7 @@ static void ir_out(const IR *ir) {
   case IR_BITNOT:
     {
       assert(ir->dst->r == ir->opr1->r);
+      assert(0 <= ir->size && ir->size < kPow2TableSize);
       int pow = kPow2Table[ir->size];
       assert(0 <= pow && pow < 4);
       const char **regs = kRegSizeTable[pow];
@@ -587,6 +605,7 @@ static void ir_out(const IR *ir) {
 
   case IR_TEST:
     {
+      assert(0 <= ir->size && ir->size < kPow2TableSize);
       int pow = kPow2Table[ir->size];
       assert(0 <= pow && pow < 4);
       const char **regs = kRegSizeTable[pow];
@@ -655,6 +674,7 @@ static void ir_out(const IR *ir) {
       POP(R11); POP_STACK_POS();
       POP(R10); POP_STACK_POS();
 
+      assert(0 <= ir->size && ir->size < kPow2TableSize);
       int pow = kPow2Table[ir->size];
       assert(0 <= pow && pow < 4);
       const char **regs = kRegSizeTable[pow];
@@ -672,12 +692,15 @@ static void ir_out(const IR *ir) {
 
   case IR_CAST:
     if (ir->size <= ir->cast.srcsize) {
+      assert(0 <= ir->size && ir->size < kPow2TableSize);
       int pow = kPow2Table[ir->size];
       assert(0 <= pow && pow < 4);
       const char **regs = kRegSizeTable[pow];
       MOV(regs[ir->opr1->r], regs[ir->dst->r]);
     } else {
+      assert(0 <= ir->cast.srcsize && ir->cast.srcsize < kPow2TableSize);
       int pows = kPow2Table[ir->cast.srcsize];
+      assert(0 <= ir->size && ir->size < kPow2TableSize);
       int powd = kPow2Table[ir->size];
       assert(0 <= pows && pows < 4);
       assert(0 <= powd && powd < 4);
@@ -687,6 +710,7 @@ static void ir_out(const IR *ir) {
 
   case IR_MOV:
     if (ir->opr1->r != ir->dst->r) {
+      assert(0 <= ir->size && ir->size < kPow2TableSize);
       int pow = kPow2Table[ir->size];
       assert(0 <= pow && pow < 4);
       const char **regs = kRegSizeTable[pow];
@@ -710,6 +734,7 @@ static void ir_out(const IR *ir) {
 
   case IR_RESULT:
     {
+      assert(0 <= ir->size && ir->size < kPow2TableSize);
       int pow = kPow2Table[ir->size];
       assert(0 <= pow && pow < 4);
       const char **regs = kRegSizeTable[pow];
@@ -723,6 +748,7 @@ static void ir_out(const IR *ir) {
 
   case IR_LOAD_SPILLED:
     {
+      assert(0 <= ir->size && ir->size < kPow2TableSize);
       int pow = kPow2Table[ir->size];
       assert(0 <= pow && pow < 4);
       const char **regs = kRegSizeTable[pow];
@@ -732,6 +758,7 @@ static void ir_out(const IR *ir) {
 
   case IR_STORE_SPILLED:
     {
+      assert(0 <= ir->size && ir->size < kPow2TableSize);
       int pow = kPow2Table[ir->size];
       assert(0 <= pow && pow < 4);
       const char **regs = kRegSizeTable[pow];
