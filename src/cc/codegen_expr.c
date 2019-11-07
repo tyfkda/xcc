@@ -257,15 +257,17 @@ static VReg *gen_ternary(Expr *expr) {
   BB *fbb = bb_split(tbb);
   BB *nbb = bb_split(fbb);
 
+  VReg *result = add_new_reg();
   gen_cond_jmp(expr->ternary.cond, false, fbb);
 
   set_curbb(tbb);
-  VReg *result = gen_expr(expr->ternary.tval);
+  VReg *tval = gen_expr(expr->ternary.tval);
+  new_ir_mov(result, tval, type_size(expr->ternary.tval->type));
   new_ir_jmp(COND_ANY, nbb);
 
   set_curbb(fbb);
-  VReg *result2 = gen_expr(expr->ternary.fval);
-  new_ir_mov(result, result2, type_size(expr->ternary.fval->type));
+  VReg *fval = gen_expr(expr->ternary.fval);
+  new_ir_mov(result, fval, type_size(expr->ternary.fval->type));
 
   set_curbb(nbb);
   return result;
