@@ -782,7 +782,7 @@ Node *sema(Node *node) {
         parse_error(/*tok*/ NULL, "`case' cannot use outside of `switch`");
 
       node->case_.value = analyze_expr(node->case_.value, false);
-      if (!is_const(node->case_.value))
+      if (!is_number(node->case_.value->type->kind))
         parse_error(/*tok*/ NULL, "Cannot use expression");
       intptr_t value = node->case_.value->num.ival;
 
