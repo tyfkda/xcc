@@ -41,6 +41,10 @@ bool same_type(const Type *type1, const Type *type2, Scope *scope) {
     case TY_FIXNUM:
       return type1->fixnum.kind == type2->fixnum.kind &&
           type1->fixnum.is_unsigned == type2->fixnum.is_unsigned;
+#ifndef __NO_FLONUM
+    case TY_FLONUM:
+      return true;
+#endif
     case TY_ARRAY:
       if (type1->pa.length != type2->pa.length)
         return false;
@@ -712,6 +716,10 @@ const Type *parse_raw_type(int *pflag) {
         parse_error(tok, "`unsigned' for void");
 
       type = &tyVoid;
+#ifndef __NO_FLONUM
+    } else if (match(TK_DOUBLE)) {
+      type = &tyDouble;
+#endif
     } else {
       static const enum TokenKind kIntTypeTokens[] = {
         TK_CHAR, TK_SHORT, TK_INT,
@@ -1003,6 +1011,12 @@ static Expr *parse_prim(void) {
       return new_expr_fixlit(type, tok, fixnum);
     }
   }
+#ifndef __NO_FLONUM
+  if ((tok = match(TK_DOUBLELIT)) != NULL) {
+    return new_expr_flolit(&tyDouble, tok, tok->flonum);
+  }
+#endif
+
   if ((tok = match(TK_STR)) != NULL)
     return new_expr_str(tok, tok->str.buf, tok->str.size);
 

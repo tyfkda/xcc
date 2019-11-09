@@ -26,6 +26,9 @@ enum FixnumKind {
 enum TypeKind {
   TY_VOID,
   TY_FIXNUM,
+#ifndef __NO_FLONUM
+  TY_FLONUM,
+#endif
   TY_PTR,
   TY_ARRAY,
   TY_FUNC,
@@ -81,6 +84,9 @@ extern const Type tyVoid;
 extern const Type tyVoidPtr;
 #define tyBool  tyInt
 #define tySize  tyLong
+#ifndef __NO_FLONUM
+extern const Type tyDouble;
+#endif
 
 void set_fixnum_size(enum FixnumKind kind, size_t size, int align);
 size_t type_size(const Type *type);

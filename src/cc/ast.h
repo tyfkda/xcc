@@ -28,6 +28,9 @@ typedef intptr_t Fixnum;
 enum ExprKind {
   // Literals
   EX_FIXNUM,  // 1234
+#ifndef __NO_FLONUM
+  EX_FLONUM,  // 1.23
+#endif
   EX_STR,     // "foobar"
 
   EX_VAR,     // Variable: foobar
@@ -82,6 +85,9 @@ typedef struct Expr {
   const Token *token;
   union {
     Fixnum fixnum;
+#ifndef __NO_FLONUM
+    double flonum;
+#endif
     struct {
       const char *buf;
       size_t size;  // Include last '\0'.
@@ -119,6 +125,7 @@ typedef struct Expr {
 } Expr;
 
 Expr *new_expr_fixlit(const Type *type, const Token *token, const Fixnum fixnum);
+Expr *new_expr_flolit(const Type *type, const Token *token, double flonum);
 Expr *new_expr_str(const Token *token, const char *str, size_t size);
 Expr *new_expr_bop(enum ExprKind kind, const Type *type, const Token *token, Expr *lhs, Expr *rhs);
 Expr *new_expr_unary(enum ExprKind kind, const Type *type, const Token *token, Expr *sub);

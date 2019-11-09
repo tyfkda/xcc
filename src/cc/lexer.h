@@ -105,6 +105,11 @@ enum TokenKind {
   TK_ELLIPSIS,       // ...
   TK_ASM,
 
+#ifndef __NO_FLONUM
+  TK_DOUBLE,
+  TK_DOUBLELIT,  // double literal
+#endif
+
   // For preprocessor.
   PPTK_CONCAT,       // ##
   PPTK_STRINGIFY,    // #
@@ -123,6 +128,9 @@ typedef struct Token {
       size_t size;  // Include last '\0'.
     } str;
     intptr_t fixnum;
+#ifndef __NO_FLONUM
+    double flonum;
+#endif
   };
 } Token;
 
