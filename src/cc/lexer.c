@@ -323,24 +323,26 @@ static Token *read_num(const char **pp) {
   const char *start = *pp, *p = start;
   int base = 10;
   if (*p == '0') {
-    base = 8;
-    ++p;
-    if (*p == 'x') {
+    if (p[1] == 'x') {
       base = 16;
-      ++p;
+      p += 2;
+    } else {
+      base = 8;
     }
   }
-  long val = strtol(p, (char**)pp, base);
-  if (*pp == p && base == 16)
+  const char *q = p;
+  long val = strtol(p, (char**)&p, base);
+  if (p == q)
     lex_error(p, "Illegal literal");
-  Token *tok;
+
   enum TokenKind tt = TK_INTLIT;
-  if (**pp == 'L') {
+  if (*p == 'L') {
     tt = TK_LONGLIT;
-    ++(*pp);
+    ++p;
   }
-  tok = alloc_token(tt, start, *pp);
+  Token *tok = alloc_token(tt, start, p);
   tok->value = val;
+  *pp = p;
   return tok;
 }
 
