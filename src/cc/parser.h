@@ -1,12 +1,9 @@
 #pragma once
 
 #include <stdbool.h>
-#include <stddef.h>  // size_t
 #include <stdint.h>  // intptr_t
 
-typedef struct BB BB;
-typedef struct BBContainer BBContainer;
-typedef struct Defun Defun;
+typedef struct Function Function;
 typedef struct Expr Expr;
 typedef struct Map Map;
 typedef struct Scope Scope;
@@ -18,23 +15,14 @@ typedef struct Vector Vector;
 // Defun
 
 typedef struct Defun {
-  const Type *type;
-  const char *name;
-  Vector *params;  // <VarInfo*>
+  Function *func;
+
   Vector *stmts;  // NULL => Prototype definition.
 
-  Scope *top_scope;
-  Vector *all_scopes;
   Map *label_map;  // <const char*, BB*>
   Vector *gotos;
 
   int flag;
-
-  // For codegen.
-  BBContainer *bbcon;
-  BB *ret_bb;
-  size_t frame_size;
-  short used_reg_bits;
 } Defun;
 
 // Initializer

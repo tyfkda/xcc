@@ -7,7 +7,7 @@
 #include <stdint.h>  // intptr_t
 
 typedef struct BB BB;
-typedef struct Defun Defun;
+typedef struct Function Function;
 typedef struct Type Type;
 typedef struct Vector Vector;
 
@@ -165,7 +165,7 @@ typedef struct BBContainer {
 
 BBContainer *new_func_blocks(void);
 void remove_unnecessary_bb(BBContainer *bbcon);
-size_t alloc_real_registers(Defun *defun);
-void push_callee_save_regs(Defun *defun);
-void pop_callee_save_regs(Defun *defun);
+size_t alloc_real_registers(Function *func);
+void push_callee_save_regs(Function *func);
+void pop_callee_save_regs(Function *func);
 void emit_bb_irs(BBContainer *bbcon);

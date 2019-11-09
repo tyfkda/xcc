@@ -105,3 +105,20 @@ VarInfo *scope_find(Scope **pscope, const char *name) {
   *pscope = scope;
   return varinfo;
 }
+
+// Function
+
+Function *new_func(const Type *type, const char *name, Vector *params) {
+  Function *func = malloc(sizeof(*func));
+  func->type = type;
+  func->name = name;
+  func->params = params;
+
+  func->top_scope = NULL;
+  func->all_scopes = new_vector();
+  func->frame_size = 0;
+  func->used_reg_bits = 0;
+  func->bbcon = NULL;
+  func->ret_bb = NULL;
+  return func;
+}

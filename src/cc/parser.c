@@ -21,23 +21,14 @@ static VarDecl *new_vardecl(const Type *type, const Token *ident, Initializer *i
   return decl;
 }
 
-static Defun *new_defun(const Type *rettype, const char *name, Vector *params, int flag, bool vaargs) {
+static Defun *new_defun(Function *func, int flag) {
   Defun *defun = malloc(sizeof(*defun));
-  Vector *param_types = extract_varinfo_types(params);
-  defun->type = new_func_type(rettype, param_types, vaargs);
-  defun->name = name;
-  defun->params = params;
+  defun->func = func;
   defun->flag = flag;
 
   defun->stmts = NULL;
-  defun->top_scope = NULL;
-  defun->all_scopes = new_vector();
   defun->label_map = NULL;
   defun->gotos = NULL;
-  defun->frame_size = 0;
-  defun->used_reg_bits = 0;
-  defun->bbcon = NULL;
-  defun->ret_bb = NULL;
   return defun;
 }
 
@@ -488,7 +479,9 @@ static Node *parse_defun(const Type *rettype, int flag, Token *ident) {
   Vector *params = parse_funparams(&vaargs);
 
   // Definition.
-  Defun *defun = new_defun(rettype, name, params, flag, vaargs);
+  Vector *param_types = extract_varinfo_types(params);
+  Function *func = new_func(new_func_type(rettype, param_types, vaargs), name, params);
+  Defun *defun = new_defun(func, flag);
   if (consume(TK_SEMICOL)) {  // Prototype declaration.
   } else {
     if (!consume(TK_LBRACE)) {

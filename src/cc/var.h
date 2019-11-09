@@ -1,5 +1,10 @@
 #pragma once
 
+#include <stdbool.h>
+#include <stddef.h>  // size_t
+
+typedef struct BB BB;
+typedef struct BBContainer BBContainer;
 typedef struct Map Map;
 typedef struct Token Token;
 typedef struct Type Type;
@@ -55,3 +60,22 @@ typedef struct Scope {
 
 Scope *new_scope(Scope *parent, Vector *vars);
 VarInfo *scope_find(Scope **pscope, const char *name);
+
+// Function
+
+typedef struct Function {
+  const Type *type;
+  const char *name;
+  Vector *params;  // <VarInfo*>
+
+  Scope *top_scope;
+  Vector *all_scopes;
+
+  // For codegen.
+  BBContainer *bbcon;
+  BB *ret_bb;
+  size_t frame_size;
+  short used_reg_bits;
+} Function;
+
+Function *new_func(const Type *type, const char *name, Vector *params);

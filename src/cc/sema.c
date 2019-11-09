@@ -23,7 +23,7 @@ static Node *curswitch;
 static Scope *enter_scope(Defun *defun, Vector *vars) {
   Scope *scope = new_scope(curscope, vars);
   curscope = scope;
-  vec_push(defun->all_scopes, scope);
+  vec_push(defun->func->all_scopes, scope);
   return scope;
 }
 
@@ -629,9 +629,9 @@ static void sema_nodes(Vector *nodes) {
 static void sema_defun(Defun *defun) {
   const Token *ident = NULL;
 
-  VarInfo *def = find_global(defun->name);
+  VarInfo *def = find_global(defun->func->name);
   if (def == NULL) {
-    define_global(defun->type, defun->flag | VF_CONST, ident, defun->name);
+    define_global(defun->func->type, defun->flag | VF_CONST, ident, defun->func->name);
   } else {
     if (def->type->kind != TY_FUNC)
       parse_error(ident, "Definition conflict: `%s'");
@@ -643,8 +643,8 @@ static void sema_defun(Defun *defun) {
 
   if (defun->stmts != NULL) {  // Not prototype defintion.
     curdefun = defun;
-    enter_scope(defun, defun->params);  // Scope for parameters.
-    curscope = defun->top_scope = enter_scope(defun, NULL);
+    enter_scope(defun, defun->func->params);  // Scope for parameters.
+    curscope = defun->func->top_scope = enter_scope(defun, NULL);
     sema_nodes(defun->stmts);
     exit_scope();
     exit_scope();
@@ -751,7 +751,7 @@ Node *sema(Node *node) {
   case ND_RETURN:
     {
       assert(curdefun != NULL);
-      const Type *rettype = curdefun->type->func.ret;
+      const Type *rettype = curdefun->func->type->func.ret;
       Expr *val = node->return_.val;
       Token *tok = NULL;
       if (val == NULL) {

@@ -30,7 +30,7 @@ static void gen_expr_stmt(Expr *expr);
 void set_curbb(BB *bb) {
   assert(curdefun != NULL);
   curbb = bb;
-  vec_push(curdefun->bbcon->bbs, bb);
+  vec_push(curdefun->func->bbcon->bbs, bb);
 }
 
 size_t type_size(const Type *type) {
@@ -425,11 +425,11 @@ static int arrange_variadic_func_params(Scope *scope) {
   return MAX_REG_ARGS * WORD_SIZE;
 }
 
-static void alloc_variable_registers(Defun *defun) {
-  for (int i = 0; i < defun->all_scopes->len; ++i) {
-    Scope *scope = (Scope*)defun->all_scopes->data[i];
+static void alloc_variable_registers(Function *func) {
+  for (int i = 0; i < func->all_scopes->len; ++i) {
+    Scope *scope = (Scope*)func->all_scopes->data[i];
     if (scope->vars != NULL) {
-      if (i == 0 && defun->type->func.vaargs) {  // Variadic function parameters.
+      if (i == 0 && func->type->func.vaargs) {  // Variadic function parameters.
         // Special arrangement for va_list.
         arrange_variadic_func_params(scope);
       } else {
@@ -472,9 +472,9 @@ static void put_args_to_stack(Defun *defun) {
   static const char *kReg64s[] = {RDI, RSI, RDX, RCX, R8, R9};
 
   // Store arguments into local frame.
-  Vector *params = defun->params;
+  Vector *params = defun->func->params;
   int len = params != NULL ? params->len : 0;
-  int n = defun->type->func.vaargs ? MAX_REG_ARGS : len;
+  int n = defun->func->type->func.vaargs ? MAX_REG_ARGS : len;
   for (int i = 0; i < n; ++i) {
     const Type *type;
     int offset;
@@ -571,26 +571,27 @@ static void gen_nodes(Vector *nodes) {
 static void gen_defun(Node *node) {
   assert(stackpos == 8);
   Defun *defun = node->defun;
-  if (defun->top_scope == NULL)  // Prototype definition
+  Function *func = defun->func;
+  if (func->top_scope == NULL)  // Prototype definition
     return;
 
   curdefun = defun;
-  defun->bbcon = new_func_blocks();
+  func->bbcon = new_func_blocks();
   set_curbb(new_bb());
   init_reg_alloc();
 
   bool global = true;
-  VarInfo *varinfo = find_global(defun->name);
+  VarInfo *varinfo = find_global(func->name);
   if (varinfo != NULL) {
     global = (varinfo->flag & VF_STATIC) == 0;
   }
 
   if (global)
-    _GLOBL(defun->name);
+    _GLOBL(func->name);
   else
-    emit_comment("%s: static func", defun->name);
+    emit_comment("%s: static func", func->name);
 
-  EMIT_LABEL(defun->name);
+  EMIT_LABEL(func->name);
 
   // Allocate labels for goto.
   if (defun->label_map != NULL) {
@@ -599,7 +600,7 @@ static void gen_defun(Node *node) {
       label_map->vals->data[i] = new_bb();
   }
 
-  alloc_variable_registers(defun);
+  alloc_variable_registers(func);
 
   bool no_stmt = true;
   if (defun->stmts != NULL) {
@@ -614,18 +615,18 @@ static void gen_defun(Node *node) {
     }
   }
 
-  curscope = defun->top_scope;
-  defun->ret_bb = bb_split(curbb);
+  curscope = func->top_scope;
+  func->ret_bb = bb_split(curbb);
 
   // Statements
   gen_nodes(defun->stmts);
 
-  set_curbb(defun->ret_bb);
+  set_curbb(func->ret_bb);
   curbb = NULL;
 
-  size_t frame_size = alloc_real_registers(defun);
+  size_t frame_size = alloc_real_registers(func);
 
-  remove_unnecessary_bb(defun->bbcon);
+  remove_unnecessary_bb(func->bbcon);
 
   // Prologue
   // Allocate variable bufer.
@@ -640,14 +641,14 @@ static void gen_defun(Node *node) {
     put_args_to_stack(defun);
 
     // Callee save.
-    push_callee_save_regs(defun);
+    push_callee_save_regs(func);
   }
 
-  emit_bb_irs(defun->bbcon);
+  emit_bb_irs(func->bbcon);
 
   // Epilogue
   if (!no_stmt) {
-    pop_callee_save_regs(defun);
+    pop_callee_save_regs(func);
 
     MOV(RBP, RSP);
     stackpos -= frame_size;
@@ -680,7 +681,7 @@ static void gen_return(Node *node) {
     new_ir_result(reg, type_size(node->return_.val->type));
   }
   assert(curdefun != NULL);
-  new_ir_jmp(COND_ANY, curdefun->ret_bb);
+  new_ir_jmp(COND_ANY, curdefun->func->ret_bb);
   set_curbb(bb);
 }
 

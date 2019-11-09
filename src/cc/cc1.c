@@ -33,10 +33,10 @@ static void do_dump_ir(Node *node) {
   case ND_DEFUN:
     {
       Defun *defun = node->defun;
-      BBContainer *bbcon = defun->bbcon;
+      BBContainer *bbcon = defun->func->bbcon;
       if (bbcon == NULL)
         break;
-      fprintf(stderr, "%s: // BB: #%d\n", defun->name, bbcon->bbs->len);
+      fprintf(stderr, "%s: // BB: #%d\n", defun->func->name, bbcon->bbs->len);
       for (int i = 0; i < bbcon->bbs->len; ++i) {
         BB *bb = bbcon->bbs->data[i];
         fprintf(stderr, "// BB %d\n", i);

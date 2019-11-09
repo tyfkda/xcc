@@ -6,7 +6,6 @@
 #include <string.h>
 
 #include "codegen.h"
-#include "parser.h"
 #include "type.h"
 #include "util.h"
 #include "var.h"
@@ -1207,8 +1206,8 @@ static void analyze_reg_flow(BBContainer *bbcon) {
   } while (cont);
 }
 
-size_t alloc_real_registers(Defun *defun) {
-  BBContainer *bbcon = defun->bbcon;
+size_t alloc_real_registers(Function *func) {
+  BBContainer *bbcon = func->bbcon;
   for (int i = 0; i < bbcon->bbs->len; ++i) {
     BB *bb = bbcon->bbs->data[i];
     three_to_two(bb);
@@ -1229,10 +1228,10 @@ size_t alloc_real_registers(Defun *defun) {
     }
   }
 
-  if (defun->params != NULL) {
+  if (func->params != NULL) {
     // Make function parameters all spilled.
-    for (int i = 0; i < defun->params->len; ++i) {
-      VarInfo *varinfo = defun->params->data[i];
+    for (int i = 0; i < func->params->len; ++i) {
+      VarInfo *varinfo = func->params->data[i];
 
       LiveInterval *li = &intervals[varinfo->reg->v];
       li->start = 0;
@@ -1241,7 +1240,7 @@ size_t alloc_real_registers(Defun *defun) {
     }
   }
 
-  defun->used_reg_bits = linear_scan_register_allocation(sorted_intervals, vreg_count);
+  func->used_reg_bits = linear_scan_register_allocation(sorted_intervals, vreg_count);
 
   // Map vreg to rreg.
   for (int i = 0; i < vreg_count; ++i) {
@@ -1276,13 +1275,13 @@ size_t alloc_real_registers(Defun *defun) {
 
   int inserted = insert_load_store_spilled(bbcon, ra->vregs);
   if (inserted != 0)
-    defun->used_reg_bits |= 1 << SPILLED_REG_NO;
+    func->used_reg_bits |= 1 << SPILLED_REG_NO;
 
   return frame_size;
 }
 
-void push_callee_save_regs(Defun *defun) {
-  short used = defun->used_reg_bits;
+void push_callee_save_regs(Function *func) {
+  short used = func->used_reg_bits;
   for (int i = 0; i < CALLEE_SAVE_REG_COUNT; ++i) {
     if (used & kCalleeSaveRegs[i].bit) {
       PUSH(kCalleeSaveRegs[i].reg); PUSH_STACK_POS();
@@ -1290,8 +1289,8 @@ void push_callee_save_regs(Defun *defun) {
   }
 }
 
-void pop_callee_save_regs(Defun *defun) {
-  short used = defun->used_reg_bits;
+void pop_callee_save_regs(Function *func) {
+  short used = func->used_reg_bits;
   for (int i = CALLEE_SAVE_REG_COUNT; --i >= 0; ) {
     if (used & kCalleeSaveRegs[i].bit) {
       POP(kCalleeSaveRegs[i].reg); POP_STACK_POS();
