@@ -11,7 +11,7 @@ typedef struct Token Token;
 typedef struct Type Type;
 typedef struct Vector Vector;
 
-extern Defun *curfunc;
+extern Defun *curdefun;
 extern Scope *curscope;
 
 Node *sema(Node *node);

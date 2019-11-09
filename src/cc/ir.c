@@ -7,7 +7,6 @@
 
 #include "codegen.h"
 #include "parser.h"
-#include "sema.h"  // curfunc
 #include "type.h"
 #include "util.h"
 #include "var.h"

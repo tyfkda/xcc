@@ -14,7 +14,7 @@
 const int LF_BREAK = 1 << 0;
 const int LF_CONTINUE = 1 << 0;
 
-Defun *curfunc;
+Defun *curdefun;
 static int curloopflag;
 static Node *curswitch;
 
@@ -80,17 +80,17 @@ static void fix_array_size(Type *type, Initializer *init) {
 }
 
 static void add_func_label(const char *label) {
-  assert(curfunc != NULL);
-  if (curfunc->label_map == NULL)
-    curfunc->label_map = new_map();
-  map_put(curfunc->label_map, label, NULL);  // Put dummy value.
+  assert(curdefun != NULL);
+  if (curdefun->label_map == NULL)
+    curdefun->label_map = new_map();
+  map_put(curdefun->label_map, label, NULL);  // Put dummy value.
 }
 
 static void add_func_goto(Node *node) {
-  assert(curfunc != NULL);
-  if (curfunc->gotos == NULL)
-    curfunc->gotos = new_vector();
-  vec_push(curfunc->gotos, node);
+  assert(curdefun != NULL);
+  if (curdefun->gotos == NULL)
+    curdefun->gotos = new_vector();
+  vec_push(curdefun->gotos, node);
 }
 
 static Initializer *analyze_initializer(Initializer *init) {
@@ -589,7 +589,7 @@ static Node *sema_vardecl(Node *node) {
     if (type->kind == TY_ARRAY && init != NULL)
       fix_array_size((Type*)type, init);
 
-    if (curfunc != NULL) {
+    if (curdefun != NULL) {
       VarInfo *varinfo = add_cur_scope(ident, type, flag);
       init = analyze_initializer(init);
 
@@ -642,13 +642,13 @@ static void sema_defun(Defun *defun) {
   }
 
   if (defun->stmts != NULL) {  // Not prototype defintion.
-    curfunc = defun;
+    curdefun = defun;
     enter_scope(defun, defun->params);  // Scope for parameters.
     curscope = defun->top_scope = enter_scope(defun, NULL);
     sema_nodes(defun->stmts);
     exit_scope();
     exit_scope();
-    curfunc = NULL;
+    curdefun = NULL;
     curscope = NULL;
 
     // Check goto labels.
@@ -681,8 +681,8 @@ Node *sema(Node *node) {
   case ND_BLOCK:
     {
       Scope *parent_scope = curscope;
-      if (curfunc != NULL)
-        node->block.scope = curscope = enter_scope(curfunc, NULL);
+      if (curdefun != NULL)
+        node->block.scope = curscope = enter_scope(curdefun, NULL);
       sema_nodes(node->block.nodes);
       curscope = parent_scope;
     }
@@ -750,8 +750,8 @@ Node *sema(Node *node) {
 
   case ND_RETURN:
     {
-      assert(curfunc != NULL);
-      const Type *rettype = curfunc->type->func.ret;
+      assert(curdefun != NULL);
+      const Type *rettype = curdefun->type->func.ret;
       Expr *val = node->return_.val;
       Token *tok = NULL;
       if (val == NULL) {

@@ -28,9 +28,9 @@ const int STACK_PARAM_BASE_OFFSET = (2 - MAX_REG_ARGS) * 8;
 static void gen_expr_stmt(Expr *expr);
 
 void set_curbb(BB *bb) {
-  assert(curfunc != NULL);
+  assert(curdefun != NULL);
   curbb = bb;
-  vec_push(curfunc->bbcon->bbs, bb);
+  vec_push(curdefun->bbcon->bbs, bb);
 }
 
 size_t type_size(const Type *type) {
@@ -574,7 +574,7 @@ static void gen_defun(Node *node) {
   if (defun->top_scope == NULL)  // Prototype definition
     return;
 
-  curfunc = defun;
+  curdefun = defun;
   defun->bbcon = new_func_blocks();
   set_curbb(new_bb());
   init_reg_alloc();
@@ -656,7 +656,7 @@ static void gen_defun(Node *node) {
 
   RET();
   emit_comment(NULL);
-  curfunc = NULL;
+  curdefun = NULL;
   curscope = NULL;
   assert(stackpos == 8);
 }
@@ -679,8 +679,8 @@ static void gen_return(Node *node) {
     VReg *reg = gen_expr(node->return_.val);
     new_ir_result(reg, type_size(node->return_.val->type));
   }
-  assert(curfunc != NULL);
-  new_ir_jmp(COND_ANY, curfunc->ret_bb);
+  assert(curdefun != NULL);
+  new_ir_jmp(COND_ANY, curdefun->ret_bb);
   set_curbb(bb);
 }
 
@@ -917,15 +917,15 @@ static void gen_continue(void) {
 }
 
 static void gen_goto(Node *node) {
-  assert(curfunc->label_map != NULL);
-  BB *bb = map_get(curfunc->label_map, node->goto_.ident);
+  assert(curdefun->label_map != NULL);
+  BB *bb = map_get(curdefun->label_map, node->goto_.ident);
   assert(bb != NULL);
   new_ir_jmp(COND_ANY, bb);
 }
 
 static void gen_label(Node *node) {
-  assert(curfunc->label_map != NULL);
-  BB *bb = map_get(curfunc->label_map, node->label.name);
+  assert(curdefun->label_map != NULL);
+  BB *bb = map_get(curdefun->label_map, node->label.name);
   assert(bb != NULL);
   bb_insert(curbb, bb);
   set_curbb(bb);
@@ -939,7 +939,7 @@ static void gen_clear_local_var(const VarInfo *varinfo) {
 }
 
 static void gen_vardecl(Node *node) {
-  if (curfunc != NULL) {
+  if (curdefun != NULL) {
     Vector *decls = node->vardecl.decls;
     for (int i = 0; i < decls->len; ++i) {
       VarDecl *decl = decls->data[i];
