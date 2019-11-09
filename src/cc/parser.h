@@ -18,26 +18,23 @@ typedef struct Vector Vector;
 // Defun
 
 typedef struct Defun {
-  const Type *rettype;
+  const Type *type;
   const char *name;
   Vector *params;  // <VarInfo*>
   Vector *stmts;  // NULL => Prototype definition.
-  int flag;
-  bool vaargs;
 
-  const Type *type;
   Scope *top_scope;
   Vector *all_scopes;
   Map *label_map;  // <const char*, BB*>
   Vector *gotos;
 
-  // For codegen.
-  size_t frame_size;
-  short used_reg_bits;
+  int flag;
 
-  // BasicBlock
+  // For codegen.
   BBContainer *bbcon;
   BB *ret_bb;
+  size_t frame_size;
+  short used_reg_bits;
 } Defun;
 
 // Initializer

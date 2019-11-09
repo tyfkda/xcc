@@ -350,13 +350,7 @@ const Type *parse_type_suffix(const Type *type) {
 
 Vector *parse_funparam_types(bool *pvaargs) {  // Vector<Type*>
   Vector *params = parse_funparams(pvaargs);
-  Vector *param_types = NULL;
-  if (params != NULL) {
-    param_types = new_vector();
-    for (int i = 0, len = params->len; i < len; ++i)
-      vec_push(param_types, ((VarInfo*)params->data[i])->type);
-  }
-  return param_types;
+  return extract_varinfo_types(params);
 }
 
 bool parse_var_def(const Type **prawType, const Type** ptype, int *pflag, Token **pident) {

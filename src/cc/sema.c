@@ -629,14 +629,6 @@ static void sema_nodes(Vector *nodes) {
 static void sema_defun(Defun *defun) {
   const Token *ident = NULL;
 
-  Vector *param_types = NULL;
-  if (defun->params != NULL) {
-    param_types = new_vector();
-    for (int i = 0, len = defun->params->len; i < len; ++i)
-      vec_push(param_types, ((VarInfo*)defun->params->data[i])->type);
-  }
-  defun->type = new_func_type(defun->rettype, param_types, defun->vaargs);
-
   VarInfo *def = find_global(defun->name);
   if (def == NULL) {
     define_global(defun->type, defun->flag | VF_CONST, ident, defun->name);

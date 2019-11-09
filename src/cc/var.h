@@ -36,6 +36,7 @@ typedef struct VarInfo {
 
 int var_find(Vector *vartbl, const char *name);
 VarInfo *var_add(Vector *lvars, const Token *ident, const Type *type, int flag);
+Vector *extract_varinfo_types(Vector *params);
 
 extern Map *gvar_map;
 

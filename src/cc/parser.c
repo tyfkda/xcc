@@ -23,13 +23,12 @@ static VarDecl *new_vardecl(const Type *type, const Token *ident, Initializer *i
 
 static Defun *new_defun(const Type *rettype, const char *name, Vector *params, int flag, bool vaargs) {
   Defun *defun = malloc(sizeof(*defun));
-  defun->rettype = rettype;
+  Vector *param_types = extract_varinfo_types(params);
+  defun->type = new_func_type(rettype, param_types, vaargs);
   defun->name = name;
   defun->params = params;
   defun->flag = flag;
-  defun->vaargs = vaargs;
 
-  defun->type = NULL;
   defun->stmts = NULL;
   defun->top_scope = NULL;
   defun->all_scopes = new_vector();
