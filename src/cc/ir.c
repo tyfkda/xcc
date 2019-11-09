@@ -26,6 +26,7 @@ VReg *new_vreg(int vreg_no, const Type *type) {
   vreg->v = vreg_no;
   vreg->r = -1;
   vreg->type = type;
+  vreg->param_index = -1;
   vreg->offset = 0;
   return vreg;
 }

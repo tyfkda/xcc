@@ -385,21 +385,17 @@ size_t alloc_real_registers(Function *func) {
   for (int i = 0; i < vreg_count; ++i) {
     LiveInterval *li = &intervals[i];
     VReg *vreg = func->ra->vregs->data[i];
-    if (vreg->r == SPILLED_REG_NO) {
-      li->spill = true;
-      li->rreg = vreg->r;
-    }
-  }
 
-  if (func->params != NULL) {
-    // Make function parameters all spilled.
-    for (int i = 0; i < func->params->len; ++i) {
-      VarInfo *varinfo = func->params->data[i];
-
-      LiveInterval *li = &intervals[varinfo->reg->v];
+    // Force function parameter spilled.
+    if (vreg->param_index >= 0) {
+      vreg_spill(vreg);
       li->start = 0;
       li->spill = true;
-      li->rreg = SPILLED_REG_NO;
+    }
+
+    if (vreg->r >= SPILLED_REG_NO) {
+      li->spill = true;
+      li->rreg = vreg->r;
     }
   }
 

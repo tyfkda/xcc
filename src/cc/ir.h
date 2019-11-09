@@ -17,10 +17,15 @@ typedef struct Vector Vector;
 
 // Virtual register
 
+#define VRF_PARAM  (1 << 0)  // Function parameter
+#define VRF_LOCAL  (1 << 1)  // Local variable
+#define VRF_REF    (1 << 2)  // Reference(&) taken
+
 typedef struct VReg {
   int v;
   int r;
   const Type *type;
+  int param_index;  // Function parameter index: -1=not a param
   int offset;  // Local offset for spilled register.
 } VReg;
 

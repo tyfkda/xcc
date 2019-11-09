@@ -440,6 +440,7 @@ static int arrange_variadic_func_params(Scope *scope) {
     VarInfo *varinfo = (VarInfo*)scope->vars->data[i];
     VReg *vreg = add_new_reg(varinfo->type);
     vreg_spill(vreg);
+    vreg->param_index = i;
     vreg->offset = (i - MAX_REG_ARGS) * WORD_SIZE;
     varinfo->reg = vreg;
   }
@@ -460,6 +461,9 @@ static void alloc_variable_registers(Function *func) {
             continue;  // Static variable is not allocated on stack.
 
           VReg *vreg = add_new_reg(varinfo->type);
+          if (i == 0)
+            vreg->param_index = j;
+
           bool spill = false;
           switch (varinfo->type->kind) {
           case TY_ARRAY:
