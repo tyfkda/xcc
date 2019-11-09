@@ -568,9 +568,8 @@ static void gen_nodes(Vector *nodes) {
   }
 }
 
-static void gen_defun(Node *node) {
+static void gen_defun(Defun *defun) {
   assert(stackpos == 8);
-  Defun *defun = node->defun;
   Function *func = defun->func;
   if (func->top_scope == NULL)  // Prototype definition
     return;
@@ -973,7 +972,7 @@ void gen(Node *node) {
 
   switch (node->kind) {
   case ND_EXPR:  gen_expr_stmt(node->expr); break;
-  case ND_DEFUN:  gen_defun(node); break;
+  case ND_DEFUN:  gen_defun(node->defun); break;
   case ND_RETURN:  gen_return(node); break;
   case ND_BLOCK:  gen_block(node); break;
   case ND_IF:  gen_if(node); break;
