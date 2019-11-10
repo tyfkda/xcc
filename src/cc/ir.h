@@ -8,6 +8,7 @@
 
 typedef struct BB BB;
 typedef struct Function Function;
+typedef struct RegAlloc RegAlloc;
 typedef struct Type Type;
 typedef struct Vector Vector;
 
@@ -136,7 +137,9 @@ void dump_ir(IR *ir);
 
 // Register allocator
 
-void init_reg_alloc(void);
+extern RegAlloc *curra;
+
+RegAlloc *new_reg_alloc(void);
 VReg *add_new_reg(const Type *type);
 
 // Basci Block:

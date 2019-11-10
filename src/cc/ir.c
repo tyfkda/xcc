@@ -81,17 +81,10 @@ VReg *reg_alloc_spawn(RegAlloc *ra, const Type *type) {
 }
 
 //
-static RegAlloc *ra;
-
-void init_reg_alloc(void) {
-  if (ra == NULL)
-    ra = new_reg_alloc();
-  else
-    reg_alloc_clear(ra);
-}
+RegAlloc *curra;
 
 VReg *add_new_reg(const Type *type) {
-  return reg_alloc_spawn(ra, type);
+  return reg_alloc_spawn(curra, type);
 }
 
 // Intermediate Representation
@@ -113,7 +106,7 @@ VReg *new_ir_imm(intptr_t value, const Type *type) {
   IR *ir = new_ir(IR_IMM);
   ir->value = value;
   ir->size = type_size(type);
-  return ir->dst = reg_alloc_spawn(ra, type);
+  return ir->dst = reg_alloc_spawn(curra, type);
 }
 
 VReg *new_ir_bop(enum IrKind kind, VReg *opr1, VReg *opr2, const Type *type) {
@@ -121,28 +114,28 @@ VReg *new_ir_bop(enum IrKind kind, VReg *opr1, VReg *opr2, const Type *type) {
   ir->opr1 = opr1;
   ir->opr2 = opr2;
   ir->size = type_size(type);
-  return ir->dst = reg_alloc_spawn(ra, type);
+  return ir->dst = reg_alloc_spawn(curra, type);
 }
 
 VReg *new_ir_unary(enum IrKind kind, VReg *opr, const Type *type) {
   IR *ir = new_ir(kind);
   ir->opr1 = opr;
   ir->size = type_size(type);
-  return ir->dst = reg_alloc_spawn(ra, type);
+  return ir->dst = reg_alloc_spawn(curra, type);
 }
 
 VReg *new_ir_bofs(VReg *src) {
   IR *ir = new_ir(IR_BOFS);
   ir->opr1 = src;
   ir->size = WORD_SIZE;
-  return ir->dst = reg_alloc_spawn(ra, &tyVoidPtr);
+  return ir->dst = reg_alloc_spawn(curra, &tyVoidPtr);
 }
 
 VReg *new_ir_iofs(const char *label) {
   IR *ir = new_ir(IR_IOFS);
   ir->iofs.label = label;
   ir->size = WORD_SIZE;
-  return ir->dst = reg_alloc_spawn(ra, &tyVoidPtr);
+  return ir->dst = reg_alloc_spawn(curra, &tyVoidPtr);
 }
 
 void new_ir_store(VReg *dst, VReg *src, int size) {
@@ -183,7 +176,7 @@ void new_ir_incdec(enum IrKind kind, VReg *reg, int size, intptr_t value) {
 VReg *new_ir_set(enum ConditionKind cond) {
   IR *ir = new_ir(IR_SET);
   ir->set.cond = cond;
-  return ir->dst = reg_alloc_spawn(ra, &tyBool);
+  return ir->dst = reg_alloc_spawn(curra, &tyBool);
 }
 
 void new_ir_jmp(enum ConditionKind cond, BB *bb) {
@@ -211,7 +204,7 @@ VReg *new_ir_call(const char *label, VReg *freg, int arg_count, const Type *resu
   ir->call.stack_aligned = stack_aligned;
   ir->call.arg_count = arg_count;
   ir->size = type_size(result_type);
-  return ir->dst = reg_alloc_spawn(ra, result_type);
+  return ir->dst = reg_alloc_spawn(curra, result_type);
 }
 
 void new_ir_addsp(int value) {
@@ -224,7 +217,7 @@ VReg *new_ir_cast(VReg *vreg, const Type *dsttype, int srcsize) {
   ir->opr1 = vreg;
   ir->size = type_size(dsttype);
   ir->cast.srcsize = srcsize;
-  return ir->dst = reg_alloc_spawn(ra, dsttype);
+  return ir->dst = reg_alloc_spawn(curra, dsttype);
 }
 
 void new_ir_mov(VReg *dst, VReg *src, int size) {
@@ -1220,13 +1213,13 @@ size_t alloc_real_registers(Function *func) {
 
   analyze_reg_flow(bbcon);
 
-  int vreg_count = ra->regno;
+  int vreg_count = func->ra->regno;
   LiveInterval *intervals;
-  LiveInterval **sorted_intervals = check_live_interval(bbcon, ra->regno, &intervals);
+  LiveInterval **sorted_intervals = check_live_interval(bbcon, vreg_count, &intervals);
 
   for (int i = 0; i < vreg_count; ++i) {
     LiveInterval *li = &intervals[i];
-    VReg *vreg = ra->vregs->data[i];
+    VReg *vreg = func->ra->vregs->data[i];
     if (vreg->r == SPILLED_REG_NO) {
       li->spill = true;
       li->rreg = vreg->r;
@@ -1249,7 +1242,7 @@ size_t alloc_real_registers(Function *func) {
 
   // Map vreg to rreg.
   for (int i = 0; i < vreg_count; ++i) {
-    VReg *vreg = ra->vregs->data[i];
+    VReg *vreg = func->ra->vregs->data[i];
     vreg->r = intervals[vreg->v].rreg;
   }
 
@@ -1259,7 +1252,7 @@ size_t alloc_real_registers(Function *func) {
     LiveInterval *li = sorted_intervals[i];
     if (!li->spill)
       continue;
-    VReg *vreg = ra->vregs->data[li->vreg];
+    VReg *vreg = func->ra->vregs->data[li->vreg];
     if (vreg->offset != 0) {  // Variadic function parameter or stack parameter.
       if (-vreg->offset > (int)frame_size)
         frame_size = -vreg->offset;
@@ -1278,7 +1271,7 @@ size_t alloc_real_registers(Function *func) {
     vreg->offset = -frame_size;
   }
 
-  int inserted = insert_load_store_spilled(bbcon, ra->vregs);
+  int inserted = insert_load_store_spilled(bbcon, func->ra->vregs);
   if (inserted != 0)
     func->used_reg_bits |= 1 << SPILLED_REG_NO;
 

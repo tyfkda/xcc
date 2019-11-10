@@ -577,7 +577,7 @@ static void gen_defun(Defun *defun) {
   curdefun = defun;
   func->bbcon = new_func_blocks();
   set_curbb(new_bb());
-  init_reg_alloc();
+  func->ra = curra = new_reg_alloc();
 
   bool global = true;
   VarInfo *varinfo = find_global(func->name);
@@ -658,6 +658,7 @@ static void gen_defun(Defun *defun) {
   emit_comment(NULL);
   curdefun = NULL;
   curscope = NULL;
+  curra = NULL;
   assert(stackpos == 8);
 }
 
