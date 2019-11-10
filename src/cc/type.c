@@ -13,6 +13,7 @@ const Type tyInt =   {.kind=TY_NUM, .num={.kind=NUM_INT}};
 const Type tyLong =  {.kind=TY_NUM, .num={.kind=NUM_LONG}};
 const Type tyEnum =  {.kind=TY_NUM, .num={.kind=NUM_ENUM}};
 const Type tyVoid =  {.kind=TY_VOID};
+const Type tyVoidPtr =  {.kind=TY_PTR, .pa={.ptrof=&tyVoid}};
 
 bool is_number(enum TypeKind kind) {
   return kind == TY_NUM;

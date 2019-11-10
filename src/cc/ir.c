@@ -16,11 +16,11 @@
 
 // Virtual register
 
-VReg *new_vreg(int vreg_no) {
+VReg *new_vreg(int vreg_no, const Type *type) {
   VReg *vreg = malloc(sizeof(*vreg));
   vreg->v = vreg_no;
   vreg->r = -1;
-  vreg->type = NULL;
+  vreg->type = type;
   vreg->offset = 0;
   return vreg;
 }
@@ -74,8 +74,8 @@ RegAlloc *new_reg_alloc(void) {
   return ra;
 }
 
-VReg *reg_alloc_spawn(RegAlloc *ra) {
-  VReg *vreg = new_vreg(ra->regno++);
+VReg *reg_alloc_spawn(RegAlloc *ra, const Type *type) {
+  VReg *vreg = new_vreg(ra->regno++, type);
   vec_push(ra->vregs, vreg);
   return vreg;
 }
@@ -90,8 +90,8 @@ void init_reg_alloc(void) {
     reg_alloc_clear(ra);
 }
 
-VReg *add_new_reg(void) {
-  return reg_alloc_spawn(ra);
+VReg *add_new_reg(const Type *type) {
+  return reg_alloc_spawn(ra, type);
 }
 
 // Intermediate Representation
@@ -109,40 +109,40 @@ static IR *new_ir(enum IrKind kind) {
 static const int kPow2Table[] = {-1, 0, 1, -1, 2, -1, -1, -1, 3};
 #define kPow2TableSize  ((int)(sizeof(kPow2Table) / sizeof(*kPow2Table)))
 
-VReg *new_ir_imm(intptr_t value, int size) {
+VReg *new_ir_imm(intptr_t value, const Type *type) {
   IR *ir = new_ir(IR_IMM);
   ir->value = value;
-  ir->size = size;
-  return ir->dst = reg_alloc_spawn(ra);
+  ir->size = type_size(type);
+  return ir->dst = reg_alloc_spawn(ra, type);
 }
 
-VReg *new_ir_bop(enum IrKind kind, VReg *opr1, VReg *opr2, int size) {
+VReg *new_ir_bop(enum IrKind kind, VReg *opr1, VReg *opr2, const Type *type) {
   IR *ir = new_ir(kind);
   ir->opr1 = opr1;
   ir->opr2 = opr2;
-  ir->size = size;
-  return ir->dst = reg_alloc_spawn(ra);
+  ir->size = type_size(type);
+  return ir->dst = reg_alloc_spawn(ra, type);
 }
 
-VReg *new_ir_unary(enum IrKind kind, VReg *opr, int size) {
+VReg *new_ir_unary(enum IrKind kind, VReg *opr, const Type *type) {
   IR *ir = new_ir(kind);
   ir->opr1 = opr;
-  ir->size = size;
-  return ir->dst = reg_alloc_spawn(ra);
+  ir->size = type_size(type);
+  return ir->dst = reg_alloc_spawn(ra, type);
 }
 
 VReg *new_ir_bofs(VReg *src) {
   IR *ir = new_ir(IR_BOFS);
   ir->opr1 = src;
   ir->size = WORD_SIZE;
-  return ir->dst = reg_alloc_spawn(ra);
+  return ir->dst = reg_alloc_spawn(ra, &tyVoidPtr);
 }
 
 VReg *new_ir_iofs(const char *label) {
   IR *ir = new_ir(IR_IOFS);
   ir->iofs.label = label;
   ir->size = WORD_SIZE;
-  return ir->dst = reg_alloc_spawn(ra);
+  return ir->dst = reg_alloc_spawn(ra, &tyVoidPtr);
 }
 
 void new_ir_store(VReg *dst, VReg *src, int size) {
@@ -183,7 +183,7 @@ void new_ir_incdec(enum IrKind kind, VReg *reg, int size, intptr_t value) {
 VReg *new_ir_set(enum ConditionKind cond) {
   IR *ir = new_ir(IR_SET);
   ir->set.cond = cond;
-  return ir->dst = reg_alloc_spawn(ra);
+  return ir->dst = reg_alloc_spawn(ra, &tyBool);
 }
 
 void new_ir_jmp(enum ConditionKind cond, BB *bb) {
@@ -204,14 +204,14 @@ void new_ir_precall(int arg_count, bool *stack_aligned) {
   ir->call.arg_count = arg_count;
 }
 
-VReg *new_ir_call(const char *label, VReg *freg, int arg_count, int result_size, bool *stack_aligned) {
+VReg *new_ir_call(const char *label, VReg *freg, int arg_count, const Type *result_type, bool *stack_aligned) {
   IR *ir = new_ir(IR_CALL);
   ir->call.label = label;
   ir->opr1 = freg;
   ir->call.stack_aligned = stack_aligned;
   ir->call.arg_count = arg_count;
-  ir->size = result_size;
-  return ir->dst = reg_alloc_spawn(ra);
+  ir->size = type_size(result_type);
+  return ir->dst = reg_alloc_spawn(ra, result_type);
 }
 
 void new_ir_addsp(int value) {
@@ -219,12 +219,12 @@ void new_ir_addsp(int value) {
   ir->value = value;
 }
 
-VReg *new_ir_cast(VReg *vreg, int dstsize, int srcsize) {
+VReg *new_ir_cast(VReg *vreg, const Type *dsttype, int srcsize) {
   IR *ir = new_ir(IR_CAST);
   ir->opr1 = vreg;
-  ir->size = dstsize;
+  ir->size = type_size(dsttype);
   ir->cast.srcsize = srcsize;
-  return ir->dst = reg_alloc_spawn(ra);
+  return ir->dst = reg_alloc_spawn(ra, dsttype);
 }
 
 void new_ir_mov(VReg *dst, VReg *src, int size) {
@@ -1260,20 +1260,20 @@ size_t alloc_real_registers(Function *func) {
     if (!li->spill)
       continue;
     VReg *vreg = ra->vregs->data[li->vreg];
-    int size = WORD_SIZE, align = WORD_SIZE;
-    if (vreg->type != NULL) {
-      if (vreg->offset != 0) {  // Variadic function parameter or stack parameter.
-        if (-vreg->offset > (int)frame_size)
-          frame_size = -vreg->offset;
-        continue;
-      }
-
-      const Type *type = vreg->type;
-      size = type_size(type);
-      align = align_size(type);
-      if (size < 1)
-        size = 1;
+    if (vreg->offset != 0) {  // Variadic function parameter or stack parameter.
+      if (-vreg->offset > (int)frame_size)
+        frame_size = -vreg->offset;
+      continue;
     }
+
+    int size, align;
+    const Type *type = vreg->type;
+    assert(type != NULL);
+    size = type_size(type);
+    align = align_size(type);
+    if (size < 1)
+      size = 1;
+
     frame_size = ALIGN(frame_size + size, align);
     vreg->offset = -frame_size;
   }

@@ -20,7 +20,7 @@ typedef struct VReg {
   int offset;  // Local offset for spilled register.
 } VReg;
 
-VReg *new_vreg(int vreg_no);
+VReg *new_vreg(int vreg_no, const Type *type);
 void vreg_spill(VReg *vreg);
 
 // Intermediate Representation
@@ -108,9 +108,9 @@ typedef struct {
   };
 } IR;
 
-VReg *new_ir_imm(intptr_t value, int size);
-VReg *new_ir_bop(enum IrKind kind, VReg *opr1, VReg *opr2, int size);
-VReg *new_ir_unary(enum IrKind kind, VReg *opr, int size);
+VReg *new_ir_imm(intptr_t value, const Type *type);
+VReg *new_ir_bop(enum IrKind kind, VReg *opr1, VReg *opr2, const Type *type);
+VReg *new_ir_unary(enum IrKind kind, VReg *opr, const Type *type);
 void new_ir_mov(VReg *dst, VReg *src, int size);
 VReg *new_ir_bofs(VReg *src);
 VReg *new_ir_iofs(const char *label);
@@ -123,9 +123,9 @@ VReg *new_ir_set(enum ConditionKind cond);
 void new_ir_jmp(enum ConditionKind cond, BB *bb);
 void new_ir_precall(int arg_count, bool *stack_aligned);
 void new_ir_pusharg(VReg *vreg);
-VReg *new_ir_call(const char *label, VReg *freg, int arg_count, int result_size, bool *stack_aligned);
+VReg *new_ir_call(const char *label, VReg *freg, int arg_count, const Type *result_type, bool *stack_aligned);
 void new_ir_addsp(int value);
-VReg *new_ir_cast(VReg *vreg, int dstsize, int srcsize);
+VReg *new_ir_cast(VReg *vreg, const Type *dsttype, int srcsize);
 void new_ir_clear(VReg *reg, size_t size);
 void new_ir_result(VReg *reg, int size);
 void new_ir_asm(const char *asm_);
@@ -137,7 +137,7 @@ void dump_ir(IR *ir);
 // Register allocator
 
 void init_reg_alloc(void);
-VReg *add_new_reg(void);
+VReg *add_new_reg(const Type *type);
 
 // Basci Block:
 //   Chunk of IR codes without branching in the middle (except at the bottom).

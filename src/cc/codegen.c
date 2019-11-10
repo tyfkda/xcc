@@ -439,9 +439,8 @@ static int arrange_variadic_func_params(Scope *scope) {
   // and each parameter occupies sizeof(intptr_t).
   for (int i = 0; i < scope->vars->len; ++i) {
     VarInfo *varinfo = (VarInfo*)scope->vars->data[i];
-    VReg *vreg = add_new_reg();
+    VReg *vreg = add_new_reg(varinfo->type);
     vreg_spill(vreg);
-    vreg->type = varinfo->type;
     vreg->offset = (i - MAX_REG_ARGS) * WORD_SIZE;
     varinfo->reg = vreg;
   }
@@ -461,7 +460,7 @@ static void alloc_variable_registers(Function *func) {
           if (varinfo->flag & (VF_STATIC | VF_EXTERN))
             continue;  // Static variable is not allocated on stack.
 
-          VReg *vreg = add_new_reg();
+          VReg *vreg = add_new_reg(varinfo->type);
           bool spill = false;
           switch (varinfo->type->kind) {
           case TY_ARRAY:
@@ -477,10 +476,9 @@ static void alloc_variable_registers(Function *func) {
             vreg->offset = (j - MAX_REG_ARGS + 2) * WORD_SIZE;
           }
 
-          if (spill) {
+          if (spill)
             vreg_spill(vreg);
-            vreg->type = varinfo->type;
-          }
+
           varinfo->reg = vreg;
         }
       }
@@ -723,7 +721,7 @@ static void gen_switch_cond_recur(Node *node, VReg *reg, const int *order, int l
       BB *nextbb = bb_split(curbb);
       int index = order[i];
       intptr_t x = (intptr_t)case_values->data[index];
-      VReg *num = new_ir_imm(x, size);
+      VReg *num = new_ir_imm(x, value->type);
       new_ir_cmp(reg, num, size);
       new_ir_jmp(COND_EQ, cur_case_bbs->data[index]);
       set_curbb(nextbb);
@@ -734,7 +732,7 @@ static void gen_switch_cond_recur(Node *node, VReg *reg, const int *order, int l
     int m = len >> 1;
     int index = order[m];
     intptr_t x = (intptr_t)case_values->data[index];
-    VReg *num = new_ir_imm(x, size);
+    VReg *num = new_ir_imm(x, value->type);
     new_ir_cmp(reg, num, size);
     new_ir_jmp(COND_EQ, cur_case_bbs->data[index]);
     set_curbb(bbne);

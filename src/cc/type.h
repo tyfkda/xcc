@@ -74,6 +74,7 @@ extern const Type tyInt;
 extern const Type tyLong;
 extern const Type tyEnum;
 extern const Type tyVoid;
+extern const Type tyVoidPtr;
 #define tyBool  tyInt
 #define tySize  tyLong
 
