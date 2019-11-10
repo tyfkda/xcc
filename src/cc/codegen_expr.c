@@ -611,14 +611,14 @@ VReg *gen_expr(Expr *expr) {
       VReg *result;
       switch (expr->unary.sub->type->kind) {
       case TY_NUM: case TY_PTR:
-        result = new_ir_unary(IR_NOT, reg, type_size(expr->unary.sub->type));
+        result = new_ir_unary(IR_NOT, reg, type_size(expr->type));
         break;
       default:
         assert(false);
         // Fallthrough to suppress compile error
       case TY_ARRAY: case TY_FUNC:
         // Array is handled as a pointer.
-        result = new_ir_unary(IR_NOT, reg, WORD_SIZE);
+        result = new_ir_unary(IR_NOT, reg, type_size(expr->type));
         break;
       }
       return result;
