@@ -6,8 +6,8 @@ void write(int fd, const char *str, long len) {
 
 #elif defined(__linux__)
 long write(int fd, const char *str, long len) {
-  __asm(" mov $1, %eax\n"  // __NR_write
-        " syscall");
+  __asm("mov $1, %eax");  // __NR_write
+  __asm("syscall");
 }
 
 #else

@@ -12,16 +12,16 @@ void exit(int code) {
 
 #elif defined(__linux__)
 void _start(void) {
-  __asm(" mov (%rsp), %rdi\n"
-        " lea 8(%rsp), %rsi\n"
-        " call main\n"
-        " mov %eax, %edi\n"
-        " jmp exit");
+  __asm("mov (%rsp), %rdi");
+  __asm("lea 8(%rsp), %rsi");
+  __asm("call main");
+  __asm("mov %eax, %edi");
+  __asm("jmp exit");
 }
 
 void exit(int code) {
-  __asm(" mov $60, %eax\n"  // __NR_exit
-        " syscall");
+  __asm("mov $60, %eax");  // __NR_exit
+  __asm("syscall");
 }
 
 #else
