@@ -19,6 +19,9 @@ typedef struct Vector Vector;
 // Virtual register
 
 #define VRTF_UNSIGNED  (1 << 0)
+#ifndef __NO_FLONUM
+#define VRTF_FLONUM    (1 << 1)
+#endif
 
 typedef struct VRegType {
   int size;

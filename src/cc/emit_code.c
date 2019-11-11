@@ -71,12 +71,30 @@ static void construct_initial_value(unsigned char *buf, const Type *type, const 
       case FX_LONG:  _QUAD(NUM(v)); break;
       case FX_LLONG: _QUAD(NUM(v)); break;
       default:
+        assert(false);
+        // Fallthrough
       case FX_INT: case FX_ENUM:
         _LONG(NUM(v));
         break;
       }
     }
     break;
+#ifndef __NO_FLONUM
+  case TY_FLONUM:
+    {
+      double v = 0;
+      if (init != NULL) {
+        assert(init->kind == IK_SINGLE);
+        Expr *value = init->single;
+        if (!(is_const(value) && is_flonum(value->type)))
+          error("Illegal initializer: constant number expected");
+        v = value->flonum;
+      }
+
+      _DOUBLE(FLONUM(v));
+    }
+    break;
+#endif
   case TY_PTR:
     if (init != NULL) {
       assert(init->kind == IK_SINGLE);

@@ -102,6 +102,9 @@ bool can_cast(const Type *dst, const Type *src, bool zero, bool is_explicit, Sco
   case TY_FIXNUM:
     switch (src->kind) {
     case TY_FIXNUM:
+#ifndef __NO_FLONUM
+    case TY_FLONUM:
+#endif
       return true;
     case TY_PTR:
     case TY_ARRAY:
@@ -115,6 +118,16 @@ bool can_cast(const Type *dst, const Type *src, bool zero, bool is_explicit, Sco
       break;
     }
     break;
+#ifndef __NO_FLONUM
+  case TY_FLONUM:
+    switch (src->kind) {
+    case TY_FIXNUM:
+      return true;
+    default:
+      break;
+    }
+    break;
+#endif
   case TY_PTR:
     switch (src->kind) {
     case TY_FIXNUM:
@@ -284,6 +297,13 @@ static bool cast_integers(Expr **pLhs, Expr **pRhs, bool keep_left) {
     return false;
   }
 
+#ifndef __NO_FLONUM
+  if (is_flonum(ltype) || is_flonum(rtype)) {
+    //const Type *type = !is_fixnum(ltype) ? ltype : rtype;
+    assert(!"double");
+    return false;
+  }
+#endif
   enum FixnumKind lkind = ltype->fixnum.kind;
   enum FixnumKind rkind = rtype->fixnum.kind;
   if (ltype->fixnum.kind == FX_ENUM) {

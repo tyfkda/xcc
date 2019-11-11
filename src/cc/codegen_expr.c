@@ -19,8 +19,16 @@ VRegType *to_vtype(const Type *type) {
   vtype->size = type_size(type);
   vtype->align = align_size(type);
 
+  int flag = 0;
+#ifndef __NO_FLONUM
+  if (is_flonum(type)) {
+    flag |= VRTF_FLONUM;
+  }
+#endif
   bool is_unsigned = type->kind == TY_FIXNUM ? type->fixnum.is_unsigned : true;
-  vtype->flag = is_unsigned ? VRTF_UNSIGNED : 0;
+  if (is_unsigned)
+    flag |= VRTF_UNSIGNED;
+  vtype->flag = flag;
 
   return vtype;
 }
@@ -182,6 +190,11 @@ void gen_cond_jmp(Expr *cond, bool tf, BB *bb) {
 
 static VReg *gen_cast(VReg *reg, const Type *dst_type) {
   if (reg->flag & VRF_CONST) {
+#ifndef __NO_FLONUM
+    if (reg->vtype->flag & VRTF_FLONUM) {
+      assert(!"Not implemented");
+    }
+#endif
     intptr_t value = reg->fixnum;
     size_t dst_size = type_size(dst_type);
     if (dst_size < (size_t)reg->vtype->size && dst_size < sizeof(intptr_t)) {
@@ -195,6 +208,9 @@ static VReg *gen_cast(VReg *reg, const Type *dst_type) {
         value &= ~mask;
     }
 
+#ifndef __NO_FLONUM
+    // TODO: Handle when dst is float.
+#endif
     VRegType *vtype = to_vtype(dst_type);
     return new_const_vreg(value, vtype);
   }
@@ -519,6 +535,25 @@ VReg *gen_expr(Expr *expr) {
   case EX_FIXNUM:
     assert(expr->type->kind == TY_FIXNUM);
     return new_const_vreg(expr->fixnum, to_vtype(expr->type));
+#ifndef __NO_FLONUM
+  case EX_FLONUM:
+    {
+      assert(expr->type->kind == TY_FLONUM);
+      Initializer *init = malloc(sizeof(*init));
+      init->kind = IK_SINGLE;
+      init->single = expr;
+      init->token = expr->token;
+
+      assert(curscope != NULL);
+      const Type *type = expr->type;
+      const Token *ident = alloc_ident(alloc_label(), NULL, NULL);
+      VarInfo *varinfo = scope_add(curscope, ident, type, VF_CONST | VF_STATIC);
+      varinfo->global.init = init;
+
+      VReg *src = new_ir_iofs(varinfo->name, false);
+      return new_ir_unary(IR_LOAD, src, to_vtype(type));
+    }
+#endif
 
   case EX_STR:
     {
@@ -631,7 +666,7 @@ VReg *gen_expr(Expr *expr) {
       case TY_FIXNUM:
       case TY_PTR:
 #if 0
-        new_ir_store(dst, tmp);
+        new_ir_store(dst, src);
 #else
         // To avoid both spilled registers, add temporary register.
         {
@@ -641,6 +676,11 @@ VReg *gen_expr(Expr *expr) {
         }
 #endif
         break;
+#ifndef __NO_FLONUM
+      case TY_FLONUM:
+        new_ir_store(dst, src);
+        break;
+#endif
       case TY_STRUCT:
         {
           VReg *tmp = add_new_reg(&tyVoidPtr, 0);

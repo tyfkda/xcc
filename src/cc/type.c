@@ -119,6 +119,12 @@ bool is_fixnum(enum TypeKind kind) {
   return kind == TY_FIXNUM;
 }
 
+#ifndef __NO_FLONUM
+bool is_flonum(const Type *type) {
+  return type->kind == TY_FLONUM;
+}
+#endif
+
 bool is_char_type(const Type *type) {
   return type->kind == TY_FIXNUM && type->fixnum.kind == FX_CHAR;
 }

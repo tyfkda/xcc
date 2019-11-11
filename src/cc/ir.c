@@ -57,6 +57,10 @@ const char *kRegSizeTable[][7] = {
 const char *kRegATable[] = {AL, AX, EAX, RAX};
 const char *kRegDTable[] = {DL, DX, EDX, RDX};
 
+#ifndef __NO_FLONUM
+const char *kFReg64s[7] = {XMM1, XMM2, XMM3, XMM4, XMM5, XMM6, XMM7};
+#endif
+
 #define CALLEE_SAVE_REG_COUNT  ((int)(sizeof(kCalleeSaveRegs) / sizeof(*kCalleeSaveRegs)))
 const int kCalleeSaveRegs[] = {
   0,  // RBX
@@ -475,6 +479,13 @@ static void ir_out(IR *ir) {
     break;
 
   case IR_LOAD:
+#ifndef __NO_FLONUM
+    if (ir->dst->vtype->flag & VRTF_FLONUM) {
+      assert(ir->size == sizeof(double));
+      MOVSD(INDIRECT(kReg64s[ir->opr1->phys], NULL, 1), kFReg64s[ir->dst->phys]);
+      break;
+    }
+#endif
     {
       assert(!(ir->opr1->flag & VRF_CONST));
       assert(0 <= ir->size && ir->size < kPow2TableSize);
@@ -1017,6 +1028,12 @@ static void ir_out(IR *ir) {
     break;
 
   case IR_RESULT:
+#ifndef __NO_FLONUM
+    if (ir->opr1->vtype->flag & VRTF_FLONUM) {
+      MOVSD(kFReg64s[ir->opr1->phys], XMM0);
+      break;
+    }
+#endif
     {
       assert(0 <= ir->size && ir->size < kPow2TableSize);
       int pow = kPow2Table[ir->size];

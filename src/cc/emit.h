@@ -10,6 +10,9 @@ typedef struct Name Name;
 char *fmt(const char *s, ...);
 char *fmt_name(const Name *name);
 char *num(intptr_t x);  // x
+#ifndef __NO_FLONUM
+char *flonum(double x);
+#endif
 char *im(intptr_t x);  // $x
 char *indirect(const char *base, const char *index, int scale);
 char *offset_indirect(int offset, const char *base, const char *index, int scale);

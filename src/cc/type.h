@@ -93,6 +93,9 @@ size_t type_size(const Type *type);
 int align_size(const Type *type);
 
 bool is_fixnum(enum TypeKind kind);
+#ifndef __NO_FLONUM
+bool is_flonum(const Type *type);
+#endif
 bool is_char_type(const Type *type);
 bool is_void_ptr(const Type *type);
 bool ptr_or_array(const Type *type);
