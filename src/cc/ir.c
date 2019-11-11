@@ -134,12 +134,14 @@ VReg *new_ir_unary(enum IrKind kind, VReg *opr, int size) {
 VReg *new_ir_bofs(VReg *src) {
   IR *ir = new_ir(IR_BOFS);
   ir->opr1 = src;
+  ir->size = WORD_SIZE;
   return ir->dst = reg_alloc_spawn(ra);
 }
 
 VReg *new_ir_iofs(const char *label) {
   IR *ir = new_ir(IR_IOFS);
   ir->iofs.label = label;
+  ir->size = WORD_SIZE;
   return ir->dst = reg_alloc_spawn(ra);
 }
 
@@ -1063,6 +1065,9 @@ static int insert_load_store_spilled(BBContainer *bbcon, Vector *vregs) {
       IR *ir = irs->data[j];
 
       switch (ir->kind) {
+      case IR_IMM:
+      case IR_BOFS:
+      case IR_IOFS:
       case IR_MOV:
       case IR_ADD:  // binops
       case IR_SUB:
