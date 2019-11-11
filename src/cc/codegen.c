@@ -541,7 +541,7 @@ static bool is_asm(Node *node) {
     is_funcall(node->expr, "__asm");
 }
 
-static void out_asm(Node *node) {
+static void gen_asm(Node *node) {
   Expr *funcall = node->expr;
   Vector *args = funcall->funcall.args;
   int len = args->len;
@@ -550,7 +550,7 @@ static void out_asm(Node *node) {
   if (len != 1 || (arg0 = (Expr*)args->data[0])->kind != EX_STR)
     error("__asm takes string at 1st argument");
   else
-    EMIT_ASM0(arg0->str.buf);
+    new_ir_asm(arg0->str.buf);
 }
 
 static void gen_nodes(Vector *nodes) {
@@ -562,7 +562,7 @@ static void gen_nodes(Vector *nodes) {
     if (node == NULL)
       continue;
     if (is_asm(node))
-      out_asm(node);
+      gen_asm(node);
     else
       gen(node);
   }
