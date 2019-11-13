@@ -7,7 +7,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#if defined(__linux) && !defined(__XCC)
+#if defined(__linux) && !defined(__XV6)
 #define USE_ALLOCA
 #include <alloca.h>
 #endif
