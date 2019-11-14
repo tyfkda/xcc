@@ -130,5 +130,6 @@ typedef struct Node {
 } Node;
 
 Node *new_node_expr(Expr *e);
+Node *new_top_node(Vector *nodes);
 
-Node *parse_program(void);
+Vector *parse_program(Vector *nodes);

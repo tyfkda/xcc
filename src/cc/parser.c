@@ -141,6 +141,12 @@ static Node *new_node_defun(Defun *defun) {
   return node;
 }
 
+Node *new_top_node(Vector *nodes) {
+  Node *top = new_node(ND_TOPLEVEL);
+  top->toplevel.nodes = nodes;
+  return top;
+}
+
 // Initializer
 
 static Initializer *parse_initializer(void) {
@@ -600,15 +606,13 @@ static Node *toplevel(void) {
   return NULL;
 }
 
-Node *parse_program(void) {
-  Vector *nodes = new_vector();
+Vector *parse_program(Vector *nodes) {
+  if (nodes == NULL)
+    nodes = new_vector();
   while (!consume(TK_EOF)) {
     Node *node = toplevel();
     if (node != NULL)
       vec_push(nodes, node);
   }
-
-  Node *node = new_node(ND_TOPLEVEL);
-  node->toplevel.nodes = nodes;
-  return node;
+  return nodes;
 }
