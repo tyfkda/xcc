@@ -357,13 +357,9 @@ VReg *gen_expr(Expr *expr) {
       init->kind = vSingle;
       init->single = expr;
 
-      // Create string and point to it.
-      const char * label = alloc_label();
       Type* strtype = arrayof(&tyChar, expr->str.size);
-      VarInfo *varinfo = define_global(strtype, VF_CONST | VF_STATIC, NULL, label);
-      varinfo->global.init = init;
-
-      return new_ir_iofs(label);
+      VarInfo *varinfo = str_to_char_array(strtype, init);
+      return new_ir_iofs(varinfo->name);
     }
 
   case EX_SIZEOF:

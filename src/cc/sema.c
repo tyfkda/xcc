@@ -115,6 +115,14 @@ static Initializer *analyze_initializer(Initializer *init) {
   return init;
 }
 
+VarInfo *str_to_char_array(const Type *type, Initializer *init) {
+  assert(type->kind == TY_ARRAY && is_char_type(type->pa.ptrof));
+  const Token *ident = alloc_ident(alloc_label(), NULL, NULL);
+  VarInfo *varinfo = define_global(type, VF_CONST | VF_STATIC, ident, NULL);
+  varinfo->global.init = init;
+  return varinfo;
+}
+
 static void string_initializer(Expr *dst, Initializer *src, Vector *inits) {
   // Initialize char[] with string literal (char s[] = "foo";).
   assert(src->kind == vSingle);
@@ -131,14 +139,9 @@ static void string_initializer(Expr *dst, Initializer *src, Vector *inits) {
       parse_error(NULL, "Buffer is shorter than string: %d for \"%s\"", (int)dstsize, str);
   }
 
-  // Generate string as a static variable.
-  const char * label = alloc_label();
   const Type* strtype = dst->type;
-  const Token *ident = alloc_ident(label, NULL, NULL);
-  VarInfo *varinfo = define_global(strtype, VF_CONST | VF_STATIC, ident, NULL);
-  varinfo->global.init = src;
-
-  Expr *varref = new_expr_varref(ident->ident, strtype, ident);
+  VarInfo *varinfo = str_to_char_array(strtype, src);
+  Expr *varref = new_expr_varref(varinfo->name, strtype, NULL);
 
   for (size_t i = 0; i < size; ++i) {
     Num n = {.ival=i};
@@ -412,15 +415,12 @@ static Initializer *check_global_initializer(const Type *type, Initializer *init
             parse_error(NULL, "Illegal type");
 
           // Create string and point to it.
-          Type* type2 = arrayof(type->pa.ptrof, value->str.size);
-          const char *label = alloc_label();
-          const Token *ident = alloc_ident(label, NULL, NULL);
-          VarInfo *varinfo = define_global(type2, VF_CONST | VF_STATIC, ident, NULL);
-          varinfo->global.init = init;
+          Type* strtype = arrayof(type->pa.ptrof, value->str.size);
+          VarInfo *varinfo = str_to_char_array(strtype, init);
 
           Initializer *init2 = malloc(sizeof(*init2));
           init2->kind = vSingle;
-          init2->single = new_expr_varref(label, type2, ident);
+          init2->single = new_expr_varref(varinfo->name, strtype, NULL);
           return init2;
         }
       default:
