@@ -83,12 +83,12 @@ typedef struct Node {
       Vector *nodes;
     } block;
     struct {
-      struct Expr *cond;
+      Expr *cond;
       struct Node *tblock;
       struct Node *fblock;
     } if_;
     struct {
-      struct Expr *value;
+      Expr *value;
       struct Node *body;
       Vector *case_values;  // <intptr_t>
       bool has_default;
@@ -97,13 +97,13 @@ typedef struct Node {
       Expr *value;
     } case_;
     struct {
-      struct Expr *cond;
+      Expr *cond;
       struct Node *body;
     } while_;
     struct {
-      struct Expr *pre;
-      struct Expr *cond;
-      struct Expr *post;
+      Expr *pre;
+      Expr *cond;
+      Expr *post;
       struct Node *body;
     } for_;
     struct {
@@ -115,7 +115,7 @@ typedef struct Node {
       struct Node *stmt;
     } label;
     struct {
-      struct Expr *val;
+      Expr *val;
     } return_;
     struct {
       Vector *decls;  // <VarDecl*>
