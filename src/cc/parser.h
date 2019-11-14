@@ -9,7 +9,6 @@ typedef struct Map Map;
 typedef struct Scope Scope;
 typedef struct Token Token;
 typedef struct Type Type;
-typedef struct VarInfo VarInfo;
 typedef struct Vector Vector;
 
 // Defun
