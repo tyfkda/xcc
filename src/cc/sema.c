@@ -42,12 +42,10 @@ static void fix_array_size(Type *type, Initializer *init) {
   assert(init != NULL);
   assert(type->kind == TY_ARRAY);
 
-  bool is_str = false;
-  if (init->kind != vMulti &&
-      !(is_char_type(type->pa.ptrof) &&
-        init->kind == vSingle &&
-        can_cast(type, init->single->type, init->single, false) &&
-        (is_str = true))) {
+  bool is_str = (is_char_type(type->pa.ptrof) &&
+                 init->kind == vSingle &&
+                 init->single->kind == EX_STR);
+  if (!is_str && init->kind != vMulti) {
     parse_error(NULL, "Error initializer");
   }
 
@@ -126,10 +124,10 @@ VarInfo *str_to_char_array(const Type *type, Initializer *init) {
 static void string_initializer(Expr *dst, Initializer *src, Vector *inits) {
   // Initialize char[] with string literal (char s[] = "foo";).
   assert(src->kind == vSingle);
-  assert(dst->type->kind == TY_ARRAY && is_char_type(dst->type->pa.ptrof));
-  assert(src->single->type->kind == TY_ARRAY && is_char_type(src->single->type->pa.ptrof));
-
   const Expr *str = src->single;
+  assert(str->kind == EX_STR);
+  assert(dst->type->kind == TY_ARRAY && is_char_type(dst->type->pa.ptrof));
+
   size_t size = str->str.size;
   size_t dstsize = dst->type->pa.length;
   if (dstsize == (size_t)-1) {
@@ -514,7 +512,8 @@ static Vector *assign_initial_value(Expr *expr, Initializer *init, Vector *inits
       break;
     case vSingle:
       // Special handling for string (char[]).
-      if (can_cast(expr->type, init->single->type, init->single, false)) {
+      if (is_char_type(expr->type->pa.ptrof) &&
+          init->single->kind == EX_STR) {
         string_initializer(expr, init, inits);
         break;
       }
@@ -522,7 +521,6 @@ static Vector *assign_initial_value(Expr *expr, Initializer *init, Vector *inits
     default:
       parse_error(NULL, "Error initializer");
       break;
-
     }
     break;
   case TY_STRUCT:
