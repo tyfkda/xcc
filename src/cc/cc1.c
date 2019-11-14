@@ -94,9 +94,6 @@ int main(int argc, char* argv[]) {
   // Compile.
   init_compiler(stdout);
 
-  // Test.
-  define_global(new_func_type(&tyVoid, NULL, true), 0, NULL, "__asm");
-
   Node *root = compile(stdin, "*stdin*");
 
   if (dump_ir) {

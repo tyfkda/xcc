@@ -94,6 +94,7 @@ enum TokenKind {
   TK_SIZEOF,
   TK_TYPEDEF,
   TK_DOTDOTDOT,
+  TK_ASM,
 };
 
 // Token

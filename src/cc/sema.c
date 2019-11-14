@@ -809,6 +809,9 @@ Node *sema(Node *node) {
   case ND_VARDECL:
     return sema_vardecl(node);
 
+  case ND_ASM:
+    return node;
+
   case ND_TOPLEVEL:
     sema_nodes(node->toplevel.nodes);
     break;

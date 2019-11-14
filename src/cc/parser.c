@@ -129,6 +129,12 @@ static Node *new_node_vardecl(Vector *decls) {
   return node;
 }
 
+static Node *new_node_asm(Expr *str) {
+  Node *node = new_node(ND_ASM);
+  node->asm_.str = str;
+  return node;
+}
+
 static Node *new_node_defun(Defun *defun) {
   Node *node = new_node(ND_DEFUN);
   node->defun = defun;
@@ -391,6 +397,19 @@ static Node *parse_return(void) {
   return new_node_return(val);
 }
 
+static Node *parse_asm(void) {
+  if (!consume(TK_LPAR))
+    parse_error(NULL, "`(' expected");
+
+  Token *token;
+  Vector *args = parse_args(&token);
+
+  if (args == NULL || args->len != 1 || ((Expr*)args->data[0])->kind != EX_STR)
+    parse_error(token, "`__asm' expected one string");
+
+  return new_node_asm(args->data[0]);
+}
+
 // Multiple stmt-s, also accept `case` and `default`.
 static Vector *read_stmts(void) {
   Vector *nodes = NULL;
@@ -465,6 +484,9 @@ static Node *stmt(void) {
 
   if (consume(TK_RETURN))
     return parse_return();
+
+  if (consume(TK_ASM))
+    return parse_asm();
 
   // expression statement.
   Expr *val = parse_expr();

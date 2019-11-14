@@ -526,31 +526,13 @@ static void put_args_to_stack(Defun *defun) {
   }
 }
 
-static bool is_funcall(Expr *expr, const char *funcname) {
-  if (expr->kind == EX_FUNCALL) {
-    Expr *func = expr->funcall.func;
-    if (func->kind == EX_VARREF &&
-        strcmp(func->varref.ident, funcname) == 0)
-      return true;
-  }
-  return false;
-}
-
 static bool is_asm(Node *node) {
-  return node->kind == ND_EXPR &&
-    is_funcall(node->expr, "__asm");
+  return node->kind == ND_ASM;
 }
 
 static void gen_asm(Node *node) {
-  Expr *funcall = node->expr;
-  Vector *args = funcall->funcall.args;
-  int len = args->len;
-
-  Expr *arg0;
-  if (len != 1 || (arg0 = (Expr*)args->data[0])->kind != EX_STR)
-    error("__asm takes string at 1st argument");
-  else
-    new_ir_asm(arg0->str.buf);
+  assert(node->asm_.str->kind == EX_STR);
+  new_ir_asm(node->asm_.str->str.buf);
 }
 
 static void gen_nodes(Vector *nodes) {
@@ -561,10 +543,7 @@ static void gen_nodes(Vector *nodes) {
     Node *node = nodes->data[i];
     if (node == NULL)
       continue;
-    if (is_asm(node))
-      gen_asm(node);
-    else
-      gen(node);
+    gen(node);
   }
 }
 
@@ -987,6 +966,7 @@ void gen(Node *node) {
   case ND_GOTO:  gen_goto(node); break;
   case ND_LABEL:  gen_label(node); break;
   case ND_VARDECL:  gen_vardecl(node); break;
+  case ND_ASM:  gen_asm(node); break;
   case ND_TOPLEVEL:
     gen_toplevel(node);
     gen_data();

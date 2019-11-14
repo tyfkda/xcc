@@ -62,6 +62,7 @@ enum NodeKind {
   ND_GOTO,
   ND_LABEL,
   ND_VARDECL,
+  ND_ASM,
   ND_TOPLEVEL,
 };
 
@@ -120,6 +121,9 @@ typedef struct Node {
       Vector *decls;  // <VarDecl*>
       Vector *inits;  // <Node*>
     } vardecl;
+    struct {
+      Expr *str;
+    } asm_;
     struct {
       Vector *nodes;
     } toplevel;

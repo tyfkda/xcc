@@ -127,6 +127,7 @@ Expr *new_expr_varref(const char *name, const Type *type, const Token *token);
 Expr *new_expr_member(const Token *token, const Type *type, Expr *target, const Token *acctok, const Token *ident, int index);
 Expr *new_expr_sizeof(const Token *token, const Type *type, Expr *sub);
 Expr *new_expr_cast(const Type *type, const Token *token, Expr *sub);
+Vector *parse_args(Token **ptoken);
 Vector *parse_funparams(bool *pvaargs);
 Vector *parse_funparam_types(bool *pvaargs);  // Vector<Type*>
 bool parse_var_def(const Type **prawType, const Type** ptype, int *pflag, Token **pident);

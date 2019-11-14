@@ -41,6 +41,7 @@ static const struct {
   { "enum", TK_ENUM },
   { "sizeof", TK_SIZEOF },
   { "typedef", TK_TYPEDEF },
+  { "__asm", TK_ASM },
 };
 
 static const struct {
@@ -145,7 +146,7 @@ Token *alloc_ident(const char *ident, const char *begin, const char *end) {
 }
 
 static enum TokenKind reserved_word(const char *word) {
-  for (int i = 0; i < (int)(sizeof(kReservedWords) / sizeof(*kReservedWords)); ++i) {
+  for (int i = 0, n = (int)(sizeof(kReservedWords) / sizeof(*kReservedWords)); i < n; ++i) {
     if (strcmp(kReservedWords[i].str, word) == 0)
       return kReservedWords[i].kind;
   }

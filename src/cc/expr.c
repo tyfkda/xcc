@@ -137,7 +137,7 @@ Expr *new_expr_cast(const Type *type, const Token *token, Expr *sub) {
   return expr;
 }
 
-static Expr *funcall(Expr *func) {
+Vector *parse_args(Token **ptoken) {
   Vector *args = NULL;
   Token *token;
   if ((token = consume(TK_RPAR)) == NULL) {
@@ -153,6 +153,13 @@ static Expr *funcall(Expr *func) {
     }
   }
 
+  *ptoken = token;
+  return args;
+}
+
+static Expr *funcall(Expr *func) {
+  Token *token;
+  Vector *args = parse_args(&token);
   return new_expr_funcall(token, func, args);
 }
 
