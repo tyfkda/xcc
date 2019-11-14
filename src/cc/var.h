@@ -5,6 +5,7 @@
 
 typedef struct BB BB;
 typedef struct BBContainer BBContainer;
+typedef struct Initializer Initializer;
 typedef struct Map Map;
 typedef struct Token Token;
 typedef struct Type Type;
@@ -25,7 +26,7 @@ typedef struct VarInfo {
   int flag;
   union {
     struct {  // For global.
-      struct Initializer *init;
+      Initializer *init;
     } global;
     struct {  // For local.
       const char *label;  // For static variable to refer value in global.
