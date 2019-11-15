@@ -148,7 +148,7 @@ static int compile(const char *src, Vector *cpp_cmd, Vector *cc1_cmd, int ofd) {
 int main(int argc, char* argv[]) {
   const char *ofn = "a.out";
   bool out_pp = false;
-  bool out_asm = false;
+  bool run_asm = true;
   int iarg;
 
   char *cpp_path = cat_path(dirname(strdup_(argv[0])), "cpp");
@@ -175,10 +175,13 @@ int main(int argc, char* argv[]) {
       ofn = arg + 2;
       vec_push(as_cmd, arg);
     }
-    if (strcmp(arg, "-E") == 0)
+    if (strcmp(arg, "-E") == 0) {
       out_pp = true;
-    if (strcmp(arg, "-S") == 0)
-      out_asm = true;
+      run_asm = false;
+    }
+    if (strcmp(arg, "-S") == 0 ||
+        strcmp(arg, "--dump-ir") == 0)
+      run_asm = false;
     vec_push(cc1_cmd, arg);
   }
 
@@ -192,7 +195,7 @@ int main(int argc, char* argv[]) {
   int as_fd[2];
   pid_t as_pid = -1;
 
-  if (!out_pp && !out_asm) {
+  if (run_asm) {
     as_pid = pipe_exec((char**)as_cmd->data, -1, as_fd);
     ofd = as_fd[1];
   }
