@@ -393,19 +393,6 @@ static void put_bss(void) {
   }
 }
 
-static void gen_data(void) {
-  _SECTION(".rodata");
-  put_rodata();
-
-  emit_comment(NULL);
-  _DATA();
-  put_rwdata();
-
-  emit_comment(NULL);
-  emit_comment("bss");
-  put_bss();
-}
-
 //
 
 static BB *s_break_bb;
@@ -569,7 +556,6 @@ static void gen_nodes(Vector *nodes) {
 }
 
 static void gen_defun(Defun *defun) {
-  assert(stackpos == 8);
   Function *func = defun->func;
   if (func->top_scope == NULL)  // Prototype definition
     return;
@@ -578,19 +564,6 @@ static void gen_defun(Defun *defun) {
   func->bbcon = new_func_blocks();
   set_curbb(new_bb());
   func->ra = curra = new_reg_alloc();
-
-  bool global = true;
-  VarInfo *varinfo = find_global(func->name);
-  if (varinfo != NULL) {
-    global = (varinfo->flag & VF_STATIC) == 0;
-  }
-
-  if (global)
-    _GLOBL(func->name);
-  else
-    emit_comment("%s: static func", func->name);
-
-  EMIT_LABEL(func->name);
 
   // Allocate labels for goto.
   if (defun->label_map != NULL) {
@@ -601,19 +574,6 @@ static void gen_defun(Defun *defun) {
 
   alloc_variable_registers(func);
 
-  bool no_stmt = true;
-  if (defun->stmts != NULL) {
-    for (int i = 0; i < defun->stmts->len; ++i) {
-      Node *node = defun->stmts->data[i];
-      if (node == NULL)
-        continue;
-      if (!is_asm(node)) {
-        no_stmt = false;
-        break;
-      }
-    }
-  }
-
   curscope = func->top_scope;
   func->ret_bb = bb_split(curbb);
 
@@ -623,43 +583,13 @@ static void gen_defun(Defun *defun) {
   set_curbb(func->ret_bb);
   curbb = NULL;
 
-  size_t frame_size = alloc_real_registers(func);
+  func->frame_size = alloc_real_registers(func);
 
   remove_unnecessary_bb(func->bbcon);
 
-  // Prologue
-  // Allocate variable bufer.
-  if (!no_stmt) {
-    PUSH(RBP); PUSH_STACK_POS();
-    MOV(RSP, RBP);
-    if (frame_size > 0) {
-      SUB(IM(frame_size), RSP);
-      stackpos += frame_size;
-    }
-
-    put_args_to_stack(defun);
-
-    // Callee save.
-    push_callee_save_regs(func);
-  }
-
-  emit_bb_irs(func->bbcon);
-
-  // Epilogue
-  if (!no_stmt) {
-    pop_callee_save_regs(func);
-
-    MOV(RBP, RSP);
-    stackpos -= frame_size;
-    POP(RBP); POP_STACK_POS();
-  }
-
-  RET();
-  emit_comment(NULL);
   curdefun = NULL;
   curscope = NULL;
   curra = NULL;
-  assert(stackpos == 8);
 }
 
 static void gen_block(Node *node) {
@@ -963,7 +893,6 @@ static void gen_expr_stmt(Expr *expr) {
 }
 
 static void gen_toplevel(Node *node) {
-  _TEXT();
   gen_nodes(node->toplevel.nodes);
 }
 
@@ -973,7 +902,9 @@ void gen(Node *node) {
 
   switch (node->kind) {
   case ND_EXPR:  gen_expr_stmt(node->expr); break;
-  case ND_DEFUN:  gen_defun(node->defun); break;
+  case ND_DEFUN:
+    gen_defun(node->defun);
+    break;
   case ND_RETURN:  gen_return(node); break;
   case ND_BLOCK:  gen_block(node); break;
   case ND_IF:  gen_if(node); break;
@@ -991,11 +922,118 @@ void gen(Node *node) {
   case ND_ASM:  gen_asm(node); break;
   case ND_TOPLEVEL:
     gen_toplevel(node);
-    gen_data();
     break;
 
   default:
     error("Unhandled node: %d", node->kind);
+    break;
+  }
+}
+
+////////////////////////////////////////////////
+
+static void emit_defun(Defun *defun) {
+  Function *func = defun->func;
+  if (func->top_scope == NULL)  // Prototype definition
+    return;
+
+  assert(stackpos == 8);
+
+  _TEXT();
+
+  bool global = true;
+  VarInfo *varinfo = find_global(func->name);
+  if (varinfo != NULL) {
+    global = (varinfo->flag & VF_STATIC) == 0;
+  }
+
+  if (global)
+    _GLOBL(func->name);
+  else
+    emit_comment("%s: static func", func->name);
+
+  EMIT_LABEL(func->name);
+
+  bool no_stmt = true;
+  if (defun->stmts != NULL) {
+    for (int i = 0; i < defun->stmts->len; ++i) {
+      Node *node = defun->stmts->data[i];
+      if (node == NULL)
+        continue;
+      if (!is_asm(node)) {
+        no_stmt = false;
+        break;
+      }
+    }
+  }
+
+  // Prologue
+  // Allocate variable bufer.
+  if (!no_stmt) {
+    PUSH(RBP); PUSH_STACK_POS();
+    MOV(RSP, RBP);
+    if (func->frame_size > 0) {
+      SUB(IM(func->frame_size), RSP);
+      stackpos += func->frame_size;
+    }
+
+    put_args_to_stack(defun);
+
+    // Callee save.
+    push_callee_save_regs(func);
+  }
+
+  emit_bb_irs(func->bbcon);
+
+  // Epilogue
+  if (!no_stmt) {
+    pop_callee_save_regs(func);
+
+    MOV(RBP, RSP);
+    stackpos -= func->frame_size;
+    POP(RBP); POP_STACK_POS();
+  }
+
+  RET();
+  emit_comment(NULL);
+  assert(stackpos == 8);
+}
+
+static void emit_data(void) {
+  _SECTION(".rodata");
+  put_rodata();
+
+  emit_comment(NULL);
+  _DATA();
+  put_rwdata();
+
+  emit_comment(NULL);
+  emit_comment("bss");
+  put_bss();
+}
+
+void emit_code(Node *node) {
+  if (node == NULL)
+    return;
+
+  switch (node->kind) {
+  case ND_DEFUN:
+    emit_defun(node->defun);
+    break;
+  case ND_TOPLEVEL:
+    for (int i = 0, len = node->toplevel.nodes->len; i < len; ++i) {
+      Node *child = node->toplevel.nodes->data[i];
+      if (child == NULL)
+        continue;
+      emit_code(child);
+    }
+    emit_data();
+    break;
+  case ND_VARDECL:
+    break;
+
+  default:
+    error("Unhandled node in emit_code: %d", node->kind);
     break;
   }
 }

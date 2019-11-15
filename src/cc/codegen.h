@@ -16,6 +16,7 @@ typedef struct VReg VReg;
 // Public
 
 void gen(Node *node);
+void emit_code(Node *node);
 
 // Private
 

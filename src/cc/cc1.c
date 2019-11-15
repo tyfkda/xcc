@@ -75,6 +75,7 @@ static Vector *compile1(FILE *ifp, const char *filename, Vector *nodes) {
 static Node *compile2(Vector *nodes) {
   Node *top = sema(new_top_node(nodes));
   gen(top);
+  emit_code(top);
   return top;
 }
 
