@@ -1,6 +1,7 @@
 #pragma once
 
 #include "stddef.h"  // size_t
+#include "stdint.h"  // intptr_t
 #include "sys/types.h"  // ssize_t, pid_t, off_t
 
 #define STDIN_FILENO   (0)
@@ -25,3 +26,6 @@ int execv(const char *, char *const[]);
 int execvp(const char *, char *const[]);
 int execve(const char*, char *const[], char *const[]);
 off_t lseek(int fd, off_t offset, int whence);
+
+int brk(void *addr);
+void *sbrk(intptr_t increment);

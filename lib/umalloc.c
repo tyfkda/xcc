@@ -1,10 +1,11 @@
-#include "stdio.h"
 #include "stdlib.h"
 #include "string.h"
 #include "unistd.h"  // for sbrk
 
 // Memory allocator by Kernighan and Ritchie,
 // The C programming Language, 2nd ed.  Section 8.7.
+
+#define PAGESIZE  (4096)
 
 typedef long Align;
 
@@ -46,35 +47,19 @@ free(void *ap)
   freep = p;
 }
 
-static char work[0x1000000];
-static char *_pp = work;
-
 static Header*
 morecore(size_t nu)
 {
+  size_t size;
   char *p;
   Header *hp;
 
-#if 0
-  if(nu < 4096)
-    nu = 4096;
-  p = sbrk(nu * sizeof(Header));
+  size = (nu * sizeof(Header) + (PAGESIZE - 1)) & -PAGESIZE;
+  p = sbrk(size);
   if(p == (char*)-1)
     return 0;
-#else
-  if(nu < 128)
-    nu = 128;
-  size_t size = nu * sizeof(Header);
-  if (_pp + size >= work + sizeof(work)) {
-    fprintf(stderr, "Out of memory: nu=%ld\n", nu);
-    return 0;
-  }
-  size_t n = (size + 15) & -16;
-  p = _pp;
-  _pp += n;
-#endif
   hp = (Header*)p;
-  hp->s.size = nu;
+  hp->s.size = size / sizeof(Header);
   free((void*)(hp + 1));
   return freep;
 }
@@ -86,10 +71,6 @@ malloc(size_t nbytes)
   size_t nunits;
 
   nunits = (nbytes + sizeof(Header) - 1)/sizeof(Header) + 1;
-  //if(freep == NULL){
-  //  base.s.ptr = freep = &base;
-  //  base.s.size = 0;
-  //}
   prevp = freep;
   for(p = prevp->s.ptr; ; prevp = p, p = p->s.ptr){
     if(p->s.size >= nunits){

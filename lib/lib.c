@@ -302,6 +302,11 @@ int kill(pid_t pid, int sig) {
   __asm("syscall");
 }
 
+static void *_brk(void *addr) {
+  __asm("mov $12, %eax");  // __NR_brk
+  __asm("syscall");
+}
+
 #else
 #error Target not supported
 #endif
@@ -416,3 +421,20 @@ pid_t waitpid(pid_t pid, int* status, int options) {
 void perror(const char* msg) {
   fprintf(stderr, "perror: %s\n", msg);
 }
+
+#if !defined(__XV6)
+int brk(void *addr) {
+  _brk(addr);
+  return 0;  // TODO: detect error.
+}
+
+static char *curbrk;
+void *sbrk(intptr_t increment) {
+  char *p = curbrk;
+  if (p == NULL)
+    p = _brk(NULL);
+  curbrk = _brk(p + increment);
+  // TODO: return (void*)-1 when error occurred.
+  return p;
+}
+#endif
