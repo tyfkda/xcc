@@ -19,7 +19,7 @@ unit-tests:	test-util
 
 cpp-tests:	test-cpp
 
-cc-tests:	test-val test-sh test-examples
+cc-tests:	test-sh test-val test-examples
 
 clean:
 	rm -f util_test valtest a.out tmp.s
