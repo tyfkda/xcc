@@ -209,7 +209,7 @@ function tmpfileSync(len) {
         puti: (x) => {
           process.stdout.write(x.toString())
         },
-        exit: (x) => {
+        proc_exit: (x) => {
           process.exit(x)
         },
         _memcpy: (dst, src, len) => {

@@ -40,6 +40,7 @@
 #include "../stdio/vprintf.c"
 #include "../stdio/vsnprintf.c"
 #include "../stdio/vsprintf.c"
+#include "../stdlib/atexit.c"
 #include "../stdlib/atoi.c"
 #include "../stdlib/calloc.c"
 #include "../stdlib/drand48.c"

@@ -26,6 +26,7 @@
     },
     "lib": {
       "_file.h": "./libsrc/stdio/_file.h",
+      "_fileman.h": "./libsrc/stdio/_fileman.h",
       "_malloc.h": "./libsrc/stdlib/_malloc.h",
       "crt0.c": [
         "./libsrc/crt0/_start.c"
@@ -73,6 +74,7 @@
         "./libsrc/stdio/vprintf.c",
         "./libsrc/stdio/vsnprintf.c",
         "./libsrc/stdio/vsprintf.c",
+        "./libsrc/stdlib/atexit.c",
         "./libsrc/stdlib/atoi.c",
         "./libsrc/stdlib/calloc.c",
         "./libsrc/stdlib/drand48.c",

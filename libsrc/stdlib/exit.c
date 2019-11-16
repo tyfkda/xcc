@@ -6,12 +6,14 @@ void exit(int code) {
         "int $64");
 }
 
-#elif defined(__WASM)
+#elif defined(__linux__) || defined(__WASM)
+#include "stdbool.h"
 
-#elif defined(__linux__)
+#if defined(__WASM)
+extern void proc_exit(int);
+#else
 #include "../unistd/_syscall.h"
-
-void exit(int code) {
+static void proc_exit(int code) {
 #ifdef __NR_exit_group
   SYSCALL(__NR_exit_group);
 #endif
@@ -20,6 +22,19 @@ void exit(int code) {
   for (;;)
     ;
 #endif
+}
+#endif
+
+void exit(int code) {
+  static bool exiting;
+  if (exiting)
+    return;
+  exiting = true;
+
+  extern void __atexit_call(void);
+  __atexit_call();
+
+  proc_exit(code);
 }
 
 #elif defined(__APPLE__)
