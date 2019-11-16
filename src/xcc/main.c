@@ -175,9 +175,9 @@ int main(int argc, char* argv[]) {
       ofn = arg + 2;
       vec_push(as_cmd, arg);
     }
-    if (strncmp(arg, "-E", 2) == 0)
+    if (strcmp(arg, "-E") == 0)
       out_pp = true;
-    if (strncmp(arg, "-S", 2) == 0)
+    if (strcmp(arg, "-S") == 0)
       out_asm = true;
     vec_push(cc1_cmd, arg);
   }
