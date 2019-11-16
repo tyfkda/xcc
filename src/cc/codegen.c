@@ -167,8 +167,6 @@ static void escape_string(const char *str, size_t size, StringBuffer *sb) {
 void construct_initial_value(unsigned char *buf, const Type *type, Initializer *init, Vector **pptrinits) {
   assert(init == NULL || init->kind != vDot);
 
-  emit_align(align_size(type));
-
   switch (type->kind) {
   case TY_NUM:
     {
@@ -241,6 +239,7 @@ void construct_initial_value(unsigned char *buf, const Type *type, Initializer *
         Vector *init_array = init->multi;
         size_t index = 0;
         size_t len = init_array->len;
+        size_t align = elem_type->kind == TY_STRUCT ? align_size(elem_type) : 1;
         for (size_t i = 0; i < len; ++i, ++index) {
           Initializer *init_elem = init_array->data[i];
           if (init_elem->kind == vArr) {
@@ -251,6 +250,7 @@ void construct_initial_value(unsigned char *buf, const Type *type, Initializer *
             init_elem = init_elem->arr.value;
           }
           construct_initial_value(buf + (index * elem_size), elem_type, init_elem, pptrinits);
+          emit_align(align);
         }
         assert((size_t)len <= type->pa.length);
       }
@@ -280,6 +280,7 @@ void construct_initial_value(unsigned char *buf, const Type *type, Initializer *
 
       const StructInfo *sinfo = type->struct_.info;
       int count = 0;
+      int offset = 0;
       for (int i = 0, n = sinfo->members->len; i < n; ++i) {
         VarInfo* varinfo = sinfo->members->data[i];
         Initializer *mem_init;
@@ -291,8 +292,15 @@ void construct_initial_value(unsigned char *buf, const Type *type, Initializer *
           mem_init = init->multi->data[i];
         }
         if (mem_init != NULL || !sinfo->is_union) {
+          int align = align_size(varinfo->type);
+          if (offset % align != 0) {
+            emit_align(align);
+            offset = ALIGN(offset, align);
+          }
           construct_initial_value(buf + varinfo->offset, varinfo->type, mem_init, pptrinits);
           ++count;
+          offset = ALIGN(offset, align);
+          offset += type_size(varinfo->type);
         }
       }
       if (sinfo->is_union && count <= 0) {
