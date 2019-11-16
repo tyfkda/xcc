@@ -239,7 +239,6 @@ void construct_initial_value(unsigned char *buf, const Type *type, Initializer *
         Vector *init_array = init->multi;
         size_t index = 0;
         size_t len = init_array->len;
-        size_t align = elem_type->kind == TY_STRUCT ? align_size(elem_type) : 1;
         for (size_t i = 0; i < len; ++i, ++index) {
           Initializer *init_elem = init_array->data[i];
           if (init_elem->kind == vArr) {
@@ -250,7 +249,6 @@ void construct_initial_value(unsigned char *buf, const Type *type, Initializer *
             init_elem = init_elem->arr.value;
           }
           construct_initial_value(buf + (index * elem_size), elem_type, init_elem, pptrinits);
-          emit_align(align);
         }
         assert((size_t)len <= type->pa.length);
       }
@@ -306,6 +304,23 @@ void construct_initial_value(unsigned char *buf, const Type *type, Initializer *
       if (sinfo->is_union && count <= 0) {
         VarInfo* varinfo = sinfo->members->data[0];
         construct_initial_value(buf + varinfo->offset, varinfo->type, NULL, pptrinits);
+        offset += type_size(varinfo->type);
+      }
+
+      size_t size = type_size(type);
+      if (size != (size_t)offset) {
+        // Put padding.
+        int d = size - offset;
+        switch (d) {
+        case 1:  _BYTE(NUM(0)); break;
+        case 2:  _WORD(NUM(0)); break;
+        case 4:  _LONG(NUM(0)); break;
+        case 8:  _QUAD(NUM(0)); break;
+        default:
+          for (int i = 0; i < d; ++i)
+            _BYTE(NUM(0));
+          break;
+        }
       }
     }
     break;
