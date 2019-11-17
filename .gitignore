@@ -3,6 +3,7 @@
 *.o
 a.out
 tmp.s
+core
 /as
 /cc1
 /cpp

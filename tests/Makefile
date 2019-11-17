@@ -42,6 +42,7 @@ test-cpp: # $(CPP)
 test-sh: # $(XCC)
 	@echo '## test.sh'
 	XCC=$(XCC) ./test.sh
+	rm -f core
 	@echo ''
 
 test-examples: # $(XCC)
