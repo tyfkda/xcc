@@ -175,7 +175,7 @@ void init_lexer(FILE *fp, const char *filename) {
 }
 
 void init_lexer_string(const char *line, const char *filename, int lineno) {
-  Line *p = malloc(sizeof(*line));
+  Line *p = malloc(sizeof(*p));
   p->filename = lexer.filename;
   p->buf = line;
   p->lineno = lineno;
@@ -264,7 +264,7 @@ static void read_next_line(void) {
     }
   }
 
-  Line *p = malloc(sizeof(*line));
+  Line *p = malloc(sizeof(*p));
   p->filename = lexer.filename;
   p->buf = line;
   p->lineno = ++lexer.lineno;
