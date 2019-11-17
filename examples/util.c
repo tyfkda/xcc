@@ -1,5 +1,5 @@
 #if defined(__XV6)
-void write(int fd, const char *str, long len) {
+long write(int fd, const char *str, long len) {
   __asm("mov $16, %eax");  // SYS_write
   __asm("int $64");
 }
