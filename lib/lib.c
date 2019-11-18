@@ -160,9 +160,9 @@ long strtol(const char *p, char **pp, int base) {
   return result;
 }
 
-static FILE _stdin = {0};
-static FILE _stdout = {1};
-static FILE _stderr = {2};
+static FILE _stdin = {.fd=STDIN_FILENO};
+static FILE _stdout = {.fd=STDOUT_FILENO};
+static FILE _stderr = {.fd=STDERR_FILENO};
 FILE *stdin = &_stdin;
 FILE *stdout = &_stdout;
 FILE *stderr = &_stderr;
