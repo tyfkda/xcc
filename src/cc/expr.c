@@ -32,13 +32,6 @@ void not_void(const Type *type) {
     parse_error(NULL, "`void' not allowed");
 }
 
-enum ExprKind flip_cmp(enum ExprKind kind) {
-  assert(EX_EQ <= kind && kind <= EX_GT);
-  if (kind >= EX_LT)
-    kind = EX_GT - (kind - EX_LT);
-  return kind;
-}
-
 //
 
 static Expr *new_expr(enum ExprKind kind, const Type *type, const Token *token) {

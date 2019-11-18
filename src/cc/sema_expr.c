@@ -99,7 +99,7 @@ bool can_cast(const Type *dst, const Type *src, Expr *src_expr, bool is_explicit
   return false;
 }
 
-bool check_cast(const Type *dst, const Type *src, Expr *src_expr, bool is_explicit) {
+static bool check_cast(const Type *dst, const Type *src, Expr *src_expr, bool is_explicit) {
   if (can_cast(dst, src, src_expr, is_explicit))
     return true;
   parse_error(NULL, "Cannot convert value from type %d to %d", src->kind, dst->kind);
@@ -310,6 +310,13 @@ bool search_from_anonymous(const Type *type, const char *name, const Token *iden
     }
   }
   return false;
+}
+
+static enum ExprKind flip_cmp(enum ExprKind kind) {
+  assert(EX_EQ <= kind && kind <= EX_GT);
+  if (kind >= EX_LT)
+    kind = EX_GT - (kind - EX_LT);
+  return kind;
 }
 
 static Expr *analyze_cmp(Expr *expr) {
