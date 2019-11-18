@@ -1,3 +1,5 @@
+// Semantic analysis
+
 #pragma once
 
 #include <stdbool.h>

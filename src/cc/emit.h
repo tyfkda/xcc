@@ -1,3 +1,5 @@
+// Code emission
+
 #pragma once
 
 #include <stdint.h>  // intptr_t

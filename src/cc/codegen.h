@@ -1,3 +1,5 @@
+// Code generation
+
 #pragma once
 
 #include <stdbool.h>

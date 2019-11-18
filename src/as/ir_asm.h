@@ -1,3 +1,5 @@
+// Intermediate Representation for assembly
+
 #pragma once
 
 #include <stddef.h>  // size_t

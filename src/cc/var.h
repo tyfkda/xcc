@@ -1,3 +1,5 @@
+// Variables
+
 #pragma once
 
 #include <stdbool.h>

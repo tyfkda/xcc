@@ -1,3 +1,5 @@
+// Utility
+
 #pragma once
 
 #include <stdbool.h>

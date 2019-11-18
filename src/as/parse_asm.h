@@ -1,3 +1,5 @@
+// Parser for assembler
+
 #pragma once
 
 #include <stdbool.h>

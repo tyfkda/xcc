@@ -1,3 +1,5 @@
+// ELF format utility
+
 #pragma once
 
 #include <stdio.h>  // FILE
