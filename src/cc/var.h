@@ -56,7 +56,7 @@ VarInfo *define_global(const Type *type, int flag, const Token *ident, const cha
 
 typedef struct Scope {
   struct Scope *parent;
-  Vector *vars;
+  Vector *vars;  // <VarInfo*>
 
   // For codegen.
   int size;

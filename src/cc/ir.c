@@ -34,6 +34,7 @@ void vreg_spill(VReg *vreg) {
 typedef struct RegAlloc {
   int regno;
   Vector *vregs;
+  struct LiveInterval **sorted_intervals;
 } RegAlloc;
 
 const char *kRegSizeTable[][7] = {
@@ -900,7 +901,7 @@ static void three_to_two(BB *bb) {
   bb->irs = irs;
 }
 
-typedef struct {
+typedef struct LiveInterval {
   int vreg;
   int rreg;
   int start;
@@ -1275,6 +1276,8 @@ size_t alloc_real_registers(Function *func) {
   if (inserted != 0)
     func->used_reg_bits |= 1 << SPILLED_REG_NO;
 
+  func->ra->sorted_intervals = sorted_intervals;
+
   return frame_size;
 }
 
@@ -1318,7 +1321,7 @@ void emit_bb_irs(BBContainer *bbcon) {
 }
 
 #if !defined(SELF_HOSTING)
-void dump_ir(IR *ir) {
+static void dump_ir(FILE *fp, IR *ir) {
   static char *kSize[] = {"0", "b", "w", "3", "d", "5", "6", "7", ""};
   static char *kCond[] = {"MP", "EQ", "NE", "LT", "LE", "GE", "GT"};
 
@@ -1326,7 +1329,6 @@ void dump_ir(IR *ir) {
   int opr1 = ir->opr1 != NULL ? ir->opr1->r : -1;
   int opr2 = ir->opr2 != NULL ? ir->opr2->r : -1;
 
-  FILE *fp = stderr;
   switch (ir->kind) {
   case IR_IMM:    fprintf(fp, "\tIMM\tR%d%s = %"PRIdPTR"\n", dst, kSize[ir->size], ir->value); break;
   case IR_BOFS:   fprintf(fp, "\tBOFS\tR%d = &[rbp %c %d]\n", dst, ir->opr1->offset > 0 ? '+' : '-', ir->opr1->offset > 0 ? ir->opr1->offset : -ir->opr1->offset); break;
@@ -1366,11 +1368,56 @@ void dump_ir(IR *ir) {
   case IR_MOV:    fprintf(fp, "\tMOV\tR%d%s = R%d%s\n", dst, kSize[ir->size], opr1, kSize[ir->size]); break;
   case IR_CLEAR:  fprintf(fp, "\tCLEAR\tR%d, %d\n", opr1, ir->size); break;
   case IR_RESULT: fprintf(fp, "\tRESULT\tR%d%s\n", opr1, kSize[ir->size]); break;
-  case IR_ASM:    fprintf(fp, "\tASM\n"); break;
+  case IR_ASM:    fprintf(fp, "\tASM \"%s\"\n", ir->asm_.str); break;
   case IR_LOAD_SPILLED:   fprintf(fp, "\tLOAD_SPILLED %d(%s)\n", (int)ir->value, kSize[ir->size]); break;
   case IR_STORE_SPILLED:  fprintf(fp, "\tSTORE_SPILLED %d(%s)\n", (int)ir->value, kSize[ir->size]); break;
 
   default: assert(false); break;
   }
+}
+
+void dump_func_ir(Function *func) {
+  FILE *fp = stdout;
+
+  BBContainer *bbcon = func->bbcon;
+  assert(bbcon != NULL);
+
+  RegAlloc *ra = func->ra;
+  fprintf(fp, "### %s\n\n", func->name);
+
+  fprintf(fp, "params and locals:\n");
+  for (int i = 0; i < func->all_scopes->len; ++i) {
+    Scope *scope = func->all_scopes->data[i];
+    if (scope->vars == NULL)
+      continue;
+    for (int j = 0; j < scope->vars->len; ++j) {
+      VarInfo *varinfo = scope->vars->data[j];
+      fprintf(fp, "  V%3d: %s\n", varinfo->reg->v, varinfo->name);
+    }
+  }
+
+  fprintf(fp, "VREG: #%d\n", ra->regno);
+  LiveInterval **sorted_intervals = func->ra->sorted_intervals;
+  for (int i = 0; i < ra->regno; ++i) {
+    LiveInterval *li = sorted_intervals[i];
+    VReg *vreg = ra->vregs->data[li->vreg];
+    if (!li->spill) {
+      fprintf(fp, "  V%3d: live %3d - %3d, => R%3d\n", li->vreg, li->start, li->end, li->rreg);
+    } else {
+      fprintf(fp, "  V%3d: live %3d - %3d (spilled, offset=%d)\n", li->vreg, li->start, li->end, vreg->offset);
+    }
+  }
+
+  fprintf(fp, "BB: #%d\n", bbcon->bbs->len);
+  for (int i = 0; i < bbcon->bbs->len; ++i) {
+    BB *bb = bbcon->bbs->data[i];
+    fprintf(fp, "// BB %d\n", i);
+    fprintf(fp, "%s:\n", bb->label);
+    for (int j = 0; j < bb->irs->len; ++j) {
+      IR *ir = bb->irs->data[j];
+      dump_ir(fp, ir);
+    }
+  }
+  fprintf(fp, "\n");
 }
 #endif

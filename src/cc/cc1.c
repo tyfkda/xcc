@@ -1,3 +1,4 @@
+#include <assert.h>
 #include <stdarg.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -17,10 +18,8 @@
 
 ////////////////////////////////////////////////
 
+#if !defined(SELF_HOSTING)
 static void do_dump_ir(Node *node) {
-#if defined(SELF_HOSTING)
-  UNUSED(node);
-#else
   switch (node->kind) {
   case ND_TOPLEVEL:
     for (int i = 0, len = node->toplevel.nodes->len; i < len; ++i) {
@@ -31,30 +30,17 @@ static void do_dump_ir(Node *node) {
     }
     break;
   case ND_DEFUN:
-    {
-      Defun *defun = node->defun;
-      BBContainer *bbcon = defun->func->bbcon;
-      if (bbcon == NULL)
-        break;
-      fprintf(stderr, "%s: // BB: #%d\n", defun->func->name, bbcon->bbs->len);
-      for (int i = 0; i < bbcon->bbs->len; ++i) {
-        BB *bb = bbcon->bbs->data[i];
-        fprintf(stderr, "// BB %d\n", i);
-        fprintf(stderr, "%s:\n", bb->label);
-        for (int j = 0; j < bb->irs->len; ++j) {
-          IR *ir = bb->irs->data[j];
-          dump_ir(ir);
-        }
-      }
-      fprintf(stderr, "\n");
-    }
+    dump_func_ir(node->defun->func);
+    break;
+  case ND_VARDECL:
     break;
 
   default:
+    assert(false);
     break;
   }
-#endif
 }
+#endif
 
 ////////////////////////////////////////////////
 
@@ -111,10 +97,12 @@ int main(int argc, char* argv[]) {
   }
   Node *root = compile2(nodes);
 
-  if (dump_ir) {
-    do_dump_ir(root);
-  } else {
+  if (!dump_ir) {
     emit_code(root);
+  } else {
+#if !defined(SELF_HOSTING)
+    do_dump_ir(root);
+#endif
   }
 
   return 0;

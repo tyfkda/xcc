@@ -132,7 +132,7 @@ void new_ir_result(VReg *reg, int size);
 void new_ir_asm(const char *asm_);
 
 #if !defined(SELF_HOSTING)
-void dump_ir(IR *ir);
+void dump_func_ir(Function *func);
 #endif
 
 // Register allocator
