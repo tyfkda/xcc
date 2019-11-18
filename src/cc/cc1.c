@@ -113,6 +113,8 @@ int main(int argc, char* argv[]) {
 
   if (dump_ir) {
     do_dump_ir(root);
+  } else {
+    emit_code(root);
   }
 
   return 0;

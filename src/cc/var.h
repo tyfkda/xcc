@@ -7,6 +7,7 @@ typedef struct BB BB;
 typedef struct BBContainer BBContainer;
 typedef struct Initializer Initializer;
 typedef struct Map Map;
+typedef struct RegAlloc RegAlloc;
 typedef struct Token Token;
 typedef struct Type Type;
 typedef struct VReg VReg;
@@ -73,6 +74,7 @@ typedef struct Function {
   Vector *all_scopes;
 
   // For codegen.
+  RegAlloc *ra;
   BBContainer *bbcon;
   BB *ret_bb;
   size_t frame_size;
