@@ -103,8 +103,6 @@ int align_size(const Type *type) {
 }
 
 void calc_struct_size(StructInfo *sinfo) {
-if (sinfo == NULL) {
-}
   assert(sinfo != NULL);
   if (sinfo->size >= 0)
     return;
