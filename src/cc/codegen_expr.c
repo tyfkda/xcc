@@ -188,7 +188,7 @@ static VReg *gen_lval(Expr *expr) {
       return new_ir_iofs(expr->varref.ident);
     } else {
       Scope *scope = expr->varref.scope;
-      VarInfo *varinfo = scope_find(&scope, expr->varref.ident);
+      const VarInfo *varinfo = scope_find(&scope, expr->varref.ident);
       assert(varinfo != NULL);
       assert(!(varinfo->flag & VF_STATIC));
       if (varinfo->flag & VF_EXTERN)
@@ -205,17 +205,17 @@ static VReg *gen_lval(Expr *expr) {
         type = type->pa.ptrof;
       assert(type->kind == TY_STRUCT);
       calc_struct_size(type->struct_.info);
-      Vector *members = type->struct_.info->members;
-      VarInfo *varinfo = (VarInfo*)members->data[expr->member.index];
+      const Vector *members = type->struct_.info->members;
+      const VarInfo *member = members->data[expr->member.index];
 
       VReg *reg;
       if (expr->member.target->type->kind == TY_PTR)
         reg = gen_expr(expr->member.target);
       else
         reg = gen_lval(expr->member.target);
-      if (varinfo->offset == 0)
+      if (member->offset == 0)
         return reg;
-      VReg *imm = new_ir_imm(varinfo->offset, &tySize);
+      VReg *imm = new_ir_imm(member->offset, &tySize);
       VReg *result = new_ir_bop(IR_ADD, reg, imm, &tySize);
       return result;
     }
@@ -232,7 +232,7 @@ static VReg *gen_varref(Expr *expr) {
   case TY_PTR:
     {
       Scope *scope = expr->varref.scope;
-      VarInfo *varinfo = scope_find(&scope, expr->varref.ident);
+      const VarInfo *varinfo = scope_find(&scope, expr->varref.ident);
       if (varinfo != NULL && !(varinfo->flag & (VF_STATIC | VF_EXTERN))) {
         assert(varinfo->reg != NULL);
         return varinfo->reg;
@@ -287,7 +287,7 @@ static VReg *gen_funcall(Expr *expr) {
     if (arg_count > MAX_REG_ARGS) {
       bool vaargs = false;
       if (func->kind == EX_VARREF && func->varref.scope == NULL) {
-        VarInfo *varinfo = find_global(func->varref.ident);
+        const VarInfo *varinfo = find_global(func->varref.ident);
         assert(varinfo != NULL && varinfo->type->kind == TY_FUNC);
         vaargs = varinfo->type->func.vaargs;
       } else {
@@ -358,7 +358,7 @@ VReg *gen_expr(Expr *expr) {
       init->single = expr;
 
       Type* strtype = arrayof(&tyChar, expr->str.size);
-      VarInfo *varinfo = str_to_char_array(strtype, init);
+      const VarInfo *varinfo = str_to_char_array(strtype, init);
       return new_ir_iofs(varinfo->name);
     }
 
@@ -373,7 +373,7 @@ VReg *gen_expr(Expr *expr) {
       Expr *sub = expr->unary.sub;
       if (sub->kind == EX_VARREF && sub->varref.scope != NULL) {
         Scope *scope = sub->varref.scope;
-        VarInfo *varinfo = scope_find(&scope, sub->varref.ident);
+        const VarInfo *varinfo = scope_find(&scope, sub->varref.ident);
         assert(varinfo != NULL);
         if (!(varinfo->flag & (VF_STATIC | VF_EXTERN))) {
           vreg_spill(varinfo->reg);
@@ -474,7 +474,7 @@ VReg *gen_expr(Expr *expr) {
         case TY_PTR:
           {
             Scope *scope = lhs->varref.scope;
-            VarInfo *varinfo = scope_find(&scope, lhs->varref.ident);
+            const VarInfo *varinfo = scope_find(&scope, lhs->varref.ident);
             if (varinfo != NULL && !(varinfo->flag & (VF_STATIC | VF_EXTERN))) {
               assert(varinfo->reg != NULL);
               new_ir_mov(varinfo->reg, src, type_size(lhs->type));
@@ -544,7 +544,7 @@ VReg *gen_expr(Expr *expr) {
       Expr *sub = expr->unary.sub;
       if (sub->kind == EX_VARREF) {
         Scope *scope = sub->varref.scope;
-        VarInfo *varinfo = scope_find(&scope, sub->varref.ident);
+        const VarInfo *varinfo = scope_find(&scope, sub->varref.ident);
         if (varinfo != NULL && !(varinfo->flag & (VF_STATIC | VF_EXTERN))) {
           VReg *num = new_ir_imm(value, expr->type);
           VReg *result = new_ir_bop(expr->kind == EX_PREINC ? IR_ADD : IR_SUB,
@@ -572,7 +572,7 @@ VReg *gen_expr(Expr *expr) {
       Expr *sub = expr->unary.sub;
       if (sub->kind == EX_VARREF) {
         Scope *scope = sub->varref.scope;
-        VarInfo *varinfo = scope_find(&scope, sub->varref.ident);
+        const VarInfo *varinfo = scope_find(&scope, sub->varref.ident);
         if (varinfo != NULL && !(varinfo->flag & (VF_STATIC | VF_EXTERN))) {
           VReg *org_val = add_new_reg(sub->type);
           new_ir_mov(org_val, varinfo->reg, size);

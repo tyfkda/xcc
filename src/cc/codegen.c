@@ -112,11 +112,11 @@ void calc_struct_size(StructInfo *sinfo) {
   int max_align = 1;
 
   for (int i = 0, len = sinfo->members->len; i < len; ++i) {
-    VarInfo *varinfo = (VarInfo*)sinfo->members->data[i];
-    size_t sz = type_size(varinfo->type);
-    int align = align_size(varinfo->type);
+    VarInfo *member = sinfo->members->data[i];
+    size_t sz = type_size(member->type);
+    int align = align_size(member->type);
     size = ALIGN(size, align);
-    varinfo->offset = size;
+    member->offset = size;
     if (!sinfo->is_union)
       size += sz;
     else
@@ -280,7 +280,7 @@ void construct_initial_value(unsigned char *buf, const Type *type, Initializer *
       int count = 0;
       int offset = 0;
       for (int i = 0, n = sinfo->members->len; i < n; ++i) {
-        VarInfo* varinfo = sinfo->members->data[i];
+        const VarInfo* member = sinfo->members->data[i];
         Initializer *mem_init;
         if (init == NULL) {
           if (sinfo->is_union)
@@ -290,21 +290,21 @@ void construct_initial_value(unsigned char *buf, const Type *type, Initializer *
           mem_init = init->multi->data[i];
         }
         if (mem_init != NULL || !sinfo->is_union) {
-          int align = align_size(varinfo->type);
+          int align = align_size(member->type);
           if (offset % align != 0) {
             emit_align(align);
             offset = ALIGN(offset, align);
           }
-          construct_initial_value(buf + varinfo->offset, varinfo->type, mem_init, pptrinits);
+          construct_initial_value(buf + member->offset, member->type, mem_init, pptrinits);
           ++count;
           offset = ALIGN(offset, align);
-          offset += type_size(varinfo->type);
+          offset += type_size(member->type);
         }
       }
       if (sinfo->is_union && count <= 0) {
-        VarInfo* varinfo = sinfo->members->data[0];
-        construct_initial_value(buf + varinfo->offset, varinfo->type, NULL, pptrinits);
-        offset += type_size(varinfo->type);
+        const VarInfo* member = sinfo->members->data[0];
+        construct_initial_value(buf + member->offset, member->type, NULL, pptrinits);
+        offset += type_size(member->type);
       }
 
       size_t size = type_size(type);

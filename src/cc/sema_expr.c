@@ -293,17 +293,17 @@ bool search_from_anonymous(const Type *type, const char *name, const Token *iden
   assert(type->kind == TY_STRUCT);
   ensure_struct((Type*)type, ident);
 
-  Vector *lvars = type->struct_.info->members;
-  for (int i = 0, len = lvars->len; i < len; ++i) {
-    VarInfo *info = (VarInfo*)lvars->data[i];
-    if (info->name != NULL) {
-      if (strcmp(info->name, name) == 0) {
+  const Vector *members = type->struct_.info->members;
+  for (int i = 0, len = members->len; i < len; ++i) {
+    const VarInfo *member = members->data[i];
+    if (member->name != NULL) {
+      if (strcmp(member->name, name) == 0) {
         vec_push(stack, (void*)(long)i);
         return true;
       }
-    } else if (info->type->kind == TY_STRUCT) {
+    } else if (member->type->kind == TY_STRUCT) {
       vec_push(stack, (void*)(intptr_t)i);
-      bool res = search_from_anonymous(info->type, name, ident, stack);
+      bool res = search_from_anonymous(member->type, name, ident, stack);
       if (res)
         return true;
       vec_pop(stack);
@@ -670,8 +670,8 @@ Expr *analyze_expr(Expr *expr, bool keep_left) {
       ensure_struct((Type*)targetType, ident);
       int index = var_find(targetType->struct_.info->members, name);
       if (index >= 0) {
-        VarInfo *varinfo = (VarInfo*)targetType->struct_.info->members->data[index];
-        expr->type = varinfo->type;
+        const VarInfo *member = targetType->struct_.info->members->data[index];
+        expr->type = member->type;
         expr->member.index = index;
       } else {
         Vector *stack = new_vector();
@@ -680,11 +680,10 @@ Expr *analyze_expr(Expr *expr, bool keep_left) {
           parse_error(ident, "`%s' doesn't exist in the struct", name);
         Expr *p = target;
         const Type *type = targetType;
-        VarInfo *varinfo;
         for (int i = 0; i < stack->len; ++i) {
           int index = (int)(long)stack->data[i];
-          varinfo = type->struct_.info->members->data[index];
-          type = varinfo->type;
+          const VarInfo *member = type->struct_.info->members->data[index];
+          type = member->type;
           p = new_expr_member(acctok, type, p, NULL, NULL, index);
         }
         expr = p;

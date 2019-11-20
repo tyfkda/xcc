@@ -458,10 +458,10 @@ static Initializer *check_global_initializer(const Type *type, Initializer *init
     {
       const StructInfo *sinfo = type->struct_.info;
       for (int i = 0, n = sinfo->members->len; i < n; ++i) {
-        VarInfo* varinfo = sinfo->members->data[i];
+        const VarInfo* member = sinfo->members->data[i];
         Initializer *init_elem = init->multi->data[i];
         if (init_elem != NULL)
-          init->multi->data[i] = check_global_initializer(varinfo->type, init_elem);
+          init->multi->data[i] = check_global_initializer(member->type, init_elem);
       }
     }
     break;
@@ -535,11 +535,11 @@ static Vector *assign_initial_value(Expr *expr, Initializer *init, Vector *inits
       const StructInfo *sinfo = expr->type->struct_.info;
       if (!sinfo->is_union) {
         for (int i = 0, n = sinfo->members->len; i < n; ++i) {
-          VarInfo* varinfo = sinfo->members->data[i];
-          Expr *member = new_expr_member(NULL, varinfo->type, expr, NULL, NULL, i);
+          const VarInfo* member = sinfo->members->data[i];
+          Expr *mem = new_expr_member(NULL, member->type, expr, NULL, NULL, i);
           Initializer *init_elem = init->multi->data[i];
           if (init_elem != NULL)
-            assign_initial_value(member, init_elem, inits);
+            assign_initial_value(mem, init_elem, inits);
         }
       } else {
         int n = sinfo->members->len;
@@ -553,9 +553,9 @@ static Vector *assign_initial_value(Expr *expr, Initializer *init, Vector *inits
           Initializer *init_elem = init->multi->data[i];
           if (init_elem == NULL)
             continue;
-          VarInfo* varinfo = sinfo->members->data[i];
-          Expr *member = new_expr_member(NULL, varinfo->type, expr, NULL, NULL, i);
-          assign_initial_value(member, init_elem, inits);
+          const VarInfo* member = sinfo->members->data[i];
+          Expr *mem = new_expr_member(NULL, member->type, expr, NULL, NULL, i);
+          assign_initial_value(mem, init_elem, inits);
           break;
         }
       }
