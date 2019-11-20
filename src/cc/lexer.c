@@ -73,7 +73,32 @@ static const struct {
   {">>", TK_RSHIFT},
 };
 
-static const char kSingleOperators[] = "+-*/%&!(){}[]<>=^~|:;,.?";
+static const char kSingleOperatorTypeMap[128] = {  // enum TokenKind
+  ['+'] = TK_ADD,
+  ['-'] = TK_SUB,
+  ['*'] = TK_MUL,
+  ['/'] = TK_DIV,
+  ['%'] = TK_MOD,
+  ['&'] = TK_AND,
+  ['|'] = TK_OR,
+  ['^'] = TK_HAT,
+  ['<'] = TK_LT,
+  ['>'] = TK_GT,
+  ['!'] = TK_NOT,
+  ['('] = TK_LPAR,
+  [')'] = TK_RPAR,
+  ['{'] = TK_LBRACE,
+  ['}'] = TK_RBRACE,
+  ['['] = TK_LBRACKET,
+  [']'] = TK_RBRACKET,
+  ['='] = TK_ASSIGN,
+  [':'] = TK_COLON,
+  [';'] = TK_SEMICOL,
+  [','] = TK_COMMA,
+  ['.'] = TK_DOT,
+  ['?'] = TK_QUESTION,
+  ['~'] = TK_TILDA,
+};
 
 typedef struct {
   FILE *fp;
@@ -444,9 +469,13 @@ static Token *get_op_token(const char **pp) {
   }
 
   if (tok == NULL) {
-    if (strchr(kSingleOperators, *p) != NULL) {
-      tok = alloc_token((enum TokenKind)*p, p, p + 1);
-      ++p;
+    char c = *p;
+    if (c >= 0 /*&& c < 128*/) {
+      enum TokenKind single = kSingleOperatorTypeMap[(int)c];
+      if (single != 0) {
+        tok = alloc_token(single, p, p + 1);
+        ++p;
+      }
     }
   }
 

@@ -16,36 +16,36 @@ typedef struct {
 
 // Token kind
 enum TokenKind {
-  TK_ADD = '+',
-  TK_SUB = '-',
-  TK_MUL = '*',
-  TK_DIV = '/',
-  TK_MOD = '%',
-  TK_AND = '&',
-  TK_OR = '|',
-  TK_HAT = '^',
-  TK_LT = '<',
-  TK_GT = '>',
-  TK_NOT = '!',
-  TK_LPAR = '(',
-  TK_RPAR = ')',
-  TK_LBRACE = '{',
-  TK_RBRACE = '}',
-  TK_LBRACKET = '[',
-  TK_RBRACKET = ']',
-  TK_ASSIGN = '=',
-  TK_COLON = ':',
-  TK_SEMICOL = ';',
-  TK_COMMA = ',',
-  TK_DOT = '.',
-  TK_QUESTION = '?',
-  TK_TILDA = '~',
-  TK_INTLIT = 256,  // int literal
+  TK_EOF,  // Represent input end
+  TK_ADD,  // +
+  TK_SUB,  // -
+  TK_MUL,  // *
+  TK_DIV,  // /
+  TK_MOD,  // %
+  TK_AND,  // &
+  TK_OR,   // |
+  TK_HAT,  // ^
+  TK_LT,   // <
+  TK_GT,   // >
+  TK_NOT,  // !
+  TK_LPAR, // (
+  TK_RPAR, // )
+  TK_LBRACE,  // {
+  TK_RBRACE,  // }
+  TK_LBRACKET,  // [
+  TK_RBRACKET,  // ]
+  TK_ASSIGN,  // =
+  TK_COLON,  // :
+  TK_SEMICOL,  // ;
+  TK_COMMA,  // ,
+  TK_DOT,  // .
+  TK_QUESTION,  // ?
+  TK_TILDA,  // ~
+  TK_INTLIT,  // int literal
   TK_CHARLIT,  // char literal
   TK_LONGLIT,  // long literal
-  TK_STR,        // String literal
-  TK_IDENT,      // Identifier
-  TK_EOF,        // Represent input end
+  TK_STR,      // String literal
+  TK_IDENT,    // Identifier
   TK_LSHIFT,  // <<
   TK_RSHIFT,  // >>
   TK_EQ,  // ==
