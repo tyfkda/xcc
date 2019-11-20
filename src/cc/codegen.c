@@ -248,7 +248,9 @@ void construct_initial_value(unsigned char *buf, const Type *type, Initializer *
           }
           construct_initial_value(buf + (index * elem_size), elem_type, init_elem, pptrinits);
         }
-        assert((size_t)len <= type->pa.length);
+        // Padding
+        for (size_t i = index, n = type->pa.length; i < n; ++i)
+          construct_initial_value(buf + (i * elem_size), elem_type, NULL, pptrinits);
       }
     } else {
       if (init->kind == vSingle &&
