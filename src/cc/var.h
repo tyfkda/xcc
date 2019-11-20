@@ -34,10 +34,13 @@ typedef struct VarInfo {
     struct {  // For local.
       const char *label;  // For static variable to refer value in global.
     } local;
+    struct {
+      // For codegen.
+      int offset;
+    } struct_;
   };
 
   // For codegen.
-  int offset;
   VReg *reg;
 } VarInfo;
 

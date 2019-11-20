@@ -116,7 +116,7 @@ void calc_struct_size(StructInfo *sinfo) {
     size_t sz = type_size(member->type);
     int align = align_size(member->type);
     size = ALIGN(size, align);
-    member->offset = size;
+    member->struct_.offset = size;
     if (!sinfo->is_union)
       size += sz;
     else
@@ -295,7 +295,7 @@ void construct_initial_value(unsigned char *buf, const Type *type, Initializer *
             emit_align(align);
             offset = ALIGN(offset, align);
           }
-          construct_initial_value(buf + member->offset, member->type, mem_init, pptrinits);
+          construct_initial_value(buf + member->struct_.offset, member->type, mem_init, pptrinits);
           ++count;
           offset = ALIGN(offset, align);
           offset += type_size(member->type);
@@ -303,7 +303,7 @@ void construct_initial_value(unsigned char *buf, const Type *type, Initializer *
       }
       if (sinfo->is_union && count <= 0) {
         const VarInfo* member = sinfo->members->data[0];
-        construct_initial_value(buf + member->offset, member->type, NULL, pptrinits);
+        construct_initial_value(buf + member->struct_.offset, member->type, NULL, pptrinits);
         offset += type_size(member->type);
       }
 

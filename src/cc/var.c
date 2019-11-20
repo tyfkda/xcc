@@ -36,7 +36,6 @@ VarInfo *var_add(Vector *lvars, const Token *ident, const Type *type, int flag) 
   info->type = type;
   info->flag = flag;
   info->local.label = label;
-  info->offset = -1;
   info->reg = NULL;
   vec_push(lvars, info);
   return ginfo != NULL ? ginfo : info;
@@ -74,7 +73,6 @@ VarInfo *define_global(const Type *type, int flag, const Token *ident, const cha
   varinfo->type = type;
   varinfo->flag = flag;
   varinfo->global.init = NULL;
-  varinfo->offset = 0;
   map_put(gvar_map, name, varinfo);
   return varinfo;
 }

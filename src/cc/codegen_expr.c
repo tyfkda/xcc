@@ -213,9 +213,9 @@ static VReg *gen_lval(Expr *expr) {
         reg = gen_expr(expr->member.target);
       else
         reg = gen_lval(expr->member.target);
-      if (member->offset == 0)
+      if (member->struct_.offset == 0)
         return reg;
-      VReg *imm = new_ir_imm(member->offset, &tySize);
+      VReg *imm = new_ir_imm(member->struct_.offset, &tySize);
       VReg *result = new_ir_bop(IR_ADD, reg, imm, &tySize);
       return result;
     }
