@@ -12,6 +12,13 @@
 #include "var.h"
 #include "x86_64.h"
 
+static enum ConditionKind invert_cond(enum ConditionKind cond) {
+  assert(COND_EQ <= cond && cond <= COND_GT);
+  if (cond <= COND_NE)
+    return COND_NE + COND_EQ - cond;
+  return COND_LT + ((cond - COND_LT) ^ 2);
+}
+
 // Virtual register
 
 VReg *new_vreg(int vreg_no, const Type *type) {
@@ -782,62 +789,79 @@ BBContainer *new_func_blocks(void) {
   return bbcon;
 }
 
-static bool is_last_any_jmp(BB *bb) {
+static IR *is_last_jmp(BB *bb) {
   int len;
   IR *ir;
-  return (len = bb->irs->len) > 0 &&
-      (ir = bb->irs->data[len - 1])->kind == IR_JMP &&
-      ir->jmp.cond == COND_ANY;
+  if ((len = bb->irs->len) > 0 &&
+      (ir = bb->irs->data[len - 1])->kind == IR_JMP)
+    return ir;
+  return NULL;
 }
 
-static void replace_jmp_target(BBContainer *bbcon, BB *src, BB *dst) {
+static IR *is_last_any_jmp(BB *bb) {
+  IR *ir = is_last_jmp(bb);
+  return ir != NULL && ir->jmp.cond == COND_ANY ? ir : NULL;
+}
+
+static void replace_jmp_destination(BBContainer *bbcon, BB *src, BB *dst) {
   Vector *bbs = bbcon->bbs;
   for (int j = 0; j < bbs->len; ++j) {
     BB *bb = bbs->data[j];
     if (bb == src)
       continue;
 
-    IR *ir;
-    if (bb->next == src) {
-      if (dst == src->next || is_last_any_jmp(bb))
-        bb->next = src->next;
-    }
-    if (bb->irs->len > 0 &&
-        (ir = bb->irs->data[bb->irs->len - 1])->kind == IR_JMP &&
-        ir->jmp.bb == src)
+    IR *ir = is_last_jmp(bb);
+    if (ir != NULL && ir->jmp.bb == src)
       ir->jmp.bb = dst;
   }
 }
 
 void remove_unnecessary_bb(BBContainer *bbcon) {
   Vector *bbs = bbcon->bbs;
-  for (int i = 0; i < bbs->len - 1; ++i) {  // Make last one keeps alive.
-    BB *bb = bbs->data[i];
-    if (bb->irs->len == 0) {  // Empty BB.
-      replace_jmp_target(bbcon, bb, bb->next);
-    } else if (is_last_any_jmp(bb) && bb->irs->len == 1) {  // jmp only.
-      IR *ir = bb->irs->data[bb->irs->len - 1];
-      replace_jmp_target(bbcon, bb, ir->jmp.bb);
-      if (i == 0)
+  for (;;) {
+    bool again = false;
+    for (int i = 0; i < bbs->len - 1; ++i) {  // Make last one keeps alive.
+      BB *bb = bbs->data[i];
+      IR *ir;
+      if (bb->irs->len == 0) {  // Empty BB.
+        replace_jmp_destination(bbcon, bb, bb->next);
+      } else if (bb->irs->len == 1 && (ir = is_last_any_jmp(bb)) != NULL) {  // jmp only.
+        replace_jmp_destination(bbcon, bb, ir->jmp.bb);
+        if (i == 0)
+          continue;
+        BB *pbb = bbs->data[i - 1];
+        if (!is_last_jmp(pbb))
+          continue;
+        if (!is_last_any_jmp(pbb)) {  // Fallthrough pass exists.
+          IR *ir0 = pbb->irs->data[pbb->irs->len - 1];
+          if (ir0->jmp.bb != bb->next)  // Non skip jmp: Keep bb connection.
+            continue;
+          // Invert prev jmp condition and change jmp destination.
+          ir0->jmp.cond = invert_cond(ir0->jmp.cond);
+          ir0->jmp.bb = ir->jmp.bb;
+        }
+      } else {
         continue;
-      BB *pbb = bbs->data[i - 1];
-      if (!is_last_any_jmp(pbb))  // Fallthrough pass exists: keep the bb.
-        continue;
-    } else {
-      continue;
-    }
+      }
 
-    vec_remove_at(bbs, i);
-    --i;
+      if (i > 0) {
+        BB *pbb = bbs->data[i - 1];
+        pbb->next = bb->next;
+      }
+
+      vec_remove_at(bbs, i);
+      --i;
+      again = true;
+    }
+    if (!again)
+      break;
   }
 
   // Remove jmp to next instruction.
   for (int i = 0; i < bbs->len - 1; ++i) {  // Make last one keeps alive.
     BB *bb = bbs->data[i];
-    if (!is_last_any_jmp(bb))
-      continue;
-    IR *ir = bb->irs->data[bb->irs->len - 1];
-    if (ir->jmp.bb == bb->next)
+    IR *ir = is_last_any_jmp(bb);
+    if (ir != NULL && ir->jmp.bb == bb->next)
       vec_pop(bb->irs);
   }
 }
