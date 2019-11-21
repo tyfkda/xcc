@@ -12,6 +12,9 @@ typedef struct RegAlloc RegAlloc;
 typedef struct Type Type;
 typedef struct Vector Vector;
 
+#define REG_COUNT  (7 - 1)
+#define SPILLED_REG_NO  (REG_COUNT)
+
 // Virtual register
 
 typedef struct VReg {
@@ -131,6 +134,9 @@ void new_ir_clear(VReg *reg, size_t size);
 void new_ir_result(VReg *reg, int size);
 void new_ir_asm(const char *asm_);
 
+IR *new_ir_load_spilled(int offset, int size);
+IR *new_ir_store_spilled(int offset, int size);
+
 #if !defined(SELF_HOSTING)
 void dump_func_ir(Function *func);
 #endif
@@ -139,7 +145,6 @@ void dump_func_ir(Function *func);
 
 extern RegAlloc *curra;
 
-RegAlloc *new_reg_alloc(void);
 VReg *add_new_reg(const Type *type);
 
 // Basci Block:
@@ -168,7 +173,6 @@ typedef struct BBContainer {
 
 BBContainer *new_func_blocks(void);
 void remove_unnecessary_bb(BBContainer *bbcon);
-size_t alloc_real_registers(Function *func);
 void push_callee_save_regs(Function *func);
 void pop_callee_save_regs(Function *func);
 void emit_bb_irs(BBContainer *bbcon);
