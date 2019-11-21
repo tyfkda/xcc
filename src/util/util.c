@@ -289,7 +289,7 @@ void vec_insert(Vector *vec, int pos, const void *elem) {
 void vec_remove_at(Vector *vec, int index) {
   if (index < 0 || index >= vec->len)
     return;
-  int d = vec->len - index;
+  int d = vec->len - index - 1;
   if (d > 0)
     memmove(&vec->data[index], &vec->data[index + 1], d * sizeof(*vec->data));
   --vec->len;
