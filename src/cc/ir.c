@@ -58,10 +58,6 @@ static struct {
 //
 RegAlloc *curra;
 
-VReg *add_new_reg(const Type *type) {
-  return reg_alloc_spawn(curra, type);
-}
-
 // Intermediate Representation
 
 static IR *new_ir(enum IrKind kind) {

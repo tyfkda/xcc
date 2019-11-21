@@ -4,13 +4,18 @@
 #include <stdlib.h>  // malloc
 
 #include "expr.h"
-#include "parser.h"  // Initializer
 #include "ir.h"
+#include "parser.h"  // Initializer
+#include "regalloc.h"
 #include "sema.h"
 #include "type.h"
 #include "util.h"
 #include "var.h"
 #include "x86_64.h"
+
+VReg *add_new_reg(const Type *type) {
+  return reg_alloc_spawn(curdefun->func->ra, type);
+}
 
 static void gen_test_opcode(VReg *reg, const Type *type) {
   int size = type_size(type);

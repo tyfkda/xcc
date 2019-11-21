@@ -145,8 +145,6 @@ void dump_func_ir(Function *func);
 
 extern RegAlloc *curra;
 
-VReg *add_new_reg(const Type *type);
-
 // Basci Block:
 //   Chunk of IR codes without branching in the middle (except at the bottom).
 
