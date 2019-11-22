@@ -270,21 +270,24 @@ static Expr *sub_expr(const Token *tok, Expr *lhs, Expr *rhs, bool keep_left) {
 }
 
 static bool cast_numbers(Expr **pLhs, Expr **pRhs, bool keep_left) {
-  if (!is_number((*pLhs)->type->kind) ||
-      !is_number((*pRhs)->type->kind))
+  Expr *lhs = *pLhs;
+  Expr *rhs = *pRhs;
+  const Type *ltype = lhs->type;
+  const Type *rtype = rhs->type;
+  if (!is_number(ltype->kind) || !is_number(rtype->kind))
     return false;
 
-  enum NumKind ltype = (*pLhs)->type->num.kind;
-  enum NumKind rtype = (*pRhs)->type->num.kind;
-  if (ltype == NUM_ENUM)
-    ltype = NUM_INT;
-  if (rtype == NUM_ENUM)
-    rtype = NUM_INT;
-  if (ltype != rtype) {
-    if (ltype > rtype || keep_left)
-      *pRhs = make_cast((*pLhs)->type, (*pRhs)->token, *pRhs, false);
-    else if (ltype < rtype)
-      *pLhs = make_cast((*pRhs)->type, (*pLhs)->token, *pLhs, false);
+  enum NumKind lkind = ltype->num.kind;
+  enum NumKind rkind = rtype->num.kind;
+  if (lkind == NUM_ENUM)
+    lkind = NUM_INT;
+  if (rkind == NUM_ENUM)
+    rkind = NUM_INT;
+  if (lkind != rkind) {
+    if (lkind > rkind || keep_left)
+      *pRhs = make_cast(ltype, rhs->token, rhs, false);
+    else if (lkind < rkind)
+      *pLhs = make_cast(rtype, lhs->token, lhs, false);
   }
   return true;
 }
