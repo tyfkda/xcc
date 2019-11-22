@@ -653,6 +653,8 @@ int main(int argc, char* argv[]) {
   map_put(macro_map, "__XV6", new_macro(NULL, false, NULL));
 #elif defined(__linux__)
   map_put(macro_map, "__linux__", new_macro(NULL, false, NULL));
+#elif defined(__APPLE__)
+  map_put(macro_map, "__APPLE__", new_macro(NULL, false, NULL));
 #endif
 
   int i = 1;

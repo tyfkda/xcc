@@ -32,11 +32,13 @@
 
 #else
 
-#error Target not supported
+#define AS_NOT_SUPPORTED
 
 #endif
 
 #define LOAD_ADDRESS    START_ADDRESS
+
+#ifndef AS_NOT_SUPPORTED
 
 void parse_file(FILE *fp, Vector **section_irs, Map *label_map) {
   for (;;) {
@@ -165,5 +167,15 @@ int main(int argc, char* argv[]) {
     return 1;
   }
 #endif
+
   return 0;
 }
+
+#else  // AS_NOT_SUPPORTED
+
+int main() {
+  fprintf(stderr, "as not supported\n");
+  return 1;
+}
+
+#endif

@@ -4,7 +4,7 @@ long write(int fd, const char *str, long len) {
   __asm("int $64");
 }
 
-#elif defined(__linux__)
+#elif defined(__linux__) || defined(__APPLE__)
 long write(int fd, const char *str, long len) {
   __asm("mov $1, %eax");  // __NR_write
   __asm("syscall");

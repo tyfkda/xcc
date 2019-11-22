@@ -13,7 +13,7 @@ ssize_t write(int fd, const char *str, long len) {
   __asm("int $64");
 }
 
-#elif defined(__linux__)
+#elif defined(__linux__) || defined(__APPLE__)
 ssize_t write(int fd, const char *str, long len) {
   __asm("mov $1, %eax");  // __NR_write
   __asm("syscall\n");
@@ -226,7 +226,7 @@ int tolower(int c) {
 
 #if defined(__XV6)
 
-#elif defined(__linux__)
+#elif defined(__linux__) || defined(__APPLE__)
 // fcntl.h
 #define	O_RDONLY        0x0000          /* open for reading only */
 #define	O_WRONLY        0x0001          /* open for writing only */

@@ -10,7 +10,7 @@ void exit(int code) {
   __asm("int $64");
 }
 
-#elif defined(__linux__)
+#elif defined(__linux__) || defined(__APPLE__)
 void _start(void) {
   __asm("mov (%rsp), %rdi");
   __asm("lea 8(%rsp), %rsi");
