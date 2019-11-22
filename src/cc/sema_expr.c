@@ -312,7 +312,7 @@ bool search_from_anonymous(const Type *type, const char *name, const Token *iden
   return false;
 }
 
-static enum ExprKind flip_cmp(enum ExprKind kind) {
+static enum ExprKind swap_cmp(enum ExprKind kind) {
   assert(EX_EQ <= kind && kind <= EX_GT);
   if (kind >= EX_LT)
     kind = EX_GT - (kind - EX_LT);
@@ -328,7 +328,7 @@ static Expr *analyze_cmp(Expr *expr) {
       rhs = tmp;
       expr->bop.lhs = lhs;
       expr->bop.rhs = rhs;
-      expr->kind = flip_cmp(expr->kind);
+      expr->kind = swap_cmp(expr->kind);
     }
     const Type *lt = lhs->type, *rt = rhs->type;
     if (!can_cast(lt, rt, rhs, false))
@@ -344,11 +344,10 @@ static Expr *analyze_cmp(Expr *expr) {
 
     if (is_const(lhs) && !is_const(rhs)) {
       Expr *tmp = lhs;
-      lhs = rhs;
-      rhs = tmp;
-      expr->bop.lhs = lhs;
-      expr->bop.rhs = rhs;
-      expr->kind = flip_cmp(expr->kind);
+      expr->bop.lhs = rhs;
+      expr->bop.rhs = tmp;
+      expr->kind = swap_cmp(expr->kind);
+      // No `lhs` nor `rhs` usage after here, so omit assignments.
     }
   }
   return expr;

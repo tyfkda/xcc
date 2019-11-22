@@ -31,7 +31,7 @@ static void gen_test_opcode(VReg *reg, const Type *type) {
   new_ir_test(reg, size);
 }
 
-static enum ConditionKind flip_cond(enum ConditionKind cond) {
+static enum ConditionKind swap_cond(enum ConditionKind cond) {
   assert(COND_EQ <= cond && cond <= COND_GT);
   if (cond >= COND_LT)
     cond = COND_GT - (cond - COND_LT);
@@ -48,7 +48,7 @@ static enum ConditionKind gen_compare_expr(enum ExprKind kind, Expr *lhs, Expr *
     Expr *tmp = lhs;
     lhs = rhs;
     rhs = tmp;
-    cond = flip_cond(cond);
+    cond = swap_cond(cond);
   }
 
   VReg *lhs_reg = gen_expr(lhs);
