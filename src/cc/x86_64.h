@@ -162,6 +162,12 @@
 #define _GLOBL(x)      EMIT_ASM1(".globl", x)
 #define _COMM(x, y)    EMIT_ASM2(".comm", x, y)
 #define _ASCII(x)      EMIT_ASM1(".ascii", x)
-#define _SECTION(x)    EMIT_ASM1(".section", x)
 #define _TEXT()        EMIT_ASM0(".text")
 #define _DATA()        EMIT_ASM0(".data")
+
+#ifdef __APPLE__
+#define _RODATA()      _TEXT()
+#else
+#define _SECTION(x)    EMIT_ASM1(".section", x)
+#define _RODATA()      _SECTION(".rodata")
+#endif

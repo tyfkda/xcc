@@ -1001,7 +1001,7 @@ static void emit_defun(Defun *defun) {
 }
 
 static void emit_data(void) {
-  _SECTION(".rodata");
+  _RODATA();
   put_rodata();
 
   emit_comment(NULL);
