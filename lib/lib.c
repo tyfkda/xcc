@@ -430,18 +430,22 @@ void perror(const char* msg) {
 }
 
 #if !defined(__XV6)
+static char *curbrk;
 int brk(void *addr) {
-  _brk(addr);
-  return 0;  // TODO: detect error.
+  void *result = _brk(addr);
+  curbrk = result;
+  if (result < addr)
+    return EOF;
+  return 0;
 }
 
-static char *curbrk;
 void *sbrk(intptr_t increment) {
   char *p = curbrk;
   if (p == NULL)
     p = _brk(NULL);
-  curbrk = _brk(p + increment);
-  // TODO: return (void*)-1 when error occurred.
+  char *next = p + increment;
+  if (brk(next) < 0)
+    return (void*)-1;
   return p;
 }
 #endif
