@@ -13,15 +13,22 @@ ssize_t write(int fd, const char *str, long len) {
   __asm("int $64");
 }
 
-#elif defined(__linux__) || defined(__APPLE__)
+#elif defined(__linux__)
 ssize_t write(int fd, const char *str, long len) {
   __asm("mov $1, %eax");  // __NR_write
   __asm("syscall\n");
 }
 
+#elif defined(__APPLE__)
+
+// Use libc.
+#define USE_LIBC
+
 #else
 #error Target not supported
 #endif
+
+#ifndef USE_LIBC
 
 int strlen(const char *s) {
   const char *p;
@@ -226,7 +233,7 @@ int tolower(int c) {
 
 #if defined(__XV6)
 
-#elif defined(__linux__) || defined(__APPLE__)
+#elif defined(__linux__)
 // fcntl.h
 #define	O_RDONLY        0x0000          /* open for reading only */
 #define	O_WRONLY        0x0001          /* open for writing only */
@@ -438,3 +445,5 @@ void *sbrk(intptr_t increment) {
   return p;
 }
 #endif
+
+#endif  // !USE_LIBC

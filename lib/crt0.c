@@ -10,7 +10,7 @@ void exit(int code) {
   __asm("int $64");
 }
 
-#elif defined(__linux__) || defined(__APPLE__)
+#elif defined(__linux__)
 void _start(void) {
   __asm("mov (%rsp), %rdi");
   __asm("lea 8(%rsp), %rsi");
@@ -23,6 +23,12 @@ void exit(int code) {
   __asm("mov $60, %eax");  // __NR_exit
   __asm("syscall");
 }
+
+#elif defined(__APPLE__)
+
+// Use libc.
+
+extern void exit(int code);
 
 #else
 #error Target not supported

@@ -6,6 +6,10 @@
 
 #include "x86_64.h"
 
+#ifdef __APPLE__
+#define MANGLE_PREFIX  "_"
+#endif
+
 static FILE *emit_fp;
 
 char *fmt(const char *s, ...) {
@@ -39,6 +43,14 @@ char *offset_indirect(int offset, const char *reg) {
 
 char *label_indirect(const char *label, const char *reg) {
   return fmt("%s(%s)", label, reg);
+}
+
+const char *mangle(const char *label) {
+#ifdef MANGLE_PREFIX
+  return fmt(MANGLE_PREFIX "%s", label);
+#else
+  return label;
+#endif
 }
 
 void emit_asm2(const char *op, const char *operand1, const char *operand2) {

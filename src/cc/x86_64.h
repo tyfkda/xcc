@@ -30,6 +30,9 @@
 #ifndef NUM
 #define NUM(x)  num(x)
 #endif
+#ifndef MANGLE
+#define MANGLE(label)  mangle(label)
+#endif
 
 #define AL     "%al"
 #define CL     "%cl"

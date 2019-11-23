@@ -4,11 +4,17 @@ long write(int fd, const char *str, long len) {
   __asm("int $64");
 }
 
-#elif defined(__linux__) || defined(__APPLE__)
+#elif defined(__linux__)
 long write(int fd, const char *str, long len) {
   __asm("mov $1, %eax");  // __NR_write
   __asm("syscall");
 }
+
+#elif defined(__APPLE__)
+
+// Use libc.
+
+extern long write(int fd, const char *str, long len);
 
 #else
 #error Target not supported
