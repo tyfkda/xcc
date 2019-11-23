@@ -161,7 +161,6 @@
 #define _WORD(x)       EMIT_ASM1(".word", x)
 #define _LONG(x)       EMIT_ASM1(".long", x)
 #define _QUAD(x)       EMIT_ASM1(".quad", x)
-#define _ALIGN(x)      EMIT_ASM1(".align", x)
 #define _GLOBL(x)      EMIT_ASM1(".globl", x)
 #define _COMM(x, y)    EMIT_ASM2(".comm", x, y)
 #define _ASCII(x)      EMIT_ASM1(".ascii", x)
@@ -170,7 +169,9 @@
 
 #ifdef __APPLE__
 #define _RODATA()      _TEXT()
+#define _P2ALIGN(x)    EMIT_ASM1(".p2align", x)
 #else
 #define _SECTION(x)    EMIT_ASM1(".section", x)
 #define _RODATA()      _SECTION(".rodata")
+#define _ALIGN(x)      EMIT_ASM1(".align", x)
 #endif
