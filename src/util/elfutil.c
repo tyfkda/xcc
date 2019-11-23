@@ -1,5 +1,7 @@
 #include "elfutil.h"
 
+#ifndef ELF_NOT_SUPPORTED
+
 #include <stdio.h>
 #include <stdlib.h>  // calloc
 
@@ -11,10 +13,6 @@
 #elif defined(__linux__)
 // Linux
 #include <elf.h>
-
-#else
-
-#error Target not supported
 
 #endif
 
@@ -60,3 +58,5 @@ void out_program_header(FILE* fp, int sec, uintptr_t offset, uintptr_t vaddr,
 
   fwrite(&phdr, sizeof(Elf64_Phdr), 1, fp);
 }
+
+#endif  // !ELF_NOT_SUPPORTED

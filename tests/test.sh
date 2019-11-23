@@ -2,7 +2,14 @@
 
 XCC=${XCC:-../xcc}
 
-PROLOGUE=$(cat <<EOS
+if [ "$(uname)" == 'Darwin' ]; then
+  PROLOGUE=$(cat <<EOS
+extern void exit(int code);
+extern void write(int fd, const char *str, long len);
+EOS
+  )
+else
+  PROLOGUE=$(cat <<EOS
 void _start() {
   __asm("mov (%rsp), %rdi");
   __asm("lea 8(%rsp), %rsi");
@@ -19,7 +26,9 @@ void write(int fd, const char *str, long len) {
   __asm("syscall");
 }
 EOS
-)
+  )
+fi
+
 
 try_direct() {
   title="$1"

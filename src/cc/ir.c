@@ -102,9 +102,10 @@ VReg *new_ir_bofs(VReg *src) {
   return ir->dst = reg_alloc_spawn(curra, &tyVoidPtr);
 }
 
-VReg *new_ir_iofs(const char *label) {
+VReg *new_ir_iofs(const char *label, bool global) {
   IR *ir = new_ir(IR_IOFS);
   ir->iofs.label = label;
+  ir->iofs.global = global;
   ir->size = WORD_SIZE;
   return ir->dst = reg_alloc_spawn(curra, &tyVoidPtr);
 }
@@ -168,9 +169,10 @@ void new_ir_precall(int arg_count, bool *stack_aligned) {
   ir->call.arg_count = arg_count;
 }
 
-VReg *new_ir_call(const char *label, VReg *freg, int arg_count, const Type *result_type, bool *stack_aligned) {
+VReg *new_ir_call(const char *label, bool global, VReg *freg, int arg_count, const Type *result_type, bool *stack_aligned) {
   IR *ir = new_ir(IR_CALL);
   ir->call.label = label;
+  ir->call.global = global;
   ir->opr1 = freg;
   ir->call.stack_aligned = stack_aligned;
   ir->call.arg_count = arg_count;
@@ -292,7 +294,12 @@ static void ir_out(const IR *ir) {
     break;
 
   case IR_IOFS:
-    LEA(LABEL_INDIRECT(ir->iofs.label, RIP), kReg64s[ir->dst->r]);
+    {
+      const char *label = ir->iofs.label;
+      if (ir->iofs.global)
+        label = MANGLE(label);
+      LEA(LABEL_INDIRECT(label, RIP), kReg64s[ir->dst->r]);
+    }
     break;
 
   case IR_LOAD:
@@ -621,10 +628,14 @@ static void ir_out(const IR *ir) {
         POP(kArgReg64s[i]); POP_STACK_POS();
       }
 
-      if (ir->call.label != NULL)
-        CALL(ir->call.label);
-      else
+      if (ir->call.label != NULL) {
+        if (ir->call.global)
+          CALL(MANGLE(ir->call.label));
+        else
+          CALL(ir->call.label);
+      } else {
         CALL(fmt("*%s", kReg64s[ir->opr1->r]));
+      }
 
       int stack_args = MAX(ir->call.arg_count - MAX_REG_ARGS, 0);
       bool align_stack = *ir->call.stack_aligned;

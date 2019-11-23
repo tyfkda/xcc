@@ -190,14 +190,16 @@ static VReg *gen_lval(Expr *expr) {
   switch (expr->kind) {
   case EX_VARREF:
     if (expr->varref.scope == NULL) {
-      return new_ir_iofs(expr->varref.ident);
+      const VarInfo *varinfo = find_global(expr->varref.ident);
+      assert(varinfo != NULL);
+      return new_ir_iofs(expr->varref.ident, (varinfo->flag & VF_STATIC) == 0);
     } else {
       Scope *scope = expr->varref.scope;
       const VarInfo *varinfo = scope_find(&scope, expr->varref.ident);
       assert(varinfo != NULL);
       assert(!(varinfo->flag & VF_STATIC));
       if (varinfo->flag & VF_EXTERN)
-        return new_ir_iofs(expr->varref.ident);
+        return new_ir_iofs(expr->varref.ident, true);
       else
         return new_ir_bofs(varinfo->reg);
     }
@@ -288,12 +290,25 @@ static VReg *gen_funcall(Expr *expr) {
 
   new_ir_precall(arg_count, stack_aligned);
 
+  const VarInfo *varinfo = NULL;
+  bool global = false;
+  if (func->kind == EX_VARREF) {
+    if (func->varref.scope == NULL) {
+      varinfo = find_global(func->varref.ident);
+      assert(varinfo != NULL);
+      global = (varinfo->flag & VF_STATIC) == 0;
+    } else {
+      Scope *scope = func->varref.scope;
+      varinfo = scope_find(&scope, func->varref.ident);
+      assert(varinfo != NULL);
+      global = (varinfo->flag & VF_EXTERN) != 0;
+    }
+  }
+
   if (args != NULL) {
     if (arg_count > MAX_REG_ARGS) {
       bool vaargs = false;
       if (func->kind == EX_VARREF && func->varref.scope == NULL) {
-        const VarInfo *varinfo = find_global(func->varref.ident);
-        assert(varinfo != NULL && varinfo->type->kind == TY_FUNC);
         vaargs = varinfo->type->func.vaargs;
       } else {
         // TODO:
@@ -311,16 +326,13 @@ static VReg *gen_funcall(Expr *expr) {
   }
 
   VReg *result_reg = NULL;
-  Scope *scope;
   if (func->kind == EX_VARREF &&
-      (func->varref.scope == NULL ||
-       ((scope = func->varref.scope),
-        scope_find(&scope, func->varref.ident)->flag & VF_EXTERN))) {
-    result_reg = new_ir_call(func->varref.ident, NULL, arg_count,
+      (global || varinfo->flag & VF_EXTERN)) {
+    result_reg = new_ir_call(func->varref.ident, global, NULL, arg_count,
                              func->type->func.ret, stack_aligned);
   } else {
     VReg *freg = gen_expr(func);
-    result_reg = new_ir_call(NULL, freg, arg_count,
+    result_reg = new_ir_call(NULL, false, freg, arg_count,
                              func->type->func.ret, stack_aligned);
   }
 
@@ -364,7 +376,7 @@ VReg *gen_expr(Expr *expr) {
 
       Type* strtype = arrayof(&tyChar, expr->str.size);
       const VarInfo *varinfo = str_to_char_array(strtype, init);
-      return new_ir_iofs(varinfo->name);
+      return new_ir_iofs(varinfo->name, false);
     }
 
   case EX_SIZEOF:

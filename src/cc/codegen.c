@@ -214,7 +214,12 @@ void construct_initial_value(unsigned char *buf, const Type *type, Initializer *
           *pptrinits = new_vector();
         vec_push(*pptrinits, init);
 
-        _QUAD(value->varref.ident);
+        const char *label = value->varref.ident;
+        const VarInfo *varinfo = find_global(label);
+        assert(varinfo != NULL);
+        if ((varinfo->flag & VF_STATIC) == 0)
+          label = MANGLE(label);
+        _QUAD(label);
       } else if (value->kind == EX_STR) {
         assert(!"`char* s = \"...\"`; should be handled in parser");
       } else if (is_const(value) && value->kind == EX_NUM) {
@@ -339,8 +344,10 @@ static void put_data(const char *label, const VarInfo *varinfo) {
     error("Out of memory");
 
   emit_align(align_size(varinfo->type));
-  if ((varinfo->flag & VF_STATIC) == 0)  // global
+  if ((varinfo->flag & VF_STATIC) == 0) {  // global
+    label = MANGLE(label);
     _GLOBL(label);
+  }
   EMIT_LABEL(label);
 
   Vector *ptrinits = NULL;  // <[ptr, label]>
@@ -380,7 +387,7 @@ static void put_rwdata(void) {
 // Put global without initial value (bss).
 static void put_bss(void) {
   for (int i = 0, len = map_count(gvar_map); i < len; ++i) {
-    const char *name = (const char *)gvar_map->keys->data[i];
+    const char *label = (const char *)gvar_map->keys->data[i];
     const VarInfo *varinfo = (const VarInfo*)gvar_map->vals->data[i];
     if (varinfo->type->kind == TY_FUNC || varinfo->global.init != NULL ||
         (varinfo->flag & VF_EXTERN) != 0)
@@ -390,7 +397,11 @@ static void put_bss(void) {
     size_t size = type_size(varinfo->type);
     if (size < 1)
       size = 1;
-    _COMM(name, NUM(size));
+    if ((varinfo->flag & VF_STATIC) == 0) {  // global
+      label = MANGLE(label);
+      _GLOBL(label);
+    }
+    _COMM(label, NUM(size));
   }
 }
 
@@ -943,17 +954,19 @@ static void emit_defun(Defun *defun) {
   _TEXT();
 
   bool global = true;
-  VarInfo *varinfo = find_global(func->name);
+  const VarInfo *varinfo = find_global(func->name);
   if (varinfo != NULL) {
     global = (varinfo->flag & VF_STATIC) == 0;
   }
 
-  if (global)
-    _GLOBL(func->name);
-  else
+  if (global) {
+    const char *gl = MANGLE(func->name);
+    _GLOBL(gl);
+    EMIT_LABEL(gl);
+  } else {
     emit_comment("%s: static func", func->name);
-
-  EMIT_LABEL(func->name);
+    EMIT_LABEL(func->name);
+  }
 
   bool no_stmt = true;
   if (defun->stmts != NULL) {
@@ -1001,7 +1014,7 @@ static void emit_defun(Defun *defun) {
 }
 
 static void emit_data(void) {
-  _SECTION(".rodata");
+  _RODATA();
   put_rodata();
 
   emit_comment(NULL);

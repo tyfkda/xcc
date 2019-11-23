@@ -11,6 +11,7 @@ char *im(intptr_t x);  // $x
 char *indirect(const char *reg);
 char *offset_indirect(int offset, const char *reg);
 char *label_indirect(const char *label, const char *reg);
+const char *mangle(const char *label);
 
 void init_emit(FILE *fp);
 void emit_label(const char *label);

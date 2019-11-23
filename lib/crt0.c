@@ -24,6 +24,12 @@ void exit(int code) {
   __asm("syscall");
 }
 
+#elif defined(__APPLE__)
+
+// Use libc.
+
+extern void exit(int code);
+
 #else
 #error Target not supported
 #endif

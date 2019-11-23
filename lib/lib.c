@@ -19,9 +19,16 @@ ssize_t write(int fd, const char *str, long len) {
   __asm("syscall\n");
 }
 
+#elif defined(__APPLE__)
+
+// Use libc.
+#define USE_LIBC
+
 #else
 #error Target not supported
 #endif
+
+#ifndef USE_LIBC
 
 int strlen(const char *s) {
   const char *p;
@@ -438,3 +445,5 @@ void *sbrk(intptr_t increment) {
   return p;
 }
 #endif
+
+#endif  // !USE_LIBC

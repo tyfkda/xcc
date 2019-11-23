@@ -10,6 +10,12 @@ long write(int fd, const char *str, long len) {
   __asm("syscall");
 }
 
+#elif defined(__APPLE__)
+
+// Use libc.
+
+extern long write(int fd, const char *str, long len);
+
 #else
 #error Target not supported
 #endif
