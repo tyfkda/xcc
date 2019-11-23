@@ -442,5 +442,5 @@ size_t alloc_real_registers(Function *func) {
 
   func->ra->sorted_intervals = sorted_intervals;
 
-  return frame_size;
+  return ALIGN(frame_size, 16);
 }
