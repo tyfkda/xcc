@@ -77,6 +77,7 @@ typedef struct VarDecl {
 
 typedef struct Node {
   enum NodeKind kind;
+  const Token *token;
   union {
     Expr *expr;
     Defun *defun;
@@ -112,7 +113,7 @@ typedef struct Node {
       const Token *label;
     } goto_;
     struct {
-      const char *name;
+      // const Token *label;
       struct Node *stmt;
     } label;
     struct {

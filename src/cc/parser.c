@@ -32,35 +32,36 @@ static Defun *new_defun(Function *func, int flag) {
   return defun;
 }
 
-static Node *new_node(enum NodeKind kind) {
+static Node *new_node(enum NodeKind kind, const Token *token) {
   Node *node = malloc(sizeof(Node));
   node->kind = kind;
+  node->token = token;
   return node;
 }
 
 Node *new_node_expr(Expr *e) {
-  Node *node = new_node(ND_EXPR);
+  Node *node = new_node(ND_EXPR, e->token);
   node->expr = e;
   return node;
 }
 
-static Node *new_node_block(Vector *nodes) {
-  Node *node = new_node(ND_BLOCK);
+static Node *new_node_block(const Token *token, Vector *nodes) {
+  Node *node = new_node(ND_BLOCK, token);
   node->block.scope = NULL;
   node->block.nodes = nodes;
   return node;
 }
 
-static Node *new_node_if(Expr *cond, Node *tblock, Node *fblock) {
-  Node *node = new_node(ND_IF);
+static Node *new_node_if(const Token *token, Expr *cond, Node *tblock, Node *fblock) {
+  Node *node = new_node(ND_IF, token);
   node->if_.cond = cond;
   node->if_.tblock = tblock;
   node->if_.fblock = fblock;
   return node;
 }
 
-static Node *new_node_switch(Expr *value) {
-  Node *node = new_node(ND_SWITCH);
+static Node *new_node_switch(const Token *token, Expr *value) {
+  Node *node = new_node(ND_SWITCH, token);
   node->switch_.value = value;
   node->switch_.body = NULL;
   node->switch_.case_values = new_vector();
@@ -68,33 +69,33 @@ static Node *new_node_switch(Expr *value) {
   return node;
 }
 
-static Node *new_node_case(Expr *value) {
-  Node *node = new_node(ND_CASE);
+static Node *new_node_case(const Token *token, Expr *value) {
+  Node *node = new_node(ND_CASE, token);
   node->case_.value = value;
   return node;
 }
 
-static Node *new_node_default(void) {
-  Node *node = new_node(ND_DEFAULT);
+static Node *new_node_default(const Token *token) {
+  Node *node = new_node(ND_DEFAULT, token);
   return node;
 }
 
-static Node *new_node_while(Expr *cond, Node *body) {
-  Node *node = new_node(ND_WHILE);
+static Node *new_node_while(const Token *token, Expr *cond, Node *body) {
+  Node *node = new_node(ND_WHILE, token);
   node->while_.cond = cond;
   node->while_.body = body;
   return node;
 }
 
-static Node *new_node_do_while(Node *body, Expr *cond) {
-  Node *node = new_node(ND_DO_WHILE);
+static Node *new_node_do_while(Node *body, const Token *token, Expr *cond) {
+  Node *node = new_node(ND_DO_WHILE, token);
   node->while_.body = body;
   node->while_.cond = cond;
   return node;
 }
 
-static Node *new_node_for(Expr *pre, Expr *cond, Expr *post, Node *body) {
-  Node *node = new_node(ND_FOR);
+static Node *new_node_for(const Token *token, Expr *pre, Expr *cond, Expr *post, Node *body) {
+  Node *node = new_node(ND_FOR, token);
   node->for_.pre = pre;
   node->for_.cond = cond;
   node->for_.post = post;
@@ -102,46 +103,45 @@ static Node *new_node_for(Expr *pre, Expr *cond, Expr *post, Node *body) {
   return node;
 }
 
-static Node *new_node_return(Expr *val) {
-  Node *node = new_node(ND_RETURN);
+static Node *new_node_return(const Token *token, Expr *val) {
+  Node *node = new_node(ND_RETURN, token);
   node->return_.val = val;
   return node;
 }
 
 static Node *new_node_goto(const Token *label) {
-  Node *node = new_node(ND_GOTO);
+  Node *node = new_node(ND_GOTO, NULL);
   node->goto_.label = label;
   return node;
 }
 
-static Node *new_node_label(const char *name, Node *stmt) {
-  Node *node = new_node(ND_LABEL);
-  node->label.name = name;
+static Node *new_node_label(const Token *label, Node *stmt) {
+  Node *node = new_node(ND_LABEL, label);
   node->label.stmt = stmt;
   return node;
 }
 
 static Node *new_node_vardecl(Vector *decls) {
-  Node *node = new_node(ND_VARDECL);
+  Node *node = new_node(ND_VARDECL, NULL);
   node->vardecl.decls = decls;
   node->vardecl.inits = NULL;
   return node;
 }
 
-static Node *new_node_asm(Expr *str) {
-  Node *node = new_node(ND_ASM);
+static Node *new_node_asm(const Token *token, Expr *str) {
+  Node *node = new_node(ND_ASM, token);
   node->asm_.str = str;
   return node;
 }
 
 static Node *new_node_defun(Defun *defun) {
-  Node *node = new_node(ND_DEFUN);
+  Node *node = new_node(ND_DEFUN, NULL);
   node->defun = defun;
   return node;
 }
 
 Node *new_top_node(Vector *nodes) {
-  Node *top = new_node(ND_TOPLEVEL);
+  Node *top = new_node(ND_TOPLEVEL, NULL);
   top->toplevel.nodes = nodes;
   return top;
 }
@@ -257,7 +257,7 @@ static Node *parse_vardecl(void) {
   return decls != NULL ? new_node_vardecl(decls) : NULL;
 }
 
-static Node *parse_if(void) {
+static Node *parse_if(const Token *tok) {
   if (consume(TK_LPAR)) {
     Expr *cond = parse_expr();
     if (consume(TK_RPAR)) {
@@ -266,18 +266,18 @@ static Node *parse_if(void) {
       if (consume(TK_ELSE)) {
         fblock = stmt();
       }
-      return new_node_if(cond, tblock, fblock);
+      return new_node_if(tok, cond, tblock, fblock);
     }
   }
   parse_error(NULL, "Illegal syntax in `if'");
   return NULL;
 }
 
-static Node *parse_switch(void) {
+static Node *parse_switch(const Token *tok) {
   if (consume(TK_LPAR)) {
     Expr *value = parse_expr();
     if (consume(TK_RPAR)) {
-      Node *swtch = new_node_switch(value);
+      Node *swtch = new_node_switch(tok, value);
       swtch->switch_.body = stmt();
       return swtch;
     }
@@ -286,29 +286,29 @@ static Node *parse_switch(void) {
   return NULL;
 }
 
-static Node *parse_case(void) {
+static Node *parse_case(const Token *tok) {
   // Token *tok = fetch_token();
   Expr *valnode = parse_const();
 
   if (!consume(TK_COLON))
     parse_error(NULL, "`:' expected");
 
-  return new_node_case(valnode);
+  return new_node_case(tok, valnode);
 }
 
-static Node *parse_default(void) {
+static Node *parse_default(const Token *tok) {
   if (!consume(TK_COLON))
     parse_error(NULL, "`:' expected");
-  return new_node_default();
+  return new_node_default(tok);
 }
 
-static Node *parse_while(void) {
+static Node *parse_while(const Token *tok) {
   if (consume(TK_LPAR)) {
     Expr *cond = parse_expr();
     if (consume(TK_RPAR)) {
       Node *body = stmt();
 
-      return new_node_while(cond, body);
+      return new_node_while(tok, cond, body);
     }
   }
   parse_error(NULL, "Illegal syntax in `while'");
@@ -318,17 +318,18 @@ static Node *parse_while(void) {
 static Node *parse_do_while(void) {
   Node *body = stmt();
 
-  if (consume(TK_WHILE) && consume(TK_LPAR)) {
+  const Token *tok;
+  if ((tok = consume(TK_WHILE)) != NULL && consume(TK_LPAR)) {
     Expr *cond = parse_expr();
     if (consume(TK_RPAR) && consume(TK_SEMICOL)) {
-      return new_node_do_while(body, cond);
+      return new_node_do_while(body, tok, cond);
     }
   }
-  parse_error(NULL, "Illegal syntax in `do-while'");
+  parse_error(tok, "Illegal syntax in `do-while'");
   return NULL;
 }
 
-static Node *parse_for(void) {
+static Node *parse_for(const Token *tok) {
   if (consume(TK_LPAR)) {
     Expr *pre = NULL;
     bool nopre = false;
@@ -364,12 +365,12 @@ static Node *parse_for(void) {
           (consume(TK_RPAR) || (post = parse_expr(), consume(TK_RPAR)))) {
         body = stmt();
 
-        Node *node = new_node_for(pre, cond, post, body);
+        Node *node = new_node_for(tok, pre, cond, post, body);
         if (decls != NULL) {
           Vector *stmts = new_vector();
           vec_push(stmts, new_node_vardecl(decls));
           vec_push(stmts, node);
-          return new_node_block(stmts);
+          return new_node_block(NULL, stmts);
         } else {
           return node;
         }
@@ -380,10 +381,10 @@ static Node *parse_for(void) {
   return NULL;
 }
 
-static Node *parse_break_continue(enum NodeKind kind) {
+static Node *parse_break_continue(enum NodeKind kind, const Token *tok) {
   if (!consume(TK_SEMICOL))
     parse_error(NULL, "`;' expected");
-  return new_node(kind);
+  return new_node(kind, tok);
 }
 
 static Node *parse_goto(void) {
@@ -395,20 +396,18 @@ static Node *parse_goto(void) {
   return new_node_goto(label);
 }
 
-static Node *parse_return(void) {
+static Node *parse_return(const Token *tok) {
   Expr *val = NULL;
-  Token *tok;
-  if ((tok = consume(TK_SEMICOL)) != NULL) {
+  if (consume(TK_SEMICOL)) {
   } else {
-    tok = fetch_token();
     val = parse_expr();
     if (!consume(TK_SEMICOL))
-      parse_error(NULL, "`;' expected");
+      parse_error(fetch_token(), "`;' expected");
   }
-  return new_node_return(val);
+  return new_node_return(tok, val);
 }
 
-static Node *parse_asm(void) {
+static Node *parse_asm(const Token *tok) {
   if (!consume(TK_LPAR))
     parse_error(NULL, "`(' expected");
 
@@ -418,7 +417,7 @@ static Node *parse_asm(void) {
   if (args == NULL || args->len != 1 || ((Expr*)args->data[0])->kind != EX_STR)
     parse_error(token, "`__asm' expected one string");
 
-  return new_node_asm(args->data[0]);
+  return new_node_asm(tok, args->data[0]);
 }
 
 // Multiple stmt-s, also accept `case` and `default`.
@@ -433,9 +432,9 @@ static Vector *read_stmts(void) {
     if ((node = parse_vardecl()) != NULL)
       ;
     else if ((tok = consume(TK_CASE)) != NULL)
-      node = parse_case();
+      node = parse_case(tok);
     else if ((tok = consume(TK_DEFAULT)) != NULL)
-      node = parse_default();
+      node = parse_default(tok);
     else
       node = stmt();
 
@@ -447,16 +446,16 @@ static Vector *read_stmts(void) {
   }
 }
 
-static Node *parse_block(void) {
+static Node *parse_block(const Token *tok) {
   Vector *nodes = read_stmts();
-  return new_node_block(nodes);
+  return new_node_block(tok, nodes);
 }
 
 static Node *stmt(void) {
   Token *label = consume(TK_IDENT);
   if (label != NULL) {
     if (consume(TK_COLON)) {
-      return new_node_label(label->ident, stmt());
+      return new_node_label(label, stmt());
     }
     unget_token(label);
   }
@@ -464,40 +463,40 @@ static Node *stmt(void) {
   if (consume(TK_SEMICOL))
     return NULL;
 
-  if (consume(TK_LBRACE))
-    return parse_block();
+  const Token *tok;
+  if ((tok = consume(TK_LBRACE)) != NULL)
+    return parse_block(tok);
 
-  if (consume(TK_IF))
-    return parse_if();
+  if ((tok = consume(TK_IF)) != NULL)
+    return parse_if(tok);
 
-  if (consume(TK_SWITCH))
-    return parse_switch();
+  if ((tok = consume(TK_SWITCH)) != NULL)
+    return parse_switch(tok);
 
-  if (consume(TK_WHILE))
-    return parse_while();
+  if ((tok = consume(TK_WHILE)) != NULL)
+    return parse_while(tok);
 
   if (consume(TK_DO))
     return parse_do_while();
 
-  if (consume(TK_FOR))
-    return parse_for();
+  if ((tok = consume(TK_FOR)) != NULL)
+    return parse_for(tok);
 
-  Token *tok;
   if ((tok = consume(TK_BREAK)) != NULL) {
-    return parse_break_continue(ND_BREAK);
+    return parse_break_continue(ND_BREAK, tok);
   }
   if ((tok = consume(TK_CONTINUE)) != NULL) {
-    return parse_break_continue(ND_CONTINUE);
+    return parse_break_continue(ND_CONTINUE, tok);
   }
-  if ((tok = consume(TK_GOTO)) != NULL) {
+  if (consume(TK_GOTO)) {
     return parse_goto();
   }
 
-  if (consume(TK_RETURN))
-    return parse_return();
+  if ((tok = consume(TK_RETURN)) != NULL)
+    return parse_return(tok);
 
-  if (consume(TK_ASM))
-    return parse_asm();
+  if ((tok = consume(TK_ASM)) != NULL)
+    return parse_asm(tok);
 
   // expression statement.
   Expr *val = parse_expr();

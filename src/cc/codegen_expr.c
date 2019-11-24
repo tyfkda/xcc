@@ -5,6 +5,7 @@
 
 #include "expr.h"
 #include "ir.h"
+#include "lexer.h"
 #include "parser.h"  // Initializer
 #include "regalloc.h"
 #include "sema.h"
@@ -315,7 +316,8 @@ static VReg *gen_funcall(Expr *expr) {
       }
 
       if (vaargs)
-        error("Param count exceeds %d (%d)", MAX_REG_ARGS, arg_count);
+        parse_error(((Expr*)args->data[MAX_REG_ARGS])->token,
+                    "Param count exceeds %d", MAX_REG_ARGS);
     }
 
     for (int i = arg_count; --i >= 0; ) {

@@ -738,12 +738,12 @@ Node *sema(Node *node) {
 
   case ND_BREAK:
     if ((curloopflag & LF_BREAK) == 0)
-      parse_error(/*tok*/ NULL, "`break' cannot be used outside of loop");
+      parse_error(node->token, "`break' cannot be used outside of loop");
     break;
 
   case ND_CONTINUE:
     if ((curloopflag & LF_CONTINUE) == 0)
-      parse_error(/*tok*/ NULL, "`continue' cannot be used outside of loop");
+      parse_error(node->token, "`continue' cannot be used outside of loop");
     break;
 
   case ND_RETURN:
@@ -751,17 +751,15 @@ Node *sema(Node *node) {
       assert(curdefun != NULL);
       const Type *rettype = curdefun->func->type->func.ret;
       Expr *val = node->return_.val;
-      Token *tok = NULL;
       if (val == NULL) {
         if (rettype->kind != TY_VOID)
-          parse_error(tok, "`return' required a value");
+          parse_error(node->token, "`return' required a value");
       } else {
         if (rettype->kind == TY_VOID)
-          parse_error(tok, "void function `return' a value");
+          parse_error(val->token, "void function `return' a value");
 
-        const Token *tok = NULL;
-        Expr *val = analyze_expr(node->return_.val, false);
-        node->return_.val = make_cast(rettype, tok, val, false);
+        val = analyze_expr(val, false);
+        node->return_.val = make_cast(rettype, val->token, val, false);
       }
     }
     break;
@@ -788,9 +786,9 @@ Node *sema(Node *node) {
 
   case ND_DEFAULT:
     if (curswitch == NULL)
-      parse_error(/*tok*/ NULL, "`default' cannot use outside of `switch'");
+      parse_error(node->token, "`default' cannot use outside of `switch'");
     if (curswitch->switch_.has_default)
-      parse_error(/*tok*/ NULL, "`default' already defined in `switch'");
+      parse_error(node->token, "`default' already defined in `switch'");
 
     curswitch->switch_.has_default = true;
     break;
@@ -800,7 +798,7 @@ Node *sema(Node *node) {
     break;
 
   case ND_LABEL:
-    add_func_label(node->label.name);
+    add_func_label(node->token->ident);
     node->label.stmt = sema(node->label.stmt);
     break;
 

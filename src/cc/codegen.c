@@ -872,7 +872,7 @@ static void gen_goto(Node *node) {
 
 static void gen_label(Node *node) {
   assert(curdefun->label_map != NULL);
-  BB *bb = map_get(curdefun->label_map, node->label.name);
+  BB *bb = map_get(curdefun->label_map, node->token->ident);
   assert(bb != NULL);
   bb_insert(curbb, bb);
   set_curbb(bb);
