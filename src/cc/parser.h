@@ -30,6 +30,7 @@ typedef struct Defun {
 
 typedef struct Initializer {
   enum { vSingle, vMulti, vDot, vArr } kind;  // vSingle: 123, vMulti: {...}, vDot: .x=123, vArr: [n]=123
+  const Token *token;
   union {
     Expr *single;
     Vector *multi;  // <Initializer*>

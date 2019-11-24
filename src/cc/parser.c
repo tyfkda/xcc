@@ -150,11 +150,13 @@ Node *new_top_node(Vector *nodes) {
 
 static Initializer *parse_initializer(void) {
   Initializer *result = malloc(sizeof(*result));
-  if (consume(TK_LBRACE)) {
+  const Token *lblace_tok;
+  if ((lblace_tok = consume(TK_LBRACE)) != NULL) {
     Vector *multi = new_vector();
     if (!consume(TK_RBRACE)) {
       for (;;) {
         Initializer *init;
+        const Token *tok;
         if (consume(TK_DOT)) {  // .member=value
           Token *ident = consume(TK_IDENT);
           if (ident == NULL)
@@ -164,9 +166,10 @@ static Initializer *parse_initializer(void) {
           Initializer *value = parse_initializer();
           init = malloc(sizeof(*init));
           init->kind = vDot;
+          init->token = ident;
           init->dot.name = ident->ident;
           init->dot.value = value;
-        } else if (consume(TK_LBRACKET)) {
+        } else if ((tok = consume(TK_LBRACKET)) != NULL) {
           Expr *index = parse_const();
           if (!consume(TK_RBRACKET))
             parse_error(NULL, "`]' expected");
@@ -174,6 +177,7 @@ static Initializer *parse_initializer(void) {
           Initializer *value = parse_initializer();
           init = malloc(sizeof(*init));
           init->kind = vArr;
+          init->token = tok;
           init->arr.index = index;
           init->arr.value = value;
         } else {
@@ -192,10 +196,12 @@ static Initializer *parse_initializer(void) {
       }
     }
     result->kind = vMulti;
+    result->token = lblace_tok;
     result->multi = multi;
   } else {
     result->kind = vSingle;
     result->single = parse_assign();
+    result->token = result->single->token;
   }
   return result;
 }

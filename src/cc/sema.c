@@ -46,7 +46,7 @@ static void fix_array_size(Type *type, Initializer *init) {
                  init->kind == vSingle &&
                  init->single->kind == EX_STR);
   if (!is_str && init->kind != vMulti) {
-    parse_error(NULL, "Error initializer");
+    parse_error(init->token, "Error initializer");
   }
 
   size_t arr_len = type->pa.length;
@@ -245,11 +245,11 @@ Initializer *flatten_initializer(const Type *type, Initializer *init) {
       int m = init->multi->len;
       if (n <= 0) {
         if (m > 0)
-          parse_error(NULL, "Initializer for empty struct");
+          parse_error(init->token, "Initializer for empty struct");
         return NULL;
       }
       if (sinfo->is_union && m > 1)
-        parse_error(NULL, "Initializer for union more than 1");
+        parse_error(((Initializer*)init->multi->data[1])->token, "Initializer for union more than 1");
 
       Initializer **values = malloc(sizeof(Initializer*) * n);
       for (int i = 0; i < n; ++i)
@@ -259,7 +259,7 @@ Initializer *flatten_initializer(const Type *type, Initializer *init) {
       for (int i = 0; i < m; ++i) {
         Initializer *value = init->multi->data[i];
         if (value->kind == vArr)
-          parse_error(NULL, "indexed initializer for array");
+          parse_error(NULL, "indexed initializer for struct");
 
         if (value->kind == vDot) {
           const char *name = value->dot.name;
@@ -270,7 +270,7 @@ Initializer *flatten_initializer(const Type *type, Initializer *init) {
             Vector *stack = new_vector();
             bool res = search_from_anonymous(type, name, NULL, stack);
             if (!res)
-              parse_error(NULL, "`%s' is not member of struct", name);
+              parse_error(value->token, "`%s' is not member of struct", name);
 
             index = (intptr_t)stack->data[0];
             Vector *multi = new_vector();
@@ -519,7 +519,7 @@ static Vector *assign_initial_value(Expr *expr, Initializer *init, Vector *inits
       }
       // Fallthrough
     default:
-      parse_error(NULL, "Error initializer");
+      parse_error(init->token, "Error initializer");
       break;
     }
     break;
@@ -563,7 +563,7 @@ static Vector *assign_initial_value(Expr *expr, Initializer *init, Vector *inits
     break;
   default:
     if (init->kind != vSingle)
-      parse_error(NULL, "Error initializer");
+      parse_error(init->token, "Error initializer");
     vec_push(inits,
              new_node_expr(new_expr_bop(EX_ASSIGN, expr->type, NULL, expr,
                                         make_cast(expr->type, NULL, init->single, false))));
@@ -605,7 +605,7 @@ static Node *sema_vardecl(Node *node) {
       if (find_enum_value(ident->ident, &eval))
         parse_error(ident, "`%s' is already defined", ident->ident);
       if (flag & VF_EXTERN && init != NULL)
-        parse_error(ident, "extern with initializer");
+        parse_error(init->token, "extern with initializer");
       // Toplevel
       VarInfo *varinfo = define_global(type, flag, ident, NULL);
       init = analyze_initializer(init);
@@ -769,18 +769,18 @@ Node *sema(Node *node) {
   case ND_CASE:
     {
       if (curswitch == NULL)
-        parse_error(/*tok*/ NULL, "`case' cannot use outside of `switch`");
+        parse_error(node->case_.value->token, "`case' cannot use outside of `switch`");
 
       node->case_.value = analyze_expr(node->case_.value, false);
       if (!is_number(node->case_.value->type->kind))
-        parse_error(/*tok*/ NULL, "Cannot use expression");
+        parse_error(node->case_.value->token, "Cannot use expression");
       intptr_t value = node->case_.value->num.ival;
 
       // Check duplication.
       Vector *values = curswitch->switch_.case_values;
       for (int i = 0, len = values->len; i < len; ++i) {
         if ((intptr_t)values->data[i] == value)
-          parse_error(/*tok*/ NULL, "Case value `%"PRIdPTR"' already defined", value);
+          parse_error(node->case_.value->token, "Case value `%"PRIdPTR"' already defined", value);
       }
       vec_push(values, (void*)value);
     }
