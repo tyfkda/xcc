@@ -414,7 +414,8 @@ VReg *gen_expr(Expr *expr) {
         // Fallthrough to suppress compile error.
       case TY_ARRAY:
       case TY_STRUCT:
-        // array and struct values are handled as a pointer.
+      case TY_FUNC:
+        // array, struct and func values are handled as a pointer.
         return reg;
       }
     }

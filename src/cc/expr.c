@@ -82,8 +82,6 @@ static Expr *new_expr_unary(enum ExprKind kind, const Type *type, const Token *t
 }
 
 Expr *new_expr_deref(const Token *token, Expr *sub) {
-  if (sub->type->kind != TY_PTR && sub->type->kind != TY_ARRAY)
-    parse_error(token, "Cannot dereference raw type");
   return new_expr_unary(EX_DEREF, sub->type->pa.ptrof, token, sub);
 }
 

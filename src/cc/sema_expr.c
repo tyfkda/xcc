@@ -598,9 +598,18 @@ Expr *analyze_expr(Expr *expr, bool keep_left) {
     case EX_DEREF:
       {
         Expr *sub = expr->unary.sub;
-        if (sub->type->kind != TY_PTR && sub->type->kind != TY_ARRAY)
+        switch (sub->type->kind) {
+        case TY_PTR:
+        case TY_ARRAY:
+          expr->type = sub->type->pa.ptrof;
+          break;
+        case TY_FUNC:
+          expr->type = sub->type;
+          break;
+        default:
           parse_error(expr->token, "Cannot dereference raw type");
-        expr->type = sub->type->pa.ptrof;
+          break;
+        }
       }
       break;
 

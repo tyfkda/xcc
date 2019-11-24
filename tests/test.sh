@@ -137,6 +137,8 @@ try_direct 'typedef can use in local' 61 'typedef int Foo; int main(){ int Foo =
 try_direct 'proto in func' 78 'int main(){ int sub(int); return sub(77); } int sub(int x) { return x + 1; }'
 try_direct 'extern in func' 45 'int main(){ extern int g; g = 45; return g; } int g;'
 try_direct 'anonymous union init' 99 'struct {union {int x;};} a = {.x = 99}; int main(){ return a.x; }'
+try 'func ref' 1 'return main == &main;'
+try 'func deref' 1 'return (long)main == (long)*main;'
 
 # error cases
 echo ''
