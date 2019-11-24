@@ -656,8 +656,8 @@ static void sema_defun(Defun *defun) {
       for (int i = 0; i < gotos->len; ++i) {
         Node *node = gotos->data[i];
         void *bb;
-        if (label_map == NULL || !map_try_get(label_map, node->goto_.ident, &bb))
-          parse_error(node->goto_.tok, "`%s' not found", node->goto_.ident);
+        if (label_map == NULL || !map_try_get(label_map, node->goto_.label->ident, &bb))
+          parse_error(node->goto_.label, "`%s' not found", node->goto_.label->ident);
       }
     }
   }

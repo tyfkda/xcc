@@ -865,7 +865,7 @@ static void gen_continue(void) {
 
 static void gen_goto(Node *node) {
   assert(curdefun->label_map != NULL);
-  BB *bb = map_get(curdefun->label_map, node->goto_.ident);
+  BB *bb = map_get(curdefun->label_map, node->goto_.label->ident);
   assert(bb != NULL);
   new_ir_jmp(COND_ANY, bb);
 }

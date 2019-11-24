@@ -110,8 +110,7 @@ static Node *new_node_return(Expr *val) {
 
 static Node *new_node_goto(const Token *label) {
   Node *node = new_node(ND_GOTO);
-  node->goto_.tok = label;
-  node->goto_.ident = label->ident;
+  node->goto_.label = label;
   return node;
 }
 

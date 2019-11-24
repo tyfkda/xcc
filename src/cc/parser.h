@@ -108,8 +108,7 @@ typedef struct Node {
       struct Node *body;
     } for_;
     struct {
-      const Token *tok;
-      const char *ident;
+      const Token *label;
     } goto_;
     struct {
       const char *name;
