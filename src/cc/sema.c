@@ -352,7 +352,7 @@ static Initializer *check_global_initializer(const Type *type, Initializer *init
       case EX_NUM:
         return init;
       default:
-        parse_error(NULL, "Constant expression expected");
+        parse_error(init->single->token, "Constant expression expected");
         break;
       }
     }
@@ -367,28 +367,28 @@ static Initializer *check_global_initializer(const Type *type, Initializer *init
         {
           value = value->unary.sub;
           if (value->kind != EX_VARREF)
-            parse_error(NULL, "pointer initializer must be varref");
+            parse_error(value->token, "pointer initializer must be varref");
           if (value->varref.scope != NULL)
-            parse_error(NULL, "Allowed global reference only");
+            parse_error(value->token, "Allowed global reference only");
 
           VarInfo *info = find_global(value->varref.ident);
           assert(info != NULL);
 
           if (!same_type(type->pa.ptrof, info->type))
-            parse_error(NULL, "Illegal type");
+            parse_error(value->token, "Illegal type");
 
           return init;
         }
       case EX_VARREF:
         {
           if (value->varref.scope != NULL)
-            parse_error(NULL, "Allowed global reference only");
+            parse_error(value->token, "Allowed global reference only");
 
           VarInfo *info = find_global(value->varref.ident);
           assert(info != NULL);
 
           if (info->type->kind != TY_ARRAY || !same_type(type->pa.ptrof, info->type->pa.ptrof))
-            parse_error(NULL, "Illegal type");
+            parse_error(value->token, "Illegal type");
 
           return init;
         }
@@ -410,7 +410,7 @@ static Initializer *check_global_initializer(const Type *type, Initializer *init
       case EX_STR:
         {
           if (!(is_char_type(type->pa.ptrof) && value->kind == EX_STR))
-            parse_error(NULL, "Illegal type");
+            parse_error(value->token, "Illegal type");
 
           // Create string and point to it.
           Type* strtype = arrayof(type->pa.ptrof, value->str.size);
@@ -424,7 +424,7 @@ static Initializer *check_global_initializer(const Type *type, Initializer *init
       default:
         break;
       }
-      parse_error(NULL, "initializer type error: kind=%d", value->kind);
+      parse_error(value->token, "initializer type error: kind=%d", value->kind);
     }
     break;
   case TY_ARRAY:
@@ -443,7 +443,7 @@ static Initializer *check_global_initializer(const Type *type, Initializer *init
       if (is_char_type(type->pa.ptrof) && init->single->kind == EX_STR) {
         assert(type->pa.length != (size_t)-1);
         if (type->pa.length < init->single->str.size) {
-          parse_error(NULL, "Array size shorter than initializer");
+          parse_error(init->single->token, "Array size shorter than initializer");
         }
         return init;
       }
@@ -603,9 +603,9 @@ static Node *sema_vardecl(Node *node) {
     } else {
       intptr_t eval;
       if (find_enum_value(ident->ident, &eval))
-        parse_error(NULL, "`%s' is already defined", ident->ident);
+        parse_error(ident, "`%s' is already defined", ident->ident);
       if (flag & VF_EXTERN && init != NULL)
-        parse_error(/*tok*/ NULL, "extern with initializer");
+        parse_error(ident, "extern with initializer");
       // Toplevel
       VarInfo *varinfo = define_global(type, flag, ident, NULL);
       init = analyze_initializer(init);

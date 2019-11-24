@@ -227,7 +227,7 @@ static VReg *gen_lval(Expr *expr) {
       return result;
     }
   default:
-    error("No lvalue: %d", expr->kind);
+    assert(false);
     break;
   }
   return NULL;

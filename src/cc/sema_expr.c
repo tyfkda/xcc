@@ -356,6 +356,18 @@ static Expr *analyze_cmp(Expr *expr) {
   return expr;
 }
 
+static void analyze_lval(const Token *tok, Expr *expr, const char *error) {
+  switch (expr->kind) {
+  case EX_VARREF:
+  case EX_DEREF:
+  case EX_MEMBER:
+    break;
+  default:
+    parse_error(tok, error);
+    break;
+  }
+}
+
 // Traverse expr to check semantics and determine value type.
 Expr *analyze_expr(Expr *expr, bool keep_left) {
   if (expr == NULL)
@@ -517,6 +529,7 @@ Expr *analyze_expr(Expr *expr, bool keep_left) {
       break;
 
     case EX_ASSIGN:
+      analyze_lval(expr->token, expr->bop.lhs, "Cannot assign");
       expr->type = expr->bop.lhs->type;
       expr->bop.rhs = make_cast(expr->type, expr->token, expr->bop.rhs, false);
       break;
@@ -592,6 +605,7 @@ Expr *analyze_expr(Expr *expr, bool keep_left) {
       break;
 
     case EX_REF:
+      analyze_lval(expr->token, expr->unary.sub, "Cannot take reference");
       expr->type = ptrof(expr->unary.sub->type);
       break;
 
@@ -614,6 +628,7 @@ Expr *analyze_expr(Expr *expr, bool keep_left) {
       break;
 
     case EX_ASSIGN_WITH:
+      analyze_lval(expr->token, expr->unary.sub->bop.lhs, "Cannot assign");
       expr->type = expr->unary.sub->bop.lhs->type;
       break;
 
