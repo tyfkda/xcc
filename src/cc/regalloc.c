@@ -65,14 +65,6 @@ static void three_to_two(BB *bb) {
   bb->irs = irs;
 }
 
-typedef struct LiveInterval {
-  int vreg;
-  int rreg;
-  int start;
-  int end;
-  bool spill;
-} LiveInterval;
-
 static int insert_active(LiveInterval **active, int active_count, LiveInterval *li) {
   int j;
   for (j = 0; j < active_count; ++j) {

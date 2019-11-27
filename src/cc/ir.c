@@ -965,6 +965,9 @@ static void dump_ir(FILE *fp, IR *ir) {
 void dump_func_ir(Function *func) {
   FILE *fp = stdout;
 
+  if (func->top_scope == NULL)  // Prototype definition
+    return;
+
   BBContainer *bbcon = func->bbcon;
   assert(bbcon != NULL);
 
@@ -981,7 +984,6 @@ void dump_func_ir(Function *func) {
     }
   }
 
-#if 0
   RegAlloc *ra = func->ra;
   fprintf(fp, "VREG: #%d\n", ra->regno);
   LiveInterval **sorted_intervals = func->ra->sorted_intervals;
@@ -994,7 +996,6 @@ void dump_func_ir(Function *func) {
       fprintf(fp, "  V%3d: live %3d - %3d (spilled, offset=%d)\n", li->vreg, li->start, li->end, vreg->offset);
     }
   }
-#endif
 
   fprintf(fp, "BB: #%d\n", bbcon->bbs->len);
   for (int i = 0; i < bbcon->bbs->len; ++i) {
