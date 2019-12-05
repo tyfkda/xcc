@@ -46,6 +46,7 @@ enum ExprKind {
   EX_LOGAND,  // &&
   EX_LOGIOR,  // ||
   EX_ASSIGN,  // =
+  EX_COMMA,   // head, tail
 
   // Unary operators
   EX_POS,     // +
@@ -65,7 +66,6 @@ enum ExprKind {
   EX_MEMBER,  // x.member or x->member
   EX_SIZEOF,  // sizeof(x)
   EX_FUNCALL, // f(x, y, ...)
-  EX_COMMA,   // (a, b, ...)
 };
 
 typedef struct Expr {
@@ -108,9 +108,6 @@ typedef struct Expr {
       struct Expr *func;
       Vector *args;  // <Expr*>
     } funcall;
-    struct {
-      Vector *list;  // <Expr*>
-    } comma;
   };
 } Expr;
 

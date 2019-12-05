@@ -439,6 +439,7 @@ Expr *analyze_expr(Expr *expr, bool keep_left) {
   case EX_LOGAND:
   case EX_LOGIOR:
   case EX_ASSIGN:
+  case EX_COMMA:
     expr->bop.lhs = analyze_expr(expr->bop.lhs, false);
     expr->bop.rhs = analyze_expr(expr->bop.rhs, false);
     assert(expr->bop.lhs->type != NULL);
@@ -532,6 +533,10 @@ Expr *analyze_expr(Expr *expr, bool keep_left) {
       analyze_lval(expr->token, expr->bop.lhs, "Cannot assign");
       expr->type = expr->bop.lhs->type;
       expr->bop.rhs = make_cast(expr->type, expr->token, expr->bop.rhs, false);
+      break;
+
+    case EX_COMMA:
+      expr->type = expr->bop.rhs->type;
       break;
 
     default:
@@ -769,16 +774,6 @@ Expr *analyze_expr(Expr *expr, bool keep_left) {
           }
         }
       }
-    }
-    break;
-
-  case EX_COMMA:
-    {
-      Vector *list = expr->comma.list;
-      int len = list->len;
-      for (int i = 0; i < len; ++i)
-        list->data[i] = analyze_expr(list->data[i], false);
-      expr->type = ((Expr*)list->data[len - 1])->type;
     }
     break;
 

@@ -443,14 +443,8 @@ VReg *gen_expr(Expr *expr) {
     }
 
   case EX_COMMA:
-    {
-      VReg *result = NULL;
-      Vector *list = expr->comma.list;
-      for (int i = 0, len = list->len; i < len; ++i) {
-        result = gen_expr(list->data[i]);
-      }
-      return result;
-    }
+    gen_expr(expr->bop.lhs);
+    return gen_expr(expr->bop.rhs);
 
   case EX_TERNARY:
     return gen_ternary(expr);

@@ -109,12 +109,6 @@ static Expr *new_expr_funcall(const Token *token, Expr *func, Vector *args) {
   return expr;
 }
 
-static Expr *new_expr_comma(Vector *list) {
-  Expr *expr = new_expr(EX_COMMA, NULL, NULL);
-  expr->comma.list = list;
-  return expr;
-}
-
 Expr *new_expr_sizeof(const Token *token, const Type *type, Expr *sub) {
   Expr *expr = new_expr(EX_SIZEOF, &tySize, token);
   expr->sizeof_.type = type;
@@ -837,19 +831,11 @@ Expr *parse_const(void) {
 }
 
 Expr *parse_expr(void) {
-  Expr *expr;
-  Vector *list = NULL;
-  for (;;) {
-    expr = parse_assign();
-    if (!consume(TK_COMMA))
-      break;
-    if (list == NULL)
-      list = new_vector();
-    vec_push(list, expr);
+  Expr *expr = parse_assign();
+  const Token *tok;
+  while ((tok = consume(TK_COMMA)) != NULL) {
+    Expr *next_expr = parse_assign();
+    expr = new_expr_bop(EX_COMMA, NULL, tok, expr, next_expr);
   }
-
-  if (list == NULL)
-    return expr;
-  vec_push(list, expr);
-  return new_expr_comma(list);
+  return expr;
 }
