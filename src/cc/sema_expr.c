@@ -357,6 +357,9 @@ static Expr *analyze_cmp(Expr *expr) {
 }
 
 static void analyze_lval(const Token *tok, Expr *expr, const char *error) {
+  while (expr->kind == EX_GROUP)
+    expr = expr->unary.sub;
+
   switch (expr->kind) {
   case EX_VARREF:
   case EX_DEREF:
@@ -530,6 +533,8 @@ Expr *analyze_expr(Expr *expr, bool keep_left) {
       break;
 
     case EX_ASSIGN:
+      if (expr->bop.lhs->kind == EX_GROUP)
+        parse_error(expr->token, "Cannot assign");
       analyze_lval(expr->token, expr->bop.lhs, "Cannot assign");
       expr->type = expr->bop.lhs->type;
       expr->bop.rhs = make_cast(expr->type, expr->token, expr->bop.rhs, false);
@@ -557,6 +562,7 @@ Expr *analyze_expr(Expr *expr, bool keep_left) {
   case EX_POSTDEC:
   case EX_REF:
   case EX_DEREF:
+  case EX_GROUP:
   case EX_CAST:
   case EX_ASSIGN_WITH:
     expr->unary.sub = analyze_expr(expr->unary.sub, expr->kind == EX_ASSIGN_WITH);
@@ -630,6 +636,12 @@ Expr *analyze_expr(Expr *expr, bool keep_left) {
           break;
         }
       }
+      break;
+
+    case EX_GROUP:
+      if (is_const(expr->unary.sub))
+        return expr->unary.sub;
+      expr->type = expr->unary.sub->type;
       break;
 
     case EX_ASSIGN_WITH:

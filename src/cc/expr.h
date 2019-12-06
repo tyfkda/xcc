@@ -59,6 +59,7 @@ enum ExprKind {
   EX_POSTDEC, // e--
   EX_REF,     // &
   EX_DEREF,   // *
+  EX_GROUP,   // (x)
   EX_CAST,
   EX_ASSIGN_WITH,  // +=, etc.
 

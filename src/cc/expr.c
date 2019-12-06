@@ -461,13 +461,13 @@ static StructInfo *parse_struct(bool is_union) {
 }
 
 static Expr *prim(void) {
-  if (match(TK_LPAR)) {
+  Token *tok;
+  if ((tok = match(TK_LPAR)) != NULL) {
     Expr *expr = parse_expr();
     consume(TK_RPAR, "No close paren");
-    return expr;
+    return new_expr_unary(EX_GROUP, NULL, tok, expr);
   }
 
-  Token *tok;
   {
     const Type *type;
     if (((tok = match(TK_CHARLIT)) != NULL && (type = &tyChar, true)) ||

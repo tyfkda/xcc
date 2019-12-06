@@ -362,7 +362,12 @@ static Initializer *check_global_initializer(const Type *type, Initializer *init
     {
       if (init->kind != vSingle)
         parse_error(NULL, "initializer type error");
+
       Expr *value = init->single;
+      while (value->kind == EX_CAST || value->kind == EX_GROUP) {
+        value = value->unary.sub;
+      }
+
       switch (value->kind) {
       case EX_REF:
         {
@@ -393,13 +398,6 @@ static Initializer *check_global_initializer(const Type *type, Initializer *init
 
           return init;
         }
-      case EX_CAST:
-        // Handle NULL assignment.
-        while (value->kind == EX_CAST)
-          value = value->unary.sub;
-        if (!is_number(value->type->kind))
-          break;
-        // Fallthrough
       case EX_NUM:
         {
           Initializer *init2 = malloc(sizeof(*init2));
@@ -407,7 +405,6 @@ static Initializer *check_global_initializer(const Type *type, Initializer *init
           init2->single = value;
           return init2;
         }
-        break;
       case EX_STR:
         {
           if (!(is_char_type(type->pa.ptrof) && value->kind == EX_STR))
@@ -446,7 +443,7 @@ static Initializer *check_global_initializer(const Type *type, Initializer *init
         if (type->pa.length < init->single->str.size) {
           parse_error(init->single->token, "Array size shorter than initializer");
         }
-        return init;
+        break;
       }
       // Fallthrough
     case vDot:

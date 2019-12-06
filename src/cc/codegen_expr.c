@@ -188,6 +188,9 @@ static VReg *gen_cast(VReg *reg, const Type *ltype, const Type *rtype) {
 }
 
 static VReg *gen_lval(Expr *expr) {
+  while (expr->kind == EX_GROUP)
+    expr = expr->unary.sub;
+
   switch (expr->kind) {
   case EX_VARREF:
     if (expr->varref.scope == NULL) {
@@ -421,6 +424,9 @@ VReg *gen_expr(Expr *expr) {
         return reg;
       }
     }
+
+  case EX_GROUP:
+    return gen_expr(expr->unary.sub);
 
   case EX_MEMBER:
     {
