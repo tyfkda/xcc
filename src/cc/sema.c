@@ -7,6 +7,7 @@
 #include "expr.h"
 #include "lexer.h"
 #include "parser.h"
+#include "stmt.h"
 #include "type.h"
 #include "util.h"
 #include "var.h"

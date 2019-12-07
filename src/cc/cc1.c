@@ -9,6 +9,7 @@
 #include "emit.h"
 #include "lexer.h"
 #include "parser.h"
+#include "stmt.h"
 #include "sema.h"
 #include "type.h"
 #include "util.h"

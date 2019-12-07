@@ -6,7 +6,7 @@
 #include "expr.h"
 #include "ir.h"
 #include "lexer.h"
-#include "parser.h"  // Initializer
+#include "stmt.h"
 #include "regalloc.h"
 #include "sema.h"
 #include "type.h"
