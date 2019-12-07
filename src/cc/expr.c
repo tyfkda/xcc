@@ -125,16 +125,14 @@ Expr *new_expr_cast(const Type *type, const Token *token, Expr *sub) {
 Vector *parse_args(Token **ptoken) {
   Vector *args = NULL;
   Token *token;
-  if ((token = consume(TK_RPAR)) == NULL) {
+  if ((token = match(TK_RPAR)) == NULL) {
     args = new_vector();
     for (;;) {
       Expr *arg = parse_assign();
       vec_push(args, arg);
-      if ((token = consume(TK_RPAR)) != NULL)
+      if ((token = match(TK_RPAR)) != NULL)
         break;
-      if (consume(TK_COMMA))
-        continue;
-      parse_error(NULL, "Comma or `)` expected");
+      consume(TK_COMMA, "Comma or `)` expected");
     }
   }
 
@@ -150,37 +148,30 @@ static Expr *funcall(Expr *func) {
 
 Expr *array_index(const Token *token, Expr *array) {
   Expr *index = parse_expr();
-  Token *tok;
-  if ((tok = consume(TK_RBRACKET)) == NULL)
-    parse_error(NULL, "`]' expected");
+  consume(TK_RBRACKET, "`]' expected");
   //return new_expr_deref(add_expr(tok, array, index));
   return new_expr_unary(EX_DEREF, NULL, token, new_expr_bop(EX_ADD, NULL, token, array, index));
 }
 
 Expr *member_access(Expr *target, Token *acctok) {
-  Token *ident;
-  if (!(ident = consume(TK_IDENT)))
-    parse_error(NULL, "`ident' expected");
-
+  Token *ident = consume(TK_IDENT, "`ident' expected");
   return new_expr_member(acctok, NULL, target, acctok, ident, -1);
 }
 
 static const Type *parse_enum(void) {
-  Token *typeIdent = consume(TK_IDENT);
+  Token *typeIdent = match(TK_IDENT);
   Type *type = typeIdent != NULL ? find_enum(typeIdent->ident) : NULL;
-  if (consume(TK_LBRACE)) {
+  if (match(TK_LBRACE)) {
     // TODO: Duplicate check.
     if (type != NULL)
       parse_error(typeIdent, "Duplicate enum type");
     type = define_enum(typeIdent);
-    if (!consume(TK_RBRACE)) {
+    if (!match(TK_RBRACE)) {
       int value = 0;
       for (;;) {
         Token *numtok;
-        Token *ident = numtok = consume(TK_IDENT);
-        if (ident == NULL)
-          parse_error(NULL, "ident expected");
-        if (consume(TK_ASSIGN)) {
+        Token *ident = numtok = consume(TK_IDENT, "ident expected");
+        if (match(TK_ASSIGN)) {
           numtok = fetch_token();
           Expr *expr = analyze_expr(parse_const(), false);
           if (!(is_const(expr) && is_number(expr->type->kind))) {
@@ -193,9 +184,9 @@ static const Type *parse_enum(void) {
         add_enum_member(type, ident, value);
         ++value;
 
-        if (consume(TK_COMMA))
+        if (match(TK_COMMA))
           ;
-        if (consume(TK_RBRACE))
+        if (match(TK_RBRACE))
           break;
       }
     }
@@ -211,19 +202,19 @@ const Type *parse_raw_type(int *pflag) {
 
   int flag = 0;
   for (;;) {
-    if (consume(TK_UNSIGNED)) {
+    if (match(TK_UNSIGNED)) {
       flag |= VF_UNSIGNED;
       continue;
     }
-    if (consume(TK_KWCONST)) {
+    if (match(TK_KWCONST)) {
       flag |= VF_CONST;
       continue;
     }
-    if (consume(TK_STATIC)) {
+    if (match(TK_STATIC)) {
       flag |= VF_STATIC;
       continue;
     }
-    if (consume(TK_EXTERN)) {
+    if (match(TK_EXTERN)) {
       flag |= VF_EXTERN;
       continue;
     }
@@ -233,16 +224,16 @@ const Type *parse_raw_type(int *pflag) {
 
     Token *structtok;
     Token *ident;
-    if (((structtok = consume(TK_STRUCT)) != NULL) ||
-        ((structtok = consume(TK_UNION)) != NULL)) {
+    if (((structtok = match(TK_STRUCT)) != NULL) ||
+        ((structtok = match(TK_UNION)) != NULL)) {
       bool is_union = structtok->kind == TK_UNION;
       const char *name = NULL;
       Token *ident;
-      if ((ident = consume(TK_IDENT)) != NULL)
+      if ((ident = match(TK_IDENT)) != NULL)
         name = ident->ident;
 
       StructInfo *sinfo = NULL;
-      if (consume(TK_LBRACE)) {  // Definition
+      if (match(TK_LBRACE)) {  // Definition
         sinfo = parse_struct(is_union);
         if (name != NULL) {
           StructInfo *exist = find_struct(name);
@@ -268,9 +259,9 @@ const Type *parse_raw_type(int *pflag) {
       stype->struct_.name = name;
       stype->struct_.info = sinfo;
       type = stype;
-    } else if (consume(TK_ENUM)) {
+    } else if (match(TK_ENUM)) {
       type = parse_enum();
-    } else if ((ident = consume(TK_IDENT)) != NULL) {
+    } else if ((ident = match(TK_IDENT)) != NULL) {
       type = find_typedef(ident->ident);
       if (type == NULL)
         unget_token(ident);
@@ -283,7 +274,7 @@ const Type *parse_raw_type(int *pflag) {
       };
       const int N = sizeof(kTypes) / sizeof(*kTypes);
       for (int i = 0; i < N; ++i) {
-        if (consume(kKeywords[i])) {
+        if (match(kKeywords[i])) {
           type = kTypes[i];
           break;
         }
@@ -304,11 +295,11 @@ const Type *parse_type_modifier(const Type* type) {
     return NULL;
 
   for (;;) {
-    if (consume(TK_KWCONST)) {
+    if (match(TK_KWCONST)) {
       // TODO: Reflect to the type.
       ;
     }
-    if (consume(TK_MUL))
+    if (match(TK_MUL))
       type = ptrof(type);
     else
       break;
@@ -321,10 +312,10 @@ const Type *parse_type_suffix(const Type *type) {
   if (type == NULL)
     return NULL;
 
-  if (!consume(TK_LBRACKET))
+  if (!match(TK_LBRACKET))
     return type;
   size_t length = -1;
-  if (consume(TK_RBRACKET)) {
+  if (match(TK_RBRACKET)) {
     // Arbitrary size.
   } else {
     const Token *tok = fetch_token();
@@ -334,8 +325,7 @@ const Type *parse_type_suffix(const Type *type) {
     if (expr->num.ival <= 0)
       parse_error(tok, "Array size must be greater than 0, but %d", (int)expr->num.ival);
     length = expr->num.ival;
-    if (!consume(TK_RBRACKET))
-      parse_error(NULL, "`]' expected");
+    consume(TK_RBRACKET, "`]' expected");
   }
   return arrayof(parse_type_suffix(type), length);
 }
@@ -358,21 +348,19 @@ bool parse_var_def(const Type **prawType, const Type** ptype, int *pflag, Token 
   const Type *type = parse_type_modifier(rawType);
 
   Token *ident = NULL;
-  if (consume(TK_LPAR)) {  // Funcion type.
-    consume(TK_MUL);  // Skip `*' if exists.
-    ident = consume(TK_IDENT);
+  if (match(TK_LPAR)) {  // Funcion type.
+    match(TK_MUL);  // Skip `*' if exists.
+    ident = match(TK_IDENT);
     //if (ident == NULL && !allow_noname)
     //  parse_error(NULL, "Ident expected");
-    if (!consume(TK_RPAR))
-      parse_error(NULL, "`)' expected");
-    if (!consume(TK_LPAR))
-      parse_error(NULL, "`(' expected");
+    consume(TK_RPAR, "`)' expected");
+    consume(TK_LPAR, "`(' expected");
 
     bool vaargs;
     Vector *param_types = parse_funparam_types(&vaargs);
     type = ptrof(new_func_type(type, param_types, vaargs));
   } else {
-    ident = consume(TK_IDENT);
+    ident = match(TK_IDENT);
     //if (ident == NULL && !allow_noname)
     //  parse_error(NULL, "Ident expected");
   }
@@ -396,15 +384,14 @@ const Type *parse_full_type(int *pflag, Token **pident) {
 Vector *parse_funparams(bool *pvaargs) {  // Vector<VarInfo*>, NULL=>old style.
   Vector *params = NULL;
   bool vaargs = false;
-  if (consume(TK_RPAR)) {
+  if (match(TK_RPAR)) {
     // Arbitrary funparams.
   } else {
     params = new_vector();
     for (;;) {
-      if (consume(TK_DOTDOTDOT)) {
+      if (match(TK_DOTDOTDOT)) {
         vaargs = true;
-        if (!consume(TK_RPAR))
-          parse_error(NULL, "`)' expected");
+        consume(TK_RPAR, "`)' expected");
         break;
       }
 
@@ -420,7 +407,7 @@ Vector *parse_funparams(bool *pvaargs) {  // Vector<VarInfo*>, NULL=>old style.
 
       if (params->len == 0) {
         if (type->kind == TY_VOID) {  // fun(void)
-          if (ident != NULL || !consume(TK_RPAR))
+          if (ident != NULL || !match(TK_RPAR))
             parse_error(NULL, "`)' expected");
           break;
         }
@@ -432,11 +419,9 @@ Vector *parse_funparams(bool *pvaargs) {  // Vector<VarInfo*>, NULL=>old style.
       type = array_to_ptr(type);
 
       var_add(params, ident, type, flag);
-      if (consume(TK_RPAR))
+      if (match(TK_RPAR))
         break;
-      if (consume(TK_COMMA))
-        continue;
-      parse_error(NULL, "Comma or `)' expected");
+      consume(TK_COMMA, "Comma or `)' expected");
     }
   }
   *pvaargs = vaargs;
@@ -447,7 +432,7 @@ Vector *parse_funparams(bool *pvaargs) {  // Vector<VarInfo*>, NULL=>old style.
 static StructInfo *parse_struct(bool is_union) {
   Vector *members = new_vector();
   for (;;) {
-    if (consume(TK_RBRACE))
+    if (match(TK_RBRACE))
       break;
 
     const Type *rawType = NULL;
@@ -460,10 +445,9 @@ static StructInfo *parse_struct(bool is_union) {
       not_void(type);
       var_add(members, ident, type, flag);
 
-      if (consume(TK_COMMA))
+      if (match(TK_COMMA))
         continue;
-      if (!consume(TK_SEMICOL))
-        parse_error(NULL, "`;' expected");
+      consume(TK_SEMICOL, "`;' expected");
       break;
     }
   }
@@ -477,33 +461,28 @@ static StructInfo *parse_struct(bool is_union) {
 }
 
 static Expr *prim(void) {
-  if (consume(TK_LPAR)) {
+  if (match(TK_LPAR)) {
     Expr *expr = parse_expr();
-    if (!consume(TK_RPAR))
-      parse_error(NULL, "No close paren");
+    consume(TK_RPAR, "No close paren");
     return expr;
   }
 
   Token *tok;
   {
     const Type *type;
-    if (((tok = consume(TK_CHARLIT)) != NULL && (type = &tyChar, true)) ||
-        ((tok = consume(TK_INTLIT)) != NULL && (type = &tyInt, true)) ||
-        ((tok = consume(TK_LONGLIT)) != NULL && (type = &tyLong, true))) {
+    if (((tok = match(TK_CHARLIT)) != NULL && (type = &tyChar, true)) ||
+        ((tok = match(TK_INTLIT)) != NULL && (type = &tyInt, true)) ||
+        ((tok = match(TK_LONGLIT)) != NULL && (type = &tyLong, true))) {
       Num num = {tok->value};
       return new_expr_numlit(type, tok, &num);
     }
   }
-  if ((tok = consume(TK_STR)))
+  if ((tok = match(TK_STR)) != NULL)
     return new_expr_str(tok, tok->str.buf, tok->str.size);
 
-  Token *ident;
-  if ((ident = consume(TK_IDENT)) != NULL) {
-    const char *name = ident->ident;
-    return new_expr_varref(name, NULL, ident);
-  }
-  parse_error(NULL, "Number or Ident or open paren expected");
-  return NULL;
+  Token *ident = consume(TK_IDENT, "Number or Ident or open paren expected");
+  const char *name = ident->ident;
+  return new_expr_varref(name, NULL, ident);
 }
 
 static Expr *postfix(void) {
@@ -511,15 +490,15 @@ static Expr *postfix(void) {
 
   for (;;) {
     Token *tok;
-    if (consume(TK_LPAR))
+    if (match(TK_LPAR))
       expr = funcall(expr);
-    else if ((tok = consume(TK_LBRACKET)) != NULL)
+    else if ((tok = match(TK_LBRACKET)) != NULL)
       expr = array_index(tok, expr);
-    else if ((tok = consume(TK_DOT)) != NULL || (tok = consume(TK_ARROW)) != NULL)
+    else if ((tok = match(TK_DOT)) != NULL || (tok = match(TK_ARROW)) != NULL)
       expr = member_access(expr, tok);
-    else if ((tok = consume(TK_INC)) != NULL)
+    else if ((tok = match(TK_INC)) != NULL)
       expr = new_expr_unary(EX_POSTINC, NULL, tok, expr);
-    else if ((tok = consume(TK_DEC)) != NULL)
+    else if ((tok = match(TK_DEC)) != NULL)
       expr = new_expr_unary(EX_POSTDEC, NULL, tok, expr);
     else
       return expr;
@@ -530,11 +509,10 @@ static Expr *parse_sizeof(const Token *token) {
   const Type *type = NULL;
   Expr *expr = NULL;
   Token *tok;
-  if ((tok = consume(TK_LPAR)) != NULL) {
+  if ((tok = match(TK_LPAR)) != NULL) {
     type = parse_full_type(NULL, NULL);
     if (type != NULL) {
-      if (!consume(TK_RPAR))
-        parse_error(NULL, "`)' expected");
+      consume(TK_RPAR, "`)' expected");
     } else {
       unget_token(tok);
       expr = prim();
@@ -547,7 +525,7 @@ static Expr *parse_sizeof(const Token *token) {
 
 static Expr *unary(void) {
   Token *tok;
-  if ((tok = consume(TK_ADD)) != NULL) {
+  if ((tok = match(TK_ADD)) != NULL) {
     Expr *expr = cast_expr();
     switch (expr->kind) {
     case EX_NUM:
@@ -559,7 +537,7 @@ static Expr *unary(void) {
     return expr;
   }
 
-  if ((tok = consume(TK_SUB)) != NULL) {
+  if ((tok = match(TK_SUB)) != NULL) {
     Expr *expr = cast_expr();
     switch (expr->kind) {
     case EX_NUM:
@@ -570,37 +548,37 @@ static Expr *unary(void) {
     }
   }
 
-  if ((tok = consume(TK_NOT)) != NULL) {
+  if ((tok = match(TK_NOT)) != NULL) {
     Expr *expr = cast_expr();
     return new_expr_unary(EX_NOT, &tyBool, tok, expr);
   }
 
-  if ((tok = consume(TK_TILDA)) != NULL) {
+  if ((tok = match(TK_TILDA)) != NULL) {
     Expr *expr = cast_expr();
     return new_expr_unary(EX_BITNOT, NULL, tok, expr);
   }
 
-  if ((tok = consume(TK_AND)) != NULL) {
+  if ((tok = match(TK_AND)) != NULL) {
     Expr *expr = cast_expr();
     return new_expr_unary(EX_REF, NULL, tok, expr);
   }
 
-  if ((tok = consume(TK_MUL)) != NULL) {
+  if ((tok = match(TK_MUL)) != NULL) {
     Expr *expr = cast_expr();
     return new_expr_unary(EX_DEREF, NULL, tok, expr);
   }
 
-  if ((tok = consume(TK_INC)) != NULL) {
+  if ((tok = match(TK_INC)) != NULL) {
     Expr *expr = unary();
     return new_expr_unary(EX_PREINC, NULL, tok, expr);
   }
 
-  if ((tok = consume(TK_DEC)) != NULL) {
+  if ((tok = match(TK_DEC)) != NULL) {
     Expr *expr = unary();
     return new_expr_unary(EX_PREDEC, NULL, tok, expr);
   }
 
-  if ((tok = consume(TK_SIZEOF)) != NULL) {
+  if ((tok = match(TK_SIZEOF)) != NULL) {
     return parse_sizeof(tok);
   }
 
@@ -609,13 +587,12 @@ static Expr *unary(void) {
 
 static Expr *cast_expr(void) {
   Token *lpar;
-  if ((lpar = consume(TK_LPAR)) != NULL) {
+  if ((lpar = match(TK_LPAR)) != NULL) {
     int flag;
     const Token *token = fetch_token();
     const Type *type = parse_full_type(&flag, NULL);
     if (type != NULL) {  // Cast
-      if (!consume(TK_RPAR))
-        parse_error(NULL, "`)' expected");
+      consume(TK_RPAR, "`)' expected");
       Expr *sub = cast_expr();
       Expr *expr = new_expr(EX_CAST, type, token);
       expr->unary.sub = sub;
@@ -632,11 +609,11 @@ static Expr *mul(void) {
   for (;;) {
     enum ExprKind kind;
     Token *tok;
-    if ((tok = consume(TK_MUL)) != NULL)
+    if ((tok = match(TK_MUL)) != NULL)
       kind = EX_MUL;
-    else if ((tok = consume(TK_DIV)) != NULL)
+    else if ((tok = match(TK_DIV)) != NULL)
       kind = EX_DIV;
-    else if ((tok = consume(TK_MOD)) != NULL)
+    else if ((tok = match(TK_MOD)) != NULL)
       kind = EX_MOD;
     else
       return expr;
@@ -651,9 +628,9 @@ static Expr *add(void) {
   for (;;) {
     enum ExprKind t;
     Token *tok;
-    if ((tok = consume(TK_ADD)) != NULL)
+    if ((tok = match(TK_ADD)) != NULL)
       t = EX_ADD;
-    else if ((tok = consume(TK_SUB)) != NULL)
+    else if ((tok = match(TK_SUB)) != NULL)
       t = EX_SUB;
     else
       return expr;
@@ -668,9 +645,9 @@ static Expr *shift(void) {
   for (;;) {
     enum ExprKind t;
     Token *tok;
-    if ((tok = consume(TK_LSHIFT)) != NULL)
+    if ((tok = match(TK_LSHIFT)) != NULL)
       t = EX_LSHIFT;
-    else if ((tok = consume(TK_RSHIFT)) != NULL)
+    else if ((tok = match(TK_RSHIFT)) != NULL)
       t = EX_RSHIFT;
     else
       return expr;
@@ -686,13 +663,13 @@ static Expr *cmp(void) {
   for (;;) {
     enum ExprKind t;
     Token *tok;
-    if ((tok = consume(TK_LT)) != NULL)
+    if ((tok = match(TK_LT)) != NULL)
       t = EX_LT;
-    else if ((tok = consume(TK_GT)) != NULL)
+    else if ((tok = match(TK_GT)) != NULL)
       t = EX_GT;
-    else if ((tok = consume(TK_LE)) != NULL)
+    else if ((tok = match(TK_LE)) != NULL)
       t = EX_LE;
-    else if ((tok = consume(TK_GE)) != NULL)
+    else if ((tok = match(TK_GE)) != NULL)
       t = EX_GE;
     else
       return expr;
@@ -708,9 +685,9 @@ static Expr *eq(void) {
   for (;;) {
     enum ExprKind t;
     Token *tok;
-    if ((tok = consume(TK_EQ)) != NULL)
+    if ((tok = match(TK_EQ)) != NULL)
       t = EX_EQ;
-    else if ((tok = consume(TK_NE)) != NULL)
+    else if ((tok = match(TK_NE)) != NULL)
       t = EX_NE;
     else
       return expr;
@@ -724,7 +701,7 @@ static Expr *and(void) {
   Expr *expr = eq();
   for (;;) {
     Token *tok;
-    if ((tok = consume(TK_AND)) != NULL) {
+    if ((tok = match(TK_AND)) != NULL) {
       Expr *lhs = expr, *rhs= eq();
       expr = new_expr_bop(EX_BITAND, NULL, tok, lhs, rhs);
     } else
@@ -736,7 +713,7 @@ static Expr *xor(void) {
   Expr *expr = and();
   for (;;) {
     Token *tok;
-    if ((tok = consume(TK_HAT)) != NULL) {
+    if ((tok = match(TK_HAT)) != NULL) {
       Expr *lhs = expr, *rhs= and();
       expr = new_expr_bop(EX_BITXOR, NULL, tok, lhs, rhs);
     } else
@@ -748,7 +725,7 @@ static Expr *or(void) {
   Expr *expr = xor();
   for (;;) {
     Token *tok;
-    if ((tok = consume(TK_OR)) != NULL) {
+    if ((tok = match(TK_OR)) != NULL) {
       Expr *lhs = expr, *rhs= xor();
       expr = new_expr_bop(EX_BITOR, NULL, tok, lhs, rhs);
     } else
@@ -760,7 +737,7 @@ static Expr *logand(void) {
   Expr *expr = or();
   for (;;) {
     Token *tok;
-    if ((tok = consume(TK_LOGAND)) != NULL)
+    if ((tok = match(TK_LOGAND)) != NULL)
       expr = new_expr_bop(EX_LOGAND, &tyBool, tok, expr, or());
     else
       return expr;
@@ -771,7 +748,7 @@ static Expr *logior(void) {
   Expr *expr = logand();
   for (;;) {
     Token *tok;
-    if ((tok = consume(TK_LOGIOR)) != NULL)
+    if ((tok = match(TK_LOGIOR)) != NULL)
       expr = new_expr_bop(EX_LOGIOR, &tyBool, tok, expr, logand());
     else
       return expr;
@@ -782,11 +759,10 @@ static Expr *conditional(void) {
   Expr *expr = logior();
   for (;;) {
     const Token *tok;
-    if ((tok = consume(TK_QUESTION)) == NULL)
+    if ((tok = match(TK_QUESTION)) == NULL)
       return expr;
     Expr *t = parse_expr();
-    if (!consume(TK_COLON))
-      parse_error(NULL, "`:' expected");
+    consume(TK_COLON, "`:' expected");
     Expr *f = conditional();
     expr = new_expr_ternary(tok, expr, t, f, NULL);
   }
@@ -796,28 +772,28 @@ Expr *parse_assign(void) {
   Expr *expr = conditional();
 
   Token *tok;
-  if ((tok = consume(TK_ASSIGN)) != NULL)
+  if ((tok = match(TK_ASSIGN)) != NULL)
     return new_expr_bop(EX_ASSIGN, NULL, tok, expr, parse_assign());
   enum ExprKind t;
-  if ((tok = consume(TK_ADD_ASSIGN)) != NULL)
+  if ((tok = match(TK_ADD_ASSIGN)) != NULL)
     t = EX_ADD;
-  else if ((tok = consume(TK_SUB_ASSIGN)) != NULL)
+  else if ((tok = match(TK_SUB_ASSIGN)) != NULL)
     t = EX_SUB;
-  else if ((tok = consume(TK_MUL_ASSIGN)) != NULL)
+  else if ((tok = match(TK_MUL_ASSIGN)) != NULL)
     t = EX_MUL;
-  else if ((tok = consume(TK_DIV_ASSIGN)) != NULL)
+  else if ((tok = match(TK_DIV_ASSIGN)) != NULL)
     t = EX_DIV;
-  else if ((tok = consume(TK_MOD_ASSIGN)) != NULL)
+  else if ((tok = match(TK_MOD_ASSIGN)) != NULL)
     t = EX_MOD;
-  else if ((tok = consume(TK_AND_ASSIGN)) != NULL)
+  else if ((tok = match(TK_AND_ASSIGN)) != NULL)
     t = EX_BITAND;
-  else if ((tok = consume(TK_OR_ASSIGN)) != NULL)
+  else if ((tok = match(TK_OR_ASSIGN)) != NULL)
     t = EX_BITOR;
-  else if ((tok = consume(TK_HAT_ASSIGN)) != NULL)
+  else if ((tok = match(TK_HAT_ASSIGN)) != NULL)
     t = EX_BITXOR;
-  else if ((tok = consume(TK_LSHIFT_ASSIGN)) != NULL)
+  else if ((tok = match(TK_LSHIFT_ASSIGN)) != NULL)
     t = EX_LSHIFT;
-  else if ((tok = consume(TK_RSHIFT_ASSIGN)) != NULL)
+  else if ((tok = match(TK_RSHIFT_ASSIGN)) != NULL)
     t = EX_RSHIFT;
   else
     return expr;
@@ -833,7 +809,7 @@ Expr *parse_const(void) {
 Expr *parse_expr(void) {
   Expr *expr = parse_assign();
   const Token *tok;
-  while ((tok = consume(TK_COMMA)) != NULL) {
+  while ((tok = match(TK_COMMA)) != NULL) {
     Expr *next_expr = parse_assign();
     expr = new_expr_bop(EX_COMMA, NULL, tok, expr, next_expr);
   }

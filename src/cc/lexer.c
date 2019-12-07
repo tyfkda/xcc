@@ -533,12 +533,19 @@ Token *fetch_token(void) {
   return lexer.fetched[lexer.idx];
 }
 
-Token *consume(enum TokenKind kind) {
+Token *match(enum TokenKind kind) {
   Token *tok = fetch_token();
   if (tok->kind != kind && (int)kind != -1)
     return NULL;
   if (tok->kind != TK_EOF)
     --lexer.idx;
+  return tok;
+}
+
+Token *consume(enum TokenKind kind, const char *error) {
+  Token *tok = match(kind);
+  if (tok == NULL)
+    parse_error(tok, error);
   return tok;
 }
 

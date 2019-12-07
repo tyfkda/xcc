@@ -116,7 +116,8 @@ typedef struct Token {
 void init_lexer(FILE *fp, const char *filename);
 void init_lexer_string(const char *line, const char *filename, int lineno);
 Token *fetch_token(void);
-Token *consume(enum TokenKind kind);
+Token *match(enum TokenKind kind);
+Token *consume(enum TokenKind kind, const char *error);
 void unget_token(Token *token);
 char *read_ident(const char **pp);
 Token *alloc_ident(const char *ident, const char *begin, const char *end);

@@ -152,29 +152,25 @@ Stmt *new_top_stmt(Vector *stmts) {
 static Initializer *parse_initializer(void) {
   Initializer *result = malloc(sizeof(*result));
   const Token *lblace_tok;
-  if ((lblace_tok = consume(TK_LBRACE)) != NULL) {
+  if ((lblace_tok = match(TK_LBRACE)) != NULL) {
     Vector *multi = new_vector();
-    if (!consume(TK_RBRACE)) {
+    if (!match(TK_RBRACE)) {
       for (;;) {
         Initializer *init;
         const Token *tok;
-        if (consume(TK_DOT)) {  // .member=value
-          Token *ident = consume(TK_IDENT);
-          if (ident == NULL)
-            parse_error(NULL, "`ident' expected for dotted initializer");
-          if (!consume(TK_ASSIGN))
-            parse_error(NULL, "`=' expected for dotted initializer");
+        if (match(TK_DOT)) {  // .member=value
+          Token *ident = consume(TK_IDENT, "`ident' expected for dotted initializer");
+          consume(TK_ASSIGN, "`=' expected for dotted initializer");
           Initializer *value = parse_initializer();
           init = malloc(sizeof(*init));
           init->kind = vDot;
           init->token = ident;
           init->dot.name = ident->ident;
           init->dot.value = value;
-        } else if ((tok = consume(TK_LBRACKET)) != NULL) {
+        } else if ((tok = match(TK_LBRACKET)) != NULL) {
           Expr *index = parse_const();
-          if (!consume(TK_RBRACKET))
-            parse_error(NULL, "`]' expected");
-          consume(TK_ASSIGN);  // both accepted: `[1] = 2`, and `[1] 2`
+          consume(TK_RBRACKET, "`]' expected");
+          match(TK_ASSIGN);  // both accepted: `[1] = 2`, and `[1] 2`
           Initializer *value = parse_initializer();
           init = malloc(sizeof(*init));
           init->kind = vArr;
@@ -186,12 +182,11 @@ static Initializer *parse_initializer(void) {
         }
         vec_push(multi, init);
 
-        if (consume(TK_COMMA)) {
-          if (consume(TK_RBRACE))
+        if (match(TK_COMMA)) {
+          if (match(TK_RBRACE))
             break;
         } else {
-          if (!consume(TK_RBRACE))
-            parse_error(NULL, "`}' or `,' expected");
+          consume(TK_RBRACE, "`}' or `,' expected");
           break;
         }
       }
@@ -220,14 +215,14 @@ static Vector *parse_vardecl_cont(const Type *rawType, Type *type, int flag, Tok
     first = false;
 
     Initializer *init = NULL;
-    if (consume(TK_LPAR)) {  // Function prototype.
+    if (match(TK_LPAR)) {  // Function prototype.
       bool vaargs;
       Vector *param_types = parse_funparam_types(&vaargs);
       type = ptrof(new_func_type(type, param_types, vaargs));
       flag |= VF_EXTERN;
     } else {
       not_void(type);
-      if (consume(TK_ASSIGN)) {
+      if (match(TK_ASSIGN)) {
         init = parse_initializer();
       }
     }
@@ -236,7 +231,7 @@ static Vector *parse_vardecl_cont(const Type *rawType, Type *type, int flag, Tok
     if (decls == NULL)
       decls = new_vector();
     vec_push(decls, decl);
-  } while (consume(TK_COMMA));
+  } while (match(TK_COMMA));
   return decls;
 }
 
@@ -252,165 +247,129 @@ static Stmt *parse_vardecl(void) {
 
   Vector *decls = parse_vardecl_cont(rawType, type, flag, ident);
 
-  if (!consume(TK_SEMICOL))
-    parse_error(NULL, "`;' expected");
+  consume(TK_SEMICOL, "`;' expected");
 
   return decls != NULL ? new_stmt_vardecl(decls) : NULL;
 }
 
 static Stmt *parse_if(const Token *tok) {
-  if (consume(TK_LPAR)) {
-    Expr *cond = parse_expr();
-    if (consume(TK_RPAR)) {
-      Stmt *tblock = statement();
-      Stmt *fblock = NULL;
-      if (consume(TK_ELSE)) {
-        fblock = statement();
-      }
-      return new_stmt_if(tok, cond, tblock, fblock);
-    }
+  consume(TK_LPAR, "`(' expected");
+  Expr *cond = parse_expr();
+  consume(TK_RPAR, "`)' expected");
+  Stmt *tblock = statement();
+  Stmt *fblock = NULL;
+  if (match(TK_ELSE)) {
+    fblock = statement();
   }
-  parse_error(NULL, "Illegal syntax in `if'");
-  return NULL;
+  return new_stmt_if(tok, cond, tblock, fblock);
 }
 
 static Stmt *parse_switch(const Token *tok) {
-  if (consume(TK_LPAR)) {
-    Expr *value = parse_expr();
-    if (consume(TK_RPAR)) {
-      Stmt *swtch = new_stmt_switch(tok, value);
-      swtch->switch_.body = statement();
-      return swtch;
-    }
-  }
-  parse_error(NULL, "Illegal syntax in `switch'");
-  return NULL;
+  consume(TK_LPAR, "`(' expected");
+  Expr *value = parse_expr();
+  consume(TK_RPAR, "`)' expected");
+  Stmt *swtch = new_stmt_switch(tok, value);
+  swtch->switch_.body = statement();
+  return swtch;
 }
 
 static Stmt *parse_case(const Token *tok) {
-  // Token *tok = fetch_token();
   Expr *value = parse_const();
-
-  if (!consume(TK_COLON))
-    parse_error(NULL, "`:' expected");
-
+  consume(TK_COLON, "`:' expected");
   return new_stmt_case(tok, value);
 }
 
 static Stmt *parse_default(const Token *tok) {
-  if (!consume(TK_COLON))
-    parse_error(NULL, "`:' expected");
+  consume(TK_COLON, "`:' expected");
   return new_stmt_default(tok);
 }
 
 static Stmt *parse_while(const Token *tok) {
-  if (consume(TK_LPAR)) {
-    Expr *cond = parse_expr();
-    if (consume(TK_RPAR)) {
-      Stmt *body = statement();
+  consume(TK_LPAR, "`(' expected");
+  Expr *cond = parse_expr();
+  consume(TK_RPAR, "`)' expected");
+  Stmt *body = statement();
 
-      return new_stmt_while(tok, cond, body);
-    }
-  }
-  parse_error(NULL, "Illegal syntax in `while'");
-  return NULL;
+  return new_stmt_while(tok, cond, body);
 }
 
 static Stmt *parse_do_while(void) {
   Stmt *body = statement();
 
-  const Token *tok;
-  if ((tok = consume(TK_WHILE)) != NULL && consume(TK_LPAR)) {
-    Expr *cond = parse_expr();
-    if (consume(TK_RPAR) && consume(TK_SEMICOL)) {
-      return new_stmt_do_while(body, tok, cond);
-    }
-  }
-  parse_error(tok, "Illegal syntax in `do-while'");
-  return NULL;
+  const Token *tok = consume(TK_WHILE, "`while' expected");
+  consume(TK_LPAR, "`(' expected");
+  Expr *cond = parse_expr();
+  consume(TK_RPAR, "`)' expected");
+  consume(TK_SEMICOL, "`;' expected");
+  return new_stmt_do_while(body, tok, cond);
 }
 
 static Stmt *parse_for(const Token *tok) {
-  if (consume(TK_LPAR)) {
-    Expr *pre = NULL;
-    bool nopre = false;
-    Vector *decls = NULL;
-    if (consume(TK_SEMICOL)) {
-      nopre = true;
+  consume(TK_LPAR, "`(' expected");
+  Expr *pre = NULL;
+  Vector *decls = NULL;
+  if (!match(TK_SEMICOL)) {
+    const Type *rawType = NULL;
+    Type *type;
+    int flag;
+    Token *ident;
+    if (parse_var_def(&rawType, (const Type**)&type, &flag, &ident)) {
+      if (ident == NULL)
+        parse_error(NULL, "Ident expected");
+      decls = parse_vardecl_cont(rawType, type, flag, ident);
+      consume(TK_SEMICOL, "`;' expected");
     } else {
-      const Type *rawType = NULL;
-      Type *type;
-      int flag;
-      Token *ident;
-      if (parse_var_def(&rawType, (const Type**)&type, &flag, &ident)) {
-        if (type->kind == TY_VOID && ident != NULL) {
-
-        }
-
-        if (ident == NULL)
-          parse_error(NULL, "Ident expected");
-        decls = parse_vardecl_cont(rawType, type, flag, ident);
-        if (!consume(TK_SEMICOL))
-          decls = NULL;  // Error
-      } else {
-        pre = parse_expr();
-        if (!consume(TK_SEMICOL))
-          pre = NULL;  // Error
-      }
-    }
-    if (nopre || pre != NULL || decls != NULL) {
-      Expr *cond = NULL;
-      Expr *post = NULL;
-      Stmt *body = NULL;
-      if ((consume(TK_SEMICOL) || (cond = parse_expr(), consume(TK_SEMICOL))) &&
-          (consume(TK_RPAR) || (post = parse_expr(), consume(TK_RPAR)))) {
-        body = statement();
-
-        Stmt *stmt = new_stmt_for(tok, pre, cond, post, body);
-        if (decls != NULL) {
-          Vector *stmts = new_vector();
-          vec_push(stmts, new_stmt_vardecl(decls));
-          vec_push(stmts, stmt);
-          return new_stmt_block(NULL, stmts);
-        } else {
-          return stmt;
-        }
-      }
+      pre = parse_expr();
+      consume(TK_SEMICOL, "`;' expected");
     }
   }
-  parse_error(NULL, "Illegal syntax in `for'");
-  return NULL;
+
+  Expr *cond = NULL;
+  Expr *post = NULL;
+  Stmt *body = NULL;
+  if (!match(TK_SEMICOL)) {
+    cond = parse_expr();
+    consume(TK_SEMICOL, "`;' expected");
+  }
+  if (!match(TK_RPAR)) {
+    post = parse_expr();
+    consume(TK_RPAR, "`)' expected");
+  }
+  body = statement();
+
+  Stmt *stmt = new_stmt_for(tok, pre, cond, post, body);
+  if (decls != NULL) {
+    Vector *stmts = new_vector();
+    vec_push(stmts, new_stmt_vardecl(decls));
+    vec_push(stmts, stmt);
+    return new_stmt_block(NULL, stmts);
+  } else {
+    return stmt;
+  }
 }
 
 static Stmt *parse_break_continue(enum StmtKind kind, const Token *tok) {
-  if (!consume(TK_SEMICOL))
-    parse_error(NULL, "`;' expected");
+  consume(TK_SEMICOL, "`;' expected");
   return new_stmt(kind, tok);
 }
 
 static Stmt *parse_goto(void) {
-  Token *label = consume(TK_IDENT);
-  if (label == NULL)
-    parse_error(NULL, "label for goto expected");
-  if (!consume(TK_SEMICOL))
-    parse_error(NULL, "`;' expected");
+  Token *label = consume(TK_IDENT, "label for goto expected");
+  consume(TK_SEMICOL, "`;' expected");
   return new_stmt_goto(label);
 }
 
 static Stmt *parse_return(const Token *tok) {
   Expr *val = NULL;
-  if (consume(TK_SEMICOL)) {
-  } else {
+  if (!match(TK_SEMICOL)) {
     val = parse_expr();
-    if (!consume(TK_SEMICOL))
-      parse_error(fetch_token(), "`;' expected");
+    consume(TK_SEMICOL, "`;' expected");
   }
   return new_stmt_return(tok, val);
 }
 
 static Stmt *parse_asm(const Token *tok) {
-  if (!consume(TK_LPAR))
-    parse_error(NULL, "`(' expected");
+  consume(TK_LPAR, "`(' expected");
 
   Token *token;
   Vector *args = parse_args(&token);
@@ -425,16 +384,16 @@ static Stmt *parse_asm(const Token *tok) {
 static Vector *read_stmts(void) {
   Vector *stmts = NULL;
   for (;;) {
-    if (consume(TK_RBRACE))
+    if (match(TK_RBRACE))
       return stmts;
 
     Stmt *stmt;
     Token *tok;
     if ((stmt = parse_vardecl()) != NULL)
       ;
-    else if ((tok = consume(TK_CASE)) != NULL)
+    else if ((tok = match(TK_CASE)) != NULL)
       stmt = parse_case(tok);
-    else if ((tok = consume(TK_DEFAULT)) != NULL)
+    else if ((tok = match(TK_DEFAULT)) != NULL)
       stmt = parse_default(tok);
     else
       stmt = statement();
@@ -453,56 +412,55 @@ static Stmt *parse_block(const Token *tok) {
 }
 
 static Stmt *statement(void) {
-  Token *label = consume(TK_IDENT);
+  Token *label = match(TK_IDENT);
   if (label != NULL) {
-    if (consume(TK_COLON)) {
+    if (match(TK_COLON)) {
       return new_stmt_label(label, statement());
     }
     unget_token(label);
   }
 
-  if (consume(TK_SEMICOL))
+  if (match(TK_SEMICOL))
     return NULL;
 
   const Token *tok;
-  if ((tok = consume(TK_LBRACE)) != NULL)
+  if ((tok = match(TK_LBRACE)) != NULL)
     return parse_block(tok);
 
-  if ((tok = consume(TK_IF)) != NULL)
+  if ((tok = match(TK_IF)) != NULL)
     return parse_if(tok);
 
-  if ((tok = consume(TK_SWITCH)) != NULL)
+  if ((tok = match(TK_SWITCH)) != NULL)
     return parse_switch(tok);
 
-  if ((tok = consume(TK_WHILE)) != NULL)
+  if ((tok = match(TK_WHILE)) != NULL)
     return parse_while(tok);
 
-  if (consume(TK_DO))
+  if (match(TK_DO))
     return parse_do_while();
 
-  if ((tok = consume(TK_FOR)) != NULL)
+  if ((tok = match(TK_FOR)) != NULL)
     return parse_for(tok);
 
-  if ((tok = consume(TK_BREAK)) != NULL) {
+  if ((tok = match(TK_BREAK)) != NULL) {
     return parse_break_continue(ST_BREAK, tok);
   }
-  if ((tok = consume(TK_CONTINUE)) != NULL) {
+  if ((tok = match(TK_CONTINUE)) != NULL) {
     return parse_break_continue(ST_CONTINUE, tok);
   }
-  if (consume(TK_GOTO)) {
+  if (match(TK_GOTO)) {
     return parse_goto();
   }
 
-  if ((tok = consume(TK_RETURN)) != NULL)
+  if ((tok = match(TK_RETURN)) != NULL)
     return parse_return(tok);
 
-  if ((tok = consume(TK_ASM)) != NULL)
+  if ((tok = match(TK_ASM)) != NULL)
     return parse_asm(tok);
 
   // expression statement.
   Expr *val = parse_expr();
-  if (!consume(TK_SEMICOL))
-    parse_error(NULL, "Semicolon required");
+  consume(TK_SEMICOL, "`;' expected");
   return new_stmt_expr(val);
 }
 
@@ -515,12 +473,9 @@ static Stmt *parse_defun(const Type *rettype, int flag, Token *ident) {
   Vector *param_types = extract_varinfo_types(params);
   Function *func = new_func(new_func_type(rettype, param_types, vaargs), name, params);
   Defun *defun = new_defun(func, flag);
-  if (consume(TK_SEMICOL)) {  // Prototype declaration.
+  if (match(TK_SEMICOL)) {  // Prototype declaration.
   } else {
-    if (!consume(TK_LBRACE)) {
-      parse_error(NULL, "`;' or `{' expected");
-      return NULL;
-    }
+    consume(TK_LBRACE, "`;' or `{' expected");
 
     defun->stmts = read_stmts();
     // Ensure stmts to be non-null to indicate this is not prototype definition.
@@ -539,15 +494,12 @@ static void parse_typedef(void) {
   not_void(type);
 
   if (ident == NULL) {
-    ident = consume(TK_IDENT);
-    if (ident == NULL)
-      parse_error(NULL, "ident expected");
+    ident = consume(TK_IDENT, "ident expected");
   }
   const char *name = ident->ident;
   add_typedef(name, type);
 
-  if (!consume(TK_SEMICOL))
-    parse_error(NULL, "`;' expected");
+  consume(TK_SEMICOL, "`;' expected");
 }
 
 static Stmt *parse_global_var_decl(const Type *rawtype, int flag, const Type *type, Token *ident) {
@@ -556,8 +508,7 @@ static Stmt *parse_global_var_decl(const Type *rawtype, int flag, const Type *ty
   do {
     if (!first) {
       type = parse_type_modifier(rawtype);
-      if ((ident = consume(TK_IDENT)) == NULL)
-        parse_error(NULL, "`ident' expected");
+      ident = consume(TK_IDENT, "`ident' expected");
     }
     first = false;
 
@@ -567,7 +518,7 @@ static Stmt *parse_global_var_decl(const Type *rawtype, int flag, const Type *ty
     type = parse_type_suffix(type);
     Initializer *init = NULL;
     const Token *tok;
-    if ((tok = consume(TK_ASSIGN)) != NULL) {
+    if ((tok = match(TK_ASSIGN)) != NULL) {
       init = parse_initializer();
     }
 
@@ -575,10 +526,9 @@ static Stmt *parse_global_var_decl(const Type *rawtype, int flag, const Type *ty
     if (decls == NULL)
       decls = new_vector();
     vec_push(decls, decl);
-  } while (consume(TK_COMMA));
+  } while (match(TK_COMMA));
 
-  if (!consume(TK_SEMICOL))
-    parse_error(NULL, "`;' or `,' expected");
+  consume(TK_SEMICOL, "`;' or `,' expected");
 
   return decls != NULL ? new_stmt_vardecl(decls) : NULL;
 }
@@ -590,12 +540,12 @@ static Stmt *toplevel(void) {
     const Type *type = parse_type_modifier(rawtype);
     if ((type->kind == TY_STRUCT ||
          (type->kind == TY_NUM && type->num.kind == NUM_ENUM)) &&
-        consume(TK_SEMICOL))  // Just struct/union definition.
+        match(TK_SEMICOL))  // Just struct/union definition.
       return NULL;
 
     Token *ident;
-    if ((ident = consume(TK_IDENT)) != NULL) {
-      if (consume(TK_LPAR))  // Function.
+    if ((ident = match(TK_IDENT)) != NULL) {
+      if (match(TK_LPAR))  // Function.
         return parse_defun(type, flag, ident);
 
       return parse_global_var_decl(rawtype, flag, type, ident);
@@ -603,7 +553,7 @@ static Stmt *toplevel(void) {
     parse_error(NULL, "ident expected");
     return NULL;
   }
-  if (consume(TK_TYPEDEF)) {
+  if (match(TK_TYPEDEF)) {
     parse_typedef();
     return NULL;
   }
@@ -614,7 +564,7 @@ static Stmt *toplevel(void) {
 Vector *parse_program(Vector *stmts) {
   if (stmts == NULL)
     stmts = new_vector();
-  while (!consume(TK_EOF)) {
+  while (!match(TK_EOF)) {
     Stmt *stmt = toplevel();
     if (stmt != NULL)
       vec_push(stmts, stmt);

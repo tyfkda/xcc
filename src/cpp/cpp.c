@@ -175,7 +175,7 @@ Vector *parse_macro_body(const char *p, const Vector *params, bool va_args, Stre
   sb_init(&sb);
   for (;;) {
     Token *tok;
-    if ((tok = consume(TK_IDENT)) != NULL) {
+    if ((tok = match(TK_IDENT)) != NULL) {
       int index = -1;
       if (va_args && strcmp(tok->ident, "__VA_ARGS__") == 0) {
         index = param_len;
@@ -204,7 +204,7 @@ Vector *parse_macro_body(const char *p, const Vector *params, bool va_args, Stre
         continue;
       }
     } else {
-      tok = consume(-1);
+      tok = match(-1);
       if (tok->kind == TK_EOF)
         break;
     }
@@ -234,22 +234,19 @@ void handle_define(const char *p, Stream *stream) {
     // Macro with parameter.
     params = new_vector();
     init_lexer_string(p + 1, stream->filename, stream->lineno);
-    if (!consume(TK_RPAR)) {
+    if (!match(TK_RPAR)) {
       for (;;) {
         Token *tok;
-        if ((tok = consume(TK_DOTDOTDOT)) != NULL) {
+        if ((tok = match(TK_DOTDOTDOT)) != NULL) {
           va_args = true;
-          if (!consume(TK_RPAR))
-            parse_error(NULL, "`)' expected");
+          consume(TK_RPAR, "`)' expected");
           break;
-        } else if ((tok = consume(TK_IDENT)) != NULL) {
-          vec_push(params, tok->ident);
-          if (consume(TK_RPAR))
-            break;
-          if (!consume(TK_COMMA))
-            parse_error(NULL, "`,' or `)' expected");
         } else {
-          parse_error(NULL, "`ident' expected");
+          tok = consume(TK_IDENT, "`ident' expected");
+          vec_push(params, tok->ident);
+          if (match(TK_RPAR))
+            break;
+          consume(TK_COMMA, "`,' or `)' expected");
         }
       }
     }
@@ -272,10 +269,10 @@ void handle_undef(const char *p) {
   map_remove(macro_map, name);
 }
 
-Token *consume2(enum TokenKind kind) {
+Token *match2(enum TokenKind kind) {
   Token *tok;
   for (;;) {
-    tok = consume(kind);
+    tok = match(kind);
     if (tok == NULL || tok->kind != TK_EOF)
       return tok;
 
@@ -292,19 +289,19 @@ Token *consume2(enum TokenKind kind) {
 void expand(Macro *macro, const char *name) {
   Vector *args = NULL;
   if (macro->params != NULL) {
-    if (!consume2(TK_LPAR))
+    if (!match2(TK_LPAR))
       parse_error(NULL, "`(' expected for macro `%s'", name);
     args = new_vector();
     StringBuffer sb;
     sb_init(&sb);
-    if (!consume2(TK_RPAR)) {
+    if (!match2(TK_RPAR)) {
       int paren = 0;
       for (;;) {
-        if (consume2(TK_EOF))
+        if (match2(TK_EOF))
           parse_error(NULL, "`)' expected");
 
         Token *tok;
-        if ((tok = consume2(TK_COMMA)) != NULL || (tok = consume2(TK_RPAR)) != NULL)  {
+        if ((tok = match2(TK_COMMA)) != NULL || (tok = match2(TK_RPAR)) != NULL)  {
           if (paren > 0) {
             sb_append(&sb, tok->begin, tok->end);
             if (tok->kind == TK_RPAR)
@@ -321,7 +318,7 @@ void expand(Macro *macro, const char *name) {
             break;
           continue;
         }
-        tok = consume2(-1);
+        tok = match2(-1);
         if (tok->kind == TK_LPAR)
           ++paren;
         if (!sb_empty(&sb))
@@ -425,10 +422,10 @@ void process_line(const char *line, Stream *stream) {
       }
     }
 
-    if (consume(TK_EOF))
+    if (match(TK_EOF))
       break;
 
-    Token *ident = consume(TK_IDENT);
+    Token *ident = match(TK_IDENT);
     Macro *macro;
     if (ident != NULL && (macro = map_get(macro_map, ident->ident)) != NULL) {
       if (ident->begin != begin)
@@ -440,7 +437,7 @@ void process_line(const char *line, Stream *stream) {
       continue;
     }
 
-    consume(-1);
+    match(-1);
   }
 
   printf("%s\n", begin);
