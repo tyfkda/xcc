@@ -433,58 +433,47 @@ static BB *push_break_bb(BB *parent_bb, BB **save) {
   return bb;
 }
 
-static int arrange_variadic_func_params(Scope *scope) {
-  // Arrange parameters increasing order in stack,
-  // and each parameter occupies sizeof(intptr_t).
-  for (int i = 0; i < scope->vars->len; ++i) {
-    VarInfo *varinfo = (VarInfo*)scope->vars->data[i];
-    VReg *vreg = add_new_reg(varinfo->type);
-    vreg_spill(vreg);
-    vreg->param_index = i;
-    vreg->offset = (i - MAX_REG_ARGS) * WORD_SIZE;
-    varinfo->reg = vreg;
-  }
-  return MAX_REG_ARGS * WORD_SIZE;
-}
-
 static void alloc_variable_registers(Function *func) {
+  int param_index = 0;
   for (int i = 0; i < func->all_scopes->len; ++i) {
     Scope *scope = (Scope*)func->all_scopes->data[i];
-    if (scope->vars != NULL) {
-      if (i == 0 && func->type->func.vaargs) {  // Variadic function parameters.
-        // Special arrangement for va_list.
-        arrange_variadic_func_params(scope);
-      } else {
-        for (int j = 0; j < scope->vars->len; ++j) {
-          VarInfo *varinfo = (VarInfo*)scope->vars->data[j];
-          if (varinfo->flag & (VF_STATIC | VF_EXTERN))
-            continue;  // Static variable is not allocated on stack.
+    if (scope->vars == NULL)
+      continue;
 
-          VReg *vreg = add_new_reg(varinfo->type);
-          if (i == 0)
-            vreg->param_index = j;
+    for (int j = 0; j < scope->vars->len; ++j) {
+      VarInfo *varinfo = scope->vars->data[j];
+      if (varinfo->flag & (VF_STATIC | VF_EXTERN))
+        continue;  // Static variable is not allocated on stack.
 
-          bool spill = false;
-          switch (varinfo->type->kind) {
-          case TY_ARRAY:
-          case TY_STRUCT:
-            // Make non-primitive variable spilled.
-            spill = true;
-            break;
-          default:
-            break;
-          }
-          if (i == 0 && j >= MAX_REG_ARGS) {  // Function argument passed through the stack.
-            spill = true;
-            vreg->offset = (j - MAX_REG_ARGS + 2) * WORD_SIZE;
-          }
-
-          if (spill)
-            vreg_spill(vreg);
-
-          varinfo->reg = vreg;
+      VReg *vreg = add_new_reg(varinfo->type);
+      bool spill = false;
+      if (i == 0 && func->params != NULL && vec_contains(func->params, varinfo)) {
+        vreg->param_index = param_index++;
+        spill = true;
+        if (func->type->func.vaargs) {  // Variadic function parameters.
+          vreg->offset = (vreg->param_index - MAX_REG_ARGS) * WORD_SIZE;
         }
       }
+
+      switch (varinfo->type->kind) {
+      case TY_ARRAY:
+      case TY_STRUCT:
+        // Make non-primitive variable spilled.
+        spill = true;
+        break;
+      default:
+        break;
+      }
+      if (i == 0 && vreg->param_index >= MAX_REG_ARGS) {
+        // Function argument passed through the stack.
+        spill = true;
+        vreg->offset = (vreg->param_index - MAX_REG_ARGS + 2) * WORD_SIZE;
+      }
+
+      if (spill)
+        vreg_spill(vreg);
+
+      varinfo->reg = vreg;
     }
   }
 }

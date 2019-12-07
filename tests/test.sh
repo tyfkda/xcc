@@ -202,6 +202,7 @@ compile_error 'funparam extern' 'void main(extern int argc){}'
 compile_error 'enum and global' 'enum Foo { BAR }; int BAR; void main(){}'
 compile_error 'global and enum' 'int BAR; enum Foo { BAR }; void main(){}'
 compile_error 'paren =' 'void main(){ int x; (x) = 98; }'
+compile_error 'param and first scope' 'void main(int x){ int x; }'
 
 # TODO
 compile_error 'more params vaargs (yet)' 'int func(int a, ...) { return a; } int main(){ return func(1, 2, 3, 4, 5, 6, 7, 8); }'

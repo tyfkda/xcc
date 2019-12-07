@@ -639,10 +639,15 @@ static void sema_defun(Defun *defun) {
 
   if (defun->stmts != NULL) {  // Not prototype defintion.
     curdefun = defun;
-    enter_scope(defun, defun->func->params);  // Scope for parameters.
-    curscope = defun->func->top_scope = enter_scope(defun, NULL);
+    Vector *top_vars = NULL;
+    Vector *params = defun->func->params;
+    if (params != NULL) {
+      top_vars = new_vector();
+      for (int i = 0; i < params->len; ++i)
+        vec_push(top_vars, params->data[i]);
+    }
+    curscope = defun->func->top_scope = enter_scope(defun, top_vars);  // Scope for parameters.
     sema_stmts(defun->stmts);
-    exit_scope();
     exit_scope();
     curdefun = NULL;
     curscope = NULL;
