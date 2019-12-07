@@ -16,7 +16,7 @@ const int LF_CONTINUE = 1 << 0;
 
 Defun *curdefun;
 static int curloopflag;
-static Node *curswitch;
+static Stmt *curswitch;
 
 // Scope
 
@@ -84,11 +84,11 @@ static void add_func_label(const char *label) {
   map_put(curdefun->label_map, label, NULL);  // Put dummy value.
 }
 
-static void add_func_goto(Node *node) {
+static void add_func_goto(Stmt *stmt) {
   assert(curdefun != NULL);
   if (curdefun->gotos == NULL)
     curdefun->gotos = new_vector();
-  vec_push(curdefun->gotos, node);
+  vec_push(curdefun->gotos, stmt);
 }
 
 static Initializer *analyze_initializer(Initializer *init) {
@@ -145,7 +145,7 @@ static void string_initializer(Expr *dst, Initializer *src, Vector *inits) {
     Num n = {.ival=i};
     Expr *index = new_expr_numlit(&tyInt, NULL, &n);
     vec_push(inits,
-             new_node_expr(new_expr_bop(EX_ASSIGN, &tyChar, NULL,
+             new_stmt_expr(new_expr_bop(EX_ASSIGN, &tyChar, NULL,
                                         new_expr_deref(NULL, add_expr(NULL, dst, index, true)),
                                         new_expr_deref(NULL, add_expr(NULL, varref, index, true)))));
   }
@@ -527,7 +527,7 @@ static Vector *assign_initial_value(Expr *expr, Initializer *init, Vector *inits
     {
       if (init->kind != vMulti) {
         vec_push(inits,
-                 new_node_expr(new_expr_bop(EX_ASSIGN, expr->type, NULL, expr,
+                 new_stmt_expr(new_expr_bop(EX_ASSIGN, expr->type, NULL, expr,
                                             init->single)));
         break;
       }
@@ -565,7 +565,7 @@ static Vector *assign_initial_value(Expr *expr, Initializer *init, Vector *inits
     if (init->kind != vSingle)
       parse_error(init->token, "Error initializer");
     vec_push(inits,
-             new_node_expr(new_expr_bop(EX_ASSIGN, expr->type, NULL, expr,
+             new_stmt_expr(new_expr_bop(EX_ASSIGN, expr->type, NULL, expr,
                                         make_cast(expr->type, NULL, init->single, false))));
     break;
   }
@@ -573,9 +573,9 @@ static Vector *assign_initial_value(Expr *expr, Initializer *init, Vector *inits
   return inits;
 }
 
-static Node *sema_vardecl(Node *node) {
-  assert(node->kind == ND_VARDECL);
-  Vector *decls = node->vardecl.decls;
+static Stmt *sema_vardecl(Stmt *stmt) {
+  assert(stmt->kind == ST_VARDECL);
+  Vector *decls = stmt->vardecl.decls;
   Vector *inits = NULL;
   for (int i = 0, len = decls->len; i < len; ++i) {
     VarDecl *decl = decls->data[i];
@@ -613,15 +613,15 @@ static Node *sema_vardecl(Node *node) {
     }
   }
 
-  node->vardecl.inits = inits;
-  return node;
+  stmt->vardecl.inits = inits;
+  return stmt;
 }
 
-static void sema_nodes(Vector *nodes) {
-  if (nodes == NULL)
+static void sema_stmts(Vector *stmts) {
+  if (stmts == NULL)
     return;
-  for (int i = 0, len = nodes->len; i < len; ++i)
-    nodes->data[i] = sema(nodes->data[i]);
+  for (int i = 0, len = stmts->len; i < len; ++i)
+    stmts->data[i] = sema(stmts->data[i]);
 }
 
 static void sema_defun(Defun *defun) {
@@ -643,7 +643,7 @@ static void sema_defun(Defun *defun) {
     curdefun = defun;
     enter_scope(defun, defun->func->params);  // Scope for parameters.
     curscope = defun->func->top_scope = enter_scope(defun, NULL);
-    sema_nodes(defun->stmts);
+    sema_stmts(defun->stmts);
     exit_scope();
     exit_scope();
     curdefun = NULL;
@@ -654,168 +654,168 @@ static void sema_defun(Defun *defun) {
       Vector *gotos = defun->gotos;
       Map *label_map = defun->label_map;
       for (int i = 0; i < gotos->len; ++i) {
-        Node *node = gotos->data[i];
+        Stmt *stmt = gotos->data[i];
         void *bb;
-        if (label_map == NULL || !map_try_get(label_map, node->goto_.label->ident, &bb))
-          parse_error(node->goto_.label, "`%s' not found", node->goto_.label->ident);
+        if (label_map == NULL || !map_try_get(label_map, stmt->goto_.label->ident, &bb))
+          parse_error(stmt->goto_.label, "`%s' not found", stmt->goto_.label->ident);
       }
     }
   }
 }
 
-Node *sema(Node *node) {
-  if (node == NULL)
-    return node;
+Stmt *sema(Stmt *stmt) {
+  if (stmt == NULL)
+    return stmt;
 
-  switch (node->kind) {
-  case ND_EXPR:
-    node->expr = analyze_expr(node->expr, false);
+  switch (stmt->kind) {
+  case ST_EXPR:
+    stmt->expr = analyze_expr(stmt->expr, false);
     break;
 
-  case ND_DEFUN:
-    sema_defun(node->defun);
+  case ST_DEFUN:
+    sema_defun(stmt->defun);
     break;
 
-  case ND_BLOCK:
+  case ST_BLOCK:
     {
       Scope *parent_scope = curscope;
       if (curdefun != NULL)
-        node->block.scope = curscope = enter_scope(curdefun, NULL);
-      sema_nodes(node->block.nodes);
+        stmt->block.scope = curscope = enter_scope(curdefun, NULL);
+      sema_stmts(stmt->block.stmts);
       curscope = parent_scope;
     }
     break;
 
-  case ND_IF:
-    node->if_.cond = analyze_expr(node->if_.cond, false);
-    node->if_.tblock = sema(node->if_.tblock);
-    node->if_.fblock = sema(node->if_.fblock);
+  case ST_IF:
+    stmt->if_.cond = analyze_expr(stmt->if_.cond, false);
+    stmt->if_.tblock = sema(stmt->if_.tblock);
+    stmt->if_.fblock = sema(stmt->if_.fblock);
     break;
 
-  case ND_SWITCH:
+  case ST_SWITCH:
     {
-      Node *save_switch = curswitch;
+      Stmt *save_switch = curswitch;
       int save_flag = curloopflag;
       curloopflag |= LF_BREAK;
-      curswitch = node;
+      curswitch = stmt;
 
-      node->switch_.value = analyze_expr(node->switch_.value, false);
-      node->switch_.body = sema(node->switch_.body);
+      stmt->switch_.value = analyze_expr(stmt->switch_.value, false);
+      stmt->switch_.body = sema(stmt->switch_.body);
 
       curloopflag = save_flag;
       curswitch = save_switch;
     }
     break;
 
-  case ND_WHILE:
-  case ND_DO_WHILE:
+  case ST_WHILE:
+  case ST_DO_WHILE:
     {
-      node->while_.cond = analyze_expr(node->while_.cond, false);
+      stmt->while_.cond = analyze_expr(stmt->while_.cond, false);
 
       int save_flag = curloopflag;
       curloopflag |= LF_BREAK | LF_CONTINUE;
 
-      node->while_.body = sema(node->while_.body);
+      stmt->while_.body = sema(stmt->while_.body);
 
       curloopflag = save_flag;
     }
     break;
 
-  case ND_FOR:
+  case ST_FOR:
     {
-      node->for_.pre = analyze_expr(node->for_.pre, false);
-      node->for_.cond = analyze_expr(node->for_.cond, false);
-      node->for_.post = analyze_expr(node->for_.post, false);
+      stmt->for_.pre = analyze_expr(stmt->for_.pre, false);
+      stmt->for_.cond = analyze_expr(stmt->for_.cond, false);
+      stmt->for_.post = analyze_expr(stmt->for_.post, false);
 
       int save_flag = curloopflag;
       curloopflag |= LF_BREAK | LF_CONTINUE;
 
-      node->for_.body = sema(node->for_.body);
+      stmt->for_.body = sema(stmt->for_.body);
 
       curloopflag = save_flag;
     }
     break;
 
-  case ND_BREAK:
+  case ST_BREAK:
     if ((curloopflag & LF_BREAK) == 0)
-      parse_error(node->token, "`break' cannot be used outside of loop");
+      parse_error(stmt->token, "`break' cannot be used outside of loop");
     break;
 
-  case ND_CONTINUE:
+  case ST_CONTINUE:
     if ((curloopflag & LF_CONTINUE) == 0)
-      parse_error(node->token, "`continue' cannot be used outside of loop");
+      parse_error(stmt->token, "`continue' cannot be used outside of loop");
     break;
 
-  case ND_RETURN:
+  case ST_RETURN:
     {
       assert(curdefun != NULL);
       const Type *rettype = curdefun->func->type->func.ret;
-      Expr *val = node->return_.val;
+      Expr *val = stmt->return_.val;
       if (val == NULL) {
         if (rettype->kind != TY_VOID)
-          parse_error(node->token, "`return' required a value");
+          parse_error(stmt->token, "`return' required a value");
       } else {
         if (rettype->kind == TY_VOID)
           parse_error(val->token, "void function `return' a value");
 
         val = analyze_expr(val, false);
-        node->return_.val = make_cast(rettype, val->token, val, false);
+        stmt->return_.val = make_cast(rettype, val->token, val, false);
       }
     }
     break;
 
-  case ND_CASE:
+  case ST_CASE:
     {
       if (curswitch == NULL)
-        parse_error(node->case_.value->token, "`case' cannot use outside of `switch`");
+        parse_error(stmt->case_.value->token, "`case' cannot use outside of `switch`");
 
-      node->case_.value = analyze_expr(node->case_.value, false);
-      if (!is_number(node->case_.value->type->kind))
-        parse_error(node->case_.value->token, "Cannot use expression");
-      intptr_t value = node->case_.value->num.ival;
+      stmt->case_.value = analyze_expr(stmt->case_.value, false);
+      if (!is_number(stmt->case_.value->type->kind))
+        parse_error(stmt->case_.value->token, "Cannot use expression");
+      intptr_t value = stmt->case_.value->num.ival;
 
       // Check duplication.
       Vector *values = curswitch->switch_.case_values;
       for (int i = 0, len = values->len; i < len; ++i) {
         if ((intptr_t)values->data[i] == value)
-          parse_error(node->case_.value->token, "Case value `%"PRIdPTR"' already defined", value);
+          parse_error(stmt->case_.value->token, "Case value `%"PRIdPTR"' already defined", value);
       }
       vec_push(values, (void*)value);
     }
     break;
 
-  case ND_DEFAULT:
+  case ST_DEFAULT:
     if (curswitch == NULL)
-      parse_error(node->token, "`default' cannot use outside of `switch'");
+      parse_error(stmt->token, "`default' cannot use outside of `switch'");
     if (curswitch->switch_.has_default)
-      parse_error(node->token, "`default' already defined in `switch'");
+      parse_error(stmt->token, "`default' already defined in `switch'");
 
     curswitch->switch_.has_default = true;
     break;
 
-  case ND_GOTO:
-    add_func_goto(node);
+  case ST_GOTO:
+    add_func_goto(stmt);
     break;
 
-  case ND_LABEL:
-    add_func_label(node->token->ident);
-    node->label.stmt = sema(node->label.stmt);
+  case ST_LABEL:
+    add_func_label(stmt->token->ident);
+    stmt->label.stmt = sema(stmt->label.stmt);
     break;
 
-  case ND_VARDECL:
-    return sema_vardecl(node);
+  case ST_VARDECL:
+    return sema_vardecl(stmt);
 
-  case ND_ASM:
-    return node;
+  case ST_ASM:
+    return stmt;
 
-  case ND_TOPLEVEL:
-    sema_nodes(node->toplevel.nodes);
+  case ST_TOPLEVEL:
+    sema_stmts(stmt->toplevel.stmts);
     break;
 
   default:
-    fprintf(stderr, "sema: Unhandled node, kind=%d\n", node->kind);
+    fprintf(stderr, "sema: Unhandled stmt, kind=%d\n", stmt->kind);
     assert(false);
     break;
   }
-  return node;
+  return stmt;
 }

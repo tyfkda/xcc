@@ -7,7 +7,7 @@
 typedef struct Defun Defun;
 typedef struct Expr Expr;
 typedef struct Initializer Initializer;
-typedef struct Node Node;
+typedef struct Stmt Stmt;
 typedef struct Scope Scope;
 typedef struct Token Token;
 typedef struct Type Type;
@@ -17,7 +17,7 @@ typedef struct Vector Vector;
 extern Defun *curdefun;
 extern Scope *curscope;
 
-Node *sema(Node *node);
+Stmt *sema(Stmt *stmt);
 Expr *analyze_expr(Expr *expr, bool keep_left);
 bool can_cast(const Type *dst, const Type *src, Expr *src_expr, bool is_explicit);
 Initializer *flatten_initializer(const Type *type, Initializer *init);

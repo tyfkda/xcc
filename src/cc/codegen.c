@@ -550,24 +550,24 @@ static void put_args_to_stack(Defun *defun) {
   }
 }
 
-static bool is_asm(Node *node) {
-  return node->kind == ND_ASM;
+static bool is_asm(Stmt *stmt) {
+  return stmt->kind == ST_ASM;
 }
 
-static void gen_asm(Node *node) {
-  assert(node->asm_.str->kind == EX_STR);
-  new_ir_asm(node->asm_.str->str.buf);
+static void gen_asm(Stmt *stmt) {
+  assert(stmt->asm_.str->kind == EX_STR);
+  new_ir_asm(stmt->asm_.str->str.buf);
 }
 
-static void gen_nodes(Vector *nodes) {
-  if (nodes == NULL)
+static void gen_stmts(Vector *stmts) {
+  if (stmts == NULL)
     return;
 
-  for (int i = 0, len = nodes->len; i < len; ++i) {
-    Node *node = nodes->data[i];
-    if (node == NULL)
+  for (int i = 0, len = stmts->len; i < len; ++i) {
+    Stmt *stmt = stmts->data[i];
+    if (stmt == NULL)
       continue;
-    gen(node);
+    gen(stmt);
   }
 }
 
@@ -594,7 +594,7 @@ static void gen_defun(Defun *defun) {
   func->ret_bb = bb_split(curbb);
 
   // Statements
-  gen_nodes(defun->stmts);
+  gen_stmts(defun->stmts);
 
   set_curbb(func->ret_bb);
   curbb = NULL;
@@ -608,42 +608,42 @@ static void gen_defun(Defun *defun) {
   curra = NULL;
 }
 
-static void gen_block(Node *node) {
-  if (node->block.nodes != NULL) {
-    if (node->block.scope != NULL) {
-      assert(curscope == node->block.scope->parent);
-      curscope = node->block.scope;
+static void gen_block(Stmt *stmt) {
+  if (stmt->block.stmts != NULL) {
+    if (stmt->block.scope != NULL) {
+      assert(curscope == stmt->block.scope->parent);
+      curscope = stmt->block.scope;
     }
-    gen_nodes(node->block.nodes);
-    if (node->block.scope != NULL)
+    gen_stmts(stmt->block.stmts);
+    if (stmt->block.scope != NULL)
       curscope = curscope->parent;
   }
 }
 
-static void gen_return(Node *node) {
+static void gen_return(Stmt *stmt) {
   BB *bb = bb_split(curbb);
-  if (node->return_.val != NULL) {
-    VReg *reg = gen_expr(node->return_.val);
-    new_ir_result(reg, type_size(node->return_.val->type));
+  if (stmt->return_.val != NULL) {
+    VReg *reg = gen_expr(stmt->return_.val);
+    new_ir_result(reg, type_size(stmt->return_.val->type));
   }
   assert(curdefun != NULL);
   new_ir_jmp(COND_ANY, curdefun->func->ret_bb);
   set_curbb(bb);
 }
 
-static void gen_if(Node *node) {
+static void gen_if(Stmt *stmt) {
   BB *tbb = bb_split(curbb);
   BB *fbb = bb_split(tbb);
-  gen_cond_jmp(node->if_.cond, false, fbb);
+  gen_cond_jmp(stmt->if_.cond, false, fbb);
   set_curbb(tbb);
-  gen(node->if_.tblock);
-  if (node->if_.fblock == NULL) {
+  gen(stmt->if_.tblock);
+  if (stmt->if_.fblock == NULL) {
     set_curbb(fbb);
   } else {
     BB *nbb = bb_split(fbb);
     new_ir_jmp(COND_ANY, nbb);
     set_curbb(fbb);
-    gen(node->if_.fblock);
+    gen(stmt->if_.fblock);
     set_curbb(nbb);
   }
 }
@@ -658,9 +658,9 @@ static int compare_cases(const void *pa, const void *pb) {
   return d > 0 ? 1 : d < 0 ? -1 : 0;
 }
 
-static void gen_switch_cond_recur(Node *node, VReg *reg, const int *order, int len) {
-  Vector *case_values = node->switch_.case_values;
-  Expr *value = node->switch_.value;
+static void gen_switch_cond_recur(Stmt *stmt, VReg *reg, const int *order, int len) {
+  Vector *case_values = stmt->switch_.case_values;
+  Expr *value = stmt->switch_.value;
   size_t size = type_size(value->type);
 
   if (len <= 2) {
@@ -688,17 +688,17 @@ static void gen_switch_cond_recur(Node *node, VReg *reg, const int *order, int l
     BB *bbgt = bb_split(bblt);
     new_ir_jmp(COND_GT, bbgt);
     set_curbb(bblt);
-    gen_switch_cond_recur(node, reg, order, m);
+    gen_switch_cond_recur(stmt, reg, order, m);
     set_curbb(bbgt);
-    gen_switch_cond_recur(node, reg, order + (m + 1), len - (m + 1));
+    gen_switch_cond_recur(stmt, reg, order + (m + 1), len - (m + 1));
   }
 }
 
-static void gen_switch_cond(Node *node) {
-  Vector *case_values = node->switch_.case_values;
+static void gen_switch_cond(Stmt *stmt) {
+  Vector *case_values = stmt->switch_.case_values;
   int len = case_values->len;
 
-  Expr *value = node->switch_.value;
+  Expr *value = stmt->switch_.value;
   VReg *reg = gen_expr(value);
 
   // Sort cases in increasing order.
@@ -711,11 +711,11 @@ static void gen_switch_cond(Node *node) {
     order[i] = i;
   myqsort(order, len, sizeof(int), compare_cases);
 
-  gen_switch_cond_recur(node, reg, order, len);
+  gen_switch_cond_recur(stmt, reg, order, len);
   set_curbb(bb_split(curbb));
 }
 
-static void gen_switch(Node *node) {
+static void gen_switch(Stmt *stmt) {
   BB *pbb = curbb;
 
   Vector *save_case_values = cur_case_values;
@@ -724,7 +724,7 @@ static void gen_switch(Node *node) {
   BB *break_bb = push_break_bb(pbb, &save_break);
 
   Vector *bbs = new_vector();
-  Vector *case_values = node->switch_.case_values;
+  Vector *case_values = stmt->switch_.case_values;
   int len = case_values->len;
   for (int i = 0; i < len; ++i) {
     BB *bb = bb_split(pbb);
@@ -737,13 +737,13 @@ static void gen_switch(Node *node) {
   cur_case_values = case_values;
   cur_case_bbs = bbs;
 
-  gen_switch_cond(node);
+  gen_switch_cond(stmt);
 
   // No bb setting.
 
-  gen(node->switch_.body);
+  gen(stmt->switch_.body);
 
-  if (!node->switch_.has_default) {
+  if (!stmt->switch_.has_default) {
     // No default: Locate at the end of switch statement.
     BB *bb = bbs->data[len];
     bb_insert(curbb, bb);
@@ -756,12 +756,12 @@ static void gen_switch(Node *node) {
   pop_break_bb(save_break);
 }
 
-static void gen_case(Node *node) {
+static void gen_case(Stmt *stmt) {
   assert(cur_case_values != NULL);
   assert(cur_case_bbs != NULL);
-  Expr *valnode = node->case_.value;
-  assert(is_const(valnode));
-  intptr_t x = valnode->num.ival;
+  Expr *value = stmt->case_.value;
+  assert(is_const(value));
+  intptr_t x = value->num.ival;
   int i, len = cur_case_values->len;
   for (i = 0; i < len; ++i) {
     if ((intptr_t)cur_case_values->data[i] == x)
@@ -782,7 +782,7 @@ static void gen_default(void) {
   set_curbb(bb);
 }
 
-static void gen_while(Node *node) {
+static void gen_while(Stmt *stmt) {
   BB *loop_bb = bb_split(curbb);
 
   BB *save_break, *save_cont;
@@ -792,17 +792,17 @@ static void gen_while(Node *node) {
   new_ir_jmp(COND_ANY, cond_bb);
 
   set_curbb(loop_bb);
-  gen(node->while_.body);
+  gen(stmt->while_.body);
 
   set_curbb(cond_bb);
-  gen_cond_jmp(node->while_.cond, true, loop_bb);
+  gen_cond_jmp(stmt->while_.cond, true, loop_bb);
 
   set_curbb(next_bb);
   pop_continue_bb(save_cont);
   pop_break_bb(save_break);
 }
 
-static void gen_do_while(Node *node) {
+static void gen_do_while(Stmt *stmt) {
   BB *loop_bb = bb_split(curbb);
 
   BB *save_break, *save_cont;
@@ -810,17 +810,17 @@ static void gen_do_while(Node *node) {
   BB *next_bb = push_break_bb(cond_bb, &save_break);
 
   set_curbb(loop_bb);
-  gen(node->while_.body);
+  gen(stmt->while_.body);
 
   set_curbb(cond_bb);
-  gen_cond_jmp(node->while_.cond, true, loop_bb);
+  gen_cond_jmp(stmt->while_.cond, true, loop_bb);
 
   set_curbb(next_bb);
   pop_continue_bb(save_cont);
   pop_break_bb(save_break);
 }
 
-static void gen_for(Node *node) {
+static void gen_for(Stmt *stmt) {
   BB *cond_bb = bb_split(curbb);
   BB *body_bb = bb_split(cond_bb);
 
@@ -828,20 +828,20 @@ static void gen_for(Node *node) {
   BB *continue_bb = push_continue_bb(body_bb, &save_cont);
   BB *next_bb = push_break_bb(continue_bb, &save_break);
 
-  if (node->for_.pre != NULL)
-    gen_expr_stmt(node->for_.pre);
+  if (stmt->for_.pre != NULL)
+    gen_expr_stmt(stmt->for_.pre);
 
   set_curbb(cond_bb);
 
-  if (node->for_.cond != NULL)
-    gen_cond_jmp(node->for_.cond, false, next_bb);
+  if (stmt->for_.cond != NULL)
+    gen_cond_jmp(stmt->for_.cond, false, next_bb);
 
   set_curbb(body_bb);
-  gen(node->for_.body);
+  gen(stmt->for_.body);
 
   set_curbb(continue_bb);
-  if (node->for_.post != NULL)
-    gen_expr_stmt(node->for_.post);
+  if (stmt->for_.post != NULL)
+    gen_expr_stmt(stmt->for_.post);
   new_ir_jmp(COND_ANY, cond_bb);
 
   set_curbb(next_bb);
@@ -863,20 +863,20 @@ static void gen_continue(void) {
   set_curbb(bb);
 }
 
-static void gen_goto(Node *node) {
+static void gen_goto(Stmt *stmt) {
   assert(curdefun->label_map != NULL);
-  BB *bb = map_get(curdefun->label_map, node->goto_.label->ident);
+  BB *bb = map_get(curdefun->label_map, stmt->goto_.label->ident);
   assert(bb != NULL);
   new_ir_jmp(COND_ANY, bb);
 }
 
-static void gen_label(Node *node) {
+static void gen_label(Stmt *stmt) {
   assert(curdefun->label_map != NULL);
-  BB *bb = map_get(curdefun->label_map, node->token->ident);
+  BB *bb = map_get(curdefun->label_map, stmt->token->ident);
   assert(bb != NULL);
   bb_insert(curbb, bb);
   set_curbb(bb);
-  gen(node->label.stmt);
+  gen(stmt->label.stmt);
 }
 
 static void gen_clear_local_var(const VarInfo *varinfo) {
@@ -885,9 +885,9 @@ static void gen_clear_local_var(const VarInfo *varinfo) {
   new_ir_clear(reg, type_size(varinfo->type));
 }
 
-static void gen_vardecl(Node *node) {
+static void gen_vardecl(Stmt *stmt) {
   if (curdefun != NULL) {
-    Vector *decls = node->vardecl.decls;
+    Vector *decls = stmt->vardecl.decls;
     for (int i = 0; i < decls->len; ++i) {
       VarDecl *decl = decls->data[i];
       if (decl->init == NULL)
@@ -901,47 +901,47 @@ static void gen_vardecl(Node *node) {
       gen_clear_local_var(varinfo);
     }
   }
-  gen_nodes(node->vardecl.inits);
+  gen_stmts(stmt->vardecl.inits);
 }
 
 static void gen_expr_stmt(Expr *expr) {
   gen_expr(expr);
 }
 
-static void gen_toplevel(Node *node) {
-  gen_nodes(node->toplevel.nodes);
+static void gen_toplevel(Stmt *stmt) {
+  gen_stmts(stmt->toplevel.stmts);
 }
 
-void gen(Node *node) {
-  if (node == NULL)
+void gen(Stmt *stmt) {
+  if (stmt == NULL)
     return;
 
-  switch (node->kind) {
-  case ND_EXPR:  gen_expr_stmt(node->expr); break;
-  case ND_DEFUN:
-    gen_defun(node->defun);
+  switch (stmt->kind) {
+  case ST_EXPR:  gen_expr_stmt(stmt->expr); break;
+  case ST_DEFUN:
+    gen_defun(stmt->defun);
     break;
-  case ND_RETURN:  gen_return(node); break;
-  case ND_BLOCK:  gen_block(node); break;
-  case ND_IF:  gen_if(node); break;
-  case ND_SWITCH:  gen_switch(node); break;
-  case ND_CASE:  gen_case(node); break;
-  case ND_DEFAULT:  gen_default(); break;
-  case ND_WHILE:  gen_while(node); break;
-  case ND_DO_WHILE:  gen_do_while(node); break;
-  case ND_FOR:  gen_for(node); break;
-  case ND_BREAK:  gen_break(); break;
-  case ND_CONTINUE:  gen_continue(); break;
-  case ND_GOTO:  gen_goto(node); break;
-  case ND_LABEL:  gen_label(node); break;
-  case ND_VARDECL:  gen_vardecl(node); break;
-  case ND_ASM:  gen_asm(node); break;
-  case ND_TOPLEVEL:
-    gen_toplevel(node);
+  case ST_RETURN:  gen_return(stmt); break;
+  case ST_BLOCK:  gen_block(stmt); break;
+  case ST_IF:  gen_if(stmt); break;
+  case ST_SWITCH:  gen_switch(stmt); break;
+  case ST_CASE:  gen_case(stmt); break;
+  case ST_DEFAULT:  gen_default(); break;
+  case ST_WHILE:  gen_while(stmt); break;
+  case ST_DO_WHILE:  gen_do_while(stmt); break;
+  case ST_FOR:  gen_for(stmt); break;
+  case ST_BREAK:  gen_break(); break;
+  case ST_CONTINUE:  gen_continue(); break;
+  case ST_GOTO:  gen_goto(stmt); break;
+  case ST_LABEL:  gen_label(stmt); break;
+  case ST_VARDECL:  gen_vardecl(stmt); break;
+  case ST_ASM:  gen_asm(stmt); break;
+  case ST_TOPLEVEL:
+    gen_toplevel(stmt);
     break;
 
   default:
-    error("Unhandled node: %d", node->kind);
+    error("Unhandled stmt: %d", stmt->kind);
     break;
   }
 }
@@ -975,10 +975,10 @@ static void emit_defun(Defun *defun) {
   bool no_stmt = true;
   if (defun->stmts != NULL) {
     for (int i = 0; i < defun->stmts->len; ++i) {
-      Node *node = defun->stmts->data[i];
-      if (node == NULL)
+      Stmt *stmt = defun->stmts->data[i];
+      if (stmt == NULL)
         continue;
-      if (!is_asm(node)) {
+      if (!is_asm(stmt)) {
         no_stmt = false;
         break;
       }
@@ -1030,28 +1030,28 @@ static void emit_data(void) {
   put_bss();
 }
 
-void emit_code(Node *node) {
-  if (node == NULL)
+void emit_code(Stmt *stmt) {
+  if (stmt == NULL)
     return;
 
-  switch (node->kind) {
-  case ND_DEFUN:
-    emit_defun(node->defun);
+  switch (stmt->kind) {
+  case ST_DEFUN:
+    emit_defun(stmt->defun);
     break;
-  case ND_TOPLEVEL:
-    for (int i = 0, len = node->toplevel.nodes->len; i < len; ++i) {
-      Node *child = node->toplevel.nodes->data[i];
+  case ST_TOPLEVEL:
+    for (int i = 0, len = stmt->toplevel.stmts->len; i < len; ++i) {
+      Stmt *child = stmt->toplevel.stmts->data[i];
       if (child == NULL)
         continue;
       emit_code(child);
     }
     emit_data();
     break;
-  case ND_VARDECL:
+  case ST_VARDECL:
     break;
 
   default:
-    error("Unhandled node in emit_code: %d", node->kind);
+    error("Unhandled stmt in emit_code: %d", stmt->kind);
     break;
   }
 }

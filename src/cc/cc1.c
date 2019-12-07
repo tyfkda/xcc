@@ -19,20 +19,20 @@
 ////////////////////////////////////////////////
 
 #if !defined(SELF_HOSTING)
-static void do_dump_ir(Node *node) {
-  switch (node->kind) {
-  case ND_TOPLEVEL:
-    for (int i = 0, len = node->toplevel.nodes->len; i < len; ++i) {
-      Node *child = node->toplevel.nodes->data[i];
+static void do_dump_ir(Stmt *stmt) {
+  switch (stmt->kind) {
+  case ST_TOPLEVEL:
+    for (int i = 0, len = stmt->toplevel.stmts->len; i < len; ++i) {
+      Stmt *child = stmt->toplevel.stmts->data[i];
       if (child == NULL)
         continue;
       do_dump_ir(child);
     }
     break;
-  case ND_DEFUN:
-    dump_func_ir(node->defun->func);
+  case ST_DEFUN:
+    dump_func_ir(stmt->defun->func);
     break;
-  case ND_VARDECL:
+  case ST_VARDECL:
     break;
 
   default:
@@ -53,13 +53,13 @@ static void init_compiler(FILE *ofp) {
   gvar_map = new_map();
 }
 
-static Vector *compile1(FILE *ifp, const char *filename, Vector *nodes) {
+static Vector *compile1(FILE *ifp, const char *filename, Vector *stmts) {
   init_lexer(ifp, filename);
-  return parse_program(nodes);
+  return parse_program(stmts);
 }
 
-static Node *compile2(Vector *nodes) {
-  Node *top = sema(new_top_node(nodes));
+static Stmt *compile2(Vector *stmts) {
+  Stmt *top = sema(new_top_stmt(stmts));
   gen(top);
   return top;
 }
@@ -83,19 +83,19 @@ int main(int argc, char* argv[]) {
   // Compile.
   init_compiler(stdout);
 
-  Vector *nodes = NULL;
+  Vector *stmts = NULL;
   if (iarg < argc) {
     for (int i = iarg; i < argc; ++i) {
       const char *filename = argv[i];
       FILE *ifp = fopen(filename, "r");
       if (ifp == NULL)
         error("Cannot open file: %s\n", filename);
-      nodes = compile1(ifp, filename, nodes);
+      stmts = compile1(ifp, filename, stmts);
     }
   } else {
-    nodes = compile1(stdin, "*stdin*", nodes);
+    stmts = compile1(stdin, "*stdin*", stmts);
   }
-  Node *root = compile2(nodes);
+  Stmt *root = compile2(stmts);
 
   if (!dump_ir) {
     emit_code(root);

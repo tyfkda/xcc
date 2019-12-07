@@ -7,7 +7,7 @@
 
 typedef struct BB BB;
 typedef struct Expr Expr;
-typedef struct Node Node;
+typedef struct Stmt Stmt;
 typedef struct StructInfo StructInfo;
 typedef struct Type Type;
 typedef struct VReg VReg;
@@ -17,8 +17,8 @@ typedef struct VReg VReg;
 
 // Public
 
-void gen(Node *node);
-void emit_code(Node *node);
+void gen(Stmt *stmt);
+void emit_code(Stmt *stmt);
 
 // Private
 

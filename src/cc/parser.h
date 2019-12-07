@@ -45,27 +45,27 @@ typedef struct Initializer {
   };
 } Initializer;
 
-// Node
+// Statement
 
-enum NodeKind {
-  ND_EXPR,
-  ND_DEFUN,
-  ND_BLOCK,
-  ND_IF,
-  ND_SWITCH,
-  ND_WHILE,
-  ND_DO_WHILE,
-  ND_FOR,
-  ND_BREAK,
-  ND_CONTINUE,
-  ND_RETURN,
-  ND_CASE,
-  ND_DEFAULT,
-  ND_GOTO,
-  ND_LABEL,
-  ND_VARDECL,
-  ND_ASM,
-  ND_TOPLEVEL,
+enum StmtKind {
+  ST_EXPR,
+  ST_DEFUN,
+  ST_BLOCK,
+  ST_IF,
+  ST_SWITCH,
+  ST_WHILE,
+  ST_DO_WHILE,
+  ST_FOR,
+  ST_BREAK,
+  ST_CONTINUE,
+  ST_RETURN,
+  ST_CASE,
+  ST_DEFAULT,
+  ST_GOTO,
+  ST_LABEL,
+  ST_VARDECL,
+  ST_ASM,
+  ST_TOPLEVEL,
 };
 
 typedef struct VarDecl {
@@ -75,24 +75,24 @@ typedef struct VarDecl {
   int flag;
 } VarDecl;
 
-typedef struct Node {
-  enum NodeKind kind;
+typedef struct Stmt {
+  enum StmtKind kind;
   const Token *token;
   union {
     Expr *expr;
     Defun *defun;
     struct {
       Scope *scope;
-      Vector *nodes;
+      Vector *stmts;
     } block;
     struct {
       Expr *cond;
-      struct Node *tblock;
-      struct Node *fblock;
+      struct Stmt *tblock;
+      struct Stmt *fblock;
     } if_;
     struct {
       Expr *value;
-      struct Node *body;
+      struct Stmt *body;
       Vector *case_values;  // <intptr_t>
       bool has_default;
     } switch_;
@@ -101,38 +101,38 @@ typedef struct Node {
     } case_;
     struct {
       Expr *cond;
-      struct Node *body;
+      struct Stmt *body;
     } while_;
     struct {
       Expr *pre;
       Expr *cond;
       Expr *post;
-      struct Node *body;
+      struct Stmt *body;
     } for_;
     struct {
       const Token *label;
     } goto_;
     struct {
       // const Token *label;
-      struct Node *stmt;
+      struct Stmt *stmt;
     } label;
     struct {
       Expr *val;
     } return_;
     struct {
       Vector *decls;  // <VarDecl*>
-      Vector *inits;  // <Node*>
+      Vector *inits;  // <Stmt*>
     } vardecl;
     struct {
       Expr *str;
     } asm_;
     struct {
-      Vector *nodes;
+      Vector *stmts;
     } toplevel;
   };
-} Node;
+} Stmt;
 
-Node *new_node_expr(Expr *e);
-Node *new_top_node(Vector *nodes);
+Stmt *new_stmt_expr(Expr *e);
+Stmt *new_top_stmt(Vector *stmts);
 
-Vector *parse_program(Vector *nodes);
+Vector *parse_program(Vector *stmts);
