@@ -5,7 +5,7 @@ AS_DIR:=src/as
 UTIL_DIR:=src/util
 OBJ_DIR:=obj
 
-OPTIMIZE:=-O0 -g3
+OPTIMIZE:=-O2 -g3
 CFLAGS:=-ansi -std=c11 -MD -Wall -Wextra -Werror -Wold-style-definition \
 	-Wno-missing-field-initializers -Wno-typedef-redefinition -Wno-empty-body
 CFLAGS+=-I$(CC1_DIR) -I$(UTIL_DIR) $(OPTIMIZE)
