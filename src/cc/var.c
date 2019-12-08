@@ -112,11 +112,11 @@ Function *new_func(const Type *type, const char *name, Vector *params) {
   func->name = name;
   func->params = params;
 
-  func->top_scope = NULL;
-  func->all_scopes = new_vector();
-  func->frame_size = 0;
-  func->used_reg_bits = 0;
+  func->scopes = NULL;
+  func->ra = NULL;
   func->bbcon = NULL;
   func->ret_bb = NULL;
+  func->frame_size = 0;
+  func->used_reg_bits = 0;
   return func;
 }

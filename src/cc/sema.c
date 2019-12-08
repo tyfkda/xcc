@@ -24,7 +24,7 @@ static Stmt *curswitch;
 static Scope *enter_scope(Defun *defun, Vector *vars) {
   Scope *scope = new_scope(curscope, vars);
   curscope = scope;
-  vec_push(defun->func->all_scopes, scope);
+  vec_push(defun->func->scopes, scope);
   return scope;
 }
 
@@ -646,7 +646,8 @@ static void sema_defun(Defun *defun) {
       for (int i = 0; i < params->len; ++i)
         vec_push(top_vars, params->data[i]);
     }
-    curscope = defun->func->top_scope = enter_scope(defun, top_vars);  // Scope for parameters.
+    defun->func->scopes = new_vector();
+    curscope = enter_scope(defun, top_vars);  // Scope for parameters.
     sema_stmts(defun->stmts);
     exit_scope();
     curdefun = NULL;

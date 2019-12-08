@@ -435,8 +435,8 @@ static BB *push_break_bb(BB *parent_bb, BB **save) {
 
 static void alloc_variable_registers(Function *func) {
   int param_index = 0;
-  for (int i = 0; i < func->all_scopes->len; ++i) {
-    Scope *scope = (Scope*)func->all_scopes->data[i];
+  for (int i = 0; i < func->scopes->len; ++i) {
+    Scope *scope = (Scope*)func->scopes->data[i];
     if (scope->vars == NULL)
       continue;
 
@@ -562,7 +562,7 @@ static void gen_stmts(Vector *stmts) {
 
 static void gen_defun(Defun *defun) {
   Function *func = defun->func;
-  if (func->top_scope == NULL)  // Prototype definition
+  if (func->scopes == NULL)  // Prototype definition
     return;
 
   curdefun = defun;
@@ -579,7 +579,7 @@ static void gen_defun(Defun *defun) {
 
   alloc_variable_registers(func);
 
-  curscope = func->top_scope;
+  curscope = func->scopes->data[0];
   func->ret_bb = bb_split(curbb);
 
   // Statements
@@ -939,7 +939,7 @@ void gen(Stmt *stmt) {
 
 static void emit_defun(Defun *defun) {
   Function *func = defun->func;
-  if (func->top_scope == NULL)  // Prototype definition
+  if (func->scopes == NULL)  // Prototype definition
     return;
 
   assert(stackpos == 8);

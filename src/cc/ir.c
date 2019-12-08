@@ -965,7 +965,7 @@ static void dump_ir(FILE *fp, IR *ir) {
 void dump_func_ir(Function *func) {
   FILE *fp = stdout;
 
-  if (func->top_scope == NULL)  // Prototype definition
+  if (func->scopes == NULL)  // Prototype definition
     return;
 
   BBContainer *bbcon = func->bbcon;
@@ -974,8 +974,8 @@ void dump_func_ir(Function *func) {
   fprintf(fp, "### %s\n\n", func->name);
 
   fprintf(fp, "params and locals:\n");
-  for (int i = 0; i < func->all_scopes->len; ++i) {
-    Scope *scope = func->all_scopes->data[i];
+  for (int i = 0; i < func->scopes->len; ++i) {
+    Scope *scope = func->scopes->data[i];
     if (scope->vars == NULL)
       continue;
     for (int j = 0; j < scope->vars->len; ++j) {

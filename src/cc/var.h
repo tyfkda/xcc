@@ -75,8 +75,7 @@ typedef struct Function {
   const char *name;
   Vector *params;  // <VarInfo*>
 
-  Scope *top_scope;
-  Vector *all_scopes;
+  Vector *scopes;  // NULL => prototype definition.
 
   // For codegen.
   RegAlloc *ra;
