@@ -45,6 +45,7 @@ VReg *new_vreg(int vreg_no, const VRegType *vtype, int flag);
 enum IrKind {
   IR_BOFS,    // dst = [rbp + offset]
   IR_IOFS,    // dst = [rip + label]
+  IR_SOFS,    // dst = [rsp + offset]
   IR_LOAD,    // dst = [opr1]
   IR_STORE,   // [opr2] = opr1
   IR_ADD,     // dst = opr1 + opr2
@@ -120,7 +121,8 @@ typedef struct IR {
     } jmp;
     struct {
       int arg_count;
-      bool stack_aligned;
+      int stack_args_size;
+      int stack_aligned;
     } precall;
     struct {
       const Name *label;
@@ -145,13 +147,14 @@ VReg *new_ir_ptradd(int offset, VReg *base, VReg *index, int scale, const VRegTy
 void new_ir_mov(VReg *dst, VReg *src, int size);
 VReg *new_ir_bofs(VReg *src);
 VReg *new_ir_iofs(const Name *label, bool global);
+VReg *new_ir_sofs(VReg *src);
 void new_ir_store(VReg *dst, VReg *src, int size);
 void new_ir_cmp(VReg *opr1, VReg *opr2, int size);
 void new_ir_test(VReg *reg, int size);
 void new_ir_incdec(enum IrKind kind, VReg *reg, int size, intptr_t value);
 VReg *new_ir_cond(enum ConditionKind cond);
 void new_ir_jmp(enum ConditionKind cond, BB *bb);
-IR *new_ir_precall(int arg_count);
+IR *new_ir_precall(int arg_count, int stack_args_size);
 void new_ir_pusharg(VReg *vreg, const VRegType *vtype);
 VReg *new_ir_call(const Name *label, bool global, VReg *freg, int arg_count, const VRegType *result_type, IR *precall);
 void new_ir_result(VReg *reg, int size);

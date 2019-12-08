@@ -297,17 +297,98 @@ static VReg *gen_ternary(Expr *expr) {
   return result;
 }
 
+bool is_stack_param(const Type *type) {
+  return type->kind == TY_STRUCT;
+}
+
+typedef struct {
+  int reg_index;
+  int offset;
+  bool stack_arg;
+  int size;
+} ArgInfo;
+
 static VReg *gen_funcall(Expr *expr) {
   Expr *func = expr->funcall.func;
   Vector *args = expr->funcall.args;
   int arg_count = args != NULL ? args->len : 0;
 
-  IR *precall = new_ir_precall(arg_count);
+  ArgInfo *arg_infos = NULL;
+  int stack_arg_count = 0;
+  int offset = 0;
+  if (args != NULL) {
+    bool vaargs = false;
+    if (func->kind == EX_VARIABLE && func->variable.scope == NULL) {
+      vaargs = func->type->func.vaargs;
+    } else {
+      // TODO:
+    }
 
-  const VarInfo *varinfo = NULL;
+    // Check stack arguments.
+    arg_infos = malloc(sizeof(*arg_infos) * arg_count);
+    int reg_index = 0;
+    for (int i = 0; i < arg_count; ++i) {
+      ArgInfo *p = &arg_infos[i];
+      p->reg_index = -1;
+      p->offset = -1;
+      Expr *arg = args->data[i];
+      p->size = type_size(arg->type);
+      p->stack_arg = is_stack_param(arg->type);
+      if (p->stack_arg || reg_index >= MAX_REG_ARGS) {
+        if (reg_index >= MAX_REG_ARGS && vaargs) {
+          parse_error(((Expr*)args->data[reg_index])->token,
+                      "Param count exceeds %d", MAX_REG_ARGS);
+        }
+
+        offset = ALIGN(offset, align_size(arg->type));
+        p->offset = offset;
+        offset += p->size;
+        ++stack_arg_count;
+      } else {
+        p->reg_index = reg_index++;
+      }
+    }
+    offset = ALIGN(offset, 8);
+  }
+
+  IR *precall = new_ir_precall(arg_count - stack_arg_count, offset);
+
+  int reg_arg_count = 0;
+  if (args != NULL) {
+    if (offset > 0) {
+      new_ir_addsp(-ALIGN(offset, 8));
+    }
+
+    // Register arguments.
+    for (int i = arg_count; --i >= 0; ) {
+      Expr *arg = args->data[i];
+      VReg *reg = gen_expr(arg);
+      const ArgInfo *p = &arg_infos[i];
+      if (p->offset < 0) {
+        new_ir_pusharg(reg, to_vtype(arg->type));
+        ++reg_arg_count;
+      } else {
+        VRegType offset_type = {.size = 4, .align = 4, .is_unsigned = false};  // TODO:
+        VReg *dst = new_ir_sofs(new_const_vreg(p->offset + reg_arg_count * WORD_SIZE, &offset_type));
+        if (p->stack_arg) {
+          new_ir_memcpy(dst, reg, type_size(arg->type));
+        } else {
+          if (reg->flag & VRF_CONST) {
+            // Allocate new register to avoid constant register.
+            VReg *tmp = add_new_reg(arg->type, 0);
+            new_ir_mov(tmp, reg, type_size(arg->type));
+            reg = tmp;
+          }
+          new_ir_store(dst, reg, type_size(arg->type));
+        }
+      }
+    }
+  }
+
   bool label_call = false;
   bool global = false;
   if (func->kind == EX_VARIABLE) {
+    const VarInfo *varinfo;
     if (func->variable.scope == NULL) {
       varinfo = find_global(func->variable.name);
     } else {
@@ -319,36 +400,17 @@ static VReg *gen_funcall(Expr *expr) {
     global = !(varinfo->flag & VF_STATIC);
   }
 
-  if (args != NULL) {
-    if (arg_count > MAX_REG_ARGS) {
-      bool vaargs = false;
-      if (func->kind == EX_VARIABLE && func->variable.scope == NULL) {
-        vaargs = func->type->func.vaargs;
-      } else {
-        // TODO:
-      }
-
-      if (vaargs)
-        parse_error(((Expr*)args->data[MAX_REG_ARGS])->token,
-                    "Param count exceeds %d", MAX_REG_ARGS);
-    }
-
-    for (int i = arg_count; --i >= 0; ) {
-      Expr *arg = args->data[i];
-      VReg *reg = gen_expr(arg);
-      new_ir_pusharg(reg, to_vtype(arg->type));
-    }
-  }
-
   VReg *result_reg = NULL;
   if (label_call) {
-    result_reg = new_ir_call(func->variable.name, global, NULL, arg_count,
+    result_reg = new_ir_call(func->variable.name, global, NULL, reg_arg_count,
                              to_vtype(expr->type), precall);
   } else {
     VReg *freg = gen_expr(func);
-    result_reg = new_ir_call(NULL, false, freg, arg_count,
+    result_reg = new_ir_call(NULL, false, freg, reg_arg_count,
                              to_vtype(expr->type), precall);
   }
+
+  free(arg_infos);
 
   return result_reg;
 }

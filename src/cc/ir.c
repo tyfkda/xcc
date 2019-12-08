@@ -263,6 +263,13 @@ VReg *new_ir_iofs(const Name *label, bool global) {
   return ir->dst = reg_alloc_spawn(curra, &vtVoidPtr, 0);
 }
 
+VReg *new_ir_sofs(VReg *src) {
+  IR *ir = new_ir(IR_SOFS);
+  ir->opr1 = src;
+  ir->size = WORD_SIZE;
+  return ir->dst = reg_alloc_spawn(curra, &vtVoidPtr, 0);
+}
+
 void new_ir_store(VReg *dst, VReg *src, int size) {
   IR *ir = new_ir(IR_STORE);
   ir->opr1 = src;
@@ -308,9 +315,10 @@ void new_ir_pusharg(VReg *vreg, const VRegType *vtype) {
   ir->size = vtype->size;
 }
 
-IR *new_ir_precall(int arg_count) {
+IR *new_ir_precall(int arg_count, int stack_args_size) {
   IR *ir = new_ir(IR_PRECALL);
   ir->precall.arg_count = arg_count;
+  ir->precall.stack_args_size = stack_args_size;
   ir->precall.stack_aligned = false;
   return ir;
 }
@@ -442,6 +450,11 @@ static void ir_out(IR *ir) {
         label = MANGLE(label);
       LEA(LABEL_INDIRECT(label, RIP), kReg64s[ir->dst->r]);
     }
+    break;
+
+  case IR_SOFS:
+    assert(ir->opr1->flag & VRF_CONST);
+    LEA(OFFSET_INDIRECT(ir->opr1->r, RSP, NULL, 1), kReg64s[ir->dst->r]);
     break;
 
   case IR_LOAD:
@@ -902,11 +915,11 @@ static void ir_out(IR *ir) {
       PUSH(R10); PUSH_STACK_POS();
       PUSH(R11); PUSH_STACK_POS();
 
-      int stack_args = MAX(ir->precall.arg_count - MAX_REG_ARGS, 0);
-      bool align_stack = ((stackpos + stack_args * WORD_SIZE) & 15) != 0;
-      if (align_stack) {
-        SUB(IM(8), RSP);
-        stackpos += 8;
+      int align_stack = (stackpos + ir->precall.stack_args_size) & 15;
+      if (align_stack != 0) {
+        align_stack = 16 - align_stack;
+        SUB(IM(align_stack), RSP);
+        stackpos += align_stack;
       }
       ir->precall.stack_aligned = align_stack;
     }
@@ -941,12 +954,10 @@ static void ir_out(IR *ir) {
         CALL(fmt("*%s", kReg64s[ir->opr1->r]));
       }
 
-      int stack_args = MAX(ir->call.arg_count - MAX_REG_ARGS, 0);
-      bool align_stack = ir->call.precall->precall.stack_aligned;
-      if (stack_args > 0 || align_stack) {
-        int add = stack_args * WORD_SIZE + (align_stack ? 8 : 0);
-        ADD(IM(add), RSP);
-        stackpos -= add;
+      int align_stack = ir->call.precall->precall.stack_aligned + ir->call.precall->precall.stack_args_size;
+      if (align_stack != 0) {
+        ADD(IM(align_stack), RSP);
+        stackpos -= align_stack;
       }
 
       // Resore caller save registers.

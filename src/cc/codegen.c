@@ -458,13 +458,19 @@ static void put_args_to_stack(Defun *defun) {
 
   // Store arguments into local frame.
   Vector *params = defun->func->params;
-  int len = params != NULL ? params->len : 0;
-  int n = defun->func->type->func.vaargs ? MAX_REG_ARGS : len;
+  if (params == NULL)
+    return;
+
+  int len = params->len;
+  int n = len;
+  if (defun->func->type->func.vaargs && n < MAX_REG_ARGS)
+    n = MAX_REG_ARGS;
+  int arg_index = 0;
   for (int i = 0; i < n; ++i) {
     const Type *type;
     int offset;
     if (i < len) {
-      const VarInfo *varinfo = (const VarInfo*)params->data[i];
+      const VarInfo *varinfo = params->data[i];
       type = varinfo->type;
       offset = varinfo->reg->offset;
     } else {  // vaargs
@@ -472,28 +478,24 @@ static void put_args_to_stack(Defun *defun) {
       offset = (i - MAX_REG_ARGS) * WORD_SIZE;
     }
 
-    int size = 0;
+    if (is_stack_param(type))
+      continue;
+
     switch (type->kind) {
     case TY_NUM:
-      switch (type->num.kind) {
-      case NUM_CHAR:  size = 1; break;
-      case NUM_SHORT: size = 2; break;
-      case NUM_INT: case NUM_ENUM:
-        size = 4;
-        break;
-      case NUM_LONG:  size = 8; break;
-      default: assert(false); break;
-      }
+    case TY_PTR:
       break;
-    case TY_PTR:  size = 8; break;
     default: assert(false); break;
     }
 
-    if (i < MAX_REG_ARGS) {
-      assert(size < (int)(sizeof(kRegTable) / sizeof(*kRegTable)) &&
-             kRegTable[size] != NULL);
-      MOV(kRegTable[size][i], OFFSET_INDIRECT(offset, RBP, NULL, 1));
-    }
+    int size = type_size(type);
+    assert(size < (int)(sizeof(kRegTable) / sizeof(*kRegTable)) &&
+           kRegTable[size] != NULL);
+    MOV(kRegTable[size][arg_index], OFFSET_INDIRECT(offset, RBP, NULL, 1));
+
+    ++arg_index;
+    if (arg_index >= MAX_REG_ARGS)
+      break;
   }
 }
 

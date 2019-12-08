@@ -26,8 +26,9 @@ static void dump_ir(FILE *fp, IR *ir) {
   static char *kCond[] = {"MP", "EQ", "NE", "LT", "LE", "GE", "GT"};
 
   switch (ir->kind) {
-  case IR_BOFS:   fprintf(fp, "\tBOFS\t"); dump_vreg(fp, ir->dst, ir->size); fprintf(fp, " = &[rbp %c %d]\n", ir->opr1->offset > 0 ? '+' : '-', ir->opr1->offset > 0 ? ir->opr1->offset : -ir->opr1->offset); break;
+  case IR_BOFS:   fprintf(fp, "\tBOFS\t"); dump_vreg(fp, ir->dst, ir->size); fprintf(fp, " = &[rbp %c %d]\n", ir->opr1->offset >= 0 ? '+' : '-', ir->opr1->offset > 0 ? ir->opr1->offset : -ir->opr1->offset); break;
   case IR_IOFS:   fprintf(fp, "\tIOFS\t"); dump_vreg(fp, ir->dst, ir->size); fprintf(fp, " = &%.*s\n", ir->iofs.label->bytes, ir->iofs.label->chars); break;
+  case IR_SOFS:   fprintf(fp, "\tSOFS\t"); dump_vreg(fp, ir->dst, ir->size); fprintf(fp, " = &[rsp %c %d]\n", ir->opr1->offset >= 0 ? '+' : '-', ir->opr1->offset > 0 ? ir->opr1->offset : -ir->opr1->offset); break;
   case IR_LOAD:   fprintf(fp, "\tLOAD\t"); dump_vreg(fp, ir->dst, ir->size); fprintf(fp, " = ["); dump_vreg(fp, ir->opr1, WORD_SIZE); fprintf(fp, "]\n"); break;
   case IR_STORE:  fprintf(fp, "\tSTORE\t["); dump_vreg(fp, ir->opr2, WORD_SIZE); fprintf(fp, "] = "); dump_vreg(fp, ir->opr1, ir->size); fprintf(fp, "\n"); break;
   case IR_ADD:    fprintf(fp, "\tADD\t"); dump_vreg(fp, ir->dst, ir->size); fprintf(fp, " = "); dump_vreg(fp, ir->opr1, ir->size); fprintf(fp, " + "); dump_vreg(fp, ir->opr2, ir->size); fprintf(fp, "\n"); break;

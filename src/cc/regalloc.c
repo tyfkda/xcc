@@ -284,6 +284,7 @@ static int insert_load_store_spilled(BBContainer *bbcon, Vector *vregs, const in
 
       case IR_BOFS:
       case IR_IOFS:
+      case IR_SOFS:
         flag = 4;
         break;
 
@@ -391,6 +392,9 @@ static void analyze_reg_flow(BBContainer *bbcon) {
 }
 
 void prepare_register_allocation(Function *func) {
+  const int DEFAULT_OFFSET = WORD_SIZE * 2;  // Return address, saved base pointer.
+  int reg_param_index = 0;
+  int stack_argument_offset = 0;
   for (int i = 0; i < func->scopes->len; ++i) {
     Scope *scope = (Scope*)func->scopes->data[i];
     if (scope->vars == NULL)
@@ -407,8 +411,16 @@ void prepare_register_allocation(Function *func) {
         spill = true;
       if (vreg->flag & VRF_PARAM) {
         spill = true;
-        if (func->type->func.vaargs) {  // Variadic function parameters.
-          vreg->offset = (vreg->param_index - MAX_REG_ARGS) * WORD_SIZE;
+        // stack parameters
+        if (is_stack_param(varinfo->type)) {
+          int offset = ALIGN(stack_argument_offset, align_size(varinfo->type));
+          vreg->offset = offset + DEFAULT_OFFSET;
+          stack_argument_offset = offset + type_size(varinfo->type);
+        } else {
+          if (func->type->func.vaargs) {  // Variadic function parameters.
+            vreg->offset = (reg_param_index - MAX_REG_ARGS) * WORD_SIZE;
+          }
+          ++reg_param_index;
         }
       }
 
