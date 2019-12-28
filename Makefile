@@ -43,7 +43,7 @@ cpp: $(CPP_OBJS)
 as: $(AS_OBJS)
 	$(CC) -o $@ $^ $(LDFLAGS)
 
--include obj/*.d
+-include $(OBJ_DIR)/*.d
 
 $(OBJ_DIR)/%.o: $(XCC_DIR)/%.c
 	@mkdir -p $(OBJ_DIR)
