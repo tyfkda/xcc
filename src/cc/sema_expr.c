@@ -3,6 +3,7 @@
 #include <assert.h>
 #include <string.h>
 
+#include "ast.h"
 #include "lexer.h"
 #include "type.h"
 #include "util.h"

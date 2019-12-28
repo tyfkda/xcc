@@ -8,6 +8,7 @@
 #include "string.h"
 #include "unistd.h"
 
+#include "ast.h"
 #include "expr.h"
 #include "lexer.h"
 #include "type.h"
