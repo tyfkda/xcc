@@ -5,6 +5,7 @@
 #include <inttypes.h>  // PRId64
 #include <stdarg.h>
 #include <stdint.h>  // int64_t
+#include <stdlib.h>  // realloc
 
 #include "table.h"
 #include "util.h"
@@ -15,17 +16,43 @@
 
 static FILE *emit_fp;
 
-char *fmt(const char *s, ...) {
-  static char buf[4][64];
+char *fmt(const char *fm, ...) {
+#define N  4
+#define MIN_SIZE  16
+  typedef struct {
+    char *buf;
+    int size;
+  } Buf;
+  static Buf ringbuf[N];
   static int index;
-  char *p = buf[index];
-  if (++index >= 4)
+  Buf *p = &ringbuf[index];
+  if (++index >= N)
     index = 0;
+
   va_list ap;
-  va_start(ap, s);
-  vsnprintf(p, sizeof(buf[0]), s, ap);
+  va_start(ap, fm);
+  int n = vsnprintf(p->buf, p->size, fm, ap);
   va_end(ap);
-  return p;
+
+  if (n >= p->size) {
+    int newsize = n + (n >> 1);
+    if (newsize < MIN_SIZE)
+      newsize = MIN_SIZE;
+    char *newbuf = realloc(p->buf, newsize);
+    if (newbuf == NULL)
+      error("Out of memory");
+    p->buf = newbuf;
+    p->size = newsize;
+
+    // Retry
+    va_start(ap, fm);
+    int n2 = vsnprintf(p->buf, p->size, fm, ap);
+    va_end(ap);
+    assert(n2 == n && n2 < p->size);
+  }
+  return p->buf;
+#undef MIN_SIZE
+#undef N
 }
 
 char *fmt_name(const Name *name) {
