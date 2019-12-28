@@ -82,7 +82,8 @@ static Expr *new_expr_unary(enum ExprKind kind, const Type *type, const Token *t
 }
 
 Expr *new_expr_deref(const Token *token, Expr *sub) {
-  return new_expr_unary(EX_DEREF, sub->type->pa.ptrof, token, sub);
+  const Type *type = sub->type != NULL ? sub->type->pa.ptrof : NULL;
+  return new_expr_unary(EX_DEREF, type, token, sub);
 }
 
 static Expr *new_expr_ternary(const Token *token, Expr *cond, Expr *tval, Expr *fval, const Type *type) {
@@ -149,8 +150,7 @@ static Expr *funcall(Expr *func) {
 Expr *array_index(const Token *token, Expr *array) {
   Expr *index = parse_expr();
   consume(TK_RBRACKET, "`]' expected");
-  //return new_expr_deref(add_expr(tok, array, index));
-  return new_expr_unary(EX_DEREF, NULL, token, new_expr_bop(EX_ADD, NULL, token, array, index));
+  return new_expr_deref(token, new_expr_bop(EX_ADD, NULL, token, array, index));
 }
 
 Expr *member_access(Expr *target, Token *acctok) {
