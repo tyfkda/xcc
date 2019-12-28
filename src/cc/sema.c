@@ -5,7 +5,6 @@
 #include <stdlib.h>  // malloc
 
 #include "ast.h"
-#include "expr.h"
 #include "lexer.h"
 #include "parser.h"
 #include "type.h"

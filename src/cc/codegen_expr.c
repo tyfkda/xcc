@@ -4,7 +4,6 @@
 #include <stdlib.h>  // malloc
 
 #include "ast.h"
-#include "expr.h"
 #include "ir.h"
 #include "lexer.h"
 #include "regalloc.h"

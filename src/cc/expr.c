@@ -1,4 +1,4 @@
-#include "expr.h"
+#include "parser.h"
 
 #include <assert.h>
 #include <stdbool.h>
@@ -15,18 +15,6 @@
 static StructInfo *parse_struct(bool is_union);
 static Expr *cast_expr(void);
 static Expr *unary(void);
-
-bool is_const(Expr *expr) {
-  // TODO: Handle constant variable.
-
-  switch (expr->kind) {
-  case EX_NUM:
-  case EX_STR:
-    return true;
-  default:
-    return false;
-  }
-}
 
 void not_void(const Type *type) {
   if (type->kind == TY_VOID)

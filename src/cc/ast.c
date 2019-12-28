@@ -3,9 +3,20 @@
 #include <assert.h>
 #include <stdlib.h>  // malloc
 
-#include "expr.h"
 #include "type.h"
 #include "util.h"
+
+bool is_const(Expr *expr) {
+  // TODO: Handle constant variable.
+
+  switch (expr->kind) {
+  case EX_NUM:
+  case EX_STR:
+    return true;
+  default:
+    return false;
+  }
+}
 
 static Expr *new_expr(enum ExprKind kind, const Type *type, const Token *token) {
   Expr *expr = malloc(sizeof(*expr));
