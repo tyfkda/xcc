@@ -5,11 +5,8 @@
 #include <stdbool.h>
 #include <stddef.h>  // size_t
 
-typedef struct BB BB;
-typedef struct BBContainer BBContainer;
 typedef struct Initializer Initializer;
 typedef struct Map Map;
-typedef struct RegAlloc RegAlloc;
 typedef struct Token Token;
 typedef struct Type Type;
 typedef struct VReg VReg;
@@ -67,22 +64,3 @@ typedef struct Scope {
 
 Scope *new_scope(Scope *parent, Vector *vars);
 VarInfo *scope_find(Scope **pscope, const char *name);
-
-// Function
-
-typedef struct Function {
-  const Type *type;
-  const char *name;
-  Vector *params;  // <VarInfo*>
-
-  Vector *scopes;  // NULL => prototype definition.
-
-  // For codegen.
-  RegAlloc *ra;
-  BBContainer *bbcon;
-  BB *ret_bb;
-  size_t frame_size;
-  short used_reg_bits;
-} Function;
-
-Function *new_func(const Type *type, const char *name, Vector *params);

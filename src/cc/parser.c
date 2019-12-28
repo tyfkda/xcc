@@ -13,6 +13,23 @@
 
 static Stmt *statement(void);
 
+// Function
+
+static Function *new_func(const Type *type, const char *name, Vector *params) {
+  Function *func = malloc(sizeof(*func));
+  func->type = type;
+  func->name = name;
+  func->params = params;
+
+  func->scopes = NULL;
+  func->ra = NULL;
+  func->bbcon = NULL;
+  func->ret_bb = NULL;
+  func->frame_size = 0;
+  func->used_reg_bits = 0;
+  return func;
+}
+
 static VarDecl *new_vardecl(const Type *type, const Token *ident, Initializer *init, int flag) {
   VarDecl *decl = malloc(sizeof(*decl));
   decl->type = type;

@@ -4,13 +4,33 @@
 
 #include <stdbool.h>
 
+typedef struct BB BB;
+typedef struct BBContainer BBContainer;
 typedef struct Function Function;
 typedef struct Expr Expr;
 typedef struct Map Map;
+typedef struct RegAlloc RegAlloc;
 typedef struct Scope Scope;
 typedef struct Token Token;
 typedef struct Type Type;
 typedef struct Vector Vector;
+
+// Function
+
+typedef struct Function {
+  const Type *type;
+  const char *name;
+  Vector *params;  // <VarInfo*>
+
+  Vector *scopes;  // NULL => prototype definition.
+
+  // For codegen.
+  RegAlloc *ra;
+  BBContainer *bbcon;
+  BB *ret_bb;
+  size_t frame_size;
+  short used_reg_bits;
+} Function;
 
 // Defun
 

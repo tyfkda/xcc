@@ -6,6 +6,7 @@
 
 #include "codegen.h"  // WORD_SIZE
 #include "ir.h"
+#include "stmt.h"
 #include "util.h"
 #include "var.h"
 
