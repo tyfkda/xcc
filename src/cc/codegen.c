@@ -186,7 +186,7 @@ static void gen_asm(Stmt *stmt) {
   new_ir_asm(stmt->asm_.str->str.buf);
 }
 
-static void gen_stmts(Vector *stmts) {
+void gen_stmts(Vector *stmts) {
   assert(stmts != NULL);
 
   for (int i = 0, len = stmts->len; i < len; ++i) {

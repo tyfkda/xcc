@@ -21,7 +21,7 @@ static Stmt *curswitch;
 
 static Stmt *parse_stmt(void);
 
-static void fix_array_size(Type *type, Initializer *init) {
+void fix_array_size(Type *type, Initializer *init) {
   assert(init != NULL);
   assert(type->kind == TY_ARRAY);
 
@@ -441,7 +441,7 @@ static Initializer *check_global_initializer(const Type *type, Initializer *init
   return init;
 }
 
-static Vector *assign_initial_value(Expr *expr, Initializer *init, Vector *inits) {
+Vector *assign_initial_value(Expr *expr, Initializer *init, Vector *inits) {
   if (init == NULL)
     return inits;
 
@@ -646,7 +646,7 @@ static void exit_scope(void) {
 
 // Initializer
 
-static Initializer *parse_initializer(void) {
+Initializer *parse_initializer(void) {
   Initializer *result = malloc(sizeof(*result));
   const Token *lblace_tok;
   if ((lblace_tok = match(TK_LBRACE)) != NULL) {

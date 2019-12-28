@@ -31,3 +31,5 @@ VReg *add_new_reg(const Type *type, int flag);
 VRegType *to_vtype(const Type *type);
 
 bool is_stack_param(const Type *type);
+
+void gen_stmts(Vector *stmts);

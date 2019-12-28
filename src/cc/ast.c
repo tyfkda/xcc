@@ -112,6 +112,13 @@ Expr *new_expr_cast(const Type *type, const Token *token, Expr *sub) {
   return expr;
 }
 
+Expr *new_expr_complit(const Type *type, const Token *token, Expr *var, Vector *inits) {
+  Expr *expr = new_expr(EX_COMPLIT, type, token);
+  expr->complit.var = var;
+  expr->complit.inits = inits;
+  return expr;
+}
+
 // ================================================
 
 // Function

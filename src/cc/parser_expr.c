@@ -172,6 +172,8 @@ static void check_lval(const Token *tok, Expr *expr, const char *error) {
 static void check_referable(const Token *tok, Expr *expr, const char *error) {
   while (expr->kind == EX_GROUP)
     expr = expr->unary.sub;
+  if (expr->kind == EX_COMPLIT)
+    return;
   check_lval(tok, expr, error);
 }
 
@@ -765,14 +767,47 @@ static StructInfo *parse_struct(bool is_union) {
   return sinfo;
 }
 
+static Expr *parse_compound_literal(const Type *type) {
+  Token *token = fetch_token();
+  Initializer *init = parse_initializer();
+  const Name *name = NULL;
+  Vector *inits = NULL;
+  Expr *var = NULL;
+
+  if (curscope == NULL) {
+    parse_error(token, "cannot use compound literal in global");
+  } else {
+    if (type->kind == TY_ARRAY)
+      fix_array_size((Type*)type, init);
+
+    name = alloc_label();
+    const Token *ident = alloc_ident(name, NULL, NULL);
+    add_cur_scope(ident, type, VF_STATIC);
+
+    var = new_expr_variable(name, type, token, curscope);
+    inits = assign_initial_value(var, init, NULL);
+  }
+
+  return new_expr_complit(type, token, var, inits);
+}
+
 static Expr *parse_prim(void) {
   Token *tok;
   if ((tok = match(TK_LPAR)) != NULL) {
-    Expr *expr = parse_expr();
-    consume(TK_RPAR, "No close paren");
-    if (is_const(expr))
-      return expr;
-    return new_expr_unary(EX_GROUP, expr->type, tok, expr);
+    int flag;
+    const Type *type = parse_full_type(&flag, NULL);
+    if (type != NULL) {  // Compound literal
+      consume(TK_RPAR, "`)' expected");
+      Token *tok2 = consume(TK_LBRACE, "`{' expected");
+      unget_token(tok2);
+      return parse_compound_literal(type);
+    } else {
+      Expr *expr = parse_expr();
+      consume(TK_RPAR, "No close paren");
+      if (is_const(expr))
+        return expr;
+      return new_expr_unary(EX_GROUP, expr->type, tok, expr);
+    }
   }
 
   {
@@ -947,9 +982,15 @@ static Expr *parse_cast_expr(void) {
     const Type *type = parse_full_type(&flag, NULL);
     if (type != NULL) {  // Cast
       consume(TK_RPAR, "`)' expected");
-      Expr *sub = parse_cast_expr();
-      check_cast(type, sub->type, is_zero(sub), true, token);
-      return new_expr_cast(type, token, sub);
+
+      Token *token2 = fetch_token();
+      if (token2 != NULL && token2->kind == TK_LBRACE) {
+        return parse_compound_literal(type);
+      } else {
+        Expr *sub = parse_cast_expr();
+        check_cast(type, sub->type, is_zero(sub), true, token);
+        return new_expr_cast(type, token, sub);
+      }
     }
     unget_token(lpar);
   }

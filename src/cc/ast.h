@@ -76,6 +76,7 @@ enum ExprKind {
   EX_MEMBER,  // x.member or x->member
   EX_SIZEOF,  // sizeof(x)
   EX_FUNCALL, // f(x, y, ...)
+  EX_COMPLIT, // Compound literal
 };
 
 typedef struct Expr {
@@ -116,6 +117,10 @@ typedef struct Expr {
       struct Expr *func;
       Vector *args;  // <Expr*>
     } funcall;
+    struct {
+      struct Expr *var;
+      Vector *inits;  // <Stmt*>
+    } complit;
   };
 } Expr;
 
@@ -131,6 +136,8 @@ Expr *new_expr_member(const Token *token, const Type *type, Expr *target, const 
 Expr *new_expr_funcall(const Token *token, Expr *func, const Type *functype, Vector *args);
 Expr *new_expr_sizeof(const Token *token, const Type *type);
 Expr *new_expr_cast(const Type *type, const Token *token, Expr *sub);
+
+Expr *new_expr_complit(const Type *type, const Token *token, Expr *var, Vector *inits);
 
 bool is_const(Expr *expr);
 bool is_zero(Expr *expr);

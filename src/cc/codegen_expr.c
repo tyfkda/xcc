@@ -251,6 +251,9 @@ static VReg *gen_lval(Expr *expr) {
       VReg *result = new_ir_bop(IR_ADD, reg, imm, vtype);
       return result;
     }
+  case EX_COMPLIT:
+    gen_stmts(expr->complit.inits);
+    return gen_lval(expr->complit.var);
   default:
     assert(false);
     break;
@@ -856,6 +859,10 @@ VReg *gen_expr(Expr *expr) {
       VReg *lreg = gen_expr(expr->bop.lhs);
       return gen_ptradd(expr->kind, expr->type, lreg, expr->bop.rhs);
     }
+
+  case EX_COMPLIT:
+    gen_stmts(expr->complit.inits);
+    return gen_expr(expr->complit.var);
 
   default:
     fprintf(stderr, "Expr kind=%d, ", expr->kind);

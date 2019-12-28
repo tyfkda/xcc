@@ -158,6 +158,9 @@ try_direct 'func-ptr-array' 30 'int mul2(int x) {return x*2;} int div2(int x) {r
 try_direct 'func-ptr-array in local' 30 'int mul2(int x) {return x*2;} int div2(int x) {return x/2;} int main() {int (*funcs[])(int)={mul2, div2}; int acc=0; for (int i=0; i<2; ++i) acc+=funcs[i](12); return acc;}'
 try_direct 'struct args' 82 'typedef struct {int a; int b;} X; int sub(X x, int k) { return x.a * k + x.b; } int main() { X x = {12, 34}; return sub(x, 4); }'
 try 'ternary string' 114 'int x = 1; const char *p = x ? "true" : "false"; return p[1];'
+try_direct 'compound literal:array' 2 'int main(){ int *foo = (int[]){1, 2, 3}; return foo[1]; }'
+try_direct 'compound literal:struct' 66 'struct Foo {int x;}; int main(){ struct Foo *foo = &(struct Foo){66}; return foo->x; }'
+try_direct 'inc compound literal' 56 'int main(){ int i = ++(int){55}; return i; }'
 
 # error cases
 echo ''
@@ -230,6 +233,8 @@ compile_error 'global and enum' 'int BAR; enum Foo { BAR }; void main(){}'
 compile_error 'dup enum elem' 'enum Foo { BAR, BAR }; void main(){}'
 compile_error 'paren =' 'void main(){ int x; (x) = 98; }'
 compile_error '+x =' 'void main(){ int x; +x = 45; }'
+compile_error 'compound literal =' 'struct Foo {int x;}; void main(){ struct Foo foo = {1}; (struct Foo){66} = foo; }'
+compile_error 'compound literal w/o brace' 'void main(){ ++(int)55; }'
 compile_error 'cast assign' 'void main(){ int x; (int)x = 32; }'
 compile_error 'param and first scope' 'void main(int x){ int x; }'
 compile_error 'conflict typedef' 'typedef int Foo; typedef long Foo; void main(){}'
