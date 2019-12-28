@@ -3,6 +3,7 @@
 #pragma once
 
 #include <stdbool.h>
+#include <stddef.h>
 
 typedef struct BB BB;
 typedef struct BBContainer BBContainer;
@@ -150,3 +151,21 @@ typedef struct Stmt {
     } toplevel;
   };
 } Stmt;
+
+Stmt *new_stmt(enum StmtKind kind, const Token *token);
+Stmt *new_stmt_expr(Expr *e);
+Stmt *new_stmt_block(const Token *token, Vector *stmts);
+Stmt *new_stmt_if(const Token *token, Expr *cond, Stmt *tblock, Stmt *fblock);
+Stmt *new_stmt_switch(const Token *token, Expr *value);
+Stmt *new_stmt_case(const Token *token, Expr *value);
+Stmt *new_stmt_default(const Token *token);
+Stmt *new_stmt_while(const Token *token, Expr *cond, Stmt *body);
+Stmt *new_stmt_do_while(Stmt *body, const Token *token, Expr *cond);
+Stmt *new_stmt_for(const Token *token, Expr *pre, Expr *cond, Expr *post, Stmt *body);
+Stmt *new_stmt_return(const Token *token, Expr *val);
+Stmt *new_stmt_goto(const Token *label);
+Stmt *new_stmt_label(const Token *label, Stmt *follow);
+Stmt *new_stmt_vardecl(Vector *decls);
+Stmt *new_stmt_asm(const Token *token, Expr *str);
+Stmt *new_stmt_defun(Defun *defun);
+Stmt *new_top_stmt(Vector *stmts);

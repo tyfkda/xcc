@@ -5,11 +5,11 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "ast.h"
 #include "codegen.h"
 #include "emit.h"
 #include "lexer.h"
 #include "parser.h"
-#include "stmt.h"
 #include "sema.h"
 #include "type.h"
 #include "util.h"

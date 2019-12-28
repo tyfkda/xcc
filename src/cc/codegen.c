@@ -12,10 +12,10 @@
 #include <alloca.h>
 #endif
 
+#include "ast.h"
 #include "expr.h"
 #include "ir.h"
 #include "lexer.h"
-#include "stmt.h"
 #include "regalloc.h"
 #include "sema.h"
 #include "type.h"
