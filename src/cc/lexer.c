@@ -263,17 +263,15 @@ static void read_next_line(void) {
 
   char *line = NULL;
   size_t capa = 0;
-  ssize_t len;
   for (;;) {
-    len = getline_(&line, &capa, lexer.fp, 0);
+    ssize_t len = getline_(&line, &capa, lexer.fp, 0);
     if (len == EOF) {
       lexer.p = NULL;
       lexer.line = NULL;
       return;
     }
-    while (len > 0 && line[len - 1] == '\\') {  // Continue line.
+    while (len > 0 && line[len - 1] == '\\')  // Continue line.
       len = getline_(&line, &capa, lexer.fp, len - 1);  // -1 for overwrite on '\'
-    }
 
     if (line[0] != '#')
       break;
