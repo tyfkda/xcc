@@ -702,7 +702,7 @@ Expr *analyze_expr(Expr *expr, bool keep_left) {
       expr->member.target = target = analyze_expr(target, false);
       assert(target->type != NULL);
 
-      const Token *acctok = expr->member.acctok;
+      const Token *acctok = expr->token;
       const Token *ident = expr->member.ident;
       const char *name = ident->ident;
 
@@ -739,7 +739,7 @@ Expr *analyze_expr(Expr *expr, bool keep_left) {
           int index = (int)(long)stack->data[i];
           const VarInfo *member = type->struct_.info->members->data[index];
           type = member->type;
-          p = new_expr_member(acctok, type, p, NULL, NULL, index);
+          p = new_expr_member(acctok, type, p, NULL, index);
         }
         expr = p;
       }

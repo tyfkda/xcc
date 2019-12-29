@@ -535,7 +535,7 @@ static Vector *assign_initial_value(Expr *expr, Initializer *init, Vector *inits
       if (!sinfo->is_union) {
         for (int i = 0, n = sinfo->members->len; i < n; ++i) {
           const VarInfo* member = sinfo->members->data[i];
-          Expr *mem = new_expr_member(NULL, member->type, expr, NULL, NULL, i);
+          Expr *mem = new_expr_member(NULL, member->type, expr, NULL, i);
           Initializer *init_elem = init->multi->data[i];
           if (init_elem != NULL)
             assign_initial_value(mem, init_elem, inits);
@@ -553,7 +553,7 @@ static Vector *assign_initial_value(Expr *expr, Initializer *init, Vector *inits
           if (init_elem == NULL)
             continue;
           const VarInfo* member = sinfo->members->data[i];
-          Expr *mem = new_expr_member(NULL, member->type, expr, NULL, NULL, i);
+          Expr *mem = new_expr_member(NULL, member->type, expr, NULL, i);
           assign_initial_value(mem, init_elem, inits);
           break;
         }

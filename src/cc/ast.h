@@ -105,7 +105,6 @@ typedef struct Expr {
     } ternary;
     struct {
       struct Expr *target;
-      const Token *acctok;  // TK_DOT(.) or TK_ARROW(->)
       const Token *ident;
       int index;
     } member;
@@ -127,7 +126,7 @@ Expr *new_expr_unary(enum ExprKind kind, const Type *type, const Token *token, E
 Expr *new_expr_deref(const Token *token, Expr *sub);
 Expr *new_expr_ternary(const Token *token, Expr *cond, Expr *tval, Expr *fval, const Type *type);
 Expr *new_expr_varref(const char *name, const Type *type, const Token *token);
-Expr *new_expr_member(const Token *token, const Type *type, Expr *target, const Token *acctok, const Token *ident, int index);
+Expr *new_expr_member(const Token *token, const Type *type, Expr *target, const Token *ident, int index);
 Expr *new_expr_funcall(const Token *token, Expr *func, Vector *args);
 Expr *new_expr_sizeof(const Token *token, const Type *type, Expr *sub);
 Expr *new_expr_cast(const Type *type, const Token *token, Expr *sub);
