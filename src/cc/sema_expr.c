@@ -667,12 +667,23 @@ Expr *analyze_expr(Expr *expr, bool keep_left) {
     break;
 
   case EX_TERNARY:
-    expr->ternary.cond = analyze_expr(expr->ternary.cond, false);
-    expr->ternary.tval = analyze_expr(expr->ternary.tval, false);
-    expr->ternary.fval = analyze_expr(expr->ternary.fval, false);
     {
-      const Type *ttype = expr->ternary.tval->type;
-      const Type *ftype = expr->ternary.fval->type;
+      expr->ternary.cond = analyze_expr(expr->ternary.cond, false);
+      Expr *tval = analyze_expr(expr->ternary.tval, false);
+      Expr *fval = analyze_expr(expr->ternary.fval, false);
+      const Type *ttype = tval->type;
+      const Type *ftype = fval->type;
+      if (ttype->kind == TY_ARRAY) {
+        ttype = array_to_ptr(ttype);
+        tval = new_expr_cast(ttype, tval->token, tval);
+      }
+      if (ftype->kind == TY_ARRAY) {
+        ftype = array_to_ptr(ftype);
+        fval = new_expr_cast(ftype, fval->token, fval);
+      }
+      expr->ternary.tval = tval;
+      expr->ternary.fval = fval;
+
       if (same_type(ttype, ftype)) {
         expr->type = ttype;
       } else if (is_void_ptr(ttype) && ftype->kind == TY_PTR) {
