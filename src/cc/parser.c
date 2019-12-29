@@ -4,9 +4,8 @@
 #include <stdbool.h>
 #include <stdlib.h>  // malloc
 
-#include "expr.h"
+#include "ast.h"
 #include "lexer.h"
-#include "stmt.h"
 #include "type.h"
 #include "util.h"
 #include "var.h"
@@ -48,120 +47,6 @@ static Defun *new_defun(Function *func, int flag) {
   defun->label_map = NULL;
   defun->gotos = NULL;
   return defun;
-}
-
-static Stmt *new_stmt(enum StmtKind kind, const Token *token) {
-  Stmt *stmt = malloc(sizeof(Stmt));
-  stmt->kind = kind;
-  stmt->token = token;
-  return stmt;
-}
-
-Stmt *new_stmt_expr(Expr *e) {
-  Stmt *stmt = new_stmt(ST_EXPR, e->token);
-  stmt->expr = e;
-  return stmt;
-}
-
-static Stmt *new_stmt_block(const Token *token, Vector *stmts) {
-  Stmt *stmt = new_stmt(ST_BLOCK, token);
-  stmt->block.scope = NULL;
-  stmt->block.stmts = stmts;
-  return stmt;
-}
-
-static Stmt *new_stmt_if(const Token *token, Expr *cond, Stmt *tblock, Stmt *fblock) {
-  Stmt *stmt = new_stmt(ST_IF, token);
-  stmt->if_.cond = cond;
-  stmt->if_.tblock = tblock;
-  stmt->if_.fblock = fblock;
-  return stmt;
-}
-
-static Stmt *new_stmt_switch(const Token *token, Expr *value) {
-  Stmt *stmt = new_stmt(ST_SWITCH, token);
-  stmt->switch_.value = value;
-  stmt->switch_.body = NULL;
-  stmt->switch_.case_values = new_vector();
-  stmt->switch_.has_default = false;
-  return stmt;
-}
-
-static Stmt *new_stmt_case(const Token *token, Expr *value) {
-  Stmt *stmt = new_stmt(ST_CASE, token);
-  stmt->case_.value = value;
-  return stmt;
-}
-
-static Stmt *new_stmt_default(const Token *token) {
-  Stmt *stmt = new_stmt(ST_DEFAULT, token);
-  return stmt;
-}
-
-static Stmt *new_stmt_while(const Token *token, Expr *cond, Stmt *body) {
-  Stmt *stmt = new_stmt(ST_WHILE, token);
-  stmt->while_.cond = cond;
-  stmt->while_.body = body;
-  return stmt;
-}
-
-static Stmt *new_stmt_do_while(Stmt *body, const Token *token, Expr *cond) {
-  Stmt *stmt = new_stmt(ST_DO_WHILE, token);
-  stmt->while_.body = body;
-  stmt->while_.cond = cond;
-  return stmt;
-}
-
-static Stmt *new_stmt_for(const Token *token, Expr *pre, Expr *cond, Expr *post, Stmt *body) {
-  Stmt *stmt = new_stmt(ST_FOR, token);
-  stmt->for_.pre = pre;
-  stmt->for_.cond = cond;
-  stmt->for_.post = post;
-  stmt->for_.body = body;
-  return stmt;
-}
-
-static Stmt *new_stmt_return(const Token *token, Expr *val) {
-  Stmt *stmt = new_stmt(ST_RETURN, token);
-  stmt->return_.val = val;
-  return stmt;
-}
-
-static Stmt *new_stmt_goto(const Token *label) {
-  Stmt *stmt = new_stmt(ST_GOTO, NULL);
-  stmt->goto_.label = label;
-  return stmt;
-}
-
-static Stmt *new_stmt_label(const Token *label, Stmt *follow) {
-  Stmt *stmt = new_stmt(ST_LABEL, label);
-  stmt->label.stmt = follow;
-  return stmt;
-}
-
-static Stmt *new_stmt_vardecl(Vector *decls) {
-  Stmt *stmt = new_stmt(ST_VARDECL, NULL);
-  stmt->vardecl.decls = decls;
-  stmt->vardecl.inits = NULL;
-  return stmt;
-}
-
-static Stmt *new_stmt_asm(const Token *token, Expr *str) {
-  Stmt *stmt = new_stmt(ST_ASM, token);
-  stmt->asm_.str = str;
-  return stmt;
-}
-
-static Stmt *new_stmt_defun(Defun *defun) {
-  Stmt *stmt = new_stmt(ST_DEFUN, NULL);
-  stmt->defun = defun;
-  return stmt;
-}
-
-Stmt *new_top_stmt(Vector *stmts) {
-  Stmt *top = new_stmt(ST_TOPLEVEL, NULL);
-  top->toplevel.stmts = stmts;
-  return top;
 }
 
 // Initializer
@@ -481,7 +366,7 @@ static Stmt *statement(void) {
   return new_stmt_expr(val);
 }
 
-static Stmt *parse_defun(const Type *rettype, int flag, Token *ident) {
+static Declaration *parse_defun(const Type *rettype, int flag, Token *ident) {
   const char *name = ident->ident;
   bool vaargs;
   Vector *params = parse_funparams(&vaargs);
@@ -499,7 +384,7 @@ static Stmt *parse_defun(const Type *rettype, int flag, Token *ident) {
     if (defun->stmts == NULL)
       defun->stmts = new_vector();
   }
-  return new_stmt_defun(defun);
+  return new_decl_defun(defun);
 }
 
 static void parse_typedef(void) {
@@ -519,7 +404,7 @@ static void parse_typedef(void) {
   consume(TK_SEMICOL, "`;' expected");
 }
 
-static Stmt *parse_global_var_decl(const Type *rawtype, int flag, const Type *type, Token *ident) {
+static Declaration *parse_global_var_decl(const Type *rawtype, int flag, const Type *type, Token *ident) {
   bool first = true;
   Vector *decls = NULL;
   do {
@@ -547,10 +432,10 @@ static Stmt *parse_global_var_decl(const Type *rawtype, int flag, const Type *ty
 
   consume(TK_SEMICOL, "`;' or `,' expected");
 
-  return decls != NULL ? new_stmt_vardecl(decls) : NULL;
+  return decls != NULL ? new_decl_vardecl(decls) : NULL;
 }
 
-static Stmt *toplevel(void) {
+static Declaration *toplevel(void) {
   int flag;
   const Type *rawtype = parse_raw_type(&flag);
   if (rawtype != NULL) {
@@ -578,13 +463,13 @@ static Stmt *toplevel(void) {
   return NULL;
 }
 
-Vector *parse_program(Vector *stmts) {
-  if (stmts == NULL)
-    stmts = new_vector();
+Vector *parse_program(Vector *decls) {
+  if (decls == NULL)
+    decls = new_vector();
   while (!match(TK_EOF)) {
-    Stmt *stmt = toplevel();
-    if (stmt != NULL)
-      vec_push(stmts, stmt);
+    Declaration *decl = toplevel();
+    if (decl != NULL)
+      vec_push(decls, decl);
   }
-  return stmts;
+  return decls;
 }

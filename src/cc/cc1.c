@@ -5,11 +5,11 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "ast.h"
 #include "codegen.h"
 #include "emit.h"
 #include "lexer.h"
 #include "parser.h"
-#include "stmt.h"
 #include "sema.h"
 #include "type.h"
 #include "util.h"
@@ -20,25 +20,23 @@
 ////////////////////////////////////////////////
 
 #if !defined(SELF_HOSTING)
-static void do_dump_ir(Stmt *stmt) {
-  switch (stmt->kind) {
-  case ST_TOPLEVEL:
-    for (int i = 0, len = stmt->toplevel.stmts->len; i < len; ++i) {
-      Stmt *child = stmt->toplevel.stmts->data[i];
-      if (child == NULL)
-        continue;
-      do_dump_ir(child);
-    }
-    break;
-  case ST_DEFUN:
-    dump_func_ir(stmt->defun->func);
-    break;
-  case ST_VARDECL:
-    break;
+static void do_dump_ir(Vector *toplevel) {
+  for (int i = 0, len = toplevel->len; i < len; ++i) {
+    Declaration *decl = toplevel->data[i];
+    if (decl == NULL)
+      continue;
 
-  default:
-    assert(false);
-    break;
+    switch (decl->kind) {
+    case DCL_DEFUN:
+      dump_func_ir(decl->defun->func);
+      break;
+    case DCL_VARDECL:
+      break;
+
+    default:
+      assert(false);
+      break;
+    }
   }
 }
 #endif
@@ -54,15 +52,14 @@ static void init_compiler(FILE *ofp) {
   gvar_map = new_map();
 }
 
-static Vector *compile1(FILE *ifp, const char *filename, Vector *stmts) {
+static Vector *compile1(FILE *ifp, const char *filename, Vector *toplevel) {
   init_lexer(ifp, filename);
-  return parse_program(stmts);
+  return parse_program(toplevel);
 }
 
-static Stmt *compile2(Vector *stmts) {
-  Stmt *top = sema(new_top_stmt(stmts));
-  gen(top);
-  return top;
+static void compile2(Vector *toplevel) {
+  sema(toplevel);
+  gen(toplevel);
 }
 
 static const char LOCAL_LABEL_PREFIX[] = "--local-label-prefix=";
@@ -84,25 +81,25 @@ int main(int argc, char* argv[]) {
   // Compile.
   init_compiler(stdout);
 
-  Vector *stmts = NULL;
+  Vector *toplevel = NULL;
   if (iarg < argc) {
     for (int i = iarg; i < argc; ++i) {
       const char *filename = argv[i];
       FILE *ifp = fopen(filename, "r");
       if (ifp == NULL)
         error("Cannot open file: %s\n", filename);
-      stmts = compile1(ifp, filename, stmts);
+      toplevel = compile1(ifp, filename, toplevel);
     }
   } else {
-    stmts = compile1(stdin, "*stdin*", stmts);
+    toplevel = compile1(stdin, "*stdin*", toplevel);
   }
-  Stmt *root = compile2(stmts);
+  compile2(toplevel);
 
   if (!dump_ir) {
-    emit_code(root);
+    emit_code(toplevel);
   } else {
 #if !defined(SELF_HOSTING)
-    do_dump_ir(root);
+    do_dump_ir(toplevel);
 #endif
   }
 

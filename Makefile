@@ -11,11 +11,12 @@ CFLAGS:=-ansi -std=c11 -MD -Wall -Wextra -Werror -Wold-style-definition \
 CFLAGS+=-I$(CC1_DIR) -I$(UTIL_DIR) $(OPTIMIZE)
 
 XCC_SRCS:=$(XCC_DIR)/main.c $(UTIL_DIR)/util.c
-CC1_SRCS:=$(CC1_DIR)/lexer.c $(CC1_DIR)/type.c $(CC1_DIR)/var.c $(CC1_DIR)/expr.c $(CC1_DIR)/parser.c \
-	$(CC1_DIR)/sema.c $(CC1_DIR)/sema_expr.c $(CC1_DIR)/codegen.c $(CC1_DIR)/codegen_expr.c \
-	$(CC1_DIR)/ir.c $(CC1_DIR)/regalloc.c $(CC1_DIR)/emit.c $(CC1_DIR)/cc1.c $(UTIL_DIR)/util.c
-CPP_SRCS:=$(CPP_DIR)/cpp.c $(CC1_DIR)/lexer.c $(CC1_DIR)/type.c $(CC1_DIR)/var.c $(CC1_DIR)/expr.c $(CC1_DIR)/sema_expr.c \
-	$(UTIL_DIR)/util.c
+CC1_SRCS:=$(CC1_DIR)/lexer.c $(CC1_DIR)/type.c $(CC1_DIR)/var.c $(CC1_DIR)/ast.c \
+	$(CC1_DIR)/parser_expr.c $(CC1_DIR)/parser.c $(CC1_DIR)/sema.c $(CC1_DIR)/sema_expr.c \
+	$(CC1_DIR)/codegen.c $(CC1_DIR)/codegen_expr.c $(CC1_DIR)/ir.c $(CC1_DIR)/regalloc.c \
+	$(CC1_DIR)/emit.c $(CC1_DIR)/cc1.c $(UTIL_DIR)/util.c
+CPP_SRCS:=$(CPP_DIR)/cpp.c $(CC1_DIR)/lexer.c $(CC1_DIR)/type.c $(CC1_DIR)/var.c $(CC1_DIR)/ast.c \
+	$(CC1_DIR)/parser_expr.c $(CC1_DIR)/sema_expr.c $(UTIL_DIR)/util.c
 AS_SRCS:=$(AS_DIR)/as.c $(AS_DIR)/asm_x86.c $(AS_DIR)/parse_asm.c $(AS_DIR)/ir_asm.c $(AS_DIR)/gen.c \
 	$(UTIL_DIR)/util.c $(UTIL_DIR)/elfutil.c
 

@@ -3,10 +3,9 @@
 #include <assert.h>
 #include <stdlib.h>  // malloc
 
-#include "expr.h"
+#include "ast.h"
 #include "ir.h"
 #include "lexer.h"
-#include "stmt.h"
 #include "regalloc.h"
 #include "sema.h"
 #include "type.h"

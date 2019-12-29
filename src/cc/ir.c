@@ -5,9 +5,9 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "ast.h"
 #include "codegen.h"
 #include "regalloc.h"
-#include "stmt.h"
 #include "type.h"
 #include "util.h"
 #include "var.h"

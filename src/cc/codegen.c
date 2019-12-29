@@ -12,10 +12,9 @@
 #include <alloca.h>
 #endif
 
-#include "expr.h"
+#include "ast.h"
 #include "ir.h"
 #include "lexer.h"
-#include "stmt.h"
 #include "regalloc.h"
 #include "sema.h"
 #include "type.h"
@@ -26,6 +25,7 @@
 const int FRAME_ALIGN = 8;
 const int STACK_PARAM_BASE_OFFSET = (2 - MAX_REG_ARGS) * 8;
 
+static void gen_stmt(Stmt *stmt);
 static void gen_expr_stmt(Expr *expr);
 
 void set_curbb(BB *bb) {
@@ -556,45 +556,8 @@ static void gen_stmts(Vector *stmts) {
     Stmt *stmt = stmts->data[i];
     if (stmt == NULL)
       continue;
-    gen(stmt);
+    gen_stmt(stmt);
   }
-}
-
-static void gen_defun(Defun *defun) {
-  Function *func = defun->func;
-  if (func->scopes == NULL)  // Prototype definition
-    return;
-
-  curdefun = defun;
-  func->bbcon = new_func_blocks();
-  set_curbb(new_bb());
-  func->ra = curra = new_reg_alloc();
-
-  // Allocate labels for goto.
-  if (defun->label_map != NULL) {
-    Map *label_map = defun->label_map;
-    for (int i = 0, n = map_count(label_map); i < n; ++i)
-      label_map->vals->data[i] = new_bb();
-  }
-
-  alloc_variable_registers(func);
-
-  curscope = func->scopes->data[0];
-  func->ret_bb = bb_split(curbb);
-
-  // Statements
-  gen_stmts(defun->stmts);
-
-  set_curbb(func->ret_bb);
-  curbb = NULL;
-
-  func->frame_size = alloc_real_registers(func);
-
-  remove_unnecessary_bb(func->bbcon);
-
-  curdefun = NULL;
-  curscope = NULL;
-  curra = NULL;
 }
 
 static void gen_block(Stmt *stmt) {
@@ -625,14 +588,14 @@ static void gen_if(Stmt *stmt) {
   BB *fbb = bb_split(tbb);
   gen_cond_jmp(stmt->if_.cond, false, fbb);
   set_curbb(tbb);
-  gen(stmt->if_.tblock);
+  gen_stmt(stmt->if_.tblock);
   if (stmt->if_.fblock == NULL) {
     set_curbb(fbb);
   } else {
     BB *nbb = bb_split(fbb);
     new_ir_jmp(COND_ANY, nbb);
     set_curbb(fbb);
-    gen(stmt->if_.fblock);
+    gen_stmt(stmt->if_.fblock);
     set_curbb(nbb);
   }
 }
@@ -730,7 +693,7 @@ static void gen_switch(Stmt *stmt) {
 
   // No bb setting.
 
-  gen(stmt->switch_.body);
+  gen_stmt(stmt->switch_.body);
 
   if (!stmt->switch_.has_default) {
     // No default: Locate at the end of switch statement.
@@ -781,7 +744,7 @@ static void gen_while(Stmt *stmt) {
   new_ir_jmp(COND_ANY, cond_bb);
 
   set_curbb(loop_bb);
-  gen(stmt->while_.body);
+  gen_stmt(stmt->while_.body);
 
   set_curbb(cond_bb);
   gen_cond_jmp(stmt->while_.cond, true, loop_bb);
@@ -799,7 +762,7 @@ static void gen_do_while(Stmt *stmt) {
   BB *next_bb = push_break_bb(cond_bb, &save_break);
 
   set_curbb(loop_bb);
-  gen(stmt->while_.body);
+  gen_stmt(stmt->while_.body);
 
   set_curbb(cond_bb);
   gen_cond_jmp(stmt->while_.cond, true, loop_bb);
@@ -826,7 +789,7 @@ static void gen_for(Stmt *stmt) {
     gen_cond_jmp(stmt->for_.cond, false, next_bb);
 
   set_curbb(body_bb);
-  gen(stmt->for_.body);
+  gen_stmt(stmt->for_.body);
 
   set_curbb(continue_bb);
   if (stmt->for_.post != NULL)
@@ -865,7 +828,7 @@ static void gen_label(Stmt *stmt) {
   assert(bb != NULL);
   bb_insert(curbb, bb);
   set_curbb(bb);
-  gen(stmt->label.stmt);
+  gen_stmt(stmt->label.stmt);
 }
 
 static void gen_clear_local_var(const VarInfo *varinfo) {
@@ -874,9 +837,8 @@ static void gen_clear_local_var(const VarInfo *varinfo) {
   new_ir_clear(reg, type_size(varinfo->type));
 }
 
-static void gen_vardecl(Stmt *stmt) {
+static void gen_vardecl(Vector *decls, Vector *inits) {
   if (curdefun != NULL) {
-    Vector *decls = stmt->vardecl.decls;
     for (int i = 0; i < decls->len; ++i) {
       VarDecl *decl = decls->data[i];
       if (decl->init == NULL)
@@ -890,26 +852,19 @@ static void gen_vardecl(Stmt *stmt) {
       gen_clear_local_var(varinfo);
     }
   }
-  gen_stmts(stmt->vardecl.inits);
+  gen_stmts(inits);
 }
 
 static void gen_expr_stmt(Expr *expr) {
   gen_expr(expr);
 }
 
-static void gen_toplevel(Stmt *stmt) {
-  gen_stmts(stmt->toplevel.stmts);
-}
-
-void gen(Stmt *stmt) {
+void gen_stmt(Stmt *stmt) {
   if (stmt == NULL)
     return;
 
   switch (stmt->kind) {
   case ST_EXPR:  gen_expr_stmt(stmt->expr); break;
-  case ST_DEFUN:
-    gen_defun(stmt->defun);
-    break;
   case ST_RETURN:  gen_return(stmt); break;
   case ST_BLOCK:  gen_block(stmt); break;
   case ST_IF:  gen_if(stmt); break;
@@ -923,15 +878,81 @@ void gen(Stmt *stmt) {
   case ST_CONTINUE:  gen_continue(); break;
   case ST_GOTO:  gen_goto(stmt); break;
   case ST_LABEL:  gen_label(stmt); break;
-  case ST_VARDECL:  gen_vardecl(stmt); break;
+  case ST_VARDECL:  gen_vardecl(stmt->vardecl.decls, stmt->vardecl.inits); break;
   case ST_ASM:  gen_asm(stmt); break;
-  case ST_TOPLEVEL:
-    gen_toplevel(stmt);
-    break;
 
   default:
     error("Unhandled stmt: %d", stmt->kind);
     break;
+  }
+}
+
+////////////////////////////////////////////////
+
+static void gen_defun(Defun *defun) {
+  Function *func = defun->func;
+  if (func->scopes == NULL)  // Prototype definition
+    return;
+
+  curdefun = defun;
+  func->bbcon = new_func_blocks();
+  set_curbb(new_bb());
+  func->ra = curra = new_reg_alloc();
+
+  // Allocate labels for goto.
+  if (defun->label_map != NULL) {
+    Map *label_map = defun->label_map;
+    for (int i = 0, n = map_count(label_map); i < n; ++i)
+      label_map->vals->data[i] = new_bb();
+  }
+
+  alloc_variable_registers(func);
+
+  curscope = func->scopes->data[0];
+  func->ret_bb = bb_split(curbb);
+
+  // Statements
+  gen_stmts(defun->stmts);
+
+  set_curbb(func->ret_bb);
+  curbb = NULL;
+
+  func->frame_size = alloc_real_registers(func);
+
+  remove_unnecessary_bb(func->bbcon);
+
+  curdefun = NULL;
+  curscope = NULL;
+  curra = NULL;
+}
+
+void gen_decl(Declaration *decl) {
+  if (decl == NULL)
+    return;
+
+  switch (decl->kind) {
+  case DCL_DEFUN:
+    gen_defun(decl->defun);
+    break;
+  case DCL_VARDECL:
+    gen_vardecl(decl->vardecl.decls, NULL);
+    break;
+
+  default:
+    error("Unhandled decl: %d", decl->kind);
+    break;
+  }
+}
+
+void gen(Vector *decls) {
+  if (decls == NULL)
+    return;
+
+  for (int i = 0, len = decls->len; i < len; ++i) {
+    Declaration *decl = decls->data[i];
+    if (decl == NULL)
+      continue;
+    gen_decl(decl);
   }
 }
 
@@ -1019,28 +1040,23 @@ static void emit_data(void) {
   put_bss();
 }
 
-void emit_code(Stmt *stmt) {
-  if (stmt == NULL)
-    return;
+void emit_code(Vector *toplevel) {
+  for (int i = 0, len = toplevel->len; i < len; ++i) {
+    Declaration *decl = toplevel->data[i];
+    if (decl == NULL)
+      continue;
 
-  switch (stmt->kind) {
-  case ST_DEFUN:
-    emit_defun(stmt->defun);
-    break;
-  case ST_TOPLEVEL:
-    for (int i = 0, len = stmt->toplevel.stmts->len; i < len; ++i) {
-      Stmt *child = stmt->toplevel.stmts->data[i];
-      if (child == NULL)
-        continue;
-      emit_code(child);
+    switch (decl->kind) {
+    case DCL_DEFUN:
+      emit_defun(decl->defun);
+      break;
+    case DCL_VARDECL:
+      break;
+
+    default:
+      error("Unhandled decl in emit_code: %d", decl->kind);
+      break;
     }
-    emit_data();
-    break;
-  case ST_VARDECL:
-    break;
-
-  default:
-    error("Unhandled stmt in emit_code: %d", stmt->kind);
-    break;
   }
+  emit_data();
 }

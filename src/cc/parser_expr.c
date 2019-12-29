@@ -1,10 +1,11 @@
-#include "expr.h"
+#include "parser.h"
 
 #include <assert.h>
 #include <stdbool.h>
 #include <stdlib.h>  // malloc
 #include <string.h>
 
+#include "ast.h"
 #include "lexer.h"
 #include "sema.h"
 #include "type.h"
@@ -15,113 +16,12 @@ static StructInfo *parse_struct(bool is_union);
 static Expr *cast_expr(void);
 static Expr *unary(void);
 
-bool is_const(Expr *expr) {
-  // TODO: Handle constant variable.
-
-  switch (expr->kind) {
-  case EX_NUM:
-  case EX_STR:
-    return true;
-  default:
-    return false;
-  }
-}
-
 void not_void(const Type *type) {
   if (type->kind == TY_VOID)
     parse_error(NULL, "`void' not allowed");
 }
 
 //
-
-static Expr *new_expr(enum ExprKind kind, const Type *type, const Token *token) {
-  Expr *expr = malloc(sizeof(*expr));
-  expr->kind = kind;
-  expr->type = type;
-  expr->token = token;
-  return expr;
-}
-
-Expr *new_expr_numlit(const Type *type, const Token *token, const Num *num) {
-  assert(type->kind == TY_NUM);
-  Expr *expr = new_expr(EX_NUM, type, token);
-  expr->num = *num;
-  return expr;
-}
-
-static Expr *new_expr_str(const Token *token, const char *str, size_t size) {
-  Type *type = malloc(sizeof(*type));
-  type->kind = TY_ARRAY;
-  type->pa.ptrof = &tyChar;
-  type->pa.length = size;
-
-  Expr *expr = new_expr(EX_STR, type, token);
-  expr->str.buf = str;
-  expr->str.size = size;
-  return expr;
-}
-
-Expr *new_expr_varref(const char *name, const Type *type, const Token *token) {
-  Expr *expr = new_expr(EX_VARREF, type, token);
-  expr->varref.ident = name;
-  expr->varref.scope = NULL;
-  return expr;
-}
-
-Expr *new_expr_bop(enum ExprKind kind, const Type *type, const Token *token, Expr *lhs, Expr *rhs) {
-  Expr *expr = new_expr(kind, type, token);
-  expr->bop.lhs = lhs;
-  expr->bop.rhs = rhs;
-  return expr;
-}
-
-static Expr *new_expr_unary(enum ExprKind kind, const Type *type, const Token *token, Expr *sub) {
-  Expr *expr = new_expr(kind, type, token);
-  expr->unary.sub = sub;
-  return expr;
-}
-
-Expr *new_expr_deref(const Token *token, Expr *sub) {
-  const Type *type = sub->type != NULL ? sub->type->pa.ptrof : NULL;
-  return new_expr_unary(EX_DEREF, type, token, sub);
-}
-
-static Expr *new_expr_ternary(const Token *token, Expr *cond, Expr *tval, Expr *fval, const Type *type) {
-  Expr *expr = new_expr(EX_TERNARY, type, token);
-  expr->ternary.cond = cond;
-  expr->ternary.tval = tval;
-  expr->ternary.fval = fval;
-  return expr;
-}
-
-Expr *new_expr_member(const Token *token, const Type *type, Expr *target, const Token *acctok, const Token *ident, int index) {
-  Expr *expr = new_expr(EX_MEMBER, type, token);
-  expr->member.target = target;
-  expr->member.acctok = acctok;
-  expr->member.ident = ident;
-  expr->member.index = index;
-  return expr;
-}
-
-static Expr *new_expr_funcall(const Token *token, Expr *func, Vector *args) {
-  Expr *expr = new_expr(EX_FUNCALL, NULL, token);
-  expr->funcall.func = func;
-  expr->funcall.args = args;
-  return expr;
-}
-
-Expr *new_expr_sizeof(const Token *token, const Type *type, Expr *sub) {
-  Expr *expr = new_expr(EX_SIZEOF, &tySize, token);
-  expr->sizeof_.type = type;
-  expr->sizeof_.sub = sub;
-  return expr;
-}
-
-Expr *new_expr_cast(const Type *type, const Token *token, Expr *sub) {
-  Expr *expr = new_expr(EX_CAST, type, token);
-  expr->unary.sub = sub;
-  return expr;
-}
 
 Vector *parse_args(Token **ptoken) {
   Vector *args = NULL;
@@ -594,9 +494,7 @@ static Expr *cast_expr(void) {
     if (type != NULL) {  // Cast
       consume(TK_RPAR, "`)' expected");
       Expr *sub = cast_expr();
-      Expr *expr = new_expr(EX_CAST, type, token);
-      expr->unary.sub = sub;
-      return expr;
+      return new_expr_cast(type, token, sub);
     }
     unget_token(lpar);
   }
