@@ -6,6 +6,7 @@
 #include <stdio.h>  // FILE
 
 typedef struct BB BB;
+typedef struct Declaration Declaration;
 typedef struct Expr Expr;
 typedef struct Stmt Stmt;
 typedef struct StructInfo StructInfo;
@@ -17,8 +18,8 @@ typedef struct VReg VReg;
 
 // Public
 
-void gen(Stmt *stmt);
-void emit_code(Stmt *stmt);
+void gen(Declaration *decl);
+void emit_code(Declaration *decl);
 
 // Private
 

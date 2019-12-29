@@ -189,7 +189,6 @@ typedef struct Initializer {
 
 enum StmtKind {
   ST_EXPR,
-  ST_DEFUN,
   ST_BLOCK,
   ST_IF,
   ST_SWITCH,
@@ -205,7 +204,6 @@ enum StmtKind {
   ST_LABEL,
   ST_VARDECL,
   ST_ASM,
-  ST_TOPLEVEL,
 };
 
 typedef struct VarDecl {
@@ -287,5 +285,28 @@ Stmt *new_stmt_goto(const Token *label);
 Stmt *new_stmt_label(const Token *label, Stmt *follow);
 Stmt *new_stmt_vardecl(Vector *decls);
 Stmt *new_stmt_asm(const Token *token, Expr *str);
-Stmt *new_stmt_defun(Defun *defun);
-Stmt *new_top_stmt(Vector *stmts);
+
+// Declaration
+
+enum DeclKind {
+  DCL_DEFUN,
+  DCL_VARDECL,
+  DCL_TOPLEVEL,
+};
+
+typedef struct Declaration {
+  enum DeclKind kind;
+  union {
+    Defun *defun;
+    struct {
+      Vector *decls;  // <VarDecl*>
+    } vardecl;
+    struct {
+      Vector *decls;
+    } toplevel;
+  };
+} Declaration;
+
+Declaration *new_decl_defun(Defun *defun);
+Declaration *new_decl_vardecl(Vector *decls);
+Declaration *new_top_decl(Vector *decls);

@@ -27,7 +27,4 @@ void not_void(const Type *type);
 
 //
 
-Stmt *new_stmt_expr(Expr *e);
-Stmt *new_top_stmt(Vector *stmts);
-
-Vector *parse_program(Vector *stmts);
+Vector *parse_program(Vector *decls);

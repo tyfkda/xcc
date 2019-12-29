@@ -366,7 +366,7 @@ static Stmt *statement(void) {
   return new_stmt_expr(val);
 }
 
-static Stmt *parse_defun(const Type *rettype, int flag, Token *ident) {
+static Declaration *parse_defun(const Type *rettype, int flag, Token *ident) {
   const char *name = ident->ident;
   bool vaargs;
   Vector *params = parse_funparams(&vaargs);
@@ -384,7 +384,7 @@ static Stmt *parse_defun(const Type *rettype, int flag, Token *ident) {
     if (defun->stmts == NULL)
       defun->stmts = new_vector();
   }
-  return new_stmt_defun(defun);
+  return new_decl_defun(defun);
 }
 
 static void parse_typedef(void) {
@@ -404,7 +404,7 @@ static void parse_typedef(void) {
   consume(TK_SEMICOL, "`;' expected");
 }
 
-static Stmt *parse_global_var_decl(const Type *rawtype, int flag, const Type *type, Token *ident) {
+static Declaration *parse_global_var_decl(const Type *rawtype, int flag, const Type *type, Token *ident) {
   bool first = true;
   Vector *decls = NULL;
   do {
@@ -432,10 +432,10 @@ static Stmt *parse_global_var_decl(const Type *rawtype, int flag, const Type *ty
 
   consume(TK_SEMICOL, "`;' or `,' expected");
 
-  return decls != NULL ? new_stmt_vardecl(decls) : NULL;
+  return decls != NULL ? new_decl_vardecl(decls) : NULL;
 }
 
-static Stmt *toplevel(void) {
+static Declaration *toplevel(void) {
   int flag;
   const Type *rawtype = parse_raw_type(&flag);
   if (rawtype != NULL) {
@@ -463,13 +463,13 @@ static Stmt *toplevel(void) {
   return NULL;
 }
 
-Vector *parse_program(Vector *stmts) {
-  if (stmts == NULL)
-    stmts = new_vector();
+Vector *parse_program(Vector *decls) {
+  if (decls == NULL)
+    decls = new_vector();
   while (!match(TK_EOF)) {
-    Stmt *stmt = toplevel();
-    if (stmt != NULL)
-      vec_push(stmts, stmt);
+    Declaration *decl = toplevel();
+    if (decl != NULL)
+      vec_push(decls, decl);
   }
-  return stmts;
+  return decls;
 }

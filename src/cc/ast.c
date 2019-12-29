@@ -211,14 +211,28 @@ Stmt *new_stmt_asm(const Token *token, Expr *str) {
   return stmt;
 }
 
-Stmt *new_stmt_defun(Defun *defun) {
-  Stmt *stmt = new_stmt(ST_DEFUN, NULL);
-  stmt->defun = defun;
-  return stmt;
+//
+
+static Declaration *new_decl(enum DeclKind kind) {
+  Declaration *decl = malloc(sizeof(*decl));
+  decl->kind = kind;
+  return decl;
 }
 
-Stmt *new_top_stmt(Vector *stmts) {
-  Stmt *top = new_stmt(ST_TOPLEVEL, NULL);
-  top->toplevel.stmts = stmts;
+Declaration *new_decl_defun(Defun *defun) {
+  Declaration *decl = new_decl(DCL_DEFUN);
+  decl->defun = defun;
+  return decl;
+}
+
+Declaration *new_decl_vardecl(Vector *decls) {
+  Declaration *decl = new_decl(DCL_VARDECL);
+  decl->vardecl.decls = decls;
+  return decl;
+}
+
+Declaration *new_top_decl(Vector *decls) {
+  Declaration *top = new_decl(DCL_TOPLEVEL);
+  top->toplevel.decls = decls;
   return top;
 }

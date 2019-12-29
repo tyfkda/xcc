@@ -4,6 +4,7 @@
 
 #include <stdbool.h>
 
+typedef struct Declaration Declaration;
 typedef struct Defun Defun;
 typedef struct Expr Expr;
 typedef struct Initializer Initializer;
@@ -17,7 +18,7 @@ typedef struct Vector Vector;
 extern Defun *curdefun;
 extern Scope *curscope;
 
-Stmt *sema(Stmt *stmt);
+Declaration *sema(Declaration *decl);
 Expr *analyze_expr(Expr *expr, bool keep_left);
 bool can_cast(const Type *dst, const Type *src, Expr *src_expr, bool is_explicit);
 Initializer *flatten_initializer(const Type *type, Initializer *init);

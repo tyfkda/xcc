@@ -18,6 +18,8 @@ Defun *curdefun;
 static int curloopflag;
 static Stmt *curswitch;
 
+static Stmt *sema_stmt(Stmt *stmt);
+
 // Scope
 
 static Scope *enter_scope(Defun *defun, Vector *vars) {
@@ -570,9 +572,7 @@ static Vector *assign_initial_value(Expr *expr, Initializer *init, Vector *inits
   return inits;
 }
 
-static Stmt *sema_vardecl(Stmt *stmt) {
-  assert(stmt->kind == ST_VARDECL);
-  Vector *decls = stmt->vardecl.decls;
+static Vector *sema_vardecl(Vector *decls) {
   Vector *inits = NULL;
   for (int i = 0, len = decls->len; i < len; ++i) {
     VarDecl *decl = decls->data[i];
@@ -610,15 +610,14 @@ static Stmt *sema_vardecl(Stmt *stmt) {
     }
   }
 
-  stmt->vardecl.inits = inits;
-  return stmt;
+  return inits;
 }
 
 static void sema_stmts(Vector *stmts) {
   if (stmts == NULL)
     return;
   for (int i = 0, len = stmts->len; i < len; ++i)
-    stmts->data[i] = sema(stmts->data[i]);
+    stmts->data[i] = sema_stmt(stmts->data[i]);
 }
 
 static void sema_defun(Defun *defun) {
@@ -666,17 +665,13 @@ static void sema_defun(Defun *defun) {
   }
 }
 
-Stmt *sema(Stmt *stmt) {
+static Stmt *sema_stmt(Stmt *stmt) {
   if (stmt == NULL)
     return stmt;
 
   switch (stmt->kind) {
   case ST_EXPR:
     stmt->expr = analyze_expr(stmt->expr, false);
-    break;
-
-  case ST_DEFUN:
-    sema_defun(stmt->defun);
     break;
 
   case ST_BLOCK:
@@ -691,8 +686,8 @@ Stmt *sema(Stmt *stmt) {
 
   case ST_IF:
     stmt->if_.cond = analyze_expr(stmt->if_.cond, false);
-    stmt->if_.tblock = sema(stmt->if_.tblock);
-    stmt->if_.fblock = sema(stmt->if_.fblock);
+    stmt->if_.tblock = sema_stmt(stmt->if_.tblock);
+    stmt->if_.fblock = sema_stmt(stmt->if_.fblock);
     break;
 
   case ST_SWITCH:
@@ -703,7 +698,7 @@ Stmt *sema(Stmt *stmt) {
       curswitch = stmt;
 
       stmt->switch_.value = analyze_expr(stmt->switch_.value, false);
-      stmt->switch_.body = sema(stmt->switch_.body);
+      stmt->switch_.body = sema_stmt(stmt->switch_.body);
 
       curloopflag = save_flag;
       curswitch = save_switch;
@@ -718,7 +713,7 @@ Stmt *sema(Stmt *stmt) {
       int save_flag = curloopflag;
       curloopflag |= LF_BREAK | LF_CONTINUE;
 
-      stmt->while_.body = sema(stmt->while_.body);
+      stmt->while_.body = sema_stmt(stmt->while_.body);
 
       curloopflag = save_flag;
     }
@@ -733,7 +728,7 @@ Stmt *sema(Stmt *stmt) {
       int save_flag = curloopflag;
       curloopflag |= LF_BREAK | LF_CONTINUE;
 
-      stmt->for_.body = sema(stmt->for_.body);
+      stmt->for_.body = sema_stmt(stmt->for_.body);
 
       curloopflag = save_flag;
     }
@@ -802,17 +797,14 @@ Stmt *sema(Stmt *stmt) {
 
   case ST_LABEL:
     add_func_label(stmt->token->ident);
-    stmt->label.stmt = sema(stmt->label.stmt);
+    stmt->label.stmt = sema_stmt(stmt->label.stmt);
     break;
 
   case ST_VARDECL:
-    return sema_vardecl(stmt);
+    stmt->vardecl.inits = sema_vardecl(stmt->vardecl.decls);
+    break;
 
   case ST_ASM:
-    return stmt;
-
-  case ST_TOPLEVEL:
-    sema_stmts(stmt->toplevel.stmts);
     break;
 
   default:
@@ -821,4 +813,37 @@ Stmt *sema(Stmt *stmt) {
     break;
   }
   return stmt;
+}
+
+Declaration *sema(Declaration *decl) {
+  if (decl == NULL)
+    return decl;
+
+  switch (decl->kind) {
+  case DCL_DEFUN:
+    sema_defun(decl->defun);
+    break;
+
+  case DCL_VARDECL:
+    {
+      Vector *inits = sema_vardecl(decl->vardecl.decls);
+      UNUSED(inits);
+      assert(inits == NULL);
+    }
+    break;
+
+  case DCL_TOPLEVEL:
+    {
+      Vector *decls = decl->toplevel.decls;
+      for (int i = 0, len = decls->len; i < len; ++i)
+        decls->data[i] = sema(decls->data[i]);
+    }
+    break;
+
+  default:
+    fprintf(stderr, "sema: Unhandled decl, kind=%d\n", decl->kind);
+    assert(false);
+    break;
+  }
+  return decl;
 }
