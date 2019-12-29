@@ -179,7 +179,7 @@ static Initializer *flatten_array_initializer(Initializer *init) {
   size_t lastStart = 0;
   size_t index = i;
   for (; i <= len; ++i, ++index) {  // '+1' is for last range.
-    Initializer *init_elem;
+    Initializer *init_elem = NULL;
     if (i >= len || (init_elem = init->multi->data[i])->kind == vArr) {
       if (i < len && init_elem->arr.index->kind != EX_NUM)
         parse_error(NULL, "Constant value expected");
