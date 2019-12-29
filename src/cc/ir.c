@@ -903,6 +903,7 @@ void emit_bb_irs(BBContainer *bbcon) {
     // Check BB connection.
     if (i < bbcon->bbs->len - 1) {
       BB *nbb = bbcon->bbs->data[i + 1];
+      UNUSED(nbb);
       assert(bb->next == nbb);
     } else {
       assert(bb->next == NULL);

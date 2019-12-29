@@ -314,6 +314,11 @@ static void *_brk(void *addr) {
   __asm("syscall");
 }
 
+int unlink(const char *pathname) {
+  __asm("mov $87, %eax");  // __NR_unlink
+  __asm("syscall");
+}
+
 #else
 #error Target not supported
 #endif
@@ -400,8 +405,7 @@ int fputc(int c, FILE* fp) {
 }
 
 int remove(const char *fn) {
-  // TODO: Implement
-  return 0;
+  return unlink(fn);
 }
 
 char *getcwd(char *buffer, size_t size) {

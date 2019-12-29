@@ -241,6 +241,7 @@ void emit_irs(Vector **section_irs, Map *label_map) {
         {
           void *dst;
           bool result = map_try_get(label_map, ir->label, &dst);
+          UNUSED(result);
           assert(result);
           assert(sizeof(dst) == WORD_SIZE);
           add_section_data(sec, &dst, sizeof(dst));  // TODO: Target endian

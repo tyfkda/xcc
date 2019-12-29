@@ -26,6 +26,7 @@ int execv(const char *, char *const[]);
 int execvp(const char *, char *const[]);
 int execve(const char*, char *const[], char *const[]);
 off_t lseek(int fd, off_t offset, int whence);
+int unlink(const char *pathname);
 
 int brk(void *addr);
 void *sbrk(intptr_t increment);
