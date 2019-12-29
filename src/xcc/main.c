@@ -96,8 +96,11 @@ static int cat(const char *filename, int ofd) {
     ssize_t size = read(ifd, buf, SIZE);
     if (size < 0)
       return 1;
-    if (size > 0)
-      write(ofd, buf, size);
+    if (size > 0) {
+      ssize_t wsize = write(ofd, buf, size);
+      if (wsize != size)
+        error("Write failed");
+    }
     if (size < SIZE)
       break;
   }
