@@ -20,11 +20,11 @@ int remove(const char *fn);
 int fgetc(FILE* fp);
 int fputc(int c, FILE* fp);
 
-size_t fprintf(FILE *fp, const char *fmt, ...);
-size_t printf(const char *fmt, ...);
-size_t sprintf(char *out, const char *fmt, ...);
-size_t snprintf(char*, size_t n, const char*, ...);
-size_t vfprintf(FILE *fp, const char *fmt, va_list ap);
-size_t vsnprintf(char *out, size_t n, const char *fmt_, va_list ap);
+int fprintf(FILE *fp, const char *fmt, ...);
+int printf(const char *fmt, ...);
+int sprintf(char *out, const char *fmt, ...);
+int snprintf(char*, size_t n, const char*, ...);
+int vfprintf(FILE *fp, const char *fmt, va_list ap);
+int vsnprintf(char *out, size_t n, const char *fmt_, va_list ap);
 
 void perror(const char*);

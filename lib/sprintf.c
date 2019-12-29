@@ -1,14 +1,14 @@
-#include "sprintf.h"
-
+#include "ctype.h"
 #include "stdarg.h"
 #include "stdint.h"  // uintptr_t
-//#include "stdio.h"
+#include "stdio.h"
 #include "string.h"
 
 #define NULL  ((void*)0)
 #define MIN(a, b)  ((a) < (b) ? (a) : (b))
 
 static char kHexDigits[] = "0123456789abcdef";
+static char kUpperHexDigits[] = "0123456789ABCDEF";
 
 static int
 putstr(char *out, int o, int n, const char *s)
@@ -31,9 +31,8 @@ putpadding(char *out, int o, int n, int m, char padding)
 // Output is not '\0' terminated.
 static int
 snprintuint(char *out, unsigned int n, unsigned int x,
-            int base, int order, int padding)
+            int base, const char* digits, int order, int padding)
 {
-  const char* digits = kHexDigits;
   char buf[16];
   int i, o;
 
@@ -56,9 +55,8 @@ snprintuint(char *out, unsigned int n, unsigned int x,
 
 static int
 snprintulong(char *out, unsigned int n, unsigned long x,
-             int base, int order, int padding)
+             int base, const char* digits, int order, int padding)
 {
-  const char* digits = kHexDigits;
   char buf[32];
   int i, o;
 
@@ -86,18 +84,18 @@ snprintstr(char *out, unsigned int n, const char* s,
   int o = 0;
   if(s == NULL)
     s = "(null)";
-  int len = strlen(s);
+  size_t len = strlen(s);
   if (suborder > 0)
-    len = MIN(len, suborder);
+    len = MIN(len, (size_t)suborder);
   if (order <= 0 || len >= order) {
-    o = putstr(out, o, MIN(n, o + len), s);
+    o = putstr(out, o, MIN(n, (unsigned int)(o + len)), s);
   } else {
     if (leftalign) {
-      o = putstr(out, o, MIN(n, o + len), s);
+      o = putstr(out, o, MIN(n, (unsigned int)(o + len)), s);
       o = putpadding(out, o, n, order - len, ' ');
     } else {
       o = putpadding(out, o, n, order - len, ' ');
-      o = putstr(out, o, MIN(n, o + len), s);
+      o = putstr(out, o, MIN(n, (unsigned int)(o + len)), s);
     }
   }
   return o;
@@ -119,7 +117,7 @@ sprintsign(char *out, int negative, int force, int *porder)
 
 // Only understands %d, %x, %X, %p, %s, %c, %f and "+-0~9".
 // '\0' is not put at the end if the buffer is smaller than output.
-size_t
+int
 vsnprintf(char *out, size_t n, const char *fmt_, va_list ap)
 {
   const unsigned char *fmt = (const unsigned char*)fmt_;
@@ -171,19 +169,22 @@ vsnprintf(char *out, size_t n, const char *fmt_, va_list ap)
         long x = va_arg(ap, long);
         o += sprintsign(out + o, x < 0, sign, &order);
         unsigned long ux = x < 0 ? -x : x;
-        o += snprintulong(out + o, n - o, ux, 10, order, padding);
+        o += snprintulong(out + o, n - o, ux, 10, kHexDigits, order, padding);
       } else {
         int x = va_arg(ap, int);
         o += sprintsign(out + o, x < 0, sign, &order);
         unsigned int ux = x < 0 ? -x : x;
-        o += snprintuint(out + o, n - o, ux, 10, order, padding);
+        o += snprintuint(out + o, n - o, ux, 10, kHexDigits, order, padding);
       }
     } else if(c == 'x') {
-      o += snprintuint(out + o, n - o, va_arg(ap, int), 16,
+      o += snprintuint(out + o, n - o, va_arg(ap, int), 16, kHexDigits,
+                       order, padding);
+    } else if(c == 'X') {
+      o += snprintuint(out + o, n - o, va_arg(ap, int), 16, kUpperHexDigits,
                        order, padding);
     } else if(c == 'p') {
       o += snprintstr(out + o, n - o, "0x", 0, 0, 0);
-      o += snprintulong(out + o, n - o, (uintptr_t)va_arg(ap, void*), 16,
+      o += snprintulong(out + o, n - o, (uintptr_t)va_arg(ap, void*), 16, kHexDigits,
                         order - 2, '0');
     } else if(c == 's'){
       // ("%5", "foo")         = "  foo"
@@ -214,7 +215,7 @@ vsnprintf(char *out, size_t n, const char *fmt_, va_list ap)
   return o;
 }
 
-size_t
+int
 snprintf(char *out, size_t n, const char *fmt, ...)
 {
   va_list ap;
@@ -225,14 +226,13 @@ snprintf(char *out, size_t n, const char *fmt, ...)
   return len;
 }
 
-size_t
+int
 sprintf(char *out, const char *fmt, ...)
 {
   va_list ap;
   int len;
   va_start(ap, fmt);
-  //len = vsnprintf(out, (size_t)-1, fmt, ap);
-  len = vsnprintf(out, 0x7fffffff, fmt, ap);  // unsigned がまだ扱えないため。longにできないのは不明。
+  len = vsnprintf(out, (size_t)-1, fmt, ap);
   va_end(ap);
   return len;
 }

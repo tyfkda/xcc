@@ -2,7 +2,7 @@
 
 #include <stddef.h>  // size_t
 
-int strlen(const char *s);
+size_t strlen(const char *s);
 char* strchr(const char *s, char c);
 char* strrchr(const char *s, char c);
 int strcmp(const char *p, const char *q);

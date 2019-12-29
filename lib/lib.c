@@ -5,7 +5,6 @@
 #include "unistd.h"
 
 #include "_file.h"
-#include "sprintf.h"
 
 #if defined(__XV6)
 ssize_t write(int fd, const char *str, long len) {
@@ -30,7 +29,7 @@ ssize_t write(int fd, const char *str, long len) {
 
 #ifndef USE_LIBC
 
-int strlen(const char *s) {
+size_t strlen(const char *s) {
   const char *p;
   for (p = s; *p != '\0'; ++p)
     ;
