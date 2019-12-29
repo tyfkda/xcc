@@ -163,7 +163,7 @@ static void escape_string(const char *str, size_t size, StringBuffer *sb) {
     sb_append(sb, s, p);
 }
 
-void construct_initial_value(unsigned char *buf, const Type *type, Initializer *init, Vector **pptrinits) {
+void construct_initial_value(unsigned char *buf, const Type *type, Initializer *init) {
   assert(init == NULL || init->kind != vDot);
 
   switch (type->kind) {
@@ -207,13 +207,6 @@ void construct_initial_value(unsigned char *buf, const Type *type, Initializer *
         assert(value->kind == EX_VARREF);
         assert(value->varref.scope == NULL);
 
-        void **init = malloc(sizeof(void*) * 2);
-        init[0] = buf;
-        init[1] = (void*)value->varref.ident;
-        if (*pptrinits == NULL)
-          *pptrinits = new_vector();
-        vec_push(*pptrinits, init);
-
         const char *label = value->varref.ident;
         const VarInfo *varinfo = find_global(label);
         assert(varinfo != NULL);
@@ -248,15 +241,15 @@ void construct_initial_value(unsigned char *buf, const Type *type, Initializer *
           if (init_elem->kind == vArr) {
             size_t next = init_elem->arr.index->num.ival;
             for (size_t j = index; j < next; ++j)
-              construct_initial_value(buf + (j * elem_size), elem_type, NULL, pptrinits);
+              construct_initial_value(buf + (j * elem_size), elem_type, NULL);
             index = next;
             init_elem = init_elem->arr.value;
           }
-          construct_initial_value(buf + (index * elem_size), elem_type, init_elem, pptrinits);
+          construct_initial_value(buf + (index * elem_size), elem_type, init_elem);
         }
         // Padding
         for (size_t i = index, n = type->pa.length; i < n; ++i)
-          construct_initial_value(buf + (i * elem_size), elem_type, NULL, pptrinits);
+          construct_initial_value(buf + (i * elem_size), elem_type, NULL);
       }
     } else {
       if (init->kind == vSingle &&
@@ -301,7 +294,7 @@ void construct_initial_value(unsigned char *buf, const Type *type, Initializer *
             emit_align(align);
             offset = ALIGN(offset, align);
           }
-          construct_initial_value(buf + member->struct_.offset, member->type, mem_init, pptrinits);
+          construct_initial_value(buf + member->struct_.offset, member->type, mem_init);
           ++count;
           offset = ALIGN(offset, align);
           offset += type_size(member->type);
@@ -309,7 +302,7 @@ void construct_initial_value(unsigned char *buf, const Type *type, Initializer *
       }
       if (sinfo->is_union && count <= 0) {
         const VarInfo* member = sinfo->members->data[0];
-        construct_initial_value(buf + member->struct_.offset, member->type, NULL, pptrinits);
+        construct_initial_value(buf + member->struct_.offset, member->type, NULL);
         offset += type_size(member->type);
       }
 
@@ -350,8 +343,7 @@ static void put_data(const char *label, const VarInfo *varinfo) {
   }
   EMIT_LABEL(label);
 
-  Vector *ptrinits = NULL;  // <[ptr, label]>
-  construct_initial_value(buf, varinfo->type, varinfo->global.init, &ptrinits);
+  construct_initial_value(buf, varinfo->type, varinfo->global.init);
 
   free(buf);
 }
