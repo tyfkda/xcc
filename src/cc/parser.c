@@ -284,7 +284,7 @@ static Stmt *parse_asm(const Token *tok) {
 
 // Multiple stmt-s, also accept `case` and `default`.
 static Vector *read_stmts(void) {
-  Vector *stmts = NULL;
+  Vector *stmts = new_vector();
   for (;;) {
     if (match(TK_RBRACE))
       return stmts;
@@ -302,8 +302,6 @@ static Vector *read_stmts(void) {
 
     if (stmt == NULL)
       continue;
-    if (stmts == NULL)
-      stmts = new_vector();
     vec_push(stmts, stmt);
   }
 }
@@ -375,14 +373,11 @@ static Declaration *parse_defun(const Type *rettype, int flag, Token *ident) {
   Vector *param_types = extract_varinfo_types(params);
   Function *func = new_func(new_func_type(rettype, param_types, vaargs), name, params);
   Defun *defun = new_defun(func, flag);
-  if (match(TK_SEMICOL)) {  // Prototype declaration.
+  if (match(TK_SEMICOL)) {
+    // Prototype declaration.
   } else {
     consume(TK_LBRACE, "`;' or `{' expected");
-
     defun->stmts = read_stmts();
-    // Ensure stmts to be non-null to indicate this is not prototype definition.
-    if (defun->stmts == NULL)
-      defun->stmts = new_vector();
   }
   return new_decl_defun(defun);
 }

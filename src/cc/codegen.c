@@ -549,8 +549,7 @@ static void gen_asm(Stmt *stmt) {
 }
 
 static void gen_stmts(Vector *stmts) {
-  if (stmts == NULL)
-    return;
+  assert(stmts != NULL);
 
   for (int i = 0, len = stmts->len; i < len; ++i) {
     Stmt *stmt = stmts->data[i];
@@ -561,15 +560,13 @@ static void gen_stmts(Vector *stmts) {
 }
 
 static void gen_block(Stmt *stmt) {
-  if (stmt->block.stmts != NULL) {
-    if (stmt->block.scope != NULL) {
-      assert(curscope == stmt->block.scope->parent);
-      curscope = stmt->block.scope;
-    }
-    gen_stmts(stmt->block.stmts);
-    if (stmt->block.scope != NULL)
-      curscope = curscope->parent;
+  if (stmt->block.scope != NULL) {
+    assert(curscope == stmt->block.scope->parent);
+    curscope = stmt->block.scope;
   }
+  gen_stmts(stmt->block.stmts);
+  if (stmt->block.scope != NULL)
+    curscope = curscope->parent;
 }
 
 static void gen_return(Stmt *stmt) {
@@ -852,7 +849,8 @@ static void gen_vardecl(Vector *decls, Vector *inits) {
       gen_clear_local_var(varinfo);
     }
   }
-  gen_stmts(inits);
+  if (inits != NULL)
+    gen_stmts(inits);
 }
 
 static void gen_expr_stmt(Expr *expr) {

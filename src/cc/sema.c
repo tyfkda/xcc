@@ -614,8 +614,7 @@ static Vector *sema_vardecl(Vector *decls) {
 }
 
 static void sema_stmts(Vector *stmts) {
-  if (stmts == NULL)
-    return;
+  assert(stmts != NULL);
   for (int i = 0, len = stmts->len; i < len; ++i)
     stmts->data[i] = sema_stmt(stmts->data[i]);
 }
