@@ -110,6 +110,7 @@
 
 #define MOV(o1, o2)    EMIT_ASM2("mov", o1, o2)
 #define MOVSX(o1, o2)  EMIT_ASM2("movsx", o1, o2)
+#define MOVZX(o1, o2)  EMIT_ASM2("movzx", o1, o2)
 #define LEA(o1, o2)    EMIT_ASM2("lea", o1, o2)
 #define ADD(o1, o2)    EMIT_ASM2("add", o1, o2)
 #define ADDQ(o1, o2)   EMIT_ASM2("addq", o1, o2)

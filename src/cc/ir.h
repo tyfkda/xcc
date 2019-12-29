@@ -112,6 +112,7 @@ typedef struct {
     } call;
     struct {
       int srcsize;
+      bool is_unsigned;
     } cast;
     struct {
       const char *str;
@@ -136,7 +137,7 @@ void new_ir_precall(int arg_count, bool *stack_aligned);
 void new_ir_pusharg(VReg *vreg);
 VReg *new_ir_call(const char *label, bool global, VReg *freg, int arg_count, const Type *result_type, bool *stack_aligned);
 void new_ir_addsp(int value);
-VReg *new_ir_cast(VReg *vreg, const Type *dsttype, int srcsize);
+VReg *new_ir_cast(VReg *vreg, const Type *dsttype, int srcsize, bool is_unsigned);
 void new_ir_clear(VReg *reg, size_t size);
 void new_ir_result(VReg *reg, int size);
 void new_ir_asm(const char *asm_);

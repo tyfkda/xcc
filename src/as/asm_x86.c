@@ -169,24 +169,26 @@ bool assemble_inst(Inst *inst, const char *rawline, Code *code) {
   case MOV:
     return assemble_mov(inst, rawline, code);
   case MOVSX:
+  case MOVZX:
     if (inst->src.type == REG && inst->dst.type == REG) {
       int s = inst->src.reg.no;
       int d = inst->dst.reg.no;
+      unsigned char op = inst->op == MOVZX ? 0xb6 : 0xbe;
       switch (inst->src.reg.size) {
       case REG8:
         switch (inst->dst.reg.size) {
         case REG32:
           if (opr_reg8(&inst->src.reg) && !inst->dst.reg.x) {
-            MAKE_CODE(inst, code, 0x0f, 0xbe, 0xc0 + s + d * 8);
+            MAKE_CODE(inst, code, 0x0f, op, 0xc0 + s + d * 8);
           } else {
             int pre = (!inst->src.reg.x ? 0x40 : 0x41) + (!inst->dst.reg.x ? 0 : 4);
-            MAKE_CODE(inst, code, pre, 0x0f, 0xbe, 0xc0 + s + d * 8);
+            MAKE_CODE(inst, code, pre, 0x0f, op, 0xc0 + s + d * 8);
           }
           return true;
         case REG64:
           {
             int pre = (!inst->src.reg.x ? 0x48 : 0x49) + (!inst->dst.reg.x ? 0 : 4);
-            MAKE_CODE(inst, code, pre, 0x0f, 0xbe, 0xc0 + s + d * 8);
+            MAKE_CODE(inst, code, pre, 0x0f, op, 0xc0 + s + d * 8);
             return true;
           }
         default:
@@ -196,23 +198,24 @@ bool assemble_inst(Inst *inst, const char *rawline, Code *code) {
         switch (inst->dst.reg.size) {
         case REG32:
           if (!inst->src.reg.x && !inst->dst.reg.x) {
-            MAKE_CODE(inst, code, 0x0f, 0xbf, 0xc0 + s + d * 8);
+            MAKE_CODE(inst, code, 0x0f, op | 1, 0xc0 + s + d * 8);
           } else {
             int pre = (!inst->src.reg.x ? 0x40 : 0x41) + (!inst->dst.reg.x ? 0 : 4);
-            MAKE_CODE(inst, code, pre, 0x0f, 0xbf, 0xc0 + s + d * 8);
+            MAKE_CODE(inst, code, pre, 0x0f, op | 1, 0xc0 + s + d * 8);
           }
           return true;
         case REG64:
           {
             int pre = (!inst->src.reg.x ? 0x48 : 0x49) + (!inst->dst.reg.x ? 0 : 4);
-            MAKE_CODE(inst, code, pre, 0x0f, 0xbf, 0xc0 + s + d * 8);
+            MAKE_CODE(inst, code, pre, 0x0f, op | 1, 0xc0 + s + d * 8);
             return true;
           }
         default:
           break;
         }
       case REG32:
-        if (inst->dst.reg.size == REG64) {
+        // "MOVZX %32bit, %64bit" doesn't exist!
+        if (inst->dst.reg.size == REG64 && inst->op == MOVSX) {
           int pre = (!inst->src.reg.x ? 0x48 : 0x49) + (!inst->dst.reg.x ? 0 : 4);
           MAKE_CODE(inst, code, pre, 0x63, 0xc0 + s + d * 8);
           return true;

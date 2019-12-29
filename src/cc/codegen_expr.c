@@ -181,9 +181,15 @@ static VReg *gen_cast(VReg *reg, const Type *ltype, const Type *rtype) {
     src_size = WORD_SIZE;
   else
     src_size = type_size(rtype);
-  if (dst_size == src_size)
-    return reg;
-  return new_ir_cast(reg, ltype, src_size);
+  if (dst_size == src_size) {
+    if (ltype->kind == TY_NUM && rtype->kind == TY_NUM &&
+        ltype->num.is_unsigned == rtype->num.is_unsigned) {
+      return reg;
+    }
+  }
+
+  bool is_unsigned = rtype->kind == TY_NUM ? rtype->num.is_unsigned : false;
+  return new_ir_cast(reg, ltype, src_size, is_unsigned);
 }
 
 static VReg *gen_lval(Expr *expr) {

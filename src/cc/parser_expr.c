@@ -101,9 +101,10 @@ const Type *parse_raw_type(int *pflag) {
   const Type *type = NULL;
 
   int flag = 0;
+  bool is_unsigned = false;
   for (;;) {
     if (match(TK_UNSIGNED)) {
-      flag |= VF_UNSIGNED;
+      is_unsigned = true;
       continue;
     }
     if (match(TK_KWCONST)) {
@@ -122,11 +123,14 @@ const Type *parse_raw_type(int *pflag) {
     if (type != NULL)
       break;
 
-    Token *structtok;
+    Token *tok;
     Token *ident;
-    if (((structtok = match(TK_STRUCT)) != NULL) ||
-        ((structtok = match(TK_UNION)) != NULL)) {
-      bool is_union = structtok->kind == TK_UNION;
+    if (((tok = match(TK_STRUCT)) != NULL) ||
+        ((tok = match(TK_UNION)) != NULL)) {
+      if (is_unsigned)
+        parse_error(tok, "`unsigned' for struct/union");
+
+      bool is_union = tok->kind == TK_UNION;
       const char *name = NULL;
       Token *ident;
       if ((ident = match(TK_IDENT)) != NULL)
@@ -146,7 +150,7 @@ const Type *parse_raw_type(int *pflag) {
           sinfo = (StructInfo*)map_get(struct_map, name);
           if (sinfo != NULL) {
             if (sinfo->is_union != is_union)
-              parse_error(structtok, "Wrong tag for `%s'", name);
+              parse_error(tok, "Wrong tag for `%s'", name);
           }
         }
       }
@@ -159,23 +163,38 @@ const Type *parse_raw_type(int *pflag) {
       stype->struct_.name = name;
       stype->struct_.info = sinfo;
       type = stype;
-    } else if (match(TK_ENUM)) {
+    } else if ((tok = match(TK_ENUM)) != NULL) {
+      if (is_unsigned)
+        parse_error(tok, "`unsigned' for enum");
+
       type = parse_enum();
     } else if ((ident = match(TK_IDENT)) != NULL) {
       type = find_typedef(ident->ident);
-      if (type == NULL)
+      if (type == NULL) {
         unget_token(ident);
+      } else {
+        if (is_unsigned)
+          parse_error(ident, "`unsigned' for typedef");
+      }
+    } else if ((tok = match(TK_KWVOID)) != NULL) {
+      if (is_unsigned)
+        parse_error(tok, "`unsigned' for void");
+
+      type = &tyVoid;
     } else {
-      static const enum TokenKind kKeywords[] = {
-        TK_KWVOID, TK_KWCHAR, TK_KWSHORT, TK_KWINT, TK_KWLONG,
+      static const enum TokenKind kIntTypeTokens[] = {
+        TK_KWCHAR, TK_KWSHORT, TK_KWINT, TK_KWLONG,
       };
       static const Type *kTypes[] = {
-        &tyVoid, &tyChar, &tyShort, &tyInt, &tyLong,
+        &tyChar, &tyShort, &tyInt, &tyLong,
       };
-      const int N = sizeof(kTypes) / sizeof(*kTypes);
+      static const Type *kUnsignedTypes[] = {
+        &tyUnsignedChar, &tyUnsignedShort, &tyUnsignedInt, &tyUnsignedLong,
+      };
+      const int N = sizeof(kIntTypeTokens) / sizeof(*kIntTypeTokens);
       for (int i = 0; i < N; ++i) {
-        if (match(kKeywords[i])) {
-          type = kTypes[i];
+        if (match(kIntTypeTokens[i])) {
+          type = (is_unsigned ? kUnsignedTypes : kTypes)[i];
           break;
         }
       }

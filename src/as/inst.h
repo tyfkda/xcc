@@ -6,6 +6,7 @@ enum Opcode {
   NOOP,
   MOV,
   MOVSX,
+  MOVZX,
   LEA,
 
   ADD,

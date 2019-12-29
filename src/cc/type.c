@@ -7,10 +7,14 @@
 #include "util.h"
 #include "lexer.h"
 
-const Type tyChar =  {.kind=TY_NUM, .num={.kind=NUM_CHAR}};
-const Type tyShort = {.kind=TY_NUM, .num={.kind=NUM_SHORT}};
-const Type tyInt =   {.kind=TY_NUM, .num={.kind=NUM_INT}};
-const Type tyLong =  {.kind=TY_NUM, .num={.kind=NUM_LONG}};
+const Type tyChar =  {.kind=TY_NUM, .num={.kind=NUM_CHAR, .is_unsigned=false}};
+const Type tyShort = {.kind=TY_NUM, .num={.kind=NUM_SHORT, .is_unsigned=false}};
+const Type tyInt =   {.kind=TY_NUM, .num={.kind=NUM_INT, .is_unsigned=false}};
+const Type tyLong =  {.kind=TY_NUM, .num={.kind=NUM_LONG, .is_unsigned=false}};
+const Type tyUnsignedChar =  {.kind=TY_NUM, .num={.kind=NUM_CHAR, .is_unsigned=true}};
+const Type tyUnsignedShort = {.kind=TY_NUM, .num={.kind=NUM_SHORT, .is_unsigned=true}};
+const Type tyUnsignedInt =   {.kind=TY_NUM, .num={.kind=NUM_INT, .is_unsigned=true}};
+const Type tyUnsignedLong =  {.kind=TY_NUM, .num={.kind=NUM_LONG, .is_unsigned=true}};
 const Type tyEnum =  {.kind=TY_NUM, .num={.kind=NUM_ENUM}};
 const Type tyVoid =  {.kind=TY_VOID};
 const Type tyVoidPtr =  {.kind=TY_PTR, .pa={.ptrof=&tyVoid}};

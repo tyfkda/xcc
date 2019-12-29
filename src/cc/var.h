@@ -17,7 +17,6 @@ enum {
   VF_CONST = 1 << 0,
   VF_STATIC = 1 << 1,
   VF_EXTERN = 1 << 2,
-  VF_UNSIGNED = 1 << 3,
 };
 
 typedef struct VarInfo {

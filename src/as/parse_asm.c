@@ -13,6 +13,7 @@
 static const char *kOpTable[] = {
   "mov",
   "movsx",
+  "movzx",
   "lea",
 
   "add",

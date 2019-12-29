@@ -194,11 +194,12 @@ void new_ir_addsp(int value) {
   ir->value = value;
 }
 
-VReg *new_ir_cast(VReg *vreg, const Type *dsttype, int srcsize) {
+VReg *new_ir_cast(VReg *vreg, const Type *dsttype, int srcsize, bool is_unsigned) {
   IR *ir = new_ir(IR_CAST);
   ir->opr1 = vreg;
   ir->size = type_size(dsttype);
   ir->cast.srcsize = srcsize;
+  ir->cast.is_unsigned = is_unsigned;
   return ir->dst = reg_alloc_spawn(curra, dsttype);
 }
 
@@ -688,7 +689,16 @@ static void ir_out(const IR *ir) {
       int powd = kPow2Table[ir->size];
       assert(0 <= pows && pows < 4);
       assert(0 <= powd && powd < 4);
-      MOVSX(kRegSizeTable[pows][ir->opr1->r], kRegSizeTable[powd][ir->dst->r]); break;
+      if (ir->cast.is_unsigned) {
+        if (pows == 2 && powd == 3) {
+          // MOVZX %64bit, %32bit doesn't exist!
+          MOV(kRegSizeTable[pows][ir->opr1->r], kRegSizeTable[pows][ir->dst->r]);
+        } else {
+          MOVZX(kRegSizeTable[pows][ir->opr1->r], kRegSizeTable[powd][ir->dst->r]);
+        }
+      } else {
+        MOVSX(kRegSizeTable[pows][ir->opr1->r], kRegSizeTable[powd][ir->dst->r]);
+      }
     }
     break;
 

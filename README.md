@@ -20,7 +20,6 @@ XCC
 
 Compiler:
 
-  * unsigned types (Just ignored)
   * floating point numbers
   * Bit field
 

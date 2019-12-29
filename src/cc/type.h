@@ -49,6 +49,7 @@ typedef struct Type {
   union {
     struct {
       enum NumKind kind;
+      bool is_unsigned;
       struct {
         const Token *ident;
         Vector *members;  // <EnumMember*>
@@ -74,6 +75,10 @@ extern const Type tyChar;
 extern const Type tyShort;
 extern const Type tyInt;
 extern const Type tyLong;
+extern const Type tyUnsignedChar;
+extern const Type tyUnsignedShort;
+extern const Type tyUnsignedInt;
+extern const Type tyUnsignedLong;
 extern const Type tyEnum;
 extern const Type tyVoid;
 extern const Type tyVoidPtr;
