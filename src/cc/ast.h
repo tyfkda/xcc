@@ -291,7 +291,6 @@ Stmt *new_stmt_asm(const Token *token, Expr *str);
 enum DeclKind {
   DCL_DEFUN,
   DCL_VARDECL,
-  DCL_TOPLEVEL,
 };
 
 typedef struct Declaration {
@@ -301,12 +300,8 @@ typedef struct Declaration {
     struct {
       Vector *decls;  // <VarDecl*>
     } vardecl;
-    struct {
-      Vector *decls;
-    } toplevel;
   };
 } Declaration;
 
 Declaration *new_decl_defun(Defun *defun);
 Declaration *new_decl_vardecl(Vector *decls);
-Declaration *new_top_decl(Vector *decls);

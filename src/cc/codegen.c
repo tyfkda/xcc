@@ -926,7 +926,7 @@ static void gen_defun(Defun *defun) {
   curra = NULL;
 }
 
-void gen(Declaration *decl) {
+void gen_decl(Declaration *decl) {
   if (decl == NULL)
     return;
 
@@ -937,21 +937,22 @@ void gen(Declaration *decl) {
   case DCL_VARDECL:
     gen_vardecl(decl->vardecl.decls, NULL);
     break;
-  case DCL_TOPLEVEL:
-    {
-      Vector *decls = decl->toplevel.decls;
-      for (int i = 0, len = decls->len; i < len; ++i) {
-        Declaration *decl = decls->data[i];
-        if (decl == NULL)
-          continue;
-        gen(decl);
-      }
-    }
-    break;
 
   default:
     error("Unhandled decl: %d", decl->kind);
     break;
+  }
+}
+
+void gen(Vector *decls) {
+  if (decls == NULL)
+    return;
+
+  for (int i = 0, len = decls->len; i < len; ++i) {
+    Declaration *decl = decls->data[i];
+    if (decl == NULL)
+      continue;
+    gen_decl(decl);
   }
 }
 
@@ -1039,28 +1040,23 @@ static void emit_data(void) {
   put_bss();
 }
 
-void emit_code(Declaration *decl) {
-  if (decl == NULL)
-    return;
+void emit_code(Vector *toplevel) {
+  for (int i = 0, len = toplevel->len; i < len; ++i) {
+    Declaration *decl = toplevel->data[i];
+    if (decl == NULL)
+      continue;
 
-  switch (decl->kind) {
-  case DCL_DEFUN:
-    emit_defun(decl->defun);
-    break;
-  case DCL_TOPLEVEL:
-    for (int i = 0, len = decl->toplevel.decls->len; i < len; ++i) {
-      Declaration *child = decl->toplevel.decls->data[i];
-      if (child == NULL)
-        continue;
-      emit_code(child);
+    switch (decl->kind) {
+    case DCL_DEFUN:
+      emit_defun(decl->defun);
+      break;
+    case DCL_VARDECL:
+      break;
+
+    default:
+      error("Unhandled decl in emit_code: %d", decl->kind);
+      break;
     }
-    emit_data();
-    break;
-  case DCL_VARDECL:
-    break;
-
-  default:
-    error("Unhandled decl in emit_code: %d", decl->kind);
-    break;
   }
+  emit_data();
 }

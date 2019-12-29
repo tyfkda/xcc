@@ -815,7 +815,7 @@ static Stmt *sema_stmt(Stmt *stmt) {
   return stmt;
 }
 
-Declaration *sema(Declaration *decl) {
+static Declaration *sema_decl(Declaration *decl) {
   if (decl == NULL)
     return decl;
 
@@ -832,18 +832,18 @@ Declaration *sema(Declaration *decl) {
     }
     break;
 
-  case DCL_TOPLEVEL:
-    {
-      Vector *decls = decl->toplevel.decls;
-      for (int i = 0, len = decls->len; i < len; ++i)
-        decls->data[i] = sema(decls->data[i]);
-    }
-    break;
-
   default:
     fprintf(stderr, "sema: Unhandled decl, kind=%d\n", decl->kind);
     assert(false);
     break;
   }
   return decl;
+}
+
+void sema(Vector *toplevel) {
+  if (toplevel == NULL)
+    return;
+
+  for (int i = 0, len = toplevel->len; i < len; ++i)
+    toplevel->data[i] = sema_decl(toplevel->data[i]);
 }

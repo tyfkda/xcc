@@ -12,14 +12,15 @@ typedef struct Stmt Stmt;
 typedef struct StructInfo StructInfo;
 typedef struct Type Type;
 typedef struct VReg VReg;
+typedef struct Vector Vector;
 
 #define MAX_REG_ARGS  (6)
 #define WORD_SIZE  (8)  /*sizeof(void*)*/
 
 // Public
 
-void gen(Declaration *decl);
-void emit_code(Declaration *decl);
+void gen(Vector *toplevel);
+void emit_code(Vector *toplevel);
 
 // Private
 

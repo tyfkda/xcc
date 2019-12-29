@@ -27,4 +27,4 @@ void not_void(const Type *type);
 
 //
 
-Vector *parse_program(Vector *decls);
+Vector *parse_program(Vector *toplevel);  // <Declaraion*>

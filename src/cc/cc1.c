@@ -20,25 +20,23 @@
 ////////////////////////////////////////////////
 
 #if !defined(SELF_HOSTING)
-static void do_dump_ir(Declaration *decl) {
-  switch (decl->kind) {
-  case DCL_TOPLEVEL:
-    for (int i = 0, len = decl->toplevel.decls->len; i < len; ++i) {
-      Declaration *child = decl->toplevel.decls->data[i];
-      if (child == NULL)
-        continue;
-      do_dump_ir(child);
-    }
-    break;
-  case DCL_DEFUN:
-    dump_func_ir(decl->defun->func);
-    break;
-  case DCL_VARDECL:
-    break;
+static void do_dump_ir(Vector *toplevel) {
+  for (int i = 0, len = toplevel->len; i < len; ++i) {
+    Declaration *decl = toplevel->data[i];
+    if (decl == NULL)
+      continue;
 
-  default:
-    assert(false);
-    break;
+    switch (decl->kind) {
+    case DCL_DEFUN:
+      dump_func_ir(decl->defun->func);
+      break;
+    case DCL_VARDECL:
+      break;
+
+    default:
+      assert(false);
+      break;
+    }
   }
 }
 #endif
@@ -54,15 +52,14 @@ static void init_compiler(FILE *ofp) {
   gvar_map = new_map();
 }
 
-static Vector *compile1(FILE *ifp, const char *filename, Vector *decls) {
+static Vector *compile1(FILE *ifp, const char *filename, Vector *toplevel) {
   init_lexer(ifp, filename);
-  return parse_program(decls);
+  return parse_program(toplevel);
 }
 
-static Declaration *compile2(Vector *decls) {
-  Declaration *top = sema(new_top_decl(decls));
-  gen(top);
-  return top;
+static void compile2(Vector *toplevel) {
+  sema(toplevel);
+  gen(toplevel);
 }
 
 static const char LOCAL_LABEL_PREFIX[] = "--local-label-prefix=";
@@ -84,25 +81,25 @@ int main(int argc, char* argv[]) {
   // Compile.
   init_compiler(stdout);
 
-  Vector *decls = NULL;
+  Vector *toplevel = NULL;
   if (iarg < argc) {
     for (int i = iarg; i < argc; ++i) {
       const char *filename = argv[i];
       FILE *ifp = fopen(filename, "r");
       if (ifp == NULL)
         error("Cannot open file: %s\n", filename);
-      decls = compile1(ifp, filename, decls);
+      toplevel = compile1(ifp, filename, toplevel);
     }
   } else {
-    decls = compile1(stdin, "*stdin*", decls);
+    toplevel = compile1(stdin, "*stdin*", toplevel);
   }
-  Declaration *root = compile2(decls);
+  compile2(toplevel);
 
   if (!dump_ir) {
-    emit_code(root);
+    emit_code(toplevel);
   } else {
 #if !defined(SELF_HOSTING)
-    do_dump_ir(root);
+    do_dump_ir(toplevel);
 #endif
   }
 

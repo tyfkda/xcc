@@ -230,9 +230,3 @@ Declaration *new_decl_vardecl(Vector *decls) {
   decl->vardecl.decls = decls;
   return decl;
 }
-
-Declaration *new_top_decl(Vector *decls) {
-  Declaration *top = new_decl(DCL_TOPLEVEL);
-  top->toplevel.decls = decls;
-  return top;
-}

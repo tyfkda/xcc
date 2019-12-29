@@ -18,7 +18,7 @@ typedef struct Vector Vector;
 extern Defun *curdefun;
 extern Scope *curscope;
 
-Declaration *sema(Declaration *decl);
+void sema(Vector *toplevel);
 Expr *analyze_expr(Expr *expr, bool keep_left);
 bool can_cast(const Type *dst, const Type *src, Expr *src_expr, bool is_explicit);
 Initializer *flatten_initializer(const Type *type, Initializer *init);
