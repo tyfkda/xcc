@@ -8,6 +8,7 @@
 #include "ast.h"
 #include "lexer.h"
 #include "sema.h"
+#include "table.h"
 #include "type.h"
 #include "util.h"
 #include "var.h"
@@ -131,7 +132,7 @@ const Type *parse_raw_type(int *pflag) {
         parse_error(tok, "`unsigned' for struct/union");
 
       bool is_union = tok->kind == TK_UNION;
-      const char *name = NULL;
+      const Name *name = NULL;
       Token *ident;
       if ((ident = match(TK_IDENT)) != NULL)
         name = ident->ident;
@@ -142,7 +143,7 @@ const Type *parse_raw_type(int *pflag) {
         if (name != NULL) {
           StructInfo *exist = find_struct(name);
           if (exist != NULL)
-            parse_error(ident, "`%s' already defined", name);
+            parse_error(ident, "`%.*s' already defined", name->bytes, name->chars);
           define_struct(name, sinfo);
         }
       } else {
@@ -150,7 +151,7 @@ const Type *parse_raw_type(int *pflag) {
           sinfo = find_struct(name);
           if (sinfo != NULL) {
             if (sinfo->is_union != is_union)
-              parse_error(tok, "Wrong tag for `%s'", name);
+              parse_error(tok, "Wrong tag for `%.*s'", name->bytes, name->chars);
           }
         }
       }
@@ -410,7 +411,7 @@ static Expr *prim(void) {
     return new_expr_str(tok, tok->str.buf, tok->str.size);
 
   Token *ident = consume(TK_IDENT, "Number or Ident or open paren expected");
-  const char *name = ident->ident;
+  const Name *name = ident->ident;
   return new_expr_varref(name, NULL, ident);
 }
 

@@ -11,6 +11,7 @@
 #include "ast.h"
 #include "lexer.h"
 #include "parser.h"
+#include "table.h"
 #include "type.h"
 #include "util.h"
 
@@ -159,8 +160,9 @@ void handle_include(const char *p, const char *srcname) {
 }
 
 void handle_pragma(const char *p, const char *filename) {
-  char *name = read_ident(&p);
-  if (strcmp(name, "once") == 0) {
+  const char *begin = p;
+  const char *end = read_ident(p);
+  if ((end - begin) == 4 && strncmp(begin, "once", 4) == 0) {
     if (!registered_pragma_once(filename))
       register_pragma_once(filename);
   } else {
@@ -172,17 +174,18 @@ Vector *parse_macro_body(const char *p, const Vector *params, bool va_args, Stre
   Vector *segments = new_vector();
   init_lexer_string(p, stream->filename, stream->lineno);
   int param_len = params != NULL ? params->len : 0;
+  const Name *key_va_args = alloc_name("__VA_ARGS__", NULL, false);
   StringBuffer sb;
   sb_init(&sb);
   for (;;) {
     Token *tok;
     if ((tok = match(TK_IDENT)) != NULL) {
       int index = -1;
-      if (va_args && strcmp(tok->ident, "__VA_ARGS__") == 0) {
+      if (va_args && equal_name(tok->ident, key_va_args)) {
         index = param_len;
       } else {
         for (int i = 0; i < param_len; ++i) {
-          if (strcmp(tok->ident, params->data[i]) == 0) {
+          if (equal_name(tok->ident, params->data[i])) {
             index = i;
             break;
           }
@@ -225,9 +228,12 @@ Vector *parse_macro_body(const char *p, const Vector *params, bool va_args, Stre
 }
 
 void handle_define(const char *p, Stream *stream) {
-  char *name = read_ident(&p);
-  if (name == NULL)
+  const char *begin = p;
+  const char *end = read_ident(p);
+  if (end == NULL)
     error("`ident' expected");
+  const Name *name = alloc_name(begin, end, false);
+  p = end;
 
   Vector *params = NULL;
   bool va_args = false;
@@ -263,9 +269,11 @@ void handle_define(const char *p, Stream *stream) {
 }
 
 void handle_undef(const char *p) {
-  char *name = read_ident(&p);
-  if (name == NULL)
+  const char *begin = p;
+  const char *end = read_ident(p);
+  if (end == NULL)
     error("`ident' expected");
+  const Name *name = alloc_name(begin, end, false);
 
   map_remove(macro_map, name);
 }
@@ -287,11 +295,11 @@ Token *match2(enum TokenKind kind) {
   }
 }
 
-void expand(Macro *macro, const char *name) {
+void expand(Macro *macro, const Name *name) {
   Vector *args = NULL;
   if (macro->params != NULL) {
     if (!match2(TK_LPAR))
-      parse_error(NULL, "`(' expected for macro `%s'", name);
+      parse_error(NULL, "`(' expected for macro `%.*s'", name->bytes, name->chars);
     args = new_vector();
     StringBuffer sb;
     sb_init(&sb);
@@ -331,7 +339,7 @@ void expand(Macro *macro, const char *name) {
     if ((!macro->va_args && args->len != macro->params->len) ||
         (macro->va_args && args->len <= macro->params->len)) {
       const char *cmp = args->len < macro->params->len ? "less" : "few";
-      parse_error(NULL, "Too %s arguments for macro `%s'", cmp, name);
+      parse_error(NULL, "Too %s arguments for macro `%.*s'", cmp, name->bytes, name->chars);
     }
   }
 
@@ -445,9 +453,11 @@ void process_line(const char *line, Stream *stream) {
 }
 
 bool handle_ifdef(const char *p) {
-  char *name = read_ident(&p);
-  if (name == NULL)
+  const char *begin = p;
+  const char *end = read_ident(p);
+  if (end == NULL)
     error("`ident' expected");
+  const Name *name = alloc_name(begin, end, false);
   return map_get(macro_map, name) != NULL;
 }
 
@@ -468,12 +478,12 @@ intptr_t reduce(Expr *expr) {
       const Expr *func = expr->funcall.func;
       const Vector *args = expr->funcall.args;
       if (func->kind == EX_VARREF &&
-          strcmp(func->varref.ident, "defined") == 0 &&
+          equal_name(func->varref.name, alloc_name("defined", NULL, false)) &&
           args != NULL && args->len == 1 &&
           ((Expr*)args->data[0])->kind == EX_VARREF) {  // defined(IDENT)
         Expr *arg = (Expr*)args->data[0];
         void *dummy = 0;
-        return map_try_get(macro_map, arg->varref.ident, &dummy) ? 1 : 0;
+        return map_try_get(macro_map, arg->varref.name, &dummy) ? 1 : 0;
       }
     }
     break;
@@ -504,11 +514,11 @@ intptr_t cond_value(bool enable, int satisfy) {
   return (enable ? CF_ENABLE : 0) | (satisfy << CF_SATISFY_SHIFT);
 }
 
-static void define_file_macro(const char *filename) {
+static void define_file_macro(const char *filename, const Name *key_file) {
   size_t len = strlen(filename);
   char *buf = malloc(len + 2 + 1);
   snprintf(buf, len + 2 + 1, "\"%s\"", filename);
-  map_put(macro_map, "__FILE__", new_macro_single(buf));
+  map_put(macro_map, key_file, new_macro_single(buf));
 }
 
 int pp(FILE *fp, const char *filename) {
@@ -518,11 +528,14 @@ int pp(FILE *fp, const char *filename) {
   //char linenobuf[sizeof(int) * 3 + 1];  // Buffer for __LINE__
   char linenobuf[32];  // Buffer for __LINE__
 
-  Macro *old_file_macro = map_get(macro_map, "__FILE__");
-  Macro *old_line_macro = map_get(macro_map, "__LINE__");
+  const Name *key_file = alloc_name("__FILE__", NULL, false);
+  const Name *key_line = alloc_name("__LINE__", NULL, false);
 
-  define_file_macro(filename);
-  map_put(macro_map, "__LINE__", new_macro_single(linenobuf));
+  Macro *old_file_macro = map_get(macro_map, key_file);
+  Macro *old_line_macro = map_get(macro_map, key_line);
+
+  define_file_macro(filename, key_file);
+  map_put(macro_map, key_line, new_macro_single(linenobuf));
 
   Stream stream;
   stream.filename = filename;
@@ -624,8 +637,8 @@ int pp(FILE *fp, const char *filename) {
   if (condstack->len > 0)
     error("#if not closed");
 
-  map_put(macro_map, "__FILE__", old_file_macro);
-  map_put(macro_map, "__LINE__", old_line_macro);
+  map_put(macro_map, key_file, old_file_macro);
+  map_put(macro_map, key_line, old_line_macro);
 
   return stream.lineno;
 }
@@ -633,9 +646,9 @@ int pp(FILE *fp, const char *filename) {
 static void define_macro(const char *arg) {
   char *p = strchr(arg, '=');
   if (p == NULL) {
-    map_put(macro_map, arg, new_macro(NULL, false, NULL));
+    map_put(macro_map, alloc_name(arg, NULL, true), new_macro(NULL, false, NULL));
   } else {
-    char *name = strndup_(arg, p - arg);
+    const Name *name = alloc_name(arg, p, true);
     map_put(macro_map, name, new_macro_single(p + 1));
   }
 }
@@ -646,13 +659,13 @@ int main(int argc, char* argv[]) {
   pragma_once_files = new_vector();
 
   // Predefeined macros.
-  map_put(macro_map, "__XCC", new_macro(NULL, false, NULL));
+  map_put(macro_map, alloc_name("__XCC", NULL, true), new_macro(NULL, false, NULL));
 #if defined(__XV6)
-  map_put(macro_map, "__XV6", new_macro(NULL, false, NULL));
+  map_put(macro_map, alloc_name("__XV6", NULL, true), new_macro(NULL, false, NULL));
 #elif defined(__linux__)
-  map_put(macro_map, "__linux__", new_macro(NULL, false, NULL));
+  map_put(macro_map, alloc_name("__linux__", NULL, true), new_macro(NULL, false, NULL));
 #elif defined(__APPLE__)
-  map_put(macro_map, "__APPLE__", new_macro(NULL, false, NULL));
+  map_put(macro_map, alloc_name("__APPLE__", NULL, true), new_macro(NULL, false, NULL));
 #endif
 
   int i = 1;

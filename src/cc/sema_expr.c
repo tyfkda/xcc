@@ -5,6 +5,7 @@
 
 #include "ast.h"
 #include "lexer.h"
+#include "table.h"
 #include "type.h"
 #include "util.h"
 #include "var.h"
@@ -19,7 +20,7 @@ void ensure_struct(Type *type, const Token *token) {
   if (type->struct_.info == NULL) {
     StructInfo *sinfo = find_struct(type->struct_.name);
     if (sinfo == NULL)
-      parse_error(token, "Accessing unknown struct(%s)'s member", type->struct_.name);
+      parse_error(token, "Accessing unknown struct(%.*s)'s member", type->struct_.name->bytes, type->struct_.name->chars);
     type->struct_.info = sinfo;
   }
 }
@@ -293,7 +294,7 @@ static bool cast_numbers(Expr **pLhs, Expr **pRhs, bool keep_left) {
   return true;
 }
 
-bool search_from_anonymous(const Type *type, const char *name, const Token *ident, Vector *stack) {
+bool search_from_anonymous(const Type *type, const Name *name, const Token *ident, Vector *stack) {
   assert(type->kind == TY_STRUCT);
   ensure_struct((Type*)type, ident);
 
@@ -301,7 +302,7 @@ bool search_from_anonymous(const Type *type, const char *name, const Token *iden
   for (int i = 0, len = members->len; i < len; ++i) {
     const VarInfo *member = members->data[i];
     if (member->name != NULL) {
-      if (strcmp(member->name, name) == 0) {
+      if (equal_name(member->name, name)) {
         vec_push(stack, (void*)(long)i);
         return true;
       }
@@ -386,7 +387,7 @@ Expr *analyze_expr(Expr *expr, bool keep_left) {
 
   case EX_VARREF:
     {
-      const char *name = expr->varref.ident;
+      const Name *name = expr->varref.name;
       const Type *type = NULL;
       Scope *scope = NULL;
       if (curscope != NULL) {
@@ -417,7 +418,7 @@ Expr *analyze_expr(Expr *expr, bool keep_left) {
         }
       }
       if (type == NULL)
-        parse_error(expr->token, "Undefined `%s'", name);
+        parse_error(expr->token, "Undefined `%.*s'", name->bytes, name->chars);
       expr->type = type;
       expr->varref.scope = scope;
     }
@@ -704,7 +705,7 @@ Expr *analyze_expr(Expr *expr, bool keep_left) {
 
       const Token *acctok = expr->token;
       const Token *ident = expr->member.ident;
-      const char *name = ident->ident;
+      const Name *name = ident->ident;
 
       // Find member's type from struct info.
       const Type *targetType = target->type;
@@ -732,7 +733,7 @@ Expr *analyze_expr(Expr *expr, bool keep_left) {
         Vector *stack = new_vector();
         bool res = search_from_anonymous(targetType, ident->ident, ident, stack);
         if (!res)
-          parse_error(ident, "`%s' doesn't exist in the struct", name);
+          parse_error(ident, "`%.*s' doesn't exist in the struct", name->bytes, name->chars);
         Expr *p = target;
         const Type *type = targetType;
         for (int i = 0; i < stack->len; ++i) {
@@ -780,7 +781,7 @@ Expr *analyze_expr(Expr *expr, bool keep_left) {
         int paramc = param_types->len;
         if (!(argc == paramc ||
               (vaargs && argc >= paramc)))
-          parse_error(func->token, "function `%s' expect %d arguments, but %d", func->varref.ident, paramc, argc);
+          parse_error(func->token, "function `%.*s' expect %d arguments, but %d", func->varref.name->bytes, func->varref.name->chars, paramc, argc);
       }
 
       if (args != NULL && param_types != NULL) {

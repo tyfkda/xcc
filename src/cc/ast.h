@@ -11,6 +11,7 @@ typedef struct BBContainer BBContainer;
 typedef struct Function Function;
 typedef struct Expr Expr;
 typedef struct Map Map;
+typedef struct Name Name;
 typedef struct RegAlloc RegAlloc;
 typedef struct Scope Scope;
 typedef struct Token Token;
@@ -88,7 +89,7 @@ typedef struct Expr {
       size_t size;  // Include last '\0'.
     } str;
     struct {
-      const char *ident;
+      const Name *name;
       Scope *scope;  // NULL = global, non NULL = local
     } varref;
     struct {
@@ -125,7 +126,7 @@ Expr *new_expr_bop(enum ExprKind kind, const Type *type, const Token *token, Exp
 Expr *new_expr_unary(enum ExprKind kind, const Type *type, const Token *token, Expr *sub);
 Expr *new_expr_deref(const Token *token, Expr *sub);
 Expr *new_expr_ternary(const Token *token, Expr *cond, Expr *tval, Expr *fval, const Type *type);
-Expr *new_expr_varref(const char *name, const Type *type, const Token *token);
+Expr *new_expr_varref(const Name *name, const Type *type, const Token *token);
 Expr *new_expr_member(const Token *token, const Type *type, Expr *target, const Token *ident, int index);
 Expr *new_expr_funcall(const Token *token, Expr *func, Vector *args);
 Expr *new_expr_sizeof(const Token *token, const Type *type, Expr *sub);
@@ -139,7 +140,7 @@ bool is_const(Expr *expr);
 
 typedef struct Function {
   const Type *type;
-  const char *name;
+  const Name *name;
   Vector *params;  // <VarInfo*>
 
   Vector *scopes;  // NULL => prototype definition.
@@ -174,7 +175,7 @@ typedef struct Initializer {
     Expr *single;
     Vector *multi;  // <Initializer*>
     struct {
-      const char *name;
+      const Name *name;
       struct Initializer *value;
     } dot;
     struct {

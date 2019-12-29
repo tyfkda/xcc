@@ -8,6 +8,7 @@
 
 typedef struct BB BB;
 typedef struct Function Function;
+typedef struct Name Name;
 typedef struct RegAlloc RegAlloc;
 typedef struct Type Type;
 typedef struct Vector Vector;
@@ -96,7 +97,7 @@ typedef struct {
 
   union {
     struct {
-      const char *label;
+      const Name *label;
       bool global;
     } iofs;
     struct {
@@ -107,7 +108,7 @@ typedef struct {
       enum ConditionKind cond;
     } jmp;
     struct {
-      const char *label;
+      const Name *label;
       bool *stack_aligned;
       int arg_count;
       bool global;
@@ -127,7 +128,7 @@ VReg *new_ir_bop(enum IrKind kind, VReg *opr1, VReg *opr2, const Type *type);
 VReg *new_ir_unary(enum IrKind kind, VReg *opr, const Type *type);
 void new_ir_mov(VReg *dst, VReg *src, int size);
 VReg *new_ir_bofs(VReg *src);
-VReg *new_ir_iofs(const char *label, bool global);
+VReg *new_ir_iofs(const Name *label, bool global);
 void new_ir_store(VReg *dst, VReg *src, int size);
 void new_ir_memcpy(VReg *dst, VReg *src, int size);
 void new_ir_cmp(VReg *opr1, VReg *opr2, int size);
@@ -137,7 +138,7 @@ VReg *new_ir_set(enum ConditionKind cond);
 void new_ir_jmp(enum ConditionKind cond, BB *bb);
 void new_ir_precall(int arg_count, bool *stack_aligned);
 void new_ir_pusharg(VReg *vreg);
-VReg *new_ir_call(const char *label, bool global, VReg *freg, int arg_count, const Type *result_type, bool *stack_aligned);
+VReg *new_ir_call(const Name *label, bool global, VReg *freg, int arg_count, const Type *result_type, bool *stack_aligned);
 void new_ir_addsp(int value);
 VReg *new_ir_cast(VReg *vreg, const Type *dsttype, int srcsize, bool is_unsigned);
 void new_ir_clear(VReg *reg, size_t size);
@@ -160,7 +161,7 @@ extern RegAlloc *curra;
 
 typedef struct BB {
   struct BB *next;
-  const char *label;
+  const Name *label;
   Vector *irs;  // <IR*>
 
   Vector *in_regs;  // <VReg*>

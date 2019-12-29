@@ -12,6 +12,7 @@
 #include "lexer.h"
 #include "regalloc.h"
 #include "sema.h"
+#include "table.h"
 #include "type.h"
 #include "util.h"
 #include "var.h"
@@ -202,9 +203,10 @@ void construct_initial_value(unsigned char *buf, const Type *type, Initializer *
         assert(value->kind == EX_VARREF);
         assert(value->varref.scope == NULL);
 
-        const char *label = value->varref.ident;
-        const VarInfo *varinfo = find_global(label);
+        const Name *name = value->varref.name;
+        const VarInfo *varinfo = find_global(name);
         assert(varinfo != NULL);
+        const char *label = fmt_name(name);
         if ((varinfo->flag & VF_STATIC) == 0)
           label = MANGLE(label);
         _QUAD(label);
@@ -325,13 +327,14 @@ void construct_initial_value(unsigned char *buf, const Type *type, Initializer *
   }
 }
 
-static void put_data(const char *label, const VarInfo *varinfo) {
+static void put_data(const Name *name, const VarInfo *varinfo) {
   size_t size = type_size(varinfo->type);
   unsigned char *buf = calloc(size, 1);
   if (buf == NULL)
     error("Out of memory");
 
   emit_align(align_size(varinfo->type));
+  const char *label = fmt_name(name);
   if ((varinfo->flag & VF_STATIC) == 0) {  // global
     label = MANGLE(label);
     _GLOBL(label);
@@ -352,7 +355,7 @@ static void put_rodata(void) {
         (varinfo->flag & VF_CONST) == 0)
       continue;
 
-    const char *name = (const char *)gvar_map->keys->data[i];
+    const Name *name = gvar_map->keys->data[i];
     put_data(name, varinfo);
   }
 }
@@ -366,7 +369,7 @@ static void put_rwdata(void) {
         (varinfo->flag & VF_CONST) != 0)
       continue;
 
-    const char *name = (const char *)gvar_map->keys->data[i];
+    const Name *name = gvar_map->keys->data[i];
     put_data(name, varinfo);
   }
 }
@@ -374,7 +377,7 @@ static void put_rwdata(void) {
 // Put global without initial value (bss).
 static void put_bss(void) {
   for (int i = 0, len = map_count(gvar_map); i < len; ++i) {
-    const char *label = (const char *)gvar_map->keys->data[i];
+    const Name *name = gvar_map->keys->data[i];
     const VarInfo *varinfo = (const VarInfo*)gvar_map->vals->data[i];
     if (varinfo->type->kind == TY_FUNC || varinfo->global.init != NULL ||
         (varinfo->flag & VF_EXTERN) != 0)
@@ -384,6 +387,7 @@ static void put_bss(void) {
     size_t size = type_size(varinfo->type);
     if (size < 1)
       size = 1;
+    const char *label = fmt_name(name);
     if ((varinfo->flag & VF_STATIC) == 0) {  // global
       label = MANGLE(label);
       _GLOBL(label);
@@ -958,13 +962,14 @@ static void emit_defun(Defun *defun) {
     global = (varinfo->flag & VF_STATIC) == 0;
   }
 
+  const char *label = fmt_name(func->name);
   if (global) {
-    const char *gl = MANGLE(func->name);
+    const char *gl = MANGLE(label);
     _GLOBL(gl);
     EMIT_LABEL(gl);
   } else {
-    emit_comment("%s: static func", func->name);
-    EMIT_LABEL(func->name);
+    emit_comment("%.*s: static func", func->name->bytes, func->name->chars);
+    EMIT_LABEL(label);
   }
 
   bool no_stmt = true;

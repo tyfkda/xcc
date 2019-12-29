@@ -4,8 +4,9 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "util.h"
 #include "lexer.h"
+#include "table.h"
+#include "util.h"
 
 const Type tyChar =  {.kind=TY_NUM, .num={.kind=NUM_CHAR, .is_unsigned=false}};
 const Type tyShort = {.kind=TY_NUM, .num={.kind=NUM_SHORT, .is_unsigned=false}};
@@ -66,7 +67,7 @@ bool same_type(const Type *type1, const Type *type2) {
           type1 = type2;
           type2 = tmp;
         } else if (type2->struct_.info == NULL) {
-          return strcmp(type1->struct_.name, type2->struct_.name) == 0;
+          return equal_name(type1->struct_.name, type2->struct_.name);
         }
         // Find type1 from name.
         StructInfo *sinfo = find_struct(type1->struct_.name);
@@ -112,11 +113,11 @@ Type* new_func_type(const Type *ret, Vector *param_types, bool vaargs) {
 
 Map *struct_map;
 
-StructInfo *find_struct(const char *name) {
+StructInfo *find_struct(const Name *name) {
   return (StructInfo*)map_get(struct_map, name);
 }
 
-void define_struct(const char *name, StructInfo *sinfo) {
+void define_struct(const Name *name, StructInfo *sinfo) {
   map_put(struct_map, name, sinfo);
 }
 
@@ -125,7 +126,7 @@ void define_struct(const char *name, StructInfo *sinfo) {
 Map *enum_map;
 Map *enum_value_map;
 
-Type *find_enum(const char *name) {
+Type *find_enum(const Name *name) {
   return map_get(enum_map, name);
 }
 
@@ -154,7 +155,7 @@ void add_enum_member(Type *type, const Token *ident, int value) {
   map_put(enum_value_map, ident->ident, (void*)(intptr_t)value);
 }
 
-bool find_enum_value(const char *name, intptr_t *output) {
+bool find_enum_value(const Name *name, intptr_t *output) {
   return map_try_get(enum_value_map, name, (void**)output);
 }
 
@@ -183,13 +184,13 @@ void dump_type(FILE *fp, const Type *type) {
 
 Map *typedef_map;  // <char*, Type*>
 
-const Type *find_typedef(const char *ident) {
-  return map_get(typedef_map, ident);
+const Type *find_typedef(const Name *name) {
+  return map_get(typedef_map, name);
 }
 
-bool add_typedef(const char *ident, const Type *type) {
-  if (map_get(typedef_map, ident) != NULL)
+bool add_typedef(const Name *name, const Type *type) {
+  if (map_get(typedef_map, name) != NULL)
     return false;
-  map_put(typedef_map, ident, type);
+  map_put(typedef_map, name, type);
   return true;
 }

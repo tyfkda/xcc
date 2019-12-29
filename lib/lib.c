@@ -136,6 +136,18 @@ void* memset(void* buf, int val, size_t size) {
   return buf;
 }
 
+int memcmp(const void *buf1, const void *buf2, size_t n) {
+  const unsigned char *p = buf1;
+  const unsigned char *q = buf2;
+  int d;
+  for (size_t i = 0; i < n; ++i, ++p, ++q) {
+    d = (int)*(unsigned char*)p - (int)*(unsigned char*)q;
+    if (d != 0)
+      break;
+  }
+  return d;
+}
+
 long strtol(const char *p, char **pp, int base) {
   long result = 0;
   if (base <= 10) {

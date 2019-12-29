@@ -59,7 +59,7 @@ test-examples: # $(XCC)
 	XCC=$(XCC) ./example_test.sh
 	@echo ''
 
-UTIL_SRCS:=util_test.c $(UTIL_DIR)/util.c
+UTIL_SRCS:=util_test.c $(UTIL_DIR)/util.c $(UTIL_DIR)/table.c
 util_test:	$(UTIL_SRCS)
 	gcc -o $@ $(CFLAGS) $^
 

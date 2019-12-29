@@ -6,6 +6,8 @@
 #include <string.h>  // strcmp
 #include <assert.h>
 
+#include "table.h"
+
 char *strdup_(const char *str) {
   return strndup_(str, strlen(str));
 }
@@ -19,13 +21,13 @@ char *strndup_(const char *str, size_t size) {
 
 static char label_prefix[8] = "L";
 
-char *alloc_label(void) {
+const Name *alloc_label(void) {
   static int label_no;
   ++label_no;
   //char buf[sizeof(int) * 3 + 1];
   char buf[32];
   snprintf(buf, sizeof(buf), ".%s%d", label_prefix, label_no);
-  return strdup_(buf);
+  return alloc_name(buf, NULL, true);
 }
 
 void set_local_label_prefix(const char *prefix) {
@@ -321,14 +323,14 @@ int map_count(Map *map) {
   return map->keys->len;
 }
 
-static int map_find(Map *map, const char *key) {
+static int map_find(Map *map, const Name *key) {
   for (int i = map->keys->len - 1; i >= 0; --i)
-    if (strcmp(map->keys->data[i], key) == 0)
+    if (equal_name(map->keys->data[i], key))
       return i;
   return -1;
 }
 
-void map_put(Map *map, const char *key, const void *val) {
+void map_put(Map *map, const Name *key, const void *val) {
   int i = map_find(map, key);
   if (i >= 0) {
     map->vals->data[i] = (void*)val;
@@ -338,7 +340,7 @@ void map_put(Map *map, const char *key, const void *val) {
   }
 }
 
-bool map_remove(Map *map, const char *key) {
+bool map_remove(Map *map, const Name *key) {
   int i = map_find(map, key);
   if (i < 0)
     return false;
@@ -354,12 +356,12 @@ bool map_remove(Map *map, const char *key) {
   return true;
 }
 
-void *map_get(Map *map, const char *key) {
+void *map_get(Map *map, const Name *key) {
   int i = map_find(map, key);
   return i >= 0 ? map->vals->data[i] : NULL;
 }
 
-bool map_try_get(Map *map, const char *key, void **output) {
+bool map_try_get(Map *map, const Name *key, void **output) {
   int i = map_find(map, key);
   if (i < 0)
     return false;

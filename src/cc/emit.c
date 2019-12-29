@@ -5,6 +5,7 @@
 #include <stdarg.h>
 #include <stdint.h>  // intptr_t
 
+#include "table.h"
 #include "x86_64.h"
 
 #ifdef __APPLE__
@@ -24,6 +25,10 @@ char *fmt(const char *s, ...) {
   vsnprintf(p, sizeof(buf[0]), s, ap);
   va_end(ap);
   return p;
+}
+
+char *fmt_name(const Name *name) {
+  return fmt("%.*s", name->bytes, name->chars);
 }
 
 char *num(intptr_t x) {

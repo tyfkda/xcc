@@ -2,6 +2,8 @@
 
 #pragma once
 
+typedef struct Name Name;
+
 enum Opcode {
   NOOP,
   MOV,
@@ -190,9 +192,9 @@ typedef struct {
   union {
     Reg reg;
     long immediate;
-    const char *label;
+    const Name *label;
     struct {
-      const char *label;
+      const Name *label;
       long offset;
       Reg reg;
     } indirect;

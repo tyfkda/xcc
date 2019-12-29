@@ -5,11 +5,12 @@
 
 #include "gen.h"
 #include "inst.h"
+#include "table.h"
 #include "util.h"
 
 #define WORD_SIZE  (8)
 
-IR *new_ir_label(const char *label) {
+IR *new_ir_label(const Name *label) {
   IR *ir = malloc(sizeof(*ir));
   ir->kind = IR_LABEL;
   ir->label = label;
@@ -45,7 +46,7 @@ IR *new_ir_align(int align) {
   return ir;
 }
 
-IR *new_ir_abs_quad(const char *label) {
+IR *new_ir_abs_quad(const Name *label) {
   IR *ir = malloc(sizeof(*ir));
   ir->kind = IR_ABS_QUAD;
   ir->label = label;
@@ -101,7 +102,7 @@ static void put_value(unsigned char *p, intptr_t value, int size) {
   }
 }
 
-static void put_unresolved(Map **pp, const char *label) {
+static void put_unresolved(Map **pp, const Name *label) {
   Map *map = *pp;
   if (map == NULL)
     *pp = map = new_map();
@@ -208,8 +209,8 @@ bool resolve_relative_address(Vector **section_irs, Map *label_map) {
 
   if (unresolved_labels != NULL) {
     for (int i = 0, len = unresolved_labels->keys->len; i < len; ++i) {
-      const char *label = unresolved_labels->keys->data[i];
-      fprintf(stderr, "Undefined reference: `%s'\n", label);
+      const Name *name = unresolved_labels->keys->data[i];
+      fprintf(stderr, "Undefined reference: `%.*s'\n", name->bytes, name->chars);
     }
     exit(1);
   }

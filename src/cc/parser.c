@@ -14,7 +14,7 @@ static Stmt *statement(void);
 
 // Function
 
-static Function *new_func(const Type *type, const char *name, Vector *params) {
+static Function *new_func(const Type *type, const Name *name, Vector *params) {
   Function *func = malloc(sizeof(*func));
   func->type = type;
   func->name = name;
@@ -356,7 +356,7 @@ static Stmt *statement(void) {
 }
 
 static Declaration *parse_defun(const Type *rettype, int flag, Token *ident) {
-  const char *name = ident->ident;
+  const Name *name = ident->ident;
   bool vaargs;
   Vector *params = parse_funparams(&vaargs);
 
@@ -384,7 +384,7 @@ static void parse_typedef(void) {
   if (ident == NULL) {
     ident = consume(TK_IDENT, "ident expected");
   }
-  const char *name = ident->ident;
+  const Name *name = ident->ident;
   add_typedef(name, type);
 
   consume(TK_SEMICOL, "`;' expected");

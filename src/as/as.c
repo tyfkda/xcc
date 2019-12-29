@@ -12,6 +12,7 @@
 #include "gen.h"
 #include "ir_asm.h"
 #include "parse_asm.h"
+#include "table.h"
 #include "util.h"
 
 #define PROG_START   (0x100)
@@ -56,7 +57,7 @@ void parse_file(FILE *fp, Vector **section_irs, Map *label_map) {
 
       void *address;
       if (map_try_get(label_map, line->label, &address)) {
-        fprintf(stderr, "`%s' already defined\n", line->label);
+        fprintf(stderr, "`%.*s' already defined\n", line->label->bytes, line->label->chars);
         err = true;
       }
       map_put(label_map, line->label, NULL);
@@ -150,7 +151,7 @@ int main(int argc, char* argv[]) {
   get_section_size(SEC_DATA, &datafilesz, &datamemsz, &dataloadadr);
 
   void *entry;
-  if (!map_try_get(label_map, "_start", &entry))
+  if (!map_try_get(label_map, alloc_name("_start", NULL, false), &entry))
     error("Cannot find label: `%s'", "_start");
 
   int phnum = datamemsz > 0 ? 2 : 1;

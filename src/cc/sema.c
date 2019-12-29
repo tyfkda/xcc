@@ -7,6 +7,7 @@
 #include "ast.h"
 #include "lexer.h"
 #include "parser.h"
+#include "table.h"
 #include "type.h"
 #include "util.h"
 #include "var.h"
@@ -85,7 +86,7 @@ static void add_func_label(const Token *label) {
     curdefun->label_map = new_map();
   BB *bb;
   if (map_try_get(curdefun->label_map, label->ident, (void**)&bb))
-    parse_error(label, "Label `%s' already defined", label->ident);
+    parse_error(label, "Label `%.*s' already defined", label->ident->bytes, label->ident->chars);
   map_put(curdefun->label_map, label->ident, NULL);
 }
 
@@ -267,7 +268,7 @@ Initializer *flatten_initializer(const Type *type, Initializer *init) {
           parse_error(NULL, "indexed initializer for struct");
 
         if (value->kind == vDot) {
-          const char *name = value->dot.name;
+          const Name *name = value->dot.name;
           index = var_find(sinfo->members, name);
           if (index >= 0) {
             value = value->dot.value;
@@ -275,7 +276,7 @@ Initializer *flatten_initializer(const Type *type, Initializer *init) {
             Vector *stack = new_vector();
             bool res = search_from_anonymous(type, name, NULL, stack);
             if (!res)
-              parse_error(value->token, "`%s' is not member of struct", name);
+              parse_error(value->token, "`%.*s' is not member of struct", name->bytes, name->chars);
 
             index = (intptr_t)stack->data[0];
             Vector *multi = new_vector();
@@ -301,7 +302,7 @@ Initializer *flatten_initializer(const Type *type, Initializer *init) {
 
             // Create string and point to it.
             Type* strtype = arrayof(&tyChar, expr->str.size);
-            const char * label = alloc_label();
+            const Name * label = alloc_label();
             const Token *ident = alloc_ident(label, NULL, NULL);
             VarInfo *varinfo = define_global(strtype, VF_CONST | VF_STATIC, ident, NULL);
             varinfo->global.init = strinit;
@@ -381,7 +382,7 @@ static Initializer *check_global_initializer(const Type *type, Initializer *init
           if (value->varref.scope != NULL)
             parse_error(value->token, "Allowed global reference only");
 
-          VarInfo *info = find_global(value->varref.ident);
+          VarInfo *info = find_global(value->varref.name);
           assert(info != NULL);
 
           if (!same_type(type->pa.ptrof, info->type))
@@ -394,7 +395,7 @@ static Initializer *check_global_initializer(const Type *type, Initializer *init
           if (value->varref.scope != NULL)
             parse_error(value->token, "Allowed global reference only");
 
-          VarInfo *info = find_global(value->varref.ident);
+          VarInfo *info = find_global(value->varref.name);
           assert(info != NULL);
 
           if (info->type->kind != TY_ARRAY || !same_type(type->pa.ptrof, info->type->pa.ptrof))
@@ -603,7 +604,7 @@ static Vector *sema_vardecl(Vector *decls) {
     } else {
       intptr_t eval;
       if (find_enum_value(ident->ident, &eval))
-        parse_error(ident, "`%s' is already defined", ident->ident);
+        parse_error(ident, "`%.*s' is already defined", ident->ident->bytes, ident->ident->chars);
       if (flag & VF_EXTERN && init != NULL)
         parse_error(init->token, "extern with initializer");
       // Toplevel
@@ -634,7 +635,7 @@ static void sema_defun(Defun *defun) {
     // TODO: Check type.
     // TODO: Check duplicated definition.
     if (def->global.init != NULL)
-      parse_error(ident, "`%s' function already defined");
+      parse_error(ident, "`%.*s' function already defined", defun->func->name->bytes, defun->func->name->chars);
   }
 
   if (defun->stmts != NULL) {  // Not prototype defintion.
@@ -660,8 +661,10 @@ static void sema_defun(Defun *defun) {
       for (int i = 0; i < gotos->len; ++i) {
         Stmt *stmt = gotos->data[i];
         void *bb;
-        if (label_map == NULL || !map_try_get(label_map, stmt->goto_.label->ident, &bb))
-          parse_error(stmt->goto_.label, "`%s' not found", stmt->goto_.label->ident);
+        if (label_map == NULL || !map_try_get(label_map, stmt->goto_.label->ident, &bb)) {
+          const Name *name = stmt->goto_.label->ident;
+          parse_error(stmt->goto_.label, "`%.*s' not found", name->bytes, name->chars);
+        }
       }
     }
   }

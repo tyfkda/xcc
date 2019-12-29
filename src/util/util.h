@@ -13,9 +13,10 @@
 #define ALIGN(x, align)  (((x) + (align) - 1) & -(align))  // align must be 2^n
 #define UNUSED(x)  ((void)(x))
 
+typedef struct Name Name;
+
 char *strdup_(const char *str);
 char *strndup_(const char *str, size_t size);
-char *alloc_label(void);
 void set_local_label_prefix(const char *prefix);
 char *cat_path(const char *base_dir, const char *rel_path);
 ssize_t getline_(char **lineptr, size_t *n, FILE *stream, size_t start);
@@ -61,10 +62,10 @@ typedef struct Map {
 Map *new_map(void);
 void map_clear(Map *map);
 int map_count(Map *map);
-void map_put(Map *map, const char *key, const void *val);
-bool map_remove(Map *map, const char *key);
-void *map_get(Map *map, const char *key);
-bool map_try_get(Map *map, const char *key, void **output);
+void map_put(Map *map, const Name *name, const void *val);
+bool map_remove(Map *map, const Name *name);
+void *map_get(Map *map, const Name *name);
+bool map_try_get(Map *map, const Name *name, void **output);
 
 // StringBuffer
 

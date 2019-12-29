@@ -8,6 +8,7 @@
 #include "asm_x86.h"
 
 typedef struct Map Map;
+typedef struct Name Name;
 typedef struct Vector Vector;
 
 typedef struct {
@@ -27,7 +28,7 @@ enum IrKind {
 typedef struct {
   enum IrKind kind;
   union {
-    const char *label;
+    const Name *label;
     Code code;
     Data data;
     size_t bss;
@@ -37,12 +38,12 @@ typedef struct {
   uintptr_t address;
 } IR;
 
-IR *new_ir_label(const char *label);
+IR *new_ir_label(const Name *label);
 IR *new_ir_code(const Code *code);
 IR *new_ir_data(const void *data, size_t size);
 IR *new_ir_bss(size_t size);
 IR *new_ir_align(int align);
-IR *new_ir_abs_quad(const char *label);
+IR *new_ir_abs_quad(const Name *label);
 
 void calc_label_address(uintptr_t start_address, Vector **section_irs, Map *label_map);
 bool resolve_relative_address(Vector **section_irs, Map *label_map);

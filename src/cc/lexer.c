@@ -7,6 +7,7 @@
 #include <string.h>
 #include <sys/types.h>  // ssize_t
 
+#include "table.h"
 #include "util.h"
 
 #define MAX_LOOKAHEAD  (2)
@@ -164,15 +165,16 @@ static Token *alloc_token(enum TokenKind kind, const char *begin, const char *en
   return token;
 }
 
-Token *alloc_ident(const char *ident, const char *begin, const char *end) {
+Token *alloc_ident(const Name *name, const char *begin, const char *end) {
   Token *tok = alloc_token(TK_IDENT, begin, end);
-  tok->ident = ident;
+  tok->ident = name;
   return tok;
 }
 
-static enum TokenKind reserved_word(const char *word) {
+static enum TokenKind reserved_word(const Name *name) {
   for (int i = 0, n = (int)(sizeof(kReservedWords) / sizeof(*kReservedWords)); i < n; ++i) {
-    if (strcmp(kReservedWords[i].str, word) == 0)
+    if (strncmp(kReservedWords[i].str, name->chars, name->bytes) == 0 &&
+        kReservedWords[i].str[name->bytes] == '\0')
       return kReservedWords[i].kind;
   }
   return -1;
@@ -378,8 +380,7 @@ static Token *read_num(const char **pp) {
   return tok;
 }
 
-char *read_ident(const char **pp) {
-  const char *p = *pp;
+const char *read_ident(const char *p) {
   if (!isalpha(*p) && *p != '_')
     return NULL;
 
@@ -388,8 +389,7 @@ char *read_ident(const char **pp) {
     if (!(isalnum(*q) || *q == '_'))
       break;
   }
-  *pp = q;
-  return strndup_(p, q - p);
+  return q;
 }
 
 static Token *read_char(const char **pp) {
@@ -504,15 +504,16 @@ static Token *get_token(void) {
 
   Token *tok = NULL;
   const char *begin = p;
-  char *ident = read_ident(&p);
-  if (ident != NULL) {
-    enum TokenKind word = reserved_word(ident);
+  const char *ident_end = read_ident(p);
+  if (ident_end != NULL) {
+    const Name *name = alloc_name(begin, ident_end, false);
+    enum TokenKind word = reserved_word(name);
     if ((int)word != -1) {
-      free(ident);
-      tok = alloc_token(word, begin, p);
+      tok = alloc_token(word, begin, ident_end);
     } else {
-      tok = alloc_ident(ident, begin, p);
+      tok = alloc_ident(name, begin, ident_end);
     }
+    p = ident_end;
   } else if ((tok = get_op_token(&p)) != NULL) {
     // Ok.
   } else if (isdigit(*p)) {

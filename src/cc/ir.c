@@ -8,6 +8,7 @@
 #include "ast.h"
 #include "codegen.h"
 #include "regalloc.h"
+#include "table.h"
 #include "type.h"
 #include "util.h"
 #include "var.h"
@@ -111,7 +112,7 @@ VReg *new_ir_bofs(VReg *src) {
   return ir->dst = reg_alloc_spawn(curra, &tyVoidPtr);
 }
 
-VReg *new_ir_iofs(const char *label, bool global) {
+VReg *new_ir_iofs(const Name *label, bool global) {
   IR *ir = new_ir(IR_IOFS);
   ir->iofs.label = label;
   ir->iofs.global = global;
@@ -178,7 +179,7 @@ void new_ir_precall(int arg_count, bool *stack_aligned) {
   ir->call.arg_count = arg_count;
 }
 
-VReg *new_ir_call(const char *label, bool global, VReg *freg, int arg_count, const Type *result_type, bool *stack_aligned) {
+VReg *new_ir_call(const Name *label, bool global, VReg *freg, int arg_count, const Type *result_type, bool *stack_aligned) {
   IR *ir = new_ir(IR_CALL);
   ir->call.label = label;
   ir->call.global = global;
@@ -265,7 +266,8 @@ static void ir_memcpy(int dst_reg, int src_reg, ssize_t size) {
     break;
   default:
     {
-      const char * label = alloc_label();
+      const Name *name = alloc_label();
+      const char *label = fmt_name(name);
       PUSH(src);
       MOV(IM(size), RCX);
       EMIT_LABEL(label);
@@ -305,7 +307,7 @@ static void ir_out(const IR *ir) {
 
   case IR_IOFS:
     {
-      const char *label = ir->iofs.label;
+      const char *label = fmt_name(ir->iofs.label);
       if (ir->iofs.global)
         label = MANGLE(label);
       LEA(LABEL_INDIRECT(label, RIP), kReg64s[ir->dst->r]);
@@ -629,13 +631,13 @@ static void ir_out(const IR *ir) {
 
   case IR_JMP:
     switch (ir->jmp.cond) {
-    case COND_ANY:  JMP(ir->jmp.bb->label); break;
-    case COND_EQ:   JE(ir->jmp.bb->label); break;
-    case COND_NE:   JNE(ir->jmp.bb->label); break;
-    case COND_LT:   JL(ir->jmp.bb->label); break;
-    case COND_GT:   JG(ir->jmp.bb->label); break;
-    case COND_LE:   JLE(ir->jmp.bb->label); break;
-    case COND_GE:   JGE(ir->jmp.bb->label); break;
+    case COND_ANY:  JMP(fmt_name(ir->jmp.bb->label)); break;
+    case COND_EQ:   JE(fmt_name(ir->jmp.bb->label)); break;
+    case COND_NE:   JNE(fmt_name(ir->jmp.bb->label)); break;
+    case COND_LT:   JL(fmt_name(ir->jmp.bb->label)); break;
+    case COND_GT:   JG(fmt_name(ir->jmp.bb->label)); break;
+    case COND_LE:   JLE(fmt_name(ir->jmp.bb->label)); break;
+    case COND_GE:   JGE(fmt_name(ir->jmp.bb->label)); break;
     default:  assert(false); break;
     }
     break;
@@ -671,10 +673,11 @@ static void ir_out(const IR *ir) {
       }
 
       if (ir->call.label != NULL) {
+        const char *label = fmt_name(ir->call.label);
         if (ir->call.global)
-          CALL(MANGLE(ir->call.label));
+          CALL(MANGLE(label));
         else
-          CALL(ir->call.label);
+          CALL(label);
       } else {
         CALL(fmt("*%s", kReg64s[ir->opr1->r]));
       }
@@ -746,7 +749,7 @@ static void ir_out(const IR *ir) {
 
   case IR_CLEAR:
     {
-      const char *loop = alloc_label();
+      const char *loop = fmt_name(alloc_label());
       MOV(kReg64s[ir->opr1->r], RSI);
       MOV(IM(ir->size), EDI);
       XOR(AL, AL);
@@ -942,7 +945,7 @@ void emit_bb_irs(BBContainer *bbcon) {
     }
 #endif
 
-    EMIT_LABEL(bb->label);
+    EMIT_LABEL(fmt_name(bb->label));
     for (int j = 0; j < bb->irs->len; ++j) {
       IR *ir = bb->irs->data[j];
       ir_out(ir);
@@ -962,7 +965,7 @@ static void dump_ir(FILE *fp, IR *ir) {
   switch (ir->kind) {
   case IR_IMM:    fprintf(fp, "\tIMM\tR%d%s = %"PRIdPTR"\n", dst, kSize[ir->size], ir->value); break;
   case IR_BOFS:   fprintf(fp, "\tBOFS\tR%d = &[rbp %c %d]\n", dst, ir->opr1->offset > 0 ? '+' : '-', ir->opr1->offset > 0 ? ir->opr1->offset : -ir->opr1->offset); break;
-  case IR_IOFS:   fprintf(fp, "\tIOFS\tR%d = &%s\n", dst, ir->iofs.label); break;
+  case IR_IOFS:   fprintf(fp, "\tIOFS\tR%d = &%.*s\n", dst, ir->iofs.label->bytes, ir->iofs.label->chars); break;
   case IR_LOAD:   fprintf(fp, "\tLOAD\tR%d%s = (R%d)\n", dst, kSize[ir->size], opr1); break;
   case IR_STORE:  fprintf(fp, "\tSTORE\t(R%d) = R%d%s\n", opr2, opr1, kSize[ir->size]); break;
   case IR_MEMCPY: fprintf(fp, "\tMEMCPY(dst=R%d, src=R%d, size=%d)\n", opr2, opr1, ir->size); break;
@@ -986,12 +989,12 @@ static void dump_ir(FILE *fp, IR *ir) {
   case IR_BITNOT: fprintf(fp, "\tBIT\tR%d%s = -R%d%s\n", dst, kSize[ir->size], opr1, kSize[ir->size]); break;
   case IR_SET:    fprintf(fp, "\tSET\tR%d%s = %s\n", dst, kSize[4], kCond[ir->set.cond]); break;
   case IR_TEST:   fprintf(fp, "\tTEST\tR%d%s\n", opr1, kSize[ir->size]); break;
-  case IR_JMP:    fprintf(fp, "\tJ%s\t%s\n", kCond[ir->jmp.cond], ir->jmp.bb->label); break;
+  case IR_JMP:    fprintf(fp, "\tJ%s\t%.*s\n", kCond[ir->jmp.cond], ir->jmp.bb->label->bytes, ir->jmp.bb->label->chars); break;
   case IR_PRECALL: fprintf(fp, "\tPRECALL\n"); break;
   case IR_PUSHARG: fprintf(fp, "\tPUSHARG\tR%d\n", opr1); break;
   case IR_CALL:
     if (ir->call.label != NULL)
-      fprintf(fp, "\tCALL\tR%d%s = call %s\n", dst, kSize[ir->size], ir->call.label);
+      fprintf(fp, "\tCALL\tR%d%s = call %.*s\n", dst, kSize[ir->size], ir->call.label->bytes, ir->call.label->chars);
     else
       fprintf(fp, "\tCALL\tR%d%s = *R%d\n", dst, kSize[ir->size], opr1);
     break;
@@ -1017,7 +1020,7 @@ void dump_func_ir(Function *func) {
   BBContainer *bbcon = func->bbcon;
   assert(bbcon != NULL);
 
-  fprintf(fp, "### %s\n\n", func->name);
+  fprintf(fp, "### %.*s\n\n", func->name->bytes, func->name->chars);
 
   fprintf(fp, "params and locals:\n");
   for (int i = 0; i < func->scopes->len; ++i) {
@@ -1028,7 +1031,7 @@ void dump_func_ir(Function *func) {
       VarInfo *varinfo = scope->vars->data[j];
       if (varinfo->reg == NULL)
         continue;
-      fprintf(fp, "  V%3d: %s\n", varinfo->reg->v, varinfo->name);
+      fprintf(fp, "  V%3d: %.*s\n", varinfo->reg->v, varinfo->name->bytes, varinfo->name->chars);
     }
   }
 
@@ -1049,7 +1052,7 @@ void dump_func_ir(Function *func) {
   for (int i = 0; i < bbcon->bbs->len; ++i) {
     BB *bb = bbcon->bbs->data[i];
     fprintf(fp, "// BB %d\n", i);
-    fprintf(fp, "%s:\n", bb->label);
+    fprintf(fp, "%.*s:\n", bb->label->bytes, bb->label->chars);
     for (int j = 0; j < bb->irs->len; ++j) {
       IR *ir = bb->irs->data[j];
       dump_ir(fp, ir);

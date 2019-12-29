@@ -5,7 +5,10 @@
 #include <stdint.h>  // intptr_t
 #include <stdio.h>
 
+typedef struct Name Name;
+
 char *fmt(const char *s, ...);
+char *fmt_name(const Name *name);
 char *num(intptr_t x);  // x
 char *im(intptr_t x);  // $x
 char *indirect(const char *reg);
