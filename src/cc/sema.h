@@ -4,11 +4,9 @@
 
 #include <stdbool.h>
 
-typedef struct Declaration Declaration;
 typedef struct Defun Defun;
 typedef struct Expr Expr;
 typedef struct Initializer Initializer;
-typedef struct Stmt Stmt;
 typedef struct Scope Scope;
 typedef struct Token Token;
 typedef struct Type Type;
@@ -21,6 +19,7 @@ extern Scope *curscope;
 void sema(Vector *toplevel);
 Expr *analyze_expr(Expr *expr, bool keep_left);
 bool can_cast(const Type *dst, const Type *src, Expr *src_expr, bool is_explicit);
+Expr *add_expr(const Token *tok, Expr *lhs, Expr *rhs, bool keep_left);
 Initializer *flatten_initializer(const Type *type, Initializer *init);
 void ensure_struct(Type *type, const Token *token);
 Expr *make_cast(const Type *type, const Token *token, Expr *sub, bool is_explicit);
