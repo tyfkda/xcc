@@ -29,15 +29,6 @@ static Function *new_func(const Type *type, const char *name, Vector *params) {
   return func;
 }
 
-static VarDecl *new_vardecl(const Type *type, const Token *ident, Initializer *init, int flag) {
-  VarDecl *decl = malloc(sizeof(*decl));
-  decl->type = type;
-  decl->ident = ident;
-  decl->init = init;
-  decl->flag = flag;
-  return decl;
-}
-
 static Defun *new_defun(Function *func, int flag) {
   Defun *defun = malloc(sizeof(*defun));
   defun->func = func;

@@ -109,6 +109,15 @@ Expr *new_expr_cast(const Type *type, const Token *token, Expr *sub) {
 
 // ================================================
 
+VarDecl *new_vardecl(const Type *type, const Token *ident, Initializer *init, int flag) {
+  VarDecl *decl = malloc(sizeof(*decl));
+  decl->type = type;
+  decl->ident = ident;
+  decl->init = init;
+  decl->flag = flag;
+  return decl;
+}
+
 Stmt *new_stmt(enum StmtKind kind, const Token *token) {
   Stmt *stmt = malloc(sizeof(Stmt));
   stmt->kind = kind;
