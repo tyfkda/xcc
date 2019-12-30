@@ -401,7 +401,7 @@ static Declaration *parse_global_var_decl(const Type *rawtype, int flag, const T
     first = false;
 
     if (type->kind == TY_VOID)
-      parse_error(ident, "`void' not allowed1");
+      parse_error(ident, "`void' not allowed");
 
     type = parse_type_suffix(type);
     Initializer *init = NULL;
