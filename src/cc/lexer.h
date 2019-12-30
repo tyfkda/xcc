@@ -44,6 +44,9 @@ enum TokenKind {
   TK_INTLIT,  // int literal
   TK_CHARLIT,  // char literal
   TK_LONGLIT,  // long literal
+  TK_UINTLIT,  // unsigned int literal
+  TK_UCHARLIT,  // unsigned char literal
+  TK_ULONGLIT,  // unsigned long literal
   TK_STR,      // String literal
   TK_IDENT,    // Identifier
   TK_LSHIFT,  // <<

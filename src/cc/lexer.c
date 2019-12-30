@@ -346,6 +346,7 @@ static const char *skip_whitespace_or_comment(const char *p) {
 static Token *read_num(const char **pp) {
   const char *start = *pp, *p = start;
   int base = 10;
+  bool is_unsigned = false;
   if (*p == '0') {
     if (p[1] == 'x') {
       base = 16;
@@ -360,11 +361,18 @@ static Token *read_num(const char **pp) {
     lex_error(p, "Illegal literal");
 
   enum TokenKind tt = TK_INTLIT;
-  if (*p == 'L') {
-    tt = TK_LONGLIT;
-    ++p;
+  for (;;) {
+    if (tolower(*p) == 'u') {
+      is_unsigned = true;
+      ++p;
+    } else if (tolower(*p) == 'l') {
+      tt = TK_LONGLIT;
+      ++p;
+    } else {
+      break;
+    }
   }
-  Token *tok = alloc_token(tt, start, p);
+  Token *tok = alloc_token(tt + (is_unsigned ? (TK_UINTLIT - TK_INTLIT) : 0), start, p);
   tok->value = val;
   *pp = p;
   return tok;

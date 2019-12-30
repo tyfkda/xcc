@@ -388,10 +388,20 @@ static Expr *prim(void) {
   }
 
   {
-    const Type *type;
-    if (((tok = match(TK_CHARLIT)) != NULL && (type = &tyChar, true)) ||
-        ((tok = match(TK_INTLIT)) != NULL && (type = &tyInt, true)) ||
-        ((tok = match(TK_LONGLIT)) != NULL && (type = &tyLong, true))) {
+    const Type *type = NULL;
+    if ((tok = match(TK_CHARLIT)) != NULL)
+      type = &tyChar;
+    else if ((tok = match(TK_INTLIT)) != NULL)
+      type = &tyInt;
+    else if ((tok = match(TK_LONGLIT)) != NULL)
+      type = &tyLong;
+    else if ((tok = match(TK_UCHARLIT)) != NULL)
+      type = &tyUnsignedChar;
+    else if ((tok = match(TK_UINTLIT)) != NULL)
+      type = &tyUnsignedInt;
+    else if ((tok = match(TK_ULONGLIT)) != NULL)
+      type = &tyUnsignedLong;
+    if (type != NULL) {
       Num num = {tok->value};
       return new_expr_numlit(type, tok, &num);
     }
