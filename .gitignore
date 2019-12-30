@@ -10,5 +10,6 @@ core
 /gen2
 /gen3
 /xcc
+/tests/table_test
 /tests/util_test
 /tests/valtest

@@ -16,7 +16,7 @@ test:	unit-tests cpp-tests cc-tests
 	@echo 'All tests PASS!'
 
 .PHONY: unit-tests
-unit-tests:	test-util
+unit-tests:	test-table test-util
 
 .PHONY: cpp-tests
 cpp-tests:	test-cpp
@@ -26,7 +26,13 @@ cc-tests:	test-sh test-val test-examples
 
 .PHONY: clean
 clean:
-	rm -f util_test valtest a.out tmp.s
+	rm -f table_test util_test valtest a.out tmp.s
+
+.PHONY: test-table
+test-table:	table_test
+	@echo '## NameTable'
+	@./table_test
+	@echo ''
 
 .PHONY: test-util
 test-util:	util_test
@@ -58,6 +64,10 @@ test-examples: # $(XCC)
 	@echo '## Example test'
 	XCC=$(XCC) ./example_test.sh
 	@echo ''
+
+TABLE_SRCS:=table_test.c $(UTIL_DIR)/table.c
+table_test:	$(TABLE_SRCS)
+	gcc -o $@ $(CFLAGS) $^
 
 UTIL_SRCS:=util_test.c $(UTIL_DIR)/util.c $(UTIL_DIR)/table.c
 util_test:	$(UTIL_SRCS)
