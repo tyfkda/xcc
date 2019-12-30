@@ -118,8 +118,9 @@ typedef struct Token {
   };
 } Token;
 
-void init_lexer(FILE *fp, const char *filename);
-void init_lexer_string(const char *line, const char *filename, int lineno);
+void init_lexer(void);
+void set_source_file(FILE *fp, const char *filename);
+void set_source_string(const char *line, const char *filename, int lineno);
 Token *fetch_token(void);
 Token *match(enum TokenKind kind);
 Token *consume(enum TokenKind kind, const char *error);

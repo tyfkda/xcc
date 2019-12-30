@@ -172,7 +172,7 @@ void handle_pragma(const char *p, const char *filename) {
 
 Vector *parse_macro_body(const char *p, const Vector *params, bool va_args, Stream *stream) {
   Vector *segments = new_vector();
-  init_lexer_string(p, stream->filename, stream->lineno);
+  set_source_string(p, stream->filename, stream->lineno);
   int param_len = params != NULL ? params->len : 0;
   const Name *key_va_args = alloc_name("__VA_ARGS__", NULL, false);
   StringBuffer sb;
@@ -240,7 +240,7 @@ void handle_define(const char *p, Stream *stream) {
   if (*p == '(') {
     // Macro with parameter.
     params = new_vector();
-    init_lexer_string(p + 1, stream->filename, stream->lineno);
+    set_source_string(p + 1, stream->filename, stream->lineno);
     if (!match(TK_RPAR)) {
       for (;;) {
         Token *tok;
@@ -291,7 +291,7 @@ Token *match2(enum TokenKind kind) {
     if (len == EOF)
       return tok;  // EOF
     ++s_stream->lineno;
-    init_lexer_string(line, s_stream->filename, s_stream->lineno);
+    set_source_string(line, s_stream->filename, s_stream->lineno);
   }
 }
 
@@ -381,7 +381,7 @@ void expand(Macro *macro, const Name *name) {
   }
   sb_append(&sb, get_lex_p(), NULL);
 
-  init_lexer_string(sb_to_string(&sb), NULL, -1);
+  set_source_string(sb_to_string(&sb), NULL, -1);
 }
 
 bool handle_block_comment(const char *begin, const char **pp, Stream *stream) {
@@ -419,7 +419,7 @@ bool handle_block_comment(const char *begin, const char **pp, Stream *stream) {
 }
 
 void process_line(const char *line, Stream *stream) {
-  init_lexer_string(line, stream->filename, stream->lineno);
+  set_source_string(line, stream->filename, stream->lineno);
 
   const char *begin = get_lex_p();
   for (;;) {
@@ -427,7 +427,7 @@ void process_line(const char *line, Stream *stream) {
     if (p != NULL) {
       if (handle_block_comment(begin, &p, stream)) {
         begin = p;
-        init_lexer_string(begin, stream->filename, stream->lineno);
+        set_source_string(begin, stream->filename, stream->lineno);
       }
     }
 
@@ -501,7 +501,7 @@ intptr_t reduce(Expr *expr) {
 }
 
 bool handle_if(const char *p, Stream *stream) {
-  init_lexer_string(p, stream->filename, stream->lineno);
+  set_source_string(p, stream->filename, stream->lineno);
   Expr *expr = parse_expr();
   return reduce(expr) != 0;
 }
@@ -678,6 +678,8 @@ int main(int argc, char* argv[]) {
     if (strncmp(argv[i], "-D", 2) == 0)
       define_macro(argv[i] + 2);
   }
+
+  init_lexer();
 
   if (i < argc) {
     for (; i < argc; ++i) {

@@ -113,6 +113,8 @@ typedef struct {
 
 static Lexer lexer;
 
+static Table reserved_word_table;
+
 void show_error_line(const char *line, const char *p) {
   fprintf(stderr, "%s\n", line);
   size_t pos = p - line;
@@ -171,13 +173,20 @@ Token *alloc_ident(const Name *name, const char *begin, const char *end) {
   return tok;
 }
 
-static enum TokenKind reserved_word(const Name *name) {
+static void init_reserved_word_table(void) {
+  table_init(&reserved_word_table);
   for (int i = 0, n = (int)(sizeof(kReservedWords) / sizeof(*kReservedWords)); i < n; ++i) {
-    if (strncmp(kReservedWords[i].str, name->chars, name->bytes) == 0 &&
-        kReservedWords[i].str[name->bytes] == '\0')
-      return kReservedWords[i].kind;
+    const Name *key = alloc_name(kReservedWords[i].str, NULL, false);
+    table_put(&reserved_word_table, key, (void*)(intptr_t)kReservedWords[i].kind);
   }
-  return -1;
+}
+
+static enum TokenKind reserved_word(const Name *name) {
+  enum TokenKind result = -1;
+  void *ptr = table_get(&reserved_word_table, name);
+  if (ptr != NULL)
+    result = (enum TokenKind)ptr;
+  return result;
 }
 
 static char backslash(char c) {
@@ -192,7 +201,11 @@ static char backslash(char c) {
   }
 }
 
-void init_lexer(FILE *fp, const char *filename) {
+void init_lexer(void) {
+  init_reserved_word_table();
+}
+
+void set_source_file(FILE *fp, const char *filename) {
   lexer.fp = fp;
   lexer.filename = filename;
   lexer.line = NULL;
@@ -201,7 +214,7 @@ void init_lexer(FILE *fp, const char *filename) {
   lexer.lineno = 0;
 }
 
-void init_lexer_string(const char *line, const char *filename, int lineno) {
+void set_source_string(const char *line, const char *filename, int lineno) {
   Line *p = malloc(sizeof(*p));
   p->filename = lexer.filename;
   p->buf = line;
