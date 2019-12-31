@@ -10,10 +10,10 @@ typedef struct BB BB;
 typedef struct BBContainer BBContainer;
 typedef struct Function Function;
 typedef struct Expr Expr;
-typedef struct Map Map;
 typedef struct Name Name;
 typedef struct RegAlloc RegAlloc;
 typedef struct Scope Scope;
+typedef struct Table Table;
 typedef struct Token Token;
 typedef struct Type Type;
 typedef struct Vector Vector;
@@ -160,7 +160,7 @@ typedef struct Defun {
 
   Vector *stmts;  // NULL => Prototype definition.
 
-  Map *label_map;  // <const char*, BB*>
+  Table *label_table;  // <const Name*, BB*>
   Vector *gotos;
 
   int flag;

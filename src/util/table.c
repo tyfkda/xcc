@@ -168,3 +168,19 @@ bool table_delete(Table *table, const Name *key) {
 
   return true;
 }
+
+int table_iterate(Table *table, int iterator, const Name **pkey, void **pvalue) {
+  int capacity = table->capacity;
+  for (; iterator < capacity; ++iterator) {
+    const TableEntry *entry = &table->entries[iterator];
+    const Name *key = entry->key;
+    if (key != NULL) {
+      if (pkey != NULL)
+        *pkey = key;
+      if (pvalue != NULL)
+        *pvalue = entry->value;
+      return iterator + 1;
+    }
+  }
+  return -1;
+}

@@ -14,6 +14,16 @@ void expect(int line, bool result) {
   exit(1);
 }
 
+int count_table_elems(Table *table) {
+  int count = 0;
+  for (int i = 0;; ++count) {
+    i = table_iterate(table, i, NULL, NULL);
+    if (i < 0)
+      break;
+  }
+  return count;
+}
+
 void test_table(void) {
   const Name *key = alloc_name("1", NULL, false);
 
@@ -27,10 +37,12 @@ void test_table(void) {
   EXPECT(table_get(&table, key) == data);
   void *dummy;
   EXPECT(table_try_get(&table, key, &dummy));
+  EXPECT(count_table_elems(&table) == 1);
 
   EXPECT(table_delete(&table, key));
   EXPECT(table_get(&table, key) == NULL);
   EXPECT(!table_try_get(&table, key, &dummy));
+  EXPECT(count_table_elems(&table) == 0);
 }
 
 void runtest(void) {

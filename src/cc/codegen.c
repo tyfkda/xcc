@@ -804,15 +804,15 @@ static void gen_continue(void) {
 }
 
 static void gen_goto(Stmt *stmt) {
-  assert(curdefun->label_map != NULL);
-  BB *bb = map_get(curdefun->label_map, stmt->goto_.label->ident);
+  assert(curdefun->label_table != NULL);
+  BB *bb = table_get(curdefun->label_table, stmt->goto_.label->ident);
   assert(bb != NULL);
   new_ir_jmp(COND_ANY, bb);
 }
 
 static void gen_label(Stmt *stmt) {
-  assert(curdefun->label_map != NULL);
-  BB *bb = map_get(curdefun->label_map, stmt->token->ident);
+  assert(curdefun->label_table != NULL);
+  BB *bb = table_get(curdefun->label_table, stmt->token->ident);
   assert(bb != NULL);
   bb_insert(curbb, bb);
   set_curbb(bb);
@@ -889,10 +889,15 @@ static void gen_defun(Defun *defun) {
   func->ra = curra = new_reg_alloc();
 
   // Allocate labels for goto.
-  if (defun->label_map != NULL) {
-    Map *label_map = defun->label_map;
-    for (int i = 0, n = map_count(label_map); i < n; ++i)
-      label_map->vals->data[i] = new_bb();
+  if (defun->label_table != NULL) {
+    Table *label_table = defun->label_table;
+    for (int i = 0; ; ) {
+      const Name *name;
+      i = table_iterate(label_table, i, &name, NULL);
+      if (i < 0)
+        break;
+      table_put(label_table, name, new_bb());
+    }
   }
 
   alloc_variable_registers(func);

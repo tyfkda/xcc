@@ -82,12 +82,14 @@ static void fix_array_size(Type *type, Initializer *init) {
 
 static void add_func_label(const Token *label) {
   assert(curdefun != NULL);
-  if (curdefun->label_map == NULL)
-    curdefun->label_map = new_map();
+  if (curdefun->label_table == NULL) {
+    curdefun->label_table = malloc(sizeof(*curdefun->label_table));
+    table_init(curdefun->label_table);
+  }
   BB *bb;
-  if (map_try_get(curdefun->label_map, label->ident, (void**)&bb))
+  if (table_try_get(curdefun->label_table, label->ident, (void**)&bb))
     parse_error(label, "Label `%.*s' already defined", label->ident->bytes, label->ident->chars);
-  map_put(curdefun->label_map, label->ident, NULL);
+  table_put(curdefun->label_table, label->ident, (void*)-1);  // Put dummy value.
 }
 
 static void add_func_goto(Stmt *stmt) {
@@ -657,11 +659,11 @@ static void sema_defun(Defun *defun) {
     // Check goto labels.
     if (defun->gotos != NULL) {
       Vector *gotos = defun->gotos;
-      Map *label_map = defun->label_map;
+      Table *label_table = defun->label_table;
       for (int i = 0; i < gotos->len; ++i) {
         Stmt *stmt = gotos->data[i];
         void *bb;
-        if (label_map == NULL || !map_try_get(label_map, stmt->goto_.label->ident, &bb)) {
+        if (label_table == NULL || !table_try_get(label_table, stmt->goto_.label->ident, &bb)) {
           const Name *name = stmt->goto_.label->ident;
           parse_error(stmt->goto_.label, "`%.*s' not found", name->bytes, name->chars);
         }

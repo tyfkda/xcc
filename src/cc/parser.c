@@ -35,7 +35,7 @@ static Defun *new_defun(Function *func, int flag) {
   defun->flag = flag;
 
   defun->stmts = NULL;
-  defun->label_map = NULL;
+  defun->label_table = NULL;
   defun->gotos = NULL;
   return defun;
 }
