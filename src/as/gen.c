@@ -16,11 +16,6 @@ static uintptr_t bss_start_address;
 static size_t bss_size;
 static int bss_align = 1;
 
-typedef struct {
-  enum SectionType section;
-  uintptr_t offset;
-} LabelInfo;
-
 void add_bss(size_t size) {
   bss_size += size;
 }
