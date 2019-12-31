@@ -7,8 +7,8 @@
 #include <stdio.h>  // FILE
 #include <sys/types.h>  // ssize_t
 
-typedef struct Map Map;
 typedef struct Name Name;
+typedef struct Table Table;
 typedef struct Token Token;
 typedef struct Vector Vector;
 
@@ -97,10 +97,6 @@ Type* new_func_type(const Type *ret, Vector *param_types, bool vaargs);
 
 // Struct
 
-extern Map *struct_map;  // <char*, StructInfo*>
-extern Map *enum_map;  // <char*, EnumInfo*>
-extern Map *enum_value_map;  // <char*, intptr_t>
-
 StructInfo *find_struct(const Name *name);
 void define_struct(const Name *name, StructInfo *sinfo);
 
@@ -110,8 +106,6 @@ void add_enum_member(Type *type, const Token *ident, int value);
 bool find_enum_value(const Name *name, intptr_t *output);
 
 // Typedef
-
-extern Map *typedef_map;  // <char*, Type*>
 
 const Type *find_typedef(const Name *name);
 bool add_typedef(const Name *name, const Type *type);

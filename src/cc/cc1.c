@@ -46,10 +46,6 @@ static void do_dump_ir(Vector *toplevel) {
 static void init_compiler(FILE *ofp) {
   init_lexer();
   init_emit(ofp);
-  enum_map = new_map();
-  enum_value_map = new_map();
-  struct_map = new_map();
-  typedef_map = new_map();
   gvar_names = new_vector();
 }
 
