@@ -100,10 +100,10 @@ bool can_cast(const Type *dst, const Type *src, Expr *src_expr, bool is_explicit
   return false;
 }
 
-static bool check_cast(const Type *dst, const Type *src, Expr *src_expr, bool is_explicit) {
+static bool check_cast(const Type *dst, const Type *src, Expr *src_expr, bool is_explicit, const Token *token) {
   if (can_cast(dst, src, src_expr, is_explicit))
     return true;
-  parse_error(NULL, "Cannot convert value from type %d to %d", src->kind, dst->kind);
+  parse_error(token, "Cannot convert value from type %d to %d", src->kind, dst->kind);
   return false;
 }
 
@@ -120,7 +120,7 @@ Expr *make_cast(const Type *type, const Token *token, Expr *sub, bool is_explici
   //  return sub;
   //}
 
-  check_cast(type, sub->type, sub, is_explicit);
+  check_cast(type, sub->type, sub, is_explicit, token);
 
   return new_expr_cast(type, token, sub);
 }
@@ -655,7 +655,7 @@ Expr *analyze_expr(Expr *expr, bool keep_left) {
         Expr *sub = expr->unary.sub;
         if (same_type(expr->type, sub->type))
           return sub;
-        check_cast(expr->type, sub->type, sub, true);
+        check_cast(expr->type, sub->type, sub, true, expr->token);
       }
       break;
 
