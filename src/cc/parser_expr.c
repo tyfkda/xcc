@@ -147,7 +147,7 @@ const Type *parse_raw_type(int *pflag) {
         }
       } else {
         if (name != NULL) {
-          sinfo = (StructInfo*)map_get(struct_map, name);
+          sinfo = find_struct(name);
           if (sinfo != NULL) {
             if (sinfo->is_union != is_union)
               parse_error(tok, "Wrong tag for `%s'", name);

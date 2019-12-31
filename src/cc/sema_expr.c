@@ -17,7 +17,7 @@ Scope *curscope;
 void ensure_struct(Type *type, const Token *token) {
   assert(type->kind == TY_STRUCT);
   if (type->struct_.info == NULL) {
-    StructInfo *sinfo = (StructInfo*)map_get(struct_map, type->struct_.name);
+    StructInfo *sinfo = find_struct(type->struct_.name);
     if (sinfo == NULL)
       parse_error(token, "Accessing unknown struct(%s)'s member", type->struct_.name);
     type->struct_.info = sinfo;
