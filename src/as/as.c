@@ -41,7 +41,7 @@
 #define LOAD_ADDRESS    START_ADDRESS
 
 #if !defined(AS_USE_CC)
-void parse_file(FILE *fp, Vector **section_irs, Map *label_map) {
+void parse_file(FILE *fp, Vector **section_irs, Table *label_table) {
   for (;;) {
     char *rawline = NULL;
     size_t capa = 0;
@@ -55,12 +55,12 @@ void parse_file(FILE *fp, Vector **section_irs, Map *label_map) {
     if (line->label != NULL) {
       vec_push(irs, new_ir_label(line->label));
 
-      void *address;
-      if (map_try_get(label_map, line->label, &address)) {
+      void *address = table_get(label_table, line->label);
+      if (address != NULL) {
         fprintf(stderr, "`%.*s' already defined\n", line->label->bytes, line->label->chars);
         err = true;
       }
-      map_put(label_map, line->label, NULL);
+      table_put(label_table, line->label, (void*)line->label);
     }
 
     if (line->dir == NODIRECTIVE) {
@@ -109,7 +109,8 @@ int main(int argc, char* argv[]) {
   }
 
   Vector *section_irs[SECTION_COUNT];
-  Map *label_map = new_map();
+  Table label_table;
+  table_init(&label_table);
   for (int i = 0; i < SECTION_COUNT; ++i)
     section_irs[i] = new_vector();
 
@@ -118,20 +119,20 @@ int main(int argc, char* argv[]) {
       FILE *fp = fopen(argv[i], "r");
       if (fp == NULL)
         error("Cannot open %s\n", argv[i]);
-      parse_file(fp, section_irs, label_map);
+      parse_file(fp, section_irs, &label_table);
       fclose(fp);
       if (err)
         break;
     }
   } else {
-    parse_file(stdin, section_irs, label_map);
+    parse_file(stdin, section_irs, &label_table);
   }
 
   if (!err) {
     do {
-      calc_label_address(LOAD_ADDRESS, section_irs, label_map);
-    } while (!resolve_relative_address(section_irs, label_map));
-    emit_irs(section_irs, label_map);
+      calc_label_address(LOAD_ADDRESS, section_irs, &label_table);
+    } while (!resolve_relative_address(section_irs, &label_table));
+    emit_irs(section_irs, &label_table);
   }
 
   if (err) {
@@ -150,8 +151,8 @@ int main(int argc, char* argv[]) {
   get_section_size(SEC_CODE, &codefilesz, &codememsz, &codeloadadr);
   get_section_size(SEC_DATA, &datafilesz, &datamemsz, &dataloadadr);
 
-  void *entry;
-  if (!map_try_get(label_map, alloc_name("_start", NULL, false), &entry))
+  void *entry = table_get(&label_table, alloc_name("_start", NULL, false));
+  if (entry == NULL)
     error("Cannot find label: `%s'", "_start");
 
   int phnum = datamemsz > 0 ? 2 : 1;

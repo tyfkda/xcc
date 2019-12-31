@@ -7,8 +7,8 @@
 
 #include "asm_x86.h"
 
-typedef struct Map Map;
 typedef struct Name Name;
+typedef struct Table Table;
 typedef struct Vector Vector;
 
 typedef struct {
@@ -45,6 +45,6 @@ IR *new_ir_bss(size_t size);
 IR *new_ir_align(int align);
 IR *new_ir_abs_quad(const Name *label);
 
-void calc_label_address(uintptr_t start_address, Vector **section_irs, Map *label_map);
-bool resolve_relative_address(Vector **section_irs, Map *label_map);
-void emit_irs(Vector **section_irs, Map *label_map);
+void calc_label_address(uintptr_t start_address, Vector **section_irs, Table *label_table);
+bool resolve_relative_address(Vector **section_irs, Table *label_table);
+void emit_irs(Vector **section_irs, Table *label_table);

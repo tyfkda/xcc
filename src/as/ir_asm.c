@@ -61,7 +61,7 @@ static uintptr_t align_next_section(enum SectionType sec, uintptr_t address) {
   return address;
 }
 
-void calc_label_address(uintptr_t start_address, Vector **section_irs, Map *label_map) {
+void calc_label_address(uintptr_t start_address, Vector **section_irs, Table *label_table) {
   uintptr_t address = start_address;
   for (int sec = 0; sec < SECTION_COUNT; ++sec) {
     address = align_next_section(sec, address);
@@ -72,7 +72,7 @@ void calc_label_address(uintptr_t start_address, Vector **section_irs, Map *labe
       ir->address = address;
       switch (ir->kind) {
       case IR_LABEL:
-        map_put(label_map, ir->label, (void*)address);
+        table_put(label_table, ir->label, (void*)address);
         break;
       case IR_CODE:
         address += ir->code.len;
@@ -113,7 +113,7 @@ static void put_unresolved(Map **pp, const Name *label) {
   map_put(map, label, NULL);
 }
 
-bool resolve_relative_address(Vector **section_irs, Map *label_map) {
+bool resolve_relative_address(Vector **section_irs, Table *label_table) {
   Map *unresolved_labels = NULL;
   bool size_upgraded = false;
   for (int sec = 0; sec < SECTION_COUNT; ++sec) {
@@ -131,8 +131,8 @@ bool resolve_relative_address(Vector **section_irs, Map *label_map) {
                 inst->src.indirect.reg.no == RIP &&
                 inst->src.indirect.offset == 0 &&
                 inst->src.indirect.label != NULL) {
-              void *dst;
-              if (map_try_get(label_map, inst->src.indirect.label, &dst)) {
+              void *dst = table_get(label_table, inst->src.indirect.label);
+              if (dst != NULL) {
                 intptr_t offset = (intptr_t)dst - ((intptr_t)address + ir->code.len);
                 put_value(ir->code.buf + 3, offset, sizeof(int32_t));
               } else {
@@ -146,8 +146,8 @@ bool resolve_relative_address(Vector **section_irs, Map *label_map) {
           case JS: case JNS: case JP:  case JNP:
           case JL: case JGE: case JLE: case JG:
             if (inst->src.type == LABEL) {
-              void *dst;
-              if (map_try_get(label_map, inst->src.label, &dst)) {
+              void *dst = table_get(label_table, inst->src.label);
+              if (dst != NULL) {
                 intptr_t offset = (intptr_t)dst - ((intptr_t)address + ir->code.len);
                 bool long_offset = ir->code.flag & INST_LONG_OFFSET;
                 if (!long_offset) {
@@ -176,8 +176,8 @@ bool resolve_relative_address(Vector **section_irs, Map *label_map) {
             break;
           case CALL:
            if (inst->src.type == LABEL) {
-              void *dst;
-              if (map_try_get(label_map, inst->src.label, &dst)) {
+              void *dst = table_get(label_table, inst->src.label);
+              if (dst != NULL) {
                 intptr_t offset = (intptr_t)dst - ((intptr_t)address + ir->code.len);
                 put_value(ir->code.buf + 1, offset, sizeof(int32_t));
               } else {
@@ -192,8 +192,8 @@ bool resolve_relative_address(Vector **section_irs, Map *label_map) {
         break;
       case IR_ABS_QUAD:
         {
-          void *dst;
-          if (!map_try_get(label_map, ir->label, &dst))
+          void *dst = table_get(label_table, ir->label);
+          if (dst == NULL)
             put_unresolved(&unresolved_labels, ir->label);
         }
         break;
@@ -218,7 +218,7 @@ bool resolve_relative_address(Vector **section_irs, Map *label_map) {
   return !size_upgraded;
 }
 
-void emit_irs(Vector **section_irs, Map *label_map) {
+void emit_irs(Vector **section_irs, Table *label_table) {
   for (int sec = 0; sec < SECTION_COUNT; ++sec) {
     Vector *irs = section_irs[sec];
     for (int i = 0, len = irs->len; i < len; ++i) {
@@ -240,10 +240,7 @@ void emit_irs(Vector **section_irs, Map *label_map) {
         break;
       case IR_ABS_QUAD:
         {
-          void *dst;
-          bool result = map_try_get(label_map, ir->label, &dst);
-          UNUSED(result);
-          assert(result);
+          void *dst = table_get(label_table, ir->label);
           assert(sizeof(dst) == WORD_SIZE);
           add_section_data(sec, &dst, sizeof(dst));  // TODO: Target endian
         }
