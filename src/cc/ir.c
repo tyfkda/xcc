@@ -992,6 +992,8 @@ void dump_func_ir(Function *func) {
       continue;
     for (int j = 0; j < scope->vars->len; ++j) {
       VarInfo *varinfo = scope->vars->data[j];
+      if (varinfo->reg == NULL)
+        continue;
       fprintf(fp, "  V%3d: %s\n", varinfo->reg->v, varinfo->name);
     }
   }
