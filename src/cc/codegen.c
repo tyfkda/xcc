@@ -7,11 +7,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-#if defined(__linux) && !defined(__XV6)
-#define USE_ALLOCA
-#include <alloca.h>
-#endif
-
 #include "ast.h"
 #include "ir.h"
 #include "lexer.h"
@@ -636,23 +631,23 @@ static void gen_switch_cond_recur(Stmt *stmt, VReg *reg, const int *order, int l
 }
 
 static void gen_switch_cond(Stmt *stmt) {
-  Vector *case_values = stmt->switch_.case_values;
-  int len = case_values->len;
-
   Expr *value = stmt->switch_.value;
   VReg *reg = gen_expr(value);
 
-  // Sort cases in increasing order.
-#if defined(USE_ALLOCA)
-  int *order = alloca(sizeof(int) * len);
-#else
-  int *order = malloc(sizeof(int) * len);
-#endif
-  for (int i = 0; i < len; ++i)
-    order[i] = i;
-  myqsort(order, len, sizeof(int), compare_cases);
+  Vector *case_values = stmt->switch_.case_values;
+  int len = case_values->len;
+  if (len > 0) {
+    // Sort cases in increasing order.
+    int *order = malloc(sizeof(int) * len);
+    for (int i = 0; i < len; ++i)
+      order[i] = i;
+    myqsort(order, len, sizeof(int), compare_cases);
 
-  gen_switch_cond_recur(stmt, reg, order, len);
+    gen_switch_cond_recur(stmt, reg, order, len);
+    free(order);
+  } else {
+    new_ir_jmp(COND_ANY, cur_case_bbs->data[cur_case_bbs->len - 2]);  // Jump to default.
+  }
   set_curbb(bb_split(curbb));
 }
 
