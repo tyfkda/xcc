@@ -6,7 +6,6 @@
 #include <stddef.h>  // size_t
 
 typedef struct Initializer Initializer;
-typedef struct Map Map;
 typedef struct Name Name;
 typedef struct Token Token;
 typedef struct Type Type;
@@ -47,7 +46,7 @@ int var_find(Vector *lvars, const Name *name);
 VarInfo *var_add(Vector *lvars, const Token *ident, const Type *type, int flag);
 Vector *extract_varinfo_types(Vector *params);
 
-extern Map *gvar_map;
+extern Vector *gvar_names;
 
 VarInfo *find_global(const Name *name);
 VarInfo *define_global(const Type *type, int flag, const Token *ident, const Name *name);

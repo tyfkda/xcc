@@ -50,7 +50,7 @@ static void init_compiler(FILE *ofp) {
   enum_value_map = new_map();
   struct_map = new_map();
   typedef_map = new_map();
-  gvar_map = new_map();
+  gvar_names = new_vector();
 }
 
 static Vector *compile1(FILE *ifp, const char *filename, Vector *toplevel) {

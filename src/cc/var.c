@@ -54,10 +54,11 @@ Vector *extract_varinfo_types(Vector *params) {
 
 // Global
 
-Map *gvar_map;
+Vector *gvar_names;
+static Table gvar_table;
 
 VarInfo *find_global(const Name *name) {
-  return (VarInfo*)map_get(gvar_map, name);
+  return table_get(&gvar_table, name);
 }
 
 VarInfo *define_global(const Type *type, int flag, const Token *ident, const Name *name) {
@@ -65,17 +66,19 @@ VarInfo *define_global(const Type *type, int flag, const Token *ident, const Nam
     name = ident->ident;
   VarInfo *varinfo = find_global(name);
   if (varinfo != NULL && !(varinfo->flag & VF_EXTERN)) {
-    if (flag & VF_EXTERN)
-      return varinfo;
-    parse_error(ident, "`%.*s' already defined", name->bytes, name->chars);
+    if (!(flag & VF_EXTERN))
+      parse_error(ident, "`%.*s' already defined", name->bytes, name->chars);
+    return varinfo;
   }
-  varinfo = malloc(sizeof(*varinfo));
-  varinfo->name = name;
-  varinfo->type = type;
-  varinfo->flag = flag;
-  varinfo->global.init = NULL;
-  map_put(gvar_map, name, varinfo);
-  return varinfo;
+  VarInfo *varinfo2 = malloc(sizeof(*varinfo2));
+  varinfo2->name = name;
+  varinfo2->type = type;
+  varinfo2->flag = flag;
+  varinfo2->global.init = NULL;
+  table_put(&gvar_table, name, varinfo2);
+  if (varinfo == NULL)
+    vec_push(gvar_names, name);
+  return varinfo2;
 }
 
 // Scope

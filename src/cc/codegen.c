@@ -348,37 +348,37 @@ static void put_data(const Name *name, const VarInfo *varinfo) {
 
 // Put RoData into code.
 static void put_rodata(void) {
-  for (int i = 0, len = map_count(gvar_map); i < len; ++i) {
-    const VarInfo *varinfo = (const VarInfo*)gvar_map->vals->data[i];
+  for (int i = 0, len = gvar_names->len; i < len; ++i) {
+    const Name *name = gvar_names->data[i];
+    const VarInfo *varinfo = find_global(name);
     if (varinfo->type->kind == TY_FUNC ||
         (varinfo->flag & VF_EXTERN) != 0 || varinfo->global.init == NULL ||
         (varinfo->flag & VF_CONST) == 0)
       continue;
 
-    const Name *name = gvar_map->keys->data[i];
     put_data(name, varinfo);
   }
 }
 
 // Put global with initial value (RwData).
 static void put_rwdata(void) {
-  for (int i = 0, len = map_count(gvar_map); i < len; ++i) {
-    const VarInfo *varinfo = (const VarInfo*)gvar_map->vals->data[i];
+  for (int i = 0, len = gvar_names->len; i < len; ++i) {
+    const Name *name = gvar_names->data[i];
+    const VarInfo *varinfo = find_global(name);
     if (varinfo->type->kind == TY_FUNC ||
         (varinfo->flag & VF_EXTERN) != 0 || varinfo->global.init == NULL ||
         (varinfo->flag & VF_CONST) != 0)
       continue;
 
-    const Name *name = gvar_map->keys->data[i];
     put_data(name, varinfo);
   }
 }
 
 // Put global without initial value (bss).
 static void put_bss(void) {
-  for (int i = 0, len = map_count(gvar_map); i < len; ++i) {
-    const Name *name = gvar_map->keys->data[i];
-    const VarInfo *varinfo = (const VarInfo*)gvar_map->vals->data[i];
+  for (int i = 0, len = gvar_names->len; i < len; ++i) {
+    const Name *name = gvar_names->data[i];
+    const VarInfo *varinfo = find_global(name);
     if (varinfo->type->kind == TY_FUNC || varinfo->global.init != NULL ||
         (varinfo->flag & VF_EXTERN) != 0)
       continue;
