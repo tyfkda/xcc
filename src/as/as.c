@@ -162,7 +162,7 @@ int main(int argc, char* argv[]) {
 
   put_padding(fp, PROG_START);
   output_section(fp, SEC_CODE);
-  if (phnum > 1) {
+  if (datafilesz > 0) {
     put_padding(fp, ALIGN(PROG_START + codefilesz, 0x1000));
     output_section(fp, SEC_DATA);
   }
