@@ -354,17 +354,17 @@ VReg *gen_arith(enum ExprKind kind, const Type *type, VReg *lhs, VReg *rhs) {
   case EX_ADD:
   case EX_SUB:
   case EX_MUL:
-  case EX_DIV:
-  case EX_MOD:
   case EX_BITAND:
   case EX_BITOR:
   case EX_BITXOR:
   case EX_LSHIFT:
   case EX_RSHIFT:
-    {
-      VReg *result = new_ir_bop(kind + (IR_ADD - EX_ADD), lhs, rhs, type);
-      return result;
-    }
+    return new_ir_bop(kind + (IR_ADD - EX_ADD), lhs, rhs, type);
+
+  case EX_DIV:
+  case EX_MOD:
+    assert(type->kind == TY_NUM);
+    return new_ir_bop(kind + ((type->num.is_unsigned ? IR_DIVU : IR_DIV) - EX_DIV), lhs, rhs, type);
 
   default:
     assert(false);

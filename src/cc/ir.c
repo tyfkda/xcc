@@ -372,9 +372,15 @@ static void ir_out(const IR *ir) {
     break;
 
   case IR_DIV:
+  case IR_DIVU:
     if (ir->size == 1) {
-      MOVSX(kReg8s[ir->opr1->r], AX);
-      IDIV(kReg8s[ir->opr2->r]);
+      if (ir->kind == IR_DIV) {
+        MOVSX(kReg8s[ir->opr1->r], AX);
+        IDIV(kReg8s[ir->opr2->r]);
+      } else {
+        MOVZX(kReg8s[ir->opr1->r], AX);
+        DIV(kReg8s[ir->opr2->r]);
+      }
       MOV(AL, kReg8s[ir->dst->r]);
     } else {
       assert(0 <= ir->size && ir->size < kPow2TableSize);
@@ -383,21 +389,37 @@ static void ir_out(const IR *ir) {
       const char **regs = kRegSizeTable[pow];
       const char *a = kRegATable[pow];
       MOV(regs[ir->opr1->r], a);
-      switch (pow) {
-      case 1:  CWTL(); break;
-      case 2:  CLTD(); break;
-      case 3:  CQTO(); break;
-      default: assert(false); break;
+      if (ir->kind == IR_DIV) {
+        switch (pow) {
+        case 1:  CWTL(); break;
+        case 2:  CLTD(); break;
+        case 3:  CQTO(); break;
+        default: assert(false); break;
+        }
+        IDIV(regs[ir->opr2->r]);
+      } else {
+        switch (pow) {
+        case 1:  XOR(DX, DX); break;
+        case 2:  XOR(EDX, EDX); break;
+        case 3:  XOR(EDX, EDX); break;  // Clear 64bit register.
+        default: assert(false); break;
+        }
+        DIV(regs[ir->opr2->r]);
       }
-      IDIV(regs[ir->opr2->r]);
       MOV(a, regs[ir->dst->r]);
     }
     break;
 
   case IR_MOD:
+  case IR_MODU:
     if (ir->size == 1) {
-      MOVSX(kReg8s[ir->opr1->r], AX);
-      IDIV(kReg8s[ir->opr2->r]);
+      if (ir->kind == IR_MOD) {
+        MOVSX(kReg8s[ir->opr1->r], AX);
+        IDIV(kReg8s[ir->opr2->r]);
+      } else {
+        MOVZX(kReg8s[ir->opr1->r], AX);
+        DIV(kReg8s[ir->opr2->r]);
+      }
       MOV(AH, kReg8s[ir->dst->r]);
     } else {
       assert(0 <= ir->size && ir->size < kPow2TableSize);
@@ -407,13 +429,23 @@ static void ir_out(const IR *ir) {
       const char *a = kRegATable[pow];
       const char *d = kRegDTable[pow];
       MOV(regs[ir->opr1->r], a);
-      switch (pow) {
-      case 1:  CWTL(); break;
-      case 2:  CLTD(); break;
-      case 3:  CQTO(); break;
-      default: assert(false); break;
+      if (ir->kind == IR_MOD) {
+        switch (pow) {
+        case 1:  CWTL(); break;
+        case 2:  CLTD(); break;
+        case 3:  CQTO(); break;
+        default: assert(false); break;
+        }
+        IDIV(regs[ir->opr2->r]);
+      } else {
+        switch (pow) {
+        case 1:  XOR(DX, DX); break;
+        case 2:  XOR(EDX, EDX); break;
+        case 3:  XOR(EDX, EDX); break;  // Clear 64bit register.
+        default: assert(false); break;
+        }
+        DIV(regs[ir->opr2->r]);
       }
-      IDIV(regs[ir->opr2->r]);
       MOV(d, regs[ir->dst->r]);
     }
     break;

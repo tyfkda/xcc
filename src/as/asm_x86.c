@@ -375,6 +375,17 @@ bool assemble_inst(Inst *inst, const char *rawline, Code *code) {
       *p++ = 0xe0 | inst->src.reg.no;
     }
     break;
+  case DIV:
+    if (inst->src.type == NOOPERAND || inst->dst.type != NOOPERAND)
+      return assemble_error(rawline, "Illegal operand");
+
+    if (inst->src.type == REG) {
+      enum RegSize size = inst->src.reg.size;
+      p = put_rex0(p, size, 0, opr_regno(&inst->src.reg),
+                   0xf6 | (size == REG8 ? 0 : 1));
+      *p++ = 0xf0 | inst->src.reg.no;
+    }
+    break;
   case IDIV:
     if (inst->src.type == NOOPERAND || inst->dst.type != NOOPERAND)
       return assemble_error(rawline, "Illegal operand");

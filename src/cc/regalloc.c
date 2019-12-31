@@ -37,7 +37,9 @@ static void three_to_two(BB *bb) {
     case IR_SUB:
     case IR_MUL:
     case IR_DIV:
+    case IR_DIVU:
     case IR_MOD:
+    case IR_MODU:
     case IR_BITAND:
     case IR_BITOR:
     case IR_BITXOR:
@@ -224,7 +226,9 @@ static int insert_load_store_spilled(BBContainer *bbcon, Vector *vregs) {
       case IR_SUB:
       case IR_MUL:
       case IR_DIV:
+      case IR_DIVU:
       case IR_MOD:
+      case IR_MODU:
       case IR_BITAND:
       case IR_BITOR:
       case IR_BITXOR:

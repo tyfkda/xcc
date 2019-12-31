@@ -10,6 +10,7 @@
 #include "ir_asm.h"
 #include "util.h"
 
+// Align with Opcode.
 static const char *kOpTable[] = {
   "mov",
   "movsx",
@@ -21,6 +22,7 @@ static const char *kOpTable[] = {
   "sub",
   "subq",
   "mul",
+  "div",
   "idiv",
   "neg",
   "not",

@@ -51,6 +51,8 @@ enum IrKind {
   IR_BITXOR,
   IR_LSHIFT,
   IR_RSHIFT,
+  IR_DIVU,
+  IR_MODU,
   IR_CMP,
   IR_INC,
   IR_DEC,

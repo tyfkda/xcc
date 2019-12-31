@@ -14,6 +14,7 @@ enum Opcode {
   SUB,
   SUBQ,
   MUL,
+  DIV,
   IDIV,
   NEG,
   NOT,

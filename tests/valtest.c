@@ -111,6 +111,14 @@ int main(void) {
     expect("unsigned char", 255, c);
   }
   {
+    unsigned int x = 0x80000000U;
+    expect("unsigned division", 173, x / 12345678);
+  }
+  {
+    unsigned int x = 0x80000000U;
+    expect("unsigned modulo", 80, x % 123);
+  }
+  {
     int a = 3;
     int b = 5 * 6 - 8;
     expect("variable", 14, a + b / 2);

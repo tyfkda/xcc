@@ -117,6 +117,7 @@
 #define SUB(o1, o2)    EMIT_ASM2("sub", o1, o2)
 #define SUBQ(o1, o2)   EMIT_ASM2("subq", o1, o2)
 #define MUL(o1)        EMIT_ASM1("mul", o1)
+#define DIV(o1)        EMIT_ASM1("div", o1)
 #define IDIV(o1)       EMIT_ASM1("idiv", o1)
 #define CMP(o1, o2)    EMIT_ASM2("cmp", o1, o2)
 #define AND(o1, o2)    EMIT_ASM2("and", o1, o2)
