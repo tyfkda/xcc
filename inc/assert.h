@@ -5,5 +5,5 @@
 #else
 extern int __assert_failed(const char *fn, int lineno);
 
-#define assert(x)  ((x) || __assert_failed(__FILE__, __LINE__))
+#define assert(x)  do { if (!(x)) __assert_failed(__FILE__, __LINE__); } while(0)
 #endif
