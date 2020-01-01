@@ -255,7 +255,7 @@ const Type *parse_type_suffix(const Type *type) {
     const Token *tok = fetch_token();
     Expr *expr = sema_expr(parse_const());
     if (!(is_const(expr) && is_number(expr->type->kind)))
-      parse_error(NULL, "syntax error");
+      parse_error(tok, "constant expected");
     if (expr->num.ival <= 0)
       parse_error(tok, "Array size must be greater than 0, but %d", (int)expr->num.ival);
     length = expr->num.ival;

@@ -232,6 +232,7 @@ compile_error 'cast assign' 'void main(){ int x; (int)x = 32; }'
 compile_error 'param and first scope' 'void main(int x){ int x; }'
 compile_error 'conflict typedef' 'typedef int Foo; typedef long Foo; void main(){}'
 compile_error 'conflict struct typedef' 'typedef struct{int x;} Foo; typedef struct{int x;} Foo; void main(){}'
+compile_error 'no VLA' 'void main(int x){ int array[x]; }'
 
 # TODO
 compile_error 'more params vaargs (yet)' 'int func(int a, ...) { return a; } int main(){ return func(1, 2, 3, 4, 5, 6, 7, 8); }'
