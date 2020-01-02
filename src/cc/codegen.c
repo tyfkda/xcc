@@ -888,7 +888,7 @@ static void gen_defun(Defun *defun) {
   set_curbb(new_bb());
   func->ra = curra = new_reg_alloc();
 
-  // Allocate labels for goto.
+  // Allocate BBs for goto labels.
   if (defun->label_table != NULL) {
     Table *label_table = defun->label_table;
     for (int i = 0; ; ) {
