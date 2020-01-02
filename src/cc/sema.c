@@ -79,11 +79,14 @@ static void fix_array_size(Type *type, Initializer *init) {
   }
 }
 
-static void add_func_label(const char *label) {
+static void add_func_label(const Token *label) {
   assert(curdefun != NULL);
   if (curdefun->label_map == NULL)
     curdefun->label_map = new_map();
-  map_put(curdefun->label_map, label, NULL);  // Put dummy value.
+  BB *bb;
+  if (map_try_get(curdefun->label_map, label->ident, (void**)&bb))
+    parse_error(label, "Label `%s' already defined", label->ident);
+  map_put(curdefun->label_map, label->ident, NULL);
 }
 
 static void add_func_goto(Stmt *stmt) {
@@ -795,7 +798,7 @@ static Stmt *sema_stmt(Stmt *stmt) {
     break;
 
   case ST_LABEL:
-    add_func_label(stmt->token->ident);
+    add_func_label(stmt->token);
     stmt->label.stmt = sema_stmt(stmt->label.stmt);
     break;
 
