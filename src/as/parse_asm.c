@@ -8,6 +8,7 @@
 
 #include "gen.h"
 #include "ir_asm.h"
+#include "table.h"
 #include "util.h"
 
 // Align with Opcode.
@@ -264,7 +265,7 @@ static bool is_label_chr(char c) {
   return is_label_first_chr(c) || isdigit(c);
 }
 
-const char *parse_label(const char **pp) {
+const Name *parse_label(const char **pp) {
   const char *p = *pp;
   const char *start = p;
   if (!is_label_first_chr(*p))
@@ -274,7 +275,7 @@ const char *parse_label(const char **pp) {
     ++p;
   } while (is_label_chr(*p));
   *pp = p;
-  return strndup_(start, p - start);
+  return alloc_name(start, p, false);
 }
 
 bool parse_operand(const char **pp, Operand *operand) {
@@ -332,7 +333,7 @@ bool parse_operand(const char **pp, Operand *operand) {
 
   bool has_offset = false;
   long offset = 0;
-  const char *label = parse_label(pp);
+  const Name *label = parse_label(pp);
   if (label == NULL) {
     bool neg = false;
     if (*p == '-') {
@@ -488,7 +489,7 @@ void handle_directive(enum DirectiveType dir, const char *p, Vector **section_ir
 
   case DT_COMM:
     {
-      const char *label = parse_label(&p);
+      const Name *label = parse_label(&p);
       if (label == NULL)
         error(".comm: label expected");
       p = skip_whitespace(p);
@@ -536,7 +537,7 @@ void handle_directive(enum DirectiveType dir, const char *p, Vector **section_ir
           buf[i] = value >> (8 * i);
         vec_push(irs, new_ir_data(buf, size));
       } else {
-        const char *label = parse_label(&p);
+        const Name *label = parse_label(&p);
         if (label != NULL) {
           if (dir == DT_QUAD) {
             vec_push(irs, new_ir_abs_quad(label));

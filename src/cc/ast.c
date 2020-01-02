@@ -45,9 +45,9 @@ Expr *new_expr_str(const Token *token, const char *str, size_t size) {
   return expr;
 }
 
-Expr *new_expr_varref(const char *name, const Type *type, const Token *token) {
+Expr *new_expr_varref(const Name *name, const Type *type, const Token *token) {
   Expr *expr = new_expr(EX_VARREF, type, token);
-  expr->varref.ident = name;
+  expr->varref.name = name;
   expr->varref.scope = NULL;
   return expr;
 }

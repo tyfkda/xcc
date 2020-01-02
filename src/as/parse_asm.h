@@ -7,11 +7,12 @@
 
 #include "inst.h"
 
+typedef struct Name Name;
 typedef struct Vector Vector;
 
 typedef struct Line {
   const char *rawline;
-  const char *label;
+  const Name *label;
 
   Inst inst;
 

@@ -6,7 +6,7 @@
 #include <stddef.h>  // size_t
 
 typedef struct Initializer Initializer;
-typedef struct Map Map;
+typedef struct Name Name;
 typedef struct Token Token;
 typedef struct Type Type;
 typedef struct VReg VReg;
@@ -20,7 +20,7 @@ enum {
 };
 
 typedef struct VarInfo {
-  const char *name;
+  const Name *name;
   const Type *type;
   int flag;
   union {
@@ -28,7 +28,7 @@ typedef struct VarInfo {
       Initializer *init;
     } global;
     struct {  // For local.
-      const char *label;  // For static variable to refer value in global.
+      const Name *label;  // For static variable to refer value in global.
     } local;
     struct {
       // For codegen.
@@ -42,14 +42,14 @@ typedef struct VarInfo {
 
 // Variables
 
-int var_find(Vector *vartbl, const char *name);
+int var_find(Vector *lvars, const Name *name);
 VarInfo *var_add(Vector *lvars, const Token *ident, const Type *type, int flag);
 Vector *extract_varinfo_types(Vector *params);
 
-extern Map *gvar_map;
+extern Vector *gvar_names;
 
-VarInfo *find_global(const char *name);
-VarInfo *define_global(const Type *type, int flag, const Token *ident, const char *name);
+VarInfo *find_global(const Name *name);
+VarInfo *define_global(const Type *type, int flag, const Token *ident, const Name *name);
 
 // Scope
 
@@ -62,4 +62,4 @@ typedef struct Scope {
 } Scope;
 
 Scope *new_scope(Scope *parent, Vector *vars);
-VarInfo *scope_find(Scope **pscope, const char *name);
+VarInfo *scope_find(Scope **pscope, const Name *name);

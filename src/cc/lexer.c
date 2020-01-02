@@ -7,6 +7,7 @@
 #include <string.h>
 #include <sys/types.h>  // ssize_t
 
+#include "table.h"
 #include "util.h"
 
 #define MAX_LOOKAHEAD  (2)
@@ -112,6 +113,8 @@ typedef struct {
 
 static Lexer lexer;
 
+static Table reserved_word_table;
+
 void show_error_line(const char *line, const char *p) {
   fprintf(stderr, "%s\n", line);
   size_t pos = p - line;
@@ -164,18 +167,34 @@ static Token *alloc_token(enum TokenKind kind, const char *begin, const char *en
   return token;
 }
 
-Token *alloc_ident(const char *ident, const char *begin, const char *end) {
+Token *alloc_ident(const Name *name, const char *begin, const char *end) {
   Token *tok = alloc_token(TK_IDENT, begin, end);
-  tok->ident = ident;
+  tok->ident = name;
   return tok;
 }
 
-static enum TokenKind reserved_word(const char *word) {
+static void init_reserved_word_table(void) {
+  table_init(&reserved_word_table);
+
+  // Reserved words.
   for (int i = 0, n = (int)(sizeof(kReservedWords) / sizeof(*kReservedWords)); i < n; ++i) {
-    if (strcmp(kReservedWords[i].str, word) == 0)
-      return kReservedWords[i].kind;
+    const Name *key = alloc_name(kReservedWords[i].str, NULL, false);
+    table_put(&reserved_word_table, key, (void*)(intptr_t)kReservedWords[i].kind);
   }
-  return -1;
+
+  // Multi-char operators.
+  for (int i = 0, n = (int)(sizeof(kMultiOperators) / sizeof(*kMultiOperators)); i < n; ++i) {
+    const Name *key = alloc_name(kMultiOperators[i].ident, NULL, false);
+    table_put(&reserved_word_table, key, (void*)(intptr_t)kMultiOperators[i].kind);
+  }
+}
+
+static enum TokenKind reserved_word(const Name *name) {
+  enum TokenKind result = -1;
+  void *ptr = table_get(&reserved_word_table, name);
+  if (ptr != NULL)
+    result = (enum TokenKind)ptr;
+  return result;
 }
 
 static char backslash(char c) {
@@ -190,7 +209,11 @@ static char backslash(char c) {
   }
 }
 
-void init_lexer(FILE *fp, const char *filename) {
+void init_lexer(void) {
+  init_reserved_word_table();
+}
+
+void set_source_file(FILE *fp, const char *filename) {
   lexer.fp = fp;
   lexer.filename = filename;
   lexer.line = NULL;
@@ -199,7 +222,7 @@ void init_lexer(FILE *fp, const char *filename) {
   lexer.lineno = 0;
 }
 
-void init_lexer_string(const char *line, const char *filename, int lineno) {
+void set_source_string(const char *line, const char *filename, int lineno) {
   Line *p = malloc(sizeof(*p));
   p->filename = lexer.filename;
   p->buf = line;
@@ -378,8 +401,7 @@ static Token *read_num(const char **pp) {
   return tok;
 }
 
-char *read_ident(const char **pp) {
-  const char *p = *pp;
+const char *read_ident(const char *p) {
   if (!isalpha(*p) && *p != '_')
     return NULL;
 
@@ -388,8 +410,7 @@ char *read_ident(const char **pp) {
     if (!(isalnum(*q) || *q == '_'))
       break;
   }
-  *pp = q;
-  return strndup_(p, q - p);
+  return q;
 }
 
 static Token *read_char(const char **pp) {
@@ -459,36 +480,32 @@ static Token *read_string(const char **pp) {
 
 static Token *get_op_token(const char **pp) {
   const char *p = *pp;
-  if (isalnum(*p))
-    return NULL;
-
-  Token *tok = NULL;
-  for (int i = 0, n = sizeof(kMultiOperators) / sizeof(*kMultiOperators); i < n; ++i) {
-    const char *ident = kMultiOperators[i].ident;
-    size_t len = strlen(ident);
-    if (strncmp(p, ident, len) == 0) {
-      const char *q = p + len;
-      tok = alloc_token(kMultiOperators[i].kind, p, q);
-      p = q;
-      break;
-    }
-  }
-
-  if (tok == NULL) {
-    char c = *p;
-    if (c >= 0 /*&& c < 128*/) {
-      enum TokenKind single = kSingleOperatorTypeMap[(int)c];
-      if (single != 0) {
-        tok = alloc_token(single, p, p + 1);
-        ++p;
+  char c = *p;
+  if (c >= 0 /*&& c < sizeof(kSingleOperatorTypeMap)*/) {
+    enum TokenKind single = kSingleOperatorTypeMap[(int)c];
+    if (single != 0) {
+      int n;
+      for (n = 1; n < 3; ++n) {
+        if (kSingleOperatorTypeMap[(int)p[n]] == 0)
+          break;
       }
+
+      for (int len = n; len > 1; --len) {
+        const Name *op = alloc_name(p, p + len, false);
+        enum TokenKind kind = reserved_word(op);
+        if ((int)kind != -1) {
+          const char *q = p + len;
+          *pp = q;
+          return alloc_token(kind, p, q);
+        }
+      }
+
+      const char *q = p + 1;
+      *pp = q;
+      return alloc_token(single, p, q);
     }
   }
-
-  if (tok != NULL)
-    *pp = p;
-
-  return tok;
+  return NULL;
 }
 
 static Token *get_token(void) {
@@ -504,15 +521,16 @@ static Token *get_token(void) {
 
   Token *tok = NULL;
   const char *begin = p;
-  char *ident = read_ident(&p);
-  if (ident != NULL) {
-    enum TokenKind word = reserved_word(ident);
+  const char *ident_end = read_ident(p);
+  if (ident_end != NULL) {
+    const Name *name = alloc_name(begin, ident_end, false);
+    enum TokenKind word = reserved_word(name);
     if ((int)word != -1) {
-      free(ident);
-      tok = alloc_token(word, begin, p);
+      tok = alloc_token(word, begin, ident_end);
     } else {
-      tok = alloc_ident(ident, begin, p);
+      tok = alloc_ident(name, begin, ident_end);
     }
+    p = ident_end;
   } else if ((tok = get_op_token(&p)) != NULL) {
     // Ok.
   } else if (isdigit(*p)) {

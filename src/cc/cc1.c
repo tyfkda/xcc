@@ -44,16 +44,13 @@ static void do_dump_ir(Vector *toplevel) {
 ////////////////////////////////////////////////
 
 static void init_compiler(FILE *ofp) {
+  init_lexer();
   init_emit(ofp);
-  enum_map = new_map();
-  enum_value_map = new_map();
-  struct_map = new_map();
-  typedef_map = new_map();
-  gvar_map = new_map();
+  gvar_names = new_vector();
 }
 
 static Vector *compile1(FILE *ifp, const char *filename, Vector *toplevel) {
-  init_lexer(ifp, filename);
+  set_source_file(ifp, filename);
   return parse_program(toplevel);
 }
 
