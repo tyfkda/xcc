@@ -147,7 +147,7 @@ static void string_initializer(Expr *dst, Initializer *src, Vector *inits) {
 
   const Type* strtype = dst->type;
   VarInfo *varinfo = str_to_char_array(strtype, src);
-  Expr *varref = new_expr_varref(varinfo->name, strtype, NULL);
+  Expr *var = new_expr_variable(varinfo->name, strtype, NULL);
 
   for (size_t i = 0; i < size; ++i) {
     Num n = {.ival=i};
@@ -155,7 +155,7 @@ static void string_initializer(Expr *dst, Initializer *src, Vector *inits) {
     vec_push(inits,
              new_stmt_expr(new_expr_bop(EX_ASSIGN, &tyChar, NULL,
                                         new_expr_deref(NULL, add_expr(NULL, dst, index, true)),
-                                        new_expr_deref(NULL, add_expr(NULL, varref, index, true)))));
+                                        new_expr_deref(NULL, add_expr(NULL, var, index, true)))));
   }
 }
 
@@ -310,7 +310,7 @@ Initializer *flatten_initializer(const Type *type, Initializer *init) {
             varinfo->global.init = strinit;
 
             // Replace initializer from string literal to string array defined in global.
-            value->single = new_expr_varref(label, strtype, ident);
+            value->single = new_expr_variable(label, strtype, ident);
           }
         }
 
@@ -379,12 +379,12 @@ static Initializer *check_global_initializer(const Type *type, Initializer *init
       case EX_REF:
         {
           value = value->unary.sub;
-          if (value->kind != EX_VARREF)
-            parse_error(value->token, "pointer initializer must be varref");
-          if (value->varref.scope != NULL)
+          if (value->kind != EX_VARIABLE)
+            parse_error(value->token, "pointer initializer must be variable");
+          if (value->variable.scope != NULL)
             parse_error(value->token, "Allowed global reference only");
 
-          VarInfo *info = find_global(value->varref.name);
+          VarInfo *info = find_global(value->variable.name);
           assert(info != NULL);
 
           if (!same_type(type->pa.ptrof, info->type))
@@ -392,12 +392,12 @@ static Initializer *check_global_initializer(const Type *type, Initializer *init
 
           return init;
         }
-      case EX_VARREF:
+      case EX_VARIABLE:
         {
-          if (value->varref.scope != NULL)
+          if (value->variable.scope != NULL)
             parse_error(value->token, "Allowed global reference only");
 
-          VarInfo *info = find_global(value->varref.name);
+          VarInfo *info = find_global(value->variable.name);
           assert(info != NULL);
 
           if (info->type->kind != TY_ARRAY || !same_type(type->pa.ptrof, info->type->pa.ptrof))
@@ -423,7 +423,7 @@ static Initializer *check_global_initializer(const Type *type, Initializer *init
 
           Initializer *init2 = malloc(sizeof(*init2));
           init2->kind = vSingle;
-          init2->single = new_expr_varref(varinfo->name, strtype, NULL);
+          init2->single = new_expr_variable(varinfo->name, strtype, NULL);
           return init2;
         }
       default:
@@ -599,9 +599,9 @@ static Vector *sema_vardecl(Vector *decls) {
         varinfo->global.init = check_global_initializer(type, init);
         // static variable initializer is handled in codegen, same as global variable.
       } else if (init != NULL) {
-        Expr *varref = new_expr_varref(ident->ident, type, NULL);
-        varref->varref.scope = curscope;
-        inits = assign_initial_value(varref, init, inits);
+        Expr *var = new_expr_variable(ident->ident, type, NULL);
+        var->variable.scope = curscope;
+        inits = assign_initial_value(var, init, inits);
       }
     } else {
       intptr_t eval;

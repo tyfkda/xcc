@@ -477,13 +477,13 @@ intptr_t reduce(Expr *expr) {
     {
       const Expr *func = expr->funcall.func;
       const Vector *args = expr->funcall.args;
-      if (func->kind == EX_VARREF &&
-          equal_name(func->varref.name, alloc_name("defined", NULL, false)) &&
+      if (func->kind == EX_VARIABLE &&
+          equal_name(func->variable.name, alloc_name("defined", NULL, false)) &&
           args != NULL && args->len == 1 &&
-          ((Expr*)args->data[0])->kind == EX_VARREF) {  // defined(IDENT)
+          ((Expr*)args->data[0])->kind == EX_VARIABLE) {  // defined(IDENT)
         Expr *arg = (Expr*)args->data[0];
         void *dummy = 0;
-        return table_try_get(&macro_table, arg->varref.name, &dummy) ? 1 : 0;
+        return table_try_get(&macro_table, arg->variable.name, &dummy) ? 1 : 0;
       }
     }
     break;

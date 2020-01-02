@@ -195,15 +195,15 @@ void construct_initial_value(unsigned char *buf, const Type *type, Initializer *
       Expr *value = init->single;
       while (value->kind == EX_CAST)
         value = value->unary.sub;
-      if (value->kind == EX_REF || value->kind == EX_VARREF) {
+      if (value->kind == EX_REF || value->kind == EX_VARIABLE) {
         if (value->kind == EX_REF)
           value = value->unary.sub;
         // TODO: Type check.
 
-        assert(value->kind == EX_VARREF);
-        assert(value->varref.scope == NULL);
+        assert(value->kind == EX_VARIABLE);
+        assert(value->variable.scope == NULL);
 
-        const Name *name = value->varref.name;
+        const Name *name = value->variable.name;
         const VarInfo *varinfo = find_global(name);
         assert(varinfo != NULL);
         const char *label = fmt_name(name);

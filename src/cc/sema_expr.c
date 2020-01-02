@@ -363,7 +363,7 @@ static void analyze_lval(const Token *tok, Expr *expr, const char *error) {
     expr = expr->unary.sub;
 
   switch (expr->kind) {
-  case EX_VARREF:
+  case EX_VARIABLE:
   case EX_DEREF:
   case EX_MEMBER:
     break;
@@ -385,9 +385,9 @@ Expr *analyze_expr(Expr *expr, bool keep_left) {
     assert(expr->type != NULL);
     break;
 
-  case EX_VARREF:
+  case EX_VARIABLE:
     {
-      const Name *name = expr->varref.name;
+      const Name *name = expr->variable.name;
       const Type *type = NULL;
       Scope *scope = NULL;
       if (curscope != NULL) {
@@ -397,7 +397,7 @@ Expr *analyze_expr(Expr *expr, bool keep_left) {
           if (varinfo->flag & VF_STATIC) {
             // Replace local variable reference to global.
             name = varinfo->local.label;
-            expr = new_expr_varref(name, varinfo->type, expr->token);
+            expr = new_expr_variable(name, varinfo->type, expr->token);
             scope = NULL;
           } else {
             type = varinfo->type;
@@ -420,7 +420,7 @@ Expr *analyze_expr(Expr *expr, bool keep_left) {
       if (type == NULL)
         parse_error(expr->token, "Undefined `%.*s'", name->bytes, name->chars);
       expr->type = type;
-      expr->varref.scope = scope;
+      expr->variable.scope = scope;
     }
     break;
 
@@ -781,7 +781,7 @@ Expr *analyze_expr(Expr *expr, bool keep_left) {
         int paramc = param_types->len;
         if (!(argc == paramc ||
               (vaargs && argc >= paramc)))
-          parse_error(func->token, "function `%.*s' expect %d arguments, but %d", func->varref.name->bytes, func->varref.name->chars, paramc, argc);
+          parse_error(func->token, "function `%.*s' expect %d arguments, but %d", func->variable.name->bytes, func->variable.name->chars, paramc, argc);
       }
 
       if (args != NULL && param_types != NULL) {

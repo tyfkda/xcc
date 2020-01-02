@@ -412,7 +412,7 @@ static Expr *prim(void) {
 
   Token *ident = consume(TK_IDENT, "Number or Ident or open paren expected");
   const Name *name = ident->ident;
-  return new_expr_varref(name, NULL, ident);
+  return new_expr_variable(name, NULL, ident);
 }
 
 static Expr *postfix(void) {

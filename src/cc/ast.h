@@ -33,7 +33,7 @@ enum ExprKind {
   EX_NUM,     // 1234
   EX_STR,     // "foobar"
 
-  EX_VARREF,  // foobar
+  EX_VARIABLE,  // foobar
 
   // Binary operators
   EX_ADD,     // +
@@ -91,7 +91,7 @@ typedef struct Expr {
     struct {
       const Name *name;
       Scope *scope;  // NULL = global, non NULL = local
-    } varref;
+    } variable;
     struct {
       struct Expr *lhs;
       struct Expr *rhs;
@@ -126,7 +126,7 @@ Expr *new_expr_bop(enum ExprKind kind, const Type *type, const Token *token, Exp
 Expr *new_expr_unary(enum ExprKind kind, const Type *type, const Token *token, Expr *sub);
 Expr *new_expr_deref(const Token *token, Expr *sub);
 Expr *new_expr_ternary(const Token *token, Expr *cond, Expr *tval, Expr *fval, const Type *type);
-Expr *new_expr_varref(const Name *name, const Type *type, const Token *token);
+Expr *new_expr_variable(const Name *name, const Type *type, const Token *token);
 Expr *new_expr_member(const Token *token, const Type *type, Expr *target, const Token *ident, int index);
 Expr *new_expr_funcall(const Token *token, Expr *func, Vector *args);
 Expr *new_expr_sizeof(const Token *token, const Type *type, Expr *sub);
