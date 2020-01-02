@@ -78,7 +78,7 @@ const char *find_directive(const char *line) {
   return skip_whitespaces(p + 1);
 }
 
-Map *macro_map;  // <Macro*>
+Table macro_table;  // <Name, Macro*>
 
 Vector *sys_inc_paths;  // <const char*>
 Vector *pragma_once_files;  // <const char*>
@@ -265,7 +265,7 @@ void handle_define(const char *p, Stream *stream) {
   if (*p != '\0') {
     segments = parse_macro_body(skip_whitespaces(p), params, va_args, stream);
   }
-  map_put(macro_map, name, new_macro(params, va_args, segments));
+  table_put(&macro_table, name, new_macro(params, va_args, segments));
 }
 
 void handle_undef(const char *p) {
@@ -275,7 +275,7 @@ void handle_undef(const char *p) {
     error("`ident' expected");
   const Name *name = alloc_name(begin, end, false);
 
-  map_remove(macro_map, name);
+  table_delete(&macro_table, name);
 }
 
 Token *match2(enum TokenKind kind) {
@@ -436,7 +436,7 @@ void process_line(const char *line, Stream *stream) {
 
     Token *ident = match(TK_IDENT);
     Macro *macro;
-    if (ident != NULL && (macro = map_get(macro_map, ident->ident)) != NULL) {
+    if (ident != NULL && (macro = table_get(&macro_table, ident->ident)) != NULL) {
       if (ident->begin != begin)
         fwrite(begin, ident->begin - begin, 1, stdout);
 
@@ -458,7 +458,7 @@ bool handle_ifdef(const char *p) {
   if (end == NULL)
     error("`ident' expected");
   const Name *name = alloc_name(begin, end, false);
-  return map_get(macro_map, name) != NULL;
+  return table_get(&macro_table, name) != NULL;
 }
 
 intptr_t reduce(Expr *expr) {
@@ -483,7 +483,7 @@ intptr_t reduce(Expr *expr) {
           ((Expr*)args->data[0])->kind == EX_VARREF) {  // defined(IDENT)
         Expr *arg = (Expr*)args->data[0];
         void *dummy = 0;
-        return map_try_get(macro_map, arg->varref.name, &dummy) ? 1 : 0;
+        return table_try_get(&macro_table, arg->varref.name, &dummy) ? 1 : 0;
       }
     }
     break;
@@ -518,7 +518,7 @@ static void define_file_macro(const char *filename, const Name *key_file) {
   size_t len = strlen(filename);
   char *buf = malloc(len + 2 + 1);
   snprintf(buf, len + 2 + 1, "\"%s\"", filename);
-  map_put(macro_map, key_file, new_macro_single(buf));
+  table_put(&macro_table, key_file, new_macro_single(buf));
 }
 
 int pp(FILE *fp, const char *filename) {
@@ -531,11 +531,11 @@ int pp(FILE *fp, const char *filename) {
   const Name *key_file = alloc_name("__FILE__", NULL, false);
   const Name *key_line = alloc_name("__LINE__", NULL, false);
 
-  Macro *old_file_macro = map_get(macro_map, key_file);
-  Macro *old_line_macro = map_get(macro_map, key_line);
+  Macro *old_file_macro = table_get(&macro_table, key_file);
+  Macro *old_line_macro = table_get(&macro_table, key_line);
 
   define_file_macro(filename, key_file);
-  map_put(macro_map, key_line, new_macro_single(linenobuf));
+  table_put(&macro_table, key_line, new_macro_single(linenobuf));
 
   Stream stream;
   stream.filename = filename;
@@ -637,8 +637,8 @@ int pp(FILE *fp, const char *filename) {
   if (condstack->len > 0)
     error("#if not closed");
 
-  map_put(macro_map, key_file, old_file_macro);
-  map_put(macro_map, key_line, old_line_macro);
+  table_put(&macro_table, key_file, old_file_macro);
+  table_put(&macro_table, key_line, old_line_macro);
 
   return stream.lineno;
 }
@@ -646,26 +646,25 @@ int pp(FILE *fp, const char *filename) {
 static void define_macro(const char *arg) {
   char *p = strchr(arg, '=');
   if (p == NULL) {
-    map_put(macro_map, alloc_name(arg, NULL, true), new_macro(NULL, false, NULL));
+    table_put(&macro_table, alloc_name(arg, NULL, true), new_macro(NULL, false, NULL));
   } else {
     const Name *name = alloc_name(arg, p, true);
-    map_put(macro_map, name, new_macro_single(p + 1));
+    table_put(&macro_table, name, new_macro_single(p + 1));
   }
 }
 
 int main(int argc, char* argv[]) {
-  macro_map = new_map();
   sys_inc_paths = new_vector();
   pragma_once_files = new_vector();
 
   // Predefeined macros.
-  map_put(macro_map, alloc_name("__XCC", NULL, true), new_macro(NULL, false, NULL));
+  table_put(&macro_table, alloc_name("__XCC", NULL, true), new_macro(NULL, false, NULL));
 #if defined(__XV6)
-  map_put(macro_map, alloc_name("__XV6", NULL, true), new_macro(NULL, false, NULL));
+  table_put(&macro_table, alloc_name("__XV6", NULL, true), new_macro(NULL, false, NULL));
 #elif defined(__linux__)
-  map_put(macro_map, alloc_name("__linux__", NULL, true), new_macro(NULL, false, NULL));
+  table_put(&macro_table, alloc_name("__linux__", NULL, true), new_macro(NULL, false, NULL));
 #elif defined(__APPLE__)
-  map_put(macro_map, alloc_name("__APPLE__", NULL, true), new_macro(NULL, false, NULL));
+  table_put(&macro_table, alloc_name("__APPLE__", NULL, true), new_macro(NULL, false, NULL));
 #endif
 
   int i = 1;

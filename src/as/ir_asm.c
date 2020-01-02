@@ -102,19 +102,13 @@ static void put_value(unsigned char *p, intptr_t value, int size) {
   }
 }
 
-static void put_unresolved(Map **pp, const Name *label) {
-  Map *map = *pp;
-  if (map == NULL)
-    *pp = map = new_map();
-
-  void *dummy;
-  if (map_try_get(map, label, &dummy))
-    return;
-  map_put(map, label, NULL);
+static void put_unresolved(Table *table, const Name *label) {
+  table_put(table, label, (void*)label);
 }
 
 bool resolve_relative_address(Vector **section_irs, Table *label_table) {
-  Map *unresolved_labels = NULL;
+  Table unresolved_labels;
+  table_init(&unresolved_labels);
   bool size_upgraded = false;
   for (int sec = 0; sec < SECTION_COUNT; ++sec) {
     Vector *irs = section_irs[sec];
@@ -207,9 +201,13 @@ bool resolve_relative_address(Vector **section_irs, Table *label_table) {
     }
   }
 
-  if (unresolved_labels != NULL) {
-    for (int i = 0, len = unresolved_labels->keys->len; i < len; ++i) {
-      const Name *name = unresolved_labels->keys->data[i];
+  if (unresolved_labels.count > 0) {
+    for (int i = 0; ;) {
+      const Name *name;
+      void *dummy;
+      i = table_iterate(&unresolved_labels, i, &name, &dummy);
+      if (i < 0)
+        break;
       fprintf(stderr, "Undefined reference: `%.*s'\n", name->bytes, name->chars);
     }
     exit(1);
