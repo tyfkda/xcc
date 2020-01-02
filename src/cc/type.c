@@ -133,6 +133,7 @@ Type *define_enum(const Token *ident) {
   Type *type = malloc(sizeof(*type));
   type->kind = TY_NUM;
   type->num.kind = NUM_ENUM;
+  type->num.is_unsigned = false;
   type->num.enum_.ident = ident;
   type->num.enum_.members = new_vector();
 
