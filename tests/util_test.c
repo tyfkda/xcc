@@ -63,33 +63,6 @@ void test_vector(void) {
   EXPECT(true, vec_contains(vec, (void*)(intptr_t)20));
 }
 
-void test_map(void) {
-  const Name *key_foo = alloc_name("foo", NULL, false);
-  const Name *key_bar = alloc_name("bar", NULL, false);
-  const Name *key_qux = alloc_name("qux", NULL, false);
-
-  Map *map = new_map();
-  EXPECT(0, map_count(map));
-  EXPECT(0, (intptr_t)map_get(map, key_foo));
-
-  map_put(map, key_foo, (void *)2);
-  EXPECT(2, (intptr_t)map_get(map, key_foo));
-
-  map_put(map, key_bar, (void *)4);
-  EXPECT(4, (intptr_t)map_get(map, key_bar));
-
-  map_put(map, key_foo, (void *)6);
-  EXPECT(6, (intptr_t)map_get(map, key_foo));
-
-  EXPECT(2, map_count(map));
-
-  intptr_t value = -1;
-  EXPECT(false, map_try_get(map, key_qux, (void**)&value));
-  map_put(map, key_qux, (void *)0);
-  EXPECT(true, map_try_get(map, key_qux, (void**)&value));
-  EXPECT(0, value);
-}
-
 void test_sb(void) {
   StringBuffer sb;
   sb_init(&sb);
@@ -123,7 +96,6 @@ void test_abspath(void) {
 
 void runtest(void) {
   test_vector();
-  test_map();
   test_sb();
   test_abspath();
 

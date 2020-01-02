@@ -54,19 +54,6 @@ void vec_insert(Vector *vec, int pos, const void *elem);
 void vec_remove_at(Vector *vec, int index);
 bool vec_contains(Vector *vec, void* elem);
 
-typedef struct Map {
-  Vector *keys;
-  Vector *vals;
-} Map;
-
-Map *new_map(void);
-void map_clear(Map *map);
-int map_count(Map *map);
-void map_put(Map *map, const Name *name, const void *val);
-bool map_remove(Map *map, const Name *name);
-void *map_get(Map *map, const Name *name);
-bool map_try_get(Map *map, const Name *name, void **output);
-
 // StringBuffer
 
 typedef struct StringBuffer {
