@@ -115,13 +115,16 @@ static Lexer lexer;
 
 static Table reserved_word_table;
 
-void show_error_line(const char *line, const char *p) {
+static void show_error_line(const char *line, const char *p, int len) {
   fprintf(stderr, "%s\n", line);
   size_t pos = p - line;
   if (pos <= strlen(line)) {
     for (size_t i = 0; i < pos; ++i)
       fputc(line[i] == '\t' ? '\t' : ' ', stderr);
-    fprintf(stderr, "^\n");
+    fprintf(stderr, "^");
+    for (int i = 1; i < len; ++i)
+      fprintf(stderr, "~");
+    fprintf(stderr, "\n");
   }
 }
 
@@ -134,7 +137,7 @@ void lex_error(const char *p, const char* fmt, ...) {
   va_end(ap);
   fprintf(stderr, "\n");
 
-  show_error_line(lexer.line->buf, p);
+  show_error_line(lexer.line->buf, p, 1);
 
   exit(1);
 }
@@ -153,7 +156,7 @@ void parse_error(const Token *token, const char* fmt, ...) {
   fprintf(stderr, "\n");
 
   if (token != NULL && token->line != NULL && token->begin != NULL)
-    show_error_line(token->line->buf, token->begin);
+    show_error_line(token->line->buf, token->begin, token->end - token->begin);
 
   exit(1);
 }
