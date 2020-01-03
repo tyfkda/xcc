@@ -3,10 +3,9 @@
 #pragma once
 
 #include <stdbool.h>
-#include <stdio.h>  // FILE
+#include <stddef.h>  // size_t
 
 typedef struct BB BB;
-typedef struct Declaration Declaration;
 typedef struct Expr Expr;
 typedef struct Stmt Stmt;
 typedef struct StructInfo StructInfo;

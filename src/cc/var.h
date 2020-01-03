@@ -3,7 +3,6 @@
 #pragma once
 
 #include <stdbool.h>
-#include <stddef.h>  // size_t
 
 typedef struct Initializer Initializer;
 typedef struct Name Name;

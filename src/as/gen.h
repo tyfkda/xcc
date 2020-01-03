@@ -1,8 +1,8 @@
 #pragma once
 
-#include "stddef.h"
-#include "stdint.h"
-#include "stdio.h"
+#include <stddef.h>  // size_t
+#include <stdint.h>  // uintptr_t
+#include <stdio.h>   // FILE
 
 #define SECTION_COUNT  (3)
 

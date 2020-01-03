@@ -3,9 +3,8 @@
 #pragma once
 
 #include <stdbool.h>
-#include <stdio.h>
 
-#include "inst.h"
+#include "inst.h"  // Inst, DirectiveType
 
 typedef struct Name Name;
 typedef struct Vector Vector;

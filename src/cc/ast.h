@@ -3,13 +3,11 @@
 #pragma once
 
 #include <stdbool.h>
-#include <stddef.h>
+#include <stddef.h>  // size_t
 #include <stdint.h>  // intptr_t
 
 typedef struct BB BB;
 typedef struct BBContainer BBContainer;
-typedef struct Function Function;
-typedef struct Expr Expr;
 typedef struct Name Name;
 typedef struct RegAlloc RegAlloc;
 typedef struct Scope Scope;

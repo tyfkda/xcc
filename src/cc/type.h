@@ -4,11 +4,9 @@
 
 #include <stdbool.h>
 #include <stdint.h>  // intptr_t
-#include <stdio.h>  // FILE
 #include <sys/types.h>  // ssize_t
 
 typedef struct Name Name;
-typedef struct Table Table;
 typedef struct Token Token;
 typedef struct Vector Vector;
 
