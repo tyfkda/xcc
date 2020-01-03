@@ -24,8 +24,6 @@ static Function *new_func(const Type *type, const Name *name, Vector *params) {
   func->ra = NULL;
   func->bbcon = NULL;
   func->ret_bb = NULL;
-  func->frame_size = 0;
-  func->used_reg_bits = 0;
   return func;
 }
 

@@ -425,7 +425,6 @@ static BB *push_break_bb(BB *parent_bb, BB **save) {
 }
 
 static void alloc_variable_registers(Function *func) {
-  int param_index = 0;
   for (int i = 0; i < func->scopes->len; ++i) {
     Scope *scope = (Scope*)func->scopes->data[i];
     if (scope->vars == NULL)
@@ -437,33 +436,6 @@ static void alloc_variable_registers(Function *func) {
         continue;  // Static variable is not allocated on stack.
 
       VReg *vreg = add_new_reg(varinfo->type);
-      bool spill = false;
-      if (i == 0 && func->params != NULL && vec_contains(func->params, varinfo)) {
-        vreg->param_index = param_index++;
-        spill = true;
-        if (func->type->func.vaargs) {  // Variadic function parameters.
-          vreg->offset = (vreg->param_index - MAX_REG_ARGS) * WORD_SIZE;
-        }
-      }
-
-      switch (varinfo->type->kind) {
-      case TY_ARRAY:
-      case TY_STRUCT:
-        // Make non-primitive variable spilled.
-        spill = true;
-        break;
-      default:
-        break;
-      }
-      if (i == 0 && vreg->param_index >= MAX_REG_ARGS) {
-        // Function argument passed through the stack.
-        spill = true;
-        vreg->offset = (vreg->param_index - MAX_REG_ARGS + 2) * WORD_SIZE;
-      }
-
-      if (spill)
-        vreg_spill(vreg);
-
       varinfo->reg = vreg;
     }
   }
@@ -911,7 +883,8 @@ static void gen_defun(Defun *defun) {
   set_curbb(func->ret_bb);
   curbb = NULL;
 
-  func->frame_size = alloc_real_registers(func);
+  prepare_register_allocation(func);
+  alloc_real_registers(func->ra, func->bbcon);
 
   remove_unnecessary_bb(func->bbcon);
 
@@ -995,9 +968,9 @@ static void emit_defun(Defun *defun) {
   if (!no_stmt) {
     PUSH(RBP); PUSH_STACK_POS();
     MOV(RSP, RBP);
-    if (func->frame_size > 0) {
-      SUB(IM(func->frame_size), RSP);
-      stackpos += func->frame_size;
+    if (func->ra->frame_size > 0) {
+      SUB(IM(func->ra->frame_size), RSP);
+      stackpos += func->ra->frame_size;
     }
 
     put_args_to_stack(defun);
@@ -1013,7 +986,7 @@ static void emit_defun(Defun *defun) {
     pop_callee_save_regs(func);
 
     MOV(RBP, RSP);
-    stackpos -= func->frame_size;
+    stackpos -= func->ra->frame_size;
     POP(RBP); POP_STACK_POS();
   }
 

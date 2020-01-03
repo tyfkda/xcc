@@ -7,6 +7,7 @@
 #include "ast.h"
 #include "codegen.h"  // WORD_SIZE
 #include "ir.h"
+#include "type.h"
 #include "util.h"
 #include "var.h"
 
@@ -15,13 +16,15 @@
 RegAlloc *new_reg_alloc(void) {
   RegAlloc *ra = malloc(sizeof(*ra));
   ra->vregs = new_vector();
-  ra->regno = 0;
+  //ra->regno = 0;
   vec_clear(ra->vregs);
+  ra->frame_size = 0;
+  ra->used_reg_bits = 0;
   return ra;
 }
 
 VReg *reg_alloc_spawn(RegAlloc *ra, const Type *type) {
-  VReg *vreg = new_vreg(ra->regno++, type);
+  VReg *vreg = new_vreg(ra->vregs->len, type);
   vec_push(ra->vregs, vreg);
   return vreg;
 }
@@ -356,8 +359,50 @@ static void analyze_reg_flow(BBContainer *bbcon) {
   } while (cont);
 }
 
-size_t alloc_real_registers(Function *func) {
-  BBContainer *bbcon = func->bbcon;
+void prepare_register_allocation(Function *func) {
+  int param_index = 0;
+  for (int i = 0; i < func->scopes->len; ++i) {
+    Scope *scope = (Scope*)func->scopes->data[i];
+    if (scope->vars == NULL)
+      continue;
+
+    for (int j = 0; j < scope->vars->len; ++j) {
+      VarInfo *varinfo = scope->vars->data[j];
+      VReg *vreg = varinfo->reg;
+      if (vreg == NULL)
+        continue;
+
+      bool spill = false;
+      if (i == 0 && func->params != NULL && vec_contains(func->params, varinfo)) {
+        vreg->param_index = param_index++;
+        spill = true;
+        if (func->type->func.vaargs) {  // Variadic function parameters.
+          vreg->offset = (vreg->param_index - MAX_REG_ARGS) * WORD_SIZE;
+        }
+      }
+
+      switch (varinfo->type->kind) {
+      case TY_ARRAY:
+      case TY_STRUCT:
+        // Make non-primitive variable spilled.
+        spill = true;
+        break;
+      default:
+        break;
+      }
+      if (i == 0 && vreg->param_index >= MAX_REG_ARGS) {
+        // Function argument passed through the stack.
+        spill = true;
+        vreg->offset = (vreg->param_index - MAX_REG_ARGS + 2) * WORD_SIZE;
+      }
+
+      if (spill)
+        vreg_spill(vreg);
+    }
+  }
+}
+
+void alloc_real_registers(RegAlloc *ra, BBContainer *bbcon) {
   for (int i = 0; i < bbcon->bbs->len; ++i) {
     BB *bb = bbcon->bbs->data[i];
     three_to_two(bb);
@@ -365,13 +410,13 @@ size_t alloc_real_registers(Function *func) {
 
   analyze_reg_flow(bbcon);
 
-  int vreg_count = func->ra->regno;
+  int vreg_count = ra->vregs->len;
   LiveInterval *intervals;
   LiveInterval **sorted_intervals = check_live_interval(bbcon, vreg_count, &intervals);
 
   for (int i = 0; i < vreg_count; ++i) {
     LiveInterval *li = &intervals[i];
-    VReg *vreg = func->ra->vregs->data[i];
+    VReg *vreg = ra->vregs->data[i];
 
     // Force function parameter spilled.
     if (vreg->param_index >= 0) {
@@ -386,11 +431,11 @@ size_t alloc_real_registers(Function *func) {
     }
   }
 
-  func->used_reg_bits = linear_scan_register_allocation(sorted_intervals, vreg_count);
+  ra->used_reg_bits = linear_scan_register_allocation(sorted_intervals, vreg_count);
 
   // Map vreg to rreg.
   for (int i = 0; i < vreg_count; ++i) {
-    VReg *vreg = func->ra->vregs->data[i];
+    VReg *vreg = ra->vregs->data[i];
     vreg->r = intervals[vreg->v].rreg;
   }
 
@@ -400,7 +445,7 @@ size_t alloc_real_registers(Function *func) {
     LiveInterval *li = sorted_intervals[i];
     if (!li->spill)
       continue;
-    VReg *vreg = func->ra->vregs->data[li->vreg];
+    VReg *vreg = ra->vregs->data[li->vreg];
     if (vreg->offset != 0) {  // Variadic function parameter or stack parameter.
       if (-vreg->offset > (int)frame_size)
         frame_size = -vreg->offset;
@@ -419,11 +464,11 @@ size_t alloc_real_registers(Function *func) {
     vreg->offset = -frame_size;
   }
 
-  int inserted = insert_load_store_spilled(bbcon, func->ra->vregs);
+  int inserted = insert_load_store_spilled(bbcon, ra->vregs);
   if (inserted != 0)
-    func->used_reg_bits |= 1 << SPILLED_REG_NO;
+    ra->used_reg_bits |= 1 << SPILLED_REG_NO;
 
-  func->ra->sorted_intervals = sorted_intervals;
+  ra->sorted_intervals = sorted_intervals;
 
-  return ALIGN(frame_size, 16);
+  ra->frame_size = ALIGN(frame_size, 16);
 }

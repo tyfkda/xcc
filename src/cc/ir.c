@@ -914,7 +914,7 @@ void remove_unnecessary_bb(BBContainer *bbcon) {
 }
 
 void push_callee_save_regs(Function *func) {
-  short used = func->used_reg_bits;
+  short used = func->ra->used_reg_bits;
   for (int i = 0; i < CALLEE_SAVE_REG_COUNT; ++i) {
     if (used & kCalleeSaveRegs[i].bit) {
       PUSH(kCalleeSaveRegs[i].reg); PUSH_STACK_POS();
@@ -923,7 +923,7 @@ void push_callee_save_regs(Function *func) {
 }
 
 void pop_callee_save_regs(Function *func) {
-  short used = func->used_reg_bits;
+  short used = func->ra->used_reg_bits;
   for (int i = CALLEE_SAVE_REG_COUNT; --i >= 0; ) {
     if (used & kCalleeSaveRegs[i].bit) {
       POP(kCalleeSaveRegs[i].reg); POP_STACK_POS();
@@ -1036,9 +1036,9 @@ void dump_func_ir(Function *func) {
   }
 
   RegAlloc *ra = func->ra;
-  fprintf(fp, "VREG: #%d\n", ra->regno);
+  fprintf(fp, "VREG: #%d\n", ra->vregs->len);
   LiveInterval **sorted_intervals = func->ra->sorted_intervals;
-  for (int i = 0; i < ra->regno; ++i) {
+  for (int i = 0; i < ra->vregs->len; ++i) {
     LiveInterval *li = sorted_intervals[i];
     VReg *vreg = ra->vregs->data[li->vreg];
     if (!li->spill) {

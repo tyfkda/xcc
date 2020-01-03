@@ -149,8 +149,6 @@ typedef struct Function {
   RegAlloc *ra;
   BBContainer *bbcon;
   BB *ret_bb;
-  size_t frame_size;
-  short used_reg_bits;
 } Function;
 
 // Defun
