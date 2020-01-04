@@ -7,6 +7,7 @@
 #include "inst.h"  // Inst, DirectiveType
 
 typedef struct Name Name;
+typedef struct Token Token;
 typedef struct Vector Vector;
 
 typedef struct ParseInfo {
@@ -14,6 +15,9 @@ typedef struct ParseInfo {
   int lineno;
   const char *rawline;
   const char *p;
+
+  Token *token;
+  const char *next;
 } ParseInfo;
 
 typedef struct Line {

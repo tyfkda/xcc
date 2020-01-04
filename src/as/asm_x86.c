@@ -122,9 +122,9 @@ static bool assemble_mov(Inst *inst, const ParseInfo *info, Code *code) {
     }
     p += 1 << size;
   } else if (inst->src.type == INDIRECT && inst->dst.type == REG) {
-    if (inst->src.indirect.label == NULL) {
+    if (inst->src.indirect.expr->kind == EX_NUM) {
       if (inst->src.indirect.reg.no != RIP) {
-        long offset = inst->src.indirect.offset;
+        long offset = inst->src.indirect.expr->num;
         enum RegSize size = inst->dst.reg.size;
         p = put_rex_indirect(
             p, size,
@@ -134,9 +134,9 @@ static bool assemble_mov(Inst *inst, const ParseInfo *info, Code *code) {
       }
     }
   } else if (inst->src.type == REG && inst->dst.type == INDIRECT) {
-    if (inst->dst.indirect.label == NULL) {
+    if (inst->dst.indirect.expr->kind == EX_NUM) {
       if (inst->dst.indirect.reg.no != RIP) {
-        long offset = inst->dst.indirect.offset;
+        long offset = inst->dst.indirect.expr->num;
         enum RegSize size = inst->src.reg.size;
         p = put_rex_indirect(
             p, size,
@@ -233,8 +233,8 @@ bool assemble_inst(Inst *inst, const ParseInfo *info, Code *code) {
 
       int d = inst->dst.reg.no;
       if (inst->src.indirect.reg.no != RIP) {
-        if (inst->src.indirect.label == NULL) {
-          long offset = inst->src.indirect.offset;
+        if (inst->src.indirect.expr->kind == EX_NUM) {
+          long offset = inst->src.indirect.expr->num;
           enum RegSize size = inst->dst.reg.size;
           p = put_rex_indirect(
               p, size,
@@ -244,7 +244,7 @@ bool assemble_inst(Inst *inst, const ParseInfo *info, Code *code) {
         }
       } else {
         int pre = !inst->dst.reg.x ? 0x48 : 0x4c;
-        if (inst->src.indirect.offset == 0) {
+        if (inst->src.indirect.expr->kind != EX_NUM) {
           MAKE_CODE(inst, code, pre, 0x8d, 0x05 | (d << 3), IM32(-1));
           return true;
         }
@@ -286,9 +286,9 @@ bool assemble_inst(Inst *inst, const ParseInfo *info, Code *code) {
         }
       }
     } else if (inst->src.type == INDIRECT && inst->dst.type == REG) {
-      if (inst->src.indirect.label == NULL &&
+      if (inst->src.indirect.expr->kind == EX_NUM &&
           inst->src.indirect.reg.no != RIP) {
-        long offset = inst->src.indirect.offset;
+        long offset = inst->src.indirect.expr->num;
         enum RegSize size = inst->dst.reg.size;
         p = put_rex_indirect(
             p, size,
@@ -300,10 +300,10 @@ bool assemble_inst(Inst *inst, const ParseInfo *info, Code *code) {
     break;
   case ADDQ:
     if (inst->src.type == IMMEDIATE && inst->dst.type == INDIRECT) {
-      if (inst->dst.indirect.label == NULL) {
+      if (inst->dst.indirect.expr->kind == EX_NUM) {
         long value = inst->src.immediate;
         if (is_im32(value)) {
-          long offset = inst->dst.indirect.offset;
+          long offset = inst->dst.indirect.expr->num;
           enum RegSize size = REG64;  // caz ADDQ
           p = put_rex_imm_indirect(
               p, size,
@@ -351,10 +351,10 @@ bool assemble_inst(Inst *inst, const ParseInfo *info, Code *code) {
     break;
   case SUBQ:
     if (inst->src.type == IMMEDIATE && inst->dst.type == INDIRECT) {
-      if (inst->dst.indirect.label == NULL) {
+      if (inst->dst.indirect.expr->kind == EX_NUM) {
         long value = inst->src.immediate;
         if (is_im32(value)) {
-          long offset = inst->dst.indirect.offset;
+          long offset = inst->dst.indirect.expr->num;
           enum RegSize size = REG64;  // caz SUBQ
           p = put_rex_imm_indirect(
               p, size,
@@ -432,7 +432,7 @@ bool assemble_inst(Inst *inst, const ParseInfo *info, Code *code) {
     if (inst->src.type == INDIRECT &&
         inst->src.indirect.reg.no != RIP) {
       enum RegSize size = inst->op + (REG32 - INCL);
-      long offset = inst->src.indirect.offset;
+      long offset = inst->src.indirect.expr->num;
       p = put_rex_indirect(
           p, size,
           0, opr_regno(&inst->src.indirect.reg),
@@ -456,7 +456,7 @@ bool assemble_inst(Inst *inst, const ParseInfo *info, Code *code) {
     if (inst->src.type == INDIRECT &&
         inst->src.indirect.reg.no != RIP) {
       enum RegSize size = inst->op + (REG32 - DECL);
-      long offset = inst->src.indirect.offset;
+      long offset = inst->src.indirect.expr->num;
       p = put_rex_indirect(
           p, size,
           0, opr_regno(&inst->src.indirect.reg),
@@ -600,7 +600,7 @@ bool assemble_inst(Inst *inst, const ParseInfo *info, Code *code) {
                  0x58 | inst->src.reg.no);
     break;
   case JMP:
-    if (inst->src.type != LABEL || inst->dst.type != NOOPERAND)
+    if (inst->src.type != DIRECT || inst->dst.type != NOOPERAND)
       return assemble_error(info, "Illegal operand");
     //MAKE_CODE(inst, code, 0xe9, IM32(-1));
     MAKE_CODE(inst, code, 0xeb, IM8(-1));  // Short jmp in default.
@@ -609,7 +609,7 @@ bool assemble_inst(Inst *inst, const ParseInfo *info, Code *code) {
   case JE: case JNE: case JBE: case JA:
   case JS: case JNS: case JP:  case JNP:
   case JL: case JGE: case JLE: case JG:
-    if (inst->src.type != LABEL || inst->dst.type != NOOPERAND)
+    if (inst->src.type != DIRECT || inst->dst.type != NOOPERAND)
       return assemble_error(info, "Illegal operand");
 
     //MAKE_CODE(inst, code, 0x0f, 0x80 + (inst->op - JO), IM32(-1));
@@ -619,7 +619,7 @@ bool assemble_inst(Inst *inst, const ParseInfo *info, Code *code) {
     if (inst->dst.type != NOOPERAND)
       return assemble_error(info, "Illegal operand");
 
-    if (inst->src.type == LABEL) {
+    if (inst->src.type == DIRECT) {
       MAKE_CODE(inst, code, 0xe8, IM32(-1));
       return true;
     } if (inst->src.type == DEREF_REG) {

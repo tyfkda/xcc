@@ -7,6 +7,7 @@
 
 #include "asm_x86.h"  // Code
 
+typedef struct Expr Expr;
 typedef struct Name Name;
 typedef struct Table Table;
 typedef struct Vector Vector;
@@ -22,7 +23,10 @@ enum IrKind {
   IR_DATA,
   IR_BSS,
   IR_ALIGN,
-  IR_ABS_QUAD,
+  IR_EXPR_BYTE,
+  IR_EXPR_WORD,
+  IR_EXPR_LONG,
+  IR_EXPR_QUAD,
 };
 
 typedef struct {
@@ -31,6 +35,7 @@ typedef struct {
     const Name *label;
     Code code;
     Data data;
+    const Expr *expr;
     size_t bss;
     int align;
     int section;
@@ -43,7 +48,7 @@ IR *new_ir_code(const Code *code);
 IR *new_ir_data(const void *data, size_t size);
 IR *new_ir_bss(size_t size);
 IR *new_ir_align(int align);
-IR *new_ir_abs_quad(const Name *label);
+IR *new_ir_expr(enum IrKind kind, const Expr *expr);
 
 void calc_label_address(uintptr_t start_address, Vector **section_irs, Table *label_table);
 bool resolve_relative_address(Vector **section_irs, Table *label_table);

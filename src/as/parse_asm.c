@@ -1,5 +1,6 @@
 #include "parse_asm.h"
 
+#include <assert.h>
 #include <ctype.h>
 #include <stddef.h>
 #include <stdlib.h>  // strtol
@@ -314,7 +315,7 @@ static enum RegType parse_direct_register(ParseInfo *info, Operand *operand) {
   return true;
 }
 
-static bool parse_indirect_register(ParseInfo *info, const Name *label, long offset, Operand *operand) {
+static bool parse_indirect_register(ParseInfo *info, Expr *expr, Operand *operand) {
   // Already read "(%".
   enum RegType reg = find_register(&info->p);
   if (!(is_reg64(reg) || reg == RIP))
@@ -329,8 +330,7 @@ static bool parse_indirect_register(ParseInfo *info, const Name *label, long off
   operand->indirect.reg.size = REG64;
   operand->indirect.reg.no = reg != RIP ? no & 7 : RIP;
   operand->indirect.reg.x = (no & 8) >> 3;
-  operand->indirect.label = label;
-  operand->indirect.offset = offset;
+  operand->indirect.expr = expr;
   return true;
 }
 
@@ -345,6 +345,191 @@ static enum RegType parse_deref_register(ParseInfo *info, Operand *operand) {
   operand->deref_reg.no = no & 7;
   operand->deref_reg.x = (no & 8) >> 3;
   return true;
+}
+
+enum TokenKind {
+  TK_UNKNOWN,
+  TK_LABEL,
+  TK_NUM,
+  TK_ADD = '+',
+  TK_SUB = '-',
+  TK_MUL = '*',
+  TK_DIV = '/',
+};
+
+typedef struct Token {
+  enum TokenKind kind;
+  union {
+    const Name *label;
+    long num;
+  };
+} Token;
+
+static Token *new_token(enum TokenKind kind) {
+  Token *token = malloc(sizeof(*token));
+  token->kind = kind;
+  return token;
+}
+
+static const Token *fetch_token(ParseInfo *info) {
+  if (info->token != NULL)
+    return info->token;
+
+  const char *start = skip_whitespace(info->p);
+  const char *p = start;
+  char c = *p;
+  if (is_label_first_chr(c)) {
+    while (c = *++p, is_label_chr(c))
+      ;
+    Token *token = new_token(TK_LABEL);
+    token->label = alloc_name(start, p, false);
+    info->next = p;
+    return token;
+  } else if (isdigit(c)) {
+    long v = strtol(p, (char**)&p, 10);
+    Token *token = new_token(TK_NUM);
+    token->num = v;
+    info->next = p;
+    return token;
+  } else if (strchr("+-*/", c) != NULL) {
+    info->next = p + 1;
+    return new_token(c);
+  }
+
+  static const Token kTokUnknown = {TK_UNKNOWN};
+  return &kTokUnknown;
+}
+
+static const Token *match(ParseInfo *info, enum TokenKind kind) {
+  const Token *token = fetch_token(info);
+  if (token->kind != kind)
+    return NULL;
+  info->token = NULL;
+  info->p = info->next;
+  return token;
+}
+
+static Expr *new_expr(enum ExprKind kind) {
+  Expr *expr = malloc(sizeof(*expr));
+  expr->kind = kind;
+  return expr;
+}
+
+static Expr *prim(ParseInfo *info) {
+  Expr *expr = NULL;
+  const Token *tok;
+  if ((tok = match(info, TK_LABEL)) != NULL) {
+    expr = new_expr(EX_LABEL);
+    expr->label = tok->label;
+  } else if ((tok = match(info, TK_NUM)) != NULL) {
+    expr = new_expr(EX_NUM);
+    expr->num = tok->num;
+  }
+  return expr;
+}
+
+static Expr *unary(ParseInfo *info) {
+  const Token *tok;
+  if ((tok = match(info, TK_ADD)) != NULL) {
+    Expr *expr = unary(info);
+    if (expr == NULL)
+      return NULL;
+    switch (expr->kind) {
+    case EX_NUM:
+      return expr;
+    default:
+      {
+        Expr *op = new_expr(EX_POS);
+        op->unary.sub = expr;
+        return op;
+      }
+    }
+  }
+
+  if ((tok = match(info, TK_SUB)) != NULL) {
+    Expr *expr = unary(info);
+    if (expr == NULL)
+      return NULL;
+    switch (expr->kind) {
+    case EX_NUM:
+      expr->num = -expr->num;
+      return expr;
+    default:
+      {
+        Expr *op = new_expr(EX_NEG);
+        op->unary.sub = expr;
+        return op;
+      }
+    }
+  }
+
+  return prim(info);
+}
+
+static Expr *parse_mul(ParseInfo *info) {
+  Expr *expr = unary(info);
+  if (expr == NULL)
+    return expr;
+
+  const Token *tok;
+  while ((tok = match(info, TK_MUL)) != NULL ||
+         (tok = match(info, TK_DIV)) != NULL) {
+    Expr *rhs = unary(info);
+    if (rhs == NULL) {
+      parse_error(info, "expression error");
+      break;
+    }
+
+    Expr *lhs = expr;
+    if (lhs->kind == EX_NUM && rhs->kind == EX_NUM) {
+      switch (tok->kind) {
+      case TK_MUL:  lhs->num *= rhs->num; break;
+      case TK_DIV:  lhs->num += rhs->num; break;
+      default:  assert(false); break;
+      }
+    } else {
+      expr = new_expr((enum ExprKind)tok->kind);  // Assume TokenKind is same as ExprKind.
+      expr->bop.lhs = lhs;
+      expr->bop.rhs = rhs;
+    }
+  }
+  return expr;
+}
+
+static Expr *parse_add(ParseInfo *info) {
+  Expr *expr = parse_mul(info);
+  if (expr == NULL)
+    return expr;
+
+  const Token *tok;
+  while ((tok = match(info, TK_ADD)) != NULL ||
+         (tok = match(info, TK_SUB)) != NULL) {
+    Expr *rhs = parse_mul(info);
+    if (rhs == NULL) {
+      parse_error(info, "expression error");
+      break;
+    }
+
+    Expr *lhs = expr;
+    if (lhs->kind == EX_NUM && rhs->kind == EX_NUM) {
+      switch (tok->kind) {
+      case TK_ADD:  lhs->num += rhs->num; break;
+      case TK_SUB:  lhs->num += rhs->num; break;
+      default:  assert(false); break;
+      }
+    } else {
+      expr = new_expr((enum ExprKind)tok->kind);  // Assume TokenKind is same as ExprKind.
+      expr->bop.lhs = lhs;
+      expr->bop.rhs = rhs;
+    }
+  }
+  return expr;
+}
+
+static Expr *parse_expr(ParseInfo *info) {
+  info->token = NULL;
+  info->next = NULL;
+  return parse_add(info);
 }
 
 static bool parse_operand(ParseInfo *info, Operand *operand) {
@@ -367,26 +552,26 @@ static bool parse_operand(ParseInfo *info, Operand *operand) {
     return true;
   }
 
-  bool has_offset = false;
-  long offset = 0;
-  const Name *label = parse_label(info);
-  if (label == NULL) {
-    if (immediate(&info->p, &offset))
-      has_offset = true;
-  }
+  Expr *expr = parse_expr(info);
   info->p = skip_whitespace(info->p);
   if (*info->p != '(') {
-    if (label != NULL) {
-      operand->type = LABEL;
-      operand->label = label;
-      return true;
-    }
-    if (has_offset)
+    if (expr != NULL) {
+      if (expr->kind == EX_LABEL) {
+        operand->type = DIRECT;
+        operand->direct.expr = expr;
+        return true;
+      }
       parse_error(info, "direct number not implemented");
+    }
   } else {
     if (info->p[1] == '%') {
       info->p += 2;
-      return parse_indirect_register(info, label, offset, operand);
+      if (expr == NULL) {
+        expr = malloc(sizeof(*expr));
+        expr->kind = EX_NUM;
+        expr->num = 0;
+      }
+      return parse_indirect_register(info, expr, operand);
     }
     parse_error(info, "Illegal `('");
   }
@@ -534,25 +719,22 @@ void handle_directive(ParseInfo *info, enum DirectiveType dir, Vector **section_
   case DT_LONG:
   case DT_QUAD:
     {
-      long value;
-      if (immediate(&info->p, &value)) {
+      Expr *expr = parse_expr(info);
+      if (expr == NULL) {
+        parse_error(info, "expression expected");
+        break;
+      }
+
+      if (expr->kind == EX_NUM) {
         // TODO: Target endian.
+        long value = expr->num;
         int size = 1 << (dir - DT_BYTE);
         unsigned char *buf = malloc(size);
         for (int i = 0; i < size; ++i)
           buf[i] = value >> (8 * i);
         vec_push(irs, new_ir_data(buf, size));
       } else {
-        const Name *label = parse_label(info);
-        if (label != NULL) {
-          if (dir == DT_QUAD) {
-            vec_push(irs, new_ir_abs_quad(label));
-          } else {
-            parse_error(info, "label can use only in .quad");
-          }
-        } else {
-          parse_error(info, ".quad: number or label expected");
-        }
+        vec_push(irs, new_ir_expr((enum IrKind)(IR_EXPR_BYTE + (dir - DT_BYTE)), expr));
       }
     }
     break;

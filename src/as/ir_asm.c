@@ -8,7 +8,10 @@
 #include "table.h"
 #include "util.h"
 
-#define WORD_SIZE  (8)
+#define BYTE_SIZE  (1)
+#define WORD_SIZE  (2)
+#define LONG_SIZE  (4)
+#define QUAD_SIZE  (8)
 
 IR *new_ir_label(const Name *label) {
   IR *ir = malloc(sizeof(*ir));
@@ -46,10 +49,10 @@ IR *new_ir_align(int align) {
   return ir;
 }
 
-IR *new_ir_abs_quad(const Name *label) {
+IR *new_ir_expr(enum IrKind kind, const Expr *expr) {
   IR *ir = malloc(sizeof(*ir));
-  ir->kind = IR_ABS_QUAD;
-  ir->label = label;
+  ir->kind = kind;
+  ir->expr = expr;
   return ir;
 }
 
@@ -86,8 +89,17 @@ void calc_label_address(uintptr_t start_address, Vector **section_irs, Table *la
       case IR_ALIGN:
         address = ALIGN(address, ir->align);
         break;
-      case IR_ABS_QUAD:
+      case IR_EXPR_BYTE:
+        address += BYTE_SIZE;
+        break;
+      case IR_EXPR_WORD:
         address += WORD_SIZE;
+        break;
+      case IR_EXPR_LONG:
+        address += LONG_SIZE;
+        break;
+      case IR_EXPR_QUAD:
+        address += QUAD_SIZE;
         break;
       default:  assert(false); break;
       }
@@ -104,6 +116,62 @@ static void put_value(unsigned char *p, intptr_t value, int size) {
 
 static void put_unresolved(Table *table, const Name *label) {
   table_put(table, label, (void*)label);
+}
+
+static bool calc_expr(Table *label_table, const Expr *expr, intptr_t *result, Table *unresolved_labels) {
+  assert(expr != NULL);
+  switch (expr->kind) {
+  case EX_LABEL:
+    {
+      void *dst = table_get(label_table, expr->label);
+      if (dst != NULL) {
+        *result = (intptr_t)dst;
+        return true;
+      } else {
+        if (unresolved_labels != NULL)
+          put_unresolved(unresolved_labels, expr->label);
+        return false;
+      }
+    }
+    break;
+  case EX_NUM:
+    *result = expr->num;
+    return true;
+  case EX_ADD:
+  case EX_SUB:
+  case EX_MUL:
+  case EX_DIV:
+    {
+      intptr_t lhs, rhs;
+      if (!calc_expr(label_table, expr->bop.lhs, &lhs, unresolved_labels) ||
+          !calc_expr(label_table, expr->bop.rhs, &rhs, unresolved_labels))
+        return false;
+      switch (expr->kind) {
+      case EX_ADD:  *result = lhs + rhs; break;
+      case EX_SUB:  *result = lhs - rhs; break;
+      case EX_MUL:  *result = lhs * rhs; break;
+      case EX_DIV:  *result = lhs / rhs; break;
+      default: assert(false); return false;
+      }
+    }
+    return true;
+
+  case EX_POS:
+  case EX_NEG:
+    {
+      intptr_t sub;
+      if (!calc_expr(label_table, expr->unary.sub, &sub, unresolved_labels))
+        return false;
+      switch (expr->kind) {
+      case EX_POS:  *result = sub; break;
+      case EX_NEG:  *result = -sub; break;
+      default: assert(false); return false;
+      }
+    }
+    return true;
+
+  default: assert(false); return false;
+  }
 }
 
 bool resolve_relative_address(Vector **section_irs, Table *label_table) {
@@ -123,14 +191,11 @@ bool resolve_relative_address(Vector **section_irs, Table *label_table) {
           case LEA:
             if (inst->src.type == INDIRECT &&
                 inst->src.indirect.reg.no == RIP &&
-                inst->src.indirect.offset == 0 &&
-                inst->src.indirect.label != NULL) {
-              void *dst = table_get(label_table, inst->src.indirect.label);
-              if (dst != NULL) {
-                intptr_t offset = (intptr_t)dst - ((intptr_t)address + ir->code.len);
+                inst->src.indirect.expr->kind != EX_NUM) {
+              intptr_t dst;
+              if (calc_expr(label_table, inst->src.indirect.expr, &dst, &unresolved_labels)) {
+                intptr_t offset = dst - ((intptr_t)address + ir->code.len);
                 put_value(ir->code.buf + 3, offset, sizeof(int32_t));
-              } else {
-                put_unresolved(&unresolved_labels, inst->src.indirect.label);
               }
             }
             break;
@@ -139,10 +204,10 @@ bool resolve_relative_address(Vector **section_irs, Table *label_table) {
           case JE: case JNE: case JBE: case JA:
           case JS: case JNS: case JP:  case JNP:
           case JL: case JGE: case JLE: case JG:
-            if (inst->src.type == LABEL) {
-              void *dst = table_get(label_table, inst->src.label);
-              if (dst != NULL) {
-                intptr_t offset = (intptr_t)dst - ((intptr_t)address + ir->code.len);
+            if (inst->src.type == DIRECT) {
+              intptr_t dst;
+              if (calc_expr(label_table, inst->src.direct.expr, &dst, &unresolved_labels)) {
+                intptr_t offset = dst - ((intptr_t)address + ir->code.len);
                 bool long_offset = ir->code.flag & INST_LONG_OFFSET;
                 if (!long_offset) {
                   if (!is_im8(offset)) {
@@ -163,19 +228,15 @@ bool resolve_relative_address(Vector **section_irs, Table *label_table) {
                   int d = inst->op == JMP ? 1 : 2;
                   put_value(ir->code.buf + d, offset, sizeof(int32_t));
                 }
-              } else {
-                put_unresolved(&unresolved_labels, inst->src.label);
               }
             }
             break;
           case CALL:
-           if (inst->src.type == LABEL) {
-              void *dst = table_get(label_table, inst->src.label);
-              if (dst != NULL) {
+            if (inst->src.type == DIRECT) {
+              intptr_t dst;
+              if (calc_expr(label_table, inst->src.direct.expr, &dst, &unresolved_labels)) {
                 intptr_t offset = (intptr_t)dst - ((intptr_t)address + ir->code.len);
                 put_value(ir->code.buf + 1, offset, sizeof(int32_t));
-              } else {
-                put_unresolved(&unresolved_labels, inst->src.label);
               }
             }
             break;
@@ -184,11 +245,15 @@ bool resolve_relative_address(Vector **section_irs, Table *label_table) {
           }
         }
         break;
-      case IR_ABS_QUAD:
+      case IR_EXPR_BYTE:
+      case IR_EXPR_WORD:
+      case IR_EXPR_LONG:
+      case IR_EXPR_QUAD:
         {
-          void *dst = table_get(label_table, ir->label);
-          if (dst == NULL)
-            put_unresolved(&unresolved_labels, ir->label);
+          intptr_t value;
+          if (calc_expr(label_table, ir->expr, &value, &unresolved_labels)) {
+            put_value(ir->code.buf + 3, value, sizeof(int32_t));
+          }
         }
         break;
       case IR_LABEL:
@@ -236,11 +301,16 @@ void emit_irs(Vector **section_irs, Table *label_table) {
       case IR_ALIGN:
         align_section_size(sec, ir->align);
         break;
-      case IR_ABS_QUAD:
+      case IR_EXPR_BYTE:
+      case IR_EXPR_WORD:
+      case IR_EXPR_LONG:
+      case IR_EXPR_QUAD:
         {
-          void *dst = table_get(label_table, ir->label);
-          assert(sizeof(dst) == WORD_SIZE);
-          add_section_data(sec, &dst, sizeof(dst));  // TODO: Target endian
+          intptr_t value;
+          if (calc_expr(label_table, ir->expr, &value, NULL)) {
+            int size = 1 << (ir->kind - IR_EXPR_BYTE);
+            add_section_data(sec, &value, size);  // TODO: Target endian
+          }
         }
         break;
       default:  assert(false); break;
