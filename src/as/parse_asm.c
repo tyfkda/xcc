@@ -222,15 +222,15 @@ static int find_match_index(const char **pp, const char **table, size_t count) {
   return -1;
 }
 
-enum Opcode parse_opcode(const char **pp) {
+static enum Opcode find_opcode(const char **pp) {
   return find_match_index(pp, kOpTable, sizeof(kOpTable) / sizeof(*kOpTable)) + 1;
 }
 
-enum DirectiveType parse_directive(const char **pp) {
+static enum DirectiveType find_directive(const char **pp) {
   return find_match_index(pp, kDirectiveTable, sizeof(kDirectiveTable) / sizeof(*kDirectiveTable)) + 1;
 }
 
-enum RegType parse_register(const char **pp) {
+static enum RegType find_register(const char **pp) {
   const char *p = *pp;
   for (int i = 0, len = sizeof(kRegisters) / sizeof(*kRegisters); i < len; ++i) {
     const char *name = kRegisters[i].name;
@@ -243,7 +243,7 @@ enum RegType parse_register(const char **pp) {
   return NOREG;
 }
 
-bool parse_immediate(const char **pp, long *value) {
+static bool immediate(const char **pp, long *value) {
   const char *p = *pp;
   bool negative = false;
   if (*p == '-') {
@@ -265,7 +265,7 @@ static bool is_label_chr(char c) {
   return is_label_first_chr(c) || isdigit(c);
 }
 
-const Name *parse_label(const char **pp) {
+static const Name *parse_label(const char **pp) {
   const char *p = *pp;
   const char *start = p;
   if (!is_label_first_chr(*p))
@@ -278,54 +278,82 @@ const Name *parse_label(const char **pp) {
   return alloc_name(start, p, false);
 }
 
-bool parse_operand(const char **pp, Operand *operand) {
+static enum RegType parse_direct_register(const char **pp, Operand *operand) {
+  enum RegType reg = find_register(pp);
+  enum RegSize size;
+  int no;
+  if (is_reg8(reg)) {
+    size = REG8;
+    no = reg - AL;
+  } else if (is_reg16(reg)) {
+    size = REG16;
+    no = reg - AX;
+  } else if (is_reg32(reg)) {
+    size = REG32;
+    no = reg - EAX;
+  } else if (is_reg64(reg)) {
+    size = REG64;
+    no = reg - RAX;
+  } else {
+    error("Illegal register");
+    return false;
+  }
+
+  operand->type = REG;
+  operand->reg.size = size;
+  operand->reg.no = no & 7;
+  operand->reg.x = (no & 8) >> 3;
+  return true;
+}
+
+static bool parse_indirect_register(const char **pp, const Name *label, long offset, Operand *operand) {
+  // Already read "(%".
+  enum RegType reg = find_register(pp);
+  if (!(is_reg64(reg) || reg == RIP))
+    error("Register expected");
+  const char *p = skip_whitespace(*pp);
+  if (*p != ')')
+    error("`)' expected");
+  *pp = ++p;
+
+  char no = reg - RAX;
+  operand->type = INDIRECT;
+  operand->indirect.reg.size = REG64;
+  operand->indirect.reg.no = reg != RIP ? no & 7 : RIP;
+  operand->indirect.reg.x = (no & 8) >> 3;
+  operand->indirect.label = label;
+  operand->indirect.offset = offset;
+  return true;
+}
+
+static enum RegType parse_deref_register(const char **pp, Operand *operand) {
+  enum RegType reg = find_register(pp);
+  if (!is_reg64(reg))
+    error("Illegal register");
+
+  char no = reg - RAX;
+  operand->type = DEREF_REG;
+  operand->deref_reg.size = REG64;
+  operand->deref_reg.no = no & 7;
+  operand->deref_reg.x = (no & 8) >> 3;
+  return true;
+}
+
+static bool parse_operand(const char **pp, Operand *operand) {
   const char *p = *pp;
   if (*p == '%') {
     *pp = p + 1;
-    enum RegType reg = parse_register(pp);
-    enum RegSize size;
-    int no;
-    if (is_reg8(reg)) {
-      size = REG8;
-      no = reg - AL;
-    } else if (is_reg16(reg)) {
-      size = REG16;
-      no = reg - AX;
-    } else if (is_reg32(reg)) {
-      size = REG32;
-      no = reg - EAX;
-    } else if (is_reg64(reg)) {
-      size = REG64;
-      no = reg - RAX;
-    } else {
-      error("Illegal register");
-      return false;
-    }
-
-    operand->type = REG;
-    operand->reg.size = size;
-    operand->reg.no = no & 7;
-    operand->reg.x = (no & 8) >> 3;
-    return true;
+    return parse_direct_register(pp, operand);
   }
 
   if (*p == '*' && p[1] == '%') {
     *pp = p + 2;
-    enum RegType reg = parse_register(pp);
-    if (!is_reg64(reg))
-      error("Illegal register");
-
-    char no = reg - RAX;
-    operand->type = DEREF_REG;
-    operand->deref_reg.size = REG64;
-    operand->deref_reg.no = no & 7;
-    operand->deref_reg.x = (no & 8) >> 3;
-    return true;
+    return parse_deref_register(pp, operand);
   }
 
   if (*p == '$') {
     *pp = p + 1;
-    if (!parse_immediate(pp, &operand->immediate))
+    if (!immediate(pp, &operand->immediate))
       error("Syntax error");
     operand->type = IMMEDIATE;
     return true;
@@ -335,20 +363,8 @@ bool parse_operand(const char **pp, Operand *operand) {
   long offset = 0;
   const Name *label = parse_label(pp);
   if (label == NULL) {
-    bool neg = false;
-    if (*p == '-') {
-      neg = true;
-      ++p;
-    }
-    if (isdigit(*p)) {
-      offset = strtol(p, (char**)pp, 10);
-      if (*pp > p)
-        has_offset = true;
-      if (neg)
-        offset = -offset;
-    } else if (neg) {
-      error("Illegal `-'");
-    }
+    if (immediate(pp, &offset))
+      has_offset = true;
   }
   p = skip_whitespace(*pp);
   if (*p != '(') {
@@ -363,22 +379,7 @@ bool parse_operand(const char **pp, Operand *operand) {
   } else {
     if (p[1] == '%') {
       *pp = p + 2;
-      enum RegType reg = parse_register(pp);
-      if (!(is_reg64(reg) || reg == RIP))
-        error("Register expected");
-      p = skip_whitespace(*pp);
-      if (*p != ')')
-        error("`)' expected");
-      *pp = ++p;
-
-      char no = reg - RAX;
-      operand->type = INDIRECT;
-      operand->indirect.reg.size = REG64;
-      operand->indirect.reg.no = reg != RIP ? no & 7 : RIP;
-      operand->indirect.reg.x = (no & 8) >> 3;
-      operand->indirect.label = label;
-      operand->indirect.offset = offset;
-      return true;
+      return parse_indirect_register(pp, label, offset, operand);
     }
     error("Illegal `('");
   }
@@ -386,9 +387,9 @@ bool parse_operand(const char **pp, Operand *operand) {
   return false;
 }
 
-void parse_inst(const char **pp, Inst *inst) {
+static void parse_inst(const char **pp, Inst *inst) {
   const char *p = *pp;
-  enum Opcode op = parse_opcode(&p);
+  enum Opcode op = find_opcode(&p);
   inst->op = op;
   if (op != NOOP) {
     if (parse_operand(&p, &inst->src)) {
@@ -426,7 +427,7 @@ Line *parse_line(const char *rawline) {
   p = skip_whitespace(p);
   if (*p == '.') {
     ++p;
-    enum DirectiveType dir = parse_directive(&p);
+    enum DirectiveType dir = find_directive(&p);
     if (dir == NODIRECTIVE)
       error("Unknown directive");
     line->dir = dir;
@@ -497,7 +498,7 @@ void handle_directive(enum DirectiveType dir, const char *p, Vector **section_ir
         error(".comm: `,' expected");
       p = skip_whitespace(p + 1);
       long count;
-      if (!parse_immediate(&p, &count))
+      if (!immediate(&p, &count))
         error(".comm: count expected");
       current_section = SEC_BSS;
       irs = section_irs[current_section];
@@ -517,7 +518,7 @@ void handle_directive(enum DirectiveType dir, const char *p, Vector **section_ir
   case DT_ALIGN:
     {
       long align;
-      if (!parse_immediate(&p, &align))
+      if (!immediate(&p, &align))
         error(".align: number expected");
       vec_push(irs, new_ir_align(align));
     }
@@ -529,7 +530,7 @@ void handle_directive(enum DirectiveType dir, const char *p, Vector **section_ir
   case DT_QUAD:
     {
       long value;
-      if (parse_immediate(&p, &value)) {
+      if (immediate(&p, &value)) {
         // TODO: Target endian.
         int size = 1 << (dir - DT_BYTE);
         unsigned char *buf = malloc(size);
