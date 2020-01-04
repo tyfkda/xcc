@@ -424,3 +424,184 @@ bool can_cast(const Type *dst, const Type *src, bool zero, bool is_explicit) {
   }
   return false;
 }
+
+//
+
+typedef struct PrintTypeChain PrintTypeChain;
+struct PrintTypeChain {
+  struct PrintTypeChain *parent;
+  void (*callback)(FILE *fp, const Type *type);
+  const Type *type;
+};
+
+static void call_print_type_chain(const PrintTypeChain *chain, FILE *fp) {
+  for (; chain != NULL; chain = chain->parent)
+    (*chain->callback)(fp, chain->type);
+}
+
+static void print_func_params(FILE *fp, const Type *type) {
+  assert(type->kind == TY_FUNC);
+  fprintf(fp, "(");
+  if (type->func.param_types != NULL) {
+    int param_count = type->func.param_types->len;
+    if (param_count == 0 && !type->func.vaargs) {
+      fprintf(fp, "void");
+    } else {
+      for (int i = 0; i < param_count; ++i) {
+        if (i > 0)
+          fprintf(fp, ", ");
+        print_type(fp, type->func.param_types->data[i]);
+      }
+      if (type->func.vaargs) {
+        if (param_count > 0)
+          fprintf(fp, ", ");
+        fprintf(fp, "...");
+      }
+    }
+  }
+  fprintf(fp, ")");
+}
+
+static void print_ptr_type(FILE *fp, const Type *_type) {
+  UNUSED(_type);
+  fprintf(fp, "*");
+}
+
+static void print_nested_ptr_type(FILE *fp, const Type *type) {
+  fprintf(fp, "(");
+  for (const Type *p = type; p->kind == TY_PTR; p = p->pa.ptrof)
+    fprintf(fp, "*");
+}
+
+static void print_nested_ptr_type2(FILE *fp, const Type *_type) {
+  UNUSED(_type);
+  fprintf(fp, ")");
+}
+
+static void print_array_type(FILE *fp, const Type *type) {
+  for (; type->kind == TY_ARRAY; type = type->pa.ptrof) {
+    if (type->pa.length != (size_t)-1)
+      fprintf(fp, "[%zu]", type->pa.length);
+    else
+      fprintf(fp, "[]");
+  }
+}
+
+void print_type_recur(FILE *fp, const Type *type, PrintTypeChain *parent) {
+  switch (type->kind) {
+  case TY_VOID:
+    fprintf(fp, "void");
+    call_print_type_chain(parent, fp);
+    break;
+  case TY_FIXNUM:
+    switch (type->fixnum.kind) {
+    case FX_CHAR:  fprintf(fp, "char"); break;
+    case FX_SHORT: fprintf(fp, "short"); break;
+    case FX_INT:   fprintf(fp, "int"); break;
+    case FX_LONG:  fprintf(fp, "long"); break;
+    case FX_ENUM:  fprintf(fp, "enum"); break;
+    default: assert(false); break;
+    }
+    call_print_type_chain(parent, fp);
+    break;
+#ifndef __NO_FLONUM
+  case TY_FLONUM:
+    switch (type->flonum.kind) {
+    case FL_FLOAT:  fprintf(fp, "float"); break;
+    case FL_DOUBLE: fprintf(fp, "double"); break;
+    default: assert(false); break;
+    }
+    call_print_type_chain(parent, fp);
+    break;
+#endif
+  case TY_PTR:
+    {
+      const Type *nestedtype = NULL;
+      for (const Type *p = type; p->kind == TY_PTR; p = p->pa.ptrof) {
+        const Type *ptrof = p->pa.ptrof;
+        if (ptrof->kind == TY_FUNC || ptrof->kind == TY_ARRAY) {
+          nestedtype = ptrof;
+          break;
+        }
+      }
+      if (nestedtype != NULL) {
+        PrintTypeChain last = {
+          NULL,
+          print_nested_ptr_type2,
+          NULL,
+        };
+        if (parent != NULL) {
+          for (PrintTypeChain *p = parent;; p = p->parent) {
+            if (p->parent == NULL) {
+              p->parent = &last;
+              break;
+            }
+          }
+        } else {
+          parent = &last;
+        }
+
+        PrintTypeChain chain = {
+          parent,
+          print_nested_ptr_type,
+          type,
+        };
+        switch (nestedtype->kind) {
+        case TY_FUNC:
+          print_type_recur(fp, nestedtype->func.ret, &chain);
+          print_func_params(fp, nestedtype);
+          break;
+        case TY_ARRAY:
+          print_type_recur(fp, nestedtype->pa.ptrof, &chain);
+          print_array_type(fp, nestedtype);
+          break;
+        default: assert(false); break;
+        }
+      } else {
+        PrintTypeChain chain = {
+          parent,
+          print_ptr_type,
+          NULL,
+        };
+        print_type_recur(fp, type->pa.ptrof, &chain);
+      }
+    }
+    break;
+  case TY_ARRAY:
+    {
+      PrintTypeChain chain = {
+        parent,
+        print_array_type,
+        type,
+      };
+      const Type *nonarray;
+      for (nonarray = type; nonarray->kind == TY_ARRAY; nonarray = nonarray->pa.ptrof)
+        ;
+      print_type_recur(fp, nonarray, &chain);
+    }
+    break;
+  case TY_FUNC:
+    {
+      // No parenthesis.
+      PrintTypeChain chain = {
+        parent,
+        print_func_params,
+        type,
+      };
+      print_type_recur(fp, type->func.ret, &chain);
+    }
+    break;
+  case TY_STRUCT:
+    if (type->struct_.name != NULL) {
+      fprintf(fp, "struct %.*s", type->struct_.name->bytes, type->struct_.name->chars);
+    } else {
+      fprintf(fp, "struct (anonymous)");
+    }
+    call_print_type_chain(parent, fp);
+    break;
+  }
+}
+
+void print_type(FILE *fp, const Type *type) {
+  print_type_recur(fp, type, NULL);
+}

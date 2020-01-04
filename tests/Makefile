@@ -19,7 +19,7 @@ test:	unit-tests cpp-tests cc-tests
 	@echo 'All tests PASS!'
 
 .PHONY: unit-tests
-unit-tests:	test-table test-util test-parser
+unit-tests:	test-table test-util test-parser print-type-test
 
 .PHONY: cpp-tests
 cpp-tests:	test-cpp
@@ -29,7 +29,7 @@ cc-tests:	test-sh test-val test-dval test-fval test-examples
 
 .PHONY: clean
 clean:
-	rm -f table_test util_test parser_test valtest dvaltest fvaltest a.out tmp.s
+	rm -f table_test util_test parser_test print_type_test valtest dvaltest fvaltest a.out tmp.s *.o
 
 .PHONY: test-table
 test-table:	table_test
@@ -47,6 +47,12 @@ test-util:	util_test
 test-parser:	parser_test
 	@echo '## Parser'
 	@./parser_test
+	@echo ''
+
+.PHONY: print-type-test
+print-type-test:	print_type_test
+	@echo '## Print type'
+	@./print_type_test
 	@echo ''
 
 .PHONY: test-val
@@ -107,6 +113,10 @@ dvaltest:	$(FVAL_SRCS) flotest.inc # $(XCC)
 	$(XCC) -o$@ -I../inc $(FVAL_SRCS)
 fvaltest:	$(FVAL_SRCS) flotest.inc # $(XCC)
 	$(XCC) -o$@ -DUSE_SINGLE -I../inc $(FVAL_SRCS)
+
+TYPE_SRCS:=print_type_test.c $(SRC_DIR)/type.c $(UTIL_DIR)/util.c $(UTIL_DIR)/table.c
+print_type_test:	$(TYPE_SRCS)
+	gcc -o $@ $(CFLAGS) $^
 
 .PHONY: test-std-valtest
 test-std-valtest:
