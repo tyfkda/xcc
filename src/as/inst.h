@@ -183,19 +183,46 @@ enum OperandType {
   REG,        // %rax
   INDIRECT,   // (%rax)
   IMMEDIATE,  // $1234
-  LABEL,      // foobar
+  DIRECT,     // foobar
   DEREF_REG,  // *%rax
 };
+
+enum ExprKind {
+  EX_LABEL,
+  EX_NUM,
+  EX_POS,
+  EX_NEG,
+  EX_ADD = '+',
+  EX_SUB = '-',
+  EX_MUL = '*',
+  EX_DIV = '/',
+};
+
+typedef struct Expr {
+  enum ExprKind kind;
+  union {
+    const Name *label;
+    long num;
+    struct {
+      struct Expr *lhs;
+      struct Expr *rhs;
+    } bop;
+    struct {
+      struct Expr *sub;
+    } unary;
+  };
+} Expr;
 
 typedef struct {
   enum OperandType type;
   union {
     Reg reg;
     long immediate;
-    const Name *label;
     struct {
-      const Name *label;
-      long offset;
+      Expr *expr;
+    } direct;
+    struct {
+      Expr *expr;
       Reg reg;
     } indirect;
     Reg deref_reg;

@@ -5,6 +5,7 @@
 #include <stdbool.h>
 
 typedef struct Inst Inst;
+typedef struct ParseInfo ParseInfo;
 
 #define INST_LONG_OFFSET  (1 << 0)  // 32bit offset on jump, etc.
 
@@ -15,7 +16,7 @@ typedef struct Code {
   unsigned char buf[14];
 } Code;
 
-bool assemble_inst(Inst *inst, const char *rawline, Code *code);
+bool assemble_inst(Inst *inst, const ParseInfo *info, Code *code);
 
 #ifndef MAKE_CODE
 #define MAKE_CODE(inst, code, ...)  do { unsigned char buf[] = {__VA_ARGS__}; make_code(inst, code, buf, sizeof(buf)); } while (0)
