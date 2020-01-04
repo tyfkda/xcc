@@ -469,6 +469,9 @@ static Initializer *check_global_initializer(const Type *type, Initializer *init
 
           return init;
         }
+      case EX_ADD:
+      case EX_SUB:
+        return init;
       case EX_FIXNUM:
         return init;
       case EX_STR:
