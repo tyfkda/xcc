@@ -41,16 +41,22 @@
 #define LOAD_ADDRESS    START_ADDRESS
 
 #if !defined(AS_USE_CC)
-void parse_file(FILE *fp, Vector **section_irs, Table *label_table) {
-  for (;;) {
+void parse_file(FILE *fp, const char *filename, Vector **section_irs, Table *label_table) {
+  ParseInfo info;
+  info.filename = filename;
+  info.lineno = 1;
+  for (;; ++info.lineno) {
     char *rawline = NULL;
     size_t capa = 0;
     ssize_t len = getline_(&rawline, &capa, fp, 0);
     if (len == EOF)
       break;
+    info.rawline = rawline;
 
     Vector *irs = section_irs[current_section];
-    Line *line = parse_line(rawline);
+    Line *line = parse_line(&info);
+    if (line == NULL)
+      continue;
 
     if (line->label != NULL) {
       vec_push(irs, new_ir_label(line->label));
@@ -65,11 +71,11 @@ void parse_file(FILE *fp, Vector **section_irs, Table *label_table) {
 
     if (line->dir == NODIRECTIVE) {
       Code code;
-      assemble_inst(&line->inst, line->rawline, &code);
+      assemble_inst(&line->inst, &info, &code);
       if (code.len > 0)
         vec_push(irs, new_ir_code(&code));
     } else {
-      handle_directive(line->dir, line->directive_line, section_irs);
+      handle_directive(&info, line->dir, section_irs);
     }
   }
 }
@@ -119,13 +125,13 @@ int main(int argc, char* argv[]) {
       FILE *fp = fopen(argv[i], "r");
       if (fp == NULL)
         error("Cannot open %s\n", argv[i]);
-      parse_file(fp, section_irs, &label_table);
+      parse_file(fp, argv[i], section_irs, &label_table);
       fclose(fp);
       if (err)
         break;
     }
   } else {
-    parse_file(stdin, section_irs, &label_table);
+    parse_file(stdin, "*stdin*", section_irs, &label_table);
   }
 
   if (!err) {

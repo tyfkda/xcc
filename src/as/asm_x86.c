@@ -5,6 +5,7 @@
 #include <string.h>  // memcpy
 
 #include "inst.h"
+#include "parse_asm.h"
 #include "util.h"
 
 #ifndef PUT_CODE
@@ -27,9 +28,8 @@ static bool opr_reg8(const Reg *reg) {
   return opr_regno(reg) < 4;
 }
 
-static bool assemble_error(const char *rawline, const char *message) {
-  fprintf(stderr, "%s\n", message);
-  fprintf(stderr, "%s\n", rawline);
+static bool assemble_error(const ParseInfo *info, const char *message) {
+  parse_error(info, message);
   return false;
 }
 
@@ -92,12 +92,12 @@ static unsigned char *put_rex_imm_indirect(
   return p;
 }
 
-static bool assemble_mov(Inst *inst, const char *rawline, Code *code) {
+static bool assemble_mov(Inst *inst, const ParseInfo *info, Code *code) {
   unsigned char *p = code->buf;
 
   if (inst->src.type == REG && inst->dst.type == REG) {
     if (inst->dst.reg.size != inst->src.reg.size)
-      return assemble_error(rawline, "Different source and destination register size");
+      return assemble_error(info, "Different source and destination register size");
 
     enum RegSize size = inst->src.reg.size;
     p = put_rex2(p, size, opr_regno(&inst->src.reg), opr_regno(&inst->dst.reg),
@@ -154,10 +154,10 @@ static bool assemble_mov(Inst *inst, const char *rawline, Code *code) {
     return true;
   }
 
-  return assemble_error(rawline, "Illegal operand");
+  return assemble_error(info, "Illegal operand");
 }
 
-bool assemble_inst(Inst *inst, const char *rawline, Code *code) {
+bool assemble_inst(Inst *inst, const ParseInfo *info, Code *code) {
   unsigned char *p = code->buf;
 
   code->flag = 0;
@@ -167,7 +167,7 @@ bool assemble_inst(Inst *inst, const char *rawline, Code *code) {
   case NOOP:
     return true;
   case MOV:
-    return assemble_mov(inst, rawline, code);
+    return assemble_mov(inst, info, code);
   case MOVSX:
   case MOVZX:
     if (inst->src.type == REG && inst->dst.type == REG) {
@@ -223,13 +223,13 @@ bool assemble_inst(Inst *inst, const char *rawline, Code *code) {
       default:
         break;
       }
-      return assemble_error(rawline, "Illegal operand");
+      return assemble_error(info, "Illegal operand");
     }
     break;
   case LEA:
     if (inst->src.type == INDIRECT && inst->dst.type == REG) {
       if (inst->dst.reg.size != REG64)
-        return assemble_error(rawline, "64 bit register expected for destination");
+        return assemble_error(info, "64 bit register expected for destination");
 
       int d = inst->dst.reg.no;
       if (inst->src.indirect.reg.no != RIP) {
@@ -254,7 +254,7 @@ bool assemble_inst(Inst *inst, const char *rawline, Code *code) {
   case ADD:
     if (inst->src.type == REG && inst->dst.type == REG) {
       if (inst->dst.reg.size != inst->src.reg.size)
-        return assemble_error(rawline, "Different source and destination register size");
+        return assemble_error(info, "Different source and destination register size");
 
       enum RegSize size = inst->src.reg.size;
       p = put_rex2(p, size, opr_regno(&inst->src.reg), opr_regno(&inst->dst.reg),
@@ -316,7 +316,7 @@ bool assemble_inst(Inst *inst, const char *rawline, Code *code) {
   case SUB:
     if (inst->src.type == REG && inst->dst.type == REG) {
       if (inst->dst.reg.size != inst->src.reg.size)
-        return assemble_error(rawline, "Different source and destination register size");
+        return assemble_error(info, "Different source and destination register size");
 
       enum RegSize size = inst->src.reg.size;
       p = put_rex2(p, size, opr_regno(&inst->src.reg), opr_regno(&inst->dst.reg),
@@ -366,7 +366,7 @@ bool assemble_inst(Inst *inst, const char *rawline, Code *code) {
     break;
   case MUL:
     if (inst->src.type == NOOPERAND || inst->dst.type != NOOPERAND)
-      return assemble_error(rawline, "Illegal operand");
+      return assemble_error(info, "Illegal operand");
 
     if (inst->src.type == REG) {
       enum RegSize size = inst->src.reg.size;
@@ -377,7 +377,7 @@ bool assemble_inst(Inst *inst, const char *rawline, Code *code) {
     break;
   case DIV:
     if (inst->src.type == NOOPERAND || inst->dst.type != NOOPERAND)
-      return assemble_error(rawline, "Illegal operand");
+      return assemble_error(info, "Illegal operand");
 
     if (inst->src.type == REG) {
       enum RegSize size = inst->src.reg.size;
@@ -388,7 +388,7 @@ bool assemble_inst(Inst *inst, const char *rawline, Code *code) {
     break;
   case IDIV:
     if (inst->src.type == NOOPERAND || inst->dst.type != NOOPERAND)
-      return assemble_error(rawline, "Illegal operand");
+      return assemble_error(info, "Illegal operand");
 
     if (inst->src.type == REG) {
       enum RegSize size = inst->src.reg.size;
@@ -399,7 +399,7 @@ bool assemble_inst(Inst *inst, const char *rawline, Code *code) {
     break;
   case NEG:
     if (inst->src.type == NOOPERAND || inst->dst.type != NOOPERAND)
-      return assemble_error(rawline, "Illegal operand");
+      return assemble_error(info, "Illegal operand");
 
     if (inst->src.type == REG) {
       p = put_rex2(p, inst->src.reg.size,
@@ -408,7 +408,7 @@ bool assemble_inst(Inst *inst, const char *rawline, Code *code) {
     break;
   case NOT:
     if (inst->src.type == NOOPERAND || inst->dst.type != NOOPERAND)
-      return assemble_error(rawline, "Illegal operand");
+      return assemble_error(info, "Illegal operand");
 
     if (inst->src.type == REG) {
       p = put_rex2(p, inst->src.reg.size,
@@ -417,7 +417,7 @@ bool assemble_inst(Inst *inst, const char *rawline, Code *code) {
     break;
   case INC:
     if (inst->src.type == NOOPERAND || inst->dst.type != NOOPERAND)
-      return assemble_error(rawline, "Illegal operand");
+      return assemble_error(info, "Illegal operand");
 
     if (inst->src.type == REG) {
       p = put_rex2(p, inst->src.reg.size,
@@ -427,7 +427,7 @@ bool assemble_inst(Inst *inst, const char *rawline, Code *code) {
   case INCL:
   case INCQ:
     if (inst->src.type == NOOPERAND || inst->dst.type != NOOPERAND)
-      return assemble_error(rawline, "Illegal operand");
+      return assemble_error(info, "Illegal operand");
 
     if (inst->src.type == INDIRECT &&
         inst->src.indirect.reg.no != RIP) {
@@ -441,7 +441,7 @@ bool assemble_inst(Inst *inst, const char *rawline, Code *code) {
     break;
   case DEC:
     if (inst->src.type == NOOPERAND || inst->dst.type != NOOPERAND)
-      return assemble_error(rawline, "Illegal operand");
+      return assemble_error(info, "Illegal operand");
 
     if (inst->src.type == REG) {
       p = put_rex2(p, inst->src.reg.size,
@@ -451,7 +451,7 @@ bool assemble_inst(Inst *inst, const char *rawline, Code *code) {
   case DECL:
   case DECQ:
     if (inst->src.type == NOOPERAND)
-      return assemble_error(rawline, "Illegal operand");
+      return assemble_error(info, "Illegal operand");
 
     if (inst->src.type == INDIRECT &&
         inst->src.indirect.reg.no != RIP) {
@@ -466,7 +466,7 @@ bool assemble_inst(Inst *inst, const char *rawline, Code *code) {
   case AND:
     if (inst->src.type == REG && inst->dst.type == REG) {
       if (inst->dst.reg.size != inst->src.reg.size)
-        return assemble_error(rawline, "Different source and destination register size");
+        return assemble_error(info, "Different source and destination register size");
 
       enum RegSize size = inst->src.reg.size;
       p = put_rex2(p, size, opr_regno(&inst->src.reg), opr_regno(&inst->dst.reg),
@@ -476,7 +476,7 @@ bool assemble_inst(Inst *inst, const char *rawline, Code *code) {
   case OR:
     if (inst->src.type == REG && inst->dst.type == REG) {
       if (inst->dst.reg.size != inst->src.reg.size)
-        return assemble_error(rawline, "Different source and destination register size");
+        return assemble_error(info, "Different source and destination register size");
 
       enum RegSize size = inst->src.reg.size;
       p = put_rex2(p, size, opr_regno(&inst->src.reg), opr_regno(&inst->dst.reg),
@@ -486,7 +486,7 @@ bool assemble_inst(Inst *inst, const char *rawline, Code *code) {
   case XOR:
     if (inst->src.type == REG && inst->dst.type == REG) {
       if (inst->dst.reg.size != inst->src.reg.size)
-        return assemble_error(rawline, "Different source and destination register size");
+        return assemble_error(info, "Different source and destination register size");
 
       enum RegSize size = inst->src.reg.size;
       p = put_rex2(p, size, opr_regno(&inst->src.reg), opr_regno(&inst->dst.reg),
@@ -496,7 +496,7 @@ bool assemble_inst(Inst *inst, const char *rawline, Code *code) {
   case SHL:
     if (inst->src.type == REG && inst->dst.type == REG) {
       if (opr_regno(&inst->src.reg) != CL - AL)
-        return assemble_error(rawline, "`%cl` expected");
+        return assemble_error(info, "`%cl` expected");
 
       enum RegSize size = inst->dst.reg.size;
       p = put_rex2(p, size, 4, opr_regno(&inst->dst.reg),  // 0xe0 = 0xc0 | (4 << 3)
@@ -506,7 +506,7 @@ bool assemble_inst(Inst *inst, const char *rawline, Code *code) {
   case SHR:
     if (inst->src.type == REG && inst->dst.type == REG) {
       if (opr_regno(&inst->src.reg) != CL - AL)
-        return assemble_error(rawline, "`%cl` expected");
+        return assemble_error(info, "`%cl` expected");
 
       enum RegSize size = inst->dst.reg.size;
       p = put_rex2(p, size, 5, opr_regno(&inst->dst.reg),  // 0xe8 = 0xc0 | (5 << 3)
@@ -516,7 +516,7 @@ bool assemble_inst(Inst *inst, const char *rawline, Code *code) {
   case CMP:
     if (inst->src.type == REG && inst->dst.type == REG) {
       if (inst->dst.reg.size != inst->src.reg.size)
-        return assemble_error(rawline, "Different source and destination register size");
+        return assemble_error(info, "Different source and destination register size");
 
       enum RegSize size = inst->src.reg.size;
       p = put_rex2(p, size, opr_regno(&inst->src.reg), opr_regno(&inst->dst.reg),
@@ -551,7 +551,7 @@ bool assemble_inst(Inst *inst, const char *rawline, Code *code) {
   case TEST:
     if (inst->src.type == REG && inst->dst.type == REG) {
       if (inst->dst.reg.size != inst->src.reg.size)
-        return assemble_error(rawline, "Different source and destination register size");
+        return assemble_error(info, "Different source and destination register size");
 
       enum RegSize size = inst->src.reg.size;
       p = put_rex2(p, size, opr_regno(&inst->src.reg), opr_regno(&inst->dst.reg),
@@ -560,13 +560,13 @@ bool assemble_inst(Inst *inst, const char *rawline, Code *code) {
     break;
   case CLTD:
     if (inst->src.type != NOOPERAND || inst->dst.type != NOOPERAND)
-      return assemble_error(rawline, "Illegal operand");
+      return assemble_error(info, "Illegal operand");
 
     MAKE_CODE(inst, code, 0x99);
     return true;
   case CQTO:
     if (inst->src.type != NOOPERAND || inst->dst.type != NOOPERAND)
-      return assemble_error(rawline, "Illegal operand");
+      return assemble_error(info, "Illegal operand");
 
     MAKE_CODE(inst, code, 0x48, 0x99);
     return true;
@@ -577,7 +577,7 @@ bool assemble_inst(Inst *inst, const char *rawline, Code *code) {
   case SETL: case SETGE: case SETLE: case SETG:
     if (inst->dst.type != NOOPERAND || inst->src.type != REG ||
         inst->src.reg.size != REG8)
-      return assemble_error(rawline, "Illegal opeand");
+      return assemble_error(info, "Illegal opeand");
 
     p = put_rex0(p, REG8, 0, opr_regno(&inst->src.reg), 0x0f);
     *p++ = 0x90 | (inst->op - SETO);
@@ -586,7 +586,7 @@ bool assemble_inst(Inst *inst, const char *rawline, Code *code) {
   case PUSH:
     if (inst->dst.type != NOOPERAND || inst->src.type != REG ||
         inst->src.reg.size != REG64)
-      return assemble_error(rawline, "Illegal operand");
+      return assemble_error(info, "Illegal operand");
 
     p = put_rex0(p, REG32, 0, opr_regno(&inst->src.reg),
                  0x50 | inst->src.reg.no);
@@ -594,14 +594,14 @@ bool assemble_inst(Inst *inst, const char *rawline, Code *code) {
   case POP:
     if (inst->dst.type != NOOPERAND || inst->src.type != REG ||
         inst->src.reg.size != REG64)
-      return assemble_error(rawline, "Illegal operand");
+      return assemble_error(info, "Illegal operand");
 
     p = put_rex0(p, REG32, 0, opr_regno(&inst->src.reg),
                  0x58 | inst->src.reg.no);
     break;
   case JMP:
     if (inst->src.type != LABEL || inst->dst.type != NOOPERAND)
-      return assemble_error(rawline, "Illegal operand");
+      return assemble_error(info, "Illegal operand");
     //MAKE_CODE(inst, code, 0xe9, IM32(-1));
     MAKE_CODE(inst, code, 0xeb, IM8(-1));  // Short jmp in default.
     return true;
@@ -610,14 +610,14 @@ bool assemble_inst(Inst *inst, const char *rawline, Code *code) {
   case JS: case JNS: case JP:  case JNP:
   case JL: case JGE: case JLE: case JG:
     if (inst->src.type != LABEL || inst->dst.type != NOOPERAND)
-      return assemble_error(rawline, "Illegal operand");
+      return assemble_error(info, "Illegal operand");
 
     //MAKE_CODE(inst, code, 0x0f, 0x80 + (inst->op - JO), IM32(-1));
     MAKE_CODE(inst, code, 0x70 + (inst->op - JO), IM8(-1));  // Short jmp in default.
     return true;
   case CALL:
     if (inst->dst.type != NOOPERAND)
-      return assemble_error(rawline, "Illegal operand");
+      return assemble_error(info, "Illegal operand");
 
     if (inst->src.type == LABEL) {
       MAKE_CODE(inst, code, 0xe8, IM32(-1));
@@ -634,13 +634,13 @@ bool assemble_inst(Inst *inst, const char *rawline, Code *code) {
     break;
   case RET:
     if (inst->src.type != NOOPERAND || inst->dst.type != NOOPERAND)
-      return assemble_error(rawline, "Illegal operand");
+      return assemble_error(info, "Illegal operand");
 
     MAKE_CODE(inst, code, 0xc3);
     return true;
   case INT:
     if (inst->dst.type != NOOPERAND)
-      return assemble_error(rawline, "Illegal operand");
+      return assemble_error(info, "Illegal operand");
 
     if (inst->src.type == IMMEDIATE) {
       long value = inst->src.immediate;
@@ -650,7 +650,7 @@ bool assemble_inst(Inst *inst, const char *rawline, Code *code) {
     return true;
   case SYSCALL:
     if (inst->src.type != NOOPERAND || inst->dst.type != NOOPERAND)
-      return assemble_error(rawline, "Illegal operand");
+      return assemble_error(info, "Illegal operand");
 
     MAKE_CODE(inst, code, 0x0f, 0x05);
     return true;
