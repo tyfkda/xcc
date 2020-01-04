@@ -75,7 +75,7 @@ test-all: test test-gen2 diff-gen23
 
 .PHONY: clean
 clean:
-	rm -rf cc1 cpp as $(OBJ_DIR) a.out gen2 gen3 tmp.s
+	rm -rf cc1 cpp as xcc $(OBJ_DIR) a.out gen2 gen3 tmp.s
 	$(MAKE) -C tests clean
 
 ### Self hosting
