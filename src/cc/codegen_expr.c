@@ -381,7 +381,7 @@ VReg *gen_expr(Expr *expr) {
   case EX_STR:
     {
       Initializer *init = malloc(sizeof(*init));
-      init->kind = vSingle;
+      init->kind = IK_SINGLE;
       init->single = expr;
 
       Type* strtype = arrayof(&tyChar, expr->str.size);

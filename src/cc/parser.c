@@ -54,7 +54,7 @@ static Initializer *parse_initializer(void) {
           consume(TK_ASSIGN, "`=' expected for dotted initializer");
           Initializer *value = parse_initializer();
           init = malloc(sizeof(*init));
-          init->kind = vDot;
+          init->kind = IK_DOT;
           init->token = ident;
           init->dot.name = ident->ident;
           init->dot.value = value;
@@ -64,7 +64,7 @@ static Initializer *parse_initializer(void) {
           match(TK_ASSIGN);  // both accepted: `[1] = 2`, and `[1] 2`
           Initializer *value = parse_initializer();
           init = malloc(sizeof(*init));
-          init->kind = vArr;
+          init->kind = IK_ARR;
           init->token = tok;
           init->arr.index = index;
           init->arr.value = value;
@@ -82,11 +82,11 @@ static Initializer *parse_initializer(void) {
         }
       }
     }
-    result->kind = vMulti;
+    result->kind = IK_MULTI;
     result->token = lblace_tok;
     result->multi = multi;
   } else {
-    result->kind = vSingle;
+    result->kind = IK_SINGLE;
     result->single = parse_assign();
     result->token = result->single->token;
   }

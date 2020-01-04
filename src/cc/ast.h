@@ -164,8 +164,15 @@ typedef struct Defun {
 
 // Initializer
 
+enum InitializerKind {
+  IK_SINGLE,  // 123
+  IK_MULTI,   // {...}
+  IK_DOT,     // .x=123
+  IK_ARR,     // [n]=123
+};
+
 typedef struct Initializer {
-  enum { vSingle, vMulti, vDot, vArr } kind;  // vSingle: 123, vMulti: {...}, vDot: .x=123, vArr: [n]=123
+  enum InitializerKind kind;
   const Token *token;
   union {
     Expr *single;

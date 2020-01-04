@@ -46,9 +46,9 @@ static void fix_array_size(Type *type, Initializer *init) {
   assert(type->kind == TY_ARRAY);
 
   bool is_str = (is_char_type(type->pa.ptrof) &&
-                 init->kind == vSingle &&
+                 init->kind == IK_SINGLE &&
                  init->single->kind == EX_STR);
-  if (!is_str && init->kind != vMulti) {
+  if (!is_str && init->kind != IK_MULTI) {
     parse_error(init->token, "Error initializer");
   }
 
@@ -62,7 +62,7 @@ static void fix_array_size(Type *type, Initializer *init) {
       size_t i, len = init->multi->len;
       for (i = 0; i < len; ++i) {
         Initializer *init_elem = init->multi->data[i];
-        if (init_elem->kind == vArr) {
+        if (init_elem->kind == IK_ARR) {
           assert(init_elem->arr.index->kind == EX_NUM);
           index = init_elem->arr.index->num.ival;
         }
@@ -104,17 +104,17 @@ static Initializer *analyze_initializer(Initializer *init) {
     return NULL;
 
   switch (init->kind) {
-  case vSingle:
+  case IK_SINGLE:
     init->single = analyze_expr(init->single, false);
     break;
-  case vMulti:
+  case IK_MULTI:
     for (int i = 0; i < init->multi->len; ++i)
       init->multi->data[i] = analyze_initializer(init->multi->data[i]);
     break;
-  case vDot:
+  case IK_DOT:
     init->dot.value = analyze_initializer(init->dot.value);
     break;
-  case vArr:
+  case IK_ARR:
     init->arr.value = analyze_initializer(init->arr.value);
     break;
   }
@@ -131,7 +131,7 @@ VarInfo *str_to_char_array(const Type *type, Initializer *init) {
 
 static void string_initializer(Expr *dst, Initializer *src, Vector *inits) {
   // Initialize char[] with string literal (char s[] = "foo";).
-  assert(src->kind == vSingle);
+  assert(src->kind == IK_SINGLE);
   const Expr *str = src->single;
   assert(str->kind == EX_STR);
   assert(dst->type->kind == TY_ARRAY && is_char_type(dst->type->pa.ptrof));
@@ -167,16 +167,16 @@ static int compare_desig_start(const void *a, const void *b) {
 }
 
 static Initializer *flatten_array_initializer(Initializer *init) {
-  // Check whether vDot or vArr exists.
+  // Check whether IK_DOT or IK_ARR exists.
   int i = 0, len = init->multi->len;
   for (; i < len; ++i) {
     Initializer *init_elem = init->multi->data[i];
-    if (init_elem->kind == vDot)
+    if (init_elem->kind == IK_DOT)
       parse_error(NULL, "dot initializer for array");
-    if (init_elem->kind == vArr)
+    if (init_elem->kind == IK_ARR)
       break;
   }
-  if (i >= len)  // vArr not exits.
+  if (i >= len)  // IK_ARR not exits.
     return init;
 
   // Enumerate designated initializer.
@@ -186,7 +186,7 @@ static Initializer *flatten_array_initializer(Initializer *init) {
   size_t index = i;
   for (; i <= len; ++i, ++index) {  // '+1' is for last range.
     Initializer *init_elem = NULL;
-    if (i >= len || (init_elem = init->multi->data[i])->kind == vArr) {
+    if (i >= len || (init_elem = init->multi->data[i])->kind == IK_ARR) {
       if (i < len && init_elem->arr.index->kind != EX_NUM)
         parse_error(NULL, "Constant value expected");
       if ((size_t)i > lastStartIndex) {
@@ -200,7 +200,7 @@ static Initializer *flatten_array_initializer(Initializer *init) {
         break;
       lastStart = index = init_elem->arr.index->num.ival;
       lastStartIndex = i;
-    } else if (init_elem->kind == vDot)
+    } else if (init_elem->kind == IK_DOT)
       parse_error(NULL, "dot initializer for array");
   }
 
@@ -222,9 +222,9 @@ static Initializer *flatten_array_initializer(Initializer *init) {
     }
     for (size_t j = 0; j < count; ++j) {
       Initializer *elem = init->multi->data[index + j];
-      if (j == 0 && index != start && elem->kind != vArr) {
+      if (j == 0 && index != start && elem->kind != IK_ARR) {
         Initializer *arr = malloc(sizeof(*arr));
-        arr->kind = vArr;
+        arr->kind = IK_ARR;
         Num n = {.ival = start};
         arr->arr.index = new_expr_numlit(&tyInt, NULL, &n);
         arr->arr.value = elem;
@@ -235,7 +235,7 @@ static Initializer *flatten_array_initializer(Initializer *init) {
   }
 
   Initializer *init2 = malloc(sizeof(*init2));
-  init2->kind = vMulti;
+  init2->kind = IK_MULTI;
   init2->multi = reordered;
   return init2;
 }
@@ -246,7 +246,7 @@ Initializer *flatten_initializer(const Type *type, Initializer *init) {
 
   switch (type->kind) {
   case TY_STRUCT:
-    if (init->kind == vMulti) {
+    if (init->kind == IK_MULTI) {
       ensure_struct((Type*)type, NULL);
       const StructInfo *sinfo = type->struct_.info;
       int n = sinfo->members->len;
@@ -266,10 +266,10 @@ Initializer *flatten_initializer(const Type *type, Initializer *init) {
       int index = 0;
       for (int i = 0; i < m; ++i) {
         Initializer *value = init->multi->data[i];
-        if (value->kind == vArr)
+        if (value->kind == IK_ARR)
           parse_error(NULL, "indexed initializer for struct");
 
-        if (value->kind == vDot) {
+        if (value->kind == IK_DOT) {
           const Name *name = value->dot.name;
           index = var_find(sinfo->members, name);
           if (index >= 0) {
@@ -284,7 +284,7 @@ Initializer *flatten_initializer(const Type *type, Initializer *init) {
             Vector *multi = new_vector();
             vec_push(multi, value);
             Initializer *init2 = malloc(sizeof(*init2));
-            init2->kind = vMulti;
+            init2->kind = IK_MULTI;
             init2->multi = multi;
             value = init2;
           }
@@ -293,13 +293,13 @@ Initializer *flatten_initializer(const Type *type, Initializer *init) {
           parse_error(NULL, "Too many init values");
 
         // Allocate string literal for char* as a char array.
-        if (value->kind == vSingle && value->single->kind == EX_STR) {
+        if (value->kind == IK_SINGLE && value->single->kind == EX_STR) {
           const VarInfo *member = sinfo->members->data[index];
           if (member->type->kind == TY_PTR &&
               is_char_type(member->type->pa.ptrof)) {
             Expr *expr = value->single;
             Initializer *strinit = malloc(sizeof(*strinit));
-            strinit->kind = vSingle;
+            strinit->kind = IK_SINGLE;
             strinit->single = expr;
 
             // Create string and point to it.
@@ -318,7 +318,7 @@ Initializer *flatten_initializer(const Type *type, Initializer *init) {
       }
 
       Initializer *flat = malloc(sizeof(*flat));
-      flat->kind = vMulti;
+      flat->kind = IK_MULTI;
       Vector *v = malloc(sizeof(*v));
       v->len = v->capacity = n;
       v->data = (void**)values;
@@ -329,10 +329,10 @@ Initializer *flatten_initializer(const Type *type, Initializer *init) {
     break;
   case TY_ARRAY:
     switch (init->kind) {
-    case vMulti:
+    case IK_MULTI:
       init = flatten_array_initializer(init);
       break;
-    case vSingle:
+    case IK_SINGLE:
       // Special handling for string (char[]).
       if (can_cast(type, init->single->type, init->single, false))
         break;
@@ -355,7 +355,7 @@ static Initializer *check_global_initializer(const Type *type, Initializer *init
 
   switch (type->kind) {
   case TY_NUM:
-    if (init->kind == vSingle) {
+    if (init->kind == IK_SINGLE) {
       switch (init->single->kind) {
       case EX_NUM:
         return init;
@@ -367,7 +367,7 @@ static Initializer *check_global_initializer(const Type *type, Initializer *init
     break;
   case TY_PTR:
     {
-      if (init->kind != vSingle)
+      if (init->kind != IK_SINGLE)
         parse_error(NULL, "initializer type error");
 
       Expr *value = init->single;
@@ -408,7 +408,7 @@ static Initializer *check_global_initializer(const Type *type, Initializer *init
       case EX_NUM:
         {
           Initializer *init2 = malloc(sizeof(*init2));
-          init2->kind = vSingle;
+          init2->kind = IK_SINGLE;
           init2->single = value;
           return init2;
         }
@@ -422,7 +422,7 @@ static Initializer *check_global_initializer(const Type *type, Initializer *init
           VarInfo *varinfo = str_to_char_array(strtype, init);
 
           Initializer *init2 = malloc(sizeof(*init2));
-          init2->kind = vSingle;
+          init2->kind = IK_SINGLE;
           init2->single = new_expr_variable(varinfo->name, strtype, NULL);
           return init2;
         }
@@ -434,7 +434,7 @@ static Initializer *check_global_initializer(const Type *type, Initializer *init
     break;
   case TY_ARRAY:
     switch (init->kind) {
-    case vMulti:
+    case IK_MULTI:
       {
         const Type *elemtype = type->pa.ptrof;
         Vector *multi = init->multi;
@@ -444,7 +444,7 @@ static Initializer *check_global_initializer(const Type *type, Initializer *init
         }
       }
       break;
-    case vSingle:
+    case IK_SINGLE:
       if (is_char_type(type->pa.ptrof) && init->single->kind == EX_STR) {
         assert(type->pa.length != (size_t)-1);
         if (type->pa.length < init->single->str.size) {
@@ -453,7 +453,7 @@ static Initializer *check_global_initializer(const Type *type, Initializer *init
         break;
       }
       // Fallthrough
-    case vDot:
+    case IK_DOT:
     default:
       parse_error(NULL, "Illegal initializer");
       break;
@@ -490,7 +490,7 @@ static Vector *assign_initial_value(Expr *expr, Initializer *init, Vector *inits
   switch (expr->type->kind) {
   case TY_ARRAY:
     switch (init->kind) {
-    case vMulti:
+    case IK_MULTI:
       {
         size_t arr_len = expr->type->pa.length;
         assert(arr_len != (size_t)-1);
@@ -500,7 +500,7 @@ static Vector *assign_initial_value(Expr *expr, Initializer *init, Vector *inits
         size_t index = 0;
         for (size_t i = 0; i < len; ++i, ++index) {
           Initializer *init_elem = init->multi->data[i];
-          if (init_elem->kind == vArr) {
+          if (init_elem->kind == IK_ARR) {
             Expr *ind = init_elem->arr.index;
             if (ind->kind != EX_NUM)
               parse_error(NULL, "Number required");
@@ -515,7 +515,7 @@ static Vector *assign_initial_value(Expr *expr, Initializer *init, Vector *inits
         }
       }
       break;
-    case vSingle:
+    case IK_SINGLE:
       // Special handling for string (char[]).
       if (is_char_type(expr->type->pa.ptrof) &&
           init->single->kind == EX_STR) {
@@ -530,7 +530,7 @@ static Vector *assign_initial_value(Expr *expr, Initializer *init, Vector *inits
     break;
   case TY_STRUCT:
     {
-      if (init->kind != vMulti) {
+      if (init->kind != IK_MULTI) {
         vec_push(inits,
                  new_stmt_expr(new_expr_bop(EX_ASSIGN, expr->type, NULL, expr,
                                             init->single)));
@@ -567,7 +567,7 @@ static Vector *assign_initial_value(Expr *expr, Initializer *init, Vector *inits
     }
     break;
   default:
-    if (init->kind != vSingle)
+    if (init->kind != IK_SINGLE)
       parse_error(init->token, "Error initializer");
     vec_push(inits,
              new_stmt_expr(new_expr_bop(EX_ASSIGN, expr->type, NULL, expr,

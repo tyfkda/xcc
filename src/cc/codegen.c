@@ -160,14 +160,14 @@ static void escape_string(const char *str, size_t size, StringBuffer *sb) {
 }
 
 void construct_initial_value(unsigned char *buf, const Type *type, Initializer *init) {
-  assert(init == NULL || init->kind != vDot);
+  assert(init == NULL || init->kind != IK_DOT);
 
   switch (type->kind) {
   case TY_NUM:
     {
       intptr_t v = 0;
       if (init != NULL) {
-        assert(init->kind == vSingle);
+        assert(init->kind == IK_SINGLE);
         Expr *value = init->single;
         if (!(is_const(value) && is_number(value->type->kind)))
           error("Illegal initializer: constant number expected");
@@ -191,7 +191,7 @@ void construct_initial_value(unsigned char *buf, const Type *type, Initializer *
     break;
   case TY_PTR:
     if (init != NULL) {
-      assert(init->kind == vSingle);
+      assert(init->kind == IK_SINGLE);
       Expr *value = init->single;
       while (value->kind == EX_CAST)
         value = value->unary.sub;
@@ -226,7 +226,7 @@ void construct_initial_value(unsigned char *buf, const Type *type, Initializer *
     }
     break;
   case TY_ARRAY:
-    if (init == NULL || init->kind == vMulti) {
+    if (init == NULL || init->kind == IK_MULTI) {
       const Type *elem_type = type->pa.ptrof;
       size_t elem_size = type_size(elem_type);
       if (init != NULL) {
@@ -235,7 +235,7 @@ void construct_initial_value(unsigned char *buf, const Type *type, Initializer *
         size_t len = init_array->len;
         for (size_t i = 0; i < len; ++i, ++index) {
           Initializer *init_elem = init_array->data[i];
-          if (init_elem->kind == vArr) {
+          if (init_elem->kind == IK_ARR) {
             size_t next = init_elem->arr.index->num.ival;
             for (size_t j = index; j < next; ++j)
               construct_initial_value(buf + (j * elem_size), elem_type, NULL);
@@ -249,7 +249,7 @@ void construct_initial_value(unsigned char *buf, const Type *type, Initializer *
           construct_initial_value(buf + (i * elem_size), elem_type, NULL);
       }
     } else {
-      if (init->kind == vSingle &&
+      if (init->kind == IK_SINGLE &&
           is_char_type(type->pa.ptrof) && init->single->kind == EX_STR) {
         int src_size = init->single->str.size;
         size_t size = type_size(type);
@@ -270,7 +270,7 @@ void construct_initial_value(unsigned char *buf, const Type *type, Initializer *
     break;
   case TY_STRUCT:
     {
-      assert(init == NULL || init->kind == vMulti);
+      assert(init == NULL || init->kind == IK_MULTI);
 
       const StructInfo *sinfo = type->struct_.info;
       int count = 0;
