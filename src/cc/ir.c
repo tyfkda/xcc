@@ -1045,10 +1045,14 @@ void dump_func_ir(Function *func) {
   for (int i = 0; i < ra->vregs->len; ++i) {
     LiveInterval *li = sorted_intervals[i];
     VReg *vreg = ra->vregs->data[li->vreg];
-    if (!li->spill) {
+    switch (li->state) {
+    case LI_NORMAL:
       fprintf(fp, "  V%3d (flag=%x): live %3d - %3d, => R%3d\n", li->vreg, vreg->flag, li->start, li->end, li->rreg);
-    } else {
+      break;
+    case LI_SPILL:
       fprintf(fp, "  V%3d (flag=%x): live %3d - %3d (spilled, offset=%d)\n", li->vreg, vreg->flag, li->start, li->end, vreg->offset);
+      break;
+    default:  assert(false); break;
     }
   }
 

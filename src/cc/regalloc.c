@@ -108,11 +108,11 @@ static void split_at_interval(LiveInterval **active, int active_count, LiveInter
   if (spill->end > li->end) {
     li->rreg = spill->rreg;
     spill->rreg = SPILLED_REG_NO;
-    spill->spill = true;
+    spill->state = LI_SPILL;
     insert_active(active, active_count - 1, li);
   } else {
     li->rreg = SPILLED_REG_NO;
-    li->spill = true;
+    li->state = LI_SPILL;
   }
 }
 
@@ -138,7 +138,7 @@ static LiveInterval **check_live_interval(BBContainer *bbcon, int vreg_count, Li
     li->vreg = i;
     li->rreg = -1;
     li->start = li->end = -1;
-    li->spill = false;
+    li->state = LI_NORMAL;
   }
 
   int nip = 0;
@@ -187,7 +187,7 @@ static short linear_scan_register_allocation(LiveInterval **sorted_intervals, in
 
   for (int i = 0; i < vreg_count; ++i) {
     LiveInterval *li = sorted_intervals[i];
-    if (li->spill)
+    if (li->state != LI_NORMAL)
       continue;
     expire_old_intervals(active, &active_count, &using_bits, li->start);
     if (active_count >= REG_COUNT) {
@@ -422,11 +422,10 @@ void alloc_real_registers(RegAlloc *ra, BBContainer *bbcon) {
     if (vreg->param_index >= 0) {
       vreg_spill(vreg);
       li->start = 0;
-      li->spill = true;
+      li->state = LI_SPILL;
     }
-
     if (vreg->r >= SPILLED_REG_NO) {
-      li->spill = true;
+      li->state = LI_SPILL;
       li->rreg = vreg->r;
     }
   }
@@ -443,7 +442,7 @@ void alloc_real_registers(RegAlloc *ra, BBContainer *bbcon) {
   size_t frame_size = 0;
   for (int i = 0; i < vreg_count; ++i) {
     LiveInterval *li = sorted_intervals[i];
-    if (!li->spill)
+    if (li->state != LI_SPILL)
       continue;
     VReg *vreg = ra->vregs->data[li->vreg];
     if (vreg->offset != 0) {  // Variadic function parameter or stack parameter.

@@ -27,10 +27,15 @@ void alloc_real_registers(RegAlloc *ra, BBContainer *bbcon);
 
 // Private
 
+enum LiveIntervalState {
+  LI_NORMAL,
+  LI_SPILL,
+};
+
 typedef struct LiveInterval {
   int vreg;
   int rreg;
   int start;
   int end;
-  bool spill;
+  enum LiveIntervalState state;
 } LiveInterval;
