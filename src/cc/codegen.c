@@ -435,7 +435,14 @@ static void alloc_variable_registers(Function *func) {
       if (varinfo->flag & (VF_STATIC | VF_EXTERN))
         continue;  // Static variable is not allocated on stack.
 
-      VReg *vreg = add_new_reg(varinfo->type);
+      VReg *vreg = add_new_reg(varinfo->type, VRF_LOCAL);
+      if (i == 0 && func->params != NULL) {
+        int param_index = var_find(func->params, varinfo->name);
+        if (param_index >= 0) {
+          vreg->flag |= VRF_PARAM;
+          vreg->param_index = param_index;
+        }
+      }
       varinfo->reg = vreg;
     }
   }

@@ -26,11 +26,12 @@ typedef struct VReg {
   int v;
   int r;
   const Type *type;
+  int flag;
   int param_index;  // Function parameter index: -1=not a param
   int offset;  // Local offset for spilled register.
 } VReg;
 
-VReg *new_vreg(int vreg_no, const Type *type);
+VReg *new_vreg(int vreg_no, const Type *type, int flag);
 void vreg_spill(VReg *vreg);
 
 // Intermediate Representation

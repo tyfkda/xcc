@@ -36,4 +36,4 @@ void calc_struct_size(StructInfo *sinfo);
 void gen_cond_jmp(Expr *cond, bool tf, BB *bb);
 
 void set_curbb(BB *bb);
-VReg *add_new_reg(const Type *type);
+VReg *add_new_reg(const Type *type, int flag);

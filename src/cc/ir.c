@@ -23,11 +23,12 @@ static enum ConditionKind invert_cond(enum ConditionKind cond) {
 
 // Virtual register
 
-VReg *new_vreg(int vreg_no, const Type *type) {
+VReg *new_vreg(int vreg_no, const Type *type, int flag) {
   VReg *vreg = malloc(sizeof(*vreg));
   vreg->v = vreg_no;
   vreg->r = -1;
   vreg->type = type;
+  vreg->flag = flag;
   vreg->param_index = -1;
   vreg->offset = 0;
   return vreg;
@@ -87,7 +88,7 @@ VReg *new_ir_imm(intptr_t value, const Type *type) {
   IR *ir = new_ir(IR_IMM);
   ir->value = value;
   ir->size = type_size(type);
-  return ir->dst = reg_alloc_spawn(curra, type);
+  return ir->dst = reg_alloc_spawn(curra, type, 0);
 }
 
 VReg *new_ir_bop(enum IrKind kind, VReg *opr1, VReg *opr2, const Type *type) {
@@ -95,21 +96,21 @@ VReg *new_ir_bop(enum IrKind kind, VReg *opr1, VReg *opr2, const Type *type) {
   ir->opr1 = opr1;
   ir->opr2 = opr2;
   ir->size = type_size(type);
-  return ir->dst = reg_alloc_spawn(curra, type);
+  return ir->dst = reg_alloc_spawn(curra, type, 0);
 }
 
 VReg *new_ir_unary(enum IrKind kind, VReg *opr, const Type *type) {
   IR *ir = new_ir(kind);
   ir->opr1 = opr;
   ir->size = type_size(type);
-  return ir->dst = reg_alloc_spawn(curra, type);
+  return ir->dst = reg_alloc_spawn(curra, type, 0);
 }
 
 VReg *new_ir_bofs(VReg *src) {
   IR *ir = new_ir(IR_BOFS);
   ir->opr1 = src;
   ir->size = WORD_SIZE;
-  return ir->dst = reg_alloc_spawn(curra, &tyVoidPtr);
+  return ir->dst = reg_alloc_spawn(curra, &tyVoidPtr, 0);
 }
 
 VReg *new_ir_iofs(const Name *label, bool global) {
@@ -117,7 +118,7 @@ VReg *new_ir_iofs(const Name *label, bool global) {
   ir->iofs.label = label;
   ir->iofs.global = global;
   ir->size = WORD_SIZE;
-  return ir->dst = reg_alloc_spawn(curra, &tyVoidPtr);
+  return ir->dst = reg_alloc_spawn(curra, &tyVoidPtr, 0);
 }
 
 void new_ir_store(VReg *dst, VReg *src, int size) {
@@ -158,7 +159,7 @@ void new_ir_incdec(enum IrKind kind, VReg *reg, int size, intptr_t value) {
 VReg *new_ir_set(enum ConditionKind cond) {
   IR *ir = new_ir(IR_SET);
   ir->set.cond = cond;
-  return ir->dst = reg_alloc_spawn(curra, &tyBool);
+  return ir->dst = reg_alloc_spawn(curra, &tyBool, 0);
 }
 
 void new_ir_jmp(enum ConditionKind cond, BB *bb) {
@@ -187,7 +188,7 @@ VReg *new_ir_call(const Name *label, bool global, VReg *freg, int arg_count, con
   ir->call.stack_aligned = stack_aligned;
   ir->call.arg_count = arg_count;
   ir->size = type_size(result_type);
-  return ir->dst = reg_alloc_spawn(curra, result_type);
+  return ir->dst = reg_alloc_spawn(curra, result_type, 0);
 }
 
 void new_ir_addsp(int value) {
@@ -201,7 +202,7 @@ VReg *new_ir_cast(VReg *vreg, const Type *dsttype, int srcsize, bool is_unsigned
   ir->size = type_size(dsttype);
   ir->cast.srcsize = srcsize;
   ir->cast.is_unsigned = is_unsigned;
-  return ir->dst = reg_alloc_spawn(curra, dsttype);
+  return ir->dst = reg_alloc_spawn(curra, dsttype, 0);
 }
 
 void new_ir_mov(VReg *dst, VReg *src, int size) {
@@ -1031,7 +1032,7 @@ void dump_func_ir(Function *func) {
       VarInfo *varinfo = scope->vars->data[j];
       if (varinfo->reg == NULL)
         continue;
-      fprintf(fp, "  V%3d: %.*s\n", varinfo->reg->v, varinfo->name->bytes, varinfo->name->chars);
+      fprintf(fp, "  V%3d (flag=%x): %.*s\n", varinfo->reg->v, varinfo->reg->flag, varinfo->name->bytes, varinfo->name->chars);
     }
   }
 
@@ -1042,9 +1043,9 @@ void dump_func_ir(Function *func) {
     LiveInterval *li = sorted_intervals[i];
     VReg *vreg = ra->vregs->data[li->vreg];
     if (!li->spill) {
-      fprintf(fp, "  V%3d: live %3d - %3d, => R%3d\n", li->vreg, li->start, li->end, li->rreg);
+      fprintf(fp, "  V%3d (flag=%x): live %3d - %3d, => R%3d\n", li->vreg, vreg->flag, li->start, li->end, li->rreg);
     } else {
-      fprintf(fp, "  V%3d: live %3d - %3d (spilled, offset=%d)\n", li->vreg, li->start, li->end, vreg->offset);
+      fprintf(fp, "  V%3d (flag=%x): live %3d - %3d (spilled, offset=%d)\n", li->vreg, vreg->flag, li->start, li->end, vreg->offset);
     }
   }
 

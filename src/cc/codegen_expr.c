@@ -13,8 +13,8 @@
 #include "var.h"
 #include "x86_64.h"
 
-VReg *add_new_reg(const Type *type) {
-  return reg_alloc_spawn(curdefun->func->ra, type);
+VReg *add_new_reg(const Type *type, int flag) {
+  return reg_alloc_spawn(curdefun->func->ra, type, flag);
 }
 
 static void gen_test_opcode(VReg *reg, const Type *type) {
@@ -68,7 +68,7 @@ static enum ConditionKind gen_compare_expr(enum ExprKind kind, Expr *lhs, Expr *
     VReg *rhs_reg = gen_expr(rhs);
     // Allocate new register to avoid comparing spilled registers.
     int size = type_size(lhs->type);
-    VReg *tmp = add_new_reg(lhs->type);
+    VReg *tmp = add_new_reg(lhs->type, 0);
     new_ir_mov(tmp, lhs_reg, size);
     new_ir_cmp(tmp, rhs_reg, size);
   }
@@ -273,7 +273,7 @@ static VReg *gen_ternary(Expr *expr) {
   BB *fbb = bb_split(tbb);
   BB *nbb = bb_split(fbb);
 
-  VReg *result = add_new_reg(expr->type);
+  VReg *result = add_new_reg(expr->type, 0);
   gen_cond_jmp(expr->ternary.cond, false, fbb);
 
   set_curbb(tbb);
@@ -402,9 +402,8 @@ VReg *gen_expr(Expr *expr) {
         Scope *scope = sub->variable.scope;
         const VarInfo *varinfo = scope_find(&scope, sub->variable.name);
         assert(varinfo != NULL);
-        if (!(varinfo->flag & (VF_STATIC | VF_EXTERN))) {
-          vreg_spill(varinfo->reg);
-        }
+        if (varinfo->reg != NULL)
+          varinfo->reg->flag |= VRF_REF;
       }
       return gen_lval(sub);
     }
@@ -525,7 +524,7 @@ VReg *gen_expr(Expr *expr) {
 #else
         // To avoid both spilled registers, add temporary register.
         {
-          VReg *tmp = add_new_reg(expr->type);
+          VReg *tmp = add_new_reg(expr->type, 0);
           new_ir_mov(tmp, src, type_size(expr->type));
           new_ir_store(dst, tmp, type_size(expr->type));
         }
@@ -599,7 +598,7 @@ VReg *gen_expr(Expr *expr) {
         Scope *scope = sub->variable.scope;
         const VarInfo *varinfo = scope_find(&scope, sub->variable.name);
         if (varinfo != NULL && !(varinfo->flag & (VF_STATIC | VF_EXTERN))) {
-          VReg *org_val = add_new_reg(sub->type);
+          VReg *org_val = add_new_reg(sub->type, 0);
           new_ir_mov(org_val, varinfo->reg, size);
           VReg *num = new_ir_imm(value, expr->type);
           VReg *result = new_ir_bop(expr->kind == EX_POSTINC ? IR_ADD : IR_SUB,

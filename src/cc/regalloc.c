@@ -23,8 +23,8 @@ RegAlloc *new_reg_alloc(void) {
   return ra;
 }
 
-VReg *reg_alloc_spawn(RegAlloc *ra, const Type *type) {
-  VReg *vreg = new_vreg(ra->vregs->len, type);
+VReg *reg_alloc_spawn(RegAlloc *ra, const Type *type, int flag) {
+  VReg *vreg = new_vreg(ra->vregs->len, type, flag);
   vec_push(ra->vregs, vreg);
   return vreg;
 }
@@ -360,7 +360,6 @@ static void analyze_reg_flow(BBContainer *bbcon) {
 }
 
 void prepare_register_allocation(Function *func) {
-  int param_index = 0;
   for (int i = 0; i < func->scopes->len; ++i) {
     Scope *scope = (Scope*)func->scopes->data[i];
     if (scope->vars == NULL)
@@ -373,8 +372,9 @@ void prepare_register_allocation(Function *func) {
         continue;
 
       bool spill = false;
-      if (i == 0 && func->params != NULL && vec_contains(func->params, varinfo)) {
-        vreg->param_index = param_index++;
+      if (vreg->flag & VRF_REF)
+        spill = true;
+      if (vreg->flag & VRF_PARAM) {
         spill = true;
         if (func->type->func.vaargs) {  // Variadic function parameters.
           vreg->offset = (vreg->param_index - MAX_REG_ARGS) * WORD_SIZE;

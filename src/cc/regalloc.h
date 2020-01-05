@@ -20,7 +20,7 @@ typedef struct RegAlloc {
 } RegAlloc;
 
 RegAlloc *new_reg_alloc(void);
-VReg *reg_alloc_spawn(RegAlloc *ra, const Type *type);
+VReg *reg_alloc_spawn(RegAlloc *ra, const Type *type, int flag);
 
 void prepare_register_allocation(Function *func);
 void alloc_real_registers(RegAlloc *ra, BBContainer *bbcon);
