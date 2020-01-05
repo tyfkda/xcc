@@ -242,6 +242,16 @@ VReg *new_ir_unary(enum IrKind kind, VReg *opr, const Type *type) {
   return ir->dst = reg_alloc_spawn(curra, type, 0);
 }
 
+VReg *new_ir_ptradd(int offset, VReg *base, VReg *index, int scale, const Type *type) {
+  IR *ir = new_ir(IR_PTRADD);
+  ir->opr1 = base;
+  ir->opr2 = index;
+  ir->size = type_size(type);
+  ir->ptradd.offset = offset;
+  ir->ptradd.scale = scale;
+  return ir->dst = reg_alloc_spawn(curra, type, 0);
+}
+
 VReg *new_ir_bofs(VReg *src) {
   IR *ir = new_ir(IR_BOFS);
   ir->opr1 = src;
@@ -386,20 +396,20 @@ static void ir_memcpy(int dst_reg, int src_reg, ssize_t size) {
   // Break %rcx, %dl
   switch (size) {
   case 1:
-    MOV(INDIRECT(src), DL);
-    MOV(DL, INDIRECT(dst));
+    MOV(INDIRECT(src, NULL, 1), DL);
+    MOV(DL, INDIRECT(dst, NULL, 1));
     break;
   case 2:
-    MOV(INDIRECT(src), DX);
-    MOV(DX, INDIRECT(dst));
+    MOV(INDIRECT(src, NULL, 1), DX);
+    MOV(DX, INDIRECT(dst, NULL, 1));
     break;
   case 4:
-    MOV(INDIRECT(src), EDX);
-    MOV(EDX, INDIRECT(dst));
+    MOV(INDIRECT(src, NULL, 1), EDX);
+    MOV(EDX, INDIRECT(dst, NULL, 1));
     break;
   case 8:
-    MOV(INDIRECT(src), RDX);
-    MOV(RDX, INDIRECT(dst));
+    MOV(INDIRECT(src, NULL, 1), RDX);
+    MOV(RDX, INDIRECT(dst, NULL, 1));
     break;
   default:
     {
@@ -408,8 +418,8 @@ static void ir_memcpy(int dst_reg, int src_reg, ssize_t size) {
       PUSH(src);
       MOV(IM(size), RCX);
       EMIT_LABEL(label);
-      MOV(INDIRECT(src), DL);
-      MOV(DL, INDIRECT(dst));
+      MOV(INDIRECT(src, NULL, 1), DL);
+      MOV(DL, INDIRECT(dst, NULL, 1));
       INC(src);
       INC(dst);
       DEC(RCX);
@@ -424,7 +434,7 @@ static void ir_out(const IR *ir) {
   switch (ir->kind) {
   case IR_BOFS:
     assert(!(ir->opr1->flag & VRF_CONST));
-    LEA(OFFSET_INDIRECT(ir->opr1->offset, RBP), kReg64s[ir->dst->r]);
+    LEA(OFFSET_INDIRECT(ir->opr1->offset, RBP, NULL, 1), kReg64s[ir->dst->r]);
     break;
 
   case IR_IOFS:
@@ -443,7 +453,7 @@ static void ir_out(const IR *ir) {
       int pow = kPow2Table[ir->size];
       assert(0 <= pow && pow < 4);
       const char **regs = kRegSizeTable[pow];
-      MOV(INDIRECT(kReg64s[ir->opr1->r]), regs[ir->dst->r]);
+      MOV(INDIRECT(kReg64s[ir->opr1->r], NULL, 1), regs[ir->dst->r]);
     }
     break;
 
@@ -455,7 +465,7 @@ static void ir_out(const IR *ir) {
       int pow = kPow2Table[ir->size];
       assert(0 <= pow && pow < 4);
       const char **regs = kRegSizeTable[pow];
-      MOV(regs[ir->opr1->r], INDIRECT(kReg64s[ir->opr2->r]));
+      MOV(regs[ir->opr1->r], INDIRECT(kReg64s[ir->opr2->r], NULL, 1));
     }
     break;
 
@@ -492,6 +502,29 @@ static void ir_out(const IR *ir) {
         SUB(im(ir->opr2->r), regs[ir->dst->r]);
       else
         SUB(regs[ir->opr2->r], regs[ir->dst->r]);
+    }
+    break;
+
+  case IR_PTRADD:
+    {
+      assert(0 <= ir->size && ir->size < kPow2TableSize);
+      int pow = kPow2Table[ir->size];
+      assert(0 <= pow && pow < 4);
+      const char **regs = kRegSizeTable[pow];
+      VReg *base = ir->opr1;
+      VReg *index = ir->opr2;
+      if (index == NULL && ir->ptradd.scale == 1 && ir->ptradd.offset == 0) {
+        if (ir->dst->r == base->r)
+          ;  // No need to move.
+        else
+          MOV(regs[base->r], regs[ir->dst->r]);
+      } else if (ir->dst->r == base->r && ir->ptradd.scale == 1 && ir->ptradd.offset == 0) {
+        ADD(regs[index->r], regs[ir->dst->r]);
+      } else if (index != NULL && ir->dst->r == index->r && ir->ptradd.scale == 1 && ir->ptradd.offset == 0) {
+        ADD(regs[base->r], regs[ir->dst->r]);
+      } else {
+        LEA(OFFSET_INDIRECT(ir->ptradd.offset, regs[base->r], index != NULL ? regs[index->r] : NULL, ir->ptradd.scale), regs[ir->dst->r]);
+      }
     }
     break;
 
@@ -738,7 +771,7 @@ static void ir_out(const IR *ir) {
   case IR_INC:
     {
       assert(!(ir->opr1->flag & VRF_CONST));
-      const char *reg = INDIRECT(kReg64s[ir->opr1->r]);
+      const char *reg = INDIRECT(kReg64s[ir->opr1->r], NULL, 1);
       if (ir->value == 1) {
         switch (ir->size) {
         case 1:  INCB(reg); break;
@@ -763,7 +796,7 @@ static void ir_out(const IR *ir) {
   case IR_DEC:
     {
       assert(!(ir->opr1->flag & VRF_CONST));
-      const char *reg = INDIRECT(kReg64s[ir->opr1->r]);
+      const char *reg = INDIRECT(kReg64s[ir->opr1->r], NULL, 1);
       if (ir->value == 1) {
         switch (ir->size) {
         case 1:  DECB(reg); break;
@@ -1001,7 +1034,7 @@ static void ir_out(const IR *ir) {
       MOV(IM(ir->size), EDI);
       XOR(AL, AL);
       EMIT_LABEL(loop);
-      MOV(AL, INDIRECT(RSI));
+      MOV(AL, INDIRECT(RSI, NULL, 1));
       INC(RSI);
       DEC(EDI);
       JNE(loop);
@@ -1031,7 +1064,7 @@ static void ir_out(const IR *ir) {
       int pow = kPow2Table[ir->size];
       assert(0 <= pow && pow < 4);
       const char **regs = kRegSizeTable[pow];
-      MOV(OFFSET_INDIRECT(ir->value, RBP), regs[SPILLED_REG_NO]);
+      MOV(OFFSET_INDIRECT(ir->value, RBP, NULL, 1), regs[SPILLED_REG_NO]);
     }
     break;
 
@@ -1041,7 +1074,7 @@ static void ir_out(const IR *ir) {
       int pow = kPow2Table[ir->size];
       assert(0 <= pow && pow < 4);
       const char **regs = kRegSizeTable[pow];
-      MOV(regs[SPILLED_REG_NO], OFFSET_INDIRECT(ir->value, RBP));
+      MOV(regs[SPILLED_REG_NO], OFFSET_INDIRECT(ir->value, RBP, NULL, 1));
     }
     break;
 
@@ -1230,6 +1263,17 @@ static void dump_ir(FILE *fp, IR *ir) {
   case IR_DIVU:   fprintf(fp, "\tDIVU\t"); dump_vreg(fp, ir->dst, ir->size); fprintf(fp, " = "); dump_vreg(fp, ir->opr1, ir->size); fprintf(fp, " / "); dump_vreg(fp, ir->opr2, ir->size); fprintf(fp, "\n"); break;
   case IR_MOD:    fprintf(fp, "\tMOD\t"); dump_vreg(fp, ir->dst, ir->size); fprintf(fp, " = "); dump_vreg(fp, ir->opr1, ir->size); fprintf(fp, " %% "); dump_vreg(fp, ir->opr2, ir->size); fprintf(fp, "\n"); break;
   case IR_MODU:   fprintf(fp, "\tMODU\t"); dump_vreg(fp, ir->dst, ir->size); fprintf(fp, " = "); dump_vreg(fp, ir->opr1, ir->size); fprintf(fp, " %% "); dump_vreg(fp, ir->opr2, ir->size); fprintf(fp, "\n"); break;
+  case IR_PTRADD:
+    fprintf(fp, "\tPTRADD\t"); dump_vreg(fp, ir->dst, ir->size); fprintf(fp, " = "); dump_vreg(fp, ir->opr1, ir->size);
+    if (ir->opr2 != NULL) {
+      fprintf(fp, " + "); dump_vreg(fp, ir->opr2, ir->size);
+      if (ir->ptradd.scale != 1)
+        fprintf(fp, " * %d", ir->ptradd.scale);
+    }
+    if (ir->ptradd.offset != 0)
+      fprintf(fp, " + %d", ir->ptradd.offset);
+    fprintf(fp, "\n");
+    break;
   case IR_BITAND: fprintf(fp, "\tBITAND\t"); dump_vreg(fp, ir->dst, ir->size); fprintf(fp, " = "); dump_vreg(fp, ir->opr1, ir->size); fprintf(fp, " & "); dump_vreg(fp, ir->opr2, ir->size); fprintf(fp, "\n"); break;
   case IR_BITOR:  fprintf(fp, "\tBITOR\t"); dump_vreg(fp, ir->dst, ir->size); fprintf(fp, " = "); dump_vreg(fp, ir->opr1, ir->size); fprintf(fp, " | "); dump_vreg(fp, ir->opr2, ir->size); fprintf(fp, "\n"); break;
   case IR_BITXOR: fprintf(fp, "\tBITXOR\t"); dump_vreg(fp, ir->dst, ir->size); fprintf(fp, " = "); dump_vreg(fp, ir->opr1, ir->size); fprintf(fp, " ^ "); dump_vreg(fp, ir->opr2, ir->size); fprintf(fp, "\n"); break;

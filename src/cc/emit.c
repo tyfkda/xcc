@@ -39,12 +39,29 @@ char *im(intptr_t x) {
   return fmt("$%"PRIdPTR, x);
 }
 
-char *indirect(const char *reg) {
-  return fmt("(%s)", reg);
+char *indirect(const char *base, const char *index, int scale) {
+  if (index == NULL) {
+    return fmt("(%s)", base);
+  } else {
+    if (scale == 1)
+      return fmt("(%s,%s)", base, index);
+    else
+      return fmt("(%s,%s,%d)", base, index, scale);
+  }
 }
 
-char *offset_indirect(int offset, const char *reg) {
-  return fmt("%d(%s)", offset, reg);
+char *offset_indirect(int offset, const char *base, const char *index, int scale) {
+  if (offset == 0)
+    return indirect(base, index, scale);
+
+  if (index == NULL) {
+    return fmt("%d(%s)", offset, base);
+  } else {
+    if (scale == 1)
+      return fmt("%d(%s,%s)", offset, base, index);
+    else
+      return fmt("%d(%s,%s,%d)", offset, base, index, scale);
+  }
 }
 
 char *label_indirect(const char *label, const char *reg) {

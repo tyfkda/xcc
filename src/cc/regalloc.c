@@ -232,6 +232,7 @@ static int insert_load_store_spilled(BBContainer *bbcon, Vector *vregs) {
       case IR_DIVU:
       case IR_MOD:
       case IR_MODU:
+      case IR_PTRADD:
       case IR_BITAND:
       case IR_BITOR:
       case IR_BITXOR:
@@ -267,9 +268,11 @@ static int insert_load_store_spilled(BBContainer *bbcon, Vector *vregs) {
         continue;
       }
 
+      assert(!((ir->opr1 != NULL && (flag & 1) != 0 && ir->opr1->r == SPILLED_REG_NO && !(ir->opr1->flag & VRF_CONST)) &&
+               (ir->opr2 != NULL && (flag & 2) != 0 && ir->opr2->r == SPILLED_REG_NO && !(ir->opr2->flag & VRF_CONST))));
+
       if (ir->opr1 != NULL && (flag & 1) != 0 && ir->opr1->r == SPILLED_REG_NO &&
           !(ir->opr1->flag & VRF_CONST)) {
-        assert(!(ir->opr1->flag & VRF_CONST));
         vec_insert(irs, j,
                    new_ir_load_spilled(((VReg*)vregs->data[ir->opr1->v])->offset, load_size));
         ++j;

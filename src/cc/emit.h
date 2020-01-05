@@ -11,8 +11,8 @@ char *fmt(const char *s, ...);
 char *fmt_name(const Name *name);
 char *num(intptr_t x);  // x
 char *im(intptr_t x);  // $x
-char *indirect(const char *reg);
-char *offset_indirect(int offset, const char *reg);
+char *indirect(const char *base, const char *index, int scale);
+char *offset_indirect(int offset, const char *base, const char *index, int scale);
 char *label_indirect(const char *label, const char *reg);
 const char *mangle(const char *label);
 

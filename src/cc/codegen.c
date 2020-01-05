@@ -490,16 +490,16 @@ static void put_args_to_stack(Defun *defun) {
     if (i < MAX_REG_ARGS) {
       switch (size) {
       case 1:
-        MOV(kReg8s[i], OFFSET_INDIRECT(offset, RBP));
+        MOV(kReg8s[i], OFFSET_INDIRECT(offset, RBP, NULL, 1));
         break;
       case 2:
-        MOV(kReg16s[i], OFFSET_INDIRECT(offset, RBP));
+        MOV(kReg16s[i], OFFSET_INDIRECT(offset, RBP, NULL, 1));
         break;
       case 4:
-        MOV(kReg32s[i], OFFSET_INDIRECT(offset, RBP));
+        MOV(kReg32s[i], OFFSET_INDIRECT(offset, RBP, NULL, 1));
         break;
       case 8:
-        MOV(kReg64s[i], OFFSET_INDIRECT(offset, RBP));
+        MOV(kReg64s[i], OFFSET_INDIRECT(offset, RBP, NULL, 1));
         break;
       default:
         assert(false);

@@ -19,10 +19,10 @@
 #define IM(x)  im(x)
 #endif
 #ifndef INDIRECT
-#define INDIRECT(x)  indirect(x)
+#define INDIRECT(base, index, scale)  indirect(base, index, scale)
 #endif
 #ifndef OFFSET_INDIRECT
-#define OFFSET_INDIRECT(ofs, x)  offset_indirect(ofs, x)
+#define OFFSET_INDIRECT(ofs, base, index, scale)  offset_indirect(ofs, base, index, scale)
 #endif
 #ifndef LABEL_INDIRECT
 #define LABEL_INDIRECT(label, x)  label_indirect(label, x)

@@ -175,10 +175,8 @@ static Expr *add_ptr_num(enum ExprKind kind, const Token *token, Expr *ptr, Expr
   const Type *ptr_type = ptr->type;
   if (ptr_type->kind == TY_ARRAY)
     ptr_type = array_to_ptr(ptr_type);
-  return new_expr_bop(kind, ptr_type, token, ptr,
-                      new_expr_bop(EX_MUL, &tySize, token,
-                                   make_cast(&tySize, token, num, false),
-                                   new_expr_sizeof(token, ptr_type->pa.ptrof, NULL)));
+  return new_expr_bop((enum ExprKind)(EX_PTRADD + (kind - EX_ADD)),
+                      ptr_type, token, ptr, num);
 }
 
 Expr *add_expr(const Token *tok, Expr *lhs, Expr *rhs, bool keep_left) {
