@@ -25,7 +25,6 @@ Compiler:
 
 Preprocessor:
 
-  * Value evaluation
   * Self recursive macro expansion
 
 

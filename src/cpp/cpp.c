@@ -295,51 +295,20 @@ Token *match2(enum TokenKind kind) {
   }
 }
 
-void expand(Macro *macro, const Name *name) {
-  Vector *args = NULL;
+char *expand(Macro *macro, Vector *args, const Name *name) {
   if (macro->params != NULL) {
-    if (!match2(TK_LPAR))
-      parse_error(NULL, "`(' expected for macro `%.*s'", name->bytes, name->chars);
-    args = new_vector();
-    StringBuffer sb;
-    sb_init(&sb);
-    if (!match2(TK_RPAR)) {
-      int paren = 0;
-      for (;;) {
-        if (match2(TK_EOF))
-          parse_error(NULL, "`)' expected");
-
-        Token *tok;
-        if ((tok = match2(TK_COMMA)) != NULL || (tok = match2(TK_RPAR)) != NULL)  {
-          if (paren > 0) {
-            sb_append(&sb, tok->begin, tok->end);
-            if (tok->kind == TK_RPAR)
-              --paren;
-            continue;
-          }
-          if (sb_empty(&sb))
-            parse_error(tok, "expression expected");
-
-          vec_push(args, sb_to_string(&sb));
-          sb_clear(&sb);
-
-          if (tok->kind == TK_RPAR)
-            break;
-          continue;
-        }
-        tok = match2(-1);
-        if (tok->kind == TK_LPAR)
-          ++paren;
-        if (!sb_empty(&sb))
-          sb_append(&sb, " ", NULL);
-        sb_append(&sb, tok->begin, tok->end);
+    if (args == NULL) {
+      parse_error(NULL, "arguments expected for macro `%.*s'", name->bytes, name->chars);
+    } else {
+      if ((!macro->va_args && args->len != macro->params->len) ||
+          (macro->va_args && args->len <= macro->params->len)) {
+        const char *cmp = args->len < macro->params->len ? "less" : "few";
+        parse_error(NULL, "Too %s arguments for macro `%.*s'", cmp, name->bytes, name->chars);
       }
     }
-
-    if ((!macro->va_args && args->len != macro->params->len) ||
-        (macro->va_args && args->len <= macro->params->len)) {
-      const char *cmp = args->len < macro->params->len ? "less" : "few";
-      parse_error(NULL, "Too %s arguments for macro `%.*s'", cmp, name->bytes, name->chars);
+  } else {
+    if (args != NULL) {
+      parse_error(NULL, "Illegal argument for macro `%.*s'", name->bytes, name->chars);
     }
   }
 
@@ -379,9 +348,11 @@ void expand(Macro *macro, const Name *name) {
       }
     }
   }
-  sb_append(&sb, get_lex_p(), NULL);
+  const char *left = get_lex_p();
+  if (left != NULL)
+    sb_append(&sb, get_lex_p(), NULL);
 
-  set_source_string(sb_to_string(&sb), NULL, -1);
+  return sb_to_string(&sb);
 }
 
 bool handle_block_comment(const char *begin, const char **pp, Stream *stream) {
@@ -418,6 +389,48 @@ bool handle_block_comment(const char *begin, const char **pp, Stream *stream) {
   }
 }
 
+static Vector *parse_funargs(void) {
+  Vector *args = NULL;
+  if (match2(TK_LPAR)) {
+    args = new_vector();
+    StringBuffer sb;
+    sb_init(&sb);
+    if (!match2(TK_RPAR)) {
+      int paren = 0;
+      for (;;) {
+        if (match2(TK_EOF))
+          parse_error(NULL, "`)' expected");
+
+        Token *tok;
+        if ((tok = match2(TK_COMMA)) != NULL || (tok = match2(TK_RPAR)) != NULL)  {
+          if (paren > 0) {
+            sb_append(&sb, tok->begin, tok->end);
+            if (tok->kind == TK_RPAR)
+              --paren;
+            continue;
+          }
+          if (sb_empty(&sb))
+            parse_error(tok, "expression expected");
+
+          vec_push(args, sb_to_string(&sb));
+          sb_clear(&sb);
+
+          if (tok->kind == TK_RPAR)
+            break;
+          continue;
+        }
+        tok = match2(-1);
+        if (tok->kind == TK_LPAR)
+          ++paren;
+        if (!sb_empty(&sb))
+          sb_append(&sb, " ", NULL);
+        sb_append(&sb, tok->begin, tok->end);
+      }
+    }
+  }
+  return args;
+}
+
 void process_line(const char *line, Stream *stream) {
   set_source_string(line, stream->filename, stream->lineno);
 
@@ -441,7 +454,11 @@ void process_line(const char *line, Stream *stream) {
         fwrite(begin, ident->begin - begin, 1, stdout);
 
       s_stream = stream;
-      expand(macro, ident->ident);
+      Vector *args = NULL;
+      if (macro->params != NULL)
+        args = parse_funargs();
+      char *expanded = expand(macro, args, ident->ident);
+      set_source_string(expanded, NULL, -1);
       begin = get_lex_p();
       continue;
     }
@@ -473,6 +490,50 @@ intptr_t reduce(Expr *expr) {
     default: assert(false); break;
     }
     break;
+  case EX_VARIABLE:
+    {
+      Macro *macro = table_get(&macro_table, expr->variable.name);
+      if (macro == NULL) {
+        parse_error(NULL, "`%.s' not defined", expr->variable.name->bytes, expr->variable.name->chars);
+      }
+      char *expanded = expand(macro, NULL, expr->variable.name);
+      int flag = 1;
+      if (*expanded == '-') {
+        ++expanded;
+        flag = -1;
+      }
+      char *p;
+      intptr_t value = strtol(expanded, &p, 10);
+      if (p == expanded)
+        parse_error(NULL, "number expected");
+      return value * flag;
+    }
+    break;
+  case EX_ADD:    return reduce(expr->bop.lhs) + reduce(expr->bop.rhs);
+  case EX_SUB:    return reduce(expr->bop.lhs) - reduce(expr->bop.rhs);
+  case EX_DIV:    return reduce(expr->bop.lhs) * reduce(expr->bop.rhs);
+  case EX_MUL:    return reduce(expr->bop.lhs) / reduce(expr->bop.rhs);
+  case EX_MOD:    return reduce(expr->bop.lhs) % reduce(expr->bop.rhs);
+  case EX_BITAND: return reduce(expr->bop.lhs) & reduce(expr->bop.rhs);
+  case EX_BITOR:  return reduce(expr->bop.lhs) | reduce(expr->bop.rhs);
+  case EX_BITXOR: return reduce(expr->bop.lhs) ^ reduce(expr->bop.rhs);
+  case EX_LSHIFT: return reduce(expr->bop.lhs) << reduce(expr->bop.rhs);
+  case EX_RSHIFT: return reduce(expr->bop.lhs) >> reduce(expr->bop.rhs);
+  case EX_EQ:     return reduce(expr->bop.lhs) == reduce(expr->bop.rhs);
+  case EX_NE:     return reduce(expr->bop.lhs) != reduce(expr->bop.rhs);
+  case EX_LT:     return reduce(expr->bop.lhs) < reduce(expr->bop.rhs);
+  case EX_LE:     return reduce(expr->bop.lhs) <= reduce(expr->bop.rhs);
+  case EX_GE:     return reduce(expr->bop.lhs) >= reduce(expr->bop.rhs);
+  case EX_GT:     return reduce(expr->bop.lhs) > reduce(expr->bop.rhs);
+  case EX_LOGAND: return reduce(expr->bop.lhs) && reduce(expr->bop.rhs);
+  case EX_LOGIOR: return reduce(expr->bop.lhs) || reduce(expr->bop.rhs);
+  case EX_POS:    return reduce(expr->unary.sub);
+  case EX_NEG:    return -reduce(expr->unary.sub);
+  case EX_NOT:    return reduce(expr->unary.sub) ? 0 : 1;
+  case EX_BITNOT: return ~reduce(expr->unary.sub);
+  case EX_GROUP:  return reduce(expr->unary.sub);
+  case EX_CAST:   return reduce(expr->unary.sub);
+  case EX_TERNARY:return reduce(expr->ternary.cond) ? reduce(expr->ternary.tval) : reduce(expr->ternary.fval);
   case EX_FUNCALL:
     {
       const Expr *func = expr->funcall.func;
@@ -487,12 +548,6 @@ intptr_t reduce(Expr *expr) {
       }
     }
     break;
-  case EX_NOT:
-    return reduce(expr->unary.sub) ? 0 : 1;
-  case EX_LOGAND:
-    return reduce(expr->bop.lhs) && reduce(expr->bop.rhs);
-  case EX_LOGIOR:
-    return reduce(expr->bop.lhs) || reduce(expr->bop.rhs);
   default:
     break;
   }

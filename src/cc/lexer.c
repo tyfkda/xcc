@@ -240,7 +240,10 @@ void set_source_string(const char *line, const char *filename, int lineno) {
 }
 
 const char *get_lex_p(void) {
-  return lexer.p;
+  if (lexer.idx < 0)
+    return lexer.p;
+  else
+    return lexer.fetched[lexer.idx]->begin;
 }
 
 static int scan_linemarker(const char *line, long *pnum, char **pfn, int *pflag) {
