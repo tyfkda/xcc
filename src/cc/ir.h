@@ -10,7 +10,6 @@ typedef struct BB BB;
 typedef struct Function Function;
 typedef struct Name Name;
 typedef struct RegAlloc RegAlloc;
-typedef struct Type Type;
 typedef struct Vector Vector;
 
 #define REG_COUNT  (7 - 1)
@@ -23,16 +22,22 @@ typedef struct Vector Vector;
 #define VRF_REF    (1 << 2)  // Reference(&) taken
 #define VRF_CONST  (1 << 3)  // Constant
 
+typedef struct VRegType {
+  int size;
+  int align;
+  bool is_unsigned;
+} VRegType;
+
 typedef struct VReg {
   int v;
   intptr_t r;  // Real register no. or constant value.
-  const Type *type;
+  const VRegType *vtype;
   int flag;
   int param_index;  // Function parameter index: -1=not a param
   int offset;  // Local offset for spilled register.
 } VReg;
 
-VReg *new_vreg(int vreg_no, const Type *type, int flag);
+VReg *new_vreg(int vreg_no, const VRegType *vtype, int flag);
 void vreg_spill(VReg *vreg);
 
 // Intermediate Representation
@@ -129,10 +134,10 @@ typedef struct {
   };
 } IR;
 
-VReg *new_const_vreg(intptr_t value, const Type *type);
-VReg *new_ir_bop(enum IrKind kind, VReg *opr1, VReg *opr2, const Type *type);
-VReg *new_ir_unary(enum IrKind kind, VReg *opr, const Type *type);
-VReg *new_ir_ptradd(int offset, VReg *base, VReg *index, int scale, const Type *type);
+VReg *new_const_vreg(intptr_t value, const VRegType *vtype);
+VReg *new_ir_bop(enum IrKind kind, VReg *opr1, VReg *opr2, const VRegType *vtype);
+VReg *new_ir_unary(enum IrKind kind, VReg *opr, const VRegType *vtype);
+VReg *new_ir_ptradd(int offset, VReg *base, VReg *index, int scale, const VRegType *vtype);
 void new_ir_mov(VReg *dst, VReg *src, int size);
 VReg *new_ir_bofs(VReg *src);
 VReg *new_ir_iofs(const Name *label, bool global);
@@ -144,10 +149,10 @@ VReg *new_ir_cond(enum ConditionKind cond);
 void new_ir_jmp(enum ConditionKind cond, BB *bb);
 void new_ir_precall(int arg_count, bool *stack_aligned);
 void new_ir_pusharg(VReg *vreg);
-VReg *new_ir_call(const Name *label, bool global, VReg *freg, int arg_count, const Type *result_type, bool *stack_aligned);
+VReg *new_ir_call(const Name *label, bool global, VReg *freg, int arg_count, const VRegType *result_type, bool *stack_aligned);
 void new_ir_result(VReg *reg, int size);
 void new_ir_addsp(int value);
-VReg *new_ir_cast(VReg *vreg, const Type *dsttype, int srcsize, bool is_unsigned);
+VReg *new_ir_cast(VReg *vreg, const VRegType *dsttype, int srcsize, bool is_unsigned);
 void new_ir_memcpy(VReg *dst, VReg *src, int size);
 void new_ir_clear(VReg *reg, size_t size);
 void new_ir_asm(const char *asm_);

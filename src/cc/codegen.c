@@ -577,18 +577,15 @@ static int compare_cases(const void *pa, const void *pb) {
   return d > 0 ? 1 : d < 0 ? -1 : 0;
 }
 
-static void gen_switch_cond_recur(Stmt *stmt, VReg *reg, const int *order, int len) {
+static void gen_switch_cond_recur(Stmt *stmt, VReg *reg, const VRegType *vtype, const int *order, int len) {
   Vector *case_values = stmt->switch_.case_values;
-  Expr *value = stmt->switch_.value;
-  size_t size = type_size(value->type);
-
   if (len <= 2) {
     for (int i = 0; i < len; ++i) {
       BB *nextbb = bb_split(curbb);
       int index = order[i];
       intptr_t x = (intptr_t)case_values->data[index];
-      VReg *num = new_const_vreg(x, value->type);
-      new_ir_cmp(reg, num, size);
+      VReg *num = new_const_vreg(x, vtype);
+      new_ir_cmp(reg, num, vtype->size);
       new_ir_jmp(COND_EQ, cur_case_bbs->data[index]);
       set_curbb(nextbb);
     }
@@ -598,8 +595,8 @@ static void gen_switch_cond_recur(Stmt *stmt, VReg *reg, const int *order, int l
     int m = len >> 1;
     int index = order[m];
     intptr_t x = (intptr_t)case_values->data[index];
-    VReg *num = new_const_vreg(x, value->type);
-    new_ir_cmp(reg, num, size);
+    VReg *num = new_const_vreg(x, vtype);
+    new_ir_cmp(reg, num, vtype->size);
     new_ir_jmp(COND_EQ, cur_case_bbs->data[index]);
     set_curbb(bbne);
 
@@ -607,9 +604,9 @@ static void gen_switch_cond_recur(Stmt *stmt, VReg *reg, const int *order, int l
     BB *bbgt = bb_split(bblt);
     new_ir_jmp(COND_GT, bbgt);
     set_curbb(bblt);
-    gen_switch_cond_recur(stmt, reg, order, m);
+    gen_switch_cond_recur(stmt, reg, vtype, order, m);
     set_curbb(bbgt);
-    gen_switch_cond_recur(stmt, reg, order + (m + 1), len - (m + 1));
+    gen_switch_cond_recur(stmt, reg, vtype, order + (m + 1), len - (m + 1));
   }
 }
 
@@ -631,7 +628,7 @@ static void gen_switch_cond(Stmt *stmt) {
       order[i] = i;
     myqsort(order, len, sizeof(int), compare_cases);
 
-    gen_switch_cond_recur(stmt, reg, order, len);
+    gen_switch_cond_recur(stmt, reg, to_vtype(stmt->switch_.value->type), order, len);
     free(order);
   } else {
     new_ir_jmp(COND_ANY, cur_case_bbs->data[cur_case_bbs->len - 2]);  // Jump to default.

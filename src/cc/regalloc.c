@@ -23,8 +23,8 @@ RegAlloc *new_reg_alloc(void) {
   return ra;
 }
 
-VReg *reg_alloc_spawn(RegAlloc *ra, const Type *type, int flag) {
-  VReg *vreg = new_vreg(ra->vregs->len, type, flag);
+VReg *reg_alloc_spawn(RegAlloc *ra, const VRegType *vtype, int flag) {
+  VReg *vreg = new_vreg(ra->vregs->len, vtype, flag);
   vec_push(ra->vregs, vreg);
   return vreg;
 }
@@ -467,10 +467,10 @@ void alloc_real_registers(RegAlloc *ra, BBContainer *bbcon) {
     }
 
     int size, align;
-    const Type *type = vreg->type;
-    assert(type != NULL);
-    size = type_size(type);
-    align = align_size(type);
+    const VRegType *vtype = vreg->vtype;
+    assert(vtype != NULL);
+    size = vtype->size;
+    align = vtype->align;
     if (size < 1)
       size = 1;
 

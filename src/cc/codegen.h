@@ -11,6 +11,7 @@ typedef struct Stmt Stmt;
 typedef struct StructInfo StructInfo;
 typedef struct Type Type;
 typedef struct VReg VReg;
+typedef struct VRegType VRegType;
 typedef struct Vector Vector;
 
 #define MAX_REG_ARGS  (6)
@@ -37,3 +38,4 @@ void gen_cond_jmp(Expr *cond, bool tf, BB *bb);
 
 void set_curbb(BB *bb);
 VReg *add_new_reg(const Type *type, int flag);
+VRegType *to_vtype(const Type *type);
