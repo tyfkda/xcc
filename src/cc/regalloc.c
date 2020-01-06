@@ -51,6 +51,7 @@ static void three_to_two(BB *bb) {
     case IR_NEG:  // unary ops
     case IR_BITNOT:
       {
+        assert(!(ir->dst->flag & VRF_CONST));
         IR *ir2 = malloc(sizeof(*ir2));
         ir2->kind = IR_MOV;
         ir2->dst = ir->dst;
@@ -223,7 +224,6 @@ static int insert_load_store_spilled(BBContainer *bbcon, Vector *vregs) {
       int flag = 0;
       int load_size = 0;
       switch (ir->kind) {
-      case IR_IMM:
       case IR_MOV:
       case IR_ADD:  // binops
       case IR_SUB:
@@ -267,21 +267,26 @@ static int insert_load_store_spilled(BBContainer *bbcon, Vector *vregs) {
         continue;
       }
 
-      if (ir->opr1 != NULL && (flag & 1) != 0 && ir->opr1->r == SPILLED_REG_NO) {
+      if (ir->opr1 != NULL && (flag & 1) != 0 && ir->opr1->r == SPILLED_REG_NO &&
+          !(ir->opr1->flag & VRF_CONST)) {
+        assert(!(ir->opr1->flag & VRF_CONST));
         vec_insert(irs, j,
                    new_ir_load_spilled(((VReg*)vregs->data[ir->opr1->v])->offset, load_size));
         ++j;
         inserted |= 1;
       }
 
-      if (ir->opr2 != NULL && (flag & 2) != 0 && ir->opr2->r == SPILLED_REG_NO) {
+      if (ir->opr2 != NULL && (flag & 2) != 0 && ir->opr2->r == SPILLED_REG_NO &&
+          !(ir->opr2->flag & VRF_CONST)) {
         vec_insert(irs, j,
                    new_ir_load_spilled(((VReg*)vregs->data[ir->opr2->v])->offset, load_size));
         ++j;
         inserted |= 2;
       }
 
-      if (ir->dst != NULL && (flag & 4) != 0 && ir->dst->r == SPILLED_REG_NO) {
+      if (ir->dst != NULL && (flag & 4) != 0 && ir->dst->r == SPILLED_REG_NO &&
+          !(ir->dst->flag & VRF_CONST)) {
+        assert(!(ir->dst->flag & VRF_CONST));
         ++j;
         vec_insert(irs, j,
                    new_ir_store_spilled(((VReg*)vregs->data[ir->dst->v])->offset, ir->size));
@@ -418,6 +423,11 @@ void alloc_real_registers(RegAlloc *ra, BBContainer *bbcon) {
     LiveInterval *li = &intervals[i];
     VReg *vreg = ra->vregs->data[i];
 
+    if (vreg->flag & VRF_CONST) {
+      li->state = LI_CONST;
+      continue;
+    }
+
     // Force function parameter spilled.
     if (vreg->param_index >= 0) {
       vreg_spill(vreg);
@@ -435,7 +445,9 @@ void alloc_real_registers(RegAlloc *ra, BBContainer *bbcon) {
   // Map vreg to rreg.
   for (int i = 0; i < vreg_count; ++i) {
     VReg *vreg = ra->vregs->data[i];
-    vreg->r = intervals[vreg->v].rreg;
+    LiveInterval *li = &intervals[i];
+    if (li->state != LI_CONST)
+      vreg->r = intervals[vreg->v].rreg;
   }
 
   // Allocated spilled virtual registers onto stack.

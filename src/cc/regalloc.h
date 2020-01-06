@@ -30,6 +30,7 @@ void alloc_real_registers(RegAlloc *ra, BBContainer *bbcon);
 enum LiveIntervalState {
   LI_NORMAL,
   LI_SPILL,
+  LI_CONST,
 };
 
 typedef struct LiveInterval {

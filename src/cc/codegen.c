@@ -587,7 +587,7 @@ static void gen_switch_cond_recur(Stmt *stmt, VReg *reg, const int *order, int l
       BB *nextbb = bb_split(curbb);
       int index = order[i];
       intptr_t x = (intptr_t)case_values->data[index];
-      VReg *num = new_ir_imm(x, value->type);
+      VReg *num = new_const_vreg(x, value->type);
       new_ir_cmp(reg, num, size);
       new_ir_jmp(COND_EQ, cur_case_bbs->data[index]);
       set_curbb(nextbb);
@@ -598,7 +598,7 @@ static void gen_switch_cond_recur(Stmt *stmt, VReg *reg, const int *order, int l
     int m = len >> 1;
     int index = order[m];
     intptr_t x = (intptr_t)case_values->data[index];
-    VReg *num = new_ir_imm(x, value->type);
+    VReg *num = new_const_vreg(x, value->type);
     new_ir_cmp(reg, num, size);
     new_ir_jmp(COND_EQ, cur_case_bbs->data[index]);
     set_curbb(bbne);

@@ -56,7 +56,7 @@ static enum ConditionKind gen_compare_expr(enum ExprKind kind, Expr *lhs, Expr *
       (cond == COND_EQ || cond == COND_NE)) {
     gen_test_opcode(lhs_reg, lhs->type);
   } else if (rhs->kind == EX_NUM && (lhs->type->num.kind != NUM_LONG || is_im32(rhs->num.ival))) {
-    VReg *num = new_ir_imm(rhs->num.ival, rhs->type);
+    VReg *num = new_const_vreg(rhs->num.ival, rhs->type);
     new_ir_cmp(lhs_reg, num, type_size(lhs->type));
   } else {
     switch (lhs->type->kind) {
@@ -231,7 +231,7 @@ static VReg *gen_lval(Expr *expr) {
         reg = gen_lval(expr->member.target);
       if (member->struct_.offset == 0)
         return reg;
-      VReg *imm = new_ir_imm(member->struct_.offset, &tySize);
+      VReg *imm = new_const_vreg(member->struct_.offset, &tySize);
       VReg *result = new_ir_bop(IR_ADD, reg, imm, &tySize);
       return result;
     }
@@ -375,7 +375,7 @@ VReg *gen_expr(Expr *expr) {
   switch (expr->kind) {
   case EX_NUM:
     assert(expr->type->kind == TY_NUM);
-    return new_ir_imm(expr->num.ival, expr->type);
+    return new_const_vreg(expr->num.ival, expr->type);
 
   case EX_STR:
     {
@@ -389,7 +389,7 @@ VReg *gen_expr(Expr *expr) {
     }
 
   case EX_SIZEOF:
-    return new_ir_imm(type_size(expr->sizeof_.type), expr->type);
+    return new_const_vreg(type_size(expr->sizeof_.type), expr->type);
 
   case EX_VARIABLE:
     return gen_variable(expr);
@@ -481,7 +481,7 @@ VReg *gen_expr(Expr *expr) {
         break;
       }
 
-      return new_ir_imm(value, expr->type);
+      return new_const_vreg(value, expr->type);
     } else {
       VReg *reg = gen_expr(expr->unary.sub);
       return gen_cast(reg, expr->type, expr->unary.sub->type);
@@ -569,7 +569,7 @@ VReg *gen_expr(Expr *expr) {
         Scope *scope = sub->variable.scope;
         const VarInfo *varinfo = scope_find(&scope, sub->variable.name);
         if (varinfo != NULL && !(varinfo->flag & (VF_STATIC | VF_EXTERN))) {
-          VReg *num = new_ir_imm(value, expr->type);
+          VReg *num = new_const_vreg(value, expr->type);
           VReg *result = new_ir_bop(expr->kind == EX_PREINC ? IR_ADD : IR_SUB,
                                     varinfo->reg, num, expr->type);
           new_ir_mov(varinfo->reg, result, size);
@@ -599,7 +599,7 @@ VReg *gen_expr(Expr *expr) {
         if (varinfo != NULL && !(varinfo->flag & (VF_STATIC | VF_EXTERN))) {
           VReg *org_val = add_new_reg(sub->type, 0);
           new_ir_mov(org_val, varinfo->reg, size);
-          VReg *num = new_ir_imm(value, expr->type);
+          VReg *num = new_const_vreg(value, expr->type);
           VReg *result = new_ir_bop(expr->kind == EX_POSTINC ? IR_ADD : IR_SUB,
                                     varinfo->reg, num, expr->type);
           new_ir_mov(varinfo->reg, result, size);
@@ -671,11 +671,11 @@ VReg *gen_expr(Expr *expr) {
       set_curbb(bb1);
       gen_cond_jmp(expr->bop.rhs, false, false_bb);
       set_curbb(bb2);
-      VReg *result = new_ir_imm(true, &tyBool);
+      VReg *result = add_new_reg(&tyBool, 0);
+      new_ir_mov(result, new_const_vreg(true, &tyBool), type_size(&tyBool));
       new_ir_jmp(COND_ANY, next_bb);
       set_curbb(false_bb);
-      VReg *result2 = new_ir_imm(false, &tyBool);
-      new_ir_mov(result, result2, type_size(&tyBool));
+      new_ir_mov(result, new_const_vreg(false, &tyBool), type_size(&tyBool));
       set_curbb(next_bb);
       return result;
     }
@@ -690,11 +690,11 @@ VReg *gen_expr(Expr *expr) {
       set_curbb(bb1);
       gen_cond_jmp(expr->bop.rhs, true, true_bb);
       set_curbb(bb2);
-      VReg *result = new_ir_imm(false, &tyBool);
+      VReg *result = add_new_reg(&tyBool, 0);
+      new_ir_mov(result, new_const_vreg(false, &tyBool), type_size(&tyBool));
       new_ir_jmp(COND_ANY, next_bb);
       set_curbb(true_bb);
-      VReg *result2 = new_ir_imm(true, &tyBool);
-      new_ir_mov(result, result2, type_size(&tyBool));
+      new_ir_mov(result, new_const_vreg(true, &tyBool), type_size(&tyBool));
       set_curbb(next_bb);
       return result;
     }

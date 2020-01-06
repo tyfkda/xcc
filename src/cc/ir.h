@@ -21,10 +21,11 @@ typedef struct Vector Vector;
 #define VRF_PARAM  (1 << 0)  // Function parameter
 #define VRF_LOCAL  (1 << 1)  // Local variable
 #define VRF_REF    (1 << 2)  // Reference(&) taken
+#define VRF_CONST  (1 << 3)  // Constant
 
 typedef struct VReg {
   int v;
-  int r;
+  intptr_t r;  // Real register no. or constant value.
   const Type *type;
   int flag;
   int param_index;  // Function parameter index: -1=not a param
@@ -37,7 +38,6 @@ void vreg_spill(VReg *vreg);
 // Intermediate Representation
 
 enum IrKind {
-  IR_IMM,   // Immediate value
   IR_BOFS,  // basereg+ofs
   IR_IOFS,  // label(rip)
   IR_LOAD,
@@ -124,7 +124,7 @@ typedef struct {
   };
 } IR;
 
-VReg *new_ir_imm(intptr_t value, const Type *type);
+VReg *new_const_vreg(intptr_t value, const Type *type);
 VReg *new_ir_bop(enum IrKind kind, VReg *opr1, VReg *opr2, const Type *type);
 VReg *new_ir_unary(enum IrKind kind, VReg *opr, const Type *type);
 void new_ir_mov(VReg *dst, VReg *src, int size);
