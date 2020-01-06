@@ -955,58 +955,61 @@ void emit_bb_irs(BBContainer *bbcon) {
 }
 
 #if !defined(SELF_HOSTING)
+static void dump_vreg(FILE *fp, VReg *vreg, int size) {
+  assert(vreg != NULL);
+  static char *kSize[] = {"0", "b", "w", "3", "d", "5", "6", "7", ""};
+  fprintf(fp, "R%d%s", vreg->r, kSize[size]);
+}
+
 static void dump_ir(FILE *fp, IR *ir) {
   static char *kSize[] = {"0", "b", "w", "3", "d", "5", "6", "7", ""};
   static char *kCond[] = {"MP", "EQ", "NE", "LT", "LE", "GE", "GT"};
 
-  int dst = ir->dst != NULL ? ir->dst->r : -1;
-  int opr1 = ir->opr1 != NULL ? ir->opr1->r : -1;
-  int opr2 = ir->opr2 != NULL ? ir->opr2->r : -1;
-
   switch (ir->kind) {
-  case IR_IMM:    fprintf(fp, "\tIMM\tR%d%s = %"PRIdPTR"\n", dst, kSize[ir->size], ir->value); break;
-  case IR_BOFS:   fprintf(fp, "\tBOFS\tR%d = &[rbp %c %d]\n", dst, ir->opr1->offset > 0 ? '+' : '-', ir->opr1->offset > 0 ? ir->opr1->offset : -ir->opr1->offset); break;
-  case IR_IOFS:   fprintf(fp, "\tIOFS\tR%d = &%.*s\n", dst, ir->iofs.label->bytes, ir->iofs.label->chars); break;
-  case IR_LOAD:   fprintf(fp, "\tLOAD\tR%d%s = (R%d)\n", dst, kSize[ir->size], opr1); break;
-  case IR_STORE:  fprintf(fp, "\tSTORE\t(R%d) = R%d%s\n", opr2, opr1, kSize[ir->size]); break;
-  case IR_MEMCPY: fprintf(fp, "\tMEMCPY(dst=R%d, src=R%d, size=%d)\n", opr2, opr1, ir->size); break;
-  case IR_ADD:    fprintf(fp, "\tADD\tR%d%s = R%d%s + R%d%s\n", dst, kSize[ir->size], opr1, kSize[ir->size], opr2, kSize[ir->size]); break;
-  case IR_SUB:    fprintf(fp, "\tSUB\tR%d%s = R%d%s - R%d%s\n", dst, kSize[ir->size], opr1, kSize[ir->size], opr2, kSize[ir->size]); break;
-  case IR_MUL:    fprintf(fp, "\tMUL\tR%d%s = R%d%s * R%d%s\n", dst, kSize[ir->size], opr1, kSize[ir->size], opr2, kSize[ir->size]); break;
-  case IR_DIV:    fprintf(fp, "\tDIV\tR%d%s = R%d%s / R%d%s\n", dst, kSize[ir->size], opr1, kSize[ir->size], opr2, kSize[ir->size]); break;
-  case IR_DIVU:   fprintf(fp, "\tDIVU\tR%d%s = R%d%s / R%d%s\n", dst, kSize[ir->size], opr1, kSize[ir->size], opr2, kSize[ir->size]); break;
-  case IR_MOD:    fprintf(fp, "\tMOD\tR%d%s = R%d%s %% R%d%s\n", dst, kSize[ir->size], opr1, kSize[ir->size], opr2, kSize[ir->size]); break;
-  case IR_MODU:   fprintf(fp, "\tMODU\tR%d%s = R%d%s %% R%d%s\n", dst, kSize[ir->size], opr1, kSize[ir->size], opr2, kSize[ir->size]); break;
-  case IR_BITAND: fprintf(fp, "\tBITAND\tR%d%s = R%d%s & R%d%s\n", dst, kSize[ir->size], opr1, kSize[ir->size], opr2, kSize[ir->size]); break;
-  case IR_BITOR:  fprintf(fp, "\tBITOR\tR%d%s = R%d%s | R%d%s\n", dst, kSize[ir->size], opr1, kSize[ir->size], opr2, kSize[ir->size]); break;
-  case IR_BITXOR: fprintf(fp, "\tBITXOR\tR%d%s = R%d%s ^ R%d%s\n", dst, kSize[ir->size], opr1, kSize[ir->size], opr2, kSize[ir->size]); break;
-  case IR_LSHIFT: fprintf(fp, "\tLSHIFT\tR%d%s = R%d%s << R%d%s\n", dst, kSize[ir->size], opr1, kSize[ir->size], opr2, kSize[ir->size]); break;
-  case IR_RSHIFT: fprintf(fp, "\tRSHIFT\tR%d%s = R%d%s >> R%d%s\n", dst, kSize[ir->size], opr1, kSize[ir->size], opr2, kSize[ir->size]); break;
-  case IR_CMP:    fprintf(fp, "\tCMP\tR%d%s - R%d%s\n", opr1, kSize[ir->size], opr2, kSize[ir->size]); break;
-  case IR_INC:    fprintf(fp, "\tINC\t(R%d)%s += %"PRIdPTR"\n", opr1, kSize[ir->size], ir->value); break;
-  case IR_DEC:    fprintf(fp, "\tDEC\t(R%d)%s -= %"PRIdPTR"\n", opr1, kSize[ir->size], ir->value); break;
-  case IR_NEG:    fprintf(fp, "\tNEG\tR%d%s = -R%d%s\n", dst, kSize[ir->size], opr1, kSize[ir->size]); break;
-  case IR_NOT:    fprintf(fp, "\tNOT\tR%d%s = !R%d%s\n", dst, kSize[ir->size], opr1, kSize[ir->size]); break;
-  case IR_BITNOT: fprintf(fp, "\tBIT\tR%d%s = -R%d%s\n", dst, kSize[ir->size], opr1, kSize[ir->size]); break;
-  case IR_SET:    fprintf(fp, "\tSET\tR%d%s = %s\n", dst, kSize[4], kCond[ir->set.cond]); break;
-  case IR_TEST:   fprintf(fp, "\tTEST\tR%d%s\n", opr1, kSize[ir->size]); break;
+  case IR_IMM:    fprintf(fp, "\tIMM\t"); dump_vreg(fp, ir->dst, ir->size); fprintf(fp, " = (%"PRIdPTR")\n", ir->value); break;
+  case IR_BOFS:   fprintf(fp, "\tBOFS\t"); dump_vreg(fp, ir->dst, ir->size); fprintf(fp, " = &[rbp %c %d]\n", ir->opr1->offset > 0 ? '+' : '-', ir->opr1->offset > 0 ? ir->opr1->offset : -ir->opr1->offset); break;
+  case IR_IOFS:   fprintf(fp, "\tIOFS\t"); dump_vreg(fp, ir->dst, ir->size); fprintf(fp, " = &%.*s\n", ir->iofs.label->bytes, ir->iofs.label->chars); break;
+  case IR_LOAD:   fprintf(fp, "\tLOAD\t"); dump_vreg(fp, ir->dst, ir->size); fprintf(fp, " = ["); dump_vreg(fp, ir->opr1, WORD_SIZE); fprintf(fp, "]\n"); break;
+  case IR_STORE:  fprintf(fp, "\tSTORE\t["); dump_vreg(fp, ir->opr2, WORD_SIZE); fprintf(fp, "] = "); dump_vreg(fp, ir->opr1, ir->size); fprintf(fp, "\n"); break;
+  case IR_MEMCPY: fprintf(fp, "\tMEMCPY(dst="); dump_vreg(fp, ir->opr2, WORD_SIZE); fprintf(fp, ", src="); dump_vreg(fp, ir->opr1, WORD_SIZE); fprintf(fp, ", size=%d)\n", ir->size); break;
+  case IR_ADD:    fprintf(fp, "\tADD\t"); dump_vreg(fp, ir->dst, ir->size); fprintf(fp, " = "); dump_vreg(fp, ir->opr1, ir->size); fprintf(fp, " + "); dump_vreg(fp, ir->opr2, ir->size); fprintf(fp, "\n"); break;
+  case IR_SUB:    fprintf(fp, "\tSUB\t"); dump_vreg(fp, ir->dst, ir->size); fprintf(fp, " = "); dump_vreg(fp, ir->opr1, ir->size); fprintf(fp, " - "); dump_vreg(fp, ir->opr2, ir->size); fprintf(fp, "\n"); break;
+  case IR_MUL:    fprintf(fp, "\tMUL\t"); dump_vreg(fp, ir->dst, ir->size); fprintf(fp, " = "); dump_vreg(fp, ir->opr1, ir->size); fprintf(fp, " * "); dump_vreg(fp, ir->opr2, ir->size); fprintf(fp, "\n"); break;
+  case IR_DIV:    fprintf(fp, "\tDIV\t"); dump_vreg(fp, ir->dst, ir->size); fprintf(fp, " = "); dump_vreg(fp, ir->opr1, ir->size); fprintf(fp, " / "); dump_vreg(fp, ir->opr2, ir->size); fprintf(fp, "\n"); break;
+  case IR_DIVU:   fprintf(fp, "\tDIVU\t"); dump_vreg(fp, ir->dst, ir->size); fprintf(fp, " = "); dump_vreg(fp, ir->opr1, ir->size); fprintf(fp, " / "); dump_vreg(fp, ir->opr2, ir->size); fprintf(fp, "\n"); break;
+  case IR_MOD:    fprintf(fp, "\tMOD\t"); dump_vreg(fp, ir->dst, ir->size); fprintf(fp, " = "); dump_vreg(fp, ir->opr1, ir->size); fprintf(fp, " %% "); dump_vreg(fp, ir->opr2, ir->size); fprintf(fp, "\n"); break;
+  case IR_MODU:   fprintf(fp, "\tMODU\t"); dump_vreg(fp, ir->dst, ir->size); fprintf(fp, " = "); dump_vreg(fp, ir->opr1, ir->size); fprintf(fp, " %% "); dump_vreg(fp, ir->opr2, ir->size); fprintf(fp, "\n"); break;
+  case IR_BITAND: fprintf(fp, "\tBITAND\t"); dump_vreg(fp, ir->dst, ir->size); fprintf(fp, " = "); dump_vreg(fp, ir->opr1, ir->size); fprintf(fp, " & "); dump_vreg(fp, ir->opr2, ir->size); fprintf(fp, "\n"); break;
+  case IR_BITOR:  fprintf(fp, "\tBITOR\t"); dump_vreg(fp, ir->dst, ir->size); fprintf(fp, " = "); dump_vreg(fp, ir->opr1, ir->size); fprintf(fp, " | "); dump_vreg(fp, ir->opr2, ir->size); fprintf(fp, "\n"); break;
+  case IR_BITXOR: fprintf(fp, "\tBITXOR\t"); dump_vreg(fp, ir->dst, ir->size); fprintf(fp, " = "); dump_vreg(fp, ir->opr1, ir->size); fprintf(fp, " ^ "); dump_vreg(fp, ir->opr2, ir->size); fprintf(fp, "\n"); break;
+  case IR_LSHIFT: fprintf(fp, "\tLSHIFT\t"); dump_vreg(fp, ir->dst, ir->size); fprintf(fp, " = "); dump_vreg(fp, ir->opr1, ir->size); fprintf(fp, " << "); dump_vreg(fp, ir->opr2, ir->size); fprintf(fp, "\n"); break;
+  case IR_RSHIFT: fprintf(fp, "\tRSHIFT\t"); dump_vreg(fp, ir->dst, ir->size); fprintf(fp, " = "); dump_vreg(fp, ir->opr1, ir->size); fprintf(fp, " >> "); dump_vreg(fp, ir->opr2, ir->size); fprintf(fp, "\n"); break;
+  case IR_CMP:    fprintf(fp, "\tCMP\t"); dump_vreg(fp, ir->opr1, ir->size); fprintf(fp, " - "); dump_vreg(fp, ir->opr2, ir->size); fprintf(fp, "\n"); break;
+  case IR_INC:    fprintf(fp, "\tINC\t"); dump_vreg(fp, ir->opr1, WORD_SIZE); fprintf(fp, "%s += %"PRIdPTR"\n", kSize[ir->size], ir->value); break;
+  case IR_DEC:    fprintf(fp, "\tDEC\t"); dump_vreg(fp, ir->opr1, WORD_SIZE); fprintf(fp, "%s -= %"PRIdPTR"\n", kSize[ir->size], ir->value); break;
+  case IR_NEG:    fprintf(fp, "\tNEG\t"); dump_vreg(fp, ir->dst, ir->size); fprintf(fp, " = -"); dump_vreg(fp, ir->opr1, ir->size); fprintf(fp, "\n"); break;
+  case IR_NOT:    fprintf(fp, "\tNOT\t"); dump_vreg(fp, ir->dst, ir->size); fprintf(fp, " = !"); dump_vreg(fp, ir->opr1, ir->size); fprintf(fp, "\n"); break;
+  case IR_BITNOT: fprintf(fp, "\tBITNOT\t"); dump_vreg(fp, ir->dst, ir->size); fprintf(fp, " = ~"); dump_vreg(fp, ir->opr1, ir->size); fprintf(fp, "\n"); break;
+  case IR_SET:    fprintf(fp, "\tSET\t"); dump_vreg(fp, ir->dst, 4); fprintf(fp, " = %s\n", kCond[ir->set.cond]); break;
+  case IR_TEST:   fprintf(fp, "\tTEST\t"); dump_vreg(fp, ir->opr1, ir->size); fprintf(fp, "\n"); break;
   case IR_JMP:    fprintf(fp, "\tJ%s\t%.*s\n", kCond[ir->jmp.cond], ir->jmp.bb->label->bytes, ir->jmp.bb->label->chars); break;
   case IR_PRECALL: fprintf(fp, "\tPRECALL\n"); break;
-  case IR_PUSHARG: fprintf(fp, "\tPUSHARG\tR%d\n", opr1); break;
+  case IR_PUSHARG: fprintf(fp, "\tPUSHARG\t"); dump_vreg(fp, ir->opr1, ir->size); fprintf(fp, "\n"); break;
   case IR_CALL:
-    if (ir->call.label != NULL)
-      fprintf(fp, "\tCALL\tR%d%s = call %.*s\n", dst, kSize[ir->size], ir->call.label->bytes, ir->call.label->chars);
-    else
-      fprintf(fp, "\tCALL\tR%d%s = *R%d\n", dst, kSize[ir->size], opr1);
+    if (ir->call.label != NULL) {
+      fprintf(fp, "\tCALL\t"); dump_vreg(fp, ir->dst, ir->size); fprintf(fp, " = call %.*s\n", ir->call.label->bytes, ir->call.label->chars);
+    } else {
+      fprintf(fp, "\tCALL\t"); dump_vreg(fp, ir->dst, ir->size); fprintf(fp, " = *"); dump_vreg(fp, ir->opr1, WORD_SIZE); fprintf(stderr, "\n");
+    }
     break;
   case IR_ADDSP:  fprintf(fp, "\tADDSP\t%"PRIdPTR"\n", ir->value); break;
-  case IR_CAST:   fprintf(fp, "\tCAST\tR%d%s = R%d%s\n", dst, kSize[ir->size], opr1, kSize[ir->cast.srcsize]); break;
-  case IR_MOV:    fprintf(fp, "\tMOV\tR%d%s = R%d%s\n", dst, kSize[ir->size], opr1, kSize[ir->size]); break;
-  case IR_CLEAR:  fprintf(fp, "\tCLEAR\tR%d, %d\n", opr1, ir->size); break;
-  case IR_RESULT: fprintf(fp, "\tRESULT\tR%d%s\n", opr1, kSize[ir->size]); break;
+  case IR_CAST:   fprintf(fp, "\tCAST\t"); dump_vreg(fp, ir->dst, ir->size); fprintf(fp, " = "); dump_vreg(fp, ir->opr1, ir->cast.srcsize); fprintf(fp, "\n"); break;
+  case IR_MOV:    fprintf(fp, "\tMOV\t"); dump_vreg(fp, ir->dst, ir->size); fprintf(fp, " = "); dump_vreg(fp, ir->opr1, ir->size); fprintf(fp, "\n"); break;
+  case IR_CLEAR:  fprintf(fp, "\tCLEAR\t"); dump_vreg(fp, ir->opr1, WORD_SIZE); fprintf(fp, ", %d\n", ir->size); break;
+  case IR_RESULT: fprintf(fp, "\tRESULT\t"); dump_vreg(fp, ir->opr1, ir->size); fprintf(fp, "\n"); break;
   case IR_ASM:    fprintf(fp, "\tASM \"%s\"\n", ir->asm_.str); break;
-  case IR_LOAD_SPILLED:   fprintf(fp, "\tLOAD_SPILLED %d(%s)\n", (int)ir->value, kSize[ir->size]); break;
-  case IR_STORE_SPILLED:  fprintf(fp, "\tSTORE_SPILLED %d(%s)\n", (int)ir->value, kSize[ir->size]); break;
+  case IR_LOAD_SPILLED:   fprintf(fp, "\tLOAD_SPILLED R%d%s = [rbp %+d]\n", SPILLED_REG_NO, kSize[ir->size], (int)ir->value); break;
+  case IR_STORE_SPILLED:  fprintf(fp, "\tSTORE_SPILLED [rbp %+d] = R%d%s\n", (int)ir->value, SPILLED_REG_NO, kSize[ir->size]); break;
 
   default: assert(false); break;
   }
