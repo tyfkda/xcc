@@ -191,9 +191,9 @@ bool resolve_relative_address(Vector **section_irs, Table *label_table) {
           case LEA:
             if (inst->src.type == INDIRECT &&
                 inst->src.indirect.reg.no == RIP &&
-                inst->src.indirect.expr->kind != EX_NUM) {
+                inst->src.indirect.offset->kind != EX_NUM) {
               intptr_t dst;
-              if (calc_expr(label_table, inst->src.indirect.expr, &dst, &unresolved_labels)) {
+              if (calc_expr(label_table, inst->src.indirect.offset, &dst, &unresolved_labels)) {
                 intptr_t offset = dst - ((intptr_t)address + ir->code.len);
                 put_value(ir->code.buf + 3, offset, sizeof(int32_t));
               }

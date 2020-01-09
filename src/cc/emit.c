@@ -95,7 +95,6 @@ void emit_align(int align) {
   // On Apple platform,
   // .align directive is actually .p2align,
   // so it has to find power of 2.
-#define IS_POWER_OF_2(x)  (x > 0 && (x & (x - 1)) == 0)
   assert(IS_POWER_OF_2(align));
   int bit, x = align;
   for (bit = 0;; ++bit) {

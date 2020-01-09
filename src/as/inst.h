@@ -181,7 +181,8 @@ typedef struct {
 enum OperandType {
   NOOPERAND,
   REG,        // %rax
-  INDIRECT,   // (%rax)
+  INDIRECT,   // ofs(%rax)
+  INDIRECT_WITH_INDEX,   // ofs(%rax, %rcx, 4)
   IMMEDIATE,  // $1234
   DIRECT,     // foobar
   DEREF_REG,  // *%rax
@@ -222,9 +223,15 @@ typedef struct {
       Expr *expr;
     } direct;
     struct {
-      Expr *expr;
+      Expr *offset;
       Reg reg;
     } indirect;
+    struct {
+      Expr *offset;
+      Expr *scale;
+      Reg base_reg;
+      Reg index_reg;
+    } indirect_with_index;
     Reg deref_reg;
   };
 } Operand;

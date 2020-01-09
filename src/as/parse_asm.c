@@ -12,6 +12,8 @@
 #include "table.h"
 #include "util.h"
 
+static Expr *parse_expr(ParseInfo *info);
+
 // Align with Opcode.
 static const char *kOpTable[] = {
   "mov",
@@ -315,22 +317,59 @@ static enum RegType parse_direct_register(ParseInfo *info, Operand *operand) {
   return true;
 }
 
-static bool parse_indirect_register(ParseInfo *info, Expr *expr, Operand *operand) {
+static bool parse_indirect_register(ParseInfo *info, Expr *offset, Operand *operand) {
+  enum RegType index_reg = NOREG;
+  Expr *scale = NULL;
   // Already read "(%".
-  enum RegType reg = find_register(&info->p);
-  if (!(is_reg64(reg) || reg == RIP))
-    parse_error(info, "Register expected");
+  enum RegType base_reg = find_register(&info->p);
+
   info->p = skip_whitespace(info->p);
+  if (*info->p == ',') {
+    info->p = skip_whitespace(info->p + 1);
+    if (*info->p != '%' ||
+        (++info->p, index_reg = find_register(&info->p), !is_reg64(index_reg)))
+      parse_error(info, "Register expected");
+    info->p = skip_whitespace(info->p);
+    if (*info->p == ',') {
+      info->p = skip_whitespace(info->p + 1);
+      scale = parse_expr(info);
+      if (scale->kind != EX_NUM)
+        parse_error(info, "constant value expected");
+      info->p = skip_whitespace(info->p);
+    }
+  }
   if (*info->p != ')')
     parse_error(info, "`)' expected");
-  ++info->p;
+  else
+    ++info->p;
 
-  char no = reg - RAX;
-  operand->type = INDIRECT;
-  operand->indirect.reg.size = REG64;
-  operand->indirect.reg.no = reg != RIP ? no & 7 : RIP;
-  operand->indirect.reg.x = (no & 8) >> 3;
-  operand->indirect.expr = expr;
+  if (!(is_reg64(base_reg) || (base_reg == RIP && index_reg == NOREG)))
+    parse_error(info, "Register expected1");
+
+  if (index_reg == NOREG) {
+    char no = base_reg - RAX;
+    operand->type = INDIRECT;
+    operand->indirect.reg.size = REG64;
+    operand->indirect.reg.no = base_reg != RIP ? no & 7 : RIP;
+    operand->indirect.reg.x = (no & 8) >> 3;
+    operand->indirect.offset = offset;
+  } else {
+    if (!is_reg64(index_reg))
+      parse_error(info, "Register expected2");
+
+    operand->type = INDIRECT_WITH_INDEX;
+    operand->indirect_with_index.offset = offset;
+    operand->indirect_with_index.scale = scale;
+    char base_no = base_reg - RAX;
+    operand->indirect_with_index.base_reg.size = REG64;
+    operand->indirect_with_index.base_reg.no = base_no & 7;
+    operand->indirect_with_index.base_reg.x = (base_no & 8) >> 3;
+    char index_no = index_reg - RAX;
+    operand->indirect_with_index.index_reg.size = REG64;
+    operand->indirect_with_index.index_reg.no = index_no & 7;
+    operand->indirect_with_index.index_reg.x = (index_no & 8) >> 3;
+  }
+
   return true;
 }
 

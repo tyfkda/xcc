@@ -12,6 +12,7 @@
 #define MAX(a, b)  ((a) > (b) ? (a) : (b))
 #define ALIGN(x, align)  (((x) + (align) - 1) & -(align))  // align must be 2^n
 #define UNUSED(x)  ((void)(x))
+#define IS_POWER_OF_2(x)  (x > 0 && (x & (x - 1)) == 0)
 
 typedef struct Name Name;
 
