@@ -389,33 +389,29 @@ static void parse_typedef(void) {
 }
 
 static Declaration *parse_global_var_decl(const Type *rawtype, int flag, const Type *type, Token *ident) {
-  bool first = true;
   Vector *decls = NULL;
-  do {
-    if (!first) {
-      type = parse_type_modifier(rawtype);
-      ident = consume(TK_IDENT, "`ident' expected");
-    }
-    first = false;
-
+  for (;;) {
     if (type->kind == TY_VOID)
       parse_error(ident, "`void' not allowed");
 
     type = parse_type_suffix(type);
     Initializer *init = NULL;
-    const Token *tok;
-    if ((tok = match(TK_ASSIGN)) != NULL) {
+    if (match(TK_ASSIGN) != NULL)
       init = parse_initializer();
-    }
 
     VarDecl *decl = new_vardecl(type, ident, init, flag);
     if (decls == NULL)
       decls = new_vector();
     vec_push(decls, decl);
-  } while (match(TK_COMMA));
+    if (!match(TK_COMMA))
+      break;
+
+    // Next declaration.
+    type = parse_type_modifier(rawtype);
+    ident = consume(TK_IDENT, "`ident' expected");
+  }
 
   consume(TK_SEMICOL, "`;' or `,' expected");
-
   return decls != NULL ? new_decl_vardecl(decls) : NULL;
 }
 
