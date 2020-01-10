@@ -51,7 +51,7 @@ static void init_compiler(FILE *ofp) {
 
 static Vector *compile1(FILE *ifp, const char *filename, Vector *toplevel) {
   set_source_file(ifp, filename);
-  return parse_program(toplevel);
+  return parse(toplevel);
 }
 
 static void compile2(Vector *toplevel) {

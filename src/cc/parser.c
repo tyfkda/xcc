@@ -415,7 +415,7 @@ static Declaration *parse_global_var_decl(const Type *rawtype, int flag, const T
   return decls != NULL ? new_decl_vardecl(decls) : NULL;
 }
 
-static Declaration *toplevel(void) {
+static Declaration *declaration(void) {
   int flag;
   const Type *rawtype = parse_raw_type(&flag);
   if (rawtype != NULL) {
@@ -443,11 +443,11 @@ static Declaration *toplevel(void) {
   return NULL;
 }
 
-Vector *parse_program(Vector *decls) {
+Vector *parse(Vector *decls) {
   if (decls == NULL)
     decls = new_vector();
   while (!match(TK_EOF)) {
-    Declaration *decl = toplevel();
+    Declaration *decl = declaration();
     if (decl != NULL)
       vec_push(decls, decl);
   }
