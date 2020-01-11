@@ -189,6 +189,10 @@ size_t fwrite(const void* buffer, size_t size, size_t count, FILE* fp) {
   write(fp->fd, buffer, size * count);
 }
 
+size_t fread(void* buffer, size_t size, size_t count, FILE* fp) {
+  return read(fp->fd, buffer, size * count);
+}
+
 size_t vfprintf(FILE *fp, const char *fmt, va_list ap) {
   // TODO: directly output to fd, not use vsnprintf.
   char buf[1024];
@@ -330,6 +334,11 @@ int unlink(const char *pathname) {
   __asm("syscall");
 }
 
+int ioctl(int fd, int request, ...) {
+  __asm("mov $16, %eax");  // __NR_ioctl
+  __asm("syscall");
+}
+
 #else
 #error Target not supported
 #endif
@@ -462,6 +471,13 @@ void *sbrk(intptr_t increment) {
   if (brk(next) < 0)
     return (void*)-1;
   return p;
+}
+
+#include <sys/ioctl.h>
+
+int isatty(int fd) {
+  struct termio tm;
+  return ioctl(fd, TCGETA, &tm) == 0 ? 1 : 0;
 }
 #endif
 

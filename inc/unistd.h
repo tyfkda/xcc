@@ -30,3 +30,5 @@ int unlink(const char *pathname);
 
 int brk(void *addr);
 void *sbrk(intptr_t increment);
+
+int isatty(int fd);

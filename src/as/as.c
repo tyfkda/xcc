@@ -6,6 +6,7 @@
 #include <stdlib.h>  // malloc, calloc
 #include <string.h>
 #include <strings.h>  // strncasecmp
+#include <unistd.h>
 
 #include "asm_x86.h"
 #include "elfutil.h"
@@ -90,6 +91,15 @@ static void put_padding(FILE* fp, uintptr_t start) {
     free(buf);
   }
 }
+
+static void drop_all(FILE* fp) {
+  for (;;) {
+    char buf[4096];
+    size_t size = fread(buf, 1, sizeof(buf), fp);
+    if (size < sizeof(buf))
+      break;
+  }
+}
 #endif  // !AS_USE_CC
 
 // ================================================
@@ -112,6 +122,8 @@ int main(int argc, char* argv[]) {
   FILE* fp = fopen(ofn, "wb");
   if (fp == NULL) {
     fprintf(stderr, "Failed to open output file: %s\n", ofn);
+    if (!isatty(STDIN_FILENO))
+      drop_all(stdin);
     return 1;
   }
 
