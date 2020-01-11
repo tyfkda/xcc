@@ -665,6 +665,8 @@ bool assemble_inst(Inst *inst, const ParseInfo *info, Code *code) {
     return true;
   }
 
-  fprintf(stderr, "op=%2d: not handled\n", inst->op);
+  char buf[64];
+  snprintf(buf, sizeof(buf), "op=%2d: not handled", inst->op);
+  assemble_error(info, buf);
   return false;
 }
