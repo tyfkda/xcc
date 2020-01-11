@@ -999,7 +999,7 @@ static void dump_ir(FILE *fp, IR *ir) {
     if (ir->call.label != NULL) {
       fprintf(fp, "\tCALL\t"); dump_vreg(fp, ir->dst, ir->size); fprintf(fp, " = call %.*s\n", ir->call.label->bytes, ir->call.label->chars);
     } else {
-      fprintf(fp, "\tCALL\t"); dump_vreg(fp, ir->dst, ir->size); fprintf(fp, " = *"); dump_vreg(fp, ir->opr1, WORD_SIZE); fprintf(stderr, "\n");
+      fprintf(fp, "\tCALL\t"); dump_vreg(fp, ir->dst, ir->size); fprintf(fp, " = *"); dump_vreg(fp, ir->opr1, WORD_SIZE); fprintf(fp, "\n");
     }
     break;
   case IR_ADDSP:  fprintf(fp, "\tADDSP\t%"PRIdPTR"\n", ir->value); break;
