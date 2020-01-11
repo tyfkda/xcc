@@ -157,6 +157,16 @@ static bool assemble_mov(Inst *inst, const ParseInfo *info, Code *code) {
   return assemble_error(info, "Illegal operand");
 }
 
+static long clamp_value(long value, enum RegSize size) {
+  switch (size) {
+  case REG8:   return (uint8_t)value;
+  case REG16:  return (uint16_t)value;
+  case REG32:  return (uint32_t)value;
+  case REG64:  return (uint64_t)value;
+  default: assert(false); return value;
+  }
+}
+
 bool assemble_inst(Inst *inst, const ParseInfo *info, Code *code) {
   unsigned char *p = code->buf;
 
@@ -468,9 +478,41 @@ bool assemble_inst(Inst *inst, const ParseInfo *info, Code *code) {
       if (inst->dst.reg.size != inst->src.reg.size)
         return assemble_error(info, "Different source and destination register size");
 
-      enum RegSize size = inst->src.reg.size;
+      enum RegSize size = inst->dst.reg.size;
       p = put_rex2(p, size, opr_regno(&inst->src.reg), opr_regno(&inst->dst.reg),
                    size == REG8 ? 0x20 : 0x21);
+    } else if (inst->src.type == IMMEDIATE && inst->dst.type == REG) {
+      long value = inst->src.immediate;
+      enum RegSize size = inst->dst.reg.size;
+      value = clamp_value(value, size);
+      if (is_im8(value) && (size != REG8 || opr_regno(&inst->dst.reg) != AL - AL)) {
+        p = put_rex2(p, size,
+                     4, opr_regno(&inst->dst.reg),  // 0xe0 = 0xc0 | (4 << 3)
+                     0x83);
+        *p++ = IM8(value);
+      } else if (is_im32(value)) {
+        if (opr_regno(&inst->dst.reg) == RAX - RAX) {
+          p = put_rex0(p, size,
+                       0, opr_regno(&inst->dst.reg),
+                       size == REG8 ? 0x24 : 0x25);
+        } else {
+          p = put_rex2(p, size,
+                       4, opr_regno(&inst->dst.reg),  // 0xe0 = 0xc0 | (4 << 3)
+                       0x81);
+        }
+
+        switch (size) {
+        case REG8:  PUT_CODE(p, IM8(value)); p += 1; break;
+        case REG16: PUT_CODE(p, IM16(value)); p += 2; break;
+        case REG32: case REG64:
+          PUT_CODE(p, IM32(value));
+          p += 4;
+          break;
+        default: assert(false); break;
+        }
+      } else {
+        return assemble_error(info, "Too large constant");
+      }
     }
     break;
   case OR:
@@ -478,9 +520,40 @@ bool assemble_inst(Inst *inst, const ParseInfo *info, Code *code) {
       if (inst->dst.reg.size != inst->src.reg.size)
         return assemble_error(info, "Different source and destination register size");
 
-      enum RegSize size = inst->src.reg.size;
+      enum RegSize size = inst->dst.reg.size;
       p = put_rex2(p, size, opr_regno(&inst->src.reg), opr_regno(&inst->dst.reg),
                    size == REG8 ? 0x08 : 0x09);
+    } else if (inst->src.type == IMMEDIATE && inst->dst.type == REG) {
+      long value = inst->src.immediate;
+      enum RegSize size = inst->dst.reg.size;
+      value = clamp_value(value, size);
+      if (is_im8(value) && (size != REG8 || opr_regno(&inst->dst.reg) != AL - AL)) {
+        p = put_rex2(p, size,
+                     1, opr_regno(&inst->dst.reg),  // 0xc8 = 0xc0 | (1 << 3)
+                     0x83);
+        *p++ = IM8(value);
+      } else if (is_im32(value)) {
+        if (opr_regno(&inst->dst.reg) == RAX - RAX) {
+          p = put_rex0(p, size,
+                       0, opr_regno(&inst->dst.reg),
+                       size == REG8 ? 0x0c : 0x0d);
+        } else {
+          p = put_rex2(p, size,
+                       1, opr_regno(&inst->dst.reg),  // 0xc8 = 0xc0 | (1 << 3)
+                       0x81);
+        }
+        switch (size) {
+        case REG8:  PUT_CODE(p, IM8(value)); p += 1; break;
+        case REG16: PUT_CODE(p, IM16(value)); p += 2; break;
+        case REG32: case REG64:
+          PUT_CODE(p, IM32(value));
+          p += 4;
+          break;
+        default: assert(false); break;
+        }
+      } else {
+        return assemble_error(info, "Too large constant");
+      }
     }
     break;
   case XOR:
@@ -488,9 +561,40 @@ bool assemble_inst(Inst *inst, const ParseInfo *info, Code *code) {
       if (inst->dst.reg.size != inst->src.reg.size)
         return assemble_error(info, "Different source and destination register size");
 
-      enum RegSize size = inst->src.reg.size;
+      enum RegSize size = inst->dst.reg.size;
       p = put_rex2(p, size, opr_regno(&inst->src.reg), opr_regno(&inst->dst.reg),
                    size == REG8 ? 0x30 : 0x31);
+    } else if (inst->src.type == IMMEDIATE && inst->dst.type == REG) {
+      long value = inst->src.immediate;
+      enum RegSize size = inst->dst.reg.size;
+      value = clamp_value(value, size);
+      if (is_im8(value) && (size != REG8 || opr_regno(&inst->dst.reg) != AL - AL)) {
+        p = put_rex2(p, size,
+                     6, opr_regno(&inst->dst.reg),  // 0xf0 = 0xc0 | (6 << 3)
+                     0x83);
+        *p++ = IM8(value);
+      } else if (is_im32(value)) {
+        if (opr_regno(&inst->dst.reg) == RAX - RAX) {
+          p = put_rex0(p, size,
+                       0, opr_regno(&inst->dst.reg),
+                       size == REG8 ? 0x34 : 0x35);
+        } else {
+          p = put_rex2(p, size,
+                       6, opr_regno(&inst->dst.reg),  // 0xf0 = 0xc0 | (6 << 3)
+                       0x81);
+        }
+        switch (size) {
+        case REG8:  PUT_CODE(p, IM8(value)); p += 1; break;
+        case REG16: PUT_CODE(p, IM16(value)); p += 2; break;
+        case REG32: case REG64:
+          PUT_CODE(p, IM32(value));
+          p += 4;
+          break;
+        default: assert(false); break;
+        }
+      } else {
+        return assemble_error(info, "Too large constant");
+      }
     }
     break;
   case SHL:
@@ -501,6 +605,16 @@ bool assemble_inst(Inst *inst, const ParseInfo *info, Code *code) {
       enum RegSize size = inst->dst.reg.size;
       p = put_rex2(p, size, 4, opr_regno(&inst->dst.reg),  // 0xe0 = 0xc0 | (4 << 3)
                    size == REG8 ? 0xd2 : 0xd3);
+    } else if (inst->src.type == IMMEDIATE && inst->dst.type == REG) {
+      enum RegSize size = inst->dst.reg.size;
+      if (inst->src.immediate == 1) {
+        p = put_rex2(p, size, 4, opr_regno(&inst->dst.reg),  // 0xe0 = 0xc0 | (4 << 3)
+                     size == REG8 ? 0xd0 : 0xd1);
+      } else {
+        p = put_rex2(p, size, 4, opr_regno(&inst->dst.reg),  // 0xe0 = 0xc0 | (4 << 3)
+                     size == REG8 ? 0xc0 : 0xc1);
+        *p++ = IM8(inst->src.immediate);
+      }
     }
     break;
   case SHR:
@@ -511,6 +625,16 @@ bool assemble_inst(Inst *inst, const ParseInfo *info, Code *code) {
       enum RegSize size = inst->dst.reg.size;
       p = put_rex2(p, size, 5, opr_regno(&inst->dst.reg),  // 0xe8 = 0xc0 | (5 << 3)
                    size == REG8 ? 0xd2 : 0xd3);
+    } else if (inst->src.type == IMMEDIATE && inst->dst.type == REG) {
+      enum RegSize size = inst->dst.reg.size;
+      if (inst->src.immediate == 1) {
+        p = put_rex2(p, size, 5, opr_regno(&inst->dst.reg),  // 0xe8 = 0xc0 | (5 << 3)
+                     size == REG8 ? 0xd0 : 0xd1);
+      } else {
+        p = put_rex2(p, size, 5, opr_regno(&inst->dst.reg),  // 0xe8 = 0xc0 | (5 << 3)
+                     size == REG8 ? 0xc0 : 0xc1);
+        *p++ = IM8(inst->src.immediate);
+      }
     }
     break;
   case CMP:
@@ -584,13 +708,26 @@ bool assemble_inst(Inst *inst, const ParseInfo *info, Code *code) {
     *p++ = 0xc0 | inst->src.reg.no;
     break;
   case PUSH:
-    if (inst->dst.type != NOOPERAND || inst->src.type != REG ||
-        inst->src.reg.size != REG64)
-      return assemble_error(info, "Illegal operand");
-
-    p = put_rex0(p, REG32, 0, opr_regno(&inst->src.reg),
-                 0x50 | inst->src.reg.no);
-    break;
+    if (inst->dst.type == NOOPERAND) {
+      if (inst->src.type == REG && inst->src.reg.size == REG64) {
+        p = put_rex0(p, REG32, 0, opr_regno(&inst->src.reg),
+                     0x50 | inst->src.reg.no);
+        break;
+      } else if (inst->src.type == IMMEDIATE) {
+        long value = inst->src.immediate;
+        if (is_im8(value)) {
+          *p++ = 0x6a;
+          *p++ = IM8(value);
+          break;
+        } else if (is_im32(value)) {
+          *p++ = 0x68;
+          PUT_CODE(p, IM32(value));
+          p += 4;
+          break;
+        }
+      }
+    }
+    return assemble_error(info, "Illegal operand");
   case POP:
     if (inst->dst.type != NOOPERAND || inst->src.type != REG ||
         inst->src.reg.size != REG64)
