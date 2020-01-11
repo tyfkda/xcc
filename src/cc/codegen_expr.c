@@ -305,7 +305,7 @@ static VReg *gen_funcall(Expr *expr) {
     if (func->variable.scope == NULL) {
       varinfo = find_global(func->variable.name);
       assert(varinfo != NULL);
-      global = (varinfo->flag & VF_STATIC) == 0;
+      global = true;
     } else {
       Scope *scope = func->variable.scope;
       varinfo = scope_find(&scope, func->variable.name);
@@ -336,8 +336,7 @@ static VReg *gen_funcall(Expr *expr) {
   }
 
   VReg *result_reg = NULL;
-  if (func->kind == EX_VARIABLE &&
-      (global || varinfo->flag & VF_EXTERN)) {
+  if (func->kind == EX_VARIABLE && global) {
     result_reg = new_ir_call(func->variable.name, global, NULL, arg_count,
                              func->type->func.ret, stack_aligned);
   } else {
