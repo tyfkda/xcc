@@ -46,6 +46,14 @@ static unsigned char *put_rex0(unsigned char *p, enum RegSize size,
   return p;
 }
 
+static unsigned char *put_rex1(unsigned char *p, enum RegSize size,
+                                int rex_prefix, int dno, unsigned char opcode)
+{
+  p = put_rex0(p, size, 0, dno, opcode);
+  *p++ = rex_prefix | (dno & 7);
+  return p;
+}
+
 static unsigned char *put_rex2(unsigned char *p, enum RegSize size,
                                int sno, int dno, unsigned char opcode)
 {
@@ -278,7 +286,7 @@ bool assemble_inst(Inst *inst, const ParseInfo *info, Code *code) {
         if (d == RAX - RAX && (size == REG8 || !is_im8(value)))
           p = put_rex0(p, size, 0, d, im8 ? 0x04 : 0x05);
         else
-          p = put_rex2(p, size, 0, d, im8 ? 0x83 : 0x81);
+          p = put_rex1(p, size, 0xc0, d, im8 ? 0x83 : 0x81);
 
         if (im8) {
           *p++ = IM8(value);
@@ -340,7 +348,7 @@ bool assemble_inst(Inst *inst, const ParseInfo *info, Code *code) {
         if (d == RAX - RAX && (size == REG8 || !is_im8(value)))
           p = put_rex0(p, size, 0, d, im8 ? 0x2c : 0x2d);
         else
-          p = put_rex2(p, size, 5, d, im8 ? 0x83 : 0x81);  // 0xe8 = 0xc0 | (5 << 3)
+          p = put_rex1(p, size, 0xe8, d, im8 ? 0x83 : 0x81);
 
         if (im8) {
           *p++ = IM8(value);
@@ -412,8 +420,8 @@ bool assemble_inst(Inst *inst, const ParseInfo *info, Code *code) {
       return assemble_error(info, "Illegal operand");
 
     if (inst->src.type == REG) {
-      p = put_rex2(p, inst->src.reg.size,
-                   3, opr_regno(&inst->src.reg), 0xf7);  // 0xd8 = 0xc0 | (3 << 3)
+      p = put_rex1(p, inst->src.reg.size,
+                    0xd8, opr_regno(&inst->src.reg), 0xf7);
     }
     break;
   case NOT:
@@ -421,8 +429,8 @@ bool assemble_inst(Inst *inst, const ParseInfo *info, Code *code) {
       return assemble_error(info, "Illegal operand");
 
     if (inst->src.type == REG) {
-      p = put_rex2(p, inst->src.reg.size,
-                   2, opr_regno(&inst->src.reg), 0xf7);  // 0xd0 = 0xc0 | (2 << 3)
+      p = put_rex1(p, inst->src.reg.size,
+                    0xd0, opr_regno(&inst->src.reg), 0xf7);
     }
     break;
   case INC:
@@ -430,8 +438,8 @@ bool assemble_inst(Inst *inst, const ParseInfo *info, Code *code) {
       return assemble_error(info, "Illegal operand");
 
     if (inst->src.type == REG) {
-      p = put_rex2(p, inst->src.reg.size,
-                   0, opr_regno(&inst->src.reg), 0xff);
+      p = put_rex1(p, inst->src.reg.size,
+                    0xc0, opr_regno(&inst->src.reg), 0xff);
     }
     break;
   case INCL:
@@ -454,8 +462,8 @@ bool assemble_inst(Inst *inst, const ParseInfo *info, Code *code) {
       return assemble_error(info, "Illegal operand");
 
     if (inst->src.type == REG) {
-      p = put_rex2(p, inst->src.reg.size,
-                   1, opr_regno(&inst->src.reg), 0xff);  // 0xc8 = 0xc0 | (1 << 3)
+      p = put_rex1(p, inst->src.reg.size,
+                    0xc8, opr_regno(&inst->src.reg), 0xff);
     }
     break;
   case DECL:
@@ -486,9 +494,9 @@ bool assemble_inst(Inst *inst, const ParseInfo *info, Code *code) {
       enum RegSize size = inst->dst.reg.size;
       value = clamp_value(value, size);
       if (is_im8(value) && (size != REG8 || opr_regno(&inst->dst.reg) != AL - AL)) {
-        p = put_rex2(p, size,
-                     4, opr_regno(&inst->dst.reg),  // 0xe0 = 0xc0 | (4 << 3)
-                     0x83);
+        p = put_rex1(p, size,
+                      0xe0, opr_regno(&inst->dst.reg),
+                      0x83);
         *p++ = IM8(value);
       } else if (is_im32(value)) {
         if (opr_regno(&inst->dst.reg) == RAX - RAX) {
@@ -496,9 +504,9 @@ bool assemble_inst(Inst *inst, const ParseInfo *info, Code *code) {
                        0, opr_regno(&inst->dst.reg),
                        size == REG8 ? 0x24 : 0x25);
         } else {
-          p = put_rex2(p, size,
-                       4, opr_regno(&inst->dst.reg),  // 0xe0 = 0xc0 | (4 << 3)
-                       0x81);
+          p = put_rex1(p, size,
+                        0xe0, opr_regno(&inst->dst.reg),
+                        0x81);
         }
 
         switch (size) {
@@ -528,9 +536,9 @@ bool assemble_inst(Inst *inst, const ParseInfo *info, Code *code) {
       enum RegSize size = inst->dst.reg.size;
       value = clamp_value(value, size);
       if (is_im8(value) && (size != REG8 || opr_regno(&inst->dst.reg) != AL - AL)) {
-        p = put_rex2(p, size,
-                     1, opr_regno(&inst->dst.reg),  // 0xc8 = 0xc0 | (1 << 3)
-                     0x83);
+        p = put_rex1(p, size,
+                      0xc8, opr_regno(&inst->dst.reg),
+                      0x83);
         *p++ = IM8(value);
       } else if (is_im32(value)) {
         if (opr_regno(&inst->dst.reg) == RAX - RAX) {
@@ -538,9 +546,9 @@ bool assemble_inst(Inst *inst, const ParseInfo *info, Code *code) {
                        0, opr_regno(&inst->dst.reg),
                        size == REG8 ? 0x0c : 0x0d);
         } else {
-          p = put_rex2(p, size,
-                       1, opr_regno(&inst->dst.reg),  // 0xc8 = 0xc0 | (1 << 3)
-                       0x81);
+          p = put_rex1(p, size,
+                        0xc8, opr_regno(&inst->dst.reg),
+                        0x81);
         }
         switch (size) {
         case REG8:  PUT_CODE(p, IM8(value)); p += 1; break;
@@ -569,9 +577,9 @@ bool assemble_inst(Inst *inst, const ParseInfo *info, Code *code) {
       enum RegSize size = inst->dst.reg.size;
       value = clamp_value(value, size);
       if (is_im8(value) && (size != REG8 || opr_regno(&inst->dst.reg) != AL - AL)) {
-        p = put_rex2(p, size,
-                     6, opr_regno(&inst->dst.reg),  // 0xf0 = 0xc0 | (6 << 3)
-                     0x83);
+        p = put_rex1(p, size,
+                      0xf0, opr_regno(&inst->dst.reg),
+                      0x83);
         *p++ = IM8(value);
       } else if (is_im32(value)) {
         if (opr_regno(&inst->dst.reg) == RAX - RAX) {
@@ -579,9 +587,9 @@ bool assemble_inst(Inst *inst, const ParseInfo *info, Code *code) {
                        0, opr_regno(&inst->dst.reg),
                        size == REG8 ? 0x34 : 0x35);
         } else {
-          p = put_rex2(p, size,
-                       6, opr_regno(&inst->dst.reg),  // 0xf0 = 0xc0 | (6 << 3)
-                       0x81);
+          p = put_rex1(p, size,
+                        0xf0, opr_regno(&inst->dst.reg),
+                        0x81);
         }
         switch (size) {
         case REG8:  PUT_CODE(p, IM8(value)); p += 1; break;
@@ -603,16 +611,16 @@ bool assemble_inst(Inst *inst, const ParseInfo *info, Code *code) {
         return assemble_error(info, "`%cl` expected");
 
       enum RegSize size = inst->dst.reg.size;
-      p = put_rex2(p, size, 4, opr_regno(&inst->dst.reg),  // 0xe0 = 0xc0 | (4 << 3)
-                   size == REG8 ? 0xd2 : 0xd3);
+      p = put_rex1(p, size, 0xe0, opr_regno(&inst->dst.reg),
+                    size == REG8 ? 0xd2 : 0xd3);
     } else if (inst->src.type == IMMEDIATE && inst->dst.type == REG) {
       enum RegSize size = inst->dst.reg.size;
       if (inst->src.immediate == 1) {
-        p = put_rex2(p, size, 4, opr_regno(&inst->dst.reg),  // 0xe0 = 0xc0 | (4 << 3)
-                     size == REG8 ? 0xd0 : 0xd1);
+        p = put_rex1(p, size, 0xe0, opr_regno(&inst->dst.reg),
+                      size == REG8 ? 0xd0 : 0xd1);
       } else {
-        p = put_rex2(p, size, 4, opr_regno(&inst->dst.reg),  // 0xe0 = 0xc0 | (4 << 3)
-                     size == REG8 ? 0xc0 : 0xc1);
+        p = put_rex1(p, size, 0xe0, opr_regno(&inst->dst.reg),
+                      size == REG8 ? 0xc0 : 0xc1);
         *p++ = IM8(inst->src.immediate);
       }
     }
@@ -623,16 +631,16 @@ bool assemble_inst(Inst *inst, const ParseInfo *info, Code *code) {
         return assemble_error(info, "`%cl` expected");
 
       enum RegSize size = inst->dst.reg.size;
-      p = put_rex2(p, size, 5, opr_regno(&inst->dst.reg),  // 0xe8 = 0xc0 | (5 << 3)
-                   size == REG8 ? 0xd2 : 0xd3);
+      p = put_rex1(p, size, 0xe8, opr_regno(&inst->dst.reg),
+                    size == REG8 ? 0xd2 : 0xd3);
     } else if (inst->src.type == IMMEDIATE && inst->dst.type == REG) {
       enum RegSize size = inst->dst.reg.size;
       if (inst->src.immediate == 1) {
-        p = put_rex2(p, size, 5, opr_regno(&inst->dst.reg),  // 0xe8 = 0xc0 | (5 << 3)
-                     size == REG8 ? 0xd0 : 0xd1);
+        p = put_rex1(p, size, 0xe8, opr_regno(&inst->dst.reg),
+                      size == REG8 ? 0xd0 : 0xd1);
       } else {
-        p = put_rex2(p, size, 5, opr_regno(&inst->dst.reg),  // 0xe8 = 0xc0 | (5 << 3)
-                     size == REG8 ? 0xc0 : 0xc1);
+        p = put_rex1(p, size, 0xe8, opr_regno(&inst->dst.reg),
+                      size == REG8 ? 0xc0 : 0xc1);
         *p++ = IM8(inst->src.immediate);
       }
     }
@@ -652,9 +660,9 @@ bool assemble_inst(Inst *inst, const ParseInfo *info, Code *code) {
         bool im8 = is_im8(value);
         int d = opr_regno(&inst->dst.reg);
         if (d == RAX - RAX && (size == REG8 || !im8))
-          p = put_rex0(p, size, 0, d, im8 ? 0x3c : 0x3d);
+          p = put_rex0(p, size, 0, d, size == REG8 ? 0x3c : 0x3d);
         else
-          p = put_rex2(p, size, 7, d, im8 ? 0x83 : 0x81);  // 0xf8 = 0xc0 | (7 << 3)
+          p = put_rex1(p, size, 0xf8, d, 0x80 | (size == REG8 ? 0 : im8 ? 3 : 1));
 
         if (im8) {
           *p++ = IM8(value);
