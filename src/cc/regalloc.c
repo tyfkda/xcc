@@ -51,7 +51,7 @@ static void three_to_two(BB *bb) {
     case IR_NEG:  // unary ops
     case IR_BITNOT:
       {
-        IR *ir2 = malloc(sizeof(*ir));
+        IR *ir2 = malloc(sizeof(*ir2));
         ir2->kind = IR_MOV;
         ir2->dst = ir->dst;
         ir2->opr1 = ir->opr1;
