@@ -616,6 +616,11 @@ static void gen_switch_cond_recur(Stmt *stmt, VReg *reg, const int *order, int l
 static void gen_switch_cond(Stmt *stmt) {
   Expr *value = stmt->switch_.value;
   VReg *reg = gen_expr(value);
+  {  // Avoid spilled register.
+    VReg *tmp = add_new_reg(value->type, 0);
+    new_ir_mov(tmp, reg, type_size(value->type));
+    reg = tmp;
+  }
 
   Vector *case_values = stmt->switch_.case_values;
   int len = case_values->len;
