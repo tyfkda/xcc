@@ -90,7 +90,133 @@ VReg *new_const_vreg(intptr_t value, const Type *type) {
   return vreg;
 }
 
+static intptr_t clamp_value(intptr_t value, const Type *type) {
+  // TODO: Type size.
+  switch (type_size(type)) {
+  case 1:  value = (unsigned char)value; break;
+  case 2:  value = (unsigned short)value; break;
+  case 4:  value = (unsigned int)value; break;
+  default:  break;
+  }
+  return value;
+}
+
 VReg *new_ir_bop(enum IrKind kind, VReg *opr1, VReg *opr2, const Type *type) {
+  if (opr1->flag & VRF_CONST) {
+    if (opr2->flag & VRF_CONST) {
+      intptr_t value = 0;
+      switch (kind) {
+      case IR_ADD:     value = opr1->r + opr2->r; break;
+      case IR_SUB:     value = opr1->r - opr2->r; break;
+      case IR_MUL:     value = opr1->r * opr2->r; break;
+
+      case IR_DIV:
+      case IR_DIVU:
+      case IR_MOD:
+      case IR_MODU:
+        if (opr2->r == 0)
+          error("Divide by 0");
+        switch (kind) {
+        case IR_DIV:  value = opr1->r / opr2->r; break;
+        case IR_DIVU: value = (uintptr_t)opr1->r / opr2->r; break;
+        case IR_MOD:  value = opr1->r / opr2->r; break;
+        case IR_MODU: value = (uintptr_t)opr1->r / opr2->r; break;
+        default: assert(false); break;
+        }
+        break;
+
+      case IR_BITAND:  value = opr1->r & opr2->r; break;
+      case IR_BITOR:   value = opr1->r | opr2->r; break;
+      case IR_BITXOR:  value = opr1->r ^ opr2->r; break;
+      case IR_LSHIFT:  value = opr1->r << opr2->r; break;
+      case IR_RSHIFT:
+        assert(opr1->type->kind == TY_NUM);
+        if (opr1->type->num.is_unsigned)
+          value = (uintptr_t)opr1->r >> opr2->r;
+        else
+          value = opr1->r >> opr2->r;
+        break;
+      default: assert(false); break;
+      }
+      return new_const_vreg(clamp_value(value, type), type);
+    } else {
+      switch (kind) {
+      case IR_ADD:
+      case IR_SUB:
+        if (opr1->r == 0)
+          return opr2;
+        break;
+      case IR_MUL:
+        if (opr1->r == 1)
+          return opr2;
+        break;
+      case IR_DIV:
+      case IR_DIVU:
+      case IR_MOD:
+      case IR_MODU:
+        if (opr1->r == 0)
+          return opr1;  // TODO: whether opr2 is zero.
+        break;
+      case IR_BITAND:
+        if (opr1->r == 0)
+          return opr1;
+        break;
+      case IR_BITOR:
+        if (opr1->r == 0)
+          return opr2;
+        break;
+      case IR_BITXOR:
+        if (opr1->r == 0)
+          return opr2;
+        break;
+      case IR_LSHIFT:
+      case IR_RSHIFT:
+        if (opr1->r == 0)
+          return opr1;
+        break;
+      default:
+        break;
+      }
+    }
+  } else {
+    if (opr2->flag & VRF_CONST) {
+      switch (kind) {
+      case IR_ADD:
+      case IR_SUB:
+        if (opr2->r == 0)
+          return opr1;
+        break;
+      case IR_MUL:
+      case IR_DIV:
+      case IR_DIVU:
+        if (opr2->r == 0)
+          error("Divide by 0");
+        if (opr2->r == 1)
+          return opr1;
+        break;
+      case IR_BITAND:
+        if (opr2->r == 0)
+          return opr2;
+        break;
+      case IR_BITOR:
+        if (opr2->r == 0)
+          return opr1;
+        break;
+      case IR_BITXOR:
+        if (opr2->r == 0)
+          return opr1;
+        break;
+      case IR_LSHIFT:
+      case IR_RSHIFT:
+        if (opr2->r == 0)
+          return opr1;
+        break;
+      default:
+        break;
+      }
+    }
+  }
+
   IR *ir = new_ir(kind);
   ir->opr1 = opr1;
   ir->opr2 = opr2;
@@ -99,6 +225,17 @@ VReg *new_ir_bop(enum IrKind kind, VReg *opr1, VReg *opr2, const Type *type) {
 }
 
 VReg *new_ir_unary(enum IrKind kind, VReg *opr, const Type *type) {
+  if (opr->flag & VRF_CONST) {
+    intptr_t value = 0;
+    switch (kind) {
+    case IR_NEG:     value = -opr->r; break;
+    case IR_NOT:     value = !opr->r; break;
+    case IR_BITNOT:  value = ~opr->r; break;
+    default: assert(false); break;
+    }
+    return new_const_vreg(clamp_value(value, type), type);
+  }
+
   IR *ir = new_ir(kind);
   ir->opr1 = opr;
   ir->size = type_size(type);
