@@ -708,7 +708,7 @@ VReg *gen_expr(Expr *expr) {
   case EX_GE:
     {
       enum ConditionKind cond = gen_compare_expr(expr->kind, expr->bop.lhs, expr->bop.rhs);
-      return new_ir_set(cond);
+      return new_ir_cond(cond);
     }
 
   case EX_LOGAND:

@@ -302,9 +302,9 @@ void new_ir_incdec(enum IrKind kind, VReg *reg, int size, intptr_t value) {
   ir->value = value;
 }
 
-VReg *new_ir_set(enum ConditionKind cond) {
-  IR *ir = new_ir(IR_SET);
-  ir->set.cond = cond;
+VReg *new_ir_cond(enum ConditionKind cond) {
+  IR *ir = new_ir(IR_COND);
+  ir->cond.kind = cond;
   return ir->dst = reg_alloc_spawn(curra, &tyBool, 0);
 }
 
@@ -859,11 +859,11 @@ static void ir_out(const IR *ir) {
     }
     break;
 
-  case IR_SET:
+  case IR_COND:
     {
       assert(!(ir->dst->flag & VRF_CONST));
       const char *dst = kReg8s[ir->dst->r];
-      switch (ir->set.cond) {
+      switch (ir->cond.kind) {
       case COND_EQ:  SETE(dst); break;
       case COND_NE:  SETNE(dst); break;
       case COND_LT:  SETL(dst); break;
@@ -1289,7 +1289,7 @@ static void dump_ir(FILE *fp, IR *ir) {
   case IR_NEG:    fprintf(fp, "\tNEG\t"); dump_vreg(fp, ir->dst, ir->size); fprintf(fp, " = -"); dump_vreg(fp, ir->opr1, ir->size); fprintf(fp, "\n"); break;
   case IR_NOT:    fprintf(fp, "\tNOT\t"); dump_vreg(fp, ir->dst, ir->size); fprintf(fp, " = !"); dump_vreg(fp, ir->opr1, ir->size); fprintf(fp, "\n"); break;
   case IR_BITNOT: fprintf(fp, "\tBITNOT\t"); dump_vreg(fp, ir->dst, ir->size); fprintf(fp, " = ~"); dump_vreg(fp, ir->opr1, ir->size); fprintf(fp, "\n"); break;
-  case IR_SET:    fprintf(fp, "\tSET\t"); dump_vreg(fp, ir->dst, 4); fprintf(fp, " = %s\n", kCond[ir->set.cond]); break;
+  case IR_COND:    fprintf(fp, "\tCOND\t"); dump_vreg(fp, ir->dst, 4); fprintf(fp, " = %s\n", kCond[ir->cond.kind]); break;
   case IR_TEST:   fprintf(fp, "\tTEST\t"); dump_vreg(fp, ir->opr1, ir->size); fprintf(fp, "\n"); break;
   case IR_JMP:    fprintf(fp, "\tJ%s\t%.*s\n", kCond[ir->jmp.cond], ir->jmp.bb->label->bytes, ir->jmp.bb->label->chars); break;
   case IR_PRECALL: fprintf(fp, "\tPRECALL\n"); break;

@@ -62,7 +62,7 @@ enum IrKind {
   IR_NEG,
   IR_NOT,
   IR_BITNOT,
-  IR_SET,   // SETxx: flag => 0 or 1
+  IR_COND,
   IR_TEST,
   IR_JMP,
   IR_PRECALL,
@@ -107,8 +107,8 @@ typedef struct {
       int scale;
     } ptradd;
     struct {
-      enum ConditionKind cond;
-    } set;
+      enum ConditionKind kind;
+    } cond;
     struct {
       BB *bb;
       enum ConditionKind cond;
@@ -141,7 +141,7 @@ void new_ir_memcpy(VReg *dst, VReg *src, int size);
 void new_ir_cmp(VReg *opr1, VReg *opr2, int size);
 void new_ir_test(VReg *reg, int size);
 void new_ir_incdec(enum IrKind kind, VReg *reg, int size, intptr_t value);
-VReg *new_ir_set(enum ConditionKind cond);
+VReg *new_ir_cond(enum ConditionKind cond);
 void new_ir_jmp(enum ConditionKind cond, BB *bb);
 void new_ir_precall(int arg_count, bool *stack_aligned);
 void new_ir_pusharg(VReg *vreg);

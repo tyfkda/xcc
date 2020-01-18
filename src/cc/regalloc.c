@@ -242,7 +242,7 @@ static int insert_load_store_spilled(BBContainer *bbcon, Vector *vregs) {
       case IR_NEG:  // unary ops
       case IR_NOT:
       case IR_BITNOT:
-      case IR_SET:
+      case IR_COND:
       case IR_TEST:
       case IR_PUSHARG:
       case IR_CALL:
