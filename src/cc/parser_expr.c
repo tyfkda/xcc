@@ -204,6 +204,10 @@ const Type *parse_raw_type(int *pflag) {
       break;
   }
 
+  if (type == NULL &&
+      (flag != 0 || is_unsigned))
+    type = &tyInt;
+
   if (pflag != NULL)
     *pflag = flag;
 

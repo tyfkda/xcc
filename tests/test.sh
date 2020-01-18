@@ -140,6 +140,7 @@ try_direct 'extern in func' 45 'int main(){ extern int g; g = 45; return g; } in
 try_direct 'anonymous union init' 99 'struct {union {int x;};} a = {.x = 99}; int main(){ return a.x; }'
 try 'func ref' 1 'return main == &main;'
 try 'func deref' 1 'return (long)main == (long)*main;'
+try 'implicit int' 92 'unsigned x = 92; return x;'
 
 # error cases
 echo ''
