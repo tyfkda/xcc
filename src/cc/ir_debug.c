@@ -23,7 +23,7 @@ static void dump_vreg(FILE *fp, VReg *vreg, int size) {
 
 static void dump_ir(FILE *fp, IR *ir) {
   static char *kSize[] = {"0", "b", "w", "3", "d", "5", "6", "7", ""};
-  static char *kCond[] = {"MP", "EQ", "NE", "LT", "LE", "GE", "GT"};
+  static char *kCond[] = {"MP", "EQ", "NE", "LT", "LE", "GE", "GT", "ULT", "ULE", "UGE", "UGT"};
 
   switch (ir->kind) {
   case IR_BOFS:   fprintf(fp, "\tBOFS\t"); dump_vreg(fp, ir->dst, ir->size); fprintf(fp, " = &[rbp %c %d]\n", ir->opr1->offset >= 0 ? '+' : '-', ir->opr1->offset > 0 ? ir->opr1->offset : -ir->opr1->offset); break;

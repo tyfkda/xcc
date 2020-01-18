@@ -16,10 +16,12 @@ static VRegType vtBool    = {.size = 4, .align = 4, .is_unsigned = false};
 int stackpos = 8;
 
 static enum ConditionKind invert_cond(enum ConditionKind cond) {
-  assert(COND_EQ <= cond && cond <= COND_GT);
+  assert(COND_EQ <= cond && cond <= COND_UGT);
   if (cond <= COND_NE)
     return COND_NE + COND_EQ - cond;
-  return COND_LT + ((cond - COND_LT) ^ 2);
+  if (cond <= COND_ULT)
+    return COND_LT + ((cond - COND_LT) ^ 2);
+  return COND_ULT + ((cond - COND_ULT) ^ 2);
 }
 
 // Virtual register
@@ -873,6 +875,10 @@ static void ir_out(IR *ir) {
       case COND_GT:  SETG(dst); break;
       case COND_LE:  SETLE(dst); break;
       case COND_GE:  SETGE(dst); break;
+      case COND_ULT: SETB(dst); break;
+      case COND_UGT: SETA(dst); break;
+      case COND_ULE: SETBE(dst); break;
+      case COND_UGE: SETAE(dst); break;
       default: assert(false); break;
       }
       MOVSX(dst, kReg32s[ir->dst->r]);  // Assume bool is 4 byte.
@@ -905,6 +911,10 @@ static void ir_out(IR *ir) {
     case COND_GT:   JG(fmt_name(ir->jmp.bb->label)); break;
     case COND_LE:   JLE(fmt_name(ir->jmp.bb->label)); break;
     case COND_GE:   JGE(fmt_name(ir->jmp.bb->label)); break;
+    case COND_ULT:  JB(fmt_name(ir->jmp.bb->label)); break;
+    case COND_UGT:  JA(fmt_name(ir->jmp.bb->label)); break;
+    case COND_ULE:  JBE(fmt_name(ir->jmp.bb->label)); break;
+    case COND_UGE:  JAE(fmt_name(ir->jmp.bb->label)); break;
     default:  assert(false); break;
     }
     break;

@@ -58,6 +58,11 @@ static enum ConditionKind gen_compare_expr(enum ExprKind kind, Expr *lhs, Expr *
     cond = swap_cond(cond);
   }
 
+  if (cond > COND_NE &&
+      (!is_number(lhs->type->kind) || lhs->type->num.is_unsigned)) {
+    cond += COND_ULT - COND_LT;
+  }
+
   VReg *lhs_reg = gen_expr(lhs);
   if (rhs->kind == EX_NUM && rhs->num.ival == 0 &&
       (cond == COND_EQ || cond == COND_NE)) {
@@ -130,6 +135,24 @@ void gen_cond_jmp(Expr *cond, bool tf, BB *bb) {
           new_ir_jmp(COND_GT, bb);
         else
           new_ir_jmp(COND_LE, bb);
+        break;
+      case COND_ULT:
+      case COND_UGE:
+        if (kind != COND_ULT)
+          tf = !tf;
+        if (tf)
+          new_ir_jmp(COND_ULT, bb);
+        else
+          new_ir_jmp(COND_UGE, bb);
+        break;
+      case COND_UGT:
+      case COND_ULE:
+        if (kind != COND_UGT)
+          tf = !tf;
+        if (tf)
+          new_ir_jmp(COND_UGT, bb);
+        else
+          new_ir_jmp(COND_ULE, bb);
         break;
       default:  assert(false); break;
       }

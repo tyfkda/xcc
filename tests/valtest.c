@@ -17,6 +17,12 @@ void expect(char *title, long expected, long actual) {
   exit(1);
 }
 
+void fail(char *title) {
+  puts(title);
+  puts(" => NG\n");
+  exit(1);
+}
+
 int g_zero, g_work;
 int g_init = (8 * 7 + 100 / 4 - 50 % 3) & 0x5a | 0x100;
 
@@ -224,6 +230,13 @@ int main(void) {
   expect("num >= var", 0, (x=1, 0 >= x));
   expect("num < var", 1, (x=1, 0 < x));
   expect("num <= var", 1, (x=1, 0 <= x));
+
+  {
+    unsigned char x = 255;
+    expect("unsigned cmp", 1, (x > (unsigned char)0));
+    if (x <= (unsigned char)0)
+      fail("unsigned cmp jmp");
+  }
 
   expect("t && t", 1, (x=1, y=1, x && y));
   expect("f && t", 0, (x=0, y=1, x && y));

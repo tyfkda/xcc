@@ -93,6 +93,10 @@ enum ConditionKind {
   COND_LE,
   COND_GE,
   COND_GT,
+  COND_ULT,  // Unsigned
+  COND_ULE,
+  COND_UGE,
+  COND_UGT,
 };
 
 typedef struct IR {
