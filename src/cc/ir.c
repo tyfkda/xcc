@@ -274,14 +274,6 @@ void new_ir_store(VReg *dst, VReg *src, int size) {
   ir->opr2 = dst;  // `dst` is used by indirect, so it is not actually `dst`.
 }
 
-void new_ir_memcpy(VReg *dst, VReg *src, int size) {
-  IR *ir = new_ir(IR_MEMCPY);
-  ir->opr1 = src;
-  ir->opr2 = dst;
-  ir->size = size;
-}
-
-
 void new_ir_cmp(VReg *opr1, VReg *opr2, int size) {
   IR *ir = new_ir(IR_CMP);
   ir->opr1 = opr1;
@@ -337,6 +329,12 @@ VReg *new_ir_call(const Name *label, bool global, VReg *freg, int arg_count, con
   return ir->dst = reg_alloc_spawn(curra, result_type, 0);
 }
 
+void new_ir_result(VReg *reg, int size) {
+  IR *ir = new_ir(IR_RESULT);
+  ir->opr1 = reg;
+  ir->size = size;
+}
+
 void new_ir_addsp(int value) {
   IR *ir = new_ir(IR_ADDSP);
   ir->value = value;
@@ -358,16 +356,17 @@ void new_ir_mov(VReg *dst, VReg *src, int size) {
   ir->size = size;
 }
 
+void new_ir_memcpy(VReg *dst, VReg *src, int size) {
+  IR *ir = new_ir(IR_MEMCPY);
+  ir->opr1 = src;
+  ir->opr2 = dst;
+  ir->size = size;
+}
+
 void new_ir_clear(VReg *reg, size_t size) {
   IR *ir = new_ir(IR_CLEAR);
   ir->size = size;
   ir->opr1 = reg;
-}
-
-void new_ir_result(VReg *reg, int size) {
-  IR *ir = new_ir(IR_RESULT);
-  ir->opr1 = reg;
-  ir->size = size;
 }
 
 void new_ir_asm(const char *asm_) {
@@ -469,12 +468,6 @@ static void ir_out(const IR *ir) {
       const char **regs = kRegSizeTable[pow];
       MOV(regs[ir->opr1->r], INDIRECT(kReg64s[ir->opr2->r], NULL, 1));
     }
-    break;
-
-  case IR_MEMCPY:
-    assert(!(ir->opr1->flag & VRF_CONST));
-    assert(!(ir->opr2->flag & VRF_CONST));
-    ir_memcpy(ir->opr2->r, ir->opr1->r, ir->size);
     break;
 
   case IR_ADD:
@@ -971,6 +964,19 @@ static void ir_out(const IR *ir) {
     }
     break;
 
+  case IR_RESULT:
+    {
+      assert(0 <= ir->size && ir->size < kPow2TableSize);
+      int pow = kPow2Table[ir->size];
+      assert(0 <= pow && pow < 4);
+      const char **regs = kRegSizeTable[pow];
+      if (ir->opr1->flag & VRF_CONST)
+        MOV(im(ir->opr1->r), kRegATable[pow]);
+      else
+        MOV(regs[ir->opr1->r], kRegATable[pow]);
+    }
+    break;
+
   case IR_ADDSP:
     if (ir->value > 0)
       ADD(IM(ir->value), RSP);
@@ -1030,6 +1036,12 @@ static void ir_out(const IR *ir) {
     }
     break;
 
+  case IR_MEMCPY:
+    assert(!(ir->opr1->flag & VRF_CONST));
+    assert(!(ir->opr2->flag & VRF_CONST));
+    ir_memcpy(ir->opr2->r, ir->opr1->r, ir->size);
+    break;
+
   case IR_CLEAR:
     {
       assert(!(ir->opr1->flag & VRF_CONST));
@@ -1042,19 +1054,6 @@ static void ir_out(const IR *ir) {
       INC(RSI);
       DEC(EDI);
       JNE(loop);
-    }
-    break;
-
-  case IR_RESULT:
-    {
-      assert(0 <= ir->size && ir->size < kPow2TableSize);
-      int pow = kPow2Table[ir->size];
-      assert(0 <= pow && pow < 4);
-      const char **regs = kRegSizeTable[pow];
-      if (ir->opr1->flag & VRF_CONST)
-        MOV(im(ir->opr1->r), kRegATable[pow]);
-      else
-        MOV(regs[ir->opr1->r], kRegATable[pow]);
     }
     break;
 
@@ -1259,7 +1258,6 @@ static void dump_ir(FILE *fp, IR *ir) {
   case IR_IOFS:   fprintf(fp, "\tIOFS\t"); dump_vreg(fp, ir->dst, ir->size); fprintf(fp, " = &%.*s\n", ir->iofs.label->bytes, ir->iofs.label->chars); break;
   case IR_LOAD:   fprintf(fp, "\tLOAD\t"); dump_vreg(fp, ir->dst, ir->size); fprintf(fp, " = ["); dump_vreg(fp, ir->opr1, WORD_SIZE); fprintf(fp, "]\n"); break;
   case IR_STORE:  fprintf(fp, "\tSTORE\t["); dump_vreg(fp, ir->opr2, WORD_SIZE); fprintf(fp, "] = "); dump_vreg(fp, ir->opr1, ir->size); fprintf(fp, "\n"); break;
-  case IR_MEMCPY: fprintf(fp, "\tMEMCPY(dst="); dump_vreg(fp, ir->opr2, WORD_SIZE); fprintf(fp, ", src="); dump_vreg(fp, ir->opr1, WORD_SIZE); fprintf(fp, ", size=%d)\n", ir->size); break;
   case IR_ADD:    fprintf(fp, "\tADD\t"); dump_vreg(fp, ir->dst, ir->size); fprintf(fp, " = "); dump_vreg(fp, ir->opr1, ir->size); fprintf(fp, " + "); dump_vreg(fp, ir->opr2, ir->size); fprintf(fp, "\n"); break;
   case IR_SUB:    fprintf(fp, "\tSUB\t"); dump_vreg(fp, ir->dst, ir->size); fprintf(fp, " = "); dump_vreg(fp, ir->opr1, ir->size); fprintf(fp, " - "); dump_vreg(fp, ir->opr2, ir->size); fprintf(fp, "\n"); break;
   case IR_MUL:    fprintf(fp, "\tMUL\t"); dump_vreg(fp, ir->dst, ir->size); fprintf(fp, " = "); dump_vreg(fp, ir->opr1, ir->size); fprintf(fp, " * "); dump_vreg(fp, ir->opr2, ir->size); fprintf(fp, "\n"); break;
@@ -1301,11 +1299,12 @@ static void dump_ir(FILE *fp, IR *ir) {
       fprintf(fp, "\tCALL\t"); dump_vreg(fp, ir->dst, ir->size); fprintf(fp, " = *"); dump_vreg(fp, ir->opr1, WORD_SIZE); fprintf(fp, "\n");
     }
     break;
+  case IR_RESULT: fprintf(fp, "\tRESULT\t"); dump_vreg(fp, ir->opr1, ir->size); fprintf(fp, "\n"); break;
   case IR_ADDSP:  fprintf(fp, "\tADDSP\t%"PRIdPTR"\n", ir->value); break;
   case IR_CAST:   fprintf(fp, "\tCAST\t"); dump_vreg(fp, ir->dst, ir->size); fprintf(fp, " = "); dump_vreg(fp, ir->opr1, ir->cast.srcsize); fprintf(fp, "\n"); break;
   case IR_MOV:    fprintf(fp, "\tMOV\t"); dump_vreg(fp, ir->dst, ir->size); fprintf(fp, " = "); dump_vreg(fp, ir->opr1, ir->size); fprintf(fp, "\n"); break;
+  case IR_MEMCPY: fprintf(fp, "\tMEMCPY(dst="); dump_vreg(fp, ir->opr2, WORD_SIZE); fprintf(fp, ", src="); dump_vreg(fp, ir->opr1, WORD_SIZE); fprintf(fp, ", size=%d)\n", ir->size); break;
   case IR_CLEAR:  fprintf(fp, "\tCLEAR\t"); dump_vreg(fp, ir->opr1, WORD_SIZE); fprintf(fp, ", %d\n", ir->size); break;
-  case IR_RESULT: fprintf(fp, "\tRESULT\t"); dump_vreg(fp, ir->opr1, ir->size); fprintf(fp, "\n"); break;
   case IR_ASM:    fprintf(fp, "\tASM \"%s\"\n", ir->asm_.str); break;
   case IR_LOAD_SPILLED:   fprintf(fp, "\tLOAD_SPILLED "); dump_vreg(fp, ir->dst, ir->size); fprintf(fp, " = [rbp %+d]\n", (int)ir->value); break;
   case IR_STORE_SPILLED:  fprintf(fp, "\tSTORE_SPILLED [rbp %+d] = ", (int)ir->value); dump_vreg(fp, ir->opr1, ir->size); fprintf(fp, "\n"); break;

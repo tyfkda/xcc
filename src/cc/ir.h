@@ -38,12 +38,11 @@ void vreg_spill(VReg *vreg);
 // Intermediate Representation
 
 enum IrKind {
-  IR_BOFS,  // basereg+ofs
-  IR_IOFS,  // label(rip)
-  IR_LOAD,
-  IR_STORE,
-  IR_MEMCPY,
-  IR_ADD,
+  IR_BOFS,    // dst = [rbp + offset]
+  IR_IOFS,    // dst = [rip + label]
+  IR_LOAD,    // dst = [opr1]
+  IR_STORE,   // [opr2] = opr1
+  IR_ADD,     // dst = opr1 + opr2
   IR_SUB,
   IR_MUL,
   IR_DIV,
@@ -55,28 +54,29 @@ enum IrKind {
   IR_RSHIFT,
   IR_DIVU,
   IR_MODU,
-  IR_PTRADD,
-  IR_CMP,
-  IR_INC,
-  IR_DEC,
+  IR_PTRADD,  // dst = opr1 + opr2 * size
+  IR_CMP,     // opr1 - opr2
+  IR_INC,     // opr1 += size
+  IR_DEC,     // dst = -opr1
   IR_NEG,
   IR_NOT,
   IR_BITNOT,
-  IR_COND,
-  IR_TEST,
-  IR_JMP,
-  IR_PRECALL,
+  IR_COND,    // dst <- flag
+  IR_TEST,    // opr1 - 0
+  IR_JMP,     // Jump with condition
+  IR_PRECALL, // Prepare for call
   IR_PUSHARG,
-  IR_CALL,
-  IR_ADDSP,
-  IR_CAST,
-  IR_MOV,
-  IR_CLEAR,
-  IR_RESULT,
-  IR_ASM,
+  IR_CALL,    // Call label or opr1
+  IR_RESULT,  // retval = opr1
+  IR_ADDSP,   // RSP += value
+  IR_CAST,    // dst <= opr1
+  IR_MOV,     // dst = opr1
+  IR_MEMCPY,  // memcpy(opr2, opr1, size)
+  IR_CLEAR,   // memset(opr1, 0, size)
+  IR_ASM,     // assembler code
 
-  IR_LOAD_SPILLED,
-  IR_STORE_SPILLED,
+  IR_LOAD_SPILLED,   // dst(spilled) = [ofs]
+  IR_STORE_SPILLED,  // [ofs] = opr1(spilled)
 };
 
 enum ConditionKind {
@@ -137,7 +137,6 @@ void new_ir_mov(VReg *dst, VReg *src, int size);
 VReg *new_ir_bofs(VReg *src);
 VReg *new_ir_iofs(const Name *label, bool global);
 void new_ir_store(VReg *dst, VReg *src, int size);
-void new_ir_memcpy(VReg *dst, VReg *src, int size);
 void new_ir_cmp(VReg *opr1, VReg *opr2, int size);
 void new_ir_test(VReg *reg, int size);
 void new_ir_incdec(enum IrKind kind, VReg *reg, int size, intptr_t value);
@@ -146,10 +145,11 @@ void new_ir_jmp(enum ConditionKind cond, BB *bb);
 void new_ir_precall(int arg_count, bool *stack_aligned);
 void new_ir_pusharg(VReg *vreg);
 VReg *new_ir_call(const Name *label, bool global, VReg *freg, int arg_count, const Type *result_type, bool *stack_aligned);
+void new_ir_result(VReg *reg, int size);
 void new_ir_addsp(int value);
 VReg *new_ir_cast(VReg *vreg, const Type *dsttype, int srcsize, bool is_unsigned);
+void new_ir_memcpy(VReg *dst, VReg *src, int size);
 void new_ir_clear(VReg *reg, size_t size);
-void new_ir_result(VReg *reg, int size);
 void new_ir_asm(const char *asm_);
 
 IR *new_ir_load_spilled(VReg *reg, int offset, int size);
