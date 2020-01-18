@@ -375,17 +375,19 @@ void new_ir_asm(const char *asm_) {
   ir->asm_.str = asm_;
 }
 
-IR *new_ir_load_spilled(int offset, int size) {
+IR *new_ir_load_spilled(VReg *reg, int offset, int size) {
   IR *ir = new_ir(IR_LOAD_SPILLED);
   ir->value = offset;
   ir->size = size;
+  ir->dst = reg;
   return ir;
 }
 
-IR *new_ir_store_spilled(int offset, int size) {
+IR *new_ir_store_spilled(VReg *reg, int offset, int size) {
   IR *ir = new_ir(IR_STORE_SPILLED);
   ir->value = offset;
   ir->size = size;
+  ir->opr1 = reg;
   return ir;
 }
 
@@ -1245,7 +1247,7 @@ static void dump_vreg(FILE *fp, VReg *vreg, int size) {
   if (vreg->flag & VRF_CONST)
     fprintf(fp, "(%"PRIdPTR")", vreg->r);
   else
-    fprintf(fp, "R%"PRIdPTR"%s", vreg->r, kSize[size]);
+    fprintf(fp, "R%"PRIdPTR"%s<v%d>", vreg->r, kSize[size], vreg->v);
 }
 
 static void dump_ir(FILE *fp, IR *ir) {
@@ -1305,8 +1307,8 @@ static void dump_ir(FILE *fp, IR *ir) {
   case IR_CLEAR:  fprintf(fp, "\tCLEAR\t"); dump_vreg(fp, ir->opr1, WORD_SIZE); fprintf(fp, ", %d\n", ir->size); break;
   case IR_RESULT: fprintf(fp, "\tRESULT\t"); dump_vreg(fp, ir->opr1, ir->size); fprintf(fp, "\n"); break;
   case IR_ASM:    fprintf(fp, "\tASM \"%s\"\n", ir->asm_.str); break;
-  case IR_LOAD_SPILLED:   fprintf(fp, "\tLOAD_SPILLED R%d%s = [rbp %+d]\n", SPILLED_REG_NO, kSize[ir->size], (int)ir->value); break;
-  case IR_STORE_SPILLED:  fprintf(fp, "\tSTORE_SPILLED [rbp %+d] = R%d%s\n", (int)ir->value, SPILLED_REG_NO, kSize[ir->size]); break;
+  case IR_LOAD_SPILLED:   fprintf(fp, "\tLOAD_SPILLED "); dump_vreg(fp, ir->dst, ir->size); fprintf(fp, " = [rbp %+d]\n", (int)ir->value); break;
+  case IR_STORE_SPILLED:  fprintf(fp, "\tSTORE_SPILLED [rbp %+d] = ", (int)ir->value); dump_vreg(fp, ir->opr1, ir->size); fprintf(fp, "\n"); break;
 
   default: assert(false); break;
   }

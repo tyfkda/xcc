@@ -274,7 +274,7 @@ static int insert_load_store_spilled(BBContainer *bbcon, Vector *vregs) {
       if (ir->opr1 != NULL && (flag & 1) != 0 && ir->opr1->r == SPILLED_REG_NO &&
           !(ir->opr1->flag & VRF_CONST)) {
         vec_insert(irs, j,
-                   new_ir_load_spilled(((VReg*)vregs->data[ir->opr1->v])->offset, load_size));
+                   new_ir_load_spilled(ir->opr1, ((VReg*)vregs->data[ir->opr1->v])->offset, load_size));
         ++j;
         inserted |= 1;
       }
@@ -282,7 +282,7 @@ static int insert_load_store_spilled(BBContainer *bbcon, Vector *vregs) {
       if (ir->opr2 != NULL && (flag & 2) != 0 && ir->opr2->r == SPILLED_REG_NO &&
           !(ir->opr2->flag & VRF_CONST)) {
         vec_insert(irs, j,
-                   new_ir_load_spilled(((VReg*)vregs->data[ir->opr2->v])->offset, load_size));
+                   new_ir_load_spilled(ir->opr2, ((VReg*)vregs->data[ir->opr2->v])->offset, load_size));
         ++j;
         inserted |= 2;
       }
@@ -292,7 +292,7 @@ static int insert_load_store_spilled(BBContainer *bbcon, Vector *vregs) {
         assert(!(ir->dst->flag & VRF_CONST));
         ++j;
         vec_insert(irs, j,
-                   new_ir_store_spilled(((VReg*)vregs->data[ir->dst->v])->offset, ir->size));
+                   new_ir_store_spilled(ir->dst, ((VReg*)vregs->data[ir->dst->v])->offset, ir->size));
         inserted |= 4;
       }
     }
