@@ -984,14 +984,14 @@ static void emit_defun(Defun *defun) {
     put_args_to_stack(defun);
 
     // Callee save.
-    push_callee_save_regs(func);
+    push_callee_save_regs(func->ra->used_reg_bits);
   }
 
   emit_bb_irs(func->bbcon);
 
   // Epilogue
   if (!no_stmt) {
-    pop_callee_save_regs(func);
+    pop_callee_save_regs(func->ra->used_reg_bits);
 
     MOV(RBP, RSP);
     stackpos -= func->ra->frame_size;

@@ -1,45 +1,16 @@
 #include <assert.h>
-#include <stdarg.h>
-#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-#include "ast.h"
 #include "codegen.h"
 #include "emit.h"
+#include "ir_debug.h"
 #include "lexer.h"
 #include "parser.h"
 #include "sema.h"
-#include "type.h"
 #include "util.h"
 #include "var.h"
-
-#include "ir.h"
-
-////////////////////////////////////////////////
-
-#if !defined(SELF_HOSTING)
-static void do_dump_ir(Vector *toplevel) {
-  for (int i = 0, len = toplevel->len; i < len; ++i) {
-    Declaration *decl = toplevel->data[i];
-    if (decl == NULL)
-      continue;
-
-    switch (decl->kind) {
-    case DCL_DEFUN:
-      dump_func_ir(decl->defun->func);
-      break;
-    case DCL_VARDECL:
-      break;
-
-    default:
-      assert(false);
-      break;
-    }
-  }
-}
-#endif
 
 ////////////////////////////////////////////////
 

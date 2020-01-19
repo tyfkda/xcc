@@ -7,7 +7,6 @@
 #include <stdint.h>  // intptr_t
 
 typedef struct BB BB;
-typedef struct Function Function;
 typedef struct Name Name;
 typedef struct RegAlloc RegAlloc;
 typedef struct Vector Vector;
@@ -163,10 +162,6 @@ void new_ir_asm(const char *asm_);
 IR *new_ir_load_spilled(VReg *reg, int offset, int size);
 IR *new_ir_store_spilled(VReg *reg, int offset, int size);
 
-#if !defined(SELF_HOSTING)
-void dump_func_ir(Function *func);
-#endif
-
 // Register allocator
 
 extern RegAlloc *curra;
@@ -197,8 +192,8 @@ typedef struct BBContainer {
 
 BBContainer *new_func_blocks(void);
 void remove_unnecessary_bb(BBContainer *bbcon);
-void push_callee_save_regs(Function *func);
-void pop_callee_save_regs(Function *func);
+void push_callee_save_regs(short used);
+void pop_callee_save_regs(short used);
 void emit_bb_irs(BBContainer *bbcon);
 
 //
