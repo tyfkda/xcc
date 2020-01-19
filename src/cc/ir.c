@@ -8,6 +8,8 @@
 #include "util.h"
 #include "x86_64.h"
 
+#define SPILLED_REG_NO  (PHYSICAL_REG_MAX)
+
 static VRegType vtVoidPtr = { .size = WORD_SIZE, .align = WORD_SIZE, .is_unsigned = false};
 static VRegType vtBool = { .size = 4, .align = 4, .is_unsigned = false};
 
@@ -31,10 +33,6 @@ VReg *new_vreg(int vreg_no, const VRegType *vtype, int flag) {
   vreg->param_index = -1;
   vreg->offset = 0;
   return vreg;
-}
-
-void vreg_spill(VReg *vreg) {
-  vreg->r = SPILLED_REG_NO;
 }
 
 // Register allocator

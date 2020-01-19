@@ -11,14 +11,32 @@
 #include "util.h"
 #include "var.h"
 
+#if (defined(__linux__) || defined(__APPLE__)) && !defined(__XCC)
+#define USE_ALLOCA
+#endif
+
+#if defined(USE_ALLOCA)
+#include <alloca.h>
+#define ALLOCA(size)  alloca(size)
+#else
+#define ALLOCA(size)  malloc(size)
+#endif
+
+#define SPILLED_REG_NO(ra)  (ra->phy_max)
+
+static void spill_vreg(RegAlloc *ra, VReg *vreg) {
+  vreg->r = SPILLED_REG_NO(ra);
+}
+
 // Register allocator
 
-RegAlloc *new_reg_alloc(void) {
+RegAlloc *new_reg_alloc(int phy_max) {
   RegAlloc *ra = malloc(sizeof(*ra));
   ra->vregs = new_vector();
   //ra->regno = 0;
   vec_clear(ra->vregs);
   ra->frame_size = 0;
+  ra->phy_max = phy_max;
   ra->used_reg_bits = 0;
   return ra;
 }
@@ -103,16 +121,16 @@ static int sort_live_interval(LiveInterval **pa, LiveInterval **pb) {
   return d;
 }
 
-static void split_at_interval(LiveInterval **active, int active_count, LiveInterval *li) {
+static void split_at_interval(RegAlloc *ra, LiveInterval **active, int active_count, LiveInterval *li) {
   assert(active_count > 0);
   LiveInterval *spill = active[active_count - 1];
   if (spill->end > li->end) {
     li->rreg = spill->rreg;
-    spill->rreg = SPILLED_REG_NO;
+    spill->rreg = ra->phy_max;
     spill->state = LI_SPILL;
     insert_active(active, active_count - 1, li);
   } else {
-    li->rreg = SPILLED_REG_NO;
+    li->rreg = ra->phy_max;
     li->state = LI_SPILL;
   }
 }
@@ -180,8 +198,9 @@ static LiveInterval **check_live_interval(BBContainer *bbcon, int vreg_count, Li
   return sorted_intervals;
 }
 
-static short linear_scan_register_allocation(LiveInterval **sorted_intervals, int vreg_count) {
-  LiveInterval *active[REG_COUNT];
+static short linear_scan_register_allocation(RegAlloc *ra, LiveInterval **sorted_intervals, int vreg_count) {
+  const int PHY_MAX = ra->phy_max;
+  LiveInterval **active = ALLOCA(sizeof(LiveInterval*) * ra->phy_max);
   int active_count = 0;
   short using_bits = 0;
   short used_bits = 0;
@@ -191,11 +210,11 @@ static short linear_scan_register_allocation(LiveInterval **sorted_intervals, in
     if (li->state != LI_NORMAL)
       continue;
     expire_old_intervals(active, &active_count, &using_bits, li->start);
-    if (active_count >= REG_COUNT) {
-      split_at_interval(active, active_count, li);
+    if (active_count >= PHY_MAX) {
+      split_at_interval(ra, active, active_count, li);
     } else {
       int regno = -1;
-      for (int j = 0; j < REG_COUNT; ++j) {
+      for (int j = 0; j < PHY_MAX; ++j) {
         if (!(using_bits & (1 << j))) {
           regno = j;
           break;
@@ -213,7 +232,7 @@ static short linear_scan_register_allocation(LiveInterval **sorted_intervals, in
   return used_bits;
 }
 
-static int insert_load_store_spilled(BBContainer *bbcon, Vector *vregs) {
+static int insert_load_store_spilled(BBContainer *bbcon, Vector *vregs, const int spilled) {
   int inserted = 0;
   for (int i = 0; i < bbcon->bbs->len; ++i) {
     BB *bb = bbcon->bbs->data[i];
@@ -268,10 +287,10 @@ static int insert_load_store_spilled(BBContainer *bbcon, Vector *vregs) {
         continue;
       }
 
-      assert(!((ir->opr1 != NULL && (flag & 1) != 0 && ir->opr1->r == SPILLED_REG_NO && !(ir->opr1->flag & VRF_CONST)) &&
-               (ir->opr2 != NULL && (flag & 2) != 0 && ir->opr2->r == SPILLED_REG_NO && !(ir->opr2->flag & VRF_CONST))));
+      assert(!((ir->opr1 != NULL && (flag & 1) != 0 && ir->opr1->r == spilled && !(ir->opr1->flag & VRF_CONST)) &&
+               (ir->opr2 != NULL && (flag & 2) != 0 && ir->opr2->r == spilled && !(ir->opr2->flag & VRF_CONST))));
 
-      if (ir->opr1 != NULL && (flag & 1) != 0 && ir->opr1->r == SPILLED_REG_NO &&
+      if (ir->opr1 != NULL && (flag & 1) != 0 && ir->opr1->r == spilled &&
           !(ir->opr1->flag & VRF_CONST)) {
         vec_insert(irs, j,
                    new_ir_load_spilled(ir->opr1, ((VReg*)vregs->data[ir->opr1->v])->offset, load_size));
@@ -279,7 +298,7 @@ static int insert_load_store_spilled(BBContainer *bbcon, Vector *vregs) {
         inserted |= 1;
       }
 
-      if (ir->opr2 != NULL && (flag & 2) != 0 && ir->opr2->r == SPILLED_REG_NO &&
+      if (ir->opr2 != NULL && (flag & 2) != 0 && ir->opr2->r == spilled &&
           !(ir->opr2->flag & VRF_CONST)) {
         vec_insert(irs, j,
                    new_ir_load_spilled(ir->opr2, ((VReg*)vregs->data[ir->opr2->v])->offset, load_size));
@@ -287,7 +306,7 @@ static int insert_load_store_spilled(BBContainer *bbcon, Vector *vregs) {
         inserted |= 2;
       }
 
-      if (ir->dst != NULL && (flag & 4) != 0 && ir->dst->r == SPILLED_REG_NO &&
+      if (ir->dst != NULL && (flag & 4) != 0 && ir->dst->r == spilled &&
           !(ir->dst->flag & VRF_CONST)) {
         assert(!(ir->dst->flag & VRF_CONST));
         ++j;
@@ -405,7 +424,7 @@ void prepare_register_allocation(Function *func) {
       }
 
       if (spill)
-        vreg_spill(vreg);
+        spill_vreg(func->ra, vreg);
     }
   }
 }
@@ -433,17 +452,17 @@ void alloc_real_registers(RegAlloc *ra, BBContainer *bbcon) {
 
     // Force function parameter spilled.
     if (vreg->param_index >= 0) {
-      vreg_spill(vreg);
+      spill_vreg(ra, vreg);
       li->start = 0;
       li->state = LI_SPILL;
     }
-    if (vreg->r >= SPILLED_REG_NO) {
+    if (vreg->r >= ra->phy_max) {
       li->state = LI_SPILL;
       li->rreg = vreg->r;
     }
   }
 
-  ra->used_reg_bits = linear_scan_register_allocation(sorted_intervals, vreg_count);
+  ra->used_reg_bits = linear_scan_register_allocation(ra, sorted_intervals, vreg_count);
 
   // Map vreg to rreg.
   for (int i = 0; i < vreg_count; ++i) {
@@ -478,9 +497,10 @@ void alloc_real_registers(RegAlloc *ra, BBContainer *bbcon) {
     vreg->offset = -frame_size;
   }
 
-  int inserted = insert_load_store_spilled(bbcon, ra->vregs);
+  int spilled = SPILLED_REG_NO(ra);
+  int inserted = insert_load_store_spilled(bbcon, ra->vregs, spilled);
   if (inserted != 0)
-    ra->used_reg_bits |= 1 << SPILLED_REG_NO;
+    ra->used_reg_bits |= 1 << spilled;
 
   ra->sorted_intervals = sorted_intervals;
 

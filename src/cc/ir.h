@@ -14,8 +14,7 @@ typedef struct Vector Vector;
 #define MAX_REG_ARGS  (6)
 #define WORD_SIZE  (8)  /*sizeof(void*)*/
 
-#define REG_COUNT  (7 - 1)
-#define SPILLED_REG_NO  (REG_COUNT)
+#define PHYSICAL_REG_MAX  (7 - 1)
 
 // Virtual register
 
@@ -40,7 +39,6 @@ typedef struct VReg {
 } VReg;
 
 VReg *new_vreg(int vreg_no, const VRegType *vtype, int flag);
-void vreg_spill(VReg *vreg);
 
 // Intermediate Representation
 

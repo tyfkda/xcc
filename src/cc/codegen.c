@@ -866,7 +866,7 @@ static void gen_defun(Defun *defun) {
   curdefun = defun;
   func->bbcon = new_func_blocks();
   set_curbb(new_bb());
-  func->ra = curra = new_reg_alloc();
+  func->ra = curra = new_reg_alloc(PHYSICAL_REG_MAX);
 
   // Allocate BBs for goto labels.
   if (defun->label_table != NULL) {

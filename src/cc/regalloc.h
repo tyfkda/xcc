@@ -16,10 +16,11 @@ typedef struct RegAlloc {
   struct LiveInterval **sorted_intervals;
 
   size_t frame_size;
+  int phy_max;  // Max physical register count.
   short used_reg_bits;
 } RegAlloc;
 
-RegAlloc *new_reg_alloc(void);
+RegAlloc *new_reg_alloc(int phy_max);
 VReg *reg_alloc_spawn(RegAlloc *ra, const VRegType *vtype, int flag);
 
 void prepare_register_allocation(Function *func);
