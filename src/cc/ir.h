@@ -12,6 +12,9 @@ typedef struct Name Name;
 typedef struct RegAlloc RegAlloc;
 typedef struct Vector Vector;
 
+#define MAX_REG_ARGS  (6)
+#define WORD_SIZE  (8)  /*sizeof(void*)*/
+
 #define REG_COUNT  (7 - 1)
 #define SPILLED_REG_NO  (REG_COUNT)
 
@@ -197,3 +200,10 @@ void remove_unnecessary_bb(BBContainer *bbcon);
 void push_callee_save_regs(Function *func);
 void pop_callee_save_regs(Function *func);
 void emit_bb_irs(BBContainer *bbcon);
+
+//
+
+#define PUSH_STACK_POS()  do { stackpos += 8; } while (0)
+#define POP_STACK_POS()   do { stackpos -= 8; } while (0)
+
+extern int stackpos;

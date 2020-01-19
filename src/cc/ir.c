@@ -6,7 +6,6 @@
 #include <string.h>
 
 #include "ast.h"
-#include "codegen.h"
 #include "regalloc.h"
 #include "table.h"
 #include "util.h"
@@ -15,6 +14,8 @@
 
 static VRegType vtVoidPtr = { .size = WORD_SIZE, .align = WORD_SIZE, .is_unsigned = false};
 static VRegType vtBool = { .size = 4, .align = 4, .is_unsigned = false};
+
+int stackpos = 8;
 
 static enum ConditionKind invert_cond(enum ConditionKind cond) {
   assert(COND_EQ <= cond && cond <= COND_GT);

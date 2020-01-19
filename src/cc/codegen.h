@@ -14,20 +14,12 @@ typedef struct VReg VReg;
 typedef struct VRegType VRegType;
 typedef struct Vector Vector;
 
-#define MAX_REG_ARGS  (6)
-#define WORD_SIZE  (8)  /*sizeof(void*)*/
-
 // Public
 
 void gen(Vector *toplevel);
 void emit_code(Vector *toplevel);
 
 // Private
-
-#define PUSH_STACK_POS()  do { stackpos += 8; } while (0)
-#define POP_STACK_POS()   do { stackpos -= 8; } while (0)
-
-extern int stackpos;
 
 VReg *gen_expr(Expr *expr);
 size_t type_size(const Type *type);

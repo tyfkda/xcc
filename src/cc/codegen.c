@@ -400,7 +400,6 @@ static void put_bss(void) {
 
 static BB *s_break_bb;
 static BB *s_continue_bb;
-int stackpos = 8;
 
 static void pop_break_bb(BB *save) {
   s_break_bb = save;
