@@ -65,6 +65,8 @@ bool can_cast(const Type *dst, const Type *src, Expr *src_expr, bool is_explicit
       // void* is interchangable with any pointer type.
       if (dst->pa.ptrof->kind == TY_VOID || src->pa.ptrof->kind == TY_VOID)
         return true;
+      if (src->pa.ptrof->kind == TY_FUNC)
+        return can_cast(dst, src->pa.ptrof, src_expr, is_explicit);
       break;
     case TY_ARRAY:
       if (is_explicit)
@@ -76,8 +78,11 @@ bool can_cast(const Type *dst, const Type *src, Expr *src_expr, bool is_explicit
     case TY_FUNC:
       if (is_explicit)
         return true;
-      if (dst->pa.ptrof->kind == TY_FUNC && same_type(dst->pa.ptrof, src))
-        return true;
+      if (dst->pa.ptrof->kind == TY_FUNC) {
+        const Type *ftype = dst->pa.ptrof;
+        return (same_type(ftype, src) ||
+                (ftype->func.param_types == NULL || src->func.param_types == NULL));
+      }
       break;
     default:  break;
     }

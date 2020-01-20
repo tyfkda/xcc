@@ -49,6 +49,11 @@ bool same_type(const Type *type1, const Type *type2) {
       continue;
     case TY_FUNC:
       if (!same_type(type1->func.ret, type2->func.ret) ||
+          type1->func.vaargs != type2->func.vaargs)
+        return false;
+      if (type1->func.param_types == NULL && type2->func.param_types == NULL)
+        return true;
+      if (type1->func.param_types == NULL || type2->func.param_types == NULL ||
           type1->func.param_types->len != type2->func.param_types->len)
         return false;
       for (int i = 0, len = type1->func.param_types->len; i < len; ++i) {
