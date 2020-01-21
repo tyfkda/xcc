@@ -394,7 +394,8 @@ static Declaration *parse_global_var_decl(const Type *rawtype, int flag, const T
     if (type->kind == TY_VOID)
       parse_error(ident, "`void' not allowed");
 
-    type = parse_type_suffix(type);
+    if (!(type->kind == TY_PTR && type->pa.ptrof->kind == TY_FUNC))
+      type = parse_type_suffix(type);
     Initializer *init = NULL;
     if (match(TK_ASSIGN) != NULL)
       init = parse_initializer();
@@ -425,12 +426,26 @@ static Declaration *declaration(void) {
         match(TK_SEMICOL))  // Just struct/union definition.
       return NULL;
 
-    Token *ident;
-    if ((ident = match(TK_IDENT)) != NULL) {
-      if (match(TK_LPAR))  // Function.
-        return parse_defun(type, flag, ident);
+    if (match(TK_LPAR)) {  // Function type.
+      match(TK_MUL);  // Skip `*' if exists.
+      Token *ident = match(TK_IDENT);
+      if (ident == NULL)
+        parse_error(NULL, "Ident expected");
+      consume(TK_RPAR, "`)' expected");
+      consume(TK_LPAR, "`(' expected");
 
+      bool vaargs;
+      Vector *param_types = parse_funparam_types(&vaargs);
+      type = ptrof(new_func_type(type, param_types, vaargs));
       return parse_global_var_decl(rawtype, flag, type, ident);
+    } else {
+      Token *ident = NULL;
+      if ((ident = match(TK_IDENT)) != NULL) {
+        if (match(TK_LPAR))  // Function.
+          return parse_defun(type, flag, ident);
+
+        return parse_global_var_decl(rawtype, flag, type, ident);
+      }
     }
     parse_error(NULL, "ident expected");
     return NULL;

@@ -400,7 +400,8 @@ static Initializer *check_global_initializer(const Type *type, Initializer *init
           VarInfo *info = find_global(value->variable.name);
           assert(info != NULL);
 
-          if (info->type->kind != TY_ARRAY || !same_type(type->pa.ptrof, info->type->pa.ptrof))
+          if ((info->type->kind != TY_ARRAY && info->type->kind != TY_FUNC) ||
+              !can_cast(type, info->type, value, false))
             parse_error(value->token, "Illegal type");
 
           return init;

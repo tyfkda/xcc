@@ -313,7 +313,8 @@ static VReg *gen_funcall(Expr *expr) {
     if (func->variable.scope == NULL) {
       varinfo = find_global(func->variable.name);
       assert(varinfo != NULL);
-      global = true;
+      if (varinfo->type->kind == TY_FUNC)
+        global = true;
     } else {
       Scope *scope = func->variable.scope;
       varinfo = scope_find(&scope, func->variable.name);
