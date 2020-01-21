@@ -50,11 +50,12 @@ size_t type_size(const Type *type) {
       return 1;
     }
   case TY_PTR:
-  case TY_FUNC:
     return 8;
   case TY_ARRAY:
     assert(type->pa.length != (size_t)-1);
     return type_size(type->pa.ptrof) * type->pa.length;
+  case TY_FUNC:
+    return 1;
   case TY_STRUCT:
     ensure_struct((Type*)type, NULL);
     calc_struct_size(type->struct_.info);

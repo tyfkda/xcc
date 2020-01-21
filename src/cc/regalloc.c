@@ -264,11 +264,15 @@ static int insert_load_store_spilled(BBContainer *bbcon, Vector *vregs, const in
       case IR_COND:
       case IR_TEST:
       case IR_PUSHARG:
-      case IR_CALL:
       case IR_RESULT:
       case IR_CAST:
         flag = 7;
         load_size = ir->size;
+        break;
+
+      case IR_CALL:
+        flag = 7;
+        load_size = WORD_SIZE;
         break;
 
       case IR_LOAD:

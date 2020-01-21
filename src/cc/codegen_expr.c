@@ -184,7 +184,7 @@ void gen_cond_jmp(Expr *cond, bool tf, BB *bb) {
 static VReg *gen_cast(VReg *reg, const Type *ltype, const Type *rtype) {
   size_t dst_size = type_size(ltype);
   size_t src_size;
-  if (rtype->kind == TY_ARRAY)
+  if (rtype->kind == TY_ARRAY || rtype->kind == TY_FUNC)
     src_size = WORD_SIZE;
   else
     src_size = type_size(rtype);
@@ -346,11 +346,11 @@ static VReg *gen_funcall(Expr *expr) {
   VReg *result_reg = NULL;
   if (func->kind == EX_VARIABLE && global) {
     result_reg = new_ir_call(func->variable.name, global, NULL, arg_count,
-                             to_vtype(func->type->func.ret), stack_aligned);
+                             to_vtype(expr->type), stack_aligned);
   } else {
     VReg *freg = gen_expr(func);
     result_reg = new_ir_call(NULL, false, freg, arg_count,
-                             to_vtype(func->type->func.ret), stack_aligned);
+                             to_vtype(expr->type), stack_aligned);
   }
 
   return result_reg;
