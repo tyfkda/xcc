@@ -541,6 +541,15 @@ Expr *analyze_expr(Expr *expr, bool keep_left) {
       if (expr->bop.lhs->kind == EX_GROUP)
         parse_error(expr->token, "Cannot assign");
       analyze_lval(expr->token, expr->bop.lhs, "Cannot assign");
+      switch (expr->bop.lhs->type->kind) {
+      case TY_ARRAY:
+        parse_error(expr->token, "Cannot assign to array");
+        break;
+      case TY_FUNC:
+        parse_error(expr->token, "Cannot assign to function");
+        break;
+      default: break;
+      }
       expr->type = expr->bop.lhs->type;
       expr->bop.rhs = make_cast(expr->type, expr->token, expr->bop.rhs, false);
       break;
