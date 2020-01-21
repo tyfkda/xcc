@@ -302,10 +302,10 @@ void new_ir_jmp(enum ConditionKind cond, BB *bb) {
   ir->jmp.cond = cond;
 }
 
-void new_ir_pusharg(VReg *vreg) {
+void new_ir_pusharg(VReg *vreg, const VRegType *vtype) {
   IR *ir = new_ir(IR_PUSHARG);
   ir->opr1 = vreg;
-  ir->size = WORD_SIZE;
+  ir->size = vtype->size;
 }
 
 void new_ir_precall(int arg_count, bool *stack_aligned) {

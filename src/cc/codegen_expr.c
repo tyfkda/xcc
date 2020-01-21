@@ -339,7 +339,7 @@ static VReg *gen_funcall(Expr *expr) {
     for (int i = arg_count; --i >= 0; ) {
       Expr *arg = args->data[i];
       VReg *reg = gen_expr(arg);
-      new_ir_pusharg(reg);
+      new_ir_pusharg(reg, to_vtype(arg->type));
     }
   }
 
