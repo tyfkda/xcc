@@ -11,9 +11,49 @@ XCC
   * Self hosting
 
 
+### Requirements
+
+  * Linux
+  * gcc or clang
+  * make
+
+
+### Build
+
+```sh
+$ make
+```
+
+Generated files:
+
+  * `xcc`: Compiler entry
+  * `cpp`: Preprocessor
+  * `cc1`: C compiler
+  * `as`:  Assembler
+
+
+### Run
+
+```sh
+$ ./xcc examples/hello.c
+$ ./a.out
+```
+
+
+### Commandline options
+
+  * `-o<filename>`: Set output filename (default: a.out)
+  * `-I<path>`:     Add include path
+  * `-D<label>(=value)`:  Define macro
+  * `-S`:           Output source code (, not execlutable) to stdout
+  * `-E`:           Preprocess only
+  * `--dump-ir`:    Output IR code to stdout (debug purpose)
+
+
 ### TODO
 
   * Optimization
+  * Archiver, Linker
 
 
 ### Missing features
