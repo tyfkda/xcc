@@ -415,7 +415,7 @@ static Initializer *check_global_initializer(const Type *type, Initializer *init
         }
       case EX_STR:
         {
-          if (!(is_char_type(type->pa.ptrof) && value->kind == EX_STR))
+          if (!is_char_type(type->pa.ptrof))
             parse_error(value->token, "Illegal type");
 
           // Create string and point to it.
