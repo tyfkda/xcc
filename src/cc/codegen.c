@@ -115,11 +115,12 @@ void calc_struct_size(StructInfo *sinfo) {
     int align = align_size(member->type);
     size = ALIGN(size, align);
     member->struct_.offset = size;
-    if (!sinfo->is_union)
+    if (!sinfo->is_union) {
       size += sz;
-    else
+    } else {
       if (maxsize < sz)
         maxsize = sz;
+    }
     if (max_align < align)
       max_align = align;
   }
@@ -146,7 +147,7 @@ static const char *escape(int c) {
 static void escape_string(const char *str, size_t size, StringBuffer *sb) {
   const char *s, *p;
   const char *end = str + size;
-  for (s = p = str; p < end ; ++p) {
+  for (s = p = str; p < end; ++p) {
     const char *e = escape(*p);
     if (e == NULL)
       continue;
@@ -872,7 +873,7 @@ static void gen_defun(Defun *defun) {
   // Allocate BBs for goto labels.
   if (defun->label_table != NULL) {
     Table *label_table = defun->label_table;
-    for (int i = 0; ; ) {
+    for (int i = 0;;) {
       const Name *name;
       i = table_iterate(label_table, i, &name, NULL);
       if (i < 0)

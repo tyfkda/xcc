@@ -88,10 +88,10 @@ bool is_number(enum TypeKind kind);
 bool is_char_type(const Type *type);
 bool is_void_ptr(const Type *type);
 bool same_type(const Type *type1, const Type *type2);
-Type* ptrof(const Type *type);
+Type *ptrof(const Type *type);
 const Type *array_to_ptr(const Type *type);
-Type* arrayof(const Type *type, size_t length);
-Type* new_func_type(const Type *ret, Vector *param_types, bool vaargs);
+Type *arrayof(const Type *type, size_t length);
+Type *new_func_type(const Type *ret, Vector *param_types, bool vaargs);
 
 // Struct
 

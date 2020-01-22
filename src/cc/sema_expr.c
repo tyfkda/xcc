@@ -10,7 +10,7 @@
 #include "util.h"
 #include "var.h"
 
-static const Type *tyNumTable[] = { &tyChar, &tyShort, &tyInt, &tyLong, &tyEnum };
+static const Type *tyNumTable[] = {&tyChar, &tyShort, &tyInt, &tyLong, &tyEnum};
 
 Scope *curscope;
 
@@ -20,7 +20,8 @@ void ensure_struct(Type *type, const Token *token) {
   if (type->struct_.info == NULL) {
     StructInfo *sinfo = find_struct(type->struct_.name);
     if (sinfo == NULL)
-      parse_error(token, "Accessing unknown struct(%.*s)'s member", type->struct_.name->bytes, type->struct_.name->chars);
+      parse_error(token, "Accessing unknown struct(%.*s)'s member", type->struct_.name->bytes,
+                  type->struct_.name->chars);
     type->struct_.info = sinfo;
   }
 }
@@ -106,7 +107,8 @@ bool can_cast(const Type *dst, const Type *src, Expr *src_expr, bool is_explicit
   return false;
 }
 
-static bool check_cast(const Type *dst, const Type *src, Expr *src_expr, bool is_explicit, const Token *token) {
+static bool check_cast(const Type *dst, const Type *src, Expr *src_expr, bool is_explicit,
+                       const Token *token) {
   if (can_cast(dst, src, src_expr, is_explicit))
     return true;
   parse_error(token, "Cannot convert value from type %d to %d", src->kind, dst->kind);

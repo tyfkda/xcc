@@ -6,6 +6,7 @@
 #include <stdint.h>  // intptr_t
 
 #include "table.h"
+#include "util.h"
 #include "x86_64.h"
 
 #ifdef __APPLE__

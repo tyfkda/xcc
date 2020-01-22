@@ -36,15 +36,15 @@ size_t strlen(const char *s) {
   return p - s;
 }
 
-char* strchr(const char *s, char c) {
+char *strchr(const char *s, char c) {
   for (; *s != '\0'; ++s)
     if (*s == c)
       return (char*)s;
   return 0;
 }
 
-char* strrchr(const char *s, char c) {
-  char* last = NULL;
+char *strrchr(const char *s, char c) {
+  char *last = NULL;
   for(; *s != '\0'; ++s)
     if(*s == c)
       last = (char*)s;
@@ -91,29 +91,29 @@ int strncasecmp(const char *p, const char *q, size_t n) {
   return 0;
 }
 
-char* strcpy(char *s, const char *t) {
+char *strcpy(char *s, const char *t) {
   char *os = s;
-  while((*s++ = *t++) != '\0')
+  while ((*s++ = *t++) != '\0')
     ;
   return os;
 }
 
-char* strncpy(char *s, const char *t, size_t n) {
+char *strncpy(char *s, const char *t, size_t n) {
   char *os = s;
   for (; n > 0 && (*s++ = *t++) != '\0'; --n)
     ;
   return os;
 }
 
-void* memcpy(void *dst, const void *src, size_t n) {
+void *memcpy(void *dst, const void *src, size_t n) {
   const char *s = src;
   char *d = dst;
-  while(n-- > 0)
+  while (n-- > 0)
     *d++ = *s++;
   return dst;
 }
 
-void* memmove(void *dst, const void *src, size_t n) {
+void *memmove(void *dst, const void *src, size_t n) {
   const char *s = src;
   char *d = dst;
   if (s < d && s + n > d) {
@@ -128,7 +128,7 @@ void* memmove(void *dst, const void *src, size_t n) {
   return dst;
 }
 
-void* memset(void* buf, int val, size_t size) {
+void *memset(void *buf, int val, size_t size) {
   unsigned char *p = buf;
   unsigned char v = val;
   for (size_t i = 0; i < size; ++i)
@@ -153,7 +153,7 @@ long strtol(const char *p, char **pp, int base) {
   if (base <= 10) {
     for (;;) {
       char c = *p++;
-      if ('0' <= c && c < ('0'+ base))
+      if ('0' <= c && c < ('0' + base))
         result = result * base + (c - '0');
       else
         break;
@@ -178,18 +178,18 @@ long strtol(const char *p, char **pp, int base) {
   return result;
 }
 
-static FILE _stdin = {.fd=STDIN_FILENO};
-static FILE _stdout = {.fd=STDOUT_FILENO};
-static FILE _stderr = {.fd=STDERR_FILENO};
+static FILE _stdin = {.fd = STDIN_FILENO};
+static FILE _stdout = {.fd = STDOUT_FILENO};
+static FILE _stderr = {.fd = STDERR_FILENO};
 FILE *stdin = &_stdin;
 FILE *stdout = &_stdout;
 FILE *stderr = &_stderr;
 
-size_t fwrite(const void* buffer, size_t size, size_t count, FILE* fp) {
+size_t fwrite(const void *buffer, size_t size, size_t count, FILE *fp) {
   write(fp->fd, buffer, size * count);
 }
 
-size_t fread(void* buffer, size_t size, size_t count, FILE* fp) {
+size_t fread(void *buffer, size_t size, size_t count, FILE *fp) {
   return read(fp->fd, buffer, size * count);
 }
 
@@ -216,7 +216,7 @@ size_t printf(const char *fmt, ...) {
   return len;
 }
 
-int atoi(const char* s) {
+int atoi(const char *s) {
   int n = 0;
   for (; '0' <= *s && *s <= '9'; ++s)
     n = n * 10 + (*s - '0');
@@ -352,9 +352,9 @@ char *dirname(char *path) {
   return ".";
 }
 
-FILE* fopen(const char* fileName, const char* mode) {
+FILE *fopen(const char *fileName, const char *mode) {
   struct {
-    const char* str;
+    const char *str;
     int flag;
   } static const kTable[] = {
     {"r", O_RDONLY},
@@ -389,7 +389,7 @@ FILE* fopen(const char* fileName, const char* mode) {
     return NULL;
   }
 
-  FILE* fp = malloc(sizeof(*fp));
+  FILE *fp = malloc(sizeof(*fp));
   if (fp == NULL) {
     close(fd);
     return NULL;
@@ -399,7 +399,7 @@ FILE* fopen(const char* fileName, const char* mode) {
   return fp;
 }
 
-int fclose(FILE* fp) {
+int fclose(FILE *fp) {
   if (fp == NULL || fp->fd < 0)
     return EOF;
   close(fp->fd);
@@ -412,13 +412,13 @@ long ftell(FILE *fp) {
   return lseek(fp->fd, 0, SEEK_CUR);
 }
 
-int fgetc(FILE* fp) {
+int fgetc(FILE *fp) {
   unsigned char c;
   int len = read(fp->fd, &c, 1);
   return len == 1 ? (int)c : EOF;
 }
 
-int fputc(int c, FILE* fp) {
+int fputc(int c, FILE *fp) {
   unsigned char cc = c;
   int len = write(fp->fd, &cc, 1);
   return len == 1 ? c : EOF;
@@ -445,11 +445,11 @@ int execvp(const char *path, char *const args[]) {
   return execve(path, args, environ);
 }
 
-pid_t waitpid(pid_t pid, int* status, int options) {
+pid_t waitpid(pid_t pid, int *status, int options) {
   return wait4(pid, status, options, NULL);
 }
 
-void perror(const char* msg) {
+void perror(const char *msg) {
   fprintf(stderr, "perror: %s\n", msg);
 }
 

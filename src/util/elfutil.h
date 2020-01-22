@@ -2,7 +2,6 @@
 
 #pragma once
 
-
 #if !defined(__XV6) && !defined(__linux__)
 
 #define ELF_NOT_SUPPORTED

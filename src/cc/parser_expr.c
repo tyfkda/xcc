@@ -214,7 +214,7 @@ const Type *parse_raw_type(int *pflag) {
   return type;
 }
 
-const Type *parse_type_modifier(const Type* type) {
+const Type *parse_type_modifier(const Type *type) {
   if (type == NULL)
     return NULL;
 
@@ -259,7 +259,7 @@ Vector *parse_funparam_types(bool *pvaargs) {  // Vector<Type*>
   return extract_varinfo_types(params);
 }
 
-bool parse_var_def(const Type **prawType, const Type** ptype, int *pflag, Token **pident) {
+bool parse_var_def(const Type **prawType, const Type **ptype, int *pflag, Token **pident) {
   const Type *rawType = prawType != NULL ? *prawType : NULL;
   if (rawType == NULL) {
     rawType = parse_raw_type(pflag);

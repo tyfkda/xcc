@@ -25,7 +25,7 @@ char *abspath(const char *root, const char *path);
 
 void myqsort(void *base, size_t nmemb, size_t size, int (*compare)(const void *, const void *));
 
-void error(const char* fmt, ...) /*__attribute((noreturn))*/;
+void error(const char *fmt, ...) /*__attribute((noreturn))*/;
 
 bool is_im8(intptr_t x);
 bool is_im32(intptr_t x);
@@ -53,7 +53,7 @@ void vec_push(Vector *vec, const void *elem);
 void *vec_pop(Vector *vec);
 void vec_insert(Vector *vec, int pos, const void *elem);
 void vec_remove_at(Vector *vec, int index);
-bool vec_contains(Vector *vec, void* elem);
+bool vec_contains(Vector *vec, void *elem);
 
 // StringBuffer
 

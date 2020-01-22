@@ -1,8 +1,8 @@
 #include "gen.h"
 
-#include "assert.h"
-#include "stdlib.h"
-#include "string.h"
+#include <assert.h>
+#include <stdlib.h>
+#include <string.h>
 
 #include "util.h"
 
@@ -31,13 +31,13 @@ void align_section_size(enum SectionType secno, int align) {
   }
 }
 
-void add_section_data(enum SectionType secno, const void* data, size_t bytes) {
+void add_section_data(enum SectionType secno, const void *data, size_t bytes) {
   assert(secno != SEC_BSS);
   Section *sec = &sections[secno];
   buf_put(&sec->buf, data, bytes);
 }
 
-void add_code(const void* buf, size_t bytes) {
+void add_code(const void *buf, size_t bytes) {
   add_section_data(SEC_CODE, buf, bytes);
 }
 
@@ -64,7 +64,7 @@ void get_section_size(int section, size_t *pfilesz, size_t *pmemsz, uintptr_t *p
   }
 }
 
-void output_section(FILE* fp, int section) {
+void output_section(FILE *fp, int section) {
   Section *sec = &sections[section];
   const void *data = sec->buf.data;
   fwrite(data, sec->buf.size, 1, fp);

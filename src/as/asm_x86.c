@@ -47,7 +47,7 @@ static unsigned char *put_rex0(unsigned char *p, enum RegSize size,
 }
 
 static unsigned char *put_rex1(unsigned char *p, enum RegSize size,
-                                int rex_prefix, int dno, unsigned char opcode)
+                               int rex_prefix, int dno, unsigned char opcode)
 {
   p = put_rex0(p, size, 0, dno, opcode);
   *p++ = rex_prefix | (dno & 7);
@@ -474,7 +474,7 @@ bool assemble_inst(Inst *inst, const ParseInfo *info, Code *code) {
 
     if (inst->src.type == REG) {
       p = put_rex1(p, inst->src.reg.size,
-                    0xd8, opr_regno(&inst->src.reg), 0xf7);
+                   0xd8, opr_regno(&inst->src.reg), 0xf7);
     }
     break;
   case NOT:
@@ -483,7 +483,7 @@ bool assemble_inst(Inst *inst, const ParseInfo *info, Code *code) {
 
     if (inst->src.type == REG) {
       p = put_rex1(p, inst->src.reg.size,
-                    0xd0, opr_regno(&inst->src.reg), 0xf7);
+                   0xd0, opr_regno(&inst->src.reg), 0xf7);
     }
     break;
   case INC:
@@ -492,7 +492,7 @@ bool assemble_inst(Inst *inst, const ParseInfo *info, Code *code) {
 
     if (inst->src.type == REG) {
       p = put_rex1(p, inst->src.reg.size,
-                    0xc0, opr_regno(&inst->src.reg), 0xff);
+                   0xc0, opr_regno(&inst->src.reg), 0xff);
     }
     break;
   case INCL:
@@ -516,7 +516,7 @@ bool assemble_inst(Inst *inst, const ParseInfo *info, Code *code) {
 
     if (inst->src.type == REG) {
       p = put_rex1(p, inst->src.reg.size,
-                    0xc8, opr_regno(&inst->src.reg), 0xff);
+                   0xc8, opr_regno(&inst->src.reg), 0xff);
     }
     break;
   case DECL:
@@ -548,8 +548,8 @@ bool assemble_inst(Inst *inst, const ParseInfo *info, Code *code) {
       value = clamp_value(value, size);
       if (is_im8(value) && (size != REG8 || opr_regno(&inst->dst.reg) != AL - AL)) {
         p = put_rex1(p, size,
-                      0xe0, opr_regno(&inst->dst.reg),
-                      0x83);
+                     0xe0, opr_regno(&inst->dst.reg),
+                     0x83);
         *p++ = IM8(value);
       } else if (is_im32(value)) {
         if (opr_regno(&inst->dst.reg) == RAX - RAX) {
@@ -558,8 +558,8 @@ bool assemble_inst(Inst *inst, const ParseInfo *info, Code *code) {
                        size == REG8 ? 0x24 : 0x25);
         } else {
           p = put_rex1(p, size,
-                        0xe0, opr_regno(&inst->dst.reg),
-                        0x81);
+                       0xe0, opr_regno(&inst->dst.reg),
+                       0x81);
         }
 
         switch (size) {
@@ -590,8 +590,8 @@ bool assemble_inst(Inst *inst, const ParseInfo *info, Code *code) {
       value = clamp_value(value, size);
       if (is_im8(value) && (size != REG8 || opr_regno(&inst->dst.reg) != AL - AL)) {
         p = put_rex1(p, size,
-                      0xc8, opr_regno(&inst->dst.reg),
-                      0x83);
+                     0xc8, opr_regno(&inst->dst.reg),
+                     0x83);
         *p++ = IM8(value);
       } else if (is_im32(value)) {
         if (opr_regno(&inst->dst.reg) == RAX - RAX) {
@@ -600,8 +600,8 @@ bool assemble_inst(Inst *inst, const ParseInfo *info, Code *code) {
                        size == REG8 ? 0x0c : 0x0d);
         } else {
           p = put_rex1(p, size,
-                        0xc8, opr_regno(&inst->dst.reg),
-                        0x81);
+                       0xc8, opr_regno(&inst->dst.reg),
+                       0x81);
         }
         switch (size) {
         case REG8:  PUT_CODE(p, IM8(value)); p += 1; break;
@@ -631,8 +631,8 @@ bool assemble_inst(Inst *inst, const ParseInfo *info, Code *code) {
       value = clamp_value(value, size);
       if (is_im8(value) && (size != REG8 || opr_regno(&inst->dst.reg) != AL - AL)) {
         p = put_rex1(p, size,
-                      0xf0, opr_regno(&inst->dst.reg),
-                      0x83);
+                     0xf0, opr_regno(&inst->dst.reg),
+                     0x83);
         *p++ = IM8(value);
       } else if (is_im32(value)) {
         if (opr_regno(&inst->dst.reg) == RAX - RAX) {
@@ -641,8 +641,8 @@ bool assemble_inst(Inst *inst, const ParseInfo *info, Code *code) {
                        size == REG8 ? 0x34 : 0x35);
         } else {
           p = put_rex1(p, size,
-                        0xf0, opr_regno(&inst->dst.reg),
-                        0x81);
+                       0xf0, opr_regno(&inst->dst.reg),
+                       0x81);
         }
         switch (size) {
         case REG8:  PUT_CODE(p, IM8(value)); p += 1; break;
@@ -665,15 +665,15 @@ bool assemble_inst(Inst *inst, const ParseInfo *info, Code *code) {
 
       enum RegSize size = inst->dst.reg.size;
       p = put_rex1(p, size, 0xe0, opr_regno(&inst->dst.reg),
-                    size == REG8 ? 0xd2 : 0xd3);
+                   size == REG8 ? 0xd2 : 0xd3);
     } else if (inst->src.type == IMMEDIATE && inst->dst.type == REG) {
       enum RegSize size = inst->dst.reg.size;
       if (inst->src.immediate == 1) {
         p = put_rex1(p, size, 0xe0, opr_regno(&inst->dst.reg),
-                      size == REG8 ? 0xd0 : 0xd1);
+                     size == REG8 ? 0xd0 : 0xd1);
       } else {
         p = put_rex1(p, size, 0xe0, opr_regno(&inst->dst.reg),
-                      size == REG8 ? 0xc0 : 0xc1);
+                     size == REG8 ? 0xc0 : 0xc1);
         *p++ = IM8(inst->src.immediate);
       }
     }
@@ -685,15 +685,15 @@ bool assemble_inst(Inst *inst, const ParseInfo *info, Code *code) {
 
       enum RegSize size = inst->dst.reg.size;
       p = put_rex1(p, size, 0xe8, opr_regno(&inst->dst.reg),
-                    size == REG8 ? 0xd2 : 0xd3);
+                   size == REG8 ? 0xd2 : 0xd3);
     } else if (inst->src.type == IMMEDIATE && inst->dst.type == REG) {
       enum RegSize size = inst->dst.reg.size;
       if (inst->src.immediate == 1) {
         p = put_rex1(p, size, 0xe8, opr_regno(&inst->dst.reg),
-                      size == REG8 ? 0xd0 : 0xd1);
+                     size == REG8 ? 0xd0 : 0xd1);
       } else {
         p = put_rex1(p, size, 0xe8, opr_regno(&inst->dst.reg),
-                      size == REG8 ? 0xc0 : 0xc1);
+                     size == REG8 ? 0xc0 : 0xc1);
         *p++ = IM8(inst->src.immediate);
       }
     }
@@ -820,7 +820,7 @@ bool assemble_inst(Inst *inst, const ParseInfo *info, Code *code) {
     if (inst->src.type == DIRECT) {
       MAKE_CODE(inst, code, 0xe8, IM32(-1));
       return true;
-    } if (inst->src.type == DEREF_REG) {
+    } else if (inst->src.type == DEREF_REG) {
       int s = inst->src.deref_reg.no;
       if (!inst->src.deref_reg.x) {
         MAKE_CODE(inst, code, 0xff, 0xd0 + s);

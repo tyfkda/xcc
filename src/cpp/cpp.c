@@ -1,12 +1,12 @@
-#include "assert.h"
-#include "ctype.h"
-#include "libgen.h"  // dirname
-#include "stdarg.h"
-#include "stdbool.h"
-#include "stdio.h"
-#include "stdlib.h"
-#include "string.h"
-#include "unistd.h"
+#include <assert.h>
+#include <ctype.h>
+#include <libgen.h>  // dirname
+#include <stdarg.h>
+#include <stdbool.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
 
 #include "ast.h"
 #include "lexer.h"
@@ -708,7 +708,7 @@ static void define_macro(const char *arg) {
   }
 }
 
-int main(int argc, char* argv[]) {
+int main(int argc, char *argv[]) {
   sys_inc_paths = new_vector();
   pragma_once_files = new_vector();
 

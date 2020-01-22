@@ -197,7 +197,7 @@ void myqsort(void *base, size_t nmemb, size_t size, int (*compare)(const void *,
     myqsort(&a[(j + 1) * size], nmemb - j - 1, size, compare);
 }
 
-void error(const char* fmt, ...) {
+void error(const char *fmt, ...) {
   va_list ap;
   va_start(ap, fmt);
   vfprintf(stderr, fmt, ap);
@@ -243,7 +243,7 @@ void buf_align(Buffer *buf, int align) {
   if (add <= 0)
     return;
 
-  void* zero = calloc(add, 1);
+  void *zero = calloc(add, 1);
   buf_put(buf, zero, add);
   free(zero);
 
@@ -297,7 +297,7 @@ void vec_remove_at(Vector *vec, int index) {
   --vec->len;
 }
 
-bool vec_contains(Vector *vec, void* elem) {
+bool vec_contains(Vector *vec, void *elem) {
   for (int i = 0, len = vec->len; i < len; ++i) {
     if (vec->data[i] == elem)
       return true;

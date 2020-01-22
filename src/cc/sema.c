@@ -145,12 +145,12 @@ static void string_initializer(Expr *dst, Initializer *src, Vector *inits) {
       parse_error(NULL, "Buffer is shorter than string: %d for \"%s\"", (int)dstsize, str);
   }
 
-  const Type* strtype = dst->type;
+  const Type *strtype = dst->type;
   VarInfo *varinfo = str_to_char_array(strtype, src);
   Expr *var = new_expr_variable(varinfo->name, strtype, NULL);
 
   for (size_t i = 0; i < size; ++i) {
-    Num n = {.ival=i};
+    Num n = {.ival = i};
     Expr *index = new_expr_numlit(&tyInt, NULL, &n);
     vec_push(inits,
              new_stmt_expr(new_expr_bop(EX_ASSIGN, &tyChar, NULL,
@@ -303,8 +303,8 @@ Initializer *flatten_initializer(const Type *type, Initializer *init) {
             strinit->single = expr;
 
             // Create string and point to it.
-            Type* strtype = arrayof(&tyChar, expr->str.size);
-            const Name * label = alloc_label();
+            Type *strtype = arrayof(&tyChar, expr->str.size);
+            const Name *label = alloc_label();
             const Token *ident = alloc_ident(label, NULL, NULL);
             VarInfo *varinfo = define_global(strtype, VF_CONST | VF_STATIC, ident, NULL);
             varinfo->global.init = strinit;

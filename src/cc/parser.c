@@ -388,7 +388,8 @@ static void parse_typedef(void) {
   consume(TK_SEMICOL, "`;' expected");
 }
 
-static Declaration *parse_global_var_decl(const Type *rawtype, int flag, const Type *type, Token *ident) {
+static Declaration *parse_global_var_decl(const Type *rawtype, int flag, const Type *type,
+                                          Token *ident) {
   Vector *decls = NULL;
   for (;;) {
     if (type->kind == TY_VOID)

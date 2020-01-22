@@ -7,8 +7,8 @@
 #include <fcntl.h>  // open
 #include <libgen.h>  // dirname
 #include <signal.h>
-#include <stdlib.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <strings.h>
 #include <sys/types.h>
@@ -16,7 +16,6 @@
 #include <unistd.h>
 
 #include "util.h"
-
 
 static char *get_ext(const char *filename) {
   const char *last_slash = strrchr(filename, '/');
@@ -153,8 +152,7 @@ static int compile(const char *src, Vector *cpp_cmd, Vector *cc1_cmd, int ofd) {
   return r;
 }
 
-
-int main(int argc, char* argv[]) {
+int main(int argc, char *argv[]) {
   const char *ofn = "a.out";
   bool out_pp = false;
   bool run_asm = true;

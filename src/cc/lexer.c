@@ -16,33 +16,33 @@ static const struct {
   const char *str;
   enum TokenKind kind;
 } kReservedWords[] = {
-  { "if", TK_IF },
-  { "else", TK_ELSE },
-  { "switch", TK_SWITCH },
-  { "case", TK_CASE },
-  { "default", TK_DEFAULT },
-  { "do", TK_DO },
-  { "while", TK_WHILE },
-  { "for", TK_FOR },
-  { "break", TK_BREAK },
-  { "continue", TK_CONTINUE },
-  { "goto", TK_GOTO },
-  { "return", TK_RETURN },
-  { "void", TK_KWVOID },
-  { "char", TK_KWCHAR },
-  { "short", TK_KWSHORT },
-  { "int", TK_KWINT },
-  { "long", TK_KWLONG },
-  { "const", TK_KWCONST },
-  { "unsigned", TK_UNSIGNED },
-  { "static", TK_STATIC },
-  { "extern", TK_EXTERN },
-  { "struct", TK_STRUCT },
-  { "union", TK_UNION },
-  { "enum", TK_ENUM },
-  { "sizeof", TK_SIZEOF },
-  { "typedef", TK_TYPEDEF },
-  { "__asm", TK_ASM },
+  {"if", TK_IF},
+  {"else", TK_ELSE},
+  {"switch", TK_SWITCH},
+  {"case", TK_CASE},
+  {"default", TK_DEFAULT},
+  {"do", TK_DO},
+  {"while", TK_WHILE},
+  {"for", TK_FOR},
+  {"break", TK_BREAK},
+  {"continue", TK_CONTINUE},
+  {"goto", TK_GOTO},
+  {"return", TK_RETURN},
+  {"void", TK_KWVOID},
+  {"char", TK_KWCHAR},
+  {"short", TK_KWSHORT},
+  {"int", TK_KWINT},
+  {"long", TK_KWLONG},
+  {"const", TK_KWCONST},
+  {"unsigned", TK_UNSIGNED},
+  {"static", TK_STATIC},
+  {"extern", TK_EXTERN},
+  {"struct", TK_STRUCT},
+  {"union", TK_UNION},
+  {"enum", TK_ENUM},
+  {"sizeof", TK_SIZEOF},
+  {"typedef", TK_TYPEDEF},
+  {"__asm", TK_ASM},
 };
 
 static const struct {
@@ -104,7 +104,7 @@ static const char kSingleOperatorTypeMap[128] = {  // enum TokenKind
 typedef struct {
   FILE *fp;
   const char *filename;
-  Line* line;
+  Line *line;
   const char *p;
   Token *fetched[MAX_LOOKAHEAD];
   int idx;
@@ -142,7 +142,7 @@ void lex_error(const char *p, const char* fmt, ...) {
   exit(1);
 }
 
-void parse_error(const Token *token, const char* fmt, ...) {
+void parse_error(const Token *token, const char *fmt, ...) {
   if (token == NULL)
     token = fetch_token();
   if (token != NULL && token->line != NULL) {

@@ -8,17 +8,17 @@
 #include "table.h"
 #include "util.h"
 
-const Type tyChar =  {.kind=TY_NUM, .num={.kind=NUM_CHAR, .is_unsigned=false}};
-const Type tyShort = {.kind=TY_NUM, .num={.kind=NUM_SHORT, .is_unsigned=false}};
-const Type tyInt =   {.kind=TY_NUM, .num={.kind=NUM_INT, .is_unsigned=false}};
-const Type tyLong =  {.kind=TY_NUM, .num={.kind=NUM_LONG, .is_unsigned=false}};
-const Type tyUnsignedChar =  {.kind=TY_NUM, .num={.kind=NUM_CHAR, .is_unsigned=true}};
+const Type tyChar =          {.kind=TY_NUM, .num={.kind=NUM_CHAR,  .is_unsigned=false}};
+const Type tyShort =         {.kind=TY_NUM, .num={.kind=NUM_SHORT, .is_unsigned=false}};
+const Type tyInt =           {.kind=TY_NUM, .num={.kind=NUM_INT,   .is_unsigned=false}};
+const Type tyLong =          {.kind=TY_NUM, .num={.kind=NUM_LONG,  .is_unsigned=false}};
+const Type tyUnsignedChar =  {.kind=TY_NUM, .num={.kind=NUM_CHAR,  .is_unsigned=true}};
 const Type tyUnsignedShort = {.kind=TY_NUM, .num={.kind=NUM_SHORT, .is_unsigned=true}};
-const Type tyUnsignedInt =   {.kind=TY_NUM, .num={.kind=NUM_INT, .is_unsigned=true}};
-const Type tyUnsignedLong =  {.kind=TY_NUM, .num={.kind=NUM_LONG, .is_unsigned=true}};
-const Type tyEnum =  {.kind=TY_NUM, .num={.kind=NUM_ENUM}};
-const Type tyVoid =  {.kind=TY_VOID};
-const Type tyVoidPtr =  {.kind=TY_PTR, .pa={.ptrof=&tyVoid}};
+const Type tyUnsignedInt =   {.kind=TY_NUM, .num={.kind=NUM_INT,   .is_unsigned=true}};
+const Type tyUnsignedLong =  {.kind=TY_NUM, .num={.kind=NUM_LONG,  .is_unsigned=true}};
+const Type tyEnum =          {.kind=TY_NUM, .num={.kind=NUM_ENUM}};
+const Type tyVoid =          {.kind=TY_VOID};
+const Type tyVoidPtr =       {.kind=TY_PTR, .pa={.ptrof=&tyVoid}};
 
 bool is_number(enum TypeKind kind) {
   return kind == TY_NUM;
@@ -84,7 +84,7 @@ bool same_type(const Type *type1, const Type *type2) {
   }
 }
 
-Type* ptrof(const Type *type) {
+Type *ptrof(const Type *type) {
   Type *ptr = malloc(sizeof(*ptr));
   ptr->kind = TY_PTR;
   ptr->pa.ptrof = type;
@@ -97,7 +97,7 @@ const Type *array_to_ptr(const Type *type) {
   return ptrof(type->pa.ptrof);
 }
 
-Type* arrayof(const Type *type, size_t length) {
+Type *arrayof(const Type *type, size_t length) {
   Type *arr = malloc(sizeof(*arr));
   arr->kind = TY_ARRAY;
   arr->pa.ptrof = type;
@@ -105,7 +105,7 @@ Type* arrayof(const Type *type, size_t length) {
   return arr;
 }
 
-Type* new_func_type(const Type *ret, Vector *param_types, bool vaargs) {
+Type *new_func_type(const Type *ret, Vector *param_types, bool vaargs) {
   Type *f = malloc(sizeof(*f));
   f->kind = TY_FUNC;
   f->func.ret = ret;

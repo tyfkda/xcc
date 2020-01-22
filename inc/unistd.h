@@ -20,11 +20,11 @@ ssize_t read(int fd, void *buf, size_t size);
 char *getcwd(char *buffer, size_t size);
 
 pid_t fork(void);
-int pipe(int*);
+int pipe(int *);
 int dup(int);
 int execv(const char *, char *const[]);
 int execvp(const char *, char *const[]);
-int execve(const char*, char *const[], char *const[]);
+int execve(const char *, char *const[], char *const[]);
 off_t lseek(int fd, off_t offset, int whence);
 int unlink(const char *pathname);
 

@@ -1,0 +1,8 @@
+---
+BasedOnStyle:  Google
+AllowShortCaseLabelsOnASingleLine: true
+AllowShortFunctionsOnASingleLine: None
+AllowShortIfStatementsOnASingleLine: false
+AllowShortLoopsOnASingleLine: false
+ColumnLimit: 100
+IndentCaseLabels: false

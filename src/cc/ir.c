@@ -10,8 +10,8 @@
 
 #define SPILLED_REG_NO  (PHYSICAL_REG_MAX)
 
-static VRegType vtVoidPtr = { .size = WORD_SIZE, .align = WORD_SIZE, .is_unsigned = false};
-static VRegType vtBool = { .size = 4, .align = 4, .is_unsigned = false};
+static VRegType vtVoidPtr = {.size = WORD_SIZE, .align = WORD_SIZE, .is_unsigned = false};
+static VRegType vtBool    = {.size = 4, .align = 4, .is_unsigned = false};
 
 int stackpos = 8;
 
@@ -53,7 +53,7 @@ const char *kRegDTable[] = {DL, DX, EDX, RDX};
 
 #define CALLEE_SAVE_REG_COUNT  (5)
 static struct {
-  const char * reg;
+  const char *reg;
   short bit;
 } const kCalleeSaveRegs[] = {
   {RBX, 1 << 0},
@@ -1204,7 +1204,7 @@ void push_callee_save_regs(short used) {
 }
 
 void pop_callee_save_regs(short used) {
-  for (int i = CALLEE_SAVE_REG_COUNT; --i >= 0; ) {
+  for (int i = CALLEE_SAVE_REG_COUNT; --i >= 0;) {
     if (used & kCalleeSaveRegs[i].bit) {
       POP(kCalleeSaveRegs[i].reg); POP_STACK_POS();
     }

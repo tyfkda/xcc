@@ -82,17 +82,17 @@ void parse_file(FILE *fp, const char *filename, Vector **section_irs, Table *lab
   }
 }
 
-static void put_padding(FILE* fp, uintptr_t start) {
+static void put_padding(FILE *fp, uintptr_t start) {
   long cur = ftell(fp);
-   if (start > (size_t)cur) {
+  if (start > (size_t)cur) {
     size_t size = start - (uintptr_t)cur;
-    char* buf = calloc(1, size);
+    char *buf = calloc(1, size);
     fwrite(buf, size, 1, fp);
     free(buf);
   }
 }
 
-static void drop_all(FILE* fp) {
+static void drop_all(FILE *fp) {
   for (;;) {
     char buf[4096];
     size_t size = fread(buf, 1, sizeof(buf), fp);
@@ -104,7 +104,7 @@ static void drop_all(FILE* fp) {
 
 // ================================================
 
-int main(int argc, char* argv[]) {
+int main(int argc, char *argv[]) {
   const char *ofn = "a.out";
   int iarg;
 
@@ -119,7 +119,7 @@ int main(int argc, char* argv[]) {
   // ================================================
   // Run own assembler
 
-  FILE* fp = fopen(ofn, "wb");
+  FILE *fp = fopen(ofn, "wb");
   if (fp == NULL) {
     fprintf(stderr, "Failed to open output file: %s\n", ofn);
     if (!isatty(STDIN_FILENO))

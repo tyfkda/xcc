@@ -32,7 +32,7 @@ static void compile2(Vector *toplevel) {
 
 static const char LOCAL_LABEL_PREFIX[] = "--local-label-prefix=";
 
-int main(int argc, char* argv[]) {
+int main(int argc, char *argv[]) {
   int iarg;
   bool dump_ir = false;
 

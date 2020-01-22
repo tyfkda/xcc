@@ -5,7 +5,7 @@
 
 // Hash
 
-static uint32_t hash_string(const char* key, int length) {
+static uint32_t hash_string(const char *key, int length) {
   // FNV1a
   uint32_t hash = 2166136261u;
   for (int i = 0; i < length; ++i)
@@ -18,7 +18,7 @@ static uint32_t hash_string(const char* key, int length) {
 static Table name_table;
 
 static const Name *find_name_table(const char *chars, int bytes, uint32_t hash) {
-  const Table *table = &name_table;;
+  const Table *table = &name_table;
   if (table->count == 0)
     return NULL;
 
