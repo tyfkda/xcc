@@ -100,24 +100,26 @@ self-hosting:	$(TARGET)/cpp $(TARGET)/cc1 $(TARGET)/as $(TARGET)/xcc
 
 .PHONY: test-self-hosting
 test-self-hosting:
-	$(MAKE) EXEDIR=$(TARGET) -C tests clean cc-tests
+	$(MAKE) EXE_DIR=$(TARGET) -C tests clean cc-tests
+
+LIB_SRCS:= lib/lib.c lib/assert.c lib/umalloc.c lib/sprintf.c lib/crt0.c
 
 $(TARGET)/cpp:	$(HOST)/cc1 $(HOST)/cpp $(CPP_SRCS)
 	mkdir -p $(TARGET)
 	$(HOST)/xcc -o$@ -Iinc -I$(CC1_DIR) -I$(UTIL_DIR) -DSELF_HOSTING $(CPP_SRCS) \
-	      lib/lib.c lib/assert.c lib/umalloc.c lib/sprintf.c lib/crt0.c
+	      $(LIB_SRCS)
 
 $(TARGET)/cc1:	$(HOST)/xcc $(CC1_SRCS)
 	mkdir -p $(TARGET)
 	$(HOST)/xcc -o$@ -Iinc -I$(UTIL_DIR) -DSELF_HOSTING $(CC1_SRCS) \
-	      lib/lib.c lib/assert.c lib/umalloc.c lib/sprintf.c lib/crt0.c
+	      $(LIB_SRCS)
 
 $(TARGET)/as:	$(HOST)/xcc $(AS_SRCS)
 	mkdir -p $(TARGET)
 	$(HOST)/xcc -o$@ -Iinc -I$(UTIL_DIR) -DSELF_HOSTING $(AS_SRCS) \
-	      lib/lib.c lib/assert.c lib/umalloc.c lib/sprintf.c lib/crt0.c
+	      $(LIB_SRCS)
 
 $(TARGET)/xcc:	$(HOST)/xcc $(AS_SRCS)
 	mkdir -p $(TARGET)
 	$(HOST)/xcc -o$@ -Iinc -I$(UTIL_DIR) -DSELF_HOSTING $(XCC_SRCS) \
-	      lib/lib.c lib/assert.c lib/umalloc.c lib/sprintf.c lib/crt0.c
+	      $(LIB_SRCS)

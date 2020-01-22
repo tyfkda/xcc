@@ -4,9 +4,9 @@ UTIL_DIR:=../src/util
 CFLAGS=-ansi -std=c11 -Wall -Wextra -Werror -Wold-style-definition -Wno-missing-field-initializers -Wno-typedef-redefinition
 CFLAGS+=-I$(SRC_DIR) -I$(UTIL_DIR)
 
-EXEDIR:=.
-XCC:=../$(EXEDIR)/xcc
-CPP:=../$(EXEDIR)/cpp
+EXE_DIR:=.
+XCC:=../$(EXE_DIR)/xcc
+CPP:=../$(EXE_DIR)/cpp
 
 .PHONY: all
 all:	test
