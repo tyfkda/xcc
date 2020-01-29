@@ -144,6 +144,8 @@ try_direct 'anonymous union init' 99 'struct {union {int x;};} a = {.x = 99}; in
 try 'func ref' 1 'return main == &main;'
 try 'func deref' 1 'return (long)main == (long)*main;'
 try 'implicit int' 92 'unsigned x = 92; return x;'
+try_direct 'func-ptr-array' 30 'int mul2(int x) {return x*2;} int div2(int x) {return x/2;} int (*funcs[])(int)={mul2, div2}; int main() {int acc=0; for (int i=0; i<2; ++i) acc+=funcs[i](12); return acc;}'
+try_direct 'func-ptr-array in local' 30 'int mul2(int x) {return x*2;} int div2(int x) {return x/2;} int main() {int (*funcs[])(int)={mul2, div2}; int acc=0; for (int i=0; i<2; ++i) acc+=funcs[i](12); return acc;}'
 
 # error cases
 echo ''

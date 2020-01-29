@@ -273,16 +273,22 @@ bool parse_var_def(const Type **prawType, const Type **ptype, int *pflag, Token 
 
   Token *ident = NULL;
   if (match(TK_LPAR)) {  // Funcion type.
+    // Create function type before parsed.
+    Type *functype = new_func_type(type, NULL, false);
+
     match(TK_MUL);  // Skip `*' if exists.
+    type = parse_type_modifier(ptrof(functype));
+
     ident = match(TK_IDENT);
-    //if (ident == NULL && !allow_noname)
-    //  parse_error(NULL, "Ident expected");
+
+    type = parse_type_suffix(type);
+
     consume(TK_RPAR, "`)' expected");
     consume(TK_LPAR, "`(' expected");
 
     bool vaargs;
-    Vector *param_types = parse_funparam_types(&vaargs);
-    type = ptrof(new_func_type(type, param_types, vaargs));
+    functype->func.param_types = parse_funparam_types(&vaargs);
+    functype->func.vaargs = vaargs;
   } else {
     ident = match(TK_IDENT);
     //if (ident == NULL && !allow_noname)

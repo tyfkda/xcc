@@ -428,16 +428,24 @@ static Declaration *declaration(void) {
       return NULL;
 
     if (match(TK_LPAR)) {  // Function type.
+      // Create function type before parsed.
+      Type *functype = new_func_type(type, NULL, false);
+
       match(TK_MUL);  // Skip `*' if exists.
+      type = parse_type_modifier(ptrof(functype));
+
       Token *ident = match(TK_IDENT);
       if (ident == NULL)
         parse_error(NULL, "Ident expected");
+
+      type = parse_type_suffix(type);
+
       consume(TK_RPAR, "`)' expected");
       consume(TK_LPAR, "`(' expected");
 
       bool vaargs;
-      Vector *param_types = parse_funparam_types(&vaargs);
-      type = ptrof(new_func_type(type, param_types, vaargs));
+      functype->func.param_types = parse_funparam_types(&vaargs);
+      functype->func.vaargs = vaargs;
       return parse_global_var_decl(rawtype, flag, type, ident);
     } else {
       Token *ident = NULL;
