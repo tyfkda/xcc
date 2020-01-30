@@ -99,23 +99,23 @@ static void add_func_goto(Stmt *stmt) {
   vec_push(curdefun->gotos, stmt);
 }
 
-static Initializer *analyze_initializer(Initializer *init) {
+static Initializer *sema_initializer(Initializer *init) {
   if (init == NULL)
     return NULL;
 
   switch (init->kind) {
   case IK_SINGLE:
-    init->single = analyze_expr(init->single, false);
+    init->single = sema_expr(init->single, false);
     break;
   case IK_MULTI:
     for (int i = 0; i < init->multi->len; ++i)
-      init->multi->data[i] = analyze_initializer(init->multi->data[i]);
+      init->multi->data[i] = sema_initializer(init->multi->data[i]);
     break;
   case IK_DOT:
-    init->dot.value = analyze_initializer(init->dot.value);
+    init->dot.value = sema_initializer(init->dot.value);
     break;
   case IK_ARR:
-    init->arr.value = analyze_initializer(init->arr.value);
+    init->arr.value = sema_initializer(init->arr.value);
     break;
   }
   return init;
@@ -593,7 +593,7 @@ static Vector *sema_vardecl(Vector *decls) {
 
     if (curdefun != NULL) {
       VarInfo *varinfo = add_cur_scope(ident, type, flag);
-      init = analyze_initializer(init);
+      init = sema_initializer(init);
 
       // TODO: Check `init` can be cast to `type`.
       if (flag & VF_STATIC) {
@@ -612,7 +612,7 @@ static Vector *sema_vardecl(Vector *decls) {
         parse_error(init->token, "extern with initializer");
       // Toplevel
       VarInfo *varinfo = define_global(type, flag, ident, NULL);
-      init = analyze_initializer(init);
+      init = sema_initializer(init);
       varinfo->global.init = check_global_initializer(type, init);
     }
   }
@@ -679,7 +679,7 @@ static Stmt *sema_stmt(Stmt *stmt) {
 
   switch (stmt->kind) {
   case ST_EXPR:
-    stmt->expr = analyze_expr(stmt->expr, false);
+    stmt->expr = sema_expr(stmt->expr, false);
     break;
 
   case ST_BLOCK:
@@ -693,7 +693,7 @@ static Stmt *sema_stmt(Stmt *stmt) {
     break;
 
   case ST_IF:
-    stmt->if_.cond = analyze_expr(stmt->if_.cond, false);
+    stmt->if_.cond = sema_expr(stmt->if_.cond, false);
     stmt->if_.tblock = sema_stmt(stmt->if_.tblock);
     stmt->if_.fblock = sema_stmt(stmt->if_.fblock);
     break;
@@ -705,7 +705,7 @@ static Stmt *sema_stmt(Stmt *stmt) {
       curloopflag |= LF_BREAK;
       curswitch = stmt;
 
-      stmt->switch_.value = analyze_expr(stmt->switch_.value, false);
+      stmt->switch_.value = sema_expr(stmt->switch_.value, false);
       stmt->switch_.body = sema_stmt(stmt->switch_.body);
 
       curloopflag = save_flag;
@@ -716,7 +716,7 @@ static Stmt *sema_stmt(Stmt *stmt) {
   case ST_WHILE:
   case ST_DO_WHILE:
     {
-      stmt->while_.cond = analyze_expr(stmt->while_.cond, false);
+      stmt->while_.cond = sema_expr(stmt->while_.cond, false);
 
       int save_flag = curloopflag;
       curloopflag |= LF_BREAK | LF_CONTINUE;
@@ -729,9 +729,9 @@ static Stmt *sema_stmt(Stmt *stmt) {
 
   case ST_FOR:
     {
-      stmt->for_.pre = analyze_expr(stmt->for_.pre, false);
-      stmt->for_.cond = analyze_expr(stmt->for_.cond, false);
-      stmt->for_.post = analyze_expr(stmt->for_.post, false);
+      stmt->for_.pre = sema_expr(stmt->for_.pre, false);
+      stmt->for_.cond = sema_expr(stmt->for_.cond, false);
+      stmt->for_.post = sema_expr(stmt->for_.post, false);
 
       int save_flag = curloopflag;
       curloopflag |= LF_BREAK | LF_CONTINUE;
@@ -764,7 +764,7 @@ static Stmt *sema_stmt(Stmt *stmt) {
         if (rettype->kind == TY_VOID)
           parse_error(val->token, "void function `return' a value");
 
-        val = analyze_expr(val, false);
+        val = sema_expr(val, false);
         stmt->return_.val = make_cast(rettype, val->token, val, false);
       }
     }
@@ -775,7 +775,7 @@ static Stmt *sema_stmt(Stmt *stmt) {
       if (curswitch == NULL)
         parse_error(stmt->case_.value->token, "`case' cannot use outside of `switch`");
 
-      stmt->case_.value = analyze_expr(stmt->case_.value, false);
+      stmt->case_.value = sema_expr(stmt->case_.value, false);
       if (!is_number(stmt->case_.value->type->kind))
         parse_error(stmt->case_.value->token, "Cannot use expression");
       intptr_t value = stmt->case_.value->num.ival;

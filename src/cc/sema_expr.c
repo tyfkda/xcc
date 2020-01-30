@@ -329,7 +329,7 @@ static enum ExprKind swap_cmp(enum ExprKind kind) {
   return kind;
 }
 
-static Expr *analyze_cmp(Expr *expr) {
+static Expr *sema_cmp(Expr *expr) {
   Expr *lhs = expr->bop.lhs, *rhs = expr->bop.rhs;
   if (lhs->type->kind == TY_PTR || rhs->type->kind == TY_PTR) {
     if (lhs->type->kind != TY_PTR) {
@@ -363,7 +363,7 @@ static Expr *analyze_cmp(Expr *expr) {
   return expr;
 }
 
-static void analyze_lval(const Token *tok, Expr *expr, const char *error) {
+static void sema_lval(const Token *tok, Expr *expr, const char *error) {
   while (expr->kind == EX_GROUP)
     expr = expr->unary.sub;
 
@@ -379,7 +379,7 @@ static void analyze_lval(const Token *tok, Expr *expr, const char *error) {
 }
 
 // Traverse expr to check semantics and determine value type.
-Expr *analyze_expr(Expr *expr, bool keep_left) {
+Expr *sema_expr(Expr *expr, bool keep_left) {
   if (expr == NULL)
     return NULL;
 
@@ -450,8 +450,8 @@ Expr *analyze_expr(Expr *expr, bool keep_left) {
   case EX_LOGIOR:
   case EX_ASSIGN:
   case EX_COMMA:
-    expr->bop.lhs = analyze_expr(expr->bop.lhs, false);
-    expr->bop.rhs = analyze_expr(expr->bop.rhs, false);
+    expr->bop.lhs = sema_expr(expr->bop.lhs, false);
+    expr->bop.rhs = sema_expr(expr->bop.rhs, false);
     assert(expr->bop.lhs->type != NULL);
     assert(expr->bop.rhs->type != NULL);
 
@@ -532,7 +532,7 @@ Expr *analyze_expr(Expr *expr, bool keep_left) {
     case EX_GT:
     case EX_LE:
     case EX_GE:
-      expr = analyze_cmp(expr);
+      expr = sema_cmp(expr);
       break;
 
     case EX_LOGAND:
@@ -542,7 +542,7 @@ Expr *analyze_expr(Expr *expr, bool keep_left) {
     case EX_ASSIGN:
       if (expr->bop.lhs->kind == EX_GROUP)
         parse_error(expr->token, "Cannot assign");
-      analyze_lval(expr->token, expr->bop.lhs, "Cannot assign");
+      sema_lval(expr->token, expr->bop.lhs, "Cannot assign");
       switch (expr->bop.lhs->type->kind) {
       case TY_ARRAY:
         parse_error(expr->token, "Cannot assign to array");
@@ -562,7 +562,7 @@ Expr *analyze_expr(Expr *expr, bool keep_left) {
 
     default:
       fprintf(stderr, "expr kind=%d\n", expr->kind);
-      assert(!"analyze not handled!");
+      assert(!"sema not handled!");
       break;
     }
     break;
@@ -581,7 +581,7 @@ Expr *analyze_expr(Expr *expr, bool keep_left) {
   case EX_GROUP:
   case EX_CAST:
   case EX_ASSIGN_WITH:
-    expr->unary.sub = analyze_expr(expr->unary.sub, expr->kind == EX_ASSIGN_WITH);
+    expr->unary.sub = sema_expr(expr->unary.sub, expr->kind == EX_ASSIGN_WITH);
     assert(expr->unary.sub->type != NULL);
 
     switch (expr->kind) {
@@ -632,7 +632,7 @@ Expr *analyze_expr(Expr *expr, bool keep_left) {
       break;
 
     case EX_REF:
-      analyze_lval(expr->token, expr->unary.sub, "Cannot take reference");
+      sema_lval(expr->token, expr->unary.sub, "Cannot take reference");
       expr->type = ptrof(expr->unary.sub->type);
       break;
 
@@ -661,7 +661,7 @@ Expr *analyze_expr(Expr *expr, bool keep_left) {
       break;
 
     case EX_ASSIGN_WITH:
-      analyze_lval(expr->token, expr->unary.sub->bop.lhs, "Cannot assign");
+      sema_lval(expr->token, expr->unary.sub->bop.lhs, "Cannot assign");
       expr->type = expr->unary.sub->bop.lhs->type;
       break;
 
@@ -676,16 +676,16 @@ Expr *analyze_expr(Expr *expr, bool keep_left) {
 
     default:
       fprintf(stderr, "expr kind=%d\n", expr->kind);
-      assert(!"analyze not handled!");
+      assert(!"sema not handled!");
       break;
     }
     break;
 
   case EX_TERNARY:
     {
-      expr->ternary.cond = analyze_expr(expr->ternary.cond, false);
-      Expr *tval = analyze_expr(expr->ternary.tval, false);
-      Expr *fval = analyze_expr(expr->ternary.fval, false);
+      expr->ternary.cond = sema_expr(expr->ternary.cond, false);
+      Expr *tval = sema_expr(expr->ternary.tval, false);
+      Expr *fval = sema_expr(expr->ternary.fval, false);
       const Type *ttype = tval->type;
       const Type *ftype = fval->type;
       if (ttype->kind == TY_ARRAY) {
@@ -714,7 +714,7 @@ Expr *analyze_expr(Expr *expr, bool keep_left) {
   case EX_MEMBER:  // x.member or x->member
     {
       Expr *target = expr->member.target;
-      expr->member.target = target = analyze_expr(target, false);
+      expr->member.target = target = sema_expr(target, false);
       assert(target->type != NULL);
 
       const Token *acctok = expr->token;
@@ -765,7 +765,7 @@ Expr *analyze_expr(Expr *expr, bool keep_left) {
     {
       Expr *sub = expr->sizeof_.sub;
       if (sub != NULL) {
-        sub = analyze_expr(sub, false);
+        sub = sema_expr(sub, false);
         assert(sub->type != NULL);
         expr->sizeof_.type = sub->type;
       }
@@ -776,10 +776,10 @@ Expr *analyze_expr(Expr *expr, bool keep_left) {
     {
       Expr *func = expr->funcall.func;
       Vector *args = expr->funcall.args;  // <Expr*>
-      expr->funcall.func = func = analyze_expr(func, false);
+      expr->funcall.func = func = sema_expr(func, false);
       if (args != NULL) {
         for (int i = 0, len = args->len; i < len; ++i)
-          args->data[i] = analyze_expr(args->data[i], false);
+          args->data[i] = sema_expr(args->data[i], false);
       }
 
       const Type *functype;
@@ -818,7 +818,7 @@ Expr *analyze_expr(Expr *expr, bool keep_left) {
 
   default:
     fprintf(stderr, "expr kind=%d\n", expr->kind);
-    assert(!"analyze not handled!");
+    assert(!"sema not handled!");
     break;
   }
 

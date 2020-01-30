@@ -18,7 +18,7 @@ extern Defun *curdefun;
 extern Scope *curscope;
 
 void sema(Vector *toplevel);
-Expr *analyze_expr(Expr *expr, bool keep_left);
+Expr *sema_expr(Expr *expr, bool keep_left);
 bool can_cast(const Type *dst, const Type *src, Expr *src_expr, bool is_explicit);
 Expr *add_expr(const Token *tok, Expr *lhs, Expr *rhs, bool keep_left);
 Initializer *flatten_initializer(const Type *type, Initializer *init);
