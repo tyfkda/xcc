@@ -190,12 +190,8 @@ Expr *add_expr(const Token *tok, Expr *lhs, Expr *rhs, bool keep_left) {
   const Type *ltype = lhs->type;
   const Type *rtype = rhs->type;
 
-  if (is_number(ltype->kind)) {
-    if (is_number(rtype->kind))
-      return add_num(EX_ADD, tok, lhs, rhs, keep_left);
-    if (same_type(ltype, rtype))
-      return new_expr_bop(EX_ADD, ltype, tok, lhs, rhs);
-  }
+  if (is_number(ltype->kind) && is_number(rtype->kind))
+    return add_num(EX_ADD, tok, lhs, rhs, keep_left);
 
   switch (ltype->kind) {
   case TY_NUM:
