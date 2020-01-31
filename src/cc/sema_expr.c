@@ -186,7 +186,7 @@ static Expr *add_ptr_num(enum ExprKind kind, const Token *token, Expr *ptr, Expr
                       ptr_type, token, ptr, num);
 }
 
-Expr *add_expr(const Token *tok, Expr *lhs, Expr *rhs, bool keep_left) {
+static Expr *add_expr_keep_left(const Token *tok, Expr *lhs, Expr *rhs, bool keep_left) {
   const Type *ltype = lhs->type;
   const Type *rtype = rhs->type;
 
@@ -222,6 +222,10 @@ Expr *add_expr(const Token *tok, Expr *lhs, Expr *rhs, bool keep_left) {
   return NULL;
 }
 
+Expr *add_expr(const Token *tok, Expr *lhs, Expr *rhs) {
+  return add_expr_keep_left(tok, lhs, rhs, true);
+}
+
 static Expr *diff_ptr(const Token *tok, Expr *lhs, Expr *rhs) {
   const Type *ltype = array_to_ptr(lhs->type);
   const Type *rtype = array_to_ptr(rhs->type);
@@ -235,7 +239,7 @@ static Expr *diff_ptr(const Token *tok, Expr *lhs, Expr *rhs) {
                       new_expr_sizeof(tok, elem_type, NULL));
 }
 
-static Expr *sub_expr(const Token *tok, Expr *lhs, Expr *rhs, bool keep_left) {
+static Expr *sub_expr_keep_left(const Token *tok, Expr *lhs, Expr *rhs, bool keep_left) {
   if (is_number(lhs->type->kind)) {
     if (is_number(rhs->type->kind))
       return add_num(EX_SUB, tok, lhs, rhs, keep_left);
@@ -375,7 +379,7 @@ static void sema_lval(const Token *tok, Expr *expr, const char *error) {
 }
 
 // Traverse expr to check semantics and determine value type.
-Expr *sema_expr(Expr *expr, bool keep_left) {
+static Expr *sema_expr_keep_left(Expr *expr, bool keep_left) {
   if (expr == NULL)
     return NULL;
 
@@ -446,16 +450,16 @@ Expr *sema_expr(Expr *expr, bool keep_left) {
   case EX_LOGIOR:
   case EX_ASSIGN:
   case EX_COMMA:
-    expr->bop.lhs = sema_expr(expr->bop.lhs, false);
-    expr->bop.rhs = sema_expr(expr->bop.rhs, false);
+    expr->bop.lhs = sema_expr(expr->bop.lhs);
+    expr->bop.rhs = sema_expr(expr->bop.rhs);
     assert(expr->bop.lhs->type != NULL);
     assert(expr->bop.rhs->type != NULL);
 
     switch (expr->kind) {
     case EX_ADD:
-      return add_expr(expr->token, expr->bop.lhs, expr->bop.rhs, keep_left);
+      return add_expr_keep_left(expr->token, expr->bop.lhs, expr->bop.rhs, keep_left);
     case EX_SUB:
-      return sub_expr(expr->token, expr->bop.lhs, expr->bop.rhs, keep_left);
+      return sub_expr_keep_left(expr->token, expr->bop.lhs, expr->bop.rhs, keep_left);
     case EX_MUL:
     case EX_DIV:
     case EX_MOD:
@@ -577,7 +581,7 @@ Expr *sema_expr(Expr *expr, bool keep_left) {
   case EX_GROUP:
   case EX_CAST:
   case EX_ASSIGN_WITH:
-    expr->unary.sub = sema_expr(expr->unary.sub, expr->kind == EX_ASSIGN_WITH);
+    expr->unary.sub = sema_expr_keep_left(expr->unary.sub, expr->kind == EX_ASSIGN_WITH);
     assert(expr->unary.sub->type != NULL);
 
     switch (expr->kind) {
@@ -679,9 +683,9 @@ Expr *sema_expr(Expr *expr, bool keep_left) {
 
   case EX_TERNARY:
     {
-      expr->ternary.cond = sema_expr(expr->ternary.cond, false);
-      Expr *tval = sema_expr(expr->ternary.tval, false);
-      Expr *fval = sema_expr(expr->ternary.fval, false);
+      expr->ternary.cond = sema_expr(expr->ternary.cond);
+      Expr *tval = sema_expr(expr->ternary.tval);
+      Expr *fval = sema_expr(expr->ternary.fval);
       const Type *ttype = tval->type;
       const Type *ftype = fval->type;
       if (ttype->kind == TY_ARRAY) {
@@ -710,7 +714,7 @@ Expr *sema_expr(Expr *expr, bool keep_left) {
   case EX_MEMBER:  // x.member or x->member
     {
       Expr *target = expr->member.target;
-      expr->member.target = target = sema_expr(target, false);
+      expr->member.target = target = sema_expr(target);
       assert(target->type != NULL);
 
       const Token *acctok = expr->token;
@@ -761,7 +765,7 @@ Expr *sema_expr(Expr *expr, bool keep_left) {
     {
       Expr *sub = expr->sizeof_.sub;
       if (sub != NULL) {
-        sub = sema_expr(sub, false);
+        sub = sema_expr(sub);
         assert(sub->type != NULL);
         expr->sizeof_.type = sub->type;
       }
@@ -772,10 +776,10 @@ Expr *sema_expr(Expr *expr, bool keep_left) {
     {
       Expr *func = expr->funcall.func;
       Vector *args = expr->funcall.args;  // <Expr*>
-      expr->funcall.func = func = sema_expr(func, false);
+      expr->funcall.func = func = sema_expr(func);
       if (args != NULL) {
         for (int i = 0, len = args->len; i < len; ++i)
-          args->data[i] = sema_expr(args->data[i], false);
+          args->data[i] = sema_expr(args->data[i]);
       }
 
       const Type *functype;
@@ -820,4 +824,8 @@ Expr *sema_expr(Expr *expr, bool keep_left) {
 
   assert(expr->type != NULL);
   return expr;
+}
+
+Expr *sema_expr(Expr *expr) {
+  return sema_expr_keep_left(expr, false);
 }

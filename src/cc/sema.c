@@ -105,7 +105,7 @@ static Initializer *sema_initializer(Initializer *init) {
 
   switch (init->kind) {
   case IK_SINGLE:
-    init->single = sema_expr(init->single, false);
+    init->single = sema_expr(init->single);
     break;
   case IK_MULTI:
     for (int i = 0; i < init->multi->len; ++i)
@@ -154,8 +154,8 @@ static void string_initializer(Expr *dst, Initializer *src, Vector *inits) {
     Expr *index = new_expr_numlit(&tyInt, NULL, &n);
     vec_push(inits,
              new_stmt_expr(new_expr_bop(EX_ASSIGN, &tyChar, NULL,
-                                        new_expr_deref(NULL, add_expr(NULL, dst, index, true)),
-                                        new_expr_deref(NULL, add_expr(NULL, var, index, true)))));
+                                        new_expr_deref(NULL, add_expr(NULL, dst, index)),
+                                        new_expr_deref(NULL, add_expr(NULL, var, index)))));
   }
 }
 
@@ -510,7 +510,7 @@ static Vector *assign_initial_value(Expr *expr, Initializer *init, Vector *inits
           }
 
           Num n = {.ival=index};
-          Expr *add = add_expr(NULL, expr, new_expr_numlit(&tyInt, NULL, &n), true);
+          Expr *add = add_expr(NULL, expr, new_expr_numlit(&tyInt, NULL, &n));
 
           assign_initial_value(new_expr_deref(NULL, add), init_elem, inits);
         }
@@ -679,7 +679,7 @@ static Stmt *sema_stmt(Stmt *stmt) {
 
   switch (stmt->kind) {
   case ST_EXPR:
-    stmt->expr = sema_expr(stmt->expr, false);
+    stmt->expr = sema_expr(stmt->expr);
     break;
 
   case ST_BLOCK:
@@ -693,7 +693,7 @@ static Stmt *sema_stmt(Stmt *stmt) {
     break;
 
   case ST_IF:
-    stmt->if_.cond = sema_expr(stmt->if_.cond, false);
+    stmt->if_.cond = sema_expr(stmt->if_.cond);
     stmt->if_.tblock = sema_stmt(stmt->if_.tblock);
     stmt->if_.fblock = sema_stmt(stmt->if_.fblock);
     break;
@@ -705,7 +705,7 @@ static Stmt *sema_stmt(Stmt *stmt) {
       curloopflag |= LF_BREAK;
       curswitch = stmt;
 
-      stmt->switch_.value = sema_expr(stmt->switch_.value, false);
+      stmt->switch_.value = sema_expr(stmt->switch_.value);
       stmt->switch_.body = sema_stmt(stmt->switch_.body);
 
       curloopflag = save_flag;
@@ -716,7 +716,7 @@ static Stmt *sema_stmt(Stmt *stmt) {
   case ST_WHILE:
   case ST_DO_WHILE:
     {
-      stmt->while_.cond = sema_expr(stmt->while_.cond, false);
+      stmt->while_.cond = sema_expr(stmt->while_.cond);
 
       int save_flag = curloopflag;
       curloopflag |= LF_BREAK | LF_CONTINUE;
@@ -729,9 +729,9 @@ static Stmt *sema_stmt(Stmt *stmt) {
 
   case ST_FOR:
     {
-      stmt->for_.pre = sema_expr(stmt->for_.pre, false);
-      stmt->for_.cond = sema_expr(stmt->for_.cond, false);
-      stmt->for_.post = sema_expr(stmt->for_.post, false);
+      stmt->for_.pre = sema_expr(stmt->for_.pre);
+      stmt->for_.cond = sema_expr(stmt->for_.cond);
+      stmt->for_.post = sema_expr(stmt->for_.post);
 
       int save_flag = curloopflag;
       curloopflag |= LF_BREAK | LF_CONTINUE;
@@ -764,7 +764,7 @@ static Stmt *sema_stmt(Stmt *stmt) {
         if (rettype->kind == TY_VOID)
           parse_error(val->token, "void function `return' a value");
 
-        val = sema_expr(val, false);
+        val = sema_expr(val);
         stmt->return_.val = make_cast(rettype, val->token, val, false);
       }
     }
@@ -775,7 +775,7 @@ static Stmt *sema_stmt(Stmt *stmt) {
       if (curswitch == NULL)
         parse_error(stmt->case_.value->token, "`case' cannot use outside of `switch`");
 
-      stmt->case_.value = sema_expr(stmt->case_.value, false);
+      stmt->case_.value = sema_expr(stmt->case_.value);
       if (!is_number(stmt->case_.value->type->kind))
         parse_error(stmt->case_.value->token, "Cannot use expression");
       intptr_t value = stmt->case_.value->num.ival;
