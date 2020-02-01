@@ -106,7 +106,7 @@ void emit_comment(const char *comment, ...) {
 }
 
 void emit_align(int align) {
-  if (align <= 0)
+  if (align <= 1)
     return;
 
 #ifdef __APPLE__
