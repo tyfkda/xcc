@@ -259,7 +259,8 @@ Vector *parse_funparam_types(bool *pvaargs) {  // Vector<Type*>
   return extract_varinfo_types(params);
 }
 
-bool parse_var_def(const Type **prawType, const Type **ptype, int *pflag, Token **pident) {
+bool parse_var_def(const Type **prawType, const Type **ptype, int *pflag, Token **pident,
+                   Vector **pfunparams) {
   const Type *rawType = prawType != NULL ? *prawType : NULL;
   if (rawType == NULL) {
     rawType = parse_raw_type(pflag);
@@ -272,7 +273,8 @@ bool parse_var_def(const Type **prawType, const Type **ptype, int *pflag, Token 
   const Type *type = parse_type_modifier(rawType);
 
   Token *ident = NULL;
-  if (match(TK_LPAR)) {  // Funcion type.
+  bool suffix = true;
+  if (match(TK_LPAR)) {  // Funcion pointer type.
     // Create function type before parsed.
     Type *functype = new_func_type(type, NULL, false);
 
@@ -291,10 +293,17 @@ bool parse_var_def(const Type **prawType, const Type **ptype, int *pflag, Token 
     functype->func.vaargs = vaargs;
   } else {
     ident = match(TK_IDENT);
-    //if (ident == NULL && !allow_noname)
-    //  parse_error(NULL, "Ident expected");
+    if (ident != NULL && pfunparams != NULL && match(TK_LPAR)) {
+      const Type *rettype = type;
+      bool vaargs;
+      Vector *params = parse_funparams(&vaargs);
+      Vector *param_types = extract_varinfo_types(params);
+      type = new_func_type(rettype, param_types, vaargs);
+      *pfunparams = params;
+      suffix = false;
+    }
   }
-  if (type->kind != TY_VOID)
+  if (suffix && type->kind != TY_VOID)
     type = parse_type_suffix(type);
 
   *ptype = type;
@@ -306,7 +315,7 @@ bool parse_var_def(const Type **prawType, const Type **ptype, int *pflag, Token 
 
 const Type *parse_full_type(int *pflag, Token **pident) {
   const Type *type;
-  if (!parse_var_def(NULL, &type, pflag, pident))
+  if (!parse_var_def(NULL, &type, pflag, pident, NULL))
     return NULL;
   return type;
 }
@@ -328,7 +337,7 @@ Vector *parse_funparams(bool *pvaargs) {  // Vector<VarInfo*>, NULL=>old style.
       const Type *type;
       int flag;
       Token *ident;
-      if (!parse_var_def(NULL, &type, &flag, &ident))
+      if (!parse_var_def(NULL, &type, &flag, &ident, NULL))
         parse_error(NULL, "type expected");
       if (flag & VF_STATIC)
         parse_error(ident, "`static' for function parameter");
@@ -370,7 +379,7 @@ static StructInfo *parse_struct(bool is_union) {
       const Type *type;
       int flag;
       Token *ident;
-      if (!parse_var_def(&rawType, &type, &flag, &ident))
+      if (!parse_var_def(&rawType, &type, &flag, &ident, NULL))
         parse_error(NULL, "type expected");
       not_void(type);
       var_add(members, ident, type, flag);

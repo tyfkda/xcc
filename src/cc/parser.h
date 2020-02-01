@@ -21,7 +21,8 @@ const Type *parse_full_type(int *pflag, Token **pident);
 Vector *parse_args(Token **ptoken);
 Vector *parse_funparams(bool *pvaargs);
 Vector *parse_funparam_types(bool *pvaargs);  // Vector<Type*>
-bool parse_var_def(const Type **prawType, const Type **ptype, int *pflag, Token **pident);
+bool parse_var_def(const Type **prawType, const Type **ptype, int *pflag, Token **pident,
+                   Vector **pfunparams);
 Expr *parse_const(void);
 Expr *parse_assign(void);
 Expr *parse_expr(void);

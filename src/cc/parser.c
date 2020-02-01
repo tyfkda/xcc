@@ -98,7 +98,7 @@ static Vector *parse_vardecl_cont(const Type *rawType, Type *type, int flag, Tok
   bool first = true;
   do {
     if (!first) {
-      if (!parse_var_def(&rawType, (const Type**)&type, &flag, &ident) || ident == NULL) {
+      if (!parse_var_def(&rawType, (const Type**)&type, &flag, &ident, NULL) || ident == NULL) {
         parse_error(NULL, "`ident' expected");
         return NULL;
       }
@@ -131,7 +131,7 @@ static Stmt *parse_vardecl(void) {
   Type *type;
   int flag;
   Token *ident;
-  if (!parse_var_def(&rawType, (const Type**)&type, &flag, &ident))
+  if (!parse_var_def(&rawType, (const Type**)&type, &flag, &ident, NULL))
     return NULL;
   if (ident == NULL)
     parse_error(NULL, "Ident expected");
@@ -204,7 +204,7 @@ static Stmt *parse_for(const Token *tok) {
     Type *type;
     int flag;
     Token *ident;
-    if (parse_var_def(&rawType, (const Type**)&type, &flag, &ident)) {
+    if (parse_var_def(&rawType, (const Type**)&type, &flag, &ident, NULL)) {
       if (ident == NULL)
         parse_error(NULL, "Ident expected");
       decls = parse_vardecl_cont(rawType, type, flag, ident);
@@ -353,14 +353,8 @@ static Stmt *statement(void) {
   return new_stmt_expr(val);
 }
 
-static Declaration *parse_defun(const Type *rettype, int flag, Token *ident) {
-  const Name *name = ident->ident;
-  bool vaargs;
-  Vector *params = parse_funparams(&vaargs);
-
-  // Definition.
-  Vector *param_types = extract_varinfo_types(params);
-  Function *func = new_func(new_func_type(rettype, param_types, vaargs), name, params);
+static Declaration *parse_defun(const Type *functype, int flag, Token *ident, Vector *params) {
+  Function *func = new_func(functype, ident->ident, params);
   Defun *defun = new_defun(func, flag);
   if (match(TK_SEMICOL)) {
     // Prototype declaration.
@@ -418,46 +412,26 @@ static Declaration *parse_global_var_decl(const Type *rawtype, int flag, const T
 }
 
 static Declaration *declaration(void) {
+  const Type *rawtype = NULL, *type;
   int flag;
-  const Type *rawtype = parse_raw_type(&flag);
-  if (rawtype != NULL) {
-    const Type *type = parse_type_modifier(rawtype);
-    if ((type->kind == TY_STRUCT ||
-         (type->kind == TY_NUM && type->num.kind == NUM_ENUM)) &&
-        match(TK_SEMICOL))  // Just struct/union definition.
-      return NULL;
-
-    if (match(TK_LPAR)) {  // Function type.
-      // Create function type before parsed.
-      Type *functype = new_func_type(type, NULL, false);
-
-      match(TK_MUL);  // Skip `*' if exists.
-      type = parse_type_modifier(ptrof(functype));
-
-      Token *ident = match(TK_IDENT);
-      if (ident == NULL)
+  Token *ident;
+  Vector *funparams;
+  if (parse_var_def(&rawtype, &type, &flag, &ident, &funparams)) {
+    if (ident == NULL) {
+      if ((type->kind == TY_STRUCT ||
+           (type->kind == TY_NUM && type->num.kind == NUM_ENUM)) &&
+          match(TK_SEMICOL)) {
+        // Just struct/union or enum definition.
+      } else {
         parse_error(NULL, "Ident expected");
-
-      type = parse_type_suffix(type);
-
-      consume(TK_RPAR, "`)' expected");
-      consume(TK_LPAR, "`(' expected");
-
-      bool vaargs;
-      functype->func.param_types = parse_funparam_types(&vaargs);
-      functype->func.vaargs = vaargs;
-      return parse_global_var_decl(rawtype, flag, type, ident);
-    } else {
-      Token *ident = NULL;
-      if ((ident = match(TK_IDENT)) != NULL) {
-        if (match(TK_LPAR))  // Function.
-          return parse_defun(type, flag, ident);
-
-        return parse_global_var_decl(rawtype, flag, type, ident);
       }
+      return NULL;
     }
-    parse_error(NULL, "ident expected");
-    return NULL;
+
+    if (type->kind == TY_FUNC)
+      return parse_defun(type, flag, ident, funparams);
+
+    return parse_global_var_decl(rawtype, flag, type, ident);
   }
   if (match(TK_TYPEDEF)) {
     parse_typedef();
