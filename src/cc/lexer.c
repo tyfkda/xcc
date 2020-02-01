@@ -49,7 +49,6 @@ static const struct {
   const char ident[4];
   enum TokenKind kind;
 } kMultiOperators[] = {
-  // Must align from long to short keyword.
   {"<<=", TK_LSHIFT_ASSIGN},
   {">>=", TK_RSHIFT_ASSIGN},
   {"...", TK_DOTDOTDOT},
