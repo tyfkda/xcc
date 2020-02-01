@@ -308,26 +308,25 @@ static VReg *gen_funcall(Expr *expr) {
   new_ir_precall(arg_count, stack_aligned);
 
   const VarInfo *varinfo = NULL;
+  bool label_call = false;
   bool global = false;
   if (func->kind == EX_VARIABLE) {
     if (func->variable.scope == NULL) {
       varinfo = find_global(func->variable.name);
-      assert(varinfo != NULL);
-      if (varinfo->type->kind == TY_FUNC)
-        global = true;
     } else {
       Scope *scope = func->variable.scope;
       varinfo = scope_find(&scope, func->variable.name);
-      assert(varinfo != NULL);
-      global = (varinfo->flag & VF_EXTERN) != 0;
     }
+    assert(varinfo != NULL);
+    label_call = varinfo->type->kind == TY_FUNC;
+    global = !(varinfo->flag & VF_STATIC);
   }
 
   if (args != NULL) {
     if (arg_count > MAX_REG_ARGS) {
       bool vaargs = false;
       if (func->kind == EX_VARIABLE && func->variable.scope == NULL) {
-        vaargs = varinfo->type->func.vaargs;
+        vaargs = func->type->func.vaargs;
       } else {
         // TODO:
       }
@@ -345,7 +344,7 @@ static VReg *gen_funcall(Expr *expr) {
   }
 
   VReg *result_reg = NULL;
-  if (func->kind == EX_VARIABLE && global) {
+  if (label_call) {
     result_reg = new_ir_call(func->variable.name, global, NULL, arg_count,
                              to_vtype(expr->type), stack_aligned);
   } else {

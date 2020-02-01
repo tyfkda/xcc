@@ -109,7 +109,7 @@ static Vector *parse_vardecl_cont(const Type *rawType, Type *type, int flag, Tok
     if (match(TK_LPAR)) {  // Function prototype.
       bool vaargs;
       Vector *param_types = parse_funparam_types(&vaargs);
-      type = ptrof(new_func_type(type, param_types, vaargs));
+      type = new_func_type(type, param_types, vaargs);
       flag |= VF_EXTERN;
     } else {
       not_void(type);
