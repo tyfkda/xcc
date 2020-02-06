@@ -243,6 +243,7 @@ bool assemble_inst(Inst *inst, const ParseInfo *info, Code *code) {
         default:
           break;
         }
+        break;
       case REG16:
         switch (inst->dst.reg.size) {
         case REG32:
@@ -262,6 +263,7 @@ bool assemble_inst(Inst *inst, const ParseInfo *info, Code *code) {
         default:
           break;
         }
+        break;
       case REG32:
         // "MOVZX %32bit, %64bit" doesn't exist!
         if (inst->dst.reg.size == REG64 && inst->op == MOVSX) {
@@ -269,6 +271,7 @@ bool assemble_inst(Inst *inst, const ParseInfo *info, Code *code) {
           MAKE_CODE(inst, code, pre, 0x63, 0xc0 + s + d * 8);
           return true;
         }
+        break;
       default:
         break;
       }
