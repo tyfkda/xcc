@@ -13,3 +13,4 @@ core
 /tests/table_test
 /tests/util_test
 /tests/valtest
+/tests/core.*
