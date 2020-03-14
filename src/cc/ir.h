@@ -94,7 +94,7 @@ enum ConditionKind {
   COND_GT,
 };
 
-typedef struct {
+typedef struct IR {
   enum IrKind kind;
   VReg *dst;
   VReg *opr1;
@@ -119,8 +119,12 @@ typedef struct {
       enum ConditionKind cond;
     } jmp;
     struct {
+      int arg_count;
+      bool stack_aligned;
+    } precall;
+    struct {
       const Name *label;
-      bool *stack_aligned;
+      struct IR *precall;
       int arg_count;
       bool global;
     } call;
@@ -147,9 +151,9 @@ void new_ir_test(VReg *reg, int size);
 void new_ir_incdec(enum IrKind kind, VReg *reg, int size, intptr_t value);
 VReg *new_ir_cond(enum ConditionKind cond);
 void new_ir_jmp(enum ConditionKind cond, BB *bb);
-void new_ir_precall(int arg_count, bool *stack_aligned);
+IR *new_ir_precall(int arg_count);
 void new_ir_pusharg(VReg *vreg, const VRegType *vtype);
-VReg *new_ir_call(const Name *label, bool global, VReg *freg, int arg_count, const VRegType *result_type, bool *stack_aligned);
+VReg *new_ir_call(const Name *label, bool global, VReg *freg, int arg_count, const VRegType *result_type, IR *precall);
 void new_ir_result(VReg *reg, int size);
 void new_ir_addsp(int value);
 VReg *new_ir_cast(VReg *vreg, const VRegType *dsttype, int srcsize, bool is_unsigned);

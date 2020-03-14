@@ -302,10 +302,7 @@ static VReg *gen_funcall(Expr *expr) {
   Vector *args = expr->funcall.args;
   int arg_count = args != NULL ? args->len : 0;
 
-  bool *stack_aligned = malloc(sizeof(bool));
-  *stack_aligned = false;
-
-  new_ir_precall(arg_count, stack_aligned);
+  IR *precall = new_ir_precall(arg_count);
 
   const VarInfo *varinfo = NULL;
   bool label_call = false;
@@ -346,11 +343,11 @@ static VReg *gen_funcall(Expr *expr) {
   VReg *result_reg = NULL;
   if (label_call) {
     result_reg = new_ir_call(func->variable.name, global, NULL, arg_count,
-                             to_vtype(expr->type), stack_aligned);
+                             to_vtype(expr->type), precall);
   } else {
     VReg *freg = gen_expr(func);
     result_reg = new_ir_call(NULL, false, freg, arg_count,
-                             to_vtype(expr->type), stack_aligned);
+                             to_vtype(expr->type), precall);
   }
 
   return result_reg;

@@ -508,5 +508,5 @@ void alloc_real_registers(RegAlloc *ra, BBContainer *bbcon) {
 
   ra->sorted_intervals = sorted_intervals;
 
-  ra->frame_size = ALIGN(frame_size, 16);
+  ra->frame_size = ALIGN(frame_size, 8);
 }

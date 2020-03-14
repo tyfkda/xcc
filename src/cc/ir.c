@@ -308,18 +308,19 @@ void new_ir_pusharg(VReg *vreg, const VRegType *vtype) {
   ir->size = vtype->size;
 }
 
-void new_ir_precall(int arg_count, bool *stack_aligned) {
+IR *new_ir_precall(int arg_count) {
   IR *ir = new_ir(IR_PRECALL);
-  ir->call.stack_aligned = stack_aligned;
-  ir->call.arg_count = arg_count;
+  ir->precall.arg_count = arg_count;
+  ir->precall.stack_aligned = false;
+  return ir;
 }
 
-VReg *new_ir_call(const Name *label, bool global, VReg *freg, int arg_count, const VRegType *result_type, bool *stack_aligned) {
+VReg *new_ir_call(const Name *label, bool global, VReg *freg, int arg_count, const VRegType *result_type, IR *precall) {
   IR *ir = new_ir(IR_CALL);
   ir->call.label = label;
   ir->call.global = global;
   ir->opr1 = freg;
-  ir->call.stack_aligned = stack_aligned;
+  ir->call.precall = precall;
   ir->call.arg_count = arg_count;
   ir->size = result_type->size;
   return ir->dst = reg_alloc_spawn(curra, result_type, 0);
@@ -427,7 +428,7 @@ static void ir_memcpy(int dst_reg, int src_reg, ssize_t size) {
   }
 }
 
-static void ir_out(const IR *ir) {
+static void ir_out(IR *ir) {
   switch (ir->kind) {
   case IR_BOFS:
     assert(!(ir->opr1->flag & VRF_CONST));
@@ -901,13 +902,13 @@ static void ir_out(const IR *ir) {
       PUSH(R10); PUSH_STACK_POS();
       PUSH(R11); PUSH_STACK_POS();
 
-      int stack_args = MAX(ir->call.arg_count - MAX_REG_ARGS, 0);
+      int stack_args = MAX(ir->precall.arg_count - MAX_REG_ARGS, 0);
       bool align_stack = ((stackpos + stack_args * WORD_SIZE) & 15) != 0;
       if (align_stack) {
         SUB(IM(8), RSP);
         stackpos += 8;
       }
-      *ir->call.stack_aligned = align_stack;
+      ir->precall.stack_aligned = align_stack;
     }
     break;
 
@@ -941,7 +942,7 @@ static void ir_out(const IR *ir) {
       }
 
       int stack_args = MAX(ir->call.arg_count - MAX_REG_ARGS, 0);
-      bool align_stack = *ir->call.stack_aligned;
+      bool align_stack = ir->call.precall->precall.stack_aligned;
       if (stack_args > 0 || align_stack) {
         int add = stack_args * WORD_SIZE + (align_stack ? 8 : 0);
         ADD(IM(add), RSP);
