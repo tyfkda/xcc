@@ -196,16 +196,6 @@ static bool assemble_mov(Inst *inst, const ParseInfo *info, Code *code) {
   return assemble_error(info, "Illegal operand");
 }
 
-static long clamp_value(long value, enum RegSize size) {
-  switch (size) {
-  case REG8:   return (uint8_t)value;
-  case REG16:  return (uint16_t)value;
-  case REG32:  return (uint32_t)value;
-  case REG64:  return (uint64_t)value;
-  default: assert(false); return value;
-  }
-}
-
 bool assemble_inst(Inst *inst, const ParseInfo *info, Code *code) {
   unsigned char *p = code->buf;
 
@@ -548,7 +538,6 @@ bool assemble_inst(Inst *inst, const ParseInfo *info, Code *code) {
     } else if (inst->src.type == IMMEDIATE && inst->dst.type == REG) {
       long value = inst->src.immediate;
       enum RegSize size = inst->dst.reg.size;
-      value = clamp_value(value, size);
       if (is_im8(value) && (size != REG8 || opr_regno(&inst->dst.reg) != AL - AL)) {
         p = put_rex1(p, size,
                      0xe0, opr_regno(&inst->dst.reg),
@@ -590,7 +579,6 @@ bool assemble_inst(Inst *inst, const ParseInfo *info, Code *code) {
     } else if (inst->src.type == IMMEDIATE && inst->dst.type == REG) {
       long value = inst->src.immediate;
       enum RegSize size = inst->dst.reg.size;
-      value = clamp_value(value, size);
       if (is_im8(value) && (size != REG8 || opr_regno(&inst->dst.reg) != AL - AL)) {
         p = put_rex1(p, size,
                      0xc8, opr_regno(&inst->dst.reg),
@@ -631,7 +619,6 @@ bool assemble_inst(Inst *inst, const ParseInfo *info, Code *code) {
     } else if (inst->src.type == IMMEDIATE && inst->dst.type == REG) {
       long value = inst->src.immediate;
       enum RegSize size = inst->dst.reg.size;
-      value = clamp_value(value, size);
       if (is_im8(value) && (size != REG8 || opr_regno(&inst->dst.reg) != AL - AL)) {
         p = put_rex1(p, size,
                      0xf0, opr_regno(&inst->dst.reg),
