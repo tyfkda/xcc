@@ -454,6 +454,7 @@ static void put_args_to_stack(Defun *defun) {
   static const char *kReg16s[] = {DI, SI, DX, CX, R8W, R9W};
   static const char *kReg32s[] = {EDI, ESI, EDX, ECX, R8D, R9D};
   static const char *kReg64s[] = {RDI, RSI, RDX, RCX, R8, R9};
+  static const char **kRegTable[] = {NULL, kReg8s, kReg16s, NULL, kReg32s, NULL, NULL, NULL, kReg64s};
 
   // Store arguments into local frame.
   Vector *params = defun->func->params;
@@ -489,23 +490,9 @@ static void put_args_to_stack(Defun *defun) {
     }
 
     if (i < MAX_REG_ARGS) {
-      switch (size) {
-      case 1:
-        MOV(kReg8s[i], OFFSET_INDIRECT(offset, RBP, NULL, 1));
-        break;
-      case 2:
-        MOV(kReg16s[i], OFFSET_INDIRECT(offset, RBP, NULL, 1));
-        break;
-      case 4:
-        MOV(kReg32s[i], OFFSET_INDIRECT(offset, RBP, NULL, 1));
-        break;
-      case 8:
-        MOV(kReg64s[i], OFFSET_INDIRECT(offset, RBP, NULL, 1));
-        break;
-      default:
-        assert(false);
-        break;
-      }
+      assert(size < (int)(sizeof(kRegTable) / sizeof(*kRegTable)) &&
+             kRegTable[size] != NULL);
+      MOV(kRegTable[size][i], OFFSET_INDIRECT(offset, RBP, NULL, 1));
     }
   }
 }
