@@ -2,6 +2,7 @@ XCC
 ===
 
 [![Build Status](https://travis-ci.org/tyfkda/xcc.svg?branch=master)](https://travis-ci.org/tyfkda/xcc)
+[![Open in Gitpod](https://gitpod.io/button/open-in-gitpod.svg)](https://gitpod.io/#https://github.com/tyfkda/xcc)
 
   * C compiler for [XV6 (64bit)](https://github.com/tyfkda/xv6)
     * Also work on Linux
