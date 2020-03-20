@@ -7,6 +7,7 @@
 #include <string.h>  // strcmp
 
 #include "table.h"
+#include "../version.h"
 
 char *strdup_(const char *str) {
   return strndup_(str, strlen(str));
@@ -200,6 +201,10 @@ void myqsort(void *base, size_t nmemb, size_t size, int (*compare)(const void *,
     myqsort(a, i, size, compare);
   if ((size_t)(j + 2) < nmemb)
     myqsort(&a[(j + 1) * size], nmemb - j - 1, size, compare);
+}
+
+void show_version(const char *exe) {
+  printf("%s %s\n", exe, VERSION);
 }
 
 void error(const char *fmt, ...) {

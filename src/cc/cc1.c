@@ -45,6 +45,9 @@ int main(int argc, char *argv[]) {
       set_local_label_prefix(&argv[iarg][sizeof(LOCAL_LABEL_PREFIX) - 1]);
     } else if (strcmp(arg, "--dump-ir") == 0) {
       dump_ir = true;
+    } else if (strcmp(arg, "--version") == 0) {
+      show_version("cc1");
+      return 0;
     } else {
       fprintf(stderr, "Unknown option: %s\n", arg);
       return 1;

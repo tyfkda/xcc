@@ -26,6 +26,8 @@ char *abspath(const char *root, const char *path);
 
 void myqsort(void *base, size_t nmemb, size_t size, int (*compare)(const void *, const void *));
 
+void show_version(const char *exe);
+
 void error(const char *fmt, ...) /*__attribute((noreturn))*/;
 
 bool is_im8(intptr_t x);

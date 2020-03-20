@@ -732,6 +732,9 @@ int main(int argc, char *argv[]) {
       vec_push(sys_inc_paths, strdup_(argv[iarg] + 2));
     } else if (starts_with(argv[iarg], "-D")) {
       define_macro(argv[iarg] + 2);
+    } else if (strcmp(arg, "--version") == 0) {
+      show_version("cpp");
+      return 0;
     } else {
       fprintf(stderr, "Unknown option: %s\n", arg);
       return 1;

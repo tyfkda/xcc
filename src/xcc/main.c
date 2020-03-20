@@ -205,6 +205,9 @@ int main(int argc, char *argv[]) {
     } else if (strcmp(arg, "--help") == 0) {
       usage(stdout);
       return 0;
+    } else if (strcmp(arg, "--version") == 0) {
+      show_version("xcc");
+      return 0;
     } else {
       fprintf(stderr, "Unknown option: %s\n", arg);
       return 1;

@@ -115,6 +115,9 @@ int main(int argc, char *argv[]) {
 
     if (starts_with(arg, "-o")) {
       ofn = strdup_(arg + 2);
+    } else if (strcmp(arg, "--version") == 0) {
+      show_version("as");
+      return 0;
     } else {
       fprintf(stderr, "Unknown option: %s\n", arg);
       return 1;
