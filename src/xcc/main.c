@@ -158,9 +158,10 @@ int main(int argc, char *argv[]) {
   bool run_asm = true;
   int iarg;
 
-  char *cpp_path = cat_path(dirname(strdup_(argv[0])), "cpp");
-  char *cc1_path = cat_path(dirname(strdup_(argv[0])), "cc1");
-  char *as_path = cat_path(dirname(strdup_(argv[0])), "as");
+  const char *root = dirname(strdup_(argv[0]));
+  char *cpp_path = cat_path(root, "cpp");
+  char *cc1_path = cat_path(root, "cc1");
+  char *as_path = cat_path(root, "as");
 
   Vector *cpp_cmd = new_vector();
   vec_push(cpp_cmd, cpp_path);
