@@ -722,21 +722,26 @@ int main(int argc, char *argv[]) {
   table_put(&macro_table, alloc_name("__APPLE__", NULL, true), new_macro(NULL, false, NULL));
 #endif
 
-  int i = 1;
-  for (; i < argc; ++i) {
-    if (*argv[i] != '-')
+  int iarg = 1;
+  for (; iarg < argc; ++iarg) {
+    char *arg = argv[iarg];
+    if (*arg != '-')
       break;
-    if (strncmp(argv[i], "-I", 2) == 0) {
-      vec_push(sys_inc_paths, strdup_(argv[i] + 2));
+
+    if (starts_with(arg, "-I")) {
+      vec_push(sys_inc_paths, strdup_(argv[iarg] + 2));
+    } else if (starts_with(argv[iarg], "-D")) {
+      define_macro(argv[iarg] + 2);
+    } else {
+      fprintf(stderr, "Unknown option: %s\n", arg);
+      return 1;
     }
-    if (strncmp(argv[i], "-D", 2) == 0)
-      define_macro(argv[i] + 2);
   }
 
   init_lexer();
 
-  if (i < argc) {
-    for (; i < argc; ++i) {
+  if (iarg < argc) {
+    for (int i = iarg; i < argc; ++i) {
       const char *filename = argv[i];
       FILE *fp = fopen(filename, "r");
       if (fp == NULL)

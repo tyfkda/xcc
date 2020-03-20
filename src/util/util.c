@@ -19,6 +19,11 @@ char *strndup_(const char *str, size_t size) {
   return dup;
 }
 
+bool starts_with(const char *str, const char *prefix) {
+  size_t len = strlen(prefix);
+  return strncmp(str, prefix, len) == 0;
+}
+
 static char label_prefix[8] = "L";
 
 const Name *alloc_label(void) {

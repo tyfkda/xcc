@@ -175,21 +175,23 @@ int main(int argc, char *argv[]) {
     char *arg = argv[iarg];
     if (*arg != '-')
       break;
-    if (strncmp(arg, "-I", 2) == 0 ||
-        strncmp(arg, "-D", 2) == 0)
+
+    if (starts_with(arg, "-I") || starts_with(arg, "-D")) {
       vec_push(cpp_cmd, arg);
-    if (strncmp(arg, "-o", 2) == 0) {
+    } else if (starts_with(arg, "-o")) {
       ofn = arg + 2;
       vec_push(as_cmd, arg);
-    }
-    if (strcmp(arg, "-E") == 0) {
+    } else if (strcmp(arg, "-E") == 0) {
       out_pp = true;
       run_asm = false;
-    }
-    if (strcmp(arg, "-S") == 0 ||
-        strcmp(arg, "--dump-ir") == 0)
+    } else if (strcmp(arg, "-S") == 0 || strcmp(arg, "--dump-ir") == 0) {
       run_asm = false;
-    vec_push(cc1_cmd, arg);
+    } else if (starts_with(arg, "--local-label-prefix")) {
+      vec_push(cc1_cmd, arg);
+    } else {
+      fprintf(stderr, "Unknown option: %s\n", arg);
+      return 1;
+    }
   }
 
   vec_push(cpp_cmd, NULL);  // Buffer for src.

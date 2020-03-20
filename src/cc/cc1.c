@@ -37,13 +37,18 @@ int main(int argc, char *argv[]) {
   bool dump_ir = false;
 
   for (iarg = 1; iarg < argc; ++iarg) {
-    if (*argv[iarg] != '-')
+    char *arg = argv[iarg];
+    if (*arg != '-')
       break;
-    if (strncmp(argv[iarg], LOCAL_LABEL_PREFIX, sizeof(LOCAL_LABEL_PREFIX) - 1) == 0) {
+
+    if (starts_with(arg, LOCAL_LABEL_PREFIX)) {
       set_local_label_prefix(&argv[iarg][sizeof(LOCAL_LABEL_PREFIX) - 1]);
-    }
-    if (strcmp(argv[iarg], "--dump-ir") == 0)
+    } else if (strcmp(arg, "--dump-ir") == 0) {
       dump_ir = true;
+    } else {
+      fprintf(stderr, "Unknown option: %s\n", arg);
+      return 1;
+    }
   }
 
   // Compile.

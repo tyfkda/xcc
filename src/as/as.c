@@ -109,10 +109,16 @@ int main(int argc, char *argv[]) {
   int iarg;
 
   for (iarg = 1; iarg < argc; ++iarg) {
-    if (*argv[iarg] != '-')
+    char *arg = argv[iarg];
+    if (*arg != '-')
       break;
-    if (strncmp(argv[iarg], "-o", 2) == 0)
-      ofn = strdup_(argv[iarg] + 2);
+
+    if (starts_with(arg, "-o")) {
+      ofn = strdup_(arg + 2);
+    } else {
+      fprintf(stderr, "Unknown option: %s\n", arg);
+      return 1;
+    }
   }
 
 #if !defined(AS_USE_CC)

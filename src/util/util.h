@@ -18,6 +18,7 @@ typedef struct Name Name;
 
 char *strdup_(const char *str);
 char *strndup_(const char *str, size_t size);
+bool starts_with(const char *str, const char *prefix);
 void set_local_label_prefix(const char *prefix);
 char *cat_path(const char *base_dir, const char *rel_path);
 ssize_t getline_(char **lineptr, size_t *n, FILE *stream, size_t start);

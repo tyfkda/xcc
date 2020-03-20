@@ -37,7 +37,9 @@ try_direct() {
 
   echo -n "$title => "
 
-  echo -e "$input" | $XCC || exit 1
+  tmpfile=$(mktemp --suffix=.c)
+  echo -e "$input" > $tmpfile
+  $XCC $tmpfile || exit 1
 
   ./a.out
   actual="$?"
@@ -61,7 +63,9 @@ try_output_direct() {
 
   echo -n "$title => "
 
-  echo -e "$input" | $XCC || exit 1
+  tmpfile=$(mktemp --suffix=.c)
+  echo -e "$input" > $tmpfile
+  $XCC $tmpfile || exit 1
 
   actual=`./a.out` || exit 1
 
@@ -83,7 +87,9 @@ compile_error() {
 
   echo -n "$title => "
 
-  echo -e "$input" | $XCC
+  tmpfile=$(mktemp --suffix=.c)
+  echo -e "$input" > $tmpfile
+  $XCC $tmpfile
   result="$?"
 
   if [ "$result" = "0" ]; then
