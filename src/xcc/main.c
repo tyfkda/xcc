@@ -152,6 +152,19 @@ static int compile(const char *src, Vector *cpp_cmd, Vector *cc1_cmd, int ofd) {
   return r;
 }
 
+void usage(FILE *fp) {
+  fprintf(
+      fp,
+      "Usage: xcc [options] file...\n"
+      "Options:\n"
+      "  -I<path>            Add include path\n"
+      "  -D<label[=value]>   Define label\n"
+      "  -o<filename>        Set output filename (Default: a.out)\n"
+      "  -S                  Output assembly code\n"
+      "  -E                  Output preprocess result\n"
+  );
+}
+
 int main(int argc, char *argv[]) {
   const char *ofn = "a.out";
   bool out_pp = false;
@@ -189,10 +202,19 @@ int main(int argc, char *argv[]) {
       run_asm = false;
     } else if (starts_with(arg, "--local-label-prefix")) {
       vec_push(cc1_cmd, arg);
+    } else if (strcmp(arg, "--help") == 0) {
+      usage(stdout);
+      return 0;
     } else {
       fprintf(stderr, "Unknown option: %s\n", arg);
       return 1;
     }
+  }
+
+  if (iarg >= argc) {
+    fprintf(stderr, "No input files\n\n");
+    usage(stderr);
+    return 1;
   }
 
   vec_push(cpp_cmd, NULL);  // Buffer for src.
