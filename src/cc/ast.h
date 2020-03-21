@@ -259,7 +259,6 @@ typedef struct Stmt {
       const Token *label;
     } goto_;
     struct {
-      // const Token *label;
       struct Stmt *stmt;
     } label;
     struct {
@@ -272,9 +271,6 @@ typedef struct Stmt {
     struct {
       Expr *str;
     } asm_;
-    struct {
-      Vector *stmts;
-    } toplevel;
   };
 } Stmt;
 
