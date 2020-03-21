@@ -66,7 +66,7 @@ static const Type *parse_enum(void) {
     // TODO: Duplicate check.
     if (type != NULL)
       parse_error(typeIdent, "Duplicate enum type");
-    type = define_enum(typeIdent);
+    type = define_enum(typeIdent != NULL ? typeIdent->ident : NULL);
     if (!match(TK_RBRACE)) {
       int value = 0;
       for (;;) {
@@ -82,7 +82,7 @@ static const Type *parse_enum(void) {
         }
 
         // TODO: Check whether symbol is not defined.
-        add_enum_member(type, ident, value);
+        add_enum_member(type, ident->ident, value);
         ++value;
 
         if (match(TK_COMMA))

@@ -7,7 +7,6 @@
 #include <sys/types.h>  // ssize_t
 
 typedef struct Name Name;
-typedef struct Token Token;
 typedef struct Vector Vector;
 
 // Num
@@ -39,7 +38,7 @@ typedef struct StructInfo {
 } StructInfo;
 
 typedef struct {
-  const Token *ident;
+  const Name *ident;
   int value;
 } EnumMember;
 
@@ -50,7 +49,7 @@ typedef struct Type {
       enum NumKind kind;
       bool is_unsigned;
       struct {
-        const Token *ident;
+        const Name *ident;
         Vector *members;  // <EnumMember*>
       } enum_;
     } num;
@@ -99,8 +98,8 @@ StructInfo *find_struct(const Name *name);
 void define_struct(const Name *name, StructInfo *sinfo);
 
 Type *find_enum(const Name *name);
-Type *define_enum(const Token *ident);
-void add_enum_member(Type *type, const Token *ident, int value);
+Type *define_enum(const Name *ident);
+void add_enum_member(Type *type, const Name *ident, int value);
 bool find_enum_value(const Name *name, intptr_t *output);
 
 // Typedef

@@ -4,7 +4,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "lexer.h"
 #include "table.h"
 #include "util.h"
 
@@ -135,7 +134,7 @@ Type *find_enum(const Name *name) {
   return table_get(&enum_table, name);
 }
 
-Type *define_enum(const Token *ident) {
+Type *define_enum(const Name *ident) {
   Type *type = malloc(sizeof(*type));
   type->kind = TY_NUM;
   type->num.kind = NUM_ENUM;
@@ -144,20 +143,20 @@ Type *define_enum(const Token *ident) {
   type->num.enum_.members = new_vector();
 
   if (ident != NULL) {
-    table_put(&enum_table, ident->ident, type);
+    table_put(&enum_table, ident, type);
   }
 
   return type;
 }
 
-void add_enum_member(Type *type, const Token *ident, int value) {
+void add_enum_member(Type *type, const Name *ident, int value) {
   assert(type->kind == TY_NUM && type->num.kind == NUM_ENUM);
   EnumMember *member = malloc(sizeof(*member));
   member->ident = ident;
   member->value = value;
   vec_push(type->num.enum_.members, member);
 
-  table_put(&enum_value_table, ident->ident, (void*)(intptr_t)value);
+  table_put(&enum_value_table, ident, (void*)(intptr_t)value);
 }
 
 bool find_enum_value(const Name *name, intptr_t *output) {
