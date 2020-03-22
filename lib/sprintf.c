@@ -86,16 +86,16 @@ snprintstr(char *out, unsigned int n, const char* s,
     s = "(null)";
   size_t len = strlen(s);
   if (suborder > 0)
-    len = MIN(len, (size_t)suborder);
+    len = MIN(len, suborder);
   if (order <= 0 || len >= order) {
-    o = putstr(out, o, MIN(n, (unsigned int)(o + len)), s);
+    o = putstr(out, o, MIN(n, o + len), s);
   } else {
     if (leftalign) {
-      o = putstr(out, o, MIN(n, (unsigned int)(o + len)), s);
+      o = putstr(out, o, MIN(n, o + len), s);
       o = putpadding(out, o, n, order - len, ' ');
     } else {
       o = putpadding(out, o, n, order - len, ' ');
-      o = putstr(out, o, MIN(n, (unsigned int)(o + len)), s);
+      o = putstr(out, o, MIN(n, o + len), s);
     }
   }
   return o;

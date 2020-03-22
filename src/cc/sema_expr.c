@@ -701,13 +701,28 @@ static Expr *sema_expr_keep_left(Expr *expr, bool keep_left) {
 
       if (same_type(ttype, ftype)) {
         expr->type = ttype;
-      } else if (is_void_ptr(ttype) && ftype->kind == TY_PTR) {
-        expr->type = ftype;
-      } else if (is_void_ptr(ftype) && ttype->kind == TY_PTR) {
-        expr->type = ttype;
-      } else {
-        parse_error(NULL, "lhs and rhs must be same type");
+        break;
       }
+      if (is_void_ptr(ttype) && ftype->kind == TY_PTR) {
+        expr->type = ftype;
+        break;
+      }
+      if (is_void_ptr(ftype) && ttype->kind == TY_PTR) {
+        expr->type = ttype;
+        break;
+      }
+      if (is_number(ttype->kind) && is_number(ftype->kind)) {
+        if (ttype->num.kind > ftype->num.kind) {
+          expr->type = ttype;
+          expr->ternary.fval = new_expr_cast(ttype, fval->token, fval);
+        } else {
+          expr->type = ftype;
+          expr->ternary.tval = new_expr_cast(ftype, tval->token, tval);
+        }
+        break;
+      }
+
+      parse_error(NULL, "lhs and rhs must be same type");
     }
     break;
 

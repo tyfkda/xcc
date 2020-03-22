@@ -62,7 +62,7 @@ int strcmp(const char *p, const char *q) {
 int strncmp(const char *p, const char *q, size_t n) {
   while (n > 0 && *p == *q && *p != '\0')
     n--, p++, q++;
-  return n == 0 ? 0 : (int)((unsigned char)*p - (unsigned char)*q);
+  return n == 0 ? 0 : (unsigned char)*p - (unsigned char)*q;
 }
 
 int strcasecmp(const char *p, const char *q) {
@@ -415,7 +415,7 @@ long ftell(FILE *fp) {
 int fgetc(FILE *fp) {
   unsigned char c;
   int len = read(fp->fd, &c, 1);
-  return len == 1 ? (int)c : EOF;
+  return len == 1 ? c : EOF;
 }
 
 int fputc(int c, FILE *fp) {

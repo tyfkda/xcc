@@ -938,7 +938,7 @@ static void ir_out(IR *ir) {
       static const char *kArgReg64s[] = {RDI, RSI, RDX, RCX, R8, R9};
 
       // Pop register arguments.
-      int reg_args = MIN((int)ir->call.arg_count, MAX_REG_ARGS);
+      int reg_args = MIN(ir->call.arg_count, MAX_REG_ARGS);
       for (int i = 0; i < reg_args; ++i) {
         POP(kArgReg64s[i]); POP_STACK_POS();
       }

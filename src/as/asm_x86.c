@@ -300,8 +300,8 @@ bool assemble_inst(Inst *inst, const ParseInfo *info, Code *code) {
       Expr *scale_expr = inst->src.indirect_with_index.scale;
       if ((offset_expr == NULL || offset_expr->kind == EX_NUM) &&
           (scale_expr == NULL || scale_expr->kind == EX_NUM)) {
-        long offset = offset_expr != NULL ? offset_expr->num : 0L;
-        long scale = scale_expr != NULL ? scale_expr->num : 1L;
+        long offset = offset_expr != NULL ? offset_expr->num : 0;
+        long scale = scale_expr != NULL ? scale_expr->num : 1;
         if (is_im32(offset) && 1 <= scale && scale <= 8 && IS_POWER_OF_2(scale)) {
           const Reg *base_reg = &inst->src.indirect_with_index.base_reg;
           const Reg *index_reg = &inst->src.indirect_with_index.index_reg;

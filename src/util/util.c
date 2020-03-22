@@ -234,7 +234,7 @@ void buf_put(Buffer *buf, const void *data, size_t bytes) {
   size_t newsize = size + bytes;
 
   if (newsize > buf->capa) {
-    size_t newcapa = ALIGN(MAX(newsize, (size_t)BUF_MIN) * 2, BUF_ALIGN);
+    size_t newcapa = ALIGN(MAX(newsize, BUF_MIN) * 2, BUF_ALIGN);
     unsigned char *p = realloc(buf->data, newcapa);
     if (p == NULL)
       error("not enough memory");
@@ -337,7 +337,7 @@ bool sb_empty(StringBuffer *sb) {
 void sb_append(StringBuffer *sb, const char *start, const char *end) {
   StringElement *elem = malloc(sizeof(*elem));
   elem->start = start;
-  elem->len = end != NULL ? (size_t)(end - start) : (size_t)strlen(start);
+  elem->len = end != NULL ? (size_t)(end - start) : strlen(start);
   vec_push(sb->elems, elem);
 }
 
