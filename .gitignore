@@ -4,6 +4,9 @@
 a.out
 tmp.s
 core
+,*
+.#*
+.vscode
 /as
 /cc1
 /cpp
