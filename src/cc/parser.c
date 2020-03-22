@@ -12,32 +12,6 @@
 
 static Stmt *statement(void);
 
-// Function
-
-static Function *new_func(const Type *type, const Name *name, Vector *params) {
-  Function *func = malloc(sizeof(*func));
-  func->type = type;
-  func->name = name;
-  func->params = params;
-
-  func->scopes = NULL;
-  func->ra = NULL;
-  func->bbcon = NULL;
-  func->ret_bb = NULL;
-  return func;
-}
-
-static Defun *new_defun(Function *func, int flag) {
-  Defun *defun = malloc(sizeof(*defun));
-  defun->func = func;
-  defun->flag = flag;
-
-  defun->stmts = NULL;
-  defun->label_table = NULL;
-  defun->gotos = NULL;
-  return defun;
-}
-
 // Initializer
 
 static Initializer *parse_initializer(void) {

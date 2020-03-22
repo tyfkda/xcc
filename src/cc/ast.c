@@ -109,6 +109,36 @@ Expr *new_expr_cast(const Type *type, const Token *token, Expr *sub) {
 
 // ================================================
 
+// Function
+
+Function *new_func(const Type *type, const Name *name, Vector *params) {
+  Function *func = malloc(sizeof(*func));
+  func->type = type;
+  func->name = name;
+  func->params = params;
+
+  func->scopes = NULL;
+  func->ra = NULL;
+  func->bbcon = NULL;
+  func->ret_bb = NULL;
+  return func;
+}
+
+// Defun
+
+Defun *new_defun(Function *func, int flag) {
+  Defun *defun = malloc(sizeof(*defun));
+  defun->func = func;
+  defun->flag = flag;
+
+  defun->stmts = NULL;
+  defun->label_table = NULL;
+  defun->gotos = NULL;
+  return defun;
+}
+
+// ================================================
+
 VarDecl *new_vardecl(const Type *type, const Token *ident, Initializer *init, int flag) {
   VarDecl *decl = malloc(sizeof(*decl));
   decl->type = type;

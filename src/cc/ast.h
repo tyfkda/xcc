@@ -152,6 +152,8 @@ typedef struct Function {
   BB *ret_bb;
 } Function;
 
+Function *new_func(const Type *type, const Name *name, Vector *params);
+
 // Defun
 
 typedef struct Defun {
@@ -160,10 +162,12 @@ typedef struct Defun {
   Vector *stmts;  // NULL => Prototype definition.
 
   Table *label_table;  // <const Name*, BB*>
-  Vector *gotos;
+  Vector *gotos;  // <Stmt*>
 
   int flag;
 } Defun;
+
+Defun *new_defun(Function *func, int flag);
 
 // Initializer
 
