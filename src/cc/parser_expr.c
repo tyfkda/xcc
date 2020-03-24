@@ -716,37 +716,39 @@ static Expr *conditional(void) {
 }
 
 Expr *parse_assign(void) {
+  static const struct {
+    enum TokenKind tk;
+    enum ExprKind ex;
+  } kAssignWithOps[] = {
+    { TK_ADD_ASSIGN, EX_ADD },
+    { TK_SUB_ASSIGN, EX_SUB },
+    { TK_MUL_ASSIGN, EX_MUL },
+    { TK_DIV_ASSIGN, EX_DIV },
+    { TK_MOD_ASSIGN, EX_MOD },
+    { TK_AND_ASSIGN, EX_BITAND },
+    { TK_OR_ASSIGN, EX_BITOR },
+    { TK_HAT_ASSIGN, EX_BITXOR },
+    { TK_LSHIFT_ASSIGN, EX_LSHIFT },
+    { TK_RSHIFT_ASSIGN, EX_RSHIFT },
+  };
+
   Expr *expr = conditional();
 
-  Token *tok;
-  if ((tok = match(TK_ASSIGN)) != NULL)
-    return new_expr_bop(EX_ASSIGN, NULL, tok, expr, parse_assign());
-  enum ExprKind t;
-  if ((tok = match(TK_ADD_ASSIGN)) != NULL)
-    t = EX_ADD;
-  else if ((tok = match(TK_SUB_ASSIGN)) != NULL)
-    t = EX_SUB;
-  else if ((tok = match(TK_MUL_ASSIGN)) != NULL)
-    t = EX_MUL;
-  else if ((tok = match(TK_DIV_ASSIGN)) != NULL)
-    t = EX_DIV;
-  else if ((tok = match(TK_MOD_ASSIGN)) != NULL)
-    t = EX_MOD;
-  else if ((tok = match(TK_AND_ASSIGN)) != NULL)
-    t = EX_BITAND;
-  else if ((tok = match(TK_OR_ASSIGN)) != NULL)
-    t = EX_BITOR;
-  else if ((tok = match(TK_HAT_ASSIGN)) != NULL)
-    t = EX_BITXOR;
-  else if ((tok = match(TK_LSHIFT_ASSIGN)) != NULL)
-    t = EX_LSHIFT;
-  else if ((tok = match(TK_RSHIFT_ASSIGN)) != NULL)
-    t = EX_RSHIFT;
-  else
-    return expr;
+  Token *tok = match(-1);
+  if (tok != NULL) {
+    if (tok->kind == TK_ASSIGN)
+      return new_expr_bop(EX_ASSIGN, NULL, tok, expr, parse_assign());
 
-  return new_expr_unary(EX_ASSIGN_WITH, NULL, tok,
-                        new_expr_bop(t, NULL, tok, expr, parse_assign()));
+    for (int i = 0; i < (int)(sizeof(kAssignWithOps) / sizeof(*kAssignWithOps)); ++i) {
+      if (tok->kind == kAssignWithOps[i].tk) {
+        enum ExprKind t = kAssignWithOps[i].ex;
+        return new_expr_unary(EX_ASSIGN_WITH, NULL, tok,
+                              new_expr_bop(t, NULL, tok, expr, parse_assign()));
+      }
+    }
+    unget_token(tok);
+  }
+  return expr;
 }
 
 Expr *parse_const(void) {
