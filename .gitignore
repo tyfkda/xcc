@@ -13,7 +13,8 @@ core
 /gen2
 /gen3
 /xcc
+/tests/core.*
+/tests/parser_test
 /tests/table_test
 /tests/util_test
 /tests/valtest
-/tests/core.*

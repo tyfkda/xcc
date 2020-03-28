@@ -42,6 +42,9 @@ bool same_type(const Type *type1, const Type *type2) {
     case TY_NUM:
       return type1->num.kind == type2->num.kind;
     case TY_ARRAY:
+      if (type1->pa.length != type2->pa.length)
+        return false;
+      // Fallthrough
     case TY_PTR:
       type1 = type1->pa.ptrof;
       type2 = type2->pa.ptrof;

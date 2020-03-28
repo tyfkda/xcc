@@ -333,8 +333,9 @@ Initializer *flatten_initializer(const Type *type, Initializer *init) {
       init = flatten_array_initializer(init);
       break;
     case IK_SINGLE:
-      // Special handling for string (char[]).
-      if (can_cast(type, init->single->type, init->single, false))
+      // Special handling for string (char[]), and accept length difference.
+      if (init->single->type->kind == TY_ARRAY &&
+          can_cast(type->pa.ptrof, init->single->type->pa.ptrof, init->single, false))
         break;
       // Fallthrough
     default:
