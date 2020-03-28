@@ -76,3 +76,8 @@ util_test:	$(UTIL_SRCS)
 VAL_SRCS:=../lib/crt0.c ../examples/util.c valtest.c
 valtest:	$(VAL_SRCS) # $(XCC)
 	$(XCC) -o$@ $(VAL_SRCS)
+
+.PHONY: test-std-valtest
+test-std-valtest:
+	$(CC) -Wno-builtin-declaration-mismatch -Wno-overflow ../examples/util.c valtest.c
+	./a.out

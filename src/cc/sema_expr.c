@@ -109,10 +109,15 @@ bool can_cast(const Type *dst, const Type *src, Expr *src_expr, bool is_explicit
 
 static bool check_cast(const Type *dst, const Type *src, Expr *src_expr, bool is_explicit,
                        const Token *token) {
-  if (can_cast(dst, src, src_expr, is_explicit))
-    return true;
-  parse_error(token, "Cannot convert value from type %d to %d", src->kind, dst->kind);
-  return false;
+  if (!can_cast(dst, src, src_expr, is_explicit)) {
+    parse_error(token, "Cannot convert value from type %d to %d", src->kind, dst->kind);
+    return false;
+  }
+  if (dst->kind == TY_ARRAY) {
+    parse_error(token, "Cannot cast to array type");
+    return false;
+  }
+  return true;
 }
 
 Expr *make_cast(const Type *type, const Token *token, Expr *sub, bool is_explicit) {
@@ -668,9 +673,9 @@ static Expr *sema_expr_keep_left(Expr *expr, bool keep_left) {
     case EX_CAST:
       {
         Expr *sub = expr->unary.sub;
+        check_cast(expr->type, sub->type, sub, true, expr->token);
         if (same_type(expr->type, sub->type))
           return sub;
-        check_cast(expr->type, sub->type, sub, true, expr->token);
       }
       break;
 

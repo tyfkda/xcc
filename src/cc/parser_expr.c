@@ -259,6 +259,23 @@ Vector *parse_funparam_types(bool *pvaargs) {  // Vector<Type*>
   return extract_varinfo_types(params);
 }
 
+static const Type *parse_var_def_cont(const Type *type, Vector **pfunparams) {
+  bool suffix = true;
+  if (pfunparams != NULL && match(TK_LPAR)) {
+    const Type *rettype = type;
+    bool vaargs;
+    Vector *params = parse_funparams(&vaargs);
+    Vector *param_types = extract_varinfo_types(params);
+    type = new_func_type(rettype, param_types, vaargs);
+    *pfunparams = params;
+    suffix = false;
+  }
+  if (suffix && type->kind != TY_VOID)
+    type = parse_type_suffix(type);
+
+  return type;
+}
+
 bool parse_var_def(const Type **prawType, const Type **ptype, int *pflag, Token **pident,
                    Vector **pfunparams) {
   const Type *rawType = prawType != NULL ? *prawType : NULL;
@@ -271,45 +288,25 @@ bool parse_var_def(const Type **prawType, const Type **ptype, int *pflag, Token 
   }
 
   const Type *type = parse_type_modifier(rawType);
-
-  Token *ident = NULL;
-  bool suffix = true;
+  Token *ident;
   if (match(TK_LPAR)) {  // Funcion pointer type.
-    // Create function type before parsed.
-    Type *functype = new_func_type(type, NULL, false);
-
-    match(TK_MUL);  // Skip `*' if exists.
-    type = parse_type_modifier(ptrof(functype));
-
+    const Type *base_type = type;
+    Type *place_holder = calloc(1, sizeof(*place_holder));
+    type = parse_type_modifier(place_holder);
     ident = match(TK_IDENT);
-
     type = parse_type_suffix(type);
-
     consume(TK_RPAR, "`)' expected");
-    consume(TK_LPAR, "`(' expected");
 
-    bool vaargs;
-    functype->func.param_types = parse_funparam_types(&vaargs);
-    functype->func.vaargs = vaargs;
+    Vector *funparams;
+    const Type *inner_type = parse_var_def_cont(base_type, &funparams);
+    memcpy(place_holder, inner_type, sizeof(*place_holder));
   } else {
     ident = match(TK_IDENT);
-    if (ident != NULL && pfunparams != NULL && match(TK_LPAR)) {
-      const Type *rettype = type;
-      bool vaargs;
-      Vector *params = parse_funparams(&vaargs);
-      Vector *param_types = extract_varinfo_types(params);
-      type = new_func_type(rettype, param_types, vaargs);
-      *pfunparams = params;
-      suffix = false;
-    }
+    type = parse_var_def_cont(type, ident != NULL ? pfunparams : NULL);
   }
-  if (suffix && type->kind != TY_VOID)
-    type = parse_type_suffix(type);
-
   *ptype = type;
   if (pident != NULL)
     *pident = ident;
-
   return true;
 }
 
@@ -320,7 +317,7 @@ const Type *parse_full_type(int *pflag, Token **pident) {
   return type;
 }
 
-Vector *parse_funparams(bool *pvaargs) {  // Vector<VarInfo*>, NULL=>old style.
+Vector *parse_funparams(bool *pvaargs) {
   Vector *params = NULL;
   bool vaargs = false;
   if (match(TK_RPAR)) {

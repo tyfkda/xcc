@@ -547,7 +547,12 @@ int main(void) {
   {
     int a[3][2];
     a[2][0] = 987;
-    expect("array <- ptr:3", 987, array_from_ptr3((int[][3])a));
+    expect("array <- ptr:3", 987, array_from_ptr3((int(*)[3])a));
+  }
+  {
+    int a[6] = {11, 22, 33, 44, 55, 66};
+    int (*b)[3] = (int(*)[3])a;
+    expect("array ptr", 55, b[1][1]);
   }
   {
     int a[2];
