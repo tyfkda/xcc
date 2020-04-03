@@ -254,7 +254,7 @@ const Type *parse_type_suffix(const Type *type) {
   return arrayof(parse_type_suffix(type), length);
 }
 
-static Vector *extract_varinfo_types(Vector *params) {
+Vector *extract_varinfo_types(Vector *params) {
   Vector *param_types = NULL;
   if (params != NULL) {
     param_types = new_vector();
@@ -264,30 +264,21 @@ static Vector *extract_varinfo_types(Vector *params) {
   return param_types;
 }
 
-Vector *parse_funparam_types(bool *pvaargs) {  // Vector<Type*>
-  Vector *params = parse_funparams(pvaargs);
-  return extract_varinfo_types(params);
-}
-
-static const Type *parse_var_def_cont(const Type *type, Vector **pfunparams) {
-  bool suffix = true;
-  if (pfunparams != NULL && match(TK_LPAR)) {
+static const Type *parse_var_def_cont(const Type *type) {
+  if (match(TK_LPAR)) {
     const Type *rettype = type;
     bool vaargs;
     Vector *params = parse_funparams(&vaargs);
     Vector *param_types = extract_varinfo_types(params);
-    type = new_func_type(rettype, param_types, vaargs);
-    *pfunparams = params;
-    suffix = false;
+    type = new_func_type(rettype, params, param_types, vaargs);
   }
-  if (suffix && type->kind != TY_VOID)
+  if (type->kind != TY_VOID)
     type = parse_type_suffix(type);
 
   return type;
 }
 
-bool parse_var_def(const Type **prawType, const Type **ptype, int *pflag, Token **pident,
-                   Vector **pfunparams) {
+bool parse_var_def(const Type **prawType, const Type **ptype, int *pflag, Token **pident) {
   const Type *rawType = prawType != NULL ? *prawType : NULL;
   if (rawType == NULL) {
     rawType = parse_raw_type(pflag);
@@ -307,12 +298,11 @@ bool parse_var_def(const Type **prawType, const Type **ptype, int *pflag, Token 
     type = parse_type_suffix(type);
     consume(TK_RPAR, "`)' expected");
 
-    Vector *funparams;
-    const Type *inner_type = parse_var_def_cont(base_type, &funparams);
+    const Type *inner_type = parse_var_def_cont(base_type);
     memcpy(place_holder, inner_type, sizeof(*place_holder));
   } else {
     ident = match(TK_IDENT);
-    type = parse_var_def_cont(type, ident != NULL ? pfunparams : NULL);
+    type = parse_var_def_cont(type);
   }
   *ptype = type;
   if (pident != NULL)
@@ -322,7 +312,7 @@ bool parse_var_def(const Type **prawType, const Type **ptype, int *pflag, Token 
 
 const Type *parse_full_type(int *pflag, Token **pident) {
   const Type *type;
-  if (!parse_var_def(NULL, &type, pflag, pident, NULL))
+  if (!parse_var_def(NULL, &type, pflag, pident))
     return NULL;
   return type;
 }
@@ -344,7 +334,7 @@ Vector *parse_funparams(bool *pvaargs) {
       const Type *type;
       int flag;
       Token *ident;
-      if (!parse_var_def(NULL, &type, &flag, &ident, NULL))
+      if (!parse_var_def(NULL, &type, &flag, &ident))
         parse_error(NULL, "type expected");
       if (flag & VF_STATIC)
         parse_error(ident, "`static' for function parameter");
@@ -386,7 +376,7 @@ static StructInfo *parse_struct(bool is_union) {
       const Type *type;
       int flag;
       Token *ident;
-      if (!parse_var_def(&rawType, &type, &flag, &ident, NULL))
+      if (!parse_var_def(&rawType, &type, &flag, &ident))
         parse_error(NULL, "type expected");
       not_void(type);
       var_add(members, ident, type, flag);

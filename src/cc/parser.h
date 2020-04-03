@@ -20,9 +20,8 @@ const Type *parse_full_type(int *pflag, Token **pident);
 
 Vector *parse_args(Token **ptoken);
 Vector *parse_funparams(bool *pvaargs);  // Vector<VarInfo*>, NULL=>old style.
-Vector *parse_funparam_types(bool *pvaargs);  // Vector<Type*>
-bool parse_var_def(const Type **prawType, const Type **ptype, int *pflag, Token **pident,
-                   Vector **pfunparams);  // out pfunparams: <VarInfo*>
+bool parse_var_def(const Type **prawType, const Type **ptype, int *pflag, Token **pident);
+Vector *extract_varinfo_types(Vector *params);  // <VarInfo*> => <Type*>
 Expr *parse_const(void);
 Expr *parse_assign(void);
 Expr *parse_expr(void);
