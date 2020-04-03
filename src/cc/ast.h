@@ -142,7 +142,6 @@ bool is_const(Expr *expr);
 typedef struct Function {
   const Type *type;
   const Name *name;
-  Vector *params;  // <VarInfo*>
 
   Vector *scopes;  // NULL => prototype definition.
 
@@ -152,7 +151,7 @@ typedef struct Function {
   BB *ret_bb;
 } Function;
 
-Function *new_func(const Type *type, const Name *name, Vector *params);
+Function *new_func(const Type *type, const Name *name);
 
 // Defun
 

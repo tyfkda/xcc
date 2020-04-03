@@ -328,8 +328,9 @@ static Stmt *statement(void) {
   return new_stmt_expr(val);
 }
 
-static Declaration *parse_defun(const Type *functype, int flag, Token *ident, Vector *params) {
-  Function *func = new_func(functype, ident->ident, params);
+static Declaration *parse_defun(const Type *functype, int flag, Token *ident) {
+  assert(functype->kind == TY_FUNC);
+  Function *func = new_func(functype, ident->ident);
   Defun *defun = new_defun(func, flag);
   if (match(TK_SEMICOL)) {
     // Prototype declaration.
@@ -403,7 +404,7 @@ static Declaration *declaration(void) {
     }
 
     if (type->kind == TY_FUNC)
-      return parse_defun(type, flag, ident, type->func.params);
+      return parse_defun(type, flag, ident);
 
     return parse_global_var_decl(rawtype, flag, type, ident);
   }

@@ -645,7 +645,7 @@ static void sema_defun(Defun *defun) {
   if (defun->stmts != NULL) {  // Not prototype defintion.
     curdefun = defun;
     Vector *top_vars = NULL;
-    Vector *params = defun->func->params;
+    Vector *params = defun->func->type->func.params;
     if (params != NULL) {
       top_vars = new_vector();
       for (int i = 0; i < params->len; ++i)
