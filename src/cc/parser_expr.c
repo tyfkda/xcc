@@ -254,6 +254,16 @@ const Type *parse_type_suffix(const Type *type) {
   return arrayof(parse_type_suffix(type), length);
 }
 
+static Vector *extract_varinfo_types(Vector *params) {
+  Vector *param_types = NULL;
+  if (params != NULL) {
+    param_types = new_vector();
+    for (int i = 0, len = params->len; i < len; ++i)
+      vec_push(param_types, ((VarInfo*)params->data[i])->type);
+  }
+  return param_types;
+}
+
 Vector *parse_funparam_types(bool *pvaargs) {  // Vector<Type*>
   Vector *params = parse_funparams(pvaargs);
   return extract_varinfo_types(params);

@@ -42,16 +42,6 @@ VarInfo *var_add(Vector *lvars, const Token *ident, const Type *type, int flag) 
   return ginfo != NULL ? ginfo : info;
 }
 
-Vector *extract_varinfo_types(Vector *params) {
-  Vector *param_types = NULL;
-  if (params != NULL) {
-    param_types = new_vector();
-    for (int i = 0, len = params->len; i < len; ++i)
-      vec_push(param_types, ((VarInfo*)params->data[i])->type);
-  }
-  return param_types;
-}
-
 // Global
 
 Vector *gvar_names;

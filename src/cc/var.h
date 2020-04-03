@@ -43,7 +43,6 @@ typedef struct VarInfo {
 
 int var_find(Vector *lvars, const Name *name);
 VarInfo *var_add(Vector *lvars, const Token *ident, const Type *type, int flag);
-Vector *extract_varinfo_types(Vector *params);
 
 extern Vector *gvar_names;
 
