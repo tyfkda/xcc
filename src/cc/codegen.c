@@ -437,8 +437,8 @@ static void alloc_variable_registers(Function *func) {
         continue;  // Static variable is not allocated on stack.
 
       VReg *vreg = add_new_reg(varinfo->type, VRF_LOCAL);
-      if (i == 0 && func->params != NULL) {
-        int param_index = var_find(func->params, varinfo->name);
+      if (i == 0 && func->type->func.params != NULL) {
+        int param_index = var_find(func->type->func.params, varinfo->name);
         if (param_index >= 0) {
           vreg->flag |= VRF_PARAM;
           vreg->param_index = param_index;
@@ -457,7 +457,7 @@ static void put_args_to_stack(Defun *defun) {
   static const char **kRegTable[] = {NULL, kReg8s, kReg16s, NULL, kReg32s, NULL, NULL, NULL, kReg64s};
 
   // Store arguments into local frame.
-  Vector *params = defun->func->params;
+  Vector *params = defun->func->type->func.params;
   if (params == NULL)
     return;
 

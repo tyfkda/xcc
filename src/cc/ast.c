@@ -111,11 +111,11 @@ Expr *new_expr_cast(const Type *type, const Token *token, Expr *sub) {
 
 // Function
 
-Function *new_func(const Type *type, const Name *name, Vector *params) {
+Function *new_func(const Type *type, const Name *name) {
+  assert(type->kind == TY_FUNC);
   Function *func = malloc(sizeof(*func));
   func->type = type;
   func->name = name;
-  func->params = params;
 
   func->scopes = NULL;
   func->ra = NULL;

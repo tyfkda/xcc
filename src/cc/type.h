@@ -59,6 +59,7 @@ typedef struct Type {
     } pa;
     struct {
       const struct Type *ret;
+      Vector *params;  // <VarInfo*>
       Vector *param_types;  // <Type*>
       bool vaargs;
     } func;
@@ -90,7 +91,7 @@ bool same_type(const Type *type1, const Type *type2);
 Type *ptrof(const Type *type);
 const Type *array_to_ptr(const Type *type);
 Type *arrayof(const Type *type, size_t length);
-Type *new_func_type(const Type *ret, Vector *param_types, bool vaargs);
+Type *new_func_type(const Type *ret, Vector *params, Vector *param_types, bool vaargs);
 
 // Struct
 

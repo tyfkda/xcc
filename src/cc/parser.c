@@ -72,7 +72,7 @@ static Vector *parse_vardecl_cont(const Type *rawType, Type *type, int flag, Tok
   bool first = true;
   do {
     if (!first) {
-      if (!parse_var_def(&rawType, (const Type**)&type, &flag, &ident, NULL) || ident == NULL) {
+      if (!parse_var_def(&rawType, (const Type**)&type, &flag, &ident) || ident == NULL) {
         parse_error(NULL, "`ident' expected");
         return NULL;
       }
@@ -82,8 +82,9 @@ static Vector *parse_vardecl_cont(const Type *rawType, Type *type, int flag, Tok
     Initializer *init = NULL;
     if (match(TK_LPAR)) {  // Function prototype.
       bool vaargs;
-      Vector *param_types = parse_funparam_types(&vaargs);
-      type = new_func_type(type, param_types, vaargs);
+      Vector *params = parse_funparams(&vaargs);
+      Vector *param_types = extract_varinfo_types(params);
+      type = new_func_type(type, params, param_types, vaargs);
       flag |= VF_EXTERN;
     } else {
       not_void(type);
@@ -105,7 +106,7 @@ static Stmt *parse_vardecl(void) {
   Type *type;
   int flag;
   Token *ident;
-  if (!parse_var_def(&rawType, (const Type**)&type, &flag, &ident, NULL))
+  if (!parse_var_def(&rawType, (const Type**)&type, &flag, &ident))
     return NULL;
   if (ident == NULL)
     parse_error(NULL, "Ident expected");
@@ -178,7 +179,7 @@ static Stmt *parse_for(const Token *tok) {
     Type *type;
     int flag;
     Token *ident;
-    if (parse_var_def(&rawType, (const Type**)&type, &flag, &ident, NULL)) {
+    if (parse_var_def(&rawType, (const Type**)&type, &flag, &ident)) {
       if (ident == NULL)
         parse_error(NULL, "Ident expected");
       decls = parse_vardecl_cont(rawType, type, flag, ident);
@@ -327,8 +328,9 @@ static Stmt *statement(void) {
   return new_stmt_expr(val);
 }
 
-static Declaration *parse_defun(const Type *functype, int flag, Token *ident, Vector *params) {
-  Function *func = new_func(functype, ident->ident, params);
+static Declaration *parse_defun(const Type *functype, int flag, Token *ident) {
+  assert(functype->kind == TY_FUNC);
+  Function *func = new_func(functype, ident->ident);
   Defun *defun = new_defun(func, flag);
   if (match(TK_SEMICOL)) {
     // Prototype declaration.
@@ -389,8 +391,7 @@ static Declaration *declaration(void) {
   const Type *rawtype = NULL, *type;
   int flag;
   Token *ident;
-  Vector *funparams;
-  if (parse_var_def(&rawtype, &type, &flag, &ident, &funparams)) {
+  if (parse_var_def(&rawtype, &type, &flag, &ident)) {
     if (ident == NULL) {
       if ((type->kind == TY_STRUCT ||
            (type->kind == TY_NUM && type->num.kind == NUM_ENUM)) &&
@@ -403,7 +404,7 @@ static Declaration *declaration(void) {
     }
 
     if (type->kind == TY_FUNC)
-      return parse_defun(type, flag, ident, funparams);
+      return parse_defun(type, flag, ident);
 
     return parse_global_var_decl(rawtype, flag, type, ident);
   }
