@@ -7,7 +7,6 @@
 
 typedef struct BB BB;
 typedef struct Expr Expr;
-typedef struct Stmt Stmt;
 typedef struct StructInfo StructInfo;
 typedef struct Type Type;
 typedef struct VReg VReg;
@@ -17,7 +16,6 @@ typedef struct Vector Vector;
 // Public
 
 void gen(Vector *toplevel);
-void emit_code(Vector *toplevel);
 
 // Private
 

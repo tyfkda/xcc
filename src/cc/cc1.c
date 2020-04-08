@@ -5,6 +5,7 @@
 
 #include "codegen.h"
 #include "emit.h"
+#include "emit_code.h"
 #include "ir_debug.h"
 #include "lexer.h"
 #include "parser.h"

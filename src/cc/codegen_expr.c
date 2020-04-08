@@ -11,7 +11,6 @@
 #include "type.h"
 #include "util.h"
 #include "var.h"
-#include "x86_64.h"
 
 VRegType *to_vtype(const Type *type) {
   VRegType *vtype = malloc(sizeof(*vtype));
