@@ -28,7 +28,7 @@ cc-tests:	test-sh test-val test-examples
 
 .PHONY: clean
 clean:
-	rm -f table_test util_test valtest a.out tmp.s
+	rm -f table_test util_test parser_test valtest a.out tmp.s
 
 .PHONY: test-table
 test-table:	table_test
