@@ -1,3 +1,11 @@
+// Fib : Calculate fibonacci (30)
+//
+// Compile:
+//   $ ./xcc -ofib examples/fib.c
+//
+// Run:
+//   $ ./fib  #=> 832040
+
 #include "../lib/crt0.c"
 #include "util.c"
 

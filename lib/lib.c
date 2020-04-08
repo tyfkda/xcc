@@ -7,13 +7,13 @@
 #include "_file.h"
 
 #if defined(__XV6)
-ssize_t write(int fd, const char *str, long len) {
+ssize_t write(int fd, const void *str, size_t len) {
   __asm("mov $16, %eax");  // SYS_write
   __asm("int $64");
 }
 
 #elif defined(__linux__)
-ssize_t write(int fd, const char *str, long len) {
+ssize_t write(int fd, const void *str, size_t len) {
   __asm("mov $1, %eax");  // __NR_write
   __asm("syscall\n");
 }
@@ -36,14 +36,14 @@ size_t strlen(const char *s) {
   return p - s;
 }
 
-char *strchr(const char *s, char c) {
+char *strchr(const char *s, int c) {
   for (; *s != '\0'; ++s)
     if (*s == c)
       return (char*)s;
   return 0;
 }
 
-char *strrchr(const char *s, char c) {
+char *strrchr(const char *s, int c) {
   char *last = NULL;
   for(; *s != '\0'; ++s)
     if(*s == c)

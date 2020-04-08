@@ -1,3 +1,11 @@
+// Longjmp test
+//
+// Compile:
+//   $ ./xcc -olongjmp_test -Iinc examples/longjmp_test.c lib/setjmp.c
+//
+// Run:
+//   $ ./longjmp_test  #=> 123
+
 #include <setjmp.h>
 
 #include "../lib/crt0.c"

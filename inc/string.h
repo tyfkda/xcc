@@ -3,8 +3,8 @@
 #include <stddef.h>  // size_t
 
 size_t strlen(const char *s);
-char* strchr(const char *s, char c);
-char* strrchr(const char *s, char c);
+char* strchr(const char *s, int c);
+char* strrchr(const char *s, int c);
 int strcmp(const char *p, const char *q);
 int strncmp(const char *p, const char *q, size_t n);
 char* strcpy(char *s, const char *t);

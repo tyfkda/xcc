@@ -1,3 +1,11 @@
+// Hello world!
+//
+// Compile:
+//   $ ./xcc -ohello examples/hello.c
+//
+// Run:
+//   $ ./hello  #=> Hello, world!
+
 #include "../lib/crt0.c"
 #include "util.c"
 

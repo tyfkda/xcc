@@ -1,3 +1,11 @@
+// Echo : Handle command line arguments
+//
+// Compile:
+//   $ ./xcc -oecho examples/echo.c
+//
+// Run:
+//   $ ./echo foo bar baz  #=> foo bar baz
+
 #include "../lib/crt0.c"
 #include "util.c"
 
