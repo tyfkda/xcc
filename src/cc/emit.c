@@ -7,7 +7,6 @@
 
 #include "table.h"
 #include "util.h"
-#include "x86_64.h"
 
 #ifdef __APPLE__
 #define MANGLE_PREFIX  "_"
@@ -108,8 +107,13 @@ void emit_comment(const char *comment, ...) {
 void emit_align(int align) {
   if (align <= 1)
     return;
+  fprintf(emit_fp, "\t.align %d\n", align);
+}
 
-#ifdef __APPLE__
+void emit_align_p2(int align) {
+  if (align <= 1)
+    return;
+
   // On Apple platform,
   // .align directive is actually .p2align,
   // so it has to find power of 2.
@@ -120,10 +124,7 @@ void emit_align(int align) {
     if (x <= 0)
       break;
   }
-  _P2ALIGN(NUM(bit));
-#else
-  _ALIGN(NUM(align));
-#endif
+  fprintf(emit_fp, "\t.p2align %d\n", bit);
 }
 
 void init_emit(FILE *fp) {

@@ -172,7 +172,7 @@ static void construct_initial_value(unsigned char *buf, const Type *type, Initia
         if (mem_init != NULL || !sinfo->is_union) {
           int align = align_size(member->type);
           if (offset % align != 0) {
-            emit_align(align);
+            EMIT_ALIGN(align);
             offset = ALIGN(offset, align);
           }
           construct_initial_value(buf + member->struct_.offset, member->type, mem_init);
@@ -217,7 +217,7 @@ static void put_data(const Name *name, const VarInfo *varinfo) {
   if (buf == NULL)
     error("Out of memory");
 
-  emit_align(align_size(varinfo->type));
+  EMIT_ALIGN(align_size(varinfo->type));
   const char *label = fmt_name(name);
   if ((varinfo->flag & VF_STATIC) == 0) {  // global
     label = MANGLE(label);
@@ -267,7 +267,7 @@ static void put_bss(void) {
         (varinfo->flag & VF_EXTERN) != 0)
       continue;
 
-    emit_align(align_size(varinfo->type));
+    EMIT_ALIGN(align_size(varinfo->type));
     size_t size = type_size(varinfo->type);
     if (size < 1)
       size = 1;

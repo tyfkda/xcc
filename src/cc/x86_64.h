@@ -172,8 +172,8 @@
 
 #ifdef __APPLE__
 #define _RODATA()      _SECTION("__TEXT,__const")
-#define _P2ALIGN(x)    EMIT_ASM1(".p2align", x)
+#define EMIT_ALIGN(x)  emit_align_p2(x)
 #else
 #define _RODATA()      _SECTION(".rodata")
-#define _ALIGN(x)      EMIT_ASM1(".align", x)
+#define EMIT_ALIGN(x)  emit_align(x)
 #endif
