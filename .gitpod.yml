@@ -1,11 +1,11 @@
 tasks:
-- openMode: split-right
-  command: ulimit -c 0  # Suppress core file
-  command: git config --local alias.br branch
-  command: git config --local alias.cp cherry-pick
-  command: git config --local alias.rtm rebase master
-  command: git config --local alias.s status
-  command: git config --local alias.sp stash pop
-  command: git config --local alias.ss stash save
-  command: git config --local alias.sw checkout
-  command: git config --local alias.tr "log --graph --pretty='format:%x09%C(yellow)%h%Creset %s %Cgreen[%cd] %Cblue(%an) %Cred%d%Creset' --date='format:%Y/%m/%d %H:%M:%S'"
+  - command: >
+      ulimit -c 0;
+      git config --local alias.br branch;
+      git config --local alias.cp cherry-pick;
+      git config --local alias.rtm rebase master;
+      git config --local alias.s status;
+      git config --local alias.sp stash pop;
+      git config --local alias.ss stash save;
+      git config --local alias.sw checkout;
+      git config --local alias.tr "log --oneline --decorate --graph --branches --tags --remotes";
