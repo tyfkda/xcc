@@ -15,11 +15,11 @@
 #include "type.h"
 #include "util.h"
 
-char *abspath_cwd(const char *dir, const char *path) {
+char *cat_path_cwd(const char *dir, const char *path) {
   char *cwd = getcwd(NULL, 0);
-  char *root = abspath(cwd, dir);
+  char *root = cat_path(cwd, dir);
   free(cwd);
-  return abspath(root, path);
+  return cat_path(root, path);
 }
 
 enum SegmentType {
@@ -133,13 +133,13 @@ void handle_include(const char *p, const char *srcname) {
   FILE *fp = NULL;
   // Search from current directory.
   if (!sys) {
-    fn = abspath_cwd(dirname(strdup_(srcname)), path);
+    fn = cat_path_cwd(dirname(strdup_(srcname)), path);
     fp = fopen(fn, "r");
   }
   if (fp == NULL) {
     // Search from system include directries.
     for (int i = 0; i < sys_inc_paths->len; ++i) {
-      fn = abspath_cwd(sys_inc_paths->data[i], path);
+      fn = cat_path_cwd(sys_inc_paths->data[i], path);
       fp = fopen(fn, "r");
       if (fp != NULL)
         break;

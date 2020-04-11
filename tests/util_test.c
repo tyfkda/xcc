@@ -79,25 +79,25 @@ void test_sb(void) {
   EXPECT(true, sb_empty(&sb));
 }
 
-void test_abspath(void) {
-  EXPECT_STREQ("Relative", "/user/foo/inc/stdio.h", abspath("/user/foo", "inc/stdio.h"));
-  EXPECT_STREQ("Absolute", "/inc/stdio.h", abspath("/user/foo", "/inc/stdio.h"));
-  EXPECT_STREQ("Current", "/user/foo/inc/stdio.h", abspath("/user/foo", "./inc/stdio.h"));
-  EXPECT_STREQ("Parent", "/user/inc/stdio.h", abspath("/user/foo", "../inc/stdio.h"));
-  EXPECT_STREQ("Dir", "/user/foo/bar/baz/", abspath("/user/foo", "bar/baz/"));
-  EXPECT_STREQ("Redundant slash", "/user/foo/bar/baz", abspath("/user/foo", "bar//baz"));
-  EXPECT_STREQ("Root 1", "/", abspath("/", "."));
-  EXPECT_STREQ("Root 2", "/", abspath("/user/foo", "../.."));
-  EXPECT_STREQ("Root 3", "/", abspath("/user/foo", "../../"));
-  EXPECT_NULL("Illegal", abspath("/user/foo", "../../.."));
-  EXPECT_STREQ("Root end with '/'", "/user/foo/inc/stdio.h", abspath("/user/foo/", "inc/stdio.h"));
-  EXPECT_STREQ("Not root", "user/foo/inc/stdio.h", abspath("user/foo", "inc/stdio.h"));
+void test_cat_path(void) {
+  EXPECT_STREQ("Relative", "/user/foo/inc/stdio.h", cat_path("/user/foo", "inc/stdio.h"));
+  EXPECT_STREQ("Absolute", "/inc/stdio.h", cat_path("/user/foo", "/inc/stdio.h"));
+  EXPECT_STREQ("Current", "/user/foo/inc/stdio.h", cat_path("/user/foo", "./inc/stdio.h"));
+  EXPECT_STREQ("Parent", "/user/inc/stdio.h", cat_path("/user/foo", "../inc/stdio.h"));
+  EXPECT_STREQ("Dir", "/user/foo/bar/baz/", cat_path("/user/foo", "bar/baz/"));
+  EXPECT_STREQ("Redundant slash", "/user/foo/bar/baz", cat_path("/user/foo", "bar//baz"));
+  EXPECT_STREQ("Root 1", "/", cat_path("/", "."));
+  EXPECT_STREQ("Root 2", "/", cat_path("/user/foo", "../.."));
+  EXPECT_STREQ("Root 3", "/", cat_path("/user/foo", "../../"));
+  EXPECT_NULL("Illegal", cat_path("/user/foo", "../../.."));
+  EXPECT_STREQ("Root end with '/'", "/user/foo/inc/stdio.h", cat_path("/user/foo/", "inc/stdio.h"));
+  EXPECT_STREQ("Not root", "user/foo/inc/stdio.h", cat_path("user/foo", "inc/stdio.h"));
 }
 
 void runtest(void) {
   test_vector();
   test_sb();
-  test_abspath();
+  test_cat_path();
 
   printf("OK\n");
 }
