@@ -16,6 +16,19 @@
 #include "table.h"
 #include "util.h"
 
+
+#if defined(__XV6)
+// XV6
+#include "../kernel/types.h"
+#include "../kernel/elf.h"
+
+#elif defined(__linux__)
+// Linux
+#include <elf.h>
+
+#endif
+
+
 #define PROG_START   (0x100)
 
 #if defined(__XV6)
@@ -89,6 +102,13 @@ static void put_padding(FILE *fp, uintptr_t start) {
   }
 }
 
+static void putnum(FILE *fp, unsigned long num, int bytes) {
+  for (int i = 0; i < bytes; ++i) {
+    fputc(num, fp);
+    num >>= 8;
+  }
+}
+
 static void drop_all(FILE *fp) {
   for (;;) {
     char buf[4096];
@@ -97,81 +117,162 @@ static void drop_all(FILE *fp) {
       break;
   }
 }
-#endif  // !AS_USE_CC
 
-// ================================================
+static int output_obj(const char *ofn, Table *label_table) {
+  UNUSED(label_table);
 
-int main(int argc, char *argv[]) {
-  const char *ofn = "a.out";
-  int iarg;
+  size_t codesz, rodatasz, datasz, bsssz;
+  get_section_size(SEC_CODE, &codesz, NULL);
+  get_section_size(SEC_RODATA, &rodatasz, NULL);
+  get_section_size(SEC_DATA, &datasz, NULL);
+  get_section_size(SEC_BSS, &bsssz, NULL);
 
-  for (iarg = 1; iarg < argc; ++iarg) {
-    char *arg = argv[iarg];
-    if (*arg != '-')
-      break;
-
-    if (starts_with(arg, "-o")) {
-      ofn = strdup_(arg + 2);
-    } else if (strcmp(arg, "--version") == 0) {
-      show_version("as");
-      return 0;
-    } else {
-      fprintf(stderr, "Unknown option: %s\n", arg);
+  FILE *ofp;
+  if (ofn == NULL) {
+    ofp = stdout;
+  } else {
+    ofp = fopen(ofn, "wb");
+    if (ofp == NULL) {
+      fprintf(stderr, "Failed to open output file: %s\n", ofn);
+      if (!isatty(STDIN_FILENO))
+        drop_all(stdin);
       return 1;
     }
   }
 
-#if !defined(AS_USE_CC)
-  // ================================================
-  // Run own assembler
+  uintptr_t entry = 0;
+  int phnum = 0;
+  int shnum = 6;
+  out_elf_header(ofp, entry, phnum, shnum);
 
-  FILE *fp = fopen(ofn, "wb");
-  if (fp == NULL) {
-    fprintf(stderr, "Failed to open output file: %s\n", ofn);
-    if (!isatty(STDIN_FILENO))
-      drop_all(stdin);
-    return 1;
+  uintptr_t addr = sizeof(Elf64_Ehdr);
+  uintptr_t code_ofs = addr;
+  output_section(ofp, SEC_CODE);
+  uintptr_t rodata_ofs = addr += codesz;
+  if (rodatasz > 0) {
+    rodata_ofs = ALIGN(rodata_ofs, 0x10);
+    put_padding(ofp, rodata_ofs);
+    output_section(ofp, SEC_RODATA);
+    addr = rodata_ofs + rodatasz;
   }
+  uintptr_t data_ofs = addr;
+  if (datasz > 0) {
+    data_ofs = ALIGN(data_ofs, 0x10);
+    put_padding(ofp, data_ofs);
+    output_section(ofp, SEC_DATA);
+    addr = data_ofs + datasz;
+  }
+  uintptr_t bss_ofs = addr;
+  if (bsssz > 0) {
+    bss_ofs = ALIGN(bss_ofs, 0x10);
+    put_padding(ofp, bss_ofs);
+    addr = bss_ofs;
+  }
+  put_padding(ofp, ALIGN(addr, 0x10));
 
-  Vector *section_irs[SECTION_COUNT];
-  Table label_table;
-  table_init(&label_table);
-  for (int i = 0; i < SECTION_COUNT; ++i)
-    section_irs[i] = new_vector();
+  // Set up shstrtab.
+  Strtab shstrtab;
+  strtab_init(&shstrtab);
 
-  if (iarg < argc) {
-    for (int i = iarg; i < argc; ++i) {
-      FILE *fp = fopen(argv[i], "r");
-      if (fp == NULL)
-        error("Cannot open %s\n", argv[i]);
-      parse_file(fp, argv[i], section_irs, &label_table);
-      fclose(fp);
-      if (err)
-        break;
+  // Output section headers.
+  {
+    Elf64_Shdr nulsec = {
+      .sh_name = strtab_add(&shstrtab, alloc_name("", NULL, false)),
+      .sh_type = SHT_NULL,
+      .sh_addralign = 1,
+    };
+    Elf64_Shdr textsec = {
+      .sh_name = strtab_add(&shstrtab, alloc_name(".text", NULL, false)),
+      .sh_type = SHT_PROGBITS,
+      .sh_flags = SHF_EXECINSTR | SHF_ALLOC,
+      .sh_addr = 0,
+      .sh_offset = code_ofs,
+      .sh_size = codesz,
+      .sh_link = 0,
+      .sh_info = 0,
+      .sh_addralign = MAX(section_aligns[SEC_CODE], 1),
+      .sh_entsize = 0,
+    };
+    Elf64_Shdr rodatasec = {
+      .sh_name = strtab_add(&shstrtab, alloc_name(".rodata", NULL, false)),
+      .sh_type = SHT_PROGBITS,
+      .sh_flags = SHF_ALLOC,
+      .sh_addr = 0,
+      .sh_offset = rodata_ofs,
+      .sh_size = rodatasz,
+      .sh_link = 0,
+      .sh_info = 0,
+      .sh_addralign = MAX(section_aligns[SEC_RODATA], 1),
+      .sh_entsize = 0,
+    };
+    Elf64_Shdr datasec = {
+      .sh_name = strtab_add(&shstrtab, alloc_name(".data", NULL, false)),
+      .sh_type = SHT_PROGBITS,
+      .sh_flags = SHF_WRITE | SHF_ALLOC,
+      .sh_addr = 0,
+      .sh_offset = data_ofs,
+      .sh_size = datasz,
+      .sh_link = 0,
+      .sh_info = 0,
+      .sh_addralign = MAX(section_aligns[SEC_DATA], 1),
+      .sh_entsize = 0,
+    };
+    Elf64_Shdr bsssec = {
+      .sh_name = strtab_add(&shstrtab, alloc_name(".bss", NULL, false)),
+      .sh_type = SHT_NOBITS,
+      .sh_flags = SHF_WRITE | SHF_ALLOC,
+      .sh_addr = 0,
+      .sh_offset = bss_ofs,
+      .sh_size = bsssz,
+      .sh_link = 0,
+      .sh_info = 0,
+      .sh_addralign = MAX(section_aligns[SEC_BSS], 1),
+      .sh_entsize = 0,
+    };
+    Elf64_Shdr shstrtabsec = {
+      .sh_name = strtab_add(&shstrtab, alloc_name(".shstrtab", NULL, false)),
+      .sh_type = SHT_STRTAB,
+      .sh_flags = 0,
+      .sh_addr = 0,
+      .sh_offset = 0,  // Dummy
+      .sh_size = 0,    // Dummy
+      .sh_link = 0,
+      .sh_info = 0,
+      .sh_addralign = 1,
+      .sh_entsize = 0,
+    };
+
+    long shstrtab_ofs;
+    {
+      void *buf = strtab_dump(&shstrtab);
+      long cur = ftell(ofp);
+      shstrtab_ofs = ALIGN(cur, 0x10);
+      put_padding(ofp, shstrtab_ofs);
+      fwrite(buf, shstrtab.size, 1, ofp);
     }
-  } else {
-    parse_file(stdin, "*stdin*", section_irs, &label_table);
+    shstrtabsec.sh_offset = shstrtab_ofs;
+    shstrtabsec.sh_size = shstrtab.size;
+
+    long cur = ftell(ofp);
+    long sh_ofs = ALIGN(cur, 0x10);
+    put_padding(ofp, sh_ofs);
+
+    fwrite(&nulsec, sizeof(nulsec), 1, ofp);
+    fwrite(&textsec, sizeof(textsec), 1, ofp);
+    fwrite(&rodatasec, sizeof(rodatasec), 1, ofp);
+    fwrite(&datasec, sizeof(datasec), 1, ofp);
+    fwrite(&bsssec, sizeof(bsssec), 1, ofp);
+    fwrite(&shstrtabsec, sizeof(shstrtabsec), 1, ofp);
+
+    // Write section table offset.
+    fseek(ofp, 0x28, SEEK_SET);
+    putnum(ofp, sh_ofs, 8);
   }
 
-  section_aligns[SEC_DATA] = DATA_ALIGN;
+  return 0;
+}
 
-  if (!err) {
-    do {
-      calc_label_address(LOAD_ADDRESS, section_irs, &label_table);
-    } while (!resolve_relative_address(section_irs, &label_table));
-    emit_irs(section_irs, &label_table);
-  }
-
-  if (err) {
-    if (fp != NULL) {
-      fclose(fp);
-      remove(ofn);
-    }
-    return 1;
-  }
-
-  fix_section_size(LOAD_ADDRESS);
-
+static int output_exe(const char *ofn, Table *label_table) {
   size_t codesz, rodatasz, datasz, bsssz;
   uintptr_t codeloadadr, dataloadadr;
   get_section_size(SEC_CODE, &codesz, &codeloadadr);
@@ -179,15 +280,28 @@ int main(int argc, char *argv[]) {
   get_section_size(SEC_DATA, &datasz, &dataloadadr);
   get_section_size(SEC_BSS, &bsssz, NULL);
 
-  LabelInfo *entry = table_get(&label_table, alloc_name("_start", NULL, false));
+  LabelInfo *entry = table_get(label_table, alloc_name("_start", NULL, false));
   if (entry == NULL)
     error("Cannot find label: `%s'", "_start");
 
   int phnum = datasz > 0 || bsssz > 0 ? 2 : 1;
 
+  FILE *fp;
+  if (ofn == NULL) {
+    fp = stdout;
+  } else {
+    fp = fopen(ofn, "wb");
+    if (fp == NULL) {
+      fprintf(stderr, "Failed to open output file: %s\n", ofn);
+      if (!isatty(STDIN_FILENO))
+        drop_all(stdin);
+      return 1;
+    }
+  }
+
   size_t rodata_align = MAX(section_aligns[SEC_RODATA], 1);
   size_t code_rodata_sz = ALIGN(codesz, rodata_align) + rodatasz;
-  out_elf_header(fp, entry->address, phnum);
+  out_elf_header(fp, entry->address, phnum, 0);
   out_program_header(fp, 0, PROG_START, codeloadadr, code_rodata_sz, code_rodata_sz);
   if (phnum > 1) {
     size_t bss_align = MAX(section_aligns[SEC_BSS], 1);
@@ -220,6 +334,85 @@ int main(int argc, char *argv[]) {
     return 1;
   }
 #endif
+  return 0;
+}
+#endif  // !AS_USE_CC
+
+// ================================================
+
+int main(int argc, char *argv[]) {
+  const char *ofn = NULL;
+  bool out_obj = false;
+  int iarg;
+
+  for (iarg = 1; iarg < argc; ++iarg) {
+    char *arg = argv[iarg];
+    if (*arg != '-')
+      break;
+
+    if (strcmp(arg, "-c") == 0) {
+      out_obj = true;
+    } else if (starts_with(arg, "-o")) {
+      ofn = strdup_(arg + 2);
+    } else if (strcmp(arg, "--version") == 0) {
+      show_version("as");
+      return 0;
+    } else {
+      fprintf(stderr, "Unknown option: %s\n", arg);
+      return 1;
+    }
+  }
+
+  if (ofn == NULL) {
+    if (out_obj) {
+      if (iarg < argc)
+        ofn = change_ext(argv[iarg], "o");
+    } else {
+      ofn = "a.out";
+    }
+  }
+
+#if !defined(AS_USE_CC)
+  // ================================================
+  // Run own assembler
+
+  Vector *section_irs[SECTION_COUNT];
+  Table label_table;
+  table_init(&label_table);
+  for (int i = 0; i < SECTION_COUNT; ++i)
+    section_irs[i] = new_vector();
+
+  if (iarg < argc) {
+    for (int i = iarg; i < argc; ++i) {
+      FILE *fp = fopen(argv[i], "r");
+      if (fp == NULL)
+        error("Cannot open %s\n", argv[i]);
+      parse_file(fp, argv[i], section_irs, &label_table);
+      fclose(fp);
+      if (err)
+        break;
+    }
+  } else {
+    parse_file(stdin, "*stdin*", section_irs, &label_table);
+  }
+
+  if (!out_obj)
+    section_aligns[SEC_DATA] = DATA_ALIGN;
+
+  if (!err) {
+    do {
+      calc_label_address(LOAD_ADDRESS, section_irs, &label_table);
+    } while (!resolve_relative_address(section_irs, &label_table));
+    emit_irs(section_irs, &label_table);
+  }
+
+  if (err) {
+    return 1;
+  }
+
+  fix_section_size(LOAD_ADDRESS);
+
+  return out_obj ? output_obj(ofn, &label_table) : output_exe(ofn, &label_table);
 
 #else  // AS_NOT_SUPPORTED
   // ================================================
@@ -229,6 +422,8 @@ int main(int argc, char *argv[]) {
   vec_push(cc_args, "cc");
   vec_push(cc_args, "-o");
   vec_push(cc_args, ofn);
+  if (out_obj)
+    vec_push(cc_args, "-c");
 
   char temp_file_name[FILENAME_MAX + 2];
   if (iarg >= argc) {
@@ -263,6 +458,7 @@ int main(int argc, char *argv[]) {
   vec_push(cc_args, NULL);
   if (execvp(cc_args->data[0], (char *const*)cc_args->data) < 0)
     error("Failed to call cc");
-#endif
+
   return 0;
+#endif
 }

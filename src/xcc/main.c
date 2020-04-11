@@ -160,14 +160,16 @@ void usage(FILE *fp) {
       "  -I<path>            Add include path\n"
       "  -D<label[=value]>   Define label\n"
       "  -o<filename>        Set output filename (Default: a.out)\n"
+      "  -c                  Output object file\n"
       "  -S                  Output assembly code\n"
       "  -E                  Output preprocess result\n"
   );
 }
 
 int main(int argc, char *argv[]) {
-  const char *ofn = "a.out";
+  const char *ofn = NULL;
   bool out_pp = false;
+  bool out_obj = false;
   bool run_asm = true;
   int iarg;
 
@@ -192,6 +194,9 @@ int main(int argc, char *argv[]) {
 
     if (starts_with(arg, "-I") || starts_with(arg, "-D")) {
       vec_push(cpp_cmd, arg);
+    } else if (starts_with(arg, "-c")) {
+      out_obj = true;
+      vec_push(as_cmd, arg);
     } else if (starts_with(arg, "-o")) {
       ofn = arg + 2;
       vec_push(as_cmd, arg);
@@ -218,6 +223,23 @@ int main(int argc, char *argv[]) {
     fprintf(stderr, "No input files\n\n");
     usage(stderr);
     return 1;
+  }
+
+  if (ofn == NULL) {
+    if (out_obj) {
+      if (iarg < argc)
+        ofn = change_ext(basename(argv[iarg]), "o");
+      else
+        ofn = "a.s";
+    } else {
+      ofn = "a.out";
+    }
+
+    StringBuffer sb;
+    sb_init(&sb);
+    sb_append(&sb, "-o", NULL);
+    sb_append(&sb, ofn, NULL);
+    vec_push(as_cmd, sb_to_string(&sb));
   }
 
   vec_push(cpp_cmd, NULL);  // Buffer for src.
