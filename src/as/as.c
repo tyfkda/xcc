@@ -62,12 +62,8 @@ void parse_file(FILE *fp, const char *filename, Vector **section_irs, Table *lab
     if (line->label != NULL) {
       vec_push(irs, new_ir_label(line->label));
 
-      void *address = table_get(label_table, line->label);
-      if (address != NULL) {
-        fprintf(stderr, "`%.*s' already defined\n", line->label->bytes, line->label->chars);
+      if (!add_label_table(label_table, line->label, true, false))
         err = true;
-      }
-      table_put(label_table, line->label, (void*)line->label);
     }
 
     if (line->dir == NODIRECTIVE) {
@@ -77,7 +73,7 @@ void parse_file(FILE *fp, const char *filename, Vector **section_irs, Table *lab
           vec_push(irs, new_ir_code(&code));
       }
     } else {
-      handle_directive(&info, line->dir, section_irs);
+      handle_directive(&info, line->dir, section_irs, label_table);
     }
   }
 }
@@ -179,13 +175,13 @@ int main(int argc, char *argv[]) {
   get_section_size(SEC_CODE, &codefilesz, &codememsz, &codeloadadr);
   get_section_size(SEC_DATA, &datafilesz, &datamemsz, &dataloadadr);
 
-  void *entry = table_get(&label_table, alloc_name("_start", NULL, false));
+  LabelInfo *entry = table_get(&label_table, alloc_name("_start", NULL, false));
   if (entry == NULL)
     error("Cannot find label: `%s'", "_start");
 
   int phnum = datamemsz > 0 ? 2 : 1;
 
-  out_elf_header(fp, (uintptr_t)entry, phnum);
+  out_elf_header(fp, entry->address, phnum);
   out_program_header(fp, 0, PROG_START, codeloadadr, codefilesz, codememsz);
   if (phnum > 1)
     out_program_header(fp, 1, ALIGN(PROG_START + codefilesz, 0x1000), dataloadadr, datafilesz, datamemsz);

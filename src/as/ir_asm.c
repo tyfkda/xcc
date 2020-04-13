@@ -13,6 +13,32 @@
 #define LONG_SIZE  (4)
 #define QUAD_SIZE  (8)
 
+LabelInfo *new_label(uintptr_t address) {
+  LabelInfo *info = malloc(sizeof(*info));
+  info->address = address;
+  info->flag = 0;
+  return info;
+}
+
+bool add_label_table(Table *label_table, const Name *label, bool define, bool global) {
+  LabelInfo *info = table_get(label_table, label);
+  if (info != NULL) {
+    if (define) {
+      if (info->address != 0) {
+        fprintf(stderr, "`%.*s' already defined\n", label->bytes, label->chars);
+        return false;
+      }
+      info->address = 1;
+    }
+  } else {
+    info = new_label(define ? 1 : 0);
+    table_put(label_table, label, info);
+  }
+  if (global)
+    info->flag |= LF_GLOBAL;
+  return true;
+}
+
 IR *new_ir_label(const Name *label) {
   IR *ir = malloc(sizeof(*ir));
   ir->kind = IR_LABEL;
@@ -75,7 +101,15 @@ void calc_label_address(uintptr_t start_address, Vector **section_irs, Table *la
       ir->address = address;
       switch (ir->kind) {
       case IR_LABEL:
-        table_put(label_table, ir->label, (void*)address);
+        {
+          LabelInfo *info;
+          if (!table_try_get(label_table, ir->label, (void**)&info)) {
+            fprintf(stderr, "[%.*s] not found\n", ir->label->bytes, ir->label->chars);
+            assert(!"Unexpected");
+          } else {
+            info->address = address;
+          }
+        }
         break;
       case IR_CODE:
         address += ir->code.len;
@@ -123,9 +157,9 @@ static bool calc_expr(Table *label_table, const Expr *expr, intptr_t *result, Ta
   switch (expr->kind) {
   case EX_LABEL:
     {
-      void *dst = table_get(label_table, expr->label);
+      LabelInfo *dst = table_get(label_table, expr->label);
       if (dst != NULL) {
-        *result = (intptr_t)dst;
+        *result = dst->address;
         return true;
       } else {
         if (unresolved_labels != NULL)

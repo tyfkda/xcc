@@ -12,6 +12,16 @@ typedef struct Name Name;
 typedef struct Table Table;
 typedef struct Vector Vector;
 
+#define LF_GLOBAL  (1 << 0)
+
+typedef struct {
+  uintptr_t address;
+  int flag;
+} LabelInfo;
+
+LabelInfo *new_label(uintptr_t address);
+bool add_label_table(Table *label_table, const Name *label, bool define, bool global);
+
 typedef struct {
   size_t len;
   unsigned char *buf;

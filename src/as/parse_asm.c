@@ -700,7 +700,7 @@ static size_t unescape_string(ParseInfo *info, const char *p, char *dst) {
   return len;
 }
 
-void handle_directive(ParseInfo *info, enum DirectiveType dir, Vector **section_irs) {
+void handle_directive(ParseInfo *info, enum DirectiveType dir, Vector **section_irs, Table *label_table) {
   Vector *irs = section_irs[current_section];
 
   switch (dir) {
@@ -733,6 +733,9 @@ void handle_directive(ParseInfo *info, enum DirectiveType dir, Vector **section_
       irs = section_irs[current_section];
       vec_push(irs, new_ir_label(label));
       vec_push(irs, new_ir_bss(count));
+
+      if (!add_label_table(label_table, label, true, false))
+        return;
     }
     break;
 
@@ -778,8 +781,20 @@ void handle_directive(ParseInfo *info, enum DirectiveType dir, Vector **section_
     }
     break;
 
-  case DT_SECTION:
   case DT_GLOBL:
+    {
+      const Name *label = parse_label(info);
+      if (label == NULL) {
+        parse_error(info, ".globl: label expected");
+        return;
+      }
+
+      if (!add_label_table(label_table, label, false, true))
+        err = true;
+    }
+    break;
+
+  case DT_SECTION:
   case DT_EXTERN:
     break;
 
