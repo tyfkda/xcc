@@ -75,7 +75,7 @@ void out_elf_header(FILE* fp, uintptr_t entry, int phnum, int shnum) {
   Elf64_Ehdr ehdr = {
     .e_ident     = { ELFMAG0, ELFMAG1, ELFMAG2 ,ELFMAG3,
                      ELFCLASS64, ELFDATA2LSB, EV_CURRENT, ELFOSABI_SYSV },
-    .e_type      = ET_EXEC,
+    .e_type      = phnum > 0 ? ET_EXEC : ET_REL,
     .e_machine   = EM_X86_64,
     .e_version   = EV_CURRENT,
     .e_entry     = entry,
@@ -83,9 +83,9 @@ void out_elf_header(FILE* fp, uintptr_t entry, int phnum, int shnum) {
     .e_shoff     = 0, // dummy
     .e_flags     = 0x0,
     .e_ehsize    = sizeof(Elf64_Ehdr),
-    .e_phentsize = sizeof(Elf64_Phdr),
+    .e_phentsize = phnum > 0 ? sizeof(Elf64_Phdr) : 0,
     .e_phnum     = phnum,
-    .e_shentsize = sizeof(Elf64_Shdr),
+    .e_shentsize = shnum > 0 ? sizeof(Elf64_Shdr) : 0,
     .e_shnum     = shnum,
     .e_shstrndx  = shnum > 0 ? shnum - 1 : 0,
   };

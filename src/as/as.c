@@ -106,13 +106,39 @@ static void drop_all(FILE *fp) {
 }
 
 static int output_obj(const char *ofn, Table *label_table) {
-  UNUSED(label_table);
-
   size_t codesz, rodatasz, datasz, bsssz;
   get_section_size(SEC_CODE, &codesz, NULL);
   get_section_size(SEC_RODATA, &rodatasz, NULL);
   get_section_size(SEC_DATA, &datasz, NULL);
   get_section_size(SEC_BSS, &bsssz, NULL);
+
+  // Construct symtab and strtab.
+  Symtab symtab;
+  symtab_init(&symtab);
+  {
+    // UND
+    Elf64_Sym *sym;
+    sym = symtab_add(&symtab, alloc_name("", NULL, false));
+    sym->st_info = ELF64_ST_INFO(STB_LOCAL, STT_NOTYPE);
+    // SECTION
+    for (int i = 0; i < 4; ++i) {
+      sym = symtab_add(&symtab, alloc_name("", NULL, false));
+      sym->st_info = ELF64_ST_INFO(STB_LOCAL, STT_SECTION);
+      sym->st_shndx = i + 1;  // Section index.
+    }
+
+    // Label symbols
+    const Name *name;
+    LabelInfo *info;
+    for (int it = 0; (it = table_iterate(label_table, it, &name, (void**)&info)) != -1; ) {
+      if (!(info->flag & LF_GLOBAL))
+        continue;
+      sym = symtab_add(&symtab, name);
+      sym->st_info = ELF64_ST_INFO(STB_GLOBAL, STT_NOTYPE);
+      sym->st_value = info->address - START_ADDRESS;
+      sym->st_shndx = info->section + 1;  // Symbol index for Local section.
+    }
+  }
 
   FILE *ofp;
   if (ofn == NULL) {
@@ -129,7 +155,7 @@ static int output_obj(const char *ofn, Table *label_table) {
 
   uintptr_t entry = 0;
   int phnum = 0;
-  int shnum = 6;
+  int shnum = 8;
   out_elf_header(ofp, entry, phnum, shnum);
 
   uintptr_t addr = sizeof(Elf64_Ehdr);
@@ -155,7 +181,13 @@ static int output_obj(const char *ofn, Table *label_table) {
     put_padding(ofp, bss_ofs);
     addr = bss_ofs;
   }
-  put_padding(ofp, ALIGN(addr, 0x10));
+
+  uintptr_t symtab_ofs = ALIGN(addr, 0x10);
+  put_padding(ofp, symtab_ofs);
+  fwrite(symtab.buf, sizeof(*symtab.buf), symtab.count, ofp);
+
+  uintptr_t strtab_ofs = symtab_ofs + sizeof(*symtab.buf) * symtab.count;
+  fwrite(strtab_dump(&symtab.strtab), symtab.strtab.size, 1, ofp);
 
   // Set up shstrtab.
   Strtab shstrtab;
@@ -216,6 +248,30 @@ static int output_obj(const char *ofn, Table *label_table) {
       .sh_addralign = MAX(section_aligns[SEC_BSS], 1),
       .sh_entsize = 0,
     };
+    Elf64_Shdr strtabsec = {
+      .sh_name = strtab_add(&shstrtab, alloc_name(".strtab", NULL, false)),
+      .sh_type = SHT_STRTAB,
+      .sh_flags = 0,
+      .sh_addr = 0,
+      .sh_offset = strtab_ofs,
+      .sh_size = symtab.strtab.size,
+      .sh_link = 0,
+      .sh_info = 0,
+      .sh_addralign = 1,
+      .sh_entsize = 0,
+    };
+    Elf64_Shdr symtabsec = {
+      .sh_name = strtab_add(&shstrtab, alloc_name(".symtab", NULL, false)),
+      .sh_type = SHT_SYMTAB,
+      .sh_flags = 0,
+      .sh_addr = 0,
+      .sh_offset = symtab_ofs,
+      .sh_size = sizeof(*symtab.buf) * symtab.count,
+      .sh_link = 5,  // Index of strtab
+      .sh_info = 5,  // Number of local symbols
+      .sh_addralign = 8,
+      .sh_entsize = sizeof(Elf64_Sym),
+    };
     Elf64_Shdr shstrtabsec = {
       .sh_name = strtab_add(&shstrtab, alloc_name(".shstrtab", NULL, false)),
       .sh_type = SHT_STRTAB,
@@ -249,6 +305,8 @@ static int output_obj(const char *ofn, Table *label_table) {
     fwrite(&rodatasec, sizeof(rodatasec), 1, ofp);
     fwrite(&datasec, sizeof(datasec), 1, ofp);
     fwrite(&bsssec, sizeof(bsssec), 1, ofp);
+    fwrite(&strtabsec, sizeof(strtabsec), 1, ofp);
+    fwrite(&symtabsec, sizeof(symtabsec), 1, ofp);
     fwrite(&shstrtabsec, sizeof(shstrtabsec), 1, ofp);
 
     // Write section table offset.

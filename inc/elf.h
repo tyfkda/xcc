@@ -59,6 +59,7 @@ struct proghdr {
 #define EM_386     (3)   // Intel 80386
 #define EM_X86_64  (62)  // AMD x86-64 architecture
 
+#define ET_REL   (1)  // Relocatable file
 #define ET_EXEC  (2)  // Executable file
 
 // Values for Proghdr type
@@ -103,5 +104,22 @@ typedef struct {
   Elf64_Xword   sh_addralign;           /* Section alignment */
   Elf64_Xword   sh_entsize;             /* Entry size if section holds table */
 } Elf64_Shdr;
+
+#define STB_LOCAL   (0)
+#define STB_GLOBAL  (1)
+
+#define STT_NOTYPE   (0)
+#define STT_SECTION  (3)
+
+#define ELF64_ST_INFO(bind, type)    (((bind)<<4)+((type)&0xf))
+
+typedef struct {
+  Elf64_Word      st_name;
+  unsigned char   st_info;
+  unsigned char   st_other;
+  Elf64_Half      st_shndx;
+  Elf64_Addr      st_value;
+  Elf64_Xword     st_size;
+} Elf64_Sym;
 
 #endif
