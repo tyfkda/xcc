@@ -40,6 +40,7 @@ void *strtab_dump(Strtab *strtab);
 
 typedef struct {
   Strtab strtab;
+  Table indices;
   Elf64_Sym *buf;
   int count;
 } Symtab;

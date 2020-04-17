@@ -12,7 +12,8 @@ typedef struct Name Name;
 typedef struct Table Table;
 typedef struct Vector Vector;
 
-#define LF_GLOBAL  (1 << 0)
+#define LF_GLOBAL   (1 << 0)
+#define LF_DEFINED  (1 << 1)
 
 typedef struct {
   int section;
@@ -22,6 +23,18 @@ typedef struct {
 
 LabelInfo *new_label(int section, uintptr_t address);
 bool add_label_table(Table *label_table, const Name *label, int section, bool define, bool global);
+
+enum UnresolvedKind {
+  UNRES_EXTERN,
+  UNRES_OTHER_SECTION,
+};
+
+typedef struct {
+  const Name *label;
+  uintptr_t offset;
+  int add;
+  enum UnresolvedKind kind;
+} UnresolvedInfo;
 
 typedef struct {
   size_t len;
@@ -62,5 +75,5 @@ IR *new_ir_align(int align);
 IR *new_ir_expr(enum IrKind kind, const Expr *expr);
 
 void calc_label_address(uintptr_t start_address, Vector **section_irs, Table *label_table);
-bool resolve_relative_address(Vector **section_irs, Table *label_table);
+bool resolve_relative_address(Vector **section_irs, Table *label_table, Vector *unresolved);
 void emit_irs(Vector **section_irs, Table *label_table);

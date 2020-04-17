@@ -122,4 +122,15 @@ typedef struct {
   Elf64_Xword     st_size;
 } Elf64_Sym;
 
+#define R_X86_64_PC32   (2)        /* PC relative 32 bit signed */
+#define R_X86_64_PLT32  (4)        /* 32 bit PLT address */
+
+#define ELF64_R_INFO(sym,type)       ((((Elf64_Xword) (sym)) << 32) + (type))
+
+typedef struct {
+  Elf64_Addr      r_offset;
+  Elf64_Xword     r_info;
+  Elf64_Sxword    r_addend;
+} Elf64_Rela;
+
 #endif

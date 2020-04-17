@@ -105,7 +105,7 @@ static void drop_all(FILE *fp) {
   }
 }
 
-static int output_obj(const char *ofn, Table *label_table) {
+static int output_obj(const char *ofn, Table *label_table, Vector *unresolved) {
   size_t codesz, rodatasz, datasz, bsssz;
   get_section_size(SEC_CODE, &codesz, NULL);
   get_section_size(SEC_RODATA, &rodatasz, NULL);
@@ -131,7 +131,7 @@ static int output_obj(const char *ofn, Table *label_table) {
     const Name *name;
     LabelInfo *info;
     for (int it = 0; (it = table_iterate(label_table, it, &name, (void**)&info)) != -1; ) {
-      if (!(info->flag & LF_GLOBAL))
+      if (!(info->flag & LF_GLOBAL) || !(info->flag & LF_DEFINED))
         continue;
       sym = symtab_add(&symtab, name);
       sym->st_info = ELF64_ST_INFO(STB_GLOBAL, STT_NOTYPE);
@@ -155,7 +155,7 @@ static int output_obj(const char *ofn, Table *label_table) {
 
   uintptr_t entry = 0;
   int phnum = 0;
-  int shnum = 8;
+  int shnum = 9;
   out_elf_header(ofp, entry, phnum, shnum);
 
   uintptr_t addr = sizeof(Elf64_Ehdr);
@@ -182,7 +182,40 @@ static int output_obj(const char *ofn, Table *label_table) {
     addr = bss_ofs;
   }
 
-  uintptr_t symtab_ofs = ALIGN(addr, 0x10);
+  uintptr_t relatext_ofs = ALIGN(addr, 0x10);
+  put_padding(ofp, relatext_ofs);
+  for (int i = 0; i < unresolved->len; ++i) {
+    UnresolvedInfo *u = unresolved->data[i];
+    Elf64_Rela rela;
+    memset(&rela, 0x00, sizeof(rela));
+    switch (u->kind) {
+    case UNRES_EXTERN:
+      {
+        Elf64_Sym *sym = symtab_add(&symtab, u->label);
+        sym->st_info = ELF64_ST_INFO(STB_GLOBAL, STT_NOTYPE);
+        size_t index = sym - symtab.buf;
+
+        rela.r_offset = u->offset;
+        rela.r_info = ELF64_R_INFO(index, R_X86_64_PLT32);
+        rela.r_addend = u->add;
+      }
+      break;
+    case UNRES_OTHER_SECTION:
+      {
+        LabelInfo *label = table_get(label_table, u->label);
+        assert(label != NULL);
+        int rodata_index = label->section + 1;  // Symtab index for .rodata section = section number + 1
+        rela.r_offset = u->offset;
+        rela.r_info = ELF64_R_INFO(rodata_index, R_X86_64_PC32);
+        rela.r_addend = u->add;
+      }
+      break;
+    default: assert(false); break;
+    }
+    fwrite(&rela, sizeof(rela), 1, ofp);
+  }
+
+  uintptr_t symtab_ofs = relatext_ofs + unresolved->len * sizeof(Elf64_Rela);
   put_padding(ofp, symtab_ofs);
   fwrite(symtab.buf, sizeof(*symtab.buf), symtab.count, ofp);
 
@@ -248,6 +281,18 @@ static int output_obj(const char *ofn, Table *label_table) {
       .sh_addralign = MAX(section_aligns[SEC_BSS], 1),
       .sh_entsize = 0,
     };
+    Elf64_Shdr relatextsec = {
+      .sh_name = strtab_add(&shstrtab, alloc_name(".rela.text", NULL, false)),
+      .sh_type = SHT_RELA,
+      .sh_flags = SHF_INFO_LINK,
+      .sh_addr = 0,
+      .sh_offset = relatext_ofs,
+      .sh_size = sizeof(Elf64_Rela) * unresolved->len,
+      .sh_link = 7,  // Index of symtab
+      .sh_info = 1,  // Index of text
+      .sh_addralign = 8,
+      .sh_entsize = sizeof(Elf64_Rela),
+    };
     Elf64_Shdr strtabsec = {
       .sh_name = strtab_add(&shstrtab, alloc_name(".strtab", NULL, false)),
       .sh_type = SHT_STRTAB,
@@ -267,7 +312,7 @@ static int output_obj(const char *ofn, Table *label_table) {
       .sh_addr = 0,
       .sh_offset = symtab_ofs,
       .sh_size = sizeof(*symtab.buf) * symtab.count,
-      .sh_link = 5,  // Index of strtab
+      .sh_link = 6,  // Index of strtab
       .sh_info = 5,  // Number of local symbols
       .sh_addralign = 8,
       .sh_entsize = sizeof(Elf64_Sym),
@@ -305,6 +350,7 @@ static int output_obj(const char *ofn, Table *label_table) {
     fwrite(&rodatasec, sizeof(rodatasec), 1, ofp);
     fwrite(&datasec, sizeof(datasec), 1, ofp);
     fwrite(&bsssec, sizeof(bsssec), 1, ofp);
+    fwrite(&relatextsec, sizeof(relatextsec), 1, ofp);
     fwrite(&strtabsec, sizeof(strtabsec), 1, ofp);
     fwrite(&symtabsec, sizeof(symtabsec), 1, ofp);
     fwrite(&shstrtabsec, sizeof(shstrtabsec), 1, ofp);
@@ -444,10 +490,11 @@ int main(int argc, char *argv[]) {
   if (!out_obj)
     section_aligns[SEC_DATA] = DATA_ALIGN;
 
+  Vector *unresolved = out_obj ? new_vector() : NULL;
   if (!err) {
     do {
       calc_label_address(LOAD_ADDRESS, section_irs, &label_table);
-    } while (!resolve_relative_address(section_irs, &label_table));
+    } while (!resolve_relative_address(section_irs, &label_table, unresolved));
     emit_irs(section_irs, &label_table);
   }
 
@@ -457,7 +504,7 @@ int main(int argc, char *argv[]) {
 
   fix_section_size(LOAD_ADDRESS);
 
-  return out_obj ? output_obj(ofn, &label_table) : output_exe(ofn, &label_table);
+  return out_obj ? output_obj(ofn, &label_table, unresolved) : output_exe(ofn, &label_table);
 
 #else  // AS_NOT_SUPPORTED
   // ================================================

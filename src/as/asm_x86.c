@@ -288,7 +288,7 @@ bool assemble_inst(Inst *inst, const ParseInfo *info, Code *code) {
         if (inst->src.indirect.offset->kind != EX_NUM) {
           int pre = !inst->dst.reg.x ? 0x48 : 0x4c;
           int d = inst->dst.reg.no;
-          MAKE_CODE(inst, code, pre, 0x8d, 0x05 | (d << 3), IM32(-1));
+          MAKE_CODE(inst, code, pre, 0x8d, 0x05 | (d << 3), IM32(0));
           return true;
         }
       }
@@ -790,8 +790,8 @@ bool assemble_inst(Inst *inst, const ParseInfo *info, Code *code) {
   case JMP:
     if (inst->src.type != DIRECT || inst->dst.type != NOOPERAND)
       return assemble_error(info, "Illegal operand");
-    //MAKE_CODE(inst, code, 0xe9, IM32(-1));
-    MAKE_CODE(inst, code, 0xeb, IM8(-1));  // Short jmp in default.
+    //MAKE_CODE(inst, code, 0xe9, IM32(0));
+    MAKE_CODE(inst, code, 0xeb, IM8(0));  // Short jmp in default.
     return true;
   case JO: case JNO: case JB:  case JAE:
   case JE: case JNE: case JBE: case JA:
@@ -800,15 +800,15 @@ bool assemble_inst(Inst *inst, const ParseInfo *info, Code *code) {
     if (inst->src.type != DIRECT || inst->dst.type != NOOPERAND)
       return assemble_error(info, "Illegal operand");
 
-    //MAKE_CODE(inst, code, 0x0f, 0x80 + (inst->op - JO), IM32(-1));
-    MAKE_CODE(inst, code, 0x70 + (inst->op - JO), IM8(-1));  // Short jmp in default.
+    //MAKE_CODE(inst, code, 0x0f, 0x80 + (inst->op - JO), IM32(0));
+    MAKE_CODE(inst, code, 0x70 + (inst->op - JO), IM8(0));  // Short jmp in default.
     return true;
   case CALL:
     if (inst->dst.type != NOOPERAND)
       return assemble_error(info, "Illegal operand");
 
     if (inst->src.type == DIRECT) {
-      MAKE_CODE(inst, code, 0xe8, IM32(-1));
+      MAKE_CODE(inst, code, 0xe8, IM32(0));
       return true;
     } else if (inst->src.type == DEREF_REG) {
       int s = inst->src.deref_reg.no;

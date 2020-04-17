@@ -52,12 +52,21 @@ void *strtab_dump(Strtab *strtab) {
 
 void symtab_init(Symtab *symtab) {
   strtab_init(&symtab->strtab);
+  table_init(&symtab->indices);
   symtab->buf = NULL;
   symtab->count = 0;
 }
 
 Elf64_Sym *symtab_add(Symtab *symtab, const Name *name) {
   uint32_t offset = strtab_add(&symtab->strtab, name);
+  if (name->bytes > 0) {
+    for (int i = 0; i < symtab->count; ++i) {
+      uintptr_t index;
+      if (table_try_get(&symtab->indices, name, (void**)&index)) {
+        return &symtab->buf[index];
+      }
+    }
+  }
 
   int old_count = symtab->count;
   int new_count = old_count + 1;
@@ -66,6 +75,7 @@ Elf64_Sym *symtab_add(Symtab *symtab, const Name *name) {
   Elf64_Sym *sym = &symtab->buf[old_count];
   memset(sym, 0x00, sizeof(*sym));
   sym->st_name = offset;
+  table_put(&symtab->indices, name, (void*)(uintptr_t)old_count);
   return sym;
 }
 
