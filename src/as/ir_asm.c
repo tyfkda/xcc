@@ -13,25 +13,27 @@
 #define LONG_SIZE  (4)
 #define QUAD_SIZE  (8)
 
-LabelInfo *new_label(uintptr_t address) {
+LabelInfo *new_label(int section, uintptr_t address) {
   LabelInfo *info = malloc(sizeof(*info));
-  info->address = address;
+  info->section = section;
   info->flag = 0;
+  info->address = address;
   return info;
 }
 
-bool add_label_table(Table *label_table, const Name *label, bool define, bool global) {
+bool add_label_table(Table *label_table, const Name *label, int section, bool define, bool global) {
   LabelInfo *info = table_get(label_table, label);
   if (info != NULL) {
     if (define) {
-      if (info->address != 0) {
+      if (info->address != 0 && info->section != section) {
         fprintf(stderr, "`%.*s' already defined\n", label->bytes, label->chars);
         return false;
       }
       info->address = 1;
+      info->section = section;
     }
   } else {
-    info = new_label(define ? 1 : 0);
+    info = new_label(section, define ? 1 : 0);
     table_put(label_table, label, info);
   }
   if (global)

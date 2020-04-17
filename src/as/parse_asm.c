@@ -734,7 +734,7 @@ void handle_directive(ParseInfo *info, enum DirectiveType dir, Vector **section_
       vec_push(irs, new_ir_label(label));
       vec_push(irs, new_ir_bss(count));
 
-      if (!add_label_table(label_table, label, true, false))
+      if (!add_label_table(label_table, label, current_section, true, false))
         return;
     }
     break;
@@ -789,7 +789,7 @@ void handle_directive(ParseInfo *info, enum DirectiveType dir, Vector **section_
         return;
       }
 
-      if (!add_label_table(label_table, label, false, true))
+      if (!add_label_table(label_table, label, current_section, false, true))
         err = true;
     }
     break;

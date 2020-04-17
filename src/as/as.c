@@ -62,7 +62,7 @@ void parse_file(FILE *fp, const char *filename, Vector **section_irs, Table *lab
     if (line->label != NULL) {
       vec_push(irs, new_ir_label(line->label));
 
-      if (!add_label_table(label_table, line->label, true, false))
+      if (!add_label_table(label_table, line->label, current_section, true, false))
         err = true;
     }
 

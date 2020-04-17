@@ -15,12 +15,13 @@ typedef struct Vector Vector;
 #define LF_GLOBAL  (1 << 0)
 
 typedef struct {
-  uintptr_t address;
+  int section;
   int flag;
+  uintptr_t address;
 } LabelInfo;
 
-LabelInfo *new_label(uintptr_t address);
-bool add_label_table(Table *label_table, const Name *label, bool define, bool global);
+LabelInfo *new_label(int section, uintptr_t address);
+bool add_label_table(Table *label_table, const Name *label, int section, bool define, bool global);
 
 typedef struct {
   size_t len;
