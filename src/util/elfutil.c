@@ -50,6 +50,27 @@ void *strtab_dump(Strtab *strtab) {
 
 //
 
+void symtab_init(Symtab *symtab) {
+  strtab_init(&symtab->strtab);
+  symtab->buf = NULL;
+  symtab->count = 0;
+}
+
+Elf64_Sym *symtab_add(Symtab *symtab, const Name *name) {
+  uint32_t offset = strtab_add(&symtab->strtab, name);
+
+  int old_count = symtab->count;
+  int new_count = old_count + 1;
+  symtab->buf = realloc(symtab->buf, sizeof(Elf64_Sym) * new_count);
+  symtab->count = new_count;
+  Elf64_Sym *sym = &symtab->buf[old_count];
+  memset(sym, 0x00, sizeof(*sym));
+  sym->st_name = offset;
+  return sym;
+}
+
+//
+
 void out_elf_header(FILE* fp, uintptr_t entry, int phnum, int shnum) {
   Elf64_Ehdr ehdr = {
     .e_ident     = { ELFMAG0, ELFMAG1, ELFMAG2 ,ELFMAG3,

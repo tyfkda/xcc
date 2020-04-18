@@ -16,19 +16,6 @@
 #include "table.h"
 #include "util.h"
 
-
-#if defined(__XV6)
-// XV6
-#include "../kernel/types.h"
-#include "../kernel/elf.h"
-
-#elif defined(__linux__)
-// Linux
-#include <elf.h>
-
-#endif
-
-
 #define PROG_START   (0x100)
 
 #if defined(__XV6)
