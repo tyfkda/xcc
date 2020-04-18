@@ -4,10 +4,11 @@
 #include <stdint.h>  // uintptr_t
 #include <stdio.h>   // FILE
 
-#define SECTION_COUNT  (3)
+#define SECTION_COUNT  (4)
 
 enum SectionType {
   SEC_CODE,
+  SEC_RODATA,
   SEC_DATA,
   SEC_BSS,
 };

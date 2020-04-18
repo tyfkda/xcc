@@ -85,7 +85,7 @@ IR *new_ir_expr(enum IrKind kind, const Expr *expr) {
 }
 
 static uintptr_t align_next_section(enum SectionType sec, uintptr_t address) {
-  static const int kAlignTable[] = {0, 4096, 16};
+  static const int kAlignTable[] = {0, 16, 4096, 16};
   int align = kAlignTable[sec];
   if (align > 1)
     address = ALIGN(address, align);

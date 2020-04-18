@@ -289,6 +289,20 @@ static const Name *parse_label(ParseInfo *info) {
   return alloc_name(start, p, false);
 }
 
+static const Name *parse_section_name(ParseInfo *info) {
+  const char *p = info->p;
+  const char *start = p;
+
+  if (!is_label_first_chr(*p))
+    return NULL;
+
+  do {
+    ++p;
+  } while (isalnum(*p) || *p == '_' || *p == '.');
+  info->p = p;
+  return alloc_name(start, p, false);
+}
+
 static enum RegType parse_direct_register(ParseInfo *info, Operand *operand) {
   enum RegType reg = find_register(&info->p);
   enum RegSize size;
@@ -795,6 +809,21 @@ void handle_directive(ParseInfo *info, enum DirectiveType dir, Vector **section_
     break;
 
   case DT_SECTION:
+    {
+      const Name *name = parse_section_name(info);
+      if (name == NULL) {
+        parse_error(info, ".section: section name expected");
+        return;
+      }
+      if (equal_name(name, alloc_name(".rodata", NULL, false))) {
+        current_section = SEC_RODATA;
+      } else {
+        parse_error(info, "Unknown section name");
+        return;
+      }
+    }
+    break;
+
   case DT_EXTERN:
     break;
 
