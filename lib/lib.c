@@ -408,8 +408,12 @@ int fclose(FILE *fp) {
   return 0;
 }
 
+int fseek(FILE *fp, long offset, int origin) {
+  return lseek(fp->fd, offset, origin);
+}
+
 long ftell(FILE *fp) {
-  return lseek(fp->fd, 0, SEEK_CUR);
+  return fseek(fp, 0, SEEK_CUR);
 }
 
 int fgetc(FILE *fp) {

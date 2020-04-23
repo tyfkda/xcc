@@ -15,6 +15,7 @@ FILE *fopen(const char *fileName, const char *mode);
 int fclose(FILE *fp);
 size_t fwrite(const void *buffer, size_t size, size_t count, FILE *fp);
 size_t fread(void *buffer, size_t size, size_t count, FILE *fp);
+int fseek(FILE *fp, long offset, int origin);
 long ftell(FILE *fp);
 int remove(const char *fn);
 
