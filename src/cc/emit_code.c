@@ -1,6 +1,7 @@
 #include "emit_code.h"
 
 #include <assert.h>
+#include <inttypes.h>  // PRIdPTR
 #include <stdlib.h>
 #include <string.h>
 
@@ -267,7 +268,6 @@ static void put_bss(void) {
         (varinfo->flag & VF_EXTERN) != 0)
       continue;
 
-    EMIT_ALIGN(align_size(varinfo->type));
     size_t size = type_size(varinfo->type);
     if (size < 1)
       size = 1;
@@ -276,7 +276,12 @@ static void put_bss(void) {
       label = MANGLE(label);
       _GLOBL(label);
     }
-    _COMM(label, NUM(size));
+
+    size_t align = align_size(varinfo->type);
+    if (align <= 1)
+      _COMM(label, NUM(size));
+    else
+      _COMM(label, fmt("%"PRIdPTR",%"PRIdPTR, size, align));
   }
 }
 

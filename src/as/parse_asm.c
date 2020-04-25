@@ -741,10 +741,24 @@ void handle_directive(ParseInfo *info, enum DirectiveType dir, Vector **section_
         parse_error(info, ".comm: `,' expected");
       info->p = skip_whitespace(info->p + 1);
       long count;
-      if (!immediate(&info->p, &count))
+      if (!immediate(&info->p, &count)) {
         parse_error(info, ".comm: count expected");
+        return;
+      }
+
+      long align = 0;
+      if (*info->p == ',') {
+        info->p = skip_whitespace(info->p + 1);
+        if (!immediate(&info->p, &align) || align < 1) {
+          parse_error(info, ".comm: optional alignment expected");
+          return;
+        }
+      }
+
       current_section = SEC_BSS;
       irs = section_irs[current_section];
+      if (align > 1)
+        vec_push(irs, new_ir_align(align));
       vec_push(irs, new_ir_label(label));
       vec_push(irs, new_ir_bss(count));
 
