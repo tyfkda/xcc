@@ -240,7 +240,15 @@ bool resolve_relative_address(Vector **section_irs, Table *label_table, Vector *
               bool unres = false;
               if (expr->kind == EX_LABEL && unresolved != NULL) {
                 LabelInfo *label = table_get(label_table, expr->label);
-                if (label != NULL && label->section != sec) {
+                if (label == NULL) {
+                  UnresolvedInfo *info = malloc(sizeof(*info));
+                  info->kind = UNRES_EXTERN_PC32;
+                  info->label = expr->label;
+                  info->offset = address + 1 - start_address;
+                  info->add = -4;
+                  vec_push(unresolved, info);
+                  unres = true;
+                } else if (label->section != sec) {
                   Vector *irs2 = section_irs[label->section];
                   uintptr_t dst_start_address = irs2->len > 0 ? ((IR*)irs2->data[0])->address : 0;
 
@@ -258,6 +266,8 @@ bool resolve_relative_address(Vector **section_irs, Table *label_table, Vector *
                 if (calc_expr(label_table, expr, &dst, &unresolved_labels)) {
                   intptr_t offset = dst - ((intptr_t)address + ir->code.len);
                   put_value(ir->code.buf + 3, offset, sizeof(int32_t));
+                } else {
+                  assert(!"Not handled");
                 }
               }
             }

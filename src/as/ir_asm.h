@@ -26,6 +26,7 @@ bool add_label_table(Table *label_table, const Name *label, int section, bool de
 
 enum UnresolvedKind {
   UNRES_EXTERN,
+  UNRES_EXTERN_PC32,
   UNRES_OTHER_SECTION,
 };
 

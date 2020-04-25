@@ -190,13 +190,14 @@ static int output_obj(const char *ofn, Table *label_table, Vector *unresolved) {
     memset(&rela, 0x00, sizeof(rela));
     switch (u->kind) {
     case UNRES_EXTERN:
+    case UNRES_EXTERN_PC32:
       {
         Elf64_Sym *sym = symtab_add(&symtab, u->label);
         sym->st_info = ELF64_ST_INFO(STB_GLOBAL, STT_NOTYPE);
         size_t index = sym - symtab.buf;
 
         rela.r_offset = u->offset;
-        rela.r_info = ELF64_R_INFO(index, R_X86_64_PLT32);
+        rela.r_info = ELF64_R_INFO(index, u->kind == UNRES_EXTERN_PC32 ? R_X86_64_PC32 : R_X86_64_PLT32);
         rela.r_addend = u->add;
       }
       break;
