@@ -40,6 +40,7 @@
 #endif
 
 #define LOAD_ADDRESS    START_ADDRESS
+#define DATA_ALIGN      (0x1000)
 
 #if !defined(AS_USE_CC)
 void parse_file(FILE *fp, const char *filename, Vector **section_irs, Table *label_table) {
@@ -152,6 +153,8 @@ int main(int argc, char *argv[]) {
     parse_file(stdin, "*stdin*", section_irs, &label_table);
   }
 
+  section_aligns[SEC_DATA] = DATA_ALIGN;
+
   if (!err) {
     do {
       calc_label_address(LOAD_ADDRESS, section_irs, &label_table);
@@ -169,28 +172,45 @@ int main(int argc, char *argv[]) {
 
   fix_section_size(LOAD_ADDRESS);
 
-  size_t codefilesz, codememsz;
-  size_t datafilesz, datamemsz;
+  size_t codesz, rodatasz, datasz, bsssz;
   uintptr_t codeloadadr, dataloadadr;
-  get_section_size(SEC_CODE, &codefilesz, &codememsz, &codeloadadr);
-  get_section_size(SEC_DATA, &datafilesz, &datamemsz, &dataloadadr);
+  get_section_size(SEC_CODE, &codesz, &codeloadadr);
+  get_section_size(SEC_RODATA, &rodatasz, NULL);
+  get_section_size(SEC_DATA, &datasz, &dataloadadr);
+  get_section_size(SEC_BSS, &bsssz, NULL);
 
   LabelInfo *entry = table_get(&label_table, alloc_name("_start", NULL, false));
   if (entry == NULL)
     error("Cannot find label: `%s'", "_start");
 
-  int phnum = datamemsz > 0 ? 2 : 1;
+  int phnum = datasz > 0 || bsssz > 0 ? 2 : 1;
 
+  size_t rodata_align = MAX(section_aligns[SEC_RODATA], 1);
+  size_t code_rodata_sz = ALIGN(codesz, rodata_align) + rodatasz;
   out_elf_header(fp, entry->address, phnum);
-  out_program_header(fp, 0, PROG_START, codeloadadr, codefilesz, codememsz);
-  if (phnum > 1)
-    out_program_header(fp, 1, ALIGN(PROG_START + codefilesz, 0x1000), dataloadadr, datafilesz, datamemsz);
+  out_program_header(fp, 0, PROG_START, codeloadadr, code_rodata_sz, code_rodata_sz);
+  if (phnum > 1) {
+    size_t bss_align = MAX(section_aligns[SEC_BSS], 1);
+    size_t datamemsz = ALIGN(datasz, bss_align) + bsssz;
+    out_program_header(fp, 1, ALIGN(PROG_START + code_rodata_sz, DATA_ALIGN), dataloadadr, datasz, datamemsz);
+  }
 
-  put_padding(fp, PROG_START);
+  uintptr_t addr = PROG_START;
+  put_padding(fp, addr);
   output_section(fp, SEC_CODE);
-  if (datafilesz > 0) {
-    put_padding(fp, ALIGN(PROG_START + codefilesz, 0x1000));
+  addr += codesz;
+  if (rodatasz > 0) {
+    size_t rodata_align = MAX(section_aligns[SEC_RODATA], 1);
+    addr = ALIGN(addr, rodata_align);
+    put_padding(fp, addr);
+    output_section(fp, SEC_RODATA);
+    addr += rodatasz;
+  }
+  if (datasz > 0) {
+    addr = ALIGN(addr, DATA_ALIGN);
+    put_padding(fp, addr);
     output_section(fp, SEC_DATA);
+    addr += datasz;
   }
   fclose(fp);
 

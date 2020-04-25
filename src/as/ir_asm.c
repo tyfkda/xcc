@@ -85,8 +85,7 @@ IR *new_ir_expr(enum IrKind kind, const Expr *expr) {
 }
 
 static uintptr_t align_next_section(enum SectionType sec, uintptr_t address) {
-  static const int kAlignTable[] = {0, 16, 4096, 16};
-  int align = kAlignTable[sec];
+  size_t align = section_aligns[sec];
   if (align > 1)
     address = ALIGN(address, align);
   return address;
@@ -123,7 +122,10 @@ void calc_label_address(uintptr_t start_address, Vector **section_irs, Table *la
         address += ir->bss;
         break;
       case IR_ALIGN:
-        address = ALIGN(address, ir->align);
+        ir->address = address = ALIGN(address, ir->align);
+        if ((size_t)ir->align > section_aligns[sec]) {
+          section_aligns[sec] = ir->align;
+        }
         break;
       case IR_EXPR_BYTE:
         address += BYTE_SIZE;
