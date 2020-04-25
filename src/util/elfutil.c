@@ -39,7 +39,7 @@ void out_elf_header(FILE* fp, uintptr_t entry, int phnum) {
 }
 
 void out_program_header(FILE* fp, int sec, uintptr_t offset, uintptr_t vaddr,
-                        uintptr_t filesz, uintptr_t memsz) {
+                        size_t filesz, size_t memsz) {
   static const int kFlags[] = {
     PF_R | PF_X,  // code
     PF_R | PF_W,  // rwdata
