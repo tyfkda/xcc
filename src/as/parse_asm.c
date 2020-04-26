@@ -755,14 +755,14 @@ void handle_directive(ParseInfo *info, enum DirectiveType dir, Vector **section_
         }
       }
 
-      current_section = SEC_BSS;
-      irs = section_irs[current_section];
+      enum SectionType sec = SEC_BSS;
+      irs = section_irs[sec];
       if (align > 1)
         vec_push(irs, new_ir_align(align));
       vec_push(irs, new_ir_label(label));
       vec_push(irs, new_ir_bss(count));
 
-      if (!add_label_table(label_table, label, current_section, true, false))
+      if (!add_label_table(label_table, label, sec, true, false))
         return;
     }
     break;
