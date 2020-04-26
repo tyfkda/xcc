@@ -97,6 +97,7 @@ void calc_label_address(uintptr_t start_address, Vector **section_irs, Table *la
   uintptr_t address = start_address;
   for (int sec = 0; sec < SECTION_COUNT; ++sec) {
     address = align_next_section(sec, address);
+    section_start_addresses[sec] = address;
 
     Vector *irs = section_irs[sec];
     for (int i = 0, len = irs->len; i < len; ++i) {

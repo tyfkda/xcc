@@ -14,6 +14,7 @@ enum SectionType {
 };
 
 extern size_t section_aligns[SECTION_COUNT];
+extern uintptr_t section_start_addresses[SECTION_COUNT];
 
 void add_code(const void *buf, size_t bytes);
 void add_section_data(enum SectionType secno, const void *data, size_t bytes);
