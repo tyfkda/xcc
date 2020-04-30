@@ -28,11 +28,13 @@ enum UnresolvedKind {
   UNRES_EXTERN,
   UNRES_EXTERN_PC32,
   UNRES_OTHER_SECTION,
+  UNRES_ABS64,
 };
 
 typedef struct {
   const Name *label;
   uintptr_t offset;
+  int src_section;
   int add;
   enum UnresolvedKind kind;
 } UnresolvedInfo;

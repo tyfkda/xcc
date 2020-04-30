@@ -245,6 +245,7 @@ bool resolve_relative_address(Vector **section_irs, Table *label_table, Vector *
                   UnresolvedInfo *info = malloc(sizeof(*info));
                   info->kind = UNRES_EXTERN_PC32;
                   info->label = expr->label;
+                  info->src_section = sec;
                   info->offset = address + 1 - start_address;
                   info->add = -4;
                   vec_push(unresolved, info);
@@ -256,6 +257,7 @@ bool resolve_relative_address(Vector **section_irs, Table *label_table, Vector *
                   UnresolvedInfo *info = malloc(sizeof(*info));
                   info->kind = UNRES_OTHER_SECTION;
                   info->label = expr->label;
+                  info->src_section = sec;
                   info->offset = address + 3 - start_address;
                   info->add = label->address - dst_start_address - 4;
                   vec_push(unresolved, info);
@@ -320,6 +322,7 @@ bool resolve_relative_address(Vector **section_irs, Table *label_table, Vector *
                   UnresolvedInfo *info = malloc(sizeof(*info));
                   info->kind = UNRES_EXTERN;
                   info->label = expr->label;
+                  info->src_section = sec;
                   info->offset = address + 1 - start_address;
                   info->add = -4;
                   vec_push(unresolved, info);
@@ -335,12 +338,50 @@ bool resolve_relative_address(Vector **section_irs, Table *label_table, Vector *
       case IR_EXPR_BYTE:
       case IR_EXPR_WORD:
       case IR_EXPR_LONG:
-      case IR_EXPR_QUAD:
         {
           intptr_t value;
           if (calc_expr(label_table, ir->expr, &value, &unresolved_labels)) {
             put_value(ir->code.buf + 3, value, sizeof(int32_t));
+          } else {
+            assert(!"Unhandled");
           }
+        }
+        break;
+      case IR_EXPR_QUAD:
+        {
+          const Expr *expr = ir->expr;
+
+              bool unres = false;
+              if (expr->kind == EX_LABEL && unresolved != NULL) {
+                LabelInfo *label = table_get(label_table, expr->label);
+                if (label == NULL) {
+                  UnresolvedInfo *info = malloc(sizeof(*info));
+                  info->kind = UNRES_ABS64;  // TODO:
+                  info->label = expr->label;
+                  info->src_section = sec;
+                  info->offset = address - start_address;
+                  info->add = 0;
+                  vec_push(unresolved, info);
+                  unres = true;
+                } else if (label->section != sec) {
+                  UnresolvedInfo *info = malloc(sizeof(*info));
+                  info->kind = UNRES_ABS64;  // TODO
+                  info->label = expr->label;
+                  info->src_section = sec;
+                  info->offset = address - start_address;
+                  info->add = 0;
+                  vec_push(unresolved, info);
+                  unres = true;
+                }
+              }
+              if (!unres) {
+                intptr_t value;
+                if (calc_expr(label_table, expr, &value, &unresolved_labels)) {
+                  put_value(ir->code.buf + 3, value, sizeof(int32_t));
+                } else {
+                  assert(!"Not handled");
+                }
+              }
         }
         break;
       case IR_LABEL:

@@ -122,6 +122,7 @@ typedef struct {
   Elf64_Xword     st_size;
 } Elf64_Sym;
 
+#define R_X86_64_64     (1)        /* Direct 64 bit  */
 #define R_X86_64_PC32   (2)        /* PC relative 32 bit signed */
 #define R_X86_64_PLT32  (4)        /* 32 bit PLT address */
 
