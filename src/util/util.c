@@ -153,6 +153,23 @@ char *cat_path(const char *root, const char *path) {
   return buf;
 }
 
+char *change_ext(const char *path, const char *ext) {
+  const char *p = strrchr(path, '/');
+  if (p == NULL)
+    p = path;
+
+  const char *q = strrchr(p, '.');
+  size_t len = q != NULL ? (size_t)(q - path) : strlen(path);
+  size_t ext_len = strlen(ext);
+  char *s = malloc(len + 1 + ext_len);
+  if (s != NULL) {
+    memcpy(s, path, len);
+    s[len] = '.';
+    strcpy(s + (len + 1), ext);
+  }
+  return s;
+}
+
 void myqsort(void *base, size_t nmemb, size_t size, int (*compare)(const void *, const void *)) {
   if (nmemb <= 1)
     return;

@@ -352,6 +352,14 @@ char *dirname(char *path) {
   return ".";
 }
 
+char *basename(char *path) {
+  char *p = strrchr(path, '/');
+  if (p != NULL)
+    return p + 1;
+  else
+    path;
+}
+
 FILE *fopen(const char *fileName, const char *mode) {
   struct {
     const char *str;

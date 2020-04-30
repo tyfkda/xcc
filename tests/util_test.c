@@ -94,10 +94,18 @@ void test_cat_path(void) {
   EXPECT_STREQ("Not root", "user/foo/inc/stdio.h", cat_path("user/foo", "inc/stdio.h"));
 }
 
+void test_change_ext(void) {
+  EXPECT_STREQ("has ext", "foo.o", change_ext("foo.c", "o"));
+  EXPECT_STREQ("no ext", "foo.o", change_ext("foo", "o"));
+  EXPECT_STREQ("mult ext", "foo.bar.baz.o", change_ext("foo.bar.baz.c", "o"));
+  EXPECT_STREQ("dir", "/foo/bar.baz/qux.s", change_ext("/foo/bar.baz/qux", "s"));
+}
+
 void runtest(void) {
   test_vector();
   test_sb();
   test_cat_path();
+  test_change_ext();
 
   printf("OK\n");
 }
