@@ -584,17 +584,16 @@ int main(int argc, char *argv[]) {
   if (out_obj)
     vec_push(cc_args, "-c");
 
-  char temp_file_name[FILENAME_MAX + 2];
+  char tmp_file_name[FILENAME_MAX + 2];
   if (iarg >= argc) {
     // Read from stdin and write to temporary file.
     char *tmpdir = getenv("TMPDIR");
     if (tmpdir == NULL)
       tmpdir = "/tmp";
 
-    snprintf(temp_file_name, sizeof(temp_file_name), "%s/as_XXXXXX", tmpdir);
-    mkstemp(temp_file_name);
-    strcat(temp_file_name, ".s");
-    FILE *tmpfp = fopen(temp_file_name, "w");
+    snprintf(tmp_file_name, sizeof(tmp_file_name), "%s/as_XXXXXX.s", tmpdir);
+    mkstemps(tmp_file_name, 2);
+    FILE *tmpfp = fopen(tmp_file_name, "w");
     if (tmpfp == NULL)
       error("Failed to open temporary file");
     for (;;) {
@@ -607,7 +606,7 @@ int main(int argc, char *argv[]) {
     }
     fclose(tmpfp);
 
-    vec_push(cc_args, temp_file_name);
+    vec_push(cc_args, tmp_file_name);
   } else {
     for (int i = iarg; i < argc; ++i) {
       vec_push(cc_args, argv[i]);
