@@ -15,6 +15,7 @@ static Section sections[SECTION_COUNT];
 static size_t bss_size;
 
 size_t section_aligns[SECTION_COUNT];
+uintptr_t section_start_addresses[SECTION_COUNT];
 
 void add_bss(size_t size) {
   bss_size += size;

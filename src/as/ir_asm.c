@@ -25,7 +25,7 @@ bool add_label_table(Table *label_table, const Name *label, int section, bool de
   LabelInfo *info = table_get(label_table, label);
   if (info != NULL) {
     if (define) {
-      if (info->address != 0 && info->section != section) {
+      if ((info->flag & LF_DEFINED) != 0) {
         fprintf(stderr, "`%.*s' already defined\n", label->bytes, label->chars);
         return false;
       }
@@ -33,9 +33,11 @@ bool add_label_table(Table *label_table, const Name *label, int section, bool de
       info->section = section;
     }
   } else {
-    info = new_label(section, define ? 1 : 0);
+    info = new_label(section, 0);
     table_put(label_table, label, info);
   }
+  if (define)
+    info->flag |= LF_DEFINED;
   if (global)
     info->flag |= LF_GLOBAL;
   return true;
@@ -95,6 +97,7 @@ void calc_label_address(uintptr_t start_address, Vector **section_irs, Table *la
   uintptr_t address = start_address;
   for (int sec = 0; sec < SECTION_COUNT; ++sec) {
     address = align_next_section(sec, address);
+    section_start_addresses[sec] = address;
 
     Vector *irs = section_irs[sec];
     for (int i = 0, len = irs->len; i < len; ++i) {
@@ -162,7 +165,7 @@ static bool calc_expr(Table *label_table, const Expr *expr, intptr_t *result, Ta
   case EX_LABEL:
     {
       LabelInfo *dst = table_get(label_table, expr->label);
-      if (dst != NULL) {
+      if (dst != NULL && (dst->flag & LF_DEFINED) != 0) {
         *result = dst->address;
         return true;
       } else {
@@ -212,12 +215,15 @@ static bool calc_expr(Table *label_table, const Expr *expr, intptr_t *result, Ta
   }
 }
 
-bool resolve_relative_address(Vector **section_irs, Table *label_table) {
+bool resolve_relative_address(Vector **section_irs, Table *label_table, Vector *unresolved) {
   Table unresolved_labels;
   table_init(&unresolved_labels);
+  if (unresolved != NULL)
+    vec_clear(unresolved);
   bool size_upgraded = false;
   for (int sec = 0; sec < SECTION_COUNT; ++sec) {
     Vector *irs = section_irs[sec];
+    uintptr_t start_address = irs->len > 0 ? ((IR*)irs->data[0])->address : 0;
     for (int i = 0, len = irs->len; i < len; ++i) {
       IR *ir = irs->data[i];
       uintptr_t address = ir->address;
@@ -230,10 +236,42 @@ bool resolve_relative_address(Vector **section_irs, Table *label_table) {
             if (inst->src.type == INDIRECT &&
                 inst->src.indirect.reg.no == RIP &&
                 inst->src.indirect.offset->kind != EX_NUM) {
-              intptr_t dst;
-              if (calc_expr(label_table, inst->src.indirect.offset, &dst, &unresolved_labels)) {
-                intptr_t offset = dst - ((intptr_t)address + ir->code.len);
-                put_value(ir->code.buf + 3, offset, sizeof(int32_t));
+              Expr *expr = inst->src.indirect.offset;
+
+              bool unres = false;
+              if (expr->kind == EX_LABEL && unresolved != NULL) {
+                LabelInfo *label = table_get(label_table, expr->label);
+                if (label == NULL) {
+                  UnresolvedInfo *info = malloc(sizeof(*info));
+                  info->kind = UNRES_EXTERN_PC32;
+                  info->label = expr->label;
+                  info->src_section = sec;
+                  info->offset = address + 1 - start_address;
+                  info->add = -4;
+                  vec_push(unresolved, info);
+                  unres = true;
+                } else if (label->section != sec) {
+                  Vector *irs2 = section_irs[label->section];
+                  uintptr_t dst_start_address = irs2->len > 0 ? ((IR*)irs2->data[0])->address : 0;
+
+                  UnresolvedInfo *info = malloc(sizeof(*info));
+                  info->kind = UNRES_OTHER_SECTION;
+                  info->label = expr->label;
+                  info->src_section = sec;
+                  info->offset = address + 3 - start_address;
+                  info->add = label->address - dst_start_address - 4;
+                  vec_push(unresolved, info);
+                  unres = true;
+                }
+              }
+              if (!unres) {
+                intptr_t dst;
+                if (calc_expr(label_table, expr, &dst, &unresolved_labels)) {
+                  intptr_t offset = dst - ((intptr_t)address + ir->code.len);
+                  put_value(ir->code.buf + 3, offset, sizeof(int32_t));
+                } else {
+                  assert(!"Not handled");
+                }
               }
             }
             break;
@@ -266,15 +304,29 @@ bool resolve_relative_address(Vector **section_irs, Table *label_table) {
                   int d = inst->op == JMP ? 1 : 2;
                   put_value(ir->code.buf + d, offset, sizeof(int32_t));
                 }
+              } else {
+                assert(unresolved == NULL);  // Not implemented.
               }
             }
             break;
           case CALL:
             if (inst->src.type == DIRECT) {
               intptr_t dst;
-              if (calc_expr(label_table, inst->src.direct.expr, &dst, &unresolved_labels)) {
+              Expr *expr = inst->src.direct.expr;
+              if (calc_expr(label_table, expr, &dst, &unresolved_labels)) {
                 intptr_t offset = (intptr_t)dst - ((intptr_t)address + ir->code.len);
                 put_value(ir->code.buf + 1, offset, sizeof(int32_t));
+              } else {
+                if (unresolved != NULL) {
+                  assert(expr->kind == EX_LABEL);
+                  UnresolvedInfo *info = malloc(sizeof(*info));
+                  info->kind = UNRES_EXTERN;
+                  info->label = expr->label;
+                  info->src_section = sec;
+                  info->offset = address + 1 - start_address;
+                  info->add = -4;
+                  vec_push(unresolved, info);
+                }
               }
             }
             break;
@@ -286,12 +338,50 @@ bool resolve_relative_address(Vector **section_irs, Table *label_table) {
       case IR_EXPR_BYTE:
       case IR_EXPR_WORD:
       case IR_EXPR_LONG:
-      case IR_EXPR_QUAD:
         {
           intptr_t value;
           if (calc_expr(label_table, ir->expr, &value, &unresolved_labels)) {
             put_value(ir->code.buf + 3, value, sizeof(int32_t));
+          } else {
+            assert(!"Unhandled");
           }
+        }
+        break;
+      case IR_EXPR_QUAD:
+        {
+          const Expr *expr = ir->expr;
+
+              bool unres = false;
+              if (expr->kind == EX_LABEL && unresolved != NULL) {
+                LabelInfo *label = table_get(label_table, expr->label);
+                if (label == NULL) {
+                  UnresolvedInfo *info = malloc(sizeof(*info));
+                  info->kind = UNRES_ABS64;  // TODO:
+                  info->label = expr->label;
+                  info->src_section = sec;
+                  info->offset = address - start_address;
+                  info->add = 0;
+                  vec_push(unresolved, info);
+                  unres = true;
+                } else if (label->section != sec) {
+                  UnresolvedInfo *info = malloc(sizeof(*info));
+                  info->kind = UNRES_ABS64;  // TODO
+                  info->label = expr->label;
+                  info->src_section = sec;
+                  info->offset = address - start_address;
+                  info->add = 0;
+                  vec_push(unresolved, info);
+                  unres = true;
+                }
+              }
+              if (!unres) {
+                intptr_t value;
+                if (calc_expr(label_table, expr, &value, &unresolved_labels)) {
+                  put_value(ir->code.buf + 3, value, sizeof(int32_t));
+                } else {
+                  assert(!"Not handled");
+                }
+              }
         }
         break;
       case IR_LABEL:
@@ -304,7 +394,7 @@ bool resolve_relative_address(Vector **section_irs, Table *label_table) {
     }
   }
 
-  if (unresolved_labels.count > 0) {
+  if (unresolved_labels.count > 0 && unresolved == NULL) {
     for (int i = 0; ;) {
       const Name *name;
       void *dummy;
