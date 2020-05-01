@@ -11,6 +11,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <strings.h>
+#include <sys/stat.h>
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <unistd.h>
@@ -170,6 +171,7 @@ int main(int argc, char *argv[]) {
   const char *ofn = NULL;
   bool out_pp = false;
   bool out_obj = false;
+  bool out_asm = false;
   bool run_asm = true;
   int iarg;
 
@@ -203,8 +205,12 @@ int main(int argc, char *argv[]) {
     } else if (strcmp(arg, "-E") == 0) {
       out_pp = true;
       run_asm = false;
-    } else if (strcmp(arg, "-S") == 0 || strcmp(arg, "--dump-ir") == 0) {
+    } else if (strcmp(arg, "-S") == 0) {
+      out_asm = true;
       run_asm = false;
+    } else if (strcmp(arg, "--dump-ir") == 0) {
+      run_asm = false;
+      vec_push(cc1_cmd, arg);
     } else if (starts_with(arg, "--local-label-prefix")) {
       vec_push(cc1_cmd, arg);
     } else if (strcmp(arg, "--help") == 0) {
@@ -229,6 +235,11 @@ int main(int argc, char *argv[]) {
     if (out_obj) {
       if (iarg < argc)
         ofn = change_ext(basename(argv[iarg]), "o");
+      else
+        ofn = "a.o";
+    } else if (out_asm) {
+      if (iarg < argc)
+        ofn = change_ext(basename(argv[iarg]), "s");
       else
         ofn = "a.s";
     } else {
@@ -255,6 +266,15 @@ int main(int argc, char *argv[]) {
   if (run_asm) {
     as_pid = pipe_exec((char**)as_cmd->data, -1, as_fd);
     ofd = as_fd[1];
+  } else if (out_asm) {
+#ifndef __XCC
+    close(STDOUT_FILENO);
+    ofd = open(ofn, O_WRONLY | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
+    if (ofd == -1) {
+      perror("Failed to open output file");
+      exit(1);
+    }
+#endif
   }
 
   int res = 0;
