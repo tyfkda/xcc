@@ -140,8 +140,8 @@ Vector *parse_macro_body(const char *p, const Vector *params, bool va_args, Stre
   set_source_string(p, stream->filename, stream->lineno);
   int param_len = params != NULL ? params->len : 0;
   const Name *key_va_args = alloc_name("__VA_ARGS__", NULL, false);
-  StringBuffer sb;
-  sb_init(&sb);
+  const char *start = p;
+  const char *end = start;
   for (;;) {
     Token *tok;
     if ((tok = match(TK_IDENT)) != NULL) {
@@ -157,12 +157,11 @@ Vector *parse_macro_body(const char *p, const Vector *params, bool va_args, Stre
         }
       }
       if (index >= 0) {
-        if (!sb_empty(&sb)) {
+        if (tok->begin > start) {
           Segment *seg = malloc(sizeof(*seg));
           seg->type = ST_TEXT;
-          seg->text = sb_to_string(&sb);
+          seg->text = strndup_(start, tok->begin - start);
           vec_push(segments, seg);
-          sb_clear(&sb);
         }
 
         Segment *seg2 = malloc(sizeof(*seg2));
@@ -170,6 +169,7 @@ Vector *parse_macro_body(const char *p, const Vector *params, bool va_args, Stre
         seg2->param = index;
         vec_push(segments, seg2);
 
+        start = end = tok->end;
         continue;
       }
     } else {
@@ -177,16 +177,13 @@ Vector *parse_macro_body(const char *p, const Vector *params, bool va_args, Stre
       if (tok->kind == TK_EOF)
         break;
     }
-
-    if (!sb_empty(&sb))
-      sb_append(&sb, " ", NULL);
-    sb_append(&sb, tok->begin, tok->end);
+    end = tok->end;
   }
 
-  if (!sb_empty(&sb)) {
+  if (start != end) {
     Segment *seg = malloc(sizeof(*seg));
     seg->type = ST_TEXT;
-    seg->text = sb_to_string(&sb);
+    seg->text = strndup_(start, end - start);
     vec_push(segments, seg);
   }
   return segments;
@@ -298,38 +295,64 @@ static Vector *parse_funargs(void) {
   Vector *args = NULL;
   if (match2(TK_LPAR)) {
     args = new_vector();
-    StringBuffer sb;
-    sb_init(&sb);
     if (!match2(TK_RPAR)) {
+      StringBuffer sb;
+      sb_init(&sb);
+      const char *start = NULL;
+      const char *end = NULL;
       int paren = 0;
       for (;;) {
-        if (match2(TK_EOF))
-          parse_error(NULL, "`)' expected");
-
         Token *tok;
-        if ((tok = match2(TK_COMMA)) != NULL || (tok = match2(TK_RPAR)) != NULL)  {
-          if (paren > 0) {
-            sb_append(&sb, tok->begin, tok->end);
-            if (tok->kind == TK_RPAR)
-              --paren;
-            continue;
-          }
-          if (sb_empty(&sb))
-            parse_error(tok, "expression expected");
+        for (;;) {
+          tok = match(-1);
+          if (tok->kind != TK_EOF)
+            break;
 
-          vec_push(args, sb_to_string(&sb));
-          sb_clear(&sb);
+          if (start != end)
+            sb_append(&sb, start, end);
+          if (!sb_empty(&sb))
+            sb_append(&sb, "\n", NULL);
+          start = end = NULL;
+
+          char *line = NULL;
+          size_t capa = 0;
+          ssize_t len = getline_(&line, &capa, s_stream->fp, 0);
+          if (len == EOF) {
+            parse_error(NULL, "`)' expected");
+            return NULL;
+          }
+          ++s_stream->lineno;
+          set_source_string(line, s_stream->filename, s_stream->lineno);
+        }
+
+        if (tok->kind == TK_COMMA || tok->kind == TK_RPAR) {
+          if (paren <= 0) {
+            if (sb_empty(&sb)) {
+              if (start == end)
+                parse_error(tok, "expression expected");
+              vec_push(args, strndup_(start, end - start));
+            } else {
+              if (start != end)
+                sb_append(&sb, start, end);
+              vec_push(args, sb_to_string(&sb));
+              sb_clear(&sb);
+            }
+            start = end = NULL;
+
+            if (tok->kind == TK_RPAR)
+              break;
+            else
+              continue;
+          }
 
           if (tok->kind == TK_RPAR)
-            break;
-          continue;
-        }
-        tok = match2(-1);
-        if (tok->kind == TK_LPAR)
+            --paren;
+        } else if (tok->kind == TK_LPAR) {
           ++paren;
-        if (!sb_empty(&sb))
-          sb_append(&sb, " ", NULL);
-        sb_append(&sb, tok->begin, tok->end);
+        }
+        if (start == NULL)
+          start = tok->begin;
+        end = tok->end;
       }
     }
   }
