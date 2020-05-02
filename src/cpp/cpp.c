@@ -10,6 +10,7 @@
 
 #include "ast.h"
 #include "lexer.h"
+#include "macro.h"
 #include "parser.h"
 #include "table.h"
 #include "type.h"
@@ -20,42 +21,6 @@ char *cat_path_cwd(const char *dir, const char *path) {
   char *root = cat_path(cwd, dir);
   free(cwd);
   return cat_path(root, path);
-}
-
-enum SegmentType {
-  ST_TEXT,
-  ST_PARAM,
-};
-
-typedef struct {
-  enum SegmentType type;
-  union {
-    const char *text;
-    int param;
-  };
-} Segment;
-
-typedef struct {
-  Vector *params;  // <const char*>
-  bool va_args;
-  Vector *segments;  // <Segment*>
-} Macro;
-
-Macro *new_macro(Vector *params, bool va_args, Vector *segments) {
-  Macro *macro = malloc(sizeof(*macro));
-  macro->params = params;
-  macro->va_args = va_args;
-  macro->segments = segments;
-  return macro;
-}
-
-Macro *new_macro_single(const char *text) {
-  Vector *segments = new_vector();
-  Segment *seg = malloc(sizeof(*seg));
-  seg->type = ST_TEXT;
-  seg->text = text;
-  vec_push(segments, seg);
-  return new_macro(NULL, false, segments);
 }
 
 const char *skip_whitespaces(const char *s) {
@@ -295,66 +260,6 @@ Token *match2(enum TokenKind kind) {
   }
 }
 
-char *expand(Macro *macro, Vector *args, const Name *name) {
-  if (macro->params != NULL) {
-    if (args == NULL) {
-      parse_error(NULL, "arguments expected for macro `%.*s'", name->bytes, name->chars);
-    } else {
-      if ((!macro->va_args && args->len != macro->params->len) ||
-          (macro->va_args && args->len <= macro->params->len)) {
-        const char *cmp = args->len < macro->params->len ? "less" : "few";
-        parse_error(NULL, "Too %s arguments for macro `%.*s'", cmp, name->bytes, name->chars);
-      }
-    }
-  } else {
-    if (args != NULL) {
-      parse_error(NULL, "Illegal argument for macro `%.*s'", name->bytes, name->chars);
-    }
-  }
-
-  // __VA_ARGS__
-  if (macro->va_args) {
-    // Concat.
-    StringBuffer sb;
-    sb_init(&sb);
-    int plen = macro->params->len;
-    for (int i = plen; i < args->len; ++i) {
-      if (i > plen)
-        sb_append(&sb, ",", NULL);
-      sb_append(&sb, (char*)args->data[i], NULL);
-    }
-    char *vaargs = sb_to_string(&sb);
-
-    if (args->len <= plen)
-      vec_push(args, vaargs);
-    else
-      args->data[plen] = vaargs;
-  }
-
-  StringBuffer sb;
-  sb_init(&sb);
-  if (macro->segments != NULL) {
-    for (int i = 0; i < macro->segments->len; ++i) {
-      Segment *seg = macro->segments->data[i];
-      switch (seg->type) {
-      case ST_TEXT:
-        sb_append(&sb, seg->text, NULL);
-        break;
-      case ST_PARAM:
-        sb_append(&sb, (char*)args->data[seg->param], NULL);
-        break;
-      default:
-        break;
-      }
-    }
-  }
-  const char *left = get_lex_p();
-  if (left != NULL)
-    sb_append(&sb, get_lex_p(), NULL);
-
-  return sb_to_string(&sb);
-}
-
 bool handle_block_comment(const char *begin, const char **pp, Stream *stream) {
   const char *p = skip_whitespaces(*pp);
   if (*p != '/' || p[1] != '*')
@@ -457,7 +362,16 @@ void process_line(const char *line, Stream *stream) {
       Vector *args = NULL;
       if (macro->params != NULL)
         args = parse_funargs();
-      char *expanded = expand(macro, args, ident->ident);
+
+      StringBuffer sb;
+      sb_init(&sb);
+      expand(macro, args, ident->ident, &sb);
+
+      const char *left = get_lex_p();
+      if (left != NULL)
+        sb_append(&sb, left, NULL);
+      char *expanded = sb_to_string(&sb);
+
       set_source_string(expanded, NULL, -1);
       begin = get_lex_p();
       continue;
@@ -496,7 +410,12 @@ intptr_t reduce(Expr *expr) {
       if (macro == NULL) {
         parse_error(NULL, "`%.s' not defined", expr->variable.name->bytes, expr->variable.name->chars);
       }
-      char *expanded = expand(macro, NULL, expr->variable.name);
+
+      StringBuffer sb;
+      sb_init(&sb);
+      expand(macro, NULL, expr->variable.name, &sb);
+      char *expanded = sb_to_string(&sb);
+
       int flag = 1;
       if (*expanded == '-') {
         ++expanded;
