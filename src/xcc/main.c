@@ -18,6 +18,12 @@
 
 #include "util.h"
 
+#if !defined(__XV6) && !defined(__linux__)
+
+#define AS_USE_CC
+
+#endif
+
 static char *get_ext(const char *filename) {
   const char *last_slash = strrchr(filename, '/');
   if (last_slash == NULL)
@@ -178,7 +184,9 @@ int main(int argc, char *argv[]) {
   const char *root = dirname(strdup_(argv[0]));
   char *cpp_path = cat_path(root, "cpp");
   char *cc1_path = cat_path(root, "cc1");
+#if !defined(AS_USE_CC)
   char *as_path = cat_path(root, "as");
+#endif
 
   Vector *cpp_cmd = new_vector();
   vec_push(cpp_cmd, cpp_path);
@@ -187,7 +195,13 @@ int main(int argc, char *argv[]) {
   vec_push(cc1_cmd, cc1_path);
 
   Vector *as_cmd = new_vector();
+#if !defined(AS_USE_CC)
   vec_push(as_cmd, as_path);
+#else
+  vec_push(as_cmd, "cc");
+  vec_push(as_cmd, "-x");
+  vec_push(as_cmd, "assembler");
+#endif
 
   for (iarg = 1; iarg < argc; ++iarg) {
     char *arg = argv[iarg];
@@ -257,6 +271,9 @@ int main(int argc, char *argv[]) {
   vec_push(cpp_cmd, NULL);  // Terminator.
   vec_push(cc1_cmd, NULL);  // Buffer for label prefix.
   vec_push(cc1_cmd, NULL);  // Terminator.
+#if defined(AS_USE_CC)
+  vec_push(as_cmd, "-");
+#endif
   vec_push(as_cmd, NULL);  // Terminator.
 
   int ofd = STDOUT_FILENO;

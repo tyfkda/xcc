@@ -34,15 +34,21 @@
 
 #else
 
-#include <unistd.h>
-#define AS_USE_CC
+#define UNSUPPORTED
 
 #endif
+
+#if defined(UNSUPPORTED)
+int main() {
+  fprintf(stderr, "AS: unsupported environment\n");
+  return 1;
+}
+
+#else
 
 #define LOAD_ADDRESS    START_ADDRESS
 #define DATA_ALIGN      (0x1000)
 
-#if !defined(AS_USE_CC)
 void parse_file(FILE *fp, const char *filename, Vector **section_irs, Table *label_table) {
   ParseInfo info;
   info.filename = filename;
@@ -494,7 +500,6 @@ static int output_exe(const char *ofn, Table *label_table) {
 #endif
   return 0;
 }
-#endif  // !AS_USE_CC
 
 // ================================================
 
@@ -530,7 +535,6 @@ int main(int argc, char *argv[]) {
     }
   }
 
-#if !defined(AS_USE_CC)
   // ================================================
   // Run own assembler
 
@@ -572,51 +576,5 @@ int main(int argc, char *argv[]) {
   fix_section_size(LOAD_ADDRESS);
 
   return out_obj ? output_obj(ofn, &label_table, unresolved) : output_exe(ofn, &label_table);
-
-#else  // AS_NOT_SUPPORTED
-  // ================================================
-  // Run system's cc.
-
-  Vector *cc_args = new_vector();
-  vec_push(cc_args, "cc");
-  vec_push(cc_args, "-o");
-  vec_push(cc_args, ofn);
-  if (out_obj)
-    vec_push(cc_args, "-c");
-
-  char tmp_file_name[FILENAME_MAX + 2];
-  if (iarg >= argc) {
-    // Read from stdin and write to temporary file.
-    char *tmpdir = getenv("TMPDIR");
-    if (tmpdir == NULL)
-      tmpdir = "/tmp";
-
-    snprintf(tmp_file_name, sizeof(tmp_file_name), "%s/as_XXXXXX.s", tmpdir);
-    mkstemps(tmp_file_name, 2);
-    FILE *tmpfp = fopen(tmp_file_name, "w");
-    if (tmpfp == NULL)
-      error("Failed to open temporary file");
-    for (;;) {
-      static char buf[4096];
-      size_t size = fread(buf, 1, sizeof(buf), stdin);
-      if (size > 0)
-        fwrite(buf, 1, size, tmpfp);
-      if (size < sizeof(buf))
-        break;
-    }
-    fclose(tmpfp);
-
-    vec_push(cc_args, tmp_file_name);
-  } else {
-    for (int i = iarg; i < argc; ++i) {
-      vec_push(cc_args, argv[i]);
-    }
-  }
-
-  vec_push(cc_args, NULL);
-  if (execvp(cc_args->data[0], (char *const*)cc_args->data) < 0)
-    error("Failed to call cc");
-
-  return 0;
-#endif
 }
+#endif
