@@ -336,30 +336,26 @@ static Expr *sema_cmp(Expr *expr) {
       Expr *tmp = lhs;
       lhs = rhs;
       rhs = tmp;
-      expr->bop.lhs = lhs;
-      expr->bop.rhs = rhs;
       expr->kind = swap_cmp(expr->kind);
     }
     const Type *lt = lhs->type, *rt = rhs->type;
     if (!can_cast(lt, rt, rhs, false))
       parse_error(expr->token, "Cannot compare pointer to other types");
     if (rt->kind != TY_PTR)
-      expr->bop.rhs = make_cast(lhs->type, expr->token, rhs, false);
+      rhs = make_cast(lhs->type, expr->token, rhs, false);
   } else {
-    if (!cast_numbers(&expr->bop.lhs, &expr->bop.rhs, false))
+    if (!cast_numbers(&lhs, &rhs, false))
       parse_error(expr->token, "Cannot compare except numbers");
-    // cast_numbers might change lhs and rhs, so need to be updated.
-    lhs = expr->bop.lhs;
-    rhs = expr->bop.rhs;
 
     if (is_const(lhs) && !is_const(rhs)) {
       Expr *tmp = lhs;
-      expr->bop.lhs = rhs;
-      expr->bop.rhs = tmp;
+      lhs = rhs;
+      rhs = tmp;
       expr->kind = swap_cmp(expr->kind);
-      // No `lhs` nor `rhs` usage after here, so omit assignments.
     }
   }
+  expr->bop.lhs = lhs;
+  expr->bop.rhs = rhs;
   return expr;
 }
 
