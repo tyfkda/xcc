@@ -270,8 +270,6 @@ bool resolve_relative_address(Vector **section_irs, Table *label_table, Vector *
                 if (calc_expr(label_table, expr, &dst, &unresolved_labels)) {
                   intptr_t offset = dst - ((intptr_t)address + ir->code.len);
                   put_value(ir->code.buf + 3, offset, sizeof(int32_t));
-                } else {
-                  assert(!"Not handled");
                 }
               }
             }
@@ -379,8 +377,6 @@ bool resolve_relative_address(Vector **section_irs, Table *label_table, Vector *
                 intptr_t value;
                 if (calc_expr(label_table, expr, &value, &unresolved_labels)) {
                   put_value(ir->code.buf + 3, value, sizeof(int32_t));
-                } else {
-                  assert(!"Not handled");
                 }
               }
         }
