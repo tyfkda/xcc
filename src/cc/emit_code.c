@@ -44,7 +44,7 @@ static void escape_string(const char *str, size_t size, StringBuffer *sb) {
     sb_append(sb, s, p);
 }
 
-static void construct_initial_value(unsigned char *buf, const Type *type, Initializer *init) {
+static void construct_initial_value(unsigned char *buf, const Type *type, const Initializer *init) {
   assert(init == NULL || init->kind != IK_DOT);
 
   switch (type->kind) {
@@ -119,7 +119,7 @@ static void construct_initial_value(unsigned char *buf, const Type *type, Initia
         size_t index = 0;
         size_t len = init_array->len;
         for (size_t i = 0; i < len; ++i, ++index) {
-          Initializer *init_elem = init_array->data[i];
+          const Initializer *init_elem = init_array->data[i];
           if (init_elem->kind == IK_ARR) {
             size_t next = init_elem->arr.index->num.ival;
             for (size_t j = index; j < next; ++j)
@@ -161,7 +161,7 @@ static void construct_initial_value(unsigned char *buf, const Type *type, Initia
       int offset = 0;
       for (int i = 0, n = sinfo->members->len; i < n; ++i) {
         const VarInfo* member = sinfo->members->data[i];
-        Initializer *mem_init;
+        const Initializer *mem_init;
         if (init == NULL) {
           if (sinfo->is_union)
             continue;
