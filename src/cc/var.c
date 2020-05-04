@@ -7,23 +7,22 @@
 #include "table.h"
 #include "util.h"
 
-int var_find(Vector *lvars, const Name *name) {
-  for (int i = 0, len = lvars->len; i < len; ++i) {
-    VarInfo *info = (VarInfo*)lvars->data[i];
+int var_find(const Vector *vars, const Name *name) {
+  for (int i = 0, len = vars->len; i < len; ++i) {
+    VarInfo *info = (VarInfo*)vars->data[i];
     if (info->name != NULL && equal_name(info->name, name))
       return i;
   }
   return -1;
 }
 
-VarInfo *var_add(Vector *lvars, const Token *ident, const Type *type, int flag) {
-  // init is only for static local variable.
+VarInfo *var_add(Vector *vars, const Token *ident, const Type *type, int flag) {
   const Name *name = NULL;
   const Name *label = NULL;
   VarInfo *ginfo = NULL;
   if (ident != NULL) {
     name = ident->ident;
-    int idx = var_find(lvars, name);
+    int idx = var_find(vars, name);
     if (idx >= 0)
       parse_error(ident, "`%.*s' already defined", name->bytes, name->chars);
     if (flag & VF_STATIC) {
@@ -38,7 +37,7 @@ VarInfo *var_add(Vector *lvars, const Token *ident, const Type *type, int flag) 
   info->flag = flag;
   info->local.label = label;
   info->reg = NULL;
-  vec_push(lvars, info);
+  vec_push(vars, info);
   return ginfo != NULL ? ginfo : info;
 }
 
