@@ -10,7 +10,7 @@
 #include "util.h"
 #include "var.h"
 
-static Stmt *statement(void);
+static Stmt *parse_stmt(void);
 
 // Initializer
 
@@ -122,10 +122,10 @@ static Stmt *parse_if(const Token *tok) {
   consume(TK_LPAR, "`(' expected");
   Expr *cond = parse_expr();
   consume(TK_RPAR, "`)' expected");
-  Stmt *tblock = statement();
+  Stmt *tblock = parse_stmt();
   Stmt *fblock = NULL;
   if (match(TK_ELSE)) {
-    fblock = statement();
+    fblock = parse_stmt();
   }
   return new_stmt_if(tok, cond, tblock, fblock);
 }
@@ -135,7 +135,7 @@ static Stmt *parse_switch(const Token *tok) {
   Expr *value = parse_expr();
   consume(TK_RPAR, "`)' expected");
   Stmt *swtch = new_stmt_switch(tok, value);
-  swtch->switch_.body = statement();
+  swtch->switch_.body = parse_stmt();
   return swtch;
 }
 
@@ -154,13 +154,13 @@ static Stmt *parse_while(const Token *tok) {
   consume(TK_LPAR, "`(' expected");
   Expr *cond = parse_expr();
   consume(TK_RPAR, "`)' expected");
-  Stmt *body = statement();
+  Stmt *body = parse_stmt();
 
   return new_stmt_while(tok, cond, body);
 }
 
 static Stmt *parse_do_while(void) {
-  Stmt *body = statement();
+  Stmt *body = parse_stmt();
 
   const Token *tok = consume(TK_WHILE, "`while' expected");
   consume(TK_LPAR, "`(' expected");
@@ -201,7 +201,7 @@ static Stmt *parse_for(const Token *tok) {
     post = parse_expr();
     consume(TK_RPAR, "`)' expected");
   }
-  body = statement();
+  body = parse_stmt();
 
   Stmt *stmt = new_stmt_for(tok, pre, cond, post, body);
   if (decls != NULL) {
@@ -247,7 +247,7 @@ static Stmt *parse_asm(const Token *tok) {
 }
 
 // Multiple stmt-s, also accept `case` and `default`.
-static Vector *read_stmts(void) {
+static Vector *parse_stmts(void) {
   Vector *stmts = new_vector();
   for (;;) {
     if (match(TK_RBRACE))
@@ -262,7 +262,7 @@ static Vector *read_stmts(void) {
     else if ((tok = match(TK_DEFAULT)) != NULL)
       stmt = parse_default(tok);
     else
-      stmt = statement();
+      stmt = parse_stmt();
 
     if (stmt == NULL)
       continue;
@@ -271,15 +271,15 @@ static Vector *read_stmts(void) {
 }
 
 static Stmt *parse_block(const Token *tok) {
-  Vector *stmts = read_stmts();
+  Vector *stmts = parse_stmts();
   return new_stmt_block(tok, stmts);
 }
 
-static Stmt *statement(void) {
+static Stmt *parse_stmt(void) {
   Token *label = match(TK_IDENT);
   if (label != NULL) {
     if (match(TK_COLON)) {
-      return new_stmt_label(label, statement());
+      return new_stmt_label(label, parse_stmt());
     }
     unget_token(label);
   }
@@ -336,7 +336,7 @@ static Declaration *parse_defun(const Type *functype, int flag, Token *ident) {
     // Prototype declaration.
   } else {
     consume(TK_LBRACE, "`;' or `{' expected");
-    defun->stmts = read_stmts();
+    defun->stmts = parse_stmts();
   }
   return new_decl_defun(defun);
 }
@@ -387,7 +387,7 @@ static Declaration *parse_global_var_decl(const Type *rawtype, int flag, const T
   return decls != NULL ? new_decl_vardecl(decls) : NULL;
 }
 
-static Declaration *declaration(void) {
+static Declaration *parse_declaration(void) {
   const Type *rawtype = NULL, *type;
   int flag;
   Token *ident;
@@ -420,7 +420,7 @@ Vector *parse(Vector *decls) {
   if (decls == NULL)
     decls = new_vector();
   while (!match(TK_EOF)) {
-    Declaration *decl = declaration();
+    Declaration *decl = parse_declaration();
     if (decl != NULL)
       vec_push(decls, decl);
   }
