@@ -9,7 +9,7 @@
 
 int var_find(const Vector *vars, const Name *name) {
   for (int i = 0, len = vars->len; i < len; ++i) {
-    VarInfo *info = (VarInfo*)vars->data[i];
+    VarInfo *info = vars->data[i];
     if (info->name != NULL && equal_name(info->name, name))
       return i;
   }
@@ -88,7 +88,7 @@ VarInfo *scope_find(Scope **pscope, const Name *name) {
     if (scope->vars != NULL) {
       int idx = var_find(scope->vars, name);
       if (idx >= 0) {
-        varinfo = (VarInfo*)scope->vars->data[idx];
+        varinfo = scope->vars->data[idx];
         break;
       }
     }
