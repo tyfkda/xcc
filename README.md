@@ -8,7 +8,7 @@ XCC
   * C compiler for [XV6 (64bit)](https://github.com/tyfkda/xv6)
     * Also work on Linux
   * Assembler
-  * Output ELF file format directly
+  * Output ELF64 (x86-64) file format
   * Register allocation (Linear scan)
   * Self hosting
 
@@ -42,13 +42,14 @@ $ ./a.out
 ```
 
 
-### Commandline options
+### Command line options
 
   * `-o<filename>`: Set output filename (default: a.out)
   * `-I<path>`:     Add include path
   * `-D<label>(=value)`:  Define macro
   * `-S`:           Output source code (, not execlutable) to stdout
   * `-E`:           Preprocess only
+  * `-c`:           Output object file
   * `--dump-ir`:    Output IR code to stdout (debug purpose)
 
 
@@ -60,14 +61,15 @@ $ ./a.out
 
 ### Missing features
 
-Compiler:
+C compiler:
 
-  * floating point numbers
+  * Floating point numbers
   * Bit field
 
 Preprocessor:
 
   * Self recursive macro expansion
+  * String concatenation
 
 
 ### Reference
