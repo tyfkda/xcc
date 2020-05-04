@@ -581,7 +581,6 @@ void gen_decl(Declaration *decl) {
     gen_defun(decl->defun);
     break;
   case DCL_VARDECL:
-    gen_vardecl(decl->vardecl.decls, NULL);
     break;
 
   default:
