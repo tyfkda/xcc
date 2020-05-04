@@ -32,11 +32,11 @@ char *fmt_name(const Name *name) {
 }
 
 char *num(intptr_t x) {
-  return fmt("%"PRIdPTR, x);
+  return fmt("%" PRIdPTR, x);
 }
 
 char *im(intptr_t x) {
-  return fmt("$%"PRIdPTR, x);
+  return fmt("$%" PRIdPTR, x);
 }
 
 char *indirect(const char *base, const char *index, int scale) {

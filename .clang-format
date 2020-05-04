@@ -4,5 +4,9 @@ AllowShortCaseLabelsOnASingleLine: true
 AllowShortFunctionsOnASingleLine: None
 AllowShortIfStatementsOnASingleLine: false
 AllowShortLoopsOnASingleLine: false
+BreakBeforeBraces: Custom
+BraceWrapping:
+  AfterCaseLabel: true
 ColumnLimit: 100
 IndentCaseLabels: false
+#IndentCaseBlocks: true

@@ -639,7 +639,8 @@ static void sema_defun(Defun *defun) {
     // TODO: Check type.
     // TODO: Check duplicated definition.
     if (def->global.init != NULL)
-      parse_error(ident, "`%.*s' function already defined", defun->func->name->bytes, defun->func->name->chars);
+      parse_error(ident, "`%.*s' function already defined", defun->func->name->bytes,
+                  defun->func->name->chars);
   }
 
   if (defun->stmts != NULL) {  // Not prototype defintion.

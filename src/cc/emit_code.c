@@ -134,8 +134,7 @@ static void construct_initial_value(unsigned char *buf, const Type *type, Initia
           construct_initial_value(buf + (i * elem_size), elem_type, NULL);
       }
     } else {
-      if (init->kind == IK_SINGLE &&
-          is_char_type(type->pa.ptrof) && init->single->kind == EX_STR) {
+      if (init->kind == IK_SINGLE && is_char_type(type->pa.ptrof) && init->single->kind == EX_STR) {
         int src_size = init->single->str.size;
         size_t size = type_size(type);
         assert(size >= (size_t)src_size);
@@ -281,7 +280,7 @@ static void put_bss(void) {
     if (align <= 1)
       _COMM(label, NUM(size));
     else
-      _COMM(label, fmt("%"PRIdPTR",%"PRIdPTR, size, align));
+      _COMM(label, fmt("%" PRIdPTR ",%" PRIdPTR, size, align));
   }
 }
 

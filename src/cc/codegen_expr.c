@@ -368,7 +368,8 @@ static VReg *gen_funcall(Expr *expr) {
         ++reg_arg_count;
       } else {
         VRegType offset_type = {.size = 4, .align = 4, .is_unsigned = false};  // TODO:
-        VReg *dst = new_ir_sofs(new_const_vreg(p->offset + reg_arg_count * WORD_SIZE, &offset_type));
+        VReg *dst = new_ir_sofs(new_const_vreg(p->offset + reg_arg_count * WORD_SIZE,
+                                               &offset_type));
         if (p->stack_arg) {
           new_ir_memcpy(dst, reg, type_size(arg->type));
         } else {
@@ -401,12 +402,11 @@ static VReg *gen_funcall(Expr *expr) {
 
   VReg *result_reg = NULL;
   if (label_call) {
-    result_reg = new_ir_call(func->variable.name, global, NULL, reg_arg_count,
-                             to_vtype(expr->type), precall);
+    result_reg = new_ir_call(func->variable.name, global, NULL, reg_arg_count, to_vtype(expr->type),
+                             precall);
   } else {
     VReg *freg = gen_expr(func);
-    result_reg = new_ir_call(NULL, false, freg, reg_arg_count,
-                             to_vtype(expr->type), precall);
+    result_reg = new_ir_call(NULL, false, freg, reg_arg_count, to_vtype(expr->type), precall);
   }
 
   free(arg_infos);

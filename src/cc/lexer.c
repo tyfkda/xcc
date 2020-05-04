@@ -127,7 +127,7 @@ static void show_error_line(const char *line, const char *p, int len) {
   }
 }
 
-void lex_error(const char *p, const char* fmt, ...) {
+static void lex_error(const char *p, const char *fmt, ...) {
   fprintf(stderr, "%s(%d): ", lexer.filename, lexer.lineno);
 
   va_list ap;

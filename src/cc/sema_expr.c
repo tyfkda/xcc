@@ -55,7 +55,8 @@ bool can_cast(const Type *dst, const Type *src, Expr *src_expr, bool is_explicit
   case TY_PTR:
     switch (src->kind) {
     case TY_NUM:
-      if (src_expr->kind == EX_NUM && src_expr->num.ival == 0)  // Special handling for 0 to pointer.
+      if (src_expr->kind == EX_NUM &&
+          src_expr->num.ival == 0)  // Special handling for 0 to pointer.
         return true;
       if (is_explicit)
         return true;
@@ -155,12 +156,8 @@ static Expr *add_num(enum ExprKind kind, const Token *tok, Expr *lhs, Expr *rhs,
     intptr_t rval = rhs->num.ival;
     intptr_t value;
     switch (kind) {
-    case EX_ADD:
-      value = lval + rval;
-      break;
-    case EX_SUB:
-      value = lval - rval;
-      break;
+    case EX_ADD: value = lval + rval; break;
+    case EX_SUB: value = lval - rval; break;
     default:
       assert(false);
       value = -1;
@@ -187,8 +184,7 @@ static Expr *add_ptr_num(enum ExprKind kind, const Token *token, Expr *ptr, Expr
   const Type *ptr_type = ptr->type;
   if (ptr_type->kind == TY_ARRAY)
     ptr_type = array_to_ptr(ptr_type);
-  return new_expr_bop((enum ExprKind)(EX_PTRADD + (kind - EX_ADD)),
-                      ptr_type, token, ptr, num);
+  return new_expr_bop((enum ExprKind)(EX_PTRADD + (kind - EX_ADD)), ptr_type, token, ptr, num);
 }
 
 static Expr *add_expr_keep_left(const Token *tok, Expr *lhs, Expr *rhs, bool keep_left) {
@@ -239,8 +235,7 @@ static Expr *diff_ptr(const Token *tok, Expr *lhs, Expr *rhs) {
   const Type *elem_type = ltype;
   if (elem_type->kind == TY_PTR)
     elem_type = elem_type->pa.ptrof;
-  return new_expr_bop(EX_DIV, &tySize, tok,
-                      new_expr_bop(EX_SUB, &tySize, tok, lhs, rhs),
+  return new_expr_bop(EX_DIV, &tySize, tok, new_expr_bop(EX_SUB, &tySize, tok, lhs, rhs),
                       new_expr_sizeof(tok, elem_type, NULL));
 }
 
@@ -480,24 +475,12 @@ static Expr *sema_expr_keep_left(Expr *expr, bool keep_left) {
         intptr_t rval = rhs->num.ival;
         intptr_t value;
         switch (expr->kind) {
-        case EX_MUL:
-          value = lval * rval;
-          break;
-        case EX_DIV:
-          value = lval / rval;
-          break;
-        case EX_MOD:
-          value = lval % rval;
-          break;
-        case EX_BITAND:
-          value = lval & rval;
-          break;
-        case EX_BITOR:
-          value = lval | rval;
-          break;
-        case EX_BITXOR:
-          value = lval ^ rval;
-          break;
+        case EX_MUL:     value = lval * rval; break;
+        case EX_DIV:     value = lval / rval; break;
+        case EX_MOD:     value = lval % rval; break;
+        case EX_BITAND:  value = lval & rval; break;
+        case EX_BITOR:   value = lval | rval; break;
+        case EX_BITXOR:  value = lval ^ rval; break;
         default:
           assert(!"err");
           value = -1;  // Dummy

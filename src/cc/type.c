@@ -50,8 +50,7 @@ bool same_type(const Type *type1, const Type *type2) {
       type2 = type2->pa.ptrof;
       continue;
     case TY_FUNC:
-      if (!same_type(type1->func.ret, type2->func.ret) ||
-          type1->func.vaargs != type2->func.vaargs)
+      if (!same_type(type1->func.ret, type2->func.ret) || type1->func.vaargs != type2->func.vaargs)
         return false;
       if (type1->func.param_types == NULL && type2->func.param_types == NULL)
         return true;

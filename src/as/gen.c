@@ -47,9 +47,11 @@ void fix_section_size(uintptr_t start_address) {
   sections[SEC_RODATA].start_address = rodata_addr;
 
   int data_align = MAX(section_aligns[SEC_DATA], 1);
-  sections[SEC_DATA].start_address = ALIGN(sections[SEC_RODATA].start_address + sections[SEC_RODATA].buf.size, data_align);
+  sections[SEC_DATA].start_address =
+      ALIGN(sections[SEC_RODATA].start_address + sections[SEC_RODATA].buf.size, data_align);
   int bss_align = MAX(section_aligns[SEC_BSS], 1);
-  sections[SEC_BSS].start_address = sections[SEC_DATA].start_address + ALIGN(sections[SEC_DATA].buf.size, bss_align);
+  sections[SEC_BSS].start_address =
+      sections[SEC_DATA].start_address + ALIGN(sections[SEC_DATA].buf.size, bss_align);
 }
 
 void get_section_size(int section, size_t *psize, uintptr_t *ploadadr) {

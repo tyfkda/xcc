@@ -10,8 +10,8 @@
 
 #ifndef ELF_NOT_SUPPORTED
 
-#include <stdio.h>  // FILE
 #include <stdint.h>  // ssize_t
+#include <stdio.h>  // FILE
 
 #if defined(__XV6)
 // XV6
@@ -50,8 +50,8 @@ Elf64_Sym *symtab_add(Symtab *symtab, const Name *name);
 
 //
 
-void out_elf_header(FILE* fp, uintptr_t entry, int phnum, int shnum);
-void out_program_header(FILE* fp, int sec, uintptr_t offset, uintptr_t vaddr,
-                        size_t filesz, size_t memsz);
+void out_elf_header(FILE *fp, uintptr_t entry, int phnum, int shnum);
+void out_program_header(FILE *fp, int sec, uintptr_t offset, uintptr_t vaddr, size_t filesz,
+                        size_t memsz);
 
 #endif  // !ELF_NOT_SUPPORTED

@@ -1,6 +1,5 @@
 #include <assert.h>
 #include <ctype.h>
-#include <stdio.h>
 #include <stdint.h>  // uintptr_t
 #include <stdio.h>
 #include <stdlib.h>  // malloc, calloc
@@ -470,7 +469,8 @@ static int output_exe(const char *ofn, Table *label_table) {
   if (phnum > 1) {
     size_t bss_align = MAX(section_aligns[SEC_BSS], 1);
     size_t datamemsz = ALIGN(datasz, bss_align) + bsssz;
-    out_program_header(fp, 1, ALIGN(PROG_START + code_rodata_sz, DATA_ALIGN), dataloadadr, datasz, datamemsz);
+    out_program_header(fp, 1, ALIGN(PROG_START + code_rodata_sz, DATA_ALIGN), dataloadadr, datasz,
+                       datamemsz);
   }
 
   uintptr_t addr = PROG_START;

@@ -33,9 +33,8 @@ static bool assemble_error(const ParseInfo *info, const char *message) {
   return false;
 }
 
-static unsigned char *put_rex0(unsigned char *p, enum RegSize size,
-                               int sno, int dno, unsigned char opcode)
-{
+static unsigned char *put_rex0(unsigned char *p, enum RegSize size, int sno, int dno,
+                               unsigned char opcode) {
   if (size == REG16)
     *p++ = 0x66;
   if (sno >= 8 || dno >= 8 ||
@@ -46,17 +45,15 @@ static unsigned char *put_rex0(unsigned char *p, enum RegSize size,
   return p;
 }
 
-static unsigned char *put_rex1(unsigned char *p, enum RegSize size,
-                               int rex_prefix, int dno, unsigned char opcode)
-{
+static unsigned char *put_rex1(unsigned char *p, enum RegSize size, int rex_prefix, int dno,
+                               unsigned char opcode) {
   p = put_rex0(p, size, 0, dno, opcode);
   *p++ = rex_prefix | (dno & 7);
   return p;
 }
 
-static unsigned char *put_rex2(unsigned char *p, enum RegSize size,
-                               int sno, int dno, unsigned char opcode)
-{
+static unsigned char *put_rex2(unsigned char *p, enum RegSize size, int sno, int dno,
+                               unsigned char opcode) {
   p = put_rex0(p, size, sno, dno, opcode);
   *p++ = 0xc0 | ((sno & 7) << 3) | (dno & 7);
   return p;

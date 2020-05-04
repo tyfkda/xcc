@@ -204,8 +204,7 @@ const Type *parse_raw_type(int *pflag) {
       break;
   }
 
-  if (type == NULL &&
-      (flag != 0 || is_unsigned))
+  if (type == NULL && (flag != 0 || is_unsigned))
     type = &tyInt;
 
   if (pflag != NULL)
@@ -618,7 +617,7 @@ static Expr *cmp(void) {
     else
       return expr;
 
-    Expr *lhs = expr, *rhs= shift();
+    Expr *lhs = expr, *rhs = shift();
     expr = new_expr_bop(t, &tyBool, tok, lhs, rhs);
   }
 }
@@ -636,7 +635,7 @@ static Expr *eq(void) {
     else
       return expr;
 
-    Expr *lhs = expr, *rhs= cmp();
+    Expr *lhs = expr, *rhs = cmp();
     expr = new_expr_bop(t, &tyBool, tok, lhs, rhs);
   }
 }
@@ -646,7 +645,7 @@ static Expr *and(void) {
   for (;;) {
     Token *tok;
     if ((tok = match(TK_AND)) != NULL) {
-      Expr *lhs = expr, *rhs= eq();
+      Expr *lhs = expr, *rhs = eq();
       expr = new_expr_bop(EX_BITAND, NULL, tok, lhs, rhs);
     } else
       return expr;
@@ -670,7 +669,7 @@ static Expr *or(void) {
   for (;;) {
     Token *tok;
     if ((tok = match(TK_OR)) != NULL) {
-      Expr *lhs = expr, *rhs= xor();
+      Expr *lhs = expr, *rhs = xor();
       expr = new_expr_bop(EX_BITOR, NULL, tok, lhs, rhs);
     } else
       return expr;

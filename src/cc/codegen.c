@@ -240,13 +240,14 @@ static Vector *cur_case_values;
 static Vector *cur_case_bbs;
 
 static int compare_cases(const void *pa, const void *pb) {
-  const int ia = *(int*)pa;
-  const int ib = *(int*)pb;
+  const int ia = *(int *)pa;
+  const int ib = *(int *)pb;
   intptr_t d = (intptr_t)cur_case_values->data[ia] - (intptr_t)cur_case_values->data[ib];
   return d > 0 ? 1 : d < 0 ? -1 : 0;
 }
 
-static void gen_switch_cond_recur(Stmt *stmt, VReg *reg, const VRegType *vtype, const int *order, int len) {
+static void gen_switch_cond_recur(Stmt *stmt, VReg *reg, const VRegType *vtype, const int *order,
+                                  int len) {
   Vector *case_values = stmt->switch_.case_values;
   if (len <= 2) {
     for (int i = 0; i < len; ++i) {

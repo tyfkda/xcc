@@ -16,9 +16,9 @@ static void dump_vreg(FILE *fp, VReg *vreg, int size) {
   assert(vreg != NULL);
   static char *kSize[] = {"0", "b", "w", "3", "d", "5", "6", "7", ""};
   if (vreg->flag & VRF_CONST)
-    fprintf(fp, "(%"PRIdPTR")", vreg->r);
+    fprintf(fp, "(%" PRIdPTR ")", vreg->r);
   else
-    fprintf(fp, "R%"PRIdPTR"%s<v%d>", vreg->r, kSize[size], vreg->v);
+    fprintf(fp, "R%" PRIdPTR "%s<v%d>", vreg->r, kSize[size], vreg->v);
 }
 
 static void dump_ir(FILE *fp, IR *ir) {
@@ -55,8 +55,8 @@ static void dump_ir(FILE *fp, IR *ir) {
   case IR_LSHIFT: fprintf(fp, "\tLSHIFT\t"); dump_vreg(fp, ir->dst, ir->size); fprintf(fp, " = "); dump_vreg(fp, ir->opr1, ir->size); fprintf(fp, " << "); dump_vreg(fp, ir->opr2, ir->size); fprintf(fp, "\n"); break;
   case IR_RSHIFT: fprintf(fp, "\tRSHIFT\t"); dump_vreg(fp, ir->dst, ir->size); fprintf(fp, " = "); dump_vreg(fp, ir->opr1, ir->size); fprintf(fp, " >> "); dump_vreg(fp, ir->opr2, ir->size); fprintf(fp, "\n"); break;
   case IR_CMP:    fprintf(fp, "\tCMP\t"); dump_vreg(fp, ir->opr1, ir->size); fprintf(fp, " - "); dump_vreg(fp, ir->opr2, ir->size); fprintf(fp, "\n"); break;
-  case IR_INC:    fprintf(fp, "\tINC\t"); dump_vreg(fp, ir->opr1, WORD_SIZE); fprintf(fp, "%s += %"PRIdPTR"\n", kSize[ir->size], ir->value); break;
-  case IR_DEC:    fprintf(fp, "\tDEC\t"); dump_vreg(fp, ir->opr1, WORD_SIZE); fprintf(fp, "%s -= %"PRIdPTR"\n", kSize[ir->size], ir->value); break;
+  case IR_INC:    fprintf(fp, "\tINC\t"); dump_vreg(fp, ir->opr1, WORD_SIZE); fprintf(fp, "%s += %" PRIdPTR "\n", kSize[ir->size], ir->value); break;
+  case IR_DEC:    fprintf(fp, "\tDEC\t"); dump_vreg(fp, ir->opr1, WORD_SIZE); fprintf(fp, "%s -= %" PRIdPTR "\n", kSize[ir->size], ir->value); break;
   case IR_NEG:    fprintf(fp, "\tNEG\t"); dump_vreg(fp, ir->dst, ir->size); fprintf(fp, " = -"); dump_vreg(fp, ir->opr1, ir->size); fprintf(fp, "\n"); break;
   case IR_NOT:    fprintf(fp, "\tNOT\t"); dump_vreg(fp, ir->dst, ir->size); fprintf(fp, " = !"); dump_vreg(fp, ir->opr1, ir->size); fprintf(fp, "\n"); break;
   case IR_BITNOT: fprintf(fp, "\tBITNOT\t"); dump_vreg(fp, ir->dst, ir->size); fprintf(fp, " = ~"); dump_vreg(fp, ir->opr1, ir->size); fprintf(fp, "\n"); break;
@@ -73,7 +73,7 @@ static void dump_ir(FILE *fp, IR *ir) {
     }
     break;
   case IR_RESULT: fprintf(fp, "\tRESULT\t"); dump_vreg(fp, ir->opr1, ir->size); fprintf(fp, "\n"); break;
-  case IR_ADDSP:  fprintf(fp, "\tADDSP\t%"PRIdPTR"\n", ir->value); break;
+  case IR_ADDSP:  fprintf(fp, "\tADDSP\t%" PRIdPTR "\n", ir->value); break;
   case IR_CAST:   fprintf(fp, "\tCAST\t"); dump_vreg(fp, ir->dst, ir->size); fprintf(fp, " = "); dump_vreg(fp, ir->opr1, ir->cast.srcsize); fprintf(fp, "\n"); break;
   case IR_MOV:    fprintf(fp, "\tMOV\t"); dump_vreg(fp, ir->dst, ir->size); fprintf(fp, " = "); dump_vreg(fp, ir->opr1, ir->size); fprintf(fp, "\n"); break;
   case IR_MEMCPY: fprintf(fp, "\tMEMCPY(dst="); dump_vreg(fp, ir->opr2, WORD_SIZE); fprintf(fp, ", src="); dump_vreg(fp, ir->opr1, WORD_SIZE); fprintf(fp, ", size=%d)\n", ir->size); break;
@@ -106,7 +106,8 @@ static void dump_func_ir(Function *func) {
       VarInfo *varinfo = scope->vars->data[j];
       if (varinfo->reg == NULL)
         continue;
-      fprintf(fp, "  V%3d (flag=%x): %.*s\n", varinfo->reg->v, varinfo->reg->flag, varinfo->name->bytes, varinfo->name->chars);
+      fprintf(fp, "  V%3d (flag=%x): %.*s\n", varinfo->reg->v, varinfo->reg->flag,
+              varinfo->name->bytes, varinfo->name->chars);
     }
   }
 
@@ -124,7 +125,7 @@ static void dump_func_ir(Function *func) {
       fprintf(fp, "  V%3d (flag=%x): live %3d - %3d (spilled, offset=%d)\n", li->vreg, vreg->flag, li->start, li->end, vreg->offset);
       break;
     case LI_CONST:
-      fprintf(fp, "  V%3d (flag=%x): (const, value=%"PRIdPTR")\n", li->vreg, vreg->flag, vreg->r);
+      fprintf(fp, "  V%3d (flag=%x): (const, value=%" PRIdPTR ")\n", li->vreg, vreg->flag, vreg->r);
       break;
     default:  assert(false); break;
     }

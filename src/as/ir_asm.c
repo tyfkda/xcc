@@ -159,7 +159,8 @@ static void put_unresolved(Table *table, const Name *label) {
   table_put(table, label, (void*)label);
 }
 
-static bool calc_expr(Table *label_table, const Expr *expr, intptr_t *result, Table *unresolved_labels) {
+static bool calc_expr(Table *label_table, const Expr *expr, intptr_t *result,
+                      Table *unresolved_labels) {
   assert(expr != NULL);
   switch (expr->kind) {
   case EX_LABEL:

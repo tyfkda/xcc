@@ -6,8 +6,8 @@
 #include <stdlib.h>  // malloc
 #include <string.h>  // strcmp
 
-#include "table.h"
 #include "../version.h"
+#include "table.h"
 
 char *strdup_(const char *str) {
   return strndup_(str, strlen(str));

@@ -121,7 +121,8 @@ static int sort_live_interval(LiveInterval **pa, LiveInterval **pb) {
   return d;
 }
 
-static void split_at_interval(RegAlloc *ra, LiveInterval **active, int active_count, LiveInterval *li) {
+static void split_at_interval(RegAlloc *ra, LiveInterval **active, int active_count,
+                              LiveInterval *li) {
   assert(active_count > 0);
   LiveInterval *spill = active[active_count - 1];
   if (spill->end > li->end) {
@@ -135,7 +136,8 @@ static void split_at_interval(RegAlloc *ra, LiveInterval **active, int active_co
   }
 }
 
-static void expire_old_intervals(LiveInterval **active, int *pactive_count, short *pusing_bits, int start) {
+static void expire_old_intervals(LiveInterval **active, int *pactive_count, short *pusing_bits,
+                                 int start) {
   int active_count = *pactive_count;
   int j;
   short using_bits = *pusing_bits;
@@ -150,7 +152,8 @@ static void expire_old_intervals(LiveInterval **active, int *pactive_count, shor
   *pusing_bits = using_bits;
 }
 
-static LiveInterval **check_live_interval(BBContainer *bbcon, int vreg_count, LiveInterval **pintervals) {
+static LiveInterval **check_live_interval(BBContainer *bbcon, int vreg_count,
+                                          LiveInterval **pintervals) {
   LiveInterval *intervals = malloc(sizeof(LiveInterval) * vreg_count);
   for (int i = 0; i < vreg_count; ++i) {
     LiveInterval *li = &intervals[i];
@@ -192,13 +195,15 @@ static LiveInterval **check_live_interval(BBContainer *bbcon, int vreg_count, Li
   LiveInterval **sorted_intervals = malloc(sizeof(LiveInterval*) * vreg_count);
   for (int i = 0; i < vreg_count; ++i)
     sorted_intervals[i] = &intervals[i];
-  myqsort(sorted_intervals, vreg_count, sizeof(LiveInterval*), (int (*)(const void*, const void*))sort_live_interval);
+  myqsort(sorted_intervals, vreg_count, sizeof(LiveInterval*),
+          (int(*)(const void *, const void *))sort_live_interval);
 
   *pintervals = intervals;
   return sorted_intervals;
 }
 
-static short linear_scan_register_allocation(RegAlloc *ra, LiveInterval **sorted_intervals, int vreg_count) {
+static short linear_scan_register_allocation(RegAlloc *ra, LiveInterval **sorted_intervals,
+                                             int vreg_count) {
   const int PHY_MAX = ra->phy_max;
   LiveInterval **active = ALLOCA(sizeof(LiveInterval*) * ra->phy_max);
   int active_count = 0;

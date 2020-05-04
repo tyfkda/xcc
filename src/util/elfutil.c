@@ -81,7 +81,7 @@ Elf64_Sym *symtab_add(Symtab *symtab, const Name *name) {
 
 //
 
-void out_elf_header(FILE* fp, uintptr_t entry, int phnum, int shnum) {
+void out_elf_header(FILE *fp, uintptr_t entry, int phnum, int shnum) {
   Elf64_Ehdr ehdr = {
     .e_ident     = { ELFMAG0, ELFMAG1, ELFMAG2 ,ELFMAG3,
                      ELFCLASS64, ELFDATA2LSB, EV_CURRENT, ELFOSABI_SYSV },
@@ -103,8 +103,8 @@ void out_elf_header(FILE* fp, uintptr_t entry, int phnum, int shnum) {
   fwrite(&ehdr, sizeof(Elf64_Ehdr), 1, fp);
 }
 
-void out_program_header(FILE* fp, int sec, uintptr_t offset, uintptr_t vaddr,
-                        size_t filesz, size_t memsz) {
+void out_program_header(FILE *fp, int sec, uintptr_t offset, uintptr_t vaddr, size_t filesz,
+                        size_t memsz) {
   static const int kFlags[] = {
     PF_R | PF_X,  // code
     PF_R | PF_W,  // rwdata

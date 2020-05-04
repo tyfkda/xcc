@@ -238,7 +238,8 @@ static enum Opcode find_opcode(ParseInfo *info) {
 }
 
 static enum DirectiveType find_directive(ParseInfo *info) {
-  return find_match_index(&info->p, kDirectiveTable, sizeof(kDirectiveTable) / sizeof(*kDirectiveTable)) + 1;
+  return find_match_index(&info->p, kDirectiveTable,
+                          sizeof(kDirectiveTable) / sizeof(*kDirectiveTable)) + 1;
 }
 
 static enum RegType find_register(const char **pp) {
@@ -714,7 +715,8 @@ static size_t unescape_string(ParseInfo *info, const char *p, char *dst) {
   return len;
 }
 
-void handle_directive(ParseInfo *info, enum DirectiveType dir, Vector **section_irs, Table *label_table) {
+void handle_directive(ParseInfo *info, enum DirectiveType dir, Vector **section_irs,
+                      Table *label_table) {
   Vector *irs = section_irs[current_section];
 
   switch (dir) {
