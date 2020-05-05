@@ -276,8 +276,7 @@ Initializer *flatten_initializer(const Type *type, Initializer *init) {
             value = value->dot.value;
           } else {
             Vector *stack = new_vector();
-            bool res = search_from_anonymous(type, name, NULL, stack);
-            if (!res)
+            if (search_from_anonymous(type, name, NULL, stack) == NULL)
               parse_error(value->token, "`%.*s' is not member of struct", name->bytes, name->chars);
 
             index = (intptr_t)stack->data[0];

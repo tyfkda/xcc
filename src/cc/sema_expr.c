@@ -299,7 +299,7 @@ static bool cast_numbers(Expr **pLhs, Expr **pRhs, bool keep_left) {
   return true;
 }
 
-bool search_from_anonymous(const Type *type, const Name *name, const Token *ident, Vector *stack) {
+const VarInfo *search_from_anonymous(const Type *type, const Name *name, const Token *ident, Vector *stack) {
   assert(type->kind == TY_STRUCT);
   ensure_struct((Type*)type, ident);
 
@@ -309,17 +309,17 @@ bool search_from_anonymous(const Type *type, const Name *name, const Token *iden
     if (member->name != NULL) {
       if (equal_name(member->name, name)) {
         vec_push(stack, (void*)(long)i);
-        return true;
+        return member;
       }
     } else if (member->type->kind == TY_STRUCT) {
       vec_push(stack, (void*)(intptr_t)i);
-      bool res = search_from_anonymous(member->type, name, ident, stack);
-      if (res)
-        return true;
+      const VarInfo *submember = search_from_anonymous(member->type, name, ident, stack);
+      if (submember != NULL)
+        return submember;
       vec_pop(stack);
     }
   }
-  return false;
+  return NULL;
 }
 
 static enum ExprKind swap_cmp(enum ExprKind kind) {
@@ -744,8 +744,8 @@ static Expr *sema_expr_keep_left(Expr *expr, bool keep_left) {
         expr->member.index = index;
       } else {
         Vector *stack = new_vector();
-        bool res = search_from_anonymous(targetType, ident->ident, ident, stack);
-        if (!res)
+        const VarInfo *member = search_from_anonymous(targetType, ident->ident, ident, stack);
+        if (member == NULL)
           parse_error(ident, "`%.*s' doesn't exist in the struct", name->bytes, name->chars);
         Expr *p = target;
         const Type *type = targetType;
