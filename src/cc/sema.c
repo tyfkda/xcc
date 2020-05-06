@@ -122,6 +122,16 @@ static Initializer *sema_initializer(Initializer *init) {
   return init;
 }
 
+// Convert string literal to global char-array variable reference.
+Initializer *convert_str_to_ptr_initializer(const Type *type, Initializer *init) {
+  assert(type->kind == TY_ARRAY && is_char_type(type->pa.ptrof));
+  Initializer *init2 = malloc(sizeof(*init2));
+  init2->kind = IK_SINGLE;
+  init2->single = str_to_char_array(type, init);
+  init2->token = init->token;
+  return init2;
+}
+
 static Stmt *build_memcpy(Expr *dst, Expr *src, size_t size) {
   assert(curscope != NULL);
   const Type *charptr_type = ptrof(&tyChar);
@@ -317,20 +327,7 @@ Initializer *flatten_initializer(const Type *type, Initializer *init) {
           const VarInfo *member = sinfo->members->data[index];
           if (member->type->kind == TY_PTR &&
               is_char_type(member->type->pa.ptrof)) {
-            Expr *expr = value->single;
-            Initializer *strinit = malloc(sizeof(*strinit));
-            strinit->kind = IK_SINGLE;
-            strinit->single = expr;
-
-            // Create string and point to it.
-            Type *strtype = arrayof(&tyChar, expr->str.size);
-            const Name *label = alloc_label();
-            const Token *ident = alloc_ident(label, NULL, NULL);
-            VarInfo *varinfo = define_global(strtype, VF_CONST | VF_STATIC, ident, NULL);
-            varinfo->global.init = strinit;
-
-            // Replace initializer from string literal to string array defined in global.
-            value->single = new_expr_variable(label, strtype, ident);
+            value = convert_str_to_ptr_initializer(value->single->type, value);
           }
         }
 
@@ -441,13 +438,7 @@ static Initializer *check_global_initializer(const Type *type, Initializer *init
 
           // Create string and point to it.
           Type* strtype = arrayof(type->pa.ptrof, value->str.size);
-          Expr *var = str_to_char_array(strtype, init);
-
-          Initializer *init2 = malloc(sizeof(*init2));
-          init2->kind = IK_SINGLE;
-          init2->single = var;
-          init2->token = init->token;
-          return init2;
+          return convert_str_to_ptr_initializer(strtype, init);
         }
       default:
         break;
@@ -595,14 +586,7 @@ static Vector *assign_initial_value(Expr *expr, Initializer *init, Vector *inits
     if (expr->type->kind == TY_PTR && is_char_type(expr->type->pa.ptrof) &&
         init->single->kind == EX_STR) {
       // Create string and point to it.
-      const Type* strtype = init->single->type;
-      Expr *var = str_to_char_array(strtype, init);
-
-      Initializer *init2 = malloc(sizeof(*init2));
-      init2->kind = IK_SINGLE;
-      init2->single = var;
-      init2->token = init->token;
-      init = init2;
+      init = convert_str_to_ptr_initializer(init->single->type, init);
     }
     vec_push(inits,
              new_stmt_expr(new_expr_bop(EX_ASSIGN, expr->type, NULL, expr,
