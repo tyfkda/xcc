@@ -175,8 +175,7 @@ static Stmt *init_char_array_by_string(Expr *dst, Initializer *src) {
   }
 
   const Type *strtype = dst->type;
-  VarInfo *varinfo = str_to_char_array(strtype, src);
-  Expr *var = new_expr_variable(varinfo->name, strtype, NULL);
+  Expr *var = str_to_char_array(strtype, src);
 
   return build_memcpy(dst, var, size);
 }
@@ -442,11 +441,11 @@ static Initializer *check_global_initializer(const Type *type, Initializer *init
 
           // Create string and point to it.
           Type* strtype = arrayof(type->pa.ptrof, value->str.size);
-          VarInfo *varinfo = str_to_char_array(strtype, init);
+          Expr *var = str_to_char_array(strtype, init);
 
           Initializer *init2 = malloc(sizeof(*init2));
           init2->kind = IK_SINGLE;
-          init2->single = new_expr_variable(varinfo->name, strtype, NULL);
+          init2->single = var;
           init2->token = init->token;
           return init2;
         }
@@ -597,11 +596,11 @@ static Vector *assign_initial_value(Expr *expr, Initializer *init, Vector *inits
         init->single->kind == EX_STR) {
       // Create string and point to it.
       const Type* strtype = init->single->type;
-      VarInfo *varinfo = str_to_char_array(strtype, init);
+      Expr *var = str_to_char_array(strtype, init);
 
       Initializer *init2 = malloc(sizeof(*init2));
       init2->kind = IK_SINGLE;
-      init2->single = new_expr_variable(varinfo->name, strtype, NULL);
+      init2->single = var;
       init2->token = init->token;
       init = init2;
     }
