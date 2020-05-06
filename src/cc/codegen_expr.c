@@ -481,6 +481,7 @@ VReg *gen_expr(Expr *expr) {
       Initializer *init = malloc(sizeof(*init));
       init->kind = IK_SINGLE;
       init->single = expr;
+      init->token = expr->token;
 
       Type* strtype = arrayof(&tyChar, expr->str.size);
       const VarInfo *varinfo = str_to_char_array(strtype, init);

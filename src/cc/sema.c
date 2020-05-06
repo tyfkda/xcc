@@ -129,7 +129,43 @@ VarInfo *str_to_char_array(const Type *type, Initializer *init) {
   return varinfo;
 }
 
-static void string_initializer(Expr *dst, Initializer *src, Vector *inits) {
+static Stmt *build_memcpy(Expr *dst, Expr *src, size_t size) {
+  assert(curscope != NULL);
+  const Type *charptr_type = ptrof(&tyChar);
+  VarInfo *dstvar = add_cur_scope(alloc_ident(alloc_label(), NULL, NULL), charptr_type, 0);
+  VarInfo *srcvar = add_cur_scope(alloc_ident(alloc_label(), NULL, NULL), charptr_type, 0);
+  VarInfo *sizevar = add_cur_scope(alloc_ident(alloc_label(), NULL, NULL), &tySize, 0);
+  Expr *dstexpr = new_expr_variable(dstvar->name, dstvar->type, NULL);
+  dstexpr->variable.scope = curscope;
+  Expr *srcexpr = new_expr_variable(srcvar->name, srcvar->type, NULL);
+  srcexpr->variable.scope = curscope;
+  Expr *sizeexpr = new_expr_variable(sizevar->name, sizevar->type, NULL);
+  sizeexpr->variable.scope = curscope;
+
+  Num size_num_lit = {.ival = size};
+  Expr *size_num = new_expr_numlit(&tySize, NULL, &size_num_lit);
+
+  Num zero = {.ival = 0};
+  Expr *zeroexpr = new_expr_numlit(&tySize, NULL, &zero);
+
+  Vector *stmts = new_vector();
+  vec_push(stmts, new_stmt_expr(new_expr_bop(EX_ASSIGN, charptr_type, NULL, dstexpr, dst)));
+  vec_push(stmts, new_stmt_expr(new_expr_bop(EX_ASSIGN, charptr_type, NULL, srcexpr, src)));
+  vec_push(stmts, new_stmt_for(
+      NULL,
+      new_expr_bop(EX_ASSIGN, &tySize, NULL, sizeexpr, size_num),    // for (_size = size;
+      new_expr_bop(EX_GT, &tyBool, NULL, sizeexpr, zeroexpr),        //      _size > 0;
+      new_expr_unary(EX_PREDEC, &tySize, NULL, sizeexpr),            //      --_size)
+      new_stmt_expr(                                                 //   *_dst++ = *_src++;
+          new_expr_bop(EX_ASSIGN, &tyChar, NULL,
+                       new_expr_unary(EX_DEREF, &tyChar, NULL,
+                                      new_expr_unary(EX_POSTINC, charptr_type, NULL, dstexpr)),
+                       new_expr_unary(EX_DEREF, &tyChar, NULL,
+                                      new_expr_unary(EX_POSTINC, charptr_type, NULL, srcexpr))))));
+  return new_stmt_block(NULL, stmts);
+}
+
+static Stmt *init_char_array_by_string(Expr *dst, Initializer *src) {
   // Initialize char[] with string literal (char s[] = "foo";).
   assert(src->kind == IK_SINGLE);
   const Expr *str = src->single;
@@ -149,14 +185,7 @@ static void string_initializer(Expr *dst, Initializer *src, Vector *inits) {
   VarInfo *varinfo = str_to_char_array(strtype, src);
   Expr *var = new_expr_variable(varinfo->name, strtype, NULL);
 
-  for (size_t i = 0; i < size; ++i) {
-    Num n = {.ival = i};
-    Expr *index = new_expr_numlit(&tyInt, NULL, &n);
-    vec_push(inits,
-             new_stmt_expr(new_expr_bop(EX_ASSIGN, &tyChar, NULL,
-                                        new_expr_deref(NULL, add_expr(NULL, dst, index)),
-                                        new_expr_deref(NULL, add_expr(NULL, var, index)))));
-  }
+  return build_memcpy(dst, var, size);
 }
 
 static int compare_desig_start(const void *a, const void *b) {
@@ -520,7 +549,7 @@ static Vector *assign_initial_value(Expr *expr, Initializer *init, Vector *inits
       // Special handling for string (char[]).
       if (is_char_type(expr->type->pa.ptrof) &&
           init->single->kind == EX_STR) {
-        string_initializer(expr, init, inits);
+        vec_push(inits, init_char_array_by_string(expr, init));
         break;
       }
       // Fallthrough
