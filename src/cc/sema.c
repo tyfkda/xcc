@@ -105,7 +105,8 @@ static Initializer *sema_initializer(Initializer *init) {
 
   switch (init->kind) {
   case IK_SINGLE:
-    init->single = sema_expr(init->single);
+    if (init->single->kind != EX_STR)  // Keep string literal as is.
+      init->single = sema_expr(init->single);
     break;
   case IK_MULTI:
     for (int i = 0; i < init->multi->len; ++i)
@@ -119,14 +120,6 @@ static Initializer *sema_initializer(Initializer *init) {
     break;
   }
   return init;
-}
-
-VarInfo *str_to_char_array(const Type *type, Initializer *init) {
-  assert(type->kind == TY_ARRAY && is_char_type(type->pa.ptrof));
-  const Token *ident = alloc_ident(alloc_label(), NULL, NULL);
-  VarInfo *varinfo = define_global(type, VF_CONST | VF_STATIC, ident, NULL);
-  varinfo->global.init = init;
-  return varinfo;
 }
 
 static Stmt *build_memcpy(Expr *dst, Expr *src, size_t size) {
@@ -454,6 +447,7 @@ static Initializer *check_global_initializer(const Type *type, Initializer *init
           Initializer *init2 = malloc(sizeof(*init2));
           init2->kind = IK_SINGLE;
           init2->single = new_expr_variable(varinfo->name, strtype, NULL);
+          init2->token = init->token;
           return init2;
         }
       default:
@@ -599,6 +593,18 @@ static Vector *assign_initial_value(Expr *expr, Initializer *init, Vector *inits
   default:
     if (init->kind != IK_SINGLE)
       parse_error(init->token, "Error initializer");
+    if (expr->type->kind == TY_PTR && is_char_type(expr->type->pa.ptrof) &&
+        init->single->kind == EX_STR) {
+      // Create string and point to it.
+      const Type* strtype = init->single->type;
+      VarInfo *varinfo = str_to_char_array(strtype, init);
+
+      Initializer *init2 = malloc(sizeof(*init2));
+      init2->kind = IK_SINGLE;
+      init2->single = new_expr_variable(varinfo->name, strtype, NULL);
+      init2->token = init->token;
+      init = init2;
+    }
     vec_push(inits,
              new_stmt_expr(new_expr_bop(EX_ASSIGN, expr->type, NULL, expr,
                                         make_cast(expr->type, NULL, init->single, false))));

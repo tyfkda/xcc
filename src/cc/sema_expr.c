@@ -1,6 +1,7 @@
 #include "sema.h"
 
 #include <assert.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "ast.h"
@@ -13,6 +14,14 @@
 static const Type *tyNumTable[] = {&tyChar, &tyShort, &tyInt, &tyLong, &tyEnum};
 
 Scope *curscope;
+
+VarInfo *str_to_char_array(const Type *type, Initializer *init) {
+  assert(type->kind == TY_ARRAY && is_char_type(type->pa.ptrof));
+  const Token *ident = alloc_ident(alloc_label(), NULL, NULL);
+  VarInfo *varinfo = define_global(type, VF_CONST | VF_STATIC, ident, NULL);
+  varinfo->global.init = init;
+  return varinfo;
+}
 
 // Call before accessing struct member to ensure that struct is declared.
 void ensure_struct(Type *type, const Token *token) {
@@ -382,8 +391,19 @@ static Expr *sema_expr_keep_left(Expr *expr, bool keep_left) {
   switch (expr->kind) {
   // Literals
   case EX_NUM:
+    assert(expr->type != NULL);
+    break;
   case EX_STR:
     assert(expr->type != NULL);
+    if (curscope != NULL) {
+      Initializer *init = malloc(sizeof(*init));
+      init->kind = IK_SINGLE;
+      init->single = expr;
+      init->token = expr->token;
+      VarInfo *varinfo = str_to_char_array(expr->type, init);
+      Expr *var = new_expr_variable(varinfo->name, varinfo->type, NULL);
+      expr = var;
+    }
     break;
 
   case EX_VARIABLE:
