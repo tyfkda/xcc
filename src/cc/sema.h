@@ -16,6 +16,7 @@ typedef struct Vector Vector;
 
 extern Defun *curdefun;
 extern Scope *curscope;
+extern Vector *toplevel;  // <Declaration*>
 
 void sema(Vector *toplevel);
 Expr *sema_expr(Expr *expr);

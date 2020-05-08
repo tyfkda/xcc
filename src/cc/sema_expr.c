@@ -14,6 +14,7 @@
 static const Type *tyNumTable[] = {&tyChar, &tyShort, &tyInt, &tyLong, &tyEnum};
 
 Scope *curscope;
+Vector *toplevel;
 
 VarInfo *add_cur_scope(const Token *ident, const Type *type, int flag) {
   if (curscope->vars == NULL)
@@ -26,10 +27,15 @@ Expr *str_to_char_array(const Type *type, Initializer *init) {
   assert(type->kind == TY_ARRAY && is_char_type(type->pa.ptrof));
   const Token *ident = alloc_ident(alloc_label(), NULL, NULL);
   VarInfo *varinfo;
-  if (curscope != NULL)
+  if (curscope != NULL) {
     varinfo = add_cur_scope(ident, type, VF_CONST | VF_STATIC);
-  else
+  } else {
     varinfo = define_global(type, VF_CONST | VF_STATIC, ident, NULL);
+
+    Vector *decls = new_vector();
+    vec_push(decls, new_vardecl(varinfo->type, ident, init, varinfo->flag));
+    vec_push(toplevel, new_decl_vardecl(decls));
+  }
   varinfo->global.init = init;
 
   return new_expr_variable(varinfo->name, type, NULL);
