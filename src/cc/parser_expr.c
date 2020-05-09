@@ -108,7 +108,7 @@ const Type *parse_raw_type(int *pflag) {
       is_unsigned = true;
       continue;
     }
-    if (match(TK_KWCONST)) {
+    if (match(TK_CONST)) {
       flag |= VF_CONST;
       continue;
     }
@@ -177,14 +177,14 @@ const Type *parse_raw_type(int *pflag) {
         if (is_unsigned)
           parse_error(ident, "`unsigned' for typedef");
       }
-    } else if ((tok = match(TK_KWVOID)) != NULL) {
+    } else if ((tok = match(TK_VOID)) != NULL) {
       if (is_unsigned)
         parse_error(tok, "`unsigned' for void");
 
       type = &tyVoid;
     } else {
       static const enum TokenKind kIntTypeTokens[] = {
-        TK_KWCHAR, TK_KWSHORT, TK_KWINT, TK_KWLONG,
+        TK_CHAR, TK_SHORT, TK_INT, TK_LONG,
       };
       static const Type *kTypes[] = {
         &tyChar, &tyShort, &tyInt, &tyLong,
@@ -218,7 +218,7 @@ const Type *parse_type_modifier(const Type *type) {
     return NULL;
 
   for (;;) {
-    if (match(TK_KWCONST)) {
+    if (match(TK_CONST)) {
       // TODO: Reflect to the type.
       ;
     }
