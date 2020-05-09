@@ -6,13 +6,13 @@ typedef struct Name Name;
 typedef struct StringBuffer StringBuffer;
 typedef struct Vector Vector;
 
-enum SegmentType {
-  ST_TEXT,
-  ST_PARAM,
+enum SegmentKind {
+  SK_TEXT,
+  SK_PARAM,
 };
 
 typedef struct {
-  enum SegmentType type;
+  enum SegmentKind kind;
   union {
     const char *text;
     int param;

@@ -159,13 +159,13 @@ Vector *parse_macro_body(const char *p, const Vector *params, bool va_args, Stre
       if (index >= 0) {
         if (tok->begin > start) {
           Segment *seg = malloc(sizeof(*seg));
-          seg->type = ST_TEXT;
+          seg->kind = SK_TEXT;
           seg->text = strndup_(start, tok->begin - start);
           vec_push(segments, seg);
         }
 
         Segment *seg2 = malloc(sizeof(*seg2));
-        seg2->type = ST_PARAM;
+        seg2->kind = SK_PARAM;
         seg2->param = index;
         vec_push(segments, seg2);
 
@@ -182,7 +182,7 @@ Vector *parse_macro_body(const char *p, const Vector *params, bool va_args, Stre
 
   if (start != end) {
     Segment *seg = malloc(sizeof(*seg));
-    seg->type = ST_TEXT;
+    seg->kind = SK_TEXT;
     seg->text = strndup_(start, end - start);
     vec_push(segments, seg);
   }
@@ -493,7 +493,7 @@ intptr_t reduce(Expr *expr) {
   default:
     break;
   }
-  error("expression not handled in preprocessor: type=%d", expr->kind);
+  error("expression not handled in preprocessor: kind=%d", expr->kind);
   return 0;
 }
 

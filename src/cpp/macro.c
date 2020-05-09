@@ -17,7 +17,7 @@ Macro *new_macro(Vector *params, bool va_args, Vector *segments) {
 Macro *new_macro_single(const char *text) {
   Vector *segments = new_vector();
   Segment *seg = malloc(sizeof(*seg));
-  seg->type = ST_TEXT;
+  seg->kind = SK_TEXT;
   seg->text = text;
   vec_push(segments, seg);
   return new_macro(NULL, false, segments);
@@ -62,11 +62,11 @@ void expand(Macro *macro, Vector *args, const Name *name, StringBuffer *sb) {
   if (macro->segments != NULL) {
     for (int i = 0; i < macro->segments->len; ++i) {
       Segment *seg = macro->segments->data[i];
-      switch (seg->type) {
-      case ST_TEXT:
+      switch (seg->kind) {
+      case SK_TEXT:
         sb_append(sb, seg->text, NULL);
         break;
-      case ST_PARAM:
+      case SK_PARAM:
         sb_append(sb, (char*)args->data[seg->param], NULL);
         break;
       default:
