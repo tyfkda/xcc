@@ -8,6 +8,7 @@
 #include "ast.h"
 #include "codegen.h"
 #include "ir.h"
+#include "lexer.h"
 #include "regalloc.h"
 #include "table.h"
 #include "type.h"
@@ -211,70 +212,34 @@ static void construct_initial_value(unsigned char *buf, const Type *type, const 
   }
 }
 
-static void put_data(const Name *name, const VarInfo *varinfo) {
-  size_t size = type_size(varinfo->type);
-  unsigned char *buf = calloc(size, 1);
-  if (buf == NULL)
-    error("Out of memory");
+static void emit_varinfo(const VarInfo *varinfo, const Initializer *init) {
+  const Name *name = varinfo->name;
+  if (init != NULL) {
+    if (varinfo->flag & VF_CONST)
+      _RODATA();
+    else
+      _DATA();
+  }
 
-  EMIT_ALIGN(align_size(varinfo->type));
   const char *label = fmt_name(name);
   if ((varinfo->flag & VF_STATIC) == 0) {  // global
     label = MANGLE(label);
     _GLOBL(label);
   }
-  EMIT_LABEL(label);
 
-  construct_initial_value(buf, varinfo->type, varinfo->global.init);
-
-  free(buf);
-}
-
-// Put RoData into code.
-static void put_rodata(void) {
-  for (int i = 0, len = gvar_names->len; i < len; ++i) {
-    const Name *name = gvar_names->data[i];
-    const VarInfo *varinfo = find_global(name);
-    if (varinfo->type->kind == TY_FUNC ||
-        (varinfo->flag & VF_EXTERN) != 0 || varinfo->global.init == NULL ||
-        (varinfo->flag & VF_CONST) == 0)
-      continue;
-
-    put_data(name, varinfo);
-  }
-}
-
-// Put global with initial value (RwData).
-static void put_rwdata(void) {
-  for (int i = 0, len = gvar_names->len; i < len; ++i) {
-    const Name *name = gvar_names->data[i];
-    const VarInfo *varinfo = find_global(name);
-    if (varinfo->type->kind == TY_FUNC ||
-        (varinfo->flag & VF_EXTERN) != 0 || varinfo->global.init == NULL ||
-        (varinfo->flag & VF_CONST) != 0)
-      continue;
-
-    put_data(name, varinfo);
-  }
-}
-
-// Put global without initial value (bss).
-static void put_bss(void) {
-  for (int i = 0, len = gvar_names->len; i < len; ++i) {
-    const Name *name = gvar_names->data[i];
-    const VarInfo *varinfo = find_global(name);
-    if (varinfo->type->kind == TY_FUNC || varinfo->global.init != NULL ||
-        (varinfo->flag & VF_EXTERN) != 0)
-      continue;
-
+  if (init != NULL) {
+    EMIT_ALIGN(align_size(varinfo->type));
+    EMIT_LABEL(label);
+    size_t size = type_size(varinfo->type);
+    unsigned char *buf = calloc(size, 1);
+    if (buf == NULL)
+      error("Out of memory");
+    construct_initial_value(buf, varinfo->type, init);
+    free(buf);
+  } else {
     size_t size = type_size(varinfo->type);
     if (size < 1)
       size = 1;
-    const char *label = fmt_name(name);
-    if ((varinfo->flag & VF_STATIC) == 0) {  // global
-      label = MANGLE(label);
-      _GLOBL(label);
-    }
 
     size_t align = align_size(varinfo->type);
     if (align <= 1)
@@ -347,6 +312,7 @@ static void emit_defun(Defun *defun) {
 
   assert(stackpos == 8);
 
+  emit_comment(NULL);
   _TEXT();
 
   bool global = true;
@@ -406,21 +372,23 @@ static void emit_defun(Defun *defun) {
   }
 
   RET();
-  emit_comment(NULL);
+
+  // Output static local variables.
+  for (int i = 0; i < func->scopes->len; ++i) {
+    Scope *scope = func->scopes->data[i];
+    if (scope->vars == NULL)
+      continue;
+    for (int j = 0; j < scope->vars->len; ++j) {
+      VarInfo *varinfo = scope->vars->data[j];
+      if (!(varinfo->flag & VF_STATIC))
+        continue;
+      VarInfo *gvarinfo = find_global(varinfo->local.label);
+      assert(gvarinfo != NULL);
+      emit_varinfo(gvarinfo, gvarinfo->global.init);
+    }
+  }
+
   assert(stackpos == 8);
-}
-
-static void emit_data(void) {
-  _RODATA();
-  put_rodata();
-
-  emit_comment(NULL);
-  _DATA();
-  put_rwdata();
-
-  emit_comment(NULL);
-  emit_comment("bss");
-  put_bss();
 }
 
 void emit_code(Vector *toplevel) {
@@ -434,6 +402,20 @@ void emit_code(Vector *toplevel) {
       emit_defun(decl->defun);
       break;
     case DCL_VARDECL:
+      {
+        emit_comment(NULL);
+        Vector *decls = decl->vardecl.decls;
+        for (int i = 0; i < decls->len; ++i) {
+          VarDecl *vd = decls->data[i];
+          if ((vd->flag & VF_EXTERN) != 0)
+            continue;
+          const Name *name = vd->ident->ident;
+          const VarInfo *varinfo = find_global(name);
+          assert(varinfo != NULL);
+
+          emit_varinfo(varinfo, vd->init);
+        }
+      }
       break;
 
     default:
@@ -441,5 +423,4 @@ void emit_code(Vector *toplevel) {
       break;
     }
   }
-  emit_data();
 }

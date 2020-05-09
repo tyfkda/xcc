@@ -58,7 +58,7 @@ int main(int argc, char *argv[]) {
   // Compile.
   init_compiler(stdout);
 
-  Vector *toplevel = NULL;
+  toplevel = NULL;
   if (iarg < argc) {
     for (int i = iarg; i < argc; ++i) {
       const char *filename = argv[i];

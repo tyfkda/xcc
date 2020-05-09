@@ -35,12 +35,6 @@ static void exit_scope(void) {
   curscope = curscope->parent;
 }
 
-static VarInfo *add_cur_scope(const Token *ident, const Type *type, int flag) {
-  if (curscope->vars == NULL)
-    curscope->vars = new_vector();
-  return var_add(curscope->vars, ident, type, flag);
-}
-
 static void fix_array_size(Type *type, Initializer *init) {
   assert(init != NULL);
   assert(type->kind == TY_ARRAY);
@@ -615,7 +609,7 @@ static Vector *sema_vardecl(Vector *decls) {
 
       // TODO: Check `init` can be cast to `type`.
       if (flag & VF_STATIC) {
-        varinfo->global.init = check_global_initializer(type, init);
+        varinfo->global.init = decl->init = check_global_initializer(type, init);
         // static variable initializer is handled in codegen, same as global variable.
       } else if (init != NULL) {
         Expr *var = new_expr_variable(ident->ident, type, NULL);
@@ -631,7 +625,7 @@ static Vector *sema_vardecl(Vector *decls) {
       // Toplevel
       VarInfo *varinfo = define_global(type, flag, ident, NULL);
       init = sema_initializer(init);
-      varinfo->global.init = check_global_initializer(type, init);
+      varinfo->global.init = decl->init = check_global_initializer(type, init);
     }
   }
 

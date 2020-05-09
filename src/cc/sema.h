@@ -16,6 +16,7 @@ typedef struct Vector Vector;
 
 extern Defun *curdefun;
 extern Scope *curscope;
+extern Vector *toplevel;  // <Declaration*>
 
 void sema(Vector *toplevel);
 Expr *sema_expr(Expr *expr);
@@ -27,3 +28,4 @@ Expr *make_cast(const Type *type, const Token *token, Expr *sub, bool is_explici
 const VarInfo *search_from_anonymous(const Type *type, const Name *name, const Token *ident,
                                      Vector *stack);
 Expr *str_to_char_array(const Type *type, Initializer *init);
+VarInfo *add_cur_scope(const Token *ident, const Type *type, int flag);
