@@ -49,10 +49,10 @@ Expr *new_expr_str(const Token *token, const char *str, size_t size) {
   return expr;
 }
 
-Expr *new_expr_variable(const Name *name, const Type *type, const Token *token) {
+Expr *new_expr_variable(const Name *name, const Type *type, const Token *token, Scope *scope) {
   Expr *expr = new_expr(EX_VARIABLE, type, token);
   expr->variable.name = name;
-  expr->variable.scope = NULL;
+  expr->variable.scope = scope;
   return expr;
 }
 
@@ -165,9 +165,9 @@ Stmt *new_stmt_expr(Expr *e) {
   return stmt;
 }
 
-Stmt *new_stmt_block(const Token *token, Vector *stmts) {
+Stmt *new_stmt_block(const Token *token, Vector *stmts, Scope *scope) {
   Stmt *stmt = new_stmt(ST_BLOCK, token);
-  stmt->block.scope = NULL;
+  stmt->block.scope = scope;
   stmt->block.stmts = stmts;
   return stmt;
 }

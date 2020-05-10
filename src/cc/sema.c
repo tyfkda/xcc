@@ -15,25 +15,10 @@
 const int LF_BREAK = 1 << 0;
 const int LF_CONTINUE = 1 << 0;
 
-Defun *curdefun;
 static int curloopflag;
 static Stmt *curswitch;
 
 static Stmt *sema_stmt(Stmt *stmt);
-
-// Scope
-
-static Scope *enter_scope(Defun *defun, Vector *vars) {
-  Scope *scope = new_scope(curscope, vars);
-  curscope = scope;
-  vec_push(defun->func->scopes, scope);
-  return scope;
-}
-
-static void exit_scope(void) {
-  assert(curscope != NULL);
-  curscope = curscope->parent;
-}
 
 static void fix_array_size(Type *type, Initializer *init) {
   assert(init != NULL);
@@ -132,12 +117,9 @@ static Stmt *build_memcpy(Expr *dst, Expr *src, size_t size) {
   VarInfo *dstvar = add_cur_scope(alloc_ident(alloc_label(), NULL, NULL), charptr_type, 0);
   VarInfo *srcvar = add_cur_scope(alloc_ident(alloc_label(), NULL, NULL), charptr_type, 0);
   VarInfo *sizevar = add_cur_scope(alloc_ident(alloc_label(), NULL, NULL), &tySize, 0);
-  Expr *dstexpr = new_expr_variable(dstvar->name, dstvar->type, NULL);
-  dstexpr->variable.scope = curscope;
-  Expr *srcexpr = new_expr_variable(srcvar->name, srcvar->type, NULL);
-  srcexpr->variable.scope = curscope;
-  Expr *sizeexpr = new_expr_variable(sizevar->name, sizevar->type, NULL);
-  sizeexpr->variable.scope = curscope;
+  Expr *dstexpr = new_expr_variable(dstvar->name, dstvar->type, NULL, curscope);
+  Expr *srcexpr = new_expr_variable(srcvar->name, srcvar->type, NULL, curscope);
+  Expr *sizeexpr = new_expr_variable(sizevar->name, sizevar->type, NULL, curscope);
 
   Num size_num_lit = {.ival = size};
   Expr *size_num = new_expr_numlit(&tySize, NULL, &size_num_lit);
@@ -159,7 +141,7 @@ static Stmt *build_memcpy(Expr *dst, Expr *src, size_t size) {
                                       new_expr_unary(EX_POSTINC, charptr_type, NULL, dstexpr)),
                        new_expr_unary(EX_DEREF, &tyChar, NULL,
                                       new_expr_unary(EX_POSTINC, charptr_type, NULL, srcexpr))))));
-  return new_stmt_block(NULL, stmts);
+  return new_stmt_block(NULL, stmts, NULL);
 }
 
 static Stmt *init_char_array_by_string(Expr *dst, Initializer *src) {
@@ -508,8 +490,7 @@ static Vector *assign_initial_value(Expr *expr, Initializer *init, Vector *inits
         assert(curscope != NULL);
         const Type *ptr_type = array_to_ptr(expr->type);
         VarInfo *ptr_varinfo = add_cur_scope(alloc_ident(alloc_label(), NULL, NULL), ptr_type, 0);
-        Expr *ptr_var = new_expr_variable(ptr_varinfo->name, ptr_type, NULL);
-        ptr_var->variable.scope = curscope;
+        Expr *ptr_var = new_expr_variable(ptr_varinfo->name, ptr_type, NULL, curscope);
         vec_push(inits, new_stmt_expr(new_expr_bop(EX_ASSIGN, ptr_type, NULL, ptr_var, expr)));
 
         size_t len = init->multi->len;
@@ -619,15 +600,18 @@ static Vector *sema_vardecl(Vector *decls) {
       fix_array_size((Type*)type, init);
 
     if (curdefun != NULL) {
-      VarInfo *varinfo = add_cur_scope(ident, type, flag);
+      Scope *scope = curscope;
+      VarInfo *varinfo = scope_find(&scope, ident->ident);
       init = sema_initializer(init);
 
       // TODO: Check `init` can be cast to `type`.
       if (flag & VF_STATIC) {
-        varinfo->global.init = decl->init = check_global_initializer(type, init);
+        VarInfo *gvarinfo = find_global(varinfo->local.label);
+        assert(gvarinfo != NULL);
+        gvarinfo->global.init = decl->init = check_global_initializer(type, init);
         // static variable initializer is handled in codegen, same as global variable.
       } else if (init != NULL) {
-        Expr *var = new_expr_variable(ident->ident, type, NULL);
+        Expr *var = new_expr_variable(ident->ident, type, NULL, scope);
         var->variable.scope = curscope;
         inits = assign_initial_value(var, init, inits);
       }
@@ -670,18 +654,11 @@ static void sema_defun(Defun *defun) {
   }
 
   if (defun->stmts != NULL) {  // Not prototype defintion.
+    assert(curdefun == NULL);
+    assert(curscope == NULL);
     curdefun = defun;
-    Vector *top_vars = NULL;
-    Vector *params = defun->func->type->func.params;
-    if (params != NULL) {
-      top_vars = new_vector();
-      for (int i = 0; i < params->len; ++i)
-        vec_push(top_vars, params->data[i]);
-    }
-    defun->func->scopes = new_vector();
-    curscope = enter_scope(defun, top_vars);  // Scope for parameters.
+    curscope = defun->func->scopes->data[0];
     sema_stmts(defun->stmts);
-    exit_scope();
     curdefun = NULL;
     curscope = NULL;
 
@@ -712,11 +689,12 @@ static Stmt *sema_stmt(Stmt *stmt) {
 
   case ST_BLOCK:
     {
-      Scope *parent_scope = curscope;
-      if (curdefun != NULL)
-        stmt->block.scope = curscope = enter_scope(curdefun, NULL);
+      assert(curdefun != NULL);
+      if (stmt->block.scope != NULL)
+        curscope = stmt->block.scope;
       sema_stmts(stmt->block.stmts);
-      curscope = parent_scope;
+      if (stmt->block.scope != NULL)
+        curscope = curscope->parent;
     }
     break;
 

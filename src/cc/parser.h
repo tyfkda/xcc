@@ -4,10 +4,16 @@
 
 #include <stdbool.h>
 
+typedef struct Defun Defun;
 typedef struct Expr Expr;
+typedef struct Scope Scope;
 typedef struct Token Token;
 typedef struct Type Type;
+typedef struct VarInfo VarInfo;
 typedef struct Vector Vector;
+
+extern Defun *curdefun;
+extern Scope *curscope;
 
 Vector *parse(Vector *toplevel);  // <Declaraion*>
 
@@ -26,3 +32,5 @@ Expr *parse_const(void);
 Expr *parse_assign(void);
 Expr *parse_expr(void);
 void not_void(const Type *type);
+
+VarInfo *add_cur_scope(const Token *ident, const Type *type, int flag);

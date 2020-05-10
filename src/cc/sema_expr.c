@@ -11,16 +11,11 @@
 #include "util.h"
 #include "var.h"
 
+#include "parser.h"  // curscope
+
 static const Type *tyNumTable[] = {&tyChar, &tyShort, &tyInt, &tyLong, &tyEnum};
 
-Scope *curscope;
 Vector *toplevel;
-
-VarInfo *add_cur_scope(const Token *ident, const Type *type, int flag) {
-  if (curscope->vars == NULL)
-    curscope->vars = new_vector();
-  return var_add(curscope->vars, ident, type, flag);
-}
 
 // Returns created global variable reference.
 Expr *str_to_char_array(const Type *type, Initializer *init) {
@@ -38,7 +33,7 @@ Expr *str_to_char_array(const Type *type, Initializer *init) {
   }
   varinfo->global.init = init;
 
-  return new_expr_variable(varinfo->name, type, NULL);
+  return new_expr_variable(varinfo->name, type, NULL, NULL);
 }
 
 // Call before accessing struct member to ensure that struct is declared.
@@ -348,15 +343,14 @@ static Expr *sema_expr_keep_left(Expr *expr, bool keep_left) {
     {
       const Name *name = expr->variable.name;
       const Type *type = NULL;
-      Scope *scope = NULL;
+      Scope *scope = curscope;
       if (curscope != NULL) {
-        scope = curscope;
         VarInfo *varinfo = scope_find(&scope, name);
         if (varinfo != NULL) {
           if (varinfo->flag & VF_STATIC) {
             // Replace local variable reference to global.
             name = varinfo->local.label;
-            expr = new_expr_variable(name, varinfo->type, expr->token);
+            expr = new_expr_variable(name, varinfo->type, expr->token, NULL);
             scope = NULL;
           } else {
             type = varinfo->type;
@@ -379,7 +373,6 @@ static Expr *sema_expr_keep_left(Expr *expr, bool keep_left) {
       if (type == NULL)
         parse_error(expr->token, "Undefined `%.*s'", name->bytes, name->chars);
       expr->type = type;
-      expr->variable.scope = scope;
     }
     break;
 

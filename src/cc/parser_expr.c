@@ -13,6 +13,8 @@
 #include "util.h"
 #include "var.h"
 
+Scope *curscope;
+
 static StructInfo *parse_struct(bool is_union);
 static Expr *parse_cast_expr(void);
 static Expr *parse_unary(void);
@@ -20,6 +22,12 @@ static Expr *parse_unary(void);
 void not_void(const Type *type) {
   if (type->kind == TY_VOID)
     parse_error(NULL, "`void' not allowed");
+}
+
+VarInfo *add_cur_scope(const Token *ident, const Type *type, int flag) {
+  if (curscope->vars == NULL)
+    curscope->vars = new_vector();
+  return var_add(curscope->vars, ident, type, flag);
 }
 
 //
@@ -430,7 +438,10 @@ static Expr *parse_prim(void) {
 
   Token *ident = consume(TK_IDENT, "Number or Ident or open paren expected");
   const Name *name = ident->ident;
-  return new_expr_variable(name, NULL, ident);
+  Scope *scope = curscope;
+  if (curscope != NULL)
+    scope_find(&scope, name);
+  return new_expr_variable(name, NULL, ident, scope);
 }
 
 static Expr *parse_postfix(void) {

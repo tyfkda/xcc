@@ -126,7 +126,7 @@ Expr *new_expr_bop(enum ExprKind kind, const Type *type, const Token *token, Exp
 Expr *new_expr_unary(enum ExprKind kind, const Type *type, const Token *token, Expr *sub);
 Expr *new_expr_deref(const Token *token, Expr *sub);
 Expr *new_expr_ternary(const Token *token, Expr *cond, Expr *tval, Expr *fval, const Type *type);
-Expr *new_expr_variable(const Name *name, const Type *type, const Token *token);
+Expr *new_expr_variable(const Name *name, const Type *type, const Token *token, Scope *scope);
 Expr *new_expr_member(const Token *token, const Type *type, Expr *target, const Token *ident,
                       int index);
 Expr *new_expr_funcall(const Token *token, Expr *func, Vector *args);
@@ -280,7 +280,7 @@ typedef struct Stmt {
 
 Stmt *new_stmt(enum StmtKind kind, const Token *token);
 Stmt *new_stmt_expr(Expr *e);
-Stmt *new_stmt_block(const Token *token, Vector *stmts);
+Stmt *new_stmt_block(const Token *token, Vector *stmts, Scope *scope);
 Stmt *new_stmt_if(const Token *token, Expr *cond, Stmt *tblock, Stmt *fblock);
 Stmt *new_stmt_switch(const Token *token, Expr *value);
 Stmt *new_stmt_case(const Token *token, Expr *value);

@@ -10,7 +10,23 @@
 #include "util.h"
 #include "var.h"
 
+Defun *curdefun;
+
 static Stmt *parse_stmt(void);
+
+// Scope
+
+static Scope *enter_scope(Defun *defun, Vector *vars) {
+  Scope *scope = new_scope(curscope, vars);
+  curscope = scope;
+  vec_push(defun->func->scopes, scope);
+  return scope;
+}
+
+static void exit_scope(void) {
+  assert(curscope != NULL);
+  curscope = curscope->parent;
+}
 
 // Initializer
 
@@ -88,6 +104,10 @@ static Vector *parse_vardecl_cont(const Type *rawType, Type *type, int flag, Tok
       flag |= VF_EXTERN;
     } else {
       not_void(type);
+
+      assert(curscope != NULL);
+      add_cur_scope(ident, type, flag);
+
       if (match(TK_ASSIGN)) {
         init = parse_initializer();
       }
@@ -174,6 +194,7 @@ static Stmt *parse_for(const Token *tok) {
   consume(TK_LPAR, "`(' expected");
   Expr *pre = NULL;
   Vector *decls = NULL;
+  Scope *scope = enter_scope(curdefun, NULL);
   if (!match(TK_SEMICOL)) {
     const Type *rawType = NULL;
     Type *type;
@@ -202,16 +223,14 @@ static Stmt *parse_for(const Token *tok) {
     consume(TK_RPAR, "`)' expected");
   }
   body = parse_stmt();
+  exit_scope();
 
   Stmt *stmt = new_stmt_for(tok, pre, cond, post, body);
-  if (decls != NULL) {
-    Vector *stmts = new_vector();
+  Vector *stmts = new_vector();
+  if (decls != NULL)
     vec_push(stmts, new_stmt_vardecl(decls));
-    vec_push(stmts, stmt);
-    return new_stmt_block(NULL, stmts);
-  } else {
-    return stmt;
-  }
+  vec_push(stmts, stmt);
+  return new_stmt_block(NULL, stmts, scope);
 }
 
 static Stmt *parse_break_continue(enum StmtKind kind, const Token *tok) {
@@ -271,8 +290,11 @@ static Vector *parse_stmts(void) {
 }
 
 static Stmt *parse_block(const Token *tok) {
+  Scope *scope = enter_scope(curdefun, NULL);
   Vector *stmts = parse_stmts();
-  return new_stmt_block(tok, stmts);
+  Stmt *stmt = new_stmt_block(tok, stmts, scope);
+  exit_scope();
+  return stmt;
 }
 
 static Stmt *parse_stmt(void) {
@@ -336,7 +358,23 @@ static Declaration *parse_defun(const Type *functype, int flag, Token *ident) {
     // Prototype declaration.
   } else {
     consume(TK_LBRACE, "`;' or `{' expected");
+
+    assert(curdefun == NULL);
+    assert(curscope == NULL);
+    curdefun = defun;
+    Vector *top_vars = NULL;
+    Vector *params = defun->func->type->func.params;
+    if (params != NULL) {
+      top_vars = new_vector();
+      for (int i = 0; i < params->len; ++i)
+        vec_push(top_vars, params->data[i]);
+    }
+    defun->func->scopes = new_vector();
+    enter_scope(defun, top_vars);  // Scope for parameters.
     defun->stmts = parse_stmts();
+    exit_scope();
+    assert(curscope == NULL);
+    curdefun = NULL;
   }
   return new_decl_defun(defun);
 }

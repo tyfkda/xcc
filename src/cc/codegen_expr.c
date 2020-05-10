@@ -12,6 +12,8 @@
 #include "util.h"
 #include "var.h"
 
+#include "parser.h"  // curdefun
+
 VRegType *to_vtype(const Type *type) {
   VRegType *vtype = malloc(sizeof(*vtype));
   vtype->size = type_size(type);
