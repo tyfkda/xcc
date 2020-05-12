@@ -212,8 +212,9 @@ static VReg *gen_lval(Expr *expr) {
       Scope *scope = expr->variable.scope;
       const VarInfo *varinfo = scope_find(&scope, expr->variable.name);
       assert(varinfo != NULL);
-      assert(!(varinfo->flag & VF_STATIC));
-      if (varinfo->flag & VF_EXTERN)
+      if (varinfo->flag & VF_STATIC)
+        return new_ir_iofs(varinfo->local.label, false);
+      else if (varinfo->flag & VF_EXTERN)
         return new_ir_iofs(expr->variable.name, true);
       else
         return new_ir_bofs(varinfo->reg);

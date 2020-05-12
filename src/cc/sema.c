@@ -616,13 +616,14 @@ static Vector *sema_vardecl(Vector *decls) {
         inits = assign_initial_value(var, init, inits);
       }
     } else {
-      intptr_t eval;
-      if (find_enum_value(ident->ident, &eval))
-        parse_error(ident, "`%.*s' is already defined", ident->ident->bytes, ident->ident->chars);
+      //intptr_t eval;
+      //if (find_enum_value(ident->ident, &eval))
+      //  parse_error(ident, "`%.*s' is already defined", ident->ident->bytes, ident->ident->chars);
       if (flag & VF_EXTERN && init != NULL)
         parse_error(init->token, "extern with initializer");
       // Toplevel
-      VarInfo *varinfo = define_global(type, flag, ident, NULL);
+      VarInfo *varinfo = find_global(ident->ident);
+      assert(varinfo != NULL);
       init = sema_initializer(init);
       varinfo->global.init = decl->init = check_global_initializer(type, init);
     }
@@ -638,21 +639,6 @@ static void sema_stmts(Vector *stmts) {
 }
 
 static void sema_defun(Defun *defun) {
-  const Token *ident = NULL;
-
-  VarInfo *def = find_global(defun->func->name);
-  if (def == NULL) {
-    define_global(defun->func->type, defun->flag | VF_CONST, ident, defun->func->name);
-  } else {
-    if (def->type->kind != TY_FUNC)
-      parse_error(ident, "Definition conflict: `%s'");
-    // TODO: Check type.
-    // TODO: Check duplicated definition.
-    if (def->global.init != NULL)
-      parse_error(ident, "`%.*s' function already defined", defun->func->name->bytes,
-                  defun->func->name->chars);
-  }
-
   if (defun->stmts != NULL) {  // Not prototype defintion.
     assert(curdefun == NULL);
     assert(curscope == NULL);

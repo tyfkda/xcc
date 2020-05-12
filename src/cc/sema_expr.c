@@ -340,40 +340,6 @@ static Expr *sema_expr_keep_left(Expr *expr, bool keep_left) {
     break;
 
   case EX_VARIABLE:
-    {
-      const Name *name = expr->variable.name;
-      const Type *type = NULL;
-      Scope *scope = curscope;
-      if (curscope != NULL) {
-        VarInfo *varinfo = scope_find(&scope, name);
-        if (varinfo != NULL) {
-          if (varinfo->flag & VF_STATIC) {
-            // Replace local variable reference to global.
-            name = varinfo->local.label;
-            expr = new_expr_variable(name, varinfo->type, expr->token, NULL);
-            scope = NULL;
-          } else {
-            type = varinfo->type;
-          }
-        }
-      }
-      if (type == NULL) {
-        VarInfo *varinfo = find_global(name);
-        if (varinfo != NULL) {
-          type = varinfo->type;
-        }
-      }
-      if (type == NULL) {
-        intptr_t value;
-        if (find_enum_value(name, &value)) {
-          Num num = {.ival = value};
-          return new_expr_numlit(&tyInt, NULL, &num);
-        }
-      }
-      if (type == NULL)
-        parse_error(expr->token, "Undefined `%.*s'", name->bytes, name->chars);
-      expr->type = type;
-    }
     break;
 
   // Binary operators

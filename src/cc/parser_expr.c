@@ -89,7 +89,8 @@ static const Type *parse_enum(void) {
         }
 
         intptr_t dummy;
-        if (find_enum_value(ident->ident, &dummy)) {
+        if (find_enum_value(ident->ident, &dummy) ||
+            find_global(ident->ident) != NULL) {
           parse_error(ident, "`%.*s' is already defined", ident->ident->bytes, ident->ident->chars);
         } else {
           add_enum_member(type, ident->ident, value);
@@ -411,7 +412,7 @@ static Expr *parse_prim(void) {
   if ((tok = match(TK_LPAR)) != NULL) {
     Expr *expr = parse_expr();
     consume(TK_RPAR, "No close paren");
-    return new_expr_unary(EX_GROUP, NULL, tok, expr);
+    return new_expr_unary(EX_GROUP, expr->type, tok, expr);
   }
 
   {
@@ -439,9 +440,24 @@ static Expr *parse_prim(void) {
   Token *ident = consume(TK_IDENT, "Number or Ident or open paren expected");
   const Name *name = ident->ident;
   Scope *scope = curscope;
+  VarInfo *varinfo = NULL;
+  const Type *type;
   if (curscope != NULL)
-    scope_find(&scope, name);
-  return new_expr_variable(name, NULL, ident, scope);
+    varinfo = scope_find(&scope, name);
+  if (varinfo == NULL)
+    varinfo = find_global(name);
+  if (varinfo != NULL) {
+    type = varinfo->type;
+  } else {
+    intptr_t value;
+    if (find_enum_value(name, &value)) {
+      Num num = {.ival = value};
+      return new_expr_numlit(&tyInt, ident, &num);
+    }
+    parse_error(ident, "undefined indentifier");
+    type = &tyInt;
+  }
+  return new_expr_variable(name, type, ident, scope);
 }
 
 static Expr *parse_postfix(void) {

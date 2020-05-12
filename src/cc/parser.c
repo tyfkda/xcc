@@ -6,6 +6,7 @@
 
 #include "ast.h"
 #include "lexer.h"
+#include "table.h"
 #include "type.h"
 #include "util.h"
 #include "var.h"
@@ -354,6 +355,20 @@ static Declaration *parse_defun(const Type *functype, int flag, Token *ident) {
   assert(functype->kind == TY_FUNC);
   Function *func = new_func(functype, ident->ident);
   Defun *defun = new_defun(func, flag);
+
+  VarInfo *varinfo = find_global(defun->func->name);
+  if (varinfo == NULL) {
+    varinfo = define_global(functype, flag | VF_CONST, ident, ident->ident);
+  } else {
+    if (varinfo->type->kind != TY_FUNC)
+      parse_error(ident, "Definition conflict: `%s'");
+    // TODO: Check type.
+    // TODO: Check duplicated definition.
+    if (varinfo->global.init != NULL)
+      parse_error(ident, "`%.*s' function already defined", defun->func->name->bytes,
+                  defun->func->name->chars);
+  }
+
   if (match(TK_SEMICOL)) {
     // Prototype declaration.
   } else {
@@ -412,9 +427,16 @@ static Declaration *parse_global_var_decl(const Type *rawtype, int flag, const T
 
     if (!(type->kind == TY_PTR && type->pa.ptrof->kind == TY_FUNC))
       type = parse_type_suffix(type);
+
+    intptr_t eval;
+    if (find_enum_value(ident->ident, &eval))
+      parse_error(ident, "`%.*s' is already defined", ident->ident->bytes, ident->ident->chars);
+    VarInfo *varinfo = define_global(type, flag, ident, NULL);
+
     Initializer *init = NULL;
     if (match(TK_ASSIGN) != NULL)
       init = parse_initializer();
+    varinfo->global.init = init;
 
     VarDecl *decl = new_vardecl(type, ident, init, flag);
     if (decls == NULL)
