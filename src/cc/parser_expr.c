@@ -63,7 +63,6 @@ static const Type *parse_enum(void) {
   Token *typeIdent = match(TK_IDENT);
   Type *type = typeIdent != NULL ? find_enum(typeIdent->ident) : NULL;
   if (match(TK_LBRACE)) {
-    // TODO: Duplicate check.
     if (type != NULL)
       parse_error(typeIdent, "Duplicate enum type");
     type = define_enum(typeIdent != NULL ? typeIdent->ident : NULL);
@@ -81,8 +80,12 @@ static const Type *parse_enum(void) {
           value = expr->num.ival;
         }
 
-        // TODO: Check whether symbol is not defined.
-        add_enum_member(type, ident->ident, value);
+        intptr_t dummy;
+        if (find_enum_value(ident->ident, &dummy)) {
+          parse_error(ident, "`%.*s' is already defined", ident->ident->bytes, ident->ident->chars);
+        } else {
+          add_enum_member(type, ident->ident, value);
+        }
         ++value;
 
         if (match(TK_COMMA))
