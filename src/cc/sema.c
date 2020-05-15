@@ -375,10 +375,17 @@ static Initializer *check_global_initializer(const Type *type, Initializer *init
           value = value->unary.sub;
           if (value->kind != EX_VARIABLE)
             parse_error(value->token, "pointer initializer must be variable");
-          if (value->variable.scope != NULL)
-            parse_error(value->token, "Allowed global reference only");
+          const Name *name = value->variable.name;
+          if (value->variable.scope != NULL) {
+            Scope *scope = value->variable.scope;
+            VarInfo *varinfo = scope_find(&scope, name);
+            assert(varinfo != NULL);
+            if (!(varinfo->flag & VF_STATIC))
+              parse_error(value->token, "Allowed global reference only");
+            name = varinfo->local.label;
+          }
 
-          VarInfo *info = find_global(value->variable.name);
+          VarInfo *info = find_global(name);
           assert(info != NULL);
 
           if (!same_type(type->pa.ptrof, info->type))
@@ -388,10 +395,17 @@ static Initializer *check_global_initializer(const Type *type, Initializer *init
         }
       case EX_VARIABLE:
         {
-          if (value->variable.scope != NULL)
-            parse_error(value->token, "Allowed global reference only");
+          const Name *name = value->variable.name;
+          if (value->variable.scope != NULL) {
+            Scope *scope = value->variable.scope;
+            VarInfo *varinfo = scope_find(&scope, name);
+            assert(varinfo != NULL);
+            if (!(varinfo->flag & VF_STATIC))
+              parse_error(value->token, "Allowed global reference only");
+            name = varinfo->local.label;
+          }
 
-          VarInfo *info = find_global(value->variable.name);
+          VarInfo *info = find_global(name);
           assert(info != NULL);
 
           if ((info->type->kind != TY_ARRAY && info->type->kind != TY_FUNC) ||
