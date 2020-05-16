@@ -129,7 +129,7 @@ Expr *new_expr_ternary(const Token *token, Expr *cond, Expr *tval, Expr *fval, c
 Expr *new_expr_variable(const Name *name, const Type *type, const Token *token, Scope *scope);
 Expr *new_expr_member(const Token *token, const Type *type, Expr *target, const Token *ident,
                       int index);
-Expr *new_expr_funcall(const Token *token, Expr *func, Vector *args);
+Expr *new_expr_funcall(const Token *token, Expr *func, const Type *functype, Vector *args);
 Expr *new_expr_sizeof(const Token *token, const Type *type, Expr *sub);
 Expr *new_expr_cast(const Type *type, const Token *token, Expr *sub);
 

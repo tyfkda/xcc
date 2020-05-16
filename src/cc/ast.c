@@ -70,7 +70,9 @@ Expr *new_expr_unary(enum ExprKind kind, const Type *type, const Token *token, E
 }
 
 Expr *new_expr_deref(const Token *token, Expr *sub) {
-  const Type *type = sub->type != NULL ? sub->type->pa.ptrof : NULL;
+  assert(sub->type != NULL);
+  assert(sub->type->kind == TY_PTR || sub->type->kind == TY_ARRAY);
+  const Type *type = sub->type->pa.ptrof;
   return new_expr_unary(EX_DEREF, type, token, sub);
 }
 
@@ -91,8 +93,8 @@ Expr *new_expr_member(const Token *token, const Type *type, Expr *target, const 
   return expr;
 }
 
-Expr *new_expr_funcall(const Token *token, Expr *func, Vector *args) {
-  Expr *expr = new_expr(EX_FUNCALL, NULL, token);
+Expr *new_expr_funcall(const Token *token, Expr *func, const Type *functype, Vector *args) {
+  Expr *expr = new_expr(EX_FUNCALL, functype->func.ret, token);
   expr->funcall.func = func;
   expr->funcall.args = args;
   return expr;

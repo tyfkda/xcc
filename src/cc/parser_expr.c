@@ -30,6 +30,80 @@ VarInfo *add_cur_scope(const Token *ident, const Type *type, int flag) {
   return var_add(curscope->vars, ident, type, flag);
 }
 
+static bool cast_integers(Expr **pLhs, Expr **pRhs, bool keep_left) {
+  Expr *lhs = *pLhs;
+  Expr *rhs = *pRhs;
+  const Type *ltype = lhs->type;
+  const Type *rtype = rhs->type;
+  assert(ltype != NULL);
+  assert(rtype != NULL);
+  if (!is_number(ltype->kind)) {
+    parse_error(lhs->token, "integer type expected");
+    return false;
+  }
+  if (!is_number(rtype->kind)) {
+    parse_error(rhs->token, "integer type expected");
+    return false;
+  }
+
+  enum NumKind lkind = ltype->num.kind;
+  enum NumKind rkind = rtype->num.kind;
+  if (ltype->num.kind == NUM_ENUM) {
+    ltype = &tyInt;
+    lkind = NUM_INT;
+  }
+  if (rtype->num.kind == NUM_ENUM) {
+    rtype = &tyInt;
+    rkind = NUM_INT;
+  }
+
+  if (lkind != rkind) {
+    if (lkind > rkind || keep_left)
+      *pRhs = make_cast(ltype, rhs->token, rhs, false);
+    else if (lkind < rkind)
+      *pLhs = make_cast(rtype, lhs->token, lhs, false);
+  }
+  return true;
+}
+
+static Expr *new_expr_muldiv(enum ExprKind kind, const Token *tok, Expr *lhs, Expr *rhs, bool keep_left) {
+  cast_integers(&lhs, &rhs, keep_left);
+  return new_expr_bop(kind, lhs->type, tok, lhs, rhs);
+}
+
+static Expr *new_expr_addsub(enum ExprKind kind, const Token *tok, Expr *lhs, Expr *rhs, bool keep_left) {
+  const Type *type = NULL;
+  const Type *ltype = lhs->type;
+  const Type *rtype = rhs->type;
+  assert(ltype != NULL);
+  assert(rtype != NULL);
+  if (is_number(ltype->kind) && is_number(rtype->kind)) {
+    cast_integers(&lhs, &rhs, keep_left);
+    type = lhs->type;
+  } else if (ptr_or_array(ltype)) {
+    if (is_number(rtype->kind)) {
+      kind = kind == EX_ADD ? EX_PTRADD : EX_PTRSUB;
+      type = ltype;
+      if (ltype->kind == TY_ARRAY)
+        type = array_to_ptr(ltype);
+    } else if (kind == EX_SUB && ptr_or_array(rtype)) {
+      kind = EX_PTRSUB;
+      type = &tySize;
+    }
+  } else if (ptr_or_array(rtype)) {
+    if (kind == EX_ADD && is_number(ltype->kind) && !keep_left) {
+      kind = EX_PTRADD;
+      type = rtype;
+      if (rtype->kind == TY_ARRAY)
+        type = array_to_ptr(rtype);
+    }
+  }
+  if (type == NULL) {
+    parse_error(tok, "Cannot apply `%.*s'", (int)(tok->end - tok->begin), tok->begin);
+  }
+  return new_expr_bop(kind, type, tok, lhs, rhs);
+}
+
 //
 
 Vector *parse_args(Token **ptoken) {
@@ -53,18 +127,85 @@ Vector *parse_args(Token **ptoken) {
 static Expr *parse_funcall(Expr *func) {
   Token *token;
   Vector *args = parse_args(&token);
-  return new_expr_funcall(token, func, args);
+  const Type *functype;
+  if (!((functype = func->type)->kind == TY_FUNC ||
+        (func->type->kind == TY_PTR && (functype = func->type->pa.ptrof)->kind == TY_FUNC)))
+    parse_error(func->token, "Cannot call except funtion");
+
+  Vector *param_types = functype->func.param_types;  // <const Type*>
+  bool vaargs = functype->func.vaargs;
+  if (param_types != NULL) {
+    int argc = args != NULL ? args->len : 0;
+    int paramc = param_types->len;
+    if (!(argc == paramc ||
+          (vaargs && argc >= paramc)))
+      parse_error(token, "function `%.*s' expect %d arguments, but %d", func->variable.name->bytes, func->variable.name->chars, paramc, argc);
+  }
+
+  if (args != NULL && param_types != NULL) {
+    int paramc = param_types->len;
+    for (int i = 0, len = args->len; i < len; ++i) {
+      if (i < param_types->len) {
+        Expr *arg = args->data[i];
+        const Type *type = param_types->data[i];
+        args->data[i] = make_cast(type, arg->token, arg, false);
+      } else if (vaargs && i >= paramc) {
+        Expr *arg = args->data[i];
+        const Type *type = arg->type;
+        if (type->kind == TY_NUM && type->num.kind < NUM_INT)  // Promote variadic argument.
+          args->data[i] = make_cast(&tyInt, arg->token, arg, false);
+      }
+    }
+  }
+
+  return new_expr_funcall(token, func, functype, args);
 }
 
 static Expr *parse_array_index(const Token *token, Expr *array) {
   Expr *index = parse_expr();
   consume(TK_RBRACKET, "`]' expected");
-  return new_expr_deref(token, new_expr_bop(EX_ADD, NULL, token, array, index));
+  return new_expr_deref(token, new_expr_addsub(EX_ADD, token, array, index, false));
 }
 
 static Expr *parse_member_access(Expr *target, Token *acctok) {
   Token *ident = consume(TK_IDENT, "`ident' expected");
-  return new_expr_member(acctok, NULL, target, ident, -1);
+  const Name *name = ident->ident;
+
+  // Find member's type from struct info.
+  const Type *targetType = target->type;
+  if (acctok->kind == TK_DOT) {
+    if (targetType->kind != TY_STRUCT)
+      parse_error(acctok, "`.' for non struct value");
+  } else {  // TK_ARROW
+    if (!ptr_or_array(targetType)) {
+      parse_error(acctok, "`->' for non pointer value");
+    } else {
+      targetType = targetType->pa.ptrof;
+      if (targetType->kind != TY_STRUCT)
+        parse_error(acctok, "`->' for non struct value");
+    }
+  }
+
+  ensure_struct((Type*)targetType, ident);
+  int index = var_find(targetType->struct_.info->members, name);
+  if (index >= 0) {
+    const VarInfo *member = targetType->struct_.info->members->data[index];
+    return new_expr_member(acctok, member->type, target, ident, index);
+  } else {
+    Vector *stack = new_vector();
+    const VarInfo *member = search_from_anonymous(targetType, ident->ident, ident, stack);
+    if (member == NULL)
+      parse_error(ident, "`%.*s' doesn't exist in the struct", name->bytes, name->chars);
+    Expr *p = target;
+    const Type *type = targetType;
+    for (int i = 0; i < stack->len; ++i) {
+      int index = (int)(long)stack->data[i];
+      const VarInfo *member = type->struct_.info->members->data[index];
+      type = member->type;
+      p = new_expr_member(acctok, type, p, acctok, index);
+    }
+    return p;
+  }
 }
 
 static const Type *parse_enum(void) {
@@ -472,9 +613,9 @@ static Expr *parse_postfix(void) {
     else if ((tok = match(TK_DOT)) != NULL || (tok = match(TK_ARROW)) != NULL)
       expr = parse_member_access(expr, tok);
     else if ((tok = match(TK_INC)) != NULL)
-      expr = new_expr_unary(EX_POSTINC, NULL, tok, expr);
+      expr = new_expr_unary(EX_POSTINC, expr->type, tok, expr);
     else if ((tok = match(TK_DEC)) != NULL)
-      expr = new_expr_unary(EX_POSTDEC, NULL, tok, expr);
+      expr = new_expr_unary(EX_POSTDEC, expr->type, tok, expr);
     else
       return expr;
   }
@@ -506,7 +647,7 @@ static Expr *parse_unary(void) {
     case EX_NUM:
       return expr;
     default:
-      return new_expr_unary(EX_POS, NULL, tok, expr);
+      return new_expr_unary(EX_POS, expr->type, tok, expr);
     }
   }
 
@@ -517,7 +658,7 @@ static Expr *parse_unary(void) {
       expr->num.ival = -expr->num.ival;
       return expr;
     default:
-      return new_expr_unary(EX_NEG, NULL, tok, expr);
+      return new_expr_unary(EX_NEG, expr->type, tok, expr);
     }
   }
 
@@ -528,27 +669,40 @@ static Expr *parse_unary(void) {
 
   if ((tok = match(TK_TILDA)) != NULL) {
     Expr *expr = parse_cast_expr();
-    return new_expr_unary(EX_BITNOT, NULL, tok, expr);
+    return new_expr_unary(EX_BITNOT, expr->type, tok, expr);
   }
 
   if ((tok = match(TK_AND)) != NULL) {
     Expr *expr = parse_cast_expr();
-    return new_expr_unary(EX_REF, NULL, tok, expr);
+    assert(expr->type != NULL);
+    return new_expr_unary(EX_REF, ptrof(expr->type), tok, expr);
   }
 
   if ((tok = match(TK_MUL)) != NULL) {
     Expr *expr = parse_cast_expr();
-    return new_expr_unary(EX_DEREF, NULL, tok, expr);
+    const Type *type = expr->type;;
+    assert(type != NULL);
+    switch (type->kind) {
+    case TY_PTR: case TY_ARRAY:
+      type = type->pa.ptrof;
+      break;
+    case TY_FUNC:
+      break;
+    default:
+      parse_error(tok, "Cannot dereference raw type");
+      break;
+    }
+    return new_expr_unary(EX_DEREF, type, tok, expr);
   }
 
   if ((tok = match(TK_INC)) != NULL) {
     Expr *expr = parse_unary();
-    return new_expr_unary(EX_PREINC, NULL, tok, expr);
+    return new_expr_unary(EX_PREINC, expr->type, tok, expr);
   }
 
   if ((tok = match(TK_DEC)) != NULL) {
     Expr *expr = parse_unary();
-    return new_expr_unary(EX_PREDEC, NULL, tok, expr);
+    return new_expr_unary(EX_PREDEC, expr->type, tok, expr);
   }
 
   if ((tok = match(TK_SIZEOF)) != NULL) {
@@ -589,7 +743,8 @@ static Expr *parse_mul(void) {
     else
       return expr;
 
-    expr = new_expr_bop(kind, NULL, tok, expr, parse_cast_expr());
+    Expr *lhs = expr, *rhs = parse_cast_expr();
+    expr = new_expr_muldiv(kind, tok, lhs, rhs, false);
   }
 }
 
@@ -597,16 +752,17 @@ static Expr *parse_add(void) {
   Expr *expr = parse_mul();
 
   for (;;) {
-    enum ExprKind t;
+    enum ExprKind kind;
     Token *tok;
     if ((tok = match(TK_ADD)) != NULL)
-      t = EX_ADD;
+      kind = EX_ADD;
     else if ((tok = match(TK_SUB)) != NULL)
-      t = EX_SUB;
+      kind = EX_SUB;
     else
       return expr;
 
-    expr = new_expr_bop(t, NULL, tok, expr, parse_mul());
+    Expr *lhs = expr, *rhs = parse_mul();
+    expr = new_expr_addsub(kind, tok, lhs, rhs, false);
   }
 }
 
@@ -624,7 +780,7 @@ static Expr *parse_shift(void) {
       return expr;
 
     Expr *lhs = expr, *rhs = parse_add();
-    expr = new_expr_bop(t, NULL, tok, lhs, rhs);
+    expr = new_expr_bop(t, lhs->type, tok, lhs, rhs);
   }
 }
 
@@ -674,7 +830,8 @@ static Expr *parse_and(void) {
     Token *tok;
     if ((tok = match(TK_AND)) != NULL) {
       Expr *lhs = expr, *rhs = parse_eq();
-      expr = new_expr_bop(EX_BITAND, NULL, tok, lhs, rhs);
+      cast_integers(&lhs, &rhs, false);
+      expr = new_expr_bop(EX_BITAND, lhs->type, tok, lhs, rhs);
     } else
       return expr;
   }
@@ -686,7 +843,8 @@ static Expr *parse_xor(void) {
     Token *tok;
     if ((tok = match(TK_HAT)) != NULL) {
       Expr *lhs = expr, *rhs= parse_and();
-      expr = new_expr_bop(EX_BITXOR, NULL, tok, lhs, rhs);
+      cast_integers(&lhs, &rhs, false);
+      expr = new_expr_bop(EX_BITXOR, lhs->type, tok, lhs, rhs);
     } else
       return expr;
   }
@@ -698,7 +856,8 @@ static Expr *parse_or(void) {
     Token *tok;
     if ((tok = match(TK_OR)) != NULL) {
       Expr *lhs = expr, *rhs = parse_xor();
-      expr = new_expr_bop(EX_BITOR, NULL, tok, lhs, rhs);
+      cast_integers(&lhs, &rhs, false);
+      expr = new_expr_bop(EX_BITOR, lhs->type, tok, lhs, rhs);
     } else
       return expr;
   }
@@ -735,7 +894,41 @@ static Expr *parse_conditional(void) {
     Expr *tval = parse_expr();
     consume(TK_COLON, "`:' expected");
     Expr *fval = parse_conditional();
-    expr = new_expr_ternary(tok, expr, tval, fval, NULL);
+
+    const Type *ttype = tval->type;
+    const Type *ftype = fval->type;
+    assert(ttype != NULL);
+    assert(ftype != NULL);
+    if (ttype->kind == TY_ARRAY) {
+      ttype = array_to_ptr(ttype);
+      tval = new_expr_cast(ttype, tval->token, tval);
+    }
+    if (ftype->kind == TY_ARRAY) {
+      ftype = array_to_ptr(ftype);
+      fval = new_expr_cast(ftype, fval->token, fval);
+    }
+
+    const Type *type = NULL;
+    if (same_type(ttype, ftype)) {
+      type = ttype;
+    } else if (is_void_ptr(ttype) && ftype->kind == TY_PTR) {
+      type = ftype;
+    } else if (is_void_ptr(ftype) && ttype->kind == TY_PTR) {
+      type = ttype;
+    } else if (is_number(ttype->kind) && is_number(ftype->kind)) {
+      if (ttype->num.kind > ftype->num.kind) {
+        type = ttype;
+        fval = new_expr_cast(ttype, fval->token, fval);
+      } else {
+        type = ftype;
+        tval = new_expr_cast(ftype, tval->token, tval);
+      }
+    }
+
+    if (type == NULL)
+      parse_error(tok, "lhs and rhs must be same type");
+
+    expr = new_expr_ternary(tok, expr, tval, fval, type);
   }
 }
 
@@ -743,17 +936,18 @@ Expr *parse_assign(void) {
   static const struct {
     enum TokenKind tk;
     enum ExprKind ex;
+    int mode;
   } kAssignWithOps[] = {
-    { TK_ADD_ASSIGN, EX_ADD },
-    { TK_SUB_ASSIGN, EX_SUB },
-    { TK_MUL_ASSIGN, EX_MUL },
-    { TK_DIV_ASSIGN, EX_DIV },
-    { TK_MOD_ASSIGN, EX_MOD },
-    { TK_AND_ASSIGN, EX_BITAND },
-    { TK_OR_ASSIGN, EX_BITOR },
-    { TK_HAT_ASSIGN, EX_BITXOR },
-    { TK_LSHIFT_ASSIGN, EX_LSHIFT },
-    { TK_RSHIFT_ASSIGN, EX_RSHIFT },
+    { TK_ADD_ASSIGN, EX_ADD, 0 },
+    { TK_SUB_ASSIGN, EX_SUB, 0 },
+    { TK_MUL_ASSIGN, EX_MUL, 1 },
+    { TK_DIV_ASSIGN, EX_DIV, 1 },
+    { TK_MOD_ASSIGN, EX_MOD, 1 },
+    { TK_AND_ASSIGN, EX_BITAND, 1 },
+    { TK_OR_ASSIGN, EX_BITOR, 1 },
+    { TK_HAT_ASSIGN, EX_BITXOR, 1 },
+    { TK_LSHIFT_ASSIGN, EX_LSHIFT, 2 },
+    { TK_RSHIFT_ASSIGN, EX_RSHIFT, 2 },
   };
 
   Expr *expr = parse_conditional();
@@ -761,13 +955,31 @@ Expr *parse_assign(void) {
   Token *tok = match(-1);
   if (tok != NULL) {
     if (tok->kind == TK_ASSIGN)
-      return new_expr_bop(EX_ASSIGN, NULL, tok, expr, parse_assign());
+      return new_expr_bop(EX_ASSIGN, expr->type, tok, expr, parse_assign());
 
     for (int i = 0; i < (int)(sizeof(kAssignWithOps) / sizeof(*kAssignWithOps)); ++i) {
       if (tok->kind == kAssignWithOps[i].tk) {
-        enum ExprKind t = kAssignWithOps[i].ex;
-        return new_expr_unary(EX_ASSIGN_WITH, NULL, tok,
-                              new_expr_bop(t, NULL, tok, expr, parse_assign()));
+        enum ExprKind kind = kAssignWithOps[i].ex;
+        Expr *lhs = expr, *rhs = parse_assign();
+        Expr *bop;
+        switch (kAssignWithOps[i].mode) {
+        case 0:  bop = new_expr_addsub(kind, tok, lhs, rhs, true); break;
+        case 1:  bop = new_expr_muldiv(kind, tok, lhs, rhs, true); break;
+        case 2:
+          {
+            const Type *ltype = lhs->type;
+            const Type *rtype = rhs->type;
+            assert(ltype != NULL);
+            assert(rtype != NULL);
+            if (!is_number(ltype->kind) || !is_number(rtype->kind))
+              parse_error(tok, "Cannot use `%.*s' except numbers.", (int)(tok->end - tok->begin), tok->begin);
+            bop = new_expr_bop(kind, lhs->type, tok, lhs, rhs);
+          }
+          break;
+        default:  assert(false); bop = NULL; break;
+        }
+        assert(bop->type != NULL);
+        return new_expr_unary(EX_ASSIGN_WITH, lhs->type, tok, bop);
       }
     }
     unget_token(tok);
@@ -784,7 +996,7 @@ Expr *parse_expr(void) {
   const Token *tok;
   while ((tok = match(TK_COMMA)) != NULL) {
     Expr *next_expr = parse_assign();
-    expr = new_expr_bop(EX_COMMA, NULL, tok, expr, next_expr);
+    expr = new_expr_bop(EX_COMMA, next_expr->type, tok, expr, next_expr);
   }
   return expr;
 }

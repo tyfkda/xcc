@@ -130,6 +130,8 @@ static Expr *add_ptr_num(enum ExprKind kind, const Token *token, Expr *ptr, Expr
 static Expr *add_expr_keep_left(const Token *tok, Expr *lhs, Expr *rhs, bool keep_left) {
   const Type *ltype = lhs->type;
   const Type *rtype = rhs->type;
+  assert(ltype != NULL);
+  assert(rtype != NULL);
 
   if (is_number(ltype->kind) && is_number(rtype->kind))
     return add_num(EX_ADD, tok, lhs, rhs, keep_left);
@@ -172,45 +174,13 @@ static Expr *diff_ptr(const Token *tok, Expr *lhs, Expr *rhs) {
                       new_expr_sizeof(tok, elem_type, NULL));
 }
 
-static Expr *sub_expr_keep_left(const Token *tok, Expr *lhs, Expr *rhs, bool keep_left) {
-  if (is_number(lhs->type->kind)) {
-    if (is_number(rhs->type->kind))
-      return add_num(EX_SUB, tok, lhs, rhs, keep_left);
-    if (same_type(lhs->type, rhs->type))
-      return new_expr_bop(EX_SUB, lhs->type, tok, lhs, rhs);
-  }
-
-  switch (lhs->type->kind) {
-  case TY_PTR:
-    switch (rhs->type->kind) {
-    case TY_NUM:
-      return add_ptr_num(EX_SUB, tok, lhs, rhs);
-    case TY_PTR: case TY_ARRAY:
-      return diff_ptr(tok, lhs, rhs);
-    default:
-      break;
-    }
-    break;
-
-  case TY_ARRAY:
-    if (ptr_or_array(rhs->type)) {
-      return diff_ptr(tok, lhs, rhs);
-    }
-    break;
-
-  default:
-    break;
-  }
-
-  parse_error(tok, "Illegal `-'");
-  return NULL;
-}
-
 static bool cast_numbers(Expr **pLhs, Expr **pRhs, bool keep_left) {
   Expr *lhs = *pLhs;
   Expr *rhs = *pRhs;
   const Type *ltype = lhs->type;
   const Type *rtype = rhs->type;
+  assert(ltype != NULL);
+  assert(rtype != NULL);
   if (!is_number(ltype->kind) || !is_number(rtype->kind))
     return false;
 
@@ -363,6 +333,8 @@ static Expr *sema_expr_keep_left(Expr *expr, bool keep_left) {
   case EX_LOGIOR:
   case EX_ASSIGN:
   case EX_COMMA:
+  case EX_PTRADD:
+  case EX_PTRSUB:
     expr->bop.lhs = sema_expr(expr->bop.lhs);
     expr->bop.rhs = sema_expr(expr->bop.rhs);
     assert(expr->bop.lhs->type != NULL);
@@ -370,17 +342,19 @@ static Expr *sema_expr_keep_left(Expr *expr, bool keep_left) {
 
     switch (expr->kind) {
     case EX_ADD:
-      return add_expr_keep_left(expr->token, expr->bop.lhs, expr->bop.rhs, keep_left);
+      assert(is_number(expr->bop.lhs->type->kind));
+      assert(is_number(expr->bop.rhs->type->kind));
+      return add_num(EX_ADD, expr->token, expr->bop.lhs, expr->bop.rhs, keep_left);
     case EX_SUB:
-      return sub_expr_keep_left(expr->token, expr->bop.lhs, expr->bop.rhs, keep_left);
+      return add_num(EX_SUB, expr->token, expr->bop.lhs, expr->bop.rhs, keep_left);
     case EX_MUL:
     case EX_DIV:
     case EX_MOD:
     case EX_BITAND:
     case EX_BITOR:
     case EX_BITXOR:
-      if (!cast_numbers(&expr->bop.lhs, &expr->bop.rhs, keep_left))
-        parse_error(expr->token, "Cannot use `%d' except numbers.", expr->kind);
+      assert(expr->bop.lhs->type != NULL && is_number(expr->bop.lhs->type->kind));
+      assert(expr->bop.rhs->type != NULL && is_number(expr->bop.rhs->type->kind));
 
       if (is_const(expr->bop.lhs) && is_const(expr->bop.rhs)) {
         Expr *lhs = expr->bop.lhs, *rhs = expr->bop.rhs;
@@ -403,8 +377,6 @@ static Expr *sema_expr_keep_left(Expr *expr, bool keep_left) {
         const Type *type = lhs->type->num.kind >= rhs->type->num.kind ? lhs->type : rhs->type;
         return new_expr_numlit(type, lhs->token, &num);
       }
-
-      expr->type = expr->bop.lhs->type;
       break;
 
     case EX_LSHIFT:
@@ -453,13 +425,31 @@ static Expr *sema_expr_keep_left(Expr *expr, bool keep_left) {
         break;
       default: break;
       }
-      expr->type = expr->bop.lhs->type;
       expr->bop.rhs = make_cast(expr->type, expr->token, expr->bop.rhs, false);
       break;
 
     case EX_COMMA:
-      expr->type = expr->bop.rhs->type;
       break;
+
+    case EX_PTRADD:
+      {
+        const Type *ltype = expr->bop.lhs->type;
+        const Type *rtype = expr->bop.rhs->type;
+        if (ptr_or_array(ltype)) {
+          return add_ptr_num(EX_ADD, expr->token, expr->bop.lhs, expr->bop.rhs);
+        } else {
+          assert(ptr_or_array(rtype));
+          return add_ptr_num(EX_ADD, expr->token, expr->bop.rhs, expr->bop.lhs);
+        }
+      }
+    case EX_PTRSUB:
+      assert(ptr_or_array(expr->bop.lhs->type));
+      if (is_number(expr->bop.rhs->type->kind)) {
+        return add_ptr_num(EX_SUB, expr->token, expr->bop.lhs, expr->bop.rhs);
+      } else {
+        assert(ptr_or_array(expr->bop.rhs->type));
+        return diff_ptr(expr->token, expr->bop.lhs, expr->bop.rhs);
+      }
 
     default:
       fprintf(stderr, "expr kind=%d\n", expr->kind);
@@ -538,25 +528,9 @@ static Expr *sema_expr_keep_left(Expr *expr, bool keep_left) {
 
     case EX_REF:
       sema_lval(expr->token, expr->unary.sub, "Cannot take reference");
-      expr->type = ptrof(expr->unary.sub->type);
       break;
 
     case EX_DEREF:
-      {
-        Expr *sub = expr->unary.sub;
-        switch (sub->type->kind) {
-        case TY_PTR:
-        case TY_ARRAY:
-          expr->type = sub->type->pa.ptrof;
-          break;
-        case TY_FUNC:
-          expr->type = sub->type;
-          break;
-        default:
-          parse_error(expr->token, "Cannot dereference raw type");
-          break;
-        }
-      }
       break;
 
     case EX_GROUP:
@@ -585,97 +559,13 @@ static Expr *sema_expr_keep_left(Expr *expr, bool keep_left) {
     break;
 
   case EX_TERNARY:
-    {
-      expr->ternary.cond = sema_expr(expr->ternary.cond);
-      Expr *tval = sema_expr(expr->ternary.tval);
-      Expr *fval = sema_expr(expr->ternary.fval);
-      const Type *ttype = tval->type;
-      const Type *ftype = fval->type;
-      if (ttype->kind == TY_ARRAY) {
-        ttype = array_to_ptr(ttype);
-        tval = new_expr_cast(ttype, tval->token, tval);
-      }
-      if (ftype->kind == TY_ARRAY) {
-        ftype = array_to_ptr(ftype);
-        fval = new_expr_cast(ftype, fval->token, fval);
-      }
-      expr->ternary.tval = tval;
-      expr->ternary.fval = fval;
-
-      if (same_type(ttype, ftype)) {
-        expr->type = ttype;
-        break;
-      }
-      if (is_void_ptr(ttype) && ftype->kind == TY_PTR) {
-        expr->type = ftype;
-        break;
-      }
-      if (is_void_ptr(ftype) && ttype->kind == TY_PTR) {
-        expr->type = ttype;
-        break;
-      }
-      if (is_number(ttype->kind) && is_number(ftype->kind)) {
-        if (ttype->num.kind > ftype->num.kind) {
-          expr->type = ttype;
-          expr->ternary.fval = new_expr_cast(ttype, fval->token, fval);
-        } else {
-          expr->type = ftype;
-          expr->ternary.tval = new_expr_cast(ftype, tval->token, tval);
-        }
-        break;
-      }
-
-      parse_error(NULL, "lhs and rhs must be same type");
-    }
+    expr->ternary.cond = sema_expr(expr->ternary.cond);
+    expr->ternary.tval = sema_expr(expr->ternary.tval);
+    expr->ternary.fval = sema_expr(expr->ternary.fval);
     break;
 
   case EX_MEMBER:  // x.member or x->member
-    {
-      Expr *target = expr->member.target;
-      expr->member.target = target = sema_expr(target);
-      assert(target->type != NULL);
-
-      const Token *acctok = expr->token;
-      const Token *ident = expr->member.ident;
-      const Name *name = ident->ident;
-
-      // Find member's type from struct info.
-      const Type *targetType = target->type;
-      if (acctok->kind == TK_DOT) {
-        if (targetType->kind != TY_STRUCT)
-          parse_error(acctok, "`.' for non struct value");
-      } else {  // TK_ARROW
-        if (!ptr_or_array(targetType)) {
-          parse_error(acctok, "`->' for non pointer value");
-        } else {
-          targetType = targetType->pa.ptrof;
-          if (targetType->kind != TY_STRUCT)
-            parse_error(acctok, "`->' for non struct value");
-        }
-      }
-
-      ensure_struct((Type*)targetType, ident);
-      int index = var_find(targetType->struct_.info->members, name);
-      if (index >= 0) {
-        const VarInfo *member = targetType->struct_.info->members->data[index];
-        expr->type = member->type;
-        expr->member.index = index;
-      } else {
-        Vector *stack = new_vector();
-        const VarInfo *member = search_from_anonymous(targetType, ident->ident, ident, stack);
-        if (member == NULL)
-          parse_error(ident, "`%.*s' doesn't exist in the struct", name->bytes, name->chars);
-        Expr *p = target;
-        const Type *type = targetType;
-        for (int i = 0; i < stack->len; ++i) {
-          int index = (int)(long)stack->data[i];
-          const VarInfo *member = type->struct_.info->members->data[index];
-          type = member->type;
-          p = new_expr_member(acctok, type, p, NULL, index);
-        }
-        expr = p;
-      }
-    }
+    expr->member.target = sema_expr(expr->member.target);
     break;
 
   case EX_SIZEOF:
@@ -691,44 +581,11 @@ static Expr *sema_expr_keep_left(Expr *expr, bool keep_left) {
 
   case EX_FUNCALL:
     {
-      Expr *func = expr->funcall.func;
-      Vector *args = expr->funcall.args;  // <Expr*>
-      expr->funcall.func = func = sema_expr(func);
+      expr->funcall.func = sema_expr(expr->funcall.func);
+      Vector *args = expr->funcall.args;
       if (args != NULL) {
         for (int i = 0, len = args->len; i < len; ++i)
           args->data[i] = sema_expr(args->data[i]);
-      }
-
-      const Type *functype;
-      if (!((functype = func->type)->kind == TY_FUNC ||
-            (func->type->kind == TY_PTR && (functype = func->type->pa.ptrof)->kind == TY_FUNC)))
-        parse_error(NULL, "Cannot call except funtion");
-      expr->type = functype->func.ret;
-
-      Vector *param_types = functype->func.param_types;  // <const Type*>
-      bool vaargs = functype->func.vaargs;
-      if (param_types != NULL) {
-        int argc = args != NULL ? args->len : 0;
-        int paramc = param_types->len;
-        if (!(argc == paramc ||
-              (vaargs && argc >= paramc)))
-          parse_error(func->token, "function `%.*s' expect %d arguments, but %d", func->variable.name->bytes, func->variable.name->chars, paramc, argc);
-      }
-
-      if (args != NULL && param_types != NULL) {
-        int paramc = param_types->len;
-        for (int i = 0, len = args->len; i < len; ++i) {
-          if (i < param_types->len) {
-            Expr *arg = args->data[i];
-            const Type *type = (const Type*)param_types->data[i];
-            args->data[i] = make_cast(type, arg->token, arg, false);
-          } else if (vaargs && i >= paramc) {
-            Expr *arg = args->data[i];
-            const Type *type = arg->type;
-            if (type->kind == TY_NUM && type->num.kind < NUM_INT)  // Promote variadic argument.
-              args->data[i] = make_cast(&tyInt, arg->token, arg, false);
-          }
-        }
       }
     }
     break;
