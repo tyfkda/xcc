@@ -707,10 +707,10 @@ static Expr *parse_conditional(void) {
     const Token *tok;
     if ((tok = match(TK_QUESTION)) == NULL)
       return expr;
-    Expr *t = parse_expr();
+    Expr *tval = parse_expr();
     consume(TK_COLON, "`:' expected");
-    Expr *f = parse_conditional();
-    expr = new_expr_ternary(tok, expr, t, f, NULL);
+    Expr *fval = parse_conditional();
+    expr = new_expr_ternary(tok, expr, tval, fval, NULL);
   }
 }
 
