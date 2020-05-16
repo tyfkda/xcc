@@ -383,7 +383,7 @@ int main(void) {
     a[1] = 32;
     p = &a[1];
     p -= 1;
-    expect("pointer +=", 54, *p);
+    expect("pointer -=", 54, *p);
   }
   {
     int a[2], *p;
