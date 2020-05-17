@@ -273,21 +273,6 @@ static Expr *sema_cmp(Expr *expr) {
   return expr;
 }
 
-static void sema_lval(const Token *tok, Expr *expr, const char *error) {
-  while (expr->kind == EX_GROUP)
-    expr = expr->unary.sub;
-
-  switch (expr->kind) {
-  case EX_VARIABLE:
-  case EX_DEREF:
-  case EX_MEMBER:
-    break;
-  default:
-    parse_error(tok, error);
-    break;
-  }
-}
-
 // Traverse expr to check semantics and determine value type.
 static Expr *sema_expr_keep_left(Expr *expr, bool keep_left) {
   if (expr == NULL)
@@ -413,19 +398,6 @@ static Expr *sema_expr_keep_left(Expr *expr, bool keep_left) {
       break;
 
     case EX_ASSIGN:
-      if (expr->bop.lhs->kind == EX_GROUP)
-        parse_error(expr->token, "Cannot assign");
-      sema_lval(expr->token, expr->bop.lhs, "Cannot assign");
-      switch (expr->bop.lhs->type->kind) {
-      case TY_ARRAY:
-        parse_error(expr->token, "Cannot assign to array");
-        break;
-      case TY_FUNC:
-        parse_error(expr->token, "Cannot assign to function");
-        break;
-      default: break;
-      }
-      expr->bop.rhs = make_cast(expr->type, expr->token, expr->bop.rhs, false);
       break;
 
     case EX_COMMA:
@@ -522,12 +494,9 @@ static Expr *sema_expr_keep_left(Expr *expr, bool keep_left) {
     case EX_PREDEC:
     case EX_POSTINC:
     case EX_POSTDEC:
-      sema_lval(expr->unary.sub->token, expr->unary.sub, "lvalue expected");
-      expr->type = expr->unary.sub->type;
       break;
 
     case EX_REF:
-      sema_lval(expr->token, expr->unary.sub, "Cannot take reference");
       break;
 
     case EX_DEREF:
@@ -540,8 +509,6 @@ static Expr *sema_expr_keep_left(Expr *expr, bool keep_left) {
       break;
 
     case EX_ASSIGN_WITH:
-      sema_lval(expr->token, expr->unary.sub->bop.lhs, "Cannot assign");
-      expr->type = expr->unary.sub->bop.lhs->type;
       break;
 
     case EX_CAST:

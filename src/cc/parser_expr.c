@@ -66,6 +66,21 @@ static bool cast_integers(Expr **pLhs, Expr **pRhs, bool keep_left) {
   return true;
 }
 
+static void check_lval(const Token *tok, Expr *expr, const char *error) {
+  while (expr->kind == EX_GROUP)
+    expr = expr->unary.sub;
+
+  switch (expr->kind) {
+  case EX_VARIABLE:
+  case EX_DEREF:
+  case EX_MEMBER:
+    break;
+  default:
+    parse_error(tok, error);
+    break;
+  }
+}
+
 static Expr *new_expr_muldiv(enum ExprKind kind, const Token *tok, Expr *lhs, Expr *rhs, bool keep_left) {
   cast_integers(&lhs, &rhs, keep_left);
   return new_expr_bop(kind, lhs->type, tok, lhs, rhs);
@@ -102,6 +117,11 @@ static Expr *new_expr_addsub(enum ExprKind kind, const Token *tok, Expr *lhs, Ex
     parse_error(tok, "Cannot apply `%.*s'", (int)(tok->end - tok->begin), tok->begin);
   }
   return new_expr_bop(kind, type, tok, lhs, rhs);
+}
+
+static Expr *new_expr_incdec(enum ExprKind kind, const Token *tok, Expr *sub) {
+  check_lval(tok, sub, "lvalue expected");
+  return new_expr_unary(kind, sub->type, tok, sub);
 }
 
 //
@@ -613,9 +633,9 @@ static Expr *parse_postfix(void) {
     else if ((tok = match(TK_DOT)) != NULL || (tok = match(TK_ARROW)) != NULL)
       expr = parse_member_access(expr, tok);
     else if ((tok = match(TK_INC)) != NULL)
-      expr = new_expr_unary(EX_POSTINC, expr->type, tok, expr);
+      expr = new_expr_incdec(EX_POSTINC, tok, expr);
     else if ((tok = match(TK_DEC)) != NULL)
-      expr = new_expr_unary(EX_POSTDEC, expr->type, tok, expr);
+      expr = new_expr_incdec(EX_POSTDEC, tok, expr);
     else
       return expr;
   }
@@ -675,6 +695,7 @@ static Expr *parse_unary(void) {
   if ((tok = match(TK_AND)) != NULL) {
     Expr *expr = parse_cast_expr();
     assert(expr->type != NULL);
+    check_lval(tok, expr, "Cannot take reference");
     return new_expr_unary(EX_REF, ptrof(expr->type), tok, expr);
   }
 
@@ -697,12 +718,12 @@ static Expr *parse_unary(void) {
 
   if ((tok = match(TK_INC)) != NULL) {
     Expr *expr = parse_unary();
-    return new_expr_unary(EX_PREINC, expr->type, tok, expr);
+    return new_expr_incdec(EX_PREINC, tok, expr);
   }
 
   if ((tok = match(TK_DEC)) != NULL) {
     Expr *expr = parse_unary();
-    return new_expr_unary(EX_PREDEC, expr->type, tok, expr);
+    return new_expr_incdec(EX_PREDEC, tok, expr);
   }
 
   if ((tok = match(TK_SIZEOF)) != NULL) {
@@ -938,34 +959,49 @@ Expr *parse_assign(void) {
     enum ExprKind ex;
     int mode;
   } kAssignWithOps[] = {
-    { TK_ADD_ASSIGN, EX_ADD, 0 },
-    { TK_SUB_ASSIGN, EX_SUB, 0 },
-    { TK_MUL_ASSIGN, EX_MUL, 1 },
-    { TK_DIV_ASSIGN, EX_DIV, 1 },
-    { TK_MOD_ASSIGN, EX_MOD, 1 },
-    { TK_AND_ASSIGN, EX_BITAND, 1 },
-    { TK_OR_ASSIGN, EX_BITOR, 1 },
-    { TK_HAT_ASSIGN, EX_BITXOR, 1 },
-    { TK_LSHIFT_ASSIGN, EX_LSHIFT, 2 },
-    { TK_RSHIFT_ASSIGN, EX_RSHIFT, 2 },
+    { TK_ASSIGN, EX_ASSIGN, 0 },
+    { TK_ADD_ASSIGN, EX_ADD, 1 },
+    { TK_SUB_ASSIGN, EX_SUB, 1 },
+    { TK_MUL_ASSIGN, EX_MUL, 2 },
+    { TK_DIV_ASSIGN, EX_DIV, 2 },
+    { TK_MOD_ASSIGN, EX_MOD, 2 },
+    { TK_AND_ASSIGN, EX_BITAND, 2 },
+    { TK_OR_ASSIGN, EX_BITOR, 2 },
+    { TK_HAT_ASSIGN, EX_BITXOR, 2 },
+    { TK_LSHIFT_ASSIGN, EX_LSHIFT, 3 },
+    { TK_RSHIFT_ASSIGN, EX_RSHIFT, 3 },
   };
 
   Expr *expr = parse_conditional();
 
   Token *tok = match(-1);
   if (tok != NULL) {
-    if (tok->kind == TK_ASSIGN)
-      return new_expr_bop(EX_ASSIGN, expr->type, tok, expr, parse_assign());
-
     for (int i = 0; i < (int)(sizeof(kAssignWithOps) / sizeof(*kAssignWithOps)); ++i) {
       if (tok->kind == kAssignWithOps[i].tk) {
         enum ExprKind kind = kAssignWithOps[i].ex;
         Expr *lhs = expr, *rhs = parse_assign();
+
+        if (lhs->kind == EX_GROUP)
+          parse_error(tok, "Cannot assign");
+        check_lval(tok, lhs, "Cannot assign");
+
+        switch (lhs->type->kind) {
+        case TY_ARRAY:
+          parse_error(tok, "Cannot assign to array");
+          break;
+        case TY_FUNC:
+          parse_error(tok, "Cannot assign to function");
+          break;
+        default: break;
+        }
+
         Expr *bop;
         switch (kAssignWithOps[i].mode) {
-        case 0:  bop = new_expr_addsub(kind, tok, lhs, rhs, true); break;
-        case 1:  bop = new_expr_muldiv(kind, tok, lhs, rhs, true); break;
-        case 2:
+        case 0:
+          return new_expr_bop(EX_ASSIGN, lhs->type, tok, lhs, make_cast(lhs->type, tok, rhs, false));
+        case 1:  bop = new_expr_addsub(kind, tok, lhs, rhs, true); break;
+        case 2:  bop = new_expr_muldiv(kind, tok, lhs, rhs, true); break;
+        case 3:
           {
             const Type *ltype = lhs->type;
             const Type *rtype = rhs->type;
