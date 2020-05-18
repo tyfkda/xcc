@@ -124,6 +124,54 @@ static Expr *new_expr_incdec(enum ExprKind kind, const Token *tok, Expr *sub) {
   return new_expr_unary(kind, sub->type, tok, sub);
 }
 
+static enum ExprKind swap_cmp(enum ExprKind kind) {
+  assert(EX_EQ <= kind && kind <= EX_GT);
+  if (kind >= EX_LT)
+    kind = EX_GT - (kind - EX_LT);
+  return kind;
+}
+
+static Expr *new_expr_cmp(enum ExprKind kind, const Token *tok, Expr *lhs, Expr *rhs) {
+  const Type *lt = lhs->type, *rt = rhs->type;
+  if (ptr_or_array(lt) || ptr_or_array(rt)) {
+    if (lt->kind == TY_ARRAY) {
+      lt = array_to_ptr(lt);
+      lhs = make_cast(lt, lhs->token, lhs, false);
+    }
+    if (rt->kind == TY_ARRAY) {
+      rt = array_to_ptr(rt);
+      rhs = make_cast(rt, rhs->token, rhs, false);
+    }
+    if (lt->kind != TY_PTR) {
+      Expr *tmp = lhs;
+      lhs = rhs;
+      rhs = tmp;
+      const Type *tt = lt;
+      lt = rt;
+      rt = tt;
+      kind = swap_cmp(kind);
+    }
+    if (!can_cast(lt, rt, is_zero(rhs), false))
+      parse_error(tok, "Cannot compare pointer to other types");
+    if (rt->kind != TY_PTR)
+      rhs = make_cast(lhs->type, rhs->token, rhs, false);
+  } else {
+    if (!cast_integers(&lhs, &rhs, false))
+      parse_error(tok, "Cannot compare except numbers");
+
+    if (is_const(lhs) && !is_const(rhs)) {
+      Expr *tmp = lhs;
+      lhs = rhs;
+      rhs = tmp;
+      const Type *tt = lt;
+      lt = rt;
+      rt = tt;
+      kind = swap_cmp(kind);
+    }
+  }
+  return new_expr_bop(kind, &tyBool, tok, lhs, rhs);
+}
+
 //
 
 Vector *parse_args(Token **ptoken) {
@@ -809,21 +857,21 @@ static Expr *parse_cmp(void) {
   Expr *expr = parse_shift();
 
   for (;;) {
-    enum ExprKind t;
+    enum ExprKind kind;
     Token *tok;
     if ((tok = match(TK_LT)) != NULL)
-      t = EX_LT;
+      kind = EX_LT;
     else if ((tok = match(TK_GT)) != NULL)
-      t = EX_GT;
+      kind = EX_GT;
     else if ((tok = match(TK_LE)) != NULL)
-      t = EX_LE;
+      kind = EX_LE;
     else if ((tok = match(TK_GE)) != NULL)
-      t = EX_GE;
+      kind = EX_GE;
     else
       return expr;
 
     Expr *lhs = expr, *rhs = parse_shift();
-    expr = new_expr_bop(t, &tyBool, tok, lhs, rhs);
+    expr = new_expr_cmp(kind, tok, lhs, rhs);
   }
 }
 
@@ -831,17 +879,17 @@ static Expr *parse_eq(void) {
   Expr *expr = parse_cmp();
 
   for (;;) {
-    enum ExprKind t;
+    enum ExprKind kind;
     Token *tok;
     if ((tok = match(TK_EQ)) != NULL)
-      t = EX_EQ;
+      kind = EX_EQ;
     else if ((tok = match(TK_NE)) != NULL)
-      t = EX_NE;
+      kind = EX_NE;
     else
       return expr;
 
     Expr *lhs = expr, *rhs = parse_cmp();
-    expr = new_expr_bop(t, &tyBool, tok, lhs, rhs);
+    expr = new_expr_cmp(kind, tok, lhs, rhs);
   }
 }
 

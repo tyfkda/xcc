@@ -174,31 +174,6 @@ static Expr *diff_ptr(const Token *tok, Expr *lhs, Expr *rhs) {
                       new_expr_sizeof(tok, elem_type, NULL));
 }
 
-static bool cast_numbers(Expr **pLhs, Expr **pRhs, bool keep_left) {
-  Expr *lhs = *pLhs;
-  Expr *rhs = *pRhs;
-  const Type *ltype = lhs->type;
-  const Type *rtype = rhs->type;
-  assert(ltype != NULL);
-  assert(rtype != NULL);
-  if (!is_number(ltype->kind) || !is_number(rtype->kind))
-    return false;
-
-  enum NumKind lkind = ltype->num.kind;
-  enum NumKind rkind = rtype->num.kind;
-  if (lkind == NUM_ENUM)
-    lkind = NUM_INT;
-  if (rkind == NUM_ENUM)
-    rkind = NUM_INT;
-  if (lkind != rkind) {
-    if (lkind > rkind || keep_left)
-      *pRhs = make_cast(ltype, rhs->token, rhs, false);
-    else if (lkind < rkind)
-      *pLhs = make_cast(rtype, lhs->token, lhs, false);
-  }
-  return true;
-}
-
 const VarInfo *search_from_anonymous(const Type *type, const Name *name, const Token *ident, Vector *stack) {
   assert(type->kind == TY_STRUCT);
   ensure_struct((Type*)type, ident);
@@ -220,57 +195,6 @@ const VarInfo *search_from_anonymous(const Type *type, const Name *name, const T
     }
   }
   return NULL;
-}
-
-static enum ExprKind swap_cmp(enum ExprKind kind) {
-  assert(EX_EQ <= kind && kind <= EX_GT);
-  if (kind >= EX_LT)
-    kind = EX_GT - (kind - EX_LT);
-  return kind;
-}
-
-static Expr *sema_cmp(Expr *expr) {
-  Expr *lhs = expr->bop.lhs, *rhs = expr->bop.rhs;
-  const Type *lt = lhs->type, *rt = rhs->type;
-  if (ptr_or_array(lt) || ptr_or_array(rt)) {
-    if (lt->kind == TY_ARRAY) {
-      lt = array_to_ptr(lt);
-      lhs = make_cast(lt, lhs->token, lhs, false);
-    }
-    if (rt->kind == TY_ARRAY) {
-      rt = array_to_ptr(rt);
-      rhs = make_cast(rt, rhs->token, rhs, false);
-    }
-    if (lt->kind != TY_PTR) {
-      Expr *tmp = lhs;
-      lhs = rhs;
-      rhs = tmp;
-      const Type *tt = lt;
-      lt = rt;
-      rt = tt;
-      expr->kind = swap_cmp(expr->kind);
-    }
-    if (!can_cast(lt, rt, is_zero(rhs), false))
-      parse_error(expr->token, "Cannot compare pointer to other types");
-    if (rt->kind != TY_PTR)
-      rhs = make_cast(lhs->type, expr->token, rhs, false);
-  } else {
-    if (!cast_numbers(&lhs, &rhs, false))
-      parse_error(expr->token, "Cannot compare except numbers");
-
-    if (is_const(lhs) && !is_const(rhs)) {
-      Expr *tmp = lhs;
-      lhs = rhs;
-      rhs = tmp;
-      const Type *tt = lt;
-      lt = rt;
-      rt = tt;
-      expr->kind = swap_cmp(expr->kind);
-    }
-  }
-  expr->bop.lhs = lhs;
-  expr->bop.rhs = rhs;
-  return expr;
 }
 
 // Traverse expr to check semantics and determine value type.
@@ -390,9 +314,6 @@ static Expr *sema_expr_keep_left(Expr *expr, bool keep_left) {
     case EX_GT:
     case EX_LE:
     case EX_GE:
-      expr = sema_cmp(expr);
-      break;
-
     case EX_LOGAND:
     case EX_LOGIOR:
       break;
