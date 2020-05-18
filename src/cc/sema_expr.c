@@ -53,91 +53,9 @@ void ensure_struct(Type *type, const Token *token) {
   }
 }
 
-bool can_cast(const Type *dst, const Type *src, Expr *src_expr, bool is_explicit) {
-  if (same_type(dst, src))
-    return true;
-
-  if (dst->kind == TY_VOID)
-    return src->kind == TY_VOID || is_explicit;
-  if (src->kind == TY_VOID)
-    return false;
-
-  switch (dst->kind) {
-  case TY_NUM:
-    switch (src->kind) {
-    case TY_NUM:
-      return true;
-    case TY_PTR:
-    case TY_ARRAY:
-    case TY_FUNC:
-      if (is_explicit) {
-        // TODO: Check sizeof(long) is same as sizeof(ptr)
-        return true;
-      }
-      break;
-    default:
-      break;
-    }
-    break;
-  case TY_PTR:
-    switch (src->kind) {
-    case TY_NUM:
-      if (src_expr->kind == EX_NUM &&
-          src_expr->num.ival == 0)  // Special handling for 0 to pointer.
-        return true;
-      if (is_explicit)
-        return true;
-      break;
-    case TY_PTR:
-      if (is_explicit)
-        return true;
-      // void* is interchangable with any pointer type.
-      if (dst->pa.ptrof->kind == TY_VOID || src->pa.ptrof->kind == TY_VOID)
-        return true;
-      if (src->pa.ptrof->kind == TY_FUNC)
-        return can_cast(dst, src->pa.ptrof, src_expr, is_explicit);
-      break;
-    case TY_ARRAY:
-      if (is_explicit)
-        return true;
-      if (same_type(dst->pa.ptrof, src->pa.ptrof) ||
-          can_cast(dst, ptrof(src->pa.ptrof), src_expr, is_explicit))
-        return true;
-      break;
-    case TY_FUNC:
-      if (is_explicit)
-        return true;
-      if (dst->pa.ptrof->kind == TY_FUNC) {
-        const Type *ftype = dst->pa.ptrof;
-        return (same_type(ftype, src) ||
-                (ftype->func.param_types == NULL || src->func.param_types == NULL));
-      }
-      break;
-    default:  break;
-    }
-    break;
-  case TY_ARRAY:
-    switch (src->kind) {
-    case TY_PTR:
-      if (is_explicit && same_type(dst->pa.ptrof, src->pa.ptrof))
-        return true;
-      // Fallthrough
-    case TY_ARRAY:
-      if (is_explicit)
-        return true;
-      break;
-    default:  break;
-    }
-    break;
-  default:
-    break;
-  }
-  return false;
-}
-
-static bool check_cast(const Type *dst, const Type *src, Expr *src_expr, bool is_explicit,
+static bool check_cast(const Type *dst, const Type *src, bool zero, bool is_explicit,
                        const Token *token) {
-  if (!can_cast(dst, src, src_expr, is_explicit)) {
+  if (!can_cast(dst, src, zero, is_explicit)) {
     parse_error(token, "Cannot convert value from type %d to %d", src->kind, dst->kind);
     return false;
   }
@@ -161,7 +79,7 @@ Expr *make_cast(const Type *type, const Token *token, Expr *sub, bool is_explici
   //  return sub;
   //}
 
-  check_cast(type, sub->type, sub, is_explicit, token);
+  check_cast(type, sub->type, is_zero(sub), is_explicit, token);
 
   return new_expr_cast(type, token, sub);
 }
@@ -367,7 +285,7 @@ static Expr *sema_cmp(Expr *expr) {
       rt = tt;
       expr->kind = swap_cmp(expr->kind);
     }
-    if (!can_cast(lt, rt, rhs, false))
+    if (!can_cast(lt, rt, is_zero(rhs), false))
       parse_error(expr->token, "Cannot compare pointer to other types");
     if (rt->kind != TY_PTR)
       rhs = make_cast(lhs->type, expr->token, rhs, false);
@@ -692,7 +610,7 @@ static Expr *sema_expr_keep_left(Expr *expr, bool keep_left) {
     case EX_CAST:
       {
         Expr *sub = expr->unary.sub;
-        check_cast(expr->type, sub->type, sub, true, expr->token);
+        check_cast(expr->type, sub->type, is_zero(sub), true, expr->token);
         if (same_type(expr->type, sub->type))
           return sub;
       }

@@ -134,6 +134,7 @@ Expr *new_expr_sizeof(const Token *token, const Type *type, Expr *sub);
 Expr *new_expr_cast(const Type *type, const Token *token, Expr *sub);
 
 bool is_const(Expr *expr);
+bool is_zero(Expr *expr);
 
 // ================================================
 

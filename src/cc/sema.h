@@ -20,7 +20,6 @@ extern Vector *toplevel;  // <Declaration*>
 
 void sema(Vector *toplevel);
 Expr *sema_expr(Expr *expr);
-bool can_cast(const Type *dst, const Type *src, Expr *src_expr, bool is_explicit);
 Expr *add_expr(const Token *tok, Expr *lhs, Expr *rhs);
 Initializer *flatten_initializer(const Type *type, Initializer *init);
 void ensure_struct(Type *type, const Token *token);

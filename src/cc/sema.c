@@ -346,7 +346,7 @@ Initializer *flatten_initializer(const Type *type, Initializer *init) {
     case IK_SINGLE:
       // Special handling for string (char[]), and accept length difference.
       if (init->single->type->kind == TY_ARRAY &&
-          can_cast(type->pa.ptrof, init->single->type->pa.ptrof, init->single, false))
+          can_cast(type->pa.ptrof, init->single->type->pa.ptrof, is_zero(init->single), false))
         break;
       // Fallthrough
     default:
@@ -413,7 +413,7 @@ static Initializer *check_global_initializer(const Type *type, Initializer *init
           assert(info != NULL);
 
           if ((info->type->kind != TY_ARRAY && info->type->kind != TY_FUNC) ||
-              !can_cast(type, info->type, value, false))
+              !can_cast(type, info->type, is_zero(value), false))
             parse_error(value->token, "Illegal type");
 
           return init;

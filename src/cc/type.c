@@ -89,6 +89,87 @@ bool same_type(const Type *type1, const Type *type2) {
   }
 }
 
+bool can_cast(const Type *dst, const Type *src, bool zero, bool is_explicit) {
+  if (same_type(dst, src))
+    return true;
+
+  if (dst->kind == TY_VOID)
+    return src->kind == TY_VOID || is_explicit;
+  if (src->kind == TY_VOID)
+    return false;
+
+  switch (dst->kind) {
+  case TY_NUM:
+    switch (src->kind) {
+    case TY_NUM:
+      return true;
+    case TY_PTR:
+    case TY_ARRAY:
+    case TY_FUNC:
+      if (is_explicit) {
+        // TODO: Check sizeof(long) is same as sizeof(ptr)
+        return true;
+      }
+      break;
+    default:
+      break;
+    }
+    break;
+  case TY_PTR:
+    switch (src->kind) {
+    case TY_NUM:
+      if (zero)  // Special handling for 0 to pointer.
+        return true;
+      if (is_explicit)
+        return true;
+      break;
+    case TY_PTR:
+      if (is_explicit)
+        return true;
+      // void* is interchangable with any pointer type.
+      if (dst->pa.ptrof->kind == TY_VOID || src->pa.ptrof->kind == TY_VOID)
+        return true;
+      if (src->pa.ptrof->kind == TY_FUNC)
+        return can_cast(dst, src->pa.ptrof, zero, is_explicit);
+      break;
+    case TY_ARRAY:
+      if (is_explicit)
+        return true;
+      if (same_type(dst->pa.ptrof, src->pa.ptrof) ||
+          can_cast(dst, ptrof(src->pa.ptrof), zero, is_explicit))
+        return true;
+      break;
+    case TY_FUNC:
+      if (is_explicit)
+        return true;
+      if (dst->pa.ptrof->kind == TY_FUNC) {
+        const Type *ftype = dst->pa.ptrof;
+        return (same_type(ftype, src) ||
+                (ftype->func.param_types == NULL || src->func.param_types == NULL));
+      }
+      break;
+    default:  break;
+    }
+    break;
+  case TY_ARRAY:
+    switch (src->kind) {
+    case TY_PTR:
+      if (is_explicit && same_type(dst->pa.ptrof, src->pa.ptrof))
+        return true;
+      // Fallthrough
+    case TY_ARRAY:
+      if (is_explicit)
+        return true;
+      break;
+    default:  break;
+    }
+    break;
+  default:
+    break;
+  }
+  return false;
+}
+
 Type *ptrof(const Type *type) {
   Type *ptr = malloc(sizeof(*ptr));
   ptr->kind = TY_PTR;

@@ -18,6 +18,10 @@ bool is_const(Expr *expr) {
   }
 }
 
+bool is_zero(Expr *expr) {
+  return expr->kind == EX_NUM && expr->num.ival == 0;
+}
+
 static Expr *new_expr(enum ExprKind kind, const Type *type, const Token *token) {
   Expr *expr = malloc(sizeof(*expr));
   expr->kind = kind;
