@@ -171,7 +171,7 @@ static Expr *diff_ptr(const Token *tok, Expr *lhs, Expr *rhs) {
   if (elem_type->kind == TY_PTR)
     elem_type = elem_type->pa.ptrof;
   return new_expr_bop(EX_DIV, &tySize, tok, new_expr_bop(EX_SUB, &tySize, tok, lhs, rhs),
-                      new_expr_sizeof(tok, elem_type, NULL));
+                      new_expr_sizeof(tok, elem_type));
 }
 
 const VarInfo *search_from_anonymous(const Type *type, const Name *name, const Token *ident, Vector *stack) {
@@ -457,14 +457,6 @@ static Expr *sema_expr_keep_left(Expr *expr, bool keep_left) {
     break;
 
   case EX_SIZEOF:
-    {
-      Expr *sub = expr->sizeof_.sub;
-      if (sub != NULL) {
-        sub = sema_expr(sub);
-        assert(sub->type != NULL);
-        expr->sizeof_.type = sub->type;
-      }
-    }
     break;
 
   case EX_FUNCALL:

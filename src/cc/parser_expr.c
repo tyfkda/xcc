@@ -691,7 +691,6 @@ static Expr *parse_postfix(void) {
 
 static Expr *parse_sizeof(const Token *token) {
   const Type *type = NULL;
-  Expr *expr = NULL;
   Token *tok;
   if ((tok = match(TK_LPAR)) != NULL) {
     type = parse_full_type(NULL, NULL);
@@ -699,12 +698,15 @@ static Expr *parse_sizeof(const Token *token) {
       consume(TK_RPAR, "`)' expected");
     } else {
       unget_token(tok);
-      expr = parse_prim();
+      Expr *expr = parse_prim();
+      type = expr->type;
     }
   } else {
-    expr = parse_unary();
+    Expr *expr = parse_unary();
+    type = expr->type;
   }
-  return new_expr_sizeof(token, type, expr);
+  assert(type != NULL);
+  return new_expr_sizeof(token, type);
 }
 
 static Expr *parse_unary(void) {

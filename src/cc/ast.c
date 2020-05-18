@@ -100,10 +100,9 @@ Expr *new_expr_funcall(const Token *token, Expr *func, const Type *functype, Vec
   return expr;
 }
 
-Expr *new_expr_sizeof(const Token *token, const Type *type, Expr *sub) {
+Expr *new_expr_sizeof(const Token *token, const Type *type) {
   Expr *expr = new_expr(EX_SIZEOF, &tySize, token);
-  expr->sizeof_.type = type;
-  expr->sizeof_.sub = sub;
+  expr->sizeof_.target_type = type;
   return expr;
 }
 

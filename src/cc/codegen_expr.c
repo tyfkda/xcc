@@ -482,7 +482,7 @@ VReg *gen_expr(Expr *expr) {
     break;
 
   case EX_SIZEOF:
-    return new_const_vreg(type_size(expr->sizeof_.type), to_vtype(expr->type));
+    return new_const_vreg(type_size(expr->sizeof_.target_type), to_vtype(expr->type));
 
   case EX_VARIABLE:
     return gen_variable(expr);
