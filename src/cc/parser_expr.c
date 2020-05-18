@@ -797,6 +797,7 @@ static Expr *parse_cast_expr(void) {
     if (type != NULL) {  // Cast
       consume(TK_RPAR, "`)' expected");
       Expr *sub = parse_cast_expr();
+      check_cast(type, sub->type, is_zero(sub), true, token);
       return new_expr_cast(type, token, sub);
     }
     unget_token(lpar);

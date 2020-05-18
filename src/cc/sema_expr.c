@@ -48,8 +48,7 @@ void ensure_struct(Type *type, const Token *token) {
   }
 }
 
-static bool check_cast(const Type *dst, const Type *src, bool zero, bool is_explicit,
-                       const Token *token) {
+bool check_cast(const Type *dst, const Type *src, bool zero, bool is_explicit, const Token *token) {
   if (!can_cast(dst, src, zero, is_explicit)) {
     parse_error(token, "Cannot convert value from type %d to %d", src->kind, dst->kind);
     return false;
@@ -397,10 +396,6 @@ static Expr *sema_expr_keep_left(Expr *expr, bool keep_left) {
       break;
 
     case EX_CAST:
-      {
-        Expr *sub = expr->unary.sub;
-        check_cast(expr->type, sub->type, is_zero(sub), true, expr->token);
-      }
       break;
 
     default:
