@@ -90,23 +90,6 @@ static Expr *add_num(enum ExprKind kind, const Token *tok, Expr *lhs, Expr *rhs,
   if (rnt == NUM_ENUM)
     rnt = NUM_INT;
 
-  if (is_const(lhs) && is_const(rhs)) {
-    intptr_t lval = lhs->num.ival;
-    intptr_t rval = rhs->num.ival;
-    intptr_t value;
-    switch (kind) {
-    case EX_ADD: value = lval + rval; break;
-    case EX_SUB: value = lval - rval; break;
-    default:
-      assert(false);
-      value = -1;
-      break;
-    }
-    Num num = {value};
-    const Type *type = lnt >= rnt ? lhs->type : rhs->type;
-    return new_expr_numlit(type, lhs->token, &num);
-  }
-
   const Type *type;
   if (lnt >= rnt || keep_left) {
     type = tyNumTable[lnt];
@@ -197,7 +180,7 @@ const VarInfo *search_from_anonymous(const Type *type, const Name *name, const T
 }
 
 // Traverse expr to check semantics and determine value type.
-static Expr *sema_expr_keep_left(Expr *expr, bool keep_left) {
+Expr *sema_expr(Expr *expr) {
   if (expr == NULL)
     return NULL;
 
@@ -250,63 +233,15 @@ static Expr *sema_expr_keep_left(Expr *expr, bool keep_left) {
 
     switch (expr->kind) {
     case EX_ADD:
-      assert(is_number(expr->bop.lhs->type->kind));
-      assert(is_number(expr->bop.rhs->type->kind));
-      return add_num(EX_ADD, expr->token, expr->bop.lhs, expr->bop.rhs, keep_left);
     case EX_SUB:
-      return add_num(EX_SUB, expr->token, expr->bop.lhs, expr->bop.rhs, keep_left);
     case EX_MUL:
     case EX_DIV:
     case EX_MOD:
     case EX_BITAND:
     case EX_BITOR:
     case EX_BITXOR:
-      assert(expr->bop.lhs->type != NULL && is_number(expr->bop.lhs->type->kind));
-      assert(expr->bop.rhs->type != NULL && is_number(expr->bop.rhs->type->kind));
-
-      if (is_const(expr->bop.lhs) && is_const(expr->bop.rhs)) {
-        Expr *lhs = expr->bop.lhs, *rhs = expr->bop.rhs;
-        intptr_t lval = lhs->num.ival;
-        intptr_t rval = rhs->num.ival;
-        intptr_t value;
-        switch (expr->kind) {
-        case EX_MUL:     value = lval * rval; break;
-        case EX_DIV:     value = lval / rval; break;
-        case EX_MOD:     value = lval % rval; break;
-        case EX_BITAND:  value = lval & rval; break;
-        case EX_BITOR:   value = lval | rval; break;
-        case EX_BITXOR:  value = lval ^ rval; break;
-        default:
-          assert(!"err");
-          value = -1;  // Dummy
-          break;
-        }
-        Num num = {value};
-        const Type *type = lhs->type->num.kind >= rhs->type->num.kind ? lhs->type : rhs->type;
-        return new_expr_numlit(type, lhs->token, &num);
-      }
-      break;
-
     case EX_LSHIFT:
     case EX_RSHIFT:
-      {
-        enum TypeKind k;
-        if (!is_number(k = expr->bop.lhs->type->kind) ||
-            !is_number(k = expr->bop.rhs->type->kind))
-          parse_error(expr->token, "Cannot use `%d' except numbers.", k);
-
-        if (is_const(expr->bop.lhs) && is_const(expr->bop.rhs)) {
-          intptr_t lval = expr->bop.lhs->num.ival;
-          intptr_t rval = expr->bop.rhs->num.ival;
-          intptr_t value = expr->kind == EX_LSHIFT ? lval << rval : lval >> rval;
-          Num num = {value};
-          return new_expr_numlit(expr->bop.lhs->type, expr->bop.lhs->token, &num);
-        }
-
-        expr->type = expr->bop.lhs->type;
-      }
-      break;
-
     case EX_EQ:
     case EX_NE:
     case EX_LT:
@@ -364,7 +299,7 @@ static Expr *sema_expr_keep_left(Expr *expr, bool keep_left) {
   case EX_GROUP:
   case EX_CAST:
   case EX_ASSIGN_WITH:
-    expr->unary.sub = sema_expr_keep_left(expr->unary.sub, expr->kind == EX_ASSIGN_WITH);
+    expr->unary.sub = sema_expr(expr->unary.sub);
     assert(expr->unary.sub->type != NULL);
 
     switch (expr->kind) {
@@ -387,9 +322,6 @@ static Expr *sema_expr_keep_left(Expr *expr, bool keep_left) {
       break;
 
     case EX_GROUP:
-      if (is_const(expr->unary.sub))
-        return expr->unary.sub;
-      expr->type = expr->unary.sub->type;
       break;
 
     case EX_ASSIGN_WITH:
@@ -437,8 +369,4 @@ static Expr *sema_expr_keep_left(Expr *expr, bool keep_left) {
 
   assert(expr->type != NULL);
   return expr;
-}
-
-Expr *sema_expr(Expr *expr) {
-  return sema_expr_keep_left(expr, false);
 }

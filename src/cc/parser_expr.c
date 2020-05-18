@@ -81,7 +81,29 @@ static void check_lval(const Token *tok, Expr *expr, const char *error) {
   }
 }
 
-static Expr *new_expr_muldiv(enum ExprKind kind, const Token *tok, Expr *lhs, Expr *rhs, bool keep_left) {
+static Expr *new_expr_int_bop(enum ExprKind kind, const Token *tok, Expr *lhs, Expr *rhs, bool keep_left) {
+  if (is_const(lhs) && is_number(lhs->type->kind) &&
+      is_const(rhs) && is_number(rhs->type->kind)) {
+    intptr_t lval = lhs->num.ival;
+    intptr_t rval = rhs->num.ival;
+    intptr_t value;
+    switch (kind) {
+    case EX_MUL:     value = lval * rval; break;
+    case EX_DIV:     value = lval / rval; break;
+    case EX_MOD:     value = lval % rval; break;
+    case EX_BITAND:  value = lval & rval; break;
+    case EX_BITOR:   value = lval | rval; break;
+    case EX_BITXOR:  value = lval ^ rval; break;
+    default:
+      assert(!"err");
+      value = -1;  // Dummy
+      break;
+    }
+    Num num = {value};
+    const Type *type = keep_left || lhs->type->num.kind >= rhs->type->num.kind ? lhs->type : rhs->type;
+    return new_expr_numlit(type, lhs->token, &num);
+  }
+
   cast_integers(&lhs, &rhs, keep_left);
   return new_expr_bop(kind, lhs->type, tok, lhs, rhs);
 }
@@ -93,6 +115,30 @@ static Expr *new_expr_addsub(enum ExprKind kind, const Token *tok, Expr *lhs, Ex
   assert(ltype != NULL);
   assert(rtype != NULL);
   if (is_number(ltype->kind) && is_number(rtype->kind)) {
+    if (is_const(lhs) && is_const(rhs)) {
+      enum NumKind lnt = ltype->num.kind;
+      enum NumKind rnt = rtype->num.kind;
+      if (lnt == NUM_ENUM)
+        lnt = NUM_INT;
+      if (rnt == NUM_ENUM)
+        rnt = NUM_INT;
+
+      intptr_t lval = lhs->num.ival;
+      intptr_t rval = rhs->num.ival;
+      intptr_t value;
+      switch (kind) {
+      case EX_ADD: value = lval + rval; break;
+      case EX_SUB: value = lval - rval; break;
+      default:
+        assert(false);
+        value = -1;
+        break;
+      }
+      Num num = {value};
+      const Type *type = lnt >= rnt ? lhs->type : rhs->type;
+      return new_expr_numlit(type, lhs->token, &num);
+    }
+
     cast_integers(&lhs, &rhs, keep_left);
     type = lhs->type;
   } else if (ptr_or_array(ltype)) {
@@ -821,7 +867,7 @@ static Expr *parse_mul(void) {
       return expr;
 
     Expr *lhs = expr, *rhs = parse_cast_expr();
-    expr = new_expr_muldiv(kind, tok, lhs, rhs, false);
+    expr = new_expr_int_bop(kind, tok, lhs, rhs, false);
   }
 }
 
@@ -847,17 +893,29 @@ static Expr *parse_shift(void) {
   Expr *expr = parse_add();
 
   for (;;) {
-    enum ExprKind t;
+    enum ExprKind kind;
     Token *tok;
     if ((tok = match(TK_LSHIFT)) != NULL)
-      t = EX_LSHIFT;
+      kind = EX_LSHIFT;
     else if ((tok = match(TK_RSHIFT)) != NULL)
-      t = EX_RSHIFT;
+      kind = EX_RSHIFT;
     else
       return expr;
 
     Expr *lhs = expr, *rhs = parse_add();
-    expr = new_expr_bop(t, lhs->type, tok, lhs, rhs);
+    if (!is_number(lhs->type->kind) ||
+        !is_number(rhs->type->kind))
+      parse_error(tok, "Cannot use `%.*s' except numbers.", (int)(tok->end - tok->begin), tok->begin);
+
+    if (is_const(lhs) && is_const(rhs)) {
+      intptr_t lval = lhs->num.ival;
+      intptr_t rval = rhs->num.ival;
+      intptr_t value = kind == EX_LSHIFT ? lval << rval : lval >> rval;
+      Num num = {value};
+      expr = new_expr_numlit(lhs->type, tok, &num);
+    } else {
+      expr = new_expr_bop(kind, lhs->type, tok, lhs, rhs);
+    }
   }
 }
 
@@ -905,12 +963,11 @@ static Expr *parse_and(void) {
   Expr *expr = parse_eq();
   for (;;) {
     Token *tok;
-    if ((tok = match(TK_AND)) != NULL) {
-      Expr *lhs = expr, *rhs = parse_eq();
-      cast_integers(&lhs, &rhs, false);
-      expr = new_expr_bop(EX_BITAND, lhs->type, tok, lhs, rhs);
-    } else
+    if ((tok = match(TK_AND)) == NULL)
       return expr;
+
+    Expr *lhs = expr, *rhs = parse_eq();
+    expr = new_expr_int_bop(EX_BITAND, tok, lhs, rhs, false);
   }
 }
 
@@ -918,12 +975,11 @@ static Expr *parse_xor(void) {
   Expr *expr = parse_and();
   for (;;) {
     Token *tok;
-    if ((tok = match(TK_HAT)) != NULL) {
-      Expr *lhs = expr, *rhs= parse_and();
-      cast_integers(&lhs, &rhs, false);
-      expr = new_expr_bop(EX_BITXOR, lhs->type, tok, lhs, rhs);
-    } else
+    if ((tok = match(TK_HAT)) == NULL)
       return expr;
+
+    Expr *lhs = expr, *rhs= parse_and();
+    expr = new_expr_int_bop(EX_BITXOR, tok, lhs, rhs, false);
   }
 }
 
@@ -931,12 +987,11 @@ static Expr *parse_or(void) {
   Expr *expr = parse_xor();
   for (;;) {
     Token *tok;
-    if ((tok = match(TK_OR)) != NULL) {
-      Expr *lhs = expr, *rhs = parse_xor();
-      cast_integers(&lhs, &rhs, false);
-      expr = new_expr_bop(EX_BITOR, lhs->type, tok, lhs, rhs);
-    } else
+    if ((tok = match(TK_OR)) == NULL)
       return expr;
+
+    Expr *lhs = expr, *rhs = parse_xor();
+    expr = new_expr_int_bop(EX_BITOR, tok, lhs, rhs, false);
   }
 }
 
@@ -1056,7 +1111,7 @@ Expr *parse_assign(void) {
         case 0:
           return new_expr_bop(EX_ASSIGN, lhs->type, tok, lhs, make_cast(lhs->type, tok, rhs, false));
         case 1:  bop = new_expr_addsub(kind, tok, lhs, rhs, true); break;
-        case 2:  bop = new_expr_muldiv(kind, tok, lhs, rhs, true); break;
+        case 2:  bop = new_expr_int_bop(kind, tok, lhs, rhs, true); break;
         case 3:
           {
             const Type *ltype = lhs->type;
