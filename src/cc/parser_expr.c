@@ -481,8 +481,6 @@ static Expr *parse_unary(void) {
     default:
       return new_expr_unary(EX_POS, NULL, tok, expr);
     }
-
-    return expr;
   }
 
   if ((tok = match(TK_SUB)) != NULL) {

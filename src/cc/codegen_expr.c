@@ -729,6 +729,9 @@ VReg *gen_expr(Expr *expr) {
   case EX_FUNCALL:
     return gen_funcall(expr);
 
+  case EX_POS:
+    return gen_expr(expr->unary.sub);
+
   case EX_NEG:
     {
       VReg *reg = gen_expr(expr->unary.sub);

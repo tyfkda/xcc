@@ -530,7 +530,10 @@ static Expr *sema_expr_keep_left(Expr *expr, bool keep_left) {
     case EX_POS:
       if (!is_number(expr->unary.sub->type->kind))
         parse_error(expr->token, "Cannot apply `+' except number types");
-      return expr->unary.sub;
+      if (is_const(expr->unary.sub))
+        return expr->unary.sub;
+      expr->type = expr->unary.sub->type;
+      break;
 
     case EX_NEG:
       if (!is_number(expr->unary.sub->type->kind))

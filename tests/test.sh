@@ -223,6 +223,7 @@ compile_error 'enum and global' 'enum Foo { BAR }; int BAR; void main(){}'
 compile_error 'global and enum' 'int BAR; enum Foo { BAR }; void main(){}'
 compile_error 'dup enum elem' 'enum Foo { BAR, BAR }; void main(){}'
 compile_error 'paren =' 'void main(){ int x; (x) = 98; }'
+compile_error '+x =' 'void main(){ int x; +x = 45; }'
 compile_error 'param and first scope' 'void main(int x){ int x; }'
 
 # TODO
