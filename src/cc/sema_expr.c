@@ -370,45 +370,9 @@ static Expr *sema_expr_keep_left(Expr *expr, bool keep_left) {
 
     switch (expr->kind) {
     case EX_POS:
-      if (!is_number(expr->unary.sub->type->kind))
-        parse_error(expr->token, "Cannot apply `+' except number types");
-      if (is_const(expr->unary.sub))
-        return expr->unary.sub;
-      expr->type = expr->unary.sub->type;
-      break;
-
     case EX_NEG:
-      if (!is_number(expr->unary.sub->type->kind))
-        parse_error(expr->token, "Cannot apply `-' except number types");
-      if (is_const(expr->unary.sub)) {
-        Expr *sub = expr->unary.sub;
-        sub->num.ival = -sub->num.ival;
-        return sub;
-      }
-      expr->type = expr->unary.sub->type;
-      break;
-
     case EX_NOT:
-      switch (expr->unary.sub->type->kind) {
-      case TY_NUM:
-      case TY_PTR:
-      case TY_ARRAY:
-        break;
-      default:
-        parse_error(expr->token, "Cannot apply `!' except number or pointer types");
-        break;
-      }
-      break;
-
     case EX_BITNOT:
-      switch (expr->unary.sub->type->kind) {
-      case TY_NUM:
-        expr->type = expr->unary.sub->type;
-        break;
-      default:
-        parse_error(expr->token, "Cannot apply `~' except number type");
-        break;
-      }
       break;
 
     case EX_PREINC:

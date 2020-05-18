@@ -621,6 +621,8 @@ static Expr *parse_prim(void) {
   if ((tok = match(TK_LPAR)) != NULL) {
     Expr *expr = parse_expr();
     consume(TK_RPAR, "No close paren");
+    if (is_const(expr))
+      return expr;
     return new_expr_unary(EX_GROUP, expr->type, tok, expr);
   }
 
@@ -713,32 +715,35 @@ static Expr *parse_unary(void) {
   Token *tok;
   if ((tok = match(TK_ADD)) != NULL) {
     Expr *expr = parse_cast_expr();
-    switch (expr->kind) {
-    case EX_NUM:
+    if (!is_number(expr->type->kind))
+      parse_error(tok, "Cannot apply `+' except number types");
+    if (is_const(expr))
       return expr;
-    default:
-      return new_expr_unary(EX_POS, expr->type, tok, expr);
-    }
+    return new_expr_unary(EX_POS, expr->type, tok, expr);
   }
 
   if ((tok = match(TK_SUB)) != NULL) {
     Expr *expr = parse_cast_expr();
-    switch (expr->kind) {
-    case EX_NUM:
+    if (!is_number(expr->type->kind))
+      parse_error(tok, "Cannot apply `-' except number types");
+    if (is_const(expr)) {
       expr->num.ival = -expr->num.ival;
       return expr;
-    default:
-      return new_expr_unary(EX_NEG, expr->type, tok, expr);
     }
+    return new_expr_unary(EX_NEG, expr->type, tok, expr);
   }
 
   if ((tok = match(TK_NOT)) != NULL) {
     Expr *expr = parse_cast_expr();
+    if (!is_number(expr->type->kind) && !ptr_or_array(expr->type))
+      parse_error(tok, "Cannot apply `!' except number or pointer types");
     return new_expr_unary(EX_NOT, &tyBool, tok, expr);
   }
 
   if ((tok = match(TK_TILDA)) != NULL) {
     Expr *expr = parse_cast_expr();
+    if (!is_number(expr->type->kind))
+      parse_error(tok, "Cannot apply `~' except number type");
     return new_expr_unary(EX_BITNOT, expr->type, tok, expr);
   }
 
