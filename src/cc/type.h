@@ -87,6 +87,7 @@ extern const Type tyVoidPtr;
 bool is_number(enum TypeKind kind);
 bool is_char_type(const Type *type);
 bool is_void_ptr(const Type *type);
+bool ptr_or_array(const Type *type);
 bool same_type(const Type *type1, const Type *type2);
 Type *ptrof(const Type *type);
 const Type *array_to_ptr(const Type *type);

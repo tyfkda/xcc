@@ -31,6 +31,10 @@ bool is_void_ptr(const Type *type) {
   return type->kind == TY_PTR && type->pa.ptrof->kind == TY_VOID;
 }
 
+bool ptr_or_array(const Type *type) {
+  return type->kind == TY_PTR || type->kind == TY_ARRAY;
+}
+
 bool same_type(const Type *type1, const Type *type2) {
   for (;;) {
     if (type1->kind != type2->kind)

@@ -223,22 +223,15 @@ static Expr *add_expr_keep_left(const Token *tok, Expr *lhs, Expr *rhs, bool kee
 
   switch (ltype->kind) {
   case TY_NUM:
-    switch (rtype->kind) {
-    case TY_PTR: case TY_ARRAY:
+    if (ptr_or_array(rtype)) {
       if (!keep_left)
         return add_ptr_num(EX_ADD, tok, rhs, lhs);
-      break;
-    default:
-      break;
     }
     break;
 
   case TY_PTR: case TY_ARRAY:
-    switch (rtype->kind) {
-    case TY_NUM:
+    if (is_number(rtype->kind)) {
       return add_ptr_num(EX_ADD, tok, lhs, rhs);
-    default:
-      break;
     }
     break;
 
@@ -287,11 +280,8 @@ static Expr *sub_expr_keep_left(const Token *tok, Expr *lhs, Expr *rhs, bool kee
     break;
 
   case TY_ARRAY:
-    switch (rhs->type->kind) {
-    case TY_PTR: case TY_ARRAY:
+    if (ptr_or_array(rhs->type)) {
       return diff_ptr(tok, lhs, rhs);
-    default:
-      break;
     }
     break;
 
@@ -358,14 +348,25 @@ static enum ExprKind swap_cmp(enum ExprKind kind) {
 
 static Expr *sema_cmp(Expr *expr) {
   Expr *lhs = expr->bop.lhs, *rhs = expr->bop.rhs;
-  if (lhs->type->kind == TY_PTR || rhs->type->kind == TY_PTR) {
-    if (lhs->type->kind != TY_PTR) {
+  const Type *lt = lhs->type, *rt = rhs->type;
+  if (ptr_or_array(lt) || ptr_or_array(rt)) {
+    if (lt->kind == TY_ARRAY) {
+      lt = array_to_ptr(lt);
+      lhs = make_cast(lt, lhs->token, lhs, false);
+    }
+    if (rt->kind == TY_ARRAY) {
+      rt = array_to_ptr(rt);
+      rhs = make_cast(rt, rhs->token, rhs, false);
+    }
+    if (lt->kind != TY_PTR) {
       Expr *tmp = lhs;
       lhs = rhs;
       rhs = tmp;
+      const Type *tt = lt;
+      lt = rt;
+      rt = tt;
       expr->kind = swap_cmp(expr->kind);
     }
-    const Type *lt = lhs->type, *rt = rhs->type;
     if (!can_cast(lt, rt, rhs, false))
       parse_error(expr->token, "Cannot compare pointer to other types");
     if (rt->kind != TY_PTR)
@@ -378,6 +379,9 @@ static Expr *sema_cmp(Expr *expr) {
       Expr *tmp = lhs;
       lhs = rhs;
       rhs = tmp;
+      const Type *tt = lt;
+      lt = rt;
+      rt = tt;
       expr->kind = swap_cmp(expr->kind);
     }
   }
@@ -762,14 +766,13 @@ static Expr *sema_expr_keep_left(Expr *expr, bool keep_left) {
         if (targetType->kind != TY_STRUCT)
           parse_error(acctok, "`.' for non struct value");
       } else {  // TK_ARROW
-        if (targetType->kind == TY_PTR)
-          targetType = targetType->pa.ptrof;
-        else if (targetType->kind == TY_ARRAY)
-          targetType = targetType->pa.ptrof;
-        else
+        if (!ptr_or_array(targetType)) {
           parse_error(acctok, "`->' for non pointer value");
-        if (targetType->kind != TY_STRUCT)
-          parse_error(acctok, "`->' for non struct value");
+        } else {
+          targetType = targetType->pa.ptrof;
+          if (targetType->kind != TY_STRUCT)
+            parse_error(acctok, "`->' for non struct value");
+        }
       }
 
       ensure_struct((Type*)targetType, ident);

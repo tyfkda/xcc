@@ -653,6 +653,11 @@ int main(void) {
     expect("diff ptr and array", 13, p - buf);
     expect("diff ptr and array2", -13, buf - p);
   }
+  {
+    int array1[] = {1}, array2[] = {2};
+    expect("compare arrays", 0, array1 == array2);
+    expect("compare arrays2", 1, array1 == array1);
+  }
 
   return 0;
 }

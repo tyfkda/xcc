@@ -223,7 +223,7 @@ static VReg *gen_lval(Expr *expr) {
   case EX_MEMBER:
     {
       const Type *type = expr->member.target->type;
-      if (type->kind == TY_PTR || type->kind == TY_ARRAY)
+      if (ptr_or_array(type))
         type = type->pa.ptrof;
       assert(type->kind == TY_STRUCT);
       calc_struct_size(type->struct_.info);
