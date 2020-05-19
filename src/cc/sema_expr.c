@@ -184,13 +184,12 @@ Expr *sema_expr(Expr *expr) {
   if (expr == NULL)
     return NULL;
 
+  assert(expr->type != NULL);
   switch (expr->kind) {
   // Literals
   case EX_NUM:
-    assert(expr->type != NULL);
     break;
   case EX_STR:
-    assert(expr->type != NULL);
     if (curscope != NULL) {
       Initializer *init = malloc(sizeof(*init));
       init->kind = IK_SINGLE;
@@ -228,8 +227,6 @@ Expr *sema_expr(Expr *expr) {
   case EX_PTRSUB:
     expr->bop.lhs = sema_expr(expr->bop.lhs);
     expr->bop.rhs = sema_expr(expr->bop.rhs);
-    assert(expr->bop.lhs->type != NULL);
-    assert(expr->bop.rhs->type != NULL);
 
     switch (expr->kind) {
     case EX_ADD:
@@ -300,7 +297,6 @@ Expr *sema_expr(Expr *expr) {
   case EX_CAST:
   case EX_ASSIGN_WITH:
     expr->unary.sub = sema_expr(expr->unary.sub);
-    assert(expr->unary.sub->type != NULL);
 
     switch (expr->kind) {
     case EX_POS:
@@ -367,6 +363,5 @@ Expr *sema_expr(Expr *expr) {
     break;
   }
 
-  assert(expr->type != NULL);
   return expr;
 }
