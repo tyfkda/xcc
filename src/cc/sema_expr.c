@@ -573,6 +573,7 @@ static Expr *sema_expr_keep_left(Expr *expr, bool keep_left) {
     case EX_PREDEC:
     case EX_POSTINC:
     case EX_POSTDEC:
+      sema_lval(expr->unary.sub->token, expr->unary.sub, "lvalue expected");
       expr->type = expr->unary.sub->type;
       break;
 
