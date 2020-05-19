@@ -615,8 +615,6 @@ static Expr *sema_expr_keep_left(Expr *expr, bool keep_left) {
       {
         Expr *sub = expr->unary.sub;
         check_cast(expr->type, sub->type, is_zero(sub), true, expr->token);
-        if (same_type(expr->type, sub->type))
-          return sub;
       }
       break;
 
