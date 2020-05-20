@@ -504,9 +504,17 @@ static Vector *assign_initial_value(Expr *expr, Initializer *init, Vector *inits
         assert(arr_len != (size_t)-1);
         if ((size_t)init->multi->len > arr_len)
           parse_error(NULL, "Initializer more than array size");
+
+        assert(curscope != NULL);
+        const Type *ptr_type = array_to_ptr(expr->type);
+        VarInfo *ptr_varinfo = add_cur_scope(alloc_ident(alloc_label(), NULL, NULL), ptr_type, 0);
+        Expr *ptr_var = new_expr_variable(ptr_varinfo->name, ptr_type, NULL);
+        ptr_var->variable.scope = curscope;
+        vec_push(inits, new_stmt_expr(new_expr_bop(EX_ASSIGN, ptr_type, NULL, ptr_var, expr)));
+
         size_t len = init->multi->len;
-        size_t index = 0;
-        for (size_t i = 0; i < len; ++i, ++index) {
+        size_t prev_index = 0, index = 0;
+        for (size_t i = 0; i < len; ++i) {
           Initializer *init_elem = init->multi->data[i];
           if (init_elem->kind == IK_ARR) {
             Expr *ind = init_elem->arr.index;
@@ -516,10 +524,17 @@ static Vector *assign_initial_value(Expr *expr, Initializer *init, Vector *inits
             init_elem = init_elem->arr.value;
           }
 
-          Num n = {.ival=index};
-          Expr *add = add_expr(NULL, expr, new_expr_numlit(&tyInt, NULL, &n));
+          size_t add = index - prev_index;
+          if (add > 0) {
+            Num n = {.ival=add};
+            vec_push(inits, new_stmt_expr(
+                new_expr_unary(EX_ASSIGN_WITH, ptr_type, NULL,
+                               new_expr_bop(EX_PTRADD, ptr_type, NULL, ptr_var,
+                                            new_expr_numlit(&tyInt, NULL, &n)))));
+          }
 
-          assign_initial_value(new_expr_deref(NULL, add), init_elem, inits);
+          assign_initial_value(new_expr_deref(NULL, ptr_var), init_elem, inits);
+          prev_index = index++;
         }
       }
       break;
