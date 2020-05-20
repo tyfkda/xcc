@@ -148,15 +148,24 @@ static Expr *new_expr_addsub(enum ExprKind kind, const Token *tok, Expr *lhs, Ex
       if (ltype->kind == TY_ARRAY)
         type = array_to_ptr(ltype);
     } else if (kind == EX_SUB && ptr_or_array(rtype)) {
-      kind = EX_PTRSUB;
-      type = &tySize;
+      ltype = array_to_ptr(ltype);
+      rtype = array_to_ptr(rtype);
+      if (!same_type(ltype, rtype))
+        parse_error(tok, "Different pointer diff");
+      const Type *elem_type = ltype->pa.ptrof;
+      return new_expr_bop(EX_DIV, &tySize, tok, new_expr_bop(EX_SUB, &tySize, tok, lhs, rhs),
+                          new_expr_sizeof(tok, elem_type));
     }
   } else if (ptr_or_array(rtype)) {
     if (kind == EX_ADD && is_number(ltype->kind) && !keep_left) {
       kind = EX_PTRADD;
-      type = rtype;
-      if (rtype->kind == TY_ARRAY)
-        type = array_to_ptr(rtype);
+      // Swap lhs and rhs to make lhs as a pointer.
+      Expr *tmp = lhs;
+      lhs = rhs;
+      rhs = tmp;
+      type = lhs->type;
+      if (type->kind == TY_ARRAY)
+        type = array_to_ptr(type);
     }
   }
   if (type == NULL) {

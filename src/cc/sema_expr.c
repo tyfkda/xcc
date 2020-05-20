@@ -144,18 +144,6 @@ Expr *add_expr(const Token *tok, Expr *lhs, Expr *rhs) {
   return add_expr_keep_left(tok, lhs, rhs, true);
 }
 
-static Expr *diff_ptr(const Token *tok, Expr *lhs, Expr *rhs) {
-  const Type *ltype = array_to_ptr(lhs->type);
-  const Type *rtype = array_to_ptr(rhs->type);
-  if (!same_type(ltype, rtype))
-    parse_error(tok, "Different pointer diff");
-  const Type *elem_type = ltype;
-  if (elem_type->kind == TY_PTR)
-    elem_type = elem_type->pa.ptrof;
-  return new_expr_bop(EX_DIV, &tySize, tok, new_expr_bop(EX_SUB, &tySize, tok, lhs, rhs),
-                      new_expr_sizeof(tok, elem_type));
-}
-
 const VarInfo *search_from_anonymous(const Type *type, const Name *name, const Token *ident, Vector *stack) {
   assert(type->kind == TY_STRUCT);
   ensure_struct((Type*)type, ident);
@@ -256,24 +244,10 @@ Expr *sema_expr(Expr *expr) {
       break;
 
     case EX_PTRADD:
-      {
-        const Type *ltype = expr->bop.lhs->type;
-        const Type *rtype = expr->bop.rhs->type;
-        if (ptr_or_array(ltype)) {
-          return add_ptr_num(EX_ADD, expr->token, expr->bop.lhs, expr->bop.rhs);
-        } else {
-          assert(ptr_or_array(rtype));
-          return add_ptr_num(EX_ADD, expr->token, expr->bop.rhs, expr->bop.lhs);
-        }
-      }
     case EX_PTRSUB:
       assert(ptr_or_array(expr->bop.lhs->type));
-      if (is_number(expr->bop.rhs->type->kind)) {
-        return add_ptr_num(EX_SUB, expr->token, expr->bop.lhs, expr->bop.rhs);
-      } else {
-        assert(ptr_or_array(expr->bop.rhs->type));
-        return diff_ptr(expr->token, expr->bop.lhs, expr->bop.rhs);
-      }
+      assert(is_number(expr->bop.rhs->type->kind));
+      break;
 
     default:
       fprintf(stderr, "expr kind=%d\n", expr->kind);
