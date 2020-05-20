@@ -13,8 +13,6 @@
 
 #include "parser.h"  // curscope
 
-static const Type *tyNumTable[] = {&tyChar, &tyShort, &tyInt, &tyLong, &tyEnum};
-
 Vector *toplevel;
 
 // Returns created global variable reference.
@@ -76,72 +74,6 @@ Expr *make_cast(const Type *type, const Token *token, Expr *sub, bool is_explici
   check_cast(type, sub->type, is_zero(sub), is_explicit, token);
 
   return new_expr_cast(type, token, sub);
-}
-
-// num +|- num
-static Expr *add_num(enum ExprKind kind, const Token *tok, Expr *lhs, Expr *rhs, bool keep_left) {
-  const Type *ltype = lhs->type;
-  const Type *rtype = rhs->type;
-  assert(ltype->kind == TY_NUM && rtype->kind == TY_NUM);
-  enum NumKind lnt = ltype->num.kind;
-  enum NumKind rnt = rtype->num.kind;
-  if (lnt == NUM_ENUM)
-    lnt = NUM_INT;
-  if (rnt == NUM_ENUM)
-    rnt = NUM_INT;
-
-  const Type *type;
-  if (lnt >= rnt || keep_left) {
-    type = tyNumTable[lnt];
-    rhs = make_cast(type, rhs->token, rhs, false);
-  } else {
-    type = tyNumTable[rnt];
-    lhs = make_cast(type, lhs->token, lhs, false);
-  }
-  return new_expr_bop(kind, type, tok, lhs, rhs);
-}
-
-// pointer +|- num
-static Expr *add_ptr_num(enum ExprKind kind, const Token *token, Expr *ptr, Expr *num) {
-  const Type *ptr_type = ptr->type;
-  if (ptr_type->kind == TY_ARRAY)
-    ptr_type = array_to_ptr(ptr_type);
-  return new_expr_bop((enum ExprKind)(EX_PTRADD + (kind - EX_ADD)), ptr_type, token, ptr, num);
-}
-
-static Expr *add_expr_keep_left(const Token *tok, Expr *lhs, Expr *rhs, bool keep_left) {
-  const Type *ltype = lhs->type;
-  const Type *rtype = rhs->type;
-  assert(ltype != NULL);
-  assert(rtype != NULL);
-
-  if (is_number(ltype->kind) && is_number(rtype->kind))
-    return add_num(EX_ADD, tok, lhs, rhs, keep_left);
-
-  switch (ltype->kind) {
-  case TY_NUM:
-    if (ptr_or_array(rtype)) {
-      if (!keep_left)
-        return add_ptr_num(EX_ADD, tok, rhs, lhs);
-    }
-    break;
-
-  case TY_PTR: case TY_ARRAY:
-    if (is_number(rtype->kind)) {
-      return add_ptr_num(EX_ADD, tok, lhs, rhs);
-    }
-    break;
-
-  default:
-    break;
-  }
-
-  parse_error(tok, "Illegal `+'");
-  return NULL;
-}
-
-Expr *add_expr(const Token *tok, Expr *lhs, Expr *rhs) {
-  return add_expr_keep_left(tok, lhs, rhs, true);
 }
 
 const VarInfo *search_from_anonymous(const Type *type, const Name *name, const Token *ident, Vector *stack) {
