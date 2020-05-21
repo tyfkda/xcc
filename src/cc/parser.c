@@ -353,7 +353,14 @@ static void parse_typedef(void) {
     ident = consume(TK_IDENT, "ident expected");
   }
   const Name *name = ident->ident;
-  add_typedef(name, type);
+  const Type *conflict = find_typedef(name);
+  if (conflict != NULL) {
+    if (!same_type(type, conflict))
+      parse_error(ident, "Conflict typedef");
+  }
+
+  if (conflict == NULL || type->kind != TY_STRUCT || type->struct_.info != NULL)
+    add_typedef(name, type);
 
   consume(TK_SEMICOL, "`;' expected");
 }
