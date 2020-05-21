@@ -20,6 +20,7 @@ char *strdup_(const char *str);
 char *strndup_(const char *str, size_t size);
 bool starts_with(const char *str, const char *prefix);
 void set_local_label_prefix(const char *prefix);
+const Name *alloc_label(void);
 ssize_t getline_(char **lineptr, size_t *n, FILE *stream, size_t start);
 char *cat_path(const char *root, const char *path);
 char *change_ext(const char *path, const char *ext);
