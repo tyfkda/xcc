@@ -84,8 +84,7 @@ static Initializer *sema_initializer(Initializer *init) {
 
   switch (init->kind) {
   case IK_SINGLE:
-    if (init->single->kind != EX_STR)  // Keep string literal as is.
-      init->single = sema_expr(init->single);
+    init->single = sema_expr(init->single);
     break;
   case IK_MULTI:
     for (int i = 0; i < init->multi->len; ++i)
@@ -104,9 +103,10 @@ static Initializer *sema_initializer(Initializer *init) {
 // Convert string literal to global char-array variable reference.
 Initializer *convert_str_to_ptr_initializer(const Type *type, Initializer *init) {
   assert(type->kind == TY_ARRAY && is_char_type(type->pa.ptrof));
+  VarInfo *varinfo = str_to_char_array(type, init);
   Initializer *init2 = malloc(sizeof(*init2));
   init2->kind = IK_SINGLE;
-  init2->single = str_to_char_array(type, init);
+  init2->single = new_expr_variable(varinfo->name, type, NULL, NULL);
   init2->token = init->token;
   return init2;
 }
@@ -161,8 +161,8 @@ static Stmt *init_char_array_by_string(Expr *dst, Initializer *src) {
   }
 
   const Type *strtype = dst->type;
-  Expr *var = str_to_char_array(strtype, src);
-
+  VarInfo *varinfo = str_to_char_array(strtype, src);
+  Expr *var = new_expr_variable(varinfo->name, strtype, NULL, NULL);
   return build_memcpy(dst, var, size);
 }
 
@@ -587,11 +587,11 @@ static Vector *assign_initial_value(Expr *expr, Initializer *init, Vector *inits
   default:
     if (init->kind != IK_SINGLE)
       parse_error(init->token, "Error initializer");
-    if (expr->type->kind == TY_PTR && is_char_type(expr->type->pa.ptrof) &&
-        init->single->kind == EX_STR) {
-      // Create string and point to it.
-      init = convert_str_to_ptr_initializer(init->single->type, init);
-    }
+    //if (expr->type->kind == TY_PTR && is_char_type(expr->type->pa.ptrof) &&
+    //    init->single->kind == EX_STR) {
+    //  // Create string and point to it.
+    //  init = convert_str_to_ptr_initializer(init->single->type, init);
+    //}
     vec_push(inits,
              new_stmt_expr(new_expr_bop(EX_ASSIGN, expr->type, NULL, expr,
                                         make_cast(expr->type, NULL, init->single, false))));

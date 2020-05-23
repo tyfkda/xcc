@@ -478,8 +478,16 @@ VReg *gen_expr(Expr *expr) {
     return new_const_vreg(expr->num.ival, to_vtype(expr->type));
 
   case EX_STR:
-    assert(!"string literal should be converted to char array");
-    break;
+    {
+      Initializer *init = malloc(sizeof(*init));
+      init->kind = IK_SINGLE;
+      init->single = expr;
+      init->token = expr->token;
+
+      const Type* strtype = arrayof(&tyChar, expr->str.size);
+      VarInfo *varinfo = str_to_char_array(strtype, init);
+      return new_ir_iofs(varinfo->name, false);
+    }
 
   case EX_SIZEOF:
     return new_const_vreg(type_size(expr->sizeof_.target_type), to_vtype(expr->type));

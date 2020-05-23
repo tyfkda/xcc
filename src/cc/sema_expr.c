@@ -15,8 +15,8 @@
 
 Vector *toplevel;
 
-// Returns created global variable reference.
-Expr *str_to_char_array(const Type *type, Initializer *init) {
+// Returns created global variable info.
+VarInfo *str_to_char_array(const Type *type, Initializer *init) {
   assert(type->kind == TY_ARRAY && is_char_type(type->pa.ptrof));
   const Token *ident = alloc_ident(alloc_label(), NULL, NULL);
   VarInfo *varinfo;
@@ -30,8 +30,7 @@ Expr *str_to_char_array(const Type *type, Initializer *init) {
     vec_push(toplevel, new_decl_vardecl(decls));
   }
   varinfo->global.init = init;
-
-  return new_expr_variable(varinfo->name, type, NULL, NULL);
+  return varinfo;
 }
 
 // Call before accessing struct member to ensure that struct is declared.
@@ -108,15 +107,7 @@ Expr *sema_expr(Expr *expr) {
   switch (expr->kind) {
   // Literals
   case EX_NUM:
-    break;
   case EX_STR:
-    if (curscope != NULL) {
-      Initializer *init = malloc(sizeof(*init));
-      init->kind = IK_SINGLE;
-      init->single = expr;
-      init->token = expr->token;
-      expr = str_to_char_array(expr->type, init);
-    }
     break;
 
   case EX_VARIABLE:
