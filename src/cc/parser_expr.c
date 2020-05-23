@@ -345,7 +345,7 @@ static const Type *parse_enum(void) {
         Token *ident = numtok = consume(TK_IDENT, "ident expected");
         if (match(TK_ASSIGN)) {
           numtok = fetch_token();
-          Expr *expr = sema_expr(parse_const());
+          Expr *expr = parse_const();
           if (!(is_const(expr) && is_number(expr->type->kind))) {
             parse_error(numtok, "const expected for enum");
           }
@@ -518,7 +518,7 @@ const Type *parse_type_suffix(const Type *type) {
     // Arbitrary size.
   } else {
     const Token *tok = fetch_token();
-    Expr *expr = sema_expr(parse_const());
+    Expr *expr = parse_const();
     if (!(is_const(expr) && is_number(expr->type->kind)))
       parse_error(tok, "constant expected");
     if (expr->num.ival <= 0)

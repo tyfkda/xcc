@@ -78,28 +78,6 @@ static void add_func_goto(Stmt *stmt) {
   vec_push(curdefun->gotos, stmt);
 }
 
-static Initializer *sema_initializer(Initializer *init) {
-  if (init == NULL)
-    return NULL;
-
-  switch (init->kind) {
-  case IK_SINGLE:
-    init->single = sema_expr(init->single);
-    break;
-  case IK_MULTI:
-    for (int i = 0; i < init->multi->len; ++i)
-      init->multi->data[i] = sema_initializer(init->multi->data[i]);
-    break;
-  case IK_DOT:
-    init->dot.value = sema_initializer(init->dot.value);
-    break;
-  case IK_ARR:
-    init->arr.value = sema_initializer(init->arr.value);
-    break;
-  }
-  return init;
-}
-
 // Convert string literal to global char-array variable reference.
 Initializer *convert_str_to_ptr_initializer(const Type *type, Initializer *init) {
   assert(type->kind == TY_ARRAY && is_char_type(type->pa.ptrof));
@@ -616,7 +594,6 @@ static Vector *sema_vardecl(Vector *decls) {
     if (curdefun != NULL) {
       Scope *scope = curscope;
       VarInfo *varinfo = scope_find(&scope, ident->ident);
-      init = sema_initializer(init);
 
       // TODO: Check `init` can be cast to `type`.
       if (flag & VF_STATIC) {
@@ -638,7 +615,6 @@ static Vector *sema_vardecl(Vector *decls) {
       // Toplevel
       VarInfo *varinfo = find_global(ident->ident);
       assert(varinfo != NULL);
-      init = sema_initializer(init);
       varinfo->global.init = decl->init = check_global_initializer(type, init);
     }
   }
@@ -684,7 +660,6 @@ static Stmt *sema_stmt(Stmt *stmt) {
 
   switch (stmt->kind) {
   case ST_EXPR:
-    stmt->expr = sema_expr(stmt->expr);
     break;
 
   case ST_BLOCK:
@@ -699,7 +674,6 @@ static Stmt *sema_stmt(Stmt *stmt) {
     break;
 
   case ST_IF:
-    stmt->if_.cond = sema_expr(stmt->if_.cond);
     stmt->if_.tblock = sema_stmt(stmt->if_.tblock);
     stmt->if_.fblock = sema_stmt(stmt->if_.fblock);
     break;
@@ -711,7 +685,6 @@ static Stmt *sema_stmt(Stmt *stmt) {
       curloopflag |= LF_BREAK;
       curswitch = stmt;
 
-      stmt->switch_.value = sema_expr(stmt->switch_.value);
       stmt->switch_.body = sema_stmt(stmt->switch_.body);
 
       curloopflag = save_flag;
@@ -722,8 +695,6 @@ static Stmt *sema_stmt(Stmt *stmt) {
   case ST_WHILE:
   case ST_DO_WHILE:
     {
-      stmt->while_.cond = sema_expr(stmt->while_.cond);
-
       int save_flag = curloopflag;
       curloopflag |= LF_BREAK | LF_CONTINUE;
 
@@ -735,10 +706,6 @@ static Stmt *sema_stmt(Stmt *stmt) {
 
   case ST_FOR:
     {
-      stmt->for_.pre = sema_expr(stmt->for_.pre);
-      stmt->for_.cond = sema_expr(stmt->for_.cond);
-      stmt->for_.post = sema_expr(stmt->for_.post);
-
       int save_flag = curloopflag;
       curloopflag |= LF_BREAK | LF_CONTINUE;
 
@@ -770,7 +737,6 @@ static Stmt *sema_stmt(Stmt *stmt) {
         if (rettype->kind == TY_VOID)
           parse_error(val->token, "void function `return' a value");
 
-        val = sema_expr(val);
         stmt->return_.val = make_cast(rettype, val->token, val, false);
       }
     }
@@ -781,7 +747,6 @@ static Stmt *sema_stmt(Stmt *stmt) {
       if (curswitch == NULL)
         parse_error(stmt->case_.value->token, "`case' cannot use outside of `switch`");
 
-      stmt->case_.value = sema_expr(stmt->case_.value);
       if (!is_number(stmt->case_.value->type->kind))
         parse_error(stmt->case_.value->token, "Cannot use expression");
       intptr_t value = stmt->case_.value->num.ival;
