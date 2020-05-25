@@ -1,6 +1,7 @@
 #include "parser.h"
 
 #include <assert.h>
+#include <inttypes.h>  // PRIdPTR
 #include <stdbool.h>
 #include <stdlib.h>  // malloc
 
@@ -11,7 +12,12 @@
 #include "util.h"
 #include "var.h"
 
+const int LF_BREAK = 1 << 0;
+const int LF_CONTINUE = 1 << 0;
+
 Defun *curdefun;
+static int curloopflag;
+static Stmt *curswitch;
 
 static Stmt *parse_stmt(void);
 
@@ -155,19 +161,53 @@ static Stmt *parse_switch(const Token *tok) {
   consume(TK_LPAR, "`(' expected");
   Expr *value = parse_expr();
   consume(TK_RPAR, "`)' expected");
+
   Stmt *swtch = new_stmt_switch(tok, value);
+  Stmt *save_switch = curswitch;
+  int save_flag = curloopflag;
+  curloopflag |= LF_BREAK;
+  curswitch = swtch;
+
   swtch->switch_.body = parse_stmt();
+
+  curloopflag = save_flag;
+  curswitch = save_switch;
+
   return swtch;
 }
 
 static Stmt *parse_case(const Token *tok) {
   Expr *value = parse_const();
   consume(TK_COLON, "`:' expected");
+
+  if (curswitch == NULL)
+    parse_error(tok, "`case' cannot use outside of `switch`");
+
+  if (!is_number(value->type->kind))
+    parse_error(value->token, "Cannot use expression");
+  intptr_t v = value->num.ival;
+
+  // Check duplication.
+  Vector *values = curswitch->switch_.case_values;
+  for (int i = 0, len = values->len; i < len; ++i) {
+    if ((intptr_t)values->data[i] == v)
+      parse_error(tok, "Case value `%"PRIdPTR"' already defined", v);
+  }
+  vec_push(values, (void*)v);
+
   return new_stmt_case(tok, value);
 }
 
 static Stmt *parse_default(const Token *tok) {
   consume(TK_COLON, "`:' expected");
+
+  if (curswitch == NULL)
+    parse_error(tok, "`default' cannot use outside of `switch'");
+  if (curswitch->switch_.has_default)
+    parse_error(tok, "`default' already defined in `switch'");
+
+  curswitch->switch_.has_default = true;
+
   return new_stmt_default(tok);
 }
 
@@ -175,13 +215,24 @@ static Stmt *parse_while(const Token *tok) {
   consume(TK_LPAR, "`(' expected");
   Expr *cond = parse_expr();
   consume(TK_RPAR, "`)' expected");
+
+  int save_flag = curloopflag;
+  curloopflag |= LF_BREAK | LF_CONTINUE;
+
   Stmt *body = parse_stmt();
+
+  curloopflag = save_flag;
 
   return new_stmt_while(tok, cond, body);
 }
 
 static Stmt *parse_do_while(void) {
+  int save_flag = curloopflag;
+  curloopflag |= LF_BREAK | LF_CONTINUE;
+
   Stmt *body = parse_stmt();
+
+  curloopflag = save_flag;
 
   const Token *tok = consume(TK_WHILE, "`while' expected");
   consume(TK_LPAR, "`(' expected");
@@ -223,7 +274,14 @@ static Stmt *parse_for(const Token *tok) {
     post = parse_expr();
     consume(TK_RPAR, "`)' expected");
   }
+
+  int save_flag = curloopflag;
+  curloopflag |= LF_BREAK | LF_CONTINUE;
+
   body = parse_stmt();
+
+  curloopflag = save_flag;
+
   exit_scope();
 
   Stmt *stmt = new_stmt_for(tok, pre, cond, post, body);
@@ -236,6 +294,14 @@ static Stmt *parse_for(const Token *tok) {
 
 static Stmt *parse_break_continue(enum StmtKind kind, const Token *tok) {
   consume(TK_SEMICOL, "`;' expected");
+  if ((curloopflag & LF_BREAK) == 0) {
+    const char *err;
+    if (kind == ST_BREAK)
+      err = "`break' cannot be used outside of loop";
+    else
+      err = "`continue' cannot be used outside of loop";
+    parse_error(tok, err);
+  }
   return new_stmt(kind, tok);
 }
 

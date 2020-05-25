@@ -1,7 +1,6 @@
 #include "sema.h"
 
 #include <assert.h>
-#include <inttypes.h>  // PRIdPTR
 #include <stdlib.h>  // malloc
 
 #include "ast.h"
@@ -11,12 +10,6 @@
 #include "type.h"
 #include "util.h"
 #include "var.h"
-
-const int LF_BREAK = 1 << 0;
-const int LF_CONTINUE = 1 << 0;
-
-static int curloopflag;
-static Stmt *curswitch;
 
 static Stmt *sema_stmt(Stmt *stmt);
 
@@ -679,50 +672,22 @@ static Stmt *sema_stmt(Stmt *stmt) {
     break;
 
   case ST_SWITCH:
-    {
-      Stmt *save_switch = curswitch;
-      int save_flag = curloopflag;
-      curloopflag |= LF_BREAK;
-      curswitch = stmt;
-
-      stmt->switch_.body = sema_stmt(stmt->switch_.body);
-
-      curloopflag = save_flag;
-      curswitch = save_switch;
-    }
+    stmt->switch_.body = sema_stmt(stmt->switch_.body);
     break;
 
   case ST_WHILE:
   case ST_DO_WHILE:
-    {
-      int save_flag = curloopflag;
-      curloopflag |= LF_BREAK | LF_CONTINUE;
-
-      stmt->while_.body = sema_stmt(stmt->while_.body);
-
-      curloopflag = save_flag;
-    }
+    stmt->while_.body = sema_stmt(stmt->while_.body);
     break;
 
   case ST_FOR:
-    {
-      int save_flag = curloopflag;
-      curloopflag |= LF_BREAK | LF_CONTINUE;
-
-      stmt->for_.body = sema_stmt(stmt->for_.body);
-
-      curloopflag = save_flag;
-    }
+    stmt->for_.body = sema_stmt(stmt->for_.body);
     break;
 
   case ST_BREAK:
-    if ((curloopflag & LF_BREAK) == 0)
-      parse_error(stmt->token, "`break' cannot be used outside of loop");
     break;
 
   case ST_CONTINUE:
-    if ((curloopflag & LF_CONTINUE) == 0)
-      parse_error(stmt->token, "`continue' cannot be used outside of loop");
     break;
 
   case ST_RETURN:
@@ -743,31 +708,9 @@ static Stmt *sema_stmt(Stmt *stmt) {
     break;
 
   case ST_CASE:
-    {
-      if (curswitch == NULL)
-        parse_error(stmt->case_.value->token, "`case' cannot use outside of `switch`");
-
-      if (!is_number(stmt->case_.value->type->kind))
-        parse_error(stmt->case_.value->token, "Cannot use expression");
-      intptr_t value = stmt->case_.value->num.ival;
-
-      // Check duplication.
-      Vector *values = curswitch->switch_.case_values;
-      for (int i = 0, len = values->len; i < len; ++i) {
-        if ((intptr_t)values->data[i] == value)
-          parse_error(stmt->case_.value->token, "Case value `%"PRIdPTR"' already defined", value);
-      }
-      vec_push(values, (void*)value);
-    }
     break;
 
   case ST_DEFAULT:
-    if (curswitch == NULL)
-      parse_error(stmt->token, "`default' cannot use outside of `switch'");
-    if (curswitch->switch_.has_default)
-      parse_error(stmt->token, "`default' already defined in `switch'");
-
-    curswitch->switch_.has_default = true;
     break;
 
   case ST_GOTO:
