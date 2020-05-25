@@ -12,6 +12,8 @@
 #include "util.h"
 #include "var.h"
 
+#include "sema.h"  // make_cast
+
 const int LF_BREAK = 1 << 0;
 const int LF_CONTINUE = 1 << 0;
 
@@ -20,6 +22,25 @@ static int curloopflag;
 static Stmt *curswitch;
 
 static Stmt *parse_stmt(void);
+
+static void add_func_label(const Token *label) {
+  assert(curdefun != NULL);
+  if (curdefun->label_table == NULL) {
+    curdefun->label_table = malloc(sizeof(*curdefun->label_table));
+    table_init(curdefun->label_table);
+  }
+  BB *bb;
+  if (table_try_get(curdefun->label_table, label->ident, (void**)&bb))
+    parse_error(label, "Label `%.*s' already defined", label->ident->bytes, label->ident->chars);
+  table_put(curdefun->label_table, label->ident, (void*)-1);  // Put dummy value.
+}
+
+static void add_func_goto(Stmt *stmt) {
+  assert(curdefun != NULL);
+  if (curdefun->gotos == NULL)
+    curdefun->gotos = new_vector();
+  vec_push(curdefun->gotos, stmt);
+}
 
 // Scope
 
@@ -308,7 +329,16 @@ static Stmt *parse_break_continue(enum StmtKind kind, const Token *tok) {
 static Stmt *parse_goto(void) {
   Token *label = consume(TK_IDENT, "label for goto expected");
   consume(TK_SEMICOL, "`;' expected");
-  return new_stmt_goto(label);
+
+  Stmt *stmt = new_stmt_goto(label);
+  add_func_goto(stmt);
+  return stmt;
+}
+
+static Stmt *parse_label(const Token *label) {
+  Stmt *stmt = new_stmt_label(label, parse_stmt());
+  add_func_label(label);
+  return stmt;
 }
 
 static Stmt *parse_return(const Token *tok) {
@@ -317,6 +347,19 @@ static Stmt *parse_return(const Token *tok) {
     val = parse_expr();
     consume(TK_SEMICOL, "`;' expected");
   }
+
+  assert(curdefun != NULL);
+  const Type *rettype = curdefun->func->type->func.ret;
+  if (val == NULL) {
+    if (rettype->kind != TY_VOID)
+      parse_error(tok, "`return' required a value");
+  } else {
+    if (rettype->kind == TY_VOID)
+      parse_error(val->token, "void function `return' a value");
+
+    val = make_cast(rettype, val->token, val, false);
+  }
+
   return new_stmt_return(tok, val);
 }
 
@@ -368,7 +411,7 @@ static Stmt *parse_stmt(void) {
   Token *label = match(TK_IDENT);
   if (label != NULL) {
     if (match(TK_COLON)) {
-      return new_stmt_label(label, parse_stmt());
+      return parse_label(label);
     }
     unget_token(label);
   }
@@ -455,6 +498,21 @@ static Declaration *parse_defun(const Type *functype, int flag, Token *ident) {
     defun->stmts = parse_stmts();
     exit_scope();
     assert(curscope == NULL);
+
+    // Check goto labels.
+    if (defun->gotos != NULL) {
+      Vector *gotos = defun->gotos;
+      Table *label_table = defun->label_table;
+      for (int i = 0; i < gotos->len; ++i) {
+        Stmt *stmt = gotos->data[i];
+        void *bb;
+        if (label_table == NULL || !table_try_get(label_table, stmt->goto_.label->ident, &bb)) {
+          const Name *name = stmt->goto_.label->ident;
+          parse_error(stmt->goto_.label, "`%.*s' not found", name->bytes, name->chars);
+        }
+      }
+    }
+
     curdefun = NULL;
   }
   return new_decl_defun(defun);

@@ -52,25 +52,6 @@ static void fix_array_size(Type *type, Initializer *init) {
   }
 }
 
-static void add_func_label(const Token *label) {
-  assert(curdefun != NULL);
-  if (curdefun->label_table == NULL) {
-    curdefun->label_table = malloc(sizeof(*curdefun->label_table));
-    table_init(curdefun->label_table);
-  }
-  BB *bb;
-  if (table_try_get(curdefun->label_table, label->ident, (void**)&bb))
-    parse_error(label, "Label `%.*s' already defined", label->ident->bytes, label->ident->chars);
-  table_put(curdefun->label_table, label->ident, (void*)-1);  // Put dummy value.
-}
-
-static void add_func_goto(Stmt *stmt) {
-  assert(curdefun != NULL);
-  if (curdefun->gotos == NULL)
-    curdefun->gotos = new_vector();
-  vec_push(curdefun->gotos, stmt);
-}
-
 // Convert string literal to global char-array variable reference.
 Initializer *convert_str_to_ptr_initializer(const Type *type, Initializer *init) {
   assert(type->kind == TY_ARRAY && is_char_type(type->pa.ptrof));
@@ -630,20 +611,6 @@ static void sema_defun(Defun *defun) {
     sema_stmts(defun->stmts);
     curdefun = NULL;
     curscope = NULL;
-
-    // Check goto labels.
-    if (defun->gotos != NULL) {
-      Vector *gotos = defun->gotos;
-      Table *label_table = defun->label_table;
-      for (int i = 0; i < gotos->len; ++i) {
-        Stmt *stmt = gotos->data[i];
-        void *bb;
-        if (label_table == NULL || !table_try_get(label_table, stmt->goto_.label->ident, &bb)) {
-          const Name *name = stmt->goto_.label->ident;
-          parse_error(stmt->goto_.label, "`%.*s' not found", name->bytes, name->chars);
-        }
-      }
-    }
   }
 }
 
@@ -691,20 +658,6 @@ static Stmt *sema_stmt(Stmt *stmt) {
     break;
 
   case ST_RETURN:
-    {
-      assert(curdefun != NULL);
-      const Type *rettype = curdefun->func->type->func.ret;
-      Expr *val = stmt->return_.val;
-      if (val == NULL) {
-        if (rettype->kind != TY_VOID)
-          parse_error(stmt->token, "`return' required a value");
-      } else {
-        if (rettype->kind == TY_VOID)
-          parse_error(val->token, "void function `return' a value");
-
-        stmt->return_.val = make_cast(rettype, val->token, val, false);
-      }
-    }
     break;
 
   case ST_CASE:
@@ -714,11 +667,9 @@ static Stmt *sema_stmt(Stmt *stmt) {
     break;
 
   case ST_GOTO:
-    add_func_goto(stmt);
     break;
 
   case ST_LABEL:
-    add_func_label(stmt->token);
     stmt->label.stmt = sema_stmt(stmt->label.stmt);
     break;
 
