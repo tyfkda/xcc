@@ -15,7 +15,7 @@ typedef struct Vector Vector;
 extern Defun *curdefun;
 extern Scope *curscope;
 
-Vector *parse(Vector *toplevel);  // <Declaraion*>
+void parse(Vector *toplevel);  // <Declaraion*>
 
 //
 

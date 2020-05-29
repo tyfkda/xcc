@@ -14,8 +14,6 @@ typedef struct Vector Vector;
 
 extern Vector *toplevel;  // <Declaration*>
 
-void sema(Vector *toplevel);
-Initializer *flatten_initializer(const Type *type, Initializer *init);
 void ensure_struct(Type *type, const Token *token);
 bool check_cast(const Type *dst, const Type *src, bool zero, bool is_explicit, const Token *token);
 Expr *make_cast(const Type *type, const Token *token, Expr *sub, bool is_explicit);

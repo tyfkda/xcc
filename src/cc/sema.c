@@ -197,7 +197,7 @@ static Initializer *flatten_array_initializer(Initializer *init) {
   return init2;
 }
 
-Initializer *flatten_initializer(const Type *type, Initializer *init) {
+static Initializer *flatten_initializer(const Type *type, Initializer *init) {
   if (init == NULL)
     return NULL;
 
@@ -592,36 +592,4 @@ Vector *sema_vardecl(Vector *decls) {
   }
 
   return inits;
-}
-
-static Declaration *sema_decl(Declaration *decl) {
-  if (decl == NULL)
-    return decl;
-
-  switch (decl->kind) {
-  case DCL_DEFUN:
-    break;
-
-  case DCL_VARDECL:
-    {
-      Vector *inits = sema_vardecl(decl->vardecl.decls);
-      UNUSED(inits);
-      assert(inits == NULL);
-    }
-    break;
-
-  default:
-    fprintf(stderr, "sema: Unhandled decl, kind=%d\n", decl->kind);
-    assert(false);
-    break;
-  }
-  return decl;
-}
-
-void sema(Vector *toplevel) {
-  if (toplevel == NULL)
-    return;
-
-  for (int i = 0, len = toplevel->len; i < len; ++i)
-    toplevel->data[i] = sema_decl(toplevel->data[i]);
 }

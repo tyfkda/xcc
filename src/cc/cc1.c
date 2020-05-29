@@ -21,14 +21,9 @@ static void init_compiler(FILE *ofp) {
   gvar_names = new_vector();
 }
 
-static Vector *compile1(FILE *ifp, const char *filename, Vector *toplevel) {
+static void compile1(FILE *ifp, const char *filename, Vector *toplevel) {
   set_source_file(ifp, filename);
-  return parse(toplevel);
-}
-
-static void compile2(Vector *toplevel) {
-  sema(toplevel);
-  gen(toplevel);
+  parse(toplevel);
 }
 
 static const char LOCAL_LABEL_PREFIX[] = "--local-label-prefix=";
@@ -58,19 +53,19 @@ int main(int argc, char *argv[]) {
   // Compile.
   init_compiler(stdout);
 
-  toplevel = NULL;
+  toplevel = new_vector();
   if (iarg < argc) {
     for (int i = iarg; i < argc; ++i) {
       const char *filename = argv[i];
       FILE *ifp = fopen(filename, "r");
       if (ifp == NULL)
         error("Cannot open file: %s\n", filename);
-      toplevel = compile1(ifp, filename, toplevel);
+      compile1(ifp, filename, toplevel);
     }
   } else {
-    toplevel = compile1(stdin, "*stdin*", toplevel);
+    compile1(stdin, "*stdin*", toplevel);
   }
-  compile2(toplevel);
+  gen(toplevel);
 
   if (!dump_ir) {
     emit_code(toplevel);

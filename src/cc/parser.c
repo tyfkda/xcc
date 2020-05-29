@@ -581,7 +581,13 @@ static Declaration *parse_global_var_decl(const Type *rawtype, int flag, const T
   }
 
   consume(TK_SEMICOL, "`;' or `,' expected");
-  return decls != NULL ? new_decl_vardecl(decls) : NULL;
+
+  if (decls == NULL)
+    return NULL;
+  Vector *inits = sema_vardecl(decls);
+  UNUSED(inits);
+  assert(inits == NULL);
+  return new_decl_vardecl(decls);
 }
 
 static Declaration *parse_declaration(void) {
@@ -613,13 +619,10 @@ static Declaration *parse_declaration(void) {
   return NULL;
 }
 
-Vector *parse(Vector *decls) {
-  if (decls == NULL)
-    decls = new_vector();
+void parse(Vector *decls) {
   while (!match(TK_EOF)) {
     Declaration *decl = parse_declaration();
     if (decl != NULL)
       vec_push(decls, decl);
   }
-  return decls;
 }
