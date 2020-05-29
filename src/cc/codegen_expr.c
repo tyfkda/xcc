@@ -7,7 +7,6 @@
 #include "ir.h"
 #include "lexer.h"
 #include "regalloc.h"
-#include "sema.h"
 #include "type.h"
 #include "util.h"
 #include "var.h"

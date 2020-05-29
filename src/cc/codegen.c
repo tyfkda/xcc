@@ -11,7 +11,6 @@
 #include "ir.h"
 #include "lexer.h"
 #include "regalloc.h"
-#include "sema.h"
 #include "table.h"
 #include "type.h"
 #include "util.h"

@@ -9,7 +9,6 @@
 #include "ir_debug.h"
 #include "lexer.h"
 #include "parser.h"
-#include "sema.h"
 #include "util.h"
 #include "var.h"
 
