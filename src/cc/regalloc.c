@@ -494,14 +494,14 @@ void alloc_real_registers(RegAlloc *ra, BBContainer *bbcon) {
   }
 
   // Allocated spilled virtual registers onto stack.
-  size_t frame_size = 0;
+  int frame_size = 0;
   for (int i = 0; i < vreg_count; ++i) {
     LiveInterval *li = sorted_intervals[i];
     if (li->state != LI_SPILL)
       continue;
     VReg *vreg = ra->vregs->data[li->vreg];
     if (vreg->offset != 0) {  // Variadic function parameter or stack parameter.
-      if (-vreg->offset > (int)frame_size)
+      if (-vreg->offset > frame_size)
         frame_size = -vreg->offset;
       continue;
     }
