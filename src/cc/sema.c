@@ -11,8 +11,6 @@
 #include "util.h"
 #include "var.h"
 
-static Stmt *sema_stmt(Stmt *stmt);
-
 static void fix_array_size(Type *type, Initializer *init) {
   assert(init != NULL);
   assert(type->kind == TY_ARRAY);
@@ -553,7 +551,7 @@ static Vector *assign_initial_value(Expr *expr, Initializer *init, Vector *inits
   return inits;
 }
 
-static Vector *sema_vardecl(Vector *decls) {
+Vector *sema_vardecl(Vector *decls) {
   Vector *inits = NULL;
   for (int i = 0, len = decls->len; i < len; ++i) {
     VarDecl *decl = decls->data[i];
@@ -596,105 +594,12 @@ static Vector *sema_vardecl(Vector *decls) {
   return inits;
 }
 
-static void sema_stmts(Vector *stmts) {
-  assert(stmts != NULL);
-  for (int i = 0, len = stmts->len; i < len; ++i)
-    stmts->data[i] = sema_stmt(stmts->data[i]);
-}
-
-static void sema_defun(Defun *defun) {
-  if (defun->stmts != NULL) {  // Not prototype defintion.
-    assert(curdefun == NULL);
-    assert(curscope == NULL);
-    curdefun = defun;
-    curscope = defun->func->scopes->data[0];
-    sema_stmts(defun->stmts);
-    curdefun = NULL;
-    curscope = NULL;
-  }
-}
-
-static Stmt *sema_stmt(Stmt *stmt) {
-  if (stmt == NULL)
-    return stmt;
-
-  switch (stmt->kind) {
-  case ST_EXPR:
-    break;
-
-  case ST_BLOCK:
-    {
-      assert(curdefun != NULL);
-      if (stmt->block.scope != NULL)
-        curscope = stmt->block.scope;
-      sema_stmts(stmt->block.stmts);
-      if (stmt->block.scope != NULL)
-        curscope = curscope->parent;
-    }
-    break;
-
-  case ST_IF:
-    stmt->if_.tblock = sema_stmt(stmt->if_.tblock);
-    stmt->if_.fblock = sema_stmt(stmt->if_.fblock);
-    break;
-
-  case ST_SWITCH:
-    stmt->switch_.body = sema_stmt(stmt->switch_.body);
-    break;
-
-  case ST_WHILE:
-  case ST_DO_WHILE:
-    stmt->while_.body = sema_stmt(stmt->while_.body);
-    break;
-
-  case ST_FOR:
-    stmt->for_.body = sema_stmt(stmt->for_.body);
-    break;
-
-  case ST_BREAK:
-    break;
-
-  case ST_CONTINUE:
-    break;
-
-  case ST_RETURN:
-    break;
-
-  case ST_CASE:
-    break;
-
-  case ST_DEFAULT:
-    break;
-
-  case ST_GOTO:
-    break;
-
-  case ST_LABEL:
-    stmt->label.stmt = sema_stmt(stmt->label.stmt);
-    break;
-
-  case ST_VARDECL:
-    stmt->vardecl.inits = sema_vardecl(stmt->vardecl.decls);
-    break;
-
-  case ST_ASM:
-    break;
-
-  default:
-    fprintf(stderr, "sema: Unhandled stmt, kind=%d\n", stmt->kind);
-    assert(false);
-    break;
-  }
-  return stmt;
-}
-
 static Declaration *sema_decl(Declaration *decl) {
   if (decl == NULL)
     return decl;
 
   switch (decl->kind) {
   case DCL_DEFUN:
-    sema_defun(decl->defun);
     break;
 
   case DCL_VARDECL:

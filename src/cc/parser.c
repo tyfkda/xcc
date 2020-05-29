@@ -163,7 +163,10 @@ static Stmt *parse_vardecl(void) {
 
   consume(TK_SEMICOL, "`;' expected");
 
-  return decls != NULL ? new_stmt_vardecl(decls) : NULL;
+  if (decls == NULL)
+    return NULL;
+  Vector *inits = sema_vardecl(decls);
+  return new_stmt_vardecl(decls, inits);
 }
 
 static Stmt *parse_if(const Token *tok) {
@@ -301,16 +304,19 @@ static Stmt *parse_for(const Token *tok) {
 
   body = parse_stmt();
 
+  Vector *stmts = new_vector();
+  if (decls != NULL) {
+    Vector *inits = sema_vardecl(decls);
+    vec_push(stmts, new_stmt_vardecl(decls, inits));
+  }
+
   curloopflag = save_flag;
 
   exit_scope();
 
   Stmt *stmt = new_stmt_for(tok, pre, cond, post, body);
-  Vector *stmts = new_vector();
-  if (decls != NULL)
-    vec_push(stmts, new_stmt_vardecl(decls));
   vec_push(stmts, stmt);
-  return new_stmt_block(NULL, stmts, scope);
+  return new_stmt_block(tok, stmts, scope);
 }
 
 static Stmt *parse_break_continue(enum StmtKind kind, const Token *tok) {

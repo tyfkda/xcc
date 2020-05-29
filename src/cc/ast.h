@@ -290,7 +290,7 @@ Stmt *new_stmt_for(const Token *token, Expr *pre, Expr *cond, Expr *post, Stmt *
 Stmt *new_stmt_return(const Token *token, Expr *val);
 Stmt *new_stmt_goto(const Token *label);
 Stmt *new_stmt_label(const Token *label, Stmt *follow);
-Stmt *new_stmt_vardecl(Vector *decls);
+Stmt *new_stmt_vardecl(Vector *decls, Vector *inits);
 Stmt *new_stmt_asm(const Token *token, Expr *str);
 
 // Declaration
