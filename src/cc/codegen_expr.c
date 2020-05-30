@@ -189,8 +189,8 @@ static VReg *gen_cast(VReg *reg, const Type *ltype, const Type *rtype) {
   else
     src_size = type_size(rtype);
 
-  bool lu = ltype->kind == TY_NUM ? ltype->num.is_unsigned : false;
-  bool ru = rtype->kind == TY_NUM ? rtype->num.is_unsigned : false;
+  bool lu = ltype->kind == TY_NUM ? ltype->num.is_unsigned : true;
+  bool ru = rtype->kind == TY_NUM ? rtype->num.is_unsigned : true;
   if (dst_size == src_size && lu == ru)
     return reg;
 
