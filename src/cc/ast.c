@@ -49,10 +49,10 @@ Expr *new_expr_str(const Token *token, const char *str, size_t size) {
   return expr;
 }
 
-Expr *new_expr_variable(const Name *name, const Type *type, const Token *token) {
+Expr *new_expr_variable(const Name *name, const Type *type, const Token *token, Scope *scope) {
   Expr *expr = new_expr(EX_VARIABLE, type, token);
   expr->variable.name = name;
-  expr->variable.scope = NULL;
+  expr->variable.scope = scope;
   return expr;
 }
 
@@ -70,7 +70,9 @@ Expr *new_expr_unary(enum ExprKind kind, const Type *type, const Token *token, E
 }
 
 Expr *new_expr_deref(const Token *token, Expr *sub) {
-  const Type *type = sub->type != NULL ? sub->type->pa.ptrof : NULL;
+  assert(sub->type != NULL);
+  assert(sub->type->kind == TY_PTR || sub->type->kind == TY_ARRAY);
+  const Type *type = sub->type->pa.ptrof;
   return new_expr_unary(EX_DEREF, type, token, sub);
 }
 
@@ -91,17 +93,16 @@ Expr *new_expr_member(const Token *token, const Type *type, Expr *target, const 
   return expr;
 }
 
-Expr *new_expr_funcall(const Token *token, Expr *func, Vector *args) {
-  Expr *expr = new_expr(EX_FUNCALL, NULL, token);
+Expr *new_expr_funcall(const Token *token, Expr *func, const Type *functype, Vector *args) {
+  Expr *expr = new_expr(EX_FUNCALL, functype->func.ret, token);
   expr->funcall.func = func;
   expr->funcall.args = args;
   return expr;
 }
 
-Expr *new_expr_sizeof(const Token *token, const Type *type, Expr *sub) {
+Expr *new_expr_sizeof(const Token *token, const Type *type) {
   Expr *expr = new_expr(EX_SIZEOF, &tySize, token);
-  expr->sizeof_.type = type;
-  expr->sizeof_.sub = sub;
+  expr->sizeof_.target_type = type;
   return expr;
 }
 
@@ -165,9 +166,9 @@ Stmt *new_stmt_expr(Expr *e) {
   return stmt;
 }
 
-Stmt *new_stmt_block(const Token *token, Vector *stmts) {
+Stmt *new_stmt_block(const Token *token, Vector *stmts, Scope *scope) {
   Stmt *stmt = new_stmt(ST_BLOCK, token);
-  stmt->block.scope = NULL;
+  stmt->block.scope = scope;
   stmt->block.stmts = stmts;
   return stmt;
 }
@@ -241,10 +242,10 @@ Stmt *new_stmt_label(const Token *label, Stmt *follow) {
   return stmt;
 }
 
-Stmt *new_stmt_vardecl(Vector *decls) {
+Stmt *new_stmt_vardecl(Vector *decls, Vector *inits) {
   Stmt *stmt = new_stmt(ST_VARDECL, NULL);
   stmt->vardecl.decls = decls;
-  stmt->vardecl.inits = NULL;
+  stmt->vardecl.inits = inits;
   return stmt;
 }
 

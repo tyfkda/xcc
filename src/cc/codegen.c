@@ -11,11 +11,12 @@
 #include "ir.h"
 #include "lexer.h"
 #include "regalloc.h"
-#include "sema.h"
 #include "table.h"
 #include "type.h"
 #include "util.h"
 #include "var.h"
+
+#include "parser.h"  // curscope
 
 const int FRAME_ALIGN = 8;
 const int STACK_PARAM_BASE_OFFSET = (2 - MAX_REG_ARGS) * 8;

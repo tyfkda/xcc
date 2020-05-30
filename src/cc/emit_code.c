@@ -84,12 +84,18 @@ static void construct_initial_value(unsigned char *buf, const Type *type, const 
       if (value->kind == EX_REF || value->kind == EX_VARIABLE) {
         if (value->kind == EX_REF)
           value = value->unary.sub;
-        // TODO: Type check.
 
         assert(value->kind == EX_VARIABLE);
-        assert(value->variable.scope == NULL);
 
         const Name *name = value->variable.name;
+        if (value->variable.scope != NULL) {
+          Scope *scope = value->variable.scope;
+          VarInfo *varinfo = scope_find(&scope, name);
+          assert(varinfo != NULL);
+          assert(varinfo->flag & VF_STATIC);
+          name = varinfo->local.label;
+        }
+
         const VarInfo *varinfo = find_global(name);
         assert(varinfo != NULL);
         const char *label = fmt_name(name);

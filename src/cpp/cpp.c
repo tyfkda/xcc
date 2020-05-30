@@ -8,10 +8,9 @@
 #include <string.h>
 #include <unistd.h>
 
-#include "ast.h"
 #include "lexer.h"
 #include "macro.h"
-#include "parser.h"
+#include "pp_parser.h"
 #include "table.h"
 #include "type.h"
 #include "util.h"
@@ -415,18 +414,10 @@ bool handle_ifdef(const char *p) {
   return table_get(&macro_table, name) != NULL;
 }
 
-intptr_t reduce(Expr *expr) {
+intptr_t reduce(PpExpr *expr) {
   switch (expr->kind) {
   case EX_NUM:
-    switch (expr->type->num.kind) {
-    case NUM_CHAR:
-    case NUM_SHORT:
-    case NUM_INT:
-    case NUM_LONG:
-      return expr->num.ival;
-    default: assert(false); break;
-    }
-    break;
+    return expr->num;
   case EX_VARIABLE:
     {
       Macro *macro = table_get(&macro_table, expr->variable.name);
@@ -473,18 +464,15 @@ intptr_t reduce(Expr *expr) {
   case EX_NEG:    return -reduce(expr->unary.sub);
   case EX_NOT:    return reduce(expr->unary.sub) ? 0 : 1;
   case EX_BITNOT: return ~reduce(expr->unary.sub);
-  case EX_GROUP:  return reduce(expr->unary.sub);
-  case EX_CAST:   return reduce(expr->unary.sub);
-  case EX_TERNARY:return reduce(expr->ternary.cond) ? reduce(expr->ternary.tval) : reduce(expr->ternary.fval);
   case EX_FUNCALL:
     {
-      const Expr *func = expr->funcall.func;
+      const PpExpr *func = expr->funcall.func;
       const Vector *args = expr->funcall.args;
       if (func->kind == EX_VARIABLE &&
           equal_name(func->variable.name, alloc_name("defined", NULL, false)) &&
           args != NULL && args->len == 1 &&
-          ((Expr*)args->data[0])->kind == EX_VARIABLE) {  // defined(IDENT)
-        Expr *arg = (Expr*)args->data[0];
+          ((PpExpr*)args->data[0])->kind == EX_VARIABLE) {  // defined(IDENT)
+        PpExpr *arg = (PpExpr*)args->data[0];
         void *dummy = 0;
         return table_try_get(&macro_table, arg->variable.name, &dummy) ? 1 : 0;
       }
@@ -499,7 +487,7 @@ intptr_t reduce(Expr *expr) {
 
 bool handle_if(const char *p, Stream *stream) {
   set_source_string(p, stream->filename, stream->lineno);
-  Expr *expr = parse_expr();
+  PpExpr *expr = parse_expr();
   return reduce(expr) != 0;
 }
 

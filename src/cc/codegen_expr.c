@@ -7,10 +7,11 @@
 #include "ir.h"
 #include "lexer.h"
 #include "regalloc.h"
-#include "sema.h"
 #include "type.h"
 #include "util.h"
 #include "var.h"
+
+#include "parser.h"  // curdefun
 
 VRegType *to_vtype(const Type *type) {
   VRegType *vtype = malloc(sizeof(*vtype));
@@ -210,8 +211,9 @@ static VReg *gen_lval(Expr *expr) {
       Scope *scope = expr->variable.scope;
       const VarInfo *varinfo = scope_find(&scope, expr->variable.name);
       assert(varinfo != NULL);
-      assert(!(varinfo->flag & VF_STATIC));
-      if (varinfo->flag & VF_EXTERN)
+      if (varinfo->flag & VF_STATIC)
+        return new_ir_iofs(varinfo->local.label, false);
+      else if (varinfo->flag & VF_EXTERN)
         return new_ir_iofs(expr->variable.name, true);
       else
         return new_ir_bofs(varinfo->reg);
@@ -475,11 +477,19 @@ VReg *gen_expr(Expr *expr) {
     return new_const_vreg(expr->num.ival, to_vtype(expr->type));
 
   case EX_STR:
-    assert(!"string literal should be converted to char array");
-    break;
+    {
+      Initializer *init = malloc(sizeof(*init));
+      init->kind = IK_SINGLE;
+      init->single = expr;
+      init->token = expr->token;
+
+      const Type* strtype = arrayof(&tyChar, expr->str.size);
+      VarInfo *varinfo = str_to_char_array(strtype, init);
+      return new_ir_iofs(varinfo->name, false);
+    }
 
   case EX_SIZEOF:
-    return new_const_vreg(type_size(expr->sizeof_.type), to_vtype(expr->type));
+    return new_const_vreg(type_size(expr->sizeof_.target_type), to_vtype(expr->type));
 
   case EX_VARIABLE:
     return gen_variable(expr);
