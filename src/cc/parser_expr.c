@@ -58,6 +58,14 @@ void ensure_struct(Type *type, const Token *token) {
                   type->struct_.name->chars);
     type->struct_.info = sinfo;
   }
+
+  // Recursively.
+  StructInfo *sinfo = type->struct_.info;
+  for (int i = 0; i < sinfo->members->len; ++i) {
+    VarInfo *varinfo = sinfo->members->data[i];
+    if (varinfo->type->kind == TY_STRUCT)
+      ensure_struct((Type*)varinfo->type, token);
+  }
 }
 
 bool check_cast(const Type *dst, const Type *src, bool zero, bool is_explicit, const Token *token) {
@@ -849,6 +857,8 @@ static Expr *parse_sizeof(const Token *token) {
     type = expr->type;
   }
   assert(type != NULL);
+  if (type->kind == TY_STRUCT)
+    ensure_struct((Type*)type, token);
   return new_expr_sizeof(token, type);
 }
 

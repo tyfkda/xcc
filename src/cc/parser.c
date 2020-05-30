@@ -571,6 +571,8 @@ static Vector *assign_initial_value(Expr *expr, Initializer *init, Vector *inits
 static Initializer *check_vardecl(const Type *type, const Token *ident, int flag, Initializer *init, Vector **pinits) {
   if (type->kind == TY_ARRAY && init != NULL)
     fix_array_size((Type*)type, init);
+  if (type->kind == TY_STRUCT)
+    ensure_struct((Type*)type, NULL);
 
   if (curdefun != NULL) {
     Scope *scope = curscope;
