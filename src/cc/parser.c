@@ -851,7 +851,7 @@ static Stmt *parse_for(const Token *tok) {
   consume(TK_LPAR, "`(' expected");
   Expr *pre = NULL;
   Vector *decls = NULL;
-  Scope *scope = enter_scope(curdefun, NULL);
+  Scope *scope = NULL;
   if (!match(TK_SEMICOL)) {
     const Type *rawType = NULL;
     Type *type;
@@ -860,6 +860,7 @@ static Stmt *parse_for(const Token *tok) {
     if (parse_var_def(&rawType, (const Type**)&type, &flag, &ident)) {
       if (ident == NULL)
         parse_error(NULL, "Ident expected");
+      scope = enter_scope(curdefun, NULL);
       decls = parse_vardecl_cont(rawType, type, flag, ident);
       consume(TK_SEMICOL, "`;' expected");
     } else {
@@ -893,7 +894,8 @@ static Stmt *parse_for(const Token *tok) {
 
   curloopflag = save_flag;
 
-  exit_scope();
+  if (scope != NULL)
+    exit_scope();
 
   Stmt *stmt = new_stmt_for(tok, pre, cond, post, body);
   vec_push(stmts, stmt);
