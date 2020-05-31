@@ -561,47 +561,39 @@ static Vector *assign_initial_value(Expr *expr, Initializer *init, Vector *inits
   return inits;
 }
 
-static Vector *sema_vardecl(Vector *decls) {
-  Vector *inits = NULL;
-  for (int i = 0, len = decls->len; i < len; ++i) {
-    VarDecl *decl = decls->data[i];
-    const Type *type = decl->type;
-    const Token *ident = decl->ident;
-    int flag = decl->flag;
-    Initializer *init = decl->init;
+static Initializer *check_vardecl(const Type *type, const Token *ident, int flag, Initializer *init, Vector **pinits) {
+  if (type->kind == TY_ARRAY && init != NULL)
+    fix_array_size((Type*)type, init);
 
-    if (type->kind == TY_ARRAY && init != NULL)
-      fix_array_size((Type*)type, init);
+  if (curdefun != NULL) {
+    Scope *scope = curscope;
+    VarInfo *varinfo = scope_find(&scope, ident->ident);
 
-    if (curdefun != NULL) {
-      Scope *scope = curscope;
-      VarInfo *varinfo = scope_find(&scope, ident->ident);
-
-      // TODO: Check `init` can be cast to `type`.
-      if (flag & VF_STATIC) {
-        VarInfo *gvarinfo = find_global(varinfo->local.label);
-        assert(gvarinfo != NULL);
-        gvarinfo->global.init = decl->init = check_global_initializer(type, init);
-        // static variable initializer is handled in codegen, same as global variable.
-      } else if (init != NULL) {
-        Expr *var = new_expr_variable(ident->ident, type, NULL, scope);
-        var->variable.scope = curscope;
-        inits = assign_initial_value(var, init, inits);
-      }
-    } else {
-      //intptr_t eval;
-      //if (find_enum_value(ident->ident, &eval))
-      //  parse_error(ident, "`%.*s' is already defined", ident->ident->bytes, ident->ident->chars);
-      if (flag & VF_EXTERN && init != NULL)
-        parse_error(init->token, "extern with initializer");
-      // Toplevel
-      VarInfo *varinfo = find_global(ident->ident);
-      assert(varinfo != NULL);
-      varinfo->global.init = decl->init = check_global_initializer(type, init);
+    // TODO: Check `init` can be cast to `type`.
+    if (flag & VF_STATIC) {
+      VarInfo *gvarinfo = find_global(varinfo->local.label);
+      assert(gvarinfo != NULL);
+      gvarinfo->global.init = init = check_global_initializer(type, init);
+      // static variable initializer is handled in codegen, same as global variable.
+    } else if (init != NULL) {
+      Expr *var = new_expr_variable(ident->ident, type, NULL, scope);
+      var->variable.scope = curscope;
+      assert(pinits != NULL);
+      *pinits = assign_initial_value(var, init, *pinits);
+      init = NULL;
     }
+  } else {
+    //intptr_t eval;
+    //if (find_enum_value(ident->ident, &eval))
+    //  parse_error(ident, "`%.*s' is already defined", ident->ident->bytes, ident->ident->chars);
+    if (flag & VF_EXTERN && init != NULL)
+      parse_error(init->token, "extern with initializer");
+    // Toplevel
+    VarInfo *varinfo = find_global(ident->ident);
+    assert(varinfo != NULL);
+    varinfo->global.init = init = check_global_initializer(type, init);
   }
-
-  return inits;
+  return init;
 }
 
 static void add_func_label(const Token *label) {
@@ -692,7 +684,7 @@ static Initializer *parse_initializer(void) {
   return result;
 }
 
-static Vector *parse_vardecl_cont(const Type *rawType, Type *type, int flag, Token *ident) {
+static Vector *parse_vardecl_cont(const Type *rawType, Type *type, int flag, Token *ident, Vector **pinits) {
   Vector *decls = NULL;
   bool first = true;
   do {
@@ -722,6 +714,7 @@ static Vector *parse_vardecl_cont(const Type *rawType, Type *type, int flag, Tok
       }
     }
 
+    init = check_vardecl(type, ident, flag, init, pinits);
     VarDecl *decl = new_vardecl(type, ident, init, flag);
     if (decls == NULL)
       decls = new_vector();
@@ -740,13 +733,13 @@ static Stmt *parse_vardecl(void) {
   if (ident == NULL)
     parse_error(NULL, "Ident expected");
 
-  Vector *decls = parse_vardecl_cont(rawType, type, flag, ident);
+  Vector *inits = NULL;
+  Vector *decls = parse_vardecl_cont(rawType, type, flag, ident, &inits);
 
   consume(TK_SEMICOL, "`;' expected");
 
   if (decls == NULL)
     return NULL;
-  Vector *inits = sema_vardecl(decls);
   return new_stmt_vardecl(decls, inits);
 }
 
@@ -852,6 +845,7 @@ static Stmt *parse_for(const Token *tok) {
   Expr *pre = NULL;
   Vector *decls = NULL;
   Scope *scope = NULL;
+  Vector *inits = NULL;
   if (!match(TK_SEMICOL)) {
     const Type *rawType = NULL;
     Type *type;
@@ -861,7 +855,7 @@ static Stmt *parse_for(const Token *tok) {
       if (ident == NULL)
         parse_error(NULL, "Ident expected");
       scope = enter_scope(curdefun, NULL);
-      decls = parse_vardecl_cont(rawType, type, flag, ident);
+      decls = parse_vardecl_cont(rawType, type, flag, ident, &inits);
       consume(TK_SEMICOL, "`;' expected");
     } else {
       pre = parse_expr();
@@ -888,7 +882,6 @@ static Stmt *parse_for(const Token *tok) {
 
   Vector *stmts = new_vector();
   if (decls != NULL) {
-    Vector *inits = sema_vardecl(decls);
     vec_push(stmts, new_stmt_vardecl(decls, inits));
   }
 
@@ -1151,6 +1144,7 @@ static Declaration *parse_global_var_decl(const Type *rawtype, int flag, const T
       init = parse_initializer();
     varinfo->global.init = init;
 
+    init = check_vardecl(type, ident, flag, init, NULL);
     VarDecl *decl = new_vardecl(type, ident, init, flag);
     if (decls == NULL)
       decls = new_vector();
@@ -1167,9 +1161,6 @@ static Declaration *parse_global_var_decl(const Type *rawtype, int flag, const T
 
   if (decls == NULL)
     return NULL;
-  Vector *inits = sema_vardecl(decls);
-  UNUSED(inits);
-  assert(inits == NULL);
   return new_decl_vardecl(decls);
 }
 
