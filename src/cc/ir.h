@@ -104,7 +104,6 @@ typedef struct IR {
   VReg *dst;
   VReg *opr1;
   VReg *opr2;
-  int size;
   intptr_t value;
 
   union {
@@ -139,6 +138,12 @@ typedef struct IR {
       bool global;
     } call;
     struct {
+      size_t size;
+    } memcpy;
+    struct {
+      size_t size;
+    } clear;
+    struct {
       const char *str;
     } asm_;
   };
@@ -157,17 +162,17 @@ VReg *new_ir_cond(enum ConditionKind cond);
 void new_ir_jmp(enum ConditionKind cond, BB *bb);
 void new_ir_tjmp(VReg *val, BB **bbs, size_t len);
 IR *new_ir_precall(int arg_count, int stack_args_size);
-void new_ir_pusharg(VReg *vreg, const VRegType *vtype);
+void new_ir_pusharg(VReg *vreg);
 VReg *new_ir_call(const Name *label, bool global, VReg *freg, int total_arg_count, int reg_arg_count, const VRegType *result_type, IR *precall, VRegType **arg_vtypes, int vaarg_start);
 void new_ir_result(VReg *reg);
 void new_ir_subsp(VReg *value, VReg *dst);
 VReg *new_ir_cast(VReg *vreg, const VRegType *dsttype);
-void new_ir_memcpy(VReg *dst, VReg *src, int size);
+void new_ir_memcpy(VReg *dst, VReg *src, size_t size);
 void new_ir_clear(VReg *reg, size_t size);
 void new_ir_asm(const char *asm_, VReg *dst);
 
-IR *new_ir_load_spilled(VReg *reg, VReg *src, int size);
-IR *new_ir_store_spilled(VReg *dst, VReg *reg, int size);
+IR *new_ir_load_spilled(VReg *reg, VReg *src);
+IR *new_ir_store_spilled(VReg *dst, VReg *reg);
 
 // Register allocator
 

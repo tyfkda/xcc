@@ -35,7 +35,6 @@ static IR *new_ir(enum IrKind kind) {
   ir->kind = kind;
   ir->dst = ir->opr1 = ir->opr2 = NULL;
   ir->value = 0;
-  ir->size = -1;
   if (curbb != NULL)
     vec_push(curbb->irs, ir);
   return ir;
@@ -188,7 +187,6 @@ VReg *new_ir_bop(enum IrKind kind, VReg *opr1, VReg *opr2, const VRegType *vtype
   IR *ir = new_ir(kind);
   ir->opr1 = opr1;
   ir->opr2 = opr2;
-  ir->size = vtype->size;
   return ir->dst = reg_alloc_spawn(curra, vtype, 0);
 }
 
@@ -205,14 +203,12 @@ VReg *new_ir_unary(enum IrKind kind, VReg *opr, const VRegType *vtype) {
 
   IR *ir = new_ir(kind);
   ir->opr1 = opr;
-  ir->size = vtype->size;
   return ir->dst = reg_alloc_spawn(curra, vtype, 0);
 }
 
 VReg *new_ir_bofs(VReg *src) {
   IR *ir = new_ir(IR_BOFS);
   ir->opr1 = src;
-  ir->size = WORD_SIZE;
   return ir->dst = reg_alloc_spawn(curra, &vtVoidPtr, 0);
 }
 
@@ -220,21 +216,18 @@ VReg *new_ir_iofs(const Name *label, bool global) {
   IR *ir = new_ir(IR_IOFS);
   ir->iofs.label = label;
   ir->iofs.global = global;
-  ir->size = WORD_SIZE;
   return ir->dst = reg_alloc_spawn(curra, &vtVoidPtr, 0);
 }
 
 VReg *new_ir_sofs(VReg *src) {
   IR *ir = new_ir(IR_SOFS);
   ir->opr1 = src;
-  ir->size = WORD_SIZE;
   return ir->dst = reg_alloc_spawn(curra, &vtVoidPtr, 0);
 }
 
 void new_ir_store(VReg *dst, VReg *src) {
   IR *ir = new_ir(IR_STORE);
   ir->opr1 = src;
-  ir->size = src->vtype->size;
   ir->opr2 = dst;  // `dst` is used by indirect, so it is not actually `dst`.
 }
 
@@ -242,7 +235,6 @@ void new_ir_cmp(VReg *opr1, VReg *opr2) {
   IR *ir = new_ir(IR_CMP);
   ir->opr1 = opr1;
   ir->opr2 = opr2;
-  ir->size = opr1->vtype->size;
 }
 
 VReg *new_ir_cond(enum ConditionKind cond) {
@@ -265,13 +257,11 @@ void new_ir_tjmp(VReg *val, BB **bbs, size_t len) {
   ir->opr1 = val;
   ir->tjmp.bbs = bbs;
   ir->tjmp.len = len;
-  ir->size = val->vtype->size;
 }
 
-void new_ir_pusharg(VReg *vreg, const VRegType *vtype) {
+void new_ir_pusharg(VReg *vreg) {
   IR *ir = new_ir(IR_PUSHARG);
   ir->opr1 = vreg;
-  ir->size = vtype->size;
 }
 
 IR *new_ir_precall(int arg_count, int stack_args_size) {
@@ -294,27 +284,23 @@ VReg *new_ir_call(const Name *label, bool global, VReg *freg, int total_arg_coun
   ir->call.total_arg_count = total_arg_count;
   ir->call.reg_arg_count = reg_arg_count;
   ir->call.vaarg_start = vaarg_start;
-  ir->size = result_type->size;
   return ir->dst = reg_alloc_spawn(curra, result_type, 0);
 }
 
 void new_ir_result(VReg *reg) {
   IR *ir = new_ir(IR_RESULT);
   ir->opr1 = reg;
-  ir->size = reg->vtype->size;
 }
 
 void new_ir_subsp(VReg *value, VReg *dst) {
   IR *ir = new_ir(IR_SUBSP);
   ir->opr1 = value;
   ir->dst = dst;
-  ir->size = WORD_SIZE;
 }
 
 VReg *new_ir_cast(VReg *vreg, const VRegType *dsttype) {
   IR *ir = new_ir(IR_CAST);
   ir->opr1 = vreg;
-  ir->size = dsttype->size;
   return ir->dst = reg_alloc_spawn(curra, dsttype, 0);
 }
 
@@ -322,44 +308,39 @@ IR *new_ir_mov(VReg *dst, VReg *src) {
   IR *ir = new_ir(IR_MOV);
   ir->dst = dst;
   ir->opr1 = src;
-  ir->size = dst->vtype->size;
   return ir;
 }
 
-void new_ir_memcpy(VReg *dst, VReg *src, int size) {
+void new_ir_memcpy(VReg *dst, VReg *src, size_t size) {
   if (size > 0) {
     IR *ir = new_ir(IR_MEMCPY);
     ir->opr1 = src;
     ir->opr2 = dst;
-    ir->size = size;
+    ir->memcpy.size = size;
   }
 }
 
 void new_ir_clear(VReg *reg, size_t size) {
   IR *ir = new_ir(IR_CLEAR);
-  ir->size = size;
   ir->opr1 = reg;
+  ir->clear.size = size;
 }
 
 void new_ir_asm(const char *asm_, VReg *dst) {
   IR *ir = new_ir(IR_ASM);
   ir->asm_.str = asm_;
   ir->dst = dst;
-  if (dst != NULL)
-    ir->size = dst->vtype->size;
 }
 
-IR *new_ir_load_spilled(VReg *reg, VReg *src, int size) {
+IR *new_ir_load_spilled(VReg *reg, VReg *src) {
   IR *ir = new_ir(IR_LOAD_SPILLED);
-  ir->size = size;
   ir->dst = reg;
   ir->opr1 = src;
   return ir;
 }
 
-IR *new_ir_store_spilled(VReg *dst, VReg *reg, int size) {
+IR *new_ir_store_spilled(VReg *dst, VReg *reg) {
   IR *ir = new_ir(IR_STORE_SPILLED);
-  ir->size = size;
   ir->opr1 = reg;
   ir->opr2 = dst;  // `dst` is used by indirect, so it is not actually `dst`.
   return ir;

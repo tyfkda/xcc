@@ -27,7 +27,7 @@ core
 /tests/table_test
 /tests/util_test
 /tests/valtest
-/dump_expr
-/dump_ir
-/dump_type
+/dump_expr*
+/dump_ir*
+/dump_type*
 /gh-pages/

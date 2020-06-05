@@ -446,7 +446,7 @@ static VReg *gen_funcall(Expr *expr) {
       VReg *reg = gen_expr(arg);
       const ArgInfo *p = &arg_infos[i];
       if (p->offset < 0) {
-        new_ir_pusharg(reg, to_vtype(arg->type));
+        new_ir_pusharg(reg);
         ++iregarg;
       } else {
         VRegType offset_type = {.size = 4, .align = 4, .flag = 0};  // TODO:
@@ -464,7 +464,7 @@ static VReg *gen_funcall(Expr *expr) {
     // gen_lval(retvar)
     VReg *dst = new_ir_bofs(retvar_reg);
     VRegType *vtype = to_vtype(ptrof(expr->type));
-    new_ir_pusharg(dst, vtype);
+    new_ir_pusharg(dst);
     arg_vtypes[0] = vtype;
     ++reg_arg_count;
   }

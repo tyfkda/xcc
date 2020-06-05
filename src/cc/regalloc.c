@@ -227,14 +227,14 @@ static int insert_tmp_reg(RegAlloc *ra, Vector *irs, int j, VReg *spilled) {
   IR *ir = irs->data[j];
   VReg *opr = ir->opr1 == spilled ? ir->opr1 : ir->opr2 == spilled ? ir->opr2 : NULL;
   if (opr != NULL) {
-    vec_insert(irs, j++, new_ir_load_spilled(tmp, opr, tmp->vtype->size));
+    vec_insert(irs, j++, new_ir_load_spilled(tmp, opr));
     if (ir->opr1 == spilled)
       ir->opr1 = tmp;
     if (ir->opr2 == spilled)
       ir->opr2 = tmp;
   }
   if (ir->dst == spilled) {
-    vec_insert(irs, ++j, new_ir_store_spilled(ir->dst, tmp, tmp->vtype->size));
+    vec_insert(irs, ++j, new_ir_store_spilled(ir->dst, tmp));
     ir->dst = tmp;
   }
   return j;
