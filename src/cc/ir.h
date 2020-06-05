@@ -18,16 +18,18 @@ typedef struct Vector Vector;
 
 // Virtual register
 
-#define VRF_PARAM  (1 << 0)  // Function parameter
-#define VRF_LOCAL  (1 << 1)  // Local variable
-#define VRF_REF    (1 << 2)  // Reference(&) taken
-#define VRF_CONST  (1 << 3)  // Constant
+#define VRTF_UNSIGNED  (1 << 0)
 
 typedef struct VRegType {
   int size;
   int align;
-  bool is_unsigned;
+  int flag;
 } VRegType;
+
+#define VRF_PARAM  (1 << 0)  // Function parameter
+#define VRF_LOCAL  (1 << 1)  // Local variable
+#define VRF_REF    (1 << 2)  // Reference(&) taken
+#define VRF_CONST  (1 << 3)  // Constant
 
 typedef struct VReg {
   int v;
@@ -136,7 +138,6 @@ typedef struct IR {
     } call;
     struct {
       int srcsize;
-      bool is_unsigned;
     } cast;
     struct {
       const char *str;
@@ -163,7 +164,7 @@ void new_ir_pusharg(VReg *vreg, const VRegType *vtype);
 VReg *new_ir_call(const Name *label, bool global, VReg *freg, int arg_count, const VRegType *result_type, IR *precall);
 void new_ir_result(VReg *reg, int size);
 void new_ir_addsp(int value);
-VReg *new_ir_cast(VReg *vreg, const VRegType *dsttype, int srcsize, bool is_unsigned);
+VReg *new_ir_cast(VReg *vreg, const VRegType *dsttype, int srcsize);
 void new_ir_memcpy(VReg *dst, VReg *src, int size);
 void new_ir_clear(VReg *reg, size_t size);
 void new_ir_asm(const char *asm_);

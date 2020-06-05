@@ -17,6 +17,10 @@ VRegType *to_vtype(const Type *type) {
   VRegType *vtype = malloc(sizeof(*vtype));
   vtype->size = type_size(type);
   vtype->align = align_size(type);
+
+  bool is_unsigned = type->kind == TY_NUM ? type->num.is_unsigned : true;
+  vtype->flag = is_unsigned ? VRTF_UNSIGNED : 0;
+
   return vtype;
 }
 
@@ -213,11 +217,11 @@ static VReg *gen_cast(VReg *reg, const Type *ltype, const Type *rtype) {
     src_size = type_size(rtype);
 
   bool lu = ltype->kind == TY_NUM ? ltype->num.is_unsigned : true;
-  bool ru = rtype->kind == TY_NUM ? rtype->num.is_unsigned : true;
+  bool ru = (reg->vtype->flag & VRTF_UNSIGNED) ? true : false;
   if (dst_size == src_size && lu == ru)
     return reg;
 
-  return new_ir_cast(reg, to_vtype(ltype), src_size, ru);
+  return new_ir_cast(reg, to_vtype(ltype), src_size);
 }
 
 static VReg *gen_lval(Expr *expr) {
@@ -390,7 +394,7 @@ static VReg *gen_funcall(Expr *expr) {
         new_ir_pusharg(reg, to_vtype(arg->type));
         ++reg_arg_count;
       } else {
-        VRegType offset_type = {.size = 4, .align = 4, .is_unsigned = false};  // TODO:
+        VRegType offset_type = {.size = 4, .align = 4, .flag = 0};  // TODO:
         VReg *dst = new_ir_sofs(new_const_vreg(p->offset + reg_arg_count * WORD_SIZE,
                                                &offset_type));
         if (p->stack_arg) {
@@ -488,7 +492,7 @@ VReg *gen_ptradd(enum ExprKind kind, const Type *type, VReg *lreg, Expr *rhs) {
       rreg = new_ir_bop(IR_MUL, rreg, sreg, vtype);
       scale = 1;
     }
-    rreg = new_ir_cast(rreg, to_vtype(&tySize), type_size(rhs->type), rhs->type->num.is_unsigned);
+    rreg = new_ir_cast(rreg, to_vtype(&tySize), type_size(rhs->type));
     return new_ir_ptradd(0, lreg, rreg, scale, to_vtype(type));
   }
 }

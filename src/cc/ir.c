@@ -10,8 +10,8 @@
 
 #define SPILLED_REG_NO  (PHYSICAL_REG_MAX)
 
-static VRegType vtVoidPtr = {.size = WORD_SIZE, .align = WORD_SIZE, .is_unsigned = false};
-static VRegType vtBool    = {.size = 4, .align = 4, .is_unsigned = false};
+static VRegType vtVoidPtr = {.size = WORD_SIZE, .align = WORD_SIZE, .flag = 0};
+static VRegType vtBool    = {.size = 4, .align = 4, .flag = 0};
 
 int stackpos = 8;
 
@@ -129,7 +129,7 @@ VReg *new_ir_bop(enum IrKind kind, VReg *opr1, VReg *opr2, const VRegType *vtype
       case IR_LSHIFT:  value = opr1->r << opr2->r; break;
       case IR_RSHIFT:
         //assert(opr1->type->kind == TY_NUM);
-        if (opr1->vtype->is_unsigned)
+        if (opr1->vtype->flag & VRTF_UNSIGNED)
           value = (uintptr_t)opr1->r >> opr2->r;
         else
           value = opr1->r >> opr2->r;
@@ -347,12 +347,11 @@ void new_ir_addsp(int value) {
   ir->value = value;
 }
 
-VReg *new_ir_cast(VReg *vreg, const VRegType *dsttype, int srcsize, bool is_unsigned) {
+VReg *new_ir_cast(VReg *vreg, const VRegType *dsttype, int srcsize) {
   IR *ir = new_ir(IR_CAST);
   ir->opr1 = vreg;
   ir->size = dsttype->size;
   ir->cast.srcsize = srcsize;
-  ir->cast.is_unsigned = is_unsigned;
   return ir->dst = reg_alloc_spawn(curra, dsttype, 0);
 }
 
@@ -1024,7 +1023,7 @@ static void ir_out(IR *ir) {
         int powd = kPow2Table[ir->size];
         assert(0 <= pows && pows < 4);
         assert(0 <= powd && powd < 4);
-        if (ir->cast.is_unsigned) {
+        if (ir->opr1->vtype->flag & VRTF_UNSIGNED) {
           if (pows == 2 && powd == 3) {
             // MOVZX %64bit, %32bit doesn't exist!
             MOV(kRegSizeTable[pows][ir->opr1->r], kRegSizeTable[pows][ir->dst->r]);
