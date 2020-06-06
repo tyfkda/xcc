@@ -74,7 +74,7 @@ static void dump_ir(FILE *fp, IR *ir) {
     break;
   case IR_RESULT: fprintf(fp, "\tRESULT\t"); dump_vreg(fp, ir->opr1, ir->size); fprintf(fp, "\n"); break;
   case IR_ADDSP:  fprintf(fp, "\tADDSP\t%" PRIdPTR "\n", ir->value); break;
-  case IR_CAST:   fprintf(fp, "\tCAST\t"); dump_vreg(fp, ir->dst, ir->size); fprintf(fp, " = "); dump_vreg(fp, ir->opr1, ir->cast.srcsize); fprintf(fp, "\n"); break;
+  case IR_CAST:   fprintf(fp, "\tCAST\t"); dump_vreg(fp, ir->dst, ir->size); fprintf(fp, " = "); dump_vreg(fp, ir->opr1, ir->opr1->vtype->size); fprintf(fp, "\n"); break;
   case IR_MOV:    fprintf(fp, "\tMOV\t"); dump_vreg(fp, ir->dst, ir->size); fprintf(fp, " = "); dump_vreg(fp, ir->opr1, ir->size); fprintf(fp, "\n"); break;
   case IR_MEMCPY: fprintf(fp, "\tMEMCPY(dst="); dump_vreg(fp, ir->opr2, WORD_SIZE); fprintf(fp, ", src="); dump_vreg(fp, ir->opr1, WORD_SIZE); fprintf(fp, ", size=%d)\n", ir->size); break;
   case IR_CLEAR:  fprintf(fp, "\tCLEAR\t"); dump_vreg(fp, ir->opr1, WORD_SIZE); fprintf(fp, ", %d\n", ir->size); break;

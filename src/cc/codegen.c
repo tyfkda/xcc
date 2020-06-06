@@ -213,7 +213,7 @@ static void gen_return(Stmt *stmt) {
   BB *bb = bb_split(curbb);
   if (stmt->return_.val != NULL) {
     VReg *reg = gen_expr(stmt->return_.val);
-    new_ir_result(reg, type_size(stmt->return_.val->type));
+    new_ir_result(reg);
   }
   assert(curdefun != NULL);
   new_ir_jmp(COND_ANY, curdefun->func->ret_bb);
@@ -256,7 +256,7 @@ static void gen_switch_cond_recur(Stmt *stmt, VReg *reg, const VRegType *vtype, 
       int index = order[i];
       intptr_t x = (intptr_t)case_values->data[index];
       VReg *num = new_const_vreg(x, vtype);
-      new_ir_cmp(reg, num, vtype->size);
+      new_ir_cmp(reg, num);
       new_ir_jmp(COND_EQ, cur_case_bbs->data[index]);
       set_curbb(nextbb);
     }
@@ -267,7 +267,7 @@ static void gen_switch_cond_recur(Stmt *stmt, VReg *reg, const VRegType *vtype, 
     int index = order[m];
     intptr_t x = (intptr_t)case_values->data[index];
     VReg *num = new_const_vreg(x, vtype);
-    new_ir_cmp(reg, num, vtype->size);
+    new_ir_cmp(reg, num);
     new_ir_jmp(COND_EQ, cur_case_bbs->data[index]);
     set_curbb(bbne);
 
@@ -286,7 +286,7 @@ static void gen_switch_cond(Stmt *stmt) {
   VReg *reg = gen_expr(value);
   {  // Avoid spilled register.
     VReg *tmp = add_new_reg(value->type, 0);
-    new_ir_mov(tmp, reg, type_size(value->type));
+    new_ir_mov(tmp, reg);
     reg = tmp;
   }
 
