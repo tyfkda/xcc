@@ -150,9 +150,6 @@ static bool cast_integers(Expr **pLhs, Expr **pRhs, bool keep_left) {
 }
 
 static void check_lval(const Token *tok, Expr *expr, const char *error) {
-  while (expr->kind == EX_GROUP)
-    expr = expr->unary.sub;
-
   switch (expr->kind) {
   case EX_VARIABLE:
   case EX_DEREF:
@@ -162,6 +159,12 @@ static void check_lval(const Token *tok, Expr *expr, const char *error) {
     parse_error(tok, error);
     break;
   }
+}
+
+static void check_referable(const Token *tok, Expr *expr, const char *error) {
+  while (expr->kind == EX_GROUP)
+    expr = expr->unary.sub;
+  check_lval(tok, expr, error);
 }
 
 static Expr *new_expr_int_bop(enum ExprKind kind, const Token *tok, Expr *lhs, Expr *rhs, bool keep_left) {
@@ -258,7 +261,7 @@ static Expr *new_expr_addsub(enum ExprKind kind, const Token *tok, Expr *lhs, Ex
 }
 
 static Expr *new_expr_incdec(enum ExprKind kind, const Token *tok, Expr *sub) {
-  check_lval(tok, sub, "lvalue expected");
+  check_referable(tok, sub, "lvalue expected");
   return new_expr_unary(kind, sub->type, tok, sub);
 }
 
@@ -888,7 +891,7 @@ static Expr *parse_unary(void) {
   if ((tok = match(TK_AND)) != NULL) {
     Expr *expr = parse_cast_expr();
     assert(expr->type != NULL);
-    check_lval(tok, expr, "Cannot take reference");
+    check_referable(tok, expr, "Cannot take reference");
     return new_expr_unary(EX_REF, ptrof(expr->type), tok, expr);
   }
 
@@ -1184,8 +1187,6 @@ Expr *parse_assign(void) {
         enum ExprKind kind = kAssignWithOps[i].ex;
         Expr *lhs = expr, *rhs = parse_assign();
 
-        if (lhs->kind == EX_GROUP)
-          parse_error(tok, "Cannot assign");
         check_lval(tok, lhs, "Cannot assign");
 
         switch (lhs->type->kind) {
