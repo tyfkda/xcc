@@ -545,16 +545,23 @@ static Vector *assign_initial_value(Expr *expr, Initializer *init, Vector *inits
     }
     break;
   default:
-    if (init->kind != IK_SINGLE)
+    switch (init->kind) {
+    case IK_MULTI:
+      if (init->multi->len != 1 || ((Initializer*)init->multi->data[0])->kind != IK_SINGLE) {
+        parse_error(init->token, "Error initializer");
+        break;
+      }
+      init = init->multi->data[0];
+      // Fallthrough
+    case IK_SINGLE:
+      vec_push(inits,
+               new_stmt_expr(new_expr_bop(EX_ASSIGN, expr->type, NULL, expr,
+                                          make_cast(expr->type, NULL, init->single, false))));
+      break;
+    default:
       parse_error(init->token, "Error initializer");
-    //if (expr->type->kind == TY_PTR && is_char_type(expr->type->pa.ptrof) &&
-    //    init->single->kind == EX_STR) {
-    //  // Create string and point to it.
-    //  init = convert_str_to_ptr_initializer(init->single->type, init);
-    //}
-    vec_push(inits,
-             new_stmt_expr(new_expr_bop(EX_ASSIGN, expr->type, NULL, expr,
-                                        make_cast(expr->type, NULL, init->single, false))));
+      break;
+    }
     break;
   }
 
