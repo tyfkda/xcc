@@ -32,12 +32,13 @@ typedef struct VRegType {
 #define VRF_CONST  (1 << 3)  // Constant
 
 typedef struct VReg {
-  int v;
-  intptr_t r;  // Real register no. or constant value.
   const VRegType *vtype;
+  int virt;         // Virtual reg no.
+  int phys;         // Physical reg no.
   int flag;
   int param_index;  // Function parameter index: -1=not a param
-  int offset;  // Local offset for spilled register.
+  int offset;       // Local offset for spilled register.
+  intptr_t fixnum;  // Constant value.
 } VReg;
 
 VReg *new_vreg(int vreg_no, const VRegType *vtype, int flag);

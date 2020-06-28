@@ -564,7 +564,7 @@ static void gen_defun(Defun *defun) {
   curbb = NULL;
 
   prepare_register_allocation(func);
-  alloc_real_registers(func->ra, func->bbcon);
+  alloc_physical_registers(func->ra, func->bbcon);
 
   remove_unnecessary_bb(func->bbcon);
 

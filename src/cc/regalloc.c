@@ -22,21 +22,21 @@
 #define ALLOCA(size)  malloc(size)
 #endif
 
-#define SPILLED_REG_NO(ra)  (ra->phy_max)
+#define SPILLED_REG_NO(ra)  (ra->phys_max)
 
 static void spill_vreg(RegAlloc *ra, VReg *vreg) {
-  vreg->r = SPILLED_REG_NO(ra);
+  vreg->phys = SPILLED_REG_NO(ra);
 }
 
 // Register allocator
 
-RegAlloc *new_reg_alloc(int phy_max) {
+RegAlloc *new_reg_alloc(int phys_max) {
   RegAlloc *ra = malloc(sizeof(*ra));
   ra->vregs = new_vector();
   //ra->regno = 0;
   vec_clear(ra->vregs);
   ra->frame_size = 0;
-  ra->phy_max = phy_max;
+  ra->phys_max = phys_max;
   ra->used_reg_bits = 0;
   return ra;
 }
@@ -126,12 +126,12 @@ static void split_at_interval(RegAlloc *ra, LiveInterval **active, int active_co
   assert(active_count > 0);
   LiveInterval *spill = active[active_count - 1];
   if (spill->end > li->end) {
-    li->rreg = spill->rreg;
-    spill->rreg = ra->phy_max;
+    li->phys = spill->phys;
+    spill->phys = ra->phys_max;
     spill->state = LI_SPILL;
     insert_active(active, active_count - 1, li);
   } else {
-    li->rreg = ra->phy_max;
+    li->phys = ra->phys_max;
     li->state = LI_SPILL;
   }
 }
@@ -145,7 +145,7 @@ static void expire_old_intervals(LiveInterval **active, int *pactive_count, shor
     LiveInterval *li = active[j];
     if (li->end > start)
       break;
-    using_bits &= ~((short)1 << li->rreg);
+    using_bits &= ~((short)1 << li->phys);
   }
   remove_active(active, active_count, 0, j);
   *pactive_count = active_count - j;
@@ -157,8 +157,8 @@ static LiveInterval **check_live_interval(BBContainer *bbcon, int vreg_count,
   LiveInterval *intervals = malloc(sizeof(LiveInterval) * vreg_count);
   for (int i = 0; i < vreg_count; ++i) {
     LiveInterval *li = &intervals[i];
-    li->vreg = i;
-    li->rreg = -1;
+    li->virt = i;
+    li->phys = -1;
     li->start = li->end = -1;
     li->state = LI_NORMAL;
   }
@@ -173,7 +173,7 @@ static LiveInterval **check_live_interval(BBContainer *bbcon, int vreg_count,
         VReg *reg = regs[k];
         if (reg == NULL)
           continue;
-        LiveInterval *li = &intervals[reg->v];
+        LiveInterval *li = &intervals[reg->virt];
         if (li->start < 0)
           li->start = nip;
         if (li->end < nip)
@@ -183,7 +183,7 @@ static LiveInterval **check_live_interval(BBContainer *bbcon, int vreg_count,
 
     for (int j = 0; j < bb->out_regs->len; ++j) {
       VReg *reg = bb->out_regs->data[j];
-      LiveInterval *li = &intervals[reg->v];
+      LiveInterval *li = &intervals[reg->virt];
       if (li->start < 0)
         li->start = nip;
       if (li->end < nip)
@@ -203,8 +203,8 @@ static LiveInterval **check_live_interval(BBContainer *bbcon, int vreg_count,
 
 static short linear_scan_register_allocation(RegAlloc *ra, LiveInterval **sorted_intervals,
                                              int vreg_count) {
-  const int PHY_MAX = ra->phy_max;
-  LiveInterval **active = ALLOCA(sizeof(LiveInterval*) * ra->phy_max);
+  const int PHYS_MAX = ra->phys_max;
+  LiveInterval **active = ALLOCA(sizeof(LiveInterval*) * ra->phys_max);
   int active_count = 0;
   short using_bits = 0;
   short used_bits = 0;
@@ -214,18 +214,18 @@ static short linear_scan_register_allocation(RegAlloc *ra, LiveInterval **sorted
     if (li->state != LI_NORMAL)
       continue;
     expire_old_intervals(active, &active_count, &using_bits, li->start);
-    if (active_count >= PHY_MAX) {
+    if (active_count >= PHYS_MAX) {
       split_at_interval(ra, active, active_count, li);
     } else {
       int regno = -1;
-      for (int j = 0; j < PHY_MAX; ++j) {
+      for (int j = 0; j < PHYS_MAX; ++j) {
         if (!(using_bits & (1 << j))) {
           regno = j;
           break;
         }
       }
       assert(regno >= 0);
-      li->rreg = regno;
+      li->phys = regno;
       using_bits |= 1 << regno;
 
       insert_active(active, active_count, li);
@@ -296,31 +296,31 @@ static int insert_load_store_spilled(BBContainer *bbcon, Vector *vregs, const in
         continue;
       }
 
-      assert(!((ir->opr1 != NULL && (flag & 1) != 0 && ir->opr1->r == spilled && !(ir->opr1->flag & VRF_CONST)) &&
-               (ir->opr2 != NULL && (flag & 2) != 0 && ir->opr2->r == spilled && !(ir->opr2->flag & VRF_CONST))));
+      assert(!((ir->opr1 != NULL && (flag & 1) != 0 && !(ir->opr1->flag & VRF_CONST) && ir->opr1->phys == spilled) &&
+               (ir->opr2 != NULL && (flag & 2) != 0 && !(ir->opr2->flag & VRF_CONST) && ir->opr2->phys == spilled)));
 
-      if (ir->opr1 != NULL && (flag & 1) != 0 && ir->opr1->r == spilled &&
-          !(ir->opr1->flag & VRF_CONST)) {
+      if (ir->opr1 != NULL && (flag & 1) != 0 &&
+          !(ir->opr1->flag & VRF_CONST) && ir->opr1->phys == spilled) {
         vec_insert(irs, j,
-                   new_ir_load_spilled(ir->opr1, ((VReg*)vregs->data[ir->opr1->v])->offset, load_size));
+                   new_ir_load_spilled(ir->opr1, ((VReg*)vregs->data[ir->opr1->virt])->offset, load_size));
         ++j;
         inserted |= 1;
       }
 
-      if (ir->opr2 != NULL && (flag & 2) != 0 && ir->opr2->r == spilled &&
-          !(ir->opr2->flag & VRF_CONST)) {
+      if (ir->opr2 != NULL && (flag & 2) != 0 &&
+          !(ir->opr2->flag & VRF_CONST) && ir->opr2->phys == spilled) {
         vec_insert(irs, j,
-                   new_ir_load_spilled(ir->opr2, ((VReg*)vregs->data[ir->opr2->v])->offset, load_size));
+                   new_ir_load_spilled(ir->opr2, ((VReg*)vregs->data[ir->opr2->virt])->offset, load_size));
         ++j;
         inserted |= 2;
       }
 
-      if (ir->dst != NULL && (flag & 4) != 0 && ir->dst->r == spilled &&
-          !(ir->dst->flag & VRF_CONST)) {
+      if (ir->dst != NULL && (flag & 4) != 0 &&
+          !(ir->dst->flag & VRF_CONST) && ir->dst->phys == spilled) {
         assert(!(ir->dst->flag & VRF_CONST));
         ++j;
         vec_insert(irs, j,
-                   new_ir_store_spilled(ir->dst, ((VReg*)vregs->data[ir->dst->v])->offset, ir->size));
+                   new_ir_store_spilled(ir->dst, ((VReg*)vregs->data[ir->dst->virt])->offset, ir->size));
         inserted |= 4;
       }
     }
@@ -449,7 +449,7 @@ void prepare_register_allocation(Function *func) {
   }
 }
 
-void alloc_real_registers(RegAlloc *ra, BBContainer *bbcon) {
+void alloc_physical_registers(RegAlloc *ra, BBContainer *bbcon) {
   for (int i = 0; i < bbcon->bbs->len; ++i) {
     BB *bb = bbcon->bbs->data[i];
     three_to_two(bb);
@@ -476,20 +476,20 @@ void alloc_real_registers(RegAlloc *ra, BBContainer *bbcon) {
       li->start = 0;
       li->state = LI_SPILL;
     }
-    if (vreg->r >= ra->phy_max) {
+    if (vreg->phys >= ra->phys_max) {
       li->state = LI_SPILL;
-      li->rreg = vreg->r;
+      li->phys = vreg->phys;
     }
   }
 
   ra->used_reg_bits = linear_scan_register_allocation(ra, sorted_intervals, vreg_count);
 
-  // Map vreg to rreg.
+  // Map vreg to preg.
   for (int i = 0; i < vreg_count; ++i) {
     VReg *vreg = ra->vregs->data[i];
     LiveInterval *li = &intervals[i];
     if (li->state != LI_CONST)
-      vreg->r = intervals[vreg->v].rreg;
+      vreg->phys = intervals[vreg->virt].phys;
   }
 
   // Allocated spilled virtual registers onto stack.
@@ -498,7 +498,7 @@ void alloc_real_registers(RegAlloc *ra, BBContainer *bbcon) {
     LiveInterval *li = sorted_intervals[i];
     if (li->state != LI_SPILL)
       continue;
-    VReg *vreg = ra->vregs->data[li->vreg];
+    VReg *vreg = ra->vregs->data[li->virt];
     if (vreg->offset != 0) {  // Variadic function parameter or stack parameter.
       if (-vreg->offset > frame_size)
         frame_size = -vreg->offset;

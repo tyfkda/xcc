@@ -16,15 +16,15 @@ typedef struct RegAlloc {
   struct LiveInterval **sorted_intervals;
 
   size_t frame_size;
-  int phy_max;  // Max physical register count.
+  int phys_max;  // Max physical register count.
   short used_reg_bits;
 } RegAlloc;
 
-RegAlloc *new_reg_alloc(int phy_max);
+RegAlloc *new_reg_alloc(int phys_max);
 VReg *reg_alloc_spawn(RegAlloc *ra, const VRegType *vtype, int flag);
 
 void prepare_register_allocation(Function *func);
-void alloc_real_registers(RegAlloc *ra, BBContainer *bbcon);
+void alloc_physical_registers(RegAlloc *ra, BBContainer *bbcon);
 
 // Private
 
@@ -35,9 +35,9 @@ enum LiveIntervalState {
 };
 
 typedef struct LiveInterval {
-  int vreg;
-  int rreg;
+  int virt;  // Virtual reg no.
   int start;
   int end;
   enum LiveIntervalState state;
+  int phys;  // Mapped physical reg no.
 } LiveInterval;

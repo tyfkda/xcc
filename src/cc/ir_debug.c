@@ -16,9 +16,9 @@ static void dump_vreg(FILE *fp, VReg *vreg, int size) {
   assert(vreg != NULL);
   static char *kSize[] = {"0", "b", "w", "3", "d", "5", "6", "7", ""};
   if (vreg->flag & VRF_CONST)
-    fprintf(fp, "(%" PRIdPTR ")", vreg->r);
+    fprintf(fp, "(%" PRIdPTR ")", vreg->fixnum);
   else
-    fprintf(fp, "R%" PRIdPTR "%s<v%d>", vreg->r, kSize[size], vreg->v);
+    fprintf(fp, "R%d%s<v%d>", vreg->phys, kSize[size], vreg->virt);
 }
 
 static void dump_ir(FILE *fp, IR *ir) {
@@ -106,7 +106,7 @@ static void dump_func_ir(Function *func) {
       VarInfo *varinfo = scope->vars->data[j];
       if (varinfo->reg == NULL)
         continue;
-      fprintf(fp, "  V%3d (flag=%x): %.*s\n", varinfo->reg->v, varinfo->reg->flag,
+      fprintf(fp, "  V%3d (flag=%x): %.*s\n", varinfo->reg->virt, varinfo->reg->flag,
               varinfo->name->bytes, varinfo->name->chars);
     }
   }
@@ -116,16 +116,16 @@ static void dump_func_ir(Function *func) {
   LiveInterval **sorted_intervals = func->ra->sorted_intervals;
   for (int i = 0; i < ra->vregs->len; ++i) {
     LiveInterval *li = sorted_intervals[i];
-    VReg *vreg = ra->vregs->data[li->vreg];
+    VReg *vreg = ra->vregs->data[li->virt];
     switch (li->state) {
     case LI_NORMAL:
-      fprintf(fp, "  V%3d (flag=%x): live %3d - %3d, => R%3d\n", li->vreg, vreg->flag, li->start, li->end, li->rreg);
+      fprintf(fp, "  V%3d (flag=%x): live %3d - %3d, => R%3d\n", li->virt, vreg->flag, li->start, li->end, li->phys);
       break;
     case LI_SPILL:
-      fprintf(fp, "  V%3d (flag=%x): live %3d - %3d (spilled, offset=%d)\n", li->vreg, vreg->flag, li->start, li->end, vreg->offset);
+      fprintf(fp, "  V%3d (flag=%x): live %3d - %3d (spilled, offset=%d)\n", li->virt, vreg->flag, li->start, li->end, vreg->offset);
       break;
     case LI_CONST:
-      fprintf(fp, "  V%3d (flag=%x): (const, value=%" PRIdPTR ")\n", li->vreg, vreg->flag, vreg->r);
+      fprintf(fp, "  V%3d (flag=%x): (const, value=%" PRIdPTR ")\n", li->virt, vreg->flag, vreg->fixnum);
       break;
     default:  assert(false); break;
     }
