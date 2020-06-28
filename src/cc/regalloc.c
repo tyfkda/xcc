@@ -113,8 +113,8 @@ static void remove_active(LiveInterval **active, int active_count, int start, in
     memmove(&active[start], &active[start + n], sizeof(LiveInterval*) * tail);
 }
 
-static int sort_live_interval(LiveInterval **pa, LiveInterval **pb) {
-  LiveInterval *a = *pa, *b = *pb;
+static int sort_live_interval(const void *pa, const void *pb) {
+  LiveInterval *a = *(LiveInterval**)pa, *b = *(LiveInterval**)pb;
   int d = a->start - b->start;
   if (d == 0)
     d = b->end - a->start;
@@ -195,8 +195,7 @@ static LiveInterval **check_live_interval(BBContainer *bbcon, int vreg_count,
   LiveInterval **sorted_intervals = malloc(sizeof(LiveInterval*) * vreg_count);
   for (int i = 0; i < vreg_count; ++i)
     sorted_intervals[i] = &intervals[i];
-  myqsort(sorted_intervals, vreg_count, sizeof(LiveInterval*),
-          (int(*)(const void *, const void *))sort_live_interval);
+  myqsort(sorted_intervals, vreg_count, sizeof(LiveInterval*), sort_live_interval);
 
   *pintervals = intervals;
   return sorted_intervals;
