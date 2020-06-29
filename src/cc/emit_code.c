@@ -419,7 +419,7 @@ void emit_code(Vector *toplevel) {
           const VarInfo *varinfo = find_global(name);
           assert(varinfo != NULL);
 
-          emit_varinfo(varinfo, vd->init);
+          emit_varinfo(varinfo, varinfo->global.init);
         }
       }
       break;
