@@ -340,7 +340,7 @@ static void analyze_reg_flow(BBContainer *bbcon) {
       VReg *regs[] = {ir->opr1, ir->opr2};
       for (int k = 0; k < 2; ++k) {
         VReg *reg = regs[k];
-        if (reg == NULL)
+        if (reg == NULL || reg->flag & VRF_CONST)
           continue;
         if (!vec_contains(in_regs, reg) &&
             !vec_contains(assigned_regs, reg))
