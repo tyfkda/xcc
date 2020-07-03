@@ -1,6 +1,6 @@
 #include "ir_debug.h"
 
-#if !defined(SELF_HOSTING)
+#if !defined(SELF_HOSTING) && !defined(__XV6)
 #include <assert.h>
 #include <inttypes.h>
 #include <stdio.h>

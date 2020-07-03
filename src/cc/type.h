@@ -3,6 +3,7 @@
 #pragma once
 
 #include <stdbool.h>
+#include <stddef.h>  // size_t
 #include <stdint.h>  // intptr_t
 #include <sys/types.h>  // ssize_t
 

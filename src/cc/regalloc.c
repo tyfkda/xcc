@@ -11,7 +11,7 @@
 #include "util.h"
 #include "var.h"
 
-#if (defined(__linux__) || defined(__APPLE__)) && !defined(__XCC)
+#if (defined(__linux__) || defined(__APPLE__)) && !defined(__XCC) && !defined(__XV6)
 #define USE_ALLOCA
 #endif
 

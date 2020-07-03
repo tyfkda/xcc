@@ -39,7 +39,12 @@ int main(int argc, char *argv[]) {
     if (starts_with(arg, LOCAL_LABEL_PREFIX)) {
       set_local_label_prefix(&argv[iarg][sizeof(LOCAL_LABEL_PREFIX) - 1]);
     } else if (strcmp(arg, "--dump-ir") == 0) {
+#if !defined(SELF_HOSTING) && !defined(__XV6)
       dump_ir = true;
+#else
+      fprintf(stderr, "option not supported: %s\n", arg);
+      return 1;
+#endif
     } else if (strcmp(arg, "--version") == 0) {
       show_version("cc1");
       return 0;
@@ -69,7 +74,7 @@ int main(int argc, char *argv[]) {
   if (!dump_ir) {
     emit_code(toplevel);
   } else {
-#if !defined(SELF_HOSTING)
+#if !defined(SELF_HOSTING) && !defined(__XV6)
     do_dump_ir(toplevel);
 #endif
   }

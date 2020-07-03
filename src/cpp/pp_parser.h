@@ -1,6 +1,7 @@
 #pragma once
 
 #include <stdint.h>  // intptr_t
+#include <stddef.h>  // size_t
 #include <sys/types.h>  // ssize_t
 
 typedef struct Name Name;

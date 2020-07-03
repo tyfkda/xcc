@@ -357,7 +357,7 @@ char *basename(char *path) {
   if (p != NULL)
     return p + 1;
   else
-    path;
+    return path;
 }
 
 FILE *fopen(const char *fileName, const char *mode) {
