@@ -184,6 +184,9 @@ void gen_cond_jmp(Expr *cond, bool tf, BB *bb) {
       set_curbb(bb2);
     }
     return;
+  case EX_GROUP:
+    gen_cond_jmp(cond->unary.sub, tf, bb);
+    return;
   default:
     break;
   }
