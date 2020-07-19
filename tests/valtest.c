@@ -101,6 +101,7 @@ int main(void) {
   expect("%", 3, (x=123, x%10));
   expect("<<", 32, (x=4, 1 << x + 1));
   expect(">>", 0x0a, (x=0xa5, x >> 4));
+  expect(">>", -6, (x=-0x5b, x >> 4));
   expect("&", 0xa0, (x=0xa5, x & 0xf0));
   expect("|", 0xbc, (x=0x88, x | 0x3c));
   expect("^", 0x66, (x=0xc3, x ^ 0xa5));

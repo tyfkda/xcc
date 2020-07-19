@@ -685,6 +685,26 @@ bool assemble_inst(Inst *inst, const ParseInfo *info, Code *code) {
       }
     }
     break;
+  case SAR:
+    if (inst->src.type == REG && inst->dst.type == REG) {
+      if (opr_regno(&inst->src.reg) != CL - AL)
+        return assemble_error(info, "`%cl` expected");
+
+      enum RegSize size = inst->dst.reg.size;
+      p = put_rex1(p, size, 0xf8, opr_regno(&inst->dst.reg),
+                   size == REG8 ? 0xd2 : 0xd3);
+    } else if (inst->src.type == IMMEDIATE && inst->dst.type == REG) {
+      enum RegSize size = inst->dst.reg.size;
+      if (inst->src.immediate == 1) {
+        p = put_rex1(p, size, 0xf8, opr_regno(&inst->dst.reg),
+                     size == REG8 ? 0xd0 : 0xd1);
+      } else {
+        p = put_rex1(p, size, 0xf8, opr_regno(&inst->dst.reg),
+                     size == REG8 ? 0xc0 : 0xc1);
+        *p++ = IM8(inst->src.immediate);
+      }
+    }
+    break;
   case CMP:
     if (inst->src.type == REG && inst->dst.type == REG) {
       if (inst->dst.reg.size != inst->src.reg.size)

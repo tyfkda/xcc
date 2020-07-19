@@ -747,11 +747,20 @@ static void ir_out(IR *ir) {
       int pow = kPow2Table[ir->size];
       assert(0 <= pow && pow < 4);
       const char **regs = kRegSizeTable[pow];
-      if (ir->opr2->flag & VRF_CONST) {
-        SHR(im(ir->opr2->fixnum), regs[ir->dst->phys]);
+      if (ir->opr1->vtype->flag & VRTF_UNSIGNED) {
+        if (ir->opr2->flag & VRF_CONST) {
+          SHR(im(ir->opr2->fixnum), regs[ir->dst->phys]);
+        } else {
+          MOV(kReg8s[ir->opr2->phys], CL);
+          SHR(CL, regs[ir->dst->phys]);
+        }
       } else {
-        MOV(kReg8s[ir->opr2->phys], CL);
-        SHR(CL, regs[ir->dst->phys]);
+        if (ir->opr2->flag & VRF_CONST) {
+          SAR(im(ir->opr2->fixnum), regs[ir->dst->phys]);
+        } else {
+          MOV(kReg8s[ir->opr2->phys], CL);
+          SAR(CL, regs[ir->dst->phys]);
+        }
       }
     }
     break;

@@ -135,6 +135,7 @@
 #define DECQ(o1)       EMIT_ASM1("decq", o1)
 #define SHL(o1, o2)    EMIT_ASM2("shl", o1, o2)
 #define SHR(o1, o2)    EMIT_ASM2("shr", o1, o2)
+#define SAR(o1, o2)    EMIT_ASM2("sar", o1, o2)
 #define NEG(o1)        EMIT_ASM1("neg", o1)
 #define NOT(o1)        EMIT_ASM1("not", o1)
 #define TEST(o1, o2)   EMIT_ASM2("test", o1, o2)

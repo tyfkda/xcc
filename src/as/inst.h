@@ -4,6 +4,7 @@
 
 typedef struct Name Name;
 
+// Must match the order with kOpTable in parse_asm.c
 enum Opcode {
   NOOP,
   MOV,
@@ -31,6 +32,7 @@ enum Opcode {
   XOR,
   SHL,
   SHR,
+  SAR,
   CMP,
   TEST,
   CLTD,
