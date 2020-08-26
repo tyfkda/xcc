@@ -250,7 +250,7 @@ bool resolve_relative_address(Vector **section_irs, Table *label_table, Vector *
                   info->kind = UNRES_EXTERN_PC32;
                   info->label = expr->label;
                   info->src_section = sec;
-                  info->offset = address + 1 - start_address;
+                  info->offset = address + 3 - start_address;
                   info->add = -4;
                   vec_push(unresolved, info);
                   unres = true;
