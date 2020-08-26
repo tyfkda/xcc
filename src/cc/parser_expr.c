@@ -894,6 +894,12 @@ static Expr *parse_sizeof(const Token *token) {
   assert(type != NULL);
   if (type->kind == TY_STRUCT)
     ensure_struct((Type*)type, token);
+  if (type->kind == TY_ARRAY) {
+    if (type->pa.length == (size_t)-1) {
+      // TODO: assert `export` modifier.
+      parse_error(token, "size unknown");
+    }
+  }
   return new_expr_sizeof(token, type);
 }
 

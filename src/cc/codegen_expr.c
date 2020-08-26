@@ -343,6 +343,10 @@ static VReg *gen_funcall(Expr *expr) {
       p->reg_index = -1;
       p->offset = -1;
       Expr *arg = args->data[i];
+      if (arg->type->kind == TY_ARRAY) {
+        // Array argument is converted to pointer implicitly.
+        args->data[i] = arg = make_cast(array_to_ptr(arg->type), arg->token, arg, false);
+      }
       p->size = type_size(arg->type);
       p->stack_arg = is_stack_param(arg->type);
       if (p->stack_arg || reg_index >= MAX_REG_ARGS) {

@@ -150,6 +150,7 @@ try_direct 'struct deref' 44 'struct Foo { long x; }; int main(){ struct Foo foo
 try_direct 'typedef can use in local' 61 'typedef int Foo; int main(){ int Foo = 61; return Foo; }'
 try_direct 'proto in func' 78 'int main(){ int sub(int); return sub(77); } int sub(int x) { return x + 1; }'
 try_direct 'extern in func' 45 'int main(){ extern int g; g = 45; return g; } int g;'
+try_direct 'array arg w/o size' 22 'extern int array[]; int sub(int arg[]) { return arg[1]; } int main(){ return sub(array); } int array[] = {11, 22, 33};'
 try_direct 'anonymous union init' 99 'struct {union {int x;};} a = {.x = 99}; int main(){ return a.x; }'
 try 'func ref' 1 'return main == &main;'
 try 'func deref' 1 'return (long)main == (long)*main;'
@@ -240,6 +241,7 @@ compile_error 'param and first scope' 'void main(int x){ int x; }'
 compile_error 'conflict typedef' 'typedef int Foo; typedef long Foo; void main(){}'
 compile_error 'conflict struct typedef' 'typedef struct{int x;} Foo; typedef struct{int x;} Foo; void main(){}'
 compile_error 'no VLA' 'void main(int x){ int array[x]; }'
+compile_error 'size unknown' 'extern char string[]; int main(){ return sizeof(string); } char string[] = "Hello";'
 
 # TODO
 compile_error 'more params vaargs (yet)' 'int func(int a, ...) { return a; } int main(){ return func(1, 2, 3, 4, 5, 6, 7, 8); }'
