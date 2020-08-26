@@ -563,9 +563,11 @@ int main(int argc, char *argv[]) {
 
   Vector *unresolved = out_obj ? new_vector() : NULL;
   if (!err) {
+    bool settle1, settle2;
     do {
-      calc_label_address(LOAD_ADDRESS, section_irs, &label_table);
-    } while (!resolve_relative_address(section_irs, &label_table, unresolved));
+      settle1 = calc_label_address(LOAD_ADDRESS, section_irs, &label_table);
+      settle2 = resolve_relative_address(section_irs, &label_table, unresolved);
+    } while (!(settle1 && settle2));
     emit_irs(section_irs, &label_table);
   }
 

@@ -93,7 +93,8 @@ static uintptr_t align_next_section(enum SectionType sec, uintptr_t address) {
   return address;
 }
 
-void calc_label_address(uintptr_t start_address, Vector **section_irs, Table *label_table) {
+bool calc_label_address(uintptr_t start_address, Vector **section_irs, Table *label_table) {
+  bool settle = true;
   uintptr_t address = start_address;
   for (int sec = 0; sec < SECTION_COUNT; ++sec) {
     address = align_next_section(sec, address);
@@ -128,6 +129,7 @@ void calc_label_address(uintptr_t start_address, Vector **section_irs, Table *la
         ir->address = address = ALIGN(address, ir->align);
         if ((size_t)ir->align > section_aligns[sec]) {
           section_aligns[sec] = ir->align;
+          settle = false;
         }
         break;
       case IR_EXPR_BYTE:
@@ -146,6 +148,7 @@ void calc_label_address(uintptr_t start_address, Vector **section_irs, Table *la
       }
     }
   }
+  return settle;
 }
 
 static void put_value(unsigned char *p, intptr_t value, int size) {

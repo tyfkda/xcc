@@ -77,6 +77,6 @@ IR *new_ir_bss(size_t size);
 IR *new_ir_align(int align);
 IR *new_ir_expr(enum IrKind kind, const Expr *expr);
 
-void calc_label_address(uintptr_t start_address, Vector **section_irs, Table *label_table);
+bool calc_label_address(uintptr_t start_address, Vector **section_irs, Table *label_table);
 bool resolve_relative_address(Vector **section_irs, Table *label_table, Vector *unresolved);
 void emit_irs(Vector **section_irs, Table *label_table);
