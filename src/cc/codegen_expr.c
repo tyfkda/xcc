@@ -196,14 +196,32 @@ void gen_cond_jmp(Expr *cond, bool tf, BB *bb) {
   new_ir_jmp(tf ? COND_NE : COND_EQ, bb);
 }
 
-static VReg *gen_cast(VReg *reg, const Type *ltype) {
-  int dst_size = type_size(ltype);
-  bool lu = ltype->kind == TY_NUM ? ltype->num.is_unsigned : true;
+static VReg *gen_cast(VReg *reg, const Type *dst_type) {
+  if (reg->flag & VRF_CONST) {
+    intptr_t value = reg->fixnum;
+    size_t dst_size = type_size(dst_type);
+    if (dst_size < (size_t)reg->vtype->size && dst_size < sizeof(intptr_t)) {
+      // Assume that integer is represented in Two's complement
+      size_t bit = dst_size * 8;
+      intptr_t mask = (-1UL) << bit;
+      if (dst_type->kind == TY_NUM && !dst_type->num.is_unsigned &&  // signed
+          (value & (1 << (bit - 1))))  // negative
+        value |= mask;
+      else
+        value &= ~mask;
+    }
+
+    VRegType *vtype = to_vtype(dst_type);
+    return new_const_vreg(value, vtype);
+  }
+
+  int dst_size = type_size(dst_type);
+  bool lu = dst_type->kind == TY_NUM ? dst_type->num.is_unsigned : true;
   bool ru = (reg->vtype->flag & VRTF_UNSIGNED) ? true : false;
   if (dst_size == reg->vtype->size && lu == ru)
     return reg;
 
-  return new_ir_cast(reg, to_vtype(ltype));
+  return new_ir_cast(reg, to_vtype(dst_type));
 }
 
 static VReg *gen_lval(Expr *expr) {
@@ -575,33 +593,7 @@ VReg *gen_expr(Expr *expr) {
     return gen_ternary(expr);
 
   case EX_CAST:
-    if (expr->unary.sub->kind == EX_NUM) {
-      assert(expr->unary.sub->type->kind == TY_NUM);
-      intptr_t value = expr->unary.sub->num.ival;
-      switch (expr->unary.sub->type->num.kind) {
-      case NUM_CHAR:
-        value = (int8_t)value;
-        break;
-      case NUM_SHORT:
-        value = (int16_t)value;
-        break;
-      case NUM_INT: case NUM_ENUM:
-        value = (int32_t)value;
-        break;
-      case NUM_LONG:
-        value = (int64_t)value;
-        break;
-      default:
-        assert(false);
-        value = -1;
-        break;
-      }
-
-      return new_const_vreg(value, to_vtype(expr->type));
-    } else {
-      VReg *reg = gen_expr(expr->unary.sub);
-      return gen_cast(reg, expr->type);
-    }
+    return gen_cast(gen_expr(expr->unary.sub), expr->type);
 
   case EX_ASSIGN:
     {
