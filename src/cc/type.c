@@ -209,6 +209,15 @@ StructInfo *find_struct(const Name *name) {
   return table_get(&struct_table, name);
 }
 
+StructInfo *create_struct(Vector *members, bool is_union) {
+  StructInfo *sinfo = malloc(sizeof(*sinfo));
+  sinfo->members = members;
+  sinfo->is_union = is_union;
+  sinfo->size = -1;
+  sinfo->align = 0;
+  return sinfo;
+}
+
 void define_struct(const Name *name, StructInfo *sinfo) {
   table_put(&struct_table, name, sinfo);
 }

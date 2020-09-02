@@ -758,13 +758,7 @@ static StructInfo *parse_struct(bool is_union) {
       break;
     }
   }
-
-  StructInfo *sinfo = malloc(sizeof(*sinfo));
-  sinfo->members = members;
-  sinfo->is_union = is_union;
-  sinfo->size = -1;
-  sinfo->align = 0;
-  return sinfo;
+  return create_struct(members, is_union);
 }
 
 static Expr *parse_compound_literal(const Type *type) {
