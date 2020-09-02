@@ -521,9 +521,6 @@ VReg *gen_expr(Expr *expr) {
       return new_ir_iofs(varinfo->name, false);
     }
 
-  case EX_SIZEOF:
-    return new_const_vreg(type_size(expr->sizeof_.target_type), to_vtype(expr->type));
-
   case EX_VARIABLE:
     return gen_variable(expr);
 

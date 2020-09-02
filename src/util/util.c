@@ -30,8 +30,7 @@ static char label_prefix[8] = "L";
 const Name *alloc_label(void) {
   static int label_no;
   ++label_no;
-  //char buf[sizeof(int) * 3 + 1];
-  char buf[32];
+  char buf[1 + (sizeof(label_prefix) - 1) + sizeof(int) * 3 + 1];
   snprintf(buf, sizeof(buf), ".%s%d", label_prefix, label_no);
   return alloc_name(buf, NULL, true);
 }

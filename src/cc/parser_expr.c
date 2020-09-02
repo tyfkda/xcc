@@ -248,9 +248,9 @@ static Expr *new_expr_addsub(enum ExprKind kind, const Token *tok, Expr *lhs, Ex
       rtype = array_to_ptr(rtype);
       if (!same_type(ltype, rtype))
         parse_error(tok, "Different pointer diff");
-      const Type *elem_type = ltype->pa.ptrof;
+      const Num elem_size = {.ival = type_size(ltype->pa.ptrof)};
       return new_expr_bop(EX_DIV, &tySize, tok, new_expr_bop(EX_SUB, &tySize, tok, lhs, rhs),
-                          new_expr_sizeof(tok, elem_type));
+                          new_expr_numlit(&tySize, tok, &elem_size));
     }
   } else if (ptr_or_array(rtype)) {
     if (kind == EX_ADD && is_number(ltype->kind) && !keep_left) {
@@ -896,7 +896,9 @@ static Expr *parse_sizeof(const Token *token) {
       parse_error(token, "size unknown");
     }
   }
-  return new_expr_sizeof(token, type);
+
+  const Num size = {.ival = type_size(type)};
+  return new_expr_numlit(&tySize, token, &size);
 }
 
 static Expr *parse_unary(void) {
