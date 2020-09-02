@@ -253,7 +253,6 @@ static VReg *gen_lval(Expr *expr) {
       if (ptr_or_array(type))
         type = type->pa.ptrof;
       assert(type->kind == TY_STRUCT);
-      calc_struct_size(type->struct_.info);
       const Vector *members = type->struct_.info->members;
       const VarInfo *member = members->data[expr->member.index];
 

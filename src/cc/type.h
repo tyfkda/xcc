@@ -85,6 +85,10 @@ extern const Type tyVoidPtr;
 #define tyBool  tyInt
 #define tySize  tyLong
 
+void set_num_size(enum NumKind kind, size_t size, int align);
+size_t type_size(const Type *type);
+int align_size(const Type *type);
+
 bool is_number(enum TypeKind kind);
 bool is_char_type(const Type *type);
 bool is_void_ptr(const Type *type);

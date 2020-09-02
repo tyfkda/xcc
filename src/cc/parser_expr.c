@@ -750,6 +750,8 @@ static StructInfo *parse_struct(bool is_union) {
       if (!parse_var_def(&rawType, &type, &flag, &ident))
         parse_error(NULL, "type expected");
       not_void(type);
+      if (type->kind == TY_STRUCT)
+        ensure_struct((Type*)type, ident);
       var_add(members, ident, type, flag);
 
       if (match(TK_COMMA))

@@ -6,6 +6,7 @@
 
 #include "table.h"
 #include "util.h"
+#include "var.h"  // VarInfo
 
 const Type tyChar =          {.kind=TY_NUM, .num={.kind=NUM_CHAR,  .is_unsigned=false}};
 const Type tyShort =         {.kind=TY_NUM, .num={.kind=NUM_SHORT, .is_unsigned=false}};
@@ -18,6 +19,88 @@ const Type tyUnsignedLong =  {.kind=TY_NUM, .num={.kind=NUM_LONG,  .is_unsigned=
 const Type tyEnum =          {.kind=TY_NUM, .num={.kind=NUM_ENUM}};
 const Type tyVoid =          {.kind=TY_VOID};
 const Type tyVoidPtr =       {.kind=TY_PTR, .pa={.ptrof=&tyVoid}};
+
+size_t num_size_table[]  = {1, 2, 4, 8, 4};
+int    num_align_table[] = {1, 2, 4, 8, 4};
+
+void set_num_size(enum NumKind kind, size_t size, int align) {
+  num_size_table[kind] = size;
+  num_align_table[kind] = align;
+}
+
+static void calc_struct_size(StructInfo *sinfo) {
+  assert(sinfo != NULL);
+  if (sinfo->size >= 0)
+    return;
+
+  size_t size = 0;
+  size_t maxsize = 0;
+  int max_align = 1;
+
+  for (int i = 0, len = sinfo->members->len; i < len; ++i) {
+    VarInfo *member = sinfo->members->data[i];
+    size_t sz = type_size(member->type);
+    int align = align_size(member->type);
+    size = ALIGN(size, align);
+    member->struct_.offset = size;
+    if (!sinfo->is_union) {
+      size += sz;
+    } else {
+      if (maxsize < sz)
+        maxsize = sz;
+    }
+    if (max_align < align)
+      max_align = align;
+  }
+
+  if (sinfo->is_union)
+    size = maxsize;
+  size = ALIGN(size, max_align);
+  sinfo->size = size;
+  sinfo->align = max_align;
+}
+
+size_t type_size(const Type *type) {
+  switch (type->kind) {
+  case TY_VOID:
+    return 1;  // ?
+  case TY_NUM:
+    return num_size_table[type->num.kind];
+  case TY_PTR:
+    return 8;
+  case TY_ARRAY:
+    assert(type->pa.length != (size_t)-1);
+    return type_size(type->pa.ptrof) * type->pa.length;
+  case TY_FUNC:
+    return 1;
+  case TY_STRUCT:
+    calc_struct_size(type->struct_.info);
+    return type->struct_.info->size;
+  default:
+    assert(false);
+    return 1;
+  }
+}
+
+int align_size(const Type *type) {
+  switch (type->kind) {
+  case TY_VOID:
+    return 1;  // ?
+  case TY_NUM:
+    return num_align_table[type->num.kind];
+  case TY_PTR:
+  case TY_FUNC:
+    return 8;
+  case TY_ARRAY:
+    return align_size(type->pa.ptrof);
+  case TY_STRUCT:
+    calc_struct_size(type->struct_.info);
+    return type->struct_.info->align;
+  default:
+    assert(false);
+    return 1;
+  }
+}
 
 bool is_number(enum TypeKind kind) {
   return kind == TY_NUM;
@@ -215,6 +298,7 @@ StructInfo *create_struct(Vector *members, bool is_union) {
   sinfo->is_union = is_union;
   sinfo->size = -1;
   sinfo->align = 0;
+  calc_struct_size(sinfo);
   return sinfo;
 }
 

@@ -214,7 +214,6 @@ static Initializer *flatten_initializer(const Type *type, Initializer *init) {
   switch (type->kind) {
   case TY_STRUCT:
     if (init->kind == IK_MULTI) {
-      ensure_struct((Type*)type, NULL);
       const StructInfo *sinfo = type->struct_.info;
       int n = sinfo->members->len;
       int m = init->multi->len;
