@@ -231,8 +231,7 @@ static int output_obj(const char *ofn, Table *label_table, Vector *unresolved) {
     case UNRES_ABS64:
       {
         LabelInfo *label = table_get(label_table, u->label);
-        assert(label != NULL);
-        if (label->flag & LF_GLOBAL) {
+        if (label == NULL || label->flag & LF_GLOBAL) {
           Elf64_Sym *sym = symtab_add(&symtab, u->label);
           sym->st_info = ELF64_ST_INFO(STB_GLOBAL, STT_NOTYPE);
           size_t index = sym - symtab.buf;
