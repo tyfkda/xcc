@@ -353,35 +353,35 @@ bool resolve_relative_address(Vector **section_irs, Table *label_table, Vector *
         {
           const Expr *expr = ir->expr;
 
-              bool unres = false;
-              if (expr->kind == EX_LABEL && unresolved != NULL) {
-                LabelInfo *label = table_get(label_table, expr->label);
-                if (label == NULL) {
-                  UnresolvedInfo *info = malloc(sizeof(*info));
-                  info->kind = UNRES_ABS64;  // TODO:
-                  info->label = expr->label;
-                  info->src_section = sec;
-                  info->offset = address - start_address;
-                  info->add = 0;
-                  vec_push(unresolved, info);
-                  unres = true;
-                } else if (label->section != sec) {
-                  UnresolvedInfo *info = malloc(sizeof(*info));
-                  info->kind = UNRES_ABS64;  // TODO
-                  info->label = expr->label;
-                  info->src_section = sec;
-                  info->offset = address - start_address;
-                  info->add = 0;
-                  vec_push(unresolved, info);
-                  unres = true;
-                }
-              }
-              if (!unres) {
-                intptr_t value;
-                if (calc_expr(label_table, expr, &value, &unresolved_labels)) {
-                  put_value(ir->code.buf + 3, value, sizeof(int32_t));
-                }
-              }
+          bool unres = false;
+          if (expr->kind == EX_LABEL && unresolved != NULL) {
+            LabelInfo *label = table_get(label_table, expr->label);
+            if (label == NULL) {
+              UnresolvedInfo *info = malloc(sizeof(*info));
+              info->kind = UNRES_ABS64;  // TODO:
+              info->label = expr->label;
+              info->src_section = sec;
+              info->offset = address - start_address;
+              info->add = 0;
+              vec_push(unresolved, info);
+              unres = true;
+            } else if (label->section != sec) {
+              UnresolvedInfo *info = malloc(sizeof(*info));
+              info->kind = UNRES_ABS64;  // TODO
+              info->label = expr->label;
+              info->src_section = sec;
+              info->offset = address - start_address;
+              info->add = 0;
+              vec_push(unresolved, info);
+              unres = true;
+            }
+          }
+          if (!unres) {
+            intptr_t value;
+            if (calc_expr(label_table, expr, &value, &unresolved_labels)) {
+              put_value(ir->code.buf + 3, value, sizeof(int32_t));
+            }
+          }
         }
         break;
       case IR_LABEL:
