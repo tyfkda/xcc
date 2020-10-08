@@ -30,3 +30,5 @@ int vfprintf(FILE *fp, const char *fmt, va_list ap);
 int vsnprintf(char *out, size_t n, const char *fmt_, va_list ap);
 
 void perror(const char *);
+
+int fileno(FILE *fp);

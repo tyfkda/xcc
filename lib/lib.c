@@ -185,6 +185,10 @@ FILE *stdin = &_stdin;
 FILE *stdout = &_stdout;
 FILE *stderr = &_stderr;
 
+int fileno(FILE *fp) {
+  return fp->fd;
+}
+
 size_t fwrite(const void *buffer, size_t size, size_t count, FILE *fp) {
   write(fp->fd, buffer, size * count);
 }
@@ -193,25 +197,25 @@ size_t fread(void *buffer, size_t size, size_t count, FILE *fp) {
   return read(fp->fd, buffer, size * count);
 }
 
-size_t vfprintf(FILE *fp, const char *fmt, va_list ap) {
+int vfprintf(FILE *fp, const char *fmt, va_list ap) {
   // TODO: directly output to fd, not use vsnprintf.
   char buf[1024];
-  size_t len = vsnprintf(buf, sizeof(buf), fmt, ap);
-  return write(fp->fd, buf, len);
+  int len = vsnprintf(buf, sizeof(buf), fmt, ap);
+  return write(fileno(fp), buf, len);
 }
 
-size_t fprintf(FILE *fp, const char *fmt, ...) {
+int fprintf(FILE *fp, const char *fmt, ...) {
   va_list ap;
   va_start(ap, fmt);
-  size_t len = vfprintf(fp, fmt, ap);
+  int len = vfprintf(fp, fmt, ap);
   va_end(ap);
   return len;
 }
 
-size_t printf(const char *fmt, ...) {
+int printf(const char *fmt, ...) {
   va_list ap;
   va_start(ap, fmt);
-  size_t len = vfprintf(stdout, fmt, ap);
+  int len = vfprintf(stdout, fmt, ap);
   va_end(ap);
   return len;
 }
