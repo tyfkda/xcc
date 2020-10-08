@@ -365,7 +365,7 @@ bool resolve_relative_address(Vector **section_irs, Table *label_table, Vector *
               info->add = 0;
               vec_push(unresolved, info);
               unres = true;
-            } else if (label->section != sec) {
+            } else if (sec != SEC_CODE || label->section != sec) {
               UnresolvedInfo *info = malloc(sizeof(*info));
               info->kind = UNRES_ABS64;  // TODO
               info->label = expr->label;
