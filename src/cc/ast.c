@@ -127,6 +127,7 @@ Function *new_func(const Type *type, const Name *name) {
   func->ra = NULL;
   func->bbcon = NULL;
   func->ret_bb = NULL;
+  func->retval = NULL;
   return func;
 }
 

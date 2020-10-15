@@ -269,6 +269,20 @@ static void put_args_to_stack(Defun *defun) {
   static const char *kReg64s[] = {RDI, RSI, RDX, RCX, R8, R9};
   static const char **kRegTable[] = {NULL, kReg8s, kReg16s, NULL, kReg32s, NULL, NULL, NULL, kReg64s};
 
+  int arg_index = 0;
+  if (is_stack_param(defun->func->type->func.ret)) {
+    Scope *top_scope = defun->func->scopes->data[0];
+    assert(top_scope->vars->len > 0);
+    VarInfo *varinfo = top_scope->vars->data[top_scope->vars->len - 1];
+    const Type *type = varinfo->type;
+    int size = type_size(type);
+    int offset = varinfo->reg->offset;
+    assert(size < (int)(sizeof(kRegTable) / sizeof(*kRegTable)) &&
+           kRegTable[size] != NULL);
+    MOV(kRegTable[size][0], OFFSET_INDIRECT(offset, RBP, NULL, 1));
+    ++arg_index;
+  }
+
   // Store arguments into local frame.
   Vector *params = defun->func->type->func.params;
   if (params == NULL)
@@ -278,7 +292,6 @@ static void put_args_to_stack(Defun *defun) {
   int n = len;
   if (defun->func->type->func.vaargs && n < MAX_REG_ARGS)
     n = MAX_REG_ARGS;
-  int arg_index = 0;
   for (int i = 0; i < n; ++i) {
     const Type *type;
     int offset;

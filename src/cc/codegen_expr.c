@@ -350,9 +350,21 @@ static VReg *gen_funcall(Expr *expr) {
   Vector *args = expr->funcall.args;
   int arg_count = args != NULL ? args->len : 0;
 
+  int offset = 0;
+
+  ArgInfo ret_info;
+  ret_info.reg_index = -1;
+  ret_info.offset = -1;
+  ret_info.size = type_size(expr->type);
+  ret_info.stack_arg = is_stack_param(expr->type);
+  if (ret_info.stack_arg) {
+    ret_info.reg_index = 0;
+    ret_info.offset = 0;
+    offset += ret_info.size;
+  }
+
   ArgInfo *arg_infos = NULL;
   int stack_arg_count = 0;
-  int offset = 0;
   if (args != NULL) {
     bool vaargs = false;
     if (func->kind == EX_VARIABLE && func->variable.scope == NULL) {
@@ -361,9 +373,12 @@ static VReg *gen_funcall(Expr *expr) {
       // TODO:
     }
 
+    int reg_index = 0;
+    if (ret_info.stack_arg)
+      ++reg_index;
+
     // Check stack arguments.
     arg_infos = malloc(sizeof(*arg_infos) * arg_count);
-    int reg_index = 0;
     for (int i = 0; i < arg_count; ++i) {
       ArgInfo *p = &arg_infos[i];
       p->reg_index = -1;
@@ -386,17 +401,15 @@ static VReg *gen_funcall(Expr *expr) {
         p->reg_index = reg_index++;
       }
     }
-    offset = ALIGN(offset, 8);
   }
+  offset = ALIGN(offset, 8);
 
   IR *precall = new_ir_precall(arg_count - stack_arg_count, offset);
 
   int reg_arg_count = 0;
+  if (offset > 0)
+    new_ir_addsp(-offset);
   if (args != NULL) {
-    if (offset > 0) {
-      new_ir_addsp(-ALIGN(offset, 8));
-    }
-
     // Register arguments.
     for (int i = arg_count; --i >= 0; ) {
       Expr *arg = args->data[i];
@@ -423,6 +436,13 @@ static VReg *gen_funcall(Expr *expr) {
       }
     }
   }
+  if (ret_info.stack_arg) {
+    VRegType offset_type = {.size = 4, .align = 4, .flag = 0};  // TODO:
+    VReg *dst = new_ir_sofs(new_const_vreg(ret_info.offset + reg_arg_count * WORD_SIZE,
+                                            &offset_type));
+    new_ir_pusharg(dst, to_vtype(ptrof(expr->type)));
+    ++reg_arg_count;
+  }
 
   bool label_call = false;
   bool global = false;
@@ -440,12 +460,18 @@ static VReg *gen_funcall(Expr *expr) {
   }
 
   VReg *result_reg = NULL;
-  if (label_call) {
-    result_reg = new_ir_call(func->variable.name, global, NULL, reg_arg_count, to_vtype(expr->type),
-                             precall);
-  } else {
-    VReg *freg = gen_expr(func);
-    result_reg = new_ir_call(NULL, false, freg, reg_arg_count, to_vtype(expr->type), precall);
+  {
+    const Type *type = expr->type;
+    if (ret_info.stack_arg)
+      type = ptrof(type);
+    VRegType *ret_vtype = to_vtype(type);
+    if (label_call) {
+      result_reg = new_ir_call(func->variable.name, global, NULL, reg_arg_count, ret_vtype,
+                               precall);
+    } else {
+      VReg *freg = gen_expr(func);
+      result_reg = new_ir_call(NULL, false, freg, reg_arg_count, ret_vtype, precall);
+    }
   }
 
   free(arg_infos);

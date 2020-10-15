@@ -14,6 +14,7 @@ typedef struct Scope Scope;
 typedef struct Table Table;
 typedef struct Token Token;
 typedef struct Type Type;
+typedef struct VReg VReg;
 typedef struct Vector Vector;
 
 // Num
@@ -151,6 +152,7 @@ typedef struct Function {
   RegAlloc *ra;
   BBContainer *bbcon;
   BB *ret_bb;
+  VReg *retval;
 } Function;
 
 Function *new_func(const Type *type, const Name *name);

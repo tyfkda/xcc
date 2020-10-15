@@ -165,6 +165,7 @@ try_direct 'inc compound literal' 56 'int main(){ int i = ++(int){55}; return i;
 try_direct '&()' 86 'void sub(int *p) {*p *= 2;} int main() {int x = 43; sub(&(x)); return x;}'
 try 'pre-inc ()' 34 'int x = 33; return ++(x);'
 try 'post-dec ()' 44 'int x = 44; return (x)--;'
+try_direct 'return struct' 46 'typedef struct { int x; int y; } S; S func(void) { S s = {.x = 12, .y = 34}; return s; } int main(){ S s = func(); return s.x + s.y; }'
 
 # error cases
 echo ''

@@ -57,9 +57,24 @@ static BB *push_break_bb(BB *parent_bb, BB **save) {
   return bb;
 }
 
+static const char RET_VAR_NAME[] = ".ret";
+
 static void alloc_variable_registers(Function *func) {
+  assert(func->type->kind == TY_FUNC);
+  const Type *rettype = func->type->func.ret;
+  const Name *retval_name = NULL;
+  int param_index_offset = 0;
+  if (is_stack_param(rettype)) {
+    // Insert vreg for return value pointer into top of the function scope.
+    retval_name = alloc_name(RET_VAR_NAME, NULL, false);
+    const Type *retptrtype = ptrof(rettype);
+    Scope *top_scope = func->scopes->data[0];
+    var_add(top_scope->vars, retval_name, retptrtype, 0, NULL);
+    ++param_index_offset;
+  }
+
   for (int i = 0; i < func->scopes->len; ++i) {
-    Scope *scope = (Scope*)func->scopes->data[i];
+    Scope *scope = func->scopes->data[i];
     if (scope->vars == NULL)
       continue;
 
@@ -69,11 +84,17 @@ static void alloc_variable_registers(Function *func) {
         continue;  // Static variable is not allocated on stack.
 
       VReg *vreg = add_new_reg(varinfo->type, VRF_LOCAL);
-      if (i == 0 && func->type->func.params != NULL) {
-        int param_index = var_find(func->type->func.params, varinfo->name);
-        if (param_index >= 0) {
+      if (i == 0) {
+        if (param_index_offset > 0 && equal_name(varinfo->name, retval_name)) {
           vreg->flag |= VRF_PARAM;
-          vreg->param_index = param_index;
+          vreg->param_index = 0;
+          func->retval = vreg;
+        } else if (func->type->func.params != NULL) {
+          int param_index = var_find(func->type->func.params, varinfo->name);
+          if (param_index >= 0) {
+            vreg->flag |= VRF_PARAM;
+            vreg->param_index = param_index + param_index_offset;
+          }
         }
       }
       varinfo->reg = vreg;
@@ -108,12 +129,18 @@ static void gen_block(Stmt *stmt) {
 }
 
 static void gen_return(Stmt *stmt) {
+  assert(curdefun != NULL);
   BB *bb = bb_split(curbb);
   if (stmt->return_.val != NULL) {
     VReg *reg = gen_expr(stmt->return_.val);
-    new_ir_result(reg);
+    VReg *retval = curdefun->func->retval;
+    if (retval == NULL) {
+      new_ir_result(reg);
+    } else {
+      new_ir_memcpy(retval, reg, type_size(stmt->return_.val->type));
+      new_ir_result(retval);
+    }
   }
-  assert(curdefun != NULL);
   new_ir_jmp(COND_ANY, curdefun->func->ret_bb);
   set_curbb(bb);
 }
