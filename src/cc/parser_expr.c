@@ -364,16 +364,18 @@ static Expr *parse_funcall(Expr *func) {
   if (args != NULL && param_types != NULL) {
     int paramc = param_types->len;
     for (int i = 0, len = args->len; i < len; ++i) {
+      Expr *arg = args->data[i];
       if (i < param_types->len) {
-        Expr *arg = args->data[i];
         const Type *type = param_types->data[i];
-        args->data[i] = make_cast(type, arg->token, arg, false);
+        arg  = make_cast(type, arg->token, arg, false);
       } else if (vaargs && i >= paramc) {
-        Expr *arg = args->data[i];
         const Type *type = arg->type;
         if (type->kind == TY_NUM && type->num.kind < NUM_INT)  // Promote variadic argument.
-          args->data[i] = make_cast(&tyInt, arg->token, arg, false);
+          arg = make_cast(&tyInt, arg->token, arg, false);
       }
+      if (arg->type->kind == TY_ARRAY)
+        arg = make_cast(array_to_ptr(arg->type), arg->token, arg, false);
+      args->data[i] = arg;
     }
   }
 
