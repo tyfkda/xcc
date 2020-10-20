@@ -27,7 +27,8 @@ void not_void(const Type *type) {
 VarInfo *add_cur_scope(const Token *ident, const Type *type, int flag) {
   if (curscope->vars == NULL)
     curscope->vars = new_vector();
-  return var_add(curscope->vars, ident, type, flag);
+  assert(ident != NULL);
+  return var_add(curscope->vars, ident->ident, type, flag, ident);
 }
 
 // Returns created global variable info.
@@ -727,7 +728,7 @@ Vector *parse_funparams(bool *pvaargs) {
       // If the type is array, handle it as a pointer.
       type = array_to_ptr(type);
 
-      var_add(params, ident, type, flag);
+      var_add(params, ident != NULL ? ident->ident : NULL, type, flag, ident);
       if (match(TK_RPAR))
         break;
       consume(TK_COMMA, "Comma or `)' expected");
@@ -754,7 +755,7 @@ static StructInfo *parse_struct(bool is_union) {
       not_void(type);
       if (type->kind == TY_STRUCT)
         ensure_struct((Type*)type, ident);
-      var_add(members, ident, type, flag);
+      var_add(members, ident != NULL ? ident->ident : NULL, type, flag, ident);
 
       if (match(TK_COMMA))
         continue;

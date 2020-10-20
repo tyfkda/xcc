@@ -16,12 +16,10 @@ int var_find(const Vector *vars, const Name *name) {
   return -1;
 }
 
-VarInfo *var_add(Vector *vars, const Token *ident, const Type *type, int flag) {
-  const Name *name = NULL;
+VarInfo *var_add(Vector *vars, const Name *name, const Type *type, int flag, const Token *ident) {
   const Name *label = NULL;
   VarInfo *ginfo = NULL;
-  if (ident != NULL) {
-    name = ident->ident;
+  if (name != NULL) {
     int idx = var_find(vars, name);
     if (idx >= 0)
       parse_error(ident, "`%.*s' already defined", name->bytes, name->chars);
