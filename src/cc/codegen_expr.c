@@ -268,8 +268,18 @@ static VReg *gen_lval(Expr *expr) {
       return result;
     }
   case EX_COMPLIT:
-    gen_stmts(expr->complit.inits);
-    return gen_lval(expr->complit.var);
+    {
+      Expr *var = expr->complit.var;
+      Scope *scope = var->variable.scope;
+      assert(scope != NULL);
+      const VarInfo *varinfo = scope_find(&scope, var->variable.name);
+      assert(varinfo != NULL);
+      assert(varinfo->reg != NULL);
+      varinfo->reg->flag |= VRF_REF;
+
+      gen_stmts(expr->complit.inits);
+      return gen_lval(expr->complit.var);
+    }
   default:
     assert(false);
     break;

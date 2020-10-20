@@ -786,7 +786,7 @@ static Expr *parse_compound_literal(const Type *type) {
 
     name = alloc_label();
     const Token *ident = alloc_ident(name, NULL, NULL);
-    add_cur_scope(ident, type, VF_STATIC);
+    add_cur_scope(ident, type, 0);
 
     var = new_expr_variable(name, type, token, curscope);
     inits = assign_initial_value(var, init, NULL);
