@@ -231,7 +231,6 @@ typedef struct Stmt {
   const Token *token;
   union {
     Expr *expr;
-    Defun *defun;
     struct {
       Scope *scope;
       Vector *stmts;
