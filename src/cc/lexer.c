@@ -51,7 +51,7 @@ static const struct {
 } kMultiOperators[] = {
   {"<<=", TK_LSHIFT_ASSIGN},
   {">>=", TK_RSHIFT_ASSIGN},
-  {"...", TK_DOTDOTDOT},
+  {"...", TK_ELLIPSIS},
   {"==", TK_EQ},
   {"!=", TK_NE},
   {"<=", TK_LE},

@@ -70,8 +70,8 @@ enum TokenKind {
   TK_HAT_ASSIGN,     // ^=
   TK_LSHIFT_ASSIGN,  // <<=
   TK_RSHIFT_ASSIGN,  // >>=
-  TK_INC,
-  TK_DEC,
+  TK_INC,            // ++
+  TK_DEC,            // --
   TK_IF,
   TK_ELSE,
   TK_SWITCH,
@@ -98,7 +98,7 @@ enum TokenKind {
   TK_ENUM,
   TK_SIZEOF,
   TK_TYPEDEF,
-  TK_DOTDOTDOT,
+  TK_ELLIPSIS,       // ...
   TK_ASM,
 };
 

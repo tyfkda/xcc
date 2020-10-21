@@ -704,7 +704,7 @@ Vector *parse_funparams(bool *pvaargs) {
   } else {
     params = new_vector();
     for (;;) {
-      if (match(TK_DOTDOTDOT)) {
+      if (match(TK_ELLIPSIS)) {
         vaargs = true;
         consume(TK_RPAR, "`)' expected");
         break;

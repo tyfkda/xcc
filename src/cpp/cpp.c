@@ -205,7 +205,7 @@ void handle_define(const char *p, Stream *stream) {
     if (!match(TK_RPAR)) {
       for (;;) {
         Token *tok;
-        if ((tok = match(TK_DOTDOTDOT)) != NULL) {
+        if ((tok = match(TK_ELLIPSIS)) != NULL) {
           va_args = true;
           consume(TK_RPAR, "`)' expected");
           break;
