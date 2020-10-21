@@ -387,7 +387,7 @@ void process_line(const char *line, Stream *stream) {
 
       StringBuffer sb;
       sb_init(&sb);
-      expand(macro, args, ident->ident, &sb);
+      expand(macro, ident, args, ident->ident, &sb);
 
       const char *left = get_lex_p();
       if (left != NULL)
@@ -422,12 +422,12 @@ intptr_t reduce(PpExpr *expr) {
     {
       Macro *macro = table_get(&macro_table, expr->variable.name);
       if (macro == NULL) {
-        parse_error(NULL, "`%.s' not defined", expr->variable.name->bytes, expr->variable.name->chars);
+        parse_error(expr->token, "`%.s' not defined", expr->variable.name->bytes, expr->variable.name->chars);
       }
 
       StringBuffer sb;
       sb_init(&sb);
-      expand(macro, NULL, expr->variable.name, &sb);
+      expand(macro, expr->token, NULL, expr->variable.name, &sb);
       char *expanded = sb_to_string(&sb);
 
       int flag = 1;

@@ -4,6 +4,7 @@
 
 typedef struct Name Name;
 typedef struct StringBuffer StringBuffer;
+typedef struct Token Token;
 typedef struct Vector Vector;
 
 enum SegmentKind {
@@ -28,4 +29,4 @@ typedef struct {
 Macro *new_macro(Vector *params, bool va_args, Vector *segments);
 Macro *new_macro_single(const char *text);
 
-void expand(Macro *macro, Vector *args, const Name *name, StringBuffer *sb);
+void expand(Macro *macro, const Token *token, Vector *args, const Name *name, StringBuffer *sb);
