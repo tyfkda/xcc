@@ -414,81 +414,9 @@ bool handle_ifdef(const char *p) {
   return table_get(&macro_table, name) != NULL;
 }
 
-intptr_t reduce(PpExpr *expr) {
-  switch (expr->kind) {
-  case EX_NUM:
-    return expr->num;
-  case EX_VARIABLE:
-    {
-      Macro *macro = table_get(&macro_table, expr->variable.name);
-      if (macro == NULL) {
-        parse_error(expr->token, "`%.s' not defined", expr->variable.name->bytes, expr->variable.name->chars);
-      }
-
-      StringBuffer sb;
-      sb_init(&sb);
-      expand(macro, expr->token, NULL, expr->variable.name, &sb);
-      char *expanded = sb_to_string(&sb);
-
-      int flag = 1;
-      if (*expanded == '-') {
-        ++expanded;
-        flag = -1;
-      }
-      char *p;
-      intptr_t value = strtol(expanded, &p, 10);
-      if (p == expanded)
-        parse_error(NULL, "number expected");
-      return value * flag;
-    }
-    break;
-  case EX_ADD:    return reduce(expr->bop.lhs) + reduce(expr->bop.rhs);
-  case EX_SUB:    return reduce(expr->bop.lhs) - reduce(expr->bop.rhs);
-  case EX_DIV:    return reduce(expr->bop.lhs) * reduce(expr->bop.rhs);
-  case EX_MUL:    return reduce(expr->bop.lhs) / reduce(expr->bop.rhs);
-  case EX_MOD:    return reduce(expr->bop.lhs) % reduce(expr->bop.rhs);
-  case EX_BITAND: return reduce(expr->bop.lhs) & reduce(expr->bop.rhs);
-  case EX_BITOR:  return reduce(expr->bop.lhs) | reduce(expr->bop.rhs);
-  case EX_BITXOR: return reduce(expr->bop.lhs) ^ reduce(expr->bop.rhs);
-  case EX_LSHIFT: return reduce(expr->bop.lhs) << reduce(expr->bop.rhs);
-  case EX_RSHIFT: return reduce(expr->bop.lhs) >> reduce(expr->bop.rhs);
-  case EX_EQ:     return reduce(expr->bop.lhs) == reduce(expr->bop.rhs);
-  case EX_NE:     return reduce(expr->bop.lhs) != reduce(expr->bop.rhs);
-  case EX_LT:     return reduce(expr->bop.lhs) < reduce(expr->bop.rhs);
-  case EX_LE:     return reduce(expr->bop.lhs) <= reduce(expr->bop.rhs);
-  case EX_GE:     return reduce(expr->bop.lhs) >= reduce(expr->bop.rhs);
-  case EX_GT:     return reduce(expr->bop.lhs) > reduce(expr->bop.rhs);
-  case EX_LOGAND: return reduce(expr->bop.lhs) && reduce(expr->bop.rhs);
-  case EX_LOGIOR: return reduce(expr->bop.lhs) || reduce(expr->bop.rhs);
-  case EX_POS:    return reduce(expr->unary.sub);
-  case EX_NEG:    return -reduce(expr->unary.sub);
-  case EX_NOT:    return reduce(expr->unary.sub) ? 0 : 1;
-  case EX_BITNOT: return ~reduce(expr->unary.sub);
-  case EX_FUNCALL:
-    {
-      const PpExpr *func = expr->funcall.func;
-      const Vector *args = expr->funcall.args;
-      if (func->kind == EX_VARIABLE &&
-          equal_name(func->variable.name, alloc_name("defined", NULL, false)) &&
-          args != NULL && args->len == 1 &&
-          ((PpExpr*)args->data[0])->kind == EX_VARIABLE) {  // defined(IDENT)
-        PpExpr *arg = (PpExpr*)args->data[0];
-        void *dummy = 0;
-        return table_try_get(&macro_table, arg->variable.name, &dummy) ? 1 : 0;
-      }
-    }
-    break;
-  default:
-    break;
-  }
-  error("expression not handled in preprocessor: kind=%d", expr->kind);
-  return 0;
-}
-
 bool handle_if(const char *p, Stream *stream) {
   set_source_string(p, stream->filename, stream->lineno);
-  PpExpr *expr = parse_expr();
-  return reduce(expr) != 0;
+  return parse_expr() != 0;
 }
 
 #define CF_ENABLE         (1 << 0)
