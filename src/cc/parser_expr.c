@@ -24,6 +24,12 @@ void not_void(const Type *type) {
     parse_error(NULL, "`void' not allowed");
 }
 
+Expr *unwrap_group(Expr *expr) {
+  while (expr->kind == EX_GROUP)
+    expr = expr->unary.sub;
+  return expr;
+}
+
 VarInfo *add_cur_scope(const Token *ident, const Type *type, int flag) {
   if (curscope->vars == NULL)
     curscope->vars = new_vector();
@@ -171,8 +177,7 @@ static void check_lval(const Token *tok, Expr *expr, const char *error) {
 }
 
 static void check_referable(const Token *tok, Expr *expr, const char *error) {
-  while (expr->kind == EX_GROUP)
-    expr = expr->unary.sub;
+  expr = unwrap_group(expr);
   if (expr->kind == EX_COMPLIT)
     return;
   check_lval(tok, expr, error);

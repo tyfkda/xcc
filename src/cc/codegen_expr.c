@@ -225,8 +225,7 @@ static VReg *gen_cast(VReg *reg, const Type *dst_type) {
 }
 
 static VReg *gen_lval(Expr *expr) {
-  while (expr->kind == EX_GROUP)
-    expr = expr->unary.sub;
+  expr = unwrap_group(expr);
 
   switch (expr->kind) {
   case EX_VARIABLE:
@@ -523,7 +522,7 @@ VReg *gen_expr(Expr *expr) {
 
   case EX_REF:
     {
-      Expr *sub = expr->unary.sub;
+      Expr *sub = unwrap_group(expr->unary.sub);
       if (sub->kind == EX_VARIABLE && sub->variable.scope != NULL) {
         Scope *scope = sub->variable.scope;
         const VarInfo *varinfo = scope_find(&scope, sub->variable.name);
@@ -684,7 +683,7 @@ VReg *gen_expr(Expr *expr) {
       int size = type_size(expr->type);
 
       VRegType *vtype = to_vtype(expr->type);
-      Expr *sub = expr->unary.sub;
+      Expr *sub = unwrap_group(expr->unary.sub);
       if (sub->kind == EX_VARIABLE) {
         Scope *scope = sub->variable.scope;
         const VarInfo *varinfo = scope_find(&scope, sub->variable.name);
@@ -713,7 +712,7 @@ VReg *gen_expr(Expr *expr) {
       int size = type_size(expr->type);
 
       VRegType *vtype = to_vtype(expr->type);
-      Expr *sub = expr->unary.sub;
+      Expr *sub = unwrap_group(expr->unary.sub);
       if (sub->kind == EX_VARIABLE) {
         Scope *scope = sub->variable.scope;
         const VarInfo *varinfo = scope_find(&scope, sub->variable.name);

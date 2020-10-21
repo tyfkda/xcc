@@ -36,6 +36,7 @@ Expr *parse_assign(void);
 Expr *parse_expr(void);
 
 void not_void(const Type *type);
+Expr *unwrap_group(Expr *expr);
 VarInfo *add_cur_scope(const Token *ident, const Type *type, int flag);
 void ensure_struct(Type *type, const Token *token);
 bool check_cast(const Type *dst, const Type *src, bool zero, bool is_explicit, const Token *token);

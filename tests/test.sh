@@ -162,6 +162,9 @@ try 'ternary string' 114 'int x = 1; const char *p = x ? "true" : "false"; retur
 try_direct 'compound literal:array' 2 'int main(){ int *foo = (int[]){1, 2, 3}; return foo[1]; }'
 try_direct 'compound literal:struct' 66 'struct Foo {int x;}; int main(){ struct Foo *foo = &(struct Foo){66}; return foo->x; }'
 try_direct 'inc compound literal' 56 'int main(){ int i = ++(int){55}; return i; }'
+try_direct '&()' 86 'void sub(int *p) {*p *= 2;} int main() {int x = 43; sub(&(x)); return x;}'
+try 'pre-inc ()' 34 'int x = 33; return ++(x);'
+try 'post-dec ()' 44 'int x = 44; return (x)--;'
 
 # error cases
 echo ''
