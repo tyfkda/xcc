@@ -134,6 +134,15 @@ void handle_pragma(const char *p, const char *filename) {
   }
 }
 
+static void push_text_segment(Vector *segments, const char *start, const char *token_begin) {
+  if (token_begin > start) {
+    Segment *seg = malloc(sizeof(*seg));
+    seg->kind = SK_TEXT;
+    seg->text = strndup_(start, token_begin - start);
+    vec_push(segments, seg);
+  }
+}
+
 Vector *parse_macro_body(const char *p, const Vector *params, bool va_args, Stream *stream) {
   Vector *segments = new_vector();
   set_source_string(p, stream->filename, stream->lineno);
@@ -144,29 +153,24 @@ Vector *parse_macro_body(const char *p, const Vector *params, bool va_args, Stre
   for (;;) {
     Token *tok;
     if ((tok = match(TK_IDENT)) != NULL) {
-      int index = -1;
+      int param_index = -1;
       if (va_args && equal_name(tok->ident, key_va_args)) {
-        index = param_len;
+        param_index = param_len;
       } else {
         for (int i = 0; i < param_len; ++i) {
           if (equal_name(tok->ident, params->data[i])) {
-            index = i;
+            param_index = i;
             break;
           }
         }
       }
-      if (index >= 0) {
-        if (tok->begin > start) {
-          Segment *seg = malloc(sizeof(*seg));
-          seg->kind = SK_TEXT;
-          seg->text = strndup_(start, tok->begin - start);
-          vec_push(segments, seg);
-        }
+      if (param_index >= 0) {
+        push_text_segment(segments, start, tok->begin);
 
-        Segment *seg2 = malloc(sizeof(*seg2));
-        seg2->kind = SK_PARAM;
-        seg2->param = index;
-        vec_push(segments, seg2);
+        Segment *seg = malloc(sizeof(*seg));
+        seg->kind = SK_PARAM;
+        seg->param = param_index;
+        vec_push(segments, seg);
 
         start = end = tok->end;
         continue;
@@ -175,6 +179,12 @@ Vector *parse_macro_body(const char *p, const Vector *params, bool va_args, Stre
       tok = match(-1);
       if (tok->kind == TK_EOF)
         break;
+      if (tok->kind == PPTK_CONCAT) {
+        push_text_segment(segments, start, end);
+
+        start = end = skip_whitespaces(tok->end);
+        continue;
+      }
     }
     end = tok->end;
   }

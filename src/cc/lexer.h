@@ -100,6 +100,10 @@ enum TokenKind {
   TK_TYPEDEF,
   TK_ELLIPSIS,       // ...
   TK_ASM,
+
+  // For preprocessor.
+  PPTK_CONCAT,       // ##
+  PPTK_STRINGIFY,    // #
 };
 
 // Token

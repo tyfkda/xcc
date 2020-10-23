@@ -69,7 +69,6 @@ C compiler:
 Preprocessor:
 
   * Self recursive macro expansion
-  * String concatenation
 
 
 ### Reference

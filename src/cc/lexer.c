@@ -71,6 +71,8 @@ static const struct {
   {"||", TK_LOGIOR},
   {"<<", TK_LSHIFT},
   {">>", TK_RSHIFT},
+
+  {"##", PPTK_CONCAT},
 };
 
 static const char kSingleOperatorTypeMap[128] = {  // enum TokenKind
@@ -98,6 +100,8 @@ static const char kSingleOperatorTypeMap[128] = {  // enum TokenKind
   ['.'] = TK_DOT,
   ['?'] = TK_QUESTION,
   ['~'] = TK_TILDA,
+
+  ['#'] = PPTK_STRINGIFY,
 };
 
 typedef struct {
