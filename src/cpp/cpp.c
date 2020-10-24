@@ -357,8 +357,7 @@ int pp(FILE *fp, const char *filename) {
   Vector *condstack = new_vector();
   bool enable = true;
   int satisfy = 0;  // #if condition: 0=not satisfied, 1=satisfied, 2=else
-  //char linenobuf[sizeof(int) * 3 + 1];  // Buffer for __LINE__
-  char linenobuf[32];  // Buffer for __LINE__
+  char linenobuf[sizeof(int) * 3 + 1];  // Buffer for __LINE__
 
   const Name *key_file = alloc_name("__FILE__", NULL, false);
   const Name *key_line = alloc_name("__LINE__", NULL, false);
