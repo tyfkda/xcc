@@ -46,6 +46,11 @@ static int wait_process(pid_t pid) {
   return ec;
 }
 
+static pid_t wait_child(int *result) {
+  *result = -1;
+  return waitpid(0, result, 0);
+}
+
 // command > ofd
 static pid_t exec_with_ofd(char **command, int ofd) {
   pid_t pid = fork1();
@@ -141,22 +146,42 @@ static int compile(const char *src, Vector *cpp_cmd, Vector *cc1_cmd, int ofd) {
   int ofd2 = ofd;
   int cc_fd[2];
   pid_t cc_pid = -1;
+  int running = 0;
   if (cc1_cmd != NULL) {
     cc_pid = pipe_exec((char**)cc1_cmd->data, ofd, cc_fd);
     ofd2 = cc_fd[1];
+    ++running;
   }
 
   cpp_cmd->data[cpp_cmd->len - 2] = (void*)src;
   pid_t cpp_pid = exec_with_ofd((char**)cpp_cmd->data, ofd2);
-  int r = wait_process(cpp_pid);
-  if (r == 0) {
-    if (cc_pid != -1) {
-      close(cc_fd[0]);
-      close(cc_fd[1]);
-      r = wait_process(cc_pid);
+  ++running;
+
+  int res = 0;
+  for (; running > 0; --running) {
+    int r = 0;
+    pid_t done = wait_child(&r);  // cpp or cc1
+    if (done > 0) {
+      res |= r;
+      if (done == cpp_pid) {
+        cpp_pid = -1;
+        if (cc_pid != -1) {
+          close(cc_fd[0]);
+          close(cc_fd[1]);
+        }
+      } else if (done == cc_pid) {
+        cc_pid = -1;
+        if (cpp_pid != -1) {
+          // Illegal: cc dies earlier than cpp.
+          kill(cpp_pid, SIGKILL);
+          break;
+        }
+      }
+    } else {
+      res |= 1;
     }
   }
-  return r;
+  return res;
 }
 
 void usage(FILE *fp) {
