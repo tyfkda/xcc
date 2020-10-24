@@ -105,7 +105,8 @@ Expr *make_cast(const Type *type, const Token *token, Expr *sub, bool is_explici
   return new_expr_cast(type, token, sub);
 }
 
-const VarInfo *search_from_anonymous(const Type *type, const Name *name, const Token *ident, Vector *stack) {
+const VarInfo *search_from_anonymous(const Type *type, const Name *name, const Token *ident,
+                                     Vector *stack) {
   assert(type->kind == TY_STRUCT);
   ensure_struct((Type*)type, ident);
 
@@ -373,7 +374,7 @@ static Expr *parse_funcall(Expr *func) {
       Expr *arg = args->data[i];
       if (i < param_types->len) {
         const Type *type = param_types->data[i];
-        arg  = make_cast(type, arg->token, arg, false);
+        arg = make_cast(type, arg->token, arg, false);
       } else if (vaargs && i >= paramc) {
         const Type *type = arg->type;
         if (type->kind == TY_NUM && type->num.kind < NUM_INT)  // Promote variadic argument.
@@ -954,7 +955,7 @@ static Expr *parse_unary(void) {
 
   if ((tok = match(TK_MUL)) != NULL) {
     Expr *expr = parse_cast_expr();
-    const Type *type = expr->type;;
+    const Type *type = expr->type;
     assert(type != NULL);
     switch (type->kind) {
     case TY_PTR: case TY_ARRAY:
@@ -1136,7 +1137,7 @@ static Expr *parse_xor(void) {
     if ((tok = match(TK_HAT)) == NULL)
       return expr;
 
-    Expr *lhs = expr, *rhs= parse_and();
+    Expr *lhs = expr, *rhs = parse_and();
     expr = new_expr_int_bop(EX_BITXOR, tok, lhs, rhs, false);
   }
 }

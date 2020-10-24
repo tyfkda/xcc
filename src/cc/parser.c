@@ -803,7 +803,7 @@ static Stmt *parse_case(const Token *tok) {
   Vector *values = curswitch->switch_.case_values;
   for (int i = 0, len = values->len; i < len; ++i) {
     if ((intptr_t)values->data[i] == v)
-      parse_error(tok, "Case value `%"PRIdPTR"' already defined", v);
+      parse_error(tok, "Case value `%" PRIdPTR "' already defined", v);
   }
   vec_push(values, (void*)v);
 

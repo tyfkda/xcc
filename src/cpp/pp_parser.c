@@ -6,11 +6,10 @@
 #include <string.h>
 
 #include "lexer.h"
+#include "macro.h"
 #include "table.h"
 #include "type.h"
 #include "util.h"
-
-#include "macro.h"
 
 extern Table macro_table;
 
@@ -251,7 +250,7 @@ static PpResult parse_xor(void) {
   for (;;) {
     Token *tok;
     if ((tok = match(TK_HAT)) != NULL) {
-      PpResult lhs = result, rhs= parse_and();
+      PpResult lhs = result, rhs = parse_and();
       result = lhs ^ rhs;
     } else
       return result;
