@@ -41,9 +41,10 @@ static PpResult expand_ident(const Token *ident) {
 }
 
 static PpResult parse_defined(void) {
-  consume(TK_LPAR, "`(' expected");
+  bool lpar = match(TK_LPAR) != NULL;
   Token *ident = consume(TK_IDENT, "Ident expected");
-  consume(TK_RPAR, "No close paren");
+  if (lpar)
+    consume(TK_RPAR, "No close paren");
 
   void *dummy = 0;
   return table_try_get(&macro_table, ident->ident, &dummy) ? 1 : 0;
