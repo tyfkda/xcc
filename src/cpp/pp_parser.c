@@ -26,9 +26,13 @@ static PpResult expand_ident(const Token *ident) {
     return 0;
   }
 
+  Vector *args = NULL;
+  if (macro->params != NULL)
+    args = parse_funargs(NULL);
+
   StringBuffer sb;
   sb_init(&sb);
-  expand(macro, ident, NULL, ident->ident, &sb);
+  expand(macro, ident, args, ident->ident, &sb);
 
   const char *left = get_lex_p();
   if (left != NULL)
@@ -306,4 +310,92 @@ PpResult parse_expr(void) {
     result = next_result;
   }
   return result;
+}
+
+static Token *match2(enum TokenKind kind, Stream *stream) {
+  Token *tok;
+  for (;;) {
+    tok = match(kind);
+    if (tok == NULL || tok->kind != TK_EOF || stream == NULL)
+      return tok;
+
+    char *line = NULL;
+    size_t capa = 0;
+    ssize_t len = getline_(&line, &capa, stream->fp, 0);
+    if (len == EOF)
+      return tok;  // EOF
+    ++stream->lineno;
+    set_source_string(line, stream->filename, stream->lineno);
+  }
+}
+
+Vector *parse_funargs(Stream *stream) {
+  Vector *args = NULL;
+  if (match2(TK_LPAR, stream)) {
+    args = new_vector();
+    if (!match2(TK_RPAR, stream)) {
+      StringBuffer sb;
+      sb_init(&sb);
+      const char *start = NULL;
+      const char *end = NULL;
+      int paren = 0;
+      for (;;) {
+        Token *tok;
+        for (;;) {
+          tok = match(-1);
+          if (tok->kind != TK_EOF)
+            break;
+
+          if (start != end)
+            sb_append(&sb, start, end);
+          if (!sb_empty(&sb))
+            sb_append(&sb, "\n", NULL);
+          start = end = NULL;
+
+          ssize_t len = EOF;
+          char *line = NULL;
+          if (stream != NULL) {
+            size_t capa = 0;
+            len = getline_(&line, &capa, stream->fp, 0);
+          }
+          if (len == EOF) {
+            parse_error(NULL, "`)' expected");
+            return NULL;
+          }
+          ++stream->lineno;
+          set_source_string(line, stream->filename, stream->lineno);
+        }
+
+        if (tok->kind == TK_COMMA || tok->kind == TK_RPAR) {
+          if (paren <= 0) {
+            if (sb_empty(&sb)) {
+              if (start == end)
+                parse_error(tok, "expression expected");
+              vec_push(args, strndup_(start, end - start));
+            } else {
+              if (start != end)
+                sb_append(&sb, start, end);
+              vec_push(args, sb_to_string(&sb));
+              sb_clear(&sb);
+            }
+            start = end = NULL;
+
+            if (tok->kind == TK_RPAR)
+              break;
+            else
+              continue;
+          }
+
+          if (tok->kind == TK_RPAR)
+            --paren;
+        } else if (tok->kind == TK_LPAR) {
+          ++paren;
+        }
+        if (start == NULL)
+          start = tok->begin;
+        end = tok->end;
+      }
+    }
+  }
+  return args;
 }

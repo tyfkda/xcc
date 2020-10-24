@@ -47,12 +47,6 @@ Table macro_table;  // <Name, Macro*>
 Vector *sys_inc_paths;  // <const char*>
 Vector *pragma_once_files;  // <const char*>
 
-typedef struct {
-  const char *filename;
-  FILE *fp;
-  int lineno;
-} Stream;
-
 static Stream *s_stream;
 
 bool registered_pragma_once(const char *filename) {
@@ -249,23 +243,6 @@ void handle_undef(const char *p) {
   table_delete(&macro_table, name);
 }
 
-Token *match2(enum TokenKind kind) {
-  Token *tok;
-  for (;;) {
-    tok = match(kind);
-    if (tok == NULL || tok->kind != TK_EOF)
-      return tok;
-
-    char *line = NULL;
-    size_t capa = 0;
-    ssize_t len = getline_(&line, &capa, s_stream->fp, 0);
-    if (len == EOF)
-      return tok;  // EOF
-    ++s_stream->lineno;
-    set_source_string(line, s_stream->filename, s_stream->lineno);
-  }
-}
-
 bool handle_block_comment(const char *begin, const char **pp, Stream *stream) {
   const char *p = skip_whitespaces(*pp);
   if (*p != '/' || p[1] != '*')
@@ -300,74 +277,6 @@ bool handle_block_comment(const char *begin, const char **pp, Stream *stream) {
   }
 }
 
-static Vector *parse_funargs(void) {
-  Vector *args = NULL;
-  if (match2(TK_LPAR)) {
-    args = new_vector();
-    if (!match2(TK_RPAR)) {
-      StringBuffer sb;
-      sb_init(&sb);
-      const char *start = NULL;
-      const char *end = NULL;
-      int paren = 0;
-      for (;;) {
-        Token *tok;
-        for (;;) {
-          tok = match(-1);
-          if (tok->kind != TK_EOF)
-            break;
-
-          if (start != end)
-            sb_append(&sb, start, end);
-          if (!sb_empty(&sb))
-            sb_append(&sb, "\n", NULL);
-          start = end = NULL;
-
-          char *line = NULL;
-          size_t capa = 0;
-          ssize_t len = getline_(&line, &capa, s_stream->fp, 0);
-          if (len == EOF) {
-            parse_error(NULL, "`)' expected");
-            return NULL;
-          }
-          ++s_stream->lineno;
-          set_source_string(line, s_stream->filename, s_stream->lineno);
-        }
-
-        if (tok->kind == TK_COMMA || tok->kind == TK_RPAR) {
-          if (paren <= 0) {
-            if (sb_empty(&sb)) {
-              if (start == end)
-                parse_error(tok, "expression expected");
-              vec_push(args, strndup_(start, end - start));
-            } else {
-              if (start != end)
-                sb_append(&sb, start, end);
-              vec_push(args, sb_to_string(&sb));
-              sb_clear(&sb);
-            }
-            start = end = NULL;
-
-            if (tok->kind == TK_RPAR)
-              break;
-            else
-              continue;
-          }
-
-          if (tok->kind == TK_RPAR)
-            --paren;
-        } else if (tok->kind == TK_LPAR) {
-          ++paren;
-        }
-        if (start == NULL)
-          start = tok->begin;
-        end = tok->end;
-      }
-    }
-  }
-  return args;
-}
-
 void process_line(const char *line, Stream *stream) {
   set_source_string(line, stream->filename, stream->lineno);
 
@@ -393,7 +302,7 @@ void process_line(const char *line, Stream *stream) {
       s_stream = stream;
       Vector *args = NULL;
       if (macro->params != NULL)
-        args = parse_funargs();
+        args = parse_funargs(s_stream);
 
       StringBuffer sb;
       sb_init(&sb);
