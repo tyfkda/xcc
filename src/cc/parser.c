@@ -1132,7 +1132,7 @@ static void parse_typedef(void) {
       parse_error(ident, "Conflict typedef");
   }
 
-  if (conflict == NULL || type->kind != TY_STRUCT || type->struct_.info != NULL)
+  if (conflict == NULL || (type->kind == TY_STRUCT && type->struct_.info != NULL))
     add_typedef(name, type);
 
   consume(TK_SEMICOL, "`;' expected");
