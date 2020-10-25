@@ -18,7 +18,6 @@
 static void init_compiler(FILE *ofp) {
   init_lexer();
   init_emit(ofp);
-  gvar_names = new_vector();
 
   //set_num_size(NUM_CHAR,  1, 1);
   //set_num_size(NUM_SHORT, 2, 2);

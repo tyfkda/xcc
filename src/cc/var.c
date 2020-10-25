@@ -41,7 +41,6 @@ VarInfo *var_add(Vector *vars, const Name *name, const Type *type, int flag, con
 
 // Global
 
-Vector *gvar_names;
 static Table gvar_table;
 
 VarInfo *find_global(const Name *name) {
@@ -52,20 +51,21 @@ VarInfo *define_global(const Type *type, int flag, const Token *ident, const Nam
   if (name == NULL)
     name = ident->ident;
   VarInfo *varinfo = find_global(name);
-  if (varinfo != NULL && !(varinfo->flag & VF_EXTERN)) {
-    if (!(flag & VF_EXTERN))
-      parse_error(ident, "`%.*s' already defined", name->bytes, name->chars);
-    return varinfo;
+  if (varinfo != NULL) {
+    if (!(varinfo->flag & VF_EXTERN)) {
+      if (!(flag & VF_EXTERN))
+        parse_error(ident, "`%.*s' already defined", name->bytes, name->chars);
+      return varinfo;
+    }
+  } else {
+    varinfo = malloc(sizeof(*varinfo));
   }
-  VarInfo *varinfo2 = malloc(sizeof(*varinfo2));
-  varinfo2->name = name;
-  varinfo2->type = type;
-  varinfo2->flag = flag;
-  varinfo2->global.init = NULL;
-  table_put(&gvar_table, name, varinfo2);
-  if (varinfo == NULL)
-    vec_push(gvar_names, name);
-  return varinfo2;
+  varinfo->name = name;
+  varinfo->type = type;
+  varinfo->flag = flag;
+  varinfo->global.init = NULL;
+  table_put(&gvar_table, name, varinfo);
+  return varinfo;
 }
 
 // Scope
