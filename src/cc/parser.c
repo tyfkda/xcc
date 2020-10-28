@@ -458,7 +458,7 @@ Vector *assign_initial_value(Expr *expr, Initializer *init, Vector *inits) {
         size_t arr_len = expr->type->pa.length;
         assert(arr_len != (size_t)-1);
         if ((size_t)init->multi->len > arr_len)
-          parse_error(NULL, "Initializer more than array size");
+          parse_error(init->token, "Initializer more than array size");
 
         assert(curscope != NULL);
         const Type *ptr_type = array_to_ptr(expr->type);
@@ -473,7 +473,7 @@ Vector *assign_initial_value(Expr *expr, Initializer *init, Vector *inits) {
           if (init_elem->kind == IK_ARR) {
             Expr *ind = init_elem->arr.index;
             if (ind->kind != EX_NUM)
-              parse_error(NULL, "Number required");
+              parse_error(init_elem->token, "Number required");
             index = ind->num.ival;
             init_elem = init_elem->arr.value;
           }
@@ -509,7 +509,7 @@ Vector *assign_initial_value(Expr *expr, Initializer *init, Vector *inits) {
     {
       if (init->kind != IK_MULTI) {
         vec_push(inits,
-                 new_stmt_expr(new_expr_bop(EX_ASSIGN, expr->type, NULL, expr,
+                 new_stmt_expr(new_expr_bop(EX_ASSIGN, expr->type, init->token, expr,
                                             init->single)));
         break;
       }
@@ -527,9 +527,9 @@ Vector *assign_initial_value(Expr *expr, Initializer *init, Vector *inits) {
         int n = sinfo->members->len;
         int m = init->multi->len;
         if (n <= 0 && m > 0)
-          parse_error(NULL, "Initializer for empty union");
+          parse_error(init->token, "Initializer for empty union");
         if (org_init->multi->len > 1)
-          parse_error(NULL, "More than one initializer for union");
+          parse_error(init->token, "More than one initializer for union");
 
         for (int i = 0; i < n; ++i) {
           Initializer *init_elem = init->multi->data[i];
@@ -554,8 +554,8 @@ Vector *assign_initial_value(Expr *expr, Initializer *init, Vector *inits) {
       // Fallthrough
     case IK_SINGLE:
       vec_push(inits,
-               new_stmt_expr(new_expr_bop(EX_ASSIGN, expr->type, NULL, expr,
-                                          make_cast(expr->type, NULL, init->single, false))));
+               new_stmt_expr(new_expr_bop(EX_ASSIGN, expr->type, init->token, expr,
+                                          make_cast(expr->type, init->token, init->single, false))));
       break;
     default:
       parse_error(init->token, "Error initializer");
