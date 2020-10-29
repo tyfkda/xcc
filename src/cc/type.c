@@ -12,16 +12,18 @@ const Type tyChar =          {.kind=TY_NUM, .num={.kind=NUM_CHAR,  .is_unsigned=
 const Type tyShort =         {.kind=TY_NUM, .num={.kind=NUM_SHORT, .is_unsigned=false}};
 const Type tyInt =           {.kind=TY_NUM, .num={.kind=NUM_INT,   .is_unsigned=false}};
 const Type tyLong =          {.kind=TY_NUM, .num={.kind=NUM_LONG,  .is_unsigned=false}};
+const Type tyLLong =         {.kind=TY_NUM, .num={.kind=NUM_LLONG, .is_unsigned=false}};
 const Type tyUnsignedChar =  {.kind=TY_NUM, .num={.kind=NUM_CHAR,  .is_unsigned=true}};
 const Type tyUnsignedShort = {.kind=TY_NUM, .num={.kind=NUM_SHORT, .is_unsigned=true}};
 const Type tyUnsignedInt =   {.kind=TY_NUM, .num={.kind=NUM_INT,   .is_unsigned=true}};
 const Type tyUnsignedLong =  {.kind=TY_NUM, .num={.kind=NUM_LONG,  .is_unsigned=true}};
+const Type tyUnsignedLLong = {.kind=TY_NUM, .num={.kind=NUM_LLONG, .is_unsigned=true}};
 const Type tyEnum =          {.kind=TY_NUM, .num={.kind=NUM_ENUM}};
 const Type tyVoid =          {.kind=TY_VOID};
 const Type tyVoidPtr =       {.kind=TY_PTR, .pa={.ptrof=&tyVoid}};
 
-size_t num_size_table[]  = {1, 2, 4, 8, 4};
-int    num_align_table[] = {1, 2, 4, 8, 4};
+size_t num_size_table[]  = {1, 2, 4, 8, 8, 4};
+int    num_align_table[] = {1, 2, 4, 8, 8, 4};
 
 void set_num_size(enum NumKind kind, size_t size, int align) {
   num_size_table[kind] = size;

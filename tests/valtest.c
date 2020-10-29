@@ -94,6 +94,7 @@ int main(void) {
   expect("octal", 83, 0123);
   expect("negative", -42, (x=42, -x));
   expect("long", 123, 123L);
+  expect("long long", 9876543, 9876543LL);
   expect("+-", 21, (x=5, x+20-4));
   expect("*+", 47, (x=6, 5+x*7));
   expect("()", 15, (x=9, 5*(x-6)));

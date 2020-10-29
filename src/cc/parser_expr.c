@@ -480,11 +480,20 @@ static const Type *parse_enum(void) {
 }
 
 const Type *parse_raw_type(int *pflag) {
+  static const Type *kLongTypes[] = {
+    &tyInt, &tyLong, &tyLLong,
+  };
+  static const Type *kUnsignedLongTypes[] = {
+    &tyUnsignedInt, &tyUnsignedLong, &tyUnsignedLLong,
+  };
+
   const Type *type = NULL;
 
   int flag = 0;
   bool is_unsigned = false;
+  int long_count = 0;
   for (;;) {
+    Token *tok;
     if (match(TK_UNSIGNED)) {
       is_unsigned = true;
       continue;
@@ -501,11 +510,16 @@ const Type *parse_raw_type(int *pflag) {
       flag |= VF_EXTERN;
       continue;
     }
+    if ((tok = match(TK_LONG)) != NULL) {
+      ++long_count;
+      if (long_count > 2)
+        parse_error(tok, "Too many `long'");
+      continue;
+    }
 
     if (type != NULL)
       break;
 
-    Token *tok;
     Token *ident;
     if (((tok = match(TK_STRUCT)) != NULL) ||
         ((tok = match(TK_UNION)) != NULL)) {
@@ -565,18 +579,28 @@ const Type *parse_raw_type(int *pflag) {
       type = &tyVoid;
     } else {
       static const enum TokenKind kIntTypeTokens[] = {
-        TK_CHAR, TK_SHORT, TK_INT, TK_LONG,
+        TK_CHAR, TK_SHORT, TK_INT,
       };
       static const Type *kTypes[] = {
-        &tyChar, &tyShort, &tyInt, &tyLong,
+        &tyChar, &tyShort, &tyInt,
       };
       static const Type *kUnsignedTypes[] = {
         &tyUnsignedChar, &tyUnsignedShort, &tyUnsignedInt, &tyUnsignedLong,
       };
       const int N = sizeof(kIntTypeTokens) / sizeof(*kIntTypeTokens);
       for (int i = 0; i < N; ++i) {
-        if (match(kIntTypeTokens[i])) {
-          type = (is_unsigned ? kUnsignedTypes : kTypes)[i];
+        if ((tok = match(kIntTypeTokens[i])) != NULL) {
+          switch (long_count) {
+          default:
+            // Fallthrough
+          case 0:
+            type = (is_unsigned ? kUnsignedTypes : kTypes)[i];
+            break;
+          case 1: case 2:
+            if (i != sizeof(kIntTypeTokens) / sizeof(*kIntTypeTokens) - 1)
+              parse_error(tok, "`long' can use only with `int' ");
+            break;
+          }
           break;
         }
       }
@@ -585,8 +609,9 @@ const Type *parse_raw_type(int *pflag) {
       break;
   }
 
-  if (type == NULL && (flag != 0 || is_unsigned))
-    type = &tyInt;
+  if (type == NULL && (flag != 0 || is_unsigned || long_count > 0)) {
+    type = is_unsigned ? kUnsignedLongTypes[long_count] : kLongTypes[long_count];
+  }
 
   if (pflag != NULL)
     *pflag = flag;
@@ -823,12 +848,16 @@ static Expr *parse_prim(void) {
       type = &tyInt;
     else if ((tok = match(TK_LONGLIT)) != NULL)
       type = &tyLong;
+    else if ((tok = match(TK_LLONGLIT)) != NULL)
+      type = &tyLLong;
     else if ((tok = match(TK_UCHARLIT)) != NULL)
       type = &tyUnsignedChar;
     else if ((tok = match(TK_UINTLIT)) != NULL)
       type = &tyUnsignedInt;
     else if ((tok = match(TK_ULONGLIT)) != NULL)
       type = &tyUnsignedLong;
+    else if ((tok = match(TK_ULLONGLIT)) != NULL)
+      type = &tyUnsignedLLong;
     if (type != NULL) {
       Num num = {tok->value};
       return new_expr_numlit(type, tok, &num);

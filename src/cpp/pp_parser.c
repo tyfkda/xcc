@@ -64,9 +64,11 @@ static PpResult parse_prim(void) {
   if ((tok = match(TK_CHARLIT)) != NULL ||
       (tok = match(TK_INTLIT)) != NULL ||
       (tok = match(TK_LONGLIT)) != NULL ||
+      (tok = match(TK_LLONGLIT)) != NULL ||
       (tok = match(TK_UCHARLIT)) != NULL ||
       (tok = match(TK_UINTLIT)) != NULL ||
-      (tok = match(TK_ULONGLIT)) != NULL) {
+      (tok = match(TK_ULONGLIT)) != NULL ||
+      (tok = match(TK_ULLONGLIT)) != NULL) {
     return tok->value;
   }
   //if ((tok = match(TK_STR)) != NULL)

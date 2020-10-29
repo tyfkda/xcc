@@ -393,15 +393,16 @@ static Token *read_num(const char **pp) {
     lex_error(p, "Illegal literal");
 
   enum TokenKind tt = TK_INTLIT;
-  for (;;) {
-    if (tolower(*p) == 'u') {
-      is_unsigned = true;
+  if (tolower(*p) == 'u') {
+    is_unsigned = true;
+    ++p;
+  }
+  if (tolower(*p) == 'l') {
+    tt = TK_LONGLIT;
+    ++p;
+    if (tolower(*p) == 'l') {
+      tt = TK_LLONGLIT;
       ++p;
-    } else if (tolower(*p) == 'l') {
-      tt = TK_LONGLIT;
-      ++p;
-    } else {
-      break;
     }
   }
   Token *tok = alloc_token(tt + (is_unsigned ? (TK_UINTLIT - TK_INTLIT) : 0), start, p);

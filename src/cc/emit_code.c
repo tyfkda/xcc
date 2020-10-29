@@ -68,6 +68,7 @@ static void construct_initial_value(unsigned char *buf, const Type *type, const 
       case NUM_CHAR:  _BYTE(NUM(v)); break;
       case NUM_SHORT: _WORD(NUM(v)); break;
       case NUM_LONG:  _QUAD(NUM(v)); break;
+      case NUM_LLONG: _QUAD(NUM(v)); break;
       default:
       case NUM_INT: case NUM_ENUM:
         _LONG(NUM(v));

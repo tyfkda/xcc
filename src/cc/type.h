@@ -17,6 +17,7 @@ enum NumKind {
   NUM_SHORT,
   NUM_INT,
   NUM_LONG,
+  NUM_LLONG,
   NUM_ENUM,
 };
 
@@ -75,10 +76,12 @@ extern const Type tyChar;
 extern const Type tyShort;
 extern const Type tyInt;
 extern const Type tyLong;
+extern const Type tyLLong;
 extern const Type tyUnsignedChar;
 extern const Type tyUnsignedShort;
 extern const Type tyUnsignedInt;
 extern const Type tyUnsignedLong;
+extern const Type tyUnsignedLLong;
 extern const Type tyEnum;
 extern const Type tyVoid;
 extern const Type tyVoidPtr;

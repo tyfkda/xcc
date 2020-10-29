@@ -44,6 +44,8 @@ void expect_parse_type(const char *title, const Type *expected, const char *iden
 
 void test_parse_full_type(void) {
   expect_parse_type("int", &tyInt, NULL, "int");
+  expect_parse_type("long int", &tyLong, NULL, "long int");
+  expect_parse_type("long long", &tyLLong, NULL, "long long");
   expect_parse_type("void ptr", ptrof(&tyVoid), NULL, "void*");
   expect_parse_type("int array", arrayof(&tyInt, 3), "a", "int a[3]");
   expect_parse_type("array w/o size", arrayof(&tyChar, -1), NULL, "char[]");

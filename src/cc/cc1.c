@@ -23,6 +23,7 @@ static void init_compiler(FILE *ofp) {
   //set_num_size(NUM_SHORT, 2, 2);
   //set_num_size(NUM_INT,   4, 4);
   //set_num_size(NUM_LONG,  8, 8);
+  //set_num_size(NUM_LLONG, 8, 8);
   //set_num_size(NUM_ENUM,  4, 4);
 }
 
