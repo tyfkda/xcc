@@ -1,6 +1,7 @@
 #include "util.h"
 
 #include <assert.h>
+#include <ctype.h>
 #include <stdarg.h>
 #include <stdbool.h>
 #include <stdlib.h>  // malloc
@@ -226,6 +227,12 @@ bool is_im8(intptr_t x) {
 
 bool is_im32(intptr_t x) {
   return x <= ((1L << 31) - 1) && x >= -(1L << 31);
+}
+
+const char *skip_whitespaces(const char *s) {
+  while (isspace(*s))
+    ++s;
+  return s;
 }
 
 // Container

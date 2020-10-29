@@ -33,6 +33,7 @@ void error(const char *fmt, ...) /*__attribute((noreturn))*/;
 
 bool is_im8(intptr_t x);
 bool is_im32(intptr_t x);
+const char *skip_whitespaces(const char *s);
 
 // Container
 

@@ -22,12 +22,6 @@ char *cat_path_cwd(const char *dir, const char *path) {
   return cat_path(root, path);
 }
 
-const char *skip_whitespaces(const char *s) {
-  while (isspace(*s))
-    ++s;
-  return s;
-}
-
 const char *keyword(const char *s, const char *word) {
   size_t len = strlen(word);
   if (strncmp(s, word, len) != 0 || (s[len] != '\0' && !isspace(s[len])))

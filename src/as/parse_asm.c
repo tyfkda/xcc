@@ -208,12 +208,6 @@ static bool is_reg64(enum RegType reg) {
   return reg >= RAX && reg <= R15;
 }
 
-const char *skip_whitespace(const char *p) {
-  while (isspace(*p))
-    ++p;
-  return p;
-}
-
 static int find_match_index(const char **pp, const char **table, size_t count) {
   const char *p = *pp;
   const char *start = p;
@@ -226,7 +220,7 @@ static int find_match_index(const char **pp, const char **table, size_t count) {
       const char *name = table[i];
       size_t len = strlen(name);
       if (n == len && strncasecmp(start, name, n) == 0) {
-        *pp = skip_whitespace(p);
+        *pp = skip_whitespaces(p);
         return i;
       }
     }
@@ -339,19 +333,19 @@ static bool parse_indirect_register(ParseInfo *info, Expr *offset, Operand *oper
   // Already read "(%".
   enum RegType base_reg = find_register(&info->p);
 
-  info->p = skip_whitespace(info->p);
+  info->p = skip_whitespaces(info->p);
   if (*info->p == ',') {
-    info->p = skip_whitespace(info->p + 1);
+    info->p = skip_whitespaces(info->p + 1);
     if (*info->p != '%' ||
         (++info->p, index_reg = find_register(&info->p), !is_reg64(index_reg)))
       parse_error(info, "Register expected");
-    info->p = skip_whitespace(info->p);
+    info->p = skip_whitespaces(info->p);
     if (*info->p == ',') {
-      info->p = skip_whitespace(info->p + 1);
+      info->p = skip_whitespaces(info->p + 1);
       scale = parse_expr(info);
       if (scale->kind != EX_NUM)
         parse_error(info, "constant value expected");
-      info->p = skip_whitespace(info->p);
+      info->p = skip_whitespaces(info->p);
     }
   }
   if (*info->p != ')')
@@ -430,7 +424,7 @@ static const Token *fetch_token(ParseInfo *info) {
   if (info->token != NULL)
     return info->token;
 
-  const char *start = skip_whitespace(info->p);
+  const char *start = skip_whitespaces(info->p);
   const char *p = start;
   char c = *p;
   if (is_label_first_chr(c)) {
@@ -608,7 +602,7 @@ static bool parse_operand(ParseInfo *info, Operand *operand) {
   }
 
   Expr *expr = parse_expr(info);
-  info->p = skip_whitespace(info->p);
+  info->p = skip_whitespaces(info->p);
   if (*info->p != '(') {
     if (expr != NULL) {
       if (expr->kind == EX_LABEL) {
@@ -639,11 +633,11 @@ static void parse_inst(ParseInfo *info, Inst *inst) {
   inst->op = op;
   if (op != NOOP) {
     if (parse_operand(info, &inst->src)) {
-      info->p = skip_whitespace(info->p);
+      info->p = skip_whitespaces(info->p);
       if (*info->p == ',') {
-        info->p = skip_whitespace(info->p + 1);
+        info->p = skip_whitespaces(info->p + 1);
         parse_operand(info, &inst->dst);
-        info->p = skip_whitespace(info->p);
+        info->p = skip_whitespaces(info->p);
       }
     }
   }
@@ -668,7 +662,7 @@ Line *parse_line(ParseInfo *info) {
     ++info->p;
   }
 
-  info->p = skip_whitespace(info->p);
+  info->p = skip_whitespaces(info->p);
   if (*info->p == '.') {
     ++info->p;
     enum DirectiveType dir = find_directive(info);
@@ -739,10 +733,10 @@ void handle_directive(ParseInfo *info, enum DirectiveType dir, Vector **section_
       const Name *label = parse_label(info);
       if (label == NULL)
         parse_error(info, ".comm: label expected");
-      info->p = skip_whitespace(info->p);
+      info->p = skip_whitespaces(info->p);
       if (*info->p != ',')
         parse_error(info, ".comm: `,' expected");
-      info->p = skip_whitespace(info->p + 1);
+      info->p = skip_whitespaces(info->p + 1);
       long count;
       if (!immediate(&info->p, &count)) {
         parse_error(info, ".comm: count expected");
@@ -751,7 +745,7 @@ void handle_directive(ParseInfo *info, enum DirectiveType dir, Vector **section_
 
       long align = 0;
       if (*info->p == ',') {
-        info->p = skip_whitespace(info->p + 1);
+        info->p = skip_whitespaces(info->p + 1);
         if (!immediate(&info->p, &align) || align < 1) {
           parse_error(info, ".comm: optional alignment expected");
           return;

@@ -348,31 +348,34 @@ static const char *skip_line_comment(void) {
 
 static const char *skip_whitespace_or_comment(const char *p) {
   for (;;) {
-    char c = *p++;
-    if (c == '\0') {
+    p = skip_whitespaces(p);
+    switch (*p) {
+    case '\0':
       read_next_line();
       p = lexer.p;
       if (p == NULL)
         return NULL;
       continue;
-    } else if (isspace(c)) {
-      continue;
-    } else if (c == '/') {
-      if (*p == '*') {
-        p = skip_block_comment(p + 1);
+    case '/':
+      switch (p[1]) {
+      case '*':
+        p = skip_block_comment(p + 2);
         if (p == NULL)
           lex_error(p, "Block comment not closed");
         continue;
-      } else if (*p == '/') {
+      case '/':
         p = skip_line_comment();
         if (p == NULL)
           return NULL;
         continue;
+      default:  break;
       }
+      break;
+    default:  break;
     }
     break;
   }
-  return p - 1;
+  return p;
 }
 
 static Token *read_num(const char **pp) {
