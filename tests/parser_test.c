@@ -39,7 +39,7 @@ void expect_parse_type(const char *title, const Type *expected, const char *iden
   if (waitpid(pid, &ec, 0) < 0)
     error("wait failed");
   if (ec != 0)
-    exit(ec);
+    exit(1);
 }
 
 void test_parse_full_type(void) {
