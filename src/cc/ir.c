@@ -1013,36 +1013,31 @@ static void ir_out(IR *ir) {
     break;
 
   case IR_CAST:
-    if (ir->opr1->flag & VRF_CONST) {
+    assert((ir->opr1->flag & VRF_CONST) == 0);
+    if (ir->size <= ir->opr1->vtype->size) {
+      if (ir->dst->phys != ir->opr1->phys) {
+        assert(0 <= ir->size && ir->size < kPow2TableSize);
+        int pow = kPow2Table[ir->size];
+        assert(0 <= pow && pow < 4);
+        const char **regs = kRegSizeTable[pow];
+        MOV(regs[ir->opr1->phys], regs[ir->dst->phys]);
+      }
+    } else {
+      assert(0 <= ir->opr1->vtype->size && ir->opr1->vtype->size < kPow2TableSize);
+      int pows = kPow2Table[ir->opr1->vtype->size];
       assert(0 <= ir->size && ir->size < kPow2TableSize);
       int powd = kPow2Table[ir->size];
-      MOV(im(ir->opr1->fixnum), kRegSizeTable[powd][ir->dst->phys]);
-    } else {
-      if (ir->size <= ir->opr1->vtype->size) {
-        if (ir->dst->phys != ir->opr1->phys) {
-          assert(0 <= ir->size && ir->size < kPow2TableSize);
-          int pow = kPow2Table[ir->size];
-          assert(0 <= pow && pow < 4);
-          const char **regs = kRegSizeTable[pow];
-          MOV(regs[ir->opr1->phys], regs[ir->dst->phys]);
+      assert(0 <= pows && pows < 4);
+      assert(0 <= powd && powd < 4);
+      if (ir->opr1->vtype->flag & VRTF_UNSIGNED) {
+        if (pows == 2 && powd == 3) {
+          // MOVZX %64bit, %32bit doesn't exist!
+          MOV(kRegSizeTable[pows][ir->opr1->phys], kRegSizeTable[pows][ir->dst->phys]);
+        } else {
+          MOVZX(kRegSizeTable[pows][ir->opr1->phys], kRegSizeTable[powd][ir->dst->phys]);
         }
       } else {
-        assert(0 <= ir->opr1->vtype->size && ir->opr1->vtype->size < kPow2TableSize);
-        int pows = kPow2Table[ir->opr1->vtype->size];
-        assert(0 <= ir->size && ir->size < kPow2TableSize);
-        int powd = kPow2Table[ir->size];
-        assert(0 <= pows && pows < 4);
-        assert(0 <= powd && powd < 4);
-        if (ir->opr1->vtype->flag & VRTF_UNSIGNED) {
-          if (pows == 2 && powd == 3) {
-            // MOVZX %64bit, %32bit doesn't exist!
-            MOV(kRegSizeTable[pows][ir->opr1->phys], kRegSizeTable[pows][ir->dst->phys]);
-          } else {
-            MOVZX(kRegSizeTable[pows][ir->opr1->phys], kRegSizeTable[powd][ir->dst->phys]);
-          }
-        } else {
-          MOVSX(kRegSizeTable[pows][ir->opr1->phys], kRegSizeTable[powd][ir->dst->phys]);
-        }
+        MOVSX(kRegSizeTable[pows][ir->opr1->phys], kRegSizeTable[powd][ir->dst->phys]);
       }
     }
     break;
