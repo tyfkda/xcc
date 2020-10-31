@@ -86,6 +86,8 @@ enum Opcode {
 
 #ifndef __NO_FLONUM
   MOVSD,
+  CVTSI2SD,
+  CVTTSD2SI,
 #endif
 };
 

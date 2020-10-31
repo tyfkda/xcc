@@ -945,6 +945,30 @@ bool assemble_inst(Inst *inst, const ParseInfo *info, Code *code) {
 #ifndef __NO_FLONUM
   case MOVSD:
     return assemble_movsd(inst, info, code);
+  case CVTSI2SD:
+    if (inst->src.type == REG && inst->dst.type == REG_XMM) {
+      unsigned char sno = opr_regno(&inst->src.reg);
+      unsigned char dno = inst->dst.regxmm - XMM0;
+
+      *p++ = 0xf2;
+      if (sno >= 8 || inst->src.reg.size == REG64)
+        *p++ = (unsigned char)0x40 | ((sno & 8) >> 3) | (inst->src.reg.size == REG64 ? 8 : 0);
+      PUT_CODE(p, 0x0f, 0x2a, 0xc0 | ((dno & 7) << 3) | (sno & 7));
+      p += 3;
+    }
+    break;
+  case CVTTSD2SI:
+    if (inst->src.type == REG_XMM && inst->dst.type == REG) {
+      unsigned char sno = inst->src.regxmm - XMM0;
+      unsigned char dno = opr_regno(&inst->dst.reg);
+
+      *p++ = 0xf2;
+      if (dno >= 8 || inst->dst.reg.size == REG64)
+        *p++ = (unsigned char)0x40 | ((dno & 8) >> 1) | (inst->dst.reg.size == REG64 ? 8 : 0);
+      PUT_CODE(p, 0x0f, 0x2c, 0xc0 | ((dno & 7) << 3) | (sno & 7));
+      p += 3;
+    }
+    break;
 #endif
   default:
     break;

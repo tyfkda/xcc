@@ -93,6 +93,7 @@ size_t type_size(const Type *type);
 int align_size(const Type *type);
 
 bool is_fixnum(enum TypeKind kind);
+bool is_number(const Type *type);
 #ifndef __NO_FLONUM
 bool is_flonum(const Type *type);
 #endif

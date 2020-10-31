@@ -235,7 +235,27 @@ Expr *make_cast(const Type *type, const Token *token, Expr *sub, bool is_explici
 
   if (same_type(type, sub->type, curscope))
     return sub;
-  if (is_const(sub) && is_fixnum(sub->type->kind) && is_fixnum(type->kind)) {
+  if (is_const(sub) && is_number(sub->type) && is_number(type)) {
+#ifndef __NO_FLONUM
+    switch (sub->type->kind) {
+    case TY_FLONUM:
+      if (type->kind == TY_FIXNUM) {
+        Fixnum fixnum = sub->flonum;
+        return new_expr_fixlit(type, sub->token, fixnum);
+      }
+      sub->type = type;
+      return sub;
+    case TY_FIXNUM:
+      if (type->kind == TY_FLONUM) {
+        double flonum = sub->fixnum;
+        return new_expr_flolit(type, sub->token, flonum);
+      }
+      break;
+    default:
+      break;
+    }
+#endif
+
     int bytes = type_size(type);
     if (bytes < (int)type_size(sub->type)) {
       int bits = bytes * CHAR_BIT;

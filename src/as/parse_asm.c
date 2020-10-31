@@ -95,6 +95,8 @@ static const char *kOpTable[] = {
 
 #ifndef __NO_FLONUM
   "movsd",
+  "cvtsi2sd",
+  "cvttsd2si",
 #endif
 };
 
@@ -229,7 +231,7 @@ static int find_match_index(const char **pp, const char **table, size_t count) {
   const char *p = *pp;
   const char *start = p;
 
-  while (isalpha(*p))
+  while (isalnum(*p))
     ++p;
   if (*p == '\0' || isspace(*p)) {
     size_t n = p - start;
@@ -916,9 +918,15 @@ void handle_directive(ParseInfo *info, enum DirectiveType dir, Vector **section_
         break;
       }
 
-      assert(expr->kind == EX_FLONUM);
-      // TODO: Target endian.
-      double value = expr->flonum;
+      double value;
+      switch (expr->kind) {
+      case EX_FIXNUM:  value = expr->fixnum; break;
+      case EX_FLONUM:  value = expr->flonum; break;
+      default:
+        assert(false);
+        value = -1;
+        break;
+      }
       int size = sizeof(double);
       unsigned char *buf = malloc(size);
       memcpy(buf, (void*)&value, size);
