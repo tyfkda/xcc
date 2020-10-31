@@ -202,12 +202,12 @@ static bool assemble_movsd(Inst *inst, const ParseInfo *info, Code *code) {
     unsigned char dno = inst->dst.regxmm - XMM0;
     PUT_CODE(p, 0xf2, 0x0f, 0x10, (unsigned char)0xc0 | ((dno & 7) << 3) | (sno & 7));
     p += 4;
-  } else if (inst->src.type == INDIRECT && inst->dst.type == REG && inst->dst.reg.size == REG_XMM) {
+  } else if (inst->src.type == INDIRECT && inst->dst.type == REG_XMM) {
     if (inst->src.indirect.offset->kind == EX_FIXNUM) {
       if (inst->src.indirect.reg.no != RIP) {
         long offset = inst->src.indirect.offset->fixnum;
         unsigned char sno = opr_regno(&inst->src.indirect.reg);
-        unsigned char dno = opr_regno(&inst->dst.reg);
+        unsigned char dno = inst->dst.regxmm - XMM0;
         *p++ = 0xf2;
         if (sno >= 8)
           *p++ = 0x41;
@@ -221,6 +221,35 @@ static bool assemble_movsd(Inst *inst, const ParseInfo *info, Code *code) {
           *p++ = 0x24;
 
         if (offset == 0 && s != RBP - RAX) {
+          ;
+        } else if (is_im8(offset)) {
+          *p++ = IM8(offset);
+        } else if (is_im32(offset)) {
+          PUT_CODE(p, IM32(offset));
+          p += 4;
+        }
+      }
+    }
+  } else if (inst->src.type == REG_XMM && inst->dst.type == INDIRECT) {
+    if (inst->dst.indirect.offset->kind == EX_FIXNUM) {
+      if (inst->dst.indirect.reg.no != RIP) {
+        long offset = inst->dst.indirect.offset->fixnum;
+
+        unsigned char sno = inst->src.regxmm - XMM0;
+        unsigned char dno = opr_regno(&inst->dst.indirect.reg);
+        *p++ = 0xf2;
+        if (dno >= 8)
+          *p++ = 0x41;
+        PUT_CODE(p, 0x0f, 0x11);
+        p += 2;
+        int d = dno & 7;
+        int s = sno & 7;
+        unsigned char code = (offset == 0 && d != RBP - RAX) ? (unsigned char)0x00 : is_im8(offset) ? (unsigned char)0x40 : (unsigned char)0x80;
+        *p++ = code | d | (s << 3);
+        if (d == RSP - RAX)
+          *p++ = 0x24;
+
+        if (offset == 0 && d != RBP - RAX) {
           ;
         } else if (is_im8(offset)) {
           *p++ = IM8(offset);

@@ -288,6 +288,9 @@ static VReg *gen_variable(Expr *expr) {
   switch (expr->type->kind) {
   case TY_FIXNUM:
   case TY_PTR:
+#ifndef __NO_FLONUM
+  case TY_FLONUM:
+#endif
     {
       Scope *scope;
       const VarInfo *varinfo = scope_find(expr->var.scope, expr->var.name, &scope);

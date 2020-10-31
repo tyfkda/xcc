@@ -142,6 +142,9 @@ typedef struct IR {
       bool global;
     } call;
     struct {
+      int flag;  // VRTF_FLOAT
+    } spill;
+    struct {
       const char *str;
     } asm_;
   };
@@ -171,8 +174,8 @@ void new_ir_memcpy(VReg *dst, VReg *src, int size);
 void new_ir_clear(VReg *reg, size_t size);
 void new_ir_asm(const char *asm_);
 
-IR *new_ir_load_spilled(VReg *reg, int offset, int size);
-IR *new_ir_store_spilled(VReg *reg, int offset, int size);
+IR *new_ir_load_spilled(VReg *reg, int offset, int size, int flag);
+IR *new_ir_store_spilled(VReg *reg, int offset, int size, int flag);
 
 // Register allocator
 

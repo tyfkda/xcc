@@ -269,23 +269,38 @@ static int insert_load_store_spilled(BBContainer *bbcon, Vector *vregs, const in
 
       if (ir->opr1 != NULL && (flag & 1) != 0 &&
           !(ir->opr1->flag & VRF_CONST) && ir->opr1->phys == spilled) {
+        int flag = 0;
+#ifndef __NO_FLONUM
+        if (ir->opr1->vtype->flag & VRTF_FLONUM)
+          flag |= VRTF_FLONUM;
+#endif
         vec_insert(irs, j++,
-                   new_ir_load_spilled(ir->opr1, ((VReg*)vregs->data[ir->opr1->virt])->offset, load_size));
+                   new_ir_load_spilled(ir->opr1, ((VReg*)vregs->data[ir->opr1->virt])->offset, load_size, flag));
         inserted |= 1;
       }
 
       if (ir->opr2 != NULL && (flag & 2) != 0 &&
           !(ir->opr2->flag & VRF_CONST) && ir->opr2->phys == spilled) {
+        int flag = 0;
+#ifndef __NO_FLONUM
+        if (ir->opr2->vtype->flag & VRTF_FLONUM)
+          flag |= VRTF_FLONUM;
+#endif
         vec_insert(irs, j++,
-                   new_ir_load_spilled(ir->opr2, ((VReg*)vregs->data[ir->opr2->virt])->offset, load_size));
+                   new_ir_load_spilled(ir->opr2, ((VReg*)vregs->data[ir->opr2->virt])->offset, load_size, flag));
         inserted |= 2;
       }
 
       if (ir->dst != NULL && (flag & 4) != 0 &&
           !(ir->dst->flag & VRF_CONST) && ir->dst->phys == spilled) {
         assert(!(ir->dst->flag & VRF_CONST));
+        int flag = 0;
+#ifndef __NO_FLONUM
+        if (ir->dst->vtype->flag & VRTF_FLONUM)
+          flag |= VRTF_FLONUM;
+#endif
         vec_insert(irs, ++j,
-                   new_ir_store_spilled(ir->dst, ((VReg*)vregs->data[ir->dst->virt])->offset, ir->size));
+                   new_ir_store_spilled(ir->dst, ((VReg*)vregs->data[ir->dst->virt])->offset, ir->size, flag));
         inserted |= 4;
       }
     }
@@ -444,6 +459,9 @@ void prepare_register_allocation(Function *func) {
       switch (varinfo->type->kind) {
       case TY_ARRAY:
       case TY_STRUCT:
+#ifndef __NO_FLONUM
+      case TY_FLONUM:
+#endif
         // Make non-primitive variable spilled.
         spill = true;
         break;

@@ -400,19 +400,21 @@ void new_ir_asm(const char *asm_) {
   ir->asm_.str = asm_;
 }
 
-IR *new_ir_load_spilled(VReg *reg, int offset, int size) {
+IR *new_ir_load_spilled(VReg *reg, int offset, int size, int flag) {
   IR *ir = new_ir(IR_LOAD_SPILLED);
   ir->value = offset;
   ir->size = size;
   ir->dst = reg;
+  ir->spill.flag = flag;
   return ir;
 }
 
-IR *new_ir_store_spilled(VReg *reg, int offset, int size) {
+IR *new_ir_store_spilled(VReg *reg, int offset, int size, int flag) {
   IR *ir = new_ir(IR_STORE_SPILLED);
   ir->value = offset;
   ir->size = size;
   ir->opr1 = reg;
+  ir->spill.flag = flag;
   return ir;
 }
 
@@ -497,6 +499,13 @@ static void ir_out(IR *ir) {
     break;
 
   case IR_STORE:
+#ifndef __NO_FLONUM
+    if (ir->opr1->vtype->flag & VRTF_FLONUM) {
+      assert(ir->size == sizeof(double));
+      MOVSD(kFReg64s[ir->opr1->phys], INDIRECT(kReg64s[ir->opr2->phys], NULL, 1));
+      break;
+    }
+#endif
     {
       assert(!(ir->opr1->flag & VRF_CONST));
       assert(!(ir->opr2->flag & VRF_CONST));
@@ -1126,6 +1135,14 @@ static void ir_out(IR *ir) {
     break;
 
   case IR_LOAD_SPILLED:
+#ifndef __NO_FLONUM
+    if (ir->spill.flag & VRTF_FLONUM) {
+      assert(ir->size == sizeof(double));
+      const char **regs = kFReg64s;
+      MOVSD(OFFSET_INDIRECT(ir->value, RBP, NULL, 1), regs[SPILLED_REG_NO]);
+      break;
+    }
+#endif
     {
       assert(0 <= ir->size && ir->size < kPow2TableSize);
       int pow = kPow2Table[ir->size];
@@ -1136,6 +1153,14 @@ static void ir_out(IR *ir) {
     break;
 
   case IR_STORE_SPILLED:
+#ifndef __NO_FLONUM
+    if (ir->spill.flag & VRTF_FLONUM) {
+      assert(ir->size == sizeof(double));
+      const char **regs = kFReg64s;
+      MOVSD(regs[SPILLED_REG_NO], OFFSET_INDIRECT(ir->value, RBP, NULL, 1));
+      break;
+    }
+#endif
     {
       assert(0 <= ir->size && ir->size < kPow2TableSize);
       int pow = kPow2Table[ir->size];
