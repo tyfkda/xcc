@@ -1065,6 +1065,28 @@ static void ir_out(IR *ir) {
 
   case IR_CAST:
     assert((ir->opr1->flag & VRF_CONST) == 0);
+#ifndef __NO_FLONUM
+    if ((ir->opr1->vtype->flag & VRTF_FLONUM) ||
+        (ir->dst->vtype->flag & VRTF_FLONUM)) {
+      assert(!((ir->opr1->vtype->flag & VRTF_FLONUM) && (ir->dst->vtype->flag & VRTF_FLONUM)));
+      if (ir->dst->vtype->flag & VRTF_FLONUM) {
+        assert(0 <= ir->opr1->vtype->size && ir->opr1->vtype->size < kPow2TableSize);
+        int pows = kPow2Table[ir->opr1->vtype->size];
+        if (pows < 2) {
+          if (ir->opr1->vtype->flag & VRTF_UNSIGNED)
+            MOVZX(kRegSizeTable[pows][ir->opr1->phys], kRegSizeTable[2][ir->opr1->phys]);
+          else
+            MOVSX(kRegSizeTable[pows][ir->opr1->phys], kRegSizeTable[2][ir->opr1->phys]);
+          pows = 2;
+        }
+        CVTSI2SD(kRegSizeTable[pows][ir->opr1->phys], kFReg64s[ir->dst->phys]);
+      } else {
+        int powd = kPow2Table[ir->dst->vtype->size];
+        CVTTSD2SI(kFReg64s[ir->opr1->phys], kRegSizeTable[powd][ir->dst->phys]);
+      }
+      break;
+    }
+#endif
     if (ir->size <= ir->opr1->vtype->size) {
       if (ir->dst->phys != ir->opr1->phys) {
         assert(0 <= ir->size && ir->size < kPow2TableSize);

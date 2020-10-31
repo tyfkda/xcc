@@ -218,7 +218,11 @@ static VReg *gen_cast(VReg *reg, const Type *dst_type) {
   int dst_size = type_size(dst_type);
   bool lu = dst_type->kind == TY_FIXNUM ? dst_type->fixnum.is_unsigned : true;
   bool ru = (reg->vtype->flag & VRTF_UNSIGNED) ? true : false;
-  if (dst_size == reg->vtype->size && lu == ru)
+  if (dst_size == reg->vtype->size && lu == ru
+#ifndef __NO_FLONUM
+      && is_flonum(dst_type) == ((reg->vtype->flag & VRTF_FLONUM) != 0)
+#endif
+  )
     return reg;
 
   return new_ir_cast(reg, to_vtype(dst_type));
