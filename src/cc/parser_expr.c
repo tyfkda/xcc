@@ -136,24 +136,24 @@ static bool cast_integers(Expr **pLhs, Expr **pRhs, bool keep_left) {
   const Type *rtype = rhs->type;
   assert(ltype != NULL);
   assert(rtype != NULL);
-  if (!is_number(ltype->kind)) {
+  if (!is_fixnum(ltype->kind)) {
     parse_error(lhs->token, "integer type expected");
     return false;
   }
-  if (!is_number(rtype->kind)) {
+  if (!is_fixnum(rtype->kind)) {
     parse_error(rhs->token, "integer type expected");
     return false;
   }
 
-  enum NumKind lkind = ltype->num.kind;
-  enum NumKind rkind = rtype->num.kind;
-  if (ltype->num.kind == NUM_ENUM) {
+  enum FixnumKind lkind = ltype->fixnum.kind;
+  enum FixnumKind rkind = rtype->fixnum.kind;
+  if (ltype->fixnum.kind == FX_ENUM) {
     ltype = &tyInt;
-    lkind = NUM_INT;
+    lkind = FX_INT;
   }
-  if (rtype->num.kind == NUM_ENUM) {
+  if (rtype->fixnum.kind == FX_ENUM) {
     rtype = &tyInt;
-    rkind = NUM_INT;
+    rkind = FX_INT;
   }
 
   if (lkind != rkind) {
@@ -185,10 +185,10 @@ static void check_referable(const Token *tok, Expr *expr, const char *error) {
 }
 
 static Expr *new_expr_int_bop(enum ExprKind kind, const Token *tok, Expr *lhs, Expr *rhs, bool keep_left) {
-  if (is_const(lhs) && is_number(lhs->type->kind) &&
-      is_const(rhs) && is_number(rhs->type->kind)) {
-    intptr_t lval = lhs->num.ival;
-    intptr_t rval = rhs->num.ival;
+  if (is_const(lhs) && is_fixnum(lhs->type->kind) &&
+      is_const(rhs) && is_fixnum(rhs->type->kind)) {
+    intptr_t lval = lhs->fixnum;
+    intptr_t rval = rhs->fixnum;
     intptr_t value;
     switch (kind) {
     case EX_MUL:     value = lval * rval; break;
@@ -202,9 +202,9 @@ static Expr *new_expr_int_bop(enum ExprKind kind, const Token *tok, Expr *lhs, E
       value = -1;  // Dummy
       break;
     }
-    Num num = {value};
-    const Type *type = keep_left || lhs->type->num.kind >= rhs->type->num.kind ? lhs->type : rhs->type;
-    return new_expr_numlit(type, lhs->token, &num);
+    Fixnum fixnum = value;
+    const Type *type = keep_left || lhs->type->fixnum.kind >= rhs->type->fixnum.kind ? lhs->type : rhs->type;
+    return new_expr_fixlit(type, lhs->token, fixnum);
   }
 
   cast_integers(&lhs, &rhs, keep_left);
@@ -217,17 +217,17 @@ static Expr *new_expr_addsub(enum ExprKind kind, const Token *tok, Expr *lhs, Ex
   const Type *rtype = rhs->type;
   assert(ltype != NULL);
   assert(rtype != NULL);
-  if (is_number(ltype->kind) && is_number(rtype->kind)) {
+  if (is_fixnum(ltype->kind) && is_fixnum(rtype->kind)) {
     if (is_const(lhs) && is_const(rhs)) {
-      enum NumKind lnt = ltype->num.kind;
-      enum NumKind rnt = rtype->num.kind;
-      if (lnt == NUM_ENUM)
-        lnt = NUM_INT;
-      if (rnt == NUM_ENUM)
-        rnt = NUM_INT;
+      enum FixnumKind lnt = ltype->fixnum.kind;
+      enum FixnumKind rnt = rtype->fixnum.kind;
+      if (lnt == FX_ENUM)
+        lnt = FX_INT;
+      if (rnt == FX_ENUM)
+        rnt = FX_INT;
 
-      intptr_t lval = lhs->num.ival;
-      intptr_t rval = rhs->num.ival;
+      intptr_t lval = lhs->fixnum;
+      intptr_t rval = rhs->fixnum;
       intptr_t value;
       switch (kind) {
       case EX_ADD: value = lval + rval; break;
@@ -237,15 +237,15 @@ static Expr *new_expr_addsub(enum ExprKind kind, const Token *tok, Expr *lhs, Ex
         value = -1;
         break;
       }
-      Num num = {value};
+      Fixnum fixnum = value;
       const Type *type = lnt >= rnt ? lhs->type : rhs->type;
-      return new_expr_numlit(type, lhs->token, &num);
+      return new_expr_fixlit(type, lhs->token, fixnum);
     }
 
     cast_integers(&lhs, &rhs, keep_left);
     type = lhs->type;
   } else if (ptr_or_array(ltype)) {
-    if (is_number(rtype->kind)) {
+    if (is_fixnum(rtype->kind)) {
       kind = kind == EX_ADD ? EX_PTRADD : EX_PTRSUB;
       type = ltype;
       if (ltype->kind == TY_ARRAY)
@@ -255,12 +255,12 @@ static Expr *new_expr_addsub(enum ExprKind kind, const Token *tok, Expr *lhs, Ex
       rtype = array_to_ptr(rtype);
       if (!same_type(ltype, rtype))
         parse_error(tok, "Different pointer diff");
-      const Num elem_size = {.ival = type_size(ltype->pa.ptrof)};
+      const Fixnum elem_size = type_size(ltype->pa.ptrof);
       return new_expr_bop(EX_DIV, &tySize, tok, new_expr_bop(EX_SUB, &tySize, tok, lhs, rhs),
-                          new_expr_numlit(&tySize, tok, &elem_size));
+                          new_expr_fixlit(&tySize, tok, elem_size));
     }
   } else if (ptr_or_array(rtype)) {
-    if (kind == EX_ADD && is_number(ltype->kind) && !keep_left) {
+    if (kind == EX_ADD && is_fixnum(ltype->kind) && !keep_left) {
       kind = EX_PTRADD;
       // Swap lhs and rhs to make lhs as a pointer.
       Expr *tmp = lhs;
@@ -377,7 +377,7 @@ static Expr *parse_funcall(Expr *func) {
         arg = make_cast(type, arg->token, arg, false);
       } else if (vaargs && i >= paramc) {
         const Type *type = arg->type;
-        if (type->kind == TY_NUM && type->num.kind < NUM_INT)  // Promote variadic argument.
+        if (type->kind == TY_FIXNUM && type->fixnum.kind < FX_INT)  // Promote variadic argument.
           arg = make_cast(&tyInt, arg->token, arg, false);
       }
       if (arg->type->kind == TY_ARRAY)
@@ -451,10 +451,10 @@ static const Type *parse_enum(void) {
         if (match(TK_ASSIGN)) {
           numtok = fetch_token();
           Expr *expr = parse_const();
-          if (!(is_const(expr) && is_number(expr->type->kind))) {
+          if (!(is_const(expr) && is_fixnum(expr->type->kind))) {
             parse_error(numtok, "const expected for enum");
           }
-          value = expr->num.ival;
+          value = expr->fixnum;
         }
 
         intptr_t dummy;
@@ -649,11 +649,11 @@ const Type *parse_type_suffix(const Type *type) {
   } else {
     const Token *tok = fetch_token();
     Expr *expr = parse_const();
-    if (!(is_const(expr) && is_number(expr->type->kind)))
+    if (!(is_const(expr) && is_fixnum(expr->type->kind)))
       parse_error(tok, "constant expected");
-    if (expr->num.ival <= 0)
-      parse_error(tok, "Array size must be greater than 0, but %d", (int)expr->num.ival);
-    length = expr->num.ival;
+    if (expr->fixnum <= 0)
+      parse_error(tok, "Array size must be greater than 0, but %d", (int)expr->fixnum);
+    length = expr->fixnum;
     consume(TK_RBRACKET, "`]' expected");
   }
   return arrayof(parse_type_suffix(type), length);
@@ -859,8 +859,8 @@ static Expr *parse_prim(void) {
     else if ((tok = match(TK_ULLONGLIT)) != NULL)
       type = &tyUnsignedLLong;
     if (type != NULL) {
-      Num num = {tok->value};
-      return new_expr_numlit(type, tok, &num);
+      Fixnum fixnum = tok->fixnum;
+      return new_expr_fixlit(type, tok, fixnum);
     }
   }
   if ((tok = match(TK_STR)) != NULL)
@@ -880,8 +880,8 @@ static Expr *parse_prim(void) {
   } else {
     intptr_t value;
     if (find_enum_value(name, &value)) {
-      Num num = {.ival = value};
-      return new_expr_numlit(&tyInt, ident, &num);
+      Fixnum fixnum = value;
+      return new_expr_fixlit(&tyInt, ident, fixnum);
     }
     parse_error(ident, "undefined indentifier");
     type = &tyInt;
@@ -935,15 +935,15 @@ static Expr *parse_sizeof(const Token *token) {
     }
   }
 
-  const Num size = {.ival = type_size(type)};
-  return new_expr_numlit(&tySize, token, &size);
+  const Fixnum size = type_size(type);
+  return new_expr_fixlit(&tySize, token, size);
 }
 
 static Expr *parse_unary(void) {
   Token *tok;
   if ((tok = match(TK_ADD)) != NULL) {
     Expr *expr = parse_cast_expr();
-    if (!is_number(expr->type->kind))
+    if (!is_fixnum(expr->type->kind))
       parse_error(tok, "Cannot apply `+' except number types");
     if (is_const(expr))
       return expr;
@@ -952,10 +952,10 @@ static Expr *parse_unary(void) {
 
   if ((tok = match(TK_SUB)) != NULL) {
     Expr *expr = parse_cast_expr();
-    if (!is_number(expr->type->kind))
+    if (!is_fixnum(expr->type->kind))
       parse_error(tok, "Cannot apply `-' except number types");
     if (is_const(expr)) {
-      expr->num.ival = -expr->num.ival;
+      expr->fixnum = -expr->fixnum;
       return expr;
     }
     return new_expr_unary(EX_NEG, expr->type, tok, expr);
@@ -963,14 +963,14 @@ static Expr *parse_unary(void) {
 
   if ((tok = match(TK_NOT)) != NULL) {
     Expr *expr = parse_cast_expr();
-    if (!is_number(expr->type->kind) && !ptr_or_array(expr->type))
+    if (!is_fixnum(expr->type->kind) && !ptr_or_array(expr->type))
       parse_error(tok, "Cannot apply `!' except number or pointer types");
     return new_expr_unary(EX_NOT, &tyBool, tok, expr);
   }
 
   if ((tok = match(TK_TILDA)) != NULL) {
     Expr *expr = parse_cast_expr();
-    if (!is_number(expr->type->kind))
+    if (!is_fixnum(expr->type->kind))
       parse_error(tok, "Cannot apply `~' except number type");
     return new_expr_unary(EX_BITNOT, expr->type, tok, expr);
   }
@@ -1091,16 +1091,16 @@ static Expr *parse_shift(void) {
       return expr;
 
     Expr *lhs = expr, *rhs = parse_add();
-    if (!is_number(lhs->type->kind) ||
-        !is_number(rhs->type->kind))
+    if (!is_fixnum(lhs->type->kind) ||
+        !is_fixnum(rhs->type->kind))
       parse_error(tok, "Cannot use `%.*s' except numbers.", (int)(tok->end - tok->begin), tok->begin);
 
     if (is_const(lhs) && is_const(rhs)) {
-      intptr_t lval = lhs->num.ival;
-      intptr_t rval = rhs->num.ival;
+      intptr_t lval = lhs->fixnum;
+      intptr_t rval = rhs->fixnum;
       intptr_t value = kind == EX_LSHIFT ? lval << rval : lval >> rval;
-      Num num = {value};
-      expr = new_expr_numlit(lhs->type, tok, &num);
+      Fixnum fixnum = value;
+      expr = new_expr_fixlit(lhs->type, tok, fixnum);
     } else {
       expr = new_expr_bop(kind, lhs->type, tok, lhs, rhs);
     }
@@ -1235,8 +1235,8 @@ static Expr *parse_conditional(void) {
       type = ftype;
     } else if (is_void_ptr(ftype) && ttype->kind == TY_PTR) {
       type = ttype;
-    } else if (is_number(ttype->kind) && is_number(ftype->kind)) {
-      if (ttype->num.kind > ftype->num.kind) {
+    } else if (is_fixnum(ttype->kind) && is_fixnum(ftype->kind)) {
+      if (ttype->fixnum.kind > ftype->fixnum.kind) {
         type = ttype;
         fval = new_expr_cast(ttype, fval->token, fval);
       } else {
@@ -1304,7 +1304,7 @@ Expr *parse_assign(void) {
             const Type *rtype = rhs->type;
             assert(ltype != NULL);
             assert(rtype != NULL);
-            if (!is_number(ltype->kind) || !is_number(rtype->kind))
+            if (!is_fixnum(ltype->kind) || !is_fixnum(rtype->kind))
               parse_error(tok, "Cannot use `%.*s' except numbers.", (int)(tok->end - tok->begin), tok->begin);
             bop = new_expr_bop(kind, lhs->type, tok, lhs, rhs);
           }

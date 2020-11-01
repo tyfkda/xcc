@@ -43,8 +43,8 @@ void fix_array_size(Type *type, Initializer *init) {
       for (i = 0; i < len; ++i) {
         Initializer *init_elem = init->multi->data[i];
         if (init_elem->kind == IK_ARR) {
-          assert(init_elem->arr.index->kind == EX_NUM);
-          index = init_elem->arr.index->num.ival;
+          assert(init_elem->arr.index->kind == EX_FIXNUM);
+          index = init_elem->arr.index->fixnum;
         }
         ++index;
         if (max_index < index)
@@ -70,11 +70,11 @@ static Stmt *build_memcpy(Expr *dst, Expr *src, size_t size) {
   Expr *srcexpr = new_expr_variable(srcvar->name, srcvar->type, NULL, curscope);
   Expr *sizeexpr = new_expr_variable(sizevar->name, sizevar->type, NULL, curscope);
 
-  Num size_num_lit = {.ival = size};
-  Expr *size_num = new_expr_numlit(&tySize, NULL, &size_num_lit);
+  Fixnum size_num_lit = size;
+  Expr *size_num = new_expr_fixlit(&tySize, NULL, size_num_lit);
 
-  Num zero = {.ival = 0};
-  Expr *zeroexpr = new_expr_numlit(&tySize, NULL, &zero);
+  Fixnum zero = 0;
+  Expr *zeroexpr = new_expr_fixlit(&tySize, NULL, zero);
 
   Vector *stmts = new_vector();
   vec_push(stmts, new_stmt_expr(new_expr_bop(EX_ASSIGN, charptr_type, NULL, dstexpr, dst)));
@@ -154,7 +154,7 @@ static Initializer *flatten_array_initializer(Initializer *init) {
   for (; i <= len; ++i, ++index) {  // '+1' is for last range.
     Initializer *init_elem = NULL;
     if (i >= len || (init_elem = init->multi->data[i])->kind == IK_ARR) {
-      if (i < len && init_elem->arr.index->kind != EX_NUM)
+      if (i < len && init_elem->arr.index->kind != EX_FIXNUM)
         parse_error(NULL, "Constant value expected");
       if ((size_t)i > lastStartIndex) {
         size_t *range = malloc(sizeof(size_t) * 3);
@@ -165,7 +165,7 @@ static Initializer *flatten_array_initializer(Initializer *init) {
       }
       if (i >= len)
         break;
-      lastStart = index = init_elem->arr.index->num.ival;
+      lastStart = index = init_elem->arr.index->fixnum;
       lastStartIndex = i;
     } else if (init_elem->kind == IK_DOT)
       parse_error(NULL, "dot initializer for array");
@@ -192,8 +192,8 @@ static Initializer *flatten_array_initializer(Initializer *init) {
       if (j == 0 && index != start && elem->kind != IK_ARR) {
         Initializer *arr = malloc(sizeof(*arr));
         arr->kind = IK_ARR;
-        Num n = {.ival = start};
-        arr->arr.index = new_expr_numlit(&tyInt, NULL, &n);
+        Fixnum n = start;
+        arr->arr.index = new_expr_fixlit(&tyInt, NULL, n);
         arr->arr.value = elem;
         elem = arr;
       }
@@ -307,10 +307,10 @@ static Initializer *check_global_initializer(const Type *type, Initializer *init
   init = flatten_initializer(type, init);
 
   switch (type->kind) {
-  case TY_NUM:
+  case TY_FIXNUM:
     if (init->kind == IK_SINGLE) {
       switch (init->single->kind) {
-      case EX_NUM:
+      case EX_FIXNUM:
         return init;
       default:
         parse_error(init->single->token, "Constant expression expected");
@@ -373,7 +373,7 @@ static Initializer *check_global_initializer(const Type *type, Initializer *init
 
           return init;
         }
-      case EX_NUM:
+      case EX_FIXNUM:
         {
           Initializer *init2 = malloc(sizeof(*init2));
           init2->kind = IK_SINGLE;
@@ -472,19 +472,19 @@ Vector *assign_initial_value(Expr *expr, Initializer *init, Vector *inits) {
           Initializer *init_elem = init->multi->data[i];
           if (init_elem->kind == IK_ARR) {
             Expr *ind = init_elem->arr.index;
-            if (ind->kind != EX_NUM)
+            if (ind->kind != EX_FIXNUM)
               parse_error(init_elem->token, "Number required");
-            index = ind->num.ival;
+            index = ind->fixnum;
             init_elem = init_elem->arr.value;
           }
 
           size_t add = index - prev_index;
           if (add > 0) {
-            Num n = {.ival=add};
+            Fixnum n = add;
             vec_push(inits, new_stmt_expr(
                 new_expr_unary(EX_ASSIGN_WITH, ptr_type, NULL,
                                new_expr_bop(EX_PTRADD, ptr_type, NULL, ptr_var,
-                                            new_expr_numlit(&tyInt, NULL, &n)))));
+                                            new_expr_fixlit(&tyInt, NULL, n)))));
           }
 
           assign_initial_value(new_expr_deref(NULL, ptr_var), init_elem, inits);
@@ -795,9 +795,9 @@ static Stmt *parse_case(const Token *tok) {
   if (curswitch == NULL)
     parse_error(tok, "`case' cannot use outside of `switch`");
 
-  if (!is_number(value->type->kind))
+  if (!is_fixnum(value->type->kind))
     parse_error(value->token, "Cannot use expression");
-  intptr_t v = value->num.ival;
+  intptr_t v = value->fixnum;
 
   // Check duplication.
   Vector *values = curswitch->switch_.case_values;
@@ -1185,7 +1185,7 @@ static Declaration *parse_declaration(void) {
   if (parse_var_def(&rawtype, &type, &flag, &ident)) {
     if (ident == NULL) {
       if ((type->kind == TY_STRUCT ||
-           (type->kind == TY_NUM && type->num.kind == NUM_ENUM)) &&
+           (type->kind == TY_FIXNUM && type->fixnum.kind == FX_ENUM)) &&
           match(TK_SEMICOL)) {
         // Just struct/union or enum definition.
       } else {

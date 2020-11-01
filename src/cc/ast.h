@@ -19,9 +19,7 @@ typedef struct Vector Vector;
 
 // Num
 
-typedef union Num {
-  intptr_t ival;
-} Num;
+typedef intptr_t Fixnum;
 
 // ================================================
 
@@ -29,7 +27,7 @@ typedef union Num {
 
 enum ExprKind {
   // Literals
-  EX_NUM,     // 1234
+  EX_FIXNUM,  // 1234
   EX_STR,     // "foobar"
 
   EX_VARIABLE,  // foobar
@@ -84,7 +82,7 @@ typedef struct Expr {
   const Type *type;
   const Token *token;
   union {
-    Num num;
+    Fixnum fixnum;
     struct {
       const char *buf;
       size_t size;  // Include last '\0'.
@@ -121,7 +119,7 @@ typedef struct Expr {
   };
 } Expr;
 
-Expr *new_expr_numlit(const Type *type, const Token *token, const Num *num);
+Expr *new_expr_fixlit(const Type *type, const Token *token, const Fixnum fixnum);
 Expr *new_expr_str(const Token *token, const char *str, size_t size);
 Expr *new_expr_bop(enum ExprKind kind, const Type *type, const Token *token, Expr *lhs, Expr *rhs);
 Expr *new_expr_unary(enum ExprKind kind, const Type *type, const Token *token, Expr *sub);

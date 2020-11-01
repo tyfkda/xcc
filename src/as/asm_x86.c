@@ -158,9 +158,9 @@ static bool assemble_mov(Inst *inst, const ParseInfo *info, Code *code) {
     }
     p += 1 << size;
   } else if (inst->src.type == INDIRECT && inst->dst.type == REG) {
-    if (inst->src.indirect.offset->kind == EX_NUM) {
+    if (inst->src.indirect.offset->kind == EX_FIXNUM) {
       if (inst->src.indirect.reg.no != RIP) {
-        long offset = inst->src.indirect.offset->num;
+        long offset = inst->src.indirect.offset->fixnum;
         enum RegSize size = inst->dst.reg.size;
         p = put_rex_indirect(
             p, size,
@@ -170,9 +170,9 @@ static bool assemble_mov(Inst *inst, const ParseInfo *info, Code *code) {
       }
     }
   } else if (inst->src.type == REG && inst->dst.type == INDIRECT) {
-    if (inst->dst.indirect.offset->kind == EX_NUM) {
+    if (inst->dst.indirect.offset->kind == EX_FIXNUM) {
       if (inst->dst.indirect.reg.no != RIP) {
-        long offset = inst->dst.indirect.offset->num;
+        long offset = inst->dst.indirect.offset->fixnum;
         enum RegSize size = inst->src.reg.size;
         p = put_rex_indirect(
             p, size,
@@ -272,8 +272,8 @@ bool assemble_inst(Inst *inst, const ParseInfo *info, Code *code) {
 
       assert(inst->src.indirect.offset != NULL);
       if (inst->src.indirect.reg.no != RIP) {
-        if (inst->src.indirect.offset->kind == EX_NUM) {
-          long offset = inst->src.indirect.offset->num;
+        if (inst->src.indirect.offset->kind == EX_FIXNUM) {
+          long offset = inst->src.indirect.offset->fixnum;
           enum RegSize size = inst->dst.reg.size;
           p = put_rex_indirect(
               p, size,
@@ -282,7 +282,7 @@ bool assemble_inst(Inst *inst, const ParseInfo *info, Code *code) {
               0x8c, 0x00, offset);
         }
       } else {
-        if (inst->src.indirect.offset->kind != EX_NUM) {
+        if (inst->src.indirect.offset->kind != EX_FIXNUM) {
           int pre = !inst->dst.reg.x ? 0x48 : 0x4c;
           int d = inst->dst.reg.no;
           MAKE_CODE(inst, code, pre, 0x8d, 0x05 | (d << 3), IM32(0));
@@ -295,10 +295,10 @@ bool assemble_inst(Inst *inst, const ParseInfo *info, Code *code) {
 
       Expr *offset_expr = inst->src.indirect_with_index.offset;
       Expr *scale_expr = inst->src.indirect_with_index.scale;
-      if ((offset_expr == NULL || offset_expr->kind == EX_NUM) &&
-          (scale_expr == NULL || scale_expr->kind == EX_NUM)) {
-        long offset = offset_expr != NULL ? offset_expr->num : 0;
-        long scale = scale_expr != NULL ? scale_expr->num : 1;
+      if ((offset_expr == NULL || offset_expr->kind == EX_FIXNUM) &&
+          (scale_expr == NULL || scale_expr->kind == EX_FIXNUM)) {
+        long offset = offset_expr != NULL ? offset_expr->fixnum : 0;
+        long scale = scale_expr != NULL ? scale_expr->fixnum : 1;
         if (is_im32(offset) && 1 <= scale && scale <= 8 && IS_POWER_OF_2(scale)) {
           const Reg *base_reg = &inst->src.indirect_with_index.base_reg;
           const Reg *index_reg = &inst->src.indirect_with_index.index_reg;
@@ -347,9 +347,9 @@ bool assemble_inst(Inst *inst, const ParseInfo *info, Code *code) {
         }
       }
     } else if (inst->src.type == INDIRECT && inst->dst.type == REG) {
-      if (inst->src.indirect.offset->kind == EX_NUM &&
+      if (inst->src.indirect.offset->kind == EX_FIXNUM &&
           inst->src.indirect.reg.no != RIP) {
-        long offset = inst->src.indirect.offset->num;
+        long offset = inst->src.indirect.offset->fixnum;
         enum RegSize size = inst->dst.reg.size;
         p = put_rex_indirect(
             p, size,
@@ -361,10 +361,10 @@ bool assemble_inst(Inst *inst, const ParseInfo *info, Code *code) {
     break;
   case ADDQ:
     if (inst->src.type == IMMEDIATE && inst->dst.type == INDIRECT) {
-      if (inst->dst.indirect.offset->kind == EX_NUM) {
+      if (inst->dst.indirect.offset->kind == EX_FIXNUM) {
         long value = inst->src.immediate;
         if (is_im32(value)) {
-          long offset = inst->dst.indirect.offset->num;
+          long offset = inst->dst.indirect.offset->fixnum;
           enum RegSize size = REG64;  // caz ADDQ
           p = put_rex_imm_indirect(
               p, size,
@@ -412,10 +412,10 @@ bool assemble_inst(Inst *inst, const ParseInfo *info, Code *code) {
     break;
   case SUBQ:
     if (inst->src.type == IMMEDIATE && inst->dst.type == INDIRECT) {
-      if (inst->dst.indirect.offset->kind == EX_NUM) {
+      if (inst->dst.indirect.offset->kind == EX_FIXNUM) {
         long value = inst->src.immediate;
         if (is_im32(value)) {
-          long offset = inst->dst.indirect.offset->num;
+          long offset = inst->dst.indirect.offset->fixnum;
           enum RegSize size = REG64;  // caz SUBQ
           p = put_rex_imm_indirect(
               p, size,
@@ -493,7 +493,7 @@ bool assemble_inst(Inst *inst, const ParseInfo *info, Code *code) {
     if (inst->src.type == INDIRECT &&
         inst->src.indirect.reg.no != RIP) {
       enum RegSize size = inst->op + (REG32 - INCL);
-      long offset = inst->src.indirect.offset->num;
+      long offset = inst->src.indirect.offset->fixnum;
       p = put_rex_indirect(
           p, size,
           0, opr_regno(&inst->src.indirect.reg),
@@ -517,7 +517,7 @@ bool assemble_inst(Inst *inst, const ParseInfo *info, Code *code) {
     if (inst->src.type == INDIRECT &&
         inst->src.indirect.reg.no != RIP) {
       enum RegSize size = inst->op + (REG32 - DECL);
-      long offset = inst->src.indirect.offset->num;
+      long offset = inst->src.indirect.offset->fixnum;
       p = put_rex_indirect(
           p, size,
           0, opr_regno(&inst->src.indirect.reg),

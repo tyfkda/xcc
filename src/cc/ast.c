@@ -10,7 +10,7 @@ bool is_const(Expr *expr) {
   // TODO: Handle constant variable.
 
   switch (expr->kind) {
-  case EX_NUM:
+  case EX_FIXNUM:
   case EX_STR:
     return true;
   default:
@@ -19,7 +19,7 @@ bool is_const(Expr *expr) {
 }
 
 bool is_zero(Expr *expr) {
-  return expr->kind == EX_NUM && expr->num.ival == 0;
+  return expr->kind == EX_FIXNUM && expr->fixnum == 0;
 }
 
 static Expr *new_expr(enum ExprKind kind, const Type *type, const Token *token) {
@@ -30,10 +30,10 @@ static Expr *new_expr(enum ExprKind kind, const Type *type, const Token *token) 
   return expr;
 }
 
-Expr *new_expr_numlit(const Type *type, const Token *token, const Num *num) {
-  assert(type->kind == TY_NUM);
-  Expr *expr = new_expr(EX_NUM, type, token);
-  expr->num = *num;
+Expr *new_expr_fixlit(const Type *type, const Token *token, const Fixnum fixnum) {
+  assert(type->kind == TY_FIXNUM);
+  Expr *expr = new_expr(EX_FIXNUM, type, token);
+  expr->fixnum = fixnum;
   return expr;
 }
 

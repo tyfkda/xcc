@@ -409,7 +409,7 @@ static Token *read_num(const char **pp) {
     }
   }
   Token *tok = alloc_token(tt + (is_unsigned ? (TK_UINTLIT - TK_INTLIT) : 0), start, p);
-  tok->value = val;
+  tok->fixnum = val;
   *pp = p;
   return tok;
 }
@@ -443,7 +443,7 @@ static Token *read_char(const char **pp) {
 
   ++p;
   Token *tok = alloc_token(TK_CHARLIT, begin, p);
-  tok->value = c;
+  tok->fixnum = c;
   *pp = p;
   return tok;
 }

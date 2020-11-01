@@ -18,7 +18,7 @@ VRegType *to_vtype(const Type *type) {
   vtype->size = type_size(type);
   vtype->align = align_size(type);
 
-  bool is_unsigned = type->kind == TY_NUM ? type->num.is_unsigned : true;
+  bool is_unsigned = type->kind == TY_FIXNUM ? type->fixnum.is_unsigned : true;
   vtype->flag = is_unsigned ? VRTF_UNSIGNED : 0;
 
   return vtype;
@@ -41,7 +41,7 @@ static enum ConditionKind gen_compare_expr(enum ExprKind kind, Expr *lhs, Expr *
   assert(ltype->kind == rhs->type->kind);
 
   enum ConditionKind cond = kind + (COND_EQ - EX_EQ);
-  if (rhs->kind != EX_NUM && lhs->kind == EX_NUM) {
+  if (rhs->kind != EX_FIXNUM && lhs->kind == EX_FIXNUM) {
     Expr *tmp = lhs;
     lhs = rhs;
     rhs = tmp;
@@ -49,20 +49,20 @@ static enum ConditionKind gen_compare_expr(enum ExprKind kind, Expr *lhs, Expr *
   }
 
   if (cond > COND_NE &&
-      (!is_number(lhs->type->kind) || lhs->type->num.is_unsigned)) {
+      (!is_fixnum(lhs->type->kind) || lhs->type->fixnum.is_unsigned)) {
     cond += COND_ULT - COND_LT;
   }
 
   VReg *lhs_reg = gen_expr(lhs);
-  if (rhs->kind == EX_NUM && rhs->num.ival == 0 &&
+  if (rhs->kind == EX_FIXNUM && rhs->fixnum == 0 &&
       (cond == COND_EQ || cond == COND_NE)) {
     new_ir_test(lhs_reg);
-  } else if (rhs->kind == EX_NUM && (lhs->type->num.kind != NUM_LONG || is_im32(rhs->num.ival))) {
-    VReg *num = new_const_vreg(rhs->num.ival, to_vtype(rhs->type));
+  } else if (rhs->kind == EX_FIXNUM && (lhs->type->fixnum.kind != FX_LONG || is_im32(rhs->fixnum))) {
+    VReg *num = new_const_vreg(rhs->fixnum, to_vtype(rhs->type));
     new_ir_cmp(lhs_reg, num);
   } else {
     switch (lhs->type->kind) {
-    case TY_NUM: case TY_PTR:
+    case TY_FIXNUM: case TY_PTR:
       break;
     default: assert(false); break;
     }
@@ -81,8 +81,8 @@ void gen_cond_jmp(Expr *cond, bool tf, BB *bb) {
   // Local optimization: if `cond` is compare expression, then
   // jump using flags after CMP directly.
   switch (cond->kind) {
-  case EX_NUM:
-    if (cond->num.ival == 0)
+  case EX_FIXNUM:
+    if (cond->fixnum == 0)
       tf = !tf;
     if (tf)
       new_ir_jmp(COND_ANY, bb);
@@ -204,7 +204,7 @@ static VReg *gen_cast(VReg *reg, const Type *dst_type) {
       // Assume that integer is represented in Two's complement
       size_t bit = dst_size * 8;
       intptr_t mask = (-1UL) << bit;
-      if (dst_type->kind == TY_NUM && !dst_type->num.is_unsigned &&  // signed
+      if (dst_type->kind == TY_FIXNUM && !dst_type->fixnum.is_unsigned &&  // signed
           (value & (1 << (bit - 1))))  // negative
         value |= mask;
       else
@@ -216,7 +216,7 @@ static VReg *gen_cast(VReg *reg, const Type *dst_type) {
   }
 
   int dst_size = type_size(dst_type);
-  bool lu = dst_type->kind == TY_NUM ? dst_type->num.is_unsigned : true;
+  bool lu = dst_type->kind == TY_FIXNUM ? dst_type->fixnum.is_unsigned : true;
   bool ru = (reg->vtype->flag & VRTF_UNSIGNED) ? true : false;
   if (dst_size == reg->vtype->size && lu == ru)
     return reg;
@@ -289,7 +289,7 @@ static VReg *gen_lval(Expr *expr) {
 
 static VReg *gen_variable(Expr *expr) {
   switch (expr->type->kind) {
-  case TY_NUM:
+  case TY_FIXNUM:
   case TY_PTR:
     {
       Scope *scope = expr->variable.scope;
@@ -493,8 +493,8 @@ VReg *gen_arith(enum ExprKind kind, const Type *type, VReg *lhs, VReg *rhs) {
 
   case EX_DIV:
   case EX_MOD:
-    assert(type->kind == TY_NUM);
-    return new_ir_bop(kind + ((type->num.is_unsigned ? IR_DIVU : IR_DIV) - EX_DIV), lhs, rhs, to_vtype(type));
+    assert(type->kind == TY_FIXNUM);
+    return new_ir_bop(kind + ((type->fixnum.is_unsigned ? IR_DIVU : IR_DIV) - EX_DIV), lhs, rhs, to_vtype(type));
 
   default:
     assert(false);
@@ -509,7 +509,7 @@ VReg *gen_ptradd(enum ExprKind kind, const Type *type, VReg *lreg, Expr *rhs) {
   while (raw_rhs->kind == EX_CAST)
     raw_rhs = raw_rhs->unary.sub;
   if (is_const(raw_rhs)) {
-    intptr_t rval = raw_rhs->num.ival;
+    intptr_t rval = raw_rhs->fixnum;
     if (kind == EX_PTRSUB)
       rval = -rval;
     return new_ir_ptradd(rval * scale, lreg, NULL, 1, to_vtype(type));
@@ -537,9 +537,9 @@ VReg *gen_ptradd(enum ExprKind kind, const Type *type, VReg *lreg, Expr *rhs) {
 
 VReg *gen_expr(Expr *expr) {
   switch (expr->kind) {
-  case EX_NUM:
-    assert(expr->type->kind == TY_NUM);
-    return new_const_vreg(expr->num.ival, to_vtype(expr->type));
+  case EX_FIXNUM:
+    assert(expr->type->kind == TY_FIXNUM);
+    return new_const_vreg(expr->fixnum, to_vtype(expr->type));
 
   case EX_STR:
     {
@@ -574,7 +574,7 @@ VReg *gen_expr(Expr *expr) {
       VReg *reg = gen_expr(expr->unary.sub);
       VReg *result;
       switch (expr->type->kind) {
-      case TY_NUM:
+      case TY_FIXNUM:
       case TY_PTR:
         result = new_ir_unary(IR_LOAD, reg, to_vtype(expr->type));
         return result;
@@ -598,7 +598,7 @@ VReg *gen_expr(Expr *expr) {
       VReg *reg = gen_lval(expr);
       VReg *result;
       switch (expr->type->kind) {
-      case TY_NUM:
+      case TY_FIXNUM:
       case TY_PTR:
         result = new_ir_unary(IR_LOAD, reg, to_vtype(expr->type));
         break;
@@ -629,7 +629,7 @@ VReg *gen_expr(Expr *expr) {
       if (expr->bop.lhs->kind == EX_VARIABLE) {
         Expr *lhs = expr->bop.lhs;
         switch (lhs->type->kind) {
-        case TY_NUM:
+        case TY_FIXNUM:
         case TY_PTR:
           {
             Scope *scope = lhs->variable.scope;
@@ -652,7 +652,7 @@ VReg *gen_expr(Expr *expr) {
       default:
         assert(false);
         // Fallthrough to suppress compiler error.
-      case TY_NUM:
+      case TY_FIXNUM:
       case TY_PTR:
 #if 0
         new_ir_store(dst, tmp);
@@ -788,7 +788,7 @@ VReg *gen_expr(Expr *expr) {
       VReg *reg = gen_expr(expr->unary.sub);
       VReg *result;
       switch (expr->unary.sub->type->kind) {
-      case TY_NUM: case TY_PTR:
+      case TY_FIXNUM: case TY_PTR:
         result = new_ir_unary(IR_NOT, reg, to_vtype(expr->type));
         break;
       default:

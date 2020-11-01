@@ -69,7 +69,7 @@ static PpResult parse_prim(void) {
       (tok = match(TK_UINTLIT)) != NULL ||
       (tok = match(TK_ULONGLIT)) != NULL ||
       (tok = match(TK_ULLONGLIT)) != NULL) {
-    return tok->value;
+    return tok->fixnum;
   }
   //if ((tok = match(TK_STR)) != NULL)
   //  return new_expr_str(tok, tok->str.buf, tok->str.size);

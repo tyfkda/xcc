@@ -129,7 +129,7 @@ VReg *new_ir_bop(enum IrKind kind, VReg *opr1, VReg *opr2, const VRegType *vtype
       case IR_BITXOR:  value = opr1->fixnum ^ opr2->fixnum; break;
       case IR_LSHIFT:  value = opr1->fixnum << opr2->fixnum; break;
       case IR_RSHIFT:
-        //assert(opr1->type->kind == TY_NUM);
+        //assert(opr1->type->kind == TY_FIXNUM);
         if (opr1->vtype->flag & VRTF_UNSIGNED)
           value = (uintptr_t)opr1->fixnum >> opr2->fixnum;
         else

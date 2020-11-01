@@ -8,24 +8,24 @@
 #include "util.h"
 #include "var.h"  // VarInfo
 
-const Type tyChar =          {.kind=TY_NUM, .num={.kind=NUM_CHAR,  .is_unsigned=false}};
-const Type tyShort =         {.kind=TY_NUM, .num={.kind=NUM_SHORT, .is_unsigned=false}};
-const Type tyInt =           {.kind=TY_NUM, .num={.kind=NUM_INT,   .is_unsigned=false}};
-const Type tyLong =          {.kind=TY_NUM, .num={.kind=NUM_LONG,  .is_unsigned=false}};
-const Type tyLLong =         {.kind=TY_NUM, .num={.kind=NUM_LLONG, .is_unsigned=false}};
-const Type tyUnsignedChar =  {.kind=TY_NUM, .num={.kind=NUM_CHAR,  .is_unsigned=true}};
-const Type tyUnsignedShort = {.kind=TY_NUM, .num={.kind=NUM_SHORT, .is_unsigned=true}};
-const Type tyUnsignedInt =   {.kind=TY_NUM, .num={.kind=NUM_INT,   .is_unsigned=true}};
-const Type tyUnsignedLong =  {.kind=TY_NUM, .num={.kind=NUM_LONG,  .is_unsigned=true}};
-const Type tyUnsignedLLong = {.kind=TY_NUM, .num={.kind=NUM_LLONG, .is_unsigned=true}};
-const Type tyEnum =          {.kind=TY_NUM, .num={.kind=NUM_ENUM}};
+const Type tyChar =          {.kind=TY_FIXNUM, .fixnum={.kind=FX_CHAR,  .is_unsigned=false}};
+const Type tyShort =         {.kind=TY_FIXNUM, .fixnum={.kind=FX_SHORT, .is_unsigned=false}};
+const Type tyInt =           {.kind=TY_FIXNUM, .fixnum={.kind=FX_INT,   .is_unsigned=false}};
+const Type tyLong =          {.kind=TY_FIXNUM, .fixnum={.kind=FX_LONG,  .is_unsigned=false}};
+const Type tyLLong =         {.kind=TY_FIXNUM, .fixnum={.kind=FX_LLONG, .is_unsigned=false}};
+const Type tyUnsignedChar =  {.kind=TY_FIXNUM, .fixnum={.kind=FX_CHAR,  .is_unsigned=true}};
+const Type tyUnsignedShort = {.kind=TY_FIXNUM, .fixnum={.kind=FX_SHORT, .is_unsigned=true}};
+const Type tyUnsignedInt =   {.kind=TY_FIXNUM, .fixnum={.kind=FX_INT,   .is_unsigned=true}};
+const Type tyUnsignedLong =  {.kind=TY_FIXNUM, .fixnum={.kind=FX_LONG,  .is_unsigned=true}};
+const Type tyUnsignedLLong = {.kind=TY_FIXNUM, .fixnum={.kind=FX_LLONG, .is_unsigned=true}};
+const Type tyEnum =          {.kind=TY_FIXNUM, .fixnum={.kind=FX_ENUM}};
 const Type tyVoid =          {.kind=TY_VOID};
 const Type tyVoidPtr =       {.kind=TY_PTR, .pa={.ptrof=&tyVoid}};
 
 size_t num_size_table[]  = {1, 2, 4, 8, 8, 4};
 int    num_align_table[] = {1, 2, 4, 8, 8, 4};
 
-void set_num_size(enum NumKind kind, size_t size, int align) {
+void set_fixnum_size(enum FixnumKind kind, size_t size, int align) {
   num_size_table[kind] = size;
   num_align_table[kind] = align;
 }
@@ -66,8 +66,8 @@ size_t type_size(const Type *type) {
   switch (type->kind) {
   case TY_VOID:
     return 1;  // ?
-  case TY_NUM:
-    return num_size_table[type->num.kind];
+  case TY_FIXNUM:
+    return num_size_table[type->fixnum.kind];
   case TY_PTR:
     return 8;
   case TY_ARRAY:
@@ -88,8 +88,8 @@ int align_size(const Type *type) {
   switch (type->kind) {
   case TY_VOID:
     return 1;  // ?
-  case TY_NUM:
-    return num_align_table[type->num.kind];
+  case TY_FIXNUM:
+    return num_align_table[type->fixnum.kind];
   case TY_PTR:
   case TY_FUNC:
     return 8;
@@ -104,12 +104,12 @@ int align_size(const Type *type) {
   }
 }
 
-bool is_number(enum TypeKind kind) {
-  return kind == TY_NUM;
+bool is_fixnum(enum TypeKind kind) {
+  return kind == TY_FIXNUM;
 }
 
 bool is_char_type(const Type *type) {
-  return type->kind == TY_NUM && type->num.kind == NUM_CHAR;
+  return type->kind == TY_FIXNUM && type->fixnum.kind == FX_CHAR;
 }
 
 bool is_void_ptr(const Type *type) {
@@ -128,8 +128,8 @@ bool same_type(const Type *type1, const Type *type2) {
     switch (type1->kind) {
     case TY_VOID:
       return true;
-    case TY_NUM:
-      return type1->num.kind == type2->num.kind;
+    case TY_FIXNUM:
+      return type1->fixnum.kind == type2->fixnum.kind;
     case TY_ARRAY:
       if (type1->pa.length != type2->pa.length)
         return false;
@@ -184,9 +184,9 @@ bool can_cast(const Type *dst, const Type *src, bool zero, bool is_explicit) {
     return false;
 
   switch (dst->kind) {
-  case TY_NUM:
+  case TY_FIXNUM:
     switch (src->kind) {
-    case TY_NUM:
+    case TY_FIXNUM:
       return true;
     case TY_PTR:
     case TY_ARRAY:
@@ -202,7 +202,7 @@ bool can_cast(const Type *dst, const Type *src, bool zero, bool is_explicit) {
     break;
   case TY_PTR:
     switch (src->kind) {
-    case TY_NUM:
+    case TY_FIXNUM:
       if (zero)  // Special handling for 0 to pointer.
         return true;
       if (is_explicit)
@@ -319,11 +319,11 @@ Type *find_enum(const Name *name) {
 
 Type *define_enum(const Name *ident) {
   Type *type = malloc(sizeof(*type));
-  type->kind = TY_NUM;
-  type->num.kind = NUM_ENUM;
-  type->num.is_unsigned = false;
-  type->num.enum_.ident = ident;
-  type->num.enum_.members = new_vector();
+  type->kind = TY_FIXNUM;
+  type->fixnum.kind = FX_ENUM;
+  type->fixnum.is_unsigned = false;
+  type->fixnum.enum_.ident = ident;
+  type->fixnum.enum_.members = new_vector();
 
   if (ident != NULL) {
     table_put(&enum_table, ident, type);
@@ -333,11 +333,11 @@ Type *define_enum(const Name *ident) {
 }
 
 void add_enum_member(Type *type, const Name *ident, int value) {
-  assert(type->kind == TY_NUM && type->num.kind == NUM_ENUM);
+  assert(type->kind == TY_FIXNUM && type->fixnum.kind == FX_ENUM);
   EnumMember *member = malloc(sizeof(*member));
   member->ident = ident;
   member->value = value;
-  vec_push(type->num.enum_.members, member);
+  vec_push(type->fixnum.enum_.members, member);
 
   table_put(&enum_value_table, ident, (void*)(intptr_t)value);
 }
@@ -350,13 +350,13 @@ bool find_enum_value(const Name *name, intptr_t *output) {
 void dump_type(FILE *fp, const Type *type) {
   switch (type->kind) {
   case TY_VOID: fprintf(fp, "void"); break;
-  case TY_NUM:
-    switch (type->num.kind) {
-    case NUM_CHAR:  fprintf(fp, "char"); break;
-    case NUM_SHORT: fprintf(fp, "short"); break;
-    case NUM_INT:   fprintf(fp, "int"); break;
-    case NUM_LONG:  fprintf(fp, "long"); break;
-    case NUM_ENUM:  fprintf(fp, "enum"); break;
+  case TY_FIXNUM:
+    switch (type->fixnum.kind) {
+    case FX_CHAR:  fprintf(fp, "char"); break;
+    case FX_SHORT: fprintf(fp, "short"); break;
+    case FX_INT:   fprintf(fp, "int"); break;
+    case FX_LONG:  fprintf(fp, "long"); break;
+    case FX_ENUM:  fprintf(fp, "enum"); break;
     default: assert(false); break;
     }
     break;

@@ -278,7 +278,7 @@ static void gen_case(Stmt *stmt) {
   assert(cur_case_bbs != NULL);
   Expr *value = stmt->case_.value;
   assert(is_const(value));
-  intptr_t x = value->num.ival;
+  intptr_t x = value->fixnum;
   int i, len = cur_case_values->len;
   for (i = 0; i < len; ++i) {
     if ((intptr_t)cur_case_values->data[i] == x)

@@ -343,7 +343,7 @@ static bool parse_indirect_register(ParseInfo *info, Expr *offset, Operand *oper
     if (*info->p == ',') {
       info->p = skip_whitespaces(info->p + 1);
       scale = parse_expr(info);
-      if (scale->kind != EX_NUM)
+      if (scale->kind != EX_FIXNUM)
         parse_error(info, "constant value expected");
       info->p = skip_whitespaces(info->p);
     }
@@ -399,7 +399,7 @@ static enum RegType parse_deref_register(ParseInfo *info, Operand *operand) {
 enum TokenKind {
   TK_UNKNOWN,
   TK_LABEL,
-  TK_NUM,
+  TK_FIXNUM,
   TK_ADD = '+',
   TK_SUB = '-',
   TK_MUL = '*',
@@ -410,7 +410,7 @@ typedef struct Token {
   enum TokenKind kind;
   union {
     const Name *label;
-    long num;
+    long fixnum;
   };
 } Token;
 
@@ -436,8 +436,8 @@ static const Token *fetch_token(ParseInfo *info) {
     return token;
   } else if (isdigit(c)) {
     long v = strtol(p, (char**)&p, 10);
-    Token *token = new_token(TK_NUM);
-    token->num = v;
+    Token *token = new_token(TK_FIXNUM);
+    token->fixnum = v;
     info->next = p;
     return token;
   } else if (strchr("+-*/", c) != NULL) {
@@ -470,9 +470,9 @@ static Expr *prim(ParseInfo *info) {
   if ((tok = match(info, TK_LABEL)) != NULL) {
     expr = new_expr(EX_LABEL);
     expr->label = tok->label;
-  } else if ((tok = match(info, TK_NUM)) != NULL) {
-    expr = new_expr(EX_NUM);
-    expr->num = tok->num;
+  } else if ((tok = match(info, TK_FIXNUM)) != NULL) {
+    expr = new_expr(EX_FIXNUM);
+    expr->fixnum = tok->fixnum;
   }
   return expr;
 }
@@ -484,7 +484,7 @@ static Expr *unary(ParseInfo *info) {
     if (expr == NULL)
       return NULL;
     switch (expr->kind) {
-    case EX_NUM:
+    case EX_FIXNUM:
       return expr;
     default:
       {
@@ -500,8 +500,8 @@ static Expr *unary(ParseInfo *info) {
     if (expr == NULL)
       return NULL;
     switch (expr->kind) {
-    case EX_NUM:
-      expr->num = -expr->num;
+    case EX_FIXNUM:
+      expr->fixnum = -expr->fixnum;
       return expr;
     default:
       {
@@ -530,10 +530,10 @@ static Expr *parse_mul(ParseInfo *info) {
     }
 
     Expr *lhs = expr;
-    if (lhs->kind == EX_NUM && rhs->kind == EX_NUM) {
+    if (lhs->kind == EX_FIXNUM && rhs->kind == EX_FIXNUM) {
       switch (tok->kind) {
-      case TK_MUL:  lhs->num *= rhs->num; break;
-      case TK_DIV:  lhs->num += rhs->num; break;
+      case TK_MUL:  lhs->fixnum *= rhs->fixnum; break;
+      case TK_DIV:  lhs->fixnum += rhs->fixnum; break;
       default:  assert(false); break;
       }
     } else {
@@ -560,10 +560,10 @@ static Expr *parse_add(ParseInfo *info) {
     }
 
     Expr *lhs = expr;
-    if (lhs->kind == EX_NUM && rhs->kind == EX_NUM) {
+    if (lhs->kind == EX_FIXNUM && rhs->kind == EX_FIXNUM) {
       switch (tok->kind) {
-      case TK_ADD:  lhs->num += rhs->num; break;
-      case TK_SUB:  lhs->num += rhs->num; break;
+      case TK_ADD:  lhs->fixnum += rhs->fixnum; break;
+      case TK_SUB:  lhs->fixnum += rhs->fixnum; break;
       default:  assert(false); break;
       }
     } else {
@@ -617,8 +617,8 @@ static bool parse_operand(ParseInfo *info, Operand *operand) {
       info->p += 2;
       if (expr == NULL) {
         expr = malloc(sizeof(*expr));
-        expr->kind = EX_NUM;
-        expr->num = 0;
+        expr->kind = EX_FIXNUM;
+        expr->fixnum = 0;
       }
       return parse_indirect_register(info, expr, operand);
     }
@@ -792,9 +792,9 @@ void handle_directive(ParseInfo *info, enum DirectiveType dir, Vector **section_
         break;
       }
 
-      if (expr->kind == EX_NUM) {
+      if (expr->kind == EX_FIXNUM) {
         // TODO: Target endian.
-        long value = expr->num;
+        long value = expr->fixnum;
         int size = 1 << (dir - DT_BYTE);
         unsigned char *buf = malloc(size);
         for (int i = 0; i < size; ++i)

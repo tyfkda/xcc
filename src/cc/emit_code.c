@@ -49,28 +49,28 @@ static void construct_initial_value(unsigned char *buf, const Type *type, const 
   assert(init == NULL || init->kind != IK_DOT);
 
   switch (type->kind) {
-  case TY_NUM:
+  case TY_FIXNUM:
     {
       intptr_t v = 0;
       if (init != NULL) {
         assert(init->kind == IK_SINGLE);
         Expr *value = init->single;
-        if (!(is_const(value) && is_number(value->type->kind)))
+        if (!(is_const(value) && is_fixnum(value->type->kind)))
           error("Illegal initializer: constant number expected");
-        v = value->num.ival;
+        v = value->fixnum;
       }
 
       int size = type_size(type);
       for (int i = 0; i < size; ++i)
         buf[i] = v >> (i * 8);  // Little endian
 
-      switch (type->num.kind) {
-      case NUM_CHAR:  _BYTE(NUM(v)); break;
-      case NUM_SHORT: _WORD(NUM(v)); break;
-      case NUM_LONG:  _QUAD(NUM(v)); break;
-      case NUM_LLONG: _QUAD(NUM(v)); break;
+      switch (type->fixnum.kind) {
+      case FX_CHAR:  _BYTE(NUM(v)); break;
+      case FX_SHORT: _WORD(NUM(v)); break;
+      case FX_LONG:  _QUAD(NUM(v)); break;
+      case FX_LLONG: _QUAD(NUM(v)); break;
       default:
-      case NUM_INT: case NUM_ENUM:
+      case FX_INT: case FX_ENUM:
         _LONG(NUM(v));
         break;
       }
@@ -105,8 +105,8 @@ static void construct_initial_value(unsigned char *buf, const Type *type, const 
         _QUAD(label);
       } else if (value->kind == EX_STR) {
         assert(!"`char* s = \"...\"`; should be handled in parser");
-      } else if (is_const(value) && value->kind == EX_NUM) {
-        intptr_t x = value->num.ival;
+      } else if (is_const(value) && value->kind == EX_FIXNUM) {
+        intptr_t x = value->fixnum;
         for (int i = 0; i < WORD_SIZE; ++i)
           buf[i] = x >> (i * 8);  // Little endian
 
@@ -129,7 +129,7 @@ static void construct_initial_value(unsigned char *buf, const Type *type, const 
         for (size_t i = 0; i < len; ++i, ++index) {
           const Initializer *init_elem = init_array->data[i];
           if (init_elem->kind == IK_ARR) {
-            size_t next = init_elem->arr.index->num.ival;
+            size_t next = init_elem->arr.index->fixnum;
             for (size_t j = index; j < next; ++j)
               construct_initial_value(buf + (j * elem_size), elem_type, NULL);
             index = next;
@@ -308,7 +308,7 @@ static void put_args_to_stack(Defun *defun) {
       continue;
 
     switch (type->kind) {
-    case TY_NUM:
+    case TY_FIXNUM:
     case TY_PTR:
       break;
     default: assert(false); break;

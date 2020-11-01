@@ -19,12 +19,12 @@ static void init_compiler(FILE *ofp) {
   init_lexer();
   init_emit(ofp);
 
-  //set_num_size(NUM_CHAR,  1, 1);
-  //set_num_size(NUM_SHORT, 2, 2);
-  //set_num_size(NUM_INT,   4, 4);
-  //set_num_size(NUM_LONG,  8, 8);
-  //set_num_size(NUM_LLONG, 8, 8);
-  //set_num_size(NUM_ENUM,  4, 4);
+  //set_fixnum_size(NUM_CHAR,  1, 1);
+  //set_fixnum_size(NUM_SHORT, 2, 2);
+  //set_fixnum_size(NUM_INT,   4, 4);
+  //set_fixnum_size(NUM_LONG,  8, 8);
+  //set_fixnum_size(NUM_LLONG, 8, 8);
+  //set_fixnum_size(NUM_ENUM,  4, 4);
 }
 
 static void compile1(FILE *ifp, const char *filename, Vector *toplevel) {

@@ -192,7 +192,7 @@ enum OperandType {
 
 enum ExprKind {
   EX_LABEL,
-  EX_NUM,
+  EX_FIXNUM,
   EX_POS,
   EX_NEG,
   EX_ADD = '+',
@@ -205,7 +205,7 @@ typedef struct Expr {
   enum ExprKind kind;
   union {
     const Name *label;
-    long num;
+    long fixnum;
     struct {
       struct Expr *lhs;
       struct Expr *rhs;

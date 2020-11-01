@@ -179,8 +179,8 @@ static bool calc_expr(Table *label_table, const Expr *expr, intptr_t *result,
       }
     }
     break;
-  case EX_NUM:
-    *result = expr->num;
+  case EX_FIXNUM:
+    *result = expr->fixnum;
     return true;
   case EX_ADD:
   case EX_SUB:
@@ -239,7 +239,7 @@ bool resolve_relative_address(Vector **section_irs, Table *label_table, Vector *
           case LEA:
             if (inst->src.type == INDIRECT &&
                 inst->src.indirect.reg.no == RIP &&
-                inst->src.indirect.offset->kind != EX_NUM) {
+                inst->src.indirect.offset->kind != EX_FIXNUM) {
               Expr *expr = inst->src.indirect.offset;
 
               bool unres = false;

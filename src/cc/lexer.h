@@ -120,7 +120,7 @@ typedef struct Token {
       const char *buf;
       size_t size;  // Include last '\0'.
     } str;
-    intptr_t value;
+    intptr_t fixnum;
   };
 } Token;
 

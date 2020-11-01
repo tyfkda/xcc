@@ -10,22 +10,22 @@
 typedef struct Name Name;
 typedef struct Vector Vector;
 
-// Num
+// Fixnum
 
-enum NumKind {
-  NUM_CHAR,  // Small number kind should be earlier.
-  NUM_SHORT,
-  NUM_INT,
-  NUM_LONG,
-  NUM_LLONG,
-  NUM_ENUM,
+enum FixnumKind {
+  FX_CHAR,  // Small number kind should be earlier.
+  FX_SHORT,
+  FX_INT,
+  FX_LONG,
+  FX_LLONG,
+  FX_ENUM,
 };
 
 // Type
 
 enum TypeKind {
   TY_VOID,
-  TY_NUM,
+  TY_FIXNUM,
   TY_PTR,
   TY_ARRAY,
   TY_FUNC,
@@ -48,13 +48,13 @@ typedef struct Type {
   enum TypeKind kind;
   union {
     struct {
-      enum NumKind kind;
+      enum FixnumKind kind;
       bool is_unsigned;
       struct {
         const Name *ident;
         Vector *members;  // <EnumMember*>
       } enum_;
-    } num;
+    } fixnum;
     struct {  // Pointer or array.
       const struct Type *ptrof;
       size_t length;  // of array. -1 represents length is not specified (= []).
@@ -88,11 +88,11 @@ extern const Type tyVoidPtr;
 #define tyBool  tyInt
 #define tySize  tyLong
 
-void set_num_size(enum NumKind kind, size_t size, int align);
+void set_fixnum_size(enum FixnumKind kind, size_t size, int align);
 size_t type_size(const Type *type);
 int align_size(const Type *type);
 
-bool is_number(enum TypeKind kind);
+bool is_fixnum(enum TypeKind kind);
 bool is_char_type(const Type *type);
 bool is_void_ptr(const Type *type);
 bool ptr_or_array(const Type *type);
