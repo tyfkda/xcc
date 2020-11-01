@@ -741,8 +741,16 @@ static Stmt *parse_vardecl(void) {
   Token *ident;
   if (!parse_var_def(&rawType, (const Type**)&type, &flag, &ident))
     return NULL;
-  if (ident == NULL)
-    parse_error(NULL, "Ident expected");
+  if (ident == NULL) {
+    if ((type->kind == TY_STRUCT ||
+         (type->kind == TY_FIXNUM && type->fixnum.kind == FX_ENUM)) &&
+         match(TK_SEMICOL)) {
+      // Just struct/union or enum definition.
+    } else {
+      parse_error(NULL, "Ident expected");
+    }
+    return parse_vardecl();
+  }
 
   Vector *decls = parse_vardecl_cont(rawType, type, flag, ident);
 

@@ -173,11 +173,12 @@ Type *find_enum(Scope *scope, const Name *name) {
 
 Type *define_enum(Scope *scope, const Name *name) {
   Type *type = create_enum_type(name);
-
-  if (scope->enum_table == NULL) {
-    scope->enum_table = malloc(sizeof(*scope->enum_table));
-    table_init(scope->enum_table);
+  if (name != NULL) {
+    if (scope->enum_table == NULL) {
+      scope->enum_table = malloc(sizeof(*scope->enum_table));
+      table_init(scope->enum_table);
+    }
+    table_put(scope->enum_table, name, type);
   }
-  table_put(scope->enum_table, name, type);
   return type;
 }
