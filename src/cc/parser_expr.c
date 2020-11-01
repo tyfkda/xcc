@@ -436,45 +436,47 @@ static Expr *parse_member_access(Expr *target, Token *acctok) {
   }
 }
 
+static void parse_enum_members(Type *type) {
+  assert(type != NULL && type->kind == TY_FIXNUM && type->fixnum.kind == FX_ENUM);
+  int value = 0;
+  for (;;) {
+    Token *token = consume(TK_IDENT, "ident expected");
+    if (match(TK_ASSIGN)) {
+      Expr *expr = parse_const();
+      if (!(is_const(expr) && is_fixnum(expr->type->kind)))
+        parse_error(expr->token, "const expected for enum");
+      value = expr->fixnum;
+    }
+
+    intptr_t dummy;
+    if (find_enum_value(token->ident, &dummy) ||
+        find_global(token->ident) != NULL) {
+      parse_error(token, "`%.*s' is already defined",
+                  token->ident->bytes, token->ident->chars);
+    } else {
+      add_enum_member(type, token->ident, value);
+    }
+    ++value;
+
+    if (match(TK_COMMA))
+      ;
+    if (match(TK_RBRACE))
+      break;
+  }
+}
+
 static const Type *parse_enum(void) {
-  Token *typeIdent = match(TK_IDENT);
-  Type *type = typeIdent != NULL ? find_enum(typeIdent->ident) : NULL;
+  Token *ident = match(TK_IDENT);
+  Type *type = ident != NULL ? find_enum(ident->ident) : NULL;
   if (match(TK_LBRACE)) {
     if (type != NULL)
-      parse_error(typeIdent, "Duplicate enum type");
-    type = define_enum(typeIdent != NULL ? typeIdent->ident : NULL);
-    if (!match(TK_RBRACE)) {
-      int value = 0;
-      for (;;) {
-        Token *numtok;
-        Token *ident = numtok = consume(TK_IDENT, "ident expected");
-        if (match(TK_ASSIGN)) {
-          numtok = fetch_token();
-          Expr *expr = parse_const();
-          if (!(is_const(expr) && is_fixnum(expr->type->kind))) {
-            parse_error(numtok, "const expected for enum");
-          }
-          value = expr->fixnum;
-        }
-
-        intptr_t dummy;
-        if (find_enum_value(ident->ident, &dummy) ||
-            find_global(ident->ident) != NULL) {
-          parse_error(ident, "`%.*s' is already defined", ident->ident->bytes, ident->ident->chars);
-        } else {
-          add_enum_member(type, ident->ident, value);
-        }
-        ++value;
-
-        if (match(TK_COMMA))
-          ;
-        if (match(TK_RBRACE))
-          break;
-      }
-    }
+      parse_error(ident, "Duplicate enum type");
+    type = define_enum(ident != NULL ? ident->ident : NULL);
+    if (!match(TK_RBRACE))
+      parse_enum_members(type);
   } else {
     if (type == NULL)
-      parse_error(typeIdent, "Unknown enum type");
+      parse_error(ident, "Unknown enum type");
   }
   return type;
 }
