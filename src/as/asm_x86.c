@@ -945,6 +945,38 @@ bool assemble_inst(Inst *inst, const ParseInfo *info, Code *code) {
 #ifndef __NO_FLONUM
   case MOVSD:
     return assemble_movsd(inst, info, code);
+  case ADDSD:
+    if (inst->src.type == REG_XMM && inst->dst.type == REG_XMM) {
+      unsigned char sno = inst->src.regxmm - XMM0;
+      unsigned char dno = inst->dst.regxmm - XMM0;
+      PUT_CODE(p, 0xf2, 0x0f, 0x58, (unsigned char)0xc0 | ((dno & 7) << 3) | (sno & 7));
+      p += 4;
+    }
+    break;
+  case SUBSD:
+    if (inst->src.type == REG_XMM && inst->dst.type == REG_XMM) {
+      unsigned char sno = inst->src.regxmm - XMM0;
+      unsigned char dno = inst->dst.regxmm - XMM0;
+      PUT_CODE(p, 0xf2, 0x0f, 0x5c, (unsigned char)0xc0 | ((dno & 7) << 3) | (sno & 7));
+      p += 4;
+    }
+    break;
+  case MULSD:
+    if (inst->src.type == REG_XMM && inst->dst.type == REG_XMM) {
+      unsigned char sno = inst->src.regxmm - XMM0;
+      unsigned char dno = inst->dst.regxmm - XMM0;
+      PUT_CODE(p, 0xf2, 0x0f, 0x59, (unsigned char)0xc0 | ((dno & 7) << 3) | (sno & 7));
+      p += 4;
+    }
+    break;
+  case DIVSD:
+    if (inst->src.type == REG_XMM && inst->dst.type == REG_XMM) {
+      unsigned char sno = inst->src.regxmm - XMM0;
+      unsigned char dno = inst->dst.regxmm - XMM0;
+      PUT_CODE(p, 0xf2, 0x0f, 0x5e, (unsigned char)0xc0 | ((dno & 7) << 3) | (sno & 7));
+      p += 4;
+    }
+    break;
   case CVTSI2SD:
     if (inst->src.type == REG && inst->dst.type == REG_XMM) {
       unsigned char sno = opr_regno(&inst->src.reg);

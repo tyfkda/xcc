@@ -206,6 +206,10 @@
 #ifndef __NO_FLONUM
 // SIMD
 #define MOVSD(o1, o2)  EMIT_ASM2("movsd", o1, o2)
+#define ADDSD(o1, o2)  EMIT_ASM2("addsd", o1, o2)
+#define SUBSD(o1, o2)  EMIT_ASM2("subsd", o1, o2)
+#define MULSD(o1, o2)  EMIT_ASM2("mulsd", o1, o2)
+#define DIVSD(o1, o2)  EMIT_ASM2("divsd", o1, o2)
 #define CVTSI2SD(o1, o2)  EMIT_ASM2("cvtsi2sd", o1, o2)
 #define CVTTSD2SI(o1, o2)  EMIT_ASM2("cvttsd2si", o1, o2)
 #endif

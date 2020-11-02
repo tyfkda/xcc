@@ -520,6 +520,13 @@ static void ir_out(IR *ir) {
   case IR_ADD:
     {
       assert(ir->dst->phys == ir->opr1->phys);
+#ifndef __NO_FLONUM
+      if (ir->dst->vtype->flag & VRTF_FLONUM) {
+        const char **regs = kFReg64s;
+        ADDSD(regs[ir->opr2->phys], regs[ir->dst->phys]);
+        break;
+      }
+#endif
       assert(!(ir->opr1->flag & VRF_CONST));
       assert(0 <= ir->size && ir->size < kPow2TableSize);
       int pow = kPow2Table[ir->size];
@@ -535,6 +542,13 @@ static void ir_out(IR *ir) {
   case IR_SUB:
     {
       assert(ir->dst->phys == ir->opr1->phys);
+#ifndef __NO_FLONUM
+      if (ir->dst->vtype->flag & VRTF_FLONUM) {
+        const char **regs = kFReg64s;
+        SUBSD(regs[ir->opr2->phys], regs[ir->dst->phys]);
+        break;
+      }
+#endif
       assert(!(ir->opr1->flag & VRF_CONST));
       assert(0 <= ir->size && ir->size < kPow2TableSize);
       int pow = kPow2Table[ir->size];
@@ -572,6 +586,14 @@ static void ir_out(IR *ir) {
 
   case IR_MUL:
     {
+#ifndef __NO_FLONUM
+      if (ir->dst->vtype->flag & VRTF_FLONUM) {
+        assert(ir->dst->phys == ir->opr1->phys);
+        const char **regs = kFReg64s;
+        MULSD(regs[ir->opr2->phys], regs[ir->dst->phys]);
+        break;
+      }
+#endif
       assert(0 <= ir->size && ir->size < kPow2TableSize);
       assert(!(ir->opr1->flag & VRF_CONST));
       int pow = kPow2Table[ir->size];
@@ -594,6 +616,14 @@ static void ir_out(IR *ir) {
   case IR_DIV:
   case IR_DIVU:
     assert(!(ir->opr1->flag & VRF_CONST));
+#ifndef __NO_FLONUM
+    if (ir->dst->vtype->flag & VRTF_FLONUM) {
+      assert(ir->dst->phys == ir->opr1->phys);
+      const char **regs = kFReg64s;
+      DIVSD(regs[ir->opr2->phys], regs[ir->dst->phys]);
+      break;
+    }
+#endif
     if (ir->size == 1) {
       if (ir->kind == IR_DIV) {
         MOVSX(kReg8s[ir->opr1->phys], AX);
@@ -1117,6 +1147,14 @@ static void ir_out(IR *ir) {
 
   case IR_MOV:
     {
+#ifndef __NO_FLONUM
+      if (ir->dst->vtype->flag & VRTF_FLONUM) {
+        if (ir->opr1->phys != ir->dst->phys) {
+          MOVSD(kFReg64s[ir->opr1->phys], kFReg64s[ir->dst->phys]);
+          break;
+        }
+      }
+#endif
       assert(0 <= ir->size && ir->size < kPow2TableSize);
       assert(!(ir->dst->flag & VRF_CONST));
       int pow = kPow2Table[ir->size];

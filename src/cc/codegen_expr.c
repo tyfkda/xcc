@@ -20,12 +20,13 @@ VRegType *to_vtype(const Type *type) {
   vtype->align = align_size(type);
 
   int flag = 0;
+  bool is_unsigned = is_fixnum(type->kind) ? type->fixnum.is_unsigned : true;
 #ifndef __NO_FLONUM
   if (is_flonum(type)) {
     flag |= VRTF_FLONUM;
+    is_unsigned = false;
   }
 #endif
-  bool is_unsigned = type->kind == TY_FIXNUM ? type->fixnum.is_unsigned : true;
   if (is_unsigned)
     flag |= VRTF_UNSIGNED;
   vtype->flag = flag;
@@ -486,6 +487,12 @@ VReg *gen_arith(enum ExprKind kind, const Type *type, VReg *lhs, VReg *rhs) {
   case EX_ADD:
   case EX_SUB:
   case EX_MUL:
+#ifndef __NO_FLONUM
+    if (is_flonum(type)) {
+      return new_ir_bop(kind + (IR_ADD - EX_ADD), lhs, rhs, to_vtype(type));
+    }
+#endif
+    return new_ir_bop(kind + (IR_ADD - EX_ADD), lhs, rhs, to_vtype(type));
   case EX_BITAND:
   case EX_BITOR:
   case EX_BITXOR:
@@ -495,7 +502,12 @@ VReg *gen_arith(enum ExprKind kind, const Type *type, VReg *lhs, VReg *rhs) {
 
   case EX_DIV:
   case EX_MOD:
-    assert(type->kind == TY_FIXNUM);
+    assert(is_number(type));
+#ifndef __NO_FLONUM
+    if (is_flonum(type)) {
+      return new_ir_bop(kind + (IR_DIV - EX_DIV), lhs, rhs, to_vtype(type));
+    }
+#endif
     return new_ir_bop(kind + ((type->fixnum.is_unsigned ? IR_DIVU : IR_DIV) - EX_DIV), lhs, rhs, to_vtype(type));
 
   default:

@@ -95,6 +95,10 @@ static const char *kOpTable[] = {
 
 #ifndef __NO_FLONUM
   "movsd",
+  "addsd",
+  "subsd",
+  "mulsd",
+  "divsd",
   "cvtsi2sd",
   "cvttsd2si",
 #endif

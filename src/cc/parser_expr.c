@@ -301,27 +301,32 @@ const VarInfo *search_from_anonymous(const Type *type, const Name *name, const T
   return NULL;
 }
 
-static bool cast_integers(Expr **pLhs, Expr **pRhs, bool keep_left) {
+static bool cast_numbers(Expr **pLhs, Expr **pRhs, bool keep_left) {
   Expr *lhs = *pLhs;
   Expr *rhs = *pRhs;
   const Type *ltype = lhs->type;
   const Type *rtype = rhs->type;
   assert(ltype != NULL);
   assert(rtype != NULL);
-  if (!is_fixnum(ltype->kind)) {
-    parse_error(lhs->token, "integer type expected");
+  if (!is_number(ltype)) {
+    parse_error(lhs->token, "number type expected");
     return false;
   }
-  if (!is_fixnum(rtype->kind)) {
-    parse_error(rhs->token, "integer type expected");
+  if (!is_number(rtype)) {
+    parse_error(rhs->token, "number type expected");
     return false;
   }
 
 #ifndef __NO_FLONUM
-  if (is_flonum(ltype) || is_flonum(rtype)) {
-    //const Type *type = !is_fixnum(ltype) ? ltype : rtype;
-    assert(!"double");
-    return false;
+  {
+    bool lflo = is_flonum(ltype), rflo = is_flonum(rtype);
+    if (lflo || rflo) {
+      if (!lflo)
+        *pLhs = make_cast(rtype, lhs->token, lhs, false);
+      else if (!rflo)
+        *pRhs = make_cast(ltype, rhs->token, rhs, false);
+      return true;
+    }
   }
 #endif
   enum FixnumKind lkind = ltype->fixnum.kind;
@@ -362,9 +367,33 @@ static void check_referable(const Token *tok, Expr *expr, const char *error) {
   check_lval(tok, expr, error);
 }
 
-static Expr *new_expr_int_bop(enum ExprKind kind, const Token *tok, Expr *lhs, Expr *rhs, bool keep_left) {
-  if (is_const(lhs) && is_fixnum(lhs->type->kind) &&
-      is_const(rhs) && is_fixnum(rhs->type->kind)) {
+static Expr *new_expr_num_bop(enum ExprKind kind, const Token *tok, Expr *lhs, Expr *rhs, bool keep_left) {
+  if (is_const(lhs) && is_number(lhs->type) &&
+      is_const(rhs) && is_number(rhs->type)) {
+#ifndef __NO_FLONUM
+    if (is_flonum(lhs->type) || is_flonum(rhs->type)) {
+      double lval = is_flonum(lhs->type) ? lhs->flonum : lhs->fixnum;
+      double rval = is_flonum(rhs->type) ? rhs->flonum : rhs->fixnum;
+      double value;
+      switch (kind) {
+      case EX_MUL:     value = lval * rval; break;
+      case EX_DIV:     value = lval / rval; break;
+      default:
+        assert(!"err");
+        value = -1;  // Dummy
+        break;
+      }
+      const Type *type = lhs->type;
+      if (!keep_left && is_flonum(rhs->type))
+        type = rhs->type;
+      if (is_flonum(type)) {
+        return new_expr_flolit(type, lhs->token, value);
+      } else {
+        Fixnum fixnum = value;
+        return new_expr_fixlit(type, lhs->token, fixnum);
+      }
+    }
+#endif
     intptr_t lval = lhs->fixnum;
     intptr_t rval = rhs->fixnum;
     intptr_t value;
@@ -385,8 +414,16 @@ static Expr *new_expr_int_bop(enum ExprKind kind, const Token *tok, Expr *lhs, E
     return new_expr_fixlit(type, lhs->token, fixnum);
   }
 
-  cast_integers(&lhs, &rhs, keep_left);
+  cast_numbers(&lhs, &rhs, keep_left);
   return new_expr_bop(kind, lhs->type, tok, lhs, rhs);
+}
+
+static Expr *new_expr_int_bop(enum ExprKind kind, const Token *tok, Expr *lhs, Expr *rhs, bool keep_left) {
+  if (!is_fixnum(lhs->type->kind))
+    parse_error(lhs->token, "int type expected");
+  if (!is_fixnum(rhs->type->kind))
+    parse_error(rhs->token, "int type expected");
+  return new_expr_num_bop(kind, tok, lhs, rhs, keep_left);
 }
 
 static Expr *new_expr_addsub(enum ExprKind kind, const Token *tok, Expr *lhs, Expr *rhs, bool keep_left) {
@@ -395,8 +432,32 @@ static Expr *new_expr_addsub(enum ExprKind kind, const Token *tok, Expr *lhs, Ex
   const Type *rtype = rhs->type;
   assert(ltype != NULL);
   assert(rtype != NULL);
-  if (is_fixnum(ltype->kind) && is_fixnum(rtype->kind)) {
+  if (is_number(ltype) && is_number(rtype)) {
     if (is_const(lhs) && is_const(rhs)) {
+#ifndef __NO_FLONUM
+      if (is_flonum(lhs->type) || is_flonum(rhs->type)) {
+        double lval = is_flonum(lhs->type) ? lhs->flonum : lhs->fixnum;
+        double rval = is_flonum(rhs->type) ? rhs->flonum : rhs->fixnum;
+        double value;
+        switch (kind) {
+        case EX_ADD:     value = lval + rval; break;
+        case EX_SUB:     value = lval - rval; break;
+        default:
+          assert(!"err");
+          value = -1;  // Dummy
+          break;
+        }
+        const Type *type = lhs->type;
+        if (!keep_left && is_flonum(rhs->type))
+          type = rhs->type;
+        if (is_flonum(type)) {
+          return new_expr_flolit(type, lhs->token, value);
+        } else {
+          Fixnum fixnum = value;
+          return new_expr_fixlit(type, lhs->token, fixnum);
+        }
+      }
+#endif
       enum FixnumKind lnt = ltype->fixnum.kind;
       enum FixnumKind rnt = rtype->fixnum.kind;
       if (lnt == FX_ENUM)
@@ -420,7 +481,7 @@ static Expr *new_expr_addsub(enum ExprKind kind, const Token *tok, Expr *lhs, Ex
       return new_expr_fixlit(type, lhs->token, fixnum);
     }
 
-    cast_integers(&lhs, &rhs, keep_left);
+    cast_numbers(&lhs, &rhs, keep_left);
     type = lhs->type;
   } else if (ptr_or_array(ltype)) {
     if (is_fixnum(rtype->kind)) {
@@ -494,7 +555,7 @@ static Expr *new_expr_cmp(enum ExprKind kind, const Token *tok, Expr *lhs, Expr 
     if (rt->kind != TY_PTR)
       rhs = make_cast(lhs->type, rhs->token, rhs, false);
   } else {
-    if (!cast_integers(&lhs, &rhs, false))
+    if (!cast_numbers(&lhs, &rhs, false))
       parse_error(tok, "Cannot compare except numbers");
   }
   return new_expr_bop(kind, &tyBool, tok, lhs, rhs);
@@ -1130,7 +1191,7 @@ static Expr *parse_unary(void) {
   Token *tok;
   if ((tok = match(TK_ADD)) != NULL) {
     Expr *expr = parse_cast_expr();
-    if (!is_fixnum(expr->type->kind))
+    if (!is_number(expr->type))
       parse_error(tok, "Cannot apply `+' except number types");
     if (is_const(expr))
       return expr;
@@ -1139,9 +1200,15 @@ static Expr *parse_unary(void) {
 
   if ((tok = match(TK_SUB)) != NULL) {
     Expr *expr = parse_cast_expr();
-    if (!is_fixnum(expr->type->kind))
+    if (!is_number(expr->type))
       parse_error(tok, "Cannot apply `-' except number types");
     if (is_const(expr)) {
+#ifndef __NO_FLONUM
+      if (is_flonum(expr->type)) {
+        expr->flonum = -expr->flonum;
+        return expr;
+      }
+#endif
       expr->fixnum = -expr->fixnum;
       return expr;
     }
@@ -1266,7 +1333,7 @@ static Expr *parse_mul(void) {
       return expr;
 
     Expr *lhs = expr, *rhs = parse_cast_expr();
-    expr = new_expr_int_bop(kind, tok, lhs, rhs, false);
+    expr = new_expr_num_bop(kind, tok, lhs, rhs, false);
   }
 }
 
@@ -1476,6 +1543,7 @@ Expr *parse_assign(void) {
   enum {
     ASSIGN,
     ADDSUB,
+    MULDIV,
     FIXNUM_BOP,
     SHIFT,
   };
@@ -1488,8 +1556,8 @@ Expr *parse_assign(void) {
     { TK_ASSIGN, EX_ASSIGN, ASSIGN },
     { TK_ADD_ASSIGN, EX_ADD, ADDSUB },
     { TK_SUB_ASSIGN, EX_SUB, ADDSUB },
-    { TK_MUL_ASSIGN, EX_MUL, FIXNUM_BOP },
-    { TK_DIV_ASSIGN, EX_DIV, FIXNUM_BOP },
+    { TK_MUL_ASSIGN, EX_MUL, MULDIV },
+    { TK_DIV_ASSIGN, EX_DIV, MULDIV },
     { TK_MOD_ASSIGN, EX_MOD, FIXNUM_BOP },
     { TK_AND_ASSIGN, EX_BITAND, FIXNUM_BOP },
     { TK_OR_ASSIGN, EX_BITOR, FIXNUM_BOP },
@@ -1524,6 +1592,7 @@ Expr *parse_assign(void) {
         case ASSIGN:
           return new_expr_bop(EX_ASSIGN, lhs->type, tok, lhs, make_cast(lhs->type, tok, rhs, false));
         case ADDSUB:  bop = new_expr_addsub(kind, tok, lhs, rhs, true); break;
+        case MULDIV:  bop = new_expr_num_bop(kind, tok, lhs, rhs, true); break;
         case FIXNUM_BOP:  bop = new_expr_int_bop(kind, tok, lhs, rhs, true); break;
         case SHIFT:
           {
