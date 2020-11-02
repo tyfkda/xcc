@@ -1217,13 +1217,21 @@ static Expr *parse_unary(void) {
 
   if ((tok = match(TK_NOT)) != NULL) {
     Expr *expr = parse_cast_expr();
-    if (!is_fixnum(expr->type->kind) && !ptr_or_array(expr->type))
+    if (!is_number(expr->type) && !ptr_or_array(expr->type))
       parse_error(tok, "Cannot apply `!' except number or pointer types");
     if (is_const(expr)) {
       switch (expr->kind) {
       case EX_FIXNUM:
         expr->fixnum = !expr->fixnum;
         break;
+#ifndef __NO_FLONUM
+      case EX_FLONUM:
+        {
+          Fixnum value = expr->fixnum == 0;
+          expr = new_expr_fixlit(&tyBool, tok, value);
+        }
+        break;
+#endif
       case EX_STR:
         {
           Fixnum value = 0;
@@ -1236,6 +1244,12 @@ static Expr *parse_unary(void) {
       }
       return expr;
     }
+#ifndef __NO_FLONUM
+    if (is_flonum(expr->type)) {
+      Expr *zero = new_expr_flolit(expr->type, NULL, 0.0);
+      return new_expr_bop(EX_EQ, &tyBool, NULL, expr, zero);
+    }
+#endif
     return new_expr_unary(EX_NOT, &tyBool, tok, expr);
   }
 

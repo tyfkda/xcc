@@ -58,7 +58,12 @@ static enum ConditionKind gen_compare_expr(enum ExprKind kind, Expr *lhs, Expr *
   }
 
   if (cond > COND_NE &&
-      (!is_fixnum(lhs->type->kind) || lhs->type->fixnum.is_unsigned)) {
+      ((is_fixnum(lhs->type->kind) && lhs->type->fixnum.is_unsigned) ||
+#ifndef __NO_FLONUM
+        is_flonum(lhs->type) ||
+#endif
+       lhs->type->kind == TY_PTR)) {
+    // unsigned
     cond += COND_ULT - COND_LT;
   }
 
@@ -74,6 +79,9 @@ static enum ConditionKind gen_compare_expr(enum ExprKind kind, Expr *lhs, Expr *
   } else {
     switch (lhs->type->kind) {
     case TY_FIXNUM: case TY_PTR:
+#ifndef __NO_FLONUM
+    case TY_FLONUM:
+#endif
       break;
     default: assert(false); break;
     }
@@ -98,6 +106,15 @@ void gen_cond_jmp(Expr *cond, bool tf, BB *bb) {
     if (tf)
       new_ir_jmp(COND_ANY, bb);
     return;
+
+#ifndef __NO_FLONUM
+  case EX_FLONUM:
+    if (cond->flonum == 0)
+      tf = !tf;
+    if (tf)
+      new_ir_jmp(COND_ANY, bb);
+    return;
+#endif
 
   case EX_EQ:
   case EX_NE:
@@ -184,6 +201,14 @@ void gen_cond_jmp(Expr *cond, bool tf, BB *bb) {
     break;
   }
 
+#ifndef __NO_FLONUM
+  if (is_flonum(cond->type)) {
+    Expr *zero = new_expr_flolit(cond->type, NULL, 0.0);
+    Expr *cmp = new_expr_bop(EX_NE, &tyBool, NULL, cond, zero);
+    gen_cond_jmp(cmp, tf, bb);
+    return;
+  }
+#endif
   VReg *reg = gen_expr(cond);
   new_ir_test(reg);
   new_ir_jmp(tf ? COND_NE : COND_EQ, bb);
@@ -822,18 +847,17 @@ VReg *gen_expr(Expr *expr) {
 
   case EX_NOT:
     {
-      VReg *reg = gen_expr(expr->unary.sub);
       VReg *result;
       switch (expr->unary.sub->type->kind) {
       case TY_FIXNUM: case TY_PTR:
-        result = new_ir_unary(IR_NOT, reg, to_vtype(expr->type));
+        result = new_ir_unary(IR_NOT, gen_expr(expr->unary.sub), to_vtype(expr->type));
         break;
       default:
         assert(false);
         // Fallthrough to suppress compile error
       case TY_ARRAY: case TY_FUNC:
         // Array is handled as a pointer.
-        result = new_ir_unary(IR_NOT, reg, to_vtype(expr->type));
+        result = new_ir_unary(IR_NOT, gen_expr(expr->unary.sub), to_vtype(expr->type));
         break;
       }
       return result;

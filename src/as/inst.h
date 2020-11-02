@@ -90,6 +90,7 @@ enum Opcode {
   SUBSD,
   MULSD,
   DIVSD,
+  UCOMISD,
   CVTSI2SD,
   CVTTSD2SI,
 #endif

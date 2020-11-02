@@ -977,6 +977,14 @@ bool assemble_inst(Inst *inst, const ParseInfo *info, Code *code) {
       p += 4;
     }
     break;
+  case UCOMISD:
+    if (inst->src.type == REG_XMM && inst->dst.type == REG_XMM) {
+      unsigned char sno = inst->src.regxmm - XMM0;
+      unsigned char dno = inst->dst.regxmm - XMM0;
+      PUT_CODE(p, 0x66, 0x0f, 0x2e, (unsigned char)0xc0 | ((dno & 7) << 3) | (sno & 7));
+      p += 4;
+    }
+    break;
   case CVTSI2SD:
     if (inst->src.type == REG && inst->dst.type == REG_XMM) {
       unsigned char sno = opr_regno(&inst->src.reg);

@@ -99,6 +99,7 @@ static const char *kOpTable[] = {
   "subsd",
   "mulsd",
   "divsd",
+  "ucomisd",
   "cvtsi2sd",
   "cvttsd2si",
 #endif

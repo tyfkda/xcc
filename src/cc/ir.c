@@ -833,6 +833,13 @@ static void ir_out(IR *ir) {
 
   case IR_CMP:
     {
+#ifndef __NO_FLONUM
+      if (ir->opr1->vtype->flag & VRTF_FLONUM) {
+        assert(ir->opr2->vtype->flag & VRTF_FLONUM);
+        UCOMISD(kFReg64s[ir->opr2->phys], kFReg64s[ir->opr1->phys]);
+        break;
+      }
+#endif
       assert(0 <= ir->size && ir->size < kPow2TableSize);
       int pow = kPow2Table[ir->size];
       assert(0 <= pow && pow < 4);
