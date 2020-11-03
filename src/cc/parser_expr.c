@@ -300,7 +300,7 @@ static Expr *new_expr_cmp(enum ExprKind kind, const Token *tok, Expr *lhs, Expr 
       rt = array_to_ptr(rt);
       rhs = make_cast(rt, rhs->token, rhs, false);
     }
-    if (lt->kind != TY_PTR) {
+    if (lt->kind != TY_PTR) {  // For comparison between pointer and 0.
       Expr *tmp = lhs;
       lhs = rhs;
       rhs = tmp;
@@ -316,16 +316,6 @@ static Expr *new_expr_cmp(enum ExprKind kind, const Token *tok, Expr *lhs, Expr 
   } else {
     if (!cast_integers(&lhs, &rhs, false))
       parse_error(tok, "Cannot compare except numbers");
-
-    if (is_const(lhs) && !is_const(rhs)) {
-      Expr *tmp = lhs;
-      lhs = rhs;
-      rhs = tmp;
-      const Type *tt = lt;
-      lt = rt;
-      rt = tt;
-      kind = swap_cmp(kind);
-    }
   }
   return new_expr_bop(kind, &tyBool, tok, lhs, rhs);
 }
