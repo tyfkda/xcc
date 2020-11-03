@@ -242,7 +242,7 @@ static VReg *gen_cast(VReg *reg, const Type *dst_type) {
   }
 
   int dst_size = type_size(dst_type);
-  bool lu = dst_type->kind == TY_FIXNUM ? dst_type->fixnum.is_unsigned : true;
+  bool lu = dst_type->kind == TY_FIXNUM ? dst_type->fixnum.is_unsigned : dst_type->kind == TY_PTR;
   bool ru = (reg->vtype->flag & VRTF_UNSIGNED) ? true : false;
   if (dst_size == reg->vtype->size && lu == ru
 #ifndef __NO_FLONUM
@@ -375,8 +375,11 @@ bool is_stack_param(const Type *type) {
 typedef struct {
   int reg_index;
   int offset;
-  bool stack_arg;
   int size;
+  bool stack_arg;
+#ifndef __NO_FLONUM
+  bool is_flonum;
+#endif
 } ArgInfo;
 
 static VReg *gen_funcall(Expr *expr) {
@@ -410,6 +413,9 @@ static VReg *gen_funcall(Expr *expr) {
     int reg_index = 0;
     if (ret_info.stack_arg)
       ++reg_index;
+#ifndef __NO_FLONUM
+    int freg_index = 0;
+#endif
 
     // Check stack arguments.
     arg_infos = malloc(sizeof(*arg_infos) * arg_count);
@@ -420,8 +426,20 @@ static VReg *gen_funcall(Expr *expr) {
       Expr *arg = args->data[i];
       assert(arg->type->kind != TY_ARRAY);
       p->size = type_size(arg->type);
+#ifndef __NO_FLONUM
+      p->is_flonum = is_flonum(arg->type);
+#endif
       p->stack_arg = is_stack_param(arg->type);
-      if (p->stack_arg || reg_index >= MAX_REG_ARGS) {
+      bool reg_arg = !p->stack_arg;
+      if (reg_arg) {
+#ifndef __NO_FLONUM
+        if (p->is_flonum)
+          reg_arg = freg_index < MAX_FREG_ARGS;
+        else
+#endif
+          reg_arg = reg_index < MAX_REG_ARGS;
+      }
+      if (!reg_arg) {
         if (reg_index >= MAX_REG_ARGS && vaargs) {
           parse_error(((Expr*)args->data[reg_index])->token,
                       "Param count exceeds %d", MAX_REG_ARGS);
@@ -432,7 +450,12 @@ static VReg *gen_funcall(Expr *expr) {
         offset += p->size;
         ++stack_arg_count;
       } else {
-        p->reg_index = reg_index++;
+#ifndef __NO_FLONUM
+        if (p->is_flonum)
+          p->reg_index = freg_index++;
+        else
+#endif
+          p->reg_index = reg_index++;
       }
     }
   }
@@ -443,12 +466,17 @@ static VReg *gen_funcall(Expr *expr) {
   int reg_arg_count = 0;
   if (offset > 0)
     new_ir_addsp(-offset);
+  unsigned int arg_type_bits = 0;
   if (args != NULL) {
     // Register arguments.
     for (int i = arg_count; --i >= 0; ) {
       Expr *arg = args->data[i];
       VReg *reg = gen_expr(arg);
       const ArgInfo *p = &arg_infos[i];
+#ifndef __NO_FLONUM
+      if (p->is_flonum)
+        arg_type_bits |= 1 << i;
+#endif
       if (p->offset < 0) {
         new_ir_pusharg(reg, to_vtype(arg->type));
         ++reg_arg_count;
@@ -476,6 +504,7 @@ static VReg *gen_funcall(Expr *expr) {
                                             &offset_type));
     new_ir_pusharg(dst, to_vtype(ptrof(expr->type)));
     ++reg_arg_count;
+    arg_type_bits <<= 1;
   }
 
   bool label_call = false;
@@ -495,10 +524,10 @@ static VReg *gen_funcall(Expr *expr) {
     VRegType *ret_vtype = to_vtype(type);
     if (label_call) {
       result_reg = new_ir_call(func->var.name, global, NULL, reg_arg_count, ret_vtype,
-                               precall);
+                               precall, arg_type_bits);
     } else {
       VReg *freg = gen_expr(func);
-      result_reg = new_ir_call(NULL, false, freg, reg_arg_count, ret_vtype, precall);
+      result_reg = new_ir_call(NULL, false, freg, reg_arg_count, ret_vtype, precall, arg_type_bits);
     }
   }
 
@@ -654,6 +683,9 @@ VReg *gen_expr(Expr *expr) {
       switch (expr->type->kind) {
       case TY_FIXNUM:
       case TY_PTR:
+#ifndef __NO_FLONUM
+      case TY_FLONUM:
+#endif
         result = new_ir_unary(IR_LOAD, reg, to_vtype(expr->type));
         break;
       default:

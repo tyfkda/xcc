@@ -346,13 +346,14 @@ IR *new_ir_precall(int arg_count, int stack_args_size) {
 }
 
 VReg *new_ir_call(const Name *label, bool global, VReg *freg, int reg_arg_count,
-                  const VRegType *result_type, IR *precall) {
+                  const VRegType *result_type, IR *precall, unsigned int arg_type_bits) {
   IR *ir = new_ir(IR_CALL);
   ir->call.label = label;
   ir->call.global = global;
   ir->opr1 = freg;
   ir->call.precall = precall;
   ir->call.reg_arg_count = reg_arg_count;
+  ir->call.arg_type_bits = arg_type_bits;
   ir->size = result_type->size;
   return ir->dst = reg_alloc_spawn(curra, result_type, 0);
 }
@@ -1022,6 +1023,13 @@ static void ir_out(IR *ir) {
     break;
 
   case IR_PUSHARG:
+#ifndef __NO_FLONUM
+    if (ir->opr1->vtype->flag & VRTF_FLONUM) {
+      SUB(IM(WORD_SIZE), RSP); PUSH_STACK_POS();
+      MOVSD(kFReg64s[ir->opr1->phys], INDIRECT(RSP, NULL, 1));
+      break;
+    }
+#endif
     if (ir->opr1->flag & VRF_CONST) {
       if (is_im32(ir->opr1->fixnum)) {
         PUSH(im(ir->opr1->fixnum)); PUSH_STACK_POS();
@@ -1039,10 +1047,23 @@ static void ir_out(IR *ir) {
       int reg_args = ir->call.reg_arg_count;
       push_caller_save_regs(ir->call.precall->precall.living_pregs, reg_args * WORD_SIZE + ir->call.precall->precall.stack_args_size + ir->call.precall->precall.stack_aligned);
 
-      // Pop register arguments.
       static const char *kArgReg64s[] = {RDI, RSI, RDX, RCX, R8, R9};
+#ifndef __NO_FLONUM
+      static const char *kArgFReg64s[] = {XMM0, XMM1, XMM2, XMM3, XMM4, XMM5};
+      int freg = 0;
+#endif
+
+      // Pop register arguments.
+      int ireg = 0;
       for (int i = 0; i < reg_args; ++i) {
-        POP(kArgReg64s[i]); POP_STACK_POS();
+#ifndef __NO_FLONUM
+        if (ir->call.arg_type_bits & (1 << i)) {
+          MOVSD(INDIRECT(RSP, NULL, 1), kArgFReg64s[freg++]);
+          ADD(IM(WORD_SIZE), RSP); POP_STACK_POS();
+          continue;
+        }
+#endif
+        POP(kArgReg64s[ireg++]); POP_STACK_POS();
       }
 
       if (ir->call.label != NULL) {

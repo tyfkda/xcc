@@ -99,6 +99,7 @@ compile_error() {
 }
 
 try 'double' 41 'double x = 11; double y = x * 11 / 3 - 1 + 2; return y;'
+try_direct 'double param' 121 'double sq(double x){return x*x;} int main(){return sq(11.0);}'
 
 try_output 'write' 'hello' "write(1, \"hello\\\\n\", 6);"
 try_output 'char array' 123 "char s[16]; s[0] = '1'; s[1] = '2'; s[2] = '3'; s[3] = '\\\\n'; write(1, s, 4);"

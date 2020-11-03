@@ -413,6 +413,10 @@ void prepare_register_allocation(Function *func) {
     Scope *scope = (Scope*)func->scopes->data[0];
     assert(scope != NULL);
     int reg_param_index = 0;
+    int ireg_index = 0;
+#ifndef __NO_FLONUM
+    int freg_index = 0;
+#endif
     int offset = DEFAULT_OFFSET;
     for (int j = 0; j < func->type->func.params->len; ++j) {
       VarInfo *varinfo = func->type->func.params->data[j];
@@ -430,8 +434,19 @@ void prepare_register_allocation(Function *func) {
         vreg->offset = (reg_param_index - MAX_REG_ARGS) * WORD_SIZE;
       }
       ++reg_param_index;
+      bool through_stack;
+#ifndef __NO_FLONUM
+      if (is_flonum(varinfo->type)) {
+        through_stack = freg_index >= MAX_FREG_ARGS;
+        ++freg_index;
+      } else
+#endif
+      {
+        through_stack = ireg_index >= MAX_REG_ARGS;
+        ++ireg_index;
+      }
 
-      if (vreg->param_index >= MAX_REG_ARGS) {
+      if (through_stack) {
         // Function argument passed through the stack.
         vreg->offset = offset;
         offset += WORD_SIZE;

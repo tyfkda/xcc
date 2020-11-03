@@ -8,6 +8,27 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+// 0..finite, >0..divergence count.
+unsigned int mandelbrot(double cx, double cy, unsigned int threshold) {
+  double x = 0, y = 0;
+  for (unsigned int n = 1; n <= threshold; ++n) {
+    if (x * x + y * y > 4.0)
+      return n;
+    double nx = x * x - y * y + cx;
+    double ny = 2 * x * y     + cy;
+    x = nx;
+    y = ny;
+  }
+  return 0;
+}
+
+unsigned int calc_color(unsigned int n) {
+  unsigned char r = n * 3;
+  unsigned char g = n * 2;
+  unsigned char b = n * 11;
+  return (((unsigned int)r) << 16) | (((unsigned int)g) << 8) | b;
+}
+
 int main() {
   const unsigned int threshold = 3000;
   const int W = 1024, H = 1024;
@@ -22,27 +43,11 @@ int main() {
     double cy = YS * i / H + YMIN;
     for (int j = 0; j < W; ++j) {
       double cx = XS * j / W + XMIN;
-      double x = 0, y = 0;
-      unsigned int n;
-      for (n = 0; n < threshold; ++n) {
-        if (x * x + y * y > 4.0)
-          break;
-        double nx = x * x - y * y + cx;
-        double ny = 2 * x * y     + cy;
-        x = nx;
-        y = ny;
-      }
-
-      unsigned char r = 0, g = 0, b = 0;
-      if (n < threshold) {
-        ++n;
-        r = n * 3;
-        g = n * 2;
-        b = n * 11;
-      }
-      *p++ = r;
-      *p++ = g;
-      *p++ = b;
+      unsigned int n = mandelbrot(cx, cy, threshold);
+      unsigned int c = calc_color(n);
+      *p++ = c >> 16;
+      *p++ = c >> 8;
+      *p++ = c;
     }
   }
 

@@ -14,6 +14,10 @@ typedef struct Vector Vector;
 #define MAX_REG_ARGS  (6)
 #define WORD_SIZE  (8)  /*sizeof(void*)*/
 
+#ifndef __NO_FLONUM
+#define MAX_FREG_ARGS  (6)
+#endif
+
 #define PHYSICAL_REG_MAX  (7 - 1)
 
 // Virtual register
@@ -140,6 +144,7 @@ typedef struct IR {
       struct IR *precall;
       int reg_arg_count;
       bool global;
+      unsigned int arg_type_bits;
     } call;
     struct {
       int flag;  // VRTF_FLOAT
@@ -166,7 +171,7 @@ VReg *new_ir_cond(enum ConditionKind cond);
 void new_ir_jmp(enum ConditionKind cond, BB *bb);
 IR *new_ir_precall(int arg_count, int stack_args_size);
 void new_ir_pusharg(VReg *vreg, const VRegType *vtype);
-VReg *new_ir_call(const Name *label, bool global, VReg *freg, int reg_arg_count, const VRegType *result_type, IR *precall);
+VReg *new_ir_call(const Name *label, bool global, VReg *freg, int reg_arg_count, const VRegType *result_type, IR *precall, unsigned int arg_type_bits);
 void new_ir_result(VReg *reg);
 void new_ir_addsp(int value);
 VReg *new_ir_cast(VReg *vreg, const VRegType *dsttype);
