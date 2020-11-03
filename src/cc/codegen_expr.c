@@ -36,12 +36,11 @@ static enum ConditionKind swap_cond(enum ConditionKind cond) {
 }
 
 static enum ConditionKind gen_compare_expr(enum ExprKind kind, Expr *lhs, Expr *rhs) {
-  const Type *ltype = lhs->type;
-  UNUSED(ltype);
-  assert(ltype->kind == rhs->type->kind);
+  assert(lhs->type->kind == rhs->type->kind);
 
   enum ConditionKind cond = kind + (COND_EQ - EX_EQ);
-  if (rhs->kind != EX_FIXNUM && lhs->kind == EX_FIXNUM) {
+  assert(cond >= COND_EQ && cond < COND_ULT);
+  if (is_const(rhs) && !is_const(lhs)) {
     Expr *tmp = lhs;
     lhs = rhs;
     rhs = tmp;
@@ -57,7 +56,9 @@ static enum ConditionKind gen_compare_expr(enum ExprKind kind, Expr *lhs, Expr *
   if (rhs->kind == EX_FIXNUM && rhs->fixnum == 0 &&
       (cond == COND_EQ || cond == COND_NE)) {
     new_ir_test(lhs_reg);
-  } else if (rhs->kind == EX_FIXNUM && (lhs->type->fixnum.kind != FX_LONG || is_im32(rhs->fixnum))) {
+  } else if (rhs->kind == EX_FIXNUM &&
+             ((is_fixnum(lhs->type->kind) && lhs->type->fixnum.kind < FX_LONG) ||
+               is_im32(rhs->fixnum))) {
     VReg *num = new_const_vreg(rhs->fixnum, to_vtype(rhs->type));
     new_ir_cmp(lhs_reg, num);
   } else {
