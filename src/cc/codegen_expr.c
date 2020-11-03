@@ -662,6 +662,9 @@ VReg *gen_expr(Expr *expr) {
       switch (expr->type->kind) {
       case TY_FIXNUM:
       case TY_PTR:
+#ifndef __NO_FLONUM
+      case TY_FLONUM:
+#endif
         result = new_ir_unary(IR_LOAD, reg, to_vtype(expr->type));
         return result;
 
@@ -741,6 +744,9 @@ VReg *gen_expr(Expr *expr) {
         // Fallthrough to suppress compiler error.
       case TY_FIXNUM:
       case TY_PTR:
+#ifndef __NO_FLONUM
+      case TY_FLONUM:
+#endif
 #if 0
         new_ir_store(dst, src);
 #else
@@ -752,11 +758,6 @@ VReg *gen_expr(Expr *expr) {
         }
 #endif
         break;
-#ifndef __NO_FLONUM
-      case TY_FLONUM:
-        new_ir_store(dst, src);
-        break;
-#endif
       case TY_STRUCT:
         {
           VReg *tmp = add_new_reg(&tyVoidPtr, 0);
@@ -873,6 +874,12 @@ VReg *gen_expr(Expr *expr) {
   case EX_NEG:
     {
       VReg *reg = gen_expr(expr->unary.sub);
+#ifndef __NO_FLONUM
+      if (is_flonum(expr->type)) {
+        VReg *zero = gen_expr(new_expr_flolit(expr->type, NULL, 0.0));
+        return gen_arith(EX_SUB, expr->type, zero, reg);
+      }
+#endif
       VReg *result = new_ir_unary(IR_NEG, reg, to_vtype(expr->type));
       return result;
     }

@@ -1009,6 +1009,14 @@ bool assemble_inst(Inst *inst, const ParseInfo *info, Code *code) {
       p += 3;
     }
     break;
+  case SQRTSD:
+    if (inst->src.type == REG_XMM && inst->dst.type == REG_XMM) {
+      unsigned char sno = inst->src.regxmm - XMM0;
+      unsigned char dno = inst->dst.regxmm - XMM0;
+      PUT_CODE(p, 0xf2, 0x0f, 0x51, (unsigned char)0xc0 | ((dno & 7) << 3) | (sno & 7));
+      p += 4;
+    }
+    break;
 #endif
   default:
     break;

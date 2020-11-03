@@ -93,6 +93,7 @@ enum Opcode {
   UCOMISD,
   CVTSI2SD,
   CVTTSD2SI,
+  SQRTSD,
 #endif
 };
 

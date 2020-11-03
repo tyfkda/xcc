@@ -102,6 +102,7 @@ static const char *kOpTable[] = {
   "ucomisd",
   "cvtsi2sd",
   "cvttsd2si",
+  "sqrtsd",
 #endif
 };
 

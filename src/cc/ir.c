@@ -1086,6 +1086,12 @@ static void ir_out(IR *ir) {
       // Resore caller save registers.
       pop_caller_save_regs(ir->call.precall->precall.living_pregs);
 
+#ifndef __NO_FLONUM
+      if (ir->dst->vtype->flag & VRTF_FLONUM) {
+        MOVSD(XMM0, kFReg64s[ir->dst->phys]);
+        break;
+      }
+#endif
       assert(0 <= ir->size && ir->size < kPow2TableSize);
       int pow = kPow2Table[ir->size];
       assert(0 <= pow && pow < 4);

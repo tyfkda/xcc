@@ -12,3 +12,8 @@ void exit(int code);
 
 long strtol(const char *p, char **pp, int base);
 unsigned long strtoul(const char *p, char **pp, int base);
+
+#ifndef __NO_FLONUM
+double drand48(void);
+double erand48(unsigned short xsubi[3]);
+#endif
