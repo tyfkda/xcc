@@ -61,7 +61,7 @@ void fix_array_size(Type *type, Initializer *init) {
 }
 
 static Stmt *build_memcpy(Expr *dst, Expr *src, size_t size) {
-  assert(curscope != NULL);
+  assert(!is_global_scope(curscope));
   const Type *charptr_type = ptrof(&tyChar);
   VarInfo *dstvar = scope_add(curscope, alloc_ident(alloc_label(), NULL, NULL), charptr_type, 0);
   VarInfo *srcvar = scope_add(curscope, alloc_ident(alloc_label(), NULL, NULL), charptr_type, 0);
@@ -99,7 +99,7 @@ Initializer *convert_str_to_ptr_initializer(const Type *type, Initializer *init)
   VarInfo *varinfo = str_to_char_array(type, init);
   Initializer *init2 = malloc(sizeof(*init2));
   init2->kind = IK_SINGLE;
-  init2->single = new_expr_variable(varinfo->name, type, NULL, NULL);
+  init2->single = new_expr_variable(varinfo->name, type, NULL, global_scope);
   init2->token = init->token;
   return init2;
 }
@@ -122,7 +122,7 @@ static Stmt *init_char_array_by_string(Expr *dst, Initializer *src) {
 
   const Type *strtype = dst->type;
   VarInfo *varinfo = str_to_char_array(strtype, src);
-  Expr *var = new_expr_variable(varinfo->name, strtype, NULL, NULL);
+  Expr *var = new_expr_variable(varinfo->name, strtype, NULL, global_scope);
   return build_memcpy(dst, var, size);
 }
 
@@ -335,18 +335,18 @@ static Initializer *check_global_initializer(const Type *type, Initializer *init
           if (value->kind != EX_VAR)
             parse_error(value->token, "pointer initializer must be variable");
           const Name *name = value->var.name;
-          if (value->var.scope != NULL) {
-            VarInfo *varinfo = scope_find(value->var.scope, name, NULL);
-            assert(varinfo != NULL);
+          Scope *scope;
+          VarInfo *varinfo = scope_find(value->var.scope, name, &scope);
+          assert(varinfo != NULL);
+          if (!is_global_scope(scope)) {
             if (!(varinfo->flag & VF_STATIC))
               parse_error(value->token, "Allowed global reference only");
             name = varinfo->local.label;
+            varinfo = scope_find(global_scope, name, NULL);
+            assert(varinfo != NULL);
           }
 
-          VarInfo *info = find_global(name);
-          assert(info != NULL);
-
-          if (!same_type(type->pa.ptrof, info->type))
+          if (!same_type(type->pa.ptrof, varinfo->type))
             parse_error(value->token, "Illegal type");
 
           return init;
@@ -354,19 +354,19 @@ static Initializer *check_global_initializer(const Type *type, Initializer *init
       case EX_VAR:
         {
           const Name *name = value->var.name;
-          if (value->var.scope != NULL) {
-            VarInfo *varinfo = scope_find(value->var.scope, name, NULL);
-            assert(varinfo != NULL);
+          Scope *scope;
+          VarInfo *varinfo = scope_find(value->var.scope, name, &scope);
+          assert(varinfo != NULL);
+          if (!is_global_scope(scope)) {
             if (!(varinfo->flag & VF_STATIC))
               parse_error(value->token, "Allowed global reference only");
             name = varinfo->local.label;
+            varinfo = scope_find(global_scope, name, NULL);
+            assert(varinfo != NULL);
           }
 
-          VarInfo *info = find_global(name);
-          assert(info != NULL);
-
-          if ((info->type->kind != TY_ARRAY && info->type->kind != TY_FUNC) ||
-              !can_cast(type, info->type, is_zero(value), false))
+          if ((varinfo->type->kind != TY_ARRAY && varinfo->type->kind != TY_FUNC) ||
+              !can_cast(type, varinfo->type, is_zero(value), false))
             parse_error(value->token, "Illegal type");
 
           return init;
@@ -458,7 +458,7 @@ Vector *assign_initial_value(Expr *expr, Initializer *init, Vector *inits) {
         if ((size_t)init->multi->len > arr_len)
           parse_error(init->token, "Initializer more than array size");
 
-        assert(curscope != NULL);
+        assert(!is_global_scope(curscope));
         const Type *ptr_type = array_to_ptr(expr->type);
         VarInfo *ptr_varinfo = scope_add(curscope, alloc_ident(alloc_label(), NULL, NULL), ptr_type, 0);
         Expr *ptr_var = new_expr_variable(ptr_varinfo->name, ptr_type, NULL, curscope);
@@ -636,7 +636,7 @@ static Scope *enter_scope(Defun *defun, Vector *vars) {
 }
 
 static void exit_scope(void) {
-  assert(curscope != NULL);
+  assert(!is_global_scope(curscope));
   curscope = curscope->parent;
 }
 
@@ -717,7 +717,7 @@ static Vector *parse_vardecl_cont(const Type *rawType, Type *type, int flag, Tok
     } else {
       not_void(type);
 
-      assert(curscope != NULL);
+      assert(!is_global_scope(curscope));
       scope_add(curscope, ident, type, flag);
 
       if (match(TK_ASSIGN)) {
@@ -750,7 +750,7 @@ static Stmt *parse_vardecl(void) {
 
   if (decls == NULL)
     return NULL;
-  Vector *inits = curscope != NULL ? construct_initializing_stmts(decls) : NULL;
+  Vector *inits = !is_global_scope(curscope) ? construct_initializing_stmts(decls) : NULL;
   return new_stmt_vardecl(decls, inits);
 }
 
@@ -1077,7 +1077,7 @@ static Declaration *parse_defun(const Type *functype, int flag, Token *ident) {
     consume(TK_LBRACE, "`;' or `{' expected");
 
     assert(curdefun == NULL);
-    assert(curscope == NULL);
+    assert(is_global_scope(curscope));
     curdefun = defun;
     Vector *top_vars = NULL;
     Vector *params = defun->func->type->func.params;
@@ -1090,7 +1090,7 @@ static Declaration *parse_defun(const Type *functype, int flag, Token *ident) {
     enter_scope(defun, top_vars);  // Scope for parameters.
     defun->stmts = parse_stmts();
     exit_scope();
-    assert(curscope == NULL);
+    assert(is_global_scope(curscope));
 
     // Check goto labels.
     if (defun->gotos != NULL) {
@@ -1202,6 +1202,8 @@ static Declaration *parse_declaration(void) {
 }
 
 void parse(Vector *decls) {
+  curscope = global_scope;
+
   while (!match(TK_EOF)) {
     Declaration *decl = parse_declaration();
     if (decl != NULL)

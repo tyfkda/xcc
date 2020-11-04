@@ -89,15 +89,15 @@ static void construct_initial_value(unsigned char *buf, const Type *type, const 
         assert(value->kind == EX_VAR);
 
         const Name *name = value->var.name;
-        if (value->var.scope != NULL) {
-          VarInfo *varinfo = scope_find(value->var.scope, name, NULL);
-          assert(varinfo != NULL);
-          assert(varinfo->flag & VF_STATIC);
+        Scope *scope;
+        VarInfo *varinfo = scope_find(value->var.scope, name, &scope);
+        assert(varinfo != NULL);
+        if (!is_global_scope(scope) && varinfo->flag & VF_STATIC) {
           name = varinfo->local.label;
+          varinfo = scope_find(global_scope, name, NULL);
+          assert(varinfo != NULL);
         }
 
-        const VarInfo *varinfo = find_global(name);
-        assert(varinfo != NULL);
         const char *label = fmt_name(name);
         if ((varinfo->flag & VF_STATIC) == 0)
           label = MANGLE(label);

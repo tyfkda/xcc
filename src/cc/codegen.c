@@ -493,7 +493,7 @@ static void gen_defun(Defun *defun) {
   remove_unnecessary_bb(func->bbcon);
 
   curdefun = NULL;
-  curscope = NULL;
+  curscope = global_scope;
   curra = NULL;
 }
 

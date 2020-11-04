@@ -176,7 +176,7 @@ VarInfo *str_to_char_array(const Type *type, Initializer *init) {
   assert(type->kind == TY_ARRAY && is_char_type(type->pa.ptrof));
   const Token *ident = alloc_ident(alloc_label(), NULL, NULL);
   VarInfo *varinfo;
-  if (curscope != NULL) {
+  if (!is_global_scope(curscope)) {
     varinfo = scope_add(curscope, ident, type, VF_CONST | VF_STATIC);
   } else {
     varinfo = define_global(type, VF_CONST | VF_STATIC, ident, NULL);
@@ -931,7 +931,7 @@ static Expr *parse_compound_literal(const Type *type) {
   Vector *inits = NULL;
   Expr *var = NULL;
 
-  if (curscope == NULL) {
+  if (is_global_scope(curscope)) {
     parse_error(token, "cannot use compound literal in global");
   } else {
     if (type->kind == TY_ARRAY)
@@ -995,13 +995,9 @@ static Expr *parse_prim(void) {
 
   Token *ident = consume(TK_IDENT, "Number or Ident or open paren expected");
   const Name *name = ident->ident;
-  Scope *scope = NULL;
-  VarInfo *varinfo = NULL;
+  Scope *scope;
+  VarInfo *varinfo = scope_find(curscope, name, &scope);
   const Type *type;
-  if (curscope != NULL)
-    varinfo = scope_find(curscope, name, &scope);
-  if (varinfo == NULL)
-    varinfo = find_global(name);
   if (varinfo != NULL) {
     if (varinfo->flag & VF_ENUM_MEMBER)
       return new_expr_fixlit(varinfo->type, ident, varinfo->enum_.value);

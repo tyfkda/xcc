@@ -64,5 +64,6 @@ typedef struct Scope {
 extern Scope *global_scope;
 
 Scope *new_scope(Scope *parent, Vector *vars);
+bool is_global_scope(Scope *scope);
 VarInfo *scope_find(Scope *scope, const Name *name, Scope **pscope);
 VarInfo *scope_add(Scope *scope, const Token *ident, const Type *type, int flag);

@@ -47,7 +47,7 @@ Scope *global_scope;
 void init_global(void) {
   global_scope = calloc(1, sizeof(*global_scope));
   global_scope->parent = NULL;
-  global_scope->vars = NULL;
+  global_scope->vars = new_vector();
 }
 
 VarInfo *find_global(const Name *name) {
@@ -70,8 +70,6 @@ VarInfo *define_global(const Type *type, int flag, const Token *ident, const Nam
     varinfo->global.init = NULL;
   } else {
     // `static' is different meaning for global and local variable.
-    if (global_scope->vars == NULL)
-      global_scope->vars = new_vector();
     varinfo = var_add(global_scope->vars, name, type, flag & ~VF_STATIC, ident);
     varinfo->flag = flag;
   }
@@ -85,6 +83,11 @@ Scope *new_scope(Scope *parent, Vector *vars) {
   scope->parent = parent;
   scope->vars = vars;
   return scope;
+}
+
+bool is_global_scope(Scope *scope) {
+  assert(scope->parent != NULL || scope == global_scope);  // Global scope is only one.
+  return scope->parent == NULL;
 }
 
 VarInfo *scope_find(Scope *scope, const Name *name, Scope **pscope) {
