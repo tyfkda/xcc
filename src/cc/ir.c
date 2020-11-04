@@ -91,11 +91,20 @@ VReg *new_const_vreg(intptr_t value, const VRegType *vtype) {
 }
 
 static intptr_t clamp_value(intptr_t value, const VRegType *vtype) {
-  switch (vtype->size) {
-  case 1:  value = (unsigned char)value; break;
-  case 2:  value = (unsigned short)value; break;
-  case 4:  value = (unsigned int)value; break;
-  default:  break;
+  if (vtype->flag & VRTF_UNSIGNED) {
+    switch (vtype->size) {
+    case 1:  value = (unsigned char)value; break;
+    case 2:  value = (unsigned short)value; break;
+    case 4:  value = (unsigned int)value; break;
+    default:  break;
+    }
+  } else {
+    switch (vtype->size) {
+    case 1:  value = (char)value; break;
+    case 2:  value = (short)value; break;
+    case 4:  value = (int)value; break;
+    default:  break;
+    }
   }
   return value;
 }
