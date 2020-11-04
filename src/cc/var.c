@@ -42,10 +42,16 @@ VarInfo *var_add(Vector *vars, const Name *name, const Type *type, int flag, con
 
 // Global
 
-static Table gvar_table;
+Scope *global_scope;
+
+void init_global(void) {
+  global_scope = calloc(1, sizeof(*global_scope));
+  global_scope->parent = NULL;
+  global_scope->vars = NULL;
+}
 
 VarInfo *find_global(const Name *name) {
-  return table_get(&gvar_table, name);
+  return scope_find(global_scope, name, NULL);
 }
 
 VarInfo *define_global(const Type *type, int flag, const Token *ident, const Name *name) {
@@ -58,14 +64,17 @@ VarInfo *define_global(const Type *type, int flag, const Token *ident, const Nam
         parse_error(ident, "`%.*s' already defined", name->bytes, name->chars);
       return varinfo;
     }
+    varinfo->name = name;
+    varinfo->type = type;
+    varinfo->flag = flag;
+    varinfo->global.init = NULL;
   } else {
-    varinfo = malloc(sizeof(*varinfo));
+    // `static' is different meaning for global and local variable.
+    if (global_scope->vars == NULL)
+      global_scope->vars = new_vector();
+    varinfo = var_add(global_scope->vars, name, type, flag & ~VF_STATIC, ident);
+    varinfo->flag = flag;
   }
-  varinfo->name = name;
-  varinfo->type = type;
-  varinfo->flag = flag;
-  varinfo->global.init = NULL;
-  table_put(&gvar_table, name, varinfo);
   return varinfo;
 }
 

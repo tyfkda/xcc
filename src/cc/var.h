@@ -45,6 +45,8 @@ typedef struct VarInfo {
 
 // Variables
 
+void init_global(void);
+
 int var_find(const Vector *vars, const Name *name);  // <VarInfo*>
 VarInfo *var_add(Vector *vars, const Name *name, const Type *type, int flag,
                  const Token *ident);  // <VarInfo*>
@@ -58,6 +60,8 @@ typedef struct Scope {
   struct Scope *parent;
   Vector *vars;  // <VarInfo*>
 } Scope;
+
+extern Scope *global_scope;
 
 Scope *new_scope(Scope *parent, Vector *vars);
 VarInfo *scope_find(Scope *scope, const Name *name, Scope **pscope);
