@@ -318,6 +318,25 @@ static Initializer *check_global_initializer(const Type *type, Initializer *init
       }
     }
     break;
+#ifndef __NO_FLONUM
+  case TY_FLONUM:
+    if (init->kind == IK_SINGLE) {
+      switch (init->single->kind) {
+      case EX_FIXNUM:
+        {
+          Fixnum fixnum = init->single->fixnum;
+          init->single = new_expr_flolit(type, init->single->token, fixnum);
+        }
+        // Fallthrough
+      case EX_FLONUM:
+        return init;
+      default:
+        parse_error(init->single->token, "Constant expression expected");
+        break;
+      }
+    }
+    break;
+#endif
   case TY_PTR:
     {
       if (init->kind != IK_SINGLE)
