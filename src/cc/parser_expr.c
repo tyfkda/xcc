@@ -156,12 +156,12 @@ static bool cast_integers(Expr **pLhs, Expr **pRhs, bool keep_left) {
     rkind = FX_INT;
   }
 
-  if (lkind != rkind) {
-    if (lkind > rkind || keep_left)
-      *pRhs = make_cast(ltype, rhs->token, rhs, false);
-    else if (lkind < rkind)
-      *pLhs = make_cast(rtype, lhs->token, lhs, false);
-  }
+  int l = (lkind << 1) | (ltype->fixnum.is_unsigned ? 1 : 0);
+  int r = (rkind << 1) | (rtype->fixnum.is_unsigned ? 1 : 0);
+  if (keep_left || l > r)
+    *pRhs = make_cast(ltype, rhs->token, rhs, false);
+  else if (l < r)
+    *pLhs = make_cast(rtype, lhs->token, lhs, false);
   return true;
 }
 

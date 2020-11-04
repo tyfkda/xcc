@@ -239,6 +239,13 @@ int main(void) {
     if (x <= (unsigned char)0)
       fail("unsigned cmp jmp");
   }
+  {
+    // C implicitly cast to unsigned type if it handles mixed signed values.
+    int minus = -1;
+    unsigned int uone = 1U;
+    expect("compare with different sign1", 1, minus > uone);  // !!!
+    expect("compare with different sign2", 1, uone < minus);  // !!!
+  }
 
   expect("t && t", 1, (x=1, y=1, x && y));
   expect("f && t", 0, (x=0, y=1, x && y));

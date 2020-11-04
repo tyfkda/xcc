@@ -129,7 +129,8 @@ bool same_type(const Type *type1, const Type *type2) {
     case TY_VOID:
       return true;
     case TY_FIXNUM:
-      return type1->fixnum.kind == type2->fixnum.kind;
+      return type1->fixnum.kind == type2->fixnum.kind &&
+          type1->fixnum.is_unsigned == type2->fixnum.is_unsigned;
     case TY_ARRAY:
       if (type1->pa.length != type2->pa.length)
         return false;
