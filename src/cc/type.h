@@ -39,11 +39,6 @@ typedef struct StructInfo {
   bool is_union;
 } StructInfo;
 
-typedef struct {
-  const Name *ident;
-  int value;
-} EnumMember;
-
 typedef struct Type {
   enum TypeKind kind;
   union {
@@ -52,7 +47,6 @@ typedef struct Type {
       bool is_unsigned;
       struct {
         const Name *ident;
-        Vector *members;  // <EnumMember*>
       } enum_;
     } fixnum;
     struct {  // Pointer or array.

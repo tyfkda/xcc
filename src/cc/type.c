@@ -187,7 +187,6 @@ Type *define_enum(const Name *ident) {
   type->fixnum.kind = FX_ENUM;
   type->fixnum.is_unsigned = false;
   type->fixnum.enum_.ident = ident;
-  type->fixnum.enum_.members = new_vector();
 
   if (ident != NULL) {
     table_put(&enum_table, ident, type);
@@ -198,11 +197,6 @@ Type *define_enum(const Name *ident) {
 
 void add_enum_member(Type *type, const Name *ident, int value) {
   assert(type->kind == TY_FIXNUM && type->fixnum.kind == FX_ENUM);
-  EnumMember *member = malloc(sizeof(*member));
-  member->ident = ident;
-  member->value = value;
-  vec_push(type->fixnum.enum_.members, member);
-
   table_put(&enum_value_table, ident, (void*)(intptr_t)value);
 }
 
