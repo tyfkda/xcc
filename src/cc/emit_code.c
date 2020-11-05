@@ -90,8 +90,7 @@ static void construct_initial_value(unsigned char *buf, const Type *type, const 
 
         const Name *name = value->variable.name;
         if (value->variable.scope != NULL) {
-          Scope *scope = value->variable.scope;
-          VarInfo *varinfo = scope_find(&scope, name);
+          VarInfo *varinfo = scope_find(value->variable.scope, name, NULL);
           assert(varinfo != NULL);
           assert(varinfo->flag & VF_STATIC);
           name = varinfo->local.label;

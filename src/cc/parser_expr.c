@@ -860,11 +860,11 @@ static Expr *parse_prim(void) {
 
   Token *ident = consume(TK_IDENT, "Number or Ident or open paren expected");
   const Name *name = ident->ident;
-  Scope *scope = curscope;
+  Scope *scope = NULL;
   VarInfo *varinfo = NULL;
   const Type *type;
   if (curscope != NULL)
-    varinfo = scope_find(&scope, name);
+    varinfo = scope_find(curscope, name, &scope);
   if (varinfo == NULL)
     varinfo = find_global(name);
   if (varinfo != NULL) {

@@ -408,8 +408,7 @@ static void gen_vardecl(Vector *decls, Vector *inits) {
       VarDecl *decl = decls->data[i];
       if (decl->init == NULL)
         continue;
-      Scope *scope = curscope;
-      VarInfo *varinfo = scope_find(&scope, decl->ident->ident);
+      VarInfo *varinfo = scope_find(curscope, decl->ident->ident, NULL);
       if (varinfo == NULL || (varinfo->flag & (VF_STATIC | VF_EXTERN)) ||
           !(varinfo->type->kind == TY_STRUCT ||
             varinfo->type->kind == TY_ARRAY))

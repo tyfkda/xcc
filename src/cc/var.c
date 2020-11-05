@@ -77,8 +77,7 @@ Scope *new_scope(Scope *parent, Vector *vars) {
   return scope;
 }
 
-VarInfo *scope_find(Scope **pscope, const Name *name) {
-  Scope *scope = *pscope;
+VarInfo *scope_find(Scope *scope, const Name *name, Scope **pscope) {
   VarInfo *varinfo = NULL;
   for (;; scope = scope->parent) {
     if (scope == NULL)
@@ -91,6 +90,7 @@ VarInfo *scope_find(Scope **pscope, const Name *name) {
       }
     }
   }
-  *pscope = scope;
+  if (pscope != NULL)
+    *pscope = scope;
   return varinfo;
 }

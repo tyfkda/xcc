@@ -336,8 +336,7 @@ static Initializer *check_global_initializer(const Type *type, Initializer *init
             parse_error(value->token, "pointer initializer must be variable");
           const Name *name = value->variable.name;
           if (value->variable.scope != NULL) {
-            Scope *scope = value->variable.scope;
-            VarInfo *varinfo = scope_find(&scope, name);
+            VarInfo *varinfo = scope_find(value->variable.scope, name, NULL);
             assert(varinfo != NULL);
             if (!(varinfo->flag & VF_STATIC))
               parse_error(value->token, "Allowed global reference only");
@@ -356,8 +355,7 @@ static Initializer *check_global_initializer(const Type *type, Initializer *init
         {
           const Name *name = value->variable.name;
           if (value->variable.scope != NULL) {
-            Scope *scope = value->variable.scope;
-            VarInfo *varinfo = scope_find(&scope, name);
+            VarInfo *varinfo = scope_find(value->variable.scope, name, NULL);
             assert(varinfo != NULL);
             if (!(varinfo->flag & VF_STATIC))
               parse_error(value->token, "Allowed global reference only");
@@ -586,8 +584,7 @@ static Initializer *check_vardecl(const Type *type, const Token *ident, int flag
     ensure_struct((Type*)type, NULL);
 
   if (curdefun != NULL) {
-    Scope *scope = curscope;
-    VarInfo *varinfo = scope_find(&scope, ident->ident);
+    VarInfo *varinfo = scope_find(curscope, ident->ident, NULL);
 
     // TODO: Check `init` can be cast to `type`.
     if (flag & VF_STATIC) {

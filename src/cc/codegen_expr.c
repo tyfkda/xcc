@@ -235,8 +235,7 @@ static VReg *gen_lval(Expr *expr) {
       assert(varinfo != NULL);
       return new_ir_iofs(expr->variable.name, (varinfo->flag & VF_STATIC) == 0);
     } else {
-      Scope *scope = expr->variable.scope;
-      const VarInfo *varinfo = scope_find(&scope, expr->variable.name);
+      const VarInfo *varinfo = scope_find(expr->variable.scope, expr->variable.name, NULL);
       assert(varinfo != NULL);
       if (varinfo->flag & VF_STATIC)
         return new_ir_iofs(varinfo->local.label, false);
@@ -271,9 +270,8 @@ static VReg *gen_lval(Expr *expr) {
   case EX_COMPLIT:
     {
       Expr *var = expr->complit.var;
-      Scope *scope = var->variable.scope;
-      assert(scope != NULL);
-      const VarInfo *varinfo = scope_find(&scope, var->variable.name);
+      assert(var->variable.scope != NULL);
+      const VarInfo *varinfo = scope_find(var->variable.scope, var->variable.name, NULL);
       assert(varinfo != NULL);
       assert(varinfo->reg != NULL);
       varinfo->reg->flag |= VRF_REF;
@@ -293,8 +291,7 @@ static VReg *gen_variable(Expr *expr) {
   case TY_FIXNUM:
   case TY_PTR:
     {
-      Scope *scope = expr->variable.scope;
-      const VarInfo *varinfo = scope_find(&scope, expr->variable.name);
+      const VarInfo *varinfo = scope_find(expr->variable.scope, expr->variable.name, NULL);
       if (varinfo != NULL && !(varinfo->flag & (VF_STATIC | VF_EXTERN))) {
         assert(varinfo->reg != NULL);
         return varinfo->reg;
@@ -452,8 +449,7 @@ static VReg *gen_funcall(Expr *expr) {
     if (func->variable.scope == NULL) {
       varinfo = find_global(func->variable.name);
     } else {
-      Scope *scope = func->variable.scope;
-      varinfo = scope_find(&scope, func->variable.name);
+      varinfo = scope_find(func->variable.scope, func->variable.name, NULL);
     }
     assert(varinfo != NULL);
     label_call = varinfo->type->kind == TY_FUNC;
@@ -561,8 +557,7 @@ VReg *gen_expr(Expr *expr) {
     {
       Expr *sub = unwrap_group(expr->unary.sub);
       if (sub->kind == EX_VARIABLE && sub->variable.scope != NULL) {
-        Scope *scope = sub->variable.scope;
-        const VarInfo *varinfo = scope_find(&scope, sub->variable.name);
+        const VarInfo *varinfo = scope_find(sub->variable.scope, sub->variable.name, NULL);
         assert(varinfo != NULL);
         if (varinfo->reg != NULL)
           varinfo->reg->flag |= VRF_REF;
@@ -633,8 +628,7 @@ VReg *gen_expr(Expr *expr) {
         case TY_FIXNUM:
         case TY_PTR:
           {
-            Scope *scope = lhs->variable.scope;
-            const VarInfo *varinfo = scope_find(&scope, lhs->variable.name);
+            const VarInfo *varinfo = scope_find(lhs->variable.scope, lhs->variable.name, NULL);
             if (varinfo != NULL && !(varinfo->flag & (VF_STATIC | VF_EXTERN))) {
               assert(varinfo->reg != NULL);
               new_ir_mov(varinfo->reg, src);
@@ -722,8 +716,7 @@ VReg *gen_expr(Expr *expr) {
       VRegType *vtype = to_vtype(expr->type);
       Expr *sub = unwrap_group(expr->unary.sub);
       if (sub->kind == EX_VARIABLE) {
-        Scope *scope = sub->variable.scope;
-        const VarInfo *varinfo = scope_find(&scope, sub->variable.name);
+        const VarInfo *varinfo = scope_find(sub->variable.scope, sub->variable.name, NULL);
         if (varinfo != NULL && !(varinfo->flag & (VF_STATIC | VF_EXTERN))) {
           VReg *num = new_const_vreg(value, vtype);
           VReg *result = new_ir_bop(expr->kind == EX_PREINC ? IR_ADD : IR_SUB,
@@ -751,8 +744,7 @@ VReg *gen_expr(Expr *expr) {
       VRegType *vtype = to_vtype(expr->type);
       Expr *sub = unwrap_group(expr->unary.sub);
       if (sub->kind == EX_VARIABLE) {
-        Scope *scope = sub->variable.scope;
-        const VarInfo *varinfo = scope_find(&scope, sub->variable.name);
+        const VarInfo *varinfo = scope_find(sub->variable.scope, sub->variable.name, NULL);
         if (varinfo != NULL && !(varinfo->flag & (VF_STATIC | VF_EXTERN))) {
           VReg *org_val = add_new_reg(sub->type, 0);
           new_ir_mov(org_val, varinfo->reg);
