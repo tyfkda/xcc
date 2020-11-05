@@ -380,8 +380,10 @@ static Expr *new_expr_addsub(enum ExprKind kind, const Token *tok, Expr *lhs, Ex
       if (ltype->kind == TY_ARRAY)
         type = array_to_ptr(ltype);
     } else if (kind == EX_SUB && ptr_or_array(rtype)) {
-      ltype = array_to_ptr(ltype);
-      rtype = array_to_ptr(rtype);
+      if (ltype->kind == TY_ARRAY)
+        ltype = array_to_ptr(ltype);
+      if (rtype->kind == TY_ARRAY)
+        rtype = array_to_ptr(rtype);
       if (!same_type(ltype, rtype))
         parse_error(tok, "Different pointer diff");
       const Fixnum elem_size = type_size(ltype->pa.ptrof);
@@ -878,7 +880,8 @@ Vector *parse_funparams(bool *pvaargs) {
       }
 
       // If the type is array, handle it as a pointer.
-      type = array_to_ptr(type);
+      if (type->kind == TY_ARRAY)
+        type = array_to_ptr(type);
 
       var_add(params, ident != NULL ? ident->ident : NULL, type, flag, ident);
       if (match(TK_RPAR))

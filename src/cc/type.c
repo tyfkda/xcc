@@ -128,8 +128,7 @@ Type *ptrof(const Type *type) {
 }
 
 const Type *array_to_ptr(const Type *type) {
-  if (type->kind != TY_ARRAY)
-    return type;
+  assert(type->kind == TY_ARRAY);
   return ptrof(type->pa.ptrof);
 }
 
