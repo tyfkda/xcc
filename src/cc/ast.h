@@ -30,7 +30,7 @@ enum ExprKind {
   EX_FIXNUM,  // 1234
   EX_STR,     // "foobar"
 
-  EX_VARIABLE,  // foobar
+  EX_VAR,     // Variable: foobar
 
   // Binary operators
   EX_ADD,     // +
@@ -69,7 +69,7 @@ enum ExprKind {
   EX_DEREF,   // *
   EX_GROUP,   // (x)
   EX_CAST,
-  EX_ASSIGN_WITH,  // +=, etc.
+  EX_MODIFY,  // +=, etc.
 
   EX_TERNARY, // a ? b : c
   EX_MEMBER,  // x.member or x->member
@@ -90,7 +90,7 @@ typedef struct Expr {
     struct {
       const Name *name;
       Scope *scope;  // NULL = global, non NULL = local
-    } variable;
+    } var;
     struct {
       struct Expr *lhs;
       struct Expr *rhs;

@@ -82,15 +82,15 @@ static void construct_initial_value(unsigned char *buf, const Type *type, const 
       Expr *value = init->single;
       while (value->kind == EX_CAST)
         value = value->unary.sub;
-      if (value->kind == EX_REF || value->kind == EX_VARIABLE) {
+      if (value->kind == EX_REF || value->kind == EX_VAR) {
         if (value->kind == EX_REF)
           value = value->unary.sub;
 
-        assert(value->kind == EX_VARIABLE);
+        assert(value->kind == EX_VAR);
 
-        const Name *name = value->variable.name;
-        if (value->variable.scope != NULL) {
-          VarInfo *varinfo = scope_find(value->variable.scope, name, NULL);
+        const Name *name = value->var.name;
+        if (value->var.scope != NULL) {
+          VarInfo *varinfo = scope_find(value->var.scope, name, NULL);
           assert(varinfo != NULL);
           assert(varinfo->flag & VF_STATIC);
           name = varinfo->local.label;

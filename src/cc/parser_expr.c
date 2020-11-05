@@ -296,7 +296,7 @@ static bool cast_integers(Expr **pLhs, Expr **pRhs, bool keep_left) {
 
 static void check_lval(const Token *tok, Expr *expr, const char *error) {
   switch (expr->kind) {
-  case EX_VARIABLE:
+  case EX_VAR:
   case EX_DEREF:
   case EX_MEMBER:
     break;
@@ -484,7 +484,7 @@ static Expr *parse_funcall(Expr *func) {
     int paramc = param_types->len;
     if (!(argc == paramc ||
           (vaargs && argc >= paramc)))
-      parse_error(token, "function `%.*s' expect %d arguments, but %d", func->variable.name->bytes, func->variable.name->chars, paramc, argc);
+      parse_error(token, "function `%.*s' expect %d arguments, but %d", func->var.name->bytes, func->var.name->chars, paramc, argc);
   }
 
   if (args != NULL && param_types != NULL) {
@@ -1433,7 +1433,7 @@ Expr *parse_assign(void) {
         default:  assert(false); bop = NULL; break;
         }
         assert(bop->type != NULL);
-        return new_expr_unary(EX_ASSIGN_WITH, lhs->type, tok, bop);
+        return new_expr_unary(EX_MODIFY, lhs->type, tok, bop);
       }
     }
     unget_token(tok);

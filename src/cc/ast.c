@@ -50,9 +50,9 @@ Expr *new_expr_str(const Token *token, const char *str, size_t size) {
 }
 
 Expr *new_expr_variable(const Name *name, const Type *type, const Token *token, Scope *scope) {
-  Expr *expr = new_expr(EX_VARIABLE, type, token);
-  expr->variable.name = name;
-  expr->variable.scope = scope;
+  Expr *expr = new_expr(EX_VAR, type, token);
+  expr->var.name = name;
+  expr->var.scope = scope;
   return expr;
 }
 

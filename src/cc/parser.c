@@ -332,11 +332,11 @@ static Initializer *check_global_initializer(const Type *type, Initializer *init
       case EX_REF:
         {
           value = value->unary.sub;
-          if (value->kind != EX_VARIABLE)
+          if (value->kind != EX_VAR)
             parse_error(value->token, "pointer initializer must be variable");
-          const Name *name = value->variable.name;
-          if (value->variable.scope != NULL) {
-            VarInfo *varinfo = scope_find(value->variable.scope, name, NULL);
+          const Name *name = value->var.name;
+          if (value->var.scope != NULL) {
+            VarInfo *varinfo = scope_find(value->var.scope, name, NULL);
             assert(varinfo != NULL);
             if (!(varinfo->flag & VF_STATIC))
               parse_error(value->token, "Allowed global reference only");
@@ -351,11 +351,11 @@ static Initializer *check_global_initializer(const Type *type, Initializer *init
 
           return init;
         }
-      case EX_VARIABLE:
+      case EX_VAR:
         {
-          const Name *name = value->variable.name;
-          if (value->variable.scope != NULL) {
-            VarInfo *varinfo = scope_find(value->variable.scope, name, NULL);
+          const Name *name = value->var.name;
+          if (value->var.scope != NULL) {
+            VarInfo *varinfo = scope_find(value->var.scope, name, NULL);
             assert(varinfo != NULL);
             if (!(varinfo->flag & VF_STATIC))
               parse_error(value->token, "Allowed global reference only");
@@ -480,7 +480,7 @@ Vector *assign_initial_value(Expr *expr, Initializer *init, Vector *inits) {
           if (add > 0) {
             Fixnum n = add;
             vec_push(inits, new_stmt_expr(
-                new_expr_unary(EX_ASSIGN_WITH, ptr_type, NULL,
+                new_expr_unary(EX_MODIFY, ptr_type, NULL,
                                new_expr_bop(EX_PTRADD, ptr_type, NULL, ptr_var,
                                             new_expr_fixlit(&tyInt, NULL, n)))));
           }
