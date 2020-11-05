@@ -30,6 +30,142 @@ Expr *unwrap_group(Expr *expr) {
   return expr;
 }
 
+bool same_type(const Type *type1, const Type *type2) {
+  for (;;) {
+    if (type1->kind != type2->kind)
+      return false;
+
+    switch (type1->kind) {
+    case TY_VOID:
+      return true;
+    case TY_FIXNUM:
+      return type1->fixnum.kind == type2->fixnum.kind &&
+          type1->fixnum.is_unsigned == type2->fixnum.is_unsigned;
+    case TY_ARRAY:
+      if (type1->pa.length != type2->pa.length)
+        return false;
+      // Fallthrough
+    case TY_PTR:
+      type1 = type1->pa.ptrof;
+      type2 = type2->pa.ptrof;
+      continue;
+    case TY_FUNC:
+      if (!same_type(type1->func.ret, type2->func.ret) || type1->func.vaargs != type2->func.vaargs)
+        return false;
+      if (type1->func.param_types == NULL && type2->func.param_types == NULL)
+        return true;
+      if (type1->func.param_types == NULL || type2->func.param_types == NULL ||
+          type1->func.param_types->len != type2->func.param_types->len)
+        return false;
+      for (int i = 0, len = type1->func.param_types->len; i < len; ++i) {
+        const Type *t1 = (const Type*)type1->func.param_types->data[i];
+        const Type *t2 = (const Type*)type2->func.param_types->data[i];
+        if (!same_type(t1, t2))
+          return false;
+      }
+      return true;
+    case TY_STRUCT:
+      {
+        if (type1->struct_.info != NULL) {
+          if (type2->struct_.info != NULL)
+            return type1->struct_.info == type2->struct_.info;
+          const Type *tmp = type1;
+          type1 = type2;
+          type2 = tmp;
+        } else if (type2->struct_.info == NULL) {
+          return equal_name(type1->struct_.name, type2->struct_.name);
+        }
+        // Find type1 from name.
+        StructInfo *sinfo = find_struct(type1->struct_.name);
+        if (sinfo == NULL)
+          return false;
+        return sinfo == type2->struct_.info;
+      }
+    }
+  }
+}
+
+bool can_cast(const Type *dst, const Type *src, bool zero, bool is_explicit) {
+  if (same_type(dst, src))
+    return true;
+
+  if (dst->kind == TY_VOID)
+    return src->kind == TY_VOID || is_explicit;
+  if (src->kind == TY_VOID)
+    return false;
+
+  switch (dst->kind) {
+  case TY_FIXNUM:
+    switch (src->kind) {
+    case TY_FIXNUM:
+      return true;
+    case TY_PTR:
+    case TY_ARRAY:
+    case TY_FUNC:
+      if (is_explicit) {
+        // TODO: Check sizeof(long) is same as sizeof(ptr)
+        return true;
+      }
+      break;
+    default:
+      break;
+    }
+    break;
+  case TY_PTR:
+    switch (src->kind) {
+    case TY_FIXNUM:
+      if (zero)  // Special handling for 0 to pointer.
+        return true;
+      if (is_explicit)
+        return true;
+      break;
+    case TY_PTR:
+      if (is_explicit)
+        return true;
+      // void* is interchangable with any pointer type.
+      if (dst->pa.ptrof->kind == TY_VOID || src->pa.ptrof->kind == TY_VOID)
+        return true;
+      if (src->pa.ptrof->kind == TY_FUNC)
+        return can_cast(dst, src->pa.ptrof, zero, is_explicit);
+      break;
+    case TY_ARRAY:
+      if (is_explicit)
+        return true;
+      if (same_type(dst->pa.ptrof, src->pa.ptrof) ||
+          can_cast(dst, ptrof(src->pa.ptrof), zero, is_explicit))
+        return true;
+      break;
+    case TY_FUNC:
+      if (is_explicit)
+        return true;
+      if (dst->pa.ptrof->kind == TY_FUNC) {
+        const Type *ftype = dst->pa.ptrof;
+        return (same_type(ftype, src) ||
+                (ftype->func.param_types == NULL || src->func.param_types == NULL));
+      }
+      break;
+    default:  break;
+    }
+    break;
+  case TY_ARRAY:
+    switch (src->kind) {
+    case TY_PTR:
+      if (is_explicit && same_type(dst->pa.ptrof, src->pa.ptrof))
+        return true;
+      // Fallthrough
+    case TY_ARRAY:
+      if (is_explicit)
+        return true;
+      break;
+    default:  break;
+    }
+    break;
+  default:
+    break;
+  }
+  return false;
+}
+
 // Returns created global variable info.
 VarInfo *str_to_char_array(const Type *type, Initializer *init) {
   assert(type->kind == TY_ARRAY && is_char_type(type->pa.ptrof));

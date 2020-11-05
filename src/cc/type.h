@@ -96,8 +96,6 @@ bool is_fixnum(enum TypeKind kind);
 bool is_char_type(const Type *type);
 bool is_void_ptr(const Type *type);
 bool ptr_or_array(const Type *type);
-bool same_type(const Type *type1, const Type *type2);
-bool can_cast(const Type *dst, const Type *src, bool zero, bool is_explicit);
 Type *ptrof(const Type *type);
 const Type *array_to_ptr(const Type *type);
 Type *arrayof(const Type *type, size_t length);

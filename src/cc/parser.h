@@ -47,3 +47,6 @@ VarInfo *str_to_char_array(const Type *type, Initializer *init);
 Initializer *parse_initializer(void);
 void fix_array_size(Type *type, Initializer *init);
 Vector *assign_initial_value(Expr *expr, Initializer *init, Vector *inits);
+
+bool same_type(const Type *type1, const Type *type2);
+bool can_cast(const Type *dst, const Type *src, bool zero, bool is_explicit);
