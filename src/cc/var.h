@@ -60,6 +60,7 @@ typedef struct Scope {
   Vector *vars;  // <VarInfo*>
   Table *struct_table;  // <StructInfo*>
   Table *typedef_table;  // <Type*>
+  Table *enum_table;  // <Type*>
 } Scope;
 
 extern Scope *global_scope;
@@ -74,3 +75,6 @@ void define_struct(Scope *scope, const Name *name, StructInfo *sinfo);
 
 const Type *find_typedef(Scope *scope, const Name *name);
 bool add_typedef(Scope *scope, const Name *name, const Type *type);
+
+Type *find_enum(Scope *scope, const Name *name);
+Type *define_enum(Scope *scope, const Name *name);

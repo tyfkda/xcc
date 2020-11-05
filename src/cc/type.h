@@ -99,5 +99,4 @@ Type *new_func_type(const Type *ret, Vector *params, Vector *param_types, bool v
 
 StructInfo *create_struct(Vector *members, bool is_union);  // members: <VarInfo*>
 
-Type *find_enum(const Name *name);
-Type *define_enum(const Name *ident);
+Type *create_enum_type(const Name *name);

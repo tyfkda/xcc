@@ -164,22 +164,12 @@ StructInfo *create_struct(Vector *members, bool is_union) {
 
 // Enum
 
-Table enum_table;
-
-Type *find_enum(const Name *name) {
-  return table_get(&enum_table, name);
-}
-
-Type *define_enum(const Name *ident) {
+Type *create_enum_type(const Name *name) {
   Type *type = malloc(sizeof(*type));
   type->kind = TY_FIXNUM;
   type->fixnum.kind = FX_ENUM;
   type->fixnum.is_unsigned = false;
-  type->fixnum.enum_.ident = ident;
-
-  if (ident != NULL)
-    table_put(&enum_table, ident, type);
-
+  type->fixnum.enum_.ident = name;
   return type;
 }
 

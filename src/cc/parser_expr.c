@@ -587,11 +587,11 @@ static void parse_enum_members(Type *type) {
 
 static const Type *parse_enum(void) {
   Token *ident = match(TK_IDENT);
-  Type *type = ident != NULL ? find_enum(ident->ident) : NULL;
+  Type *type = ident != NULL ? find_enum(curscope, ident->ident) : NULL;
   if (match(TK_LBRACE)) {
     if (type != NULL)
       parse_error(ident, "Duplicate enum type");
-    type = define_enum(ident != NULL ? ident->ident : NULL);
+    type = define_enum(curscope, ident != NULL ? ident->ident : NULL);
     if (!match(TK_RBRACE))
       parse_enum_members(type);
   } else {

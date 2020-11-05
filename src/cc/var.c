@@ -6,6 +6,7 @@
 
 #include "lexer.h"
 #include "table.h"
+#include "type.h"
 #include "util.h"
 
 static VarInfo *define_global(const Name *name, const Type *type, int flag, const Token *ident);
@@ -157,4 +158,26 @@ bool add_typedef(Scope *scope, const Name *name, const Type *type) {
   }
   table_put(scope->typedef_table, name, (void*)type);
   return true;
+}
+
+Type *find_enum(Scope *scope, const Name *name) {
+  for (; scope != NULL; scope = scope->parent) {
+    if (scope->enum_table == NULL)
+      continue;
+    Type *type = table_get(scope->enum_table, name);
+    if (type != NULL)
+      return type;
+  }
+  return NULL;
+}
+
+Type *define_enum(Scope *scope, const Name *name) {
+  Type *type = create_enum_type(name);
+
+  if (scope->enum_table == NULL) {
+    scope->enum_table = malloc(sizeof(*scope->enum_table));
+    table_init(scope->enum_table);
+  }
+  table_put(scope->enum_table, name, type);
+  return type;
 }
