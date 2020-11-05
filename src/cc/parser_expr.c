@@ -30,20 +30,13 @@ Expr *unwrap_group(Expr *expr) {
   return expr;
 }
 
-VarInfo *add_cur_scope(const Token *ident, const Type *type, int flag) {
-  if (curscope->vars == NULL)
-    curscope->vars = new_vector();
-  assert(ident != NULL);
-  return var_add(curscope->vars, ident->ident, type, flag, ident);
-}
-
 // Returns created global variable info.
 VarInfo *str_to_char_array(const Type *type, Initializer *init) {
   assert(type->kind == TY_ARRAY && is_char_type(type->pa.ptrof));
   const Token *ident = alloc_ident(alloc_label(), NULL, NULL);
   VarInfo *varinfo;
   if (curscope != NULL) {
-    varinfo = add_cur_scope(ident, type, VF_CONST | VF_STATIC);
+    varinfo = scope_add(curscope, ident, type, VF_CONST | VF_STATIC);
   } else {
     varinfo = define_global(type, VF_CONST | VF_STATIC, ident, NULL);
 
@@ -804,7 +797,7 @@ static Expr *parse_compound_literal(const Type *type) {
 
     name = alloc_label();
     const Token *ident = alloc_ident(name, NULL, NULL);
-    add_cur_scope(ident, type, 0);
+    scope_add(curscope, ident, type, 0);
 
     var = new_expr_variable(name, type, token, curscope);
     inits = assign_initial_value(var, init, NULL);

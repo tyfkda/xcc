@@ -1,5 +1,6 @@
 #include "var.h"
 
+#include <assert.h>
 #include <stdlib.h>  // malloc
 #include <string.h>
 
@@ -93,4 +94,11 @@ VarInfo *scope_find(Scope *scope, const Name *name, Scope **pscope) {
   if (pscope != NULL)
     *pscope = scope;
   return varinfo;
+}
+
+VarInfo *scope_add(Scope *scope, const Token *ident, const Type *type, int flag) {
+  if (scope->vars == NULL)
+    scope->vars = new_vector();
+  assert(ident != NULL);
+  return var_add(scope->vars, ident->ident, type, flag, ident);
 }

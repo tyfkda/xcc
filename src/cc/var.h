@@ -60,3 +60,4 @@ typedef struct Scope {
 
 Scope *new_scope(Scope *parent, Vector *vars);
 VarInfo *scope_find(Scope *scope, const Name *name, Scope **pscope);
+VarInfo *scope_add(Scope *scope, const Token *ident, const Type *type, int flag);
