@@ -101,8 +101,3 @@ StructInfo *create_struct(Vector *members, bool is_union);  // members: <VarInfo
 
 Type *find_enum(const Name *name);
 Type *define_enum(const Name *ident);
-
-// Typedef
-
-const Type *find_typedef(const Name *name);
-bool add_typedef(const Name *name, const Type *type);

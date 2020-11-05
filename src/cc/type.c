@@ -203,18 +203,3 @@ void dump_type(FILE *fp, const Type *type) {
   }
 }
 #endif
-
-// Typedef
-
-Table typedef_table;  // <const Name*, Type*>
-
-const Type *find_typedef(const Name *name) {
-  return table_get(&typedef_table, name);
-}
-
-bool add_typedef(const Name *name, const Type *type) {
-  if (table_get(&typedef_table, name) != NULL)
-    return false;
-  table_put(&typedef_table, name, (void*)type);
-  return true;
-}

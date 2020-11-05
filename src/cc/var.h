@@ -59,6 +59,7 @@ typedef struct Scope {
   struct Scope *parent;
   Vector *vars;  // <VarInfo*>
   Table *struct_table;  // <StructInfo*>
+  Table *typedef_table;  // <Type*>
 } Scope;
 
 extern Scope *global_scope;
@@ -70,3 +71,6 @@ VarInfo *scope_add(Scope *scope, const Token *ident, const Type *type, int flag)
 
 StructInfo *find_struct(Scope *scope, const Name *name);
 void define_struct(Scope *scope, const Name *name, StructInfo *sinfo);
+
+const Type *find_typedef(Scope *scope, const Name *name);
+bool add_typedef(Scope *scope, const Name *name, const Type *type);

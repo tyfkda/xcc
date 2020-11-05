@@ -80,6 +80,7 @@ Scope *new_scope(Scope *parent, Vector *vars) {
   scope->parent = parent;
   scope->vars = vars;
   scope->struct_table = NULL;
+  scope->typedef_table = NULL;
   return scope;
 }
 
@@ -133,4 +134,27 @@ void define_struct(Scope *scope, const Name *name, StructInfo *sinfo) {
     table_init(scope->struct_table);
   }
   table_put(scope->struct_table, name, sinfo);
+}
+
+const Type *find_typedef(Scope *scope, const Name *name) {
+  for (; scope != NULL; scope = scope->parent) {
+    if (scope->typedef_table == NULL)
+      continue;
+    const Type *type = table_get(scope->typedef_table, name);
+    if (type != NULL)
+      return type;
+  }
+  return NULL;
+}
+
+bool add_typedef(Scope *scope, const Name *name, const Type *type) {
+  if (scope->typedef_table != NULL) {
+    if (table_get(scope->typedef_table, name) != NULL)
+      return false;
+  } else {
+    scope->typedef_table = malloc(sizeof(*scope->typedef_table));
+    table_init(scope->typedef_table);
+  }
+  table_put(scope->typedef_table, name, (void*)type);
+  return true;
 }
