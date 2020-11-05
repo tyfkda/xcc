@@ -51,9 +51,6 @@ int var_find(const Vector *vars, const Name *name);  // <VarInfo*>
 VarInfo *var_add(Vector *vars, const Name *name, const Type *type, int flag,
                  const Token *ident);  // <VarInfo*>
 
-VarInfo *find_global(const Name *name);
-VarInfo *define_global(const Type *type, int flag, const Token *ident, const Name *name);
-
 // Scope
 
 typedef struct Scope {

@@ -588,7 +588,7 @@ static Initializer *check_vardecl(const Type *type, const Token *ident, int flag
 
     // TODO: Check `init` can be cast to `type`.
     if (flag & VF_STATIC) {
-      VarInfo *gvarinfo = find_global(varinfo->local.label);
+      VarInfo *gvarinfo = scope_find(global_scope, varinfo->local.label, NULL);
       assert(gvarinfo != NULL);
       gvarinfo->global.init = init = check_global_initializer(type, init);
       // static variable initializer is handled in codegen, same as global variable.
@@ -600,7 +600,7 @@ static Initializer *check_vardecl(const Type *type, const Token *ident, int flag
     if (flag & VF_EXTERN && init != NULL)
       parse_error(init->token, "extern with initializer");
     // Toplevel
-    VarInfo *varinfo = find_global(ident->ident);
+    VarInfo *varinfo = scope_find(global_scope, ident->ident, NULL);
     assert(varinfo != NULL);
     varinfo->global.init = init = check_global_initializer(type, init);
   }
@@ -1058,9 +1058,9 @@ static Declaration *parse_defun(const Type *functype, int flag, Token *ident) {
   Function *func = new_func(functype, ident->ident);
   Defun *defun = new_defun(func, flag);
 
-  VarInfo *varinfo = find_global(defun->func->name);
+  VarInfo *varinfo = scope_find(global_scope, defun->func->name, NULL);
   if (varinfo == NULL) {
-    varinfo = define_global(functype, flag | VF_CONST, ident, ident->ident);
+    varinfo = scope_add(global_scope, ident, functype, flag | VF_CONST);
   } else {
     if (varinfo->type->kind != TY_FUNC)
       parse_error(ident, "Definition conflict: `%s'");
@@ -1145,7 +1145,7 @@ static Declaration *parse_global_var_decl(const Type *rawtype, int flag, const T
     if (!(type->kind == TY_PTR && type->pa.ptrof->kind == TY_FUNC))
       type = parse_type_suffix(type);
 
-    VarInfo *varinfo = define_global(type, flag, ident, NULL);
+    VarInfo *varinfo = scope_add(global_scope, ident, type, flag);
 
     Initializer *init = NULL;
     if (match(TK_ASSIGN) != NULL)

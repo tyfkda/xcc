@@ -8,6 +8,8 @@
 #include "table.h"
 #include "util.h"
 
+static VarInfo *define_global(const Name *name, const Type *type, int flag, const Token *ident);
+
 int var_find(const Vector *vars, const Name *name) {
   for (int i = 0, len = vars->len; i < len; ++i) {
     VarInfo *info = vars->data[i];
@@ -26,7 +28,7 @@ VarInfo *var_add(Vector *vars, const Name *name, const Type *type, int flag, con
       parse_error(ident, "`%.*s' already defined", name->bytes, name->chars);
     if (flag & VF_STATIC) {
       label = alloc_label();
-      ginfo = define_global(type, flag, NULL, label);
+      ginfo = define_global(label, type, flag, NULL);
     }
   }
 
@@ -50,14 +52,9 @@ void init_global(void) {
   global_scope->vars = new_vector();
 }
 
-VarInfo *find_global(const Name *name) {
-  return scope_find(global_scope, name, NULL);
-}
-
-VarInfo *define_global(const Type *type, int flag, const Token *ident, const Name *name) {
-  if (name == NULL)
-    name = ident->ident;
-  VarInfo *varinfo = find_global(name);
+static VarInfo *define_global(const Name *name, const Type *type, int flag, const Token *ident) {
+  assert(name != NULL);
+  VarInfo *varinfo = scope_find(global_scope, name, NULL);
   if (varinfo != NULL) {
     if (!(varinfo->flag & VF_EXTERN)) {
       if (!(flag & VF_EXTERN))
@@ -109,8 +106,11 @@ VarInfo *scope_find(Scope *scope, const Name *name, Scope **pscope) {
 }
 
 VarInfo *scope_add(Scope *scope, const Token *ident, const Type *type, int flag) {
+  assert(ident != NULL);
+  if (is_global_scope(scope))
+    return define_global(ident->ident, type, flag, ident);
+
   if (scope->vars == NULL)
     scope->vars = new_vector();
-  assert(ident != NULL);
   return var_add(scope->vars, ident->ident, type, flag, ident);
 }

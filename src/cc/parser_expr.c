@@ -19,8 +19,8 @@ static StructInfo *parse_struct(bool is_union);
 static Expr *parse_cast_expr(void);
 static Expr *parse_unary(void);
 
-static void define_enum_member(Type *type, const Name *ident, int value) {
-  VarInfo *varinfo = define_global(type, VF_ENUM_MEMBER | VF_CONST, NULL, ident);
+static void define_enum_member(Type *type, const Token *ident, int value) {
+  VarInfo *varinfo = scope_add(curscope, ident, type, VF_ENUM_MEMBER | VF_CONST);
   varinfo->enum_.value = value;
 }
 
@@ -175,12 +175,8 @@ bool can_cast(const Type *dst, const Type *src, bool zero, bool is_explicit) {
 VarInfo *str_to_char_array(const Type *type, Initializer *init) {
   assert(type->kind == TY_ARRAY && is_char_type(type->pa.ptrof));
   const Token *ident = alloc_ident(alloc_label(), NULL, NULL);
-  VarInfo *varinfo;
-  if (!is_global_scope(curscope)) {
-    varinfo = scope_add(curscope, ident, type, VF_CONST | VF_STATIC);
-  } else {
-    varinfo = define_global(type, VF_CONST | VF_STATIC, ident, NULL);
-
+  VarInfo *varinfo = scope_add(curscope, ident, type, VF_CONST | VF_STATIC);
+  if (is_global_scope(curscope)) {
     Vector *decls = new_vector();
     vec_push(decls, new_vardecl(varinfo->type, ident, init, varinfo->flag));
     vec_push(toplevel, new_decl_vardecl(decls));
@@ -574,11 +570,11 @@ static void parse_enum_members(Type *type) {
       value = expr->fixnum;
     }
 
-    if (find_global(token->ident) != NULL) {
+    if (scope_find(global_scope, token->ident, NULL) != NULL) {
       parse_error(token, "`%.*s' is already defined",
                   token->ident->bytes, token->ident->chars);
     } else {
-      define_enum_member(type, token->ident, value);
+      define_enum_member(type, token, value);
     }
     ++value;
 

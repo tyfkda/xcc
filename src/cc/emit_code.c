@@ -335,7 +335,7 @@ static void emit_defun(Defun *defun) {
   _TEXT();
 
   bool global = true;
-  const VarInfo *varinfo = find_global(func->name);
+  const VarInfo *varinfo = scope_find(global_scope, func->name, NULL);
   if (varinfo != NULL) {
     global = (varinfo->flag & VF_STATIC) == 0;
   }
@@ -401,7 +401,7 @@ static void emit_defun(Defun *defun) {
       VarInfo *varinfo = scope->vars->data[j];
       if (!(varinfo->flag & VF_STATIC))
         continue;
-      VarInfo *gvarinfo = find_global(varinfo->local.label);
+      VarInfo *gvarinfo = scope_find(global_scope, varinfo->local.label, NULL);
       assert(gvarinfo != NULL);
       emit_varinfo(gvarinfo, gvarinfo->global.init);
     }
@@ -429,7 +429,7 @@ void emit_code(Vector *toplevel) {
           if ((vd->flag & VF_EXTERN) != 0)
             continue;
           const Name *name = vd->ident->ident;
-          const VarInfo *varinfo = find_global(name);
+          const VarInfo *varinfo = scope_find(global_scope, name, NULL);
           assert(varinfo != NULL);
 
           emit_varinfo(varinfo, varinfo->global.init);
