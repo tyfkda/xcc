@@ -136,40 +136,6 @@ Expr *new_expr_complit(const Type *type, const Token *token, Expr *var, Vector *
 bool is_const(Expr *expr);
 bool is_zero(Expr *expr);
 
-// ================================================
-
-// Function
-
-typedef struct Function {
-  const Type *type;
-  const Name *name;
-
-  Vector *scopes;  // NULL => prototype definition.
-
-  // For codegen.
-  RegAlloc *ra;
-  BBContainer *bbcon;
-  BB *ret_bb;
-  VReg *retval;
-} Function;
-
-Function *new_func(const Type *type, const Name *name);
-
-// Defun
-
-typedef struct Defun {
-  Function *func;
-
-  Vector *stmts;  // NULL => Prototype definition.
-
-  Table *label_table;  // <const Name*, BB*>
-  Vector *gotos;  // <Stmt*>
-
-  int flag;
-} Defun;
-
-Defun *new_defun(Function *func, int flag);
-
 // Initializer
 
 enum InitializerKind {
@@ -293,6 +259,40 @@ Stmt *new_stmt_goto(const Token *label);
 Stmt *new_stmt_label(const Token *label, Stmt *follow);
 Stmt *new_stmt_vardecl(Vector *decls, Vector *inits);
 Stmt *new_stmt_asm(const Token *token, Expr *str);
+
+// ================================================
+
+// Function
+
+typedef struct Function {
+  const Type *type;
+  const Name *name;
+
+  Vector *scopes;  // NULL => prototype definition.
+
+  // For codegen.
+  RegAlloc *ra;
+  BBContainer *bbcon;
+  BB *ret_bb;
+  VReg *retval;
+} Function;
+
+Function *new_func(const Type *type, const Name *name);
+
+// Defun
+
+typedef struct Defun {
+  Function *func;
+
+  Vector *stmts;  // NULL => Prototype definition.
+
+  Table *label_table;  // <const Name*, BB*>
+  Vector *gotos;  // <Stmt*>
+
+  int flag;
+} Defun;
+
+Defun *new_defun(Function *func, int flag);
 
 // Declaration
 
