@@ -6,6 +6,8 @@
 
 typedef struct Initializer Initializer;
 typedef struct Name Name;
+typedef struct StructInfo StructInfo;
+typedef struct Table Table;
 typedef struct Token Token;
 typedef struct Type Type;
 typedef struct VReg VReg;
@@ -56,6 +58,7 @@ VarInfo *var_add(Vector *vars, const Name *name, const Type *type, int flag,
 typedef struct Scope {
   struct Scope *parent;
   Vector *vars;  // <VarInfo*>
+  Table *struct_table;  // <StructInfo*>
 } Scope;
 
 extern Scope *global_scope;
@@ -64,3 +67,6 @@ Scope *new_scope(Scope *parent, Vector *vars);
 bool is_global_scope(Scope *scope);
 VarInfo *scope_find(Scope *scope, const Name *name, Scope **pscope);
 VarInfo *scope_add(Scope *scope, const Token *ident, const Type *type, int flag);
+
+StructInfo *find_struct(Scope *scope, const Name *name);
+void define_struct(Scope *scope, const Name *name, StructInfo *sinfo);

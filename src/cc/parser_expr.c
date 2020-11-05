@@ -35,7 +35,7 @@ Expr *unwrap_group(Expr *expr) {
   return expr;
 }
 
-bool same_type(const Type *type1, const Type *type2) {
+bool same_type(const Type *type1, const Type *type2, Scope *scope) {
   for (;;) {
     if (type1->kind != type2->kind)
       return false;
@@ -55,7 +55,7 @@ bool same_type(const Type *type1, const Type *type2) {
       type2 = type2->pa.ptrof;
       continue;
     case TY_FUNC:
-      if (!same_type(type1->func.ret, type2->func.ret) || type1->func.vaargs != type2->func.vaargs)
+      if (!same_type(type1->func.ret, type2->func.ret, scope) || type1->func.vaargs != type2->func.vaargs)
         return false;
       if (type1->func.param_types == NULL && type2->func.param_types == NULL)
         return true;
@@ -65,7 +65,7 @@ bool same_type(const Type *type1, const Type *type2) {
       for (int i = 0, len = type1->func.param_types->len; i < len; ++i) {
         const Type *t1 = (const Type*)type1->func.param_types->data[i];
         const Type *t2 = (const Type*)type2->func.param_types->data[i];
-        if (!same_type(t1, t2))
+        if (!same_type(t1, t2, scope))
           return false;
       }
       return true;
@@ -81,7 +81,7 @@ bool same_type(const Type *type1, const Type *type2) {
           return equal_name(type1->struct_.name, type2->struct_.name);
         }
         // Find type1 from name.
-        StructInfo *sinfo = find_struct(type1->struct_.name);
+        StructInfo *sinfo = find_struct(scope, type1->struct_.name);
         if (sinfo == NULL)
           return false;
         return sinfo == type2->struct_.info;
@@ -90,8 +90,8 @@ bool same_type(const Type *type1, const Type *type2) {
   }
 }
 
-bool can_cast(const Type *dst, const Type *src, bool zero, bool is_explicit) {
-  if (same_type(dst, src))
+bool can_cast(const Type *dst, const Type *src, bool zero, bool is_explicit, Scope *scope) {
+  if (same_type(dst, src, scope))
     return true;
 
   if (dst->kind == TY_VOID)
@@ -131,13 +131,13 @@ bool can_cast(const Type *dst, const Type *src, bool zero, bool is_explicit) {
       if (dst->pa.ptrof->kind == TY_VOID || src->pa.ptrof->kind == TY_VOID)
         return true;
       if (src->pa.ptrof->kind == TY_FUNC)
-        return can_cast(dst, src->pa.ptrof, zero, is_explicit);
+        return can_cast(dst, src->pa.ptrof, zero, is_explicit, scope);
       break;
     case TY_ARRAY:
       if (is_explicit)
         return true;
-      if (same_type(dst->pa.ptrof, src->pa.ptrof) ||
-          can_cast(dst, ptrof(src->pa.ptrof), zero, is_explicit))
+      if (same_type(dst->pa.ptrof, src->pa.ptrof, scope) ||
+          can_cast(dst, ptrof(src->pa.ptrof), zero, is_explicit, scope))
         return true;
       break;
     case TY_FUNC:
@@ -145,7 +145,7 @@ bool can_cast(const Type *dst, const Type *src, bool zero, bool is_explicit) {
         return true;
       if (dst->pa.ptrof->kind == TY_FUNC) {
         const Type *ftype = dst->pa.ptrof;
-        return (same_type(ftype, src) ||
+        return (same_type(ftype, src, scope) ||
                 (ftype->func.param_types == NULL || src->func.param_types == NULL));
       }
       break;
@@ -155,7 +155,7 @@ bool can_cast(const Type *dst, const Type *src, bool zero, bool is_explicit) {
   case TY_ARRAY:
     switch (src->kind) {
     case TY_PTR:
-      if (is_explicit && same_type(dst->pa.ptrof, src->pa.ptrof))
+      if (is_explicit && same_type(dst->pa.ptrof, src->pa.ptrof, scope))
         return true;
       // Fallthrough
     case TY_ARRAY:
@@ -189,7 +189,7 @@ VarInfo *str_to_char_array(const Type *type, Initializer *init) {
 void ensure_struct(Type *type, const Token *token) {
   assert(type->kind == TY_STRUCT);
   if (type->struct_.info == NULL) {
-    StructInfo *sinfo = find_struct(type->struct_.name);
+    StructInfo *sinfo = find_struct(curscope, type->struct_.name);
     if (sinfo == NULL)
       parse_error(token, "Accessing unknown struct(%.*s)'s member", type->struct_.name->bytes,
                   type->struct_.name->chars);
@@ -206,7 +206,7 @@ void ensure_struct(Type *type, const Token *token) {
 }
 
 bool check_cast(const Type *dst, const Type *src, bool zero, bool is_explicit, const Token *token) {
-  if (!can_cast(dst, src, zero, is_explicit)) {
+  if (!can_cast(dst, src, zero, is_explicit, curscope)) {
     parse_error(token, "Cannot convert value from type %d to %d", src->kind, dst->kind);
     return false;
   }
@@ -221,7 +221,7 @@ Expr *make_cast(const Type *type, const Token *token, Expr *sub, bool is_explici
   if (type->kind == TY_VOID || sub->type->kind == TY_VOID)
     parse_error(NULL, "cannot use `void' as a value");
 
-  if (same_type(type, sub->type))
+  if (same_type(type, sub->type, curscope))
     return sub;
   //if (is_const(sub)) {
   //  // Casting number types needs its value range info,
@@ -385,7 +385,7 @@ static Expr *new_expr_addsub(enum ExprKind kind, const Token *tok, Expr *lhs, Ex
         ltype = array_to_ptr(ltype);
       if (rtype->kind == TY_ARRAY)
         rtype = array_to_ptr(rtype);
-      if (!same_type(ltype, rtype))
+      if (!same_type(ltype, rtype, curscope))
         parse_error(tok, "Different pointer diff");
       const Fixnum elem_size = type_size(ltype->pa.ptrof);
       return new_expr_bop(EX_DIV, &tySize, tok, new_expr_bop(EX_SUB, &tySize, tok, lhs, rhs),
@@ -441,7 +441,7 @@ static Expr *new_expr_cmp(enum ExprKind kind, const Token *tok, Expr *lhs, Expr 
       rt = tt;
       kind = swap_cmp(kind);
     }
-    if (!can_cast(lt, rt, is_zero(rhs), false))
+    if (!can_cast(lt, rt, is_zero(rhs), false, curscope))
       parse_error(tok, "Cannot compare pointer to other types");
     if (rt->kind != TY_PTR)
       rhs = make_cast(lhs->type, rhs->token, rhs, false);
@@ -658,14 +658,14 @@ const Type *parse_raw_type(int *pflag) {
       if (match(TK_LBRACE)) {  // Definition
         sinfo = parse_struct(is_union);
         if (name != NULL) {
-          StructInfo *exist = find_struct(name);
+          StructInfo *exist = find_struct(curscope, name);
           if (exist != NULL)
             parse_error(ident, "`%.*s' already defined", name->bytes, name->chars);
-          define_struct(name, sinfo);
+          define_struct(curscope, name, sinfo);
         }
       } else {
         if (name != NULL) {
-          sinfo = find_struct(name);
+          sinfo = find_struct(curscope, name);
           if (sinfo != NULL) {
             if (sinfo->is_union != is_union)
               parse_error(tok, "Wrong tag for `%.*s'", name->bytes, name->chars);
@@ -1345,7 +1345,7 @@ static Expr *parse_conditional(void) {
     }
 
     const Type *type = NULL;
-    if (same_type(ttype, ftype)) {
+    if (same_type(ttype, ftype, curscope)) {
       type = ttype;
     } else if (is_void_ptr(ttype) && ftype->kind == TY_PTR) {
       type = ftype;

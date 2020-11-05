@@ -79,6 +79,7 @@ Scope *new_scope(Scope *parent, Vector *vars) {
   Scope *scope = malloc(sizeof(*scope));
   scope->parent = parent;
   scope->vars = vars;
+  scope->struct_table = NULL;
   return scope;
 }
 
@@ -113,4 +114,23 @@ VarInfo *scope_add(Scope *scope, const Token *ident, const Type *type, int flag)
   if (scope->vars == NULL)
     scope->vars = new_vector();
   return var_add(scope->vars, ident->ident, type, flag, ident);
+}
+
+StructInfo *find_struct(Scope *scope, const Name *name) {
+  for (; scope != NULL; scope = scope->parent) {
+    if (scope->struct_table == NULL)
+      continue;
+    StructInfo *sinfo = table_get(scope->struct_table, name);
+    if (sinfo != NULL)
+      return sinfo;
+  }
+  return NULL;
+}
+
+void define_struct(Scope *scope, const Name *name, StructInfo *sinfo) {
+  if (scope->struct_table == NULL) {
+    scope->struct_table = malloc(sizeof(*scope->struct_table));
+    table_init(scope->struct_table);
+  }
+  table_put(scope->struct_table, name, sinfo);
 }

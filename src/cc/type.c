@@ -152,12 +152,6 @@ Type *new_func_type(const Type *ret, Vector *params, Vector *param_types, bool v
 
 // Struct
 
-Table struct_table;
-
-StructInfo *find_struct(const Name *name) {
-  return table_get(&struct_table, name);
-}
-
 StructInfo *create_struct(Vector *members, bool is_union) {
   StructInfo *sinfo = malloc(sizeof(*sinfo));
   sinfo->members = members;
@@ -166,10 +160,6 @@ StructInfo *create_struct(Vector *members, bool is_union) {
   sinfo->align = 0;
   calc_struct_size(sinfo);
   return sinfo;
-}
-
-void define_struct(const Name *name, StructInfo *sinfo) {
-  table_put(&struct_table, name, sinfo);
 }
 
 // Enum
