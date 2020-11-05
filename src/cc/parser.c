@@ -754,6 +754,30 @@ static Stmt *parse_vardecl(void) {
   return new_stmt_vardecl(decls, inits);
 }
 
+static void parse_typedef(void) {
+  int flag;
+  Token *ident;
+  const Type *type = parse_full_type(&flag, &ident);
+  if (type == NULL)
+    parse_error(NULL, "type expected");
+  not_void(type);
+
+  if (ident == NULL) {
+    ident = consume(TK_IDENT, "ident expected");
+  }
+  const Name *name = ident->ident;
+  const Type *conflict = find_typedef(curscope, name);
+  if (conflict != NULL) {
+    if (!same_type(type, conflict, curscope))
+      parse_error(ident, "Conflict typedef");
+  }
+
+  if (conflict == NULL || (type->kind == TY_STRUCT && type->struct_.info != NULL))
+    add_typedef(curscope, name, type);
+
+  consume(TK_SEMICOL, "`;' expected");
+}
+
 static Stmt *parse_if(const Token *tok) {
   consume(TK_LPAR, "`(' expected");
   Expr *cond = parse_expr();
@@ -1044,6 +1068,11 @@ static Stmt *parse_stmt(void) {
   if ((tok = match(TK_RETURN)) != NULL)
     return parse_return(tok);
 
+  if ((tok = match(TK_TYPEDEF)) != NULL) {
+    parse_typedef();
+    return NULL;
+  }
+
   if ((tok = match(TK_ASM)) != NULL)
     return parse_asm(tok);
 
@@ -1109,30 +1138,6 @@ static Declaration *parse_defun(const Type *functype, int flag, Token *ident) {
     curdefun = NULL;
   }
   return new_decl_defun(defun);
-}
-
-static void parse_typedef(void) {
-  int flag;
-  Token *ident;
-  const Type *type = parse_full_type(&flag, &ident);
-  if (type == NULL)
-    parse_error(NULL, "type expected");
-  not_void(type);
-
-  if (ident == NULL) {
-    ident = consume(TK_IDENT, "ident expected");
-  }
-  const Name *name = ident->ident;
-  const Type *conflict = find_typedef(curscope, name);
-  if (conflict != NULL) {
-    if (!same_type(type, conflict, curscope))
-      parse_error(ident, "Conflict typedef");
-  }
-
-  if (conflict == NULL || (type->kind == TY_STRUCT && type->struct_.info != NULL))
-    add_typedef(curscope, name, type);
-
-  consume(TK_SEMICOL, "`;' expected");
 }
 
 static Declaration *parse_global_var_decl(const Type *rawtype, int flag, const Type *type,
