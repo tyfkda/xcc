@@ -175,7 +175,6 @@ void define_struct(const Name *name, StructInfo *sinfo) {
 // Enum
 
 Table enum_table;
-Table enum_value_table;
 
 Type *find_enum(const Name *name) {
   return table_get(&enum_table, name);
@@ -188,20 +187,10 @@ Type *define_enum(const Name *ident) {
   type->fixnum.is_unsigned = false;
   type->fixnum.enum_.ident = ident;
 
-  if (ident != NULL) {
+  if (ident != NULL)
     table_put(&enum_table, ident, type);
-  }
 
   return type;
-}
-
-void add_enum_member(Type *type, const Name *ident, int value) {
-  assert(type->kind == TY_FIXNUM && type->fixnum.kind == FX_ENUM);
-  table_put(&enum_value_table, ident, (void*)(intptr_t)value);
-}
-
-bool find_enum_value(const Name *name, intptr_t *output) {
-  return table_try_get(&enum_value_table, name, (void**)output);
 }
 
 #if 0

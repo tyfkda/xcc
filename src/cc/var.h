@@ -16,6 +16,7 @@ enum {
   VF_CONST = 1 << 0,
   VF_STATIC = 1 << 1,
   VF_EXTERN = 1 << 2,
+  VF_ENUM_MEMBER = 1 << 3,
 };
 
 typedef struct VarInfo {
@@ -23,16 +24,19 @@ typedef struct VarInfo {
   const Type *type;
   int flag;
   union {
-    struct {  // For global.
+    struct {
       Initializer *init;
     } global;
-    struct {  // For local.
+    struct {
       const Name *label;  // For static variable to refer value in global.
     } local;
     struct {
       // For codegen.
       int offset;
     } struct_;
+    struct {
+      int value;
+    } enum_;
   };
 
   // For codegen.

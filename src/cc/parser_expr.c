@@ -19,6 +19,11 @@ static StructInfo *parse_struct(bool is_union);
 static Expr *parse_cast_expr(void);
 static Expr *parse_unary(void);
 
+static void define_enum_member(Type *type, const Name *ident, int value) {
+  VarInfo *varinfo = define_global(type, VF_ENUM_MEMBER | VF_CONST, NULL, ident);
+  varinfo->enum_.value = value;
+}
+
 void not_void(const Type *type) {
   if (type->kind == TY_VOID)
     parse_error(NULL, "`void' not allowed");
@@ -569,13 +574,11 @@ static void parse_enum_members(Type *type) {
       value = expr->fixnum;
     }
 
-    intptr_t dummy;
-    if (find_enum_value(token->ident, &dummy) ||
-        find_global(token->ident) != NULL) {
+    if (find_global(token->ident) != NULL) {
       parse_error(token, "`%.*s' is already defined",
                   token->ident->bytes, token->ident->chars);
     } else {
-      add_enum_member(type, token->ident, value);
+      define_enum_member(type, token->ident, value);
     }
     ++value;
 
@@ -1000,13 +1003,10 @@ static Expr *parse_prim(void) {
   if (varinfo == NULL)
     varinfo = find_global(name);
   if (varinfo != NULL) {
+    if (varinfo->flag & VF_ENUM_MEMBER)
+      return new_expr_fixlit(varinfo->type, ident, varinfo->enum_.value);
     type = varinfo->type;
   } else {
-    intptr_t value;
-    if (find_enum_value(name, &value)) {
-      Fixnum fixnum = value;
-      return new_expr_fixlit(&tyInt, ident, fixnum);
-    }
     parse_error(ident, "undefined indentifier");
     type = &tyInt;
   }

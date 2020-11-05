@@ -103,8 +103,6 @@ void define_struct(const Name *name, StructInfo *sinfo);
 
 Type *find_enum(const Name *name);
 Type *define_enum(const Name *ident);
-void add_enum_member(Type *type, const Name *ident, int value);
-bool find_enum_value(const Name *name, intptr_t *output);
 
 // Typedef
 

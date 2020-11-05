@@ -1145,9 +1145,6 @@ static Declaration *parse_global_var_decl(const Type *rawtype, int flag, const T
     if (!(type->kind == TY_PTR && type->pa.ptrof->kind == TY_FUNC))
       type = parse_type_suffix(type);
 
-    intptr_t eval;
-    if (find_enum_value(ident->ident, &eval))
-      parse_error(ident, "`%.*s' is already defined", ident->ident->bytes, ident->ident->chars);
     VarInfo *varinfo = define_global(type, flag, ident, NULL);
 
     Initializer *init = NULL;
