@@ -1369,22 +1369,29 @@ static Expr *parse_conditional(void) {
 }
 
 Expr *parse_assign(void) {
+  enum {
+    ASSIGN,
+    ADDSUB,
+    FIXNUM_BOP,
+    SHIFT,
+  };
+
   static const struct {
     enum TokenKind tk;
     enum ExprKind ex;
     int mode;
   } kAssignWithOps[] = {
-    { TK_ASSIGN, EX_ASSIGN, 0 },
-    { TK_ADD_ASSIGN, EX_ADD, 1 },
-    { TK_SUB_ASSIGN, EX_SUB, 1 },
-    { TK_MUL_ASSIGN, EX_MUL, 2 },
-    { TK_DIV_ASSIGN, EX_DIV, 2 },
-    { TK_MOD_ASSIGN, EX_MOD, 2 },
-    { TK_AND_ASSIGN, EX_BITAND, 2 },
-    { TK_OR_ASSIGN, EX_BITOR, 2 },
-    { TK_HAT_ASSIGN, EX_BITXOR, 2 },
-    { TK_LSHIFT_ASSIGN, EX_LSHIFT, 3 },
-    { TK_RSHIFT_ASSIGN, EX_RSHIFT, 3 },
+    { TK_ASSIGN, EX_ASSIGN, ASSIGN },
+    { TK_ADD_ASSIGN, EX_ADD, ADDSUB },
+    { TK_SUB_ASSIGN, EX_SUB, ADDSUB },
+    { TK_MUL_ASSIGN, EX_MUL, FIXNUM_BOP },
+    { TK_DIV_ASSIGN, EX_DIV, FIXNUM_BOP },
+    { TK_MOD_ASSIGN, EX_MOD, FIXNUM_BOP },
+    { TK_AND_ASSIGN, EX_BITAND, FIXNUM_BOP },
+    { TK_OR_ASSIGN, EX_BITOR, FIXNUM_BOP },
+    { TK_HAT_ASSIGN, EX_BITXOR, FIXNUM_BOP },
+    { TK_LSHIFT_ASSIGN, EX_LSHIFT, SHIFT },
+    { TK_RSHIFT_ASSIGN, EX_RSHIFT, SHIFT },
   };
 
   Expr *expr = parse_conditional();
@@ -1410,11 +1417,11 @@ Expr *parse_assign(void) {
 
         Expr *bop;
         switch (kAssignWithOps[i].mode) {
-        case 0:
+        case ASSIGN:
           return new_expr_bop(EX_ASSIGN, lhs->type, tok, lhs, make_cast(lhs->type, tok, rhs, false));
-        case 1:  bop = new_expr_addsub(kind, tok, lhs, rhs, true); break;
-        case 2:  bop = new_expr_int_bop(kind, tok, lhs, rhs, true); break;
-        case 3:
+        case ADDSUB:  bop = new_expr_addsub(kind, tok, lhs, rhs, true); break;
+        case FIXNUM_BOP:  bop = new_expr_int_bop(kind, tok, lhs, rhs, true); break;
+        case SHIFT:
           {
             const Type *ltype = lhs->type;
             const Type *rtype = rhs->type;
