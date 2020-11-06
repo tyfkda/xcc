@@ -58,7 +58,7 @@ const char *kRegATable[] = {AL, AX, EAX, RAX};
 const char *kRegDTable[] = {DL, DX, EDX, RDX};
 
 #ifndef __NO_FLONUM
-const char *kFReg64s[7] = {XMM1, XMM2, XMM3, XMM4, XMM5, XMM6, XMM7};
+const char *kFReg64s[7] = {XMM8, XMM9, XMM10, XMM11, XMM12, XMM13, XMM14};
 #endif
 
 #define CALLEE_SAVE_REG_COUNT  ((int)(sizeof(kCalleeSaveRegs) / sizeof(*kCalleeSaveRegs)))

@@ -186,8 +186,9 @@ static const struct {
 };
 
 #ifndef __NO_FLONUM
-static const char kXmmRegisters[][5] = {
+static const char kXmmRegisters[][6] = {
   "xmm0", "xmm1", "xmm2", "xmm3", "xmm4", "xmm5", "xmm6", "xmm7",
+  "xmm8", "xmm9", "xmm10", "xmm11", "xmm12", "xmm13", "xmm14", "xmm15",
 };
 #endif
 
@@ -278,10 +279,15 @@ static enum RegType find_register(const char **pp) {
 #ifndef __NO_FLONUM
 static enum RegXmmType find_xmm_register(const char **pp) {
   const char *p = *pp;
+  const char *q;
+  for (q = p; isalnum(*q); ++q)
+    ;
+  size_t l = q - p;
+
   for (int i = 0, len = sizeof(kXmmRegisters) / sizeof(*kXmmRegisters); i < len; ++i) {
     const char *name = kXmmRegisters[i];
     size_t n = strlen(name);
-    if (strncmp(p, name, n) == 0) {
+    if (l == n & strncmp(p, name, n) == 0) {
       *pp = p + n;
       return i + XMM0;
     }

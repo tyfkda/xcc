@@ -120,6 +120,14 @@
 #define XMM5   "%xmm5"
 #define XMM6   "%xmm6"
 #define XMM7   "%xmm7"
+#define XMM8   "%xmm8"
+#define XMM9   "%xmm9"
+#define XMM10  "%xmm10"
+#define XMM11  "%xmm11"
+#define XMM12  "%xmm12"
+#define XMM13  "%xmm13"
+#define XMM14  "%xmm14"
+#define XMM15  "%xmm15"
 #endif
 
 #define MOV(o1, o2)    EMIT_ASM2("mov", o1, o2)

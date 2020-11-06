@@ -8,8 +8,21 @@
 #include "parse_asm.h"
 #include "util.h"
 
+#define ARRAY_SIZE(array)  (sizeof(array) / sizeof(*(array)))
+
 #ifndef PUT_CODE
 #define PUT_CODE(p, ...)  do { unsigned char buf[] = {__VA_ARGS__}; memcpy(p, buf, sizeof(buf)); } while (0)
+#endif
+
+#ifndef __NO_FLONUM
+static unsigned char *put_code_filtered(unsigned char *p, const short *buf, size_t count) {
+  for (size_t i = 0; i < count; ++i) {
+    short c = *buf++;
+    if (c >= 0)
+      *p++ = c;
+  }
+  return p;
+}
 #endif
 
 void make_code(Inst *inst, Code *code, unsigned char *buf, int len) {
@@ -200,25 +213,33 @@ static bool assemble_movsd(Inst *inst, const ParseInfo *info, Code *code) {
   if (inst->src.type == REG_XMM && inst->dst.type == REG_XMM) {
     unsigned char sno = inst->src.regxmm - XMM0;
     unsigned char dno = inst->dst.regxmm - XMM0;
-    PUT_CODE(p, 0xf2, 0x0f, 0x10, (unsigned char)0xc0 | ((dno & 7) << 3) | (sno & 7));
-    p += 4;
+    short buf[] = {
+      0xf2,
+      sno >= 8 || dno >= 8 ? (unsigned char)0x40 | ((sno & 8) >> 3) | ((dno & 8) >> 1) : -1,
+      0x0f,
+      0x10,
+      (unsigned char)0xc0 | ((dno & 7) << 3) | (sno & 7),
+    };
+    p = put_code_filtered(p, buf, ARRAY_SIZE(buf));
   } else if (inst->src.type == INDIRECT && inst->dst.type == REG_XMM) {
     if (inst->src.indirect.offset->kind == EX_FIXNUM) {
       if (inst->src.indirect.reg.no != RIP) {
         long offset = inst->src.indirect.offset->fixnum;
         unsigned char sno = opr_regno(&inst->src.indirect.reg);
         unsigned char dno = inst->dst.regxmm - XMM0;
-        *p++ = 0xf2;
-        if (sno >= 8)
-          *p++ = 0x41;
-        PUT_CODE(p, 0x0f, 0x10);
-        p += 2;
         int d = dno & 7;
         int s = sno & 7;
         unsigned char code = (offset == 0 && s != RBP - RAX) ? (unsigned char)0x00 : is_im8(offset) ? (unsigned char)0x40 : (unsigned char)0x80;
-        *p++ = code | s | (d << 3);
-        if (s == RSP - RAX)
-          *p++ = 0x24;
+
+        short buf[] = {
+          0xf2,
+          sno >= 8 || dno >= 8 ? (unsigned char)0x40 | ((sno & 8) >> 3) | ((dno & 8) >> 1) : -1,
+          0x0f,
+          0x10,
+          code | s | (d << 3),
+          s == RSP - RAX ? 0x24 : -1,
+        };
+        p = put_code_filtered(p, buf, ARRAY_SIZE(buf));
 
         if (offset == 0 && s != RBP - RAX) {
           ;
@@ -234,20 +255,21 @@ static bool assemble_movsd(Inst *inst, const ParseInfo *info, Code *code) {
     if (inst->dst.indirect.offset->kind == EX_FIXNUM) {
       if (inst->dst.indirect.reg.no != RIP) {
         long offset = inst->dst.indirect.offset->fixnum;
-
         unsigned char sno = inst->src.regxmm - XMM0;
         unsigned char dno = opr_regno(&inst->dst.indirect.reg);
-        *p++ = 0xf2;
-        if (dno >= 8)
-          *p++ = 0x41;
-        PUT_CODE(p, 0x0f, 0x11);
-        p += 2;
         int d = dno & 7;
         int s = sno & 7;
         unsigned char code = (offset == 0 && d != RBP - RAX) ? (unsigned char)0x00 : is_im8(offset) ? (unsigned char)0x40 : (unsigned char)0x80;
-        *p++ = code | d | (s << 3);
-        if (d == RSP - RAX)
-          *p++ = 0x24;
+
+        short buf[] = {
+          0xf2,
+          sno >= 8 || dno >= 8 ? (unsigned char)0x40 | ((dno & 8) >> 3) | ((sno & 8) >> 1) : -1,
+          0x0f,
+          0x11,
+          code | d | (s << 3),
+          d == RSP - RAX ? 0x24 : -1,
+        };
+        p = put_code_filtered(p, buf, ARRAY_SIZE(buf));
 
         if (offset == 0 && d != RBP - RAX) {
           ;
@@ -949,72 +971,112 @@ bool assemble_inst(Inst *inst, const ParseInfo *info, Code *code) {
     if (inst->src.type == REG_XMM && inst->dst.type == REG_XMM) {
       unsigned char sno = inst->src.regxmm - XMM0;
       unsigned char dno = inst->dst.regxmm - XMM0;
-      PUT_CODE(p, 0xf2, 0x0f, 0x58, (unsigned char)0xc0 | ((dno & 7) << 3) | (sno & 7));
-      p += 4;
+      short buf[] = {
+        0xf2,
+        sno >= 8 || dno >= 8 ? (unsigned char)0x40 | ((sno & 8) >> 3) | ((dno & 8) >> 1) : -1,
+        0x0f,
+        0x58,
+        (unsigned char)0xc0 | ((dno & 7) << 3) | (sno & 7),
+      };
+      p = put_code_filtered(p, buf, ARRAY_SIZE(buf));
     }
     break;
   case SUBSD:
     if (inst->src.type == REG_XMM && inst->dst.type == REG_XMM) {
       unsigned char sno = inst->src.regxmm - XMM0;
       unsigned char dno = inst->dst.regxmm - XMM0;
-      PUT_CODE(p, 0xf2, 0x0f, 0x5c, (unsigned char)0xc0 | ((dno & 7) << 3) | (sno & 7));
-      p += 4;
+      short buf[] = {
+        0xf2,
+        sno >= 8 || dno >= 8 ? (unsigned char)0x40 | ((sno & 8) >> 3) | ((dno & 8) >> 1) : -1,
+        0x0f,
+        0x5c,
+        (unsigned char)0xc0 | ((dno & 7) << 3) | (sno & 7),
+      };
+      p = put_code_filtered(p, buf, ARRAY_SIZE(buf));
     }
     break;
   case MULSD:
     if (inst->src.type == REG_XMM && inst->dst.type == REG_XMM) {
       unsigned char sno = inst->src.regxmm - XMM0;
       unsigned char dno = inst->dst.regxmm - XMM0;
-      PUT_CODE(p, 0xf2, 0x0f, 0x59, (unsigned char)0xc0 | ((dno & 7) << 3) | (sno & 7));
-      p += 4;
+      short buf[] = {
+        0xf2,
+        sno >= 8 || dno >= 8 ? (unsigned char)0x40 | ((sno & 8) >> 3) | ((dno & 8) >> 1) : -1,
+        0x0f,
+        0x59,
+        (unsigned char)0xc0 | ((dno & 7) << 3) | (sno & 7),
+      };
+      p = put_code_filtered(p, buf, ARRAY_SIZE(buf));
     }
     break;
   case DIVSD:
     if (inst->src.type == REG_XMM && inst->dst.type == REG_XMM) {
       unsigned char sno = inst->src.regxmm - XMM0;
       unsigned char dno = inst->dst.regxmm - XMM0;
-      PUT_CODE(p, 0xf2, 0x0f, 0x5e, (unsigned char)0xc0 | ((dno & 7) << 3) | (sno & 7));
-      p += 4;
+      short buf[] = {
+        0xf2,
+        sno >= 8 || dno >= 8 ? (unsigned char)0x40 | ((sno & 8) >> 3) | ((dno & 8) >> 1) : -1,
+        0x0f,
+        0x5e,
+        (unsigned char)0xc0 | ((dno & 7) << 3) | (sno & 7),
+      };
+      p = put_code_filtered(p, buf, ARRAY_SIZE(buf));
     }
     break;
   case UCOMISD:
     if (inst->src.type == REG_XMM && inst->dst.type == REG_XMM) {
       unsigned char sno = inst->src.regxmm - XMM0;
       unsigned char dno = inst->dst.regxmm - XMM0;
-      PUT_CODE(p, 0x66, 0x0f, 0x2e, (unsigned char)0xc0 | ((dno & 7) << 3) | (sno & 7));
-      p += 4;
+      short buf[] = {
+        0x66,
+        sno >= 8 || dno >= 8 ? (unsigned char)0x40 | ((sno & 8) >> 3) | ((dno & 8) >> 1) : -1,
+        0x0f,
+        0x2e,
+        (unsigned char)0xc0 | ((dno & 7) << 3) | (sno & 7),
+      };
+      p = put_code_filtered(p, buf, ARRAY_SIZE(buf));
     }
     break;
   case CVTSI2SD:
     if (inst->src.type == REG && inst->dst.type == REG_XMM) {
       unsigned char sno = opr_regno(&inst->src.reg);
       unsigned char dno = inst->dst.regxmm - XMM0;
-
-      *p++ = 0xf2;
-      if (sno >= 8 || inst->src.reg.size == REG64)
-        *p++ = (unsigned char)0x40 | ((sno & 8) >> 3) | (inst->src.reg.size == REG64 ? 8 : 0);
-      PUT_CODE(p, 0x0f, 0x2a, 0xc0 | ((dno & 7) << 3) | (sno & 7));
-      p += 3;
+      short buf[] = {
+        0xf2,
+        sno >= 8 || dno >= 8 || inst->src.reg.size == REG64 ? (unsigned char)0x40 | ((sno & 8) >> 3) | ((dno & 8) >> 1) | (inst->src.reg.size == REG64 ? 8 : 0) : -1,
+        0x0f,
+        0x2a,
+        (unsigned char)0xc0 | ((dno & 7) << 3) | (sno & 7),
+      };
+      p = put_code_filtered(p, buf, ARRAY_SIZE(buf));
     }
     break;
   case CVTTSD2SI:
     if (inst->src.type == REG_XMM && inst->dst.type == REG) {
       unsigned char sno = inst->src.regxmm - XMM0;
       unsigned char dno = opr_regno(&inst->dst.reg);
-
-      *p++ = 0xf2;
-      if (dno >= 8 || inst->dst.reg.size == REG64)
-        *p++ = (unsigned char)0x40 | ((dno & 8) >> 1) | (inst->dst.reg.size == REG64 ? 8 : 0);
-      PUT_CODE(p, 0x0f, 0x2c, 0xc0 | ((dno & 7) << 3) | (sno & 7));
-      p += 3;
+      short buf[] = {
+        0xf2,
+        sno >= 8 || dno >= 8 || inst->dst.reg.size == REG64 ? (unsigned char)0x40 | ((sno & 8) >> 3) | ((dno & 8) >> 1) | (inst->dst.reg.size == REG64 ? 8 : 0) : -1,
+        0x0f,
+        0x2c,
+        (unsigned char)0xc0 | ((dno & 7) << 3) | (sno & 7),
+      };
+      p = put_code_filtered(p, buf, ARRAY_SIZE(buf));
     }
     break;
   case SQRTSD:
     if (inst->src.type == REG_XMM && inst->dst.type == REG_XMM) {
       unsigned char sno = inst->src.regxmm - XMM0;
       unsigned char dno = inst->dst.regxmm - XMM0;
-      PUT_CODE(p, 0xf2, 0x0f, 0x51, (unsigned char)0xc0 | ((dno & 7) << 3) | (sno & 7));
-      p += 4;
+      short buf[] = {
+        0xf2,
+        sno >= 8 || dno >= 8 ? (unsigned char)0x40 | ((sno & 8) >> 3) | ((dno & 8) >> 1) : -1,
+        0x0f,
+        0x51,
+        (unsigned char)0xc0 | ((dno & 7) << 3) | (sno & 7),
+      };
+      p = put_code_filtered(p, buf, ARRAY_SIZE(buf));
     }
     break;
 #endif
