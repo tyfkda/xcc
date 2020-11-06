@@ -80,8 +80,12 @@ static void alloc_variable_registers(Function *func) {
 
     for (int j = 0; j < scope->vars->len; ++j) {
       VarInfo *varinfo = scope->vars->data[j];
-      if (varinfo->flag & (VF_STATIC | VF_EXTERN))
-        continue;  // Static variable is not allocated on stack.
+      if (varinfo->flag & (VF_STATIC | VF_EXTERN | VF_ENUM_MEMBER)) {
+        // Static entity is allocated in global, not on stack.
+        // Extern doesn't have its entity.
+        // Enum members are replaced to constant value.
+        continue;
+      }
 
       VReg *vreg = add_new_reg(varinfo->type, VRF_LOCAL);
       if (i == 0) {
@@ -493,7 +497,7 @@ static void gen_defun(Defun *defun) {
   remove_unnecessary_bb(func->bbcon);
 
   curdefun = NULL;
-  curscope = NULL;
+  curscope = global_scope;
   curra = NULL;
 }
 

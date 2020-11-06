@@ -152,12 +152,6 @@ Type *new_func_type(const Type *ret, Vector *params, Vector *param_types, bool v
 
 // Struct
 
-Table struct_table;
-
-StructInfo *find_struct(const Name *name) {
-  return table_get(&struct_table, name);
-}
-
 StructInfo *create_struct(Vector *members, bool is_union) {
   StructInfo *sinfo = malloc(sizeof(*sinfo));
   sinfo->members = members;
@@ -168,28 +162,14 @@ StructInfo *create_struct(Vector *members, bool is_union) {
   return sinfo;
 }
 
-void define_struct(const Name *name, StructInfo *sinfo) {
-  table_put(&struct_table, name, sinfo);
-}
-
 // Enum
 
-Table enum_table;
-
-Type *find_enum(const Name *name) {
-  return table_get(&enum_table, name);
-}
-
-Type *define_enum(const Name *ident) {
+Type *create_enum_type(const Name *name) {
   Type *type = malloc(sizeof(*type));
   type->kind = TY_FIXNUM;
   type->fixnum.kind = FX_ENUM;
   type->fixnum.is_unsigned = false;
-  type->fixnum.enum_.ident = ident;
-
-  if (ident != NULL)
-    table_put(&enum_table, ident, type);
-
+  type->fixnum.enum_.ident = name;
   return type;
 }
 
@@ -213,18 +193,3 @@ void dump_type(FILE *fp, const Type *type) {
   }
 }
 #endif
-
-// Typedef
-
-Table typedef_table;  // <const Name*, Type*>
-
-const Type *find_typedef(const Name *name) {
-  return table_get(&typedef_table, name);
-}
-
-bool add_typedef(const Name *name, const Type *type) {
-  if (table_get(&typedef_table, name) != NULL)
-    return false;
-  table_put(&typedef_table, name, (void*)type);
-  return true;
-}

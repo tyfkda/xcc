@@ -6,7 +6,10 @@
 
 #include "lexer.h"
 #include "table.h"
+#include "type.h"
 #include "util.h"
+
+static VarInfo *define_global(const Name *name, const Type *type, int flag, const Token *ident);
 
 int var_find(const Vector *vars, const Name *name) {
   for (int i = 0, len = vars->len; i < len; ++i) {
@@ -26,7 +29,7 @@ VarInfo *var_add(Vector *vars, const Name *name, const Type *type, int flag, con
       parse_error(ident, "`%.*s' already defined", name->bytes, name->chars);
     if (flag & VF_STATIC) {
       label = alloc_label();
-      ginfo = define_global(type, flag, NULL, label);
+      ginfo = define_global(label, type, flag, NULL);
     }
   }
 
@@ -42,30 +45,32 @@ VarInfo *var_add(Vector *vars, const Name *name, const Type *type, int flag, con
 
 // Global
 
-static Table gvar_table;
+Scope *global_scope;
 
-VarInfo *find_global(const Name *name) {
-  return table_get(&gvar_table, name);
+void init_global(void) {
+  global_scope = calloc(1, sizeof(*global_scope));
+  global_scope->parent = NULL;
+  global_scope->vars = new_vector();
 }
 
-VarInfo *define_global(const Type *type, int flag, const Token *ident, const Name *name) {
-  if (name == NULL)
-    name = ident->ident;
-  VarInfo *varinfo = find_global(name);
+static VarInfo *define_global(const Name *name, const Type *type, int flag, const Token *ident) {
+  assert(name != NULL);
+  VarInfo *varinfo = scope_find(global_scope, name, NULL);
   if (varinfo != NULL) {
     if (!(varinfo->flag & VF_EXTERN)) {
       if (!(flag & VF_EXTERN))
         parse_error(ident, "`%.*s' already defined", name->bytes, name->chars);
       return varinfo;
     }
+    varinfo->name = name;
+    varinfo->type = type;
+    varinfo->flag = flag;
+    varinfo->global.init = NULL;
   } else {
-    varinfo = malloc(sizeof(*varinfo));
+    // `static' is different meaning for global and local variable.
+    varinfo = var_add(global_scope->vars, name, type, flag & ~VF_STATIC, ident);
+    varinfo->flag = flag;
   }
-  varinfo->name = name;
-  varinfo->type = type;
-  varinfo->flag = flag;
-  varinfo->global.init = NULL;
-  table_put(&gvar_table, name, varinfo);
   return varinfo;
 }
 
@@ -75,7 +80,14 @@ Scope *new_scope(Scope *parent, Vector *vars) {
   Scope *scope = malloc(sizeof(*scope));
   scope->parent = parent;
   scope->vars = vars;
+  scope->struct_table = NULL;
+  scope->typedef_table = NULL;
   return scope;
+}
+
+bool is_global_scope(Scope *scope) {
+  assert(scope->parent != NULL || scope == global_scope);  // Global scope is only one.
+  return scope->parent == NULL;
 }
 
 VarInfo *scope_find(Scope *scope, const Name *name, Scope **pscope) {
@@ -97,8 +109,76 @@ VarInfo *scope_find(Scope *scope, const Name *name, Scope **pscope) {
 }
 
 VarInfo *scope_add(Scope *scope, const Token *ident, const Type *type, int flag) {
+  assert(ident != NULL);
+  if (is_global_scope(scope))
+    return define_global(ident->ident, type, flag, ident);
+
   if (scope->vars == NULL)
     scope->vars = new_vector();
-  assert(ident != NULL);
   return var_add(scope->vars, ident->ident, type, flag, ident);
+}
+
+StructInfo *find_struct(Scope *scope, const Name *name) {
+  for (; scope != NULL; scope = scope->parent) {
+    if (scope->struct_table == NULL)
+      continue;
+    StructInfo *sinfo = table_get(scope->struct_table, name);
+    if (sinfo != NULL)
+      return sinfo;
+  }
+  return NULL;
+}
+
+void define_struct(Scope *scope, const Name *name, StructInfo *sinfo) {
+  if (scope->struct_table == NULL) {
+    scope->struct_table = malloc(sizeof(*scope->struct_table));
+    table_init(scope->struct_table);
+  }
+  table_put(scope->struct_table, name, sinfo);
+}
+
+const Type *find_typedef(Scope *scope, const Name *name) {
+  for (; scope != NULL; scope = scope->parent) {
+    if (scope->typedef_table == NULL)
+      continue;
+    const Type *type = table_get(scope->typedef_table, name);
+    if (type != NULL)
+      return type;
+  }
+  return NULL;
+}
+
+bool add_typedef(Scope *scope, const Name *name, const Type *type) {
+  if (scope->typedef_table != NULL) {
+    if (table_get(scope->typedef_table, name) != NULL)
+      return false;
+  } else {
+    scope->typedef_table = malloc(sizeof(*scope->typedef_table));
+    table_init(scope->typedef_table);
+  }
+  table_put(scope->typedef_table, name, (void*)type);
+  return true;
+}
+
+Type *find_enum(Scope *scope, const Name *name) {
+  for (; scope != NULL; scope = scope->parent) {
+    if (scope->enum_table == NULL)
+      continue;
+    Type *type = table_get(scope->enum_table, name);
+    if (type != NULL)
+      return type;
+  }
+  return NULL;
+}
+
+Type *define_enum(Scope *scope, const Name *name) {
+  Type *type = create_enum_type(name);
+  if (name != NULL) {
+    if (scope->enum_table == NULL) {
+      scope->enum_table = malloc(sizeof(*scope->enum_table));
+      table_init(scope->enum_table);
+    }
+    table_put(scope->enum_table, name, type);
+  }
+  return type;
 }

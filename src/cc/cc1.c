@@ -17,6 +17,7 @@
 
 static void init_compiler(FILE *ofp) {
   init_lexer();
+  init_global();
   init_emit(ofp);
 
   //set_fixnum_size(NUM_CHAR,  1, 1);

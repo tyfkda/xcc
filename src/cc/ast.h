@@ -89,7 +89,7 @@ typedef struct Expr {
     } str;
     struct {
       const Name *name;
-      Scope *scope;  // NULL = global, non NULL = local
+      Scope *scope;
     } var;
     struct {
       struct Expr *lhs;

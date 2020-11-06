@@ -230,19 +230,20 @@ static VReg *gen_lval(Expr *expr) {
 
   switch (expr->kind) {
   case EX_VAR:
-    if (expr->var.scope == NULL) {
-      const VarInfo *varinfo = find_global(expr->var.name);
-      assert(varinfo != NULL);
-      return new_ir_iofs(expr->var.name, (varinfo->flag & VF_STATIC) == 0);
-    } else {
-      const VarInfo *varinfo = scope_find(expr->var.scope, expr->var.name, NULL);
-      assert(varinfo != NULL);
-      if (varinfo->flag & VF_STATIC)
-        return new_ir_iofs(varinfo->local.label, false);
-      else if (varinfo->flag & VF_EXTERN)
-        return new_ir_iofs(expr->var.name, true);
-      else
-        return new_ir_bofs(varinfo->reg);
+    {
+      Scope *scope;
+      const VarInfo *varinfo = scope_find(expr->var.scope, expr->var.name, &scope);
+      assert(varinfo != NULL && scope == expr->var.scope);
+      if (is_global_scope(scope)) {
+        return new_ir_iofs(expr->var.name, (varinfo->flag & VF_STATIC) == 0);
+      } else {
+        if (varinfo->flag & VF_STATIC)
+          return new_ir_iofs(varinfo->local.label, false);
+        else if (varinfo->flag & VF_EXTERN)
+          return new_ir_iofs(expr->var.name, true);
+        else
+          return new_ir_bofs(varinfo->reg);
+      }
     }
   case EX_DEREF:
     return gen_expr(expr->unary.sub);
@@ -291,8 +292,10 @@ static VReg *gen_variable(Expr *expr) {
   case TY_FIXNUM:
   case TY_PTR:
     {
-      const VarInfo *varinfo = scope_find(expr->var.scope, expr->var.name, NULL);
-      if (varinfo != NULL && !(varinfo->flag & (VF_STATIC | VF_EXTERN))) {
+      Scope *scope;
+      const VarInfo *varinfo = scope_find(expr->var.scope, expr->var.name, &scope);
+      assert(varinfo != NULL && scope == expr->var.scope);
+      if (!is_global_scope(scope) && !(varinfo->flag & (VF_STATIC | VF_EXTERN))) {
         assert(varinfo->reg != NULL);
         return varinfo->reg;
       }
@@ -365,7 +368,7 @@ static VReg *gen_funcall(Expr *expr) {
   int stack_arg_count = 0;
   if (args != NULL) {
     bool vaargs = false;
-    if (func->kind == EX_VAR && func->var.scope == NULL) {
+    if (func->kind == EX_VAR && is_global_scope(func->var.scope)) {
       vaargs = func->type->func.vaargs;
     } else {
       // TODO:
@@ -445,12 +448,7 @@ static VReg *gen_funcall(Expr *expr) {
   bool label_call = false;
   bool global = false;
   if (func->kind == EX_VAR) {
-    const VarInfo *varinfo;
-    if (func->var.scope == NULL) {
-      varinfo = find_global(func->var.name);
-    } else {
-      varinfo = scope_find(func->var.scope, func->var.name, NULL);
-    }
+    const VarInfo *varinfo = scope_find(func->var.scope, func->var.name, NULL);
     assert(varinfo != NULL);
     label_call = varinfo->type->kind == TY_FUNC;
     global = !(varinfo->flag & VF_STATIC);
@@ -556,7 +554,7 @@ VReg *gen_expr(Expr *expr) {
   case EX_REF:
     {
       Expr *sub = unwrap_group(expr->unary.sub);
-      if (sub->kind == EX_VAR && sub->var.scope != NULL) {
+      if (sub->kind == EX_VAR && !is_global_scope(sub->var.scope)) {
         const VarInfo *varinfo = scope_find(sub->var.scope, sub->var.name, NULL);
         assert(varinfo != NULL);
         if (varinfo->reg != NULL)
@@ -628,8 +626,10 @@ VReg *gen_expr(Expr *expr) {
         case TY_FIXNUM:
         case TY_PTR:
           {
-            const VarInfo *varinfo = scope_find(lhs->var.scope, lhs->var.name, NULL);
-            if (varinfo != NULL && !(varinfo->flag & (VF_STATIC | VF_EXTERN))) {
+            Scope *scope;
+            const VarInfo *varinfo = scope_find(lhs->var.scope, lhs->var.name, &scope);
+            assert(varinfo != NULL);
+            if (!is_global_scope(scope) && !(varinfo->flag & (VF_STATIC | VF_EXTERN))) {
               assert(varinfo->reg != NULL);
               new_ir_mov(varinfo->reg, src);
               return src;
@@ -673,7 +673,7 @@ VReg *gen_expr(Expr *expr) {
       switch (sub->kind) {
       case EX_PTRADD:
       case EX_PTRSUB:
-        if (sub->bop.lhs->kind == EX_VAR && sub->bop.lhs->var.scope != NULL) {
+        if (sub->bop.lhs->kind == EX_VAR && !is_global_scope(sub->bop.lhs->var.scope)) {
           VReg *lhs = gen_expr(sub->bop.lhs);
           VReg *result = gen_ptradd(sub->kind, sub->type, lhs, sub->bop.rhs);
           new_ir_mov(lhs, result);
@@ -687,7 +687,7 @@ VReg *gen_expr(Expr *expr) {
           return result;
         }
       default:
-        if (sub->bop.lhs->kind == EX_VAR && sub->bop.lhs->var.scope != NULL) {
+        if (sub->bop.lhs->kind == EX_VAR && !is_global_scope(sub->bop.lhs->var.scope)) {
           VReg *lhs = gen_expr(sub->bop.lhs);
           VReg *rhs = gen_expr(sub->bop.rhs);
           VReg *result = gen_arith(sub->kind, sub->type, lhs, rhs);

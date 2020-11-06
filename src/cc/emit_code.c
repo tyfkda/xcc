@@ -89,15 +89,15 @@ static void construct_initial_value(unsigned char *buf, const Type *type, const 
         assert(value->kind == EX_VAR);
 
         const Name *name = value->var.name;
-        if (value->var.scope != NULL) {
-          VarInfo *varinfo = scope_find(value->var.scope, name, NULL);
-          assert(varinfo != NULL);
-          assert(varinfo->flag & VF_STATIC);
+        Scope *scope;
+        VarInfo *varinfo = scope_find(value->var.scope, name, &scope);
+        assert(varinfo != NULL);
+        if (!is_global_scope(scope) && varinfo->flag & VF_STATIC) {
           name = varinfo->local.label;
+          varinfo = scope_find(global_scope, name, NULL);
+          assert(varinfo != NULL);
         }
 
-        const VarInfo *varinfo = find_global(name);
-        assert(varinfo != NULL);
         const char *label = fmt_name(name);
         if ((varinfo->flag & VF_STATIC) == 0)
           label = MANGLE(label);
@@ -335,7 +335,7 @@ static void emit_defun(Defun *defun) {
   _TEXT();
 
   bool global = true;
-  const VarInfo *varinfo = find_global(func->name);
+  const VarInfo *varinfo = scope_find(global_scope, func->name, NULL);
   if (varinfo != NULL) {
     global = (varinfo->flag & VF_STATIC) == 0;
   }
@@ -401,7 +401,7 @@ static void emit_defun(Defun *defun) {
       VarInfo *varinfo = scope->vars->data[j];
       if (!(varinfo->flag & VF_STATIC))
         continue;
-      VarInfo *gvarinfo = find_global(varinfo->local.label);
+      VarInfo *gvarinfo = scope_find(global_scope, varinfo->local.label, NULL);
       assert(gvarinfo != NULL);
       emit_varinfo(gvarinfo, gvarinfo->global.init);
     }
@@ -429,7 +429,7 @@ void emit_code(Vector *toplevel) {
           if ((vd->flag & VF_EXTERN) != 0)
             continue;
           const Name *name = vd->ident->ident;
-          const VarInfo *varinfo = find_global(name);
+          const VarInfo *varinfo = scope_find(global_scope, name, NULL);
           assert(varinfo != NULL);
 
           emit_varinfo(varinfo, varinfo->global.init);

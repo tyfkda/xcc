@@ -21,7 +21,7 @@ void expect_parse_type(const char *title, const Type *expected, const char *iden
     int flag;
     Token *ident;
     const Type *actual = parse_full_type(&flag, &ident);
-    if (!same_type(expected, actual))
+    if (!same_type(expected, actual, NULL))
       error("%s: type different\n", title);
     if (ident_expected == NULL && ident != NULL)
       error("%s: ident is not NULL (%.*s)\n", title, ident->ident->bytes, ident->ident->chars);

@@ -61,7 +61,7 @@ void fix_array_size(Type *type, Initializer *init) {
 }
 
 static Stmt *build_memcpy(Expr *dst, Expr *src, size_t size) {
-  assert(curscope != NULL);
+  assert(!is_global_scope(curscope));
   const Type *charptr_type = ptrof(&tyChar);
   VarInfo *dstvar = scope_add(curscope, alloc_ident(alloc_label(), NULL, NULL), charptr_type, 0);
   VarInfo *srcvar = scope_add(curscope, alloc_ident(alloc_label(), NULL, NULL), charptr_type, 0);
@@ -99,7 +99,7 @@ Initializer *convert_str_to_ptr_initializer(const Type *type, Initializer *init)
   VarInfo *varinfo = str_to_char_array(type, init);
   Initializer *init2 = malloc(sizeof(*init2));
   init2->kind = IK_SINGLE;
-  init2->single = new_expr_variable(varinfo->name, type, NULL, NULL);
+  init2->single = new_expr_variable(varinfo->name, type, NULL, global_scope);
   init2->token = init->token;
   return init2;
 }
@@ -122,7 +122,7 @@ static Stmt *init_char_array_by_string(Expr *dst, Initializer *src) {
 
   const Type *strtype = dst->type;
   VarInfo *varinfo = str_to_char_array(strtype, src);
-  Expr *var = new_expr_variable(varinfo->name, strtype, NULL, NULL);
+  Expr *var = new_expr_variable(varinfo->name, strtype, NULL, global_scope);
   return build_memcpy(dst, var, size);
 }
 
@@ -287,7 +287,7 @@ static Initializer *flatten_initializer(const Type *type, Initializer *init) {
     case IK_SINGLE:
       // Special handling for string (char[]), and accept length difference.
       if (init->single->type->kind == TY_ARRAY &&
-          can_cast(type->pa.ptrof, init->single->type->pa.ptrof, is_zero(init->single), false))
+          can_cast(type->pa.ptrof, init->single->type->pa.ptrof, is_zero(init->single), false, curscope))
         break;
       // Fallthrough
     default:
@@ -335,18 +335,18 @@ static Initializer *check_global_initializer(const Type *type, Initializer *init
           if (value->kind != EX_VAR)
             parse_error(value->token, "pointer initializer must be variable");
           const Name *name = value->var.name;
-          if (value->var.scope != NULL) {
-            VarInfo *varinfo = scope_find(value->var.scope, name, NULL);
-            assert(varinfo != NULL);
+          Scope *scope;
+          VarInfo *varinfo = scope_find(value->var.scope, name, &scope);
+          assert(varinfo != NULL);
+          if (!is_global_scope(scope)) {
             if (!(varinfo->flag & VF_STATIC))
               parse_error(value->token, "Allowed global reference only");
             name = varinfo->local.label;
+            varinfo = scope_find(global_scope, name, NULL);
+            assert(varinfo != NULL);
           }
 
-          VarInfo *info = find_global(name);
-          assert(info != NULL);
-
-          if (!same_type(type->pa.ptrof, info->type))
+          if (!same_type(type->pa.ptrof, varinfo->type, curscope))
             parse_error(value->token, "Illegal type");
 
           return init;
@@ -354,19 +354,19 @@ static Initializer *check_global_initializer(const Type *type, Initializer *init
       case EX_VAR:
         {
           const Name *name = value->var.name;
-          if (value->var.scope != NULL) {
-            VarInfo *varinfo = scope_find(value->var.scope, name, NULL);
-            assert(varinfo != NULL);
+          Scope *scope;
+          VarInfo *varinfo = scope_find(value->var.scope, name, &scope);
+          assert(varinfo != NULL);
+          if (!is_global_scope(scope)) {
             if (!(varinfo->flag & VF_STATIC))
               parse_error(value->token, "Allowed global reference only");
             name = varinfo->local.label;
+            varinfo = scope_find(global_scope, name, NULL);
+            assert(varinfo != NULL);
           }
 
-          VarInfo *info = find_global(name);
-          assert(info != NULL);
-
-          if ((info->type->kind != TY_ARRAY && info->type->kind != TY_FUNC) ||
-              !can_cast(type, info->type, is_zero(value), false))
+          if ((varinfo->type->kind != TY_ARRAY && varinfo->type->kind != TY_FUNC) ||
+              !can_cast(type, varinfo->type, is_zero(value), false, curscope))
             parse_error(value->token, "Illegal type");
 
           return init;
@@ -458,7 +458,7 @@ Vector *assign_initial_value(Expr *expr, Initializer *init, Vector *inits) {
         if ((size_t)init->multi->len > arr_len)
           parse_error(init->token, "Initializer more than array size");
 
-        assert(curscope != NULL);
+        assert(!is_global_scope(curscope));
         const Type *ptr_type = array_to_ptr(expr->type);
         VarInfo *ptr_varinfo = scope_add(curscope, alloc_ident(alloc_label(), NULL, NULL), ptr_type, 0);
         Expr *ptr_var = new_expr_variable(ptr_varinfo->name, ptr_type, NULL, curscope);
@@ -588,7 +588,7 @@ static Initializer *check_vardecl(const Type *type, const Token *ident, int flag
 
     // TODO: Check `init` can be cast to `type`.
     if (flag & VF_STATIC) {
-      VarInfo *gvarinfo = find_global(varinfo->local.label);
+      VarInfo *gvarinfo = scope_find(global_scope, varinfo->local.label, NULL);
       assert(gvarinfo != NULL);
       gvarinfo->global.init = init = check_global_initializer(type, init);
       // static variable initializer is handled in codegen, same as global variable.
@@ -600,7 +600,7 @@ static Initializer *check_vardecl(const Type *type, const Token *ident, int flag
     if (flag & VF_EXTERN && init != NULL)
       parse_error(init->token, "extern with initializer");
     // Toplevel
-    VarInfo *varinfo = find_global(ident->ident);
+    VarInfo *varinfo = scope_find(global_scope, ident->ident, NULL);
     assert(varinfo != NULL);
     varinfo->global.init = init = check_global_initializer(type, init);
   }
@@ -636,7 +636,7 @@ static Scope *enter_scope(Defun *defun, Vector *vars) {
 }
 
 static void exit_scope(void) {
-  assert(curscope != NULL);
+  assert(!is_global_scope(curscope));
   curscope = curscope->parent;
 }
 
@@ -717,7 +717,7 @@ static Vector *parse_vardecl_cont(const Type *rawType, Type *type, int flag, Tok
     } else {
       not_void(type);
 
-      assert(curscope != NULL);
+      assert(!is_global_scope(curscope));
       scope_add(curscope, ident, type, flag);
 
       if (match(TK_ASSIGN)) {
@@ -741,8 +741,16 @@ static Stmt *parse_vardecl(void) {
   Token *ident;
   if (!parse_var_def(&rawType, (const Type**)&type, &flag, &ident))
     return NULL;
-  if (ident == NULL)
-    parse_error(NULL, "Ident expected");
+  if (ident == NULL) {
+    if ((type->kind == TY_STRUCT ||
+         (type->kind == TY_FIXNUM && type->fixnum.kind == FX_ENUM)) &&
+         match(TK_SEMICOL)) {
+      // Just struct/union or enum definition.
+    } else {
+      parse_error(NULL, "Ident expected");
+    }
+    return parse_vardecl();
+  }
 
   Vector *decls = parse_vardecl_cont(rawType, type, flag, ident);
 
@@ -750,8 +758,32 @@ static Stmt *parse_vardecl(void) {
 
   if (decls == NULL)
     return NULL;
-  Vector *inits = curscope != NULL ? construct_initializing_stmts(decls) : NULL;
+  Vector *inits = !is_global_scope(curscope) ? construct_initializing_stmts(decls) : NULL;
   return new_stmt_vardecl(decls, inits);
+}
+
+static void parse_typedef(void) {
+  int flag;
+  Token *ident;
+  const Type *type = parse_full_type(&flag, &ident);
+  if (type == NULL)
+    parse_error(NULL, "type expected");
+  not_void(type);
+
+  if (ident == NULL) {
+    ident = consume(TK_IDENT, "ident expected");
+  }
+  const Name *name = ident->ident;
+  const Type *conflict = find_typedef(curscope, name);
+  if (conflict != NULL) {
+    if (!same_type(type, conflict, curscope))
+      parse_error(ident, "Conflict typedef");
+  }
+
+  if (conflict == NULL || (type->kind == TY_STRUCT && type->struct_.info != NULL))
+    add_typedef(curscope, name, type);
+
+  consume(TK_SEMICOL, "`;' expected");
 }
 
 static Stmt *parse_if(const Token *tok) {
@@ -1044,6 +1076,11 @@ static Stmt *parse_stmt(void) {
   if ((tok = match(TK_RETURN)) != NULL)
     return parse_return(tok);
 
+  if ((tok = match(TK_TYPEDEF)) != NULL) {
+    parse_typedef();
+    return NULL;
+  }
+
   if ((tok = match(TK_ASM)) != NULL)
     return parse_asm(tok);
 
@@ -1058,9 +1095,9 @@ static Declaration *parse_defun(const Type *functype, int flag, Token *ident) {
   Function *func = new_func(functype, ident->ident);
   Defun *defun = new_defun(func, flag);
 
-  VarInfo *varinfo = find_global(defun->func->name);
+  VarInfo *varinfo = scope_find(global_scope, defun->func->name, NULL);
   if (varinfo == NULL) {
-    varinfo = define_global(functype, flag | VF_CONST, ident, ident->ident);
+    varinfo = scope_add(global_scope, ident, functype, flag | VF_CONST);
   } else {
     if (varinfo->type->kind != TY_FUNC)
       parse_error(ident, "Definition conflict: `%s'");
@@ -1077,7 +1114,7 @@ static Declaration *parse_defun(const Type *functype, int flag, Token *ident) {
     consume(TK_LBRACE, "`;' or `{' expected");
 
     assert(curdefun == NULL);
-    assert(curscope == NULL);
+    assert(is_global_scope(curscope));
     curdefun = defun;
     Vector *top_vars = NULL;
     Vector *params = defun->func->type->func.params;
@@ -1090,7 +1127,7 @@ static Declaration *parse_defun(const Type *functype, int flag, Token *ident) {
     enter_scope(defun, top_vars);  // Scope for parameters.
     defun->stmts = parse_stmts();
     exit_scope();
-    assert(curscope == NULL);
+    assert(is_global_scope(curscope));
 
     // Check goto labels.
     if (defun->gotos != NULL) {
@@ -1111,30 +1148,6 @@ static Declaration *parse_defun(const Type *functype, int flag, Token *ident) {
   return new_decl_defun(defun);
 }
 
-static void parse_typedef(void) {
-  int flag;
-  Token *ident;
-  const Type *type = parse_full_type(&flag, &ident);
-  if (type == NULL)
-    parse_error(NULL, "type expected");
-  not_void(type);
-
-  if (ident == NULL) {
-    ident = consume(TK_IDENT, "ident expected");
-  }
-  const Name *name = ident->ident;
-  const Type *conflict = find_typedef(name);
-  if (conflict != NULL) {
-    if (!same_type(type, conflict))
-      parse_error(ident, "Conflict typedef");
-  }
-
-  if (conflict == NULL || (type->kind == TY_STRUCT && type->struct_.info != NULL))
-    add_typedef(name, type);
-
-  consume(TK_SEMICOL, "`;' expected");
-}
-
 static Declaration *parse_global_var_decl(const Type *rawtype, int flag, const Type *type,
                                           Token *ident) {
   Vector *decls = NULL;
@@ -1145,7 +1158,7 @@ static Declaration *parse_global_var_decl(const Type *rawtype, int flag, const T
     if (!(type->kind == TY_PTR && type->pa.ptrof->kind == TY_FUNC))
       type = parse_type_suffix(type);
 
-    VarInfo *varinfo = define_global(type, flag, ident, NULL);
+    VarInfo *varinfo = scope_add(global_scope, ident, type, flag);
 
     Initializer *init = NULL;
     if (match(TK_ASSIGN) != NULL)
@@ -1202,6 +1215,8 @@ static Declaration *parse_declaration(void) {
 }
 
 void parse(Vector *decls) {
+  curscope = global_scope;
+
   while (!match(TK_EOF)) {
     Declaration *decl = parse_declaration();
     if (decl != NULL)
