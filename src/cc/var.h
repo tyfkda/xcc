@@ -27,6 +27,10 @@ typedef struct VarInfo {
   int flag;
   union {
     struct {
+      // For codegen.
+      VReg *reg;
+    } local;
+    struct {
       Initializer *init;
     } global;
     struct {
@@ -40,9 +44,6 @@ typedef struct VarInfo {
       int value;
     } enum_member;
   };
-
-  // For codegen.
-  VReg *reg;
 } VarInfo;
 
 // Variables

@@ -410,7 +410,9 @@ void prepare_register_allocation(Function *func) {
 
     for (int j = 0; j < scope->vars->len; ++j) {
       VarInfo *varinfo = scope->vars->data[j];
-      VReg *vreg = varinfo->reg;
+      if (varinfo->flag & (VF_STATIC | VF_EXTERN | VF_ENUM_MEMBER))
+        continue;
+      VReg *vreg = varinfo->local.reg;
       if (vreg == NULL)
         continue;
 

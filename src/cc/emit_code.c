@@ -275,7 +275,7 @@ static void put_args_to_stack(Defun *defun) {
     VarInfo *varinfo = top_scope->vars->data[top_scope->vars->len - 1];
     const Type *type = varinfo->type;
     int size = type_size(type);
-    int offset = varinfo->reg->offset;
+    int offset = varinfo->local.reg->offset;
     assert(size < (int)(sizeof(kRegTable) / sizeof(*kRegTable)) &&
            kRegTable[size] != NULL);
     MOV(kRegTable[size][0], OFFSET_INDIRECT(offset, RBP, NULL, 1));
@@ -297,7 +297,7 @@ static void put_args_to_stack(Defun *defun) {
     if (i < len) {
       const VarInfo *varinfo = params->data[i];
       type = varinfo->type;
-      offset = varinfo->reg->offset;
+      offset = varinfo->local.reg->offset;
     } else {  // vaargs
       type = &tyLong;
       offset = (i - MAX_REG_ARGS) * WORD_SIZE;

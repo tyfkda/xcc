@@ -242,7 +242,7 @@ static VReg *gen_lval(Expr *expr) {
         else if (varinfo->flag & VF_EXTERN)
           return new_ir_iofs(expr->var.name, true);
         else
-          return new_ir_bofs(varinfo->reg);
+          return new_ir_bofs(varinfo->local.reg);
       }
     }
   case EX_DEREF:
@@ -274,8 +274,8 @@ static VReg *gen_lval(Expr *expr) {
       assert(var->var.scope != NULL);
       const VarInfo *varinfo = scope_find(var->var.scope, var->var.name, NULL);
       assert(varinfo != NULL);
-      assert(varinfo->reg != NULL);
-      varinfo->reg->flag |= VRF_REF;
+      assert(varinfo->local.reg != NULL);
+      varinfo->local.reg->flag |= VRF_REF;
 
       gen_stmts(expr->complit.inits);
       return gen_lval(expr->complit.var);
@@ -296,8 +296,8 @@ static VReg *gen_variable(Expr *expr) {
       const VarInfo *varinfo = scope_find(expr->var.scope, expr->var.name, &scope);
       assert(varinfo != NULL && scope == expr->var.scope);
       if (!is_global_scope(scope) && !(varinfo->flag & (VF_STATIC | VF_EXTERN))) {
-        assert(varinfo->reg != NULL);
-        return varinfo->reg;
+        assert(varinfo->local.reg != NULL);
+        return varinfo->local.reg;
       }
 
       VReg *reg = gen_lval(expr);
@@ -557,8 +557,8 @@ VReg *gen_expr(Expr *expr) {
       if (sub->kind == EX_VAR && !is_global_scope(sub->var.scope)) {
         const VarInfo *varinfo = scope_find(sub->var.scope, sub->var.name, NULL);
         assert(varinfo != NULL);
-        if (varinfo->reg != NULL)
-          varinfo->reg->flag |= VRF_REF;
+        assert(varinfo->local.reg != NULL);
+        varinfo->local.reg->flag |= VRF_REF;
       }
       return gen_lval(sub);
     }
@@ -630,8 +630,8 @@ VReg *gen_expr(Expr *expr) {
             const VarInfo *varinfo = scope_find(lhs->var.scope, lhs->var.name, &scope);
             assert(varinfo != NULL);
             if (!is_global_scope(scope) && !(varinfo->flag & (VF_STATIC | VF_EXTERN))) {
-              assert(varinfo->reg != NULL);
-              new_ir_mov(varinfo->reg, src);
+              assert(varinfo->local.reg != NULL);
+              new_ir_mov(varinfo->local.reg, src);
               return src;
             }
           }
@@ -720,8 +720,8 @@ VReg *gen_expr(Expr *expr) {
         if (varinfo != NULL && !(varinfo->flag & (VF_STATIC | VF_EXTERN))) {
           VReg *num = new_const_vreg(value, vtype);
           VReg *result = new_ir_bop(expr->kind == EX_PREINC ? IR_ADD : IR_SUB,
-                                    varinfo->reg, num, vtype);
-          new_ir_mov(varinfo->reg, result);
+                                    varinfo->local.reg, num, vtype);
+          new_ir_mov(varinfo->local.reg, result);
           return result;
         }
       }
@@ -747,11 +747,11 @@ VReg *gen_expr(Expr *expr) {
         const VarInfo *varinfo = scope_find(sub->var.scope, sub->var.name, NULL);
         if (varinfo != NULL && !(varinfo->flag & (VF_STATIC | VF_EXTERN))) {
           VReg *org_val = add_new_reg(sub->type, 0);
-          new_ir_mov(org_val, varinfo->reg);
+          new_ir_mov(org_val, varinfo->local.reg);
           VReg *num = new_const_vreg(value, vtype);
           VReg *result = new_ir_bop(expr->kind == EX_POSTINC ? IR_ADD : IR_SUB,
-                                    varinfo->reg, num, vtype);
-          new_ir_mov(varinfo->reg, result);
+                                    varinfo->local.reg, num, vtype);
+          new_ir_mov(varinfo->local.reg, result);
           return org_val;
         }
       }

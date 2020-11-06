@@ -101,7 +101,7 @@ static void alloc_variable_registers(Function *func) {
           }
         }
       }
-      varinfo->reg = vreg;
+      varinfo->local.reg = vreg;
     }
   }
 }
@@ -402,7 +402,7 @@ static void gen_label(Stmt *stmt) {
 
 static void gen_clear_local_var(const VarInfo *varinfo) {
   // Fill with zeros regardless of variable type.
-  VReg *reg = new_ir_bofs(varinfo->reg);
+  VReg *reg = new_ir_bofs(varinfo->local.reg);
   new_ir_clear(reg, type_size(varinfo->type));
 }
 

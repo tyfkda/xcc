@@ -38,7 +38,6 @@ VarInfo *var_add(Vector *vars, const Name *name, const Type *type, int flag, con
   info->flag = flag;
   if (flag & VF_STATIC)
     info->static_.gvar = gvarinfo;
-  info->reg = NULL;
   vec_push(vars, info);
   return gvarinfo != NULL ? gvarinfo : info;
 }
