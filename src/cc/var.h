@@ -30,15 +30,15 @@ typedef struct VarInfo {
       Initializer *init;
     } global;
     struct {
-      const Name *label;  // For static variable to refer value in global.
-    } local;
+      struct VarInfo *gvar;  // which points to global(static) variable.
+    } static_;
     struct {
       // For codegen.
       int offset;
-    } struct_;
+    } struct_member;
     struct {
       int value;
-    } enum_;
+    } enum_member;
   };
 
   // For codegen.

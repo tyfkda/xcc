@@ -93,9 +93,9 @@ static void construct_initial_value(unsigned char *buf, const Type *type, const 
         VarInfo *varinfo = scope_find(value->var.scope, name, &scope);
         assert(varinfo != NULL);
         if (!is_global_scope(scope) && varinfo->flag & VF_STATIC) {
-          name = varinfo->local.label;
-          varinfo = scope_find(global_scope, name, NULL);
+          varinfo = varinfo->static_.gvar;
           assert(varinfo != NULL);
+          name = varinfo->name;
         }
 
         const char *label = fmt_name(name);
@@ -182,7 +182,7 @@ static void construct_initial_value(unsigned char *buf, const Type *type, const 
             EMIT_ALIGN(align);
             offset = ALIGN(offset, align);
           }
-          construct_initial_value(buf + member->struct_.offset, member->type, mem_init);
+          construct_initial_value(buf + member->struct_member.offset, member->type, mem_init);
           ++count;
           offset = ALIGN(offset, align);
           offset += type_size(member->type);
@@ -190,7 +190,7 @@ static void construct_initial_value(unsigned char *buf, const Type *type, const 
       }
       if (sinfo->is_union && count <= 0) {
         const VarInfo* member = sinfo->members->data[0];
-        construct_initial_value(buf + member->struct_.offset, member->type, NULL);
+        construct_initial_value(buf + member->struct_member.offset, member->type, NULL);
         offset += type_size(member->type);
       }
 
@@ -401,7 +401,7 @@ static void emit_defun(Defun *defun) {
       VarInfo *varinfo = scope->vars->data[j];
       if (!(varinfo->flag & VF_STATIC))
         continue;
-      VarInfo *gvarinfo = scope_find(global_scope, varinfo->local.label, NULL);
+      VarInfo *gvarinfo = varinfo->static_.gvar;
       assert(gvarinfo != NULL);
       emit_varinfo(gvarinfo, gvarinfo->global.init);
     }

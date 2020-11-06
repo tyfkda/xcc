@@ -21,7 +21,7 @@ static Expr *parse_unary(void);
 
 static void define_enum_member(Type *type, const Token *ident, int value) {
   VarInfo *varinfo = scope_add(curscope, ident, type, VF_ENUM_MEMBER | VF_CONST);
-  varinfo->enum_.value = value;
+  varinfo->enum_member.value = value;
 }
 
 void not_void(const Type *type) {
@@ -996,7 +996,7 @@ static Expr *parse_prim(void) {
   const Type *type;
   if (varinfo != NULL) {
     if (varinfo->flag & VF_ENUM_MEMBER)
-      return new_expr_fixlit(varinfo->type, ident, varinfo->enum_.value);
+      return new_expr_fixlit(varinfo->type, ident, varinfo->enum_member.value);
     type = varinfo->type;
   } else {
     parse_error(ident, "undefined indentifier");

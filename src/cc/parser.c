@@ -341,8 +341,7 @@ static Initializer *check_global_initializer(const Type *type, Initializer *init
           if (!is_global_scope(scope)) {
             if (!(varinfo->flag & VF_STATIC))
               parse_error(value->token, "Allowed global reference only");
-            name = varinfo->local.label;
-            varinfo = scope_find(global_scope, name, NULL);
+            varinfo = varinfo->static_.gvar;
             assert(varinfo != NULL);
           }
 
@@ -353,15 +352,13 @@ static Initializer *check_global_initializer(const Type *type, Initializer *init
         }
       case EX_VAR:
         {
-          const Name *name = value->var.name;
           Scope *scope;
-          VarInfo *varinfo = scope_find(value->var.scope, name, &scope);
+          VarInfo *varinfo = scope_find(value->var.scope, value->var.name, &scope);
           assert(varinfo != NULL);
           if (!is_global_scope(scope)) {
             if (!(varinfo->flag & VF_STATIC))
               parse_error(value->token, "Allowed global reference only");
-            name = varinfo->local.label;
-            varinfo = scope_find(global_scope, name, NULL);
+            varinfo = varinfo->static_.gvar;
             assert(varinfo != NULL);
           }
 
@@ -588,7 +585,7 @@ static Initializer *check_vardecl(const Type *type, const Token *ident, int flag
 
     // TODO: Check `init` can be cast to `type`.
     if (flag & VF_STATIC) {
-      VarInfo *gvarinfo = scope_find(global_scope, varinfo->local.label, NULL);
+      VarInfo *gvarinfo = varinfo->static_.gvar;
       assert(gvarinfo != NULL);
       gvarinfo->global.init = init = check_global_initializer(type, init);
       // static variable initializer is handled in codegen, same as global variable.

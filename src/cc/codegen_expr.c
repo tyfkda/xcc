@@ -238,7 +238,7 @@ static VReg *gen_lval(Expr *expr) {
         return new_ir_iofs(expr->var.name, (varinfo->flag & VF_STATIC) == 0);
       } else {
         if (varinfo->flag & VF_STATIC)
-          return new_ir_iofs(varinfo->local.label, false);
+          return new_ir_iofs(varinfo->static_.gvar->name, false);
         else if (varinfo->flag & VF_EXTERN)
           return new_ir_iofs(expr->var.name, true);
         else
@@ -261,10 +261,10 @@ static VReg *gen_lval(Expr *expr) {
         reg = gen_expr(expr->member.target);
       else
         reg = gen_lval(expr->member.target);
-      if (member->struct_.offset == 0)
+      if (member->struct_member.offset == 0)
         return reg;
       VRegType *vtype = to_vtype(&tySize);
-      VReg *imm = new_const_vreg(member->struct_.offset, vtype);
+      VReg *imm = new_const_vreg(member->struct_member.offset, vtype);
       VReg *result = new_ir_bop(IR_ADD, reg, imm, vtype);
       return result;
     }

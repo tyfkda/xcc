@@ -44,7 +44,7 @@ static void calc_struct_size(StructInfo *sinfo) {
     size_t sz = type_size(member->type);
     int align = align_size(member->type);
     size = ALIGN(size, align);
-    member->struct_.offset = size;
+    member->struct_member.offset = size;
     if (!sinfo->is_union) {
       size += sz;
     } else {

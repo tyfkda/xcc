@@ -21,26 +21,26 @@ int var_find(const Vector *vars, const Name *name) {
 }
 
 VarInfo *var_add(Vector *vars, const Name *name, const Type *type, int flag, const Token *ident) {
-  const Name *label = NULL;
-  VarInfo *ginfo = NULL;
+  VarInfo *gvarinfo = NULL;
   if (name != NULL) {
     int idx = var_find(vars, name);
     if (idx >= 0)
       parse_error(ident, "`%.*s' already defined", name->bytes, name->chars);
     if (flag & VF_STATIC) {
-      label = alloc_label();
-      ginfo = define_global(label, type, flag, NULL);
+      const Name *label = alloc_label();
+      gvarinfo = define_global(label, type, flag, NULL);
     }
   }
 
-  VarInfo *info = malloc(sizeof(*info));
+  VarInfo *info = calloc(1, sizeof(*info));
   info->name = name;
   info->type = type;
   info->flag = flag;
-  info->local.label = label;
+  if (flag & VF_STATIC)
+    info->static_.gvar = gvarinfo;
   info->reg = NULL;
   vec_push(vars, info);
-  return ginfo != NULL ? ginfo : info;
+  return gvarinfo != NULL ? gvarinfo : info;
 }
 
 // Global
