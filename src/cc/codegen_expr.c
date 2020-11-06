@@ -11,7 +11,7 @@
 #include "util.h"
 #include "var.h"
 
-#include "parser.h"  // curdefun
+#include "parser.h"  // curfunc
 
 VRegType *to_vtype(const Type *type) {
   VRegType *vtype = malloc(sizeof(*vtype));
@@ -25,7 +25,7 @@ VRegType *to_vtype(const Type *type) {
 }
 
 VReg *add_new_reg(const Type *type, int flag) {
-  return reg_alloc_spawn(curdefun->func->ra, to_vtype(type), flag);
+  return reg_alloc_spawn(curfunc->ra, to_vtype(type), flag);
 }
 
 static enum ConditionKind swap_cond(enum ConditionKind cond) {

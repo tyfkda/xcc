@@ -25,9 +25,9 @@ static void gen_stmt(Stmt *stmt);
 static void gen_expr_stmt(Expr *expr);
 
 void set_curbb(BB *bb) {
-  assert(curdefun != NULL);
+  assert(curfunc != NULL);
   curbb = bb;
-  vec_push(curdefun->func->bbcon->bbs, bb);
+  vec_push(curfunc->bbcon->bbs, bb);
 }
 
 //
@@ -133,11 +133,11 @@ static void gen_block(Stmt *stmt) {
 }
 
 static void gen_return(Stmt *stmt) {
-  assert(curdefun != NULL);
+  assert(curfunc != NULL);
   BB *bb = bb_split(curbb);
   if (stmt->return_.val != NULL) {
     VReg *reg = gen_expr(stmt->return_.val);
-    VReg *retval = curdefun->func->retval;
+    VReg *retval = curfunc->retval;
     if (retval == NULL) {
       new_ir_result(reg);
     } else {
@@ -145,7 +145,7 @@ static void gen_return(Stmt *stmt) {
       new_ir_result(retval);
     }
   }
-  new_ir_jmp(COND_ANY, curdefun->func->ret_bb);
+  new_ir_jmp(COND_ANY, curfunc->ret_bb);
   set_curbb(bb);
 }
 
@@ -385,15 +385,15 @@ static void gen_continue(void) {
 }
 
 static void gen_goto(Stmt *stmt) {
-  assert(curdefun->label_table != NULL);
-  BB *bb = table_get(curdefun->label_table, stmt->goto_.label->ident);
+  assert(curfunc->label_table != NULL);
+  BB *bb = table_get(curfunc->label_table, stmt->goto_.label->ident);
   assert(bb != NULL);
   new_ir_jmp(COND_ANY, bb);
 }
 
 static void gen_label(Stmt *stmt) {
-  assert(curdefun->label_table != NULL);
-  BB *bb = table_get(curdefun->label_table, stmt->token->ident);
+  assert(curfunc->label_table != NULL);
+  BB *bb = table_get(curfunc->label_table, stmt->token->ident);
   assert(bb != NULL);
   bb_insert(curbb, bb);
   set_curbb(bb);
@@ -407,7 +407,7 @@ static void gen_clear_local_var(const VarInfo *varinfo) {
 }
 
 static void gen_vardecl(Vector *decls, Vector *inits) {
-  if (curdefun != NULL) {
+  if (curfunc != NULL) {
     for (int i = 0; i < decls->len; ++i) {
       VarDecl *decl = decls->data[i];
       if (decl->init == NULL)
@@ -458,19 +458,18 @@ void gen_stmt(Stmt *stmt) {
 
 ////////////////////////////////////////////////
 
-static void gen_defun(Defun *defun) {
-  Function *func = defun->func;
+static void gen_defun(Function *func) {
   if (func->scopes == NULL)  // Prototype definition
     return;
 
-  curdefun = defun;
+  curfunc = func;
   func->bbcon = new_func_blocks();
   set_curbb(new_bb());
   func->ra = curra = new_reg_alloc(PHYSICAL_REG_MAX);
 
   // Allocate BBs for goto labels.
-  if (defun->label_table != NULL) {
-    Table *label_table = defun->label_table;
+  if (func->label_table != NULL) {
+    Table *label_table = func->label_table;
     for (int i = 0;;) {
       const Name *name;
       i = table_iterate(label_table, i, &name, NULL);
@@ -486,7 +485,7 @@ static void gen_defun(Defun *defun) {
   func->ret_bb = bb_split(curbb);
 
   // Statements
-  gen_stmts(defun->stmts);
+  gen_stmts(func->stmts);
 
   set_curbb(func->ret_bb);
   curbb = NULL;
@@ -496,7 +495,7 @@ static void gen_defun(Defun *defun) {
 
   remove_unnecessary_bb(func->bbcon);
 
-  curdefun = NULL;
+  curfunc = NULL;
   curscope = global_scope;
   curra = NULL;
 }
@@ -507,7 +506,7 @@ void gen_decl(Declaration *decl) {
 
   switch (decl->kind) {
   case DCL_DEFUN:
-    gen_defun(decl->defun);
+    gen_defun(decl->defun.func);
     break;
   case DCL_VARDECL:
     break;

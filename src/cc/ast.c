@@ -234,9 +234,9 @@ static Declaration *new_decl(enum DeclKind kind) {
   return decl;
 }
 
-Declaration *new_decl_defun(Defun *defun) {
+Declaration *new_decl_defun(Function *func) {
   Declaration *decl = new_decl(DCL_DEFUN);
-  decl->defun = defun;
+  decl->defun.func = func;
   return decl;
 }
 
@@ -257,22 +257,14 @@ Function *new_func(const Type *type, const Name *name) {
   func->name = name;
 
   func->scopes = NULL;
+  func->stmts = NULL;
+  func->label_table = NULL;
+  func->gotos = NULL;
+
   func->ra = NULL;
   func->bbcon = NULL;
   func->ret_bb = NULL;
   func->retval = NULL;
+
   return func;
-}
-
-// Defun
-
-Defun *new_defun(Function *func, int flag) {
-  Defun *defun = malloc(sizeof(*defun));
-  defun->func = func;
-  defun->flag = flag;
-
-  defun->stmts = NULL;
-  defun->label_table = NULL;
-  defun->gotos = NULL;
-  return defun;
 }

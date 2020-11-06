@@ -4,8 +4,8 @@
 
 #include <stdbool.h>
 
-typedef struct Defun Defun;
 typedef struct Expr Expr;
+typedef struct Function Function;
 typedef struct Initializer Initializer;
 typedef struct Name Name;
 typedef struct Scope Scope;
@@ -14,7 +14,7 @@ typedef struct Type Type;
 typedef struct VarInfo VarInfo;
 typedef struct Vector Vector;
 
-extern Defun *curdefun;
+extern Function *curfunc;
 extern Scope *curscope;
 extern Vector *toplevel;  // <Declaration*>
 

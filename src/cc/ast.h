@@ -269,6 +269,9 @@ typedef struct Function {
   const Name *name;
 
   Vector *scopes;  // NULL => prototype definition.
+  Vector *stmts;  // NULL => Prototype definition.
+  Table *label_table;  // <const Name*, BB*>
+  Vector *gotos;  // <Stmt*>
 
   // For codegen.
   RegAlloc *ra;
@@ -278,21 +281,6 @@ typedef struct Function {
 } Function;
 
 Function *new_func(const Type *type, const Name *name);
-
-// Defun
-
-typedef struct Defun {
-  Function *func;
-
-  Vector *stmts;  // NULL => Prototype definition.
-
-  Table *label_table;  // <const Name*, BB*>
-  Vector *gotos;  // <Stmt*>
-
-  int flag;
-} Defun;
-
-Defun *new_defun(Function *func, int flag);
 
 // Declaration
 
@@ -304,12 +292,14 @@ enum DeclKind {
 typedef struct Declaration {
   enum DeclKind kind;
   union {
-    Defun *defun;
+    struct {
+      Function *func;
+    } defun;
     struct {
       Vector *decls;  // <VarDecl*>
     } vardecl;
   };
 } Declaration;
 
-Declaration *new_decl_defun(Defun *defun);
+Declaration *new_decl_defun(Function *func);
 Declaration *new_decl_vardecl(Vector *decls);

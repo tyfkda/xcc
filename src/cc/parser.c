@@ -15,7 +15,7 @@
 const int LF_BREAK = 1 << 0;
 const int LF_CONTINUE = 1 << 0;
 
-Defun *curdefun;
+Function *curfunc;
 static int curloopflag;
 static Stmt *curswitch;
 
@@ -580,7 +580,7 @@ static Initializer *check_vardecl(const Type *type, const Token *ident, int flag
   if (type->kind == TY_STRUCT)
     ensure_struct((Type*)type, NULL);
 
-  if (curdefun != NULL) {
+  if (curfunc != NULL) {
     VarInfo *varinfo = scope_find(curscope, ident->ident, NULL);
 
     // TODO: Check `init` can be cast to `type`.
@@ -605,10 +605,10 @@ static Initializer *check_vardecl(const Type *type, const Token *ident, int flag
 }
 
 static void add_func_label(const Token *label) {
-  assert(curdefun != NULL);
-  Table *table = curdefun->label_table;
+  assert(curfunc != NULL);
+  Table *table = curfunc->label_table;
   if (table == NULL) {
-    curdefun->label_table = table = malloc(sizeof(*table));
+    curfunc->label_table = table = malloc(sizeof(*table));
     table_init(table);
   }
   if (!table_put(table, label->ident, (void*)-1))  // Put dummy value.
@@ -616,18 +616,18 @@ static void add_func_label(const Token *label) {
 }
 
 static void add_func_goto(Stmt *stmt) {
-  assert(curdefun != NULL);
-  if (curdefun->gotos == NULL)
-    curdefun->gotos = new_vector();
-  vec_push(curdefun->gotos, stmt);
+  assert(curfunc != NULL);
+  if (curfunc->gotos == NULL)
+    curfunc->gotos = new_vector();
+  vec_push(curfunc->gotos, stmt);
 }
 
 // Scope
 
-static Scope *enter_scope(Defun *defun, Vector *vars) {
+static Scope *enter_scope(Function *func, Vector *vars) {
   Scope *scope = new_scope(curscope, vars);
   curscope = scope;
-  vec_push(defun->func->scopes, scope);
+  vec_push(func->scopes, scope);
   return scope;
 }
 
@@ -892,7 +892,7 @@ static Stmt *parse_for(const Token *tok) {
     if (parse_var_def(&rawType, (const Type**)&type, &flag, &ident)) {
       if (ident == NULL)
         parse_error(NULL, "Ident expected");
-      scope = enter_scope(curdefun, NULL);
+      scope = enter_scope(curfunc, NULL);
       decls = parse_vardecl_cont(rawType, type, flag, ident);
       consume(TK_SEMICOL, "`;' expected");
     } else {
@@ -969,8 +969,8 @@ static Stmt *parse_return(const Token *tok) {
     consume(TK_SEMICOL, "`;' expected");
   }
 
-  assert(curdefun != NULL);
-  const Type *rettype = curdefun->func->type->func.ret;
+  assert(curfunc != NULL);
+  const Type *rettype = curfunc->type->func.ret;
   if (val == NULL) {
     if (rettype->kind != TY_VOID)
       parse_error(tok, "`return' required a value");
@@ -1021,7 +1021,7 @@ static Vector *parse_stmts(void) {
 }
 
 static Stmt *parse_block(const Token *tok) {
-  Scope *scope = enter_scope(curdefun, NULL);
+  Scope *scope = enter_scope(curfunc, NULL);
   Vector *stmts = parse_stmts();
   Stmt *stmt = new_stmt_block(tok, stmts, scope);
   exit_scope();
@@ -1089,9 +1089,8 @@ static Stmt *parse_stmt(void) {
 static Declaration *parse_defun(const Type *functype, int flag, Token *ident) {
   assert(functype->kind == TY_FUNC);
   Function *func = new_func(functype, ident->ident);
-  Defun *defun = new_defun(func, flag);
 
-  VarInfo *varinfo = scope_find(global_scope, defun->func->name, NULL);
+  VarInfo *varinfo = scope_find(global_scope, func->name, NULL);
   if (varinfo == NULL) {
     varinfo = scope_add(global_scope, ident, functype, flag | VF_CONST);
   } else {
@@ -1100,8 +1099,8 @@ static Declaration *parse_defun(const Type *functype, int flag, Token *ident) {
     // TODO: Check type.
     // TODO: Check duplicated definition.
     if (varinfo->global.init != NULL)
-      parse_error(ident, "`%.*s' function already defined", defun->func->name->bytes,
-                  defun->func->name->chars);
+      parse_error(ident, "`%.*s' function already defined", func->name->bytes,
+                  func->name->chars);
   }
 
   if (match(TK_SEMICOL)) {
@@ -1109,26 +1108,26 @@ static Declaration *parse_defun(const Type *functype, int flag, Token *ident) {
   } else {
     consume(TK_LBRACE, "`;' or `{' expected");
 
-    assert(curdefun == NULL);
+    assert(curfunc == NULL);
     assert(is_global_scope(curscope));
-    curdefun = defun;
+    curfunc = func;
     Vector *top_vars = NULL;
-    Vector *params = defun->func->type->func.params;
+    Vector *params = func->type->func.params;
     if (params != NULL) {
       top_vars = new_vector();
       for (int i = 0; i < params->len; ++i)
         vec_push(top_vars, params->data[i]);
     }
-    defun->func->scopes = new_vector();
-    enter_scope(defun, top_vars);  // Scope for parameters.
-    defun->stmts = parse_stmts();
+    func->scopes = new_vector();
+    enter_scope(func, top_vars);  // Scope for parameters.
+    func->stmts = parse_stmts();
     exit_scope();
     assert(is_global_scope(curscope));
 
     // Check goto labels.
-    if (defun->gotos != NULL) {
-      Vector *gotos = defun->gotos;
-      Table *label_table = defun->label_table;
+    if (func->gotos != NULL) {
+      Vector *gotos = func->gotos;
+      Table *label_table = func->label_table;
       for (int i = 0; i < gotos->len; ++i) {
         Stmt *stmt = gotos->data[i];
         void *bb;
@@ -1139,9 +1138,9 @@ static Declaration *parse_defun(const Type *functype, int flag, Token *ident) {
       }
     }
 
-    curdefun = NULL;
+    curfunc = NULL;
   }
-  return new_decl_defun(defun);
+  return new_decl_defun(func);
 }
 
 static Declaration *parse_global_var_decl(const Type *rawtype, int flag, const Type *type,

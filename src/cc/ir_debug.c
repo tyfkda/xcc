@@ -153,7 +153,7 @@ void do_dump_ir(Vector *toplevel) {
 
     switch (decl->kind) {
     case DCL_DEFUN:
-      dump_func_ir(decl->defun->func);
+      dump_func_ir(decl->defun.func);
       break;
     case DCL_VARDECL:
       break;

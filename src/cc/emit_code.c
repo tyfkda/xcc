@@ -261,7 +261,7 @@ static bool is_asm(Stmt *stmt) {
   return stmt->kind == ST_ASM;
 }
 
-static void put_args_to_stack(Defun *defun) {
+static void put_args_to_stack(Function *func) {
   static const char *kReg8s[] = {DIL, SIL, DL, CL, R8B, R9B};
   static const char *kReg16s[] = {DI, SI, DX, CX, R8W, R9W};
   static const char *kReg32s[] = {EDI, ESI, EDX, ECX, R8D, R9D};
@@ -269,8 +269,8 @@ static void put_args_to_stack(Defun *defun) {
   static const char **kRegTable[] = {NULL, kReg8s, kReg16s, NULL, kReg32s, NULL, NULL, NULL, kReg64s};
 
   int arg_index = 0;
-  if (is_stack_param(defun->func->type->func.ret)) {
-    Scope *top_scope = defun->func->scopes->data[0];
+  if (is_stack_param(func->type->func.ret)) {
+    Scope *top_scope = func->scopes->data[0];
     assert(top_scope->vars->len > 0);
     VarInfo *varinfo = top_scope->vars->data[top_scope->vars->len - 1];
     const Type *type = varinfo->type;
@@ -283,13 +283,13 @@ static void put_args_to_stack(Defun *defun) {
   }
 
   // Store arguments into local frame.
-  Vector *params = defun->func->type->func.params;
+  Vector *params = func->type->func.params;
   if (params == NULL)
     return;
 
   int len = params->len;
   int n = len;
-  if (defun->func->type->func.vaargs && n < MAX_REG_ARGS)
+  if (func->type->func.vaargs && n < MAX_REG_ARGS)
     n = MAX_REG_ARGS;
   for (int i = 0; i < n; ++i) {
     const Type *type;
@@ -324,8 +324,7 @@ static void put_args_to_stack(Defun *defun) {
   }
 }
 
-static void emit_defun(Defun *defun) {
-  Function *func = defun->func;
+static void emit_defun(Function *func) {
   if (func->scopes == NULL)  // Prototype definition
     return;
 
@@ -351,9 +350,9 @@ static void emit_defun(Defun *defun) {
   }
 
   bool no_stmt = true;
-  if (defun->stmts != NULL) {
-    for (int i = 0; i < defun->stmts->len; ++i) {
-      Stmt *stmt = defun->stmts->data[i];
+  if (func->stmts != NULL) {
+    for (int i = 0; i < func->stmts->len; ++i) {
+      Stmt *stmt = func->stmts->data[i];
       if (stmt == NULL)
         continue;
       if (!is_asm(stmt)) {
@@ -373,7 +372,7 @@ static void emit_defun(Defun *defun) {
       stackpos += func->ra->frame_size;
     }
 
-    put_args_to_stack(defun);
+    put_args_to_stack(func);
 
     // Callee save.
     push_callee_save_regs(func->ra->used_reg_bits);
@@ -418,7 +417,7 @@ void emit_code(Vector *toplevel) {
 
     switch (decl->kind) {
     case DCL_DEFUN:
-      emit_defun(decl->defun);
+      emit_defun(decl->defun.func);
       break;
     case DCL_VARDECL:
       {
