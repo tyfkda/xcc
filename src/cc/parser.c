@@ -606,14 +606,13 @@ static Initializer *check_vardecl(const Type *type, const Token *ident, int flag
 
 static void add_func_label(const Token *label) {
   assert(curdefun != NULL);
-  if (curdefun->label_table == NULL) {
-    curdefun->label_table = malloc(sizeof(*curdefun->label_table));
-    table_init(curdefun->label_table);
+  Table *table = curdefun->label_table;
+  if (table == NULL) {
+    curdefun->label_table = table = malloc(sizeof(*table));
+    table_init(table);
   }
-  BB *bb;
-  if (table_try_get(curdefun->label_table, label->ident, (void**)&bb))
+  if (!table_put(table, label->ident, (void*)-1))  // Put dummy value.
     parse_error(label, "Label `%.*s' already defined", label->ident->bytes, label->ident->chars);
-  table_put(curdefun->label_table, label->ident, (void*)-1);  // Put dummy value.
 }
 
 static void add_func_goto(Stmt *stmt) {
