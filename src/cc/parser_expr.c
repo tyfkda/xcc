@@ -907,9 +907,15 @@ static StructInfo *parse_struct(bool is_union) {
       if (!parse_var_def(&rawType, &type, &flag, &ident))
         parse_error(NULL, "type expected");
       not_void(type);
-      if (type->kind == TY_STRUCT)
+      if (type->kind == TY_STRUCT) {
         ensure_struct((Type*)type, ident);
-      var_add(members, ident != NULL ? ident->ident : NULL, type, flag, ident);
+        // Allow ident to be null for anonymous struct member.
+      } else {
+        if (ident == NULL)
+          parse_error(NULL, "`ident' expected");
+      }
+      const Name *name = ident != NULL ? ident->ident : NULL;
+      var_add(members, name, type, flag, ident);
 
       if (match(TK_COMMA))
         continue;

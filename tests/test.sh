@@ -250,6 +250,7 @@ compile_error 'conflict struct typedef' 'typedef struct{int x;} Foo; typedef str
 compile_error 'no VLA' 'void main(int x){ int array[x]; }'
 compile_error 'size unknown' 'extern char string[]; int main(){ return sizeof(string); } char string[] = "Hello";'
 compile_error 'scoped typedef' 'int sub(){typedef int T;} T g=123; int main(void){return g;}'
+compile_error 'no member name' 'struct Foo{union{int anon;}; int;}; void main(){}'
 
 # TODO
 compile_error 'more params vaargs (yet)' 'int func(int a, ...) { return a; } int main(){ return func(1, 2, 3, 4, 5, 6, 7, 8); }'
