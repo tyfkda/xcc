@@ -8,4 +8,4 @@ script:
   - make clean test test-gen2
 branches:
   only:
-    - master
+    - main
