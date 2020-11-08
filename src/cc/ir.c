@@ -75,6 +75,11 @@ const int kCallerSaveRegs[] = {
   2,  // R11
 };
 
+#ifndef __NO_FLONUM
+#define CALLER_SAVE_FREG_COUNT  ((int)(sizeof(kCallerSaveFRegs) / sizeof(*kCallerSaveFRegs)))
+const int kCallerSaveFRegs[] = {0, 1, 2, 3, 4, 5};
+#endif
+
 //
 RegAlloc *curra;
 
@@ -1011,6 +1016,13 @@ static void ir_out(IR *ir) {
         if (living_pregs & (1 << ireg))
           add += WORD_SIZE;
       }
+#ifndef __NO_FLONUM
+      for (int i = 0; i < CALLER_SAVE_FREG_COUNT; ++i) {
+        int freg = kCallerSaveFRegs[i];
+        if (living_pregs & (1 << freg))
+          add += WORD_SIZE;
+      }
+#endif
 
       int align_stack = (16 - (stackpos + add + ir->precall.stack_args_size)) & 15;
       ir->precall.stack_aligned = align_stack;
@@ -1401,6 +1413,18 @@ void pop_callee_save_regs(unsigned short used) {
 }
 
 static void push_caller_save_regs(unsigned short living, int base) {
+#ifndef __NO_FLONUM
+  {
+    for (int i = CALLER_SAVE_FREG_COUNT; i > 0; ) {
+      int ireg = kCallerSaveFRegs[--i];
+      if (living & (1U << ireg)) {
+        MOVSD(kFReg64s[ireg], OFFSET_INDIRECT(base, RSP, NULL, 1));
+        base += WORD_SIZE;
+      }
+    }
+  }
+#endif
+
   for (int i = CALLER_SAVE_REG_COUNT; i > 0; ) {
     int ireg = kCallerSaveRegs[--i];
     if (living & (1 << ireg)) {
@@ -1411,6 +1435,20 @@ static void push_caller_save_regs(unsigned short living, int base) {
 }
 
 static void pop_caller_save_regs(unsigned short living) {
+#ifndef __NO_FLONUM
+  {
+    int count = 0;
+    for (int i = CALLER_SAVE_FREG_COUNT; i > 0; ) {
+      int ireg = kCallerSaveFRegs[--i];
+      if (living & (1U << ireg)) {
+        MOVSD(OFFSET_INDIRECT(count * WORD_SIZE, RSP, NULL, 1), kFReg64s[ireg]);
+        ++count;
+      }
+    }
+    ADD(IM(WORD_SIZE * count), RSP); stackpos -= WORD_SIZE * count;
+  }
+#endif
+
   for (int i = CALLER_SAVE_REG_COUNT; --i >= 0;) {
     int ireg = kCallerSaveRegs[i];
     if (living & (1 << ireg)) {
