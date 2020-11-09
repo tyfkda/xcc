@@ -399,6 +399,37 @@ static void analyze_reg_flow(BBContainer *bbcon) {
   } while (cont);
 }
 
+// Detect living registers for each instruction.
+static void detect_living_registers(BBContainer *bbcon, LiveInterval **sorted_intervals, int vreg_count) {
+  unsigned short living_pregs = 0;
+  int nip = 0;
+  for (int i = 0; i < bbcon->bbs->len; ++i) {
+    BB *bb = bbcon->bbs->data[i];
+    for (int j = 0; j < bb->irs->len; ++j, ++nip) {
+      for (int k = 0; k < vreg_count; ++k) {
+        LiveInterval *li = sorted_intervals[k];
+        if (li->state != LI_NORMAL)
+          continue;
+        if (nip < li->start)
+          break;
+        if (nip == li->start)
+          living_pregs |= 1U << li->phys;
+        if (nip == li->end)
+          living_pregs &= ~(1U << li->phys);
+      }
+
+      // Store living regs to IR.
+      IR *ir = bb->irs->data[j];
+      if (ir->kind == IR_CALL) {
+        ir->call.precall->precall.living_pregs = living_pregs;
+        // Store it into corresponding precall, too.
+        IR *ir_precall = ir->call.precall;
+        ir_precall->precall.living_pregs = living_pregs;
+      }
+    }
+  }
+}
+
 void prepare_register_allocation(Function *func) {
   const int DEFAULT_OFFSET = WORD_SIZE * 2;  // Return address, saved base pointer.
   int reg_param_index = 0;
@@ -497,6 +528,8 @@ void alloc_physical_registers(RegAlloc *ra, BBContainer *bbcon) {
     if (li->state != LI_CONST)
       vreg->phys = intervals[vreg->virt].phys;
   }
+
+  detect_living_registers(bbcon, sorted_intervals, vreg_count);
 
   // Allocated spilled virtual registers onto stack.
   int frame_size = 0;

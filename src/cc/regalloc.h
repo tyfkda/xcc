@@ -17,7 +17,7 @@ typedef struct RegAlloc {
 
   size_t frame_size;
   int phys_max;  // Max physical register count.
-  short used_reg_bits;
+  unsigned short used_reg_bits;
 } RegAlloc;
 
 RegAlloc *new_reg_alloc(int phys_max);

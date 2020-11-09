@@ -62,6 +62,12 @@ const int kCalleeSaveRegs[] = {
   5,  // R14
 };
 
+#define CALLER_SAVE_REG_COUNT  ((int)(sizeof(kCallerSaveRegs) / sizeof(*kCallerSaveRegs)))
+const int kCallerSaveRegs[] = {
+  1,  // R10
+  2,  // R11
+};
+
 //
 RegAlloc *curra;
 
@@ -328,6 +334,7 @@ IR *new_ir_precall(int arg_count, int stack_args_size) {
   ir->precall.arg_count = arg_count;
   ir->precall.stack_args_size = stack_args_size;
   ir->precall.stack_aligned = false;
+  ir->precall.living_pregs = 0;
   return ir;
 }
 
@@ -936,8 +943,7 @@ static void ir_out(IR *ir) {
   case IR_PRECALL:
     {
       // Caller save.
-      PUSH(R10); PUSH_STACK_POS();
-      PUSH(R11); PUSH_STACK_POS();
+      push_caller_save_regs(ir->precall.living_pregs);
 
       int align_stack = (stackpos + ir->precall.stack_args_size) & 15;
       if (align_stack != 0) {
@@ -985,8 +991,7 @@ static void ir_out(IR *ir) {
       }
 
       // Resore caller save registers.
-      POP(R11); POP_STACK_POS();
-      POP(R10); POP_STACK_POS();
+      pop_caller_save_regs(ir->call.precall->precall.living_pregs);
 
       assert(0 <= ir->size && ir->size < kPow2TableSize);
       int pow = kPow2Table[ir->size];
@@ -1226,7 +1231,7 @@ void remove_unnecessary_bb(BBContainer *bbcon) {
   }
 }
 
-void push_callee_save_regs(short used) {
+void push_callee_save_regs(unsigned short used) {
   for (int i = 0; i < CALLEE_SAVE_REG_COUNT; ++i) {
     int ireg = kCalleeSaveRegs[i];
     if (used & (1 << ireg)) {
@@ -1235,10 +1240,28 @@ void push_callee_save_regs(short used) {
   }
 }
 
-void pop_callee_save_regs(short used) {
+void pop_callee_save_regs(unsigned short used) {
   for (int i = CALLEE_SAVE_REG_COUNT; --i >= 0;) {
     int ireg = kCalleeSaveRegs[i];
     if (used & (1 << ireg)) {
+      POP(kReg64s[ireg]); POP_STACK_POS();
+    }
+  }
+}
+
+void push_caller_save_regs(unsigned short living) {
+  for (int i = 0; i < CALLER_SAVE_REG_COUNT; ++i) {
+    int ireg = kCallerSaveRegs[i];
+    if (living & (1 << ireg)) {
+      PUSH(kReg64s[ireg]); PUSH_STACK_POS();
+    }
+  }
+}
+
+void pop_caller_save_regs(unsigned short living) {
+  for (int i = CALLER_SAVE_REG_COUNT; --i >= 0;) {
+    int ireg = kCallerSaveRegs[i];
+    if (living & (1 << ireg)) {
       POP(kReg64s[ireg]); POP_STACK_POS();
     }
   }
