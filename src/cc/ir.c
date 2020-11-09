@@ -54,16 +54,12 @@ const char *kRegSizeTable[][7] = {
 const char *kRegATable[] = {AL, AX, EAX, RAX};
 const char *kRegDTable[] = {DL, DX, EDX, RDX};
 
-#define CALLEE_SAVE_REG_COUNT  (5)
-static struct {
-  const char *reg;
-  short bit;
-} const kCalleeSaveRegs[] = {
-  {RBX, 1 << 0},
-  {R12, 1 << 3},
-  {R13, 1 << 4},
-  {R14, 1 << 5},
-  {R15, 1 << 6},
+#define CALLEE_SAVE_REG_COUNT  ((int)(sizeof(kCalleeSaveRegs) / sizeof(*kCalleeSaveRegs)))
+const int kCalleeSaveRegs[] = {
+  0,  // RBX
+  3,  // R12
+  4,  // R13
+  5,  // R14
 };
 
 //
@@ -1232,16 +1228,18 @@ void remove_unnecessary_bb(BBContainer *bbcon) {
 
 void push_callee_save_regs(short used) {
   for (int i = 0; i < CALLEE_SAVE_REG_COUNT; ++i) {
-    if (used & kCalleeSaveRegs[i].bit) {
-      PUSH(kCalleeSaveRegs[i].reg); PUSH_STACK_POS();
+    int ireg = kCalleeSaveRegs[i];
+    if (used & (1 << ireg)) {
+      PUSH(kReg64s[ireg]); PUSH_STACK_POS();
     }
   }
 }
 
 void pop_callee_save_regs(short used) {
   for (int i = CALLEE_SAVE_REG_COUNT; --i >= 0;) {
-    if (used & kCalleeSaveRegs[i].bit) {
-      POP(kCalleeSaveRegs[i].reg); POP_STACK_POS();
+    int ireg = kCalleeSaveRegs[i];
+    if (used & (1 << ireg)) {
+      POP(kReg64s[ireg]); POP_STACK_POS();
     }
   }
 }
