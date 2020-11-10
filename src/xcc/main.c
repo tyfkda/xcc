@@ -166,6 +166,11 @@ static int compile(const char *src, Vector *cpp_cmd, Vector *cc1_cmd, int ofd) {
       if (done == cpp_pid) {
         cpp_pid = -1;
         if (cc_pid != -1) {
+          if (r != 0) {
+            // Illegal: cpp exit with failure.
+            kill(cc_pid, SIGKILL);
+            break;
+          }
           close(cc_fd[0]);
           close(cc_fd[1]);
         }
