@@ -136,12 +136,16 @@ static void gen_return(Stmt *stmt) {
   assert(curfunc != NULL);
   BB *bb = bb_split(curbb);
   if (stmt->return_.val != NULL) {
-    VReg *reg = gen_expr(stmt->return_.val);
+    Expr *val = stmt->return_.val;
+    VReg *reg = gen_expr(val);
     VReg *retval = curfunc->retval;
     if (retval == NULL) {
       new_ir_result(reg);
     } else {
-      new_ir_memcpy(retval, reg, type_size(stmt->return_.val->type));
+      // Allocate new register to avoid both spilled.
+      VReg *tmp = add_new_reg(&tyVoidPtr, 0);
+      new_ir_mov(tmp, reg);
+      new_ir_memcpy(retval, tmp, type_size(val->type));
       new_ir_result(retval);
     }
   }
