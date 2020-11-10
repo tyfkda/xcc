@@ -16,7 +16,7 @@ XCC
 ### Requirements
 
   * Linux
-  * gcc or clang
+  * C compiler (gcc or clang)
   * make
 
 
