@@ -21,6 +21,8 @@
 const int FRAME_ALIGN = 8;
 const int STACK_PARAM_BASE_OFFSET = (2 - MAX_REG_ARGS) * 8;
 
+const char RET_VAR_NAME[] = ".ret";
+
 static void gen_stmt(Stmt *stmt);
 static void gen_expr_stmt(Expr *expr);
 
@@ -56,8 +58,6 @@ static BB *push_break_bb(BB *parent_bb, BB **save) {
   s_break_bb = bb;
   return bb;
 }
-
-static const char RET_VAR_NAME[] = ".ret";
 
 static void alloc_variable_registers(Function *func) {
   assert(func->type->kind == TY_FUNC);

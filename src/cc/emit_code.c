@@ -261,6 +261,11 @@ static bool is_asm(Stmt *stmt) {
   return stmt->kind == ST_ASM;
 }
 
+static VarInfo *find_ret_var(Scope *scope) {
+  const Name *retval_name = alloc_name(RET_VAR_NAME, NULL, false);
+  return scope_find(scope, retval_name, NULL);
+}
+
 static void put_args_to_stack(Function *func) {
   static const char *kReg8s[] = {DIL, SIL, DL, CL, R8B, R9B};
   static const char *kReg16s[] = {DI, SI, DX, CX, R8W, R9W};
@@ -271,8 +276,8 @@ static void put_args_to_stack(Function *func) {
   int arg_index = 0;
   if (is_stack_param(func->type->func.ret)) {
     Scope *top_scope = func->scopes->data[0];
-    assert(top_scope->vars->len > 0);
-    VarInfo *varinfo = top_scope->vars->data[top_scope->vars->len - 1];
+    VarInfo *varinfo = find_ret_var(top_scope);
+    assert(varinfo != NULL);
     const Type *type = varinfo->type;
     int size = type_size(type);
     int offset = varinfo->local.reg->offset;
