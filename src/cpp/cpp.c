@@ -452,7 +452,8 @@ int pp(FILE *fp, const char *filename) {
       } else if ((next = keyword(directive, "pragma")) != NULL) {
         handle_pragma(next, filename);
       } else if ((next = keyword(directive, "error")) != NULL) {
-        error("#error: %s", next);
+        fprintf(stderr, "%s(%d): error\n", filename, stream.lineno);
+        error("%s", line);
       } else {
         error("unknown directive: %s", directive);
       }
