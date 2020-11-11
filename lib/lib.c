@@ -14,8 +14,16 @@ ssize_t write(int fd, const void *str, size_t len) {
 
 #elif defined(__linux__)
 ssize_t write(int fd, const void *str, size_t len) {
+#if defined(__XCC)
   __asm("mov $1, %eax");  // __NR_write
   __asm("syscall\n");
+#else
+  ssize_t ret;
+  __asm("mov $1, %%eax\n\t"  // __NR_write
+        "syscall"
+        : "=r"(ret));
+  return ret;
+#endif
 }
 
 #elif defined(__APPLE__)

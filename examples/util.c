@@ -6,8 +6,16 @@ long write(int fd, const void *str, unsigned long len) {
 
 #elif defined(__linux__)
 long write(int fd, const void *str, unsigned long len) {
+#if defined(__XCC)
   __asm("mov $1, %eax");  // __NR_write
   __asm("syscall");
+#else
+  long ret;
+  __asm("mov $1, %%eax\n\t"  // __NR_write
+        "syscall"
+        : "=r"(ret));
+  return ret;
+#endif
 }
 
 #elif defined(__APPLE__)
