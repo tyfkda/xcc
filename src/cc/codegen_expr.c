@@ -93,12 +93,9 @@ void gen_cond_jmp(Expr *cond, bool tf, BB *bb) {
   case EX_NE:
     {
       enum ConditionKind kind = gen_compare_expr(cond->kind, cond->bop.lhs, cond->bop.rhs);
-      if (kind != COND_EQ)
-        tf = !tf;
-      if (tf)
-        new_ir_jmp(COND_EQ, bb);
-      else
-        new_ir_jmp(COND_NE, bb);
+      if (!tf)
+        kind = COND_EQ + COND_NE - kind;
+      new_ir_jmp(kind, bb);
       return;
     }
   case EX_LT:
@@ -110,39 +107,27 @@ void gen_cond_jmp(Expr *cond, bool tf, BB *bb) {
       switch (kind) {
       case COND_LT:
       case COND_GE:
-        if (kind != COND_LT)
-          tf = !tf;
-        if (tf)
-          new_ir_jmp(COND_LT, bb);
-        else
-          new_ir_jmp(COND_GE, bb);
+        if (!tf)
+          kind = COND_LT + COND_GE - kind;
+        new_ir_jmp(kind, bb);
         break;
       case COND_GT:
       case COND_LE:
-        if (kind != COND_GT)
-          tf = !tf;
-        if (tf)
-          new_ir_jmp(COND_GT, bb);
-        else
-          new_ir_jmp(COND_LE, bb);
+        if (!tf)
+          kind = COND_GT + COND_LE - kind;
+        new_ir_jmp(kind, bb);
         break;
       case COND_ULT:
       case COND_UGE:
-        if (kind != COND_ULT)
-          tf = !tf;
-        if (tf)
-          new_ir_jmp(COND_ULT, bb);
-        else
-          new_ir_jmp(COND_UGE, bb);
+        if (!tf)
+          kind = COND_ULT + COND_UGE - kind;
+        new_ir_jmp(kind, bb);
         break;
       case COND_UGT:
       case COND_ULE:
-        if (kind != COND_UGT)
-          tf = !tf;
-        if (tf)
-          new_ir_jmp(COND_UGT, bb);
-        else
-          new_ir_jmp(COND_ULE, bb);
+        if (!tf)
+          kind = COND_UGT + COND_ULE - kind;
+        new_ir_jmp(kind, bb);
         break;
       default:  assert(false); break;
       }
