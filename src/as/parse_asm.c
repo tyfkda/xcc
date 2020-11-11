@@ -656,7 +656,7 @@ Line *parse_line(ParseInfo *info) {
   line->label = parse_label(info);
   if (line->label != NULL) {
     if (*info->p != ':') {
-      parse_error(info, "`:' rqeuired after label");
+      parse_error(info, "`:' required after label");
       return NULL;
     }
     ++info->p;
