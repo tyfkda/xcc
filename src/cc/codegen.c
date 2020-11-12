@@ -69,6 +69,8 @@ static void alloc_variable_registers(Function *func) {
     retval_name = alloc_name(RET_VAR_NAME, NULL, false);
     const Type *retptrtype = ptrof(rettype);
     Scope *top_scope = func->scopes->data[0];
+    if (top_scope->vars == NULL)
+      top_scope->vars = new_vector();
     var_add(top_scope->vars, retval_name, retptrtype, 0, NULL);
     ++param_index_offset;
   }
