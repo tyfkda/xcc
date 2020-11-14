@@ -1288,3 +1288,53 @@ void emit_bb_irs(BBContainer *bbcon) {
     }
   }
 }
+
+// Rewrite `A = B op C` to `A = B; A = A op C`.
+static void three_to_two(BB *bb) {
+  Vector *irs = bb->irs;
+  for (int i = 0; i < irs->len; ++i) {
+    IR *ir = bb->irs->data[i];
+
+    switch (ir->kind) {
+    case IR_ADD:  // binops
+    case IR_SUB:
+    case IR_MUL:
+    case IR_DIV:
+    case IR_DIVU:
+    case IR_MOD:
+    case IR_MODU:
+    case IR_BITAND:
+    case IR_BITOR:
+    case IR_BITXOR:
+    case IR_LSHIFT:
+    case IR_RSHIFT:
+    case IR_NEG:  // unary ops
+    case IR_BITNOT:
+      {
+        assert(!(ir->dst->flag & VRF_CONST));
+        IR *ir2 = malloc(sizeof(*ir2));
+        ir2->kind = IR_MOV;
+        ir2->dst = ir->dst;
+        ir2->opr1 = ir->opr1;
+        ir2->opr2 = NULL;
+        ir2->size = ir->size;
+        vec_insert(irs, i, ir2);
+
+        ir->opr1 = ir->dst;
+        ++i;
+      }
+      break;
+
+    default:
+      break;
+    }
+  }
+  bb->irs = irs;
+}
+
+void convert_3to2(BBContainer *bbcon) {
+  for (int i = 0; i < bbcon->bbs->len; ++i) {
+    BB *bb = bbcon->bbs->data[i];
+    three_to_two(bb);
+  }
+}

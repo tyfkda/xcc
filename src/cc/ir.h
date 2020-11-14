@@ -214,3 +214,5 @@ void emit_bb_irs(BBContainer *bbcon);
 #define POP_STACK_POS()   do { stackpos -= 8; } while (0)
 
 extern int stackpos;
+
+void convert_3to2(BBContainer *bbcon);  // Make 3 address code to 2.
