@@ -3,15 +3,15 @@
 XCC=${XCC:-../xcc}
 
 try() {
-  title="$1"
-  expected="$2"
-  inputs="$3"
+  local title="$1"
+  local expected="$2"
+  local inputs="$3"
 
   echo -n "$title => "
 
   $XCC $inputs || exit 1
 
-  actual=`./a.out ${@:4}` || exit 1
+  local actual=`./a.out ${@:4}` || exit 1
 
   if [ "$actual" = "$expected" ]; then
     echo "OK"

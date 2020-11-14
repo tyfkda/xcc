@@ -31,18 +31,18 @@ fi
 
 
 try_direct() {
-  title="$1"
-  expected="$2"
-  input="$PROLOGUE\n$3"
+  local title="$1"
+  local expected="$2"
+  local input="$PROLOGUE\n$3"
 
   echo -n "$title => "
 
-  tmpfile=$(mktemp --suffix=.c)
+  local tmpfile=$(mktemp --suffix=.c)
   echo -e "$input" > $tmpfile
   $XCC $tmpfile || exit 1
 
   ./a.out
-  actual="$?"
+  local actual="$?"
 
   if [ "$actual" = "$expected" ]; then
     echo "OK"
@@ -57,17 +57,17 @@ try() {
 }
 
 try_output_direct() {
-  title="$1"
-  expected="$2"
-  input="$PROLOGUE\n$3"
+  local title="$1"
+  local expected="$2"
+  local input="$PROLOGUE\n$3"
 
   echo -n "$title => "
 
-  tmpfile=$(mktemp --suffix=.c)
+  local tmpfile=$(mktemp --suffix=.c)
   echo -e "$input" > $tmpfile
   $XCC $tmpfile || exit 1
 
-  actual=`./a.out` || exit 1
+  local actual=`./a.out` || exit 1
 
   if [ "$actual" = "$expected" ]; then
     echo "OK"
@@ -82,15 +82,15 @@ try_output() {
 }
 
 compile_error() {
-  title="$1"
-  input="$PROLOGUE\n$2"
+  local title="$1"
+  local input="$PROLOGUE\n$2"
 
   echo -n "$title => "
 
-  tmpfile=$(mktemp --suffix=.c)
+  local tmpfile=$(mktemp --suffix=.c)
   echo -e "$input" > $tmpfile
   $XCC $tmpfile
-  result="$?"
+  local result="$?"
 
   if [ "$result" = "0" ]; then
     echo "NG: Compile error expected, but succeeded"

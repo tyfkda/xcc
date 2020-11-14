@@ -3,13 +3,13 @@
 CPP=${CPP:-../cpp}
 
 try() {
-  title="$1"
-  expected=$(echo -e "$2")
-  input="$3"
+  local title="$1"
+  local expected=$(echo -e "$2")
+  local input="$3"
 
   echo -n "$title => "
 
-  actual=$(echo -e "$input" | $CPP | tr -d '\n') || exit 1
+  local actual=$(echo -e "$input" | $CPP | tr -d '\n') || exit 1
 
   if [ "$actual" = "$expected" ]; then
     echo "OK"
@@ -20,13 +20,13 @@ try() {
 }
 
 compile_error() {
-  title="$1"
-  input="$2"
+  local title="$1"
+  local input="$2"
 
   echo -n "$title => "
 
   echo -e "$input" | $CPP
-  result="$?"
+  local result="$?"
 
   if [ "$result" = "0" ]; then
     echo "NG: Compile error expected, but succeeded"
