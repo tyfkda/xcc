@@ -9,7 +9,6 @@ int strcmp(const char *p, const char *q);
 int strncmp(const char *p, const char *q, size_t n);
 char* strcpy(char *s, const char *t);
 char* strncpy(char *s, const char *t, size_t n);
-long strtol(const char *p, char **pp, int base);
 
 void* memcpy(void *dst, const void *src, size_t n);
 void* memmove(void*, const void*, size_t);

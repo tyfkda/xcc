@@ -1,4 +1,5 @@
 #include "ctype.h"
+#include "stdbool.h"
 #include "stdio.h"
 #include "stdlib.h"
 #include "string.h"
@@ -156,32 +157,43 @@ int memcmp(const void *buf1, const void *buf2, size_t n) {
   return d;
 }
 
+static bool parse_sign(const char **pp) {
+  const char *p = *pp;
+  char c = *p;
+  bool negative = c == '-';
+  if (c == '+' || c == '-')
+    *pp = p + 1;
+  return negative;
+}
+
 long strtol(const char *p, char **pp, int base) {
+  const char *orig = p;
+  bool neg = parse_sign(&p);
+  char digimax = '0' + (base <= 10 ? base : 10);
+  char hexmax = 'a' - 10 + base;
   long result = 0;
-  if (base <= 10) {
-    for (;;) {
-      char c = *p++;
-      if ('0' <= c && c < ('0' + base))
-        result = result * base + (c - '0');
+  const char *op = p;
+  for (;; ++p) {
+    char c = *p;
+    int n;
+    if ('0' <= c && c < digimax)
+      n = c - '0';
+    else {
+      c = tolower(c);
+      if ('a' <= c && c < hexmax)
+        n = c - 'a' + 10;
       else
         break;
     }
-  } else {
-    for (;;) {
-      char c = *p++;
-      if ('0' <= c && c <= '9')
-        result = result * base + (c - '0');
-      else if ('A' <= c && c < ('A' - 10 + base))
-        result = result * base + (c - 'A' + 10);
-      else if ('a' <= c && c < ('a' - 10 + base))
-        result = result * base + (c - 'a' + 10);
-      else
-        break;
-    }
+    result = result * base + n;
   }
+  if (p == op)
+    p = orig;
+  if (neg)
+    result = -result;
 
   if (pp != 0)
-    *pp = (char*)(p - 1);
+    *pp = (char*)p;
 
   return result;
 }

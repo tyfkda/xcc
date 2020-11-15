@@ -3,7 +3,7 @@
 #include <assert.h>
 #include <ctype.h>
 #include <stdarg.h>
-#include <stdlib.h>  // malloc
+#include <stdlib.h>  // malloc, strtol
 #include <string.h>
 #include <sys/types.h>  // ssize_t
 
