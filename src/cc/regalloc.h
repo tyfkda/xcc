@@ -18,6 +18,10 @@ typedef struct RegAlloc {
   size_t frame_size;
   int phys_max;  // Max physical register count.
   unsigned short used_reg_bits;
+#ifndef __NO_FLONUM
+  unsigned short used_freg_bits;
+  int fphys_max;  // Floating-point register.
+#endif
 } RegAlloc;
 
 RegAlloc *new_reg_alloc(int phys_max);

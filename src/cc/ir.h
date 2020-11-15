@@ -14,11 +14,12 @@ typedef struct Vector Vector;
 #define MAX_REG_ARGS  (6)
 #define WORD_SIZE  (8)  /*sizeof(void*)*/
 
+#define PHYSICAL_REG_MAX  (7 - 1)
+
 #ifndef __NO_FLONUM
 #define MAX_FREG_ARGS  (6)
+#define PHYSICAL_FREG_MAX  (7 - 1)
 #endif
-
-#define PHYSICAL_REG_MAX  (7 - 1)
 
 // Virtual register
 
@@ -137,7 +138,7 @@ typedef struct IR {
       int arg_count;
       int stack_args_size;
       int stack_aligned;
-      unsigned short living_pregs;
+      unsigned int living_pregs;
     } precall;
     struct {
       const Name *label;

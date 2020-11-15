@@ -475,6 +475,9 @@ static void gen_defun(Function *func) {
   func->bbcon = new_func_blocks();
   set_curbb(new_bb());
   func->ra = curra = new_reg_alloc(PHYSICAL_REG_MAX);
+#ifndef __NO_FLONUM
+  func->ra->fphys_max = PHYSICAL_FREG_MAX;
+#endif
 
   // Allocate BBs for goto labels.
   if (func->label_table != NULL) {

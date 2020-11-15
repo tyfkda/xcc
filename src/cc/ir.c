@@ -1019,7 +1019,7 @@ static void ir_out(IR *ir) {
 #ifndef __NO_FLONUM
       for (int i = 0; i < CALLER_SAVE_FREG_COUNT; ++i) {
         int freg = kCallerSaveFRegs[i];
-        if (living_pregs & (1 << freg))
+        if (living_pregs & (1 << (freg + PHYSICAL_REG_MAX)))
           add += WORD_SIZE;
       }
 #endif
@@ -1417,7 +1417,7 @@ static void push_caller_save_regs(unsigned short living, int base) {
   {
     for (int i = CALLER_SAVE_FREG_COUNT; i > 0; ) {
       int ireg = kCallerSaveFRegs[--i];
-      if (living & (1U << ireg)) {
+      if (living & (1U << (ireg + PHYSICAL_REG_MAX))) {
         MOVSD(kFReg64s[ireg], OFFSET_INDIRECT(base, RSP, NULL, 1));
         base += WORD_SIZE;
       }
@@ -1440,7 +1440,7 @@ static void pop_caller_save_regs(unsigned short living) {
     int count = 0;
     for (int i = CALLER_SAVE_FREG_COUNT; i > 0; ) {
       int ireg = kCallerSaveFRegs[--i];
-      if (living & (1U << ireg)) {
+      if (living & (1U << (ireg + PHYSICAL_REG_MAX))) {
         MOVSD(OFFSET_INDIRECT(count * WORD_SIZE, RSP, NULL, 1), kFReg64s[ireg]);
         ++count;
       }
