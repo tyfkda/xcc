@@ -27,6 +27,7 @@ int remove(const char *fn);
 
 int fgetc(FILE *fp);
 int fputc(int c, FILE *fp);
+int getchar(void);
 
 int fprintf(FILE *fp, const char *fmt, ...);
 int printf(const char *fmt, ...);

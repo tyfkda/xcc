@@ -1,5 +1,19 @@
 #ifndef __NO_FLONUM
 #include <math.h>
+#include <stdbool.h>
+#include <string.h>  // strlen, strncmp
+
+static const double LOG2 = 0.693147180559945;
+static const double _M_2PI = 2 * M_PI;
+
+static double normalize_radian(double x) {
+  double y = fmod(x, _M_2PI);
+  if (y > M_PI)
+    return y - _M_2PI;
+  if (y < -M_PI)
+    return y + _M_2PI;
+  return y;
+}
 
 double sin(double x) {
   static const double TABLE[] = {
@@ -14,6 +28,8 @@ double sin(double x) {
      1 / (17.0 * 16 * 15 * 14 * 13 * 12 * 11 * 10 * 9 * 8 * 7 * 6 * 5 * 4 * 3 * 2 * 1),
     -1 / (19.0 * 18 * 17 * 16 * 15 * 14 * 13 * 12 * 11 * 10 * 9 * 8 * 7 * 6 * 5 * 4 * 3 * 2 * 1),
   };
+
+  x = normalize_radian(x);
 
   double v = 0;
   double xx = x * x;
@@ -38,6 +54,8 @@ double cos(double x) {
     -1 / (18.0 * 17 * 16 * 15 * 14 * 13 * 12 * 11 * 10 * 9 * 8 * 7 * 6 * 5 * 4 * 3 * 2 * 1),
   };
 
+  x = normalize_radian(x);
+
   double v = 0;
   double xx = x * x;
   x = 1;
@@ -48,15 +66,145 @@ double cos(double x) {
   return v;
 }
 
+double tan(double x) {
+  return sin(x) / cos(x);  // TODO;
+}
+
+double atan(double x) {
+  const double ATAN225 = 0.414213562373095;
+  bool neg = x < 0;
+  x = fabs(x);
+  bool inv = false;
+  if (x > 1) {
+    x = 1.0 / x;
+    inv = true;
+  }
+  bool diag = false;
+  if (x > ATAN225) {
+    x = (1 - x) / (1 + x);
+    diag = true;
+  }
+
+  //double t = myatan225(x);
+  double t = 0;
+  {
+    double _xx = -x * x;
+    double k = x;
+    for (int i = 0; i < 16; ++i) {
+      t += k / (i * 2 + 1);
+      k *= _xx;
+    }
+  }
+
+  if (diag)
+    t = (M_PI / 4) - t;
+  if (inv)
+    t = (M_PI / 2) - t;
+  return neg ? -t : t;
+}
+
 double sqrt(double _) {
   __asm("sqrtsd %xmm0, %xmm0");
 }
 
+double log(double x) {
+  if (x < 0)
+    return -1;
+  if (x == 0)
+    return -1.0 / 0.0;
+
+  int order = 0;
+  if (x >= 2) {
+    do {
+      x *= 0.5;
+      ++order;
+    } while (x >= 2);
+  } else if (x < 1) {
+    do {
+      x *= 2;
+      --order;
+    } while (x < 1);
+  }
+  // 1.0 <= x < 2.0
+
+  double y = (x - 1) / (x + 1);
+  double yy = y * y;
+  double total = 0;
+  for (int i = 1; i <= 15; ++i) {
+    total += y / (i * 2 - 1);
+    y *= yy;
+  }
+  return 2 * total + order * LOG2;
+}
+
+double exp(double x) {
+  bool neg = x < 0;
+  x = fabs(x);
+  unsigned int n = x;  // TODO: Care about overflow
+  double r = (x - n) /* * log(base)*/;   // log(e) = 1
+
+  double result = 1;
+  double y = 1;
+  for (int i = 1; i <= 15; ++i) {
+    y *= r / i;
+    result += y;
+  }
+
+  double poe = 2.718281828459045;  // e
+  for (; n > 0; n >>= 1, poe *= poe) {
+    if (n & 1)
+      result *= poe;
+  }
+  return neg ? 1.0 / result : result;
+}
+
+double pow(double base, double x) {
+  bool neg = x < 0;
+  x = fabs(x);
+  unsigned int n = x;  // TODO: Care about overflow
+  double r = (x - n) * log(base);
+
+  double result = 1;
+  double y = 1;
+  for (int i = 1; i <= 15; ++i) {
+    y *= r / i;
+    result += y;
+  }
+
+  double poe = base;
+  for (; n > 0; n >>= 1, poe *= poe) {
+    if (n & 1)
+      result *= poe;
+  }
+  return neg ? 1.0 / result : result;
+}
+
 double fabs(double x) {
-  //return x >= 0 ? x : -x;
-  if (x >= 0.0)
-    return x;
-  return -x;
+  return x >= 0 ? x : -x;
+}
+
+double floor(double x) {
+  // TODO:
+  if (x >= 0) {
+    unsigned long l = x;
+    return l;
+  } else {
+    unsigned long l = -x;
+    return x + l < 0 ? -l - 1 : l;
+  }
+}
+
+double ceil(double x) {
+  // TODO:
+  return -floor(-x);
+}
+
+double fmod(double x, double m) {
+  m = fabs(m);
+  if (x >= 0)
+    return x - floor(x / m) * m;
+  else
+    return x - ceil(x / m) * m;
 }
 
 double drand48(void) {
