@@ -420,6 +420,13 @@ static Token *new_token(enum TokenKind kind) {
   return token;
 }
 
+static bool ishexdigit(int c) {
+  if (isdigit(c))
+    return true;
+  c = tolower(c);
+  return 'a' <= c && c <= 'f';
+}
+
 static const Token *fetch_token(ParseInfo *info) {
   if (info->token != NULL)
     return info->token;
@@ -427,17 +434,23 @@ static const Token *fetch_token(ParseInfo *info) {
   const char *start = skip_whitespaces(info->p);
   const char *p = start;
   char c = *p;
-  if (is_label_first_chr(c)) {
+  if (isdigit(c)) {
+    int base = 10;
+    if (tolower(p[1]) == 'x' && ishexdigit(p[2])) {
+      p += 2;
+      base = 16;
+    }
+    char *q;
+    long v = strtol(p, &q, base);
+    Token *token = new_token(TK_FIXNUM);
+    token->fixnum = v;
+    info->next = q;
+    return token;
+  } else if (is_label_first_chr(c)) {
     while (c = *++p, is_label_chr(c))
       ;
     Token *token = new_token(TK_LABEL);
     token->label = alloc_name(start, p, false);
-    info->next = p;
-    return token;
-  } else if (isdigit(c)) {
-    long v = strtol(p, (char**)&p, 10);
-    Token *token = new_token(TK_FIXNUM);
-    token->fixnum = v;
     info->next = p;
     return token;
   } else if (strchr("+-*/", c) != NULL) {
