@@ -30,6 +30,9 @@
 #ifndef NUM
 #define NUM(x)  num(x)
 #endif
+#ifndef HEXNUM
+#define HEXNUM(x)  hexnum(x)
+#endif
 #ifndef FLONUM
 #define FLONUM(x)  flonum(x)
 #endif

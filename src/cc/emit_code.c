@@ -82,16 +82,21 @@ static void construct_initial_value(unsigned char *buf, const Type *type, const 
 #ifndef __NO_FLONUM
   case TY_FLONUM:
     {
-      double v = 0;
+      union {double d; uintptr_t h;} v;
+      v.d = 0;
       if (init != NULL) {
         assert(init->kind == IK_SINGLE);
         Expr *value = init->single;
         if (!(is_const(value) && is_flonum(value->type)))
           error("Illegal initializer: constant number expected");
-        v = value->flonum;
+        v.d = value->flonum;
       }
 
-      _DOUBLE(FLONUM(v));
+#if 0
+      _DOUBLE(FLONUM(v.d));
+#else
+      _QUAD(HEXNUM(v.h));
+#endif
     }
     break;
 #endif

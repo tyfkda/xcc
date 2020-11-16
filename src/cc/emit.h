@@ -10,6 +10,7 @@ typedef struct Name Name;
 char *fmt(const char *s, ...);
 char *fmt_name(const Name *name);
 char *num(intptr_t x);  // x
+char *hexnum(intptr_t x);  // 0xnn
 #ifndef __NO_FLONUM
 char *flonum(double x);
 #endif

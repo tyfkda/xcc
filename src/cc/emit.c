@@ -35,6 +35,10 @@ char *num(intptr_t x) {
   return fmt("%" PRIdPTR, x);
 }
 
+char *hexnum(intptr_t x) {
+  return fmt("0x%" PRIxPTR, x);
+}
+
 #ifndef __NO_FLONUM
 char *flonum(double x) {
   return fmt("%.16g", x);
