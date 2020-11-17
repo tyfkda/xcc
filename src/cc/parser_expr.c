@@ -1519,7 +1519,20 @@ static const Type *choose_type(Expr *tval, Expr *fval) {
     }
   } else if (ftype->kind == TY_PTR) {
     return choose_type(fval, tval);  // Make ttype to pointer, and check again.
-  } else if (is_fixnum(ttype->kind) && is_fixnum(ftype->kind)) {
+  } else if (is_number(ttype) && is_number(ftype)) {
+#ifndef __NO_FLONUM
+    if (is_flonum(ttype)) {
+      // TODO: Choose lager one.
+      //if (is_flonum(ftype)) {
+      //  return ttype;
+      //}
+      return ttype;
+    } else if (is_flonum(ftype)) {
+      return ftype;
+    }
+#endif
+    assert(is_fixnum(ttype->kind));
+    assert(is_fixnum(ftype->kind));
     if (ttype->fixnum.kind > ftype->fixnum.kind)
       return ttype;
     else
