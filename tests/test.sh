@@ -160,6 +160,7 @@ try_direct 'func-ptr-array' 30 'int mul2(int x) {return x*2;} int div2(int x) {r
 try_direct 'func-ptr-array in local' 30 'int mul2(int x) {return x*2;} int div2(int x) {return x/2;} int main() {int (*funcs[])(int)={mul2, div2}; int acc=0; for (int i=0; i<2; ++i) acc+=funcs[i](12); return acc;}'
 try_direct 'struct args' 82 'typedef struct {int a; int b;} X; int sub(X x, int k) { return x.a * k + x.b; } int main() { X x = {12, 34}; return sub(x, 4); }'
 try 'ternary string' 114 'int x = 1; const char *p = x ? "true" : "false"; return p[1];'
+try 'ternary ptr:0' 98 'const char *p = "abc"; p = p != 0 ? p + 1 : 0; return *p;'
 try_direct 'compound literal:array' 2 'int main(){ int *foo = (int[]){1, 2, 3}; return foo[1]; }'
 try_direct 'compound literal:struct' 66 'struct Foo {int x;}; int main(){ struct Foo *foo = &(struct Foo){66}; return foo->x; }'
 try_direct 'inc compound literal' 56 'int main(){ int i = ++(int){55}; return i; }'

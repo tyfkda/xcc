@@ -1327,6 +1327,37 @@ static Expr *parse_logior(void) {
   }
 }
 
+static const Type *choose_type(Expr *tval, Expr *fval) {
+  const Type *ttype = tval->type;
+  const Type *ftype = fval->type;
+  if (ttype->kind == TY_ARRAY)
+    ttype = array_to_ptr(ttype);
+  if (ftype->kind == TY_ARRAY)
+    ftype = array_to_ptr(ftype);
+
+  if (same_type(ttype, ftype, curscope))
+    return ttype;
+  if (ttype->kind == TY_PTR) {
+    if (ftype->kind == TY_PTR) {  // Both pointer type
+      if (is_void_ptr(ttype))
+        return ftype;
+      if (is_void_ptr(ftype))
+        return ttype;
+    } else {
+      if (can_cast(ttype, ftype, is_zero(fval), false, curscope))
+        return ttype;
+    }
+  } else if (ftype->kind == TY_PTR) {
+    return choose_type(fval, tval);  // Make ttype to pointer, and check again.
+  } else if (is_fixnum(ttype->kind) && is_fixnum(ftype->kind)) {
+    if (ttype->fixnum.kind > ftype->fixnum.kind)
+      return ttype;
+    else
+      return ftype;
+  }
+  return NULL;
+}
+
 static Expr *parse_conditional(void) {
   Expr *expr = parse_logior();
   for (;;) {
@@ -1337,39 +1368,12 @@ static Expr *parse_conditional(void) {
     consume(TK_COLON, "`:' expected");
     Expr *fval = parse_conditional();
 
-    const Type *ttype = tval->type;
-    const Type *ftype = fval->type;
-    assert(ttype != NULL);
-    assert(ftype != NULL);
-    if (ttype->kind == TY_ARRAY) {
-      ttype = array_to_ptr(ttype);
-      tval = new_expr_cast(ttype, tval->token, tval);
-    }
-    if (ftype->kind == TY_ARRAY) {
-      ftype = array_to_ptr(ftype);
-      fval = new_expr_cast(ftype, fval->token, fval);
-    }
-
-    const Type *type = NULL;
-    if (same_type(ttype, ftype, curscope)) {
-      type = ttype;
-    } else if (is_void_ptr(ttype) && ftype->kind == TY_PTR) {
-      type = ftype;
-    } else if (is_void_ptr(ftype) && ttype->kind == TY_PTR) {
-      type = ttype;
-    } else if (is_fixnum(ttype->kind) && is_fixnum(ftype->kind)) {
-      if (ttype->fixnum.kind > ftype->fixnum.kind) {
-        type = ttype;
-        fval = new_expr_cast(ttype, fval->token, fval);
-      } else {
-        type = ftype;
-        tval = new_expr_cast(ftype, tval->token, tval);
-      }
-    }
-
+    const Type *type = choose_type(tval, fval);
     if (type == NULL)
       parse_error(tok, "lhs and rhs must be same type");
 
+    tval = make_cast(type, tval->token, tval, false);
+    fval = make_cast(type, fval->token, fval, false);
     expr = new_expr_ternary(tok, expr, tval, fval, type);
   }
 }
