@@ -3,7 +3,7 @@
 #include <assert.h>
 #include <ctype.h>
 #include <stdarg.h>
-#include <stdlib.h>  // malloc, strtol
+#include <stdlib.h>  // malloc, strtoul
 #include <string.h>
 #include <sys/types.h>  // ssize_t
 
@@ -257,7 +257,7 @@ static int scan_linemarker(const char *line, long *pnum, char **pfn, int *pflag)
 
   int n = 0;
   const char *next = p;
-  long num = strtol(next, (char**)&next, 10);
+  unsigned long num = strtoul(next, (char**)&next, 10);
   if (next > p) {
     ++n;
     *pnum = num;
@@ -383,15 +383,21 @@ static Token *read_num(const char **pp) {
   int base = 10;
   bool is_unsigned = false;
   if (*p == '0') {
-    if (p[1] == 'x') {
+    char c = tolower(p[1]);
+    if (c == 'x') {
       base = 16;
       p += 2;
-    } else {
+      c = tolower(*p);
+      if (!(isdigit(c) || ('a' <= c && c <= 'f')))
+        lex_error(p, "Hexadecimal expected");
+    } else if (isdigit(c)) {
       base = 8;
+      if (!('0' <= c && c <= '7'))
+        lex_error(p, "Octal expected");
     }
   }
   const char *q = p;
-  long val = strtol(p, (char**)&p, base);
+  unsigned long val = strtoul(p, (char**)&p, base);
   if (p == q)
     lex_error(p, "Illegal literal");
 

@@ -11,3 +11,4 @@ void *calloc(size_t size, size_t n);
 void exit(int code);
 
 long strtol(const char *p, char **pp, int base);
+unsigned long strtoul(const char *p, char **pp, int base);

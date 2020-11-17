@@ -3,7 +3,7 @@
 #include <assert.h>
 #include <ctype.h>
 #include <stddef.h>
-#include <stdlib.h>  // strtol
+#include <stdlib.h>  // strtoul
 #include <string.h>
 #include <strings.h>
 
@@ -259,7 +259,7 @@ static bool immediate(const char **pp, long *value) {
   }
   if (!isdigit(*p))
     return false;
-  long v = strtol(p, (char**)pp, 10);
+  unsigned long v = strtoul(p, (char**)pp, 10);
   *value = negative ? -v : v;
   return true;
 }
@@ -441,7 +441,7 @@ static const Token *fetch_token(ParseInfo *info) {
       base = 16;
     }
     char *q;
-    long v = strtol(p, &q, base);
+    unsigned long v = strtoul(p, &q, base);
     Token *token = new_token(TK_FIXNUM);
     token->fixnum = v;
     info->next = q;

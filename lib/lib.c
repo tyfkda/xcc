@@ -198,6 +198,37 @@ long strtol(const char *p, char **pp, int base) {
   return result;
 }
 
+unsigned long strtoul(const char *p, char **pp, int base) {
+  const char *orig = p;
+  if (*p == '+')
+    ++p;
+  char digimax = '0' + (base <= 10 ? base : 10);
+  char hexmax = 'a' - 10 + base;
+  unsigned long result = 0;
+  const char *op = p;
+  for (;; ++p) {
+    char c = *p;
+    int n;
+    if ('0' <= c && c < digimax)
+      n = c - '0';
+    else {
+      c = tolower(c);
+      if ('a' <= c && c < hexmax)
+        n = c - 'a' + 10;
+      else
+        break;
+    }
+    result = result * base + n;
+  }
+  if (p == op)
+    p = orig;
+
+  if (pp != 0)
+    *pp = (char*)p;
+
+  return result;
+}
+
 static FILE _stdin = {.fd = STDIN_FILENO};
 static FILE _stdout = {.fd = STDOUT_FILENO};
 static FILE _stderr = {.fd = STDERR_FILENO};
