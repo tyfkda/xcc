@@ -696,13 +696,13 @@ VReg *gen_expr(Expr *expr) {
       size_t value = 1;
       if (expr->type->kind == TY_PTR)
         value = type_size(expr->type->pa.ptrof);
-      int size = type_size(expr->type);
 
       VRegType *vtype = to_vtype(expr->type);
       Expr *sub = unwrap_group(expr->unary.sub);
-      if (sub->kind == EX_VAR) {
+      if (sub->kind == EX_VAR && !is_global_scope(sub->var.scope)) {
         const VarInfo *varinfo = scope_find(sub->var.scope, sub->var.name, NULL);
-        if (varinfo != NULL && !(varinfo->flag & (VF_STATIC | VF_EXTERN))) {
+        assert(varinfo != NULL);
+        if (!(varinfo->flag & (VF_STATIC | VF_EXTERN))) {
           VReg *num = new_const_vreg(value, vtype);
           VReg *result = new_ir_bop(expr->kind == EX_PREINC ? IR_ADD : IR_SUB,
                                     varinfo->local.reg, num, vtype);
@@ -713,7 +713,7 @@ VReg *gen_expr(Expr *expr) {
 
       VReg *lval = gen_lval(sub);
       new_ir_incdec(expr->kind == EX_PREINC ? IR_INC : IR_DEC,
-                    lval, size, value);
+                    lval, type_size(expr->type), value);
       VReg *result = new_ir_unary(IR_LOAD, lval, vtype);
       return result;
     }
@@ -724,13 +724,13 @@ VReg *gen_expr(Expr *expr) {
       size_t value = 1;
       if (expr->type->kind == TY_PTR)
         value = type_size(expr->type->pa.ptrof);
-      int size = type_size(expr->type);
 
       VRegType *vtype = to_vtype(expr->type);
       Expr *sub = unwrap_group(expr->unary.sub);
-      if (sub->kind == EX_VAR) {
+      if (sub->kind == EX_VAR && !is_global_scope(sub->var.scope)) {
         const VarInfo *varinfo = scope_find(sub->var.scope, sub->var.name, NULL);
-        if (varinfo != NULL && !(varinfo->flag & (VF_STATIC | VF_EXTERN))) {
+        assert(varinfo != NULL);
+        if (!(varinfo->flag & (VF_STATIC | VF_EXTERN))) {
           VReg *org_val = add_new_reg(sub->type, 0);
           new_ir_mov(org_val, varinfo->local.reg);
           VReg *num = new_const_vreg(value, vtype);
@@ -744,7 +744,7 @@ VReg *gen_expr(Expr *expr) {
       VReg *lval = gen_lval(expr->unary.sub);
       VReg *result = new_ir_unary(IR_LOAD, lval, vtype);
       new_ir_incdec(expr->kind == EX_POSTINC ? IR_INC : IR_DEC,
-                    lval, size, value);
+                    lval, type_size(expr->type), value);
       return result;
     }
 
