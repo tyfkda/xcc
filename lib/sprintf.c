@@ -184,12 +184,15 @@ vsnprintf(char *out, size_t n, const char *fmt_, va_list ap)
         unsigned int ux = x < 0 ? -x : x;
         o += snprintuint(out + o, n - o, ux, 10, kHexDigits, order, padding);
       }
-    } else if(c == 'x') {
-      o += snprintuint(out + o, n - o, va_arg(ap, int), 16, kHexDigits,
-                       order, padding);
-    } else if(c == 'X') {
-      o += snprintuint(out + o, n - o, va_arg(ap, int), 16, kUpperHexDigits,
-                       order, padding);
+    } else if(tolower(c) == 'x') {
+      const char *digits = c == 'x' ? kHexDigits : kUpperHexDigits;
+      if (bLong) {
+        long x = va_arg(ap, long);
+        o += snprintulong(out + o, n - o, x, 16, digits, order, padding);
+      } else {
+        int x = va_arg(ap, int);
+        o += snprintuint(out + o, n - o, x, 16, digits, order, padding);
+      }
     } else if(c == 'p') {
       o += snprintstr(out + o, n - o, "0x", 0, 0, 0);
       o += snprintulong(out + o, n - o, (uintptr_t)va_arg(ap, void*), 16, kHexDigits,
