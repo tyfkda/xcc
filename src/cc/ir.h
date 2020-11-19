@@ -203,8 +203,6 @@ BBContainer *new_func_blocks(void);
 void remove_unnecessary_bb(BBContainer *bbcon);
 void push_callee_save_regs(unsigned short used);
 void pop_callee_save_regs(unsigned short used);
-void push_caller_save_regs(unsigned short living);
-void pop_caller_save_regs(unsigned short living);
 
 void emit_bb_irs(BBContainer *bbcon);
 

@@ -10,6 +10,9 @@
 
 #define SPILLED_REG_NO  (PHYSICAL_REG_MAX)
 
+static void push_caller_save_regs(unsigned short living, int base);
+static void pop_caller_save_regs(unsigned short living);
+
 static VRegType vtVoidPtr = {.size = WORD_SIZE, .align = WORD_SIZE, .flag = 0};
 static VRegType vtBool    = {.size = 4, .align = 4, .flag = 0};
 
@@ -942,16 +945,22 @@ static void ir_out(IR *ir) {
 
   case IR_PRECALL:
     {
-      // Caller save.
-      push_caller_save_regs(ir->precall.living_pregs);
-
-      int align_stack = (stackpos + ir->precall.stack_args_size) & 15;
-      if (align_stack != 0) {
-        align_stack = 16 - align_stack;
-        SUB(IM(align_stack), RSP);
-        stackpos += align_stack;
+      // Make room for caller save.
+      int add = 0;
+      unsigned short living_pregs = ir->precall.living_pregs;
+      for (int i = 0; i < CALLER_SAVE_REG_COUNT; ++i) {
+        int ireg = kCallerSaveRegs[i];
+        if (living_pregs & (1 << ireg))
+          add += WORD_SIZE;
       }
+
+      int align_stack = (16 - (stackpos + add + ir->precall.stack_args_size)) & 15;
       ir->precall.stack_aligned = align_stack;
+      add += align_stack;
+
+      if (add > 0) {
+        SUB(IM(add), RSP); stackpos += add;
+      }
     }
     break;
 
@@ -965,10 +974,12 @@ static void ir_out(IR *ir) {
 
   case IR_CALL:
     {
-      static const char *kArgReg64s[] = {RDI, RSI, RDX, RCX, R8, R9};
+      int reg_args = MIN(ir->call.arg_count, MAX_REG_ARGS);
+
+      push_caller_save_regs(ir->call.precall->precall.living_pregs, reg_args * WORD_SIZE + ir->call.precall->precall.stack_args_size + ir->call.precall->precall.stack_aligned);
 
       // Pop register arguments.
-      int reg_args = MIN(ir->call.arg_count, MAX_REG_ARGS);
+      static const char *kArgReg64s[] = {RDI, RSI, RDX, RCX, R8, R9};
       for (int i = 0; i < reg_args; ++i) {
         POP(kArgReg64s[i]); POP_STACK_POS();
       }
@@ -1249,16 +1260,17 @@ void pop_callee_save_regs(unsigned short used) {
   }
 }
 
-void push_caller_save_regs(unsigned short living) {
-  for (int i = 0; i < CALLER_SAVE_REG_COUNT; ++i) {
-    int ireg = kCallerSaveRegs[i];
+static void push_caller_save_regs(unsigned short living, int base) {
+  for (int i = CALLER_SAVE_REG_COUNT; i > 0; ) {
+    int ireg = kCallerSaveRegs[--i];
     if (living & (1 << ireg)) {
-      PUSH(kReg64s[ireg]); PUSH_STACK_POS();
+      MOV(kReg64s[ireg], OFFSET_INDIRECT(base, RSP, NULL, 1));
+      base += WORD_SIZE;
     }
   }
 }
 
-void pop_caller_save_regs(unsigned short living) {
+static void pop_caller_save_regs(unsigned short living) {
   for (int i = CALLER_SAVE_REG_COUNT; --i >= 0;) {
     int ireg = kCallerSaveRegs[i];
     if (living & (1 << ireg)) {

@@ -168,6 +168,7 @@ try_direct '&()' 86 'void sub(int *p) {*p *= 2;} int main() {int x = 43; sub(&(x
 try 'pre-inc ()' 34 'int x = 33; return ++(x);'
 try 'post-dec ()' 44 'int x = 44; return (x)--;'
 try_direct 'return struct' 46 'typedef struct { int x; int y; } S; S func(void) { S s = {.x = 12, .y = 34}; return s; } int main(){ S s = func(); return s.x + s.y; }'
+try_direct 'modify arg' 32 'int sub(int x, int y) {return x+y;} int main() {int w=0, x=0, y=5; int z=sub(++x, y+=10); return x+y+z+w;}'
 
 # error cases
 echo ''
