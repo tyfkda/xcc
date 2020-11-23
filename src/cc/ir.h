@@ -208,8 +208,8 @@ void emit_bb_irs(BBContainer *bbcon);
 
 //
 
-#define PUSH_STACK_POS()  do { stackpos += 8; } while (0)
-#define POP_STACK_POS()   do { stackpos -= 8; } while (0)
+#define PUSH_STACK_POS()  do { stackpos += WORD_SIZE; } while (0)
+#define POP_STACK_POS()   do { stackpos -= WORD_SIZE; } while (0)
 
 extern int stackpos;
 
