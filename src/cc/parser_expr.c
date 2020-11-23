@@ -620,6 +620,10 @@ const Type *parse_raw_type(int *pflag) {
       is_unsigned = true;
       continue;
     }
+    if (match(TK_SIGNED)) {
+      is_unsigned = false;
+      continue;
+    }
     if (match(TK_CONST)) {
       flag |= VF_CONST;
       continue;
@@ -630,6 +634,10 @@ const Type *parse_raw_type(int *pflag) {
     }
     if (match(TK_EXTERN)) {
       flag |= VF_EXTERN;
+      continue;
+    }
+    if (match(TK_VOLATILE)) {
+      flag |= VF_VOLATILE;
       continue;
     }
     if ((tok = match(TK_LONG)) != NULL) {
