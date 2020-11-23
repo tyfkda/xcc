@@ -1380,8 +1380,13 @@ static Expr *parse_conditional(void) {
     if (type == NULL)
       parse_error(tok, "lhs and rhs must be same type");
 
-    tval = make_cast(type, tval->token, tval, false);
-    fval = make_cast(type, fval->token, fval, false);
+    if (type->kind == TY_VOID) {
+      assert(tval->type->kind == TY_VOID);
+      assert(fval->type->kind == TY_VOID);
+    } else {
+      tval = make_cast(type, tval->token, tval, false);
+      fval = make_cast(type, fval->token, fval, false);
+    }
     expr = new_expr_ternary(tok, expr, tval, fval, type);
   }
 }

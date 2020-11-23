@@ -303,18 +303,21 @@ static VReg *gen_ternary(Expr *expr) {
   BB *tbb = bb_split(curbb);
   BB *fbb = bb_split(tbb);
   BB *nbb = bb_split(fbb);
+  bool no_value = expr->type->kind == TY_VOID;
 
   VReg *result = add_new_reg(expr->type, 0);
   gen_cond_jmp(expr->ternary.cond, false, fbb);
 
   set_curbb(tbb);
   VReg *tval = gen_expr(expr->ternary.tval);
-  new_ir_mov(result, tval);
+  if (!no_value)
+    new_ir_mov(result, tval);
   new_ir_jmp(COND_ANY, nbb);
 
   set_curbb(fbb);
   VReg *fval = gen_expr(expr->ternary.fval);
-  new_ir_mov(result, fval);
+  if (!no_value)
+    new_ir_mov(result, fval);
 
   set_curbb(nbb);
   return result;
