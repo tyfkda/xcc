@@ -102,6 +102,7 @@ try_output 'write' 'hello' "write(1, \"hello\\\\n\", 6);"
 try_output 'char array' 123 "char s[16]; s[0] = '1'; s[1] = '2'; s[2] = '3'; s[3] = '\\\\n'; write(1, s, 4);"
 try_output 'string initializer' 'aBc' "char s[] = \"abc\\\\n\"; s[1] = 'B'; write(1, s, 4);"
 try_direct 'brace initializer' 34 'int main(){ int x = {34}; return x; }'
+try 'paren =' 98 'int x; (x) = 98; return x;'
 try_direct 'enum' 11 'enum Num { Zero, One, Two }; int main(){ return One + 10; }'
 try 'local enum' 23 'enum Num { Zero, One, Two }; return One + 22;'
 try_direct 'enum with trailing comma' 11 'enum Num { Zero, One, }; int main(){ return One + 10; }'
@@ -242,7 +243,6 @@ compile_error 'funparam extern' 'void main(extern int argc){}'
 compile_error 'enum and global' 'enum Foo { BAR }; int BAR; void main(){}'
 compile_error 'global and enum' 'int BAR; enum Foo { BAR }; void main(){}'
 compile_error 'dup enum elem' 'enum Foo { BAR, BAR }; void main(){}'
-compile_error 'paren =' 'void main(){ int x; (x) = 98; }'
 compile_error '+x =' 'void main(){ int x; +x = 45; }'
 compile_error 'compound literal =' 'struct Foo {int x;}; void main(){ struct Foo foo = {1}; (struct Foo){66} = foo; }'
 compile_error 'compound literal w/o brace' 'void main(){ ++(int)55; }'

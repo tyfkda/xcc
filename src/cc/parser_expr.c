@@ -29,12 +29,6 @@ void not_void(const Type *type) {
     parse_error(NULL, "`void' not allowed");
 }
 
-Expr *unwrap_group(Expr *expr) {
-  while (expr->kind == EX_GROUP)
-    expr = expr->unary.sub;
-  return expr;
-}
-
 bool same_type(const Type *type1, const Type *type2, Scope *scope) {
   for (;;) {
     if (type1->kind != type2->kind)
@@ -308,7 +302,6 @@ static void check_lval(const Token *tok, Expr *expr, const char *error) {
 }
 
 static void check_referable(const Token *tok, Expr *expr, const char *error) {
-  expr = unwrap_group(expr);
   if (expr->kind == EX_COMPLIT)
     return;
   check_lval(tok, expr, error);
@@ -971,9 +964,7 @@ static Expr *parse_prim(void) {
     } else {
       Expr *expr = parse_expr();
       consume(TK_RPAR, "No close paren");
-      if (is_const(expr))
-        return expr;
-      return new_expr_unary(EX_GROUP, expr->type, tok, expr);
+      return expr;
     }
   }
 

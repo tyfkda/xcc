@@ -170,9 +170,6 @@ void gen_cond_jmp(Expr *cond, bool tf, BB *bb) {
       set_curbb(bb2);
     }
     return;
-  case EX_GROUP:
-    gen_cond_jmp(cond->unary.sub, tf, bb);
-    return;
   default:
     break;
   }
@@ -211,8 +208,6 @@ static VReg *gen_cast(VReg *reg, const Type *dst_type) {
 }
 
 static VReg *gen_lval(Expr *expr) {
-  expr = unwrap_group(expr);
-
   switch (expr->kind) {
   case EX_VAR:
     {
@@ -541,7 +536,7 @@ VReg *gen_expr(Expr *expr) {
 
   case EX_REF:
     {
-      Expr *sub = unwrap_group(expr->unary.sub);
+      Expr *sub = expr->unary.sub;
       if (sub->kind == EX_VAR && !is_global_scope(sub->var.scope)) {
         const VarInfo *varinfo = scope_find(sub->var.scope, sub->var.name, NULL);
         assert(varinfo != NULL);
@@ -571,9 +566,6 @@ VReg *gen_expr(Expr *expr) {
         return reg;
       }
     }
-
-  case EX_GROUP:
-    return gen_expr(expr->unary.sub);
 
   case EX_MEMBER:
     {
@@ -701,7 +693,7 @@ VReg *gen_expr(Expr *expr) {
         value = type_size(expr->type->pa.ptrof);
 
       VRegType *vtype = to_vtype(expr->type);
-      Expr *sub = unwrap_group(expr->unary.sub);
+      Expr *sub = expr->unary.sub;
       if (sub->kind == EX_VAR && !is_global_scope(sub->var.scope)) {
         const VarInfo *varinfo = scope_find(sub->var.scope, sub->var.name, NULL);
         assert(varinfo != NULL);
@@ -729,7 +721,7 @@ VReg *gen_expr(Expr *expr) {
         value = type_size(expr->type->pa.ptrof);
 
       VRegType *vtype = to_vtype(expr->type);
-      Expr *sub = unwrap_group(expr->unary.sub);
+      Expr *sub = expr->unary.sub;
       if (sub->kind == EX_VAR && !is_global_scope(sub->var.scope)) {
         const VarInfo *varinfo = scope_find(sub->var.scope, sub->var.name, NULL);
         assert(varinfo != NULL);

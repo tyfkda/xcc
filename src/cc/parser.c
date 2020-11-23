@@ -324,7 +324,7 @@ static Initializer *check_global_initializer(const Type *type, Initializer *init
         parse_error(NULL, "initializer type error");
 
       Expr *value = init->single;
-      while (value->kind == EX_CAST || value->kind == EX_GROUP) {
+      while (value->kind == EX_CAST) {
         value = value->unary.sub;
       }
 
