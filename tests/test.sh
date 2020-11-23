@@ -5,7 +5,7 @@ XCC=${XCC:-../xcc}
 if [ "$(uname)" == 'Darwin' ]; then
   PROLOGUE=$(cat <<EOS
 extern void exit(int code);
-extern void write(int fd, const char *str, long len);
+extern long write(int fd, const char *str, long len);
 EOS
   )
 else
@@ -21,7 +21,7 @@ void exit(int code) {
   __asm("mov \$60, %eax");  // __NR_exit
   __asm("syscall");
 }
-void write(int fd, const char *str, long len) {
+long write(int fd, const char *str, long len) {
   __asm("mov \$1, %eax");  // __NR_write
   __asm("syscall");
 }
