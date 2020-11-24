@@ -1,6 +1,7 @@
 #include "parser.h"
 
 #include <assert.h>
+#include <limits.h>
 #include <stdbool.h>
 #include <stdlib.h>  // malloc
 #include <string.h>
@@ -217,12 +218,22 @@ Expr *make_cast(const Type *type, const Token *token, Expr *sub, bool is_explici
 
   if (same_type(type, sub->type, curscope))
     return sub;
-  //if (is_const(sub)) {
-  //  // Casting number types needs its value range info,
-  //  // so handlded in codegen.
-  //  sub->type = type;
-  //  return sub;
-  //}
+  if (is_const(sub) && is_fixnum(sub->type->kind) && is_fixnum(type->kind)) {
+    int bytes = type_size(type);
+    if (bytes < (int)type_size(sub->type)) {
+      int bits = bytes * CHAR_BIT;
+      uintptr_t mask = (-1UL) << bits;
+      Fixnum value = sub->fixnum;
+      if (!type->fixnum.is_unsigned &&  // signed
+          (value & (1UL << (bits - 1))))  // negative
+        value |= mask;
+      else
+        value &= ~mask;
+      sub->fixnum = value;
+    }
+    sub->type = type;
+    return sub;
+  }
 
   check_cast(type, sub->type, is_zero(sub), is_explicit, token);
 
@@ -1173,7 +1184,10 @@ static Expr *parse_cast_expr(void) {
       } else {
         Expr *sub = parse_cast_expr();
         check_cast(type, sub->type, is_zero(sub), true, token);
-        return new_expr_cast(type, token, sub);
+        if (is_const(sub) && type->kind != TY_VOID)
+          return make_cast(type, token, sub, true);
+        else
+          return sub->type->kind != TY_VOID ? new_expr_cast(type, token, sub) : sub;
       }
     }
     unget_token(lpar);
