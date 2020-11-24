@@ -641,7 +641,11 @@ VReg *gen_expr(Expr *expr) {
 #endif
         break;
       case TY_STRUCT:
-        new_ir_memcpy(dst, src, expr->type->struct_.info->size);
+        {
+          VReg *tmp = add_new_reg(&tyVoidPtr, 0);
+          new_ir_mov(tmp, src);
+          new_ir_memcpy(dst, tmp, expr->type->struct_.info->size);
+        }
         break;
       }
       return src;
