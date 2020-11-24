@@ -5,6 +5,12 @@
 
 #define EOF  (-1)
 
+enum {
+  SEEK_SET,  // 0
+  SEEK_CUR,  // 1
+  SEEK_END,  // 2
+};
+
 typedef struct FILE FILE;
 
 extern FILE *stdin;

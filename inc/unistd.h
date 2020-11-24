@@ -8,10 +8,6 @@
 #define STDOUT_FILENO  (1)
 #define STDERR_FILENO  (2)
 
-#define SEEK_SET  (0)
-#define SEEK_CUR  (1)
-#define SEEK_END  (2)
-
 void exit(int code);
 ssize_t write(int fd, const void *str, size_t len);
 int close(int fd);
