@@ -485,6 +485,8 @@ bool assemble_inst(Inst *inst, const ParseInfo *info, Code *code) {
                    0xc0, opr_regno(&inst->src.reg), 0xff);
     }
     break;
+  case INCB:
+  case INCW:
   case INCL:
   case INCQ:
     if (inst->src.type == NOOPERAND || inst->dst.type != NOOPERAND)
@@ -492,7 +494,7 @@ bool assemble_inst(Inst *inst, const ParseInfo *info, Code *code) {
 
     if (inst->src.type == INDIRECT &&
         inst->src.indirect.reg.no != RIP) {
-      enum RegSize size = inst->op + (REG32 - INCL);
+      enum RegSize size = inst->op + (REG8 - INCB);
       long offset = inst->src.indirect.offset->fixnum;
       p = put_rex_indirect(
           p, size,
@@ -509,6 +511,8 @@ bool assemble_inst(Inst *inst, const ParseInfo *info, Code *code) {
                    0xc8, opr_regno(&inst->src.reg), 0xff);
     }
     break;
+  case DECB:
+  case DECW:
   case DECL:
   case DECQ:
     if (inst->src.type == NOOPERAND)
@@ -516,7 +520,7 @@ bool assemble_inst(Inst *inst, const ParseInfo *info, Code *code) {
 
     if (inst->src.type == INDIRECT &&
         inst->src.indirect.reg.no != RIP) {
-      enum RegSize size = inst->op + (REG32 - DECL);
+      enum RegSize size = inst->op + (REG8 - DECB);
       long offset = inst->src.indirect.offset->fixnum;
       p = put_rex_indirect(
           p, size,
