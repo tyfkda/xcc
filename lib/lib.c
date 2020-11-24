@@ -284,6 +284,10 @@ int isdigit(int c) {
   return '0' <= c && c <= '9';
 }
 
+int isxdigit(int c) {
+  return ('0' <= c && c <= '9') || ('A' <= c && c <= 'F') || ('a' <= c && c <= 'f');
+}
+
 int isalpha(int c) {
   return ('A' <= c && c <= 'Z') || ('a' <= c && c <= 'z');
 }
@@ -299,6 +303,10 @@ int isspace(int c) {
 
 int tolower(int c) {
   return ('A' <= c && c <= 'Z') ? c + ('a' - 'A') : c;
+}
+
+int toupper(int c) {
+  return ('a' <= c && c <= 'z') ? c - ('a' - 'A') : c;
 }
 
 #if defined(__XV6)

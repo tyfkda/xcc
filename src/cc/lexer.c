@@ -390,7 +390,7 @@ static Token *read_num(const char **pp) {
       base = 16;
       p += 2;
       c = tolower(*p);
-      if (!(isdigit(c) || ('a' <= c && c <= 'f')))
+      if (!isxdigit(c))
         lex_error(p, "Hexadecimal expected");
     } else if (isdigit(c)) {
       base = 8;
