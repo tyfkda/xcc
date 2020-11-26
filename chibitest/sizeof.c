@@ -38,9 +38,9 @@ int main() {
 
   ASSERT(1, sizeof(char));
   ASSERT(1, sizeof(signed char));
-  ASSERT(1, sizeof(signed char signed));
+//  ASSERT(1, sizeof(signed char signed));
   ASSERT(1, sizeof(unsigned char));
-  ASSERT(1, sizeof(unsigned char unsigned));
+//  ASSERT(1, sizeof(unsigned char unsigned));
 
   ASSERT(2, sizeof(short));
   ASSERT(2, sizeof(int short));
@@ -53,10 +53,10 @@ int main() {
   ASSERT(4, sizeof(int));
   ASSERT(4, sizeof(signed int));
   ASSERT(4, sizeof(signed));
-  ASSERT(4, sizeof(signed signed));
+//  ASSERT(4, sizeof(signed signed));
   ASSERT(4, sizeof(unsigned int));
   ASSERT(4, sizeof(unsigned));
-  ASSERT(4, sizeof(unsigned unsigned));
+//  ASSERT(4, sizeof(unsigned unsigned));
 
   ASSERT(8, sizeof(long));
   ASSERT(8, sizeof(signed long));
@@ -87,16 +87,16 @@ int main() {
   ASSERT(4, sizeof(float));
   ASSERT(8, sizeof(double));
 
-  ASSERT(4, sizeof(1f+2));
+  ASSERT(4, sizeof(1.f+2));
   ASSERT(8, sizeof(1.0+2));
-  ASSERT(4, sizeof(1f-2));
+  ASSERT(4, sizeof(1.f-2));
   ASSERT(8, sizeof(1.0-2));
-  ASSERT(4, sizeof(1f*2));
+  ASSERT(4, sizeof(1.f*2));
   ASSERT(8, sizeof(1.0*2));
-  ASSERT(4, sizeof(1f/2));
+  ASSERT(4, sizeof(1.f/2));
   ASSERT(8, sizeof(1.0/2));
 
-  ASSERT(16, sizeof(long double));
+//  ASSERT(16, sizeof(long double));
 
   ASSERT(1, sizeof(main));
 

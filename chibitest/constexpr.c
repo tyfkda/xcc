@@ -1,4 +1,5 @@
 #include "test.h"
+#include <stdint.h>
 
 float g40 = 1.5;
 double g41 = 0.0 ? 55 : (0, 1 + 1 * 5.0 / 2 * (double)2 * (int)2.0);
@@ -34,9 +35,9 @@ int main() {
   ASSERT(15, ({ char x[(char)0xffffff0f]; sizeof(x); }));
   ASSERT(0x10f, ({ char x[(short)0xffff010f]; sizeof(x); }));
   ASSERT(4, ({ char x[(int)0xfffffffffff+5]; sizeof(x); }));
-  ASSERT(8, ({ char x[(int*)0+2]; sizeof(x); }));
-  ASSERT(12, ({ char x[(int*)16-1]; sizeof(x); }));
-  ASSERT(3, ({ char x[(int*)16-(int*)4]; sizeof(x); }));
+  ASSERT(8, ({ char x[(intptr_t)((int*)0+2)]; sizeof(x); }));
+  ASSERT(12, ({ char x[(intptr_t)((int*)16-1)]; sizeof(x); }));
+  ASSERT(3, ({ char x[(intptr_t)((int*)16-(int*)4)]; sizeof(x); }));
 
   ASSERT(4, ({ char x[(-1>>31)+5]; sizeof(x); }));
   ASSERT(255, ({ char x[(unsigned char)0xffffffff]; sizeof(x); }));

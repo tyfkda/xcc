@@ -22,14 +22,14 @@ static int common_local;
 
 int false_fn() { return 512; }
 int true_fn() { return 513; }
-int char_fn() { return (2<<8)+3; }
-int short_fn() { return (2<<16)+5; }
+char char_fn() { return (2<<8)+3; }
+short short_fn() { return (2<<16)+5; }
 
-int uchar_fn() { return (2<<10)-1-4; }
-int ushort_fn() { return (2<<20)-1-7; }
+unsigned char uchar_fn() { return (2<<10)-1-4; }
+unsigned short ushort_fn() { return (2<<20)-1-7; }
 
-int schar_fn() { return (2<<10)-1-4; }
-int sshort_fn() { return (2<<20)-1-7; }
+char schar_fn() { return (2<<10)-1-4; }
+short sshort_fn() { return (2<<20)-1-7; }
 
 int add_all(int n, ...) {
   va_list ap;
