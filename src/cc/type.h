@@ -85,6 +85,7 @@ extern const Type tyVoidPtr;
 #define tyBool  tyInt
 #define tySize  tyLong
 #ifndef __NO_FLONUM
+extern const Type tyFloat;
 extern const Type tyDouble;
 #endif
 

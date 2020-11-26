@@ -106,6 +106,8 @@ enum TokenKind {
   TK_ASM,
 
 #ifndef __NO_FLONUM
+  TK_FLOAT,
+  TK_FLOATLIT,   // float literal
   TK_DOUBLE,
   TK_DOUBLELIT,  // double literal
 #endif

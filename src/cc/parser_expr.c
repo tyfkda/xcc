@@ -818,6 +818,8 @@ const Type *parse_raw_type(int *pflag) {
 
       type = &tyVoid;
 #ifndef __NO_FLONUM
+    } else if (match(TK_FLOAT)) {
+      type = &tyFloat;
     } else if (match(TK_DOUBLE)) {
       type = &tyDouble;
 #endif
@@ -1113,6 +1115,9 @@ static Expr *parse_prim(void) {
     }
   }
 #ifndef __NO_FLONUM
+  if ((tok = match(TK_FLOATLIT)) != NULL) {
+    return new_expr_flolit(&tyFloat, tok, tok->flonum);
+  }
   if ((tok = match(TK_DOUBLELIT)) != NULL) {
     return new_expr_flolit(&tyDouble, tok, tok->flonum);
   }

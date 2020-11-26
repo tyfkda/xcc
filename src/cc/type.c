@@ -22,6 +22,7 @@ const Type tyEnum =          {.kind=TY_FIXNUM, .fixnum={.kind=FX_ENUM}};
 const Type tyVoid =          {.kind=TY_VOID};
 const Type tyVoidPtr =       {.kind=TY_PTR, .pa={.ptrof=&tyVoid}};
 #ifndef __NO_FLONUM
+const Type tyFloat =         {.kind=TY_FLONUM};  // TODO:
 const Type tyDouble =        {.kind=TY_FLONUM};
 #endif
 

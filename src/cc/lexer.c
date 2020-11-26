@@ -46,6 +46,7 @@ static const struct {
   {"typedef", TK_TYPEDEF},
   {"__asm", TK_ASM},
 #ifndef __NO_FLONUM
+  {"float", TK_FLOAT},
   {"double", TK_DOUBLE},
 #endif
 };
@@ -386,9 +387,16 @@ static const char *skip_whitespace_or_comment(const char *p) {
 #ifndef __NO_FLONUM
 static Token *read_flonum(const char **pp) {
   const char *start = *pp;
-  double val = strtod(start, (char**)pp);
-  Token *tok = alloc_token(TK_DOUBLELIT, start, *pp);
+  char *next;
+  double val = strtod(start, &next);
+  enum TokenKind tk = TK_DOUBLELIT;
+  if (tolower(*next) == 'f') {
+    tk = TK_FLOATLIT;
+    ++next;
+  }
+  Token *tok = alloc_token(tk, start, next);
   tok->flonum = val;
+  *pp = next;
   return tok;
 }
 #endif
