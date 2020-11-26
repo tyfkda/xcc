@@ -1,17 +1,12 @@
 #include "test.h"
 
-char *asm_fn1(void) {
-  asm("mov $50, %rax\n\t"
-      "mov %rbp, %rsp\n\t"
-      "pop %rbp\n\t"
-      "ret");
+#ifdef __x86_64__
+int asm_fn1(void) {
+  __asm("mov $50, %rax");
 }
 
-char *asm_fn2(void) {
-  asm inline volatile("mov $55, %rax\n\t"
-                      "mov %rbp, %rsp\n\t"
-                      "pop %rbp\n\t"
-                      "ret");
+int asm_fn2(void) {
+  __asm("mov $55, %rax");
 }
 
 int main() {
@@ -21,3 +16,6 @@ int main() {
   printf("OK\n");
   return 0;
 }
+#else
+int main() { return 0; }
+#endif

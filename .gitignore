@@ -3,6 +3,7 @@
 *.d
 *.o
 a.out
+a.s
 tmp*
 core
 ,*
