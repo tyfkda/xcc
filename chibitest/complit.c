@@ -21,7 +21,7 @@ int main() {
   ASSERT(2, ((int[]){0,1,2})[2]);
   ASSERT('a', ((struct {char a; int b;}){'a', 3}).a);
   ASSERT(3, ({ int x=3; (int){x}; }));
-  (int){3} = 5;
+//  (int){3} = 5;
 
   ASSERT(1, tree->val);
   ASSERT(2, tree->lhs->val);
