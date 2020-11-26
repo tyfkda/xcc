@@ -1,4 +1,5 @@
 #include "test.h"
+#include "alloca.h"
 
 void *fn(int x, void *p, int y) { return p; }
 
