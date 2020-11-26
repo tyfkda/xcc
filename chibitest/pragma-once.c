@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "test/pragma-once.c"
+#include "./pragma-once.c"
 
 int main() {
   printf("OK\n");
