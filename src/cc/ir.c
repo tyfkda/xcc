@@ -966,7 +966,12 @@ static void ir_out(IR *ir) {
 
   case IR_PUSHARG:
     if (ir->opr1->flag & VRF_CONST) {
-      PUSH(im(ir->opr1->fixnum)); PUSH_STACK_POS();
+      if (is_im32(ir->opr1->fixnum)) {
+        PUSH(im(ir->opr1->fixnum)); PUSH_STACK_POS();
+      } else {
+        MOV(im(ir->opr1->fixnum), RAX);  // TODO: Check.
+        PUSH(RAX); PUSH_STACK_POS();
+      }
     } else {
       PUSH(kReg64s[ir->opr1->phys]); PUSH_STACK_POS();
     }

@@ -174,6 +174,7 @@ try 'pre-inc ()' 34 'int x = 33; return ++(x);'
 try 'post-dec ()' 44 'int x = 44; return (x)--;'
 try_direct 'return struct' 46 'typedef struct { int x; int y; } S; S func(void) { S s = {.x = 12, .y = 34}; return s; } int main(){ S s = func(); return s.x + s.y; }'
 try_direct 'modify arg' 32 'int sub(int x, int y) {return x+y;} int main() {int w=0, x=0, y=5; int z=sub(++x, y+=10); return x+y+z+w;}'
+try_direct 'long immediate' 240 'int sub(unsigned long x){return x;} int main(){ return sub(0x123456789abcdef0); }'
 
 # error cases
 echo ''
