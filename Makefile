@@ -149,6 +149,7 @@ clean:
 		wcc wcc-ld cc.wasm a.wasm public release $(WCC_LIBS) $(WCC_OBJ_DIR) $(WCC_LIB_DIR)
 	@$(MAKE) -C libsrc clean
 	@$(MAKE) -C tests clean
+	rm -rf chibitest/*.exe
 
 # Run tests on RISC-V simulator.
 .PHONY: test-riscv64
@@ -346,3 +347,20 @@ $(1):	$$($(1)_OBJS)
 	$(CC) -o $$@ $(DEBUG_CFLAGS) $$^
 endef
 $(foreach D, $(DEBUG_EXES), $(eval $(call DEFINE_DEBUG_TARGET,$(D))))
+
+### chibicc
+
+CHIBITEST_SRCS=$(wildcard chibitest/*.c)
+CHIBITESTS=$(CHIBITEST_SRCS:.c=.exe)
+
+chibitest/%.exe: xcc chibitest/%.c
+	./xcc -Ichibitest -o$@ chibitest/$*.c chibitest/runtime/common.c
+
+.PHONY: chibitest
+chibitest: all $(CHIBITESTS)
+	for i in $(CHIBITESTS); do echo $$i; ./$$i || exit 1; echo; done
+	chibitest/driver.sh ./xcc
+
+.PHONY: clean-chibitest
+clean-chibitest: all $(CHIBITESTS)
+	rm chibitest/*.exe
