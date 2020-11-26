@@ -139,13 +139,16 @@ void define_struct(Scope *scope, const Name *name, StructInfo *sinfo) {
   table_put(scope->struct_table, name, sinfo);
 }
 
-const Type *find_typedef(Scope *scope, const Name *name) {
+const Type *find_typedef(Scope *scope, const Name *name, Scope **pscope) {
   for (; scope != NULL; scope = scope->parent) {
     if (scope->typedef_table == NULL)
       continue;
     const Type *type = table_get(scope->typedef_table, name);
-    if (type != NULL)
+    if (type != NULL) {
+      if (pscope != NULL)
+        *pscope = scope;
       return type;
+    }
   }
   return NULL;
 }

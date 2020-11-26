@@ -118,6 +118,7 @@ try_output_direct 'empty function' '' 'void foo(){} int main(){ foo(); return 0;
 try_direct 'Undeclared struct typedef' 8 'typedef struct FILE FILE; int main(){ return sizeof(FILE*); }'
 try_direct 'late declare struct' 42 'struct Foo *p; struct Foo {int x;}; int main(){ struct Foo foo; p = &foo; p->x = 42; return p->x; }'
 try 'scoped struct' 5 'int size; struct S {int x;}; { struct S {char y;}; size = sizeof(struct S); } return size + sizeof(struct S);'
+try 'scoped typedef' 5 'int size; typedef struct {int x;} S; { typedef struct {char y;} S; size = sizeof(S); } return size + sizeof(S);'
 try_direct 'typedef func-ptr' 84 'typedef int (*Func)(int); int twice(Func f, int x) { return f(f(x)); } int mul2(int x) { return x * 2; } int main(){ return twice(&mul2, 21); }'
 try_direct 'old-style func' 93 'int sub(); int main(){ return sub(31); } int sub(int x) { return x * 3; }'
 try_direct 'old-func-ptr' 81 'int twice(int(*f)(), int x) { return f(f(x)); } int sqr(int x) { return x * x; } int main(){ return twice(sqr, 3); }'

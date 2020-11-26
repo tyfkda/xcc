@@ -700,7 +700,7 @@ const Type *parse_raw_type(int *pflag) {
 
       type = parse_enum();
     } else if ((ident = match(TK_IDENT)) != NULL) {
-      type = find_typedef(curscope, ident->ident);
+      type = find_typedef(curscope, ident->ident, NULL);
       if (type == NULL) {
         unget_token(ident);
       } else {

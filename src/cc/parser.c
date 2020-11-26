@@ -770,10 +770,13 @@ static void parse_typedef(void) {
     ident = consume(TK_IDENT, "ident expected");
   }
   const Name *name = ident->ident;
-  const Type *conflict = find_typedef(curscope, name);
-  if (conflict != NULL) {
+  Scope *scope;
+  const Type *conflict = find_typedef(curscope, name, &scope);
+  if (conflict != NULL && scope == curscope) {
     if (!same_type(type, conflict, curscope))
       parse_error(ident, "Conflict typedef");
+  } else {
+    conflict = NULL;
   }
 
   if (conflict == NULL || (type->kind == TY_STRUCT && type->struct_.info != NULL))
