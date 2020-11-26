@@ -117,13 +117,16 @@ VarInfo *scope_add(Scope *scope, const Token *ident, const Type *type, int flag)
   return var_add(scope->vars, ident->ident, type, flag, ident);
 }
 
-StructInfo *find_struct(Scope *scope, const Name *name) {
+StructInfo *find_struct(Scope *scope, const Name *name, Scope **pscope) {
   for (; scope != NULL; scope = scope->parent) {
     if (scope->struct_table == NULL)
       continue;
     StructInfo *sinfo = table_get(scope->struct_table, name);
-    if (sinfo != NULL)
+    if (sinfo != NULL) {
+      if (pscope != NULL)
+        *pscope = scope;
       return sinfo;
+    }
   }
   return NULL;
 }

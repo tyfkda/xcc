@@ -76,7 +76,7 @@ bool same_type(const Type *type1, const Type *type2, Scope *scope) {
           return equal_name(type1->struct_.name, type2->struct_.name);
         }
         // Find type1 from name.
-        StructInfo *sinfo = find_struct(scope, type1->struct_.name);
+        StructInfo *sinfo = find_struct(scope, type1->struct_.name, NULL);
         if (sinfo == NULL)
           return false;
         return sinfo == type2->struct_.info;
@@ -184,7 +184,7 @@ VarInfo *str_to_char_array(const Type *type, Initializer *init) {
 void ensure_struct(Type *type, const Token *token) {
   assert(type->kind == TY_STRUCT);
   if (type->struct_.info == NULL) {
-    StructInfo *sinfo = find_struct(curscope, type->struct_.name);
+    StructInfo *sinfo = find_struct(curscope, type->struct_.name, NULL);
     if (sinfo == NULL)
       parse_error(token, "Accessing unknown struct(%.*s)'s member", type->struct_.name->bytes,
                   type->struct_.name->chars);
@@ -670,14 +670,15 @@ const Type *parse_raw_type(int *pflag) {
       if (match(TK_LBRACE)) {  // Definition
         sinfo = parse_struct(is_union);
         if (name != NULL) {
-          StructInfo *exist = find_struct(curscope, name);
-          if (exist != NULL)
+          Scope *scope;
+          StructInfo *exist = find_struct(curscope, name, &scope);
+          if (exist != NULL && scope == curscope)
             parse_error(ident, "`%.*s' already defined", name->bytes, name->chars);
           define_struct(curscope, name, sinfo);
         }
       } else {
         if (name != NULL) {
-          sinfo = find_struct(curscope, name);
+          sinfo = find_struct(curscope, name, NULL);
           if (sinfo != NULL) {
             if (sinfo->is_union != is_union)
               parse_error(tok, "Wrong tag for `%.*s'", name->bytes, name->chars);

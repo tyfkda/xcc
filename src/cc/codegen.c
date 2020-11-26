@@ -114,7 +114,8 @@ static void gen_asm(Stmt *stmt) {
 }
 
 void gen_stmts(Vector *stmts) {
-  assert(stmts != NULL);
+  if (stmts == NULL)
+    return;
 
   for (int i = 0, len = stmts->len; i < len; ++i) {
     Stmt *stmt = stmts->data[i];
@@ -426,8 +427,7 @@ static void gen_vardecl(Vector *decls, Vector *inits) {
       gen_clear_local_var(varinfo);
     }
   }
-  if (inits != NULL)
-    gen_stmts(inits);
+  gen_stmts(inits);
 }
 
 static void gen_expr_stmt(Expr *expr) {

@@ -745,7 +745,7 @@ static Stmt *parse_vardecl(void) {
     } else {
       parse_error(NULL, "Ident expected");
     }
-    return parse_vardecl();
+    return new_stmt_block(NULL, NULL, NULL);  // Empty statement.
   }
 
   Vector *decls = parse_vardecl_cont(rawType, type, flag, ident);
