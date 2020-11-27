@@ -61,19 +61,6 @@ static BB *push_break_bb(BB *parent_bb, BB **save) {
 
 static void alloc_variable_registers(Function *func) {
   assert(func->type->kind == TY_FUNC);
-  const Type *rettype = func->type->func.ret;
-  const Name *retval_name = NULL;
-  int param_index_offset = 0;
-  if (is_stack_param(rettype)) {
-    // Insert vreg for return value pointer into top of the function scope.
-    retval_name = alloc_name(RET_VAR_NAME, NULL, false);
-    const Type *retptrtype = ptrof(rettype);
-    Scope *top_scope = func->scopes->data[0];
-    if (top_scope->vars == NULL)
-      top_scope->vars = new_vector();
-    var_add(top_scope->vars, retval_name, retptrtype, 0, NULL);
-    ++param_index_offset;
-  }
 
   for (int i = 0; i < func->scopes->len; ++i) {
     Scope *scope = func->scopes->data[i];
@@ -90,20 +77,36 @@ static void alloc_variable_registers(Function *func) {
       }
 
       VReg *vreg = add_new_reg(varinfo->type, VRF_LOCAL);
-      if (i == 0) {
-        if (param_index_offset > 0 && equal_name(varinfo->name, retval_name)) {
-          vreg->flag |= VRF_PARAM;
-          vreg->param_index = 0;
-          func->retval = vreg;
-        } else if (func->type->func.params != NULL) {
-          int param_index = var_find(func->type->func.params, varinfo->name);
-          if (param_index >= 0) {
-            vreg->flag |= VRF_PARAM;
-            vreg->param_index = param_index + param_index_offset;
-          }
-        }
-      }
       varinfo->local.reg = vreg;
+    }
+  }
+
+  // Handle if return value is on the stack.
+  const Type *rettype = func->type->func.ret;
+  const Name *retval_name = NULL;
+  int param_index_offset = 0;
+  if (is_stack_param(rettype)) {
+    // Insert vreg for return value pointer into top of the function scope.
+    retval_name = alloc_name(RET_VAR_NAME, NULL, false);
+    const Type *retptrtype = ptrof(rettype);
+    Scope *top_scope = func->scopes->data[0];
+    if (top_scope->vars == NULL)
+      top_scope->vars = new_vector();
+    VarInfo *varinfo = var_add(top_scope->vars, retval_name, retptrtype, 0, NULL);
+    VReg *vreg = add_new_reg(varinfo->type, VRF_LOCAL | VRF_PARAM);
+    vreg->param_index = 0;
+    varinfo->local.reg = vreg;
+    func->retval = vreg;
+    ++param_index_offset;
+  }
+
+  // Add flag to parameters.
+  if (func->type->func.params != NULL) {
+    for (int j = 0; j < func->type->func.params->len; ++j) {
+      VarInfo *varinfo = func->type->func.params->data[j];
+      VReg *vreg = varinfo->local.reg;
+      vreg->flag |= VRF_PARAM;
+      vreg->param_index = j + param_index_offset;
     }
   }
 }
