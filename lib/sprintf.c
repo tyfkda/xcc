@@ -194,9 +194,21 @@ vsnprintf(char *out, size_t n, const char *fmt_, va_list ap)
         o += snprintuint(out + o, n - o, x, 16, digits, order, padding);
       }
     } else if(c == 'p') {
-      o += snprintstr(out + o, n - o, "0x", 0, 0, 0);
-      o += snprintulong(out + o, n - o, (uintptr_t)va_arg(ap, void*), 16, kHexDigits,
-                        order - 2, '0');
+      void *ptr = va_arg(ap, void*);
+      order -= 2;
+      if (order < 0)
+        order = 0;
+      if (order == 0 || padding != ' ') {
+        o += snprintstr(out + o, n - o, "0x", 0, 0, 0);
+        o += snprintulong(out + o, n - o, (uintptr_t)ptr, 16, kHexDigits, order, padding);
+      } else {
+        char buf[32];
+        int oo = snprintulong(buf, sizeof(buf), (uintptr_t)ptr, 16, kHexDigits, 0, padding);
+        if (order > oo)
+          o = putpadding(out, o, n, order - oo, padding);
+        o += snprintstr(out + o, n - o, "0x", 0, 0, 0);
+        o += snprintstr(out + o, n - o, buf, 0, 0, 0);
+      }
     } else if(c == 's'){
       // ("%5", "foo")         = "  foo"
       // ("%-5", "foo")        = "foo  "
