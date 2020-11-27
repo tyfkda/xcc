@@ -67,9 +67,9 @@ static void dump_ir(FILE *fp, IR *ir) {
   case IR_PUSHARG: fprintf(fp, "\tPUSHARG\t"); dump_vreg(fp, ir->opr1, ir->size); fprintf(fp, "\n"); break;
   case IR_CALL:
     if (ir->call.label != NULL) {
-      fprintf(fp, "\tCALL\t"); dump_vreg(fp, ir->dst, ir->size); fprintf(fp, " = call %.*s(args=#%d)\n", ir->call.label->bytes, ir->call.label->chars, ir->call.arg_count);
+      fprintf(fp, "\tCALL\t"); dump_vreg(fp, ir->dst, ir->size); fprintf(fp, " = call %.*s(args=#%d)\n", ir->call.label->bytes, ir->call.label->chars, ir->call.reg_arg_count);
     } else {
-      fprintf(fp, "\tCALL\t"); dump_vreg(fp, ir->dst, ir->size); fprintf(fp, " = *"); dump_vreg(fp, ir->opr1, WORD_SIZE); fprintf(fp, "(args=#%d)\n", ir->call.arg_count);
+      fprintf(fp, "\tCALL\t"); dump_vreg(fp, ir->dst, ir->size); fprintf(fp, " = *"); dump_vreg(fp, ir->opr1, WORD_SIZE); fprintf(fp, "(args=#%d)\n", ir->call.reg_arg_count);
     }
     break;
   case IR_RESULT: fprintf(fp, "\tRESULT\t"); dump_vreg(fp, ir->opr1, ir->size); fprintf(fp, "\n"); break;

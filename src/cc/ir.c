@@ -341,14 +341,14 @@ IR *new_ir_precall(int arg_count, int stack_args_size) {
   return ir;
 }
 
-VReg *new_ir_call(const Name *label, bool global, VReg *freg, int arg_count,
+VReg *new_ir_call(const Name *label, bool global, VReg *freg, int reg_arg_count,
                   const VRegType *result_type, IR *precall) {
   IR *ir = new_ir(IR_CALL);
   ir->call.label = label;
   ir->call.global = global;
   ir->opr1 = freg;
   ir->call.precall = precall;
-  ir->call.arg_count = arg_count;
+  ir->call.reg_arg_count = reg_arg_count;
   ir->size = result_type->size;
   return ir->dst = reg_alloc_spawn(curra, result_type, 0);
 }
@@ -979,8 +979,7 @@ static void ir_out(IR *ir) {
 
   case IR_CALL:
     {
-      int reg_args = MIN(ir->call.arg_count, MAX_REG_ARGS);
-
+      int reg_args = ir->call.reg_arg_count;
       push_caller_save_regs(ir->call.precall->precall.living_pregs, reg_args * WORD_SIZE + ir->call.precall->precall.stack_args_size + ir->call.precall->precall.stack_aligned);
 
       // Pop register arguments.

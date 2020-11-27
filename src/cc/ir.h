@@ -135,7 +135,7 @@ typedef struct IR {
     struct {
       const Name *label;
       struct IR *precall;
-      int arg_count;
+      int reg_arg_count;
       bool global;
     } call;
     struct {
@@ -160,7 +160,7 @@ VReg *new_ir_cond(enum ConditionKind cond);
 void new_ir_jmp(enum ConditionKind cond, BB *bb);
 IR *new_ir_precall(int arg_count, int stack_args_size);
 void new_ir_pusharg(VReg *vreg, const VRegType *vtype);
-VReg *new_ir_call(const Name *label, bool global, VReg *freg, int arg_count, const VRegType *result_type, IR *precall);
+VReg *new_ir_call(const Name *label, bool global, VReg *freg, int reg_arg_count, const VRegType *result_type, IR *precall);
 void new_ir_result(VReg *reg);
 void new_ir_addsp(int value);
 VReg *new_ir_cast(VReg *vreg, const VRegType *dsttype);
