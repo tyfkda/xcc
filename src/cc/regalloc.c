@@ -385,9 +385,38 @@ static void detect_living_registers(BBContainer *bbcon, LiveInterval **sorted_in
 }
 
 void prepare_register_allocation(Function *func) {
-  const int DEFAULT_OFFSET = WORD_SIZE * 2;  // Return address, saved base pointer.
-  int reg_param_index = 0;
-  int stack_argument_offset = 0;
+  // Handle function parameters first.
+  if (func->type->func.params != NULL) {
+    const int DEFAULT_OFFSET = WORD_SIZE * 2;  // Return address, saved base pointer.
+    Scope *scope = (Scope*)func->scopes->data[0];
+    assert(scope != NULL);
+    int reg_param_index = 0;
+    int offset = DEFAULT_OFFSET;
+    for (int j = 0; j < func->type->func.params->len; ++j) {
+      VarInfo *varinfo = func->type->func.params->data[j];
+      VReg *vreg = varinfo->local.reg;
+      // Currently, all parameters are force spilled.
+      spill_vreg(func->ra, vreg);
+      // stack parameters
+      if (is_stack_param(varinfo->type)) {
+        vreg->offset = offset = ALIGN(offset, align_size(varinfo->type));
+        offset += type_size(varinfo->type);
+        continue;
+      }
+
+      if (func->type->func.vaargs) {  // Variadic function parameters.
+        vreg->offset = (reg_param_index - MAX_REG_ARGS) * WORD_SIZE;
+      }
+      ++reg_param_index;
+
+      if (vreg->param_index >= MAX_REG_ARGS) {
+        // Function argument passed through the stack.
+        vreg->offset = offset;
+        offset += WORD_SIZE;
+      }
+    }
+  }
+
   for (int i = 0; i < func->scopes->len; ++i) {
     Scope *scope = (Scope*)func->scopes->data[i];
     if (scope->vars == NULL)
@@ -398,26 +427,12 @@ void prepare_register_allocation(Function *func) {
       if (varinfo->flag & (VF_STATIC | VF_EXTERN | VF_ENUM_MEMBER))
         continue;
       VReg *vreg = varinfo->local.reg;
-      if (vreg == NULL)
+      if (vreg == NULL || vreg->flag & VRF_PARAM)
         continue;
 
       bool spill = false;
       if (vreg->flag & VRF_REF)
         spill = true;
-      if (vreg->flag & VRF_PARAM) {
-        spill = true;
-        // stack parameters
-        if (is_stack_param(varinfo->type)) {
-          int offset = ALIGN(stack_argument_offset, align_size(varinfo->type));
-          vreg->offset = offset + DEFAULT_OFFSET;
-          stack_argument_offset = offset + type_size(varinfo->type);
-        } else {
-          if (func->type->func.vaargs) {  // Variadic function parameters.
-            vreg->offset = (reg_param_index - MAX_REG_ARGS) * WORD_SIZE;
-          }
-          ++reg_param_index;
-        }
-      }
 
       switch (varinfo->type->kind) {
       case TY_ARRAY:
@@ -427,11 +442,6 @@ void prepare_register_allocation(Function *func) {
         break;
       default:
         break;
-      }
-      if (i == 0 && vreg->param_index >= MAX_REG_ARGS) {
-        // Function argument passed through the stack.
-        spill = true;
-        vreg->offset = (vreg->param_index - MAX_REG_ARGS + 2) * WORD_SIZE;
       }
 
       if (spill)
