@@ -314,20 +314,16 @@ PpResult parse_expr(void) {
 }
 
 static Token *match2(enum TokenKind kind, Stream *stream) {
-  Token *tok;
-  for (;;) {
-    tok = match(kind);
-    if (tok == NULL || tok->kind != TK_EOF || stream == NULL)
-      return tok;
-
+  while (match(TK_EOF)) {
     char *line = NULL;
     size_t capa = 0;
     ssize_t len = getline_(&line, &capa, stream->fp, 0);
     if (len == EOF)
-      return tok;  // EOF
+      return NULL;
     ++stream->lineno;
     set_source_string(line, stream->filename, stream->lineno);
   }
+  return match(kind);
 }
 
 Vector *parse_funargs(Stream *stream) {
