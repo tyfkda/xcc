@@ -1,5 +1,7 @@
 #!/bin/bash
 
+set -o pipefail
+
 CPP=${CPP:-../cpp}
 
 try() {
@@ -9,7 +11,13 @@ try() {
 
   echo -n "$title => "
 
-  local actual=$(echo -e "$input" | $CPP | tr -d '\n') || exit 1
+  local actual
+  actual=$(echo -e "$input" | $CPP | tr -d '\n')
+  local exitcode=$?
+  if [ $exitcode -ne 0 ]; then
+    echo "NG: CPP failed"
+    exit 1
+  fi
 
   if [ "$actual" = "$expected" ]; then
     echo "OK"
@@ -28,7 +36,7 @@ compile_error() {
   echo -e "$input" | $CPP
   local result="$?"
 
-  if [ "$result" = "0" ]; then
+  if [ $result -eq 0 ]; then
     echo "NG: Compile error expected, but succeeded"
     exit 1
   fi
