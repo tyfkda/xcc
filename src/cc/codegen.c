@@ -19,7 +19,7 @@
 #include "parser.h"  // curscope
 
 const int FRAME_ALIGN = 8;
-const int STACK_PARAM_BASE_OFFSET = (2 - MAX_REG_ARGS) * 8;
+const int STACK_PARAM_BASE_OFFSET = (2 - MAX_REG_ARGS) * WORD_SIZE;
 
 const char RET_VAR_NAME[] = ".ret";
 

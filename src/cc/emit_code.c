@@ -2,6 +2,7 @@
 
 #include <assert.h>
 #include <inttypes.h>  // PRIdPTR
+#include <limits.h>  // CHAR_BIT
 #include <stdlib.h>
 #include <string.h>
 
@@ -62,7 +63,7 @@ static void construct_initial_value(unsigned char *buf, const Type *type, const 
 
       int size = type_size(type);
       for (int i = 0; i < size; ++i)
-        buf[i] = v >> (i * 8);  // Little endian
+        buf[i] = v >> (i * CHAR_BIT);  // Little endian
 
       switch (type->fixnum.kind) {
       case FX_CHAR:  _BYTE(NUM(v)); break;
@@ -107,7 +108,7 @@ static void construct_initial_value(unsigned char *buf, const Type *type, const 
       } else if (is_const(value) && value->kind == EX_FIXNUM) {
         intptr_t x = value->fixnum;
         for (int i = 0; i < WORD_SIZE; ++i)
-          buf[i] = x >> (i * 8);  // Little endian
+          buf[i] = x >> (i * CHAR_BIT);  // Little endian
 
         _QUAD(NUM(x));
       } else {
