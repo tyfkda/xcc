@@ -524,9 +524,6 @@ void prepare_register_allocation(Function *func) {
       switch (varinfo->type->kind) {
       case TY_ARRAY:
       case TY_STRUCT:
-#ifndef __NO_FLONUM
-      case TY_FLONUM:
-#endif
         // Make non-primitive variable spilled.
         spill = true;
         break;
