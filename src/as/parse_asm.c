@@ -92,6 +92,18 @@ static const char *kOpTable[] = {
 
   "int",
   "syscall",
+
+#ifndef __NO_FLONUM
+  "movsd",
+  "addsd",
+  "subsd",
+  "mulsd",
+  "divsd",
+  "ucomisd",
+  "cvtsi2sd",
+  "cvttsd2si",
+  "sqrtsd",
+#endif
 };
 
 static const struct {
@@ -173,6 +185,13 @@ static const struct {
   {"rip", RIP},
 };
 
+#ifndef __NO_FLONUM
+static const char kXmmRegisters[][6] = {
+  "xmm0", "xmm1", "xmm2", "xmm3", "xmm4", "xmm5", "xmm6", "xmm7",
+  "xmm8", "xmm9", "xmm10", "xmm11", "xmm12", "xmm13", "xmm14", "xmm15",
+};
+#endif
+
 static const char *kDirectiveTable[] = {
   "ascii",
   "section",
@@ -186,6 +205,9 @@ static const char *kDirectiveTable[] = {
   "comm",
   "globl",
   "extern",
+#ifndef __NO_FLONUM
+  "double",
+#endif
 };
 
 bool err;
@@ -216,7 +238,7 @@ static int find_match_index(const char **pp, const char **table, size_t count) {
   const char *p = *pp;
   const char *start = p;
 
-  while (isalpha(*p))
+  while (isalnum(*p))
     ++p;
   if (*p == '\0' || isspace(*p)) {
     size_t n = p - start;
@@ -253,6 +275,26 @@ static enum RegType find_register(const char **pp) {
   }
   return NOREG;
 }
+
+#ifndef __NO_FLONUM
+static enum RegXmmType find_xmm_register(const char **pp) {
+  const char *p = *pp;
+  const char *q;
+  for (q = p; isalnum(*q); ++q)
+    ;
+  size_t l = q - p;
+
+  for (int i = 0, len = sizeof(kXmmRegisters) / sizeof(*kXmmRegisters); i < len; ++i) {
+    const char *name = kXmmRegisters[i];
+    size_t n = strlen(name);
+    if (l == n & strncmp(p, name, n) == 0) {
+      *pp = p + n;
+      return i + XMM0;
+    }
+  }
+  return NOREGXMM;
+}
+#endif
 
 static bool immediate(const char **pp, long *value) {
   const char *p = *pp;
@@ -304,6 +346,17 @@ static const Name *parse_section_name(ParseInfo *info) {
 }
 
 static enum RegType parse_direct_register(ParseInfo *info, Operand *operand) {
+#ifndef __NO_FLONUM
+  {
+    enum RegXmmType regxmm = find_xmm_register(&info->p);
+    if (regxmm != NOREGXMM) {
+      operand->type = REG_XMM;
+      operand->regxmm = regxmm;
+      return true;
+    }
+  }
+#endif
+
   enum RegType reg = find_register(&info->p);
   enum RegSize size;
   int no;
@@ -408,6 +461,9 @@ enum TokenKind {
   TK_SUB = '-',
   TK_MUL = '*',
   TK_DIV = '/',
+#ifndef __NO_FLONUM
+  TK_FLONUM,
+#endif
 };
 
 typedef struct Token {
@@ -415,6 +471,9 @@ typedef struct Token {
   union {
     const Name *label;
     long fixnum;
+#ifndef __NO_FLONUM
+    double flonum;
+#endif
   };
 } Token;
 
@@ -431,6 +490,18 @@ static bool ishexdigit(int c) {
   return 'a' <= c && c <= 'f';
 }
 
+#ifndef __NO_FLONUM
+static const Token *read_flonum(ParseInfo *info) {
+  const char *p = info->p;
+  char *q;
+  double f = strtod(p, &q);
+  Token *token = new_token(TK_FLONUM);
+  token->flonum = f;
+  info->next = q;
+  return token;
+}
+#endif
+
 static const Token *fetch_token(ParseInfo *info) {
   if (info->token != NULL)
     return info->token;
@@ -446,10 +517,21 @@ static const Token *fetch_token(ParseInfo *info) {
     }
     char *q;
     unsigned long v = strtoul(p, &q, base);
+#ifndef __NO_FLONUM
+    if (*q == '.' || tolower(*q)== 'e') {
+      info->p = p;
+      return read_flonum(info);
+    }
+#endif
     Token *token = new_token(TK_FIXNUM);
     token->fixnum = v;
     info->next = q;
     return token;
+#ifndef __NO_FLONUM
+  } else if (c == '.' && isdigit(p[1])) {
+    info->p = p;
+    return read_flonum(info);
+#endif
   } else if (is_label_first_chr(c)) {
     while (c = *++p, is_label_chr(c))
       ;
@@ -490,6 +572,11 @@ static Expr *prim(ParseInfo *info) {
   } else if ((tok = match(info, TK_FIXNUM)) != NULL) {
     expr = new_expr(EX_FIXNUM);
     expr->fixnum = tok->fixnum;
+#ifndef __NO_FLONUM
+  } else if ((tok = match(info, TK_FLONUM)) != NULL) {
+    expr = new_expr(EX_FLONUM);
+    expr->flonum = tok->flonum;
+#endif
   }
   return expr;
 }
@@ -502,6 +589,9 @@ static Expr *unary(ParseInfo *info) {
       return NULL;
     switch (expr->kind) {
     case EX_FIXNUM:
+#ifndef __NO_FLONUM
+    case EX_FLONUM:
+#endif
       return expr;
     default:
       {
@@ -520,6 +610,11 @@ static Expr *unary(ParseInfo *info) {
     case EX_FIXNUM:
       expr->fixnum = -expr->fixnum;
       return expr;
+#ifndef __NO_FLONUM
+    case EX_FLONUM:
+      expr->flonum = -expr->flonum;
+      return expr;
+#endif
     default:
       {
         Expr *op = new_expr(EX_NEG);
@@ -809,6 +904,9 @@ void handle_directive(ParseInfo *info, enum DirectiveType dir, Vector **section_
         break;
       }
 
+#ifndef __NO_FLONUM
+      assert(expr->kind != EX_FLONUM);
+#endif
       if (expr->kind == EX_FIXNUM) {
         // TODO: Target endian.
         long value = expr->fixnum;
@@ -822,6 +920,32 @@ void handle_directive(ParseInfo *info, enum DirectiveType dir, Vector **section_
       }
     }
     break;
+
+#ifndef __NO_FLONUM
+  case DT_DOUBLE:
+    {
+      Expr *expr = parse_expr(info);
+      if (expr == NULL) {
+        parse_error(info, "expression expected");
+        break;
+      }
+
+      double value;
+      switch (expr->kind) {
+      case EX_FIXNUM:  value = expr->fixnum; break;
+      case EX_FLONUM:  value = expr->flonum; break;
+      default:
+        assert(false);
+        value = -1;
+        break;
+      }
+      int size = sizeof(double);
+      unsigned char *buf = malloc(size);
+      memcpy(buf, (void*)&value, size);
+      vec_push(irs, new_ir_data(buf, size));
+    }
+    break;
+#endif
 
   case DT_GLOBL:
     {

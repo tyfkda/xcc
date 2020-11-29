@@ -15,10 +15,16 @@
 static void dump_vreg(FILE *fp, VReg *vreg, int size) {
   assert(vreg != NULL);
   static char *kSize[] = {"0", "b", "w", "3", "d", "5", "6", "7", ""};
-  if (vreg->flag & VRF_CONST)
+  if (vreg->flag & VRF_CONST) {
     fprintf(fp, "(%" PRIdPTR ")", vreg->fixnum);
-  else
-    fprintf(fp, "R%d%s<v%d>", vreg->phys, kSize[size], vreg->virt);
+  } else {
+    char regtype = 'R';
+#ifndef __NO_FLONUM
+    if (vreg->vtype->flag & VRTF_FLONUM)
+      regtype = 'F';
+#endif
+    fprintf(fp, "%c%d%s<v%d>", regtype, vreg->phys, kSize[size], vreg->virt);
+  }
 }
 
 static void dump_ir(FILE *fp, IR *ir) {
@@ -120,7 +126,14 @@ static void dump_func_ir(Function *func) {
     VReg *vreg = ra->vregs->data[li->virt];
     switch (li->state) {
     case LI_NORMAL:
-      fprintf(fp, "  V%3d (flag=%x): live %3d - %3d, => R%3d\n", li->virt, vreg->flag, li->start, li->end, li->phys);
+      {
+        char regtype = 'R';
+#ifndef __NO_FLONUM
+        if (vreg->vtype->flag & VRTF_FLONUM)
+          regtype = 'F';
+#endif
+        fprintf(fp, "  V%3d (flag=%x): live %3d - %3d, => %c%3d\n", li->virt, vreg->flag, li->start, li->end, regtype, li->phys);
+      }
       break;
     case LI_SPILL:
       fprintf(fp, "  V%3d (flag=%x): live %3d - %3d (spilled, offset=%d)\n", li->virt, vreg->flag, li->start, li->end, vreg->offset);

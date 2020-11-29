@@ -16,9 +16,17 @@ typedef struct Vector Vector;
 
 #define PHYSICAL_REG_MAX  (7 - 1)
 
+#ifndef __NO_FLONUM
+#define MAX_FREG_ARGS  (6)
+#define PHYSICAL_FREG_MAX  (7 - 1)
+#endif
+
 // Virtual register
 
 #define VRTF_UNSIGNED  (1 << 0)
+#ifndef __NO_FLONUM
+#define VRTF_FLONUM    (1 << 1)
+#endif
 
 typedef struct VRegType {
   int size;
@@ -130,14 +138,18 @@ typedef struct IR {
       int arg_count;
       int stack_args_size;
       int stack_aligned;
-      unsigned short living_pregs;
+      unsigned int living_pregs;
     } precall;
     struct {
       const Name *label;
       struct IR *precall;
       int reg_arg_count;
       bool global;
+      unsigned int arg_type_bits;
     } call;
+    struct {
+      int flag;  // VRTF_FLOAT
+    } spill;
     struct {
       const char *str;
     } asm_;
@@ -160,7 +172,7 @@ VReg *new_ir_cond(enum ConditionKind cond);
 void new_ir_jmp(enum ConditionKind cond, BB *bb);
 IR *new_ir_precall(int arg_count, int stack_args_size);
 void new_ir_pusharg(VReg *vreg, const VRegType *vtype);
-VReg *new_ir_call(const Name *label, bool global, VReg *freg, int reg_arg_count, const VRegType *result_type, IR *precall);
+VReg *new_ir_call(const Name *label, bool global, VReg *freg, int reg_arg_count, const VRegType *result_type, IR *precall, unsigned int arg_type_bits);
 void new_ir_result(VReg *reg);
 void new_ir_addsp(int value);
 VReg *new_ir_cast(VReg *vreg, const VRegType *dsttype);
@@ -168,8 +180,8 @@ void new_ir_memcpy(VReg *dst, VReg *src, int size);
 void new_ir_clear(VReg *reg, size_t size);
 void new_ir_asm(const char *asm_);
 
-IR *new_ir_load_spilled(VReg *reg, int offset, int size);
-IR *new_ir_store_spilled(VReg *reg, int offset, int size);
+IR *new_ir_load_spilled(VReg *reg, int offset, int size, int flag);
+IR *new_ir_store_spilled(VReg *reg, int offset, int size, int flag);
 
 // Register allocator
 

@@ -21,6 +21,10 @@ const Type tyUnsignedLLong = {.kind=TY_FIXNUM, .fixnum={.kind=FX_LLONG, .is_unsi
 const Type tyEnum =          {.kind=TY_FIXNUM, .fixnum={.kind=FX_ENUM}};
 const Type tyVoid =          {.kind=TY_VOID};
 const Type tyVoidPtr =       {.kind=TY_PTR, .pa={.ptrof=&tyVoid}};
+#ifndef __NO_FLONUM
+const Type tyFloat =         {.kind=TY_FLONUM};  // TODO:
+const Type tyDouble =        {.kind=TY_FLONUM};
+#endif
 
 size_t num_size_table[]  = {1, 2, 4, 8, 8, 4};
 int    num_align_table[] = {1, 2, 4, 8, 8, 4};
@@ -68,6 +72,10 @@ size_t type_size(const Type *type) {
     return 1;  // ?
   case TY_FIXNUM:
     return num_size_table[type->fixnum.kind];
+#ifndef __NO_FLONUM
+  case TY_FLONUM:
+    return 8;
+#endif
   case TY_PTR:
     return 8;
   case TY_ARRAY:
@@ -90,6 +98,10 @@ int align_size(const Type *type) {
     return 1;  // ?
   case TY_FIXNUM:
     return num_align_table[type->fixnum.kind];
+#ifndef __NO_FLONUM
+  case TY_FLONUM:
+    return 8;
+#endif
   case TY_PTR:
   case TY_FUNC:
     return 8;
@@ -107,6 +119,20 @@ int align_size(const Type *type) {
 bool is_fixnum(enum TypeKind kind) {
   return kind == TY_FIXNUM;
 }
+
+bool is_number(const Type *type) {
+#ifndef __NO_FLONUM
+  if (is_flonum(type))
+    return true;
+#endif
+  return is_fixnum(type->kind);
+}
+
+#ifndef __NO_FLONUM
+bool is_flonum(const Type *type) {
+  return type->kind == TY_FLONUM;
+}
+#endif
 
 bool is_char_type(const Type *type) {
   return type->kind == TY_FIXNUM && type->fixnum.kind == FX_CHAR;

@@ -14,6 +14,7 @@ core
 /gen3
 /xcc
 /tests/core.*
+/tests/fvaltest
 /tests/parser_test
 /tests/table_test
 /tests/util_test

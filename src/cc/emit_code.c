@@ -71,12 +71,35 @@ static void construct_initial_value(unsigned char *buf, const Type *type, const 
       case FX_LONG:  _QUAD(NUM(v)); break;
       case FX_LLONG: _QUAD(NUM(v)); break;
       default:
+        assert(false);
+        // Fallthrough
       case FX_INT: case FX_ENUM:
         _LONG(NUM(v));
         break;
       }
     }
     break;
+#ifndef __NO_FLONUM
+  case TY_FLONUM:
+    {
+      union {double d; uintptr_t h;} v;
+      v.d = 0;
+      if (init != NULL) {
+        assert(init->kind == IK_SINGLE);
+        Expr *value = init->single;
+        if (!(is_const(value) && is_flonum(value->type)))
+          error("Illegal initializer: constant number expected");
+        v.d = value->flonum;
+      }
+
+#if 0
+      _DOUBLE(FLONUM(v.d));
+#else
+      _QUAD(HEXNUM(v.h));
+#endif
+    }
+    break;
+#endif
   case TY_PTR:
     if (init != NULL) {
       assert(init->kind == IK_SINGLE);
@@ -273,6 +296,9 @@ static void put_args_to_stack(Function *func) {
   static const char *kReg32s[] = {EDI, ESI, EDX, ECX, R8D, R9D};
   static const char *kReg64s[] = {RDI, RSI, RDX, RCX, R8, R9};
   static const char **kRegTable[] = {NULL, kReg8s, kReg16s, NULL, kReg32s, NULL, NULL, NULL, kReg64s};
+#ifndef __NO_FLONUM
+  static const char *kFReg64s[] = {XMM0, XMM1, XMM2, XMM3, XMM4, XMM5};
+#endif
 
   int arg_index = 0;
   if (is_stack_param(func->type->func.ret)) {
@@ -297,6 +323,9 @@ static void put_args_to_stack(Function *func) {
   int n = len;
   if (func->type->func.vaargs && n < MAX_REG_ARGS)
     n = MAX_REG_ARGS;
+#ifndef __NO_FLONUM
+  int farg_index = 0;
+#endif
   for (int i = 0; i < n; ++i) {
     const Type *type;
     int offset;
@@ -312,6 +341,16 @@ static void put_args_to_stack(Function *func) {
     if (is_stack_param(type))
       continue;
 
+#ifndef __NO_FLONUM
+    if (is_flonum(type)) {
+      if (farg_index < MAX_FREG_ARGS) {
+        MOVSD(kFReg64s[farg_index], OFFSET_INDIRECT(offset, RBP, NULL, 1));
+        ++farg_index;
+      }
+      continue;
+    }
+#endif
+
     switch (type->kind) {
     case TY_FIXNUM:
     case TY_PTR:
@@ -319,14 +358,13 @@ static void put_args_to_stack(Function *func) {
     default: assert(false); break;
     }
 
-    int size = type_size(type);
-    assert(size < (int)(sizeof(kRegTable) / sizeof(*kRegTable)) &&
-           kRegTable[size] != NULL);
-    MOV(kRegTable[size][arg_index], OFFSET_INDIRECT(offset, RBP, NULL, 1));
-
-    ++arg_index;
-    if (arg_index >= MAX_REG_ARGS)
-      break;
+    if (arg_index < MAX_REG_ARGS) {
+      int size = type_size(type);
+      assert(size < (int)(sizeof(kRegTable) / sizeof(*kRegTable)) &&
+            kRegTable[size] != NULL);
+      MOV(kRegTable[size][arg_index], OFFSET_INDIRECT(offset, RBP, NULL, 1));
+      ++arg_index;
+    }
   }
 }
 

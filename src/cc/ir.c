@@ -57,6 +57,10 @@ const char *kRegSizeTable[][7] = {
 const char *kRegATable[] = {AL, AX, EAX, RAX};
 const char *kRegDTable[] = {DL, DX, EDX, RDX};
 
+#ifndef __NO_FLONUM
+const char *kFReg64s[7] = {XMM8, XMM9, XMM10, XMM11, XMM12, XMM13, XMM14};
+#endif
+
 #define CALLEE_SAVE_REG_COUNT  ((int)(sizeof(kCalleeSaveRegs) / sizeof(*kCalleeSaveRegs)))
 const int kCalleeSaveRegs[] = {
   0,  // RBX
@@ -70,6 +74,11 @@ const int kCallerSaveRegs[] = {
   1,  // R10
   2,  // R11
 };
+
+#ifndef __NO_FLONUM
+#define CALLER_SAVE_FREG_COUNT  ((int)(sizeof(kCallerSaveFRegs) / sizeof(*kCallerSaveFRegs)))
+const int kCallerSaveFRegs[] = {0, 1, 2, 3, 4, 5};
+#endif
 
 //
 RegAlloc *curra;
@@ -342,13 +351,14 @@ IR *new_ir_precall(int arg_count, int stack_args_size) {
 }
 
 VReg *new_ir_call(const Name *label, bool global, VReg *freg, int reg_arg_count,
-                  const VRegType *result_type, IR *precall) {
+                  const VRegType *result_type, IR *precall, unsigned int arg_type_bits) {
   IR *ir = new_ir(IR_CALL);
   ir->call.label = label;
   ir->call.global = global;
   ir->opr1 = freg;
   ir->call.precall = precall;
   ir->call.reg_arg_count = reg_arg_count;
+  ir->call.arg_type_bits = arg_type_bits;
   ir->size = result_type->size;
   return ir->dst = reg_alloc_spawn(curra, result_type, 0);
 }
@@ -396,19 +406,21 @@ void new_ir_asm(const char *asm_) {
   ir->asm_.str = asm_;
 }
 
-IR *new_ir_load_spilled(VReg *reg, int offset, int size) {
+IR *new_ir_load_spilled(VReg *reg, int offset, int size, int flag) {
   IR *ir = new_ir(IR_LOAD_SPILLED);
   ir->value = offset;
   ir->size = size;
   ir->dst = reg;
+  ir->spill.flag = flag;
   return ir;
 }
 
-IR *new_ir_store_spilled(VReg *reg, int offset, int size) {
+IR *new_ir_store_spilled(VReg *reg, int offset, int size, int flag) {
   IR *ir = new_ir(IR_STORE_SPILLED);
   ir->value = offset;
   ir->size = size;
   ir->opr1 = reg;
+  ir->spill.flag = flag;
   return ir;
 }
 
@@ -475,6 +487,13 @@ static void ir_out(IR *ir) {
     break;
 
   case IR_LOAD:
+#ifndef __NO_FLONUM
+    if (ir->dst->vtype->flag & VRTF_FLONUM) {
+      assert(ir->size == sizeof(double));
+      MOVSD(INDIRECT(kReg64s[ir->opr1->phys], NULL, 1), kFReg64s[ir->dst->phys]);
+      break;
+    }
+#endif
     {
       assert(!(ir->opr1->flag & VRF_CONST));
       assert(0 <= ir->size && ir->size < kPow2TableSize);
@@ -486,6 +505,13 @@ static void ir_out(IR *ir) {
     break;
 
   case IR_STORE:
+#ifndef __NO_FLONUM
+    if (ir->opr1->vtype->flag & VRTF_FLONUM) {
+      assert(ir->size == sizeof(double));
+      MOVSD(kFReg64s[ir->opr1->phys], INDIRECT(kReg64s[ir->opr2->phys], NULL, 1));
+      break;
+    }
+#endif
     {
       assert(!(ir->opr1->flag & VRF_CONST));
       assert(!(ir->opr2->flag & VRF_CONST));
@@ -500,6 +526,13 @@ static void ir_out(IR *ir) {
   case IR_ADD:
     {
       assert(ir->dst->phys == ir->opr1->phys);
+#ifndef __NO_FLONUM
+      if (ir->dst->vtype->flag & VRTF_FLONUM) {
+        const char **regs = kFReg64s;
+        ADDSD(regs[ir->opr2->phys], regs[ir->dst->phys]);
+        break;
+      }
+#endif
       assert(!(ir->opr1->flag & VRF_CONST));
       assert(0 <= ir->size && ir->size < kPow2TableSize);
       int pow = kPow2Table[ir->size];
@@ -515,6 +548,13 @@ static void ir_out(IR *ir) {
   case IR_SUB:
     {
       assert(ir->dst->phys == ir->opr1->phys);
+#ifndef __NO_FLONUM
+      if (ir->dst->vtype->flag & VRTF_FLONUM) {
+        const char **regs = kFReg64s;
+        SUBSD(regs[ir->opr2->phys], regs[ir->dst->phys]);
+        break;
+      }
+#endif
       assert(!(ir->opr1->flag & VRF_CONST));
       assert(0 <= ir->size && ir->size < kPow2TableSize);
       int pow = kPow2Table[ir->size];
@@ -552,6 +592,14 @@ static void ir_out(IR *ir) {
 
   case IR_MUL:
     {
+#ifndef __NO_FLONUM
+      if (ir->dst->vtype->flag & VRTF_FLONUM) {
+        assert(ir->dst->phys == ir->opr1->phys);
+        const char **regs = kFReg64s;
+        MULSD(regs[ir->opr2->phys], regs[ir->dst->phys]);
+        break;
+      }
+#endif
       assert(0 <= ir->size && ir->size < kPow2TableSize);
       assert(!(ir->opr1->flag & VRF_CONST));
       int pow = kPow2Table[ir->size];
@@ -574,6 +622,14 @@ static void ir_out(IR *ir) {
   case IR_DIV:
   case IR_DIVU:
     assert(!(ir->opr1->flag & VRF_CONST));
+#ifndef __NO_FLONUM
+    if (ir->dst->vtype->flag & VRTF_FLONUM) {
+      assert(ir->dst->phys == ir->opr1->phys);
+      const char **regs = kFReg64s;
+      DIVSD(regs[ir->opr2->phys], regs[ir->dst->phys]);
+      break;
+    }
+#endif
     if (ir->size == 1) {
       if (ir->kind == IR_DIV) {
         MOVSX(kReg8s[ir->opr1->phys], AX);
@@ -783,6 +839,13 @@ static void ir_out(IR *ir) {
 
   case IR_CMP:
     {
+#ifndef __NO_FLONUM
+      if (ir->opr1->vtype->flag & VRTF_FLONUM) {
+        assert(ir->opr2->vtype->flag & VRTF_FLONUM);
+        UCOMISD(kFReg64s[ir->opr2->phys], kFReg64s[ir->opr1->phys]);
+        break;
+      }
+#endif
       assert(0 <= ir->size && ir->size < kPow2TableSize);
       int pow = kPow2Table[ir->size];
       assert(0 <= pow && pow < 4);
@@ -953,6 +1016,13 @@ static void ir_out(IR *ir) {
         if (living_pregs & (1 << ireg))
           add += WORD_SIZE;
       }
+#ifndef __NO_FLONUM
+      for (int i = 0; i < CALLER_SAVE_FREG_COUNT; ++i) {
+        int freg = kCallerSaveFRegs[i];
+        if (living_pregs & (1 << (freg + PHYSICAL_REG_MAX)))
+          add += WORD_SIZE;
+      }
+#endif
 
       int align_stack = (16 - (stackpos + add + ir->precall.stack_args_size)) & 15;
       ir->precall.stack_aligned = align_stack;
@@ -965,6 +1035,13 @@ static void ir_out(IR *ir) {
     break;
 
   case IR_PUSHARG:
+#ifndef __NO_FLONUM
+    if (ir->opr1->vtype->flag & VRTF_FLONUM) {
+      SUB(IM(WORD_SIZE), RSP); PUSH_STACK_POS();
+      MOVSD(kFReg64s[ir->opr1->phys], INDIRECT(RSP, NULL, 1));
+      break;
+    }
+#endif
     if (ir->opr1->flag & VRF_CONST) {
       if (is_im32(ir->opr1->fixnum)) {
         PUSH(im(ir->opr1->fixnum)); PUSH_STACK_POS();
@@ -982,10 +1059,23 @@ static void ir_out(IR *ir) {
       int reg_args = ir->call.reg_arg_count;
       push_caller_save_regs(ir->call.precall->precall.living_pregs, reg_args * WORD_SIZE + ir->call.precall->precall.stack_args_size + ir->call.precall->precall.stack_aligned);
 
-      // Pop register arguments.
       static const char *kArgReg64s[] = {RDI, RSI, RDX, RCX, R8, R9};
+#ifndef __NO_FLONUM
+      static const char *kArgFReg64s[] = {XMM0, XMM1, XMM2, XMM3, XMM4, XMM5};
+      int freg = 0;
+#endif
+
+      // Pop register arguments.
+      int ireg = 0;
       for (int i = 0; i < reg_args; ++i) {
-        POP(kArgReg64s[i]); POP_STACK_POS();
+#ifndef __NO_FLONUM
+        if (ir->call.arg_type_bits & (1 << i)) {
+          MOVSD(INDIRECT(RSP, NULL, 1), kArgFReg64s[freg++]);
+          ADD(IM(WORD_SIZE), RSP); POP_STACK_POS();
+          continue;
+        }
+#endif
+        POP(kArgReg64s[ireg++]); POP_STACK_POS();
       }
 
       if (ir->call.label != NULL) {
@@ -1008,6 +1098,12 @@ static void ir_out(IR *ir) {
       // Resore caller save registers.
       pop_caller_save_regs(ir->call.precall->precall.living_pregs);
 
+#ifndef __NO_FLONUM
+      if (ir->dst->vtype->flag & VRTF_FLONUM) {
+        MOVSD(XMM0, kFReg64s[ir->dst->phys]);
+        break;
+      }
+#endif
       assert(0 <= ir->size && ir->size < kPow2TableSize);
       int pow = kPow2Table[ir->size];
       assert(0 <= pow && pow < 4);
@@ -1017,6 +1113,12 @@ static void ir_out(IR *ir) {
     break;
 
   case IR_RESULT:
+#ifndef __NO_FLONUM
+    if (ir->opr1->vtype->flag & VRTF_FLONUM) {
+      MOVSD(kFReg64s[ir->opr1->phys], XMM0);
+      break;
+    }
+#endif
     {
       assert(0 <= ir->size && ir->size < kPow2TableSize);
       int pow = kPow2Table[ir->size];
@@ -1039,6 +1141,28 @@ static void ir_out(IR *ir) {
 
   case IR_CAST:
     assert((ir->opr1->flag & VRF_CONST) == 0);
+#ifndef __NO_FLONUM
+    if ((ir->opr1->vtype->flag & VRTF_FLONUM) ||
+        (ir->dst->vtype->flag & VRTF_FLONUM)) {
+      assert(!((ir->opr1->vtype->flag & VRTF_FLONUM) && (ir->dst->vtype->flag & VRTF_FLONUM)));
+      if (ir->dst->vtype->flag & VRTF_FLONUM) {
+        assert(0 <= ir->opr1->vtype->size && ir->opr1->vtype->size < kPow2TableSize);
+        int pows = kPow2Table[ir->opr1->vtype->size];
+        if (pows < 2) {
+          if (ir->opr1->vtype->flag & VRTF_UNSIGNED)
+            MOVZX(kRegSizeTable[pows][ir->opr1->phys], kRegSizeTable[2][ir->opr1->phys]);
+          else
+            MOVSX(kRegSizeTable[pows][ir->opr1->phys], kRegSizeTable[2][ir->opr1->phys]);
+          pows = 2;
+        }
+        CVTSI2SD(kRegSizeTable[pows][ir->opr1->phys], kFReg64s[ir->dst->phys]);
+      } else {
+        int powd = kPow2Table[ir->dst->vtype->size];
+        CVTTSD2SI(kFReg64s[ir->opr1->phys], kRegSizeTable[powd][ir->dst->phys]);
+      }
+      break;
+    }
+#endif
     if (ir->size <= ir->opr1->vtype->size) {
       if (ir->dst->phys != ir->opr1->phys) {
         assert(0 <= ir->size && ir->size < kPow2TableSize);
@@ -1069,6 +1193,14 @@ static void ir_out(IR *ir) {
 
   case IR_MOV:
     {
+#ifndef __NO_FLONUM
+      if (ir->dst->vtype->flag & VRTF_FLONUM) {
+        if (ir->opr1->phys != ir->dst->phys) {
+          MOVSD(kFReg64s[ir->opr1->phys], kFReg64s[ir->dst->phys]);
+          break;
+        }
+      }
+#endif
       assert(0 <= ir->size && ir->size < kPow2TableSize);
       assert(!(ir->dst->flag & VRF_CONST));
       int pow = kPow2Table[ir->size];
@@ -1109,6 +1241,14 @@ static void ir_out(IR *ir) {
     break;
 
   case IR_LOAD_SPILLED:
+#ifndef __NO_FLONUM
+    if (ir->spill.flag & VRTF_FLONUM) {
+      assert(ir->size == sizeof(double));
+      const char **regs = kFReg64s;
+      MOVSD(OFFSET_INDIRECT(ir->value, RBP, NULL, 1), regs[SPILLED_REG_NO]);
+      break;
+    }
+#endif
     {
       assert(0 <= ir->size && ir->size < kPow2TableSize);
       int pow = kPow2Table[ir->size];
@@ -1119,6 +1259,14 @@ static void ir_out(IR *ir) {
     break;
 
   case IR_STORE_SPILLED:
+#ifndef __NO_FLONUM
+    if (ir->spill.flag & VRTF_FLONUM) {
+      assert(ir->size == sizeof(double));
+      const char **regs = kFReg64s;
+      MOVSD(regs[SPILLED_REG_NO], OFFSET_INDIRECT(ir->value, RBP, NULL, 1));
+      break;
+    }
+#endif
     {
       assert(0 <= ir->size && ir->size < kPow2TableSize);
       int pow = kPow2Table[ir->size];
@@ -1265,6 +1413,18 @@ void pop_callee_save_regs(unsigned short used) {
 }
 
 static void push_caller_save_regs(unsigned short living, int base) {
+#ifndef __NO_FLONUM
+  {
+    for (int i = CALLER_SAVE_FREG_COUNT; i > 0; ) {
+      int ireg = kCallerSaveFRegs[--i];
+      if (living & (1U << (ireg + PHYSICAL_REG_MAX))) {
+        MOVSD(kFReg64s[ireg], OFFSET_INDIRECT(base, RSP, NULL, 1));
+        base += WORD_SIZE;
+      }
+    }
+  }
+#endif
+
   for (int i = CALLER_SAVE_REG_COUNT; i > 0; ) {
     int ireg = kCallerSaveRegs[--i];
     if (living & (1 << ireg)) {
@@ -1275,6 +1435,20 @@ static void push_caller_save_regs(unsigned short living, int base) {
 }
 
 static void pop_caller_save_regs(unsigned short living) {
+#ifndef __NO_FLONUM
+  {
+    int count = 0;
+    for (int i = CALLER_SAVE_FREG_COUNT; i > 0; ) {
+      int ireg = kCallerSaveFRegs[--i];
+      if (living & (1U << (ireg + PHYSICAL_REG_MAX))) {
+        MOVSD(OFFSET_INDIRECT(count * WORD_SIZE, RSP, NULL, 1), kFReg64s[ireg]);
+        ++count;
+      }
+    }
+    ADD(IM(WORD_SIZE * count), RSP); stackpos -= WORD_SIZE * count;
+  }
+#endif
+
   for (int i = CALLER_SAVE_REG_COUNT; --i >= 0;) {
     int ireg = kCallerSaveRegs[i];
     if (living & (1 << ireg)) {

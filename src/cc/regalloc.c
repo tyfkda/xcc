@@ -1,6 +1,7 @@
 #include "regalloc.h"
 
 #include <assert.h>
+#include <limits.h>
 #include <stdlib.h>  // malloc
 #include <string.h>
 
@@ -23,6 +24,9 @@
 #endif
 
 #define SPILLED_REG_NO(ra)  (ra->phys_max)
+#ifndef __NO_FLONUM
+#define SPILLED_FREG_NO(ra)  (ra->fphys_max)
+#endif
 
 static void spill_vreg(RegAlloc *ra, VReg *vreg) {
   vreg->phys = SPILLED_REG_NO(ra);
@@ -37,6 +41,11 @@ RegAlloc *new_reg_alloc(int phys_max) {
   vec_clear(ra->vregs);
   ra->frame_size = 0;
   ra->phys_max = phys_max;
+#ifndef __NO_FLONUM
+  ra->fphys_max = 0;
+#else
+  assert(phys_max < (int)(sizeof(ra->used_reg_bits) * CHAR_BIT));
+#endif
   ra->used_reg_bits = 0;
   return ra;
 }
@@ -93,8 +102,9 @@ static void split_at_interval(RegAlloc *ra, LiveInterval **active, int active_co
   }
 }
 
-static void expire_old_intervals(LiveInterval **active, int *pactive_count, short *pusing_bits,
-                                 int start) {
+static void expire_old_intervals(
+  LiveInterval **active, int *pactive_count, unsigned short *pusing_bits, int start
+) {
   int active_count = *pactive_count;
   int j;
   short using_bits = *pusing_bits;
@@ -165,39 +175,71 @@ static LiveInterval **check_live_interval(BBContainer *bbcon, int vreg_count,
   return sorted_intervals;
 }
 
-static short linear_scan_register_allocation(RegAlloc *ra, LiveInterval **sorted_intervals,
-                                             int vreg_count) {
-  const int PHYS_MAX = ra->phys_max;
-  LiveInterval **active = ALLOCA(sizeof(LiveInterval*) * ra->phys_max);
-  int active_count = 0;
-  short using_bits = 0;
-  short used_bits = 0;
+static void linear_scan_register_allocation(RegAlloc *ra, LiveInterval **sorted_intervals,
+                                            int vreg_count) {
+  typedef struct {
+    LiveInterval **active;
+    int phys_max;
+    int active_count;
+    unsigned short using_bits;
+    unsigned short used_bits;
+  } Info;
+
+  Info ireg_info = {
+    .active = ALLOCA(sizeof(LiveInterval*) * ra->phys_max),
+    .phys_max = ra->phys_max,
+    .active_count = 0,
+    .using_bits = 0,
+    .used_bits = 0,
+  };
+#ifndef __NO_FLONUM
+  Info freg_info = {
+    .active = ALLOCA(sizeof(LiveInterval*) * ra->fphys_max),
+    .phys_max = ra->fphys_max,
+    .active_count = 0,
+    .using_bits = 0,
+    .used_bits = 0,
+  };
+#endif
+  Info *info = &ireg_info;
 
   for (int i = 0; i < vreg_count; ++i) {
     LiveInterval *li = sorted_intervals[i];
     if (li->state != LI_NORMAL)
       continue;
-    expire_old_intervals(active, &active_count, &using_bits, li->start);
-    if (active_count >= PHYS_MAX) {
-      split_at_interval(ra, active, active_count, li);
+    expire_old_intervals(ireg_info.active, &ireg_info.active_count, &ireg_info.using_bits,
+                         li->start);
+#ifndef __NO_FLONUM
+    expire_old_intervals(freg_info.active, &freg_info.active_count, &freg_info.using_bits,
+                         li->start);
+    if (((VReg*)ra->vregs->data[li->virt])->vtype->flag & VRTF_FLONUM)
+      info = &freg_info;
+    else
+      info = &ireg_info;
+#endif
+    if (info->active_count >= info->phys_max) {
+      split_at_interval(ra, info->active, info->active_count, li);
     } else {
       int regno = -1;
-      for (int j = 0; j < PHYS_MAX; ++j) {
-        if (!(using_bits & (1 << j))) {
+      for (int j = 0; j < info->phys_max; ++j) {
+        if (!(info->using_bits & (1 << j))) {
           regno = j;
           break;
         }
       }
       assert(regno >= 0);
       li->phys = regno;
-      using_bits |= 1 << regno;
+      info->using_bits |= 1 << regno;
 
-      insert_active(active, active_count, li);
-      ++active_count;
+      insert_active(info->active, info->active_count, li);
+      ++info->active_count;
     }
-    used_bits |= using_bits;
+    info->used_bits |= info->using_bits;
   }
-  return used_bits;
+  ra->used_reg_bits = ireg_info.used_bits;
+#ifndef __NO_FLONUM
+  ra->used_freg_bits = freg_info.used_bits;
+#endif
 }
 
 static int insert_load_store_spilled(BBContainer *bbcon, Vector *vregs, const int spilled) {
@@ -269,23 +311,38 @@ static int insert_load_store_spilled(BBContainer *bbcon, Vector *vregs, const in
 
       if (ir->opr1 != NULL && (flag & 1) != 0 &&
           !(ir->opr1->flag & VRF_CONST) && ir->opr1->phys == spilled) {
+        int flag = 0;
+#ifndef __NO_FLONUM
+        if (ir->opr1->vtype->flag & VRTF_FLONUM)
+          flag |= VRTF_FLONUM;
+#endif
         vec_insert(irs, j++,
-                   new_ir_load_spilled(ir->opr1, ((VReg*)vregs->data[ir->opr1->virt])->offset, load_size));
+                   new_ir_load_spilled(ir->opr1, ((VReg*)vregs->data[ir->opr1->virt])->offset, load_size, flag));
         inserted |= 1;
       }
 
       if (ir->opr2 != NULL && (flag & 2) != 0 &&
           !(ir->opr2->flag & VRF_CONST) && ir->opr2->phys == spilled) {
+        int flag = 0;
+#ifndef __NO_FLONUM
+        if (ir->opr2->vtype->flag & VRTF_FLONUM)
+          flag |= VRTF_FLONUM;
+#endif
         vec_insert(irs, j++,
-                   new_ir_load_spilled(ir->opr2, ((VReg*)vregs->data[ir->opr2->virt])->offset, load_size));
+                   new_ir_load_spilled(ir->opr2, ((VReg*)vregs->data[ir->opr2->virt])->offset, load_size, flag));
         inserted |= 2;
       }
 
       if (ir->dst != NULL && (flag & 4) != 0 &&
           !(ir->dst->flag & VRF_CONST) && ir->dst->phys == spilled) {
         assert(!(ir->dst->flag & VRF_CONST));
+        int flag = 0;
+#ifndef __NO_FLONUM
+        if (ir->dst->vtype->flag & VRTF_FLONUM)
+          flag |= VRTF_FLONUM;
+#endif
         vec_insert(irs, ++j,
-                   new_ir_store_spilled(ir->dst, ((VReg*)vregs->data[ir->dst->virt])->offset, ir->size));
+                   new_ir_store_spilled(ir->dst, ((VReg*)vregs->data[ir->dst->virt])->offset, ir->size, flag));
         inserted |= 4;
       }
     }
@@ -361,8 +418,11 @@ static void analyze_reg_flow(BBContainer *bbcon) {
 }
 
 // Detect living registers for each instruction.
-static void detect_living_registers(BBContainer *bbcon, LiveInterval **sorted_intervals, int vreg_count) {
-  unsigned short living_pregs = 0;
+static void detect_living_registers(
+  RegAlloc *ra, BBContainer *bbcon, LiveInterval **sorted_intervals, int vreg_count
+) {
+  UNUSED(ra);
+  unsigned int living_pregs = 0;
   int nip = 0;
   for (int i = 0; i < bbcon->bbs->len; ++i) {
     BB *bb = bbcon->bbs->data[i];
@@ -373,10 +433,15 @@ static void detect_living_registers(BBContainer *bbcon, LiveInterval **sorted_in
           continue;
         if (nip < li->start)
           break;
+        int phys = li->phys;
+#ifndef __NO_FLONUM
+        if (((VReg*)ra->vregs->data[li->virt])->vtype->flag & VRTF_FLONUM)
+          phys += ra->phys_max;
+#endif
         if (nip == li->start)
-          living_pregs |= 1U << li->phys;
+          living_pregs |= 1U << phys;
         if (nip == li->end)
-          living_pregs &= ~(1U << li->phys);
+          living_pregs &= ~(1U << phys);
       }
 
       // Store living regs to IR.
@@ -398,6 +463,10 @@ void prepare_register_allocation(Function *func) {
     Scope *scope = (Scope*)func->scopes->data[0];
     assert(scope != NULL);
     int reg_param_index = 0;
+    int ireg_index = 0;
+#ifndef __NO_FLONUM
+    int freg_index = 0;
+#endif
     int offset = DEFAULT_OFFSET;
     for (int j = 0; j < func->type->func.params->len; ++j) {
       VarInfo *varinfo = func->type->func.params->data[j];
@@ -415,8 +484,19 @@ void prepare_register_allocation(Function *func) {
         vreg->offset = (reg_param_index - MAX_REG_ARGS) * WORD_SIZE;
       }
       ++reg_param_index;
+      bool through_stack;
+#ifndef __NO_FLONUM
+      if (is_flonum(varinfo->type)) {
+        through_stack = freg_index >= MAX_FREG_ARGS;
+        ++freg_index;
+      } else
+#endif
+      {
+        through_stack = ireg_index >= MAX_REG_ARGS;
+        ++ireg_index;
+      }
 
-      if (vreg->param_index >= MAX_REG_ARGS) {
+      if (through_stack) {
         // Function argument passed through the stack.
         vreg->offset = offset;
         offset += WORD_SIZE;
@@ -444,6 +524,9 @@ void prepare_register_allocation(Function *func) {
       switch (varinfo->type->kind) {
       case TY_ARRAY:
       case TY_STRUCT:
+#ifndef __NO_FLONUM
+      case TY_FLONUM:
+#endif
         // Make non-primitive variable spilled.
         spill = true;
         break;
@@ -458,6 +541,9 @@ void prepare_register_allocation(Function *func) {
 }
 
 void alloc_physical_registers(RegAlloc *ra, BBContainer *bbcon) {
+#ifndef __NO_FLONUM
+  assert(ra->phys_max + ra->fphys_max < (int)(sizeof(ra->used_reg_bits) * CHAR_BIT));
+#endif
   analyze_reg_flow(bbcon);
 
   int vreg_count = ra->vregs->len;
@@ -485,7 +571,7 @@ void alloc_physical_registers(RegAlloc *ra, BBContainer *bbcon) {
     }
   }
 
-  ra->used_reg_bits = linear_scan_register_allocation(ra, sorted_intervals, vreg_count);
+  linear_scan_register_allocation(ra, sorted_intervals, vreg_count);
 
   // Map vreg to preg.
   for (int i = 0; i < vreg_count; ++i) {
@@ -495,7 +581,7 @@ void alloc_physical_registers(RegAlloc *ra, BBContainer *bbcon) {
       vreg->phys = intervals[vreg->virt].phys;
   }
 
-  detect_living_registers(bbcon, sorted_intervals, vreg_count);
+  detect_living_registers(ra, bbcon, sorted_intervals, vreg_count);
 
   // Allocated spilled virtual registers onto stack.
   int frame_size = 0;

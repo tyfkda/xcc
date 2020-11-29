@@ -45,6 +45,10 @@ static const struct {
   {"sizeof", TK_SIZEOF},
   {"typedef", TK_TYPEDEF},
   {"__asm", TK_ASM},
+#ifndef __NO_FLONUM
+  {"float", TK_FLOAT},
+  {"double", TK_DOUBLE},
+#endif
 };
 
 static const struct {
@@ -380,6 +384,23 @@ static const char *skip_whitespace_or_comment(const char *p) {
   return p;
 }
 
+#ifndef __NO_FLONUM
+static Token *read_flonum(const char **pp) {
+  const char *start = *pp;
+  char *next;
+  double val = strtod(start, &next);
+  enum TokenKind tk = TK_DOUBLELIT;
+  if (tolower(*next) == 'f') {
+    tk = TK_FLOATLIT;
+    ++next;
+  }
+  Token *tok = alloc_token(tk, start, next);
+  tok->flonum = val;
+  *pp = next;
+  return tok;
+}
+#endif
+
 static Token *read_num(const char **pp) {
   const char *start = *pp, *p = start;
   int base = 10;
@@ -403,6 +424,13 @@ static Token *read_num(const char **pp) {
   if (p == q)
     lex_error(p, "Illegal literal");
 
+#ifndef __NO_FLONUM
+  if (*p == '.' || tolower(*p)== 'e') {
+    if (base != 10)
+      lex_error(p, "Illegal literal");
+    return read_flonum(pp);
+  }
+#endif
   enum TokenKind tt = TK_INTLIT;
   if (tolower(*p) == 'u') {
     is_unsigned = true;
@@ -552,10 +580,14 @@ static Token *get_token(void) {
       tok = alloc_ident(name, begin, ident_end);
     }
     p = ident_end;
-  } else if ((tok = get_op_token(&p)) != NULL) {
-    // Ok.
   } else if (isdigit(*p)) {
     tok = read_num(&p);
+#ifndef __NO_FLONUM
+  } else if (*p == '.' && isdigit(p[1])) {
+    tok = read_flonum(&p);
+#endif
+  } else if ((tok = get_op_token(&p)) != NULL) {
+    // Ok.
   } else if (*p == '\'') {
     tok = read_char(&p);
   } else if (*p == '"') {

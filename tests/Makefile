@@ -24,11 +24,11 @@ unit-tests:	test-table test-util test-parser
 cpp-tests:	test-cpp
 
 .PHONY: cc-tests
-cc-tests:	test-sh test-val test-examples
+cc-tests:	test-sh test-val test-fval test-examples
 
 .PHONY: clean
 clean:
-	rm -f table_test util_test parser_test valtest a.out tmp.s
+	rm -f table_test util_test parser_test valtest fvaltest a.out tmp.s
 
 .PHONY: test-table
 test-table:	table_test
@@ -52,6 +52,12 @@ test-parser:	parser_test
 test-val:	valtest
 	@echo '## valtest'
 	@./valtest
+	@echo ''
+
+.PHONY: test-fval
+test-fval:	fvaltest
+	@echo '## fvaltest'
+	@./fvaltest
 	@echo ''
 
 .PHONY: test-cpp
@@ -90,6 +96,10 @@ parser_test:	$(PARSER_SRCS)
 VAL_SRCS:=../lib/crt0.c ../examples/util.c valtest.c
 valtest:	$(VAL_SRCS) # $(XCC)
 	$(XCC) -o$@ $(VAL_SRCS)
+
+FVAL_SRCS:=../lib/crt0.c ../examples/util.c ../lib/math.c fvaltest.c
+fvaltest:	$(FVAL_SRCS) # $(XCC)
+	$(XCC) -o$@ -I../inc $(FVAL_SRCS)
 
 .PHONY: test-std-valtest
 test-std-valtest:

@@ -492,6 +492,9 @@ int main(int argc, char *argv[]) {
 #elif defined(__APPLE__)
   table_put(&macro_table, alloc_name("__APPLE__", NULL, true), new_macro(NULL, false, NULL));
 #endif
+#if defined(__NO_FLONUM)
+  table_put(&macro_table, alloc_name("__NO_FLONUM", NULL, true), new_macro(NULL, false, NULL));
+#endif
 
   int iarg = 1;
   for (; iarg < argc; ++iarg) {

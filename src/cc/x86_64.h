@@ -30,6 +30,12 @@
 #ifndef NUM
 #define NUM(x)  num(x)
 #endif
+#ifndef HEXNUM
+#define HEXNUM(x)  hexnum(x)
+#endif
+#ifndef FLONUM
+#define FLONUM(x)  flonum(x)
+#endif
 #ifndef MANGLE
 #define MANGLE(label)  mangle(label)
 #endif
@@ -108,6 +114,25 @@
 
 #define RIP    "%rip"
 
+#ifndef __NO_FLONUM
+#define XMM0   "%xmm0"
+#define XMM1   "%xmm1"
+#define XMM2   "%xmm2"
+#define XMM3   "%xmm3"
+#define XMM4   "%xmm4"
+#define XMM5   "%xmm5"
+#define XMM6   "%xmm6"
+#define XMM7   "%xmm7"
+#define XMM8   "%xmm8"
+#define XMM9   "%xmm9"
+#define XMM10  "%xmm10"
+#define XMM11  "%xmm11"
+#define XMM12  "%xmm12"
+#define XMM13  "%xmm13"
+#define XMM14  "%xmm14"
+#define XMM15  "%xmm15"
+#endif
+
 #define MOV(o1, o2)    EMIT_ASM2("mov", o1, o2)
 #define MOVSX(o1, o2)  EMIT_ASM2("movsx", o1, o2)
 #define MOVZX(o1, o2)  EMIT_ASM2("movzx", o1, o2)
@@ -172,6 +197,7 @@
 #define _WORD(x)       EMIT_ASM1(".word", x)
 #define _LONG(x)       EMIT_ASM1(".long", x)
 #define _QUAD(x)       EMIT_ASM1(".quad", x)
+#define _DOUBLE(x)     EMIT_ASM1(".double", x)
 #define _GLOBL(x)      EMIT_ASM1(".globl", x)
 #define _COMM(x, y)    EMIT_ASM2(".comm", x, y)
 #define _ASCII(x)      EMIT_ASM1(".ascii", x)
@@ -185,4 +211,17 @@
 #else
 #define _RODATA()      _SECTION(".rodata")
 #define EMIT_ALIGN(x)  emit_align(x)
+#endif
+
+
+#ifndef __NO_FLONUM
+// SIMD
+#define MOVSD(o1, o2)  EMIT_ASM2("movsd", o1, o2)
+#define ADDSD(o1, o2)  EMIT_ASM2("addsd", o1, o2)
+#define SUBSD(o1, o2)  EMIT_ASM2("subsd", o1, o2)
+#define MULSD(o1, o2)  EMIT_ASM2("mulsd", o1, o2)
+#define DIVSD(o1, o2)  EMIT_ASM2("divsd", o1, o2)
+#define UCOMISD(o1, o2)  EMIT_ASM2("ucomisd", o1, o2)
+#define CVTSI2SD(o1, o2)  EMIT_ASM2("cvtsi2sd", o1, o2)
+#define CVTTSD2SI(o1, o2)  EMIT_ASM2("cvttsd2si", o1, o2)
 #endif

@@ -11,6 +11,9 @@ bool is_const(Expr *expr) {
 
   switch (expr->kind) {
   case EX_FIXNUM:
+#ifndef __NO_FLONUM
+  case EX_FLONUM:
+#endif
   case EX_STR:
     return true;
   default:
@@ -36,6 +39,15 @@ Expr *new_expr_fixlit(const Type *type, const Token *token, const Fixnum fixnum)
   expr->fixnum = fixnum;
   return expr;
 }
+
+#ifndef __NO_FLONUM
+Expr *new_expr_flolit(const Type *type, const Token *token, double flonum) {
+  assert(type->kind == TY_FLONUM);
+  Expr *expr = new_expr(EX_FLONUM, type, token);
+  expr->flonum = flonum;
+  return expr;
+}
+#endif
 
 Expr *new_expr_str(const Token *token, const char *str, size_t size) {
   Type *type = malloc(sizeof(*type));
