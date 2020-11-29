@@ -109,6 +109,17 @@ static void expire_old_intervals(LiveInterval **active, int *pactive_count, shor
   *pusing_bits = using_bits;
 }
 
+static void set_inout_interval(Vector *regs, LiveInterval *intervals, int nip) {
+  for (int j = 0; j < regs->len; ++j) {
+    VReg *reg = regs->data[j];
+    LiveInterval *li = &intervals[reg->virt];
+    if (li->start < 0 || li->start > nip)
+      li->start = nip;
+    if (li->end < nip)
+      li->end = nip;
+  }
+}
+
 static LiveInterval **check_live_interval(BBContainer *bbcon, int vreg_count,
                                           LiveInterval **pintervals) {
   LiveInterval *intervals = malloc(sizeof(LiveInterval) * vreg_count);
@@ -123,6 +134,9 @@ static LiveInterval **check_live_interval(BBContainer *bbcon, int vreg_count,
   int nip = 0;
   for (int i = 0; i < bbcon->bbs->len; ++i) {
     BB *bb = bbcon->bbs->data[i];
+
+    set_inout_interval(bb->in_regs, intervals, nip);
+
     for (int j = 0; j < bb->irs->len; ++j, ++nip) {
       IR *ir = bb->irs->data[j];
       VReg *regs[] = {ir->dst, ir->opr1, ir->opr2};
@@ -138,14 +152,7 @@ static LiveInterval **check_live_interval(BBContainer *bbcon, int vreg_count,
       }
     }
 
-    for (int j = 0; j < bb->out_regs->len; ++j) {
-      VReg *reg = bb->out_regs->data[j];
-      LiveInterval *li = &intervals[reg->virt];
-      if (li->start < 0)
-        li->start = nip;
-      if (li->end < nip)
-        li->end = nip;
-    }
+    set_inout_interval(bb->out_regs, intervals, nip);
   }
 
   // Sort by start, end
