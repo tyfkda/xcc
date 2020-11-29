@@ -287,7 +287,7 @@ static enum RegXmmType find_xmm_register(const char **pp) {
   for (int i = 0, len = sizeof(kXmmRegisters) / sizeof(*kXmmRegisters); i < len; ++i) {
     const char *name = kXmmRegisters[i];
     size_t n = strlen(name);
-    if (l == n & strncmp(p, name, n) == 0) {
+    if (l == n && strncmp(p, name, n) == 0) {
       *pp = p + n;
       return i + XMM0;
     }
