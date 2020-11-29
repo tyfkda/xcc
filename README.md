@@ -63,7 +63,6 @@ $ ./a.out
 
 C compiler:
 
-  * Floating point numbers
   * Bit field
 
 Preprocessor:
