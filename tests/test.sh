@@ -175,6 +175,7 @@ try 'pre-inc ()' 34 'int x = 33; return ++(x);'
 try 'post-dec ()' 44 'int x = 44; return (x)--;'
 try_direct 'return struct' 46 'typedef struct { int x; int y; } S; S func(void) { S s = {.x = 12, .y = 34}; return s; } int main(){ S s = func(); return s.x + s.y; }'
 try_direct 'return struct not broken' 222 'typedef struct {long x; long y;} S; S sub(){S s={111, 222}; return s;} int main(){int dummy[1]; S s; s = sub(); return s.y;}'
+try_direct 'return struct member' 57 'typedef struct {int x;} S; S func() {return (S){57};} int main(){return func().x;}'
 try_direct 'modify arg' 32 'int sub(int x, int y) {return x+y;} int main() {int w=0, x=0, y=5; int z=sub(++x, y+=10); return x+y+z+w;}'
 try_direct 'long immediate' 240 'int sub(unsigned long x){return x;} int main(){ return sub(0x123456789abcdef0); }'
 
@@ -261,6 +262,7 @@ compile_error 'no VLA' 'void main(int x){ int array[x]; }'
 compile_error 'size unknown' 'extern char string[]; int main(){ return sizeof(string); } char string[] = "Hello";'
 compile_error 'scoped typedef' 'int sub(){typedef int T;} T g=123; int main(void){return g;}'
 compile_error 'no member name' 'struct Foo{union{int anon;}; int;}; void main(){}'
+compile_error 'func retval ref' 'typedef struct {int x;} S; S func() {return (S){111};} int main(){S *p = &func(); return s->x;}'
 
 # TODO
 compile_error 'more params vaargs (yet)' 'int func(int a, ...) { return a; } int main(){ return func(1, 2, 3, 4, 5, 6, 7, 8); }'

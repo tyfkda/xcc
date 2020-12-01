@@ -283,11 +283,7 @@ static VReg *gen_lval(Expr *expr) {
       const Vector *members = type->struct_.info->members;
       const VarInfo *member = members->data[expr->member.index];
 
-      VReg *reg;
-      if (expr->member.target->type->kind == TY_PTR)
-        reg = gen_expr(expr->member.target);
-      else
-        reg = gen_lval(expr->member.target);
+      VReg *reg = gen_expr(expr->member.target);
       if (member->struct_member.offset == 0)
         return reg;
       VRegType *vtype = to_vtype(&tySize);

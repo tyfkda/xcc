@@ -631,32 +631,31 @@ static Expr *parse_member_access(Expr *target, Token *acctok) {
   const Name *name = ident->ident;
 
   // Find member's type from struct info.
-  const Type *targetType = target->type;
+  const Type *type = target->type;
   if (acctok->kind == TK_DOT) {
-    if (targetType->kind != TY_STRUCT)
+    if (type->kind != TY_STRUCT)
       parse_error(acctok, "`.' for non struct value");
   } else {  // TK_ARROW
-    if (!ptr_or_array(targetType)) {
+    if (!ptr_or_array(type)) {
       parse_error(acctok, "`->' for non pointer value");
     } else {
-      targetType = targetType->pa.ptrof;
-      if (targetType->kind != TY_STRUCT)
+      type = type->pa.ptrof;
+      if (type->kind != TY_STRUCT)
         parse_error(acctok, "`->' for non struct value");
     }
   }
 
-  ensure_struct((Type*)targetType, ident);
-  int index = var_find(targetType->struct_.info->members, name);
+  ensure_struct((Type*)type, ident);
+  int index = var_find(type->struct_.info->members, name);
   if (index >= 0) {
-    const VarInfo *member = targetType->struct_.info->members->data[index];
+    const VarInfo *member = type->struct_.info->members->data[index];
     return new_expr_member(acctok, member->type, target, ident, index);
   } else {
     Vector *stack = new_vector();
-    const VarInfo *member = search_from_anonymous(targetType, ident->ident, ident, stack);
+    const VarInfo *member = search_from_anonymous(type, ident->ident, ident, stack);
     if (member == NULL)
       parse_error(ident, "`%.*s' doesn't exist in the struct", name->bytes, name->chars);
     Expr *p = target;
-    const Type *type = targetType;
     for (int i = 0; i < stack->len; ++i) {
       int index = (int)(long)stack->data[i];
       const VarInfo *member = type->struct_.info->members->data[index];
