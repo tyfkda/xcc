@@ -447,7 +447,7 @@ static VReg *gen_funcall(Expr *expr) {
 
         offset = ALIGN(offset, align_size(arg->type));
         p->offset = offset;
-        offset += p->size;
+        offset += ALIGN(p->size, WORD_SIZE);
         ++stack_arg_count;
       } else {
 #ifndef __NO_FLONUM
