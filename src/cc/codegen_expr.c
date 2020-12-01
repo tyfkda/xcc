@@ -397,7 +397,6 @@ static VReg *gen_funcall(Expr *expr) {
   if (ret_info.stack_arg) {
     ret_info.reg_index = 0;
     ret_info.offset = 0;
-    offset += ret_info.size;
   }
 
   ArgInfo *arg_infos = NULL;
@@ -410,9 +409,7 @@ static VReg *gen_funcall(Expr *expr) {
       // TODO:
     }
 
-    int reg_index = 0;
-    if (ret_info.stack_arg)
-      ++reg_index;
+    int ireg_index = ret_info.stack_arg ? 1 : 0;
 #ifndef __NO_FLONUM
     int freg_index = 0;
 #endif
@@ -437,11 +434,11 @@ static VReg *gen_funcall(Expr *expr) {
           reg_arg = freg_index < MAX_FREG_ARGS;
         else
 #endif
-          reg_arg = reg_index < MAX_REG_ARGS;
+          reg_arg = ireg_index < MAX_REG_ARGS;
       }
       if (!reg_arg) {
-        if (reg_index >= MAX_REG_ARGS && vaargs) {
-          parse_error(((Expr*)args->data[reg_index])->token,
+        if (ireg_index >= MAX_REG_ARGS && vaargs) {
+          parse_error(((Expr*)args->data[ireg_index])->token,
                       "Param count exceeds %d", MAX_REG_ARGS);
         }
 
@@ -455,9 +452,13 @@ static VReg *gen_funcall(Expr *expr) {
           p->reg_index = freg_index++;
         else
 #endif
-          p->reg_index = reg_index++;
+          p->reg_index = ireg_index++;
       }
     }
+  }
+  if (ret_info.stack_arg) {
+    ret_info.offset = offset = ALIGN(offset, align_size(expr->type));
+    offset += ret_info.size;
   }
   offset = ALIGN(offset, 8);
 
@@ -501,7 +502,7 @@ static VReg *gen_funcall(Expr *expr) {
   if (ret_info.stack_arg) {
     VRegType offset_type = {.size = 4, .align = 4, .flag = 0};  // TODO:
     VReg *dst = new_ir_sofs(new_const_vreg(ret_info.offset + reg_arg_count * WORD_SIZE,
-                                            &offset_type));
+                                           &offset_type));
     new_ir_pusharg(dst, to_vtype(ptrof(expr->type)));
     ++reg_arg_count;
     arg_type_bits <<= 1;

@@ -462,11 +462,11 @@ void prepare_register_allocation(Function *func) {
     const int DEFAULT_OFFSET = WORD_SIZE * 2;  // Return address, saved base pointer.
     Scope *scope = (Scope*)func->scopes->data[0];
     assert(scope != NULL);
-    int reg_param_index = 0;
-    int ireg_index = 0;
+    int ireg_index = is_stack_param(func->type->func.ret) ? 1 : 0;
 #ifndef __NO_FLONUM
     int freg_index = 0;
 #endif
+    int reg_param_index = ireg_index;
     int offset = DEFAULT_OFFSET;
     for (int j = 0; j < func->type->func.params->len; ++j) {
       VarInfo *varinfo = func->type->func.params->data[j];
