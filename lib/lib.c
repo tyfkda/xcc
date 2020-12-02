@@ -399,6 +399,16 @@ int toupper(int c) {
 #define	O_RDWR          0x0002          /* open for reading and writing */
 #define	O_ACCMODE       0x0003          /* mask for above modes */
 
+#define S_IRUSR         (0400)
+#define S_IWUSR         (0200)
+#define S_IXUSR         (0100)
+#define S_IRGRP         (0040)
+#define S_IWGRP         (0020)
+#define S_IXGRP         (0010)
+#define S_IROTH         (0004)
+#define S_IWOTH         (0002)
+#define S_IXOTH         (0001)
+
 #define	O_APPEND        0x0400          /* set append mode */
 #define	O_CREAT         0x0040          /* create if nonexistant */
 #define	O_TRUNC         0x0200          /* truncate to zero length */
@@ -407,7 +417,7 @@ int toupper(int c) {
 //char *environ[] = {"PATH=/bin:/usr/bin", NULL};
 char **environ = NULL;
 
-int open(const char *fn, int flag) {
+int open(const char *fn, int flag, ...) {
   __asm("mov $2, %eax");  // __NR_open
   __asm("syscall");
 }
@@ -536,7 +546,8 @@ FILE *fopen(const char *fileName, const char *mode) {
   if (flag == -1)
     return NULL;
 
-  int fd = open(fileName, flag);
+  int mod = S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH;
+  int fd = open(fileName, flag, mod);
   if (fd < 0) {
     return NULL;
   }
