@@ -60,7 +60,9 @@ struct VReg {
   uint32_t local_index;
 };
 
+static void gen_stmt(Stmt *stmt);
 static void gen_stmts(Vector *stmts);
+static void gen_expr_stmt(Expr *expr);
 
 static void gen_arith(enum ExprKind kind, const Type *type) {
   UNUSED(type);
@@ -152,6 +154,140 @@ static void gen_expr(Expr *expr) {
   }
 }
 
+static void gen_compare_expr(enum ExprKind kind, Expr *lhs, Expr *rhs) {
+  assert(lhs->type->kind == rhs->type->kind);
+  assert(is_fixnum(lhs->type->kind));
+
+  // unsigned?
+
+  gen_expr(lhs);
+  gen_expr(rhs);
+  switch (kind) {
+  case EX_EQ:  ADD_CODE(OP_I32_EQ); break;
+  case EX_NE:  ADD_CODE(OP_I32_NE); break;
+  case EX_LT:  ADD_CODE(OP_I32_LT_S); break;
+  case EX_LE:  ADD_CODE(OP_I32_LE_S); break;
+  case EX_GE:  ADD_CODE(OP_I32_GE_S); break;
+  case EX_GT:  ADD_CODE(OP_I32_GT_S); break;
+  default: assert(false); break;
+  }
+}
+
+static void gen_cond(Expr *cond, bool tf) {
+  enum ExprKind ck = cond->kind;
+  switch (ck) {
+  case EX_FIXNUM:
+    {
+      Expr *zero = new_expr_fixlit(&tyInt, NULL, 0);
+      gen_compare_expr(tf ? EX_NE : EX_EQ, cond, zero);
+    }
+    break;
+  case EX_EQ:
+  case EX_NE:
+  case EX_LT:
+  case EX_GT:
+  case EX_LE:
+  case EX_GE:
+    if (!tf) {
+      if (ck <= EX_NE)
+        ck = (EX_EQ + EX_NE) - ck;
+      else
+        ck = EX_LT + ((ck - EX_LT) ^ 2);
+    }
+    gen_compare_expr(ck, cond->bop.lhs, cond->bop.rhs);
+    break;
+  case EX_LOGAND:
+    if (tf) {
+      gen_cond(cond->bop.lhs, true);
+      ADD_CODE(OP_IF, WT_I32);
+      gen_cond(cond->bop.rhs, true);
+      ADD_CODE(OP_ELSE);
+      ADD_CODE(OP_I32_CONST, 0);  // false
+      ADD_CODE(OP_END);
+    } else {
+      gen_cond(cond->bop.lhs, false);
+      ADD_CODE(OP_IF, WT_I32);
+      ADD_CODE(OP_I32_CONST, 1);  // true
+      ADD_CODE(OP_ELSE);
+      gen_cond(cond->bop.rhs, false);
+      ADD_CODE(OP_END);
+    }
+    break;
+  case EX_LOGIOR:
+    if (tf) {
+      gen_cond(cond->bop.lhs, true);
+      ADD_CODE(OP_IF, WT_I32);
+      ADD_CODE(OP_I32_CONST, 1);  // true
+      ADD_CODE(OP_ELSE);
+      gen_cond(cond->bop.rhs, true);
+      ADD_CODE(OP_END);
+    } else {
+      gen_cond(cond->bop.lhs, false);
+      ADD_CODE(OP_IF, WT_I32);
+      gen_cond(cond->bop.rhs, false);
+      ADD_CODE(OP_ELSE);
+      ADD_CODE(OP_I32_CONST, 0);  // false
+      ADD_CODE(OP_END);
+    }
+    break;
+  default:
+    assert(false);
+    break;
+  }
+}
+
+static void gen_cond_jmp(Expr *cond, bool tf, uint32_t depth) {
+  gen_cond(cond, tf);
+  ADD_CODE(OP_BR_IF);
+  ADD_ULEB128(depth);
+}
+
+static void gen_while(Stmt *stmt) {
+  // TODO: Handle break, continue
+
+  ADD_CODE(OP_BLOCK, WT_VOID);
+  ADD_CODE(OP_LOOP, WT_VOID);
+  gen_cond_jmp(stmt->while_.cond, false, 1);
+  gen_stmt(stmt->while_.body);
+  ADD_CODE(OP_BR, 0);
+  ADD_CODE(OP_END);
+  ADD_CODE(OP_END);
+}
+
+static void gen_do_while(Stmt *stmt) {
+  // TODO: Handle break, continue
+
+  ADD_CODE(OP_BLOCK, WT_VOID);
+  ADD_CODE(OP_LOOP, WT_VOID);
+  gen_stmt(stmt->while_.body);
+  gen_cond_jmp(stmt->while_.cond, false, 1);
+  ADD_CODE(OP_BR, 0);
+  ADD_CODE(OP_END);
+  ADD_CODE(OP_END);
+}
+
+static void gen_for(Stmt *stmt) {
+  // TODO: Handle break, continue
+
+  if (stmt->for_.pre != NULL)
+    gen_expr_stmt(stmt->for_.pre);
+
+  ADD_CODE(OP_BLOCK, WT_VOID);
+  ADD_CODE(OP_LOOP, WT_VOID);
+  if (stmt->for_.cond != NULL)
+    gen_cond_jmp(stmt->for_.cond, false, 1);
+  gen_stmt(stmt->for_.body);
+  if (stmt->for_.post != NULL)
+    gen_expr_stmt(stmt->for_.post);
+  ADD_CODE(OP_BR, 0);
+  ADD_CODE(OP_END);
+  ADD_CODE(OP_END);
+}
+
+static void gen_block(Stmt *stmt) {
+  gen_stmts(stmt->block.stmts);
+}
+
 static void gen_return(Stmt *stmt) {
   assert(curfunc != NULL);
   //BB *bb = bb_split(curbb);
@@ -162,6 +298,17 @@ static void gen_return(Stmt *stmt) {
   }
   //new_ir_jmp(COND_ANY, curfunc->ret_bb);
   //set_curbb(bb);
+}
+
+static void gen_if(Stmt *stmt) {
+  gen_cond(stmt->if_.cond, true);
+  ADD_CODE(OP_IF, WT_VOID);
+  gen_stmt(stmt->if_.tblock);
+  if (stmt->if_.fblock != NULL) {
+    ADD_CODE(OP_ELSE);
+    gen_stmt(stmt->if_.fblock);
+  }
+  ADD_CODE(OP_END);
 }
 
 static void gen_vardecl(Vector *decls, Vector *inits) {
@@ -195,15 +342,15 @@ static void gen_stmt(Stmt *stmt) {
   switch (stmt->kind) {
   case ST_EXPR:  gen_expr_stmt(stmt->expr); break;
   case ST_RETURN:  gen_return(stmt); break;
-  /*case ST_BLOCK:  gen_block(stmt); break;
+  case ST_BLOCK:  gen_block(stmt); break;
   case ST_IF:  gen_if(stmt); break;
-  case ST_SWITCH:  gen_switch(stmt); break;
+  /*case ST_SWITCH:  gen_switch(stmt); break;
   case ST_CASE:  gen_case(stmt); break;
-  case ST_DEFAULT:  gen_default(); break;
+  case ST_DEFAULT:  gen_default(); break;*/
   case ST_WHILE:  gen_while(stmt); break;
   case ST_DO_WHILE:  gen_do_while(stmt); break;
   case ST_FOR:  gen_for(stmt); break;
-  case ST_BREAK:  gen_break(); break;
+  /*case ST_BREAK:  gen_break(); break;
   case ST_CONTINUE:  gen_continue(); break;
   case ST_GOTO:  gen_goto(stmt); break;
   case ST_LABEL:  gen_label(stmt); break;*/

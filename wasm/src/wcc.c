@@ -17,25 +17,8 @@
 
 ////////////////////////////////////////////////
 
-typedef struct {
-  char magic[4];
-  uint32_t binary_version;
-} WASM_HEADER;
-
-#define WASM_BINARY_MAGIC  {'\0', 'a', 's', 'm'}
-#define WASM_BINARY_VERSION  (1)
-
-const unsigned char SEC_TYPE   = 1;
-const unsigned char SEC_FUNC   = 3;
-const unsigned char SEC_EXPORT = 7;
-const unsigned char SEC_CODE   = 10;
-
 static void emit_wasm(FILE *ofp) {
-  WASM_HEADER header = {
-    WASM_BINARY_MAGIC,
-    WASM_BINARY_VERSION,
-  };
-  fwrite(&header, sizeof(header), 1, ofp);
+  emit_wasm_header(ofp);
 
   unsigned char exports[] = {
     4,  // string length
