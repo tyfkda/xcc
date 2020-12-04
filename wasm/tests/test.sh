@@ -23,3 +23,4 @@ try_direct() {
 }
 
 try_direct '+*' 7 'int main(){return 1+2*3;}'
+try_direct 'local var' 72 'int main(){int x=8, y=9; return x*y;}'

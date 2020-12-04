@@ -10,6 +10,7 @@
 #include "parser.h"  // curfunc
 #include "type.h"
 #include "util.h"
+#include "var.h"
 #include "wasm_util.h"
 
 #define ADD_CODE(...)  do { unsigned char buf[] = {__VA_ARGS__}; add_code(buf, sizeof(buf)); } while (0)
@@ -54,6 +55,13 @@ unsigned char *emit_uleb128(unsigned char *buf, uint32_t val) {
 
 ////////////////////////////////////////////////
 
+// Local variable information for WASM
+struct VReg {
+  uint32_t local_index;
+};
+
+static void gen_stmts(Vector *stmts);
+
 static void gen_arith(enum ExprKind kind, const Type *type) {
   UNUSED(type);
   assert(is_fixnum(type->kind));
@@ -79,6 +87,23 @@ static void gen_expr(Expr *expr) {
     ADD_LEB128(expr->fixnum);
     break;
 
+  case EX_VAR:
+    {
+      assert(is_fixnum(expr->type->kind));
+      Scope *scope;
+      const VarInfo *varinfo = scope_find(expr->var.scope, expr->var.name, &scope);
+      assert(varinfo != NULL && scope == expr->var.scope);
+      if (!is_global_scope(scope) && !(varinfo->storage & (VS_STATIC | VS_EXTERN))) {
+        VReg *vreg = varinfo->local.reg;
+        assert(vreg != NULL);
+        ADD_CODE(OP_LOCAL_GET);
+        ADD_ULEB128(vreg->local_index);
+        break;
+      }
+      assert(!"Not implemented");
+    }
+    break;
+
   case EX_ADD:
   case EX_SUB:
   case EX_MUL:
@@ -92,6 +117,35 @@ static void gen_expr(Expr *expr) {
     gen_expr(expr->bop.lhs);
     gen_expr(expr->bop.rhs);
     gen_arith(expr->kind, expr->type);
+    break;
+
+  case EX_ASSIGN:
+    {
+      Expr *lhs = expr->bop.lhs;
+      switch (lhs->type->kind) {
+      case TY_FIXNUM:
+      case TY_PTR:
+#ifndef __NO_FLONUM
+      case TY_FLONUM:
+#endif
+        if (expr->bop.lhs->kind == EX_VAR) {
+          Scope *scope;
+          const VarInfo *varinfo = scope_find(lhs->var.scope, lhs->var.name, &scope);
+          assert(varinfo != NULL);
+          if (!is_global_scope(scope) && !(varinfo->storage & (VS_STATIC | VS_EXTERN))) {
+            VReg *vreg = varinfo->local.reg;
+            assert(vreg != NULL);
+            gen_expr(expr->bop.rhs);
+            ADD_CODE(OP_LOCAL_TEE);
+            ADD_ULEB128(vreg->local_index);
+            break;
+          }
+        }
+        assert(!"Not implemented");
+        break;
+      default: assert(false); break;
+      }
+    }
     break;
 
   default: assert(!"Not implemeneted"); break;
@@ -110,12 +164,36 @@ static void gen_return(Stmt *stmt) {
   //set_curbb(bb);
 }
 
+static void gen_vardecl(Vector *decls, Vector *inits) {
+  if (curfunc != NULL) {
+    UNUSED(decls);
+    /*for (int i = 0; i < decls->len; ++i) {
+      VarDecl *decl = decls->data[i];
+      if (decl->init == NULL)
+        continue;
+      VarInfo *varinfo = scope_find(curscope, decl->ident->ident, NULL);
+      if (varinfo == NULL || (varinfo->storage & (VS_STATIC | VS_EXTERN)) ||
+          !(varinfo->type->kind == TY_STRUCT ||
+            varinfo->type->kind == TY_ARRAY))
+        continue;
+      gen_clear_local_var(varinfo);
+    }*/
+  }
+  gen_stmts(inits);
+}
+
+static void gen_expr_stmt(Expr *expr) {
+  gen_expr(expr);
+  if (expr->type->kind != TY_VOID)
+    ADD_CODE(OP_DROP);
+}
+
 static void gen_stmt(Stmt *stmt) {
   if (stmt == NULL)
     return;
 
   switch (stmt->kind) {
-  //case ST_EXPR:  gen_expr_stmt(stmt->expr); break;
+  case ST_EXPR:  gen_expr_stmt(stmt->expr); break;
   case ST_RETURN:  gen_return(stmt); break;
   /*case ST_BLOCK:  gen_block(stmt); break;
   case ST_IF:  gen_if(stmt); break;
@@ -128,9 +206,9 @@ static void gen_stmt(Stmt *stmt) {
   case ST_BREAK:  gen_break(); break;
   case ST_CONTINUE:  gen_continue(); break;
   case ST_GOTO:  gen_goto(stmt); break;
-  case ST_LABEL:  gen_label(stmt); break;
+  case ST_LABEL:  gen_label(stmt); break;*/
   case ST_VARDECL:  gen_vardecl(stmt->vardecl.decls, stmt->vardecl.inits); break;
-  case ST_ASM:  gen_asm(stmt); break;*/
+  /*case ST_ASM:  gen_asm(stmt); break;*/
 
   default:
     parse_error(stmt->token, "Unhandled stmt: %d", stmt->kind);
@@ -154,6 +232,29 @@ static void gen_defun(Function *func) {
   if (func->scopes == NULL)  // Prototype definition
     return;
 
+  // Allocate local variables.
+  unsigned int local_count = 0;
+
+  for (int i = 0; i < func->scopes->len; ++i) {
+    Scope *scope = func->scopes->data[i];
+    if (scope->vars == NULL)
+      continue;
+
+    for (int j = 0; j < scope->vars->len; ++j) {
+      VarInfo *varinfo = scope->vars->data[j];
+      if (varinfo->storage & (VS_STATIC | VS_EXTERN | VS_ENUM_MEMBER)) {
+        // Static entity is allocated in global, not on stack.
+        // Extern doesn't have its entity.
+        // Enum members are replaced to constant value.
+        continue;
+      }
+
+      VReg *vreg = malloc(sizeof(*vreg));
+      vreg->local_index = local_count++;
+      varinfo->local.reg = vreg;
+    }
+  }
+
   curfunc = func;
 
   // Statements
@@ -162,8 +263,31 @@ static void gen_defun(Function *func) {
 
   //
 #if 1
-  unsigned int local_count = 0;
-  unsigned char buf[5], *p = emit_uleb128(buf, local_count);
+  unsigned char buf[32], *p;
+  p = emit_uleb128(buf, local_count);
+  if (local_count > 0) {
+    for (int i = 0; i < func->scopes->len; ++i) {
+      Scope *scope = func->scopes->data[i];
+      if (scope->vars == NULL)
+        continue;
+
+      for (int j = 0; j < scope->vars->len; ++j) {
+        VarInfo *varinfo = scope->vars->data[j];
+        if (varinfo->storage & (VS_STATIC | VS_EXTERN | VS_ENUM_MEMBER)) {
+          // Static entity is allocated in global, not on stack.
+          // Extern doesn't have its entity.
+          // Enum members are replaced to constant value.
+          continue;
+        }
+
+        assert(is_fixnum(varinfo->type->kind));
+        assert((p + 1) - buf < (ssize_t)sizeof(buf));
+        // TODO: Group same type variables.
+        p = emit_uleb128(p, 1);  // TODO: Set type bytes.
+        *p++ = WT_I32;
+      }
+    }
+  }
 
   size_t newcodesize = (p - buf) + codesize;
   unsigned char *newcode = realloc(code, newcodesize);

@@ -2,6 +2,10 @@
 
 // Wasm opcode
 #define OP_END            (0x0b)
+#define OP_DROP           (0x1a)
+#define OP_LOCAL_GET      (0x20)
+#define OP_LOCAL_SET      (0x21)
+#define OP_LOCAL_TEE      (0x22)
 #define OP_I32_CONST      (0x41)
 #define OP_I32_ADD        (0x6a)
 #define OP_I32_SUB        (0x6b)
