@@ -389,14 +389,11 @@ static VReg *gen_funcall(Expr *expr) {
 
   int offset = 0;
 
-  ArgInfo ret_info;
-  ret_info.reg_index = -1;
-  ret_info.offset = -1;
-  ret_info.size = type_size(expr->type);
-  ret_info.stack_arg = is_stack_param(expr->type);
-  if (ret_info.stack_arg) {
-    ret_info.reg_index = 0;
-    ret_info.offset = 0;
+  VReg *retvar_reg = NULL;  // Return value is on the stack.
+  if (is_stack_param(expr->type)) {
+    const Token *ident = alloc_ident(alloc_label(), NULL, NULL);
+    VarInfo *ret_varinfo = scope_add(curscope, ident, expr->type, 0);
+    ret_varinfo->local.reg = retvar_reg = add_new_reg(expr->type, VRF_LOCAL);
   }
 
   ArgInfo *arg_infos = NULL;
@@ -409,7 +406,7 @@ static VReg *gen_funcall(Expr *expr) {
       // TODO:
     }
 
-    int ireg_index = ret_info.stack_arg ? 1 : 0;
+    int ireg_index = retvar_reg != NULL ? 1 : 0;
 #ifndef __NO_FLONUM
     int freg_index = 0;
 #endif
@@ -456,10 +453,6 @@ static VReg *gen_funcall(Expr *expr) {
       }
     }
   }
-  if (ret_info.stack_arg) {
-    ret_info.offset = offset = ALIGN(offset, align_size(expr->type));
-    offset += ret_info.size;
-  }
   offset = ALIGN(offset, 8);
 
   IR *precall = new_ir_precall(arg_count - stack_arg_count, offset);
@@ -499,10 +492,9 @@ static VReg *gen_funcall(Expr *expr) {
       }
     }
   }
-  if (ret_info.stack_arg) {
-    VRegType offset_type = {.size = 4, .align = 4, .flag = 0};  // TODO:
-    VReg *dst = new_ir_sofs(new_const_vreg(ret_info.offset + reg_arg_count * WORD_SIZE,
-                                           &offset_type));
+  if (retvar_reg != NULL) {
+    // gen_lval(retvar)
+    VReg *dst = new_ir_bofs(retvar_reg);
     new_ir_pusharg(dst, to_vtype(ptrof(expr->type)));
     ++reg_arg_count;
     arg_type_bits <<= 1;
@@ -520,7 +512,7 @@ static VReg *gen_funcall(Expr *expr) {
   VReg *result_reg = NULL;
   {
     const Type *type = expr->type;
-    if (ret_info.stack_arg)
+    if (retvar_reg != NULL)
       type = ptrof(type);
     VRegType *ret_vtype = to_vtype(type);
     if (label_call) {
