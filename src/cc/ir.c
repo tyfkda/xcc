@@ -1134,7 +1134,7 @@ static void ir_out(IR *ir) {
   case IR_ADDSP:
     if (ir->value > 0)
       ADD(IM(ir->value), RSP);
-    else
+    else if (ir->value < 0)
       SUB(IM(-ir->value), RSP);
     stackpos -= ir->value;
     break;
@@ -1445,7 +1445,9 @@ static void pop_caller_save_regs(unsigned short living) {
         ++count;
       }
     }
-    ADD(IM(WORD_SIZE * count), RSP); stackpos -= WORD_SIZE * count;
+    if (count > 0) {
+      ADD(IM(WORD_SIZE * count), RSP); stackpos -= WORD_SIZE * count;
+    }
   }
 #endif
 
