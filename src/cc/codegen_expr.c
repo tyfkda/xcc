@@ -562,34 +562,30 @@ VReg *gen_arith(enum ExprKind kind, const Type *type, VReg *lhs, VReg *rhs) {
 VReg *gen_ptradd(enum ExprKind kind, const Type *type, VReg *lreg, Expr *rhs) {
   size_t scale = type_size(type->pa.ptrof);
 
-  Expr *raw_rhs = rhs;
-  while (raw_rhs->kind == EX_CAST)
-    raw_rhs = raw_rhs->unary.sub;
-  if (is_const(raw_rhs)) {
-    intptr_t rval = raw_rhs->fixnum;
+  VReg *rreg = gen_expr(rhs);
+  if (rreg->flag & VRF_CONST) {
+    intptr_t rval = rreg->fixnum;
     if (kind == EX_PTRSUB)
       rval = -rval;
     return new_ir_ptradd(rval * scale, lreg, NULL, 1, to_vtype(type));
-  } else {
-    VReg *rreg = gen_expr(rhs);
-    if (kind == EX_PTRSUB) {
-      rreg = new_ir_unary(IR_NEG, rreg, to_vtype(rhs->type));
-#if 1
-    } else {  // To avoid both spilled registers, add temporary register.
-      VReg *tmp = add_new_reg(rhs->type, 0);
-      new_ir_mov(tmp, rreg);
-      rreg = tmp;
-#endif
-    }
-    if (scale > 8 || !IS_POWER_OF_2(scale)) {
-      VRegType *vtype = to_vtype(rhs->type);
-      VReg *sreg = new_const_vreg(scale, vtype);
-      rreg = new_ir_bop(IR_MUL, rreg, sreg, vtype);
-      scale = 1;
-    }
-    rreg = new_ir_cast(rreg, to_vtype(&tySize));
-    return new_ir_ptradd(0, lreg, rreg, scale, to_vtype(type));
   }
+  if (kind == EX_PTRSUB) {
+    rreg = new_ir_unary(IR_NEG, rreg, to_vtype(rhs->type));
+#if 1
+  } else {  // To avoid both spilled registers, add temporary register.
+    VReg *tmp = add_new_reg(rhs->type, 0);
+    new_ir_mov(tmp, rreg);
+    rreg = tmp;
+#endif
+  }
+  if (scale > 8 || !IS_POWER_OF_2(scale)) {
+    VRegType *vtype = to_vtype(rhs->type);
+    VReg *sreg = new_const_vreg(scale, vtype);
+    rreg = new_ir_bop(IR_MUL, rreg, sreg, vtype);
+    scale = 1;
+  }
+  rreg = new_ir_cast(rreg, to_vtype(&tySize));
+  return new_ir_ptradd(0, lreg, rreg, scale, to_vtype(type));
 }
 
 VReg *gen_expr(Expr *expr) {
