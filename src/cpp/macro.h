@@ -10,6 +10,7 @@ typedef struct Vector Vector;
 enum SegmentKind {
   SK_TEXT,
   SK_PARAM,
+  SK_STRINGIFY,
 };
 
 typedef struct {

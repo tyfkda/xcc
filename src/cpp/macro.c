@@ -1,6 +1,8 @@
 #include "macro.h"
 
+#include <assert.h>
 #include <stdlib.h>  // malloc
+#include <string.h>
 
 #include "lexer.h"  // parse_error
 #include "table.h"
@@ -69,7 +71,17 @@ void expand(Macro *macro, const Token *token, Vector *args, const Name *name, St
       case SK_PARAM:
         sb_append(sb, (char*)args->data[seg->param], NULL);
         break;
+      case SK_STRINGIFY:
+        {
+          static const char DQUOTE[] = "\"";
+          sb_append(sb, DQUOTE, NULL);
+          const char *text = args->data[seg->param];
+          escape_string(text, strlen(text), sb);
+          sb_append(sb, DQUOTE, NULL);
+        }
+        break;
       default:
+        assert(false);
         break;
       }
     }

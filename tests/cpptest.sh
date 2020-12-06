@@ -68,5 +68,7 @@ try '__LINE__' "3" "\n\n__LINE__"
 try 'Block comment' '/*block comment*/' "/*\nblock comment\n*/"
 try 'Quote in comment' "/*I'm fine*/" "/*\nI'm fine\n*/"
 try 'Concat' 'FOO_123' '#define FOO(x)  FOO_ ## x\nFOO( 123 )'
+try 'Stringify' '"1 + 2"' '#define S(x)  #x\nS(1 + 2)'
+try 'Stringify escaped' '"\"abc\""' '#define S(x)  #x\nS("abc")'
 
 compile_error '#error' '#error !!!\nvoid main(){}'

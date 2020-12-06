@@ -139,40 +139,68 @@ Vector *parse_macro_body(const char *p, const Vector *params, bool va_args, Stre
   const char *start = p;
   const char *end = start;
   for (;;) {
-    Token *tok;
-    if ((tok = match(TK_IDENT)) != NULL) {
-      int param_index = -1;
-      if (va_args && equal_name(tok->ident, key_va_args)) {
-        param_index = param_len;
-      } else {
-        for (int i = 0; i < param_len; ++i) {
-          if (equal_name(tok->ident, params->data[i])) {
-            param_index = i;
-            break;
+    Token *tok = match(-1);
+    if (tok->kind == TK_EOF)
+      break;
+    switch (tok->kind) {
+    case TK_IDENT:
+      {
+        int param_index = -1;
+        if (va_args && equal_name(tok->ident, key_va_args)) {
+          param_index = param_len;
+        } else {
+          for (int i = 0; i < param_len; ++i) {
+            if (equal_name(tok->ident, params->data[i])) {
+              param_index = i;
+              break;
+            }
           }
         }
-      }
-      if (param_index >= 0) {
-        push_text_segment(segments, start, tok->begin);
+        if (param_index >= 0) {
+          push_text_segment(segments, start, tok->begin);
 
-        Segment *seg = malloc(sizeof(*seg));
-        seg->kind = SK_PARAM;
-        seg->param = param_index;
-        vec_push(segments, seg);
+          Segment *seg = malloc(sizeof(*seg));
+          seg->kind = SK_PARAM;
+          seg->param = param_index;
+          vec_push(segments, seg);
 
-        start = end = tok->end;
-        continue;
+          start = end = tok->end;
+          continue;
+        }
       }
-    } else {
-      tok = match(-1);
-      if (tok->kind == TK_EOF)
-        break;
-      if (tok->kind == PPTK_CONCAT) {
-        push_text_segment(segments, start, end);
+      break;
+    case PPTK_CONCAT:
+      push_text_segment(segments, start, end);
 
-        start = end = skip_whitespaces(tok->end);
-        continue;
+      start = end = skip_whitespaces(tok->end);
+      continue;
+    case PPTK_STRINGIFY:
+      {
+        Token *ident;
+        if ((ident = match(TK_IDENT)) != NULL) {
+          int param_index = -1;
+          for (int i = 0; i < param_len; ++i) {
+            if (equal_name(ident->ident, params->data[i])) {
+              param_index = i;
+              break;
+            }
+          }
+          if (param_index >= 0) {
+            push_text_segment(segments, start, tok->begin);
+
+            Segment *seg = malloc(sizeof(*seg));
+            seg->kind = SK_STRINGIFY;
+            seg->param = param_index;
+            vec_push(segments, seg);
+
+            start = end = ident->end;
+            continue;
+          }
       }
+      }
+      break;
+    default:
+      break;
     }
     end = tok->end;
   }
