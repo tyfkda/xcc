@@ -256,17 +256,19 @@ Expr *make_cast(const Type *type, const Token *token, Expr *sub, bool is_explici
     }
 #endif
 
-    int bytes = type_size(type);
-    if (bytes < (int)type_size(sub->type)) {
-      int bits = bytes * CHAR_BIT;
-      uintptr_t mask = (-1UL) << bits;
-      Fixnum value = sub->fixnum;
-      if (!type->fixnum.is_unsigned &&  // signed
-          (value & (1UL << (bits - 1))))  // negative
-        value |= mask;
-      else
-        value &= ~mask;
-      sub->fixnum = value;
+    if (type->fixnum.kind < FX_LONG) {  // LLONG?
+      int bytes = type_size(type);
+      if (bytes <= (int)type_size(sub->type)) {
+        int bits = bytes * CHAR_BIT;
+        uintptr_t mask = (-1UL) << bits;
+        Fixnum value = sub->fixnum;
+        if (!type->fixnum.is_unsigned &&  // signed
+            (value & (1UL << (bits - 1))))  // negative
+          value |= mask;
+        else
+          value &= ~mask;
+        sub->fixnum = value;
+      }
     }
     sub->type = type;
     return sub;
