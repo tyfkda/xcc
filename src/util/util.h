@@ -71,3 +71,5 @@ void sb_clear(StringBuffer *sb);
 bool sb_empty(StringBuffer *sb);
 void sb_append(StringBuffer *sb, const char *start, const char *end);
 char *sb_to_string(StringBuffer *sb);
+
+void escape_string(const char *str, size_t size, StringBuffer *sb);

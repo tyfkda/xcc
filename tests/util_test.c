@@ -79,6 +79,15 @@ void test_sb(void) {
   EXPECT(true, sb_empty(&sb));
 }
 
+void test_escape(void) {
+  StringBuffer sb;
+  sb_init(&sb);
+
+  static const char s1[] = "\"a b\tc\rd\ne\\\x1b";
+  escape_string(s1, sizeof(s1), &sb);
+  EXPECT_STREQ("escape_string", "\\\"a b\\tc\\rd\\ne\\\\\\x1b\\0", sb_to_string(&sb));
+}
+
 void test_cat_path(void) {
   EXPECT_STREQ("Relative", "/user/foo/inc/stdio.h", cat_path("/user/foo", "inc/stdio.h"));
   EXPECT_STREQ("Absolute", "/inc/stdio.h", cat_path("/user/foo", "/inc/stdio.h"));
@@ -104,6 +113,7 @@ void test_change_ext(void) {
 void runtest(void) {
   test_vector();
   test_sb();
+  test_escape();
   test_cat_path();
   test_change_ext();
 

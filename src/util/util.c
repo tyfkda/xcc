@@ -370,3 +370,38 @@ char *sb_to_string(StringBuffer *sb) {
   *p = '\0';
   return str;
 }
+
+static const char *escape(int c) {
+  switch (c) {
+  case '\0': return "\\0";
+  case '\n': return "\\n";
+  case '\r': return "\\r";
+  case '\t': return "\\t";
+  case '"': return "\\\"";
+  case '\\': return "\\\\";
+  default:
+    if (c < 0x20 || c >= 0x7f) {
+      char *s = malloc(5);
+      snprintf(s, 5, "\\x%02x", c & 0xff);
+      return s;
+    }
+    return NULL;
+  }
+}
+
+void escape_string(const char *str, size_t size, StringBuffer *sb) {
+  const char *s, *p;
+  const char *end = str + size;
+  for (s = p = str; p < end; ++p) {
+    const char *e = escape(*p);
+    if (e == NULL)
+      continue;
+
+    if (p > s)
+      sb_append(sb, s, p);
+    sb_append(sb, e, NULL);
+    s = p + 1;
+  }
+  if (p > s)
+    sb_append(sb, s, p);
+}

@@ -17,35 +17,6 @@
 #include "var.h"
 #include "x86_64.h"
 
-static const char *escape(int c) {
-  switch (c) {
-  case '\0': return "\\0";
-  case '\n': return "\\n";
-  case '\r': return "\\r";
-  case '\t': return "\\t";
-  case '"': return "\\\"";
-  case '\\': return "\\\\";
-  default:   return NULL;
-  }
-}
-
-static void escape_string(const char *str, size_t size, StringBuffer *sb) {
-  const char *s, *p;
-  const char *end = str + size;
-  for (s = p = str; p < end; ++p) {
-    const char *e = escape(*p);
-    if (e == NULL)
-      continue;
-
-    if (p > s)
-      sb_append(sb, s, p);
-    sb_append(sb, e, NULL);
-    s = p + 1;
-  }
-  if (p > s)
-    sb_append(sb, s, p);
-}
-
 static void construct_initial_value(unsigned char *buf, const Type *type, const Initializer *init) {
   assert(init == NULL || init->kind != IK_DOT);
 
