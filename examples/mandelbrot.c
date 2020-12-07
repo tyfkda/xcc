@@ -31,7 +31,7 @@ unsigned int calc_color(unsigned int n) {
 
 int main() {
   const unsigned int threshold = 3000;
-  const int W = 1024, H = 1024;
+  const int W = 512, H = 512;
   const double XMIN = -1.75;
   const double YMIN = -1.125;
   const double XS = 2.25, YS = XS * H / W;
