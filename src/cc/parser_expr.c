@@ -608,11 +608,11 @@ static Expr *parse_funcall(Expr *func) {
       parse_error(token, "function `%.*s' expect %d arguments, but %d", func->var.name->bytes, func->var.name->chars, paramc, argc);
   }
 
-  if (args != NULL && param_types != NULL) {
-    int paramc = param_types->len;
+  if (args != NULL) {
+    int paramc = param_types != NULL ? param_types->len : -1;
     for (int i = 0, len = args->len; i < len; ++i) {
       Expr *arg = args->data[i];
-      if (i < param_types->len) {
+      if (i < paramc) {
         const Type *type = param_types->data[i];
         arg = make_cast(type, arg->token, arg, false);
       } else if (vaargs && i >= paramc) {
