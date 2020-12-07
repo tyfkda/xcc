@@ -155,10 +155,17 @@ bool can_cast(const Type *dst, const Type *src, bool zero, bool is_explicit, Sco
     case TY_FUNC:
       if (is_explicit)
         return true;
-      if (dst->pa.ptrof->kind == TY_FUNC) {
-        const Type *ftype = dst->pa.ptrof;
-        return (same_type(ftype, src, scope) ||
-                (ftype->func.param_types == NULL || src->func.param_types == NULL));
+      switch (dst->pa.ptrof->kind) {
+      case TY_FUNC:
+        {
+          const Type *ftype = dst->pa.ptrof;
+          return (same_type(ftype, src, scope) ||
+                  (ftype->func.param_types == NULL || src->func.param_types == NULL));
+        }
+      case TY_VOID:
+        return true;
+      default:
+        break;
       }
       break;
     default:  break;
