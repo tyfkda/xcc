@@ -1510,11 +1510,20 @@ static Expr *parse_logior(void) {
   }
 }
 
+static const Type *to_ptr_type(const Type *type) {
+  switch (type->kind) {
+  case TY_ARRAY: return array_to_ptr(type);
+  case TY_FUNC:  return ptrof(type);
+  default:  return type;
+  }
+}
+
 static const Type *choose_type(Expr *tval, Expr *fval) {
   const Type *ttype = tval->type;
   const Type *ftype = fval->type;
-  if (ttype->kind == TY_ARRAY)
-    ttype = array_to_ptr(ttype);
+  ttype = to_ptr_type(ttype);
+  ftype = to_ptr_type(ftype);
+
   if (ftype->kind == TY_ARRAY)
     ftype = array_to_ptr(ftype);
 
