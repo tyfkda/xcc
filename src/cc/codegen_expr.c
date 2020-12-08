@@ -50,7 +50,48 @@ static enum ConditionKind gen_compare_expr(enum ExprKind kind, Expr *lhs, Expr *
 
   enum ConditionKind cond = kind + (COND_EQ - EX_EQ);
   assert(cond >= COND_EQ && cond < COND_ULT);
-  if (is_const(lhs) && !is_const(rhs)) {
+  if (is_const(lhs)) {
+    if (is_const(rhs)) {
+#define JUDGE(tf, l, r)  \
+  switch (kind) { \
+  default: assert(false); /* Fallthrough */ \
+  case EX_EQ:  tf = l == r; break; \
+  case EX_NE:  tf = l != r; break; \
+  case EX_LT:  tf = l < r; break; \
+  case EX_LE:  tf = l <= r; break; \
+  case EX_GE:  tf = l >= r; break; \
+  case EX_GT:  tf = l > r; break; \
+  }
+
+      bool tf;
+      switch (lhs->kind) {
+      default:
+        assert(false);
+        // Fallthrough to suppress warning.
+      case EX_FIXNUM:
+        assert(rhs->kind == EX_FIXNUM);
+        if (lhs->type->fixnum.is_unsigned) {
+          UFixnum l = lhs->fixnum, r = rhs->fixnum;
+          JUDGE(tf, l, r);
+        } else {
+          Fixnum l = lhs->fixnum, r = rhs->fixnum;
+          JUDGE(tf, l, r);
+        }
+        break;
+  #ifndef __NO_FLONUM
+      case EX_FLONUM:
+        {
+          assert(rhs->kind == EX_FLONUM);
+          double l = lhs->flonum, r = rhs->flonum;
+          JUDGE(tf, l, r);
+        }
+        break;
+  #endif
+      }
+      return tf ? COND_ANY : COND_NONE;
+#undef JUDGE
+    }
+
     Expr *tmp = lhs;
     lhs = rhs;
     rhs = tmp;
@@ -97,68 +138,21 @@ static enum ConditionKind gen_compare_expr(enum ExprKind kind, Expr *lhs, Expr *
 }
 
 void gen_cond_jmp(Expr *cond, bool tf, BB *bb) {
-  // Local optimization: if `cond` is compare expression, then
-  // jump using flags after CMP directly.
-  switch (cond->kind) {
-  case EX_FIXNUM:
-    if (cond->fixnum == 0)
-      tf = !tf;
-    if (tf)
-      new_ir_jmp(COND_ANY, bb);
-    return;
-
-#ifndef __NO_FLONUM
-  case EX_FLONUM:
-    if (cond->flonum == 0)
-      tf = !tf;
-    if (tf)
-      new_ir_jmp(COND_ANY, bb);
-    return;
-#endif
-
+  enum ExprKind ck = cond->kind;
+  switch (ck) {
   case EX_EQ:
   case EX_NE:
-    {
-      enum ConditionKind kind = gen_compare_expr(cond->kind, cond->bop.lhs, cond->bop.rhs);
-      if (!tf)
-        kind = COND_EQ + COND_NE - kind;
-      new_ir_jmp(kind, bb);
-      return;
-    }
   case EX_LT:
-  case EX_GT:
   case EX_LE:
   case EX_GE:
-    {
-      enum ConditionKind kind = gen_compare_expr(cond->kind, cond->bop.lhs, cond->bop.rhs);
-      switch (kind) {
-      case COND_LT:
-      case COND_GE:
-        if (!tf)
-          kind = COND_LT + COND_GE - kind;
-        new_ir_jmp(kind, bb);
-        break;
-      case COND_GT:
-      case COND_LE:
-        if (!tf)
-          kind = COND_GT + COND_LE - kind;
-        new_ir_jmp(kind, bb);
-        break;
-      case COND_ULT:
-      case COND_UGE:
-        if (!tf)
-          kind = COND_ULT + COND_UGE - kind;
-        new_ir_jmp(kind, bb);
-        break;
-      case COND_UGT:
-      case COND_ULE:
-        if (!tf)
-          kind = COND_UGT + COND_ULE - kind;
-        new_ir_jmp(kind, bb);
-        break;
-      default:  assert(false); break;
-      }
+  case EX_GT:
+    if (!tf) {
+      if (ck <= EX_NE)
+        ck = (EX_EQ + EX_NE) - ck;
+      else
+        ck = EX_LT + ((ck - EX_LT) ^ 2);
     }
+    new_ir_jmp(gen_compare_expr(ck, cond->bop.lhs, cond->bop.rhs), bb);
     return;
   case EX_LOGAND:
     if (!tf) {
@@ -195,20 +189,9 @@ void gen_cond_jmp(Expr *cond, bool tf, BB *bb) {
     }
     return;
   default:
+    assert(false);
     break;
   }
-
-#ifndef __NO_FLONUM
-  if (is_flonum(cond->type)) {
-    Expr *zero = new_expr_flolit(cond->type, NULL, 0.0);
-    Expr *cmp = new_expr_bop(EX_NE, &tyBool, NULL, cond, zero);
-    gen_cond_jmp(cmp, tf, bb);
-    return;
-  }
-#endif
-  VReg *reg = gen_expr(cond);
-  new_ir_test(reg);
-  new_ir_jmp(tf ? COND_NE : COND_EQ, bb);
 }
 
 static VReg *gen_cast(VReg *reg, const Type *dst_type) {
@@ -884,7 +867,13 @@ VReg *gen_expr(Expr *expr) {
   case EX_GE:
     {
       enum ConditionKind cond = gen_compare_expr(expr->kind, expr->bop.lhs, expr->bop.rhs);
-      return new_ir_cond(cond);
+      switch (cond) {
+      case COND_NONE:
+      case COND_ANY:
+        return new_const_vreg(cond == COND_ANY, to_vtype(&tyBool));
+      default:
+        return new_ir_cond(cond);
+      }
     }
 
   case EX_LOGAND:

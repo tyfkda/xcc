@@ -39,6 +39,7 @@ void not_void(const Type *type, const Token *token);
 void ensure_struct(Type *type, const Token *token);
 bool check_cast(const Type *dst, const Type *src, bool zero, bool is_explicit, const Token *token);
 Expr *make_cast(const Type *type, const Token *token, Expr *sub, bool is_explicit);
+Expr *make_cond(Expr *expr);
 const VarInfo *search_from_anonymous(const Type *type, const Name *name, const Token *ident,
                                      Vector *stack);
 VarInfo *str_to_char_array(const Type *type, Initializer *init);

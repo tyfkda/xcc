@@ -19,7 +19,8 @@ typedef struct Vector Vector;
 
 // Num
 
-typedef intptr_t Fixnum;
+typedef intptr_t  Fixnum;
+typedef uintptr_t UFixnum;
 
 // ================================================
 

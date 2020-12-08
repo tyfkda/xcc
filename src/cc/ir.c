@@ -329,6 +329,8 @@ VReg *new_ir_cond(enum ConditionKind cond) {
 }
 
 void new_ir_jmp(enum ConditionKind cond, BB *bb) {
+  if (cond == COND_NONE)
+    return;
   IR *ir = new_ir(IR_JMP);
   ir->jmp.bb = bb;
   ir->jmp.cond = cond;

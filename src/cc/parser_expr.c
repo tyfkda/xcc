@@ -572,7 +572,7 @@ static Expr *new_expr_cmp(enum ExprKind kind, const Token *tok, Expr *lhs, Expr 
 
 //
 
-static Expr *make_cond(Expr *expr) {
+Expr *make_cond(Expr *expr) {
   switch (expr->kind) {
   case EX_EQ:
   case EX_NE:
@@ -1540,7 +1540,7 @@ static Expr *parse_logand(void) {
   for (;;) {
     Token *tok;
     if ((tok = match(TK_LOGAND)) != NULL)
-      expr = new_expr_bop(EX_LOGAND, &tyBool, tok, expr, parse_or());
+      expr = new_expr_bop(EX_LOGAND, &tyBool, tok, make_cond(expr), make_cond(parse_or()));
     else
       return expr;
   }
@@ -1551,7 +1551,7 @@ static Expr *parse_logior(void) {
   for (;;) {
     Token *tok;
     if ((tok = match(TK_LOGIOR)) != NULL)
-      expr = new_expr_bop(EX_LOGIOR, &tyBool, tok, expr, parse_logand());
+      expr = new_expr_bop(EX_LOGIOR, &tyBool, tok, make_cond(expr), make_cond(parse_logand()));
     else
       return expr;
   }
@@ -1645,7 +1645,7 @@ static Expr *parse_conditional(void) {
       }
       expr = tf ? tval : fval;
     } else {
-      expr = new_expr_ternary(tok, expr, tval, fval, type);
+      expr = new_expr_ternary(tok, make_cond(expr), tval, fval, type);
     }
   }
 }

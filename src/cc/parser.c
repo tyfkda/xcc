@@ -806,7 +806,7 @@ static void parse_typedef(void) {
 
 static Stmt *parse_if(const Token *tok) {
   consume(TK_LPAR, "`(' expected");
-  Expr *cond = parse_expr();
+  Expr *cond = make_cond(parse_expr());
   consume(TK_RPAR, "`)' expected");
   Stmt *tblock = parse_stmt();
   Stmt *fblock = NULL;
@@ -872,7 +872,7 @@ static Stmt *parse_default(const Token *tok) {
 
 static Stmt *parse_while(const Token *tok) {
   consume(TK_LPAR, "`(' expected");
-  Expr *cond = parse_expr();
+  Expr *cond = make_cond(parse_expr());
   consume(TK_RPAR, "`)' expected");
 
   int save_flag = curloopflag;
@@ -895,7 +895,7 @@ static Stmt *parse_do_while(void) {
 
   const Token *tok = consume(TK_WHILE, "`while' expected");
   consume(TK_LPAR, "`(' expected");
-  Expr *cond = parse_expr();
+  Expr *cond = make_cond(parse_expr());
   consume(TK_RPAR, "`)' expected");
   consume(TK_SEMICOL, "`;' expected");
   return new_stmt_do_while(body, tok, cond);
@@ -927,7 +927,7 @@ static Stmt *parse_for(const Token *tok) {
   Expr *post = NULL;
   Stmt *body = NULL;
   if (!match(TK_SEMICOL)) {
-    cond = parse_expr();
+    cond = make_cond(parse_expr());
     consume(TK_SEMICOL, "`;' expected");
   }
   if (!match(TK_RPAR)) {

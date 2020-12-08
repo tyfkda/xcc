@@ -96,6 +96,7 @@ enum IrKind {
 };
 
 enum ConditionKind {
+  COND_NONE,
   COND_ANY,
   COND_EQ,
   COND_NE,
