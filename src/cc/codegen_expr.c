@@ -50,7 +50,7 @@ static enum ConditionKind gen_compare_expr(enum ExprKind kind, Expr *lhs, Expr *
 
   enum ConditionKind cond = kind + (COND_EQ - EX_EQ);
   assert(cond >= COND_EQ && cond < COND_ULT);
-  if (is_const(rhs) && !is_const(lhs)) {
+  if (is_const(lhs) && !is_const(rhs)) {
     Expr *tmp = lhs;
     lhs = rhs;
     rhs = tmp;
