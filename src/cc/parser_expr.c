@@ -1686,10 +1686,18 @@ Expr *parse_const(void) {
 
 Expr *parse_expr(void) {
   Expr *expr = parse_assign();
+  Expr *last = expr;
   const Token *tok;
   while ((tok = match(TK_COMMA)) != NULL) {
     Expr *next_expr = parse_assign();
-    expr = new_expr_bop(EX_COMMA, next_expr->type, tok, expr, next_expr);
+    if (is_const(expr))
+      expr = last = next_expr;
+    else if (is_const(next_expr))
+      last = next_expr;
+    else
+      expr = last = new_expr_bop(EX_COMMA, next_expr->type, tok, expr, next_expr);
   }
+  if (expr != last)
+    expr = new_expr_bop(EX_COMMA, last->type, tok, expr, last);
   return expr;
 }
