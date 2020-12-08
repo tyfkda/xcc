@@ -314,6 +314,14 @@ bool assemble_inst(Inst *inst, const ParseInfo *info, Code *code) {
       switch (inst->src.reg.size) {
       case REG8:
         switch (inst->dst.reg.size) {
+        case REG16:
+          if (opr_reg8(&inst->src.reg) && !inst->dst.reg.x) {
+            MAKE_CODE(inst, code, 0x66, 0x0f, op, 0xc0 + s + d * 8);
+          } else {
+            int pre = (!inst->src.reg.x ? 0x40 : 0x41) + (!inst->dst.reg.x ? 0 : 4);
+            MAKE_CODE(inst, code, 0x66, pre, 0x0f, op, 0xc0 + s + d * 8);
+          }
+          return true;
         case REG32:
           if (opr_reg8(&inst->src.reg) && !inst->dst.reg.x) {
             MAKE_CODE(inst, code, 0x0f, op, 0xc0 + s + d * 8);
