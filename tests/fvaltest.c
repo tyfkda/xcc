@@ -71,6 +71,20 @@ int main(void) {
   expect("+-", 21, (x=5, x+20-4));
   expect("*/", 7.5, (x=5, x*3/2));
   expect("unary -", -3.69, (x=3.69, -x));
+  expect("pre inc", 11, (x=10, ++x));
+  {
+    expect("post dec", 10, (x=10, x--));
+    expect("post dec after", 9, x);
+  }
+  {
+    static double g;
+    expect("pre dec g", 9.5, (g=10.5, --g));
+  }
+  {
+    static double g;
+    expect("post inc g", 10.25, (g=10.25, g++));
+    expect("post inc after", 11.25, g);
+  }
 
   expecti("!", false, (x=5, !x));
   expecti("||", true, (x=0.0, y=5.0, x || y));

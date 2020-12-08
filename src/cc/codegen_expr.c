@@ -534,6 +534,25 @@ VReg *gen_ptradd(enum ExprKind kind, const Type *type, VReg *lreg, Expr *rhs) {
   return new_ir_ptradd(0, lreg, rreg, scale, to_vtype(type));
 }
 
+#ifndef __NO_FLONUM
+VReg *gen_const_flonum(Expr *expr) {
+  assert(expr->type->kind == TY_FLONUM);
+  Initializer *init = malloc(sizeof(*init));
+  init->kind = IK_SINGLE;
+  init->single = expr;
+  init->token = expr->token;
+
+  assert(curscope != NULL);
+  const Type *type = qualified_type(expr->type, TQ_CONST);
+  const Token *ident = alloc_ident(alloc_label(), NULL, NULL);
+  VarInfo *varinfo = scope_add(curscope, ident, type, VS_STATIC);
+  varinfo->global.init = init;
+
+  VReg *src = new_ir_iofs(varinfo->name, false);
+  return new_ir_unary(IR_LOAD, src, to_vtype(type));
+}
+#endif
+
 VReg *gen_expr(Expr *expr) {
   switch (expr->kind) {
   case EX_FIXNUM:
@@ -551,22 +570,7 @@ VReg *gen_expr(Expr *expr) {
     }
 #ifndef __NO_FLONUM
   case EX_FLONUM:
-    {
-      assert(expr->type->kind == TY_FLONUM);
-      Initializer *init = malloc(sizeof(*init));
-      init->kind = IK_SINGLE;
-      init->single = expr;
-      init->token = expr->token;
-
-      assert(curscope != NULL);
-      const Type *type = qualified_type(expr->type, TQ_CONST);
-      const Token *ident = alloc_ident(alloc_label(), NULL, NULL);
-      VarInfo *varinfo = scope_add(curscope, ident, type, VS_STATIC);
-      varinfo->global.init = init;
-
-      VReg *src = new_ir_iofs(varinfo->name, false);
-      return new_ir_unary(IR_LOAD, src, to_vtype(type));
-    }
+    return gen_const_flonum(expr);
 #endif
 
   case EX_STR:
@@ -764,6 +768,15 @@ VReg *gen_expr(Expr *expr) {
         const VarInfo *varinfo = scope_find(sub->var.scope, sub->var.name, NULL);
         assert(varinfo != NULL);
         if (!(varinfo->storage & (VS_STATIC | VS_EXTERN))) {
+#ifndef __NO_FLONUM
+          if (is_flonum(sub->type)) {
+            VReg *one = gen_const_flonum(new_expr_flolit(sub->type, NULL, 1));
+            VReg *result = new_ir_bop(expr->kind == EX_PREINC ? IR_ADD : IR_SUB,
+                                      varinfo->local.reg, one, vtype);
+            new_ir_mov(varinfo->local.reg, result);
+            return result;
+          }
+#endif
           VReg *num = new_const_vreg(value, vtype);
           VReg *result = new_ir_bop(expr->kind == EX_PREINC ? IR_ADD : IR_SUB,
                                     varinfo->local.reg, num, vtype);
@@ -773,6 +786,16 @@ VReg *gen_expr(Expr *expr) {
       }
 
       VReg *lval = gen_lval(sub);
+#ifndef __NO_FLONUM
+      if (is_flonum(sub->type)) {
+        VReg *val = new_ir_unary(IR_LOAD, lval, vtype);
+        VReg *one = gen_const_flonum(new_expr_flolit(sub->type, NULL, value));
+        VReg *result = new_ir_bop(expr->kind == EX_PREINC ? IR_ADD : IR_SUB,
+                                  val, one, vtype);
+        new_ir_store(lval, result);
+        return result;
+      }
+#endif
       new_ir_incdec(expr->kind == EX_PREINC ? IR_INC : IR_DEC,
                     lval, type_size(expr->type), value);
       VReg *result = new_ir_unary(IR_LOAD, lval, vtype);
@@ -792,6 +815,17 @@ VReg *gen_expr(Expr *expr) {
         const VarInfo *varinfo = scope_find(sub->var.scope, sub->var.name, NULL);
         assert(varinfo != NULL);
         if (!(varinfo->storage & (VS_STATIC | VS_EXTERN))) {
+#ifndef __NO_FLONUM
+          if (is_flonum(sub->type)) {
+            VReg *org_val = add_new_reg(sub->type, 0);
+            new_ir_mov(org_val, varinfo->local.reg);
+            VReg *one = gen_const_flonum(new_expr_flolit(sub->type, NULL, 1));
+            VReg *result = new_ir_bop(expr->kind == EX_POSTINC ? IR_ADD : IR_SUB,
+                                      varinfo->local.reg, one, vtype);
+            new_ir_mov(varinfo->local.reg, result);
+            return org_val;
+          }
+#endif
           VReg *org_val = add_new_reg(sub->type, 0);
           new_ir_mov(org_val, varinfo->local.reg);
           VReg *num = new_const_vreg(value, vtype);
@@ -803,6 +837,16 @@ VReg *gen_expr(Expr *expr) {
       }
 
       VReg *lval = gen_lval(expr->unary.sub);
+#ifndef __NO_FLONUM
+      if (is_flonum(sub->type)) {
+        VReg *val = new_ir_unary(IR_LOAD, lval, vtype);
+        VReg *one = gen_const_flonum(new_expr_flolit(sub->type, NULL, value));
+        VReg *result = new_ir_bop(expr->kind == EX_POSTINC ? IR_ADD : IR_SUB,
+                                  val, one, vtype);
+        new_ir_store(lval, result);
+        return val;
+      }
+#endif
       VReg *result = new_ir_unary(IR_LOAD, lval, vtype);
       new_ir_incdec(expr->kind == EX_POSTINC ? IR_INC : IR_DEC,
                     lval, type_size(expr->type), value);
