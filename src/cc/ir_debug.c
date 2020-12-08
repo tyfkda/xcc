@@ -64,7 +64,6 @@ static void dump_ir(FILE *fp, IR *ir) {
   case IR_INC:    fprintf(fp, "\tINC\t"); dump_vreg(fp, ir->opr1, WORD_SIZE); fprintf(fp, "%s += %" PRIdPTR "\n", kSize[ir->size], ir->value); break;
   case IR_DEC:    fprintf(fp, "\tDEC\t"); dump_vreg(fp, ir->opr1, WORD_SIZE); fprintf(fp, "%s -= %" PRIdPTR "\n", kSize[ir->size], ir->value); break;
   case IR_NEG:    fprintf(fp, "\tNEG\t"); dump_vreg(fp, ir->dst, ir->size); fprintf(fp, " = -"); dump_vreg(fp, ir->opr1, ir->size); fprintf(fp, "\n"); break;
-  case IR_NOT:    fprintf(fp, "\tNOT\t"); dump_vreg(fp, ir->dst, ir->size); fprintf(fp, " = !"); dump_vreg(fp, ir->opr1, ir->size); fprintf(fp, "\n"); break;
   case IR_BITNOT: fprintf(fp, "\tBITNOT\t"); dump_vreg(fp, ir->dst, ir->size); fprintf(fp, " = ~"); dump_vreg(fp, ir->opr1, ir->size); fprintf(fp, "\n"); break;
   case IR_COND:    fprintf(fp, "\tCOND\t"); dump_vreg(fp, ir->dst, 4); fprintf(fp, " = %s\n", kCond[ir->cond.kind]); break;
   case IR_TEST:   fprintf(fp, "\tTEST\t"); dump_vreg(fp, ir->opr1, ir->size); fprintf(fp, "\n"); break;

@@ -62,7 +62,6 @@ enum ExprKind {
   // Unary operators
   EX_POS,     // +
   EX_NEG,     // -
-  EX_NOT,     // !
   EX_BITNOT,  // ~x
   EX_PREINC,  // ++e
   EX_PREDEC,  // --e

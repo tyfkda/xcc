@@ -160,9 +160,6 @@ void gen_cond_jmp(Expr *cond, bool tf, BB *bb) {
       }
     }
     return;
-  case EX_NOT:
-    gen_cond_jmp(cond->unary.sub, !tf, bb);
-    return;
   case EX_LOGAND:
     if (!tf) {
       BB *bb1 = bb_split(curbb);
@@ -869,24 +866,6 @@ VReg *gen_expr(Expr *expr) {
       }
 #endif
       VReg *result = new_ir_unary(IR_NEG, reg, to_vtype(expr->type));
-      return result;
-    }
-
-  case EX_NOT:
-    {
-      VReg *result;
-      switch (expr->unary.sub->type->kind) {
-      case TY_FIXNUM: case TY_PTR:
-        result = new_ir_unary(IR_NOT, gen_expr(expr->unary.sub), to_vtype(expr->type));
-        break;
-      default:
-        assert(false);
-        // Fallthrough to suppress compile error
-      case TY_ARRAY: case TY_FUNC:
-        // Array is handled as a pointer.
-        result = new_ir_unary(IR_NOT, gen_expr(expr->unary.sub), to_vtype(expr->type));
-        break;
-      }
       return result;
     }
 

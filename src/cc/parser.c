@@ -730,7 +730,7 @@ static Vector *parse_vardecl_cont(const Type *rawType, Type *type, int flag, Tok
       type = new_func_type(type, params, param_types, vaargs);
       flag |= VF_EXTERN;
     } else {
-      not_void(type);
+      not_void(type, NULL);
 
       assert(!is_global_scope(curscope));
       scope_add(curscope, ident, type, flag);
@@ -783,7 +783,7 @@ static void parse_typedef(void) {
   const Type *type = parse_full_type(&flag, &ident);
   if (type == NULL)
     parse_error(NULL, "type expected");
-  not_void(type);
+  not_void(type, NULL);
 
   if (ident == NULL) {
     ident = consume(TK_IDENT, "ident expected");

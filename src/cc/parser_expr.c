@@ -25,9 +25,9 @@ static void define_enum_member(Type *type, const Token *ident, int value) {
   varinfo->enum_member.value = value;
 }
 
-void not_void(const Type *type) {
+void not_void(const Type *type, const Token *token) {
   if (type->kind == TY_VOID)
-    parse_error(NULL, "`void' not allowed");
+    parse_error(token, "`void' not allowed");
 }
 
 bool same_type(const Type *type1, const Type *type2, Scope *scope) {
@@ -572,6 +572,59 @@ static Expr *new_expr_cmp(enum ExprKind kind, const Token *tok, Expr *lhs, Expr 
 
 //
 
+static Expr *make_cond(Expr *expr) {
+  switch (expr->kind) {
+  case EX_EQ:
+  case EX_NE:
+  case EX_LT:
+  case EX_LE:
+  case EX_GE:
+  case EX_GT:
+  case EX_LOGAND:
+  case EX_LOGIOR:
+    break;
+  default:
+    {
+      Expr *zero = make_cast(expr->type, expr->token, new_expr_fixlit(&tyInt, expr->token, 0), false);
+      expr = new_expr_cmp(EX_NE, expr->token, expr, zero);
+    }
+    break;
+  }
+  return expr;
+}
+
+static Expr *make_not_cond(Expr *expr) {
+  Expr *cond = make_cond(expr);
+  enum ExprKind kind = cond->kind;
+  switch (kind) {
+  case EX_EQ:
+  case EX_NE:
+  case EX_LT:
+  case EX_LE:
+  case EX_GE:
+  case EX_GT:
+    if (kind <= EX_NE)
+      kind = (EX_EQ + EX_NE) - kind;
+    else
+      kind = EX_LT + ((kind - EX_LT) ^ 2);
+    cond->kind = kind;
+    break;
+  case EX_LOGAND:
+  case EX_LOGIOR:
+    {
+      Expr *lhs = make_not_cond(cond->bop.lhs);
+      Expr *rhs = make_not_cond(cond->bop.rhs);
+      cond = new_expr_bop((EX_LOGAND + EX_LOGIOR) - kind, &tyBool, expr->token, lhs, rhs);
+    }
+    break;
+  default:
+    fprintf(stderr, "kind=%d, ", kind);
+    assert(false);
+    break;
+  }
+  return cond;
+}
+
 Vector *parse_args(Token **ptoken) {
   Vector *args = NULL;
   Token *token;
@@ -1007,7 +1060,7 @@ Vector *parse_funparams(bool *pvaargs) {
           break;
         }
       } else {
-        not_void(type);
+        not_void(type, NULL);
       }
 
       // If the type is array, handle it as a pointer.
@@ -1038,7 +1091,7 @@ static StructInfo *parse_struct(bool is_union) {
       Token *ident;
       if (!parse_var_def(&rawType, &type, &flag, &ident))
         parse_error(NULL, "type expected");
-      not_void(type);
+      not_void(type, NULL);
       if (type->kind == TY_STRUCT) {
         ensure_struct((Type*)type, ident);
         // Allow ident to be null for anonymous struct member.
@@ -1257,13 +1310,7 @@ static Expr *parse_unary(void) {
       }
       return expr;
     }
-#ifndef __NO_FLONUM
-    if (is_flonum(expr->type)) {
-      Expr *zero = new_expr_flolit(expr->type, NULL, 0.0);
-      return new_expr_bop(EX_EQ, &tyBool, NULL, expr, zero);
-    }
-#endif
-    return new_expr_unary(EX_NOT, &tyBool, tok, expr);
+    return make_not_cond(expr);
   }
 
   if ((tok = match(TK_TILDA)) != NULL) {

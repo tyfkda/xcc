@@ -251,7 +251,6 @@ VReg *new_ir_unary(enum IrKind kind, VReg *opr, const VRegType *vtype) {
     intptr_t value = 0;
     switch (kind) {
     case IR_NEG:     value = -opr->fixnum; break;
-    case IR_NOT:     value = !opr->fixnum; break;
     case IR_BITNOT:  value = ~opr->fixnum; break;
     default: assert(false); break;
     }
@@ -921,21 +920,6 @@ static void ir_out(IR *ir) {
       assert(0 <= pow && pow < 4);
       const char **regs = kRegSizeTable[pow];
       NEG(regs[ir->dst->phys]);
-    }
-    break;
-
-  case IR_NOT:
-    {
-      assert(0 <= ir->size && ir->size < kPow2TableSize);
-      assert(!(ir->opr1->flag & VRF_CONST));
-      int pow = kPow2Table[ir->size];
-      assert(0 <= pow && pow < 4);
-      const char **regs = kRegSizeTable[pow];
-      const char *opr1 = regs[ir->opr1->phys];
-      TEST(opr1, opr1);
-      const char *dst8 = kReg8s[ir->dst->phys];
-      SETE(dst8);
-      MOVSX(dst8, kReg32s[ir->dst->phys]);
     }
     break;
 

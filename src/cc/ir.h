@@ -76,7 +76,6 @@ enum IrKind {
   IR_INC,     // opr1 += size
   IR_DEC,     // dst = -opr1
   IR_NEG,
-  IR_NOT,
   IR_BITNOT,
   IR_COND,    // dst <- flag
   IR_TEST,    // opr1 - 0
