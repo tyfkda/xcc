@@ -645,7 +645,7 @@ bool assemble_inst(Inst *inst, const ParseInfo *info, Code *code) {
                      0xe0, opr_regno(&inst->dst.reg),
                      0x83);
         *p++ = IM8(value);
-      } else if (is_im32(value)) {
+      } else if (size <= REG32 || is_im32(value)) {
         if (opr_regno(&inst->dst.reg) == RAX - RAX) {
           p = put_rex0(p, size,
                        0, opr_regno(&inst->dst.reg),
@@ -686,7 +686,7 @@ bool assemble_inst(Inst *inst, const ParseInfo *info, Code *code) {
                      0xc8, opr_regno(&inst->dst.reg),
                      0x83);
         *p++ = IM8(value);
-      } else if (is_im32(value)) {
+      } else if (size <= REG32 || is_im32(value)) {
         if (opr_regno(&inst->dst.reg) == RAX - RAX) {
           p = put_rex0(p, size,
                        0, opr_regno(&inst->dst.reg),
@@ -726,7 +726,7 @@ bool assemble_inst(Inst *inst, const ParseInfo *info, Code *code) {
                      0xf0, opr_regno(&inst->dst.reg),
                      0x83);
         *p++ = IM8(value);
-      } else if (is_im32(value)) {
+      } else if (size <= REG32 || is_im32(value)) {
         if (opr_regno(&inst->dst.reg) == RAX - RAX) {
           p = put_rex0(p, size,
                        0, opr_regno(&inst->dst.reg),
