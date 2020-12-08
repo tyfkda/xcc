@@ -819,6 +819,7 @@ static Stmt *parse_if(const Token *tok) {
 static Stmt *parse_switch(const Token *tok) {
   consume(TK_LPAR, "`(' expected");
   Expr *value = parse_expr();
+  not_void(value->type, value->token);
   consume(TK_RPAR, "`)' expected");
 
   Stmt *swtch = new_stmt_switch(tok, value);
