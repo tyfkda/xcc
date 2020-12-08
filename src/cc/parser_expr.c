@@ -1573,18 +1573,33 @@ static Expr *parse_conditional(void) {
     consume(TK_COLON, "`:' expected");
     Expr *fval = parse_conditional();
 
-    const Type *type = choose_type(tval, fval);
-    if (type == NULL)
-      parse_error(tok, "lhs and rhs must be same type");
-
-    if (type->kind == TY_VOID) {
-      assert(tval->type->kind == TY_VOID);
-      assert(fval->type->kind == TY_VOID);
+    const Type *type;
+    if (tval->type->kind == TY_VOID || fval->type->kind == TY_VOID) {
+      type = &tyVoid;
     } else {
+      type = choose_type(tval, fval);
+      if (type == NULL)
+        parse_error(tok, "lhs and rhs must be same type");
+      assert(type->kind != TY_VOID);
       tval = make_cast(type, tval->token, tval, false);
       fval = make_cast(type, fval->token, fval, false);
     }
-    expr = new_expr_ternary(tok, expr, tval, fval, type);
+    if (is_const(expr)) {
+      bool tf;
+      switch (expr->kind) {
+      case EX_FIXNUM:  tf = expr->fixnum != 0; break;
+#ifndef __NO_FLONUM
+      case EX_FLONUM:  tf = expr->flonum != 0; break;
+#endif
+      default:
+        assert(false);
+        // Fallthrough to avoid warning.
+      case EX_STR:     tf = true; break;
+      }
+      expr = tf ? tval : fval;
+    } else {
+      expr = new_expr_ternary(tok, expr, tval, fval, type);
+    }
   }
 }
 
