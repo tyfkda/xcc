@@ -51,47 +51,7 @@ static enum ConditionKind gen_compare_expr(enum ExprKind kind, Expr *lhs, Expr *
   enum ConditionKind cond = kind + (COND_EQ - EX_EQ);
   assert(cond >= COND_EQ && cond < COND_ULT);
   if (is_const(lhs)) {
-    if (is_const(rhs)) {
-#define JUDGE(tf, l, r)  \
-  switch (kind) { \
-  default: assert(false); /* Fallthrough */ \
-  case EX_EQ:  tf = l == r; break; \
-  case EX_NE:  tf = l != r; break; \
-  case EX_LT:  tf = l < r; break; \
-  case EX_LE:  tf = l <= r; break; \
-  case EX_GE:  tf = l >= r; break; \
-  case EX_GT:  tf = l > r; break; \
-  }
-
-      bool tf;
-      switch (lhs->kind) {
-      default:
-        assert(false);
-        // Fallthrough to suppress warning.
-      case EX_FIXNUM:
-        assert(rhs->kind == EX_FIXNUM);
-        if (lhs->type->fixnum.is_unsigned) {
-          UFixnum l = lhs->fixnum, r = rhs->fixnum;
-          JUDGE(tf, l, r);
-        } else {
-          Fixnum l = lhs->fixnum, r = rhs->fixnum;
-          JUDGE(tf, l, r);
-        }
-        break;
-  #ifndef __NO_FLONUM
-      case EX_FLONUM:
-        {
-          assert(rhs->kind == EX_FLONUM);
-          double l = lhs->flonum, r = rhs->flonum;
-          JUDGE(tf, l, r);
-        }
-        break;
-  #endif
-      }
-      return tf ? COND_ANY : COND_NONE;
-#undef JUDGE
-    }
-
+    assert(!is_const(rhs));
     Expr *tmp = lhs;
     lhs = rhs;
     rhs = tmp;
@@ -140,6 +100,12 @@ static enum ConditionKind gen_compare_expr(enum ExprKind kind, Expr *lhs, Expr *
 void gen_cond_jmp(Expr *cond, bool tf, BB *bb) {
   enum ExprKind ck = cond->kind;
   switch (ck) {
+  case EX_FIXNUM:
+    if (cond->fixnum == 0)
+      tf = !tf;
+    if (tf)
+      new_ir_jmp(COND_ANY, bb);
+    return;
   case EX_EQ:
   case EX_NE:
   case EX_LT:

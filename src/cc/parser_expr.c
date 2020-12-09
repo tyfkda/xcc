@@ -566,6 +566,46 @@ static Expr *new_expr_cmp(enum ExprKind kind, const Token *tok, Expr *lhs, Expr 
   } else {
     if (!cast_numbers(&lhs, &rhs, false))
       parse_error(tok, "Cannot compare except numbers");
+
+    if (is_const(lhs) && is_const(rhs)) {
+#define JUDGE(kind, tf, l, r)  \
+switch (kind) { \
+default: assert(false); /* Fallthrough */ \
+case EX_EQ:  tf = l == r; break; \
+case EX_NE:  tf = l != r; break; \
+case EX_LT:  tf = l < r; break; \
+case EX_LE:  tf = l <= r; break; \
+case EX_GE:  tf = l >= r; break; \
+case EX_GT:  tf = l > r; break; \
+}
+      bool tf;
+      switch (lhs->kind) {
+      default:
+        assert(false);
+        // Fallthrough to suppress warning.
+      case EX_FIXNUM:
+        assert(rhs->kind == EX_FIXNUM);
+        if (lhs->type->fixnum.is_unsigned) {
+          UFixnum l = lhs->fixnum, r = rhs->fixnum;
+          JUDGE(kind, tf, l, r);
+        } else {
+          Fixnum l = lhs->fixnum, r = rhs->fixnum;
+          JUDGE(kind, tf, l, r);
+        }
+        break;
+#ifndef __NO_FLONUM
+      case EX_FLONUM:
+        {
+          assert(rhs->kind == EX_FLONUM);
+          double l = lhs->flonum, r = rhs->flonum;
+          JUDGE(kind, tf, l, r);
+        }
+        break;
+#endif
+      }
+      return new_expr_fixlit(&tyBool, tok, tf);
+#undef JUDGE
+    }
   }
   return new_expr_bop(kind, &tyBool, tok, lhs, rhs);
 }
@@ -574,6 +614,13 @@ static Expr *new_expr_cmp(enum ExprKind kind, const Token *tok, Expr *lhs, Expr 
 
 Expr *make_cond(Expr *expr) {
   switch (expr->kind) {
+  case EX_FIXNUM:
+    break;
+#ifndef __NO_FLONUM
+  case EX_FLONUM:
+    expr = new_expr_fixlit(&tyBool, expr->token, expr->flonum != 0);
+    break;
+#endif
   case EX_EQ:
   case EX_NE:
   case EX_LT:
@@ -584,9 +631,17 @@ Expr *make_cond(Expr *expr) {
   case EX_LOGIOR:
     break;
   default:
-    {
-      Expr *zero = make_cast(expr->type, expr->token, new_expr_fixlit(&tyInt, expr->token, 0), false);
-      expr = new_expr_cmp(EX_NE, expr->token, expr, zero);
+    switch (expr->type->kind) {
+    case TY_ARRAY:
+    case TY_FUNC:
+      expr = new_expr_fixlit(&tyBool, expr->token, true);
+      break;
+    default:
+      {
+        Expr *zero = make_cast(expr->type, expr->token, new_expr_fixlit(&tyInt, expr->token, 0), false);
+        expr = new_expr_cmp(EX_NE, expr->token, expr, zero);
+      }
+      break;
     }
     break;
   }
@@ -597,6 +652,14 @@ static Expr *make_not_cond(Expr *expr) {
   Expr *cond = make_cond(expr);
   enum ExprKind kind = cond->kind;
   switch (kind) {
+  case EX_FIXNUM:
+    cond = new_expr_fixlit(&tyBool, expr->token, cond->fixnum == 0);
+    break;
+#ifndef __NO_FLONUM
+  case EX_FLONUM:
+    expr = new_expr_fixlit(&tyBool, expr->token, expr->flonum == 0);
+    break;
+#endif
   case EX_EQ:
   case EX_NE:
   case EX_LT:
@@ -617,10 +680,7 @@ static Expr *make_not_cond(Expr *expr) {
       cond = new_expr_bop((EX_LOGAND + EX_LOGIOR) - kind, &tyBool, expr->token, lhs, rhs);
     }
     break;
-  default:
-    fprintf(stderr, "kind=%d, ", kind);
-    assert(false);
-    break;
+  default: assert(false); break;
   }
   return cond;
 }
