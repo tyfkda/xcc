@@ -571,8 +571,18 @@ VReg *gen_ptradd(enum ExprKind kind, const Type *type, VReg *lreg, Expr *rhs) {
 VReg *gen_expr(Expr *expr) {
   switch (expr->kind) {
   case EX_FIXNUM:
-    assert(expr->type->kind == TY_FIXNUM);
-    return new_const_vreg(expr->fixnum, to_vtype(expr->type));
+    {
+      assert(expr->type->kind == TY_FIXNUM);
+      VReg *reg = new_const_vreg(expr->fixnum, to_vtype(expr->type));
+      if (!is_im32(expr->fixnum)) {
+        // Large constant value is not allowed in x86,
+        // so use mov instruction.
+        VReg *tmp = add_new_reg(expr->type, 0);
+        new_ir_mov(tmp, reg);
+        reg = tmp;
+      }
+      return reg;
+    }
 #ifndef __NO_FLONUM
   case EX_FLONUM:
     {
