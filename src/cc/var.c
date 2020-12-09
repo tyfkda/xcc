@@ -81,6 +81,7 @@ Scope *new_scope(Scope *parent, Vector *vars) {
   scope->vars = vars;
   scope->struct_table = NULL;
   scope->typedef_table = NULL;
+  scope->enum_table = NULL;
   return scope;
 }
 
