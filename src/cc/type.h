@@ -108,7 +108,7 @@ Type *ptrof(const Type *type);
 const Type *array_to_ptr(const Type *type);
 Type *arrayof(const Type *type, size_t length);
 Type *new_func_type(const Type *ret, Vector *params, Vector *param_types, bool vaargs);
-const Type *const_type(const Type *type);
+const Type *qualified_type(const Type *type, int additional);
 
 // Struct
 

@@ -559,7 +559,7 @@ VReg *gen_expr(Expr *expr) {
       init->token = expr->token;
 
       assert(curscope != NULL);
-      const Type *type = const_type(expr->type);
+      const Type *type = qualified_type(expr->type, TQ_CONST);
       const Token *ident = alloc_ident(alloc_label(), NULL, NULL);
       VarInfo *varinfo = scope_add(curscope, ident, type, VS_STATIC);
       varinfo->global.init = init;

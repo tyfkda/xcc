@@ -272,6 +272,7 @@ compile_error 'do-while void' 'void main(){do {} while ((void)-2);}'
 compile_error 'for void' 'void main(){for (; (void)3; ) {}}'
 compile_error 'switch void' 'void main(){switch ((void)4) {}}'
 compile_error 'assign const' 'const int G = 0; void main(){G=1;}'
+compile_error 'assign const struct' 'const struct S {int x;} s = {100}; int main(){s.x = 1; return s.x;}'
 
 # TODO
 compile_error 'more params vaargs (yet)' 'int func(int a, ...) { return a; } int main(){ return func(1, 2, 3, 4, 5, 6, 7, 8); }'

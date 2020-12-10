@@ -200,12 +200,13 @@ Type *new_func_type(const Type *ret, Vector *params, Vector *param_types, bool v
   return f;
 }
 
-const Type *const_type(const Type *type) {
-  if (type->qualifier & TQ_CONST)
+const Type *qualified_type(const Type *type, int additional) {
+  int modified = type->qualifier | additional;
+  if (modified == type->qualifier)
     return type;
   Type *ctype = malloc(sizeof(*ctype));
   memcpy(ctype, type, sizeof(*ctype));
-  ctype->qualifier |= TQ_CONST;
+  ctype->qualifier = modified;
   return ctype;
 }
 

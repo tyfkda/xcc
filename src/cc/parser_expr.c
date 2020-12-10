@@ -580,7 +580,8 @@ static Expr *parse_member_access(Expr *target, Token *acctok) {
   int index = var_find(type->struct_.info->members, name);
   if (index >= 0) {
     const VarInfo *member = type->struct_.info->members->data[index];
-    return new_expr_member(acctok, member->type, target, ident, index);
+    const Type *type = qualified_type(member->type, target->type->qualifier);
+    return new_expr_member(acctok, type, target, ident, index);
   } else {
     Vector *stack = new_vector();
     const VarInfo *member = search_from_anonymous(type, ident->ident, ident, stack);
@@ -590,7 +591,7 @@ static Expr *parse_member_access(Expr *target, Token *acctok) {
     for (int i = 0; i < stack->len; ++i) {
       int index = (int)(long)stack->data[i];
       const VarInfo *member = type->struct_.info->members->data[index];
-      type = member->type;
+      type = qualified_type(member->type, type->qualifier);
       p = new_expr_member(acctok, type, p, acctok, index);
     }
     return p;
@@ -599,7 +600,7 @@ static Expr *parse_member_access(Expr *target, Token *acctok) {
 
 static void parse_enum_members(const Type *type) {
   assert(type != NULL && type->kind == TY_FIXNUM && type->fixnum.kind == FX_ENUM);
-  const Type *ctype = const_type(type);
+  const Type *ctype = qualified_type(type, TQ_CONST);
   int value = 0;
   for (;;) {
     Token *token = consume(TK_IDENT, "ident expected");
@@ -796,7 +797,7 @@ const Type *parse_type_modifier(const Type *type) {
 
   for (;;) {
     if (match(TK_CONST))
-      type = const_type(type);
+      type = qualified_type(type, TQ_CONST);
     if (match(TK_MUL))
       type = ptrof(type);
     else
