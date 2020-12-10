@@ -20,8 +20,8 @@ static StructInfo *parse_struct(bool is_union);
 static Expr *parse_cast_expr(void);
 static Expr *parse_unary(void);
 
-static void define_enum_member(Type *type, const Token *ident, int value) {
-  VarInfo *varinfo = scope_add(curscope, ident, type, VF_ENUM_MEMBER | VF_CONST);
+static void define_enum_member(const Type *type, const Token *ident, int value) {
+  VarInfo *varinfo = scope_add(curscope, ident, type, VS_ENUM_MEMBER);
   varinfo->enum_member.value = value;
 }
 
@@ -34,10 +34,10 @@ void not_void(const Type *type, const Token *token) {
 VarInfo *str_to_char_array(const Type *type, Initializer *init) {
   assert(type->kind == TY_ARRAY && is_char_type(type->pa.ptrof));
   const Token *ident = alloc_ident(alloc_label(), NULL, NULL);
-  VarInfo *varinfo = scope_add(curscope, ident, type, VF_CONST | VF_STATIC);
+  VarInfo *varinfo = scope_add(curscope, ident, type, VS_STATIC);
   if (is_global_scope(curscope)) {
     Vector *decls = new_vector();
-    vec_push(decls, new_vardecl(varinfo->type, ident, init, varinfo->flag));
+    vec_push(decls, new_vardecl(varinfo->type, ident, init, varinfo->storage));
     vec_push(toplevel, new_decl_vardecl(decls));
   }
   varinfo->global.init = init;
@@ -592,8 +592,9 @@ static Expr *parse_member_access(Expr *target, Token *acctok) {
   }
 }
 
-static void parse_enum_members(Type *type) {
+static void parse_enum_members(const Type *type) {
   assert(type != NULL && type->kind == TY_FIXNUM && type->fixnum.kind == FX_ENUM);
+  const Type *ctype = const_type(type);
   int value = 0;
   for (;;) {
     Token *token = consume(TK_IDENT, "ident expected");
@@ -608,7 +609,7 @@ static void parse_enum_members(Type *type) {
       parse_error(token, "`%.*s' is already defined",
                   token->ident->bytes, token->ident->chars);
     } else {
-      define_enum_member(type, token, value);
+      define_enum_member(ctype, token, value);
     }
     ++value;
 
@@ -636,16 +637,9 @@ static const Type *parse_enum(void) {
 }
 
 const Type *parse_raw_type(int *pflag) {
-  static const Type *kLongTypes[] = {
-    &tyInt, &tyLong, &tyLLong,
-  };
-  static const Type *kUnsignedLongTypes[] = {
-    &tyUnsignedInt, &tyUnsignedLong, &tyUnsignedLLong,
-  };
-
   const Type *type = NULL;
 
-  int flag = 0;
+  int storage = 0, qualifier = 0;
   bool is_unsigned = false;
   int long_count = 0;
   for (;;) {
@@ -658,20 +652,20 @@ const Type *parse_raw_type(int *pflag) {
       is_unsigned = false;
       continue;
     }
-    if (match(TK_CONST)) {
-      flag |= VF_CONST;
-      continue;
-    }
     if (match(TK_STATIC)) {
-      flag |= VF_STATIC;
+      storage |= VS_STATIC;
       continue;
     }
     if (match(TK_EXTERN)) {
-      flag |= VF_EXTERN;
+      storage |= VS_EXTERN;
+      continue;
+    }
+    if (match(TK_CONST)) {
+      qualifier |= TQ_CONST;
       continue;
     }
     if (match(TK_VOLATILE)) {
-      flag |= VF_VOLATILE;
+      qualifier |= TQ_VOLATILE;
       continue;
     }
     if ((tok = match(TK_LONG)) != NULL) {
@@ -719,8 +713,9 @@ const Type *parse_raw_type(int *pflag) {
       if (name == NULL && sinfo == NULL)
         parse_error(NULL, "Illegal struct/union usage");
 
-      Type *stype = malloc(sizeof(*type));
+      Type *stype = malloc(sizeof(*stype));
       stype->kind = TY_STRUCT;
+      stype->qualifier = qualifier;
       stype->struct_.name = name;
       stype->struct_.info = sinfo;
       type = stype;
@@ -752,11 +747,8 @@ const Type *parse_raw_type(int *pflag) {
       static const enum TokenKind kIntTypeTokens[] = {
         TK_CHAR, TK_SHORT, TK_INT,
       };
-      static const Type *kTypes[] = {
-        &tyChar, &tyShort, &tyInt,
-      };
-      static const Type *kUnsignedTypes[] = {
-        &tyUnsignedChar, &tyUnsignedShort, &tyUnsignedInt, &tyUnsignedLong,
+      static const enum FixnumKind kFixnumKinds[] = {
+        FX_CHAR, FX_SHORT, FX_INT,
       };
       const int N = sizeof(kIntTypeTokens) / sizeof(*kIntTypeTokens);
       for (int i = 0; i < N; ++i) {
@@ -765,7 +757,7 @@ const Type *parse_raw_type(int *pflag) {
           default:
             // Fallthrough
           case 0:
-            type = (is_unsigned ? kUnsignedTypes : kTypes)[i];
+            type = get_fixnum_type(kFixnumKinds[i], is_unsigned, qualifier);
             break;
           case 1: case 2:
             if (i != sizeof(kIntTypeTokens) / sizeof(*kIntTypeTokens) - 1)
@@ -780,12 +772,15 @@ const Type *parse_raw_type(int *pflag) {
       break;
   }
 
-  if (type == NULL && (flag != 0 || is_unsigned || long_count > 0)) {
-    type = is_unsigned ? kUnsignedLongTypes[long_count] : kLongTypes[long_count];
+  if (type == NULL && (storage != 0 || is_unsigned || long_count > 0)) {
+    static const enum FixnumKind kLongKinds[] = {
+      FX_INT, FX_LONG, FX_LLONG,
+    };
+    type = get_fixnum_type(kLongKinds[long_count], is_unsigned, qualifier);
   }
 
   if (pflag != NULL)
-    *pflag = flag;
+    *pflag = storage;
 
   return type;
 }
@@ -795,10 +790,8 @@ const Type *parse_type_modifier(const Type *type) {
     return NULL;
 
   for (;;) {
-    if (match(TK_CONST)) {
-      // TODO: Reflect to the type.
-      ;
-    }
+    if (match(TK_CONST))
+      type = const_type(type);
     if (match(TK_MUL))
       type = ptrof(type);
     else
@@ -908,13 +901,13 @@ Vector *parse_funparams(bool *pvaargs) {
       }
 
       const Type *type;
-      int flag;
+      int storage;
       Token *ident;
-      if (!parse_var_def(NULL, &type, &flag, &ident))
+      if (!parse_var_def(NULL, &type, &storage, &ident))
         parse_error(NULL, "type expected");
-      if (flag & VF_STATIC)
+      if (storage & VS_STATIC)
         parse_error(ident, "`static' for function parameter");
-      if (flag & VF_EXTERN)
+      if (storage & VS_EXTERN)
         parse_error(ident, "`extern' for function parameter");
 
       if (params->len == 0) {
@@ -931,7 +924,7 @@ Vector *parse_funparams(bool *pvaargs) {
       if (type->kind == TY_ARRAY)
         type = array_to_ptr(type);
 
-      var_add(params, ident != NULL ? ident->ident : NULL, type, flag, ident);
+      var_add(params, ident != NULL ? ident->ident : NULL, type, storage, ident);
       if (match(TK_RPAR))
         break;
       consume(TK_COMMA, "Comma or `)' expected");
@@ -951,9 +944,9 @@ static StructInfo *parse_struct(bool is_union) {
     const Type *rawType = NULL;
     for (;;) {
       const Type *type;
-      int flag;
+      int storage;
       Token *ident;
-      if (!parse_var_def(&rawType, &type, &flag, &ident))
+      if (!parse_var_def(&rawType, &type, &storage, &ident))
         parse_error(NULL, "type expected");
       not_void(type, NULL);
       if (type->kind == TY_STRUCT) {
@@ -964,7 +957,7 @@ static StructInfo *parse_struct(bool is_union) {
           parse_error(NULL, "`ident' expected");
       }
       const Name *name = ident != NULL ? ident->ident : NULL;
-      var_add(members, name, type, flag, ident);
+      var_add(members, name, type, storage, ident);
 
       if (match(TK_COMMA))
         continue;
@@ -1002,8 +995,8 @@ static Expr *parse_compound_literal(const Type *type) {
 static Expr *parse_prim(void) {
   Token *tok;
   if ((tok = match(TK_LPAR)) != NULL) {
-    int flag;
-    const Type *type = parse_full_type(&flag, NULL);
+    int storage;
+    const Type *type = parse_full_type(&storage, NULL);
     if (type != NULL) {  // Compound literal
       consume(TK_RPAR, "`)' expected");
       Token *tok2 = consume(TK_LBRACE, "`{' expected");
@@ -1017,26 +1010,26 @@ static Expr *parse_prim(void) {
   }
 
   {
-    const Type *type = NULL;
-    if ((tok = match(TK_CHARLIT)) != NULL)
-      type = &tyChar;
-    else if ((tok = match(TK_INTLIT)) != NULL)
-      type = &tyInt;
-    else if ((tok = match(TK_LONGLIT)) != NULL)
-      type = &tyLong;
-    else if ((tok = match(TK_LLONGLIT)) != NULL)
-      type = &tyLLong;
-    else if ((tok = match(TK_UCHARLIT)) != NULL)
-      type = &tyUnsignedChar;
-    else if ((tok = match(TK_UINTLIT)) != NULL)
-      type = &tyUnsignedInt;
-    else if ((tok = match(TK_ULONGLIT)) != NULL)
-      type = &tyUnsignedLong;
-    else if ((tok = match(TK_ULLONGLIT)) != NULL)
-      type = &tyUnsignedLLong;
-    if (type != NULL) {
-      Fixnum fixnum = tok->fixnum;
-      return new_expr_fixlit(type, tok, fixnum);
+    struct {
+      enum TokenKind tk;
+      enum FixnumKind fx;
+      bool is_unsigned;
+    } static const TABLE[] = {
+      {TK_CHARLIT, FX_CHAR, false},
+      {TK_INTLIT, FX_INT, false},
+      {TK_LONGLIT, FX_LONG, false},
+      {TK_LLONGLIT, FX_LLONG, false},
+      {TK_UCHARLIT, FX_CHAR, true},
+      {TK_UINTLIT, FX_INT, true},
+      {TK_ULONGLIT, FX_LONG, true},
+      {TK_ULLONGLIT, FX_LLONG, true},
+    };
+    for (int i = 0, n = sizeof(TABLE) / sizeof(*TABLE); i < n; ++i) {
+      if ((tok = match(TABLE[i].tk)) != NULL) {
+        const Type *type = get_fixnum_type(TABLE[i].fx, TABLE[i].is_unsigned, 0);
+        Fixnum fixnum = tok->fixnum;
+        return new_expr_fixlit(type, tok, fixnum);
+      }
     }
   }
 #ifndef __NO_FLONUM
@@ -1057,7 +1050,7 @@ static Expr *parse_prim(void) {
   VarInfo *varinfo = scope_find(curscope, name, &scope);
   const Type *type;
   if (varinfo != NULL) {
-    if (varinfo->flag & VF_ENUM_MEMBER)
+    if (varinfo->storage & VS_ENUM_MEMBER)
       return new_expr_fixlit(varinfo->type, ident, varinfo->enum_member.value);
     type = varinfo->type;
   } else {
@@ -1232,9 +1225,9 @@ static Expr *parse_unary(void) {
 static Expr *parse_cast_expr(void) {
   Token *lpar;
   if ((lpar = match(TK_LPAR)) != NULL) {
-    int flag;
+    int storage;
     const Token *token = fetch_token();
-    const Type *type = parse_full_type(&flag, NULL);
+    const Type *type = parse_full_type(&storage, NULL);
     if (type != NULL) {  // Cast
       consume(TK_RPAR, "`)' expected");
 

@@ -358,7 +358,7 @@ static Initializer *check_global_initializer(const Type *type, Initializer *init
           VarInfo *varinfo = scope_find(value->var.scope, name, &scope);
           assert(varinfo != NULL);
           if (!is_global_scope(scope)) {
-            if (!(varinfo->flag & VF_STATIC))
+            if (!(varinfo->storage & VS_STATIC))
               parse_error(value->token, "Allowed global reference only");
             varinfo = varinfo->static_.gvar;
             assert(varinfo != NULL);
@@ -375,7 +375,7 @@ static Initializer *check_global_initializer(const Type *type, Initializer *init
           VarInfo *varinfo = scope_find(value->var.scope, value->var.name, &scope);
           assert(varinfo != NULL);
           if (!is_global_scope(scope)) {
-            if (!(varinfo->flag & VF_STATIC))
+            if (!(varinfo->storage & VS_STATIC))
               parse_error(value->token, "Allowed global reference only");
             varinfo = varinfo->static_.gvar;
             assert(varinfo != NULL);
@@ -586,7 +586,7 @@ Vector *construct_initializing_stmts(Vector *decls) {
   Vector *inits = NULL;
   for (int i = 0; i < decls->len; ++i) {
     VarDecl *decl = decls->data[i];
-    if (decl->flag & VF_STATIC)
+    if (decl->storage & VS_STATIC)
       continue;
     Expr *var = new_expr_variable(decl->ident->ident, decl->type, NULL, curscope);
     inits = assign_initial_value(var, decl->init, inits);
@@ -594,7 +594,7 @@ Vector *construct_initializing_stmts(Vector *decls) {
   return inits;
 }
 
-static Initializer *check_vardecl(const Type *type, const Token *ident, int flag, Initializer *init) {
+static Initializer *check_vardecl(const Type *type, const Token *ident, int storage, Initializer *init) {
   if (type->kind == TY_ARRAY && init != NULL)
     fix_array_size((Type*)type, init);
   if (type->kind == TY_STRUCT)
@@ -604,7 +604,7 @@ static Initializer *check_vardecl(const Type *type, const Token *ident, int flag
     VarInfo *varinfo = scope_find(curscope, ident->ident, NULL);
 
     // TODO: Check `init` can be cast to `type`.
-    if (flag & VF_STATIC) {
+    if (storage & VS_STATIC) {
       VarInfo *gvarinfo = varinfo->static_.gvar;
       assert(gvarinfo != NULL);
       gvarinfo->global.init = init = check_global_initializer(type, init);
@@ -614,7 +614,7 @@ static Initializer *check_vardecl(const Type *type, const Token *ident, int flag
     //intptr_t eval;
     //if (find_enum_value(ident->ident, &eval))
     //  parse_error(ident, "`%.*s' is already defined", ident->ident->bytes, ident->ident->chars);
-    if (flag & VF_EXTERN && init != NULL)
+    if (storage & VS_EXTERN && init != NULL)
       parse_error(init->token, "extern with initializer");
     // Toplevel
     VarInfo *varinfo = scope_find(global_scope, ident->ident, NULL);
@@ -711,12 +711,12 @@ Initializer *parse_initializer(void) {
   return result;
 }
 
-static Vector *parse_vardecl_cont(const Type *rawType, Type *type, int flag, Token *ident) {
+static Vector *parse_vardecl_cont(const Type *rawType, Type *type, int storage, Token *ident) {
   Vector *decls = NULL;
   bool first = true;
   do {
     if (!first) {
-      if (!parse_var_def(&rawType, (const Type**)&type, &flag, &ident) || ident == NULL) {
+      if (!parse_var_def(&rawType, (const Type**)&type, &storage, &ident) || ident == NULL) {
         parse_error(NULL, "`ident' expected");
         return NULL;
       }
@@ -729,20 +729,20 @@ static Vector *parse_vardecl_cont(const Type *rawType, Type *type, int flag, Tok
       Vector *params = parse_funparams(&vaargs);
       Vector *param_types = extract_varinfo_types(params);
       type = new_func_type(type, params, param_types, vaargs);
-      flag |= VF_EXTERN;
+      storage |= VS_EXTERN;
     } else {
       not_void(type, NULL);
 
       assert(!is_global_scope(curscope));
-      scope_add(curscope, ident, type, flag);
+      scope_add(curscope, ident, type, storage);
 
       if (match(TK_ASSIGN)) {
         init = parse_initializer();
       }
     }
 
-    init = check_vardecl(type, ident, flag, init);
-    VarDecl *decl = new_vardecl(type, ident, init, flag);
+    init = check_vardecl(type, ident, storage, init);
+    VarDecl *decl = new_vardecl(type, ident, init, storage);
     if (decls == NULL)
       decls = new_vector();
     vec_push(decls, decl);
@@ -753,9 +753,9 @@ static Vector *parse_vardecl_cont(const Type *rawType, Type *type, int flag, Tok
 static Stmt *parse_vardecl(void) {
   const Type *rawType = NULL;
   Type *type;
-  int flag;
+  int storage;
   Token *ident;
-  if (!parse_var_def(&rawType, (const Type**)&type, &flag, &ident))
+  if (!parse_var_def(&rawType, (const Type**)&type, &storage, &ident))
     return NULL;
   if (ident == NULL) {
     if ((type->kind == TY_STRUCT ||
@@ -768,7 +768,7 @@ static Stmt *parse_vardecl(void) {
     return new_stmt_block(NULL, NULL, NULL);  // Empty statement.
   }
 
-  Vector *decls = parse_vardecl_cont(rawType, type, flag, ident);
+  Vector *decls = parse_vardecl_cont(rawType, type, storage, ident);
 
   consume(TK_SEMICOL, "`;' expected");
 
@@ -779,9 +779,9 @@ static Stmt *parse_vardecl(void) {
 }
 
 static void parse_typedef(void) {
-  int flag;
+  int storage;
   Token *ident;
-  const Type *type = parse_full_type(&flag, &ident);
+  const Type *type = parse_full_type(&storage, &ident);
   if (type == NULL)
     parse_error(NULL, "type expected");
   not_void(type, NULL);
@@ -911,13 +911,13 @@ static Stmt *parse_for(const Token *tok) {
   if (!match(TK_SEMICOL)) {
     const Type *rawType = NULL;
     Type *type;
-    int flag;
+    int storage;
     Token *ident;
-    if (parse_var_def(&rawType, (const Type**)&type, &flag, &ident)) {
+    if (parse_var_def(&rawType, (const Type**)&type, &storage, &ident)) {
       if (ident == NULL)
         parse_error(NULL, "Ident expected");
       scope = enter_scope(curfunc, NULL);
-      decls = parse_vardecl_cont(rawType, type, flag, ident);
+      decls = parse_vardecl_cont(rawType, type, storage, ident);
       consume(TK_SEMICOL, "`;' expected");
     } else {
       pre = parse_expr();
@@ -1110,13 +1110,13 @@ static Stmt *parse_stmt(void) {
   return new_stmt_expr(val);
 }
 
-static Declaration *parse_defun(const Type *functype, int flag, Token *ident) {
+static Declaration *parse_defun(const Type *functype, int storage, Token *ident) {
   assert(functype->kind == TY_FUNC);
   Function *func = new_func(functype, ident->ident);
 
   VarInfo *varinfo = scope_find(global_scope, func->name, NULL);
   if (varinfo == NULL) {
-    varinfo = scope_add(global_scope, ident, functype, flag | VF_CONST);
+    varinfo = scope_add(global_scope, ident, functype, storage);
   } else {
     if (varinfo->type->kind != TY_FUNC)
       parse_error(ident, "Definition conflict: `%s'");
@@ -1167,8 +1167,9 @@ static Declaration *parse_defun(const Type *functype, int flag, Token *ident) {
   return new_decl_defun(func);
 }
 
-static Declaration *parse_global_var_decl(const Type *rawtype, int flag, const Type *type,
-                                          Token *ident) {
+static Declaration *parse_global_var_decl(
+    const Type *rawtype, int storage, const Type *type, Token *ident
+) {
   Vector *decls = NULL;
   for (;;) {
     if (type->kind == TY_VOID)
@@ -1177,15 +1178,15 @@ static Declaration *parse_global_var_decl(const Type *rawtype, int flag, const T
     if (!(type->kind == TY_PTR && type->pa.ptrof->kind == TY_FUNC))
       type = parse_type_suffix(type);
 
-    VarInfo *varinfo = scope_add(global_scope, ident, type, flag);
+    VarInfo *varinfo = scope_add(global_scope, ident, type, storage);
 
     Initializer *init = NULL;
     if (match(TK_ASSIGN) != NULL)
       init = parse_initializer();
     varinfo->global.init = init;
 
-    init = check_vardecl(type, ident, flag, init);
-    VarDecl *decl = new_vardecl(type, ident, init, flag);
+    init = check_vardecl(type, ident, storage, init);
+    VarDecl *decl = new_vardecl(type, ident, init, storage);
     if (decls == NULL)
       decls = new_vector();
     vec_push(decls, decl);
@@ -1206,9 +1207,9 @@ static Declaration *parse_global_var_decl(const Type *rawtype, int flag, const T
 
 static Declaration *parse_declaration(void) {
   const Type *rawtype = NULL, *type;
-  int flag;
+  int storage;
   Token *ident;
-  if (parse_var_def(&rawtype, &type, &flag, &ident)) {
+  if (parse_var_def(&rawtype, &type, &storage, &ident)) {
     if (ident == NULL) {
       if ((type->kind == TY_STRUCT ||
            (type->kind == TY_FIXNUM && type->fixnum.kind == FX_ENUM)) &&
@@ -1221,9 +1222,9 @@ static Declaration *parse_declaration(void) {
     }
 
     if (type->kind == TY_FUNC)
-      return parse_defun(type, flag, ident);
+      return parse_defun(type, storage, ident);
 
-    return parse_global_var_decl(rawtype, flag, type, ident);
+    return parse_global_var_decl(rawtype, storage, type, ident);
   }
   if (match(TK_TYPEDEF)) {
     parse_typedef();

@@ -52,6 +52,7 @@ Expr *new_expr_flolit(const Type *type, const Token *token, double flonum) {
 Expr *new_expr_str(const Token *token, const char *str, size_t size) {
   Type *type = malloc(sizeof(*type));
   type->kind = TY_ARRAY;
+  type->qualifier = TQ_CONST;
   type->pa.ptrof = &tyChar;
   type->pa.length = size;
 
@@ -127,12 +128,12 @@ Expr *new_expr_complit(const Type *type, const Token *token, Expr *var, Vector *
 
 // ================================================
 
-VarDecl *new_vardecl(const Type *type, const Token *ident, Initializer *init, int flag) {
+VarDecl *new_vardecl(const Type *type, const Token *ident, Initializer *init, int storage) {
   VarDecl *decl = malloc(sizeof(*decl));
   decl->type = type;
   decl->ident = ident;
   decl->init = init;
-  decl->flag = flag;
+  decl->storage = storage;
   return decl;
 }
 

@@ -13,19 +13,17 @@ typedef struct Type Type;
 typedef struct VReg VReg;
 typedef struct Vector Vector;
 
-// Varible flags.
+// Storage
 enum {
-  VF_CONST = 1 << 0,
-  VF_STATIC = 1 << 1,
-  VF_EXTERN = 1 << 2,
-  VF_VOLATILE = 1 << 3,
-  VF_ENUM_MEMBER = 1 << 4,
+  VS_STATIC = 1 << 0,
+  VS_EXTERN = 1 << 1,
+  VS_ENUM_MEMBER = 1 << 2,
 };
 
 typedef struct VarInfo {
   const Name *name;
   const Type *type;
-  int flag;
+  int storage;
   union {
     struct {
       // For codegen.
@@ -52,7 +50,7 @@ typedef struct VarInfo {
 void init_global(void);
 
 int var_find(const Vector *vars, const Name *name);  // <VarInfo*>
-VarInfo *var_add(Vector *vars, const Name *name, const Type *type, int flag,
+VarInfo *var_add(Vector *vars, const Name *name, const Type *type, int storage,
                  const Token *ident);  // <VarInfo*>
 
 // Scope
@@ -70,7 +68,7 @@ extern Scope *global_scope;
 Scope *new_scope(Scope *parent, Vector *vars);
 bool is_global_scope(Scope *scope);
 VarInfo *scope_find(Scope *scope, const Name *name, Scope **pscope);
-VarInfo *scope_add(Scope *scope, const Token *ident, const Type *type, int flag);
+VarInfo *scope_add(Scope *scope, const Token *ident, const Type *type, int storage);
 
 StructInfo *find_struct(Scope *scope, const Name *name, Scope **pscope);
 void define_struct(Scope *scope, const Name *name, StructInfo *sinfo);

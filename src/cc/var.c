@@ -9,7 +9,7 @@
 #include "type.h"
 #include "util.h"
 
-static VarInfo *define_global(const Name *name, const Type *type, int flag, const Token *ident);
+static VarInfo *define_global(const Name *name, const Type *type, int storage, const Token *ident);
 
 int var_find(const Vector *vars, const Name *name) {
   for (int i = 0, len = vars->len; i < len; ++i) {
@@ -20,23 +20,24 @@ int var_find(const Vector *vars, const Name *name) {
   return -1;
 }
 
-VarInfo *var_add(Vector *vars, const Name *name, const Type *type, int flag, const Token *ident) {
+VarInfo *var_add(Vector *vars, const Name *name, const Type *type, int storage,
+                 const Token *ident) {
   VarInfo *gvarinfo = NULL;
   if (name != NULL) {
     int idx = var_find(vars, name);
     if (idx >= 0)
       parse_error(ident, "`%.*s' already defined", name->bytes, name->chars);
-    if (flag & VF_STATIC) {
+    if (storage & VS_STATIC) {
       const Name *label = alloc_label();
-      gvarinfo = define_global(label, type, flag, NULL);
+      gvarinfo = define_global(label, type, storage, NULL);
     }
   }
 
   VarInfo *info = calloc(1, sizeof(*info));
   info->name = name;
   info->type = type;
-  info->flag = flag;
-  if (flag & VF_STATIC)
+  info->storage = storage;
+  if (storage & VS_STATIC)
     info->static_.gvar = gvarinfo;
   vec_push(vars, info);
   return gvarinfo != NULL ? gvarinfo : info;
@@ -52,23 +53,23 @@ void init_global(void) {
   global_scope->vars = new_vector();
 }
 
-static VarInfo *define_global(const Name *name, const Type *type, int flag, const Token *ident) {
+static VarInfo *define_global(const Name *name, const Type *type, int storage, const Token *ident) {
   assert(name != NULL);
   VarInfo *varinfo = scope_find(global_scope, name, NULL);
   if (varinfo != NULL) {
-    if (!(varinfo->flag & VF_EXTERN)) {
-      if (!(flag & VF_EXTERN))
+    if (!(varinfo->storage & VS_EXTERN)) {
+      if (!(storage & VS_EXTERN))
         parse_error(ident, "`%.*s' already defined", name->bytes, name->chars);
       return varinfo;
     }
     varinfo->name = name;
     varinfo->type = type;
-    varinfo->flag = flag;
+    varinfo->storage = storage;
     varinfo->global.init = NULL;
   } else {
     // `static' is different meaning for global and local variable.
-    varinfo = var_add(global_scope->vars, name, type, flag & ~VF_STATIC, ident);
-    varinfo->flag = flag;
+    varinfo = var_add(global_scope->vars, name, type, storage & ~VS_STATIC, ident);
+    varinfo->storage = storage;
   }
   return varinfo;
 }
@@ -108,14 +109,14 @@ VarInfo *scope_find(Scope *scope, const Name *name, Scope **pscope) {
   return varinfo;
 }
 
-VarInfo *scope_add(Scope *scope, const Token *ident, const Type *type, int flag) {
+VarInfo *scope_add(Scope *scope, const Token *ident, const Type *type, int storage) {
   assert(ident != NULL);
   if (is_global_scope(scope))
-    return define_global(ident->ident, type, flag, ident);
+    return define_global(ident->ident, type, storage, ident);
 
   if (scope->vars == NULL)
     scope->vars = new_vector();
-  return var_add(scope->vars, ident->ident, type, flag, ident);
+  return var_add(scope->vars, ident->ident, type, storage, ident);
 }
 
 StructInfo *find_struct(Scope *scope, const Name *name, Scope **pscope) {

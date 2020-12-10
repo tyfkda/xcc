@@ -35,6 +35,12 @@ enum TypeKind {
   TY_STRUCT,  // include union
 };
 
+// Qualifier
+enum {
+  TQ_CONST = 1 << 0,
+  TQ_VOLATILE = 1 << 1,
+};
+
 typedef struct StructInfo {
   Vector *members;  // <VarInfo*>
   ssize_t size;
@@ -44,6 +50,7 @@ typedef struct StructInfo {
 
 typedef struct Type {
   enum TypeKind kind;
+  int qualifier;
   union {
     struct {
       enum FixnumKind kind;
@@ -70,21 +77,15 @@ typedef struct Type {
 } Type;
 
 extern const Type tyChar;
-extern const Type tyShort;
 extern const Type tyInt;
-extern const Type tyLong;
-extern const Type tyLLong;
 extern const Type tyUnsignedChar;
-extern const Type tyUnsignedShort;
 extern const Type tyUnsignedInt;
-extern const Type tyUnsignedLong;
-extern const Type tyUnsignedLLong;
 extern const Type tyEnum;
 extern const Type tyVoid;
 extern const Type tyVoidPtr;
-#define tyBool   tyInt
-#define tySize   tyUnsignedLong
-#define tySSize  tyLong
+extern const Type tyBool;
+extern const Type tySize;
+extern const Type tySSize;
 #ifndef __NO_FLONUM
 extern const Type tyFloat;
 extern const Type tyDouble;
@@ -102,10 +103,12 @@ bool is_flonum(const Type *type);
 bool is_char_type(const Type *type);
 bool is_void_ptr(const Type *type);
 bool ptr_or_array(const Type *type);
+const Type *get_fixnum_type(enum FixnumKind kind, bool is_unsigned, int qualifier);
 Type *ptrof(const Type *type);
 const Type *array_to_ptr(const Type *type);
 Type *arrayof(const Type *type, size_t length);
 Type *new_func_type(const Type *ret, Vector *params, Vector *param_types, bool vaargs);
+const Type *const_type(const Type *type);
 
 // Struct
 
