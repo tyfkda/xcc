@@ -403,21 +403,29 @@ static Expr *new_expr_num_bop(enum ExprKind kind, const Token *tok, Expr *lhs, E
       }
     }
 #endif
-    intptr_t lval = lhs->fixnum;
-    intptr_t rval = rhs->fixnum;
+
+#define CALC(kind, l, r, value) \
+  switch (kind) { \
+  default: assert(false); /* Fallthrough */ \
+  case EX_MUL:     value = l * r; break; \
+  case EX_DIV:     value = l / r; break; \
+  case EX_MOD:     value = l % r; break; \
+  case EX_BITAND:  value = l & r; break; \
+  case EX_BITOR:   value = l | r; break; \
+  case EX_BITXOR:  value = l ^ r; break; \
+  }
+
     intptr_t value;
-    switch (kind) {
-    case EX_MUL:     value = lval * rval; break;
-    case EX_DIV:     value = lval / rval; break;
-    case EX_MOD:     value = lval % rval; break;
-    case EX_BITAND:  value = lval & rval; break;
-    case EX_BITOR:   value = lval | rval; break;
-    case EX_BITXOR:  value = lval ^ rval; break;
-    default:
-      assert(!"err");
-      value = -1;  // Dummy
-      break;
+    if (lhs->type->fixnum.is_unsigned) {
+      UFixnum l = lhs->fixnum;
+      UFixnum r = rhs->fixnum;
+      CALC(kind, l, r, value)
+    } else {
+      Fixnum l = lhs->fixnum;
+      Fixnum r = rhs->fixnum;
+      CALC(kind, l, r, value)
     }
+#undef CALC
     Fixnum fixnum = value;
     const Type *type = keep_left || lhs->type->fixnum.kind >= rhs->type->fixnum.kind ? lhs->type : rhs->type;
     return new_expr_fixlit(type, lhs->token, fixnum);
