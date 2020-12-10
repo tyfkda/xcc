@@ -179,6 +179,7 @@ try_direct 'return struct not broken' 222 'typedef struct {long x; long y;} S; S
 try_direct 'return struct member' 57 'typedef struct {int x;} S; S func() {return (S){57};} int main(){return func().x;}'
 try_direct 'modify arg' 32 'int sub(int x, int y) {return x+y;} int main() {int w=0, x=0, y=5; int z=sub(++x, y+=10); return x+y+z+w;}'
 try_direct 'long immediate' 240 'int sub(unsigned long x){return x;} int main(){ return sub(0x123456789abcdef0); }'
+try 'can assign const ptr' 97 'const char *p = "foo"; p = "bar"; return p[1];'
 
 # error cases
 echo ''
@@ -270,6 +271,7 @@ compile_error 'while void' 'void main(){while ((void)1) {}}'
 compile_error 'do-while void' 'void main(){do {} while ((void)-2);}'
 compile_error 'for void' 'void main(){for (; (void)3; ) {}}'
 compile_error 'switch void' 'void main(){switch ((void)4) {}}'
+compile_error 'assign const' 'const int G = 0; void main(){G=1;}'
 
 # TODO
 compile_error 'more params vaargs (yet)' 'int func(int a, ...) { return a; } int main(){ return func(1, 2, 3, 4, 5, 6, 7, 8); }'

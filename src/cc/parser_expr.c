@@ -30,6 +30,11 @@ void not_void(const Type *type, const Token *token) {
     parse_error(token, "`void' not allowed");
 }
 
+void not_const(const Type *type, const Token *token) {
+  if (type->qualifier & TQ_CONST)
+    parse_error(token, "Cannot modify `const'");
+}
+
 // Returns created global variable info.
 VarInfo *str_to_char_array(const Type *type, Initializer *init) {
   assert(type->kind == TY_ARRAY && is_char_type(type->pa.ptrof));
@@ -1071,11 +1076,13 @@ static Expr *parse_postfix(void) {
       expr = parse_array_index(tok, expr);
     else if ((tok = match(TK_DOT)) != NULL || (tok = match(TK_ARROW)) != NULL)
       expr = parse_member_access(expr, tok);
-    else if ((tok = match(TK_INC)) != NULL)
+    else if ((tok = match(TK_INC)) != NULL) {
+      not_const(expr->type, tok);
       expr = new_expr_incdec(EX_POSTINC, tok, expr);
-    else if ((tok = match(TK_DEC)) != NULL)
+    } else if ((tok = match(TK_DEC)) != NULL) {
+      not_const(expr->type, tok);
       expr = new_expr_incdec(EX_POSTDEC, tok, expr);
-    else
+    } else
       return expr;
   }
 }
@@ -1207,11 +1214,13 @@ static Expr *parse_unary(void) {
 
   if ((tok = match(TK_INC)) != NULL) {
     Expr *expr = parse_unary();
+    not_const(expr->type, tok);
     return new_expr_incdec(EX_PREINC, tok, expr);
   }
 
   if ((tok = match(TK_DEC)) != NULL) {
     Expr *expr = parse_unary();
+    not_const(expr->type, tok);
     return new_expr_incdec(EX_PREDEC, tok, expr);
   }
 
@@ -1555,6 +1564,7 @@ Expr *parse_assign(void) {
         default: break;
         }
 
+        not_const(lhs->type, tok);
         Expr *bop;
         switch (kAssignWithOps[i].mode) {
         case ASSIGN:
