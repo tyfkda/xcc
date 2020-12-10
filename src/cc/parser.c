@@ -438,6 +438,7 @@ static Initializer *check_global_initializer(const Type *type, Initializer *init
     break;
   case TY_STRUCT:
     {
+      assert(init->kind == IK_MULTI);
       const StructInfo *sinfo = type->struct_.info;
       for (int i = 0, n = sinfo->members->len; i < n; ++i) {
         const VarInfo* member = sinfo->members->data[i];
