@@ -514,8 +514,8 @@ static Expr *new_expr_addsub(enum ExprKind kind, const Token *tok, Expr *lhs, Ex
       if (!same_type(ltype, rtype, curscope))
         parse_error(tok, "Different pointer diff");
       const Fixnum elem_size = type_size(ltype->pa.ptrof);
-      return new_expr_bop(EX_DIV, &tySize, tok, new_expr_bop(EX_SUB, &tySize, tok, lhs, rhs),
-                          new_expr_fixlit(&tySize, tok, elem_size));
+      return new_expr_bop(EX_DIV, &tySSize, tok, new_expr_bop(EX_SUB, &tySSize, tok, lhs, rhs),
+                          new_expr_fixlit(&tySSize, tok, elem_size));
     }
   } else if (ptr_or_array(rtype)) {
     if (kind == EX_ADD && is_fixnum(ltype->kind) && !keep_left) {

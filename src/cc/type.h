@@ -82,8 +82,9 @@ extern const Type tyUnsignedLLong;
 extern const Type tyEnum;
 extern const Type tyVoid;
 extern const Type tyVoidPtr;
-#define tyBool  tyInt
-#define tySize  tyLong
+#define tyBool   tyInt
+#define tySize   tyUnsignedLong
+#define tySSize  tyLong
 #ifndef __NO_FLONUM
 extern const Type tyFloat;
 extern const Type tyDouble;

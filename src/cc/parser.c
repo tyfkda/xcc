@@ -498,7 +498,7 @@ Vector *assign_initial_value(Expr *expr, Initializer *init, Vector *inits) {
             vec_push(inits, new_stmt_expr(
                 new_expr_unary(EX_MODIFY, ptr_type, NULL,
                                new_expr_bop(EX_PTRADD, ptr_type, NULL, ptr_var,
-                                            new_expr_fixlit(&tyInt, NULL, n)))));
+                                            new_expr_fixlit(&tySize, NULL, n)))));
           }
 
           assign_initial_value(new_expr_deref(NULL, ptr_var), init_elem, inits);
