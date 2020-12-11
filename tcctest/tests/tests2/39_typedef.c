@@ -34,12 +34,12 @@ int main()
 typedef int A[3];
 extern A const ca;
 extern const A ca;
-extern const int ca[3];
+// extern const int ca[3];
 
 typedef A B[1][2];
 extern B const cb;
 extern const B cb;
-extern const int cb[1][2][3];
+// extern const int cb[1][2][3];
 
 extern B b;
 extern int b[1][2][3];
@@ -59,7 +59,7 @@ int set_anon_super(void)
    return 42;
 }
 typedef int sas_type (void);
-extern typeof(set_anon_super) set_anon_super;
+//extern typeof(set_anon_super) set_anon_super;
 extern sas_type set_anon_super;
 
 /* vim: set expandtab ts=4 sw=3 sts=3 tw=80 :*/
