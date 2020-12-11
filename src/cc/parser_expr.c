@@ -146,9 +146,10 @@ static bool cast_numbers(Expr **pLhs, Expr **pRhs, bool keep_left) {
   {
     bool lflo = is_flonum(ltype), rflo = is_flonum(rtype);
     if (lflo || rflo) {
-      if (!lflo)
+      int dir = !lflo ? 1 : !rflo ? -1 : (int)rtype->flonum.kind - (int)ltype->flonum.kind;
+      if (dir > 0)
         *pLhs = make_cast(rtype, lhs->token, lhs, false);
-      else if (!rflo)
+      else if (dir < 0)
         *pRhs = make_cast(ltype, rhs->token, rhs, false);
       return true;
     }
@@ -558,8 +559,19 @@ static Expr *parse_funcall(Expr *func) {
         arg = make_cast(type, arg->token, arg, false);
       } else if (vaargs && i >= paramc) {
         const Type *type = arg->type;
-        if (type->kind == TY_FIXNUM && type->fixnum.kind < FX_INT)  // Promote variadic argument.
-          arg = make_cast(&tyInt, arg->token, arg, false);
+        switch (type->kind) {
+        case TY_FIXNUM:
+          if (type->fixnum.kind < FX_INT)  // Promote variadic argument.
+            arg = make_cast(&tyInt, arg->token, arg, false);
+          break;
+#ifndef __NO_FLONUM
+        case TY_FLONUM:
+          if (type->flonum.kind < FL_DOUBLE)  // Promote variadic argument.
+            arg = make_cast(&tyDouble, arg->token, arg, false);
+          break;
+#endif
+        default: break;
+        }
       }
       args->data[i] = arg;
     }

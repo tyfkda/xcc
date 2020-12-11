@@ -19,8 +19,8 @@ const Type tyBool =          {.kind=TY_FIXNUM, .fixnum={.kind=FX_INT,   .is_unsi
 const Type tySize =          {.kind=TY_FIXNUM, .fixnum={.kind=FX_LONG,  .is_unsigned=true}};
 const Type tySSize =         {.kind=TY_FIXNUM, .fixnum={.kind=FX_LONG,  .is_unsigned=false}};
 #ifndef __NO_FLONUM
-const Type tyFloat =         {.kind=TY_FLONUM};  // TODO:
-const Type tyDouble =        {.kind=TY_FLONUM};
+const Type tyFloat =         {.kind=TY_FLONUM, .flonum={.kind=FL_FLOAT}};
+const Type tyDouble =        {.kind=TY_FLONUM, .flonum={.kind=FL_DOUBLE}};
 #endif
 
 #define FIXNUM_TABLE(uns, qual) \
@@ -42,12 +42,17 @@ static const Type kFixnumTypeTable[2][4][FX_LLONG + 1] = {
 };
 #undef FIXNUM_TABLE
 
-size_t num_size_table[]  = {1, 2, 4, 8, 8, 4};
-int    num_align_table[] = {1, 2, 4, 8, 8, 4};
+size_t fixnum_size_table[]  = {1, 2, 4, 8, 8, 4};
+int    fixnum_align_table[] = {1, 2, 4, 8, 8, 4};
+
+#ifndef __NO_FLONUM
+size_t flonum_size_table[]  = {4, 8};
+int    flonum_align_table[] = {4, 8};
+#endif
 
 void set_fixnum_size(enum FixnumKind kind, size_t size, int align) {
-  num_size_table[kind] = size;
-  num_align_table[kind] = align;
+  fixnum_size_table[kind] = size;
+  fixnum_align_table[kind] = align;
 }
 
 static void calc_struct_size(StructInfo *sinfo) {
@@ -87,10 +92,10 @@ size_t type_size(const Type *type) {
   case TY_VOID:
     return 0;
   case TY_FIXNUM:
-    return num_size_table[type->fixnum.kind];
+    return fixnum_size_table[type->fixnum.kind];
 #ifndef __NO_FLONUM
   case TY_FLONUM:
-    return 8;
+    return flonum_size_table[type->flonum.kind];
 #endif
   case TY_PTR:
     return 8;
@@ -113,10 +118,10 @@ int align_size(const Type *type) {
   case TY_VOID:
     return 1;  // Just in case.
   case TY_FIXNUM:
-    return num_align_table[type->fixnum.kind];
+    return fixnum_align_table[type->fixnum.kind];
 #ifndef __NO_FLONUM
   case TY_FLONUM:
-    return 8;
+    return flonum_align_table[type->fixnum.kind];
 #endif
   case TY_PTR:
   case TY_FUNC:
@@ -268,7 +273,7 @@ bool same_type(const Type *type1, const Type *type2) {
           type1->fixnum.is_unsigned == type2->fixnum.is_unsigned;
 #ifndef __NO_FLONUM
     case TY_FLONUM:
-      return true;
+      return type1->flonum.kind == type2->flonum.kind;
 #endif
     case TY_ARRAY:
       if (type1->pa.length != type2->pa.length)
@@ -340,6 +345,8 @@ bool can_cast(const Type *dst, const Type *src, bool zero, bool is_explicit) {
   case TY_FLONUM:
     switch (src->kind) {
     case TY_FIXNUM:
+      return true;
+    case TY_FLONUM:
       return true;
     default:
       break;

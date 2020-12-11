@@ -52,22 +52,43 @@ static void construct_initial_value(unsigned char *buf, const Type *type, const 
     break;
 #ifndef __NO_FLONUM
   case TY_FLONUM:
-    {
-      union {double d; uintptr_t h;} v;
-      v.d = 0;
-      if (init != NULL) {
-        assert(init->kind == IK_SINGLE);
-        Expr *value = init->single;
-        if (!(is_const(value) && is_flonum(value->type)))
-          error("Illegal initializer: constant number expected");
-        v.d = value->flonum;
-      }
-
+    switch (type->flonum.kind) {
+    case FL_DOUBLE:
+      {
+        union {double f; uint64_t h;} v;
+        v.f = 0;
+        if (init != NULL) {
+          assert(init->kind == IK_SINGLE);
+          Expr *value = init->single;
+          if (!(is_const(value) && is_flonum(value->type)))
+            error("Illegal initializer: constant number expected");
+          v.f = value->flonum;
+        }
 #if 0
-      _DOUBLE(FLONUM(v.d));
+        _DOUBLE(FLONUM(v.d));
 #else
-      _QUAD(HEXNUM(v.h));
+        _QUAD(HEXNUM(v.h));
 #endif
+      }
+      break;
+    case FL_FLOAT:
+      {
+        union {float f; uint32_t h;} v;
+        v.f = 0;
+        if (init != NULL) {
+          assert(init->kind == IK_SINGLE);
+          Expr *value = init->single;
+          if (!(is_const(value) && is_flonum(value->type)))
+            error("Illegal initializer: constant number expected");
+          v.f = value->flonum;
+        }
+#if 0
+        _FLOAT(FLONUM(v.f));
+#else
+        _LONG(HEXNUM(v.h));
+#endif
+      }
+      break;
     }
     break;
 #endif
@@ -315,7 +336,11 @@ static void put_args_to_stack(Function *func) {
 #ifndef __NO_FLONUM
     if (is_flonum(type)) {
       if (farg_index < MAX_FREG_ARGS) {
-        MOVSD(kFReg64s[farg_index], OFFSET_INDIRECT(offset, RBP, NULL, 1));
+        switch (type->flonum.kind) {
+        case FL_FLOAT:   MOVSS(kFReg64s[farg_index], OFFSET_INDIRECT(offset, RBP, NULL, 1)); break;
+        case FL_DOUBLE:  MOVSD(kFReg64s[farg_index], OFFSET_INDIRECT(offset, RBP, NULL, 1)); break;
+        default: assert(false); break;
+        }
         ++farg_index;
       }
       continue;

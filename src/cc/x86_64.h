@@ -224,4 +224,16 @@
 #define UCOMISD(o1, o2)  EMIT_ASM2("ucomisd", o1, o2)
 #define CVTSI2SD(o1, o2)  EMIT_ASM2("cvtsi2sd", o1, o2)
 #define CVTTSD2SI(o1, o2)  EMIT_ASM2("cvttsd2si", o1, o2)
+
+#define MOVSS(o1, o2)  EMIT_ASM2("movss", o1, o2)
+#define ADDSS(o1, o2)  EMIT_ASM2("addss", o1, o2)
+#define SUBSS(o1, o2)  EMIT_ASM2("subss", o1, o2)
+#define MULSS(o1, o2)  EMIT_ASM2("mulss", o1, o2)
+#define DIVSS(o1, o2)  EMIT_ASM2("divss", o1, o2)
+#define UCOMISS(o1, o2)  EMIT_ASM2("ucomiss", o1, o2)
+#define CVTSI2SS(o1, o2)  EMIT_ASM2("cvtsi2ss", o1, o2)
+#define CVTTSS2SI(o1, o2)  EMIT_ASM2("cvttss2si", o1, o2)
+
+#define CVTSD2SS(o1, o2)  EMIT_ASM2("cvtsd2ss", o1, o2)  // double->single
+#define CVTSS2SD(o1, o2)  EMIT_ASM2("cvtss2sd", o1, o2)  // single->double
 #endif

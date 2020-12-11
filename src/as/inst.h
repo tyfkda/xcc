@@ -95,6 +95,18 @@ enum Opcode {
   CVTSI2SD,
   CVTTSD2SI,
   SQRTSD,
+
+  MOVSS,
+  ADDSS,
+  SUBSS,
+  MULSS,
+  DIVSS,
+  UCOMISS,
+  CVTSI2SS,
+  CVTTSS2SI,
+
+  CVTSD2SS,
+  CVTSS2SD,
 #endif
 };
 

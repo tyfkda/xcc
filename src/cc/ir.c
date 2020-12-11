@@ -58,6 +58,8 @@ const char *kRegATable[] = {AL, AX, EAX, RAX};
 const char *kRegDTable[] = {DL, DX, EDX, RDX};
 
 #ifndef __NO_FLONUM
+#define SZ_FLOAT   (4)
+#define SZ_DOUBLE  (8)
 const char *kFReg64s[7] = {XMM8, XMM9, XMM10, XMM11, XMM12, XMM13, XMM14};
 #endif
 
@@ -492,8 +494,11 @@ static void ir_out(IR *ir) {
   case IR_LOAD:
 #ifndef __NO_FLONUM
     if (ir->dst->vtype->flag & VRTF_FLONUM) {
-      assert(ir->size == sizeof(double));
-      MOVSD(INDIRECT(kReg64s[ir->opr1->phys], NULL, 1), kFReg64s[ir->dst->phys]);
+      switch (ir->size) {
+      case SZ_FLOAT:   MOVSS(INDIRECT(kReg64s[ir->opr1->phys], NULL, 1), kFReg64s[ir->dst->phys]); break;
+      case SZ_DOUBLE:  MOVSD(INDIRECT(kReg64s[ir->opr1->phys], NULL, 1), kFReg64s[ir->dst->phys]); break;
+      default: assert(false); break;
+      }
       break;
     }
 #endif
@@ -510,8 +515,11 @@ static void ir_out(IR *ir) {
   case IR_STORE:
 #ifndef __NO_FLONUM
     if (ir->opr1->vtype->flag & VRTF_FLONUM) {
-      assert(ir->size == sizeof(double));
-      MOVSD(kFReg64s[ir->opr1->phys], INDIRECT(kReg64s[ir->opr2->phys], NULL, 1));
+      switch (ir->size) {
+      case SZ_FLOAT:   MOVSS(kFReg64s[ir->opr1->phys], INDIRECT(kReg64s[ir->opr2->phys], NULL, 1)); break;
+      case SZ_DOUBLE:  MOVSD(kFReg64s[ir->opr1->phys], INDIRECT(kReg64s[ir->opr2->phys], NULL, 1)); break;
+      default: assert(false); break;
+      }
       break;
     }
 #endif
@@ -532,7 +540,11 @@ static void ir_out(IR *ir) {
 #ifndef __NO_FLONUM
       if (ir->dst->vtype->flag & VRTF_FLONUM) {
         const char **regs = kFReg64s;
-        ADDSD(regs[ir->opr2->phys], regs[ir->dst->phys]);
+        switch (ir->size) {
+        case SZ_FLOAT:   ADDSS(regs[ir->opr2->phys], regs[ir->dst->phys]); break;
+        case SZ_DOUBLE:  ADDSD(regs[ir->opr2->phys], regs[ir->dst->phys]); break;
+        default: assert(false); break;
+        }
         break;
       }
 #endif
@@ -554,7 +566,11 @@ static void ir_out(IR *ir) {
 #ifndef __NO_FLONUM
       if (ir->dst->vtype->flag & VRTF_FLONUM) {
         const char **regs = kFReg64s;
-        SUBSD(regs[ir->opr2->phys], regs[ir->dst->phys]);
+        switch (ir->size) {
+        case SZ_FLOAT:   SUBSS(regs[ir->opr2->phys], regs[ir->dst->phys]); break;
+        case SZ_DOUBLE:  SUBSD(regs[ir->opr2->phys], regs[ir->dst->phys]); break;
+        default: assert(false); break;
+        }
         break;
       }
 #endif
@@ -599,7 +615,11 @@ static void ir_out(IR *ir) {
       if (ir->dst->vtype->flag & VRTF_FLONUM) {
         assert(ir->dst->phys == ir->opr1->phys);
         const char **regs = kFReg64s;
-        MULSD(regs[ir->opr2->phys], regs[ir->dst->phys]);
+        switch (ir->size) {
+        case SZ_FLOAT:   MULSS(regs[ir->opr2->phys], regs[ir->dst->phys]); break;
+        case SZ_DOUBLE:  MULSD(regs[ir->opr2->phys], regs[ir->dst->phys]); break;
+        default: assert(false); break;
+        }
         break;
       }
 #endif
@@ -629,7 +649,11 @@ static void ir_out(IR *ir) {
     if (ir->dst->vtype->flag & VRTF_FLONUM) {
       assert(ir->dst->phys == ir->opr1->phys);
       const char **regs = kFReg64s;
-      DIVSD(regs[ir->opr2->phys], regs[ir->dst->phys]);
+      switch (ir->size) {
+      case SZ_FLOAT:   DIVSS(regs[ir->opr2->phys], regs[ir->dst->phys]); break;
+      case SZ_DOUBLE:  DIVSD(regs[ir->opr2->phys], regs[ir->dst->phys]); break;
+      default: assert(false); break;
+      }
       break;
     }
 #endif
@@ -845,7 +869,11 @@ static void ir_out(IR *ir) {
 #ifndef __NO_FLONUM
       if (ir->opr1->vtype->flag & VRTF_FLONUM) {
         assert(ir->opr2->vtype->flag & VRTF_FLONUM);
-        UCOMISD(kFReg64s[ir->opr2->phys], kFReg64s[ir->opr1->phys]);
+        switch (ir->size) {
+        case SZ_FLOAT:   UCOMISS(kFReg64s[ir->opr2->phys], kFReg64s[ir->opr1->phys]); break;
+        case SZ_DOUBLE:  UCOMISD(kFReg64s[ir->opr2->phys], kFReg64s[ir->opr1->phys]); break;
+        default: assert(false); break;
+        }
         break;
       }
 #endif
@@ -1026,7 +1054,11 @@ static void ir_out(IR *ir) {
 #ifndef __NO_FLONUM
     if (ir->opr1->vtype->flag & VRTF_FLONUM) {
       SUB(IM(WORD_SIZE), RSP); PUSH_STACK_POS();
-      MOVSD(kFReg64s[ir->opr1->phys], INDIRECT(RSP, NULL, 1));
+      switch (ir->opr1->vtype->size) {
+      case SZ_FLOAT:   MOVSS(kFReg64s[ir->opr1->phys], INDIRECT(RSP, NULL, 1)); break;
+      case SZ_DOUBLE:  MOVSD(kFReg64s[ir->opr1->phys], INDIRECT(RSP, NULL, 1)); break;
+      default: assert(false); break;
+      }
       break;
     }
 #endif
@@ -1058,7 +1090,12 @@ static void ir_out(IR *ir) {
       for (int i = 0; i < reg_args; ++i) {
 #ifndef __NO_FLONUM
         if (ir->call.arg_vtypes[i]->flag & VRTF_FLONUM) {
-          MOVSD(INDIRECT(RSP, NULL, 1), kArgFReg64s[freg++]);
+          switch (ir->call.arg_vtypes[i]->size) {
+          case SZ_FLOAT:   MOVSS(INDIRECT(RSP, NULL, 1), kArgFReg64s[freg]); break;
+          case SZ_DOUBLE:  MOVSD(INDIRECT(RSP, NULL, 1), kArgFReg64s[freg]); break;
+          default: assert(false); break;
+          }
+          ++freg;
           ADD(IM(WORD_SIZE), RSP); POP_STACK_POS();
           continue;
         }
@@ -1088,7 +1125,11 @@ static void ir_out(IR *ir) {
 
 #ifndef __NO_FLONUM
       if (ir->dst->vtype->flag & VRTF_FLONUM) {
-        MOVSD(XMM0, kFReg64s[ir->dst->phys]);
+        switch (ir->size) {
+        case SZ_FLOAT:   MOVSS(XMM0, kFReg64s[ir->dst->phys]); break;
+        case SZ_DOUBLE:  MOVSD(XMM0, kFReg64s[ir->dst->phys]); break;
+        default: assert(false); break;
+        }
         break;
       }
 #endif
@@ -1105,7 +1146,11 @@ static void ir_out(IR *ir) {
   case IR_RESULT:
 #ifndef __NO_FLONUM
     if (ir->opr1->vtype->flag & VRTF_FLONUM) {
-      MOVSD(kFReg64s[ir->opr1->phys], XMM0);
+      switch (ir->size) {
+      case SZ_FLOAT:   MOVSS(kFReg64s[ir->opr1->phys], XMM0); break;
+      case SZ_DOUBLE:  MOVSD(kFReg64s[ir->opr1->phys], XMM0); break;
+      default: assert(false); break;
+      }
       break;
     }
 #endif
@@ -1132,10 +1177,17 @@ static void ir_out(IR *ir) {
   case IR_CAST:
     assert((ir->opr1->flag & VRF_CONST) == 0);
 #ifndef __NO_FLONUM
-    if ((ir->opr1->vtype->flag & VRTF_FLONUM) ||
-        (ir->dst->vtype->flag & VRTF_FLONUM)) {
-      assert(!((ir->opr1->vtype->flag & VRTF_FLONUM) && (ir->dst->vtype->flag & VRTF_FLONUM)));
-      if (ir->dst->vtype->flag & VRTF_FLONUM) {
+    if (ir->dst->vtype->flag & VRTF_FLONUM) {
+      if (ir->opr1->vtype->flag & VRTF_FLONUM) {
+        // flonum->flonum
+        // Assume flonum are just two types.
+        switch (ir->size) {
+        case SZ_FLOAT:   CVTSD2SS(kFReg64s[ir->opr1->phys], kFReg64s[ir->dst->phys]); break;
+        case SZ_DOUBLE:  CVTSS2SD(kFReg64s[ir->opr1->phys], kFReg64s[ir->dst->phys]); break;
+        default:  assert(false); break;
+        }
+      } else {
+        // fix->flonum
         assert(0 <= ir->opr1->vtype->size && ir->opr1->vtype->size < kPow2TableSize);
         int pows = kPow2Table[ir->opr1->vtype->size];
         if (pows < 2) {
@@ -1145,10 +1197,20 @@ static void ir_out(IR *ir) {
             MOVSX(kRegSizeTable[pows][ir->opr1->phys], kRegSizeTable[2][ir->opr1->phys]);
           pows = 2;
         }
-        CVTSI2SD(kRegSizeTable[pows][ir->opr1->phys], kFReg64s[ir->dst->phys]);
-      } else {
-        int powd = kPow2Table[ir->dst->vtype->size];
-        CVTTSD2SI(kFReg64s[ir->opr1->phys], kRegSizeTable[powd][ir->dst->phys]);
+        switch (ir->size) {
+        case SZ_FLOAT:   CVTSI2SS(kRegSizeTable[pows][ir->opr1->phys], kFReg64s[ir->dst->phys]); break;
+        case SZ_DOUBLE:  CVTSI2SD(kRegSizeTable[pows][ir->opr1->phys], kFReg64s[ir->dst->phys]); break;
+        default:  assert(false); break;
+        }
+      }
+      break;
+    } else if (ir->opr1->vtype->flag & VRTF_FLONUM) {
+      // flonum->fix
+      int powd = kPow2Table[ir->dst->vtype->size];
+      switch (ir->opr1->vtype->size) {
+      case SZ_FLOAT:   CVTTSS2SI(kFReg64s[ir->opr1->phys], kRegSizeTable[powd][ir->dst->phys]); break;
+      case SZ_DOUBLE:  CVTTSD2SI(kFReg64s[ir->opr1->phys], kRegSizeTable[powd][ir->dst->phys]); break;
+      default:  assert(false); break;
       }
       break;
     }
@@ -1186,7 +1248,11 @@ static void ir_out(IR *ir) {
 #ifndef __NO_FLONUM
       if (ir->dst->vtype->flag & VRTF_FLONUM) {
         if (ir->opr1->phys != ir->dst->phys) {
-          MOVSD(kFReg64s[ir->opr1->phys], kFReg64s[ir->dst->phys]);
+          switch (ir->size) {
+          case SZ_FLOAT:   MOVSS(kFReg64s[ir->opr1->phys], kFReg64s[ir->dst->phys]); break;
+          case SZ_DOUBLE:  MOVSD(kFReg64s[ir->opr1->phys], kFReg64s[ir->dst->phys]); break;
+          default: assert(false); break;
+          }
           break;
         }
       }
@@ -1233,9 +1299,12 @@ static void ir_out(IR *ir) {
   case IR_LOAD_SPILLED:
 #ifndef __NO_FLONUM
     if (ir->spill.flag & VRTF_FLONUM) {
-      assert(ir->size == sizeof(double));
       const char **regs = kFReg64s;
-      MOVSD(OFFSET_INDIRECT(ir->value, RBP, NULL, 1), regs[SPILLED_REG_NO]);
+      switch (ir->size) {
+      case SZ_FLOAT:   MOVSS(OFFSET_INDIRECT(ir->value, RBP, NULL, 1), regs[SPILLED_REG_NO]); break;
+      case SZ_DOUBLE:  MOVSD(OFFSET_INDIRECT(ir->value, RBP, NULL, 1), regs[SPILLED_REG_NO]); break;
+      default: assert(false); break;
+      }
       break;
     }
 #endif
@@ -1251,9 +1320,12 @@ static void ir_out(IR *ir) {
   case IR_STORE_SPILLED:
 #ifndef __NO_FLONUM
     if (ir->spill.flag & VRTF_FLONUM) {
-      assert(ir->size == sizeof(double));
       const char **regs = kFReg64s;
-      MOVSD(regs[SPILLED_REG_NO], OFFSET_INDIRECT(ir->value, RBP, NULL, 1));
+      switch (ir->size) {
+      case SZ_FLOAT:   MOVSS(regs[SPILLED_REG_NO], OFFSET_INDIRECT(ir->value, RBP, NULL, 1)); break;
+      case SZ_DOUBLE:  MOVSD(regs[SPILLED_REG_NO], OFFSET_INDIRECT(ir->value, RBP, NULL, 1)); break;
+      default: assert(false); break;
+      }
       break;
     }
 #endif
@@ -1408,6 +1480,7 @@ static void push_caller_save_regs(unsigned short living, int base) {
     for (int i = CALLER_SAVE_FREG_COUNT; i > 0; ) {
       int ireg = kCallerSaveFRegs[--i];
       if (living & (1U << (ireg + PHYSICAL_REG_MAX))) {
+        // TODO: Detect register size.
         MOVSD(kFReg64s[ireg], OFFSET_INDIRECT(base, RSP, NULL, 1));
         base += WORD_SIZE;
       }
@@ -1431,6 +1504,7 @@ static void pop_caller_save_regs(unsigned short living) {
     for (int i = CALLER_SAVE_FREG_COUNT; i > 0; ) {
       int ireg = kCallerSaveFRegs[--i];
       if (living & (1U << (ireg + PHYSICAL_REG_MAX))) {
+        // TODO: Detect register size.
         MOVSD(OFFSET_INDIRECT(count * WORD_SIZE, RSP, NULL, 1), kFReg64s[ireg]);
         ++count;
       }

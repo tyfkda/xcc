@@ -207,14 +207,14 @@ static bool assemble_mov(Inst *inst, const ParseInfo *info, Code *code) {
 }
 
 #ifndef __NO_FLONUM
-static bool assemble_movsd(Inst *inst, const ParseInfo *info, Code *code) {
+static unsigned char *assemble_movsd(Inst *inst, Code *code, bool single) {
   unsigned char *p = code->buf;
-
+  unsigned char prefix = single ? 0xf3 : 0xf2;
   if (inst->src.type == REG_XMM && inst->dst.type == REG_XMM) {
     unsigned char sno = inst->src.regxmm - XMM0;
     unsigned char dno = inst->dst.regxmm - XMM0;
     short buf[] = {
-      0xf2,
+      prefix,
       sno >= 8 || dno >= 8 ? (unsigned char)0x40 | ((sno & 8) >> 3) | ((dno & 8) >> 1) : -1,
       0x0f,
       0x10,
@@ -232,7 +232,7 @@ static bool assemble_movsd(Inst *inst, const ParseInfo *info, Code *code) {
         unsigned char code = (offset == 0 && s != RBP - RAX) ? (unsigned char)0x00 : is_im8(offset) ? (unsigned char)0x40 : (unsigned char)0x80;
 
         short buf[] = {
-          0xf2,
+          prefix,
           sno >= 8 || dno >= 8 ? (unsigned char)0x40 | ((sno & 8) >> 3) | ((dno & 8) >> 1) : -1,
           0x0f,
           0x10,
@@ -262,7 +262,7 @@ static bool assemble_movsd(Inst *inst, const ParseInfo *info, Code *code) {
         unsigned char code = (offset == 0 && d != RBP - RAX) ? (unsigned char)0x00 : is_im8(offset) ? (unsigned char)0x40 : (unsigned char)0x80;
 
         short buf[] = {
-          0xf2,
+          prefix,
           sno >= 8 || dno >= 8 ? (unsigned char)0x40 | ((dno & 8) >> 3) | ((sno & 8) >> 1) : -1,
           0x0f,
           0x11,
@@ -283,14 +283,97 @@ static bool assemble_movsd(Inst *inst, const ParseInfo *info, Code *code) {
     }
   }
 
-  if (p > code->buf) {
-    code->inst = inst;
-    code->len = p - code->buf;
-    assert((size_t)code->len <= sizeof(code->buf));
-    return true;
+  return p;
+}
+
+static unsigned char *assemble_bop_sd(Inst *inst, Code *code, bool single, unsigned char op) {
+  unsigned char *p = code->buf;
+  unsigned char prefix = single ? 0xf3 : 0xf2;
+  if (inst->src.type == REG_XMM && inst->dst.type == REG_XMM) {
+    unsigned char sno = inst->src.regxmm - XMM0;
+    unsigned char dno = inst->dst.regxmm - XMM0;
+    short buf[] = {
+      prefix,
+      sno >= 8 || dno >= 8 ? (unsigned char)0x40 | ((sno & 8) >> 3) | ((dno & 8) >> 1) : -1,
+      0x0f,
+      op,
+      (unsigned char)0xc0 | ((dno & 7) << 3) | (sno & 7),
+    };
+    p = put_code_filtered(p, buf, ARRAY_SIZE(buf));
   }
 
-  return assemble_error(info, "Illegal operand");
+  return p;
+}
+
+static unsigned char *assemble_ucomisd(Inst *inst, Code *code, bool single) {
+  unsigned char *p = code->buf;
+  if (inst->src.type == REG_XMM && inst->dst.type == REG_XMM) {
+    unsigned char sno = inst->src.regxmm - XMM0;
+    unsigned char dno = inst->dst.regxmm - XMM0;
+    short buf[] = {
+      single ? -1 : 0x66,
+      sno >= 8 || dno >= 8 ? (unsigned char)0x40 | ((sno & 8) >> 3) | ((dno & 8) >> 1) : -1,
+      0x0f,
+      0x2e,
+      (unsigned char)0xc0 | ((dno & 7) << 3) | (sno & 7),
+    };
+    p = put_code_filtered(p, buf, ARRAY_SIZE(buf));
+  }
+  return p;
+}
+
+static unsigned char *assemble_cvtsi2sd(Inst *inst, Code *code, bool single) {
+  unsigned char *p = code->buf;
+  unsigned char prefix = single ? 0xf3 : 0xf2;
+  if (inst->src.type == REG && inst->dst.type == REG_XMM) {
+    unsigned char sno = opr_regno(&inst->src.reg);
+    unsigned char dno = inst->dst.regxmm - XMM0;
+    short buf[] = {
+      prefix,
+      sno >= 8 || dno >= 8 || inst->src.reg.size == REG64 ? (unsigned char)0x40 | ((sno & 8) >> 3) | ((dno & 8) >> 1) | (inst->src.reg.size == REG64 ? 8 : 0) : -1,
+      0x0f,
+      0x2a,
+      (unsigned char)0xc0 | ((dno & 7) << 3) | (sno & 7),
+    };
+    p = put_code_filtered(p, buf, ARRAY_SIZE(buf));
+  }
+  return p;
+}
+
+static unsigned char *assemble_cvttsd2si(Inst *inst, Code *code, bool single) {
+  unsigned char *p = code->buf;
+  unsigned char prefix = single ? 0xf3 : 0xf2;
+  if (inst->src.type == REG_XMM && inst->dst.type == REG) {
+    unsigned char sno = inst->src.regxmm - XMM0;
+    unsigned char dno = opr_regno(&inst->dst.reg);
+    short buf[] = {
+      prefix,
+      sno >= 8 || dno >= 8 || inst->dst.reg.size == REG64 ? (unsigned char)0x40 | ((sno & 8) >> 3) | ((dno & 8) >> 1) | (inst->dst.reg.size == REG64 ? 8 : 0) : -1,
+      0x0f,
+      0x2c,
+      (unsigned char)0xc0 | ((dno & 7) << 3) | (sno & 7),
+    };
+    p = put_code_filtered(p, buf, ARRAY_SIZE(buf));
+  }
+  return p;
+}
+
+static unsigned char *assemble_cvtsd2ss(Inst *inst, Code *code, bool single) {
+  unsigned char *p = code->buf;
+  unsigned char prefix = single ? 0xf3 : 0xf2;
+  if (inst->src.type == REG_XMM && inst->dst.type == REG_XMM) {
+    unsigned char sno = inst->src.regxmm - XMM0;
+    unsigned char dno = inst->dst.regxmm - XMM0;
+    short buf[] = {
+      prefix,
+      sno >= 8 || dno >= 8 ? (unsigned char)0x40 | ((sno & 8) >> 3) | ((dno & 8) >> 1) : -1,
+      0x0f,
+      0x5a,
+      (unsigned char)0xc0 | ((dno & 7) << 3) | (sno & 7),
+    };
+    p = put_code_filtered(p, buf, ARRAY_SIZE(buf));
+  }
+  return p;
 }
 #endif
 
@@ -980,104 +1063,28 @@ bool assemble_inst(Inst *inst, const ParseInfo *info, Code *code) {
     return true;
 #ifndef __NO_FLONUM
   case MOVSD:
-    return assemble_movsd(inst, info, code);
+    p = assemble_movsd(inst, code, false);
+    break;
   case ADDSD:
-    if (inst->src.type == REG_XMM && inst->dst.type == REG_XMM) {
-      unsigned char sno = inst->src.regxmm - XMM0;
-      unsigned char dno = inst->dst.regxmm - XMM0;
-      short buf[] = {
-        0xf2,
-        sno >= 8 || dno >= 8 ? (unsigned char)0x40 | ((sno & 8) >> 3) | ((dno & 8) >> 1) : -1,
-        0x0f,
-        0x58,
-        (unsigned char)0xc0 | ((dno & 7) << 3) | (sno & 7),
-      };
-      p = put_code_filtered(p, buf, ARRAY_SIZE(buf));
-    }
+    p = assemble_bop_sd(inst, code, false, 0x58);
     break;
   case SUBSD:
-    if (inst->src.type == REG_XMM && inst->dst.type == REG_XMM) {
-      unsigned char sno = inst->src.regxmm - XMM0;
-      unsigned char dno = inst->dst.regxmm - XMM0;
-      short buf[] = {
-        0xf2,
-        sno >= 8 || dno >= 8 ? (unsigned char)0x40 | ((sno & 8) >> 3) | ((dno & 8) >> 1) : -1,
-        0x0f,
-        0x5c,
-        (unsigned char)0xc0 | ((dno & 7) << 3) | (sno & 7),
-      };
-      p = put_code_filtered(p, buf, ARRAY_SIZE(buf));
-    }
+    p = assemble_bop_sd(inst, code, false, 0x5c);
     break;
   case MULSD:
-    if (inst->src.type == REG_XMM && inst->dst.type == REG_XMM) {
-      unsigned char sno = inst->src.regxmm - XMM0;
-      unsigned char dno = inst->dst.regxmm - XMM0;
-      short buf[] = {
-        0xf2,
-        sno >= 8 || dno >= 8 ? (unsigned char)0x40 | ((sno & 8) >> 3) | ((dno & 8) >> 1) : -1,
-        0x0f,
-        0x59,
-        (unsigned char)0xc0 | ((dno & 7) << 3) | (sno & 7),
-      };
-      p = put_code_filtered(p, buf, ARRAY_SIZE(buf));
-    }
+    p = assemble_bop_sd(inst, code, false, 0x59);
     break;
   case DIVSD:
-    if (inst->src.type == REG_XMM && inst->dst.type == REG_XMM) {
-      unsigned char sno = inst->src.regxmm - XMM0;
-      unsigned char dno = inst->dst.regxmm - XMM0;
-      short buf[] = {
-        0xf2,
-        sno >= 8 || dno >= 8 ? (unsigned char)0x40 | ((sno & 8) >> 3) | ((dno & 8) >> 1) : -1,
-        0x0f,
-        0x5e,
-        (unsigned char)0xc0 | ((dno & 7) << 3) | (sno & 7),
-      };
-      p = put_code_filtered(p, buf, ARRAY_SIZE(buf));
-    }
+    p = assemble_bop_sd(inst, code, false, 0x5e);
     break;
   case UCOMISD:
-    if (inst->src.type == REG_XMM && inst->dst.type == REG_XMM) {
-      unsigned char sno = inst->src.regxmm - XMM0;
-      unsigned char dno = inst->dst.regxmm - XMM0;
-      short buf[] = {
-        0x66,
-        sno >= 8 || dno >= 8 ? (unsigned char)0x40 | ((sno & 8) >> 3) | ((dno & 8) >> 1) : -1,
-        0x0f,
-        0x2e,
-        (unsigned char)0xc0 | ((dno & 7) << 3) | (sno & 7),
-      };
-      p = put_code_filtered(p, buf, ARRAY_SIZE(buf));
-    }
+    p = assemble_ucomisd(inst, code, false);
     break;
   case CVTSI2SD:
-    if (inst->src.type == REG && inst->dst.type == REG_XMM) {
-      unsigned char sno = opr_regno(&inst->src.reg);
-      unsigned char dno = inst->dst.regxmm - XMM0;
-      short buf[] = {
-        0xf2,
-        sno >= 8 || dno >= 8 || inst->src.reg.size == REG64 ? (unsigned char)0x40 | ((sno & 8) >> 3) | ((dno & 8) >> 1) | (inst->src.reg.size == REG64 ? 8 : 0) : -1,
-        0x0f,
-        0x2a,
-        (unsigned char)0xc0 | ((dno & 7) << 3) | (sno & 7),
-      };
-      p = put_code_filtered(p, buf, ARRAY_SIZE(buf));
-    }
+    p = assemble_cvtsi2sd(inst, code, false);
     break;
   case CVTTSD2SI:
-    if (inst->src.type == REG_XMM && inst->dst.type == REG) {
-      unsigned char sno = inst->src.regxmm - XMM0;
-      unsigned char dno = opr_regno(&inst->dst.reg);
-      short buf[] = {
-        0xf2,
-        sno >= 8 || dno >= 8 || inst->dst.reg.size == REG64 ? (unsigned char)0x40 | ((sno & 8) >> 3) | ((dno & 8) >> 1) | (inst->dst.reg.size == REG64 ? 8 : 0) : -1,
-        0x0f,
-        0x2c,
-        (unsigned char)0xc0 | ((dno & 7) << 3) | (sno & 7),
-      };
-      p = put_code_filtered(p, buf, ARRAY_SIZE(buf));
-    }
+    p = assemble_cvttsd2si(inst, code, false);
     break;
   case SQRTSD:
     if (inst->src.type == REG_XMM && inst->dst.type == REG_XMM) {
@@ -1092,6 +1099,38 @@ bool assemble_inst(Inst *inst, const ParseInfo *info, Code *code) {
       };
       p = put_code_filtered(p, buf, ARRAY_SIZE(buf));
     }
+    break;
+
+  case MOVSS:
+    p = assemble_movsd(inst, code, true);
+    break;
+  case ADDSS:
+    p = assemble_bop_sd(inst, code, true, 0x58);
+    break;
+  case SUBSS:
+    p = assemble_bop_sd(inst, code, true, 0x5c);
+    break;
+  case MULSS:
+    p = assemble_bop_sd(inst, code, true, 0x59);
+    break;
+  case DIVSS:
+    p = assemble_bop_sd(inst, code, true, 0x5e);
+    break;
+  case UCOMISS:
+    p = assemble_ucomisd(inst, code, true);
+    break;
+  case CVTSI2SS:
+    p = assemble_cvtsi2sd(inst, code, true);
+    break;
+  case CVTTSS2SI:
+    p = assemble_cvttsd2si(inst, code, true);
+    break;
+
+  case CVTSD2SS:
+    p = assemble_cvtsd2ss(inst, code, false);
+    break;
+  case CVTSS2SD:
+    p = assemble_cvtsd2ss(inst, code, true);
     break;
 #endif
   default:

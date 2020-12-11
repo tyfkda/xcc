@@ -8,14 +8,20 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#ifdef USE_FLOAT
+typedef float Number;
+#else
+typedef double Number;
+#endif
+
 // 0..finite, >0..divergence count.
-unsigned int mandelbrot(double cx, double cy, unsigned int threshold) {
-  double x = 0, y = 0;
+unsigned int mandelbrot(Number cx, Number cy, unsigned int threshold) {
+  Number x = 0, y = 0;
   for (unsigned int n = 1; n <= threshold; ++n) {
-    if (x * x + y * y > 4.0)
+    if (x * x + y * y > 4)
       return n;
-    double nx = x * x - y * y + cx;
-    double ny = 2 * x * y     + cy;
+    Number nx = x * x - y * y + cx;
+    Number ny = 2 * x * y     + cy;
     x = nx;
     y = ny;
   }
@@ -32,17 +38,17 @@ unsigned int calc_color(unsigned int n) {
 int main() {
   const unsigned int threshold = 3000;
   const int W = 512, H = 512;
-  const double XMIN = -1.75;
-  const double YMIN = -1.125;
-  const double XS = 2.25, YS = XS * H / W;
+  const Number XMIN = -1.75;
+  const Number YMIN = -1.125;
+  const Number XS = 2.25, YS = XS * H / W;
 
   unsigned char *buf = malloc(W * H * 3);
   unsigned char *p = buf;
 
   for (int i = 0; i < H; ++i) {
-    double cy = YS * i / H + YMIN;
+    Number cy = YS * i / H + YMIN;
     for (int j = 0; j < W; ++j) {
-      double cx = XS * j / W + XMIN;
+      Number cx = XS * j / W + XMIN;
       unsigned int n = mandelbrot(cx, cy, threshold);
       unsigned int c = calc_color(n);
       *p++ = c >> 16;

@@ -21,6 +21,13 @@ enum FixnumKind {
   FX_ENUM,
 };
 
+// Flonum
+
+enum FlonumKind {
+  FL_FLOAT,
+  FL_DOUBLE,
+};
+
 // Type
 
 enum TypeKind {
@@ -59,6 +66,11 @@ typedef struct Type {
         const Name *ident;
       } enum_;
     } fixnum;
+#ifndef __NO_FLONUM
+    struct {
+      enum FlonumKind kind;
+    } flonum;
+#endif
     struct {  // Pointer or array.
       const struct Type *ptrof;
       size_t length;  // of array. -1 represents length is not specified (= []).

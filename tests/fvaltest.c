@@ -92,6 +92,9 @@ int main(void) {
   expecti("!", false, (x=5, !x));
   expecti("||", true, (x=0.0, y=5.0, x || y));
 
+  expect("sizeof(double)", 8, sizeof(double));
+  expect("sizeof(float)", 4, sizeof(float));
+
   expect_about("sqrt2", 1.41421356, sqrt(2.0));
   expect_about("cos", 0.5, cos(M_PI / 3));
   expect_about("sin", -0.8660254, sin(-M_PI / 3));
