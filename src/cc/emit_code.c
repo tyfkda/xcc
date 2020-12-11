@@ -87,14 +87,14 @@ static void construct_initial_value(unsigned char *buf, const Type *type, const 
         Scope *scope;
         VarInfo *varinfo = scope_find(value->var.scope, name, &scope);
         assert(varinfo != NULL);
-        if (!is_global_scope(scope) && varinfo->flag & VF_STATIC) {
+        if (!is_global_scope(scope) && varinfo->storage & VS_STATIC) {
           varinfo = varinfo->static_.gvar;
           assert(varinfo != NULL);
           name = varinfo->name;
         }
 
         const char *label = fmt_name(name);
-        if ((varinfo->flag & VF_STATIC) == 0)
+        if ((varinfo->storage & VS_STATIC) == 0)
           label = MANGLE(label);
         _QUAD(label);
       } else if (value->kind == EX_STR) {
@@ -216,14 +216,14 @@ static void construct_initial_value(unsigned char *buf, const Type *type, const 
 static void emit_varinfo(const VarInfo *varinfo, const Initializer *init) {
   const Name *name = varinfo->name;
   if (init != NULL) {
-    if (varinfo->flag & VF_CONST)
+    if (varinfo->type->qualifier & TQ_CONST)
       _RODATA();
     else
       _DATA();
   }
 
   const char *label = fmt_name(name);
-  if ((varinfo->flag & VF_STATIC) == 0) {  // global
+  if ((varinfo->storage & VS_STATIC) == 0) {  // global
     label = MANGLE(label);
     _GLOBL(label);
   }
@@ -305,7 +305,7 @@ static void put_args_to_stack(Function *func) {
       type = varinfo->type;
       offset = varinfo->local.reg->offset;
     } else {  // vaargs
-      type = &tyLong;
+      type = get_fixnum_type(FX_LONG, false, 0);
       offset = (i - MAX_REG_ARGS) * WORD_SIZE;
     }
 
@@ -351,7 +351,7 @@ static void emit_defun(Function *func) {
   bool global = true;
   const VarInfo *varinfo = scope_find(global_scope, func->name, NULL);
   if (varinfo != NULL) {
-    global = (varinfo->flag & VF_STATIC) == 0;
+    global = (varinfo->storage & VS_STATIC) == 0;
   }
 
   const char *label = fmt_name(func->name);
@@ -413,7 +413,7 @@ static void emit_defun(Function *func) {
       continue;
     for (int j = 0; j < scope->vars->len; ++j) {
       VarInfo *varinfo = scope->vars->data[j];
-      if (!(varinfo->flag & VF_STATIC))
+      if (!(varinfo->storage & VS_STATIC))
         continue;
       VarInfo *gvarinfo = varinfo->static_.gvar;
       assert(gvarinfo != NULL);
@@ -440,7 +440,7 @@ void emit_code(Vector *toplevel) {
         Vector *decls = decl->vardecl.decls;
         for (int i = 0; i < decls->len; ++i) {
           VarDecl *vd = decls->data[i];
-          if ((vd->flag & VF_EXTERN) != 0)
+          if ((vd->storage & VS_EXTERN) != 0)
             continue;
           const Name *name = vd->ident->ident;
           const VarInfo *varinfo = scope_find(global_scope, name, NULL);

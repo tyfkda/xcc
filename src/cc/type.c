@@ -9,22 +9,38 @@
 #include "var.h"  // VarInfo
 
 const Type tyChar =          {.kind=TY_FIXNUM, .fixnum={.kind=FX_CHAR,  .is_unsigned=false}};
-const Type tyShort =         {.kind=TY_FIXNUM, .fixnum={.kind=FX_SHORT, .is_unsigned=false}};
 const Type tyInt =           {.kind=TY_FIXNUM, .fixnum={.kind=FX_INT,   .is_unsigned=false}};
-const Type tyLong =          {.kind=TY_FIXNUM, .fixnum={.kind=FX_LONG,  .is_unsigned=false}};
-const Type tyLLong =         {.kind=TY_FIXNUM, .fixnum={.kind=FX_LLONG, .is_unsigned=false}};
 const Type tyUnsignedChar =  {.kind=TY_FIXNUM, .fixnum={.kind=FX_CHAR,  .is_unsigned=true}};
-const Type tyUnsignedShort = {.kind=TY_FIXNUM, .fixnum={.kind=FX_SHORT, .is_unsigned=true}};
 const Type tyUnsignedInt =   {.kind=TY_FIXNUM, .fixnum={.kind=FX_INT,   .is_unsigned=true}};
-const Type tyUnsignedLong =  {.kind=TY_FIXNUM, .fixnum={.kind=FX_LONG,  .is_unsigned=true}};
-const Type tyUnsignedLLong = {.kind=TY_FIXNUM, .fixnum={.kind=FX_LLONG, .is_unsigned=true}};
 const Type tyEnum =          {.kind=TY_FIXNUM, .fixnum={.kind=FX_ENUM}};
 const Type tyVoid =          {.kind=TY_VOID};
 const Type tyVoidPtr =       {.kind=TY_PTR, .pa={.ptrof=&tyVoid}};
+const Type tyBool =          {.kind=TY_FIXNUM, .fixnum={.kind=FX_INT,   .is_unsigned=false}};
+const Type tySize =          {.kind=TY_FIXNUM, .fixnum={.kind=FX_LONG,  .is_unsigned=true}};
+const Type tySSize =         {.kind=TY_FIXNUM, .fixnum={.kind=FX_LONG,  .is_unsigned=false}};
 #ifndef __NO_FLONUM
 const Type tyFloat =         {.kind=TY_FLONUM};  // TODO:
 const Type tyDouble =        {.kind=TY_FLONUM};
 #endif
+
+#define FIXNUM_TABLE(uns, qual) \
+    { \
+      {.kind=TY_FIXNUM, .fixnum={.kind=FX_CHAR,  .is_unsigned=uns}, .qualifier=qual}, \
+      {.kind=TY_FIXNUM, .fixnum={.kind=FX_SHORT, .is_unsigned=uns}, .qualifier=qual}, \
+      {.kind=TY_FIXNUM, .fixnum={.kind=FX_INT,   .is_unsigned=uns}, .qualifier=qual}, \
+      {.kind=TY_FIXNUM, .fixnum={.kind=FX_LONG,  .is_unsigned=uns}, .qualifier=qual}, \
+      {.kind=TY_FIXNUM, .fixnum={.kind=FX_LLONG, .is_unsigned=uns}, .qualifier=qual}, \
+    }
+
+static const Type kFixnumTypeTable[2][4][FX_LLONG + 1] = {
+  {
+    FIXNUM_TABLE(false, 0), FIXNUM_TABLE(false, 1), FIXNUM_TABLE(false, 2), FIXNUM_TABLE(false, 3),
+  },
+  {
+    FIXNUM_TABLE(true, 0), FIXNUM_TABLE(true, 1), FIXNUM_TABLE(true, 2), FIXNUM_TABLE(true, 3),
+  },
+};
+#undef FIXNUM_TABLE
 
 size_t num_size_table[]  = {1, 2, 4, 8, 8, 4};
 int    num_align_table[] = {1, 2, 4, 8, 8, 4};
@@ -146,9 +162,15 @@ bool ptr_or_array(const Type *type) {
   return type->kind == TY_PTR || type->kind == TY_ARRAY;
 }
 
+const Type *get_fixnum_type(enum FixnumKind kind, bool is_unsigned, int qualifier) {
+  assert(kind != FX_ENUM);
+  return &kFixnumTypeTable[is_unsigned][qualifier & 3][kind];
+}
+
 Type *ptrof(const Type *type) {
   Type *ptr = malloc(sizeof(*ptr));
   ptr->kind = TY_PTR;
+  ptr->qualifier = 0;
   ptr->pa.ptrof = type;
   return ptr;
 }
@@ -161,6 +183,7 @@ const Type *array_to_ptr(const Type *type) {
 Type *arrayof(const Type *type, size_t length) {
   Type *arr = malloc(sizeof(*arr));
   arr->kind = TY_ARRAY;
+  arr->qualifier = 0;
   arr->pa.ptrof = type;
   arr->pa.length = length;
   return arr;
@@ -169,11 +192,22 @@ Type *arrayof(const Type *type, size_t length) {
 Type *new_func_type(const Type *ret, Vector *params, Vector *param_types, bool vaargs) {
   Type *f = malloc(sizeof(*f));
   f->kind = TY_FUNC;
+  f->qualifier = 0;
   f->func.ret = ret;
   f->func.vaargs = vaargs;
   f->func.params = params;
   f->func.param_types = param_types;
   return f;
+}
+
+const Type *qualified_type(const Type *type, int additional) {
+  int modified = type->qualifier | additional;
+  if (modified == type->qualifier)
+    return type;
+  Type *ctype = malloc(sizeof(*ctype));
+  memcpy(ctype, type, sizeof(*ctype));
+  ctype->qualifier = modified;
+  return ctype;
 }
 
 // Struct
@@ -193,6 +227,7 @@ StructInfo *create_struct(Vector *members, bool is_union) {
 Type *create_enum_type(const Name *name) {
   Type *type = malloc(sizeof(*type));
   type->kind = TY_FIXNUM;
+  type->qualifier = 0;
   type->fixnum.kind = FX_ENUM;
   type->fixnum.is_unsigned = false;
   type->fixnum.enum_.ident = name;

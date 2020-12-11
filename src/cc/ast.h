@@ -193,10 +193,10 @@ typedef struct VarDecl {
   const Type *type;
   const Token *ident;
   Initializer *init;
-  int flag;
+  int storage;
 } VarDecl;
 
-VarDecl *new_vardecl(const Type *type, const Token *ident, Initializer *init, int flag);
+VarDecl *new_vardecl(const Type *type, const Token *ident, Initializer *init, int storage);
 
 typedef struct Stmt {
   enum StmtKind kind;

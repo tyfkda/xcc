@@ -18,9 +18,9 @@ void expect_parse_type(const char *title, const Type *expected, const char *iden
   }
   if (pid == 0) {
     set_source_string(source, "*test*", 1);
-    int flag;
+    int storage;
     Token *ident;
-    const Type *actual = parse_full_type(&flag, &ident);
+    const Type *actual = parse_full_type(&storage, &ident);
     if (!same_type(expected, actual))
       error("%s: type different\n", title);
     if (ident_expected == NULL && ident != NULL)
@@ -43,9 +43,9 @@ void expect_parse_type(const char *title, const Type *expected, const char *iden
 }
 
 void test_parse_full_type(void) {
-  expect_parse_type("int", &tyInt, NULL, "int");
-  expect_parse_type("long int", &tyLong, NULL, "long int");
-  expect_parse_type("long long", &tyLLong, NULL, "long long");
+  expect_parse_type("int", get_fixnum_type(FX_INT, false, 0), NULL, "int");
+  expect_parse_type("long int", get_fixnum_type(FX_LONG, false, 0), NULL, "long int");
+  expect_parse_type("long long", get_fixnum_type(FX_LLONG, false, 0), NULL, "long long");
   expect_parse_type("void ptr", ptrof(&tyVoid), NULL, "void*");
   expect_parse_type("int array", arrayof(&tyInt, 3), "a", "int a[3]");
   expect_parse_type("array w/o size", arrayof(&tyChar, -1), NULL, "char[]");
@@ -53,7 +53,7 @@ void test_parse_full_type(void) {
 
   {
     Vector *param_types = new_vector();
-    vec_push(param_types, &tyLong);
+    vec_push(param_types, get_fixnum_type(FX_LONG, false, 0));
     const Type *funcptr = ptrof(new_func_type(&tyInt, NULL, param_types, false));
     expect_parse_type("func ptr", funcptr, "func", "int(*func)(long)");
   }

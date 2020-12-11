@@ -69,7 +69,7 @@ static void alloc_variable_registers(Function *func) {
 
     for (int j = 0; j < scope->vars->len; ++j) {
       VarInfo *varinfo = scope->vars->data[j];
-      if (varinfo->flag & (VF_STATIC | VF_EXTERN | VF_ENUM_MEMBER)) {
+      if (varinfo->storage & (VS_STATIC | VS_EXTERN | VS_ENUM_MEMBER)) {
         // Static entity is allocated in global, not on stack.
         // Extern doesn't have its entity.
         // Enum members are replaced to constant value.
@@ -423,7 +423,7 @@ static void gen_vardecl(Vector *decls, Vector *inits) {
       if (decl->init == NULL)
         continue;
       VarInfo *varinfo = scope_find(curscope, decl->ident->ident, NULL);
-      if (varinfo == NULL || (varinfo->flag & (VF_STATIC | VF_EXTERN)) ||
+      if (varinfo == NULL || (varinfo->storage & (VS_STATIC | VS_EXTERN)) ||
           !(varinfo->type->kind == TY_STRUCT ||
             varinfo->type->kind == TY_ARRAY))
         continue;

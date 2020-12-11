@@ -109,7 +109,7 @@ static void dump_func_ir(Function *func) {
       continue;
     for (int j = 0; j < scope->vars->len; ++j) {
       VarInfo *varinfo = scope->vars->data[j];
-      if (varinfo->flag & (VF_STATIC | VF_EXTERN | VF_ENUM_MEMBER) ||
+      if (varinfo->storage & (VS_STATIC | VS_EXTERN | VS_ENUM_MEMBER) ||
           varinfo->local.reg == NULL)
         continue;
       fprintf(fp, "  V%3d (flag=%x): %.*s\n", varinfo->local.reg->virt, varinfo->local.reg->flag,

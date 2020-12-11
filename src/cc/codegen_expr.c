@@ -208,11 +208,11 @@ static VReg *gen_lval(Expr *expr) {
       const VarInfo *varinfo = scope_find(expr->var.scope, expr->var.name, &scope);
       assert(varinfo != NULL && scope == expr->var.scope);
       if (is_global_scope(scope)) {
-        return new_ir_iofs(expr->var.name, (varinfo->flag & VF_STATIC) == 0);
+        return new_ir_iofs(expr->var.name, (varinfo->storage & VS_STATIC) == 0);
       } else {
-        if (varinfo->flag & VF_STATIC)
+        if (varinfo->storage & VS_STATIC)
           return new_ir_iofs(varinfo->static_.gvar->name, false);
-        else if (varinfo->flag & VF_EXTERN)
+        else if (varinfo->storage & VS_EXTERN)
           return new_ir_iofs(expr->var.name, true);
         else
           return new_ir_bofs(varinfo->local.reg);
@@ -267,7 +267,7 @@ static VReg *gen_variable(Expr *expr) {
       Scope *scope;
       const VarInfo *varinfo = scope_find(expr->var.scope, expr->var.name, &scope);
       assert(varinfo != NULL && scope == expr->var.scope);
-      if (!is_global_scope(scope) && !(varinfo->flag & (VF_STATIC | VF_EXTERN))) {
+      if (!is_global_scope(scope) && !(varinfo->storage & (VS_STATIC | VS_EXTERN))) {
         assert(varinfo->local.reg != NULL);
         return varinfo->local.reg;
       }
@@ -448,7 +448,7 @@ static VReg *gen_funcall(Expr *expr) {
     const VarInfo *varinfo = scope_find(func->var.scope, func->var.name, NULL);
     assert(varinfo != NULL);
     label_call = varinfo->type->kind == TY_FUNC;
-    global = !(varinfo->flag & VF_STATIC);
+    global = !(varinfo->storage & VS_STATIC);
   }
 
   VReg *result_reg = NULL;
@@ -559,9 +559,9 @@ VReg *gen_expr(Expr *expr) {
       init->token = expr->token;
 
       assert(curscope != NULL);
-      const Type *type = expr->type;
+      const Type *type = qualified_type(expr->type, TQ_CONST);
       const Token *ident = alloc_ident(alloc_label(), NULL, NULL);
-      VarInfo *varinfo = scope_add(curscope, ident, type, VF_CONST | VF_STATIC);
+      VarInfo *varinfo = scope_add(curscope, ident, type, VS_STATIC);
       varinfo->global.init = init;
 
       VReg *src = new_ir_iofs(varinfo->name, false);
@@ -668,7 +668,7 @@ VReg *gen_expr(Expr *expr) {
             Scope *scope;
             const VarInfo *varinfo = scope_find(lhs->var.scope, lhs->var.name, &scope);
             assert(varinfo != NULL);
-            if (!is_global_scope(scope) && !(varinfo->flag & (VF_STATIC | VF_EXTERN))) {
+            if (!is_global_scope(scope) && !(varinfo->storage & (VS_STATIC | VS_EXTERN))) {
               assert(varinfo->local.reg != NULL);
               new_ir_mov(varinfo->local.reg, src);
               return src;
@@ -763,7 +763,7 @@ VReg *gen_expr(Expr *expr) {
       if (sub->kind == EX_VAR && !is_global_scope(sub->var.scope)) {
         const VarInfo *varinfo = scope_find(sub->var.scope, sub->var.name, NULL);
         assert(varinfo != NULL);
-        if (!(varinfo->flag & (VF_STATIC | VF_EXTERN))) {
+        if (!(varinfo->storage & (VS_STATIC | VS_EXTERN))) {
           VReg *num = new_const_vreg(value, vtype);
           VReg *result = new_ir_bop(expr->kind == EX_PREINC ? IR_ADD : IR_SUB,
                                     varinfo->local.reg, num, vtype);
@@ -791,7 +791,7 @@ VReg *gen_expr(Expr *expr) {
       if (sub->kind == EX_VAR && !is_global_scope(sub->var.scope)) {
         const VarInfo *varinfo = scope_find(sub->var.scope, sub->var.name, NULL);
         assert(varinfo != NULL);
-        if (!(varinfo->flag & (VF_STATIC | VF_EXTERN))) {
+        if (!(varinfo->storage & (VS_STATIC | VS_EXTERN))) {
           VReg *org_val = add_new_reg(sub->type, 0);
           new_ir_mov(org_val, varinfo->local.reg);
           VReg *num = new_const_vreg(value, vtype);
