@@ -287,7 +287,7 @@ static Initializer *flatten_initializer(const Type *type, Initializer *init) {
     case IK_SINGLE:
       // Special handling for string (char[]), and accept length difference.
       if (init->single->type->kind == TY_ARRAY &&
-          can_cast(type->pa.ptrof, init->single->type->pa.ptrof, is_zero(init->single), false, curscope))
+          can_cast(type->pa.ptrof, init->single->type->pa.ptrof, is_zero(init->single), false))
         break;
       // Fallthrough
     default:
@@ -364,7 +364,7 @@ static Initializer *check_global_initializer(const Type *type, Initializer *init
             assert(varinfo != NULL);
           }
 
-          if (!same_type(type->pa.ptrof, varinfo->type, curscope))
+          if (!same_type(type->pa.ptrof, varinfo->type))
             parse_error(value->token, "Illegal type");
 
           return init;
@@ -382,7 +382,7 @@ static Initializer *check_global_initializer(const Type *type, Initializer *init
           }
 
           if ((varinfo->type->kind != TY_ARRAY && varinfo->type->kind != TY_FUNC) ||
-              !can_cast(type, varinfo->type, is_zero(value), false, curscope))
+              !can_cast(type, varinfo->type, is_zero(value), false))
             parse_error(value->token, "Illegal type");
 
           return init;
@@ -793,7 +793,7 @@ static void parse_typedef(void) {
   Scope *scope;
   const Type *conflict = find_typedef(curscope, name, &scope);
   if (conflict != NULL && scope == curscope) {
-    if (!same_type(type, conflict, curscope))
+    if (!same_type(type, conflict))
       parse_error(ident, "Conflict typedef");
   } else {
     conflict = NULL;

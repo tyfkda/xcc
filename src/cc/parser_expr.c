@@ -30,7 +30,7 @@ void not_void(const Type *type, const Token *token) {
     parse_error(token, "`void' not allowed");
 }
 
-bool same_type(const Type *type1, const Type *type2, Scope *scope) {
+bool same_type(const Type *type1, const Type *type2) {
   for (;;) {
     if (type1->kind != type2->kind)
       return false;
@@ -54,7 +54,7 @@ bool same_type(const Type *type1, const Type *type2, Scope *scope) {
       type2 = type2->pa.ptrof;
       continue;
     case TY_FUNC:
-      if (!same_type(type1->func.ret, type2->func.ret, scope) || type1->func.vaargs != type2->func.vaargs)
+      if (!same_type(type1->func.ret, type2->func.ret) || type1->func.vaargs != type2->func.vaargs)
         return false;
       if (type1->func.param_types == NULL && type2->func.param_types == NULL)
         return true;
@@ -64,7 +64,7 @@ bool same_type(const Type *type1, const Type *type2, Scope *scope) {
       for (int i = 0, len = type1->func.param_types->len; i < len; ++i) {
         const Type *t1 = (const Type*)type1->func.param_types->data[i];
         const Type *t2 = (const Type*)type2->func.param_types->data[i];
-        if (!same_type(t1, t2, scope))
+        if (!same_type(t1, t2))
           return false;
       }
       return true;
@@ -73,24 +73,17 @@ bool same_type(const Type *type1, const Type *type2, Scope *scope) {
         if (type1->struct_.info != NULL) {
           if (type2->struct_.info != NULL)
             return type1->struct_.info == type2->struct_.info;
-          const Type *tmp = type1;
-          type1 = type2;
-          type2 = tmp;
-        } else if (type2->struct_.info == NULL) {
-          return equal_name(type1->struct_.name, type2->struct_.name);
         }
-        // Find type1 from name.
-        StructInfo *sinfo = find_struct(scope, type1->struct_.name, NULL);
-        if (sinfo == NULL)
+        if (type1->struct_.name == NULL || type2->struct_.name == NULL)
           return false;
-        return sinfo == type2->struct_.info;
+        return equal_name(type1->struct_.name, type2->struct_.name);
       }
     }
   }
 }
 
-bool can_cast(const Type *dst, const Type *src, bool zero, bool is_explicit, Scope *scope) {
-  if (same_type(dst, src, scope))
+bool can_cast(const Type *dst, const Type *src, bool zero, bool is_explicit) {
+  if (same_type(dst, src))
     return true;
 
   if (dst->kind == TY_VOID)
@@ -143,13 +136,13 @@ bool can_cast(const Type *dst, const Type *src, bool zero, bool is_explicit, Sco
       if (dst->pa.ptrof->kind == TY_VOID || src->pa.ptrof->kind == TY_VOID)
         return true;
       if (src->pa.ptrof->kind == TY_FUNC)
-        return can_cast(dst, src->pa.ptrof, zero, is_explicit, scope);
+        return can_cast(dst, src->pa.ptrof, zero, is_explicit);
       break;
     case TY_ARRAY:
       if (is_explicit)
         return true;
-      if (same_type(dst->pa.ptrof, src->pa.ptrof, scope) ||
-          can_cast(dst, ptrof(src->pa.ptrof), zero, is_explicit, scope))
+      if (same_type(dst->pa.ptrof, src->pa.ptrof) ||
+          can_cast(dst, ptrof(src->pa.ptrof), zero, is_explicit))
         return true;
       break;
     case TY_FUNC:
@@ -159,7 +152,7 @@ bool can_cast(const Type *dst, const Type *src, bool zero, bool is_explicit, Sco
       case TY_FUNC:
         {
           const Type *ftype = dst->pa.ptrof;
-          return (same_type(ftype, src, scope) ||
+          return (same_type(ftype, src) ||
                   (ftype->func.param_types == NULL || src->func.param_types == NULL));
         }
       case TY_VOID:
@@ -174,7 +167,7 @@ bool can_cast(const Type *dst, const Type *src, bool zero, bool is_explicit, Sco
   case TY_ARRAY:
     switch (src->kind) {
     case TY_PTR:
-      if (is_explicit && same_type(dst->pa.ptrof, src->pa.ptrof, scope))
+      if (is_explicit && same_type(dst->pa.ptrof, src->pa.ptrof))
         return true;
       // Fallthrough
     case TY_ARRAY:
@@ -225,7 +218,7 @@ void ensure_struct(Type *type, const Token *token) {
 }
 
 bool check_cast(const Type *dst, const Type *src, bool zero, bool is_explicit, const Token *token) {
-  if (!can_cast(dst, src, zero, is_explicit, curscope)) {
+  if (!can_cast(dst, src, zero, is_explicit)) {
     parse_error(token, "Cannot convert value from type %d to %d", src->kind, dst->kind);
     return false;
   }
@@ -240,7 +233,7 @@ Expr *make_cast(const Type *type, const Token *token, Expr *sub, bool is_explici
   if (type->kind == TY_VOID || sub->type->kind == TY_VOID)
     parse_error(NULL, "cannot use `void' as a value");
 
-  if (same_type(type, sub->type, curscope))
+  if (same_type(type, sub->type))
     return sub;
   if (is_const(sub) && is_number(sub->type) && is_number(type)) {
 #ifndef __NO_FLONUM
@@ -511,7 +504,7 @@ static Expr *new_expr_addsub(enum ExprKind kind, const Token *tok, Expr *lhs, Ex
         ltype = array_to_ptr(ltype);
       if (rtype->kind == TY_ARRAY)
         rtype = array_to_ptr(rtype);
-      if (!same_type(ltype, rtype, curscope))
+      if (!same_type(ltype, rtype))
         parse_error(tok, "Different pointer diff");
       const Fixnum elem_size = type_size(ltype->pa.ptrof);
       return new_expr_bop(EX_DIV, &tySSize, tok, new_expr_bop(EX_SUB, &tySSize, tok, lhs, rhs),
@@ -567,7 +560,7 @@ static Expr *new_expr_cmp(enum ExprKind kind, const Token *tok, Expr *lhs, Expr 
       rt = tt;
       kind = swap_cmp(kind);
     }
-    if (!can_cast(lt, rt, is_zero(rhs), false, curscope))
+    if (!can_cast(lt, rt, is_zero(rhs), false))
       parse_error(tok, "Cannot compare pointer to other types");
     if (rt->kind != TY_PTR)
       rhs = make_cast(lhs->type, rhs->token, rhs, false);
@@ -1642,7 +1635,7 @@ static const Type *choose_type(Expr *tval, Expr *fval) {
   if (ftype->kind == TY_ARRAY)
     ftype = array_to_ptr(ftype);
 
-  if (same_type(ttype, ftype, curscope))
+  if (same_type(ttype, ftype))
     return ttype;
   if (ttype->kind == TY_PTR) {
     if (ftype->kind == TY_PTR) {  // Both pointer type
@@ -1651,7 +1644,7 @@ static const Type *choose_type(Expr *tval, Expr *fval) {
       if (is_void_ptr(ftype))
         return ttype;
     } else {
-      if (can_cast(ttype, ftype, is_zero(fval), false, curscope))
+      if (can_cast(ttype, ftype, is_zero(fval), false))
         return ttype;
     }
   } else if (ftype->kind == TY_PTR) {
