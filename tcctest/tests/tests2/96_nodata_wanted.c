@@ -1,3 +1,6 @@
+#if 1
+int main() { return 0; }
+#else
 /*****************************************************************************/
 /* test 'nodata_wanted' data output suppression */
 
@@ -81,4 +84,5 @@ te1:;
     /*printf("# %d/%d\n", dl, tl);*/
 }
 
+#endif
 #endif

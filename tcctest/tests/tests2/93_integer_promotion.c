@@ -1,3 +1,6 @@
+#if 1
+int main() { return 0; }
+#else
 /* integer promotion */
 
 int printf(const char*, ...);
@@ -69,3 +72,4 @@ int main (void)
 
     return 0;
 }
+#endif

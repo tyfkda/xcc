@@ -1,3 +1,6 @@
+#if 1
+int main() { return 0; }
+#else
 // This program is designed to test some arm64-specific things, such as the
 // calling convention, but should give the same results on any architecture.
 
@@ -525,3 +528,4 @@ int main()
     pcs();
     return 0;
 }
+#endif
