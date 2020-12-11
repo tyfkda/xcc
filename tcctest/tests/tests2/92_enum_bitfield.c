@@ -1,3 +1,6 @@
+#if 1
+int main() { return 0; }
+#else
 /* This checks if enums needing 8 bit but only having positive
    values are correctly zero extended (instead of sign extended)
    when stored into/loaded from a 8 bit bit-field of enum type (which
@@ -55,3 +58,4 @@ int main()
   convert_like_real (&convs);
   return 0;
 }
+#endif
