@@ -188,3 +188,46 @@ Type *define_enum(Scope *scope, const Name *name) {
   }
   return type;
 }
+
+// Misc.
+
+void ensure_struct(Type *type, const Token *token, Scope *scope) {
+  assert(type->kind == TY_STRUCT);
+  if (type->struct_.info == NULL) {
+    StructInfo *sinfo = find_struct(scope, type->struct_.name, NULL);
+    if (sinfo == NULL)
+      parse_error(token, "Accessing unknown struct(%.*s)'s member", type->struct_.name->bytes,
+                  type->struct_.name->chars);
+    type->struct_.info = sinfo;
+  }
+
+  // Recursively.
+  StructInfo *sinfo = type->struct_.info;
+  for (int i = 0; i < sinfo->members->len; ++i) {
+    VarInfo *varinfo = sinfo->members->data[i];
+    if (varinfo->type->kind == TY_STRUCT)
+      ensure_struct((Type*)varinfo->type, token, scope);
+  }
+}
+
+const VarInfo *search_from_anonymous(const Type *type, const Name *name, const Token *ident,
+                                     Vector *stack) {
+  assert(type->kind == TY_STRUCT);
+  const Vector *members = type->struct_.info->members;
+  for (int i = 0, len = members->len; i < len; ++i) {
+    const VarInfo *member = members->data[i];
+    if (member->name != NULL) {
+      if (equal_name(member->name, name)) {
+        vec_push(stack, (void*)(long)i);
+        return member;
+      }
+    } else if (member->type->kind == TY_STRUCT) {
+      vec_push(stack, (void*)(intptr_t)i);
+      const VarInfo *submember = search_from_anonymous(member->type, name, ident, stack);
+      if (submember != NULL)
+        return submember;
+      vec_pop(stack);
+    }
+  }
+  return NULL;
+}

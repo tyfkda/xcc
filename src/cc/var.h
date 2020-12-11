@@ -80,3 +80,8 @@ bool add_typedef(Scope *scope, const Name *name, const Type *type);
 
 Type *find_enum(Scope *scope, const Name *name);
 Type *define_enum(Scope *scope, const Name *name);
+
+// Call before accessing struct member to ensure that struct is declared.
+void ensure_struct(Type *type, const Token *token, Scope *scope);
+const VarInfo *search_from_anonymous(const Type *type, const Name *name, const Token *ident,
+                                     Vector *stack);

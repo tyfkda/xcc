@@ -598,7 +598,7 @@ static Initializer *check_vardecl(const Type *type, const Token *ident, int flag
   if (type->kind == TY_ARRAY && init != NULL)
     fix_array_size((Type*)type, init);
   if (type->kind == TY_STRUCT)
-    ensure_struct((Type*)type, NULL);
+    ensure_struct((Type*)type, NULL, curscope);
 
   if (curfunc != NULL) {
     VarInfo *varinfo = scope_find(curscope, ident->ident, NULL);

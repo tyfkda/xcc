@@ -112,3 +112,6 @@ Type *new_func_type(const Type *ret, Vector *params, Vector *param_types, bool v
 StructInfo *create_struct(Vector *members, bool is_union);  // members: <VarInfo*>
 
 Type *create_enum_type(const Name *name);
+
+bool same_type(const Type *type1, const Type *type2);
+bool can_cast(const Type *dst, const Type *src, bool zero, bool is_explicit);

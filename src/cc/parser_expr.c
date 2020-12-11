@@ -30,159 +30,6 @@ void not_void(const Type *type, const Token *token) {
     parse_error(token, "`void' not allowed");
 }
 
-bool same_type(const Type *type1, const Type *type2) {
-  for (;;) {
-    if (type1->kind != type2->kind)
-      return false;
-
-    switch (type1->kind) {
-    case TY_VOID:
-      return true;
-    case TY_FIXNUM:
-      return type1->fixnum.kind == type2->fixnum.kind &&
-          type1->fixnum.is_unsigned == type2->fixnum.is_unsigned;
-#ifndef __NO_FLONUM
-    case TY_FLONUM:
-      return true;
-#endif
-    case TY_ARRAY:
-      if (type1->pa.length != type2->pa.length)
-        return false;
-      // Fallthrough
-    case TY_PTR:
-      type1 = type1->pa.ptrof;
-      type2 = type2->pa.ptrof;
-      continue;
-    case TY_FUNC:
-      if (!same_type(type1->func.ret, type2->func.ret) || type1->func.vaargs != type2->func.vaargs)
-        return false;
-      if (type1->func.param_types == NULL && type2->func.param_types == NULL)
-        return true;
-      if (type1->func.param_types == NULL || type2->func.param_types == NULL ||
-          type1->func.param_types->len != type2->func.param_types->len)
-        return false;
-      for (int i = 0, len = type1->func.param_types->len; i < len; ++i) {
-        const Type *t1 = (const Type*)type1->func.param_types->data[i];
-        const Type *t2 = (const Type*)type2->func.param_types->data[i];
-        if (!same_type(t1, t2))
-          return false;
-      }
-      return true;
-    case TY_STRUCT:
-      {
-        if (type1->struct_.info != NULL) {
-          if (type2->struct_.info != NULL)
-            return type1->struct_.info == type2->struct_.info;
-        }
-        if (type1->struct_.name == NULL || type2->struct_.name == NULL)
-          return false;
-        return equal_name(type1->struct_.name, type2->struct_.name);
-      }
-    }
-  }
-}
-
-bool can_cast(const Type *dst, const Type *src, bool zero, bool is_explicit) {
-  if (same_type(dst, src))
-    return true;
-
-  if (dst->kind == TY_VOID)
-    return src->kind == TY_VOID || is_explicit;
-  if (src->kind == TY_VOID)
-    return false;
-
-  switch (dst->kind) {
-  case TY_FIXNUM:
-    switch (src->kind) {
-    case TY_FIXNUM:
-#ifndef __NO_FLONUM
-    case TY_FLONUM:
-#endif
-      return true;
-    case TY_PTR:
-    case TY_ARRAY:
-    case TY_FUNC:
-      if (is_explicit) {
-        // TODO: Check sizeof(long) is same as sizeof(ptr)
-        return true;
-      }
-      break;
-    default:
-      break;
-    }
-    break;
-#ifndef __NO_FLONUM
-  case TY_FLONUM:
-    switch (src->kind) {
-    case TY_FIXNUM:
-      return true;
-    default:
-      break;
-    }
-    break;
-#endif
-  case TY_PTR:
-    switch (src->kind) {
-    case TY_FIXNUM:
-      if (zero)  // Special handling for 0 to pointer.
-        return true;
-      if (is_explicit)
-        return true;
-      break;
-    case TY_PTR:
-      if (is_explicit)
-        return true;
-      // void* is interchangable with any pointer type.
-      if (dst->pa.ptrof->kind == TY_VOID || src->pa.ptrof->kind == TY_VOID)
-        return true;
-      if (src->pa.ptrof->kind == TY_FUNC)
-        return can_cast(dst, src->pa.ptrof, zero, is_explicit);
-      break;
-    case TY_ARRAY:
-      if (is_explicit)
-        return true;
-      if (same_type(dst->pa.ptrof, src->pa.ptrof) ||
-          can_cast(dst, ptrof(src->pa.ptrof), zero, is_explicit))
-        return true;
-      break;
-    case TY_FUNC:
-      if (is_explicit)
-        return true;
-      switch (dst->pa.ptrof->kind) {
-      case TY_FUNC:
-        {
-          const Type *ftype = dst->pa.ptrof;
-          return (same_type(ftype, src) ||
-                  (ftype->func.param_types == NULL || src->func.param_types == NULL));
-        }
-      case TY_VOID:
-        return true;
-      default:
-        break;
-      }
-      break;
-    default:  break;
-    }
-    break;
-  case TY_ARRAY:
-    switch (src->kind) {
-    case TY_PTR:
-      if (is_explicit && same_type(dst->pa.ptrof, src->pa.ptrof))
-        return true;
-      // Fallthrough
-    case TY_ARRAY:
-      if (is_explicit)
-        return true;
-      break;
-    default:  break;
-    }
-    break;
-  default:
-    break;
-  }
-  return false;
-}
-
 // Returns created global variable info.
 VarInfo *str_to_char_array(const Type *type, Initializer *init) {
   assert(type->kind == TY_ARRAY && is_char_type(type->pa.ptrof));
@@ -195,26 +42,6 @@ VarInfo *str_to_char_array(const Type *type, Initializer *init) {
   }
   varinfo->global.init = init;
   return varinfo;
-}
-
-// Call before accessing struct member to ensure that struct is declared.
-void ensure_struct(Type *type, const Token *token) {
-  assert(type->kind == TY_STRUCT);
-  if (type->struct_.info == NULL) {
-    StructInfo *sinfo = find_struct(curscope, type->struct_.name, NULL);
-    if (sinfo == NULL)
-      parse_error(token, "Accessing unknown struct(%.*s)'s member", type->struct_.name->bytes,
-                  type->struct_.name->chars);
-    type->struct_.info = sinfo;
-  }
-
-  // Recursively.
-  StructInfo *sinfo = type->struct_.info;
-  for (int i = 0; i < sinfo->members->len; ++i) {
-    VarInfo *varinfo = sinfo->members->data[i];
-    if (varinfo->type->kind == TY_STRUCT)
-      ensure_struct((Type*)varinfo->type, token);
-  }
 }
 
 bool check_cast(const Type *dst, const Type *src, bool zero, bool is_explicit, const Token *token) {
@@ -277,30 +104,6 @@ Expr *make_cast(const Type *type, const Token *token, Expr *sub, bool is_explici
   check_cast(type, sub->type, is_zero(sub), is_explicit, token);
 
   return new_expr_cast(type, token, sub);
-}
-
-const VarInfo *search_from_anonymous(const Type *type, const Name *name, const Token *ident,
-                                     Vector *stack) {
-  assert(type->kind == TY_STRUCT);
-  ensure_struct((Type*)type, ident);
-
-  const Vector *members = type->struct_.info->members;
-  for (int i = 0, len = members->len; i < len; ++i) {
-    const VarInfo *member = members->data[i];
-    if (member->name != NULL) {
-      if (equal_name(member->name, name)) {
-        vec_push(stack, (void*)(long)i);
-        return member;
-      }
-    } else if (member->type->kind == TY_STRUCT) {
-      vec_push(stack, (void*)(intptr_t)i);
-      const VarInfo *submember = search_from_anonymous(member->type, name, ident, stack);
-      if (submember != NULL)
-        return submember;
-      vec_pop(stack);
-    }
-  }
-  return NULL;
 }
 
 static bool cast_numbers(Expr **pLhs, Expr **pRhs, bool keep_left) {
@@ -768,7 +571,7 @@ static Expr *parse_member_access(Expr *target, Token *acctok) {
     }
   }
 
-  ensure_struct((Type*)type, ident);
+  ensure_struct((Type*)type, ident, curscope);
   int index = var_find(type->struct_.info->members, name);
   if (index >= 0) {
     const VarInfo *member = type->struct_.info->members->data[index];
@@ -1154,7 +957,7 @@ static StructInfo *parse_struct(bool is_union) {
         parse_error(NULL, "type expected");
       not_void(type, NULL);
       if (type->kind == TY_STRUCT) {
-        ensure_struct((Type*)type, ident);
+        ensure_struct((Type*)type, ident, curscope);
         // Allow ident to be null for anonymous struct member.
       } else {
         if (ident == NULL)
@@ -1302,7 +1105,7 @@ static Expr *parse_sizeof(const Token *token) {
   }
   assert(type != NULL);
   if (type->kind == TY_STRUCT)
-    ensure_struct((Type*)type, token);
+    ensure_struct((Type*)type, token, curscope);
   if (type->kind == TY_ARRAY) {
     if (type->pa.length == (size_t)-1) {
       // TODO: assert `export` modifier.
