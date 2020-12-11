@@ -64,8 +64,11 @@ double mix_params(int i0, double d0, int i1, double d1, int i2, double d2, int i
   return (i0 * i1 * i2 * i3) / (d0 * d1 * d2 * d3);
 }
 
+double Empty;
+
 int main(void) {
   double x, y;
+  expect("w/o initializer", 0.0, Empty);
   expect("zero", 0.0, 0);
   expect("decimal", 42.0, 42);
   expect("+-", 21, (x=5, x+20-4));
