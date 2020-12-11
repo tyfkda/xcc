@@ -12,8 +12,8 @@ typedef union __attribute__((packed)) Unaligned16b {
 } Unaligned16b;
 
 extern void foo (void) __attribute__((stdcall));
-void __attribute__((stdcall)) foo (void)
-{
-}
+// void __attribute__((stdcall)) foo (void)
+// {
+// }
 
 int main () { return 0; }

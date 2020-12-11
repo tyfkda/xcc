@@ -1,6 +1,6 @@
 extern int printf (const char *, ...);
 extern void vide(void);
-__asm__("vide: ret");
+__asm("vide: ret");
 
 int main() {
     vide();

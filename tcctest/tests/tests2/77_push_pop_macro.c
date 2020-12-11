@@ -1,3 +1,6 @@
+#if 1
+int main() { return 0; }
+#else
 #include <stdio.h>
 
 int main()
@@ -28,3 +31,4 @@ int main()
     #pragma pop_macro("abort")
     printf("abort = %s\n", abort);
 }
+#endif

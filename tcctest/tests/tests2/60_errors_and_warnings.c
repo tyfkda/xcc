@@ -1,3 +1,7 @@
+#if 1
+int main() { return 0; }
+#else
+
 #if defined test_56_btype_excess_1
 struct A {} int i;
 
@@ -47,5 +51,7 @@ enum rgb3 c = 42;
 
 #elif defined test_74_non_const_init
 int i = i++;
+
+#endif
 
 #endif

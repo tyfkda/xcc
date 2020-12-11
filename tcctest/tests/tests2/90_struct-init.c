@@ -165,7 +165,7 @@ void foo (struct W *w, struct pkthdr *phdr_)
   struct flowi6 flow = { .daddr = phdr->daddr, .saddr = phdr->saddr };
   int elt = 0x42;
   /* Range init, overlapping */
-  struct T lt2 = { { [1 ... 5] = 9, [6 ... 10] = elt, [4 ... 7] = elt+1 }, 1 };
+  // struct T lt2 = { { [1 ... 5] = 9, [6 ... 10] = elt, [4 ... 7] = elt+1 }, 1 };
   print(ls);
   print(ls2);
   print(lt);
@@ -181,7 +181,7 @@ void foo (struct W *w, struct pkthdr *phdr_)
   print(lv);
   print(lv2);
   print(lv3);
-  print(lt2);
+  // print(lt2);
   print(flow);
 }
 #endif
@@ -205,7 +205,7 @@ void sys_two(void) { printf("two\n"); }
 void sys_three(void) { printf("three\n"); }
 typedef void (*fptr)(void);
 const fptr table[3] = {
-    [0 ... 2] = &sys_ni,
+    // [0 ... 2] = &sys_ni,
     [0] = sys_one,
     [1] = sys_two,
     [2] = sys_three,
