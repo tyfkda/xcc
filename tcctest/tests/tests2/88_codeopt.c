@@ -1,3 +1,5 @@
+#define __builtin_expect(x, y) (x)
+
 /* Check some way in where code suppression caused various
    miscompilations.  */
 extern int printf (const char *, ...);

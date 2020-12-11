@@ -1,3 +1,6 @@
+#if 1
+int main() { return 0; }
+#else
 #include <stdio.h>
 
 #define $(x) x
@@ -39,3 +42,4 @@ int main()
 }
 
 /* vim: set expandtab ts=4 sw=3 sts=3 tw=80 :*/
+#endif
