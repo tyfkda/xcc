@@ -1,3 +1,6 @@
+#if 1
+int main() { return 0; }
+#else
 #include <stdio.h>
 
 const int a = 0;
@@ -62,3 +65,4 @@ int main()
 	printf("%d\n", i);
 	return 0;
 }
+#endif

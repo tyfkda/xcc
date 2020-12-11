@@ -41,11 +41,11 @@ NORUN =
 
 # Some tests might need different flags
 FLAGS =
-76_dollars_in_identifiers.test : FLAGS += -fdollars-in-identifiers
+#76_dollars_in_identifiers.test : FLAGS += -fdollars-in-identifiers
 
 # These tests run several snippets from the same file one by one
-60_errors_and_warnings.test : FLAGS += -dt
-96_nodata_wanted.test : FLAGS += -dt
+#60_errors_and_warnings.test : FLAGS += -dt
+#96_nodata_wanted.test : FLAGS += -dt
 
 # Always generate certain .expects (don't put these in the GIT),
 GEN-ALWAYS =
@@ -67,9 +67,9 @@ all test tests2.all: $(filter-out $(SKIP),$(TESTS)) ;
 	@echo Test: $*...
 	@$(if $(NORUN),$(T1),$(T2)) $(if $(NODIFF),,$(T3))
 
-T1 = $(TCC) $(FLAGS) $< -o a.exe && ./a.exe $(ARGS)
-T2 = $(TCC) $(FLAGS) -run $< $(ARGS)
-T3 = $(FILTER) >$*.output 2>&1 || true \
+T1 = $(TCC) $(FLAGS) -o a.exe $< && ./a.exe $(ARGS)
+T2 = $(T1)
+T3 = $(FILTER) >$*.output 2>&1 \
      && diff -Nbu $(filter %.expect,$^) $*.output \
      && rm -f $*.output $(filter $*.expect,$(GEN-ALWAYS))
 
@@ -96,7 +96,7 @@ F2 = $1 UPDATE="$(patsubst %.test,%.expect,$1)"
 
 # using TCC for .expect if -dt in FLAGS
 GEN = $(if $(filter -dt,$(FLAGS)),$(GEN-TCC),$(GEN-CC))
-GEN-CC = $(CC) -w -std=gnu99 $(FLAGS) $1 -o a.exe && ./a.exe $(ARGS)
+GEN-CC = $(CC) -w -std=gnu99 $(FLAGS) -o a.exe $1 && ./a.exe $(ARGS)
 GEN-TCC = $(TCC) $(FLAGS) -run $1 $(ARGS)
 GEN-MSC = $(MS-CC) $1 && ./$(basename $@).exe
 MS-CC = cl
