@@ -1,3 +1,6 @@
+#if 1
+int main() { return 0; }
+#else
 typedef unsigned short uint16_t;
 typedef unsigned char uint8_t;
 
@@ -17,3 +20,4 @@ void __attribute__((stdcall)) foo (void)
 }
 
 int main () { return 0; }
+#endif
