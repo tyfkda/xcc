@@ -633,7 +633,7 @@ bool assemble_inst(Inst *inst, const ParseInfo *info, Code *code) {
       long offset = inst->src.indirect.offset->fixnum;
       p = put_rex_indirect(
           p, size,
-          0, opr_regno(&inst->src.indirect.reg),
+          1, opr_regno(&inst->src.indirect.reg),
           0xfe, 0x08, offset);
     }
     break;
