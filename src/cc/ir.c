@@ -1091,10 +1091,12 @@ static void ir_out(IR *ir) {
       }
 #endif
       assert(0 <= ir->size && ir->size < kPow2TableSize);
-      int pow = kPow2Table[ir->size];
-      assert(0 <= pow && pow < 4);
-      const char **regs = kRegSizeTable[pow];
-      MOV(kRegATable[pow], regs[ir->dst->phys]);
+      if (ir->size > 0) {
+        int pow = kPow2Table[ir->size];
+        assert(0 <= pow && pow < 4);
+        const char **regs = kRegSizeTable[pow];
+        MOV(kRegATable[pow], regs[ir->dst->phys]);
+      }
     }
     break;
 

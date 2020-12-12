@@ -161,6 +161,9 @@ void gen_cond_jmp(Expr *cond, bool tf, BB *bb) {
 }
 
 static VReg *gen_cast(VReg *reg, const Type *dst_type) {
+  if (dst_type->kind == TY_VOID)
+    return NULL;  // Assume void value is not used.
+
   if (reg->flag & VRF_CONST) {
 #ifndef __NO_FLONUM
     if (reg->vtype->flag & VRTF_FLONUM) {
