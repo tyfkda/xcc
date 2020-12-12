@@ -1016,11 +1016,11 @@ static Expr *parse_prim(void) {
   }
 
   {
-    struct {
+    static const struct {
       enum TokenKind tk;
       enum FixnumKind fx;
       bool is_unsigned;
-    } static const TABLE[] = {
+    } TABLE[] = {
       {TK_CHARLIT, FX_CHAR, false},
       {TK_INTLIT, FX_INT, false},
       {TK_LONGLIT, FX_LONG, false},
