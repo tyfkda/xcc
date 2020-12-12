@@ -39,6 +39,7 @@ enum Opcode {
   SAR,
   CMP,
   TEST,
+  CWTL,
   CLTD,
   CQTO,
 

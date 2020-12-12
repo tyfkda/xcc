@@ -863,6 +863,12 @@ bool assemble_inst(Inst *inst, const ParseInfo *info, Code *code) {
                    size == REG8 ? 0x84 : 0x85);
     }
     break;
+  case CWTL:
+    if (inst->src.type != NOOPERAND || inst->dst.type != NOOPERAND)
+      return assemble_error(info, "Illegal operand");
+
+    MAKE_CODE(inst, code, 0x98);
+    return true;
   case CLTD:
     if (inst->src.type != NOOPERAND || inst->dst.type != NOOPERAND)
       return assemble_error(info, "Illegal operand");

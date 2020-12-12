@@ -48,6 +48,7 @@ static const char *kOpTable[] = {
   "sar",
   "cmp",
   "test",
+  "cwtl",
   "cltd",
   "cqto",
 
