@@ -79,9 +79,24 @@ ssize_t getline_(char **lineptr, size_t *pcapa, FILE *stream, size_t start) {
   return size;
 }
 
+bool is_fullpath(const char *filename) {
+  if (*filename != '/')
+    return false;
+  for (const char *p = filename;;) {
+    p = strstr(p, "/..");
+    if (p == NULL)
+      return true;
+    if (p[3] == '/' || p[3] == '\0')
+      return false;
+    p += 3;
+  }
+}
+
 char *cat_path(const char *root, const char *path) {
-  if (*path == '/')
+  if (is_fullpath(path))
     return strdup_(path);
+  if (*path == '/')
+    root = "/";
 
   // Assume that root doesn't include ".."
 

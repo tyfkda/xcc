@@ -88,12 +88,21 @@ void test_escape(void) {
   EXPECT_STREQ("escape_string", "\\\"a b\\tc\\rd\\ne\\\\\\x1b\\0", sb_to_string(&sb));
 }
 
+void test_is_fullpath(void) {
+  EXPECT(true, is_fullpath("/foo/bar"));
+  EXPECT(false, is_fullpath("./foo/bar"));
+  EXPECT(false, is_fullpath("/foo/../bar"));
+  EXPECT(true, is_fullpath("/foo/bar..baz/"));
+  EXPECT(true, is_fullpath("/foo/..bar"));
+}
+
 void test_cat_path(void) {
   EXPECT_STREQ("Relative", "/user/foo/inc/stdio.h", cat_path("/user/foo", "inc/stdio.h"));
   EXPECT_STREQ("Absolute", "/inc/stdio.h", cat_path("/user/foo", "/inc/stdio.h"));
   EXPECT_STREQ("Current", "/user/foo/inc/stdio.h", cat_path("/user/foo", "./inc/stdio.h"));
   EXPECT_STREQ("Parent", "/user/inc/stdio.h", cat_path("/user/foo", "../inc/stdio.h"));
   EXPECT_STREQ("Dir", "/user/foo/bar/baz/", cat_path("/user/foo", "bar/baz/"));
+  EXPECT_STREQ("Path is root w/ ..", "/baz", cat_path("/user/foo", "/bar/../baz"));
   EXPECT_STREQ("Redundant slash", "/user/foo/bar/baz", cat_path("/user/foo", "bar//baz"));
   EXPECT_STREQ("Root 1", "/", cat_path("/", "."));
   EXPECT_STREQ("Root 2", "/", cat_path("/user/foo", "../.."));
@@ -114,6 +123,7 @@ void runtest(void) {
   test_vector();
   test_sb();
   test_escape();
+  test_is_fullpath();
   test_cat_path();
   test_change_ext();
 

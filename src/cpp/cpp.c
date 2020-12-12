@@ -22,6 +22,10 @@ char *cat_path_cwd(const char *dir, const char *path) {
   return cat_path(root, path);
 }
 
+char *fullpath(const char *filename) {
+  return cat_path_cwd(dirname(strdup_(filename)), basename((char*)filename));
+}
+
 const char *keyword(const char *s, const char *word) {
   size_t len = strlen(word);
   if (strncmp(s, word, len) != 0 || (s[len] != '\0' && !isspace(s[len])))
@@ -53,6 +57,8 @@ bool registered_pragma_once(const char *filename) {
 }
 
 void register_pragma_once(const char *filename) {
+  if (!is_fullpath(filename))
+    filename = fullpath(filename);
   vec_push(pragma_once_files, filename);
 }
 
@@ -86,12 +92,16 @@ void handle_include(const char *p, const char *srcname) {
   // Search from current directory.
   if (!sys) {
     fn = cat_path_cwd(dirname(strdup_(srcname)), path);
+    if (registered_pragma_once(fn))
+      return;
     fp = fopen(fn, "r");
   }
   if (fp == NULL) {
     // Search from system include directries.
     for (int i = 0; i < sys_inc_paths->len; ++i) {
       fn = cat_path_cwd(sys_inc_paths->data[i], path);
+      if (registered_pragma_once(fn))
+        return;
       fp = fopen(fn, "r");
       if (fp != NULL)
         break;
@@ -101,9 +111,6 @@ void handle_include(const char *p, const char *srcname) {
       return;
     }
   }
-
-  if (registered_pragma_once(fn))
-    return;
 
   printf("# 1 \"%s\" 1\n", fn);
   int lineno = pp(fp, fn);

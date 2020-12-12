@@ -5,6 +5,7 @@
 size_t strlen(const char *s);
 char* strchr(const char *s, int c);
 char* strrchr(const char *s, int c);
+char *strstr(const char *s1, const char *s2);
 int strcmp(const char *p, const char *q);
 int strncmp(const char *p, const char *q, size_t n);
 char* strcpy(char *s, const char *t);
