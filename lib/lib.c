@@ -79,14 +79,14 @@ int strcmp(const char *p, const char *q) {
 int strncmp(const char *p, const char *q, size_t n) {
   while (n > 0 && *p == *q && *p != '\0')
     n--, p++, q++;
-  return n == 0 ? 0 : (unsigned char)*p - (unsigned char)*q;
+  return n == 0 ? 0 : (int)*(unsigned char*)p - (int)*(unsigned char*)q;
 }
 
 int strcasecmp(const char *p, const char *q) {
   for (;; ++p, ++q) {
-    unsigned char c1 = *p;
-    unsigned char c2 = *q;
-    int d = c1 - c2;
+    unsigned char c1 = *(unsigned char*)p;
+    unsigned char c2 = *(unsigned char*)q;
+    int d = (int)c1 - (int)c2;
     if (d != 0)
       return d;
     if (c1 == 0)
@@ -97,8 +97,8 @@ int strcasecmp(const char *p, const char *q) {
 
 int strncasecmp(const char *p, const char *q, size_t n) {
   for (; n > 0; --n, ++p, ++q) {
-    int c1 = tolower((unsigned char)*p);
-    int c2 = tolower((unsigned char)*q);
+    int c1 = tolower(*(unsigned char*)p);
+    int c2 = tolower(*(unsigned char*)q);
     int d = c1 - c2;
     if (d != 0)
       return d;
