@@ -390,10 +390,12 @@ void new_ir_mov(VReg *dst, VReg *src) {
 }
 
 void new_ir_memcpy(VReg *dst, VReg *src, int size) {
-  IR *ir = new_ir(IR_MEMCPY);
-  ir->opr1 = src;
-  ir->opr2 = dst;
-  ir->size = size;
+  if (size > 0) {
+    IR *ir = new_ir(IR_MEMCPY);
+    ir->opr1 = src;
+    ir->opr2 = dst;
+    ir->size = size;
+  }
 }
 
 void new_ir_clear(VReg *reg, size_t size) {

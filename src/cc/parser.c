@@ -220,7 +220,7 @@ static Initializer *flatten_initializer(const Type *type, Initializer *init) {
       if (n <= 0) {
         if (m > 0)
           parse_error(init->token, "Initializer for empty struct");
-        return NULL;
+        return init;
       }
       if (sinfo->is_union && m > 1)
         parse_error(((Initializer*)init->multi->data[1])->token, "Initializer for union more than 1");

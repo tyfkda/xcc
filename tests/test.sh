@@ -153,6 +153,8 @@ try_direct 'struct assign' 33 'struct Foo { int x; }; int main(){ struct Foo foo
 try_direct 'struct initial assign' 55 'struct Foo { int x; }; int main(){ struct Foo foo = {55}, bar = foo; return bar.x; }'
 try_direct 'struct deref' 44 'struct Foo { long x; }; int main(){ struct Foo foo, bar, *baz = &bar; baz->x = 44; foo = *baz; return foo.x; }'
 try_direct 'struct copy' 51 'typedef struct {int x;} S; void copy(S *e1, S *e2){*e1=*e2;} int main(){S s={51},x; copy(&x,&s); return x.x;}'
+try_direct 'empty struct size' 0 'struct empty {}; int main(){ return sizeof(struct empty); }'
+try 'empty struct copy' 0 'struct empty {}; struct empty a = {}, b; b = a; return sizeof(b);'
 try_direct 'typedef name can use in local' 61 'typedef int Foo; int main(){ int Foo = 61; return Foo; }'
 try_direct 'proto in func' 78 'int main(){ int sub(int); return sub(77); } int sub(int x) { return x + 1; }'
 try_direct 'extern in func' 45 'int main(){ extern int g; g = 45; return g; } int g;'

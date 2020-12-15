@@ -148,11 +148,14 @@ static void gen_return(Stmt *stmt) {
     if (retval == NULL) {
       new_ir_result(reg);
     } else {
-      // Allocate new register to avoid both spilled.
-      VReg *tmp = add_new_reg(&tyVoidPtr, 0);
-      new_ir_mov(tmp, reg);
-      new_ir_memcpy(retval, tmp, type_size(val->type));
-      new_ir_result(retval);
+      size_t size = type_size(val->type);
+      if (size > 0) {
+        // Allocate new register to avoid both spilled.
+        VReg *tmp = add_new_reg(&tyVoidPtr, 0);
+        new_ir_mov(tmp, reg);
+        new_ir_memcpy(retval, tmp, size);
+        new_ir_result(retval);
+      }
     }
   }
   new_ir_jmp(COND_ANY, curfunc->ret_bb);
@@ -412,8 +415,11 @@ static void gen_label(Stmt *stmt) {
 
 static void gen_clear_local_var(const VarInfo *varinfo) {
   // Fill with zeros regardless of variable type.
+  size_t size = type_size(varinfo->type);
+  if (size <= 0)
+    return;
   VReg *reg = new_ir_bofs(varinfo->local.reg);
-  new_ir_clear(reg, type_size(varinfo->type));
+  new_ir_clear(reg, size);
 }
 
 static void gen_vardecl(Vector *decls, Vector *inits) {
