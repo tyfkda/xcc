@@ -150,7 +150,7 @@ double exp(double x) {
     result += y;
   }
 
-  double poe = 2.718281828459045;  // e
+  double poe = M_E;
   for (; n > 0; n >>= 1, poe *= poe) {
     if (n & 1)
       result *= poe;
