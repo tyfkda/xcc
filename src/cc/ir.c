@@ -1343,7 +1343,7 @@ void remove_unnecessary_bb(BBContainer *bbcon) {
       IR *ir;
       if (bb->irs->len == 0) {  // Empty BB.
         replace_jmp_destination(bbcon, bb, bb->next);
-      } else if (bb->irs->len == 1 && (ir = is_last_any_jmp(bb)) != NULL) {  // jmp only.
+      } else if (bb->irs->len == 1 && (ir = is_last_any_jmp(bb)) != NULL && !equal_name(bb->label, ir->jmp.bb->label)) {  // jmp only.
         replace_jmp_destination(bbcon, bb, ir->jmp.bb);
         if (i == 0)
           continue;
