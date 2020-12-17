@@ -714,12 +714,32 @@ Initializer *parse_initializer(void) {
   return result;
 }
 
+static bool def_type(const Type *type, Token *ident) {
+  const Name *name = ident->ident;
+  Scope *scope;
+  const Type *conflict = find_typedef(curscope, name, &scope);
+  if (conflict != NULL && scope == curscope) {
+    if (!same_type(type, conflict))
+      parse_error(ident, "Conflict typedef");
+  } else {
+    conflict = NULL;
+  }
+
+  if (conflict == NULL || (type->kind == TY_STRUCT && type->struct_.info != NULL)) {
+    add_typedef(curscope, name, type);
+    return true;
+  } else {
+    return false;
+  }
+}
+
 static Vector *parse_vardecl_cont(const Type *rawType, Type *type, int storage, Token *ident) {
   Vector *decls = NULL;
   bool first = true;
   do {
+    int tmp_storage = storage;
     if (!first) {
-      if (!parse_var_def(&rawType, (const Type**)&type, &storage, &ident) || ident == NULL) {
+      if (!parse_var_def(&rawType, (const Type**)&type, &tmp_storage, &ident) || ident == NULL) {
         parse_error(NULL, "`ident' expected");
         return NULL;
       }
@@ -732,34 +752,40 @@ static Vector *parse_vardecl_cont(const Type *rawType, Type *type, int storage, 
       Vector *params = parse_funparams(&vaargs);
       Vector *param_types = extract_varinfo_types(params);
       type = new_func_type(type, params, param_types, vaargs);
-      storage |= VS_EXTERN;
+      tmp_storage |= VS_EXTERN;
     } else {
       not_void(type, NULL);
 
       assert(!is_global_scope(curscope));
-      scope_add(curscope, ident, type, storage);
+      scope_add(curscope, ident, type, tmp_storage);
 
-      if (match(TK_ASSIGN)) {
+      if (!(storage & VS_TYPEDEF) && match(TK_ASSIGN)) {
         init = parse_initializer();
       }
     }
 
-    init = check_vardecl(type, ident, storage, init);
-    VarDecl *decl = new_vardecl(type, ident, init, storage);
-    if (decls == NULL)
-      decls = new_vector();
-    vec_push(decls, decl);
+    if (tmp_storage & VS_TYPEDEF) {
+      def_type(type, ident);
+    } else {
+      init = check_vardecl(type, ident, tmp_storage, init);
+      VarDecl *decl = new_vardecl(type, ident, init, tmp_storage);
+      if (decls == NULL)
+        decls = new_vector();
+      vec_push(decls, decl);
+    }
   } while (match(TK_COMMA));
   return decls;
 }
 
-static Stmt *parse_vardecl(void) {
+static bool parse_vardecl(Stmt **pstmt) {
   const Type *rawType = NULL;
   Type *type;
   int storage;
   Token *ident;
   if (!parse_var_def(&rawType, (const Type**)&type, &storage, &ident))
-    return NULL;
+    return false;
+
+  *pstmt = NULL;
   if (ident == NULL) {
     if ((type->kind == TY_STRUCT ||
          (type->kind == TY_FIXNUM && type->fixnum.kind == FX_ENUM)) &&
@@ -768,44 +794,15 @@ static Stmt *parse_vardecl(void) {
     } else {
       parse_error(NULL, "Ident expected");
     }
-    return new_stmt_block(NULL, NULL, NULL);  // Empty statement.
-  }
-
-  Vector *decls = parse_vardecl_cont(rawType, type, storage, ident);
-
-  consume(TK_SEMICOL, "`;' expected");
-
-  if (decls == NULL)
-    return NULL;
-  Vector *inits = !is_global_scope(curscope) ? construct_initializing_stmts(decls) : NULL;
-  return new_stmt_vardecl(decls, inits);
-}
-
-static void parse_typedef(void) {
-  int storage;
-  Token *ident;
-  const Type *type = parse_full_type(&storage, &ident);
-  if (type == NULL)
-    parse_error(NULL, "type expected");
-  not_void(type, NULL);
-
-  if (ident == NULL) {
-    ident = consume(TK_IDENT, "ident expected");
-  }
-  const Name *name = ident->ident;
-  Scope *scope;
-  const Type *conflict = find_typedef(curscope, name, &scope);
-  if (conflict != NULL && scope == curscope) {
-    if (!same_type(type, conflict))
-      parse_error(ident, "Conflict typedef");
   } else {
-    conflict = NULL;
+    Vector *decls = parse_vardecl_cont(rawType, type, storage, ident);
+    consume(TK_SEMICOL, "`;' expected 2");
+    if (decls != NULL) {
+      Vector *inits = !is_global_scope(curscope) ? construct_initializing_stmts(decls) : NULL;
+      *pstmt = new_stmt_vardecl(decls, inits);
+    }
   }
-
-  if (conflict == NULL || (type->kind == TY_STRUCT && type->struct_.info != NULL))
-    add_typedef(curscope, name, type);
-
-  consume(TK_SEMICOL, "`;' expected");
+  return true;
 }
 
 static Stmt *parse_if(const Token *tok) {
@@ -1033,7 +1030,7 @@ static Vector *parse_stmts(void) {
 
     Stmt *stmt;
     Token *tok;
-    if ((stmt = parse_vardecl()) != NULL)
+    if (parse_vardecl(&stmt))
       ;
     else if ((tok = match(TK_CASE)) != NULL)
       stmt = parse_case(tok);
@@ -1099,11 +1096,6 @@ static Stmt *parse_stmt(void) {
 
   if ((tok = match(TK_RETURN)) != NULL)
     return parse_return(tok);
-
-  if ((tok = match(TK_TYPEDEF)) != NULL) {
-    parse_typedef();
-    return NULL;
-  }
 
   if ((tok = match(TK_ASM)) != NULL)
     return parse_asm(tok);
@@ -1182,18 +1174,23 @@ static Declaration *parse_global_var_decl(
     if (!(type->kind == TY_PTR && type->pa.ptrof->kind == TY_FUNC))
       type = parse_type_suffix(type);
 
-    VarInfo *varinfo = scope_add(global_scope, ident, type, storage);
+    if (storage & VS_TYPEDEF) {
+      def_type(type, ident);
+    } else {
+      VarInfo *varinfo = scope_add(global_scope, ident, type, storage);
 
-    Initializer *init = NULL;
-    if (match(TK_ASSIGN) != NULL)
-      init = parse_initializer();
-    varinfo->global.init = init;
+      Initializer *init = NULL;
+      if (match(TK_ASSIGN) != NULL)
+        init = parse_initializer();
+      varinfo->global.init = init;
 
-    init = check_vardecl(type, ident, storage, init);
-    VarDecl *decl = new_vardecl(type, ident, init, storage);
-    if (decls == NULL)
-      decls = new_vector();
-    vec_push(decls, decl);
+      init = check_vardecl(type, ident, storage, init);
+      VarDecl *decl = new_vardecl(type, ident, init, storage);
+      if (decls == NULL)
+        decls = new_vector();
+      vec_push(decls, decl);
+    }
+
     if (!match(TK_COMMA))
       break;
 
@@ -1229,10 +1226,6 @@ static Declaration *parse_declaration(void) {
       return parse_defun(type, storage, ident);
 
     return parse_global_var_decl(rawtype, storage, type, ident);
-  }
-  if (match(TK_TYPEDEF)) {
-    parse_typedef();
-    return NULL;
   }
   parse_error(NULL, "Unexpected token");
   return NULL;

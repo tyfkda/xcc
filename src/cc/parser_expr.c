@@ -684,6 +684,10 @@ const Type *parse_raw_type(int *pstorage) {
       storage |= VS_EXTERN;
       continue;
     }
+    if (match(TK_TYPEDEF)) {
+      storage |= VS_TYPEDEF;
+      continue;
+    }
     if (match(TK_CONST)) {
       qualifier |= TQ_CONST;
       continue;
@@ -933,6 +937,8 @@ Vector *parse_funparams(bool *pvaargs) {
         parse_error(ident, "`static' for function parameter");
       if (storage & VS_EXTERN)
         parse_error(ident, "`extern' for function parameter");
+      if (storage & VS_TYPEDEF)
+        parse_error(ident, "`typedef' for function parameter");
 
       if (params->len == 0) {
         if (type->kind == TY_VOID) {  // fun(void)

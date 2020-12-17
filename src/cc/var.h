@@ -18,6 +18,7 @@ enum {
   VS_STATIC = 1 << 0,
   VS_EXTERN = 1 << 1,
   VS_ENUM_MEMBER = 1 << 2,
+  VS_TYPEDEF = 1 << 3,
 };
 
 typedef struct VarInfo {
