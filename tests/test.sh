@@ -182,6 +182,10 @@ try_direct 'return struct member' 57 'typedef struct {int x;} S; S func() {retur
 try_direct 'modify arg' 32 'int sub(int x, int y) {return x+y;} int main() {int w=0, x=0, y=5; int z=sub(++x, y+=10); return x+y+z+w;}'
 try_direct 'long immediate' 240 'int sub(unsigned long x){return x;} int main(){ return sub(0x123456789abcdef0); }'
 try 'can assign const ptr' 97 'const char *p = "foo"; p = "bar"; return p[1];'
+try 'str' 75 '"use strict"; return 75;'
+try 'str in comma' 117 'char *p = (1, "use strict", "dummy"); return p[1];'
+try_direct 'return str' 111 'const char *foo(){ return "foo"; } int main(){ return foo()[2]; }'
+try 'deref str' 48 'return *"0";'
 
 # error cases
 echo ''

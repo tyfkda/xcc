@@ -49,6 +49,21 @@ VarInfo *str_to_char_array(const Type *type, Initializer *init) {
   return varinfo;
 }
 
+Expr *str_to_char_array_var(Expr *str) {
+  if (str->kind != EX_STR)
+    return str;
+  const Type* type = str->type;
+  Initializer *init = malloc(sizeof(*init));
+  init->kind = IK_SINGLE;
+  init->single = str;
+  init->token = str->token;
+
+  VarInfo *gvarinfo = str_to_char_array(type, init);
+  Scope *scope;
+  VarInfo *varinfo = scope_find(curscope, gvarinfo->name, &scope);
+  return new_expr_variable(varinfo->name, type, str->token, scope);
+}
+
 bool check_cast(const Type *dst, const Type *src, bool zero, bool is_explicit, const Token *token) {
   if (!can_cast(dst, src, zero, is_explicit)) {
     parse_error(token, "Cannot convert value from type %d to %d", src->kind, dst->kind);
@@ -534,6 +549,10 @@ static Expr *parse_funcall(Expr *func) {
     int paramc = param_types != NULL ? param_types->len : -1;
     for (int i = 0, len = args->len; i < len; ++i) {
       Expr *arg = args->data[i];
+      if (arg->type->kind == TY_ARRAY) {
+        arg = str_to_char_array_var(arg);
+        arg = make_cast(array_to_ptr(arg->type), arg->token, arg, false);
+      }
       if (i < paramc) {
         const Type *type = param_types->data[i];
         arg = make_cast(type, arg->token, arg, false);
@@ -542,8 +561,6 @@ static Expr *parse_funcall(Expr *func) {
         if (type->kind == TY_FIXNUM && type->fixnum.kind < FX_INT)  // Promote variadic argument.
           arg = make_cast(&tyInt, arg->token, arg, false);
       }
-      if (arg->type->kind == TY_ARRAY)
-        arg = make_cast(array_to_ptr(arg->type), arg->token, arg, false);
       args->data[i] = arg;
     }
   }
@@ -554,6 +571,7 @@ static Expr *parse_funcall(Expr *func) {
 static Expr *parse_array_index(const Token *token, Expr *array) {
   Expr *index = parse_expr();
   consume(TK_RBRACKET, "`]' expected");
+  array = str_to_char_array_var(array);
   return new_expr_deref(token, new_expr_addsub(EX_ADD, token, array, index, false));
 }
 
@@ -1210,6 +1228,7 @@ static Expr *parse_unary(void) {
       parse_error(tok, "Cannot dereference raw type");
       break;
     }
+    expr = str_to_char_array_var(expr);
     return new_expr_unary(EX_DEREF, type, tok, expr);
   }
 
@@ -1487,6 +1506,9 @@ static Expr *parse_conditional(void) {
     consume(TK_COLON, "`:' expected");
     Expr *fval = parse_conditional();
 
+    tval = str_to_char_array_var(tval);
+    fval = str_to_char_array_var(fval);
+
     const Type *type;
     if (tval->type->kind == TY_VOID || fval->type->kind == TY_VOID) {
       type = &tyVoid;
@@ -1569,6 +1591,7 @@ Expr *parse_assign(void) {
         Expr *bop;
         switch (kAssignWithOps[i].mode) {
         case ASSIGN:
+          rhs = str_to_char_array_var(rhs);
           return new_expr_bop(EX_ASSIGN, lhs->type, tok, lhs, make_cast(lhs->type, tok, rhs, false));
         case ADDSUB:  bop = new_expr_addsub(kind, tok, lhs, rhs, true); break;
         case MULDIV:  bop = new_expr_num_bop(kind, tok, lhs, rhs, true); break;

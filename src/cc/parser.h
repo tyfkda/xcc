@@ -41,6 +41,7 @@ bool check_cast(const Type *dst, const Type *src, bool zero, bool is_explicit, c
 Expr *make_cast(const Type *type, const Token *token, Expr *sub, bool is_explicit);
 Expr *make_cond(Expr *expr);
 VarInfo *str_to_char_array(const Type *type, Initializer *init);
+Expr *str_to_char_array_var(Expr *str);
 
 Initializer *parse_initializer(void);
 void fix_array_size(Type *type, Initializer *init);

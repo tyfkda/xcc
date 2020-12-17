@@ -98,7 +98,7 @@ static void construct_initial_value(unsigned char *buf, const Type *type, const 
           label = MANGLE(label);
         _QUAD(label);
       } else if (value->kind == EX_STR) {
-        assert(!"`char* s = \"...\"`; should be handled in parser");
+        assert(!"should be handled in parser");
       } else if (is_const(value) && value->kind == EX_FIXNUM) {
         intptr_t x = value->fixnum;
         for (int i = 0; i < WORD_SIZE; ++i)

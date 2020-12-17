@@ -577,16 +577,7 @@ VReg *gen_expr(Expr *expr) {
 #endif
 
   case EX_STR:
-    {
-      Initializer *init = malloc(sizeof(*init));
-      init->kind = IK_SINGLE;
-      init->single = expr;
-      init->token = expr->token;
-
-      const Type* strtype = arrayof(&tyChar, expr->str.size);
-      VarInfo *varinfo = str_to_char_array(strtype, init);
-      return new_ir_iofs(varinfo->name, false);
-    }
+    assert(!"should be handled in parser");
 
   case EX_VAR:
     return gen_variable(expr);

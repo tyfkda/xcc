@@ -568,9 +568,12 @@ Vector *assign_initial_value(Expr *expr, Initializer *init, Vector *inits) {
       init = init->multi->data[0];
       // Fallthrough
     case IK_SINGLE:
-      vec_push(inits,
-               new_stmt_expr(new_expr_bop(EX_ASSIGN, expr->type, init->token, expr,
-                                          make_cast(expr->type, init->token, init->single, false))));
+      {
+        Expr *value = str_to_char_array_var(init->single);
+        vec_push(inits,
+                 new_stmt_expr(new_expr_bop(EX_ASSIGN, expr->type, init->token, expr,
+                                            make_cast(expr->type, init->token, value, false))));
+      }
       break;
     default:
       parse_error(init->token, "Error initializer");
@@ -991,6 +994,7 @@ static Stmt *parse_return(const Token *tok) {
   if (!match(TK_SEMICOL)) {
     val = parse_expr();
     consume(TK_SEMICOL, "`;' expected");
+    val = str_to_char_array_var(val);
   }
 
   assert(curfunc != NULL);
@@ -1107,7 +1111,7 @@ static Stmt *parse_stmt(void) {
   // expression statement.
   Expr *val = parse_expr();
   consume(TK_SEMICOL, "`;' expected");
-  return new_stmt_expr(val);
+  return new_stmt_expr(str_to_char_array_var(val));
 }
 
 static Declaration *parse_defun(const Type *functype, int storage, Token *ident) {
