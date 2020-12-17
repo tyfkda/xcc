@@ -660,7 +660,7 @@ static const Type *parse_enum(void) {
   return type;
 }
 
-const Type *parse_raw_type(int *pflag) {
+const Type *parse_raw_type(int *pstorage) {
   const Type *type = NULL;
 
   int storage = 0, qualifier = 0;
@@ -803,8 +803,8 @@ const Type *parse_raw_type(int *pflag) {
     type = get_fixnum_type(kLongKinds[long_count], is_unsigned, qualifier);
   }
 
-  if (pflag != NULL)
-    *pflag = storage;
+  if (pstorage != NULL)
+    *pstorage = storage;
 
   return type;
 }
@@ -871,10 +871,10 @@ static const Type *parse_var_def_cont(const Type *type) {
   return type;
 }
 
-bool parse_var_def(const Type **prawType, const Type **ptype, int *pflag, Token **pident) {
+bool parse_var_def(const Type **prawType, const Type **ptype, int *pstorage, Token **pident) {
   const Type *rawType = prawType != NULL ? *prawType : NULL;
   if (rawType == NULL) {
-    rawType = parse_raw_type(pflag);
+    rawType = parse_raw_type(pstorage);
     if (rawType == NULL)
       return false;
     if (prawType != NULL)
@@ -903,9 +903,9 @@ bool parse_var_def(const Type **prawType, const Type **ptype, int *pflag, Token 
   return true;
 }
 
-const Type *parse_full_type(int *pflag, Token **pident) {
+const Type *parse_full_type(int *pstorage, Token **pident) {
   const Type *type;
-  if (!parse_var_def(NULL, &type, pflag, pident))
+  if (!parse_var_def(NULL, &type, pstorage, pident))
     return NULL;
   return type;
 }
