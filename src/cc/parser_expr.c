@@ -518,7 +518,7 @@ static Expr *parse_funcall(Expr *func) {
   const Type *functype;
   if (!((functype = func->type)->kind == TY_FUNC ||
         (func->type->kind == TY_PTR && (functype = func->type->pa.ptrof)->kind == TY_FUNC)))
-    parse_error(func->token, "Cannot call except funtion");
+    parse_error(func->token, "Cannot call except function");
 
   Vector *param_types = functype->func.param_types;  // <const Type*>
   bool vaargs = functype->func.vaargs;
