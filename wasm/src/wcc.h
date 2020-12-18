@@ -3,12 +3,26 @@
 #include <stddef.h>  // size_t
 #include <stdint.h>
 
+typedef struct DataStorage DataStorage;
 typedef struct Vector Vector;
 
-extern unsigned char* code;
-extern size_t codesize;
+extern DataStorage *code;
 
 // gen_wasm
 void gen(Vector *decls);
-unsigned char *emit_leb128(unsigned char *buf, int32_t val);
-unsigned char *emit_uleb128(unsigned char *buf, uint32_t val);
+void emit_leb128(DataStorage *data, size_t pos, int32_t val);
+void emit_uleb128(DataStorage *data, size_t pos, uint32_t val);
+
+// wcc_util
+typedef struct DataStorage {
+  unsigned char *buf;
+  size_t capacity;
+  size_t len;
+} DataStorage;
+
+void data_init(DataStorage *data);
+void data_reserve(DataStorage *data, size_t capacity);
+void data_insert(DataStorage *data, size_t pos, const unsigned char *buf, size_t size);
+void data_append(DataStorage *data, const unsigned char *buf, size_t size);
+void data_push(DataStorage *data, unsigned char c);
+void data_concat(DataStorage *data, DataStorage *data2);

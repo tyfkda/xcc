@@ -14,41 +14,39 @@
 #include "wasm_util.h"
 
 #define ADD_CODE(...)  do { unsigned char buf[] = {__VA_ARGS__}; add_code(buf, sizeof(buf)); } while (0)
-#define ADD_LEB128(x)  do { unsigned char buf[5], *p = emit_leb128(buf, x); add_code(buf, p - buf); } while (0)
-#define ADD_ULEB128(x) do { unsigned char buf[5], *p = emit_uleb128(buf, x); add_code(buf, p - buf); } while (0)
+#define ADD_LEB128(x)  emit_leb128(code, code->len, x)
+#define ADD_ULEB128(x) emit_uleb128(code, code->len, x)
 
-unsigned char* code;
-size_t codesize;
+DataStorage *code;
 
 static void add_code(const unsigned char* buf, size_t size) {
-  size_t newsize = codesize + size;
-  code = realloc(code, newsize);
-  if (code == NULL)
-    error("not enough memory");
-  memcpy(code + codesize, buf, size);
-  codesize = newsize;
+  data_append(code, buf, size);
 }
 
-unsigned char *emit_leb128(unsigned char *buf, int32_t val) {
+void emit_leb128(DataStorage *data, size_t pos, int32_t val) {
+  unsigned char buf[5], *p = buf;
   const int32_t MAX = 1 << 6;
   for (;;) {
     if (val < MAX && val >= -MAX) {
-      *buf++ = val & 0x7f;
-      return buf;
+      *p++ = val & 0x7f;
+      data_insert(data, pos, buf, p - buf);
+      return;
     }
-    *buf++ = (val & 0x7f) | 0x80;
+    *p++ = (val & 0x7f) | 0x80;
     val >>= 7;
   }
 }
 
-unsigned char *emit_uleb128(unsigned char *buf, uint32_t val) {
+void emit_uleb128(DataStorage *data, size_t pos, uint32_t val) {
+  unsigned char buf[5], *p = buf;
   const uint32_t MAX = 1 << 7;
   for (;;) {
     if (val < MAX) {
-      *buf++ = val & 0x7f;
-      return buf;
+      *p++ = val & 0x7f;
+      data_insert(data, pos, buf, p - buf);
+      return;
     }
-    *buf++ = (val & 0x7f) | 0x80;
+    *p++ = (val & 0x7f) | 0x80;
     val >>= 7;
   }
 }
@@ -379,6 +377,9 @@ static void gen_defun(Function *func) {
   if (func->scopes == NULL)  // Prototype definition
     return;
 
+  code = malloc(sizeof(*code));
+  data_init(code);
+
   // Allocate local variables.
   unsigned int local_count = 0;
 
@@ -410,8 +411,9 @@ static void gen_defun(Function *func) {
 
   //
 #if 1
-  unsigned char buf[32], *p;
-  p = emit_uleb128(buf, local_count);
+  DataStorage *data = malloc(sizeof(*data));
+  data_init(data);
+  emit_uleb128(data, data->len, local_count);
   if (local_count > 0) {
     for (int i = 0; i < func->scopes->len; ++i) {
       Scope *scope = func->scopes->data[i];
@@ -428,21 +430,18 @@ static void gen_defun(Function *func) {
         }
 
         assert(is_fixnum(varinfo->type->kind));
-        assert((p + 1) - buf < (ssize_t)sizeof(buf));
         // TODO: Group same type variables.
-        p = emit_uleb128(p, 1);  // TODO: Set type bytes.
-        *p++ = WT_I32;
+        emit_uleb128(data, data->len, 1);  // TODO: Set type bytes.
+        data_push(data, WT_I32);
       }
     }
   }
 
-  size_t newcodesize = (p - buf) + codesize;
-  unsigned char *newcode = realloc(code, newcodesize);
-  assert(newcode != NULL);
-  code = newcode;
-  memmove(code + (p - buf), code, codesize);
-  memcpy(code, buf, p - buf);
-  codesize = newcodesize;
+  data_concat(data, code);
+  free(code);
+  code = data;
+
+  emit_uleb128(code, 0, code->len);  // code length
 #endif
 
   curfunc = NULL;

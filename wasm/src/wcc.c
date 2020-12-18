@@ -52,20 +52,19 @@ static void emit_wasm(FILE *ofp) {
   fwrite(sections, sizeof(sections), 1, ofp);
   fwrite(exports, sizeof(exports), 1, ofp);
 
-  unsigned char code_section[] = {
-    // Code
-    SEC_CODE,  // Section "Code" (10)
-    codesize + 1 + 1,  // Size
-    0x01,  // num functions
+  DataStorage codesec;
+  data_init(&codesec);
 
-    // function body 0
-  };
-  fwrite(code_section, sizeof(code_section), 1, ofp);
+  data_push(&codesec, SEC_CODE);  // Section "Code" (10)
+  size_t size_pos = codesec.len;
+  // Put num function first, and insert total size after.
+  emit_uleb128(&codesec, codesec.len, 0x01);  // num functions
+  emit_uleb128(&codesec, size_pos, code->len + (codesec.len - size_pos));  // Size
 
-  unsigned char buf[5], *p = emit_uleb128(buf, codesize);
-  fwrite(buf, p - buf, 1, ofp);
+  // function body 0
+  data_concat(&codesec, code);
 
-  fwrite(code, codesize, 1, ofp);
+  fwrite(codesec.buf, codesec.len, 1, ofp);
 }
 
 ////////////////////////////////////////////////
