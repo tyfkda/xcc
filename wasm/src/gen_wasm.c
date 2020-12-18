@@ -18,6 +18,7 @@
 #define ADD_ULEB128(x) emit_uleb128(code, code->len, x)
 
 DataStorage *code;
+Vector *functions;
 
 static void add_code(const unsigned char* buf, size_t size) {
   data_append(code, buf, size);
@@ -61,6 +62,7 @@ struct VReg {
 static void gen_stmt(Stmt *stmt);
 static void gen_stmts(Vector *stmts);
 static void gen_expr_stmt(Expr *expr);
+static void gen_expr(Expr *expr);
 
 static void gen_arith(enum ExprKind kind, const Type *type) {
   UNUSED(type);
@@ -77,6 +79,17 @@ static void gen_arith(enum ExprKind kind, const Type *type) {
     assert(!"Not implemeneted");
     break;
   }
+}
+
+static void gen_funcall(Expr *expr) {
+  Vector *args = expr->funcall.args;
+  int arg_count = args != NULL ? args->len : 0;
+
+  for (int i = 0; i < arg_count; ++i) {
+    Expr *arg = args->data[i];
+    gen_expr(arg);
+  }
+  ADD_CODE(OP_CALL, 0x00);  // TODO: Put function number.
 }
 
 static void gen_expr(Expr *expr) {
@@ -146,6 +159,10 @@ static void gen_expr(Expr *expr) {
       default: assert(false); break;
       }
     }
+    break;
+
+  case EX_FUNCALL:
+    gen_funcall(expr);
     break;
 
   default: assert(!"Not implemeneted"); break;
@@ -410,10 +427,9 @@ static void gen_defun(Function *func) {
   ADD_CODE(OP_END);
 
   //
-#if 1
   DataStorage *data = malloc(sizeof(*data));
   data_init(data);
-  emit_uleb128(data, data->len, local_count);
+  emit_uleb128(data, data->len, local_count);  // Put local count first.
   if (local_count > 0) {
     for (int i = 0; i < func->scopes->len; ++i) {
       Scope *scope = func->scopes->data[i];
@@ -436,15 +452,15 @@ static void gen_defun(Function *func) {
       }
     }
   }
+  emit_uleb128(data, 0, data->len + code->len);  // Insert code size at the top.
 
   data_concat(data, code);
-  free(code);
-  code = data;
-
-  emit_uleb128(code, 0, code->len);  // code length
-#endif
+  func->bbcon = (BBContainer*)data;  // Store code to `bbcon`.
+  vec_push(functions, func);
 
   curfunc = NULL;
+  free(code);
+  code = NULL;
 }
 
 static void gen_decl(Declaration *decl) {

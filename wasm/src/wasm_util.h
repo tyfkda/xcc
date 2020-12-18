@@ -21,6 +21,7 @@ typedef struct {
 #define OP_END            (0x0b)
 #define OP_BR             (0x0c)
 #define OP_BR_IF          (0x0d)
+#define OP_CALL           (0x10)
 #define OP_DROP           (0x1a)
 #define OP_LOCAL_GET      (0x20)
 #define OP_LOCAL_SET      (0x21)

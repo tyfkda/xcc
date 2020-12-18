@@ -7,6 +7,7 @@ typedef struct DataStorage DataStorage;
 typedef struct Vector Vector;
 
 extern DataStorage *code;
+extern Vector *functions;
 
 // gen_wasm
 void gen(Vector *decls);

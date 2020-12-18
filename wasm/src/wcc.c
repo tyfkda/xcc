@@ -17,59 +17,134 @@
 
 ////////////////////////////////////////////////
 
-static void emit_wasm(FILE *ofp) {
+static void emit_wasm(FILE *ofp, Vector *exports) {
   emit_wasm_header(ofp);
 
-  unsigned char exports[] = {
-    4,  // string length
-    'm', 'a', 'i', 'n',  // export name
-    0x00,  // export kind
-    0x00,  // export func index
-  };
+  Vector *types = new_vector();
+  DataStorage types_section;
+  data_init(&types_section);
+  for (int i = 0; i < functions->len; ++i) {
+    Function *func = functions->data[i];
+    const Type *type = func->type;
+    assert(type->kind == TY_FUNC);
+    int type_index;
+    for (type_index = 0; type_index < types->len; ++type_index) {
+      const Type *t = types->data[type_index];
+      if (same_type(t, type))
+        break;
+    }
+    if (type_index >= types->len) {
+      vec_push(types, type);
+      data_push(&types_section, WT_FUNC);  // func
+      int param_count = type->func.params != NULL ? type->func.params->len : 0;
+      emit_uleb128(&types_section, types_section.len, param_count);  // num params
+      for (int i = 0; i < param_count; ++i) {
+        data_push(&types_section, WT_I32);  // TODO:
+      }
+      if (type->func.ret->kind == TY_VOID) {
+        data_push(&types_section, 0);  // num results
+      } else {
+        data_push(&types_section, 1);  // num results
+        data_push(&types_section, WT_I32);  // TODO:
+      }
+    }
+    func->ra = (RegAlloc*)(intptr_t)type_index;  // Put type index for function here.
+  }
+  emit_uleb128(&types_section, 0, types->len);  // num types
+  emit_uleb128(&types_section, 0, types_section.len);  // Size
 
-  unsigned char sections[] = {
-    // Types
-    SEC_TYPE,  // Section "Type" (1)
-    0x05,  // Size
-    0x01,  // num types
-    // type 0
-    WT_FUNC,  // func
-    0x00,  // num params
-    0x01,  // num results
-    WT_I32,  // i32
+  DataStorage functions_section;
+  data_init(&functions_section);
+  emit_uleb128(&functions_section, functions_section.len, functions->len);  // num functions
+  for (int i = 0; i < functions->len; ++i) {
+    Function *func = functions->data[i];
+    int type_index = (intptr_t)func->ra;  // Extract type index.
+    emit_uleb128(&functions_section, functions_section.len, type_index);  // function i signature index
+  }
+  emit_uleb128(&functions_section, 0, functions_section.len);  // Size
 
-    // Functions
-    SEC_FUNC,  // Section "Function" (3)
-    0x02,  // Size
-    0x01,  // num functions
-    0x00,  // function 0 signature index
+  DataStorage exports_section;
+  data_init(&exports_section);
+  emit_uleb128(&exports_section, exports_section.len, exports->len);  // num exports
+  for (int i = 0; i < exports->len; ++i) {
+    const Name *name = exports->data[i];
+    VarInfo *varinfo = scope_find(global_scope, name, NULL);
+    if (varinfo == NULL) {
+      error("Export: `%.*s' not found", name->bytes, name->chars);
+      continue;
+    }
+    if (varinfo->type->kind != TY_FUNC) {
+      error("Export: `%.*s' is not function", name->bytes, name->chars);
+      continue;
+    }
+    if (varinfo->storage & VS_STATIC) {
+      error("Export: `%.*s' is not public", name->bytes, name->chars);
+      continue;
+    }
 
-    // Exports
-    SEC_EXPORT,  // Section "Export" (7)
-    sizeof(exports) + 1,  // Size
-    1,  // num exports
-  };
-  fwrite(sections, sizeof(sections), 1, ofp);
-  fwrite(exports, sizeof(exports), 1, ofp);
+    int func_index;
+    for (func_index = 0; func_index < functions->len; ++func_index) {
+      Function *func = functions->data[func_index];
+      if (equal_name(name, func->name))
+        break;
+    }
+    assert(func_index < functions->len);
+
+    Function *func = functions->data[i];
+    int type_index = (intptr_t)func->ra;
+
+    int name_len = name->bytes;
+    emit_uleb128(&exports_section, exports_section.len, name_len);  // string length
+    data_append(&exports_section, (const unsigned char*)name->chars, name_len);  // export name
+    emit_uleb128(&exports_section, exports_section.len, type_index);  // export kind
+    emit_uleb128(&exports_section, exports_section.len, func_index);  // export func index
+  }
+  emit_uleb128(&exports_section, 0, exports_section.len);  // Size
+
+  DataStorage sections;
+  data_init(&sections);
+  // Types
+  data_push(&sections, SEC_TYPE);  // Section "Type" (1)
+  data_concat(&sections, &types_section);
+
+  // Functions
+  data_push(&sections, SEC_FUNC);  // Section "Function" (3)
+  data_append(&sections, functions_section.buf, functions_section.len);
+
+  // Exports
+  data_push(&sections, SEC_EXPORT);  // Section "Export" (7)
+  data_append(&sections, exports_section.buf, exports_section.len);
+
+  fwrite(sections.buf, sections.len, 1, ofp);
 
   DataStorage codesec;
   data_init(&codesec);
 
   data_push(&codesec, SEC_CODE);  // Section "Code" (10)
   size_t size_pos = codesec.len;
+  size_t total_code_size = 0;
+  for (int i = 0; i < functions->len; ++i) {
+    Function *func = functions->data[i];
+    DataStorage *code = (DataStorage*)func->bbcon;
+    // function body i.
+    total_code_size += code->len;
+  }
   // Put num function first, and insert total size after.
-  emit_uleb128(&codesec, codesec.len, 0x01);  // num functions
-  emit_uleb128(&codesec, size_pos, code->len + (codesec.len - size_pos));  // Size
-
-  // function body 0
-  data_concat(&codesec, code);
-
+  emit_uleb128(&codesec, codesec.len, functions->len);  // num functions
+  emit_uleb128(&codesec, size_pos, (codesec.len - size_pos) + total_code_size);  // Size
   fwrite(codesec.buf, codesec.len, 1, ofp);
+
+  for (int i = 0; i < functions->len; ++i) {
+    Function *func = functions->data[i];
+    DataStorage *code = (DataStorage*)func->bbcon;
+    fwrite(code->buf, code->len, 1, ofp);
+  }
 }
 
 ////////////////////////////////////////////////
 
 static void init_compiler(void) {
+  functions = new_vector();
   init_lexer();
   init_global();
 
@@ -88,6 +163,7 @@ static void compile1(FILE *ifp, const char *filename, Vector *toplevel) {
 
 int main(int argc, char *argv[]) {
   const char *ofn = "a.wasm";
+  Vector *exports = NULL;
   int iarg;
 
   init_compiler();
@@ -99,10 +175,25 @@ int main(int argc, char *argv[]) {
 
     if (starts_with(arg, "-o")) {
       ofn = arg + 2;
+    } else if (starts_with(arg, "-e") && arg[2] != '\0') {
+      exports = new_vector();
+      const char *s = arg + 2;
+      for (;;) {
+        const char *p = strchr(s, ',');
+        const Name *name = alloc_name(s, p, false);
+        vec_push(exports, name);
+        if (p == NULL)
+          break;
+        s = p + 1;
+      }
     } else {
       fprintf(stderr, "Unknown option: %s\n", arg);
       return 1;
     }
+  }
+
+  if (exports == NULL) {
+    error("no exports (require -e<xxx>)\n");
   }
 
   // Compile.
@@ -124,11 +215,11 @@ int main(int argc, char *argv[]) {
 
   FILE *fp = fopen(ofn, "wb");
   if (fp == NULL) {
-    fprintf(stderr, "Cannot open output file\n");
-    exit(1);
+    error("Cannot open output file");
+  } else {
+    emit_wasm(fp, exports);
+    fclose(fp);
   }
-  emit_wasm(fp);
-  fclose(fp);
 
   return 0;
 }

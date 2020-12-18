@@ -9,7 +9,7 @@ try_direct() {
 
   echo -n "$title => "
 
-  echo -e "$input" | $WCC || exit 1
+  echo -e "$input" | $WCC -emain || exit 1
 
   node ../runtime/runwasm.js a.wasm main
   local actual="$?"
