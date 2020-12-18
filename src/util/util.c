@@ -288,8 +288,8 @@ void buf_align(Buffer *buf, int align) {
 
 Vector *new_vector(void) {
   Vector *vec = malloc(sizeof(Vector));
-  vec->data = malloc(sizeof(void *) * 16);
-  vec->capacity = 16;
+  vec->data = NULL;
+  vec->capacity = 0;
   vec->len = 0;
   return vec;
 }
@@ -299,9 +299,12 @@ void vec_clear(Vector *vec) {
 }
 
 void vec_push(Vector *vec, const void *elem) {
-  if (vec->capacity == vec->len) {
-    vec->capacity *= 2;
-    vec->data = realloc(vec->data, sizeof(void *) * vec->capacity);
+  if (vec->capacity <= vec->len) {
+    if (vec->capacity <= 0)
+      vec->capacity = 16;
+    else
+      vec->capacity <<= 1;
+    vec->data = realloc(vec->data, sizeof(*vec->data) * vec->capacity);
   }
   vec->data[vec->len++] = (void*)elem;
 }
