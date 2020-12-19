@@ -6,6 +6,8 @@
 typedef struct DataStorage DataStorage;
 typedef struct Vector Vector;
 
+extern const char RETVAL_NAME[];
+
 extern DataStorage *code;
 extern Vector *functions;
 

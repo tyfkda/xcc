@@ -30,3 +30,4 @@ try_direct 'if-const' 11 'int main(){int x=1, y; if (x) y=11; else y=22; return 
 try_direct 'while' 55 'int main(){int acc=0, i=1; while (i<=10) {acc=acc+i; i=i+1;} return acc;}'
 try_direct 'do-while' 55 'int main(){int acc=0, i=1; do {acc=acc+i; i=i+1;} while (i<=10); return acc;}'
 try_direct 'for' 55 'int main(){int acc=0; for (int i=1; i<=10; i=i+1) acc=acc+i; return acc;}'
+try_direct 'return in block' 55 'int main(){int acc=0, i=1; for (;;) {acc=acc+i; if (i==10) return acc; i=i+1;}}'

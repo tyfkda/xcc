@@ -8,6 +8,7 @@
 #include "ast.h"
 #include "lexer.h"  // parse_error
 #include "parser.h"  // curfunc
+#include "table.h"
 #include "type.h"
 #include "util.h"
 #include "var.h"
@@ -16,6 +17,8 @@
 #define ADD_CODE(...)  do { unsigned char buf[] = {__VA_ARGS__}; add_code(buf, sizeof(buf)); } while (0)
 #define ADD_LEB128(x)  emit_leb128(code, code->len, x)
 #define ADD_ULEB128(x) emit_uleb128(code, code->len, x)
+
+const char RETVAL_NAME[] = ".._RETVAL";
 
 DataStorage *code;
 Vector *functions;
@@ -63,6 +66,8 @@ static void gen_stmt(Stmt *stmt);
 static void gen_stmts(Vector *stmts);
 static void gen_expr_stmt(Expr *expr);
 static void gen_expr(Expr *expr);
+
+static int cur_depth;
 
 static void gen_arith(enum ExprKind kind, const Type *type) {
   UNUSED(type);
@@ -226,34 +231,42 @@ static void gen_cond(Expr *cond, bool tf) {
     if (tf) {
       gen_cond(cond->bop.lhs, true);
       ADD_CODE(OP_IF, WT_I32);
+      ++cur_depth;
       gen_cond(cond->bop.rhs, true);
       ADD_CODE(OP_ELSE);
       ADD_CODE(OP_I32_CONST, 0);  // false
       ADD_CODE(OP_END);
+      --cur_depth;
     } else {
       gen_cond(cond->bop.lhs, false);
       ADD_CODE(OP_IF, WT_I32);
+      ++cur_depth;
       ADD_CODE(OP_I32_CONST, 1);  // true
       ADD_CODE(OP_ELSE);
       gen_cond(cond->bop.rhs, false);
       ADD_CODE(OP_END);
+      --cur_depth;
     }
     break;
   case EX_LOGIOR:
     if (tf) {
       gen_cond(cond->bop.lhs, true);
       ADD_CODE(OP_IF, WT_I32);
+      ++cur_depth;
       ADD_CODE(OP_I32_CONST, 1);  // true
       ADD_CODE(OP_ELSE);
       gen_cond(cond->bop.rhs, true);
       ADD_CODE(OP_END);
+      --cur_depth;
     } else {
       gen_cond(cond->bop.lhs, false);
       ADD_CODE(OP_IF, WT_I32);
+      ++cur_depth;
       gen_cond(cond->bop.rhs, false);
       ADD_CODE(OP_ELSE);
       ADD_CODE(OP_I32_CONST, 0);  // false
       ADD_CODE(OP_END);
+      --cur_depth;
     }
     break;
   default:
@@ -273,11 +286,13 @@ static void gen_while(Stmt *stmt) {
 
   ADD_CODE(OP_BLOCK, WT_VOID);
   ADD_CODE(OP_LOOP, WT_VOID);
+  cur_depth += 2;
   gen_cond_jmp(stmt->while_.cond, false, 1);
   gen_stmt(stmt->while_.body);
   ADD_CODE(OP_BR, 0);
   ADD_CODE(OP_END);
   ADD_CODE(OP_END);
+  cur_depth -= 2;
 }
 
 static void gen_do_while(Stmt *stmt) {
@@ -285,11 +300,13 @@ static void gen_do_while(Stmt *stmt) {
 
   ADD_CODE(OP_BLOCK, WT_VOID);
   ADD_CODE(OP_LOOP, WT_VOID);
+  cur_depth += 2;
   gen_stmt(stmt->while_.body);
   gen_cond_jmp(stmt->while_.cond, false, 1);
   ADD_CODE(OP_BR, 0);
   ADD_CODE(OP_END);
   ADD_CODE(OP_END);
+  cur_depth -= 2;
 }
 
 static void gen_for(Stmt *stmt) {
@@ -300,6 +317,7 @@ static void gen_for(Stmt *stmt) {
 
   ADD_CODE(OP_BLOCK, WT_VOID);
   ADD_CODE(OP_LOOP, WT_VOID);
+  cur_depth += 2;
   if (stmt->for_.cond != NULL)
     gen_cond_jmp(stmt->for_.cond, false, 1);
   gen_stmt(stmt->for_.body);
@@ -308,6 +326,7 @@ static void gen_for(Stmt *stmt) {
   ADD_CODE(OP_BR, 0);
   ADD_CODE(OP_END);
   ADD_CODE(OP_END);
+  cur_depth -= 2;
 }
 
 static void gen_block(Stmt *stmt) {
@@ -316,25 +335,31 @@ static void gen_block(Stmt *stmt) {
 
 static void gen_return(Stmt *stmt) {
   assert(curfunc != NULL);
-  //BB *bb = bb_split(curbb);
   if (stmt->return_.val != NULL) {
     Expr *val = stmt->return_.val;
-    /*VReg *reg =*/ gen_expr(val);
-    assert(curfunc->retval == NULL);
+    gen_expr(val);
+
+    const Name *name = alloc_name(RETVAL_NAME, NULL, false);
+    VarInfo *varinfo = scope_find(curfunc->scopes->data[0], name, NULL);
+    assert(varinfo != NULL);
+    ADD_CODE(OP_LOCAL_SET);
+    ADD_ULEB128(varinfo->local.reg->local_index);
   }
-  //new_ir_jmp(COND_ANY, curfunc->ret_bb);
-  //set_curbb(bb);
+  ADD_CODE(OP_BR);
+  ADD_ULEB128(cur_depth - 1);
 }
 
 static void gen_if(Stmt *stmt) {
   gen_cond(stmt->if_.cond, true);
   ADD_CODE(OP_IF, WT_VOID);
+  ++cur_depth;
   gen_stmt(stmt->if_.tblock);
   if (stmt->if_.fblock != NULL) {
     ADD_CODE(OP_ELSE);
     gen_stmt(stmt->if_.fblock);
   }
   ADD_CODE(OP_END);
+  --cur_depth;
 }
 
 static void gen_vardecl(Vector *decls, Vector *inits) {
@@ -405,10 +430,24 @@ static void gen_defun(Function *func) {
   if (func->scopes == NULL)  // Prototype definition
     return;
 
+  const Type *functype = func->type;
+
   code = malloc(sizeof(*code));
   data_init(code);
 
+  DataStorage *data = malloc(sizeof(*data));
+  data_init(data);
+
+  if (functype->func.ret->kind != TY_VOID) {
+    assert(is_fixnum(functype->func.ret->kind));
+    // Add local variable for return value.
+    const Name *name = alloc_name(RETVAL_NAME, NULL, false);
+    const Token *ident = alloc_ident(name, NULL, NULL);
+    scope_add(func->scopes->data[0], ident, functype->func.ret, 0);
+  }
+
   // Allocate local variables.
+  unsigned int param_count = functype->func.params != NULL ? functype->func.params->len : 0;  // TODO: Consider stack params.
   unsigned int local_count = 0;
 
   for (int i = 0; i < func->scopes->len; ++i) {
@@ -424,45 +463,53 @@ static void gen_defun(Function *func) {
         // Enum members are replaced to constant value.
         continue;
       }
+      assert(is_fixnum(varinfo->type->kind));
 
       VReg *vreg = malloc(sizeof(*vreg));
-      vreg->local_index = local_count++;
       varinfo->local.reg = vreg;
-    }
-  }
-
-  curfunc = func;
-
-  // Statements
-  gen_stmts(func->stmts);
-  ADD_CODE(OP_END);
-
-  //
-  DataStorage *data = malloc(sizeof(*data));
-  data_init(data);
-  emit_uleb128(data, data->len, local_count);  // Put local count first.
-  if (local_count > 0) {
-    for (int i = 0; i < func->scopes->len; ++i) {
-      Scope *scope = func->scopes->data[i];
-      if (scope->vars == NULL)
-        continue;
-
-      for (int j = 0; j < scope->vars->len; ++j) {
-        VarInfo *varinfo = scope->vars->data[j];
-        if (varinfo->storage & (VS_STATIC | VS_EXTERN | VS_ENUM_MEMBER)) {
-          // Static entity is allocated in global, not on stack.
-          // Extern doesn't have its entity.
-          // Enum members are replaced to constant value.
-          continue;
+      int param_index = -1;
+      if (i == 0 && param_count > 0) {
+        const Vector *params = functype->func.params;
+        for (int i = 0, n = params->len; i < n; ++i) {
+          const VarInfo *v = params->data[i];
+          if (equal_name(v->name, varinfo->name)) {
+            param_index = i;
+            break;
+          }
         }
-
-        assert(is_fixnum(varinfo->type->kind));
+      }
+      if (param_index >= 0) {
+        vreg->local_index = param_index;
+      } else {
+        vreg->local_index = local_count++ + param_count;
         // TODO: Group same type variables.
         emit_uleb128(data, data->len, 1);  // TODO: Set type bytes.
         data_push(data, WT_I32);
       }
     }
   }
+
+  // Insert local count at the top.
+  emit_uleb128(data, 0, local_count);  // Put local count at the top.
+
+  curfunc = func;
+
+  // Statements
+  ADD_CODE(OP_BLOCK, WT_VOID);
+  cur_depth += 1;
+  gen_stmts(func->stmts);
+  ADD_CODE(OP_END);
+  cur_depth -= 1;
+  assert(cur_depth == 0);
+  if (functype->func.ret->kind != TY_VOID) {
+    const Name *name = alloc_name(RETVAL_NAME, NULL, false);
+    VarInfo *varinfo = scope_find(func->scopes->data[0], name, NULL);
+    assert(varinfo != NULL);
+    ADD_CODE(OP_LOCAL_GET);
+    ADD_ULEB128(varinfo->local.reg->local_index);
+  }
+  ADD_CODE(OP_END);
+
   emit_uleb128(data, 0, data->len + code->len);  // Insert code size at the top.
 
   data_concat(data, code);
