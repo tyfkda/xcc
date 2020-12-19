@@ -181,6 +181,38 @@ static void gen_expr(Expr *expr) {
     }
     break;
 
+  case EX_MODIFY:
+    {
+      Expr *sub = expr->unary.sub;
+      Expr *lhs = sub->bop.lhs;
+      switch (lhs->type->kind) {
+      case TY_FIXNUM:
+      case TY_PTR:
+#ifndef __NO_FLONUM
+      case TY_FLONUM:
+#endif
+        if (lhs->kind == EX_VAR) {
+          gen_expr(lhs);
+          gen_expr(sub->bop.rhs);
+          gen_arith(sub->kind, expr->type);
+
+          Scope *scope;
+          const VarInfo *varinfo = scope_find(lhs->var.scope, lhs->var.name, &scope);
+          assert(varinfo != NULL);
+          if (!is_global_scope(scope) && !(varinfo->storage & (VS_STATIC | VS_EXTERN))) {
+            assert(varinfo->local.reg != NULL);
+            ADD_CODE(OP_LOCAL_TEE);
+            ADD_ULEB128(varinfo->local.reg->local_index);
+            return;
+          }
+        }
+        assert(!"Not implemented");
+        break;
+      default: assert(false); break;
+      }
+    }
+    break;
+
   case EX_FUNCALL:
     gen_funcall(expr);
     break;
