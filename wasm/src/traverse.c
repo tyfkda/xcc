@@ -1,0 +1,228 @@
+#include "wcc.h"
+
+#include <assert.h>
+#include <stdlib.h>  // malloc
+
+#include "ast.h"
+#include "lexer.h"  // alloc_ident
+#include "table.h"
+#include "type.h"
+#include "util.h"
+#include "var.h"
+
+const char RETVAL_NAME[] = ".._RETVAL";
+
+Table func_info_table;
+
+static void register_func_info(const Name *funcname, Function *func, const Type *type, int flag) {
+  FuncInfo *info;
+  if (!table_try_get(&func_info_table, funcname, (void**)&info)) {
+    info = calloc(1, sizeof(*info));
+    table_put(&func_info_table, funcname, info);
+  }
+  if (func != NULL)
+    info->func = func;
+  if (type != NULL)
+    info->type = type;
+  info->flag |= flag;
+}
+
+static void traverse_stmts(Vector *stmts);
+
+static void traverse_expr(Expr *expr) {
+  if (expr == NULL)
+    return;
+  switch (expr->kind) {
+  //case EX_FIXNUM:  break;
+  //case EX_FLONUM:  break;
+  //case EX_STR:  break;
+  case EX_VAR:
+    {
+      bool global = false;
+      if (expr->type->kind == TY_FUNC) {  // For now, function only.
+        if (is_global_scope(expr->var.scope)) {
+          global = true;
+        } else {
+          Scope *scope;
+          VarInfo *varinfo = scope_find(expr->var.scope, expr->var.name, &scope);
+          global = (varinfo->storage & VS_EXTERN) != 0;
+        }
+      }
+      if (global)
+        register_func_info(expr->var.name, NULL, expr->type, FF_REFERED);
+    }
+    break;
+
+  // bop
+  case EX_ADD:
+  case EX_SUB:
+  case EX_MUL:
+  case EX_DIV:
+  case EX_MOD:
+  case EX_BITAND:
+  case EX_BITOR:
+  case EX_BITXOR:
+  case EX_LSHIFT:
+  case EX_RSHIFT:
+  case EX_EQ:
+  case EX_NE:
+  case EX_LT:
+  case EX_LE:
+  case EX_GE:
+  case EX_GT:
+  case EX_LOGAND:
+  case EX_LOGIOR:
+  case EX_ASSIGN:
+  case EX_COMMA:
+  case EX_PTRADD:
+  case EX_PTRSUB:
+    traverse_expr(expr->bop.lhs);
+    traverse_expr(expr->bop.rhs);
+    break;
+
+  // Unary
+  case EX_POS:
+  case EX_NEG:
+  case EX_BITNOT:
+  case EX_PREINC:
+  case EX_PREDEC:
+  case EX_POSTINC:
+  case EX_POSTDEC:
+  case EX_REF:
+  case EX_DEREF:
+  case EX_CAST:
+  case EX_MODIFY:
+    traverse_expr(expr->unary.sub);
+    break;
+
+  case EX_TERNARY:
+    traverse_expr(expr->ternary.cond);
+    traverse_expr(expr->ternary.tval);
+    traverse_expr(expr->ternary.fval);
+    break;
+
+  case EX_MEMBER:
+    traverse_expr(expr->member.target);
+    break;
+
+  case EX_FUNCALL:
+    {
+      traverse_expr(expr->funcall.func);
+      Vector *args = expr->funcall.args;
+      if (args != NULL) {
+        for (int i = 0, n = args->len; i < n; ++i)
+          traverse_expr(args->data[i]);
+      }
+    }
+    break;
+
+  case EX_COMPLIT:
+    traverse_stmts(expr->complit.inits);
+    break;
+
+  default: break;
+  }
+}
+
+static void traverse_stmt(Stmt *stmt) {
+  if (stmt == NULL)
+    return;
+  switch (stmt->kind) {
+  case ST_EXPR:  traverse_expr(stmt->expr); break;
+  case ST_RETURN:  traverse_expr(stmt->return_.val); break;
+  case ST_BLOCK:  traverse_stmts(stmt->block.stmts); break;
+  case ST_IF:  traverse_expr(stmt->if_.cond); traverse_stmt(stmt->if_.tblock); traverse_stmt(stmt->if_.fblock); break;
+  case ST_SWITCH:  traverse_expr(stmt->switch_.value); traverse_stmt(stmt->switch_.body); break;
+  //case ST_CASE:  break;
+  //case ST_DEFAULT:  gen_default(); break;
+  case ST_WHILE: case ST_DO_WHILE:  traverse_expr(stmt->while_.cond); traverse_stmt(stmt->while_.body); break;
+  case ST_FOR:  traverse_expr(stmt->for_.pre); traverse_expr(stmt->for_.cond); traverse_expr(stmt->for_.post); traverse_stmt(stmt->for_.body); break;
+  //case ST_BREAK:  gen_break(); break;
+  //case ST_CONTINUE:  gen_continue(); break;
+  //case ST_GOTO:  gen_goto(stmt); break;
+  case ST_LABEL:  traverse_stmt(stmt->label.stmt); break;
+  case ST_VARDECL:  traverse_stmts(stmt->vardecl.inits); break;
+  //case ST_ASM:  break;
+  default: break;
+  }
+}
+
+static void traverse_stmts(Vector *stmts) {
+  if (stmts == NULL)
+    return;
+
+  for (int i = 0, len = stmts->len; i < len; ++i) {
+    Stmt *stmt = stmts->data[i];
+    traverse_stmt(stmt);
+  }
+}
+
+static void traverse_defun(Function *func) {
+  if (func->scopes == NULL)  // Prototype definition
+    return;
+
+  const Type *functype = func->type;
+  if (functype->func.ret->kind != TY_VOID) {
+    assert(is_fixnum(functype->func.ret->kind));
+    // Add local variable for return value.
+    const Name *name = alloc_name(RETVAL_NAME, NULL, false);
+    const Token *ident = alloc_ident(name, NULL, NULL);
+    scope_add(func->scopes->data[0], ident, functype->func.ret, 0);
+  }
+
+  register_func_info(func->name, func, func->type, 0);
+  traverse_stmts(func->stmts);
+}
+
+static void traverse_decl(Declaration *decl) {
+  if (decl == NULL)
+    return;
+
+  switch (decl->kind) {
+  case DCL_DEFUN:
+    traverse_defun(decl->defun.func);
+    break;
+  case DCL_VARDECL:
+    break;
+
+  default:
+    error("Unhandled decl: %d", decl->kind);
+    break;
+  }
+}
+
+void traverse_ast(Vector *decls, Vector *exports) {
+  for (int i = 0, len = decls->len; i < len; ++i) {
+    Declaration *decl = decls->data[i];
+    traverse_decl(decl);
+  }
+
+  // Check exports
+  for (int i = 0; i < exports->len; ++i) {
+    const Name *name = exports->data[i];
+    FuncInfo *info = table_get(&func_info_table, name);
+    if (info == NULL)
+      error("`%.*s' not found", name->bytes, name->chars);
+    register_func_info(name, NULL, info->type, FF_REFERED);
+  }
+
+  VERBOSES("### Functions\n");
+  const Name *name;
+  FuncInfo *info;
+  // Enumerate imported functions.
+  int32_t index = 0;
+  for (int it = 0; (it = table_iterate(&func_info_table, it, &name, (void**)&info)) != -1; ) {
+    if (info->func != NULL)
+      continue;
+    info->index = index++;
+    VERBOSE("%2d: %.*s  (import)\n", info->index, name->bytes, name->chars);
+  }
+  // Enumerate defined and refered functions.
+  for (int it = 0; (it = table_iterate(&func_info_table, it, &name, (void**)&info)) != -1; ) {
+    if (info->func == NULL || info->flag == 0)
+      continue;
+    info->index = index++;
+    VERBOSE("%2d: %.*s\n", info->index, name->bytes, name->chars);
+  }
+  VERBOSES("\n");
+}

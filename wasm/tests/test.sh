@@ -22,6 +22,26 @@ try_direct() {
   fi
 }
 
+try_output_direct() {
+  local title="$1"
+  local expected="$2"
+  local input="$3"
+
+  echo -n "$title => "
+
+  echo -e "$input" | $WCC -emain || exit 1
+
+  local actual
+  actual=`node ../runtime/runwasm.js a.wasm main` || exit 1
+
+  if [ "$actual" = "$expected" ]; then
+    echo "OK"
+  else
+    echo "NG: $expected expected, but got $actual"
+    exit 1
+  fi
+}
+
 try_direct '+*' 7 'int main(){return 1+2*3;}'
 try_direct 'local var' 72 'int main(){int x=8, y=9; return x*y;}'
 try_direct 'if-t' 11 'int main(){int x=0, y; if (x==0) y=11; else y=22; return y;}'
@@ -31,3 +51,4 @@ try_direct 'while' 55 'int main(){int acc=0, i=1; while (i<=10) {acc=acc+i; i=i+
 try_direct 'do-while' 55 'int main(){int acc=0, i=1; do {acc=acc+i; i=i+1;} while (i<=10); return acc;}'
 try_direct 'for' 55 'int main(){int acc=0; for (int i=1; i<=10; i=i+1) acc=acc+i; return acc;}'
 try_direct 'return in block' 55 'int main(){int acc=0, i=1; for (;;) {acc=acc+i; if (i==10) return acc; i=i+1;}}'
+try_output_direct 'call imported func' '12321' 'void puti(int); int sq(int x){return x*x;} int main(){puti(sq(111)); return 0;}'

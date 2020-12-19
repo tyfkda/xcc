@@ -18,10 +18,7 @@
 #define ADD_LEB128(x)  emit_leb128(code, code->len, x)
 #define ADD_ULEB128(x) emit_uleb128(code, code->len, x)
 
-const char RETVAL_NAME[] = ".._RETVAL";
-
 DataStorage *code;
-Vector *functions;
 
 static void add_code(const unsigned char* buf, size_t size) {
   data_append(code, buf, size);
@@ -87,14 +84,21 @@ static void gen_arith(enum ExprKind kind, const Type *type) {
 }
 
 static void gen_funcall(Expr *expr) {
+  Expr *func = expr->funcall.func;
+  assert(func->kind == EX_VAR);
   Vector *args = expr->funcall.args;
   int arg_count = args != NULL ? args->len : 0;
+
+  FuncInfo *info = table_get(&func_info_table, func->var.name);
+  assert(info != NULL);
+  uint32_t func_index = info->index;
 
   for (int i = 0; i < arg_count; ++i) {
     Expr *arg = args->data[i];
     gen_expr(arg);
   }
-  ADD_CODE(OP_CALL, 0x00);  // TODO: Put function number.
+  ADD_CODE(OP_CALL);
+  ADD_ULEB128(func_index);
 }
 
 static void gen_expr(Expr *expr) {
@@ -438,14 +442,6 @@ static void gen_defun(Function *func) {
   DataStorage *data = malloc(sizeof(*data));
   data_init(data);
 
-  if (functype->func.ret->kind != TY_VOID) {
-    assert(is_fixnum(functype->func.ret->kind));
-    // Add local variable for return value.
-    const Name *name = alloc_name(RETVAL_NAME, NULL, false);
-    const Token *ident = alloc_ident(name, NULL, NULL);
-    scope_add(func->scopes->data[0], ident, functype->func.ret, 0);
-  }
-
   // Allocate local variables.
   unsigned int param_count = functype->func.params != NULL ? functype->func.params->len : 0;  // TODO: Consider stack params.
   unsigned int local_count = 0;
@@ -514,7 +510,6 @@ static void gen_defun(Function *func) {
 
   data_concat(data, code);
   func->bbcon = (BBContainer*)data;  // Store code to `bbcon`.
-  vec_push(functions, func);
 
   curfunc = NULL;
   free(code);

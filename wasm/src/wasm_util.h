@@ -9,6 +9,7 @@ typedef struct {
 } WASM_HEADER;
 
 #define SEC_TYPE      (1)
+#define SEC_IMPORT    (2)
 #define SEC_FUNC      (3)
 #define SEC_EXPORT    (7)
 #define SEC_CODE      (10)

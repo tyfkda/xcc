@@ -20,6 +20,14 @@ async function createWasm(wasmFile, imports) {
   const [_node, _file, wasmFile, funcName, ...args] = process.argv
 
   const imports = {
+    c: {
+      puti: (x) => {
+        console.log(x)
+      },
+      exit: (x) => {
+        process.exit(x)
+      },
+    },
   }
 
   const instance = await createWasm(wasmFile, imports)

@@ -1,15 +1,36 @@
 #pragma once
 
+#include <stdbool.h>
 #include <stddef.h>  // size_t
 #include <stdint.h>
 
 typedef struct DataStorage DataStorage;
+typedef struct Function Function;
+typedef struct Table Table;
+typedef struct Type Type;
 typedef struct Vector Vector;
 
 extern const char RETVAL_NAME[];
 
 extern DataStorage *code;
-extern Vector *functions;
+extern Table func_info_table;
+extern bool verbose;
+
+#define VERBOSES(str)  do { if (verbose) printf("%s", str); } while (0)
+#define VERBOSE(fmt, ...)  do { if (verbose) printf(fmt, __VA_ARGS__); } while (0)
+
+typedef struct {
+  Function *func;
+  const Type *type;
+  uint32_t index;
+  int flag;
+  uint32_t type_index;
+} FuncInfo;
+
+#define FF_REFERED   (1 << 0)
+
+// traverse
+void traverse_ast(Vector *decls, Vector *exports);
 
 // gen_wasm
 void gen(Vector *decls);
