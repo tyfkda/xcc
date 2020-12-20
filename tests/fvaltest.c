@@ -2,98 +2,27 @@
 int main() {return 0;}
 #else
 
-#include "stdbool.h"
-#include "stdlib.h"  // exit
-#include "math.h"
-#include "../examples/util.h"
+#ifdef USE_SINGLE
+typedef float Number;
+#define NUMBER_TYPE_SIZE  (4)
+#else
+typedef double Number;
+#define NUMBER_TYPE_SIZE  (8)
 
-void expect(char *title, double expected, double actual) {
-  puts(title);
-  puts(" => ");
-  if (expected == actual) {
-    puts("OK\n");
-    return;
-  }
-  puts("NG: ");
-  putdeci(expected);
-  puts(" expected, but got ");
-  putdeci(actual);
-  puts("\n");
-  exit(1);
+double mix_params(int i0, double d0, int i1, float f1, int i2, double d2, int i3, float f3) {
+  return (i0 * i1 * i2 * i3) / (d0 * f1 * d2 * f3);
 }
+#endif
 
-void expect_about(char *title, double expected, double actual) {
-  puts(title);
-  puts(" => ");
-  double d = expected - actual;
-  const double eps = 1e-6;
-  if (d > -eps && d < eps) {
-    puts("OK\n");
-    return;
-  }
-  puts("NG: ");
-  putdeci(expected);
-  puts(" expected, but got ");
-  putdeci(actual);
-  puts("\n");
-  exit(1);
-}
-
-void expecti(char *title, int expected, int actual) {
-  puts(title);
-  puts(" => ");
-  if (expected == actual) {
-    puts("OK\n");
-    return;
-  }
-  puts("NG: ");
-  putdeci(expected);
-  puts(" expected, but got ");
-  putdeci(actual);
-  puts("\n");
-  exit(1);
-}
-
-void fail(char *title) {
-  puts(title);
-  puts(" => NG\n");
-  exit(1);
-}
-
-double mix_params(int i0, double d0, int i1, double d1, int i2, double d2, int i3, double d3) {
-  return (i0 * i1 * i2 * i3) / (d0 * d1 * d2 * d3);
-}
-
-double Empty;
+#include "flotest.inc"
 
 int main(void) {
-  double x, y;
-  expect("w/o initializer", 0.0, Empty);
-  expect("zero", 0.0, 0);
-  expect("decimal", 42.0, 42);
-  expect("+-", 21, (x=5, x+20-4));
-  expect("*/", 7.5, (x=5, x*3/2));
-  expect("unary -", -3.69, (x=3.69, -x));
-  expect("pre inc", 11, (x=10, ++x));
-  {
-    expect("post dec", 10, (x=10, x--));
-    expect("post dec after", 9, x);
-  }
-  {
-    static double g;
-    expect("pre dec g", 9.5, (g=10.5, --g));
-  }
-  {
-    static double g;
-    expect("post inc g", 10.25, (g=10.25, g++));
-    expect("post inc after", 11.25, g);
-  }
+  number_test();
 
-  expecti("!", false, (x=5, !x));
-  expecti("||", true, (x=0.0, y=5.0, x || y));
+#ifndef USE_SINGLE
+  expect_about("mix_params", 0.2734375, mix_params(1, 2, 3, 4, 5, 6, 7, 8));
 
-  expect("sizeof(double)", 8, sizeof(double));
-  expect("sizeof(float)", 4, sizeof(float));
+  // math.h
 
   expect_about("sqrt2", 1.41421356, sqrt(2.0));
   expect_about("cos", 0.5, cos(M_PI / 3));
@@ -112,8 +41,8 @@ int main(void) {
   expect_about("fmod+-",  1.14, fmod( 12.34, -5.6));
   expect_about("fmod-+", -1.14, fmod(-12.34,  5.6));
   expect_about("fmod--", -1.14, fmod(-12.34, -5.6));
+#endif
 
-  expect_about("mix_params", 0.2734375, mix_params(1, 2, 3, 4, 5, 6, 7, 8));
   return 0;
 }
 #endif
