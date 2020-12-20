@@ -11,6 +11,7 @@ typedef struct {
 #define SEC_TYPE      (1)
 #define SEC_IMPORT    (2)
 #define SEC_FUNC      (3)
+#define SEC_GLOBAL    (6)
 #define SEC_EXPORT    (7)
 #define SEC_CODE      (10)
 
@@ -28,6 +29,8 @@ typedef struct {
 #define OP_LOCAL_GET      (0x20)
 #define OP_LOCAL_SET      (0x21)
 #define OP_LOCAL_TEE      (0x22)
+#define OP_GLOBAL_GET     (0x23)
+#define OP_GLOBAL_SET     (0x24)
 #define OP_I32_CONST      (0x41)
 #define OP_I32_EQZ        (0x45)
 #define OP_I32_EQ         (0x46)

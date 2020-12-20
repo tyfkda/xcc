@@ -5,19 +5,24 @@
 #include <stdint.h>
 
 typedef struct DataStorage DataStorage;
+typedef struct Expr Expr;
 typedef struct Function Function;
 typedef struct Table Table;
 typedef struct Type Type;
+typedef struct VarInfo VarInfo;
 typedef struct Vector Vector;
 
 extern const char RETVAL_NAME[];
 
 extern DataStorage *code;
 extern Table func_info_table;
+extern Table gvar_info_table;
 extern bool verbose;
 
 #define VERBOSES(str)  do { if (verbose) printf("%s", str); } while (0)
 #define VERBOSE(fmt, ...)  do { if (verbose) printf(fmt, __VA_ARGS__); } while (0)
+
+extern const char RETVAL_NAME[];
 
 typedef struct {
   Function *func;
@@ -27,10 +32,17 @@ typedef struct {
   uint32_t type_index;
 } FuncInfo;
 
+typedef struct {
+  VarInfo *varinfo;
+  uint32_t index;
+} GVarInfo;
+
 #define FF_REFERED   (1 << 0)
 
 // traverse
 void traverse_ast(Vector *decls, Vector *exports);
+
+GVarInfo *get_gvar_info(Expr *expr);
 
 // gen_wasm
 void gen(Vector *decls);

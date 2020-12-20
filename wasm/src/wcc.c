@@ -132,6 +132,30 @@ static void emit_wasm(FILE *ofp, Vector *exports) {
   emit_uleb128(&functions_section, 0, function_count);  // num functions
   emit_uleb128(&functions_section, 0, functions_section.len);  // Size
 
+  // Globals.
+  DataStorage globals_section;
+  data_init(&globals_section);
+  uint32_t globals_count = 0;
+  {
+    const Name *name;
+    GVarInfo *info;
+    for (int it = 0; (it = table_iterate(&gvar_info_table, it, &name, (void**)&info)) != -1; ) {
+      const VarInfo *varinfo = info->varinfo;
+      assert(is_fixnum(varinfo->type->kind));
+      data_push(&globals_section, WT_I32);
+      data_push(&globals_section, (varinfo->type->qualifier & TQ_CONST) == 0);  // global mutability
+      assert(varinfo->global.init == NULL || varinfo->global.init->kind == IK_SINGLE);
+      data_push(&globals_section, OP_I32_CONST);
+      emit_leb128(&globals_section, globals_section.len, varinfo->global.init != 0 ? varinfo->global.init->single->fixnum : 0);  // i32 literal
+      data_push(&globals_section, OP_END);
+      ++globals_count;
+    }
+  }
+  if (globals_count > 0) {
+    emit_uleb128(&globals_section, 0, globals_count);  // num globals
+    emit_uleb128(&globals_section, 0, globals_section.len);  // Size
+  }
+
   // Exports.
   DataStorage exports_section;
   data_init(&exports_section);
@@ -181,6 +205,12 @@ static void emit_wasm(FILE *ofp, Vector *exports) {
   // Functions
   data_push(&sections, SEC_FUNC);  // Section "Function" (3)
   data_append(&sections, functions_section.buf, functions_section.len);
+
+  // Globals
+  if (globals_count > 0) {
+    data_push(&sections, SEC_GLOBAL);  // Section "Global" (6)
+    data_append(&sections, globals_section.buf, globals_section.len);
+  }
 
   // Exports
   data_push(&sections, SEC_EXPORT);  // Section "Export" (7)

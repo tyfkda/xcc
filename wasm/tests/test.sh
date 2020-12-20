@@ -52,3 +52,4 @@ try_direct 'do-while' 55 'int main(){int acc=0, i=1; do {acc+=i; i+=1;} while (i
 try_direct 'for' 55 'int main(){int acc=0; for (int i=1; i<=10; i+=1) acc+=i; return acc;}'
 try_direct 'return in block' 55 'int main(){int acc=0, i=1; for (;;) {acc+=i; if (i==10) return acc; i+=1;}}'
 try_output_direct 'call imported func' '12321' 'void puti(int); int sq(int x){return x*x;} int main(){puti(sq(111)); return 0;}'
+try_direct 'global var' 24 'static int g; int main(){g+=10; g-=2; g*=3; return g;}'

@@ -4,7 +4,8 @@
 #include <stdlib.h>  // malloc
 
 #include "ast.h"
-#include "lexer.h"  // alloc_ident
+#include "lexer.h"  // alloc_ident, parse_error
+#include "parser.h"  // curscope
 #include "table.h"
 #include "type.h"
 #include "util.h"
@@ -13,6 +14,7 @@
 const char RETVAL_NAME[] = ".._RETVAL";
 
 Table func_info_table;
+Table gvar_info_table;
 
 static void register_func_info(const Name *funcname, Function *func, const Type *type, int flag) {
   FuncInfo *info;
@@ -25,6 +27,37 @@ static void register_func_info(const Name *funcname, Function *func, const Type 
   if (type != NULL)
     info->type = type;
   info->flag |= flag;
+}
+
+static GVarInfo *register_gvar_info(const Name *name, VarInfo *varinfo) {
+#if !defined(NDEBUG)
+  void *result;
+  assert(!table_try_get(&gvar_info_table, name, &result));
+#endif
+  GVarInfo *info = calloc(1, sizeof(*info));
+  info->varinfo = varinfo;
+  table_put(&gvar_info_table, name, info);
+  return info;
+}
+
+GVarInfo *get_gvar_info(Expr *expr) {
+  assert(expr->kind == EX_VAR);
+  Scope *scope;
+  VarInfo *varinfo = scope_find(expr->var.scope, expr->var.name, &scope);
+  assert(varinfo != NULL && scope == expr->var.scope);
+  if (!is_global_scope(scope)) {
+    if (varinfo->storage & VS_EXTERN) {
+      varinfo = scope_find(scope = global_scope, expr->var.name, &scope);
+    } else if (varinfo->storage & VS_STATIC) {
+      varinfo = varinfo->static_.gvar;
+    }
+  }
+  GVarInfo *info = NULL;
+  if (varinfo == NULL ||
+      (info = table_get(&gvar_info_table, varinfo->name)) == NULL) {
+    parse_error(expr->token, "Variable not found: %.*s", expr->var.name->bytes, expr->var.name->chars);
+  }
+  return info;
 }
 
 static void traverse_stmts(Vector *stmts);
@@ -130,7 +163,13 @@ static void traverse_stmt(Stmt *stmt) {
   switch (stmt->kind) {
   case ST_EXPR:  traverse_expr(stmt->expr); break;
   case ST_RETURN:  traverse_expr(stmt->return_.val); break;
-  case ST_BLOCK:  traverse_stmts(stmt->block.stmts); break;
+  case ST_BLOCK:
+    if (stmt->block.scope != NULL)
+      curscope = stmt->block.scope;
+    traverse_stmts(stmt->block.stmts);
+    if (stmt->block.scope != NULL)
+      curscope = curscope->parent;
+    break;
   case ST_IF:  traverse_expr(stmt->if_.cond); traverse_stmt(stmt->if_.tblock); traverse_stmt(stmt->if_.fblock); break;
   case ST_SWITCH:  traverse_expr(stmt->switch_.value); traverse_stmt(stmt->switch_.body); break;
   //case ST_CASE:  break;
@@ -141,7 +180,21 @@ static void traverse_stmt(Stmt *stmt) {
   //case ST_CONTINUE:  gen_continue(); break;
   //case ST_GOTO:  gen_goto(stmt); break;
   case ST_LABEL:  traverse_stmt(stmt->label.stmt); break;
-  case ST_VARDECL:  traverse_stmts(stmt->vardecl.inits); break;
+  case ST_VARDECL:
+    {
+      Vector *decls = stmt->vardecl.decls;
+      for (int i = 0, n = decls->len; i < n; ++i) {
+        VarDecl *d = decls->data[i];
+        if (d->storage & VS_STATIC) {
+          VarInfo *varinfo = scope_find(curscope, d->ident->ident, NULL);
+          assert(varinfo != NULL);
+          VarInfo *g = varinfo->static_.gvar;
+          register_gvar_info(g->name, g);
+        }
+      }
+      traverse_stmts(stmt->vardecl.inits);
+    }
+    break;
   //case ST_ASM:  break;
   default: break;
   }
@@ -171,7 +224,9 @@ static void traverse_defun(Function *func) {
   }
 
   register_func_info(func->name, func, func->type, 0);
+  curscope = func->scopes->data[0];
   traverse_stmts(func->stmts);
+  curscope = curscope->parent;
 }
 
 static void traverse_decl(Declaration *decl) {
@@ -183,6 +238,18 @@ static void traverse_decl(Declaration *decl) {
     traverse_defun(decl->defun.func);
     break;
   case DCL_VARDECL:
+    {
+      Vector *decls = decl->vardecl.decls;
+      for (int i = 0; i < decls->len; ++i) {
+        VarDecl *d = decls->data[i];
+        if (!(d->storage & VS_EXTERN)) {
+          const Name *name = d->ident->ident;
+          VarInfo *varinfo = scope_find(curscope, name, NULL);
+          assert(varinfo != NULL);
+          register_gvar_info(name, varinfo);
+        }
+      }
+    }
     break;
 
   default:
@@ -206,23 +273,38 @@ void traverse_ast(Vector *decls, Vector *exports) {
     register_func_info(name, NULL, info->type, FF_REFERED);
   }
 
-  VERBOSES("### Functions\n");
-  const Name *name;
-  FuncInfo *info;
-  // Enumerate imported functions.
-  int32_t index = 0;
-  for (int it = 0; (it = table_iterate(&func_info_table, it, &name, (void**)&info)) != -1; ) {
-    if (info->func != NULL)
-      continue;
-    info->index = index++;
-    VERBOSE("%2d: %.*s  (import)\n", info->index, name->bytes, name->chars);
+  {
+    // Enumerate imported functions.
+    VERBOSES("### Functions\n");
+    const Name *name;
+    FuncInfo *info;
+    int32_t index = 0;
+    for (int it = 0; (it = table_iterate(&func_info_table, it, &name, (void**)&info)) != -1; ) {
+      if (info->func != NULL)
+        continue;
+      info->index = index++;
+      VERBOSE("%2d: %.*s  (import)\n", info->index, name->bytes, name->chars);
+    }
+    // Enumerate defined and refered functions.
+    for (int it = 0; (it = table_iterate(&func_info_table, it, &name, (void**)&info)) != -1; ) {
+      if (info->func == NULL || info->flag == 0)
+        continue;
+      info->index = index++;
+      VERBOSE("%2d: %.*s\n", info->index, name->bytes, name->chars);
+    }
+    VERBOSES("\n");
   }
-  // Enumerate defined and refered functions.
-  for (int it = 0; (it = table_iterate(&func_info_table, it, &name, (void**)&info)) != -1; ) {
-    if (info->func == NULL || info->flag == 0)
-      continue;
-    info->index = index++;
-    VERBOSE("%2d: %.*s\n", info->index, name->bytes, name->chars);
+
+  if (gvar_info_table.count > 0) {
+    // Enumerate global variables.
+    VERBOSES("### Globals\n");
+    int32_t index = 0;
+    const Name *name;
+    GVarInfo *info;
+    for (int it = 0; (it = table_iterate(&gvar_info_table, it, &name, (void**)&info)) != -1; ) {
+      info->index = index++;
+      VERBOSE("%2d: %.*s\n", info->index, name->bytes, name->chars);
+    }
+    VERBOSES("\n");
   }
-  VERBOSES("\n");
 }

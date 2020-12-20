@@ -120,9 +120,12 @@ static void gen_expr(Expr *expr) {
         assert(vreg != NULL);
         ADD_CODE(OP_LOCAL_GET);
         ADD_ULEB128(vreg->local_index);
-        break;
+      } else {
+        GVarInfo *info = get_gvar_info(expr);
+        assert(info != NULL);
+        ADD_CODE(OP_GLOBAL_GET);
+        ADD_ULEB128(info->index);
       }
-      assert(!"Not implemented");
     }
     break;
 
@@ -171,8 +174,15 @@ static void gen_expr(Expr *expr) {
             gen_expr(expr->bop.rhs);
             ADD_CODE(OP_LOCAL_TEE);
             ADD_ULEB128(vreg->local_index);
-            break;
+          } else {
+            GVarInfo *info = get_gvar_info(lhs);
+            assert(info != NULL);
+            ADD_CODE(OP_GLOBAL_SET);
+            ADD_ULEB128(info->index);
+            ADD_CODE(OP_GLOBAL_GET);
+            ADD_ULEB128(info->index);
           }
+          break;
         }
         assert(!"Not implemented");
         break;
@@ -203,8 +213,15 @@ static void gen_expr(Expr *expr) {
             assert(varinfo->local.reg != NULL);
             ADD_CODE(OP_LOCAL_TEE);
             ADD_ULEB128(varinfo->local.reg->local_index);
-            return;
+          } else {
+            GVarInfo *info = get_gvar_info(lhs);
+            assert(info != NULL);
+            ADD_CODE(OP_GLOBAL_SET);
+            ADD_ULEB128(info->index);
+            ADD_CODE(OP_GLOBAL_GET);
+            ADD_ULEB128(info->index);
           }
+          return;
         }
         assert(!"Not implemented");
         break;
