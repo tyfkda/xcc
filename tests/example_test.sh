@@ -11,7 +11,8 @@ try() {
 
   $XCC $inputs || exit 1
 
-  local actual=`./a.out ${@:4}` || exit 1
+  local actual
+  actual=`./a.out ${@:4}` || exit 1
 
   if [ "$actual" = "$expected" ]; then
     echo "OK"

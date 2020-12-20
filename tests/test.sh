@@ -67,7 +67,8 @@ try_output_direct() {
   echo -e "$input" > $tmpfile
   $XCC $tmpfile || exit 1
 
-  local actual=`./a.out` || exit 1
+  local actual
+  actual=`./a.out` || exit 1
 
   if [ "$actual" = "$expected" ]; then
     echo "OK"
