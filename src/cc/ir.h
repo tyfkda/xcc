@@ -145,7 +145,7 @@ typedef struct IR {
       struct IR *precall;
       int reg_arg_count;
       bool global;
-      unsigned int arg_type_bits;
+      VRegType **arg_vtypes;
     } call;
     struct {
       int flag;  // VRTF_FLOAT
@@ -172,7 +172,7 @@ VReg *new_ir_cond(enum ConditionKind cond);
 void new_ir_jmp(enum ConditionKind cond, BB *bb);
 IR *new_ir_precall(int arg_count, int stack_args_size);
 void new_ir_pusharg(VReg *vreg, const VRegType *vtype);
-VReg *new_ir_call(const Name *label, bool global, VReg *freg, int reg_arg_count, const VRegType *result_type, IR *precall, unsigned int arg_type_bits);
+VReg *new_ir_call(const Name *label, bool global, VReg *freg, int reg_arg_count, const VRegType *result_type, IR *precall, VRegType **arg_vtypes);
 void new_ir_result(VReg *reg);
 void new_ir_addsp(int value);
 VReg *new_ir_cast(VReg *vreg, const VRegType *dsttype);

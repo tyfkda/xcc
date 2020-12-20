@@ -341,6 +341,9 @@ static VReg *gen_funcall(Expr *expr) {
     ret_varinfo->local.reg = retvar_reg = add_new_reg(expr->type, VRF_LOCAL);
   }
 
+  VRegType **arg_vtypes = (retvar_reg == NULL && arg_count <= 0) ? NULL :
+    calloc(arg_count + (retvar_reg != NULL ? 1 : 0), sizeof(*arg_vtypes));
+
   ArgInfo *arg_infos = NULL;
   int stack_arg_count = 0;
   if (args != NULL) {
@@ -351,7 +354,8 @@ static VReg *gen_funcall(Expr *expr) {
       // TODO:
     }
 
-    int ireg_index = retvar_reg != NULL ? 1 : 0;
+    int arg_start = retvar_reg != NULL ? 1 : 0;
+    int ireg_index = arg_start;
 #ifndef __NO_FLONUM
     int freg_index = 0;
 #endif
@@ -397,6 +401,11 @@ static VReg *gen_funcall(Expr *expr) {
           p->reg_index = ireg_index++;
       }
     }
+
+    for (int i = 0; i < arg_count; ++i) {
+      Expr *arg = args->data[i];
+      arg_vtypes[i + arg_start] = to_vtype(arg->type);
+    }
   }
   offset = ALIGN(offset, 8);
 
@@ -405,17 +414,12 @@ static VReg *gen_funcall(Expr *expr) {
   int reg_arg_count = 0;
   if (offset > 0)
     new_ir_addsp(-offset);
-  unsigned int arg_type_bits = 0;
   if (args != NULL) {
     // Register arguments.
     for (int i = arg_count; --i >= 0; ) {
       Expr *arg = args->data[i];
       VReg *reg = gen_expr(arg);
       const ArgInfo *p = &arg_infos[i];
-#ifndef __NO_FLONUM
-      if (p->is_flonum)
-        arg_type_bits |= 1 << i;
-#endif
       if (p->offset < 0) {
         new_ir_pusharg(reg, to_vtype(arg->type));
         ++reg_arg_count;
@@ -440,9 +444,10 @@ static VReg *gen_funcall(Expr *expr) {
   if (retvar_reg != NULL) {
     // gen_lval(retvar)
     VReg *dst = new_ir_bofs(retvar_reg);
-    new_ir_pusharg(dst, to_vtype(ptrof(expr->type)));
+    VRegType *vtype = to_vtype(ptrof(expr->type));
+    new_ir_pusharg(dst, vtype);
+    arg_vtypes[0] = vtype;
     ++reg_arg_count;
-    arg_type_bits <<= 1;
   }
 
   bool label_call = false;
@@ -462,10 +467,10 @@ static VReg *gen_funcall(Expr *expr) {
     VRegType *ret_vtype = to_vtype(type);
     if (label_call) {
       result_reg = new_ir_call(func->var.name, global, NULL, reg_arg_count, ret_vtype,
-                               precall, arg_type_bits);
+                               precall, arg_vtypes);
     } else {
       VReg *freg = gen_expr(func);
-      result_reg = new_ir_call(NULL, false, freg, reg_arg_count, ret_vtype, precall, arg_type_bits);
+      result_reg = new_ir_call(NULL, false, freg, reg_arg_count, ret_vtype, precall, arg_vtypes);
     }
   }
 

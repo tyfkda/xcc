@@ -352,14 +352,14 @@ IR *new_ir_precall(int arg_count, int stack_args_size) {
 }
 
 VReg *new_ir_call(const Name *label, bool global, VReg *freg, int reg_arg_count,
-                  const VRegType *result_type, IR *precall, unsigned int arg_type_bits) {
+                  const VRegType *result_type, IR *precall, VRegType **arg_vtypes) {
   IR *ir = new_ir(IR_CALL);
   ir->call.label = label;
   ir->call.global = global;
   ir->opr1 = freg;
   ir->call.precall = precall;
   ir->call.reg_arg_count = reg_arg_count;
-  ir->call.arg_type_bits = arg_type_bits;
+  ir->call.arg_vtypes = arg_vtypes;
   ir->size = result_type->size;
   return ir->dst = reg_alloc_spawn(curra, result_type, 0);
 }
@@ -1057,7 +1057,7 @@ static void ir_out(IR *ir) {
       int ireg = 0;
       for (int i = 0; i < reg_args; ++i) {
 #ifndef __NO_FLONUM
-        if (ir->call.arg_type_bits & (1 << i)) {
+        if (ir->call.arg_vtypes[i]->flag & VRTF_FLONUM) {
           MOVSD(INDIRECT(RSP, NULL, 1), kArgFReg64s[freg++]);
           ADD(IM(WORD_SIZE), RSP); POP_STACK_POS();
           continue;
