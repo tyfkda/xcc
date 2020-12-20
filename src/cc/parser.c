@@ -752,16 +752,20 @@ static Vector *parse_vardecl_cont(const Type *rawType, Type *type, int storage, 
       Vector *params = parse_funparams(&vaargs);
       Vector *param_types = extract_varinfo_types(params);
       type = new_func_type(type, params, param_types, vaargs);
-      tmp_storage |= VS_EXTERN;
     } else {
       not_void(type, NULL);
+    }
 
-      assert(!is_global_scope(curscope));
-      scope_add(curscope, ident, type, tmp_storage);
+    if (type->kind == TY_FUNC /* && !is_global_scope(curscope)*/) {
+      // Must be prototype.
+      tmp_storage |= VS_EXTERN;
+    }
 
-      if (!(storage & VS_TYPEDEF) && match(TK_ASSIGN)) {
-        init = parse_initializer();
-      }
+    assert(!is_global_scope(curscope));
+    scope_add(curscope, ident, type, tmp_storage);
+
+    if (!(storage & VS_TYPEDEF) && type->kind != TY_FUNC && match(TK_ASSIGN)) {
+      init = parse_initializer();
     }
 
     if (tmp_storage & VS_TYPEDEF) {
