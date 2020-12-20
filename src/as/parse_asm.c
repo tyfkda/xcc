@@ -316,10 +316,29 @@ static bool immediate(const char **pp, long *value) {
     negative = true;
     ++p;
   }
-  if (!isdigit(*p))
+
+  int base = 10;
+  if (*p == '0') {
+    char c = tolower(p[1]);
+    if (c == 'x') {
+      base = 16;
+      p += 2;
+      c = tolower(*p);
+      if (!isxdigit(c))
+        return false;
+    } else if (isdigit(c)) {
+      if (c >= '8')
+        return false;
+      base = 8;
+    }
+  }
+  const char *q = p;
+  unsigned long val = strtoul(p, (char**)&p, base);
+  if (p == q)
     return false;
-  unsigned long v = strtoul(p, (char**)pp, 10);
-  *value = negative ? -v : v;
+
+  *value = negative ? -val : val;
+  *pp = p;
   return true;
 }
 

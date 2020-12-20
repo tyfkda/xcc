@@ -414,9 +414,9 @@ static Token *read_num(const char **pp) {
       if (!isxdigit(c))
         lex_error(p, "Hexadecimal expected");
     } else if (isdigit(c)) {
-      base = 8;
-      if (!('0' <= c && c <= '7'))
+      if (c >= '8')
         lex_error(p, "Octal expected");
+      base = 8;
     }
   }
   const char *q = p;
