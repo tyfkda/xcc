@@ -166,9 +166,7 @@ static VReg *gen_cast(VReg *reg, const Type *dst_type) {
 
   if (reg->flag & VRF_CONST) {
 #ifndef __NO_FLONUM
-    if (reg->vtype->flag & VRTF_FLONUM) {
-      assert(!"Not implemented");
-    }
+    assert(!(reg->vtype->flag & VRTF_FLONUM));  // No const vreg for flonum.
 #endif
     intptr_t value = reg->fixnum;
     size_t dst_size = type_size(dst_type);
@@ -183,9 +181,6 @@ static VReg *gen_cast(VReg *reg, const Type *dst_type) {
         value &= ~mask;
     }
 
-#ifndef __NO_FLONUM
-    // TODO: Handle when dst is float.
-#endif
     VRegType *vtype = to_vtype(dst_type);
     return new_const_vreg(value, vtype);
   }
