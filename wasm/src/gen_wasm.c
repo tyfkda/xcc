@@ -155,6 +155,63 @@ static void gen_expr(Expr *expr) {
     gen_arith(EX_SUB, expr->type);
     break;
 
+  case EX_PREINC:
+  case EX_PREDEC:
+    {
+      assert(is_fixnum(expr->type->kind));
+      Expr *sub = expr->unary.sub;
+      assert(sub->kind == EX_VAR);
+      gen_expr(sub);
+      ADD_CODE(OP_I32_CONST, 1,
+               expr->kind == EX_PREINC ? OP_I32_ADD : OP_I32_SUB);
+
+      Scope *scope;
+      const VarInfo *varinfo = scope_find(sub->var.scope, sub->var.name, &scope);
+      assert(varinfo != NULL);
+      if (!is_global_scope(scope) && !(varinfo->storage & (VS_STATIC | VS_EXTERN))) {
+        VReg *vreg = varinfo->local.reg;
+        assert(vreg != NULL);
+        ADD_CODE(OP_LOCAL_TEE);
+        ADD_ULEB128(vreg->local_index);
+      } else {
+        GVarInfo *info = get_gvar_info(sub);
+        assert(info != NULL);
+        ADD_CODE(OP_GLOBAL_SET);
+        ADD_ULEB128(info->index);
+        ADD_CODE(OP_GLOBAL_GET);
+        ADD_ULEB128(info->index);
+      }
+    }
+    break;
+
+  case EX_POSTINC:
+  case EX_POSTDEC:
+    {
+      assert(is_fixnum(expr->type->kind));
+      Expr *sub = expr->unary.sub;
+      assert(sub->kind == EX_VAR);
+      gen_expr(sub);  // Push the result first.
+      gen_expr(sub);
+      ADD_CODE(OP_I32_CONST, 1,
+               expr->kind == EX_POSTINC ? OP_I32_ADD : OP_I32_SUB);
+
+      Scope *scope;
+      const VarInfo *varinfo = scope_find(sub->var.scope, sub->var.name, &scope);
+      assert(varinfo != NULL);
+      if (!is_global_scope(scope) && !(varinfo->storage & (VS_STATIC | VS_EXTERN))) {
+        VReg *vreg = varinfo->local.reg;
+        assert(vreg != NULL);
+        ADD_CODE(OP_LOCAL_SET);
+        ADD_ULEB128(vreg->local_index);
+      } else {
+        GVarInfo *info = get_gvar_info(sub);
+        assert(info != NULL);
+        ADD_CODE(OP_GLOBAL_SET);
+        ADD_ULEB128(info->index);
+      }
+    }
+    break;
+
   case EX_ASSIGN:
     {
       Expr *lhs = expr->bop.lhs;
