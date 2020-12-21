@@ -18,15 +18,19 @@
 #define ADD_LEB128(x)  emit_leb128(code, code->len, x)
 #define ADD_ULEB128(x) emit_uleb128(code, code->len, x)
 
+// TODO: Endian.
+#define ADD_F32(x)     do { float f = (x); add_code((unsigned char*)&f, sizeof(f)); } while (0)
+#define ADD_F64(x)     do { double d = (x); add_code((unsigned char*)&d, sizeof(d)); } while (0)
+
 DataStorage *code;
 
 static void add_code(const unsigned char* buf, size_t size) {
   data_append(code, buf, size);
 }
 
-void emit_leb128(DataStorage *data, size_t pos, int32_t val) {
+void emit_leb128(DataStorage *data, size_t pos, int64_t val) {
   unsigned char buf[5], *p = buf;
-  const int32_t MAX = 1 << 6;
+  const int64_t MAX = 1 << 6;
   for (;;) {
     if (val < MAX && val >= -MAX) {
       *p++ = val & 0x7f;
@@ -38,9 +42,9 @@ void emit_leb128(DataStorage *data, size_t pos, int32_t val) {
   }
 }
 
-void emit_uleb128(DataStorage *data, size_t pos, uint32_t val) {
+void emit_uleb128(DataStorage *data, size_t pos, uint64_t val) {
   unsigned char buf[5], *p = buf;
-  const uint32_t MAX = 1 << 7;
+  const uint64_t MAX = 1 << 7;
   for (;;) {
     if (val < MAX) {
       *p++ = val & 0x7f;
@@ -66,21 +70,108 @@ static void gen_expr(Expr *expr);
 
 static int cur_depth;
 
-static void gen_arith(enum ExprKind kind, const Type *type) {
-  UNUSED(type);
-  assert(is_fixnum(type->kind));
-  switch (kind) {
-  case EX_ADD:  ADD_CODE(OP_I32_ADD);  break;
-  case EX_SUB:  ADD_CODE(OP_I32_SUB);  break;
-  case EX_MUL:  ADD_CODE(OP_I32_MUL);  break;
-  case EX_DIV:  ADD_CODE(OP_I32_DIV_S);  break;
-  case EX_MOD:  ADD_CODE(OP_I32_REM_S);  break;
-
-  default:
-    fprintf(stderr, "kind=%d, ", kind);
-    assert(!"Not implemeneted");
-    break;
+unsigned char to_wtype(const Type *type) {
+  switch (type->kind) {
+  case TY_FIXNUM: return type_size(type) <= I32_SIZE ? WT_I32 : WT_I64;
+#ifndef __NO_FLONUM
+  case TY_FLONUM: return type->flonum.kind == FL_FLOAT ? WT_F32 : WT_F64;
+#endif
+  default: assert(!"Illegal"); break;
   }
+  return WT_I32;
+}
+
+static void gen_arith(enum ExprKind kind, const Type *type) {
+  assert(is_number(type));
+  int index = 0;
+#ifndef __NO_FLONUM
+  if (is_flonum(type)) {
+    assert(kind < EX_MOD);
+    index = type->flonum.kind != FL_FLOAT ? 3 : 2;
+  } else
+#endif
+  {
+    index = type_size(type) > I32_SIZE ? 1 : 0;
+  }
+
+  // unsigned?
+  static const unsigned char kOpTable[][EX_RSHIFT - EX_ADD + 1] = {
+    {OP_I32_ADD, OP_I32_SUB, OP_I32_MUL, OP_I32_DIV_S, OP_I32_REM_S, OP_I32_AND, OP_I32_OR, OP_I32_XOR, OP_I32_SHL, OP_I32_SHR_S},
+    {OP_I64_ADD, OP_I64_SUB, OP_I64_MUL, OP_I64_DIV_S, OP_I64_REM_S, OP_I64_AND, OP_I64_OR, OP_I64_XOR, OP_I64_SHL, OP_I64_SHR_S},
+    {OP_F32_ADD, OP_F32_SUB, OP_F32_MUL, OP_F32_DIV, OP_NOP, OP_NOP, OP_NOP, OP_NOP, OP_NOP, OP_NOP},
+    {OP_F64_ADD, OP_F64_SUB, OP_F64_MUL, OP_F64_DIV, OP_NOP, OP_NOP, OP_NOP, OP_NOP, OP_NOP, OP_NOP},
+  };
+
+  assert(EX_ADD <= kind && kind <= EX_RSHIFT);
+  assert(kOpTable[index][kind - EX_ADD] != OP_NOP);
+  ADD_CODE(kOpTable[index][kind - EX_ADD]);
+}
+
+static void gen_cast(const Type *dst, const Type *src) {
+  if (dst->kind == TY_VOID) {
+    ADD_CODE(OP_DROP);
+    return;
+  }
+
+  switch (dst->kind) {
+  case TY_FIXNUM:
+    switch (src->kind) {
+    case TY_FIXNUM:
+      {
+        int d = type_size(dst);
+        int s = type_size(src);
+        switch ((d > I32_SIZE ? 2 : 0) + (s > I32_SIZE ? 1 : 0)) {
+        case 1: ADD_CODE(OP_I32_WRAP_I64); break;
+        case 2: ADD_CODE(OP_I64_EXTEND_I32_S); break;
+        }
+      }
+      return;
+#ifndef __NO_FLONUM
+    case TY_FLONUM:
+      {
+        static const unsigned char OpTable[] = {
+          OP_I32_TRUNC_F32_S, OP_I32_TRUNC_F64_S,
+          OP_I64_TRUNC_F32_S, OP_I64_TRUNC_F64_S,
+        };
+        int d = type_size(dst);
+        int index = (d > I32_SIZE ? 2 : 0) + (src->flonum.kind != FL_FLOAT ? 1 : 0);
+        ADD_CODE(OpTable[index]);
+      }
+      return;
+#endif
+    default: break;
+    }
+    break;
+#ifndef __NO_FLONUM
+  case TY_FLONUM:
+    switch (src->kind) {
+    case TY_FIXNUM:
+      {
+        static const unsigned char OpTable[] = {
+          OP_F32_CONVERT_I32_S, OP_F32_CONVERT_I64_S,
+          OP_F64_CONVERT_I32_S, OP_F64_CONVERT_I64_S,
+        };
+        int s = type_size(src);
+        int index = (dst->flonum.kind != FL_FLOAT ? 2 : 0) + (s > I32_SIZE ? 1 : 0);
+        ADD_CODE(OpTable[index]);
+      }
+      return;
+    case TY_FLONUM:
+      {
+        assert(dst->flonum.kind != src->flonum.kind);
+        switch (dst->flonum.kind) {
+        case FL_FLOAT:  ADD_CODE(OP_F32_DEMOTE_F64); break;
+        case FL_DOUBLE: ADD_CODE(OP_F64_PROMOTE_F32); break;
+        }
+      }
+      return;
+    default: break;
+    }
+    break;
+#endif
+  default: break;
+  }
+  assert(!"Cast not handled");
 }
 
 static void gen_funcall(Expr *expr) {
@@ -104,14 +195,35 @@ static void gen_funcall(Expr *expr) {
 static void gen_expr(Expr *expr) {
   switch (expr->kind) {
   case EX_FIXNUM:
-    assert(expr->type->kind == TY_FIXNUM);
-    ADD_CODE(OP_I32_CONST);
-    ADD_LEB128(expr->fixnum);
+    {
+      if (type_size(expr->type) <= I32_SIZE) {
+        ADD_CODE(OP_I32_CONST);
+        ADD_LEB128((int32_t)expr->fixnum);
+      } else {
+        ADD_CODE(OP_I64_CONST);
+        ADD_LEB128(expr->fixnum);
+      }
+    }
     break;
+
+#ifndef __NO_FLONUM
+  case EX_FLONUM:
+    switch (expr->type->flonum.kind) {
+    case FL_FLOAT:
+      ADD_CODE(OP_F32_CONST);
+      ADD_F32(expr->flonum);
+      break;
+    case FL_DOUBLE:
+      ADD_CODE(OP_F64_CONST);
+      ADD_F64(expr->flonum);
+      break;
+    }
+    break;
+#endif
 
   case EX_VAR:
     {
-      assert(is_fixnum(expr->type->kind));
+      assert(is_number(expr->type));
       Scope *scope;
       const VarInfo *varinfo = scope_find(expr->var.scope, expr->var.name, &scope);
       assert(varinfo != NULL && scope == expr->var.scope);
@@ -149,10 +261,46 @@ static void gen_expr(Expr *expr) {
     break;
 
   case EX_NEG:
-    ADD_CODE(OP_I32_CONST);
-    ADD_LEB128(0);
+    switch (expr->type->kind) {
+    case TY_FIXNUM:
+      ADD_CODE(type_size(expr->type) <= I32_SIZE ? OP_I32_CONST : OP_I64_CONST);
+      ADD_LEB128(0);
+      break;
+#ifndef __NO_FLONUM
+    case TY_FLONUM:
+      switch (expr->type->flonum.kind) {
+      case FL_FLOAT:
+        ADD_CODE(OP_F32_CONST);
+        ADD_F32(0);
+        break;
+      case FL_DOUBLE:
+        ADD_CODE(OP_F64_CONST);
+        ADD_F64(0);
+        break;
+      default: assert(false); break;
+      break;
+      }
+      break;
+#endif
+    default: assert(false); break;
+    }
+
     gen_expr(expr->unary.sub);
     gen_arith(EX_SUB, expr->type);
+    break;
+
+  case EX_BITNOT:
+    {
+      gen_expr(expr->unary.sub);
+      unsigned char wt = to_wtype(expr->type);
+      switch (wt) {
+      case WT_I32:  ADD_CODE(OP_I32_CONST); break;
+      case WT_I64:  ADD_CODE(OP_I64_CONST); break;
+      default: assert(false); break;
+      }
+      ADD_LEB128(-1);
+      gen_arith(EX_BITXOR, expr->type);
+    }
     break;
 
   case EX_PREINC:
@@ -287,6 +435,11 @@ static void gen_expr(Expr *expr) {
     }
     break;
 
+  case EX_CAST:
+    gen_expr(expr->unary.sub);
+    gen_cast(expr->type, expr->unary.sub->type);
+    break;
+
   case EX_FUNCALL:
     gen_funcall(expr);
     break;
@@ -297,21 +450,29 @@ static void gen_expr(Expr *expr) {
 
 static void gen_compare_expr(enum ExprKind kind, Expr *lhs, Expr *rhs) {
   assert(lhs->type->kind == rhs->type->kind);
-  assert(is_fixnum(lhs->type->kind));
+  assert(is_number(lhs->type));
+
+  int index = 0;
+#ifndef __NO_FLONUM
+  if (is_flonum(lhs->type)) {
+    index = lhs->type->flonum.kind != FL_FLOAT ? 3 : 2;
+  } else
+#endif
+  {
+    index = type_size(lhs->type) > I32_SIZE ? 1 : 0;
+  }
 
   // unsigned?
+  static const unsigned char OpTable[][6] = {
+    {OP_I32_EQ, OP_I32_NE, OP_I32_LT_S, OP_I32_LE_S, OP_I32_GE_S, OP_I32_GT_S},
+    {OP_I64_EQ, OP_I64_NE, OP_I64_LT_S, OP_I64_LE_S, OP_I64_GE_S, OP_I64_GT_S},
+    {OP_F32_EQ, OP_F32_NE, OP_F32_LT, OP_F32_LE, OP_F32_GE, OP_F32_GT},
+    {OP_F64_EQ, OP_F64_NE, OP_F64_LT, OP_F64_LE, OP_F64_GE, OP_F64_GT},
+  };
 
   gen_expr(lhs);
   gen_expr(rhs);
-  switch (kind) {
-  case EX_EQ:  ADD_CODE(OP_I32_EQ); break;
-  case EX_NE:  ADD_CODE(OP_I32_NE); break;
-  case EX_LT:  ADD_CODE(OP_I32_LT_S); break;
-  case EX_LE:  ADD_CODE(OP_I32_LE_S); break;
-  case EX_GE:  ADD_CODE(OP_I32_GE_S); break;
-  case EX_GT:  ADD_CODE(OP_I32_GT_S); break;
-  default: assert(false); break;
-  }
+  ADD_CODE(OpTable[index][kind - EX_EQ]);
 }
 
 static void gen_cond(Expr *cond, bool tf) {
@@ -565,7 +726,6 @@ static void gen_defun(Function *func) {
         // Enum members are replaced to constant value.
         continue;
       }
-      assert(is_fixnum(varinfo->type->kind));
 
       VReg *vreg = malloc(sizeof(*vreg));
       varinfo->local.reg = vreg;
@@ -586,7 +746,7 @@ static void gen_defun(Function *func) {
         vreg->local_index = local_count++ + param_count;
         // TODO: Group same type variables.
         emit_uleb128(data, data->len, 1);  // TODO: Set type bytes.
-        data_push(data, WT_I32);
+        data_push(data, to_wtype(varinfo->type));
       }
     }
   }

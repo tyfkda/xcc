@@ -21,6 +21,58 @@ bool verbose;
 
 ////////////////////////////////////////////////
 
+static void construct_primitive_global(DataStorage *ds, const VarInfo *varinfo) {
+  const Type *type = varinfo->type;
+  Initializer *init = varinfo->global.init;
+  switch (type->kind) {
+  case TY_FIXNUM:
+  case TY_PTR:
+    {
+      Fixnum v = 0;
+      if (init != NULL) {
+        assert(init->kind == IK_SINGLE);
+        Expr *value = init->single;
+        switch (value->kind) {
+        case EX_FIXNUM:
+          v = value->fixnum;
+          break;
+        default: assert(false); break;
+        }
+      }
+      data_push(ds, type_size(type) <= I32_SIZE ? OP_I32_CONST : OP_I64_CONST);
+      emit_leb128(ds, ds->len, v);
+    }
+    break;
+#ifndef __NO_FLONUM
+  case TY_FLONUM:
+    {
+      double v = 0;
+      if (init != NULL) {
+        assert(init->kind == IK_SINGLE);
+        Expr *expr = init->single;
+        switch (expr->kind) {
+        case EX_FLONUM:
+          v = expr->flonum;
+          break;
+        default: assert(false); break;
+        }
+      }
+      if (type->flonum.kind < FL_DOUBLE) {
+        data_push(ds, OP_F32_CONST);
+        float f = v;
+        data_append(ds, (unsigned char*)&f, sizeof(float));  // TODO: Endian
+      } else {
+        data_push(ds, OP_F64_CONST);
+        double d = v;
+        data_append(ds, (unsigned char*)&d, sizeof(double));  // TODO: Endian
+      }
+    }
+    break;
+#endif
+  default: assert(false); break;
+  }
+}
+
 static void emit_wasm(FILE *ofp, Vector *exports) {
   emit_wasm_header(ofp);
 
@@ -45,16 +97,20 @@ static void emit_wasm(FILE *ofp, Vector *exports) {
       if (type_index >= types->len) {
         vec_push(types, type);
         data_push(&types_section, WT_FUNC);  // func
-        int param_count = type->func.params != NULL ? type->func.params->len : 0;
+        const Vector *params = type->func.params;
+        int param_count = params != NULL ? params->len : 0;
         emit_uleb128(&types_section, types_section.len, param_count);  // num params
         for (int i = 0; i < param_count; ++i) {
-          data_push(&types_section, WT_I32);  // TODO:
+          VarInfo *varinfo = params->data[i];
+          assert(is_number(varinfo->type));
+          data_push(&types_section, to_wtype(varinfo->type));
         }
         if (type->func.ret->kind == TY_VOID) {
           data_push(&types_section, 0);  // num results
         } else {
+          assert(is_number(type->func.ret));
           data_push(&types_section, 1);  // num results
-          data_push(&types_section, WT_I32);  // TODO:
+          data_push(&types_section, to_wtype(type->func.ret));
         }
       }
       info->type_index = type_index;
@@ -141,12 +197,12 @@ static void emit_wasm(FILE *ofp, Vector *exports) {
     GVarInfo *info;
     for (int it = 0; (it = table_iterate(&gvar_info_table, it, &name, (void**)&info)) != -1; ) {
       const VarInfo *varinfo = info->varinfo;
-      assert(is_fixnum(varinfo->type->kind));
-      data_push(&globals_section, WT_I32);
+      assert(is_number(varinfo->type));
+      unsigned char wt = to_wtype(varinfo->type);
+      data_push(&globals_section, wt);
       data_push(&globals_section, (varinfo->type->qualifier & TQ_CONST) == 0);  // global mutability
       assert(varinfo->global.init == NULL || varinfo->global.init->kind == IK_SINGLE);
-      data_push(&globals_section, OP_I32_CONST);
-      emit_leb128(&globals_section, globals_section.len, varinfo->global.init != 0 ? varinfo->global.init->single->fixnum : 0);  // i32 literal
+      construct_primitive_global(&globals_section, varinfo);
       data_push(&globals_section, OP_END);
       ++globals_count;
     }

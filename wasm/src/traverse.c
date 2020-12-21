@@ -216,7 +216,7 @@ static void traverse_defun(Function *func) {
 
   const Type *functype = func->type;
   if (functype->func.ret->kind != TY_VOID) {
-    assert(is_fixnum(functype->func.ret->kind));
+    assert(is_number(functype->func.ret) || functype->func.ret->kind == TY_PTR);
     // Add local variable for return value.
     const Name *name = alloc_name(RETVAL_NAME, NULL, false);
     const Token *ident = alloc_ident(name, NULL, NULL);

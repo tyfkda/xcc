@@ -12,6 +12,8 @@ typedef struct Type Type;
 typedef struct VarInfo VarInfo;
 typedef struct Vector Vector;
 
+#define I32_SIZE  (4)  //sizeof(int32_t)
+
 extern const char RETVAL_NAME[];
 
 extern DataStorage *code;
@@ -46,8 +48,9 @@ GVarInfo *get_gvar_info(Expr *expr);
 
 // gen_wasm
 void gen(Vector *decls);
-void emit_leb128(DataStorage *data, size_t pos, int32_t val);
-void emit_uleb128(DataStorage *data, size_t pos, uint32_t val);
+void emit_leb128(DataStorage *data, size_t pos, int64_t val);
+void emit_uleb128(DataStorage *data, size_t pos, uint64_t val);
+unsigned char to_wtype(const Type *type);
 
 // wcc_util
 typedef struct DataStorage {
