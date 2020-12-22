@@ -36,7 +36,14 @@ typedef struct {
 
 typedef struct {
   VarInfo *varinfo;
-  uint32_t index;
+  union {
+    struct {
+      uint32_t index;
+    } prim;
+    struct {
+      uint32_t address;
+    } non_prim;
+  };
 } GVarInfo;
 
 #define FF_REFERED   (1 << 0)
@@ -44,6 +51,7 @@ typedef struct {
 // traverse
 void traverse_ast(Vector *decls, Vector *exports);
 
+bool is_prim_type(const Type *type);
 GVarInfo *get_gvar_info(Expr *expr);
 
 // gen_wasm

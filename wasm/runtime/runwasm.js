@@ -19,6 +19,7 @@ async function createWasm(wasmFile, imports) {
 
   const [_node, _file, wasmFile, funcName, ...args] = process.argv
 
+  const memory = new WebAssembly.Memory({initial:10, maximum:100})
   const imports = {
     c: {
       puti: (x) => {
@@ -27,6 +28,9 @@ async function createWasm(wasmFile, imports) {
       exit: (x) => {
         process.exit(x)
       },
+    },
+    env: {
+      memory,
     },
   }
 

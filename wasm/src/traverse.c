@@ -16,6 +16,10 @@ const char RETVAL_NAME[] = ".._RETVAL";
 Table func_info_table;
 Table gvar_info_table;
 
+bool is_prim_type(const Type *type) {
+  return is_number(type);
+}
+
 static void register_func_info(const Name *funcname, Function *func, const Type *type, int flag) {
   FuncInfo *info;
   if (!table_try_get(&func_info_table, funcname, (void**)&info)) {
@@ -344,12 +348,40 @@ void traverse_ast(Vector *decls, Vector *exports) {
   if (gvar_info_table.count > 0) {
     // Enumerate global variables.
     VERBOSES("### Globals\n");
-    int32_t index = 0;
+    uint32_t index = 0;
+    uint32_t address = 1;  // Avoid valid poiter is NULL.
     const Name *name;
     GVarInfo *info;
+    // Primitive types, or with initializer (DATA).
     for (int it = 0; (it = table_iterate(&gvar_info_table, it, &name, (void**)&info)) != -1; ) {
-      info->index = index++;
-      VERBOSE("%2d: %.*s\n", info->index, name->bytes, name->chars);
+      const VarInfo *varinfo = info->varinfo;
+      if (!is_prim_type(varinfo->type))
+        continue;
+      info->prim.index = index++;
+      VERBOSE("%2d: %.*s\n", info->prim.index, name->bytes, name->chars);
+    }
+    // Primitive types, or with initializer (DATA).
+    VERBOSES("\n### Memory\n");
+    for (int it = 0; (it = table_iterate(&gvar_info_table, it, &name, (void**)&info)) != -1; ) {
+      const VarInfo *varinfo = info->varinfo;
+      if (is_prim_type(varinfo->type) || varinfo->global.init == NULL)
+        continue;
+      // Mapped to memory, with initializer
+      address = ALIGN(address, align_size(varinfo->type));
+      info->non_prim.address = address;
+      address += type_size(varinfo->type);
+      VERBOSE("%04x: %.*s\n", info->non_prim.address, name->bytes, name->chars);
+    }
+    VERBOSES("---- BSS\n");
+    // Mapped to memory, without initialzer (BSS).
+    for (int it = 0; (it = table_iterate(&gvar_info_table, it, &name, (void**)&info)) != -1; ) {
+      const VarInfo *varinfo = info->varinfo;
+      if (is_prim_type(varinfo->type) || varinfo->global.init != NULL)
+        continue;
+      address = ALIGN(address, align_size(varinfo->type));
+      info->non_prim.address = address;
+      address += type_size(varinfo->type);
+      VERBOSE("%04x: %.*s\n", info->non_prim.address, name->bytes, name->chars);
     }
     VERBOSES("\n");
   }

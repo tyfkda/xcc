@@ -1,6 +1,7 @@
 #include "wcc.h"
 
 #include <assert.h>
+#include <limits.h>  // CHAR_BIT
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -16,6 +17,7 @@
 #include "wasm_util.h"
 
 static const char IMPORT_MODULE_NAME[] = "c";
+static const char IMPORT_MODULE_ENV_NAME[] = "env";
 
 bool verbose;
 
@@ -70,6 +72,133 @@ static void construct_primitive_global(DataStorage *ds, const VarInfo *varinfo) 
     break;
 #endif
   default: assert(false); break;
+  }
+}
+
+static void construct_initial_value(DataStorage *ds, const Type *type, const Initializer *init) {
+  assert(init == NULL || init->kind != IK_DOT);
+
+  switch (type->kind) {
+  case TY_FIXNUM:
+    {
+      Fixnum v = 0;
+      if (init != NULL) {
+        assert(init->kind == IK_SINGLE);
+        Expr *value = init->single;
+        if (!(is_const(value) && is_fixnum(value->type->kind)))
+          error("Illegal initializer: constant number expected");
+        v = value->fixnum;
+      }
+
+      unsigned char buf[16];
+      int size = type_size(type);
+      assert(size <= (int)sizeof(buf));
+      for (int i = 0; i < size; ++i)
+        buf[i] = v >> (i * CHAR_BIT);  // Little endian
+
+      data_append(ds, buf, size);
+    }
+    break;
+#ifndef __NO_FLONUM
+  case TY_FLONUM:
+    {
+      double v = 0;
+      if (init != NULL) {
+        assert(init->kind == IK_SINGLE);
+        Expr *expr = init->single;
+        switch (expr->kind) {
+        case EX_FLONUM:
+          v = expr->flonum;
+          break;
+        default: assert(false); break;
+        }
+      }
+      if (type->flonum.kind < FL_DOUBLE) {
+        float f = v;
+        data_append(ds, (unsigned char*)&f, sizeof(float));  // TODO: Endian
+      } else {
+        double d = v;
+        data_append(ds, (unsigned char*)&d, sizeof(double));  // TODO: Endian
+      }
+    }
+    break;
+#endif
+  case TY_ARRAY:
+    if (init == NULL || init->kind == IK_MULTI) {
+      const Type *elem_type = type->pa.ptrof;
+      //size_t elem_size = type_size(elem_type);
+      if (init != NULL) {
+        Vector *init_array = init->multi;
+        size_t index = 0;
+        size_t len = init_array->len;
+        for (size_t i = 0; i < len; ++i, ++index) {
+          const Initializer *init_elem = init_array->data[i];
+          if (init_elem->kind == IK_ARR) {
+            size_t next = init_elem->arr.index->fixnum;
+            for (size_t j = index; j < next; ++j)
+              construct_initial_value(ds, elem_type, NULL);
+            index = next;
+            init_elem = init_elem->arr.value;
+          }
+          construct_initial_value(ds, elem_type, init_elem);
+        }
+        // Padding
+        for (size_t i = index, n = type->pa.length; i < n; ++i)
+          construct_initial_value(ds, elem_type, NULL);
+      }
+    } else {
+      if (init->kind == IK_SINGLE && is_char_type(type->pa.ptrof) && init->single->kind == EX_STR) {
+        size_t src_size = init->single->str.size;
+        size_t size = type_size(type);
+        assert(size >= (size_t)src_size);
+        if (size > src_size) {
+          unsigned char *buf = calloc(1, size);
+          assert(buf != NULL);
+          memcpy(buf, init->single->str.buf, src_size);
+          data_append(ds, buf, size);
+          free(buf);
+        } else {
+          data_append(ds, (unsigned char*)init->single->str.buf, src_size);
+        }
+      } else {
+        error("Illegal initializer");
+      }
+    }
+    break;
+  default: assert(false); break;
+  }
+}
+
+static void construct_data_segment(DataStorage *ds) {
+  // Enumerate global variables.
+  const Name *name;
+  GVarInfo *info;
+  uint32_t address = 0;
+
+  unsigned char *zerobuf = NULL;
+  size_t zerosz = 0;
+
+  for (int it = 0; (it = table_iterate(&gvar_info_table, it, &name, (void**)&info)) != -1; ) {
+    const VarInfo *varinfo = info->varinfo;
+    if (is_prim_type(varinfo->type) || varinfo->global.init == NULL)
+      continue;
+    uint32_t adr = info->non_prim.address;
+    assert(adr >= address);
+    if (adr > address) {
+      uint32_t sz = adr - address;
+      if (sz > zerosz) {
+        zerobuf = realloc(zerobuf, sz);
+        if (zerobuf == NULL)
+          error("Out of memory");
+        memset(zerobuf + zerosz, 0x00, sz - zerosz);
+        zerosz = sz;
+      }
+      data_append(ds, zerobuf, sz);
+    }
+
+    construct_initial_value(ds, varinfo->type, varinfo->global.init);
+
+    address = adr + type_size(varinfo->type);
   }
 }
 
@@ -159,10 +288,25 @@ static void emit_wasm(FILE *ofp, Vector *exports) {
       int name_len = name->bytes;
       emit_uleb128(&imports_section, imports_section.len, name_len);  // string length
       data_append(&imports_section, (const unsigned char*)name->chars, name_len);  // import name
-      emit_uleb128(&imports_section, imports_section.len, 0);  // import kind (function)
+      emit_uleb128(&imports_section, imports_section.len, IMPORT_FUNC);  // import kind
       emit_uleb128(&imports_section, imports_section.len, type_index);  // import signature index
       ++imports_count;
     }
+  }
+  {  // TODO: If needed.
+    // Import memory "env.memory".
+    const char *module_name = IMPORT_MODULE_ENV_NAME;
+    size_t module_name_len = strlen(module_name);
+    emit_uleb128(&imports_section, imports_section.len, module_name_len);  // string length
+    data_append(&imports_section, (const unsigned char*)module_name, module_name_len);  // import module name
+    const char *name = "memory";
+    size_t name_len = strlen(name);
+    emit_uleb128(&imports_section, imports_section.len, name_len);  // string length
+    data_append(&imports_section, (const unsigned char*)name, name_len);  // import name
+    emit_uleb128(&imports_section, imports_section.len, IMPORT_MEMORY);  // import kind (function)
+    emit_uleb128(&imports_section, imports_section.len, 0);  // limits: flags
+    emit_uleb128(&imports_section, imports_section.len, 1);  // limits: initial
+    ++imports_count;
   }
   if (imports_count > 0) {
     emit_uleb128(&imports_section, 0, imports_count);  // num imports
@@ -197,7 +341,8 @@ static void emit_wasm(FILE *ofp, Vector *exports) {
     GVarInfo *info;
     for (int it = 0; (it = table_iterate(&gvar_info_table, it, &name, (void**)&info)) != -1; ) {
       const VarInfo *varinfo = info->varinfo;
-      assert(is_number(varinfo->type));
+      if (!is_prim_type(varinfo->type))
+        continue;
       unsigned char wt = to_wtype(varinfo->type);
       data_push(&globals_section, wt);
       data_push(&globals_section, (varinfo->type->qualifier & TQ_CONST) == 0);  // global mutability
@@ -307,6 +452,31 @@ static void emit_wasm(FILE *ofp, Vector *exports) {
         continue;
       DataStorage *code = (DataStorage*)func->bbcon;
       fwrite(code->buf, code->len, 1, ofp);
+    }
+  }
+
+  // Data
+  {
+    DataStorage datasec;
+    data_init(&datasec);
+    construct_data_segment(&datasec);
+    if (datasec.len > 0) {
+      static const unsigned char seg_info[] = {
+        0x01,             // num data segments
+        0x00,             // segment flags
+        OP_I32_CONST, 0,  // i32.const 0
+        OP_END,
+      };
+      size_t datasize = datasec.len;
+      data_insert(&datasec, 0, seg_info, sizeof(seg_info));
+      emit_uleb128(&datasec, sizeof(seg_info), datasize);  // data segment size
+
+      static const unsigned char sec[] = {SEC_DATA};
+      size_t section_size = datasec.len;
+      data_insert(&datasec, 0, sec, sizeof(sec));
+      emit_uleb128(&datasec, sizeof(sec), section_size);  // section size
+
+      fwrite(datasec.buf, datasec.len, 1, ofp);
     }
   }
 }

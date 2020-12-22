@@ -60,7 +60,12 @@ void emit_uleb128(DataStorage *data, size_t pos, uint64_t val) {
 
 // Local variable information for WASM
 struct VReg {
-  uint32_t local_index;
+  int32_t param_index;
+  union {
+    struct {  // Primitive(i32, i64, f32, f64)
+      uint32_t local_index;
+    } prim;
+  };
 };
 
 static void gen_stmt(Stmt *stmt);
@@ -76,9 +81,49 @@ unsigned char to_wtype(const Type *type) {
 #ifndef __NO_FLONUM
   case TY_FLONUM: return type->flonum.kind == FL_FLOAT ? WT_F32 : WT_F64;
 #endif
+  case TY_PTR:
+  case TY_ARRAY:
+    // Pointer and array is handled as an index of linear memroy.
+    return WT_I32;
   default: assert(!"Illegal"); break;
   }
   return WT_I32;
+}
+
+static void gen_load(const Type *type) {
+  switch (type->kind) {
+  case TY_FIXNUM:
+    switch (type->fixnum.kind) {
+    case FX_CHAR:   ADD_CODE(OP_I32_LOAD8_S, 0, 0); break;
+    case FX_SHORT:  ADD_CODE(OP_I32_LOAD16_S, 1, 0); break;
+    case FX_INT: case FX_ENUM:
+      ADD_CODE(OP_I32_LOAD, 2, 0);
+      break;
+    case FX_LONG: case FX_LLONG:
+      ADD_CODE(OP_I64_LOAD, 3, 0); break;
+      break;
+    }
+    break;
+  default: assert(false); break;
+  }
+}
+
+static void gen_store(const Type *type) {
+  switch (type->kind) {
+  case TY_FIXNUM:
+    switch (type->fixnum.kind) {
+    case FX_CHAR:   ADD_CODE(OP_I32_STORE8, 0, 0); break;
+    case FX_SHORT:  ADD_CODE(OP_I32_STORE16, 1, 0); break;
+    case FX_INT: case FX_ENUM:
+      ADD_CODE(OP_I32_STORE, 2, 0);
+      break;
+    case FX_LONG: case FX_LLONG:
+      ADD_CODE(OP_I64_STORE, 3, 0); break;
+      break;
+    }
+    break;
+  default: assert(false); break;
+  }
 }
 
 static void gen_arith(enum ExprKind kind, const Type *type) {
@@ -192,6 +237,98 @@ static void gen_funcall(Expr *expr) {
   ADD_ULEB128(func_index);
 }
 
+static void gen_lval(Expr *expr) {
+  switch (expr->kind) {
+  case EX_VAR:
+    {
+      assert(!is_prim_type(expr->type));
+      Scope *scope;
+      const VarInfo *varinfo = scope_find(expr->var.scope, expr->var.name, &scope);
+      assert(varinfo != NULL && scope == expr->var.scope);
+      if (is_global_scope(scope) || (varinfo->storage & (VS_STATIC | VS_EXTERN))) {
+        GVarInfo *info = get_gvar_info(expr);
+        assert(info != NULL);
+        ADD_CODE(OP_I32_CONST);
+        ADD_LEB128(info->non_prim.address);
+      } else {
+        assert(!"Not implemented");
+        //return new_ir_bofs(varinfo->local.reg);*/
+      }
+    }
+    return;
+  case EX_DEREF:
+    gen_expr(expr->unary.sub, true);
+    return;
+  /*case EX_MEMBER:
+    {
+      const Type *type = expr->member.target->type;
+      if (ptr_or_array(type))
+        type = type->pa.ptrof;
+      assert(type->kind == TY_STRUCT);
+      const Vector *members = type->struct_.info->members;
+      const VarInfo *member = members->data[expr->member.index];
+
+      VReg *reg = gen_expr(expr->member.target);
+      if (member->struct_member.offset == 0)
+        return reg;
+      VRegType *vtype = to_vtype(&tySize);
+      VReg *imm = new_const_vreg(member->struct_member.offset, vtype);
+      VReg *result = new_ir_bop(IR_ADD, reg, imm, vtype);
+      return result;
+    }
+  case EX_COMPLIT:
+    {
+      Expr *var = expr->complit.var;
+      assert(var->var.scope != NULL);
+      const VarInfo *varinfo = scope_find(var->var.scope, var->var.name, NULL);
+      assert(varinfo != NULL);
+      assert(varinfo->local.reg != NULL);
+      varinfo->local.reg->flag |= VRF_REF;
+
+      gen_stmts(expr->complit.inits);
+      return gen_lval(expr->complit.var);
+    }*/
+  default: assert(false); break;
+  }
+}
+
+static void gen_var(Expr *expr) {
+  switch (expr->type->kind) {
+  case TY_FIXNUM:
+  case TY_PTR:
+#ifndef __NO_FLONUM
+  case TY_FLONUM:
+#endif
+    {
+      assert(is_number(expr->type));
+      Scope *scope;
+      const VarInfo *varinfo = scope_find(expr->var.scope, expr->var.name, &scope);
+      assert(varinfo != NULL && scope == expr->var.scope);
+      if (!is_global_scope(scope) && !(varinfo->storage & (VS_STATIC | VS_EXTERN))) {
+        VReg *vreg = varinfo->local.reg;
+        assert(vreg != NULL);
+        ADD_CODE(OP_LOCAL_GET);
+        ADD_ULEB128(vreg->prim.local_index);
+      } else {
+        GVarInfo *info = get_gvar_info(expr);
+        assert(info != NULL);
+        ADD_CODE(OP_GLOBAL_GET);
+        ADD_ULEB128(info->non_prim.address);
+      }
+    }
+    break;
+
+  default:
+    assert(false);
+    // Fallthrough to suppress compile error.
+  case TY_ARRAY:   // Use variable address as a pointer.
+  case TY_STRUCT:  // struct value is handled as a pointer.
+  case TY_FUNC:
+    gen_lval(expr);
+    return;
+  }
+}
+
 static void gen_expr(Expr *expr, bool needval) {
   switch (expr->kind) {
   case EX_FIXNUM:
@@ -224,23 +361,8 @@ static void gen_expr(Expr *expr, bool needval) {
 #endif
 
   case EX_VAR:
-    if (needval) {
-      assert(is_number(expr->type));
-      Scope *scope;
-      const VarInfo *varinfo = scope_find(expr->var.scope, expr->var.name, &scope);
-      assert(varinfo != NULL && scope == expr->var.scope);
-      if (!is_global_scope(scope) && !(varinfo->storage & (VS_STATIC | VS_EXTERN))) {
-        VReg *vreg = varinfo->local.reg;
-        assert(vreg != NULL);
-        ADD_CODE(OP_LOCAL_GET);
-        ADD_ULEB128(vreg->local_index);
-      } else {
-        GVarInfo *info = get_gvar_info(expr);
-        assert(info != NULL);
-        ADD_CODE(OP_GLOBAL_GET);
-        ADD_ULEB128(info->index);
-      }
-    }
+    if (needval)
+      gen_var(expr);
     break;
 
   case EX_ADD:
@@ -257,6 +379,23 @@ static void gen_expr(Expr *expr, bool needval) {
     gen_expr(expr->bop.rhs, needval);
     if (needval)
       gen_arith(expr->kind, expr->type);
+    break;
+
+  case EX_PTRADD:
+  case EX_PTRSUB:
+    {
+      assert(expr->type->kind == TY_PTR);
+      gen_expr(expr->bop.lhs, needval);
+      gen_expr(expr->bop.rhs, needval);
+      if (needval) {
+        gen_cast(&tyInt, expr->bop.rhs->type);
+        size_t scale = type_size(expr->type->pa.ptrof);
+        ADD_CODE(OP_I32_CONST);
+        ADD_LEB128(scale);
+        ADD_CODE(OP_I32_MUL);
+        ADD_CODE(expr->kind == EX_PTRADD ? OP_I32_ADD : OP_I32_SUB);
+      }
+    }
     break;
 
   case EX_POS:
@@ -327,15 +466,15 @@ static void gen_expr(Expr *expr, bool needval) {
         VReg *vreg = varinfo->local.reg;
         assert(vreg != NULL);
         ADD_CODE(needval ? OP_LOCAL_TEE : OP_LOCAL_SET);
-        ADD_ULEB128(vreg->local_index);
+        ADD_ULEB128(vreg->prim.local_index);
       } else {
         GVarInfo *info = get_gvar_info(sub);
         assert(info != NULL);
         ADD_CODE(OP_GLOBAL_SET);
-        ADD_ULEB128(info->index);
+        ADD_ULEB128(info->prim.index);
         if (needval) {
           ADD_CODE(OP_GLOBAL_GET);
-          ADD_ULEB128(info->index);
+          ADD_ULEB128(info->prim.index);
         }
       }
     }
@@ -360,12 +499,12 @@ static void gen_expr(Expr *expr, bool needval) {
         VReg *vreg = varinfo->local.reg;
         assert(vreg != NULL);
         ADD_CODE(OP_LOCAL_SET);
-        ADD_ULEB128(vreg->local_index);
+        ADD_ULEB128(vreg->prim.local_index);
       } else {
         GVarInfo *info = get_gvar_info(sub);
         assert(info != NULL);
         ADD_CODE(OP_GLOBAL_SET);
-        ADD_ULEB128(info->index);
+        ADD_ULEB128(info->prim.index);
       }
     }
     break;
@@ -381,24 +520,26 @@ static void gen_expr(Expr *expr, bool needval) {
       case TY_FLONUM:
 #endif
         if (expr->bop.lhs->kind == EX_VAR) {
+          gen_expr(expr->bop.rhs, true);
           Scope *scope;
           const VarInfo *varinfo = scope_find(lhs->var.scope, lhs->var.name, &scope);
           assert(varinfo != NULL);
           if (!is_global_scope(scope) && !(varinfo->storage & (VS_STATIC | VS_EXTERN))) {
             VReg *vreg = varinfo->local.reg;
             assert(vreg != NULL);
-            gen_expr(expr->bop.rhs, true);
             ADD_CODE(OP_LOCAL_SET);
-            ADD_ULEB128(vreg->local_index);
+            ADD_ULEB128(vreg->prim.local_index);
           } else {
             GVarInfo *info = get_gvar_info(lhs);
             assert(info != NULL);
             ADD_CODE(OP_GLOBAL_SET);
-            ADD_ULEB128(info->index);
+            ADD_ULEB128(info->prim.index);
           }
-          break;
+        } else {
+          gen_lval(expr->bop.lhs);
+          gen_expr(expr->bop.rhs, true);
+          gen_store(expr->bop.lhs->type);
         }
-        assert(!"Not implemented");
         break;
       default: assert(false); break;
       }
@@ -427,12 +568,12 @@ static void gen_expr(Expr *expr, bool needval) {
           if (!is_global_scope(scope) && !(varinfo->storage & (VS_STATIC | VS_EXTERN))) {
             assert(varinfo->local.reg != NULL);
             ADD_CODE(OP_LOCAL_SET);
-            ADD_ULEB128(varinfo->local.reg->local_index);
+            ADD_ULEB128(varinfo->local.reg->prim.local_index);
           } else {
             GVarInfo *info = get_gvar_info(lhs);
             assert(info != NULL);
             ADD_CODE(OP_GLOBAL_SET);
-            ADD_ULEB128(info->index);
+            ADD_ULEB128(info->prim.index);
           }
           return;
         }
@@ -452,6 +593,32 @@ static void gen_expr(Expr *expr, bool needval) {
     gen_expr(expr->unary.sub, needval);
     if (needval)
       gen_cast(expr->type, expr->unary.sub->type);
+    break;
+
+  case EX_DEREF:
+    gen_expr(expr->unary.sub, needval);
+    if (needval) {
+      switch (expr->type->kind) {
+      case TY_FIXNUM:
+      case TY_PTR:
+#ifndef __NO_FLONUM
+      case TY_FLONUM:
+#endif
+        //result = new_ir_unary(IR_LOAD, reg, to_vtype(expr->type));
+        //return result;
+        gen_load(expr->type);
+        return;
+
+      default:
+        assert(false);
+        // Fallthrough to suppress compile error.
+      case TY_ARRAY:
+      case TY_STRUCT:
+      case TY_FUNC:
+        // array, struct and func values are handled as a pointer.
+        return;
+      }
+    }
     break;
 
   case EX_FUNCALL:
@@ -630,7 +797,7 @@ static void gen_return(Stmt *stmt) {
     VarInfo *varinfo = scope_find(curfunc->scopes->data[0], name, NULL);
     assert(varinfo != NULL);
     ADD_CODE(OP_LOCAL_SET);
-    ADD_ULEB128(varinfo->local.reg->local_index);
+    ADD_ULEB128(varinfo->local.reg->prim.local_index);
   }
   ADD_CODE(OP_BR);
   ADD_ULEB128(cur_depth - 1);
@@ -754,10 +921,11 @@ static void gen_defun(Function *func) {
           }
         }
       }
+      vreg->param_index = param_index;
       if (param_index >= 0) {
-        vreg->local_index = param_index;
+        vreg->prim.local_index = param_index;
       } else {
-        vreg->local_index = local_count++ + param_count;
+        vreg->prim.local_index = local_count++ + param_count;
         // TODO: Group same type variables.
         emit_uleb128(data, data->len, 1);  // TODO: Set type bytes.
         data_push(data, to_wtype(varinfo->type));
@@ -782,7 +950,7 @@ static void gen_defun(Function *func) {
     VarInfo *varinfo = scope_find(func->scopes->data[0], name, NULL);
     assert(varinfo != NULL);
     ADD_CODE(OP_LOCAL_GET);
-    ADD_ULEB128(varinfo->local.reg->local_index);
+    ADD_ULEB128(varinfo->local.reg->prim.local_index);
   }
   ADD_CODE(OP_END);
 

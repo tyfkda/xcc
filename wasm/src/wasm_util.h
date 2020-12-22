@@ -11,9 +11,15 @@ typedef struct {
 #define SEC_TYPE      (1)
 #define SEC_IMPORT    (2)
 #define SEC_FUNC      (3)
+#define SEC_MEMORY    (5)
 #define SEC_GLOBAL    (6)
 #define SEC_EXPORT    (7)
 #define SEC_CODE      (10)
+#define SEC_DATA      (11)
+
+// Import kind
+#define IMPORT_FUNC    (0)
+#define IMPORT_MEMORY  (2)
 
 // Wasm opcode
 #define OP_NOP            (0x01)
@@ -32,6 +38,14 @@ typedef struct {
 #define OP_LOCAL_TEE      (0x22)
 #define OP_GLOBAL_GET     (0x23)
 #define OP_GLOBAL_SET     (0x24)
+#define OP_I32_LOAD       (0x28)
+#define OP_I64_LOAD       (0x29)
+#define OP_I32_LOAD8_S    (0x2c)
+#define OP_I32_LOAD16_S   (0x2e)
+#define OP_I32_STORE      (0x36)
+#define OP_I64_STORE      (0x37)
+#define OP_I32_STORE8     (0x3a)
+#define OP_I32_STORE16    (0x3b)
 #define OP_I32_CONST      (0x41)
 #define OP_I64_CONST      (0x42)
 #define OP_F32_CONST      (0x43)
