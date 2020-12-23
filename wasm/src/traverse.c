@@ -62,7 +62,22 @@ GVarInfo *get_gvar_info(Expr *expr) {
 
 static void traverse_stmts(Vector *stmts);
 
-static void traverse_expr(Expr *expr) {
+// l=r  =>  (t=r, l=t)
+static Expr *assign_to_tmp(Expr *assign, Expr *bop) {
+  const Token *token = assign->token;
+  const Type *type = bop->bop.lhs->type;
+  Expr *rhs = bop->bop.rhs;
+  const Name *name = alloc_label();
+  const Token *ident = alloc_ident(name, NULL, NULL);
+  scope_add(curscope, ident, type, 0);
+  Expr *tmp = new_expr_variable(name, type, token, curscope);
+  Expr *assign_tmp = new_expr_bop(EX_ASSIGN, &tyVoid, token, tmp, rhs);
+  bop->bop.rhs = tmp;
+  return new_expr_bop(EX_COMMA, type, token, assign_tmp, assign);
+}
+
+static void traverse_expr(Expr **pexpr, bool needval) {
+  Expr *expr = *pexpr;
   if (expr == NULL)
     return;
   switch (expr->kind) {
@@ -105,12 +120,29 @@ static void traverse_expr(Expr *expr) {
   case EX_GT:
   case EX_LOGAND:
   case EX_LOGIOR:
-  case EX_ASSIGN:
-  case EX_COMMA:
   case EX_PTRADD:
   case EX_PTRSUB:
-    traverse_expr(expr->bop.lhs);
-    traverse_expr(expr->bop.rhs);
+    traverse_expr(&expr->bop.lhs, needval);
+    traverse_expr(&expr->bop.rhs, needval);
+    break;
+  case EX_COMMA:
+    traverse_expr(&expr->bop.lhs, false);
+    traverse_expr(&expr->bop.rhs, needval);
+    break;
+  case EX_ASSIGN:
+    traverse_expr(&expr->bop.lhs, true);
+    traverse_expr(&expr->bop.rhs, true);
+    expr->type = &tyVoid;
+    if (needval) {
+      Expr *rhs = expr->bop.rhs;
+      const Type *type = rhs->type;
+      if (!(is_const(rhs) || rhs->kind == EX_VAR)) {  // Rhs is not simple value.
+        Expr *old = expr;
+        expr = assign_to_tmp(expr, expr);
+        rhs = old->bop.rhs;  // tmp
+      }
+      *pexpr = new_expr_bop(EX_COMMA, type, expr->token, expr, rhs);
+    }
     break;
 
   // Unary
@@ -124,27 +156,41 @@ static void traverse_expr(Expr *expr) {
   case EX_REF:
   case EX_DEREF:
   case EX_CAST:
+    traverse_expr(&expr->unary.sub, needval);
+    break;
   case EX_MODIFY:
-    traverse_expr(expr->unary.sub);
+    traverse_expr(&expr->unary.sub, true);
+    expr->type = &tyVoid;
+    if (needval) {
+      Expr *sub = expr->unary.sub;
+      Expr *rhs = sub->bop.rhs;
+      const Type *type = rhs->type;
+      if (!(is_const(rhs) || rhs->kind == EX_VAR)) {  // Rhs is not simple value.
+        Expr *old = expr;
+        expr = assign_to_tmp(expr, expr);
+        rhs = old->unary.sub->bop.rhs;  // tmp
+      }
+      *pexpr = new_expr_bop(EX_COMMA, type, expr->token, expr, rhs);
+    }
     break;
 
   case EX_TERNARY:
-    traverse_expr(expr->ternary.cond);
-    traverse_expr(expr->ternary.tval);
-    traverse_expr(expr->ternary.fval);
+    traverse_expr(&expr->ternary.cond, true);
+    traverse_expr(&expr->ternary.tval, needval);
+    traverse_expr(&expr->ternary.fval, needval);
     break;
 
   case EX_MEMBER:
-    traverse_expr(expr->member.target);
+    traverse_expr(&expr->member.target, needval);
     break;
 
   case EX_FUNCALL:
     {
-      traverse_expr(expr->funcall.func);
+      traverse_expr(&expr->funcall.func, true);
       Vector *args = expr->funcall.args;
       if (args != NULL) {
         for (int i = 0, n = args->len; i < n; ++i)
-          traverse_expr(args->data[i]);
+          traverse_expr((Expr**)&args->data[i], true);
       }
     }
     break;
@@ -161,8 +207,8 @@ static void traverse_stmt(Stmt *stmt) {
   if (stmt == NULL)
     return;
   switch (stmt->kind) {
-  case ST_EXPR:  traverse_expr(stmt->expr); break;
-  case ST_RETURN:  traverse_expr(stmt->return_.val); break;
+  case ST_EXPR:  traverse_expr(&stmt->expr, false); break;
+  case ST_RETURN:  traverse_expr(&stmt->return_.val, true); break;
   case ST_BLOCK:
     if (stmt->block.scope != NULL)
       curscope = stmt->block.scope;
@@ -170,12 +216,12 @@ static void traverse_stmt(Stmt *stmt) {
     if (stmt->block.scope != NULL)
       curscope = curscope->parent;
     break;
-  case ST_IF:  traverse_expr(stmt->if_.cond); traverse_stmt(stmt->if_.tblock); traverse_stmt(stmt->if_.fblock); break;
-  case ST_SWITCH:  traverse_expr(stmt->switch_.value); traverse_stmt(stmt->switch_.body); break;
+  case ST_IF:  traverse_expr(&stmt->if_.cond, true); traverse_stmt(stmt->if_.tblock); traverse_stmt(stmt->if_.fblock); break;
+  case ST_SWITCH:  traverse_expr(&stmt->switch_.value, true); traverse_stmt(stmt->switch_.body); break;
   //case ST_CASE:  break;
   //case ST_DEFAULT:  gen_default(); break;
-  case ST_WHILE: case ST_DO_WHILE:  traverse_expr(stmt->while_.cond); traverse_stmt(stmt->while_.body); break;
-  case ST_FOR:  traverse_expr(stmt->for_.pre); traverse_expr(stmt->for_.cond); traverse_expr(stmt->for_.post); traverse_stmt(stmt->for_.body); break;
+  case ST_WHILE: case ST_DO_WHILE:  traverse_expr(&stmt->while_.cond, true); traverse_stmt(stmt->while_.body); break;
+  case ST_FOR:  traverse_expr(&stmt->for_.pre, false); traverse_expr(&stmt->for_.cond, true); traverse_expr(&stmt->for_.post, false); traverse_stmt(stmt->for_.body); break;
   //case ST_BREAK:  gen_break(); break;
   //case ST_CONTINUE:  gen_continue(); break;
   //case ST_GOTO:  gen_goto(stmt); break;

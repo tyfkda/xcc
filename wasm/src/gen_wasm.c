@@ -66,7 +66,7 @@ struct VReg {
 static void gen_stmt(Stmt *stmt);
 static void gen_stmts(Vector *stmts);
 static void gen_expr_stmt(Expr *expr);
-static void gen_expr(Expr *expr);
+static void gen_expr(Expr *expr, bool needval);
 
 static int cur_depth;
 
@@ -186,16 +186,16 @@ static void gen_funcall(Expr *expr) {
 
   for (int i = 0; i < arg_count; ++i) {
     Expr *arg = args->data[i];
-    gen_expr(arg);
+    gen_expr(arg, true);
   }
   ADD_CODE(OP_CALL);
   ADD_ULEB128(func_index);
 }
 
-static void gen_expr(Expr *expr) {
+static void gen_expr(Expr *expr, bool needval) {
   switch (expr->kind) {
   case EX_FIXNUM:
-    {
+    if (needval) {
       if (type_size(expr->type) <= I32_SIZE) {
         ADD_CODE(OP_I32_CONST);
         ADD_LEB128((int32_t)expr->fixnum);
@@ -208,21 +208,23 @@ static void gen_expr(Expr *expr) {
 
 #ifndef __NO_FLONUM
   case EX_FLONUM:
-    switch (expr->type->flonum.kind) {
-    case FL_FLOAT:
-      ADD_CODE(OP_F32_CONST);
-      ADD_F32(expr->flonum);
-      break;
-    case FL_DOUBLE:
-      ADD_CODE(OP_F64_CONST);
-      ADD_F64(expr->flonum);
-      break;
+    if (needval) {
+      switch (expr->type->flonum.kind) {
+      case FL_FLOAT:
+        ADD_CODE(OP_F32_CONST);
+        ADD_F32(expr->flonum);
+        break;
+      case FL_DOUBLE:
+        ADD_CODE(OP_F64_CONST);
+        ADD_F64(expr->flonum);
+        break;
+      }
     }
     break;
 #endif
 
   case EX_VAR:
-    {
+    if (needval) {
       assert(is_number(expr->type));
       Scope *scope;
       const VarInfo *varinfo = scope_find(expr->var.scope, expr->var.name, &scope);
@@ -251,47 +253,52 @@ static void gen_expr(Expr *expr) {
   case EX_BITAND:
   case EX_BITOR:
   case EX_BITXOR:
-    gen_expr(expr->bop.lhs);
-    gen_expr(expr->bop.rhs);
-    gen_arith(expr->kind, expr->type);
+    gen_expr(expr->bop.lhs, needval);
+    gen_expr(expr->bop.rhs, needval);
+    if (needval)
+      gen_arith(expr->kind, expr->type);
     break;
 
   case EX_POS:
-    gen_expr(expr->unary.sub);
+    gen_expr(expr->unary.sub, needval);
     break;
 
   case EX_NEG:
-    switch (expr->type->kind) {
-    case TY_FIXNUM:
-      ADD_CODE(type_size(expr->type) <= I32_SIZE ? OP_I32_CONST : OP_I64_CONST);
-      ADD_LEB128(0);
-      break;
+    if (needval) {
+      switch (expr->type->kind) {
+      case TY_FIXNUM:
+        ADD_CODE(type_size(expr->type) <= I32_SIZE ? OP_I32_CONST : OP_I64_CONST);
+        ADD_LEB128(0);
+        break;
 #ifndef __NO_FLONUM
-    case TY_FLONUM:
-      switch (expr->type->flonum.kind) {
-      case FL_FLOAT:
-        ADD_CODE(OP_F32_CONST);
-        ADD_F32(0);
+      case TY_FLONUM:
+        switch (expr->type->flonum.kind) {
+        case FL_FLOAT:
+          ADD_CODE(OP_F32_CONST);
+          ADD_F32(0);
+          break;
+        case FL_DOUBLE:
+          ADD_CODE(OP_F64_CONST);
+          ADD_F64(0);
+          break;
+        default: assert(false); break;
         break;
-      case FL_DOUBLE:
-        ADD_CODE(OP_F64_CONST);
-        ADD_F64(0);
+        }
         break;
-      default: assert(false); break;
-      break;
-      }
-      break;
 #endif
-    default: assert(false); break;
-    }
+      default: assert(false); break;
+      }
 
-    gen_expr(expr->unary.sub);
-    gen_arith(EX_SUB, expr->type);
+      gen_expr(expr->unary.sub, true);
+      gen_arith(EX_SUB, expr->type);
+    } else {
+      gen_expr(expr->unary.sub, false);
+    }
     break;
 
   case EX_BITNOT:
-    {
-      gen_expr(expr->unary.sub);
+    gen_expr(expr->unary.sub, needval);
+    if (needval) {
       unsigned char wt = to_wtype(expr->type);
       switch (wt) {
       case WT_I32:  ADD_CODE(OP_I32_CONST); break;
@@ -309,7 +316,7 @@ static void gen_expr(Expr *expr) {
       assert(is_fixnum(expr->type->kind));
       Expr *sub = expr->unary.sub;
       assert(sub->kind == EX_VAR);
-      gen_expr(sub);
+      gen_expr(sub, true);
       ADD_CODE(OP_I32_CONST, 1,
                expr->kind == EX_PREINC ? OP_I32_ADD : OP_I32_SUB);
 
@@ -319,15 +326,17 @@ static void gen_expr(Expr *expr) {
       if (!is_global_scope(scope) && !(varinfo->storage & (VS_STATIC | VS_EXTERN))) {
         VReg *vreg = varinfo->local.reg;
         assert(vreg != NULL);
-        ADD_CODE(OP_LOCAL_TEE);
+        ADD_CODE(needval ? OP_LOCAL_TEE : OP_LOCAL_SET);
         ADD_ULEB128(vreg->local_index);
       } else {
         GVarInfo *info = get_gvar_info(sub);
         assert(info != NULL);
         ADD_CODE(OP_GLOBAL_SET);
         ADD_ULEB128(info->index);
-        ADD_CODE(OP_GLOBAL_GET);
-        ADD_ULEB128(info->index);
+        if (needval) {
+          ADD_CODE(OP_GLOBAL_GET);
+          ADD_ULEB128(info->index);
+        }
       }
     }
     break;
@@ -338,8 +347,9 @@ static void gen_expr(Expr *expr) {
       assert(is_fixnum(expr->type->kind));
       Expr *sub = expr->unary.sub;
       assert(sub->kind == EX_VAR);
-      gen_expr(sub);  // Push the result first.
-      gen_expr(sub);
+      if (needval)
+        gen_expr(sub, true);  // Push the result first.
+      gen_expr(sub, true);
       ADD_CODE(OP_I32_CONST, 1,
                expr->kind == EX_POSTINC ? OP_I32_ADD : OP_I32_SUB);
 
@@ -362,6 +372,7 @@ static void gen_expr(Expr *expr) {
 
   case EX_ASSIGN:
     {
+      assert(expr->type->kind == TY_VOID);
       Expr *lhs = expr->bop.lhs;
       switch (lhs->type->kind) {
       case TY_FIXNUM:
@@ -376,15 +387,13 @@ static void gen_expr(Expr *expr) {
           if (!is_global_scope(scope) && !(varinfo->storage & (VS_STATIC | VS_EXTERN))) {
             VReg *vreg = varinfo->local.reg;
             assert(vreg != NULL);
-            gen_expr(expr->bop.rhs);
-            ADD_CODE(OP_LOCAL_TEE);
+            gen_expr(expr->bop.rhs, true);
+            ADD_CODE(OP_LOCAL_SET);
             ADD_ULEB128(vreg->local_index);
           } else {
             GVarInfo *info = get_gvar_info(lhs);
             assert(info != NULL);
             ADD_CODE(OP_GLOBAL_SET);
-            ADD_ULEB128(info->index);
-            ADD_CODE(OP_GLOBAL_GET);
             ADD_ULEB128(info->index);
           }
           break;
@@ -398,6 +407,7 @@ static void gen_expr(Expr *expr) {
 
   case EX_MODIFY:
     {
+      assert(expr->type->kind == TY_VOID);
       Expr *sub = expr->unary.sub;
       Expr *lhs = sub->bop.lhs;
       switch (lhs->type->kind) {
@@ -407,23 +417,21 @@ static void gen_expr(Expr *expr) {
       case TY_FLONUM:
 #endif
         if (lhs->kind == EX_VAR) {
-          gen_expr(lhs);
-          gen_expr(sub->bop.rhs);
-          gen_arith(sub->kind, expr->type);
+          gen_expr(lhs, true);
+          gen_expr(sub->bop.rhs, true);
+          gen_arith(sub->kind, sub->type);
 
           Scope *scope;
           const VarInfo *varinfo = scope_find(lhs->var.scope, lhs->var.name, &scope);
           assert(varinfo != NULL);
           if (!is_global_scope(scope) && !(varinfo->storage & (VS_STATIC | VS_EXTERN))) {
             assert(varinfo->local.reg != NULL);
-            ADD_CODE(OP_LOCAL_TEE);
+            ADD_CODE(OP_LOCAL_SET);
             ADD_ULEB128(varinfo->local.reg->local_index);
           } else {
             GVarInfo *info = get_gvar_info(lhs);
             assert(info != NULL);
             ADD_CODE(OP_GLOBAL_SET);
-            ADD_ULEB128(info->index);
-            ADD_CODE(OP_GLOBAL_GET);
             ADD_ULEB128(info->index);
           }
           return;
@@ -435,13 +443,21 @@ static void gen_expr(Expr *expr) {
     }
     break;
 
+  case EX_COMMA:
+    gen_expr(expr->bop.lhs, false);
+    gen_expr(expr->bop.rhs, needval);
+    break;
+
   case EX_CAST:
-    gen_expr(expr->unary.sub);
-    gen_cast(expr->type, expr->unary.sub->type);
+    gen_expr(expr->unary.sub, needval);
+    if (needval)
+      gen_cast(expr->type, expr->unary.sub->type);
     break;
 
   case EX_FUNCALL:
     gen_funcall(expr);
+    if (!needval && expr->type->kind != TY_VOID)
+      ADD_CODE(OP_DROP);
     break;
 
   default: assert(!"Not implemeneted"); break;
@@ -470,8 +486,8 @@ static void gen_compare_expr(enum ExprKind kind, Expr *lhs, Expr *rhs) {
     {OP_F64_EQ, OP_F64_NE, OP_F64_LT, OP_F64_LE, OP_F64_GE, OP_F64_GT},
   };
 
-  gen_expr(lhs);
-  gen_expr(rhs);
+  gen_expr(lhs, true);
+  gen_expr(rhs, true);
   ADD_CODE(OpTable[index][kind - EX_EQ]);
 }
 
@@ -608,7 +624,7 @@ static void gen_return(Stmt *stmt) {
   assert(curfunc != NULL);
   if (stmt->return_.val != NULL) {
     Expr *val = stmt->return_.val;
-    gen_expr(val);
+    gen_expr(val, true);
 
     const Name *name = alloc_name(RETVAL_NAME, NULL, false);
     VarInfo *varinfo = scope_find(curfunc->scopes->data[0], name, NULL);
@@ -652,9 +668,7 @@ static void gen_vardecl(Vector *decls, Vector *inits) {
 }
 
 static void gen_expr_stmt(Expr *expr) {
-  gen_expr(expr);
-  if (expr->type->kind != TY_VOID)
-    ADD_CODE(OP_DROP);
+  gen_expr(expr, false);
 }
 
 static void gen_stmt(Stmt *stmt) {
