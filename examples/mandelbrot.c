@@ -8,7 +8,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#ifdef USE_FLOAT
+#ifdef USE_SINGLE
 typedef float Number;
 #else
 typedef double Number;
