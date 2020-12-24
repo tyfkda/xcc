@@ -17,7 +17,7 @@
 #include "var.h"
 #include "x86_64.h"
 
-static void construct_initial_value(unsigned char *buf, const Type *type, const Initializer *init) {
+static void construct_initial_value(const Type *type, const Initializer *init) {
   assert(init == NULL || init->kind != IK_DOT);
 
   switch (type->kind) {
@@ -31,10 +31,6 @@ static void construct_initial_value(unsigned char *buf, const Type *type, const 
           error("Illegal initializer: constant number expected");
         v = value->fixnum;
       }
-
-      int size = type_size(type);
-      for (int i = 0; i < size; ++i)
-        buf[i] = v >> (i * CHAR_BIT);  // Little endian
 
       switch (type->fixnum.kind) {
       case FX_CHAR:  _BYTE(NUM(v)); break;
@@ -122,9 +118,6 @@ static void construct_initial_value(unsigned char *buf, const Type *type, const 
         assert(!"should be handled in parser");
       } else if (is_const(value) && value->kind == EX_FIXNUM) {
         intptr_t x = value->fixnum;
-        for (int i = 0; i < WORD_SIZE; ++i)
-          buf[i] = x >> (i * CHAR_BIT);  // Little endian
-
         _QUAD(NUM(x));
       } else {
         assert(!"initializer type error");
@@ -136,7 +129,6 @@ static void construct_initial_value(unsigned char *buf, const Type *type, const 
   case TY_ARRAY:
     if (init == NULL || init->kind == IK_MULTI) {
       const Type *elem_type = type->pa.ptrof;
-      size_t elem_size = type_size(elem_type);
       if (init != NULL) {
         Vector *init_array = init->multi;
         size_t index = 0;
@@ -146,28 +138,32 @@ static void construct_initial_value(unsigned char *buf, const Type *type, const 
           if (init_elem->kind == IK_ARR) {
             size_t next = init_elem->arr.index->fixnum;
             for (size_t j = index; j < next; ++j)
-              construct_initial_value(buf + (j * elem_size), elem_type, NULL);
+              construct_initial_value(elem_type, NULL);
             index = next;
             init_elem = init_elem->arr.value;
           }
-          construct_initial_value(buf + (index * elem_size), elem_type, init_elem);
+          construct_initial_value(elem_type, init_elem);
         }
         // Padding
         for (size_t i = index, n = type->pa.length; i < n; ++i)
-          construct_initial_value(buf + (i * elem_size), elem_type, NULL);
+          construct_initial_value(elem_type, NULL);
       }
     } else {
       if (init->kind == IK_SINGLE && is_char_type(type->pa.ptrof) && init->single->kind == EX_STR) {
-        int src_size = init->single->str.size;
+        size_t src_size = init->single->str.size;
         size_t size = type_size(type);
-        assert(size >= (size_t)src_size);
-        memcpy(buf, init->single->str.buf, src_size);
+        assert(size >= src_size);
 
         UNUSED(size);
         StringBuffer sb;
         sb_init(&sb);
         sb_append(&sb, "\"", NULL);
-        escape_string((char*)buf, size, &sb);
+        escape_string(init->single->str.buf, src_size, &sb);
+        if (size > src_size) {
+          const char NULCHR[] = "\\0";
+          for (size_t i = 0, n = size - src_size; i < n; ++i)
+            sb_append(&sb, NULCHR, NULL);
+        }
         sb_append(&sb, "\"", NULL);
         _ASCII(sb_to_string(&sb));
       } else {
@@ -198,7 +194,7 @@ static void construct_initial_value(unsigned char *buf, const Type *type, const 
             EMIT_ALIGN(align);
             offset = ALIGN(offset, align);
           }
-          construct_initial_value(buf + member->struct_member.offset, member->type, mem_init);
+          construct_initial_value(member->type, mem_init);
           ++count;
           offset = ALIGN(offset, align);
           offset += type_size(member->type);
@@ -206,7 +202,7 @@ static void construct_initial_value(unsigned char *buf, const Type *type, const 
       }
       if (sinfo->is_union && count <= 0) {
         const VarInfo* member = sinfo->members->data[0];
-        construct_initial_value(buf + member->struct_member.offset, member->type, NULL);
+        construct_initial_value(member->type, NULL);
         offset += type_size(member->type);
       }
 
@@ -252,12 +248,8 @@ static void emit_varinfo(const VarInfo *varinfo, const Initializer *init) {
   if (init != NULL) {
     EMIT_ALIGN(align_size(varinfo->type));
     EMIT_LABEL(label);
-    size_t size = type_size(varinfo->type);
-    unsigned char *buf = calloc(size, 1);
-    if (buf == NULL)
-      error("Out of memory");
-    construct_initial_value(buf, varinfo->type, init);
-    free(buf);
+    //size_t size = type_size(varinfo->type);
+    construct_initial_value(varinfo->type, init);
   } else {
     size_t size = type_size(varinfo->type);
     if (size < 1)
