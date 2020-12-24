@@ -58,6 +58,17 @@ void emit_uleb128(DataStorage *data, size_t pos, uint64_t val) {
 
 ////////////////////////////////////////////////
 
+static Expr *get_sp_var(void) {
+  static Expr *spvar;
+  if (spvar == NULL) {
+    const Name *spname = alloc_name(SP_NAME, NULL, false);
+    GVarInfo *info = get_gvar_info_from_name(spname);
+    assert(info != NULL);
+    spvar = new_expr_variable(spname, info->varinfo->type, NULL, global_scope);
+  }
+  return spvar;
+}
+
 // Local variable information for WASM
 struct VReg {
   int32_t param_index;
@@ -65,6 +76,9 @@ struct VReg {
     struct {  // Primitive(i32, i64, f32, f64)
       uint32_t local_index;
     } prim;
+    struct {  // Non-primitive
+      int32_t offset;  // for base pointer
+    } non_prim;
   };
 };
 
@@ -150,6 +164,16 @@ static void gen_arith(enum ExprKind kind, const Type *type) {
   assert(EX_ADD <= kind && kind <= EX_RSHIFT);
   assert(kOpTable[index][kind - EX_ADD] != OP_NOP);
   ADD_CODE(kOpTable[index][kind - EX_ADD]);
+}
+
+static void gen_ptradd(enum ExprKind kind, const Type *type) {
+  ssize_t scale = type_size(type->pa.ptrof);
+  if (kind == EX_PTRSUB)
+    scale = -scale;
+  ADD_CODE(OP_I32_CONST);
+  ADD_LEB128(scale);
+  ADD_CODE(OP_I32_MUL);
+  ADD_CODE(OP_I32_ADD);
 }
 
 static void gen_cast(const Type *dst, const Type *src) {
@@ -251,8 +275,20 @@ static void gen_lval(Expr *expr) {
         ADD_CODE(OP_I32_CONST);
         ADD_LEB128(info->non_prim.address);
       } else {
-        assert(!"Not implemented");
-        //return new_ir_bofs(varinfo->local.reg);*/
+        const Name *bpname = alloc_name(BP_NAME, NULL, false);
+        Scope *scope = curfunc->scopes->data[0];
+        const VarInfo *bpvarinfo = scope_find(scope, bpname, &scope);
+        assert(bpvarinfo != NULL && !is_global_scope(scope));
+        assert(bpvarinfo->local.reg != NULL);
+        ADD_CODE(OP_LOCAL_GET);
+        ADD_ULEB128(bpvarinfo->local.reg->prim.local_index);
+
+        VReg *vreg = varinfo->local.reg;
+        if (vreg->non_prim.offset != 0) {
+          ADD_CODE(OP_I32_CONST);
+          ADD_LEB128(vreg->non_prim.offset);
+          ADD_CODE(OP_I32_ADD);
+        }
       }
     }
     return;
@@ -300,7 +336,6 @@ static void gen_var(Expr *expr) {
   case TY_FLONUM:
 #endif
     {
-      assert(is_number(expr->type));
       Scope *scope;
       const VarInfo *varinfo = scope_find(expr->var.scope, expr->var.name, &scope);
       assert(varinfo != NULL && scope == expr->var.scope);
@@ -452,12 +487,18 @@ static void gen_expr(Expr *expr, bool needval) {
   case EX_PREINC:
   case EX_PREDEC:
     {
-      assert(is_fixnum(expr->type->kind));
+      assert(is_prim_type(expr->type));
       Expr *sub = expr->unary.sub;
       assert(sub->kind == EX_VAR);
       gen_expr(sub, true);
-      ADD_CODE(OP_I32_CONST, 1,
-               expr->kind == EX_PREINC ? OP_I32_ADD : OP_I32_SUB);
+      switch (to_wtype(expr->type)) {
+      case WT_I32:
+        ADD_CODE(OP_I32_CONST);
+        ADD_ULEB128(expr->type->kind == TY_PTR ? type_size(expr->type->pa.ptrof) : 1);
+        ADD_CODE(expr->kind == EX_PREINC ? OP_I32_ADD : OP_I32_SUB);
+        break;
+      default: assert(false); break;
+      }
 
       Scope *scope;
       const VarInfo *varinfo = scope_find(sub->var.scope, sub->var.name, &scope);
@@ -483,14 +524,20 @@ static void gen_expr(Expr *expr, bool needval) {
   case EX_POSTINC:
   case EX_POSTDEC:
     {
-      assert(is_fixnum(expr->type->kind));
+      assert(is_prim_type(expr->type));
       Expr *sub = expr->unary.sub;
       assert(sub->kind == EX_VAR);
       if (needval)
         gen_expr(sub, true);  // Push the result first.
       gen_expr(sub, true);
-      ADD_CODE(OP_I32_CONST, 1,
-               expr->kind == EX_POSTINC ? OP_I32_ADD : OP_I32_SUB);
+      switch (to_wtype(expr->type)) {
+      case WT_I32:
+        ADD_CODE(OP_I32_CONST);
+        ADD_ULEB128(expr->type->kind == TY_PTR ? type_size(expr->type->pa.ptrof) : 1);
+        ADD_CODE(expr->kind == EX_POSTINC ? OP_I32_ADD : OP_I32_SUB);
+        break;
+      default: assert(false); break;
+      }
 
       Scope *scope;
       const VarInfo *varinfo = scope_find(sub->var.scope, sub->var.name, &scope);
@@ -560,7 +607,10 @@ static void gen_expr(Expr *expr, bool needval) {
         if (lhs->kind == EX_VAR) {
           gen_expr(lhs, true);
           gen_expr(sub->bop.rhs, true);
-          gen_arith(sub->kind, sub->type);
+          if (sub->kind == EX_PTRADD || sub->kind == EX_PTRSUB)
+            gen_ptradd(sub->kind, sub->type);
+          else
+            gen_arith(sub->kind, sub->type);
 
           Scope *scope;
           const VarInfo *varinfo = scope_find(lhs->var.scope, lhs->var.name, &scope);
@@ -894,6 +944,7 @@ static void gen_defun(Function *func) {
   unsigned int param_count = functype->func.params != NULL ? functype->func.params->len : 0;  // TODO: Consider stack params.
   unsigned int local_count = 0;
 
+  uint32_t frame_size = 0;
   for (int i = 0; i < func->scopes->len; ++i) {
     Scope *scope = func->scopes->data[i];
     if (scope->vars == NULL)
@@ -908,7 +959,7 @@ static void gen_defun(Function *func) {
         continue;
       }
 
-      VReg *vreg = malloc(sizeof(*vreg));
+      VReg *vreg = calloc(1, sizeof(*vreg));
       varinfo->local.reg = vreg;
       int param_index = -1;
       if (i == 0 && param_count > 0) {
@@ -924,13 +975,48 @@ static void gen_defun(Function *func) {
       vreg->param_index = param_index;
       if (param_index >= 0) {
         vreg->prim.local_index = param_index;
-      } else {
+      } else if (is_prim_type(varinfo->type)) {
         vreg->prim.local_index = local_count++ + param_count;
         // TODO: Group same type variables.
         emit_uleb128(data, data->len, 1);  // TODO: Set type bytes.
         data_push(data, to_wtype(varinfo->type));
+      } else {
+        vreg->non_prim.offset = ALIGN(frame_size, align_size(varinfo->type));
+        frame_size += type_size(varinfo->type);
       }
     }
+  }
+  if (frame_size > 0) {
+    frame_size = ALIGN(frame_size, 8);  // TODO:
+    for (int i = 0; i < func->scopes->len; ++i) {
+      Scope *scope = func->scopes->data[i];
+      if (scope->vars == NULL)
+        continue;
+      for (int j = 0; j < scope->vars->len; ++j) {
+        VarInfo *varinfo = scope->vars->data[j];
+        if (varinfo->storage & (VS_STATIC | VS_EXTERN | VS_ENUM_MEMBER))
+          continue;
+        VReg *vreg = varinfo->local.reg;
+        if (vreg->param_index < 0 && !is_prim_type(varinfo->type))
+          vreg->non_prim.offset -= frame_size;
+      }
+    }
+  }
+
+
+  const Name *bpname = NULL;
+  const Token *bpident = NULL;
+  if (frame_size > 0) {
+    // Allocate base pointer in top scope.
+    bpname = alloc_name(BP_NAME, NULL, false);
+    bpident = alloc_ident(bpname, NULL, NULL);
+    const Type *type = &tySize;
+    VarInfo *varinfo = scope_add(func->scopes->data[0], bpident, type, 0);
+    VReg *vreg = calloc(1, sizeof(*vreg));
+    varinfo->local.reg = vreg;
+    vreg->prim.local_index = local_count++ + param_count;
+    emit_uleb128(data, data->len, 1);  // TODO: Set type bytes.
+    data_push(data, to_wtype(varinfo->type));
   }
 
   // Insert local count at the top.
@@ -938,13 +1024,34 @@ static void gen_defun(Function *func) {
 
   curfunc = func;
 
+  // Set up base pointer.
+  Expr *bpvar = NULL, *spvar = NULL;
+  if (frame_size > 0) {
+    bpvar = new_expr_variable(bpname, &tySize, bpident, func->scopes->data[0]);
+    spvar = get_sp_var();
+    // local.bp = global.sp;
+    gen_expr_stmt(new_expr_bop(EX_ASSIGN, &tyVoid, NULL, bpvar, spvar));
+    // global.sp -= frame_size;
+    gen_expr_stmt(
+        new_expr_unary(EX_MODIFY, &tyVoid, NULL,
+                       new_expr_bop(EX_SUB, &tySize, NULL, spvar,
+                                    new_expr_fixlit(&tySize, NULL, frame_size))));
+  }
+
   // Statements
   ADD_CODE(OP_BLOCK, WT_VOID);
   cur_depth += 1;
   gen_stmts(func->stmts);
+
   ADD_CODE(OP_END);
   cur_depth -= 1;
   assert(cur_depth == 0);
+
+  // Restore stack pointer.
+  if (frame_size > 0) {
+    // global.sp = bp;
+    gen_expr_stmt(new_expr_bop(EX_ASSIGN, &tyVoid, NULL, spvar, bpvar));
+  }
   if (functype->func.ret->kind != TY_VOID) {
     const Name *name = alloc_name(RETVAL_NAME, NULL, false);
     VarInfo *varinfo = scope_find(func->scopes->data[0], name, NULL);
@@ -952,6 +1059,7 @@ static void gen_defun(Function *func) {
     ADD_CODE(OP_LOCAL_GET);
     ADD_ULEB128(varinfo->local.reg->prim.local_index);
   }
+
   ADD_CODE(OP_END);
 
   emit_uleb128(data, 0, data->len + code->len);  // Insert code size at the top.

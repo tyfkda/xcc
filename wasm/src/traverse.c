@@ -11,13 +11,17 @@
 #include "util.h"
 #include "var.h"
 
+const char DATA_END_ADDRESS_NAME[] = "$_DE";
+const char SP_NAME[] = "$_SP";  // Hidden variable name for stack pointer (global).
+const char BP_NAME[] = ".._BP";  // Hidden variable name for base pointer.
 const char RETVAL_NAME[] = ".._RETVAL";
 
 Table func_info_table;
 Table gvar_info_table;
+uint32_t data_end_address;
 
 bool is_prim_type(const Type *type) {
-  return is_number(type);
+  return is_number(type) || type->kind == TY_PTR;
 }
 
 static void register_func_info(const Name *funcname, Function *func, const Type *type, int flag) {
@@ -44,6 +48,10 @@ static GVarInfo *register_gvar_info(const Name *name, VarInfo *varinfo) {
   return info;
 }
 
+GVarInfo *get_gvar_info_from_name(const Name *name) {
+  return table_get(&gvar_info_table, name);
+}
+
 GVarInfo *get_gvar_info(Expr *expr) {
   assert(expr->kind == EX_VAR);
   Scope *scope;
@@ -58,10 +66,16 @@ GVarInfo *get_gvar_info(Expr *expr) {
   }
   GVarInfo *info = NULL;
   if (varinfo == NULL ||
-      (info = table_get(&gvar_info_table, varinfo->name)) == NULL) {
+      (info = get_gvar_info_from_name(varinfo->name)) == NULL) {
     parse_error(expr->token, "Variable not found: %.*s", expr->var.name->bytes, expr->var.name->chars);
   }
   return info;
+}
+
+static GVarInfo *add_global_var(const Type *type, const Name *name) {
+  const Token *token = alloc_ident(name, NULL, NULL);
+  VarInfo *varinfo = scope_add(global_scope, token, type, 0);
+  return register_gvar_info(name, varinfo);
 }
 
 static void traverse_stmts(Vector *stmts);
@@ -266,7 +280,7 @@ static void traverse_defun(Function *func) {
 
   const Type *functype = func->type;
   if (functype->func.ret->kind != TY_VOID) {
-    assert(is_number(functype->func.ret) || functype->func.ret->kind == TY_PTR);
+    assert(is_prim_type(functype->func.ret));
     // Add local variable for return value.
     const Name *name = alloc_name(RETVAL_NAME, NULL, false);
     const Token *ident = alloc_ident(name, NULL, NULL);
@@ -345,23 +359,15 @@ void traverse_ast(Vector *decls, Vector *exports) {
     VERBOSES("\n");
   }
 
-  if (gvar_info_table.count > 0) {
+  {
     // Enumerate global variables.
-    VERBOSES("### Globals\n");
-    uint32_t index = 0;
-    uint32_t address = 1;  // Avoid valid poiter is NULL.
+    const uint32_t START_ADDRESS = 1;  // Avoid valid poiter is NULL.
+    uint32_t address = START_ADDRESS;
     const Name *name;
     GVarInfo *info;
-    // Primitive types, or with initializer (DATA).
-    for (int it = 0; (it = table_iterate(&gvar_info_table, it, &name, (void**)&info)) != -1; ) {
-      const VarInfo *varinfo = info->varinfo;
-      if (!is_prim_type(varinfo->type))
-        continue;
-      info->prim.index = index++;
-      VERBOSE("%2d: %.*s\n", info->prim.index, name->bytes, name->chars);
-    }
-    // Primitive types, or with initializer (DATA).
-    VERBOSES("\n### Memory\n");
+
+    // Enumerate data and bss.
+    VERBOSES("### Memory\n");
     for (int it = 0; (it = table_iterate(&gvar_info_table, it, &name, (void**)&info)) != -1; ) {
       const VarInfo *varinfo = info->varinfo;
       if (is_prim_type(varinfo->type) || varinfo->global.init == NULL)
@@ -382,6 +388,40 @@ void traverse_ast(Vector *decls, Vector *exports) {
       info->non_prim.address = address;
       address += type_size(varinfo->type);
       VERBOSE("%04x: %.*s\n", info->non_prim.address, name->bytes, name->chars);
+    }
+    if (address > START_ADDRESS) {
+      data_end_address = address;
+
+      Type *type = malloc(sizeof(*type));
+      *type = tySize;
+      type->qualifier = TQ_CONST;
+      const Name *name = alloc_name(DATA_END_ADDRESS_NAME, NULL, false);
+      GVarInfo *info = add_global_var(type, name);
+      Initializer *init = calloc(1, sizeof(*init));
+      init->kind = IK_SINGLE;
+      init->single = new_expr_fixlit(type, NULL, data_end_address);
+      info->varinfo->global.init = init;
+    }
+    // Stack pointer.
+    {
+      const Name *name = alloc_name(SP_NAME, NULL, false);
+      const Type *type = &tySize;
+      GVarInfo *info = add_global_var(type, name);
+      Initializer *init = calloc(1, sizeof(*init));
+      init->kind = IK_SINGLE;
+      init->single = new_expr_fixlit(type, NULL, ALIGN(data_end_address + stack_size, 16));
+      info->varinfo->global.init = init;
+    }
+
+    // Primitive types (Globals).
+    VERBOSES("\n### Globals\n");
+    uint32_t index = 0;
+    for (int it = 0; (it = table_iterate(&gvar_info_table, it, &name, (void**)&info)) != -1; ) {
+      const VarInfo *varinfo = info->varinfo;
+      if (!is_prim_type(varinfo->type))
+        continue;
+      info->prim.index = index++;
+      VERBOSE("%2d: %.*s\n", info->prim.index, name->bytes, name->chars);
     }
     VERBOSES("\n");
   }

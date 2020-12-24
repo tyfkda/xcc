@@ -7,6 +7,7 @@
 typedef struct DataStorage DataStorage;
 typedef struct Expr Expr;
 typedef struct Function Function;
+typedef struct Name Name;
 typedef struct Table Table;
 typedef struct Type Type;
 typedef struct VarInfo VarInfo;
@@ -14,11 +15,16 @@ typedef struct Vector Vector;
 
 #define I32_SIZE  (4)  //sizeof(int32_t)
 
+extern const char DATA_END_ADDRESS_NAME[];
+extern const char SP_NAME[];
+extern const char BP_NAME[];
 extern const char RETVAL_NAME[];
 
 extern DataStorage *code;
 extern Table func_info_table;
 extern Table gvar_info_table;
+extern uint32_t data_end_address;
+extern uint32_t stack_size;
 extern bool verbose;
 
 #define VERBOSES(str)  do { if (verbose) printf("%s", str); } while (0)
@@ -52,6 +58,7 @@ typedef struct {
 void traverse_ast(Vector *decls, Vector *exports);
 
 bool is_prim_type(const Type *type);
+GVarInfo *get_gvar_info_from_name(const Name *name);
 GVarInfo *get_gvar_info(Expr *expr);
 
 // gen_wasm

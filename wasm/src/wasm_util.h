@@ -20,6 +20,7 @@ typedef struct {
 // Import kind
 #define IMPORT_FUNC    (0)
 #define IMPORT_MEMORY  (2)
+#define EXPORT_GLOBAL  (3)
 
 // Wasm opcode
 #define OP_NOP            (0x01)

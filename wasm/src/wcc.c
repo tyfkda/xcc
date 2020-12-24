@@ -19,6 +19,7 @@
 static const char IMPORT_MODULE_NAME[] = "c";
 static const char IMPORT_MODULE_ENV_NAME[] = "env";
 
+uint32_t stack_size = 8 * 1024;
 bool verbose;
 
 ////////////////////////////////////////////////
@@ -231,13 +232,13 @@ static void emit_wasm(FILE *ofp, Vector *exports) {
         emit_uleb128(&types_section, types_section.len, param_count);  // num params
         for (int i = 0; i < param_count; ++i) {
           VarInfo *varinfo = params->data[i];
-          assert(is_number(varinfo->type));
+          assert(is_prim_type(varinfo->type));
           data_push(&types_section, to_wtype(varinfo->type));
         }
         if (type->func.ret->kind == TY_VOID) {
           data_push(&types_section, 0);  // num results
         } else {
-          assert(is_number(type->func.ret));
+          assert(is_prim_type(type->func.ret));
           data_push(&types_section, 1);  // num results
           data_push(&types_section, to_wtype(type->func.ret));
         }
@@ -360,7 +361,7 @@ static void emit_wasm(FILE *ofp, Vector *exports) {
   // Exports.
   DataStorage exports_section;
   data_init(&exports_section);
-  emit_uleb128(&exports_section, exports_section.len, exports->len);  // num exports
+  int num_exports = 0;
   for (int i = 0; i < exports->len; ++i) {
     const Name *name = exports->data[i];
     VarInfo *varinfo = scope_find(global_scope, name, NULL);
@@ -385,9 +386,32 @@ static void emit_wasm(FILE *ofp, Vector *exports) {
     int name_len = name->bytes;
     emit_uleb128(&exports_section, exports_section.len, name_len);  // string length
     data_append(&exports_section, (const unsigned char*)name->chars, name_len);  // export name
-    emit_uleb128(&exports_section, exports_section.len, 0);  // export kind
+    emit_uleb128(&exports_section, exports_section.len, IMPORT_FUNC);  // export kind
     emit_uleb128(&exports_section, exports_section.len, func_index);  // export func index
+    ++num_exports;
   }
+  if (data_end_address > 0) {
+    // Data end address.
+    GVarInfo *info = get_gvar_info_from_name(alloc_name(DATA_END_ADDRESS_NAME, NULL, false));
+    assert(info != NULL);
+    size_t name_len = strlen(DATA_END_ADDRESS_NAME);
+    emit_uleb128(&exports_section, exports_section.len, name_len);  // string length
+    data_append(&exports_section, (const unsigned char*)DATA_END_ADDRESS_NAME, name_len);  // export name
+    emit_uleb128(&exports_section, exports_section.len, EXPORT_GLOBAL);  // export kind
+    emit_uleb128(&exports_section, exports_section.len, info->prim.index);  // export global index
+    ++num_exports;
+  }
+  {  // Stack pointer.
+    GVarInfo *info = get_gvar_info_from_name(alloc_name(SP_NAME, NULL, false));
+    assert(info != NULL);
+    size_t name_len = strlen(SP_NAME);
+    emit_uleb128(&exports_section, exports_section.len, name_len);  // string length
+    data_append(&exports_section, (const unsigned char*)SP_NAME, name_len);  // export name
+    emit_uleb128(&exports_section, exports_section.len, EXPORT_GLOBAL);  // export kind
+    emit_uleb128(&exports_section, exports_section.len, info->prim.index);  // export global index
+    ++num_exports;
+  }
+  emit_uleb128(&exports_section, 0, num_exports);  // num exports
   emit_uleb128(&exports_section, 0, exports_section.len);  // Size
 
   // Combine all sections.
@@ -526,6 +550,12 @@ int main(int argc, char *argv[]) {
           break;
         s = p + 1;
       }
+    } else if (strncmp(arg, "--stack-size=", 13) == 0) {
+      int size = atoi(arg + 13);
+      if (size <= 0) {
+        error("stack-size must be positive");
+      }
+      stack_size = size;
     } else if (strcmp(arg, "--verbose") == 0) {
       verbose = true;
     } else {
