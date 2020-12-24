@@ -112,6 +112,8 @@ try_direct 'indirect funcall' 61 'int sub(void){return 61;} int main(){int (*f)(
 try_output 'write' 'hello' "write(1, \"hello\\\\n\", 6);"
 try_output 'char array' 123 "char s[16]; s[0] = '1'; s[1] = '2'; s[2] = '3'; s[3] = '\\\\n'; write(1, s, 4);"
 try_output 'string initializer' 'aBc' "char s[] = \"abc\\\\n\"; s[1] = 'B'; write(1, s, 4);"
+try 'non nul-terminated str' 8 'static char s[4]="abcd"; char l[4]="efgh"; return sizeof(s) + sizeof(l);'
+try 'non nul-terminated str in struct' 4 'struct S {char str[4];} static s={"abcd"}; return sizeof(s);'
 try 'cast string' 120 'char *s = (char*)"x"; return s[0];'
 try 'cast string static' 120 'static char *s = (char*)"x"; return s[0];'
 try_direct 'brace initializer' 34 'int main(){ int x = {34}; return x; }'

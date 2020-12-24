@@ -120,7 +120,7 @@ void fix_array_size(Type *type, Initializer *init) {
     assert(arr_len > 0);
     assert(!is_str || init->single->kind == EX_STR);
     ssize_t init_len = is_str ? (ssize_t)init->single->str.size : (ssize_t)init->multi->len;
-    if (init_len > arr_len)
+    if (init_len > arr_len && (!is_str || init_len - 1 > arr_len))  // Allow non-nul string.
       parse_error(NULL, "Initializer more than array size");
   }
 }
@@ -182,7 +182,7 @@ static Stmt *init_char_array_by_string(Expr *dst, Initializer *src) {
   if (dstsize == -1) {
     ((Type*)dst->type)->pa.length = dstsize = size;
   } else {
-    if (dstsize < size)
+    if (dstsize < size - 1)
       parse_error(NULL, "Buffer is shorter than string: %d for \"%s\"", (int)dstsize, str);
   }
 
@@ -475,7 +475,7 @@ static Initializer *check_global_initializer(const Type *type, Initializer *init
       case EX_FLONUM:
         return init;
       default:
-        parse_error(init->single->token, "Constant expression expected");
+        parse_error_nofatal(init->single->token, "Constant expression expected");
         break;
       }
     }
@@ -510,8 +510,8 @@ static Initializer *check_global_initializer(const Type *type, Initializer *init
         Expr *e = strip_cast(init->single);
         if (e->kind == EX_STR) {
           assert(type->pa.length > 0);
-          if (type->pa.length < (ssize_t)e->str.size) {
-            parse_error(init->single->token, "Array size shorter than initializer");
+          if ((ssize_t)e->str.size - 1 > type->pa.length) {  // Allow non-nul string.
+            parse_error_nofatal(init->single->token, "Array size shorter than initializer");
           }
           break;
         }
@@ -519,7 +519,7 @@ static Initializer *check_global_initializer(const Type *type, Initializer *init
       // Fallthrough
     case IK_DOT:
     default:
-      parse_error(init->token, "Illegal initializer");
+      parse_error_nofatal(init->token, "Illegal initializer");
       break;
     }
     break;
@@ -536,7 +536,7 @@ static Initializer *check_global_initializer(const Type *type, Initializer *init
     }
     break;
   default:
-    parse_error(NULL, "Global initial value for type %d not implemented (yet)\n", type->kind);
+    parse_error_nofatal(NULL, "Global initial value for type %d not implemented (yet)\n", type->kind);
     break;
   }
   return init;

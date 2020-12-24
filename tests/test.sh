@@ -102,6 +102,8 @@ compile_error() {
 try_output 'write' 'hello' "write(1, \"hello\\\\n\", 6);"
 try_output 'char array' 123 "char s[16]; s[0] = '1'; s[1] = '2'; s[2] = '3'; s[3] = '\\\\n'; write(1, s, 4);"
 try_output 'string initializer' 'aBc' "char s[] = \"abc\\\\n\"; s[1] = 'B'; write(1, s, 4);"
+try 'non nul-terminated str' 8 'static char s[4]="abcd"; char l[4]="efgh"; return sizeof(s) + sizeof(l);'
+try 'non nul-terminated str in struct' 4 'struct S {char str[4];} static s={"abcd"}; return sizeof(s);'
 try 'cast string' 120 'char *s = (char*)"x"; return s[0];'
 try 'cast string static' 120 'static char *s = (char*)"x"; return s[0];'
 try_direct 'cast str to int' 116 'long x = (long)"str"; int main(){ char *p = (char*)x; return p[1]; }'
