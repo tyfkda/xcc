@@ -77,6 +77,8 @@ static void alloc_variable_registers(Function *func) {
       }
 
       VReg *vreg = add_new_reg(varinfo->type, VRF_LOCAL);
+      if (varinfo->storage & VS_REF_TAKEN)
+        vreg->flag |= VRF_REF;
       varinfo->local.reg = vreg;
     }
   }

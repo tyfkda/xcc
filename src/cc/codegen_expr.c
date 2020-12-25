@@ -584,16 +584,7 @@ VReg *gen_expr(Expr *expr) {
     return gen_variable(expr);
 
   case EX_REF:
-    {
-      Expr *sub = expr->unary.sub;
-      if (sub->kind == EX_VAR && !is_global_scope(sub->var.scope)) {
-        const VarInfo *varinfo = scope_find(sub->var.scope, sub->var.name, NULL);
-        assert(varinfo != NULL);
-        assert(varinfo->local.reg != NULL);
-        varinfo->local.reg->flag |= VRF_REF;
-      }
-      return gen_lval(sub);
-    }
+    return gen_lval(expr->unary.sub);
 
   case EX_DEREF:
     {

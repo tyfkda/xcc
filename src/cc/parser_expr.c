@@ -206,6 +206,11 @@ static void check_referable(const Token *tok, Expr *expr, const char *error) {
 
 Expr *make_refer(const Token *tok, Expr *expr) {
   check_referable(tok, expr, "Cannot take reference");
+  if (expr->kind == EX_VAR) {
+    VarInfo *varinfo = scope_find(expr->var.scope, expr->var.name, NULL);
+    assert(varinfo != NULL);
+    varinfo->storage |= VS_REF_TAKEN;
+  }
   return new_expr_unary(EX_REF, ptrof(expr->type), tok, expr);
 }
 
