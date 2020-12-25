@@ -39,6 +39,15 @@ static void construct_primitive_global(DataStorage *ds, const VarInfo *varinfo) 
         case EX_FIXNUM:
           v = value->fixnum;
           break;
+        case EX_REF:
+          {
+            Expr *sub = value->unary.sub;
+            assert(sub->kind == EX_VAR);
+            const GVarInfo *info = get_gvar_info(sub);
+            assert(info != NULL && info->varinfo->storage & VS_REF_TAKEN);
+            v = info->non_prim.address;
+          }
+          break;
         default: assert(false); break;
         }
       }
@@ -229,7 +238,8 @@ static void construct_data_segment(DataStorage *ds) {
 
   for (int it = 0; (it = table_iterate(&gvar_info_table, it, &name, (void**)&info)) != -1; ) {
     const VarInfo *varinfo = info->varinfo;
-    if (is_prim_type(varinfo->type) || varinfo->global.init == NULL)
+    if ((is_prim_type(varinfo->type) && !(varinfo->storage & VS_REF_TAKEN)) ||
+         varinfo->global.init == NULL)
       continue;
     uint32_t adr = info->non_prim.address;
     assert(adr >= address);
@@ -390,7 +400,7 @@ static void emit_wasm(FILE *ofp, Vector *exports) {
     GVarInfo *info;
     for (int it = 0; (it = table_iterate(&gvar_info_table, it, &name, (void**)&info)) != -1; ) {
       const VarInfo *varinfo = info->varinfo;
-      if (!is_prim_type(varinfo->type))
+      if (!is_prim_type(varinfo->type) || varinfo->storage & VS_REF_TAKEN)
         continue;
       unsigned char wt = to_wtype(varinfo->type);
       data_push(&globals_section, wt);

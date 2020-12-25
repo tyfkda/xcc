@@ -107,17 +107,23 @@ unsigned char to_wtype(const Type *type) {
 static void gen_load(const Type *type) {
   switch (type->kind) {
   case TY_FIXNUM:
-    switch (type->fixnum.kind) {
-    case FX_CHAR:   ADD_CODE(OP_I32_LOAD8_S, 0, 0); break;
-    case FX_SHORT:  ADD_CODE(OP_I32_LOAD16_S, 1, 0); break;
-    case FX_INT: case FX_ENUM:
-      ADD_CODE(OP_I32_LOAD, 2, 0);
-      break;
-    case FX_LONG: case FX_LLONG:
-      ADD_CODE(OP_I64_LOAD, 3, 0); break;
-      break;
+  case TY_PTR:
+    switch (type_size(type)) {
+    case 1:  ADD_CODE(OP_I32_LOAD8_S, 0, 0); break;
+    case 2:  ADD_CODE(OP_I32_LOAD16_S, 1, 0); break;
+    case 4:  ADD_CODE(OP_I32_LOAD, 2, 0); break;
+    case 8:  ADD_CODE(OP_I64_LOAD, 3, 0); break;
+    default: assert(false);
     }
     break;
+#ifndef __NO_FLONUM
+  case TY_FLONUM:
+    if (type->flonum.kind < FL_DOUBLE)
+      ADD_CODE(OP_F32_LOAD, 2, 0);
+    else
+      ADD_CODE(OP_F64_LOAD, 3, 0);
+    break;
+#endif
   default: assert(false); break;
   }
 }
@@ -125,17 +131,23 @@ static void gen_load(const Type *type) {
 static void gen_store(const Type *type) {
   switch (type->kind) {
   case TY_FIXNUM:
-    switch (type->fixnum.kind) {
-    case FX_CHAR:   ADD_CODE(OP_I32_STORE8, 0, 0); break;
-    case FX_SHORT:  ADD_CODE(OP_I32_STORE16, 1, 0); break;
-    case FX_INT: case FX_ENUM:
-      ADD_CODE(OP_I32_STORE, 2, 0);
-      break;
-    case FX_LONG: case FX_LLONG:
-      ADD_CODE(OP_I64_STORE, 3, 0); break;
-      break;
+  case TY_PTR:
+    switch (type_size(type)) {
+    case 1:  ADD_CODE(OP_I32_STORE8, 0, 0); break;
+    case 2:  ADD_CODE(OP_I32_STORE16, 1, 0); break;
+    case 4:  ADD_CODE(OP_I32_STORE, 2, 0); break;
+    case 8:  ADD_CODE(OP_I64_STORE, 3, 0); break;
+    default: assert(false); break;
     }
     break;
+#ifndef __NO_FLONUM
+  case TY_FLONUM:
+    if (type->flonum.kind < FL_DOUBLE)
+      ADD_CODE(OP_F32_STORE, 2, 0);
+    else
+      ADD_CODE(OP_F64_STORE, 3, 0);
+    break;
+#endif
   default: assert(false); break;
   }
 }
@@ -261,34 +273,39 @@ static void gen_funcall(Expr *expr) {
   ADD_ULEB128(func_index);
 }
 
+static void gen_bpofs(int32_t offset) {
+  const Name *bpname = alloc_name(BP_NAME, NULL, false);
+  Scope *scope = curfunc->scopes->data[0];
+  const VarInfo *bpvarinfo = scope_find(scope, bpname, &scope);
+  assert(bpvarinfo != NULL && !is_global_scope(scope));
+  assert(bpvarinfo->local.reg != NULL);
+  ADD_CODE(OP_LOCAL_GET);
+  ADD_ULEB128(bpvarinfo->local.reg->prim.local_index);
+
+  if (offset != 0) {
+    ADD_CODE(OP_I32_CONST);
+    ADD_LEB128(offset);
+    ADD_CODE(OP_I32_ADD);
+  }
+}
+
 static void gen_lval(Expr *expr) {
   switch (expr->kind) {
   case EX_VAR:
     {
-      assert(!is_prim_type(expr->type));
       Scope *scope;
       const VarInfo *varinfo = scope_find(expr->var.scope, expr->var.name, &scope);
       assert(varinfo != NULL && scope == expr->var.scope);
+      assert(!is_prim_type(expr->type) || varinfo->storage & VS_REF_TAKEN);
       if (is_global_scope(scope) || (varinfo->storage & (VS_STATIC | VS_EXTERN))) {
+        assert(!is_prim_type(expr->type) || varinfo->storage & VS_REF_TAKEN);
         GVarInfo *info = get_gvar_info(expr);
         assert(info != NULL);
         ADD_CODE(OP_I32_CONST);
         ADD_LEB128(info->non_prim.address);
       } else {
-        const Name *bpname = alloc_name(BP_NAME, NULL, false);
-        Scope *scope = curfunc->scopes->data[0];
-        const VarInfo *bpvarinfo = scope_find(scope, bpname, &scope);
-        assert(bpvarinfo != NULL && !is_global_scope(scope));
-        assert(bpvarinfo->local.reg != NULL);
-        ADD_CODE(OP_LOCAL_GET);
-        ADD_ULEB128(bpvarinfo->local.reg->prim.local_index);
-
         VReg *vreg = varinfo->local.reg;
-        if (vreg->non_prim.offset != 0) {
-          ADD_CODE(OP_I32_CONST);
-          ADD_LEB128(vreg->non_prim.offset);
-          ADD_CODE(OP_I32_ADD);
-        }
+        gen_bpofs(vreg->non_prim.offset);
       }
     }
     return;
@@ -339,7 +356,10 @@ static void gen_var(Expr *expr) {
       Scope *scope;
       const VarInfo *varinfo = scope_find(expr->var.scope, expr->var.name, &scope);
       assert(varinfo != NULL && scope == expr->var.scope);
-      if (!is_global_scope(scope) && !(varinfo->storage & (VS_STATIC | VS_EXTERN))) {
+      if (varinfo->storage & VS_REF_TAKEN) {
+        gen_lval(expr);
+        gen_load(expr->type);
+      } else if (!is_global_scope(scope) && !(varinfo->storage & (VS_STATIC | VS_EXTERN))) {
         VReg *vreg = varinfo->local.reg;
         assert(vreg != NULL);
         ADD_CODE(OP_LOCAL_GET);
@@ -567,18 +587,23 @@ static void gen_expr(Expr *expr, bool needval) {
       case TY_FLONUM:
 #endif
         if (expr->bop.lhs->kind == EX_VAR) {
-          gen_expr(expr->bop.rhs, true);
           Scope *scope;
           const VarInfo *varinfo = scope_find(lhs->var.scope, lhs->var.name, &scope);
           assert(varinfo != NULL);
-          if (!is_global_scope(scope) && !(varinfo->storage & (VS_STATIC | VS_EXTERN))) {
+          if (varinfo->storage & VS_REF_TAKEN) {
+            gen_lval(lhs);
+            gen_expr(expr->bop.rhs, true);
+            gen_store(lhs->type);
+          } else if (!is_global_scope(scope) && !(varinfo->storage & (VS_STATIC | VS_EXTERN))) {
             VReg *vreg = varinfo->local.reg;
             assert(vreg != NULL);
+            gen_expr(expr->bop.rhs, true);
             ADD_CODE(OP_LOCAL_SET);
             ADD_ULEB128(vreg->prim.local_index);
           } else {
             GVarInfo *info = get_gvar_info(lhs);
             assert(info != NULL);
+            gen_expr(expr->bop.rhs, true);
             ADD_CODE(OP_GLOBAL_SET);
             ADD_ULEB128(info->prim.index);
           }
@@ -604,7 +629,37 @@ static void gen_expr(Expr *expr, bool needval) {
 #ifndef __NO_FLONUM
       case TY_FLONUM:
 #endif
-        if (lhs->kind == EX_VAR) {
+        {
+          bool simple = false;
+          switch (lhs->kind) {
+          case EX_VAR:
+            {
+              VarInfo *varinfo = scope_find(lhs->var.scope, lhs->var.name, NULL);
+              assert(varinfo != NULL);
+              simple = !(varinfo->storage & VS_REF_TAKEN);
+            }
+            break;
+          case EX_DEREF:
+            assert(lhs->unary.sub->kind == EX_VAR);
+            simple = false;
+            break;
+          default: assert(false); break;
+          }
+          if (!simple) {
+            const Type *type = lhs->type;
+            gen_lval(lhs);
+            gen_lval(lhs);  // We can safely evaluate lhs two times, since lhs has no side effect.
+            gen_load(type);
+            gen_expr(sub->bop.rhs, true);
+            if (sub->kind == EX_PTRADD || sub->kind == EX_PTRSUB)
+              gen_ptradd(sub->kind, sub->type);
+            else
+              gen_arith(sub->kind, type);
+            gen_store(type);
+            return;
+          }
+
+          assert(lhs->kind == EX_VAR);
           gen_expr(lhs, true);
           gen_expr(sub->bop.rhs, true);
           if (sub->kind == EX_PTRADD || sub->kind == EX_PTRSUB)
@@ -617,6 +672,7 @@ static void gen_expr(Expr *expr, bool needval) {
           assert(varinfo != NULL);
           if (!is_global_scope(scope) && !(varinfo->storage & (VS_STATIC | VS_EXTERN))) {
             assert(varinfo->local.reg != NULL);
+            assert(!(varinfo->storage & VS_REF_TAKEN));
             ADD_CODE(OP_LOCAL_SET);
             ADD_ULEB128(varinfo->local.reg->prim.local_index);
           } else {
@@ -625,10 +681,8 @@ static void gen_expr(Expr *expr, bool needval) {
             ADD_CODE(OP_GLOBAL_SET);
             ADD_ULEB128(info->prim.index);
           }
-          return;
         }
-        assert(!"Not implemented");
-        break;
+        return;
       default: assert(false); break;
       }
     }
@@ -703,7 +757,7 @@ static void gen_expr(Expr *expr, bool needval) {
 
 static void gen_compare_expr(enum ExprKind kind, Expr *lhs, Expr *rhs) {
   assert(lhs->type->kind == rhs->type->kind);
-  assert(is_number(lhs->type));
+  assert(is_prim_type(lhs->type));
 
   int index = 0;
 #ifndef __NO_FLONUM
@@ -993,13 +1047,15 @@ static void gen_defun(Function *func) {
         }
       }
       vreg->param_index = param_index;
-      if (param_index >= 0) {
-        vreg->prim.local_index = param_index;
-      } else if (is_prim_type(varinfo->type)) {
-        vreg->prim.local_index = local_count++ + param_count;
-        // TODO: Group same type variables.
-        emit_uleb128(data, data->len, 1);  // TODO: Set type bytes.
-        data_push(data, to_wtype(varinfo->type));
+      if ((param_index >= 0 || is_prim_type(varinfo->type)) && !(varinfo->storage & VS_REF_TAKEN)) {
+        if (param_index >= 0) {
+          vreg->prim.local_index = param_index;
+        } else {
+          vreg->prim.local_index = local_count++ + param_count;
+          // TODO: Group same type variables.
+          emit_uleb128(data, data->len, 1);  // TODO: Set type bytes.
+          data_push(data, to_wtype(varinfo->type));
+        }
       } else {
         vreg->non_prim.offset = ALIGN(frame_size, align_size(varinfo->type));
         frame_size += type_size(varinfo->type);
@@ -1017,7 +1073,8 @@ static void gen_defun(Function *func) {
         if (varinfo->storage & (VS_STATIC | VS_EXTERN | VS_ENUM_MEMBER))
           continue;
         VReg *vreg = varinfo->local.reg;
-        if (vreg->param_index < 0 && !is_prim_type(varinfo->type))
+        if ((vreg->param_index < 0 && !is_prim_type(varinfo->type)) ||
+            (varinfo->storage & VS_REF_TAKEN))
           vreg->non_prim.offset -= frame_size;
       }
     }
@@ -1056,6 +1113,20 @@ static void gen_defun(Function *func) {
         new_expr_unary(EX_MODIFY, &tyVoid, NULL,
                        new_expr_bop(EX_SUB, &tySize, NULL, spvar,
                                     new_expr_fixlit(&tySize, NULL, frame_size))));
+  }
+  // Store ref-taken parameters to stack frame.
+  if (param_count > 0) {
+    const Vector *params = functype->func.params;
+    for (unsigned int i = 0; i < param_count; ++i) {
+      VarInfo *varinfo = params->data[i];
+      if (!(varinfo->storage & VS_REF_TAKEN))
+        continue;
+      VReg *vreg = varinfo->local.reg;
+      gen_bpofs(vreg->non_prim.offset);
+      ADD_CODE(OP_LOCAL_GET);
+      ADD_ULEB128(vreg->param_index);
+      gen_store(varinfo->type);
+    }
   }
 
   // Statements

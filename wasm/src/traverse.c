@@ -80,15 +80,19 @@ static GVarInfo *add_global_var(const Type *type, const Name *name) {
 
 static void traverse_stmts(Vector *stmts);
 
+static Expr *alloc_tmp(const Token *token, const Type *type) {
+  const Name *name = alloc_label();
+  const Token *ident = alloc_ident(name, NULL, NULL);
+  scope_add(curscope, ident, type, 0);
+  return new_expr_variable(name, type, token, curscope);
+}
+
 // l=r  =>  (t=r, l=t)
 static Expr *assign_to_tmp(Expr *assign, Expr *bop) {
   const Token *token = assign->token;
   const Type *type = bop->bop.lhs->type;
   Expr *rhs = bop->bop.rhs;
-  const Name *name = alloc_label();
-  const Token *ident = alloc_ident(name, NULL, NULL);
-  scope_add(curscope, ident, type, 0);
-  Expr *tmp = new_expr_variable(name, type, token, curscope);
+  Expr *tmp = alloc_tmp(token, type);
   Expr *assign_tmp = new_expr_bop(EX_ASSIGN, &tyVoid, token, tmp, rhs);
   bop->bop.rhs = tmp;
   return new_expr_bop(EX_COMMA, type, token, assign_tmp, assign);
@@ -152,6 +156,21 @@ static void traverse_expr(Expr **pexpr, bool needval) {
     traverse_expr(&expr->bop.rhs, true);
     expr->type = &tyVoid;
     if (needval) {
+      Expr *lhs = expr->bop.lhs;
+      if (!(lhs->kind == EX_VAR ||
+            (lhs->kind == EX_DEREF && lhs->unary.sub->kind == EX_VAR))) {
+        const Token *token = expr->token;
+        const Type *type = lhs->type;
+        Expr *tmp = alloc_tmp(token, type);
+        Expr *assign_tmp = new_expr_bop(
+            EX_ASSIGN, &tyVoid, token, tmp,
+            new_expr_unary(EX_REF, ptrof(type), token, lhs));
+        expr->bop.lhs = new_expr_unary(EX_DEREF, type, token, tmp);
+        *pexpr = new_expr_bop(EX_COMMA, type, token, assign_tmp, expr);
+        traverse_expr(pexpr, needval);
+        return;
+      }
+
       Expr *rhs = expr->bop.rhs;
       const Type *type = rhs->type;
       if (!(is_const(rhs) || rhs->kind == EX_VAR)) {  // Rhs is not simple value.
@@ -177,18 +196,29 @@ static void traverse_expr(Expr **pexpr, bool needval) {
     traverse_expr(&expr->unary.sub, needval);
     break;
   case EX_MODIFY:
-    traverse_expr(&expr->unary.sub, true);
-    expr->type = &tyVoid;
-    if (needval) {
+    {
+      traverse_expr(&expr->unary.sub, true);
+      expr->type = &tyVoid;
+
       Expr *sub = expr->unary.sub;
-      Expr *rhs = sub->bop.rhs;
-      const Type *type = rhs->type;
-      if (!(is_const(rhs) || rhs->kind == EX_VAR)) {  // Rhs is not simple value.
-        Expr *old = expr;
-        expr = assign_to_tmp(expr, expr);
-        rhs = old->unary.sub->bop.rhs;  // tmp
+      Expr *lhs = sub->bop.lhs;
+      if (!(lhs->kind == EX_VAR ||
+            (lhs->kind == EX_DEREF && lhs->unary.sub->kind == EX_VAR))) {
+        const Token *token = sub->token;
+        const Type *type = lhs->type;
+        const Type *ptrtype = ptrof(type);
+        Expr *tmp = alloc_tmp(token, ptrtype);
+        Expr *assign_tmp = new_expr_bop(
+            EX_ASSIGN, &tyVoid, token, tmp,
+            new_expr_unary(EX_REF, ptrtype, token, lhs));
+        sub->bop.lhs = new_expr_unary(EX_DEREF, type, token, tmp);
+        *pexpr = new_expr_bop(EX_COMMA, type, token, assign_tmp, expr);
+        traverse_expr(pexpr, needval);
+        return;
       }
-      *pexpr = new_expr_bop(EX_COMMA, type, expr->token, expr, rhs);
+
+      if (needval)
+        *pexpr = new_expr_bop(EX_COMMA, lhs->type, expr->token, expr, lhs);  // (lhs+=rhs, lhs)
     }
     break;
 
@@ -370,7 +400,8 @@ void traverse_ast(Vector *decls, Vector *exports) {
     VERBOSES("### Memory\n");
     for (int it = 0; (it = table_iterate(&gvar_info_table, it, &name, (void**)&info)) != -1; ) {
       const VarInfo *varinfo = info->varinfo;
-      if (is_prim_type(varinfo->type) || varinfo->global.init == NULL)
+      if ((is_prim_type(varinfo->type) && !(varinfo->storage & VS_REF_TAKEN)) ||
+          varinfo->global.init == NULL)
         continue;
       // Mapped to memory, with initializer
       address = ALIGN(address, align_size(varinfo->type));
@@ -382,7 +413,8 @@ void traverse_ast(Vector *decls, Vector *exports) {
     // Mapped to memory, without initialzer (BSS).
     for (int it = 0; (it = table_iterate(&gvar_info_table, it, &name, (void**)&info)) != -1; ) {
       const VarInfo *varinfo = info->varinfo;
-      if (is_prim_type(varinfo->type) || varinfo->global.init != NULL)
+      if ((is_prim_type(varinfo->type) && !(varinfo->storage & VS_REF_TAKEN)) ||
+          varinfo->global.init != NULL)
         continue;
       address = ALIGN(address, align_size(varinfo->type));
       info->non_prim.address = address;
@@ -418,7 +450,7 @@ void traverse_ast(Vector *decls, Vector *exports) {
     uint32_t index = 0;
     for (int it = 0; (it = table_iterate(&gvar_info_table, it, &name, (void**)&info)) != -1; ) {
       const VarInfo *varinfo = info->varinfo;
-      if (!is_prim_type(varinfo->type))
+      if (!is_prim_type(varinfo->type) || (varinfo->storage & VS_REF_TAKEN))
         continue;
       info->prim.index = index++;
       VERBOSE("%2d: %.*s\n", info->prim.index, name->bytes, name->chars);

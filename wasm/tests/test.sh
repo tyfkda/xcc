@@ -61,3 +61,4 @@ try_direct 'global var' 24 'static int g; int main(){g+=10; g-=2; g*=3; return g
 try_direct 'global data' 66 'int a[]={11, 22, 33}; int main(){int s=0; for (int i=0; i<3; ++i) s+=a[i]; return s;}'
 try_direct 'local array' 66 'int main(){short a[]={11, 22, 33}; int s=0; for (int i=0; i<3; ++i) s+=a[i]; return s;}'
 try_direct 'struct ptr' 32 'typedef struct {int x;} S; S g; int main(){S l; S *p=&g; p->x=321; p=&l; p->x=10; return g.x/l.x;}'
+try_direct 'take ref' 15 'int g=10; int sub(int p){int *pp=&p; return *pp/2;} int main(){int l=20; int *pl=&l, *pg=&g; return sub(*pl+*pg);}'
