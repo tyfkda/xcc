@@ -295,7 +295,7 @@ static void gen_lval(Expr *expr) {
   case EX_DEREF:
     gen_expr(expr->unary.sub, true);
     return;
-  /*case EX_MEMBER:
+  case EX_MEMBER:
     {
       const Type *type = expr->member.target->type;
       if (ptr_or_array(type))
@@ -304,15 +304,15 @@ static void gen_lval(Expr *expr) {
       const Vector *members = type->struct_.info->members;
       const VarInfo *member = members->data[expr->member.index];
 
-      VReg *reg = gen_expr(expr->member.target);
+      gen_expr(expr->member.target, true);
       if (member->struct_member.offset == 0)
-        return reg;
-      VRegType *vtype = to_vtype(&tySize);
-      VReg *imm = new_const_vreg(member->struct_member.offset, vtype);
-      VReg *result = new_ir_bop(IR_ADD, reg, imm, vtype);
-      return result;
+        return;
+      ADD_CODE(OP_I32_CONST);
+      ADD_LEB128(member->struct_member.offset);
+      ADD_CODE(OP_I32_ADD);
+      return;
     }
-  case EX_COMPLIT:
+  /*case EX_COMPLIT:
     {
       Expr *var = expr->complit.var;
       assert(var->var.scope != NULL);
@@ -645,6 +645,19 @@ static void gen_expr(Expr *expr, bool needval) {
       gen_cast(expr->type, expr->unary.sub->type);
     break;
 
+  case EX_REF:
+    {
+      Expr *sub = expr->unary.sub;
+      /*if (sub->kind == EX_VAR && !is_global_scope(sub->var.scope)) {
+        const VarInfo *varinfo = scope_find(sub->var.scope, sub->var.name, NULL);
+        assert(varinfo != NULL);
+        assert(varinfo->local.reg != NULL);
+        varinfo->local.reg->flag |= VRF_REF;
+      }*/
+      gen_lval(sub);
+    }
+    break;
+
   case EX_DEREF:
     gen_expr(expr->unary.sub, needval);
     if (needval) {
@@ -668,6 +681,13 @@ static void gen_expr(Expr *expr, bool needval) {
         // array, struct and func values are handled as a pointer.
         return;
       }
+    }
+    break;
+
+  case EX_MEMBER:
+    gen_lval(expr);
+    if (is_prim_type(expr->type)) {
+      gen_load(expr->type);
     }
     break;
 

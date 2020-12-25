@@ -166,6 +166,54 @@ static void construct_initial_value(DataStorage *ds, const Type *type, const Ini
       }
     }
     break;
+  case TY_STRUCT:
+    {
+      assert(init == NULL || init->kind == IK_MULTI);
+
+      const StructInfo *sinfo = type->struct_.info;
+      int count = 0;
+      int offset = 0;
+      for (int i = 0, n = sinfo->members->len; i < n; ++i) {
+        const VarInfo* member = sinfo->members->data[i];
+        const Initializer *mem_init;
+        if (init == NULL) {
+          if (sinfo->is_union)
+            continue;
+          mem_init = NULL;
+        } else {
+          mem_init = init->multi->data[i];
+        }
+        if (mem_init != NULL || !sinfo->is_union) {
+          int align = align_size(member->type);
+          int d = offset % align;
+          if (d > 0) {
+            d = align - d;
+            for (int i = 0; i < d; ++i)
+              data_push(ds, 0);
+            offset += d;
+          }
+          construct_initial_value(ds, member->type, mem_init);
+          ++count;
+          offset = ALIGN(offset, align);
+          offset += type_size(member->type);
+        }
+      }
+      if (sinfo->is_union && count <= 0) {
+        const VarInfo* member = sinfo->members->data[0];
+        construct_initial_value(ds, member->type, NULL);
+        offset += type_size(member->type);
+      }
+
+      size_t size = type_size(type);
+      if (size != (size_t)offset) {
+        assert(size > (size_t)offset);
+        // Put padding.
+        int d = size - offset;
+        for (int i = 0; i < d; ++i)
+          data_push(ds, 0);
+      }
+    }
+    break;
   default: assert(false); break;
   }
 }
