@@ -97,9 +97,10 @@ static Stmt *build_memcpy(Expr *dst, Expr *src, size_t size) {
 Initializer *convert_str_to_ptr_initializer(const Type *type, Initializer *init) {
   assert(type->kind == TY_ARRAY && is_char_type(type->pa.ptrof));
   VarInfo *varinfo = str_to_char_array(type, init);
+  VarInfo *gvarinfo = is_global_scope(curscope) ? varinfo : varinfo->static_.gvar;
   Initializer *init2 = malloc(sizeof(*init2));
   init2->kind = IK_SINGLE;
-  init2->single = new_expr_variable(varinfo->name, type, NULL, global_scope);
+  init2->single = new_expr_variable(gvarinfo->name, type, NULL, global_scope);
   init2->token = init->token;
   return init2;
 }
@@ -122,7 +123,7 @@ static Stmt *init_char_array_by_string(Expr *dst, Initializer *src) {
 
   const Type *strtype = dst->type;
   VarInfo *varinfo = str_to_char_array(strtype, src);
-  Expr *var = new_expr_variable(varinfo->name, strtype, NULL, global_scope);
+  Expr *var = new_expr_variable(varinfo->name, strtype, NULL, curscope);
   return build_memcpy(dst, var, size);
 }
 

@@ -44,8 +44,10 @@ VarInfo *str_to_char_array(const Type *type, Initializer *init) {
     Vector *decls = new_vector();
     vec_push(decls, new_vardecl(varinfo->type, ident, init, varinfo->storage));
     vec_push(toplevel, new_decl_vardecl(decls));
+    varinfo->global.init = init;
+  } else {
+    varinfo->static_.gvar->global.init = init;
   }
-  varinfo->global.init = init;
   return varinfo;
 }
 
@@ -58,10 +60,8 @@ Expr *str_to_char_array_var(Expr *str) {
   init->single = str;
   init->token = str->token;
 
-  VarInfo *gvarinfo = str_to_char_array(type, init);
-  Scope *scope;
-  VarInfo *varinfo = scope_find(curscope, gvarinfo->name, &scope);
-  return new_expr_variable(varinfo->name, type, str->token, scope);
+  VarInfo *varinfo = str_to_char_array(type, init);
+  return new_expr_variable(varinfo->name, type, str->token, curscope);
 }
 
 bool check_cast(const Type *dst, const Type *src, bool zero, bool is_explicit, const Token *token) {
