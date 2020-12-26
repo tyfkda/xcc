@@ -20,10 +20,25 @@ async function createWasm(wasmFile, imports) {
   const [_node, _file, wasmFile, funcName, ...args] = process.argv
 
   const memory = new WebAssembly.Memory({initial:10, maximum:100})
+
+  // Decode string in linear memory to JS.
+  function decodeString(buffer, ptr) {
+    const memoryImage = new Uint8Array(buffer, ptr)
+    let len
+    for (len = 0; len < memoryImage.length && memoryImage[len] !== 0x00; ++len)
+      ;
+    const arr = new Uint8Array(buffer, ptr, len)
+    return new TextDecoder('utf-8').decode(arr)
+  }
+
   const imports = {
     c: {
+      putstr: (ptr) => {
+        const text = decodeString(memory.buffer, ptr)
+        process.stdout.write(text)
+      },
       puti: (x) => {
-        console.log(x)
+        process.stdout.write(x.toString())
       },
       exit: (x) => {
         process.exit(x)

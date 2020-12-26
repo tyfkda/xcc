@@ -193,11 +193,13 @@ static void gen_cast(const Type *dst, const Type *src) {
     ADD_CODE(OP_DROP);
     return;
   }
+  if (src->kind == TY_ARRAY)
+    src = array_to_ptr(src);
 
   switch (dst->kind) {
-  case TY_FIXNUM:
+  case TY_FIXNUM: case TY_PTR:
     switch (src->kind) {
-    case TY_FIXNUM:
+    case TY_FIXNUM: case TY_PTR: case TY_FUNC:
       {
         int d = type_size(dst);
         int s = type_size(src);

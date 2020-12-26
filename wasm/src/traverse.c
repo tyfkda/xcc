@@ -274,21 +274,7 @@ static void traverse_stmt(Stmt *stmt) {
   //case ST_CONTINUE:  gen_continue(); break;
   //case ST_GOTO:  gen_goto(stmt); break;
   case ST_LABEL:  traverse_stmt(stmt->label.stmt); break;
-  case ST_VARDECL:
-    {
-      Vector *decls = stmt->vardecl.decls;
-      for (int i = 0, n = decls->len; i < n; ++i) {
-        VarDecl *d = decls->data[i];
-        if (d->storage & VS_STATIC) {
-          VarInfo *varinfo = scope_find(curscope, d->ident->ident, NULL);
-          assert(varinfo != NULL);
-          VarInfo *g = varinfo->static_.gvar;
-          register_gvar_info(g->name, g);
-        }
-      }
-      traverse_stmts(stmt->vardecl.inits);
-    }
-    break;
+  case ST_VARDECL:  traverse_stmts(stmt->vardecl.inits); break;
   //case ST_ASM:  break;
   default: break;
   }
@@ -321,6 +307,21 @@ static void traverse_defun(Function *func) {
   curscope = func->scopes->data[0];
   traverse_stmts(func->stmts);
   curscope = curscope->parent;
+
+  // Output static local variables.
+  for (int i = 0; i < func->scopes->len; ++i) {
+    Scope *scope = func->scopes->data[i];
+    if (scope->vars == NULL)
+      continue;
+    for (int j = 0; j < scope->vars->len; ++j) {
+      VarInfo *varinfo = scope->vars->data[j];
+      if (!(varinfo->storage & VS_STATIC))
+        continue;
+      VarInfo *gvarinfo = varinfo->static_.gvar;
+      assert(gvarinfo != NULL);
+      register_gvar_info(gvarinfo->name, gvarinfo);
+    }
+  }
 }
 
 static void traverse_decl(Declaration *decl) {

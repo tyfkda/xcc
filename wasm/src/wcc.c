@@ -48,6 +48,15 @@ static void construct_primitive_global(DataStorage *ds, const VarInfo *varinfo) 
             v = info->non_prim.address;
           }
           break;
+        case EX_VAR:
+          {
+            GVarInfo *info = get_gvar_info(value);
+            assert(info != NULL);
+            assert(info->varinfo->type->kind == TY_ARRAY);
+            assert(!is_prim_type(info->varinfo->type) || (info->varinfo->storage & VS_REF_TAKEN));
+            v = info->non_prim.address;
+          }
+          break;
         default: assert(false); break;
         }
       }
@@ -90,14 +99,37 @@ static void construct_initial_value(DataStorage *ds, const Type *type, const Ini
 
   switch (type->kind) {
   case TY_FIXNUM:
+  case TY_PTR:
     {
       Fixnum v = 0;
       if (init != NULL) {
         assert(init->kind == IK_SINGLE);
         Expr *value = init->single;
-        if (!(is_const(value) && is_fixnum(value->type->kind)))
-          error("Illegal initializer: constant number expected");
-        v = value->fixnum;
+        switch (value->kind) {
+        case EX_FIXNUM:
+          v = value->fixnum;
+          break;
+        case EX_REF:
+          {
+            Expr *sub = value->unary.sub;
+            assert(sub->kind == EX_VAR);
+            const GVarInfo *info = get_gvar_info(sub);
+            assert(info != NULL && info->varinfo->storage & VS_REF_TAKEN);
+            v = info->non_prim.address;
+          }
+          break;
+        case EX_VAR:
+          {
+            assert(is_global_scope(value->var.scope));
+            GVarInfo *info = get_gvar_info(value);
+            assert(info != NULL);
+            assert(info->varinfo->type->kind == TY_ARRAY);
+            assert(!is_prim_type(info->varinfo->type) || (info->varinfo->storage & VS_REF_TAKEN));
+            v = info->non_prim.address;
+          }
+          break;
+        default: assert(false); break;
+        }
       }
 
       unsigned char buf[16];
