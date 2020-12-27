@@ -1136,7 +1136,7 @@ static Declaration *parse_defun(const Type *functype, int storage, Token *ident)
     assert(is_global_scope(curscope));
     curfunc = func;
     Vector *top_vars = NULL;
-    Vector *params = func->type->func.params;
+    const Vector *params = func->type->func.params;
     if (params != NULL) {
       top_vars = new_vector();
       for (int i = 0; i < params->len; ++i)

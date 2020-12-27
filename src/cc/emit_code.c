@@ -299,7 +299,7 @@ static void put_args_to_stack(Function *func) {
   }
 
   // Store arguments into local frame.
-  Vector *params = func->type->func.params;
+  const Vector *params = func->type->func.params;
   if (params == NULL)
     return;
 

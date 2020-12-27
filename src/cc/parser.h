@@ -30,7 +30,7 @@ const Type *parse_full_type(int *pstorage, Token **pident);
 Vector *parse_args(Token **ptoken);
 Vector *parse_funparams(bool *pvaargs);  // Vector<VarInfo*>, NULL=>old style.
 bool parse_var_def(const Type **prawType, const Type **ptype, int *pstorage, Token **pident);
-Vector *extract_varinfo_types(Vector *params);  // <VarInfo*> => <Type*>
+Vector *extract_varinfo_types(const Vector *params);  // <VarInfo*> => <Type*>
 Expr *parse_const(void);
 Expr *parse_assign(void);
 Expr *parse_expr(void);

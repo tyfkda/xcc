@@ -536,7 +536,7 @@ static Expr *parse_funcall(Expr *func) {
         (func->type->kind == TY_PTR && (functype = func->type->pa.ptrof)->kind == TY_FUNC)))
     parse_error(func->token, "Cannot call except function");
 
-  Vector *param_types = functype->func.param_types;  // <const Type*>
+  const Vector *param_types = functype->func.param_types;  // <const Type*>
   bool vaargs = functype->func.vaargs;
   if (param_types != NULL) {
     int argc = args != NULL ? args->len : 0;
@@ -863,7 +863,7 @@ const Type *parse_type_suffix(const Type *type) {
   return arrayof(parse_type_suffix(type), length);
 }
 
-Vector *extract_varinfo_types(Vector *params) {
+Vector *extract_varinfo_types(const Vector *params) {
   Vector *param_types = NULL;
   if (params != NULL) {
     param_types = new_vector();
