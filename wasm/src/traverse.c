@@ -14,6 +14,7 @@
 const char DATA_END_ADDRESS_NAME[] = "$_DE";
 const char SP_NAME[] = "$_SP";  // Hidden variable name for stack pointer (global).
 const char BP_NAME[] = ".._BP";  // Hidden variable name for base pointer.
+const char MEMCPY_NAME[] = "_memcpy";
 const char RETVAL_NAME[] = ".._RETVAL";
 
 Table func_info_table;
@@ -155,6 +156,21 @@ static void traverse_expr(Expr **pexpr, bool needval) {
     traverse_expr(&expr->bop.lhs, true);
     traverse_expr(&expr->bop.rhs, true);
     expr->type = &tyVoid;
+    if (!is_prim_type(expr->bop.lhs->type)) {
+      // Register _memcpy function for import.
+      const Name *funcname = alloc_name(MEMCPY_NAME, NULL, false);
+      if (table_get(&func_info_table, funcname) == NULL) {
+        const Type *rettype = &tyVoid;  // Differ from memcpy, no return value.
+        Vector *params = new_vector();
+        var_add(params, NULL, &tyVoidPtr, 0, NULL);
+        var_add(params, NULL, &tyVoidPtr, 0, NULL);
+        var_add(params, NULL, &tySize, 0, NULL);
+        Vector *param_types = extract_varinfo_types(params);
+        const Type *functype = new_func_type(rettype, params, param_types, false);
+        register_func_info(funcname, NULL, functype, FF_REFERED);
+        scope_add(global_scope, alloc_ident(funcname, NULL, NULL), functype, 0);
+      }
+    }
     if (needval) {
       Expr *lhs = expr->bop.lhs;
       if (!(lhs->kind == EX_VAR ||

@@ -18,6 +18,7 @@ typedef struct Vector Vector;
 extern const char DATA_END_ADDRESS_NAME[];
 extern const char SP_NAME[];
 extern const char BP_NAME[];
+extern const char MEMCPY_NAME[];
 extern const char RETVAL_NAME[];
 
 extern DataStorage *code;

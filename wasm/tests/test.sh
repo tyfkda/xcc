@@ -65,3 +65,4 @@ try_direct 'take ref' 15 'int g=10; int sub(int p){int *pp=&p; return *pp/2;} in
 try_output_direct 'string literal' 'Hello, world!' 'void putstr(const char*); int main(){putstr("Hello, world!\\n"); return 0;}'
 try_output_direct 'char-ptr' 'Hello, world!' 'void putstr(const char*); const char *gstr="Hello, world!\\n"; int main(){putstr(gstr); return 0;}'
 try_output_direct 'char-ptr array' 'Hello, world!' 'void putstr(const char*); const char *gstr[]={"Hello, world!\\n"}; int main(){putstr(gstr[0]); return 0;}'
+try_direct 'assign struct' 37 'int main(){typedef struct{int x;}S; S s={37}; S t; t=s; return s.x;}'

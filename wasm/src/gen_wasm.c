@@ -257,22 +257,24 @@ static void gen_cast(const Type *dst, const Type *src) {
   assert(!"Cast not handled");
 }
 
+static void gen_funcall_by_name(const Name *funcname) {
+  FuncInfo *info = table_get(&func_info_table, funcname);
+  assert(info != NULL);
+  ADD_CODE(OP_CALL);
+  ADD_ULEB128(info->index);
+}
+
 static void gen_funcall(Expr *expr) {
   Expr *func = expr->funcall.func;
   assert(func->kind == EX_VAR);
   Vector *args = expr->funcall.args;
   int arg_count = args != NULL ? args->len : 0;
 
-  FuncInfo *info = table_get(&func_info_table, func->var.name);
-  assert(info != NULL);
-  uint32_t func_index = info->index;
-
   for (int i = 0; i < arg_count; ++i) {
     Expr *arg = args->data[i];
     gen_expr(arg, true);
   }
-  ADD_CODE(OP_CALL);
-  ADD_ULEB128(func_index);
+  gen_funcall_by_name(func->var.name);
 }
 
 static void gen_bpofs(int32_t offset) {
@@ -613,6 +615,17 @@ static void gen_expr(Expr *expr, bool needval) {
           gen_lval(expr->bop.lhs);
           gen_expr(expr->bop.rhs, true);
           gen_store(expr->bop.lhs->type);
+        }
+        break;
+      case TY_STRUCT:
+        {
+          size_t size = type_size(expr->bop.lhs->type);
+          assert(size > 0);
+          gen_lval(expr->bop.lhs);
+          gen_expr(expr->bop.rhs, true);
+          ADD_CODE(type_size(&tySize) <= I32_SIZE ? OP_I32_CONST : OP_I64_CONST);
+          ADD_LEB128(size);
+          gen_funcall_by_name(alloc_name(MEMCPY_NAME, NULL, false));
         }
         break;
       default: assert(false); break;

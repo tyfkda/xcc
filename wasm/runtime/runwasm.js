@@ -43,6 +43,10 @@ async function createWasm(wasmFile, imports) {
       exit: (x) => {
         process.exit(x)
       },
+      _memcpy: (dst, src, len) => {
+        const memoryImage = new Uint8Array(memory.buffer)
+        memoryImage.copyWithin(dst, src, src + len)
+      },
     },
     env: {
       memory,
