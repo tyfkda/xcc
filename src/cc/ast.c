@@ -169,19 +169,23 @@ Stmt *new_stmt_switch(const Token *token, Expr *value) {
   Stmt *stmt = new_stmt(ST_SWITCH, token);
   stmt->switch_.value = value;
   stmt->switch_.body = NULL;
-  stmt->switch_.case_values = new_vector();
-  stmt->switch_.has_default = false;
+  stmt->switch_.cases = new_vector();
+  stmt->switch_.default_ = NULL;
+  stmt->switch_.break_bb = NULL;
   return stmt;
 }
 
 Stmt *new_stmt_case(const Token *token, Expr *value) {
   Stmt *stmt = new_stmt(ST_CASE, token);
   stmt->case_.value = value;
+  stmt->case_.bb = NULL;
   return stmt;
 }
 
 Stmt *new_stmt_default(const Token *token) {
   Stmt *stmt = new_stmt(ST_DEFAULT, token);
+  stmt->case_.value = NULL;
+  stmt->case_.bb = NULL;
   return stmt;
 }
 

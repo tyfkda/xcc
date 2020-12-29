@@ -179,38 +179,43 @@ static void gen_if(Stmt *stmt) {
   }
 }
 
-static Vector *cur_case_values;
-static Vector *cur_case_bbs;
-
 static int compare_cases(const void *pa, const void *pb) {
   const int ia = *(int *)pa;
   const int ib = *(int *)pb;
-  Fixnum d = (Fixnum)cur_case_values->data[ia] - (Fixnum)cur_case_values->data[ib];
+  Vector *cases = curswitch->switch_.cases;
+  Stmt *ca = cases->data[ia];
+  Stmt *cb = cases->data[ib];
+  if (ca->case_.value == NULL)
+    return 1;
+  if (cb->case_.value == NULL)
+    return -1;
+  Fixnum d = ca->case_.value->fixnum - cb->case_.value->fixnum;
   return d > 0 ? 1 : d < 0 ? -1 : 0;
 }
 
 static void gen_switch_cond_recur(Stmt *stmt, VReg *reg, const VRegType *vtype, const int *order,
                                   int len) {
-  Vector *case_values = stmt->switch_.case_values;
+  Vector *cases = stmt->switch_.cases;
   if (len <= 2) {
     for (int i = 0; i < len; ++i) {
       BB *nextbb = bb_split(curbb);
       int index = order[i];
-      Fixnum x = (Fixnum)case_values->data[index];
-      VReg *num = new_const_vreg(x, vtype);
+      Stmt *c = cases->data[index];
+      VReg *num = new_const_vreg(c->case_.value->fixnum, vtype);
       new_ir_cmp(reg, num);
-      new_ir_jmp(COND_EQ, cur_case_bbs->data[index]);
+      new_ir_jmp(COND_EQ, c->case_.bb);
       set_curbb(nextbb);
     }
-    new_ir_jmp(COND_ANY, cur_case_bbs->data[cur_case_bbs->len - 2]);  // Jump to default.
+    Stmt *def = curswitch->switch_.default_;
+    new_ir_jmp(COND_ANY, def != NULL ? def->case_.bb : curswitch->switch_.break_bb);
   } else {
     BB *bbne = bb_split(curbb);
     int m = len >> 1;
     int index = order[m];
-    Fixnum x = (Fixnum)case_values->data[index];
-    VReg *num = new_const_vreg(x, vtype);
+      Stmt *c = cases->data[index];
+    VReg *num = new_const_vreg(c->case_.value->fixnum, vtype);
     new_ir_cmp(reg, num);
-    new_ir_jmp(COND_EQ, cur_case_bbs->data[index]);
+    new_ir_jmp(COND_EQ, c->case_.bb);
     set_curbb(bbne);
 
     BB *bblt = bb_split(curbb);
@@ -232,8 +237,8 @@ static void gen_switch_cond(Stmt *stmt) {
     reg = tmp;
   }
 
-  Vector *case_values = stmt->switch_.case_values;
-  int len = case_values->len;
+  Vector *cases = stmt->switch_.cases;
+  int len = cases->len;
   if (len > 0) {
     // Sort cases in increasing order.
     int *order = malloc(sizeof(int) * len);
@@ -241,10 +246,13 @@ static void gen_switch_cond(Stmt *stmt) {
       order[i] = i;
     myqsort(order, len, sizeof(int), compare_cases);
 
+    if (stmt->switch_.default_ != NULL)
+      --len;  // Ignore default.
     gen_switch_cond_recur(stmt, reg, to_vtype(stmt->switch_.value->type), order, len);
     free(order);
   } else {
-    new_ir_jmp(COND_ANY, cur_case_bbs->data[cur_case_bbs->len - 2]);  // Jump to default.
+    Stmt *def = curswitch->switch_.default_;
+    new_ir_jmp(COND_ANY, def != NULL ? def->case_.bb : curswitch->switch_.break_bb);
   }
   set_curbb(bb_split(curbb));
 }
@@ -252,24 +260,19 @@ static void gen_switch_cond(Stmt *stmt) {
 static void gen_switch(Stmt *stmt) {
   BB *pbb = curbb;
 
-  Vector *save_case_values = cur_case_values;
-  Vector *save_case_bbs = cur_case_bbs;
+  Stmt *save_switch = curswitch;
   BB *save_break;
-  BB *break_bb = push_break_bb(pbb, &save_break);
+  BB *break_bb = stmt->switch_.break_bb = push_break_bb(pbb, &save_break);
 
-  Vector *bbs = new_vector();
-  Vector *case_values = stmt->switch_.case_values;
-  int len = case_values->len;
-  for (int i = 0; i < len; ++i) {
+  Vector *cases = stmt->switch_.cases;
+  for (int i = 0, len = cases->len; i < len; ++i) {
     BB *bb = bb_split(pbb);
-    vec_push(bbs, bb);
+    Stmt *c = cases->data[i];
+    c->case_.bb = bb;
     pbb = bb;
   }
-  vec_push(bbs, new_bb());  // len+0: Extra label for default.
-  vec_push(bbs, break_bb);  // len+1: Extra label for break.
 
-  cur_case_values = case_values;
-  cur_case_bbs = bbs;
+  curswitch = stmt;
 
   gen_switch_cond(stmt);
 
@@ -277,43 +280,14 @@ static void gen_switch(Stmt *stmt) {
 
   gen_stmt(stmt->switch_.body);
 
-  if (!stmt->switch_.has_default) {
-    // No default: Locate at the end of switch statement.
-    BB *bb = bbs->data[len];
-    bb_insert(curbb, bb);
-    set_curbb(bb);
-  }
   set_curbb(break_bb);
 
-  cur_case_values = save_case_values;
-  cur_case_bbs = save_case_bbs;
+  curswitch = save_switch;
   pop_break_bb(save_break);
 }
 
 static void gen_case(Stmt *stmt) {
-  assert(cur_case_values != NULL);
-  assert(cur_case_bbs != NULL);
-  Expr *value = stmt->case_.value;
-  assert(is_const(value));
-  Fixnum x = value->fixnum;
-  int i, len = cur_case_values->len;
-  for (i = 0; i < len; ++i) {
-    if ((Fixnum)cur_case_values->data[i] == x)
-      break;
-  }
-  assert(i < len);
-  assert(i < cur_case_bbs->len);
-  set_curbb(cur_case_bbs->data[i]);
-}
-
-static void gen_default(void) {
-  assert(cur_case_values != NULL);
-  assert(cur_case_bbs != NULL);
-  int i = cur_case_values->len;  // Label for default is stored at the size of values.
-  assert(i < cur_case_bbs->len);
-  BB *bb = cur_case_bbs->data[i];
-  bb_insert(curbb, bb);
-  set_curbb(bb);
+  set_curbb(stmt->case_.bb);
 }
 
 static void gen_while(Stmt *stmt) {
@@ -453,8 +427,7 @@ void gen_stmt(Stmt *stmt) {
   case ST_BLOCK:  gen_block(stmt); break;
   case ST_IF:  gen_if(stmt); break;
   case ST_SWITCH:  gen_switch(stmt); break;
-  case ST_CASE:  gen_case(stmt); break;
-  case ST_DEFAULT:  gen_default(); break;
+  case ST_CASE: case ST_DEFAULT:  gen_case(stmt); break;
   case ST_WHILE:  gen_while(stmt); break;
   case ST_DO_WHILE:  gen_do_while(stmt); break;
   case ST_FOR:  gen_for(stmt); break;

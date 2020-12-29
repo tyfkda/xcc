@@ -215,11 +215,15 @@ typedef struct Stmt {
     struct {
       Expr *value;
       struct Stmt *body;
-      Vector *case_values;  // <Fixnum>
-      bool has_default;
+      Vector *cases;  // <Stmt*>  contains default, too.
+      struct Stmt *default_;
+      // codegen
+      BB *break_bb;
     } switch_;
     struct {
-      Expr *value;
+      Expr *value;  // NULL => default
+      //
+      BB *bb;
     } case_;
     struct {
       Expr *cond;

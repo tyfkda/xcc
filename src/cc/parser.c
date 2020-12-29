@@ -17,7 +17,7 @@ const int LF_CONTINUE = 1 << 0;
 
 Function *curfunc;
 static int curloopflag;
-static Stmt *curswitch;
+Stmt *curswitch;
 
 static Stmt *parse_stmt(void);
 
@@ -844,35 +844,40 @@ static Stmt *parse_switch(const Token *tok) {
 static Stmt *parse_case(const Token *tok) {
   Expr *value = parse_const();
   consume(TK_COLON, "`:' expected");
-
-  if (curswitch == NULL)
-    parse_error(tok, "`case' cannot use outside of `switch`");
-
   assert(value->kind == EX_FIXNUM);
-  Fixnum v = value->fixnum;
 
-  // Check duplication.
-  Vector *values = curswitch->switch_.case_values;
-  for (int i = 0, len = values->len; i < len; ++i) {
-    if ((Fixnum)values->data[i] == v)
-      parse_error(tok, "Case value `%" PRIdPTR "' already defined", v);
+  Stmt *stmt = new_stmt_case(tok, value);
+  if (curswitch == NULL) {
+    parse_error(tok, "`case' cannot use outside of `switch`");
+  } else {
+    // Check duplication.
+    Fixnum v = value->fixnum;
+    Vector *cases = curswitch->switch_.cases;
+    for (int i = 0, len = cases->len; i < len; ++i) {
+      Stmt *c = cases->data[i];
+      if (c->case_.value == NULL)
+        continue;
+      if (c->case_.value->fixnum == v)
+        parse_error(tok, "Case value `%" PRIdPTR "' already defined", v);
+    }
+    vec_push(cases, stmt);
   }
-  vec_push(values, (void*)v);
-
-  return new_stmt_case(tok, value);
+  return stmt;
 }
 
 static Stmt *parse_default(const Token *tok) {
   consume(TK_COLON, "`:' expected");
 
-  if (curswitch == NULL)
+  Stmt *stmt = new_stmt_default(tok);
+  if (curswitch == NULL) {
     parse_error(tok, "`default' cannot use outside of `switch'");
-  if (curswitch->switch_.has_default)
+  } else if (curswitch->switch_.default_ != NULL) {
     parse_error(tok, "`default' already defined in `switch'");
-
-  curswitch->switch_.has_default = true;
-
-  return new_stmt_default(tok);
+  } else {
+    curswitch->switch_.default_ = stmt;
+    vec_push(curswitch->switch_.cases, stmt);
+  }
+  return stmt;
 }
 
 static Stmt *parse_while(const Token *tok) {

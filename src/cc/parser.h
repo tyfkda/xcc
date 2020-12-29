@@ -9,6 +9,7 @@ typedef struct Function Function;
 typedef struct Initializer Initializer;
 typedef struct Name Name;
 typedef struct Scope Scope;
+typedef struct Stmt Stmt;
 typedef struct Token Token;
 typedef struct Type Type;
 typedef struct VarInfo VarInfo;
@@ -16,6 +17,7 @@ typedef struct Vector Vector;
 
 extern Function *curfunc;
 extern Scope *curscope;
+extern Stmt *curswitch;
 extern Vector *toplevel;  // <Declaration*>
 
 void parse(Vector *toplevel);  // <Declaraion*>
