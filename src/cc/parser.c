@@ -848,14 +848,13 @@ static Stmt *parse_case(const Token *tok) {
   if (curswitch == NULL)
     parse_error(tok, "`case' cannot use outside of `switch`");
 
-  if (!is_fixnum(value->type->kind))
-    parse_error(value->token, "Cannot use expression");
-  intptr_t v = value->fixnum;
+  assert(value->kind == EX_FIXNUM);
+  Fixnum v = value->fixnum;
 
   // Check duplication.
   Vector *values = curswitch->switch_.case_values;
   for (int i = 0, len = values->len; i < len; ++i) {
-    if ((intptr_t)values->data[i] == v)
+    if ((Fixnum)values->data[i] == v)
       parse_error(tok, "Case value `%" PRIdPTR "' already defined", v);
   }
   vec_push(values, (void*)v);

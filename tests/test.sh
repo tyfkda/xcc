@@ -239,6 +239,7 @@ compile_error 'case outside switch' 'int main(){ switch(0){} case 0: return 0; }
 compile_error 'dup cases' 'void main(){ switch(0){case 1: break; case 1: break;} }'
 compile_error 'case is int only' 'void main(){ switch(0){case "foo": break;} }'
 compile_error 'default outside switch' 'int main(){ switch(0){} default: return 0; }'
+compile_error 'non-const case' 'void main(){int x=1; switch (x){case x: x=2;} return x;}'
 compile_error 'vardecl is not stmt' 'void main(){ if (1) int x = 0; }'
 compile_error 'same struct name' 'struct Foo{int x;}; struct Foo{int x;}; void main(){}'
 compile_error 'same struct name in scope' 'void main(){struct Foo{int x;}; struct Foo{int x;}; }'

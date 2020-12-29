@@ -636,8 +636,6 @@ static void parse_enum_members(const Type *type) {
     Token *token = consume(TK_IDENT, "ident expected");
     if (match(TK_ASSIGN)) {
       Expr *expr = parse_const();
-      if (!(is_const(expr) && is_fixnum(expr->type->kind)))
-        parse_error(expr->token, "const expected for enum");
       value = expr->fixnum;
     }
 
@@ -853,8 +851,6 @@ const Type *parse_type_suffix(const Type *type) {
   } else {
     const Token *tok = fetch_token();
     Expr *expr = parse_const();
-    if (!(is_const(expr) && is_fixnum(expr->type->kind)))
-      parse_error(tok, "constant expected");
     if (expr->fixnum <= 0)
       parse_error(tok, "Array size must be greater than 0, but %d", (int)expr->fixnum);
     length = expr->fixnum;
@@ -1637,7 +1633,10 @@ Expr *parse_assign(void) {
 }
 
 Expr *parse_const(void) {
-  return parse_conditional();
+  Expr *expr = parse_conditional();
+  if (!(is_const(expr) && is_fixnum(expr->type->kind)))
+    parse_error(expr->token, "constant value expected");
+  return expr;
 }
 
 Expr *parse_expr(void) {

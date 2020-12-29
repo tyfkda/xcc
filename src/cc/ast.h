@@ -215,7 +215,7 @@ typedef struct Stmt {
     struct {
       Expr *value;
       struct Stmt *body;
-      Vector *case_values;  // <intptr_t>
+      Vector *case_values;  // <Fixnum>
       bool has_default;
     } switch_;
     struct {

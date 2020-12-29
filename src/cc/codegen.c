@@ -185,7 +185,7 @@ static Vector *cur_case_bbs;
 static int compare_cases(const void *pa, const void *pb) {
   const int ia = *(int *)pa;
   const int ib = *(int *)pb;
-  intptr_t d = (intptr_t)cur_case_values->data[ia] - (intptr_t)cur_case_values->data[ib];
+  Fixnum d = (Fixnum)cur_case_values->data[ia] - (Fixnum)cur_case_values->data[ib];
   return d > 0 ? 1 : d < 0 ? -1 : 0;
 }
 
@@ -196,7 +196,7 @@ static void gen_switch_cond_recur(Stmt *stmt, VReg *reg, const VRegType *vtype, 
     for (int i = 0; i < len; ++i) {
       BB *nextbb = bb_split(curbb);
       int index = order[i];
-      intptr_t x = (intptr_t)case_values->data[index];
+      Fixnum x = (Fixnum)case_values->data[index];
       VReg *num = new_const_vreg(x, vtype);
       new_ir_cmp(reg, num);
       new_ir_jmp(COND_EQ, cur_case_bbs->data[index]);
@@ -207,7 +207,7 @@ static void gen_switch_cond_recur(Stmt *stmt, VReg *reg, const VRegType *vtype, 
     BB *bbne = bb_split(curbb);
     int m = len >> 1;
     int index = order[m];
-    intptr_t x = (intptr_t)case_values->data[index];
+    Fixnum x = (Fixnum)case_values->data[index];
     VReg *num = new_const_vreg(x, vtype);
     new_ir_cmp(reg, num);
     new_ir_jmp(COND_EQ, cur_case_bbs->data[index]);
@@ -295,10 +295,10 @@ static void gen_case(Stmt *stmt) {
   assert(cur_case_bbs != NULL);
   Expr *value = stmt->case_.value;
   assert(is_const(value));
-  intptr_t x = value->fixnum;
+  Fixnum x = value->fixnum;
   int i, len = cur_case_values->len;
   for (i = 0; i < len; ++i) {
-    if ((intptr_t)cur_case_values->data[i] == x)
+    if ((Fixnum)cur_case_values->data[i] == x)
       break;
   }
   assert(i < len);
