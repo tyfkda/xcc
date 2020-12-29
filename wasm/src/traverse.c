@@ -281,7 +281,27 @@ static void traverse_stmt(Stmt *stmt) {
       curscope = curscope->parent;
     break;
   case ST_IF:  traverse_expr(&stmt->if_.cond, true); traverse_stmt(stmt->if_.tblock); traverse_stmt(stmt->if_.fblock); break;
-  case ST_SWITCH:  traverse_expr(&stmt->switch_.value, true); traverse_stmt(stmt->switch_.body); break;
+  case ST_SWITCH:
+    traverse_expr(&stmt->switch_.value, true);
+    traverse_stmt(stmt->switch_.body);
+    if (!is_const(stmt->switch_.value) && stmt->switch_.value->kind != EX_VAR) {
+      Expr *org_value = stmt->switch_.value;
+      // Store value into temporary variable.
+      assert(curfunc != NULL);
+      Scope *scope = curfunc->scopes->data[0];
+      const Token *ident = alloc_ident(alloc_label(), NULL, NULL);
+      const Type *type = stmt->switch_.value->type;
+      scope_add(scope, ident, type, 0);
+
+      // switch (complex)  =>  switch ((tmp = complex, tmp))
+      Expr *var = new_expr_variable(ident->ident, type, ident, scope);
+      Expr *comma = new_expr_bop(
+          EX_COMMA, type, org_value->token,
+          new_expr_bop(EX_ASSIGN, &tyVoid, org_value->token, var, org_value),
+          var);
+      stmt->switch_.value = comma;
+    }
+    break;
   //case ST_CASE:  break;
   //case ST_DEFAULT:  gen_default(); break;
   case ST_WHILE: case ST_DO_WHILE:  traverse_expr(&stmt->while_.cond, true); traverse_stmt(stmt->while_.body); break;
@@ -320,9 +340,11 @@ static void traverse_defun(Function *func) {
   }
 
   register_func_info(func->name, func, func->type, 0);
+  curfunc = func;
   curscope = func->scopes->data[0];
   traverse_stmts(func->stmts);
   curscope = curscope->parent;
+  curfunc = NULL;
 
   // Output static local variables.
   for (int i = 0; i < func->scopes->len; ++i) {

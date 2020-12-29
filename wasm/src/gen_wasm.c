@@ -88,6 +88,8 @@ static void gen_expr_stmt(Expr *expr);
 static void gen_expr(Expr *expr, bool needval);
 
 static int cur_depth;
+static int break_depth;
+static int continue_depth;
 
 unsigned char to_wtype(const Type *type) {
   switch (type->kind) {
@@ -874,8 +876,63 @@ static void gen_cond_jmp(Expr *cond, bool tf, uint32_t depth) {
   ADD_ULEB128(depth);
 }
 
+static void gen_switch(Stmt *stmt) {
+  int save_depth = break_depth;
+  break_depth = cur_depth;
+
+  ADD_CODE(OP_BLOCK, WT_VOID);
+  Vector *cases = stmt->switch_.cases;
+  int case_count = cases->len;
+  for (int i = 0; i < case_count; ++i)
+    ADD_CODE(OP_BLOCK, WT_VOID);
+  cur_depth += case_count + 1;
+
+  Expr *value = stmt->switch_.value;
+  if (value->kind == EX_COMMA) {
+    gen_expr(value, false);
+    value = value->bop.rhs;
+  }
+  assert(is_const(value) || value->kind == EX_VAR);  // Must be simple expression, because this is evaluated multiple times.
+  assert(type_size(value->type) <= I32_SIZE);
+  int default_index = case_count;
+  for (int i = 0; i < case_count; ++i) {
+    Stmt *c = cases->data[i];
+    if (c->kind == ST_DEFAULT) {
+      default_index = i;
+      continue;
+    }
+    gen_expr(value, true);
+    ADD_CODE(OP_I32_CONST);
+    ADD_LEB128(c->case_.value->fixnum);
+    ADD_CODE(OP_I32_EQ,
+             OP_BR_IF);
+    ADD_ULEB128(i);
+  }
+  // Jump to default.
+  ADD_CODE(OP_BR);
+  ADD_ULEB128(default_index);
+
+  // Body.
+  gen_stmt(stmt->switch_.body);
+
+  ADD_CODE(OP_END);
+  --cur_depth;
+  assert(cur_depth == break_depth);
+  break_depth = save_depth;
+}
+
+static void gen_case(Stmt *stmt) {
+  UNUSED(stmt);
+  ADD_CODE(OP_END);
+  --cur_depth;
+  assert(cur_depth >= 0);
+}
+
 static void gen_while(Stmt *stmt) {
-  // TODO: Handle break, continue
+  int save_break = break_depth;
+  int save_continue = continue_depth;
+  break_depth = cur_depth;
+  continue_depth = cur_depth + 1;
 
   ADD_CODE(OP_BLOCK, WT_VOID);
   ADD_CODE(OP_LOOP, WT_VOID);
@@ -886,40 +943,68 @@ static void gen_while(Stmt *stmt) {
   ADD_CODE(OP_END);
   ADD_CODE(OP_END);
   cur_depth -= 2;
+  break_depth = save_break;
+  continue_depth = save_continue;
 }
 
 static void gen_do_while(Stmt *stmt) {
-  // TODO: Handle break, continue
+  int save_break = break_depth;
+  int save_continue = continue_depth;
+  break_depth = cur_depth;
+  continue_depth = cur_depth + 2;
 
   ADD_CODE(OP_BLOCK, WT_VOID);
   ADD_CODE(OP_LOOP, WT_VOID);
-  cur_depth += 2;
+  ADD_CODE(OP_BLOCK, WT_VOID);
+  cur_depth += 3;
   gen_stmt(stmt->while_.body);
+  ADD_CODE(OP_END);
+  --cur_depth;
   gen_cond_jmp(stmt->while_.cond, false, 1);
   ADD_CODE(OP_BR, 0);
   ADD_CODE(OP_END);
   ADD_CODE(OP_END);
   cur_depth -= 2;
+  break_depth = save_break;
+  continue_depth = save_continue;
 }
 
 static void gen_for(Stmt *stmt) {
-  // TODO: Handle break, continue
+  int save_break = break_depth;
+  int save_continue = continue_depth;
+  break_depth = cur_depth;
+  continue_depth = cur_depth + 2;
 
   if (stmt->for_.pre != NULL)
     gen_expr_stmt(stmt->for_.pre);
 
   ADD_CODE(OP_BLOCK, WT_VOID);
   ADD_CODE(OP_LOOP, WT_VOID);
-  cur_depth += 2;
+  ADD_CODE(OP_BLOCK, WT_VOID);
+  cur_depth += 3;
   if (stmt->for_.cond != NULL)
-    gen_cond_jmp(stmt->for_.cond, false, 1);
+    gen_cond_jmp(stmt->for_.cond, false, 2);
   gen_stmt(stmt->for_.body);
+  ADD_CODE(OP_END);
+  --cur_depth;
   if (stmt->for_.post != NULL)
     gen_expr_stmt(stmt->for_.post);
   ADD_CODE(OP_BR, 0);
   ADD_CODE(OP_END);
   ADD_CODE(OP_END);
   cur_depth -= 2;
+  break_depth = save_break;
+  continue_depth = save_continue;
+}
+
+static void gen_break(void) {
+  assert(cur_depth > break_depth);
+  ADD_CODE(OP_BR, cur_depth - break_depth - 1);
+}
+
+static void gen_continue(void) {
+  assert(cur_depth > continue_depth);
+  ADD_CODE(OP_BR, cur_depth - continue_depth - 1);
 }
 
 static void gen_block(Stmt *stmt) {
@@ -986,15 +1071,14 @@ static void gen_stmt(Stmt *stmt) {
   case ST_RETURN:  gen_return(stmt); break;
   case ST_BLOCK:  gen_block(stmt); break;
   case ST_IF:  gen_if(stmt); break;
-  /*case ST_SWITCH:  gen_switch(stmt); break;
-  case ST_CASE:  gen_case(stmt); break;
-  case ST_DEFAULT:  gen_default(); break;*/
+  case ST_SWITCH:  gen_switch(stmt); break;
+  case ST_CASE: case ST_DEFAULT:  gen_case(stmt); break;
   case ST_WHILE:  gen_while(stmt); break;
   case ST_DO_WHILE:  gen_do_while(stmt); break;
   case ST_FOR:  gen_for(stmt); break;
-  /*case ST_BREAK:  gen_break(); break;
+  case ST_BREAK:  gen_break(); break;
   case ST_CONTINUE:  gen_continue(); break;
-  case ST_GOTO:  gen_goto(stmt); break;
+  /*case ST_GOTO:  gen_goto(stmt); break;
   case ST_LABEL:  gen_label(stmt); break;*/
   case ST_VARDECL:  gen_vardecl(stmt->vardecl.decls, stmt->vardecl.inits); break;
   /*case ST_ASM:  gen_asm(stmt); break;*/
