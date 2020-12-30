@@ -15,6 +15,7 @@ const char DATA_END_ADDRESS_NAME[] = "$_DE";
 const char SP_NAME[] = "$_SP";  // Hidden variable name for stack pointer (global).
 const char BP_NAME[] = ".._BP";  // Hidden variable name for base pointer.
 const char MEMCPY_NAME[] = "_memcpy";
+const char VA_ARGS_NAME[] = ".._VA_ARGS";
 const char RETVAL_NAME[] = ".._RETVAL";
 
 Table func_info_table;
@@ -344,6 +345,13 @@ static void traverse_defun(Function *func) {
     const Name *name = alloc_name(RETVAL_NAME, NULL, false);
     const Token *ident = alloc_ident(name, NULL, NULL);
     scope_add(func->scopes->data[0], ident, functype->func.ret, 0);
+  }
+  if (func->type->func.vaargs) {
+    const Type *tyvalist = find_typedef(curscope, alloc_name("__builtin_va_list", NULL, false), NULL);
+    assert(tyvalist != NULL);
+
+    const Token *ident = alloc_ident(alloc_name(VA_ARGS_NAME, NULL, false), NULL, NULL);
+    scope_add(func->scopes->data[0], ident, tyvalist, 0);
   }
 
   register_func_info(func->name, func, func->type, 0);

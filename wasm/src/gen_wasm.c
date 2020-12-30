@@ -286,11 +286,69 @@ static void gen_funcall(Expr *expr) {
   Vector *args = expr->funcall.args;
   int arg_count = args != NULL ? args->len : 0;
 
+  const Type *functype = get_callee_type(func);
+  int param_count = functype->func.params != NULL ? functype->func.params->len : 0;
+  int vaarg_bufsiz = 0;
+  int *vaarg_offsets = NULL;
+  Expr *spvar = NULL;
+  if (functype->func.vaargs) {
+    int d = arg_count - param_count;
+    if (d > 0) {
+      vaarg_offsets = malloc(sizeof(*vaarg_offsets) * d);
+      for (int i = 0; i < d; ++i) {
+        Expr *arg = args->data[i + param_count];
+        const Type *t = arg->type;
+        if (t->kind == TY_FIXNUM && t->fixnum.kind < FX_INT)
+          t = &tyInt;
+        //vaarg_bufsiz = ALIGN(vaarg_bufsiz, align_size(t));
+        vaarg_offsets[i] = vaarg_bufsiz;
+        vaarg_bufsiz += type_size(t);
+      }
+      vaarg_bufsiz = ALIGN(vaarg_bufsiz, 8);
+
+      spvar = get_sp_var();
+      // global.sp += vaarg_bufsiz;
+      gen_expr_stmt(
+          new_expr_unary(EX_MODIFY, &tyVoid, NULL,
+                         new_expr_bop(EX_SUB, &tySize, NULL, spvar,
+                                      new_expr_fixlit(&tySize, NULL, vaarg_bufsiz))));
+    }
+  }
+
   for (int i = 0; i < arg_count; ++i) {
     Expr *arg = args->data[i];
+    if (i >= param_count) {
+      // global.sp - (vaarg_bufsiz - vaarg_offsets[i])
+      int offset = vaarg_offsets[i - param_count];
+      gen_expr(new_expr_bop(EX_ADD, &tySize, NULL, spvar,
+                            new_expr_fixlit(&tySize, NULL, offset)),
+               true);
+    }
     gen_expr(arg, true);
+    if (i >= param_count) {
+      const Type *t = arg->type;
+      if (t->kind == TY_FIXNUM && t->fixnum.kind < FX_INT)
+        t = &tyInt;
+      gen_store(t);
+    }
+  }
+  if (functype->func.vaargs) {
+    // Top of vaargs.
+    if (vaarg_bufsiz > 0) {
+      gen_expr(spvar, true);
+    } else {
+      ADD_CODE(OP_I32_CONST, 0);  // NULL
+    }
   }
   gen_funcall_by_name(func->var.name);
+
+  if (vaarg_bufsiz > 0) {
+    // global.sp -= vaarg_bufsiz;
+    gen_expr_stmt(
+        new_expr_unary(EX_MODIFY, &tyVoid, NULL,
+                       new_expr_bop(EX_ADD, &tySize, NULL, spvar,
+                                    new_expr_fixlit(&tySize, NULL, vaarg_bufsiz))));
+  }
 }
 
 static void gen_bpofs(int32_t offset) {
@@ -1141,6 +1199,7 @@ static void gen_defun(Function *func) {
   unsigned int local_count = 0;
 
   uint32_t frame_size = 0;
+  int variadic = func->type->func.vaargs;
   for (int i = 0; i < func->scopes->len; ++i) {
     Scope *scope = func->scopes->data[i];
     if (scope->vars == NULL)
@@ -1173,7 +1232,7 @@ static void gen_defun(Function *func) {
         if (param_index >= 0) {
           vreg->prim.local_index = param_index;
         } else {
-          vreg->prim.local_index = local_count++ + param_count;
+          vreg->prim.local_index = local_count++ + param_count + variadic;
           // TODO: Group same type variables.
           emit_uleb128(data, data->len, 1);  // TODO: Set type bytes.
           data_push(data, to_wtype(varinfo->type));
@@ -1222,6 +1281,18 @@ static void gen_defun(Function *func) {
   emit_uleb128(data, 0, local_count);  // Put local count at the top.
 
   curfunc = func;
+
+  if (functype->func.vaargs) {
+    const Name *va_args = alloc_name(VA_ARGS_NAME, NULL, false);
+    const VarInfo *varinfo = scope_find(func->scopes->data[0], va_args, NULL);
+    assert(varinfo != NULL);
+    VReg *vreg = varinfo->local.reg;
+    assert(vreg != NULL);
+    ADD_CODE(OP_LOCAL_GET);
+    ADD_ULEB128(functype->func.params->len);
+    ADD_CODE(OP_LOCAL_SET);
+    ADD_ULEB128(vreg->prim.local_index);
+  }
 
   // Set up base pointer.
   Expr *bpvar = NULL, *spvar = NULL;

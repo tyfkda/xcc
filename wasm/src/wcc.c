@@ -318,11 +318,17 @@ static void emit_wasm(FILE *ofp, Vector *exports) {
         data_push(&types_section, WT_FUNC);  // func
         const Vector *params = type->func.params;
         int param_count = params != NULL ? params->len : 0;
+        if (type->func.vaargs)
+          ++param_count;
         emit_uleb128(&types_section, types_section.len, param_count);  // num params
         for (int i = 0; i < param_count; ++i) {
-          VarInfo *varinfo = params->data[i];
-          assert(is_prim_type(varinfo->type));
-          data_push(&types_section, to_wtype(varinfo->type));
+          if (type->func.vaargs && i == param_count - 1) {
+            data_push(&types_section, to_wtype(&tyVoidPtr));  // vaarg pointer.
+          } else {
+            VarInfo *varinfo = params->data[i];
+            assert(is_prim_type(varinfo->type));
+            data_push(&types_section, to_wtype(varinfo->type));
+          }
         }
         if (type->func.ret->kind == TY_VOID) {
           data_push(&types_section, 0);  // num results
@@ -596,6 +602,116 @@ static void emit_wasm(FILE *ofp, Vector *exports) {
 
 ////////////////////////////////////////////////
 
+static Expr *proc_builtin_va_start(const Token *ident) {
+  if (curfunc == NULL || !curfunc->type->func.vaargs) {
+    parse_error(ident, "`va_start' can only be used in a variadic function");
+    return NULL;
+  }
+
+  consume(TK_LPAR, "`(' expected");
+
+  Token *token;
+  Vector *args = parse_args(&token);
+  if (args == NULL || args->len != 2) {
+    parse_error(token, "two arguments expected");
+    return NULL;
+  }
+
+  //#define va_start(ap, param)  (void)(ap = __va_args__)
+
+  const Type *tyvalist = find_typedef(curscope, alloc_name("__builtin_va_list", NULL, false), NULL);
+  assert(tyvalist != NULL);
+
+  Expr *ap = args->data[0];
+  Expr *param = args->data[1];
+  if (param->kind != EX_VAR)
+    parse_error(param->token, "variable expected");
+  const Type *functype = curfunc->type;
+  const Vector *funparams = functype->func.params;
+  if (funparams == NULL ||
+      !equal_name(((VarInfo*)funparams->data[funparams->len - 1])->name, param->var.name)) {
+    parse_error(param->token, "must be the last parameter");
+    return NULL;
+  }
+
+  const Name *name = alloc_name(VA_ARGS_NAME, NULL, false);
+  Expr *va_args = new_expr_variable(name, tyvalist, param->token, curscope);
+  Expr *assign = new_expr_bop(EX_ASSIGN, ap->type, ap->token, ap, va_args);
+  return new_expr_cast(&tyVoid, ident, assign);
+}
+
+static Expr *proc_builtin_va_end(const Token *ident) {
+  consume(TK_LPAR, "`(' expected");
+
+  Token *token;
+  Vector *args = parse_args(&token);
+  if (args == NULL || args->len != 1) {
+    parse_error(token, "one arguments expected");
+    return NULL;
+  }
+
+  //#define va_end(ap)           (void)(ap = 0)
+
+  Expr *ap = args->data[0];
+  Expr *assign = new_expr_bop(EX_ASSIGN, ap->type, ap->token, ap,
+                              new_expr_fixlit(&tyInt, ident, 0));
+  return new_expr_cast(&tyVoid, ident, assign);
+}
+
+static Expr *proc_builtin_va_arg(const Token *ident) {
+  consume(TK_LPAR, "`(' expected");
+  Expr *ap = parse_assign();
+  consume(TK_COMMA, "`,' expected");
+  const Type *type = parse_full_type(NULL, NULL);
+  consume(TK_RPAR, "`)' expected");
+
+  //#define va_arg(v,l)     (ap = (char*)ap + sizeof(type), *(type*)((char*)ap - sizeof(type)))
+
+  size_t size = type_size(type);
+  Expr *size_lit = new_expr_fixlit(&tySize, ap->token, size);
+  Expr *cap = make_cast(ptrof(&tyUnsignedChar), ap->token, ap, true);
+  Expr *add = new_expr_bop(EX_ASSIGN, &tyVoid, ap->token, ap,
+                           new_expr_bop(EX_PTRADD, cap->type, cap->token, cap, size_lit));
+  Expr *deref = new_expr_deref(
+      ap->token,
+      make_cast(ptrof(type), ap->token,
+                new_expr_bop(EX_PTRSUB, cap->type, cap->token, cap, size_lit),
+                true));
+  return new_expr_bop(EX_COMMA, type, ident, add, deref);
+}
+
+static Expr *proc_builtin_va_copy(const Token *ident) {
+  consume(TK_LPAR, "`(' expected");
+
+  Token *token;
+  Vector *args = parse_args(&token);
+  if (args == NULL || args->len != 2) {
+    parse_error(token, "two arguments expected");
+    return NULL;
+  }
+
+  //#define va_start(ap, param)  (void)(ap = (va_list)&(param))
+
+  Expr *dst = args->data[0];
+  Expr *src = args->data[1];
+  Expr *assign = new_expr_bop(EX_ASSIGN, dst->type, dst->token, dst, src);
+  return new_expr_cast(&tyVoid, ident, assign);
+}
+
+static void install_builtins(void) {
+  // __builtin_va_list
+  {
+    const Type *type = ptrof(&tyVoidPtr);
+    const Name *name = alloc_name("__builtin_va_list", NULL, false);
+    add_typedef(global_scope, name, type);
+  }
+
+  add_builtin_expr_ident("__builtin_va_start", proc_builtin_va_start);
+  add_builtin_expr_ident("__builtin_va_end", proc_builtin_va_end);
+  add_builtin_expr_ident("__builtin_va_arg", proc_builtin_va_arg);
+  add_builtin_expr_ident("__builtin_va_copy", proc_builtin_va_copy);
+}
+
 static void init_compiler(void) {
   table_init(&func_info_table);
   init_lexer();
@@ -607,6 +723,8 @@ static void init_compiler(void) {
   set_fixnum_size(FX_LONG,  4, 4);
   set_fixnum_size(FX_LLONG, 8, 8);
   set_fixnum_size(FX_ENUM,  4, 4);
+
+  install_builtins();
 }
 
 static void compile1(FILE *ifp, const char *filename, Vector *toplevel) {

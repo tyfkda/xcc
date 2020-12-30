@@ -72,3 +72,4 @@ try_output_direct 'string literal' 'Hello, world!' 'void putstr(const char*); in
 try_output_direct 'char-ptr' 'Hello, world!' 'void putstr(const char*); const char *gstr="Hello, world!\\n"; int main(){putstr(gstr); return 0;}'
 try_output_direct 'char-ptr array' 'Hello, world!' 'void putstr(const char*); const char *gstr[]={"Hello, world!\\n"}; int main(){putstr(gstr[0]); return 0;}'
 try_direct 'assign struct' 37 'int main(){typedef struct{int x;}S; S s={37}; S t; t=s; return s.x;}'
+try_direct 'vaarg' 15 'double sub(double x, ...) {__builtin_va_list ap; __builtin_va_start(ap, x); int i=__builtin_va_arg(ap, int); double d=__builtin_va_arg(ap, double); __builtin_va_end(ap); return x*i/d;} int main(){return sub(2.0, (unsigned char)60, 8.0);}'
