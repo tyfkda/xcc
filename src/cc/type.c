@@ -217,7 +217,7 @@ const Type *qualified_type(const Type *type, int additional) {
 
 // Struct
 
-StructInfo *create_struct(Vector *members, bool is_union) {
+StructInfo *create_struct_info(Vector *members, bool is_union) {
   StructInfo *sinfo = malloc(sizeof(*sinfo));
   sinfo->members = members;
   sinfo->is_union = is_union;
@@ -225,6 +225,15 @@ StructInfo *create_struct(Vector *members, bool is_union) {
   sinfo->align = 0;
   calc_struct_size(sinfo);
   return sinfo;
+}
+
+Type *create_struct_type(StructInfo *sinfo, const Name *name, int qualifier) {
+  Type *type = malloc(sizeof(*type));
+  type->kind = TY_STRUCT;
+  type->qualifier = qualifier;
+  type->struct_.name = name;
+  type->struct_.info = sinfo;
+  return type;
 }
 
 // Enum

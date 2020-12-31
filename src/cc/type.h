@@ -124,7 +124,8 @@ const Type *qualified_type(const Type *type, int additional);
 
 // Struct
 
-StructInfo *create_struct(Vector *members, bool is_union);  // members: <VarInfo*>
+StructInfo *create_struct_info(Vector *members, bool is_union);  // members: <VarInfo*>
+Type *create_struct_type(StructInfo *sinfo, const Name *name, int qualifier);
 
 Type *create_enum_type(const Name *name);
 

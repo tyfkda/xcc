@@ -751,12 +751,7 @@ const Type *parse_raw_type(int *pstorage) {
       if (name == NULL && sinfo == NULL)
         parse_error(NULL, "Illegal struct/union usage");
 
-      Type *stype = malloc(sizeof(*stype));
-      stype->kind = TY_STRUCT;
-      stype->qualifier = qualifier;
-      stype->struct_.name = name;
-      stype->struct_.info = sinfo;
-      type = stype;
+      type = create_struct_type(sinfo, name, qualifier);
     } else if ((tok = match(TK_ENUM)) != NULL) {
       if (is_unsigned)
         parse_error(tok, "`unsigned' for enum");
@@ -1003,7 +998,7 @@ static StructInfo *parse_struct(bool is_union) {
       break;
     }
   }
-  return create_struct(members, is_union);
+  return create_struct_info(members, is_union);
 }
 
 static Expr *parse_compound_literal(const Type *type) {
