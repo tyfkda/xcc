@@ -627,6 +627,8 @@ Token *consume(enum TokenKind kind, const char *error) {
 }
 
 void unget_token(Token *token) {
+  if (token->kind == TK_EOF)
+    return;
   ++lexer.idx;
   assert(lexer.idx < MAX_LOOKAHEAD);
   lexer.fetched[lexer.idx] = token;

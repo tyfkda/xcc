@@ -1063,51 +1063,39 @@ static Stmt *parse_block(const Token *tok) {
 }
 
 static Stmt *parse_stmt(void) {
-  Token *label = match(TK_IDENT);
-  if (label != NULL) {
-    if (match(TK_COLON)) {
-      return parse_label(label);
-    }
-    unget_token(label);
-  }
-
-  if (match(TK_SEMICOL))
+  Token *tok = match(-1);
+  switch (tok->kind){
+  case TK_IDENT:
+    if (match(TK_COLON))
+      return parse_label(tok);
+    break;
+  case TK_SEMICOL:
     return NULL;
-
-  const Token *tok;
-  if ((tok = match(TK_LBRACE)) != NULL)
+  case TK_LBRACE:
     return parse_block(tok);
-
-  if ((tok = match(TK_IF)) != NULL)
+  case TK_IF:
     return parse_if(tok);
-
-  if ((tok = match(TK_SWITCH)) != NULL)
+  case TK_SWITCH:
     return parse_switch(tok);
-
-  if ((tok = match(TK_WHILE)) != NULL)
+  case TK_WHILE:
     return parse_while(tok);
-
-  if (match(TK_DO))
+  case TK_DO:
     return parse_do_while();
-
-  if ((tok = match(TK_FOR)) != NULL)
+  case TK_FOR:
     return parse_for(tok);
-
-  if ((tok = match(TK_BREAK)) != NULL) {
-    return parse_break_continue(ST_BREAK, tok);
-  }
-  if ((tok = match(TK_CONTINUE)) != NULL) {
-    return parse_break_continue(ST_CONTINUE, tok);
-  }
-  if (match(TK_GOTO)) {
+  case TK_BREAK: case TK_CONTINUE:
+    return parse_break_continue(tok->kind == TK_BREAK ? ST_BREAK : ST_CONTINUE, tok);
+  case TK_GOTO:
     return parse_goto();
+  case TK_RETURN:
+    return parse_return(tok);
+  case TK_ASM:
+    return parse_asm(tok);
+  default:
+    break;
   }
 
-  if ((tok = match(TK_RETURN)) != NULL)
-    return parse_return(tok);
-
-  if ((tok = match(TK_ASM)) != NULL)
-    return parse_asm(tok);
+  unget_token(tok);
 
   // expression statement.
   Expr *val = parse_expr();
