@@ -15,6 +15,8 @@
 
 ////////////////////////////////////////////////
 
+extern void install_builtins(void);
+
 static void init_compiler(FILE *ofp) {
   init_lexer();
   init_global();
@@ -26,6 +28,8 @@ static void init_compiler(FILE *ofp) {
   //set_fixnum_size(FX_LONG,  8, 8);
   //set_fixnum_size(FX_LLONG, 8, 8);
   //set_fixnum_size(FX_ENUM,  4, 4);
+
+  install_builtins();
 }
 
 static void compile1(FILE *ifp, const char *filename, Vector *toplevel) {

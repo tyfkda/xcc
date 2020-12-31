@@ -24,6 +24,8 @@ void parse(Vector *toplevel);  // <Declaraion*>
 
 //
 
+void add_builtin_expr_ident(const char *str, Expr *(*proc)(const Token*));
+
 const Type *parse_raw_type(int *pstorage);
 const Type *parse_type_modifier(const Type *type);
 const Type *parse_type_suffix(const Type *type);
@@ -48,3 +50,4 @@ Expr *str_to_char_array_var(Expr *str);
 Initializer *parse_initializer(void);
 void fix_array_size(Type *type, Initializer *init);
 Vector *assign_initial_value(Expr *expr, Initializer *init, Vector *inits);
+Expr *make_refer(const Token *tok, Expr *expr);

@@ -16,9 +16,16 @@
 Scope *curscope;
 Vector *toplevel;
 
+static Table builtin_expr_ident_table;
+
 static StructInfo *parse_struct(bool is_union);
 static Expr *parse_cast_expr(void);
 static Expr *parse_unary(void);
+
+void add_builtin_expr_ident(const char *str, Expr *(*proc)(const Token*)) {
+  const Name *name = alloc_name(str, NULL, false);
+  table_put(&builtin_expr_ident_table, name, proc);
+}
 
 static void define_enum_member(const Type *type, const Token *ident, int value) {
   VarInfo *varinfo = scope_add(curscope, ident, type, VS_ENUM_MEMBER);
@@ -191,6 +198,11 @@ static void check_referable(const Token *tok, Expr *expr, const char *error) {
   if (expr->kind == EX_COMPLIT)
     return;
   check_lval(tok, expr, error);
+}
+
+Expr *make_refer(const Token *tok, Expr *expr) {
+  check_referable(tok, expr, "Cannot take reference");
+  return new_expr_unary(EX_REF, ptrof(expr->type), tok, expr);
 }
 
 static Expr *new_expr_num_bop(enum ExprKind kind, const Token *tok, Expr *lhs, Expr *rhs, bool keep_left) {
@@ -1079,6 +1091,12 @@ static Expr *parse_prim(void) {
 
   Token *ident = consume(TK_IDENT, "Number or Ident or open paren expected");
   const Name *name = ident->ident;
+  {
+    Expr *(*proc)(const Token*) = table_get(&builtin_expr_ident_table, name);
+    if (proc != NULL) {
+      return proc(ident);
+    }
+  }
   Scope *scope;
   VarInfo *varinfo = scope_find(curscope, name, &scope);
   const Type *type;
@@ -1219,8 +1237,7 @@ static Expr *parse_unary(void) {
   if ((tok = match(TK_AND)) != NULL) {
     Expr *expr = parse_cast_expr();
     assert(expr->type != NULL);
-    check_referable(tok, expr, "Cannot take reference");
-    return new_expr_unary(EX_REF, ptrof(expr->type), tok, expr);
+    return make_refer(tok, expr);
   }
 
   if ((tok = match(TK_MUL)) != NULL) {
