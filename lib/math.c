@@ -1,10 +1,33 @@
 #ifndef __NO_FLONUM
 #include <math.h>
 #include <stdbool.h>
-#include <string.h>  // strlen, strncmp
+#include <stdint.h>  // int64_t
 
 static const double LOG2 = 0.693147180559945;
 static const double _M_2PI = 2 * M_PI;
+static const double TAN225 = 0.414213562373095;  // tan(22.5 degree)
+
+static const int EXP_BIT = 11;
+static const int EXP_POS = 52;
+static const int EXP_BIOS = 1022;
+
+int isfinite(double x) {
+  int64_t *q = (int64_t*)&x;
+  int e = ((int)((*q) >> EXP_POS)) & ((1 << EXP_BIT) - 1);
+  return e != (1 << EXP_BIT) - 1;
+}
+
+int isnan(double x) {
+  int64_t *q = (int64_t*)&x;
+  int e = ((int)((*q) >> (EXP_POS - 1))) & ((1 << (EXP_BIT + 1)) - 1);
+  return e == (1 << (EXP_BIT + 1)) - 1;
+}
+
+int isinf(double x) {
+  int64_t *q = (int64_t*)&x;
+  int e = ((int)((*q) >> (EXP_POS - 1))) & ((1 << (EXP_BIT + 1)) - 1);
+  return e == (((1 << EXP_BIT) - 1) << 1);
+}
 
 static double normalize_radian(double x) {
   double y = fmod(x, _M_2PI);
@@ -71,7 +94,6 @@ double tan(double x) {
 }
 
 double atan(double x) {
-  const double ATAN225 = 0.414213562373095;
   bool neg = x < 0;
   x = fabs(x);
   bool inv = false;
@@ -80,12 +102,11 @@ double atan(double x) {
     inv = true;
   }
   bool diag = false;
-  if (x > ATAN225) {
+  if (x > TAN225) {
     x = (1 - x) / (1 + x);
     diag = true;
   }
 
-  //double t = myatan225(x);
   double t = 0;
   {
     double _xx = -x * x;
@@ -107,25 +128,27 @@ double sqrt(double _) {
   __asm("sqrtsd %xmm0, %xmm0");
 }
 
-double log(double x) {
-  if (x < 0)
-    return -1;
-  if (x == 0)
-    return -1.0 / 0.0;
-
-  int order = 0;
-  if (x >= 2) {
-    do {
-      x *= 0.5;
-      ++order;
-    } while (x >= 2);
-  } else if (x < 1) {
-    do {
-      x *= 2;
-      --order;
-    } while (x < 1);
+double frexp(double x, int *p) {
+  if (x == 0 || !isfinite(x)) {
+    *p = 0;
+    return x;
   }
-  // 1.0 <= x < 2.0
+  int64_t *q = (int64_t*)&x;
+  int e = ((int)((*q) >> EXP_POS)) & ((1 << EXP_BIT) - 1);
+  *p = e - EXP_BIOS;
+  *q = (*q & ~((((int64_t)1 << EXP_BIT) - 1) << EXP_POS)) | ((int64_t)EXP_BIOS << EXP_POS);
+  return x;
+}
+
+double log(double x) {
+  if (x <= 0)
+    return x < 0 ? NAN : -HUGE_VAL;
+  if (!isfinite(x))
+    return x;
+
+  int n;
+  x = frexp(x, &n);
+  // 0.5 <= x < 1.0
 
   double y = (x - 1) / (x + 1);
   double yy = y * y;
@@ -134,7 +157,7 @@ double log(double x) {
     total += y / (i * 2 - 1);
     y *= yy;
   }
-  return 2 * total + order * LOG2;
+  return 2 * total + n * LOG2;
 }
 
 double exp(double x) {
