@@ -26,6 +26,7 @@ extern Table func_info_table;
 extern Table gvar_info_table;
 extern uint32_t data_end_address;
 extern uint32_t stack_size;
+extern int error_count;
 extern bool verbose;
 
 #define VERBOSES(str)  do { if (verbose) printf("%s", str); } while (0)

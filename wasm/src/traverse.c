@@ -66,9 +66,16 @@ GVarInfo *get_gvar_info(Expr *expr) {
     }
   }
   GVarInfo *info = NULL;
-  if (varinfo == NULL ||
-      (info = get_gvar_info_from_name(varinfo->name)) == NULL) {
+  if (varinfo == NULL) {
     parse_error(expr->token, "Variable not found: %.*s", expr->var.name->bytes, expr->var.name->chars);
+  } else {
+    info = get_gvar_info_from_name(varinfo->name);
+    if (info == NULL) {
+      fprintf(stderr, "Global variable not found: %.*s\n", expr->var.name->bytes, expr->var.name->chars);
+      ++error_count;
+      // Returns dummy.
+      info = register_gvar_info(varinfo->name, varinfo);
+    }
   }
   return info;
 }

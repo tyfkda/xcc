@@ -320,7 +320,6 @@ static void gen_lval(Expr *expr) {
       if (is_global_scope(scope) || (varinfo->storage & (VS_STATIC | VS_EXTERN))) {
         assert(!is_prim_type(expr->type) || varinfo->storage & VS_REF_TAKEN);
         GVarInfo *info = get_gvar_info(expr);
-        assert(info != NULL);
         ADD_CODE(OP_I32_CONST);
         ADD_LEB128(info->non_prim.address);
       } else {
@@ -386,7 +385,6 @@ static void gen_var(Expr *expr) {
         ADD_ULEB128(vreg->prim.local_index);
       } else {
         GVarInfo *info = get_gvar_info(expr);
-        assert(info != NULL);
         ADD_CODE(OP_GLOBAL_GET);
         ADD_ULEB128(info->non_prim.address);
       }
@@ -561,7 +559,6 @@ static void gen_expr(Expr *expr, bool needval) {
         ADD_ULEB128(vreg->prim.local_index);
       } else {
         GVarInfo *info = get_gvar_info(sub);
-        assert(info != NULL);
         ADD_CODE(OP_GLOBAL_SET);
         ADD_ULEB128(info->prim.index);
         if (needval) {
@@ -600,7 +597,6 @@ static void gen_expr(Expr *expr, bool needval) {
         ADD_ULEB128(vreg->prim.local_index);
       } else {
         GVarInfo *info = get_gvar_info(sub);
-        assert(info != NULL);
         ADD_CODE(OP_GLOBAL_SET);
         ADD_ULEB128(info->prim.index);
       }
@@ -633,7 +629,6 @@ static void gen_expr(Expr *expr, bool needval) {
             ADD_ULEB128(vreg->prim.local_index);
           } else {
             GVarInfo *info = get_gvar_info(lhs);
-            assert(info != NULL);
             gen_expr(expr->bop.rhs, true);
             ADD_CODE(OP_GLOBAL_SET);
             ADD_ULEB128(info->prim.index);
@@ -719,7 +714,6 @@ static void gen_expr(Expr *expr, bool needval) {
             ADD_ULEB128(varinfo->local.reg->prim.local_index);
           } else {
             GVarInfo *info = get_gvar_info(lhs);
-            assert(info != NULL);
             ADD_CODE(OP_GLOBAL_SET);
             ADD_ULEB128(info->prim.index);
           }

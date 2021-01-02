@@ -20,6 +20,7 @@ static const char IMPORT_MODULE_NAME[] = "c";
 static const char IMPORT_MODULE_ENV_NAME[] = "env";
 
 uint32_t stack_size = 8 * 1024;
+int error_count;
 bool verbose;
 
 ////////////////////////////////////////////////
@@ -44,14 +45,13 @@ static void construct_primitive_global(DataStorage *ds, const VarInfo *varinfo) 
             Expr *sub = value->unary.sub;
             assert(sub->kind == EX_VAR);
             const GVarInfo *info = get_gvar_info(sub);
-            assert(info != NULL && info->varinfo->storage & VS_REF_TAKEN);
+            assert(info->varinfo->storage & VS_REF_TAKEN);
             v = info->non_prim.address;
           }
           break;
         case EX_VAR:
           {
             GVarInfo *info = get_gvar_info(value);
-            assert(info != NULL);
             assert(info->varinfo->type->kind == TY_ARRAY);
             assert(!is_prim_type(info->varinfo->type) || (info->varinfo->storage & VS_REF_TAKEN));
             v = info->non_prim.address;
@@ -114,7 +114,7 @@ static void construct_initial_value(DataStorage *ds, const Type *type, const Ini
             Expr *sub = value->unary.sub;
             assert(sub->kind == EX_VAR);
             const GVarInfo *info = get_gvar_info(sub);
-            assert(info != NULL && info->varinfo->storage & VS_REF_TAKEN);
+            assert(info->varinfo->storage & VS_REF_TAKEN);
             v = info->non_prim.address;
           }
           break;
@@ -122,7 +122,6 @@ static void construct_initial_value(DataStorage *ds, const Type *type, const Ini
           {
             assert(is_global_scope(value->var.scope));
             GVarInfo *info = get_gvar_info(value);
-            assert(info != NULL);
             assert(info->varinfo->type->kind == TY_ARRAY);
             assert(!is_prim_type(info->varinfo->type) || (info->varinfo->storage & VS_REF_TAKEN));
             v = info->non_prim.address;
@@ -683,12 +682,15 @@ int main(int argc, char *argv[]) {
   traverse_ast(toplevel, exports);
 
   gen(toplevel);
+  if (error_count != 0)
+    return 1;
 
   FILE *fp = fopen(ofn, "wb");
   if (fp == NULL) {
     error("Cannot open output file");
   } else {
     emit_wasm(fp, exports);
+    assert(error_count == 0);
     fclose(fp);
   }
 
