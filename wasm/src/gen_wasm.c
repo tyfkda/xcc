@@ -58,6 +58,8 @@ void emit_uleb128(DataStorage *data, size_t pos, uint64_t val) {
 
 ////////////////////////////////////////////////
 
+static void gen_cond(Expr *cond, bool tf);
+
 static Expr *get_sp_var(void) {
   static Expr *spvar;
   if (spvar == NULL) {
@@ -259,6 +261,18 @@ static void gen_cast(const Type *dst, const Type *src) {
   assert(!"Cast not handled");
 }
 
+static void gen_ternary(Expr *expr) {
+  gen_cond(expr->ternary.cond, true);
+  unsigned char type = expr->type->kind == TY_VOID ? WT_VOID : to_wtype(expr->type);
+  ADD_CODE(OP_IF, type);
+  ++cur_depth;
+  gen_expr(expr->ternary.tval, type != WT_VOID);
+  ADD_CODE(OP_ELSE);
+  gen_expr(expr->ternary.fval, type != WT_VOID);
+  ADD_CODE(OP_END);
+  --cur_depth;
+}
+
 static void gen_funcall_by_name(const Name *funcname) {
   FuncInfo *info = table_get(&func_info_table, funcname);
   assert(info != NULL);
@@ -457,6 +471,17 @@ static void gen_expr(Expr *expr, bool needval) {
         ADD_CODE(expr->kind == EX_PTRADD ? OP_I32_ADD : OP_I32_SUB);
       }
     }
+    break;
+
+  case EX_EQ:
+  case EX_NE:
+  case EX_LT:
+  case EX_GT:
+  case EX_LE:
+  case EX_GE:
+  case EX_LOGAND:
+  case EX_LOGIOR:
+    gen_cond(expr, true);
     break;
 
   case EX_POS:
@@ -753,6 +778,10 @@ static void gen_expr(Expr *expr, bool needval) {
         return;
       }
     }
+    break;
+
+  case EX_TERNARY:
+    gen_ternary(expr);
     break;
 
   case EX_MEMBER:
