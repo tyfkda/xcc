@@ -25,16 +25,15 @@ Macro *new_macro_single(const char *text) {
   return new_macro(NULL, false, segments);
 }
 
-void expand(Macro *macro, const Token *token, Vector *args, const Name *name, StringBuffer *sb) {
+bool expand(Macro *macro, const Token *token, Vector *args, const Name *name, StringBuffer *sb) {
   if (macro->params != NULL) {
-    if (args == NULL) {
-      parse_error(token, "arguments expected for macro `%.*s'", name->bytes, name->chars);
-    } else {
-      if ((!macro->va_args && args->len != macro->params->len) ||
-          (macro->va_args && args->len <= macro->params->len)) {
-        const char *cmp = args->len < macro->params->len ? "few" : "many";
-        parse_error(token, "Too %s arguments for macro `%.*s'", cmp, name->bytes, name->chars);
-      }
+    if (args == NULL)
+      return false;
+
+    if ((!macro->va_args && args->len != macro->params->len) ||
+        (macro->va_args && args->len <= macro->params->len)) {
+      const char *cmp = args->len < macro->params->len ? "few" : "many";
+      parse_error(token, "Too %s arguments for macro `%.*s'", cmp, name->bytes, name->chars);
     }
   } else {
     if (args != NULL) {
@@ -86,4 +85,5 @@ void expand(Macro *macro, const Token *token, Vector *args, const Name *name, St
       }
     }
   }
+  return true;
 }

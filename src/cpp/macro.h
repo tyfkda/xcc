@@ -30,4 +30,4 @@ typedef struct {
 Macro *new_macro(Vector *params, bool va_args, Vector *segments);
 Macro *new_macro_single(const char *text);
 
-void expand(Macro *macro, const Token *token, Vector *args, const Name *name, StringBuffer *sb);
+bool expand(Macro *macro, const Token *token, Vector *args, const Name *name, StringBuffer *sb);

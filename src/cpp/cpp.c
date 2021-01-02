@@ -325,9 +325,6 @@ void process_line(const char *line, Stream *stream) {
     Token *ident = match(TK_IDENT);
     Macro *macro;
     if (ident != NULL && (macro = table_get(&macro_table, ident->ident)) != NULL) {
-      if (ident->begin != begin)
-        fwrite(begin, ident->begin - begin, 1, stdout);
-
       s_stream = stream;
       Vector *args = NULL;
       if (macro->params != NULL)
@@ -335,7 +332,11 @@ void process_line(const char *line, Stream *stream) {
 
       StringBuffer sb;
       sb_init(&sb);
-      expand(macro, ident, args, ident->ident, &sb);
+      if (!expand(macro, ident, args, ident->ident, &sb))
+        continue;
+
+      if (ident->begin != begin)
+        fwrite(begin, ident->begin - begin, 1, stdout);
 
       const char *left = get_lex_p();
       if (left != NULL)

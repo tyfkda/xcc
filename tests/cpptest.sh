@@ -44,6 +44,7 @@ compile_error() {
 
 try 'NULL' '0' "#define NULL 0\nNULL"
 try 'Param' '((1) + (2))' "#define ADD(x,y)  ((x) + (y))\nADD(1, 2)"
+try 'No arguments keeps as is' 'int MAX=123;' "#define MAX(a,b) ((a)>=(b)?(a):(b))\nint MAX=123;"
 try 'Newline in macro' '1+2' "#define ADD(x,y) x+y\nADD(1,\n2)"
 try 'Newline in macro2' '(1+ 2)' "#define FOO(x) (x)\nFOO( 1  \n + 2 )"
 try 'Newline in macro3' '(123)' "#define FOO(x) (x)\nFOO\n(123)"
