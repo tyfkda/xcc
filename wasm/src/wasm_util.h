@@ -11,9 +11,11 @@ typedef struct {
 #define SEC_TYPE      (1)
 #define SEC_IMPORT    (2)
 #define SEC_FUNC      (3)
+#define SEC_TABLE     (4)
 #define SEC_MEMORY    (5)
 #define SEC_GLOBAL    (6)
 #define SEC_EXPORT    (7)
+#define SEC_ELEM      (9)
 #define SEC_CODE      (10)
 #define SEC_DATA      (11)
 
@@ -33,6 +35,7 @@ typedef struct {
 #define OP_BR_IF          (0x0d)
 #define OP_RETURN         (0x0f)
 #define OP_CALL           (0x10)
+#define OP_CALL_INDIRECT  (0x11)
 #define OP_DROP           (0x1a)
 #define OP_LOCAL_GET      (0x20)
 #define OP_LOCAL_SET      (0x21)
@@ -138,6 +141,7 @@ typedef struct {
 // Types
 #define WT_VOID           (0x40)
 #define WT_FUNC           (0x60)
+#define WT_FUNCREF        (0x70)
 #define WT_F64            (0x7c)
 #define WT_F32            (0x7d)
 #define WT_I64            (0x7e)

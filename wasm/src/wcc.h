@@ -26,6 +26,7 @@ extern DataStorage *code;
 extern Table func_info_table;
 extern Table gvar_info_table;
 extern Vector *functypes;
+extern Table indirect_function_table;
 extern uint32_t data_end_address;
 extern uint32_t stack_size;
 extern int error_count;
@@ -42,6 +43,7 @@ typedef struct {
   uint32_t index;
   int flag;
   uint32_t type_index;
+  uint32_t indirect_index;
 } FuncInfo;
 
 typedef struct {
@@ -58,6 +60,7 @@ typedef struct {
 } GVarInfo;
 
 #define FF_REFERED   (1 << 0)
+#define FF_INDIRECT  (1 << 1)
 
 // traverse
 void traverse_ast(Vector *decls, Vector *exports);
@@ -65,6 +68,8 @@ void traverse_ast(Vector *decls, Vector *exports);
 bool is_prim_type(const Type *type);
 GVarInfo *get_gvar_info_from_name(const Name *name);
 GVarInfo *get_gvar_info(Expr *expr);
+int get_func_type_index(const Type *type);
+uint32_t get_indirect_function_index(const Name *name);
 
 // gen_wasm
 void gen(Vector *decls);

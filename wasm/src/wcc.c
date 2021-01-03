@@ -292,6 +292,12 @@ static void construct_data_segment(DataStorage *ds) {
   }
 }
 
+static int compare_indirect(const void *pa, const void *pb) {
+  const FuncInfo *qa = *(const FuncInfo**)pa;
+  const FuncInfo *qb = *(const FuncInfo**)pb;
+  return (int)qa->indirect_index - (int)qb->indirect_index;
+}
+
 static void emit_wasm(FILE *ofp, Vector *exports) {
   emit_wasm_header(ofp);
 
@@ -410,6 +416,47 @@ static void emit_wasm(FILE *ofp, Vector *exports) {
   emit_uleb128(&functions_section, 0, function_count);  // num functions
   emit_uleb128(&functions_section, 0, functions_section.len);  // Size
 
+  // Table.
+  DataStorage table_section;
+  data_init(&table_section);
+  // TODO: Output table only when it is needed.
+  int table_start_index = 1;
+  emit_leb128(&table_section, table_section.len, 1);  // num tables
+  data_push(&table_section, WT_FUNCREF);
+  data_push(&table_section, 0x00);  // limits: flags
+  emit_leb128(&table_section, table_section.len, table_start_index + indirect_function_table.count);  // initial
+
+  // Elements.
+  DataStorage elems_section;
+  data_init(&elems_section);
+  if (indirect_function_table.count > 0) {
+    int count = indirect_function_table.count;
+    FuncInfo **indirect_funcs = malloc(sizeof(*indirect_funcs) * count);
+
+    // Enumerate imported functions.
+    VERBOSES("### Indirect functions\n");
+    const Name *name;
+    FuncInfo *info;
+    int index = 0;
+    for (int it = 0; (it = table_iterate(&indirect_function_table, it, &name, (void**)&info)) != -1; ++index)
+      indirect_funcs[index] = info;
+    VERBOSES("\n");
+
+    myqsort(indirect_funcs, count, sizeof(*indirect_funcs), compare_indirect);
+
+    emit_leb128(&elems_section, elems_section.len, 1);  // num elem segments
+    emit_leb128(&elems_section, elems_section.len, 0);  // segment flags
+    data_push(&elems_section, OP_I32_CONST);
+    emit_leb128(&elems_section, elems_section.len, table_start_index);  // start index
+    data_push(&elems_section, OP_END);
+    emit_leb128(&elems_section, elems_section.len, count);  // num elems
+    for (int i = 0 ; i < count; ++i) {
+      FuncInfo *info = indirect_funcs[i];
+      emit_leb128(&elems_section, elems_section.len, info->index);  // elem function index
+    }
+    free(indirect_funcs);
+  }
+
   // Globals.
   DataStorage globals_section;
   data_init(&globals_section);
@@ -502,6 +549,13 @@ static void emit_wasm(FILE *ofp, Vector *exports) {
   data_push(&sections, SEC_FUNC);  // Section "Function" (3)
   data_append(&sections, functions_section.buf, functions_section.len);
 
+  // Table.
+  if (table_section.len > 0) {
+    data_push(&sections, SEC_TABLE);  // Section "Table" (4)
+    emit_uleb128(&sections, sections.len, table_section.len);
+    data_append(&sections, table_section.buf, table_section.len);
+  }
+
   // Globals
   if (globals_count > 0) {
     data_push(&sections, SEC_GLOBAL);  // Section "Global" (6)
@@ -511,6 +565,13 @@ static void emit_wasm(FILE *ofp, Vector *exports) {
   // Exports
   data_push(&sections, SEC_EXPORT);  // Section "Export" (7)
   data_append(&sections, exports_section.buf, exports_section.len);
+
+  // Elements
+  if (elems_section.len > 0) {
+    data_push(&sections, SEC_ELEM);  // Section "Elem" (9)
+    emit_uleb128(&sections, sections.len, elems_section.len);
+    data_append(&sections, elems_section.buf, elems_section.len);
+  }
 
   fwrite(sections.buf, sections.len, 1, ofp);
 
@@ -691,6 +752,7 @@ static void install_builtins(void) {
 static void init_compiler(void) {
   table_init(&func_info_table);
   functypes = new_vector();
+  table_init(&indirect_function_table);
   init_lexer();
   init_global();
 

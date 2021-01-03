@@ -281,12 +281,10 @@ static void gen_funcall_by_name(const Name *funcname) {
 }
 
 static void gen_funcall(Expr *expr) {
-  Expr *func = expr->funcall.func;
-  assert(func->kind == EX_VAR);
   Vector *args = expr->funcall.args;
   int arg_count = args != NULL ? args->len : 0;
 
-  const Type *functype = get_callee_type(func);
+  const Type *functype = get_callee_type(expr->funcall.func);
   int param_count = functype->func.params != NULL ? functype->func.params->len : 0;
   int vaarg_bufsiz = 0;
   int *vaarg_offsets = NULL;
@@ -340,7 +338,21 @@ static void gen_funcall(Expr *expr) {
       ADD_CODE(OP_I32_CONST, 0);  // NULL
     }
   }
-  gen_funcall_by_name(func->var.name);
+
+  {
+    Expr *func = expr->funcall.func;
+    if (func->type->kind == TY_FUNC) {
+      assert(func->kind == EX_VAR);
+      gen_funcall_by_name(func->var.name);
+    } else {
+      gen_expr(func, true);
+      int index = get_func_type_index(functype);
+      assert(index >= 0);
+      ADD_CODE(OP_CALL_INDIRECT);
+      ADD_ULEB128(index);  // signature index
+      ADD_ULEB128(0);     // table index
+    }
+  }
 
   if (vaarg_bufsiz > 0) {
     // global.sp -= vaarg_bufsiz;
@@ -377,9 +389,16 @@ static void gen_lval(Expr *expr) {
       assert(!is_prim_type(expr->type) || varinfo->storage & VS_REF_TAKEN);
       if (is_global_scope(scope) || (varinfo->storage & (VS_STATIC | VS_EXTERN))) {
         assert(!is_prim_type(expr->type) || varinfo->storage & VS_REF_TAKEN);
-        GVarInfo *info = get_gvar_info(expr);
-        ADD_CODE(OP_I32_CONST);
-        ADD_LEB128(info->non_prim.address);
+
+        if (varinfo->type->kind == TY_FUNC) {
+          uint32_t indirect_func = get_indirect_function_index(expr->var.name);
+          ADD_CODE(OP_I32_CONST);
+          ADD_ULEB128(indirect_func);
+        } else {
+          GVarInfo *info = get_gvar_info(expr);
+          ADD_CODE(OP_I32_CONST);
+          ADD_LEB128(info->non_prim.address);
+        }
       } else {
         VReg *vreg = varinfo->local.reg;
         gen_bpofs(vreg->non_prim.offset);

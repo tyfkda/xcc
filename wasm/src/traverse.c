@@ -21,12 +21,13 @@ const char RETVAL_NAME[] = ".._RETVAL";
 Table func_info_table;
 Table gvar_info_table;
 Vector *functypes;
+Table indirect_function_table;
 
 bool is_prim_type(const Type *type) {
   return is_number(type) || type->kind == TY_PTR;
 }
 
-static int get_func_type_index(const Type *type) {
+int get_func_type_index(const Type *type) {
   int len = functypes->len;
   for (int i = 0; i < len; ++i) {
     const Type *t = functypes->data[i];
@@ -45,7 +46,7 @@ static int register_func_type(const Type *type) {
   return index;
 }
 
-static void register_func_info(const Name *funcname, Function *func, const Type *type, int flag) {
+static FuncInfo *register_func_info(const Name *funcname, Function *func, const Type *type, int flag) {
   FuncInfo *info;
   if (!table_try_get(&func_info_table, funcname, (void**)&info)) {
     info = calloc(1, sizeof(*info));
@@ -62,6 +63,25 @@ static void register_func_info(const Name *funcname, Function *func, const Type 
     }
     info->flag |= flag;
   }
+  return info;
+}
+
+static uint32_t register_indirect_function(const Name *name, const Type *type) {
+  FuncInfo *info;
+  if (table_try_get(&indirect_function_table, name, (void**)&info))
+    return info->indirect_index;
+
+  info = register_func_info(name, NULL, type, FF_INDIRECT);
+  uint32_t index = indirect_function_table.count + 1;
+  info->indirect_index = index;
+  table_put(&indirect_function_table, name, info);
+  return index;
+}
+
+uint32_t get_indirect_function_index(const Name *name) {
+  FuncInfo *info = table_get(&indirect_function_table, name);
+  assert(info != NULL && info->indirect_index > 0);
+  return info->indirect_index;
 }
 
 static GVarInfo *register_gvar_info(const Name *name, VarInfo *varinfo) {
@@ -133,6 +153,33 @@ static Expr *assign_to_tmp(Expr *assign, Expr *bop) {
   return new_expr_bop(EX_COMMA, type, token, assign_tmp, assign);
 }
 
+static void traverse_expr(Expr **pexpr, bool needval);
+
+static void traverse_func_expr(Expr **pexpr) {
+  Expr *expr = *pexpr;
+  const Type *type = expr->type;
+  assert(type->kind == TY_FUNC ||
+         (type->kind == TY_PTR && type->pa.ptrof->kind == TY_FUNC));
+  if (expr->kind == EX_VAR) {
+    bool global = false;
+    if (is_global_scope(expr->var.scope)) {
+      global = true;
+    } else {
+      Scope *scope;
+      VarInfo *varinfo = scope_find(expr->var.scope, expr->var.name, &scope);
+      global = (varinfo->storage & VS_EXTERN) != 0;
+    }
+    if (global && type->kind == TY_FUNC) {
+      register_func_info(expr->var.name, NULL, type, FF_REFERED);
+    } else {
+      assert(type->kind == TY_PTR && type->pa.ptrof->kind == TY_FUNC);
+      register_func_type(type->pa.ptrof);
+    }
+  } else {
+    traverse_expr(pexpr, true);
+  }
+}
+
 static void traverse_expr(Expr **pexpr, bool needval) {
   Expr *expr = *pexpr;
   if (expr == NULL)
@@ -142,19 +189,9 @@ static void traverse_expr(Expr **pexpr, bool needval) {
   //case EX_FLONUM:  break;
   //case EX_STR:  break;
   case EX_VAR:
-    {
-      bool global = false;
-      if (expr->type->kind == TY_FUNC) {  // For now, function only.
-        if (is_global_scope(expr->var.scope)) {
-          global = true;
-        } else {
-          Scope *scope;
-          VarInfo *varinfo = scope_find(expr->var.scope, expr->var.name, &scope);
-          global = (varinfo->storage & VS_EXTERN) != 0;
-        }
-      }
-      if (global)
-        register_func_info(expr->var.name, NULL, expr->type, FF_REFERED);
+    if (expr->type->kind == TY_FUNC) {
+      register_indirect_function(expr->var.name, expr->type);
+      traverse_func_expr(pexpr);
     }
     break;
 
@@ -284,7 +321,7 @@ static void traverse_expr(Expr **pexpr, bool needval) {
 
   case EX_FUNCALL:
     {
-      traverse_expr(&expr->funcall.func, true);
+      traverse_func_expr(&expr->funcall.func);
       Vector *args = expr->funcall.args;
       if (args != NULL) {
         for (int i = 0, n = args->len; i < n; ++i)
