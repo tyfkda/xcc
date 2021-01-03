@@ -25,6 +25,7 @@ extern const char RETVAL_NAME[];
 extern DataStorage *code;
 extern Table func_info_table;
 extern Table gvar_info_table;
+extern Vector *functypes;
 extern uint32_t data_end_address;
 extern uint32_t stack_size;
 extern int error_count;

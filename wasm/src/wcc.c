@@ -296,52 +296,34 @@ static void emit_wasm(FILE *ofp, Vector *exports) {
   emit_wasm_header(ofp);
 
   // Types.
-  Vector *types = new_vector();
   DataStorage types_section;
   data_init(&types_section);
-  {
-    const Name *name;
-    FuncInfo *info;
-    for (int it = 0; (it = table_iterate(&func_info_table, it, &name, (void**)&info)) != -1; ) {
-      if (info->flag == 0)
-        continue;
-      const Type *type = info->type;
-      assert(type != NULL && type->kind == TY_FUNC);
-      int type_index;
-      for (type_index = 0; type_index < types->len; ++type_index) {
-        const Type *t = types->data[type_index];
-        if (same_type(t, type))
-          break;
+  for (int i = 0, len = functypes->len; i < len; ++i) {
+    const Type *type = functypes->data[i];
+    data_push(&types_section, WT_FUNC);  // func
+    const Vector *params = type->func.params;
+    int param_count = params != NULL ? params->len : 0;
+    if (type->func.vaargs)
+      ++param_count;
+    emit_uleb128(&types_section, types_section.len, param_count);  // num params
+    for (int i = 0; i < param_count; ++i) {
+      if (type->func.vaargs && i == param_count - 1) {
+        data_push(&types_section, to_wtype(&tyVoidPtr));  // vaarg pointer.
+      } else {
+        VarInfo *varinfo = params->data[i];
+        assert(is_prim_type(varinfo->type));
+        data_push(&types_section, to_wtype(varinfo->type));
       }
-      if (type_index >= types->len) {
-        vec_push(types, type);
-        data_push(&types_section, WT_FUNC);  // func
-        const Vector *params = type->func.params;
-        int param_count = params != NULL ? params->len : 0;
-        if (type->func.vaargs)
-          ++param_count;
-        emit_uleb128(&types_section, types_section.len, param_count);  // num params
-        for (int i = 0; i < param_count; ++i) {
-          if (type->func.vaargs && i == param_count - 1) {
-            data_push(&types_section, to_wtype(&tyVoidPtr));  // vaarg pointer.
-          } else {
-            VarInfo *varinfo = params->data[i];
-            assert(is_prim_type(varinfo->type));
-            data_push(&types_section, to_wtype(varinfo->type));
-          }
-        }
-        if (type->func.ret->kind == TY_VOID) {
-          data_push(&types_section, 0);  // num results
-        } else {
-          assert(is_prim_type(type->func.ret));
-          data_push(&types_section, 1);  // num results
-          data_push(&types_section, to_wtype(type->func.ret));
-        }
-      }
-      info->type_index = type_index;
+    }
+    if (type->func.ret->kind == TY_VOID) {
+      data_push(&types_section, 0);  // num results
+    } else {
+      assert(is_prim_type(type->func.ret));
+      data_push(&types_section, 1);  // num results
+      data_push(&types_section, to_wtype(type->func.ret));
     }
   }
-  emit_uleb128(&types_section, 0, types->len);  // num types
+  emit_uleb128(&types_section, 0, functypes->len);  // num types
   emit_uleb128(&types_section, 0, types_section.len);  // Size
 
   // Imports.
@@ -708,6 +690,7 @@ static void install_builtins(void) {
 
 static void init_compiler(void) {
   table_init(&func_info_table);
+  functypes = new_vector();
   init_lexer();
   init_global();
 

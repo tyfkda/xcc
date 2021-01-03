@@ -20,9 +20,29 @@ const char RETVAL_NAME[] = ".._RETVAL";
 
 Table func_info_table;
 Table gvar_info_table;
+Vector *functypes;
 
 bool is_prim_type(const Type *type) {
   return is_number(type) || type->kind == TY_PTR;
+}
+
+static int get_func_type_index(const Type *type) {
+  int len = functypes->len;
+  for (int i = 0; i < len; ++i) {
+    const Type *t = functypes->data[i];
+    if (same_type(t, type))
+      return i;
+  }
+  return -1;
+}
+
+static int register_func_type(const Type *type) {
+  int index = get_func_type_index(type);
+  if (index < 0) {
+    index = functypes->len;
+    vec_push(functypes, type);
+  }
+  return index;
 }
 
 static void register_func_info(const Name *funcname, Function *func, const Type *type, int flag) {
@@ -35,7 +55,13 @@ static void register_func_info(const Name *funcname, Function *func, const Type 
     info->func = func;
   if (type != NULL)
     info->type = type;
-  info->flag |= flag;
+  if (flag != 0) {
+    if (info->flag == 0) {
+      assert(type != NULL);
+      info->type_index = register_func_type(type);
+    }
+    info->flag |= flag;
+  }
 }
 
 static GVarInfo *register_gvar_info(const Name *name, VarInfo *varinfo) {
