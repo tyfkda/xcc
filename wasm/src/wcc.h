@@ -45,6 +45,7 @@ typedef struct {
 
 typedef struct {
   VarInfo *varinfo;
+  bool export;
   union {
     struct {
       uint32_t index;

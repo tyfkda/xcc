@@ -20,7 +20,6 @@ const char RETVAL_NAME[] = ".._RETVAL";
 
 Table func_info_table;
 Table gvar_info_table;
-uint32_t data_end_address;
 
 bool is_prim_type(const Type *type) {
   return is_number(type) || type->kind == TY_PTR;
@@ -46,6 +45,7 @@ static GVarInfo *register_gvar_info(const Name *name, VarInfo *varinfo) {
 #endif
   GVarInfo *info = calloc(1, sizeof(*info));
   info->varinfo = varinfo;
+  info->export = false;
   table_put(&gvar_info_table, name, info);
   return info;
 }
@@ -406,6 +406,32 @@ static void traverse_decl(Declaration *decl) {
   }
 }
 
+static void add_builtins(void) {
+  {
+    Type *type = malloc(sizeof(*type));
+    *type = tySize;
+    type->qualifier = TQ_CONST;
+    const Name *name = alloc_name(DATA_END_ADDRESS_NAME, NULL, false);
+    /*GVarInfo *info =*/ add_global_var(type, name);
+    /*info->export = true;
+    Initializer *init = calloc(1, sizeof(*init));
+    init->kind = IK_SINGLE;
+    init->single = new_expr_fixlit(type, NULL, data_end_address);
+    info->varinfo->global.init = init;*/
+  }
+  // Stack pointer.
+  {
+    const Name *name = alloc_name(SP_NAME, NULL, false);
+    const Type *type = &tySize;
+    /*GVarInfo *info =*/ add_global_var(type, name);
+    /*info->export = true;
+    Initializer *init = calloc(1, sizeof(*init));
+    init->kind = IK_SINGLE;
+    init->single = new_expr_fixlit(type, NULL, ALIGN(data_end_address, 16));
+    info->varinfo->global.init = init;*/
+  }
+}
+
 void traverse_ast(Vector *decls, Vector *exports) {
   for (int i = 0, len = decls->len; i < len; ++i) {
     Declaration *decl = decls->data[i];
@@ -443,6 +469,8 @@ void traverse_ast(Vector *decls, Vector *exports) {
     VERBOSES("\n");
   }
 
+  add_builtins();
+
   {
     // Enumerate global variables.
     const uint32_t START_ADDRESS = 1;  // Avoid valid poiter is NULL.
@@ -475,29 +503,6 @@ void traverse_ast(Vector *decls, Vector *exports) {
       address += type_size(varinfo->type);
       VERBOSE("%04x: %.*s\n", info->non_prim.address, name->bytes, name->chars);
     }
-    if (address > START_ADDRESS) {
-      data_end_address = address;
-
-      Type *type = malloc(sizeof(*type));
-      *type = tySize;
-      type->qualifier = TQ_CONST;
-      const Name *name = alloc_name(DATA_END_ADDRESS_NAME, NULL, false);
-      GVarInfo *info = add_global_var(type, name);
-      Initializer *init = calloc(1, sizeof(*init));
-      init->kind = IK_SINGLE;
-      init->single = new_expr_fixlit(type, NULL, data_end_address);
-      info->varinfo->global.init = init;
-    }
-    // Stack pointer.
-    {
-      const Name *name = alloc_name(SP_NAME, NULL, false);
-      const Type *type = &tySize;
-      GVarInfo *info = add_global_var(type, name);
-      Initializer *init = calloc(1, sizeof(*init));
-      init->kind = IK_SINGLE;
-      init->single = new_expr_fixlit(type, NULL, ALIGN(data_end_address + stack_size, 16));
-      info->varinfo->global.init = init;
-    }
 
     // Primitive types (Globals).
     VERBOSES("\n### Globals\n");
@@ -510,5 +515,25 @@ void traverse_ast(Vector *decls, Vector *exports) {
       VERBOSE("%2d: %.*s\n", info->prim.index, name->bytes, name->chars);
     }
     VERBOSES("\n");
+
+    // Set initial values.
+    {  // Data end address.
+      GVarInfo *info = get_gvar_info_from_name(alloc_name(DATA_END_ADDRESS_NAME, NULL, false));
+      assert(info != NULL);
+      info->export = true;
+      Initializer *init = calloc(1, sizeof(*init));
+      init->kind = IK_SINGLE;
+      init->single = new_expr_fixlit(info->varinfo->type, NULL, address);
+      info->varinfo->global.init = init;
+    }
+    {  // Stack pointer.
+      GVarInfo *info = get_gvar_info_from_name(alloc_name(SP_NAME, NULL, false));
+      assert(info != NULL);
+      info->export = true;
+      Initializer *init = calloc(1, sizeof(*init));
+      init->kind = IK_SINGLE;
+      init->single = new_expr_fixlit(info->varinfo->type, NULL, ALIGN(address + stack_size, 16));
+      info->varinfo->global.init = init;
+    }
   }
 }

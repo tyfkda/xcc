@@ -485,26 +485,20 @@ static void emit_wasm(FILE *ofp, Vector *exports) {
     emit_uleb128(&exports_section, exports_section.len, func_index);  // export func index
     ++num_exports;
   }
-  if (data_end_address > 0) {
-    // Data end address.
-    GVarInfo *info = get_gvar_info_from_name(alloc_name(DATA_END_ADDRESS_NAME, NULL, false));
-    assert(info != NULL);
-    size_t name_len = strlen(DATA_END_ADDRESS_NAME);
-    emit_uleb128(&exports_section, exports_section.len, name_len);  // string length
-    data_append(&exports_section, (const unsigned char*)DATA_END_ADDRESS_NAME, name_len);  // export name
-    emit_uleb128(&exports_section, exports_section.len, EXPORT_GLOBAL);  // export kind
-    emit_uleb128(&exports_section, exports_section.len, info->prim.index);  // export global index
-    ++num_exports;
-  }
-  {  // Stack pointer.
-    GVarInfo *info = get_gvar_info_from_name(alloc_name(SP_NAME, NULL, false));
-    assert(info != NULL);
-    size_t name_len = strlen(SP_NAME);
-    emit_uleb128(&exports_section, exports_section.len, name_len);  // string length
-    data_append(&exports_section, (const unsigned char*)SP_NAME, name_len);  // export name
-    emit_uleb128(&exports_section, exports_section.len, EXPORT_GLOBAL);  // export kind
-    emit_uleb128(&exports_section, exports_section.len, info->prim.index);  // export global index
-    ++num_exports;
+  // Export globals.
+  {
+    const Name *name;
+    GVarInfo *info;
+    for (int it = 0; (it = table_iterate(&gvar_info_table, it, &name, (void**)&info)) != -1; ) {
+      const VarInfo *varinfo = info->varinfo;
+      if (!info->export || !is_prim_type(varinfo->type) || (varinfo->storage & VS_REF_TAKEN))
+        continue;
+      emit_uleb128(&exports_section, exports_section.len, name->bytes);  // string length
+      data_append(&exports_section, (const unsigned char*)name->chars, name->bytes);  // export name
+      emit_uleb128(&exports_section, exports_section.len, EXPORT_GLOBAL);  // export kind
+      emit_uleb128(&exports_section, exports_section.len, info->prim.index);  // export global index
+      ++num_exports;
+    }
   }
   emit_uleb128(&exports_section, 0, num_exports);  // num exports
   emit_uleb128(&exports_section, 0, exports_section.len);  // Size
