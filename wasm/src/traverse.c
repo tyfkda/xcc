@@ -273,14 +273,57 @@ static void traverse_expr(Expr **pexpr, bool needval) {
   case EX_POS:
   case EX_NEG:
   case EX_BITNOT:
-  case EX_PREINC:
-  case EX_PREDEC:
-  case EX_POSTINC:
-  case EX_POSTDEC:
   case EX_REF:
   case EX_DEREF:
   case EX_CAST:
     traverse_expr(&expr->unary.sub, needval);
+    break;
+  case EX_PREINC:
+  case EX_PREDEC:
+  case EX_POSTINC:
+  case EX_POSTDEC:
+    {
+      static const enum ExprKind kOpTable[2][2] = {
+        {EX_SUB, EX_ADD},
+        {EX_PTRSUB, EX_PTRADD},
+      };
+
+      traverse_expr(&expr->unary.sub, needval);
+      Expr *sub = expr->unary.sub;
+      if (sub->kind == EX_VAR) {
+        VarInfo *varinfo = scope_find(sub->var.scope, sub->var.name, NULL);
+        if (!(varinfo->storage & VS_REF_TAKEN))
+          break;
+      }
+
+      const Type *type = sub->type;
+      assert(is_number(type) || type->kind == TY_PTR);
+      enum ExprKind ek = expr->kind;
+      bool pre = ek == EX_PREINC || ek == EX_PREDEC;
+      bool inc = ek == EX_PREINC || ek == EX_POSTINC;
+      // (++xxx)  =>  (p = &xxx, tmp = *p + 1, *p = tmp, tmp)
+      // (xxx++)  =>  (p = &xxx, tmp = *p, *p = tmp + 1, tmp)
+      const Token *token = sub->token;
+      const Type *ptrtype = ptrof(type);
+      Expr *p = alloc_tmp(token, ptrtype);
+      Expr *tmp = alloc_tmp(token, type);
+      enum ExprKind op = kOpTable[type->kind == TY_PTR][inc];
+
+      Expr *assign_p = new_expr_bop(EX_ASSIGN, &tyVoid, token, p, new_expr_unary(EX_REF, ptrtype, token, sub));
+      Expr *deref_p = new_expr_deref(token, p);
+      Expr *one = new_expr_fixlit(type->kind == TY_PTR ? &tySize : type, token, 1);
+      Expr *tmpval = pre ? new_expr_bop(op, type, token, deref_p, one) : deref_p;
+      Expr *assign_tmp = new_expr_bop(EX_ASSIGN, &tyVoid, token, tmp, tmpval);
+      Expr *pval = pre ? tmp : new_expr_bop(op, type, token, tmp, one);
+      Expr *assign_deref_p = new_expr_bop(EX_ASSIGN, &tyVoid, token, deref_p, pval);
+
+      *pexpr = new_expr_bop(
+          EX_COMMA, type, token, assign_p,
+          new_expr_bop(
+              EX_COMMA, type, token, assign_tmp,
+              new_expr_bop(
+                  EX_COMMA, type, token, assign_deref_p, tmp)));
+    }
     break;
   case EX_MODIFY:
     {
