@@ -1,6 +1,7 @@
 #include "wcc.h"
 
 #include <assert.h>
+#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>  // malloc
 #include <string.h>
@@ -112,12 +113,15 @@ static void gen_load(const Type *type) {
   switch (type->kind) {
   case TY_FIXNUM:
   case TY_PTR:
-    switch (type_size(type)) {
-    case 1:  ADD_CODE(OP_I32_LOAD8_S, 0, 0); break;
-    case 2:  ADD_CODE(OP_I32_LOAD16_S, 1, 0); break;
-    case 4:  ADD_CODE(OP_I32_LOAD, 2, 0); break;
-    case 8:  ADD_CODE(OP_I64_LOAD, 3, 0); break;
-    default: assert(false);
+    {
+      bool u = !is_fixnum(type->kind) || type->fixnum.is_unsigned;
+      switch (type_size(type)) {
+      case 1:  ADD_CODE(u ? OP_I32_LOAD8_U : OP_I32_LOAD8_S, 0, 0); break;
+      case 2:  ADD_CODE(u ? OP_I32_LOAD16_U : OP_I32_LOAD16_S, 1, 0); break;
+      case 4:  ADD_CODE(OP_I32_LOAD, 2, 0); break;
+      case 8:  ADD_CODE(OP_I64_LOAD, 3, 0); break;
+      default: assert(false);
+      }
     }
     break;
 #ifndef __NO_FLONUM
@@ -159,6 +163,7 @@ static void gen_store(const Type *type) {
 static void gen_arith(enum ExprKind kind, const Type *type) {
   assert(is_number(type));
   int index = 0;
+  bool is_unsigned = is_fixnum(type->kind) && type->fixnum.is_unsigned;
 #ifndef __NO_FLONUM
   if (is_flonum(type)) {
     assert(kind < EX_MOD);
@@ -169,17 +174,24 @@ static void gen_arith(enum ExprKind kind, const Type *type) {
     index = type_size(type) > I32_SIZE ? 1 : 0;
   }
 
-  // unsigned?
-  static const unsigned char kOpTable[][EX_RSHIFT - EX_ADD + 1] = {
-    {OP_I32_ADD, OP_I32_SUB, OP_I32_MUL, OP_I32_DIV_S, OP_I32_REM_S, OP_I32_AND, OP_I32_OR, OP_I32_XOR, OP_I32_SHL, OP_I32_SHR_S},
-    {OP_I64_ADD, OP_I64_SUB, OP_I64_MUL, OP_I64_DIV_S, OP_I64_REM_S, OP_I64_AND, OP_I64_OR, OP_I64_XOR, OP_I64_SHL, OP_I64_SHR_S},
-    {OP_F32_ADD, OP_F32_SUB, OP_F32_MUL, OP_F32_DIV, OP_NOP, OP_NOP, OP_NOP, OP_NOP, OP_NOP, OP_NOP},
-    {OP_F64_ADD, OP_F64_SUB, OP_F64_MUL, OP_F64_DIV, OP_NOP, OP_NOP, OP_NOP, OP_NOP, OP_NOP, OP_NOP},
+  static const unsigned char kOpTable[][4][EX_RSHIFT - EX_ADD + 1] = {
+    {
+      {OP_I32_ADD, OP_I32_SUB, OP_I32_MUL, OP_I32_DIV_S, OP_I32_REM_S, OP_I32_AND, OP_I32_OR, OP_I32_XOR, OP_I32_SHL, OP_I32_SHR_S},
+      {OP_I64_ADD, OP_I64_SUB, OP_I64_MUL, OP_I64_DIV_S, OP_I64_REM_S, OP_I64_AND, OP_I64_OR, OP_I64_XOR, OP_I64_SHL, OP_I64_SHR_S},
+      {OP_F32_ADD, OP_F32_SUB, OP_F32_MUL, OP_F32_DIV, OP_NOP, OP_NOP, OP_NOP, OP_NOP, OP_NOP, OP_NOP},
+      {OP_F64_ADD, OP_F64_SUB, OP_F64_MUL, OP_F64_DIV, OP_NOP, OP_NOP, OP_NOP, OP_NOP, OP_NOP, OP_NOP},
+    },
+    {
+      {OP_I32_ADD, OP_I32_SUB, OP_I32_MUL, OP_I32_DIV_U, OP_I32_REM_U, OP_I32_AND, OP_I32_OR, OP_I32_XOR, OP_I32_SHL, OP_I32_SHR_U},
+      {OP_I64_ADD, OP_I64_SUB, OP_I64_MUL, OP_I64_DIV_U, OP_I64_REM_U, OP_I64_AND, OP_I64_OR, OP_I64_XOR, OP_I64_SHL, OP_I64_SHR_U},
+      {OP_F32_ADD, OP_F32_SUB, OP_F32_MUL, OP_F32_DIV, OP_NOP, OP_NOP, OP_NOP, OP_NOP, OP_NOP, OP_NOP},
+      {OP_F64_ADD, OP_F64_SUB, OP_F64_MUL, OP_F64_DIV, OP_NOP, OP_NOP, OP_NOP, OP_NOP, OP_NOP, OP_NOP},
+    },
   };
 
   assert(EX_ADD <= kind && kind <= EX_RSHIFT);
-  assert(kOpTable[index][kind - EX_ADD] != OP_NOP);
-  ADD_CODE(kOpTable[index][kind - EX_ADD]);
+  assert(kOpTable[is_unsigned][index][kind - EX_ADD] != OP_NOP);
+  ADD_CODE(kOpTable[is_unsigned][index][kind - EX_ADD]);
 }
 
 static void gen_ptradd(enum ExprKind kind, const Type *type) {
@@ -207,22 +219,58 @@ static void gen_cast(const Type *dst, const Type *src) {
       {
         int d = type_size(dst);
         int s = type_size(src);
+        bool du = dst->kind != TY_FIXNUM || dst->fixnum.is_unsigned;
+        bool su = src->kind != TY_FIXNUM || src->fixnum.is_unsigned;
         switch ((d > I32_SIZE ? 2 : 0) + (s > I32_SIZE ? 1 : 0)) {
         case 1: ADD_CODE(OP_I32_WRAP_I64); break;
-        case 2: ADD_CODE(OP_I64_EXTEND_I32_S); break;
+        case 2: ADD_CODE(su ? OP_I64_EXTEND_I32_U : OP_I64_EXTEND_I32_S); break;
+        }
+        if (d < s) {
+          if (d <= I32_SIZE) {
+            if (s > I32_SIZE)
+              ADD_CODE(OP_I32_WRAP_I64);
+            if (d < I32_SIZE) {
+              if (du) {
+                ADD_CODE(OP_I32_CONST);
+                ADD_LEB128((1 << (d * CHAR_BIT)) - 1);
+                ADD_CODE(OP_I32_AND);
+              } else {
+                int shift = (s - d) * CHAR_BIT;
+                ADD_CODE(OP_I32_CONST);
+                ADD_LEB128(shift);
+                ADD_CODE(OP_I32_SHL);
+                ADD_CODE(OP_I32_CONST);
+                ADD_LEB128(shift);
+                ADD_CODE(OP_I32_SHR_S);
+              }
+            }
+          } else {
+            assert(!"Not implemented");
+          }
+        } else if (d > s) {
+          if (du && !su) {
+            int shift = (s - d) * CHAR_BIT;
+            ADD_CODE(OP_I32_CONST);
+            ADD_LEB128(shift);
+            ADD_CODE(OP_I32_SHL);
+            ADD_CODE(OP_I32_CONST);
+            ADD_LEB128(shift);
+            ADD_CODE(OP_I32_SHR_U);
+          }
         }
       }
       return;
 #ifndef __NO_FLONUM
     case TY_FLONUM:
       {
-        static const unsigned char OpTable[] = {
-          OP_I32_TRUNC_F32_S, OP_I32_TRUNC_F64_S,
-          OP_I64_TRUNC_F32_S, OP_I64_TRUNC_F64_S,
+        static const unsigned char OpTable[][4] = {
+          { OP_I32_TRUNC_F32_S, OP_I32_TRUNC_F64_S, OP_I64_TRUNC_F32_S, OP_I64_TRUNC_F64_S },
+          { OP_I32_TRUNC_F32_U, OP_I32_TRUNC_F64_U, OP_I64_TRUNC_F32_U, OP_I64_TRUNC_F64_U },
         };
         int d = type_size(dst);
         int index = (d > I32_SIZE ? 2 : 0) + (src->flonum.kind != FL_FLOAT ? 1 : 0);
-        ADD_CODE(OpTable[index]);
+        bool du = !is_fixnum(dst->kind) || dst->fixnum.is_unsigned;
+        ADD_CODE(OpTable[du][index]);
       }
       return;
 #endif
@@ -234,13 +282,14 @@ static void gen_cast(const Type *dst, const Type *src) {
     switch (src->kind) {
     case TY_FIXNUM:
       {
-        static const unsigned char OpTable[] = {
-          OP_F32_CONVERT_I32_S, OP_F32_CONVERT_I64_S,
-          OP_F64_CONVERT_I32_S, OP_F64_CONVERT_I64_S,
+        static const unsigned char OpTable[][4] = {
+          { OP_F32_CONVERT_I32_S, OP_F32_CONVERT_I64_S, OP_F64_CONVERT_I32_S, OP_F64_CONVERT_I64_S },
+          { OP_F32_CONVERT_I32_U, OP_F32_CONVERT_I64_U, OP_F64_CONVERT_I32_U, OP_F64_CONVERT_I64_U },
         };
         int s = type_size(src);
         int index = (dst->flonum.kind != FL_FLOAT ? 2 : 0) + (s > I32_SIZE ? 1 : 0);
-        ADD_CODE(OpTable[index]);
+        bool su = !is_fixnum(src->kind) || src->fixnum.is_unsigned;
+        ADD_CODE(OpTable[su][index]);
       }
       return;
     case TY_FLONUM:
@@ -879,17 +928,20 @@ static void gen_compare_expr(enum ExprKind kind, Expr *lhs, Expr *rhs) {
   int index = 0;
 #ifndef __NO_FLONUM
   if (is_flonum(lhs->type)) {
-    index = lhs->type->flonum.kind != FL_FLOAT ? 3 : 2;
+    index = lhs->type->flonum.kind != FL_FLOAT ? 5 : 4;
   } else
 #endif
   {
-    index = type_size(lhs->type) > I32_SIZE ? 1 : 0;
+    index = (!is_fixnum(lhs->type->kind) || lhs->type->fixnum.is_unsigned ? 2 : 0) +
+        (type_size(lhs->type) > I32_SIZE ? 1 : 0);
   }
 
   // unsigned?
   static const unsigned char OpTable[][6] = {
     {OP_I32_EQ, OP_I32_NE, OP_I32_LT_S, OP_I32_LE_S, OP_I32_GE_S, OP_I32_GT_S},
     {OP_I64_EQ, OP_I64_NE, OP_I64_LT_S, OP_I64_LE_S, OP_I64_GE_S, OP_I64_GT_S},
+    {OP_I32_EQ, OP_I32_NE, OP_I32_LT_U, OP_I32_LE_U, OP_I32_GE_U, OP_I32_GT_U},
+    {OP_I64_EQ, OP_I64_NE, OP_I64_LT_U, OP_I64_LE_U, OP_I64_GE_U, OP_I64_GT_U},
     {OP_F32_EQ, OP_F32_NE, OP_F32_LT, OP_F32_LE, OP_F32_GE, OP_F32_GT},
     {OP_F64_EQ, OP_F64_NE, OP_F64_LT, OP_F64_LE, OP_F64_GE, OP_F64_GT},
   };

@@ -47,7 +47,9 @@ typedef struct {
 #define OP_F32_LOAD       (0x2a)
 #define OP_F64_LOAD       (0x2b)
 #define OP_I32_LOAD8_S    (0x2c)
+#define OP_I32_LOAD8_U    (0x2d)
 #define OP_I32_LOAD16_S   (0x2e)
+#define OP_I32_LOAD16_U   (0x2f)
 #define OP_I32_STORE      (0x36)
 #define OP_I64_STORE      (0x37)
 #define OP_F32_STORE      (0x38)
@@ -127,15 +129,24 @@ typedef struct {
 #define OP_F64_DIV        (0xa3)
 #define OP_I32_WRAP_I64       (0xa7)  // i32 <- i64
 #define OP_I32_TRUNC_F32_S    (0xa8)  // i32 <- f32
+#define OP_I32_TRUNC_F32_U    (0xa9)  // i32 <- f32
 #define OP_I32_TRUNC_F64_S    (0xaa)  // i32 <- f64
+#define OP_I32_TRUNC_F64_U    (0xab)  // i32 <- f64
 #define OP_I64_EXTEND_I32_S   (0xac)  // i64 <- i32
+#define OP_I64_EXTEND_I32_U   (0xac)  // i64 <- i32
 #define OP_I64_TRUNC_F32_S    (0xae)  // i64 <- f32
+#define OP_I64_TRUNC_F32_U    (0xaf)  // i64 <- f32
 #define OP_I64_TRUNC_F64_S    (0xb0)  // i64 <- f64
+#define OP_I64_TRUNC_F64_U    (0xb1)  // i64 <- f64
 #define OP_F32_CONVERT_I32_S  (0xb2)  // f32 <- i32
+#define OP_F32_CONVERT_I32_U  (0xb3)  // f32 <- i32
 #define OP_F32_CONVERT_I64_S  (0xb4)  // f32 <- i64
+#define OP_F32_CONVERT_I64_U  (0xb5)  // f32 <- i64
 #define OP_F32_DEMOTE_F64     (0xb6)  // f32 <- f64
 #define OP_F64_CONVERT_I32_S  (0xb7)  // f64 <- i32
+#define OP_F64_CONVERT_I32_U  (0xb8)  // f64 <- i32
 #define OP_F64_CONVERT_I64_S  (0xb9)  // f64 <- i64
+#define OP_F64_CONVERT_I64_U  (0xba)  // f64 <- i64
 #define OP_F64_PROMOTE_F32    (0xbb)  // f64 <- f32
 
 // Types
