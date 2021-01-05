@@ -132,6 +132,17 @@ static void gen_expr(Expr *expr) {
     gen_arith(expr->kind, expr->type);
     break;
 
+  case EX_POS:
+    gen_expr(expr->unary.sub);
+    break;
+
+  case EX_NEG:
+    ADD_CODE(OP_I32_CONST);
+    ADD_LEB128(0);
+    gen_expr(expr->unary.sub);
+    gen_arith(EX_SUB, expr->type);
+    break;
+
   case EX_ASSIGN:
     {
       Expr *lhs = expr->bop.lhs;
