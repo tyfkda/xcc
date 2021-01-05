@@ -1186,6 +1186,11 @@ static Expr *parse_unary(void) {
       }
 #endif
       expr->fixnum = -expr->fixnum;
+      if (expr->type->fixnum.is_unsigned) {
+        size_t size = type_size(expr->type);
+        if (size < sizeof(UFixnum))
+          expr->fixnum &= (((UFixnum)1) << (size * CHAR_BIT)) - 1;
+      }
       return expr;
     }
     return new_expr_unary(EX_NEG, expr->type, tok, expr);
@@ -1360,11 +1365,17 @@ static Expr *parse_shift(void) {
       parse_error(tok, "Cannot use `%.*s' except numbers.", (int)(tok->end - tok->begin), tok->begin);
 
     if (is_const(lhs) && is_const(rhs)) {
-      intptr_t lval = lhs->fixnum;
-      intptr_t rval = rhs->fixnum;
-      intptr_t value = kind == EX_LSHIFT ? lval << rval : lval >> rval;
-      Fixnum fixnum = value;
-      expr = new_expr_fixlit(lhs->type, tok, fixnum);
+      Fixnum value;
+      if (lhs->type->fixnum.is_unsigned) {
+        UFixnum lval = lhs->fixnum;
+        UFixnum rval = rhs->fixnum;
+        value = kind == EX_LSHIFT ? lval << rval : lval >> rval;
+      } else {
+        Fixnum lval = lhs->fixnum;
+        Fixnum rval = rhs->fixnum;
+        value = kind == EX_LSHIFT ? lval << rval : lval >> rval;
+      }
+      expr = new_expr_fixlit(lhs->type, tok, value);
     } else {
       expr = new_expr_bop(kind, lhs->type, tok, lhs, rhs);
     }
