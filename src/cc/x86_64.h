@@ -197,6 +197,7 @@
 #define _WORD(x)       EMIT_ASM1(".word", x)
 #define _LONG(x)       EMIT_ASM1(".long", x)
 #define _QUAD(x)       EMIT_ASM1(".quad", x)
+#define _FLOAT(x)      EMIT_ASM1(".float", x)
 #define _DOUBLE(x)     EMIT_ASM1(".double", x)
 #define _GLOBL(x)      EMIT_ASM1(".globl", x)
 #define _COMM(x, y)    EMIT_ASM2(".comm", x, y)

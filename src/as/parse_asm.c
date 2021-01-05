@@ -219,6 +219,7 @@ static const char *kDirectiveTable[] = {
   "globl",
   "extern",
 #ifndef __NO_FLONUM
+  "float",
   "double",
 #endif
 };
@@ -954,6 +955,7 @@ void handle_directive(ParseInfo *info, enum DirectiveType dir, Vector **section_
     break;
 
 #ifndef __NO_FLONUM
+  case DT_FLOAT:
   case DT_DOUBLE:
     {
       Expr *expr = parse_expr(info);
@@ -971,9 +973,14 @@ void handle_directive(ParseInfo *info, enum DirectiveType dir, Vector **section_
         value = -1;
         break;
       }
-      int size = sizeof(double);
+      int size = dir == DT_FLOAT ? sizeof(float) : sizeof(double);
       unsigned char *buf = malloc(size);
-      memcpy(buf, (void*)&value, size);
+      if (dir == DT_FLOAT) {
+        float fval = value;
+        memcpy(buf, (void*)&fval, sizeof(fval));  // TODO: Endian
+      } else {
+        memcpy(buf, (void*)&value, sizeof(value));  // TODO: Endian
+      }
       vec_push(irs, new_ir_data(buf, size));
     }
     break;

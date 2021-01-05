@@ -308,6 +308,7 @@ enum DirectiveType {
   DT_GLOBL,
   DT_EXTERN,
 #ifndef __NO_FLONUM
+  DT_FLOAT,
   DT_DOUBLE,
 #endif
 };
