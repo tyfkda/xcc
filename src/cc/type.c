@@ -98,7 +98,7 @@ size_t type_size(const Type *type) {
     return flonum_size_table[type->flonum.kind];
 #endif
   case TY_PTR:
-    return 8;
+    return fixnum_size_table[FX_LONG];
   case TY_ARRAY:
     assert(type->pa.length != (size_t)-1);
     return type_size(type->pa.ptrof) * type->pa.length;
@@ -124,8 +124,9 @@ int align_size(const Type *type) {
     return flonum_align_table[type->fixnum.kind];
 #endif
   case TY_PTR:
+    return fixnum_align_table[FX_LONG];
   case TY_FUNC:
-    return 8;
+    return 1;
   case TY_ARRAY:
     return align_size(type->pa.ptrof);
   case TY_STRUCT:
