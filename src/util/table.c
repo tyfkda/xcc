@@ -6,10 +6,11 @@
 // Hash
 
 static uint32_t hash_string(const char *key, int length) {
+  const unsigned char *u = (const unsigned char*)key;
   // FNV1a
   uint32_t hash = 2166136261u;
   for (int i = 0; i < length; ++i)
-    hash = (hash ^ key[i]) * 16777619u;
+    hash = (hash ^ u[i]) * 16777619u;
   return hash;
 }
 
