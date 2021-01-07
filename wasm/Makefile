@@ -53,7 +53,7 @@ test-all: test test-gen2 diff-gen23
 
 .PHONY: clean
 clean:
-	rm -rf wcc $(OBJ_DIR) a.wasm gen2 gen3
+	rm -rf wcc $(OBJ_DIR) a.wasm gen2 gen3 public
 	$(MAKE) -C tests clean
 
 ### Self hosting
@@ -88,3 +88,20 @@ $(TARGET)/cc.wasm:	$(WCC_SRCS) $(WCC_LIBS)
 		-I../inc -I$(CC1_DIR) -I$(CPP_DIR) -I$(UTIL_DIR) -I$(LIB_DIR) \
 		$(WCC_SRCS) \
 		$(WCC_LIBS)
+
+
+### www
+
+ASSETS_DIR=public
+
+.PHONY:	assets
+assets:	gen2 $(ASSETS_DIR)/cc.wasm $(ASSETS_DIR)/libs.json
+
+$(ASSETS_DIR)/cc.wasm:	gen2/cc.wasm
+	mkdir -p $(ASSETS_DIR)
+	cp gen2/cc.wasm $@
+
+$(ASSETS_DIR)/libs.json:	lib_list.json
+	mkdir -p $(ASSETS_DIR)
+	node tool/pack_libs.js lib_list.json > $@
+

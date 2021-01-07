@@ -1,16 +1,46 @@
 <!DOCTYPE html>
 <html>
   <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>FrontendTemplate</title>
-    <link rel="stylesheet" href="assets/default.css">
+    <meta charset="UTF-8">
+    <title>C-compiler on WASM</title>
+    <link rel="stylesheet" href="default.css">
   </head>
 
   <body>
-    Hello, frontend development!
+    <div id="editor" style="height: 400px"></div>
+    <div>
+      <button id="run">Run (⌘+⏎)</button>
+      Args: <input id="args" type="text" value="30">
+    </div>
 
-    <script src="assets/lib.js" type="text/javascript"></script>
-    <script src="assets/main.js" type="text/javascript"></script>
+    <div>
+      <div><b>Logs</b></div>
+      <div id="logs" style="height: 150px"></div>
+    </div>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.4.12/ace.js"></script>
+
+    <script id='default-code' type='text/c'>
+#include <stdio.h>
+#include <stdlib.h>
+
+int fib(int n) {
+  if (n < 2)
+    return n;
+  else
+    return fib(n - 1) + fib(n - 2);
+}
+
+int main(int argc, char *argv[]) {
+  int n = 10;
+  if (argc > 1)
+    n = atoi(argv[1]);
+  for (int i = 0; i <= n; ++i)
+    printf("fib(%2d) = %d\n", i, fib(i));
+  return 0;
+}
+    </script>
+
+    <script src="lib.js" type="text/javascript"></script>
+    <script src="main.js" type="text/javascript"></script>
   </body>
 </html>

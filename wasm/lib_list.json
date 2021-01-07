@@ -1,0 +1,27 @@
+{
+  "usr": {
+    "include": {
+      "sys": {
+        "types.h": "../inc/sys/types.h"
+      },
+      "ctype.h": "../inc/ctype.h",
+      "fcntl.h": "../inc/fcntl.h",
+      "stdarg.h": "../inc/stdarg.h",
+      "stdbool.h": "../inc/stdbool.h",
+      "stddef.h": "../inc/stddef.h",
+      "stdint.h": "../inc/stdint.h",
+      "stdio.h": "../inc/stdio.h",
+      "stdlib.h": "../inc/stdlib.h",
+      "string.h": "../inc/string.h",
+      "unistd.h": "../inc/unistd.h"
+    },
+    "lib": {
+      "_file.h": "../lib/_file.h",
+      "lib.c": [
+        "runtime/lib.c",
+        "../lib/sprintf.c",
+        "../lib/umalloc.c"
+      ]
+    }
+  }
+}
