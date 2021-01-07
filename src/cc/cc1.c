@@ -77,6 +77,7 @@ int main(int argc, char *argv[]) {
       if (ifp == NULL)
         error("Cannot open file: %s\n", filename);
       compile1(ifp, filename, toplevel);
+      fclose(ifp);
     }
   } else {
     compile1(stdin, "*stdin*", toplevel);
