@@ -13,5 +13,5 @@ typedef struct {
   int lineno;
 } Stream;
 
-PpResult parse_expr(void);
-Vector *parse_funargs(Stream *stream);
+PpResult pp_expr(void);
+Vector *pp_funargs(Stream *stream);

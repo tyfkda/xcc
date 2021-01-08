@@ -329,7 +329,7 @@ void process_line(const char *line, Stream *stream) {
       s_stream = stream;
       Vector *args = NULL;
       if (macro->params != NULL)
-        args = parse_funargs(s_stream);
+        args = pp_funargs(s_stream);
 
       StringBuffer sb;
       sb_init(&sb);
@@ -366,7 +366,7 @@ bool handle_ifdef(const char *p) {
 
 bool handle_if(const char *p, Stream *stream) {
   set_source_string(p, stream->filename, stream->lineno);
-  return parse_expr() != 0;
+  return pp_expr() != 0;
 }
 
 #define CF_ENABLE         (1 << 0)

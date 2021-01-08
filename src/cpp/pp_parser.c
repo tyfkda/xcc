@@ -13,8 +13,8 @@
 
 extern Table macro_table;
 
-static PpResult parse_prim(void);
-static PpResult parse_cast_expr(void);
+static PpResult pp_prim(void);
+static PpResult pp_cast_expr(void);
 
 //
 
@@ -27,7 +27,7 @@ static PpResult expand_ident(const Token *ident) {
 
   Vector *args = NULL;
   if (macro->params != NULL)
-    args = parse_funargs(NULL);
+    args = pp_funargs(NULL);
 
   StringBuffer sb;
   sb_init(&sb);
@@ -40,7 +40,7 @@ static PpResult expand_ident(const Token *ident) {
 
   set_source_string(expanded, NULL, -1);
 
-  return parse_prim();
+  return pp_prim();
 }
 
 static PpResult parse_defined(void) {
@@ -53,10 +53,10 @@ static PpResult parse_defined(void) {
   return table_try_get(&macro_table, ident->ident, &dummy) ? 1 : 0;
 }
 
-static PpResult parse_prim(void) {
+static PpResult pp_prim(void) {
   Token *tok;
   if ((tok = match(TK_LPAR)) != NULL) {
-    PpResult result = parse_expr();
+    PpResult result = pp_expr();
     consume(TK_RPAR, "No close paren");
     return result;
   }
@@ -82,8 +82,8 @@ static PpResult parse_prim(void) {
   }
 }
 
-static PpResult parse_postfix(void) {
-  PpResult result = parse_prim();
+static PpResult pp_postfix(void) {
+  PpResult result = pp_prim();
 
   //for (;;) {
     //Token *tok;
@@ -100,56 +100,56 @@ static PpResult parse_postfix(void) {
   //}
 }
 
-static PpResult parse_unary(void) {
+static PpResult pp_unary(void) {
   Token *tok;
   if ((tok = match(TK_ADD)) != NULL) {
-    return parse_cast_expr();
+    return pp_cast_expr();
   }
 
   if ((tok = match(TK_SUB)) != NULL) {
-    PpResult result = parse_cast_expr();
+    PpResult result = pp_cast_expr();
     return -result;
   }
 
   if ((tok = match(TK_NOT)) != NULL) {
-    PpResult result = parse_cast_expr();
+    PpResult result = pp_cast_expr();
     return result ? 0 : 1;
   }
 
   if ((tok = match(TK_TILDA)) != NULL) {
-    PpResult result = parse_cast_expr();
+    PpResult result = pp_cast_expr();
     return ~result;
   }
 
   //if ((tok = match(TK_AND)) != NULL) {
-  //  PpExpr *expr = parse_cast_expr();
+  //  PpExpr *expr = pp_cast_expr();
   //  return new_expr_unary(EX_REF, NULL, tok, expr);
   //}
 
   //if ((tok = match(TK_MUL)) != NULL) {
-  //  PpExpr *expr = parse_cast_expr();
+  //  PpExpr *expr = pp_cast_expr();
   //  return new_expr_unary(EX_DEREF, NULL, tok, expr);
   //}
 
   //if ((tok = match(TK_INC)) != NULL) {
-  //  PpExpr *expr = parse_unary();
+  //  PpExpr *expr = pp_unary();
   //  return new_expr_unary(EX_PREINC, NULL, tok, expr);
   //}
 
   //if ((tok = match(TK_DEC)) != NULL) {
-  //  PpExpr *expr = parse_unary();
+  //  PpExpr *expr = pp_unary();
   //  return new_expr_unary(EX_PREDEC, NULL, tok, expr);
   //}
 
-  return parse_postfix();
+  return pp_postfix();
 }
 
-static PpResult parse_cast_expr(void) {
-  return parse_unary();
+static PpResult pp_cast_expr(void) {
+  return pp_unary();
 }
 
-static PpResult parse_mul(void) {
-  PpResult result = parse_cast_expr();
+static PpResult pp_mul(void) {
+  PpResult result = pp_cast_expr();
   for (;;) {
     Token *tok;
     if (!(((tok = match(TK_MUL)) != NULL) ||
@@ -157,7 +157,7 @@ static PpResult parse_mul(void) {
           ((tok = match(TK_MOD)) != NULL)))
       return result;
 
-    PpResult rhs = parse_cast_expr();
+    PpResult rhs = pp_cast_expr();
     switch (tok->kind) {
     case TK_MUL:  result *= rhs; break;
     case TK_DIV:  result /= rhs; break;
@@ -167,15 +167,15 @@ static PpResult parse_mul(void) {
   }
 }
 
-static PpResult parse_add(void) {
-  PpResult result = parse_mul();
+static PpResult pp_add(void) {
+  PpResult result = pp_mul();
   for (;;) {
     Token *tok;
     if (!(((tok = match(TK_ADD)) != NULL) ||
           ((tok = match(TK_SUB)) != NULL)))
       return result;
 
-    PpResult rhs = parse_mul();
+    PpResult rhs = pp_mul();
     if (tok->kind == TK_ADD)
       result += rhs;
     else
@@ -183,15 +183,15 @@ static PpResult parse_add(void) {
   }
 }
 
-static PpResult parse_shift(void) {
-  PpResult result = parse_add();
+static PpResult pp_shift(void) {
+  PpResult result = pp_add();
   for (;;) {
     Token *tok;
     if (!(((tok = match(TK_LSHIFT)) != NULL) ||
           ((tok = match(TK_RSHIFT)) != NULL)))
       return result;
 
-    PpResult lhs = result, rhs = parse_add();
+    PpResult lhs = result, rhs = pp_add();
     if (tok->kind == TK_LSHIFT)
       result = lhs << rhs;
     else
@@ -199,8 +199,8 @@ static PpResult parse_shift(void) {
   }
 }
 
-static PpResult parse_cmp(void) {
-  PpResult result = parse_shift();
+static PpResult pp_cmp(void) {
+  PpResult result = pp_shift();
   for (;;) {
     Token *tok;
     if (!(((tok = match(TK_LT)) != NULL) ||
@@ -209,7 +209,7 @@ static PpResult parse_cmp(void) {
           ((tok = match(TK_GE)) != NULL)))
       return result;
 
-    PpResult lhs = result, rhs = parse_shift();
+    PpResult lhs = result, rhs = pp_shift();
     switch (tok->kind) {
     case TK_LT:  result = lhs <  rhs ? 1 : 0; break;
     case TK_LE:  result = lhs <= rhs ? 1 : 0; break;
@@ -220,94 +220,94 @@ static PpResult parse_cmp(void) {
   }
 }
 
-static PpResult parse_eq(void) {
-  PpResult result = parse_cmp();
+static PpResult pp_eq(void) {
+  PpResult result = pp_cmp();
   for (;;) {
     Token *tok;
     if (!(((tok = match(TK_EQ)) != NULL) ||
           ((tok = match(TK_NE)) != NULL)))
       return result;
 
-    PpResult lhs = result, rhs = parse_cmp();
+    PpResult lhs = result, rhs = pp_cmp();
     result = lhs == rhs ? 1 : 0;
     if (tok->kind != TK_EQ)
       result = 1 - result;
   }
 }
 
-static PpResult parse_and(void) {
-  PpResult result = parse_eq();
+static PpResult pp_and(void) {
+  PpResult result = pp_eq();
   for (;;) {
     Token *tok;
     if ((tok = match(TK_AND)) != NULL) {
-      PpResult lhs = result, rhs = parse_eq();
+      PpResult lhs = result, rhs = pp_eq();
       result = lhs & rhs;
     } else
       return result;
   }
 }
 
-static PpResult parse_xor(void) {
-  PpResult result = parse_and();
+static PpResult pp_xor(void) {
+  PpResult result = pp_and();
   for (;;) {
     Token *tok;
     if ((tok = match(TK_HAT)) != NULL) {
-      PpResult lhs = result, rhs = parse_and();
+      PpResult lhs = result, rhs = pp_and();
       result = lhs ^ rhs;
     } else
       return result;
   }
 }
 
-static PpResult parse_or(void) {
-  PpResult result = parse_xor();
+static PpResult pp_or(void) {
+  PpResult result = pp_xor();
   for (;;) {
     Token *tok;
     if ((tok = match(TK_OR)) != NULL) {
-      PpResult lhs = result, rhs = parse_xor();
+      PpResult lhs = result, rhs = pp_xor();
       result = lhs | rhs;
     } else
       return result;
   }
 }
 
-static PpResult parse_logand(void) {
-  PpResult result = parse_or();
+static PpResult pp_logand(void) {
+  PpResult result = pp_or();
   for (;;) {
     Token *tok;
     if ((tok = match(TK_LOGAND)) != NULL) {
-      PpResult rhs = parse_logand();
+      PpResult rhs = pp_logand();
       result = result && rhs;
     } else
       return result;
   }
 }
 
-static PpResult parse_logior(void) {
-  PpResult result = parse_logand();
+static PpResult pp_logior(void) {
+  PpResult result = pp_logand();
   for (;;) {
     Token *tok;
     if ((tok = match(TK_LOGIOR)) != NULL) {
-      PpResult rhs = parse_logand();
+      PpResult rhs = pp_logand();
       result = result || rhs;
     } else
       return result;
   }
 }
 
-static PpResult parse_conditional(void) {
-  return parse_logior();
+static PpResult pp_conditional(void) {
+  return pp_logior();
 }
 
-static PpResult parse_assign(void) {
-  return parse_conditional();
+static PpResult pp_assign(void) {
+  return pp_conditional();
 }
 
-PpResult parse_expr(void) {
-  PpResult result = parse_assign();
+PpResult pp_expr(void) {
+  PpResult result = pp_assign();
   const Token *tok;
   while ((tok = match(TK_COMMA)) != NULL) {
-    PpResult next_result = parse_assign();
+    PpResult next_result = pp_assign();
     result = next_result;
   }
   return result;
@@ -326,7 +326,7 @@ static Token *match2(enum TokenKind kind, Stream *stream) {
   return match(kind);
 }
 
-Vector *parse_funargs(Stream *stream) {
+Vector *pp_funargs(Stream *stream) {
   Vector *args = NULL;
   if (match2(TK_LPAR, stream)) {
     args = new_vector();
