@@ -373,10 +373,11 @@ static void traverse_expr(Expr **pexpr, bool needval) {
           Expr *func = expr->funcall.func;
           VarInfo *varinfo = scope_find(func->var.scope, func->var.name, NULL);
           assert(varinfo != NULL);
-          assert(varinfo->type->kind == TY_FUNC);
-          func->type = functype = varinfo->type;
-          if (functype->func.params != NULL)  // Updated.
-            check_funcall_args(func, args);
+          if (varinfo->type->kind == TY_FUNC) {
+            func->type = functype = varinfo->type;
+            if (functype->func.params != NULL)  // Updated.
+              check_funcall_args(func, args);
+          }
         }
 
         if (functype->func.params == NULL && args != NULL)

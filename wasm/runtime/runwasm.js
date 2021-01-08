@@ -33,6 +33,11 @@ async function createWasm(wasmFile, imports) {
 
   const imports = {
     c: {
+      write: (fd, buf, size) => {
+        const memoryImage = new Uint8Array(memory.buffer, buf, size)
+        return fs.writeSync(fd, memoryImage)
+      },
+
       putstr: (ptr) => {
         const text = decodeString(memory.buffer, ptr)
         process.stdout.write(text)
