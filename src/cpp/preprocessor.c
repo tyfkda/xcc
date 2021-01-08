@@ -1,3 +1,5 @@
+#include "preprocessor.h"
+
 #include <assert.h>
 #include <ctype.h>
 #include <libgen.h>  // dirname
@@ -42,8 +44,9 @@ const char *find_directive(const char *line) {
 
 Table macro_table;  // <Name, Macro*>
 
-Vector *sys_inc_paths;  // <const char*>
-Vector *pragma_once_files;  // <const char*>
+static FILE *pp_ofp;
+static Vector *sys_inc_paths;  // <const char*>
+static Vector *pragma_once_files;  // <const char*>
 
 static Stream *s_stream;
 
@@ -61,8 +64,6 @@ void register_pragma_once(const char *filename) {
     filename = fullpath(filename);
   vec_push(pragma_once_files, filename);
 }
-
-int pp(FILE *fp, const char *filename);
 
 void handle_include(const char *p, const char *srcname) {
   char close;
@@ -112,9 +113,9 @@ void handle_include(const char *p, const char *srcname) {
     }
   }
 
-  printf("# 1 \"%s\" 1\n", fn);
-  int lineno = pp(fp, fn);
-  printf("# %d \"%s\" 2\n", lineno, fn);
+  fprintf(pp_ofp, "# 1 \"%s\" 1\n", fn);
+  int lineno = preprocess(fp, fn);
+  fprintf(pp_ofp, "# %d \"%s\" 2\n", lineno, fn);
   fclose(fp);
 }
 
@@ -280,8 +281,8 @@ bool handle_block_comment(const char *begin, const char **pp, Stream *stream) {
   p += 2;
   for (;;) {
     if (*p == '\0') {
-      fwrite(begin, p - begin, 1, stdout);
-      fputc('\n', stdout);
+      fwrite(begin, p - begin, 1, pp_ofp);
+      fputc('\n', pp_ofp);
 
       char *line = NULL;
       size_t capa = 0;
@@ -297,7 +298,7 @@ bool handle_block_comment(const char *begin, const char **pp, Stream *stream) {
 
     if (*p == '*' && p[1] == '/') {
       p += 2;
-      fwrite(begin, p - begin, 1, stdout);
+      fwrite(begin, p - begin, 1, pp_ofp);
       *pp = p;
       return true;
     }
@@ -336,7 +337,7 @@ void process_line(const char *line, Stream *stream) {
         continue;
 
       if (ident->begin != begin)
-        fwrite(begin, ident->begin - begin, 1, stdout);
+        fwrite(begin, ident->begin - begin, 1, pp_ofp);
 
       const char *left = get_lex_p();
       if (left != NULL)
@@ -351,7 +352,7 @@ void process_line(const char *line, Stream *stream) {
     match(-1);
   }
 
-  printf("%s\n", begin);
+  fprintf(pp_ofp, "%s\n", begin);
 }
 
 bool handle_ifdef(const char *p) {
@@ -383,7 +384,15 @@ static void define_file_macro(const char *filename, const Name *key_file) {
   table_put(&macro_table, key_file, new_macro_single(buf));
 }
 
-int pp(FILE *fp, const char *filename) {
+void init_preprocessor(FILE *ofp) {
+  pp_ofp = ofp;
+  sys_inc_paths = new_vector();
+  pragma_once_files = new_vector();
+
+  init_lexer();
+}
+
+int preprocess(FILE *fp, const char *filename) {
   Vector *condstack = new_vector();
   bool enable = true;
   int satisfy = 0;  // #if condition: 0=not satisfied, 1=satisfied, 2=else
@@ -422,10 +431,10 @@ int pp(FILE *fp, const char *filename) {
       if (enable)
         process_line(line, &stream);
       else
-        printf("\n");
+        fprintf(pp_ofp, "\n");
       continue;
     }
-    printf("\n");
+    fprintf(pp_ofp, "\n");
 
     const char *next;
     if ((next = keyword(directive, "ifdef")) != NULL) {
@@ -480,7 +489,7 @@ int pp(FILE *fp, const char *filename) {
     } else if (enable) {
       if ((next = keyword(directive, "include")) != NULL) {
         handle_include(next, filename);
-        printf("# %d \"%s\" 1\n", stream.lineno + 1, filename);
+        fprintf(pp_ofp, "# %d \"%s\" 1\n", stream.lineno + 1, filename);
       } else if ((next = keyword(directive, "define")) != NULL) {
         handle_define(next, &stream);
       } else if ((next = keyword(directive, "undef")) != NULL) {
@@ -505,7 +514,7 @@ int pp(FILE *fp, const char *filename) {
   return stream.lineno;
 }
 
-static void define_macro(const char *arg) {
+void define_macro(const char *arg) {
   char *p = strchr(arg, '=');
   if (p == NULL) {
     table_put(&macro_table, alloc_name(arg, NULL, true), new_macro(NULL, false, NULL));
@@ -515,56 +524,10 @@ static void define_macro(const char *arg) {
   }
 }
 
-int main(int argc, char *argv[]) {
-  sys_inc_paths = new_vector();
-  pragma_once_files = new_vector();
+void define_macro_simple(const char *label) {
+  table_put(&macro_table, alloc_name(label, NULL, true), new_macro(NULL, false, NULL));
+}
 
-  // Predefeined macros.
-  table_put(&macro_table, alloc_name("__XCC", NULL, true), new_macro(NULL, false, NULL));
-#if defined(__XV6)
-  table_put(&macro_table, alloc_name("__XV6", NULL, true), new_macro(NULL, false, NULL));
-#elif defined(__linux__)
-  table_put(&macro_table, alloc_name("__linux__", NULL, true), new_macro(NULL, false, NULL));
-#elif defined(__APPLE__)
-  table_put(&macro_table, alloc_name("__APPLE__", NULL, true), new_macro(NULL, false, NULL));
-#endif
-#if defined(__NO_FLONUM)
-  table_put(&macro_table, alloc_name("__NO_FLONUM", NULL, true), new_macro(NULL, false, NULL));
-#endif
-
-  int iarg = 1;
-  for (; iarg < argc; ++iarg) {
-    char *arg = argv[iarg];
-    if (*arg != '-')
-      break;
-
-    if (starts_with(arg, "-I")) {
-      vec_push(sys_inc_paths, strdup_(argv[iarg] + 2));
-    } else if (starts_with(argv[iarg], "-D")) {
-      define_macro(argv[iarg] + 2);
-    } else if (strcmp(arg, "--version") == 0) {
-      show_version("cpp");
-      return 0;
-    } else {
-      fprintf(stderr, "Unknown option: %s\n", arg);
-      return 1;
-    }
-  }
-
-  init_lexer();
-
-  if (iarg < argc) {
-    for (int i = iarg; i < argc; ++i) {
-      const char *filename = argv[i];
-      FILE *fp = fopen(filename, "r");
-      if (fp == NULL)
-        error("Cannot open file: %s\n", filename);
-      printf("# 1 \"%s\" 1\n", filename);
-      pp(fp, filename);
-      fclose(fp);
-    }
-  } else {
-    pp(stdin, "*stdin*");
-  }
-  return 0;
+void add_system_inc_path(const char *path) {
+  vec_push(sys_inc_paths, strdup_(path));
 }
