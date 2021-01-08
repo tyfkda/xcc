@@ -601,7 +601,7 @@ Vector *construct_initializing_stmts(Vector *decls) {
 static Initializer *check_vardecl(const Type *type, const Token *ident, int storage, Initializer *init) {
   if (type->kind == TY_ARRAY && init != NULL)
     fix_array_size((Type*)type, init);
-  if (type->kind == TY_STRUCT)
+  if (type->kind == TY_STRUCT && !(storage & VS_EXTERN))
     ensure_struct((Type*)type, NULL, curscope);
 
   if (curfunc != NULL) {
