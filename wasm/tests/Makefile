@@ -1,3 +1,5 @@
+WCC:=../wcc
+
 .PHONY: all
 all:	test
 
@@ -12,5 +14,5 @@ clean:
 .PHONY: test-sh
 test-sh: # $(WCC)
 	@echo '## test.sh'
-	./test.sh
+	WCC="$(WCC)" ./test.sh
 	@echo ''

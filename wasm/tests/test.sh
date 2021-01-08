@@ -18,7 +18,7 @@ try_direct() {
 
   echo -e "$input" | $WCC -emain || exit 1
 
-  node ../runtime/runwasm.js a.wasm main
+  node ../runtime/runwasm.js a.wasm
   local actual="$?"
 
   if [ "$actual" = "$expected" ]; then
@@ -43,7 +43,7 @@ try_output_direct() {
   echo -e "$input" | $WCC -emain || exit 1
 
   local actual
-  actual=`node ../runtime/runwasm.js a.wasm main` || exit 1
+  actual=`node ../runtime/runwasm.js a.wasm` || exit 1
 
   if [ "$actual" = "$expected" ]; then
     echo "OK"
