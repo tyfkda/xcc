@@ -63,7 +63,7 @@ char *strrchr(const char *s, int c) {
 char *strstr(const char *s1, const char *s2) {
   for  (size_t len = strlen(s2); *s1 != '\0'; ++s1) {
     if (strncmp(s1, s2, len) == 0)
-      return s1;
+      return (char*)s1;
   }
   return NULL;
 }
@@ -330,7 +330,7 @@ int fileno(FILE *fp) {
 }
 
 size_t fwrite(const void *buffer, size_t size, size_t count, FILE *fp) {
-  write(fp->fd, buffer, size * count);
+  return write(fp->fd, buffer, size * count);
 }
 
 size_t fread(void *buffer, size_t size, size_t count, FILE *fp) {
