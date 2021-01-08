@@ -1,4 +1,5 @@
 CC1_DIR:=../src/cc
+CPP_DIR:=../src/cpp
 UTIL_DIR:=../src/util
 LIB_DIR:=../lib
 OBJ_DIR:=obj
@@ -6,11 +7,12 @@ OBJ_DIR:=obj
 OPTIMIZE:=-O2 -g3
 CFLAGS:=-ansi -std=c11 -MD -Wall -Wextra -Werror -Wold-style-definition \
 	-Wno-missing-field-initializers -Wno-typedef-redefinition -Wno-empty-body
-CFLAGS+=-I$(CC1_DIR) -I$(UTIL_DIR) $(OPTIMIZE)
+CFLAGS+=-I$(CC1_DIR) -I$(CPP_DIR) -I$(UTIL_DIR) $(OPTIMIZE)
 
 WCC_DIR:=src
 WCC_SRCS:=$(wildcard $(WCC_DIR)/*.c) \
 	$(CC1_DIR)/lexer.c $(CC1_DIR)/type.c $(CC1_DIR)/var.c $(CC1_DIR)/ast.c $(CC1_DIR)/parser.c $(CC1_DIR)/parser_expr.c \
+	$(CPP_DIR)/preprocessor.c $(CPP_DIR)/pp_parser.c $(CPP_DIR)/macro.c \
 	$(UTIL_DIR)/util.c $(UTIL_DIR)/table.c
 WCC_OBJS:=$(addprefix $(OBJ_DIR)/,$(notdir $(WCC_SRCS:.c=.o)))
 
@@ -27,6 +29,10 @@ wcc: $(WCC_OBJS)
 -include $(OBJ_DIR)/*.d
 
 $(OBJ_DIR)/%.o: $(CC1_DIR)/%.c
+	@mkdir -p $(OBJ_DIR)
+	$(CC) $(CFLAGS) -c -o $@ $<
+
+$(OBJ_DIR)/%.o: $(CPP_DIR)/%.c
 	@mkdir -p $(OBJ_DIR)
 	$(CC) $(CFLAGS) -c -o $@ $<
 
@@ -78,7 +84,7 @@ WCC_LIBS=runtime/lib.c $(LIB_DIR)/sprintf.c $(LIB_DIR)/umalloc.c $(LIB_DIR)/asse
 
 $(TARGET)/cc.wasm:	$(WCC_SRCS) $(WCC_LIBS)
 	mkdir -p $(TARGET)
-	../cpp -I../inc -I$(CC1_DIR) -I$(UTIL_DIR) -I$(LIB_DIR) -DSELF_HOSTING \
+	$(HOST_CC) -emain -o$(TARGET)/cc.wasm -DSELF_HOSTING \
+		-I../inc -I$(CC1_DIR) -I$(CPP_DIR) -I$(UTIL_DIR) -I$(LIB_DIR) \
 		$(WCC_SRCS) \
-		$(WCC_LIBS) \
-		| $(HOST_CC) -emain -o$(TARGET)/cc.wasm
+		$(WCC_LIBS)

@@ -39,3 +39,4 @@ int vsnprintf(char *out, size_t n, const char *fmt_, va_list ap);
 void perror(const char *);
 
 int fileno(FILE *fp);
+FILE *tmpfile(void);

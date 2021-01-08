@@ -9,6 +9,8 @@
 #include "_file.h"
 
 extern void *_brk(void *);
+extern int _tmpfile(void);
+extern int _getcwd(char *, size_t);
 
 size_t strlen(const char *s) {
   const char *p;
@@ -370,6 +372,25 @@ int toupper(int c) {
   return ('a' <= c && c <= 'z') ? c - ('a' - 'A') : c;
 }
 
+char *dirname(char *path) {
+  char *p = strrchr(path, '/');
+  if (p != NULL) {
+    *p = '\0';
+    return path;
+  }
+  return ".";
+}
+
+char *basename(char *path) {
+  char *p = strrchr(path, '/');
+  if (p != NULL)
+    return p + 1;
+  else
+    return path;
+}
+
+//
+
 FILE *fopen(const char *fileName, const char *mode) {
   static const struct {
     const char *str;
@@ -427,6 +448,14 @@ int fclose(FILE *fp) {
   return 0;
 }
 
+int fseek(FILE *fp, long offset, int origin) {
+  return lseek(fp->fd, offset, origin);
+}
+
+long ftell(FILE *fp) {
+  return fseek(fp, 0, SEEK_CUR);
+}
+
 int fgetc(FILE *fp) {
   unsigned char c;
   int len = read(fp->fd, &c, 1);
@@ -437,6 +466,40 @@ int fputc(int c, FILE *fp) {
   unsigned char cc = c;
   int len = write(fp->fd, &cc, 1);
   return len == 1 ? c : EOF;
+}
+
+char *getcwd(char *buffer, size_t size) {
+  void *allocated = NULL;
+  if (buffer == NULL) {
+    if (size == 0) {
+      size = 512;  // PATH_MAX
+    }
+    buffer = allocated = malloc(size + 1);
+    if (buffer == NULL)
+      return NULL;
+  }
+  int result = _getcwd(buffer, size);
+  if (result < 0) {
+    // errno = -result;
+    free(allocated);
+    return NULL;
+  }
+  return buffer;
+}
+
+FILE *tmpfile(void) {
+  int fd = _tmpfile();
+  if (fd < 0)
+    return NULL;
+
+  FILE *fp = malloc(sizeof(*fp));
+  if (fp == NULL) {
+    close(fd);
+    return NULL;
+  }
+
+  fp->fd = fd;
+  return fp;
 }
 
 static char *curbrk;

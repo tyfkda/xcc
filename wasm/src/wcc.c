@@ -10,6 +10,7 @@
 #include "ast.h"
 #include "lexer.h"
 #include "parser.h"
+#include "preprocessor.h"
 #include "table.h"
 #include "type.h"
 #include "util.h"
@@ -786,6 +787,11 @@ int main(int argc, char *argv[]) {
   Vector *exports = NULL;
   int iarg;
 
+  FILE *ppout = tmpfile();
+  if (ppout == NULL)
+    error("cannot open temporary file");
+
+  init_preprocessor(ppout);
   init_compiler();
 
   for (iarg = 1; iarg < argc; ++iarg) {
@@ -806,6 +812,10 @@ int main(int argc, char *argv[]) {
           break;
         s = p + 1;
       }
+    } else if (starts_with(arg, "-I")) {
+      add_system_inc_path(arg + 2);
+    } else if (starts_with(argv[iarg], "-D")) {
+      define_macro(arg + 2);
     } else if (strncmp(arg, "--stack-size=", 13) == 0) {
       int size = atoi(arg + 13);
       if (size <= 0) {
@@ -831,20 +841,30 @@ int main(int argc, char *argv[]) {
   }
   VERBOSES("\n");
 
-  // Compile.
-  toplevel = new_vector();
+  // Preprocess.
   if (iarg < argc) {
     for (int i = iarg; i < argc; ++i) {
       const char *filename = argv[i];
       FILE *ifp = fopen(filename, "r");
       if (ifp == NULL)
         error("Cannot open file: %s\n", filename);
-      compile1(ifp, filename, toplevel);
+      fprintf(ppout, "# 1 \"%s\" 1\n", filename);
+      preprocess(ifp, filename);
       fclose(ifp);
     }
   } else {
-    compile1(stdin, "*stdin*", toplevel);
+    preprocess(stdin, "*stdin*");
   }
+  if (fseek(ppout, 0, SEEK_SET) != 0) {
+    error("fseek failed");
+    return 1;
+  }
+
+  // Compile.
+  toplevel = new_vector();
+  FILE *ppin = ppout;
+  compile1(ppin, "*", toplevel);
+  fclose(ppin);
 
   traverse_ast(toplevel, exports);
 
