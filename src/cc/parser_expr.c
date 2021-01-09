@@ -110,9 +110,13 @@ Expr *make_cast(const Type *type, const Token *token, Expr *sub, bool is_explici
     }
 #endif
 
-    if (type->fixnum.kind < FX_LONG) {  // LLONG?
+    {
       int bytes = type_size(type);
-      if (bytes <= (int)type_size(sub->type)) {
+      int src_bytes = type_size(sub->type);
+      if (bytes < (int)type_size(&tySize) &&
+          (bytes < src_bytes ||
+           (bytes == src_bytes &&
+            type->fixnum.is_unsigned != sub->type->fixnum.is_unsigned))) {
         int bits = bytes * CHAR_BIT;
         uintptr_t mask = (-1UL) << bits;
         Fixnum value = sub->fixnum;
