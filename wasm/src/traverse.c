@@ -440,6 +440,40 @@ static void traverse_defun(Function *func) {
   }
 }
 
+static void traverse_initializer(Initializer *init) {
+  if (init == NULL)
+    return;
+
+  switch (init->kind) {
+  case IK_SINGLE:
+    traverse_expr(&init->single, true);
+    break;
+  case IK_MULTI:
+    {
+      Vector *multi = init->multi;
+      for (int i = 0; i < multi->len; ++i) {
+        Initializer *elem = multi->data[i];
+        if (elem == NULL)
+          continue;
+        switch (elem->kind) {
+        case IK_SINGLE:
+        case IK_MULTI:
+          traverse_initializer(elem);
+          break;
+        case IK_DOT:
+          traverse_initializer(elem->dot.value);
+          break;
+        case IK_ARR:
+          traverse_initializer(elem->arr.value);
+          break;
+        }
+      }
+    }
+    break;
+  default: assert(false); break;
+  }
+}
+
 static void traverse_decl(Declaration *decl) {
   if (decl == NULL)
     return;
@@ -458,6 +492,7 @@ static void traverse_decl(Declaration *decl) {
           VarInfo *varinfo = scope_find(curscope, name, NULL);
           assert(varinfo != NULL);
           register_gvar_info(name, varinfo);
+          traverse_initializer(d->init);
         }
       }
     }

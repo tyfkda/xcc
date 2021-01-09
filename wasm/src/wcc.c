@@ -44,15 +44,20 @@ static void construct_primitive_global(DataStorage *ds, const VarInfo *varinfo) 
           {
             Expr *sub = value->unary.sub;
             assert(sub->kind == EX_VAR);
-            const GVarInfo *info = get_gvar_info(sub);
-            assert(info->varinfo->storage & VS_REF_TAKEN);
-            v = info->non_prim.address;
+            if (sub->type->kind == TY_FUNC) {
+              v = get_indirect_function_index(sub->var.name);
+            } else {
+              const GVarInfo *info = get_gvar_info(sub);
+              assert(info->varinfo->storage & VS_REF_TAKEN);
+              v = info->non_prim.address;
+            }
           }
           break;
         case EX_VAR:
-          {
+          if (value->type->kind == TY_FUNC) {
+            v = get_indirect_function_index(value->var.name);
+          } else {
             GVarInfo *info = get_gvar_info(value);
-            assert(info->varinfo->type->kind == TY_ARRAY);
             assert(!is_prim_type(info->varinfo->type) || (info->varinfo->storage & VS_REF_TAKEN));
             v = info->non_prim.address;
           }
@@ -112,17 +117,22 @@ static void construct_initial_value(DataStorage *ds, const Type *type, const Ini
         case EX_REF:
           {
             Expr *sub = value->unary.sub;
-            assert(sub->kind == EX_VAR);
-            const GVarInfo *info = get_gvar_info(sub);
-            assert(info->varinfo->storage & VS_REF_TAKEN);
-            v = info->non_prim.address;
+            if (sub->type->kind == TY_FUNC) {
+              v = get_indirect_function_index(sub->var.name);
+            } else {
+              assert(sub->kind == EX_VAR);
+              const GVarInfo *info = get_gvar_info(sub);
+              assert(info->varinfo->storage & VS_REF_TAKEN);
+              v = info->non_prim.address;
+            }
           }
           break;
         case EX_VAR:
-          {
+          if (value->type->kind == TY_FUNC) {
+            v = get_indirect_function_index(value->var.name);
+          } else {
             assert(is_global_scope(value->var.scope));
             GVarInfo *info = get_gvar_info(value);
-            assert(info->varinfo->type->kind == TY_ARRAY);
             assert(!is_prim_type(info->varinfo->type) || (info->varinfo->storage & VS_REF_TAKEN));
             v = info->non_prim.address;
           }
