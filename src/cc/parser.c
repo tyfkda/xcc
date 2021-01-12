@@ -1113,11 +1113,13 @@ static Declaration *parse_defun(const Type *functype, int storage, Token *ident)
   } else {
     if (varinfo->type->kind != TY_FUNC)
       parse_error(ident, "Definition conflict: `%s'");
-    // TODO: Check type.
-    // TODO: Check duplicated definition.
     if (varinfo->global.init != NULL)
       parse_error(ident, "`%.*s' function already defined", func->name->bytes,
                   func->name->chars);
+    if (varinfo->type->func.params == NULL &&  // Old-style prototype definition.
+        functype->func.params != NULL) {
+      varinfo->type = functype;  // Overwrite with actual function type.
+    }
   }
 
   if (match(TK_SEMICOL)) {

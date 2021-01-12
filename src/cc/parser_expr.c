@@ -549,13 +549,17 @@ Vector *parse_args(Token **ptoken) {
   return args;
 }
 
-static Expr *parse_funcall(Expr *func) {
-  Token *token;
-  Vector *args = parse_args(&token);
-  const Type *functype;
-  if (!((functype = func->type)->kind == TY_FUNC ||
-        (func->type->kind == TY_PTR && (functype = func->type->pa.ptrof)->kind == TY_FUNC)))
+const Type *get_callee_type(Expr *func) {
+  const Type *type = func->type;
+  if (type->kind == TY_PTR)
+    type = type->pa.ptrof;
+  if (type->kind != TY_FUNC)
     parse_error(func->token, "Cannot call except function");
+  return type;
+}
+
+void check_funcall_args(Expr *func, Vector *args) {
+  const Type *functype = get_callee_type(func);
 
   const Vector *param_types = functype->func.param_types;  // <const Type*>
   bool vaargs = functype->func.vaargs;
@@ -564,7 +568,7 @@ static Expr *parse_funcall(Expr *func) {
     int paramc = param_types->len;
     if (!(argc == paramc ||
           (vaargs && argc >= paramc)))
-      parse_error(token, "function `%.*s' expect %d arguments, but %d", func->var.name->bytes, func->var.name->chars, paramc, argc);
+      parse_error(func->token, "function `%.*s' expect %d arguments, but %d", func->var.name->bytes, func->var.name->chars, paramc, argc);
   }
 
   if (args != NULL) {
@@ -597,8 +601,14 @@ static Expr *parse_funcall(Expr *func) {
       args->data[i] = arg;
     }
   }
+}
 
-  return new_expr_funcall(token, func, functype, args);
+static Expr *parse_funcall(Expr *func) {
+  Token *token;
+  Vector *args = parse_args(&token);
+
+  check_funcall_args(func, args);
+  return new_expr_funcall(token, func, get_callee_type(func), args);
 }
 
 static Expr *parse_array_index(const Token *token, Expr *array) {

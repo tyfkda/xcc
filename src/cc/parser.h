@@ -51,3 +51,6 @@ Initializer *parse_initializer(void);
 void fix_array_size(Type *type, Initializer *init);
 Vector *assign_initial_value(Expr *expr, Initializer *init, Vector *inits);
 Expr *make_refer(const Token *tok, Expr *expr);
+
+const Type *get_callee_type(Expr *func);
+void check_funcall_args(Expr *func, Vector *args);
