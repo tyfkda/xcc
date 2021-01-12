@@ -2,6 +2,7 @@
 
 #include <assert.h>
 #include <stdlib.h>  // malloc
+#include <string.h>  // memcpy
 
 #include "ast.h"
 #include "lexer.h"  // alloc_ident, parse_error
@@ -364,8 +365,25 @@ static void traverse_expr(Expr **pexpr, bool needval) {
 
   case EX_FUNCALL:
     {
-      traverse_func_expr(&expr->funcall.func);
       Vector *args = expr->funcall.args;
+      const Type *functype = get_callee_type(expr->funcall.func);
+      if (functype->func.params == NULL) {
+        if (expr->funcall.func->kind == EX_VAR) {
+          // Extract function type again.
+          Expr *func = expr->funcall.func;
+          VarInfo *varinfo = scope_find(func->var.scope, func->var.name, NULL);
+          assert(varinfo != NULL);
+          assert(varinfo->type->kind == TY_FUNC);
+          func->type = functype = varinfo->type;
+          if (functype->func.params != NULL)  // Updated.
+            check_funcall_args(func, args);
+        }
+
+        if (functype->func.params == NULL && args != NULL)
+          parse_error(expr->funcall.func->token, "function's parameters must be known");
+      }
+
+      traverse_func_expr(&expr->funcall.func);
       if (args != NULL) {
         for (int i = 0, n = args->len; i < n; ++i)
           traverse_expr((Expr**)&args->data[i], true);
@@ -452,7 +470,16 @@ static void traverse_defun(Function *func) {
     const Token *ident = alloc_ident(name, NULL, NULL);
     scope_add(func->scopes->data[0], ident, functype->func.ret, 0);
   }
-  if (func->type->func.vaargs) {
+  if (functype->func.params == NULL) {
+    // Treat old-style function as a no-parameter function.
+    Type *noparam = malloc(sizeof(*noparam));
+    memcpy(noparam, functype, sizeof(*noparam));
+    noparam->func.params = noparam->func.param_types = new_vector();
+    VarInfo *varinfo = scope_find(global_scope, func->name, NULL);
+    assert(varinfo != NULL);
+    varinfo->type = func->type = functype = noparam;
+  }
+  if (functype->func.vaargs) {
     const Type *tyvalist = find_typedef(curscope, alloc_name("__builtin_va_list", NULL, false), NULL);
     assert(tyvalist != NULL);
 
