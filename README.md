@@ -70,6 +70,11 @@ Preprocessor:
   * Self recursive macro expansion
 
 
+### WebAssembly
+
+[WCC](https://github.com/tyfkda/xcc/blob/main/wasm/README.md): Compile C to WebAssembly.
+
+
 ### Reference
 
   * [低レイヤを知りたい人のためのCコンパイラ作成入門](https://www.sigbus.info/compilerbook)
