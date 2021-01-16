@@ -57,6 +57,22 @@ try_output() {
   try_output_direct "$1" "$2" "int main(){ $3 return 0; }"
 }
 
+compile_error() {
+  local title="$1"
+  local input="$PROLOGUE\n$2"
+
+  echo -n "$title => "
+
+  echo -e "$input" | $WCC -emain
+  local result="$?"
+
+  if [ "$result" = "0" ]; then
+    echo "NG: Compile error expected, but succeeded"
+    exit 1
+  fi
+}
+
+
 try_direct '+*' 7 'int main(){return 1+2*3;}'
 try_direct 'local var' 72 'int main(){int x=8, y=9; return x*y;}'
 try_direct 'i64, f32, f64' 82 'float f32(int i){return i+1;} double f64(float f){return f*2;} long i64(double d){return d/3;} int main(){return i64(f64(f32(123)));}'
@@ -182,3 +198,8 @@ try 'str' 75 '"use strict"; return 75;'
 try 'str in comma' 117 'char *p = (1, "use strict", "dummy"); return p[1];'
 try_direct 'return str' 111 'const char *foo(void){ return "foo"; } int main(){ return foo()[2]; }'
 try 'deref str' 48 'return *"0";'
+
+# error cases
+echo ''
+echo '### Error cases'
+compile_error 'cannot use goto in wcc (yet)' 'void main(){ goto label; label:; }'

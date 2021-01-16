@@ -980,11 +980,11 @@ static Stmt *parse_break_continue(enum StmtKind kind, const Token *tok) {
   return new_stmt(kind, tok);
 }
 
-static Stmt *parse_goto(void) {
+static Stmt *parse_goto(const Token *tok) {
   Token *label = consume(TK_IDENT, "label for goto expected");
   consume(TK_SEMICOL, "`;' expected");
 
-  Stmt *stmt = new_stmt_goto(label);
+  Stmt *stmt = new_stmt_goto(tok, label);
   add_func_goto(stmt);
   return stmt;
 }
@@ -1086,7 +1086,7 @@ static Stmt *parse_stmt(void) {
   case TK_BREAK: case TK_CONTINUE:
     return parse_break_continue(tok->kind == TK_BREAK ? ST_BREAK : ST_CONTINUE, tok);
   case TK_GOTO:
-    return parse_goto();
+    return parse_goto(tok);
   case TK_RETURN:
     return parse_return(tok);
   case TK_ASM:

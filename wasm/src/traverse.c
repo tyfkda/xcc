@@ -441,7 +441,9 @@ static void traverse_stmt(Stmt *stmt) {
   case ST_FOR:  traverse_expr(&stmt->for_.pre, false); traverse_expr(&stmt->for_.cond, true); traverse_expr(&stmt->for_.post, false); traverse_stmt(stmt->for_.body); break;
   //case ST_BREAK:  gen_break(); break;
   //case ST_CONTINUE:  gen_continue(); break;
-  //case ST_GOTO:  gen_goto(stmt); break;
+  case ST_GOTO:
+    parse_error(stmt->token, "cannot use goto");
+    break;
   case ST_LABEL:  traverse_stmt(stmt->label.stmt); break;
   case ST_VARDECL:  traverse_stmts(stmt->vardecl.inits); break;
   //case ST_ASM:  break;

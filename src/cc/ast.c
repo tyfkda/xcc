@@ -218,8 +218,8 @@ Stmt *new_stmt_return(const Token *token, Expr *val) {
   return stmt;
 }
 
-Stmt *new_stmt_goto(const Token *label) {
-  Stmt *stmt = new_stmt(ST_GOTO, NULL);
+Stmt *new_stmt_goto(const Token *tok, const Token *label) {
+  Stmt *stmt = new_stmt(ST_GOTO, tok);
   stmt->goto_.label = label;
   return stmt;
 }
