@@ -396,6 +396,7 @@ static void traverse_expr(Expr **pexpr, bool needval) {
     break;
 
   case EX_COMPLIT:
+    parse_error(expr->token, "compound literal not supported (yet)");
     traverse_stmts(expr->complit.inits);
     break;
 
@@ -517,7 +518,8 @@ static void traverse_defun(Function *func) {
 
   const Type *functype = func->type;
   if (functype->func.ret->kind != TY_VOID) {
-    assert(is_prim_type(functype->func.ret));
+    if (!is_prim_type(functype->func.ret))
+      parse_error(NULL, "`%.*s': return type except primitive is not supported (yet)", func->name->bytes, func->name->chars);
     // Add local variable for return value.
     const Name *name = alloc_name(RETVAL_NAME, NULL, false);
     const Token *ident = alloc_ident(name, NULL, NULL);
@@ -531,6 +533,14 @@ static void traverse_defun(Function *func) {
     VarInfo *varinfo = scope_find(global_scope, func->name, NULL);
     assert(varinfo != NULL);
     varinfo->type = func->type = functype = noparam;
+  }
+  if (functype->func.params != NULL) {
+    const Vector *params = functype->func.params;
+    for (int i = 0, len = params->len; i < len; ++i) {
+      VarInfo *varinfo = params->data[i];
+      if (!is_prim_type(varinfo->type))
+        parse_error(NULL, "`%.*s' parameter #%d: parameter type except primitive is not supported (yet)", func->name->bytes, func->name->chars, i + 1);
+    }
   }
   if (functype->func.vaargs) {
     const Type *tyvalist = find_typedef(curscope, alloc_name("__builtin_va_list", NULL, false), NULL);

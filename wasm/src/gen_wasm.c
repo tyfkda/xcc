@@ -768,12 +768,13 @@ static void gen_expr(Expr *expr, bool needval) {
       case TY_STRUCT:
         {
           size_t size = type_size(expr->bop.lhs->type);
-          assert(size > 0);
-          gen_lval(expr->bop.lhs);
-          gen_expr(expr->bop.rhs, true);
-          ADD_CODE(type_size(&tySize) <= I32_SIZE ? OP_I32_CONST : OP_I64_CONST);
-          ADD_LEB128(size);
-          gen_funcall_by_name(alloc_name(MEMCPY_NAME, NULL, false));
+          if (size > 0) {
+            gen_lval(expr->bop.lhs);
+            gen_expr(expr->bop.rhs, true);
+            ADD_CODE(type_size(&tySize) <= I32_SIZE ? OP_I32_CONST : OP_I64_CONST);
+            ADD_LEB128(size);
+            gen_funcall_by_name(alloc_name(MEMCPY_NAME, NULL, false));
+          }
         }
         break;
       default: assert(false); break;
@@ -917,7 +918,9 @@ static void gen_expr(Expr *expr, bool needval) {
       ADD_CODE(OP_DROP);
     break;
 
-  default: assert(!"Not implemeneted"); break;
+  default:
+fprintf(stderr, "%d, ", expr->kind);
+   assert(!"Not implemeneted"); break;
   }
 }
 
