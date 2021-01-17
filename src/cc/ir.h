@@ -203,8 +203,6 @@ typedef struct BB {
 extern BB *curbb;
 
 BB *new_bb(void);
-BB *bb_split(BB *bb);
-void bb_insert(BB *bb, BB *cc);
 
 // Basic blocks in a function
 typedef struct BBContainer {

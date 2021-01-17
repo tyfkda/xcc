@@ -122,15 +122,15 @@ void gen_cond_jmp(Expr *cond, bool tf, BB *bb) {
     return;
   case EX_LOGAND:
     if (!tf) {
-      BB *bb1 = bb_split(curbb);
-      BB *bb2 = bb_split(bb1);
+      BB *bb1 = new_bb();
+      BB *bb2 = new_bb();
       gen_cond_jmp(cond->bop.lhs, false, bb);
       set_curbb(bb1);
       gen_cond_jmp(cond->bop.rhs, false, bb);
       set_curbb(bb2);
     } else {
-      BB *bb1 = bb_split(curbb);
-      BB *bb2 = bb_split(bb1);
+      BB *bb1 = new_bb();
+      BB *bb2 = new_bb();
       gen_cond_jmp(cond->bop.lhs, false, bb2);
       set_curbb(bb1);
       gen_cond_jmp(cond->bop.rhs, true, bb);
@@ -139,15 +139,15 @@ void gen_cond_jmp(Expr *cond, bool tf, BB *bb) {
     return;
   case EX_LOGIOR:
     if (tf) {
-      BB *bb1 = bb_split(curbb);
-      BB *bb2 = bb_split(bb1);
+      BB *bb1 = new_bb();
+      BB *bb2 = new_bb();
       gen_cond_jmp(cond->bop.lhs, true, bb);
       set_curbb(bb1);
       gen_cond_jmp(cond->bop.rhs, true, bb);
       set_curbb(bb2);
     } else {
-      BB *bb1 = bb_split(curbb);
-      BB *bb2 = bb_split(bb1);
+      BB *bb1 = new_bb();
+      BB *bb2 = new_bb();
       gen_cond_jmp(cond->bop.lhs, true, bb2);
       set_curbb(bb1);
       gen_cond_jmp(cond->bop.rhs, false, bb);
@@ -285,9 +285,9 @@ static VReg *gen_variable(Expr *expr) {
 }
 
 static VReg *gen_ternary(Expr *expr) {
-  BB *tbb = bb_split(curbb);
-  BB *fbb = bb_split(tbb);
-  BB *nbb = bb_split(fbb);
+  BB *tbb = new_bb();
+  BB *fbb = new_bb();
+  BB *nbb = new_bb();
   bool no_value = expr->type->kind == TY_VOID;
 
   VReg *result = add_new_reg(expr->type, 0);
@@ -884,10 +884,10 @@ VReg *gen_expr(Expr *expr) {
 
   case EX_LOGAND:
     {
-      BB *bb1 = bb_split(curbb);
-      BB *bb2 = bb_split(bb1);
-      BB *false_bb = bb_split(bb2);
-      BB *next_bb = bb_split(false_bb);
+      BB *bb1 = new_bb();
+      BB *bb2 = new_bb();
+      BB *false_bb = new_bb();
+      BB *next_bb = new_bb();
       gen_cond_jmp(expr->bop.lhs, false, false_bb);
       set_curbb(bb1);
       gen_cond_jmp(expr->bop.rhs, false, false_bb);
@@ -904,10 +904,10 @@ VReg *gen_expr(Expr *expr) {
 
   case EX_LOGIOR:
     {
-      BB *bb1 = bb_split(curbb);
-      BB *bb2 = bb_split(bb1);
-      BB *true_bb = bb_split(bb2);
-      BB *next_bb = bb_split(true_bb);
+      BB *bb1 = new_bb();
+      BB *bb2 = new_bb();
+      BB *true_bb = new_bb();
+      BB *next_bb = new_bb();
       gen_cond_jmp(expr->bop.lhs, true, true_bb);
       set_curbb(bb1);
       gen_cond_jmp(expr->bop.rhs, true, true_bb);

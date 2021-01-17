@@ -28,6 +28,8 @@ static void gen_expr_stmt(Expr *expr);
 
 void set_curbb(BB *bb) {
   assert(curfunc != NULL);
+  if (curbb != NULL)
+    curbb->next = bb;
   curbb = bb;
   vec_push(curfunc->bbcon->bbs, bb);
 }
@@ -45,16 +47,16 @@ static void pop_continue_bb(BB *save) {
   s_continue_bb = save;
 }
 
-static BB *push_continue_bb(BB *parent_bb, BB **save) {
+static BB *push_continue_bb(BB **save) {
   *save = s_continue_bb;
-  BB *bb = bb_split(parent_bb);
+  BB *bb = new_bb();
   s_continue_bb = bb;
   return bb;
 }
 
-static BB *push_break_bb(BB *parent_bb, BB **save) {
+static BB *push_break_bb(BB **save) {
   *save = s_break_bb;
-  BB *bb = bb_split(parent_bb);
+  BB *bb = new_bb();
   s_break_bb = bb;
   return bb;
 }
@@ -142,7 +144,7 @@ static void gen_block(Stmt *stmt) {
 
 static void gen_return(Stmt *stmt) {
   assert(curfunc != NULL);
-  BB *bb = bb_split(curbb);
+  BB *bb = new_bb();
   if (stmt->return_.val != NULL) {
     Expr *val = stmt->return_.val;
     VReg *reg = gen_expr(val);
@@ -165,15 +167,15 @@ static void gen_return(Stmt *stmt) {
 }
 
 static void gen_if(Stmt *stmt) {
-  BB *tbb = bb_split(curbb);
-  BB *fbb = bb_split(tbb);
+  BB *tbb = new_bb();
+  BB *fbb = new_bb();
   gen_cond_jmp(stmt->if_.cond, false, fbb);
   set_curbb(tbb);
   gen_stmt(stmt->if_.tblock);
   if (stmt->if_.fblock == NULL) {
     set_curbb(fbb);
   } else {
-    BB *nbb = bb_split(fbb);
+    BB *nbb = new_bb();
     new_ir_jmp(COND_ANY, nbb);
     set_curbb(fbb);
     gen_stmt(stmt->if_.fblock);
@@ -200,7 +202,7 @@ static void gen_switch_cond_recur(Stmt *stmt, VReg *reg, const VRegType *vtype, 
   Vector *cases = stmt->switch_.cases;
   if (len <= 2) {
     for (int i = 0; i < len; ++i) {
-      BB *nextbb = bb_split(curbb);
+      BB *nextbb = new_bb();
       int index = order[i];
       Stmt *c = cases->data[index];
       VReg *num = new_const_vreg(c->case_.value->fixnum, vtype);
@@ -211,7 +213,7 @@ static void gen_switch_cond_recur(Stmt *stmt, VReg *reg, const VRegType *vtype, 
     Stmt *def = curswitch->switch_.default_;
     new_ir_jmp(COND_ANY, def != NULL ? def->case_.bb : curswitch->switch_.break_bb);
   } else {
-    BB *bbne = bb_split(curbb);
+    BB *bbne = new_bb();
     int m = len >> 1;
     int index = order[m];
       Stmt *c = cases->data[index];
@@ -220,8 +222,8 @@ static void gen_switch_cond_recur(Stmt *stmt, VReg *reg, const VRegType *vtype, 
     new_ir_jmp(COND_EQ, c->case_.bb);
     set_curbb(bbne);
 
-    BB *bblt = bb_split(curbb);
-    BB *bbgt = bb_split(bblt);
+    BB *bblt = new_bb();
+    BB *bbgt = new_bb();
     new_ir_jmp(COND_GT, bbgt);
     set_curbb(bblt);
     gen_switch_cond_recur(stmt, reg, vtype, order, m);
@@ -256,22 +258,19 @@ static void gen_switch_cond(Stmt *stmt) {
     Stmt *def = curswitch->switch_.default_;
     new_ir_jmp(COND_ANY, def != NULL ? def->case_.bb : curswitch->switch_.break_bb);
   }
-  set_curbb(bb_split(curbb));
+  set_curbb(new_bb());
 }
 
 static void gen_switch(Stmt *stmt) {
-  BB *pbb = curbb;
-
   Stmt *save_switch = curswitch;
   BB *save_break;
-  BB *break_bb = stmt->switch_.break_bb = push_break_bb(pbb, &save_break);
+  BB *break_bb = stmt->switch_.break_bb = push_break_bb(&save_break);
 
   Vector *cases = stmt->switch_.cases;
   for (int i = 0, len = cases->len; i < len; ++i) {
-    BB *bb = bb_split(pbb);
+    BB *bb = new_bb();
     Stmt *c = cases->data[i];
     c->case_.bb = bb;
-    pbb = bb;
   }
 
   curswitch = stmt;
@@ -293,11 +292,11 @@ static void gen_case(Stmt *stmt) {
 }
 
 static void gen_while(Stmt *stmt) {
-  BB *loop_bb = bb_split(curbb);
+  BB *loop_bb = new_bb();
 
   BB *save_break, *save_cont;
-  BB *cond_bb = push_continue_bb(loop_bb, &save_cont);
-  BB *next_bb = push_break_bb(cond_bb, &save_break);
+  BB *cond_bb = push_continue_bb(&save_cont);
+  BB *next_bb = push_break_bb(&save_break);
 
   new_ir_jmp(COND_ANY, cond_bb);
 
@@ -313,11 +312,11 @@ static void gen_while(Stmt *stmt) {
 }
 
 static void gen_do_while(Stmt *stmt) {
-  BB *loop_bb = bb_split(curbb);
+  BB *loop_bb = new_bb();
 
   BB *save_break, *save_cont;
-  BB *cond_bb = push_continue_bb(loop_bb, &save_cont);
-  BB *next_bb = push_break_bb(cond_bb, &save_break);
+  BB *cond_bb = push_continue_bb(&save_cont);
+  BB *next_bb = push_break_bb(&save_break);
 
   set_curbb(loop_bb);
   gen_stmt(stmt->while_.body);
@@ -331,12 +330,12 @@ static void gen_do_while(Stmt *stmt) {
 }
 
 static void gen_for(Stmt *stmt) {
-  BB *cond_bb = bb_split(curbb);
-  BB *body_bb = bb_split(cond_bb);
+  BB *cond_bb = new_bb();
+  BB *body_bb = new_bb();
 
   BB *save_break, *save_cont;
-  BB *continue_bb = push_continue_bb(body_bb, &save_cont);
-  BB *next_bb = push_break_bb(continue_bb, &save_break);
+  BB *continue_bb = push_continue_bb(&save_cont);
+  BB *next_bb = push_break_bb(&save_break);
 
   if (stmt->for_.pre != NULL)
     gen_expr_stmt(stmt->for_.pre);
@@ -361,14 +360,14 @@ static void gen_for(Stmt *stmt) {
 
 static void gen_break(void) {
   assert(s_break_bb != NULL);
-  BB *bb = bb_split(curbb);
+  BB *bb = new_bb();
   new_ir_jmp(COND_ANY, s_break_bb);
   set_curbb(bb);
 }
 
 static void gen_continue(void) {
   assert(s_continue_bb != NULL);
-  BB *bb = bb_split(curbb);
+  BB *bb = new_bb();
   new_ir_jmp(COND_ANY, s_continue_bb);
   set_curbb(bb);
 }
@@ -384,7 +383,6 @@ static void gen_label(Stmt *stmt) {
   assert(curfunc->label_table != NULL);
   BB *bb = table_get(curfunc->label_table, stmt->token->ident);
   assert(bb != NULL);
-  bb_insert(curbb, bb);
   set_curbb(bb);
   gen_stmt(stmt->label.stmt);
 }
@@ -475,7 +473,7 @@ static void gen_defun(Function *func) {
   alloc_variable_registers(func);
 
   curscope = func->scopes->data[0];
-  func->ret_bb = bb_split(curbb);
+  func->ret_bb = new_bb();
 
   // Statements
   gen_stmts(func->stmts);

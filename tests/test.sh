@@ -147,6 +147,7 @@ try_direct 'goto' 1 'int main(){ int x = 1; goto label; x = 2; label: return x; 
 try_output '*const' foobar 'const char* const str = "foobar"; write(1, str, 6);'
 try_direct 'switch w/o case' 1 'int main(){ int x = 0; switch (0) {default: x = 1; break;} return x; }'
 try_direct 'switch w/o case & default' 0 'int main(){ int x = 0; switch (0) {x = 1;} return x; }'
+try 'switch-if-default' 49 'switch(0){if(0){default: return 49;}} return 94;'
 try 'post inc pointer' 1 'char *p = (char*)(-1L); p++; return p == 0;'
 try_direct 'more params' 36 'int func(int a, int b, int c, int d, int e, int f, char g, int h) { return a + b + c + d + e + f + g + h; } int main(){ return func(1, 2, 3, 4, 5, 6, 7, 8); }'
 try_direct 'more params w/ struct' 143 'typedef struct {int x;} S; S func(int a, int b, int c, int d, int e, int f, int g) { return (S){f + g}; } int main(){ S s = func(11, 22, 33, 44, 55, 66, 77); return s.x; }'

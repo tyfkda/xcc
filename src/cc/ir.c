@@ -1359,18 +1359,6 @@ BB *new_bb(void) {
   return bb;
 }
 
-BB *bb_split(BB *bb) {
-  BB *cc = new_bb();
-  cc->next = bb->next;
-  bb->next = cc;
-  return cc;
-}
-
-void bb_insert(BB *bb, BB *cc) {
-  cc->next = bb->next;
-  bb->next = cc;
-}
-
 //
 
 BBContainer *new_func_blocks(void) {
