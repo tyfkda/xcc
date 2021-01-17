@@ -24,6 +24,8 @@ Table gvar_info_table;
 Vector *functypes;
 Table indirect_function_table;
 
+static Stmt *branching_stmt;
+
 bool is_prim_type(const Type *type) {
   return is_number(type) || type->kind == TY_PTR;
 }
@@ -135,6 +137,7 @@ static GVarInfo *add_global_var(const Type *type, const Name *name) {
 }
 
 static void traverse_stmts(Vector *stmts);
+static void traverse_stmt(Stmt *stmt);
 
 static Expr *alloc_tmp(const Token *token, const Type *type) {
   const Name *name = alloc_label();
@@ -400,6 +403,73 @@ static void traverse_expr(Expr **pexpr, bool needval) {
   }
 }
 
+static Stmt *push_branching_stmt(Stmt *stmt) {
+  Stmt *prev = branching_stmt;
+  branching_stmt = stmt;
+  return prev;
+}
+
+static void traverse_if(Stmt *stmt) {
+  traverse_expr(&stmt->if_.cond, true);
+  Stmt *saved = push_branching_stmt(stmt);
+  traverse_stmt(stmt->if_.tblock);
+  traverse_stmt(stmt->if_.fblock);
+  branching_stmt = saved;
+}
+
+static void traverse_switch(Stmt *stmt) {
+  traverse_expr(&stmt->switch_.value, true);
+  Stmt *saved = push_branching_stmt(stmt);
+  traverse_stmt(stmt->switch_.body);
+  branching_stmt = saved;
+
+  if (!is_const(stmt->switch_.value) && stmt->switch_.value->kind != EX_VAR) {
+    Expr *org_value = stmt->switch_.value;
+    // Store value into temporary variable.
+    assert(curfunc != NULL);
+    Scope *scope = curfunc->scopes->data[0];
+    const Token *ident = alloc_ident(alloc_label(), NULL, NULL);
+    const Type *type = stmt->switch_.value->type;
+    scope_add(scope, ident, type, 0);
+
+    // switch (complex)  =>  switch ((tmp = complex, tmp))
+    Expr *var = new_expr_variable(ident->ident, type, ident, scope);
+    Expr *comma = new_expr_bop(
+        EX_COMMA, type, org_value->token,
+        new_expr_bop(EX_ASSIGN, &tyVoid, org_value->token, var, org_value),
+        var);
+    stmt->switch_.value = comma;
+  }
+}
+
+static void traverse_case(Stmt *stmt) {
+  if (branching_stmt->kind != ST_SWITCH)
+    parse_error(stmt->token, "case/default inside branch not supported");
+}
+
+static void traverse_while(Stmt *stmt) {
+  traverse_expr(&stmt->while_.cond, true);
+  Stmt *saved = push_branching_stmt(stmt);
+  traverse_stmt(stmt->while_.body);
+  branching_stmt = saved;
+}
+
+static void traverse_do_while(Stmt *stmt) {
+  Stmt *saved = push_branching_stmt(stmt);
+  traverse_stmt(stmt->while_.body);
+  branching_stmt = saved;
+  traverse_expr(&stmt->while_.cond, true);
+}
+
+static void traverse_for(Stmt *stmt) {
+  traverse_expr(&stmt->for_.pre, false);
+  traverse_expr(&stmt->for_.cond, true);
+  traverse_expr(&stmt->for_.post, false);
+  Stmt *saved = push_branching_stmt(stmt);
+  traverse_stmt(stmt->for_.body);
+  branching_stmt = saved;
+}
+
 static void traverse_stmt(Stmt *stmt) {
   if (stmt == NULL)
     return;
@@ -413,32 +483,12 @@ static void traverse_stmt(Stmt *stmt) {
     if (stmt->block.scope != NULL)
       curscope = curscope->parent;
     break;
-  case ST_IF:  traverse_expr(&stmt->if_.cond, true); traverse_stmt(stmt->if_.tblock); traverse_stmt(stmt->if_.fblock); break;
-  case ST_SWITCH:
-    traverse_expr(&stmt->switch_.value, true);
-    traverse_stmt(stmt->switch_.body);
-    if (!is_const(stmt->switch_.value) && stmt->switch_.value->kind != EX_VAR) {
-      Expr *org_value = stmt->switch_.value;
-      // Store value into temporary variable.
-      assert(curfunc != NULL);
-      Scope *scope = curfunc->scopes->data[0];
-      const Token *ident = alloc_ident(alloc_label(), NULL, NULL);
-      const Type *type = stmt->switch_.value->type;
-      scope_add(scope, ident, type, 0);
-
-      // switch (complex)  =>  switch ((tmp = complex, tmp))
-      Expr *var = new_expr_variable(ident->ident, type, ident, scope);
-      Expr *comma = new_expr_bop(
-          EX_COMMA, type, org_value->token,
-          new_expr_bop(EX_ASSIGN, &tyVoid, org_value->token, var, org_value),
-          var);
-      stmt->switch_.value = comma;
-    }
-    break;
-  //case ST_CASE:  break;
-  //case ST_DEFAULT:  gen_default(); break;
-  case ST_WHILE: case ST_DO_WHILE:  traverse_expr(&stmt->while_.cond, true); traverse_stmt(stmt->while_.body); break;
-  case ST_FOR:  traverse_expr(&stmt->for_.pre, false); traverse_expr(&stmt->for_.cond, true); traverse_expr(&stmt->for_.post, false); traverse_stmt(stmt->for_.body); break;
+  case ST_IF:  traverse_if(stmt); break;
+  case ST_SWITCH:  traverse_switch(stmt); break;
+  case ST_CASE: case ST_DEFAULT:  traverse_case(stmt); break;
+  case ST_WHILE:  traverse_while(stmt); break;
+  case ST_DO_WHILE:  traverse_do_while(stmt); break;
+  case ST_FOR:  traverse_for(stmt); break;
   //case ST_BREAK:  gen_break(); break;
   //case ST_CONTINUE:  gen_continue(); break;
   case ST_GOTO:
