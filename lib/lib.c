@@ -269,10 +269,10 @@ double strtod(const char* /*restrict*/ p, char ** /*restrict*/ pp) {
   const char *orig = p;
   bool neg = parse_sign(&p);
 
-  struct {
+  static const struct {
     const char *str;
     double pos, neg;
-  } static const CONST[] = {
+  } CONST[] = {
     {"infinity", 1.0 / 0.0, -1.0 / 0.0},
     {"inf", 1.0 / 0.0, -1.0 / 0.0},
     {"nan", 0.0 / 0.0, 0.0 / 0.0},
@@ -523,10 +523,10 @@ char *basename(char *path) {
 }
 
 FILE *fopen(const char *fileName, const char *mode) {
-  struct {
+  static const struct {
     const char *str;
     int flag;
-  } static const kTable[] = {
+  } kTable[] = {
     {"r", O_RDONLY},
     {"w", O_WRONLY | O_CREAT | O_TRUNC},
     {"a", O_WRONLY | O_CREAT | O_APPEND},
