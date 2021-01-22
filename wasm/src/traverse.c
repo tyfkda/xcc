@@ -251,11 +251,11 @@ static void traverse_expr(Expr **pexpr, bool needval) {
       if (!(lhs->kind == EX_VAR ||
             (lhs->kind == EX_DEREF && lhs->unary.sub->kind == EX_VAR))) {
         const Token *token = expr->token;
-        const Type *type = lhs->type;
-        Expr *tmp = alloc_tmp(token, type);
+        const Type *type = lhs->type, *ptrtype = ptrof(type);
+        Expr *tmp = alloc_tmp(token, ptrtype);
         Expr *assign_tmp = new_expr_bop(
             EX_ASSIGN, &tyVoid, token, tmp,
-            new_expr_unary(EX_REF, ptrof(type), token, lhs));
+            new_expr_unary(EX_REF, ptrtype, token, lhs));
         expr->bop.lhs = new_expr_unary(EX_DEREF, type, token, tmp);
         *pexpr = new_expr_bop(EX_COMMA, type, token, assign_tmp, expr);
         traverse_expr(pexpr, needval);
