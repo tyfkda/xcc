@@ -440,7 +440,7 @@ size_t read(int fd, void *buf, size_t size) {
   __asm("syscall");
 }
 
-static size_t _getcwd(char *buffer, size_t size) {
+static int _getcwd(char *buffer, size_t size) {
   __asm("mov $79, %eax");  // __NR_getcwd
   __asm("syscall");
 }
@@ -608,15 +608,21 @@ int remove(const char *fn) {
 }
 
 char *getcwd(char *buffer, size_t size) {
+  void *allocated = NULL;
   if (buffer == NULL) {
     if (size == 0) {
       size = 512;  // PATH_MAX
     }
-    buffer = malloc(size + 1);
+    buffer = allocated = malloc(size + 1);
     if (buffer == NULL)
       return NULL;
   }
-  _getcwd(buffer, size);
+  int result = _getcwd(buffer, size);
+  if (result < 0) {
+    // errno = -result;
+    free(allocated);
+    return NULL;
+  }
   return buffer;
 }
 
