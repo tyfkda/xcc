@@ -1,3 +1,4 @@
+import {DomUtil} from './dom_util'
 import {Util} from './util'
 import {WaProc, ExitCalledError} from './wa_proc'
 import {WaStorage} from './file_system'
@@ -51,6 +52,14 @@ const terminal = (() => {
 Util.setTerminal(terminal)
 
 ////////////////////////////////////////////////
+
+function putPixels(canvas: HTMLCanvasElement, memory: WebAssembly.Memory, img: number): void {
+  const context = canvas.getContext('2d')!
+  const imageData = context.getImageData(0, 0, canvas.width, canvas.height)
+  const pixels = imageData.data
+  pixels.set(new Uint8Array(memory.buffer, img, canvas.width * canvas.height * 4))
+  context.putImageData(imageData, 0, 0)
+}
 
 window.addEventListener('load', () => {
   const WCC_PATH = 'cc.wasm'
@@ -112,6 +121,27 @@ window.addEventListener('load', () => {
 
     // Run
     const waproc = new WaProc(storage)
+    waproc.registerCFunction(
+      'showGraphic',
+      (width, height, img) => {
+        const canvas = DomUtil.createCanvas(width, height)
+        DomUtil.setStyles(canvas, {display: 'block'})
+        putPixels(canvas, waproc.getLinearMemory(), img)
+
+        const div = document.createElement('div')
+        div.className = 'wnd draggable'
+        DomUtil.setStyles(div, {zIndex: 10000})
+        div.appendChild(canvas)
+        DomUtil.makeDraggable(div)
+
+        const closeButton = DomUtil.addDivButton(div, () => {
+          div.parentNode?.removeChild(div)
+        })
+        closeButton.className = 'close-button'
+
+        document.body.appendChild(div)
+        DomUtil.putOnCenter(div)
+      })
     const argStr = (document.getElementById('args')! as HTMLInputElement).value.trim()
     const args = argStr === '' ? [] : argStr.trim().split(/\s+/)
     args.unshift('a.wasm')

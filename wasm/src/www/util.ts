@@ -1,6 +1,12 @@
 let terminal
 
 export class Util {
+  public static clamp(x: number, min: number, max: number): number {
+    if (max < min)
+      return min
+    return x < min ? min : x > max ? max : x
+  }
+
   // Decode string in buffer to JS.
   public static decodeString(buffer: ArrayBuffer, ptr: number, size: number|undefined = undefined): string {
     const memoryImage = new Uint8Array(buffer, ptr, size)

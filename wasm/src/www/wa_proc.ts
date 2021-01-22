@@ -96,6 +96,14 @@ export class WaProc {
     return instance
   }
 
+  public registerCFunction(funcName: string, func: any): void {
+    this.imports.c[funcName] = func
+  }
+
+  public getLinearMemory(): WebAssembly.Memory {
+    return this.memory
+  }
+
   private putArgs(args: string[]): number {
     const encodedArgs = args.map(Util.encode)
     const totalArgsBytes = encodedArgs.reduce((acc, arg) => acc + arg.length + 1, 0)

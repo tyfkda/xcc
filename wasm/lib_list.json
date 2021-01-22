@@ -6,6 +6,7 @@
       },
       "ctype.h": "../inc/ctype.h",
       "fcntl.h": "../inc/fcntl.h",
+      "math.h": "../inc/math.h",
       "stdarg.h": "../inc/stdarg.h",
       "stdbool.h": "../inc/stdbool.h",
       "stddef.h": "../inc/stddef.h",

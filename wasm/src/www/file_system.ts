@@ -69,11 +69,15 @@ export class FileSystem {
       process.exit(1)
     }
     const fd = this.allocFd()
-    this.fileDescs[fd] = {
+    const desc: any = {
       absPath,
       rp: 0,
-      write: [],
     }
+    if ((flag & (OpenFlag.WRONLY | OpenFlag.RDWR)) !== 0) {
+      desc.write = []
+      desc.writeTotal = 0
+    }
+    this.fileDescs[fd] = desc
     return fd
   }
 
@@ -114,7 +118,8 @@ if (fd < 3) {
     const desc = this.fileDescs[fd]
     if (desc == null)
       return 0
-    desc.write.splice(desc.write.length, 0, ...buffer)
+    desc.write.push(buffer.slice(0))
+    desc.writeTotal += buffer.byteLength
     return buffer.length
   }
 
@@ -150,6 +155,7 @@ if (fd < 3) {
       absPath: null,  // temporary: not related to storage
       rp: 0,
       write: [],
+      writeTotal: 0,
     }
     return fd
   }
@@ -168,8 +174,15 @@ if (fd < 3) {
     if (0 <= fd && fd < this.fileDescs.length) {
       const desc = this.fileDescs[fd]
       if (desc != null) {
-        if (desc.write.length > 0) {
-          const content = new Uint8Array(desc.write)
+        if (desc.write != null && desc.write.length > 0) {
+          const content = new Uint8Array(desc.writeTotal)
+          let p = 0
+          for (let i = 0; i < desc.write.length; ++i) {
+            const src = desc.write[i]
+            const dst = new Uint8Array(content.buffer, p, src.byteLength)
+            dst.set(src)
+            p += src.byteLength
+          }
           if (desc.absPath != null)
             this.saveFile(desc.absPath, content)
           else
