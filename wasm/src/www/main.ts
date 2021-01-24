@@ -3,49 +3,70 @@ import {Util} from './util'
 import {WaProc, ExitCalledError} from './wa_proc'
 import {WaStorage} from './file_system'
 
+const FONT_SIZE = 16
+
+const aceSplit = ace.require('ace/ext/split')
+const split = new aceSplit.Split(document.getElementById('editor'))
+split.setOrientation(split.BESIDE)
+split.setSplits(2)
+split.setFontSize(FONT_SIZE)
+const UndoManager = ace.require('ace/undomanager').UndoManager
+
 const editor = (() => {
-  const editor = ace.edit('editor')
+  const editor = split.getEditor(0)
   editor.$blockScrolling = Infinity
   editor.setOptions({
-    // enableBasicAutocompletion: true,
-    // enableSnippets: true,
-    // enableLiveAutocompletion: true,
     tabSize: 2,
     useSoftTabs: true,
     printMarginColumn: false,
-    // showInvisibles: true,
   })
   editor.setTheme('ace/theme/monokai')
   editor.getSession().setMode('ace/mode/c_cpp')
-  editor.setKeyboardHandler('ace/keyboard/emacs')
-  editor.setFontSize(16)
+  editor.renderer.$cursorLayer.setBlinking(true)
+  editor.container.classList.add('code-editor')
 
   const code = document.getElementById('default-code')
   if (code)
     editor.setValue(code.innerText.trim() + '\n', -1)
   editor.gotoLine(0, 0)
   editor.focus()
+
+  const undoManager = new UndoManager()
+  editor.getSession().setUndoManager(undoManager)
+  editor.commands.addCommands([
+    {
+      Name : 'Undo',
+      bindKey: {
+        win : 'Ctrl-Z',
+        mac : 'Command-Z'
+      },
+      exec: (editor) => editor.session.getUndoManager().undo(),
+    },
+    {
+      Name : 'Redo',
+      bindKey: {
+        win : 'Ctrl-Shift-Z',
+        mac : 'Command-Shift-Z'
+      },
+      exec: (editor) => editor.session.getUndoManager().redo(),
+    },
+  ])
+
   return editor
 })()
 
 const terminal = (() => {
-  const terminal = ace.edit('logs')
+  const terminal = split.getEditor(1)
   terminal.$blockScrolling = Infinity
   terminal.setOptions({
-    // enableBasicAutocompletion: true,
-    // enableSnippets: true,
-    // enableLiveAutocompletion: true,
     tabSize: 2,
     useSoftTabs: true,
     printMarginColumn: false,
-    // showInvisibles: true,
   })
   terminal.setReadOnly(true)
-  terminal.setTheme('ace/theme/monokai')
-  terminal.getSession().setMode('ace/mode/sh')
-  // terminal.setKeyboardHandler('ace/keyboard/emacs')
-  terminal.renderer.setShowGutter(false)
-  terminal.setFontSize(16)
+  // terminal.renderer.setShowGutter(false)
+  terminal.getSession().setMode('ace/mode/text')
+  terminal.setValue('XCC browser version.\n', -1)
   return terminal
 })()
 
@@ -179,4 +200,9 @@ window.addEventListener('load', () => {
       },
     },
   ])
+
+  window.addEventListener('resize', () => {
+    console.log('resize')
+    split.resize()
+  }, false)
 })

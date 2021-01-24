@@ -8,17 +8,18 @@
   </head>
 
   <body>
-    <div id="editor" style="height: 400px"></div>
-    <div>
-      <button id="run">Run (⌘+⏎)</button>
-      Args: <input id="args" type="text" value="">
-    </div>
+    <div class="header">
+      <div class="clear-fix" style="padding:2px 8px;">
+        <button id="run" class="run-btn">Run (⌘+⏎)</button>
+        Args: <input id="args" type="text" value="">
 
-    <div>
-      <div><b>Logs</b></div>
-      <div id="logs" style="height: 150px"></div>
+        <a style="float: right" href="https://github.com/tyfkda/xcc">Github</a>
+      </div>
     </div>
+    <div id="editor" class="editor"></div>
+
     <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.4.12/ace.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.4.12/ext-split.min.js"></script>
 
     <script id='default-code' type='text/c'>
 #include <math.h>

@@ -1,5 +1,6 @@
 $BG_COLOR: #ddd;
 $DURATION: 0.25s;
+$HEADER_HEIGHT: 32px;
 
 html, body {
   width: 100%;
@@ -12,6 +13,41 @@ body {
   position: relative;
   background-color: $BG_COLOR;
   overflow: hidden;
+}
+
+.clear-fix:after{
+  clear: both;
+}
+
+.header {
+  position: absolute;
+  top: 0;
+  height: $HEADER_HEIGHT;
+  left: 0;
+  right: 0;
+  box-sizing: border-box;
+  border-bottom: 1px solid #444;
+}
+
+.editor {
+  position: absolute;
+  top: $HEADER_HEIGHT;
+  bottom: 0;
+  left: 0;
+  right: 0;
+}
+
+.run-btn {
+  background-color: #14f;
+  color: white;
+  border: 1px solid #008;
+  border-radius: 4px;
+  padding: 2px 12px;
+
+  &:hover {
+    // background-color: #44f;
+    color: #4ff;
+  }
 }
 
 .wnd {
@@ -52,5 +88,18 @@ body {
     height: 24px;
     line-height: 24px;
     border-radius: 4px;
+  }
+}
+
+.code-editor {
+  .ace_cursor {
+    border: 1px rgba(50,250,50,0.8) solid!important;
+    box-sizing: border-box!important;
+    background-color: rgba(0,250,0,0.5);
+    opacity: 0.5;
+  }
+  .ace_hidden-cursors .ace_cursor {
+    opacity: 1;
+    background-color: transparent;
   }
 }
