@@ -35,7 +35,7 @@ unsigned long strlen(const char *s) {
   return p - s;
 }
 
-void puts(const char *s) {
+void putstr(const char *s) {
   write(1, s, strlen(s));
 }
 

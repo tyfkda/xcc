@@ -4,55 +4,55 @@
 #include "../examples/util.h"
 
 void expect(char *title, Number expected, Number actual) {
-  puts(title);
-  puts(" => ");
+  putstr(title);
+  putstr(" => ");
   if (expected == actual) {
-    puts("OK\n");
+    putstr("OK\n");
     return;
   }
-  puts("NG: ");
+  putstr("NG: ");
   putdeci(expected);
-  puts(" expected, but got ");
+  putstr(" expected, but got ");
   putdeci(actual);
-  puts("\n");
+  putstr("\n");
   exit(1);
 }
 
 void expect_about(char *title, Number expected, Number actual) {
-  puts(title);
-  puts(" => ");
+  putstr(title);
+  putstr(" => ");
   Number d = expected - actual;
   const Number eps = (Number)1e-6;
   if (d > -eps && d < eps) {
-    puts("OK\n");
+    putstr("OK\n");
     return;
   }
-  puts("NG: ");
+  putstr("NG: ");
   putdeci(expected);
-  puts(" expected, but got ");
+  putstr(" expected, but got ");
   putdeci(actual);
-  puts("\n");
+  putstr("\n");
   exit(1);
 }
 
 void expecti(char *title, int expected, int actual) {
-  puts(title);
-  puts(" => ");
+  putstr(title);
+  putstr(" => ");
   if (expected == actual) {
-    puts("OK\n");
+    putstr("OK\n");
     return;
   }
-  puts("NG: ");
+  putstr("NG: ");
   putdeci(expected);
-  puts(" expected, but got ");
+  putstr(" expected, but got ");
   putdeci(actual);
-  puts("\n");
+  putstr("\n");
   exit(1);
 }
 
 void fail(char *title) {
-  puts(title);
-  puts(" => NG\n");
+  putstr(title);
+  putstr(" => NG\n");
   exit(1);
 }
 

@@ -3,23 +3,23 @@
 #include "../examples/util.h"
 
 void expect(char *title, long expected, long actual) {
-  puts(title);
-  puts(" => ");
+  putstr(title);
+  putstr(" => ");
   if (expected == actual) {
-    puts("OK\n");
+    putstr("OK\n");
     return;
   }
-  puts("NG: ");
+  putstr("NG: ");
   putdeci(expected);
-  puts(" expected, but got ");
+  putstr(" expected, but got ");
   putdeci(actual);
-  puts("\n");
+  putstr("\n");
   exit(1);
 }
 
 void fail(char *title) {
-  puts(title);
-  puts(" => NG\n");
+  putstr(title);
+  putstr(" => NG\n");
   exit(1);
 }
 

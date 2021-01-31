@@ -21,10 +21,10 @@ int main() {
   int result;
   if ((result = setjmp(env)) == 0) {
     func();
-    puts("never reaches here\n");
+    putstr("never reaches here\n");
   } else {
     putdeci(result);
-    puts("\n");
+    putstr("\n");
   }
   return 0;
 }

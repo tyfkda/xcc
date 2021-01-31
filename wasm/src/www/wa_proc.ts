@@ -172,7 +172,7 @@ export class WaProc {
         drand48: Math.random,
         fabs: Math.abs,
 
-        putsss: (ptr) => {
+        putstr: (ptr) => {
           const text = Util.decodeString(this.memory.buffer, ptr)
           Util.putTerminal(text)
         },

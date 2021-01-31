@@ -18,6 +18,6 @@ int fib(int n) {
 
 int main() {
   putdeci(fib(30));
-  puts("\n");
+  putstr("\n");
   return 0;
 }
