@@ -127,10 +127,10 @@ double copysign(double x, double f) {
 
 void orthoBasis(vec *basis, const vec *n) {
   basis[2] = *n;
-  float sign = copysign(1.0f, n->z);
-  const double a = -1.0f / (sign + n->z);
+  double sign = copysign(1.0, n->z);
+  const double a = -1.0 / (sign + n->z);
   const double b = n->x * n->y * a;
-  basis[0].x = 1.0f + sign * n->x * n->x * a;
+  basis[0].x = 1.0 + sign * n->x * n->x * a;
   basis[0].y = sign * b;
   basis[0].z = -sign * n->x;
   basis[1].x = b;
