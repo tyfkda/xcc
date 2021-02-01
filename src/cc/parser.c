@@ -1167,15 +1167,16 @@ static Declaration *parse_global_var_decl(
 ) {
   Vector *decls = NULL;
   for (;;) {
-    if (type->kind == TY_VOID)
-      parse_error(ident, "`void' not allowed");
-
-    if (!(type->kind == TY_PTR && type->pa.ptrof->kind == TY_FUNC))
+    if (!(type->kind == TY_PTR && type->pa.ptrof->kind == TY_FUNC) &&
+        type->kind != TY_VOID)
       type = parse_type_suffix(type);
 
     if (storage & VS_TYPEDEF) {
       def_type(type, ident);
     } else {
+      if (type->kind == TY_VOID)
+        parse_error(ident, "`void' not allowed");
+
       VarInfo *varinfo = scope_add(global_scope, ident, type, storage);
 
       Initializer *init = NULL;
