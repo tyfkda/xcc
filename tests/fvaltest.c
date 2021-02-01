@@ -41,6 +41,12 @@ int main(void) {
   expect_about("fmod+-",  1.14, fmod( 12.34, -5.6));
   expect_about("fmod-+", -1.14, fmod(-12.34,  5.6));
   expect_about("fmod--", -1.14, fmod(-12.34, -5.6));
+
+  {
+    float a=12.34f;
+    a+=56.78;
+    expect_about("float+=double", 69.12f, a);
+  }
 #endif
 
   return 0;

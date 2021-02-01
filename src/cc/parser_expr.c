@@ -158,10 +158,10 @@ static bool cast_numbers(Expr **pLhs, Expr **pRhs, bool keep_left) {
     bool lflo = is_flonum(ltype), rflo = is_flonum(rtype);
     if (lflo || rflo) {
       int dir = !lflo ? 1 : !rflo ? -1 : (int)rtype->flonum.kind - (int)ltype->flonum.kind;
-      if (dir > 0)
-        *pLhs = make_cast(rtype, lhs->token, lhs, false);
-      else if (dir < 0)
+      if (dir < 0 || keep_left)
         *pRhs = make_cast(ltype, rhs->token, rhs, false);
+      else if (dir > 0)
+        *pLhs = make_cast(rtype, lhs->token, lhs, false);
       return true;
     }
   }
