@@ -2,8 +2,11 @@ import {DomUtil} from './dom_util'
 import {Util} from './util'
 import {WaProc, ExitCalledError} from './wa_proc'
 import {WaStorage} from './file_system'
+import {ExampleCodes} from './example_code'
 
 const FONT_SIZE = 16
+
+const USER = 'wasm'
 
 const aceSplit = ace.require('ace/ext/split')
 const split = new aceSplit.Split(document.getElementById('editor'))
@@ -54,6 +57,14 @@ const editor = (() => {
 
   return editor
 })()
+
+function setCodeToEditor(code) {
+  if (code == null)
+    return
+  editor.setValue(code.trim() + '\n', -1)
+  editor.gotoLine(0, 0)
+  editor.focus()
+}
 
 const terminal = (() => {
   const terminal = split.getEditor(1)
@@ -110,7 +121,7 @@ window.addEventListener('load', () => {
   async function compile(sourceCode: string): Promise<Uint8Array|null> {
     const sourceName = 'main.c'
     const waproc = new WaProc(storage)
-    waproc.chdir('/home/wasm')
+    waproc.chdir(`/home/${USER}`)
     waproc.saveFile(sourceName, sourceCode)
 
     const args = ['cc', '-I/usr/include', '-emain', sourceName, LIBC_FILE_NAME]
@@ -142,6 +153,7 @@ window.addEventListener('load', () => {
 
     // Run
     const waproc = new WaProc(storage)
+    waproc.chdir(`/home/${USER}`)
     waproc.registerCFunction(
       'showGraphic',
       (width, height, img) => {
@@ -204,4 +216,27 @@ window.addEventListener('load', () => {
   window.addEventListener('resize', () => {
     split.resize()
   }, false)
+
+  const sysmenu = document.getElementById('sysmenu')!
+  function closeSysmenu() {
+    DomUtil.setStyles(sysmenu, {
+      display: 'none',
+    })
+  }
+  document.getElementById('nav-open')!.addEventListener('click', () => {
+    DomUtil.setStyles(sysmenu, {
+      display: null,
+    })
+  })
+  sysmenu.addEventListener('click', closeSysmenu)
+  const selectElement = document.getElementById('example-select') as HTMLSelectElement
+  selectElement.addEventListener('change', _ => {
+    const selected = selectElement.value
+    selectElement.value = ''
+    closeSysmenu()
+    Util.clearTerminal()
+
+    const code = ExampleCodes[selected]
+    setCodeToEditor(code)
+  })
 })
