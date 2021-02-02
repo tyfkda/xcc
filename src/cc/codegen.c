@@ -248,7 +248,7 @@ static void gen_switch_cond(Stmt *stmt) {
     int *order = malloc(sizeof(int) * len);
     for (int i = 0; i < len; ++i)
       order[i] = i;
-    myqsort(order, len, sizeof(int), compare_cases);
+    QSORT(order, len, sizeof(int), compare_cases);
 
     if (stmt->switch_.default_ != NULL)
       --len;  // Ignore default.

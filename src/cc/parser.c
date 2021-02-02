@@ -173,7 +173,7 @@ static Initializer *flatten_array_initializer(Initializer *init) {
   }
 
   // Sort
-  myqsort(ranges->data, ranges->len, sizeof(size_t*), compare_desig_start);
+  QSORT(ranges->data, ranges->len, sizeof(size_t*), compare_desig_start);
 
   // Reorder
   Vector *reordered = new_vector();

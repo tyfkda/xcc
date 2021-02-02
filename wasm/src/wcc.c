@@ -453,7 +453,7 @@ static void emit_wasm(FILE *ofp, Vector *exports) {
       indirect_funcs[index] = info;
     VERBOSES("\n");
 
-    myqsort(indirect_funcs, count, sizeof(*indirect_funcs), compare_indirect);
+    QSORT(indirect_funcs, count, sizeof(*indirect_funcs), compare_indirect);
 
     emit_leb128(&elems_section, elems_section.len, 1);  // num elem segments
     emit_leb128(&elems_section, elems_section.len, 0);  // segment flags

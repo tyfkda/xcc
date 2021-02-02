@@ -185,6 +185,7 @@ char *change_ext(const char *path, const char *ext) {
   return s;
 }
 
+#ifndef SELF_HOSTING
 void myqsort(void *base, size_t nmemb, size_t size, int (*compare)(const void *, const void *)) {
   if (nmemb <= 1)
     return;
@@ -222,6 +223,7 @@ void myqsort(void *base, size_t nmemb, size_t size, int (*compare)(const void *,
   if ((size_t)(j + 2) < nmemb)
     myqsort(&a[(j + 1) * size], nmemb - j - 1, size, compare);
 }
+#endif
 
 void show_version(const char *exe) {
   printf("%s %s\n", exe, VERSION);

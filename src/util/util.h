@@ -14,6 +14,13 @@
 #define UNUSED(x)  ((void)(x))
 #define IS_POWER_OF_2(x)  (x > 0 && (x & (x - 1)) == 0)
 
+#ifdef SELF_HOSTING
+#define QSORT  qsort
+#else
+#define QSORT  myqsort
+void myqsort(void *base, size_t nmemb, size_t size, int (*compare)(const void *, const void *));
+#endif
+
 typedef struct Name Name;
 
 char *strdup_(const char *str);
@@ -25,8 +32,6 @@ ssize_t getline_(char **lineptr, size_t *n, FILE *stream, size_t start);
 bool is_fullpath(const char *filename);
 char *cat_path(const char *root, const char *path);
 char *change_ext(const char *path, const char *ext);
-
-void myqsort(void *base, size_t nmemb, size_t size, int (*compare)(const void *, const void *));
 
 void show_version(const char *exe);
 
