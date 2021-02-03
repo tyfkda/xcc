@@ -58,10 +58,30 @@ const editor = (() => {
   return editor
 })()
 
-function setCodeToEditor(code) {
+function isCodeModified() {
+  return !editor.session.getUndoManager().isClean()
+}
+
+function clearUndoHistory() {
+  return !editor.session.getUndoManager().reset()
+}
+
+function setCodeUnmodified() {
+  editor.session.getUndoManager().markClean()
+}
+
+function loadCodeToEditor(code, title) {
   if (code == null)
     return
+
+  if (isCodeModified() &&
+      !window.confirm(`Buffer modified. Load "${title}" anyway?`))
+    return
+
+  Util.clearTerminal()
+
   editor.setValue(code.trim() + '\n', -1)
+  clearUndoHistory()
   editor.gotoLine(0, 0)
   editor.focus()
 }
@@ -234,9 +254,16 @@ window.addEventListener('load', () => {
     const selected = selectElement.value
     selectElement.value = ''
     closeSysmenu()
-    Util.clearTerminal()
 
     const code = ExampleCodes[selected]
-    setCodeToEditor(code)
+    const option = [].slice.call(selectElement.options).find(o => o.value === selected)
+    loadCodeToEditor(code, option.text)
+  })
+
+  window.addEventListener('beforeunload', event => {
+    if (!isCodeModified())
+      return
+    event.preventDefault()
+    event.returnValue = ''
   })
 })
