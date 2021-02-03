@@ -202,7 +202,6 @@ window.addEventListener('load', () => {
   ])
 
   window.addEventListener('resize', () => {
-    console.log('resize')
     split.resize()
   }, false)
 })
