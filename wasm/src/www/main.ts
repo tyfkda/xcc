@@ -7,6 +7,7 @@ import {ExampleCodes} from './example_code'
 const FONT_SIZE = 16
 
 const USER = 'wasm'
+const KEY_CODE = 'wcc-code'
 
 const aceSplit = ace.require('ace/ext/split')
 const split = new aceSplit.Split(document.getElementById('editor'))
@@ -84,6 +85,20 @@ function loadCodeToEditor(code, title) {
   clearUndoHistory()
   editor.gotoLine(0, 0)
   editor.focus()
+}
+
+function loadCodeFromStorage() {
+  const code = localStorage.getItem(KEY_CODE)
+  if (code == null)
+    return false
+  loadCodeToEditor(code, '')
+  return true
+}
+
+function saveCodeToStorage() {
+  const code = editor.getValue()
+  localStorage.setItem(KEY_CODE, code)
+  setCodeUnmodified()
 }
 
 const terminal = (() => {
@@ -209,6 +224,12 @@ window.addEventListener('load', () => {
     }
   }
 
+  function save() {
+    saveCodeToStorage()
+    alert('Saved!')
+    window.location.hash = ''
+  }
+
   document.getElementById('run')!.addEventListener('click', run)
 
   editor.commands.addCommands([
@@ -227,11 +248,12 @@ window.addEventListener('load', () => {
         mac: 'Command-S',
         sender: 'editor|cli'
       },
-      exec: function(_editor, _args, _request) {
-        alert('Saved!')
-      },
+      exec: (_editor, _args, _request) => save(),
     },
   ])
+
+  if (!loadCodeFromStorage())
+    loadCodeToEditor(ExampleCodes.hello, 'Hello')
 
   window.addEventListener('resize', () => {
     split.resize()
@@ -258,6 +280,12 @@ window.addEventListener('load', () => {
     const code = ExampleCodes[selected]
     const option = [].slice.call(selectElement.options).find(o => o.value === selected)
     loadCodeToEditor(code, option.text)
+  })
+  document.getElementById('save')!.addEventListener('click', event => {
+    event.preventDefault()
+    closeSysmenu()
+    save()
+    return false
   })
 
   window.addEventListener('beforeunload', event => {
