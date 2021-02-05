@@ -3,6 +3,8 @@ WCC
 
 C-compiler output .wasm binary.
 
+[Online demo](https://tyfkda.github.io/xcc/)
+
 
 ### Build
 
