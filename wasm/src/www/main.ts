@@ -71,20 +71,23 @@ function setCodeUnmodified() {
   editor.session.getUndoManager().markClean()
 }
 
-function loadCodeToEditor(code, title) {
+function loadCodeToEditor(code: string, message: string): boolean {
   if (code == null)
-    return
+    return false
 
   if (isCodeModified() &&
-      !window.confirm(`Buffer modified. Load "${title}" anyway?`))
-    return
+      !window.confirm(`Buffer modified. ${message} anyway?`))
+    return false
 
   Util.clearTerminal()
 
-  editor.setValue(code.trim() + '\n', -1)
+  if (code !== '')
+    code = code.trim() + '\n'
+  editor.setValue(code, -1)
   clearUndoHistory()
   editor.gotoLine(0, 0)
   editor.focus()
+  return true
 }
 
 function loadCodeFromStorage() {
@@ -300,7 +303,13 @@ window.addEventListener('load', () => {
 
     const code = ExampleCodes[selected]
     const option = [].slice.call(selectElement.options).find(o => o.value === selected)
-    loadCodeToEditor(code, option.text)
+    loadCodeToEditor(code, `Load "${option.text}"`)
+  })
+  document.getElementById('new')!.addEventListener('click', event => {
+    event.preventDefault()
+    closeSysmenu()
+    loadCodeToEditor('', `New`)
+    return false
   })
   document.getElementById('save')!.addEventListener('click', event => {
     event.preventDefault()
