@@ -38,7 +38,12 @@ export class WaProc {
       if (ptr > this.memory.buffer.byteLength) {
         const d = ptr - this.memory.buffer.byteLength
         const page = Math.floor((d + HEAP_PAGE_SIZE - 1) / HEAP_PAGE_SIZE)
-        this.memory.grow(page)
+        try {
+          this.memory.grow(page)
+        } catch (e) {
+          console.error(e)
+          return this.breakAddress
+        }
       }
       this.breakAddress = ptr
     }

@@ -2,8 +2,12 @@ import {DomUtil} from './dom_util'
 import {Util} from './util'
 import {WaProc, ExitCalledError} from './wa_proc'
 import {WaStorage} from './file_system'
+import {ExampleCodes} from './example_code'
 
 const FONT_SIZE = 16
+
+const USER = 'wasm'
+const KEY_CODE = 'wcc-code'
 
 const aceSplit = ace.require('ace/ext/split')
 const split = new aceSplit.Split(document.getElementById('editor'))
@@ -55,6 +59,51 @@ const editor = (() => {
   return editor
 })()
 
+function isCodeModified() {
+  return !editor.session.getUndoManager().isClean()
+}
+
+function clearUndoHistory() {
+  return !editor.session.getUndoManager().reset()
+}
+
+function setCodeUnmodified() {
+  editor.session.getUndoManager().markClean()
+}
+
+function loadCodeToEditor(code: string, message: string): boolean {
+  if (code == null)
+    return false
+
+  if (isCodeModified() &&
+      !window.confirm(`Buffer modified. ${message} anyway?`))
+    return false
+
+  Util.clearTerminal()
+
+  if (code !== '')
+    code = code.trim() + '\n'
+  editor.setValue(code, -1)
+  clearUndoHistory()
+  editor.gotoLine(0, 0)
+  editor.focus()
+  return true
+}
+
+function loadCodeFromStorage() {
+  const code = localStorage.getItem(KEY_CODE)
+  if (code == null)
+    return false
+  loadCodeToEditor(code, '')
+  return true
+}
+
+function saveCodeToStorage() {
+  const code = editor.getValue()
+  localStorage.setItem(KEY_CODE, code)
+  setCodeUnmodified()
+}
+
 const terminal = (() => {
   const terminal = split.getEditor(1)
   terminal.$blockScrolling = Infinity
@@ -80,6 +129,12 @@ function putPixels(canvas: HTMLCanvasElement, memory: WebAssembly.Memory, img: n
   const pixels = imageData.data
   pixels.set(new Uint8Array(memory.buffer, img, canvas.width * canvas.height * 4))
   context.putImageData(imageData, 0, 0)
+}
+
+function encodeForHashString(str) {
+  return encodeURIComponent(str).replace(/[!'()*]/g, c => {
+    return '%' + c.charCodeAt(0).toString(16)
+  })
 }
 
 window.addEventListener('load', () => {
@@ -110,7 +165,7 @@ window.addEventListener('load', () => {
   async function compile(sourceCode: string): Promise<Uint8Array|null> {
     const sourceName = 'main.c'
     const waproc = new WaProc(storage)
-    waproc.chdir('/home/wasm')
+    waproc.chdir(`/home/${USER}`)
     waproc.saveFile(sourceName, sourceCode)
 
     const args = ['cc', '-I/usr/include', '-emain', sourceName, LIBC_FILE_NAME]
@@ -142,6 +197,7 @@ window.addEventListener('load', () => {
 
     // Run
     const waproc = new WaProc(storage)
+    waproc.chdir(`/home/${USER}`)
     waproc.registerCFunction(
       'showGraphic',
       (width, height, img) => {
@@ -177,6 +233,12 @@ window.addEventListener('load', () => {
     }
   }
 
+  function save() {
+    saveCodeToStorage()
+    alert('Saved!')
+    window.location.hash = ''
+  }
+
   document.getElementById('run')!.addEventListener('click', run)
 
   editor.commands.addCommands([
@@ -195,13 +257,80 @@ window.addEventListener('load', () => {
         mac: 'Command-S',
         sender: 'editor|cli'
       },
-      exec: function(_editor, _args, _request) {
-        alert('Saved!')
-      },
+      exec: (_editor, _args, _request) => save(),
     },
   ])
+
+  if (window.location.hash !== '' && window.location.hash !== '#') {
+    const code = decodeURIComponent(window.location.hash.slice(1))
+    window.location.hash = ''
+    loadCodeToEditor(code, '')
+  } else if (!loadCodeFromStorage()) {
+    loadCodeToEditor(ExampleCodes.hello, 'Hello')
+  }
 
   window.addEventListener('resize', () => {
     split.resize()
   }, false)
+
+  const sysmenu = document.getElementById('sysmenu')!
+  const shareLink = document.getElementById('share') as HTMLAnchorElement
+  function closeSysmenu() {
+    DomUtil.setStyles(sysmenu, {
+      display: 'none',
+    })
+  }
+  document.getElementById('nav-open')!.addEventListener('click', () => {
+    const code = editor.getValue().trim()
+    const shareSection = document.getElementById('share-section') as HTMLElement
+    if (code !== '') {
+      DomUtil.setStyles(shareSection, {display: null})
+      shareLink.href = `#${encodeForHashString(code)}`
+      delete shareLink.dataset.disabled
+    } else {
+      DomUtil.setStyles(shareSection, {display: 'none'})
+      shareLink.dataset.disabled = 'disabled'
+    }
+
+    DomUtil.setStyles(sysmenu, {display: null})
+  })
+  sysmenu.addEventListener('click', closeSysmenu)
+  const selectElement = document.getElementById('example-select') as HTMLSelectElement
+  selectElement.addEventListener('change', _ => {
+    const selected = selectElement.value
+    selectElement.value = ''
+    closeSysmenu()
+
+    const code = ExampleCodes[selected]
+    const option = [].slice.call(selectElement.options).find(o => o.value === selected)
+    loadCodeToEditor(code, `Load "${option.text}"`)
+  })
+  document.getElementById('new')!.addEventListener('click', event => {
+    event.preventDefault()
+    closeSysmenu()
+    loadCodeToEditor('', `New`)
+    return false
+  })
+  document.getElementById('save')!.addEventListener('click', event => {
+    event.preventDefault()
+    closeSysmenu()
+    save()
+    return false
+  })
+  shareLink.addEventListener('click', event => {
+    event.preventDefault()
+    if (shareLink.dataset.disabled !== 'disabled') {
+      closeSysmenu()
+      navigator.clipboard.writeText(shareLink.href)
+        .then(_ => alert('URL copied!'))
+    }
+    return false
+  })
+
+  window.addEventListener('beforeunload', event => {
+    if (!isCodeModified())
+      return
+    event.preventDefault()
+    event.returnValue = ''
+  })
 })
