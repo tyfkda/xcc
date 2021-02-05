@@ -128,6 +128,12 @@ function putPixels(canvas: HTMLCanvasElement, memory: WebAssembly.Memory, img: n
   context.putImageData(imageData, 0, 0)
 }
 
+function encodeForHashString(str) {
+  return encodeURIComponent(str).replace(/[!'()*]/g, c => {
+    return '%' + c.charCodeAt(0).toString(16)
+  })
+}
+
 window.addEventListener('load', () => {
   const WCC_PATH = 'cc.wasm'
   const LIBS_PATH = 'libs.json'
@@ -252,23 +258,38 @@ window.addEventListener('load', () => {
     },
   ])
 
-  if (!loadCodeFromStorage())
+  if (window.location.hash !== '' && window.location.hash !== '#') {
+    const code = decodeURIComponent(window.location.hash.slice(1))
+    window.location.hash = ''
+    loadCodeToEditor(code, '')
+  } else if (!loadCodeFromStorage()) {
     loadCodeToEditor(ExampleCodes.hello, 'Hello')
+  }
 
   window.addEventListener('resize', () => {
     split.resize()
   }, false)
 
   const sysmenu = document.getElementById('sysmenu')!
+  const shareLink = document.getElementById('share') as HTMLAnchorElement
   function closeSysmenu() {
     DomUtil.setStyles(sysmenu, {
       display: 'none',
     })
   }
   document.getElementById('nav-open')!.addEventListener('click', () => {
-    DomUtil.setStyles(sysmenu, {
-      display: null,
-    })
+    const code = editor.getValue().trim()
+    const shareSection = document.getElementById('share-section') as HTMLElement
+    if (code !== '') {
+      DomUtil.setStyles(shareSection, {display: null})
+      shareLink.href = `#${encodeForHashString(code)}`
+      delete shareLink.dataset.disabled
+    } else {
+      DomUtil.setStyles(shareSection, {display: 'none'})
+      shareLink.dataset.disabled = 'disabled'
+    }
+
+    DomUtil.setStyles(sysmenu, {display: null})
   })
   sysmenu.addEventListener('click', closeSysmenu)
   const selectElement = document.getElementById('example-select') as HTMLSelectElement
@@ -285,6 +306,15 @@ window.addEventListener('load', () => {
     event.preventDefault()
     closeSysmenu()
     save()
+    return false
+  })
+  shareLink.addEventListener('click', event => {
+    event.preventDefault()
+    if (shareLink.dataset.disabled !== 'disabled') {
+      closeSysmenu()
+      navigator.clipboard.writeText(shareLink.href)
+        .then(_ => alert('URL copied!'))
+    }
     return false
   })
 
