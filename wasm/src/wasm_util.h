@@ -76,7 +76,7 @@ typedef struct {
 #define OP_I64_LT_S       (0x53)
 #define OP_I64_LT_U       (0x54)
 #define OP_I64_GT_S       (0x55)
-#define OP_I64_GT_U       (0x55)
+#define OP_I64_GT_U       (0x56)
 #define OP_I64_LE_S       (0x57)
 #define OP_I64_LE_U       (0x58)
 #define OP_I64_GE_S       (0x59)

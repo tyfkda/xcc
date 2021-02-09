@@ -918,9 +918,7 @@ static void gen_expr(Expr *expr, bool needval) {
       ADD_CODE(OP_DROP);
     break;
 
-  default:
-fprintf(stderr, "%d, ", expr->kind);
-   assert(!"Not implemeneted"); break;
+  default: assert(!"Not implemeneted"); break;
   }
 }
 
@@ -939,7 +937,6 @@ static void gen_compare_expr(enum ExprKind kind, Expr *lhs, Expr *rhs) {
         (type_size(lhs->type) > I32_SIZE ? 1 : 0);
   }
 
-  // unsigned?
   static const unsigned char OpTable[][6] = {
     {OP_I32_EQ, OP_I32_NE, OP_I32_LT_S, OP_I32_LE_S, OP_I32_GE_S, OP_I32_GT_S},
     {OP_I64_EQ, OP_I64_NE, OP_I64_LT_S, OP_I64_LE_S, OP_I64_GE_S, OP_I64_GT_S},
