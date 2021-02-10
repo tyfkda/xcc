@@ -137,6 +137,12 @@ function encodeForHashString(str) {
   })
 }
 
+function clearSharingUrlParameters() {
+  if (window.location.search === '')
+    return
+  window.history.replaceState(null, document.title, window.location.pathname)
+}
+
 window.addEventListener('load', () => {
   const WCC_PATH = 'cc.wasm'
   const LIBS_PATH = 'libs.json'
@@ -219,7 +225,7 @@ window.addEventListener('load', () => {
         document.body.appendChild(div)
         DomUtil.putOnCenter(div)
       })
-    const argStr = (document.getElementById('args')! as HTMLInputElement).value.trim()
+    const argStr = (document.getElementById('args') as HTMLInputElement).value.trim()
     const args = argStr === '' ? [] : argStr.trim().split(/\s+/)
     args.unshift('a.wasm')
     try {
@@ -261,10 +267,10 @@ window.addEventListener('load', () => {
     },
   ])
 
-  if (window.location.hash !== '' && window.location.hash !== '#') {
-    const code = decodeURIComponent(window.location.hash.slice(1))
-    window.location.hash = ''
-    loadCodeToEditor(code, '')
+  const searchParams = new URLSearchParams(window.location.search)
+  if (searchParams.has('code')) {
+    loadCodeToEditor(searchParams.get('code') || '', '')
+    ;(document.getElementById('args') as HTMLInputElement).value = searchParams.get('args') || ''
   } else if (!loadCodeFromStorage()) {
     loadCodeToEditor(ExampleCodes.hello, 'Hello')
   }
@@ -284,8 +290,9 @@ window.addEventListener('load', () => {
     const code = editor.getValue().trim()
     const shareSection = document.getElementById('share-section') as HTMLElement
     if (code !== '') {
+      const args = (document.getElementById('args') as HTMLInputElement).value.trim()
       DomUtil.setStyles(shareSection, {display: null})
-      shareLink.href = `#${encodeForHashString(code)}`
+      shareLink.href = `?code=${encodeForHashString(code)}&args=${encodeForHashString(args)}`
       delete shareLink.dataset.disabled
     } else {
       DomUtil.setStyles(shareSection, {display: 'none'})
@@ -300,27 +307,36 @@ window.addEventListener('load', () => {
     const selected = selectElement.value
     selectElement.value = ''
     closeSysmenu()
+    clearSharingUrlParameters()
 
     const code = ExampleCodes[selected]
     const option = [].slice.call(selectElement.options).find(o => o.value === selected)
     loadCodeToEditor(code, `Load "${option.text}"`)
+    ;(document.getElementById('args') as HTMLInputElement).value = ''
   })
   document.getElementById('new')!.addEventListener('click', event => {
     event.preventDefault()
     closeSysmenu()
-    loadCodeToEditor('', `New`)
+    loadCodeToEditor('', 'New')
+    clearSharingUrlParameters()
     return false
   })
   document.getElementById('save')!.addEventListener('click', event => {
     event.preventDefault()
     closeSysmenu()
     save()
+    clearSharingUrlParameters()
     return false
   })
   shareLink.addEventListener('click', event => {
     event.preventDefault()
     if (shareLink.dataset.disabled !== 'disabled') {
       closeSysmenu()
+      const url = new URL(shareLink.href)
+      let path = url.pathname
+      if (url.search)
+        path += url.search
+       window.history.replaceState(null, document.title, path)
       navigator.clipboard.writeText(shareLink.href)
         .then(_ => alert('URL copied!'))
     }
