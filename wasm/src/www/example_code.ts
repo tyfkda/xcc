@@ -22,7 +22,7 @@ void sieve(int n) {
     if (notprime[i])
       continue;
     printf("%d\\n", i);
-    for (int j = i; (j += i) < n; )
+    for (int j = i * i; j < n; j += i)
       notprime[j] = true;
   }
   free(notprime);
