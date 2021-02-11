@@ -4,288 +4,294 @@
 
 import * as fs from 'fs'
 
-const SEC_TYPE      = 1
-const SEC_IMPORT    = 2
-const SEC_FUNC      = 3
-const SEC_TABLE     = 4
-const SEC_MEMORY    = 5
-const SEC_GLOBAL    = 6
-const SEC_EXPORT    = 7
-const SEC_ELEM      = 9
-const SEC_CODE      = 10
-const SEC_DATA      = 11
+const enum Section {
+  TYPE      = 1,
+  IMPORT    = 2,
+  FUNC      = 3,
+  TABLE     = 4,
+  MEMORY    = 5,
+  GLOBAL    = 6,
+  EXPORT    = 7,
+  ELEM      = 9,
+  CODE      = 10,
+  DATA      = 11,
+}
 
 // Wasm opcode
-const OP_UNREACHABLE   = 0x00
-const OP_NOP           = 0x01
-const OP_BLOCK         = 0x02
-const OP_LOOP          = 0x03
-const OP_IF            = 0x04
-const OP_ELSE          = 0x05
-const OP_END           = 0x0b
-const OP_BR            = 0x0c
-const OP_BR_IF         = 0x0d
-const OP_BR_TABLE      = 0x0e
-const OP_RETURN        = 0x0f
-const OP_CALL          = 0x10
-const OP_CALL_INDIRECT = 0x11
-const OP_DROP          = 0x1a
-const OP_SELECT        = 0x1b
-const OP_LOCAL_GET     = 0x20
-const OP_LOCAL_SET     = 0x21
-const OP_LOCAL_TEE     = 0x22
-const OP_GLOBAL_GET    = 0x23
-const OP_GLOBAL_SET    = 0x24
-const OP_I32_LOAD      = 0x28
-const OP_I64_LOAD      = 0x29
-const OP_F32_LOAD      = 0x2a
-const OP_F64_LOAD      = 0x2b
-const OP_I32_LOAD8_S   = 0x2c
-const OP_I32_LOAD8_U   = 0x2d
-const OP_I32_LOAD16_S  = 0x2e
-const OP_I32_LOAD16_U  = 0x2f
-const OP_I32_STORE     = 0x36
-const OP_I64_STORE     = 0x37
-const OP_F32_STORE     = 0x38
-const OP_F64_STORE     = 0x39
-const OP_I32_STORE8    = 0x3a
-const OP_I32_STORE16   = 0x3b
-const OP_I64_STORE8    = 0x3c
-const OP_I64_STORE16   = 0x3d
-const OP_I64_STORE32   = 0x3e
-const OP_MEMORY_SIZE   = 0x3f
-const OP_MEMORY_GROW   = 0x40
-const OP_I32_CONST     = 0x41
-const OP_I64_CONST     = 0x42
-const OP_F32_CONST     = 0x43
-const OP_F64_CONST     = 0x44
-const OP_I32_EQZ       = 0x45
-const OP_I32_EQ        = 0x46
-const OP_I32_NE        = 0x47
-const OP_I32_LT_S      = 0x48
-const OP_I32_LT_U      = 0x49
-const OP_I32_GT_S      = 0x4a
-const OP_I32_GT_U      = 0x4b
-const OP_I32_LE_S      = 0x4c
-const OP_I32_LE_U      = 0x4d
-const OP_I32_GE_S      = 0x4e
-const OP_I32_GE_U      = 0x4f
-const OP_I64_EQZ       = 0x50
-const OP_I64_EQ        = 0x51
-const OP_I64_NE        = 0x52
-const OP_I64_LT_S      = 0x53
-const OP_I64_LT_U      = 0x54
-const OP_I64_GT_S      = 0x55
-const OP_I64_GT_U      = 0x56
-const OP_I64_LE_S      = 0x57
-const OP_I64_LE_U      = 0x58
-const OP_I64_GE_S      = 0x59
-const OP_I64_GE_U      = 0x5a
-const OP_F32_EQ        = 0x5b
-const OP_F32_NE        = 0x5c
-const OP_F32_LT        = 0x5d
-const OP_F32_GT        = 0x5e
-const OP_F32_LE        = 0x5f
-const OP_F32_GE        = 0x60
-const OP_F64_EQ        = 0x61
-const OP_F64_NE        = 0x62
-const OP_F64_LT        = 0x63
-const OP_F64_GT        = 0x64
-const OP_F64_LE        = 0x65
-const OP_F64_GE        = 0x66
-const OP_I32_ADD       = 0x6a
-const OP_I32_SUB       = 0x6b
-const OP_I32_MUL       = 0x6c
-const OP_I32_DIV_S     = 0x6d
-const OP_I32_DIV_U     = 0x6e
-const OP_I32_REM_S     = 0x6f
-const OP_I32_REM_U     = 0x70
-const OP_I32_AND       = 0x71
-const OP_I32_OR        = 0x72
-const OP_I32_XOR       = 0x73
-const OP_I32_SHL       = 0x74
-const OP_I32_SHR_S     = 0x75
-const OP_I32_SHR_U     = 0x76
-const OP_I32_ROTL      = 0x77
-const OP_I32_ROTR      = 0x78
-const OP_I64_ADD       = 0x7c
-const OP_I64_SUB       = 0x7d
-const OP_I64_MUL       = 0x7e
-const OP_I64_DIV_S     = 0x7f
-const OP_I64_DIV_U     = 0x80
-const OP_I64_REM_S     = 0x81
-const OP_I64_REM_U     = 0x82
-const OP_I64_AND       = 0x83
-const OP_I64_OR        = 0x84
-const OP_I64_XOR       = 0x85
-const OP_I64_SHL       = 0x86
-const OP_I64_SHR_S     = 0x87
-const OP_I64_SHR_U     = 0x88
-const OP_I64_ROTL      = 0x89
-const OP_I64_ROTR      = 0x8a
-const OP_F32_ABS       = 0x8b
-const OP_F32_NEG       = 0x8c
-const OP_F32_ADD       = 0x92
-const OP_F32_SUB       = 0x93
-const OP_F32_MUL       = 0x94
-const OP_F32_DIV       = 0x95
-const OP_F64_ABS       = 0x99
-const OP_F64_NEG       = 0x9a
-const OP_F64_ADD       = 0xa0
-const OP_F64_SUB       = 0xa1
-const OP_F64_MUL       = 0xa2
-const OP_F64_DIV       = 0xa3
-const OP_I32_WRAP_I64        = 0xa7  // i32 <- i64
-// const OP_I32_TRUNC_F32_S     = 0xa8  // i32 <- f32
-const OP_I32_TRUNC_F64_S     = 0xaa  // i32 <- f64
-const OP_I64_EXTEND_I32_S    = 0xac  // i64 <- i32
-// const OP_I64_TRUNC_F32_S     = 0xae  // i64 <- f32
-// const OP_I64_TRUNC_F64_S     = 0xb0  // i64 <- f64
-// const OP_F32_CONVERT_I32_S   = 0xb2  // f32 <- i32
-const OP_F32_DEMOTE_F64      = 0xb6  // f32 <- f64
-// const OP_F32_CONVERT_I64_S   = 0xb4  // f32 <- i64
-const OP_F64_CONVERT_I32_S   = 0xb7  // f64 <- i32
-// const OP_F64_CONVERT_I64_S   = 0xb9  // f64 <- i64
-const OP_F64_PROMOTE_F32     = 0xbb  // f64 <- f32
-const OP_I32_REINTERPRET_F32 = 0xbc  // i32 <- f32
-const OP_I64_REINTERPRET_F64 = 0xbd  // i64 <- f64
+const enum Opcode {
+  UNREACHABLE   = 0x00,
+  NOP           = 0x01,
+  BLOCK         = 0x02,
+  LOOP          = 0x03,
+  IF            = 0x04,
+  ELSE          = 0x05,
+  END           = 0x0b,
+  BR            = 0x0c,
+  BR_IF         = 0x0d,
+  BR_TABLE      = 0x0e,
+  RETURN        = 0x0f,
+  CALL          = 0x10,
+  CALL_INDIRECT = 0x11,
+  DROP          = 0x1a,
+  SELECT        = 0x1b,
+  LOCAL_GET     = 0x20,
+  LOCAL_SET     = 0x21,
+  LOCAL_TEE     = 0x22,
+  GLOBAL_GET    = 0x23,
+  GLOBAL_SET    = 0x24,
+  I32_LOAD      = 0x28,
+  I64_LOAD      = 0x29,
+  F32_LOAD      = 0x2a,
+  F64_LOAD      = 0x2b,
+  I32_LOAD8_S   = 0x2c,
+  I32_LOAD8_U   = 0x2d,
+  I32_LOAD16_S  = 0x2e,
+  I32_LOAD16_U  = 0x2f,
+  I32_STORE     = 0x36,
+  I64_STORE     = 0x37,
+  F32_STORE     = 0x38,
+  F64_STORE     = 0x39,
+  I32_STORE8    = 0x3a,
+  I32_STORE16   = 0x3b,
+  I64_STORE8    = 0x3c,
+  I64_STORE16   = 0x3d,
+  I64_STORE32   = 0x3e,
+  MEMORY_SIZE   = 0x3f,
+  MEMORY_GROW   = 0x40,
+  I32_CONST     = 0x41,
+  I64_CONST     = 0x42,
+  F32_CONST     = 0x43,
+  F64_CONST     = 0x44,
+  I32_EQZ       = 0x45,
+  I32_EQ        = 0x46,
+  I32_NE        = 0x47,
+  I32_LT_S      = 0x48,
+  I32_LT_U      = 0x49,
+  I32_GT_S      = 0x4a,
+  I32_GT_U      = 0x4b,
+  I32_LE_S      = 0x4c,
+  I32_LE_U      = 0x4d,
+  I32_GE_S      = 0x4e,
+  I32_GE_U      = 0x4f,
+  I64_EQZ       = 0x50,
+  I64_EQ        = 0x51,
+  I64_NE        = 0x52,
+  I64_LT_S      = 0x53,
+  I64_LT_U      = 0x54,
+  I64_GT_S      = 0x55,
+  I64_GT_U      = 0x56,
+  I64_LE_S      = 0x57,
+  I64_LE_U      = 0x58,
+  I64_GE_S      = 0x59,
+  I64_GE_U      = 0x5a,
+  F32_EQ        = 0x5b,
+  F32_NE        = 0x5c,
+  F32_LT        = 0x5d,
+  F32_GT        = 0x5e,
+  F32_LE        = 0x5f,
+  F32_GE        = 0x60,
+  F64_EQ        = 0x61,
+  F64_NE        = 0x62,
+  F64_LT        = 0x63,
+  F64_GT        = 0x64,
+  F64_LE        = 0x65,
+  F64_GE        = 0x66,
+  I32_ADD       = 0x6a,
+  I32_SUB       = 0x6b,
+  I32_MUL       = 0x6c,
+  I32_DIV_S     = 0x6d,
+  I32_DIV_U     = 0x6e,
+  I32_REM_S     = 0x6f,
+  I32_REM_U     = 0x70,
+  I32_AND       = 0x71,
+  I32_OR        = 0x72,
+  I32_XOR       = 0x73,
+  I32_SHL       = 0x74,
+  I32_SHR_S     = 0x75,
+  I32_SHR_U     = 0x76,
+  I32_ROTL      = 0x77,
+  I32_ROTR      = 0x78,
+  I64_ADD       = 0x7c,
+  I64_SUB       = 0x7d,
+  I64_MUL       = 0x7e,
+  I64_DIV_S     = 0x7f,
+  I64_DIV_U     = 0x80,
+  I64_REM_S     = 0x81,
+  I64_REM_U     = 0x82,
+  I64_AND       = 0x83,
+  I64_OR        = 0x84,
+  I64_XOR       = 0x85,
+  I64_SHL       = 0x86,
+  I64_SHR_S     = 0x87,
+  I64_SHR_U     = 0x88,
+  I64_ROTL      = 0x89,
+  I64_ROTR      = 0x8a,
+  F32_ABS       = 0x8b,
+  F32_NEG       = 0x8c,
+  F32_ADD       = 0x92,
+  F32_SUB       = 0x93,
+  F32_MUL       = 0x94,
+  F32_DIV       = 0x95,
+  F64_ABS       = 0x99,
+  F64_NEG       = 0x9a,
+  F64_ADD       = 0xa0,
+  F64_SUB       = 0xa1,
+  F64_MUL       = 0xa2,
+  F64_DIV       = 0xa3,
+  I32_WRAP_I64        = 0xa7,  // i32 <- i64
+//   I32_TRUNC_F32_S     = 0xa8,  // i32 <- f32
+  I32_TRUNC_F64_S     = 0xaa,  // i32 <- f64
+  I64_EXTEND_I32_S    = 0xac,  // i64 <- i32
+//   I64_TRUNC_F32_S     = 0xae,  // i64 <- f32
+//   I64_TRUNC_F64_S     = 0xb0,  // i64 <- f64
+//   F32_CONVERT_I32_S   = 0xb2,  // f32 <- i32
+  F32_DEMOTE_F64      = 0xb6,  // f32 <- f64
+//   F32_CONVERT_I64_S   = 0xb4,  // f32 <- i64
+  F64_CONVERT_I32_S   = 0xb7,  // f64 <- i32
+//   F64_CONVERT_I64_S   = 0xb9,  // f64 <- i64
+  F64_PROMOTE_F32     = 0xbb,  // f64 <- f32
+  I32_REINTERPRET_F32 = 0xbc,  // i32 <- f32
+  I64_REINTERPRET_F64 = 0xbd,  // i64 <- f64
+}
 
-const WT_VOID       = 0x40
-const WT_FUNC       = 0x60
-const WT_F64        = 0x7c
-const WT_F32        = 0x7d
-const WT_I64        = 0x7e
-const WT_I32        = 0x7f
+const enum WasmType {
+  VOID       = 0x40,
+  FUNC       = 0x60,
+  F64        = 0x7c,
+  F32        = 0x7d,
+  I64        = 0x7e,
+  I32        = 0x7f,
+}
 
 const InstTable = new Map([
-  [OP_UNREACHABLE, {op: 'unreachable'}],
-  [OP_NOP, {op: 'nop'}],
-  [OP_BLOCK, {op: 'block', operands: ['type']}],
-  [OP_LOOP, {op: 'loop', operands: ['type']}],
-  [OP_IF, {op: 'if', operands: ['type']}],
-  [OP_ELSE, {op: 'else'}],
-  [OP_END, {op: 'end'}],
-  [OP_BR, {op: 'br', operands: ['uleb128']}],
-  [OP_BR_IF, {op: 'br_if', operands: ['uleb128']}],
-  [OP_BR_TABLE, {op: 'br_table', operands: ['uleb128array', 'uleb128']}],
-  [OP_RETURN, {op: 'return'}],
-  [OP_CALL, {op: 'call', operands: ['uleb128']}],
-  [OP_CALL_INDIRECT, {op: 'call_indirect', operands: ['uleb128', 'uleb128']}],
-  [OP_DROP, {op: 'drop'}],
-  [OP_SELECT, {op: 'select'}],
-  [OP_LOCAL_GET, {op: 'local.get', operands: ['uleb128']}],
-  [OP_LOCAL_SET, {op: 'local.set', operands: ['uleb128']}],
-  [OP_LOCAL_TEE, {op: 'local.tee', operands: ['uleb128']}],
-  [OP_GLOBAL_GET, {op: 'global.get', operands: ['uleb128']}],
-  [OP_GLOBAL_SET, {op: 'global.set', operands: ['uleb128']}],
-  [OP_I32_LOAD, {op: 'i32.load', operands: ['uleb128', 'uleb128']}],
-  [OP_I64_LOAD, {op: 'i64.load', operands: ['uleb128', 'uleb128']}],
-  [OP_F32_LOAD, {op: 'f32.load', operands: ['uleb128', 'uleb128']}],
-  [OP_F64_LOAD, {op: 'f64.load', operands: ['uleb128', 'uleb128']}],
-  [OP_I32_STORE, {op: 'i32.store', operands: ['uleb128', 'uleb128']}],
-  [OP_I64_STORE, {op: 'i64.store', operands: ['uleb128', 'uleb128']}],
-  [OP_F32_STORE, {op: 'f32.store', operands: ['uleb128', 'uleb128']}],
-  [OP_F64_STORE, {op: 'f64.store', operands: ['uleb128', 'uleb128']}],
-  [OP_I32_LOAD8_S, {op: 'i32.load8_s', operands: ['uleb128', 'uleb128']}],
-  [OP_I32_LOAD8_U, {op: 'i32.load8_u', operands: ['uleb128', 'uleb128']}],
-  [OP_I32_LOAD16_S, {op: 'i32.load16_s', operands: ['uleb128', 'uleb128']}],
-  [OP_I32_LOAD16_U, {op: 'i32.load16_u', operands: ['uleb128', 'uleb128']}],
-  [OP_I32_STORE8, {op: 'i32.store8', operands: ['uleb128', 'uleb128']}],
-  [OP_I32_STORE16, {op: 'i32.store16', operands: ['uleb128', 'uleb128']}],
-  [OP_I64_STORE8, {op: 'i64.store8', operands: ['uleb128', 'uleb128']}],
-  [OP_I64_STORE16, {op: 'i64.store16', operands: ['uleb128', 'uleb128']}],
-  [OP_I64_STORE32, {op: 'i64.store32', operands: ['uleb128', 'uleb128']}],
-  [OP_MEMORY_SIZE, {op: 'memory.size', operands: ['uleb128']}],
-  [OP_MEMORY_GROW, {op: 'memory.grow', operands: ['uleb128']}],
-  [OP_I32_CONST, {op: 'i32.const', operands: ['leb128']}],
-  [OP_I64_CONST, {op: 'i64.const', operands: ['leb128']}],
-  [OP_F32_CONST, {op: 'f32.const', operands: ['f32']}],
-  [OP_F64_CONST, {op: 'f64.const', operands: ['f64']}],
-  [OP_I32_EQZ, {op: 'i32.eqz'}],
-  [OP_I32_EQ, {op: 'i32.eq'}],
-  [OP_I32_NE, {op: 'i32.ne'}],
-  [OP_I32_LT_S, {op: 'i32.lt_s'}],
-  [OP_I32_LT_U, {op: 'i32.lt_u'}],
-  [OP_I32_GT_S, {op: 'i32.gt_s'}],
-  [OP_I32_GT_U, {op: 'i32.gt_u'}],
-  [OP_I32_LE_S, {op: 'i32.le_s'}],
-  [OP_I32_LE_U, {op: 'i32.le_u'}],
-  [OP_I32_GE_S, {op: 'i32.ge_s'}],
-  [OP_I32_GE_U, {op: 'i32.ge_u'}],
-  [OP_I64_EQZ, {op: 'i64.eqz'}],
-  [OP_I64_EQ, {op: 'i64.eq'}],
-  [OP_I64_NE, {op: 'i64.ne'}],
-  [OP_I64_LT_S, {op: 'i64.lt_s'}],
-  [OP_I64_LT_U, {op: 'i64.lt_u'}],
-  [OP_I64_GT_S, {op: 'i64.gt_s'}],
-  [OP_I64_GT_U, {op: 'i64.gt_u'}],
-  [OP_I64_LE_S, {op: 'i64.le_s'}],
-  [OP_I64_LE_U, {op: 'i64.le_u'}],
-  [OP_I64_GE_S, {op: 'i64.ge_s'}],
-  [OP_I64_GE_U, {op: 'i64.ge_u'}],
-  [OP_F32_EQ, {op: 'f32.eq'}],
-  [OP_F32_NE, {op: 'f32.ne'}],
-  [OP_F32_LT, {op: 'f32.lt'}],
-  [OP_F32_GT, {op: 'f32.gt'}],
-  [OP_F32_LE, {op: 'f32.le'}],
-  [OP_F32_GE, {op: 'f32.ge'}],
-  [OP_F64_EQ, {op: 'f64.eq'}],
-  [OP_F64_NE, {op: 'f64.ne'}],
-  [OP_F64_LT, {op: 'f64.lt'}],
-  [OP_F64_GT, {op: 'f64.gt'}],
-  [OP_F64_LE, {op: 'f64.le'}],
-  [OP_F64_GE, {op: 'f64.ge'}],
-  [OP_I32_ADD, {op: 'i32.add'}],
-  [OP_I32_SUB, {op: 'i32.sub'}],
-  [OP_I32_MUL, {op: 'i32.mul'}],
-  [OP_I32_DIV_S, {op: 'i32.div_s'}],
-  [OP_I32_DIV_U, {op: 'i32.div_u'}],
-  [OP_I32_REM_S, {op: 'i32.rem_s'}],
-  [OP_I32_REM_U, {op: 'i32.rem_u'}],
-  [OP_I32_AND, {op: 'i32.and'}],
-  [OP_I32_OR, {op: 'i32.or'}],
-  [OP_I32_XOR, {op: 'i32.xor'}],
-  [OP_I32_SHL, {op: 'i32.shl'}],
-  [OP_I32_SHR_S, {op: 'i32.shr_s'}],
-  [OP_I32_SHR_U, {op: 'i32.shr_u'}],
-  [OP_I32_ROTL, {op: 'i32.rotl'}],
-  [OP_I32_ROTR, {op: 'i32.rotr'}],
-  [OP_I64_ADD, {op: 'i64.add'}],
-  [OP_I64_SUB, {op: 'i64.sub'}],
-  [OP_I64_MUL, {op: 'i64.mul'}],
-  [OP_I64_DIV_S, {op: 'i64.div_s'}],
-  [OP_I64_DIV_U, {op: 'i64.div_u'}],
-  [OP_I64_REM_S, {op: 'i64.rem_s'}],
-  [OP_I64_REM_U, {op: 'i64.rem_u'}],
-  [OP_I64_AND, {op: 'i64.and'}],
-  [OP_I64_OR, {op: 'i64.or'}],
-  [OP_I64_XOR, {op: 'i64.xor'}],
-  [OP_I64_SHL, {op: 'i64.shl'}],
-  [OP_I64_SHR_S, {op: 'i64.shr_s'}],
-  [OP_I64_SHR_U, {op: 'i64.shr_u'}],
-  [OP_I64_ROTL, {op: 'i64.rotl'}],
-  [OP_I64_ROTR, {op: 'i64.rotr'}],
-  [OP_F32_ABS, {op: 'f32.abs'}],
-  [OP_F32_NEG, {op: 'f32.neg'}],
-  [OP_F32_ADD, {op: 'f32.add'}],
-  [OP_F32_SUB, {op: 'f32.sub'}],
-  [OP_F32_MUL, {op: 'f32.mul'}],
-  [OP_F32_DIV, {op: 'f32.div'}],
-  [OP_F64_ABS, {op: 'f64.abs'}],
-  [OP_F64_NEG, {op: 'f64.neg'}],
-  [OP_F64_ADD, {op: 'f64.add'}],
-  [OP_F64_SUB, {op: 'f64.sub'}],
-  [OP_F64_MUL, {op: 'f64.mul'}],
-  [OP_F64_DIV, {op: 'f64.div'}],
+  [Opcode.UNREACHABLE, {op: 'unreachable'}],
+  [Opcode.NOP, {op: 'nop'}],
+  [Opcode.BLOCK, {op: 'block', operands: ['type']}],
+  [Opcode.LOOP, {op: 'loop', operands: ['type']}],
+  [Opcode.IF, {op: 'if', operands: ['type']}],
+  [Opcode.ELSE, {op: 'else'}],
+  [Opcode.END, {op: 'end'}],
+  [Opcode.BR, {op: 'br', operands: ['uleb128']}],
+  [Opcode.BR_IF, {op: 'br_if', operands: ['uleb128']}],
+  [Opcode.BR_TABLE, {op: 'br_table', operands: ['uleb128array', 'uleb128']}],
+  [Opcode.RETURN, {op: 'return'}],
+  [Opcode.CALL, {op: 'call', operands: ['uleb128']}],
+  [Opcode.CALL_INDIRECT, {op: 'call_indirect', operands: ['uleb128', 'uleb128']}],
+  [Opcode.DROP, {op: 'drop'}],
+  [Opcode.SELECT, {op: 'select'}],
+  [Opcode.LOCAL_GET, {op: 'local.get', operands: ['uleb128']}],
+  [Opcode.LOCAL_SET, {op: 'local.set', operands: ['uleb128']}],
+  [Opcode.LOCAL_TEE, {op: 'local.tee', operands: ['uleb128']}],
+  [Opcode.GLOBAL_GET, {op: 'global.get', operands: ['uleb128']}],
+  [Opcode.GLOBAL_SET, {op: 'global.set', operands: ['uleb128']}],
+  [Opcode.I32_LOAD, {op: 'i32.load', operands: ['uleb128', 'uleb128']}],
+  [Opcode.I64_LOAD, {op: 'i64.load', operands: ['uleb128', 'uleb128']}],
+  [Opcode.F32_LOAD, {op: 'f32.load', operands: ['uleb128', 'uleb128']}],
+  [Opcode.F64_LOAD, {op: 'f64.load', operands: ['uleb128', 'uleb128']}],
+  [Opcode.I32_STORE, {op: 'i32.store', operands: ['uleb128', 'uleb128']}],
+  [Opcode.I64_STORE, {op: 'i64.store', operands: ['uleb128', 'uleb128']}],
+  [Opcode.F32_STORE, {op: 'f32.store', operands: ['uleb128', 'uleb128']}],
+  [Opcode.F64_STORE, {op: 'f64.store', operands: ['uleb128', 'uleb128']}],
+  [Opcode.I32_LOAD8_S, {op: 'i32.load8_s', operands: ['uleb128', 'uleb128']}],
+  [Opcode.I32_LOAD8_U, {op: 'i32.load8_u', operands: ['uleb128', 'uleb128']}],
+  [Opcode.I32_LOAD16_S, {op: 'i32.load16_s', operands: ['uleb128', 'uleb128']}],
+  [Opcode.I32_LOAD16_U, {op: 'i32.load16_u', operands: ['uleb128', 'uleb128']}],
+  [Opcode.I32_STORE8, {op: 'i32.store8', operands: ['uleb128', 'uleb128']}],
+  [Opcode.I32_STORE16, {op: 'i32.store16', operands: ['uleb128', 'uleb128']}],
+  [Opcode.I64_STORE8, {op: 'i64.store8', operands: ['uleb128', 'uleb128']}],
+  [Opcode.I64_STORE16, {op: 'i64.store16', operands: ['uleb128', 'uleb128']}],
+  [Opcode.I64_STORE32, {op: 'i64.store32', operands: ['uleb128', 'uleb128']}],
+  [Opcode.MEMORY_SIZE, {op: 'memory.size', operands: ['uleb128']}],
+  [Opcode.MEMORY_GROW, {op: 'memory.grow', operands: ['uleb128']}],
+  [Opcode.I32_CONST, {op: 'i32.const', operands: ['leb128']}],
+  [Opcode.I64_CONST, {op: 'i64.const', operands: ['leb128']}],
+  [Opcode.F32_CONST, {op: 'f32.const', operands: ['f32']}],
+  [Opcode.F64_CONST, {op: 'f64.const', operands: ['f64']}],
+  [Opcode.I32_EQZ, {op: 'i32.eqz'}],
+  [Opcode.I32_EQ, {op: 'i32.eq'}],
+  [Opcode.I32_NE, {op: 'i32.ne'}],
+  [Opcode.I32_LT_S, {op: 'i32.lt_s'}],
+  [Opcode.I32_LT_U, {op: 'i32.lt_u'}],
+  [Opcode.I32_GT_S, {op: 'i32.gt_s'}],
+  [Opcode.I32_GT_U, {op: 'i32.gt_u'}],
+  [Opcode.I32_LE_S, {op: 'i32.le_s'}],
+  [Opcode.I32_LE_U, {op: 'i32.le_u'}],
+  [Opcode.I32_GE_S, {op: 'i32.ge_s'}],
+  [Opcode.I32_GE_U, {op: 'i32.ge_u'}],
+  [Opcode.I64_EQZ, {op: 'i64.eqz'}],
+  [Opcode.I64_EQ, {op: 'i64.eq'}],
+  [Opcode.I64_NE, {op: 'i64.ne'}],
+  [Opcode.I64_LT_S, {op: 'i64.lt_s'}],
+  [Opcode.I64_LT_U, {op: 'i64.lt_u'}],
+  [Opcode.I64_GT_S, {op: 'i64.gt_s'}],
+  [Opcode.I64_GT_U, {op: 'i64.gt_u'}],
+  [Opcode.I64_LE_S, {op: 'i64.le_s'}],
+  [Opcode.I64_LE_U, {op: 'i64.le_u'}],
+  [Opcode.I64_GE_S, {op: 'i64.ge_s'}],
+  [Opcode.I64_GE_U, {op: 'i64.ge_u'}],
+  [Opcode.F32_EQ, {op: 'f32.eq'}],
+  [Opcode.F32_NE, {op: 'f32.ne'}],
+  [Opcode.F32_LT, {op: 'f32.lt'}],
+  [Opcode.F32_GT, {op: 'f32.gt'}],
+  [Opcode.F32_LE, {op: 'f32.le'}],
+  [Opcode.F32_GE, {op: 'f32.ge'}],
+  [Opcode.F64_EQ, {op: 'f64.eq'}],
+  [Opcode.F64_NE, {op: 'f64.ne'}],
+  [Opcode.F64_LT, {op: 'f64.lt'}],
+  [Opcode.F64_GT, {op: 'f64.gt'}],
+  [Opcode.F64_LE, {op: 'f64.le'}],
+  [Opcode.F64_GE, {op: 'f64.ge'}],
+  [Opcode.I32_ADD, {op: 'i32.add'}],
+  [Opcode.I32_SUB, {op: 'i32.sub'}],
+  [Opcode.I32_MUL, {op: 'i32.mul'}],
+  [Opcode.I32_DIV_S, {op: 'i32.div_s'}],
+  [Opcode.I32_DIV_U, {op: 'i32.div_u'}],
+  [Opcode.I32_REM_S, {op: 'i32.rem_s'}],
+  [Opcode.I32_REM_U, {op: 'i32.rem_u'}],
+  [Opcode.I32_AND, {op: 'i32.and'}],
+  [Opcode.I32_OR, {op: 'i32.or'}],
+  [Opcode.I32_XOR, {op: 'i32.xor'}],
+  [Opcode.I32_SHL, {op: 'i32.shl'}],
+  [Opcode.I32_SHR_S, {op: 'i32.shr_s'}],
+  [Opcode.I32_SHR_U, {op: 'i32.shr_u'}],
+  [Opcode.I32_ROTL, {op: 'i32.rotl'}],
+  [Opcode.I32_ROTR, {op: 'i32.rotr'}],
+  [Opcode.I64_ADD, {op: 'i64.add'}],
+  [Opcode.I64_SUB, {op: 'i64.sub'}],
+  [Opcode.I64_MUL, {op: 'i64.mul'}],
+  [Opcode.I64_DIV_S, {op: 'i64.div_s'}],
+  [Opcode.I64_DIV_U, {op: 'i64.div_u'}],
+  [Opcode.I64_REM_S, {op: 'i64.rem_s'}],
+  [Opcode.I64_REM_U, {op: 'i64.rem_u'}],
+  [Opcode.I64_AND, {op: 'i64.and'}],
+  [Opcode.I64_OR, {op: 'i64.or'}],
+  [Opcode.I64_XOR, {op: 'i64.xor'}],
+  [Opcode.I64_SHL, {op: 'i64.shl'}],
+  [Opcode.I64_SHR_S, {op: 'i64.shr_s'}],
+  [Opcode.I64_SHR_U, {op: 'i64.shr_u'}],
+  [Opcode.I64_ROTL, {op: 'i64.rotl'}],
+  [Opcode.I64_ROTR, {op: 'i64.rotr'}],
+  [Opcode.F32_ABS, {op: 'f32.abs'}],
+  [Opcode.F32_NEG, {op: 'f32.neg'}],
+  [Opcode.F32_ADD, {op: 'f32.add'}],
+  [Opcode.F32_SUB, {op: 'f32.sub'}],
+  [Opcode.F32_MUL, {op: 'f32.mul'}],
+  [Opcode.F32_DIV, {op: 'f32.div'}],
+  [Opcode.F64_ABS, {op: 'f64.abs'}],
+  [Opcode.F64_NEG, {op: 'f64.neg'}],
+  [Opcode.F64_ADD, {op: 'f64.add'}],
+  [Opcode.F64_SUB, {op: 'f64.sub'}],
+  [Opcode.F64_MUL, {op: 'f64.mul'}],
+  [Opcode.F64_DIV, {op: 'f64.div'}],
 
-  [OP_I32_WRAP_I64, {op: 'i32.wrap_i64'}],
-  [OP_I32_TRUNC_F64_S, {op: 'i32.trunc_f64_s'}],
-  [OP_I64_EXTEND_I32_S, {op: 'i64.extend_i32_s'}],
-  [OP_F32_DEMOTE_F64, {op: 'f32.demote_f64'}],
-  [OP_F64_CONVERT_I32_S, {op: 'f64.convert_i32_s'}],
-  [OP_F64_PROMOTE_F32, {op: 'f64.promote_f32'}],
-  [OP_I32_REINTERPRET_F32, {op: 'i32.reinterpret_f32'}],
-  [OP_I64_REINTERPRET_F64, {op: 'i64.reinterpret_f64'}],
+  [Opcode.I32_WRAP_I64, {op: 'i32.wrap_i64'}],
+  [Opcode.I32_TRUNC_F64_S, {op: 'i32.trunc_f64_s'}],
+  [Opcode.I64_EXTEND_I32_S, {op: 'i64.extend_i32_s'}],
+  [Opcode.F32_DEMOTE_F64, {op: 'f32.demote_f64'}],
+  [Opcode.F64_CONVERT_I32_S, {op: 'f64.convert_i32_s'}],
+  [Opcode.F64_PROMOTE_F32, {op: 'f64.promote_f32'}],
+  [Opcode.I32_REINTERPRET_F32, {op: 'i32.reinterpret_f32'}],
+  [Opcode.I64_REINTERPRET_F64, {op: 'i64.reinterpret_f64'}],
 ])
 
 function readu8(buffer: ArrayBuffer, offset: number): number {
@@ -357,11 +363,11 @@ class Type {
       return `Func{params: ${this.type.params}, result:${this.type.results}}`
     } else {
       switch (this.type) {
-      case WT_VOID:  return 'void'
-      case WT_I32:   return 'i32'
-      case WT_I64:   return 'i64'
-      case WT_F32:   return 'f32'
-      case WT_F64:   return 'f64'
+      case WasmType.VOID:  return 'void'
+      case WasmType.I32:   return 'i32'
+      case WasmType.I64:   return 'i64'
+      case WasmType.F32:   return 'f32'
+      case WasmType.F64:   return 'f64'
       default:  throw `Unhandled: ${this.type}`
       }
     }
@@ -371,13 +377,13 @@ class Type {
 function readType(buffer: ArrayBuffer, offset: number): [Type, number] {
   const t = readu8(buffer, offset)
   switch (t) {
-  case WT_VOID:
-  case WT_I32:
-  case WT_I64:
-  case WT_F32:
-  case WT_F64:
+  case WasmType.VOID:
+  case WasmType.I32:
+  case WasmType.I64:
+  case WasmType.F32:
+  case WasmType.F64:
     return [new Type(t), offset + 1]
-  case WT_FUNC:
+  case WasmType.FUNC:
     {
       const [numParams, ofs] = readUleb128(buffer, offset + 1)
       offset = ofs
@@ -485,24 +491,24 @@ class DisWasm {
   loadSections(): void {
     let offset = 8
     while (offset < this.buffer.byteLength) {
-      const sec = readu8(this.buffer, offset)
+      const sec = readu8(this.buffer, offset) as Section
       const [len, nextOfs] = readUleb128(this.buffer, offset + 1)
 
 console.log(`0x${offset.toString(16)}: sec=${sec}, len=${len}`)
       switch (sec) {
-      case SEC_TYPE:
-      case SEC_IMPORT:
-      case SEC_FUNC:
-      case SEC_TABLE:
-      case SEC_MEMORY:
-      case SEC_GLOBAL:
-      case SEC_EXPORT:
-      case SEC_ELEM:
-      case SEC_DATA:
+      case Section.TYPE:
+      case Section.IMPORT:
+      case Section.FUNC:
+      case Section.TABLE:
+      case Section.MEMORY:
+      case Section.GLOBAL:
+      case Section.EXPORT:
+      case Section.ELEM:
+      case Section.DATA:
         // TODO
         break
 
-      case SEC_CODE:
+      case Section.CODE:
         this.readCodeSection(nextOfs, len)
         break
 
