@@ -60,6 +60,7 @@
     "jest-cli": "~24.9.0",
     "ts-jest": "~26.4.4",
     "ts-loader": "~8.0.11",
+    "ts-node": "~9.1.1",
     "typescript": "~4.0.5",
     "webpack": "~5.9.0",
     "webpack-stream": "~6.1.1"

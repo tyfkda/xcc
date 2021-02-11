@@ -1,8 +1,8 @@
-#! /usr/bin/env node
+#! /usr/bin/env ts-node
 
 'use strict'
 
-const fs = require('fs')
+import * as fs from 'fs'
 
 const SEC_TYPE      = 1
 const SEC_IMPORT    = 2
@@ -136,16 +136,16 @@ const OP_F64_SUB       = 0xa1
 const OP_F64_MUL       = 0xa2
 const OP_F64_DIV       = 0xa3
 const OP_I32_WRAP_I64        = 0xa7  // i32 <- i64
-const OP_I32_TRUNC_F32_S     = 0xa8  // i32 <- f32
+// const OP_I32_TRUNC_F32_S     = 0xa8  // i32 <- f32
 const OP_I32_TRUNC_F64_S     = 0xaa  // i32 <- f64
 const OP_I64_EXTEND_I32_S    = 0xac  // i64 <- i32
-const OP_I64_TRUNC_F32_S     = 0xae  // i64 <- f32
-const OP_I64_TRUNC_F64_S     = 0xb0  // i64 <- f64
-const OP_F32_CONVERT_I32_S   = 0xb2  // f32 <- i32
+// const OP_I64_TRUNC_F32_S     = 0xae  // i64 <- f32
+// const OP_I64_TRUNC_F64_S     = 0xb0  // i64 <- f64
+// const OP_F32_CONVERT_I32_S   = 0xb2  // f32 <- i32
 const OP_F32_DEMOTE_F64      = 0xb6  // f32 <- f64
-const OP_F32_CONVERT_I64_S   = 0xb4  // f32 <- i64
+// const OP_F32_CONVERT_I64_S   = 0xb4  // f32 <- i64
 const OP_F64_CONVERT_I32_S   = 0xb7  // f64 <- i32
-const OP_F64_CONVERT_I64_S   = 0xb9  // f64 <- i64
+// const OP_F64_CONVERT_I64_S   = 0xb9  // f64 <- i64
 const OP_F64_PROMOTE_F32     = 0xbb  // f64 <- f32
 const OP_I32_REINTERPRET_F32 = 0xbc  // i32 <- f32
 const OP_I64_REINTERPRET_F64 = 0xbd  // i64 <- f64
@@ -288,15 +288,15 @@ const InstTable = new Map([
   [OP_I64_REINTERPRET_F64, {op: 'i64.reinterpret_f64'}],
 ])
 
-function readu8(buffer, offset) {
+function readu8(buffer: ArrayBuffer, offset: number): number {
   return new Uint8Array(buffer, offset, 1)[0]
 }
 
-function readi32(buffer, offset) {
+function readi32(buffer: ArrayBuffer, offset: number): number {
   return new Int32Array(buffer, offset, 1)[0]
 }
 
-function readf32(buffer, offset) {
+function readf32(buffer: ArrayBuffer, offset: number): number {
   if ((offset & 3) !== 0) {
     buffer = new Uint8Array(buffer).slice(offset, offset + 4)
     offset = 0
@@ -304,7 +304,7 @@ function readf32(buffer, offset) {
   return new Float32Array(buffer, offset, 1)[0]
 }
 
-function readf64(buffer, offset) {
+function readf64(buffer: ArrayBuffer, offset: number): number {
   if ((offset & 7) !== 0) {
     buffer = new Uint8Array(buffer).slice(offset, offset + 8)
     offset = 0
@@ -312,7 +312,7 @@ function readf64(buffer, offset) {
   return new Float64Array(buffer, offset, 1)[0]
 }
 
-function readLeb128(buffer, offset) {
+function readLeb128(buffer: ArrayBuffer, offset: number): [number, number] {
   const u8array = new Uint8Array(buffer, offset)
   let x = 0
   let bits = 0
@@ -330,7 +330,7 @@ function readLeb128(buffer, offset) {
   return [x, offset + i]
 }
 
-function readUleb128(buffer, offset) {
+function readUleb128(buffer: ArrayBuffer, offset: number): [number, number] {
   const u8array = new Uint8Array(buffer, offset)
   let x = 0
   let bits = 0
@@ -346,11 +346,13 @@ function readUleb128(buffer, offset) {
 }
 
 class Type {
-  constructor(type) {
+  private type: number | {type: string, params: Array<Type>, results: Array<Type>}
+
+  constructor(type: number | {type: string, params: Array<Type>, results: Array<Type>}) {
     this.type = type
   }
 
-  toString() {
+  toString(): string {
     if (typeof(this.type) === 'object') {
       return `Func{params: ${this.type.params}, result:${this.type.results}}`
     } else {
@@ -366,7 +368,7 @@ class Type {
   }
 }
 
-function readType(buffer, offset) {
+function readType(buffer: ArrayBuffer, offset: number): [Type, number] {
   const t = readu8(buffer, offset)
   switch (t) {
   case WT_VOID:
@@ -398,7 +400,9 @@ function readType(buffer, offset) {
   }
 }
 
-function readOperand(buffer, operand, offset) {
+type Operand = number | Array<number>
+
+function readOperand(buffer: ArrayBuffer, operand: string, offset: number): [Operand|Type, number] {
   switch (operand) {
   case 'type':
     return readType(buffer, offset)
@@ -426,7 +430,12 @@ function readOperand(buffer, operand, offset) {
   }
 }
 
-function readInst(buffer, offset) {
+class Inst {
+  public op: string
+  public operands?: Array<Operand|Type>
+}
+
+function readInst(buffer: ArrayBuffer, offset: number): [Inst, number] {
   const op = readu8(buffer, offset)
   ++offset
 
@@ -435,7 +444,7 @@ function readInst(buffer, offset) {
     throw `Unhandled op: 0x${op.toString(16).padStart(2, '0')} at 0x${offset.toString(16)}`
   }
 
-  let inst = {op: table.op}
+  let inst: Inst = {op: table.op}
   if (table.operands != null) {
     inst.operands = table.operands.map(operand => {
       const [opr, next] = readOperand(buffer, operand, offset)
@@ -449,20 +458,23 @@ function readInst(buffer, offset) {
 let SPACES = '    '
 
 class DisWasm {
-  constructor(filename) {
-    this.filename = filename
+  private buffer: ArrayBufferLike
+  private version = -1
+  private codes = new Array<Array<Inst>>()
+
+  constructor(private filename: string) {
     const content = fs.readFileSync(this.filename)
     this.buffer = new Uint8Array(content).buffer
   }
 
-  dump() {
+  dump(): void {
     if (!this.checkHeader())
       throw Error('No wasm header')
     console.log(`WASM version: ${this.version}`)
     this.loadSections()
   }
 
-  checkHeader() {
+  checkHeader(): boolean {
     const magic = new Uint8Array(this.buffer, 0, 4)
     if (new TextDecoder('utf-8').decode(magic) !== '\x00asm')
       return false
@@ -470,7 +482,7 @@ class DisWasm {
     return true
   }
 
-  loadSections() {
+  loadSections(): void {
     let offset = 8
     while (offset < this.buffer.byteLength) {
       const sec = readu8(this.buffer, offset)
@@ -502,9 +514,8 @@ console.log(`0x${offset.toString(16)}: sec=${sec}, len=${len}`)
     }
   }
 
-  readCodeSection(offset, len) {
+  readCodeSection(offset: number, _len: number): void {
     let [num, start] = readUleb128(this.buffer, offset)
-    this.codes = []
     offset = start
     for (let i = 0; i < num; ++i) {
       const [code, nextOfs] = this.readCode(offset, i)
@@ -513,7 +524,7 @@ console.log(`0x${offset.toString(16)}: sec=${sec}, len=${len}`)
     }
   }
 
-  readCode(offset, funcIndex) {
+  readCode(offset: number, funcIndex: number): [Inst[], number] {
     console.log(`\n=== Function ${funcIndex}`)
     const [bodySize, ofs] = readUleb128(this.buffer, offset)
     const endOfs = (offset = ofs) + bodySize
@@ -527,7 +538,7 @@ console.log(`0x${offset.toString(16)}: sec=${sec}, len=${len}`)
     })
     console.log(`localTypes: ${localTypes.map(([num, t]) => `(${num}, ${t})`).join(', ')}`)
 
-    const code = []
+    const code = new Array<Inst>()
     let indent = 1
     while (offset < endOfs) {
       const [inst, nextOfs] = readInst(this.buffer, offset)
@@ -556,7 +567,7 @@ console.log(`0x${offset.toString(16)}: sec=${sec}, len=${len}`)
   }
 }
 
-function main(argv) {
+function main(argv: string[]) {
   if (argv.length < 3) {
     console.error('Usage: [wasm file]')
     process.exit(1)
