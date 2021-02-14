@@ -55,8 +55,8 @@ void parse_file(FILE *fp, const char *filename, Vector **section_irs, Table *lab
   for (;; ++info.lineno) {
     char *rawline = NULL;
     size_t capa = 0;
-    ssize_t len = getline_(&rawline, &capa, fp, 0);
-    if (len == EOF)
+    ssize_t len = getline(&rawline, &capa, fp);
+    if (len == -1)
       break;
     info.rawline = rawline;
 

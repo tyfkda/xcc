@@ -5,6 +5,7 @@ CFLAGS=-ansi -std=c11 -Wall -Wextra -Werror \
 	-Wold-style-definition -Wno-missing-field-initializers -Wno-typedef-redefinition \
 	-Wno-empty-body
 CFLAGS+=-I$(SRC_DIR) -I$(UTIL_DIR)
+CFLAGS+=-D_POSIX_C_SOURCE=200809L  # for getline
 
 EXE_DIR:=.
 XCC:=../$(EXE_DIR)/xcc

@@ -2,6 +2,7 @@
 
 #include "stdarg.h"
 #include "stddef.h"
+#include "sys/types.h"  // ssize_t
 
 #define EOF  (-1)
 
@@ -40,3 +41,5 @@ void perror(const char *);
 
 int fileno(FILE *fp);
 FILE *tmpfile(void);
+
+ssize_t getline(char **lineptr, size_t *n, FILE *stream);

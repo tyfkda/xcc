@@ -317,8 +317,8 @@ static Token *match2(enum TokenKind kind, Stream *stream) {
   while (match(TK_EOF)) {
     char *line = NULL;
     size_t capa = 0;
-    ssize_t len = getline_(&line, &capa, stream->fp, 0);
-    if (len == EOF)
+    ssize_t len = getline(&line, &capa, stream->fp);
+    if (len == -1)
       return NULL;
     ++stream->lineno;
     set_source_string(line, stream->filename, stream->lineno);
@@ -349,13 +349,13 @@ Vector *pp_funargs(Stream *stream) {
             sb_append(&sb, "\n", NULL);
           start = end = NULL;
 
-          ssize_t len = EOF;
+          ssize_t len = -1;
           char *line = NULL;
           if (stream != NULL) {
             size_t capa = 0;
-            len = getline_(&line, &capa, stream->fp, 0);
+            len = getline(&line, &capa, stream->fp);
           }
-          if (len == EOF) {
+          if (len == -1) {
             parse_error(NULL, "`)' expected");
             return NULL;
           }

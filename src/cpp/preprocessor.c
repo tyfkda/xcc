@@ -286,8 +286,8 @@ bool handle_block_comment(const char *begin, const char **pp, Stream *stream) {
 
       char *line = NULL;
       size_t capa = 0;
-      ssize_t len = getline_(&line, &capa, stream->fp, 0);
-      if (len == EOF) {
+      ssize_t len = getline(&line, &capa, stream->fp);
+      if (len == -1) {
         *pp = p;
         return true;
       }
@@ -414,15 +414,23 @@ int preprocess(FILE *fp, const char *filename) {
   for (stream.lineno = 1;; ++stream.lineno) {
     char *line = NULL;
     size_t capa = 0;
-    ssize_t len = getline_(&line, &capa, fp, 0);
-    if (len == EOF)
+    ssize_t len = getline(&line, &capa, fp);
+    if (len == -1)
       break;
 
     snprintf(linenobuf, sizeof(linenobuf), "%d", stream.lineno);
 
-    while (len > 0 && line[len - 1] == '\\') {  // Continue line.
+    for (;;) {
+      if (len > 0 && line[len - 1] == '\n')
+        line[--len] = '\0';
+      if (len < 1 || line[len - 1] != '\\')
+        break;
+      // Continue line.
       ++stream.lineno;
-      len = getline_(&line, &capa, fp, len - 1);  // -1 for overwrite on '\'
+      line[--len] = '\0';
+      ssize_t nextlen = getline_cat(&line, &capa, fp, len);
+      if (nextlen != -1)
+        len = nextlen;
     }
 
     // Find '#'

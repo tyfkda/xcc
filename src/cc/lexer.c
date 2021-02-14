@@ -302,14 +302,23 @@ static void read_next_line(void) {
   char *line = NULL;
   size_t capa = 0;
   for (;;) {
-    ssize_t len = getline_(&line, &capa, lexer.fp, 0);
-    if (len == EOF) {
+    ssize_t len = getline(&line, &capa, lexer.fp);
+    if (len == -1) {
       lexer.p = NULL;
       lexer.line = NULL;
       return;
     }
-    while (len > 0 && line[len - 1] == '\\')  // Continue line.
-      len = getline_(&line, &capa, lexer.fp, len - 1);  // -1 for overwrite on '\'
+    for (;;) {
+      if (len > 0 && line[len - 1] == '\n')
+        line[--len] = '\0';
+      if (len < 1 || line[len - 1] != '\\')
+        break;
+      // Continue line.
+      line[--len] = '\0';
+      ssize_t nextlen = getline_cat(&line, &capa, lexer.fp, len);
+      if (nextlen != -1)
+        len = nextlen;
+    }
 
     if (line[0] != '#')
       break;

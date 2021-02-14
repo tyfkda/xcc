@@ -42,41 +42,24 @@ void set_local_label_prefix(const char *prefix) {
   strncpy(label_prefix, prefix, sizeof(label_prefix));
 }
 
-ssize_t getline_(char **lineptr, size_t *pcapa, FILE *stream, size_t start) {
-  const int ADD = 16;
-  ssize_t capa = *pcapa;
-  ssize_t size = start;
-  char *top = *lineptr;
-  for (;;) {
-    int c = fgetc(stream);
-    if (c == EOF) {
-      if (size == 0)
-        return EOF;
-      break;
-    }
+ssize_t getline_cat(char **lineptr, size_t *n, FILE *stream, size_t curlen) {
+  char *nextline = NULL;
+  size_t capa = 0;
+  ssize_t len = getline(&nextline, &capa, stream);
+  if (len == -1)
+    return -1;
+  if (len > 0) {
+    char *oldline = *lineptr;
+    char *reallocated = realloc(oldline, curlen + len + 1);
+    if (reallocated == NULL)
+      return -1;
 
-    if (size + 1 >= capa) {
-      ssize_t newcapa = capa + ADD;
-      top = realloc(top, newcapa);
-      if (top == NULL) {
-        error("Out of memory");
-        return EOF;
-      }
-      capa = newcapa;
-    }
-
-    if (c == '\n')
-      break;
-
-    assert(size < capa);
-    top[size++] = c;
+    memcpy(reallocated + curlen, nextline, len + 1);
+    *lineptr = reallocated;
+    *n = curlen + len;  // '\0' is not included.
+    free(nextline);
   }
-
-  assert(size < capa);
-  top[size] = '\0';
-  *lineptr = top;
-  *pcapa = capa;
-  return size;
+  return curlen + len;
 }
 
 bool is_fullpath(const char *filename) {
