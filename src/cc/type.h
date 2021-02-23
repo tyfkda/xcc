@@ -5,6 +5,7 @@
 #include <stdbool.h>
 #include <stddef.h>  // size_t
 #include <stdint.h>  // intptr_t
+#include <stdio.h>
 #include <sys/types.h>  // ssize_t
 
 typedef struct Name Name;
@@ -131,3 +132,7 @@ Type *create_enum_type(const Name *name);
 
 bool same_type(const Type *type1, const Type *type2);
 bool can_cast(const Type *dst, const Type *src, bool zero, bool is_explicit);
+
+//
+
+void print_type(FILE *fp, const Type *type);

@@ -152,17 +152,19 @@ static void lex_error(const char *p, const char *fmt, ...) {
 }
 
 void parse_error(const Token *token, const char *fmt, ...) {
-  if (token == NULL)
-    token = fetch_token();
-  if (token != NULL && token->line != NULL) {
-    fprintf(stderr, "%s(%d): ", token->line->filename, token->line->lineno);
-  }
+  if (fmt != NULL) {
+    if (token == NULL)
+      token = fetch_token();
+    if (token != NULL && token->line != NULL) {
+      fprintf(stderr, "%s(%d): ", token->line->filename, token->line->lineno);
+    }
 
-  va_list ap;
-  va_start(ap, fmt);
-  vfprintf(stderr, fmt, ap);
-  va_end(ap);
-  fprintf(stderr, "\n");
+    va_list ap;
+    va_start(ap, fmt);
+    vfprintf(stderr, fmt, ap);
+    va_end(ap);
+    fprintf(stderr, "\n");
+  }
 
   if (token != NULL && token->line != NULL && token->begin != NULL)
     show_error_line(token->line->buf, token->begin, token->end - token->begin);
