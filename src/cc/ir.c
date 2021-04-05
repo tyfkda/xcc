@@ -1048,7 +1048,7 @@ static void ir_out(IR *ir) {
 
       static const char *kArgReg64s[] = {RDI, RSI, RDX, RCX, R8, R9};
 #ifndef __NO_FLONUM
-      static const char *kArgFReg64s[] = {XMM0, XMM1, XMM2, XMM3, XMM4, XMM5};
+      static const char *kArgFReg64s[] = {XMM0, XMM1, XMM2, XMM3, XMM4, XMM5, XMM6, XMM7};
       int freg = 0;
 #endif
 

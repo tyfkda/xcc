@@ -12,3 +12,7 @@ int sq(int x) {
 int ref_export(void) {
   return export;
 }
+
+double many_fargs(double a, double b, double c, double d, double e, double f, double g, double h, double i) {
+  return h + i;
+}

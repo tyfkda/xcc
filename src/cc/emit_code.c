@@ -281,7 +281,7 @@ static void put_args_to_stack(Function *func) {
   static const char *kReg64s[] = {RDI, RSI, RDX, RCX, R8, R9};
   static const char **kRegTable[] = {NULL, kReg8s, kReg16s, NULL, kReg32s, NULL, NULL, NULL, kReg64s};
 #ifndef __NO_FLONUM
-  static const char *kFReg64s[] = {XMM0, XMM1, XMM2, XMM3, XMM4, XMM5};
+  static const char *kFReg64s[] = {XMM0, XMM1, XMM2, XMM3, XMM4, XMM5, XMM6, XMM7};
 #endif
 
   int arg_index = 0;
