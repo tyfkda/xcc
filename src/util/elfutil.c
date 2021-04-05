@@ -20,6 +20,7 @@
 #if !defined(__NO_ELF_OBJ)
 void strtab_init(Strtab *strtab) {
   table_init(&strtab->offsets);
+  strtab->size = 0;
 }
 
 size_t strtab_add(Strtab *strtab, const Name *name) {

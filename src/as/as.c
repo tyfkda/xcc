@@ -403,6 +403,7 @@ static int output_obj(const char *ofn, Table *label_table, Vector *unresolved) {
     long shstrtab_ofs;
     {
       void *buf = strtab_dump(&shstrtab);
+      assert(buf != NULL);
       long cur = ftell(ofp);
       shstrtab_ofs = ALIGN(cur, 0x10);
       put_padding(ofp, shstrtab_ofs);

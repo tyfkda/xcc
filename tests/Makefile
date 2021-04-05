@@ -15,7 +15,7 @@ CPP:=../$(EXE_DIR)/cpp
 all:	test
 
 .PHONY: test
-test:	unit-tests cpp-tests cc-tests
+test:	unit-tests cpp-tests cc-tests misc-tests
 	@echo 'All tests PASS!'
 
 .PHONY: unit-tests
@@ -25,11 +25,15 @@ unit-tests:	test-table test-util test-parser print-type-test
 cpp-tests:	test-cpp
 
 .PHONY: cc-tests
-cc-tests:	test-sh test-val test-dval test-fval test-examples
+cc-tests:	test-sh test-val test-dval test-fval
+
+.PHONY: misc-tests
+misc-tests:	test-link test-examples
 
 .PHONY: clean
 clean:
-	rm -f table_test util_test parser_test print_type_test valtest dvaltest fvaltest a.out tmp.s *.o
+	rm -f table_test util_test parser_test print_type_test valtest dvaltest fvaltest link_test \
+		a.out tmp.s *.o
 
 .PHONY: test-table
 test-table:	table_test
@@ -90,6 +94,12 @@ test-examples: # $(XCC)
 	XCC=$(XCC) ./example_test.sh
 	@echo ''
 
+.PHONY: test-link
+test-link: link_test # $(XCC)
+	@echo '## Link test'
+	./link_test
+	@echo ''
+
 TABLE_SRCS:=table_test.c $(UTIL_DIR)/table.c
 table_test:	$(TABLE_SRCS)
 	$(CC) -o$@ $(CFLAGS) $^
@@ -106,7 +116,7 @@ parser_test:	$(PARSER_SRCS)
 
 VAL_SRCS:=../lib/crt0.c ../examples/util.c valtest.c
 valtest:	$(VAL_SRCS) # $(XCC)
-	$(XCC) -o$@ $(VAL_SRCS)
+	$(XCC) -o$@ $^
 
 FVAL_SRCS:=../lib/crt0.c ../examples/util.c ../lib/math.c fvaltest.c
 dvaltest:	$(FVAL_SRCS) flotest.inc # $(XCC)
@@ -117,6 +127,11 @@ fvaltest:	$(FVAL_SRCS) flotest.inc # $(XCC)
 TYPE_SRCS:=print_type_test.c $(SRC_DIR)/type.c $(UTIL_DIR)/util.c $(UTIL_DIR)/table.c
 print_type_test:	$(TYPE_SRCS)
 	gcc -o $@ $(CFLAGS) $^
+
+.PHONY: test-link
+link_test: link_main.c ../examples/util.c link_sub.c
+	$(XCC) -c -olink_main.o link_main.c
+	$(CC) -o $@ link_sub.c link_main.o ../examples/util.c
 
 .PHONY: test-std-valtest
 test-std-valtest:
