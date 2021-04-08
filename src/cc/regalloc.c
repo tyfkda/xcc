@@ -459,8 +459,7 @@ void prepare_register_allocation(Function *func) {
   // Handle function parameters first.
   if (func->type->func.params != NULL) {
     const int DEFAULT_OFFSET = WORD_SIZE * 2;  // Return address, saved base pointer.
-    Scope *scope = (Scope*)func->scopes->data[0];
-    assert(scope != NULL);
+    assert((Scope*)func->scopes->data[0] != NULL);
     int ireg_index = is_stack_param(func->type->func.ret) ? 1 : 0;
 #ifndef __NO_FLONUM
     int freg_index = 0;

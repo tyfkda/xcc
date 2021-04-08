@@ -174,13 +174,10 @@ static bool parse_sign(const char **pp) {
   return negative;
 }
 
-long strtol(const char *p, char **pp, int base) {
-  const char *orig = p;
-  bool neg = parse_sign(&p);
+static unsigned long strtoul_sub(const char *p, char **pp, int base) {
   char digimax = '0' + (base <= 10 ? base : 10);
   char hexmax = 'a' - 10 + base;
-  long result = 0;
-  const char *op = p;
+  unsigned long result = 0;
   for (;; ++p) {
     char c = *p;
     int n;
@@ -195,13 +192,25 @@ long strtol(const char *p, char **pp, int base) {
     }
     result = result * base + n;
   }
-  if (p == op)
-    p = orig;
+
+  if (pp != 0)
+    *pp = (char*)p;
+
+  return result;
+}
+
+long strtol(const char *p, char **pp, int base) {
+  const char *orig = p;
+  bool neg = parse_sign(&p);
+  char *q;
+  long result = strtoul_sub(p, &q, base);
+  if (q == p)
+    q = (char*)orig;
   if (neg)
     result = -result;
 
   if (pp != 0)
-    *pp = (char*)p;
+    *pp = q;
 
   return result;
 }
@@ -210,29 +219,13 @@ unsigned long strtoul(const char *p, char **pp, int base) {
   const char *orig = p;
   if (*p == '+')
     ++p;
-  char digimax = '0' + (base <= 10 ? base : 10);
-  char hexmax = 'a' - 10 + base;
-  unsigned long result = 0;
-  const char *op = p;
-  for (;; ++p) {
-    char c = *p;
-    int n;
-    if ('0' <= c && c < digimax)
-      n = c - '0';
-    else {
-      c = tolower(c);
-      if ('a' <= c && c < hexmax)
-        n = c - 'a' + 10;
-      else
-        break;
-    }
-    result = result * base + n;
-  }
-  if (p == op)
-    p = orig;
+  char *q;
+  unsigned long result = strtoul_sub(p, &q, base);
+  if (q == p)
+    q = (char*)orig;
 
   if (pp != 0)
-    *pp = (char*)p;
+    *pp = q;
 
   return result;
 }

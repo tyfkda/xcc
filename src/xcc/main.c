@@ -168,7 +168,9 @@ static int compile(const char *src, Vector *cpp_cmd, Vector *cc1_cmd, int ofd) {
         if (cc_pid != -1) {
           if (r != 0) {
             // Illegal: cpp exit with failure.
+#if !defined(__XV6)
             kill(cc_pid, SIGKILL);
+#endif
             break;
           }
           close(cc_fd[0]);
@@ -178,7 +180,9 @@ static int compile(const char *src, Vector *cpp_cmd, Vector *cc1_cmd, int ofd) {
         cc_pid = -1;
         if (cpp_pid != -1) {
           // Illegal: cc dies earlier than cpp.
+#if !defined(__XV6)
           kill(cpp_pid, SIGKILL);
+#endif
           break;
         }
       }
@@ -314,7 +318,7 @@ int main(int argc, char *argv[]) {
     as_pid = pipe_exec((char**)as_cmd->data, -1, as_fd);
     ofd = as_fd[1];
   } else if (out_asm) {
-#ifndef __XCC
+#if !defined(__XCC) && !defined(__XV6)
     close(STDOUT_FILENO);
     ofd = open(ofn, O_WRONLY | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
     if (ofd == -1) {

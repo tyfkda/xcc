@@ -94,19 +94,20 @@ static void put_padding(FILE *fp, uintptr_t start) {
   }
 }
 
-static void putnum(FILE *fp, unsigned long num, int bytes) {
-  for (int i = 0; i < bytes; ++i) {
-    fputc(num, fp);
-    num >>= 8;
-  }
-}
-
 static void drop_all(FILE *fp) {
   for (;;) {
     char buf[4096];
     size_t size = fread(buf, 1, sizeof(buf), fp);
     if (size < sizeof(buf))
       break;
+  }
+}
+
+#if !defined(__NO_ELF_OBJ)
+static void putnum(FILE *fp, unsigned long num, int bytes) {
+  for (int i = 0; i < bytes; ++i) {
+    fputc(num, fp);
+    num >>= 8;
   }
 }
 
@@ -433,6 +434,7 @@ static int output_obj(const char *ofn, Table *label_table, Vector *unresolved) {
 
   return 0;
 }
+#endif
 
 static int output_exe(const char *ofn, Table *label_table) {
   size_t codesz, rodatasz, datasz, bsssz;
@@ -512,10 +514,12 @@ int main(int argc, char *argv[]) {
     if (*arg != '-')
       break;
 
-    if (strcmp(arg, "-c") == 0) {
-      out_obj = true;
-    } else if (starts_with(arg, "-o")) {
+    if (starts_with(arg, "-o")) {
       ofn = strdup_(arg + 2);
+#if !defined(__NO_ELF_OBJ)
+    } else if (strcmp(arg, "-c") == 0) {
+      out_obj = true;
+#endif
     } else if (strcmp(arg, "--version") == 0) {
       show_version("as");
       return 0;
@@ -576,6 +580,16 @@ int main(int argc, char *argv[]) {
 
   fix_section_size(LOAD_ADDRESS);
 
-  return out_obj ? output_obj(ofn, &label_table, unresolved) : output_exe(ofn, &label_table);
+  int result;
+#if !defined(__NO_ELF_OBJ)
+  if (out_obj) {
+    result = output_obj(ofn, &label_table, unresolved);
+  } else
+#endif
+  {
+    result = output_exe(ofn, &label_table);
+  }
+
+  return result;
 }
 #endif

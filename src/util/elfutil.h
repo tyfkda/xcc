@@ -24,6 +24,7 @@
 
 #endif
 
+#if !defined(__NO_ELF_OBJ)
 #include "table.h"
 
 // String table for ELF.
@@ -47,6 +48,8 @@ typedef struct {
 
 void symtab_init(Symtab *symtab);
 Elf64_Sym *symtab_add(Symtab *symtab, const Name *name);
+#endif  // !defined(__NO_ELF_OBJ)
+
 
 //
 

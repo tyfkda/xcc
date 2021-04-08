@@ -8,7 +8,7 @@
 #include "util.h"
 #include "x86_64.h"
 
-#define SPILLED_REG_NO  (PHYSICAL_REG_MAX)
+#define WORK_REG_NO  (PHYSICAL_REG_MAX)
 
 static void push_caller_save_regs(unsigned short living, int base);
 static void pop_caller_save_regs(unsigned short living);
@@ -632,8 +632,8 @@ static void ir_out(IR *ir) {
       MOV(regs[ir->opr1->phys], a);
       const char *opr2;
       if (ir->opr2->flag & VRF_CONST) {
-        MOV(im(ir->opr2->fixnum), regs[SPILLED_REG_NO]);
-        opr2 = regs[SPILLED_REG_NO];
+        MOV(im(ir->opr2->fixnum), regs[WORK_REG_NO]);
+        opr2 = regs[WORK_REG_NO];
       } else {
         opr2 = regs[ir->opr2->phys];
       }
@@ -662,7 +662,7 @@ static void ir_out(IR *ir) {
         MOVSX(kReg8s[ir->opr1->phys], AX);
         const char *opr2;
         if (ir->opr2->flag & VRF_CONST) {
-          opr2 = kReg8s[SPILLED_REG_NO];
+          opr2 = kReg8s[WORK_REG_NO];
           MOV(im(ir->opr2->fixnum), opr2);
         } else {
           opr2 = kReg8s[ir->opr2->phys];
@@ -672,7 +672,7 @@ static void ir_out(IR *ir) {
         MOVZX(kReg8s[ir->opr1->phys], AX);
         const char *opr2;
         if (ir->opr2->flag & VRF_CONST) {
-          opr2 = kReg8s[SPILLED_REG_NO];
+          opr2 = kReg8s[WORK_REG_NO];
           MOV(im(ir->opr2->fixnum), opr2);
         } else {
           opr2 = kReg8s[ir->opr2->phys];
@@ -689,7 +689,7 @@ static void ir_out(IR *ir) {
       MOV(regs[ir->opr1->phys], a);
       const char *opr2;
       if (ir->opr2->flag & VRF_CONST) {
-        opr2 = regs[SPILLED_REG_NO];
+        opr2 = regs[WORK_REG_NO];
         MOV(im(ir->opr2->fixnum), opr2);
       } else {
         opr2 = regs[ir->opr2->phys];
@@ -723,7 +723,7 @@ static void ir_out(IR *ir) {
         MOVSX(kReg8s[ir->opr1->phys], AX);
         const char *opr2;
         if (ir->opr2->flag & VRF_CONST) {
-          opr2 = kReg8s[SPILLED_REG_NO];
+          opr2 = kReg8s[WORK_REG_NO];
           MOV(im(ir->opr2->fixnum), opr2);
         } else {
           opr2 = kReg8s[ir->opr2->phys];
@@ -733,7 +733,7 @@ static void ir_out(IR *ir) {
         MOVZX(kReg8s[ir->opr1->phys], AX);
         const char *opr2;
         if (ir->opr2->flag & VRF_CONST) {
-          opr2 = kReg8s[SPILLED_REG_NO];
+          opr2 = kReg8s[WORK_REG_NO];
           MOV(im(ir->opr2->fixnum), opr2);
         } else {
           opr2 = kReg8s[ir->opr2->phys];
@@ -751,7 +751,7 @@ static void ir_out(IR *ir) {
       MOV(regs[ir->opr1->phys], a);
       const char *opr2;
       if (ir->opr2->flag & VRF_CONST) {
-        opr2 = regs[SPILLED_REG_NO];
+        opr2 = regs[WORK_REG_NO];
         MOV(im(ir->opr2->fixnum), opr2);
       } else {
         opr2 = regs[ir->opr2->phys];
@@ -1301,8 +1301,8 @@ static void ir_out(IR *ir) {
     if (ir->spill.flag & VRTF_FLONUM) {
       const char **regs = kFReg64s;
       switch (ir->size) {
-      case SZ_FLOAT:   MOVSS(OFFSET_INDIRECT(ir->value, RBP, NULL, 1), regs[SPILLED_REG_NO]); break;
-      case SZ_DOUBLE:  MOVSD(OFFSET_INDIRECT(ir->value, RBP, NULL, 1), regs[SPILLED_REG_NO]); break;
+      case SZ_FLOAT:   MOVSS(OFFSET_INDIRECT(ir->value, RBP, NULL, 1), regs[WORK_REG_NO]); break;
+      case SZ_DOUBLE:  MOVSD(OFFSET_INDIRECT(ir->value, RBP, NULL, 1), regs[WORK_REG_NO]); break;
       default: assert(false); break;
       }
       break;
@@ -1313,7 +1313,7 @@ static void ir_out(IR *ir) {
       int pow = kPow2Table[ir->size];
       assert(0 <= pow && pow < 4);
       const char **regs = kRegSizeTable[pow];
-      MOV(OFFSET_INDIRECT(ir->value, RBP, NULL, 1), regs[SPILLED_REG_NO]);
+      MOV(OFFSET_INDIRECT(ir->value, RBP, NULL, 1), regs[WORK_REG_NO]);
     }
     break;
 
@@ -1322,8 +1322,8 @@ static void ir_out(IR *ir) {
     if (ir->spill.flag & VRTF_FLONUM) {
       const char **regs = kFReg64s;
       switch (ir->size) {
-      case SZ_FLOAT:   MOVSS(regs[SPILLED_REG_NO], OFFSET_INDIRECT(ir->value, RBP, NULL, 1)); break;
-      case SZ_DOUBLE:  MOVSD(regs[SPILLED_REG_NO], OFFSET_INDIRECT(ir->value, RBP, NULL, 1)); break;
+      case SZ_FLOAT:   MOVSS(regs[WORK_REG_NO], OFFSET_INDIRECT(ir->value, RBP, NULL, 1)); break;
+      case SZ_DOUBLE:  MOVSD(regs[WORK_REG_NO], OFFSET_INDIRECT(ir->value, RBP, NULL, 1)); break;
       default: assert(false); break;
       }
       break;
@@ -1334,7 +1334,7 @@ static void ir_out(IR *ir) {
       int pow = kPow2Table[ir->size];
       assert(0 <= pow && pow < 4);
       const char **regs = kRegSizeTable[pow];
-      MOV(regs[SPILLED_REG_NO], OFFSET_INDIRECT(ir->value, RBP, NULL, 1));
+      MOV(regs[WORK_REG_NO], OFFSET_INDIRECT(ir->value, RBP, NULL, 1));
     }
     break;
 

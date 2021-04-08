@@ -17,6 +17,7 @@
 
 #endif
 
+#if !defined(__NO_ELF_OBJ)
 void strtab_init(Strtab *strtab) {
   table_init(&strtab->offsets);
 }
@@ -78,6 +79,7 @@ Elf64_Sym *symtab_add(Symtab *symtab, const Name *name) {
   table_put(&symtab->indices, name, (void*)(uintptr_t)old_count);
   return sym;
 }
+#endif  // !defined(__NO_ELF_OBJ)
 
 //
 
@@ -95,7 +97,11 @@ void out_elf_header(FILE *fp, uintptr_t entry, int phnum, int shnum) {
     .e_ehsize    = sizeof(Elf64_Ehdr),
     .e_phentsize = phnum > 0 ? sizeof(Elf64_Phdr) : 0,
     .e_phnum     = phnum,
+#if !defined(__NO_ELF_OBJ)
     .e_shentsize = shnum > 0 ? sizeof(Elf64_Shdr) : 0,
+#else
+    .e_shentsize = 0,
+#endif  // !defined(__NO_ELF_OBJ)
     .e_shnum     = shnum,
     .e_shstrndx  = shnum > 0 ? shnum - 1 : 0,
   };
