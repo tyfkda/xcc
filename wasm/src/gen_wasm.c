@@ -390,8 +390,7 @@ static void gen_funcall(Expr *expr) {
 
   {
     Expr *func = expr->funcall.func;
-    if (func->type->kind == TY_FUNC) {
-      assert(func->kind == EX_VAR);
+    if (func->type->kind == TY_FUNC && func->kind == EX_VAR) {
       gen_funcall_by_name(func->var.name);
     } else {
       gen_expr(func, true);

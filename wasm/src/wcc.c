@@ -682,8 +682,12 @@ static Expr *proc_builtin_va_start(const Token *ident) {
     return NULL;
   }
 
+  Scope *top_scope = curscope;
+  for (Scope *p = curscope; p = p->parent, !is_global_scope(p); )
+    top_scope = p;
+
   const Name *name = alloc_name(VA_ARGS_NAME, NULL, false);
-  Expr *va_args = new_expr_variable(name, tyvalist, param->token, curscope);
+  Expr *va_args = new_expr_variable(name, tyvalist, param->token, top_scope);
   Expr *assign = new_expr_bop(EX_ASSIGN, ap->type, ap->token, ap, va_args);
   return new_expr_cast(&tyVoid, ident, assign);
 }
