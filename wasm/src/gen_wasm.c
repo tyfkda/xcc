@@ -161,7 +161,7 @@ static void gen_store(const Type *type) {
 }
 
 static void gen_arith(enum ExprKind kind, const Type *type) {
-  assert(is_number(type));
+  assert(is_number(type) || ptr_or_array(type));
   int index = 0;
   bool is_unsigned = is_fixnum(type->kind) && type->fixnum.is_unsigned;
 #ifndef __NO_FLONUM
@@ -192,16 +192,6 @@ static void gen_arith(enum ExprKind kind, const Type *type) {
   assert(EX_ADD <= kind && kind <= EX_RSHIFT);
   assert(kOpTable[is_unsigned][index][kind - EX_ADD] != OP_NOP);
   ADD_CODE(kOpTable[is_unsigned][index][kind - EX_ADD]);
-}
-
-static void gen_ptradd(enum ExprKind kind, const Type *type) {
-  ssize_t scale = type_size(type->pa.ptrof);
-  if (kind == EX_PTRSUB)
-    scale = -scale;
-  ADD_CODE(OP_I32_CONST);
-  ADD_LEB128(scale);
-  ADD_CODE(OP_I32_MUL);
-  ADD_CODE(OP_I32_ADD);
 }
 
 static void gen_cast(const Type *dst, const Type *src) {
@@ -579,23 +569,6 @@ static void gen_expr(Expr *expr, bool needval) {
       gen_arith(expr->kind, expr->type);
     break;
 
-  case EX_PTRADD:
-  case EX_PTRSUB:
-    {
-      assert(expr->type->kind == TY_PTR);
-      gen_expr(expr->bop.lhs, needval);
-      gen_expr(expr->bop.rhs, needval);
-      if (needval) {
-        gen_cast(&tyInt, expr->bop.rhs->type);
-        size_t scale = type_size(expr->type->pa.ptrof);
-        ADD_CODE(OP_I32_CONST);
-        ADD_LEB128(scale);
-        ADD_CODE(OP_I32_MUL);
-        ADD_CODE(expr->kind == EX_PTRADD ? OP_I32_ADD : OP_I32_SUB);
-      }
-    }
-    break;
-
   case EX_EQ:
   case EX_NE:
   case EX_LT:
@@ -814,10 +787,7 @@ static void gen_expr(Expr *expr, bool needval) {
             gen_lval(lhs);  // We can safely evaluate lhs two times, since lhs has no side effect.
             gen_load(type);
             gen_expr(sub->bop.rhs, true);
-            if (sub->kind == EX_PTRADD || sub->kind == EX_PTRSUB)
-              gen_ptradd(sub->kind, sub->type);
-            else
-              gen_arith(sub->kind, type);
+            gen_arith(sub->kind, type);
             gen_store(type);
             return;
           }
@@ -825,10 +795,7 @@ static void gen_expr(Expr *expr, bool needval) {
           assert(lhs->kind == EX_VAR);
           gen_expr(lhs, true);
           gen_expr(sub->bop.rhs, true);
-          if (sub->kind == EX_PTRADD || sub->kind == EX_PTRSUB)
-            gen_ptradd(sub->kind, sub->type);
-          else
-            gen_arith(sub->kind, sub->type);
+          gen_arith(sub->kind, sub->type);
 
           Scope *scope;
           const VarInfo *varinfo = scope_find(lhs->var.scope, lhs->var.name, &scope);

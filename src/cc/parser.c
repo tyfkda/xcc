@@ -482,7 +482,8 @@ Vector *assign_initial_value(Expr *expr, Initializer *init, Vector *inits) {
         Expr *ptr_var = new_expr_variable(ptr_varinfo->name, ptr_type, NULL, curscope);
         vec_push(inits, new_stmt_expr(new_expr_bop(EX_ASSIGN, ptr_type, NULL, ptr_var, expr)));
 
-        size_t len = init->multi->len;
+        const size_t len = init->multi->len;
+        const size_t elem_size = type_size(expr->type->pa.ptrof);
         size_t prev_index = 0, index = 0;
         for (size_t i = 0; i < len; ++i) {
           Initializer *init_elem = init->multi->data[i];
@@ -496,10 +497,10 @@ Vector *assign_initial_value(Expr *expr, Initializer *init, Vector *inits) {
 
           size_t add = index - prev_index;
           if (add > 0) {
-            Fixnum n = add;
+            const Fixnum n = add * elem_size;
             vec_push(inits, new_stmt_expr(
                 new_expr_unary(EX_MODIFY, ptr_type, NULL,
-                               new_expr_bop(EX_PTRADD, ptr_type, NULL, ptr_var,
+                               new_expr_bop(EX_ADD, ptr_type, NULL, ptr_var,
                                             new_expr_fixlit(&tySize, NULL, n)))));
           }
 

@@ -44,17 +44,6 @@ static void dump_ir(FILE *fp, IR *ir) {
   case IR_DIVU:   fprintf(fp, "\tDIVU\t"); dump_vreg(fp, ir->dst, ir->size); fprintf(fp, " = "); dump_vreg(fp, ir->opr1, ir->size); fprintf(fp, " / "); dump_vreg(fp, ir->opr2, ir->size); fprintf(fp, "\n"); break;
   case IR_MOD:    fprintf(fp, "\tMOD\t"); dump_vreg(fp, ir->dst, ir->size); fprintf(fp, " = "); dump_vreg(fp, ir->opr1, ir->size); fprintf(fp, " %% "); dump_vreg(fp, ir->opr2, ir->size); fprintf(fp, "\n"); break;
   case IR_MODU:   fprintf(fp, "\tMODU\t"); dump_vreg(fp, ir->dst, ir->size); fprintf(fp, " = "); dump_vreg(fp, ir->opr1, ir->size); fprintf(fp, " %% "); dump_vreg(fp, ir->opr2, ir->size); fprintf(fp, "\n"); break;
-  case IR_PTRADD:
-    fprintf(fp, "\tPTRADD\t"); dump_vreg(fp, ir->dst, ir->size); fprintf(fp, " = "); dump_vreg(fp, ir->opr1, ir->size);
-    if (ir->opr2 != NULL) {
-      fprintf(fp, " + "); dump_vreg(fp, ir->opr2, ir->size);
-      if (ir->ptradd.scale != 1)
-        fprintf(fp, " * %d", ir->ptradd.scale);
-    }
-    if (ir->ptradd.offset != 0)
-      fprintf(fp, " + %d", ir->ptradd.offset);
-    fprintf(fp, "\n");
-    break;
   case IR_BITAND: fprintf(fp, "\tBITAND\t"); dump_vreg(fp, ir->dst, ir->size); fprintf(fp, " = "); dump_vreg(fp, ir->opr1, ir->size); fprintf(fp, " & "); dump_vreg(fp, ir->opr2, ir->size); fprintf(fp, "\n"); break;
   case IR_BITOR:  fprintf(fp, "\tBITOR\t"); dump_vreg(fp, ir->dst, ir->size); fprintf(fp, " = "); dump_vreg(fp, ir->opr1, ir->size); fprintf(fp, " | "); dump_vreg(fp, ir->opr2, ir->size); fprintf(fp, "\n"); break;
   case IR_BITXOR: fprintf(fp, "\tBITXOR\t"); dump_vreg(fp, ir->dst, ir->size); fprintf(fp, " = "); dump_vreg(fp, ir->opr1, ir->size); fprintf(fp, " ^ "); dump_vreg(fp, ir->opr2, ir->size); fprintf(fp, "\n"); break;

@@ -261,7 +261,6 @@ static int insert_load_store_spilled(BBContainer *bbcon, Vector *vregs, const in
       case IR_DIVU:
       case IR_MOD:
       case IR_MODU:
-      case IR_PTRADD:
       case IR_BITAND:
       case IR_BITOR:
       case IR_BITXOR:

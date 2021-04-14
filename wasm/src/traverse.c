@@ -218,8 +218,6 @@ static void traverse_expr(Expr **pexpr, bool needval) {
   case EX_GT:
   case EX_LOGAND:
   case EX_LOGIOR:
-  case EX_PTRADD:
-  case EX_PTRSUB:
     traverse_expr(&expr->bop.lhs, needval);
     traverse_expr(&expr->bop.rhs, needval);
     break;
@@ -287,9 +285,8 @@ static void traverse_expr(Expr **pexpr, bool needval) {
   case EX_POSTINC:
   case EX_POSTDEC:
     {
-      static const enum ExprKind kOpTable[2][2] = {
-        {EX_SUB, EX_ADD},
-        {EX_PTRSUB, EX_PTRADD},
+      static const enum ExprKind kOpTable[2] = {
+        EX_SUB, EX_ADD,
       };
 
       traverse_expr(&expr->unary.sub, needval);
@@ -311,11 +308,11 @@ static void traverse_expr(Expr **pexpr, bool needval) {
       const Type *ptrtype = ptrof(type);
       Expr *p = alloc_tmp(token, ptrtype);
       Expr *tmp = alloc_tmp(token, type);
-      enum ExprKind op = kOpTable[type->kind == TY_PTR][inc];
+      enum ExprKind op = kOpTable[inc];
 
       Expr *assign_p = new_expr_bop(EX_ASSIGN, &tyVoid, token, p, new_expr_unary(EX_REF, ptrtype, token, sub));
       Expr *deref_p = new_expr_deref(token, p);
-      Expr *one = new_expr_fixlit(type->kind == TY_PTR ? &tySize : type, token, 1);
+      Expr *one = type->kind == TY_PTR ? new_expr_fixlit(&tySize, token, type_size(type->pa.ptrof)) : new_expr_fixlit(type, token, 1);
       Expr *tmpval = pre ? new_expr_bop(op, type, token, deref_p, one) : deref_p;
       Expr *assign_tmp = new_expr_bop(EX_ASSIGN, &tyVoid, token, tmp, tmpval);
       Expr *pval = pre ? tmp : new_expr_bop(op, type, token, tmp, one);

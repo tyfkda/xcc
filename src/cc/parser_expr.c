@@ -287,7 +287,7 @@ static Expr *new_expr_int_bop(enum ExprKind kind, const Token *tok, Expr *lhs, E
   return new_expr_num_bop(kind, tok, lhs, rhs, keep_left);
 }
 
-static Expr *new_expr_addsub(enum ExprKind kind, const Token *tok, Expr *lhs, Expr *rhs, bool keep_left) {
+Expr *new_expr_addsub(enum ExprKind kind, const Token *tok, Expr *lhs, Expr *rhs, bool keep_left) {
   const Type *type = NULL;
   const Type *ltype = lhs->type;
   const Type *rtype = rhs->type;
@@ -346,10 +346,13 @@ static Expr *new_expr_addsub(enum ExprKind kind, const Token *tok, Expr *lhs, Ex
     type = lhs->type;
   } else if (ptr_or_array(ltype)) {
     if (is_fixnum(rtype->kind)) {
-      kind = kind == EX_ADD ? EX_PTRADD : EX_PTRSUB;
       type = ltype;
       if (ltype->kind == TY_ARRAY)
         type = array_to_ptr(ltype);
+      // lhs + ((uintptr_t)rhs * sizeof(*lhs))
+      rhs = new_expr_num_bop(EX_MUL, rhs->token,
+                             make_cast(&tySize, rhs->token, rhs, false),
+                             new_expr_fixlit(&tySize, tok, type_size(type->pa.ptrof)), false);
     } else if (kind == EX_SUB && ptr_or_array(rtype)) {
       if (ltype->kind == TY_ARRAY)
         ltype = array_to_ptr(ltype);
@@ -357,20 +360,20 @@ static Expr *new_expr_addsub(enum ExprKind kind, const Token *tok, Expr *lhs, Ex
         rtype = array_to_ptr(rtype);
       if (!same_type(ltype, rtype))
         parse_error(tok, "Different pointer diff");
-      const Fixnum elem_size = type_size(ltype->pa.ptrof);
-      return new_expr_bop(EX_DIV, &tySSize, tok, new_expr_bop(EX_SUB, &tySSize, tok, lhs, rhs),
-                          new_expr_fixlit(&tySSize, tok, elem_size));
+      // ((uintptr_t)lhs - (uintptr_t)rhs) / sizeof(*lhs)
+      return new_expr_bop(EX_DIV, &tySSize, tok,
+                          new_expr_bop(EX_SUB, &tySSize, tok, lhs, rhs),
+                          new_expr_fixlit(&tySSize, tok, type_size(ltype->pa.ptrof)));
     }
   } else if (ptr_or_array(rtype)) {
     if (kind == EX_ADD && is_fixnum(ltype->kind) && !keep_left) {
-      kind = EX_PTRADD;
-      // Swap lhs and rhs to make lhs as a pointer.
-      Expr *tmp = lhs;
-      lhs = rhs;
-      rhs = tmp;
-      type = lhs->type;
+      type = rhs->type;
       if (type->kind == TY_ARRAY)
         type = array_to_ptr(type);
+      // ((uintptr_t)lhs * sizeof(*rhs)) + rhs
+      lhs = new_expr_num_bop(EX_MUL, lhs->token,
+                             make_cast(&tySize, lhs->token, lhs, false),
+                             new_expr_fixlit(&tySize, tok, type_size(type->pa.ptrof)), false);
     }
   }
   if (type == NULL) {

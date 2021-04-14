@@ -508,35 +508,6 @@ VReg *gen_arith(enum ExprKind kind, const Type *type, VReg *lhs, VReg *rhs) {
   }
 }
 
-VReg *gen_ptradd(enum ExprKind kind, const Type *type, VReg *lreg, Expr *rhs) {
-  size_t scale = type_size(type->pa.ptrof);
-
-  VReg *rreg = gen_expr(rhs);
-  if (rreg->flag & VRF_CONST) {
-    intptr_t rval = rreg->fixnum;
-    if (kind == EX_PTRSUB)
-      rval = -rval;
-    return new_ir_ptradd(rval * scale, lreg, NULL, 1, to_vtype(type));
-  }
-  if (kind == EX_PTRSUB) {
-    rreg = new_ir_unary(IR_NEG, rreg, to_vtype(rhs->type));
-#if 1
-  } else {  // To avoid both spilled registers, add temporary register.
-    VReg *tmp = add_new_reg(rhs->type, 0);
-    new_ir_mov(tmp, rreg);
-    rreg = tmp;
-#endif
-  }
-  if (scale > 8 || !IS_POWER_OF_2(scale)) {
-    VRegType *vtype = to_vtype(rhs->type);
-    VReg *sreg = new_const_vreg(scale, vtype);
-    rreg = new_ir_bop(IR_MUL, rreg, sreg, vtype);
-    scale = 1;
-  }
-  rreg = new_ir_cast(rreg, to_vtype(&tySize));
-  return new_ir_ptradd(0, lreg, rreg, scale, to_vtype(type));
-}
-
 #ifndef __NO_FLONUM
 VReg *gen_const_flonum(Expr *expr) {
   assert(expr->type->kind == TY_FLONUM);
@@ -706,38 +677,20 @@ VReg *gen_expr(Expr *expr) {
   case EX_MODIFY:
     {
       Expr *sub = expr->unary.sub;
-      switch (sub->kind) {
-      case EX_PTRADD:
-      case EX_PTRSUB:
-        if (sub->bop.lhs->kind == EX_VAR && !is_global_scope(sub->bop.lhs->var.scope)) {
-          VReg *lhs = gen_expr(sub->bop.lhs);
-          VReg *result = gen_ptradd(sub->kind, sub->type, lhs, sub->bop.rhs);
-          new_ir_mov(lhs, result);
-          return result;
-        } else {
-          VReg *lval = gen_lval(sub->bop.lhs);
-          VReg *lhs = new_ir_unary(IR_LOAD, lval, to_vtype(sub->bop.lhs->type));
-          VReg *result = gen_ptradd(sub->kind, sub->type, lhs, sub->bop.rhs);
-          VReg *cast = gen_cast(result, expr->type);
-          new_ir_store(lval, cast);
-          return result;
-        }
-      default:
-        if (sub->bop.lhs->kind == EX_VAR && !is_global_scope(sub->bop.lhs->var.scope)) {
-          VReg *lhs = gen_expr(sub->bop.lhs);
-          VReg *rhs = gen_expr(sub->bop.rhs);
-          VReg *result = gen_arith(sub->kind, sub->type, lhs, rhs);
-          new_ir_mov(lhs, result);
-          return result;
-        } else {
-          VReg *lval = gen_lval(sub->bop.lhs);
-          VReg *rhs = gen_expr(sub->bop.rhs);
-          VReg *lhs = new_ir_unary(IR_LOAD, lval, to_vtype(sub->bop.lhs->type));
-          VReg *result = gen_arith(sub->kind, sub->type, lhs, rhs);
-          VReg *cast = gen_cast(result, expr->type);
-          new_ir_store(lval, cast);
-          return result;
-        }
+      if (sub->bop.lhs->kind == EX_VAR && !is_global_scope(sub->bop.lhs->var.scope)) {
+        VReg *lhs = gen_expr(sub->bop.lhs);
+        VReg *rhs = gen_expr(sub->bop.rhs);
+        VReg *result = gen_arith(sub->kind, sub->type, lhs, rhs);
+        new_ir_mov(lhs, result);
+        return result;
+      } else {
+        VReg *lval = gen_lval(sub->bop.lhs);
+        VReg *rhs = gen_expr(sub->bop.rhs);
+        VReg *lhs = new_ir_unary(IR_LOAD, lval, to_vtype(sub->bop.lhs->type));
+        VReg *result = gen_arith(sub->kind, sub->type, lhs, rhs);
+        VReg *cast = gen_cast(result, expr->type);
+        new_ir_store(lval, cast);
+        return result;
       }
     }
 
@@ -936,14 +889,6 @@ VReg *gen_expr(Expr *expr) {
       VReg *lhs = gen_expr(expr->bop.lhs);
       VReg *rhs = gen_expr(expr->bop.rhs);
       return gen_arith(expr->kind, expr->type, lhs, rhs);
-    }
-
-  case EX_PTRADD:
-  case EX_PTRSUB:
-    {
-      assert(expr->type->kind == TY_PTR);
-      VReg *lreg = gen_expr(expr->bop.lhs);
-      return gen_ptradd(expr->kind, expr->type, lreg, expr->bop.rhs);
     }
 
   case EX_COMPLIT:

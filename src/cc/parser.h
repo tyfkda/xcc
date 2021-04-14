@@ -4,6 +4,8 @@
 
 #include <stdbool.h>
 
+#include "ast.h"  // ExprKind
+
 typedef struct Expr Expr;
 typedef struct Function Function;
 typedef struct Initializer Initializer;
@@ -46,6 +48,7 @@ Expr *make_cast(const Type *type, const Token *token, Expr *sub, bool is_explici
 Expr *make_cond(Expr *expr);
 VarInfo *str_to_char_array(const Type *type, Initializer *init);
 Expr *str_to_char_array_var(Expr *str);
+Expr *new_expr_addsub(enum ExprKind kind, const Token *tok, Expr *lhs, Expr *rhs, bool keep_left);
 
 Initializer *parse_initializer(void);
 void fix_array_size(Type *type, Initializer *init);

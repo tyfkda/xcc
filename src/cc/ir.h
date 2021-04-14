@@ -71,7 +71,6 @@ enum IrKind {
   IR_RSHIFT,
   IR_DIVU,
   IR_MODU,
-  IR_PTRADD,  // dst = opr1 + opr2 * size
   IR_CMP,     // opr1 - opr2
   IR_INC,     // opr1 += size
   IR_DEC,     // dst = -opr1
@@ -124,10 +123,6 @@ typedef struct IR {
       bool global;
     } iofs;
     struct {
-      int offset;
-      int scale;
-    } ptradd;
-    struct {
       enum ConditionKind kind;
     } cond;
     struct {
@@ -159,7 +154,6 @@ typedef struct IR {
 VReg *new_const_vreg(intptr_t value, const VRegType *vtype);
 VReg *new_ir_bop(enum IrKind kind, VReg *opr1, VReg *opr2, const VRegType *vtype);
 VReg *new_ir_unary(enum IrKind kind, VReg *opr, const VRegType *vtype);
-VReg *new_ir_ptradd(int offset, VReg *base, VReg *index, int scale, const VRegType *vtype);
 void new_ir_mov(VReg *dst, VReg *src);
 VReg *new_ir_bofs(VReg *src);
 VReg *new_ir_iofs(const Name *label, bool global);

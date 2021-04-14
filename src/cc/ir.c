@@ -265,16 +265,6 @@ VReg *new_ir_unary(enum IrKind kind, VReg *opr, const VRegType *vtype) {
   return ir->dst = reg_alloc_spawn(curra, vtype, 0);
 }
 
-VReg *new_ir_ptradd(int offset, VReg *base, VReg *index, int scale, const VRegType *vtype) {
-  IR *ir = new_ir(IR_PTRADD);
-  ir->opr1 = base;
-  ir->opr2 = index;
-  ir->size = vtype->size;
-  ir->ptradd.offset = offset;
-  ir->ptradd.scale = scale;
-  return ir->dst = reg_alloc_spawn(curra, vtype, 0);
-}
-
 VReg *new_ir_bofs(VReg *src) {
   IR *ir = new_ir(IR_BOFS);
   ir->opr1 = src;
@@ -583,29 +573,6 @@ static void ir_out(IR *ir) {
         SUB(im(ir->opr2->fixnum), regs[ir->dst->phys]);
       else
         SUB(regs[ir->opr2->phys], regs[ir->dst->phys]);
-    }
-    break;
-
-  case IR_PTRADD:
-    {
-      assert(0 <= ir->size && ir->size < kPow2TableSize);
-      int pow = kPow2Table[ir->size];
-      assert(0 <= pow && pow < 4);
-      const char **regs = kRegSizeTable[pow];
-      VReg *base = ir->opr1;
-      VReg *index = ir->opr2;
-      if (index == NULL && ir->ptradd.scale == 1 && ir->ptradd.offset == 0) {
-        if (ir->dst->phys == base->phys)
-          ;  // No need to move.
-        else
-          MOV(regs[base->phys], regs[ir->dst->phys]);
-      } else if (ir->dst->phys == base->phys && ir->ptradd.scale == 1 && ir->ptradd.offset == 0) {
-        ADD(regs[index->phys], regs[ir->dst->phys]);
-      } else if (index != NULL && ir->dst->phys == index->phys && ir->ptradd.scale == 1 && ir->ptradd.offset == 0) {
-        ADD(regs[base->phys], regs[ir->dst->phys]);
-      } else {
-        LEA(OFFSET_INDIRECT(ir->ptradd.offset, regs[base->phys], index != NULL ? regs[index->phys] : NULL, ir->ptradd.scale), regs[ir->dst->phys]);
-      }
     }
     break;
 

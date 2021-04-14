@@ -59,8 +59,7 @@ static Expr *proc_builtin_va_arg(const Token *ident) {
   //#define va_arg(v,l)     (*(type*)(ap += 1))  // Assume little endian
 
   Expr *add = new_expr_unary(EX_MODIFY, ap->type, ap->token,
-                             new_expr_bop(EX_PTRADD, ap->type, ap->token, ap,
-                                          new_expr_fixlit(&tySize, ident, 1)));
+                             new_expr_addsub(EX_ADD, ap->token, ap, new_expr_fixlit(&tySize, ident, 1), false));
   Expr *deref = new_expr_deref(ap->token, make_cast(ptrof(type), ap->token, add, true));
   return deref;
 }

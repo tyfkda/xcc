@@ -57,8 +57,6 @@ enum ExprKind {
   EX_LOGIOR,  // ||
   EX_ASSIGN,  // =
   EX_COMMA,   // head, tail
-  EX_PTRADD,  // ptr + num
-  EX_PTRSUB,  // ptr - num
 
   // Unary operators
   EX_POS,     // +

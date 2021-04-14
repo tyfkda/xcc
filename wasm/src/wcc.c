@@ -723,11 +723,11 @@ static Expr *proc_builtin_va_arg(const Token *ident) {
   Expr *size_lit = new_expr_fixlit(&tySize, ap->token, size);
   Expr *cap = make_cast(ptrof(&tyUnsignedChar), ap->token, ap, true);
   Expr *add = new_expr_bop(EX_ASSIGN, &tyVoid, ap->token, ap,
-                           new_expr_bop(EX_PTRADD, cap->type, cap->token, cap, size_lit));
+                           new_expr_bop(EX_ADD, cap->type, cap->token, cap, size_lit));
   Expr *deref = new_expr_deref(
       ap->token,
       make_cast(ptrof(type), ap->token,
-                new_expr_bop(EX_PTRSUB, cap->type, cap->token, cap, size_lit),
+                new_expr_bop(EX_SUB, cap->type, cap->token, cap, size_lit),
                 true));
   return new_expr_bop(EX_COMMA, type, ident, add, deref);
 }
