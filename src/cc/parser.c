@@ -295,6 +295,17 @@ static Initializer *flatten_initializer(const Type *type, Initializer *init) {
       parse_error(NULL, "Illegal initializer");
       break;
     }
+    break;
+  case TY_PTR:
+    {
+      if (init->kind != IK_SINGLE)
+        parse_error(NULL, "Initializer type error");
+
+      Expr *value = init->single;
+      if (!(can_cast(type, value->type, is_zero(value), false)))
+        parse_error(NULL, "Illegal initializer");
+    }
+    break;
   default:
     break;
   }
@@ -340,9 +351,7 @@ static Initializer *check_global_initializer(const Type *type, Initializer *init
 #endif
   case TY_PTR:
     {
-      if (init->kind != IK_SINGLE)
-        parse_error(NULL, "initializer type error");
-
+      assert(init->kind == IK_SINGLE);
       Expr *value = init->single;
       while (value->kind == EX_CAST) {
         value = value->unary.sub;
@@ -364,10 +373,6 @@ static Initializer *check_global_initializer(const Type *type, Initializer *init
             varinfo = varinfo->static_.gvar;
             assert(varinfo != NULL);
           }
-
-          if (!same_type(type->pa.ptrof, varinfo->type))
-            parse_error(value->token, "Illegal type");
-
           return init;
         }
       case EX_VAR:
@@ -389,12 +394,7 @@ static Initializer *check_global_initializer(const Type *type, Initializer *init
           return init;
         }
       case EX_FIXNUM:
-        {
-          Initializer *init2 = malloc(sizeof(*init2));
-          init2->kind = IK_SINGLE;
-          init2->single = value;
-          return init2;
-        }
+        return init;
       case EX_STR:
         {
           if (!is_char_type(type->pa.ptrof))
@@ -407,7 +407,7 @@ static Initializer *check_global_initializer(const Type *type, Initializer *init
       default:
         break;
       }
-      parse_error(value->token, "initializer type error: kind=%d", value->kind);
+      parse_error(value->token, "Initializer type error");
     }
     break;
   case TY_ARRAY:

@@ -257,6 +257,7 @@ compile_error 'char array init with ptr' 'char* foo = "foo"; void main(){ char b
 compile_error 'for-var scoped' 'int main(){ for (int i = 0; i < 5; ++i) ; return i; }'
 compile_error 'global poitner init with undefined' 'char *p = &x; void main(){}'
 compile_error 'global poitner init with other type' 'int x; char *p = &x; void main(){}'
+compile_error 'global poitner init with fixnum' 'void *main = 1234;'
 compile_error 'use void' 'void func(){} void main(){ int a = (int)func(); }'
 compile_error 'goto no-label' 'void main(){ goto label; }'
 compile_error 'goto dup-label' 'void main(){ label: goto label; label:; }'
