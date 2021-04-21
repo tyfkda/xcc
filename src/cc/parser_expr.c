@@ -139,6 +139,10 @@ Expr *make_cast(const Type *type, const Token *token, Expr *sub, bool is_explici
   }
 
   check_cast(type, sub->type, is_zero(sub), is_explicit, token);
+  if (sub->kind == EX_CAST) {
+    sub->type = type;
+    return sub;
+  }
 
   return new_expr_cast(type, token, sub);
 }
@@ -1322,16 +1326,18 @@ static Expr *parse_cast_expr(void) {
       consume(TK_RPAR, "`)' expected");
 
       Token *token2 = fetch_token();
-      if (token2 != NULL && token2->kind == TK_LBRACE) {
+      if (token2 != NULL && token2->kind == TK_LBRACE)
         return parse_compound_literal(type);
-      } else {
-        Expr *sub = parse_cast_expr();
-        check_cast(type, sub->type, is_zero(sub), true, token);
-        if (is_const(sub) && type->kind != TY_VOID)
-          return make_cast(type, token, sub, true);
-        else
-          return sub->type->kind != TY_VOID ? new_expr_cast(type, token, sub) : sub;
+
+      Expr *sub = parse_cast_expr();
+      check_cast(type, sub->type, is_zero(sub), true, token);
+      if (sub->kind == EX_CAST) {
+        sub->type = type;
+        return sub;
       }
+      if (is_const(sub) && type->kind != TY_VOID)
+        return make_cast(type, token, sub, true);
+      return sub->type->kind != TY_VOID ? new_expr_cast(type, token, sub) : sub;
     }
     unget_token(lpar);
   }
