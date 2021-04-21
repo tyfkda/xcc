@@ -212,6 +212,8 @@ static void check_referable(const Token *tok, Expr *expr, const char *error) {
 
 Expr *make_refer(const Token *tok, Expr *expr) {
   check_referable(tok, expr, "Cannot take reference");
+  if (expr->kind == EX_DEREF)
+    return expr->unary.sub;
   if (expr->kind == EX_VAR) {
     VarInfo *varinfo = scope_find(expr->var.scope, expr->var.name, NULL);
     assert(varinfo != NULL);
