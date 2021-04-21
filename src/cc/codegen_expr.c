@@ -168,12 +168,12 @@ static VReg *gen_cast(VReg *reg, const Type *dst_type) {
 #ifndef __NO_FLONUM
     assert(!(reg->vtype->flag & VRTF_FLONUM));  // No const vreg for flonum.
 #endif
-    intptr_t value = reg->fixnum;
+    Fixnum value = reg->fixnum;
     size_t dst_size = type_size(dst_type);
-    if (dst_size < (size_t)reg->vtype->size && dst_size < sizeof(intptr_t)) {
+    if (dst_size < (size_t)reg->vtype->size && dst_size < sizeof(Fixnum)) {
       // Assume that integer is represented in Two's complement
       size_t bit = dst_size * CHAR_BIT;
-      intptr_t mask = (-1UL) << bit;
+      UFixnum mask = (-1UL) << bit;
       if (dst_type->kind == TY_FIXNUM && !dst_type->fixnum.is_unsigned &&  // signed
           (value & (1 << (bit - 1))))  // negative
         value |= mask;

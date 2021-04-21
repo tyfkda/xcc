@@ -23,7 +23,7 @@ static void construct_initial_value(const Type *type, const Initializer *init) {
   switch (type->kind) {
   case TY_FIXNUM:
     {
-      intptr_t v = 0;
+      Fixnum v = 0;
       if (init != NULL) {
         assert(init->kind == IK_SINGLE);
         Expr *value = init->single;
@@ -117,7 +117,7 @@ static void construct_initial_value(const Type *type, const Initializer *init) {
       } else if (value->kind == EX_STR) {
         assert(!"should be handled in parser");
       } else if (is_const(value) && value->kind == EX_FIXNUM) {
-        intptr_t x = value->fixnum;
+        Fixnum x = value->fixnum;
         _QUAD(NUM(x));
       } else {
         assert(!"initializer type error");

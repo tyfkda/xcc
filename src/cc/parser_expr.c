@@ -124,7 +124,7 @@ Expr *make_cast(const Type *type, const Token *token, Expr *sub, bool is_explici
            (bytes == src_bytes &&
             type->fixnum.is_unsigned != sub->type->fixnum.is_unsigned))) {
         int bits = bytes * CHAR_BIT;
-        uintptr_t mask = (-1UL) << bits;
+        UFixnum mask = (-1UL) << bits;
         Fixnum value = sub->fixnum;
         if (!type->fixnum.is_unsigned &&  // signed
             (value & (1UL << (bits - 1))))  // negative
@@ -265,7 +265,7 @@ static Expr *new_expr_num_bop(enum ExprKind kind, const Token *tok, Expr *lhs, E
   case EX_BITXOR:  value = l ^ r; break; \
   }
 
-    intptr_t value;
+    Fixnum value;
     if (lhs->type->fixnum.is_unsigned) {
       UFixnum l = lhs->fixnum;
       UFixnum r = rhs->fixnum;
@@ -276,9 +276,8 @@ static Expr *new_expr_num_bop(enum ExprKind kind, const Token *tok, Expr *lhs, E
       CALC(kind, l, r, value)
     }
 #undef CALC
-    Fixnum fixnum = value;
     const Type *type = keep_left || lhs->type->fixnum.kind >= rhs->type->fixnum.kind ? lhs->type : rhs->type;
-    return new_expr_fixlit(type, lhs->token, fixnum);
+    return new_expr_fixlit(type, lhs->token, value);
   }
 
   cast_numbers(&lhs, &rhs, keep_left);
@@ -332,9 +331,9 @@ Expr *new_expr_addsub(enum ExprKind kind, const Token *tok, Expr *lhs, Expr *rhs
       if (rnt == FX_ENUM)
         rnt = FX_INT;
 
-      intptr_t lval = lhs->fixnum;
-      intptr_t rval = rhs->fixnum;
-      intptr_t value;
+      Fixnum lval = lhs->fixnum;
+      Fixnum rval = rhs->fixnum;
+      Fixnum value;
       switch (kind) {
       case EX_ADD: value = lval + rval; break;
       case EX_SUB: value = lval - rval; break;
@@ -343,9 +342,8 @@ Expr *new_expr_addsub(enum ExprKind kind, const Token *tok, Expr *lhs, Expr *rhs
         value = -1;
         break;
       }
-      Fixnum fixnum = value;
       const Type *type = lnt >= rnt ? lhs->type : rhs->type;
-      return new_expr_fixlit(type, lhs->token, fixnum);
+      return new_expr_fixlit(type, lhs->token, value);
     }
 
     cast_numbers(&lhs, &rhs, keep_left);
@@ -355,7 +353,7 @@ Expr *new_expr_addsub(enum ExprKind kind, const Token *tok, Expr *lhs, Expr *rhs
       type = ltype;
       if (ltype->kind == TY_ARRAY)
         type = array_to_ptr(ltype);
-      // lhs + ((uintptr_t)rhs * sizeof(*lhs))
+      // lhs + ((size_t)rhs * sizeof(*lhs))
       rhs = new_expr_num_bop(EX_MUL, rhs->token,
                              make_cast(&tySize, rhs->token, rhs, false),
                              new_expr_fixlit(&tySize, tok, type_size(type->pa.ptrof)), false);
@@ -366,7 +364,7 @@ Expr *new_expr_addsub(enum ExprKind kind, const Token *tok, Expr *lhs, Expr *rhs
         rtype = array_to_ptr(rtype);
       if (!same_type(ltype, rtype))
         parse_error(tok, "Different pointer diff");
-      // ((uintptr_t)lhs - (uintptr_t)rhs) / sizeof(*lhs)
+      // ((size_t)lhs - (size_t)rhs) / sizeof(*lhs)
       return new_expr_bop(EX_DIV, &tySSize, tok,
                           new_expr_bop(EX_SUB, &tySSize, tok, lhs, rhs),
                           new_expr_fixlit(&tySSize, tok, type_size(ltype->pa.ptrof)));
@@ -376,7 +374,7 @@ Expr *new_expr_addsub(enum ExprKind kind, const Token *tok, Expr *lhs, Expr *rhs
       type = rhs->type;
       if (type->kind == TY_ARRAY)
         type = array_to_ptr(type);
-      // ((uintptr_t)lhs * sizeof(*rhs)) + rhs
+      // ((size_t)lhs * sizeof(*rhs)) + rhs
       lhs = new_expr_num_bop(EX_MUL, lhs->token,
                              make_cast(&tySize, lhs->token, lhs, false),
                              new_expr_fixlit(&tySize, tok, type_size(type->pa.ptrof)), false);

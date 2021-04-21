@@ -128,9 +128,9 @@ static Stmt *init_char_array_by_string(Expr *dst, Initializer *src) {
 }
 
 static int compare_desig_start(const void *a, const void *b) {
-  const size_t *pa = *(size_t**)a;
-  const size_t *pb = *(size_t**)b;
-  intptr_t d = *pa - *pb;
+  const ssize_t *pa = *(ssize_t**)a;
+  const ssize_t *pb = *(ssize_t**)b;
+  ssize_t d = *pa - *pb;
   return d > 0 ? 1 : d < 0 ? -1 : 0;
 }
 
