@@ -22,7 +22,7 @@ static StructInfo *parse_struct(bool is_union);
 static Expr *parse_cast_expr(void);
 static Expr *parse_unary(void);
 
-void add_builtin_expr_ident(const char *str, Expr *(*proc)(const Token*)) {
+void add_builtin_expr_ident(const char *str, BuiltinExprProc *proc) {
   const Name *name = alloc_name(str, NULL, false);
   table_put(&builtin_expr_ident_table, name, proc);
 }
@@ -1126,9 +1126,9 @@ static Expr *parse_prim(void) {
   Token *ident = consume(TK_IDENT, "Number or Ident or open paren expected");
   const Name *name = ident->ident;
   {
-    Expr *(*proc)(const Token*) = table_get(&builtin_expr_ident_table, name);
+    BuiltinExprProc *proc = table_get(&builtin_expr_ident_table, name);
     if (proc != NULL) {
-      return proc(ident);
+      return (*proc)(ident);
     }
   }
   Scope *scope;

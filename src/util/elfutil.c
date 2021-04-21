@@ -130,4 +130,7 @@ void out_program_header(FILE *fp, int sec, uintptr_t offset, uintptr_t vaddr, si
   fwrite(&phdr, sizeof(Elf64_Phdr), 1, fp);
 }
 
+#else
+// Avoid: error: ISO C requires a translation unit to contain at least one declaration [-Werror,-Wempty-translation-unit]
+typedef int make_iso_compilers_happy;
 #endif  // !ELF_NOT_SUPPORTED

@@ -758,10 +758,15 @@ static void install_builtins(void) {
     add_typedef(global_scope, name, type);
   }
 
-  add_builtin_expr_ident("__builtin_va_start", proc_builtin_va_start);
-  add_builtin_expr_ident("__builtin_va_end", proc_builtin_va_end);
-  add_builtin_expr_ident("__builtin_va_arg", proc_builtin_va_arg);
-  add_builtin_expr_ident("__builtin_va_copy", proc_builtin_va_copy);
+  static BuiltinExprProc p_va_start = &proc_builtin_va_start;
+  static BuiltinExprProc p_va_end = &proc_builtin_va_end;
+  static BuiltinExprProc p_va_arg = &proc_builtin_va_arg;
+  static BuiltinExprProc p_va_copy = &proc_builtin_va_copy;
+
+  add_builtin_expr_ident("__builtin_va_start", &p_va_start);
+  add_builtin_expr_ident("__builtin_va_end", &p_va_end);
+  add_builtin_expr_ident("__builtin_va_arg", &p_va_arg);
+  add_builtin_expr_ident("__builtin_va_copy", &p_va_copy);
 }
 
 static void init_compiler(void) {

@@ -26,7 +26,8 @@ void parse(Vector *toplevel);  // <Declaraion*>
 
 //
 
-void add_builtin_expr_ident(const char *str, Expr *(*proc)(const Token*));
+typedef Expr *(*BuiltinExprProc)(const Token*);
+void add_builtin_expr_ident(const char *str, BuiltinExprProc *proc);
 
 const Type *parse_raw_type(int *pstorage);
 const Type *parse_type_modifier(const Type *type);
