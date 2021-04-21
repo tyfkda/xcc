@@ -72,7 +72,6 @@ compile_error() {
   fi
 }
 
-
 try_direct '+*' 7 'int main(){return 1+2*3;}'
 try_direct 'local var' 72 'int main(){int x=8, y=9; return x*y;}'
 try_direct 'i64, f32, f64' 82 'float f32(int i){return i+1;} double f64(float f){return f*2;} long i64(double d){return d/3;} int main(){return i64(f64(f32(123)));}'
@@ -106,9 +105,6 @@ try_direct 'assign struct' 37 'int main(){typedef struct{int x;}S; S s={37}; S t
 try_direct 'vaarg' 15 'double sub(double x, ...) {__builtin_va_list ap; __builtin_va_start(ap, x); int i=__builtin_va_arg(ap, int); double d=__builtin_va_arg(ap, double); __builtin_va_end(ap); return x*i/d;} int main(){return sub(2.0, (unsigned char)60, 8.0);}'
 try_direct 'indirect funcall' 61 'int sub(void){return 61;} int main(){int (*f)(void)=sub; return f();}'
 
-
-
-
 try_output 'write' 'hello' "write(1, \"hello\\\\n\", 6);"
 try_output 'char array' 123 "char s[16]; s[0] = '1'; s[1] = '2'; s[2] = '3'; s[3] = '\\\\n'; write(1, s, 4);"
 try_output 'string initializer' 'aBc' "char s[] = \"abc\\\\n\"; s[1] = 'B'; write(1, s, 4);"
@@ -135,6 +131,7 @@ try_direct 'multi typedef' 4 'typedef char T1, T2[4]; int main() {return sizeof(
 try_direct 'old-style func' 93 'int sub(); int main(){ return sub(31); } int sub(int x) { return x * 3; }'
 #try_direct 'old-func-ptr' 81 'int twice(int(*f)(), int x) { return f(f(x)); } int sqr(int x) { return x * x; } int main(){ return twice(sqr, 3); }'
 try_direct 'global-func-var' 88 'int sub(void) { return 88; } int (*f)(void) = sub; int main(){ return f(); }'
+try_direct 'static-func-var' 99 'int sub(void) { return 99; } int main(){ static int (*f)(void) = sub; return f(); }'
 try_direct 'for-var' 55 'int main(){ int acc = 0; for (int i = 1, len = 10; i <= len; ++i) acc += i; return acc; }'
 try_direct 'for-no-initial-val' 3 "int main(){ const char *p = \"abc\"; int len = 0; for (char c; (c = *p) != '\\\\0'; ++p) ++len; return len; }"
 try_direct 'args' 51 'int func(int x, ...) { return x; } int main(){ return func(51, 1, 2); }'

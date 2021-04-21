@@ -401,6 +401,40 @@ static void traverse_expr(Expr **pexpr, bool needval) {
   }
 }
 
+static void traverse_initializer(Initializer *init) {
+  if (init == NULL)
+    return;
+
+  switch (init->kind) {
+  case IK_SINGLE:
+    traverse_expr(&init->single, true);
+    break;
+  case IK_MULTI:
+    {
+      Vector *multi = init->multi;
+      for (int i = 0; i < multi->len; ++i) {
+        Initializer *elem = multi->data[i];
+        if (elem == NULL)
+          continue;
+        switch (elem->kind) {
+        case IK_SINGLE:
+        case IK_MULTI:
+          traverse_initializer(elem);
+          break;
+        case IK_DOT:
+          traverse_initializer(elem->dot.value);
+          break;
+        case IK_ARR:
+          traverse_initializer(elem->arr.value);
+          break;
+        }
+      }
+    }
+    break;
+  default: assert(false); break;
+  }
+}
+
 static Stmt *push_branching_stmt(Stmt *stmt) {
   Stmt *prev = branching_stmt;
   branching_stmt = stmt;
@@ -468,6 +502,16 @@ static void traverse_for(Stmt *stmt) {
   branching_stmt = saved;
 }
 
+static void traverse_vardecl(Stmt *stmt) {
+  if (stmt->vardecl.decls != NULL) {
+    for (int i = 0, n = stmt->vardecl.decls->len; i < n; ++i) {
+      VarDecl *decl = stmt->vardecl.decls->data[i];
+      traverse_initializer(decl->init);
+    }
+  }
+  traverse_stmts(stmt->vardecl.inits);
+}
+
 static void traverse_stmt(Stmt *stmt) {
   if (stmt == NULL)
     return;
@@ -493,7 +537,7 @@ static void traverse_stmt(Stmt *stmt) {
     parse_error(stmt->token, "cannot use goto");
     break;
   case ST_LABEL:  traverse_stmt(stmt->label.stmt); break;
-  case ST_VARDECL:  traverse_stmts(stmt->vardecl.inits); break;
+  case ST_VARDECL:  traverse_vardecl(stmt); break;
   //case ST_ASM:  break;
   default: break;
   }
@@ -567,40 +611,6 @@ static void traverse_defun(Function *func) {
       assert(gvarinfo != NULL);
       register_gvar_info(gvarinfo->name, gvarinfo);
     }
-  }
-}
-
-static void traverse_initializer(Initializer *init) {
-  if (init == NULL)
-    return;
-
-  switch (init->kind) {
-  case IK_SINGLE:
-    traverse_expr(&init->single, true);
-    break;
-  case IK_MULTI:
-    {
-      Vector *multi = init->multi;
-      for (int i = 0; i < multi->len; ++i) {
-        Initializer *elem = multi->data[i];
-        if (elem == NULL)
-          continue;
-        switch (elem->kind) {
-        case IK_SINGLE:
-        case IK_MULTI:
-          traverse_initializer(elem);
-          break;
-        case IK_DOT:
-          traverse_initializer(elem->dot.value);
-          break;
-        case IK_ARR:
-          traverse_initializer(elem->arr.value);
-          break;
-        }
-      }
-    }
-    break;
-  default: assert(false); break;
   }
 }
 
