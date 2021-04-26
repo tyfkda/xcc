@@ -322,6 +322,14 @@ static Initializer *check_global_initializer(const Type *type, Initializer *init
   case TY_FIXNUM:
     if (init->kind == IK_SINGLE) {
       switch (init->single->kind) {
+#ifndef __NO_FLONUM
+      case EX_FLONUM:
+        {
+          double flonum = init->single->flonum;
+          init->single = new_expr_fixlit(type, init->single->token, flonum);
+        }
+#endif
+        // Fallthrough
       case EX_FIXNUM:
         return init;
       default:
