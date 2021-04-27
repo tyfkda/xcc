@@ -47,8 +47,8 @@ void not_const(const Type *type, const Token *token);
 bool check_cast(const Type *dst, const Type *src, bool zero, bool is_explicit, const Token *token);
 Expr *make_cast(const Type *type, const Token *token, Expr *sub, bool is_explicit);
 Expr *make_cond(Expr *expr);
-VarInfo *str_to_char_array(const Type *type, Initializer *init);
-Expr *str_to_char_array_var(Expr *str);
+VarInfo *str_to_char_array(Scope *scope, const Type *type, Initializer *init, Vector *toplevel);
+Expr *str_to_char_array_var(Scope *scope, Expr *str, Vector *toplevel);
 Expr *new_expr_addsub(enum ExprKind kind, const Token *tok, Expr *lhs, Expr *rhs, bool keep_left);
 
 Initializer *parse_initializer(void);
@@ -57,4 +57,4 @@ Vector *assign_initial_value(Expr *expr, Initializer *init, Vector *inits);
 Expr *make_refer(const Token *tok, Expr *expr);
 
 const Type *get_callee_type(Expr *func);
-void check_funcall_args(Expr *func, Vector *args);
+void check_funcall_args(Expr *func, Vector *args, Scope *scope, Vector *toplevel);

@@ -376,7 +376,7 @@ static void traverse_expr(Expr **pexpr, bool needval) {
           if (varinfo->type->kind == TY_FUNC) {
             func->type = functype = varinfo->type;
             if (functype->func.params != NULL)  // Updated.
-              check_funcall_args(func, args);
+              check_funcall_args(func, args, curscope, toplevel);
           }
         }
 

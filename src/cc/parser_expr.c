@@ -43,11 +43,11 @@ void not_const(const Type *type, const Token *token) {
 }
 
 // Returns created global variable info.
-VarInfo *str_to_char_array(const Type *type, Initializer *init) {
+VarInfo *str_to_char_array(Scope *scope, const Type *type, Initializer *init, Vector *toplevel) {
   assert(type->kind == TY_ARRAY && is_char_type(type->pa.ptrof));
   const Token *ident = alloc_ident(alloc_label(), NULL, NULL);
-  VarInfo *varinfo = scope_add(curscope, ident, type, VS_STATIC);
-  if (is_global_scope(curscope)) {
+  VarInfo *varinfo = scope_add(scope, ident, type, VS_STATIC);
+  if (is_global_scope(scope)) {
     Vector *decls = new_vector();
     vec_push(decls, new_vardecl(varinfo->type, ident, init, varinfo->storage));
     vec_push(toplevel, new_decl_vardecl(decls));
@@ -58,7 +58,7 @@ VarInfo *str_to_char_array(const Type *type, Initializer *init) {
   return varinfo;
 }
 
-Expr *str_to_char_array_var(Expr *str) {
+Expr *str_to_char_array_var(Scope *scope, Expr *str, Vector *toplevel) {
   if (str->kind != EX_STR)
     return str;
   const Type* type = str->type;
@@ -67,8 +67,8 @@ Expr *str_to_char_array_var(Expr *str) {
   init->single = str;
   init->token = str->token;
 
-  VarInfo *varinfo = str_to_char_array(type, init);
-  return new_expr_variable(varinfo->name, type, str->token, curscope);
+  VarInfo *varinfo = str_to_char_array(scope, type, init, toplevel);
+  return new_expr_variable(varinfo->name, type, str->token, scope);
 }
 
 bool check_cast(const Type *dst, const Type *src, bool zero, bool is_explicit, const Token *token) {
@@ -571,7 +571,7 @@ const Type *get_callee_type(Expr *func) {
   return type;
 }
 
-void check_funcall_args(Expr *func, Vector *args) {
+void check_funcall_args(Expr *func, Vector *args, Scope *scope, Vector *toplevel) {
   const Type *functype = get_callee_type(func);
 
   const Vector *param_types = functype->func.param_types;  // <const Type*>
@@ -589,7 +589,7 @@ void check_funcall_args(Expr *func, Vector *args) {
     for (int i = 0, len = args->len; i < len; ++i) {
       Expr *arg = args->data[i];
       if (arg->type->kind == TY_ARRAY) {
-        arg = str_to_char_array_var(arg);
+        arg = str_to_char_array_var(scope, arg, toplevel);
         arg = make_cast(array_to_ptr(arg->type), arg->token, arg, false);
       }
       if (i < paramc) {
@@ -620,14 +620,14 @@ static Expr *parse_funcall(Expr *func) {
   Token *token;
   Vector *args = parse_args(&token);
 
-  check_funcall_args(func, args);
+  check_funcall_args(func, args, curscope, toplevel);
   return new_expr_funcall(token, func, get_callee_type(func), args);
 }
 
 static Expr *parse_array_index(const Token *token, Expr *array) {
   Expr *index = parse_expr();
   consume(TK_RBRACKET, "`]' expected");
-  array = str_to_char_array_var(array);
+  array = str_to_char_array_var(curscope, array, toplevel);
   return new_expr_deref(token, new_expr_addsub(EX_ADD, token, array, index, false));
 }
 
@@ -1291,7 +1291,7 @@ static Expr *parse_unary(void) {
       parse_error(tok, "Cannot dereference raw type");
       break;
     }
-    expr = str_to_char_array_var(expr);
+    expr = str_to_char_array_var(curscope, expr, toplevel);
     return new_expr_unary(EX_DEREF, type, tok, expr);
   }
 
@@ -1577,8 +1577,8 @@ static Expr *parse_conditional(void) {
     consume(TK_COLON, "`:' expected");
     Expr *fval = parse_conditional();
 
-    tval = str_to_char_array_var(tval);
-    fval = str_to_char_array_var(fval);
+    tval = str_to_char_array_var(curscope, tval, toplevel);
+    fval = str_to_char_array_var(curscope, fval, toplevel);
 
     const Type *type;
     if (tval->type->kind == TY_VOID || fval->type->kind == TY_VOID) {
@@ -1662,7 +1662,7 @@ Expr *parse_assign(void) {
         Expr *bop;
         switch (kAssignWithOps[i].mode) {
         case ASSIGN:
-          rhs = str_to_char_array_var(rhs);
+          rhs = str_to_char_array_var(curscope, rhs, toplevel);
           return new_expr_bop(EX_ASSIGN, lhs->type, tok, lhs, make_cast(lhs->type, tok, rhs, false));
         case ADDSUB:  bop = new_expr_addsub(kind, tok, lhs, rhs, true); break;
         case MULDIV:  bop = new_expr_num_bop(kind, tok, lhs, rhs, true); break;

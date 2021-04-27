@@ -94,10 +94,10 @@ static Stmt *build_memcpy(Expr *dst, Expr *src, size_t size) {
 }
 
 // Convert string literal to global char-array variable reference.
-Initializer *convert_str_to_ptr_initializer(const Type *type, Initializer *init) {
+static Initializer *convert_str_to_ptr_initializer(Scope *scope, const Type *type, Initializer *init) {
   assert(type->kind == TY_ARRAY && is_char_type(type->pa.ptrof));
-  VarInfo *varinfo = str_to_char_array(type, init);
-  VarInfo *gvarinfo = is_global_scope(curscope) ? varinfo : varinfo->static_.gvar;
+  VarInfo *varinfo = str_to_char_array(scope, type, init, toplevel);
+  VarInfo *gvarinfo = is_global_scope(scope) ? varinfo : varinfo->static_.gvar;
   Initializer *init2 = malloc(sizeof(*init2));
   init2->kind = IK_SINGLE;
   init2->single = new_expr_variable(gvarinfo->name, type, NULL, global_scope);
@@ -122,7 +122,7 @@ static Stmt *init_char_array_by_string(Expr *dst, Initializer *src) {
   }
 
   const Type *strtype = dst->type;
-  VarInfo *varinfo = str_to_char_array(strtype, src);
+  VarInfo *varinfo = str_to_char_array(curscope, strtype, src, toplevel);
   Expr *var = new_expr_variable(varinfo->name, strtype, NULL, curscope);
   return build_memcpy(dst, var, size);
 }
@@ -263,7 +263,7 @@ static Initializer *flatten_initializer(const Type *type, Initializer *init) {
           const VarInfo *member = sinfo->members->data[index];
           if (member->type->kind == TY_PTR &&
               is_char_type(member->type->pa.ptrof)) {
-            value = convert_str_to_ptr_initializer(value->single->type, value);
+            value = convert_str_to_ptr_initializer(curscope, value->single->type, value);
           }
         }
 
@@ -410,7 +410,7 @@ static Initializer *check_global_initializer(const Type *type, Initializer *init
 
           // Create string and point to it.
           Type* strtype = arrayof(type->pa.ptrof, value->str.size);
-          return convert_str_to_ptr_initializer(strtype, init);
+          return convert_str_to_ptr_initializer(curscope, strtype, init);
         }
       default:
         break;
@@ -579,7 +579,7 @@ Vector *assign_initial_value(Expr *expr, Initializer *init, Vector *inits) {
       // Fallthrough
     case IK_SINGLE:
       {
-        Expr *value = str_to_char_array_var(init->single);
+        Expr *value = str_to_char_array_var(curscope, init->single, toplevel);
         vec_push(inits,
                  new_stmt_expr(new_expr_bop(EX_ASSIGN, expr->type, init->token, expr,
                                             make_cast(expr->type, init->token, value, false))));
@@ -1009,7 +1009,7 @@ static Stmt *parse_return(const Token *tok) {
   if (!match(TK_SEMICOL)) {
     val = parse_expr();
     consume(TK_SEMICOL, "`;' expected");
-    val = str_to_char_array_var(val);
+    val = str_to_char_array_var(curscope, val, toplevel);
   }
 
   assert(curfunc != NULL);
@@ -1109,7 +1109,7 @@ static Stmt *parse_stmt(void) {
   // expression statement.
   Expr *val = parse_expr();
   consume(TK_SEMICOL, "`;' expected");
-  return new_stmt_expr(str_to_char_array_var(val));
+  return new_stmt_expr(str_to_char_array_var(curscope, val, toplevel));
 }
 
 static Declaration *parse_defun(const Type *functype, int storage, Token *ident) {
