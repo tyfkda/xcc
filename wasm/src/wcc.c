@@ -451,7 +451,6 @@ static void emit_wasm(FILE *ofp, Vector *exports) {
     int index = 0;
     for (int it = 0; (it = table_iterate(&indirect_function_table, it, &name, (void**)&info)) != -1; ++index)
       indirect_funcs[index] = info;
-    VERBOSES("\n");
 
     QSORT(indirect_funcs, count, sizeof(*indirect_funcs), compare_indirect);
 
@@ -463,9 +462,11 @@ static void emit_wasm(FILE *ofp, Vector *exports) {
     emit_leb128(&elems_section, elems_section.len, count);  // num elems
     for (int i = 0 ; i < count; ++i) {
       FuncInfo *info = indirect_funcs[i];
+      VERBOSE("%2d: %.*s (%d)\n", i, info->func->name->bytes, info->func->name->chars, (int)info->index);
       emit_leb128(&elems_section, elems_section.len, info->index);  // elem function index
     }
     free(indirect_funcs);
+    VERBOSES("\n");
   }
 
   // Globals.

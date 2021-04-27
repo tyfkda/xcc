@@ -222,6 +222,10 @@ Expr *make_refer(const Token *tok, Expr *expr) {
     VarInfo *varinfo = scope_find(expr->var.scope, expr->var.name, NULL);
     assert(varinfo != NULL);
     varinfo->storage |= VS_REF_TAKEN;
+    if ((varinfo->storage & VS_STATIC) != 0 && !is_global_scope(expr->var.scope)) {
+      VarInfo *gvarinfo = varinfo->static_.gvar;
+      gvarinfo->storage |= VS_REF_TAKEN;
+    }
   }
   return new_expr_unary(EX_REF, ptrof(expr->type), tok, expr);
 }

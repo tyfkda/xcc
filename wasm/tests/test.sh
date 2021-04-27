@@ -196,6 +196,8 @@ try 'str in comma' 117 'char *p = (1, "use strict", "dummy"); return p[1];'
 try_direct 'return str' 111 'const char *foo(void){ return "foo"; } int main(){ return foo()[2]; }'
 try 'deref str' 48 'return *"0";'
 
+try_direct 'ref static' 29 'int main() {static int f=29; int *p = &f; return *p;}'
+
 # error cases
 echo ''
 echo '### Error cases'
