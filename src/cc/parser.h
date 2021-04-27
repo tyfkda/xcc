@@ -22,7 +22,7 @@ extern Scope *curscope;
 extern Stmt *curswitch;
 extern Vector *toplevel;  // <Declaration*>
 
-void parse(Vector *toplevel);  // <Declaraion*>
+void parse(Vector *decls);  // <Declaraion*>
 
 //
 

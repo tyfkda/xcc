@@ -146,9 +146,9 @@ static void dump_func_ir(Function *func) {
   fprintf(fp, "\n");
 }
 
-void do_dump_ir(Vector *toplevel) {
-  for (int i = 0, len = toplevel->len; i < len; ++i) {
-    Declaration *decl = toplevel->data[i];
+void do_dump_ir(Vector *decls) {
+  for (int i = 0, len = decls->len; i < len; ++i) {
+    Declaration *decl = decls->data[i];
     if (decl == NULL)
       continue;
 

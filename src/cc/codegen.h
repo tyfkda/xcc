@@ -18,7 +18,7 @@ extern const char RET_VAR_NAME[];
 
 // Public
 
-void gen(Vector *toplevel);
+void gen(Vector *decls);
 
 // Private
 

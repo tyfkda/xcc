@@ -4,4 +4,4 @@
 
 typedef struct Vector Vector;
 
-void emit_code(Vector *toplevel);
+void emit_code(Vector *decls);

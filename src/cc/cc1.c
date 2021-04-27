@@ -32,9 +32,9 @@ static void init_compiler(FILE *ofp) {
   install_builtins();
 }
 
-static void compile1(FILE *ifp, const char *filename, Vector *toplevel) {
+static void compile1(FILE *ifp, const char *filename, Vector *decls) {
   set_source_file(ifp, filename);
-  parse(toplevel);
+  parse(decls);
 }
 
 static const char LOCAL_LABEL_PREFIX[] = "--local-label-prefix=";

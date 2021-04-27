@@ -441,9 +441,9 @@ static void emit_defun(Function *func) {
   assert(stackpos == 8);
 }
 
-void emit_code(Vector *toplevel) {
-  for (int i = 0, len = toplevel->len; i < len; ++i) {
-    Declaration *decl = toplevel->data[i];
+void emit_code(Vector *decls) {
+  for (int i = 0, len = decls->len; i < len; ++i) {
+    Declaration *decl = decls->data[i];
     if (decl == NULL)
       continue;
 

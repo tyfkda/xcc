@@ -786,9 +786,9 @@ static void init_compiler(void) {
   install_builtins();
 }
 
-static void compile1(FILE *ifp, const char *filename, Vector *toplevel) {
+static void compile1(FILE *ifp, const char *filename, Vector *decls) {
   set_source_file(ifp, filename);
-  parse(toplevel);
+  parse(decls);
 }
 
 int main(int argc, char *argv[]) {
