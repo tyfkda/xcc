@@ -249,27 +249,6 @@ Type *create_enum_type(const Name *name) {
   return type;
 }
 
-#if 0
-void dump_type(FILE *fp, const Type *type) {
-  switch (type->kind) {
-  case TY_VOID: fprintf(fp, "void"); break;
-  case TY_FIXNUM:
-    switch (type->fixnum.kind) {
-    case FX_CHAR:  fprintf(fp, "char"); break;
-    case FX_SHORT: fprintf(fp, "short"); break;
-    case FX_INT:   fprintf(fp, "int"); break;
-    case FX_LONG:  fprintf(fp, "long"); break;
-    case FX_ENUM:  fprintf(fp, "enum"); break;
-    default: assert(false); break;
-    }
-    break;
-  case TY_PTR: dump_type(fp, type->pa.ptrof); fprintf(fp, "*"); break;
-  case TY_ARRAY: dump_type(fp, type->pa.ptrof); fprintf(fp, "[%d]", (int)type->pa.length); break;
-  default: assert(false); break;
-  }
-}
-#endif
-
 bool same_type(const Type *type1, const Type *type2) {
   for (;;) {
     if (type1->kind != type2->kind)
@@ -488,6 +467,11 @@ static void print_array_type(FILE *fp, const Type *type) {
 }
 
 void print_type_recur(FILE *fp, const Type *type, PrintTypeChain *parent) {
+  if (type->qualifier & TQ_CONST)
+    fprintf(fp, "const ");
+  if (type->qualifier & TQ_VOLATILE)
+    fprintf(fp, "volatile ");
+
   switch (type->kind) {
   case TY_VOID:
     fprintf(fp, "void");
