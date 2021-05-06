@@ -32,15 +32,14 @@ void fix_array_size(Type *type, Initializer *init) {
     parse_error(init->token, "Error initializer");
   }
 
-  size_t arr_len = type->pa.length;
-  if (arr_len == (size_t)-1) {
+  ssize_t arr_len = type->pa.length;
+  if (arr_len == -1) {
     if (is_str) {
       type->pa.length = init->single->str.size;
     } else {
-      size_t index = 0;
-      size_t max_index = 0;
-      size_t i, len = init->multi->len;
-      for (i = 0; i < len; ++i) {
+      ssize_t index = 0;
+      ssize_t max_index = 0;
+      for (ssize_t i = 0; i < init->multi->len; ++i) {
         Initializer *init_elem = init->multi->data[i];
         if (init_elem->kind == IK_ARR) {
           assert(init_elem->arr.index->kind == EX_FIXNUM);
@@ -53,8 +52,9 @@ void fix_array_size(Type *type, Initializer *init) {
       type->pa.length = max_index;
     }
   } else {
+    assert(arr_len > 0);
     assert(!is_str || init->single->kind == EX_STR);
-    size_t init_len = is_str ? init->single->str.size : (size_t)init->multi->len;
+    ssize_t init_len = is_str ? (ssize_t)init->single->str.size : (ssize_t)init->multi->len;
     if (init_len > arr_len)
       parse_error(NULL, "Initializer more than array size");
   }
@@ -112,9 +112,9 @@ static Stmt *init_char_array_by_string(Expr *dst, Initializer *src) {
   assert(str->kind == EX_STR);
   assert(dst->type->kind == TY_ARRAY && is_char_type(dst->type->pa.ptrof));
 
-  size_t size = str->str.size;
-  size_t dstsize = dst->type->pa.length;
-  if (dstsize == (size_t)-1) {
+  ssize_t size = str->str.size;
+  ssize_t dstsize = dst->type->pa.length;
+  if (dstsize == -1) {
     ((Type*)dst->type)->pa.length = dstsize = size;
   } else {
     if (dstsize < size)
@@ -432,8 +432,8 @@ static Initializer *check_global_initializer(const Type *type, Initializer *init
       break;
     case IK_SINGLE:
       if (is_char_type(type->pa.ptrof) && init->single->kind == EX_STR) {
-        assert(type->pa.length != (size_t)-1);
-        if (type->pa.length < init->single->str.size) {
+        assert(type->pa.length > 0);
+        if (type->pa.length < (ssize_t)init->single->str.size) {
           parse_error(init->single->token, "Array size shorter than initializer");
         }
         break;
@@ -479,9 +479,9 @@ Vector *assign_initial_value(Expr *expr, Initializer *init, Vector *inits) {
     switch (init->kind) {
     case IK_MULTI:
       {
-        size_t arr_len = expr->type->pa.length;
-        assert(arr_len != (size_t)-1);
-        if ((size_t)init->multi->len > arr_len)
+        ssize_t arr_len = expr->type->pa.length;
+        assert(arr_len > 0);
+        if (init->multi->len > arr_len)
           parse_error(init->token, "Initializer more than array size");
 
         assert(!is_global_scope(curscope));

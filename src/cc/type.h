@@ -74,7 +74,7 @@ typedef struct Type {
 #endif
     struct {  // Pointer or array.
       const struct Type *ptrof;
-      size_t length;  // of array. -1 represents length is not specified (= []).
+      ssize_t length;  // of array. -1 represents length is not specified (= []).
     } pa;
     struct {
       const struct Type *ret;
@@ -119,7 +119,7 @@ bool ptr_or_array(const Type *type);
 const Type *get_fixnum_type(enum FixnumKind kind, bool is_unsigned, int qualifier);
 Type *ptrof(const Type *type);
 const Type *array_to_ptr(const Type *type);
-Type *arrayof(const Type *type, size_t length);
+Type *arrayof(const Type *type, ssize_t length);
 Type *new_func_type(const Type *ret, const Vector *params, const Vector *param_types, bool vaargs);
 const Type *qualified_type(const Type *type, int additional);
 

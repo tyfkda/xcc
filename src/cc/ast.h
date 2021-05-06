@@ -5,6 +5,7 @@
 #include <stdbool.h>
 #include <stddef.h>  // size_t
 #include <stdint.h>  // intptr_t
+#include <sys/types.h>  // ssize_t
 
 typedef struct BB BB;
 typedef struct BBContainer BBContainer;
@@ -124,7 +125,7 @@ typedef struct Expr {
 
 Expr *new_expr_fixlit(const Type *type, const Token *token, const Fixnum fixnum);
 Expr *new_expr_flolit(const Type *type, const Token *token, double flonum);
-Expr *new_expr_str(const Token *token, const char *str, size_t size);
+Expr *new_expr_str(const Token *token, const char *str, ssize_t size);
 Expr *new_expr_bop(enum ExprKind kind, const Type *type, const Token *token, Expr *lhs, Expr *rhs);
 Expr *new_expr_unary(enum ExprKind kind, const Type *type, const Token *token, Expr *sub);
 Expr *new_expr_deref(const Token *token, Expr *sub);

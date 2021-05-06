@@ -100,7 +100,7 @@ size_t type_size(const Type *type) {
   case TY_PTR:
     return fixnum_size_table[FX_LONG];
   case TY_ARRAY:
-    assert(type->pa.length != (size_t)-1);
+    assert(type->pa.length > 0);
     return type_size(type->pa.ptrof) * type->pa.length;
   case TY_FUNC:
     return 1;
@@ -186,7 +186,7 @@ const Type *array_to_ptr(const Type *type) {
   return ptrof(type->pa.ptrof);
 }
 
-Type *arrayof(const Type *type, size_t length) {
+Type *arrayof(const Type *type, ssize_t length) {
   Type *arr = malloc(sizeof(*arr));
   arr->kind = TY_ARRAY;
   arr->qualifier = 0;
@@ -459,7 +459,7 @@ static void print_nested_ptr_type2(FILE *fp, const Type *_type) {
 
 static void print_array_type(FILE *fp, const Type *type) {
   for (; type->kind == TY_ARRAY; type = type->pa.ptrof) {
-    if (type->pa.length != (size_t)-1)
+    if (type->pa.length > 0)
       fprintf(fp, "[%zu]", type->pa.length);
     else
       fprintf(fp, "[]");

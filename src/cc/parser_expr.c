@@ -1,6 +1,7 @@
 #include "parser.h"
 
 #include <assert.h>
+#include <inttypes.h>  // PRIdPTR
 #include <limits.h>
 #include <stdbool.h>
 #include <stdlib.h>  // malloc
@@ -888,14 +889,13 @@ const Type *parse_type_suffix(const Type *type) {
 
   if (!match(TK_LBRACKET))
     return type;
-  size_t length = -1;
+  ssize_t length = -1;
   if (match(TK_RBRACKET)) {
     // Arbitrary size.
   } else {
-    const Token *tok = fetch_token();
     Expr *expr = parse_const();
     if (expr->fixnum <= 0)
-      parse_error(tok, "Array size must be greater than 0, but %d", (int)expr->fixnum);
+      parse_error(expr->token, "Array size must be greater than 0, but %" PRIdPTR, expr->fixnum);
     length = expr->fixnum;
     consume(TK_RBRACKET, "`]' expected");
   }
@@ -1189,10 +1189,11 @@ static Expr *parse_sizeof(const Token *token) {
   if (type->kind == TY_STRUCT)
     ensure_struct((Type*)type, token, curscope);
   if (type->kind == TY_ARRAY) {
-    if (type->pa.length == (size_t)-1) {
+    if (type->pa.length == -1) {
       // TODO: assert `export` modifier.
       parse_error(token, "size unknown");
     }
+    assert(type->pa.length > 0);
   }
 
   const Fixnum size = type_size(type);

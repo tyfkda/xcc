@@ -275,6 +275,8 @@ compile_error 'param and first scope' 'void main(int x){ int x; }'
 compile_error 'conflict typedef' 'typedef int Foo; typedef long Foo; void main(){}'
 compile_error 'conflict struct typedef' 'typedef struct{int x;} Foo; typedef struct{int x;} Foo; void main(){}'
 compile_error 'no VLA' 'void main(int x){ int array[x]; }'
+compile_error 'negative array' "void main(){ int array[-1]; }"
+compile_error 'zero array' "void main(){ int array[0]; }"
 compile_error 'size unknown' 'extern char string[]; int main(){ return sizeof(string); } char string[] = "Hello";'
 compile_error 'scoped typedef' 'int sub(){typedef int T;} T g=123; int main(void){return g;}'
 compile_error 'no member name' 'struct Foo{union{int anon;}; int;}; void main(){}'

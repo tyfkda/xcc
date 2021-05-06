@@ -131,13 +131,13 @@ static void construct_initial_value(const Type *type, const Initializer *init) {
       const Type *elem_type = type->pa.ptrof;
       if (init != NULL) {
         Vector *init_array = init->multi;
-        size_t index = 0;
-        size_t len = init_array->len;
-        for (size_t i = 0; i < len; ++i, ++index) {
+        assert(init_array->len > 0);
+        ssize_t index = 0;
+        for (ssize_t i = 0; i < init_array->len; ++i, ++index) {
           const Initializer *init_elem = init_array->data[i];
           if (init_elem->kind == IK_ARR) {
-            size_t next = init_elem->arr.index->fixnum;
-            for (size_t j = index; j < next; ++j)
+            ssize_t next = init_elem->arr.index->fixnum;
+            for (ssize_t j = index; j < next; ++j)
               construct_initial_value(elem_type, NULL);
             index = next;
             init_elem = init_elem->arr.value;
@@ -145,7 +145,7 @@ static void construct_initial_value(const Type *type, const Initializer *init) {
           construct_initial_value(elem_type, init_elem);
         }
         // Padding
-        for (size_t i = index, n = type->pa.length; i < n; ++i)
+        for (ssize_t i = index, n = type->pa.length; i < n; ++i)
           construct_initial_value(elem_type, NULL);
       }
     } else {

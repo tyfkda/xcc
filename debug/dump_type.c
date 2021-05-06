@@ -46,7 +46,7 @@ void dump_type(FILE *fp, const Type *type) {
     break;
   case TY_ARRAY:
     fprintf(fp, "Array<");
-    if (type->pa.length != (size_t)-1)
+    if (type->pa.length != -1)
       fprintf(fp, "%zu, ", type->pa.length);
     else
       fprintf(fp, "?, ");

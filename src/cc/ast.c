@@ -49,7 +49,7 @@ Expr *new_expr_flolit(const Type *type, const Token *token, double flonum) {
 }
 #endif
 
-Expr *new_expr_str(const Token *token, const char *str, size_t size) {
+Expr *new_expr_str(const Token *token, const char *str, ssize_t size) {
   Type *type = malloc(sizeof(*type));
   type->kind = TY_ARRAY;
   type->qualifier = TQ_CONST;
