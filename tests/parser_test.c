@@ -17,10 +17,18 @@ void expect_parse_type(const char *title, const Type *expected, const char *iden
     exit(1);
   }
   if (pid == 0) {
+    set_source_file(NULL, title);
     set_source_string(source, "*test*", 1);
     int storage;
     Token *ident;
     const Type *actual = parse_full_type(&storage, &ident);
+    if (actual == NULL && expected != NULL)
+      error("%s: parsing type failed\n", title);
+
+    const Token *end = fetch_token();
+    if (end->kind != TK_EOF)
+      parse_error(end, "EOF expected\n");
+
     if (!same_type(expected, actual))
       error("%s: type different\n", title);
     if (ident_expected == NULL && ident != NULL)
@@ -44,8 +52,13 @@ void expect_parse_type(const char *title, const Type *expected, const char *iden
 
 void test_parse_full_type(void) {
   expect_parse_type("int", get_fixnum_type(FX_INT, false, 0), NULL, "int");
+  expect_parse_type("short", get_fixnum_type(FX_SHORT, false, 0), NULL, "short");
+  expect_parse_type("short int", get_fixnum_type(FX_SHORT, false, 0), NULL, "short int");
+  expect_parse_type("int short", get_fixnum_type(FX_SHORT, false, 0), NULL, "int short");
+  expect_parse_type("long", get_fixnum_type(FX_LONG, false, 0), NULL, "long");
   expect_parse_type("long int", get_fixnum_type(FX_LONG, false, 0), NULL, "long int");
   expect_parse_type("long long", get_fixnum_type(FX_LLONG, false, 0), NULL, "long long");
+  expect_parse_type("int long", get_fixnum_type(FX_LONG, false, 0), NULL, "int long");
   expect_parse_type("void ptr", ptrof(&tyVoid), NULL, "void*");
   expect_parse_type("int array", arrayof(&tyInt, 3), "a", "int a[3]");
   expect_parse_type("array w/o size", arrayof(&tyChar, -1), NULL, "char[]");
@@ -71,6 +84,12 @@ void test_parse_full_type(void) {
     const Type *aofp = arrayof(funcptr, 4);
     expect_parse_type("array of func ptr", aofp, NULL, "int(*[4])(void)");
   }
+
+#ifndef __NO_FLONUM
+  expect_parse_type("double", &tyDouble, NULL, "double");
+  expect_parse_type("float", &tyFloat, NULL, "float");
+  expect_parse_type("long double", &tyLDouble, NULL, "long double");
+#endif
 }
 
 void runtest(void) {

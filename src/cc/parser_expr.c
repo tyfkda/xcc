@@ -719,57 +719,129 @@ static const Type *parse_enum(void) {
   return type;
 }
 
+typedef struct {
+  int storage, qualifier;
+  int unsigned_num, signed_num;
+  int char_num, short_num, int_num, long_num;
+#ifndef __NO_FLONUM
+  int float_num, double_num;
+#endif
+} TypeCombination;
+
+static const enum FixnumKind kLongKinds[] = {
+  FX_INT, FX_LONG, FX_LLONG,
+};
+
+#define ASSERT_PARSE_ERROR(cond, tok, ...)  do { if (!(cond)) parse_error(tok, __VA_ARGS__); } while (0)
+
+static void check_type_combination(const TypeCombination *tc, const Token *tok) {
+  if (tc->unsigned_num > 1 || tc->signed_num > 1 ||
+      tc->char_num > 1 || tc->short_num > 1 || tc->int_num > 1 ||
+      tc->long_num >= (int)(sizeof(kLongKinds) / sizeof(*kLongKinds)) ||
+      ((tc->char_num > 0) + (tc->short_num > 0) + (tc->long_num > 0) > 1) ||
+#ifndef __NO_FLONUM
+      tc->float_num > 1 || tc->double_num > 1 ||
+      ((tc->float_num > 0 || tc->double_num > 0) &&
+       (tc->char_num > 0 || tc->short_num > 0 || tc->int_num > 0 || tc->long_num > 0 ||
+        tc->unsigned_num > 0 || tc->signed_num > 0) &&
+       !(tc->double_num == 1 && tc->float_num <= 0 && tc->long_num <= 1 &&
+         tc->char_num <= 0 && tc->short_num <= 0 && tc->int_num <= 0 &&
+         tc->unsigned_num <= 0 && tc->signed_num <= 0)
+      )
+#endif
+  ) {
+    parse_error(tok, "Illegal type combination");
+  }
+}
+
+static bool no_type_combination(const TypeCombination *tc) {
+  return tc->unsigned_num == 0 && tc->signed_num == 0 &&
+      tc->char_num == 0 && tc->short_num == 0 && tc->int_num == 0 && tc->long_num == 0 &&
+#ifndef __NO_FLONUM
+      tc->float_num == 0 && tc->double_num == 0
+#endif
+      ;
+}
+
 const Type *parse_raw_type(int *pstorage) {
   const Type *type = NULL;
 
-  int storage = 0, qualifier = 0;
-  bool is_unsigned = false;
-  int long_count = 0;
+  TypeCombination tc = {0};
+  Token *tok = NULL;
   for (;;) {
-    Token *tok;
-    if (match(TK_UNSIGNED)) {
-      is_unsigned = true;
+    if (tok != NULL)
+      check_type_combination(&tc, tok);  // Check for last token
+    tok = match(-1);
+    if (tok->kind == TK_UNSIGNED) {
+      ++tc.unsigned_num;
       continue;
     }
-    if (match(TK_SIGNED)) {
-      is_unsigned = false;
+    if (tok->kind == TK_SIGNED) {
+      ++tc.signed_num;
       continue;
     }
-    if (match(TK_STATIC)) {
-      storage |= VS_STATIC;
+    if (tok->kind == TK_STATIC) {
+      ASSERT_PARSE_ERROR(tc.storage == 0, tok, "multiple storage specified");
+      tc.storage |= VS_STATIC;
       continue;
     }
-    if (match(TK_EXTERN)) {
-      storage |= VS_EXTERN;
+    if (tok->kind == TK_EXTERN) {
+      ASSERT_PARSE_ERROR(tc.storage == 0, tok, "multiple storage specified");
+      tc.storage |= VS_EXTERN;
       continue;
     }
-    if (match(TK_TYPEDEF)) {
-      storage |= VS_TYPEDEF;
+    if (tok->kind == TK_TYPEDEF) {
+      ASSERT_PARSE_ERROR(tc.storage == 0, tok, "multiple storage specified");
+      tc.storage |= VS_TYPEDEF;
       continue;
     }
-    if (match(TK_CONST)) {
-      qualifier |= TQ_CONST;
+    if (tok->kind == TK_CONST) {
+      ASSERT_PARSE_ERROR(tc.qualifier == 0, tok, "multiple qualifier specified");
+      tc.qualifier |= TQ_CONST;
       continue;
     }
-    if (match(TK_VOLATILE)) {
-      qualifier |= TQ_VOLATILE;
+    if (tok->kind == TK_VOLATILE) {
+      ASSERT_PARSE_ERROR(tc.qualifier == 0, tok, "multiple qualifier specified");
+      tc.qualifier |= TQ_VOLATILE;
       continue;
     }
-    if ((tok = match(TK_LONG)) != NULL) {
-      ++long_count;
-      if (long_count > 2)
-        parse_error(tok, "Too many `long'");
+    if (tok->kind == TK_CHAR) {
+      ++tc.char_num;
       continue;
     }
+    if (tok->kind == TK_SHORT) {
+      ++tc.short_num;
+      continue;
+    }
+    if (tok->kind == TK_INT) {
+      ++tc.int_num;
+      continue;
+    }
+    if (tok->kind == TK_LONG) {
+      ++tc.long_num;
+      continue;
+    }
+#ifndef __NO_FLONUM
+    if (tok->kind == TK_FLOAT) {
+      ++tc.float_num;
+      continue;
+    }
+    if (tok->kind == TK_DOUBLE) {
+      ++tc.double_num;
+      continue;
+    }
+#endif
 
-    if (type != NULL)
+    if (type != NULL) {
+      unget_token(tok);
       break;
+    }
 
     Token *ident;
-    if (((tok = match(TK_STRUCT)) != NULL) ||
-        ((tok = match(TK_UNION)) != NULL)) {
-      if (is_unsigned)
-        parse_error(tok, "`unsigned' for struct/union");
+    if (tok->kind == TK_STRUCT ||
+        tok->kind == TK_UNION) {
+      if (!no_type_combination(&tc))
+        parse_error(tok, "Illegal type combination");
 
       bool is_union = tok->kind == TK_UNION;
       const Name *name = NULL;
@@ -800,69 +872,43 @@ const Type *parse_raw_type(int *pstorage) {
       if (name == NULL && sinfo == NULL)
         parse_error(NULL, "Illegal struct/union usage");
 
-      type = create_struct_type(sinfo, name, qualifier);
-    } else if ((tok = match(TK_ENUM)) != NULL) {
-      if (is_unsigned)
-        parse_error(tok, "`unsigned' for enum");
+      type = create_struct_type(sinfo, name, tc.qualifier);
+    } else if (tok->kind == TK_ENUM) {
+      if (!no_type_combination(&tc))
+        parse_error(tok, "Illegal type combination");
 
       type = parse_enum();
-    } else if ((ident = match(TK_IDENT)) != NULL) {
-      type = find_typedef(curscope, ident->ident, NULL);
-      if (type == NULL) {
-        unget_token(ident);
-      } else {
-        if (is_unsigned)
-          parse_error(ident, "`unsigned' for typedef");
+    } else if (tok->kind == TK_IDENT) {
+      TypeCombination tc2 = tc;
+      tc2.storage &= ~VS_TYPEDEF;
+      if (no_type_combination(&tc2)) {
+        ident = tok;
+        type = find_typedef(curscope, ident->ident, NULL);
       }
-    } else if ((tok = match(TK_VOID)) != NULL) {
-      if (is_unsigned)
-        parse_error(tok, "`unsigned' for void");
-
+    } else if (tok->kind == TK_VOID) {
       type = &tyVoid;
-#ifndef __NO_FLONUM
-    } else if (match(TK_FLOAT)) {
-      type = &tyFloat;
-    } else if (match(TK_DOUBLE)) {
-      type = &tyDouble;
-#endif
-    } else {
-      static const enum TokenKind kIntTypeTokens[] = {
-        TK_CHAR, TK_SHORT, TK_INT,
-      };
-      static const enum FixnumKind kFixnumKinds[] = {
-        FX_CHAR, FX_SHORT, FX_INT,
-      };
-      const int N = sizeof(kIntTypeTokens) / sizeof(*kIntTypeTokens);
-      for (int i = 0; i < N; ++i) {
-        if ((tok = match(kIntTypeTokens[i])) != NULL) {
-          switch (long_count) {
-          default:
-            // Fallthrough
-          case 0:
-            type = get_fixnum_type(kFixnumKinds[i], is_unsigned, qualifier);
-            break;
-          case 1: case 2:
-            if (i != sizeof(kIntTypeTokens) / sizeof(*kIntTypeTokens) - 1)
-              parse_error(tok, "`long' can use only with `int' ");
-            break;
-          }
-          break;
-        }
-      }
     }
-    if (type == NULL)
+    if (type == NULL) {
+      unget_token(tok);
       break;
+    }
   }
 
-  if (type == NULL && (storage != 0 || is_unsigned || long_count > 0)) {
-    static const enum FixnumKind kLongKinds[] = {
-      FX_INT, FX_LONG, FX_LLONG,
-    };
-    type = get_fixnum_type(kLongKinds[long_count], is_unsigned, qualifier);
+  if (type == NULL && !no_type_combination(&tc)) {
+    if (tc.float_num > 0) {
+      type = &tyFloat;
+    } else if (tc.double_num > 0) {
+      type = tc.double_num > 1 ? &tyLDouble : &tyDouble;
+    } else {
+      enum FixnumKind fk =
+          (tc.char_num > 0) ? FX_CHAR :
+          (tc.short_num > 0) ? FX_SHORT : kLongKinds[tc.long_num];
+      type = get_fixnum_type(fk, tc.unsigned_num > 0, tc.qualifier);
+    }
   }
 
   if (pstorage != NULL)
-    *pstorage = storage;
+    *pstorage = tc.storage;
 
   return type;
 }

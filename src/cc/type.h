@@ -102,6 +102,7 @@ extern const Type tySSize;
 #ifndef __NO_FLONUM
 extern const Type tyFloat;
 extern const Type tyDouble;
+#define tyLDouble  tyDouble
 #endif
 
 void set_fixnum_size(enum FixnumKind kind, size_t size, int align);
