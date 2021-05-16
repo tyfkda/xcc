@@ -29,14 +29,14 @@ void parse(Vector *decls);  // <Declaraion*>
 typedef Expr *(*BuiltinExprProc)(const Token*);
 void add_builtin_expr_ident(const char *str, BuiltinExprProc *proc);
 
-const Type *parse_raw_type(int *pstorage);
+Type *parse_raw_type(int *pstorage);
 const Type *parse_type_modifier(const Type *type);
 const Type *parse_type_suffix(const Type *type);
 const Type *parse_full_type(int *pstorage, Token **pident);
 
 Vector *parse_args(Token **ptoken);
 Vector *parse_funparams(bool *pvaargs);  // Vector<VarInfo*>, NULL=>old style.
-bool parse_var_def(const Type **prawType, const Type **ptype, int *pstorage, Token **pident);
+bool parse_var_def(Type **prawType, const Type **ptype, int *pstorage, Token **pident);
 Vector *extract_varinfo_types(const Vector *params);  // <VarInfo*> => <Type*>
 Expr *parse_const(void);
 Expr *parse_assign(void);

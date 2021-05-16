@@ -76,7 +76,7 @@ VarInfo *scope_add(Scope *scope, const Token *ident, const Type *type, int stora
 StructInfo *find_struct(Scope *scope, const Name *name, Scope **pscope);
 void define_struct(Scope *scope, const Name *name, StructInfo *sinfo);
 
-const Type *find_typedef(Scope *scope, const Name *name, Scope **pscope);
+Type *find_typedef(Scope *scope, const Name *name, Scope **pscope);
 bool add_typedef(Scope *scope, const Name *name, const Type *type);
 
 Type *find_enum(Scope *scope, const Name *name);

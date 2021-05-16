@@ -703,7 +703,7 @@ static void parse_enum_members(const Type *type) {
   }
 }
 
-static const Type *parse_enum(void) {
+static Type *parse_enum(void) {
   Token *ident = match(TK_IDENT);
   Type *type = ident != NULL ? find_enum(curscope, ident->ident) : NULL;
   if (match(TK_LBRACE)) {
@@ -764,8 +764,8 @@ static bool no_type_combination(const TypeCombination *tc, int storage_mask, int
       ;
 }
 
-const Type *parse_raw_type(int *pstorage) {
-  const Type *type = NULL;
+Type *parse_raw_type(int *pstorage) {
+  Type *type = NULL;
 
   TypeCombination tc = {0};
   Token *tok = NULL;
@@ -884,7 +884,7 @@ const Type *parse_raw_type(int *pstorage) {
         type = find_typedef(curscope, ident->ident, NULL);
       }
     } else if (tok->kind == TK_VOID) {
-      type = &tyVoid;
+      type = (Type*)&tyVoid;
     }
     if (type == NULL) {
       unget_token(tok);
@@ -895,16 +895,16 @@ const Type *parse_raw_type(int *pstorage) {
   if (type == NULL && !no_type_combination(&tc, ~0, ~0)) {
 #ifndef __NO_FLONUM
     if (tc.float_num > 0) {
-      type = &tyFloat;
+      type = (Type*)&tyFloat;
     } else if (tc.double_num > 0) {
-      type = tc.double_num > 1 ? &tyLDouble : &tyDouble;
+      type = (Type*)(tc.double_num > 1 ? &tyLDouble : &tyDouble);
     } else
 #endif
     {
       enum FixnumKind fk =
           (tc.char_num > 0) ? FX_CHAR :
           (tc.short_num > 0) ? FX_SHORT : kLongKinds[tc.long_num];
-      type = get_fixnum_type(fk, tc.unsigned_num > 0, tc.qualifier);
+      type = (Type*)get_fixnum_type(fk, tc.unsigned_num > 0, tc.qualifier);
     }
   }
 
@@ -959,22 +959,95 @@ Vector *extract_varinfo_types(const Vector *params) {
   return param_types;
 }
 
-static const Type *parse_var_def_cont(const Type *type) {
-  if (match(TK_LPAR)) {
-    const Type *rettype = type;
-    bool vaargs;
-    Vector *params = parse_funparams(&vaargs);
-    Vector *param_types = extract_varinfo_types(params);
-    type = new_func_type(rettype, params, param_types, vaargs);
+// <pointer> ::= * {<type-qualifier>}* {<pointer>}?
+static Type *parse_pointer(Type *type) {
+  if (type == NULL)
+    return NULL;
+
+  for (;;) {
+    const Token *tok;
+    if ((tok = match(TK_CONST)) != NULL ||
+        (tok = match(TK_VOLATILE)) != NULL) {
+      // `type` might be pointing const value, so we cannot modify it.
+      // TODO: Manage primitive types.
+      // type->qualifier |= TQ_CONST;
+      if (ptr_or_array(type))
+        type->qualifier |= tok->kind == TK_CONST ? TQ_CONST : TQ_VOLATILE;
+      continue;
+    }
+
+    if (!match(TK_MUL))
+      break;
+    type = ptrof(type);
   }
-  if (type->kind != TY_VOID)
-    type = parse_type_suffix(type);
 
   return type;
 }
 
-bool parse_var_def(const Type **prawType, const Type **ptype, int *pstorage, Token **pident) {
-  const Type *rawType = prawType != NULL ? *prawType : NULL;
+static Type *parse_declarator(Type *rawtype, Token **pident);
+
+// <direct-declarator> ::= <identifier>
+//                       | ( <declarator> )
+//                       | <direct-declarator> [ {<constant-expression>}? ]
+//                       | <direct-declarator> ( <parameter-type-list> )
+//                       | <direct-declarator> ( {<identifier>}* )
+static Type *parse_direct_declarator_suffix(Type *type) {
+  if (match(TK_LBRACKET)) {
+    ssize_t length = -1;
+    if (match(TK_RBRACKET)) {
+      // Arbitrary size.
+    } else {
+      Expr *expr = parse_const();
+      if (!(is_const(expr) && is_number(expr->type)))
+        parse_error(expr->token, "syntax error");
+      if (expr->fixnum <= 0)
+        parse_error(expr->token, "Array size must be greater than 0, but %d", (int)expr->fixnum);
+      length = expr->fixnum;
+      consume(TK_RBRACKET, "`]' expected");
+    }
+    type = arrayof(parse_direct_declarator_suffix(type), length);
+  } else if (match(TK_LPAR)) {
+    bool vaargs;
+    Vector *params = parse_funparams(&vaargs);
+    const Type *rettype = parse_direct_declarator_suffix(type);
+
+    Vector *param_types = extract_varinfo_types(params);
+    type = new_func_type(rettype, params, param_types, vaargs);
+  }
+  return type;
+}
+static Type *parse_direct_declarator(Type *type, Token **pident) {
+  Token *ident = NULL;
+  if (match(TK_LPAR)) {
+    Type *ret = type;
+    Type *placeholder = calloc(1, sizeof(*placeholder));
+    assert(placeholder != NULL);
+    memcpy(placeholder, type, sizeof(*placeholder));
+
+    type = parse_declarator(placeholder, &ident);
+    consume(TK_RPAR, "`)' expected");
+
+    Type *inner = parse_direct_declarator_suffix(ret);
+    memcpy(placeholder, inner, sizeof(*placeholder));
+  } else {
+    ident = match(TK_IDENT);
+    type = parse_direct_declarator_suffix(type);
+  }
+
+  if (pident != NULL)
+    *pident = ident;
+
+  return type;
+}
+
+// <declarator> ::= {<pointer>}? <direct-declarator>
+static Type *parse_declarator(Type *rawtype, Token **pident) {
+  Type *type = parse_pointer(rawtype);
+  return parse_direct_declarator(type, pident);
+}
+
+bool parse_var_def(Type **prawType, const Type **ptype, int *pstorage, Token **pident) {
+  Type *rawType = prawType != NULL ? *prawType : NULL;
   if (rawType == NULL) {
     rawType = parse_raw_type(pstorage);
     if (rawType == NULL)
@@ -983,25 +1056,7 @@ bool parse_var_def(const Type **prawType, const Type **ptype, int *pstorage, Tok
       *prawType = rawType;
   }
 
-  const Type *type = parse_type_modifier(rawType);
-  Token *ident;
-  if (match(TK_LPAR)) {  // Funcion pointer type.
-    const Type *base_type = type;
-    Type *place_holder = calloc(1, sizeof(*place_holder));
-    type = parse_type_modifier(place_holder);
-    ident = match(TK_IDENT);
-    type = parse_type_suffix(type);
-    consume(TK_RPAR, "`)' expected");
-
-    const Type *inner_type = parse_var_def_cont(base_type);
-    memcpy(place_holder, inner_type, sizeof(*place_holder));
-  } else {
-    ident = match(TK_IDENT);
-    type = parse_var_def_cont(type);
-  }
-  *ptype = type;
-  if (pident != NULL)
-    *pident = ident;
+  *ptype = parse_declarator(rawType, pident);
   return true;
 }
 
@@ -1069,7 +1124,7 @@ static StructInfo *parse_struct(bool is_union) {
     if (match(TK_RBRACE))
       break;
 
-    const Type *rawType = NULL;
+    Type *rawType = NULL;
     for (;;) {
       const Type *type;
       int storage;

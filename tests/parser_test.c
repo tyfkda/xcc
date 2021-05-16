@@ -67,6 +67,12 @@ void test_parse_full_type(void) {
   {
     Vector *param_types = new_vector();
     vec_push(param_types, get_fixnum_type(FX_LONG, false, 0));
+    const Type *func = new_func_type(&tyInt, NULL, param_types, false);
+    expect_parse_type("func", func, "func", "int func(long)");
+  }
+  {
+    Vector *param_types = new_vector();
+    vec_push(param_types, get_fixnum_type(FX_LONG, false, 0));
     const Type *funcptr = ptrof(new_func_type(&tyInt, NULL, param_types, false));
     expect_parse_type("func ptr", funcptr, "func", "int(*func)(long)");
   }
@@ -83,6 +89,18 @@ void test_parse_full_type(void) {
     const Type *funcptr = ptrof(new_func_type(&tyInt, NULL, param_types, false));
     const Type *aofp = arrayof(funcptr, 4);
     expect_parse_type("array of func ptr", aofp, NULL, "int(*[4])(void)");
+  }
+
+  {
+    Vector *param_types2 = new_vector();
+    vec_push(param_types2, &tyInt);
+    const Type *param_funcptr = ptrof(new_func_type(&tyVoid, NULL, param_types2, false));
+
+    Vector *param_types = new_vector();
+    vec_push(param_types, &tyInt);
+    vec_push(param_types, param_funcptr);
+    const Type *functype = new_func_type(param_funcptr, NULL, param_types, false);
+    expect_parse_type("signal", functype, "signal", "void(*signal(int, void(*)(int)))(int)");
   }
 
 #ifndef __NO_FLONUM

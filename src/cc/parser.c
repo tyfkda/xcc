@@ -743,7 +743,7 @@ static bool def_type(const Type *type, Token *ident) {
   }
 }
 
-static Vector *parse_vardecl_cont(const Type *rawType, Type *type, int storage, Token *ident) {
+static Vector *parse_vardecl_cont(Type *rawType, Type *type, int storage, Token *ident) {
   Vector *decls = NULL;
   bool first = true;
   do {
@@ -792,7 +792,7 @@ static Vector *parse_vardecl_cont(const Type *rawType, Type *type, int storage, 
 }
 
 static bool parse_vardecl(Stmt **pstmt) {
-  const Type *rawType = NULL;
+  Type *rawType = NULL;
   Type *type;
   int storage;
   Token *ident;
@@ -927,7 +927,7 @@ static Stmt *parse_for(const Token *tok) {
   Vector *decls = NULL;
   Scope *scope = NULL;
   if (!match(TK_SEMICOL)) {
-    const Type *rawType = NULL;
+    Type *rawType = NULL;
     Type *type;
     int storage;
     Token *ident;
@@ -1216,7 +1216,8 @@ static Declaration *parse_global_var_decl(
 }
 
 static Declaration *parse_declaration(void) {
-  const Type *rawtype = NULL, *type;
+  Type *rawtype = NULL;
+  const Type *type;
   int storage;
   Token *ident;
   if (parse_var_def(&rawtype, &type, &storage, &ident)) {
