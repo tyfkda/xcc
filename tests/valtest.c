@@ -644,6 +644,36 @@ int main(void) {
   }
   expect("file static", 456, s_val);
   expect("extern", 789, e_val);
+
+  {
+    static static_only = 11;
+    expect("static_only", 11, static_only);
+    expect("sizeof static_only", sizeof(int), sizeof(static_only));
+  }
+  {
+    extern extern_only;
+    expect("extern_only", 22, extern_only);
+    expect("sizeof extern_only", sizeof(int), sizeof(extern_only));
+  }
+  {
+    const const_only = 33;
+    expect("const_only", 33, const_only);
+    expect("sizeof const_only", sizeof(int), sizeof(const_only));
+  }
+  {
+    volatile volatile_only = 44;
+    expect("volatile_only", 44, volatile_only);
+    expect("sizeof volatile_only", sizeof(int), sizeof(volatile_only));
+  }
+  {
+    static const struct {
+      int x;
+    } sc_struct = {
+      55
+    };
+    expect("sc_struct", 55, sc_struct.x);
+  }
+
   {
     int desig[] = {[2] = 100, [1] 200};
     expect("desig[0]",   0, desig[0]);
@@ -685,6 +715,8 @@ int main(void) {
 }
 
 int e_val = 789;
+
+int extern_only = 22;
 
 short protodecl(short x) {
   return x * x;

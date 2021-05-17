@@ -810,7 +810,7 @@ static bool parse_vardecl(Stmt **pstmt) {
     }
   } else {
     Vector *decls = parse_vardecl_cont(rawType, type, storage, ident);
-    consume(TK_SEMICOL, "`;' expected 2");
+    consume(TK_SEMICOL, "`;' expected");
     if (decls != NULL) {
       Vector *inits = !is_global_scope(curscope) ? construct_initializing_stmts(decls) : NULL;
       *pstmt = new_stmt_vardecl(decls, inits);

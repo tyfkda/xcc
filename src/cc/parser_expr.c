@@ -754,9 +754,10 @@ static void check_type_combination(const TypeCombination *tc, const Token *tok) 
   }
 }
 
-static bool no_type_combination(const TypeCombination *tc) {
+static bool no_type_combination(const TypeCombination *tc, int storage_mask, int qualifier_mask) {
   return tc->unsigned_num == 0 && tc->signed_num == 0 &&
-      tc->char_num == 0 && tc->short_num == 0 && tc->int_num == 0 && tc->long_num == 0
+      tc->char_num == 0 && tc->short_num == 0 && tc->int_num == 0 && tc->long_num == 0 &&
+      (tc->storage & storage_mask) == 0 && (tc->qualifier & qualifier_mask) == 0
 #ifndef __NO_FLONUM
       && tc->float_num == 0 && tc->double_num == 0
 #endif
@@ -837,10 +838,9 @@ const Type *parse_raw_type(int *pstorage) {
       break;
     }
 
-    Token *ident;
     if (tok->kind == TK_STRUCT ||
         tok->kind == TK_UNION) {
-      if (!no_type_combination(&tc))
+      if (!no_type_combination(&tc, 0, 0))
         parse_error(tok, "Illegal type combination");
 
       bool is_union = tok->kind == TK_UNION;
@@ -874,15 +874,13 @@ const Type *parse_raw_type(int *pstorage) {
 
       type = create_struct_type(sinfo, name, tc.qualifier);
     } else if (tok->kind == TK_ENUM) {
-      if (!no_type_combination(&tc))
+      if (!no_type_combination(&tc, 0, 0))
         parse_error(tok, "Illegal type combination");
 
       type = parse_enum();
     } else if (tok->kind == TK_IDENT) {
-      TypeCombination tc2 = tc;
-      tc2.storage &= ~VS_TYPEDEF;
-      if (no_type_combination(&tc2)) {
-        ident = tok;
+      if (no_type_combination(&tc, 0, 0)) {
+        Token *ident = tok;
         type = find_typedef(curscope, ident->ident, NULL);
       }
     } else if (tok->kind == TK_VOID) {
@@ -894,7 +892,7 @@ const Type *parse_raw_type(int *pstorage) {
     }
   }
 
-  if (type == NULL && !no_type_combination(&tc)) {
+  if (type == NULL && !no_type_combination(&tc, ~0, ~0)) {
 #ifndef __NO_FLONUM
     if (tc.float_num > 0) {
       type = &tyFloat;
