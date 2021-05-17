@@ -738,9 +738,9 @@ static void check_type_combination(const TypeCombination *tc, const Token *tok) 
   if (tc->unsigned_num > 1 || tc->signed_num > 1 ||
       tc->char_num > 1 || tc->short_num > 1 || tc->int_num > 1 ||
       tc->long_num >= (int)(sizeof(kLongKinds) / sizeof(*kLongKinds)) ||
-      ((tc->char_num > 0) + (tc->short_num > 0) + (tc->long_num > 0) > 1) ||
+      ((tc->char_num > 0) + (tc->short_num > 0) + (tc->long_num > 0) > 1)
 #ifndef __NO_FLONUM
-      tc->float_num > 1 || tc->double_num > 1 ||
+      || tc->float_num > 1 || tc->double_num > 1 ||
       ((tc->float_num > 0 || tc->double_num > 0) &&
        (tc->char_num > 0 || tc->short_num > 0 || tc->int_num > 0 || tc->long_num > 0 ||
         tc->unsigned_num > 0 || tc->signed_num > 0) &&
@@ -756,9 +756,9 @@ static void check_type_combination(const TypeCombination *tc, const Token *tok) 
 
 static bool no_type_combination(const TypeCombination *tc) {
   return tc->unsigned_num == 0 && tc->signed_num == 0 &&
-      tc->char_num == 0 && tc->short_num == 0 && tc->int_num == 0 && tc->long_num == 0 &&
+      tc->char_num == 0 && tc->short_num == 0 && tc->int_num == 0 && tc->long_num == 0
 #ifndef __NO_FLONUM
-      tc->float_num == 0 && tc->double_num == 0
+      && tc->float_num == 0 && tc->double_num == 0
 #endif
       ;
 }
@@ -895,11 +895,14 @@ const Type *parse_raw_type(int *pstorage) {
   }
 
   if (type == NULL && !no_type_combination(&tc)) {
+#ifndef __NO_FLONUM
     if (tc.float_num > 0) {
       type = &tyFloat;
     } else if (tc.double_num > 0) {
       type = tc.double_num > 1 ? &tyLDouble : &tyDouble;
-    } else {
+    } else
+#endif
+    {
       enum FixnumKind fk =
           (tc.char_num > 0) ? FX_CHAR :
           (tc.short_num > 0) ? FX_SHORT : kLongKinds[tc.long_num];
