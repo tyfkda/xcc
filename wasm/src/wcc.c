@@ -802,6 +802,7 @@ int main(int argc, char *argv[]) {
     error("cannot open temporary file");
 
   init_preprocessor(ppout);
+  define_macro_simple("__ILP32__");
   init_compiler();
 
   for (iarg = 1; iarg < argc; ++iarg) {

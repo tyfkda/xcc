@@ -224,6 +224,7 @@ int main(int argc, char *argv[]) {
 
   Vector *cpp_cmd = new_vector();
   vec_push(cpp_cmd, cpp_path);
+  vec_push(cpp_cmd, "-D__LP64__");  // Memory model.
 
   Vector *cc1_cmd = new_vector();
   vec_push(cc1_cmd, cc1_path);
