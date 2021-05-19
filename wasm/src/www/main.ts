@@ -143,12 +143,93 @@ function clearSharingUrlParameters() {
   window.history.replaceState(null, document.title, window.location.pathname)
 }
 
-window.addEventListener('load', () => {
-  const WCC_PATH = 'cc.wasm'
-  const LIBS_PATH = 'libs.json'
-  const LIBC_FILE_NAME = '/usr/lib/lib.c'
+function save() {
+  saveCodeToStorage()
+  alert('Saved!')
+  window.location.hash = ''
+}
 
-  const storage = new WaStorage()
+const WCC_PATH = 'cc.wasm'
+const LIBS_PATH = 'libs.json'
+const LIBC_FILE_NAME = '/usr/lib/lib.c'
+
+const storage = new WaStorage()
+
+let wccWasm: Uint8Array
+Util.loadFromServer(WCC_PATH, {binary: true})
+  .then(wasm => wccWasm = new Uint8Array(wasm as ArrayBuffer))
+
+async function compile(sourceCode: string): Promise<Uint8Array|null> {
+  const sourceName = 'main.c'
+  const waproc = new WaProc(storage)
+  waproc.chdir(`/home/${USER}`)
+  waproc.saveFile(sourceName, sourceCode)
+
+  const args = ['cc', '-I/usr/include', '-emain', sourceName, LIBC_FILE_NAME]
+  const result = await waproc.runWasmMain(wccWasm, args)
+  if (result !== 0)
+    return null
+
+  return waproc.loadFile('a.wasm')
+}
+
+async function run(argStr: string) {
+  if (wccWasm == null)
+    return  // TODO: Error message
+
+  Util.clearTerminal()
+  editor.focus()
+
+  // Compile
+  let compiledCode: Uint8Array|null
+  try {
+    compiledCode = await compile(editor.getValue())
+    if (compiledCode == null)
+      return
+  } catch (e) {
+    if (!(e instanceof ExitCalledError))
+      Util.putTerminalError(e)
+    return
+  }
+
+  // Run
+  const waproc = new WaProc(storage)
+  waproc.chdir(`/home/${USER}`)
+  waproc.registerCFunction(
+    'showGraphic',
+    (width: number, height: number, img: number) => {
+      const canvas = DomUtil.createCanvas(width, height)
+      DomUtil.setStyles(canvas, {display: 'block'})
+      putPixels(canvas, waproc.getLinearMemory(), img)
+
+      const div = document.createElement('div')
+      div.className = 'wnd draggable'
+      DomUtil.setStyles(div, {zIndex: 10000})
+      div.appendChild(canvas)
+      DomUtil.makeDraggable(div)
+
+      const closeButton = DomUtil.addDivButton(div, () => {
+        div.parentNode?.removeChild(div)
+      })
+      closeButton.className = 'close-button'
+
+      document.body.appendChild(div)
+      DomUtil.putOnCenter(div)
+    })
+  const args = argStr === '' ? [] : argStr.trim().split(/\s+/)
+  args.unshift('a.wasm')
+  try {
+    const result = await waproc.runWasmMain(compiledCode, args)
+    if (result != 0)
+      console.error(`Exit code=${result}`)
+  } catch (e) {
+    if (!(e instanceof ExitCalledError))
+      Util.putTerminalError(e)
+    return
+  }
+}
+
+window.addEventListener('load', () => {
   Util.loadFromServer(LIBS_PATH)
     .then(libs => {
       function setFiles(path, json) {
@@ -164,184 +245,9 @@ window.addEventListener('load', () => {
       setFiles('', JSON.parse(libs as string))
     })
 
-  let wccWasm
-  Util.loadFromServer(WCC_PATH, {binary: true})
-    .then(wasm => wccWasm = new Uint8Array(wasm as ArrayBuffer))
-
-  async function compile(sourceCode: string): Promise<Uint8Array|null> {
-    const sourceName = 'main.c'
-    const waproc = new WaProc(storage)
-    waproc.chdir(`/home/${USER}`)
-    waproc.saveFile(sourceName, sourceCode)
-
-    const args = ['cc', '-I/usr/include', '-emain', sourceName, LIBC_FILE_NAME]
-    const result = await waproc.runWasmMain(wccWasm, args)
-    if (result !== 0)
-      return null
-
-    return waproc.loadFile('a.wasm')
-  }
-
-  async function run() {
-    if (wccWasm == null)
-      return  // TODO: Error message
-
-    Util.clearTerminal()
-    editor.focus()
-
-    // Compile
-    let compiledCode
-    try {
-      compiledCode = await compile(editor.getValue())
-      if (compiledCode == null)
-        return
-    } catch (e) {
-      if (!(e instanceof ExitCalledError))
-        Util.putTerminalError(e)
-      return
-    }
-
-    // Run
-    const waproc = new WaProc(storage)
-    waproc.chdir(`/home/${USER}`)
-    waproc.registerCFunction(
-      'showGraphic',
-      (width, height, img) => {
-        const canvas = DomUtil.createCanvas(width, height)
-        DomUtil.setStyles(canvas, {display: 'block'})
-        putPixels(canvas, waproc.getLinearMemory(), img)
-
-        const div = document.createElement('div')
-        div.className = 'wnd draggable'
-        DomUtil.setStyles(div, {zIndex: 10000})
-        div.appendChild(canvas)
-        DomUtil.makeDraggable(div)
-
-        const closeButton = DomUtil.addDivButton(div, () => {
-          div.parentNode?.removeChild(div)
-        })
-        closeButton.className = 'close-button'
-
-        document.body.appendChild(div)
-        DomUtil.putOnCenter(div)
-      })
-    const argStr = (document.getElementById('args') as HTMLInputElement).value.trim()
-    const args = argStr === '' ? [] : argStr.trim().split(/\s+/)
-    args.unshift('a.wasm')
-    try {
-      const result = await waproc.runWasmMain(compiledCode, args)
-      if (result != 0)
-        console.error(`Exit code=${result}`)
-    } catch (e) {
-      if (!(e instanceof ExitCalledError))
-        Util.putTerminalError(e)
-      return
-    }
-  }
-
-  function save() {
-    saveCodeToStorage()
-    alert('Saved!')
-    window.location.hash = ''
-  }
-
-  document.getElementById('run')!.addEventListener('click', run)
-
-  editor.commands.addCommands([
-    {
-      Name : 'Run',
-      bindKey: {
-        win : 'Ctrl-Enter',
-        mac : 'Command-Enter'
-      },
-      exec: (_editor) => run(),
-    },
-    {
-      name: 'Save',
-      bindKey: {
-        win: 'Ctrl-S',
-        mac: 'Command-S',
-        sender: 'editor|cli'
-      },
-      exec: (_editor, _args, _request) => save(),
-    },
-  ])
-
-  const searchParams = new URLSearchParams(window.location.search)
-  if (searchParams.has('code')) {
-    loadCodeToEditor(searchParams.get('code') || '', '')
-    ;(document.getElementById('args') as HTMLInputElement).value = searchParams.get('args') || ''
-  } else if (!loadCodeFromStorage()) {
-    loadCodeToEditor(ExampleCodes.hello, 'Hello')
-  }
-
   window.addEventListener('resize', () => {
     split.resize()
   }, false)
-
-  const sysmenu = document.getElementById('sysmenu')!
-  const shareLink = document.getElementById('share') as HTMLAnchorElement
-  function closeSysmenu() {
-    DomUtil.setStyles(sysmenu, {
-      display: 'none',
-    })
-  }
-  document.getElementById('nav-open')!.addEventListener('click', () => {
-    const code = editor.getValue().trim()
-    const shareSection = document.getElementById('share-section') as HTMLElement
-    if (code !== '') {
-      const args = (document.getElementById('args') as HTMLInputElement).value.trim()
-      DomUtil.setStyles(shareSection, {display: null})
-      shareLink.href = `?code=${encodeForHashString(code)}&args=${encodeForHashString(args)}`
-      delete shareLink.dataset.disabled
-    } else {
-      DomUtil.setStyles(shareSection, {display: 'none'})
-      shareLink.dataset.disabled = 'disabled'
-    }
-
-    DomUtil.setStyles(sysmenu, {display: null})
-  })
-  sysmenu.addEventListener('click', closeSysmenu)
-  const selectElement = document.getElementById('example-select') as HTMLSelectElement
-  selectElement.addEventListener('change', _ => {
-    const selected = selectElement.value
-    selectElement.value = ''
-    closeSysmenu()
-    clearSharingUrlParameters()
-
-    const code = ExampleCodes[selected]
-    const option = [].slice.call(selectElement.options).find(o => o.value === selected)
-    loadCodeToEditor(code, `Load "${option.text}"`)
-    ;(document.getElementById('args') as HTMLInputElement).value = ''
-  })
-  document.getElementById('new')!.addEventListener('click', event => {
-    event.preventDefault()
-    closeSysmenu()
-    loadCodeToEditor('', 'New')
-    clearSharingUrlParameters()
-    return false
-  })
-  document.getElementById('save')!.addEventListener('click', event => {
-    event.preventDefault()
-    closeSysmenu()
-    save()
-    clearSharingUrlParameters()
-    return false
-  })
-  shareLink.addEventListener('click', event => {
-    event.preventDefault()
-    if (shareLink.dataset.disabled !== 'disabled') {
-      closeSysmenu()
-      const url = new URL(shareLink.href)
-      let path = url.pathname
-      if (url.search)
-        path += url.search
-       window.history.replaceState(null, document.title, path)
-      navigator.clipboard.writeText(shareLink.href)
-        .then(_ => alert('URL copied!'))
-    }
-    return false
-  })
 
   window.addEventListener('beforeunload', event => {
     if (!isCodeModified())
@@ -350,3 +256,99 @@ window.addEventListener('load', () => {
     event.returnValue = ''
   })
 })
+
+window.initialData = {
+  showSysmenu: false,
+  example: '',
+  shareUrl: null,
+  args: '',
+
+  init() {
+    const searchParams = new URLSearchParams(window.location.search)
+    if (searchParams.has('code')) {
+      loadCodeToEditor(searchParams.get('code') || '', '')
+      this.args = searchParams.get('args') || ''
+    } else if (!loadCodeFromStorage()) {
+      loadCodeToEditor(ExampleCodes.hello, 'Hello')
+    }
+
+    editor.commands.addCommands([
+      {
+        Name : 'Run',
+        bindKey: {
+          win : 'Ctrl-Enter',
+          mac : 'Command-Enter'
+        },
+        exec: (_editor) => run(this.args),
+      },
+      {
+        name: 'Save',
+        bindKey: {
+          win: 'Ctrl-S',
+          mac: 'Command-S',
+          sender: 'editor|cli'
+        },
+        exec: (_editor, _args, _request) => {
+          save()
+          clearSharingUrlParameters()
+        },
+      },
+    ])
+
+    this.$watch('example', (selected: string) => {
+      this.closeSysmenu()
+      clearSharingUrlParameters()
+
+      const code = ExampleCodes[selected]
+      const selectElement = document.getElementById('example-select') as HTMLSelectElement
+      const option = [].slice.call(selectElement.options).find((o: HTMLOptionElement) => o.value === selected)
+      loadCodeToEditor(code, `Load "${option.text}"`)
+      this.args = ''
+
+      this.example = ''
+    })
+  },
+  onClickNavOpen() {
+    const code = editor.getValue().trim()
+    if (code !== '') {
+      const args = this.args.trim()
+      this.shareUrl = `?code=${encodeForHashString(code)}&args=${encodeForHashString(args)}`
+    } else {
+      this.shareUrl = null
+    }
+
+    this.showSysmenu = true
+  },
+  closeSysmenu() {
+    this.showSysmenu = false
+  },
+  newFile(event: Event) {
+    event.preventDefault()
+    this.closeSysmenu()
+    loadCodeToEditor('', 'New')
+    clearSharingUrlParameters()
+  },
+  saveFile(event: Event) {
+    event.preventDefault()
+    this.closeSysmenu()
+    save()
+    clearSharingUrlParameters()
+  },
+  shareLink(event: Event) {
+    event.preventDefault()
+    if (this.shareUrl != null) {
+      this.closeSysmenu()
+      const url = new URL(this.shareUrl, window.location.href)
+      let path = url.pathname
+      if (url.search)
+        path += url.search
+       window.history.replaceState(null, document.title, path)
+      navigator.clipboard.writeText(url.toString())
+        .then(_ => alert('URL copied!'))
+    }
+    return false
+  },
+  runCode() {
+    run(this.args)
+  },
+}
