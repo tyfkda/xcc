@@ -16,6 +16,7 @@ const char DATA_END_ADDRESS_NAME[] = "$_DE";
 const char SP_NAME[] = "$_SP";  // Hidden variable name for stack pointer (global).
 const char BP_NAME[] = ".._BP";  // Hidden variable name for base pointer.
 const char MEMCPY_NAME[] = "_memcpy";
+const char MEMSET_NAME[] = "_memset";
 const char VA_ARGS_NAME[] = ".._VA_ARGS";
 const char RETVAL_NAME[] = ".._RETVAL";
 
@@ -503,10 +504,32 @@ static void traverse_for(Stmt *stmt) {
 }
 
 static void traverse_vardecl(Stmt *stmt) {
-  if (stmt->vardecl.decls != NULL) {
-    for (int i = 0, n = stmt->vardecl.decls->len; i < n; ++i) {
-      VarDecl *decl = stmt->vardecl.decls->data[i];
+  Vector *decls = stmt->vardecl.decls;
+  if (decls != NULL) {
+    for (int i = 0, n = decls->len; i < n; ++i) {
+      VarDecl *decl = decls->data[i];
+      if (decl->init == NULL)
+        continue;
       traverse_initializer(decl->init);
+
+      VarInfo *varinfo = scope_find(curscope, decl->ident->ident, NULL);
+      if (varinfo != NULL && (varinfo->storage & (VS_STATIC | VS_EXTERN)) == 0 &&
+          (varinfo->type->kind == TY_STRUCT ||
+           varinfo->type->kind == TY_ARRAY)) {
+
+        const Name *funcname = alloc_name(MEMSET_NAME, NULL, false);
+        if (table_get(&func_info_table, funcname) == NULL) {
+          const Type *rettype = &tyVoid;  // Differ from memset, no return value.
+          Vector *params = new_vector();
+          var_add(params, NULL, &tyVoidPtr, 0, NULL);
+          var_add(params, NULL, &tyInt, 0, NULL);
+          var_add(params, NULL, &tySize, 0, NULL);
+          Vector *param_types = extract_varinfo_types(params);
+          const Type *functype = new_func_type(rettype, params, param_types, false);
+          register_func_info(funcname, NULL, functype, FF_REFERED);
+          scope_add(global_scope, alloc_ident(funcname, NULL, NULL), functype, 0);
+        }
+      }
     }
   }
   traverse_stmts(stmt->vardecl.inits);

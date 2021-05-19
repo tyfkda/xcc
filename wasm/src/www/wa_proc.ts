@@ -191,6 +191,11 @@ export class WaProc {
           const memoryImage = new Uint8Array(this.memory.buffer)
           memoryImage.copyWithin(dst, src, src + len)
         },
+        _memset: (dst, val, len) => {
+          const memoryImage = new Uint8Array(this.memory.buffer)
+          for (let i = 0; i < len; ++i)
+            memoryImage[dst++] = val
+        },
       },
       env: {
         memory: this.memory,

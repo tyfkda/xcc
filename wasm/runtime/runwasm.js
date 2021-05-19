@@ -194,6 +194,11 @@ function tmpfileSync(len) {
           const memoryImage = new Uint8Array(memory.buffer)
           memoryImage.copyWithin(dst, src, src + len)
         },
+        _memset: (dst, val, len) => {
+          const memoryImage = new Uint8Array(memory.buffer)
+          for (let i = 0; i < len; ++i)
+            memoryImage[dst++] = val
+        },
       },
       env: {
         memory,

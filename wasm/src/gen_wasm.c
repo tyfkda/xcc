@@ -1126,7 +1126,13 @@ static void gen_continue(void) {
 }
 
 static void gen_block(Stmt *stmt) {
+  if (stmt->block.scope != NULL) {
+    assert(curscope == stmt->block.scope->parent);
+    curscope = stmt->block.scope;
+  }
   gen_stmts(stmt->block.stmts);
+  if (stmt->block.scope != NULL)
+    curscope = curscope->parent;
 }
 
 static void gen_return(Stmt *stmt) {
@@ -1158,10 +1164,27 @@ static void gen_if(Stmt *stmt) {
   --cur_depth;
 }
 
+static void gen_clear_local_var(const VarInfo *varinfo) {
+  // Fill with zeros regardless of variable type.
+  size_t size = type_size(varinfo->type);
+  if (size <= 0)
+    return;
+  // VReg *reg = varinfo->local.reg;
+  // new_ir_clear(reg, size);
+
+  // gen_lval(expr->bop.lhs);
+  VReg *vreg = varinfo->local.reg;
+  gen_bpofs(vreg->non_prim.offset);
+  ADD_CODE(OP_I32_CONST);
+  ADD_LEB128(0);
+  ADD_CODE(type_size(&tySize) <= I32_SIZE ? OP_I32_CONST : OP_I64_CONST);
+  ADD_LEB128(size);
+  gen_funcall_by_name(alloc_name(MEMSET_NAME, NULL, false));
+}
+
 static void gen_vardecl(Vector *decls, Vector *inits) {
   if (curfunc != NULL) {
-    UNUSED(decls);
-    /*for (int i = 0; i < decls->len; ++i) {
+    for (int i = 0; i < decls->len; ++i) {
       VarDecl *decl = decls->data[i];
       if (decl->init == NULL)
         continue;
@@ -1171,7 +1194,7 @@ static void gen_vardecl(Vector *decls, Vector *inits) {
             varinfo->type->kind == TY_ARRAY))
         continue;
       gen_clear_local_var(varinfo);
-    }*/
+    }
   }
   gen_stmts(inits);
 }
@@ -1360,6 +1383,7 @@ static void gen_defun(Function *func) {
   }
 
   // Statements
+  curscope = func->scopes->data[0];
   ADD_CODE(OP_BLOCK, WT_VOID);
   cur_depth += 1;
   gen_stmts(func->stmts);
@@ -1367,6 +1391,7 @@ static void gen_defun(Function *func) {
   ADD_CODE(OP_END);
   cur_depth -= 1;
   assert(cur_depth == 0);
+  curscope = global_scope;
 
   // Restore stack pointer.
   if (frame_size > 0) {
