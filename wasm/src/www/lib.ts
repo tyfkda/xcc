@@ -1,3 +1,0 @@
-// Lib
-
-// import 'babel-polyfill'
