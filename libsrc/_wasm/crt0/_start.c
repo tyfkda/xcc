@@ -5,22 +5,22 @@
 #include "../../stdio/_fileman.h"
 #include "../wasi.h"
 
-extern FILEMAN __fileman;
+// extern FILEMAN __fileman;
 
 // char **environ;
 
-static void __flush_all_files(void) {
-  fflush(stdout);
-  fflush(stderr);
+// static void __flush_all_files(void) {
+//   fflush(stdout);
+//   fflush(stderr);
 
-  struct FILE **files = __fileman.opened;
-  for (int i = 0, length = __fileman.length; i < length; ++i)
-    fflush(files[i]);
-}
+//   struct FILE **files = __fileman.opened;
+//   for (int i = 0, length = __fileman.length; i < length; ++i)
+//     fflush(files[i]);
+// }
 
-static void _atexit_proc(void) {
-  __flush_all_files();
-}
+// static void _atexit_proc(void) {
+//   __flush_all_files();
+// }
 
 void _start(void) {
   extern int main(int, char**);
@@ -38,7 +38,9 @@ void _start(void) {
   }
   argv[argc] = NULL;
 
-  atexit(_atexit_proc);
+  // atexit(_atexit_proc);
   int ec = main(argc, argv);
-  exit(ec);
+  // exit(ec);
+  if (ec != 0)
+    proc_exit(ec);
 }
