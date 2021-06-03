@@ -39,7 +39,7 @@ function tmpfileSync(len) {
 }
 
 ;(async () => {
-  const memory = new WebAssembly.Memory({initial:10, maximum:256})
+  let memory
   const HEAP_ALIGN = 8
   const HEAP_PAGE_SIZE = 65536
   let breakStartAddress = 0
@@ -51,6 +51,7 @@ function tmpfileSync(len) {
         const d = ptr - memory.buffer.byteLength
         const page = Math.floor((d + HEAP_PAGE_SIZE - 1) / HEAP_PAGE_SIZE)
         memory.grow(page)
+        assert(ptr <= memory.buffer.byteLength)
       }
       breakAddress = ptr
     }
@@ -200,9 +201,6 @@ function tmpfileSync(len) {
             memoryImage[dst++] = val
         },
       },
-      env: {
-        memory,
-      },
     }
     return imports
   }
@@ -210,6 +208,9 @@ function tmpfileSync(len) {
   async function loadWasm(wasmFile) {
     const imports = getImports()
     const instance = await createWasm(wasmFile, imports)
+    if (instance.exports.memory) {
+      memory = instance.exports.memory
+    }
     const stackPointer = instance.exports.$_SP
     if (stackPointer != null)
       breakStartAddress = breakAddress = ALIGN(stackPointer.valueOf(), HEAP_ALIGN)

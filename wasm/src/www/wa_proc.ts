@@ -29,7 +29,6 @@ export class WaProc {
 
   constructor(files: any) {
     this.fs = new FileSystem(files)
-    this.memory = new WebAssembly.Memory({initial:10, maximum:100})
     this.imports = this.createImports()
   }
 
@@ -95,6 +94,9 @@ export class WaProc {
     }
     const instance = obj.instance
 
+    if (instance.exports.memory) {
+      this.memory = instance.exports.memory
+    }
     const stackPointer = instance.exports.$_SP
     if (stackPointer != null)
       this.breakStartAddress = this.breakAddress = ALIGN(stackPointer.valueOf(), HEAP_ALIGN)

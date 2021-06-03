@@ -693,7 +693,7 @@ static void add_builtins(void) {
   }
 }
 
-void traverse_ast(Vector *decls, Vector *exports) {
+uint32_t traverse_ast(Vector *decls, Vector *exports, uint32_t stack_size) {
   for (int i = 0, len = decls->len; i < len; ++i) {
     Declaration *decl = decls->data[i];
     traverse_decl(decl);
@@ -732,6 +732,7 @@ void traverse_ast(Vector *decls, Vector *exports) {
 
   add_builtins();
 
+  uint32_t sp_bottom;
   {
     // Enumerate global variables.
     const uint32_t START_ADDRESS = 1;  // Avoid valid poiter is NULL.
@@ -740,7 +741,7 @@ void traverse_ast(Vector *decls, Vector *exports) {
     GVarInfo *info;
 
     // Enumerate data and bss.
-    VERBOSES("### Memory\n");
+    VERBOSE("### Memory  0x%x\n", address);
     for (int it = 0; (it = table_iterate(&gvar_info_table, it, &name, (void**)&info)) != -1; ) {
       const VarInfo *varinfo = info->varinfo;
       if ((is_prim_type(varinfo->type) && !(varinfo->storage & VS_REF_TAKEN)) ||
@@ -749,10 +750,11 @@ void traverse_ast(Vector *decls, Vector *exports) {
       // Mapped to memory, with initializer
       address = ALIGN(address, align_size(varinfo->type));
       info->non_prim.address = address;
-      address += type_size(varinfo->type);
-      VERBOSE("%04x: %.*s\n", info->non_prim.address, name->bytes, name->chars);
+      size_t size = type_size(varinfo->type);
+      address += size;
+      VERBOSE("%04x: %.*s  (size=0x%lx)\n", info->non_prim.address, name->bytes, name->chars, size);
     }
-    VERBOSES("---- BSS\n");
+    VERBOSE("---- BSS  0x%x\n", address);
     // Mapped to memory, without initialzer (BSS).
     for (int it = 0; (it = table_iterate(&gvar_info_table, it, &name, (void**)&info)) != -1; ) {
       const VarInfo *varinfo = info->varinfo;
@@ -761,8 +763,9 @@ void traverse_ast(Vector *decls, Vector *exports) {
         continue;
       address = ALIGN(address, align_size(varinfo->type));
       info->non_prim.address = address;
-      address += type_size(varinfo->type);
-      VERBOSE("%04x: %.*s\n", info->non_prim.address, name->bytes, name->chars);
+      size_t size = type_size(varinfo->type);
+      address += size;
+      VERBOSE("%04x: %.*s  (size=0x%lx)\n", info->non_prim.address, name->bytes, name->chars, size);
     }
 
     // Primitive types (Globals).
@@ -786,15 +789,20 @@ void traverse_ast(Vector *decls, Vector *exports) {
       init->kind = IK_SINGLE;
       init->single = new_expr_fixlit(info->varinfo->type, NULL, address);
       info->varinfo->global.init = init;
+      VERBOSE("Data end: 0x%x\n", address);
     }
     {  // Stack pointer.
+      sp_bottom = ALIGN(address + stack_size, 16);
       GVarInfo *info = get_gvar_info_from_name(alloc_name(SP_NAME, NULL, false));
       assert(info != NULL);
       info->export = true;
       Initializer *init = calloc(1, sizeof(*init));
       init->kind = IK_SINGLE;
-      init->single = new_expr_fixlit(info->varinfo->type, NULL, ALIGN(address + stack_size, 16));
+      init->single = new_expr_fixlit(info->varinfo->type, NULL, sp_bottom);
       info->varinfo->global.init = init;
+      VERBOSE("SP bottom: 0x%x  (size=0x%x)\n", sp_bottom, stack_size);
     }
   }
+
+  return sp_bottom;
 }

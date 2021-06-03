@@ -18,9 +18,9 @@
 #include "wasm_util.h"
 
 static const char IMPORT_MODULE_NAME[] = "c";
-static const char IMPORT_MODULE_ENV_NAME[] = "env";
+static const uint32_t DEFAULT_STACK_SIZE = 8 * 1024;
+static const uint32_t MEMORY_PAGE_SIZE = 65536;
 
-uint32_t stack_size = 8 * 1024;
 int error_count;
 bool verbose;
 
@@ -309,7 +309,7 @@ static int compare_indirect(const void *pa, const void *pb) {
   return (int)qa->indirect_index - (int)qb->indirect_index;
 }
 
-static void emit_wasm(FILE *ofp, Vector *exports) {
+static void emit_wasm(FILE *ofp, Vector *exports, uint32_t address_bottom) {
   emit_wasm_header(ofp);
 
   // Types.
@@ -388,21 +388,6 @@ static void emit_wasm(FILE *ofp, Vector *exports) {
       ++imports_count;
     }
   }
-  {  // TODO: If needed.
-    // Import memory "env.memory".
-    const char *module_name = IMPORT_MODULE_ENV_NAME;
-    size_t module_name_len = strlen(module_name);
-    emit_uleb128(&imports_section, imports_section.len, module_name_len);  // string length
-    data_append(&imports_section, (const unsigned char*)module_name, module_name_len);  // import module name
-    const char *name = "memory";
-    size_t name_len = strlen(name);
-    emit_uleb128(&imports_section, imports_section.len, name_len);  // string length
-    data_append(&imports_section, (const unsigned char*)name, name_len);  // import name
-    emit_uleb128(&imports_section, imports_section.len, IMPORT_MEMORY);  // import kind (function)
-    emit_uleb128(&imports_section, imports_section.len, 0);  // limits: flags
-    emit_uleb128(&imports_section, imports_section.len, 1);  // limits: initial
-    ++imports_count;
-  }
   if (imports_count > 0) {
     emit_uleb128(&imports_section, 0, imports_count);  // num imports
     emit_uleb128(&imports_section, 0, imports_section.len);  // Size
@@ -437,36 +422,16 @@ static void emit_wasm(FILE *ofp, Vector *exports) {
   data_push(&table_section, 0x00);  // limits: flags
   emit_leb128(&table_section, table_section.len, table_start_index + indirect_function_table.count);  // initial
 
-  // Elements.
-  DataStorage elems_section;
-  data_init(&elems_section);
-  if (indirect_function_table.count > 0) {
-    int count = indirect_function_table.count;
-    FuncInfo **indirect_funcs = malloc(sizeof(*indirect_funcs) * count);
-
-    // Enumerate imported functions.
-    VERBOSES("### Indirect functions\n");
-    const Name *name;
-    FuncInfo *info;
-    int index = 0;
-    for (int it = 0; (it = table_iterate(&indirect_function_table, it, &name, (void**)&info)) != -1; ++index)
-      indirect_funcs[index] = info;
-
-    QSORT(indirect_funcs, count, sizeof(*indirect_funcs), compare_indirect);
-
-    emit_leb128(&elems_section, elems_section.len, 1);  // num elem segments
-    emit_leb128(&elems_section, elems_section.len, 0);  // segment flags
-    data_push(&elems_section, OP_I32_CONST);
-    emit_leb128(&elems_section, elems_section.len, table_start_index);  // start index
-    data_push(&elems_section, OP_END);
-    emit_leb128(&elems_section, elems_section.len, count);  // num elems
-    for (int i = 0 ; i < count; ++i) {
-      FuncInfo *info = indirect_funcs[i];
-      VERBOSE("%2d: %.*s (%d)\n", i, info->func->name->bytes, info->func->name->chars, (int)info->index);
-      emit_leb128(&elems_section, elems_section.len, info->index);  // elem function index
-    }
-    free(indirect_funcs);
-    VERBOSES("\n");
+  // Memory.
+  DataStorage memory_section;
+  data_init(&memory_section);
+  {
+    uint32_t page_count = (address_bottom + MEMORY_PAGE_SIZE - 1) / MEMORY_PAGE_SIZE;
+    if (page_count <= 0)
+      page_count = 1;
+    emit_uleb128(&memory_section, memory_section.len, 1);  // count?
+    emit_uleb128(&memory_section, memory_section.len, 0);  // index?
+    emit_uleb128(&memory_section, memory_section.len, page_count);
   }
 
   // Globals.
@@ -541,8 +506,48 @@ static void emit_wasm(FILE *ofp, Vector *exports) {
       ++num_exports;
     }
   }
+  /*if (memory_section.len > 0)*/ {  // TODO: Export only if memory exists
+    static const char name[] = "memory";
+    emit_uleb128(&exports_section, exports_section.len, sizeof(name) - 1);  // string length
+    data_append(&exports_section, (const unsigned char*)name, sizeof(name) - 1);  // export name
+    emit_uleb128(&exports_section, exports_section.len, IMPORT_MEMORY);  // export kind
+    emit_uleb128(&exports_section, exports_section.len, 0);  // export global index
+    ++num_exports;
+  }
   emit_uleb128(&exports_section, 0, num_exports);  // num exports
   emit_uleb128(&exports_section, 0, exports_section.len);  // Size
+
+  // Elements.
+  DataStorage elems_section;
+  data_init(&elems_section);
+  if (indirect_function_table.count > 0) {
+    int count = indirect_function_table.count;
+    FuncInfo **indirect_funcs = malloc(sizeof(*indirect_funcs) * count);
+
+    // Enumerate imported functions.
+    VERBOSES("### Indirect functions\n");
+    const Name *name;
+    FuncInfo *info;
+    int index = 0;
+    for (int it = 0; (it = table_iterate(&indirect_function_table, it, &name, (void**)&info)) != -1; ++index)
+      indirect_funcs[index] = info;
+
+    QSORT(indirect_funcs, count, sizeof(*indirect_funcs), compare_indirect);
+
+    emit_leb128(&elems_section, elems_section.len, 1);  // num elem segments
+    emit_leb128(&elems_section, elems_section.len, 0);  // segment flags
+    data_push(&elems_section, OP_I32_CONST);
+    emit_leb128(&elems_section, elems_section.len, table_start_index);  // start index
+    data_push(&elems_section, OP_END);
+    emit_leb128(&elems_section, elems_section.len, count);  // num elems
+    for (int i = 0 ; i < count; ++i) {
+      FuncInfo *info = indirect_funcs[i];
+      VERBOSE("%2d: %.*s (%d)\n", i, info->func->name->bytes, info->func->name->chars, (int)info->index);
+      emit_leb128(&elems_section, elems_section.len, info->index);  // elem function index
+    }
+    free(indirect_funcs);
+    VERBOSES("\n");
+  }
 
   // Combine all sections.
   DataStorage sections;
@@ -566,6 +571,13 @@ static void emit_wasm(FILE *ofp, Vector *exports) {
     data_push(&sections, SEC_TABLE);  // Section "Table" (4)
     emit_uleb128(&sections, sections.len, table_section.len);
     data_append(&sections, table_section.buf, table_section.len);
+  }
+
+  // Memory.
+  if (memory_section.len > 0) {
+    data_push(&sections, SEC_MEMORY);  // Section "Memory" (5)
+    emit_uleb128(&sections, sections.len, memory_section.len);
+    data_append(&sections, memory_section.buf, memory_section.len);
   }
 
   // Globals
@@ -795,6 +807,7 @@ static void compile1(FILE *ifp, const char *filename, Vector *decls) {
 int main(int argc, char *argv[]) {
   const char *ofn = "a.wasm";
   Vector *exports = NULL;
+  uint32_t stack_size = DEFAULT_STACK_SIZE;
   int iarg;
 
   FILE *ppout = tmpfile();
@@ -877,7 +890,7 @@ int main(int argc, char *argv[]) {
   compile1(ppin, "*", toplevel);
   fclose(ppin);
 
-  traverse_ast(toplevel, exports);
+  uint32_t address_bottom = traverse_ast(toplevel, exports, stack_size);
 
   gen(toplevel);
   if (error_count != 0)
@@ -887,7 +900,7 @@ int main(int argc, char *argv[]) {
   if (fp == NULL) {
     error("Cannot open output file");
   } else {
-    emit_wasm(fp, exports);
+    emit_wasm(fp, exports, address_bottom);
     assert(error_count == 0);
     fclose(fp);
   }

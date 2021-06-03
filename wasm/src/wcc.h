@@ -29,7 +29,6 @@ extern Table gvar_info_table;
 extern Vector *functypes;
 extern Table indirect_function_table;
 extern uint32_t data_end_address;
-extern uint32_t stack_size;
 extern int error_count;
 extern bool verbose;
 
@@ -64,7 +63,7 @@ typedef struct {
 #define FF_INDIRECT  (1 << 1)
 
 // traverse
-void traverse_ast(Vector *decls, Vector *exports);
+uint32_t traverse_ast(Vector *decls, Vector *exports, uint32_t stack_size);
 
 bool is_prim_type(const Type *type);
 GVarInfo *get_gvar_info_from_name(const Name *name);
