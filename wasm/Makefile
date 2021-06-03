@@ -105,3 +105,6 @@ $(ASSETS_DIR)/libs.json:	lib_list.json
 	mkdir -p $(ASSETS_DIR)
 	node tool/pack_libs.js lib_list.json > $@
 
+.PHONY: deploy
+deploy:	assets
+	npm run release
