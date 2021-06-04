@@ -19,7 +19,7 @@
       <div class="full-size" style="position:absolute">
         <div class="header">
           <label class="nav-open" @click="onClickNavOpen"><span></span></label>
-          <button class="run-btn" @click="runCode()">Run (⌘+⏎)</button>
+          <button class="run-btn" @click="runCode()" :disabled="!loaded">Run (⌘+⏎)</button>
           <span>Args: <input type="text" x-model="args"></span>
         </div>
         <div id="editor" class="editor"></div>

@@ -19,6 +19,8 @@ export class Util {
 
   public static async loadFromServer(path: string, opt: any = null): Promise<string|ArrayBuffer> {
     const response = await fetch(path, {method: 'GET'})
+    if (!response.ok)
+      return Promise.reject(response)
     if (opt != null && opt.binary)
       return await response.arrayBuffer()
     const text = await response.text()
@@ -37,7 +39,7 @@ export class Util {
     terminal.session.insert(terminal.getCursorPosition(), x.toString())
   }
 
-  public static putTerminalError(e: Error): void {
+  public static putTerminalError(e: any): void {
     console.error(e)
     Util.putTerminal(e)
   }

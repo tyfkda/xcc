@@ -156,8 +156,6 @@ const LIBC_FILE_NAME = '/usr/lib/lib.c'
 const storage = new WaStorage()
 
 let wccWasm: Uint8Array
-Util.loadFromServer(WCC_PATH, {binary: true})
-  .then(wasm => wccWasm = new Uint8Array(wasm as ArrayBuffer))
 
 async function compile(sourceCode: string): Promise<Uint8Array|null> {
   const sourceName = 'main.c'
@@ -230,21 +228,6 @@ async function run(argStr: string) {
 }
 
 window.addEventListener('load', () => {
-  Util.loadFromServer(LIBS_PATH)
-    .then(libs => {
-      function setFiles(path, json) {
-        for (const key of Object.keys(json)) {
-          const newPath = `${path}/${key}`
-          if (typeof json[key] === 'string')
-            storage.putFile(newPath, json[key])
-          else
-            setFiles(newPath, json[key])
-        }
-      }
-
-      setFiles('', JSON.parse(libs as string))
-    })
-
   window.addEventListener('resize', () => {
     split.resize()
   }, false)
@@ -262,8 +245,39 @@ window.initialData = {
   example: '',
   shareUrl: null,
   args: '',
+  loaded: false,
 
   init() {
+    Promise.all([
+      Util.loadFromServer(WCC_PATH, {binary: true})
+        .then(wasm => wccWasm = new Uint8Array(wasm as ArrayBuffer))
+        .catch(error => {
+          Util.putTerminalError('Failed to load compiler.wasm\n')
+          throw error
+        }),
+
+      Util.loadFromServer(LIBS_PATH)
+        .then(libs => {
+          function setFiles(path, json) {
+            for (const key of Object.keys(json)) {
+              const newPath = `${path}/${key}`
+              if (typeof json[key] === 'string')
+                storage.putFile(newPath, json[key])
+              else
+                setFiles(newPath, json[key])
+            }
+          }
+
+          setFiles('', JSON.parse(libs as string))
+        })
+        .catch(error => {
+          Util.putTerminalError('Failed to load libs\n')
+          throw error
+        }),
+    ]).then((_) => {
+      this.loaded = true
+    })
+
     const searchParams = new URLSearchParams(window.location.search)
     if (searchParams.has('code')) {
       loadCodeToEditor(searchParams.get('code') || '', '')
@@ -279,7 +293,7 @@ window.initialData = {
           win : 'Ctrl-Enter',
           mac : 'Command-Enter'
         },
-        exec: (_editor) => run(this.args),
+        exec: (_editor) => this.loaded && run(this.args),
       },
       {
         name: 'Save',
@@ -349,6 +363,6 @@ window.initialData = {
     return false
   },
   runCode() {
-    run(this.args)
+    this.loaded && run(this.args)
   },
 }
