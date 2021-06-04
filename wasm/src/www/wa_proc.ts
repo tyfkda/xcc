@@ -71,10 +71,10 @@ export class WaProc {
     return this.fs.loadFile(this.getAbsPath(fileName))
   }
 
-  public async runWasmMain(wasmUrlOrBuffer: string|ArrayBuffer, args: string[]): Promise<any> {
+  public async runWasmMain(wasmUrlOrBuffer: string|ArrayBuffer, entry: string, args: string[]): Promise<any> {
     const instance = await this.loadWasm(wasmUrlOrBuffer)
     const argsPtr = this.putArgs(args)
-    return (instance!.exports.main as (c:number, v:number)=>void)(args.length, argsPtr)
+    return (instance!.exports[entry] as (c:number, v:number)=>void)(args.length, argsPtr)
   }
 
   public async loadWasm(pathOrBuffer: string|ArrayBuffer): Promise<WebAssembly.Instance|null> {

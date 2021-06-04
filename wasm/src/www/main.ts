@@ -166,7 +166,7 @@ async function compile(sourceCode: string): Promise<Uint8Array|null> {
   waproc.saveFile(sourceName, sourceCode)
 
   const args = ['cc', '-I/usr/include', '-emain', sourceName, LIBC_FILE_NAME]
-  const result = await waproc.runWasmMain(wccWasm, args)
+  const result = await waproc.runWasmMain(wccWasm, 'main', args)
   if (result !== 0)
     return null
 
@@ -219,7 +219,7 @@ async function run(argStr: string) {
   const args = argStr === '' ? [] : argStr.trim().split(/\s+/)
   args.unshift('a.wasm')
   try {
-    const result = await waproc.runWasmMain(compiledCode, args)
+    const result = await waproc.runWasmMain(compiledCode, 'main', args)
     if (result != 0)
       console.error(`Exit code=${result}`)
   } catch (e) {

@@ -63,7 +63,7 @@ gen2:	wcc
 	$(MAKE) HOST_TARGET=wcc HOST_CC="./wcc" TARGET=gen2 self-hosting
 .PHONY: test-gen2
 test-gen2: gen2
-	$(MAKE) TARGET_CC="node ../runtime/runwasm.js ../gen2/cc.wasm" test-self-hosting
+	$(MAKE) TARGET_CC="node ../runtime/runwasm.js ../gen2/cc.wasm --" test-self-hosting
 
 .PHONY: gen3
 gen3:	gen2

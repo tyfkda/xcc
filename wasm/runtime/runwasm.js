@@ -241,17 +241,21 @@ function tmpfileSync(len) {
   }
 
   async function main(argv) {
-    if (argv.length < 3) {
-      console.error('Usage: <wasmFile> ...args')
-      process.exit(1)
+    const program = require('commander')
+    program
+      .option('-e, --entry <func-name>', 'Entry point', 'main')
+      .parse(argv)
+
+    if (program.args < 1) {
+      program.help()
     }
 
-    const args = argv.slice(2)
+    const args = program.args
     const wasmFile = args[0]
     const instance = await loadWasm(wasmFile)
     const argsPtr = putArgs(args)
     try {
-      const result = instance.exports.main(args.length, argsPtr)
+      const result = instance.exports[program.entry](args.length, argsPtr)
       if (result !== 0)
         process.exit(result)
     } catch (e) {
