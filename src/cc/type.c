@@ -374,7 +374,7 @@ bool can_cast(const Type *dst, const Type *src, bool zero, bool is_explicit) {
         {
           const Type *ftype = dst->pa.ptrof;
           return (same_type(ftype, src) ||
-                  (ftype->func.param_types == NULL || src->func.param_types == NULL));
+                  (same_type(ftype->func.ret, src->func.ret) && (ftype->func.param_types == NULL || src->func.param_types == NULL)));
         }
       case TY_VOID:
         return true;
