@@ -1103,9 +1103,12 @@ Vector *parse_funparams(bool *pvaargs) {
         not_void(type, NULL);
       }
 
-      // If the type is array, handle it as a pointer.
-      if (type->kind == TY_ARRAY)
-        type = array_to_ptr(type);
+      // Treat array or function as its pointer type automatically.
+      switch (type->kind) {
+      case TY_ARRAY:  type = array_to_ptr(type); break;
+      case TY_FUNC:   type = ptrof(type); break;
+      default: break;
+      }
 
       var_add(params, ident != NULL ? ident->ident : NULL, type, storage, ident);
       if (match(TK_RPAR))
