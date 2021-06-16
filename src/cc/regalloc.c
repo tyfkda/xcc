@@ -534,7 +534,7 @@ void prepare_register_allocation(Function *func) {
   }
 }
 
-void alloc_physical_registers(RegAlloc *ra, BBContainer *bbcon) {
+void alloc_physical_registers(RegAlloc *ra, BBContainer *bbcon, int reserved_size) {
 #ifndef __NO_FLONUM
   assert(ra->phys_max + ra->fphys_max < (int)(sizeof(ra->used_reg_bits) * CHAR_BIT));
 #endif
@@ -578,7 +578,7 @@ void alloc_physical_registers(RegAlloc *ra, BBContainer *bbcon) {
   detect_living_registers(ra, bbcon, sorted_intervals, vreg_count);
 
   // Allocated spilled virtual registers onto stack.
-  int frame_size = 0;
+  int frame_size = reserved_size;
   for (int i = 0; i < vreg_count; ++i) {
     LiveInterval *li = sorted_intervals[i];
     if (li->state != LI_SPILL)

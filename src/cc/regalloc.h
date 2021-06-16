@@ -28,7 +28,7 @@ RegAlloc *new_reg_alloc(int phys_max);
 VReg *reg_alloc_spawn(RegAlloc *ra, const VRegType *vtype, int flag);
 
 void prepare_register_allocation(Function *func);
-void alloc_physical_registers(RegAlloc *ra, BBContainer *bbcon);
+void alloc_physical_registers(RegAlloc *ra, BBContainer *bbcon, int reserved_size);
 
 // Private
 

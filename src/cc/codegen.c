@@ -480,7 +480,8 @@ static void gen_defun(Function *func) {
 
   prepare_register_allocation(func);
   convert_3to2(func->bbcon);
-  alloc_physical_registers(func->ra, func->bbcon);
+  int reserved_size = func->type->func.vaargs ? MAX_REG_ARGS * WORD_SIZE : 0;
+  alloc_physical_registers(func->ra, func->bbcon, reserved_size);
 
   remove_unnecessary_bb(func->bbcon);
 
