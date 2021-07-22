@@ -517,6 +517,31 @@ static void gen_var(Expr *expr) {
   }
 }
 
+static void gen_block_expr(Stmt *stmt, bool needval) {
+  assert(stmt->kind == ST_BLOCK);
+
+  if (stmt->block.scope != NULL) {
+    assert(curscope == stmt->block.scope->parent);
+    curscope = stmt->block.scope;
+  }
+
+  Vector *stmts = stmt->block.stmts;
+  int last = stmts->len - 1;
+  assert(last >= 0);
+  for (int i = 0; i < last; ++i) {
+    Stmt *stmt = stmts->data[i];
+    if (stmt == NULL)
+      continue;
+    gen_stmt(stmt);
+  }
+  Stmt *last_stmt = stmts->data[last];
+  assert(last_stmt->kind == ST_EXPR);
+  gen_expr(last_stmt->expr, needval);
+
+  if (stmt->block.scope != NULL)
+    curscope = curscope->parent;
+}
+
 static void gen_expr(Expr *expr, bool needval) {
   switch (expr->kind) {
   case EX_FIXNUM:
@@ -882,6 +907,10 @@ static void gen_expr(Expr *expr, bool needval) {
     gen_funcall(expr);
     if (!needval && expr->type->kind != TY_VOID)
       ADD_CODE(OP_DROP);
+    break;
+
+  case EX_BLOCK:
+    gen_block_expr(expr->block, needval);
     break;
 
   default: assert(!"Not implemeneted"); break;

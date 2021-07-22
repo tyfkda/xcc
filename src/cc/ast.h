@@ -76,6 +76,8 @@ enum ExprKind {
   EX_MEMBER,  // x.member or x->member
   EX_FUNCALL, // f(x, y, ...)
   EX_COMPLIT, // Compound literal
+
+  EX_BLOCK,   // Block expression ({...})
 };
 
 typedef struct Expr {
@@ -120,6 +122,7 @@ typedef struct Expr {
       struct Expr *var;
       Vector *inits;  // <Stmt*>
     } complit;
+    struct Stmt *block;
   };
 } Expr;
 
@@ -137,6 +140,7 @@ Expr *new_expr_funcall(const Token *token, Expr *func, const Type *functype, Vec
 Expr *new_expr_cast(const Type *type, const Token *token, Expr *sub);
 
 Expr *new_expr_complit(const Type *type, const Token *token, Expr *var, Vector *inits);
+Expr *new_expr_block(struct Stmt *block);
 
 bool is_const(Expr *expr);
 bool is_zero(Expr *expr);

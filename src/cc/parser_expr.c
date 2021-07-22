@@ -1185,6 +1185,11 @@ static Expr *parse_prim(void) {
       Token *tok2 = consume(TK_LBRACE, "`{' expected");
       unget_token(tok2);
       return parse_compound_literal(type);
+    } else if (match(TK_LBRACE)) {  // ({})
+      // gcc extension: Statement expression.
+      Stmt *block = parse_block(tok);
+      consume(TK_RPAR, "`)' expected");
+      return new_expr_block(block);
     } else {
       Expr *expr = parse_expr();
       consume(TK_RPAR, "No close paren");

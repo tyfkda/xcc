@@ -398,6 +398,10 @@ static void traverse_expr(Expr **pexpr, bool needval) {
     traverse_stmts(expr->complit.inits);
     break;
 
+  case EX_BLOCK:
+    traverse_stmt(expr->block);
+    break;
+
   default: break;
   }
 }

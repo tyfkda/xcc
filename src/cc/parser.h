@@ -58,3 +58,5 @@ Expr *make_refer(const Token *tok, Expr *expr);
 
 const Type *get_callee_type(Expr *func);
 void check_funcall_args(Expr *func, Vector *args, Scope *scope, Vector *toplevel);
+
+Stmt *parse_block(const Token *tok);

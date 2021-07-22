@@ -7,6 +7,7 @@
 
 typedef struct BB BB;
 typedef struct Expr Expr;
+typedef struct Stmt Stmt;
 typedef struct StructInfo StructInfo;
 typedef struct Type Type;
 typedef struct VReg VReg;
@@ -32,4 +33,5 @@ VRegType *to_vtype(const Type *type);
 
 bool is_stack_param(const Type *type);
 
+void gen_stmt(struct Stmt *stmt);
 void gen_stmts(Vector *stmts);

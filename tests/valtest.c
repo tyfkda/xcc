@@ -711,6 +711,8 @@ int main(void) {
     expect("compare arrays2", 1, array1 == array1);
   }
 
+  expect("block expr", 169, ({int x = 13; x * x;}));
+
   return 0;
 }
 

@@ -23,7 +23,6 @@ const int STACK_PARAM_BASE_OFFSET = (2 - MAX_REG_ARGS) * WORD_SIZE;
 
 const char RET_VAR_NAME[] = ".ret";
 
-static void gen_stmt(Stmt *stmt);
 static void gen_expr_stmt(Expr *expr);
 
 void set_curbb(BB *bb) {

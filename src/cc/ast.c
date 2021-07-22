@@ -126,6 +126,20 @@ Expr *new_expr_complit(const Type *type, const Token *token, Expr *var, Vector *
   return expr;
 }
 
+Expr *new_expr_block(Stmt *block) {
+  assert(block->kind == ST_BLOCK);
+  const Type *type = &tyVoid;
+  Vector *stmts = block->block.stmts;
+  if (stmts->len > 0) {
+    Stmt *last = stmts->data[stmts->len - 1];
+    if (last->kind == ST_EXPR)
+      type = last->expr->type;
+  }
+  Expr *expr = new_expr(EX_BLOCK, type, block->token);
+  expr->block = block;
+  return expr;
+}
+
 // ================================================
 
 VarDecl *new_vardecl(const Type *type, const Token *ident, Initializer *init, int storage) {

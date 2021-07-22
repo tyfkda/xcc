@@ -1069,7 +1069,7 @@ static Vector *parse_stmts(void) {
   }
 }
 
-static Stmt *parse_block(const Token *tok) {
+Stmt *parse_block(const Token *tok) {
   Scope *scope = enter_scope(curfunc, NULL);
   Vector *stmts = parse_stmts();
   Stmt *stmt = new_stmt_block(tok, stmts, scope);
