@@ -91,9 +91,6 @@ bool check_cast(const Type *dst, const Type *src, bool zero, bool is_explicit, c
 }
 
 Expr *make_cast(const Type *type, const Token *token, Expr *sub, bool is_explicit) {
-  if (type->kind == TY_VOID || sub->type->kind == TY_VOID)
-    parse_error(NULL, "cannot use `void' as a value");
-
   if (same_type(type, sub->type))
     return sub;
   if (is_const(sub) && is_number(sub->type) && is_number(type)) {
