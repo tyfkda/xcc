@@ -5,8 +5,9 @@
   "main": "index.js",
   "scripts": {
     "start": "npm run default",
-    "default": "gulp",
+    "default": "npm run build-assets && gulp",
     "build": "gulp build",
+    "build-assets": "make assets",
     "watch": "gulp watch",
     "server": "webpack-dev-server --content-base public",
     "test": "gulp test",
