@@ -794,12 +794,12 @@ Type *parse_raw_type(int *pstorage) {
       continue;
     }
     if (tok->kind == TK_CONST) {
-      ASSERT_PARSE_ERROR(tc.qualifier == 0, tok, "multiple qualifier specified");
+      ASSERT_PARSE_ERROR((tc.qualifier & TQ_CONST) == 0, tok, "multiple qualifier specified");
       tc.qualifier |= TQ_CONST;
       continue;
     }
     if (tok->kind == TK_VOLATILE) {
-      ASSERT_PARSE_ERROR(tc.qualifier == 0, tok, "multiple qualifier specified");
+      ASSERT_PARSE_ERROR((tc.qualifier & TQ_VOLATILE) == 0, tok, "multiple qualifier specified");
       tc.qualifier |= TQ_VOLATILE;
       continue;
     }
