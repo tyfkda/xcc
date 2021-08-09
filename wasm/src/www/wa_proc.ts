@@ -1,5 +1,6 @@
 import {FileSystem} from './file_system'
 import {Util} from './util'
+import {WaStorage} from './file_system'
 
 const HEAP_ALIGN = 8
 const HEAP_PAGE_SIZE = 65536
@@ -27,8 +28,8 @@ export class WaProc {
   private cwd = '/'
   private imports: any
 
-  constructor(files: any) {
-    this.fs = new FileSystem(files)
+  constructor(storage: WaStorage) {
+    this.fs = new FileSystem(storage)
     this.imports = this.createImports()
   }
 
@@ -103,7 +104,7 @@ export class WaProc {
     return instance
   }
 
-  public registerCFunction(funcName: string, func: any): void {
+  public registerCFunction(funcName: string, func: (...args) => any): void {
     this.imports.c[funcName] = func
   }
 

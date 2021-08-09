@@ -39,7 +39,7 @@ export class Util {
     terminal.session.insert(terminal.getCursorPosition(), x.toString())
   }
 
-  public static putTerminalError(e: any): void {
+  public static putTerminalError(e: Error|string): void {
     console.error(e)
     Util.putTerminal(e)
   }

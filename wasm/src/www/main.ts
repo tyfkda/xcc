@@ -39,7 +39,7 @@ const editor = (() => {
   editor.getSession().setUndoManager(undoManager)
   editor.commands.addCommands([
     {
-      Name : 'Undo',
+      name : 'Undo',
       bindKey: {
         win : 'Ctrl-Z',
         mac : 'Command-Z'
@@ -47,7 +47,7 @@ const editor = (() => {
       exec: (editor) => editor.session.getUndoManager().undo(),
     },
     {
-      Name : 'Redo',
+      name : 'Redo',
       bindKey: {
         win : 'Ctrl-Shift-Z',
         mac : 'Command-Shift-Z'
@@ -59,15 +59,15 @@ const editor = (() => {
   return editor
 })()
 
-function isCodeModified() {
+function isCodeModified(): boolean {
   return !editor.session.getUndoManager().isClean()
 }
 
-function clearUndoHistory() {
-  return !editor.session.getUndoManager().reset()
+function clearUndoHistory(): void {
+  editor.session.getUndoManager().reset()
 }
 
-function setCodeUnmodified() {
+function setCodeUnmodified(): void {
   editor.session.getUndoManager().markClean()
 }
 
@@ -288,7 +288,7 @@ window.initialData = {
 
     editor.commands.addCommands([
       {
-        Name : 'Run',
+        name : 'Run',
         bindKey: {
           win : 'Ctrl-Enter',
           mac : 'Command-Enter'
