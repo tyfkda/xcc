@@ -84,6 +84,7 @@ char *cat_path(const char *root, const char *path) {
   // Assume that root doesn't include ".."
 
   bool is_root = *root == '/';
+  int ancestor = 0;
 
   Vector *dirs = new_vector();  // [start, end]
   for (const char *p = root; *p != '\0'; ) {
@@ -118,9 +119,13 @@ char *cat_path(const char *root, const char *path) {
     if (size == 1 && strncmp(p, ".", size) == 0) {
       // Skip
     } else if (size == 2 && strncmp(p, "..", size) == 0) {
-      if (dirs->len < 2)
-        return NULL;  // Illegal
-      dirs->len -= 2;
+      if (dirs->len < 2) {
+        if (is_root)
+          return NULL;  // Illegal
+        ++ancestor;
+      } else {
+        dirs->len -= 2;
+      }
     } else {
       vec_push(dirs, p);
       vec_push(dirs, q);
@@ -128,10 +133,12 @@ char *cat_path(const char *root, const char *path) {
     p = q;
   }
 
-  if (dirs->len == 0)
+  if (dirs->len <= 0 && ancestor <= 0)
     return strdup_("/");
 
   size_t total_len = 1;  // 1 for NUL-terminate.
+  if (ancestor > 0)
+    total_len += ancestor * 3;
   for (int i = 0; i < dirs->len; i += 2) {
     if (i != 0 || is_root)
       total_len += 1;
@@ -140,6 +147,10 @@ char *cat_path(const char *root, const char *path) {
 
   char *buf = malloc(total_len);
   char *p = buf;
+  for (int i = 0; i < ancestor; ++i) {
+    memcpy(p, "../", 3);
+    p += 3;
+  }
   for (int i = 0; i < dirs->len; i += 2) {
     if (i != 0 || is_root)
       *p++ = '/';

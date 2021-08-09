@@ -110,6 +110,8 @@ void test_cat_path(void) {
   EXPECT_NULL("Illegal", cat_path("/user/foo", "../../.."));
   EXPECT_STREQ("Root end with '/'", "/user/foo/inc/stdio.h", cat_path("/user/foo/", "inc/stdio.h"));
   EXPECT_STREQ("Not root", "user/foo/inc/stdio.h", cat_path("user/foo", "inc/stdio.h"));
+  EXPECT_STREQ("Non root ancestor", "user/inc/stdio.h", cat_path("user/foo", "../inc/stdio.h"));
+  EXPECT_STREQ("Non root ancestor", "../inc/stdio.h", cat_path("user/foo", "../../../inc/stdio.h"));
 }
 
 void test_change_ext(void) {
