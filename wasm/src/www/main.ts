@@ -143,10 +143,26 @@ function clearSharingUrlParameters() {
   window.history.replaceState(null, document.title, window.location.pathname)
 }
 
-function save() {
+function save(): boolean {
   saveCodeToStorage()
   alert('Saved!')
   window.location.hash = ''
+  return true
+}
+
+async function saveToLocalFile(fileHandle: FileSystemFileHandle): Promise<boolean> {
+  try {
+    const writable = await fileHandle.createWritable()
+    const code = editor.getValue()
+    await writable.write(code)
+    await writable.close()
+    setCodeUnmodified()
+    alert(`${fileHandle.name} Saved!`)
+    return true
+  } catch (e) {
+    console.error(e)
+    return false
+  }
 }
 
 const WCC_PATH = 'cc.wasm'
@@ -240,12 +256,23 @@ window.addEventListener('load', () => {
   })
 })
 
+const kFilePickerOption = {
+  types: [
+    {
+      description: 'C source',
+      accept: {'text/c': ['.c']},
+    },
+  ],
+}
+
 window.initialData = {
   showSysmenu: false,
   example: '',
   shareUrl: null,
   args: '',
   loaded: false,
+  canAccessLocalFile: !!window.showOpenFilePicker,
+  fileHandle: null,
 
   init() {
     Promise.all([
@@ -302,10 +329,7 @@ window.initialData = {
           mac: 'Command-S',
           sender: 'editor|cli'
         },
-        exec: (_editor, _args, _request) => {
-          save()
-          clearSharingUrlParameters()
-        },
+        exec: (_editor, _args, _request) => this.saveFile(),
       },
     ])
 
@@ -320,6 +344,7 @@ window.initialData = {
       this.args = ''
 
       this.example = ''
+      this.fileHandle = null
     })
   },
   onClickNavOpen() {
@@ -340,13 +365,53 @@ window.initialData = {
     event.preventDefault()
     this.closeSysmenu()
     loadCodeToEditor('', 'New')
+    this.fileHandle = null
     clearSharingUrlParameters()
   },
-  saveFile(event: Event) {
+  async loadFile(event: Event) {
     event.preventDefault()
+    try {
+      const [fileHandle] = await window.showOpenFilePicker(kFilePickerOption)
+      const file = await fileHandle.getFile()
+      const contents = await file.text()
+      loadCodeToEditor(contents, `Load "${fileHandle.name}"`)
+      this.fileHandle = fileHandle
+    } finally {
+      this.closeSysmenu()
+      clearSharingUrlParameters()
+    }
+  },
+  async saveFile(event: Event): Promise<boolean> {
+    event?.preventDefault()
+    let result = false
+    if (this.canAccessLocalFile) {
+      if (this.fileHandle == null)
+        return await this.saveFileAs(event)
+      this.closeSysmenu()
+      result = await saveToLocalFile(this.fileHandle)
+    } else {
+      this.closeSysmenu()
+      result = save()
+    }
+    if (result)
+      clearSharingUrlParameters()
+    return result
+  },
+  async saveFileAs(event: Event): Promise<boolean> {
+    event?.preventDefault()
+    let result = false
+    try {
+      const fileHandle = await window.showSaveFilePicker(kFilePickerOption)
+      result = await saveToLocalFile(fileHandle)
+      if (result)
+        this.fileHandle = fileHandle
+    } catch (e) {
+      console.error(e)
+    }
     this.closeSysmenu()
-    save()
-    clearSharingUrlParameters()
+    if (result)
+      clearSharingUrlParameters()
+    return result
   },
   shareLink(event: Event) {
     event.preventDefault()
