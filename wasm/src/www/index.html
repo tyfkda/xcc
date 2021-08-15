@@ -38,9 +38,7 @@
           <h4>File</h4>
           <div><a href="#" @click="newFile($event); return false">New</a></div>
           <div><a href="#" @click="saveFile($event); return false">Save</a></div>
-          <div x-show="!!shareUrl">
-            <a href="#" :href="shareUrl" @click="shareLink($event); return false">Share</a>
-          </div>
+          <a href="#" :href="shareUrl" x-bind:class="shareUrl ? '' : 'disabled'" @click="shareLink($event); return false">Share</a>
 
           <h4>About</h4>
           <a href="https://github.com/tyfkda/xcc" target="_blank" rel=”noopener noreferrer” @click="closeSysmenu()">Github</a>

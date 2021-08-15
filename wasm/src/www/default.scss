@@ -19,6 +19,12 @@ body {
   overflow: hidden;
 }
 
+a.disabled {
+  color: gray;
+  pointer-events: none;
+  text-decoration: none;
+}
+
 .full-size {
   @include _full-size();
 }
