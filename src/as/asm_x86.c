@@ -127,20 +127,6 @@ static unsigned char *put_rex_indirect_with_index(
   return p;
 }
 
-static unsigned char *put_rex_imm_indirect(
-    unsigned char *p, enum RegSize size, int reg, int indirect_reg,
-    unsigned char opcode, unsigned char op2, long value, long offset)
-{
-  p = put_rex_indirect(p, size, reg, indirect_reg, opcode, op2, offset);
-  if (is_im8(value)) {
-    *p++ = IM8(value);
-  } else {
-    PUT_CODE(p, IM32(value));
-    p += 4;
-  }
-  return p;
-}
-
 static bool assemble_mov(Inst *inst, const ParseInfo *info, Code *code) {
   unsigned char *p = code->buf;
 
@@ -557,11 +543,31 @@ bool assemble_inst(Inst *inst, const ParseInfo *info, Code *code) {
         long value = inst->src.immediate;
         if (is_im32(value)) {
           long offset = inst->dst.indirect.offset->fixnum;
-          enum RegSize size = REG64;  // caz ADDQ
-          p = put_rex_imm_indirect(
-              p, size,
-              0, opr_regno(&inst->dst.indirect.reg),
-              (is_im8(value) ? 0x83 : 0x81), 0x00, value, offset);
+          unsigned char sno = 0;
+          unsigned char dno = opr_regno(&inst->dst.indirect.reg);
+          unsigned char code = (offset == 0 && dno != RBP - RAX) ? 0x00 : is_im8(offset) ? (unsigned char)0x40 : (unsigned char)0x80;
+          short buf[] = {
+            (unsigned char)0x48 | ((dno & 8) >> 3) | ((sno & 8) >> 1),
+            (is_im8(value) ? 0x83 : 0x81),
+            code | dno | (sno << 3),
+            dno == RSP - RAX ? 0x24 : -1,
+          };
+          p = put_code_filtered(p, buf, ARRAY_SIZE(buf));
+          if (offset == 0 && dno != RBP - RAX) {
+            ;
+          } else if (is_im8(offset)) {
+            *p++ = IM8(offset);
+          } else if (is_im32(offset)) {
+            PUT_CODE(p, IM32(offset));
+            p += 4;
+          }
+
+          if (is_im8(value)) {
+            *p++ = IM8(value);
+          } else {
+            PUT_CODE(p, IM32(value));
+            p += 4;
+          }
         }
       }
     }
@@ -608,11 +614,31 @@ bool assemble_inst(Inst *inst, const ParseInfo *info, Code *code) {
         long value = inst->src.immediate;
         if (is_im32(value)) {
           long offset = inst->dst.indirect.offset->fixnum;
-          enum RegSize size = REG64;  // caz SUBQ
-          p = put_rex_imm_indirect(
-              p, size,
-              0, opr_regno(&inst->dst.indirect.reg),
-              (is_im8(value) ? 0x83 : 0x81), 0x28, value, offset);
+          unsigned char sno = 0;
+          unsigned char dno = opr_regno(&inst->dst.indirect.reg);
+          unsigned char code = (offset == 0 && dno != RBP - RAX) ? 0x28 : is_im8(offset) ? (unsigned char)0x40 : (unsigned char)0x80;
+          short buf[] = {
+            (unsigned char)0x48 | ((dno & 8) >> 3) | ((sno & 8) >> 1),
+            (is_im8(value) ? 0x83 : 0x81),
+            code | dno | (sno << 3),
+            dno == RSP - RAX ? 0x24 : -1,
+          };
+          p = put_code_filtered(p, buf, ARRAY_SIZE(buf));
+          if (offset == 0 && dno != RBP - RAX) {
+            ;
+          } else if (is_im8(offset)) {
+            *p++ = IM8(offset);
+          } else if (is_im32(offset)) {
+            PUT_CODE(p, IM32(offset));
+            p += 4;
+          }
+
+          if (is_im8(value)) {
+            *p++ = IM8(value);
+          } else {
+            PUT_CODE(p, IM32(value));
+            p += 4;
+          }
         }
       }
     }
