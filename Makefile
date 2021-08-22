@@ -3,6 +3,7 @@ CC1_DIR:=src/cc
 CC1_ARCH_DIR:=$(CC1_DIR)/arch
 CPP_DIR:=src/cpp
 AS_DIR:=src/as
+LD_DIR:=src/ld
 UTIL_DIR:=src/util
 OBJ_DIR:=obj
 
@@ -22,14 +23,17 @@ CPP_SRCS:=$(wildcard $(CPP_DIR)/*.c) \
 	$(CC1_DIR)/lexer.c $(UTIL_DIR)/util.c $(UTIL_DIR)/table.c
 AS_SRCS:=$(wildcard $(AS_DIR)/*.c) \
 	$(UTIL_DIR)/util.c $(UTIL_DIR)/elfutil.c $(UTIL_DIR)/table.c
+LD_SRCS:=$(wildcard $(LD_DIR)/*.c) \
+	$(UTIL_DIR)/util.c $(UTIL_DIR)/elfutil.c $(UTIL_DIR)/table.c
 
 XCC_OBJS:=$(addprefix $(OBJ_DIR)/,$(notdir $(XCC_SRCS:.c=.o)))
 CC1_OBJS:=$(addprefix $(OBJ_DIR)/,$(notdir $(CC1_SRCS:.c=.o)))
 CPP_OBJS:=$(addprefix $(OBJ_DIR)/,$(notdir $(CPP_SRCS:.c=.o)))
 AS_OBJS:=$(addprefix $(OBJ_DIR)/,$(notdir $(AS_SRCS:.c=.o)))
+LD_OBJS:=$(addprefix $(OBJ_DIR)/,$(notdir $(LD_SRCS:.c=.o)))
 
 .PHONY: all
-all:	xcc cc1 cpp as
+all:	xcc cc1 cpp as ld
 
 .PHONY: release
 release:
@@ -45,6 +49,9 @@ cpp: $(CPP_OBJS)
 	$(CC) -o $@ $^ $(LDFLAGS)
 
 as: $(AS_OBJS)
+	$(CC) -o $@ $^ $(LDFLAGS)
+
+ld: $(LD_OBJS)
 	$(CC) -o $@ $^ $(LDFLAGS)
 
 -include $(OBJ_DIR)/*.d
@@ -69,6 +76,10 @@ $(OBJ_DIR)/%.o: $(AS_DIR)/%.c
 	@mkdir -p $(OBJ_DIR)
 	$(CC) $(CFLAGS) -c -o $@ $<
 
+$(OBJ_DIR)/%.o: $(LD_DIR)/%.c
+	@mkdir -p $(OBJ_DIR)
+	$(CC) $(CFLAGS) -c -o $@ $<
+
 $(OBJ_DIR)/%.o: $(UTIL_DIR)/%.c
 	@mkdir -p $(OBJ_DIR)
 	$(CC) $(CFLAGS) -c -o $@ $<
@@ -82,7 +93,7 @@ test-all: test test-gen2 diff-gen23
 
 .PHONY: clean
 clean:
-	rm -rf cc1 cpp as xcc $(OBJ_DIR) a.out gen2 gen3 tmp.s dump_expr dump_ir dump_type
+	rm -rf cc1 cpp as ld xcc $(OBJ_DIR) a.out gen2 gen3 tmp.s dump_expr dump_ir dump_type
 	$(MAKE) -C tests clean
 
 ### Self hosting

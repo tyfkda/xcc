@@ -12,6 +12,7 @@ core
 /cpp
 /gen2
 /gen3
+/ld
 /xcc
 /tests/core.*
 /tests/dvaltest
