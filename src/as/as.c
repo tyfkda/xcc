@@ -9,7 +9,7 @@
 
 #include "asm_x86.h"
 #include "elfutil.h"
-#include "gen.h"
+#include "gen_section.h"
 #include "ir_asm.h"
 #include "parse_asm.h"
 #include "table.h"

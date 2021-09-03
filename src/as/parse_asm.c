@@ -7,7 +7,7 @@
 #include <string.h>
 #include <strings.h>
 
-#include "gen.h"
+#include "gen_section.h"
 #include "ir_asm.h"
 #include "table.h"
 #include "util.h"

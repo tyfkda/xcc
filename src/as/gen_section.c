@@ -1,4 +1,4 @@
-#include "gen.h"
+#include "gen_section.h"
 
 #include <assert.h>
 #include <stdlib.h>
