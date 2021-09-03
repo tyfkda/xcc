@@ -9,6 +9,8 @@
 #include "table.h"
 #include "util.h"
 
+static const char kDefaultEntryName[] = "_start";
+
 void *malloc_or_die(size_t size) {
   void *p = malloc(size);
   if (p != NULL)
@@ -73,6 +75,7 @@ typedef struct {
     Elf64_Shdr *shdr;
     Elf64_Sym *symtabs;
     Table names;  // <Elf64_Sym*>
+    const char *str;
   } symtab;
 } ElfObj;
 
@@ -120,6 +123,7 @@ static bool load_symtab(ElfObj *elfobj) {
 
   elfobj->symtab.shdr = symtab_sec;
   elfobj->symtab.symtabs = symtabs;
+  elfobj->symtab.str = str;
   return true;
 }
 
@@ -192,8 +196,68 @@ void dump(FILE *fp, ElfObj *elfobj) {
   }
 }
 
+static Elf64_Sym *find_symbol(ElfObj *elfobj, const Name *name) {
+  Elf64_Sym *sym = table_get(&elfobj->symtab.names, name);
+  return sym;
+}
+
+static Elf64_Sym *find_symbol_from_all(Vector *elfobjs, const Name *name, ElfObj **pelfobj) {
+  for (int i = 0; i < elfobjs->len; ++i) {
+    ElfObj *elfobj = elfobjs->data[i];
+    Elf64_Sym *sym = find_symbol(elfobj, name);
+    if (sym != NULL && sym->st_shndx != 0) {
+      if (pelfobj != NULL)
+        *pelfobj = elfobj;
+      return sym;
+    }
+  }
+  return NULL;
+}
+
+static bool link_elfobjs(Vector *elfobjs, const Name *entry) {
+  Table unresolved;
+  table_init(&unresolved);
+  table_put(&unresolved, entry, (void*)entry);
+
+  for (int i = 0; i < elfobjs->len; ++i) {
+    ElfObj *elfobj = elfobjs->data[i];
+    if (elfobj->symtab.shdr == NULL)
+      continue;
+
+    const char *str = elfobj->symtab.str;
+    Table *names = &elfobj->symtab.names;
+    const Name *name;
+    Elf64_Sym *sym;
+    for (int it = 0; (it = table_iterate(names, it, &name, (void**)&sym)) != -1; ) {
+      unsigned char type = sym->st_info & 0x0f;
+      if (type != STT_NOTYPE || str[sym->st_name] == '\0')
+        continue;
+      const Name *name = alloc_name(&str[sym->st_name], NULL, false);
+      if (sym->st_shndx == 0) {
+        if (find_symbol_from_all(elfobjs, name, NULL) == NULL)
+          table_put(&unresolved, name, (void *)name);
+      } else {
+        table_delete(&unresolved, name);
+      }
+    }
+  }
+
+  if (unresolved.count > 0) {
+    fprintf(stderr, "Unresolved: #%d\n", unresolved.count);
+    const Name *name;
+    void *dummy;
+    for (int it = 0; (it = table_iterate(&unresolved, it, &name, &dummy)) != -1;) {
+      fprintf(stderr, "  %.*s\n", name->bytes, name->chars);
+    }
+    return false;
+  }
+
+  return true;
+}
+
 int main(int argc, char *argv[]) {
   const char *ofn = NULL;
+  const char *entry = kDefaultEntryName;
 
   struct option longopts[] = {
     {"version", no_argument, NULL, 'V'},
@@ -201,13 +265,16 @@ int main(int argc, char *argv[]) {
   };
   int opt;
   int longindex;
-  while ((opt = getopt_long(argc, argv, "Vo:", longopts, &longindex)) != -1) {
+  while ((opt = getopt_long(argc, argv, "Vo:e:", longopts, &longindex)) != -1) {
     switch (opt) {
     case 'V':
       show_version("ld");
       break;
     case 'o':
       ofn = optarg;
+      break;
+    case 'e':
+      entry = optarg;
       break;
     default:
       fprintf(stderr, "Unknown option: %s\n", argv[optind]);
@@ -222,14 +289,19 @@ int main(int argc, char *argv[]) {
   if (ofn == NULL)
     ofn = "a.out";
 
+  Vector *elfobjs = new_vector();
   for (int i = iarg; i < argc; ++i) {
-    ElfObj elfobj;
-    elfobj_init(&elfobj);
-    if (!open_elf(argv[i], &elfobj))
+    ElfObj *elfobj = malloc_or_die(sizeof(*elfobj));
+    elfobj_init(elfobj);
+    if (!open_elf(argv[i], elfobj))
       return 1;
-    dump(stdout, &elfobj);
-    close_elf(&elfobj);
+    dump(stdout, elfobj);
+    vec_push(elfobjs, elfobj);
   }
 
-  return 0;
+  bool result = link_elfobjs(elfobjs, alloc_name(entry, NULL, false));
+  for (int i = 0; i < elfobjs->len; ++i) {
+    close_elf(elfobjs->data[i]);
+  }
+  return result ? 0 : 1;
 }
