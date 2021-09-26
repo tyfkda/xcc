@@ -1043,22 +1043,23 @@ static Stmt *parse_asm(const Token *tok) {
 static Vector *parse_stmts(void) {
   Vector *stmts = new_vector();
   for (;;) {
-    if (match(TK_RBRACE))
-      return stmts;
-
     Stmt *stmt;
     Token *tok;
-    if (parse_vardecl(&stmt))
-      ;
-    else if ((tok = match(TK_CASE)) != NULL)
+    if (parse_vardecl(&stmt)) {
+      if (stmt == NULL)
+        continue;
+    } else if ((tok = match(TK_CASE)) != NULL)
       stmt = parse_case(tok);
     else if ((tok = match(TK_DEFAULT)) != NULL)
       stmt = parse_default(tok);
     else
       stmt = parse_stmt();
 
-    if (stmt == NULL)
-      continue;
+    if (stmt == NULL) {
+      if (match(TK_RBRACE))
+        return stmts;
+      parse_error(NULL, "`}' expected");
+    }
     vec_push(stmts, stmt);
   }
 }
@@ -1073,13 +1074,17 @@ static Stmt *parse_block(const Token *tok) {
 
 static Stmt *parse_stmt(void) {
   Token *tok = match(-1);
-  switch (tok->kind){
+  switch (tok->kind) {
+  case TK_RBRACE:
+  case TK_EOF:
+    unget_token(tok);
+    return NULL;
   case TK_IDENT:
     if (match(TK_COLON))
       return parse_label(tok);
     break;
   case TK_SEMICOL:
-    return NULL;
+    return new_stmt_block(tok, NULL, NULL);
   case TK_LBRACE:
     return parse_block(tok);
   case TK_IF:

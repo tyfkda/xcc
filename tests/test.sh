@@ -116,6 +116,7 @@ try_direct 'global enum variable' 1 'enum Foo { BAR, BAZ }; enum Foo foo; int ma
 try_direct 'typedef' 123 'typedef struct {int x, y;} Foo; int main(){ Foo foo; foo.x = 123; return foo.x; }'
 try_direct 'same typedef' 66 'typedef int Foo; typedef int Foo; int main(){ return 66; }'
 try_output_direct 'empty function' '' 'void foo(){} int main(){ foo(); return 0; }'
+try_output_direct 'empty block' '' 'int main(){ ; {} {;;;} return 0; }'
 try_direct 'Undeclared struct typedef' 8 'typedef struct FILE FILE; int main(){ return sizeof(FILE*); }'
 try_direct 'late declare struct' 42 'struct Foo *p; struct Foo {int x;}; int main(){ struct Foo foo; p = &foo; p->x = 42; return p->x; }'
 try 'scoped struct' 5 'int size; struct S {int x;}; { struct S {char y;}; size = sizeof(struct S); } return size + sizeof(struct S);'
