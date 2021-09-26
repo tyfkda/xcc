@@ -1035,7 +1035,7 @@ static Stmt *parse_asm(const Token *tok) {
 
   if (args == NULL || args->len != 1 || ((Expr*)args->data[0])->kind != EX_STR)
     parse_error(token, "`__asm' expected one string");
-
+  consume(TK_SEMICOL, "`;' expected");
   return new_stmt_asm(tok, args->data[0]);
 }
 
