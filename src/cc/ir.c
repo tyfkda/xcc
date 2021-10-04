@@ -465,8 +465,10 @@ static void ir_memcpy(int dst_reg, int src_reg, ssize_t size) {
 static void ir_out(IR *ir) {
   switch (ir->kind) {
   case IR_BOFS:
-    assert(!(ir->opr1->flag & VRF_CONST));
-    LEA(OFFSET_INDIRECT(ir->opr1->offset, RBP, NULL, 1), kReg64s[ir->dst->phys]);
+    if (ir->opr1->flag & VRF_CONST)
+      LEA(OFFSET_INDIRECT(ir->opr1->fixnum, RBP, NULL, 1), kReg64s[ir->dst->phys]);
+    else
+      LEA(OFFSET_INDIRECT(ir->opr1->offset, RBP, NULL, 1), kReg64s[ir->dst->phys]);
     break;
 
   case IR_IOFS:
@@ -516,13 +518,17 @@ static void ir_out(IR *ir) {
     }
 #endif
     {
-      assert(!(ir->opr1->flag & VRF_CONST));
       assert(!(ir->opr2->flag & VRF_CONST));
       assert(0 <= ir->size && ir->size < kPow2TableSize);
       int pow = kPow2Table[ir->size];
       assert(0 <= pow && pow < 4);
       const char **regs = kRegSizeTable[pow];
-      MOV(regs[ir->opr1->phys], INDIRECT(kReg64s[ir->opr2->phys], NULL, 1));
+      if (ir->opr1->flag & VRF_CONST) {
+        MOV(im(ir->opr1->fixnum), EAX);
+        MOV(EAX, INDIRECT(kReg64s[ir->opr2->phys], NULL, 1));
+      } else {
+        MOV(regs[ir->opr1->phys], INDIRECT(kReg64s[ir->opr2->phys], NULL, 1));
+      }
     }
     break;
 

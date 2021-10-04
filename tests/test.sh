@@ -193,9 +193,9 @@ try 'str in comma' 117 'char *p = (1, "use strict", "dummy"); return p[1];'
 try_direct 'return str' 111 'const char *foo(){ return "foo"; } int main(){ return foo()[2]; }'
 try 'deref str' 48 'return *"0";'
 
-try_direct 'stdarg' 165 "#include <stdarg.h>
-int f(int n, ...) {int a[6*2]; for (int i=0; i<6*2; ++i) a[i]=100+i; va_list ap; va_start(ap, n); int sum=0; for (int i=0; i<n; ++i) sum+=va_arg(ap, int); va_end(ap); return sum;}
-int main(){return f(5, 11, 22, 33, 44, 55);}"
+try_direct 'stdarg' 55 "#include <stdarg.h>
+int f(int n, ...) {int a[14*2]; for (int i=0; i<14*2; ++i) a[i]=100+i; va_list ap; va_start(ap, n); int sum=0; for (int i=0; i<n; ++i) sum+=va_arg(ap, int); va_end(ap); return sum;}
+int main(){return f(10, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10);}"
 
 # error cases
 echo ''
@@ -230,7 +230,6 @@ compile_error 'void expr' 'void main(){ 1 + (void)2; }'
 compile_error 'few arg num' 'void foo(int x){} void main(){ foo(); }'
 compile_error 'many arg num' 'void foo(int x){} void main(){ foo(1, 2); }'
 compile_error 'zero arg num' 'void foo(void){} void main(){ foo(1); }'
-compile_error 'variadic param count limit' 'void foo(const char *fmt, ...){} void main(){ foo("fmt", 1,2,3,4,5,6); }'
 compile_error 'empty char' "int main() { return ''; }"
 compile_error 'no single char' "int main() { return '12'; }"
 compile_error '+ str' 'void main(){ +"foo"; }'
@@ -296,6 +295,3 @@ compile_error 'assign const struct' 'const struct S {int x;} s = {100}; int main
 # flonum
 compile_error 'array[double]' 'void main(){int a[]={1, 2, 3}; double d=1; return a[d];}'
 compile_error 'ptr + f' 'void main(){int a[]={1, 2, 3}; double d=1; int *p=(a+3)-d; return *p;}'
-
-# TODO
-compile_error 'more params vaargs (yet)' 'int func(int a, ...) { return a; } int main(){ return func(1, 2, 3, 4, 5, 6, 7, 8); }'

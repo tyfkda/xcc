@@ -8,6 +8,7 @@
 #include "ir.h"
 #include "lexer.h"
 #include "regalloc.h"
+#include "table.h"
 #include "type.h"
 #include "util.h"
 #include "var.h"
@@ -42,6 +43,16 @@ VRegType *to_vtype(const Type *type) {
 
 VReg *add_new_reg(const Type *type, int flag) {
   return reg_alloc_spawn(curfunc->ra, to_vtype(type), flag);
+}
+
+static Table builtin_function_table;  // <BuiltinFunctionProc>
+
+void add_builtin_function(const char *str, const Type *type, BuiltinFunctionProc *proc) {
+  const Name *name = alloc_name(str, NULL, false);
+  table_put(&builtin_function_table, name, proc);
+
+  const Token *ident = alloc_ident(name, name->chars, name->chars + name->bytes);
+  scope_add(global_scope, ident, type, 0);
 }
 
 static enum ConditionKind swap_cond(enum ConditionKind cond) {
@@ -326,6 +337,12 @@ typedef struct {
 
 static VReg *gen_funcall(Expr *expr) {
   Expr *func = expr->funcall.func;
+  if (func->kind == EX_VAR && is_global_scope(func->var.scope)) {
+    void *proc = table_get(&builtin_function_table, func->var.name);
+    if (proc != NULL)
+      return (*(BuiltinFunctionProc*)proc)(expr);
+  }
+
   Vector *args = expr->funcall.args;
   int arg_count = args != NULL ? args->len : 0;
 
@@ -345,13 +362,6 @@ static VReg *gen_funcall(Expr *expr) {
   ArgInfo *arg_infos = NULL;
   int stack_arg_count = 0;
   if (args != NULL) {
-    bool vaargs = false;
-    if (func->kind == EX_VAR && is_global_scope(func->var.scope)) {
-      vaargs = func->type->func.vaargs;
-    } else {
-      // TODO:
-    }
-
     int arg_start = retvar_reg != NULL ? 1 : 0;
     int ireg_index = arg_start;
 #ifndef __NO_FLONUM
@@ -381,11 +391,6 @@ static VReg *gen_funcall(Expr *expr) {
           reg_arg = ireg_index < MAX_REG_ARGS;
       }
       if (!reg_arg) {
-        if (ireg_index >= MAX_REG_ARGS && vaargs) {
-          parse_error(((Expr*)args->data[ireg_index])->token,
-                      "Param count exceeds %d", MAX_REG_ARGS);
-        }
-
         offset = ALIGN(offset, align_size(arg->type));
         p->offset = offset;
         offset += ALIGN(p->size, WORD_SIZE);

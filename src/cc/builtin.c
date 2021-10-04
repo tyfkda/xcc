@@ -1,6 +1,8 @@
 #include <assert.h>
 
 #include "ast.h"
+#include "codegen.h"
+#include "ir.h"
 #include "lexer.h"
 #include "parser.h"
 #include "table.h"
@@ -8,95 +10,93 @@
 #include "util.h"
 #include "var.h"
 
-static Expr *proc_builtin_va_start(const Token *ident) {
+static Expr *proc_builtin_type_kind(const Token *ident) {
   consume(TK_LPAR, "`(' expected");
-
-  Token *token;
-  Vector *args = parse_args(&token);
-  if (args == NULL || args->len != 2) {
-    parse_error(token, "two arguments expected");
-    return NULL;
-  }
-
-  //#define va_start(ap, param)  (void)(ap = (va_list)&(param))
-
-  const Type *tyvalist = find_typedef(curscope, alloc_name("__builtin_va_list", NULL, false), NULL);
-  assert(tyvalist != NULL);
-
-  Expr *ap = args->data[0];
-  Expr *param = args->data[1];
-  Expr *paramref = make_refer(param->token, param);
-  Expr *assign = new_expr_bop(EX_ASSIGN, ap->type, ap->token, ap,
-                              make_cast(tyvalist, paramref->token, paramref, true));
-  return new_expr_cast(&tyVoid, ident, assign);
-}
-
-static Expr *proc_builtin_va_end(const Token *ident) {
-  consume(TK_LPAR, "`(' expected");
-
-  Token *token;
-  Vector *args = parse_args(&token);
-  if (args == NULL || args->len != 1) {
-    parse_error(token, "one arguments expected");
-    return NULL;
-  }
-
-  //#define va_end(ap)           (void)(ap = 0)
-
-  Expr *ap = args->data[0];
-  Expr *assign = new_expr_bop(EX_ASSIGN, ap->type, ap->token, ap,
-                              new_expr_fixlit(&tyInt, ident, 0));
-  return new_expr_cast(&tyVoid, ident, assign);
-}
-
-static Expr *proc_builtin_va_arg(const Token *ident) {
-  consume(TK_LPAR, "`(' expected");
-  Expr *ap = parse_assign();
-  consume(TK_COMMA, "`,' expected");
   const Type *type = parse_full_type(NULL, NULL);
   consume(TK_RPAR, "`)' expected");
 
-  //#define va_arg(v,l)     (*(type*)(ap += 1))  // Assume little endian
-
-  Expr *add = new_expr_unary(EX_MODIFY, ap->type, ap->token,
-                             new_expr_addsub(EX_ADD, ap->token, ap, new_expr_fixlit(&tySize, ident, 1), false));
-  Expr *deref = new_expr_deref(ap->token, make_cast(ptrof(type), ap->token, add, true));
-  return deref;
+  return new_expr_fixlit(&tySize, ident, type->kind);
 }
 
-static Expr *proc_builtin_va_copy(const Token *ident) {
-  consume(TK_LPAR, "`(' expected");
+static VReg *gen_builtin_va_start(Expr *expr) {
+  assert(expr->kind == EX_FUNCALL);
+  Vector *args = expr->funcall.args;
+  assert(args->len == 2);
+  assert(curfunc != NULL);
+  Expr *var = args->data[1];
+  if (var->kind == EX_CAST)
+    var = var->unary.sub;
+  if (var->kind == EX_REF)
+    var = var->unary.sub;
+  int gn = -1, fn = -1;
+  if (var->kind == EX_VAR) {
+    const Vector *params = curfunc->type->func.params;
+    int g = 0, f = 0;
+    for (int i = 0; i < params->len; ++i) {
+      VarInfo *info = params->data[i];
+      const Type *t = info->type;
+      if (t->kind != TY_STRUCT) {
+#ifndef __NO_FLONUM
+        if (is_flonum(t))
+          ++f;
+        else
+#endif
+          ++g;
+      }
 
-  Token *token;
-  Vector *args = parse_args(&token);
-  if (args == NULL || args->len != 2) {
-    parse_error(token, "two arguments expected");
+      if (info->name != NULL && equal_name(info->name, var->var.name)) {
+        gn = g;
+        fn = f;
+        break;
+      }
+    }
+  }
+  if (gn < 0) {
+    parse_error(var->token, "Must be function argument");
     return NULL;
   }
 
-  //#define va_start(ap, param)  (void)(ap = (va_list)&(param))
+  VReg *ap = gen_expr(args->data[0]);
+  VReg *gp_offset = ap;
+  new_ir_store(gp_offset, new_const_vreg(gn * WORD_SIZE, to_vtype(&tyInt)));
 
-  Expr *dst = args->data[0];
-  Expr *src = args->data[1];
-  Expr *assign = new_expr_bop(EX_ASSIGN, dst->type, dst->token, dst, src);
-  return new_expr_cast(&tyVoid, ident, assign);
+  VReg *fp_offset = new_ir_bop(IR_ADD, ap, new_const_vreg(type_size(&tyInt), to_vtype(&tySize)), ap->vtype);
+  new_ir_store(fp_offset, new_const_vreg((MAX_REG_ARGS + fn) * WORD_SIZE, to_vtype(&tySize)));
+
+  {
+    const VRegType *vtype = to_vtype(&tyVoidPtr);
+    VReg *overflow_arg_area = new_ir_bop(IR_ADD, ap, new_const_vreg(type_size(&tyInt) + type_size(&tyInt), vtype), vtype);
+    VReg *offset = new_const_vreg(2 * WORD_SIZE, to_vtype(&tySize));
+    VReg *p = new_ir_bofs(offset);
+    new_ir_store(overflow_arg_area, p);
+  }
+
+  {
+    const VRegType *vtype = to_vtype(&tyVoidPtr);
+    VReg *reg_save_area = new_ir_bop(IR_ADD, ap, new_const_vreg(type_size(&tyInt) + type_size(&tyInt) + type_size(&tyVoidPtr), vtype), vtype);
+    VReg *offset = new_const_vreg(-(MAX_REG_ARGS + MAX_FREG_ARGS) * WORD_SIZE, to_vtype(&tySize));
+    VReg *p = new_ir_bofs(offset);
+    new_ir_store(reg_save_area, p);
+  }
+  return NULL;
 }
 
 void install_builtins(void) {
-  // __builtin_va_list
+  static BuiltinExprProc p_reg_class = &proc_builtin_type_kind;
+  add_builtin_expr_ident("__builtin_type_kind", &p_reg_class);
+
+  Type *tyVaList = create_struct_type(NULL, alloc_name("__va_elem", NULL, false), 0);
+  const Type *tyVaListPtr = ptrof(tyVaList);
   {
-    const Type *type = ptrof(&tyVoidPtr);
-    const Name *name = alloc_name("__builtin_va_list", NULL, false);
-    add_typedef(global_scope, name, type);
+    static BuiltinFunctionProc p_va_start = &gen_builtin_va_start;
+    Vector *params = new_vector();
+    var_add(params, NULL, tyVaListPtr, 0, NULL);
+    var_add(params, NULL, &tyVoidPtr, 0, NULL);
+
+    const Type *rettype = &tyVoid;
+    Vector *param_types = extract_varinfo_types(params);
+    const Type *type = new_func_type(rettype, params, param_types, false);
+
+    add_builtin_function("__builtin_va_start", type, &p_va_start);
   }
-
-  static BuiltinExprProc p_va_start = &proc_builtin_va_start;
-  static BuiltinExprProc p_va_end = &proc_builtin_va_end;
-  static BuiltinExprProc p_va_arg = &proc_builtin_va_arg;
-  static BuiltinExprProc p_va_copy = &proc_builtin_va_copy;
-
-  add_builtin_expr_ident("__builtin_va_start", &p_va_start);
-  add_builtin_expr_ident("__builtin_va_end", &p_va_end);
-  add_builtin_expr_ident("__builtin_va_arg", &p_va_arg);
-  add_builtin_expr_ident("__builtin_va_copy", &p_va_copy);
 }
