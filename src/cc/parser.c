@@ -292,7 +292,7 @@ static Initializer *flatten_initializer(const Type *type, Initializer *init) {
         break;
       // Fallthrough
     default:
-      parse_error(NULL, "Illegal initializer");
+      parse_error(init->token, "Illegal initializer");
       break;
     }
     break;
@@ -302,8 +302,7 @@ static Initializer *flatten_initializer(const Type *type, Initializer *init) {
         parse_error(NULL, "Initializer type error");
 
       Expr *value = init->single;
-      if (!(can_cast(type, value->type, is_zero(value), false)))
-        parse_error(NULL, "Illegal initializer");
+      check_cast(type, value->type, is_zero(value), false, init->token);
     }
     break;
   default:
@@ -441,7 +440,7 @@ static Initializer *check_global_initializer(const Type *type, Initializer *init
       // Fallthrough
     case IK_DOT:
     default:
-      parse_error(NULL, "Illegal initializer");
+      parse_error(init->token, "Illegal initializer");
       break;
     }
     break;
