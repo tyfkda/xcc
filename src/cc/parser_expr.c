@@ -645,7 +645,7 @@ void check_funcall_args(Expr *func, Vector *args, Scope *scope, Vector *toplevel
   }
 
   if (args != NULL) {
-    int paramc = param_types != NULL ? param_types->len : -1;
+    int paramc = param_types != NULL ? param_types->len : 0;
     for (int i = 0, len = args->len; i < len; ++i) {
       Expr *arg = args->data[i];
       if (arg->type->kind == TY_ARRAY) {
@@ -1135,6 +1135,7 @@ Vector *parse_funparams(bool *pvaargs) {
   bool vaargs = false;
   if (match(TK_RPAR)) {
     // Arbitrary funparams.
+    vaargs = true;
   } else {
     params = new_vector();
     for (;;) {

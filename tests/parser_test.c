@@ -77,7 +77,7 @@ void test_parse_full_type(void) {
     expect_parse_type("func ptr", funcptr, "func", "int(*func)(long)");
   }
   {
-    const Type *funcptr = ptrof(new_func_type(&tyVoid, NULL, NULL, false));
+    const Type *funcptr = ptrof(new_func_type(&tyVoid, NULL, NULL, true));
     expect_parse_type("func w/o params", funcptr, "func", "void(*func)()");
   }
 

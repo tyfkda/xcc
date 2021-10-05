@@ -1201,8 +1201,15 @@ static Stmt *parse_stmt(void) {
 
 static Declaration *parse_defun(const Type *functype, int storage, Token *ident) {
   assert(functype->kind == TY_FUNC);
-  Function *func = new_func(functype, ident->ident);
 
+  bool prototype = match(TK_SEMICOL) != NULL;
+  if (!prototype && functype->func.params == NULL) { // Old-style
+    // Treat it as a zero-parameter function.
+    ((Type*)functype)->func.params = ((Type*)functype)->func.param_types = new_vector();
+    ((Type*)functype)->func.vaargs = false;
+  }
+
+  Function *func = new_func(functype, ident->ident);
   VarInfo *varinfo = scope_find(global_scope, func->name, NULL);
   bool err = false;
   if (varinfo == NULL) {
@@ -1221,7 +1228,7 @@ static Declaration *parse_defun(const Type *functype, int storage, Token *ident)
     }
   }
 
-  if (match(TK_SEMICOL)) {
+  if (prototype) {
     // Prototype declaration.
   } else {
     consume(TK_LBRACE, "`;' or `{' expected");
