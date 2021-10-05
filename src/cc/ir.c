@@ -344,15 +344,16 @@ IR *new_ir_precall(int arg_count, int stack_args_size) {
 }
 
 VReg *new_ir_call(const Name *label, bool global, VReg *freg, int total_arg_count, int reg_arg_count,
-                  const VRegType *result_type, IR *precall, VRegType **arg_vtypes) {
+                  const VRegType *result_type, IR *precall, VRegType **arg_vtypes, bool vaargs) {
   IR *ir = new_ir(IR_CALL);
   ir->call.label = label;
   ir->call.global = global;
   ir->opr1 = freg;
   ir->call.precall = precall;
+  ir->call.arg_vtypes = arg_vtypes;
   ir->call.total_arg_count = total_arg_count;
   ir->call.reg_arg_count = reg_arg_count;
-  ir->call.arg_vtypes = arg_vtypes;
+  ir->call.vaargs = vaargs;
   ir->size = result_type->size;
   return ir->dst = reg_alloc_spawn(curra, result_type, 0);
 }
@@ -1079,6 +1080,14 @@ static void ir_out(IR *ir) {
         }
       }
 
+#ifndef __NO_FLONUM
+      if (ir->call.vaargs) {
+        if (freg > 0)
+          MOV(im(freg), AL);
+        else
+          XOR(AL, AL);
+      }
+#endif
       if (ir->call.label != NULL) {
         const char *label = fmt_name(ir->call.label);
         if (ir->call.global)

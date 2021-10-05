@@ -465,11 +465,11 @@ static VReg *gen_funcall(Expr *expr) {
     VRegType *ret_vtype = to_vtype(type);
     if (label_call) {
       result_reg = new_ir_call(func->var.name, global, NULL, total_arg_count, reg_arg_count,
-                               ret_vtype, precall, arg_vtypes);
+                               ret_vtype, precall, arg_vtypes, func->type->func.vaargs);
     } else {
       VReg *freg = gen_expr(func);
       result_reg = new_ir_call(NULL, false, freg, total_arg_count, reg_arg_count, ret_vtype,
-                               precall, arg_vtypes);
+                               precall, arg_vtypes, func->type->func.vaargs);
     }
   }
 
