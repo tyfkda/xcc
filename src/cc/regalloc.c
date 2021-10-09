@@ -478,7 +478,12 @@ void prepare_register_allocation(Function *func) {
       }
 
       if (func->type->func.vaargs) {  // Variadic function parameters.
-        vreg->offset = (reg_param_index - MAX_REG_ARGS) * WORD_SIZE;
+#ifndef __NO_FLONUM
+        if (is_flonum(varinfo->type))
+          vreg->offset = (freg_index - MAX_FREG_ARGS) * WORD_SIZE;
+        else
+#endif
+          vreg->offset = (ireg_index - MAX_REG_ARGS - MAX_FREG_ARGS) * WORD_SIZE;
       }
       ++reg_param_index;
       bool through_stack;

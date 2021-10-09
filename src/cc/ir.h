@@ -16,10 +16,8 @@ typedef struct Vector Vector;
 
 #define PHYSICAL_REG_MAX  (7 - 1)
 
-#ifndef __NO_FLONUM
 #define MAX_FREG_ARGS  (8)
 #define PHYSICAL_FREG_MAX  (7 - 1)
-#endif
 
 // Virtual register
 
