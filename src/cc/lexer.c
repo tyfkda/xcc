@@ -43,6 +43,7 @@ static const struct {
   {"union", TK_UNION},
   {"enum", TK_ENUM},
   {"sizeof", TK_SIZEOF},
+  {"_Alignof", TK_ALIGNOF},
   {"typedef", TK_TYPEDEF},
   {"__asm", TK_ASM},
 #ifndef __NO_FLONUM

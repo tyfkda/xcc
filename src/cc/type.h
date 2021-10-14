@@ -107,7 +107,7 @@ extern const Type tyDouble;
 
 void set_fixnum_size(enum FixnumKind kind, size_t size, int align);
 size_t type_size(const Type *type);
-int align_size(const Type *type);
+size_t align_size(const Type *type);
 
 bool is_fixnum(enum TypeKind kind);
 bool is_number(const Type *type);

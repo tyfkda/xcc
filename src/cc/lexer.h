@@ -101,6 +101,7 @@ enum TokenKind {
   TK_UNION,
   TK_ENUM,
   TK_SIZEOF,
+  TK_ALIGNOF,
   TK_TYPEDEF,
   TK_ELLIPSIS,       // ...
   TK_ASM,

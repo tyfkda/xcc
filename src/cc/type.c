@@ -113,7 +113,7 @@ size_t type_size(const Type *type) {
   }
 }
 
-int align_size(const Type *type) {
+size_t align_size(const Type *type) {
   switch (type->kind) {
   case TY_VOID:
     return 1;  // Just in case.

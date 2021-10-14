@@ -1298,7 +1298,7 @@ static Expr *parse_sizeof(const Token *token) {
     assert(type->pa.length > 0);
   }
 
-  const Fixnum size = type_size(type);
+  const Fixnum size = token->kind == TK_SIZEOF ? type_size(type) : align_size(type);
   return new_expr_fixlit(&tySize, token, size);
 }
 
@@ -1414,9 +1414,9 @@ static Expr *parse_unary(void) {
     return new_expr_incdec(EX_PREDEC, tok, expr);
   }
 
-  if ((tok = match(TK_SIZEOF)) != NULL) {
+  if ((tok = match(TK_SIZEOF)) != NULL ||
+      (tok = match(TK_ALIGNOF)) != NULL)
     return parse_sizeof(tok);
-  }
 
   return parse_postfix();
 }
