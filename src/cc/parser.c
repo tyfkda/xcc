@@ -735,6 +735,12 @@ static bool def_type(const Type *type, Token *ident) {
   }
 
   if (conflict == NULL || (type->kind == TY_STRUCT && type->struct_.info != NULL)) {
+    if (type->kind == TY_ARRAY) {
+      const Type *t = type;
+      while (t = t->pa.ptrof, t->kind == TY_ARRAY);
+      if (t->kind == TY_STRUCT)
+        ensure_struct((Type*)t, ident, curscope);
+    }
     add_typedef(curscope, name, type);
     return true;
   } else {
