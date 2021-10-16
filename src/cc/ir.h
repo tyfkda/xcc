@@ -23,9 +23,10 @@ typedef struct Vector Vector;
 
 // Virtual register
 
-#define VRTF_UNSIGNED  (1 << 0)
+#define VRTF_NON_REG   (1 << 0)
+#define VRTF_UNSIGNED  (1 << 1)
 #ifndef __NO_FLONUM
-#define VRTF_FLONUM    (1 << 1)
+#define VRTF_FLONUM    (1 << 2)
 #endif
 
 typedef struct VRegType {
@@ -138,6 +139,7 @@ typedef struct IR {
     struct {
       const Name *label;
       struct IR *precall;
+      int total_arg_count;
       int reg_arg_count;
       bool global;
       VRegType **arg_vtypes;
@@ -166,7 +168,7 @@ VReg *new_ir_cond(enum ConditionKind cond);
 void new_ir_jmp(enum ConditionKind cond, BB *bb);
 IR *new_ir_precall(int arg_count, int stack_args_size);
 void new_ir_pusharg(VReg *vreg, const VRegType *vtype);
-VReg *new_ir_call(const Name *label, bool global, VReg *freg, int reg_arg_count, const VRegType *result_type, IR *precall, VRegType **arg_vtypes);
+VReg *new_ir_call(const Name *label, bool global, VReg *freg, int total_arg_count, int reg_arg_count, const VRegType *result_type, IR *precall, VRegType **arg_vtypes);
 void new_ir_result(VReg *reg);
 void new_ir_addsp(int value);
 VReg *new_ir_cast(VReg *vreg, const VRegType *dsttype);

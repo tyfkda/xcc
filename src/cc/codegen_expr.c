@@ -14,6 +14,10 @@
 
 #include "parser.h"  // curfunc
 
+bool is_stack_param(const Type *type) {
+  return type->kind == TY_STRUCT;
+}
+
 VRegType *to_vtype(const Type *type) {
   VRegType *vtype = malloc(sizeof(*vtype));
   vtype->size = type_size(type);
@@ -29,6 +33,8 @@ VRegType *to_vtype(const Type *type) {
 #endif
   if (is_unsigned)
     flag |= VRTF_UNSIGNED;
+  if (is_stack_param(type))
+    flag |= VRTF_NON_REG;
   vtype->flag = flag;
 
   return vtype;
@@ -308,10 +314,6 @@ static VReg *gen_ternary(Expr *expr) {
   return result;
 }
 
-bool is_stack_param(const Type *type) {
-  return type->kind == TY_STRUCT;
-}
-
 typedef struct {
   int reg_index;
   int offset;
@@ -336,8 +338,9 @@ static VReg *gen_funcall(Expr *expr) {
     ret_varinfo->local.reg = retvar_reg = add_new_reg(expr->type, VRF_LOCAL);
   }
 
+  int total_arg_count = arg_count + (retvar_reg != NULL ? 1 : 0);
   VRegType **arg_vtypes = (retvar_reg == NULL && arg_count <= 0) ? NULL :
-    calloc(arg_count + (retvar_reg != NULL ? 1 : 0), sizeof(*arg_vtypes));
+    calloc(total_arg_count, sizeof(*arg_vtypes));
 
   ArgInfo *arg_infos = NULL;
   int stack_arg_count = 0;
@@ -461,11 +464,12 @@ static VReg *gen_funcall(Expr *expr) {
       type = ptrof(type);
     VRegType *ret_vtype = to_vtype(type);
     if (label_call) {
-      result_reg = new_ir_call(func->var.name, global, NULL, reg_arg_count, ret_vtype,
-                               precall, arg_vtypes);
+      result_reg = new_ir_call(func->var.name, global, NULL, total_arg_count, reg_arg_count,
+                               ret_vtype, precall, arg_vtypes);
     } else {
       VReg *freg = gen_expr(func);
-      result_reg = new_ir_call(NULL, false, freg, reg_arg_count, ret_vtype, precall, arg_vtypes);
+      result_reg = new_ir_call(NULL, false, freg, total_arg_count, reg_arg_count, ret_vtype,
+                               precall, arg_vtypes);
     }
   }
 

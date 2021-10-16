@@ -343,13 +343,14 @@ IR *new_ir_precall(int arg_count, int stack_args_size) {
   return ir;
 }
 
-VReg *new_ir_call(const Name *label, bool global, VReg *freg, int reg_arg_count,
+VReg *new_ir_call(const Name *label, bool global, VReg *freg, int total_arg_count, int reg_arg_count,
                   const VRegType *result_type, IR *precall, VRegType **arg_vtypes) {
   IR *ir = new_ir(IR_CALL);
   ir->call.label = label;
   ir->call.global = global;
   ir->opr1 = freg;
   ir->call.precall = precall;
+  ir->call.total_arg_count = total_arg_count;
   ir->call.reg_arg_count = reg_arg_count;
   ir->call.arg_vtypes = arg_vtypes;
   ir->size = result_type->size;
@@ -1043,8 +1044,9 @@ static void ir_out(IR *ir) {
 
   case IR_CALL:
     {
+      IR *precall = ir->call.precall;
       int reg_args = ir->call.reg_arg_count;
-      push_caller_save_regs(ir->call.precall->precall.living_pregs, reg_args * WORD_SIZE + ir->call.precall->precall.stack_args_size + ir->call.precall->precall.stack_aligned);
+      push_caller_save_regs(precall->precall.living_pregs, reg_args * WORD_SIZE + precall->precall.stack_args_size + precall->precall.stack_aligned);
 
       static const char *kArgReg64s[] = {RDI, RSI, RDX, RCX, R8, R9};
 #ifndef __NO_FLONUM
@@ -1054,20 +1056,27 @@ static void ir_out(IR *ir) {
 
       // Pop register arguments.
       int ireg = 0;
-      for (int i = 0; i < reg_args; ++i) {
+      int total_arg_count = ir->call.total_arg_count;
+      for (int i = 0; i < total_arg_count; ++i) {
+        if (ir->call.arg_vtypes[i]->flag & VRTF_NON_REG)
+          continue;
 #ifndef __NO_FLONUM
         if (ir->call.arg_vtypes[i]->flag & VRTF_FLONUM) {
-          switch (ir->call.arg_vtypes[i]->size) {
-          case SZ_FLOAT:   MOVSS(INDIRECT(RSP, NULL, 1), kArgFReg64s[freg]); break;
-          case SZ_DOUBLE:  MOVSD(INDIRECT(RSP, NULL, 1), kArgFReg64s[freg]); break;
-          default: assert(false); break;
+          if (freg < MAX_FREG_ARGS) {
+            switch (ir->call.arg_vtypes[i]->size) {
+            case SZ_FLOAT:   MOVSS(INDIRECT(RSP, NULL, 1), kArgFReg64s[freg]); break;
+            case SZ_DOUBLE:  MOVSD(INDIRECT(RSP, NULL, 1), kArgFReg64s[freg]); break;
+            default: assert(false); break;
+            }
+            ++freg;
+            ADD(IM(WORD_SIZE), RSP); POP_STACK_POS();
           }
-          ++freg;
-          ADD(IM(WORD_SIZE), RSP); POP_STACK_POS();
           continue;
         }
 #endif
-        POP(kArgReg64s[ireg++]); POP_STACK_POS();
+        if (ireg < MAX_REG_ARGS) {
+          POP(kArgReg64s[ireg++]); POP_STACK_POS();
+        }
       }
 
       if (ir->call.label != NULL) {
@@ -1081,14 +1090,14 @@ static void ir_out(IR *ir) {
         CALL(fmt("*%s", kReg64s[ir->opr1->phys]));
       }
 
-      int align_stack = ir->call.precall->precall.stack_aligned + ir->call.precall->precall.stack_args_size;
+      int align_stack = precall->precall.stack_aligned + precall->precall.stack_args_size;
       if (align_stack != 0) {
         ADD(IM(align_stack), RSP);
         stackpos -= align_stack;
       }
 
       // Resore caller save registers.
-      pop_caller_save_regs(ir->call.precall->precall.living_pregs);
+      pop_caller_save_regs(precall->precall.living_pregs);
 
 #ifndef __NO_FLONUM
       if (ir->dst->vtype->flag & VRTF_FLONUM) {
