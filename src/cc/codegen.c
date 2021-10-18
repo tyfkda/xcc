@@ -215,7 +215,7 @@ static void gen_switch_cond_recur(Stmt *stmt, VReg *reg, const VRegType *vtype, 
     BB *bbne = new_bb();
     int m = len >> 1;
     int index = order[m];
-      Stmt *c = cases->data[index];
+    Stmt *c = cases->data[index];
     VReg *num = new_const_vreg(c->case_.value->fixnum, vtype);
     new_ir_cmp(reg, num);
     new_ir_jmp(COND_EQ, c->case_.bb);

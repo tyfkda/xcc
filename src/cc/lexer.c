@@ -437,7 +437,7 @@ static Token *read_num(const char **pp) {
     lex_error(p, "Illegal literal");
 
 #ifndef __NO_FLONUM
-  if (*p == '.' || tolower(*p)== 'e') {
+  if (*p == '.' || tolower(*p) == 'e') {
     if (base != 10)
       lex_error(p, "Illegal literal");
     return read_flonum(pp);

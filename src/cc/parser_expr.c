@@ -62,7 +62,7 @@ VarInfo *str_to_char_array(Scope *scope, const Type *type, Initializer *init, Ve
 Expr *str_to_char_array_var(Scope *scope, Expr *str, Vector *toplevel) {
   if (str->kind != EX_STR)
     return str;
-  const Type* type = str->type;
+  const Type *type = str->type;
   Initializer *init = malloc(sizeof(*init));
   init->kind = IK_SINGLE;
   init->single = str;
@@ -124,7 +124,7 @@ Expr *make_cast(const Type *type, const Token *token, Expr *sub, bool is_explici
         int bits = bytes * CHAR_BIT;
         UFixnum mask = (-1UL) << bits;
         Fixnum value = sub->fixnum;
-        if (!type->fixnum.is_unsigned &&  // signed
+        if (!type->fixnum.is_unsigned &&    // signed
             (value & (1UL << (bits - 1))))  // negative
           value |= mask;
         else

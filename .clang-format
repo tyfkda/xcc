@@ -2,11 +2,11 @@
 BasedOnStyle:  Google
 AllowShortCaseLabelsOnASingleLine: true
 AllowShortFunctionsOnASingleLine: None
-AllowShortIfStatementsOnASingleLine: false
+AllowShortIfStatementsOnASingleLine: Never
 AllowShortLoopsOnASingleLine: false
 BreakBeforeBraces: Custom
 BraceWrapping:
   AfterCaseLabel: true
 ColumnLimit: 100
 IndentCaseLabels: false
-#IndentCaseBlocks: true
+IndentCaseBlocks: true
