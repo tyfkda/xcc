@@ -260,9 +260,9 @@ const char *get_lex_p(void) {
 
 static int scan_linemarker(const char *line, long *pnum, char **pfn, int *pflag) {
   const char *p = line;
-  if (p[0] != '#' || p[1] != ' ')
+  if (p[0] != '#' || !isspace(p[1]))
     return 0;
-  p += 2;
+  p = skip_whitespaces(p + 2);
 
   int n = 0;
   const char *next = p;
@@ -270,18 +270,16 @@ static int scan_linemarker(const char *line, long *pnum, char **pfn, int *pflag)
   if (next > p) {
     ++n;
     *pnum = num;
-    p = next;
-
-    if (p[0] == ' ' && p[1] == '"') {
-      p += 2;
+    if (isspace(*next) && (p = skip_whitespaces(next), *p == '"')) {
+      p += 1;
       const char *q = strchr(p, '"');
       if (q != NULL) {
         ++n;
         *pfn = strndup_(p, q - p);
         p = q + 1;
 
-        if (p[0] == ' ') {
-          p += 1;
+        if (isspace(*p)) {
+          p = skip_whitespaces(p);
           next = p;
           int flag = strtol(next, (char**)&next, 10);
           if (next > p) {

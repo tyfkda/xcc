@@ -66,6 +66,8 @@ try '#if exp' 'abc' "#if 4 + 5 > 6\nabc\n#else\nxyz\n#endif"
 try 'Macro in #if' '111' "#define FOO(x) x/2\n#if FOO(2)==1\n111\n#else\n222\n#endif"
 try '__FILE__' '"*stdin*"' "__FILE__"
 try '__LINE__' "3" "\n\n__LINE__"
+try '#line' "# 123 \"foobar.p\" 1\"foobar.p\":123" "#line  123\t\"foobar.p\"\n__FILE__:__LINE__"
+try '#line number only' "# 123 \"*stdin*\" 1\"dummy\"\"*stdin*\":124" "#line  123\n\"dummy\"\n__FILE__:__LINE__"
 try 'Block comment' '/*block comment*/' "/*\nblock comment\n*/"
 try 'Quote in comment' "/*I'm fine*/" "/*\nI'm fine\n*/"
 try 'Concat' 'FOO_123' '#define FOO(x)  FOO_ ## x\nFOO( 123 )'

@@ -129,6 +129,22 @@ void handle_pragma(const char *p, const char *filename) {
   }
 }
 
+const char *handle_line_directive(const char *p, const char *filename, int *plineno) {
+  const char *next = p;
+  unsigned long num = strtoul(next, (char**)&next, 10);
+  if (next > p) {
+    *plineno = num;
+    if (isspace(*next) && (p = skip_whitespaces(next), *p == '"')) {
+      p += 1;
+      const char *q = strchr(p, '"');
+      if (q != NULL) {
+        filename = strndup_(p, q - p);
+      }
+    }
+  }
+  return filename;
+}
+
 static void push_text_segment(Vector *segments, const char *start, const char *token_begin) {
   if (token_begin > start) {
     Segment *seg = malloc(sizeof(*seg));
@@ -391,7 +407,7 @@ void init_preprocessor(FILE *ofp) {
   init_lexer();
 }
 
-int preprocess(FILE *fp, const char *filename) {
+int preprocess(FILE *fp, const char *filename_) {
   Vector *condstack = new_vector();
   bool enable = true;
   int satisfy = 0;  // #if condition: 0=not satisfied, 1=satisfied, 2=else
@@ -403,12 +419,12 @@ int preprocess(FILE *fp, const char *filename) {
   Macro *old_file_macro = table_get(&macro_table, key_file);
   Macro *old_line_macro = table_get(&macro_table, key_line);
 
-  define_file_macro(filename, key_file);
-  table_put(&macro_table, key_line, new_macro_single(linenobuf));
-
   Stream stream;
-  stream.filename = filename;
+  stream.filename = filename_;
   stream.fp = fp;
+
+  define_file_macro(stream.filename, key_file);
+  table_put(&macro_table, key_line, new_macro_single(linenobuf));
 
   for (stream.lineno = 1;; ++stream.lineno) {
     char *line = NULL;
@@ -495,17 +511,23 @@ int preprocess(FILE *fp, const char *filename) {
       condstack->len = len;
     } else if (enable) {
       if ((next = keyword(directive, "include")) != NULL) {
-        handle_include(next, filename);
-        fprintf(pp_ofp, "# %d \"%s\" 1\n", stream.lineno + 1, filename);
+        handle_include(next, stream.filename);
+        fprintf(pp_ofp, "# %d \"%s\" 1\n", stream.lineno + 1, stream.filename);
       } else if ((next = keyword(directive, "define")) != NULL) {
         handle_define(next, &stream);
       } else if ((next = keyword(directive, "undef")) != NULL) {
         handle_undef(next);
       } else if ((next = keyword(directive, "pragma")) != NULL) {
-        handle_pragma(next, filename);
+        handle_pragma(next, stream.filename);
       } else if ((next = keyword(directive, "error")) != NULL) {
-        fprintf(stderr, "%s(%d): error\n", filename, stream.lineno);
+        fprintf(stderr, "%s(%d): error\n", stream.filename, stream.lineno);
         error("%s", line);
+      } else if ((next = keyword(directive, "line")) != NULL) {
+        stream.filename = handle_line_directive(next, stream.filename, &stream.lineno);
+        int flag = 1;
+        fprintf(pp_ofp, "# %d \"%s\" %d\n", stream.lineno, stream.filename, flag);
+        define_file_macro(stream.filename, key_file);
+        --stream.lineno;
       } else {
         error("unknown directive: %s", directive);
       }
