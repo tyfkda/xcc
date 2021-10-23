@@ -14,7 +14,6 @@
 #define PUT_CODE(p, ...)  do { unsigned char buf[] = {__VA_ARGS__}; memcpy(p, buf, sizeof(buf)); } while (0)
 #endif
 
-#ifndef __NO_FLONUM
 static unsigned char *put_code_filtered(unsigned char *p, const short *buf, size_t count) {
   for (size_t i = 0; i < count; ++i) {
     short c = *buf++;
@@ -23,7 +22,6 @@ static unsigned char *put_code_filtered(unsigned char *p, const short *buf, size
   }
   return p;
 }
-#endif
 
 void make_code(Inst *inst, Code *code, unsigned char *buf, int len) {
   assert(len <= (int)sizeof(code->buf));
