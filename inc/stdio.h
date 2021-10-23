@@ -34,6 +34,7 @@ int fprintf(FILE *fp, const char *fmt, ...);
 int printf(const char *fmt, ...);
 int sprintf(char *out, const char *fmt, ...);
 int snprintf(char *, size_t n, const char *, ...);
+int vsprintf(char *buf, const char *fmt, va_list ap);
 int vfprintf(FILE *fp, const char *fmt, va_list ap);
 int vsnprintf(char *out, size_t n, const char *fmt_, va_list ap);
 
