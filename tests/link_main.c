@@ -1,6 +1,5 @@
 // Compiled on XCC
 
-#include "../inc/stdarg.h"
 #include "../inc/stdlib.h"  // exit
 #include "../examples/util.h"
 

@@ -2,7 +2,6 @@
 
 #include <assert.h>
 #include <inttypes.h>
-#include <stdarg.h>
 #include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
@@ -10,13 +9,12 @@
 #include "ast.h"
 #include "ir.h"
 #include "lexer.h"
+#include "parser.h"  // curfunc, curscope
 #include "regalloc.h"
 #include "table.h"
 #include "type.h"
 #include "util.h"
 #include "var.h"
-
-#include "parser.h"  // curscope
 
 const int FRAME_ALIGN = 8;
 const int STACK_PARAM_BASE_OFFSET = (2 - MAX_REG_ARGS) * WORD_SIZE;

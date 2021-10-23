@@ -3,7 +3,6 @@
 #include <assert.h>
 #include <ctype.h>
 #include <libgen.h>  // dirname
-#include <stdarg.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
