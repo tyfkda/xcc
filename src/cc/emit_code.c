@@ -304,55 +304,109 @@ static void put_args_to_stack(Function *func) {
     return;
 
   int len = params->len;
-  int n = len;
-  if (func->type->func.vaargs && n < MAX_REG_ARGS)
-    n = MAX_REG_ARGS;
+  if (!func->type->func.vaargs) {
 #ifndef __NO_FLONUM
-  int farg_index = 0;
+    int farg_index = 0;
 #endif
-  for (int i = 0; i < n; ++i) {
-    const Type *type;
-    int offset;
-    if (i < len) {
+    for (int i = 0; i < len; ++i) {
       const VarInfo *varinfo = params->data[i];
-      type = varinfo->type;
-      offset = varinfo->local.reg->offset;
-    } else {  // vaargs
-      type = get_fixnum_type(FX_LONG, false, 0);
-      offset = (i - MAX_REG_ARGS) * WORD_SIZE;
+      const Type *type = varinfo->type;
+      int offset = varinfo->local.reg->offset;
+
+      if (is_stack_param(type))
+        continue;
+
+#ifndef __NO_FLONUM
+      if (is_flonum(type)) {
+        if (farg_index < MAX_FREG_ARGS) {
+          switch (type->flonum.kind) {
+          case FL_FLOAT:   MOVSS(kFReg64s[farg_index], OFFSET_INDIRECT(offset, RBP, NULL, 1)); break;
+          case FL_DOUBLE:  MOVSD(kFReg64s[farg_index], OFFSET_INDIRECT(offset, RBP, NULL, 1)); break;
+          default: assert(false); break;
+          }
+          ++farg_index;
+        }
+        continue;
+      }
+#endif
+
+      switch (type->kind) {
+      case TY_FIXNUM:
+      case TY_PTR:
+        break;
+      default: assert(false); break;
+      }
+
+      if (arg_index < MAX_REG_ARGS) {
+        int size = type_size(type);
+        assert(size < (int)(sizeof(kRegTable) / sizeof(*kRegTable)) &&
+               kRegTable[size] != NULL);
+        MOV(kRegTable[size][arg_index], OFFSET_INDIRECT(offset, RBP, NULL, 1));
+        ++arg_index;
+      }
+    }
+  } else {  // vaargs
+    int ip = 0;
+    for (int i = arg_index; i < MAX_REG_ARGS; ++i) {
+      const VarInfo *varinfo = NULL;
+      while (ip < len) {
+        const VarInfo *p = params->data[ip++];
+        const Type *type = p->type;
+        if (!is_stack_param(type)
+#ifndef __NO_FLONUM
+            && !is_flonum(type)
+#endif
+        ) {
+          varinfo = p;
+          break;
+        }
+      }
+      if (varinfo != NULL) {
+        const Type *type = varinfo->type;
+        assert(type->kind == TY_FIXNUM || type->kind == TY_PTR);
+        int size = type_size(type);
+        assert(size < (int)(sizeof(kRegTable) / sizeof(*kRegTable)) &&
+               kRegTable[size] != NULL);
+        int offset = varinfo->local.reg->offset;
+        MOV(kRegTable[size][i], OFFSET_INDIRECT(offset, RBP, NULL, 1));
+      } else {
+        int size = type_size(&tyVoidPtr);
+        assert(size < (int)(sizeof(kRegTable) / sizeof(*kRegTable)) &&
+               kRegTable[size] != NULL);
+        int offset = (i - MAX_REG_ARGS - MAX_FREG_ARGS) * WORD_SIZE;
+        MOV(kRegTable[size][i], OFFSET_INDIRECT(offset, RBP, NULL, 1));
+      }
     }
 
-    if (is_stack_param(type))
-      continue;
-
 #ifndef __NO_FLONUM
-    if (is_flonum(type)) {
-      if (farg_index < MAX_FREG_ARGS) {
+    ip = 0;
+    for (int i = 0; i < MAX_FREG_ARGS; ++i) {
+      const VarInfo *varinfo = NULL;
+      while (ip < len) {
+        const VarInfo *p = params->data[ip++];
+        const Type *type = p->type;
+        if (!is_stack_param(type)
+            && is_flonum(type)
+        ) {
+          varinfo = p;
+          break;
+        }
+      }
+      if (varinfo != NULL) {
+        const Type *type = varinfo->type;
+        assert(type->kind == TY_FLONUM);
+        int offset = varinfo->local.reg->offset;
         switch (type->flonum.kind) {
-        case FL_FLOAT:   MOVSS(kFReg64s[farg_index], OFFSET_INDIRECT(offset, RBP, NULL, 1)); break;
-        case FL_DOUBLE:  MOVSD(kFReg64s[farg_index], OFFSET_INDIRECT(offset, RBP, NULL, 1)); break;
+        case FL_FLOAT:   MOVSS(kFReg64s[i], OFFSET_INDIRECT(offset, RBP, NULL, 1)); break;
+        case FL_DOUBLE:  MOVSD(kFReg64s[i], OFFSET_INDIRECT(offset, RBP, NULL, 1)); break;
         default: assert(false); break;
         }
-        ++farg_index;
+      } else {
+        int offset = (i - MAX_FREG_ARGS) * WORD_SIZE;
+        MOVSD(kFReg64s[i], OFFSET_INDIRECT(offset, RBP, NULL, 1));
       }
-      continue;
     }
 #endif
-
-    switch (type->kind) {
-    case TY_FIXNUM:
-    case TY_PTR:
-      break;
-    default: assert(false); break;
-    }
-
-    if (arg_index < MAX_REG_ARGS) {
-      int size = type_size(type);
-      assert(size < (int)(sizeof(kRegTable) / sizeof(*kRegTable)) &&
-            kRegTable[size] != NULL);
-      MOV(kRegTable[size][arg_index], OFFSET_INDIRECT(offset, RBP, NULL, 1));
-      ++arg_index;
-    }
   }
 }
 

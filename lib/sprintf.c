@@ -10,6 +10,16 @@
 static char kHexDigits[] = "0123456789abcdef";
 static char kUpperHexDigits[] = "0123456789ABCDEF";
 
+static double pow10(int order) {
+  double a = 1, x = 10;
+  for (; order > 0; order >>= 1) {
+    if ((order & 1) != 0)
+      a *= x;
+    x *= x;
+  }
+  return a;
+}
+
 static int
 putstr(char *out, int o, int n, const char *s)
 {
@@ -223,6 +233,22 @@ vsnprintf(char *out, size_t n, const char *fmt_, va_list ap)
       out[o++] = va_arg(ap, unsigned int);
     } else if(c == '%'){
       out[o++] = c;
+    } else if(c == 'f'){
+      double x = va_arg(ap, double);
+
+      o += sprintsign(out + o, x < 0, sign, &order);
+      x = x < 0 ? -x : x;
+
+      int intPart = (int)x;
+      o += snprintuint(out + o, n - o, intPart, 10, kHexDigits,
+                       order, padding);
+      if (o < n) {
+        out[o++] = '.';
+        suborder = suborder > 0 ? suborder : 6;
+        int fraction = (int)((x - intPart) * pow10(suborder));
+        o += snprintuint(out + o, n - o, fraction, 10, kHexDigits,
+                         suborder, '0');
+      }
     } else {
       // Unknown % sequence.  Print it to draw attention.
       out[o++] = '%';

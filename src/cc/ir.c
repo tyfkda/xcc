@@ -344,15 +344,16 @@ IR *new_ir_precall(int arg_count, int stack_args_size) {
 }
 
 VReg *new_ir_call(const Name *label, bool global, VReg *freg, int total_arg_count, int reg_arg_count,
-                  const VRegType *result_type, IR *precall, VRegType **arg_vtypes) {
+                  const VRegType *result_type, IR *precall, VRegType **arg_vtypes, bool vaargs) {
   IR *ir = new_ir(IR_CALL);
   ir->call.label = label;
   ir->call.global = global;
   ir->opr1 = freg;
   ir->call.precall = precall;
+  ir->call.arg_vtypes = arg_vtypes;
   ir->call.total_arg_count = total_arg_count;
   ir->call.reg_arg_count = reg_arg_count;
-  ir->call.arg_vtypes = arg_vtypes;
+  ir->call.vaargs = vaargs;
   ir->size = result_type->size;
   return ir->dst = reg_alloc_spawn(curra, result_type, 0);
 }
@@ -464,8 +465,10 @@ static void ir_memcpy(int dst_reg, int src_reg, ssize_t size) {
 static void ir_out(IR *ir) {
   switch (ir->kind) {
   case IR_BOFS:
-    assert(!(ir->opr1->flag & VRF_CONST));
-    LEA(OFFSET_INDIRECT(ir->opr1->offset, RBP, NULL, 1), kReg64s[ir->dst->phys]);
+    if (ir->opr1->flag & VRF_CONST)
+      LEA(OFFSET_INDIRECT(ir->opr1->fixnum, RBP, NULL, 1), kReg64s[ir->dst->phys]);
+    else
+      LEA(OFFSET_INDIRECT(ir->opr1->offset, RBP, NULL, 1), kReg64s[ir->dst->phys]);
     break;
 
   case IR_IOFS:
@@ -515,13 +518,17 @@ static void ir_out(IR *ir) {
     }
 #endif
     {
-      assert(!(ir->opr1->flag & VRF_CONST));
       assert(!(ir->opr2->flag & VRF_CONST));
       assert(0 <= ir->size && ir->size < kPow2TableSize);
       int pow = kPow2Table[ir->size];
       assert(0 <= pow && pow < 4);
       const char **regs = kRegSizeTable[pow];
-      MOV(regs[ir->opr1->phys], INDIRECT(kReg64s[ir->opr2->phys], NULL, 1));
+      if (ir->opr1->flag & VRF_CONST) {
+        MOV(im(ir->opr1->fixnum), EAX);
+        MOV(EAX, INDIRECT(kReg64s[ir->opr2->phys], NULL, 1));
+      } else {
+        MOV(regs[ir->opr1->phys], INDIRECT(kReg64s[ir->opr2->phys], NULL, 1));
+      }
     }
     break;
 
@@ -1079,6 +1086,14 @@ static void ir_out(IR *ir) {
         }
       }
 
+#ifndef __NO_FLONUM
+      if (ir->call.vaargs) {
+        if (freg > 0)
+          MOV(im(freg), AL);
+        else
+          XOR(AL, AL);
+      }
+#endif
       if (ir->call.label != NULL) {
         const char *label = fmt_name(ir->call.label);
         if (ir->call.global)
