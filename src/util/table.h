@@ -29,6 +29,7 @@ typedef struct Table {
   int count;
 } Table;
 
+Table *alloc_table(void);
 void table_init(Table *table);
 void *table_get(Table *table, const Name *key);
 bool table_try_get(Table *table, const Name *key, void **output);

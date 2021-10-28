@@ -129,10 +129,8 @@ StructInfo *find_struct(Scope *scope, const Name *name, Scope **pscope) {
 }
 
 void define_struct(Scope *scope, const Name *name, StructInfo *sinfo) {
-  if (scope->struct_table == NULL) {
-    scope->struct_table = malloc(sizeof(*scope->struct_table));
-    table_init(scope->struct_table);
-  }
+  if (scope->struct_table == NULL)
+    scope->struct_table = alloc_table();
   table_put(scope->struct_table, name, sinfo);
 }
 
@@ -155,8 +153,7 @@ bool add_typedef(Scope *scope, const Name *name, const Type *type) {
     if (table_get(scope->typedef_table, name) != NULL)
       return false;
   } else {
-    scope->typedef_table = malloc(sizeof(*scope->typedef_table));
-    table_init(scope->typedef_table);
+    scope->typedef_table = alloc_table();
   }
   table_put(scope->typedef_table, name, (void*)type);
   return true;
@@ -176,10 +173,8 @@ Type *find_enum(Scope *scope, const Name *name) {
 Type *define_enum(Scope *scope, const Name *name) {
   Type *type = create_enum_type(name);
   if (name != NULL) {
-    if (scope->enum_table == NULL) {
-      scope->enum_table = malloc(sizeof(*scope->enum_table));
-      table_init(scope->enum_table);
-    }
+    if (scope->enum_table == NULL)
+      scope->enum_table = alloc_table();
     table_put(scope->enum_table, name, type);
   }
   return type;

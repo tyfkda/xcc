@@ -640,8 +640,7 @@ static void add_func_label(const Token *label) {
   assert(curfunc != NULL);
   Table *table = curfunc->label_table;
   if (table == NULL) {
-    curfunc->label_table = table = malloc(sizeof(*table));
-    table_init(table);
+    curfunc->label_table = table = alloc_table();
   }
   if (!table_put(table, label->ident, (void*)-1))  // Put dummy value.
     parse_error(label, "Label `%.*s' already defined", label->ident->bytes, label->ident->chars);

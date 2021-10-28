@@ -108,6 +108,13 @@ static void adjust_capacity(Table *table, int new_capacity) {
   table->count = new_count;
 }
 
+Table *alloc_table(void) {
+  Table *table = malloc(sizeof(*table));
+  if (table != NULL)
+    table_init(table);
+  return table;
+}
+
 void table_init(Table *table) {
   table->entries = NULL;
   table->count = table->capacity = 0;
