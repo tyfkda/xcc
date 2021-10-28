@@ -1398,11 +1398,10 @@ void remove_unnecessary_bb(BBContainer *bbcon) {
         replace_jmp_destination(bbcon, bb, ir->jmp.bb);
         if (i == 0)
           continue;
-        BB *pbb = bbs->data[i - 1];
-        if (!is_last_jmp(pbb))
+        IR *ir0 = is_last_jmp(bbs->data[i - 1]);
+        if (ir0 == NULL)
           continue;
-        if (!is_last_any_jmp(pbb)) {  // Fallthrough pass exists.
-          IR *ir0 = pbb->irs->data[pbb->irs->len - 1];
+        if (ir0->jmp.cond != COND_ANY) {  // Fallthrough pass exists.
           if (ir0->jmp.bb != bb->next)  // Non skip jmp: Keep bb connection.
             continue;
           // Invert prev jmp condition and change jmp destination.
