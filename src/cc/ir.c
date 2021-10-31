@@ -1387,39 +1387,59 @@ static void replace_jmp_destination(BBContainer *bbcon, BB *src, BB *dst) {
 
 void remove_unnecessary_bb(BBContainer *bbcon) {
   Vector *bbs = bbcon->bbs;
+  Table keeptbl;
   for (;;) {
+    table_init(&keeptbl);
+    assert(bbs->len > 0);
+    BB *bb0 = bbs->data[0];
+    table_put(&keeptbl, bb0->label, bb0);
+
+    for (int i = 0; i < bbs->len - 1; ++i) {
+      BB *bb = bbs->data[i];
+      bool remove = false;
+      IR *ir_jmp = is_last_jmp(bb);
+      if (bb->irs->len == 0) {  // Empty BB.
+        replace_jmp_destination(bbcon, bb, bb->next);
+        remove = true;
+      } else if (bb->irs->len == 1 && ir_jmp != NULL && ir_jmp->jmp.cond == COND_ANY && !equal_name(bb->label, ir_jmp->jmp.bb->label)) {  // jmp only.
+        replace_jmp_destination(bbcon, bb, ir_jmp->jmp.bb);
+        if (i > 0) {
+          BB *pbb = bbs->data[i - 1];
+          IR *ir0 = is_last_jmp(pbb);
+          if (ir0 != NULL && ir0->jmp.cond != COND_ANY) {  // Fallthrough pass exists.
+            if (ir0->jmp.bb == bb->next) {  // Skip jmp: Fix bb connection.
+              // Invert prev jmp condition and change jmp destination.
+              ir0->jmp.cond = invert_cond(ir0->jmp.cond);
+              ir0->jmp.bb = ir_jmp->jmp.bb;
+              remove = true;
+            }
+          }
+        }
+      }
+
+      if (ir_jmp != NULL)
+        table_put(&keeptbl, ir_jmp->jmp.bb->label, bb);
+      if (ir_jmp == NULL || ir_jmp->jmp.cond != COND_ANY)
+        table_put(&keeptbl, bb->next->label, bb);
+
+      if (remove)
+        table_delete(&keeptbl, bb->label);
+    }
+
     bool again = false;
     for (int i = 0; i < bbs->len - 1; ++i) {  // Make last one keeps alive.
       BB *bb = bbs->data[i];
-      IR *ir;
-      if (bb->irs->len == 0) {  // Empty BB.
-        replace_jmp_destination(bbcon, bb, bb->next);
-      } else if (bb->irs->len == 1 && (ir = is_last_any_jmp(bb)) != NULL && !equal_name(bb->label, ir->jmp.bb->label)) {  // jmp only.
-        replace_jmp_destination(bbcon, bb, ir->jmp.bb);
-        if (i == 0)
-          continue;
-        IR *ir0 = is_last_jmp(bbs->data[i - 1]);
-        if (ir0 == NULL)
-          continue;
-        if (ir0->jmp.cond != COND_ANY) {  // Fallthrough pass exists.
-          if (ir0->jmp.bb != bb->next)  // Non skip jmp: Keep bb connection.
-            continue;
-          // Invert prev jmp condition and change jmp destination.
-          ir0->jmp.cond = invert_cond(ir0->jmp.cond);
-          ir0->jmp.bb = ir->jmp.bb;
+      void *value;
+      if (!table_try_get(&keeptbl, bb->label, &value)) {
+        if (i > 0) {
+          BB *pbb = bbs->data[i - 1];
+          pbb->next = bb->next;
         }
-      } else {
-        continue;
-      }
 
-      if (i > 0) {
-        BB *pbb = bbs->data[i - 1];
-        pbb->next = bb->next;
+        vec_remove_at(bbs, i);
+        --i;
+        again = true;
       }
-
-      vec_remove_at(bbs, i);
-      --i;
-      again = true;
     }
     if (!again)
       break;
