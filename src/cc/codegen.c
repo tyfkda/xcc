@@ -232,28 +232,46 @@ static void gen_switch_cond_recur(Stmt *stmt, VReg *reg, const VRegType *vtype, 
 static void gen_switch_cond(Stmt *stmt) {
   Expr *value = stmt->switch_.value;
   VReg *reg = gen_expr(value);
-  {  // Avoid spilled register.
-    VReg *tmp = add_new_reg(value->type, 0);
-    new_ir_mov(tmp, reg);
-    reg = tmp;
-  }
 
   Vector *cases = stmt->switch_.cases;
   int len = cases->len;
-  if (len > 0) {
-    // Sort cases in increasing order.
-    int *order = malloc(sizeof(int) * len);
-    for (int i = 0; i < len; ++i)
-      order[i] = i;
-    QSORT(order, len, sizeof(int), compare_cases);
 
-    if (stmt->switch_.default_ != NULL)
-      --len;  // Ignore default.
-    gen_switch_cond_recur(stmt, reg, to_vtype(stmt->switch_.value->type), order, len);
-    free(order);
+  if (reg->flag & VRF_CONST) {
+    intptr_t value = reg->fixnum;
+    Stmt *target = stmt->switch_.default_;
+    for (int i = 0; i < len; ++i) {
+      Stmt *c = cases->data[i];
+      if (c->case_.value != NULL && c->case_.value->fixnum == value) {
+        target = c;
+        break;
+      }
+    }
+
+    BB *nextbb = new_bb();
+    new_ir_jmp(COND_ANY, target != NULL ? target->case_.bb : stmt->switch_.break_bb);
+    set_curbb(nextbb);
   } else {
-    Stmt *def = curswitch->switch_.default_;
-    new_ir_jmp(COND_ANY, def != NULL ? def->case_.bb : curswitch->switch_.break_bb);
+    {  // Avoid spilled register.
+      VReg *tmp = add_new_reg(value->type, 0);
+      new_ir_mov(tmp, reg);
+      reg = tmp;
+    }
+
+    if (len > 0) {
+      // Sort cases in increasing order.
+      int *order = malloc(sizeof(int) * len);
+      for (int i = 0; i < len; ++i)
+        order[i] = i;
+      QSORT(order, len, sizeof(int), compare_cases);
+
+      if (stmt->switch_.default_ != NULL)
+        --len;  // Ignore default.
+      gen_switch_cond_recur(stmt, reg, to_vtype(stmt->switch_.value->type), order, len);
+      free(order);
+    } else {
+      Stmt *def = curswitch->switch_.default_;
+      new_ir_jmp(COND_ANY, def != NULL ? def->case_.bb : curswitch->switch_.break_bb);
+    }
   }
   set_curbb(new_bb());
 }
