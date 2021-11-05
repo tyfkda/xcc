@@ -6,7 +6,6 @@
 
 #include "table.h"
 #include "util.h"
-#include "var.h"  // VarInfo
 
 const Type tyChar =          {.kind=TY_FIXNUM, .fixnum={.kind=FX_CHAR,  .is_unsigned=false}};
 const Type tyInt =           {.kind=TY_FIXNUM, .fixnum={.kind=FX_INT,   .is_unsigned=false}};
@@ -65,11 +64,11 @@ static void calc_struct_size(StructInfo *sinfo) {
   int max_align = 1;
 
   for (int i = 0, len = sinfo->members->len; i < len; ++i) {
-    VarInfo *member = sinfo->members->data[i];
+    MemberInfo *member = sinfo->members->data[i];
     size_t sz = type_size(member->type);
     int align = align_size(member->type);
     size = ALIGN(size, align);
-    member->struct_member.offset = size;
+    member->offset = size;
     if (!sinfo->is_union) {
       size += sz;
     } else {
@@ -217,6 +216,17 @@ const Type *qualified_type(const Type *type, int additional) {
 }
 
 // Struct
+bool add_struct_member(Vector *members, const Name *name, const Type *type) {
+  if (name != NULL && find_struct_member(members, name) >= 0)
+    return false;
+
+  MemberInfo *member = malloc(sizeof(*member));
+  member->name = name;
+  member->type = type;
+  member->offset = 0;
+  vec_push(members, member);
+  return true;
+}
 
 StructInfo *create_struct_info(Vector *members, bool is_union) {
   StructInfo *sinfo = malloc(sizeof(*sinfo));
@@ -235,6 +245,15 @@ Type *create_struct_type(StructInfo *sinfo, const Name *name, int qualifier) {
   type->struct_.name = name;
   type->struct_.info = sinfo;
   return type;
+}
+
+int find_struct_member(const Vector *members, const Name *name) {
+  for (int i = 0, len = members->len; i < len; ++i) {
+    MemberInfo *info = members->data[i];
+    if (info->name != NULL && equal_name(info->name, name))
+      return i;
+  }
+  return -1;
 }
 
 // Enum

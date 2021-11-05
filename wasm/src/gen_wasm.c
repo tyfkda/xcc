@@ -453,13 +453,13 @@ static void gen_lval(Expr *expr) {
         type = type->pa.ptrof;
       assert(type->kind == TY_STRUCT);
       const Vector *members = type->struct_.info->members;
-      const VarInfo *member = members->data[expr->member.index];
+      const MemberInfo *member = members->data[expr->member.index];
 
       gen_expr(expr->member.target, true);
-      if (member->struct_member.offset == 0)
+      if (member->offset == 0)
         return;
       ADD_CODE(OP_I32_CONST);
-      ADD_LEB128(member->struct_member.offset);
+      ADD_LEB128(member->offset);
       ADD_CODE(OP_I32_ADD);
       return;
     }

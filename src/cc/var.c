@@ -200,25 +200,3 @@ void ensure_struct(Type *type, const Token *token, Scope *scope) {
       ensure_struct((Type*)varinfo->type, token, scope);
   }
 }
-
-const VarInfo *search_from_anonymous(const Type *type, const Name *name, const Token *ident,
-                                     Vector *stack) {
-  assert(type->kind == TY_STRUCT);
-  const Vector *members = type->struct_.info->members;
-  for (int i = 0, len = members->len; i < len; ++i) {
-    const VarInfo *member = members->data[i];
-    if (member->name != NULL) {
-      if (equal_name(member->name, name)) {
-        vec_push(stack, (void*)(long)i);
-        return member;
-      }
-    } else if (member->type->kind == TY_STRUCT) {
-      vec_push(stack, (void*)(intptr_t)i);
-      const VarInfo *submember = search_from_anonymous(member->type, name, ident, stack);
-      if (submember != NULL)
-        return submember;
-      vec_pop(stack);
-    }
-  }
-  return NULL;
-}

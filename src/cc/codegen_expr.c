@@ -242,13 +242,13 @@ static VReg *gen_lval(Expr *expr) {
         type = type->pa.ptrof;
       assert(type->kind == TY_STRUCT);
       const Vector *members = type->struct_.info->members;
-      const VarInfo *member = members->data[expr->member.index];
+      const MemberInfo *member = members->data[expr->member.index];
 
       VReg *reg = gen_expr(expr->member.target);
-      if (member->struct_member.offset == 0)
+      if (member->offset == 0)
         return reg;
       VRegType *vtype = to_vtype(&tySize);
-      VReg *imm = new_const_vreg(member->struct_member.offset, vtype);
+      VReg *imm = new_const_vreg(member->offset, vtype);
       VReg *result = new_ir_bop(IR_ADD, reg, imm, vtype);
       return result;
     }

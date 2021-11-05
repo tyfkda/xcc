@@ -49,8 +49,16 @@ enum {
   TQ_VOLATILE = 1 << 1,
 };
 
+typedef struct MemberInfo {
+  const Name *name;
+  const struct Type *type;
+
+  // For codegen.
+  int offset;
+} MemberInfo;
+
 typedef struct StructInfo {
-  Vector *members;  // <VarInfo*>
+  Vector *members;  // <MemberInfo*>
   ssize_t size;
   int align;
   bool is_union;
@@ -126,8 +134,10 @@ const Type *qualified_type(const Type *type, int additional);
 
 // Struct
 
+bool add_struct_member(Vector *members, const Name *name, const Type *type);
 StructInfo *create_struct_info(Vector *members, bool is_union);  // members: <VarInfo*>
 Type *create_struct_type(StructInfo *sinfo, const Name *name, int qualifier);
+int find_struct_member(const Vector *members, const Name *name);
 
 Type *create_enum_type(const Name *name);
 

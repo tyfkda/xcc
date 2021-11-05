@@ -39,10 +39,6 @@ typedef struct VarInfo {
       struct VarInfo *gvar;  // which points to global(static) variable.
     } static_;
     struct {
-      // For codegen.
-      int offset;
-    } struct_member;
-    struct {
       int value;
     } enum_member;
   };
@@ -84,5 +80,3 @@ Type *define_enum(Scope *scope, const Name *name);
 
 // Call before accessing struct member to ensure that struct is declared.
 void ensure_struct(Type *type, const Token *token, Scope *scope);
-const VarInfo *search_from_anonymous(const Type *type, const Name *name, const Token *ident,
-                                     Vector *stack);

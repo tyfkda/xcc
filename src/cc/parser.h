@@ -9,6 +9,7 @@
 typedef struct Expr Expr;
 typedef struct Function Function;
 typedef struct Initializer Initializer;
+typedef struct MemberInfo MemberInfo;
 typedef struct Name Name;
 typedef struct Scope Scope;
 typedef struct Stmt Stmt;
@@ -47,6 +48,8 @@ void not_const(const Type *type, const Token *token);
 bool check_cast(const Type *dst, const Type *src, bool zero, bool is_explicit, const Token *token);
 Expr *make_cast(const Type *type, const Token *token, Expr *sub, bool is_explicit);
 Expr *make_cond(Expr *expr);
+const MemberInfo *search_from_anonymous(const Type *type, const Name *name, const Token *ident,
+                                        Vector *stack);
 VarInfo *str_to_char_array(Scope *scope, const Type *type, Initializer *init, Vector *toplevel);
 Expr *str_to_char_array_var(Scope *scope, Expr *str, Vector *toplevel);
 Expr *new_expr_addsub(enum ExprKind kind, const Token *tok, Expr *lhs, Expr *rhs, bool keep_left);
