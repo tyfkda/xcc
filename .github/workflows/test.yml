@@ -1,4 +1,4 @@
-name: C/C++ CI
+name: AllTests
 
 on:
   push:
@@ -9,13 +9,22 @@ on:
     branches: [ main ]
 
 jobs:
-  build:
-
+  test_c:
     runs-on: ubuntu-latest
 
     steps:
     - uses: actions/checkout@v2
     - name: make
       run: make
-    - name: make test
+    - name: test
       run: make test test-gen2
+
+  test_wasm:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v2
+    - name: setup
+      run: cd wasm && npm install
+    - name: test
+      run:  make -C wasm test
