@@ -1,4 +1,4 @@
-// Statement
+// Abstract Syntax Tree
 
 #pragma once
 
