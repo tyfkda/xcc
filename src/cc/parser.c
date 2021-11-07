@@ -220,7 +220,7 @@ static Initializer *flatten_initializer(const Type *type, Initializer *init) {
       int m = init->multi->len;
       if (n <= 0) {
         if (m > 0)
-          parse_error(init->token, "Initializer for empty struct");
+          parse_error_nofatal(init->token, "Initializer for empty struct");
         return init;
       }
       if (sinfo->is_union && m > 1)
@@ -243,8 +243,10 @@ static Initializer *flatten_initializer(const Type *type, Initializer *init) {
             value = value->dot.value;
           } else {
             Vector *stack = new_vector();
-            if (search_from_anonymous(type, name, NULL, stack) == NULL)
-              parse_error(value->token, "`%.*s' is not member of struct", name->bytes, name->chars);
+            if (search_from_anonymous(type, name, NULL, stack) == NULL) {
+              parse_error_nofatal(value->token, "`%.*s' is not member of struct", name->bytes, name->chars);
+              continue;
+            }
 
             index = (intptr_t)stack->data[0];
             Vector *multi = new_vector();
@@ -626,8 +628,10 @@ static Initializer *check_vardecl(const Type *type, const Token *ident, int stor
     //intptr_t eval;
     //if (find_enum_value(ident->ident, &eval))
     //  parse_error(ident, "`%.*s' is already defined", ident->ident->bytes, ident->ident->chars);
-    if (storage & VS_EXTERN && init != NULL)
-      parse_error(init->token, "extern with initializer");
+    if (storage & VS_EXTERN && init != NULL) {
+      parse_error_nofatal(init->token, "extern with initializer");
+      return NULL;
+    }
     // Toplevel
     VarInfo *varinfo = scope_find(global_scope, ident->ident, NULL);
     assert(varinfo != NULL);
@@ -643,7 +647,7 @@ static void add_func_label(const Token *label) {
     curfunc->label_table = table = alloc_table();
   }
   if (!table_put(table, label->ident, (void*)-1))  // Put dummy value.
-    parse_error(label, "Label `%.*s' already defined", label->ident->bytes, label->ident->chars);
+    parse_error_nofatal(label, "Label `%.*s' already defined", label->ident->bytes, label->ident->chars);
 }
 
 static void add_func_goto(Stmt *stmt) {
@@ -872,7 +876,7 @@ static Stmt *parse_case(const Token *tok) {
       if (c->case_.value == NULL)
         continue;
       if (c->case_.value->fixnum == v)
-        parse_error(tok, "Case value `%" PRIdPTR "' already defined", v);
+        parse_error_nofatal(tok, "Case value `%" PRIdPTR "' already defined", v);
     }
     vec_push(cases, stmt);
   }
@@ -884,9 +888,9 @@ static Stmt *parse_default(const Token *tok) {
 
   Stmt *stmt = new_stmt_default(tok);
   if (curswitch == NULL) {
-    parse_error(tok, "`default' cannot use outside of `switch'");
+    parse_error_nofatal(tok, "`default' cannot use outside of `switch'");
   } else if (curswitch->switch_.default_ != NULL) {
-    parse_error(tok, "`default' already defined in `switch'");
+    parse_error_nofatal(tok, "`default' already defined in `switch'");
   } else {
     curswitch->switch_.default_ = stmt;
     vec_push(curswitch->switch_.cases, stmt);
@@ -988,7 +992,7 @@ static Stmt *parse_break_continue(enum StmtKind kind, const Token *tok) {
       err = "`break' cannot be used outside of loop";
     else
       err = "`continue' cannot be used outside of loop";
-    parse_error(tok, err);
+    parse_error_nofatal(tok, err);
   }
   return new_stmt(kind, tok);
 }
@@ -1020,12 +1024,12 @@ static Stmt *parse_return(const Token *tok) {
   const Type *rettype = curfunc->type->func.ret;
   if (val == NULL) {
     if (rettype->kind != TY_VOID)
-      parse_error(tok, "`return' required a value");
+      parse_error_nofatal(tok, "`return' required a value");
   } else {
     if (rettype->kind == TY_VOID)
-      parse_error(val->token, "void function `return' a value");
-
-    val = make_cast(rettype, val->token, val, false);
+      parse_error_nofatal(val->token, "void function `return' a value");
+    else
+      val = make_cast(rettype, val->token, val, false);
   }
 
   return new_stmt_return(tok, val);
@@ -1129,14 +1133,16 @@ static Declaration *parse_defun(const Type *functype, int storage, Token *ident)
   if (varinfo == NULL) {
     varinfo = scope_add(global_scope, ident, functype, storage);
   } else {
-    if (varinfo->type->kind != TY_FUNC)
-      parse_error(ident, "Definition conflict: `%s'");
-    if (varinfo->global.init != NULL)
-      parse_error(ident, "`%.*s' function already defined", func->name->bytes,
-                  func->name->chars);
-    if (varinfo->type->func.params == NULL &&  // Old-style prototype definition.
-        functype->func.params != NULL) {
-      varinfo->type = functype;  // Overwrite with actual function type.
+    if (varinfo->type->kind != TY_FUNC) {
+      parse_error_nofatal(ident, "Definition conflict: `%.*s'", func->name->bytes, func->name->chars);
+    } else {
+      if (varinfo->global.init != NULL)
+        parse_error_nofatal(ident, "`%.*s' function already defined", func->name->bytes,
+                            func->name->chars);
+      if (varinfo->type->func.params == NULL &&  // Old-style prototype definition.
+          functype->func.params != NULL) {
+        varinfo->type = functype;  // Overwrite with actual function type.
+      }
     }
   }
 
@@ -1170,7 +1176,7 @@ static Declaration *parse_defun(const Type *functype, int storage, Token *ident)
         void *bb;
         if (label_table == NULL || !table_try_get(label_table, stmt->goto_.label->ident, &bb)) {
           const Name *name = stmt->goto_.label->ident;
-          parse_error(stmt->goto_.label, "`%.*s' not found", name->bytes, name->chars);
+          parse_error_nofatal(stmt->goto_.label, "`%.*s' not found", name->bytes, name->chars);
         }
       }
     }

@@ -123,7 +123,7 @@ GVarInfo *get_gvar_info(Expr *expr) {
     info = get_gvar_info_from_name(varinfo->name);
     if (info == NULL) {
       fprintf(stderr, "Global variable not found: %.*s\n", expr->var.name->bytes, expr->var.name->chars);
-      ++error_count;
+      ++compile_error_count;
       // Returns dummy.
       info = register_gvar_info(varinfo->name, varinfo);
     }

@@ -25,7 +25,7 @@ VarInfo *var_add(Vector *vars, const Name *name, const Type *type, int storage,
   if (name != NULL) {
     int idx = var_find(vars, name);
     if (idx >= 0)
-      parse_error(ident, "`%.*s' already defined", name->bytes, name->chars);
+      parse_error_nofatal(ident, "`%.*s' already defined", name->bytes, name->chars);
   }
 
   VarInfo *varinfo = calloc(1, sizeof(*varinfo));
@@ -54,7 +54,7 @@ static VarInfo *define_global(const Name *name, const Type *type, int storage, c
   if (varinfo != NULL) {
     if (!(varinfo->storage & VS_EXTERN)) {
       if (!(storage & VS_EXTERN))
-        parse_error(ident, "`%.*s' already defined", name->bytes, name->chars);
+        parse_error_nofatal(ident, "`%.*s' already defined", name->bytes, name->chars);
       return varinfo;
     }
     varinfo->name = name;

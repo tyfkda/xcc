@@ -40,7 +40,7 @@ void not_void(const Type *type, const Token *token) {
 
 void not_const(const Type *type, const Token *token) {
   if (type->qualifier & TQ_CONST)
-    parse_error(token, "Cannot modify `const'");
+    parse_error_nofatal(token, "Cannot modify `const'");
 }
 
 // Returns created global variable info.
@@ -604,8 +604,10 @@ void check_funcall_args(Expr *func, Vector *args, Scope *scope, Vector *toplevel
     int argc = args != NULL ? args->len : 0;
     int paramc = param_types->len;
     if (!(argc == paramc ||
-          (vaargs && argc >= paramc)))
-      parse_error(func->token, "function `%.*s' expect %d arguments, but %d", func->var.name->bytes, func->var.name->chars, paramc, argc);
+          (vaargs && argc >= paramc))) {
+      parse_error_nofatal(func->token, "function `%.*s' expect %d arguments, but %d", func->var.name->bytes, func->var.name->chars, paramc, argc);
+      return;
+    }
   }
 
   if (args != NULL) {
@@ -662,15 +664,22 @@ static Expr *parse_member_access(Expr *target, Token *acctok) {
   // Find member's type from struct info.
   const Type *type = target->type;
   if (acctok->kind == TK_DOT) {
-    if (type->kind != TY_STRUCT)
-      parse_error(acctok, "`.' for non struct value");
+    if (type->kind != TY_STRUCT) {
+      parse_error_nofatal(acctok, "`.' for non struct value");
+      if (!ptr_or_array(type) || (type = type->pa.ptrof, type->kind != TY_STRUCT))
+        return target;
+    }
   } else {  // TK_ARROW
     if (!ptr_or_array(type)) {
-      parse_error(acctok, "`->' for non pointer value");
+      parse_error_nofatal(acctok, "`->' for non pointer value");
+      if (type->kind != TY_STRUCT)
+        return target;
     } else {
       type = type->pa.ptrof;
-      if (type->kind != TY_STRUCT)
-        parse_error(acctok, "`->' for non struct value");
+    }
+    if (type->kind != TY_STRUCT) {
+      parse_error(acctok, "`->' for non struct value");
+      return target;
     }
   }
 
@@ -708,8 +717,8 @@ static void parse_enum_members(const Type *type) {
     }
 
     if (scope_find(global_scope, token->ident, NULL) != NULL) {
-      parse_error(token, "`%.*s' is already defined",
-                  token->ident->bytes, token->ident->chars);
+      parse_error_nofatal(token, "`%.*s' is already defined",
+                          token->ident->bytes, token->ident->chars);
     } else {
       define_enum_member(ctype, token, value);
     }
@@ -875,15 +884,16 @@ Type *parse_raw_type(int *pstorage) {
           Scope *scope;
           StructInfo *exist = find_struct(curscope, name, &scope);
           if (exist != NULL && scope == curscope)
-            parse_error(ident, "`%.*s' already defined", name->bytes, name->chars);
-          define_struct(curscope, name, sinfo);
+            parse_error_nofatal(ident, "`%.*s' already defined", name->bytes, name->chars);
+          else
+            define_struct(curscope, name, sinfo);
         }
       } else {
         if (name != NULL) {
           sinfo = find_struct(curscope, name, NULL);
           if (sinfo != NULL) {
             if (sinfo->is_union != is_union)
-              parse_error(tok, "Wrong tag for `%.*s'", name->bytes, name->chars);
+              parse_error_nofatal(tok, "Wrong tag for `%.*s'", name->bytes, name->chars);
           }
         }
       }
@@ -961,7 +971,7 @@ const Type *parse_type_suffix(const Type *type) {
   } else {
     Expr *expr = parse_const();
     if (expr->fixnum <= 0)
-      parse_error(expr->token, "Array size must be greater than 0, but %" PRIdPTR, expr->fixnum);
+      parse_error_nofatal(expr->token, "Array size must be greater than 0, but %" PRIdPTR, expr->fixnum);
     length = expr->fixnum;
     consume(TK_RBRACKET, "`]' expected");
   }
@@ -1020,7 +1030,7 @@ static Type *parse_direct_declarator_suffix(Type *type) {
       if (!(is_const(expr) && is_number(expr->type)))
         parse_error(expr->token, "syntax error");
       if (expr->fixnum <= 0)
-        parse_error(expr->token, "Array size must be greater than 0, but %d", (int)expr->fixnum);
+        parse_error_nofatal(expr->token, "Array size must be greater than 0, but %d", (int)expr->fixnum);
       length = expr->fixnum;
       consume(TK_RBRACKET, "`]' expected");
     }
@@ -1106,11 +1116,11 @@ Vector *parse_funparams(bool *pvaargs) {
       if (!parse_var_def(NULL, &type, &storage, &ident))
         parse_error(NULL, "type expected");
       if (storage & VS_STATIC)
-        parse_error(ident, "`static' for function parameter");
+        parse_error_nofatal(ident, "`static' for function parameter");
       if (storage & VS_EXTERN)
-        parse_error(ident, "`extern' for function parameter");
+        parse_error_nofatal(ident, "`extern' for function parameter");
       if (storage & VS_TYPEDEF)
-        parse_error(ident, "`typedef' for function parameter");
+        parse_error_nofatal(ident, "`typedef' for function parameter");
 
       if (params->len == 0) {
         if (type->kind == TY_VOID) {  // fun(void)
@@ -1159,11 +1169,11 @@ static StructInfo *parse_struct(bool is_union) {
         // Allow ident to be null for anonymous struct member.
       } else {
         if (ident == NULL)
-          parse_error(NULL, "`ident' expected");
+          parse_error_nofatal(NULL, "`ident' expected");
       }
       const Name *name = ident != NULL ? ident->ident : NULL;
       if (!add_struct_member(members, name, type))
-        parse_error(ident, "`%.*s' already defined", name->bytes, name->chars);
+        parse_error_nofatal(ident, "`%.*s' already defined", name->bytes, name->chars);
 
       if (match(TK_COMMA))
         continue;
@@ -1271,8 +1281,9 @@ static Expr *parse_prim(void) {
       return new_expr_fixlit(varinfo->type, ident, varinfo->enum_member.value);
     type = varinfo->type;
   } else {
-    parse_error(ident, "undefined indentifier");
+    parse_error_nofatal(ident, "`%.*s' undeclared", ident->ident->bytes, ident->ident->chars);
     type = &tyInt;
+    // TODO: Register variable to suppress multiple errors.
   }
   return new_expr_variable(name, type, ident, scope);
 }
@@ -1301,19 +1312,21 @@ static Expr *parse_postfix(void) {
 
 static Expr *parse_sizeof(const Token *token) {
   const Type *type = NULL;
-  Token *tok;
+  const Token *tok;
   if ((tok = match(TK_LPAR)) != NULL) {
     type = parse_full_type(NULL, NULL);
     if (type != NULL) {
       consume(TK_RPAR, "`)' expected");
     } else {
-      unget_token(tok);
+      unget_token((Token*)tok);
       Expr *expr = parse_prim();
       type = expr->type;
+      tok = expr->token;
     }
   } else {
     Expr *expr = parse_unary();
     type = expr->type;
+    tok = expr->token;
   }
   assert(type != NULL);
   if (type->kind == TY_STRUCT)
@@ -1321,7 +1334,8 @@ static Expr *parse_sizeof(const Token *token) {
   if (type->kind == TY_ARRAY) {
     if (type->pa.length == -1) {
       // TODO: assert `export` modifier.
-      parse_error(token, "size unknown");
+      parse_error_nofatal(tok, "size unknown");
+      ((Type*)type)->pa.length = 1;  // Continue parsing.
     }
     assert(type->pa.length > 0);
   }
@@ -1334,8 +1348,10 @@ static Expr *parse_unary(void) {
   Token *tok;
   if ((tok = match(TK_ADD)) != NULL) {
     Expr *expr = parse_cast_expr();
-    if (!is_number(expr->type))
-      parse_error(tok, "Cannot apply `+' except number types");
+    if (!is_number(expr->type)) {
+      parse_error_nofatal(tok, "Cannot apply `+' except number types");
+      return expr;
+    }
     if (is_const(expr))
       return expr;
     return new_expr_unary(EX_POS, expr->type, tok, expr);
@@ -1343,8 +1359,10 @@ static Expr *parse_unary(void) {
 
   if ((tok = match(TK_SUB)) != NULL) {
     Expr *expr = parse_cast_expr();
-    if (!is_number(expr->type))
-      parse_error(tok, "Cannot apply `-' except number types");
+    if (!is_number(expr->type)) {
+      parse_error_nofatal(tok, "Cannot apply `-' except number types");
+      return expr;
+    }
     if (is_const(expr)) {
 #ifndef __NO_FLONUM
       if (is_flonum(expr->type)) {
@@ -1365,8 +1383,10 @@ static Expr *parse_unary(void) {
 
   if ((tok = match(TK_NOT)) != NULL) {
     Expr *expr = parse_cast_expr();
-    if (!is_number(expr->type) && !ptr_or_array(expr->type))
-      parse_error(tok, "Cannot apply `!' except number or pointer types");
+    if (!is_number(expr->type) && !ptr_or_array(expr->type)) {
+      parse_error_nofatal(tok, "Cannot apply `!' except number or pointer types");
+      return new_expr_fixlit(&tyBool, tok, false);
+    }
     if (is_const(expr)) {
       switch (expr->kind) {
       case EX_FIXNUM:
@@ -1397,8 +1417,10 @@ static Expr *parse_unary(void) {
 
   if ((tok = match(TK_TILDA)) != NULL) {
     Expr *expr = parse_cast_expr();
-    if (!is_fixnum(expr->type->kind))
-      parse_error(tok, "Cannot apply `~' except number type");
+    if (!is_fixnum(expr->type->kind)) {
+      parse_error_nofatal(tok, "Cannot apply `~' except integer");
+      return new_expr_fixlit(&tyInt, expr->token, 0);
+    }
     if (is_const(expr)) {
       expr->fixnum = ~expr->fixnum;
       return expr;
@@ -1423,8 +1445,8 @@ static Expr *parse_unary(void) {
     case TY_FUNC:
       break;
     default:
-      parse_error(tok, "Cannot dereference raw type");
-      break;
+      parse_error_nofatal(tok, "Cannot dereference raw type");
+      return expr;
     }
     expr = str_to_char_array_var(curscope, expr, toplevel);
     return new_expr_unary(EX_DEREF, type, tok, expr);
@@ -1826,9 +1848,10 @@ Expr *parse_assign(void) {
 
 Expr *parse_const(void) {
   Expr *expr = parse_conditional();
-  if (!(is_const(expr) && is_fixnum(expr->type->kind)))
-    parse_error(expr->token, "constant value expected");
-  return expr;
+  if (is_const(expr) && is_fixnum(expr->type->kind))
+    return expr;
+  parse_error_nofatal(expr->token, "constant value expected");
+  return new_expr_fixlit(&tyInt, expr->token, 1);
 }
 
 Expr *parse_expr(void) {

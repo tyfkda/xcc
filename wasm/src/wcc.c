@@ -21,7 +21,6 @@ static const char IMPORT_MODULE_NAME[] = "c";
 static const uint32_t DEFAULT_STACK_SIZE = 8 * 1024;
 static const uint32_t MEMORY_PAGE_SIZE = 65536;
 
-int error_count;
 bool verbose;
 
 ////////////////////////////////////////////////
@@ -893,7 +892,7 @@ int main(int argc, char *argv[]) {
   uint32_t address_bottom = traverse_ast(toplevel, exports, stack_size);
 
   gen(toplevel);
-  if (error_count != 0)
+  if (compile_error_count != 0)
     return 1;
 
   FILE *fp = fopen(ofn, "wb");
@@ -901,7 +900,7 @@ int main(int argc, char *argv[]) {
     error("Cannot open output file");
   } else {
     emit_wasm(fp, exports, address_bottom);
-    assert(error_count == 0);
+    assert(compile_error_count == 0);
     fclose(fp);
   }
 

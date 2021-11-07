@@ -82,6 +82,9 @@ int main(int argc, char *argv[]) {
   } else {
     compile1(stdin, "*stdin*", toplevel);
   }
+  if (compile_error_count != 0)
+    exit(1);
+
   gen(toplevel);
 
   if (!dump_ir) {

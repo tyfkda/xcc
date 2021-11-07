@@ -11,6 +11,7 @@
 #include "util.h"
 
 #define MAX_LOOKAHEAD  (2)
+#define MAX_ERROR_COUNT  (25)
 
 static const struct {
   const char *str;
@@ -121,8 +122,9 @@ typedef struct {
   int lineno;
 } Lexer;
 
-static Lexer lexer;
+int compile_error_count;
 
+static Lexer lexer;
 static Table reserved_word_table;
 
 static void show_error_line(const char *line, const char *p, int len) {
@@ -152,7 +154,7 @@ static void lex_error(const char *p, const char *fmt, ...) {
   exit(1);
 }
 
-void parse_error(const Token *token, const char *fmt, ...) {
+static void parse_error_valist(const Token *token, const char *fmt, va_list ap) {
   if (fmt != NULL) {
     if (token == NULL)
       token = fetch_token();
@@ -160,15 +162,32 @@ void parse_error(const Token *token, const char *fmt, ...) {
       fprintf(stderr, "%s(%d): ", token->line->filename, token->line->lineno);
     }
 
-    va_list ap;
-    va_start(ap, fmt);
     vfprintf(stderr, fmt, ap);
-    va_end(ap);
     fprintf(stderr, "\n");
   }
 
   if (token != NULL && token->line != NULL && token->begin != NULL)
     show_error_line(token->line->buf, token->begin, token->end - token->begin);
+}
+
+void parse_error_nofatal(const Token *token, const char *fmt, ...) {
+  va_list ap;
+  va_start(ap, fmt);
+  parse_error_valist(token, fmt, ap);
+  va_end(ap);
+
+  ++compile_error_count;
+  if (compile_error_count >= MAX_ERROR_COUNT)
+    exit(1);
+}
+
+void parse_error(const Token *token, const char *fmt, ...) {
+  ++compile_error_count;
+
+  va_list ap;
+  va_start(ap, fmt);
+  parse_error_valist(token, fmt, ap);
+  va_end(ap);
 
   exit(1);
 }

@@ -29,7 +29,6 @@ extern Table gvar_info_table;
 extern Vector *functypes;
 extern Table indirect_function_table;
 extern uint32_t data_end_address;
-extern int error_count;
 extern bool verbose;
 
 #define VERBOSES(str)  do { if (verbose) printf("%s", str); } while (0)

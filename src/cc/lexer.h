@@ -137,6 +137,8 @@ typedef struct Token {
   };
 } Token;
 
+extern int compile_error_count;
+
 void init_lexer(void);
 void set_source_file(FILE *fp, const char *filename);
 void set_source_string(const char *line, const char *filename, int lineno);
@@ -147,4 +149,5 @@ void unget_token(Token *token);
 const char *read_ident(const char *p);
 Token *alloc_ident(const Name *name, const char *begin, const char *end);
 void parse_error(const Token *token, const char *fmt, ...);
+void parse_error_nofatal(const Token *token, const char *fmt, ...);
 const char *get_lex_p(void);
