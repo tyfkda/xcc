@@ -1195,18 +1195,19 @@ static Declaration *parse_defun(const Type *functype, int storage, Token *ident)
   Function *func = new_func(functype, ident->ident);
 
   VarInfo *varinfo = scope_find(global_scope, func->name, NULL);
+  bool err = false;
   if (varinfo == NULL) {
     varinfo = add_var_to_scope(global_scope, ident, functype, storage);
   } else {
-    if (varinfo->type->kind != TY_FUNC) {
+    if (varinfo->type->kind != TY_FUNC ||
+        !same_type(varinfo->type->func.ret, functype->func.ret) ||
+        (varinfo->type->func.params != NULL && !same_type(varinfo->type, functype))) {
       parse_error_nofatal(ident, "Definition conflict: `%.*s'", func->name->bytes, func->name->chars);
+      err = true;
     } else {
-      if (varinfo->global.init != NULL)
-        parse_error_nofatal(ident, "`%.*s' function already defined", func->name->bytes,
-                            func->name->chars);
-      if (varinfo->type->func.params == NULL &&  // Old-style prototype definition.
-          functype->func.params != NULL) {
-        varinfo->type = functype;  // Overwrite with actual function type.
+      if (varinfo->global.func == NULL) {
+        if (varinfo->type->func.params == NULL)  // Old-style prototype definition.
+          varinfo->type = functype;  // Overwrite with actual function type.
       }
     }
   }
@@ -1215,6 +1216,13 @@ static Declaration *parse_defun(const Type *functype, int storage, Token *ident)
     // Prototype declaration.
   } else {
     consume(TK_LBRACE, "`;' or `{' expected");
+
+    if (!err && varinfo->global.func != NULL) {
+      parse_error_nofatal(ident, "`%.*s' function already defined", func->name->bytes,
+                          func->name->chars);
+    } else {
+      varinfo->global.func = func;
+    }
 
     assert(curfunc == NULL);
     assert(is_global_scope(curscope));

@@ -4,6 +4,7 @@
 
 #include <stdbool.h>
 
+typedef struct Function Function;
 typedef struct Initializer Initializer;
 typedef struct Name Name;
 typedef struct StructInfo StructInfo;
@@ -31,8 +32,9 @@ typedef struct VarInfo {
       // For codegen.
       VReg *reg;
     } local;
-    struct {
+    union {
       Initializer *init;
+      Function *func;
     } global;
     struct {
       struct VarInfo *gvar;  // which points to global(static) variable.

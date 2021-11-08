@@ -484,7 +484,7 @@ int close(int fd) {
   __asm("syscall\n");
 }
 
-size_t read(int fd, void *buf, size_t size) {
+ssize_t read(int fd, void *buf, size_t size) {
   __asm("mov $0, %eax");  // __NR_read
   __asm("syscall");
 }
