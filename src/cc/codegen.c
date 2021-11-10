@@ -392,6 +392,7 @@ static void gen_goto(Stmt *stmt) {
   BB *bb = table_get(curfunc->label_table, stmt->goto_.label->ident);
   assert(bb != NULL);
   new_ir_jmp(COND_ANY, bb);
+  set_curbb(new_bb());
 }
 
 static void gen_label(Stmt *stmt) {
