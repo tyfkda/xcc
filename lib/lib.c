@@ -108,17 +108,31 @@ int strncasecmp(const char *p, const char *q, size_t n) {
   return 0;
 }
 
-char *strcpy(char *s, const char *t) {
-  char *os = s;
-  while ((*s++ = *t++) != '\0')
+char *strcpy(char *dst, const char *src) {
+  char *os = dst;
+  while ((*dst++ = *src++) != '\0')
     ;
   return os;
 }
 
-char *strncpy(char *s, const char *t, size_t n) {
-  char *os = s;
-  for (; n > 0 && (*s++ = *t++) != '\0'; --n)
+char *strncpy(char *dst, const char *src, size_t n) {
+  char *os = dst;
+  for (; n > 0 && (*dst++ = *src++) != '\0'; --n)
     ;
+  return os;
+}
+
+char *strcat(char *dst, const char *src) {
+  strcpy(dst + strlen(dst), src);
+  return dst;
+}
+
+char *strncat(char *dst, const char *src, size_t n) {
+  char *os = dst;
+  dst += strlen(dst);
+  for (; n > 0 && *src != '\0'; --n)
+    *dst++ = *src++;
+  *dst = '\0';
   return os;
 }
 
@@ -632,6 +646,27 @@ int fputc(int c, FILE *fp) {
   unsigned char cc = c;
   int len = write(fp->fd, &cc, 1);
   return len == 1 ? c : EOF;
+}
+
+char *fgets(char *s, int n, FILE *fp) {
+  --n;
+  char *p = s;
+  for (int i = 0; i < n; ++i) {
+    int c = fgetc(fp);
+    if (c == EOF)
+      break;
+    *p++ = c;
+    if (c == '\n')
+      break;
+  }
+  if (p == s)
+    return NULL;
+  *p = '\0';
+  return s;
+}
+
+int getc(FILE *fp) {
+  return fgetc(fp);
 }
 
 int getchar(void) {
