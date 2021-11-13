@@ -255,14 +255,14 @@ void handle_define(const char *p, Stream *stream) {
         Token *tok;
         if ((tok = match(TK_ELLIPSIS)) != NULL) {
           va_args = true;
-          consume(TK_RPAR, "`)' expected");
+          pp_consume(TK_RPAR, "`)' expected");
           break;
         } else {
-          tok = consume(TK_IDENT, "`ident' expected");
+          tok = pp_consume(TK_IDENT, "`ident' expected");
           vec_push(params, tok->ident);
           if (match(TK_RPAR))
             break;
-          consume(TK_COMMA, "`,' or `)' expected");
+          pp_consume(TK_COMMA, "`,' or `)' expected");
         }
       }
     }

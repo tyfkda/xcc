@@ -2,6 +2,7 @@
 
 #include <assert.h>
 #include <inttypes.h>  // PRIdPTR
+#include <stdarg.h>
 #include <stdbool.h>
 #include <stdlib.h>  // malloc
 
@@ -11,6 +12,8 @@
 #include "type.h"
 #include "util.h"
 #include "var.h"
+
+#define MAX_ERROR_COUNT  (25)
 
 const int LF_BREAK = 1 << 0;
 const int LF_CONTINUE = 1 << 0;
@@ -36,6 +39,51 @@ VarInfo *add_var_to_scope(Scope *scope, const Token *ident, const Type *type, in
     }
   }
   return scope_add(scope, name, type, storage);
+}
+
+static void parse_error_valist(const Token *token, const char *fmt, va_list ap) {
+  if (fmt != NULL) {
+    if (token == NULL)
+      token = fetch_token();
+    if (token != NULL && token->line != NULL) {
+      fprintf(stderr, "%s(%d): ", token->line->filename, token->line->lineno);
+    }
+
+    vfprintf(stderr, fmt, ap);
+    fprintf(stderr, "\n");
+  }
+
+  if (token != NULL && token->line != NULL && token->begin != NULL)
+    show_error_line(token->line->buf, token->begin, token->end - token->begin);
+}
+
+void parse_error_nofatal(const Token *token, const char *fmt, ...) {
+  va_list ap;
+  va_start(ap, fmt);
+  parse_error_valist(token, fmt, ap);
+  va_end(ap);
+
+  ++compile_error_count;
+  if (compile_error_count >= MAX_ERROR_COUNT)
+    exit(1);
+}
+
+void parse_error(const Token *token, const char *fmt, ...) {
+  ++compile_error_count;
+
+  va_list ap;
+  va_start(ap, fmt);
+  parse_error_valist(token, fmt, ap);
+  va_end(ap);
+
+  exit(1);
+}
+
+Token *consume(/*enum TokenKind*/int kind, const char *error) {
+  Token *tok = match(kind);
+  if (tok == NULL)
+    parse_error(tok, error);
+  return tok;
 }
 
 void fix_array_size(Type *type, Initializer *init) {

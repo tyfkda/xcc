@@ -66,3 +66,8 @@ void check_funcall_args(Expr *func, Vector *args, Scope *scope, Vector *toplevel
 Stmt *parse_block(const Token *tok);
 
 VarInfo *add_var_to_scope(Scope *scope, const Token *ident, const Type *type, int storage);
+
+Token *consume(/*enum TokenKind*/int kind, const char *error);
+
+void parse_error(const Token *token, const char *fmt, ...);
+void parse_error_nofatal(const Token *token, const char *fmt, ...);

@@ -11,7 +11,6 @@
 #include "util.h"
 
 #define MAX_LOOKAHEAD  (2)
-#define MAX_ERROR_COUNT  (25)
 
 static const struct {
   const char *str;
@@ -127,19 +126,6 @@ int compile_error_count;
 static Lexer lexer;
 static Table reserved_word_table;
 
-static void show_error_line(const char *line, const char *p, int len) {
-  fprintf(stderr, "%s\n", line);
-  size_t pos = p - line;
-  if (pos <= strlen(line)) {
-    for (size_t i = 0; i < pos; ++i)
-      fputc(line[i] == '\t' ? '\t' : ' ', stderr);
-    fprintf(stderr, "^");
-    for (int i = 1; i < len; ++i)
-      fprintf(stderr, "~");
-    fprintf(stderr, "\n");
-  }
-}
-
 static void lex_error(const char *p, const char *fmt, ...) {
   fprintf(stderr, "%s(%d): ", lexer.filename, lexer.lineno);
 
@@ -150,44 +136,6 @@ static void lex_error(const char *p, const char *fmt, ...) {
   fprintf(stderr, "\n");
 
   show_error_line(lexer.line->buf, p, 1);
-
-  exit(1);
-}
-
-static void parse_error_valist(const Token *token, const char *fmt, va_list ap) {
-  if (fmt != NULL) {
-    if (token == NULL)
-      token = fetch_token();
-    if (token != NULL && token->line != NULL) {
-      fprintf(stderr, "%s(%d): ", token->line->filename, token->line->lineno);
-    }
-
-    vfprintf(stderr, fmt, ap);
-    fprintf(stderr, "\n");
-  }
-
-  if (token != NULL && token->line != NULL && token->begin != NULL)
-    show_error_line(token->line->buf, token->begin, token->end - token->begin);
-}
-
-void parse_error_nofatal(const Token *token, const char *fmt, ...) {
-  va_list ap;
-  va_start(ap, fmt);
-  parse_error_valist(token, fmt, ap);
-  va_end(ap);
-
-  ++compile_error_count;
-  if (compile_error_count >= MAX_ERROR_COUNT)
-    exit(1);
-}
-
-void parse_error(const Token *token, const char *fmt, ...) {
-  ++compile_error_count;
-
-  va_list ap;
-  va_start(ap, fmt);
-  parse_error_valist(token, fmt, ap);
-  va_end(ap);
 
   exit(1);
 }
@@ -645,13 +593,6 @@ Token *match(enum TokenKind kind) {
     return NULL;
   if (tok->kind != TK_EOF)
     --lexer.idx;
-  return tok;
-}
-
-Token *consume(enum TokenKind kind, const char *error) {
-  Token *tok = match(kind);
-  if (tok == NULL)
-    parse_error(tok, error);
   return tok;
 }
 
