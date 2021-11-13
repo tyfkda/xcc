@@ -8,7 +8,6 @@ typedef struct Initializer Initializer;
 typedef struct Name Name;
 typedef struct StructInfo StructInfo;
 typedef struct Table Table;
-typedef struct Token Token;
 typedef struct Type Type;
 typedef struct VReg VReg;
 typedef struct Vector Vector;
@@ -49,8 +48,7 @@ typedef struct VarInfo {
 void init_global(void);
 
 int var_find(const Vector *vars, const Name *name);  // <VarInfo*>
-VarInfo *var_add(Vector *vars, const Name *name, const Type *type, int storage,
-                 const Token *ident);  // <VarInfo*>
+VarInfo *var_add(Vector *vars, const Name *name, const Type *type, int storage);  // <VarInfo*>
 
 // Scope
 
@@ -67,7 +65,7 @@ extern Scope *global_scope;
 Scope *new_scope(Scope *parent, Vector *vars);
 bool is_global_scope(Scope *scope);
 VarInfo *scope_find(Scope *scope, const Name *name, Scope **pscope);
-VarInfo *scope_add(Scope *scope, const Token *ident, const Type *type, int storage);
+VarInfo *scope_add(Scope *scope, const Name *name, const Type *type, int storage);
 
 StructInfo *find_struct(Scope *scope, const Name *name, Scope **pscope);
 void define_struct(Scope *scope, const Name *name, StructInfo *sinfo);
@@ -77,6 +75,3 @@ bool add_typedef(Scope *scope, const Name *name, const Type *type);
 
 Type *find_enum(Scope *scope, const Name *name);
 Type *define_enum(Scope *scope, const Name *name);
-
-// Call before accessing struct member to ensure that struct is declared.
-void ensure_struct(Type *type, const Token *token, Scope *scope);

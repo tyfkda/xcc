@@ -29,7 +29,7 @@ void add_builtin_expr_ident(const char *str, BuiltinExprProc *proc) {
 }
 
 static void define_enum_member(const Type *type, const Token *ident, int value) {
-  VarInfo *varinfo = scope_add(curscope, ident, type, VS_ENUM_MEMBER);
+  VarInfo *varinfo = add_var_to_scope(curscope, ident, type, VS_ENUM_MEMBER);
   varinfo->enum_member.value = value;
 }
 
@@ -47,7 +47,7 @@ void not_const(const Type *type, const Token *token) {
 VarInfo *str_to_char_array(Scope *scope, const Type *type, Initializer *init, Vector *toplevel) {
   assert(type->kind == TY_ARRAY && is_char_type(type->pa.ptrof));
   const Token *ident = alloc_ident(alloc_label(), NULL, NULL);
-  VarInfo *varinfo = scope_add(scope, ident, type, VS_STATIC);
+  VarInfo *varinfo = add_var_to_scope(scope, ident, type, VS_STATIC);
   if (is_global_scope(scope)) {
     Vector *decls = new_vector();
     vec_push(decls, new_vardecl(varinfo->type, ident, init, varinfo->storage));
@@ -70,6 +70,26 @@ Expr *str_to_char_array_var(Scope *scope, Expr *str, Vector *toplevel) {
 
   VarInfo *varinfo = str_to_char_array(scope, type, init, toplevel);
   return new_expr_variable(varinfo->name, type, str->token, scope);
+}
+
+// Call before accessing struct member to ensure that struct is declared.
+void ensure_struct(Type *type, const Token *token, Scope *scope) {
+  assert(type->kind == TY_STRUCT);
+  if (type->struct_.info == NULL) {
+    StructInfo *sinfo = find_struct(scope, type->struct_.name, NULL);
+    if (sinfo == NULL)
+      parse_error(token, "Accessing unknown struct(%.*s)'s member", type->struct_.name->bytes,
+                  type->struct_.name->chars);
+    type->struct_.info = sinfo;
+  }
+
+  // Recursively.
+  StructInfo *sinfo = type->struct_.info;
+  for (int i = 0; i < sinfo->members->len; ++i) {
+    VarInfo *varinfo = sinfo->members->data[i];
+    if (varinfo->type->kind == TY_STRUCT)
+      ensure_struct((Type*)varinfo->type, token, scope);
+  }
 }
 
 bool check_cast(const Type *dst, const Type *src, bool zero, bool is_explicit, const Token *token) {
@@ -1139,7 +1159,10 @@ Vector *parse_funparams(bool *pvaargs) {
       default: break;
       }
 
-      var_add(params, ident != NULL ? ident->ident : NULL, type, storage, ident);
+      if (ident != NULL && var_find(params, ident->ident) >= 0)
+        parse_error_nofatal(ident, "`%.*s' already defined", ident->ident->bytes, ident->ident->chars);
+      else
+        var_add(params, ident != NULL ? ident->ident : NULL, type, storage);
       if (match(TK_RPAR))
         break;
       consume(TK_COMMA, "Comma or `)' expected");
@@ -1199,7 +1222,7 @@ static Expr *parse_compound_literal(const Type *type) {
 
     name = alloc_label();
     const Token *ident = alloc_ident(name, NULL, NULL);
-    scope_add(curscope, ident, type, 0);
+    add_var_to_scope(curscope, ident, type, 0);
 
     var = new_expr_variable(name, type, token, curscope);
     inits = assign_initial_value(var, init, NULL);

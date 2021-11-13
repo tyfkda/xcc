@@ -132,8 +132,7 @@ GVarInfo *get_gvar_info(Expr *expr) {
 }
 
 static GVarInfo *add_global_var(const Type *type, const Name *name) {
-  const Token *token = alloc_ident(name, NULL, NULL);
-  VarInfo *varinfo = scope_add(global_scope, token, type, 0);
+  VarInfo *varinfo = scope_add(global_scope, name, type, 0);
   return register_gvar_info(name, varinfo);
 }
 
@@ -142,8 +141,7 @@ static void traverse_stmt(Stmt *stmt);
 
 static Expr *alloc_tmp(const Token *token, const Type *type) {
   const Name *name = alloc_label();
-  const Token *ident = alloc_ident(name, NULL, NULL);
-  scope_add(curscope, ident, type, 0);
+  scope_add(curscope, name, type, 0);
   return new_expr_variable(name, type, token, curscope);
 }
 
@@ -236,13 +234,13 @@ static void traverse_expr(Expr **pexpr, bool needval) {
       if (table_get(&func_info_table, funcname) == NULL) {
         const Type *rettype = &tyVoid;  // Differ from memcpy, no return value.
         Vector *params = new_vector();
-        var_add(params, NULL, &tyVoidPtr, 0, NULL);
-        var_add(params, NULL, &tyVoidPtr, 0, NULL);
-        var_add(params, NULL, &tySize, 0, NULL);
+        var_add(params, NULL, &tyVoidPtr, 0);
+        var_add(params, NULL, &tyVoidPtr, 0);
+        var_add(params, NULL, &tySize, 0);
         Vector *param_types = extract_varinfo_types(params);
         const Type *functype = new_func_type(rettype, params, param_types, false);
         register_func_info(funcname, NULL, functype, FF_REFERED);
-        scope_add(global_scope, alloc_ident(funcname, NULL, NULL), functype, 0);
+        scope_add(global_scope, funcname, functype, 0);
       }
     }
     if (needval) {
@@ -465,12 +463,12 @@ static void traverse_switch(Stmt *stmt) {
     // Store value into temporary variable.
     assert(curfunc != NULL);
     Scope *scope = curfunc->scopes->data[0];
-    const Token *ident = alloc_ident(alloc_label(), NULL, NULL);
+    const Name *name = alloc_label();
     const Type *type = stmt->switch_.value->type;
-    scope_add(scope, ident, type, 0);
+    scope_add(scope, name, type, 0);
 
     // switch (complex)  =>  switch ((tmp = complex, tmp))
-    Expr *var = new_expr_variable(ident->ident, type, ident, scope);
+    Expr *var = new_expr_variable(name, type, NULL, scope);
     Expr *comma = new_expr_bop(
         EX_COMMA, type, org_value->token,
         new_expr_bop(EX_ASSIGN, &tyVoid, org_value->token, var, org_value),
@@ -525,13 +523,13 @@ static void traverse_vardecl(Stmt *stmt) {
         if (table_get(&func_info_table, funcname) == NULL) {
           const Type *rettype = &tyVoid;  // Differ from memset, no return value.
           Vector *params = new_vector();
-          var_add(params, NULL, &tyVoidPtr, 0, NULL);
-          var_add(params, NULL, &tyInt, 0, NULL);
-          var_add(params, NULL, &tySize, 0, NULL);
+          var_add(params, NULL, &tyVoidPtr, 0);
+          var_add(params, NULL, &tyInt, 0);
+          var_add(params, NULL, &tySize, 0);
           Vector *param_types = extract_varinfo_types(params);
           const Type *functype = new_func_type(rettype, params, param_types, false);
           register_func_info(funcname, NULL, functype, FF_REFERED);
-          scope_add(global_scope, alloc_ident(funcname, NULL, NULL), functype, 0);
+          scope_add(global_scope, funcname, functype, 0);
         }
       }
     }
@@ -590,8 +588,7 @@ static void traverse_defun(Function *func) {
       parse_error(NULL, "`%.*s': return type except primitive is not supported (yet)", func->name->bytes, func->name->chars);
     // Add local variable for return value.
     const Name *name = alloc_name(RETVAL_NAME, NULL, false);
-    const Token *ident = alloc_ident(name, NULL, NULL);
-    scope_add(func->scopes->data[0], ident, functype->func.ret, 0);
+    scope_add(func->scopes->data[0], name, functype->func.ret, 0);
   }
   if (functype->func.params == NULL) {
     // Treat old-style function as a no-parameter function.
@@ -614,8 +611,8 @@ static void traverse_defun(Function *func) {
     const Type *tyvalist = find_typedef(curscope, alloc_name("__builtin_va_list", NULL, false), NULL);
     assert(tyvalist != NULL);
 
-    const Token *ident = alloc_ident(alloc_name(VA_ARGS_NAME, NULL, false), NULL, NULL);
-    scope_add(func->scopes->data[0], ident, tyvalist, 0);
+    const Name *name = alloc_name(VA_ARGS_NAME, NULL, false);
+    scope_add(func->scopes->data[0], name, tyvalist, 0);
   }
 
   register_func_info(func->name, func, func->type, 0);

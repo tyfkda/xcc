@@ -4,12 +4,11 @@
 #include <stdlib.h>  // malloc
 #include <string.h>
 
-#include "lexer.h"
 #include "table.h"
 #include "type.h"
 #include "util.h"
 
-static VarInfo *define_global(const Name *name, const Type *type, int storage, const Token *ident);
+static VarInfo *define_global(const Name *name, const Type *type, int storage);
 
 int var_find(const Vector *vars, const Name *name) {
   for (int i = 0, len = vars->len; i < len; ++i) {
@@ -20,20 +19,14 @@ int var_find(const Vector *vars, const Name *name) {
   return -1;
 }
 
-VarInfo *var_add(Vector *vars, const Name *name, const Type *type, int storage,
-                 const Token *ident) {
-  if (name != NULL) {
-    int idx = var_find(vars, name);
-    if (idx >= 0)
-      parse_error_nofatal(ident, "`%.*s' already defined", name->bytes, name->chars);
-  }
-
+VarInfo *var_add(Vector *vars, const Name *name, const Type *type, int storage) {
+  assert(name == NULL || var_find(vars, name) < 0);
   VarInfo *varinfo = calloc(1, sizeof(*varinfo));
   varinfo->name = name;
   varinfo->type = type;
   varinfo->storage = storage;
   if (storage & VS_STATIC)
-    varinfo->static_.gvar = define_global(alloc_label(), type, storage, NULL);
+    varinfo->static_.gvar = define_global(alloc_label(), type, storage);
   vec_push(vars, varinfo);
   return varinfo;
 }
@@ -48,13 +41,12 @@ void init_global(void) {
   global_scope->vars = new_vector();
 }
 
-static VarInfo *define_global(const Name *name, const Type *type, int storage, const Token *ident) {
+static VarInfo *define_global(const Name *name, const Type *type, int storage) {
   assert(name != NULL);
   VarInfo *varinfo = scope_find(global_scope, name, NULL);
   if (varinfo != NULL) {
     if (!(varinfo->storage & VS_EXTERN)) {
-      if (!(storage & VS_EXTERN))
-        parse_error_nofatal(ident, "`%.*s' already defined", name->bytes, name->chars);
+      assert(storage & VS_EXTERN);
       return varinfo;
     }
     varinfo->name = name;
@@ -63,7 +55,7 @@ static VarInfo *define_global(const Name *name, const Type *type, int storage, c
     varinfo->global.init = NULL;
   } else {
     // `static' is different meaning for global and local variable.
-    varinfo = var_add(global_scope->vars, name, type, storage & ~VS_STATIC, ident);
+    varinfo = var_add(global_scope->vars, name, type, storage & ~VS_STATIC);
     varinfo->storage = storage;
   }
   return varinfo;
@@ -104,14 +96,14 @@ VarInfo *scope_find(Scope *scope, const Name *name, Scope **pscope) {
   return varinfo;
 }
 
-VarInfo *scope_add(Scope *scope, const Token *ident, const Type *type, int storage) {
-  assert(ident != NULL);
+VarInfo *scope_add(Scope *scope, const Name *name, const Type *type, int storage) {
+  assert(name != NULL);
   if (is_global_scope(scope))
-    return define_global(ident->ident, type, storage, ident);
+    return define_global(name, type, storage);
 
   if (scope->vars == NULL)
     scope->vars = new_vector();
-  return var_add(scope->vars, ident->ident, type, storage, ident);
+  return var_add(scope->vars, name, type, storage);
 }
 
 StructInfo *find_struct(Scope *scope, const Name *name, Scope **pscope) {
@@ -178,25 +170,4 @@ Type *define_enum(Scope *scope, const Name *name) {
     table_put(scope->enum_table, name, type);
   }
   return type;
-}
-
-// Misc.
-
-void ensure_struct(Type *type, const Token *token, Scope *scope) {
-  assert(type->kind == TY_STRUCT);
-  if (type->struct_.info == NULL) {
-    StructInfo *sinfo = find_struct(scope, type->struct_.name, NULL);
-    if (sinfo == NULL)
-      parse_error(token, "Accessing unknown struct(%.*s)'s member", type->struct_.name->bytes,
-                  type->struct_.name->chars);
-    type->struct_.info = sinfo;
-  }
-
-  // Recursively.
-  StructInfo *sinfo = type->struct_.info;
-  for (int i = 0; i < sinfo->members->len; ++i) {
-    VarInfo *varinfo = sinfo->members->data[i];
-    if (varinfo->type->kind == TY_STRUCT)
-      ensure_struct((Type*)varinfo->type, token, scope);
-  }
 }

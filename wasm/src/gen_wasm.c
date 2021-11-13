@@ -1352,13 +1352,11 @@ static void gen_defun(Function *func) {
 
 
   const Name *bpname = NULL;
-  const Token *bpident = NULL;
   if (frame_size > 0) {
     // Allocate base pointer in top scope.
     bpname = alloc_name(BP_NAME, NULL, false);
-    bpident = alloc_ident(bpname, NULL, NULL);
     const Type *type = &tySize;
-    VarInfo *varinfo = scope_add(func->scopes->data[0], bpident, type, 0);
+    VarInfo *varinfo = scope_add(func->scopes->data[0], bpname, type, 0);
     VReg *vreg = calloc(1, sizeof(*vreg));
     varinfo->local.reg = vreg;
     vreg->prim.local_index = local_count++ + param_count;
@@ -1386,6 +1384,7 @@ static void gen_defun(Function *func) {
   // Set up base pointer.
   Expr *bpvar = NULL, *spvar = NULL;
   if (frame_size > 0) {
+    const Token *bpident = alloc_ident(bpname, NULL, NULL);
     bpvar = new_expr_variable(bpname, &tySize, bpident, func->scopes->data[0]);
     spvar = get_sp_var();
     // local.bp = global.sp;
