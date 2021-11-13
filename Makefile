@@ -16,8 +16,7 @@ XCC_SRCS:=$(wildcard $(XCC_DIR)/*.c) \
 CC1_SRCS:=$(wildcard $(CC1_DIR)/*.c) \
 	$(UTIL_DIR)/util.c $(UTIL_DIR)/table.c
 CPP_SRCS:=$(wildcard $(CPP_DIR)/*.c) \
-	$(CC1_DIR)/lexer.c $(CC1_DIR)/type.c $(CC1_DIR)/var.c \
-	$(UTIL_DIR)/util.c $(UTIL_DIR)/table.c
+	$(CC1_DIR)/lexer.c $(UTIL_DIR)/util.c $(UTIL_DIR)/table.c
 AS_SRCS:=$(wildcard $(AS_DIR)/*.c) \
 	$(UTIL_DIR)/util.c $(UTIL_DIR)/elfutil.c $(UTIL_DIR)/table.c
 

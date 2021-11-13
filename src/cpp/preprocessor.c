@@ -13,7 +13,6 @@
 #include "macro.h"
 #include "pp_parser.h"
 #include "table.h"
-#include "type.h"
 #include "util.h"
 
 char *cat_path_cwd(const char *dir, const char *path) {

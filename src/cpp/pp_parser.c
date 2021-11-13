@@ -8,7 +8,6 @@
 #include "lexer.h"
 #include "macro.h"
 #include "table.h"
-#include "type.h"
 #include "util.h"
 
 extern Table macro_table;
