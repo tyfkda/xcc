@@ -300,12 +300,11 @@ bool handle_block_comment(const char *begin, const char **pp, Stream *stream) {
 
       char *line = NULL;
       size_t capa = 0;
-      ssize_t len = getline(&line, &capa, stream->fp);
+      ssize_t len = getline_cont(&line, &capa, stream->fp, &stream->lineno);
       if (len == -1) {
         *pp = p;
         return true;
       }
-      ++stream->lineno;
       begin = p = line;
       continue;
     }
@@ -425,27 +424,15 @@ int preprocess(FILE *fp, const char *filename_) {
   define_file_macro(stream.filename, key_file);
   table_put(&macro_table, key_line, new_macro_single(linenobuf));
 
-  for (stream.lineno = 1;; ++stream.lineno) {
+  stream.lineno = 0;
+  for (;;) {
     char *line = NULL;
     size_t capa = 0;
-    ssize_t len = getline(&line, &capa, fp);
+    ssize_t len = getline_cont(&line, &capa, fp, &stream.lineno);
     if (len == -1)
       break;
 
     snprintf(linenobuf, sizeof(linenobuf), "%d", stream.lineno);
-
-    for (;;) {
-      if (len > 0 && line[len - 1] == '\n')
-        line[--len] = '\0';
-      if (len < 1 || line[len - 1] != '\\')
-        break;
-      // Continue line.
-      ++stream.lineno;
-      line[--len] = '\0';
-      ssize_t nextlen = getline_cat(&line, &capa, fp, len);
-      if (nextlen != -1)
-        len = nextlen;
-    }
 
     // Find '#'
     const char *directive = find_directive(line);

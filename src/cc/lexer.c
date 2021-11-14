@@ -271,22 +271,11 @@ static void read_next_line(void) {
   char *line = NULL;
   size_t capa = 0;
   for (;;) {
-    ssize_t len = getline(&line, &capa, lexer.fp);
+    ssize_t len = getline_cont(&line, &capa, lexer.fp, &lexer.lineno);
     if (len == -1) {
       lexer.p = NULL;
       lexer.line = NULL;
       return;
-    }
-    for (;;) {
-      if (len > 0 && line[len - 1] == '\n')
-        line[--len] = '\0';
-      if (len < 1 || line[len - 1] != '\\')
-        break;
-      // Continue line.
-      line[--len] = '\0';
-      ssize_t nextlen = getline_cat(&line, &capa, lexer.fp, len);
-      if (nextlen != -1)
-        len = nextlen;
     }
 
     if (line[0] != '#')
@@ -306,7 +295,7 @@ static void read_next_line(void) {
   Line *p = malloc(sizeof(*p));
   p->filename = lexer.filename;
   p->buf = line;
-  p->lineno = ++lexer.lineno;
+  p->lineno = lexer.lineno;
   lexer.line = p;
   lexer.p = lexer.line->buf;
 }

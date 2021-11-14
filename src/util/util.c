@@ -42,10 +42,20 @@ void set_local_label_prefix(const char *prefix) {
   strncpy(label_prefix, prefix, sizeof(label_prefix));
 }
 
-ssize_t getline_cat(char **lineptr, size_t *n, FILE *stream, size_t curlen) {
+ssize_t getline_chomp(char **lineptr, size_t *n, FILE *stream) {
+  ssize_t len = getline(lineptr, n, stream);
+  if (len > 0) {
+    char *line = *lineptr;
+    if (line[len - 1] == '\n')
+      line[--len] = '\0';
+  }
+  return len;
+}
+
+static ssize_t getline_cat(char **lineptr, size_t *n, FILE *stream, size_t curlen) {
   char *nextline = NULL;
   size_t capa = 0;
-  ssize_t len = getline(&nextline, &capa, stream);
+  ssize_t len = getline_chomp(&nextline, &capa, stream);
   if (len == -1)
     return -1;
   if (len > 0) {
@@ -60,6 +70,23 @@ ssize_t getline_cat(char **lineptr, size_t *n, FILE *stream, size_t curlen) {
     free(nextline);
   }
   return curlen + len;
+}
+
+ssize_t getline_cont(char **lineptr, size_t *capa, FILE *stream, int *plineno) {
+  int lineno = *plineno;
+  ssize_t len = getline_chomp(lineptr, capa, stream);
+  if (len != -1) {
+    // Continue line.
+    while (++lineno, len > 0 && (*lineptr)[len - 1] == '\\') {
+      (*lineptr)[--len] = '\0';
+      ssize_t nextlen = getline_cat(lineptr, capa, stream, len);
+      if (nextlen == -1)
+        break;
+      len = nextlen;
+    }
+  }
+  *plineno = lineno;
+  return len;
 }
 
 bool is_fullpath(const char *filename) {

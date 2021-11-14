@@ -387,13 +387,12 @@ Vector *pp_funargs(Stream *stream) {
           char *line = NULL;
           if (stream != NULL) {
             size_t capa = 0;
-            len = getline(&line, &capa, stream->fp);
+            len = getline_cont(&line, &capa, stream->fp, &stream->lineno);
           }
           if (len == -1) {
             pp_parse_error(NULL, "`)' expected");
             return NULL;
           }
-          ++stream->lineno;
           set_source_string(line, stream->filename, stream->lineno);
         }
 
