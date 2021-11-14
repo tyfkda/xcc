@@ -80,9 +80,7 @@ bool is_global_scope(Scope *scope) {
 
 VarInfo *scope_find(Scope *scope, const Name *name, Scope **pscope) {
   VarInfo *varinfo = NULL;
-  for (;; scope = scope->parent) {
-    if (scope == NULL)
-      break;
+  for (; scope != NULL; scope = scope->parent) {
     if (scope->vars != NULL) {
       int idx = var_find(scope->vars, name);
       if (idx >= 0) {
