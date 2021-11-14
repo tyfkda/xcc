@@ -21,6 +21,8 @@ if [[ -z "$RE_SKIP" ]]; then
   fi
 fi
 
+RE_WNOERR='\/\/-WNOERR'
+
 try_direct() {
   local title="$1"
   local expected="$2"
@@ -34,8 +36,10 @@ try_direct() {
       return
     };
   fi
+  local OPT=''
+  echo -n "$input" | grep "$RE_WNOERR" > /dev/null || OPT=-Werror
 
-  echo -e "$input" | $XCC -Werror -o "$AOUT" -xc - || exit 1
+  echo -e "$input" | $XCC $OPT -o "$AOUT" -xc - || exit 1
 
   $RUN_AOUT
   local actual="$?"
@@ -65,8 +69,10 @@ try_output_direct() {
       return
     };
   fi
+  local OPT=''
+  echo -n "$input" | grep "$RE_WNOERR" > /dev/null || OPT=-Werror
 
-  echo -e "$input" | $XCC -Werror -o "$AOUT" -xc - || exit 1
+  echo -e "$input" | $XCC $OPT -o "$AOUT" -xc - || exit 1
 
   local actual
   actual=$($RUN_AOUT) || exit 1
@@ -95,8 +101,10 @@ compile_error() {
       return
     };
   fi
+  local OPT=''
+  echo -n "$input" | grep "$RE_WNOERR" > /dev/null || OPT=-Werror
 
-  echo -e "$input" | $XCC -Werror -o "$AOUT" -xc -
+  echo -e "$input" | $XCC $OPT -o "$AOUT" -xc -
   local result="$?"
 
   if [ "$result" = "0" ]; then
@@ -165,12 +173,12 @@ try 'self referential struct' 1 'struct S {struct S *p;} *s = 0; return sizeof(s
 try_direct '(void)x;' 0 'void func(int x) { (void)x; } int main(){ func(123); return 0; }'
 try_output 'strings' 'hello world' "write(1, \"hello \" \"world\\\\n\", 12);"
 try_direct 'init union' 77 'union { int x; struct { char a; short b; } y; } u = {.y={.b=77}}; int main(){ return u.y.b; }'
-try_direct 'goto' 1 'int main(){ int x = 1; goto label; x = 2; label: return x; }  //-WCC'
-try 'goto opt' 88 'j3: goto j1; goto j2; j2: goto j3; j1: return 88;  //-WCC'
+try_direct 'goto' 1 'int main(){ int x = 1; goto label; x = 2; label: return x; }  //-WCC //-WNOERR'
+try 'goto opt' 88 'j3: goto j1; goto j2; j2: goto j3; j1: return 88;  //-WCC //-WNOERR'
 try_output '*const' foobar 'const char* const str = "foobar"; write(1, str, 6);'
 try_direct 'switch w/o case' 1 'int main(){ int x = 0; switch (0) {default: x = 1; break;} return x; }'
 try_direct 'switch w/o case & default' 0 'int main(){ int x = 0; switch (0) {x = 1;} return x; }'
-try 'switch-if-default' 49 'switch(0){if(0){default: return 49;}} return 94;  //-WCC'
+try 'switch-if-default' 49 'switch(0){if(0){default: return 49;}} return 94;  //-WCC //-WNOERR'
 try 'switch table' 22 'int x=2; switch(x){case 0: x=0; break; case 1: x=11; break; case 2: x=22; break; case 3: x=33; break;} return x;'
 try 'switch table less' 99 'short x=1; switch(x){case 2: x=22; break; case 3: x=33; break; case 4: x=44; break; case 5: x=55; break; default: x=99; break;} return x;'
 try 'post inc pointer' 1 'char *p = (char*)(-1L); p++; return p == 0;'
@@ -279,6 +287,7 @@ compile_error 'continue inside switch' 'void main(){ switch (0) {continue;} }'
 compile_error 'return void' 'void main(){ return 1; }'
 compile_error 'return void2' 'int main(){ return (void)0; }'
 compile_error 'return non-void' 'int main(){ return; }'
+compile_error 'no return' 'int sub(){} int main(){return 0;}'
 compile_error 'use before decl' 'void main(){ x = 0; int x; }'
 compile_error 'scope invisible' 'int main(){ {int x;} return x; }'
 compile_error 'array = ptr' 'void main(){ int a[1], *p; a = p; }'

@@ -39,6 +39,17 @@ bool is_const_truthy(Expr *expr) {
   }
 }
 
+bool is_const_falsy(Expr *expr) {
+  switch (expr->kind) {
+  case EX_FIXNUM:  return expr->fixnum == 0;
+#ifndef __NO_FLONUM
+  case EX_FLONUM:  return expr->flonum == 0;
+#endif
+  default:
+    return false;
+  }
+}
+
 bool is_zero(Expr *expr) {
   return expr->kind == EX_FIXNUM && expr->fixnum == 0;
 }
@@ -180,6 +191,7 @@ Stmt *new_stmt(enum StmtKind kind, const Token *token) {
   Stmt *stmt = malloc(sizeof(Stmt));
   stmt->kind = kind;
   stmt->token = token;
+  stmt->reach = 0;
   return stmt;
 }
 
@@ -189,10 +201,11 @@ Stmt *new_stmt_expr(Expr *e) {
   return stmt;
 }
 
-Stmt *new_stmt_block(const Token *token, Vector *stmts, Scope *scope) {
+Stmt *new_stmt_block(const Token *token, Vector *stmts, Scope *scope, const Token *rbrace) {
   Stmt *stmt = new_stmt(ST_BLOCK, token);
   stmt->block.scope = scope;
   stmt->block.stmts = stmts;
+  stmt->block.rbrace = rbrace;
   return stmt;
 }
 

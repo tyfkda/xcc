@@ -164,7 +164,7 @@ static Stmt *build_memcpy(Expr *dst, Expr *src, size_t size) {
                                       new_expr_unary(EX_POSTINC, dstexpr->type, NULL, dstexpr)),
                        new_expr_unary(EX_DEREF, &tyChar, NULL,
                                       new_expr_unary(EX_POSTINC, srcexpr->type, NULL, srcexpr))))));
-  return new_stmt_block(NULL, stmts, NULL);
+  return new_stmt_block(NULL, stmts, NULL, NULL);
 }
 
 // Convert string literal to global char-array variable reference.
@@ -1117,7 +1117,7 @@ static Stmt *parse_for(const Token *tok) {
     exit_scope();
 
   vec_push(stmts, stmt);
-  return new_stmt_block(tok, stmts, scope);
+  return new_stmt_block(tok, stmts, scope, NULL);
 }
 
 static Stmt *parse_break_continue(enum StmtKind kind, const Token *tok) {
@@ -1202,7 +1202,7 @@ static Stmt *parse_asm(const Token *tok) {
 }
 
 // Multiple stmt-s, also accept `case` and `default`.
-static Vector *parse_stmts(void) {
+static Vector *parse_stmts(const Token **prbrace) {
   Vector *stmts = new_vector();
   for (;;) {
     Stmt *stmt;
@@ -1218,8 +1218,11 @@ static Vector *parse_stmts(void) {
       stmt = parse_stmt();
 
     if (stmt == NULL) {
-      if (match(TK_RBRACE))
+      if ((tok = match(TK_RBRACE)) != NULL) {
+        if (prbrace != NULL)
+          *prbrace = tok;
         return stmts;
+      }
       parse_error(PE_FATAL, NULL, "`}' expected");
     }
     vec_push(stmts, stmt);
@@ -1228,8 +1231,9 @@ static Vector *parse_stmts(void) {
 
 Stmt *parse_block(const Token *tok, Vector *vars) {
   Scope *scope = enter_scope(curfunc, vars);
-  Vector *stmts = parse_stmts();
-  Stmt *stmt = new_stmt_block(tok, stmts, scope);
+  const Token *rbrace;
+  Vector *stmts = parse_stmts(&rbrace);
+  Stmt *stmt = new_stmt_block(tok, stmts, scope, rbrace);
   exit_scope();
   return stmt;
 }
@@ -1246,7 +1250,7 @@ static Stmt *parse_stmt(void) {
       return parse_label(tok);
     break;
   case TK_SEMICOL:
-    return new_stmt_block(tok, NULL, NULL);
+    return new_stmt_block(tok, NULL, NULL, NULL);
   case TK_LBRACE:
     return parse_block(tok, NULL);
   case TK_IF:
@@ -1277,6 +1281,101 @@ static Stmt *parse_stmt(void) {
   Expr *val = parse_expr();
   consume(TK_SEMICOL, "`;' expected");
   return new_stmt_expr(str_to_char_array_var(curscope, val, toplevel));
+}
+
+static void check_reachability(Stmt *stmt);
+
+static int check_reachability_stmts(Vector *stmts) {
+  int reach = 0;
+  if (stmts != NULL) {
+    for (int i = 0, n = stmts->len; i < n; ++i) {
+      Stmt *stmt = stmts->data[i];
+      if (reach & REACH_STOP) {
+        if (!(stmt->kind == ST_LABEL || stmt->kind == ST_CASE || stmt->kind == ST_DEFAULT))
+          continue;
+        reach = 0;
+      }
+      check_reachability(stmt);
+      reach |= stmt->reach;
+      if (reach & REACH_STOP) {
+        if (i < n - 1) {
+          Stmt *next = stmts->data[i + 1];
+          if (!(next->kind == ST_LABEL || next->kind == ST_CASE || next->kind == ST_DEFAULT))
+            parse_error(PE_WARNING, next->token, "unreachable");
+        }
+      }
+    }
+  }
+  return reach;
+}
+
+static void check_reachability(Stmt *stmt) {
+  if (stmt == NULL)
+    return;
+  switch (stmt->kind) {
+  case ST_IF:
+    check_reachability(stmt->if_.tblock);
+    check_reachability(stmt->if_.fblock);
+    if (is_const_truthy(stmt->if_.cond)) {
+      stmt->reach = stmt->if_.tblock->reach;
+    } else if (is_const_falsy(stmt->if_.cond)) {
+      stmt->reach = stmt->if_.fblock != NULL ? stmt->if_.fblock->reach : 0;
+    } else {
+      stmt->reach = stmt->if_.tblock->reach & (stmt->if_.fblock != NULL ? stmt->if_.fblock->reach : 0);
+    }
+    break;
+  case ST_SWITCH:
+    stmt->reach = (stmt->reach & ~REACH_STOP) |
+        ((stmt->switch_.default_ != NULL) ? REACH_STOP : 0);
+    check_reachability(stmt->switch_.body);
+    stmt->reach &= stmt->switch_.body->reach;
+    break;
+  case ST_WHILE:
+    if (!is_const_truthy(stmt->while_.cond))
+      stmt->reach &= REACH_STOP;
+    if (!is_const_falsy(stmt->while_.cond))
+      check_reachability(stmt->while_.body);
+    break;
+  case ST_DO_WHILE:
+    check_reachability(stmt->while_.body);
+    stmt->reach = stmt->reach;  // Reload.
+    if (!is_const_truthy(stmt->while_.cond))
+      stmt->reach &= stmt->while_.body->reach;
+    break;
+  case ST_FOR:
+    if (stmt->for_.cond != NULL && is_const_falsy(stmt->for_.cond)) {
+      stmt->reach &= ~REACH_STOP;
+    } else {
+      stmt->reach = (stmt->reach & ~REACH_STOP) |
+          ((stmt->for_.cond == NULL || is_const_truthy(stmt->for_.cond)) ? REACH_STOP : 0);
+      check_reachability(stmt->for_.body);
+    }
+    break;
+  case ST_BLOCK:
+    stmt->reach = check_reachability_stmts(stmt->block.stmts);
+    break;
+  case ST_LABEL:
+    check_reachability(stmt->label.stmt);
+    stmt->reach = stmt->label.stmt->reach;
+    break;
+  case ST_RETURN:
+    stmt->reach |= REACH_RETURN | REACH_STOP;
+    break;
+  case ST_BREAK:
+    stmt->break_.parent->reach &= ~REACH_STOP;
+    stmt->reach |= REACH_STOP;
+    break;
+  case ST_GOTO:
+    // TODO:
+    stmt->reach |= REACH_STOP;
+    break;
+  case ST_CONTINUE:
+    stmt->reach |= REACH_STOP;
+    break;
+  default:
+    stmt->reach = 0;
+    break;
+  }
 }
 
 static Declaration *parse_defun(Type *functype, int storage, Token *ident) {
@@ -1335,6 +1434,15 @@ static Declaration *parse_defun(Type *functype, int storage, Token *ident) {
     assert(is_global_scope(curscope));
 
     check_goto_labels(func);
+
+    check_reachability(func->body_block);
+    if (functype->func.ret->kind != TY_VOID &&
+        !(func->body_block->reach & REACH_STOP)) {
+      Vector *stmts = func->body_block->block.stmts;
+      if (stmts->len == 0 || ((Stmt*)stmts->data[stmts->len - 1])->kind != ST_ASM) {
+        parse_error(PE_WARNING, func->body_block->block.rbrace, "`return' required");
+      }
+    }
 
     curfunc = NULL;
   }

@@ -9,10 +9,11 @@
 
 void *malloc_or_die(size_t size) {
   void *p = malloc(size);
-  if (p != NULL)
-    return p;
-  fprintf(stderr, "memory overflow\n");
-  exit(1);
+  if (p == NULL) {
+    fprintf(stderr, "memory overflow\n");
+    exit(1);
+  }
+  return p;
 }
 
 void *read_from(FILE *fp, unsigned long offset, size_t size) {

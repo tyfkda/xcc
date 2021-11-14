@@ -279,6 +279,7 @@ Expr *new_expr_block(struct Stmt *block);
 
 bool is_const(Expr *expr);
 bool is_const_truthy(Expr *expr);
+bool is_const_falsy(Expr *expr);
 bool is_zero(Expr *expr);
 Expr *strip_cast(Expr *expr);
 
@@ -338,14 +339,21 @@ typedef struct VarDecl {
 
 VarDecl *new_vardecl(Type *type, const Token *ident, Initializer *init, int storage);
 
+enum {
+  REACH_STOP = 1 << 0,
+  REACH_RETURN = 1 << 1,
+};
+
 typedef struct Stmt {
   enum StmtKind kind;
   const Token *token;
+  int reach;
   union {
     Expr *expr;
     struct {
       Scope *scope;
       Vector *stmts;
+      const Token *rbrace;
     } block;
     struct {
       Expr *cond;
@@ -404,7 +412,7 @@ typedef struct Stmt {
 
 Stmt *new_stmt(enum StmtKind kind, const Token *token);
 Stmt *new_stmt_expr(Expr *e);
-Stmt *new_stmt_block(const Token *token, Vector *stmts, Scope *scope);
+Stmt *new_stmt_block(const Token *token, Vector *stmts, Scope *scope, const Token *rbrace);
 Stmt *new_stmt_if(const Token *token, Expr *cond, Stmt *tblock, Stmt *fblock);
 Stmt *new_stmt_switch(const Token *token, Expr *value);
 Stmt *new_stmt_case(const Token *token, Stmt *swtch, Expr *value);
