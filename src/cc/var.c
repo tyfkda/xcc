@@ -36,9 +36,7 @@ VarInfo *var_add(Vector *vars, const Name *name, const Type *type, int storage) 
 Scope *global_scope;
 
 void init_global(void) {
-  global_scope = calloc(1, sizeof(*global_scope));
-  global_scope->parent = NULL;
-  global_scope->vars = new_vector();
+  global_scope = new_scope(NULL, new_vector());
 }
 
 static VarInfo *define_global(const Name *name, const Type *type, int storage) {
@@ -64,12 +62,9 @@ static VarInfo *define_global(const Name *name, const Type *type, int storage) {
 // Scope
 
 Scope *new_scope(Scope *parent, Vector *vars) {
-  Scope *scope = malloc(sizeof(*scope));
+  Scope *scope = calloc(1, sizeof(*scope));
   scope->parent = parent;
   scope->vars = vars;
-  scope->struct_table = NULL;
-  scope->typedef_table = NULL;
-  scope->enum_table = NULL;
   return scope;
 }
 
