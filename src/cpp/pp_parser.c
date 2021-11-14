@@ -1,6 +1,7 @@
 #include "pp_parser.h"
 
 #include <assert.h>
+#include <stdarg.h>
 #include <stdbool.h>
 #include <stdlib.h>  // malloc
 #include <string.h>
@@ -16,6 +17,40 @@ static PpResult pp_prim(void);
 static PpResult pp_cast_expr(void);
 
 //
+
+static void pp_parse_error_valist(const Token *token, const char *fmt, va_list ap) {
+  if (fmt != NULL) {
+    if (token == NULL)
+      token = fetch_token();
+    if (token != NULL && token->line != NULL) {
+      fprintf(stderr, "%s(%d): ", token->line->filename, token->line->lineno);
+    }
+
+    vfprintf(stderr, fmt, ap);
+    fprintf(stderr, "\n");
+  }
+
+  if (token != NULL && token->line != NULL && token->begin != NULL)
+    show_error_line(token->line->buf, token->begin, token->end - token->begin);
+}
+
+void pp_parse_error(const Token *token, const char *fmt, ...) {
+  ++compile_error_count;
+
+  va_list ap;
+  va_start(ap, fmt);
+  pp_parse_error_valist(token, fmt, ap);
+  va_end(ap);
+
+  exit(1);
+}
+
+Token *pp_consume(/*enum TokenKind*/int kind, const char *error) {
+  Token *tok = match(kind);
+  if (tok == NULL)
+    pp_parse_error(tok, error);
+  return tok;
+}
 
 static PpResult expand_ident(const Token *ident) {
   Macro *macro = table_get(&macro_table, ident->ident);
@@ -44,9 +79,9 @@ static PpResult expand_ident(const Token *ident) {
 
 static PpResult parse_defined(void) {
   bool lpar = match(TK_LPAR) != NULL;
-  Token *ident = consume(TK_IDENT, "Ident expected");
+  Token *ident = pp_consume(TK_IDENT, "Ident expected");
   if (lpar)
-    consume(TK_RPAR, "No close paren");
+    pp_consume(TK_RPAR, "No close paren");
 
   void *dummy = 0;
   return table_try_get(&macro_table, ident->ident, &dummy) ? 1 : 0;
@@ -56,7 +91,7 @@ static PpResult pp_prim(void) {
   Token *tok;
   if ((tok = match(TK_LPAR)) != NULL) {
     PpResult result = pp_expr();
-    consume(TK_RPAR, "No close paren");
+    pp_consume(TK_RPAR, "No close paren");
     return result;
   }
 
@@ -73,7 +108,7 @@ static PpResult pp_prim(void) {
   //if ((tok = match(TK_STR)) != NULL)
   //  return new_expr_str(tok, tok->str.buf, tok->str.size);
 
-  Token *ident = consume(TK_IDENT, "Number or Ident or open paren expected");
+  Token *ident = pp_consume(TK_IDENT, "Number or Ident or open paren expected");
   if (equal_name(ident->ident, alloc_name("defined", NULL, false))) {
     return parse_defined();
   } else {
@@ -355,7 +390,7 @@ Vector *pp_funargs(Stream *stream) {
             len = getline(&line, &capa, stream->fp);
           }
           if (len == -1) {
-            parse_error(NULL, "`)' expected");
+            pp_parse_error(NULL, "`)' expected");
             return NULL;
           }
           ++stream->lineno;
@@ -366,7 +401,7 @@ Vector *pp_funargs(Stream *stream) {
           if (paren <= 0) {
             if (sb_empty(&sb)) {
               if (start == end)
-                parse_error(tok, "expression expected");
+                pp_parse_error(tok, "expression expected");
               vec_push(args, strndup_(start, end - start));
             } else {
               if (start != end)

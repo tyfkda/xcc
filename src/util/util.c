@@ -232,6 +232,19 @@ void error(const char *fmt, ...) {
   exit(1);
 }
 
+void show_error_line(const char *line, const char *p, int len) {
+  fprintf(stderr, "%s\n", line);
+  size_t pos = p - line;
+  if (pos <= strlen(line)) {
+    for (size_t i = 0; i < pos; ++i)
+      fputc(line[i] == '\t' ? '\t' : ' ', stderr);
+    fprintf(stderr, "^");
+    for (int i = 1; i < len; ++i)
+      fprintf(stderr, "~");
+    fprintf(stderr, "\n");
+  }
+}
+
 bool is_im8(intptr_t x) {
   return x <= ((1L << 7) - 1) && x >= -(1L << 7);
 }

@@ -51,8 +51,7 @@ void add_builtin_function(const char *str, const Type *type, BuiltinFunctionProc
   const Name *name = alloc_name(str, NULL, false);
   table_put(&builtin_function_table, name, proc);
 
-  const Token *ident = alloc_ident(name, name->chars, name->chars + name->bytes);
-  scope_add(global_scope, ident, type, 0);
+  scope_add(global_scope, name, type, 0);
 }
 
 static enum ConditionKind swap_cond(enum ConditionKind cond) {
@@ -350,8 +349,8 @@ static VReg *gen_funcall(Expr *expr) {
 
   VReg *retvar_reg = NULL;  // Return value is on the stack.
   if (is_stack_param(expr->type)) {
-    const Token *ident = alloc_ident(alloc_label(), NULL, NULL);
-    VarInfo *ret_varinfo = scope_add(curscope, ident, expr->type, 0);
+    const Name *name = alloc_label();
+    VarInfo *ret_varinfo = scope_add(curscope, name, expr->type, 0);
     ret_varinfo->local.reg = retvar_reg = add_new_reg(expr->type, VRF_LOCAL);
   }
 
@@ -527,8 +526,8 @@ VReg *gen_const_flonum(Expr *expr) {
 
   assert(curscope != NULL);
   const Type *type = qualified_type(expr->type, TQ_CONST);
-  const Token *ident = alloc_ident(alloc_label(), NULL, NULL);
-  VarInfo *varinfo = scope_add(curscope, ident, type, VS_STATIC);
+  const Name *name = alloc_label();
+  VarInfo *varinfo = scope_add(curscope, name, type, VS_STATIC);
   VarInfo *gvarinfo = is_global_scope(curscope) ? varinfo : varinfo->static_.gvar;
   gvarinfo->global.init = init;
 

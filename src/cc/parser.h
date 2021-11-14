@@ -45,6 +45,7 @@ Expr *parse_expr(void);
 
 void not_void(const Type *type, const Token *token);
 void not_const(const Type *type, const Token *token);
+void ensure_struct(Type *type, const Token *token, Scope *scope);
 bool check_cast(const Type *dst, const Type *src, bool zero, bool is_explicit, const Token *token);
 Expr *make_cast(const Type *type, const Token *token, Expr *sub, bool is_explicit);
 Expr *make_cond(Expr *expr);
@@ -63,3 +64,10 @@ const Type *get_callee_type(Expr *func);
 void check_funcall_args(Expr *func, Vector *args, Scope *scope, Vector *toplevel);
 
 Stmt *parse_block(const Token *tok);
+
+VarInfo *add_var_to_scope(Scope *scope, const Token *ident, const Type *type, int storage);
+
+Token *consume(/*enum TokenKind*/int kind, const char *error);
+
+void parse_error(const Token *token, const char *fmt, ...);
+void parse_error_nofatal(const Token *token, const char *fmt, ...);

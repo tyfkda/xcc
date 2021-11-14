@@ -2,6 +2,7 @@
 
 #include <assert.h>
 #include <inttypes.h>  // PRIdPTR
+#include <stdarg.h>
 #include <stdbool.h>
 #include <stdlib.h>  // malloc
 
@@ -12,6 +13,8 @@
 #include "util.h"
 #include "var.h"
 
+#define MAX_ERROR_COUNT  (25)
+
 const int LF_BREAK = 1 << 0;
 const int LF_CONTINUE = 1 << 0;
 
@@ -20,6 +23,68 @@ static int curloopflag;
 Stmt *curswitch;
 
 static Stmt *parse_stmt(void);
+
+VarInfo *add_var_to_scope(Scope *scope, const Token *ident, const Type *type, int storage) {
+  assert(ident != NULL);
+  const Name *name = ident->ident;
+  assert(name != NULL);
+  if (scope->vars != NULL) {
+    int idx = var_find(scope->vars, name);
+    if (idx >= 0) {
+      VarInfo *varinfo = scope->vars->data[idx];
+      if (!(varinfo->storage & VS_EXTERN || storage & VS_EXTERN)) {
+        parse_error_nofatal(ident, "`%.*s' already defined", name->bytes, name->chars);
+        return varinfo;
+      }
+    }
+  }
+  return scope_add(scope, name, type, storage);
+}
+
+static void parse_error_valist(const Token *token, const char *fmt, va_list ap) {
+  if (fmt != NULL) {
+    if (token == NULL)
+      token = fetch_token();
+    if (token != NULL && token->line != NULL) {
+      fprintf(stderr, "%s(%d): ", token->line->filename, token->line->lineno);
+    }
+
+    vfprintf(stderr, fmt, ap);
+    fprintf(stderr, "\n");
+  }
+
+  if (token != NULL && token->line != NULL && token->begin != NULL)
+    show_error_line(token->line->buf, token->begin, token->end - token->begin);
+}
+
+void parse_error_nofatal(const Token *token, const char *fmt, ...) {
+  va_list ap;
+  va_start(ap, fmt);
+  parse_error_valist(token, fmt, ap);
+  va_end(ap);
+
+  ++compile_error_count;
+  if (compile_error_count >= MAX_ERROR_COUNT)
+    exit(1);
+}
+
+void parse_error(const Token *token, const char *fmt, ...) {
+  ++compile_error_count;
+
+  va_list ap;
+  va_start(ap, fmt);
+  parse_error_valist(token, fmt, ap);
+  va_end(ap);
+
+  exit(1);
+}
+
+Token *consume(/*enum TokenKind*/int kind, const char *error) {
+  Token *tok = match(kind);
+  if (tok == NULL)
+    parse_error(tok, error);
+  return tok;
+}
 
 void fix_array_size(Type *type, Initializer *init) {
   assert(init != NULL);
@@ -63,9 +128,9 @@ void fix_array_size(Type *type, Initializer *init) {
 static Stmt *build_memcpy(Expr *dst, Expr *src, size_t size) {
   assert(!is_global_scope(curscope));
   const Type *charptr_type = ptrof(&tyChar);
-  VarInfo *dstvar = scope_add(curscope, alloc_ident(alloc_label(), NULL, NULL), charptr_type, 0);
-  VarInfo *srcvar = scope_add(curscope, alloc_ident(alloc_label(), NULL, NULL), charptr_type, 0);
-  VarInfo *sizevar = scope_add(curscope, alloc_ident(alloc_label(), NULL, NULL), &tySize, 0);
+  VarInfo *dstvar = add_var_to_scope(curscope, alloc_ident(alloc_label(), NULL, NULL), charptr_type, 0);
+  VarInfo *srcvar = add_var_to_scope(curscope, alloc_ident(alloc_label(), NULL, NULL), charptr_type, 0);
+  VarInfo *sizevar = add_var_to_scope(curscope, alloc_ident(alloc_label(), NULL, NULL), &tySize, 0);
   Expr *dstexpr = new_expr_variable(dstvar->name, dstvar->type, NULL, curscope);
   Expr *srcexpr = new_expr_variable(srcvar->name, srcvar->type, NULL, curscope);
   Expr *sizeexpr = new_expr_variable(sizevar->name, sizevar->type, NULL, curscope);
@@ -487,7 +552,7 @@ Vector *assign_initial_value(Expr *expr, Initializer *init, Vector *inits) {
 
         assert(!is_global_scope(curscope));
         const Type *ptr_type = array_to_ptr(expr->type);
-        VarInfo *ptr_varinfo = scope_add(curscope, alloc_ident(alloc_label(), NULL, NULL), ptr_type, 0);
+        VarInfo *ptr_varinfo = add_var_to_scope(curscope, alloc_ident(alloc_label(), NULL, NULL), ptr_type, 0);
         Expr *ptr_var = new_expr_variable(ptr_varinfo->name, ptr_type, NULL, curscope);
         vec_push(inits, new_stmt_expr(new_expr_bop(EX_ASSIGN, ptr_type, NULL, ptr_var, expr)));
 
@@ -780,7 +845,7 @@ static Vector *parse_vardecl_cont(Type *rawType, Type *type, int storage, Token 
     }
 
     assert(!is_global_scope(curscope));
-    scope_add(curscope, ident, type, tmp_storage);
+    add_var_to_scope(curscope, ident, type, tmp_storage);
 
     if (!(storage & VS_TYPEDEF) && type->kind != TY_FUNC && match(TK_ASSIGN)) {
       init = parse_initializer();
@@ -1131,7 +1196,7 @@ static Declaration *parse_defun(const Type *functype, int storage, Token *ident)
 
   VarInfo *varinfo = scope_find(global_scope, func->name, NULL);
   if (varinfo == NULL) {
-    varinfo = scope_add(global_scope, ident, functype, storage);
+    varinfo = add_var_to_scope(global_scope, ident, functype, storage);
   } else {
     if (varinfo->type->kind != TY_FUNC) {
       parse_error_nofatal(ident, "Definition conflict: `%.*s'", func->name->bytes, func->name->chars);
@@ -1201,7 +1266,7 @@ static Declaration *parse_global_var_decl(
       if (type->kind == TY_VOID)
         parse_error(ident, "`void' not allowed");
 
-      VarInfo *varinfo = scope_add(global_scope, ident, type, storage);
+      VarInfo *varinfo = add_var_to_scope(global_scope, ident, type, storage);
 
       Initializer *init = NULL;
       if (match(TK_ASSIGN) != NULL)

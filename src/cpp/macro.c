@@ -4,7 +4,7 @@
 #include <stdlib.h>  // malloc
 #include <string.h>
 
-#include "lexer.h"  // parse_error
+#include "pp_parser.h"  // pp_parse_error
 #include "table.h"
 #include "util.h"
 
@@ -33,11 +33,11 @@ bool expand(Macro *macro, const Token *token, Vector *args, const Name *name, St
     if ((!macro->va_args && args->len != macro->params->len) ||
         (macro->va_args && args->len <= macro->params->len)) {
       const char *cmp = args->len < macro->params->len ? "few" : "many";
-      parse_error(token, "Too %s arguments for macro `%.*s'", cmp, name->bytes, name->chars);
+      pp_parse_error(token, "Too %s arguments for macro `%.*s'", cmp, name->bytes, name->chars);
     }
   } else {
     if (args != NULL) {
-      parse_error(token, "Illegal argument for macro `%.*s'", name->bytes, name->chars);
+      pp_parse_error(token, "Illegal argument for macro `%.*s'", name->bytes, name->chars);
     }
   }
 

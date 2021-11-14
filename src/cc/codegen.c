@@ -93,7 +93,7 @@ static void alloc_variable_registers(Function *func) {
     Scope *top_scope = func->scopes->data[0];
     if (top_scope->vars == NULL)
       top_scope->vars = new_vector();
-    VarInfo *varinfo = var_add(top_scope->vars, retval_name, retptrtype, 0, NULL);
+    VarInfo *varinfo = var_add(top_scope->vars, retval_name, retptrtype, 0);
     VReg *vreg = add_new_reg(varinfo->type, VRF_LOCAL | VRF_PARAM);
     vreg->param_index = 0;
     varinfo->local.reg = vreg;

@@ -90,8 +90,8 @@ void install_builtins(void) {
   {
     static BuiltinFunctionProc p_va_start = &gen_builtin_va_start;
     Vector *params = new_vector();
-    var_add(params, NULL, tyVaListPtr, 0, NULL);
-    var_add(params, NULL, &tyVoidPtr, 0, NULL);
+    var_add(params, NULL, tyVaListPtr, 0);
+    var_add(params, NULL, &tyVoidPtr, 0);
 
     const Type *rettype = &tyVoid;
     Vector *param_types = extract_varinfo_types(params);
