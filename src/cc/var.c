@@ -34,14 +34,16 @@ VarInfo *var_add(Vector *vars, const Name *name, const Type *type, int storage) 
 // Global
 
 Scope *global_scope;
+static Table global_var_table;
 
 void init_global(void) {
   global_scope = new_scope(NULL, new_vector());
+  table_init(&global_var_table);
 }
 
 static VarInfo *define_global(const Name *name, const Type *type, int storage) {
   assert(name != NULL);
-  VarInfo *varinfo = scope_find(global_scope, name, NULL);
+  VarInfo *varinfo = table_get(&global_var_table, name);
   if (varinfo != NULL) {
     if (!(varinfo->storage & VS_EXTERN)) {
       assert(storage & VS_EXTERN);
@@ -55,6 +57,7 @@ static VarInfo *define_global(const Name *name, const Type *type, int storage) {
     // `static' is different meaning for global and local variable.
     varinfo = var_add(global_scope->vars, name, type, storage & ~VS_STATIC);
     varinfo->storage = storage;
+    table_put(&global_var_table, name, varinfo);
   }
   return varinfo;
 }
@@ -76,6 +79,11 @@ bool is_global_scope(Scope *scope) {
 VarInfo *scope_find(Scope *scope, const Name *name, Scope **pscope) {
   VarInfo *varinfo = NULL;
   for (; scope != NULL; scope = scope->parent) {
+    if (is_global_scope(scope)) {
+      varinfo = table_get(&global_var_table, name);
+      break;
+    }
+
     if (scope->vars != NULL) {
       int idx = var_find(scope->vars, name);
       if (idx >= 0) {
