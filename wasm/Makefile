@@ -81,7 +81,7 @@ self-hosting:	$(TARGET)/cc.wasm
 test-self-hosting:
 	$(MAKE) WCC="$(TARGET_CC)" -C tests
 
-WCC_LIBS=runtime/lib.c $(LIB_DIR)/sprintf.c $(LIB_DIR)/umalloc.c $(LIB_DIR)/assert.c
+WCC_LIBS:=runtime/lib.c $(LIB_DIR)/sprintf.c $(LIB_DIR)/umalloc.c $(LIB_DIR)/assert.c
 
 $(TARGET)/cc.wasm:	$(WCC_SRCS) $(WCC_LIBS)
 	mkdir -p $(TARGET)
@@ -93,7 +93,7 @@ $(TARGET)/cc.wasm:	$(WCC_SRCS) $(WCC_LIBS)
 
 ### www
 
-ASSETS_DIR=public
+ASSETS_DIR:=public
 
 .PHONY:	assets
 assets:	gen2 $(ASSETS_DIR)/cc.wasm $(ASSETS_DIR)/libs.json

@@ -27,4 +27,4 @@ jobs:
     - name: setup
       run: cd wasm && npm install
     - name: test
-      run:  make -C wasm test
+      run:  make -C wasm test test-gen2

@@ -815,6 +815,7 @@ int main(int argc, char *argv[]) {
 
   init_preprocessor(ppout);
   define_macro_simple("__ILP32__");
+  define_macro_simple("__WASM");
   init_compiler();
 
   for (iarg = 1; iarg < argc; ++iarg) {

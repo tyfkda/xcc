@@ -603,6 +603,8 @@ static void gen_expr(Expr *expr, bool needval) {
   case EX_LOGAND:
   case EX_LOGIOR:
     gen_cond(expr, true);
+    if (!needval)
+      ADD_CODE(OP_DROP);
     break;
 
   case EX_POS:
