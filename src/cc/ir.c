@@ -497,12 +497,14 @@ static void ir_out(IR *ir) {
     }
 #endif
     {
-      assert(!(ir->opr1->flag & VRF_CONST));
       assert(0 <= ir->size && ir->size < kPow2TableSize);
       int pow = kPow2Table[ir->size];
       assert(0 <= pow && pow < 4);
       const char **regs = kRegSizeTable[pow];
-      MOV(INDIRECT(kReg64s[ir->opr1->phys], NULL, 1), regs[ir->dst->phys]);
+      if (ir->opr1->flag & VRF_CONST)
+        MOV(INDIRECT(NUM(ir->opr1->fixnum), NULL, 1), regs[ir->dst->phys]);
+      else
+        MOV(INDIRECT(kReg64s[ir->opr1->phys], NULL, 1), regs[ir->dst->phys]);
     }
     break;
 

@@ -473,6 +473,26 @@ static bool parse_indirect_register(ParseInfo *info, Expr *offset, Operand *oper
   return true;
 }
 
+static bool parse_indirect_immediate(ParseInfo *info, Operand *operand) {
+  // Already read "(".
+  Expr *imm = parse_expr(info);
+
+  info->p = skip_whitespaces(info->p);
+  if (*info->p != ')') {
+    parse_error(info, "`)' expected");
+  } else {
+    ++info->p;
+  }
+
+  operand->type = INDIRECT;
+  operand->indirect.reg.size = REG64;  // Dummy.
+  operand->indirect.reg.no = NOREG;
+  operand->indirect.reg.x = 0;
+  operand->indirect.offset = imm;
+
+  return true;
+}
+
 static enum RegType parse_deref_register(ParseInfo *info, Operand *operand) {
   enum RegType reg = find_register(&info->p);
   if (!is_reg64(reg))
@@ -767,7 +787,9 @@ static bool parse_operand(ParseInfo *info, Operand *operand) {
       }
       return parse_indirect_register(info, expr, operand);
     }
-    parse_error(info, "Illegal `('");
+
+    info->p += 1;
+    return parse_indirect_immediate(info, operand);
   }
 
   return false;
