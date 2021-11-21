@@ -249,7 +249,7 @@ VReg *new_ir_bop(enum IrKind kind, VReg *opr1, VReg *opr2, const VRegType *vtype
 }
 
 VReg *new_ir_unary(enum IrKind kind, VReg *opr, const VRegType *vtype) {
-  if (opr->flag & VRF_CONST) {
+  if (opr->flag & VRF_CONST && kind != IR_LOAD) {
     intptr_t value = 0;
     switch (kind) {
     case IR_NEG:     value = -opr->fixnum; break;
