@@ -526,7 +526,7 @@ static void ir_out(IR *ir) {
       assert(0 <= pow && pow < 4);
       const char **regs = kRegSizeTable[pow];
       if (ir->opr1->flag & VRF_CONST) {
-        MOV(im(ir->opr1->fixnum), EAX);
+        MOV(IM(ir->opr1->fixnum), EAX);
         MOV(EAX, INDIRECT(kReg64s[ir->opr2->phys], NULL, 1));
       } else {
         MOV(regs[ir->opr1->phys], INDIRECT(kReg64s[ir->opr2->phys], NULL, 1));
@@ -554,7 +554,7 @@ static void ir_out(IR *ir) {
       assert(0 <= pow && pow < 4);
       const char **regs = kRegSizeTable[pow];
       if (ir->opr2->flag & VRF_CONST)
-        ADD(im(ir->opr2->fixnum), regs[ir->dst->phys]);
+        ADD(IM(ir->opr2->fixnum), regs[ir->dst->phys]);
       else
         ADD(regs[ir->opr2->phys], regs[ir->dst->phys]);
     }
@@ -580,7 +580,7 @@ static void ir_out(IR *ir) {
       assert(0 <= pow && pow < 4);
       const char **regs = kRegSizeTable[pow];
       if (ir->opr2->flag & VRF_CONST)
-        SUB(im(ir->opr2->fixnum), regs[ir->dst->phys]);
+        SUB(IM(ir->opr2->fixnum), regs[ir->dst->phys]);
       else
         SUB(regs[ir->opr2->phys], regs[ir->dst->phys]);
     }
@@ -609,7 +609,7 @@ static void ir_out(IR *ir) {
       MOV(regs[ir->opr1->phys], a);
       const char *opr2;
       if (ir->opr2->flag & VRF_CONST) {
-        MOV(im(ir->opr2->fixnum), regs[WORK_REG_NO]);
+        MOV(IM(ir->opr2->fixnum), regs[WORK_REG_NO]);
         opr2 = regs[WORK_REG_NO];
       } else {
         opr2 = regs[ir->opr2->phys];
@@ -640,7 +640,7 @@ static void ir_out(IR *ir) {
         const char *opr2;
         if (ir->opr2->flag & VRF_CONST) {
           opr2 = kReg8s[WORK_REG_NO];
-          MOV(im(ir->opr2->fixnum), opr2);
+          MOV(IM(ir->opr2->fixnum), opr2);
         } else {
           opr2 = kReg8s[ir->opr2->phys];
         }
@@ -650,7 +650,7 @@ static void ir_out(IR *ir) {
         const char *opr2;
         if (ir->opr2->flag & VRF_CONST) {
           opr2 = kReg8s[WORK_REG_NO];
-          MOV(im(ir->opr2->fixnum), opr2);
+          MOV(IM(ir->opr2->fixnum), opr2);
         } else {
           opr2 = kReg8s[ir->opr2->phys];
         }
@@ -667,7 +667,7 @@ static void ir_out(IR *ir) {
       const char *opr2;
       if (ir->opr2->flag & VRF_CONST) {
         opr2 = regs[WORK_REG_NO];
-        MOV(im(ir->opr2->fixnum), opr2);
+        MOV(IM(ir->opr2->fixnum), opr2);
       } else {
         opr2 = regs[ir->opr2->phys];
       }
@@ -701,7 +701,7 @@ static void ir_out(IR *ir) {
         const char *opr2;
         if (ir->opr2->flag & VRF_CONST) {
           opr2 = kReg8s[WORK_REG_NO];
-          MOV(im(ir->opr2->fixnum), opr2);
+          MOV(IM(ir->opr2->fixnum), opr2);
         } else {
           opr2 = kReg8s[ir->opr2->phys];
         }
@@ -711,7 +711,7 @@ static void ir_out(IR *ir) {
         const char *opr2;
         if (ir->opr2->flag & VRF_CONST) {
           opr2 = kReg8s[WORK_REG_NO];
-          MOV(im(ir->opr2->fixnum), opr2);
+          MOV(IM(ir->opr2->fixnum), opr2);
         } else {
           opr2 = kReg8s[ir->opr2->phys];
         }
@@ -729,7 +729,7 @@ static void ir_out(IR *ir) {
       const char *opr2;
       if (ir->opr2->flag & VRF_CONST) {
         opr2 = regs[WORK_REG_NO];
-        MOV(im(ir->opr2->fixnum), opr2);
+        MOV(IM(ir->opr2->fixnum), opr2);
       } else {
         opr2 = regs[ir->opr2->phys];
       }
@@ -763,7 +763,7 @@ static void ir_out(IR *ir) {
       assert(0 <= pow && pow < 4);
       const char **regs = kRegSizeTable[pow];
       if (ir->opr2->flag & VRF_CONST)
-        AND(im(ir->opr2->fixnum), regs[ir->dst->phys]);
+        AND(IM(ir->opr2->fixnum), regs[ir->dst->phys]);
       else
         AND(regs[ir->opr2->phys], regs[ir->dst->phys]);
     }
@@ -778,7 +778,7 @@ static void ir_out(IR *ir) {
       assert(0 <= pow && pow < 4);
       const char **regs = kRegSizeTable[pow];
       if (ir->opr2->flag & VRF_CONST)
-        OR(im(ir->opr2->fixnum), regs[ir->dst->phys]);
+        OR(IM(ir->opr2->fixnum), regs[ir->dst->phys]);
       else
         OR(regs[ir->opr2->phys], regs[ir->dst->phys]);
     }
@@ -793,7 +793,7 @@ static void ir_out(IR *ir) {
       assert(0 <= pow && pow < 4);
       const char **regs = kRegSizeTable[pow];
       if (ir->opr2->flag & VRF_CONST)
-        XOR(im(ir->opr2->fixnum), regs[ir->dst->phys]);
+        XOR(IM(ir->opr2->fixnum), regs[ir->dst->phys]);
       else
         XOR(regs[ir->opr2->phys], regs[ir->dst->phys]);
     }
@@ -808,7 +808,7 @@ static void ir_out(IR *ir) {
       assert(0 <= pow && pow < 4);
       const char **regs = kRegSizeTable[pow];
       if (ir->opr2->flag & VRF_CONST) {
-        SHL(im(ir->opr2->fixnum), regs[ir->dst->phys]);
+        SHL(IM(ir->opr2->fixnum), regs[ir->dst->phys]);
       } else {
         MOV(kReg8s[ir->opr2->phys], CL);
         SHL(CL, regs[ir->dst->phys]);
@@ -825,14 +825,14 @@ static void ir_out(IR *ir) {
       const char **regs = kRegSizeTable[pow];
       if (ir->opr1->vtype->flag & VRTF_UNSIGNED) {
         if (ir->opr2->flag & VRF_CONST) {
-          SHR(im(ir->opr2->fixnum), regs[ir->dst->phys]);
+          SHR(IM(ir->opr2->fixnum), regs[ir->dst->phys]);
         } else {
           MOV(kReg8s[ir->opr2->phys], CL);
           SHR(CL, regs[ir->dst->phys]);
         }
       } else {
         if (ir->opr2->flag & VRF_CONST) {
-          SAR(im(ir->opr2->fixnum), regs[ir->dst->phys]);
+          SAR(IM(ir->opr2->fixnum), regs[ir->dst->phys]);
         } else {
           MOV(kReg8s[ir->opr2->phys], CL);
           SAR(CL, regs[ir->dst->phys]);
@@ -861,11 +861,11 @@ static void ir_out(IR *ir) {
       const char *opr1;
       if (ir->opr1->flag & VRF_CONST) {
         opr1 = kRegATable[pow];
-        MOV(im(ir->opr1->fixnum), opr1);
+        MOV(IM(ir->opr1->fixnum), opr1);
       } else {
         opr1 = regs[ir->opr1->phys];
       }
-      const char *opr2 = (ir->opr2->flag & VRF_CONST) ? im(ir->opr2->fixnum) : regs[ir->opr2->phys];
+      const char *opr2 = (ir->opr2->flag & VRF_CONST) ? IM(ir->opr2->fixnum) : regs[ir->opr2->phys];
       CMP(opr2, opr1);
     }
     break;
@@ -974,7 +974,7 @@ static void ir_out(IR *ir) {
       const char *opr1;
       if (ir->opr1->flag & VRF_CONST) {
         opr1 = kRegATable[pow];
-        MOV(im(ir->opr1->fixnum), opr1);
+        MOV(IM(ir->opr1->fixnum), opr1);
       } else {
         opr1 = regs[ir->opr1->phys];
       }
@@ -1041,9 +1041,9 @@ static void ir_out(IR *ir) {
 #endif
     if (ir->opr1->flag & VRF_CONST) {
       if (is_im32(ir->opr1->fixnum)) {
-        PUSH(im(ir->opr1->fixnum)); PUSH_STACK_POS();
+        PUSH(IM(ir->opr1->fixnum)); PUSH_STACK_POS();
       } else {
-        MOV(im(ir->opr1->fixnum), RAX);  // TODO: Check.
+        MOV(IM(ir->opr1->fixnum), RAX);  // TODO: Check.
         PUSH(RAX); PUSH_STACK_POS();
       }
     } else {
@@ -1091,7 +1091,7 @@ static void ir_out(IR *ir) {
 #ifndef __NO_FLONUM
       if (ir->call.vaargs) {
         if (freg > 0)
-          MOV(im(freg), AL);
+          MOV(IM(freg), AL);
         else
           XOR(AL, AL);
       }
@@ -1153,7 +1153,7 @@ static void ir_out(IR *ir) {
       assert(0 <= pow && pow < 4);
       const char **regs = kRegSizeTable[pow];
       if (ir->opr1->flag & VRF_CONST)
-        MOV(im(ir->opr1->fixnum), kRegATable[pow]);
+        MOV(IM(ir->opr1->fixnum), kRegATable[pow]);
       else
         MOV(regs[ir->opr1->phys], kRegATable[pow]);
     }
@@ -1256,7 +1256,7 @@ static void ir_out(IR *ir) {
       assert(0 <= pow && pow < 4);
       const char **regs = kRegSizeTable[pow];
       if (ir->opr1->flag & VRF_CONST) {
-        MOV(im(ir->opr1->fixnum), regs[ir->dst->phys]);
+        MOV(IM(ir->opr1->fixnum), regs[ir->dst->phys]);
       } else {
         if (ir->opr1->phys != ir->dst->phys)
           MOV(regs[ir->opr1->phys], regs[ir->dst->phys]);
