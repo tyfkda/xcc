@@ -448,6 +448,7 @@ static void ir_memcpy(int dst_reg, int src_reg, ssize_t size) {
       const Name *name = alloc_label();
       const char *label = fmt_name(name);
       PUSH(src);
+      PUSH(dst);
       MOV(IM(size), RCX);
       EMIT_LABEL(label);
       MOV(INDIRECT(src, NULL, 1), DL);
@@ -456,6 +457,7 @@ static void ir_memcpy(int dst_reg, int src_reg, ssize_t size) {
       INC(dst);
       DEC(RCX);
       JNE(label);
+      POP(dst);
       POP(src);
     }
     break;
