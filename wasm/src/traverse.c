@@ -5,7 +5,7 @@
 #include <string.h>  // memcpy
 
 #include "ast.h"
-#include "lexer.h"  // alloc_ident, parse_error
+#include "lexer.h"
 #include "parser.h"  // curscope
 #include "table.h"
 #include "type.h"

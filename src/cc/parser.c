@@ -128,9 +128,9 @@ void fix_array_size(Type *type, Initializer *init) {
 static Stmt *build_memcpy(Expr *dst, Expr *src, size_t size) {
   assert(!is_global_scope(curscope));
   const Type *charptr_type = ptrof(&tyChar);
-  VarInfo *dstvar = add_var_to_scope(curscope, alloc_ident(alloc_label(), NULL, NULL), charptr_type, 0);
-  VarInfo *srcvar = add_var_to_scope(curscope, alloc_ident(alloc_label(), NULL, NULL), charptr_type, 0);
-  VarInfo *sizevar = add_var_to_scope(curscope, alloc_ident(alloc_label(), NULL, NULL), &tySize, 0);
+  VarInfo *dstvar = add_var_to_scope(curscope, alloc_dummy_ident(), charptr_type, 0);
+  VarInfo *srcvar = add_var_to_scope(curscope, alloc_dummy_ident(), charptr_type, 0);
+  VarInfo *sizevar = add_var_to_scope(curscope, alloc_dummy_ident(), &tySize, 0);
   Expr *dstexpr = new_expr_variable(dstvar->name, dstvar->type, NULL, curscope);
   Expr *srcexpr = new_expr_variable(srcvar->name, srcvar->type, NULL, curscope);
   Expr *sizeexpr = new_expr_variable(sizevar->name, sizevar->type, NULL, curscope);
@@ -552,7 +552,7 @@ Vector *assign_initial_value(Expr *expr, Initializer *init, Vector *inits) {
 
         assert(!is_global_scope(curscope));
         const Type *ptr_type = array_to_ptr(expr->type);
-        VarInfo *ptr_varinfo = add_var_to_scope(curscope, alloc_ident(alloc_label(), NULL, NULL), ptr_type, 0);
+        VarInfo *ptr_varinfo = add_var_to_scope(curscope, alloc_dummy_ident(), ptr_type, 0);
         Expr *ptr_var = new_expr_variable(ptr_varinfo->name, ptr_type, NULL, curscope);
         vec_push(inits, new_stmt_expr(new_expr_bop(EX_ASSIGN, ptr_type, NULL, ptr_var, expr)));
 

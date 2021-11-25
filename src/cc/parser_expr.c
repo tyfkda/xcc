@@ -46,7 +46,7 @@ void not_const(const Type *type, const Token *token) {
 // Returns created global variable info.
 VarInfo *str_to_char_array(Scope *scope, const Type *type, Initializer *init, Vector *toplevel) {
   assert(type->kind == TY_ARRAY && is_char_type(type->pa.ptrof));
-  const Token *ident = alloc_ident(alloc_label(), NULL, NULL);
+  const Token *ident = alloc_dummy_ident();
   VarInfo *varinfo = add_var_to_scope(scope, ident, type, VS_STATIC);
   if (is_global_scope(scope)) {
     Vector *decls = new_vector();
@@ -1210,7 +1210,6 @@ static StructInfo *parse_struct(bool is_union) {
 static Expr *parse_compound_literal(const Type *type) {
   Token *token = fetch_token();
   Initializer *init = parse_initializer();
-  const Name *name = NULL;
   Vector *inits = NULL;
   Expr *var = NULL;
 
@@ -1220,11 +1219,10 @@ static Expr *parse_compound_literal(const Type *type) {
     if (type->kind == TY_ARRAY)
       fix_array_size((Type*)type, init);
 
-    name = alloc_label();
-    const Token *ident = alloc_ident(name, NULL, NULL);
+    const Token *ident = alloc_dummy_ident();
     add_var_to_scope(curscope, ident, type, 0);
 
-    var = new_expr_variable(name, type, token, curscope);
+    var = new_expr_variable(ident->ident, type, token, curscope);
     inits = assign_initial_value(var, init, NULL);
   }
 

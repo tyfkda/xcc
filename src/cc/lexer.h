@@ -146,5 +146,5 @@ Token *fetch_token(void);
 Token *match(enum TokenKind kind);
 void unget_token(Token *token);
 const char *read_ident(const char *p);
-Token *alloc_ident(const Name *name, const char *begin, const char *end);
+Token *alloc_dummy_ident(void);
 const char *get_lex_p(void);

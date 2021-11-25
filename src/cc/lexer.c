@@ -149,10 +149,14 @@ static Token *alloc_token(enum TokenKind kind, const char *begin, const char *en
   return token;
 }
 
-Token *alloc_ident(const Name *name, const char *begin, const char *end) {
+static Token *alloc_ident(const Name *name, const char *begin, const char *end) {
   Token *tok = alloc_token(TK_IDENT, begin, end);
   tok->ident = name;
   return tok;
+}
+
+Token *alloc_dummy_ident(void) {
+  return alloc_ident(alloc_label(), NULL, NULL);
 }
 
 static void init_reserved_word_table(void) {

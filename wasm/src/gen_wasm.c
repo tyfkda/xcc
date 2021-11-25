@@ -1355,12 +1355,16 @@ static void gen_defun(Function *func) {
   }
 
 
-  const Name *bpname = NULL;
+  const Token *bpident = NULL;
   if (frame_size > 0) {
     // Allocate base pointer in top scope.
-    bpname = alloc_label();
+    bpident = alloc_dummy_ident();
+    FuncInfo *finfo = table_get(&func_info_table, func->name);
+    assert(finfo != NULL);
+    finfo->bpident = bpident;
+
     const Type *type = &tySize;
-    VarInfo *varinfo = scope_add(func->scopes->data[0], bpname, type, 0);
+    VarInfo *varinfo = scope_add(func->scopes->data[0], bpident->ident, type, 0);
     VReg *vreg = calloc(1, sizeof(*vreg));
     varinfo->local.reg = vreg;
     vreg->prim.local_index = local_count++ + param_count;
@@ -1388,13 +1392,7 @@ static void gen_defun(Function *func) {
   // Set up base pointer.
   Expr *bpvar = NULL, *spvar = NULL;
   if (frame_size > 0) {
-    const Token *bpident = alloc_ident(bpname, NULL, NULL);
-
-    FuncInfo *finfo = table_get(&func_info_table, func->name);
-    assert(finfo != NULL);
-    finfo->bpident = bpident;
-
-    bpvar = new_expr_variable(bpname, &tySize, bpident, func->scopes->data[0]);
+    bpvar = new_expr_variable(bpident->ident, &tySize, bpident, func->scopes->data[0]);
     spvar = get_sp_var();
     // local.bp = global.sp;
     gen_expr_stmt(new_expr_bop(EX_ASSIGN, &tyVoid, NULL, bpvar, spvar));
