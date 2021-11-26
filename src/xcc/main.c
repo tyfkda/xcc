@@ -515,10 +515,8 @@ int main(int argc, char *argv[]) {
     }
 #endif
 
-    enum SourceType st = UnknownSource;
-    if (src == NULL) {
-      st = src_type;
-    } else {
+    enum SourceType st = src_type;
+    if (src != NULL) {
       char *ext = get_ext(src);
       if      (strcasecmp(ext, "c") == 0)  st = Clanguage;
       else if (strcasecmp(ext, "s") == 0)  st = Assembly;

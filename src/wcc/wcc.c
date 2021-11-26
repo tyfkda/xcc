@@ -1001,8 +1001,7 @@ static void preprocess_and_compile(FILE *ppout, Vector *sources) {
     const char *filename = sources->data[i];
     FILE *ifp;
     if (filename != NULL) {
-      ifp = fopen(filename, "r");
-      if (ifp == NULL)
+      if (!is_file(filename) || (ifp = fopen(filename, "r")) == NULL)
         error("Cannot open file: %s\n", filename);
     } else {
       ifp = stdin;

@@ -76,8 +76,8 @@ int main(int argc, char *argv[]) {
   if (iarg < argc) {
     for (int i = iarg; i < argc; ++i) {
       const char *filename = argv[i];
-      FILE *ifp = fopen(filename, "r");
-      if (ifp == NULL)
+      FILE *ifp;
+      if (!is_file(filename) || (ifp = fopen(filename, "r")) == NULL)
         error("Cannot open file: %s\n", filename);
       compile1(ifp, filename, toplevel);
       fclose(ifp);

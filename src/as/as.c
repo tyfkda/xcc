@@ -450,8 +450,9 @@ int main(int argc, char *argv[]) {
 
   if (iarg < argc) {
     for (int i = iarg; i < argc; ++i) {
-      FILE *fp = fopen(argv[i], "r");
-      if (fp == NULL)
+      const char *filename = argv[i];
+      FILE *fp;
+      if (!is_file(filename) || (fp = fopen(filename, "r")) == NULL)
         error("Cannot open %s\n", argv[i]);
       parse_file(fp, argv[i], section_irs, &label_table);
       fclose(fp);

@@ -34,6 +34,7 @@ char *join_paths(const char *paths[]);
 char *get_ext(const char *filename);
 char *change_ext(const char *path, const char *ext);
 void put_padding(FILE *fp, uintptr_t start);
+bool is_file(const char *path);
 
 void show_version(const char *exe);
 

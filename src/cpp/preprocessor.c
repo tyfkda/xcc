@@ -84,7 +84,7 @@ static FILE *search_sysinc_next(const char *dir, const char *path, char **pfn) {
       FILE *fp = NULL;
       char *fn = cat_path_cwd(v->data[idx], path);
       if (registered_pragma_once(fn) ||
-          (fp = fopen(fn, "r")) != NULL) {
+          (is_file(fn) && (fp = fopen(fn, "r")) != NULL)) {
         *pfn = fn;
         return fp;
       }
@@ -176,7 +176,8 @@ static void handle_include(const char *p, Stream *stream, bool next) {
     fn = cat_path_cwd(dir, path);
     if (registered_pragma_once(fn))
       return;
-    fp = fopen(fn, "r");
+    if (is_file(fn))
+      fp = fopen(fn, "r");
   }
   if (fp == NULL) {
     if (next) fp = search_sysinc_next(dir, path, &fn);

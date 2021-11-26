@@ -60,8 +60,8 @@ int main(int argc, char *argv[]) {
   if (iarg < argc) {
     for (int i = iarg; i < argc; ++i) {
       const char *filename = argv[i];
-      FILE *fp = fopen(filename, "r");
-      if (fp == NULL)
+      FILE *fp;
+      if (!is_file(filename) || (fp = fopen(filename, "r")) == NULL)
         error("Cannot open file: %s\n", filename);
       fprintf(ofp, "# 1 \"%s\" 1\n", filename);
       preprocess(fp, filename);

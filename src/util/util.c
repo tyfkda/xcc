@@ -6,6 +6,7 @@
 #include <stdbool.h>
 #include <stdlib.h>  // malloc
 #include <string.h>  // strcmp
+#include <sys/stat.h>
 
 #include "../version.h"
 #include "table.h"
@@ -239,6 +240,11 @@ void put_padding(FILE *fp, uintptr_t start) {
     for (size_t i = 0; i < size; ++i)
       fputc(0x00, fp);
   }
+}
+
+bool is_file(const char *path) {
+  struct stat st;
+  return stat(path, &st) == 0 && S_ISREG(st.st_mode);  // Include symbolic link, too.
 }
 
 void show_version(const char *exe) {
