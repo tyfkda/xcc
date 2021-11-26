@@ -9,6 +9,7 @@ typedef struct Expr Expr;
 typedef struct Function Function;
 typedef struct Name Name;
 typedef struct Table Table;
+typedef struct Token Token;
 typedef struct Type Type;
 typedef struct VarInfo VarInfo;
 typedef struct Vector Vector;
@@ -17,7 +18,6 @@ typedef struct Vector Vector;
 
 extern const char DATA_END_ADDRESS_NAME[];
 extern const char SP_NAME[];
-extern const char BP_NAME[];
 extern const char MEMCPY_NAME[];
 extern const char MEMSET_NAME[];
 extern const char VA_ARGS_NAME[];
@@ -39,6 +39,7 @@ extern const char RETVAL_NAME[];
 typedef struct {
   Function *func;
   const Type *type;
+  const Token *bpident;
   uint32_t index;
   int flag;
   uint32_t type_index;

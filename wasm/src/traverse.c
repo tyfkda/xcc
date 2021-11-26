@@ -14,7 +14,6 @@
 
 const char DATA_END_ADDRESS_NAME[] = "$_DE";
 const char SP_NAME[] = "$_SP";  // Hidden variable name for stack pointer (global).
-const char BP_NAME[] = ".._BP";  // Hidden variable name for base pointer.
 const char MEMCPY_NAME[] = "_memcpy";
 const char MEMSET_NAME[] = "_memset";
 const char VA_ARGS_NAME[] = ".._VA_ARGS";

@@ -402,7 +402,9 @@ static void gen_funcall(Expr *expr) {
 }
 
 static void gen_bpofs(int32_t offset) {
-  const Name *bpname = alloc_name(BP_NAME, NULL, false);
+  FuncInfo *finfo = table_get(&func_info_table, curfunc->name);
+  assert(finfo != NULL && finfo->bpident != NULL);
+  const Name *bpname = finfo->bpident->ident;
   Scope *scope = curfunc->scopes->data[0];
   const VarInfo *bpvarinfo = scope_find(scope, bpname, &scope);
   assert(bpvarinfo != NULL && !is_global_scope(scope));
@@ -1356,7 +1358,7 @@ static void gen_defun(Function *func) {
   const Name *bpname = NULL;
   if (frame_size > 0) {
     // Allocate base pointer in top scope.
-    bpname = alloc_name(BP_NAME, NULL, false);
+    bpname = alloc_label();
     const Type *type = &tySize;
     VarInfo *varinfo = scope_add(func->scopes->data[0], bpname, type, 0);
     VReg *vreg = calloc(1, sizeof(*vreg));
@@ -1387,6 +1389,11 @@ static void gen_defun(Function *func) {
   Expr *bpvar = NULL, *spvar = NULL;
   if (frame_size > 0) {
     const Token *bpident = alloc_ident(bpname, NULL, NULL);
+
+    FuncInfo *finfo = table_get(&func_info_table, func->name);
+    assert(finfo != NULL);
+    finfo->bpident = bpident;
+
     bpvar = new_expr_variable(bpname, &tySize, bpident, func->scopes->data[0]);
     spvar = get_sp_var();
     // local.bp = global.sp;
