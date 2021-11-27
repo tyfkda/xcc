@@ -47,10 +47,9 @@ $ ./a.out
   * `-o<filename>`: Set output filename (default: a.out)
   * `-I<path>`:     Add include path
   * `-D<label>(=value)`:  Define macro
-  * `-S`:           Output source code (, not execlutable) to stdout
+  * `-S`:           Output assembly code
   * `-E`:           Preprocess only
   * `-c`:           Output object file
-  * `--dump-ir`:    Output IR code to stdout (debug purpose)
 
 
 ### TODO

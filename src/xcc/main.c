@@ -257,9 +257,6 @@ int main(int argc, char *argv[]) {
     } else if (strcmp(arg, "-S") == 0) {
       out_asm = true;
       run_asm = false;
-    } else if (strcmp(arg, "--dump-ir") == 0) {
-      run_asm = false;
-      vec_push(cc1_cmd, arg);
     } else if (starts_with(arg, "--local-label-prefix")) {
       vec_push(cc1_cmd, arg);
     } else if (strcmp(arg, "--help") == 0) {

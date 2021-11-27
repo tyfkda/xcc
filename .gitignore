@@ -23,4 +23,5 @@ core
 /tests/util_test
 /tests/valtest
 /debug/dump_expr
+/debug/dump_ir
 /debug/dump_type
