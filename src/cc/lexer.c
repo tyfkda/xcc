@@ -176,11 +176,8 @@ static void init_reserved_word_table(void) {
 }
 
 static enum TokenKind reserved_word(const Name *name) {
-  enum TokenKind result = -1;
   void *ptr = table_get(&reserved_word_table, name);
-  if (ptr != NULL)
-    result = (enum TokenKind)ptr;
-  return result;
+  return ptr != NULL ? (enum TokenKind)ptr : (enum TokenKind)-1;
 }
 
 static char backslash(char c) {
