@@ -32,6 +32,8 @@ core
 /dump_ir*
 /dump_type*
 
+/tests/thirdparty/.external/
+
 ### wasm
 
 libsrc/_wasm/crt0.c

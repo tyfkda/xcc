@@ -1,0 +1,12 @@
+make="make -j$(nproc)"
+xcc=$(cd "$(dirname "$0")/../../tool";pwd)/xccsh
+
+dir=$(basename -s .git "$repo")
+
+set -e -x
+
+REPOROOT=$(cd "$(dirname "$0")";pwd)/.external
+mkdir -p "$REPOROOT"
+cd "$REPOROOT"
+[ -d "$dir" ] || git clone "$repo"
+cd "$dir"

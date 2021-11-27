@@ -252,6 +252,7 @@ int main(int argc, char *argv[]) {
   Vector *cpp_cmd = new_vector();
   vec_push(cpp_cmd, cpp_path);
   vec_push(cpp_cmd, "-D__LP64__");  // Memory model.
+  vec_push(cpp_cmd, "-D__STDC_NO_VLA__");
 #if defined(__aarch64__)
   vec_push(cpp_cmd, "-D__aarch64__");
 #elif defined(__x86_64__)
@@ -308,6 +309,7 @@ int main(int argc, char *argv[]) {
     {"D", required_argument},  // Define macro
     {"o", required_argument},  // Specify output filename
     {"x", required_argument},  // Specify code type
+    {"l", required_argument},  // Library
     {"nodefaultlibs", no_argument, OPT_NODEFAULTLIBS},
     {"nostdlib", no_argument, OPT_NOSTDLIB},
     {"nostdinc", no_argument, OPT_NOSTDINC},

@@ -1,0 +1,23 @@
+#!/bin/bash
+
+xcc=$(cd "$(dirname "$0")/..";pwd)/xcc
+
+UNAME=$(uname)
+ARCH=$(arch)
+
+if [[ "$UNAME" = "Darwin" ]]; then
+    SYS_INCLUDE_DIR="/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include"
+else
+    SYS_INCLUDE_DIR="/usr/include/$ARCH-linux-gnu"
+fi
+
+xcc_opt="\
+    -fuse-ld=cc -no-pie \
+    -isystem /usr/include \
+    -isystem /usr/local/include \
+    -isystem $SYS_INCLUDE_DIR \
+    -D__signed__="
+
+CC="$xcc $xcc_opt -D_GNU_SOURCE"
+
+$CC "$@"
