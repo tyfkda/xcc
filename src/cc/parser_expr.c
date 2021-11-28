@@ -74,21 +74,31 @@ Expr *str_to_char_array_var(Scope *scope, Expr *str, Vector *toplevel) {
 
 // Call before accessing struct member to ensure that struct is declared.
 void ensure_struct(Type *type, const Token *token, Scope *scope) {
-  assert(type->kind == TY_STRUCT);
-  if (type->struct_.info == NULL) {
-    StructInfo *sinfo = find_struct(scope, type->struct_.name, NULL);
-    if (sinfo == NULL)
-      parse_error(token, "Accessing unknown struct(%.*s)'s member", type->struct_.name->bytes,
-                  type->struct_.name->chars);
-    type->struct_.info = sinfo;
-  }
+  switch (type->kind) {
+  case TY_STRUCT:
+    {
+      if (type->struct_.info == NULL) {
+        StructInfo *sinfo = find_struct(scope, type->struct_.name, NULL);
+        if (sinfo == NULL)
+          parse_error(token, "Imcomplete struct: `%.*s'", type->struct_.name->bytes,
+                      type->struct_.name->chars);
+        type->struct_.info = sinfo;
+      }
 
-  // Recursively.
-  StructInfo *sinfo = type->struct_.info;
-  for (int i = 0; i < sinfo->members->len; ++i) {
-    VarInfo *varinfo = sinfo->members->data[i];
-    if (varinfo->type->kind == TY_STRUCT)
-      ensure_struct((Type*)varinfo->type, token, scope);
+      // Recursively.
+      StructInfo *sinfo = type->struct_.info;
+      for (int i = 0; i < sinfo->members->len; ++i) {
+        VarInfo *varinfo = sinfo->members->data[i];
+        if (varinfo->type->kind == TY_STRUCT)
+          ensure_struct((Type*)varinfo->type, token, scope);
+      }
+    }
+    break;
+  case TY_ARRAY:
+    ensure_struct((Type*)type->pa.ptrof, token, scope);
+    break;
+  default:
+    break;
   }
 }
 
@@ -1350,8 +1360,7 @@ static Expr *parse_sizeof(const Token *token) {
     tok = expr->token;
   }
   assert(type != NULL);
-  if (type->kind == TY_STRUCT)
-    ensure_struct((Type*)type, token, curscope);
+  ensure_struct((Type*)type, token, curscope);
   if (type->kind == TY_ARRAY) {
     if (type->pa.length == -1) {
       // TODO: assert `export` modifier.

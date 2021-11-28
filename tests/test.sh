@@ -257,6 +257,8 @@ compile_error 'non exist field initializer' 'struct Foo{int x;}; void main(){ st
 compile_error 'initializer for empty struct' 'struct Foo{}; void main(){ struct Foo foo = {1}; }'
 compile_error 'no name nor defined struct ptr' 'void main(){ struct *p; }'
 compile_error 'refer undeclared struct member' 'void main(){ struct Foo *p; p->x; }'
+compile_error 'undeclared struct init' 'struct Foo foo={12}; void main(){}'
+compile_error 'undeclared struct array init' 'struct Foo arr[]={{1}, {2}, {3}}; void main(){}'
 compile_error 'extern only' 'extern int x; void main(){ x = 123; }'
 compile_error 'extern with init' 'extern int x = 123; void main(){}'
 compile_error 'char array init with ptr' 'char* foo = "foo"; void main(){ char bar[] = foo; }'
