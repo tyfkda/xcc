@@ -5,6 +5,7 @@
 
 #include <assert.h>
 #include <fcntl.h>  // open
+#include <getopt.h>
 #include <libgen.h>  // dirname
 #include <signal.h>
 #include <stdio.h>
@@ -198,9 +199,9 @@ void usage(FILE *fp) {
       fp,
       "Usage: xcc [options] file...\n"
       "Options:\n"
-      "  -I<path>            Add include path\n"
-      "  -D<label[=value]>   Define label\n"
-      "  -o<filename>        Set output filename (Default: a.out)\n"
+      "  -I <path>           Add include path\n"
+      "  -D <label[=value]>  Define label\n"
+      "  -o <filename>       Set output filename (Default: a.out)\n"
       "  -c                  Output object file\n"
       "  -S                  Output assembly code\n"
       "  -E                  Output preprocess result\n"
@@ -208,13 +209,6 @@ void usage(FILE *fp) {
 }
 
 int main(int argc, char *argv[]) {
-  const char *ofn = NULL;
-  bool out_pp = false;
-  bool out_obj = false;
-  bool out_asm = false;
-  bool run_asm = true;
-  int iarg;
-
   const char *root = dirname(strdup_(argv[0]));
   char *cpp_path = cat_path(root, "cpp");
   char *cc1_path = cat_path(root, "cc1");
@@ -238,39 +232,62 @@ int main(int argc, char *argv[]) {
   vec_push(as_cmd, "assembler");
 #endif
 
-  for (iarg = 1; iarg < argc; ++iarg) {
-    char *arg = argv[iarg];
-    if (*arg != '-')
-      break;
+  const char *ofn = NULL;
+  bool out_pp = false;
+  bool out_obj = false;
+  bool out_asm = false;
+  bool run_asm = true;
 
-    if (starts_with(arg, "-I") || starts_with(arg, "-D")) {
-      vec_push(cpp_cmd, arg);
-    } else if (starts_with(arg, "-c")) {
-      out_obj = true;
-      vec_push(as_cmd, arg);
-    } else if (starts_with(arg, "-o")) {
-      ofn = arg + 2;
-      vec_push(as_cmd, arg);
-    } else if (strcmp(arg, "-E") == 0) {
-      out_pp = true;
-      run_asm = false;
-    } else if (strcmp(arg, "-S") == 0) {
-      out_asm = true;
-      run_asm = false;
-    } else if (starts_with(arg, "--local-label-prefix")) {
-      vec_push(cc1_cmd, arg);
-    } else if (strcmp(arg, "--help") == 0) {
+  enum {
+    OPT_LOCAL_LABEL_PREFIX = 256,
+  };
+  struct option longopts[] = {
+    {"help", no_argument, NULL, 'h'},
+    {"version", no_argument, NULL, 'V'},
+    {"local-label-prefix", required_argument, NULL, OPT_LOCAL_LABEL_PREFIX},
+    {0},
+  };
+  int opt;
+  int longindex;
+  while ((opt = getopt_long(argc, argv, "hVcESI:D:o:", longopts, &longindex)) != -1) {
+    switch (opt) {
+    case 'h':
       usage(stdout);
       return 0;
-    } else if (strcmp(arg, "--version") == 0) {
+    case 'V':
       show_version("xcc");
       return 0;
-    } else {
-      fprintf(stderr, "Unknown option: %s\n", arg);
-      return 1;
+    case 'I':
+      vec_push(cpp_cmd, "-I");
+      vec_push(cpp_cmd, optarg);
+      break;
+    case 'D':
+      vec_push(cpp_cmd, "-D");
+      vec_push(cpp_cmd, optarg);
+      break;
+    case 'o':
+      ofn = optarg;
+      break;
+    case 'c':
+      out_obj = true;
+      vec_push(as_cmd, "-c");
+      break;
+    case 'E':
+      out_pp = true;
+      run_asm = false;
+      break;
+    case 'S':
+      out_asm = true;
+      run_asm = false;
+      break;
+    case OPT_LOCAL_LABEL_PREFIX:
+      vec_push(cc1_cmd, "--local-label-prefix");
+      vec_push(cc1_cmd, optarg);
+      break;
     }
   }
 
+  int iarg = optind;
   if (iarg >= argc) {
     fprintf(stderr, "No input files\n\n");
     usage(stderr);
@@ -291,13 +308,9 @@ int main(int argc, char *argv[]) {
     } else {
       ofn = "a.out";
     }
-
-    StringBuffer sb;
-    sb_init(&sb);
-    sb_append(&sb, "-o", NULL);
-    sb_append(&sb, ofn, NULL);
-    vec_push(as_cmd, sb_to_string(&sb));
   }
+  vec_push(as_cmd, "-o");
+  vec_push(as_cmd, ofn);
 
   vec_push(cpp_cmd, NULL);  // Buffer for src.
   vec_push(cpp_cmd, NULL);  // Terminator.

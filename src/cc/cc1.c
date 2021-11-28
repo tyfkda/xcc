@@ -1,4 +1,5 @@
 #include <assert.h>
+#include <getopt.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -36,24 +37,25 @@ static void compile1(FILE *ifp, const char *filename, Vector *decls) {
   parse(decls);
 }
 
-static const char LOCAL_LABEL_PREFIX[] = "--local-label-prefix=";
-
 int main(int argc, char *argv[]) {
-  int iarg;
-
-  for (iarg = 1; iarg < argc; ++iarg) {
-    char *arg = argv[iarg];
-    if (*arg != '-')
-      break;
-
-    if (starts_with(arg, LOCAL_LABEL_PREFIX)) {
-      set_local_label_prefix(&argv[iarg][sizeof(LOCAL_LABEL_PREFIX) - 1]);
-    } else if (strcmp(arg, "--version") == 0) {
+  enum LongOpt {
+    OPT_LOCAL_LABEL_PREFIX = 256,
+  };
+  struct option longopts[] = {
+    {"version", no_argument, NULL, 'V'},
+    {"local-label-prefix", required_argument, NULL, OPT_LOCAL_LABEL_PREFIX},
+    {0},
+  };
+  int opt;
+  int longindex;
+  while ((opt = getopt_long(argc, argv, "V", longopts, &longindex)) != -1) {
+    switch (opt) {
+    case 'V':
       show_version("cc1");
       return 0;
-    } else {
-      fprintf(stderr, "Unknown option: %s\n", arg);
-      return 1;
+    case OPT_LOCAL_LABEL_PREFIX:
+      set_local_label_prefix(optarg);
+      break;
     }
   }
 
@@ -61,6 +63,7 @@ int main(int argc, char *argv[]) {
   init_compiler(stdout);
 
   toplevel = new_vector();
+  int iarg = optind;
   if (iarg < argc) {
     for (int i = iarg; i < argc; ++i) {
       const char *filename = argv[i];

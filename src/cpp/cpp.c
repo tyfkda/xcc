@@ -1,3 +1,4 @@
+#include <getopt.h>
 #include <string.h>
 
 #include "preprocessor.h"
@@ -20,25 +21,27 @@ int main(int argc, char *argv[]) {
   define_macro_simple("__NO_FLONUM");
 #endif
 
-  int iarg = 1;
-  for (; iarg < argc; ++iarg) {
-    char *arg = argv[iarg];
-    if (*arg != '-')
-      break;
-
-    if (starts_with(arg, "-I")) {
-      add_system_inc_path(argv[iarg] + 2);
-    } else if (starts_with(argv[iarg], "-D")) {
-      define_macro(argv[iarg] + 2);
-    } else if (strcmp(arg, "--version") == 0) {
+  struct option longopts[] = {
+    {"version", no_argument, NULL, 'V'},
+    {0},
+  };
+  int opt;
+  int longindex;
+  while ((opt = getopt_long(argc, argv, "VI:D:", longopts, &longindex)) != -1) {
+    switch (opt) {
+    case 'V':
       show_version("cpp");
       return 0;
-    } else {
-      fprintf(stderr, "Unknown option: %s\n", arg);
-      return 1;
+    case 'I':
+      add_system_inc_path(optarg);
+      break;
+    case 'D':
+      define_macro(optarg);
+      break;
     }
   }
 
+  int iarg = optind;
   if (iarg < argc) {
     for (int i = iarg; i < argc; ++i) {
       const char *filename = argv[i];

@@ -1,6 +1,7 @@
 #include "wcc.h"
 
 #include <assert.h>
+#include <getopt.h>
 #include <limits.h>  // CHAR_BIT
 #include <stdint.h>
 #include <stdio.h>
@@ -807,7 +808,6 @@ int main(int argc, char *argv[]) {
   const char *ofn = "a.wasm";
   Vector *exports = NULL;
   uint32_t stack_size = DEFAULT_STACK_SIZE;
-  int iarg;
 
   FILE *ppout = tmpfile();
   if (ppout == NULL)
@@ -818,38 +818,58 @@ int main(int argc, char *argv[]) {
   define_macro_simple("__WASM");
   init_compiler();
 
-  for (iarg = 1; iarg < argc; ++iarg) {
-    char *arg = argv[iarg];
-    if (*arg != '-')
+  enum {
+    OPT_VERBOSE = 256,
+    OPT_ENTRY,
+    OPT_STACK_SIZE,
+  };
+  struct option longopts[] = {
+    {"verbose", no_argument, NULL, OPT_VERBOSE},
+    {"entry", required_argument, NULL, OPT_ENTRY},
+    {"stack-size", required_argument, NULL, OPT_STACK_SIZE},
+    {0},
+  };
+  int opt;
+  int longindex;
+  while ((opt = getopt_long(argc, argv, "o:e:I:D:", longopts, &longindex)) != -1) {
+    switch (opt) {
+    case 'o':
+      ofn = optarg;
       break;
-
-    if (starts_with(arg, "-o")) {
-      ofn = arg + 2;
-    } else if (starts_with(arg, "-e") && arg[2] != '\0') {
-      exports = new_vector();
-      const char *s = arg + 2;
-      for (;;) {
-        const char *p = strchr(s, ',');
-        const Name *name = alloc_name(s, p, false);
-        vec_push(exports, name);
-        if (p == NULL)
-          break;
-        s = p + 1;
+    case 'e':
+      {
+        exports = new_vector();
+        const char *s = optarg;
+        for (;;) {
+          const char *p = strchr(s, ',');
+          const Name *name = alloc_name(s, p, false);
+          vec_push(exports, name);
+          if (p == NULL)
+            break;
+          s = p + 1;
+        }
       }
-    } else if (starts_with(arg, "-I")) {
-      add_system_inc_path(arg + 2);
-    } else if (starts_with(argv[iarg], "-D")) {
-      define_macro(arg + 2);
-    } else if (strncmp(arg, "--stack-size=", 13) == 0) {
-      int size = atoi(arg + 13);
-      if (size <= 0) {
-        error("stack-size must be positive");
+      break;
+    case 'I':
+      add_system_inc_path(optarg);
+      break;
+    case 'D':
+      define_macro(optarg);
+      break;
+    case OPT_STACK_SIZE:
+      {
+        int size = atoi(optarg);
+        if (size <= 0) {
+          error("stack-size must be positive");
+        }
+        stack_size = size;
       }
-      stack_size = size;
-    } else if (strcmp(arg, "--verbose") == 0) {
+      break;
+    case OPT_VERBOSE:
       verbose = true;
-    } else {
-      fprintf(stderr, "Unknown option: %s\n", arg);
+      break;
+    default:
+      fprintf(stderr, "Unknown option: %s\n", argv[optind]);
       return 1;
     }
   }
@@ -866,6 +886,7 @@ int main(int argc, char *argv[]) {
   VERBOSES("\n");
 
   // Preprocess.
+  int iarg = optind;
   if (iarg < argc) {
     for (int i = iarg; i < argc; ++i) {
       const char *filename = argv[i];
