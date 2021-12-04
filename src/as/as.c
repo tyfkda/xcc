@@ -1,5 +1,6 @@
 #include <assert.h>
 #include <ctype.h>
+#include <getopt.h>
 #include <stdint.h>  // uintptr_t
 #include <stdio.h>
 #include <stdlib.h>  // malloc, calloc
@@ -508,27 +509,34 @@ static int output_exe(const char *ofn, Table *label_table) {
 int main(int argc, char *argv[]) {
   const char *ofn = NULL;
   bool out_obj = false;
-  int iarg;
-
-  for (iarg = 1; iarg < argc; ++iarg) {
-    char *arg = argv[iarg];
-    if (*arg != '-')
-      break;
-
-    if (starts_with(arg, "-o")) {
-      ofn = strdup_(arg + 2);
+  enum LongOpt {
+    OPT_LOCAL_LABEL_PREFIX = 256,
+  };
+  struct option longopts[] = {
+    {"version", no_argument, NULL, 'V'},
+    {0},
+  };
 #if !defined(__NO_ELF_OBJ)
-    } else if (strcmp(arg, "-c") == 0) {
-      out_obj = true;
+  const char shortopts[] = "Vco:";
+#else
+  const char shortopts[] = "Vo:";
 #endif
-    } else if (strcmp(arg, "--version") == 0) {
+  int opt;
+  int longindex;
+  while ((opt = getopt_long(argc, argv, shortopts, longopts, &longindex)) != -1) {
+    switch (opt) {
+    case 'V':
       show_version("as");
       return 0;
-    } else {
-      fprintf(stderr, "Unknown option: %s\n", arg);
-      return 1;
+    case 'o':
+      ofn = optarg;
+      break;
+    case 'c':
+      out_obj = true;
+      break;
     }
   }
+  int iarg = optind;
 
   if (ofn == NULL) {
     if (out_obj) {

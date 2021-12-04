@@ -102,7 +102,7 @@ self-hosting:	$(TARGET)/cpp $(TARGET)/cc1 $(TARGET)/as $(TARGET)/xcc
 test-self-hosting:
 	$(MAKE) EXE_DIR=$(TARGET) -C tests clean cc-tests
 
-LIB_SRCS:= lib/lib.c lib/assert.c lib/umalloc.c lib/sprintf.c lib/crt0.c
+LIB_SRCS:= lib/lib.c lib/assert.c lib/umalloc.c lib/sprintf.c lib/getopt.c lib/crt0.c
 
 $(TARGET)/cpp:	$(HOST)/cc1 $(HOST)/cpp $(CPP_SRCS)
 	mkdir -p $(TARGET)
