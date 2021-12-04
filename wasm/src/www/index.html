@@ -41,9 +41,11 @@
           </template>
           <div><a href="#" @click="newFile($event); return false">New</a></div>
           <template x-if="canAccessLocalFile">
-            <div><a href="#" @click="loadFile($event); return false">Load</a></div>
-            <div><a href="#" @click="saveFile($event); return false" :disabled="!fileHandle">Save</a></div>
-            <div><a href="#" @click="saveFileAs($event); return false">Save As...</a></div>
+            <div>
+              <div><a href="#" @click="loadFile($event); return false">Load</a></div>
+              <div><a href="#" @click="saveFile($event); return false" :disabled="!fileHandle">Save</a></div>
+              <div><a href="#" @click="saveFileAs($event); return false">Save As...</a></div>
+            </div>
           </template><template x-if="!canAccessLocalFile">
             <div><a href="#" @click="saveFile($event); return false">Save</a></div>
           </template>
