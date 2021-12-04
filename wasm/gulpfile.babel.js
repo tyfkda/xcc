@@ -15,6 +15,7 @@ import ejs from 'gulp-ejs'
 import htmlmin from 'gulp-htmlmin'
 
 // SASS
+import sassPlugin from 'sass'
 import gulpSass from 'gulp-sass'
 import cssnano from 'gulp-cssnano'
 
@@ -106,7 +107,7 @@ export function watchTs() {
 export function sass() {
   return gulp.src(SRC_SASS_FILES)
     .pipe(plumber())
-    .pipe(gulpSass())
+    .pipe(gulpSass(sassPlugin)())
     .pipe(cssnano())
     .pipe(gulp.dest(ASSETS_DIR))
     .pipe(browserSync.stream())
