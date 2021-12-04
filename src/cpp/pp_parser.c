@@ -330,7 +330,17 @@ static PpResult pp_logior(void) {
 }
 
 static PpResult pp_conditional(void) {
-  return pp_logior();
+  PpResult result = pp_logior();
+  for (;;) {
+    const Token *tok;
+    if ((tok = match(TK_QUESTION)) == NULL)
+      return result;
+    PpResult tval = pp_expr();
+    pp_consume(TK_COLON, "`:' expected");
+    PpResult fval = pp_conditional();
+
+    result = result ? tval : fval;
+  }
 }
 
 static PpResult pp_assign(void) {
