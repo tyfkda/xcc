@@ -31,3 +31,9 @@ Macro *new_macro(Vector *params, bool va_args, Vector *segments);
 Macro *new_macro_single(const char *text);
 
 bool expand(Macro *macro, const Token *token, Vector *args, const Name *name, StringBuffer *sb);
+
+//
+
+void macro_add(const Name *name, Macro *macro);
+Macro *macro_get(const Name *name);
+void macro_delete(const Name *name);

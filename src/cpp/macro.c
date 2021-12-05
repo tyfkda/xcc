@@ -87,3 +87,19 @@ bool expand(Macro *macro, const Token *token, Vector *args, const Name *name, St
   }
   return true;
 }
+
+//
+
+static Table macro_table;  // <Name, Macro*>
+
+void macro_add(const Name *name, Macro *macro) {
+  table_put(&macro_table, name, macro);
+}
+
+Macro *macro_get(const Name *name) {
+  return table_get(&macro_table, name);
+}
+
+void macro_delete(const Name *name) {
+  table_delete(&macro_table, name);
+}

@@ -40,8 +40,6 @@ const char *find_directive(const char *line) {
   return skip_whitespaces(p + 1);
 }
 
-Table macro_table;  // <Name, Macro*>
-
 static FILE *pp_ofp;
 static Vector *sys_inc_paths;  // <const char*>
 static Vector *pragma_once_files;  // <const char*>
@@ -284,7 +282,7 @@ const char *handle_define(const char *p, Stream *stream) {
   if (*p != '\0') {
     segments = parse_macro_body(&p, params, va_args, stream);
   }
-  table_put(&macro_table, name, new_macro(params, va_args, segments));
+  macro_add(name, new_macro(params, va_args, segments));
 
   return p;
 }
@@ -297,7 +295,7 @@ void handle_undef(const char **pp) {
     error("`ident' expected");
   const Name *name = alloc_name(begin, end, false);
 
-  table_delete(&macro_table, name);
+  macro_delete(name);
 
   *pp = end;
 }
@@ -357,7 +355,7 @@ void process_line(const char *line, bool enable, Stream *stream) {
     if (enable) {
       Token *ident = match(TK_IDENT);
       Macro *macro;
-      if (ident != NULL && (macro = table_get(&macro_table, ident->ident)) != NULL) {
+      if (ident != NULL && (macro = macro_get(ident->ident)) != NULL) {
         Vector *args = NULL;
         if (macro->params != NULL)
           args = pp_funargs(stream);
@@ -398,7 +396,7 @@ bool handle_ifdef(const char **pp) {
   if (end == NULL)
     error("`ident' expected");
   const Name *name = alloc_name(begin, end, false);
-  return table_get(&macro_table, name) != NULL;
+  return macro_get(name) != NULL;
 }
 
 bool handle_if(const char **pp, Stream *stream) {
@@ -421,7 +419,7 @@ static void define_file_macro(const char *filename, const Name *key_file) {
   size_t len = strlen(filename);
   char *buf = malloc(len + 2 + 1);
   snprintf(buf, len + 2 + 1, "\"%s\"", filename);
-  table_put(&macro_table, key_file, new_macro_single(buf));
+  macro_add(key_file, new_macro_single(buf));
 }
 
 void init_preprocessor(FILE *ofp) {
@@ -441,15 +439,15 @@ int preprocess(FILE *fp, const char *filename_) {
   const Name *key_file = alloc_name("__FILE__", NULL, false);
   const Name *key_line = alloc_name("__LINE__", NULL, false);
 
-  Macro *old_file_macro = table_get(&macro_table, key_file);
-  Macro *old_line_macro = table_get(&macro_table, key_line);
+  Macro *old_file_macro = macro_get(key_file);
+  Macro *old_line_macro = macro_get(key_line);
 
   Stream stream;
   stream.filename = filename_;
   stream.fp = fp;
 
   define_file_macro(stream.filename, key_file);
-  table_put(&macro_table, key_line, new_macro_single(linenobuf));
+  macro_add(key_line, new_macro_single(linenobuf));
 
   stream.lineno = 0;
   for (;;) {
@@ -553,24 +551,20 @@ int preprocess(FILE *fp, const char *filename_) {
   if (condstack->len > 0)
     error("#if not closed");
 
-  table_put(&macro_table, key_file, old_file_macro);
-  table_put(&macro_table, key_line, old_line_macro);
+  macro_add(key_file, old_file_macro);
+  macro_add(key_line, old_line_macro);
 
   return stream.lineno;
 }
 
 void define_macro(const char *arg) {
   char *p = strchr(arg, '=');
-  if (p == NULL) {
-    table_put(&macro_table, alloc_name(arg, NULL, true), new_macro(NULL, false, NULL));
-  } else {
-    const Name *name = alloc_name(arg, p, true);
-    table_put(&macro_table, name, new_macro_single(p + 1));
-  }
+  Macro *macro = p == NULL ? new_macro(NULL, false, NULL) : new_macro_single(p + 1);
+  macro_add(alloc_name(arg, p, true), macro);
 }
 
 void define_macro_simple(const char *label) {
-  table_put(&macro_table, alloc_name(label, NULL, true), new_macro(NULL, false, NULL));
+  macro_add(alloc_name(label, NULL, true), new_macro(NULL, false, NULL));
 }
 
 void add_system_inc_path(const char *path) {

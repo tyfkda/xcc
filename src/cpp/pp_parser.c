@@ -11,8 +11,6 @@
 #include "table.h"
 #include "util.h"
 
-extern Table macro_table;
-
 static PpResult pp_prim(void);
 static PpResult pp_cast_expr(void);
 
@@ -53,7 +51,7 @@ Token *pp_consume(/*enum TokenKind*/int kind, const char *error) {
 }
 
 static PpResult expand_ident(const Token *ident) {
-  Macro *macro = table_get(&macro_table, ident->ident);
+  Macro *macro = macro_get(ident->ident);
   if (macro == NULL) {
     //parse_error(ident, "`%.s' not defined", ident->ident->bytes, ident->ident->chars);
     return 0;
@@ -83,8 +81,7 @@ static PpResult parse_defined(void) {
   if (lpar)
     pp_consume(TK_RPAR, "No close paren");
 
-  void *dummy = 0;
-  return table_try_get(&macro_table, ident->ident, &dummy) ? 1 : 0;
+  return macro_get(ident->ident) != NULL;
 }
 
 static PpResult pp_prim(void) {
