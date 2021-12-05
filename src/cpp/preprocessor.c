@@ -61,7 +61,8 @@ void register_pragma_once(const char *filename) {
   vec_push(pragma_once_files, filename);
 }
 
-void handle_include(const char *p, const char *srcname) {
+void handle_include(const char **pp, const char *srcname) {
+  const char *p = *pp;
   char close;
   bool sys = false;
   switch (*p++) {
@@ -82,6 +83,7 @@ void handle_include(const char *p, const char *srcname) {
     if (*q == '\0')
       error("not closed");
   }
+  *pp = q + 1;
 
   char *path = strndup_(p, q - p);
   char *fn = NULL;
@@ -115,18 +117,22 @@ void handle_include(const char *p, const char *srcname) {
   fclose(fp);
 }
 
-void handle_pragma(const char *p, const char *filename) {
+void handle_pragma(const char **pp, const char *filename) {
+  const char *p = *pp;
   const char *begin = p;
   const char *end = read_ident(p);
   if ((end - begin) == 4 && strncmp(begin, "once", 4) == 0) {
     if (!registered_pragma_once(filename))
       register_pragma_once(filename);
+    *pp = end;
   } else {
     fprintf(stderr, "Warning: unhandled #pragma: %s\n", p);
+    *pp = NULL;  // TODO:
   }
 }
 
-const char *handle_line_directive(const char *p, const char *filename, int *plineno) {
+const char *handle_line_directive(const char **pp, const char *filename, int *plineno) {
+  const char *p = *pp;
   const char *next = p;
   unsigned long num = strtoul(next, (char**)&next, 10);
   if (next > p) {
@@ -136,9 +142,12 @@ const char *handle_line_directive(const char *p, const char *filename, int *plin
       const char *q = strchr(p, '"');
       if (q != NULL) {
         filename = strndup_(p, q - p);
+        p = q + 1;
       }
+      next = p;
     }
   }
+  *pp = next;
   return filename;
 }
 
@@ -151,7 +160,8 @@ static void push_text_segment(Vector *segments, const char *start, const char *t
   }
 }
 
-Vector *parse_macro_body(const char *p, const Vector *params, bool va_args, Stream *stream) {
+Vector *parse_macro_body(const char **pp, const Vector *params, bool va_args, Stream *stream) {
+  const char *p = *pp;
   Vector *segments = new_vector();
   set_source_string(p, stream->filename, stream->lineno);
   int param_len = params != NULL ? params->len : 0;
@@ -231,10 +241,12 @@ Vector *parse_macro_body(const char *p, const Vector *params, bool va_args, Stre
     seg->text = strndup_(start, end - start);
     vec_push(segments, seg);
   }
+
+  *pp = get_lex_p();
   return segments;
 }
 
-void handle_define(const char *p, Stream *stream) {
+const char *handle_define(const char *p, Stream *stream) {
   const char *begin = p;
   const char *end = read_ident(p);
   if (end == NULL)
@@ -270,12 +282,15 @@ void handle_define(const char *p, Stream *stream) {
   Vector *segments = NULL;
   p = skip_whitespaces(p);
   if (*p != '\0') {
-    segments = parse_macro_body(skip_whitespaces(p), params, va_args, stream);
+    segments = parse_macro_body(&p, params, va_args, stream);
   }
   table_put(&macro_table, name, new_macro(params, va_args, segments));
+
+  return p;
 }
 
-void handle_undef(const char *p) {
+void handle_undef(const char **pp) {
+  const char *p = *pp;
   const char *begin = p;
   const char *end = read_ident(p);
   if (end == NULL)
@@ -283,9 +298,11 @@ void handle_undef(const char *p) {
   const Name *name = alloc_name(begin, end, false);
 
   table_delete(&macro_table, name);
+
+  *pp = end;
 }
 
-bool handle_block_comment(const char *begin, const char **pp, Stream *stream) {
+bool handle_block_comment(const char *begin, const char **pp, Stream *stream, bool enable) {
   const char *p = skip_whitespaces(*pp);
   if (*p != '/' || p[1] != '*')
     return false;
@@ -296,13 +313,17 @@ bool handle_block_comment(const char *begin, const char **pp, Stream *stream) {
     if (q != NULL) {
       if (q[1] == '/') {
         q += 2;
-        fwrite(begin, q - begin, 1, pp_ofp);
+        if (enable)
+          fwrite(begin, q - begin, 1, pp_ofp);
         *pp = q;
         break;
       }
       p = q + 1;
     } else {
-      fprintf(pp_ofp, "%s\n", begin);
+      if (enable)
+        fprintf(pp_ofp, "%s\n", begin);
+      else
+        fprintf(pp_ofp, "\n");
 
       char *line = NULL;
       size_t capa = 0;
@@ -317,14 +338,14 @@ bool handle_block_comment(const char *begin, const char **pp, Stream *stream) {
   return true;
 }
 
-void process_line(const char *line, Stream *stream) {
+void process_line(const char *line, bool enable, Stream *stream) {
   set_source_string(line, stream->filename, stream->lineno);
 
   const char *begin = get_lex_p();
   for (;;) {
     const char *p = get_lex_p();
     if (p != NULL) {
-      if (handle_block_comment(begin, &p, stream)) {
+      if (handle_block_comment(begin, &p, stream, enable)) {
         begin = p;
         set_source_string(begin, stream->filename, stream->lineno);
       }
@@ -333,49 +354,59 @@ void process_line(const char *line, Stream *stream) {
     if (match(TK_EOF))
       break;
 
-    Token *ident = match(TK_IDENT);
-    Macro *macro;
-    if (ident != NULL && (macro = table_get(&macro_table, ident->ident)) != NULL) {
-      Vector *args = NULL;
-      if (macro->params != NULL)
-        args = pp_funargs(stream);
+    if (enable) {
+      Token *ident = match(TK_IDENT);
+      Macro *macro;
+      if (ident != NULL && (macro = table_get(&macro_table, ident->ident)) != NULL) {
+        Vector *args = NULL;
+        if (macro->params != NULL)
+          args = pp_funargs(stream);
 
-      StringBuffer sb;
-      sb_init(&sb);
-      if (!expand(macro, ident, args, ident->ident, &sb))
+        StringBuffer sb;
+        sb_init(&sb);
+        if (!expand(macro, ident, args, ident->ident, &sb))
+          continue;
+
+        if (ident->begin != begin)
+          fwrite(begin, ident->begin - begin, 1, pp_ofp);
+
+        const char *left = get_lex_p();
+        if (left != NULL)
+          sb_append(&sb, left, NULL);
+        char *expanded = sb_to_string(&sb);
+
+        set_source_string(expanded, NULL, -1);
+        begin = get_lex_p();
         continue;
-
-      if (ident->begin != begin)
-        fwrite(begin, ident->begin - begin, 1, pp_ofp);
-
-      const char *left = get_lex_p();
-      if (left != NULL)
-        sb_append(&sb, left, NULL);
-      char *expanded = sb_to_string(&sb);
-
-      set_source_string(expanded, NULL, -1);
-      begin = get_lex_p();
-      continue;
+      }
     }
 
     match(-1);
   }
 
-  fprintf(pp_ofp, "%s\n", begin);
+  if (enable)
+    fprintf(pp_ofp, "%s\n", begin);
+  else
+    fprintf(pp_ofp, "\n");
 }
 
-bool handle_ifdef(const char *p) {
+bool handle_ifdef(const char **pp) {
+  const char *p = *pp;
   const char *begin = p;
   const char *end = read_ident(p);
+  *pp = end;
   if (end == NULL)
     error("`ident' expected");
   const Name *name = alloc_name(begin, end, false);
   return table_get(&macro_table, name) != NULL;
 }
 
-bool handle_if(const char *p, Stream *stream) {
+bool handle_if(const char **pp, Stream *stream) {
+  const char *p = *pp;
   set_source_string(p, stream->filename, stream->lineno);
-  return pp_expr() != 0;
+  PpResult result = pp_expr();
+  *pp = get_lex_p();
+  return result != 0;
 }
 
 #define CF_ENABLE         (1 << 0)
@@ -433,10 +464,7 @@ int preprocess(FILE *fp, const char *filename_) {
     // Find '#'
     const char *directive = find_directive(line);
     if (directive == NULL) {
-      if (enable)
-        process_line(line, &stream);
-      else
-        fprintf(pp_ofp, "\n");
+      process_line(line, enable, &stream);
       continue;
     }
     fprintf(pp_ofp, "\n");
@@ -444,17 +472,17 @@ int preprocess(FILE *fp, const char *filename_) {
     const char *next;
     if ((next = keyword(directive, "ifdef")) != NULL) {
       vec_push(condstack, (void*)cond_value(enable, satisfy));
-      bool defined = handle_ifdef(next);
+      bool defined = handle_ifdef(&next);
       satisfy = defined ? 1 : 0;
       enable = enable && satisfy == 1;
     } else if ((next = keyword(directive, "ifndef")) != NULL) {
       vec_push(condstack, (void*)cond_value(enable, satisfy));
-      bool defined = handle_ifdef(next);
+      bool defined = handle_ifdef(&next);
       satisfy = defined ? 0 : 1;
       enable = enable && satisfy == 1;
     } else if ((next = keyword(directive, "if")) != NULL) {
       vec_push(condstack, (void*)cond_value(enable, satisfy));
-      bool cond = handle_if(next, &stream);
+      bool cond = handle_if(&next, &stream);
       satisfy = cond ? 1 : 0;
       enable = enable && satisfy == 1;
     } else if ((next = keyword(directive, "else")) != NULL) {
@@ -476,7 +504,7 @@ int preprocess(FILE *fp, const char *filename_) {
 
       bool cond = false;
       if (satisfy == 0) {
-        cond = handle_if(next, &stream);
+        cond = handle_if(&next, &stream);
         if (cond)
           satisfy = 1;
       }
@@ -493,26 +521,32 @@ int preprocess(FILE *fp, const char *filename_) {
       condstack->len = len;
     } else if (enable) {
       if ((next = keyword(directive, "include")) != NULL) {
-        handle_include(next, stream.filename);
+        handle_include(&next, stream.filename);
         fprintf(pp_ofp, "# %d \"%s\" 1\n", stream.lineno + 1, stream.filename);
       } else if ((next = keyword(directive, "define")) != NULL) {
-        handle_define(next, &stream);
+        next = handle_define(next, &stream);
       } else if ((next = keyword(directive, "undef")) != NULL) {
-        handle_undef(next);
+        handle_undef(&next);
       } else if ((next = keyword(directive, "pragma")) != NULL) {
-        handle_pragma(next, stream.filename);
+        handle_pragma(&next, stream.filename);
       } else if ((next = keyword(directive, "error")) != NULL) {
         fprintf(stderr, "%s(%d): error\n", stream.filename, stream.lineno);
         error("%s", line);
+        next = NULL;  // TODO:
       } else if ((next = keyword(directive, "line")) != NULL) {
-        stream.filename = handle_line_directive(next, stream.filename, &stream.lineno);
+        stream.filename = handle_line_directive(&next, stream.filename, &stream.lineno);
         int flag = 1;
         fprintf(pp_ofp, "# %d \"%s\" %d\n", stream.lineno, stream.filename, flag);
         define_file_macro(stream.filename, key_file);
         --stream.lineno;
       } else {
         error("unknown directive: %s", directive);
+        next = NULL;
       }
+    }
+
+    if (next != NULL) {
+      process_line(next, enable, &stream);
     }
   }
 
