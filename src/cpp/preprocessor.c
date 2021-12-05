@@ -46,8 +46,6 @@ static FILE *pp_ofp;
 static Vector *sys_inc_paths;  // <const char*>
 static Vector *pragma_once_files;  // <const char*>
 
-static Stream *s_stream;
-
 bool registered_pragma_once(const char *filename) {
   for (int i = 0, len = pragma_once_files->len; i < len; ++i) {
     const char *fn = pragma_once_files->data[i];
@@ -339,10 +337,9 @@ void process_line(const char *line, Stream *stream) {
     Token *ident = match(TK_IDENT);
     Macro *macro;
     if (ident != NULL && (macro = table_get(&macro_table, ident->ident)) != NULL) {
-      s_stream = stream;
       Vector *args = NULL;
       if (macro->params != NULL)
-        args = pp_funargs(s_stream);
+        args = pp_funargs(stream);
 
       StringBuffer sb;
       sb_init(&sb);
