@@ -292,30 +292,29 @@ bool handle_block_comment(const char *begin, const char **pp, Stream *stream) {
 
   p += 2;
   for (;;) {
-    if (*p == '\0') {
-      fwrite(begin, p - begin, 1, pp_ofp);
-      fputc('\n', pp_ofp);
+    char *q = strchr(p, '*');
+    if (q != NULL) {
+      if (q[1] == '/') {
+        q += 2;
+        fwrite(begin, q - begin, 1, pp_ofp);
+        *pp = q;
+        break;
+      }
+      p = q + 1;
+    } else {
+      fprintf(pp_ofp, "%s\n", begin);
 
       char *line = NULL;
       size_t capa = 0;
       ssize_t len = getline_cont(&line, &capa, stream->fp, &stream->lineno);
       if (len == -1) {
         *pp = p;
-        return true;
+        break;
       }
       begin = p = line;
-      continue;
     }
-
-    if (*p == '*' && p[1] == '/') {
-      p += 2;
-      fwrite(begin, p - begin, 1, pp_ofp);
-      *pp = p;
-      return true;
-    }
-
-    ++p;
   }
+  return true;
 }
 
 void process_line(const char *line, Stream *stream) {
