@@ -25,3 +25,4 @@ core
 /debug/dump_expr
 /debug/dump_ir
 /debug/dump_type
+/gh-pages/

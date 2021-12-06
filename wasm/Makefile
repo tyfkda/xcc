@@ -109,3 +109,4 @@ $(ASSETS_DIR)/libs.json:	lib_list.json
 .PHONY: deploy
 deploy:	assets
 	npm run release
+	cd ../gh-pages && git commit -a --amend -m 'Deploy' && git push -f && cd ../wasm
