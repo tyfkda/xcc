@@ -75,7 +75,7 @@ test-all: test test-gen2 diff-gen23
 
 .PHONY: clean
 clean:
-	rm -rf cc1 cpp as xcc $(OBJ_DIR) a.out gen2 gen3 tmp.s
+	rm -rf cc1 cpp as xcc $(OBJ_DIR) a.out gen2 gen3 tmp.s dump_expr dump_ir dump_type
 	$(MAKE) -C tests clean
 
 ### Self hosting
@@ -123,3 +123,23 @@ $(TARGET)/xcc:	$(HOST)/xcc $(AS_SRCS)
 	mkdir -p $(TARGET)
 	$(HOST)/xcc -o$@ -Iinc -I$(UTIL_DIR) -DSELF_HOSTING $(XCC_SRCS) \
 	      $(LIB_SRCS)
+
+### Debug
+
+DEBUG_DIR:=src/_debug
+DEBUG_CFLAGS:=$(subst -MMD,,$(CFLAGS))
+
+dump_expr:	$(DEBUG_DIR)/dump_expr.c $(CC1_DIR)/parser_expr.c $(CC1_DIR)/parser.c $(CC1_DIR)/lexer.c \
+			$(CC1_DIR)/type.c $(CC1_DIR)/ast.c $(CC1_DIR)/var.c $(UTIL_DIR)/util.c $(UTIL_DIR)/table.c
+	$(CC) -o $@ $(DEBUG_CFLAGS) $^
+
+dump_ir:	$(DEBUG_DIR)/dump_ir.c $(CC1_DIR)/parser_expr.c $(CC1_DIR)/parser.c $(CC1_DIR)/lexer.c \
+			$(CC1_DIR)/type.c $(CC1_DIR)/ast.c $(CC1_DIR)/var.c $(CC1_DIR)/builtin.c \
+			$(CC1_DIR)/codegen_expr.c $(CC1_DIR)/codegen.c $(CC1_DIR)/ir.c \
+			$(CC1_DIR)/regalloc.c $(CC1_DIR)/emit.c \
+			$(UTIL_DIR)/util.c $(UTIL_DIR)/table.c
+	$(CC) -o $@ $(DEBUG_CFLAGS) $^
+
+dump_type:	$(DEBUG_DIR)/dump_type.c $(CC1_DIR)/parser_expr.c $(CC1_DIR)/parser.c $(CC1_DIR)/lexer.c \
+			$(CC1_DIR)/type.c $(CC1_DIR)/ast.c $(CC1_DIR)/var.c $(UTIL_DIR)/util.c $(UTIL_DIR)/table.c
+	$(CC) -o $@ $(DEBUG_CFLAGS) $^
