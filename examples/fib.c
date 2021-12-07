@@ -7,7 +7,7 @@
 //   $ ./fib  #=> 832040
 
 #include "../lib/crt0.c"
-#include "util.c"
+#include "example_util.c"
 
 int fib(int n) {
   if (n < 2)

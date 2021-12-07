@@ -7,7 +7,7 @@
 //   $ ./hello  #=> Hello, world!
 
 #include "../lib/crt0.c"
-#include "util.c"
+#include "example_util.c"
 
 int main() {
   write(1, "Hello, world!\n", 14);

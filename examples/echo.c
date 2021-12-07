@@ -7,7 +7,7 @@
 //   $ ./echo foo bar baz  #=> foo bar baz
 
 #include "../lib/crt0.c"
-#include "util.c"
+#include "example_util.c"
 
 int main(int argc, char **argv) {
   for (int i = 1; i < argc; ++i) {

@@ -1,3 +1,5 @@
+#include "example_util.h"
+
 #if defined(__XV6)
 long write(int fd, const void *str, unsigned long len) {
   __asm("mov $16, %eax");  // SYS_write
@@ -5,7 +7,7 @@ long write(int fd, const void *str, unsigned long len) {
 }
 
 #elif defined(__linux__)
-long write(int fd, const void *str, unsigned long len) {
+long write(int fd, const char *str, long len){
 #if defined(__XCC)
   __asm("mov $1, %eax");  // __NR_write
   __asm("syscall");

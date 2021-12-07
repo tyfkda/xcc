@@ -114,11 +114,11 @@ PARSER_SRCS:=parser_test.c $(SRC_DIR)/parser_expr.c $(SRC_DIR)/lexer.c $(SRC_DIR
 parser_test:	$(PARSER_SRCS)
 	$(CC) -o$@ $(CFLAGS) $^
 
-VAL_SRCS:=../lib/crt0.c ../examples/util.c valtest.c
+VAL_SRCS:=../lib/crt0.c ../examples/example_util.c valtest.c
 valtest:	$(VAL_SRCS) # $(XCC)
 	$(XCC) -o$@ $^
 
-FVAL_SRCS:=../lib/crt0.c ../examples/util.c ../lib/math.c fvaltest.c
+FVAL_SRCS:=../lib/crt0.c ../examples/example_util.c ../lib/math.c fvaltest.c
 dvaltest:	$(FVAL_SRCS) flotest.inc # $(XCC)
 	$(XCC) -o$@ -I../inc $(FVAL_SRCS)
 fvaltest:	$(FVAL_SRCS) flotest.inc # $(XCC)
@@ -129,11 +129,11 @@ print_type_test:	$(TYPE_SRCS)
 	gcc -o $@ $(CFLAGS) $^
 
 .PHONY: test-link
-link_test: link_main.c ../examples/util.c link_sub.c
+link_test: link_main.c ../examples/example_util.c link_sub.c
 	$(XCC) -c -olink_main.o link_main.c
-	$(CC) -o $@ link_sub.c link_main.o ../examples/util.c
+	$(CC) -o $@ link_sub.c link_main.o ../examples/example_util.c
 
 .PHONY: test-std-valtest
 test-std-valtest:
-	$(CC) -Wno-builtin-declaration-mismatch -Wno-overflow ../examples/util.c valtest.c
+	$(CC) -Wno-builtin-declaration-mismatch -Wno-overflow ../examples/example_util.c valtest.c
 	./a.out

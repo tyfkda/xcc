@@ -9,7 +9,7 @@
 #include <setjmp.h>
 
 #include "../lib/crt0.c"
-#include "util.c"
+#include "example_util.c"
 
 jmp_buf env;
 

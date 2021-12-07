@@ -1,7 +1,7 @@
 #include "stdbool.h"
 #include "stdlib.h"  // exit
 #include "math.h"
-#include "../examples/util.h"
+#include "../examples/example_util.h"
 
 void expect(char *title, Number expected, Number actual) {
   putstr(title);
