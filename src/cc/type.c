@@ -502,7 +502,12 @@ void print_type_recur(FILE *fp, const Type *type, PrintTypeChain *parent) {
     case FX_SHORT: fprintf(fp, "short"); break;
     case FX_INT:   fprintf(fp, "int"); break;
     case FX_LONG:  fprintf(fp, "long"); break;
-    case FX_ENUM:  fprintf(fp, "enum"); break;
+    case FX_ENUM:
+      if (type->fixnum.enum_.ident != NULL)
+        fprintf(fp, "enum %.*s", type->fixnum.enum_.ident->bytes, type->fixnum.enum_.ident->chars);
+      else
+        fprintf(fp, "enum (anonymous)");
+      break;
     default: assert(false); break;
     }
     call_print_type_chain(parent, fp);

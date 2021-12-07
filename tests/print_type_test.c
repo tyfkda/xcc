@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "table.h"
 #include "type.h"
 #include "util.h"
 
@@ -49,6 +50,21 @@ void print_type_test(void) {
 
   check_print_type("int[2][3]", arrayof(arrayof(&tyInt, 3), 2));
   check_print_type("int*[][3]", arrayof(arrayof(ptrof(&tyInt), 3), -1));
+
+  {
+    Type *type = create_enum_type(alloc_name("Enum", NULL, false));
+    check_print_type("enum Enum", type);
+  }
+
+  {
+    Vector *members = new_vector();
+    StructInfo *sinfo = create_struct_info(members, false);
+    const Name *name = alloc_name("Foo", NULL, false);
+    Type *type = create_struct_type(sinfo, name, 0);
+    check_print_type("struct Foo", type);
+    check_print_type("struct Foo*", ptrof(type));
+    check_print_type("struct Foo[3]", arrayof(type, 3));
+  }
 
   {
     Vector *param_types = new_vector();

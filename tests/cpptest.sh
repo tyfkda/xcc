@@ -33,7 +33,7 @@ compile_error() {
 
   echo -n "$title => "
 
-  echo -e "$input" | $CPP
+  $(echo -e "$input" | $CPP | tr -d '\n')
   local result="$?"
 
   if [ $result -eq 0 ]; then
@@ -42,7 +42,8 @@ compile_error() {
   fi
 }
 
-try 'NULL' '0' "#define NULL 0\nNULL"
+try '#define' '0' "#define NULL 0\nNULL"
+try '#undef' 'undefined' "#define FOO\n#undef FOO\n#ifdef FOO\ndefined\n#else\nundefined\n#endif"
 try 'Param' '((1) + (2))' "#define ADD(x,y)  ((x) + (y))\nADD(1, 2)"
 try 'No arguments keeps as is' 'int MAX=123;' "#define MAX(a,b) ((a)>=(b)?(a):(b))\nint MAX=123;"
 try 'Newline in macro' '1+2' "#define ADD(x,y) x+y\nADD(1,\n2)"
@@ -55,6 +56,7 @@ try '#if 0' '3' "#if 0\n3\n#else\n3\n#endif"
 try '#elif-1' '2' "#if 1\n2\n#elif 1\n3\n#elif 1\n4#else\n5\n#endif"
 try '#elif-01' '3' "#if 0\n2\n#elif 1\n3\n#elif 1\n4\n#else\n5\n#endif"
 try '#elif-001' '4' "#if 0\n2\n#elif 0\n3\n#elif 1\n4\n#else\n5\n#endif"
+try 'non-defined-ident is zero' 'false' "#if UNDEF\ntrue\n#else\nfalse\n#endif"
 try '#if defined' '3' "#if defined(XXX)\n2\n#else\n3\n#endif"
 try '#if defined w/o ()' '3' "#if defined XXX\n2\n#else\n3\n#endif"
 try '#if !defined' '2' "#if !defined(XXX)\n2\n#else\n3\n#endif"
@@ -75,3 +77,6 @@ try 'Stringify' '"1 + 2"' '#define S(x)  #x\nS(1 + 2)'
 try 'Stringify escaped' '"\"abc\""' '#define S(x)  #x\nS("abc")'
 
 compile_error '#error' '#error !!!\nvoid main(){}'
+compile_error '#if not closed' '#if 1'
+compile_error '#elif not closed' '#if 0\n#elif 1'
+compile_error 'Duplicate #else' '#if 0\n#else\n#else\n#endif'
