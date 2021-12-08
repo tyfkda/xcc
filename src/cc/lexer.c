@@ -10,8 +10,6 @@
 #include "table.h"
 #include "util.h"
 
-#define MAX_LOOKAHEAD  (2)
-
 static const struct {
   const char *str;
   enum TokenKind kind;
@@ -111,20 +109,11 @@ static const char kSingleOperatorTypeMap[128] = {  // enum TokenKind
   ['#'] = PPTK_STRINGIFY,
 };
 
-typedef struct {
-  FILE *fp;
-  const char *filename;
-  Line *line;
-  const char *p;
-  Token *fetched[MAX_LOOKAHEAD];
-  int idx;
-  int lineno;
-} Lexer;
-
 int compile_error_count;
 
-static Lexer lexer;
+Lexer lexer;
 static Table reserved_word_table;
+static LexEofCallback lex_eof_callback;
 
 void lex_error(const char *p, const char *fmt, ...) {
   fprintf(stderr, "%s(%d): ", lexer.filename, lexer.lineno);
@@ -229,6 +218,17 @@ static char backslash(char c, const char **pp) {
   }
 }
 
+LexEofCallback set_lex_eof_callback(LexEofCallback callback) {
+  LexEofCallback old = lex_eof_callback;
+  lex_eof_callback = callback;
+  return old;
+}
+
+bool lex_eof_continue(void) {
+  return (lex_eof_callback != NULL &&
+          (*lex_eof_callback)());
+}
+
 void init_lexer(void) {
   init_reserved_word_table();
 }
@@ -300,8 +300,10 @@ static int scan_linemarker(const char *line, long *pnum, char **pfn, int *pflag)
 
 static void read_next_line(void) {
   if (lexer.fp == NULL) {
-    lexer.p = NULL;
-    lexer.line = NULL;
+    if (!lex_eof_continue()) {
+      lexer.p = NULL;
+      lexer.line = NULL;
+    }
     return;
   }
 
@@ -310,6 +312,9 @@ static void read_next_line(void) {
   for (;;) {
     ssize_t len = getline_cont(&line, &capa, lexer.fp, &lexer.lineno);
     if (len == -1) {
+      if (lex_eof_continue())
+        continue;
+
       lexer.p = NULL;
       lexer.line = NULL;
       return;
@@ -628,8 +633,9 @@ static Token *get_token(void) {
 
 Token *fetch_token(void) {
   if (lexer.idx < 0) {
-    lexer.idx = 0;
-    lexer.fetched[0] = get_token();
+    Token *tok = get_token();
+    lexer.idx = lexer.idx < 0 ? 0 : lexer.idx + 1;
+    lexer.fetched[lexer.idx] = tok;
   }
   return lexer.fetched[lexer.idx];
 }
@@ -647,6 +653,6 @@ void unget_token(Token *token) {
   if (token->kind == TK_EOF)
     return;
   ++lexer.idx;
-  assert(lexer.idx < MAX_LOOKAHEAD);
+  assert(lexer.idx < MAX_LEX_LOOKAHEAD);
   lexer.fetched[lexer.idx] = token;
 }

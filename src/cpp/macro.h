@@ -21,7 +21,7 @@ typedef struct {
   };
 } Segment;
 
-typedef struct {
+typedef struct Macro {
   Vector *params;  // <const char*>
   bool va_args;
   Vector *segments;  // <Segment*>

@@ -51,6 +51,62 @@ void pp_parse_error(const Token *token, const char *fmt, ...) {
   exit(1);
 }
 
+//
+
+extern Lexer lexer;
+
+typedef struct {
+  Lexer lexer;
+  LexEofCallback parent_callback;
+  const Name *ident;
+  void (*user_callback)(void);
+} LexStackElem;
+
+typedef struct {
+  LexStackElem *buf;
+  int capacity, sp;
+} LexStack;
+
+static LexStack lex_stack;
+static Table macro_hideset;
+
+Macro *can_expand_ident(const Name *ident) {
+  return table_try_get(&macro_hideset, ident, NULL) ? NULL : macro_get(ident);
+}
+
+static bool on_process_line_eof(void) {
+  assert(lex_stack.sp > 0);
+  LexStackElem *p = &lex_stack.buf[--lex_stack.sp];
+  lexer = p->lexer;
+  set_lex_eof_callback(p->parent_callback);
+  table_delete(&macro_hideset, p->ident);
+
+  if (p->user_callback != NULL) {
+    (*p->user_callback)();
+  }
+  return true;
+}
+
+void push_lex(const Name *ident, void (*callback)(void)) {
+  if (lex_stack.sp >= lex_stack.capacity) {
+    lex_stack.capacity += 1;
+    LexStackElem *new_stack = realloc(lex_stack.buf, sizeof(*new_stack) * lex_stack.capacity);
+    if (new_stack == NULL)
+      error("out of memory");
+    lex_stack.buf = new_stack;
+  }
+
+  LexStackElem *p = &lex_stack.buf[lex_stack.sp++];
+  p->lexer = lexer;
+  p->ident = ident;
+  p->parent_callback = set_lex_eof_callback(on_process_line_eof);
+  p->user_callback = callback;
+
+  table_put(&macro_hideset, ident, (void*)ident);
+}
+
+//
+
 Token *pp_match(enum TokenKind kind) {
   const char *p = get_lex_p();
   if (p != NULL) {
@@ -90,11 +146,9 @@ Token *pp_consume(enum TokenKind kind, const char *error) {
 }
 
 static PpResult expand_ident(const Token *ident) {
-  Macro *macro = macro_get(ident->ident);
-  if (macro == NULL) {
-    //parse_error(ident, "`%.s' not defined", ident->ident->bytes, ident->ident->chars);
+  Macro *macro = can_expand_ident(ident->ident);
+  if (macro == NULL)
     return 0;
-  }
 
   Vector *args = NULL;
   if (macro->params != NULL)
@@ -104,11 +158,9 @@ static PpResult expand_ident(const Token *ident) {
   sb_init(&sb);
   expand_macro(macro, ident, args, ident->ident, &sb);
 
-  const char *left = get_lex_p();
-  if (left != NULL)
-    sb_append(&sb, left, NULL);
-  char *expanded = sb_to_string(&sb);
+  push_lex(ident->ident, NULL);
 
+  char *expanded = sb_to_string(&sb);
   set_source_string(expanded, NULL, -1);
 
   return pp_prim();

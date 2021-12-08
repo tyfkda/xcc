@@ -313,7 +313,18 @@ static void handle_undef(const char **pp) {
 }
 
 static bool handle_block_comment(const char *begin, const char **pp, Stream *stream, bool enable) {
-  const char *p = block_comment_start(*pp);
+  const char *p = *pp;
+  for (;;) {
+    p = skip_whitespaces(p);
+    if (*p != '\0')
+      break;
+    begin = p;
+    if (!lex_eof_continue())
+      return false;
+    *pp = begin = p = get_lex_p();
+  }
+
+  p = block_comment_start(p);
   if (p == NULL)
     return false;
 
@@ -341,16 +352,26 @@ static bool handle_block_comment(const char *begin, const char **pp, Stream *str
   return true;
 }
 
+static const char **line_begin_ptr;
+
+static void on_eof_callback(void) {
+  fputs(*line_begin_ptr, pp_ofp);
+  *line_begin_ptr = get_lex_p();
+}
+
 static void process_line(const char *line, bool enable, Stream *stream) {
   set_source_string(line, stream->filename, stream->lineno);
 
   const char *begin = get_lex_p();
+  line_begin_ptr = &begin;
+
   for (;;) {
     const char *p = get_lex_p();
     if (p != NULL) {
       if (handle_block_comment(begin, &p, stream, enable)) {
         begin = p;
         set_source_string(begin, stream->filename, stream->lineno);
+        continue;
       }
     }
 
@@ -361,7 +382,7 @@ static void process_line(const char *line, bool enable, Stream *stream) {
       Token *ident = match(TK_IDENT);
       Macro *macro;
       if (ident != NULL) {
-        if ((macro = macro_get(ident->ident)) != NULL) {
+        if ((macro = can_expand_ident(ident->ident)) != NULL) {
           Vector *args = NULL;
           if (macro->params != NULL)
             args = pp_funargs();
@@ -374,13 +395,11 @@ static void process_line(const char *line, bool enable, Stream *stream) {
           if (ident->begin != begin)
             fwrite(begin, ident->begin - begin, 1, pp_ofp);
 
-          const char *left = get_lex_p();
-          if (left != NULL)
-            sb_append(&sb, left, NULL);
-          char *expanded = sb_to_string(&sb);
+          push_lex(ident->ident, &on_eof_callback);
 
+          char *expanded = sb_to_string(&sb);
           set_source_string(expanded, NULL, -1);
-          begin = get_lex_p();
+          begin = expanded;
         }
         continue;
       }
@@ -393,6 +412,8 @@ static void process_line(const char *line, bool enable, Stream *stream) {
     fprintf(pp_ofp, "%s\n", begin);
   else
     fprintf(pp_ofp, "\n");
+
+  line_begin_ptr = NULL;
 }
 
 static bool handle_ifdef(const char **pp) {
