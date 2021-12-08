@@ -536,13 +536,6 @@ static Token *new_token(enum TokenKind kind) {
   return token;
 }
 
-static bool ishexdigit(int c) {
-  if (isdigit(c))
-    return true;
-  c = tolower(c);
-  return 'a' <= c && c <= 'f';
-}
-
 #ifndef __NO_FLONUM
 static const Token *read_flonum(ParseInfo *info) {
   const char *p = info->p;
@@ -564,7 +557,7 @@ static const Token *fetch_token(ParseInfo *info) {
   char c = *p;
   if (isdigit(c)) {
     int base = 10;
-    if (tolower(p[1]) == 'x' && ishexdigit(p[2])) {
+    if (tolower(p[1]) == 'x' && isxdigit(p[2])) {
       p += 2;
       base = 16;
     }
