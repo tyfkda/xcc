@@ -13,7 +13,7 @@
 #define LONG_SIZE  (4)
 #define QUAD_SIZE  (8)
 
-LabelInfo *new_label(int section, uintptr_t address) {
+static LabelInfo *new_label(int section, uintptr_t address) {
   LabelInfo *info = malloc(sizeof(*info));
   info->section = section;
   info->flag = 0;

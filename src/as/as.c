@@ -49,7 +49,7 @@ int main() {
 #define LOAD_ADDRESS    START_ADDRESS
 #define DATA_ALIGN      (0x1000)
 
-void parse_file(FILE *fp, const char *filename, Vector **section_irs, Table *label_table) {
+static void parse_file(FILE *fp, const char *filename, Vector **section_irs, Table *label_table) {
   ParseInfo info;
   info.filename = filename;
   info.lineno = 1;

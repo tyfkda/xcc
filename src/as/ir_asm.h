@@ -21,7 +21,6 @@ typedef struct {
   uintptr_t address;
 } LabelInfo;
 
-LabelInfo *new_label(int section, uintptr_t address);
 bool add_label_table(Table *label_table, const Name *label, int section, bool define, bool global);
 
 enum UnresolvedKind {

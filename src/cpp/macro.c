@@ -25,7 +25,7 @@ Macro *new_macro_single(const char *text) {
   return new_macro(NULL, false, segments);
 }
 
-bool expand(Macro *macro, const Token *token, Vector *args, const Name *name, StringBuffer *sb) {
+bool expand_macro(Macro *macro, const Token *token, Vector *args, const Name *name, StringBuffer *sb) {
   if (macro->params != NULL) {
     if (args == NULL)
       return false;

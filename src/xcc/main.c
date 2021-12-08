@@ -71,7 +71,7 @@ static pid_t exec_with_ofd(char **command, int ofd) {
 }
 
 // | command > ofd
-pid_t pipe_exec(char **command, int ofd, int fd[2]) {
+static pid_t pipe_exec(char **command, int ofd, int fd[2]) {
   if (pipe(fd) < 0)
     error("pipe failed");
 
@@ -194,7 +194,7 @@ static int compile(const char *src, Vector *cpp_cmd, Vector *cc1_cmd, int ofd) {
   return res;
 }
 
-void usage(FILE *fp) {
+static void usage(FILE *fp) {
   fprintf(
       fp,
       "Usage: xcc [options] file...\n"

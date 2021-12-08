@@ -63,7 +63,7 @@ static PpResult expand_ident(const Token *ident) {
 
   StringBuffer sb;
   sb_init(&sb);
-  expand(macro, ident, args, ident->ident, &sb);
+  expand_macro(macro, ident, args, ident->ident, &sb);
 
   const char *left = get_lex_p();
   if (left != NULL)

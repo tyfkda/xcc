@@ -15,25 +15,25 @@
 #include "table.h"
 #include "util.h"
 
-char *cat_path_cwd(const char *dir, const char *path) {
+static char *cat_path_cwd(const char *dir, const char *path) {
   char *cwd = getcwd(NULL, 0);
   char *root = cat_path(cwd, dir);
   free(cwd);
   return cat_path(root, path);
 }
 
-char *fullpath(const char *filename) {
+static char *fullpath(const char *filename) {
   return cat_path_cwd(dirname(strdup_(filename)), basename((char*)filename));
 }
 
-const char *keyword(const char *s, const char *word) {
+static const char *keyword(const char *s, const char *word) {
   size_t len = strlen(word);
   if (strncmp(s, word, len) != 0 || (s[len] != '\0' && !isspace(s[len])))
     return NULL;
   return skip_whitespaces(s + (len + 1));
 }
 
-const char *find_directive(const char *line) {
+static const char *find_directive(const char *line) {
   const char *p = skip_whitespaces(line);
   if (*p != '#')
     return NULL;
@@ -44,7 +44,7 @@ static FILE *pp_ofp;
 static Vector *sys_inc_paths;  // <const char*>
 static Vector *pragma_once_files;  // <const char*>
 
-bool registered_pragma_once(const char *filename) {
+static bool registered_pragma_once(const char *filename) {
   for (int i = 0, len = pragma_once_files->len; i < len; ++i) {
     const char *fn = pragma_once_files->data[i];
     if (strcmp(fn, filename) == 0)
@@ -53,13 +53,13 @@ bool registered_pragma_once(const char *filename) {
   return false;
 }
 
-void register_pragma_once(const char *filename) {
+static void register_pragma_once(const char *filename) {
   if (!is_fullpath(filename))
     filename = fullpath(filename);
   vec_push(pragma_once_files, filename);
 }
 
-void handle_include(const char **pp, const char *srcname) {
+static void handle_include(const char **pp, const char *srcname) {
   const char *p = *pp;
   char close;
   bool sys = false;
@@ -115,7 +115,7 @@ void handle_include(const char **pp, const char *srcname) {
   fclose(fp);
 }
 
-void handle_pragma(const char **pp, const char *filename) {
+static void handle_pragma(const char **pp, const char *filename) {
   const char *p = *pp;
   const char *begin = p;
   const char *end = read_ident(p);
@@ -129,7 +129,7 @@ void handle_pragma(const char **pp, const char *filename) {
   }
 }
 
-const char *handle_line_directive(const char **pp, const char *filename, int *plineno) {
+static const char *handle_line_directive(const char **pp, const char *filename, int *plineno) {
   const char *p = *pp;
   const char *next = p;
   unsigned long num = strtoul(next, (char**)&next, 10);
@@ -158,7 +158,7 @@ static void push_text_segment(Vector *segments, const char *start, const char *t
   }
 }
 
-Vector *parse_macro_body(const char **pp, const Vector *params, bool va_args, Stream *stream) {
+static Vector *parse_macro_body(const char **pp, const Vector *params, bool va_args, Stream *stream) {
   const char *p = *pp;
   Vector *segments = new_vector();
   set_source_string(p, stream->filename, stream->lineno);
@@ -244,7 +244,7 @@ Vector *parse_macro_body(const char **pp, const Vector *params, bool va_args, St
   return segments;
 }
 
-const char *handle_define(const char *p, Stream *stream) {
+static const char *handle_define(const char *p, Stream *stream) {
   const char *begin = p;
   const char *end = read_ident(p);
   if (end == NULL)
@@ -287,7 +287,7 @@ const char *handle_define(const char *p, Stream *stream) {
   return p;
 }
 
-void handle_undef(const char **pp) {
+static void handle_undef(const char **pp) {
   const char *p = *pp;
   const char *begin = p;
   const char *end = read_ident(p);
@@ -300,7 +300,7 @@ void handle_undef(const char **pp) {
   *pp = end;
 }
 
-bool handle_block_comment(const char *begin, const char **pp, Stream *stream, bool enable) {
+static bool handle_block_comment(const char *begin, const char **pp, Stream *stream, bool enable) {
   const char *p = skip_whitespaces(*pp);
   if (*p != '/' || p[1] != '*')
     return false;
@@ -336,7 +336,7 @@ bool handle_block_comment(const char *begin, const char **pp, Stream *stream, bo
   return true;
 }
 
-void process_line(const char *line, bool enable, Stream *stream) {
+static void process_line(const char *line, bool enable, Stream *stream) {
   set_source_string(line, stream->filename, stream->lineno);
 
   const char *begin = get_lex_p();
@@ -362,7 +362,7 @@ void process_line(const char *line, bool enable, Stream *stream) {
 
         StringBuffer sb;
         sb_init(&sb);
-        if (!expand(macro, ident, args, ident->ident, &sb))
+        if (!expand_macro(macro, ident, args, ident->ident, &sb))
           continue;
 
         if (ident->begin != begin)
@@ -388,7 +388,7 @@ void process_line(const char *line, bool enable, Stream *stream) {
     fprintf(pp_ofp, "\n");
 }
 
-bool handle_ifdef(const char **pp) {
+static bool handle_ifdef(const char **pp) {
   const char *p = *pp;
   const char *begin = p;
   const char *end = read_ident(p);
@@ -399,7 +399,7 @@ bool handle_ifdef(const char **pp) {
   return macro_get(name) != NULL;
 }
 
-bool handle_if(const char **pp, Stream *stream) {
+static bool handle_if(const char **pp, Stream *stream) {
   const char *p = *pp;
   set_source_string(p, stream->filename, stream->lineno);
   PpResult result = pp_expr();
@@ -411,7 +411,7 @@ bool handle_if(const char **pp, Stream *stream) {
 #define CF_SATISFY_SHIFT  (1)
 #define CF_SATISFY_MASK   (3 << CF_SATISFY_SHIFT)
 
-intptr_t cond_value(bool enable, int satisfy) {
+static intptr_t cond_value(bool enable, int satisfy) {
   return (enable ? CF_ENABLE : 0) | (satisfy << CF_SATISFY_SHIFT);
 }
 
