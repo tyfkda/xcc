@@ -29,6 +29,7 @@ int remove(const char *fn);
 int fgetc(FILE *fp);
 int fputc(int c, FILE *fp);
 char *fgets(char *s, int n, FILE *fp);
+int fputs(const char *s, FILE *fp);
 int getc(FILE *fp);
 int getchar(void);
 

@@ -665,6 +665,10 @@ char *fgets(char *s, int n, FILE *fp) {
   return s;
 }
 
+int fputs(const char *s, FILE *fp) {
+  return fwrite(s, strlen(s), 1, fp) == 1 ? 1 : EOF;
+}
+
 int getc(FILE *fp) {
   return fgetc(fp);
 }
