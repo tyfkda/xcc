@@ -122,6 +122,7 @@ try_direct 'late declare struct' 42 'struct Foo *p; struct Foo {int x;}; int mai
 try 'scoped struct' 5 'int size; struct S {int x;}; { struct S {char y;}; size = sizeof(struct S); } return size + sizeof(struct S);'
 try 'scoped typedef' 5 'int size; typedef struct {int x;} S; { typedef struct {char y;} S; size = sizeof(S); } return size + sizeof(S);'
 try_direct 'typedef func-ptr' 84 'typedef int (*Func)(int); int twice(Func f, int x) { return f(f(x)); } int mul2(int x) { return x * 2; } int main(){ return twice(&mul2, 21); }'
+try_direct 'typedef func' 25 'typedef int Func(int); int twice(Func f, int x) { return f(f(x)); } int add2(int x) { return x + 2; } int main(){ return twice(add2, 21); }'
 try_direct 'multi typedef' 4 'typedef char T1, T2[4]; int main() {return sizeof(T2);}'
 try_direct 'typedef void' 91 'typedef void VOID; VOID sub(VOID){} int main(){sub(); return 91;}'
 try_direct 'old-style func' 93 'int sub(); int main(){ return sub(31); } int sub(int x) { return x * 3; }'

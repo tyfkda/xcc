@@ -1316,8 +1316,15 @@ static Declaration *parse_declaration(void) {
       return NULL;
     }
 
-    if (type->kind == TY_FUNC)
+    if (type->kind == TY_FUNC) {
+      if (storage & VS_TYPEDEF) {
+        consume(TK_SEMICOL, "`;' expected");
+        assert(ident != NULL);
+        def_type(type, ident);
+        return NULL;
+      }
       return parse_defun(type, storage, ident);
+    }
 
     return parse_global_var_decl(rawtype, storage, type, ident);
   }
