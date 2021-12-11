@@ -89,8 +89,7 @@ uint32_t get_indirect_function_index(const Name *name) {
 
 static GVarInfo *register_gvar_info(const Name *name, VarInfo *varinfo) {
 #if !defined(NDEBUG)
-  void *result;
-  assert(!table_try_get(&gvar_info_table, name, &result));
+  assert(!table_try_get(&gvar_info_table, name, NULL));
 #endif
   GVarInfo *info = calloc(1, sizeof(*info));
   info->varinfo = varinfo;

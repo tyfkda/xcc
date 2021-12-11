@@ -1243,8 +1243,7 @@ static Declaration *parse_defun(const Type *functype, int storage, Token *ident)
       Table *label_table = func->label_table;
       for (int i = 0; i < gotos->len; ++i) {
         Stmt *stmt = gotos->data[i];
-        void *bb;
-        if (label_table == NULL || !table_try_get(label_table, stmt->goto_.label->ident, &bb)) {
+        if (label_table == NULL || !table_try_get(label_table, stmt->goto_.label->ident, NULL)) {
           const Name *name = stmt->goto_.label->ident;
           parse_error_nofatal(stmt->goto_.label, "`%.*s' not found", name->bytes, name->chars);
         }

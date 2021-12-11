@@ -1433,8 +1433,7 @@ void remove_unnecessary_bb(BBContainer *bbcon) {
     bool again = false;
     for (int i = 0; i < bbs->len - 1; ++i) {  // Make last one keeps alive.
       BB *bb = bbs->data[i];
-      void *value;
-      if (!table_try_get(&keeptbl, bb->label, &value)) {
+      if (!table_try_get(&keeptbl, bb->label, NULL)) {
         if (i > 0) {
           BB *pbb = bbs->data[i - 1];
           pbb->next = bb->next;

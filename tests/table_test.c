@@ -35,13 +35,12 @@ void test_table(void) {
   void *data = &table;
   table_put(&table, key, data);
   EXPECT(table_get(&table, key) == data);
-  void *dummy;
-  EXPECT(table_try_get(&table, key, &dummy));
+  EXPECT(table_try_get(&table, key, NULL));
   EXPECT(count_table_elems(&table) == 1);
 
   EXPECT(table_delete(&table, key));
   EXPECT(table_get(&table, key) == NULL);
-  EXPECT(!table_try_get(&table, key, &dummy));
+  EXPECT(!table_try_get(&table, key, NULL));
   EXPECT(count_table_elems(&table) == 0);
 }
 

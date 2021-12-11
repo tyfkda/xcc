@@ -139,7 +139,8 @@ bool table_try_get(Table *table, const Name *key, void **output) {
   if (entry->key == NULL)
     return false;
 
-  *output = entry->value;
+  if (output != NULL)
+    *output = entry->value;
   return true;
 }
 
