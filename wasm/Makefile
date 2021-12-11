@@ -68,7 +68,7 @@ test-gen2: gen2
 
 .PHONY: gen3
 gen3:	gen2
-	$(MAKE) HOST_TARGET=gen2 HOST_CC="node ./runtime/runwasm.js ./gen2/cc.wasm" TARGET=gen3 self-hosting
+	$(MAKE) HOST_TARGET=gen2 HOST_CC="node ./runtime/runwasm.js ./gen2/cc.wasm --" TARGET=gen3 self-hosting
 
 .PHONY: diff-gen23
 diff-gen23:	gen2 gen3
