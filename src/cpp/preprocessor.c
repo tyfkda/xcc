@@ -158,8 +158,7 @@ static void push_text_segment(Vector *segments, const char *start, const char *t
   }
 }
 
-static Vector *parse_macro_body(const char **pp, const Vector *params, bool va_args, Stream *stream) {
-  const char *p = *pp;
+static Vector *parse_macro_body(const char *p, const Vector *params, bool va_args, Stream *stream) {
   Vector *segments = new_vector();
   set_source_string(p, stream->filename, stream->lineno);
   int param_len = params != NULL ? params->len : 0;
@@ -233,18 +232,11 @@ static Vector *parse_macro_body(const char **pp, const Vector *params, bool va_a
     end = tok->end;
   }
 
-  if (start != end) {
-    Segment *seg = malloc(sizeof(*seg));
-    seg->kind = SK_TEXT;
-    seg->text = strndup_(start, end - start);
-    vec_push(segments, seg);
-  }
-
-  *pp = get_lex_p();
+  push_text_segment(segments, start, end);
   return segments;
 }
 
-static const char *handle_define(const char *p, Stream *stream) {
+static void handle_define(const char *p, Stream *stream) {
   const char *begin = p;
   const char *end = read_ident(p);
   if (end == NULL)
@@ -280,11 +272,9 @@ static const char *handle_define(const char *p, Stream *stream) {
   Vector *segments = NULL;
   p = skip_whitespaces(p);
   if (*p != '\0') {
-    segments = parse_macro_body(&p, params, va_args, stream);
+    segments = parse_macro_body(p, params, va_args, stream);
   }
   macro_add(name, new_macro(params, va_args, segments));
-
-  return p;
 }
 
 static void handle_undef(const char **pp) {
@@ -522,7 +512,8 @@ int preprocess(FILE *fp, const char *filename_) {
         handle_include(&next, stream.filename);
         fprintf(pp_ofp, "# %d \"%s\" 1\n", stream.lineno + 1, stream.filename);
       } else if ((next = keyword(directive, "define")) != NULL) {
-        next = handle_define(next, &stream);
+        handle_define(next, &stream);
+        next = NULL;  // `#define' consumes the line all.
       } else if ((next = keyword(directive, "undef")) != NULL) {
         handle_undef(&next);
       } else if ((next = keyword(directive, "pragma")) != NULL) {
