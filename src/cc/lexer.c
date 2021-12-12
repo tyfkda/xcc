@@ -304,15 +304,19 @@ static void read_next_line(void) {
 static const char *skip_block_comment(const char *p) {
   for (;;) {
     char c = *p++;
+    if (c == '*') {
+      c = *p++;
+      if (c == '/')
+        break;
+    }
     if (c == '\0') {
       read_next_line();
       p = lexer.p;
       if (p == NULL)
-        return NULL;
-      continue;
-    } else if (c == '*' && *p == '/')
-      return p + 1;
+        break;
+    }
   }
+  return p;
 }
 
 static const char *skip_line_comment(void) {
