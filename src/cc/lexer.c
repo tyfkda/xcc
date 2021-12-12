@@ -135,7 +135,8 @@ static void lex_error(const char *p, const char *fmt, ...) {
   va_end(ap);
   fprintf(stderr, "\n");
 
-  show_error_line(lexer.line->buf, p, 1);
+  if (lexer.line != NULL)
+    show_error_line(lexer.line->buf, p, 1);
 
   exit(1);
 }
@@ -332,9 +333,12 @@ static const char *skip_whitespace_or_comment(const char *p) {
     case '/':
       switch (p[1]) {
       case '*':
-        p = skip_block_comment(p + 2);
-        if (p == NULL)
-          lex_error(p, "Block comment not closed");
+        {
+          const char *q = skip_block_comment(p + 2);
+          if (q == NULL)
+            lex_error(p, "Block comment not closed");
+          p = q;
+        }
         continue;
       case '/':
         p = skip_line_comment();
