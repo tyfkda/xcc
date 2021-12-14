@@ -1,4 +1,5 @@
 #include "stdarg.h"
+#include "stddef.h"  // offsetof
 #include "stdint.h"
 #include "stdio.h"
 #include "stdlib.h"  // exit
@@ -796,9 +797,125 @@ TEST(all) {
   }
 } END_TEST()
 
+TEST(bitfield) {
+  {
+    union {
+      int16_t _;
+      struct {
+        int16_t x : 5;
+        int16_t y : 5;
+        int16_t z : 6;
+      };
+    } u;
+
+    // EXPECT("sizeof", sizeof(int16_t), sizeof(u));
+
+    u.x = 5;
+    u.y = 23;
+    u.z = 27;
+    EXPECT("value 1", 5, u.x);
+    EXPECT("value 2", -9, u.y);
+    EXPECT("value 3", 27, u.z);
+    EXPECT("total", (27 << 10) | (23 << 5) | 5, u._);
+  }
+
+  {
+    union {
+      uint16_t _;
+      struct {
+        uint16_t x : 5;
+        uint16_t y : 5;
+        uint16_t z : 6;
+      };
+    } u;
+
+    u.x = -1;
+    u.y = -2;
+    u.z = -3;
+    EXPECT("unsigned 1", 31, u.x);
+    EXPECT("unsigned 2", 30, u.y);
+    EXPECT("unsigned 3", 61, u.z);
+    EXPECT("total2", (61 << 10) | (30 << 5) | 31, u._);
+  }
+
+  // {
+  //   typedef struct {
+  //     char a;
+  //     long x : 5;
+  //     long y : 4;
+  //     long z : 3;
+  //     short b;
+  //   } M;
+  //   EXPECT("mix size", sizeof(long) * 3, sizeof(M));
+  //   EXPECT("mix layout", sizeof(long) * 2, offsetof(M, b));
+  // }
+
+  {
+    struct {
+      int _1 : 5;
+      int x  : 5;
+      int _2 : 6;
+    } s = {};
+
+    s.x = 5;
+    EXPECT("assign-op +=", 12, s.x += 7);
+    EXPECT("assign-op /=", 4, s.x /= 3);
+
+    EXPECT("assign-op overflow", -13, s.x += 15);
+    EXPECT("assign-op underflow", 7, s.x -= 12);
+    EXPECT("assign-op overflow 2", -11, s.x *= 3);
+
+    EXPECT("assign-op pad 1", 0, s._1);
+    EXPECT("assign-op pad 2", 0, s._2);
+  }
+
+  {
+    struct {
+      int x : 3;
+      int y : 4;
+      int z : 5;
+      int w : 6;
+    } s;
+
+    s.x = 0;
+    s.y = 5;
+    s.z = 10;
+    s.w = 15;
+
+    EXPECT("pre-dec", -1, --s.x);
+    EXPECT("pre-dec'", -1, s.x);
+    EXPECT("pre-inc", 6, ++s.y);
+    EXPECT("pre-inc'", 6, s.y);
+    EXPECT("post-inc", 10, s.z++);
+    EXPECT("post-inc'", 11, s.z);
+    EXPECT("post-dec", 15, s.w--);
+    EXPECT("post-dec'", 14, s.w);
+
+    s.y = (1 << 3) - 1;
+    EXPECT("pre-overflow", -(1 << 3), ++s.y);
+    EXPECT("pre-overflow'", -(1 << 3), s.y);
+    s.z = -(1 << 4);
+    EXPECT("post-underflow", -(1 << 4), s.z--);
+    EXPECT("post-underflow'", (1 << 4) - 1, s.z);
+  }
+
+  {
+    union {
+      int _;
+      int x: 5;
+      int y: 9;
+    } s;
+
+    s._ = 0xa5a5;
+    EXPECT("union 1", 0x5, s.x);
+    EXPECT("union 2", -0x5b, s.y);
+  }
+} END_TEST()
+
 int main(void) {
   return RUN_ALL_TESTS(
     test_all,
+    test_bitfield,
   );
 }
 

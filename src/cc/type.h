@@ -4,6 +4,7 @@
 
 #include <stdbool.h>
 #include <stddef.h>  // size_t
+#include <stdint.h>
 #include <stdio.h>
 #include <sys/types.h>  // ssize_t
 
@@ -51,14 +52,19 @@ enum {
 typedef struct MemberInfo {
   const Name *name;
   struct Type *type;
-  int offset;
+  size_t offset;
+  struct {
+    uint8_t width;
+    uint8_t position;
+    uint8_t base_kind;  // FixnumKind
+  } bitfield;
 } MemberInfo;
 
 typedef struct StructInfo {
   MemberInfo *members;
   ssize_t size;
   int member_count;
-  int align;
+  size_t align;
   bool is_union;
 } StructInfo;
 

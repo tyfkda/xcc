@@ -194,6 +194,7 @@ WCC_OBJ_DIR:=$(OBJ_DIR)
 endif
 
 WCC_DIR:=src/wcc
+WCC_CFLAGS:=$(CFLAGS) -DTARGET_WASM
 
 WCC_SRCS:=$(wildcard $(WCC_DIR)/*.c) \
 	$(CC1_DIR)/lexer.c $(CC1_DIR)/type.c $(CC1_DIR)/var.c $(CC1_DIR)/ast.c $(CC1_DIR)/parser.c $(CC1_DIR)/parser_expr.c \
@@ -206,19 +207,19 @@ wcc: $(PARENT_DEPS) $(WCC_OBJS)
 
 $(WCC_OBJ_DIR)/%.o: $(WCC_DIR)/%.c $(PARENT_DEPS)
 	@mkdir -p $(WCC_OBJ_DIR)
-	$(CC) $(CFLAGS) -I$(CPP_DIR) -c -o $@ $<
+	$(CC) $(WCC_CFLAGS) -I$(CPP_DIR) -c -o $@ $<
 
 $(WCC_OBJ_DIR)/%.o: $(CC1_DIR)/%.c $(PARENT_DEPS)
 	@mkdir -p $(WCC_OBJ_DIR)
-	$(CC) $(CFLAGS) -c -o $@ $<
+	$(CC) $(WCC_CFLAGS) -c -o $@ $<
 
 $(WCC_OBJ_DIR)/%.o: $(CPP_DIR)/%.c $(PARENT_DEPS)
 	@mkdir -p $(WCC_OBJ_DIR)
-	$(CC) $(CFLAGS) -c -o $@ $<
+	$(CC) $(WCC_CFLAGS) -c -o $@ $<
 
 $(WCC_OBJ_DIR)/%.o: $(UTIL_DIR)/%.c $(PARENT_DEPS)
 	@mkdir -p $(WCC_OBJ_DIR)
-	$(CC) $(CFLAGS) -c -o $@ $<
+	$(CC) $(WCC_CFLAGS) -c -o $@ $<
 
 .PHONY: test-wcc
 test-wcc:	wcc

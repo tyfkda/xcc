@@ -56,12 +56,12 @@ const MemberInfo *search_from_anonymous(const Type *type, const Name *name, cons
 VarInfo *str_to_char_array(Scope *scope, Type *type, Initializer *init, Vector *toplevel);
 Expr *str_to_char_array_var(Scope *scope, Expr *str, Vector *toplevel);
 Expr *new_expr_addsub(enum ExprKind kind, const Token *tok, Expr *lhs, Expr *rhs);
+Expr *extract_bitfield_value(Expr *src, const MemberInfo *minfo);
 
 Initializer *parse_initializer(void);
 Type *fix_array_size(Type *type, Initializer *init);
 Vector *assign_initial_value(Expr *expr, Initializer *init, Vector *inits);
 Initializer *flatten_initializer(Type *type, Initializer *init);
-Expr *make_refer(const Token *tok, Expr *expr);
 
 void check_funcall_args(Expr *func, Vector *args, Scope *scope, Vector *toplevel);
 

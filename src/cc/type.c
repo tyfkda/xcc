@@ -56,33 +56,109 @@ void set_fixnum_size(enum FixnumKind kind, size_t size, int align) {
   fixnum_align_table[kind] = align;
 }
 
+static size_t calc_bitfield_size(StructInfo *sinfo, int *pi, size_t size, size_t *palign) {
+  // Detect initial fixnum kind.
+  int i = *pi;
+  enum FixnumKind kind;
+  {
+    MemberInfo *minfo = &sinfo->members[i];
+    size_t align = align_size(minfo->type);
+    size_t remain = size % align;
+    if (remain == 0) {
+      kind = minfo->type->fixnum.kind;
+    } else {
+      // Detect LSB.
+      ssize_t s;
+      for (s = 1; (remain & s) == 0; s <<= 1)
+        ;
+      ssize_t d =  s - (ssize_t)type_size(&tyInt);
+      if (d < 0) {
+        for (kind = FX_INT; kind > FX_CHAR; --kind) {
+          if (s >= (ssize_t)type_size(get_fixnum_type(kind, false, 0)))
+            break;
+        }
+      } else {
+        for (kind = FX_INT; kind < FX_LLONG; ++kind) {
+          if (s <= (ssize_t)type_size(get_fixnum_type(kind, false, 0)))
+            break;
+        }
+      }
+    }
+  }
+
+  const Type *bitfield_type = get_fixnum_type(kind, false, 0);
+  unsigned int s = type_size(bitfield_type) * TARGET_CHAR_BIT;
+  unsigned int bit_position = 0;
+  for (int len = sinfo->member_count; i < len && bit_position != s; ++i) {
+    MemberInfo *minfo = &sinfo->members[i];
+    if (minfo->bitfield.width <= 0)
+      break;
+
+    if (bit_position + minfo->bitfield.width > s) {
+      while (++kind <= FX_LLONG) {
+        const Type *t = get_fixnum_type(kind, false, 0);
+        unsigned int ss = type_size(t) * TARGET_CHAR_BIT;
+        if (bit_position + minfo->bitfield.width <= ss) {
+          bitfield_type = t;
+          s = ss;
+          break;
+        }
+      }
+      if (kind > FX_LLONG) {
+        // parser_error()
+        break;
+      }
+    }
+
+    minfo->offset = size;
+    minfo->bitfield.position = bit_position;
+    bit_position += minfo->bitfield.width;
+  }
+
+  size_t align = align_size(bitfield_type);
+  size = ALIGN(size + type_size(bitfield_type), align);
+
+  // Write back base kind.
+  for (int j = *pi; j < i; ++j) {
+    MemberInfo *minfo = &sinfo->members[j];
+    minfo->bitfield.base_kind = kind;
+  }
+
+  *pi = i;
+  *palign = align;
+  return size;
+}
+
 static void calc_struct_size(StructInfo *sinfo) {
   assert(sinfo != NULL);
   if (sinfo->size >= 0)
     return;
 
   size_t size = 0;
-  size_t maxsize = 0;
-  int max_align = 1;
+  size_t max_align = 1;
 
   for (int i = 0, len = sinfo->member_count; i < len; ++i) {
-    MemberInfo *member = &sinfo->members[i];
-    size_t sz = type_size(member->type);
-    int align = align_size(member->type);
-    size = ALIGN(size, align);
-    member->offset = size;
+    MemberInfo *minfo = &sinfo->members[i];
+    size_t sz = type_size(minfo->type);
+    size_t align = align_size(minfo->type);
     if (!sinfo->is_union) {
-      size += sz;
+      if (minfo->bitfield.width > 0) {
+        size = calc_bitfield_size(sinfo, &i, size, &align);
+        --i;
+      } else {
+        size = ALIGN(size, align);
+        minfo->offset = size;
+        size += sz;
+      }
     } else {
-      if (maxsize < sz)
-        maxsize = sz;
+      minfo->offset = 0;
+      if (size < sz)
+        size = sz;
     }
     if (max_align < align)
       max_align = align;
   }
 
-  if (sinfo->is_union)
-    size = maxsize;
   size = ALIGN(size, max_align);
   sinfo->size = size;
   sinfo->align = max_align;

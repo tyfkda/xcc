@@ -222,6 +222,19 @@ test_struct() {
   end_test_suite
 }
 
+test_bitfield() {
+  begin_test_suite "Bitfield"
+
+  compile_error 'bit width 0' 'void main(){struct {int x:0;} s;}'
+  compile_error 'bit width neg' 'void main(){struct {int x:-1;} s;}'
+  compile_error 'require bit width' 'void main(){struct {int x:;} s;}'
+  compile_error 'bit size over' 'void main(){struct {int x:33;} s;}'
+  compile_error 'prohibit &' 'void main(){struct {int x:1;} s; int *p = &s.x;}'
+  compile_error 'prohibit sizeof' 'int main(){struct {int x:1;} s; return sizeof(s.x);}'
+
+  end_test_suite
+}
+
 test_initializer() {
   begin_test_suite "Initializer"
 
@@ -412,6 +425,7 @@ test_error() {
 
 test_basic
 test_struct
+test_bitfield
 test_initializer
 test_function
 test_error

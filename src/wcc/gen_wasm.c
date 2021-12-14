@@ -914,6 +914,16 @@ void gen_expr(Expr *expr, bool needval) {
 
   case EX_MEMBER:
     if (needval) {
+      const MemberInfo *minfo = member_info(expr);
+      if (minfo->bitfield.width > 0) {
+        Expr *extract_bitfield_value(Expr *src, const MemberInfo *minfo);
+        Expr *ptr = new_expr_unary(EX_REF, ptrof(minfo->type), NULL, expr);  // promote-to-int
+        Expr *load = new_expr_deref(NULL, ptr);
+        Expr *e = extract_bitfield_value(load, minfo);
+        gen_expr(e, needval);
+        break;
+      }
+
       gen_lval(expr);
       if (is_prim_type(expr->type))
         gen_load(expr->type);

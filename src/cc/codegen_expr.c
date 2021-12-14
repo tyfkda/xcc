@@ -627,6 +627,15 @@ VReg *gen_expr(Expr *expr) {
 
   case EX_MEMBER:
     {
+      const MemberInfo *minfo = member_info(expr);
+      if (minfo->bitfield.width > 0) {
+        Expr *extract_bitfield_value(Expr *src, const MemberInfo *minfo);
+        Expr *ptr = new_expr_unary(EX_REF, ptrof(minfo->type), NULL, expr);  // promote-to-int
+        Expr *load = new_expr_deref(NULL, ptr);
+        Expr *e = extract_bitfield_value(load, minfo);
+        return gen_expr(e);
+      }
+
       VReg *reg = gen_lval(expr);
       VReg *result;
       switch (expr->type->kind) {
