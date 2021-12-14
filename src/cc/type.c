@@ -99,7 +99,7 @@ size_t type_size(const Type *type) {
   case TY_PTR:
     return fixnum_size_table[FX_LONG];
   case TY_ARRAY:
-    assert(type->pa.length > 0);
+    assert(type->pa.length >= 0);
     return type_size(type->pa.ptrof) * type->pa.length;
   case TY_FUNC:
     return 1;

@@ -1008,7 +1008,7 @@ const Type *parse_type_suffix(const Type *type) {
     // Arbitrary size.
   } else {
     Expr *expr = parse_const();
-    if (expr->fixnum <= 0)
+    if (expr->fixnum < 0)
       parse_error_nofatal(expr->token, "Array size must be greater than 0, but %" PRIdPTR, expr->fixnum);
     length = expr->fixnum;
     consume(TK_RBRACKET, "`]' expected");
@@ -1067,7 +1067,7 @@ static Type *parse_direct_declarator_suffix(Type *type) {
       Expr *expr = parse_const();
       if (!(is_const(expr) && is_number(expr->type)))
         parse_error(expr->token, "syntax error");
-      if (expr->fixnum <= 0)
+      if (expr->fixnum < 0)
         parse_error_nofatal(expr->token, "Array size must be greater than 0, but %d", (int)expr->fixnum);
       length = expr->fixnum;
       consume(TK_RBRACKET, "`]' expected");
