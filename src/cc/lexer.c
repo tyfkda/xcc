@@ -126,7 +126,7 @@ int compile_error_count;
 static Lexer lexer;
 static Table reserved_word_table;
 
-static void lex_error(const char *p, const char *fmt, ...) {
+void lex_error(const char *p, const char *fmt, ...) {
   fprintf(stderr, "%s(%d): ", lexer.filename, lexer.lineno);
 
   va_list ap;
@@ -301,20 +301,31 @@ static void read_next_line(void) {
   lexer.p = lexer.line->buf;
 }
 
+const char *block_comment_start(const char *p) {
+  const char *q = skip_whitespaces(p);
+  return (*q == '/' && q[1] == '*') ? q : NULL;
+}
+
+const char *block_comment_end(const char *p) {
+  for (;;) {
+    p = strchr(p, '*');
+    if (p == NULL)
+      return NULL;
+    if (*(++p) == '/')
+      return p + 1;
+  }
+}
+
 static const char *skip_block_comment(const char *p) {
   for (;;) {
-    char c = *p++;
-    if (c == '*') {
-      c = *p++;
-      if (c == '/')
-        break;
-    }
-    if (c == '\0') {
-      read_next_line();
-      p = lexer.p;
-      if (p == NULL)
-        break;
-    }
+    p = block_comment_end(p);
+    if (p != NULL)
+      break;
+
+    read_next_line();
+    p = lexer.p;
+    if (p == NULL)
+      break;
   }
   return p;
 }
@@ -489,8 +500,8 @@ static Token *read_string(const char **pp) {
     end = p;
 
     // Continue string literal when next character is '"'
-    p = skip_whitespace_or_comment(p);
-    if (p == NULL || *p != '"')
+    const char *q = skip_whitespace_or_comment(p);
+    if (q == NULL || (p = q, *q != '"'))
       break;
   }
   assert(size < capa);

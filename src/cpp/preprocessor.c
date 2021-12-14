@@ -149,11 +149,11 @@ static const char *handle_line_directive(const char **pp, const char *filename, 
   return filename;
 }
 
-static void push_text_segment(Vector *segments, const char *start, const char *token_begin) {
-  if (token_begin > start) {
+static void push_text_segment(Vector *segments, const char *start, const char *end) {
+  if (end > start) {
     Segment *seg = malloc(sizeof(*seg));
     seg->kind = SK_TEXT;
-    seg->text = strndup_(start, token_begin - start);
+    seg->text = strndup_(start, end - start);
     vec_push(segments, seg);
   }
 }
@@ -166,6 +166,28 @@ static Vector *parse_macro_body(const char *p, const Vector *params, bool va_arg
   const char *start = p;
   const char *end = start;
   for (;;) {
+    const char *q = block_comment_start(get_lex_p());
+    if (q != NULL) {
+      const char *comment_start = q;
+      push_text_segment(segments, start, q);
+      for (;;) {
+        q = block_comment_end(q);
+        if (q != NULL)
+          break;
+
+        char *line = NULL;
+        size_t capa = 0;
+        ssize_t len = getline_cont(&line, &capa, stream->fp, &stream->lineno);
+        if (len == -1) {
+          lex_error(comment_start, "Block comment not closed");
+        }
+        q = line;
+      }
+      set_source_string(q, stream->filename, stream->lineno);
+      start = end = q;
+      continue;
+    }
+
     Token *tok = match(-1);
     if (tok->kind == TK_EOF)
       break;
@@ -291,37 +313,30 @@ static void handle_undef(const char **pp) {
 }
 
 static bool handle_block_comment(const char *begin, const char **pp, Stream *stream, bool enable) {
-  const char *p = skip_whitespaces(*pp);
-  if (*p != '/' || p[1] != '*')
+  const char *p = block_comment_start(*pp);
+  if (p == NULL)
     return false;
 
+  const char *comment_start = p;
   p += 2;
   for (;;) {
-    char *q = strchr(p, '*');
+    const char *q = block_comment_end(p);
     if (q != NULL) {
-      if (q[1] == '/') {
-        q += 2;
-        if (enable)
-          fwrite(begin, q - begin, 1, pp_ofp);
-        *pp = q;
-        break;
-      }
-      p = q + 1;
-    } else {
       if (enable)
-        fprintf(pp_ofp, "%s\n", begin);
-      else
-        fprintf(pp_ofp, "\n");
-
-      char *line = NULL;
-      size_t capa = 0;
-      ssize_t len = getline_cont(&line, &capa, stream->fp, &stream->lineno);
-      if (len == -1) {
-        *pp = p;
-        break;
-      }
-      begin = p = line;
+        fwrite(begin, q - begin, 1, pp_ofp);
+      *pp = q;
+      break;
     }
+
+    fprintf(pp_ofp, "%s\n", enable ? begin : "");
+
+    char *line = NULL;
+    size_t capa = 0;
+    ssize_t len = getline_cont(&line, &capa, stream->fp, &stream->lineno);
+    if (len == -1) {
+      lex_error(comment_start, "Block comment not closed");
+    }
+    begin = p = line;
   }
   return true;
 }
