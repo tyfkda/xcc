@@ -16,6 +16,14 @@ static PpResult pp_cast_expr(void);
 
 //
 
+static Stream *pp_stream;
+
+Stream *set_pp_stream(Stream *stream) {
+  Stream *old = pp_stream;
+  pp_stream = stream;
+  return old;
+}
+
 static void pp_parse_error_valist(const Token *token, const char *fmt, va_list ap) {
   if (fmt != NULL) {
     if (token == NULL)
@@ -43,8 +51,39 @@ void pp_parse_error(const Token *token, const char *fmt, ...) {
   exit(1);
 }
 
-Token *pp_consume(/*enum TokenKind*/int kind, const char *error) {
-  Token *tok = match(kind);
+Token *pp_match(enum TokenKind kind) {
+  const char *p = get_lex_p();
+  if (p != NULL) {
+    for (;;) {
+      const char *q = block_comment_start(p);
+      if (q == NULL)
+        break;
+
+      const char *comment_start = q;
+      for (;;) {
+        q = block_comment_end(q);
+        if (q != NULL) {
+          set_source_string(q, pp_stream->filename, pp_stream->lineno);
+          break;
+        }
+
+        char *line = NULL;
+        size_t capa = 0;
+        ssize_t len = getline_cont(&line, &capa, pp_stream->fp, &pp_stream->lineno);
+        if (len == -1) {
+          lex_error(comment_start, "Block comment not closed");
+        }
+        q = line;
+      }
+      p = q;
+    }
+  }
+
+  return match(kind);
+}
+
+Token *pp_consume(enum TokenKind kind, const char *error) {
+  Token *tok = pp_match(kind);
   if (tok == NULL)
     pp_parse_error(tok, error);
   return tok;
@@ -59,7 +98,7 @@ static PpResult expand_ident(const Token *ident) {
 
   Vector *args = NULL;
   if (macro->params != NULL)
-    args = pp_funargs(NULL);
+    args = pp_funargs();
 
   StringBuffer sb;
   sb_init(&sb);
@@ -76,7 +115,7 @@ static PpResult expand_ident(const Token *ident) {
 }
 
 static PpResult parse_defined(void) {
-  bool lpar = match(TK_LPAR) != NULL;
+  bool lpar = pp_match(TK_LPAR) != NULL;
   Token *ident = pp_consume(TK_IDENT, "Ident expected");
   if (lpar)
     pp_consume(TK_RPAR, "No close paren");
@@ -86,23 +125,23 @@ static PpResult parse_defined(void) {
 
 static PpResult pp_prim(void) {
   Token *tok;
-  if ((tok = match(TK_LPAR)) != NULL) {
+  if ((tok = pp_match(TK_LPAR)) != NULL) {
     PpResult result = pp_expr();
     pp_consume(TK_RPAR, "No close paren");
     return result;
   }
 
-  if ((tok = match(TK_CHARLIT)) != NULL ||
-      (tok = match(TK_INTLIT)) != NULL ||
-      (tok = match(TK_LONGLIT)) != NULL ||
-      (tok = match(TK_LLONGLIT)) != NULL ||
-      (tok = match(TK_UCHARLIT)) != NULL ||
-      (tok = match(TK_UINTLIT)) != NULL ||
-      (tok = match(TK_ULONGLIT)) != NULL ||
-      (tok = match(TK_ULLONGLIT)) != NULL) {
+  if ((tok = pp_match(TK_CHARLIT)) != NULL ||
+      (tok = pp_match(TK_INTLIT)) != NULL ||
+      (tok = pp_match(TK_LONGLIT)) != NULL ||
+      (tok = pp_match(TK_LLONGLIT)) != NULL ||
+      (tok = pp_match(TK_UCHARLIT)) != NULL ||
+      (tok = pp_match(TK_UINTLIT)) != NULL ||
+      (tok = pp_match(TK_ULONGLIT)) != NULL ||
+      (tok = pp_match(TK_ULLONGLIT)) != NULL) {
     return tok->fixnum;
   }
-  //if ((tok = match(TK_STR)) != NULL)
+  //if ((tok = pp_match(TK_STR)) != NULL)
   //  return new_expr_str(tok, tok->str.buf, tok->str.size);
 
   Token *ident = pp_consume(TK_IDENT, "Number or Ident or open paren expected");
@@ -118,13 +157,13 @@ static PpResult pp_postfix(void) {
 
   //for (;;) {
     //Token *tok;
-    //if (match(TK_LPAR))
+    //if (pp_match(TK_LPAR))
     //  expr = parse_funcall(expr);
-    //else if ((tok = match(TK_LBRACKET)) != NULL)
+    //else if ((tok = pp_match(TK_LBRACKET)) != NULL)
     //  expr = parse_array_index(tok, expr);
-    //else if ((tok = match(TK_INC)) != NULL)
+    //else if ((tok = pp_match(TK_INC)) != NULL)
     //  expr = new_expr_unary(EX_POSTINC, NULL, tok, expr);
-    //else if ((tok = match(TK_DEC)) != NULL)
+    //else if ((tok = pp_match(TK_DEC)) != NULL)
     //  expr = new_expr_unary(EX_POSTDEC, NULL, tok, expr);
     //else
       return result;
@@ -133,41 +172,41 @@ static PpResult pp_postfix(void) {
 
 static PpResult pp_unary(void) {
   Token *tok;
-  if ((tok = match(TK_ADD)) != NULL) {
+  if ((tok = pp_match(TK_ADD)) != NULL) {
     return pp_cast_expr();
   }
 
-  if ((tok = match(TK_SUB)) != NULL) {
+  if ((tok = pp_match(TK_SUB)) != NULL) {
     PpResult result = pp_cast_expr();
     return -result;
   }
 
-  if ((tok = match(TK_NOT)) != NULL) {
+  if ((tok = pp_match(TK_NOT)) != NULL) {
     PpResult result = pp_cast_expr();
     return result ? 0 : 1;
   }
 
-  if ((tok = match(TK_TILDA)) != NULL) {
+  if ((tok = pp_match(TK_TILDA)) != NULL) {
     PpResult result = pp_cast_expr();
     return ~result;
   }
 
-  //if ((tok = match(TK_AND)) != NULL) {
+  //if ((tok = pp_match(TK_AND)) != NULL) {
   //  PpExpr *expr = pp_cast_expr();
   //  return new_expr_unary(EX_REF, NULL, tok, expr);
   //}
 
-  //if ((tok = match(TK_MUL)) != NULL) {
+  //if ((tok = pp_match(TK_MUL)) != NULL) {
   //  PpExpr *expr = pp_cast_expr();
   //  return new_expr_unary(EX_DEREF, NULL, tok, expr);
   //}
 
-  //if ((tok = match(TK_INC)) != NULL) {
+  //if ((tok = pp_match(TK_INC)) != NULL) {
   //  PpExpr *expr = pp_unary();
   //  return new_expr_unary(EX_PREINC, NULL, tok, expr);
   //}
 
-  //if ((tok = match(TK_DEC)) != NULL) {
+  //if ((tok = pp_match(TK_DEC)) != NULL) {
   //  PpExpr *expr = pp_unary();
   //  return new_expr_unary(EX_PREDEC, NULL, tok, expr);
   //}
@@ -183,9 +222,9 @@ static PpResult pp_mul(void) {
   PpResult result = pp_cast_expr();
   for (;;) {
     Token *tok;
-    if (!(((tok = match(TK_MUL)) != NULL) ||
-          ((tok = match(TK_DIV)) != NULL) ||
-          ((tok = match(TK_MOD)) != NULL)))
+    if (!(((tok = pp_match(TK_MUL)) != NULL) ||
+          ((tok = pp_match(TK_DIV)) != NULL) ||
+          ((tok = pp_match(TK_MOD)) != NULL)))
       return result;
 
     PpResult rhs = pp_cast_expr();
@@ -202,8 +241,8 @@ static PpResult pp_add(void) {
   PpResult result = pp_mul();
   for (;;) {
     Token *tok;
-    if (!(((tok = match(TK_ADD)) != NULL) ||
-          ((tok = match(TK_SUB)) != NULL)))
+    if (!(((tok = pp_match(TK_ADD)) != NULL) ||
+          ((tok = pp_match(TK_SUB)) != NULL)))
       return result;
 
     PpResult rhs = pp_mul();
@@ -218,8 +257,8 @@ static PpResult pp_shift(void) {
   PpResult result = pp_add();
   for (;;) {
     Token *tok;
-    if (!(((tok = match(TK_LSHIFT)) != NULL) ||
-          ((tok = match(TK_RSHIFT)) != NULL)))
+    if (!(((tok = pp_match(TK_LSHIFT)) != NULL) ||
+          ((tok = pp_match(TK_RSHIFT)) != NULL)))
       return result;
 
     PpResult lhs = result, rhs = pp_add();
@@ -234,10 +273,10 @@ static PpResult pp_cmp(void) {
   PpResult result = pp_shift();
   for (;;) {
     Token *tok;
-    if (!(((tok = match(TK_LT)) != NULL) ||
-          ((tok = match(TK_GT)) != NULL) ||
-          ((tok = match(TK_LE)) != NULL) ||
-          ((tok = match(TK_GE)) != NULL)))
+    if (!(((tok = pp_match(TK_LT)) != NULL) ||
+          ((tok = pp_match(TK_GT)) != NULL) ||
+          ((tok = pp_match(TK_LE)) != NULL) ||
+          ((tok = pp_match(TK_GE)) != NULL)))
       return result;
 
     PpResult lhs = result, rhs = pp_shift();
@@ -255,8 +294,8 @@ static PpResult pp_eq(void) {
   PpResult result = pp_cmp();
   for (;;) {
     Token *tok;
-    if (!(((tok = match(TK_EQ)) != NULL) ||
-          ((tok = match(TK_NE)) != NULL)))
+    if (!(((tok = pp_match(TK_EQ)) != NULL) ||
+          ((tok = pp_match(TK_NE)) != NULL)))
       return result;
 
     PpResult lhs = result, rhs = pp_cmp();
@@ -270,7 +309,7 @@ static PpResult pp_and(void) {
   PpResult result = pp_eq();
   for (;;) {
     Token *tok;
-    if ((tok = match(TK_AND)) != NULL) {
+    if ((tok = pp_match(TK_AND)) != NULL) {
       PpResult lhs = result, rhs = pp_eq();
       result = lhs & rhs;
     } else
@@ -282,7 +321,7 @@ static PpResult pp_xor(void) {
   PpResult result = pp_and();
   for (;;) {
     Token *tok;
-    if ((tok = match(TK_HAT)) != NULL) {
+    if ((tok = pp_match(TK_HAT)) != NULL) {
       PpResult lhs = result, rhs = pp_and();
       result = lhs ^ rhs;
     } else
@@ -294,7 +333,7 @@ static PpResult pp_or(void) {
   PpResult result = pp_xor();
   for (;;) {
     Token *tok;
-    if ((tok = match(TK_OR)) != NULL) {
+    if ((tok = pp_match(TK_OR)) != NULL) {
       PpResult lhs = result, rhs = pp_xor();
       result = lhs | rhs;
     } else
@@ -306,7 +345,7 @@ static PpResult pp_logand(void) {
   PpResult result = pp_or();
   for (;;) {
     Token *tok;
-    if ((tok = match(TK_LOGAND)) != NULL) {
+    if ((tok = pp_match(TK_LOGAND)) != NULL) {
       PpResult rhs = pp_logand();
       result = result && rhs;
     } else
@@ -318,7 +357,7 @@ static PpResult pp_logior(void) {
   PpResult result = pp_logand();
   for (;;) {
     Token *tok;
-    if ((tok = match(TK_LOGIOR)) != NULL) {
+    if ((tok = pp_match(TK_LOGIOR)) != NULL) {
       PpResult rhs = pp_logand();
       result = result || rhs;
     } else
@@ -330,7 +369,7 @@ static PpResult pp_conditional(void) {
   PpResult result = pp_logior();
   for (;;) {
     const Token *tok;
-    if ((tok = match(TK_QUESTION)) == NULL)
+    if ((tok = pp_match(TK_QUESTION)) == NULL)
       return result;
     PpResult tval = pp_expr();
     pp_consume(TK_COLON, "`:' expected");
@@ -347,31 +386,31 @@ static PpResult pp_assign(void) {
 PpResult pp_expr(void) {
   PpResult result = pp_assign();
   const Token *tok;
-  while ((tok = match(TK_COMMA)) != NULL) {
+  while ((tok = pp_match(TK_COMMA)) != NULL) {
     PpResult next_result = pp_assign();
     result = next_result;
   }
   return result;
 }
 
-static Token *match2(enum TokenKind kind, Stream *stream) {
-  while (match(TK_EOF)) {
+static Token *match2(enum TokenKind kind) {
+  while (pp_match(TK_EOF)) {
     char *line = NULL;
     size_t capa = 0;
-    ssize_t len = getline(&line, &capa, stream->fp);
+    ssize_t len = getline(&line, &capa, pp_stream->fp);
     if (len == -1)
       return NULL;
-    ++stream->lineno;
-    set_source_string(line, stream->filename, stream->lineno);
+    ++pp_stream->lineno;
+    set_source_string(line, pp_stream->filename, pp_stream->lineno);
   }
-  return match(kind);
+  return pp_match(kind);
 }
 
-Vector *pp_funargs(Stream *stream) {
+Vector *pp_funargs(void) {
   Vector *args = NULL;
-  if (match2(TK_LPAR, stream)) {
+  if (match2(TK_LPAR)) {
     args = new_vector();
-    if (!match2(TK_RPAR, stream)) {
+    if (!match2(TK_RPAR)) {
       StringBuffer sb;
       sb_init(&sb);
       const char *start = NULL;
@@ -380,7 +419,7 @@ Vector *pp_funargs(Stream *stream) {
       for (;;) {
         Token *tok;
         for (;;) {
-          tok = match(-1);
+          tok = pp_match(-1);
           if (tok->kind != TK_EOF)
             break;
 
@@ -392,15 +431,15 @@ Vector *pp_funargs(Stream *stream) {
 
           ssize_t len = -1;
           char *line = NULL;
-          if (stream != NULL) {
+          if (pp_stream != NULL) {
             size_t capa = 0;
-            len = getline_cont(&line, &capa, stream->fp, &stream->lineno);
+            len = getline_cont(&line, &capa, pp_stream->fp, &pp_stream->lineno);
           }
           if (len == -1) {
             pp_parse_error(NULL, "`)' expected");
             return NULL;
           }
-          set_source_string(line, stream->filename, stream->lineno);
+          set_source_string(line, pp_stream->filename, pp_stream->lineno);
         }
 
         if (tok->kind == TK_COMMA || tok->kind == TK_RPAR) {

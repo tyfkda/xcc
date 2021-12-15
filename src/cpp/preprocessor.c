@@ -364,7 +364,7 @@ static void process_line(const char *line, bool enable, Stream *stream) {
         if ((macro = macro_get(ident->ident)) != NULL) {
           Vector *args = NULL;
           if (macro->params != NULL)
-            args = pp_funargs(stream);
+            args = pp_funargs();
 
           StringBuffer sb;
           sb_init(&sb);
@@ -452,6 +452,7 @@ int preprocess(FILE *fp, const char *filename_) {
   Stream stream;
   stream.filename = filename_;
   stream.fp = fp;
+  Stream *old_stream = set_pp_stream(&stream);
 
   define_file_macro(stream.filename, key_file);
   macro_add(key_line, new_macro_single(linenobuf));
@@ -561,6 +562,8 @@ int preprocess(FILE *fp, const char *filename_) {
 
   macro_add(key_file, old_file_macro);
   macro_add(key_line, old_line_macro);
+
+  set_pp_stream(old_stream);
 
   return stream.lineno;
 }

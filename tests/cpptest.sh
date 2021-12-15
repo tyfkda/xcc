@@ -69,6 +69,9 @@ try '#if ||-2' '4' "#if 0 || 0\n3\n#else\n4\n#endif"
 try '#if exp' 'abc' "#if 4 + 5 > 6\nabc\n#else\nxyz\n#endif"
 try 'Macro in #if' '111' "#define FOO(x) x/2\n#if FOO(2)==1\n111\n#else\n222\n#endif"
 try 'Direct comment' '/*comment*///comment' "#if 0\n#else/*comment*/\n#endif//comment"
+try '#if w/ block comment' 'AAA' '#if 1==2/*\n*/-1\nAAA\n#else\nBBB\n#endif'
+try '#else w/ block comment' '/**/BBB' '#if 0\nAAA\n#else/*\n*/\nBBB\n#endif'
+try '#endif w/ block comment' '/**/CCC' '#if 0\nAAA\n#endif/*\n*/CCC'
 try '__FILE__' '"*stdin*"' "__FILE__"
 try '__LINE__' "3" "\n\n__LINE__"
 try '#line' "# 123 \"foobar.p\" 1\"foobar.p\":123" "#line  123\t\"foobar.p\"\n__FILE__:__LINE__"
