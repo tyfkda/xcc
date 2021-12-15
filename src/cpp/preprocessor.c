@@ -360,26 +360,28 @@ static void process_line(const char *line, bool enable, Stream *stream) {
     if (enable) {
       Token *ident = match(TK_IDENT);
       Macro *macro;
-      if (ident != NULL && (macro = macro_get(ident->ident)) != NULL) {
-        Vector *args = NULL;
-        if (macro->params != NULL)
-          args = pp_funargs(stream);
+      if (ident != NULL) {
+        if ((macro = macro_get(ident->ident)) != NULL) {
+          Vector *args = NULL;
+          if (macro->params != NULL)
+            args = pp_funargs(stream);
 
-        StringBuffer sb;
-        sb_init(&sb);
-        if (!expand_macro(macro, ident, args, ident->ident, &sb))
-          continue;
+          StringBuffer sb;
+          sb_init(&sb);
+          if (!expand_macro(macro, ident, args, ident->ident, &sb))
+            continue;
 
-        if (ident->begin != begin)
-          fwrite(begin, ident->begin - begin, 1, pp_ofp);
+          if (ident->begin != begin)
+            fwrite(begin, ident->begin - begin, 1, pp_ofp);
 
-        const char *left = get_lex_p();
-        if (left != NULL)
-          sb_append(&sb, left, NULL);
-        char *expanded = sb_to_string(&sb);
+          const char *left = get_lex_p();
+          if (left != NULL)
+            sb_append(&sb, left, NULL);
+          char *expanded = sb_to_string(&sb);
 
-        set_source_string(expanded, NULL, -1);
-        begin = get_lex_p();
+          set_source_string(expanded, NULL, -1);
+          begin = get_lex_p();
+        }
         continue;
       }
     }
