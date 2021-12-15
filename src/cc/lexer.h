@@ -98,6 +98,7 @@ enum TokenKind {
   TK_SIGNED,
   TK_CONST,
   TK_STATIC,
+  TK_INLINE,
   TK_EXTERN,
   TK_VOLATILE,
   TK_STRUCT,

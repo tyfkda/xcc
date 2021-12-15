@@ -849,8 +849,13 @@ Type *parse_raw_type(int *pstorage) {
       continue;
     }
     if (tok->kind == TK_STATIC) {
-      ASSERT_PARSE_ERROR(tc.storage == 0, tok, "multiple storage specified");
+      ASSERT_PARSE_ERROR((tc.storage & ~VS_INLINE) == 0, tok, "multiple storage specified");
       tc.storage |= VS_STATIC;
+      continue;
+    }
+    if (tok->kind == TK_INLINE) {
+      ASSERT_PARSE_ERROR((tc.storage & ~VS_STATIC) == 0, tok, "multiple storage specified");
+      tc.storage |= VS_INLINE;
       continue;
     }
     if (tok->kind == TK_EXTERN) {
@@ -974,6 +979,11 @@ Type *parse_raw_type(int *pstorage) {
           (tc.short_num > 0) ? FX_SHORT : kLongKinds[tc.long_num];
       type = get_fixnum_type(fk, tc.unsigned_num > 0, tc.qualifier);
     }
+  }
+
+  if (tc.storage & VS_INLINE) {
+    // inline function is handled as static.
+    tc.storage |= VS_STATIC;
   }
 
   if (pstorage != NULL)

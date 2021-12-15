@@ -36,6 +36,7 @@ static const struct {
   {"unsigned", TK_UNSIGNED},
   {"signed", TK_SIGNED},
   {"static", TK_STATIC},
+  {"inline", TK_INLINE},
   {"extern", TK_EXTERN},
   {"volatile", TK_VOLATILE},
   {"struct", TK_STRUCT},

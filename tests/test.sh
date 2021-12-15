@@ -232,6 +232,7 @@ try 'str in comma' 117 'char *p = (1, "use strict", "dummy"); return p[1];'
 try 'condition with comma expr' 0 'int x = 1; x != 0 && (x = 0, 1); return x;'
 try_direct 'return str' 111 'const char *foo(){ return "foo"; } int main(){ return foo()[2]; }'
 try 'deref str' 48 'return *"0";'
+try_direct 'inline' 93 'inline int f(){return 93;} int main(){return f();}'
 
 try_direct 'stdarg' 55 "#include <stdarg.h>
 int f(int n, ...) {int a[14*2]; for (int i=0; i<14*2; ++i) a[i]=100+i; va_list ap; va_start(ap, n); int sum=0; for (int i=0; i<n; ++i) sum+=va_arg(ap, int); va_end(ap); return sum;}
