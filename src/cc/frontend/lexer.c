@@ -4,6 +4,7 @@
 #include <assert.h>
 #include <ctype.h>
 #include <stdarg.h>
+#include <stdbool.h>
 #include <stdlib.h>  // malloc, strtoul
 #include <string.h>
 #include <sys/types.h>  // ssize_t
@@ -315,14 +316,9 @@ static int scan_linemarker(const char *line, long *pnum, char **pfn, int *pflag)
   return n;
 }
 
-static void read_next_line(void) {
-  if (lexer.fp == NULL) {
-    if (!lex_eof_continue()) {
-      lexer.p = NULL;
-      lexer.line = NULL;
-    }
-    return;
-  }
+static bool read_next_line(void) {
+  if (lexer.fp == NULL || feof(lexer.fp))
+    return lex_eof_continue();
 
   char *line = NULL;
   size_t capa = 0;
@@ -332,9 +328,7 @@ static void read_next_line(void) {
       if (lex_eof_continue())
         continue;
 
-      lexer.p = NULL;
-      lexer.line = NULL;
-      return;
+      return false;
     }
 
     if (line[0] != '#')
@@ -357,6 +351,7 @@ static void read_next_line(void) {
   p->lineno = lexer.lineno;
   lexer.line = p;
   lexer.p = lexer.line->buf;
+  return true;
 }
 
 const char *block_comment_start(const char *p) {
@@ -378,19 +373,16 @@ static const char *skip_block_comment(const char *p) {
   for (;;) {
     p = block_comment_end(p);
     if (p != NULL)
-      break;
+      return p;
 
-    read_next_line();
+    if (!read_next_line())
+      return NULL;
     p = lexer.p;
-    if (p == NULL)
-      break;
   }
-  return p;
 }
 
 static const char *skip_line_comment(void) {
-  read_next_line();
-  return lexer.p;
+  return read_next_line() ? lexer.p : NULL;
 }
 
 static const char *skip_whitespace_or_comment(const char *p) {
@@ -398,10 +390,9 @@ static const char *skip_whitespace_or_comment(const char *p) {
     p = skip_whitespaces(p);
     switch (*p) {
     case '\0':
-      read_next_line();
-      p = lexer.p;
-      if (p == NULL)
+      if (!read_next_line())
         return NULL;
+      p = lexer.p;
       continue;
     case '/':
       switch (p[1]) {
@@ -643,6 +634,8 @@ static Token *get_token(void) {
 
   const char *p = lexer.p;
   if (p == NULL || (p = skip_whitespace_or_comment(p)) == NULL) {
+    if ((p = lexer.p) != NULL && *p != '\0')
+      lexer.p += strlen(p);  // Point to nul-chr.
     kEofLine.filename = lexer.filename;
     kEofLine.lineno = lexer.lineno;
     return &kEofToken;
