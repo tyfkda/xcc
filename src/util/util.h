@@ -23,6 +23,7 @@ void myqsort(void *base, size_t nmemb, size_t size, int (*compare)(const void *,
 
 typedef struct Name Name;
 
+int isalnum_(int c);
 char *strdup_(const char *str);
 char *strndup_(const char *str, size_t size);
 bool starts_with(const char *str, const char *prefix);

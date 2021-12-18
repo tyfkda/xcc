@@ -373,7 +373,7 @@ static const Name *parse_section_name(ParseInfo *info) {
 
   do {
     ++p;
-  } while (isalnum(*p) || *p == '_' || *p == '.');
+  } while (isalnum_(*p) || *p == '.');
   info->p = p;
   return alloc_name(start, p, false);
 }

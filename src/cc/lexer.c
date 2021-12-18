@@ -442,7 +442,7 @@ const char *read_ident(const char *p) {
 
   const char *q;
   for (q = p + 1; ; ++q) {
-    if (!(isalnum(*q) || *q == '_'))
+    if (!isalnum_(*q))
       break;
   }
   return q;

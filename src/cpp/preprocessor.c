@@ -28,9 +28,9 @@ static char *fullpath(const char *filename) {
 
 static const char *keyword(const char *s, const char *word) {
   size_t len = strlen(word);
-  if (strncmp(s, word, len) != 0 || (s[len] != '\0' && !isspace(s[len])))
+  if (strncmp(s, word, len) != 0 || isalnum_(s[len]))
     return NULL;
-  return skip_whitespaces(s + (len + 1));
+  return skip_whitespaces(s + len);
 }
 
 static const char *find_directive(const char *line) {

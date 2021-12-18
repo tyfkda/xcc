@@ -10,6 +10,10 @@
 #include "../version.h"
 #include "table.h"
 
+int isalnum_(int c) {
+  return isalnum(c) || c == '_';
+}
+
 char *strdup_(const char *str) {
   return strndup_(str, strlen(str));
 }
