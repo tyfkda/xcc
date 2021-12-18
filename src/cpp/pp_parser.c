@@ -116,11 +116,18 @@ static PpResult expand_ident(const Token *ident) {
 
 static PpResult parse_defined(void) {
   bool lpar = pp_match(TK_LPAR) != NULL;
-  Token *ident = pp_consume(TK_IDENT, "Ident expected");
+
+  const char *start = skip_whitespaces(get_lex_p());
+  const char *end = read_ident(start);
+  if (end == NULL) {
+    lex_error(start, "Ident expected");
+  }
+
+  set_source_string(end, pp_stream->filename, pp_stream->lineno);
   if (lpar)
     pp_consume(TK_RPAR, "No close paren");
 
-  return macro_get(ident->ident) != NULL;
+  return macro_get(alloc_name(start, end, false)) != NULL;
 }
 
 static PpResult pp_prim(void) {
@@ -145,11 +152,9 @@ static PpResult pp_prim(void) {
   //  return new_expr_str(tok, tok->str.buf, tok->str.size);
 
   Token *ident = pp_consume(TK_IDENT, "Number or Ident or open paren expected");
-  if (equal_name(ident->ident, alloc_name("defined", NULL, false))) {
+  if (equal_name(ident->ident, alloc_name("defined", NULL, false)))
     return parse_defined();
-  } else {
-    return expand_ident(ident);
-  }
+  return expand_ident(ident);
 }
 
 static PpResult pp_postfix(void) {
