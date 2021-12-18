@@ -425,6 +425,16 @@ static unsigned char *assemble_cvtsd2ss(Inst *inst, Code *code, bool single) {
 }
 #endif
 
+static long signed_immediate(long value, enum RegSize size) {
+  switch (size) {
+  case REG8:   return (int8_t)value;
+  case REG16:  return (int16_t)value;
+  case REG32:  return (int32_t)value;
+  default: assert(false);  // Fallthrough
+  case REG64:  return (int64_t)value;
+  }
+}
+
 bool assemble_inst(Inst *inst, const ParseInfo *info, Code *code) {
   unsigned char *p = code->buf;
 
@@ -1089,9 +1099,9 @@ bool assemble_inst(Inst *inst, const ParseInfo *info, Code *code) {
       p = put_rex2(p, size, opr_regno(&inst->src.reg), opr_regno(&inst->dst.reg),
                    size == REG8 ? 0x38 : 0x39);
     } else if (inst->src.type == IMMEDIATE && inst->dst.type == REG) {
-      long value = inst->src.immediate;
-      if (is_im32(value)) {
-        enum RegSize size = inst->dst.reg.size;
+      enum RegSize size = inst->dst.reg.size;
+      long value = signed_immediate(inst->src.immediate, size);
+      if (is_im32(value) || size <= REG32) {
         bool im8 = is_im8(value);
         int d = opr_regno(&inst->dst.reg);
         if (d == RAX - RAX && (size == REG8 || !im8))
