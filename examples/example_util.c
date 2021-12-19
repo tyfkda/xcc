@@ -2,18 +2,18 @@
 
 #if defined(__XV6)
 long write(int fd, const void *str, unsigned long len) {
-  __asm("mov $16, %eax");  // SYS_write
-  __asm("int $64");
+  __asm("mov $16, %eax\n"  // SYS_write
+        "int $64");
 }
 
 #elif defined(__linux__)
 long write(int fd, const char *str, long len){
 #if defined(__XCC)
-  __asm("mov $1, %eax");  // __NR_write
-  __asm("syscall");
+  __asm("mov $1, %eax\n"  // __NR_write
+        "syscall");
 #else
   long ret;
-  __asm("mov $1, %%eax\n\t"  // __NR_write
+  __asm("mov $1, %%eax\n"  // __NR_write
         "syscall"
         : "=r"(ret));
   return ret;

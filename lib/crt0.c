@@ -1,27 +1,27 @@
 #if defined(__XV6)
 void _start(void) {
-  __asm("call main");
-  __asm("mov %eax, %edi");
-  __asm("jmp exit");
+  __asm("call main\n"
+        "mov %eax, %edi\n"
+        "jmp exit");
 }
 
 void exit(int code) {
-  __asm("mov $2, %eax");  // SYS_exit
-  __asm("int $64");
+  __asm("mov $2, %eax\n"  // SYS_exit
+        "int $64");
 }
 
 #elif defined(__linux__)
 void _start(void) {
-  __asm("mov (%rsp), %rdi");
-  __asm("lea 8(%rsp), %rsi");
-  __asm("call main");
-  __asm("mov %eax, %edi");
-  __asm("jmp exit");
+  __asm("mov (%rsp), %rdi\n"
+        "lea 8(%rsp), %rsi\n"
+        "call main\n"
+        "mov %eax, %edi\n"
+        "jmp exit");
 }
 
 void exit(int code) {
-  __asm("mov $60, %eax");  // __NR_exit
-  __asm("syscall");
+  __asm("mov $60, %eax\n"  // __NR_exit
+        "syscall");
 }
 
 #elif defined(__APPLE__)

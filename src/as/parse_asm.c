@@ -272,9 +272,16 @@ static enum Opcode find_opcode(ParseInfo *info) {
   return find_match_index(&info->p, kOpTable, sizeof(kOpTable) / sizeof(*kOpTable)) + 1;
 }
 
-static enum DirectiveType find_directive(ParseInfo *info) {
-  return find_match_index(&info->p, kDirectiveTable,
-                          sizeof(kDirectiveTable) / sizeof(*kDirectiveTable)) + 1;
+static enum DirectiveType find_directive(const char *p, size_t n) {
+  const char **table = kDirectiveTable;
+  size_t count = sizeof(kDirectiveTable) / sizeof(*kDirectiveTable);
+  for (size_t i = 0; i < count; ++i) {
+    const char *name = table[i];
+    if (strncasecmp(p, name, n) == 0 && name[n] == '\0') {
+      return i + 1;
+    }
+  }
+  return -1;
 }
 
 static enum RegType find_register(const char **pp) {
@@ -805,6 +812,12 @@ static void parse_inst(ParseInfo *info, Inst *inst) {
 
 int current_section = SEC_CODE;
 
+static const char *skip_until_delimiter(const char *p) {
+  for (char c; c = *p, !isspace(c) && c != ':' && c != '\0'; ++p)
+    ;
+  return p;
+}
+
 Line *parse_line(ParseInfo *info) {
   Line *line = malloc(sizeof(*line));
   line->label = NULL;
@@ -812,30 +825,29 @@ Line *parse_line(ParseInfo *info) {
   line->inst.src.type = line->inst.dst.type = NOOPERAND;
   line->dir = NODIRECTIVE;
 
-  info->p = info->rawline;
-  line->label = parse_label(info);
-  if (line->label != NULL) {
-    if (*info->p != ':') {
-      parse_error(info, "`:' required after label");
-      return NULL;
-    }
-    ++info->p;
-  }
-
-  info->p = skip_whitespaces(info->p);
-  if (*info->p == '.') {
-    ++info->p;
-    enum DirectiveType dir = find_directive(info);
-    if (dir == NODIRECTIVE) {
-      parse_error(info, "Unknown directive");
-      return NULL;
-    }
-    line->dir = dir;
-  } else if (*info->p != '\0') {
-    parse_inst(info, &line->inst);
-    if (*info->p != '\0' && !(*info->p == '/' && info->p[1] == '/')) {
-      parse_error(info, "Syntax error");
-      err = true;
+  const char *p = skip_whitespaces(info->rawline);
+  const char *q = skip_until_delimiter(p);
+  const char *r = skip_whitespaces(q);
+  if (*r == ':') {
+    info->p = p;
+    line->label = alloc_name(p, q, false);
+    info->p = r + 1;
+  } else {
+    if (*p == '.') {
+      enum DirectiveType dir = find_directive(p + 1, q - p - 1);
+      if (dir == NODIRECTIVE) {
+        parse_error(info, "Unknown directive");
+        return NULL;
+      }
+      line->dir = dir;
+      info->p = r;
+    } else if (*p != '\0') {
+      info->p = p;
+      parse_inst(info, &line->inst);
+      if (*info->p != '\0' && !(*info->p == '/' && info->p[1] == '/')) {
+        parse_error(info, "Syntax error");
+        err = true;
+      }
     }
   }
   return line;
