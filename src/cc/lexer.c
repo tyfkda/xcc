@@ -181,15 +181,51 @@ static enum TokenKind reserved_word(const Name *name) {
   return ptr != NULL ? (enum TokenKind)ptr : (enum TokenKind)-1;
 }
 
-static char backslash(char c) {
+static char backslash(char c, const char **pp) {
   switch (c) {
-  case '0':  return '\0';
+  case '0':
+    if (!isoctal((*pp)[1]))
+      return '\0';
+    // Fallthrough
+  case '1': case '2': case '3': case '4': case '5': case '6': case '7':
+    {
+      const char *p = *pp;
+      int v = c - '0';
+      for (int i = 0; i < 2; ++i) {
+        char c2 = p[1];
+        if (!isoctal(c2))
+          break;
+        v = (v << 3) | (c2 - '0');
+        ++p;
+      }
+      *pp = p;
+      // TODO: Check value.
+      return v;
+    }
+  case 'x':
+    {
+      const char *p = *pp + 1;
+      c = 0;
+      for (int i = 0; i < 2; ++i, ++p) {
+        char v = xvalue(*p);
+        if (v < 0)
+          break;  // TODO: Error
+        c = (c << 4) | v;
+      }
+      *pp = p - 1;
+      return c;
+    }
   case 'n':  return '\n';
   case 't':  return '\t';
   case 'r':  return '\r';
   case 'f':  return '\f';
   case 'v':  return '\v';
-  default:   return c;
+
+  default:
+    lex_error(*pp, "Illegal escape");
+    // Fallthrough
+  case '\'': case '"': case '\\':
+    return c;
   }
 }
 
@@ -457,8 +493,9 @@ static Token *read_char(const char **pp) {
   if (c == '\\') {
     c = *(++p);
     if (c == '\0')
-      lex_error(p, "Character not closed");
-    c = backslash(c);
+      --p;
+    else
+      c = backslash(c, &p);
   }
   if (*(++p) != '\'')
     lex_error(p, "Character not closed");
@@ -489,10 +526,11 @@ static Token *read_string(const char **pp) {
       }
 
       if (c == '\\') {
-        c = *p++;
+        c = *p;
         if (c == '\0')
           lex_error(p, "String not closed");
-        c = backslash(c);
+        c = backslash(c, &p);
+        ++p;
       }
       assert(size < capa);
       str[size++] = c;

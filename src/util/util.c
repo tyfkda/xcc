@@ -14,6 +14,17 @@ int isalnum_(int c) {
   return isalnum(c) || c == '_';
 }
 
+int isoctal(int c) {
+  return '0' <= c && c <= '7';
+}
+
+char xvalue(char c) {
+  return ('0' <= c && c <= '9') ? c - '0' :
+         ('A' <= c && c <= 'F') ? c - ('A' - 10) :
+         ('a' <= c && c <= 'f') ? c - ('a' - 10) :
+         -1;
+}
+
 char *strdup_(const char *str) {
   return strndup_(str, strlen(str));
 }

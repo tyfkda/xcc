@@ -853,32 +853,49 @@ Line *parse_line(ParseInfo *info) {
   return line;
 }
 
-static char unescape_char(char c) {
+static char unescape_char(ParseInfo *info) {
+  const char *p = info->p;
+  char c = *p++;
   switch (c) {
   case '0':  return '\0';
+  case 'x':
+    {
+      c = 0;
+      for (int i = 0; i < 2; ++i, ++p) {
+        char v = xvalue(*p);
+        if (v < 0)
+          break;  // TODO: Error
+        c = (c << 4) | v;
+      }
+      info->p = p - 1;
+      return c;
+    }
   case 'n':  return '\n';
   case 't':  return '\t';
   case 'r':  return '\r';
-  case '"':  return '"';
-  case '\'':  return '\'';
+
   default:
+    parse_error(info, "Illegal escape");
+    // Fallthrough
+  case '\'': case '"': case '\\':
     return c;
   }
 }
 
-static size_t unescape_string(ParseInfo *info, const char *p, char *dst) {
+static size_t unescape_string(ParseInfo *info, char *dst) {
   size_t len = 0;
-  for (; *p != '"'; ++p, ++len) {
-    char c = *p;
+  for (; *info->p != '"'; ++info->p, ++len) {
+    char c = *info->p;
     if (c == '\0')
       parse_error(info, "string not closed");
     if (c == '\\') {
-      // TODO: Handle \x...
-      c = unescape_char(*(++p));
+      ++info->p;
+      c = unescape_char(info);
     }
     if (dst != NULL)
       *dst++ = c;
   }
+  ++info->p;
   return len;
 }
 
@@ -892,9 +909,11 @@ void handle_directive(ParseInfo *info, enum DirectiveType dir, Vector **section_
       if (*info->p != '"')
         parse_error(info, "`\"' expected");
       ++info->p;
-      size_t len = unescape_string(info, info->p, NULL);
+      const char *p = info->p;
+      size_t len = unescape_string(info, NULL);
       char *str = malloc(len);
-      unescape_string(info, info->p, str);
+      info->p = p;  // Again.
+      unescape_string(info, str);
 
       vec_push(irs, new_ir_data(str, len));
     }
