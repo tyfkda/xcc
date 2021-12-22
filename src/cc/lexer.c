@@ -204,10 +204,12 @@ static char backslash(char c, const char **pp) {
       *pp = p - 1;
       return c;
     }
-  case 'n':  return '\n';
-  case 't':  return '\t';
-  case 'r':  return '\r';
+  case 'a':  return '\a';
+  case 'b':  return '\b';
   case 'f':  return '\f';
+  case 'n':  return '\n';
+  case 'r':  return '\r';
+  case 't':  return '\t';
   case 'v':  return '\v';
 
   default:

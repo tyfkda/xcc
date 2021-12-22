@@ -870,9 +870,13 @@ static char unescape_char(ParseInfo *info) {
       info->p = p - 1;
       return c;
     }
+  case 'a':  return '\a';
+  case 'b':  return '\b';
+  case 'f':  return '\f';
   case 'n':  return '\n';
-  case 't':  return '\t';
   case 'r':  return '\r';
+  case 't':  return '\t';
+  case 'v':  return '\v';
 
   default:
     parse_error(info, "Illegal escape");
