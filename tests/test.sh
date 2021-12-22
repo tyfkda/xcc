@@ -37,7 +37,7 @@ try_direct() {
 
   echo -n "$title => "
 
-  local tmpfile=$(mktemp --suffix=.c)
+  local tmpfile=$(mktemp).c
   echo -e "$input" > $tmpfile
   $XCC -I../inc $tmpfile || exit 1
 
@@ -63,7 +63,7 @@ try_output_direct() {
 
   echo -n "$title => "
 
-  local tmpfile=$(mktemp --suffix=.c)
+  local tmpfile=$(mktemp).c
   echo -e "$input" > $tmpfile
   $XCC $tmpfile || exit 1
 
@@ -88,7 +88,7 @@ compile_error() {
 
   echo -n "$title => "
 
-  local tmpfile=$(mktemp --suffix=.c)
+  local tmpfile=$(mktemp).c
   echo -e "$input" > $tmpfile
   $XCC $tmpfile
   local result="$?"
