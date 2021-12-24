@@ -10,28 +10,24 @@ void check_print_type(const char *expected, const Type *type) {
   printf("%s - ", expected);
   fflush(stdout);
 
-  FILE *fp = fopen("/dev/null", "w");
+  char *buf;
+  size_t size;
+  FILE *fp = open_memstream(&buf, &size);
   if (fp == NULL) {
     fprintf(stderr, "Failed to create tmpfile\n");
     exit(1);
   }
-  char buf[256];
-  memset(buf, '\0', sizeof(buf));
-  if (setvbuf(fp, buf, _IOFBF, sizeof(buf)) != 0) {
-    fprintf(stderr, "Failed to set buffering\n");
-    exit(1);
-  }
 
   print_type(fp, type);
+  fclose(fp);
 
   if (strcmp(buf, expected) != 0) {
     fprintf(stderr, "ERROR: `%s' expected, but `%s'\n", expected, buf);
     exit(1);
   }
 
-  fclose(fp);
-
   printf("OK\n");
+  free(buf);
 }
 
 void print_type_test(void) {
