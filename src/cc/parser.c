@@ -365,10 +365,15 @@ static Initializer *flatten_initializer(const Type *type, Initializer *init) {
     break;
   case TY_PTR:
     {
-      if (init->kind != IK_SINGLE)
-        parse_error(NULL, "Initializer type error");
+      Initializer *p = init;
+      if (p->kind == IK_ARR)
+        p = p->arr.value;
+      if (p->kind != IK_SINGLE) {
+        parse_error_nofatal(init->token, "Initializer type error");
+        break;
+      }
 
-      Expr *value = init->single;
+      Expr *value = p->single;
       check_cast(type, value->type, is_zero(value), false, init->token);
     }
     break;
@@ -492,7 +497,11 @@ static Initializer *check_global_initializer(const Type *type, Initializer *init
         Vector *multi = init->multi;
         for (int i = 0, len = multi->len; i < len; ++i) {
           Initializer *eleminit = multi->data[i];
-          multi->data[i] = check_global_initializer(elemtype, eleminit);
+          if (eleminit->kind == IK_ARR) {
+            eleminit->arr.value = check_global_initializer(elemtype, eleminit->arr.value);
+          } else {
+            multi->data[i] = check_global_initializer(elemtype, eleminit);
+          }
         }
       }
       break;
