@@ -129,10 +129,9 @@ static void construct_initial_value(const Type *type, const Initializer *init) {
   case TY_ARRAY:
     if (init == NULL || init->kind == IK_MULTI) {
       const Type *elem_type = type->pa.ptrof;
+      ssize_t index = 0;
       if (init != NULL) {
         Vector *init_array = init->multi;
-        assert(init_array->len > 0);
-        ssize_t index = 0;
         for (ssize_t i = 0; i < init_array->len; ++i, ++index) {
           const Initializer *init_elem = init_array->data[i];
           if (init_elem->kind == IK_ARR) {
@@ -144,32 +143,32 @@ static void construct_initial_value(const Type *type, const Initializer *init) {
           }
           construct_initial_value(elem_type, init_elem);
         }
-        // Padding
-        for (ssize_t i = index, n = type->pa.length; i < n; ++i)
-          construct_initial_value(elem_type, NULL);
       }
-    } else {
-      if (init->kind == IK_SINGLE && is_char_type(type->pa.ptrof) && init->single->kind == EX_STR) {
-        size_t src_size = init->single->str.size;
-        size_t size = type_size(type);
-        assert(size >= src_size);
-
-        UNUSED(size);
-        StringBuffer sb;
-        sb_init(&sb);
-        sb_append(&sb, "\"", NULL);
-        escape_string(init->single->str.buf, src_size, &sb);
-        if (size > src_size) {
-          const char NULCHR[] = "\\0";
-          for (size_t i = 0, n = size - src_size; i < n; ++i)
-            sb_append(&sb, NULCHR, NULL);
-        }
-        sb_append(&sb, "\"", NULL);
-        _ASCII(sb_to_string(&sb));
-      } else {
-        error("Illegal initializer");
-      }
+      // Padding
+      for (ssize_t i = index, n = type->pa.length; i < n; ++i)
+        construct_initial_value(elem_type, NULL);
+      break;
     }
+    if (init->kind == IK_SINGLE && is_char_type(type->pa.ptrof) && init->single->kind == EX_STR) {
+      size_t src_size = init->single->str.size;
+      size_t size = type_size(type);
+      assert(size >= src_size);
+
+      UNUSED(size);
+      StringBuffer sb;
+      sb_init(&sb);
+      sb_append(&sb, "\"", NULL);
+      escape_string(init->single->str.buf, src_size, &sb);
+      if (size > src_size) {
+        const char NULCHR[] = "\\0";
+        for (size_t i = 0, n = size - src_size; i < n; ++i)
+          sb_append(&sb, NULCHR, NULL);
+      }
+      sb_append(&sb, "\"", NULL);
+      _ASCII(sb_to_string(&sb));
+      break;
+    }
+    error("Illegal initializer");
     break;
   case TY_STRUCT:
     {
