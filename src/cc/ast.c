@@ -25,6 +25,12 @@ bool is_zero(Expr *expr) {
   return expr->kind == EX_FIXNUM && expr->fixnum == 0;
 }
 
+Expr *strip_cast(Expr *expr) {
+  while (expr->kind == EX_CAST)
+    expr = expr->unary.sub;
+  return expr;
+}
+
 static Expr *new_expr(enum ExprKind kind, const Type *type, const Token *token) {
   Expr *expr = malloc(sizeof(*expr));
   expr->kind = kind;

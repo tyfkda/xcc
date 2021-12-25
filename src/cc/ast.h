@@ -144,6 +144,7 @@ Expr *new_expr_block(struct Stmt *block);
 
 bool is_const(Expr *expr);
 bool is_zero(Expr *expr);
+Expr *strip_cast(Expr *expr);
 
 // Initializer
 

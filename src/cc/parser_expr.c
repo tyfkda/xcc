@@ -60,8 +60,12 @@ VarInfo *str_to_char_array(Scope *scope, const Type *type, Initializer *init, Ve
 }
 
 Expr *str_to_char_array_var(Scope *scope, Expr *str, Vector *toplevel) {
-  if (str->kind != EX_STR)
+  Expr *s = strip_cast(str);
+  if (s->kind != EX_STR)
     return str;
+  if (str->kind == EX_CAST)
+    return new_expr_cast(str->type, str->token, str_to_char_array_var(scope, str->unary.sub, toplevel));
+
   const Type *type = str->type;
   Initializer *init = malloc(sizeof(*init));
   init->kind = IK_SINGLE;

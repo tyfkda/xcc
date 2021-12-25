@@ -506,12 +506,15 @@ static Initializer *check_global_initializer(const Type *type, Initializer *init
       }
       break;
     case IK_SINGLE:
-      if (is_char_type(type->pa.ptrof) && init->single->kind == EX_STR) {
-        assert(type->pa.length > 0);
-        if (type->pa.length < (ssize_t)init->single->str.size) {
-          parse_error(init->single->token, "Array size shorter than initializer");
+      if (is_char_type(type->pa.ptrof)) {
+        Expr *e = strip_cast(init->single);
+        if (e->kind == EX_STR) {
+          assert(type->pa.length > 0);
+          if (type->pa.length < (ssize_t)e->str.size) {
+            parse_error(init->single->token, "Array size shorter than initializer");
+          }
+          break;
         }
-        break;
       }
       // Fallthrough
     case IK_DOT:
