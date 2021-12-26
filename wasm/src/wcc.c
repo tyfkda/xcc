@@ -178,10 +178,9 @@ static void construct_initial_value(DataStorage *ds, const Type *type, const Ini
   case TY_ARRAY:
     if (init == NULL || init->kind == IK_MULTI) {
       const Type *elem_type = type->pa.ptrof;
-      //size_t elem_size = type_size(elem_type);
+      size_t index = 0;
       if (init != NULL) {
         Vector *init_array = init->multi;
-        size_t index = 0;
         size_t len = init_array->len;
         for (size_t i = 0; i < len; ++i, ++index) {
           const Initializer *init_elem = init_array->data[i];
@@ -194,13 +193,16 @@ static void construct_initial_value(DataStorage *ds, const Type *type, const Ini
           }
           construct_initial_value(ds, elem_type, init_elem);
         }
-        // Padding
-        for (size_t i = index, n = type->pa.length; i < n; ++i)
-          construct_initial_value(ds, elem_type, NULL);
       }
-    } else {
-      if (init->kind == IK_SINGLE && is_char_type(type->pa.ptrof) && init->single->kind == EX_STR) {
-        size_t src_size = init->single->str.size;
+      // Padding
+      for (size_t i = index, n = type->pa.length; i < n; ++i)
+        construct_initial_value(ds, elem_type, NULL);
+      break;
+    }
+    if (init->kind == IK_SINGLE && is_char_type(type->pa.ptrof)) {
+      Expr *e = strip_cast(init->single);
+      if (e->kind == EX_STR) {
+        size_t src_size = e->str.size;
         size_t size = type_size(type);
         assert(size >= (size_t)src_size);
         if (size > src_size) {
@@ -210,12 +212,12 @@ static void construct_initial_value(DataStorage *ds, const Type *type, const Ini
           data_append(ds, buf, size);
           free(buf);
         } else {
-          data_append(ds, (unsigned char*)init->single->str.buf, src_size);
+          data_append(ds, (unsigned char*)e->str.buf, src_size);
         }
-      } else {
-        error("Illegal initializer");
+        break;
       }
     }
+    error("Illegal initializer");
     break;
   case TY_STRUCT:
     {
