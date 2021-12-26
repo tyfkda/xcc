@@ -23,9 +23,7 @@ static VReg *gen_builtin_va_start(Expr *expr) {
   Vector *args = expr->funcall.args;
   assert(args->len == 2);
   assert(curfunc != NULL);
-  Expr *var = args->data[1];
-  if (var->kind == EX_CAST)
-    var = var->unary.sub;
+  Expr *var = strip_cast(args->data[1]);
   if (var->kind == EX_REF)
     var = var->unary.sub;
   int gn = -1, fn = -1;

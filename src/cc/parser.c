@@ -431,10 +431,7 @@ static Initializer *check_global_initializer(const Type *type, Initializer *init
   case TY_PTR:
     {
       assert(init->kind == IK_SINGLE);
-      Expr *value = init->single;
-      while (value->kind == EX_CAST) {
-        value = value->unary.sub;
-      }
+      Expr *value = strip_cast(init->single);
 
       switch (value->kind) {
       case EX_REF:
