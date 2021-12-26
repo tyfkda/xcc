@@ -82,17 +82,31 @@ int strncasecmp(const char *p, const char *q, size_t n) {
   return 0;
 }
 
-char *strcpy(char *s, const char *t) {
-  char *os = s;
-  while ((*s++ = *t++) != '\0')
+char *strcpy(char *dst, const char *src) {
+  char *os = dst;
+  while ((*dst++ = *src++) != '\0')
     ;
   return os;
 }
 
-char *strncpy(char *s, const char *t, size_t n) {
-  char *os = s;
-  for (; n > 0 && (*s++ = *t++) != '\0'; --n)
+char *strncpy(char *dst, const char *src, size_t n) {
+  char *os = dst;
+  for (; n > 0 && (*dst++ = *src++) != '\0'; --n)
     ;
+  return os;
+}
+
+char *strcat(char *dst, const char *src) {
+  strcpy(dst + strlen(dst), src);
+  return dst;
+}
+
+char *strncat(char *dst, const char *src, size_t n) {
+  char *os = dst;
+  dst += strlen(dst);
+  for (; n > 0 && *src != '\0'; --n)
+    *dst++ = *src++;
+  *dst = '\0';
   return os;
 }
 
@@ -148,13 +162,10 @@ static bool parse_sign(const char **pp) {
   return negative;
 }
 
-long strtol(const char *p, char **pp, int base) {
-  const char *orig = p;
-  bool neg = parse_sign(&p);
+static unsigned long strtoul_sub(const char *p, char **pp, int base) {
   char digimax = '0' + (base <= 10 ? base : 10);
   char hexmax = 'a' - 10 + base;
-  long result = 0;
-  const char *op = p;
+  unsigned long result = 0;
   for (;; ++p) {
     char c = *p;
     int n;
@@ -169,13 +180,25 @@ long strtol(const char *p, char **pp, int base) {
     }
     result = result * base + n;
   }
-  if (p == op)
-    p = orig;
+
+  if (pp != 0)
+    *pp = (char*)p;
+
+  return result;
+}
+
+long strtol(const char *p, char **pp, int base) {
+  const char *orig = p;
+  bool neg = parse_sign(&p);
+  char *q;
+  long result = strtoul_sub(p, &q, base);
+  if (q == p)
+    q = (char*)orig;
   if (neg)
     result = -result;
 
   if (pp != 0)
-    *pp = (char*)p;
+    *pp = q;
 
   return result;
 }
@@ -184,29 +207,13 @@ unsigned long strtoul(const char *p, char **pp, int base) {
   const char *orig = p;
   if (*p == '+')
     ++p;
-  char digimax = '0' + (base <= 10 ? base : 10);
-  char hexmax = 'a' - 10 + base;
-  unsigned long result = 0;
-  const char *op = p;
-  for (;; ++p) {
-    char c = *p;
-    int n;
-    if ('0' <= c && c < digimax)
-      n = c - '0';
-    else {
-      c = tolower(c);
-      if ('a' <= c && c < hexmax)
-        n = c - 'a' + 10;
-      else
-        break;
-    }
-    result = result * base + n;
-  }
-  if (p == op)
-    p = orig;
+  char *q;
+  unsigned long result = strtoul_sub(p, &q, base);
+  if (q == p)
+    q = (char*)orig;
 
   if (pp != 0)
-    *pp = (char*)p;
+    *pp = q;
 
   return result;
 }
@@ -309,6 +316,10 @@ size_t fwrite(const void *buffer, size_t size, size_t count, FILE *fp) {
 
 size_t fread(void *buffer, size_t size, size_t count, FILE *fp) {
   return read(fp->fd, buffer, size * count);
+}
+
+int vsprintf(char *buf, const char *fmt, va_list ap) {
+  return vsnprintf(buf, -1UL, fmt, ap);
 }
 
 int vfprintf(FILE *fp, const char *fmt, va_list ap) {
@@ -427,8 +438,6 @@ char *basename(char *path) {
     return path;
 }
 
-//
-
 FILE *fopen(const char *fileName, const char *mode) {
   static const struct {
     const char *str;
@@ -504,6 +513,35 @@ int fputc(int c, FILE *fp) {
   unsigned char cc = c;
   int len = write(fp->fd, &cc, 1);
   return len == 1 ? c : EOF;
+}
+
+char *fgets(char *s, int n, FILE *fp) {
+  --n;
+  char *p = s;
+  for (int i = 0; i < n; ++i) {
+    int c = fgetc(fp);
+    if (c == EOF)
+      break;
+    *p++ = c;
+    if (c == '\n')
+      break;
+  }
+  if (p == s)
+    return NULL;
+  *p = '\0';
+  return s;
+}
+
+int fputs(const char *s, FILE *fp) {
+  return fwrite(s, strlen(s), 1, fp) == 1 ? 1 : EOF;
+}
+
+int getc(FILE *fp) {
+  return fgetc(fp);
+}
+
+int getchar(void) {
+  return fgetc(stdin);
 }
 
 ssize_t getline(char **lineptr, size_t *pcapa, FILE *stream) {

@@ -64,10 +64,6 @@ C compiler:
 
   * Bit field
 
-Preprocessor:
-
-  * Self recursive macro expansion
-
 
 ### WebAssembly
 
