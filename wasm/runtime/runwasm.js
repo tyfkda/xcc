@@ -252,11 +252,12 @@ function tmpfileSync(len) {
     }
 
     const args = program.args
+    const opts = program.opts()
     const wasmFile = args[0]
     const instance = await loadWasm(wasmFile)
     const argsPtr = putArgs(args)
     try {
-      const result = instance.exports[program.entry](args.length, argsPtr)
+      const result = instance.exports[opts.entry](args.length, argsPtr)
       if (result !== 0)
         process.exit(result)
     } catch (e) {
