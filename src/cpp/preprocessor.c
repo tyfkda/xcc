@@ -383,17 +383,21 @@ static void process_line(const char *line, bool enable, Stream *stream) {
       Macro *macro;
       if (ident != NULL) {
         if ((macro = can_expand_ident(ident->ident)) != NULL) {
+          const char *p = begin;
+          begin = ident->end;  // Update for EOF callback.
           Vector *args = NULL;
           if (macro->params != NULL)
             args = pp_funargs();
 
           StringBuffer sb;
           sb_init(&sb);
-          if (!expand_macro(macro, ident, args, ident->ident, &sb))
+          if (!expand_macro(macro, ident, args, ident->ident, &sb)) {
+            begin = p;
             continue;
+          }
 
-          if (ident->begin != begin)
-            fwrite(begin, ident->begin - begin, 1, pp_ofp);
+          if (ident->begin != p)
+            fwrite(p, ident->begin - p, 1, pp_ofp);
 
           push_lex(ident->ident, &on_eof_callback);
 
