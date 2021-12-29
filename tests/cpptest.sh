@@ -85,6 +85,7 @@ try 'Stringify escaped' '"\"abc\""' '#define S(x)  #x\nS("abc")'
 try 'recursive macro' 'SELF(123-1)' "#define SELF(n) SELF(n-1)\nSELF(123)"
 try 'recursive macro in expr' 'false' "#define SELF SELF\n#if SELF\ntrue\n#else\nfalse\n#endif"
 try 'Nested' 'foo' "#define F G\n#define G(p) p\nF(foo)"
+try 'Empty arg' '"" ""' "#define F(x, y) #x #y\nF(  ,  )"
 
 compile_error '#error' '#error !!!\nvoid main(){}'
 compile_error '#if not closed' '#if 1'

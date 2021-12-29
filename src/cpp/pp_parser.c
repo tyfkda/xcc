@@ -502,8 +502,6 @@ Vector *pp_funargs(void) {
         if (tok->kind == TK_COMMA || tok->kind == TK_RPAR) {
           if (paren <= 0) {
             if (sb_empty(&sb)) {
-              if (start == end)
-                pp_parse_error(tok, "expression expected");
               vec_push(args, strndup_(start, end - start));
             } else {
               if (start != end)
