@@ -31,8 +31,8 @@ bool expand_macro(Macro *macro, const Token *token, Vector *args, const Name *na
       return false;
 
     if ((!macro->va_args && args->len != macro->params->len) ||
-        (macro->va_args && args->len <= macro->params->len)) {
-      const char *cmp = args->len < macro->params->len ? "few" : "many";
+        (macro->va_args && args->len < macro->params->len)) {
+      const char *cmp = args->len > macro->params->len ? "many" : "few";
       pp_parse_error(token, "Too %s arguments for macro `%.*s'", cmp, name->bytes, name->chars);
     }
   } else {

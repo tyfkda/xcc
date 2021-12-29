@@ -86,6 +86,9 @@ try 'recursive macro' 'SELF(123-1)' "#define SELF(n) SELF(n-1)\nSELF(123)"
 try 'recursive macro in expr' 'false' "#define SELF SELF\n#if SELF\ntrue\n#else\nfalse\n#endif"
 try 'Nested' 'foo' "#define F G\n#define G(p) p\nF(foo)"
 try 'Empty arg' '"" ""' "#define F(x, y) #x #y\nF(  ,  )"
+try 'vaarg' '1 2 3,4,5' "#define VAARG(x, y, ...)  x y __VA_ARGS__\nVAARG(1, 2, 3, 4, 5)"
+try 'all vaarg' '{x,y,z};' "#define ALL(...)  {__VA_ARGS__};\nALL(x, y, z)"
+try 'no vaarg' 'foo bar' "#define NOVAARG(x, y, ...)  x y\nNOVAARG(foo, bar)"
 
 compile_error '#error' '#error !!!\nvoid main(){}'
 compile_error '#if not closed' '#if 1'
