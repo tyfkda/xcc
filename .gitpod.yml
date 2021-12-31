@@ -1,11 +1,14 @@
 tasks:
   - command: >
       ulimit -c 0;
+      git config --local alias.alias "config --get-regexp 'alias.*'";
       git config --local alias.br branch;
       git config --local alias.cp cherry-pick;
-      git config --local alias.rtm rebase master;
+      git config --local alias.rco '!'"sh -c 'if [ -z \"\$2\" ]; then git branch \$1 origin/\$1; git switch \$1; else git branch \$1 \$2/\$1; git switch \$2; fi;' -";
+      git config --local alias.rtm "rebase main";
       git config --local alias.s status;
-      git config --local alias.sp stash pop;
-      git config --local alias.ss stash save;
-      git config --local alias.sw checkout;
-      git config --local alias.tr "log --oneline --decorate --graph --branches --tags --remotes";
+      git config --local alias.sp "stash pop";
+      git config --local alias.ss "stash save";
+      git config --local alias.sw switch;
+      git config --local alias.tree "log --graph --branches --date=short --format=\"%C(yellow)%h %C(magenta)%ad%C(auto)%d%C(reset) %C(bold)%s%C(reset) %C(cyan)%an\"";
+      git config --local alias.fix '!'"sh -c 'git commit --fixup \$1 && git rebase -i --autosquash \$1~1 --autostash' -";
