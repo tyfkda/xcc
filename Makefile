@@ -13,6 +13,17 @@ LIB_DIR:=lib
 
 UNAME:=$(shell uname)
 
+ifeq ("$(ARCHTYPE)", "")
+  ARCHTYPE:=x64
+  ARCH:=$(shell arch)
+  ifeq ("$(ARCH)", "arm64")
+    ARCHTYPE:=aarch64
+  endif
+  ifeq ("$(ARCH)", "aarch64")
+    ARCHTYPE:=aarch64
+  endif
+endif
+
 ifneq ("$(TARGET)","")
 # Self hosting
 HOST_EXES:=$(HOST)xcc $(HOST)cc1 $(HOST)cpp $(HOST)as $(HOST)ld
@@ -25,12 +36,12 @@ CFLAGS:=-ansi -std=c11 -pedantic -MMD -Wall -Wextra -Werror -Wold-style-definiti
 	-Wno-missing-field-initializers -Wno-typedef-redefinition -Wno-empty-body \
 	-D_DEFAULT_SOURCE \
 	-I$(CC1_DIR) -I$(AS_DIR) -I$(UTIL_DIR) $(OPTIMIZE) \
-	-I$(CC1_ARCH_DIR)/x64
+	-I$(CC1_ARCH_DIR)/$(ARCHTYPE)
 
 XCC_SRCS:=$(wildcard $(XCC_DIR)/*.c) \
 	$(UTIL_DIR)/util.c $(UTIL_DIR)/table.c
 CC1_SRCS:=$(wildcard $(CC1_DIR)/*.c) \
-	$(wildcard $(CC1_ARCH_DIR)/x64/*.c) \
+	$(wildcard $(CC1_ARCH_DIR)/$(ARCHTYPE)/*.c) \
 	$(UTIL_DIR)/util.c $(UTIL_DIR)/table.c
 CPP_SRCS:=$(wildcard $(CPP_DIR)/*.c) \
 	$(CC1_DIR)/lexer.c $(UTIL_DIR)/util.c $(UTIL_DIR)/table.c
@@ -81,7 +92,7 @@ $(OBJ_DIR)/%.o: $(CC1_DIR)/%.c $(HOST_EXES)
 	@mkdir -p $(OBJ_DIR)
 	$(CC) $(CFLAGS) -c -o $@ $<
 
-$(OBJ_DIR)/%.o: $(CC1_ARCH_DIR)/x64/%.c $(HOST_EXES)
+$(OBJ_DIR)/%.o: $(CC1_ARCH_DIR)/$(ARCHTYPE)/%.c $(HOST_EXES)
 	@mkdir -p $(OBJ_DIR)
 	$(CC) $(CFLAGS) -c -o $@ $<
 

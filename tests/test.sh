@@ -105,6 +105,9 @@ compile_error() {
   fi
 }
 
+try 'calc' 5 'int x = 1; return x * 2 + 3;'
+exit 0
+
 try_output 'write' 'hello' "write(1, \"hello\\\\n\", 6);"
 try_output 'char array' 123 "char s[16]; s[0] = '1'; s[1] = '2'; s[2] = '3'; s[3] = '\\\\n'; write(1, s, 4);"
 try 'zero array' 0 'int array[0]; return 0;'

@@ -36,6 +36,7 @@ void error(const char *fmt, ...) /*__attribute((noreturn))*/;
 void show_error_line(const char *line, const char *p, int len);
 
 bool is_im8(intptr_t x);
+bool is_im16(intptr_t x);
 bool is_im32(intptr_t x);
 const char *skip_whitespaces(const char *s);
 
