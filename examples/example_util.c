@@ -20,7 +20,7 @@ long write(int fd, const char *str, long len){
 #endif
 }
 
-#elif defined(__APPLE__)
+#elif defined(__APPLE__) || defined(__WASM)
 
 // Use libc.
 

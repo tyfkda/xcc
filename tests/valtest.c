@@ -1,6 +1,15 @@
 #include "../inc/stdarg.h"
+#include "../inc/stdint.h"
 #include "../inc/stdlib.h"  // exit
 #include "../examples/example_util.h"
+
+#if defined(__LP64__)
+#define LONG_SIZE  (8)
+#elif defined(__ILP32__)
+#define LONG_SIZE  (4)
+#else
+#error Environment unknonwn
+#endif
 
 void expect(char *title, long expected, long actual) {
   putstr(title);
@@ -585,7 +594,7 @@ int main(void) {
     expect("ptr <- array", 55, ptr_from_array(a));
   }
   expect("sizeof(int)", 4, sizeof(int));
-  expect("sizeof(long)", 8, sizeof(long));
+  expect("sizeof(long)", LONG_SIZE, sizeof(long));
   expect("sizeof(array)", 3, sizeof(char [3]));
   {
     int x;
@@ -604,7 +613,7 @@ int main(void) {
   }
   expect("sizeof(str) include nul", 12, sizeof("hello\0world"));
   expect("sizeof(struct ptr)", sizeof(void*), sizeof(struct Undefined*));
-  expect("sizeof(func ptr)", 8, sizeof(int (*)()));
+  expect("sizeof(func ptr)", sizeof(void*), sizeof(int (*)()));
   {
     int a[3] = {1, 2, 3};
     expect("array initializer", 1, a[0] == 1 && a[1] == 2 && a[2] == 3);
