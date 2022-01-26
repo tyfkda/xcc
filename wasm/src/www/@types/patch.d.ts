@@ -1,7 +1,5 @@
 // Patches for type declarations.
 
-declare let ace: any
-
 interface Window {
   initialData: any
   showOpenFilePicker(option?: any): Promise<[FileSystemFileHandle]>

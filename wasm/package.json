@@ -71,6 +71,7 @@
     "webpack-stream": "~7.0.0"
   },
   "dependencies": {
+    "@types/ace": "~0.0.48",
     "core-js": "~3.19.2"
   }
 }

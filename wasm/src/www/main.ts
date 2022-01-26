@@ -9,16 +9,15 @@ const FONT_SIZE = 16
 const USER = 'wasm'
 const KEY_CODE = 'wcc-code'
 
-const aceSplit = ace.require('ace/ext/split')
-const split = new aceSplit.Split(document.getElementById('editor'))
+const aceSplit = ace.require('ace/ext/split') as typeof AceAjax.Split
+const split = new aceSplit.Split(document.getElementById('editor')!) as AceAjax.Split
 split.setOrientation(split.BESIDE)
 split.setSplits(2)
 split.setFontSize(FONT_SIZE)
-const UndoManager = ace.require('ace/undomanager').UndoManager
+const UndoManager = ace.require('ace/undomanager').UndoManager as typeof AceAjax.UndoManager
 
 const editor = (() => {
   const editor = split.getEditor(0)
-  editor.$blockScrolling = Infinity
   editor.setOptions({
     tabSize: 2,
     useSoftTabs: true,
@@ -32,7 +31,7 @@ const editor = (() => {
   const code = document.getElementById('default-code')
   if (code)
     editor.setValue(code.innerText.trim() + '\n', -1)
-  editor.gotoLine(0, 0)
+  editor.gotoLine(0, 0, false)
   editor.focus()
 
   const undoManager = new UndoManager()
@@ -60,7 +59,7 @@ const editor = (() => {
 })()
 
 function isCodeModified(): boolean {
-  return !editor.session.getUndoManager().isClean()
+  return !editor.session.getUndoManager().isAtBookmark()
 }
 
 function clearUndoHistory(): void {
@@ -68,7 +67,7 @@ function clearUndoHistory(): void {
 }
 
 function setCodeUnmodified(): void {
-  editor.session.getUndoManager().markClean()
+  editor.session.getUndoManager().bookmark()
 }
 
 function loadCodeToEditor(code: string, message: string): boolean {
@@ -85,7 +84,7 @@ function loadCodeToEditor(code: string, message: string): boolean {
     code = code.trim() + '\n'
   editor.setValue(code, -1)
   clearUndoHistory()
-  editor.gotoLine(0, 0)
+  editor.gotoLine(0, 0, false)
   editor.focus()
   return true
 }
@@ -318,7 +317,7 @@ window.initialData = {
         name : 'Run',
         bindKey: {
           win : 'Ctrl-Enter',
-          mac : 'Command-Enter'
+          mac : 'Command-Enter',
         },
         exec: (_editor) => this.loaded && run(this.args),
       },
@@ -327,9 +326,8 @@ window.initialData = {
         bindKey: {
           win: 'Ctrl-S',
           mac: 'Command-S',
-          sender: 'editor|cli'
         },
-        exec: (_editor, _args, _request) => this.saveFile(),
+        exec: (_editor, _args) => this.saveFile(),
       },
     ])
 
