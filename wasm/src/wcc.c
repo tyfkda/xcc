@@ -36,7 +36,7 @@ static void construct_primitive_global(DataStorage *ds, const VarInfo *varinfo) 
       Fixnum v = 0;
       if (init != NULL) {
         assert(init->kind == IK_SINGLE);
-        Expr *value = init->single;
+        Expr *value = strip_cast(init->single);
         switch (value->kind) {
         case EX_FIXNUM:
           v = value->fixnum;
