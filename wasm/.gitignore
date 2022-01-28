@@ -2,6 +2,7 @@ a.wasm
 /wcc
 /gen2
 /gen3
+/tests/*.wasm
 
 /public/
 node_modules
