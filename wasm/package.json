@@ -43,6 +43,7 @@
     "@babel/core": "~7.16.0",
     "@babel/preset-env": "~7.16.4",
     "@babel/register": "~7.16.0",
+    "@types/ace": "~0.0.48",
     "@types/jest": "~27.0.3",
     "@types/node": "~16.11.11",
     "@typescript-eslint/eslint-plugin": "~5.5.0",
@@ -72,7 +73,6 @@
     "webpack-stream": "~7.0.0"
   },
   "dependencies": {
-    "@types/ace": "~0.0.48",
     "core-js": "~3.19.2"
   }
 }
