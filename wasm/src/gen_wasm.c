@@ -1322,7 +1322,10 @@ static void gen_defun(Function *func) {
         }
       } else {
         vreg->non_prim.offset = ALIGN(frame_size, align_size(varinfo->type));
-        frame_size += type_size(varinfo->type);
+        size_t size = type_size(varinfo->type);
+        if (size < 1)
+          size = 1;
+        frame_size += size;
       }
     }
   }
