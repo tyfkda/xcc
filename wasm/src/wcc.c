@@ -26,6 +26,58 @@ bool verbose;
 
 ////////////////////////////////////////////////
 
+static void eval_initial_value(Expr *expr, Expr **pvar, Fixnum *poffset) {
+  switch (expr->kind) {
+  case EX_CAST:
+    eval_initial_value(expr->unary.sub, pvar, poffset);
+    return;
+  case EX_REF:
+    {
+      Expr *sub = expr->unary.sub;
+      if (sub->kind == EX_DEREF) {
+        eval_initial_value(sub->unary.sub, pvar, poffset);
+      } else {
+        assert(sub->kind == EX_VAR);
+        if (sub->type->kind == TY_FUNC) {
+          *poffset = get_indirect_function_index(sub->var.name);
+        } else {
+          eval_initial_value(sub, pvar, poffset);
+        }
+      }
+    }
+    break;
+  case EX_VAR:
+    assert(*pvar == NULL);
+    *pvar = expr;
+    break;
+  case EX_FIXNUM:
+    if (!is_const(expr))
+      assert(!"initializer type error");
+    *poffset = expr->fixnum;
+    break;
+  case EX_ADD:
+  case EX_SUB:
+    {
+      Expr *var1 = NULL, *var2 = NULL;
+      Fixnum offset1 = 0, offset2 = 0;
+      eval_initial_value(expr->bop.lhs, &var1, &offset1);
+      eval_initial_value(expr->bop.rhs, &var2, &offset2);
+      if (var1 != NULL) {
+        assert(var2 == NULL);
+        *pvar = var1;
+      } else if (var2 != NULL) {
+        assert(expr->kind == EX_ADD);
+        *pvar = var2;
+      }
+      if (expr->kind == EX_SUB)
+        offset2 = -offset2;
+      *poffset = offset1 + offset2;
+    }
+    break;
+  default: assert(false); break;
+  }
+}
+
 static void construct_primitive_global(DataStorage *ds, const VarInfo *varinfo) {
   const Type *type = varinfo->type;
   Initializer *init = varinfo->global.init;
@@ -36,35 +88,20 @@ static void construct_primitive_global(DataStorage *ds, const VarInfo *varinfo) 
       Fixnum v = 0;
       if (init != NULL) {
         assert(init->kind == IK_SINGLE);
-        Expr *value = strip_cast(init->single);
-        switch (value->kind) {
-        case EX_FIXNUM:
-          v = value->fixnum;
-          break;
-        case EX_REF:
-          {
-            Expr *sub = value->unary.sub;
-            assert(sub->kind == EX_VAR);
-            if (sub->type->kind == TY_FUNC) {
-              v = get_indirect_function_index(sub->var.name);
-            } else {
-              const GVarInfo *info = get_gvar_info(sub);
-              assert(info->varinfo->storage & VS_REF_TAKEN);
-              v = info->non_prim.address;
-            }
-          }
-          break;
-        case EX_VAR:
-          if (value->type->kind == TY_FUNC) {
-            v = get_indirect_function_index(value->var.name);
+        Expr *var = NULL;
+        Fixnum offset = 0;
+        eval_initial_value(init->single, &var, &offset);
+        if (var != NULL) {
+          if (var->type->kind == TY_FUNC) {
+            assert(offset == 0);
+            v = get_indirect_function_index(var->var.name);
           } else {
-            GVarInfo *info = get_gvar_info(value);
+            GVarInfo *info = get_gvar_info(var);
             assert(!is_prim_type(info->varinfo->type) || (info->varinfo->storage & VS_REF_TAKEN));
             v = info->non_prim.address;
           }
-          break;
-        default: assert(false); break;
         }
+        v += offset;
       }
       data_push(ds, type_size(type) <= I32_SIZE ? OP_I32_CONST : OP_I64_CONST);
       emit_leb128(ds, ds->len, v);
