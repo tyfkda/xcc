@@ -845,8 +845,9 @@ static void compile1(FILE *ifp, const char *filename, Vector *decls) {
 
 int main(int argc, char *argv[]) {
   const char *ofn = "a.wasm";
-  Vector *exports = NULL;
+  Vector *exports = new_vector();
   uint32_t stack_size = DEFAULT_STACK_SIZE;
+  const char *entry_point = "_start";
 
   FILE *ppout = tmpfile();
   if (ppout == NULL)
@@ -859,12 +860,12 @@ int main(int argc, char *argv[]) {
 
   enum {
     OPT_VERBOSE = 256,
-    OPT_ENTRY,
+    OPT_ENTRY_POINT,
     OPT_STACK_SIZE,
   };
   struct option longopts[] = {
     {"verbose", no_argument, NULL, OPT_VERBOSE},
-    {"entry", required_argument, NULL, OPT_ENTRY},
+    {"entry-point", required_argument, NULL, OPT_ENTRY_POINT},
     {"stack-size", required_argument, NULL, OPT_STACK_SIZE},
     {0},
   };
@@ -877,7 +878,6 @@ int main(int argc, char *argv[]) {
       break;
     case 'e':
       {
-        exports = new_vector();
         const char *s = optarg;
         for (;;) {
           const char *p = strchr(s, ',');
@@ -907,13 +907,18 @@ int main(int argc, char *argv[]) {
     case OPT_VERBOSE:
       verbose = true;
       break;
+    case OPT_ENTRY_POINT:
+      entry_point = *optarg != '\0' ? optarg : NULL;
+      break;
     default:
       fprintf(stderr, "Unknown option: %s\n", argv[optind]);
       return 1;
     }
   }
 
-  if (exports == NULL) {
+  if (entry_point != NULL)
+    vec_push(exports, alloc_name(entry_point, NULL, false));
+  if (exports->len == 0) {
     error("no exports (require -e<xxx>)\n");
   }
 

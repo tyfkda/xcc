@@ -22,7 +22,7 @@ Generated files:
 Compile:
 
 ```sh
-$ ./wcc -emain -oout.wasm foo.c
+$ ./wcc -oout.wasm foo.c
 ```
 
 Run:

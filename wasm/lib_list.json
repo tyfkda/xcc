@@ -20,6 +20,7 @@
       "_file.h": "../lib/_file.h",
       "lib.c": [
         "runtime/lib.c",
+        "../lib/crt0.c",
         "../lib/sprintf.c",
         "../lib/umalloc.c"
       ]

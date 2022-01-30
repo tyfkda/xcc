@@ -244,7 +244,7 @@ function tmpfileSync(len) {
   async function main(argv) {
     const program = require('commander')
     program
-      .option('-e, --entry <func-name>', 'Entry point', 'main')
+      .option('--entry-point <func-name>', 'Entry point', '_start')
       .parse(argv)
 
     if (program.args < 1) {
@@ -257,7 +257,7 @@ function tmpfileSync(len) {
     const instance = await loadWasm(wasmFile)
     const argsPtr = putArgs(args)
     try {
-      const result = instance.exports[opts.entry](args.length, argsPtr)
+      const result = instance.exports[opts.entryPoint](args.length, argsPtr)
       if (result !== 0)
         process.exit(result)
     } catch (e) {

@@ -9,7 +9,7 @@ test:	test-sh test-val
 
 .PHONY: clean
 clean:
-	rm -f a.wasm
+	rm -f a.wasm valtest.wasm
 
 .PHONY: test-sh
 test-sh: # $(WCC)
@@ -23,6 +23,6 @@ test-val:	valtest.wasm
 	node ../runtime/runwasm.js $<
 	@echo ''
 
-VAL_SRCS:=../../tests/valtest.c ../../examples/example_util.c
+VAL_SRCS:=../../lib/crt0.c ../../tests/valtest.c ../../examples/example_util.c
 valtest.wasm:	$(VAL_SRCS) # $(XCC)
-	$(WCC) -o$@ -emain $^
+	$(WCC) -o$@ $^

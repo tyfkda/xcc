@@ -81,11 +81,11 @@ self-hosting:	$(TARGET)/cc.wasm
 test-self-hosting:
 	$(MAKE) WCC="$(TARGET_CC)" -C tests
 
-WCC_LIBS:=runtime/lib.c $(LIB_DIR)/sprintf.c $(LIB_DIR)/umalloc.c $(LIB_DIR)/getopt.c $(LIB_DIR)/assert.c
+WCC_LIBS:=runtime/lib.c $(LIB_DIR)/crt0.c $(LIB_DIR)/sprintf.c $(LIB_DIR)/umalloc.c $(LIB_DIR)/getopt.c $(LIB_DIR)/assert.c
 
 $(TARGET)/cc.wasm:	$(WCC_SRCS) $(WCC_LIBS)
 	mkdir -p $(TARGET)
-	$(HOST_CC) -emain -o$(TARGET)/cc.wasm -DSELF_HOSTING \
+	$(HOST_CC) -o$(TARGET)/cc.wasm -DSELF_HOSTING \
 		-I../inc -I$(CC1_DIR) -I$(CPP_DIR) -I$(UTIL_DIR) -I$(LIB_DIR) \
 		$(WCC_SRCS) \
 		$(WCC_LIBS)

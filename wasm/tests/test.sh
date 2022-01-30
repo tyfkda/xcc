@@ -5,6 +5,10 @@ WCC=${WCC:-../wcc}
 PROLOGUE=$(cat <<EOS
 extern void exit(int code);
 extern long write(int fd, const char *str, long len);
+int _start(int argc, char *argv[]) {
+  extern int main(int, char**);
+  return main(argc, argv);
+}
 EOS
 )
 PTRSIZE=4
@@ -16,7 +20,7 @@ try_direct() {
 
   echo -n "$title => "
 
-  echo -e "$input" | $WCC -emain || exit 1
+  echo -e "$input" | $WCC || exit 1
 
   node ../runtime/runwasm.js a.wasm
   local actual="$?"
@@ -40,7 +44,7 @@ try_output_direct() {
 
   echo -n "$title => "
 
-  echo -e "$input" | $WCC -emain || exit 1
+  echo -e "$input" | $WCC || exit 1
 
   local actual
   actual=`node ../runtime/runwasm.js a.wasm` || exit 1
@@ -63,7 +67,7 @@ compile_error() {
 
   echo -n "$title => "
 
-  echo -e "$input" | $WCC -emain
+  echo -e "$input" | $WCC
   local result="$?"
 
   if [ "$result" = "0" ]; then
