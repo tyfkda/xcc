@@ -1426,6 +1426,7 @@ static Expr *parse_unary(void) {
       switch (expr->kind) {
       case EX_FIXNUM:
         expr->fixnum = !expr->fixnum;
+        expr->type = &tyBool;
         break;
 #ifndef __NO_FLONUM
       case EX_FLONUM:
