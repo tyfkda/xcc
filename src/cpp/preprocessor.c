@@ -312,7 +312,7 @@ static void handle_undef(const char **pp) {
   *pp = end;
 }
 
-static bool handle_block_comment(const char *begin, const char **pp, Stream *stream, bool enable) {
+static bool handle_block_comment(const char *begin, const char **pp, Stream *stream) {
   const char *p = *pp;
   for (;;) {
     p = skip_whitespaces(p);
@@ -333,13 +333,12 @@ static bool handle_block_comment(const char *begin, const char **pp, Stream *str
   for (;;) {
     const char *q = block_comment_end(p);
     if (q != NULL) {
-      if (enable)
-        fwrite(begin, q - begin, 1, pp_ofp);
+      fwrite(begin, q - begin, 1, pp_ofp);
       *pp = q;
       break;
     }
 
-    fprintf(pp_ofp, "%s\n", enable ? begin : "");
+    fprintf(pp_ofp, "%s\n", begin);
 
     char *line = NULL;
     size_t capa = 0;
@@ -359,7 +358,68 @@ static void on_eof_callback(void) {
   *line_begin_ptr = get_lex_p();
 }
 
+static const char *find_double_quote_end(const char *p) {
+  const char *start = p;
+  for (;;) {
+    switch (*p++) {
+    case '\0':
+      lex_error(start, "Quote not closed");
+      return p - 1;
+    case '"':
+      return p;
+    case '\\':
+      ++p;
+      break;
+    default:
+      break;
+    }
+  }
+}
+
+static const char *find_block_comment_end(const char *comment_start, Stream *stream) {
+  const char *p = comment_start + 2;
+  for (;;) {
+    const char *e = block_comment_end(p);
+    if (e != NULL)
+      return e;
+
+    char *line = NULL;
+    size_t capa = 0;
+    ssize_t len = getline_cont(&line, &capa, stream->fp, &stream->lineno);
+    if (len == -1) {
+      lex_error(comment_start, "Block comment not closed");
+      return strchr(p, '\0');
+    }
+    p = line;
+    fputc('\n', pp_ofp);
+  }
+}
+
+static void process_disabled_line(const char *p, Stream *stream) {
+  for (;;) {
+    switch (*p++) {
+    case '\0':
+      return;
+    case '"':
+      p = find_double_quote_end(p);
+      break;
+    case '/':
+      if (*p == '*') {
+        p = find_block_comment_end(p + 1, stream);
+      }
+      break;
+    default:
+      break;
+    }
+  }
+}
+
 static void process_line(const char *line, bool enable, Stream *stream) {
+  if (!enable) {
+    process_disabled_line(line, stream);
+    return;
+  }
+
   set_source_string(line, stream->filename, stream->lineno);
 
   const char *begin = get_lex_p();
@@ -368,7 +428,7 @@ static void process_line(const char *line, bool enable, Stream *stream) {
   for (;;) {
     const char *p = get_lex_p();
     if (p != NULL) {
-      if (handle_block_comment(begin, &p, stream, enable)) {
+      if (handle_block_comment(begin, &p, stream)) {
         begin = p;
         set_source_string(begin, stream->filename, stream->lineno);
         continue;
