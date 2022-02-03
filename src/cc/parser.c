@@ -902,9 +902,9 @@ Initializer *parse_initializer(void) {
             init->dot.value = value;
           }
         } else if ((tok = match(TK_LBRACKET)) != NULL) {
-          Expr *expr = parse_const();
+          Expr *expr = parse_const_fixnum();
           size_t index = 0;
-          if (expr->kind != EX_FIXNUM || expr->fixnum < 0)
+          if (expr->fixnum < 0)
             parse_error(PE_NOFATAL, expr->token, "non negative integer required");
           else
             index = expr->fixnum;
@@ -1079,9 +1079,8 @@ static int find_case(Stmt *swtch, Fixnum v) {
 }
 
 static Stmt *parse_case(const Token *tok) {
-  Expr *value = parse_const();
+  Expr *value = parse_const_fixnum();
   consume(TK_COLON, "`:' expected");
-  assert(value->kind == EX_FIXNUM);
 
   Stmt *stmt = NULL;
   Stmt *swtch = loop_scope.swtch;
@@ -1090,6 +1089,7 @@ static Stmt *parse_case(const Token *tok) {
   } else if (find_case(swtch, value->fixnum) >= 0) {
     parse_error(PE_NOFATAL, tok, "Case value `%" PRIdPTR "' already defined", value->fixnum);
   } else {
+    value = make_cast(swtch->switch_.value->type, value->token, value, false);
     stmt = new_stmt_case(tok, swtch, value);
     vec_push(swtch->switch_.cases, stmt);
   }

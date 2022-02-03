@@ -91,6 +91,12 @@ int static_local(void) {
 
 int main(void) {
   int x, y;
+#if defined(__LP64__)
+  expect("big literal", 4, sizeof(2147483647));  // (1<<31) - 1
+  expect("big literal", 8, sizeof(2147483648));  // 1<<31
+  expect("big literal", 4, sizeof(4294967295U));  // (1<<32) - 1
+  expect("big literal", 8, sizeof(4294967296U));  // 1<<32
+#endif
   expect("zero", 0, 0);
   expect("decimal", 42, 42);
   expect("hex", 18, 0x12);

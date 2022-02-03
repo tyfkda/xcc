@@ -159,22 +159,7 @@ Expr *make_cast(Type *type, const Token *token, Expr *sub, bool is_explicit) {
 #endif
 
     assert(sub->kind == EX_FIXNUM);
-    int bytes = type_size(type);
-    int src_bytes = type_size(sub->type);
-    if (bytes < (int)type_size(&tySize) &&
-        (bytes < src_bytes ||
-          (bytes == src_bytes &&
-          type->fixnum.is_unsigned != sub->type->fixnum.is_unsigned))) {
-      int bits = bytes * CHAR_BIT;
-      UFixnum mask = (-1UL) << bits;
-      Fixnum value = sub->fixnum;
-      if (!type->fixnum.is_unsigned &&    // signed
-          (value & (1UL << (bits - 1))))  // negative
-        value |= mask;
-      else
-        value &= ~mask;
-      sub->fixnum = value;
-    }
+    sub->fixnum = wrap_value(sub->fixnum, type_size(type), type->fixnum.is_unsigned);
     sub->type = type;
     return sub;
   }
@@ -374,7 +359,7 @@ static Expr *new_expr_num_bop(enum ExprKind kind, const Token *tok, Expr *lhs, E
     }
 #undef CALC
     Type *type = lhs->type->fixnum.kind >= rhs->type->fixnum.kind ? lhs->type : rhs->type;
-    Expr *result = new_expr_fixlit(type, lhs->token, clamp_value(value, type_size(type), type->fixnum.is_unsigned));
+    Expr *result = new_expr_fixlit(type, lhs->token, wrap_value(value, type_size(type), type->fixnum.is_unsigned));
     return promote_to_int(result);
   }
 
@@ -446,7 +431,7 @@ Expr *new_expr_addsub(enum ExprKind kind, const Token *tok, Expr *lhs, Expr *rhs
         break;
       }
       Type *type = lnt >= rnt ? lhs->type : rhs->type;
-      Expr *result = new_expr_fixlit(type, lhs->token, clamp_value(value, type_size(type), type->fixnum.is_unsigned));
+      Expr *result = new_expr_fixlit(type, lhs->token, wrap_value(value, type_size(type), type->fixnum.is_unsigned));
       return promote_to_int(result);
     }
 
@@ -826,7 +811,7 @@ static void parse_enum_members(Type *type) {
     if (ident == NULL)
       break;
     if (match(TK_ASSIGN)) {
-      Expr *expr = parse_const();
+      Expr *expr = parse_const_fixnum();
       value = expr->fixnum;
     }
 
@@ -1124,7 +1109,7 @@ Type *parse_type_suffix(Type *type) {
   if (match(TK_RBRACKET)) {
     // Arbitrary size.
   } else {
-    Expr *expr = parse_const();
+    Expr *expr = parse_const_fixnum();
     if (expr->fixnum < 0)
       parse_error(PE_NOFATAL, expr->token, "Array size must be greater than 0, but %" PRIdPTR, expr->fixnum);
     length = expr->fixnum;
@@ -1181,9 +1166,7 @@ static Type *parse_direct_declarator_suffix(Type *type) {
     if (match(TK_RBRACKET)) {
       // Arbitrary size.
     } else {
-      Expr *expr = parse_const();
-      if (!(is_const(expr) && is_number(expr->type)))
-        parse_error(PE_FATAL, expr->token, "syntax error");
+      Expr *expr = parse_const_fixnum();
       if (expr->fixnum < 0)
         parse_error(PE_NOFATAL, expr->token, "Array size must be greater than 0, but %d", (int)expr->fixnum);
       length = expr->fixnum;
@@ -1513,8 +1496,11 @@ static Expr *parse_unary(void) {
       parse_error(PE_NOFATAL, tok, "Cannot apply `-' except number types");
       return expr;
     }
-    if (is_fixnum(expr->type->kind))
-      expr = promote_to_int(expr);
+    if (is_fixnum(expr->type->kind)) {
+      enum FixnumKind fk = MAX(expr->type->fixnum.kind, FX_INT);
+      Type *type = get_fixnum_type(fk, false, expr->type->qualifier);  // To signed type.
+      expr = make_cast(type, tok, expr, false);
+    }
     if (is_const(expr)) {
 #ifndef __NO_FLONUM
       if (is_flonum(expr->type)) {
@@ -1522,12 +1508,8 @@ static Expr *parse_unary(void) {
         return expr;
       }
 #endif
-      expr->fixnum = -expr->fixnum;
-      if (expr->type->fixnum.is_unsigned) {
-        size_t size = type_size(expr->type);
-        if (size < sizeof(UFixnum))
-          expr->fixnum &= (((UFixnum)1) << (size * CHAR_BIT)) - 1;
-      }
+      assert(is_fixnum(expr->type->kind));
+      expr->fixnum = wrap_value(-expr->fixnum, type_size(expr->type), false);
       return expr;
     }
     return new_expr_unary(EX_NEG, expr->type, tok, expr);
@@ -1972,11 +1954,11 @@ Expr *parse_assign(void) {
   return expr;
 }
 
-Expr *parse_const(void) {
+Expr *parse_const_fixnum(void) {
   Expr *expr = parse_conditional();
   if (is_const(expr) && is_fixnum(expr->type->kind))
     return expr;
-  parse_error(PE_NOFATAL, expr->token, "constant value expected");
+  parse_error(PE_NOFATAL, expr->token, "constant integer expected");
   return new_expr_fixlit(&tyInt, expr->token, 1);
 }
 

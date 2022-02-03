@@ -2,8 +2,8 @@
 
 #include <inttypes.h>
 #include <stdbool.h>
-#include <stdio.h>
 #include <stdint.h>
+#include <stdio.h>
 
 #include "../math/_ieee.h"
 
@@ -89,10 +89,11 @@ void test_floor(void) {
   EXPECT(0.0, floor(0.5));
   EXPECT(-1.0, floor(-0.5));
 
-  EXPECT((double)(1L << (FRAC_BIT - 1)), floor((double)(1L << (FRAC_BIT - 1)) + 0.5));
-  EXPECT((double)(1L << FRAC_BIT), floor((double)(1L << FRAC_BIT) + 0.5));
-  EXPECT((double)-(1L << (FRAC_BIT - 1)) - 1, floor((double)-(1L << (FRAC_BIT - 1)) - 0.5));
-  EXPECT((double)-(1L << FRAC_BIT), floor((double)-(1L << FRAC_BIT) - 0.5));  // Fraction is under precision, so floor function doesn't detect fraction.
+  int64_t ONE = (int64_t)1 << FRAC_BIT;
+  EXPECT((double)(ONE / 2), floor((double)(ONE / 2) + 0.5));
+  EXPECT((double)(ONE), floor((double)(ONE) + 0.5));
+  EXPECT((double)-(ONE / 2) - 1, floor((double)-(ONE / 2) - 0.5));
+  EXPECT((double)-(ONE), floor((double)-(ONE) - 0.5));  // Fraction is under precision, so floor function doesn't detect fraction.
 }
 
 void test_ceil(void) {
@@ -108,10 +109,11 @@ void test_ceil(void) {
   EXPECT(1.0, ceil(0.5));
   EXPECT(0.0, ceil(-0.5));
 
-  EXPECT((double)(1L << (FRAC_BIT - 1)) + 1, ceil((double)(1L << (FRAC_BIT - 1)) + 0.5));
-  EXPECT((double)(1L << FRAC_BIT), ceil((double)(1L << FRAC_BIT) + 0.5));  // Fraction is under precision, so ceil function doesn't detect fraction.
-  EXPECT((double)-(1L << (FRAC_BIT - 1)), ceil((double)-(1L << (FRAC_BIT - 1)) - 0.5));
-  EXPECT((double)-(1L << FRAC_BIT), ceil((double)-(1L << FRAC_BIT) - 0.5));
+  int64_t ONE = (int64_t)1 << FRAC_BIT;
+  EXPECT((double)(ONE / 2) + 1, ceil((double)(ONE / 2) + 0.5));
+  EXPECT((double)(ONE), ceil((double)(ONE) + 0.5));  // Fraction is under precision, so ceil function doesn't detect fraction.
+  EXPECT((double)-(ONE / 2), ceil((double)-(ONE / 2) - 0.5));
+  EXPECT((double)-(ONE), ceil((double)-(ONE) - 0.5));
 }
 
 void test_modf(void) {

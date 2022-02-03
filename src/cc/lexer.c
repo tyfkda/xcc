@@ -3,6 +3,7 @@
 
 #include <assert.h>
 #include <ctype.h>
+#include <limits.h>  // CHAR_BIT
 #include <stdarg.h>
 #include <stdlib.h>  // malloc, strtoul
 #include <string.h>
@@ -444,6 +445,7 @@ static Token *read_num(const char **pp) {
     char c = tolower(p[1]);
     if (c == 'x') {
       base = 16;
+      is_unsigned = true;
       p += 2;
       c = tolower(*p);
       if (!isxdigit(c))
@@ -478,6 +480,12 @@ static Token *read_num(const char **pp) {
       tt = TK_LLONGLIT;
       ++p;
     }
+  } else {
+    const int INT_BYTES = 4;  // TODO: Detect.
+    int bits = INT_BYTES * CHAR_BIT;  // Assume `CHAR_BITS` is same as target ennvironment.
+    unsigned long long threshold = 1UL << (bits - (is_unsigned ? 0 : 1));
+    if (val >= threshold)
+      tt = TK_LONGLIT;
   }
   Token *tok = alloc_token(tt + (is_unsigned ? (TK_UINTLIT - TK_INTLIT) : 0), lexer.line, start, p);
   tok->fixnum = val;

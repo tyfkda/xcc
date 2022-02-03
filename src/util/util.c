@@ -282,7 +282,7 @@ const char *skip_whitespaces(const char *s) {
   return s;
 }
 
-int64_t clamp_value(int64_t value, int size, bool is_unsigned) {
+int64_t wrap_value(int64_t value, int size, bool is_unsigned) {
   if (is_unsigned) {
     switch (size) {
     case 1:  value = (uint8_t)value; break;

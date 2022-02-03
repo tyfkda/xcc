@@ -40,7 +40,7 @@ bool is_im8(intptr_t x);
 bool is_im16(intptr_t x);
 bool is_im32(intptr_t x);
 const char *skip_whitespaces(const char *s);
-int64_t clamp_value(int64_t value, int size, bool is_unsigned);
+int64_t wrap_value(int64_t value, int size, bool is_unsigned);
 
 // Container
 
