@@ -532,6 +532,7 @@ case EX_GT:  tf = l > r; break; \
 Expr *make_cond(Expr *expr) {
   switch (expr->kind) {
   case EX_FIXNUM:
+    expr = new_expr_fixlit(&tyBool, expr->token, expr->fixnum != 0);
     break;
 #ifndef __NO_FLONUM
   case EX_FLONUM:
@@ -1687,24 +1688,34 @@ static Expr *parse_or(void) {
 
 static Expr *parse_logand(void) {
   Expr *expr = parse_or();
-  for (;;) {
-    Token *tok;
-    if ((tok = match(TK_LOGAND)) != NULL)
-      expr = new_expr_bop(EX_LOGAND, &tyBool, tok, make_cond(expr), make_cond(parse_or()));
-    else
-      return expr;
+  Token *tok = match(TK_LOGAND);
+  if (tok != NULL) {
+    expr = make_cond(expr);
+    do {
+      Expr *rhs = make_cond(parse_or());
+      if (expr->kind == EX_FIXNUM)
+        expr = expr->fixnum == 0 ? expr : rhs;
+      else
+        expr = new_expr_bop(EX_LOGAND, &tyBool, tok, expr, rhs);
+    } while ((tok = match(TK_LOGAND)) != NULL);
   }
+  return expr;
 }
 
 static Expr *parse_logior(void) {
   Expr *expr = parse_logand();
-  for (;;) {
-    Token *tok;
-    if ((tok = match(TK_LOGIOR)) != NULL)
-      expr = new_expr_bop(EX_LOGIOR, &tyBool, tok, make_cond(expr), make_cond(parse_logand()));
-    else
-      return expr;
+  Token *tok = match(TK_LOGIOR);
+  if (tok != NULL) {
+    expr = make_cond(expr);
+    do {
+      Expr *rhs = make_cond(parse_logand());
+      if (expr->kind == EX_FIXNUM)
+        expr = expr->fixnum != 0 ? expr : rhs;
+      else
+        expr = new_expr_bop(EX_LOGIOR, &tyBool, tok, expr, rhs);
+    } while ((tok = match(TK_LOGIOR)) != NULL);
   }
+  return expr;
 }
 
 static const Type *to_ptr_type(const Type *type) {
@@ -1784,22 +1795,12 @@ static Expr *parse_conditional(void) {
       tval = make_cast(type, tval->token, tval, false);
       fval = make_cast(type, fval->token, fval, false);
     }
-    if (is_const(expr)) {
-      bool tf;
-      switch (expr->kind) {
-      case EX_FIXNUM:  tf = expr->fixnum != 0; break;
-#ifndef __NO_FLONUM
-      case EX_FLONUM:  tf = expr->flonum != 0; break;
-#endif
-      default:
-        assert(false);
-        // Fallthrough to avoid warning.
-      case EX_STR:     tf = true; break;
-      }
-      expr = tf ? tval : fval;
-    } else {
-      expr = new_expr_ternary(tok, make_cond(expr), tval, fval, type);
-    }
+
+    expr = make_cond(expr);
+    if (expr->kind == EX_FIXNUM)
+      expr = expr->fixnum != 0 ? tval : fval;
+    else
+      expr = new_expr_ternary(tok, expr, tval, fval, type);
   }
 }
 
