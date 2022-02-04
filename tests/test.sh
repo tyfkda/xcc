@@ -39,7 +39,7 @@ try_direct() {
 
   local tmpfile=$(mktemp).c
   echo -e "$input" > $tmpfile
-  $XCC -I../inc $tmpfile || exit 1
+  $XCC -I../include $tmpfile || exit 1
 
   ./a.out
   local actual="$?"

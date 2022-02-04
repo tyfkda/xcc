@@ -80,6 +80,8 @@ clean:
 
 ### Self hosting
 
+INCLUDE_DIR:=include
+
 .PHONY: gen2
 gen2: all
 	$(MAKE) HOST=. TARGET=gen2 self-hosting
@@ -106,22 +108,22 @@ LIB_SRCS:= lib/lib.c lib/assert.c lib/umalloc.c lib/sprintf.c lib/getopt.c lib/c
 
 $(TARGET)/cpp:	$(HOST)/cc1 $(HOST)/cpp $(CPP_SRCS)
 	mkdir -p $(TARGET)
-	$(HOST)/xcc -o$@ -Iinc -I$(CC1_DIR) -I$(UTIL_DIR) -DSELF_HOSTING $(CPP_SRCS) \
+	$(HOST)/xcc -o$@ -I$(INCLUDE_DIR) -I$(CC1_DIR) -I$(UTIL_DIR) -DSELF_HOSTING $(CPP_SRCS) \
 	      $(LIB_SRCS)
 
 $(TARGET)/cc1:	$(HOST)/xcc $(CC1_SRCS)
 	mkdir -p $(TARGET)
-	$(HOST)/xcc -o$@ -Iinc -I$(UTIL_DIR) -DSELF_HOSTING $(CC1_SRCS) \
+	$(HOST)/xcc -o$@ -I$(INCLUDE_DIR) -I$(UTIL_DIR) -DSELF_HOSTING $(CC1_SRCS) \
 	      $(LIB_SRCS)
 
 $(TARGET)/as:	$(HOST)/xcc $(AS_SRCS)
 	mkdir -p $(TARGET)
-	$(HOST)/xcc -o$@ -Iinc -I$(UTIL_DIR) -DSELF_HOSTING $(AS_SRCS) \
+	$(HOST)/xcc -o$@ -I$(INCLUDE_DIR) -I$(UTIL_DIR) -DSELF_HOSTING $(AS_SRCS) \
 	      $(LIB_SRCS)
 
 $(TARGET)/xcc:	$(HOST)/xcc $(AS_SRCS)
 	mkdir -p $(TARGET)
-	$(HOST)/xcc -o$@ -Iinc -I$(UTIL_DIR) -DSELF_HOSTING $(XCC_SRCS) \
+	$(HOST)/xcc -o$@ -I$(INCLUDE_DIR) -I$(UTIL_DIR) -DSELF_HOSTING $(XCC_SRCS) \
 	      $(LIB_SRCS)
 
 ### Debug

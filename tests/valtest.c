@@ -1,7 +1,7 @@
-#include "../inc/stdarg.h"
-#include "../inc/stdint.h"
-#include "../inc/stdlib.h"  // exit
-#include "../examples/example_util.h"
+#include "stdarg.h"
+#include "stdint.h"
+#include "stdlib.h"  // exit
+#include "example_util.h"
 
 #if defined(__LP64__)
 #define LONG_SIZE  (8)

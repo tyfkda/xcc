@@ -2,19 +2,19 @@
   "usr": {
     "include": {
       "sys": {
-        "types.h": "../inc/sys/types.h"
+        "types.h": "../include/sys/types.h"
       },
-      "ctype.h": "../inc/ctype.h",
-      "fcntl.h": "../inc/fcntl.h",
-      "math.h": "../inc/math.h",
-      "stdarg.h": "../inc/stdarg.h",
-      "stdbool.h": "../inc/stdbool.h",
-      "stddef.h": "../inc/stddef.h",
-      "stdint.h": "../inc/stdint.h",
-      "stdio.h": "../inc/stdio.h",
-      "stdlib.h": "../inc/stdlib.h",
-      "string.h": "../inc/string.h",
-      "unistd.h": "../inc/unistd.h"
+      "ctype.h": "../include/ctype.h",
+      "fcntl.h": "../include/fcntl.h",
+      "math.h": "../include/math.h",
+      "stdarg.h": "../include/stdarg.h",
+      "stdbool.h": "../include/stdbool.h",
+      "stddef.h": "../include/stddef.h",
+      "stdint.h": "../include/stdint.h",
+      "stdio.h": "../include/stdio.h",
+      "stdlib.h": "../include/stdlib.h",
+      "string.h": "../include/string.h",
+      "unistd.h": "../include/unistd.h"
     },
     "lib": {
       "_file.h": "../lib/_file.h",

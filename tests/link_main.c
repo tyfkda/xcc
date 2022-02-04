@@ -1,7 +1,7 @@
 // Compiled on XCC
 
-#include "../inc/stdlib.h"  // exit
-#include "../examples/example_util.h"
+#include "stdlib.h"  // exit
+#include "example_util.h"
 
 extern int array[];
 extern int *ptr;

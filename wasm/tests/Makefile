@@ -1,3 +1,8 @@
+ROOT_DIR:=../..
+INCLUDE_DIR:=$(ROOT_DIR)/include
+LIB_DIR:=$(ROOT_DIR)/lib
+EXAMPLES_DIR:=$(ROOT_DIR)/examples
+
 WCC:=../wcc
 
 .PHONY: all
@@ -23,6 +28,6 @@ test-val:	valtest.wasm
 	node ../runtime/runwasm.js $<
 	@echo ''
 
-VAL_SRCS:=../../lib/crt0.c ../../tests/valtest.c ../../examples/example_util.c
+VAL_SRCS:=$(LIB_DIR)/crt0.c $(ROOT_DIR)/tests/valtest.c $(EXAMPLES_DIR)/example_util.c
 valtest.wasm:	$(VAL_SRCS) # $(XCC)
-	$(WCC) -o$@ $^
+	$(WCC) -o$@ -I$(INCLUDE_DIR) -I$(EXAMPLES_DIR) $^

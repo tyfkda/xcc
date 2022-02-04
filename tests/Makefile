@@ -1,10 +1,15 @@
-SRC_DIR:=../src/cc
-UTIL_DIR:=../src/util
+ROOT_DIR:=..
+SRC_DIR:=$(ROOT_DIR)/src
+CC_DIR:=$(SRC_DIR)/cc
+UTIL_DIR:=$(SRC_DIR)/util
+INCLUDE_DIR:=$(ROOT_DIR)/include
+LIB_DIR:=$(ROOT_DIR)/lib
+EXAMPLES_DIR:=$(ROOT_DIR)/examples
 
 CFLAGS=-ansi -std=c11 -Wall -Wextra -Werror \
 	-Wold-style-definition -Wno-missing-field-initializers -Wno-typedef-redefinition \
 	-Wno-empty-body
-CFLAGS+=-I$(SRC_DIR) -I$(UTIL_DIR)
+CFLAGS+=-I$(CC_DIR) -I$(UTIL_DIR)
 CFLAGS+=-D_POSIX_C_SOURCE=200809L  # for getline
 
 EXE_DIR:=.
@@ -108,32 +113,32 @@ UTIL_SRCS:=util_test.c $(UTIL_DIR)/util.c $(UTIL_DIR)/table.c
 util_test:	$(UTIL_SRCS)
 	$(CC) -o$@ $(CFLAGS) $^
 
-PARSER_SRCS:=parser_test.c $(SRC_DIR)/parser_expr.c $(SRC_DIR)/lexer.c $(SRC_DIR)/parser.c \
-	$(SRC_DIR)/type.c $(SRC_DIR)/ast.c $(SRC_DIR)/var.c \
+PARSER_SRCS:=parser_test.c $(CC_DIR)/parser_expr.c $(CC_DIR)/lexer.c $(CC_DIR)/parser.c \
+	$(CC_DIR)/type.c $(CC_DIR)/ast.c $(CC_DIR)/var.c \
 	$(UTIL_DIR)/util.c $(UTIL_DIR)/table.c
 parser_test:	$(PARSER_SRCS)
 	$(CC) -o$@ $(CFLAGS) $^
 
-VAL_SRCS:=../lib/crt0.c ../examples/example_util.c valtest.c
+VAL_SRCS:=$(LIB_DIR)/crt0.c $(EXAMPLES_DIR)/example_util.c valtest.c
 valtest:	$(VAL_SRCS) # $(XCC)
-	$(XCC) -o$@ $^
+	$(XCC) -o$@ -I$(INCLUDE_DIR) -I$(EXAMPLES_DIR) $^
 
-FVAL_SRCS:=../lib/crt0.c ../examples/example_util.c ../lib/math.c fvaltest.c
+FVAL_SRCS:=$(LIB_DIR)/crt0.c $(EXAMPLES_DIR)/example_util.c $(LIB_DIR)/math.c fvaltest.c
 dvaltest:	$(FVAL_SRCS) flotest.inc # $(XCC)
-	$(XCC) -o$@ -I../inc $(FVAL_SRCS)
+	$(XCC) -o$@ -I$(INCLUDE_DIR) $(FVAL_SRCS)
 fvaltest:	$(FVAL_SRCS) flotest.inc # $(XCC)
-	$(XCC) -o$@ -DUSE_SINGLE -I../inc $(FVAL_SRCS)
+	$(XCC) -o$@ -DUSE_SINGLE -I$(INCLUDE_DIR) $(FVAL_SRCS)
 
-TYPE_SRCS:=print_type_test.c $(SRC_DIR)/type.c $(UTIL_DIR)/util.c $(UTIL_DIR)/table.c
+TYPE_SRCS:=print_type_test.c $(CC_DIR)/type.c $(UTIL_DIR)/util.c $(UTIL_DIR)/table.c
 print_type_test:	$(TYPE_SRCS)
 	gcc -o $@ $(CFLAGS) $^
 
 .PHONY: test-link
-link_test: link_main.c ../examples/example_util.c link_sub.c
-	$(XCC) -c -olink_main.o link_main.c
-	$(CC) -o $@ link_sub.c link_main.o ../examples/example_util.c
+link_test: link_main.c $(EXAMPLES_DIR)/example_util.c link_sub.c
+	$(XCC) -c -olink_main.o -I$(INCLUDE_DIR) -I$(EXAMPLES_DIR) link_main.c
+	$(CC) -o $@ link_sub.c link_main.o $(EXAMPLES_DIR)/example_util.c
 
 .PHONY: test-std-valtest
 test-std-valtest:
-	$(CC) -Wno-builtin-declaration-mismatch -Wno-overflow ../examples/example_util.c valtest.c
+	$(CC) -Wno-builtin-declaration-mismatch -Wno-overflow $(EXAMPLES_DIR)/example_util.c valtest.c
 	./a.out

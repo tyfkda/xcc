@@ -1,7 +1,7 @@
 // Mandelbrot
 
 // Compile:
-//   $ ./xcc -omandelbrot -Iinc examples/mandelbrot.c lib/sprintf.c lib/umalloc.c lib/lib.c lib/crt0.c
+//   $ ./xcc -omandelbrot -Iinclude examples/mandelbrot.c lib/sprintf.c lib/umalloc.c lib/lib.c lib/crt0.c
 // Run:
 //   $ time ./mandelbrot
 
