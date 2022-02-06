@@ -294,71 +294,111 @@ const InstTable = new Map([
   [Opcode.I64_REINTERPRET_F64, {op: 'i64.reinterpret_f64'}],
 ])
 
-function readu8(buffer: ArrayBuffer, offset: number): number {
-  return new Uint8Array(buffer, offset, 1)[0]
-}
+class BufferReader {
+  private offset = 0
+  private byteArray: Uint8Array
 
-function readi32(buffer: ArrayBuffer, offset: number): number {
-  return new Int32Array(buffer, offset, 1)[0]
-}
-
-function readf32(buffer: ArrayBuffer, offset: number): number {
-  if ((offset & 3) !== 0) {
-    buffer = new Uint8Array(buffer).slice(offset, offset + 4)
-    offset = 0
+  constructor(buffer: ArrayBuffer) {
+    this.byteArray = new Uint8Array(buffer)
   }
-  return new Float32Array(buffer, offset, 1)[0]
-}
 
-function readf64(buffer: ArrayBuffer, offset: number): number {
-  if ((offset & 7) !== 0) {
-    buffer = new Uint8Array(buffer).slice(offset, offset + 8)
-    offset = 0
+  public getOffset(): number { return this.offset }
+  public setOffset(offset: number): void { this.offset = offset }
+
+  public isEof(): boolean { return this.offset >= this.byteArray.byteLength }
+
+  public readu8(): number {
+    return this.byteArray[this.offset++]
   }
-  return new Float64Array(buffer, offset, 1)[0]
-}
 
-function readLeb128(buffer: ArrayBuffer, offset: number): [number, number] {
-  const u8array = new Uint8Array(buffer, offset)
-  let x = 0
-  let bits = 0
-  let i
-  for (i = 0; i < u8array.byteLength; ) {
-    const c = u8array[i++]
-    x |= (c & 0x7f) << bits
-    bits += 7
-    if ((c & 0x80) === 0) {
-      if ((c & 0x40) !== 0)
-        x -= 1 << bits
-      break
+  public readi32(): number {
+    const value = new Int32Array(this.byteArray.buffer, this.offset, 1)[0]
+    this.offset += 4
+    return value
+  }
+
+  public readf32(): number {
+    let buffer = this.byteArray.buffer
+    let offset = this.offset
+    if ((offset & 3) !== 0) {
+      buffer = this.byteArray.slice(offset, offset + 4).buffer
+      offset = 0
     }
+    const value = new Float32Array(buffer, offset, 1)[0]
+    this.offset += 4
+    return value
   }
-  return [x, offset + i]
+
+  public readf64(): number {
+    let buffer = this.byteArray.buffer
+    let offset = this.offset
+    if ((offset & 7) !== 0) {
+      buffer = this.byteArray.slice(offset, offset + 8).buffer
+      offset = 0
+    }
+    const value = new Float64Array(buffer, offset, 1)[0]
+    this.offset += 8
+    return value
+  }
+
+  public readLeb128(): number {
+    let x = 0
+    let bits = 0
+    let ofs = this.offset
+    while (ofs < this.byteArray.byteLength) {
+      const c = this.byteArray[ofs++]
+      x |= (c & 0x7f) << bits
+      bits += 7
+      if ((c & 0x80) === 0) {
+        if ((c & 0x40) !== 0)
+          x -= 1 << bits
+        break
+      }
+    }
+    this.offset = ofs
+    return x
+  }
+
+  public readUleb128(): number {
+    let x = 0
+    let bits = 0
+    let ofs = this.offset
+    while (ofs < this.byteArray.byteLength) {
+      const c = this.byteArray[ofs++]
+      x |= (c & 0x7f) << bits
+      bits += 7
+      if ((c & 0x80) === 0)
+        break
+    }
+    this.offset = ofs
+    return x
+  }
+
+  public readString(): string {
+    const len = this.readUleb128()
+    const u8array = this.byteArray.slice(this.offset, this.offset + len)
+    this.offset += len
+    return new TextDecoder('utf-8').decode(u8array)
+  }
+
+  public u8array(length: number): Uint8Array {
+    const u8array = this.byteArray.slice(this.offset, length)
+    this.offset += length
+    return u8array;
+  }
 }
 
-function readUleb128(buffer: ArrayBuffer, offset: number): [number, number] {
-  const u8array = new Uint8Array(buffer, offset)
-  let x = 0
-  let bits = 0
-  let i
-  for (i = 0; i < u8array.byteLength; ) {
-    const c = u8array[i++]
-    x |= (c & 0x7f) << bits
-    bits += 7
-    if ((c & 0x80) === 0)
-      break
-  }
-  return [x, offset + i]
-}
-
+type FuncTypeInfo = {type: string, params: Array<Type>, results: Array<Type>}
 class Type {
-  private type: number | {type: string, params: Array<Type>, results: Array<Type>}
+  private type: number | FuncTypeInfo
 
-  constructor(type: number | {type: string, params: Array<Type>, results: Array<Type>}) {
+  constructor(type: number | FuncTypeInfo) {
     this.type = type
   }
 
-  toString(): string {
+  public getType(): number | FuncTypeInfo { return this.type }
+
+  public toString(): string {
     if (typeof(this.type) === 'object') {
       return `Func{params: ${this.type.params}, result:${this.type.results}}`
     } else {
@@ -374,65 +414,64 @@ class Type {
   }
 }
 
-function readType(buffer: ArrayBuffer, offset: number): [Type, number] {
-  const t = readu8(buffer, offset)
+function readType(bufferReader: BufferReader): Type {
+  const t = bufferReader.readu8()
   switch (t) {
   case WasmType.VOID:
   case WasmType.I32:
   case WasmType.I64:
   case WasmType.F32:
   case WasmType.F64:
-    return [new Type(t), offset + 1]
+    return new Type(t)
   case WasmType.FUNC:
     {
-      const [numParams, ofs] = readUleb128(buffer, offset + 1)
-      offset = ofs
-      const params = [...Array(numParams)].map(() => {
-        const [t, ofs2] = readType(buffer, offset)
-        offset = ofs2
-        return t
-      })
-      const [num_results, ofs3] = readUleb128(buffer, offset)
-      offset = ofs3
-      const results = [...Array(num_results)].map(() => {
-        const [t, ofs4] = readType(buffer, offset)
-        offset = ofs4
-        return t
-      })
-      return [new Type({type: 'func', params: params, results: results}), offset]
+      const numParams = bufferReader.readUleb128()
+      const params = [...Array(numParams)].map(() => readType(bufferReader))
+      const num_results = bufferReader.readUleb128()
+      const results = [...Array(num_results)].map(() => readType(bufferReader))
+      return new Type({type: 'func', params: params, results: results})
     }
   default:
-    throw `Unhnadled type: at 0x${offset.toString(16)}`
+    throw `Unhnadled type: at 0x${(bufferReader.getOffset() - 1).toString(16)}`
+  }
+}
+
+function readGlobalValue(bufferReader: BufferReader): any {
+  const op = bufferReader.readu8()
+  switch (op) {
+  case Opcode.I32_CONST:
+  case Opcode.I64_CONST:
+    return bufferReader.readLeb128()
+  case Opcode.F32_CONST:
+    return bufferReader.readf32()
+  case Opcode.F64_CONST:
+    return bufferReader.readf64()
+  default:
+    throw `Unhnadled type: ${op} at ${(bufferReader.getOffset() - 1).toString(16)}`
   }
 }
 
 type Operand = number | Array<number>
 
-function readOperand(buffer: ArrayBuffer, operand: string, offset: number): [Operand|Type, number] {
+function readOperand(bufferReader: BufferReader, operand: string): Operand|Type {
   switch (operand) {
   case 'type':
-    return readType(buffer, offset)
+    return readType(bufferReader)
   case 'leb128':
-    return readLeb128(buffer, offset)
+    return bufferReader.readLeb128()
   case 'uleb128':
-    return readUleb128(buffer, offset)
+    return bufferReader.readUleb128()
   case 'uleb128array':
     {
-      const [count, ofs1] = readUleb128(buffer, offset)
-      offset = ofs1
-      const nums = [...Array(count)].map(_ => {
-        const [x, ofs2] = readUleb128(buffer, offset)
-        offset = ofs2
-        return x
-      })
-      return [nums, offset]
+      const count = bufferReader.readUleb128()
+      return [...Array(count)].map(_ => bufferReader.readUleb128())
     }
   case 'f32':
-    return [readf32(buffer, offset), offset + 4]
+    return bufferReader.readf32()
   case 'f64':
-    return [readf64(buffer, offset), offset + 8]
+    return bufferReader.readf64()
   default:
-    throw `Unhandled operand: ${operand} at 0x${offset.toString(16)}`
+    throw `Unhandled operand: ${operand} at 0x${bufferReader.getOffset().toString(16)}`
   }
 }
 
@@ -441,113 +480,172 @@ class Inst {
   public operands?: Array<Operand|Type>
 }
 
-function readInst(buffer: ArrayBuffer, offset: number): [Inst, number] {
-  const op = readu8(buffer, offset)
-  ++offset
+function readInst(bufferReader: BufferReader): Inst {
+  const op = bufferReader.readu8()
 
   const table = InstTable.get(op)
   if (table == null) {
-    throw `Unhandled op: 0x${op.toString(16).padStart(2, '0')} at 0x${offset.toString(16)}`
+    throw `Unhandled op: 0x${op.toString(16).padStart(2, '0')} at 0x${bufferReader.getOffset().toString(16)}`
   }
 
   let inst: Inst = {op: table.op}
   if (table.operands != null) {
-    inst.operands = table.operands.map(operand => {
-      const [opr, next] = readOperand(buffer, operand, offset)
-      offset = next
-      return opr
-    })
+    inst.operands = table.operands.map(operand => readOperand(bufferReader, operand))
   }
-  return [inst, offset]
+  return inst
 }
 
 let SPACES = '    '
 
 class DisWasm {
-  private buffer: ArrayBufferLike
+  private bufferReader: BufferReader
   private version = -1
   private codes = new Array<Array<Inst>>()
+  private importFuncCount = 0
 
   constructor(private filename: string) {
     const content = fs.readFileSync(this.filename)
-    this.buffer = new Uint8Array(content).buffer
+    const buffer = new Uint8Array(content).buffer
+    this.bufferReader = new BufferReader(buffer)
   }
 
-  dump(): void {
+  public dump(): void {
     if (!this.checkHeader())
       throw Error('No wasm header')
     console.log(`WASM version: ${this.version}`)
     this.loadSections()
   }
 
-  checkHeader(): boolean {
-    const magic = new Uint8Array(this.buffer, 0, 4)
+  private checkHeader(): boolean {
+    const magic = this.bufferReader.u8array(4)
     if (new TextDecoder('utf-8').decode(magic) !== '\x00asm')
       return false
-    this.version = readi32(this.buffer, 4)
+    this.version = this.bufferReader.readi32()
     return true
   }
 
-  loadSections(): void {
-    let offset = 8
-    while (offset < this.buffer.byteLength) {
-      const sec = readu8(this.buffer, offset) as Section
-      const [len, nextOfs] = readUleb128(this.buffer, offset + 1)
+  private loadSections(): void {
+    const SectionNames = [
+      null,
+      'TYPE',
+      'IMPORT',
+      'FUNC',
+      'TABLE',
+      'MEMORY',
+      'GLOBAL',
+      'EXPORT',
+      null,
+      'ELEM',
+      'CODE',
+      'DATA',
+    ]
 
-console.log(`0x${offset.toString(16)}: sec=${sec}, len=${len}`)
+    while (!this.bufferReader.isEof()) {
+      const offset = this.bufferReader.getOffset()
+      const sec = this.bufferReader.readu8() as Section
+      const len = this.bufferReader.readUleb128()
+      const section_start_offset = this.bufferReader.getOffset()
+
+      console.log(`\n=== 0x${offset.toString(16)}: ${SectionNames[sec] || `(section ${sec})`}, len=${len}`)
       switch (sec) {
       case Section.TYPE:
-      case Section.IMPORT:
       case Section.FUNC:
       case Section.TABLE:
       case Section.MEMORY:
-      case Section.GLOBAL:
-      case Section.EXPORT:
       case Section.ELEM:
       case Section.DATA:
         // TODO
         break
 
+      case Section.IMPORT:
+        this.readImportSection()
+        break
+
+      case Section.GLOBAL:
+        this.readGlobalSection()
+        break
+
+      case Section.EXPORT:
+        this.readExportSection()
+        break
+
       case Section.CODE:
-        this.readCodeSection(nextOfs, len)
+        this.readCodeSection()
         break
 
       default:
         throw `Unhandled section: ${sec}, offset=0x${offset.toString(16)}, len=${len}`
       }
 
-      offset = nextOfs + len
+      this.bufferReader.setOffset(section_start_offset + len)
     }
   }
 
-  readCodeSection(offset: number, _len: number): void {
-    let [num, start] = readUleb128(this.buffer, offset)
-    offset = start
+  private readImportSection(): void {
+    const KindNames = ['FUNC  ', null, 'MEMORY', 'GLOBAL']
+
+    const num = this.bufferReader.readUleb128()
     for (let i = 0; i < num; ++i) {
-      const [code, nextOfs] = this.readCode(offset, i)
-      this.codes.push(code)
-      offset = nextOfs
+      const mod_name = this.bufferReader.readString()
+      const name = this.bufferReader.readString()
+      const kind = this.bufferReader.readUleb128()
+      const index = this.bufferReader.readUleb128()
+      console.log(`${KindNames[kind] || `kind=${kind}`} ${mod_name}::${name}: index=${index}`)
+
+      if (kind === 0x00) {
+        this.importFuncCount += 1
+      }
     }
   }
 
-  readCode(offset: number, funcIndex: number): [Inst[], number] {
-    console.log(`\n=== Function ${funcIndex}`)
-    const [bodySize, ofs] = readUleb128(this.buffer, offset)
-    const endOfs = (offset = ofs) + bodySize
-    const [localDeclCount, ofs2] = readUleb128(this.buffer, offset)
-    offset = ofs2
+  private readGlobalSection(): void {
+    const num = this.bufferReader.readUleb128()
+    for (let i = 0; i < num; ++i) {
+      const type = readType(this.bufferReader)
+      const mut = this.bufferReader.readu8()
+      const value = readGlobalValue(this.bufferReader)
+      console.log(`${i}: ${value} (${type}) ${mut !== 0 ? 'mutable' : 'const'}`)
+      this.bufferReader.readu8()  // Skip OP_END
+    }
+  }
+
+  private readExportSection(): void {
+    const KindNames = ['FUNC  ', null, 'MEMORY', 'GLOBAL']
+
+    const num = this.bufferReader.readUleb128()
+    for (let i = 0; i < num; ++i) {
+      const name = this.bufferReader.readString()
+      const kind = this.bufferReader.readUleb128()
+      const index = this.bufferReader.readUleb128()
+      console.log(`${KindNames[kind] || `kind=${kind}`} ${name}: index=${index}`)
+    }
+  }
+
+  private readCodeSection(): void {
+    const num = this.bufferReader.readUleb128()
+    for (let i = 0; i < num; ++i) {
+      console.log(`-- Function ${i + this.importFuncCount}`)
+      const code = this.readCode()
+      this.codes.push(code)
+    }
+  }
+
+  private readCode(): Inst[] {
+    const bodySize = this.bufferReader.readUleb128()
+    const endOfs = this.bufferReader.getOffset() + bodySize
+    const localDeclCount = this.bufferReader.readUleb128()
     const localTypes = [...Array(localDeclCount)].map(() => {
-      const [num, ofs3] = readUleb128(this.buffer, offset)
-      const [t, ofs4] = readType(this.buffer, ofs3)
-      offset = ofs4
+      const num = this.bufferReader.readUleb128()
+      const t = readType(this.bufferReader)
       return [num, t]
     })
     console.log(`localTypes: ${localTypes.map(([num, t]) => `(${num}, ${t})`).join(', ')}`)
 
     const code = new Array<Inst>()
     let indent = 1
-    while (offset < endOfs) {
-      const [inst, nextOfs] = readInst(this.buffer, offset)
+    while (this.bufferReader.getOffset() < endOfs) {
+      const offset = this.bufferReader.getOffset()
+      const inst = readInst(this.bufferReader)
       code.push(inst)
 
       switch (inst.op) {
@@ -561,7 +659,6 @@ console.log(`0x${offset.toString(16)}: sec=${sec}, len=${len}`)
       const spaces = SPACES.slice(0, indent * 2)
       const operands = inst.operands != null ? inst.operands.map((x) => x.toString()).join(', ') : ''
       console.log(`${offset.toString(16).padStart(5, '0')}: ${spaces}${inst.op} ${operands != null ? operands.toString() : ''}`)
-      offset = nextOfs
 
       switch (inst.op) {
       case 'if': case 'block': case 'loop': case 'else':
@@ -569,7 +666,7 @@ console.log(`0x${offset.toString(16)}: sec=${sec}, len=${len}`)
         break
       }
     }
-    return [code, endOfs]
+    return code
   }
 }
 
