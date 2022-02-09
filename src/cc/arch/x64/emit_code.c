@@ -15,7 +15,7 @@
 #include "type.h"
 #include "util.h"
 #include "var.h"
-#include "x86_64.h"
+#include "x64.h"
 
 static void eval_initial_value(Expr *expr, Expr **pvar, Fixnum *poffset) {
   switch (expr->kind) {
