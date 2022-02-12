@@ -512,19 +512,19 @@ static void ir_out(IR *ir) {
         break;
       }
 #endif
+      assert(!(ir->opr1->flag & VRF_CONST));
       assert(0 <= ir->size && ir->size < kPow2TableSize);
       int pow = kPow2Table[ir->size];
       assert(0 <= pow && pow < 4);
       const char **regs = kRegSizeTable[pow];
       const char *opr1;
-      if (ir->opr1->flag & VRF_CONST) {
-        opr1 = kRegATable[pow];
-        MOV(IM(ir->opr1->fixnum), opr1);
+      opr1 = regs[ir->opr1->phys];
+      if ((ir->opr2->flag & VRF_CONST) && ir->opr2->fixnum == 0) {
+        TEST(opr1, opr1);
       } else {
-        opr1 = regs[ir->opr1->phys];
+        const char *opr2 = (ir->opr2->flag & VRF_CONST) ? IM(ir->opr2->fixnum) : regs[ir->opr2->phys];
+        CMP(opr2, opr1);
       }
-      const char *opr2 = (ir->opr2->flag & VRF_CONST) ? IM(ir->opr2->fixnum) : regs[ir->opr2->phys];
-      CMP(opr2, opr1);
     }
     break;
 
@@ -620,23 +620,6 @@ static void ir_out(IR *ir) {
       default: assert(false); break;
       }
       MOVSX(dst, kReg32s[ir->dst->phys]);  // Assume bool is 4 byte.
-    }
-    break;
-
-  case IR_TEST:
-    {
-      assert(0 <= ir->size && ir->size < kPow2TableSize);
-      int pow = kPow2Table[ir->size];
-      assert(0 <= pow && pow < 4);
-      const char **regs = kRegSizeTable[pow];
-      const char *opr1;
-      if (ir->opr1->flag & VRF_CONST) {
-        opr1 = kRegATable[pow];
-        MOV(IM(ir->opr1->fixnum), opr1);
-      } else {
-        opr1 = regs[ir->opr1->phys];
-      }
-      TEST(opr1, opr1);
     }
     break;
 

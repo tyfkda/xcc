@@ -85,12 +85,9 @@ static enum ConditionKind gen_compare_expr(enum ExprKind kind, Expr *lhs, Expr *
   }
 
   VReg *lhs_reg = gen_expr(lhs);
-  if (rhs->kind == EX_FIXNUM && rhs->fixnum == 0 &&
-      (cond == COND_EQ || cond == COND_NE)) {
-    new_ir_test(lhs_reg);
-  } else if (rhs->kind == EX_FIXNUM &&
-             ((is_fixnum(lhs->type->kind) && lhs->type->fixnum.kind < FX_LONG) ||
-               is_im32(rhs->fixnum))) {
+  if (rhs->kind == EX_FIXNUM &&
+      ((is_fixnum(lhs->type->kind) && lhs->type->fixnum.kind < FX_LONG) ||
+        is_im32(rhs->fixnum))) {
     VReg *num = new_const_vreg(rhs->fixnum, to_vtype(rhs->type));
     new_ir_cmp(lhs_reg, num);
   } else {

@@ -76,7 +76,6 @@ enum IrKind {
   IR_NEG,
   IR_BITNOT,
   IR_COND,    // dst <- flag
-  IR_TEST,    // opr1 - 0
   IR_JMP,     // Jump with condition
   IR_PRECALL, // Prepare for call
   IR_PUSHARG,
@@ -161,7 +160,6 @@ VReg *new_ir_iofs(const Name *label, bool global);
 VReg *new_ir_sofs(VReg *src);
 void new_ir_store(VReg *dst, VReg *src);
 void new_ir_cmp(VReg *opr1, VReg *opr2);
-void new_ir_test(VReg *reg);
 void new_ir_incdec(enum IrKind kind, VReg *reg, int size, intptr_t value);
 VReg *new_ir_cond(enum ConditionKind cond);
 void new_ir_jmp(enum ConditionKind cond, BB *bb);

@@ -242,12 +242,6 @@ void new_ir_cmp(VReg *opr1, VReg *opr2) {
   ir->size = opr1->vtype->size;
 }
 
-void new_ir_test(VReg *reg) {
-  IR *ir = new_ir(IR_TEST);
-  ir->opr1 = reg;
-  ir->size = reg->vtype->size;
-}
-
 void new_ir_incdec(enum IrKind kind, VReg *reg, int size, intptr_t value) {
   IR *ir = new_ir(kind);
   ir->opr1 = reg;
