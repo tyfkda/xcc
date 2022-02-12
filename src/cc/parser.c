@@ -390,25 +390,6 @@ static Initializer *check_global_initializer(const Type *type, Initializer *init
   init = flatten_initializer(type, init);
 
   switch (type->kind) {
-  case TY_FIXNUM:
-    if (init->kind == IK_SINGLE) {
-      switch (init->single->kind) {
-#ifndef __NO_FLONUM
-      case EX_FLONUM:
-        {
-          double flonum = init->single->flonum;
-          init->single = new_expr_fixlit(type, init->single->token, flonum);
-        }
-#endif
-        // Fallthrough
-      case EX_FIXNUM:
-        return init;
-      default:
-        parse_error(init->single->token, "Constant expression expected");
-        break;
-      }
-    }
-    break;
 #ifndef __NO_FLONUM
   case TY_FLONUM:
     if (init->kind == IK_SINGLE) {
@@ -428,10 +409,16 @@ static Initializer *check_global_initializer(const Type *type, Initializer *init
     }
     break;
 #endif
+  case TY_FIXNUM:
   case TY_PTR:
     {
       assert(init->kind == IK_SINGLE);
-      Expr *value = strip_cast(init->single);
+      Expr *value = init->single;
+      Expr *cast_expr = NULL;
+      while (value->kind == EX_CAST) {
+        cast_expr = value;
+        value = value->unary.sub;
+      }
 
       switch (value->kind) {
       case EX_REF:
@@ -446,8 +433,7 @@ static Initializer *check_global_initializer(const Type *type, Initializer *init
           if (!is_global_scope(scope)) {
             if (!(varinfo->storage & VS_STATIC))
               parse_error(value->token, "Allowed global reference only");
-            varinfo = varinfo->static_.gvar;
-            assert(varinfo != NULL);
+            assert(varinfo->static_.gvar != NULL);
           }
           return init;
         }
@@ -464,7 +450,7 @@ static Initializer *check_global_initializer(const Type *type, Initializer *init
           }
 
           if ((varinfo->type->kind != TY_ARRAY && varinfo->type->kind != TY_FUNC) ||
-              !can_cast(type, varinfo->type, is_zero(value), false))
+              (cast_expr == NULL && !can_cast(type, varinfo->type, is_zero(value), false)))
             parse_error(value->token, "Illegal type");
 
           return init;
@@ -474,14 +460,30 @@ static Initializer *check_global_initializer(const Type *type, Initializer *init
         return init;
       case EX_FIXNUM:
         return init;
+#ifndef __NO_FLONUM
+      case EX_FLONUM:
+        if (cast_expr == NULL) {
+          if (!can_cast(type, value->type, is_zero(value), false)) {
+            parse_error_nofatal(value->token, "Illegal type");
+          } else {
+            double flonum = init->single->flonum;
+            init->single = new_expr_fixlit(type, init->single->token, flonum);
+          }
+        }
+        return init;
+#endif
       case EX_STR:
         {
-          if (!is_char_type(type->pa.ptrof))
+          if (cast_expr == NULL && !can_cast(type, value->type, false, false))
             parse_error(value->token, "Illegal type");
 
           // Create string and point to it.
-          Type *strtype = arrayof(type->pa.ptrof, value->str.size);
-          return convert_str_to_ptr_initializer(curscope, strtype, init);
+          Expr *chars = str_to_char_array_var(curscope, value, toplevel);
+          if (cast_expr != NULL)
+            cast_expr->unary.sub = chars;
+          else
+            init->single = chars;
+          return init;
         }
       default:
         break;

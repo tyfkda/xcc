@@ -83,6 +83,14 @@ int number_test(void) {
     expect("post inc g", 10.25, g++);
     expect("post inc after", 11.25, g);
   }
+  {
+    static Number f = 123;
+    expect("number with int initializer", 123, f);
+  }
+  {
+    static int i = (Number)12.34;
+    expect("int with number initializer", 12, i);
+  }
 
   expecti("!", false, (x=5, !x));
   expecti("&&", false, (x=0.2, y=0.0, x && y));

@@ -72,31 +72,6 @@ static void construct_initial_value(const Type *type, const Initializer *init) {
   assert(init == NULL || init->kind != IK_DOT);
 
   switch (type->kind) {
-  case TY_FIXNUM:
-    {
-      Fixnum v = 0;
-      if (init != NULL) {
-        assert(init->kind == IK_SINGLE);
-        Expr *value = init->single;
-        if (!(is_const(value) && is_fixnum(value->type->kind)))
-          error("Illegal initializer: constant number expected");
-        v = value->fixnum;
-      }
-
-      switch (type->fixnum.kind) {
-      case FX_CHAR:  _BYTE(NUM(v)); break;
-      case FX_SHORT: _WORD(NUM(v)); break;
-      case FX_LONG:  _QUAD(NUM(v)); break;
-      case FX_LLONG: _QUAD(NUM(v)); break;
-      default:
-        assert(false);
-        // Fallthrough
-      case FX_INT: case FX_ENUM:
-        _LONG(NUM(v));
-        break;
-      }
-    }
-    break;
 #ifndef __NO_FLONUM
   case TY_FLONUM:
     switch (type->flonum.kind) {
@@ -139,17 +114,18 @@ static void construct_initial_value(const Type *type, const Initializer *init) {
     }
     break;
 #endif
+  case TY_FIXNUM:
   case TY_PTR:
-    if (init == NULL) {
-      _QUAD(NUM(0));
-    } else {
-      assert(init->kind == IK_SINGLE);
+    {
       Expr *var = NULL;
       Fixnum offset = 0;
-      eval_initial_value(init->single, &var, &offset);
-
+      if (init != NULL) {
+        assert(init->kind == IK_SINGLE);
+        eval_initial_value(init->single, &var, &offset);
+      }
+      const char *output;
       if (var == NULL) {
-        _QUAD(NUM(offset));
+        output = NUM(offset);
       } else {
         const Name *name = var->var.name;
         Scope *scope;
@@ -166,9 +142,25 @@ static void construct_initial_value(const Type *type, const Initializer *init) {
           label = MANGLE(label);
 
         if (offset == 0) {
-          _QUAD(label);
+          output = label;
         } else {
-          _QUAD(fmt("%s + %" PRIdPTR, label, offset));
+          output = fmt("%s + %" PRIdPTR, label, offset);
+        }
+      }
+      if (type->kind == TY_PTR) {
+        _QUAD(output);
+      } else {
+        switch (type->fixnum.kind) {
+        case FX_CHAR:  _BYTE(output); break;
+        case FX_SHORT: _WORD(output); break;
+        case FX_LONG:  _QUAD(output); break;
+        case FX_LLONG: _QUAD(output); break;
+        default:
+          assert(false);
+          // Fallthrough
+        case FX_INT: case FX_ENUM:
+          _LONG(output);
+          break;
         }
       }
     }
