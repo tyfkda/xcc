@@ -200,6 +200,37 @@ static void ir_out(IR *ir) {
     }
     break;
 
+  case IR_CMP:
+    {
+      assert(!(ir->opr1->flag & VRF_CONST));
+      assert(0 <= ir->size && ir->size < kPow2TableSize);
+      int pow = kPow2Table[ir->size];
+      assert(0 <= pow && pow < 4);
+      const char **regs = kRegSizeTable[pow];
+      if (ir->opr2->flag & VRF_CONST)
+        CMP(regs[ir->opr1->phys], IM(ir->opr2->fixnum));
+      else
+        CMP(regs[ir->opr1->phys], regs[ir->opr2->phys]);
+    }
+    break;
+
+  case IR_JMP:
+    switch (ir->jmp.cond) {
+    case COND_ANY: BRANCH(fmt_name(ir->jmp.bb->label)); break;
+    case COND_EQ:  Bcc(CEQ, fmt_name(ir->jmp.bb->label)); break;
+    case COND_NE:  Bcc(CNE, fmt_name(ir->jmp.bb->label)); break;
+    case COND_LT:  Bcc(CLT, fmt_name(ir->jmp.bb->label)); break;
+    case COND_GT:  Bcc(CGT, fmt_name(ir->jmp.bb->label)); break;
+    case COND_LE:  Bcc(CLE, fmt_name(ir->jmp.bb->label)); break;
+    case COND_GE:  Bcc(CGE, fmt_name(ir->jmp.bb->label)); break;
+    case COND_ULT: Bcc(CLO, fmt_name(ir->jmp.bb->label)); break;
+    case COND_UGT: Bcc(CHI, fmt_name(ir->jmp.bb->label)); break;
+    case COND_ULE: Bcc(CLS, fmt_name(ir->jmp.bb->label)); break;
+    case COND_UGE: Bcc(CHS, fmt_name(ir->jmp.bb->label)); break;
+    default: assert(false); break;
+    }
+    break;
+
   default: assert(false); break;
   }
 }

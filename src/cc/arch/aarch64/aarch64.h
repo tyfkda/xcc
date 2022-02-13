@@ -99,6 +99,18 @@
 #define LR    "lr"  // x30
 #define SP    "sp"  // x31
 
+// Condition
+#define CEQ  "eq"
+#define CNE  "ne"
+#define CLT  "lt"
+#define CGT  "gt"
+#define CLE  "le"
+#define CGE  "ge"
+#define CLO  "lo"
+#define CHI  "hi"
+#define CLS  "ls"
+#define CHS  "hs"
+
 #define MOV(o1, o2)           EMIT_ASM2("mov", o1, o2)
 #define MOVK(o1, o2, o3)      EMIT_ASM3("movk", o1, o2, o3)
 #define ADD(o1, o2, o3)       EMIT_ASM3("add", o1, o2, o3)
@@ -107,6 +119,9 @@
 #define SDIV(o1, o2, o3)      EMIT_ASM3("sdiv", o1, o2, o3)
 #define UDIV(o1, o2, o3)      EMIT_ASM3("udiv", o1, o2, o3)
 #define MSUB(o1, o2, o3, o4)  EMIT_ASM4("msub", o1, o2, o3, o4)
+#define CMP(o1, o2)           EMIT_ASM2("cmp", o1, o2)
+#define BRANCH(o1)            EMIT_ASM1("b", o1)
+#define Bcc(c, o1)            EMIT_ASM1("b" c, o1)
 #define RET()                 EMIT_ASM0("ret")
 
 #define _BYTE(x)       EMIT_ASM1(".byte", x)
