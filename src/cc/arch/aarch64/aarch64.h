@@ -24,6 +24,15 @@
 #ifndef IM
 #define IM(x)  im(x)
 #endif
+#ifndef IMMEDIATE_OFFSET
+#define IMMEDIATE_OFFSET(reg, ofs)  immediate_offset(reg, ofs)
+#endif
+#ifndef PRE_INDEX
+#define PRE_INDEX(reg, ofs)  pre_index(reg, ofs)
+#endif
+#ifndef POST_INDEX
+#define POST_INDEX(reg, ofs)  post_index(reg, ofs)
+#endif
 #ifndef MANGLE
 #define MANGLE(label)  mangle(label)
 #endif
@@ -113,6 +122,8 @@
 
 #define MOV(o1, o2)           EMIT_ASM2("mov", o1, o2)
 #define MOVK(o1, o2, o3)      EMIT_ASM3("movk", o1, o2, o3)
+#define LDR(o1, o2)           EMIT_ASM2("ldr", o1, o2)
+#define STR(o1, o2)           EMIT_ASM2("str", o1, o2)
 #define ADD(o1, o2, o3)       EMIT_ASM3("add", o1, o2, o3)
 #define SUB(o1, o2, o3)       EMIT_ASM3("sub", o1, o2, o3)
 #define MUL(o1, o2, o3)       EMIT_ASM3("mul", o1, o2, o3)
@@ -122,6 +133,8 @@
 #define CMP(o1, o2)           EMIT_ASM2("cmp", o1, o2)
 #define BRANCH(o1)            EMIT_ASM1("b", o1)
 #define Bcc(c, o1)            EMIT_ASM1("b" c, o1)
+#define BL(o1)                EMIT_ASM1("bl", o1)
+#define BLR(o1)               EMIT_ASM1("blr", o1)
 #define RET()                 EMIT_ASM0("ret")
 
 #define _BYTE(x)       EMIT_ASM1(".byte", x)

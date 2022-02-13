@@ -29,6 +29,8 @@ const char *kRegSizeTable[][7] = {
   {X20, X21, X22, X23, X24, X25, X26},
 };
 
+#define kReg64s  (kRegSizeTable[3])
+
 const char *kRetRegTable[] = {W0, W0, W0, X0};
 
 const char *kTmpRegTable[] = {W9, W9, W9, X9};
@@ -228,6 +230,31 @@ static void ir_out(IR *ir) {
     case COND_ULE: Bcc(CLS, fmt_name(ir->jmp.bb->label)); break;
     case COND_UGE: Bcc(CHS, fmt_name(ir->jmp.bb->label)); break;
     default: assert(false); break;
+    }
+    break;
+
+  case IR_PRECALL:
+    break;
+
+  case IR_CALL:
+    {
+      if (ir->call.label != NULL) {
+        char *label = fmt_name(ir->call.label);
+        if (ir->call.global)
+          label = MANGLE(label);
+        BL(quote_label(label));
+      } else {
+        assert(!(ir->opr1->flag & VRF_CONST));
+        BLR(kReg64s[ir->opr1->phys]);
+      }
+
+      assert(0 <= ir->size && ir->size < kPow2TableSize);
+      if (ir->size > 0) {
+        int pow = kPow2Table[ir->size];
+        assert(0 <= pow && pow < 4);
+        const char **regs = kRegSizeTable[pow];
+        MOV(regs[ir->dst->phys], kRetRegTable[pow]);
+      }
     }
     break;
 

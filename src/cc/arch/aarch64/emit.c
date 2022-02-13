@@ -44,6 +44,18 @@ char *im(intptr_t x) {
   return fmt("#%" PRIdPTR, x);
 }
 
+char *immediate_offset(const char *reg, int offset) {
+  return fmt("[%s,#%d]", reg, offset);
+}
+
+char *pre_index(const char *reg, int offset) {
+  return fmt("[%s,#%d]!", reg, offset);
+}
+
+char *post_index(const char *reg, int offset) {
+  return fmt("[%s],#%d", reg, offset);
+}
+
 char *mangle(char *label) {
 #ifdef MANGLE_PREFIX
   return fmt(MANGLE_PREFIX "%s", label);

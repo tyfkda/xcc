@@ -107,6 +107,7 @@ compile_error() {
 
 try 'calc' 5 'int x = 1; return x * 2 + 3;'
 try 'if' 3 'int x = 1; if (x == 0) x = 2; else x = 3; return x;'
+try_direct 'func' 123 'int sub(){return 123;} int main(){return sub();}'
 exit 0
 
 try_output 'write' 'hello' "write(1, \"hello\\\\n\", 6);"

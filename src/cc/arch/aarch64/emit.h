@@ -11,6 +11,9 @@ char *fmt(const char *s, ...);
 char *fmt_name(const Name *name);
 char *quote_label(char *label);
 char *im(intptr_t x);  // $x
+char *immediate_offset(const char *reg, int offset);
+char *pre_index(const char *reg, int offset);
+char *post_index(const char *reg, int offset);
 char *mangle(char *label);
 
 void init_emit(FILE *fp);

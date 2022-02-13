@@ -42,8 +42,14 @@ static void emit_defun(Function *func) {
   EMIT_ALIGN(4);
   EMIT_LABEL(label);
 
+  // Prologue
+  STR(LR, PRE_INDEX(SP, -16));
+
   FuncBackend *fnbe = func->extra;
   emit_bb_irs(fnbe->bbcon);
+
+  // Epilogue
+  LDR(LR, POST_INDEX(SP, 16));
 
   RET();
 }
