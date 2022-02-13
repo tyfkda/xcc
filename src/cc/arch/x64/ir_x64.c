@@ -212,10 +212,19 @@ static void ir_out(IR *ir) {
       int pow = kPow2Table[ir->size];
       assert(0 <= pow && pow < 4);
       const char **regs = kRegSizeTable[pow];
-      if (ir->opr2->flag & VRF_CONST)
-        ADD(IM(ir->opr2->fixnum), regs[ir->dst->phys]);
-      else
-        ADD(regs[ir->opr2->phys], regs[ir->dst->phys]);
+      const char *dst = regs[ir->dst->phys];
+      if (ir->opr2->flag & VRF_CONST) {
+        switch (ir->opr2->fixnum) {
+        case 0: break;
+        case 1:  INC(dst); break;
+        case -1: DEC(dst); break;
+        default:
+          ADD(IM(ir->opr2->fixnum), dst);
+          break;
+        }
+      } else {
+        ADD(regs[ir->opr2->phys], dst);
+      }
     }
     break;
 
@@ -238,10 +247,19 @@ static void ir_out(IR *ir) {
       int pow = kPow2Table[ir->size];
       assert(0 <= pow && pow < 4);
       const char **regs = kRegSizeTable[pow];
-      if (ir->opr2->flag & VRF_CONST)
-        SUB(IM(ir->opr2->fixnum), regs[ir->dst->phys]);
-      else
-        SUB(regs[ir->opr2->phys], regs[ir->dst->phys]);
+      const char *dst = regs[ir->dst->phys];
+      if (ir->opr2->flag & VRF_CONST) {
+        switch (ir->opr2->fixnum) {
+        case 0: break;
+        case 1:  DEC(dst); break;
+        case -1: INC(dst); break;
+        default:
+          SUB(IM(ir->opr2->fixnum), dst);
+          break;
+        }
+      } else {
+        SUB(regs[ir->opr2->phys], dst);
+      }
     }
     break;
 
@@ -524,56 +542,6 @@ static void ir_out(IR *ir) {
       } else {
         const char *opr2 = (ir->opr2->flag & VRF_CONST) ? IM(ir->opr2->fixnum) : regs[ir->opr2->phys];
         CMP(opr2, opr1);
-      }
-    }
-    break;
-
-  case IR_INC:
-    {
-      assert(!(ir->opr1->flag & VRF_CONST));
-      const char *reg = INDIRECT(kReg64s[ir->opr1->phys], NULL, 1);
-      if (ir->value == 1) {
-        switch (ir->size) {
-        case 1: INCB(reg); break;
-        case 2: INCW(reg); break;
-        case 4: INCL(reg); break;
-        case 8: INCQ(reg); break;
-        default: assert(false); break;
-        }
-      } else {
-        assert(ir->size == 8);
-        intptr_t value = ir->value;
-        if (value <= ((1L << 31) - 1)) {
-          ADDQ(IM(value), reg);
-        } else {
-          MOV(IM(value), RAX);
-          ADD(RAX, reg);
-        }
-      }
-    }
-    break;
-
-  case IR_DEC:
-    {
-      assert(!(ir->opr1->flag & VRF_CONST));
-      const char *reg = INDIRECT(kReg64s[ir->opr1->phys], NULL, 1);
-      if (ir->value == 1) {
-        switch (ir->size) {
-        case 1: DECB(reg); break;
-        case 2: DECW(reg); break;
-        case 4: DECL(reg); break;
-        case 8: DECQ(reg); break;
-        default: assert(false); break;
-        }
-      } else {
-        assert(ir->size == 8);
-        intptr_t value = ir->value;
-        if (value <= ((1L << 31) - 1)) {
-          SUBQ(IM(value), reg);
-        } else {
-          MOV(IM(value), RAX);
-          SUB(RAX, reg);
-        }
       }
     }
     break;

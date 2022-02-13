@@ -33,7 +33,6 @@ static void dump_vreg(FILE *fp, VReg *vreg, int size) {
 }
 
 static void dump_ir(FILE *fp, IR *ir) {
-  static char *kSize[] = {"0", "b", "w", "3", "d", "5", "6", "7", ""};
   static char *kCond[] = {"__", "MP", "EQ", "NE", "LT", "LE", "GE", "GT", "ULT", "ULE", "UGE", "UGT"};
 
   switch (ir->kind) {
@@ -55,8 +54,6 @@ static void dump_ir(FILE *fp, IR *ir) {
   case IR_LSHIFT: fprintf(fp, "\tLSHIFT\t"); dump_vreg(fp, ir->dst, ir->size); fprintf(fp, " = "); dump_vreg(fp, ir->opr1, ir->size); fprintf(fp, " << "); dump_vreg(fp, ir->opr2, ir->size); fprintf(fp, "\n"); break;
   case IR_RSHIFT: fprintf(fp, "\tRSHIFT\t"); dump_vreg(fp, ir->dst, ir->size); fprintf(fp, " = "); dump_vreg(fp, ir->opr1, ir->size); fprintf(fp, " >> "); dump_vreg(fp, ir->opr2, ir->size); fprintf(fp, "\n"); break;
   case IR_CMP:    fprintf(fp, "\tCMP\t"); dump_vreg(fp, ir->opr1, ir->size); fprintf(fp, " - "); dump_vreg(fp, ir->opr2, ir->size); fprintf(fp, "\n"); break;
-  case IR_INC:    fprintf(fp, "\tINC\t"); dump_vreg(fp, ir->opr1, WORD_SIZE); fprintf(fp, "%s += %" PRIdPTR "\n", kSize[ir->size], ir->value); break;
-  case IR_DEC:    fprintf(fp, "\tDEC\t"); dump_vreg(fp, ir->opr1, WORD_SIZE); fprintf(fp, "%s -= %" PRIdPTR "\n", kSize[ir->size], ir->value); break;
   case IR_NEG:    fprintf(fp, "\tNEG\t"); dump_vreg(fp, ir->dst, ir->size); fprintf(fp, " = -"); dump_vreg(fp, ir->opr1, ir->size); fprintf(fp, "\n"); break;
   case IR_BITNOT: fprintf(fp, "\tBITNOT\t"); dump_vreg(fp, ir->dst, ir->size); fprintf(fp, " = ~"); dump_vreg(fp, ir->opr1, ir->size); fprintf(fp, "\n"); break;
   case IR_COND:    fprintf(fp, "\tCOND\t"); dump_vreg(fp, ir->dst, 4); fprintf(fp, " = %s\n", kCond[ir->cond.kind]); break;

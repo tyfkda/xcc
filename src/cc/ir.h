@@ -71,8 +71,6 @@ enum IrKind {
   IR_DIVU,
   IR_MODU,
   IR_CMP,     // opr1 - opr2
-  IR_INC,     // opr1 += size
-  IR_DEC,     // dst = -opr1
   IR_NEG,
   IR_BITNOT,
   IR_COND,    // dst <- flag
@@ -160,7 +158,6 @@ VReg *new_ir_iofs(const Name *label, bool global);
 VReg *new_ir_sofs(VReg *src);
 void new_ir_store(VReg *dst, VReg *src);
 void new_ir_cmp(VReg *opr1, VReg *opr2);
-void new_ir_incdec(enum IrKind kind, VReg *reg, int size, intptr_t value);
 VReg *new_ir_cond(enum ConditionKind cond);
 void new_ir_jmp(enum ConditionKind cond, BB *bb);
 IR *new_ir_precall(int arg_count, int stack_args_size);

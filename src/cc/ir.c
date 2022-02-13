@@ -242,13 +242,6 @@ void new_ir_cmp(VReg *opr1, VReg *opr2) {
   ir->size = opr1->vtype->size;
 }
 
-void new_ir_incdec(enum IrKind kind, VReg *reg, int size, intptr_t value) {
-  IR *ir = new_ir(kind);
-  ir->opr1 = reg;
-  ir->size = size;
-  ir->value = value;
-}
-
 VReg *new_ir_cond(enum ConditionKind cond) {
   IR *ir = new_ir(IR_COND);
   ir->cond.kind = cond;

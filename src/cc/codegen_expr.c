@@ -770,9 +770,11 @@ VReg *gen_expr(Expr *expr) {
         return result;
       }
 #endif
-      new_ir_incdec(expr->kind == EX_PREINC ? IR_INC : IR_DEC,
-                    lval, type_size(expr->type), value);
-      VReg *result = new_ir_unary(IR_LOAD, lval, vtype);
+      VReg *val = new_ir_unary(IR_LOAD, lval, vtype);
+      VReg *num = new_const_vreg(value, vtype);
+      VReg *result = new_ir_bop(expr->kind == EX_PREINC ? IR_ADD : IR_SUB,
+                                val, num, vtype);
+      new_ir_store(lval, result);
       return result;
     }
 
@@ -822,8 +824,10 @@ VReg *gen_expr(Expr *expr) {
       }
 #endif
       VReg *result = new_ir_unary(IR_LOAD, lval, vtype);
-      new_ir_incdec(expr->kind == EX_POSTINC ? IR_INC : IR_DEC,
-                    lval, type_size(expr->type), value);
+      VReg *num = new_const_vreg(value, vtype);
+      VReg *added = new_ir_bop(expr->kind == EX_POSTINC ? IR_ADD : IR_SUB,
+                               result, num, vtype);
+      new_ir_store(lval, added);
       return result;
     }
 
