@@ -31,7 +31,7 @@ char *strdup_(const char *str) {
 
 char *strndup_(const char *str, size_t size) {
   char *dup = malloc(size + 1);
-  strncpy(dup, str, size);
+  memcpy(dup, str, size);
   dup[size] = '\0';
   return dup;
 }

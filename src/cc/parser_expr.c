@@ -1149,36 +1149,38 @@ Vector *parse_funparams(bool *pvaargs) {
       const Type *type;
       int storage;
       Token *ident;
-      if (!parse_var_def(NULL, &type, &storage, &ident))
+      if (!parse_var_def(NULL, &type, &storage, &ident)) {
         parse_error(NULL, "type expected");
-      if (storage & VS_STATIC)
-        parse_error_nofatal(ident, "`static' for function parameter");
-      if (storage & VS_EXTERN)
-        parse_error_nofatal(ident, "`extern' for function parameter");
-      if (storage & VS_TYPEDEF)
-        parse_error_nofatal(ident, "`typedef' for function parameter");
-
-      if (params->len == 0) {
-        if (type->kind == TY_VOID) {  // fun(void)
-          if (ident != NULL || !match(TK_RPAR))
-            parse_error(NULL, "`)' expected");
-          break;
-        }
       } else {
-        not_void(type, NULL);
-      }
+        if (storage & VS_STATIC)
+          parse_error_nofatal(ident, "`static' for function parameter");
+        if (storage & VS_EXTERN)
+          parse_error_nofatal(ident, "`extern' for function parameter");
+        if (storage & VS_TYPEDEF)
+          parse_error_nofatal(ident, "`typedef' for function parameter");
 
-      // Treat array or function as its pointer type automatically.
-      switch (type->kind) {
-      case TY_ARRAY:  type = array_to_ptr(type); break;
-      case TY_FUNC:   type = ptrof(type); break;
-      default: break;
-      }
+        if (params->len == 0) {
+          if (type->kind == TY_VOID) {  // fun(void)
+            if (ident != NULL || !match(TK_RPAR))
+              parse_error(NULL, "`)' expected");
+            break;
+          }
+        } else {
+          not_void(type, NULL);
+        }
 
-      if (ident != NULL && var_find(params, ident->ident) >= 0)
-        parse_error_nofatal(ident, "`%.*s' already defined", ident->ident->bytes, ident->ident->chars);
-      else
-        var_add(params, ident != NULL ? ident->ident : NULL, type, storage);
+        // Treat array or function as its pointer type automatically.
+        switch (type->kind) {
+        case TY_ARRAY:  type = array_to_ptr(type); break;
+        case TY_FUNC:   type = ptrof(type); break;
+        default: break;
+        }
+
+        if (ident != NULL && var_find(params, ident->ident) >= 0)
+          parse_error_nofatal(ident, "`%.*s' already defined", ident->ident->bytes, ident->ident->chars);
+        else
+          var_add(params, ident != NULL ? ident->ident : NULL, type, storage);
+      }
       if (match(TK_RPAR))
         break;
       consume(TK_COMMA, "Comma or `)' expected");
@@ -1200,19 +1202,21 @@ static StructInfo *parse_struct(bool is_union) {
       const Type *type;
       int storage;
       Token *ident;
-      if (!parse_var_def(&rawType, &type, &storage, &ident))
+      if (!parse_var_def(&rawType, &type, &storage, &ident)) {
         parse_error(NULL, "type expected");
-      not_void(type, NULL);
-      if (type->kind == TY_STRUCT) {
-        ensure_struct((Type*)type, ident, curscope);
-        // Allow ident to be null for anonymous struct member.
       } else {
-        if (ident == NULL)
-          parse_error_nofatal(NULL, "`ident' expected");
+        not_void(type, NULL);
+        if (type->kind == TY_STRUCT) {
+          ensure_struct((Type *)type, ident, curscope);
+          // Allow ident to be null for anonymous struct member.
+        } else {
+          if (ident == NULL)
+            parse_error_nofatal(NULL, "`ident' expected");
+        }
+        const Name *name = ident != NULL ? ident->ident : NULL;
+        if (!add_struct_member(members, name, type))
+          parse_error_nofatal(ident, "`%.*s' already defined", name->bytes, name->chars);
       }
-      const Name *name = ident != NULL ? ident->ident : NULL;
-      if (!add_struct_member(members, name, type))
-        parse_error_nofatal(ident, "`%.*s' already defined", name->bytes, name->chars);
 
       if (match(TK_COMMA))
         continue;
