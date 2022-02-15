@@ -21,7 +21,6 @@ extern const char SP_NAME[];
 extern const char MEMCPY_NAME[];
 extern const char MEMSET_NAME[];
 extern const char VA_ARGS_NAME[];
-extern const char RETVAL_NAME[];
 
 extern DataStorage *code;
 extern Table func_info_table;
@@ -33,8 +32,6 @@ extern bool verbose;
 
 #define VERBOSES(str)  do { if (verbose) printf("%s", str); } while (0)
 #define VERBOSE(fmt, ...)  do { if (verbose) printf(fmt, __VA_ARGS__); } while (0)
-
-extern const char RETVAL_NAME[];
 
 typedef struct {
   Function *func;

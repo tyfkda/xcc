@@ -1163,12 +1163,6 @@ static void gen_return(Stmt *stmt) {
   if (stmt->return_.val != NULL) {
     Expr *val = stmt->return_.val;
     gen_expr(val, true);
-
-    const Name *name = alloc_name(RETVAL_NAME, NULL, false);
-    VarInfo *varinfo = scope_find(curfunc->scopes->data[0], name, NULL);
-    assert(varinfo != NULL);
-    ADD_CODE(OP_LOCAL_SET);
-    ADD_ULEB128(varinfo->local.reg->prim.local_index);
   }
   ADD_CODE(OP_BR);
   ADD_ULEB128(cur_depth - 1);
@@ -1412,7 +1406,20 @@ static void gen_defun(Function *func) {
 
   // Statements
   curscope = func->scopes->data[0];
-  ADD_CODE(OP_BLOCK, WT_VOID);
+  if (!is_prim_type(functype->func.ret)) {
+    ADD_CODE(OP_BLOCK, WT_VOID);
+  } else {
+    unsigned char wt = to_wtype(functype->func.ret);
+    ADD_CODE(OP_BLOCK, wt);
+    // Push dummy return value to avoid empty fallthrough (or no return statement).
+    switch (wt) {
+    case WT_I32:  ADD_CODE(OP_I32_CONST); ADD_LEB128(0); break;
+    case WT_I64:  ADD_CODE(OP_I64_CONST); ADD_LEB128(0); break;
+    case WT_F32:  ADD_CODE(OP_F32_CONST); ADD_F32(0); break;
+    case WT_F64:  ADD_CODE(OP_F64_CONST); ADD_F64(0); break;
+    default: assert(false); break;
+    }
+  }
   cur_depth += 1;
   gen_stmts(func->stmts);
 
@@ -1425,13 +1432,6 @@ static void gen_defun(Function *func) {
   if (frame_size > 0) {
     // global.sp = bp;
     gen_expr_stmt(new_expr_bop(EX_ASSIGN, &tyVoid, NULL, spvar, bpvar));
-  }
-  if (functype->func.ret->kind != TY_VOID) {
-    const Name *name = alloc_name(RETVAL_NAME, NULL, false);
-    VarInfo *varinfo = scope_find(func->scopes->data[0], name, NULL);
-    assert(varinfo != NULL);
-    ADD_CODE(OP_LOCAL_GET);
-    ADD_ULEB128(varinfo->local.reg->prim.local_index);
   }
 
   ADD_CODE(OP_END);

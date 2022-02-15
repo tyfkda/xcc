@@ -17,7 +17,6 @@ const char SP_NAME[] = "$_SP";  // Hidden variable name for stack pointer (globa
 const char MEMCPY_NAME[] = "_memcpy";
 const char MEMSET_NAME[] = "_memset";
 const char VA_ARGS_NAME[] = ".._VA_ARGS";
-const char RETVAL_NAME[] = ".._RETVAL";
 
 Table func_info_table;
 Table gvar_info_table;
@@ -584,9 +583,6 @@ static void traverse_defun(Function *func) {
   if (functype->func.ret->kind != TY_VOID) {
     if (!is_prim_type(functype->func.ret))
       parse_error(NULL, "`%.*s': return type except primitive is not supported (yet)", func->name->bytes, func->name->chars);
-    // Add local variable for return value.
-    const Name *name = alloc_name(RETVAL_NAME, NULL, false);
-    scope_add(func->scopes->data[0], name, functype->func.ret, 0);
   }
   if (functype->func.params == NULL) {
     // Treat old-style function as a no-parameter function.
