@@ -22,13 +22,21 @@ int main(int argc, char *argv[]) {
   define_macro("__NO_FLONUM");
 #endif
 
+  enum {
+    OPT_ISYSTEM = 128,
+    OPT_IDIRAFTER,
+  };
+
   static const struct option options[] = {
     {"I", required_argument},  // Add include path
+    {"isystem", required_argument, OPT_ISYSTEM},  // Add system include path
+    {"idirafter", required_argument, OPT_IDIRAFTER},  // Add include path (after)
     {"D", required_argument},  // Define macro
     {"-version", no_argument, 'V'},
     {0},
   };
   int opt;
+  Vector *idirafter = new_vector();
   while ((opt = optparse(argc, argv, options)) != -1) {
     switch (opt) {
     case 'V':
@@ -37,11 +45,20 @@ int main(int argc, char *argv[]) {
     case 'I':
       add_system_inc_path(optarg);
       break;
+    case OPT_ISYSTEM:
+      add_system_inc_path(optarg);
+      break;
+    case OPT_IDIRAFTER:
+      vec_push(idirafter, optarg);
+      break;
     case 'D':
       define_macro(optarg);
       break;
     }
   }
+
+  for (int i = 0; i < idirafter->len; ++i)
+    add_system_inc_path(idirafter->data[i]);
 
   int iarg = optind;
   if (iarg < argc) {

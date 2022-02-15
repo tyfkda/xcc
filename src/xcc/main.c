@@ -288,6 +288,8 @@ int main(int argc, char *argv[]) {
     OPT_NODEFAULTLIBS,
     OPT_NOSTDLIB,
     OPT_NOSTDINC,
+    OPT_ISYSTEM,
+    OPT_IDIRAFTER,
 
     OPT_ANSI,
     OPT_STD,
@@ -301,6 +303,8 @@ int main(int argc, char *argv[]) {
     {"E", no_argument},  // Output preprocess result
     {"S", no_argument},  // Output assembly code
     {"I", required_argument},  // Add include path
+    {"isystem", required_argument, OPT_ISYSTEM},  // Add system include path
+    {"idirafter", required_argument, OPT_IDIRAFTER},  // Add include path (after)
     {"D", required_argument},  // Define macro
     {"o", required_argument},  // Specify output filename
     {"x", required_argument},  // Specify code type
@@ -336,6 +340,14 @@ int main(int argc, char *argv[]) {
       return 0;
     case 'I':
       vec_push(cpp_cmd, "-I");
+      vec_push(cpp_cmd, optarg);
+      break;
+    case OPT_ISYSTEM:
+      vec_push(cpp_cmd, "-isystem");
+      vec_push(cpp_cmd, optarg);
+      break;
+    case OPT_IDIRAFTER:
+      vec_push(cpp_cmd, "-idirafter");
       vec_push(cpp_cmd, optarg);
       break;
     case 'D':
@@ -425,7 +437,7 @@ int main(int argc, char *argv[]) {
   }
 
   if (!nostdinc) {
-    vec_push(cpp_cmd, "-I");
+    vec_push(cpp_cmd, "-idirafter");
     vec_push(cpp_cmd, cat_path(root, "include"));
   }
 
