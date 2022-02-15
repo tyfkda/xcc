@@ -26,6 +26,29 @@ bool verbose;
 
 ////////////////////////////////////////////////
 
+static void eval_initial_value_member(Expr *expr, Expr **pvar, Fixnum *poffset) {
+  switch (expr->kind) {
+  case EX_VAR:
+    assert(*pvar == NULL);
+    *pvar = expr;
+    break;
+  case EX_MEMBER:
+    {
+      eval_initial_value_member(expr->member.target, pvar, poffset);
+
+      const Type *type = expr->member.target->type;
+      if (ptr_or_array(type))
+        type = type->pa.ptrof;
+      assert(type->kind == TY_STRUCT);
+      const Vector *members = type->struct_.info->members;
+      const MemberInfo *member = members->data[expr->member.index];
+      *poffset += member->offset;
+    }
+    break;
+  default: assert(!"illegal"); break;
+  }
+}
+
 static void eval_initial_value(Expr *expr, Expr **pvar, Fixnum *poffset) {
   switch (expr->kind) {
   case EX_CAST:
@@ -34,15 +57,19 @@ static void eval_initial_value(Expr *expr, Expr **pvar, Fixnum *poffset) {
   case EX_REF:
     {
       Expr *sub = expr->unary.sub;
-      if (sub->kind == EX_DEREF) {
+      switch (sub->kind) {
+      case EX_DEREF:
         eval_initial_value(sub->unary.sub, pvar, poffset);
-      } else {
-        assert(sub->kind == EX_VAR);
-        if (sub->type->kind == TY_FUNC) {
-          *poffset = get_indirect_function_index(sub->var.name);
-        } else {
-          eval_initial_value(sub, pvar, poffset);
-        }
+        break;
+      case EX_VAR:
+        eval_initial_value(sub, pvar, poffset);
+        break;
+      case EX_MEMBER:
+        eval_initial_value_member(sub, pvar, poffset);
+        break;
+      default:
+        assert(false);
+        break;
       }
     }
     break;
@@ -144,38 +171,21 @@ static void construct_initial_value(DataStorage *ds, const Type *type, const Ini
   case TY_FIXNUM:
   case TY_PTR:
     {
+      Expr *var = NULL;
       Fixnum v = 0;
       if (init != NULL) {
         assert(init->kind == IK_SINGLE);
-        Expr *value = init->single;
-        switch (value->kind) {
-        case EX_FIXNUM:
-          v = value->fixnum;
-          break;
-        case EX_REF:
-          {
-            Expr *sub = value->unary.sub;
-            if (sub->type->kind == TY_FUNC) {
-              v = get_indirect_function_index(sub->var.name);
-            } else {
-              assert(sub->kind == EX_VAR);
-              const GVarInfo *info = get_gvar_info(sub);
-              assert(info->varinfo->storage & VS_REF_TAKEN);
-              v = info->non_prim.address;
-            }
-          }
-          break;
-        case EX_VAR:
-          if (value->type->kind == TY_FUNC) {
-            v = get_indirect_function_index(value->var.name);
-          } else {
-            assert(is_global_scope(value->var.scope));
-            GVarInfo *info = get_gvar_info(value);
-            assert(!is_prim_type(info->varinfo->type) || (info->varinfo->storage & VS_REF_TAKEN));
-            v = info->non_prim.address;
-          }
-          break;
-        default: assert(false); break;
+        eval_initial_value(init->single, &var, &v);
+      }
+      if (var != NULL) {
+        if (var->type->kind == TY_FUNC) {
+          assert(v == 0);
+          v = get_indirect_function_index(var->var.name);
+        } else {
+          assert(var->kind == EX_VAR);
+          const GVarInfo *info = get_gvar_info(var);
+          assert(!is_prim_type(info->varinfo->type) || (info->varinfo->storage & VS_REF_TAKEN));
+          v += info->non_prim.address;
         }
       }
 

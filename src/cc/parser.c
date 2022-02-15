@@ -383,6 +383,78 @@ static Initializer *flatten_initializer(const Type *type, Initializer *init) {
   return init;
 }
 
+static Expr *check_global_initializer_fixnum(const Type *type, Expr *value) {
+  switch (value->kind) {
+  case EX_CAST:
+    value->unary.sub = make_cast(value->type, value->token, check_global_initializer_fixnum(value->unary.sub->type, value->unary.sub), true);
+    break;
+  case EX_REF:
+    {
+      Expr *ref = value->unary.sub;
+      while (ref->kind == EX_MEMBER) {
+        if (ref->token->kind != TK_DOT) {
+          parse_error_nofatal(ref->token, "invalid initializer");
+        }
+        ref = ref->member.target;
+      }
+      if (ref->kind == EX_VAR) {
+        const Name *name = ref->var.name;
+        Scope *scope;
+        VarInfo *varinfo = scope_find(ref->var.scope, name, &scope);
+        assert(varinfo != NULL);
+        if (!is_global_scope(scope)) {
+          if (!(varinfo->storage & VS_STATIC))
+            parse_error(ref->token, "Allowed global reference only");
+          assert(varinfo->static_.gvar != NULL);
+        }
+      } else {
+        parse_error(ref->token, "pointer initializer must be variable");
+      }
+    }
+    break;
+  case EX_VAR:
+    {
+      Scope *scope;
+      VarInfo *varinfo = scope_find(value->var.scope, value->var.name, &scope);
+      assert(varinfo != NULL);
+      if (!is_global_scope(scope)) {
+        if (!(varinfo->storage & VS_STATIC))
+          parse_error(value->token, "Allowed global reference only");
+        varinfo = varinfo->static_.gvar;
+        assert(varinfo != NULL);
+      }
+
+      if ((varinfo->type->kind != TY_ARRAY && varinfo->type->kind != TY_FUNC) ||
+          !can_cast(type, varinfo->type, is_zero(value), false))
+        parse_error(value->token, "Illegal type");
+    }
+    break;
+  case EX_ADD:
+  case EX_SUB:
+    value->bop.lhs = check_global_initializer_fixnum(value->bop.lhs->type, value->bop.lhs);
+    value->bop.rhs = check_global_initializer_fixnum(value->bop.rhs->type, value->bop.rhs);
+    break;
+  case EX_FIXNUM:
+#ifndef __NO_FLONUM
+  case EX_FLONUM:
+#endif
+    if (!can_cast(type, value->type, is_zero(value), false)) {
+      parse_error_nofatal(value->token, "Illegal type");
+    } else {
+      value = make_cast(type, value->token, value, false);
+    }
+    break;
+  case EX_STR:
+    // Create string and point to it.
+    value = str_to_char_array_var(curscope, value, toplevel);
+    break;
+  default:
+    parse_error(value->token, "Initializer type error");
+    break;
+  }
+  return value;
+}
+
 static Initializer *check_global_initializer(const Type *type, Initializer *init) {
   if (init == NULL)
     return NULL;
@@ -413,82 +485,8 @@ static Initializer *check_global_initializer(const Type *type, Initializer *init
   case TY_PTR:
     {
       assert(init->kind == IK_SINGLE);
-      Expr *value = init->single;
-      Expr *cast_expr = NULL;
-      while (value->kind == EX_CAST) {
-        cast_expr = value;
-        value = value->unary.sub;
-      }
-
-      switch (value->kind) {
-      case EX_REF:
-        {
-          value = value->unary.sub;
-          if (value->kind != EX_VAR)
-            parse_error(value->token, "pointer initializer must be variable");
-          const Name *name = value->var.name;
-          Scope *scope;
-          VarInfo *varinfo = scope_find(value->var.scope, name, &scope);
-          assert(varinfo != NULL);
-          if (!is_global_scope(scope)) {
-            if (!(varinfo->storage & VS_STATIC))
-              parse_error(value->token, "Allowed global reference only");
-            assert(varinfo->static_.gvar != NULL);
-          }
-          return init;
-        }
-      case EX_VAR:
-        {
-          Scope *scope;
-          VarInfo *varinfo = scope_find(value->var.scope, value->var.name, &scope);
-          assert(varinfo != NULL);
-          if (!is_global_scope(scope)) {
-            if (!(varinfo->storage & VS_STATIC))
-              parse_error(value->token, "Allowed global reference only");
-            varinfo = varinfo->static_.gvar;
-            assert(varinfo != NULL);
-          }
-
-          if ((varinfo->type->kind != TY_ARRAY && varinfo->type->kind != TY_FUNC) ||
-              (cast_expr == NULL && !can_cast(type, varinfo->type, is_zero(value), false)))
-            parse_error(value->token, "Illegal type");
-
-          return init;
-        }
-      case EX_ADD:
-      case EX_SUB:
-        return init;
-      case EX_FIXNUM:
-        return init;
-#ifndef __NO_FLONUM
-      case EX_FLONUM:
-        if (cast_expr == NULL) {
-          if (!can_cast(type, value->type, is_zero(value), false)) {
-            parse_error_nofatal(value->token, "Illegal type");
-          } else {
-            double flonum = init->single->flonum;
-            init->single = new_expr_fixlit(type, init->single->token, flonum);
-          }
-        }
-        return init;
-#endif
-      case EX_STR:
-        {
-          if (cast_expr == NULL && !can_cast(type, value->type, false, false))
-            parse_error(value->token, "Illegal type");
-
-          // Create string and point to it.
-          Expr *chars = str_to_char_array_var(curscope, value, toplevel);
-          if (cast_expr != NULL)
-            cast_expr->unary.sub = chars;
-          else
-            init->single = chars;
-          return init;
-        }
-      default:
-        break;
-      }
-      parse_error(value->token, "Initializer type error");
+      Expr *value = check_global_initializer_fixnum(type, init->single);
+      init->single = make_cast(type, init->single->token, value, false);
     }
     break;
   case TY_ARRAY:

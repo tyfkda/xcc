@@ -685,6 +685,21 @@ int main(void) {
     };
     expect("sc_struct", 55, sc_struct.x);
   }
+  {
+    static const struct {
+      int a;
+      struct {
+        int b;
+        struct {
+          int z;
+        } y;
+      } x;
+    } t = {
+      1, { 2, { 3 } }
+    };
+    static int *p = &t.x.y.z;
+    expect("&member initializer", 3, *p);
+  }
 
   {
     int desig[] = {[2] = 100, [1] 200};
