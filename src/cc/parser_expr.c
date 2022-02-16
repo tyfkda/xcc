@@ -412,6 +412,7 @@ Expr *new_expr_addsub(enum ExprKind kind, const Token *tok, Expr *lhs, Expr *rhs
       if (ltype->kind == TY_ARRAY)
         type = array_to_ptr(ltype);
       // lhs + ((size_t)rhs * sizeof(*lhs))
+      ensure_struct((Type*)type->pa.ptrof, tok, curscope);
       rhs = new_expr_num_bop(EX_MUL, rhs->token,
                              make_cast(&tySize, rhs->token, rhs, false),
                              new_expr_fixlit(&tySize, tok, type_size(type->pa.ptrof)), false);
@@ -423,6 +424,7 @@ Expr *new_expr_addsub(enum ExprKind kind, const Token *tok, Expr *lhs, Expr *rhs
       if (!same_type(ltype, rtype))
         parse_error(tok, "Different pointer diff");
       // ((size_t)lhs - (size_t)rhs) / sizeof(*lhs)
+      ensure_struct((Type*)ltype->pa.ptrof, tok, curscope);
       return new_expr_bop(EX_DIV, &tySSize, tok,
                           new_expr_bop(EX_SUB, &tySSize, tok, lhs, rhs),
                           new_expr_fixlit(&tySSize, tok, type_size(ltype->pa.ptrof)));
@@ -433,6 +435,7 @@ Expr *new_expr_addsub(enum ExprKind kind, const Token *tok, Expr *lhs, Expr *rhs
       if (type->kind == TY_ARRAY)
         type = array_to_ptr(type);
       // ((size_t)lhs * sizeof(*rhs)) + rhs
+      ensure_struct((Type*)type->pa.ptrof, tok, curscope);
       lhs = new_expr_num_bop(EX_MUL, lhs->token,
                              make_cast(&tySize, lhs->token, lhs, false),
                              new_expr_fixlit(&tySize, tok, type_size(type->pa.ptrof)), false);

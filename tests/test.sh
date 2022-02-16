@@ -149,6 +149,7 @@ try 'int static const' 34 'int static const a = 34; return a;'
 try 'struct static const' 67 'struct {int x;} static const a[] = {{67}}; return a[0].x;'
 try 'init struct contain union' 99 'struct { union { long a; char b; } x; int y; } static s = {.x={.b=88}, .y=99}; return s.y;'
 try 'sizeof(self) in initializer' 4 'int x = sizeof(x); return x;'
+try 'self referential struct' 1 'struct S {struct S *p;} *s = 0; return sizeof(s->p[0]) == sizeof(void*);'
 try_direct '(void)x;' 0 'void func(int x) { (void)x; } int main(){ func(123); return 0; }'
 try_output 'strings' 'hello world' "write(1, \"hello \" \"world\\\\n\", 12);"
 try_direct 'init union' 77 'union { int x; struct { char a; short b; } y; } u = {.y={.b=77}}; int main(){ return u.y.b; }'
