@@ -85,28 +85,46 @@ static enum ConditionKind gen_compare_expr(enum ExprKind kind, Expr *lhs, Expr *
   }
 
   VReg *lhs_reg = gen_expr(lhs);
-  if (rhs->kind == EX_FIXNUM &&
-      ((is_fixnum(lhs->type->kind) && lhs->type->fixnum.kind < FX_LONG) ||
-        is_im32(rhs->fixnum))) {
-    VReg *num = new_const_vreg(rhs->fixnum, to_vtype(rhs->type));
-    new_ir_cmp(lhs_reg, num);
-  } else {
-    switch (lhs->type->kind) {
-    case TY_FIXNUM: case TY_PTR:
-#ifndef __NO_FLONUM
-    case TY_FLONUM:
-#endif
-      break;
-    default: assert(false); break;
+  VReg *rhs_reg = gen_expr(rhs);
+  if ((rhs_reg->flag & VRF_CONST) != 0) {
+    if ((lhs_reg->flag & VRF_CONST) != 0) {
+      switch (cond) {
+      case COND_NONE:
+      case COND_ANY:
+        return cond;
+      case COND_EQ:  return lhs_reg->fixnum == rhs_reg->fixnum ? COND_ANY : COND_NONE;
+      case COND_NE:  return lhs_reg->fixnum != rhs_reg->fixnum ? COND_ANY : COND_NONE;
+      case COND_LT:  return lhs_reg->fixnum <  rhs_reg->fixnum ? COND_ANY : COND_NONE;
+      case COND_LE:  return lhs_reg->fixnum <= rhs_reg->fixnum ? COND_ANY : COND_NONE;
+      case COND_GE:  return lhs_reg->fixnum >= rhs_reg->fixnum ? COND_ANY : COND_NONE;
+      case COND_GT:  return lhs_reg->fixnum >  rhs_reg->fixnum ? COND_ANY : COND_NONE;
+      case COND_ULT: return (uintptr_t)lhs_reg->fixnum <  (uintptr_t)rhs_reg->fixnum ? COND_ANY : COND_NONE;
+      case COND_ULE: return (uintptr_t)lhs_reg->fixnum <= (uintptr_t)rhs_reg->fixnum ? COND_ANY : COND_NONE;
+      case COND_UGE: return (uintptr_t)lhs_reg->fixnum >= (uintptr_t)rhs_reg->fixnum ? COND_ANY : COND_NONE;
+      case COND_UGT: return (uintptr_t)lhs_reg->fixnum >  (uintptr_t)rhs_reg->fixnum ? COND_ANY : COND_NONE;
+      }
     }
 
-    VReg *rhs_reg = gen_expr(rhs);
-    // Allocate new register to avoid comparing spilled registers.
-    VReg *tmp = add_new_reg(lhs->type, 0);
-    new_ir_mov(tmp, lhs_reg);
-    new_ir_cmp(tmp, rhs_reg);
+    if ((is_fixnum(lhs->type->kind) && lhs->type->fixnum.kind < FX_LONG) ||
+        is_im32(rhs_reg->fixnum)) {
+      new_ir_cmp(lhs_reg, rhs_reg);
+      return cond;
+    }
   }
 
+  switch (lhs->type->kind) {
+  case TY_FIXNUM: case TY_PTR:
+#ifndef __NO_FLONUM
+  case TY_FLONUM:
+#endif
+    break;
+  default: assert(false); break;
+  }
+
+  // Allocate new register to avoid comparing spilled registers.
+  VReg *tmp = add_new_reg(lhs->type, 0);
+  new_ir_mov(tmp, lhs_reg);
+  new_ir_cmp(tmp, rhs_reg);
   return cond;
 }
 

@@ -201,6 +201,7 @@ try_direct 'long immediate' 240 'int sub(unsigned long x){return x;} int main(){
 try 'can assign const ptr' 97 'const char *p = "foo"; p = "bar"; return p[1];'
 try 'str' 75 '"use strict"; return 75;'
 try 'str in comma' 117 'char *p = (1, "use strict", "dummy"); return p[1];'
+try 'condition with comma expr' 0 'int x = 1; x != 0 && (x = 0, 1); return x;'
 try_direct 'return str' 111 'const char *foo(){ return "foo"; } int main(){ return foo()[2]; }'
 try 'deref str' 48 'return *"0";'
 
