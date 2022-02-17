@@ -123,10 +123,7 @@ static enum ConditionKind gen_compare_expr(enum ExprKind kind, Expr *lhs, Expr *
   default: assert(false); break;
   }
 
-  // Allocate new register to avoid comparing spilled registers.
-  VReg *tmp = add_new_reg(lhs->type, 0);
-  new_ir_mov(tmp, lhs_reg);
-  new_ir_cmp(tmp, rhs_reg);
+  new_ir_cmp(lhs_reg, rhs_reg);
   return cond;
 }
 
@@ -705,22 +702,11 @@ VReg *gen_expr(Expr *expr) {
 #ifndef __NO_FLONUM
       case TY_FLONUM:
 #endif
-#if 0
         new_ir_store(dst, src);
-#else
-        // To avoid both spilled registers, add temporary register.
-        {
-          VReg *tmp = add_new_reg(expr->type, 0);
-          new_ir_mov(tmp, src);
-          new_ir_store(dst, tmp);
-        }
-#endif
         break;
       case TY_STRUCT:
         if (expr->type->struct_.info->size > 0) {
-          VReg *tmp = add_new_reg(&tyVoidPtr, 0);
-          new_ir_mov(tmp, src);
-          new_ir_memcpy(dst, tmp, expr->type->struct_.info->size);
+          new_ir_memcpy(dst, src, expr->type->struct_.info->size);
         }
         break;
       }

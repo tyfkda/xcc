@@ -155,10 +155,7 @@ static void gen_return(Stmt *stmt) {
     } else {
       size_t size = type_size(val->type);
       if (size > 0) {
-        // Allocate new register to avoid both spilled.
-        VReg *tmp = add_new_reg(&tyVoidPtr, 0);
-        new_ir_mov(tmp, reg);
-        new_ir_memcpy(retval, tmp, size);
+        new_ir_memcpy(retval, reg, size);
         new_ir_result(retval);
       }
     }
@@ -279,12 +276,6 @@ static void gen_switch_cond(Stmt *stmt) {
     new_ir_jmp(COND_ANY, target != NULL ? target->case_.bb : stmt->switch_.break_bb);
     set_curbb(nextbb);
   } else {
-    {  // Avoid spilled register.
-      VReg *tmp = add_new_reg(value->type, 0);
-      new_ir_mov(tmp, reg);
-      reg = tmp;
-    }
-
     if (len > 0) {
       // Sort cases in increasing order.
       myqsort(cases->data, len, sizeof(void*), compare_cases);

@@ -36,6 +36,7 @@ static IR *new_ir(enum IrKind kind) {
   IR *ir = malloc(sizeof(*ir));
   ir->kind = kind;
   ir->dst = ir->opr1 = ir->opr2 = NULL;
+  ir->value = 0;
   ir->size = -1;
   if (curbb != NULL)
     vec_push(curbb->irs, ir);
@@ -346,21 +347,19 @@ void new_ir_asm(const char *asm_, VReg *dst) {
     ir->size = dst->vtype->size;
 }
 
-IR *new_ir_load_spilled(VReg *reg, int offset, int size, int flag) {
+IR *new_ir_load_spilled(VReg *reg, VReg *src, int size) {
   IR *ir = new_ir(IR_LOAD_SPILLED);
-  ir->value = offset;
   ir->size = size;
   ir->dst = reg;
-  ir->spill.flag = flag;
+  ir->opr1 = src;
   return ir;
 }
 
-IR *new_ir_store_spilled(VReg *reg, int offset, int size, int flag) {
+IR *new_ir_store_spilled(VReg *dst, VReg *reg, int size) {
   IR *ir = new_ir(IR_STORE_SPILLED);
-  ir->value = offset;
   ir->size = size;
   ir->opr1 = reg;
-  ir->spill.flag = flag;
+  ir->opr2 = dst;  // `dst` is used by indirect, so it is not actually `dst`.
   return ir;
 }
 

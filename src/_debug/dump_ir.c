@@ -80,8 +80,8 @@ static void dump_ir(FILE *fp, IR *ir) {
   case IR_MEMCPY: fprintf(fp, "\tMEMCPY(dst="); dump_vreg(fp, ir->opr2, WORD_SIZE); fprintf(fp, ", src="); dump_vreg(fp, ir->opr1, WORD_SIZE); fprintf(fp, ", size=%d)\n", ir->size); break;
   case IR_CLEAR:  fprintf(fp, "\tCLEAR\t"); dump_vreg(fp, ir->opr1, WORD_SIZE); fprintf(fp, ", %d\n", ir->size); break;
   case IR_ASM:    fprintf(fp, "\tASM \"%s\"\n", ir->asm_.str); break;
-  case IR_LOAD_SPILLED:   fprintf(fp, "\tLOAD_SPILLED "); dump_vreg(fp, ir->dst, ir->size); fprintf(fp, " = [rbp %+d]\n", (int)ir->value); break;
-  case IR_STORE_SPILLED:  fprintf(fp, "\tSTORE_SPILLED [rbp %+d] = ", (int)ir->value); dump_vreg(fp, ir->opr1, ir->size); fprintf(fp, "\n"); break;
+  case IR_LOAD_SPILLED:   fprintf(fp, "\tLOAD_SPILLED "); dump_vreg(fp, ir->dst, ir->size); fprintf(fp, " = [v%d]\n", ir->opr1->virt); break;
+  case IR_STORE_SPILLED:  fprintf(fp, "\tSTORE_SPILLED [v%d] = ", ir->opr2->virt); dump_vreg(fp, ir->opr1, ir->size); fprintf(fp, "\n"); break;
 
   default: assert(false); break;
   }
@@ -116,7 +116,7 @@ static void dump_func_ir(Function *func) {
 
   RegAlloc *ra = fnbe->ra;
   fprintf(fp, "VREG: #%d\n", ra->vregs->len);
-  LiveInterval **sorted_intervals = fnbe->ra->sorted_intervals;
+  LiveInterval **sorted_intervals = ra->sorted_intervals;
   for (int i = 0; i < ra->vregs->len; ++i) {
     LiveInterval *li = sorted_intervals[i];
     VReg *vreg = ra->vregs->data[li->virt];

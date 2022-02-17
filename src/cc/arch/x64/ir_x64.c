@@ -963,12 +963,13 @@ static void ir_out(IR *ir) {
     break;
 
   case IR_LOAD_SPILLED:
+    assert(ir->opr1->flag & VRF_SPILLED);
 #ifndef __NO_FLONUM
-    if (ir->spill.flag & VRTF_FLONUM) {
+    if (ir->opr1->vtype->flag & VRTF_FLONUM) {
       const char **regs = kFReg64s;
       switch (ir->size) {
-      case SZ_FLOAT: MOVSS(OFFSET_INDIRECT(ir->value, RBP, NULL, 1), regs[WORK_REG_NO]); break;
-      case SZ_DOUBLE: MOVSD(OFFSET_INDIRECT(ir->value, RBP, NULL, 1), regs[WORK_REG_NO]); break;
+      case SZ_FLOAT: MOVSS(OFFSET_INDIRECT(ir->opr1->offset, RBP, NULL, 1), regs[ir->dst->phys]); break;
+      case SZ_DOUBLE: MOVSD(OFFSET_INDIRECT(ir->opr1->offset, RBP, NULL, 1), regs[ir->dst->phys]); break;
       default: assert(false); break;
       }
       break;
@@ -979,17 +980,18 @@ static void ir_out(IR *ir) {
       int pow = kPow2Table[ir->size];
       assert(0 <= pow && pow < 4);
       const char **regs = kRegSizeTable[pow];
-      MOV(OFFSET_INDIRECT(ir->value, RBP, NULL, 1), regs[WORK_REG_NO]);
+      MOV(OFFSET_INDIRECT(ir->opr1->offset, RBP, NULL, 1), regs[ir->dst->phys]);
     }
     break;
 
   case IR_STORE_SPILLED:
+    assert(ir->opr2->flag & VRF_SPILLED);
 #ifndef __NO_FLONUM
-    if (ir->spill.flag & VRTF_FLONUM) {
+    if (ir->opr2->vtype->flag & VRTF_FLONUM) {
       const char **regs = kFReg64s;
       switch (ir->size) {
-      case SZ_FLOAT: MOVSS(regs[WORK_REG_NO], OFFSET_INDIRECT(ir->value, RBP, NULL, 1)); break;
-      case SZ_DOUBLE: MOVSD(regs[WORK_REG_NO], OFFSET_INDIRECT(ir->value, RBP, NULL, 1)); break;
+      case SZ_FLOAT: MOVSS(regs[ir->opr1->phys], OFFSET_INDIRECT(ir->opr2->offset, RBP, NULL, 1)); break;
+      case SZ_DOUBLE: MOVSD(regs[ir->opr1->phys], OFFSET_INDIRECT(ir->opr2->offset, RBP, NULL, 1)); break;
       default: assert(false); break;
       }
       break;
@@ -1000,7 +1002,7 @@ static void ir_out(IR *ir) {
       int pow = kPow2Table[ir->size];
       assert(0 <= pow && pow < 4);
       const char **regs = kRegSizeTable[pow];
-      MOV(regs[WORK_REG_NO], OFFSET_INDIRECT(ir->value, RBP, NULL, 1));
+      MOV(regs[ir->opr1->phys], OFFSET_INDIRECT(ir->opr2->offset, RBP, NULL, 1));
     }
     break;
 

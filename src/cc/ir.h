@@ -14,10 +14,10 @@ typedef struct Vector Vector;
 #define MAX_REG_ARGS  (6)
 #define WORD_SIZE  (8)  /*sizeof(void*)*/
 
-#define PHYSICAL_REG_MAX  (7 - 1)
+#define PHYSICAL_REG_MAX  (7 - 1)  // TODO: Remove `-1`
 
 #define MAX_FREG_ARGS  (8)
-#define PHYSICAL_FREG_MAX  (7 - 1)
+#define PHYSICAL_FREG_MAX  (7 - 1)  // TODO: Remove `-1`
 
 // Virtual register
 
@@ -33,9 +33,11 @@ typedef struct VRegType {
   int flag;
 } VRegType;
 
-#define VRF_PARAM  (1 << 0)  // Function parameter
-#define VRF_REF    (1 << 1)  // Reference(&) taken
-#define VRF_CONST  (1 << 2)  // Constant
+#define VRF_PARAM     (1 << 0)  // Function parameter
+#define VRF_REF       (1 << 1)  // Reference(&) taken
+#define VRF_CONST     (1 << 2)  // Constant
+#define VRF_SPILLED   (1 << 3)  // Spilled
+#define VRF_NO_SPILL  (1 << 4)  // No Spill
 
 typedef struct VReg {
   const VRegType *vtype;
@@ -86,8 +88,8 @@ enum IrKind {
   IR_CLEAR,   // memset(opr1, 0, size)
   IR_ASM,     // assembler code
 
-  IR_LOAD_SPILLED,   // dst(spilled) = [ofs]
-  IR_STORE_SPILLED,  // [ofs] = opr1(spilled)
+  IR_LOAD_SPILLED,   // dst(spilled) = [opr1]
+  IR_STORE_SPILLED,  // [opr2] = opr1(spilled)
 };
 
 enum ConditionKind {
@@ -145,9 +147,6 @@ typedef struct IR {
       bool vaargs;
     } call;
     struct {
-      int flag;  // VRTF_FLOAT
-    } spill;
-    struct {
       const char *str;
     } asm_;
   };
@@ -175,8 +174,8 @@ void new_ir_memcpy(VReg *dst, VReg *src, int size);
 void new_ir_clear(VReg *reg, size_t size);
 void new_ir_asm(const char *asm_, VReg *dst);
 
-IR *new_ir_load_spilled(VReg *reg, int offset, int size, int flag);
-IR *new_ir_store_spilled(VReg *reg, int offset, int size, int flag);
+IR *new_ir_load_spilled(VReg *reg, VReg *src, int size);
+IR *new_ir_store_spilled(VReg *dst, VReg *reg, int size);
 
 // Register allocator
 

@@ -20,6 +20,8 @@
 
 static void spill_vreg(RegAlloc *ra, VReg *vreg) {
   vreg->phys = SPILLED_REG_NO(ra);
+  assert(!(vreg->flag & VRF_NO_SPILL));
+  vreg->flag |= VRF_SPILLED;
 }
 
 // Register allocator
@@ -120,8 +122,7 @@ static void set_inout_interval(Vector *regs, LiveInterval *intervals, int nip) {
   }
 }
 
-static LiveInterval **check_live_interval(BBContainer *bbcon, int vreg_count,
-                                          LiveInterval *intervals) {
+static void check_live_interval(BBContainer *bbcon, int vreg_count, LiveInterval *intervals) {
   for (int i = 0; i < vreg_count; ++i) {
     LiveInterval *li = &intervals[i];
     li->virt = i;
@@ -153,14 +154,6 @@ static LiveInterval **check_live_interval(BBContainer *bbcon, int vreg_count,
 
     set_inout_interval(bb->out_regs, intervals, nip);
   }
-
-  // Sort by start, end
-  LiveInterval **sorted_intervals = malloc(sizeof(LiveInterval*) * vreg_count);
-  for (int i = 0; i < vreg_count; ++i)
-    sorted_intervals[i] = &intervals[i];
-  myqsort(sorted_intervals, vreg_count, sizeof(LiveInterval *), sort_live_interval);
-
-  return sorted_intervals;
 }
 
 static void linear_scan_register_allocation(RegAlloc *ra, LiveInterval **sorted_intervals,
@@ -230,7 +223,7 @@ static void linear_scan_register_allocation(RegAlloc *ra, LiveInterval **sorted_
 #endif
 }
 
-static int insert_load_store_spilled(BBContainer *bbcon, Vector *vregs, const int spilled) {
+static int insert_load_store_spilled_irs(RegAlloc *ra, BBContainer *bbcon) {
   int inserted = 0;
   for (int i = 0; i < bbcon->bbs->len; ++i) {
     BB *bb = bbcon->bbs->data[i];
@@ -238,9 +231,12 @@ static int insert_load_store_spilled(BBContainer *bbcon, Vector *vregs, const in
     for (int j = 0; j < irs->len; ++j) {
       IR *ir = irs->data[j];
 
-      int flag = 0;
-      int load_size = 0;
+      int flag = 7;
+      int load_size = ir->size;
       switch (ir->kind) {
+      default:
+        assert(false);
+        // Fallthrough.
       case IR_MOV:
       case IR_ADD:  // binops
       case IR_SUB:
@@ -258,12 +254,12 @@ static int insert_load_store_spilled(BBContainer *bbcon, Vector *vregs, const in
       case IR_NEG:  // unary ops
       case IR_BITNOT:
       case IR_COND:
+      case IR_JMP:
       case IR_TJMP:
       case IR_PUSHARG:
       case IR_RESULT:
+      case IR_PRECALL:
       case IR_ASM:
-        flag = 7;
-        load_size = ir->size;
         break;
 
       case IR_SUBSP:
@@ -273,13 +269,10 @@ static int insert_load_store_spilled(BBContainer *bbcon, Vector *vregs, const in
         break;
 
       case IR_CALL:
-        flag = 7;
-        load_size = WORD_SIZE;
-        break;
-
       case IR_LOAD:
       case IR_STORE:
       case IR_MEMCPY:
+      case IR_CLEAR:
         flag = 7;
         load_size = WORD_SIZE;
         break;
@@ -290,48 +283,33 @@ static int insert_load_store_spilled(BBContainer *bbcon, Vector *vregs, const in
         flag = 4;
         break;
 
-      default:
+      case IR_LOAD_SPILLED:
+      case IR_STORE_SPILLED:
         continue;
       }
 
-      assert(!((ir->opr1 != NULL && (flag & 1) != 0 && !(ir->opr1->flag & VRF_CONST) && ir->opr1->phys == spilled) &&
-               (ir->opr2 != NULL && (flag & 2) != 0 && !(ir->opr2->flag & VRF_CONST) && ir->opr2->phys == spilled)));
-
       if (ir->opr1 != NULL && (flag & 1) != 0 &&
-          !(ir->opr1->flag & VRF_CONST) && ir->opr1->phys == spilled) {
-        int flag = 0;
-#ifndef __NO_FLONUM
-        if (ir->opr1->vtype->flag & VRTF_FLONUM)
-          flag |= VRTF_FLONUM;
-#endif
-        vec_insert(irs, j++,
-                   new_ir_load_spilled(ir->opr1, ((VReg*)vregs->data[ir->opr1->virt])->offset, load_size, flag));
-        inserted |= 1;
+          !(ir->opr1->flag & VRF_CONST) && (ir->opr1->flag & VRF_SPILLED)) {
+        VReg *tmp = reg_alloc_spawn(ra, ir->opr1->vtype, VRF_NO_SPILL);
+        vec_insert(irs, j++, new_ir_load_spilled(tmp, ir->opr1, load_size));
+        ir->opr1 = tmp;
+        ++inserted;
       }
 
       if (ir->opr2 != NULL && (flag & 2) != 0 &&
-          !(ir->opr2->flag & VRF_CONST) && ir->opr2->phys == spilled) {
-        int flag = 0;
-#ifndef __NO_FLONUM
-        if (ir->opr2->vtype->flag & VRTF_FLONUM)
-          flag |= VRTF_FLONUM;
-#endif
-        vec_insert(irs, j++,
-                   new_ir_load_spilled(ir->opr2, ((VReg*)vregs->data[ir->opr2->virt])->offset, load_size, flag));
-        inserted |= 2;
+          !(ir->opr2->flag & VRF_CONST) && (ir->opr2->flag & VRF_SPILLED)) {
+        VReg *tmp = reg_alloc_spawn(ra, ir->opr2->vtype, VRF_NO_SPILL);
+        vec_insert(irs, j++, new_ir_load_spilled(tmp, ir->opr2, load_size));
+        ir->opr2 = tmp;
+        ++inserted;
       }
 
       if (ir->dst != NULL && (flag & 4) != 0 &&
-          !(ir->dst->flag & VRF_CONST) && ir->dst->phys == spilled) {
-        assert(!(ir->dst->flag & VRF_CONST));
-        int flag = 0;
-#ifndef __NO_FLONUM
-        if (ir->dst->vtype->flag & VRTF_FLONUM)
-          flag |= VRTF_FLONUM;
-#endif
-        vec_insert(irs, ++j,
-                   new_ir_store_spilled(ir->dst, ((VReg*)vregs->data[ir->dst->virt])->offset, ir->size, flag));
-        inserted |= 4;
+          !(ir->dst->flag & VRF_CONST) && (ir->dst->flag & VRF_SPILLED)) {
+        VReg *tmp = reg_alloc_spawn(ra, ir->dst->vtype, VRF_NO_SPILL);
+        vec_insert(irs, ++j, new_ir_store_spilled(ir->dst, tmp, load_size));
+        ir->dst = tmp;
+        ++inserted;
       }
     }
   }
@@ -418,7 +396,6 @@ static void analyze_reg_flow(BBContainer *bbcon) {
 static void detect_living_registers(
   RegAlloc *ra, BBContainer *bbcon, LiveInterval **sorted_intervals, int vreg_count
 ) {
-  UNUSED(ra);
   unsigned int living_pregs = 0;
   int nip = 0;
   for (int i = 0; i < bbcon->bbs->len; ++i) {
@@ -544,32 +521,59 @@ void alloc_physical_registers(RegAlloc *ra, BBContainer *bbcon, int reserved_siz
 #endif
   analyze_reg_flow(bbcon);
 
+  LiveInterval *intervals = NULL;
+  LiveInterval **sorted_intervals = NULL;
+
   int vreg_count = ra->vregs->len;
-  LiveInterval *intervals = malloc(sizeof(LiveInterval) * vreg_count);
-  LiveInterval **sorted_intervals = check_live_interval(bbcon, vreg_count, intervals);
 
-  for (int i = 0; i < vreg_count; ++i) {
-    LiveInterval *li = &intervals[i];
-    VReg *vreg = ra->vregs->data[i];
+// int iter_count = 0;
+  for (;;) {
+    intervals = realloc(intervals, sizeof(LiveInterval) * vreg_count);
+    check_live_interval(bbcon, vreg_count, intervals);
 
-    if (vreg->flag & VRF_CONST) {
-      li->state = LI_CONST;
-      continue;
+    for (int i = 0; i < vreg_count; ++i) {
+      LiveInterval *li = &intervals[i];
+      VReg *vreg = ra->vregs->data[i];
+
+      if (vreg->flag & VRF_CONST) {
+        li->state = LI_CONST;
+        continue;
+      }
+
+      // Force function parameter spilled.
+      if (vreg->param_index >= 0) {
+        spill_vreg(ra, vreg);
+        li->start = 0;
+        li->state = LI_SPILL;
+      }
+      if (vreg->flag & VRF_SPILLED) {
+        li->state = LI_SPILL;
+        li->phys = vreg->phys;
+      }
     }
 
-    // Force function parameter spilled.
-    if (vreg->param_index >= 0) {
-      spill_vreg(ra, vreg);
-      li->start = 0;
-      li->state = LI_SPILL;
+    // Sort by start, end
+    sorted_intervals = realloc(sorted_intervals, sizeof(LiveInterval*) * vreg_count);
+    for (int i = 0; i < vreg_count; ++i)
+      sorted_intervals[i] = &intervals[i];
+    myqsort(sorted_intervals, vreg_count, sizeof(LiveInterval *), sort_live_interval);
+    ra->sorted_intervals = sorted_intervals;
+
+    linear_scan_register_allocation(ra, sorted_intervals, vreg_count);
+
+    // Spill vregs.
+    for (int i = 0; i < vreg_count; ++i) {
+      LiveInterval *li = &intervals[i];
+      if (li->state == LI_SPILL) {
+        VReg *vreg = ra->vregs->data[i];
+        spill_vreg(ra, vreg);
+      }
     }
-    if (vreg->phys >= ra->phys_max) {
-      li->state = LI_SPILL;
-      li->phys = vreg->phys;
-    }
+
+    if (insert_load_store_spilled_irs(ra, bbcon) <= 0)
+      break;
+    vreg_count = ra->vregs->len;
   }
-
-  linear_scan_register_allocation(ra, sorted_intervals, vreg_count);
 
   // Map vreg to preg.
   for (int i = 0; i < vreg_count; ++i) {
@@ -581,7 +585,7 @@ void alloc_physical_registers(RegAlloc *ra, BBContainer *bbcon, int reserved_siz
 
   detect_living_registers(ra, bbcon, sorted_intervals, vreg_count);
 
-  // Allocated spilled virtual registers onto stack.
+  // Allocate spilled virtual registers onto stack.
   int frame_size = reserved_size;
   for (int i = 0; i < vreg_count; ++i) {
     LiveInterval *li = sorted_intervals[i];
@@ -607,8 +611,8 @@ void alloc_physical_registers(RegAlloc *ra, BBContainer *bbcon, int reserved_siz
   }
 
   int spilled = SPILLED_REG_NO(ra);
-  int inserted = insert_load_store_spilled(bbcon, ra->vregs, spilled);
-  if (inserted != 0)
+  // int inserted = insert_load_store_spilled(bbcon, ra->vregs, spilled);
+  // if (inserted != 0)
     ra->used_reg_bits |= 1 << spilled;
 
   ra->sorted_intervals = sorted_intervals;
