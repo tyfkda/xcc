@@ -403,6 +403,44 @@ bool assemble_inst(Inst *inst, const ParseInfo *info, Code *code) {
     return true;
   case MOV:
     return assemble_mov(inst, info, code);
+  case MOVB:
+  case MOVW:
+  case MOVL:
+  case MOVQ:
+    if (inst->src.type == IMMEDIATE && inst->dst.type == INDIRECT) {
+      long offset = inst->dst.indirect.offset->fixnum;
+      unsigned char sno = 0;
+      unsigned char dno = opr_regno(&inst->dst.indirect.reg);
+      unsigned char code = (offset == 0 && (dno & 7) != RBP - RAX) ? 0x00 : is_im8(offset) ? (unsigned char)0x40 : (unsigned char)0x80;
+      short buf[] = {
+        inst->op == MOVW ? 0x66 : (inst->op == MOVQ || dno >= 8) ? 0x48 | ((dno & 8) >> 3) | ((sno & 8) >> 1) : -1,
+        0xc6 | (inst->op == MOVB ? 0 : 1),
+        code | (dno & 7) | ((sno & 7) << 3),
+        (dno & 7) == RSP - RAX ? 0x24 : -1,
+      };
+
+      p = put_code_filtered(p, buf, ARRAY_SIZE(buf));
+      if (offset == 0 && (dno & 7) != RBP - RAX) {
+        ;
+      } else if (is_im8(offset)) {
+        *p++ = IM8(offset);
+      } else if (is_im32(offset)) {
+        PUT_CODE(p, IM32(offset));
+        p += 4;
+      }
+
+      long value = inst->src.immediate;
+      switch (inst->op) {
+      case MOVB: *p++ = IM8(value); break;
+      case MOVW: PUT_CODE(p, IM16(value)); p += 2; break;
+      case MOVL: case MOVQ:
+        PUT_CODE(p, IM32(value));
+        p += 4;
+        break;
+      default: assert(false); break;
+      }
+    }
+    break;
   case MOVSX:
   case MOVZX:
     if (inst->src.type == REG && inst->dst.type == REG) {
@@ -577,15 +615,15 @@ bool assemble_inst(Inst *inst, const ParseInfo *info, Code *code) {
           long offset = inst->dst.indirect.offset->fixnum;
           unsigned char sno = 0;
           unsigned char dno = opr_regno(&inst->dst.indirect.reg);
-          unsigned char code = (offset == 0 && dno != RBP - RAX) ? 0x00 : is_im8(offset) ? (unsigned char)0x40 : (unsigned char)0x80;
+          unsigned char code = (offset == 0 && (dno & 7) != RBP - RAX) ? 0x00 : is_im8(offset) ? (unsigned char)0x40 : (unsigned char)0x80;
           short buf[] = {
             (unsigned char)0x48 | ((dno & 8) >> 3) | ((sno & 8) >> 1),
             (is_im8(value) ? 0x83 : 0x81),
-            code | dno | (sno << 3),
-            dno == RSP - RAX ? 0x24 : -1,
+            code | (dno & 7) | ((sno & 7) << 3),
+            (dno & 7) == RSP - RAX ? 0x24 : -1,
           };
           p = put_code_filtered(p, buf, ARRAY_SIZE(buf));
-          if (offset == 0 && dno != RBP - RAX) {
+          if (offset == 0 && (dno & 7) != RBP - RAX) {
             ;
           } else if (is_im8(offset)) {
             *p++ = IM8(offset);
@@ -649,15 +687,15 @@ bool assemble_inst(Inst *inst, const ParseInfo *info, Code *code) {
           long offset = inst->dst.indirect.offset->fixnum;
           unsigned char sno = 0;
           unsigned char dno = opr_regno(&inst->dst.indirect.reg);
-          unsigned char code = (offset == 0 && dno != RBP - RAX) ? 0x28 : is_im8(offset) ? (unsigned char)0x40 : (unsigned char)0x80;
+          unsigned char code = (offset == 0 && (dno & 7) != RBP - RAX) ? 0x28 : is_im8(offset) ? (unsigned char)0x40 : (unsigned char)0x80;
           short buf[] = {
             (unsigned char)0x48 | ((dno & 8) >> 3) | ((sno & 8) >> 1),
             (is_im8(value) ? 0x83 : 0x81),
-            code | dno | (sno << 3),
-            dno == RSP - RAX ? 0x24 : -1,
+            code | (dno & 7) | ((sno & 7) << 3),
+            (dno & 7) == RSP - RAX ? 0x24 : -1,
           };
           p = put_code_filtered(p, buf, ARRAY_SIZE(buf));
-          if (offset == 0 && dno != RBP - RAX) {
+          if (offset == 0 && (dno & 7) != RBP - RAX) {
             ;
           } else if (is_im8(offset)) {
             *p++ = IM8(offset);

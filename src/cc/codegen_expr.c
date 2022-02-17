@@ -447,12 +447,6 @@ static VReg *gen_funcall(Expr *expr) {
         if (p->stack_arg) {
           new_ir_memcpy(dst, reg, type_size(arg->type));
         } else {
-          if (reg->flag & VRF_CONST) {
-            // Allocate new register to avoid constant register.
-            VReg *tmp = add_new_reg(arg->type, 0);
-            new_ir_mov(tmp, reg);
-            reg = tmp;
-          }
           new_ir_store(dst, reg);
         }
       }

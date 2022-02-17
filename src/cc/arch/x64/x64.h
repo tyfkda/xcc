@@ -134,6 +134,10 @@
 #endif
 
 #define MOV(o1, o2)    EMIT_ASM2("mov", o1, o2)
+#define MOVB(o1, o2)   EMIT_ASM2("movb", o1, o2)
+#define MOVW(o1, o2)   EMIT_ASM2("movw", o1, o2)
+#define MOVL(o1, o2)   EMIT_ASM2("movl", o1, o2)
+#define MOVQ(o1, o2)   EMIT_ASM2("movq", o1, o2)
 #define MOVSX(o1, o2)  EMIT_ASM2("movsx", o1, o2)
 #define MOVZX(o1, o2)  EMIT_ASM2("movzx", o1, o2)
 #define LEA(o1, o2)    EMIT_ASM2("lea", o1, o2)

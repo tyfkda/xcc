@@ -8,6 +8,10 @@ typedef struct Name Name;
 enum Opcode {
   NOOP,
   MOV,
+  MOVB,
+  MOVW,
+  MOVL,
+  MOVQ,
   MOVSX,
   MOVZX,
   LEA,

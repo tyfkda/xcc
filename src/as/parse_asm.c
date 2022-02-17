@@ -17,6 +17,10 @@ static Expr *parse_expr(ParseInfo *info);
 // Align with Opcode.
 static const char *kOpTable[] = {
   "mov",
+  "movb",
+  "movw",
+  "movl",
+  "movq",
   "movsx",
   "movzx",
   "lea",

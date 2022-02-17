@@ -185,8 +185,14 @@ static void ir_out(IR *ir) {
       assert(0 <= pow && pow < 4);
       const char **regs = kRegSizeTable[pow];
       if (ir->opr1->flag & VRF_CONST) {
-        MOV(IM(ir->opr1->fixnum), EAX);
-        MOV(EAX, INDIRECT(kReg64s[ir->opr2->phys], NULL, 1));
+        const char *dst = INDIRECT(kReg64s[ir->opr2->phys], NULL, 1);
+        switch (pow) {
+        case 0: MOVB(IM(ir->opr1->fixnum), dst); break;
+        case 1: MOVW(IM(ir->opr1->fixnum), dst); break;
+        case 2: MOVL(IM(ir->opr1->fixnum), dst); break;
+        case 3: MOVQ(IM(ir->opr1->fixnum), dst); break;
+        default: assert(false); break;
+        }
       } else {
         MOV(regs[ir->opr1->phys], INDIRECT(kReg64s[ir->opr2->phys], NULL, 1));
       }
