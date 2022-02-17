@@ -1160,12 +1160,18 @@ static void gen_block(Stmt *stmt) {
 
 static void gen_return(Stmt *stmt) {
   assert(curfunc != NULL);
+  FuncInfo *finfo = table_get(&func_info_table, curfunc->name);
+  assert(finfo != NULL);
   if (stmt->return_.val != NULL) {
     Expr *val = stmt->return_.val;
     gen_expr(val, true);
   }
-  ADD_CODE(OP_BR);
-  ADD_ULEB128(cur_depth - 1);
+  if (finfo->bpident != NULL) {
+    ADD_CODE(OP_BR);
+    ADD_ULEB128(cur_depth - 1);
+  } else {
+    ADD_CODE(OP_RETURN);
+  }
 }
 
 static void gen_if(Stmt *stmt) {
@@ -1406,26 +1412,29 @@ static void gen_defun(Function *func) {
 
   // Statements
   curscope = func->scopes->data[0];
-  if (!is_prim_type(functype->func.ret)) {
-    ADD_CODE(OP_BLOCK, WT_VOID);
-  } else {
-    unsigned char wt = to_wtype(functype->func.ret);
-    ADD_CODE(OP_BLOCK, wt);
+  {
+    unsigned char wt = is_prim_type(functype->func.ret) ? to_wtype(functype->func.ret) : WT_VOID;
+    if (bpident != NULL) {
+      ADD_CODE(OP_BLOCK, wt);
+      cur_depth += 1;
+    }
     // Push dummy return value to avoid empty fallthrough (or no return statement).
     switch (wt) {
     case WT_I32:  ADD_CODE(OP_I32_CONST); ADD_LEB128(0); break;
     case WT_I64:  ADD_CODE(OP_I64_CONST); ADD_LEB128(0); break;
     case WT_F32:  ADD_CODE(OP_F32_CONST); ADD_F32(0); break;
     case WT_F64:  ADD_CODE(OP_F64_CONST); ADD_F64(0); break;
+    case WT_VOID: break;
     default: assert(false); break;
     }
   }
-  cur_depth += 1;
   gen_stmts(func->stmts);
 
-  ADD_CODE(OP_END);
-  cur_depth -= 1;
-  assert(cur_depth == 0);
+  if (bpident != NULL) {
+    ADD_CODE(OP_END);
+    cur_depth -= 1;
+    assert(cur_depth == 0);
+  }
   curscope = global_scope;
 
   // Restore stack pointer.
