@@ -78,7 +78,7 @@ compile_error() {
 
 try_direct '+*' 7 'int main(){return 1+2*3;}'
 try_direct 'local var' 72 'int main(){int x=8, y=9; return x*y;}'
-try_direct 'i64, f32, f64' 82 'float f32(int i){return i+1;} double f64(float f){return f*2;} long i64(double d){return d/3;} int main(){return i64(f64(f32(123)));}'
+try_direct 'i64, f32, f64' 82 'float f32(int i){return i+1;} double f64(float f){return f*2;} long long i64(double d){return d/3;} int main(){return i64(f64(f32(123)));}'
 try_direct 'pre-inc' 55 'int main(){int x=4; int y=++x; return x*10+y;}'
 try_direct 'pre-dec' 33 'int main(){int x=4; int y=--x; return x*10+y;}'
 try_direct 'post-inc' 54 'int main(){int x=4; int y=x++; return x*10+y;}'

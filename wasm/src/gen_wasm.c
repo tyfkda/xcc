@@ -217,8 +217,6 @@ static void gen_cast(const Type *dst, const Type *src) {
         }
         if (d < s) {
           if (d <= I32_SIZE) {
-            if (s > I32_SIZE)
-              ADD_CODE(OP_I32_WRAP_I64);
             if (d < I32_SIZE) {
               if (du) {
                 ADD_CODE(OP_I32_CONST);
