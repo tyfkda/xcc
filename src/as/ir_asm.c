@@ -244,8 +244,8 @@ bool resolve_relative_address(Vector **section_irs, Table *label_table, Vector *
 
               bool unres = false;
               if (expr->kind == EX_LABEL && unresolved != NULL) {
-                LabelInfo *label = table_get(label_table, expr->label);
-                if (label == NULL) {
+                LabelInfo *label_info = table_get(label_table, expr->label);
+                if (label_info == NULL) {
                   UnresolvedInfo *info = malloc(sizeof(*info));
                   info->kind = UNRES_EXTERN_PC32;
                   info->label = expr->label;
@@ -254,8 +254,8 @@ bool resolve_relative_address(Vector **section_irs, Table *label_table, Vector *
                   info->add = -4;
                   vec_push(unresolved, info);
                   unres = true;
-                } else if (label->section != sec) {
-                  Vector *irs2 = section_irs[label->section];
+                } else if (label_info->section != sec) {
+                  Vector *irs2 = section_irs[label_info->section];
                   uintptr_t dst_start_address = irs2->len > 0 ? ((IR*)irs2->data[0])->address : 0;
 
                   UnresolvedInfo *info = malloc(sizeof(*info));
@@ -263,7 +263,7 @@ bool resolve_relative_address(Vector **section_irs, Table *label_table, Vector *
                   info->label = expr->label;
                   info->src_section = sec;
                   info->offset = address + 3 - start_address;
-                  info->add = label->address - dst_start_address - 4;
+                  info->add = label_info->address - dst_start_address - 4;
                   vec_push(unresolved, info);
                   unres = true;
                 }
@@ -355,8 +355,8 @@ bool resolve_relative_address(Vector **section_irs, Table *label_table, Vector *
 
           bool unres = false;
           if (expr->kind == EX_LABEL && unresolved != NULL) {
-            LabelInfo *label = table_get(label_table, expr->label);
-            if (label == NULL) {
+            LabelInfo *label_info = table_get(label_table, expr->label);
+            if (label_info == NULL) {
               UnresolvedInfo *info = malloc(sizeof(*info));
               info->kind = UNRES_ABS64;  // TODO:
               info->label = expr->label;
@@ -365,7 +365,7 @@ bool resolve_relative_address(Vector **section_irs, Table *label_table, Vector *
               info->add = 0;
               vec_push(unresolved, info);
               unres = true;
-            } else if (sec != SEC_CODE || label->section != sec) {
+            } else if (sec != SEC_CODE || label_info->section != sec) {
               UnresolvedInfo *info = malloc(sizeof(*info));
               info->kind = UNRES_ABS64;  // TODO
               info->label = expr->label;
