@@ -1263,24 +1263,14 @@ static void gen_stmts(Vector *stmts) {
   }
 }
 
-static void gen_defun(Function *func) {
-  if (func->scopes == NULL)  // Prototype definition
-    return;
-
+static uint32_t allocate_local_variables(Function *func, DataStorage *data) {
   const Type *functype = func->type;
-
-  code = malloc(sizeof(*code));
-  data_init(code);
-
-  DataStorage *data = malloc(sizeof(*data));
-  data_init(data);
-
-  // Allocate local variables.
   unsigned int param_count = functype->func.params != NULL ? functype->func.params->len : 0;  // TODO: Consider stack params.
-  unsigned int local_count = 0;
 
   uint32_t frame_size = 0;
-  int variadic = func->type->func.vaargs;
+  unsigned int local_counts[4];  // I32, I64, F32, F64
+  memset(local_counts, 0, sizeof(local_counts));
+
   for (int i = 0; i < func->scopes->len; ++i) {
     Scope *scope = func->scopes->data[i];
     if (scope->vars == NULL)
@@ -1294,6 +1284,73 @@ static void gen_defun(Function *func) {
         // Enum members are replaced to constant value.
         continue;
       }
+
+      int param_index = -1;
+      if (i == 0 && param_count > 0) {
+        const Vector *params = functype->func.params;
+        for (int i = 0, n = params->len; i < n; ++i) {
+          const VarInfo *v = params->data[i];
+          if (equal_name(v->name, varinfo->name)) {
+            param_index = i;
+            break;
+          }
+        }
+      }
+      if ((param_index >= 0 || is_prim_type(varinfo->type)) && !(varinfo->storage & VS_REF_TAKEN)) {
+        if (param_index < 0) {
+          unsigned char wt = to_wtype(varinfo->type);
+          assert(WT_F64 <= wt && wt <= WT_I32);
+          int index = WT_I32 - wt;
+          local_counts[index] += 1;
+        }
+      } else {
+        size_t size = type_size(varinfo->type);
+        if (size < 1)
+          size = 1;
+        frame_size += size;
+      }
+    }
+  }
+  if (frame_size > 0) {
+    frame_size = ALIGN(frame_size, 8);  // TODO:
+
+    // Allocate base pointer in top scope.
+    const Token *bpident = alloc_dummy_ident();
+    FuncInfo *finfo = table_get(&func_info_table, func->name);
+    assert(finfo != NULL);
+    finfo->bpident = bpident;
+
+    scope_add(func->scopes->data[0], bpident->ident, &tySize, 0);
+    local_counts[WT_I32 - WT_I32] += 1;
+  }
+
+  unsigned int local_index_count = 0;
+  for (int i = 0; i < 4; ++i) {
+    if (local_counts[i] > 0)
+      ++local_index_count;
+  }
+  emit_uleb128(data, data->len, local_index_count);
+  int variadic = func->type->func.vaargs;
+  unsigned int local_indices[4];
+  for (int i = 0; i < 4; ++i) {
+    unsigned int count = local_counts[i];
+    if (count > 0) {
+      emit_uleb128(data, data->len, count);
+      data_push(data, WT_I32 - i);
+    }
+    local_indices[i] = i == 0 ? variadic + param_count : local_indices[i - 1] + local_counts[i - 1];
+  }
+
+  uint32_t frame_offset = 0;
+  for (int i = 0; i < func->scopes->len; ++i) {
+    Scope *scope = func->scopes->data[i];
+    if (scope->vars == NULL)
+      continue;
+
+    for (int j = 0; j < scope->vars->len; ++j) {
+      VarInfo *varinfo = scope->vars->data[j];
+      if (varinfo->storage & (VS_STATIC | VS_EXTERN | VS_ENUM_MEMBER))
+        continue;
 
       VReg *vreg = calloc(1, sizeof(*vreg));
       varinfo->local.reg = vreg;
@@ -1313,61 +1370,38 @@ static void gen_defun(Function *func) {
         if (param_index >= 0) {
           vreg->prim.local_index = param_index;
         } else {
-          vreg->prim.local_index = local_count++ + param_count + variadic;
-          // TODO: Group same type variables.
-          emit_uleb128(data, data->len, 1);  // TODO: Set type bytes.
-          data_push(data, to_wtype(varinfo->type));
+          unsigned char wt = to_wtype(varinfo->type);
+          int index = WT_I32 - wt;
+          vreg->prim.local_index = local_indices[index]++;
         }
       } else {
-        vreg->non_prim.offset = ALIGN(frame_size, align_size(varinfo->type));
+        vreg->non_prim.offset = ALIGN(frame_offset, align_size(varinfo->type)) - frame_size;
         size_t size = type_size(varinfo->type);
         if (size < 1)
           size = 1;
-        frame_size += size;
-      }
-    }
-  }
-  if (frame_size > 0) {
-    frame_size = ALIGN(frame_size, 8);  // TODO:
-    for (int i = 0; i < func->scopes->len; ++i) {
-      Scope *scope = func->scopes->data[i];
-      if (scope->vars == NULL)
-        continue;
-      for (int j = 0; j < scope->vars->len; ++j) {
-        VarInfo *varinfo = scope->vars->data[j];
-        if (varinfo->storage & (VS_STATIC | VS_EXTERN | VS_ENUM_MEMBER))
-          continue;
-        VReg *vreg = varinfo->local.reg;
-        if ((vreg->param_index < 0 && !is_prim_type(varinfo->type)) ||
-            (varinfo->storage & VS_REF_TAKEN))
-          vreg->non_prim.offset -= frame_size;
+        frame_offset += size;
       }
     }
   }
 
+  return frame_size;
+}
 
-  const Token *bpident = NULL;
-  if (frame_size > 0) {
-    // Allocate base pointer in top scope.
-    bpident = alloc_dummy_ident();
-    FuncInfo *finfo = table_get(&func_info_table, func->name);
-    assert(finfo != NULL);
-    finfo->bpident = bpident;
+static void gen_defun(Function *func) {
+  if (func->scopes == NULL)  // Prototype definition
+    return;
 
-    const Type *type = &tySize;
-    VarInfo *varinfo = scope_add(func->scopes->data[0], bpident->ident, type, 0);
-    VReg *vreg = calloc(1, sizeof(*vreg));
-    varinfo->local.reg = vreg;
-    vreg->prim.local_index = local_count++ + param_count;
-    emit_uleb128(data, data->len, 1);  // TODO: Set type bytes.
-    data_push(data, to_wtype(varinfo->type));
-  }
+  DataStorage *data = malloc(sizeof(*data));
+  data_init(data);
+  uint32_t frame_size = allocate_local_variables(func, data);
 
-  // Insert local count at the top.
-  emit_uleb128(data, 0, local_count);  // Put local count at the top.
-
+  code = malloc(sizeof(*code));
+  data_init(code);
   curfunc = func;
 
+  // Prologue
+
+  const Type *functype = func->type;
   if (functype->func.vaargs) {
     const Name *va_args = alloc_name(VA_ARGS_NAME, NULL, false);
     const VarInfo *varinfo = scope_find(func->scopes->data[0], va_args, NULL);
@@ -1383,6 +1417,10 @@ static void gen_defun(Function *func) {
   // Set up base pointer.
   Expr *bpvar = NULL, *spvar = NULL;
   if (frame_size > 0) {
+    FuncInfo *finfo = table_get(&func_info_table, func->name);
+    assert(finfo != NULL);
+    const Token *bpident = finfo->bpident;
+
     bpvar = new_expr_variable(bpident->ident, &tySize, bpident, func->scopes->data[0]);
     spvar = get_sp_var();
     // local.bp = global.sp;
@@ -1394,6 +1432,7 @@ static void gen_defun(Function *func) {
                                     new_expr_fixlit(&tySize, NULL, frame_size))));
   }
   // Store ref-taken parameters to stack frame.
+  unsigned int param_count = functype->func.params != NULL ? functype->func.params->len : 0;  // TODO: Consider stack params.
   if (param_count > 0) {
     const Vector *params = functype->func.params;
     for (unsigned int i = 0; i < param_count; ++i) {
@@ -1412,7 +1451,7 @@ static void gen_defun(Function *func) {
   curscope = func->scopes->data[0];
   {
     unsigned char wt = is_prim_type(functype->func.ret) ? to_wtype(functype->func.ret) : WT_VOID;
-    if (bpident != NULL) {
+    if (frame_size > 0) {
       ADD_CODE(OP_BLOCK, wt);
       cur_depth += 1;
     }
@@ -1428,12 +1467,14 @@ static void gen_defun(Function *func) {
   }
   gen_stmts(func->stmts);
 
-  if (bpident != NULL) {
+  if (frame_size > 0) {
     ADD_CODE(OP_END);
     cur_depth -= 1;
     assert(cur_depth == 0);
   }
   curscope = global_scope;
+
+  // Epilogue
 
   // Restore stack pointer.
   if (frame_size > 0) {
