@@ -521,10 +521,10 @@ enum TokenKind {
   TK_UNKNOWN,
   TK_LABEL,
   TK_FIXNUM,
-  TK_ADD = '+',
-  TK_SUB = '-',
-  TK_MUL = '*',
-  TK_DIV = '/',
+  TK_ADD,
+  TK_SUB,
+  TK_MUL,
+  TK_DIV,
 #ifndef __NO_FLONUM
   TK_FLONUM,
 #endif
@@ -596,9 +596,14 @@ static const Token *fetch_token(ParseInfo *info) {
     token->label = alloc_name(start, p, false);
     info->next = p;
     return token;
-  } else if (strchr("+-*/", c) != NULL) {
-    info->next = p + 1;
-    return new_token(c);
+  } else {
+    static const char kSingleOpTable[] = "+-*/";
+    static const enum TokenKind kTokenTable[] = {TK_ADD, TK_SUB, TK_MUL, TK_DIV};
+    const char *q = strchr(kSingleOpTable, c);
+    if (q != NULL) {
+      info->next = p + 1;
+      return new_token(kTokenTable[q - kSingleOpTable]);
+    }
   }
 
   static const Token kTokUnknown = {TK_UNKNOWN};
@@ -706,7 +711,7 @@ static Expr *parse_mul(ParseInfo *info) {
       default:  assert(false); break;
       }
     } else {
-      expr = new_expr((enum ExprKind)tok->kind);  // Assume TokenKind is same as ExprKind.
+      expr = new_expr((enum ExprKind)(tok->kind + (EX_MUL - TK_MUL)));  // Assume ExprKind is same order with TokenKind.
       expr->bop.lhs = lhs;
       expr->bop.rhs = rhs;
     }
@@ -736,7 +741,7 @@ static Expr *parse_add(ParseInfo *info) {
       default:  assert(false); break;
       }
     } else {
-      expr = new_expr((enum ExprKind)tok->kind);  // Assume TokenKind is same as ExprKind.
+      expr = new_expr((enum ExprKind)(tok->kind + (EX_ADD - TK_ADD)));  // Assume ExprKind is same order with TokenKind.
       expr->bop.lhs = lhs;
       expr->bop.rhs = rhs;
     }

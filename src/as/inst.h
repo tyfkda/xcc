@@ -239,10 +239,10 @@ enum ExprKind {
   EX_FIXNUM,
   EX_POS,
   EX_NEG,
-  EX_ADD = '+',
-  EX_SUB = '-',
-  EX_MUL = '*',
-  EX_DIV = '/',
+  EX_ADD,
+  EX_SUB,
+  EX_MUL,
+  EX_DIV,
 #ifndef __NO_FLONUM
   EX_FLONUM,
 #endif
