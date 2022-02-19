@@ -916,6 +916,10 @@ static void gen_compare_expr(enum ExprKind kind, Expr *lhs, Expr *rhs, bool need
   assert(is_prim_type(lhs->type) || !needval);
 
   gen_expr(lhs, needval);
+  if (needval && is_const(rhs) && is_fixnum(rhs->type->kind) && rhs->fixnum == 0 && kind == EX_EQ) {
+    ADD_CODE(type_size(lhs->type) <= I32_SIZE ? OP_I32_EQZ : OP_I64_EQZ);
+    return;
+  }
   gen_expr(rhs, needval);
   if (!needval)
     return;
@@ -1055,6 +1059,14 @@ static void gen_case(Stmt *stmt) {
 }
 
 static void gen_while(Stmt *stmt) {
+  bool infinite_loop = false;
+  Expr *cond = stmt->while_.cond;
+  if (is_const(cond)) {
+    if (!is_const_truthy(cond))
+      return;
+    infinite_loop = true;
+  }
+
   int save_break = break_depth;
   int save_continue = continue_depth;
   break_depth = cur_depth;
@@ -1063,7 +1075,8 @@ static void gen_while(Stmt *stmt) {
   ADD_CODE(OP_BLOCK, WT_VOID);
   ADD_CODE(OP_LOOP, WT_VOID);
   cur_depth += 2;
-  gen_cond_jmp(stmt->while_.cond, false, 1);
+  if (!infinite_loop)
+    gen_cond_jmp(cond, false, 1);
   gen_stmt(stmt->while_.body);
   ADD_CODE(OP_BR, 0);
   ADD_CODE(OP_END);
@@ -1074,6 +1087,15 @@ static void gen_while(Stmt *stmt) {
 }
 
 static void gen_do_while(Stmt *stmt) {
+  bool infinite_loop = false, no_loop = false;
+  Expr *cond = stmt->while_.cond;
+  if (is_const(cond)) {
+    if (is_const_truthy(cond))
+      infinite_loop = true;
+    else
+      no_loop = true;
+  }
+
   int save_break = break_depth;
   int save_continue = continue_depth;
   break_depth = cur_depth;
@@ -1086,8 +1108,12 @@ static void gen_do_while(Stmt *stmt) {
   gen_stmt(stmt->while_.body);
   ADD_CODE(OP_END);
   --cur_depth;
-  gen_cond_jmp(stmt->while_.cond, false, 1);
-  ADD_CODE(OP_BR, 0);
+  if (no_loop)
+    ADD_CODE(OP_BR, 1);
+  else if (infinite_loop)
+    ADD_CODE(OP_BR, 0);
+  else
+    gen_cond_jmp(cond, true, 0);
   ADD_CODE(OP_END);
   ADD_CODE(OP_END);
   cur_depth -= 2;
@@ -1096,20 +1122,30 @@ static void gen_do_while(Stmt *stmt) {
 }
 
 static void gen_for(Stmt *stmt) {
+  if (stmt->for_.pre != NULL)
+    gen_expr_stmt(stmt->for_.pre);
+
+  bool infinite_loop = false;
+  Expr *cond = stmt->for_.cond;
+  if (cond == NULL) {
+    infinite_loop = true;
+  } else if (is_const(cond)) {
+    if (!is_const_truthy(cond))
+      return;
+    infinite_loop = true;
+  }
+
   int save_break = break_depth;
   int save_continue = continue_depth;
   break_depth = cur_depth;
   continue_depth = cur_depth + 2;
 
-  if (stmt->for_.pre != NULL)
-    gen_expr_stmt(stmt->for_.pre);
-
   ADD_CODE(OP_BLOCK, WT_VOID);
   ADD_CODE(OP_LOOP, WT_VOID);
   ADD_CODE(OP_BLOCK, WT_VOID);
   cur_depth += 3;
-  if (stmt->for_.cond != NULL)
-    gen_cond_jmp(stmt->for_.cond, false, 2);
+  if (!infinite_loop)
+    gen_cond_jmp(cond, false, 2);
   gen_stmt(stmt->for_.body);
   ADD_CODE(OP_END);
   --cur_depth;
@@ -1160,6 +1196,15 @@ static void gen_return(Stmt *stmt) {
 }
 
 static void gen_if(Stmt *stmt) {
+  if (is_const(stmt->if_.cond)) {
+    if (is_const_truthy(stmt->if_.cond)) {
+      gen_stmt(stmt->if_.tblock);
+    } else if (stmt->if_.fblock != NULL) {
+      gen_stmt(stmt->if_.fblock);
+    }
+    return;
+  }
+
   gen_cond(stmt->if_.cond, true, true);
   ADD_CODE(OP_IF, WT_VOID);
   ++cur_depth;

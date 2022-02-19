@@ -21,6 +21,21 @@ bool is_const(Expr *expr) {
   }
 }
 
+bool is_const_truthy(Expr *expr) {
+  // TODO: Handle constant variable.
+
+  switch (expr->kind) {
+  case EX_FIXNUM: return expr->fixnum != 0;
+#ifndef __NO_FLONUM
+  case EX_FLONUM: return expr->flonum != 0;
+#endif
+  case EX_STR:
+    return true;
+  default:
+    return false;
+  }
+}
+
 bool is_zero(Expr *expr) {
   return expr->kind == EX_FIXNUM && expr->fixnum == 0;
 }

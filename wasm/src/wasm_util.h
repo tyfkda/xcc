@@ -71,6 +71,7 @@ typedef struct {
 #define OP_I32_LE_U       (0x4d)
 #define OP_I32_GE_S       (0x4e)
 #define OP_I32_GE_U       (0x4f)
+#define OP_I64_EQZ        (0x50)
 #define OP_I64_EQ         (0x51)
 #define OP_I64_NE         (0x52)
 #define OP_I64_LT_S       (0x53)

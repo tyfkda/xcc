@@ -143,6 +143,7 @@ Expr *new_expr_complit(const Type *type, const Token *token, Expr *var, Vector *
 Expr *new_expr_block(struct Stmt *block);
 
 bool is_const(Expr *expr);
+bool is_const_truthy(Expr *expr);
 bool is_zero(Expr *expr);
 Expr *strip_cast(Expr *expr);
 
