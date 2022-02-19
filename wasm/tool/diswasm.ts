@@ -139,16 +139,25 @@ const enum Opcode {
   F64_MUL       = 0xa2,
   F64_DIV       = 0xa3,
   I32_WRAP_I64        = 0xa7,  // i32 <- i64
-//   I32_TRUNC_F32_S     = 0xa8,  // i32 <- f32
+  I32_TRUNC_F32_S     = 0xa8,  // i32 <- f32
+  I32_TRUNC_F32_U     = 0xa9,  // i32 <- f32
   I32_TRUNC_F64_S     = 0xaa,  // i32 <- f64
+  I32_TRUNC_F64_U     = 0xab,  // i32 <- f64
   I64_EXTEND_I32_S    = 0xac,  // i64 <- i32
-//   I64_TRUNC_F32_S     = 0xae,  // i64 <- f32
-//   I64_TRUNC_F64_S     = 0xb0,  // i64 <- f64
-//   F32_CONVERT_I32_S   = 0xb2,  // f32 <- i32
+  I64_EXTEND_I32_U    = 0xad,  // i64 <- i32
+  I64_TRUNC_F32_S     = 0xae,  // i64 <- f32
+  I64_TRUNC_F32_U     = 0xaf,  // i64 <- f32
+  I64_TRUNC_F64_S     = 0xb0,  // i64 <- f64
+  I64_TRUNC_F64_U     = 0xb1,  // i64 <- f64
+  F32_CONVERT_I32_S   = 0xb2,  // f32 <- i32
+  F32_CONVERT_I32_U   = 0xb3,  // f32 <- i32
+  F32_CONVERT_I64_S   = 0xb4,  // f32 <- i64
+  F32_CONVERT_I64_U   = 0xb5,  // f32 <- i64
   F32_DEMOTE_F64      = 0xb6,  // f32 <- f64
-//   F32_CONVERT_I64_S   = 0xb4,  // f32 <- i64
   F64_CONVERT_I32_S   = 0xb7,  // f64 <- i32
-//   F64_CONVERT_I64_S   = 0xb9,  // f64 <- i64
+  F64_CONVERT_I32_U   = 0xb8,  // f64 <- i32
+  F64_CONVERT_I64_S   = 0xb9,  // f64 <- i64
+  F64_CONVERT_I64_U   = 0xba,  // f64 <- i64
   F64_PROMOTE_F32     = 0xbb,  // f64 <- f32
   I32_REINTERPRET_F32 = 0xbc,  // i32 <- f32
   I64_REINTERPRET_F64 = 0xbd,  // i64 <- f64
@@ -285,10 +294,25 @@ const InstTable = new Map([
   [Opcode.F64_DIV, {op: 'f64.div'}],
 
   [Opcode.I32_WRAP_I64, {op: 'i32.wrap_i64'}],
+  [Opcode.I32_TRUNC_F32_S, {op: 'i32.trunc_f32_s'}],
+  [Opcode.I32_TRUNC_F32_U, {op: 'i32.trunc_f32_u'}],
   [Opcode.I32_TRUNC_F64_S, {op: 'i32.trunc_f64_s'}],
+  [Opcode.I32_TRUNC_F64_U, {op: 'i32.trunc_f64_u'}],
   [Opcode.I64_EXTEND_I32_S, {op: 'i64.extend_i32_s'}],
+  [Opcode.I64_EXTEND_I32_U, {op: 'i64.extend_i32_u'}],
+  [Opcode.I64_TRUNC_F32_S, {op: 'i64.trunc_f32_s'}],
+  [Opcode.I64_TRUNC_F32_U, {op: 'i64.trunc_f32_u'}],
+  [Opcode.I64_TRUNC_F64_S, {op: 'i64.trunc_f64_s'}],
+  [Opcode.I64_TRUNC_F64_U, {op: 'i64.trunc_f64_u'}],
+  [Opcode.F32_CONVERT_I32_S, {op: 'f32.convert_i32_s'}],
+  [Opcode.F32_CONVERT_I32_U, {op: 'f32.convert_i32_u'}],
   [Opcode.F32_DEMOTE_F64, {op: 'f32.demote_f64'}],
+  [Opcode.F32_CONVERT_I64_S, {op: 'f32.convert_i64_s'}],
+  [Opcode.F32_CONVERT_I64_U, {op: 'f32.convert_i64_u'}],
   [Opcode.F64_CONVERT_I32_S, {op: 'f64.convert_i32_s'}],
+  [Opcode.F64_CONVERT_I32_U, {op: 'f64.convert_i32_u'}],
+  [Opcode.F64_CONVERT_I64_S, {op: 'f64.convert_i64_s'}],
+  [Opcode.F64_CONVERT_I64_U, {op: 'f64.convert_i64_u'}],
   [Opcode.F64_PROMOTE_F32, {op: 'f64.promote_f32'}],
   [Opcode.I32_REINTERPRET_F32, {op: 'i32.reinterpret_f32'}],
   [Opcode.I64_REINTERPRET_F64, {op: 'i64.reinterpret_f64'}],

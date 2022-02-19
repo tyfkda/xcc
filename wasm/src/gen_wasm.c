@@ -216,34 +216,21 @@ static void gen_cast(const Type *dst, const Type *src) {
         case 2: ADD_CODE(su ? OP_I64_EXTEND_I32_U : OP_I64_EXTEND_I32_S); break;
         }
         if (d < s) {
-          if (d <= I32_SIZE) {
-            if (d < I32_SIZE) {
-              if (du) {
-                ADD_CODE(OP_I32_CONST);
-                ADD_LEB128((1 << (d * CHAR_BIT)) - 1);
-                ADD_CODE(OP_I32_AND);
-              } else {
-                int shift = (s - d) * CHAR_BIT;
-                ADD_CODE(OP_I32_CONST);
-                ADD_LEB128(shift);
-                ADD_CODE(OP_I32_SHL);
-                ADD_CODE(OP_I32_CONST);
-                ADD_LEB128(shift);
-                ADD_CODE(OP_I32_SHR_S);
-              }
+          assert(d <= I32_SIZE);
+          if (d < I32_SIZE) {
+            if (du) {
+              ADD_CODE(OP_I32_CONST);
+              ADD_LEB128((1 << (d * CHAR_BIT)) - 1);
+              ADD_CODE(OP_I32_AND);
+            } else {
+              int shift = (s - d) * CHAR_BIT;
+              ADD_CODE(OP_I32_CONST);
+              ADD_LEB128(shift);
+              ADD_CODE(OP_I32_SHL);
+              ADD_CODE(OP_I32_CONST);
+              ADD_LEB128(shift);
+              ADD_CODE(OP_I32_SHR_S);
             }
-          } else {
-            assert(!"Not implemented");
-          }
-        } else if (d > s) {
-          if (du && !su) {
-            int shift = (s - d) * CHAR_BIT;
-            ADD_CODE(OP_I32_CONST);
-            ADD_LEB128(shift);
-            ADD_CODE(OP_I32_SHL);
-            ADD_CODE(OP_I32_CONST);
-            ADD_LEB128(shift);
-            ADD_CODE(OP_I32_SHR_U);
           }
         }
       }
