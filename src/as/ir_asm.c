@@ -162,61 +162,77 @@ static void put_unresolved(Table *table, const Name *label) {
   table_put(table, label, (void*)label);
 }
 
-static bool calc_expr(Table *label_table, const Expr *expr, intptr_t *result,
-                      Table *unresolved_labels) {
+typedef struct {
+  const Name *label;
+  intptr_t offset;
+} Value;
+
+static Value calc_expr(Table *label_table, const Expr *expr) {
   assert(expr != NULL);
   switch (expr->kind) {
   case EX_LABEL:
-    {
-      LabelInfo *dst = table_get(label_table, expr->label);
-      if (dst != NULL && (dst->flag & LF_DEFINED) != 0) {
-        *result = dst->address;
-        return true;
-      } else {
-        if (unresolved_labels != NULL)
-          put_unresolved(unresolved_labels, expr->label);
-        return false;
-      }
-    }
-    break;
+    return (Value){.label = expr->label, .offset = 0};
   case EX_FIXNUM:
-    *result = expr->fixnum;
-    return true;
+    return (Value){.label = NULL, .offset = expr->fixnum};
   case EX_ADD:
   case EX_SUB:
   case EX_MUL:
   case EX_DIV:
     {
-      intptr_t lhs, rhs;
-      if (!calc_expr(label_table, expr->bop.lhs, &lhs, unresolved_labels) ||
-          !calc_expr(label_table, expr->bop.rhs, &rhs, unresolved_labels))
-        return false;
-      switch (expr->kind) {
-      case EX_ADD:  *result = lhs + rhs; break;
-      case EX_SUB:  *result = lhs - rhs; break;
-      case EX_MUL:  *result = lhs * rhs; break;
-      case EX_DIV:  *result = lhs / rhs; break;
-      default: assert(false); return false;
+      Value lhs = calc_expr(label_table, expr->bop.lhs);
+      Value rhs = calc_expr(label_table, expr->bop.rhs);
+      if (rhs.label != NULL) {
+        if (expr->kind == EX_SUB && lhs.label != NULL) {
+          LabelInfo *llabel, *rlabel;
+          if (table_try_get(label_table, lhs.label, (void**)&llabel) &&
+              table_try_get(label_table, rhs.label, (void**)&rlabel)) {
+            return (Value){.label = NULL, .offset = llabel->address - rlabel->address};
+          } else {
+            error("Unresolved");
+          }
+        }
+        if (expr->kind != EX_ADD || lhs.label != NULL) {
+          error("Illegal expression");
+          return rhs;
+        }
+        // offset + label
+        return (Value){.label = rhs.label, .offset = lhs.offset + rhs.offset};
       }
+      if (lhs.label != NULL) {
+        if (expr->kind != EX_ADD) {
+          error("Illegal expression");
+          return lhs;
+        }
+        // label + offset
+        return (Value){.label = lhs.label, .offset = lhs.offset + rhs.offset};
+      }
+
+      assert(lhs.label == NULL && rhs.label == NULL);
+      switch (expr->kind) {
+      case EX_ADD:  lhs.offset += rhs.offset; break;
+      case EX_SUB:  lhs.offset -= rhs.offset; break;
+      case EX_MUL:  lhs.offset *= rhs.offset; break;
+      case EX_DIV:  lhs.offset /= rhs.offset; break;
+      default: assert(false); break;
+      }
+      return lhs;
     }
-    return true;
 
   case EX_POS:
   case EX_NEG:
     {
-      intptr_t sub;
-      if (!calc_expr(label_table, expr->unary.sub, &sub, unresolved_labels))
-        return false;
-      switch (expr->kind) {
-      case EX_POS:  *result = sub; break;
-      case EX_NEG:  *result = -sub; break;
-      default: assert(false); return false;
+      Value value = calc_expr(label_table, expr->unary.sub);
+      if (value.label != NULL) {
+        error("Illegal expression");
       }
+      if (expr->kind == EX_NEG)
+        value.offset = -value.offset;
+      return value;
     }
-    return true;
 
-  default: assert(false); return false;
+  default: assert(false); break;
   }
+  return (Value){.label = NULL, .offset = 0};
 }
 
 bool resolve_relative_address(Vector **section_irs, Table *label_table, Vector *unresolved) {
@@ -240,41 +256,43 @@ bool resolve_relative_address(Vector **section_irs, Table *label_table, Vector *
             if (inst->src.type == INDIRECT &&
                 inst->src.indirect.reg.no == RIP &&
                 inst->src.indirect.offset->kind != EX_FIXNUM) {
-              Expr *expr = inst->src.indirect.offset;
+              Value value = calc_expr(label_table, inst->src.indirect.offset);
+              if (value.label != NULL) {
+                LabelInfo *label_info = table_get(label_table, value.label);
+                if (unresolved != NULL) {
+                  if (label_info == NULL) {
+                    UnresolvedInfo *info = malloc(sizeof(*info));
+                    info->kind = UNRES_EXTERN_PC32;
+                    info->label = value.label;
+                    info->src_section = sec;
+                    info->offset = address + 3 - start_address;
+                    info->add = value.offset - 4;
+                    vec_push(unresolved, info);
+                    break;
+                  } else if (label_info->section != sec) {
+                    Vector *irs2 = section_irs[label_info->section];
+                    uintptr_t dst_start_address = irs2->len > 0 ? ((IR *)irs2->data[0])->address : 0;
 
-              bool unres = false;
-              if (expr->kind == EX_LABEL && unresolved != NULL) {
-                LabelInfo *label_info = table_get(label_table, expr->label);
-                if (label_info == NULL) {
-                  UnresolvedInfo *info = malloc(sizeof(*info));
-                  info->kind = UNRES_EXTERN_PC32;
-                  info->label = expr->label;
-                  info->src_section = sec;
-                  info->offset = address + 3 - start_address;
-                  info->add = -4;
-                  vec_push(unresolved, info);
-                  unres = true;
-                } else if (label_info->section != sec) {
-                  Vector *irs2 = section_irs[label_info->section];
-                  uintptr_t dst_start_address = irs2->len > 0 ? ((IR*)irs2->data[0])->address : 0;
-
-                  UnresolvedInfo *info = malloc(sizeof(*info));
-                  info->kind = UNRES_OTHER_SECTION;
-                  info->label = expr->label;
-                  info->src_section = sec;
-                  info->offset = address + 3 - start_address;
-                  info->add = label_info->address - dst_start_address - 4;
-                  vec_push(unresolved, info);
-                  unres = true;
+                    UnresolvedInfo *info = malloc(sizeof(*info));
+                    info->kind = UNRES_OTHER_SECTION;
+                    info->label = value.label;
+                    info->src_section = sec;
+                    info->offset = address + 3 - start_address;
+                    info->add = label_info->address + value.offset - dst_start_address - 4;
+                    vec_push(unresolved, info);
+                    break;
+                  }
+                } else {
+                  if (label_info == NULL) {
+                    put_unresolved(&unresolved_labels, value.label);
+                    break;
+                  }
                 }
+                assert(label_info != NULL);
+                value.offset += label_info->address;
               }
-              if (!unres) {
-                intptr_t dst;
-                if (calc_expr(label_table, expr, &dst, &unresolved_labels)) {
-                  intptr_t offset = dst - ((intptr_t)address + ir->code.len);
-                  put_value(ir->code.buf + 3, offset, sizeof(int32_t));
-                }
-              }
+              intptr_t offset = value.offset - ((intptr_t)address + ir->code.len);
+              put_value(ir->code.buf + 3, offset, sizeof(int32_t));
             }
             break;
           case JMP:
@@ -283,53 +301,63 @@ bool resolve_relative_address(Vector **section_irs, Table *label_table, Vector *
           case JS: case JNS: case JP:  case JNP:
           case JL: case JGE: case JLE: case JG:
             if (inst->src.type == DIRECT) {
-              intptr_t dst;
-              if (calc_expr(label_table, inst->src.direct.expr, &dst, &unresolved_labels)) {
-                intptr_t offset = dst - ((intptr_t)address + ir->code.len);
-                bool long_offset = ir->code.flag & INST_LONG_OFFSET;
-                if (!long_offset) {
-                  if (!is_im8(offset)) {
-                    // Change to long offset, and recalculate.
-                    ir->code.flag |= INST_LONG_OFFSET;
-                    if (inst->op == JMP)
-                      MAKE_CODE(inst, &ir->code, 0xe9, IM32(-1));
-                    else
-                      MAKE_CODE(inst, &ir->code, 0x0f, 0x80 + (inst->op - JO), IM32(-1));
-                    size_upgraded = true;
-                  } else {
-                    put_value(ir->code.buf + 1, offset, sizeof(int8_t));
-                  }
+              Value value = calc_expr(label_table, inst->src.direct.expr);
+              if (value.label != NULL) {
+                LabelInfo *label_info = table_get(label_table, value.label);
+                if (label_info == NULL) {
+                  assert(!"Not handled");
+                  break;
                 } else {
-                  if (!is_im32(offset))
-                    error("Jump offset too far (over 32bit)");
+                  value.offset += label_info->address;
+                }
+              }
 
-                  int d = inst->op == JMP ? 1 : 2;
-                  put_value(ir->code.buf + d, offset, sizeof(int32_t));
+              intptr_t offset = value.offset - ((intptr_t)address + ir->code.len);
+              bool long_offset = ir->code.flag & INST_LONG_OFFSET;
+              if (!long_offset) {
+                if (!is_im8(offset)) {
+                  // Change to long offset, and recalculate.
+                  ir->code.flag |= INST_LONG_OFFSET;
+                  if (inst->op == JMP)
+                    MAKE_CODE(inst, &ir->code, 0xe9, IM32(-1));
+                  else
+                    MAKE_CODE(inst, &ir->code, 0x0f, 0x80 + (inst->op - JO), IM32(-1));
+                  size_upgraded = true;
+                } else {
+                  put_value(ir->code.buf + 1, offset, sizeof(int8_t));
                 }
               } else {
-                assert(unresolved == NULL);  // Not implemented.
+                if (!is_im32(offset))
+                  error("Jump offset too far (over 32bit)");
+
+                int d = inst->op == JMP ? 1 : 2;
+                put_value(ir->code.buf + d, offset, sizeof(int32_t));
               }
             }
             break;
           case CALL:
             if (inst->src.type == DIRECT) {
-              intptr_t dst;
-              Expr *expr = inst->src.direct.expr;
-              if (calc_expr(label_table, expr, &dst, &unresolved_labels)) {
-                intptr_t offset = (intptr_t)dst - ((intptr_t)address + ir->code.len);
-                put_value(ir->code.buf + 1, offset, sizeof(int32_t));
-              } else {
-                if (unresolved != NULL) {
-                  assert(expr->kind == EX_LABEL);
+              Value value = calc_expr(label_table, inst->src.direct.expr);
+              if (value.label != NULL) {
+                LabelInfo *label_info = table_get(label_table, value.label);
+                if (label_info == NULL) {
+                  if (unresolved == NULL) {
+                    put_unresolved(&unresolved_labels, value.label);
+                    break;
+                  }
                   UnresolvedInfo *info = malloc(sizeof(*info));
                   info->kind = UNRES_EXTERN;
-                  info->label = expr->label;
+                  info->label = value.label;
                   info->src_section = sec;
                   info->offset = address + 1 - start_address;
-                  info->add = -4;
+                  info->add = value.offset - 4;
                   vec_push(unresolved, info);
+                  break;
                 }
+                value.offset += label_info->address;
               }
+              intptr_t offset = value.offset - ((intptr_t)address + ir->code.len);
+              put_value(ir->code.buf + 1, offset, sizeof(int32_t));
             }
             break;
           default:
@@ -340,48 +368,28 @@ bool resolve_relative_address(Vector **section_irs, Table *label_table, Vector *
       case IR_EXPR_BYTE:
       case IR_EXPR_WORD:
       case IR_EXPR_LONG:
-        {
-          intptr_t value;
-          if (calc_expr(label_table, ir->expr, &value, &unresolved_labels)) {
-            put_value(ir->code.buf + 3, value, sizeof(int32_t));
-          } else {
-            assert(!"Unhandled");
-          }
-        }
-        break;
       case IR_EXPR_QUAD:
         {
-          const Expr *expr = ir->expr;
-
-          bool unres = false;
-          if (expr->kind == EX_LABEL && unresolved != NULL) {
-            LabelInfo *label_info = table_get(label_table, expr->label);
-            if (label_info == NULL) {
+          Value value = calc_expr(label_table, ir->expr);
+          if (value.label != NULL) {
+            if (unresolved != NULL) {
               UnresolvedInfo *info = malloc(sizeof(*info));
               info->kind = UNRES_ABS64;  // TODO:
-              info->label = expr->label;
+              info->label = value.label;
               info->src_section = sec;
               info->offset = address - start_address;
-              info->add = 0;
+              info->add = value.offset;
               vec_push(unresolved, info);
-              unres = true;
-            } else if (sec != SEC_CODE || label_info->section != sec) {
-              UnresolvedInfo *info = malloc(sizeof(*info));
-              info->kind = UNRES_ABS64;  // TODO
-              info->label = expr->label;
-              info->src_section = sec;
-              info->offset = address - start_address;
-              info->add = 0;
-              vec_push(unresolved, info);
-              unres = true;
+              break;
             }
-          }
-          if (!unres) {
-            intptr_t value;
-            if (calc_expr(label_table, expr, &value, &unresolved_labels)) {
-              put_value(ir->code.buf + 3, value, sizeof(int32_t));
+            LabelInfo *label_info = table_get(label_table, value.label);
+            if (label_info == NULL) {
+              put_unresolved(&unresolved_labels, value.label);
+              break;
             }
+            value.offset += label_info->address;
           }
+          put_value(ir->code.buf + 3, value.offset, sizeof(int32_t));
         }
         break;
       case IR_LABEL:
@@ -434,11 +442,15 @@ void emit_irs(Vector **section_irs, Table *label_table) {
       case IR_EXPR_LONG:
       case IR_EXPR_QUAD:
         {
-          intptr_t value;
-          if (calc_expr(label_table, ir->expr, &value, NULL)) {
-            int size = 1 << (ir->kind - IR_EXPR_BYTE);
-            add_section_data(sec, &value, size);  // TODO: Target endian
+          Value value = calc_expr(label_table, ir->expr);
+          if (value.label != NULL) {
+            LabelInfo *label_info = table_get(label_table, value.label);
+            if (label_info != NULL) {
+              value.offset += label_info->address;
+            }
           }
+          int size = 1 << (ir->kind - IR_EXPR_BYTE);
+          add_section_data(sec, &value.offset, size);  // TODO: Target endian
         }
         break;
       default:  assert(false); break;
