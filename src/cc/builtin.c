@@ -79,6 +79,26 @@ static VReg *gen_builtin_va_start(Expr *expr) {
   return NULL;
 }
 
+static VReg *gen_alloca(Expr *expr) {
+  const int stack_align = 16;  // TODO
+  assert(expr->kind == EX_FUNCALL);
+  Vector *args = expr->funcall.args;
+  assert(args->len == 1);
+  assert(curfunc != NULL);
+  Expr *size = args->data[0];
+  const Token *token = size->token;
+  Expr *aligned_size = new_expr_bop(EX_BITAND, &tySSize, token,
+      new_expr_addsub(EX_ADD, token,
+                      make_cast(&tySSize, token, size, false),
+                      new_expr_fixlit(&tySSize, token, stack_align - 1), false),
+      new_expr_fixlit(&tySSize, token, -stack_align));
+  VReg *addend = gen_expr(aligned_size);
+  VReg *result = add_new_reg(&tyVoidPtr, 0);
+  new_ir_subsp(addend, result);
+  curfunc->flag |= FUNCF_STACK_MODIFIED;
+  return result;
+}
+
 void install_builtins(void) {
   static BuiltinExprProc p_reg_class = &proc_builtin_type_kind;
   add_builtin_expr_ident("__builtin_type_kind", &p_reg_class);
@@ -95,6 +115,17 @@ void install_builtins(void) {
     Vector *param_types = extract_varinfo_types(params);
     const Type *type = new_func_type(rettype, params, param_types, false);
 
-    add_builtin_function("__builtin_va_start", type, &p_va_start);
+    add_builtin_function("__builtin_va_start", type, &p_va_start, true);
+  }
+  {
+    static BuiltinFunctionProc p_alloca = &gen_alloca;
+    Vector *params = new_vector();
+    var_add(params, NULL, &tySize, 0);
+
+    const Type *rettype = &tyVoidPtr;
+    Vector *param_types = extract_varinfo_types(params);
+    const Type *type = new_func_type(rettype, params, param_types, false);
+
+    add_builtin_function("alloca", type, &p_alloca, false);
   }
 }

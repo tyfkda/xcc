@@ -523,6 +523,7 @@ static void emit_defun(Function *func) {
 
   // Prologue
   // Allocate variable bufer.
+  int callee_saved_count = 0;
   if (!no_stmt) {
     PUSH(RBP); PUSH_STACK_POS();
     MOV(RSP, RBP);
@@ -534,13 +535,19 @@ static void emit_defun(Function *func) {
     put_args_to_stack(func);
 
     // Callee save.
-    push_callee_save_regs(func->ra->used_reg_bits);
+    callee_saved_count = push_callee_save_regs(func->ra->used_reg_bits);
   }
 
   emit_bb_irs(func->bbcon);
 
   // Epilogue
   if (!no_stmt) {
+    if (func->flag & FUNCF_STACK_MODIFIED) {
+      // Stack pointer might be changed if alloca is used, so it need to be recalculated.
+      LEA(OFFSET_INDIRECT(callee_saved_count * -WORD_SIZE - func->ra->frame_size, RBP, NULL, 1),
+          RSP);
+    }
+
     pop_callee_save_regs(func->ra->used_reg_bits);
 
     MOV(RBP, RSP);

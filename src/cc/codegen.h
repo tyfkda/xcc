@@ -37,4 +37,4 @@ void gen_stmt(struct Stmt *stmt);
 void gen_stmts(Vector *stmts);
 
 typedef VReg *(*BuiltinFunctionProc)(Expr *expr);
-void add_builtin_function(const char *str, const Type *type, BuiltinFunctionProc *proc);
+void add_builtin_function(const char *str, const Type *type, BuiltinFunctionProc *proc, bool add_to_scope);

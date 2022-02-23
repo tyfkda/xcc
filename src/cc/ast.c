@@ -317,6 +317,7 @@ Function *new_func(const Type *type, const Name *name) {
   func->bbcon = NULL;
   func->ret_bb = NULL;
   func->retval = NULL;
+  func->flag = 0;
 
   return func;
 }

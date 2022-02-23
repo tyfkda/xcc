@@ -293,7 +293,10 @@ typedef struct Function {
   BBContainer *bbcon;
   BB *ret_bb;
   VReg *retval;
+  int flag;
 } Function;
+
+#define FUNCF_STACK_MODIFIED  (1 << 0)
 
 Function *new_func(const Type *type, const Name *name);
 

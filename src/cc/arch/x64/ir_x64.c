@@ -1065,14 +1065,17 @@ void remove_unnecessary_bb(BBContainer *bbcon) {
   }
 }
 
-void push_callee_save_regs(unsigned short used) {
+int push_callee_save_regs(unsigned short used) {
+  int count = 0;
   for (int i = 0; i < CALLEE_SAVE_REG_COUNT; ++i) {
     int ireg = kCalleeSaveRegs[i];
     if (used & (1 << ireg)) {
       PUSH(kReg64s[ireg]);
       PUSH_STACK_POS();
+      ++count;
     }
   }
+  return count;
 }
 
 void pop_callee_save_regs(unsigned short used) {

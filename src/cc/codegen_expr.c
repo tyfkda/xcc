@@ -47,11 +47,12 @@ VReg *add_new_reg(const Type *type, int flag) {
 
 static Table builtin_function_table;  // <BuiltinFunctionProc>
 
-void add_builtin_function(const char *str, const Type *type, BuiltinFunctionProc *proc) {
+void add_builtin_function(const char *str, const Type *type, BuiltinFunctionProc *proc, bool add_to_scope) {
   const Name *name = alloc_name(str, NULL, false);
   table_put(&builtin_function_table, name, proc);
 
-  scope_add(global_scope, name, type, 0);
+  if (add_to_scope)
+    scope_add(global_scope, name, type, 0);
 }
 
 static enum ConditionKind swap_cond(enum ConditionKind cond) {
