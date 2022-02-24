@@ -340,28 +340,23 @@ int main(int argc, char *argv[]) {
   }
 
   int res = 0;
-  if (iarg < argc) {
-    for (int i = iarg; i < argc; ++i) {
-      char *src = argv[i];
-      char *ext = get_ext(src);
-      if (strcasecmp(ext, "c") == 0) {
-        char prefix_option[32];
-        create_local_label_prefix_option(i - iarg, prefix_option, sizeof(prefix_option));
-        cc1_cmd->data[cc1_cmd->len - 2] = prefix_option;
+  for (int i = iarg; i < argc; ++i) {
+    char *src = argv[i];
+    char *ext = get_ext(src);
+    if (strcasecmp(ext, "c") == 0) {
+      char prefix_option[32];
+      create_local_label_prefix_option(i - iarg, prefix_option, sizeof(prefix_option));
+      cc1_cmd->data[cc1_cmd->len - 2] = prefix_option;
 
-        res = compile(src, cpp_cmd, out_pp ? NULL : cc1_cmd, ofd);
-      } else if (strcasecmp(ext, "s") == 0) {
-        res = cat(src, ofd);
-      } else {
-        fprintf(stderr, "Unsupported file type: %s\n", src);
-        res = -1;
-      }
-      if (res != 0)
-        break;
+      res = compile(src, cpp_cmd, out_pp ? NULL : cc1_cmd, ofd);
+    } else if (strcasecmp(ext, "s") == 0) {
+      res = cat(src, ofd);
+    } else {
+      fprintf(stderr, "Unsupported file type: %s\n", src);
+      res = -1;
     }
-  } else {
-    // cpp is read from stdin.
-    res = compile(NULL, cpp_cmd, out_pp ? NULL : cc1_cmd, ofd);
+    if (res != 0)
+      break;
   }
 
   if (res != 0 && as_pid != -1) {
