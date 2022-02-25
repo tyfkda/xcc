@@ -734,7 +734,7 @@ static void ir_out(IR *ir) {
       int align_stack = precall->precall.stack_aligned + precall->precall.stack_args_size;
       if (align_stack != 0) {
         ADD(IM(align_stack), RSP);
-        stackpos -= align_stack;
+        stackpos -= precall->precall.stack_aligned;
       }
 
       // Resore caller save registers.
@@ -783,12 +783,18 @@ static void ir_out(IR *ir) {
     }
     break;
 
-  case IR_ADDSP:
-    if (ir->value > 0)
-      ADD(IM(ir->value), RSP);
-    else if (ir->value < 0)
-      SUB(IM(-ir->value), RSP);
-    stackpos -= ir->value;
+  case IR_SUBSP:
+    if (ir->opr1->flag & VRF_CONST) {
+      if (ir->opr1->fixnum > 0)
+        SUB(IM(ir->opr1->fixnum), RSP);
+      else if (ir->opr1->fixnum < 0)
+        ADD(IM(-ir->opr1->fixnum), RSP);
+      // stackpos += ir->opr1->fixnum;
+    } else {
+      SUB(kReg64s[ir->opr1->phys], RSP);
+    }
+    if (ir->dst != NULL)
+      MOV(RSP, kReg64s[ir->dst->phys]);
     break;
 
   case IR_CAST: assert((ir->opr1->flag & VRF_CONST) == 0);

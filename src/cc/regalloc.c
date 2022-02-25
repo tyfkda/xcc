@@ -276,6 +276,7 @@ static int insert_load_store_spilled(BBContainer *bbcon, Vector *vregs, const in
         load_size = ir->size;
         break;
 
+      case IR_SUBSP:
       case IR_CAST:
         flag = 5;
         load_size = ir->opr1->vtype->size;

@@ -79,7 +79,7 @@ enum IrKind {
   IR_PUSHARG,
   IR_CALL,    // Call label or opr1
   IR_RESULT,  // retval = opr1
-  IR_ADDSP,   // RSP += value
+  IR_SUBSP,   // RSP -= value
   IR_CAST,    // dst <= opr1
   IR_MOV,     // dst = opr1
   IR_MEMCPY,  // memcpy(opr2, opr1, size)
@@ -164,7 +164,7 @@ IR *new_ir_precall(int arg_count, int stack_args_size);
 void new_ir_pusharg(VReg *vreg, const VRegType *vtype);
 VReg *new_ir_call(const Name *label, bool global, VReg *freg, int total_arg_count, int reg_arg_count, const VRegType *result_type, IR *precall, VRegType **arg_vtypes, bool vaargs);
 void new_ir_result(VReg *reg);
-void new_ir_addsp(int value);
+void new_ir_subsp(VReg *value, VReg *dst);
 VReg *new_ir_cast(VReg *vreg, const VRegType *dsttype);
 void new_ir_memcpy(VReg *dst, VReg *src, int size);
 void new_ir_clear(VReg *reg, size_t size);

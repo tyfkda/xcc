@@ -430,7 +430,7 @@ static VReg *gen_funcall(Expr *expr) {
 
   int reg_arg_count = 0;
   if (offset > 0)
-    new_ir_addsp(-offset);
+    new_ir_subsp(new_const_vreg(offset, to_vtype(&tySSize)), NULL);
   if (args != NULL) {
     // Register arguments.
     for (int i = arg_count; --i >= 0; ) {

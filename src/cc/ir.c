@@ -292,9 +292,11 @@ void new_ir_result(VReg *reg) {
   ir->size = reg->vtype->size;
 }
 
-void new_ir_addsp(int value) {
-  IR *ir = new_ir(IR_ADDSP);
-  ir->value = value;
+void new_ir_subsp(VReg *value, VReg *dst) {
+  IR *ir = new_ir(IR_SUBSP);
+  ir->opr1 = value;
+  ir->dst = dst;
+  ir->size = WORD_SIZE;
 }
 
 VReg *new_ir_cast(VReg *vreg, const VRegType *dsttype) {
