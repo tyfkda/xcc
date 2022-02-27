@@ -193,15 +193,14 @@ static int compare_cases(const void *pa, const void *pb) {
   return d > 0 ? 1 : d < 0 ? -1 : 0;
 }
 
-static void gen_switch_cond_recur(Stmt *stmt, VReg *reg, const VRegType *vtype, const int *order,
-                                  int len) {
+static void gen_switch_cond_recur(Stmt *stmt, VReg *reg, const int *order, int len) {
   Vector *cases = stmt->switch_.cases;
   if (len <= 2) {
     for (int i = 0; i < len; ++i) {
       BB *nextbb = new_bb();
       int index = order[i];
       Stmt *c = cases->data[index];
-      VReg *num = new_const_vreg(c->case_.value->fixnum, vtype);
+      VReg *num = new_const_vreg(c->case_.value->fixnum, reg->vtype);
       new_ir_cmp(reg, num);
       new_ir_jmp(COND_EQ, c->case_.bb);
       set_curbb(nextbb);
@@ -213,7 +212,7 @@ static void gen_switch_cond_recur(Stmt *stmt, VReg *reg, const VRegType *vtype, 
     int m = len >> 1;
     int index = order[m];
     Stmt *c = cases->data[index];
-    VReg *num = new_const_vreg(c->case_.value->fixnum, vtype);
+    VReg *num = new_const_vreg(c->case_.value->fixnum, reg->vtype);
     new_ir_cmp(reg, num);
     new_ir_jmp(COND_EQ, c->case_.bb);
     set_curbb(bbne);
@@ -222,9 +221,9 @@ static void gen_switch_cond_recur(Stmt *stmt, VReg *reg, const VRegType *vtype, 
     BB *bbgt = new_bb();
     new_ir_jmp(COND_GT, bbgt);
     set_curbb(bblt);
-    gen_switch_cond_recur(stmt, reg, vtype, order, m);
+    gen_switch_cond_recur(stmt, reg, order, m);
     set_curbb(bbgt);
-    gen_switch_cond_recur(stmt, reg, vtype, order + (m + 1), len - (m + 1));
+    gen_switch_cond_recur(stmt, reg, order + (m + 1), len - (m + 1));
   }
 }
 
@@ -265,7 +264,7 @@ static void gen_switch_cond(Stmt *stmt) {
 
       if (stmt->switch_.default_ != NULL)
         --len;  // Ignore default.
-      gen_switch_cond_recur(stmt, reg, to_vtype(stmt->switch_.value->type), order, len);
+      gen_switch_cond_recur(stmt, reg, order, len);
       if (len > 256)
         free(order);
     } else {
