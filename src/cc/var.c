@@ -1,3 +1,4 @@
+#include "../config.h"
 #include "var.h"
 
 #include <assert.h>

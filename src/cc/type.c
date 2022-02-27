@@ -1,3 +1,4 @@
+#include "../config.h"
 #include "type.h"
 
 #include <assert.h>

@@ -1,3 +1,5 @@
+#include "../config.h"
+
 #include <getopt.h>
 #include <string.h>
 

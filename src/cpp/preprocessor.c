@@ -1,3 +1,4 @@
+#include "../config.h"
 #include "preprocessor.h"
 
 #include <assert.h>

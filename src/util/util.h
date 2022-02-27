@@ -14,13 +14,6 @@
 #define UNUSED(x)  ((void)(x))
 #define IS_POWER_OF_2(x)  (x > 0 && (x & (x - 1)) == 0)
 
-#ifdef SELF_HOSTING
-#define QSORT  qsort
-#else
-#define QSORT  myqsort
-void myqsort(void *base, size_t nmemb, size_t size, int (*compare)(const void *, const void *));
-#endif
-
 typedef struct Name Name;
 
 int isalnum_(int c);
@@ -45,6 +38,8 @@ void show_error_line(const char *line, const char *p, int len);
 bool is_im8(intptr_t x);
 bool is_im32(intptr_t x);
 const char *skip_whitespaces(const char *s);
+
+void myqsort(void *base, size_t nmemb, size_t size, int (*compare)(const void *, const void *));
 
 // Container
 

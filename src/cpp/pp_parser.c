@@ -1,3 +1,4 @@
+#include "../config.h"
 #include "pp_parser.h"
 
 #include <assert.h>

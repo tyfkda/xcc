@@ -1,3 +1,4 @@
+#include "../config.h"
 #include "regalloc.h"
 
 #include <assert.h>
@@ -11,17 +12,6 @@
 #include "type.h"
 #include "util.h"
 #include "var.h"
-
-#if (defined(__linux__) || defined(__APPLE__)) && !defined(__XV6)
-#define USE_ALLOCA
-#endif
-
-#if defined(USE_ALLOCA)
-#include <alloca.h>
-#define ALLOCA(size)  alloca(size)
-#else
-#define ALLOCA(size)  malloc(size)
-#endif
 
 #define SPILLED_REG_NO(ra)  (ra->phys_max)
 #ifndef __NO_FLONUM

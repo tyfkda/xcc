@@ -1,3 +1,5 @@
+#include "../config.h"
+
 #include <assert.h>
 #include <getopt.h>
 #include <stdio.h>

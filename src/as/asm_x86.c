@@ -1,3 +1,4 @@
+#include "../config.h"
 #include "asm_x86.h"
 
 #include <assert.h>

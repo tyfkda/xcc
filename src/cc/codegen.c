@@ -1,3 +1,4 @@
+#include "../config.h"
 #include "codegen.h"
 
 #include <assert.h>
@@ -257,7 +258,7 @@ static void gen_switch_cond(Stmt *stmt) {
 
     if (len > 0) {
       // Sort cases in increasing order.
-      int *order = malloc(sizeof(int) * len);
+      int *order = len <= 256 ? ALLOCA(sizeof(int) * len) : malloc(sizeof(int) * len);
       for (int i = 0; i < len; ++i)
         order[i] = i;
       QSORT(order, len, sizeof(int), compare_cases);
@@ -265,7 +266,8 @@ static void gen_switch_cond(Stmt *stmt) {
       if (stmt->switch_.default_ != NULL)
         --len;  // Ignore default.
       gen_switch_cond_recur(stmt, reg, to_vtype(stmt->switch_.value->type), order, len);
-      free(order);
+      if (len > 256)
+        free(order);
     } else {
       Stmt *def = curswitch->switch_.default_;
       new_ir_jmp(COND_ANY, def != NULL ? def->case_.bb : curswitch->switch_.break_bb);

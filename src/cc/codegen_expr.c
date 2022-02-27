@@ -1,3 +1,4 @@
+#include "../config.h"
 #include "codegen.h"
 
 #include <assert.h>
@@ -384,7 +385,7 @@ static VReg *gen_funcall(Expr *expr) {
 #endif
 
     // Check stack arguments.
-    arg_infos = malloc(sizeof(*arg_infos) * arg_count);
+    arg_infos = ALLOCA(sizeof(*arg_infos) * arg_count);
     for (int i = 0; i < arg_count; ++i) {
       ArgInfo *p = &arg_infos[i];
       p->reg_index = -1;
@@ -486,8 +487,6 @@ static VReg *gen_funcall(Expr *expr) {
                                precall, arg_vtypes, func->type->func.vaargs);
     }
   }
-
-  free(arg_infos);
 
   return result_reg;
 }

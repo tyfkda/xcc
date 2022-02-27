@@ -1,3 +1,4 @@
+#include "../config.h"
 #include "gen_section.h"
 
 #include <assert.h>

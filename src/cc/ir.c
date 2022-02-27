@@ -1,3 +1,4 @@
+#include "../config.h"
 #include "ir.h"
 
 #include <assert.h>

@@ -1,3 +1,4 @@
+#include "../config.h"
 #include "parser.h"
 
 #include <assert.h>

@@ -580,7 +580,7 @@ static void emit_wasm(FILE *ofp, Vector *exports, uint32_t address_bottom) {
     for (int it = 0; (it = table_iterate(&indirect_function_table, it, &name, (void**)&info)) != -1; ++index)
       indirect_funcs[index] = info;
 
-    QSORT(indirect_funcs, count, sizeof(*indirect_funcs), compare_indirect);
+    qsort(indirect_funcs, count, sizeof(*indirect_funcs), compare_indirect);
 
     emit_leb128(&elems_section, elems_section.len, 1);  // num elem segments
     emit_leb128(&elems_section, elems_section.len, 0);  // segment flags

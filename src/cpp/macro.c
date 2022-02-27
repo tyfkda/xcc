@@ -1,3 +1,4 @@
+#include "../config.h"
 #include "macro.h"
 
 #include <assert.h>
