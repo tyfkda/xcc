@@ -121,8 +121,7 @@ static void set_inout_interval(Vector *regs, LiveInterval *intervals, int nip) {
 }
 
 static LiveInterval **check_live_interval(BBContainer *bbcon, int vreg_count,
-                                          LiveInterval **pintervals) {
-  LiveInterval *intervals = malloc(sizeof(LiveInterval) * vreg_count);
+                                          LiveInterval *intervals) {
   for (int i = 0; i < vreg_count; ++i) {
     LiveInterval *li = &intervals[i];
     li->virt = i;
@@ -161,7 +160,6 @@ static LiveInterval **check_live_interval(BBContainer *bbcon, int vreg_count,
     sorted_intervals[i] = &intervals[i];
   QSORT(sorted_intervals, vreg_count, sizeof(LiveInterval*), sort_live_interval);
 
-  *pintervals = intervals;
   return sorted_intervals;
 }
 
@@ -536,8 +534,8 @@ void alloc_physical_registers(RegAlloc *ra, BBContainer *bbcon, int reserved_siz
   analyze_reg_flow(bbcon);
 
   int vreg_count = ra->vregs->len;
-  LiveInterval *intervals;
-  LiveInterval **sorted_intervals = check_live_interval(bbcon, vreg_count, &intervals);
+  LiveInterval *intervals = malloc(sizeof(LiveInterval) * vreg_count);
+  LiveInterval **sorted_intervals = check_live_interval(bbcon, vreg_count, intervals);
 
   for (int i = 0; i < vreg_count; ++i) {
     LiveInterval *li = &intervals[i];
