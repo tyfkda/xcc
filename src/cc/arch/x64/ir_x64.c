@@ -614,6 +614,37 @@ static void ir_out(IR *ir) {
     }
     break;
 
+  case IR_TJMP:
+    {
+      const Name *table_label = alloc_label();
+      int phys = ir->opr1->phys;
+      const int powd = 3;
+      assert(0 <= ir->opr1->vtype->size && ir->opr1->vtype->size < kPow2TableSize);
+      int pows = kPow2Table[ir->opr1->vtype->size];
+      assert(0 <= pows && pows < 4);
+      if (pows < powd) {
+        if (pows == 2) {
+          // MOVZX %64bit, %32bit doesn't exist!
+          MOV(kRegSizeTable[pows][phys], kRegSizeTable[pows][phys]);
+        } else {
+          MOVZX(kRegSizeTable[pows][phys], kRegSizeTable[powd][phys]);
+        }
+      }
+
+      LEA(LABEL_INDIRECT(fmt_name(table_label), RIP), RAX);
+      ADD(OFFSET_INDIRECT(0, RAX, kReg64s[phys], 8), RAX);
+      JMP(fmt("*%s", RAX));
+
+      // TODO: Put jump table after function.
+      EMIT_ALIGN(8);
+      EMIT_LABEL(fmt_name(table_label));
+      for (size_t i = 0, len = ir->tjmp.len; i < len; ++i) {
+        BB *bb = ir->tjmp.bbs[i];
+        _QUAD(fmt("%.*s - %.*s", bb->label->bytes, bb->label->chars, table_label->bytes, table_label->chars));
+      }
+    }
+    break;
+
   case IR_PRECALL:
     {
       // Make room for caller save.
@@ -983,16 +1014,33 @@ static IR *is_last_any_jmp(BB *bb) {
   return ir != NULL && ir->jmp.cond == COND_ANY ? ir : NULL;
 }
 
+static IR *is_last_jtable(BB *bb) {
+  int len;
+  IR *ir;
+  if ((len = bb->irs->len) > 0 && (ir = bb->irs->data[len - 1])->kind == IR_TJMP)
+    return ir;
+  return NULL;
+}
+
 static void replace_jmp_destination(BBContainer *bbcon, BB *src, BB *dst) {
   Vector *bbs = bbcon->bbs;
-  for (int j = 0; j < bbs->len; ++j) {
-    BB *bb = bbs->data[j];
+  for (int i = 0; i < bbs->len; ++i) {
+    BB *bb = bbs->data[i];
     if (bb == src)
       continue;
 
     IR *ir = is_last_jmp(bb);
     if (ir != NULL && ir->jmp.bb == src)
       ir->jmp.bb = dst;
+
+    IR *tjmp = is_last_jtable(bb);
+    if (tjmp != NULL) {
+      BB **bbs = tjmp->tjmp.bbs;
+      for (size_t j = 0, len = tjmp->tjmp.len; j < len; ++j) {
+        if (bbs[j] == src)
+          bbs[j] = dst;
+      }
+    }
   }
 }
 
@@ -1033,6 +1081,13 @@ void remove_unnecessary_bb(BBContainer *bbcon) {
         table_put(&keeptbl, ir_jmp->jmp.bb->label, bb);
       if (ir_jmp == NULL || ir_jmp->jmp.cond != COND_ANY)
         table_put(&keeptbl, bb->next->label, bb);
+
+      IR *tjmp = is_last_jtable(bb);
+      if (tjmp != NULL) {
+        BB **bbs = tjmp->tjmp.bbs;
+        for (size_t j = 0, len = tjmp->tjmp.len; j < len; ++j)
+          table_put(&keeptbl, bbs[j]->label, bb);
+      }
 
       if (remove)
         table_delete(&keeptbl, bb->label);

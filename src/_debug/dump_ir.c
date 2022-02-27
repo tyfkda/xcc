@@ -56,8 +56,14 @@ static void dump_ir(FILE *fp, IR *ir) {
   case IR_CMP:    fprintf(fp, "\tCMP\t"); dump_vreg(fp, ir->opr1, ir->size); fprintf(fp, " - "); dump_vreg(fp, ir->opr2, ir->size); fprintf(fp, "\n"); break;
   case IR_NEG:    fprintf(fp, "\tNEG\t"); dump_vreg(fp, ir->dst, ir->size); fprintf(fp, " = -"); dump_vreg(fp, ir->opr1, ir->size); fprintf(fp, "\n"); break;
   case IR_BITNOT: fprintf(fp, "\tBITNOT\t"); dump_vreg(fp, ir->dst, ir->size); fprintf(fp, " = ~"); dump_vreg(fp, ir->opr1, ir->size); fprintf(fp, "\n"); break;
-  case IR_COND:    fprintf(fp, "\tCOND\t"); dump_vreg(fp, ir->dst, 4); fprintf(fp, " = %s\n", kCond[ir->cond.kind]); break;
+  case IR_COND:   fprintf(fp, "\tCOND\t"); dump_vreg(fp, ir->dst, 4); fprintf(fp, " = %s\n", kCond[ir->cond.kind]); break;
   case IR_JMP:    fprintf(fp, "\tJ%s\t%.*s\n", kCond[ir->jmp.cond], ir->jmp.bb->label->bytes, ir->jmp.bb->label->chars); break;
+  case IR_TJMP:
+    fprintf(fp, "\TJMP\t");
+    dump_vreg(fp, ir->opr1, ir->opr1->vtype->size);
+    for (size_t i = 0; i < ir->tjmp.len; ++i) fprintf(fp, "%s%.*s", i == 0 ? ", [" : ", ", ((BB*)ir->tjmp.bbs[i])->label->bytes, ((BB*)ir->tjmp.bbs[i])->label->chars);
+    fprintf(fp, "]\n");
+    break;
   case IR_PRECALL: fprintf(fp, "\tPRECALL\n"); break;
   case IR_PUSHARG: fprintf(fp, "\tPUSHARG\t"); dump_vreg(fp, ir->opr1, ir->size); fprintf(fp, "\n"); break;
   case IR_CALL:

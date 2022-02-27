@@ -257,6 +257,15 @@ void new_ir_jmp(enum ConditionKind cond, BB *bb) {
   ir->jmp.cond = cond;
 }
 
+void new_ir_tjmp(VReg *val, BB **bbs, size_t len) {
+  assert(len >= 1);
+  IR *ir = new_ir(IR_TJMP);
+  ir->opr1 = val;
+  ir->tjmp.bbs = bbs;
+  ir->tjmp.len = len;
+  ir->size = val->vtype->size;
+}
+
 void new_ir_pusharg(VReg *vreg, const VRegType *vtype) {
   IR *ir = new_ir(IR_PUSHARG);
   ir->opr1 = vreg;

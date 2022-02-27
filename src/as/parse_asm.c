@@ -456,7 +456,7 @@ static bool parse_indirect_register(ParseInfo *info, Expr *offset, Operand *oper
     ++info->p;
 
   if (!(is_reg64(base_reg) || (base_reg == RIP && index_reg == NOREG)))
-    parse_error(info, "Register expected1");
+    parse_error(info, "Register expected");
 
   if (index_reg == NOREG) {
     char no = base_reg - RAX;
@@ -467,7 +467,7 @@ static bool parse_indirect_register(ParseInfo *info, Expr *offset, Operand *oper
     operand->indirect.offset = offset;
   } else {
     if (!is_reg64(index_reg))
-      parse_error(info, "Register expected2");
+      parse_error(info, "Register expected");
 
     operand->type = INDIRECT_WITH_INDEX;
     operand->indirect_with_index.offset = offset;

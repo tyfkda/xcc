@@ -15,6 +15,8 @@
 #define PUT_CODE(p, ...)  do { unsigned char buf[] = {__VA_ARGS__}; memcpy(p, buf, sizeof(buf)); } while (0)
 #endif
 
+static const int kPow2Table[] = {-1, 0, 1, -1, 2, -1, -1, -1, 3};
+
 static unsigned char *put_code_filtered(unsigned char *p, const short *buf, size_t count) {
   for (size_t i = 0; i < count; ++i) {
     short c = *buf++;
@@ -595,8 +597,7 @@ bool assemble_inst(Inst *inst, const ParseInfo *info, Code *code) {
         }
       }
     } else if (inst->src.type == INDIRECT && inst->dst.type == REG) {
-      if (inst->src.indirect.offset->kind == EX_FIXNUM &&
-          inst->src.indirect.reg.no != NOREG && inst->src.indirect.reg.no != RIP) {
+      if (inst->src.indirect.offset->kind == EX_FIXNUM && inst->src.indirect.reg.no != RIP) {
         long offset = inst->src.indirect.offset->fixnum;
         enum RegSize size = inst->dst.reg.size;
         p = put_rex_indirect(
@@ -605,6 +606,26 @@ bool assemble_inst(Inst *inst, const ParseInfo *info, Code *code) {
             opr_regno(&inst->src.indirect.reg),
             0x02, 0x00, offset);
       }
+    } else if (inst->src.type == INDIRECT_WITH_INDEX && inst->dst.type == REG) {
+      assert(inst->src.indirect_with_index.offset->kind == EX_FIXNUM && inst->src.indirect_with_index.offset->fixnum == 0);  // TODO
+      unsigned char scale = 0;
+      if (inst->src.indirect_with_index.scale != NULL) {
+        assert(inst->src.indirect_with_index.scale->kind == EX_FIXNUM);
+        int s = inst->src.indirect_with_index.scale->fixnum;
+        assert(s == 1 || s == 2 || s == 4 || s == 8);
+        scale = kPow2Table[s];
+      }
+
+      unsigned char bno = inst->src.indirect_with_index.base_reg.no;
+      unsigned char ino = inst->src.indirect_with_index.index_reg.no;
+      unsigned char dno = inst->dst.reg.no;
+      short buf[] = {
+        (unsigned char)0x48 | (inst->src.indirect_with_index.base_reg.x) | (inst->src.indirect_with_index.index_reg.x << 1) | (inst->dst.reg.x << 2),
+        0x03,
+        0x04 | (dno << 3),
+        bno | (ino << 3) | (scale << 6),
+      };
+      p = put_code_filtered(p, buf, ARRAY_SIZE(buf));
     }
     break;
   case ADDQ:
@@ -677,6 +698,36 @@ bool assemble_inst(Inst *inst, const ParseInfo *info, Code *code) {
           }
         }
       }
+    } else if (inst->src.type == INDIRECT && inst->dst.type == REG) {
+      if (inst->src.indirect.offset->kind == EX_FIXNUM && inst->src.indirect.reg.no != RIP) {
+        long offset = inst->src.indirect.offset->fixnum;
+        enum RegSize size = inst->dst.reg.size;
+        p = put_rex_indirect(
+            p, size,
+            opr_regno(&inst->dst.reg),
+            opr_regno(&inst->src.indirect.reg),
+            0x2a, 0x00, offset);
+      }
+    } else if (inst->src.type == INDIRECT_WITH_INDEX && inst->dst.type == REG) {
+      assert(inst->src.indirect_with_index.offset->kind == EX_FIXNUM && inst->src.indirect_with_index.offset->fixnum == 0);  // TODO
+      unsigned char scale = 0;
+      if (inst->src.indirect_with_index.scale != NULL) {
+        assert(inst->src.indirect_with_index.scale->kind == EX_FIXNUM);
+        int s = inst->src.indirect_with_index.scale->fixnum;
+        assert(s == 1 || s == 2 || s == 4 || s == 8);
+        scale = kPow2Table[s];
+      }
+
+      unsigned char bno = inst->src.indirect_with_index.base_reg.no;
+      unsigned char ino = inst->src.indirect_with_index.index_reg.no;
+      unsigned char dno = inst->dst.reg.no;
+      short buf[] = {
+        (unsigned char)0x48 | (inst->src.indirect_with_index.base_reg.x) | (inst->src.indirect_with_index.index_reg.x << 1) | (inst->dst.reg.x << 2),
+        0x2b,
+        0x04 | (dno << 3),
+        bno | (ino << 3) | (scale << 6),
+      };
+      p = put_code_filtered(p, buf, ARRAY_SIZE(buf));
     }
     break;
   case SUBQ:
@@ -1105,11 +1156,23 @@ bool assemble_inst(Inst *inst, const ParseInfo *info, Code *code) {
                  0x58 | inst->src.reg.no);
     break;
   case JMP:
-    if (inst->src.type != DIRECT || inst->dst.type != NOOPERAND)
+    if (inst->dst.type != NOOPERAND)
       return assemble_error(info, "Illegal operand");
-    //MAKE_CODE(inst, code, 0xe9, IM32(0));
-    MAKE_CODE(inst, code, 0xeb, IM8(0));  // Short jmp in default.
-    return true;
+
+    if (inst->src.type == DIRECT) {
+      //MAKE_CODE(inst, code, 0xe9, IM32(0));
+      MAKE_CODE(inst, code, 0xeb, IM8(0));  // Short jmp in default.
+      return true;
+    } else if (inst->src.type == DEREF_REG) {
+      int s = inst->src.deref_reg.no;
+      if (!inst->src.deref_reg.x) {
+        MAKE_CODE(inst, code, 0xff, 0xe0 + s);
+      } else {
+        MAKE_CODE(inst, code, 0x41, 0xff, 0xe0 + s);
+      }
+      return true;
+    }
+    break;
   case JO: case JNO: case JB:  case JAE:
   case JE: case JNE: case JBE: case JA:
   case JS: case JNS: case JP:  case JNP:

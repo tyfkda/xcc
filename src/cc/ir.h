@@ -75,6 +75,7 @@ enum IrKind {
   IR_BITNOT,
   IR_COND,    // dst <- flag
   IR_JMP,     // Jump with condition
+  IR_TJMP,    // Table jump
   IR_PRECALL, // Prepare for call
   IR_PUSHARG,
   IR_CALL,    // Call label or opr1
@@ -126,6 +127,10 @@ typedef struct IR {
       enum ConditionKind cond;
     } jmp;
     struct {
+      BB **bbs;
+      size_t len;
+    } tjmp;
+    struct {
       int arg_count;
       int stack_args_size;
       int stack_aligned;
@@ -160,6 +165,7 @@ void new_ir_store(VReg *dst, VReg *src);
 void new_ir_cmp(VReg *opr1, VReg *opr2);
 VReg *new_ir_cond(enum ConditionKind cond);
 void new_ir_jmp(enum ConditionKind cond, BB *bb);
+void new_ir_tjmp(VReg *val, BB **bbs, size_t len);
 IR *new_ir_precall(int arg_count, int stack_args_size);
 void new_ir_pusharg(VReg *vreg, const VRegType *vtype);
 VReg *new_ir_call(const Name *label, bool global, VReg *freg, int total_arg_count, int reg_arg_count, const VRegType *result_type, IR *precall, VRegType **arg_vtypes, bool vaargs);

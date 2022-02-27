@@ -193,6 +193,30 @@ static int compare_cases(const void *pa, const void *pb) {
   return d > 0 ? 1 : d < 0 ? -1 : 0;
 }
 
+static void gen_switch_cond_table_jump(Stmt *stmt, VReg *reg, const int *order, int len) {
+  Vector *cases = stmt->switch_.cases;
+  Fixnum min = ((Stmt *)cases->data[order[0]])->case_.value->fixnum;
+  Fixnum max = ((Stmt*)cases->data[order[len - 1]])->case_.value->fixnum;
+  Fixnum range = max - min + 1;
+
+  BB **table = malloc(sizeof(*table) * range);
+  Stmt *def = curswitch->switch_.default_;
+  BB *skip_bb = def != NULL ? def->case_.bb : curswitch->switch_.break_bb;
+  for (Fixnum i = 0; i < range; ++i)
+    table[i] = skip_bb;
+  for (int i = 0; i < len; ++i) {
+    Stmt *c = cases->data[order[i]];
+    table[c->case_.value->fixnum - min] = c->case_.bb;
+  }
+
+  BB *nextbb = new_bb();
+  VReg *val = min == 0 ? reg : new_ir_bop(IR_SUB, reg, new_const_vreg(min, reg->vtype), reg->vtype);
+  new_ir_cmp(val, new_const_vreg(max - min, val->vtype));
+  new_ir_jmp(COND_UGT, skip_bb);
+  set_curbb(nextbb);
+  new_ir_tjmp(val, table, range);
+}
+
 static void gen_switch_cond_recur(Stmt *stmt, VReg *reg, const int *order, int len) {
   Vector *cases = stmt->switch_.cases;
   if (len <= 2) {
@@ -208,6 +232,14 @@ static void gen_switch_cond_recur(Stmt *stmt, VReg *reg, const int *order, int l
     Stmt *def = curswitch->switch_.default_;
     new_ir_jmp(COND_ANY, def != NULL ? def->case_.bb : curswitch->switch_.break_bb);
   } else {
+    Stmt *min = cases->data[order[0]];
+    Stmt *max = cases->data[order[len - 1]];
+    Fixnum range = max->case_.value->fixnum - min->case_.value->fixnum + 1;
+    if (range >= 4 && len > (range >> 1)) {
+      gen_switch_cond_table_jump(stmt, reg, order, len);
+      return;
+    }
+
     BB *bbne = new_bb();
     int m = len >> 1;
     int index = order[m];
