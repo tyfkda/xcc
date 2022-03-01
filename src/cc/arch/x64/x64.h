@@ -213,9 +213,11 @@
 #ifdef __APPLE__
 #define _RODATA()      _SECTION("__TEXT,__const")
 #define EMIT_ALIGN(x)  emit_align_p2(x)
+#define _LOCAL(x)      (0)
 #else
 #define _RODATA()      _SECTION(".rodata")
 #define EMIT_ALIGN(x)  emit_align(x)
+#define _LOCAL(x)      EMIT_ASM1(".local", x)
 #endif
 
 

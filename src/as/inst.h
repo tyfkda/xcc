@@ -310,6 +310,7 @@ enum DirectiveType {
   DT_QUAD,
   DT_COMM,
   DT_GLOBL,
+  DT_LOCAL,
   DT_EXTERN,
 #ifndef __NO_FLONUM
   DT_FLOAT,

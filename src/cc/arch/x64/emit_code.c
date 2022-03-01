@@ -316,6 +316,8 @@ static void emit_varinfo(const VarInfo *varinfo, const Initializer *init) {
   if ((varinfo->storage & VS_STATIC) == 0) {  // global
     label = MANGLE(label);
     _GLOBL(label);
+  } else {
+    _LOCAL(label);
   }
 
   if (init != NULL) {
@@ -504,7 +506,7 @@ static void emit_defun(Function *func) {
     _GLOBL(gl);
     EMIT_LABEL(gl);
   } else {
-    emit_comment("%.*s: static func", func->name->bytes, func->name->chars);
+    _LOCAL(label);
     EMIT_LABEL(label);
   }
 

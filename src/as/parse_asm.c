@@ -222,6 +222,7 @@ static const char *kDirectiveTable[] = {
   "quad",
   "comm",
   "globl",
+  "local",
   "extern",
 #ifndef __NO_FLONUM
   "float",
@@ -1047,14 +1048,17 @@ void handle_directive(ParseInfo *info, enum DirectiveType dir, Vector **section_
 #endif
 
   case DT_GLOBL:
+  case DT_LOCAL:
     {
       const Name *label = parse_label(info);
       if (label == NULL) {
-        parse_error(info, ".globl: label expected");
+        char buf[32];
+        snprintf(buf, sizeof(buf), "%s: label expected", dir == DT_GLOBL ? ".globl" : ".local");
+        parse_error(info, buf);
         return;
       }
 
-      if (!add_label_table(label_table, label, current_section, false, true))
+      if (!add_label_table(label_table, label, current_section, false, dir == DT_GLOBL))
         err = true;
     }
     break;
