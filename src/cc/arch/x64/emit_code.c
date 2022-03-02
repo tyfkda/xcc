@@ -589,7 +589,7 @@ void emit_code(Vector *decls) {
       break;
     case DCL_VARDECL:
       {
-        emit_comment(NULL);
+        bool first = true;
         Vector *decls = decl->vardecl.decls;
         for (int i = 0; i < decls->len; ++i) {
           VarDecl *vd = decls->data[i];
@@ -598,7 +598,10 @@ void emit_code(Vector *decls) {
           const Name *name = vd->ident->ident;
           const VarInfo *varinfo = scope_find(global_scope, name, NULL);
           assert(varinfo != NULL);
-
+          if (first) {
+            emit_comment(NULL);
+            first = false;
+          }
           emit_varinfo(varinfo, varinfo->global.init);
         }
       }
