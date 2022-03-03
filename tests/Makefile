@@ -6,7 +6,7 @@ INCLUDE_DIR:=$(ROOT_DIR)/include
 LIB_DIR:=$(ROOT_DIR)/lib
 EXAMPLES_DIR:=$(ROOT_DIR)/examples
 
-CFLAGS=-ansi -std=c11 -Wall -Wextra -Werror \
+CFLAGS:=-ansi -std=c11 -Wall -Wextra -Werror \
 	-Wold-style-definition -Wno-missing-field-initializers -Wno-typedef-redefinition \
 	-Wno-empty-body
 CFLAGS+=-I$(CC_DIR) -I$(UTIL_DIR)

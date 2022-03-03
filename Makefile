@@ -113,7 +113,7 @@ test-self-hosting:
 
 LIB_SRCS:= lib/lib.c lib/assert.c lib/umalloc.c lib/sprintf.c lib/getopt.c lib/crt0.c
 
-HOST_EXES=$(HOST)/xcc $(HOST)/cpp $(HOST)/cc1 $(HOST)/as
+HOST_EXES:=$(HOST)/xcc $(HOST)/cpp $(HOST)/cc1 $(HOST)/as
 
 $(TARGET)/cpp:	$(HOST_EXES) $(CPP_SRCS)
 	mkdir -p $(TARGET)
