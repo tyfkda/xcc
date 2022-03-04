@@ -27,6 +27,7 @@ typedef struct Table {
   TableEntry *entries;
   int capacity;
   int count;
+  int used;  // Include tombstone count.
 } Table;
 
 Table *alloc_table(void);

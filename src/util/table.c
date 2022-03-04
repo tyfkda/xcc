@@ -105,7 +105,7 @@ static void adjust_capacity(Table *table, int new_capacity) {
   free(old_entries);
   table->entries = new_entries;
   table->capacity = new_capacity;
-  table->count = new_count;
+  table->count = table->used = new_count;
 }
 
 Table *alloc_table(void) {
@@ -117,7 +117,7 @@ Table *alloc_table(void) {
 
 void table_init(Table *table) {
   table->entries = NULL;
-  table->count = table->capacity = 0;
+  table->count = table->used = table->capacity = 0;
 }
 
 void *table_get(Table *table, const Name *key) {
@@ -146,7 +146,7 @@ bool table_try_get(Table *table, const Name *key, void **output) {
 
 bool table_put(Table *table, const Name *key, void *value) {
   const int MIN_CAPACITY = 15;
-  if (table->count >= table->capacity / 2) {
+  if (table->used >= table->capacity / 2) {
     int capacity = table->capacity * 2 - 1;  // Keep odd.
     if (capacity < MIN_CAPACITY)
       capacity = MIN_CAPACITY;
@@ -155,8 +155,11 @@ bool table_put(Table *table, const Name *key, void *value) {
 
   TableEntry *entry = find_entry(table->entries, table->capacity, key);
   bool is_new_key = entry->key == NULL;
-  if (is_new_key && entry->value == NULL)
+  if (is_new_key) {
     ++table->count;
+    if (entry->value == NULL)
+      ++table->used;
+  }
 
   entry->key = key;
   entry->value = value;
@@ -171,6 +174,7 @@ bool table_delete(Table *table, const Name *key) {
   if (entry->key == NULL)
     return false;
 
+  --table->count;
   // Put tombstone.
   entry->key = NULL;
   entry->value = entry;

@@ -10,18 +10,8 @@
 void expect(int line, bool result) {
   if (result)
     return;
-  fprintf(stderr, "%d: failed\n", line);
+  fprintf(stderr, "at line %d: failed\n", line);
   exit(1);
-}
-
-int count_table_elems(Table *table) {
-  int count = 0;
-  for (int i = 0;; ++count) {
-    i = table_iterate(table, i, NULL, NULL);
-    if (i < 0)
-      break;
-  }
-  return count;
 }
 
 void test_table(void) {
@@ -36,12 +26,17 @@ void test_table(void) {
   table_put(&table, key, data);
   EXPECT(table_get(&table, key) == data);
   EXPECT(table_try_get(&table, key, NULL));
-  EXPECT(count_table_elems(&table) == 1);
+  EXPECT(table.count == 1);
+
+  const Name *key_dup = alloc_name("1", NULL, false);
+  table_put(&table, key_dup, data);
+  EXPECT(table.count == 1);
 
   EXPECT(table_delete(&table, key));
   EXPECT(table_get(&table, key) == NULL);
   EXPECT(!table_try_get(&table, key, NULL));
-  EXPECT(count_table_elems(&table) == 0);
+  EXPECT(table.count == 0);
+  EXPECT(table.used == 1);
 }
 
 void runtest(void) {
