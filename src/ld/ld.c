@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "gen_section.h"
 #include "table.h"
 #include "util.h"
 
@@ -221,6 +222,39 @@ static bool link_elfobjs(Vector *elfobjs, const Name *entry) {
 
   for (int i = 0; i < elfobjs->len; ++i) {
     ElfObj *elfobj = elfobjs->data[i];
+
+    for (Elf64_Half sec = 0; sec < elfobj->ehdr.e_shnum; ++sec) {
+      Elf64_Shdr *shdr = &elfobj->shdrs[sec];
+      switch (shdr->sh_type) {
+      case SHT_PROGBITS:
+        {
+          Elf64_Xword size = shdr->sh_size;
+          if (size <= 0)
+            break;
+          void *buf = read_from(elfobj->fp, shdr->sh_offset, size);
+          if (buf == NULL) {
+            perror("read error");
+          }
+          if (shdr->sh_flags & SHF_EXECINSTR) {
+            add_code(buf, size);
+          } else {
+            int writable = shdr->sh_flags & SHF_WRITE;
+            add_section_data(writable ? SEC_DATA : SEC_RODATA, buf, size);
+          }
+        }
+        break;
+      case SHT_NOBITS:
+        {
+          Elf64_Xword size = shdr->sh_size;
+          if (size <= 0)
+            break;
+          add_bss(shdr->sh_size);
+        }
+        break;
+      default: break;
+      }
+    }
+
     if (elfobj->symtab.shdr == NULL)
       continue;
 

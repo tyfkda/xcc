@@ -1,2 +1,3 @@
+-I./src/as
 -I./src/cc
 -I./src/util

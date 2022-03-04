@@ -11,7 +11,7 @@ OPTIMIZE:=-O2 -g3
 CFLAGS:=-ansi -std=c11 -pedantic -MMD -Wall -Wextra -Werror -Wold-style-definition \
 	-Wno-missing-field-initializers -Wno-typedef-redefinition -Wno-empty-body \
 	-D_DEFAULT_SOURCE
-CFLAGS+=-I$(CC1_DIR) -I$(UTIL_DIR) $(OPTIMIZE)
+CFLAGS+=-I$(CC1_DIR) -I$(AS_DIR) -I$(UTIL_DIR) $(OPTIMIZE)
 CFLAGS+=-I$(CC1_ARCH_DIR)/x64
 
 XCC_SRCS:=$(wildcard $(XCC_DIR)/*.c) \
@@ -24,6 +24,7 @@ CPP_SRCS:=$(wildcard $(CPP_DIR)/*.c) \
 AS_SRCS:=$(wildcard $(AS_DIR)/*.c) \
 	$(UTIL_DIR)/util.c $(UTIL_DIR)/elfutil.c $(UTIL_DIR)/table.c
 LD_SRCS:=$(wildcard $(LD_DIR)/*.c) \
+	$(AS_DIR)/gen_section.c \
 	$(UTIL_DIR)/util.c $(UTIL_DIR)/elfutil.c $(UTIL_DIR)/table.c
 
 XCC_OBJS:=$(addprefix $(OBJ_DIR)/,$(notdir $(XCC_SRCS:.c=.o)))
