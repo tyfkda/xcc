@@ -99,68 +99,86 @@ static char *read_strtab(FILE *fp, Elf64_Shdr *sec) {
 }
 
 typedef struct {
+  union {
+    struct {
+      uintptr_t address;
+      unsigned char *content;
+    } progbits;
+    struct {
+      const char *buf;
+    } strtab;
+    struct {
+      Elf64_Sym *symtabs;
+      Table names;  // <Elf64_Sym*>
+    } symtab;
+  };
+} SectionInfo;
+
+typedef struct {
   FILE *fp;
   Elf64_Ehdr ehdr;
   Elf64_Shdr *shdrs;
   char *shstrtab;
 
-  struct {
-    Elf64_Shdr *shdr;
-    Elf64_Sym *symtabs;
-    Table names;  // <Elf64_Sym*>
-    const char *str;
-  } symtab;
-
-  size_t code_offset;
-  size_t data_offset;
-  size_t rodata_offset;
+  SectionInfo *section_infos;
 } ElfObj;
 
 static void elfobj_init(ElfObj *elfobj) {
   memset(elfobj, 0, sizeof(*elfobj));
-  table_init(&elfobj->symtab.names);
-}
-
-static int find_section(ElfObj *elfobj, unsigned int section_type) {
-  for (int i = 0; i < elfobj->ehdr.e_shnum; ++i) {
-    Elf64_Shdr *p = &elfobj->shdrs[i];
-    if (p->sh_type == section_type)
-      return i;
-  }
-  return -1;
 }
 
 static bool load_symtab(ElfObj *elfobj) {
-  int symtab_index = find_section(elfobj, SHT_SYMTAB);
-  if (symtab_index < 0)
-    return false;
+  for (Elf64_Half sec = 0; sec < elfobj->ehdr.e_shnum; ++sec) {
+    Elf64_Shdr *shdr = &elfobj->shdrs[sec];
+    switch (shdr->sh_type) {
+    case SHT_STRTAB:
+      {
+        const char *buf = read_strtab(elfobj->fp, shdr);
+        if (buf == NULL)
+          error("read strtab failed");
+        elfobj->section_infos[sec].strtab.buf = buf;
+      }
+      break;
+    case SHT_SYMTAB:
+      {
+        Elf64_Sym *symtabs = read_from(elfobj->fp, shdr->sh_offset, shdr->sh_size);
+        if (symtabs == NULL)
+          perror("read symtab failed");
+        if (shdr->sh_size % sizeof(Elf64_Sym) != 0)
+          error("malformed symtab");
 
-  Elf64_Shdr *symtab_sec = &elfobj->shdrs[symtab_index];
-  Elf64_Sym *symtabs = read_from(elfobj->fp, symtab_sec->sh_offset, symtab_sec->sh_size);
-  if (symtabs == NULL)
-    perror("read symtab failed");
-  if (symtab_sec->sh_size % sizeof(Elf64_Sym) != 0)
-    error("malformed symtab");
+        Elf64_Shdr *strtab_sec = &elfobj->shdrs[shdr->sh_link];
+        if (strtab_sec->sh_type != SHT_STRTAB)
+          error("malformed symtab");
 
-  Elf64_Shdr *strtab_sec = &elfobj->shdrs[symtab_sec->sh_link];
-  const char *str = read_strtab(elfobj->fp, strtab_sec);
-  if (str == NULL)
-    error("read strtab failed");
-
-  Table *names = &elfobj->symtab.names;
-  size_t count = symtab_sec->sh_size / sizeof(Elf64_Sym);
-  for (uint32_t i = 0; i < count; ++i) {
-    Elf64_Sym *sym = &symtabs[i];
-    unsigned char type = sym->st_info & 0x0f;
-    if (type == STT_NOTYPE && str[sym->st_name] != '\0') {
-      const Name *name = alloc_name(&str[sym->st_name], NULL, false);
-      table_put(names, name, sym);
+        SectionInfo *p = &elfobj->section_infos[sec];
+        table_init(&p->symtab.names);
+        p->symtab.symtabs = symtabs;
+      }
+      break;
     }
   }
 
-  elfobj->symtab.shdr = symtab_sec;
-  elfobj->symtab.symtabs = symtabs;
-  elfobj->symtab.str = str;
+  for (Elf64_Half sec = 0; sec < elfobj->ehdr.e_shnum; ++sec) {
+    Elf64_Shdr *shdr = &elfobj->shdrs[sec];
+    if (shdr->sh_type != SHT_SYMTAB)
+      continue;
+
+    SectionInfo *p = &elfobj->section_infos[sec];
+    SectionInfo *q = &elfobj->section_infos[shdr->sh_link];  // Strtab
+    const char *str = q->strtab.buf;
+    Table *names = &p->symtab.names;
+    size_t count = shdr->sh_size / sizeof(Elf64_Sym);
+    for (uint32_t i = 0; i < count; ++i) {
+      Elf64_Sym *sym = &p->symtab.symtabs[i];
+      unsigned char type = sym->st_info & 0x0f;
+      if (type == STT_NOTYPE && str[sym->st_name] != '\0') {
+        const Name *name = alloc_name(&str[sym->st_name], NULL, false);
+        table_put(names, name, sym);
+      }
+    }
+  }
+
   return true;
 }
 
@@ -181,6 +199,9 @@ static bool read_elf(ElfObj *elfobj, FILE *fp, const char *fn) {
   }
   elfobj->shdrs = read_all_section_headers(fp, &elfobj->ehdr);
   if (elfobj->shdrs != NULL) {
+    SectionInfo *section_infos = calloc(elfobj->ehdr.e_shnum, sizeof(*elfobj->section_infos));
+    elfobj->section_infos = section_infos;
+
     elfobj->shstrtab = read_strtab(fp, &elfobj->shdrs[elfobj->ehdr.e_shstrndx]);
     if (elfobj->shstrtab != NULL) {
       if (!load_symtab(elfobj))
@@ -216,11 +237,15 @@ void dump(FILE *fp, ElfObj *elfobj) {
     fprintf(fp, "%2d:%-16s type=%8s, offset=%lx, size=%lx\n", i, &elfobj->shstrtab[p->sh_name], shtypename(p->sh_type), p->sh_offset, p->sh_size);
   }
 
-  {
-    printf("Symbols: #%d\n", elfobj->symtab.names.count);
+  for (Elf64_Half sec = 0; sec < elfobj->ehdr.e_shnum; ++sec) {
+    Elf64_Shdr *shdr = &elfobj->shdrs[sec];
+    if (shdr->sh_type != SHT_SYMTAB)
+      continue;
+    SectionInfo *p = &elfobj->section_infos[sec];
+    printf("Symbols: #%d\n", p->symtab.names.count);
     const Name *name;
     Elf64_Sym *sym;
-    for (int it = 0; (it = table_iterate(&elfobj->symtab.names, it, &name, (void**)&sym)) != -1; ) {
+    for (int it = 0; (it = table_iterate(&p->symtab.names, it, &name, (void**)&sym)) != -1; ) {
       unsigned char bind = sym->st_info >> 4;
       char *bindname;
       switch (bind) {
@@ -228,14 +253,22 @@ void dump(FILE *fp, ElfObj *elfobj) {
       case STB_GLOBAL:  bindname = "GLOBAL"; break;
       default:  bindname = "?"; break;
       }
-      printf("  %.*s: bind=%s\n", name->bytes, name->chars, bindname);
+      printf("  %.*s: sec=%d, value=%lx, bind=%s\n", name->bytes, name->chars, sym->st_shndx, sym->st_value, bindname);
     }
   }
 }
 
 static Elf64_Sym *find_symbol(ElfObj *elfobj, const Name *name) {
-  Elf64_Sym *sym = table_get(&elfobj->symtab.names, name);
-  return sym;
+  for (Elf64_Half sec = 0; sec < elfobj->ehdr.e_shnum; ++sec) {
+    Elf64_Shdr *shdr = &elfobj->shdrs[sec];
+    if (shdr->sh_type != SHT_SYMTAB)
+      continue;
+    SectionInfo *p = &elfobj->section_infos[sec];
+    Elf64_Sym *sym = table_get(&p->symtab.names, name);
+    if (sym != NULL)
+      return sym;
+  }
+  return NULL;
 }
 
 static Elf64_Sym *find_symbol_from_all(Vector *elfobjs, const Name *name, ElfObj **pelfobj) {
@@ -251,17 +284,64 @@ static Elf64_Sym *find_symbol_from_all(Vector *elfobjs, const Name *name, ElfObj
   return NULL;
 }
 
+static void resolve_relas(Vector *elfobjs) {
+  for (int i = 0; i < elfobjs->len; ++i) {
+    ElfObj *elfobj = elfobjs->data[i];
+    for (Elf64_Half sec = 0; sec < elfobj->ehdr.e_shnum; ++sec) {
+      Elf64_Shdr *shdr = &elfobj->shdrs[sec];
+      if (shdr->sh_type != SHT_RELA || shdr->sh_size <= 0)
+        continue;
+      const Elf64_Rela *relas = read_from(elfobj->fp, shdr->sh_offset, shdr->sh_size);
+      if (relas == NULL) {
+        perror("read error");
+      }
+      const Elf64_Shdr *symhdr = &elfobj->shdrs[shdr->sh_link];
+      const SectionInfo *symhdrinfo = &elfobj->section_infos[shdr->sh_link];
+      const SectionInfo *strinfo = &elfobj->section_infos[symhdr->sh_link];
+      assert(elfobj->shdrs[shdr->sh_info].sh_type == SHT_PROGBITS);
+      const SectionInfo *dst_info = &elfobj->section_infos[shdr->sh_info];
+      // TODO: Use this
+      // for (size_t j = 0, n = shdr->sh_size / sizeof(Elf64_Rela); j < n; ++j) {
+      for (size_t j = 0; j < shdr->sh_size / sizeof(Elf64_Rela); ++j) {
+        const Elf64_Rela *rela = &relas[j];
+        Elf64_Word symidx = ELF64_R_SYM(rela->r_info);
+        const Elf64_Sym *sym = &symhdrinfo->symtab.symtabs[symidx];
+        const char *label = &strinfo->strtab.buf[sym->st_name];
+
+        ElfObj *telfobj;
+        const Elf64_Sym *tsym = find_symbol_from_all(elfobjs, alloc_name(label, NULL, false), &telfobj);
+        assert(tsym != NULL && tsym->st_shndx > 0);
+
+        unsigned char type = ELF64_R_TYPE(rela->r_info);
+        switch (type) {
+        case R_X86_64_PLT32:
+          {
+            const Elf64_Shdr *tshdr = &telfobj->shdrs[tsym->st_shndx];
+            assert(tshdr->sh_type == SHT_PROGBITS);
+            intptr_t offset = telfobj->section_infos[tsym->st_shndx].progbits.address;
+            intptr_t current = elfobj->section_infos[shdr->sh_info].progbits.address;
+            uint32_t *p = (uint32_t*)&dst_info->progbits.content[rela->r_offset];
+            *p = (offset + tsym->st_value) - (current + rela->r_offset) + rela->r_addend;
+          }
+          break;
+        default: assert(false); break;
+        }
+      }
+    }
+  }
+}
+
 static bool link_elfobjs(Vector *elfobjs, const Name *entry) {
   Table unresolved;
   table_init(&unresolved);
   table_put(&unresolved, entry, (void*)entry);
 
+  uintptr_t code_offset = 0;
+  uintptr_t data_offset = 0;
+  uintptr_t rodata_offset = 0;
+
   for (int i = 0; i < elfobjs->len; ++i) {
     ElfObj *elfobj = elfobjs->data[i];
-    get_section_size(SEC_CODE, &elfobj->code_offset, NULL);
-    get_section_size(SEC_DATA, &elfobj->data_offset, NULL);
-    get_section_size(SEC_RODATA, &elfobj->rodata_offset, NULL);
-
     for (Elf64_Half sec = 0; sec < elfobj->ehdr.e_shnum; ++sec) {
       Elf64_Shdr *shdr = &elfobj->shdrs[sec];
       switch (shdr->sh_type) {
@@ -274,43 +354,53 @@ static bool link_elfobjs(Vector *elfobjs, const Name *entry) {
           if (buf == NULL) {
             perror("read error");
           }
+          Elf64_Xword align = shdr->sh_addralign;
+          uintptr_t address;
           if (shdr->sh_flags & SHF_EXECINSTR) {
-            add_code(buf, size);
+            address = ALIGN(code_offset, align);
+            code_offset = address + size;
+          } else if (shdr->sh_flags & SHF_WRITE) {
+            address = ALIGN(data_offset, align);
+            data_offset = address + size;
           } else {
-            int writable = shdr->sh_flags & SHF_WRITE;
-            add_section_data(writable ? SEC_DATA : SEC_RODATA, buf, size);
+            address = ALIGN(rodata_offset, align);
+            rodata_offset = address + size;
           }
+          SectionInfo *p = &elfobj->section_infos[sec];
+          p->progbits.address = address;
+          p->progbits.content = buf;
         }
         break;
       case SHT_NOBITS:
         {
           Elf64_Xword size = shdr->sh_size;
-          if (size <= 0)
-            break;
-          add_bss(shdr->sh_size);
+          align_section_size(SEC_BSS, shdr->sh_addralign);
+          add_bss(size);
+        }
+        break;
+      case SHT_SYMTAB:
+        {
+          SectionInfo *p = &elfobj->section_infos[sec];
+          SectionInfo *q = &elfobj->section_infos[shdr->sh_link];  // Strtab
+          Table *names = &p->symtab.names;
+          const char *str = q->strtab.buf;
+          const Name *name;
+          Elf64_Sym *sym;
+          for (int it = 0; (it = table_iterate(names, it, &name, (void**)&sym)) != -1; ) {
+            unsigned char type = sym->st_info & 0x0f;
+            if (type != STT_NOTYPE || str[sym->st_name] == '\0')
+              continue;
+            const Name *name = alloc_name(&str[sym->st_name], NULL, false);
+            if (sym->st_shndx == 0) {
+              if (find_symbol_from_all(elfobjs, name, NULL) == NULL)
+                table_put(&unresolved, name, (void *)name);
+            } else {
+              table_delete(&unresolved, name);
+            }
+          }
         }
         break;
       default: break;
-      }
-    }
-
-    if (elfobj->symtab.shdr == NULL)
-      continue;
-
-    const char *str = elfobj->symtab.str;
-    Table *names = &elfobj->symtab.names;
-    const Name *name;
-    Elf64_Sym *sym;
-    for (int it = 0; (it = table_iterate(names, it, &name, (void**)&sym)) != -1; ) {
-      unsigned char type = sym->st_info & 0x0f;
-      if (type != STT_NOTYPE || str[sym->st_name] == '\0')
-        continue;
-      const Name *name = alloc_name(&str[sym->st_name], NULL, false);
-      if (sym->st_shndx == 0) {
-        if (find_symbol_from_all(elfobjs, name, NULL) == NULL)
-          table_put(&unresolved, name, (void *)name);
-      } else {
-        table_delete(&unresolved, name);
       }
     }
   }
@@ -325,10 +415,40 @@ static bool link_elfobjs(Vector *elfobjs, const Name *entry) {
     return false;
   }
 
+  resolve_relas(elfobjs);
+
+  for (int i = 0; i < elfobjs->len; ++i) {
+    ElfObj *elfobj = elfobjs->data[i];
+    for (Elf64_Half sec = 0; sec < elfobj->ehdr.e_shnum; ++sec) {
+      Elf64_Shdr *shdr = &elfobj->shdrs[sec];
+      switch (shdr->sh_type) {
+      case SHT_PROGBITS:
+        {
+          const SectionInfo *p = &elfobj->section_infos[sec];
+          void *content = p->progbits.content;
+          if (content == NULL)
+            continue;
+          enum SectionType secno;
+          if (shdr->sh_flags & SHF_EXECINSTR) {
+            secno = SEC_CODE;
+          } else if (shdr->sh_flags & SHF_WRITE) {
+            secno = SEC_DATA;
+          } else {
+            secno = SEC_RODATA;
+          }
+          align_section_size(secno, shdr->sh_addralign);
+          add_section_data(secno, content, shdr->sh_size);
+        }
+        break;
+      default: break;
+      }
+    }
+  }
+
   return true;
 }
 
-static bool output_exe(const char *ofn) {
+static bool output_exe(const char *ofn, Vector *elfobjs, const Name *entry) {
   size_t codesz, rodatasz, datasz, bsssz;
   uintptr_t codeloadadr, dataloadadr;
   get_section_size(SEC_CODE, &codesz, &codeloadadr);
@@ -336,9 +456,11 @@ static bool output_exe(const char *ofn) {
   get_section_size(SEC_DATA, &datasz, &dataloadadr);
   get_section_size(SEC_BSS, &bsssz, NULL);
 
-  // LabelInfo *entry = table_get(label_table, alloc_name("_start", NULL, false));
-  // if (entry == NULL)
-  //   error("Cannot find label: `%s'", "_start");
+  ElfObj *telfobj;
+  const Elf64_Sym *tsym = find_symbol_from_all(elfobjs, entry, &telfobj);
+  if (tsym == NULL)
+    error("Cannot find label: `%.*s'", entry->bytes, entry->chars);
+  uintptr_t entry_address = codeloadadr + telfobj->section_infos[tsym->st_shndx].progbits.address + tsym->st_value;
 
   int phnum = datasz > 0 || bsssz > 0 ? 2 : 1;
 
@@ -355,7 +477,7 @@ static bool output_exe(const char *ofn) {
 
   size_t rodata_align = MAX(section_aligns[SEC_RODATA], 1);
   size_t code_rodata_sz = ALIGN(codesz, rodata_align) + rodatasz;
-  out_elf_header(fp, /*entry->address*/ codeloadadr, phnum, 0);
+  out_elf_header(fp, entry_address, phnum, 0);
   out_program_header(fp, 0, PROG_START, codeloadadr, code_rodata_sz, code_rodata_sz);
   if (phnum > 1) {
     size_t bss_align = MAX(section_aligns[SEC_BSS], 1);
@@ -436,10 +558,11 @@ int main(int argc, char *argv[]) {
     vec_push(elfobjs, elfobj);
   }
 
-  bool result = link_elfobjs(elfobjs, alloc_name(entry, NULL, false));
+  const Name *entry_name = alloc_name(entry, NULL, false);
+  bool result = link_elfobjs(elfobjs, entry_name);
   if (result) {
     fix_section_size(LOAD_ADDRESS);
-    result = output_exe(ofn);
+    result = output_exe(ofn, elfobjs, entry_name);
   }
 
   for (int i = 0; i < elfobjs->len; ++i) {

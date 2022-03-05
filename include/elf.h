@@ -128,6 +128,8 @@ typedef struct {
 #define R_X86_64_PC32   (2)        /* PC relative 32 bit signed */
 #define R_X86_64_PLT32  (4)        /* 32 bit PLT address */
 
+#define ELF64_R_SYM(info)            ((info) >> 32)
+#define ELF64_R_TYPE(info)           ((unsigned char)(info))
 #define ELF64_R_INFO(sym,type)       ((((Elf64_Xword) (sym)) << 32) + (type))
 
 typedef struct {
