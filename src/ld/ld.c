@@ -6,11 +6,33 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "elfutil.h"
 #include "gen_section.h"
 #include "table.h"
 #include "util.h"
 
 static const char kDefaultEntryName[] = "_start";
+
+#define PROG_START   (0x100)
+
+#if defined(__XV6)
+// XV6
+#include "../kernel/syscall.h"
+#include "../kernel/traps.h"
+
+#define START_ADDRESS    0x1000
+
+#elif 1 //defined(__linux__)
+// Linux
+
+#include <sys/stat.h>
+
+#define START_ADDRESS    (0x01000000 + PROG_START)
+
+#endif
+
+#define LOAD_ADDRESS    START_ADDRESS
+#define DATA_ALIGN      (0x1000)
 
 void *malloc_or_die(size_t size) {
   void *p = malloc(size);
@@ -28,6 +50,16 @@ void* read_from(FILE *fp, unsigned long offset, size_t size) {
     buf = NULL;
   }
   return buf;
+}
+
+static void put_padding(FILE *fp, uintptr_t start) {
+  long cur = ftell(fp);
+  if (start > (size_t)cur) {
+    size_t size = start - (uintptr_t)cur;
+    char *buf = calloc(1, size);
+    fwrite(buf, size, 1, fp);
+    free(buf);
+  }
 }
 
 static char *shtypename(int shtype) {
@@ -78,6 +110,10 @@ typedef struct {
     Table names;  // <Elf64_Sym*>
     const char *str;
   } symtab;
+
+  size_t code_offset;
+  size_t data_offset;
+  size_t rodata_offset;
 } ElfObj;
 
 static void elfobj_init(ElfObj *elfobj) {
@@ -222,6 +258,9 @@ static bool link_elfobjs(Vector *elfobjs, const Name *entry) {
 
   for (int i = 0; i < elfobjs->len; ++i) {
     ElfObj *elfobj = elfobjs->data[i];
+    get_section_size(SEC_CODE, &elfobj->code_offset, NULL);
+    get_section_size(SEC_DATA, &elfobj->data_offset, NULL);
+    get_section_size(SEC_RODATA, &elfobj->rodata_offset, NULL);
 
     for (Elf64_Half sec = 0; sec < elfobj->ehdr.e_shnum; ++sec) {
       Elf64_Shdr *shdr = &elfobj->shdrs[sec];
@@ -289,6 +328,70 @@ static bool link_elfobjs(Vector *elfobjs, const Name *entry) {
   return true;
 }
 
+static bool output_exe(const char *ofn) {
+  size_t codesz, rodatasz, datasz, bsssz;
+  uintptr_t codeloadadr, dataloadadr;
+  get_section_size(SEC_CODE, &codesz, &codeloadadr);
+  get_section_size(SEC_RODATA, &rodatasz, NULL);
+  get_section_size(SEC_DATA, &datasz, &dataloadadr);
+  get_section_size(SEC_BSS, &bsssz, NULL);
+
+  // LabelInfo *entry = table_get(label_table, alloc_name("_start", NULL, false));
+  // if (entry == NULL)
+  //   error("Cannot find label: `%s'", "_start");
+
+  int phnum = datasz > 0 || bsssz > 0 ? 2 : 1;
+
+  FILE *fp;
+  if (ofn == NULL) {
+    fp = stdout;
+  } else {
+    fp = fopen(ofn, "wb");
+    if (fp == NULL) {
+      fprintf(stderr, "Failed to open output file: %s\n", ofn);
+      return false;
+    }
+  }
+
+  size_t rodata_align = MAX(section_aligns[SEC_RODATA], 1);
+  size_t code_rodata_sz = ALIGN(codesz, rodata_align) + rodatasz;
+  out_elf_header(fp, /*entry->address*/ codeloadadr, phnum, 0);
+  out_program_header(fp, 0, PROG_START, codeloadadr, code_rodata_sz, code_rodata_sz);
+  if (phnum > 1) {
+    size_t bss_align = MAX(section_aligns[SEC_BSS], 1);
+    size_t datamemsz = ALIGN(datasz, bss_align) + bsssz;
+    out_program_header(fp, 1, ALIGN(PROG_START + code_rodata_sz, DATA_ALIGN), dataloadadr, datasz,
+                       datamemsz);
+  }
+
+  uintptr_t addr = PROG_START;
+  put_padding(fp, addr);
+  output_section(fp, SEC_CODE);
+  addr += codesz;
+  if (rodatasz > 0) {
+    size_t rodata_align = MAX(section_aligns[SEC_RODATA], 1);
+    addr = ALIGN(addr, rodata_align);
+    put_padding(fp, addr);
+    output_section(fp, SEC_RODATA);
+    addr += rodatasz;
+  }
+  if (datasz > 0) {
+    addr = ALIGN(addr, DATA_ALIGN);
+    put_padding(fp, addr);
+    output_section(fp, SEC_DATA);
+    addr += datasz;
+  }
+  fclose(fp);
+
+#if !defined(__XV6)
+  if (chmod(ofn, 0755) == -1) {
+    perror("chmod failed\n");
+    return false;
+  }
+#endif
+  return true;
+}
+
 int main(int argc, char *argv[]) {
   const char *ofn = NULL;
   const char *entry = kDefaultEntryName;
@@ -334,6 +437,11 @@ int main(int argc, char *argv[]) {
   }
 
   bool result = link_elfobjs(elfobjs, alloc_name(entry, NULL, false));
+  if (result) {
+    fix_section_size(LOAD_ADDRESS);
+    result = output_exe(ofn);
+  }
+
   for (int i = 0; i < elfobjs->len; ++i) {
     close_elf(elfobjs->data[i]);
   }
