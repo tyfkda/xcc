@@ -1073,7 +1073,10 @@ static Type *parse_direct_declarator_suffix(Type *type) {
       length = expr->fixnum;
       consume(TK_RBRACKET, "`]' expected");
     }
+    const Type *basetype = type;
     type = arrayof(parse_direct_declarator_suffix(type), length);
+    if (basetype->qualifier & TQ_CONST)
+      type = (Type*)qualified_type(type, TQ_CONST);
   } else if (match(TK_LPAR)) {
     bool vaargs;
     Vector *params = parse_funparams(&vaargs);
