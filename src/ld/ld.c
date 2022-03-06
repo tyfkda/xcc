@@ -99,6 +99,8 @@ static char *read_strtab(FILE *fp, Elf64_Shdr *sec) {
 }
 
 typedef struct {
+  struct ElfObj *elfobj;
+  Elf64_Shdr *shdr;
   union {
     struct {
       uintptr_t address;
@@ -114,7 +116,7 @@ typedef struct {
   };
 } SectionInfo;
 
-typedef struct {
+typedef struct ElfObj {
   FILE *fp;
   Elf64_Ehdr ehdr;
   Elf64_Shdr *shdrs;
@@ -201,6 +203,12 @@ static bool read_elf(ElfObj *elfobj, FILE *fp, const char *fn) {
   if (elfobj->shdrs != NULL) {
     SectionInfo *section_infos = calloc(elfobj->ehdr.e_shnum, sizeof(*elfobj->section_infos));
     elfobj->section_infos = section_infos;
+    for (unsigned short i = 0; i < elfobj->ehdr.e_shnum; ++i) {
+      Elf64_Shdr *shdr = &elfobj->shdrs[i];
+      SectionInfo *p = &section_infos[i];
+      p->elfobj = elfobj;
+      p->shdr = shdr;
+    }
 
     elfobj->shstrtab = read_strtab(fp, &elfobj->shdrs[elfobj->ehdr.e_shstrndx]);
     if (elfobj->shstrtab != NULL) {
@@ -304,18 +312,17 @@ static void resolve_relas(Vector *elfobjs) {
       // for (size_t j = 0, n = shdr->sh_size / sizeof(Elf64_Rela); j < n; ++j) {
       for (size_t j = 0; j < shdr->sh_size / sizeof(Elf64_Rela); ++j) {
         const Elf64_Rela *rela = &relas[j];
-        Elf64_Word symidx = ELF64_R_SYM(rela->r_info);
-        const Elf64_Sym *sym = &symhdrinfo->symtab.symtabs[symidx];
-        const char *label = &strinfo->strtab.buf[sym->st_name];
-
-        ElfObj *telfobj;
-        const Elf64_Sym *tsym = find_symbol_from_all(elfobjs, alloc_name(label, NULL, false), &telfobj);
-        assert(tsym != NULL && tsym->st_shndx > 0);
-
         unsigned char type = ELF64_R_TYPE(rela->r_info);
         switch (type) {
         case R_X86_64_PLT32:
           {
+            const Elf64_Sym *sym = &symhdrinfo->symtab.symtabs[ELF64_R_SYM(rela->r_info)];
+            const char *label = &strinfo->strtab.buf[sym->st_name];
+
+            ElfObj *telfobj;
+            const Elf64_Sym *tsym = find_symbol_from_all(elfobjs, alloc_name(label, NULL, false), &telfobj);
+            assert(tsym != NULL && tsym->st_shndx > 0);
+
             const Elf64_Shdr *tshdr = &telfobj->shdrs[tsym->st_shndx];
             assert(tshdr->sh_type == SHT_PROGBITS);
             intptr_t offset = telfobj->section_infos[tsym->st_shndx].progbits.address;
@@ -331,14 +338,17 @@ static void resolve_relas(Vector *elfobjs) {
   }
 }
 
-static bool link_elfobjs(Vector *elfobjs, const Name *entry) {
+static bool link_elfobjs(Vector *elfobjs, const Name *entry, uintptr_t start_address) {
   Table unresolved;
   table_init(&unresolved);
   table_put(&unresolved, entry, (void*)entry);
 
-  uintptr_t code_offset = 0;
-  uintptr_t data_offset = 0;
-  uintptr_t rodata_offset = 0;
+  uintptr_t offsets[SEC_BSS + 1];
+  Vector *progbit_sections[SEC_BSS + 1];
+  for (int secno = 0; secno < SEC_BSS + 1; ++secno) {
+    offsets[secno] = 0;
+    progbit_sections[secno] = new_vector();
+  }
 
   for (int i = 0; i < elfobjs->len; ++i) {
     ElfObj *elfobj = elfobjs->data[i];
@@ -354,28 +364,40 @@ static bool link_elfobjs(Vector *elfobjs, const Name *entry) {
           if (buf == NULL) {
             perror("read error");
           }
-          Elf64_Xword align = shdr->sh_addralign;
-          uintptr_t address;
+          enum SectionType secno;
           if (shdr->sh_flags & SHF_EXECINSTR) {
-            address = ALIGN(code_offset, align);
-            code_offset = address + size;
+            secno = SEC_CODE;
           } else if (shdr->sh_flags & SHF_WRITE) {
-            address = ALIGN(data_offset, align);
-            data_offset = address + size;
+            secno = SEC_DATA;
           } else {
-            address = ALIGN(rodata_offset, align);
-            rodata_offset = address + size;
+            secno = SEC_RODATA;
           }
+          Elf64_Xword align = shdr->sh_addralign;
+          align_section_size(secno, align);
+
+          uintptr_t address = ALIGN(offsets[secno], align);
           SectionInfo *p = &elfobj->section_infos[sec];
           p->progbits.address = address;
           p->progbits.content = buf;
+          vec_push(progbit_sections[secno], p);
+          offsets[secno] = address + size;
         }
         break;
       case SHT_NOBITS:
         {
           Elf64_Xword size = shdr->sh_size;
-          align_section_size(SEC_BSS, shdr->sh_addralign);
+          if (size <= 0)
+            break;
+          Elf64_Xword align = shdr->sh_addralign;
+          align_section_size(SEC_BSS, align);
           add_bss(size);
+
+          uintptr_t address = ALIGN(offsets[SEC_BSS], align);
+          SectionInfo *p = &elfobj->section_infos[sec];
+          p->progbits.address = address;
+          p->progbits.content = NULL;
+          vec_push(progbit_sections[SEC_BSS], p);
+          offsets[SEC_BSS] = address + size;
         }
         break;
       case SHT_SYMTAB:
@@ -413,6 +435,23 @@ static bool link_elfobjs(Vector *elfobjs, const Name *entry) {
       fprintf(stderr, "  %.*s\n", name->bytes, name->chars);
     }
     return false;
+  }
+
+  // Calculate address.
+  {
+    uintptr_t address = start_address;
+    for (int secno = 0; secno < SEC_BSS + 1; ++secno) {
+      address = ALIGN(address, section_aligns[secno]);
+      Vector *v = progbit_sections[secno];
+      if (v->len > 0) {
+        for (int i = 0; i < v->len; ++i) {
+          SectionInfo *p = v->data[i];
+          p->progbits.address += address;
+        }
+        SectionInfo *last = v->data[v->len - 1];
+        address = last->progbits.address + last->shdr->sh_size;
+      }
+    }
   }
 
   resolve_relas(elfobjs);
@@ -460,7 +499,7 @@ static bool output_exe(const char *ofn, Vector *elfobjs, const Name *entry) {
   const Elf64_Sym *tsym = find_symbol_from_all(elfobjs, entry, &telfobj);
   if (tsym == NULL)
     error("Cannot find label: `%.*s'", entry->bytes, entry->chars);
-  uintptr_t entry_address = codeloadadr + telfobj->section_infos[tsym->st_shndx].progbits.address + tsym->st_value;
+  uintptr_t entry_address = telfobj->section_infos[tsym->st_shndx].progbits.address + tsym->st_value;
 
   int phnum = datasz > 0 || bsssz > 0 ? 2 : 1;
 
@@ -548,6 +587,8 @@ int main(int argc, char *argv[]) {
   if (ofn == NULL)
     ofn = "a.out";
 
+  section_aligns[SEC_DATA] = DATA_ALIGN;
+
   Vector *elfobjs = new_vector();
   for (int i = iarg; i < argc; ++i) {
     ElfObj *elfobj = malloc_or_die(sizeof(*elfobj));
@@ -559,7 +600,7 @@ int main(int argc, char *argv[]) {
   }
 
   const Name *entry_name = alloc_name(entry, NULL, false);
-  bool result = link_elfobjs(elfobjs, entry_name);
+  bool result = link_elfobjs(elfobjs, entry_name, LOAD_ADDRESS);
   if (result) {
     fix_section_size(LOAD_ADDRESS);
     result = output_exe(ofn, elfobjs, entry_name);
