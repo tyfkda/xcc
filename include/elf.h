@@ -113,6 +113,8 @@ typedef struct {
 #define STT_NOTYPE   (0)
 #define STT_SECTION  (3)
 
+#define ELF64_ST_BIND(info)          ((info)>> 4)
+#define ELF64_ST_TYPE(info)          ((info) & 0xf)
 #define ELF64_ST_INFO(bind, type)    (((bind)<<4)+((type)&0xf))
 
 typedef struct {

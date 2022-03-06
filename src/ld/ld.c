@@ -314,6 +314,80 @@ static void resolve_relas(Vector *elfobjs) {
         const Elf64_Rela *rela = &relas[j];
         unsigned char type = ELF64_R_TYPE(rela->r_info);
         switch (type) {
+        case R_X86_64_64:
+          {
+            const Elf64_Sym *sym = &symhdrinfo->symtab.symtabs[ELF64_R_SYM(rela->r_info)];
+            switch (ELF64_ST_BIND(sym->st_info)) {
+            case STB_LOCAL:
+              {
+                assert(ELF64_R_SYM(rela->r_info) < elfobj->ehdr.e_shnum);
+                const Elf64_Shdr *tshdr = &elfobj->shdrs[ELF64_R_SYM(rela->r_info)];
+                assert(tshdr->sh_type == SHT_PROGBITS || tshdr->sh_type == SHT_NOBITS);
+
+                const SectionInfo *s = &elfobj->section_infos[ELF64_R_SYM(rela->r_info)];
+                intptr_t offset = s->progbits.address;
+                // intptr_t current = elfobj->section_infos[shdr->sh_info].progbits.address;
+                uint64_t *p = (uint64_t*)&dst_info->progbits.content[rela->r_offset];
+                *p = offset + rela->r_addend;
+              }
+              break;
+            case STB_GLOBAL:
+              {
+                const char *label = &strinfo->strtab.buf[sym->st_name];
+
+                ElfObj *telfobj;
+                const Elf64_Sym *tsym = find_symbol_from_all(elfobjs, alloc_name(label, NULL, false), &telfobj);
+                assert(tsym != NULL && tsym->st_shndx > 0);
+
+                const Elf64_Shdr *tshdr = &telfobj->shdrs[tsym->st_shndx];
+                assert(tshdr->sh_type == SHT_PROGBITS || tshdr->sh_type == SHT_NOBITS);
+                intptr_t offset = telfobj->section_infos[tsym->st_shndx].progbits.address;
+                // intptr_t current = elfobj->section_infos[shdr->sh_info].progbits.address;
+                uint64_t *p = (uint64_t*)&dst_info->progbits.content[rela->r_offset];
+                *p = (offset + tsym->st_value) + rela->r_addend;
+              }
+              break;
+            default: assert(false); break;
+            }
+          }
+          break;
+        case R_X86_64_PC32:
+          {
+            const Elf64_Sym *sym = &symhdrinfo->symtab.symtabs[ELF64_R_SYM(rela->r_info)];
+            switch (ELF64_ST_BIND(sym->st_info)) {
+            case STB_LOCAL:
+              {
+                assert(ELF64_R_SYM(rela->r_info) < elfobj->ehdr.e_shnum);
+                const Elf64_Shdr *tshdr = &elfobj->shdrs[ELF64_R_SYM(rela->r_info)];
+                assert(tshdr->sh_type == SHT_PROGBITS || tshdr->sh_type == SHT_NOBITS);
+
+                const SectionInfo *s = &elfobj->section_infos[ELF64_R_SYM(rela->r_info)];
+                intptr_t offset = s->progbits.address;
+                intptr_t current = elfobj->section_infos[shdr->sh_info].progbits.address;
+                uint32_t *p = (uint32_t*)&dst_info->progbits.content[rela->r_offset];
+                *p = offset - (current + rela->r_offset) + rela->r_addend;
+              }
+              break;
+            case STB_GLOBAL:
+              {
+                const char *label = &strinfo->strtab.buf[sym->st_name];
+
+                ElfObj *telfobj;
+                const Elf64_Sym *tsym = find_symbol_from_all(elfobjs, alloc_name(label, NULL, false), &telfobj);
+                assert(tsym != NULL && tsym->st_shndx > 0);
+
+                const Elf64_Shdr *tshdr = &telfobj->shdrs[tsym->st_shndx];
+                assert(tshdr->sh_type == SHT_PROGBITS || tshdr->sh_type == SHT_NOBITS);
+                intptr_t offset = telfobj->section_infos[tsym->st_shndx].progbits.address;
+                intptr_t current = elfobj->section_infos[shdr->sh_info].progbits.address;
+                uint32_t *p = (uint32_t*)&dst_info->progbits.content[rela->r_offset];
+                *p = (offset + tsym->st_value) - (current + rela->r_offset) + rela->r_addend;
+              }
+              break;
+            default: assert(false); break;
+            }
+          }
+          break;
         case R_X86_64_PLT32:
           {
             const Elf64_Sym *sym = &symhdrinfo->symtab.symtabs[ELF64_R_SYM(rela->r_info)];
