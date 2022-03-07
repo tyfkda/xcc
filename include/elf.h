@@ -2,6 +2,8 @@
 #ifndef __ELF_H__
 #define __ELF_H__
 
+#include <stdint.h>
+
 typedef unsigned char uchar;
 typedef unsigned short ushort;
 typedef unsigned int uint;

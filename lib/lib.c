@@ -341,7 +341,10 @@ size_t fwrite(const void *buffer, size_t size, size_t count, FILE *fp) {
 }
 
 size_t fread(void *buffer, size_t size, size_t count, FILE *fp) {
-  return read(fp->fd, buffer, size * count);
+  ssize_t readed = read(fp->fd, buffer, size * count);
+  if (readed == -1)
+    return 0;
+  return (size_t)readed / size;
 }
 
 int vsprintf(char *buf, const char *fmt, va_list ap) {
@@ -629,11 +632,14 @@ int fclose(FILE *fp) {
 }
 
 int fseek(FILE *fp, long offset, int origin) {
-  return lseek(fp->fd, offset, origin);
+  off_t result = lseek(fp->fd, offset, origin);
+  if (result == -1)
+    return 1;  // TODO:
+  return 0;
 }
 
 long ftell(FILE *fp) {
-  return fseek(fp, 0, SEEK_CUR);
+  return lseek(fp->fd, 0, SEEK_CUR);
 }
 
 int fgetc(FILE *fp) {
