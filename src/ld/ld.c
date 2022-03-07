@@ -62,23 +62,6 @@ static void put_padding(FILE *fp, uintptr_t start) {
   }
 }
 
-static char *shtypename(int shtype) {
-  switch (shtype) {
-  case SHT_NULL: return "null";
-  case SHT_PROGBITS: return "progbits";
-  case SHT_SYMTAB: return "symtab";
-  case SHT_STRTAB: return "strtab";
-  case SHT_RELA: return "rela";
-  case SHT_NOBITS: return "nobits";
-  default:
-    {
-      static char buf[32];
-      sprintf(buf, "type%d", shtype);
-      return buf;
-    }
-  }
-}
-
 static Elf64_Shdr *read_all_section_headers(FILE *fp, Elf64_Ehdr *ehdr) {
   if (ehdr->e_shnum <= 0)
     return NULL;
@@ -236,33 +219,6 @@ static void close_elf(ElfObj *elfobj) {
   if (elfobj->fp != NULL) {
     fclose(elfobj->fp);
     elfobj->fp = NULL;
-  }
-}
-
-void dump(FILE *fp, ElfObj *elfobj) {
-  for (int i = 0; i < elfobj->ehdr.e_shnum; ++i) {
-    Elf64_Shdr *p = &elfobj->shdrs[i];
-    fprintf(fp, "%2d:%-16s type=%8s, offset=%lx, size=%lx\n", i, &elfobj->shstrtab[p->sh_name], shtypename(p->sh_type), p->sh_offset, p->sh_size);
-  }
-
-  for (Elf64_Half sec = 0; sec < elfobj->ehdr.e_shnum; ++sec) {
-    Elf64_Shdr *shdr = &elfobj->shdrs[sec];
-    if (shdr->sh_type != SHT_SYMTAB)
-      continue;
-    SectionInfo *p = &elfobj->section_infos[sec];
-    printf("Symbols: #%d\n", p->symtab.names.count);
-    const Name *name;
-    Elf64_Sym *sym;
-    for (int it = 0; (it = table_iterate(&p->symtab.names, it, &name, (void**)&sym)) != -1; ) {
-      unsigned char bind = sym->st_info >> 4;
-      char *bindname;
-      switch (bind) {
-      case STB_LOCAL:  bindname = "LOCAL"; break;
-      case STB_GLOBAL:  bindname = "GLOBAL"; break;
-      default:  bindname = "?"; break;
-      }
-      printf("  %.*s: sec=%d, value=%lx, bind=%s\n", name->bytes, name->chars, sym->st_shndx, sym->st_value, bindname);
-    }
   }
 }
 
@@ -669,7 +625,6 @@ int main(int argc, char *argv[]) {
     elfobj_init(elfobj);
     if (!open_elf(argv[i], elfobj))
       return 1;
-    dump(stdout, elfobj);
     vec_push(elfobjs, elfobj);
   }
 

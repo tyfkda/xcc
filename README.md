@@ -32,6 +32,7 @@ Generated files:
   * `cpp`: Preprocessor
   * `cc1`: C compiler
   * `as`:  Assembler
+  * `ld`:  Linker
 
 
 ### Run
@@ -55,7 +56,7 @@ $ ./a.out
 ### TODO
 
   * Optimization
-  * Archiver, Linker
+  * Archiver
 
 
 ### Missing features

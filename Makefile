@@ -117,7 +117,7 @@ diff-gen23:	gen2 gen3
 	diff -b gen2/cc1 gen3/cc1 && diff -b gen2/as gen3/as && diff -b gen2/cpp gen3/cpp && diff -b gen2/xcc gen3/xcc
 
 .PHONY: self-hosting
-self-hosting:	$(TARGET)/cpp $(TARGET)/cc1 $(TARGET)/as $(TARGET)/xcc
+self-hosting:	$(TARGET)/cpp $(TARGET)/cc1 $(TARGET)/as $(TARGET)/ld $(TARGET)/xcc
 
 .PHONY: test-self-hosting
 test-self-hosting:
@@ -125,7 +125,7 @@ test-self-hosting:
 
 LIB_SRCS:= lib/lib.c lib/assert.c lib/umalloc.c lib/sprintf.c lib/getopt.c lib/crt0.c
 
-HOST_EXES:=$(HOST)/xcc $(HOST)/cpp $(HOST)/cc1 $(HOST)/as
+HOST_EXES:=$(HOST)/xcc $(HOST)/cpp $(HOST)/cc1 $(HOST)/as $(HOST)/ld
 
 $(TARGET)/cpp:	$(HOST_EXES) $(CPP_SRCS)
 	mkdir -p $(TARGET)
@@ -140,6 +140,11 @@ $(TARGET)/cc1:	$(HOST_EXES) $(CC1_SRCS)
 $(TARGET)/as:	$(HOST_EXES) $(AS_SRCS)
 	mkdir -p $(TARGET)
 	$(HOST)/xcc -o$@ -I$(INCLUDE_DIR) -I$(UTIL_DIR) $(AS_SRCS) \
+	      $(LIB_SRCS)
+
+$(TARGET)/ld:	$(HOST_EXES) $(LD_SRCS)
+	mkdir -p $(TARGET)
+	$(HOST)/xcc -o$@ -I$(INCLUDE_DIR) -I$(AS_DIR) -I$(UTIL_DIR) -DSELF_HOSTING $(LD_SRCS) \
 	      $(LIB_SRCS)
 
 $(TARGET)/xcc:	$(HOST_EXES) $(XCC_SRCS)
