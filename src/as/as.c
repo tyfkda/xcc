@@ -106,7 +106,6 @@ static void drop_all(FILE *fp) {
   }
 }
 
-#if !defined(__NO_ELF_OBJ)
 static void putnum(FILE *fp, unsigned long num, int bytes) {
   for (int i = 0; i < bytes; ++i) {
     fputc(num, fp);
@@ -438,7 +437,6 @@ static int output_obj(const char *ofn, Table *label_table, Vector *unresolved) {
 
   return 0;
 }
-#endif
 
 static int output_exe(const char *ofn, Table *label_table) {
   size_t codesz, rodatasz, datasz, bsssz;
@@ -518,11 +516,7 @@ int main(int argc, char *argv[]) {
     {"version", no_argument, NULL, 'V'},
     {0},
   };
-#if !defined(__NO_ELF_OBJ)
   const char shortopts[] = "Vco:";
-#else
-  const char shortopts[] = "Vo:";
-#endif
   int opt;
   int longindex;
   while ((opt = getopt_long(argc, argv, shortopts, longopts, &longindex)) != -1) {
@@ -592,12 +586,9 @@ int main(int argc, char *argv[]) {
   fix_section_size(LOAD_ADDRESS);
 
   int result;
-#if !defined(__NO_ELF_OBJ)
   if (out_obj) {
     result = output_obj(ofn, &label_table, unresolved);
-  } else
-#endif
-  {
+  } else {
     result = output_exe(ofn, &label_table);
   }
 
