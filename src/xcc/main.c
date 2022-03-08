@@ -234,11 +234,15 @@ int main(int argc, char *argv[]) {
   vec_push(as_cmd, "assembler");
 #endif
 
+  enum OutType {
+    OutPreprocess,
+    OutAssembly,
+    OutObject,
+    OutExecutable,
+  };
+  enum OutType out_type = OutExecutable;
+
   const char *ofn = NULL;
-  bool out_pp = false;
-  bool out_obj = false;
-  bool out_asm = false;
-  bool run_asm = true;
 
   enum {
     OPT_LOCAL_LABEL_PREFIX = 256,
@@ -271,16 +275,14 @@ int main(int argc, char *argv[]) {
       ofn = optarg;
       break;
     case 'c':
-      out_obj = true;
+      out_type = OutObject;
       vec_push(as_cmd, "-c");
       break;
     case 'E':
-      out_pp = true;
-      run_asm = false;
+      out_type = OutPreprocess;
       break;
     case 'S':
-      out_asm = true;
-      run_asm = false;
+      out_type = OutAssembly;
       break;
     case OPT_LOCAL_LABEL_PREFIX:
       vec_push(cc1_cmd, "--local-label-prefix");
@@ -297,12 +299,12 @@ int main(int argc, char *argv[]) {
   }
 
   if (ofn == NULL) {
-    if (out_obj) {
+    if (out_type == OutObject) {
       if (iarg < argc)
         ofn = change_ext(basename(argv[iarg]), "o");
       else
         ofn = "a.o";
-    } else if (out_asm) {
+    } else if (out_type == OutAssembly) {
       if (iarg < argc)
         ofn = change_ext(basename(argv[iarg]), "s");
       else
@@ -327,10 +329,10 @@ int main(int argc, char *argv[]) {
   int as_fd[2];
   pid_t as_pid = -1;
 
-  if (run_asm) {
+  if (out_type > OutAssembly) {
     as_pid = pipe_exec((char**)as_cmd->data, -1, as_fd);
     ofd = as_fd[1];
-  } else if (out_asm) {
+  } else if (out_type == OutAssembly) {
 #if !defined(__XCC) && !defined(__XV6)
     close(STDOUT_FILENO);
     ofd = open(ofn, O_WRONLY | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
@@ -350,7 +352,7 @@ int main(int argc, char *argv[]) {
       create_local_label_prefix_option(i - iarg, prefix_option, sizeof(prefix_option));
       cc1_cmd->data[cc1_cmd->len - 2] = prefix_option;
 
-      res = compile(src, cpp_cmd, out_pp ? NULL : cc1_cmd, ofd);
+      res = compile(src, cpp_cmd, out_type == OutPreprocess ? NULL : cc1_cmd, ofd);
     } else if (strcasecmp(ext, "s") == 0) {
       res = cat(src, ofd);
     } else {
