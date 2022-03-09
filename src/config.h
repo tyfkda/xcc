@@ -10,9 +10,3 @@
 #else
 #define ALLOCA(size)  malloc(size)
 #endif
-
-#ifdef SELF_HOSTING
-#define QSORT  qsort
-#else
-#define QSORT  myqsort
-#endif
