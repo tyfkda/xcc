@@ -59,7 +59,7 @@ static void dump_ir(FILE *fp, IR *ir) {
   case IR_COND:   fprintf(fp, "\tCOND\t"); dump_vreg(fp, ir->dst, 4); fprintf(fp, " = %s\n", kCond[ir->cond.kind]); break;
   case IR_JMP:    fprintf(fp, "\tJ%s\t%.*s\n", kCond[ir->jmp.cond], ir->jmp.bb->label->bytes, ir->jmp.bb->label->chars); break;
   case IR_TJMP:
-    fprintf(fp, "\TJMP\t");
+    fprintf(fp, "\tJMP\t");
     dump_vreg(fp, ir->opr1, ir->opr1->vtype->size);
     for (size_t i = 0; i < ir->tjmp.len; ++i) fprintf(fp, "%s%.*s", i == 0 ? ", [" : ", ", ((BB*)ir->tjmp.bbs[i])->label->bytes, ((BB*)ir->tjmp.bbs[i])->label->chars);
     fprintf(fp, "]\n");
