@@ -1,10 +1,5 @@
 #include "../config.h"
 
-#if defined(__linux__)
-// To use kill on Linux,, include signal.h with `_POSIX_SOURCE` declaration.
-#define _POSIX_SOURCE  // To use `kill`
-#endif
-
 #include <assert.h>
 #include <fcntl.h>  // open
 #include <getopt.h>
