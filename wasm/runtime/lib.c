@@ -110,6 +110,17 @@ char *strncat(char *dst, const char *src, size_t n) {
   return os;
 }
 
+char *strdup(const char *str) {
+  return strndup(str, strlen(str));
+}
+
+char *strndup(const char *str, size_t size) {
+  char *dup = malloc(size + 1);
+  memcpy(dup, str, size);
+  dup[size] = '\0';
+  return dup;
+}
+
 void *memcpy(void *dst, const void *src, size_t n) {
   const char *s = src;
   char *d = dst;

@@ -1,11 +1,12 @@
 #pragma once
 
-#define O_RDONLY  (0x000)
-#define O_WRONLY  (0x001)
-#define O_RDWR    (0x002)
-#define O_TRUNC   (0x100)
-#define O_CREAT   (0x200)
-#define O_APPEND  (0x400)
+#define O_RDONLY  (00)
+#define O_WRONLY  (01)
+#define O_RDWR    (02)
+#define O_CREAT   (0100)
+#define O_EXCL    (0200)
+#define O_TRUNC   (01000)
+#define O_APPEND  (02000)
 
 #define S_IRUSR         (0400)
 #define S_IWUSR         (0200)

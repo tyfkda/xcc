@@ -58,12 +58,13 @@ function tmpfileSync(len) {
     return breakAddress
   }
 
-  const O_RDONLY  = 0x000
-  const O_WRONLY  = 0x001
-  const O_RDWR    = 0x002
-  const O_TRUNC   = 0x100
-  const O_CREAT   = 0x200
-  const O_APPEND  = 0x400
+  const O_RDONLY  = 0x00
+  const O_WRONLY  = 0x01
+  const O_RDWR    = 0x02
+  const O_CREAT   = 0x040  //  0100
+  const O_EXCL    = 0x080  //  0200
+  const O_TRUNC   = 0x200  // 01000
+  const O_APPEND  = 0x400  // 02000
 
   const SEEK_SET = 0
   const SEEK_CUR = 1
