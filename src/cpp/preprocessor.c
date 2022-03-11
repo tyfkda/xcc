@@ -24,7 +24,7 @@ static char *cat_path_cwd(const char *dir, const char *path) {
 }
 
 static char *fullpath(const char *filename) {
-  return cat_path_cwd(dirname(strdup_(filename)), basename((char*)filename));
+  return cat_path_cwd(dirname(strdup(filename)), basename((char*)filename));
 }
 
 static const char *keyword(const char *s, const char *word) {
@@ -84,12 +84,12 @@ static void handle_include(const char **pp, const char *srcname) {
   }
   *pp = q + 1;
 
-  char *path = strndup_(p, q - p);
+  char *path = strndup(p, q - p);
   char *fn = NULL;
   FILE *fp = NULL;
   // Search from current directory.
   if (!sys) {
-    fn = cat_path_cwd(dirname(strdup_(srcname)), path);
+    fn = cat_path_cwd(dirname(strdup(srcname)), path);
     if (registered_pragma_once(fn))
       return;
     fp = fopen(fn, "r");
@@ -140,7 +140,7 @@ static const char *handle_line_directive(const char **pp, const char *filename, 
       p += 1;
       const char *q = strchr(p, '"');
       if (q != NULL) {
-        filename = strndup_(p, q - p);
+        filename = strndup(p, q - p);
         p = q + 1;
       }
       next = p;
@@ -154,7 +154,7 @@ static void push_text_segment(Vector *segments, const char *start, const char *e
   if (end > start) {
     Segment *seg = malloc(sizeof(*seg));
     seg->kind = SK_TEXT;
-    seg->text = strndup_(start, end - start);
+    seg->text = strndup(start, end - start);
     vec_push(segments, seg);
   }
 }
@@ -665,5 +665,5 @@ void define_macro_simple(const char *label) {
 }
 
 void add_system_inc_path(const char *path) {
-  vec_push(sys_inc_paths, strdup_(path));
+  vec_push(sys_inc_paths, strdup(path));
 }

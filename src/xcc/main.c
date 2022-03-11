@@ -206,7 +206,7 @@ static void usage(FILE *fp) {
 }
 
 int main(int argc, char *argv[]) {
-  const char *root = dirname(strdup_(argv[0]));
+  const char *root = dirname(strdup(argv[0]));
   char *cpp_path = cat_path(root, "cpp");
   char *cc1_path = cat_path(root, "cc1");
 #if !defined(AS_USE_CC)

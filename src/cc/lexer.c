@@ -283,7 +283,7 @@ static int scan_linemarker(const char *line, long *pnum, char **pfn, int *pflag)
       const char *q = strchr(p, '"');
       if (q != NULL) {
         ++n;
-        *pfn = strndup_(p, q - p);
+        *pfn = strndup(p, q - p);
         p = q + 1;
 
         if (isspace(*p)) {

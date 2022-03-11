@@ -25,17 +25,6 @@ char xvalue(char c) {
          -1;
 }
 
-char *strdup_(const char *str) {
-  return strndup_(str, strlen(str));
-}
-
-char *strndup_(const char *str, size_t size) {
-  char *dup = malloc(size + 1);
-  memcpy(dup, str, size);
-  dup[size] = '\0';
-  return dup;
-}
-
 bool starts_with(const char *str, const char *prefix) {
   size_t len = strlen(prefix);
   return strncmp(str, prefix, len) == 0;
@@ -119,7 +108,7 @@ bool is_fullpath(const char *filename) {
 
 char *cat_path(const char *root, const char *path) {
   if (is_fullpath(path))
-    return strdup_(path);
+    return strdup(path);
   if (*path == '/')
     root = "/";
 
@@ -176,7 +165,7 @@ char *cat_path(const char *root, const char *path) {
   }
 
   if (dirs->len <= 0 && ancestor <= 0)
-    return strdup_("/");
+    return strdup("/");
 
   size_t total_len = 1;  // 1 for NUL-terminate.
   if (ancestor > 0)

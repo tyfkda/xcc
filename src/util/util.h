@@ -19,8 +19,6 @@ typedef struct Name Name;
 int isalnum_(int c);
 int isoctal(int c);
 char xvalue(char c);
-char *strdup_(const char *str);
-char *strndup_(const char *str, size_t size);
 bool starts_with(const char *str, const char *prefix);
 void set_local_label_prefix(const char *prefix);
 const Name *alloc_label(void);

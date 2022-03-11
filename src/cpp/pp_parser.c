@@ -503,7 +503,7 @@ Vector *pp_funargs(void) {
         if (tok->kind == TK_COMMA || tok->kind == TK_RPAR) {
           if (paren <= 0) {
             if (sb_empty(&sb)) {
-              vec_push(args, strndup_(start, end - start));
+              vec_push(args, strndup(start, end - start));
             } else {
               if (start != end)
                 sb_append(&sb, start, end);
