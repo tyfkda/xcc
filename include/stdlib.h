@@ -20,3 +20,6 @@ double strtod(const char* /*restrict*/ p, char ** /*restrict*/ pp);
 double drand48(void);
 double erand48(unsigned short xsubi[3]);
 #endif
+
+int mkstemp(char *template);
+int mkstemps(char *template, int suffixlen);
