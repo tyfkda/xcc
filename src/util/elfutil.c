@@ -6,17 +6,6 @@
 #include <stdlib.h>  // calloc
 #include <string.h>  // memcpy
 
-#if defined(__XV6)
-// XV6
-#include "../kernel/types.h"
-#include "../kernel/elf.h"
-
-#elif defined(__linux__)
-// Linux
-#include <elf.h>
-
-#endif
-
 void strtab_init(Strtab *strtab) {
   table_init(&strtab->offsets);
   strtab->size = 0;

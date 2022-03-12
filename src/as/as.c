@@ -27,26 +27,14 @@
 
 #define START_ADDRESS    0x1000
 
-#elif defined(__linux__)
-// Linux
+#else
+// *nix
 
 #include <sys/stat.h>
 
 #define START_ADDRESS    (0x01000000 + PROG_START)
 
-#else
-
-#define UNSUPPORTED
-
 #endif
-
-#if defined(UNSUPPORTED)
-int main() {
-  fprintf(stderr, "AS: unsupported environment\n");
-  return 1;
-}
-
-#else
 
 #define LOAD_ADDRESS    START_ADDRESS
 #define DATA_ALIGN      (0x1000)
@@ -503,4 +491,3 @@ int main(int argc, char *argv[]) {
 
   return output_obj(ofn, &label_table, unresolved);
 }
-#endif

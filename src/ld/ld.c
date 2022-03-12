@@ -1,5 +1,4 @@
 #include <assert.h>
-#include <elf.h>
 #include <getopt.h>
 #include <stdbool.h>
 #include <stdio.h>
@@ -22,8 +21,14 @@ static const char kDefaultEntryName[] = "_start";
 
 #define START_ADDRESS    0x1000
 
-#elif 1 //defined(__linux__)
-// Linux
+#else
+// *nix
+
+#if defined(__linux__)
+#include <elf.h>
+#else
+#include "../../include/elf.h"
+#endif
 
 #include <sys/stat.h>
 

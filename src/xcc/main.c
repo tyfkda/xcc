@@ -165,8 +165,11 @@ int main(int argc, char *argv[]) {
   char *cc1_path = cat_path(root, "cc1");
 #if !defined(AS_USE_CC)
   char *as_path = cat_path(root, "as");
-#endif
   char *ld_path = cat_path(root, "ld");
+#else
+  char *as_path = "as";
+  char *ld_path = "cc";
+#endif
 
   Vector *cpp_cmd = new_vector();
   vec_push(cpp_cmd, cpp_path);
@@ -176,13 +179,7 @@ int main(int argc, char *argv[]) {
   vec_push(cc1_cmd, cc1_path);
 
   Vector *as_cmd = new_vector();
-#if !defined(AS_USE_CC)
   vec_push(as_cmd, as_path);
-#else
-  vec_push(as_cmd, "cc");
-  vec_push(as_cmd, "-x");
-  vec_push(as_cmd, "assembler");
-#endif
 
   Vector *ld_cmd = new_vector();
   vec_push(ld_cmd, ld_path);
@@ -255,13 +252,8 @@ int main(int argc, char *argv[]) {
   vec_push(cpp_cmd, NULL);  // Terminator.
   vec_push(cc1_cmd, NULL);  // Buffer for label prefix.
   vec_push(cc1_cmd, NULL);  // Terminator.
-  if (out_type == OutObject) {
-    vec_push(as_cmd, "-o");
-    vec_push(as_cmd, ofn);
-  }
-// #if defined(AS_USE_CC)
-//   vec_push(as_cmd, "-");
-// #endif
+  vec_push(as_cmd, "-o");
+  vec_push(as_cmd, ofn);
   vec_push(as_cmd, NULL);  // Terminator.
   vec_push(ld_cmd, "-o");
   vec_push(ld_cmd, ofn != NULL ? ofn : "a.out");
@@ -289,16 +281,14 @@ int main(int argc, char *argv[]) {
       if (out_type > OutAssembly) {
         if (ofn != NULL && out_type < OutExecutable) {
           objfn = ofn;
-          int mod = out_type == OutObject ? (S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH) : (S_IRUSR | S_IWUSR);
-          obj_fd = open(objfn, O_WRONLY | O_CREAT | O_TRUNC, mod);
         } else {
           char template[] = "/tmp/xcc-XXXXXX.o";
           obj_fd = mkstemps(template, 2);
+          if (obj_fd == -1) {
+            perror("Failed to open output file");
+            exit(1);
+          }
           objfn = strdup(template);
-        }
-        if (obj_fd == -1) {
-          perror("Failed to open output file");
-          exit(1);
         }
       }
 
@@ -306,7 +296,8 @@ int main(int argc, char *argv[]) {
       pid_t as_pid = -1;
 
       if (out_type > OutAssembly) {
-        as_pid = pipe_exec((char**)as_cmd->data, obj_fd, as_fd);
+        as_cmd->data[as_cmd->len - 2] = (void*)objfn;
+        as_pid = pipe_exec((char**)as_cmd->data, -1, as_fd);
         ofd = as_fd[1];
       }
 
