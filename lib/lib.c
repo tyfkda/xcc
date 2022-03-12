@@ -466,25 +466,6 @@ int toupper(int c) {
 #if defined(__XV6)
 
 #elif defined(__linux__)
-// fcntl.h
-#define	O_RDONLY        0x0000          /* open for reading only */
-#define	O_WRONLY        0x0001          /* open for writing only */
-#define	O_RDWR          0x0002          /* open for reading and writing */
-#define	O_ACCMODE       0x0003          /* mask for above modes */
-
-#define S_IRUSR         (0400)
-#define S_IWUSR         (0200)
-#define S_IXUSR         (0100)
-#define S_IRGRP         (0040)
-#define S_IWGRP         (0020)
-#define S_IXGRP         (0010)
-#define S_IROTH         (0004)
-#define S_IWOTH         (0002)
-#define S_IXOTH         (0001)
-
-#define	O_APPEND        0x0400          /* set append mode */
-#define	O_CREAT         0x0040          /* create if nonexistant */
-#define	O_TRUNC         0x0200          /* truncate to zero length */
 
 //extern char **environ;
 //char *environ[] = {"PATH=/bin:/usr/bin", NULL};
