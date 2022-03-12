@@ -131,7 +131,7 @@ fvaltest:	$(FVAL_SRCS) flotest.inc # $(XCC)
 
 TYPE_SRCS:=print_type_test.c $(CC_DIR)/type.c $(UTIL_DIR)/util.c $(UTIL_DIR)/table.c
 print_type_test:	$(TYPE_SRCS)
-	gcc -o $@ $(CFLAGS) $^
+	$(CC) -o $@ $(CFLAGS) $^
 
 .PHONY: test-link
 link_test: link_main.c $(EXAMPLES_DIR)/example_util.c link_sub.c
