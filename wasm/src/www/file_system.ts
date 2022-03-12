@@ -4,9 +4,9 @@ const enum OpenFlag {
   RDONLY  = 0x000,
   WRONLY  = 0x001,
   RDWR    = 0x002,
-  TRUNC   = 0x100,
-  CREAT   = 0x200,
-  // APPEND  = 0x400,
+  CREAT   = 0x040,  //  0100
+  TRUNC   = 0x200,  // 01000
+  // APPEND  = 0x400,  // 02000
 }
 
 const enum SeekWhere {
