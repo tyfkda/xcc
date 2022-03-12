@@ -3,6 +3,7 @@ CC1_DIR:=src/cc
 CC1_ARCH_DIR:=$(CC1_DIR)/arch
 CPP_DIR:=src/cpp
 AS_DIR:=src/as
+LD_DIR:=src/ld
 UTIL_DIR:=src/util
 OBJ_DIR:=obj
 
@@ -10,7 +11,7 @@ OPTIMIZE:=-O2 -g3
 CFLAGS:=-ansi -std=c11 -pedantic -MMD -Wall -Wextra -Werror -Wold-style-definition \
 	-Wno-missing-field-initializers -Wno-typedef-redefinition -Wno-empty-body \
 	-D_DEFAULT_SOURCE
-CFLAGS+=-I$(CC1_DIR) -I$(UTIL_DIR) $(OPTIMIZE)
+CFLAGS+=-I$(CC1_DIR) -I$(AS_DIR) -I$(UTIL_DIR) $(OPTIMIZE)
 CFLAGS+=-I$(CC1_ARCH_DIR)/x64
 
 XCC_SRCS:=$(wildcard $(XCC_DIR)/*.c) \
@@ -22,14 +23,18 @@ CPP_SRCS:=$(wildcard $(CPP_DIR)/*.c) \
 	$(CC1_DIR)/lexer.c $(UTIL_DIR)/util.c $(UTIL_DIR)/table.c
 AS_SRCS:=$(wildcard $(AS_DIR)/*.c) \
 	$(UTIL_DIR)/util.c $(UTIL_DIR)/elfutil.c $(UTIL_DIR)/table.c
+LD_SRCS:=$(wildcard $(LD_DIR)/*.c) \
+	$(AS_DIR)/gen_section.c \
+	$(UTIL_DIR)/util.c $(UTIL_DIR)/elfutil.c $(UTIL_DIR)/table.c
 
 XCC_OBJS:=$(addprefix $(OBJ_DIR)/,$(notdir $(XCC_SRCS:.c=.o)))
 CC1_OBJS:=$(addprefix $(OBJ_DIR)/,$(notdir $(CC1_SRCS:.c=.o)))
 CPP_OBJS:=$(addprefix $(OBJ_DIR)/,$(notdir $(CPP_SRCS:.c=.o)))
 AS_OBJS:=$(addprefix $(OBJ_DIR)/,$(notdir $(AS_SRCS:.c=.o)))
+LD_OBJS:=$(addprefix $(OBJ_DIR)/,$(notdir $(LD_SRCS:.c=.o)))
 
 .PHONY: all
-all:	xcc cc1 cpp as
+all:	xcc cc1 cpp as ld
 
 .PHONY: release
 release:
@@ -45,6 +50,9 @@ cpp: $(CPP_OBJS)
 	$(CC) -o $@ $^ $(LDFLAGS)
 
 as: $(AS_OBJS)
+	$(CC) -o $@ $^ $(LDFLAGS)
+
+ld: $(LD_OBJS)
 	$(CC) -o $@ $^ $(LDFLAGS)
 
 -include $(OBJ_DIR)/*.d
@@ -69,6 +77,10 @@ $(OBJ_DIR)/%.o: $(AS_DIR)/%.c
 	@mkdir -p $(OBJ_DIR)
 	$(CC) $(CFLAGS) -c -o $@ $<
 
+$(OBJ_DIR)/%.o: $(LD_DIR)/%.c
+	@mkdir -p $(OBJ_DIR)
+	$(CC) $(CFLAGS) -c -o $@ $<
+
 $(OBJ_DIR)/%.o: $(UTIL_DIR)/%.c
 	@mkdir -p $(OBJ_DIR)
 	$(CC) $(CFLAGS) -c -o $@ $<
@@ -82,7 +94,7 @@ test-all: test test-gen2 diff-gen23
 
 .PHONY: clean
 clean:
-	rm -rf cc1 cpp as xcc $(OBJ_DIR) a.out gen2 gen3 tmp.s dump_expr dump_ir dump_type
+	rm -rf cc1 cpp as ld xcc $(OBJ_DIR) a.out gen2 gen3 tmp.s dump_expr dump_ir dump_type
 	$(MAKE) -C tests clean
 
 ### Self hosting
@@ -105,7 +117,7 @@ diff-gen23:	gen2 gen3
 	diff -b gen2/cc1 gen3/cc1 && diff -b gen2/as gen3/as && diff -b gen2/cpp gen3/cpp && diff -b gen2/xcc gen3/xcc
 
 .PHONY: self-hosting
-self-hosting:	$(TARGET)/cpp $(TARGET)/cc1 $(TARGET)/as $(TARGET)/xcc
+self-hosting:	$(TARGET)/cpp $(TARGET)/cc1 $(TARGET)/as $(TARGET)/ld $(TARGET)/xcc
 
 .PHONY: test-self-hosting
 test-self-hosting:
@@ -113,27 +125,52 @@ test-self-hosting:
 
 LIB_SRCS:= lib/lib.c lib/assert.c lib/umalloc.c lib/sprintf.c lib/getopt.c lib/crt0.c
 
-HOST_EXES:=$(HOST)/xcc $(HOST)/cpp $(HOST)/cc1 $(HOST)/as
+HOST_EXES:=$(HOST)/xcc $(HOST)/cpp $(HOST)/cc1 $(HOST)/as $(HOST)/ld
 
-$(TARGET)/cpp:	$(HOST_EXES) $(CPP_SRCS)
-	mkdir -p $(TARGET)
-	$(HOST)/xcc -o$@ -I$(INCLUDE_DIR) -I$(CC1_DIR) -I$(UTIL_DIR) $(CPP_SRCS) \
-	      $(LIB_SRCS)
+XCC_GEN_OBJS=$(addprefix $(TARGET)/,$(notdir $(XCC_SRCS:.c=.o)))
+CC1_GEN_OBJS=$(addprefix $(TARGET)/,$(notdir $(CC1_SRCS:.c=.o)))
+CPP_GEN_OBJS=$(addprefix $(TARGET)/,$(notdir $(CPP_SRCS:.c=.o)))
+AS_GEN_OBJS=$(addprefix $(TARGET)/,$(notdir $(AS_SRCS:.c=.o)))
+LD_GEN_OBJS=$(addprefix $(TARGET)/,$(notdir $(LD_SRCS:.c=.o)))
 
-$(TARGET)/cc1:	$(HOST_EXES) $(CC1_SRCS)
-	mkdir -p $(TARGET)
-	$(HOST)/xcc -o$@ -I$(INCLUDE_DIR) -I$(CC1_DIR) -I$(CC1_ARCH_DIR)/x64 -I$(UTIL_DIR) $(CC1_SRCS) \
-	      $(LIB_SRCS)
+$(TARGET)/cpp:	$(HOST_EXES) $(CPP_GEN_OBJS)
+	$(CC) -o$@ $(CPP_GEN_OBJS)
 
-$(TARGET)/as:	$(HOST_EXES) $(AS_SRCS)
-	mkdir -p $(TARGET)
-	$(HOST)/xcc -o$@ -I$(INCLUDE_DIR) -I$(UTIL_DIR) $(AS_SRCS) \
-	      $(LIB_SRCS)
+$(TARGET)/cc1:	$(HOST_EXES) $(CC1_GEN_OBJS)
+	$(CC) -o$@ $(CC1_GEN_OBJS)
 
-$(TARGET)/xcc:	$(HOST_EXES) $(XCC_SRCS)
-	mkdir -p $(TARGET)
-	$(HOST)/xcc -o$@ -I$(INCLUDE_DIR) -I$(UTIL_DIR) $(XCC_SRCS) \
-	      $(LIB_SRCS)
+$(TARGET)/as:	$(HOST_EXES) $(AS_GEN_OBJS)
+	$(CC) -o$@ $(AS_GEN_OBJS)
+
+$(TARGET)/ld:	$(HOST_EXES) $(LD_GEN_OBJS)
+	$(CC) -o$@ $(LD_GEN_OBJS)
+
+$(TARGET)/xcc:	$(HOST_EXES) $(XCC_GEN_OBJS)
+	$(CC) -o$@ $(XCC_GEN_OBJS)
+
+TARGETGEN_FLAGS:=-DNDEBUG
+
+$(TARGET)/%.o: $(XCC_DIR)/%.c
+	@mkdir -p $(TARGET)
+	./xcc -c -o $@ -I$(INCLUDE_DIR) -I$(CC1_DIR) -I$(UTIL_DIR) $(TARGETGEN_FLAGS) $<
+$(TARGET)/%.o: $(CC1_DIR)/%.c
+	@mkdir -p $(TARGET)
+	./xcc -c -o $@ -I$(INCLUDE_DIR) -I$(CC1_DIR) -I$(CC1_ARCH_DIR)/x64 -I$(UTIL_DIR) $(TARGETGEN_FLAGS) $<
+$(TARGET)/%.o: $(CC1_ARCH_DIR)/x64/%.c
+	@mkdir -p $(TARGET)
+	./xcc -c -o $@ -I$(INCLUDE_DIR) -I$(CC1_DIR) -I$(CC1_ARCH_DIR)/x64 -I$(UTIL_DIR) $(TARGETGEN_FLAGS) $<
+$(TARGET)/%.o: $(CPP_DIR)/%.c
+	@mkdir -p $(TARGET)
+	./xcc -c -o $@ -I$(INCLUDE_DIR) -I$(CC1_DIR) -I$(UTIL_DIR) $(TARGETGEN_FLAGS) $<
+$(TARGET)/%.o: $(AS_DIR)/%.c
+	@mkdir -p $(TARGET)
+	./xcc -c -o $@ -I$(INCLUDE_DIR) -I$(CC1_DIR) -I$(UTIL_DIR) $(TARGETGEN_FLAGS) $<
+$(TARGET)/%.o: $(LD_DIR)/%.c
+	@mkdir -p $(TARGET)
+	./xcc -c -o $@ -I$(INCLUDE_DIR) -I$(CC1_DIR) -I$(AS_DIR) -I$(UTIL_DIR) $(TARGETGEN_FLAGS) $<
+$(TARGET)/%.o: $(UTIL_DIR)/%.c
+	@mkdir -p $(TARGET)
+	./xcc -c -o $@ -I$(INCLUDE_DIR) -I$(CC1_DIR) -I$(UTIL_DIR) $(TARGETGEN_FLAGS) $<
 
 ### Debug
 

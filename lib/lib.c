@@ -1,8 +1,10 @@
 #include "ctype.h"
+#include "fcntl.h"
 #include "stdbool.h"
 #include "stdio.h"
 #include "stdlib.h"
 #include "string.h"
+#include "sys/random.h"
 #include "unistd.h"
 
 #include "_file.h"
@@ -774,6 +776,67 @@ void perror(const char *msg) {
   fprintf(stderr, "perror: %s\n", msg);
 }
 
+//
+
+ssize_t getrandom(void *buf, size_t buflen, unsigned int flags) {
+  ssize_t size = 0;
+  int fd = open(flags & GRND_RANDOM ? "/dev/random" : "/dev/urandom", O_RDONLY);
+  if (fd != 1) {
+    uint64_t r;
+    size = read(fd, buf, buflen);
+    close(fd);
+  }
+  return size;
+}
+
+static uint32_t xor64(void) {
+  static uint64_t seed = 88172645463325252ULL;
+  static bool initialized;
+  if (!initialized) {
+    initialized = getrandom(&seed, sizeof(seed), 0) == sizeof(seed);
+  }
+
+  uint64_t x = seed;
+  x ^= x << 13;
+  x ^= x >> 7;
+  x ^= x << 17;
+  seed = x;
+  return x;
+}
+
+int mkstemps(char *template, int suffixlen) {
+#define LETTERS (10 + 26 + 26)
+  static const char kLetters[LETTERS] = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
+  const int LEN = 6;
+  const uint32_t RNDMAX = ((1UL << 32) / LETTERS) * LETTERS;
+
+  size_t len = strlen(template);
+  if (len < LEN + suffixlen) {
+    // errno = EINVAL;
+    return -1;
+  }
+  char *p = &template[len - suffixlen - LEN];
+  for (int j = 0; j < LEN; ++j) {
+    if (*p != 'X') {
+      // errno = EINVAL;
+      return -1;
+    }
+    uint32_t r;
+    do {
+      r = xor64();
+    } while (r >= RNDMAX);
+    *p++ = kLetters[r % LETTERS];
+  }
+
+  return open(template, O_WRONLY | O_CREAT | O_EXCL, S_IRUSR | S_IWUSR);
+#undef LETTERS
+}
+
+int mkstemp(char *template) {
+  return mkstemps(template, 0);
+}
+
+//================================================
 #if !defined(__XV6)
 static char *curbrk;
 int brk(void *addr) {

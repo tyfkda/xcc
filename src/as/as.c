@@ -438,77 +438,10 @@ static int output_obj(const char *ofn, Table *label_table, Vector *unresolved) {
   return 0;
 }
 
-static int output_exe(const char *ofn, Table *label_table) {
-  size_t codesz, rodatasz, datasz, bsssz;
-  uintptr_t codeloadadr, dataloadadr;
-  get_section_size(SEC_CODE, &codesz, &codeloadadr);
-  get_section_size(SEC_RODATA, &rodatasz, NULL);
-  get_section_size(SEC_DATA, &datasz, &dataloadadr);
-  get_section_size(SEC_BSS, &bsssz, NULL);
-
-  LabelInfo *entry = table_get(label_table, alloc_name("_start", NULL, false));
-  if (entry == NULL)
-    error("Cannot find label: `%s'", "_start");
-
-  int phnum = datasz > 0 || bsssz > 0 ? 2 : 1;
-
-  FILE *fp;
-  if (ofn == NULL) {
-    fp = stdout;
-  } else {
-    fp = fopen(ofn, "wb");
-    if (fp == NULL) {
-      fprintf(stderr, "Failed to open output file: %s\n", ofn);
-      if (!isatty(STDIN_FILENO))
-        drop_all(stdin);
-      return 1;
-    }
-  }
-
-  size_t rodata_align = MAX(section_aligns[SEC_RODATA], 1);
-  size_t code_rodata_sz = ALIGN(codesz, rodata_align) + rodatasz;
-  out_elf_header(fp, entry->address, phnum, 0);
-  out_program_header(fp, 0, PROG_START, codeloadadr, code_rodata_sz, code_rodata_sz);
-  if (phnum > 1) {
-    size_t bss_align = MAX(section_aligns[SEC_BSS], 1);
-    size_t datamemsz = ALIGN(datasz, bss_align) + bsssz;
-    out_program_header(fp, 1, ALIGN(PROG_START + code_rodata_sz, DATA_ALIGN), dataloadadr, datasz,
-                       datamemsz);
-  }
-
-  uintptr_t addr = PROG_START;
-  put_padding(fp, addr);
-  output_section(fp, SEC_CODE);
-  addr += codesz;
-  if (rodatasz > 0) {
-    size_t rodata_align = MAX(section_aligns[SEC_RODATA], 1);
-    addr = ALIGN(addr, rodata_align);
-    put_padding(fp, addr);
-    output_section(fp, SEC_RODATA);
-    addr += rodatasz;
-  }
-  if (datasz > 0) {
-    addr = ALIGN(addr, DATA_ALIGN);
-    put_padding(fp, addr);
-    output_section(fp, SEC_DATA);
-    addr += datasz;
-  }
-  fclose(fp);
-
-#if !defined(__XV6) && defined(__linux__)
-  if (chmod(ofn, 0755) == -1) {
-    perror("chmod failed\n");
-    return 1;
-  }
-#endif
-  return 0;
-}
-
 // ================================================
 
 int main(int argc, char *argv[]) {
   const char *ofn = NULL;
-  bool out_obj = false;
   enum LongOpt {
     OPT_LOCAL_LABEL_PREFIX = 256,
   };
@@ -516,7 +449,7 @@ int main(int argc, char *argv[]) {
     {"version", no_argument, NULL, 'V'},
     {0},
   };
-  const char shortopts[] = "Vco:";
+  const char shortopts[] = "Vo:";
   int opt;
   int longindex;
   while ((opt = getopt_long(argc, argv, shortopts, longopts, &longindex)) != -1) {
@@ -527,21 +460,9 @@ int main(int argc, char *argv[]) {
     case 'o':
       ofn = optarg;
       break;
-    case 'c':
-      out_obj = true;
-      break;
     }
   }
   int iarg = optind;
-
-  if (ofn == NULL) {
-    if (out_obj) {
-      if (iarg < argc)
-        ofn = change_ext(argv[iarg], "o");
-    } else {
-      ofn = "a.out";
-    }
-  }
 
   // ================================================
   // Run own assembler
@@ -566,32 +487,20 @@ int main(int argc, char *argv[]) {
     parse_file(stdin, "*stdin*", section_irs, &label_table);
   }
 
-  if (!out_obj)
-    section_aligns[SEC_DATA] = DATA_ALIGN;
-
-  Vector *unresolved = out_obj ? new_vector() : NULL;
-  if (!err) {
-    bool settle1, settle2;
-    do {
-      settle1 = calc_label_address(LOAD_ADDRESS, section_irs, &label_table);
-      settle2 = resolve_relative_address(section_irs, &label_table, unresolved);
-    } while (!(settle1 && settle2));
-    emit_irs(section_irs, &label_table);
-  }
-
   if (err) {
     return 1;
   }
 
+  Vector *unresolved = new_vector();
+  bool settle1, settle2;
+  do {
+    settle1 = calc_label_address(LOAD_ADDRESS, section_irs, &label_table);
+    settle2 = resolve_relative_address(section_irs, &label_table, unresolved);
+  } while (!(settle1 && settle2));
+  emit_irs(section_irs, &label_table);
+
   fix_section_size(LOAD_ADDRESS);
 
-  int result;
-  if (out_obj) {
-    result = output_obj(ofn, &label_table, unresolved);
-  } else {
-    result = output_exe(ofn, &label_table);
-  }
-
-  return result;
+  return output_obj(ofn, &label_table, unresolved);
 }
 #endif

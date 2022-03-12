@@ -94,31 +94,6 @@ static pid_t pipe_exec(char **command, int ofd, int fd[2]) {
   return pid;
 }
 
-static int cat(const char *filename, int ofd) {
-  int ifd = open(filename, O_RDONLY);
-  if (ifd < 0)
-    return 1;
-
-  const int SIZE = 4096;
-  char *buf = malloc(SIZE);
-  for (;;) {
-    ssize_t size = read(ifd, buf, SIZE);
-    if (size < 0)
-      return 1;
-    if (size > 0) {
-      ssize_t wsize = write(ofd, buf, size);
-      if (wsize != size)
-        error("Write failed");
-    }
-    if (size < SIZE)
-      break;
-  }
-  free(buf);
-
-  close(ifd);
-  return 0;
-}
-
 static void create_local_label_prefix_option(int index, char *out, size_t n) {
   static const char LOCAL_LABEL_PREFIX[] = "--local-label-prefix=";
   static const char DIGITS[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
@@ -212,6 +187,7 @@ int main(int argc, char *argv[]) {
 #if !defined(AS_USE_CC)
   char *as_path = cat_path(root, "as");
 #endif
+  char *ld_path = cat_path(root, "ld");
 
   Vector *cpp_cmd = new_vector();
   vec_push(cpp_cmd, cpp_path);
@@ -228,6 +204,9 @@ int main(int argc, char *argv[]) {
   vec_push(as_cmd, "-x");
   vec_push(as_cmd, "assembler");
 #endif
+
+  Vector *ld_cmd = new_vector();
+  vec_push(ld_cmd, ld_path);
 
   enum OutType {
     OutPreprocess,
@@ -271,7 +250,7 @@ int main(int argc, char *argv[]) {
       break;
     case 'c':
       out_type = OutObject;
-      vec_push(as_cmd, "-c");
+      // vec_push(as_cmd, "-c");
       break;
     case 'E':
       out_type = OutPreprocess;
@@ -295,39 +274,30 @@ int main(int argc, char *argv[]) {
 
   if (ofn == NULL) {
     if (out_type == OutObject) {
-      if (iarg < argc)
-        ofn = change_ext(basename(argv[iarg]), "o");
-      else
-        ofn = "a.o";
+      ofn = change_ext(basename(argv[iarg]), "o");
     } else if (out_type == OutAssembly) {
-      if (iarg < argc)
-        ofn = change_ext(basename(argv[iarg]), "s");
-      else
-        ofn = "a.s";
-    } else {
-      ofn = "a.out";
+      ofn = change_ext(basename(argv[iarg]), "s");
     }
   }
-  vec_push(as_cmd, "-o");
-  vec_push(as_cmd, ofn);
 
   vec_push(cpp_cmd, NULL);  // Buffer for src.
   vec_push(cpp_cmd, NULL);  // Terminator.
   vec_push(cc1_cmd, NULL);  // Buffer for label prefix.
   vec_push(cc1_cmd, NULL);  // Terminator.
-#if defined(AS_USE_CC)
-  vec_push(as_cmd, "-");
-#endif
+  if (out_type == OutObject) {
+    vec_push(as_cmd, "-o");
+    vec_push(as_cmd, ofn);
+  }
+// #if defined(AS_USE_CC)
+//   vec_push(as_cmd, "-");
+// #endif
   vec_push(as_cmd, NULL);  // Terminator.
+  vec_push(ld_cmd, "-o");
+  vec_push(ld_cmd, ofn != NULL ? ofn : "a.out");
 
   int ofd = STDOUT_FILENO;
-  int as_fd[2];
-  pid_t as_pid = -1;
 
-  if (out_type > OutAssembly) {
-    as_pid = pipe_exec((char**)as_cmd->data, -1, as_fd);
-    ofd = as_fd[1];
-  } else if (out_type == OutAssembly) {
+  if (out_type == OutAssembly) {
 #if !defined(__XCC) && !defined(__XV6)
     close(STDOUT_FILENO);
     ofd = open(ofn, O_WRONLY | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
@@ -343,13 +313,90 @@ int main(int argc, char *argv[]) {
     char *src = argv[i];
     char *ext = get_ext(src);
     if (strcasecmp(ext, "c") == 0) {
+      const char *objfn = NULL;
+      int obj_fd = -1;
+      if (out_type > OutAssembly) {
+        if (ofn != NULL && out_type < OutExecutable) {
+          objfn = ofn;
+          int mod = out_type == OutObject ? (S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH) : (S_IRUSR | S_IWUSR);
+          obj_fd = open(objfn, O_WRONLY | O_CREAT | O_TRUNC, mod);
+        } else {
+          char template[] = "/tmp/xcc-XXXXXX.o";
+          obj_fd = mkstemps(template, 2);
+          objfn = strdup(template);
+        }
+        if (obj_fd == -1) {
+          perror("Failed to open output file");
+          exit(1);
+        }
+      }
+
+      int as_fd[2];
+      pid_t as_pid = -1;
+
+      if (out_type > OutAssembly) {
+        as_pid = pipe_exec((char**)as_cmd->data, obj_fd, as_fd);
+        ofd = as_fd[1];
+      }
+
       char prefix_option[32];
       create_local_label_prefix_option(i - iarg, prefix_option, sizeof(prefix_option));
       cc1_cmd->data[cc1_cmd->len - 2] = prefix_option;
 
       res = compile(src, cpp_cmd, out_type == OutPreprocess ? NULL : cc1_cmd, ofd);
+
+      if (out_type >= OutExecutable)
+        vec_push(ld_cmd, objfn);
+
+      if (res != 0 && as_pid != -1) {
+#if !defined(__XV6)
+        kill(as_pid, SIGKILL);
+        remove(ofn);
+#else
+        (void)ofn;
+#endif
+      }
+      if (as_pid != -1) {
+        close(as_fd[0]);
+        close(as_fd[1]);
+        as_pid = -1;
+        res |= wait_process(as_pid);
+      }
+      if (obj_fd != -1) {
+        close(obj_fd);
+      }
     } else if (strcasecmp(ext, "s") == 0) {
-      res = cat(src, ofd);
+      const char *objfn = NULL;
+      if (out_type > OutAssembly) {
+        if (ofn != NULL && out_type < OutExecutable) {
+          objfn = ofn;
+        } else {
+          size_t len = strlen(src);
+          char *p = malloc(len + 3);
+          memcpy(p, src, len);
+          strcpy(p + len, ".o");
+          objfn = p;
+        }
+        as_cmd->data[as_cmd->len - 2] = (void*)objfn;
+      }
+
+      vec_pop(as_cmd);
+      vec_push(as_cmd, src);
+      vec_push(as_cmd, NULL);
+
+      pid_t as_pid = exec_with_ofd((char**)as_cmd->data, ofd);
+      waitpid(as_pid, &res, 0);
+
+      vec_pop(as_cmd);
+      vec_pop(as_cmd);
+      vec_push(as_cmd, NULL);
+
+      if (out_type >= OutExecutable)
+        vec_push(ld_cmd, objfn);
+
+    } else if (strcasecmp(ext, "o") == 0) {
+      if (out_type >= OutExecutable)
+        vec_push(ld_cmd, src);
     } else {
       fprintf(stderr, "Unsupported file type: %s\n", src);
       res = -1;
@@ -358,23 +405,11 @@ int main(int argc, char *argv[]) {
       break;
   }
 
-  if (res != 0 && as_pid != -1) {
-#if !defined(__XV6)
-    kill(as_pid, SIGKILL);
-    remove(ofn);
-#else
-    (void)ofn;
-#endif
-    close(as_fd[0]);
-    close(as_fd[1]);
-    as_pid = -1;
+  if (res == 0 && out_type >= OutExecutable) {
+    vec_push(ld_cmd, NULL);
+    pid_t ld_pid = exec_with_ofd((char**)ld_cmd->data, -1);
+    waitpid(ld_pid, &res, 0);
   }
 
-  if (as_pid != -1) {
-    close(as_fd[0]);
-    close(as_fd[1]);
-
-    res = wait_process(as_pid);
-  }
   return res == 0 ? 0 : 1;
 }
