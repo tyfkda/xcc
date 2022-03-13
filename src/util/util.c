@@ -30,20 +30,12 @@ bool starts_with(const char *str, const char *prefix) {
   return strncmp(str, prefix, len) == 0;
 }
 
-static char label_prefix[8] = "L";
-
 const Name *alloc_label(void) {
   static int label_no;
   ++label_no;
-  char buf[1 + (sizeof(label_prefix) - 1) + sizeof(int) * 3 + 1];
-  snprintf(buf, sizeof(buf), ".%s%d", label_prefix, label_no);
+  char buf[2 + sizeof(int) * 3 + 1];
+  snprintf(buf, sizeof(buf), ".L%04d", label_no);
   return alloc_name(buf, NULL, true);
-}
-
-void set_local_label_prefix(const char *prefix) {
-  if (strlen(prefix) >= sizeof(label_prefix) - 1)
-    error("Label prefix too long");
-  strncpy(label_prefix, prefix, sizeof(label_prefix));
 }
 
 ssize_t getline_chomp(char **lineptr, size_t *n, FILE *stream) {

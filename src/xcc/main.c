@@ -94,27 +94,6 @@ static pid_t pipe_exec(char **command, int ofd, int fd[2]) {
   return pid;
 }
 
-static void create_local_label_prefix_option(int index, char *out, size_t n) {
-  static const char LOCAL_LABEL_PREFIX[] = "--local-label-prefix=";
-  static const char DIGITS[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
-  char prefix[8];
-  char *p = &prefix[sizeof(prefix) - 1];
-  *p-- = '\0';
-  assert(index >= 0);
-  if (index > 0) {
-    --index;
-    do {
-      if (p <= prefix)
-        error("Label prefix buffer overflow");
-      *p-- = DIGITS[index % (sizeof(DIGITS) - 1)];
-      index /= sizeof(DIGITS) - 1;
-    } while (index > 0);
-  }
-  *p = 'L';
-
-  snprintf(out, n, "%s%s", LOCAL_LABEL_PREFIX, p);
-}
-
 static int compile(const char *src, Vector *cpp_cmd, Vector *cc1_cmd, int ofd) {
   int ofd2 = ofd;
   int cc_fd[2];
@@ -218,13 +197,9 @@ int main(int argc, char *argv[]) {
 
   const char *ofn = NULL;
 
-  enum {
-    OPT_LOCAL_LABEL_PREFIX = 256,
-  };
   struct option longopts[] = {
     {"help", no_argument, NULL, 'h'},
     {"version", no_argument, NULL, 'V'},
-    {"local-label-prefix", required_argument, NULL, OPT_LOCAL_LABEL_PREFIX},
     {0},
   };
   int opt;
@@ -257,10 +232,6 @@ int main(int argc, char *argv[]) {
       break;
     case 'S':
       out_type = OutAssembly;
-      break;
-    case OPT_LOCAL_LABEL_PREFIX:
-      vec_push(cc1_cmd, "--local-label-prefix");
-      vec_push(cc1_cmd, optarg);
       break;
     }
   }
@@ -338,10 +309,6 @@ int main(int argc, char *argv[]) {
         as_pid = pipe_exec((char**)as_cmd->data, obj_fd, as_fd);
         ofd = as_fd[1];
       }
-
-      char prefix_option[32];
-      create_local_label_prefix_option(i - iarg, prefix_option, sizeof(prefix_option));
-      cc1_cmd->data[cc1_cmd->len - 2] = prefix_option;
 
       res = compile(src, cpp_cmd, out_type == OutPreprocess ? NULL : cc1_cmd, ofd);
 

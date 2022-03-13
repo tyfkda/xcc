@@ -40,12 +40,8 @@ static void compile1(FILE *ifp, const char *filename, Vector *decls) {
 }
 
 int main(int argc, char *argv[]) {
-  enum LongOpt {
-    OPT_LOCAL_LABEL_PREFIX = 256,
-  };
   struct option longopts[] = {
     {"version", no_argument, NULL, 'V'},
-    {"local-label-prefix", required_argument, NULL, OPT_LOCAL_LABEL_PREFIX},
     {0},
   };
   int opt;
@@ -55,9 +51,6 @@ int main(int argc, char *argv[]) {
     case 'V':
       show_version("cc1");
       return 0;
-    case OPT_LOCAL_LABEL_PREFIX:
-      set_local_label_prefix(optarg);
-      break;
     }
   }
 

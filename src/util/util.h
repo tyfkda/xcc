@@ -20,7 +20,6 @@ int isalnum_(int c);
 int isoctal(int c);
 char xvalue(char c);
 bool starts_with(const char *str, const char *prefix);
-void set_local_label_prefix(const char *prefix);
 const Name *alloc_label(void);
 ssize_t getline_chomp(char **lineptr, size_t *n, FILE *stream);
 ssize_t getline_cont(char **lineptr, size_t *n, FILE *stream, int *plineno);
