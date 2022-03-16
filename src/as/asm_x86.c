@@ -893,7 +893,7 @@ bool assemble_inst(Inst *inst, const ParseInfo *info, Code *code) {
         } else {
           p = put_rex1(p, size,
                        0xe0, opr_regno(&inst->dst.reg),
-                       0x81);
+                       size == REG8 ? 0x80 : 0x81);
         }
 
         switch (size) {
@@ -934,7 +934,7 @@ bool assemble_inst(Inst *inst, const ParseInfo *info, Code *code) {
         } else {
           p = put_rex1(p, size,
                        0xc8, opr_regno(&inst->dst.reg),
-                       0x81);
+                       size == REG8 ? 0x80 : 0x81);
         }
         switch (size) {
         case REG8:  PUT_CODE(p, IM8(value)); p += 1; break;
@@ -974,7 +974,7 @@ bool assemble_inst(Inst *inst, const ParseInfo *info, Code *code) {
         } else {
           p = put_rex1(p, size,
                        0xf0, opr_regno(&inst->dst.reg),
-                       0x81);
+                       size == REG8 ? 0x80 : 0x81);
         }
         switch (size) {
         case REG8:  PUT_CODE(p, IM8(value)); p += 1; break;
