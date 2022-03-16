@@ -255,6 +255,7 @@ typedef struct Stmt {
     } vardecl;
     struct {
       Expr *str;
+      Expr *arg;
     } asm_;
   };
 } Stmt;
@@ -273,7 +274,7 @@ Stmt *new_stmt_return(const Token *token, Expr *val);
 Stmt *new_stmt_goto(const Token *tok, const Token *label);
 Stmt *new_stmt_label(const Token *label, Stmt *follow);
 Stmt *new_stmt_vardecl(Vector *decls, Vector *inits);
-Stmt *new_stmt_asm(const Token *token, Expr *str);
+Stmt *new_stmt_asm(const Token *token, Expr *str, Expr *arg);
 
 // ================================================
 

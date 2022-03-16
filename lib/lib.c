@@ -1,4 +1,5 @@
 #include "ctype.h"
+#include "errno.h"
 #include "fcntl.h"
 #include "stdbool.h"
 #include "stdio.h"
@@ -17,16 +18,17 @@ ssize_t write(int fd, const void *str, size_t len) {
 
 #elif defined(__linux__)
 ssize_t write(int fd, const void *str, size_t len) {
+  ssize_t ret;
 #if defined(__XCC)
   __asm("mov $1, %eax\n"  // __NR_write
-        "syscall");
+        "syscall"
+        : "=r"(ret));
 #else
-  ssize_t ret;
   __asm("mov $1, %%eax\n"  // __NR_write
         "syscall"
         : "=r"(ret));
-  return ret;
 #endif
+  return ret;
 }
 
 #elif defined(__APPLE__)
@@ -471,9 +473,18 @@ int toupper(int c) {
 //char *environ[] = {"PATH=/bin:/usr/bin", NULL};
 char **environ = NULL;
 
+int errno;
+
 int open(const char *fn, int flag, ...) {
+  int ret;
   __asm("mov $2, %eax\n"  // __NR_open
-        "syscall");
+        "syscall"
+        : "=r"(ret));
+  if (ret < 0) {
+    errno = -ret;
+    ret = -1;
+  }
+  return ret;
 }
 
 int close(int fd) {
@@ -738,7 +749,7 @@ char *getcwd(char *buffer, size_t size) {
   }
   int result = _getcwd(buffer, size);
   if (result < 0) {
-    // errno = -result;
+    errno = -result;
     free(allocated);
     return NULL;
   }
@@ -793,13 +804,13 @@ int mkstemps(char *template, int suffixlen) {
 
   size_t len = strlen(template);
   if (len < LEN + suffixlen) {
-    // errno = EINVAL;
+    errno = EINVAL;
     return -1;
   }
   char *p = &template[len - suffixlen - LEN];
   for (int j = 0; j < LEN; ++j) {
     if (*p != 'X') {
-      // errno = EINVAL;
+      errno = EINVAL;
       return -1;
     }
     uint32_t r;

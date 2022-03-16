@@ -174,7 +174,7 @@ void new_ir_subsp(VReg *value, VReg *dst);
 VReg *new_ir_cast(VReg *vreg, const VRegType *dsttype);
 void new_ir_memcpy(VReg *dst, VReg *src, int size);
 void new_ir_clear(VReg *reg, size_t size);
-void new_ir_asm(const char *asm_);
+void new_ir_asm(const char *asm_, VReg *dst);
 
 IR *new_ir_load_spilled(VReg *reg, int offset, int size, int flag);
 IR *new_ir_store_spilled(VReg *reg, int offset, int size, int flag);

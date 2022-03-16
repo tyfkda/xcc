@@ -1110,16 +1110,33 @@ static Stmt *parse_return(const Token *tok) {
   return new_stmt_return(tok, val);
 }
 
+static Expr *parse_asm_arg(void) {
+  /*const Token *str =*/ consume(TK_STR, "string literal expected");
+  consume(TK_LPAR, "`(' expected");
+  Expr *var = parse_expr();
+  if (var == NULL || var->kind != EX_VAR) {
+    parse_error(var != NULL ? var->token : NULL, "string literal expected");
+  }
+  consume(TK_RPAR, "`)' expected");
+  return var;
+}
+
 static Stmt *parse_asm(const Token *tok) {
   consume(TK_LPAR, "`(' expected");
 
-  Token *token;
-  Vector *args = parse_args(&token);
+  Expr *str = parse_expr();
+  if (str == NULL || str->kind != EX_STR) {
+    parse_error(str != NULL ? str->token : NULL, "`__asm' expected string literal");
+  }
 
-  if (args == NULL || args->len != 1 || ((Expr*)args->data[0])->kind != EX_STR)
-    parse_error(token, "`__asm' expected one string");
+  Expr *arg = NULL;
+  if (match(TK_COLON)) {
+    arg = parse_asm_arg();
+  }
+
+  consume(TK_RPAR, "`)' expected");
   consume(TK_SEMICOL, "`;' expected");
-  return new_stmt_asm(tok, args->data[0]);
+  return new_stmt_asm(tok, str, arg);
 }
 
 // Multiple stmt-s, also accept `case` and `default`.

@@ -338,9 +338,12 @@ void new_ir_clear(VReg *reg, size_t size) {
   ir->opr1 = reg;
 }
 
-void new_ir_asm(const char *asm_) {
+void new_ir_asm(const char *asm_, VReg *dst) {
   IR *ir = new_ir(IR_ASM);
   ir->asm_.str = asm_;
+  ir->dst = dst;
+  if (dst != NULL)
+    ir->size = dst->vtype->size;
 }
 
 IR *new_ir_load_spilled(VReg *reg, int offset, int size, int flag) {

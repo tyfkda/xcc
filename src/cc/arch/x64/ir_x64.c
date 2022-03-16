@@ -951,7 +951,17 @@ static void ir_out(IR *ir) {
     }
     break;
 
-  case IR_ASM: EMIT_ASM0(ir->asm_.str); break;
+  case IR_ASM:
+    EMIT_ASM0(ir->asm_.str);
+    if (ir->dst != NULL) {
+      assert(0 <= ir->size && ir->size < kPow2TableSize);
+      assert(!(ir->dst->flag & VRF_CONST));
+      int pow = kPow2Table[ir->size];
+      assert(0 <= pow && pow < 4);
+      const char **regs = kRegSizeTable[pow];
+      MOV(kRegATable[pow], regs[ir->dst->phys]);
+    }
+    break;
 
   case IR_LOAD_SPILLED:
 #ifndef __NO_FLONUM

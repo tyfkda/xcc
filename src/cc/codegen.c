@@ -113,7 +113,12 @@ static void alloc_variable_registers(Function *func) {
 
 static void gen_asm(Stmt *stmt) {
   assert(stmt->asm_.str->kind == EX_STR);
-  new_ir_asm(stmt->asm_.str->str.buf);
+  VReg *result = NULL;
+  if (stmt->asm_.arg != NULL) {
+    assert(stmt->asm_.arg->kind == EX_VAR);
+    result = gen_expr(stmt->asm_.arg);
+  }
+  new_ir_asm(stmt->asm_.str->str.buf, result);
 }
 
 void gen_stmts(Vector *stmts) {

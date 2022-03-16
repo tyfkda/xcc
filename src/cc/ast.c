@@ -273,9 +273,10 @@ Stmt *new_stmt_vardecl(Vector *decls, Vector *inits) {
   return stmt;
 }
 
-Stmt *new_stmt_asm(const Token *token, Expr *str) {
+Stmt *new_stmt_asm(const Token *token, Expr *str, Expr *arg) {
   Stmt *stmt = new_stmt(ST_ASM, token);
   stmt->asm_.str = str;
+  stmt->asm_.arg = arg;
   return stmt;
 }
 
