@@ -533,12 +533,12 @@ static void gen_defun(Function *func) {
   set_curbb(func->ret_bb);
   curbb = NULL;
 
+  remove_unnecessary_bb(func->bbcon);
+
   prepare_register_allocation(func);
   convert_3to2(func->bbcon);
   int reserved_size = func->type->func.vaargs ? (MAX_REG_ARGS + MAX_FREG_ARGS) * WORD_SIZE : 0;
   alloc_physical_registers(func->ra, func->bbcon, reserved_size);
-
-  remove_unnecessary_bb(func->bbcon);
 
   curfunc = NULL;
   curscope = global_scope;
