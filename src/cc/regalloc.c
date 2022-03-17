@@ -377,16 +377,25 @@ static void analyze_reg_flow(BBContainer *bbcon) {
       next_bbs[0] = bb->next;
       next_bbs[1] = NULL;
 
+      size_t tjmp_len = 0;
+      BB **tjmp_bbs = NULL;
       if (irs->len > 0) {
         IR *ir = irs->data[irs->len - 1];
-        if (ir->kind == IR_JMP) {
+        switch (ir->kind) {
+        case IR_JMP:
           next_bbs[1] = ir->jmp.bb;
           if (ir->jmp.cond == COND_ANY)
             next_bbs[0] = NULL;
+          break;
+        case IR_TJMP:
+          tjmp_len = ir->tjmp.len;
+          tjmp_bbs = ir->tjmp.bbs;
+          break;
+        default: break;
         }
       }
-      for (int j = 0; j < 2; ++j) {
-        BB *next = next_bbs[j];
+      for (size_t j = 0; j < 2 + tjmp_len; ++j) {
+        BB *next = j < 2 ? next_bbs[j] : tjmp_bbs[j - 2];
         if (next == NULL)
           continue;
         Vector *in_regs = next->in_regs;

@@ -269,9 +269,7 @@ static void resolve_relas(Vector *elfobjs) {
       const SectionInfo *strinfo = &elfobj->section_infos[symhdr->sh_link];
       assert(elfobj->shdrs[shdr->sh_info].sh_type == SHT_PROGBITS);
       const SectionInfo *dst_info = &elfobj->section_infos[shdr->sh_info];
-      // TODO: Use this
-      // for (size_t j = 0, n = shdr->sh_size / sizeof(Elf64_Rela); j < n; ++j) {
-      for (size_t j = 0; j < shdr->sh_size / sizeof(Elf64_Rela); ++j) {
+      for (size_t j = 0, n = shdr->sh_size / sizeof(Elf64_Rela); j < n; ++j) {
         const Elf64_Rela *rela = &relas[j];
         unsigned char type = ELF64_R_TYPE(rela->r_info);
         switch (type) {
