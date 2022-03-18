@@ -2,11 +2,13 @@
 
 #include <assert.h>
 #include <getopt.h>
+#include <libgen.h>  // dirname
 #include <limits.h>  // CHAR_BIT
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 #include "ast.h"
 #include "lexer.h"
@@ -853,6 +855,7 @@ static void compile1(FILE *ifp, const char *filename, Vector *decls) {
 }
 
 int main(int argc, char *argv[]) {
+  const char *root = dirname(strdup(argv[0]));
   const char *ofn = "a.wasm";
   Vector *exports = new_vector();
   uint32_t stack_size = DEFAULT_STACK_SIZE;
@@ -865,6 +868,18 @@ int main(int argc, char *argv[]) {
   init_preprocessor(ppout);
   define_macro_simple("__ILP32__");
   define_macro_simple("__WASM");
+  add_system_inc_path(cat_path(root, "include"));
+#ifndef __WASM
+  {
+    const char *path = root;
+    if (!is_fullpath(root)) {
+      char *cwd = getcwd(NULL, 0);
+      path = cat_path(cwd, root);
+    }
+    add_system_inc_path(cat_path(path, "../include"));
+  }
+#endif
+
   init_compiler();
 
   enum {

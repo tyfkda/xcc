@@ -174,6 +174,8 @@ int main(int argc, char *argv[]) {
   Vector *cpp_cmd = new_vector();
   vec_push(cpp_cmd, cpp_path);
   vec_push(cpp_cmd, "-D__LP64__");  // Memory model.
+  vec_push(cpp_cmd, "-I");
+  vec_push(cpp_cmd, cat_path(root, "include"));
 
   Vector *cc1_cmd = new_vector();
   vec_push(cc1_cmd, cc1_path);

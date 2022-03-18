@@ -1,5 +1,4 @@
 ROOT_DIR:=../..
-INCLUDE_DIR:=$(ROOT_DIR)/include
 LIB_DIR:=$(ROOT_DIR)/lib
 EXAMPLES_DIR:=$(ROOT_DIR)/examples
 
@@ -30,4 +29,4 @@ test-val:	valtest.wasm
 
 VAL_SRCS:=$(LIB_DIR)/crt0.c $(ROOT_DIR)/tests/valtest.c $(EXAMPLES_DIR)/example_util.c
 valtest.wasm:	$(VAL_SRCS) # $(XCC)
-	$(WCC) -o$@ -I$(INCLUDE_DIR) -I$(EXAMPLES_DIR) $^
+	$(WCC) -o$@ -I$(EXAMPLES_DIR) $^

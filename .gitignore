@@ -10,8 +10,8 @@ core
 /as
 /cc1
 /cpp
-/gen2
-/gen3
+/gen2*
+/gen3*
 /ld
 /xcc
 /tests/core.*

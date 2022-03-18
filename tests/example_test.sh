@@ -25,4 +25,4 @@ try() {
 try 'hello' 'Hello, world!' ../examples/hello.c
 try 'fib' 832040 ../examples/fib.c
 try 'echo' 'foo bar baz' ../examples/echo.c foo bar baz
-try 'longjmp_test' '123' "-I../include ../examples/longjmp_test.c ../lib/setjmp.c"
+try 'longjmp_test' '123' "../examples/longjmp_test.c ../lib/setjmp.c"

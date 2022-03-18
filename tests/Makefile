@@ -2,7 +2,6 @@ ROOT_DIR:=..
 SRC_DIR:=$(ROOT_DIR)/src
 CC_DIR:=$(SRC_DIR)/cc
 UTIL_DIR:=$(SRC_DIR)/util
-INCLUDE_DIR:=$(ROOT_DIR)/include
 LIB_DIR:=$(ROOT_DIR)/lib
 EXAMPLES_DIR:=$(ROOT_DIR)/examples
 
@@ -12,9 +11,9 @@ CFLAGS:=-ansi -std=c11 -Wall -Wextra -Werror \
 CFLAGS+=-I$(CC_DIR) -I$(UTIL_DIR)
 CFLAGS+=-D_POSIX_C_SOURCE=200809L  # for getline
 
-EXE_DIR:=.
-XCC:=../$(EXE_DIR)/xcc
-CPP:=../$(EXE_DIR)/cpp
+PREFIX:=
+XCC:=../$(PREFIX)xcc
+CPP:=../$(PREFIX)cpp
 
 .PHONY: all
 all:	test
@@ -121,13 +120,13 @@ parser_test:	$(PARSER_SRCS)
 
 VAL_SRCS:=$(LIB_DIR)/crt0.c $(EXAMPLES_DIR)/example_util.c valtest.c
 valtest:	$(VAL_SRCS) # $(XCC)
-	$(XCC) -o$@ -I$(INCLUDE_DIR) -I$(EXAMPLES_DIR) $^
+	$(XCC) -o$@ -I$(EXAMPLES_DIR) $^
 
 FVAL_SRCS:=$(LIB_DIR)/crt0.c $(EXAMPLES_DIR)/example_util.c $(LIB_DIR)/math.c fvaltest.c
 dvaltest:	$(FVAL_SRCS) flotest.inc # $(XCC)
-	$(XCC) -o$@ -I$(INCLUDE_DIR) $(FVAL_SRCS)
+	$(XCC) -o$@ $(FVAL_SRCS)
 fvaltest:	$(FVAL_SRCS) flotest.inc # $(XCC)
-	$(XCC) -o$@ -DUSE_SINGLE -I$(INCLUDE_DIR) $(FVAL_SRCS)
+	$(XCC) -o$@ -DUSE_SINGLE $(FVAL_SRCS)
 
 TYPE_SRCS:=print_type_test.c $(CC_DIR)/type.c $(UTIL_DIR)/util.c $(UTIL_DIR)/table.c
 print_type_test:	$(TYPE_SRCS)
@@ -135,7 +134,7 @@ print_type_test:	$(TYPE_SRCS)
 
 .PHONY: test-link
 link_test: link_main.c $(EXAMPLES_DIR)/example_util.c link_sub.c
-	$(XCC) -c -olink_main.o -I$(INCLUDE_DIR) -I$(EXAMPLES_DIR) link_main.c
+	$(XCC) -c -olink_main.o -I$(EXAMPLES_DIR) link_main.c
 	$(CC) -o $@ link_sub.c link_main.o $(EXAMPLES_DIR)/example_util.c
 
 .PHONY: test-std-valtest
