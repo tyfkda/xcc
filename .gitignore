@@ -18,6 +18,7 @@ core
 /tests/dvaltest
 /tests/fvaltest
 /tests/link_test
+/tests/mandelbrot.ppm
 /tests/parser_test
 /tests/print_type_test
 /tests/table_test

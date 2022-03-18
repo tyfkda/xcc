@@ -35,12 +35,14 @@ unsigned int calc_color(unsigned int n) {
   return (((unsigned int)r) << 16) | (((unsigned int)g) << 8) | b;
 }
 
-int main() {
-  const unsigned int threshold = 3000;
-  const int W = 512, H = 512;
+int main(int argc, char *argv[]) {
+  unsigned int threshold = argc > 1 ? atoi(argv[1]) : 3000;
+  int W = argc > 2 ? atoi(argv[2]) : 512;
+  int H = argc > 3 ? atoi(argv[3]) : 512;
+
   const Number XMIN = -1.75;
   const Number YMIN = -1.125;
-  const Number XS = 2.25, YS = XS * H / W;
+  Number XS = 2.25, YS = XS * H / W;
 
   unsigned char *buf = malloc(W * H * 3);
   unsigned char *p = buf;
