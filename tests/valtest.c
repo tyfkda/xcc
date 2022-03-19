@@ -691,7 +691,7 @@ int main(void) {
     } t = {
       1, { 2, { 3 } }
     };
-    static int *p = &t.x.y.z;
+    static const int *p = &t.x.y.z;
     expect("&member initializer", 3, *p);
   }
   {
@@ -703,7 +703,7 @@ int main(void) {
     } t = {
       11, { {{22, 23}}, {{33, 34}} }
     };
-    static int *p = t.x[1].b;
+    static const int *p = t.x[1].b;
     expect("member[].member initializer", 33, *p);
   }
 
