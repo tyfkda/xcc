@@ -1,7 +1,7 @@
 a.wasm
 /wcc
-/gen2
-/gen3
+/cc.wasm
+/gen3cc.wasm
 /tests/*.wasm
 
 /public/

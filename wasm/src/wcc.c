@@ -869,7 +869,6 @@ int main(int argc, char *argv[]) {
   define_macro_simple("__ILP32__");
   define_macro_simple("__WASM");
   add_system_inc_path(cat_path(root, "include"));
-#ifndef __WASM
   {
     const char *path = root;
     if (!is_fullpath(root)) {
@@ -878,7 +877,6 @@ int main(int argc, char *argv[]) {
     }
     add_system_inc_path(cat_path(path, "../include"));
   }
-#endif
 
   init_compiler();
 

@@ -54,28 +54,28 @@ test-all: test test-gen2 diff-gen23
 
 .PHONY: clean
 clean:
-	rm -rf wcc $(OBJ_DIR) a.wasm gen2 gen3 public
+	rm -rf wcc $(OBJ_DIR) a.wasm cc.wasm gen3cc.wasm public
 	$(MAKE) -C tests clean
 
 ### Self hosting
 
 .PHONY: gen2
 gen2:	wcc
-	$(MAKE) HOST_TARGET=wcc HOST_CC="./wcc" TARGET=gen2 self-hosting
+	$(MAKE) HOST_TARGET=wcc HOST_CC="./wcc" TARGET= self-hosting
 .PHONY: test-gen2
 test-gen2: gen2
-	$(MAKE) TARGET_CC="node ../runtime/runwasm.js ../gen2/cc.wasm --" test-self-hosting
+	$(MAKE) TARGET_CC="node ../runtime/runwasm.js ../cc.wasm --" test-self-hosting
 
 .PHONY: gen3
 gen3:	gen2
-	$(MAKE) HOST_TARGET=gen2 HOST_CC="node ./runtime/runwasm.js ./gen2/cc.wasm --" TARGET=gen3 self-hosting
+	$(MAKE) HOST_TARGET=gen2 HOST_CC="node ./runtime/runwasm.js ./cc.wasm --" TARGET=gen3 self-hosting
 
 .PHONY: diff-gen23
 diff-gen23:	gen2 gen3
-	diff -b gen2/cc.wasm gen3/cc.wasm
+	diff -b cc.wasm gen3cc.wasm
 
 .PHONY: self-hosting
-self-hosting:	$(TARGET)/cc.wasm
+self-hosting:	$(TARGET)cc.wasm
 
 .PHONY: test-self-hosting
 test-self-hosting:
@@ -83,9 +83,8 @@ test-self-hosting:
 
 WCC_LIBS:=runtime/lib.c $(LIB_DIR)/crt0.c $(LIB_DIR)/sprintf.c $(LIB_DIR)/umalloc.c $(LIB_DIR)/getopt.c $(LIB_DIR)/assert.c
 
-$(TARGET)/cc.wasm:	$(WCC_SRCS) $(WCC_LIBS)
-	mkdir -p $(TARGET)
-	$(HOST_CC) -o$(TARGET)/cc.wasm \
+$(TARGET)cc.wasm:	$(WCC_SRCS) $(WCC_LIBS)
+	$(HOST_CC) -o$(TARGET)cc.wasm \
 		-I$(CC1_DIR) -I$(CPP_DIR) -I$(UTIL_DIR) -I$(LIB_DIR) \
 		$(WCC_SRCS) \
 		$(WCC_LIBS)
@@ -98,9 +97,9 @@ ASSETS_DIR:=public
 .PHONY:	assets
 assets:	gen2 $(ASSETS_DIR)/cc.wasm $(ASSETS_DIR)/libs.json
 
-$(ASSETS_DIR)/cc.wasm:	gen2/cc.wasm
+$(ASSETS_DIR)/cc.wasm:	cc.wasm
 	mkdir -p $(ASSETS_DIR)
-	cp gen2/cc.wasm $@
+	cp cc.wasm $@
 
 $(ASSETS_DIR)/libs.json:	lib_list.json
 	mkdir -p $(ASSETS_DIR)
