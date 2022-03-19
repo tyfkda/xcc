@@ -632,16 +632,16 @@ static void ir_out(IR *ir) {
       }
 
       LEA(LABEL_INDIRECT(fmt_name(table_label), RIP), RAX);
-      ADD(OFFSET_INDIRECT(0, RAX, kReg64s[phys], 8), RAX);
-      JMP(fmt("*%s", RAX));
+      JMP(fmt("*%s", OFFSET_INDIRECT(0, RAX, kReg64s[phys], 8)));
 
-      // TODO: Put jump table after function.
+      _RODATA();  // gcc warns, should be put into .data section?
       EMIT_ALIGN(8);
       EMIT_LABEL(fmt_name(table_label));
       for (size_t i = 0, len = ir->tjmp.len; i < len; ++i) {
         BB *bb = ir->tjmp.bbs[i];
-        _QUAD(fmt("%.*s - %.*s", bb->label->bytes, bb->label->chars, table_label->bytes, table_label->chars));
+        _QUAD(fmt("%.*s", bb->label->bytes, bb->label->chars));
       }
+      _TEXT();
     }
     break;
 

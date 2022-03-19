@@ -108,8 +108,7 @@ static unsigned char *put_rex_indirect_with_index(
   int i = index_reg & 7;
   int d = dst_reg & 7;
 
-  static const char kScaleTable[] = {-1, 0, 1, -1, 2, -1, -1, -1, 3};
-  char scale_bit = kScaleTable[scale];
+  char scale_bit = kPow2Table[scale];
 
   unsigned char code = (offset == 0 && b != RBP - RAX) ? op2 : is_im8(offset) ? (unsigned char)0x40 : (unsigned char)0x80;
   *p++ = code | (d << 3) | 0x04;
@@ -210,6 +209,37 @@ static bool assemble_mov(Inst *inst, const ParseInfo *info, Code *code) {
             opr_regno(&inst->src.reg),
             opr_regno(&inst->dst.indirect.reg),
             0x88, 0x00, offset);
+      }
+    }
+  } else if (inst->src.type == INDIRECT_WITH_INDEX && inst->dst.type == REG) {
+    if (inst->src.indirect_with_index.offset->kind == EX_FIXNUM) {
+      long offset = inst->src.indirect_with_index.offset->fixnum;
+      assert(is_im32(offset));
+      short offset_bit = offset == 0 ? 0x04 : is_im8(offset) ? 0x44 : 0x84;
+      enum RegSize size = inst->dst.reg.size;
+      assert(inst->src.indirect_with_index.base_reg.no != RIP);
+      int bno = opr_regno(&inst->src.indirect_with_index.base_reg);
+      int ino = opr_regno(&inst->src.indirect_with_index.index_reg);
+      int dno = opr_regno(&inst->dst.reg);
+      Expr *scale_expr = inst->src.indirect_with_index.scale;
+      char scale_bit = scale_expr != NULL ? kPow2Table[scale_expr->fixnum] : 0;
+      short x = ((bno & 8) >> 3) | ((ino & 8) >> 2) | ((dno & 8) >> 1);
+      short prefix = size == REG16 ? 0x66 : size == REG64 || x != 0 ? 0x48 | x : -1;
+      short buf[] = {
+        prefix,
+        size == REG8 ? 0x8a : 0x8b,
+        ((dno & 7) << 3) | offset_bit,
+        (scale_bit << 6) | ((ino & 7) << 3) | (bno & 7),
+      };
+      p = put_code_filtered(p, buf, ARRAY_SIZE(buf));
+
+      if (offset != 0) {
+        if (is_im8(offset)) {
+          *p++ = IM8(offset);
+        } else {
+          PUT_CODE(p, IM32(offset));
+          p += 4;
+        }
       }
     }
   }
@@ -1159,18 +1189,80 @@ bool assemble_inst(Inst *inst, const ParseInfo *info, Code *code) {
     if (inst->dst.type != NOOPERAND)
       return assemble_error(info, "Illegal operand");
 
-    if (inst->src.type == DIRECT) {
+    switch (inst->src.type) {
+    case DIRECT:
       //MAKE_CODE(inst, code, 0xe9, IM32(0));
       MAKE_CODE(inst, code, 0xeb, IM8(0));  // Short jmp in default.
       return true;
-    } else if (inst->src.type == DEREF_REG) {
-      int s = inst->src.deref_reg.no;
-      if (!inst->src.deref_reg.x) {
-        MAKE_CODE(inst, code, 0xff, 0xe0 + s);
-      } else {
-        MAKE_CODE(inst, code, 0x41, 0xff, 0xe0 + s);
+    case DEREF_REG:
+      {
+        int s = inst->src.reg.no;
+        short buf[] = {
+          inst->src.reg.x ? 0x41 : -1,
+          0xff, 0xe0 | s,
+        };
+        p = put_code_filtered(p, buf, ARRAY_SIZE(buf));
       }
-      return true;
+      break;
+    case DEREF_INDIRECT:
+      {
+        Expr *offset_expr = inst->src.indirect.offset;
+        if ((offset_expr == NULL || offset_expr->kind == EX_FIXNUM)) {
+          long offset = offset_expr != NULL ? offset_expr->fixnum : 0;
+          if (is_im32(offset)) {
+            short offset_bit = offset == 0 ? 0x20 : is_im8(offset) ? 0x60 : 0xa0;
+            short b = inst->src.indirect.reg.no;
+            short buf[] = {
+              inst->src.indirect.reg.x ? 0x41 : -1,
+              0xff, offset_bit | b,
+            };
+            p = put_code_filtered(p, buf, ARRAY_SIZE(buf));
+            if (offset != 0) {
+              if (is_im8(offset)) {
+                *p++ = IM8(offset);
+              } else {
+                PUT_CODE(p, IM32(offset));
+                p += 4;
+              }
+            }
+          }
+        }
+      }
+      break;
+    case DEREF_INDIRECT_WITH_INDEX:
+      {
+        Expr *offset_expr = inst->src.indirect_with_index.offset;
+        Expr *scale_expr = inst->src.indirect_with_index.scale;
+        if ((offset_expr == NULL || offset_expr->kind == EX_FIXNUM) &&
+            (scale_expr == NULL || scale_expr->kind == EX_FIXNUM)) {
+          long offset = offset_expr != NULL ? offset_expr->fixnum : 0;
+          long scale = scale_expr != NULL ? scale_expr->fixnum : 1;
+          if (is_im32(offset) && 1 <= scale && scale <= 8 && IS_POWER_OF_2(scale)) {
+            short offset_bit = offset == 0 ? 0x20 : is_im8(offset) ? 0x60 : 0xa0;
+            short b = inst->src.indirect_with_index.base_reg.no;
+            short scale_bit = kPow2Table[scale];
+            short i = inst->src.indirect_with_index.index_reg.no;
+            short prefix = inst->src.indirect_with_index.base_reg.x | (inst->src.indirect_with_index.index_reg.x << 1);
+            short buf[] = {
+              prefix != 0 ? 0x40 | prefix : -1,
+              0xff,
+              offset_bit | 0x04,
+              (scale_bit << 6) | (i << 3) | b,
+            };
+            p = put_code_filtered(p, buf, ARRAY_SIZE(buf));
+            if (offset != 0) {
+              if (is_im8(offset)) {
+                *p++ = IM8(offset);
+              } else {
+                PUT_CODE(p, IM32(offset));
+                p += 4;
+              }
+            }
+          }
+        }
+      }
+      break;
+    default: break;
     }
     break;
   case JO: case JNO: case JB:  case JAE:
@@ -1191,8 +1283,8 @@ bool assemble_inst(Inst *inst, const ParseInfo *info, Code *code) {
       MAKE_CODE(inst, code, 0xe8, IM32(0));
       return true;
     } else if (inst->src.type == DEREF_REG) {
-      int s = inst->src.deref_reg.no;
-      if (!inst->src.deref_reg.x) {
+      int s = inst->src.reg.no;
+      if (!inst->src.reg.x) {
         MAKE_CODE(inst, code, 0xff, 0xd0 + s);
       } else {
         MAKE_CODE(inst, code, 0x41, 0xff, 0xd0 + s);

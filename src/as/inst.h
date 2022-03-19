@@ -229,6 +229,8 @@ enum OperandType {
   IMMEDIATE,  // $1234
   DIRECT,     // foobar
   DEREF_REG,  // *%rax
+  DEREF_INDIRECT,  // *ofs(%rax)
+  DEREF_INDIRECT_WITH_INDEX,  // *(%rax, %rcx, 4)
 #ifndef __NO_FLONUM
   REG_XMM,
 #endif
@@ -284,7 +286,6 @@ typedef struct {
       Reg base_reg;
       Reg index_reg;
     } indirect_with_index;
-    Reg deref_reg;
 #ifndef __NO_FLONUM
     enum RegXmmType regxmm;
 #endif

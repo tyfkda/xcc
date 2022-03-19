@@ -513,9 +513,75 @@ static enum RegType parse_deref_register(ParseInfo *info, Operand *operand) {
 
   char no = reg - RAX;
   operand->type = DEREF_REG;
-  operand->deref_reg.size = REG64;
-  operand->deref_reg.no = no & 7;
-  operand->deref_reg.x = (no & 8) >> 3;
+  operand->reg.size = REG64;
+  operand->reg.no = no & 7;
+  operand->reg.x = (no & 8) >> 3;
+  return true;
+}
+
+static bool parse_deref_indirect(ParseInfo *info, Operand *operand) {
+  Expr *offset = parse_expr(info);
+  info->p = skip_whitespaces(info->p);
+  if (*info->p != '(') {
+    parse_error(info, "direct number not implemented");
+    return false;
+  }
+  if (info->p[1] != '%') {
+    parse_error(info, "Register expected");
+    return false;
+  }
+  info->p += 2;
+
+  enum RegType index_reg = NOREG;
+  Expr *scale = NULL;
+  // Already read "(%".
+  enum RegType base_reg = find_register(&info->p);
+
+  info->p = skip_whitespaces(info->p);
+  if (*info->p == ',') {
+    info->p = skip_whitespaces(info->p + 1);
+    if (*info->p != '%' ||
+        (++info->p, index_reg = find_register(&info->p), !is_reg64(index_reg)))
+      parse_error(info, "Register expected");
+    info->p = skip_whitespaces(info->p);
+    if (*info->p == ',') {
+      info->p = skip_whitespaces(info->p + 1);
+      scale = parse_expr(info);
+      if (scale->kind != EX_FIXNUM)
+        parse_error(info, "constant value expected");
+      info->p = skip_whitespaces(info->p);
+    }
+  }
+  if (*info->p != ')')
+    parse_error(info, "`)' expected");
+  else
+    ++info->p;
+
+  if (!is_reg64(base_reg) || (index_reg != NOREG && !is_reg64(index_reg)))
+    parse_error(info, "Register expected");
+
+  if (index_reg == NOREG) {
+    operand->type = DEREF_INDIRECT;
+    operand->indirect.offset = offset;
+    char reg_no = base_reg - RAX;
+    operand->indirect.reg.size = REG64;
+    operand->indirect.reg.no = reg_no & 7;
+    operand->indirect.reg.x = (reg_no & 8) >> 3;
+  } else {
+    operand->type = DEREF_INDIRECT_WITH_INDEX;
+    operand->indirect_with_index.offset = offset;
+    operand->indirect_with_index.scale = scale;
+    char base_no = base_reg - RAX;
+    operand->indirect_with_index.base_reg.size = REG64;
+    operand->indirect_with_index.base_reg.no = base_no & 7;
+    operand->indirect_with_index.base_reg.x = (base_no & 8) >> 3;
+    operand->indirect_with_index.index_reg.size = REG64;
+    char index_no = index_reg - RAX;
+    operand->indirect_with_index.index_reg.size = REG64;
+    operand->indirect_with_index.index_reg.no = index_no & 7;
+    operand->indirect_with_index.index_reg.x = (index_no & 8) >> 3;
+  }
+
   return true;
 }
 
@@ -764,9 +830,14 @@ static bool parse_operand(ParseInfo *info, Operand *operand) {
     return parse_direct_register(info, operand);
   }
 
-  if (*p == '*' && p[1] == '%') {
-    info->p = p + 2;
-    return parse_deref_register(info, operand);
+  if (*p == '*') {
+    if (p[1] == '%') {
+      info->p = p + 2;
+      return parse_deref_register(info, operand);
+    } else {
+      info->p = p + 1;
+      return parse_deref_indirect(info, operand);
+    }
   }
 
   if (*p == '$') {
