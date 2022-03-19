@@ -978,12 +978,14 @@ int main(int argc, char *argv[]) {
   FILE *ppin = ppout;
   compile1(ppin, "*", toplevel);
   fclose(ppin);
-
-  uint32_t address_bottom = traverse_ast(toplevel, exports, stack_size);
-
-  gen(toplevel);
   if (compile_error_count != 0)
     return 1;
+
+  uint32_t address_bottom = traverse_ast(toplevel, exports, stack_size);
+  if (compile_error_count != 0)
+    return 1;
+
+  gen(toplevel);
 
   FILE *fp = fopen(ofn, "wb");
   if (fp == NULL) {
