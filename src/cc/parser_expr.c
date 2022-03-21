@@ -1331,7 +1331,7 @@ static Expr *parse_prim(void) {
   } else {
     parse_error_nofatal(ident, "`%.*s' undeclared", ident->ident->bytes, ident->ident->chars);
     type = &tyInt;
-    // TODO: Register variable to suppress multiple errors.
+    add_var_to_scope(curscope, ident, type, 0);
   }
   return new_expr_variable(name, type, ident, scope);
 }
