@@ -32,6 +32,8 @@ bool is_const_truthy(Expr *expr) {
 #endif
   case EX_STR:
     return true;
+  case EX_VAR:
+    return expr->type->kind == TY_ARRAY;
   default:
     return false;
   }
