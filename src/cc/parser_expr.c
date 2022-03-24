@@ -1236,7 +1236,7 @@ static Expr *parse_compound_literal(const Type *type) {
     parse_error(token, "cannot use compound literal in global");
   } else {
     if (type->kind == TY_ARRAY)
-      fix_array_size((Type*)type, init);
+      type = fix_array_size(type, init);
 
     const Token *ident = alloc_dummy_ident();
     add_var_to_scope(curscope, ident, type, 0);

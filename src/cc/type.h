@@ -131,6 +131,7 @@ const Type *array_to_ptr(const Type *type);
 Type *arrayof(const Type *type, ssize_t length);
 Type *new_func_type(const Type *ret, const Vector *params, const Vector *param_types, bool vaargs);
 const Type *qualified_type(const Type *type, int additional);
+Type *clone_type(const Type *type);
 
 // Struct
 

@@ -69,7 +69,7 @@ static void alloc_variable_registers(Function *func) {
 
     for (int j = 0; j < scope->vars->len; ++j) {
       VarInfo *varinfo = scope->vars->data[j];
-      if (varinfo->storage & (VS_STATIC | VS_EXTERN | VS_ENUM_MEMBER)) {
+      if (varinfo->storage & (VS_STATIC | VS_EXTERN | VS_ENUM_MEMBER | VS_TYPEDEF)) {
         // Static entity is allocated in global, not on stack.
         // Extern doesn't have its entity.
         // Enum members are replaced to constant value.

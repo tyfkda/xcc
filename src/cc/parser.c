@@ -87,7 +87,7 @@ Token *consume(/*enum TokenKind*/int kind, const char *error) {
   return tok;
 }
 
-void fix_array_size(Type *type, Initializer *init) {
+const Type *fix_array_size(const Type *type, Initializer *init) {
   assert(init != NULL);
   assert(type->kind == TY_ARRAY);
 
@@ -101,7 +101,7 @@ void fix_array_size(Type *type, Initializer *init) {
   ssize_t arr_len = type->pa.length;
   if (arr_len == -1) {
     if (is_str) {
-      type->pa.length = init->single->str.size;
+      arr_len = init->single->str.size;
     } else {
       ssize_t index = 0;
       ssize_t max_index = 0;
@@ -115,14 +115,18 @@ void fix_array_size(Type *type, Initializer *init) {
         if (max_index < index)
           max_index = index;
       }
-      type->pa.length = max_index;
+      arr_len = max_index;
     }
+    Type *cloned = clone_type(type);
+    cloned->pa.length = arr_len;
+    return cloned;
   } else {
     assert(arr_len > 0);
     assert(!is_str || init->single->kind == EX_STR);
     ssize_t init_len = is_str ? (ssize_t)init->single->str.size : (ssize_t)init->multi->len;
     if (init_len > arr_len && (!is_str || init_len - 1 > arr_len))  // Allow non-nul string.
       parse_error(NULL, "Initializer more than array size");
+    return type;
   }
 }
 
@@ -686,20 +690,23 @@ Vector *construct_initializing_stmts(Vector *decls) {
   return inits;
 }
 
-static Initializer *check_vardecl(const Type *type, const Token *ident, int storage, Initializer *init) {
+static Initializer *check_vardecl(const Type **ptype, const Token *ident, int storage, Initializer *init) {
+  const Type *type = *ptype;
   if (type->kind == TY_ARRAY && init != NULL)
-    fix_array_size((Type*)type, init);
+    *ptype = type = fix_array_size(type, init);
   if (!(storage & VS_EXTERN))
     ensure_struct((Type*)type, ident, curscope);
 
   if (curfunc != NULL) {
     VarInfo *varinfo = scope_find(curscope, ident->ident, NULL);
+    varinfo->type = type;
 
     // TODO: Check `init` can be cast to `type`.
     if (storage & VS_STATIC) {
       VarInfo *gvarinfo = varinfo->static_.gvar;
       assert(gvarinfo != NULL);
       gvarinfo->global.init = init = check_global_initializer(type, init);
+      gvarinfo->type = type;
       // static variable initializer is handled in codegen, same as global variable.
     }
   } else {
@@ -711,9 +718,10 @@ static Initializer *check_vardecl(const Type *type, const Token *ident, int stor
       return NULL;
     }
     // Toplevel
-    VarInfo *varinfo = scope_find(global_scope, ident->ident, NULL);
-    assert(varinfo != NULL);
-    varinfo->global.init = init = check_global_initializer(type, init);
+    VarInfo *gvarinfo = scope_find(global_scope, ident->ident, NULL);
+    assert(gvarinfo != NULL);
+    gvarinfo->global.init = init = check_global_initializer(type, init);
+    gvarinfo->type = type;
   }
   return init;
 }
@@ -856,21 +864,21 @@ static Vector *parse_vardecl_cont(Type *rawType, Type *type, int storage, Token 
     }
 
     assert(!is_global_scope(curscope));
-    add_var_to_scope(curscope, ident, type, tmp_storage);
-
-    if (!(storage & VS_TYPEDEF) && type->kind != TY_FUNC && match(TK_ASSIGN)) {
-      init = parse_initializer();
-    }
 
     if (tmp_storage & VS_TYPEDEF) {
       def_type(type, ident);
-    } else {
-      init = check_vardecl(type, ident, tmp_storage, init);
-      VarDecl *decl = new_vardecl(type, ident, init, tmp_storage);
-      if (decls == NULL)
-        decls = new_vector();
-      vec_push(decls, decl);
+      continue;
     }
+
+    VarInfo *varinfo = add_var_to_scope(curscope, ident, type, tmp_storage);
+    varinfo->type = type;  // type might be changed.
+    if (type->kind != TY_FUNC && match(TK_ASSIGN))
+      init = parse_initializer();
+    init = check_vardecl((const Type**)&type, ident, tmp_storage, init);
+    VarDecl *decl = new_vardecl(type, ident, init, tmp_storage);
+    if (decls == NULL)
+      decls = new_vector();
+    vec_push(decls, decl);
   } while (match(TK_COMMA));
   return decls;
 }
@@ -1315,7 +1323,8 @@ static Declaration *parse_global_var_decl(
         init = parse_initializer();
       varinfo->global.init = init;
 
-      init = check_vardecl(type, ident, storage, init);
+      init = check_vardecl(&type, ident, storage, init);
+      varinfo->type = type;  // type might be changed.
       VarDecl *decl = new_vardecl(type, ident, init, storage);
       if (decls == NULL)
         decls = new_vector();

@@ -216,6 +216,12 @@ const Type *qualified_type(const Type *type, int additional) {
   return ctype;
 }
 
+Type *clone_type(const Type *type) {
+  Type *cloned = malloc(sizeof(*cloned));
+  *cloned = *type;
+  return cloned;
+}
+
 // Struct
 bool add_struct_member(Vector *members, const Name *name, const Type *type) {
   if (name != NULL && find_struct_member(members, name) >= 0)

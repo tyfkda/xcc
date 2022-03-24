@@ -55,7 +55,7 @@ Expr *str_to_char_array_var(Scope *scope, Expr *str, Vector *toplevel);
 Expr *new_expr_addsub(enum ExprKind kind, const Token *tok, Expr *lhs, Expr *rhs, bool keep_left);
 
 Initializer *parse_initializer(void);
-void fix_array_size(Type *type, Initializer *init);
+const Type *fix_array_size(const Type *type, Initializer *init);
 Vector *assign_initial_value(Expr *expr, Initializer *init, Vector *inits);
 Expr *make_refer(const Token *tok, Expr *expr);
 
