@@ -1117,25 +1117,17 @@ static Type *parse_declarator(Type *rawtype, Token **pident) {
   return parse_direct_declarator(type, pident);
 }
 
-bool parse_var_def(Type **prawType, const Type **ptype, int *pstorage, Token **pident) {
+const Type *parse_var_def(Type **prawType, int *pstorage, Token **pident) {
   Type *rawType = prawType != NULL ? *prawType : NULL;
   if (rawType == NULL) {
     rawType = parse_raw_type(pstorage);
     if (rawType == NULL)
-      return false;
+      return NULL;
     if (prawType != NULL)
       *prawType = rawType;
   }
 
-  *ptype = parse_declarator(rawType, pident);
-  return true;
-}
-
-const Type *parse_full_type(int *pstorage, Token **pident) {
-  const Type *type;
-  if (!parse_var_def(NULL, &type, pstorage, pident))
-    return NULL;
-  return type;
+  return parse_declarator(rawType, pident);
 }
 
 Vector *parse_funparams(bool *pvaargs) {
@@ -1153,10 +1145,10 @@ Vector *parse_funparams(bool *pvaargs) {
         break;
       }
 
-      const Type *type;
       int storage;
       Token *ident;
-      if (!parse_var_def(NULL, &type, &storage, &ident)) {
+      const Type *type = parse_var_def(NULL, &storage, &ident);
+      if (type == NULL) {
         parse_error(NULL, "type expected");
       } else {
         if (storage & VS_STATIC)
@@ -1206,10 +1198,10 @@ static StructInfo *parse_struct(bool is_union) {
 
     Type *rawType = NULL;
     for (;;) {
-      const Type *type;
       int storage;
       Token *ident;
-      if (!parse_var_def(&rawType, &type, &storage, &ident)) {
+      const Type *type = parse_var_def(&rawType, &storage, &ident);
+      if (type == NULL) {
         parse_error(NULL, "type expected");
       } else {
         not_void(type, NULL);
@@ -1260,7 +1252,7 @@ static Expr *parse_prim(void) {
   Token *tok;
   if ((tok = match(TK_LPAR)) != NULL) {
     int storage;
-    const Type *type = parse_full_type(&storage, NULL);
+    const Type *type = parse_var_def(NULL, &storage, NULL);
     if (type != NULL) {  // Compound literal
       consume(TK_RPAR, "`)' expected");
       Token *tok2 = consume(TK_LBRACE, "`{' expected");
@@ -1362,7 +1354,7 @@ static Expr *parse_sizeof(const Token *token) {
   const Type *type = NULL;
   const Token *tok;
   if ((tok = match(TK_LPAR)) != NULL) {
-    type = parse_full_type(NULL, NULL);
+    type = parse_var_def(NULL, NULL, NULL);
     if (type != NULL) {
       consume(TK_RPAR, "`)' expected");
     } else {
@@ -1524,7 +1516,7 @@ static Expr *parse_cast_expr(void) {
   if ((lpar = match(TK_LPAR)) != NULL) {
     int storage;
     const Token *token = fetch_token();
-    const Type *type = parse_full_type(&storage, NULL);
+    const Type *type = parse_var_def(NULL, &storage, NULL);
     if (type != NULL) {  // Cast
       consume(TK_RPAR, "`)' expected");
 

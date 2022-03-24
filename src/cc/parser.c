@@ -832,7 +832,8 @@ static Vector *parse_vardecl_cont(Type *rawType, Type *type, int storage, Token 
   do {
     int tmp_storage = storage;
     if (!first) {
-      if (!parse_var_def(&rawType, (const Type**)&type, &tmp_storage, &ident) || ident == NULL) {
+      type = (Type*)parse_var_def(&rawType, &tmp_storage, &ident);
+      if (type == NULL || ident == NULL) {
         parse_error(NULL, "`ident' expected");
         return NULL;
       }
@@ -876,10 +877,10 @@ static Vector *parse_vardecl_cont(Type *rawType, Type *type, int storage, Token 
 
 static bool parse_vardecl(Stmt **pstmt) {
   Type *rawType = NULL;
-  Type *type;
   int storage;
   Token *ident;
-  if (!parse_var_def(&rawType, (const Type**)&type, &storage, &ident))
+  Type *type = (Type*)parse_var_def(&rawType, &storage, &ident);
+  if (type == NULL)
     return false;
 
   *pstmt = NULL;
@@ -1011,10 +1012,10 @@ static Stmt *parse_for(const Token *tok) {
   Scope *scope = NULL;
   if (!match(TK_SEMICOL)) {
     Type *rawType = NULL;
-    Type *type;
     int storage;
     Token *ident;
-    if (parse_var_def(&rawType, (const Type**)&type, &storage, &ident)) {
+    Type *type = (Type*)parse_var_def(&rawType, &storage, &ident);
+    if (type != NULL) {
       if (ident == NULL)
         parse_error(NULL, "Ident expected");
       scope = enter_scope(curfunc, NULL);
@@ -1338,10 +1339,10 @@ static Declaration *parse_global_var_decl(
 
 static Declaration *parse_declaration(void) {
   Type *rawtype = NULL;
-  const Type *type;
   int storage;
   Token *ident;
-  if (parse_var_def(&rawtype, &type, &storage, &ident)) {
+  const Type *type = parse_var_def(&rawtype, &storage, &ident);
+  if (type != NULL) {
     if (ident == NULL) {
       if ((type->kind == TY_STRUCT ||
            (type->kind == TY_FIXNUM && type->fixnum.kind == FX_ENUM)) &&

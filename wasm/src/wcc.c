@@ -777,7 +777,7 @@ static Expr *proc_builtin_va_arg(const Token *ident) {
   consume(TK_LPAR, "`(' expected");
   Expr *ap = parse_assign();
   consume(TK_COMMA, "`,' expected");
-  const Type *type = parse_full_type(NULL, NULL);
+  const Type *type = parse_var_def(NULL, NULL, NULL);
   consume(TK_RPAR, "`)' expected");
 
   //#define va_arg(v,l)     (ap = (char*)ap + sizeof(type), *(type*)((char*)ap - sizeof(type)))

@@ -21,7 +21,7 @@ void expect_parse_type(const char *title, const Type *expected, const char *iden
     set_source_string(source, "*test*", 1);
     int storage;
     Token *ident;
-    const Type *actual = parse_full_type(&storage, &ident);
+    const Type *actual = parse_var_def(NULL, &storage, &ident);
     if (actual == NULL && expected != NULL)
       error("%s: parsing type failed\n", title);
 

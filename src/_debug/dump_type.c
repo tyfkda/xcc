@@ -92,7 +92,7 @@ int main(int argc, char *argv[]) {
 
     int storage;
     Token *ident;
-    const Type *type = parse_full_type(&storage, &ident);
+    const Type *type = parse_var_def(NULL, &storage, &ident);
 
     FILE *fp = stdout;
     print_type(fp, type);

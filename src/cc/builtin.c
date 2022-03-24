@@ -13,7 +13,7 @@
 
 static Expr *proc_builtin_type_kind(const Token *ident) {
   consume(TK_LPAR, "`(' expected");
-  const Type *type = parse_full_type(NULL, NULL);
+  const Type *type = parse_var_def(NULL, NULL, NULL);
   consume(TK_RPAR, "`)' expected");
 
   return new_expr_fixlit(&tySize, ident, type->kind);
