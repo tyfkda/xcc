@@ -49,7 +49,7 @@ Expr *strip_cast(Expr *expr) {
   return expr;
 }
 
-static Expr *new_expr(enum ExprKind kind, const Type *type, const Token *token) {
+static Expr *new_expr(enum ExprKind kind, Type *type, const Token *token) {
   Expr *expr = malloc(sizeof(*expr));
   expr->kind = kind;
   expr->type = type;
@@ -57,7 +57,7 @@ static Expr *new_expr(enum ExprKind kind, const Type *type, const Token *token) 
   return expr;
 }
 
-Expr *new_expr_fixlit(const Type *type, const Token *token, const Fixnum fixnum) {
+Expr *new_expr_fixlit(Type *type, const Token *token, const Fixnum fixnum) {
   assert(type->kind == TY_FIXNUM);
   Expr *expr = new_expr(EX_FIXNUM, type, token);
   expr->fixnum = fixnum;
@@ -65,7 +65,7 @@ Expr *new_expr_fixlit(const Type *type, const Token *token, const Fixnum fixnum)
 }
 
 #ifndef __NO_FLONUM
-Expr *new_expr_flolit(const Type *type, const Token *token, double flonum) {
+Expr *new_expr_flolit(Type *type, const Token *token, double flonum) {
   assert(type->kind == TY_FLONUM);
   Expr *expr = new_expr(EX_FLONUM, type, token);
   expr->flonum = flonum;
@@ -86,21 +86,21 @@ Expr *new_expr_str(const Token *token, const char *str, ssize_t size) {
   return expr;
 }
 
-Expr *new_expr_variable(const Name *name, const Type *type, const Token *token, Scope *scope) {
+Expr *new_expr_variable(const Name *name, Type *type, const Token *token, Scope *scope) {
   Expr *expr = new_expr(EX_VAR, type, token);
   expr->var.name = name;
   expr->var.scope = scope;
   return expr;
 }
 
-Expr *new_expr_bop(enum ExprKind kind, const Type *type, const Token *token, Expr *lhs, Expr *rhs) {
+Expr *new_expr_bop(enum ExprKind kind, Type *type, const Token *token, Expr *lhs, Expr *rhs) {
   Expr *expr = new_expr(kind, type, token);
   expr->bop.lhs = lhs;
   expr->bop.rhs = rhs;
   return expr;
 }
 
-Expr *new_expr_unary(enum ExprKind kind, const Type *type, const Token *token, Expr *sub) {
+Expr *new_expr_unary(enum ExprKind kind, Type *type, const Token *token, Expr *sub) {
   Expr *expr = new_expr(kind, type, token);
   expr->unary.sub = sub;
   return expr;
@@ -109,11 +109,11 @@ Expr *new_expr_unary(enum ExprKind kind, const Type *type, const Token *token, E
 Expr *new_expr_deref(const Token *token, Expr *sub) {
   assert(sub->type != NULL);
   assert(sub->type->kind == TY_PTR || sub->type->kind == TY_ARRAY);
-  const Type *type = sub->type->pa.ptrof;
+  Type *type = sub->type->pa.ptrof;
   return new_expr_unary(EX_DEREF, type, token, sub);
 }
 
-Expr *new_expr_ternary(const Token *token, Expr *cond, Expr *tval, Expr *fval, const Type *type) {
+Expr *new_expr_ternary(const Token *token, Expr *cond, Expr *tval, Expr *fval, Type *type) {
   Expr *expr = new_expr(EX_TERNARY, type, token);
   expr->ternary.cond = cond;
   expr->ternary.tval = tval;
@@ -121,7 +121,7 @@ Expr *new_expr_ternary(const Token *token, Expr *cond, Expr *tval, Expr *fval, c
   return expr;
 }
 
-Expr *new_expr_member(const Token *token, const Type *type, Expr *target, const Token *ident,
+Expr *new_expr_member(const Token *token, Type *type, Expr *target, const Token *ident,
                       int index) {
   Expr *expr = new_expr(EX_MEMBER, type, token);
   expr->member.target = target;
@@ -130,20 +130,20 @@ Expr *new_expr_member(const Token *token, const Type *type, Expr *target, const 
   return expr;
 }
 
-Expr *new_expr_funcall(const Token *token, Expr *func, const Type *functype, Vector *args) {
+Expr *new_expr_funcall(const Token *token, Expr *func, Type *functype, Vector *args) {
   Expr *expr = new_expr(EX_FUNCALL, functype->func.ret, token);
   expr->funcall.func = func;
   expr->funcall.args = args;
   return expr;
 }
 
-Expr *new_expr_cast(const Type *type, const Token *token, Expr *sub) {
+Expr *new_expr_cast(Type *type, const Token *token, Expr *sub) {
   Expr *expr = new_expr(EX_CAST, type, token);
   expr->unary.sub = sub;
   return expr;
 }
 
-Expr *new_expr_complit(const Type *type, const Token *token, Expr *var, Vector *inits) {
+Expr *new_expr_complit(Type *type, const Token *token, Expr *var, Vector *inits) {
   Expr *expr = new_expr(EX_COMPLIT, type, token);
   expr->complit.var = var;
   expr->complit.inits = inits;
@@ -152,7 +152,7 @@ Expr *new_expr_complit(const Type *type, const Token *token, Expr *var, Vector *
 
 Expr *new_expr_block(Stmt *block) {
   assert(block->kind == ST_BLOCK);
-  const Type *type = &tyVoid;
+  Type *type = &tyVoid;
   Vector *stmts = block->block.stmts;
   if (stmts->len > 0) {
     Stmt *last = stmts->data[stmts->len - 1];
@@ -166,7 +166,7 @@ Expr *new_expr_block(Stmt *block) {
 
 // ================================================
 
-VarDecl *new_vardecl(const Type *type, const Token *ident, Initializer *init, int storage) {
+VarDecl *new_vardecl(Type *type, const Token *ident, Initializer *init, int storage) {
   VarDecl *decl = malloc(sizeof(*decl));
   decl->type = type;
   decl->ident = ident;
@@ -306,7 +306,7 @@ Declaration *new_decl_vardecl(Vector *decls) {
 
 // Function
 
-Function *new_func(const Type *type, const Name *name) {
+Function *new_func(Type *type, const Name *name) {
   assert(type->kind == TY_FUNC);
   Function *func = malloc(sizeof(*func));
   func->type = type;

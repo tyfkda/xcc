@@ -9,7 +9,7 @@
 #include "type.h"
 #include "util.h"
 
-static VarInfo *define_global(const Name *name, const Type *type, int storage);
+static VarInfo *define_global(const Name *name, Type *type, int storage);
 
 int var_find(const Vector *vars, const Name *name) {
   for (int i = 0, len = vars->len; i < len; ++i) {
@@ -20,7 +20,7 @@ int var_find(const Vector *vars, const Name *name) {
   return -1;
 }
 
-VarInfo *var_add(Vector *vars, const Name *name, const Type *type, int storage) {
+VarInfo *var_add(Vector *vars, const Name *name, Type *type, int storage) {
   assert(name == NULL || var_find(vars, name) < 0);
   VarInfo *varinfo = calloc(1, sizeof(*varinfo));
   varinfo->name = name;
@@ -42,7 +42,7 @@ void init_global(void) {
   table_init(&global_var_table);
 }
 
-static VarInfo *define_global(const Name *name, const Type *type, int storage) {
+static VarInfo *define_global(const Name *name, Type *type, int storage) {
   assert(name != NULL);
   VarInfo *varinfo = table_get(&global_var_table, name);
   if (varinfo != NULL) {
@@ -98,7 +98,7 @@ VarInfo *scope_find(Scope *scope, const Name *name, Scope **pscope) {
   return varinfo;
 }
 
-VarInfo *scope_add(Scope *scope, const Name *name, const Type *type, int storage) {
+VarInfo *scope_add(Scope *scope, const Name *name, Type *type, int storage) {
   assert(name != NULL);
   if (is_global_scope(scope))
     return define_global(name, type, storage);
@@ -142,7 +142,7 @@ Type *find_typedef(Scope *scope, const Name *name, Scope **pscope) {
   return NULL;
 }
 
-bool add_typedef(Scope *scope, const Name *name, const Type *type) {
+bool add_typedef(Scope *scope, const Name *name, Type *type) {
   if (scope->typedef_table != NULL) {
     if (table_get(scope->typedef_table, name) != NULL)
       return false;

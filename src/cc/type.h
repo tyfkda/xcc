@@ -51,7 +51,7 @@ enum {
 
 typedef struct MemberInfo {
   const Name *name;
-  const struct Type *type;
+  struct Type *type;
 
   // For codegen.
   int offset;
@@ -81,11 +81,11 @@ typedef struct Type {
     } flonum;
 #endif
     struct {  // Pointer or array.
-      const struct Type *ptrof;
+      struct Type *ptrof;
       ssize_t length;  // of array. -1 represents length is not specified (= []).
     } pa;
     struct {
-      const struct Type *ret;
+      struct Type *ret;
       const Vector *params;  // <VarInfo*>
       const Vector *param_types;  // <Type*>
       bool vaargs;
@@ -97,19 +97,19 @@ typedef struct Type {
   };
 } Type;
 
-extern const Type tyChar;
-extern const Type tyInt;
-extern const Type tyUnsignedChar;
-extern const Type tyUnsignedInt;
-extern const Type tyEnum;
-extern const Type tyVoid;
-extern const Type tyVoidPtr;
-extern const Type tyBool;
-extern const Type tySize;
-extern const Type tySSize;
+extern Type tyChar;
+extern Type tyInt;
+extern Type tyUnsignedChar;
+extern Type tyUnsignedInt;
+extern Type tyEnum;
+extern Type tyVoid;
+extern Type tyVoidPtr;
+extern Type tyBool;
+extern Type tySize;
+extern Type tySSize;
 #ifndef __NO_FLONUM
-extern const Type tyFloat;
-extern const Type tyDouble;
+extern Type tyFloat;
+extern Type tyDouble;
 #define tyLDouble  tyDouble
 #endif
 
@@ -125,17 +125,17 @@ bool is_flonum(const Type *type);
 bool is_char_type(const Type *type);
 bool is_void_ptr(const Type *type);
 bool ptr_or_array(const Type *type);
-const Type *get_fixnum_type(enum FixnumKind kind, bool is_unsigned, int qualifier);
-Type *ptrof(const Type *type);
-const Type *array_to_ptr(const Type *type);
-Type *arrayof(const Type *type, ssize_t length);
-Type *new_func_type(const Type *ret, const Vector *params, const Vector *param_types, bool vaargs);
-const Type *qualified_type(const Type *type, int additional);
+Type *get_fixnum_type(enum FixnumKind kind, bool is_unsigned, int qualifier);
+Type *ptrof(Type *type);
+Type *array_to_ptr(Type *type);
+Type *arrayof(Type *type, ssize_t length);
+Type *new_func_type(Type *ret, const Vector *params, const Vector *param_types, bool vaargs);
+Type *qualified_type(Type *type, int additional);
 Type *clone_type(const Type *type);
 
 // Struct
 
-bool add_struct_member(Vector *members, const Name *name, const Type *type);
+bool add_struct_member(Vector *members, const Name *name, Type *type);
 StructInfo *create_struct_info(Vector *members, bool is_union);  // members: <VarInfo*>
 Type *create_struct_type(StructInfo *sinfo, const Name *name, int qualifier);
 int find_struct_member(const Vector *members, const Name *name);

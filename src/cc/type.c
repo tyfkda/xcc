@@ -8,19 +8,19 @@
 #include "table.h"
 #include "util.h"
 
-const Type tyChar =          {.kind=TY_FIXNUM, .fixnum={.kind=FX_CHAR,  .is_unsigned=false}};
-const Type tyInt =           {.kind=TY_FIXNUM, .fixnum={.kind=FX_INT,   .is_unsigned=false}};
-const Type tyUnsignedChar =  {.kind=TY_FIXNUM, .fixnum={.kind=FX_CHAR,  .is_unsigned=true}};
-const Type tyUnsignedInt =   {.kind=TY_FIXNUM, .fixnum={.kind=FX_INT,   .is_unsigned=true}};
-const Type tyEnum =          {.kind=TY_FIXNUM, .fixnum={.kind=FX_ENUM}};
-const Type tyVoid =          {.kind=TY_VOID};
-const Type tyVoidPtr =       {.kind=TY_PTR, .pa={.ptrof=&tyVoid}};
-const Type tyBool =          {.kind=TY_FIXNUM, .fixnum={.kind=FX_INT,   .is_unsigned=false}};
-const Type tySize =          {.kind=TY_FIXNUM, .fixnum={.kind=FX_LONG,  .is_unsigned=true}};
-const Type tySSize =         {.kind=TY_FIXNUM, .fixnum={.kind=FX_LONG,  .is_unsigned=false}};
+Type tyChar =          {.kind=TY_FIXNUM, .fixnum={.kind=FX_CHAR,  .is_unsigned=false}};
+Type tyInt =           {.kind=TY_FIXNUM, .fixnum={.kind=FX_INT,   .is_unsigned=false}};
+Type tyUnsignedChar =  {.kind=TY_FIXNUM, .fixnum={.kind=FX_CHAR,  .is_unsigned=true}};
+Type tyUnsignedInt =   {.kind=TY_FIXNUM, .fixnum={.kind=FX_INT,   .is_unsigned=true}};
+Type tyEnum =          {.kind=TY_FIXNUM, .fixnum={.kind=FX_ENUM}};
+Type tyVoid =          {.kind=TY_VOID};
+Type tyVoidPtr =       {.kind=TY_PTR, .pa={.ptrof=&tyVoid}};
+Type tyBool =          {.kind=TY_FIXNUM, .fixnum={.kind=FX_INT,   .is_unsigned=false}};
+Type tySize =          {.kind=TY_FIXNUM, .fixnum={.kind=FX_LONG,  .is_unsigned=true}};
+Type tySSize =         {.kind=TY_FIXNUM, .fixnum={.kind=FX_LONG,  .is_unsigned=false}};
 #ifndef __NO_FLONUM
-const Type tyFloat =         {.kind=TY_FLONUM, .flonum={.kind=FL_FLOAT}};
-const Type tyDouble =        {.kind=TY_FLONUM, .flonum={.kind=FL_DOUBLE}};
+Type tyFloat =         {.kind=TY_FLONUM, .flonum={.kind=FL_FLOAT}};
+Type tyDouble =        {.kind=TY_FLONUM, .flonum={.kind=FL_DOUBLE}};
 #endif
 
 #define FIXNUM_TABLE(uns, qual) \
@@ -32,7 +32,7 @@ const Type tyDouble =        {.kind=TY_FLONUM, .flonum={.kind=FL_DOUBLE}};
       {.kind=TY_FIXNUM, .fixnum={.kind=FX_LLONG, .is_unsigned=uns}, .qualifier=qual}, \
     }
 
-static const Type kFixnumTypeTable[2][4][FX_LLONG + 1] = {
+static Type kFixnumTypeTable[2][4][FX_LLONG + 1] = {
   {
     FIXNUM_TABLE(false, 0), FIXNUM_TABLE(false, 1), FIXNUM_TABLE(false, 2), FIXNUM_TABLE(false, 3),
   },
@@ -168,12 +168,12 @@ bool ptr_or_array(const Type *type) {
   return type->kind == TY_PTR || type->kind == TY_ARRAY;
 }
 
-const Type *get_fixnum_type(enum FixnumKind kind, bool is_unsigned, int qualifier) {
+Type *get_fixnum_type(enum FixnumKind kind, bool is_unsigned, int qualifier) {
   assert(kind != FX_ENUM);
   return &kFixnumTypeTable[is_unsigned][qualifier & 3][kind];
 }
 
-Type *ptrof(const Type *type) {
+Type *ptrof(Type *type) {
   Type *ptr = malloc(sizeof(*ptr));
   ptr->kind = TY_PTR;
   ptr->qualifier = 0;
@@ -181,12 +181,12 @@ Type *ptrof(const Type *type) {
   return ptr;
 }
 
-const Type *array_to_ptr(const Type *type) {
+Type *array_to_ptr(Type *type) {
   assert(type->kind == TY_ARRAY);
   return ptrof(type->pa.ptrof);
 }
 
-Type *arrayof(const Type *type, ssize_t length) {
+Type *arrayof(Type *type, ssize_t length) {
   Type *arr = malloc(sizeof(*arr));
   arr->kind = TY_ARRAY;
   arr->qualifier = 0;
@@ -195,7 +195,7 @@ Type *arrayof(const Type *type, ssize_t length) {
   return arr;
 }
 
-Type *new_func_type(const Type *ret, const Vector *params, const Vector *param_types, bool vaargs) {
+Type *new_func_type(Type *ret, const Vector *params, const Vector *param_types, bool vaargs) {
   Type *f = malloc(sizeof(*f));
   f->kind = TY_FUNC;
   f->qualifier = 0;
@@ -206,12 +206,11 @@ Type *new_func_type(const Type *ret, const Vector *params, const Vector *param_t
   return f;
 }
 
-const Type *qualified_type(const Type *type, int additional) {
+Type *qualified_type(Type *type, int additional) {
   int modified = type->qualifier | additional;
   if (modified == type->qualifier)
     return type;
-  Type *ctype = malloc(sizeof(*ctype));
-  memcpy(ctype, type, sizeof(*ctype));
+  Type *ctype = clone_type(type);
   ctype->qualifier = modified;
   return ctype;
 }
@@ -223,7 +222,7 @@ Type *clone_type(const Type *type) {
 }
 
 // Struct
-bool add_struct_member(Vector *members, const Name *name, const Type *type) {
+bool add_struct_member(Vector *members, const Name *name, Type *type) {
   if (name != NULL && find_struct_member(members, name) >= 0)
     return false;
 
@@ -307,8 +306,8 @@ bool same_type(const Type *type1, const Type *type2) {
           type1->func.param_types->len != type2->func.param_types->len)
         return false;
       for (int i = 0, len = type1->func.param_types->len; i < len; ++i) {
-        const Type *t1 = (const Type*)type1->func.param_types->data[i];
-        const Type *t2 = (const Type*)type2->func.param_types->data[i];
+        const Type *t1 = type1->func.param_types->data[i];
+        const Type *t2 = type2->func.param_types->data[i];
         if (!same_type(t1, t2))
           return false;
       }

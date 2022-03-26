@@ -29,7 +29,7 @@ void add_builtin_expr_ident(const char *str, BuiltinExprProc *proc) {
   table_put(&builtin_expr_ident_table, name, proc);
 }
 
-static void define_enum_member(const Type *type, const Token *ident, int value) {
+static void define_enum_member(Type *type, const Token *ident, int value) {
   VarInfo *varinfo = add_var_to_scope(curscope, ident, type, VS_ENUM_MEMBER);
   varinfo->enum_member.value = value;
 }
@@ -45,7 +45,7 @@ void not_const(const Type *type, const Token *token) {
 }
 
 // Returns created global variable info.
-VarInfo *str_to_char_array(Scope *scope, const Type *type, Initializer *init, Vector *toplevel) {
+VarInfo *str_to_char_array(Scope *scope, Type *type, Initializer *init, Vector *toplevel) {
   assert(type->kind == TY_ARRAY && is_char_type(type->pa.ptrof));
   const Token *ident = alloc_dummy_ident();
   VarInfo *varinfo = add_var_to_scope(scope, ident, type, VS_STATIC);
@@ -67,7 +67,7 @@ Expr *str_to_char_array_var(Scope *scope, Expr *str, Vector *toplevel) {
   if (str->kind == EX_CAST)
     return new_expr_cast(str->type, str->token, str_to_char_array_var(scope, str->unary.sub, toplevel));
 
-  const Type *type = str->type;
+  Type *type = str->type;
   Initializer *init = malloc(sizeof(*init));
   init->kind = IK_SINGLE;
   init->single = str;
@@ -95,12 +95,12 @@ void ensure_struct(Type *type, const Token *token, Scope *scope) {
       for (int i = 0; i < sinfo->members->len; ++i) {
         VarInfo *varinfo = sinfo->members->data[i];
         if (varinfo->type->kind == TY_STRUCT)
-          ensure_struct((Type*)varinfo->type, token, scope);
+          ensure_struct(varinfo->type, token, scope);
       }
     }
     break;
   case TY_ARRAY:
-    ensure_struct((Type*)type->pa.ptrof, token, scope);
+    ensure_struct(type->pa.ptrof, token, scope);
     break;
   default:
     break;
@@ -125,7 +125,7 @@ bool check_cast(const Type *dst, const Type *src, bool zero, bool is_explicit, c
   return true;
 }
 
-Expr *make_cast(const Type *type, const Token *token, Expr *sub, bool is_explicit) {
+Expr *make_cast(Type *type, const Token *token, Expr *sub, bool is_explicit) {
   if (same_type(type, sub->type))
     return sub;
   if (is_const(sub) && is_number(sub->type) && is_number(type)) {
@@ -205,8 +205,8 @@ const MemberInfo *search_from_anonymous(const Type *type, const Name *name, cons
 static bool cast_numbers(Expr **pLhs, Expr **pRhs, bool keep_left) {
   Expr *lhs = *pLhs;
   Expr *rhs = *pRhs;
-  const Type *ltype = lhs->type;
-  const Type *rtype = rhs->type;
+  Type *ltype = lhs->type;
+  Type *rtype = rhs->type;
   assert(ltype != NULL);
   assert(rtype != NULL);
   if (!is_number(ltype)) {
@@ -301,7 +301,7 @@ static Expr *new_expr_num_bop(enum ExprKind kind, const Token *tok, Expr *lhs, E
         value = -1;  // Dummy
         break;
       }
-      const Type *type = lhs->type;
+      Type *type = lhs->type;
       if (!keep_left && is_flonum(rhs->type))
         type = rhs->type;
       if (is_flonum(type)) {
@@ -335,7 +335,7 @@ static Expr *new_expr_num_bop(enum ExprKind kind, const Token *tok, Expr *lhs, E
       CALC(kind, l, r, value)
     }
 #undef CALC
-    const Type *type = keep_left || lhs->type->fixnum.kind >= rhs->type->fixnum.kind ? lhs->type : rhs->type;
+    Type *type = keep_left || lhs->type->fixnum.kind >= rhs->type->fixnum.kind ? lhs->type : rhs->type;
     return new_expr_fixlit(type, lhs->token, value);
   }
 
@@ -352,9 +352,9 @@ static Expr *new_expr_int_bop(enum ExprKind kind, const Token *tok, Expr *lhs, E
 }
 
 Expr *new_expr_addsub(enum ExprKind kind, const Token *tok, Expr *lhs, Expr *rhs, bool keep_left) {
-  const Type *type = NULL;
-  const Type *ltype = lhs->type;
-  const Type *rtype = rhs->type;
+  Type *type = NULL;
+  Type *ltype = lhs->type;
+  Type *rtype = rhs->type;
   assert(ltype != NULL);
   assert(rtype != NULL);
   if (is_number(ltype) && is_number(rtype)) {
@@ -372,7 +372,7 @@ Expr *new_expr_addsub(enum ExprKind kind, const Token *tok, Expr *lhs, Expr *rhs
           value = -1;  // Dummy
           break;
         }
-        const Type *type = lhs->type;
+        Type *type = lhs->type;
         if (!keep_left && is_flonum(rhs->type))
           type = rhs->type;
         if (is_flonum(type)) {
@@ -401,7 +401,7 @@ Expr *new_expr_addsub(enum ExprKind kind, const Token *tok, Expr *lhs, Expr *rhs
         value = -1;
         break;
       }
-      const Type *type = lnt >= rnt ? lhs->type : rhs->type;
+      Type *type = lnt >= rnt ? lhs->type : rhs->type;
       return new_expr_fixlit(type, lhs->token, value);
     }
 
@@ -413,7 +413,7 @@ Expr *new_expr_addsub(enum ExprKind kind, const Token *tok, Expr *lhs, Expr *rhs
       if (ltype->kind == TY_ARRAY)
         type = array_to_ptr(ltype);
       // lhs + ((size_t)rhs * sizeof(*lhs))
-      ensure_struct((Type*)type->pa.ptrof, tok, curscope);
+      ensure_struct(type->pa.ptrof, tok, curscope);
       rhs = new_expr_num_bop(EX_MUL, rhs->token,
                              make_cast(&tySize, rhs->token, rhs, false),
                              new_expr_fixlit(&tySize, tok, type_size(type->pa.ptrof)), false);
@@ -425,7 +425,7 @@ Expr *new_expr_addsub(enum ExprKind kind, const Token *tok, Expr *lhs, Expr *rhs
       if (!same_type(ltype, rtype))
         parse_error(tok, "Different pointer diff");
       // ((size_t)lhs - (size_t)rhs) / sizeof(*lhs)
-      ensure_struct((Type*)ltype->pa.ptrof, tok, curscope);
+      ensure_struct(ltype->pa.ptrof, tok, curscope);
       return new_expr_bop(EX_DIV, &tySSize, tok,
                           new_expr_bop(EX_SUB, &tySSize, tok, lhs, rhs),
                           new_expr_fixlit(&tySSize, tok, type_size(ltype->pa.ptrof)));
@@ -436,7 +436,7 @@ Expr *new_expr_addsub(enum ExprKind kind, const Token *tok, Expr *lhs, Expr *rhs
       if (type->kind == TY_ARRAY)
         type = array_to_ptr(type);
       // ((size_t)lhs * sizeof(*rhs)) + rhs
-      ensure_struct((Type*)type->pa.ptrof, tok, curscope);
+      ensure_struct(type->pa.ptrof, tok, curscope);
       lhs = new_expr_num_bop(EX_MUL, lhs->token,
                              make_cast(&tySize, lhs->token, lhs, false),
                              new_expr_fixlit(&tySize, tok, type_size(type->pa.ptrof)), false);
@@ -461,7 +461,7 @@ static enum ExprKind swap_cmp(enum ExprKind kind) {
 }
 
 static Expr *new_expr_cmp(enum ExprKind kind, const Token *tok, Expr *lhs, Expr *rhs) {
-  const Type *lt = lhs->type, *rt = rhs->type;
+  Type *lt = lhs->type, *rt = rhs->type;
   if (ptr_or_array(lt) || ptr_or_array(rt)) {
     if (lt->kind == TY_ARRAY) {
       lt = array_to_ptr(lt);
@@ -475,7 +475,7 @@ static Expr *new_expr_cmp(enum ExprKind kind, const Token *tok, Expr *lhs, Expr 
       Expr *tmp = lhs;
       lhs = rhs;
       rhs = tmp;
-      const Type *tt = lt;
+      Type *tt = lt;
       lt = rt;
       rt = tt;
       kind = swap_cmp(kind);
@@ -625,8 +625,8 @@ Vector *parse_args(Token **ptoken) {
   return args;
 }
 
-const Type *get_callee_type(Expr *func) {
-  const Type *type = func->type;
+Type *get_callee_type(Expr *func) {
+  Type *type = func->type;
   if (type->kind == TY_PTR)
     type = type->pa.ptrof;
   if (type->kind != TY_FUNC)
@@ -635,9 +635,9 @@ const Type *get_callee_type(Expr *func) {
 }
 
 void check_funcall_args(Expr *func, Vector *args, Scope *scope, Vector *toplevel) {
-  const Type *functype = get_callee_type(func);
+  Type *functype = get_callee_type(func);
 
-  const Vector *param_types = functype->func.param_types;  // <const Type*>
+  const Vector *param_types = functype->func.param_types;  // <Type*>
   bool vaargs = functype->func.vaargs;
   if (param_types != NULL) {
     int argc = args != NULL ? args->len : 0;
@@ -658,7 +658,7 @@ void check_funcall_args(Expr *func, Vector *args, Scope *scope, Vector *toplevel
         arg = make_cast(array_to_ptr(arg->type), arg->token, arg, false);
       }
       if (i < paramc) {
-        const Type *type = param_types->data[i];
+        Type *type = param_types->data[i];
         arg = make_cast(type, arg->token, arg, false);
       } else if (vaargs && i >= paramc) {
         const Type *type = arg->type;
@@ -701,7 +701,7 @@ static Expr *parse_member_access(Expr *target, Token *acctok) {
   const Name *name = ident->ident;
 
   // Find member's type from struct info.
-  const Type *type = target->type;
+  Type *type = target->type;
   if (acctok->kind == TK_DOT) {
     if (type->kind != TY_STRUCT) {
       parse_error_nofatal(acctok, "`.' for non struct value");
@@ -722,11 +722,11 @@ static Expr *parse_member_access(Expr *target, Token *acctok) {
     }
   }
 
-  ensure_struct((Type*)type, ident, curscope);
+  ensure_struct(type, ident, curscope);
   int index = find_struct_member(type->struct_.info->members, name);
   if (index >= 0) {
     const MemberInfo *member = type->struct_.info->members->data[index];
-    const Type *type = qualified_type(member->type, target->type->qualifier);
+    Type *type = qualified_type(member->type, target->type->qualifier);
     return new_expr_member(acctok, type, target, ident, index);
   } else {
     Vector *stack = new_vector();
@@ -744,9 +744,9 @@ static Expr *parse_member_access(Expr *target, Token *acctok) {
   }
 }
 
-static void parse_enum_members(const Type *type) {
+static void parse_enum_members(Type *type) {
   assert(type != NULL && type->kind == TY_FIXNUM && type->fixnum.kind == FX_ENUM);
-  const Type *ctype = qualified_type(type, TQ_CONST);
+  Type *ctype = qualified_type(type, TQ_CONST);
   int value = 0;
   for (;;) {
     Token *token = consume(TK_IDENT, "ident expected");
@@ -952,7 +952,7 @@ Type *parse_raw_type(int *pstorage) {
         type = find_typedef(curscope, ident->ident, NULL);
       }
     } else if (tok->kind == TK_VOID) {
-      type = (Type*)&tyVoid;
+      type = &tyVoid;
     }
     if (type == NULL) {
       unget_token(tok);
@@ -963,16 +963,16 @@ Type *parse_raw_type(int *pstorage) {
   if (type == NULL && !no_type_combination(&tc, ~0, ~0)) {
 #ifndef __NO_FLONUM
     if (tc.float_num > 0) {
-      type = (Type*)&tyFloat;
+      type = &tyFloat;
     } else if (tc.double_num > 0) {
-      type = (Type*)(tc.double_num > 1 ? &tyLDouble : &tyDouble);
+      type = (tc.double_num > 1 ? &tyLDouble : &tyDouble);
     } else
 #endif
     {
       enum FixnumKind fk =
           (tc.char_num > 0) ? FX_CHAR :
           (tc.short_num > 0) ? FX_SHORT : kLongKinds[tc.long_num];
-      type = (Type*)get_fixnum_type(fk, tc.unsigned_num > 0, tc.qualifier);
+      type = get_fixnum_type(fk, tc.unsigned_num > 0, tc.qualifier);
     }
   }
 
@@ -982,7 +982,7 @@ Type *parse_raw_type(int *pstorage) {
   return type;
 }
 
-const Type *parse_type_modifier(const Type *type) {
+Type *parse_type_modifier(Type *type) {
   if (type == NULL)
     return NULL;
 
@@ -998,7 +998,7 @@ const Type *parse_type_modifier(const Type *type) {
   return type;
 }
 
-const Type *parse_type_suffix(const Type *type) {
+Type *parse_type_suffix(Type *type) {
   if (type == NULL)
     return NULL;
 
@@ -1076,11 +1076,11 @@ static Type *parse_direct_declarator_suffix(Type *type) {
     const Type *basetype = type;
     type = arrayof(parse_direct_declarator_suffix(type), length);
     if (basetype->qualifier & TQ_CONST)
-      type = (Type*)qualified_type(type, TQ_CONST);
+      type = qualified_type(type, TQ_CONST);
   } else if (match(TK_LPAR)) {
     bool vaargs;
     Vector *params = parse_funparams(&vaargs);
-    const Type *rettype = parse_direct_declarator_suffix(type);
+    Type *rettype = parse_direct_declarator_suffix(type);
 
     Vector *param_types = extract_varinfo_types(params);
     type = new_func_type(rettype, params, param_types, vaargs);
@@ -1117,7 +1117,7 @@ static Type *parse_declarator(Type *rawtype, Token **pident) {
   return parse_direct_declarator(type, pident);
 }
 
-const Type *parse_var_def(Type **prawType, int *pstorage, Token **pident) {
+Type *parse_var_def(Type **prawType, int *pstorage, Token **pident) {
   Type *rawType = prawType != NULL ? *prawType : NULL;
   if (rawType == NULL) {
     rawType = parse_raw_type(pstorage);
@@ -1147,7 +1147,7 @@ Vector *parse_funparams(bool *pvaargs) {
 
       int storage;
       Token *ident;
-      const Type *type = parse_var_def(NULL, &storage, &ident);
+      Type *type = parse_var_def(NULL, &storage, &ident);
       if (type == NULL) {
         parse_error(NULL, "type expected");
       } else {
@@ -1200,13 +1200,13 @@ static StructInfo *parse_struct(bool is_union) {
     for (;;) {
       int storage;
       Token *ident;
-      const Type *type = parse_var_def(&rawType, &storage, &ident);
+      Type *type = parse_var_def(&rawType, &storage, &ident);
       if (type == NULL) {
         parse_error(NULL, "type expected");
       } else {
         not_void(type, NULL);
         if (type->kind == TY_STRUCT) {
-          ensure_struct((Type *)type, ident, curscope);
+          ensure_struct(type, ident, curscope);
           // Allow ident to be null for anonymous struct member.
         } else {
           if (ident == NULL)
@@ -1226,7 +1226,7 @@ static StructInfo *parse_struct(bool is_union) {
   return create_struct_info(members, is_union);
 }
 
-static Expr *parse_compound_literal(const Type *type) {
+static Expr *parse_compound_literal(Type *type) {
   Token *token = fetch_token();
   Initializer *init = parse_initializer();
   Vector *inits = NULL;
@@ -1252,7 +1252,7 @@ static Expr *parse_prim(void) {
   Token *tok;
   if ((tok = match(TK_LPAR)) != NULL) {
     int storage;
-    const Type *type = parse_var_def(NULL, &storage, NULL);
+    Type *type = parse_var_def(NULL, &storage, NULL);
     if (type != NULL) {  // Compound literal
       consume(TK_RPAR, "`)' expected");
       Token *tok2 = consume(TK_LBRACE, "`{' expected");
@@ -1287,7 +1287,7 @@ static Expr *parse_prim(void) {
     };
     for (int i = 0, n = sizeof(TABLE) / sizeof(*TABLE); i < n; ++i) {
       if ((tok = match(TABLE[i].tk)) != NULL) {
-        const Type *type = get_fixnum_type(TABLE[i].fx, TABLE[i].is_unsigned, 0);
+        Type *type = get_fixnum_type(TABLE[i].fx, TABLE[i].is_unsigned, 0);
         Fixnum fixnum = tok->fixnum;
         return new_expr_fixlit(type, tok, fixnum);
       }
@@ -1315,7 +1315,7 @@ static Expr *parse_prim(void) {
   }
   Scope *scope;
   VarInfo *varinfo = scope_find(curscope, name, &scope);
-  const Type *type;
+  Type *type;
   if (varinfo != NULL) {
     if (varinfo->storage & VS_ENUM_MEMBER)
       return new_expr_fixlit(varinfo->type, ident, varinfo->enum_member.value);
@@ -1351,7 +1351,7 @@ static Expr *parse_postfix(void) {
 }
 
 static Expr *parse_sizeof(const Token *token) {
-  const Type *type = NULL;
+  Type *type = NULL;
   const Token *tok;
   if ((tok = match(TK_LPAR)) != NULL) {
     type = parse_var_def(NULL, NULL, NULL);
@@ -1369,12 +1369,12 @@ static Expr *parse_sizeof(const Token *token) {
     tok = expr->token;
   }
   assert(type != NULL);
-  ensure_struct((Type*)type, token, curscope);
+  ensure_struct(type, token, curscope);
   if (type->kind == TY_ARRAY) {
     if (type->pa.length == -1) {
       // TODO: assert `export` modifier.
       parse_error_nofatal(tok, "size unknown");
-      ((Type*)type)->pa.length = 1;  // Continue parsing.
+      type->pa.length = 1;  // Continue parsing.
     }
     assert(type->pa.length > 0);
   }
@@ -1476,7 +1476,7 @@ static Expr *parse_unary(void) {
 
   if ((tok = match(TK_MUL)) != NULL) {
     Expr *expr = parse_cast_expr();
-    const Type *type = expr->type;
+    Type *type = expr->type;
     assert(type != NULL);
     switch (type->kind) {
     case TY_PTR: case TY_ARRAY:
@@ -1516,7 +1516,7 @@ static Expr *parse_cast_expr(void) {
   if ((lpar = match(TK_LPAR)) != NULL) {
     int storage;
     const Token *token = fetch_token();
-    const Type *type = parse_var_def(NULL, &storage, NULL);
+    Type *type = parse_var_def(NULL, &storage, NULL);
     if (type != NULL) {  // Cast
       consume(TK_RPAR, "`)' expected");
 
@@ -1721,7 +1721,7 @@ static Expr *parse_logior(void) {
   return expr;
 }
 
-static const Type *to_ptr_type(const Type *type) {
+static Type *to_ptr_type(Type *type) {
   switch (type->kind) {
   case TY_ARRAY: return array_to_ptr(type);
   case TY_FUNC:  return ptrof(type);
@@ -1729,9 +1729,9 @@ static const Type *to_ptr_type(const Type *type) {
   }
 }
 
-static const Type *choose_type(Expr *tval, Expr *fval) {
-  const Type *ttype = tval->type;
-  const Type *ftype = fval->type;
+static Type *choose_type(Expr *tval, Expr *fval) {
+  Type *ttype = tval->type;
+  Type *ftype = fval->type;
   ttype = to_ptr_type(ttype);
   ftype = to_ptr_type(ftype);
 
@@ -1787,7 +1787,7 @@ static Expr *parse_conditional(void) {
     tval = str_to_char_array_var(curscope, tval, toplevel);
     fval = str_to_char_array_var(curscope, fval, toplevel);
 
-    const Type *type;
+    Type *type;
     if (tval->type->kind == TY_VOID || fval->type->kind == TY_VOID) {
       type = &tyVoid;
     } else {
@@ -1866,13 +1866,13 @@ Expr *parse_assign(void) {
         case FIXNUM_BOP:  bop = new_expr_int_bop(kind, tok, lhs, rhs, true); break;
         case SHIFT:
           {
-            const Type *ltype = lhs->type;
-            const Type *rtype = rhs->type;
+            Type *ltype = lhs->type;
+            Type *rtype = rhs->type;
             assert(ltype != NULL);
             assert(rtype != NULL);
             if (!is_fixnum(ltype->kind) || !is_fixnum(rtype->kind))
               parse_error(tok, "Cannot use `%.*s' except numbers.", (int)(tok->end - tok->begin), tok->begin);
-            bop = new_expr_bop(kind, lhs->type, tok, lhs, rhs);
+            bop = new_expr_bop(kind, ltype, tok, lhs, rhs);
           }
           break;
         default:  assert(false); bop = NULL; break;

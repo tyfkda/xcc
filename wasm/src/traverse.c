@@ -128,7 +128,7 @@ GVarInfo *get_gvar_info(Expr *expr) {
   return info;
 }
 
-static GVarInfo *add_global_var(const Type *type, const Name *name) {
+static GVarInfo *add_global_var(Type *type, const Name *name) {
   VarInfo *varinfo = scope_add(global_scope, name, type, 0);
   return register_gvar_info(name, varinfo);
 }
@@ -136,7 +136,7 @@ static GVarInfo *add_global_var(const Type *type, const Name *name) {
 static void traverse_stmts(Vector *stmts);
 static void traverse_stmt(Stmt *stmt);
 
-static Expr *alloc_tmp(const Token *token, const Type *type) {
+static Expr *alloc_tmp(const Token *token, Type *type) {
   const Name *name = alloc_label();
   scope_add(curscope, name, type, 0);
   return new_expr_variable(name, type, token, curscope);
@@ -145,7 +145,7 @@ static Expr *alloc_tmp(const Token *token, const Type *type) {
 // l=r  =>  (t=r, l=t)
 static Expr *assign_to_tmp(Expr *assign, Expr *bop) {
   const Token *token = assign->token;
-  const Type *type = bop->bop.lhs->type;
+  Type *type = bop->bop.lhs->type;
   Expr *rhs = bop->bop.rhs;
   Expr *tmp = alloc_tmp(token, type);
   Expr *assign_tmp = new_expr_bop(EX_ASSIGN, &tyVoid, token, tmp, rhs);
@@ -229,13 +229,13 @@ static void traverse_expr(Expr **pexpr, bool needval) {
       // Register _memcpy function for import.
       const Name *funcname = alloc_name(MEMCPY_NAME, NULL, false);
       if (table_get(&func_info_table, funcname) == NULL) {
-        const Type *rettype = &tyVoid;  // Differ from memcpy, no return value.
+        Type *rettype = &tyVoid;  // Differ from memcpy, no return value.
         Vector *params = new_vector();
         var_add(params, NULL, &tyVoidPtr, 0);
         var_add(params, NULL, &tyVoidPtr, 0);
         var_add(params, NULL, &tySize, 0);
         Vector *param_types = extract_varinfo_types(params);
-        const Type *functype = new_func_type(rettype, params, param_types, false);
+        Type *functype = new_func_type(rettype, params, param_types, false);
         register_func_info(funcname, NULL, functype, FF_REFERED);
         scope_add(global_scope, funcname, functype, 0);
       }
@@ -245,7 +245,7 @@ static void traverse_expr(Expr **pexpr, bool needval) {
       if (!(lhs->kind == EX_VAR ||
             (lhs->kind == EX_DEREF && lhs->unary.sub->kind == EX_VAR))) {
         const Token *token = expr->token;
-        const Type *type = lhs->type, *ptrtype = ptrof(type);
+        Type *type = lhs->type, *ptrtype = ptrof(type);
         Expr *tmp = alloc_tmp(token, ptrtype);
         Expr *assign_tmp = new_expr_bop(
             EX_ASSIGN, &tyVoid, token, tmp,
@@ -257,7 +257,7 @@ static void traverse_expr(Expr **pexpr, bool needval) {
       }
 
       Expr *rhs = expr->bop.rhs;
-      const Type *type = rhs->type;
+      Type *type = rhs->type;
       if (!(is_const(rhs) || rhs->kind == EX_VAR)) {  // Rhs is not simple value.
         Expr *old = expr;
         expr = assign_to_tmp(expr, expr);
@@ -293,7 +293,7 @@ static void traverse_expr(Expr **pexpr, bool needval) {
           break;
       }
 
-      const Type *type = sub->type;
+      Type *type = sub->type;
       assert(is_number(type) || type->kind == TY_PTR);
       enum ExprKind ek = expr->kind;
       bool pre = ek == EX_PREINC || ek == EX_PREDEC;
@@ -301,7 +301,7 @@ static void traverse_expr(Expr **pexpr, bool needval) {
       // (++xxx)  =>  (p = &xxx, tmp = *p + 1, *p = tmp, tmp)
       // (xxx++)  =>  (p = &xxx, tmp = *p, *p = tmp + 1, tmp)
       const Token *token = sub->token;
-      const Type *ptrtype = ptrof(type);
+      Type *ptrtype = ptrof(type);
       Expr *p = alloc_tmp(token, ptrtype);
       Expr *tmp = alloc_tmp(token, type);
       enum ExprKind op = kOpTable[inc];
@@ -332,8 +332,8 @@ static void traverse_expr(Expr **pexpr, bool needval) {
       if (!(lhs->kind == EX_VAR ||
             (lhs->kind == EX_DEREF && lhs->unary.sub->kind == EX_VAR))) {
         const Token *token = sub->token;
-        const Type *type = lhs->type;
-        const Type *ptrtype = ptrof(type);
+        Type *type = lhs->type;
+        Type *ptrtype = ptrof(type);
         Expr *tmp = alloc_tmp(token, ptrtype);
         Expr *assign_tmp = new_expr_bop(
             EX_ASSIGN, &tyVoid, token, tmp,
@@ -362,7 +362,7 @@ static void traverse_expr(Expr **pexpr, bool needval) {
   case EX_FUNCALL:
     {
       Vector *args = expr->funcall.args;
-      const Type *functype = get_callee_type(expr->funcall.func);
+      Type *functype = get_callee_type(expr->funcall.func);
       if (functype->func.params == NULL) {
         if (expr->funcall.func->kind == EX_VAR) {
           // Extract function type again.
@@ -461,7 +461,7 @@ static void traverse_switch(Stmt *stmt) {
     assert(curfunc != NULL);
     Scope *scope = curfunc->scopes->data[0];
     const Name *name = alloc_label();
-    const Type *type = stmt->switch_.value->type;
+    Type *type = stmt->switch_.value->type;
     scope_add(scope, name, type, 0);
 
     // switch (complex)  =>  switch ((tmp = complex, tmp))
@@ -518,13 +518,13 @@ static void traverse_vardecl(Stmt *stmt) {
 
         const Name *funcname = alloc_name(MEMSET_NAME, NULL, false);
         if (table_get(&func_info_table, funcname) == NULL) {
-          const Type *rettype = &tyVoid;  // Differ from memset, no return value.
+          Type *rettype = &tyVoid;  // Differ from memset, no return value.
           Vector *params = new_vector();
           var_add(params, NULL, &tyVoidPtr, 0);
           var_add(params, NULL, &tyInt, 0);
           var_add(params, NULL, &tySize, 0);
           Vector *param_types = extract_varinfo_types(params);
-          const Type *functype = new_func_type(rettype, params, param_types, false);
+          Type *functype = new_func_type(rettype, params, param_types, false);
           register_func_info(funcname, NULL, functype, FF_REFERED);
           scope_add(global_scope, funcname, functype, 0);
         }
@@ -579,7 +579,7 @@ static void traverse_defun(Function *func) {
   if (func->scopes == NULL)  // Prototype definition
     return;
 
-  const Type *functype = func->type;
+  Type *functype = func->type;
   if (functype->func.ret->kind != TY_VOID) {
     if (!is_prim_type(functype->func.ret))
       parse_error(NULL, "`%.*s': return type except primitive is not supported (yet)", func->name->bytes, func->name->chars);
@@ -602,7 +602,7 @@ static void traverse_defun(Function *func) {
     }
   }
   if (functype->func.vaargs) {
-    const Type *tyvalist = find_typedef(curscope, alloc_name("__builtin_va_list", NULL, false), NULL);
+    Type *tyvalist = find_typedef(curscope, alloc_name("__builtin_va_list", NULL, false), NULL);
     assert(tyvalist != NULL);
 
     const Name *name = alloc_name(VA_ARGS_NAME, NULL, false);
@@ -678,7 +678,7 @@ static void add_builtins(void) {
   // Stack pointer.
   {
     const Name *name = alloc_name(SP_NAME, NULL, false);
-    const Type *type = &tySize;
+    Type *type = &tySize;
     /*GVarInfo *info =*/ add_global_var(type, name);
     /*info->export = true;
     Initializer *init = calloc(1, sizeof(*init));

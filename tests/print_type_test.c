@@ -65,20 +65,20 @@ void print_type_test(void) {
   {
     Vector *param_types = new_vector();
     vec_push(param_types, &tyInt);
-    Type* func = new_func_type(&tyVoid, NULL, param_types, false);
+    Type *func = new_func_type(&tyVoid, NULL, param_types, false);
     check_print_type("void(int)", func);  // "void()(int)"?
   }
   {
     Vector *param_types = new_vector();
     vec_push(param_types, &tyInt);
-    Type* func = new_func_type(&tyVoid, NULL, param_types, false);
-    Type* funcptr = ptrof(func);
+    Type *func = new_func_type(&tyVoid, NULL, param_types, false);
+    Type *funcptr = ptrof(func);
     check_print_type("void(*)(int)", funcptr);
   }
 
   {
     Vector *param_types = new_vector();
-    const Type *funcptr = ptrof(new_func_type(&tyInt, NULL, param_types, false));
+    Type *funcptr = ptrof(new_func_type(&tyInt, NULL, param_types, false));
     const Type *aofp = arrayof(funcptr, 4);
     check_print_type("int(*[4])(void)", aofp);
   }
@@ -87,7 +87,7 @@ void print_type_test(void) {
     // signal
     Vector *param_types2 = new_vector();
     vec_push(param_types2, &tyInt);
-    const Type *funcptr_type = ptrof(new_func_type(&tyVoid, NULL, param_types2, false));
+    Type *funcptr_type = ptrof(new_func_type(&tyVoid, NULL, param_types2, false));
 
     Vector *param_types = new_vector();
     vec_push(param_types, &tyInt);

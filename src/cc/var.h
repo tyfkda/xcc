@@ -25,7 +25,7 @@ enum {
 
 typedef struct VarInfo {
   const Name *name;
-  const Type *type;
+  Type *type;
   int storage;
   union {
     struct {
@@ -50,7 +50,7 @@ typedef struct VarInfo {
 void init_global(void);
 
 int var_find(const Vector *vars, const Name *name);  // <VarInfo*>
-VarInfo *var_add(Vector *vars, const Name *name, const Type *type, int storage);  // <VarInfo*>
+VarInfo *var_add(Vector *vars, const Name *name, Type *type, int storage);  // <VarInfo*>
 
 // Scope
 
@@ -67,13 +67,13 @@ extern Scope *global_scope;
 Scope *new_scope(Scope *parent, Vector *vars);
 bool is_global_scope(Scope *scope);
 VarInfo *scope_find(Scope *scope, const Name *name, Scope **pscope);
-VarInfo *scope_add(Scope *scope, const Name *name, const Type *type, int storage);
+VarInfo *scope_add(Scope *scope, const Name *name, Type *type, int storage);
 
 StructInfo *find_struct(Scope *scope, const Name *name, Scope **pscope);
 void define_struct(Scope *scope, const Name *name, StructInfo *sinfo);
 
 Type *find_typedef(Scope *scope, const Name *name, Scope **pscope);
-bool add_typedef(Scope *scope, const Name *name, const Type *type);
+bool add_typedef(Scope *scope, const Name *name, Type *type);
 
 Type *find_enum(Scope *scope, const Name *name);
 Type *define_enum(Scope *scope, const Name *name);

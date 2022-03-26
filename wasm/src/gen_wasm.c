@@ -194,7 +194,7 @@ static void gen_arith(enum ExprKind kind, const Type *type) {
   ADD_CODE(kOpTable[is_unsigned][index][kind - EX_ADD]);
 }
 
-static void gen_cast(const Type *dst, const Type *src) {
+static void gen_cast(const Type *dst, Type *src) {
   if (dst->kind == TY_VOID) {
     ADD_CODE(OP_DROP);
     return;
@@ -313,7 +313,7 @@ static void gen_funcall(Expr *expr) {
   Vector *args = expr->funcall.args;
   int arg_count = args != NULL ? args->len : 0;
 
-  const Type *functype = get_callee_type(expr->funcall.func);
+  Type *functype = get_callee_type(expr->funcall.func);
   int param_count = functype->func.params != NULL ? functype->func.params->len : 0;
   int vaarg_bufsiz = 0;
   int *vaarg_offsets = NULL;

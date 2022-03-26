@@ -730,7 +730,7 @@ static Expr *proc_builtin_va_start(const Token *ident) {
 
   //#define va_start(ap, param)  (void)(ap = __va_args__)
 
-  const Type *tyvalist = find_typedef(curscope, alloc_name("__builtin_va_list", NULL, false), NULL);
+  Type *tyvalist = find_typedef(curscope, alloc_name("__builtin_va_list", NULL, false), NULL);
   assert(tyvalist != NULL);
 
   Expr *ap = args->data[0];
@@ -777,7 +777,7 @@ static Expr *proc_builtin_va_arg(const Token *ident) {
   consume(TK_LPAR, "`(' expected");
   Expr *ap = parse_assign();
   consume(TK_COMMA, "`,' expected");
-  const Type *type = parse_var_def(NULL, NULL, NULL);
+  Type *type = parse_var_def(NULL, NULL, NULL);
   consume(TK_RPAR, "`)' expected");
 
   //#define va_arg(v,l)     (ap = (char*)ap + sizeof(type), *(type*)((char*)ap - sizeof(type)))
@@ -816,7 +816,7 @@ static Expr *proc_builtin_va_copy(const Token *ident) {
 static void install_builtins(void) {
   // __builtin_va_list
   {
-    const Type *type = ptrof(&tyVoidPtr);
+    Type *type = ptrof(&tyVoidPtr);
     const Name *name = alloc_name("__builtin_va_list", NULL, false);
     add_typedef(global_scope, name, type);
   }

@@ -82,7 +82,7 @@ enum ExprKind {
 
 typedef struct Expr {
   enum ExprKind kind;
-  const Type *type;
+  Type *type;
   const Token *token;
   union {
     Fixnum fixnum;
@@ -126,20 +126,20 @@ typedef struct Expr {
   };
 } Expr;
 
-Expr *new_expr_fixlit(const Type *type, const Token *token, const Fixnum fixnum);
-Expr *new_expr_flolit(const Type *type, const Token *token, double flonum);
+Expr *new_expr_fixlit(Type *type, const Token *token, const Fixnum fixnum);
+Expr *new_expr_flolit(Type *type, const Token *token, double flonum);
 Expr *new_expr_str(const Token *token, const char *str, ssize_t size);
-Expr *new_expr_bop(enum ExprKind kind, const Type *type, const Token *token, Expr *lhs, Expr *rhs);
-Expr *new_expr_unary(enum ExprKind kind, const Type *type, const Token *token, Expr *sub);
+Expr *new_expr_bop(enum ExprKind kind, Type *type, const Token *token, Expr *lhs, Expr *rhs);
+Expr *new_expr_unary(enum ExprKind kind, Type *type, const Token *token, Expr *sub);
 Expr *new_expr_deref(const Token *token, Expr *sub);
-Expr *new_expr_ternary(const Token *token, Expr *cond, Expr *tval, Expr *fval, const Type *type);
-Expr *new_expr_variable(const Name *name, const Type *type, const Token *token, Scope *scope);
-Expr *new_expr_member(const Token *token, const Type *type, Expr *target, const Token *ident,
+Expr *new_expr_ternary(const Token *token, Expr *cond, Expr *tval, Expr *fval, Type *type);
+Expr *new_expr_variable(const Name *name, Type *type, const Token *token, Scope *scope);
+Expr *new_expr_member(const Token *token, Type *type, Expr *target, const Token *ident,
                       int index);
-Expr *new_expr_funcall(const Token *token, Expr *func, const Type *functype, Vector *args);
-Expr *new_expr_cast(const Type *type, const Token *token, Expr *sub);
+Expr *new_expr_funcall(const Token *token, Expr *func, Type *functype, Vector *args);
+Expr *new_expr_cast(Type *type, const Token *token, Expr *sub);
 
-Expr *new_expr_complit(const Type *type, const Token *token, Expr *var, Vector *inits);
+Expr *new_expr_complit(Type *type, const Token *token, Expr *var, Vector *inits);
 Expr *new_expr_block(struct Stmt *block);
 
 bool is_const(Expr *expr);
@@ -195,13 +195,13 @@ enum StmtKind {
 };
 
 typedef struct VarDecl {
-  const Type *type;
+  Type *type;
   const Token *ident;
   Initializer *init;
   int storage;
 } VarDecl;
 
-VarDecl *new_vardecl(const Type *type, const Token *ident, Initializer *init, int storage);
+VarDecl *new_vardecl(Type *type, const Token *ident, Initializer *init, int storage);
 
 typedef struct Stmt {
   enum StmtKind kind;
@@ -281,7 +281,7 @@ Stmt *new_stmt_asm(const Token *token, Expr *str, Expr *arg);
 // Function
 
 typedef struct Function {
-  const Type *type;
+  Type *type;
   const Name *name;
 
   Vector *scopes;  // NULL => prototype definition.
@@ -299,7 +299,7 @@ typedef struct Function {
 
 #define FUNCF_STACK_MODIFIED  (1 << 0)
 
-Function *new_func(const Type *type, const Name *name);
+Function *new_func(Type *type, const Name *name);
 
 // Declaration
 

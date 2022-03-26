@@ -105,16 +105,16 @@ void install_builtins(void) {
   add_builtin_expr_ident("__builtin_type_kind", &p_reg_class);
 
   Type *tyVaList = create_struct_type(NULL, alloc_name("__va_elem", NULL, false), 0);
-  const Type *tyVaListPtr = ptrof(tyVaList);
+  Type *tyVaListPtr = ptrof(tyVaList);
   {
     static BuiltinFunctionProc p_va_start = &gen_builtin_va_start;
     Vector *params = new_vector();
     var_add(params, NULL, tyVaListPtr, 0);
     var_add(params, NULL, &tyVoidPtr, 0);
 
-    const Type *rettype = &tyVoid;
+    Type *rettype = &tyVoid;
     Vector *param_types = extract_varinfo_types(params);
-    const Type *type = new_func_type(rettype, params, param_types, false);
+    Type *type = new_func_type(rettype, params, param_types, false);
 
     add_builtin_function("__builtin_va_start", type, &p_va_start, true);
   }
@@ -123,9 +123,9 @@ void install_builtins(void) {
     Vector *params = new_vector();
     var_add(params, NULL, &tySize, 0);
 
-    const Type *rettype = &tyVoidPtr;
+    Type *rettype = &tyVoidPtr;
     Vector *param_types = extract_varinfo_types(params);
-    const Type *type = new_func_type(rettype, params, param_types, false);
+    Type *type = new_func_type(rettype, params, param_types, false);
 
     add_builtin_function("alloca", type, &p_alloca, false);
   }

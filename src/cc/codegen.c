@@ -84,13 +84,13 @@ static void alloc_variable_registers(Function *func) {
   }
 
   // Handle if return value is on the stack.
-  const Type *rettype = func->type->func.ret;
+  Type *rettype = func->type->func.ret;
   const Name *retval_name = NULL;
   int param_index_offset = 0;
   if (is_stack_param(rettype)) {
     // Insert vreg for return value pointer into top of the function scope.
     retval_name = alloc_name(RET_VAR_NAME, NULL, false);
-    const Type *retptrtype = ptrof(rettype);
+    Type *retptrtype = ptrof(rettype);
     Scope *top_scope = func->scopes->data[0];
     VarInfo *varinfo = scope_add(top_scope, retval_name, retptrtype, 0);
     VReg *vreg = add_new_reg(varinfo->type, VRF_LOCAL | VRF_PARAM);

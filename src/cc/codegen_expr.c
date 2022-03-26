@@ -48,7 +48,7 @@ VReg *add_new_reg(const Type *type, int flag) {
 
 static Table builtin_function_table;  // <BuiltinFunctionProc>
 
-void add_builtin_function(const char *str, const Type *type, BuiltinFunctionProc *proc, bool add_to_scope) {
+void add_builtin_function(const char *str, Type *type, BuiltinFunctionProc *proc, bool add_to_scope) {
   const Name *name = alloc_name(str, NULL, false);
   table_put(&builtin_function_table, name, proc);
 
@@ -474,7 +474,7 @@ static VReg *gen_funcall(Expr *expr) {
 
   VReg *result_reg = NULL;
   {
-    const Type *type = expr->type;
+    Type *type = expr->type;
     if (retvar_reg != NULL)
       type = ptrof(type);
     VRegType *ret_vtype = to_vtype(type);
@@ -534,7 +534,7 @@ VReg *gen_const_flonum(Expr *expr) {
   init->token = expr->token;
 
   assert(curscope != NULL);
-  const Type *type = qualified_type(expr->type, TQ_CONST);
+  Type *type = qualified_type(expr->type, TQ_CONST);
   const Name *name = alloc_label();
   VarInfo *varinfo = scope_add(curscope, name, type, VS_STATIC);
   VarInfo *gvarinfo = is_global_scope(curscope) ? varinfo : varinfo->static_.gvar;

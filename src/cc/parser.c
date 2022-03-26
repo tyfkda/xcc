@@ -25,7 +25,7 @@ Stmt *curswitch;
 
 static Stmt *parse_stmt(void);
 
-VarInfo *add_var_to_scope(Scope *scope, const Token *ident, const Type *type, int storage) {
+VarInfo *add_var_to_scope(Scope *scope, const Token *ident, Type *type, int storage) {
   assert(ident != NULL);
   const Name *name = ident->ident;
   assert(name != NULL);
@@ -87,7 +87,7 @@ Token *consume(/*enum TokenKind*/int kind, const char *error) {
   return tok;
 }
 
-const Type *fix_array_size(const Type *type, Initializer *init) {
+Type *fix_array_size(Type *type, Initializer *init) {
   assert(init != NULL);
   assert(type->kind == TY_ARRAY);
 
@@ -132,7 +132,7 @@ const Type *fix_array_size(const Type *type, Initializer *init) {
 
 static Stmt *build_memcpy(Expr *dst, Expr *src, size_t size) {
   assert(!is_global_scope(curscope));
-  const Type *charptr_type = ptrof(&tyChar);
+  Type *charptr_type = ptrof(&tyChar);
   VarInfo *dstvar = add_var_to_scope(curscope, alloc_dummy_ident(), charptr_type, 0);
   VarInfo *srcvar = add_var_to_scope(curscope, alloc_dummy_ident(), charptr_type, 0);
   VarInfo *sizevar = add_var_to_scope(curscope, alloc_dummy_ident(), &tySize, 0);
@@ -164,7 +164,7 @@ static Stmt *build_memcpy(Expr *dst, Expr *src, size_t size) {
 }
 
 // Convert string literal to global char-array variable reference.
-static Initializer *convert_str_to_ptr_initializer(Scope *scope, const Type *type, Initializer *init) {
+static Initializer *convert_str_to_ptr_initializer(Scope *scope, Type *type, Initializer *init) {
   assert(type->kind == TY_ARRAY && is_char_type(type->pa.ptrof));
   VarInfo *varinfo = str_to_char_array(scope, type, init, toplevel);
   VarInfo *gvarinfo = is_global_scope(scope) ? varinfo : varinfo->static_.gvar;
@@ -185,13 +185,13 @@ static Stmt *init_char_array_by_string(Expr *dst, Initializer *src) {
   ssize_t size = str->str.size;
   ssize_t dstsize = dst->type->pa.length;
   if (dstsize == -1) {
-    ((Type*)dst->type)->pa.length = dstsize = size;
+    dst->type->pa.length = dstsize = size;
   } else {
     if (dstsize < size - 1)
       parse_error(NULL, "Buffer is shorter than string: %d for \"%s\"", (int)dstsize, str);
   }
 
-  const Type *strtype = dst->type;
+  Type *strtype = dst->type;
   VarInfo *varinfo = str_to_char_array(curscope, strtype, src, toplevel);
   Expr *var = new_expr_variable(varinfo->name, strtype, NULL, curscope);
   return build_memcpy(dst, var, size);
@@ -278,7 +278,7 @@ static Initializer *flatten_array_initializer(Initializer *init) {
   return init2;
 }
 
-static Initializer *flatten_initializer(const Type *type, Initializer *init) {
+static Initializer *flatten_initializer(Type *type, Initializer *init) {
   if (init == NULL)
     return NULL;
 
@@ -388,7 +388,7 @@ static Initializer *flatten_initializer(const Type *type, Initializer *init) {
   return init;
 }
 
-static Expr *check_global_initializer_fixnum(const Type *type, Expr *value) {
+static Expr *check_global_initializer_fixnum(Type *type, Expr *value) {
   switch (value->kind) {
   case EX_CAST:
     value->unary.sub = make_cast(value->type, value->token, check_global_initializer_fixnum(value->unary.sub->type, value->unary.sub), true);
@@ -460,7 +460,7 @@ static Expr *check_global_initializer_fixnum(const Type *type, Expr *value) {
   return value;
 }
 
-static Initializer *check_global_initializer(const Type *type, Initializer *init) {
+static Initializer *check_global_initializer(Type *type, Initializer *init) {
   if (init == NULL)
     return NULL;
 
@@ -498,7 +498,7 @@ static Initializer *check_global_initializer(const Type *type, Initializer *init
     switch (init->kind) {
     case IK_MULTI:
       {
-        const Type *elemtype = type->pa.ptrof;
+        Type *elemtype = type->pa.ptrof;
         Vector *multi = init->multi;
         for (int i = 0, len = multi->len; i < len; ++i) {
           Initializer *eleminit = multi->data[i];
@@ -568,7 +568,7 @@ Vector *assign_initial_value(Expr *expr, Initializer *init, Vector *inits) {
           parse_error(init->token, "Initializer more than array size");
 
         assert(!is_global_scope(curscope));
-        const Type *ptr_type = array_to_ptr(expr->type);
+        Type *ptr_type = array_to_ptr(expr->type);
         VarInfo *ptr_varinfo = add_var_to_scope(curscope, alloc_dummy_ident(), ptr_type, 0);
         Expr *ptr_var = new_expr_variable(ptr_varinfo->name, ptr_type, NULL, curscope);
         vec_push(inits, new_stmt_expr(new_expr_bop(EX_ASSIGN, ptr_type, NULL, ptr_var, expr)));
@@ -690,12 +690,12 @@ Vector *construct_initializing_stmts(Vector *decls) {
   return inits;
 }
 
-static Initializer *check_vardecl(const Type **ptype, const Token *ident, int storage, Initializer *init) {
-  const Type *type = *ptype;
+static Initializer *check_vardecl(Type **ptype, const Token *ident, int storage, Initializer *init) {
+  Type *type = *ptype;
   if (type->kind == TY_ARRAY && init != NULL)
     *ptype = type = fix_array_size(type, init);
   if (!(storage & VS_EXTERN))
-    ensure_struct((Type*)type, ident, curscope);
+    ensure_struct(type, ident, curscope);
 
   if (curfunc != NULL) {
     VarInfo *varinfo = scope_find(curscope, ident->ident, NULL);
@@ -812,10 +812,10 @@ Initializer *parse_initializer(void) {
   return result;
 }
 
-static bool def_type(const Type *type, Token *ident) {
+static bool def_type(Type *type, Token *ident) {
   const Name *name = ident->ident;
   Scope *scope;
-  const Type *conflict = find_typedef(curscope, name, &scope);
+  Type *conflict = find_typedef(curscope, name, &scope);
   if (conflict != NULL && scope == curscope) {
     if (!same_type(type, conflict))
       parse_error(ident, "Conflict typedef");
@@ -825,7 +825,7 @@ static bool def_type(const Type *type, Token *ident) {
 
   if (conflict == NULL || (type->kind == TY_STRUCT && type->struct_.info != NULL)) {
     if (type->kind == TY_ARRAY) {
-      ensure_struct((Type*)type, ident, curscope);
+      ensure_struct(type, ident, curscope);
     }
     add_typedef(curscope, name, type);
     return true;
@@ -840,7 +840,7 @@ static Vector *parse_vardecl_cont(Type *rawType, Type *type, int storage, Token 
   do {
     int tmp_storage = storage;
     if (!first) {
-      type = (Type*)parse_var_def(&rawType, &tmp_storage, &ident);
+      type = parse_var_def(&rawType, &tmp_storage, &ident);
       if (type == NULL || ident == NULL) {
         parse_error(NULL, "`ident' expected");
         return NULL;
@@ -874,7 +874,7 @@ static Vector *parse_vardecl_cont(Type *rawType, Type *type, int storage, Token 
     varinfo->type = type;  // type might be changed.
     if (type->kind != TY_FUNC && match(TK_ASSIGN))
       init = parse_initializer();
-    init = check_vardecl((const Type**)&type, ident, tmp_storage, init);
+    init = check_vardecl(&type, ident, tmp_storage, init);
     VarDecl *decl = new_vardecl(type, ident, init, tmp_storage);
     if (decls == NULL)
       decls = new_vector();
@@ -887,7 +887,7 @@ static bool parse_vardecl(Stmt **pstmt) {
   Type *rawType = NULL;
   int storage;
   Token *ident;
-  Type *type = (Type*)parse_var_def(&rawType, &storage, &ident);
+  Type *type = parse_var_def(&rawType, &storage, &ident);
   if (type == NULL)
     return false;
 
@@ -1022,7 +1022,7 @@ static Stmt *parse_for(const Token *tok) {
     Type *rawType = NULL;
     int storage;
     Token *ident;
-    Type *type = (Type*)parse_var_def(&rawType, &storage, &ident);
+    Type *type = parse_var_def(&rawType, &storage, &ident);
     if (type != NULL) {
       if (ident == NULL)
         parse_error(NULL, "Ident expected");
@@ -1105,7 +1105,7 @@ static Stmt *parse_return(const Token *tok) {
   }
 
   assert(curfunc != NULL);
-  const Type *rettype = curfunc->type->func.ret;
+  Type *rettype = curfunc->type->func.ret;
   if (val == NULL) {
     if (rettype->kind != TY_VOID)
       parse_error_nofatal(tok, "`return' required a value");
@@ -1226,14 +1226,14 @@ static Stmt *parse_stmt(void) {
   return new_stmt_expr(str_to_char_array_var(curscope, val, toplevel));
 }
 
-static Declaration *parse_defun(const Type *functype, int storage, Token *ident) {
+static Declaration *parse_defun(Type *functype, int storage, Token *ident) {
   assert(functype->kind == TY_FUNC);
 
   bool prototype = match(TK_SEMICOL) != NULL;
   if (!prototype && functype->func.params == NULL) { // Old-style
     // Treat it as a zero-parameter function.
-    ((Type*)functype)->func.params = ((Type*)functype)->func.param_types = new_vector();
-    ((Type*)functype)->func.vaargs = false;
+    functype->func.params = functype->func.param_types = new_vector();
+    functype->func.vaargs = false;
   }
 
   Function *func = new_func(functype, ident->ident);
@@ -1302,7 +1302,7 @@ static Declaration *parse_defun(const Type *functype, int storage, Token *ident)
 }
 
 static Declaration *parse_global_var_decl(
-    const Type *rawtype, int storage, const Type *type, Token *ident
+    Type *rawtype, int storage, Type *type, Token *ident
 ) {
   Vector *decls = NULL;
   for (;;) {
@@ -1350,7 +1350,7 @@ static Declaration *parse_declaration(void) {
   Type *rawtype = NULL;
   int storage;
   Token *ident;
-  const Type *type = parse_var_def(&rawtype, &storage, &ident);
+  Type *type = parse_var_def(&rawtype, &storage, &ident);
   if (type != NULL) {
     if (ident == NULL) {
       if ((type->kind == TY_STRUCT ||
