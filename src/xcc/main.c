@@ -159,6 +159,96 @@ static void usage(FILE *fp) {
   );
 }
 
+enum OutType {
+  OutPreprocess,
+  OutAssembly,
+  OutObject,
+  OutExecutable,
+};
+
+static int compile_csource(const char *source_fn, enum OutType out_type, const char *ofn, int ofd,
+                           Vector *cpp_cmd, Vector *cc1_cmd, Vector *as_cmd, Vector *ld_cmd) {
+  const char *objfn = NULL;
+  int obj_fd = -1;
+  if (out_type > OutAssembly) {
+    if (ofn != NULL && out_type < OutExecutable) {
+      objfn = ofn;
+    } else {
+      char template[] = "/tmp/xcc-XXXXXX.o";
+      obj_fd = mkstemps(template, 2);
+      if (obj_fd == -1) {
+        perror("Failed to open output file");
+        exit(1);
+      }
+      objfn = strdup(template);
+    }
+  }
+
+  int as_fd[2];
+  pid_t as_pid = -1;
+
+  if (out_type > OutAssembly) {
+    as_cmd->data[as_cmd->len - 2] = (void*)objfn;
+    as_pid = pipe_exec((char**)as_cmd->data, -1, as_fd);
+    ofd = as_fd[1];
+  }
+
+  int res = compile(source_fn, cpp_cmd, out_type == OutPreprocess ? NULL : cc1_cmd, ofd);
+
+  if (out_type >= OutExecutable)
+    vec_push(ld_cmd, objfn);
+
+  if (res != 0 && as_pid != -1) {
+#if !defined(__XV6)
+    kill(as_pid, SIGKILL);
+    remove(ofn);
+#endif
+  }
+  if (as_pid != -1) {
+    close(as_fd[0]);
+    close(as_fd[1]);
+    as_pid = -1;
+    res |= wait_process(as_pid);
+  }
+  if (obj_fd != -1) {
+    close(obj_fd);
+  }
+  return res;
+}
+
+static int compile_asm(const char *source_fn, enum OutType out_type, const char *ofn, int ofd,
+                       Vector *as_cmd, Vector *ld_cmd) {
+  const char *objfn = NULL;
+  if (out_type > OutAssembly) {
+    if (ofn != NULL && out_type < OutExecutable) {
+      objfn = ofn;
+    } else {
+      size_t len = strlen(source_fn);
+      char *p = malloc(len + 3);
+      memcpy(p, source_fn, len);
+      strcpy(p + len, ".o");
+      objfn = p;
+    }
+    as_cmd->data[as_cmd->len - 2] = (void*)objfn;
+  }
+
+  vec_pop(as_cmd);
+  vec_push(as_cmd, source_fn);
+  vec_push(as_cmd, NULL);
+
+  int res = 0;
+  pid_t as_pid = exec_with_ofd((char**)as_cmd->data, ofd);
+  waitpid(as_pid, &res, 0);
+
+  vec_pop(as_cmd);
+  vec_pop(as_cmd);
+  vec_push(as_cmd, NULL);
+
+  if (out_type >= OutExecutable)
+    vec_push(ld_cmd, objfn);
+  return res;
+}
+
 int main(int argc, char *argv[]) {
   const char *root = dirname(strdup(argv[0]));
   char *cpp_path = cat_path(root, "cpp");
@@ -186,12 +276,6 @@ int main(int argc, char *argv[]) {
   Vector *ld_cmd = new_vector();
   vec_push(ld_cmd, ld_path);
 
-  enum OutType {
-    OutPreprocess,
-    OutAssembly,
-    OutObject,
-    OutExecutable,
-  };
   enum OutType out_type = OutExecutable;
 
   const char *ofn = NULL;
@@ -278,82 +362,9 @@ int main(int argc, char *argv[]) {
     char *src = argv[i];
     char *ext = get_ext(src);
     if (strcasecmp(ext, "c") == 0) {
-      const char *objfn = NULL;
-      int obj_fd = -1;
-      if (out_type > OutAssembly) {
-        if (ofn != NULL && out_type < OutExecutable) {
-          objfn = ofn;
-        } else {
-          char template[] = "/tmp/xcc-XXXXXX.o";
-          obj_fd = mkstemps(template, 2);
-          if (obj_fd == -1) {
-            perror("Failed to open output file");
-            exit(1);
-          }
-          objfn = strdup(template);
-        }
-      }
-
-      int as_fd[2];
-      pid_t as_pid = -1;
-
-      if (out_type > OutAssembly) {
-        as_cmd->data[as_cmd->len - 2] = (void*)objfn;
-        as_pid = pipe_exec((char**)as_cmd->data, -1, as_fd);
-        ofd = as_fd[1];
-      }
-
-      res = compile(src, cpp_cmd, out_type == OutPreprocess ? NULL : cc1_cmd, ofd);
-
-      if (out_type >= OutExecutable)
-        vec_push(ld_cmd, objfn);
-
-      if (res != 0 && as_pid != -1) {
-#if !defined(__XV6)
-        kill(as_pid, SIGKILL);
-        remove(ofn);
-#else
-        (void)ofn;
-#endif
-      }
-      if (as_pid != -1) {
-        close(as_fd[0]);
-        close(as_fd[1]);
-        as_pid = -1;
-        res |= wait_process(as_pid);
-      }
-      if (obj_fd != -1) {
-        close(obj_fd);
-      }
+      res = compile_csource(src, out_type, ofn, ofd, cpp_cmd, cc1_cmd, as_cmd, ld_cmd);
     } else if (strcasecmp(ext, "s") == 0) {
-      const char *objfn = NULL;
-      if (out_type > OutAssembly) {
-        if (ofn != NULL && out_type < OutExecutable) {
-          objfn = ofn;
-        } else {
-          size_t len = strlen(src);
-          char *p = malloc(len + 3);
-          memcpy(p, src, len);
-          strcpy(p + len, ".o");
-          objfn = p;
-        }
-        as_cmd->data[as_cmd->len - 2] = (void*)objfn;
-      }
-
-      vec_pop(as_cmd);
-      vec_push(as_cmd, src);
-      vec_push(as_cmd, NULL);
-
-      pid_t as_pid = exec_with_ofd((char**)as_cmd->data, ofd);
-      waitpid(as_pid, &res, 0);
-
-      vec_pop(as_cmd);
-      vec_pop(as_cmd);
-      vec_push(as_cmd, NULL);
-
-      if (out_type >= OutExecutable)
-        vec_push(ld_cmd, objfn);
-
+      res = compile_asm(src, out_type, ofn, ofd, as_cmd, ld_cmd);
     } else if (strcasecmp(ext, "o") == 0) {
       if (out_type >= OutExecutable)
         vec_push(ld_cmd, src);
