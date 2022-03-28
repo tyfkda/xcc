@@ -260,7 +260,7 @@ static void construct_initial_value(DataStorage *ds, const Type *type, const Ini
           data_append(ds, buf, size);
           free(buf);
         } else {
-          data_append(ds, (unsigned char*)e->str.buf, src_size);
+          data_append(ds, (unsigned char*)e->str.buf, size);
         }
         break;
       }
@@ -350,6 +350,7 @@ static void construct_data_segment(DataStorage *ds) {
     construct_initial_value(ds, varinfo->type, varinfo->global.init);
 
     address = adr + type_size(varinfo->type);
+    assert(ds->len == address);
   }
 }
 
