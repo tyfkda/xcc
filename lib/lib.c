@@ -16,6 +16,12 @@ ssize_t write(int fd, const void *str, size_t len) {
         "int $64");
 }
 
+#elif defined(__WASM)
+
+extern void *_brk(void *);
+extern int _tmpfile(void);
+extern int _getcwd(char *, size_t);
+
 #elif defined(__linux__)
 ssize_t write(int fd, const void *str, size_t len) {
   ssize_t ret;
@@ -465,15 +471,32 @@ int toupper(int c) {
   return ('a' <= c && c <= 'z') ? c - ('a' - 'A') : c;
 }
 
+int errno;
+
 #if defined(__XV6)
+
+#elif defined(__WASM)
+
+FILE *tmpfile(void) {
+  int fd = _tmpfile();
+  if (fd < 0)
+    return NULL;
+
+  FILE *fp = malloc(sizeof(*fp));
+  if (fp == NULL) {
+    close(fd);
+    return NULL;
+  }
+
+  fp->fd = fd;
+  return fp;
+}
 
 #elif defined(__linux__)
 
 //extern char **environ;
 //char *environ[] = {"PATH=/bin:/usr/bin", NULL};
 char **environ = NULL;
-
-int errno;
 
 int open(const char *fn, int flag, ...) {
   int ret;
@@ -558,8 +581,6 @@ int ioctl(int fd, int request, ...) {
         "syscall");
 }
 
-#else
-#error Target not supported
 #endif
 
 char *dirname(char *path) {
@@ -756,6 +777,8 @@ char *getcwd(char *buffer, size_t size) {
   return buffer;
 }
 
+#if !defined(__WASM)
+
 int execvp(const char *path, char *const args[]) {
   return execve(path, args, environ);
 }
@@ -763,6 +786,15 @@ int execvp(const char *path, char *const args[]) {
 pid_t waitpid(pid_t pid, int *status, int options) {
   return wait4(pid, status, options, NULL);
 }
+
+#include <sys/ioctl.h>
+
+int isatty(int fd) {
+  struct termio tm;
+  return ioctl(fd, TCGETA, &tm) == 0 ? 1 : 0;
+}
+
+#endif
 
 void perror(const char *msg) {
   fprintf(stderr, "perror: %s\n", msg);
@@ -847,13 +879,6 @@ void *sbrk(intptr_t increment) {
   if (brk(next) < 0)
     return (void*)-1;
   return p;
-}
-
-#include <sys/ioctl.h>
-
-int isatty(int fd) {
-  struct termio tm;
-  return ioctl(fd, TCGETA, &tm) == 0 ? 1 : 0;
 }
 #endif
 

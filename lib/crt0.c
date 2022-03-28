@@ -10,6 +10,13 @@ void exit(int code) {
         "int $64");
 }
 
+#elif defined(__WASM)
+
+int _start(int argc, char *argv[]) {
+  extern int main(int, char**);
+  return main(argc, argv);
+}
+
 #elif defined(__linux__)
 void _start(void) {
   __asm("mov (%rsp), %rdi\n"
@@ -22,13 +29,6 @@ void _start(void) {
 void exit(int code) {
   __asm("mov $60, %eax\n"  // __NR_exit
         "syscall");
-}
-
-#elif defined(__WASM)
-
-int _start(int argc, char *argv[]) {
-  extern int main(int, char**);
-  return main(argc, argv);
 }
 
 #elif defined(__APPLE__)

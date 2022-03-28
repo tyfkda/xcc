@@ -6,9 +6,9 @@ OBJ_DIR:=obj
 
 OPTIMIZE:=-O2 -g3
 CFLAGS:=-ansi -std=c11 -pedantic -MMD -Wall -Wextra -Werror -Wold-style-definition \
-	-Wno-missing-field-initializers -Wno-typedef-redefinition -Wno-empty-body
+	-Wno-missing-field-initializers -Wno-typedef-redefinition -Wno-empty-body \
+	-D_DEFAULT_SOURCE
 CFLAGS+=-I$(CC1_DIR) -I$(CPP_DIR) -I$(UTIL_DIR) $(OPTIMIZE)
-CFLAGS+=-D_POSIX_C_SOURCE=200809L  # for getline
 
 WCC_DIR:=src
 WCC_SRCS:=$(wildcard $(WCC_DIR)/*.c) \
@@ -81,11 +81,11 @@ self-hosting:	$(TARGET)cc.wasm
 test-self-hosting:
 	$(MAKE) WCC="$(TARGET_CC)" -C tests
 
-WCC_LIBS:=runtime/lib.c $(LIB_DIR)/crt0.c $(LIB_DIR)/sprintf.c $(LIB_DIR)/umalloc.c $(LIB_DIR)/getopt.c $(LIB_DIR)/assert.c
+WCC_LIBS:=$(LIB_DIR)/crt0.c $(LIB_DIR)/lib.c $(LIB_DIR)/sprintf.c $(LIB_DIR)/umalloc.c $(LIB_DIR)/getopt.c $(LIB_DIR)/assert.c
 
 $(TARGET)cc.wasm:	$(WCC_SRCS) $(WCC_LIBS)
 	$(HOST_CC) -o$(TARGET)cc.wasm \
-		-I$(CC1_DIR) -I$(CPP_DIR) -I$(UTIL_DIR) -I$(LIB_DIR) \
+		-I$(CC1_DIR) -I$(CPP_DIR) -I$(UTIL_DIR) \
 		$(WCC_SRCS) \
 		$(WCC_LIBS)
 
