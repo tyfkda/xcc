@@ -6,7 +6,6 @@
 // Run:
 //   $ ./hello  #=> Hello, world!
 
-#include "../lib/crt0.c"
 #include "example_util.c"
 
 int main() {

@@ -1,9 +1,9 @@
 // Mandelbrot
 
 // Compile:
-//   $ ./xcc -omandelbrot examples/mandelbrot.c lib/sprintf.c lib/umalloc.c lib/lib.c lib/crt0.c
+//   $ ./xcc -omandelbrot examples/mandelbrot.c
 // Run:
-//   $ time ./mandelbrot
+//   $ time ./mandelbrot  #=> mandelbrot.ppm is generated.
 
 #include <stdio.h>
 #include <stdlib.h>

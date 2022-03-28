@@ -2,7 +2,6 @@ ROOT_DIR:=..
 SRC_DIR:=$(ROOT_DIR)/src
 CC_DIR:=$(SRC_DIR)/cc
 UTIL_DIR:=$(SRC_DIR)/util
-LIB_DIR:=$(ROOT_DIR)/lib
 EXAMPLES_DIR:=$(ROOT_DIR)/examples
 
 CFLAGS:=-ansi -std=c11 -Wall -Wextra -Werror \
@@ -118,11 +117,11 @@ PARSER_SRCS:=parser_test.c $(CC_DIR)/parser_expr.c $(CC_DIR)/lexer.c $(CC_DIR)/p
 parser_test:	$(PARSER_SRCS)
 	$(CC) -o$@ $(CFLAGS) $^
 
-VAL_SRCS:=$(LIB_DIR)/crt0.c $(EXAMPLES_DIR)/example_util.c valtest.c
+VAL_SRCS:=$(EXAMPLES_DIR)/example_util.c valtest.c
 valtest:	$(VAL_SRCS) # $(XCC)
-	$(XCC) -o$@ -I$(EXAMPLES_DIR) $^
+	$(XCC) -o$@ -I$(EXAMPLES_DIR) -nodefaultlibs $^
 
-FVAL_SRCS:=$(LIB_DIR)/crt0.c $(EXAMPLES_DIR)/example_util.c $(LIB_DIR)/math.c fvaltest.c
+FVAL_SRCS:=$(EXAMPLES_DIR)/example_util.c fvaltest.c
 dvaltest:	$(FVAL_SRCS) flotest.inc # $(XCC)
 	$(XCC) -o$@ $(FVAL_SRCS)
 fvaltest:	$(FVAL_SRCS) flotest.inc # $(XCC)

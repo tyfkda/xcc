@@ -6,7 +6,6 @@
 // Run:
 //   $ ./echo foo bar baz  #=> foo bar baz
 
-#include "../lib/crt0.c"
 #include "example_util.c"
 
 int main(int argc, char **argv) {
