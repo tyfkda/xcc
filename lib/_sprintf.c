@@ -23,7 +23,7 @@ static double pow10(int order) {
 #endif
 
 static int
-putstr(char *out, int o, int n, const char *s)
+putnstr(char *out, int o, int n, const char *s)
 {
   while (*s != '\0' && o < n)
     out[o++] = *s++;
@@ -100,14 +100,14 @@ snprintstr(char *out, unsigned int n, const char* s,
   if (suborder > 0)
     len = MIN(len, suborder);
   if (order <= 0 || len >= order) {
-    o = putstr(out, o, MIN(n, o + len), s);
+    o = putnstr(out, o, MIN(n, o + len), s);
   } else {
     if (leftalign) {
-      o = putstr(out, o, MIN(n, o + len), s);
+      o = putnstr(out, o, MIN(n, o + len), s);
       o = putpadding(out, o, n, order - len, ' ');
     } else {
       o = putpadding(out, o, n, order - len, ' ');
-      o = putstr(out, o, MIN(n, o + len), s);
+      o = putnstr(out, o, MIN(n, o + len), s);
     }
   }
   return o;

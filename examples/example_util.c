@@ -7,7 +7,7 @@ long write(int fd, const void *str, unsigned long len) {
 }
 
 #elif defined(__linux__)
-long write(int fd, const char *str, long len){
+long write(int fd, const void *str, unsigned long len) {
 #if defined(__XCC)
   __asm("mov $1, %eax\n"  // __NR_write
         "syscall");
@@ -24,21 +24,19 @@ long write(int fd, const char *str, long len){
 
 // Use libc.
 
-extern long write(int fd, const char *str, long len);
+extern long write(int fd, const void *str, unsigned long len);
 
 #else
 #error Target not supported
 #endif
 
-unsigned long strlen(const char *s) {
+void putstr(const char *s) {
   const char *p;
   for (p = s; *p != '\0'; ++p)
     ;
-  return p - s;
-}
+  unsigned long len = p - s;
 
-void putstr(const char *s) {
-  write(1, s, strlen(s));
+  write(1, s, len);
 }
 
 void putdeci(long x) {

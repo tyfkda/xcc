@@ -1,4 +1,4 @@
-#ifndef __NO_FLONUM
+#if !defined(__NO_FLONUM) && !defined(__WASM)
 #include <math.h>
 #include <stdbool.h>
 #include <stdint.h>  // int64_t

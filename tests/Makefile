@@ -121,11 +121,11 @@ VAL_SRCS:=$(EXAMPLES_DIR)/example_util.c valtest.c
 valtest:	$(VAL_SRCS) # $(XCC)
 	$(XCC) -o$@ -I$(EXAMPLES_DIR) -nodefaultlibs $^
 
-FVAL_SRCS:=$(EXAMPLES_DIR)/example_util.c fvaltest.c
+FVAL_SRCS:=$(EXAMPLES_DIR)/example_util.c $(ROOT_DIR)/lib/_math.c fvaltest.c
 dvaltest:	$(FVAL_SRCS) flotest.inc # $(XCC)
-	$(XCC) -o$@ $(FVAL_SRCS)
+	$(XCC) -o$@ -nodefaultlibs $(FVAL_SRCS)
 fvaltest:	$(FVAL_SRCS) flotest.inc # $(XCC)
-	$(XCC) -o$@ -DUSE_SINGLE $(FVAL_SRCS)
+	$(XCC) -o$@ -DUSE_SINGLE -nodefaultlibs $(FVAL_SRCS)
 
 TYPE_SRCS:=print_type_test.c $(CC_DIR)/type.c $(UTIL_DIR)/util.c $(UTIL_DIR)/table.c
 print_type_test:	$(TYPE_SRCS)

@@ -122,8 +122,6 @@ self-hosting:	$(TARGET)cpp $(TARGET)cc1 $(TARGET)as $(TARGET)ld $(TARGET)xcc
 test-self-hosting:
 	$(MAKE) PREFIX=$(TARGET) -C tests clean cc-tests
 
-LIB_SRCS:= lib/lib.c lib/assert.c lib/umalloc.c lib/sprintf.c lib/getopt.c lib/crt0.c
-
 HOST_EXES:=$(HOST)xcc $(HOST)cpp $(HOST)cc1 $(HOST)as $(HOST)ld
 
 XCC_GEN_OBJS=$(addprefix $(TARGET)/,$(notdir $(XCC_SRCS:.c=.o)))
@@ -131,22 +129,21 @@ CC1_GEN_OBJS=$(addprefix $(TARGET)/,$(notdir $(CC1_SRCS:.c=.o)))
 CPP_GEN_OBJS=$(addprefix $(TARGET)/,$(notdir $(CPP_SRCS:.c=.o)))
 AS_GEN_OBJS=$(addprefix $(TARGET)/,$(notdir $(AS_SRCS:.c=.o)))
 LD_GEN_OBJS=$(addprefix $(TARGET)/,$(notdir $(LD_SRCS:.c=.o)))
-LIB_GEN_OBJS=$(addprefix $(TARGET)/,$(notdir $(LIB_SRCS:.c=.o)))
 
-$(TARGET)cpp:	$(HOST_EXES) $(CPP_GEN_OBJS) $(LIB_GEN_OBJS)
-	./$(HOST)xcc -o$@ $(CPP_GEN_OBJS) $(LIB_GEN_OBJS)
+$(TARGET)cpp:	$(HOST_EXES) $(CPP_GEN_OBJS)
+	./$(HOST)xcc -o$@ $(CPP_GEN_OBJS)
 
-$(TARGET)cc1:	$(HOST_EXES) $(CC1_GEN_OBJS) $(LIB_GEN_OBJS)
-	./$(HOST)xcc -o$@ $(CC1_GEN_OBJS) $(LIB_GEN_OBJS)
+$(TARGET)cc1:	$(HOST_EXES) $(CC1_GEN_OBJS)
+	./$(HOST)xcc -o$@ $(CC1_GEN_OBJS)
 
-$(TARGET)as:	$(HOST_EXES) $(AS_GEN_OBJS) $(LIB_GEN_OBJS)
-	./$(HOST)xcc -o$@ $(AS_GEN_OBJS) $(LIB_GEN_OBJS)
+$(TARGET)as:	$(HOST_EXES) $(AS_GEN_OBJS)
+	./$(HOST)xcc -o$@ $(AS_GEN_OBJS)
 
-$(TARGET)ld:	$(HOST_EXES) $(LD_GEN_OBJS) $(LIB_GEN_OBJS)
-	./$(HOST)xcc -o$@ $(LD_GEN_OBJS) $(LIB_GEN_OBJS)
+$(TARGET)ld:	$(HOST_EXES) $(LD_GEN_OBJS)
+	./$(HOST)xcc -o$@ $(LD_GEN_OBJS)
 
-$(TARGET)xcc:	$(HOST_EXES) $(XCC_GEN_OBJS) $(LIB_GEN_OBJS)
-	./$(HOST)xcc -o$@ $(XCC_GEN_OBJS) $(LIB_GEN_OBJS)
+$(TARGET)xcc:	$(HOST_EXES) $(XCC_GEN_OBJS)
+	./$(HOST)xcc -o$@ $(XCC_GEN_OBJS)
 
 #TARGETGEN_FLAGS:=-DNDEBUG
 TARGETGEN_FLAGS:=
@@ -172,9 +169,6 @@ $(TARGET)/%.o: $(LD_DIR)/%.c
 $(TARGET)/%.o: $(UTIL_DIR)/%.c
 	@mkdir -p $(TARGET)
 	./$(HOST)xcc -c -o $@ -I$(CC1_DIR) $(TARGETGEN_FLAGS) $<
-$(TARGET)/%.o: lib/%.c
-	@mkdir -p $(TARGET)
-	./$(HOST)xcc -c -o $@ $(TARGETGEN_FLAGS) $<
 endif
 
 ### Debug

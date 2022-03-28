@@ -1,3 +1,4 @@
+#if !defined(__WASM)
 #include "setjmp.h"
 
 int setjmp(jmp_buf env) {
@@ -29,3 +30,4 @@ void longjmp(jmp_buf env, int result) {
         "mov $1, %eax\n"
         ".longjmp_0:");
 }
+#endif
