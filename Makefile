@@ -113,7 +113,7 @@ exes:	$(foreach D, $(EXES), $(addprefix $(TARGET),$(D)))
 define DEFINE_EXE_TARGET
 $(1)_OBJS:=$(addprefix $(OBJ_DIR)/,$(notdir $($(1)_SRCS:.c=.o)))
 $(TARGET)$(1):	$(PARENT_DEPS) $$($(1)_OBJS)
-	$(CC) -o $$@ $$($(1)_OBJS) $(LDFLAGS)
+	gcc -no-pie -o $$@ $$($(1)_OBJS) $(LDFLAGS)
 endef
 $(foreach D, $(EXES), $(eval $(call DEFINE_EXE_TARGET,$(D))))
 
@@ -343,6 +343,6 @@ dump_type_SRCS:=$(DEBUG_DIR)/dump_type.c $(CC1_FE_DIR)/parser_expr.c $(CC1_FE_DI
 define DEFINE_DEBUG_TARGET
 $(1)_OBJS:=$(addprefix $(OBJ_DIR)/,$(notdir $($(1)_SRCS:.c=.o)))
 $(1):	$$($(1)_OBJS)
-	$(CC) -o $$@ $(DEBUG_CFLAGS) $$^
+	gcc -no-pie -o $$@ $(DEBUG_CFLAGS) $$^
 endef
 $(foreach D, $(DEBUG_EXES), $(eval $(call DEFINE_DEBUG_TARGET,$(D))))
