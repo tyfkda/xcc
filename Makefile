@@ -6,6 +6,7 @@ AS_DIR:=src/as
 LD_DIR:=src/ld
 UTIL_DIR:=src/util
 OBJ_DIR:=obj
+LIB_DIR=lib
 
 OPTIMIZE:=-O2 -g3
 CFLAGS:=-ansi -std=c11 -pedantic -MMD -Wall -Wextra -Werror -Wold-style-definition \
@@ -34,11 +35,14 @@ AS_OBJS:=$(addprefix $(OBJ_DIR)/,$(notdir $(AS_SRCS:.c=.o)))
 LD_OBJS:=$(addprefix $(OBJ_DIR)/,$(notdir $(LD_SRCS:.c=.o)))
 
 .PHONY: all
-all:	xcc cc1 cpp as ld
+all:	exes libs
 
 .PHONY: release
 release:
 	$(MAKE) OPTIMIZE=-O2
+
+.PHONY:	exes
+exes:	xcc cc1 cpp as ld
 
 xcc: $(XCC_OBJS)
 	$(CC) -o $@ $^ $(LDFLAGS)
@@ -94,8 +98,18 @@ test-all: test test-gen2 diff-gen23
 
 .PHONY: clean
 clean:
-	rm -rf cc1 cpp as ld xcc $(OBJ_DIR) a.out gen2* gen3* tmp.s dump_expr dump_ir dump_type
+	rm -rf cc1 cpp as ld xcc $(OBJ_DIR) $(LIB_DIR)/*.o a.out gen2* gen3* tmp.s dump_expr dump_ir dump_type
 	$(MAKE) -C tests clean
+
+### Library
+
+LIB_SRCS:=$(LIB_DIR)/crt0.c $(LIB_DIR)/libc.c
+LIB_OBJS:=$(LIB_SRCS:.c=.o)
+
+libs: exes $(LIB_OBJS)
+
+$(LIB_DIR)/%.o: $(LIB_DIR)/%.c
+	./xcc -c -o $@ $<
 
 ### Self hosting
 
