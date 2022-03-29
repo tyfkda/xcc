@@ -158,6 +158,14 @@ export class WaProc {
         },
         close: (fd) => this.fs.close(fd),
         lseek: (fd, offset, where) => this.fs.lseek(fd, offset, where),
+        unlink: (fileNamePtr) => {
+          const fileName = Util.decodeString(this.memory.buffer, fileNamePtr)
+          if (fileName == null || fileName === '')
+            return -1
+          const absPath = this.getAbsPath(fileName)
+          this.fs.delete(absPath)
+          return 0
+        },
         _tmpfile: () => this.fs.tmpfile(),
 
         _brk: (ptr) => this.brk(ptr),

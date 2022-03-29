@@ -38,6 +38,10 @@ export class WaStorage {
   public contains(path: string): boolean {
     return path in this.files
   }
+
+  public delete(path: string) {
+    delete this.files[path]
+  }
 }
 
 export class FileSystem {
@@ -149,6 +153,10 @@ if (fd < 3) {
     return position
   }
 
+  public delete(absPath: string) {
+    this.storage.delete(absPath)
+  }
+
   public tmpfile(): number {
     const fd = this.allocFd()
     this.fileDescs[fd] = {
@@ -170,7 +178,7 @@ if (fd < 3) {
     return len
   }
 
-  private commitDesc(fd): void {
+  private commitDesc(fd: number): void {
     if (0 <= fd && fd < this.fileDescs.length) {
       const desc = this.fileDescs[fd]
       if (desc != null) {

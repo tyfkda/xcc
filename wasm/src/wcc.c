@@ -855,6 +855,20 @@ static void compile1(FILE *ifp, const char *filename, Vector *decls) {
   parse(decls);
 }
 
+static bool add_lib(Vector *lib_paths, const char *fn, Vector *sources) {
+  for (int i = 0; i < lib_paths->len; ++i) {
+    char *path = cat_path(lib_paths->data[i], fn);
+    FILE *fp = fopen(path, "r");  // TODO: use stat.
+    if (fp != NULL) {
+      fclose(fp);
+      vec_push(sources, path);
+      return true;
+    }
+    free(path);
+  }
+  return false;
+}
+
 int main(int argc, char *argv[]) {
   const char *root = dirname(strdup(argv[0]));
   if (!is_fullpath(root)) {
@@ -867,6 +881,7 @@ int main(int argc, char *argv[]) {
   uint32_t stack_size = DEFAULT_STACK_SIZE;
   const char *entry_point = "_start";
   bool nodefaultlibs = false, nostdlib = false;
+  Vector *lib_paths = new_vector();
 
   FILE *ppout = tmpfile();
   if (ppout == NULL)
@@ -893,7 +908,7 @@ int main(int argc, char *argv[]) {
   };
   int opt;
   int longindex;
-  while ((opt = getopt_long(argc, argv, "o:e:I:D:n:", longopts, &longindex)) != -1) {
+  while ((opt = getopt_long(argc, argv, "o:e:I:D:L:n:", longopts, &longindex)) != -1) {
     switch (opt) {
     case 'o':
       ofn = optarg;
@@ -916,6 +931,9 @@ int main(int argc, char *argv[]) {
       break;
     case 'D':
       define_macro(optarg);
+      break;
+    case 'L':
+      vec_push(lib_paths, optarg);
       break;
     case 'n':
       if (strcmp(optarg, "odefaultlibs") == 0) {
@@ -973,10 +991,11 @@ int main(int argc, char *argv[]) {
   }
   // if (out_type >= OutExecutable)
   {
+    vec_push(lib_paths, cat_path(root, "../lib"));
     if (!nostdlib)
-      vec_push(sources, cat_path(root, "../lib/crt0.c"));
+      add_lib(lib_paths, "crt0.c", sources);
     if (!nodefaultlibs && !nostdlib)
-      vec_push(sources, cat_path(root, "../lib/libc.c"));
+      add_lib(lib_paths, "libc.c", sources);
   }
 
   // Preprocess.
