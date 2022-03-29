@@ -113,18 +113,18 @@ exes:	$(foreach D, $(EXES), $(addprefix $(TARGET),$(D)))
 define DEFINE_EXE_TARGET
 $(1)_OBJS:=$(addprefix $(OBJ_DIR)/,$(notdir $($(1)_SRCS:.c=.o)))
 $(TARGET)$(1):	$(PARENT_DEPS) $$($(1)_OBJS)
-	$(CC) -o $$@ $$($(1)_OBJS) $(LDFLAGS)
+	gcc -o $$@ $$($(1)_OBJS) $(LDFLAGS)
 endef
 $(foreach D, $(EXES), $(eval $(call DEFINE_EXE_TARGET,$(D))))
 
 -include $(OBJ_DIR)/*.d
 
 define DEFINE_OBJ_TARGET
-$(OBJ_DIR)/%.o: $(1)/%.c $(PARENT_DEPS)
+$(OBJ_DIR)/%.s: $(1)/%.c $(PARENT_DEPS)
 	@mkdir -p $(OBJ_DIR)
 	$(CC) $(CFLAGS) -DXCC_TARGET_ARCH=XCC_ARCH_$(ARCHTYPE_UPPER) \
 		$$($(subst /,_,$(1))_CFLAGS) \
-		-c -o $$@ $$<
+		-S -o $$@ $$<
 endef
 XCC_SRC_DIRS:=$(XCC_DIR) $(CC1_FE_DIR) $(CC1_BE_DIR) $(CC1_DIR) $(CC1_ARCH_DIR) $(CPP_DIR) \
 	$(AS_DIR) $(AS_ARCH_DIR) $(LD_DIR) $(UTIL_DIR) $(DEBUG_DIR)
@@ -341,7 +341,7 @@ dump_type_SRCS:=$(DEBUG_DIR)/dump_type.c $(CC1_FE_DIR)/parser_expr.c $(CC1_FE_DI
 	$(CC1_FE_DIR)/ast.c $(CC1_FE_DIR)/var.c $(UTIL_DIR)/util.c $(UTIL_DIR)/table.c
 
 define DEFINE_DEBUG_TARGET
-$(1)_OBJS:=$(addprefix $(OBJ_DIR)/,$(notdir $($(1)_SRCS:.c=.o)))
+$(1)_OBJS:=$(addprefix $(OBJ_DIR)/,$(notdir $($(1)_SRCS:.c=.s)))
 $(1):	$$($(1)_OBJS)
 	$(CC) -o $$@ $(DEBUG_CFLAGS) $$^
 endef
