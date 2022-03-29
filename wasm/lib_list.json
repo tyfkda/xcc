@@ -2,9 +2,12 @@
   "usr": {
     "include": {
       "sys": {
+        "random.h": "../include/sys/random.h",
         "types.h": "../include/sys/types.h"
       },
+      "assert.h": "../include/assert.h",
       "ctype.h": "../include/ctype.h",
+      "errno.h": "../include/errno.h",
       "fcntl.h": "../include/fcntl.h",
       "math.h": "../include/math.h",
       "stdarg.h": "../include/stdarg.h",
@@ -18,11 +21,12 @@
     },
     "lib": {
       "_file.h": "../lib/_file.h",
-      "lib.c": [
-        "runtime/lib.c",
-        "../lib/crt0.c",
-        "../lib/sprintf.c",
-        "../lib/umalloc.c"
+      "crt0.c": "../lib/crt0.c",
+      "libc.c": [
+        "../lib/_assert.c",
+        "../lib/_sprintf.c",
+        "../lib/_stdio.c",
+        "../lib/_umalloc.c"
       ]
     }
   }

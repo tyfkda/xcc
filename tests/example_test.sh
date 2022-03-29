@@ -1,5 +1,9 @@
 #!/bin/bash
 
+if [ "$(uname)" == 'Darwin' ]; then
+  exit 0
+fi
+
 XCC=${XCC:-../xcc}
 
 try() {
@@ -44,5 +48,5 @@ try_cmp() {
 try 'hello' 'Hello, world!' ../examples/hello.c
 try 'fib' 832040 ../examples/fib.c
 try 'echo' 'foo bar baz' ../examples/echo.c foo bar baz
-try 'longjmp_test' '123' "../examples/longjmp_test.c ../lib/setjmp.c"
-try_cmp 'mandelbrot' '../examples/mandelbrot.ppm' 'mandelbrot.ppm' "../examples/mandelbrot.c ../lib/sprintf.c ../lib/umalloc.c ../lib/lib.c ../lib/crt0.c" 100 256 256
+try 'longjmp_test' '123' ../examples/longjmp_test.c
+try_cmp 'mandelbrot' '../examples/mandelbrot.ppm' 'mandelbrot.ppm' ../examples/mandelbrot.c 100 256 256

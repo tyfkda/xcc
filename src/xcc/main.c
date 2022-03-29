@@ -5,6 +5,7 @@
 #include <getopt.h>
 #include <libgen.h>  // dirname
 #include <signal.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -260,6 +261,7 @@ int main(int argc, char *argv[]) {
   char *as_path = "as";
   char *ld_path = "cc";
 #endif
+  bool nodefaultlibs = false, nostdlib = false;
 
   Vector *cpp_cmd = new_vector();
   vec_push(cpp_cmd, cpp_path);
@@ -287,7 +289,7 @@ int main(int argc, char *argv[]) {
   };
   int opt;
   int longindex;
-  while ((opt = getopt_long(argc, argv, "hVcESI:D:o:", longopts, &longindex)) != -1) {
+  while ((opt = getopt_long(argc, argv, "hVcESI:D:o:n:", longopts, &longindex)) != -1) {
     switch (opt) {
     case 'h':
       usage(stdout);
@@ -315,6 +317,15 @@ int main(int argc, char *argv[]) {
       break;
     case 'S':
       out_type = OutAssembly;
+      break;
+    case 'n':
+      if (strcmp(optarg, "odefaultlibs") == 0) {
+        nodefaultlibs = true;
+      } else if (strcmp(optarg, "ostdlib") == 0) {
+        nostdlib = true;
+      } else {
+        fprintf(stderr, "unknown option: n%s\n", optarg);
+      }
       break;
     }
   }
@@ -357,9 +368,20 @@ int main(int argc, char *argv[]) {
 #endif
   }
 
-  int res = 0;
+  Vector *sources = new_vector();
   for (int i = iarg; i < argc; ++i) {
-    char *src = argv[i];
+    vec_push(sources, argv[i]);
+  }
+  if (out_type >= OutExecutable) {
+    if (!nostdlib)
+      vec_push(sources, cat_path(root, "lib/crt0.c"));
+    if (!nodefaultlibs && !nostdlib)
+      vec_push(sources, cat_path(root, "lib/libc.c"));
+  }
+
+  int res = 0;
+  for (int i = 0; i < sources->len; ++i) {
+    char *src = sources->data[i];
     char *ext = get_ext(src);
     if (strcasecmp(ext, "c") == 0) {
       res = compile_csource(src, out_type, ofn, ofd, cpp_cmd, cc1_cmd, as_cmd, ld_cmd);

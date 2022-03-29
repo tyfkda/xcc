@@ -855,12 +855,33 @@ static void compile1(FILE *ifp, const char *filename, Vector *decls) {
   parse(decls);
 }
 
+static bool add_lib(Vector *lib_paths, const char *fn, Vector *sources) {
+  for (int i = 0; i < lib_paths->len; ++i) {
+    char *path = cat_path(lib_paths->data[i], fn);
+    FILE *fp = fopen(path, "r");  // TODO: use stat.
+    if (fp != NULL) {
+      fclose(fp);
+      vec_push(sources, path);
+      return true;
+    }
+    free(path);
+  }
+  return false;
+}
+
 int main(int argc, char *argv[]) {
   const char *root = dirname(strdup(argv[0]));
+  if (!is_fullpath(root)) {
+    char *cwd = getcwd(NULL, 0);
+    root = cat_path(cwd, root);
+  }
+
   const char *ofn = "a.wasm";
   Vector *exports = new_vector();
   uint32_t stack_size = DEFAULT_STACK_SIZE;
   const char *entry_point = "_start";
+  bool nodefaultlibs = false, nostdlib = false;
+  Vector *lib_paths = new_vector();
 
   FILE *ppout = tmpfile();
   if (ppout == NULL)
@@ -870,14 +891,7 @@ int main(int argc, char *argv[]) {
   define_macro_simple("__ILP32__");
   define_macro_simple("__WASM");
   add_system_inc_path(cat_path(root, "include"));
-  {
-    const char *path = root;
-    if (!is_fullpath(root)) {
-      char *cwd = getcwd(NULL, 0);
-      path = cat_path(cwd, root);
-    }
-    add_system_inc_path(cat_path(path, "../include"));
-  }
+  add_system_inc_path(cat_path(root, "../include"));
 
   init_compiler();
 
@@ -894,7 +908,7 @@ int main(int argc, char *argv[]) {
   };
   int opt;
   int longindex;
-  while ((opt = getopt_long(argc, argv, "o:e:I:D:", longopts, &longindex)) != -1) {
+  while ((opt = getopt_long(argc, argv, "o:e:I:D:L:n:", longopts, &longindex)) != -1) {
     switch (opt) {
     case 'o':
       ofn = optarg;
@@ -918,6 +932,18 @@ int main(int argc, char *argv[]) {
     case 'D':
       define_macro(optarg);
       break;
+    case 'L':
+      vec_push(lib_paths, optarg);
+      break;
+    case 'n':
+      if (strcmp(optarg, "odefaultlibs") == 0) {
+        nodefaultlibs = true;
+      } else if (strcmp(optarg, "ostdlib") == 0) {
+        nostdlib = true;
+      } else {
+        fprintf(stderr, "unknown option: n%s\n", optarg);
+      }
+      break;
     case OPT_STACK_SIZE:
       {
         int size = atoi(optarg);
@@ -939,6 +965,13 @@ int main(int argc, char *argv[]) {
     }
   }
 
+  int iarg = optind;
+  if (iarg >= argc) {
+    fprintf(stderr, "No input files\n\n");
+    // usage(stderr);
+    return 1;
+  }
+
   if (entry_point != NULL)
     vec_push(exports, alloc_name(entry_point, NULL, false));
   if (exports->len == 0) {
@@ -952,20 +985,28 @@ int main(int argc, char *argv[]) {
   }
   VERBOSES("\n");
 
+  Vector *sources = new_vector();
+  for (int i = iarg; i < argc; ++i) {
+    vec_push(sources, argv[i]);
+  }
+  // if (out_type >= OutExecutable)
+  {
+    vec_push(lib_paths, cat_path(root, "../lib"));
+    if (!nostdlib)
+      add_lib(lib_paths, "crt0.c", sources);
+    if (!nodefaultlibs && !nostdlib)
+      add_lib(lib_paths, "libc.c", sources);
+  }
+
   // Preprocess.
-  int iarg = optind;
-  if (iarg < argc) {
-    for (int i = iarg; i < argc; ++i) {
-      const char *filename = argv[i];
-      FILE *ifp = fopen(filename, "r");
-      if (ifp == NULL)
-        error("Cannot open file: %s\n", filename);
-      fprintf(ppout, "# 1 \"%s\" 1\n", filename);
-      preprocess(ifp, filename);
-      fclose(ifp);
-    }
-  } else {
-    preprocess(stdin, "*stdin*");
+  for (int i = 0; i < sources->len; ++i) {
+    const char *filename = sources->data[i];
+    FILE *ifp = fopen(filename, "r");
+    if (ifp == NULL)
+      error("Cannot open file: %s\n", filename);
+    fprintf(ppout, "# 1 \"%s\" 1\n", filename);
+    preprocess(ifp, filename);
+    fclose(ifp);
   }
   if (fseek(ppout, 0, SEEK_SET) != 0) {
     error("fseek failed");

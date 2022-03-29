@@ -151,6 +151,10 @@ function tmpfileSync(len) {
           files[fd].position = position
           return position
         },
+        unlink: (fn) => {
+          fs.delete(fn)
+          return 0
+        },
         _tmpfile: () => {
           const fd = tmpfileSync()
           if (fd >= 0) {

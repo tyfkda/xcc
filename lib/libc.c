@@ -1,0 +1,7 @@
+#include "_assert.c"
+#include "_getopt.c"
+#include "_math.c"
+#include "_setjmp.c"
+#include "_sprintf.c"
+#include "_stdio.c"
+#include "_umalloc.c"

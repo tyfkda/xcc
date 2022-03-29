@@ -166,7 +166,6 @@ async function saveToLocalFile(fileHandle: FileSystemFileHandle): Promise<boolea
 
 const WCC_PATH = 'cc.wasm'
 const LIBS_PATH = 'libs.json'
-const LIBC_FILE_NAME = '/usr/lib/lib.c'
 
 const storage = new WaStorage()
 
@@ -178,7 +177,7 @@ async function compile(sourceCode: string): Promise<Uint8Array|null> {
   waproc.chdir(`/home/${USER}`)
   waproc.saveFile(sourceName, sourceCode)
 
-  const args = ['cc', '-I/usr/include', sourceName, LIBC_FILE_NAME]
+  const args = ['cc', '-I/usr/include', '-L/usr/lib', sourceName]
   const result = await waproc.runWasmMain(wccWasm, '_start', args)
   if (result !== 0)
     return null
