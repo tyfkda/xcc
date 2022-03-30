@@ -388,67 +388,55 @@ static Initializer *flatten_initializer(Type *type, Initializer *init) {
   return init;
 }
 
-static Expr *check_global_initializer_fixnum(Expr *value) {
+static Expr *check_global_initializer_fixnum(Expr *value, bool *isconst) {
   switch (value->kind) {
-  case EX_CAST:
-    value->unary.sub = check_global_initializer_fixnum(value->unary.sub);
+  case EX_FIXNUM:
+#ifndef __NO_FLONUM
+  case EX_FLONUM:
+#endif
+    *isconst = true;
     break;
-  case EX_REF:
-    {
-      Expr *ref = value->unary.sub;
-      while (ref->kind == EX_MEMBER) {
-        if (ref->token->kind != TK_DOT) {
-          parse_error_nofatal(ref->token, "invalid initializer");
-        }
-        ref = ref->member.target;
-      }
-      if (ref->kind == EX_VAR) {
-        const Name *name = ref->var.name;
-        Scope *scope;
-        VarInfo *varinfo = scope_find(ref->var.scope, name, &scope);
-        assert(varinfo != NULL);
-        if (!is_global_scope(scope)) {
-          if (!(varinfo->storage & VS_STATIC))
-            parse_error(ref->token, "Allowed global reference only");
-          assert(varinfo->static_.gvar != NULL);
-        }
-      } else {
-        parse_error(ref->token, "pointer initializer must be variable");
-      }
-    }
+  case EX_STR:
+    // Create string and point to it.
+    value = str_to_char_array_var(curscope, value, toplevel);
+    *isconst = true;
     break;
   case EX_VAR:
     {
       Scope *scope;
       VarInfo *varinfo = scope_find(value->var.scope, value->var.name, &scope);
       assert(varinfo != NULL);
-      if (!is_global_scope(scope)) {
-        if (!(varinfo->storage & VS_STATIC))
-          parse_error(value->token, "Allowed global reference only");
-        varinfo = varinfo->static_.gvar;
-        assert(varinfo != NULL);
-      }
-
-      if (varinfo->type->kind != TY_ARRAY && varinfo->type->kind != TY_FUNC)
-        parse_error(value->token, "Illegal type");
+      if (!is_global_scope(scope) && !(varinfo->storage & VS_STATIC))
+        parse_error(value->token, "Allowed global reference only");
+      *isconst = value->type->kind == TY_ARRAY || value->type->kind == TY_FUNC ||
+                 (value->type->kind == TY_PTR && value->type->pa.ptrof->kind == TY_FUNC);
     }
     break;
   case EX_ADD:
   case EX_SUB:
-    value->bop.lhs = check_global_initializer_fixnum(value->bop.lhs);
-    value->bop.rhs = check_global_initializer_fixnum(value->bop.rhs);
+    {
+      bool lhs_const = false, rhs_const = false;
+      value->bop.lhs = check_global_initializer_fixnum(value->bop.lhs, &lhs_const);
+      value->bop.rhs = check_global_initializer_fixnum(value->bop.rhs, &rhs_const);
+      *isconst = lhs_const && rhs_const;
+    }
     break;
-  case EX_FIXNUM:
-#ifndef __NO_FLONUM
-  case EX_FLONUM:
-#endif
+  case EX_REF:
+    value->unary.sub = check_global_initializer_fixnum(value->unary.sub, isconst);
+    *isconst = true;
     break;
-  case EX_STR:
-    // Create string and point to it.
-    value = str_to_char_array_var(curscope, value, toplevel);
+  case EX_DEREF:
+  case EX_CAST:
+    value->unary.sub = check_global_initializer_fixnum(value->unary.sub, isconst);
+    break;
+  case EX_MEMBER:
+    value->member.target = check_global_initializer_fixnum(value->member.target, isconst);
+    if (value->token->kind != TK_DOT)
+      parse_error(value->token, "Allowed global reference only");
+    *isconst = value->type->kind == TY_ARRAY;
     break;
   default:
-    parse_error(value->token, "Initializer type error");
+    *isconst = false;
     break;
   }
   return value;
@@ -484,8 +472,12 @@ static Initializer *check_global_initializer(Type *type, Initializer *init) {
   case TY_PTR:
     {
       assert(init->kind == IK_SINGLE);
-      Expr *value = check_global_initializer_fixnum(init->single);
+      bool isconst = false;
+      Expr *value = check_global_initializer_fixnum(init->single, &isconst);
       init->single = make_cast(type, init->single->token, value, false);
+      if (!isconst) {
+        parse_error_nofatal(init->single->token, "Initializer must be constant");
+      }
     }
     break;
   case TY_ARRAY:

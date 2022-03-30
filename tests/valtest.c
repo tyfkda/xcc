@@ -700,6 +700,18 @@ int main(void) {
     static int *p = &t.x.y.z;
     expect("&member initializer", 3, *p);
   }
+  {
+    static const struct {
+      int a;
+      struct {
+        int b[2];
+      } x[2];
+    } t = {
+      11, { {{22, 23}}, {{33, 34}} }
+    };
+    static int *p = t.x[1].b;
+    expect("member[].member initializer", 33, *p);
+  }
 
   {
     int desig[] = {[2] = 100, [1] 200};

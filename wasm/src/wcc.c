@@ -28,61 +28,16 @@ bool verbose;
 
 ////////////////////////////////////////////////
 
-static void eval_initial_value_member(Expr *expr, Expr **pvar, Fixnum *poffset) {
-  switch (expr->kind) {
-  case EX_VAR:
-    assert(*pvar == NULL);
-    *pvar = expr;
-    break;
-  case EX_MEMBER:
-    {
-      eval_initial_value_member(expr->member.target, pvar, poffset);
-
-      const Type *type = expr->member.target->type;
-      if (ptr_or_array(type))
-        type = type->pa.ptrof;
-      assert(type->kind == TY_STRUCT);
-      const Vector *members = type->struct_.info->members;
-      const MemberInfo *member = members->data[expr->member.index];
-      *poffset += member->offset;
-    }
-    break;
-  default: assert(!"illegal"); break;
-  }
-}
-
 static void eval_initial_value(Expr *expr, Expr **pvar, Fixnum *poffset) {
   switch (expr->kind) {
-  case EX_CAST:
-    eval_initial_value(expr->unary.sub, pvar, poffset);
-    return;
-  case EX_REF:
-    {
-      Expr *sub = expr->unary.sub;
-      switch (sub->kind) {
-      case EX_DEREF:
-        eval_initial_value(sub->unary.sub, pvar, poffset);
-        break;
-      case EX_VAR:
-        eval_initial_value(sub, pvar, poffset);
-        break;
-      case EX_MEMBER:
-        eval_initial_value_member(sub, pvar, poffset);
-        break;
-      default:
-        assert(false);
-        break;
-      }
-    }
-    break;
-  case EX_VAR:
-    assert(*pvar == NULL);
-    *pvar = expr;
-    break;
   case EX_FIXNUM:
     if (!is_const(expr))
       assert(!"initializer type error");
     *poffset = expr->fixnum;
+    break;
+  case EX_VAR:
+    assert(*pvar == NULL);
+    *pvar = expr;
     break;
   case EX_ADD:
   case EX_SUB:
@@ -101,6 +56,24 @@ static void eval_initial_value(Expr *expr, Expr **pvar, Fixnum *poffset) {
       if (expr->kind == EX_SUB)
         offset2 = -offset2;
       *poffset = offset1 + offset2;
+    }
+    break;
+  case EX_REF:
+  case EX_DEREF:
+  case EX_CAST:
+    eval_initial_value(expr->unary.sub, pvar, poffset);
+    return;
+  case EX_MEMBER:
+    {
+      eval_initial_value(expr->member.target, pvar, poffset);
+
+      const Type *type = expr->member.target->type;
+      if (ptr_or_array(type))
+        type = type->pa.ptrof;
+      assert(type->kind == TY_STRUCT);
+      const Vector *members = type->struct_.info->members;
+      const MemberInfo *member = members->data[expr->member.index];
+      *poffset += member->offset;
     }
     break;
   default: assert(false); break;
