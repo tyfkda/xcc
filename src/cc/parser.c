@@ -388,10 +388,10 @@ static Initializer *flatten_initializer(Type *type, Initializer *init) {
   return init;
 }
 
-static Expr *check_global_initializer_fixnum(Type *type, Expr *value) {
+static Expr *check_global_initializer_fixnum(Expr *value) {
   switch (value->kind) {
   case EX_CAST:
-    value->unary.sub = make_cast(value->type, value->token, check_global_initializer_fixnum(value->unary.sub->type, value->unary.sub), true);
+    value->unary.sub = check_global_initializer_fixnum(value->unary.sub);
     break;
   case EX_REF:
     {
@@ -429,25 +429,19 @@ static Expr *check_global_initializer_fixnum(Type *type, Expr *value) {
         assert(varinfo != NULL);
       }
 
-      if ((varinfo->type->kind != TY_ARRAY && varinfo->type->kind != TY_FUNC) ||
-          !can_cast(type, varinfo->type, is_zero(value), false))
+      if (varinfo->type->kind != TY_ARRAY && varinfo->type->kind != TY_FUNC)
         parse_error(value->token, "Illegal type");
     }
     break;
   case EX_ADD:
   case EX_SUB:
-    value->bop.lhs = check_global_initializer_fixnum(value->bop.lhs->type, value->bop.lhs);
-    value->bop.rhs = check_global_initializer_fixnum(value->bop.rhs->type, value->bop.rhs);
+    value->bop.lhs = check_global_initializer_fixnum(value->bop.lhs);
+    value->bop.rhs = check_global_initializer_fixnum(value->bop.rhs);
     break;
   case EX_FIXNUM:
 #ifndef __NO_FLONUM
   case EX_FLONUM:
 #endif
-    if (!can_cast(type, value->type, is_zero(value), false)) {
-      parse_error_nofatal(value->token, "Illegal type");
-    } else {
-      value = make_cast(type, value->token, value, false);
-    }
     break;
   case EX_STR:
     // Create string and point to it.
@@ -490,7 +484,7 @@ static Initializer *check_global_initializer(Type *type, Initializer *init) {
   case TY_PTR:
     {
       assert(init->kind == IK_SINGLE);
-      Expr *value = check_global_initializer_fixnum(type, init->single);
+      Expr *value = check_global_initializer_fixnum(init->single);
       init->single = make_cast(type, init->single->token, value, false);
     }
     break;
