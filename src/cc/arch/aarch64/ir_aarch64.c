@@ -236,8 +236,33 @@ static void ir_out(IR *ir) {
   case IR_PRECALL:
     break;
 
+  case IR_PUSHARG:
+    {
+      const char *src;
+      if (ir->opr1->flag & VRF_CONST) {
+        src = kTmpRegTable[3];
+        mov_immediate(src, ir->opr1->fixnum, true);
+      } else {
+        src = kRegSizeTable[3][ir->opr1->phys];
+      }
+      STR(src, PRE_INDEX(SP, -16));
+    }
+    break;
+
   case IR_CALL:
     {
+      static const char *kArgReg64s[] = {X0, X1, X2, X3, X4, X5, X6, X7};
+
+      int ireg = 0;
+      int total_arg_count = ir->call.total_arg_count;
+      for (int i = 0; i < total_arg_count; ++i) {
+        if (ir->call.arg_vtypes[i]->flag & VRTF_NON_REG)
+          continue;
+        if (ireg < MAX_REG_ARGS) {
+          LDR(kArgReg64s[ireg++], POST_INDEX(SP, 16));
+        }
+      }
+
       if (ir->call.label != NULL) {
         char *label = fmt_name(ir->call.label);
         if (ir->call.global)
@@ -255,6 +280,16 @@ static void ir_out(IR *ir) {
         const char **regs = kRegSizeTable[pow];
         MOV(regs[ir->dst->phys], kRetRegTable[pow]);
       }
+    }
+    break;
+
+  case IR_LOAD_SPILLED:
+    {
+      assert(0 <= ir->size && ir->size < kPow2TableSize);
+      int pow = kPow2Table[ir->size];
+      assert(0 <= pow && pow < 4);
+      const char **regs = kRegSizeTable[pow];
+      LDR(regs[ir->dst->phys], IMMEDIATE_OFFSET(FP, ir->opr1->offset));
     }
     break;
 
@@ -381,6 +416,21 @@ void remove_unnecessary_bb(BBContainer *bbcon) {
     if (ir != NULL && ir->jmp.bb == bb->next)
       vec_pop(bb->irs);
   }
+}
+
+int push_callee_save_regs(unsigned short used) {
+  // int count = 0;
+  // for (int i = 0; i < CALLEE_SAVE_REG_COUNT; ++i) {
+  //   int ireg = kCalleeSaveRegs[i];
+  //   if (used & (1 << ireg)) {
+  //     PUSH(kReg64s[ireg]);
+  //     PUSH_STACK_POS();
+  //     ++count;
+  //   }
+  // }
+  // return count;
+  UNUSED(used);
+  return 0;
 }
 
 void emit_bb_irs(BBContainer *bbcon) {

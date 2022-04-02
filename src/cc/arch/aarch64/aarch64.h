@@ -122,7 +122,9 @@
 
 #define MOV(o1, o2)           EMIT_ASM2("mov", o1, o2)
 #define MOVK(o1, o2, o3)      EMIT_ASM3("movk", o1, o2, o3)
+#define LDP(o1, o2, o3)       EMIT_ASM3("ldp", o1, o2, o3)
 #define LDR(o1, o2)           EMIT_ASM2("ldr", o1, o2)
+#define STP(o1, o2, o3)       EMIT_ASM3("stp", o1, o2, o3)
 #define STR(o1, o2)           EMIT_ASM2("str", o1, o2)
 #define ADD(o1, o2, o3)       EMIT_ASM3("add", o1, o2, o3)
 #define SUB(o1, o2, o3)       EMIT_ASM3("sub", o1, o2, o3)
