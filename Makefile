@@ -6,7 +6,9 @@ AS_DIR:=src/as
 LD_DIR:=src/ld
 UTIL_DIR:=src/util
 OBJ_DIR:=obj
-LIB_DIR=lib
+LIB_DIR:=lib
+
+UNAME:=$(shell uname)
 
 OPTIMIZE:=-O2 -g3
 CFLAGS:=-ansi -std=c11 -pedantic -MMD -Wall -Wextra -Werror -Wold-style-definition \
@@ -103,7 +105,11 @@ clean:
 
 ### Library
 
+ifeq ("$(UNAME)", "Darwin")
+LIB_SRCS:=
+else
 LIB_SRCS:=$(LIB_DIR)/crt0.c $(LIB_DIR)/libc.c
+endif
 LIB_OBJS:=$(LIB_SRCS:.c=.o)
 
 libs: exes $(LIB_OBJS)

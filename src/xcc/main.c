@@ -372,12 +372,14 @@ int main(int argc, char *argv[]) {
   for (int i = iarg; i < argc; ++i) {
     vec_push(sources, argv[i]);
   }
+#ifndef __APPLE__
   if (out_type >= OutExecutable) {
     if (!nostdlib)
       vec_push(sources, cat_path(root, "lib/crt0.o"));
     if (!nodefaultlibs && !nostdlib)
       vec_push(sources, cat_path(root, "lib/libc.o"));
   }
+#endif
 
   int res = 0;
   for (int i = 0; i < sources->len; ++i) {
