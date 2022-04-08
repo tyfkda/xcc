@@ -271,98 +271,41 @@ static void resolve_relas(Vector *elfobjs) {
       const SectionInfo *dst_info = &elfobj->section_infos[shdr->sh_info];
       for (size_t j = 0, n = shdr->sh_size / sizeof(Elf64_Rela); j < n; ++j) {
         const Elf64_Rela *rela = &relas[j];
-        unsigned char type = ELF64_R_TYPE(rela->r_info);
-        switch (type) {
-        case R_X86_64_64:
+        const Elf64_Sym *sym = &symhdrinfo->symtab.symtabs[ELF64_R_SYM(rela->r_info)];
+
+        uintptr_t address = 0;
+        switch (ELF64_ST_BIND(sym->st_info)) {
+        case STB_LOCAL:
           {
-            const Elf64_Sym *sym = &symhdrinfo->symtab.symtabs[ELF64_R_SYM(rela->r_info)];
-            switch (ELF64_ST_BIND(sym->st_info)) {
-            case STB_LOCAL:
-              {
-                assert(ELF64_R_SYM(rela->r_info) < elfobj->ehdr.e_shnum);
-                const Elf64_Shdr *tshdr = &elfobj->shdrs[ELF64_R_SYM(rela->r_info)];
-                assert(tshdr->sh_type == SHT_PROGBITS || tshdr->sh_type == SHT_NOBITS);
-
-                const SectionInfo *s = &elfobj->section_infos[ELF64_R_SYM(rela->r_info)];
-                intptr_t offset = s->progbits.address;
-                // intptr_t current = elfobj->section_infos[shdr->sh_info].progbits.address;
-                uint64_t *p = (uint64_t*)&dst_info->progbits.content[rela->r_offset];
-                *p = offset + rela->r_addend;
-              }
-              break;
-            case STB_GLOBAL:
-              {
-                const char *label = &strinfo->strtab.buf[sym->st_name];
-
-                ElfObj *telfobj;
-                const Elf64_Sym *tsym = find_symbol_from_all(elfobjs, alloc_name(label, NULL, false), &telfobj);
-                assert(tsym != NULL && tsym->st_shndx > 0);
-
-                const Elf64_Shdr *tshdr = &telfobj->shdrs[tsym->st_shndx];
-                assert(tshdr->sh_type == SHT_PROGBITS || tshdr->sh_type == SHT_NOBITS);
-                intptr_t offset = telfobj->section_infos[tsym->st_shndx].progbits.address;
-                // intptr_t current = elfobj->section_infos[shdr->sh_info].progbits.address;
-                uint64_t *p = (uint64_t*)&dst_info->progbits.content[rela->r_offset];
-                *p = (offset + tsym->st_value) + rela->r_addend;
-              }
-              break;
-            default: assert(false); break;
-            }
+            assert(ELF64_R_SYM(rela->r_info) < elfobj->ehdr.e_shnum);
+            const SectionInfo *s = &elfobj->section_infos[ELF64_R_SYM(rela->r_info)];
+            address = s->progbits.address;
           }
           break;
-        case R_X86_64_PC32:
+        case STB_GLOBAL:
           {
-            const Elf64_Sym *sym = &symhdrinfo->symtab.symtabs[ELF64_R_SYM(rela->r_info)];
-            switch (ELF64_ST_BIND(sym->st_info)) {
-            case STB_LOCAL:
-              {
-                assert(ELF64_R_SYM(rela->r_info) < elfobj->ehdr.e_shnum);
-                const Elf64_Shdr *tshdr = &elfobj->shdrs[ELF64_R_SYM(rela->r_info)];
-                assert(tshdr->sh_type == SHT_PROGBITS || tshdr->sh_type == SHT_NOBITS);
-
-                const SectionInfo *s = &elfobj->section_infos[ELF64_R_SYM(rela->r_info)];
-                intptr_t offset = s->progbits.address;
-                intptr_t current = elfobj->section_infos[shdr->sh_info].progbits.address;
-                uint32_t *p = (uint32_t*)&dst_info->progbits.content[rela->r_offset];
-                *p = offset - (current + rela->r_offset) + rela->r_addend;
-              }
-              break;
-            case STB_GLOBAL:
-              {
-                const char *label = &strinfo->strtab.buf[sym->st_name];
-
-                ElfObj *telfobj;
-                const Elf64_Sym *tsym = find_symbol_from_all(elfobjs, alloc_name(label, NULL, false), &telfobj);
-                assert(tsym != NULL && tsym->st_shndx > 0);
-
-                const Elf64_Shdr *tshdr = &telfobj->shdrs[tsym->st_shndx];
-                assert(tshdr->sh_type == SHT_PROGBITS || tshdr->sh_type == SHT_NOBITS);
-                intptr_t offset = telfobj->section_infos[tsym->st_shndx].progbits.address;
-                intptr_t current = elfobj->section_infos[shdr->sh_info].progbits.address;
-                uint32_t *p = (uint32_t*)&dst_info->progbits.content[rela->r_offset];
-                *p = (offset + tsym->st_value) - (current + rela->r_offset) + rela->r_addend;
-              }
-              break;
-            default: assert(false); break;
-            }
-          }
-          break;
-        case R_X86_64_PLT32:
-          {
-            const Elf64_Sym *sym = &symhdrinfo->symtab.symtabs[ELF64_R_SYM(rela->r_info)];
             const char *label = &strinfo->strtab.buf[sym->st_name];
-
             ElfObj *telfobj;
             const Elf64_Sym *tsym = find_symbol_from_all(elfobjs, alloc_name(label, NULL, false), &telfobj);
             assert(tsym != NULL && tsym->st_shndx > 0);
-
             const Elf64_Shdr *tshdr = &telfobj->shdrs[tsym->st_shndx];
-            assert(tshdr->sh_type == SHT_PROGBITS);
-            intptr_t offset = telfobj->section_infos[tsym->st_shndx].progbits.address;
-            intptr_t current = elfobj->section_infos[shdr->sh_info].progbits.address;
-            uint32_t *p = (uint32_t*)&dst_info->progbits.content[rela->r_offset];
-            *p = (offset + tsym->st_value) - (current + rela->r_offset) + rela->r_addend;
+            assert(tshdr->sh_type == SHT_PROGBITS || tshdr->sh_type == SHT_NOBITS);
+            address = telfobj->section_infos[tsym->st_shndx].progbits.address + tsym->st_value;
           }
+          break;
+        default: assert(false); break;
+        }
+        address += rela->r_addend;
+
+        void *p = dst_info->progbits.content + rela->r_offset;
+        uintptr_t pc = elfobj->section_infos[shdr->sh_info].progbits.address + rela->r_offset;
+        switch (ELF64_R_TYPE(rela->r_info)) {
+        case R_X86_64_64:
+          *(uint64_t*)p = address;
+          break;
+        case R_X86_64_PC32:
+        case R_X86_64_PLT32:
+          *(uint32_t*)p = address - pc;
           break;
         default: assert(false); break;
         }
@@ -442,7 +385,7 @@ static bool link_elfobjs(Vector *elfobjs, const Name *entry, uintptr_t start_add
           const Name *name;
           Elf64_Sym *sym;
           for (int it = 0; (it = table_iterate(names, it, &name, (void**)&sym)) != -1; ) {
-            unsigned char type = sym->st_info & 0x0f;
+            unsigned char type = ELF64_ST_TYPE(sym->st_info);
             if (type != STT_NOTYPE || str[sym->st_name] == '\0')
               continue;
             const Name *name = alloc_name(&str[sym->st_name], NULL, false);
