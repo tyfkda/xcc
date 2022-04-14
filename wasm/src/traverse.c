@@ -53,18 +53,16 @@ static FuncInfo *register_func_info(const Name *funcname, Function *func, const 
   if (!table_try_get(&func_info_table, funcname, (void**)&info)) {
     info = calloc(1, sizeof(*info));
     table_put(&func_info_table, funcname, info);
+    info->type_index = (uint32_t)-1;
   }
   if (func != NULL)
     info->func = func;
-  if (type != NULL)
+  if (type != NULL) {
     info->type = type;
-  if (flag != 0) {
-    if (info->flag == 0) {
-      assert(type != NULL);
+    if (info->type_index == (uint32_t)-1)
       info->type_index = register_func_type(type);
-    }
-    info->flag |= flag;
   }
+  info->flag |= flag;
   return info;
 }
 

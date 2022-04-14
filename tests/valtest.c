@@ -103,7 +103,7 @@ int main(void) {
   expect("octal", 83, 0123);
   expect("negative", -42, (x=42, -x));
   expect("long", 123, 123L);
-  expect("long long", 9876543, 9876543LL);
+  { long long x = 9876543LL; expect("long long", 9876543, x); }
   expect("escape sequence octal", 28, '\034');
   expect("escape sequence hex", 27, '\x1b');
   expect("escape char in str", 19, "\023"[0]);
