@@ -2,8 +2,6 @@
 
 'use strict'
 
-import * as fs from 'fs'
-
 const enum Section {
   TYPE      = 1,
   IMPORT    = 2,
@@ -408,7 +406,7 @@ class BufferReader {
   public u8array(length: number): Uint8Array {
     const u8array = this.byteArray.slice(this.offset, length)
     this.offset += length
-    return u8array;
+    return u8array
   }
 }
 
@@ -512,7 +510,7 @@ function readInst(bufferReader: BufferReader): Inst {
     throw `Unhandled op: 0x${op.toString(16).padStart(2, '0')} at 0x${bufferReader.getOffset().toString(16)}`
   }
 
-  let inst: Inst = {op: table.op}
+  const inst: Inst = {op: table.op}
   if (table.operands != null) {
     inst.operands = table.operands.map(operand => readOperand(bufferReader, operand))
   }
@@ -521,22 +519,25 @@ function readInst(bufferReader: BufferReader): Inst {
 
 let SPACES = '    '
 
-class DisWasm {
+export class DisWasm {
   private bufferReader: BufferReader
   private version = -1
   private codes = new Array<Array<Inst>>()
   private importFuncCount = 0
+  private log: (s: string)=>void = console.log
 
-  constructor(private filename: string) {
-    const content = fs.readFileSync(this.filename)
-    const buffer = new Uint8Array(content).buffer
+  constructor(buffer: ArrayBuffer) {
     this.bufferReader = new BufferReader(buffer)
+  }
+
+  public setLogFunc(logFunc: (s: string)=>void): void {
+    this.log = logFunc
   }
 
   public dump(): void {
     if (!this.checkHeader())
       throw Error('No wasm header')
-    console.log(`WASM version: ${this.version}`)
+    this.log(`WASM version: ${this.version}`)
     this.loadSections()
   }
 
@@ -570,7 +571,7 @@ class DisWasm {
       const len = this.bufferReader.readUleb128()
       const section_start_offset = this.bufferReader.getOffset()
 
-      console.log(`\n=== 0x${offset.toString(16)}: ${SectionNames[sec] || `(section ${sec})`}, len=${len}`)
+      this.log(`\n=== 0x${offset.toString(16)}: ${SectionNames[sec] || `(section ${sec})`}, len=${len}`)
       switch (sec) {
       case Section.TYPE:
       case Section.FUNC:
@@ -614,7 +615,7 @@ class DisWasm {
       const name = this.bufferReader.readString()
       const kind = this.bufferReader.readUleb128()
       const index = this.bufferReader.readUleb128()
-      console.log(`${KindNames[kind] || `kind=${kind}`} ${mod_name}::${name}: index=${index}`)
+      this.log(`${KindNames[kind] || `kind=${kind}`} ${mod_name}::${name}: index=${index}`)
 
       if (kind === 0x00) {
         this.importFuncCount += 1
@@ -628,7 +629,7 @@ class DisWasm {
       const type = readType(this.bufferReader)
       const mut = this.bufferReader.readu8()
       const value = readGlobalValue(this.bufferReader)
-      console.log(`${i}: ${value} (${type}) ${mut !== 0 ? 'mutable' : 'const'}`)
+      this.log(`${i}: ${value} (${type}) ${mut !== 0 ? 'mutable' : 'const'}`)
       this.bufferReader.readu8()  // Skip OP_END
     }
   }
@@ -641,14 +642,14 @@ class DisWasm {
       const name = this.bufferReader.readString()
       const kind = this.bufferReader.readUleb128()
       const index = this.bufferReader.readUleb128()
-      console.log(`${KindNames[kind] || `kind=${kind}`} ${name}: index=${index}`)
+      this.log(`${KindNames[kind] || `kind=${kind}`} ${name}: index=${index}`)
     }
   }
 
   private readCodeSection(): void {
     const num = this.bufferReader.readUleb128()
     for (let i = 0; i < num; ++i) {
-      console.log(`-- Function ${i + this.importFuncCount}`)
+      this.log(`-- Function ${i + this.importFuncCount}`)
       const code = this.readCode()
       this.codes.push(code)
     }
@@ -663,7 +664,7 @@ class DisWasm {
       const t = readType(this.bufferReader)
       return [num, t]
     })
-    console.log(`localTypes: ${localTypes.map(([num, t]) => `(${num}, ${t})`).join(', ')}`)
+    this.log(`localTypes: ${localTypes.map(([num, t]) => `(${num}, ${t})`).join(', ')}`)
 
     const code = new Array<Inst>()
     let indent = 1
@@ -682,7 +683,7 @@ class DisWasm {
         SPACES += SPACES
       const spaces = SPACES.slice(0, indent * 2)
       const operands = inst.operands != null ? inst.operands.map((x) => x.toString()).join(', ') : ''
-      console.log(`${offset.toString(16).padStart(5, '0')}: ${spaces}${inst.op} ${operands != null ? operands.toString() : ''}`)
+      this.log(`${offset.toString(16).padStart(5, '0')}: ${spaces}${inst.op} ${operands != null ? operands.toString() : ''}`)
 
       switch (inst.op) {
       case 'if': case 'block': case 'loop': case 'else':
@@ -693,20 +694,3 @@ class DisWasm {
     return code
   }
 }
-
-function main(argv: string[]) {
-  if (argv.length < 3) {
-    console.error('Usage: [wasm file]')
-    process.exit(1)
-  }
-
-  const diswasm = new DisWasm(argv[2])
-  try {
-    diswasm.dump()
-  } catch (e) {
-    console.error(e)
-    process.exit(1)
-  }
-}
-
-main(process.argv)
