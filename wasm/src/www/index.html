@@ -15,17 +15,25 @@
   </head>
 
   <body>
-    <div x-data="initialData"">
+    <div x-data="initialData">
       <div class="full-size" style="position:absolute">
         <div class="header">
           <label class="nav-open" @click="onClickNavOpen"><span></span></label>
-          <button class="run-btn" @click="runCode()" :disabled="!loaded">Run (⌘+⏎)</button>
-          <span>Args: <input type="text" x-model="args"></span>
+          <div style="position:relative; display:inline">
+            <span class="run-btn" @click="runCode()" :disabled="!loaded" x-text="`${runMode} (⌘+⏎)`"></span
+            ><span class="run-dropdown-btn" :disabled="!loaded" @click="toggleRunModeDropdown()" x-text="showRunModeDropdown?'▲':'▼'"></span>
+
+            <div class="run-dropdown" x-show="showRunModeDropdown" @click="showRunModeDropdown=false" style="z-index:1000">
+              <div @click="setRunMode('Run')">Run</div>
+              <div @click="setRunMode('Compile')">Compile</div>
+            </div>
+          </div>
+          <span x-show="runMode==='Run'">Args: <input type="text" x-model="args"></span>
         </div>
         <div id="editor" class="editor"></div>
       </div>
       <div x-show="showSysmenu" @click="closeSysmenu()" class="sysmenu-container full-size" style="display:none; z-index:1000;">
-        <div class="sysmenu-body" onclick="event.stopPropagation(); return true">
+        <div class="sysmenu-body" onclick="event.stopPropagation()">
           <h4>Load example</h4>
           <select id="example-select" x-model="example">
             <option></option>

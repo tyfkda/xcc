@@ -1,3 +1,4 @@
+import {DisWasm} from './diswasm'
 import {DomUtil} from './dom_util'
 import {Util} from './util'
 import {WaProc, ExitCalledError} from './wa_proc'
@@ -171,13 +172,16 @@ const storage = new WaStorage()
 
 let wccWasm: Uint8Array
 
-async function compile(sourceCode: string): Promise<Uint8Array|null> {
+async function compile(sourceCode: string, extraOptions?: string[]): Promise<Uint8Array|null> {
   const sourceName = 'main.c'
   const waproc = new WaProc(storage)
   waproc.chdir(`/home/${USER}`)
   waproc.saveFile(sourceName, sourceCode)
 
-  const args = ['cc', '-I/usr/include', '-L/usr/lib', sourceName]
+  let args = ['cc', '-I/usr/include', '-L/usr/lib']
+  if (extraOptions != null)
+    args = args.concat(extraOptions)
+  args.push(sourceName)
   const result = await waproc.runWasmMain(wccWasm, '_start', args)
   if (result !== 0)
     return null
@@ -185,7 +189,7 @@ async function compile(sourceCode: string): Promise<Uint8Array|null> {
   return waproc.loadFile('a.wasm')
 }
 
-async function run(argStr: string) {
+async function run(argStr: string, compileAndDump: boolean) {
   if (wccWasm == null)
     return  // TODO: Error message
 
@@ -195,12 +199,20 @@ async function run(argStr: string) {
   // Compile
   let compiledCode: Uint8Array|null
   try {
-    compiledCode = await compile(editor.getValue())
+    const extraOptions = compileAndDump ? ['-nodefaultlibs'] : undefined
+    compiledCode = await compile(editor.getValue(), extraOptions)
     if (compiledCode == null)
       return
   } catch (e) {
     if (!(e instanceof ExitCalledError))
       Util.putTerminalError(e)
+    return
+  }
+
+  if (compileAndDump) {
+    const disWasm = new DisWasm(compiledCode.buffer)
+    disWasm.setLogFunc(s => Util.putTerminal(`${s}\n`))
+    disWasm.dump()
     return
   }
 
@@ -263,6 +275,10 @@ const kFilePickerOption = {
   ],
 }
 
+const RUN = 'Run'
+const COMPILE = 'Compile'
+type RunMode = typeof RUN | typeof COMPILE
+
 window.initialData = {
   showSysmenu: false,
   example: '',
@@ -271,6 +287,8 @@ window.initialData = {
   loaded: false,
   canAccessLocalFile: !!window.showOpenFilePicker,
   fileHandle: null,
+  runMode: RUN,
+  showRunModeDropdown: false,
 
   init() {
     Promise.all([
@@ -318,7 +336,7 @@ window.initialData = {
           win : 'Ctrl-Enter',
           mac : 'Command-Enter',
         },
-        exec: (_editor) => this.loaded && run(this.args),
+        exec: (_editor) => this.loaded && run(this.args, this.runMode === COMPILE),
       },
       {
         name: 'Save',
@@ -425,6 +443,15 @@ window.initialData = {
     return false
   },
   runCode() {
-    this.loaded && run(this.args)
+    this.loaded && run(this.args, this.runMode === COMPILE)
+  },
+  toggleRunModeDropdown() {
+    this.showRunModeDropdown = !this.showRunModeDropdown
+    if (!this.showRunModeDropdown)
+      editor.focus()
+  },
+  setRunMode(mode: RunMode) {
+    this.runMode = mode
+    editor.focus()
   },
 }
