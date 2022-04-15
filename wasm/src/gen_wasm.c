@@ -1023,7 +1023,10 @@ static void gen_switch(Stmt *stmt) {
     value = value->bop.rhs;
   }
   assert(is_const(value) || value->kind == EX_VAR);  // Must be simple expression, because this is evaluated multiple times.
-  assert(type_size(value->type) <= I32_SIZE);
+  assert(is_fixnum(value->type->kind));
+  bool is_i64 = type_size(value->type) > I32_SIZE;
+  unsigned char op_const = is_i64 ? OP_I64_CONST : OP_I32_CONST;
+  unsigned char op_eq = is_i64 ? OP_I64_EQ : OP_I32_EQ;
   int default_index = case_count;
   for (int i = 0; i < case_count; ++i) {
     Stmt *c = cases->data[i];
@@ -1032,9 +1035,9 @@ static void gen_switch(Stmt *stmt) {
       continue;
     }
     gen_expr(value, true);
-    ADD_CODE(OP_I32_CONST);
+    ADD_CODE(op_const);
     ADD_LEB128(c->case_.value->fixnum);
-    ADD_CODE(OP_I32_EQ,
+    ADD_CODE(op_eq,
              OP_BR_IF);
     ADD_ULEB128(i);
   }
