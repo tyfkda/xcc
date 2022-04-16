@@ -1006,6 +1006,38 @@ static void gen_cond_jmp(Expr *cond, bool tf, uint32_t depth) {
   ADD_ULEB128(depth);
 }
 
+static void gen_switch_table_jump(Stmt *stmt, Expr *value, Fixnum min, Fixnum max, int default_index) {
+  Vector *cases = stmt->switch_.cases;
+  int case_count = cases->len;
+
+  unsigned int vrange = max - min + 1;
+  int *table = malloc(sizeof(*table) * vrange);
+  for (unsigned int i = 0; i < vrange; ++i)
+    table[i] = default_index;
+  for (int i = 0; i < case_count; ++i) {
+    Stmt *c = cases->data[i];
+    if (c->case_.value != NULL)
+      table[c->case_.value->fixnum - min] = i;
+  }
+
+  gen_expr(value, true);
+  bool is_i64 = type_size(value->type) > I32_SIZE;
+  if (min != 0) {
+    ADD_CODE(is_i64 ? OP_I64_CONST : OP_I32_CONST);
+    ADD_LEB128(min);
+    ADD_CODE(is_i64 ? OP_I64_SUB : OP_I32_SUB);
+  }
+  if (is_i64)
+    ADD_CODE(OP_I32_WRAP_I64);
+  ADD_CODE(OP_BR_TABLE);
+  ADD_ULEB128(vrange);
+  for (unsigned int i = 0; i < vrange; ++i)
+    ADD_ULEB128(table[i]);
+  ADD_ULEB128(default_index);
+
+  free(table);
+}
+
 static void gen_switch(Stmt *stmt) {
   int save_depth = break_depth;
   break_depth = cur_depth;
@@ -1024,26 +1056,46 @@ static void gen_switch(Stmt *stmt) {
   }
   assert(is_const(value) || value->kind == EX_VAR);  // Must be simple expression, because this is evaluated multiple times.
   assert(is_fixnum(value->type->kind));
-  bool is_i64 = type_size(value->type) > I32_SIZE;
-  unsigned char op_const = is_i64 ? OP_I64_CONST : OP_I32_CONST;
-  unsigned char op_eq = is_i64 ? OP_I64_EQ : OP_I32_EQ;
+
   int default_index = case_count;
+  Fixnum min = INTPTR_MAX;
+  Fixnum max = INTPTR_MIN;
   for (int i = 0; i < case_count; ++i) {
     Stmt *c = cases->data[i];
-    if (c->kind == ST_DEFAULT) {
+    if (c->case_.value == NULL) {
       default_index = i;
       continue;
     }
-    gen_expr(value, true);
-    ADD_CODE(op_const);
-    ADD_LEB128(c->case_.value->fixnum);
-    ADD_CODE(op_eq,
-             OP_BR_IF);
-    ADD_ULEB128(i);
+    Fixnum v = c->case_.value->fixnum;
+    if (v < min)
+      min = v;
+    if (v > max)
+      max = v;
   }
-  // Jump to default.
-  ADD_CODE(OP_BR);
-  ADD_ULEB128(default_index);
+
+  if (case_count >= 4 && (max - min) / 2 <= case_count) {
+    gen_switch_table_jump(stmt, value, min, max, default_index);
+  } else {
+    bool is_i64 = type_size(value->type) > I32_SIZE;
+    unsigned char op_const = is_i64 ? OP_I64_CONST : OP_I32_CONST;
+    unsigned char op_eq = is_i64 ? OP_I64_EQ : OP_I32_EQ;
+    for (int i = 0; i < case_count; ++i) {
+      Stmt *c = cases->data[i];
+      if (c->kind == ST_DEFAULT) {
+        default_index = i;
+        continue;
+      }
+      gen_expr(value, true);
+      ADD_CODE(op_const);
+      ADD_LEB128(c->case_.value->fixnum);
+      ADD_CODE(op_eq,
+              OP_BR_IF);
+      ADD_ULEB128(i);
+    }
+    // Jump to default.
+    ADD_CODE(OP_BR);
+    ADD_ULEB128(default_index);
+  }
 
   // Body.
   gen_stmt(stmt->switch_.body);

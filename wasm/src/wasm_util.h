@@ -33,6 +33,7 @@ typedef struct {
 #define OP_END            (0x0b)
 #define OP_BR             (0x0c)
 #define OP_BR_IF          (0x0d)
+#define OP_BR_TABLE       (0x0e)
 #define OP_RETURN         (0x0f)
 #define OP_CALL           (0x10)
 #define OP_CALL_INDIRECT  (0x11)
