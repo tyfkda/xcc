@@ -407,7 +407,7 @@ static void emit_wasm(FILE *ofp, Vector *exports, uint32_t address_bottom) {
       int name_len = name->bytes;
       emit_uleb128(&imports_section, imports_section.len, name_len);  // string length
       data_append(&imports_section, (const unsigned char*)name->chars, name_len);  // import name
-      emit_uleb128(&imports_section, imports_section.len, IMPORT_FUNC);  // import kind
+      data_push(&imports_section, IMPORT_FUNC);  // import kind
       emit_uleb128(&imports_section, imports_section.len, type_index);  // import signature index
       ++imports_count;
     }
@@ -525,7 +525,7 @@ static void emit_wasm(FILE *ofp, Vector *exports, uint32_t address_bottom) {
         continue;
       emit_uleb128(&exports_section, exports_section.len, name->bytes);  // string length
       data_append(&exports_section, (const unsigned char*)name->chars, name->bytes);  // export name
-      emit_uleb128(&exports_section, exports_section.len, EXPORT_GLOBAL);  // export kind
+      data_push(&exports_section, EXPORT_GLOBAL);  // export kind
       emit_uleb128(&exports_section, exports_section.len, info->prim.index);  // export global index
       ++num_exports;
     }

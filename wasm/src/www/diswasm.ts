@@ -170,17 +170,31 @@ const enum WasmType {
   I32        = 0x7f,
 }
 
+const enum ImportKind {
+  FUNC = 0,
+  MEMORY = 2,
+  GLOBAL = 3,
+}
+
+const enum OpKind {
+  MISC,
+  BLOCK,
+  LOAD,
+  STORE,
+  BR_TABLE,
+}
+
 const InstTable = new Map([
   [Opcode.UNREACHABLE, {op: 'unreachable'}],
   [Opcode.NOP, {op: 'nop'}],
-  [Opcode.BLOCK, {op: 'block', operands: ['type']}],
-  [Opcode.LOOP, {op: 'loop', operands: ['type']}],
-  [Opcode.IF, {op: 'if', operands: ['type']}],
+  [Opcode.BLOCK, {op: 'block', operands: ['type'], opKind: OpKind.BLOCK}],
+  [Opcode.LOOP, {op: 'loop', operands: ['type'], opKind: OpKind.BLOCK}],
+  [Opcode.IF, {op: 'if', operands: ['type'], opKind: OpKind.BLOCK}],
   [Opcode.ELSE, {op: 'else'}],
   [Opcode.END, {op: 'end'}],
   [Opcode.BR, {op: 'br', operands: ['uleb128']}],
   [Opcode.BR_IF, {op: 'br_if', operands: ['uleb128']}],
-  [Opcode.BR_TABLE, {op: 'br_table', operands: ['uleb128array', 'uleb128']}],
+  [Opcode.BR_TABLE, {op: 'br_table', operands: ['uleb128array', 'uleb128'], opKind: OpKind.BR_TABLE}],
   [Opcode.RETURN, {op: 'return'}],
   [Opcode.CALL, {op: 'call', operands: ['uleb128']}],
   [Opcode.CALL_INDIRECT, {op: 'call_indirect', operands: ['uleb128', 'uleb128']}],
@@ -191,23 +205,23 @@ const InstTable = new Map([
   [Opcode.LOCAL_TEE, {op: 'local.tee', operands: ['uleb128']}],
   [Opcode.GLOBAL_GET, {op: 'global.get', operands: ['uleb128']}],
   [Opcode.GLOBAL_SET, {op: 'global.set', operands: ['uleb128']}],
-  [Opcode.I32_LOAD, {op: 'i32.load', operands: ['uleb128', 'uleb128']}],
-  [Opcode.I64_LOAD, {op: 'i64.load', operands: ['uleb128', 'uleb128']}],
-  [Opcode.F32_LOAD, {op: 'f32.load', operands: ['uleb128', 'uleb128']}],
-  [Opcode.F64_LOAD, {op: 'f64.load', operands: ['uleb128', 'uleb128']}],
-  [Opcode.I32_STORE, {op: 'i32.store', operands: ['uleb128', 'uleb128']}],
-  [Opcode.I64_STORE, {op: 'i64.store', operands: ['uleb128', 'uleb128']}],
-  [Opcode.F32_STORE, {op: 'f32.store', operands: ['uleb128', 'uleb128']}],
-  [Opcode.F64_STORE, {op: 'f64.store', operands: ['uleb128', 'uleb128']}],
-  [Opcode.I32_LOAD8_S, {op: 'i32.load8_s', operands: ['uleb128', 'uleb128']}],
-  [Opcode.I32_LOAD8_U, {op: 'i32.load8_u', operands: ['uleb128', 'uleb128']}],
-  [Opcode.I32_LOAD16_S, {op: 'i32.load16_s', operands: ['uleb128', 'uleb128']}],
-  [Opcode.I32_LOAD16_U, {op: 'i32.load16_u', operands: ['uleb128', 'uleb128']}],
-  [Opcode.I32_STORE8, {op: 'i32.store8', operands: ['uleb128', 'uleb128']}],
-  [Opcode.I32_STORE16, {op: 'i32.store16', operands: ['uleb128', 'uleb128']}],
-  [Opcode.I64_STORE8, {op: 'i64.store8', operands: ['uleb128', 'uleb128']}],
-  [Opcode.I64_STORE16, {op: 'i64.store16', operands: ['uleb128', 'uleb128']}],
-  [Opcode.I64_STORE32, {op: 'i64.store32', operands: ['uleb128', 'uleb128']}],
+  [Opcode.I32_LOAD, {op: 'i32.load', operands: ['uleb128', 'uleb128'], opKind: OpKind.LOAD}],
+  [Opcode.I64_LOAD, {op: 'i64.load', operands: ['uleb128', 'uleb128'], opKind: OpKind.LOAD}],
+  [Opcode.F32_LOAD, {op: 'f32.load', operands: ['uleb128', 'uleb128'], opKind: OpKind.LOAD}],
+  [Opcode.F64_LOAD, {op: 'f64.load', operands: ['uleb128', 'uleb128'], opKind: OpKind.LOAD}],
+  [Opcode.I32_STORE, {op: 'i32.store', operands: ['uleb128', 'uleb128'], opKind: OpKind.STORE}],
+  [Opcode.I64_STORE, {op: 'i64.store', operands: ['uleb128', 'uleb128'], opKind: OpKind.STORE}],
+  [Opcode.F32_STORE, {op: 'f32.store', operands: ['uleb128', 'uleb128'], opKind: OpKind.STORE}],
+  [Opcode.F64_STORE, {op: 'f64.store', operands: ['uleb128', 'uleb128'], opKind: OpKind.STORE}],
+  [Opcode.I32_LOAD8_S, {op: 'i32.load8_s', operands: ['uleb128', 'uleb128'], opKind: OpKind.LOAD}],
+  [Opcode.I32_LOAD8_U, {op: 'i32.load8_u', operands: ['uleb128', 'uleb128'], opKind: OpKind.LOAD}],
+  [Opcode.I32_LOAD16_S, {op: 'i32.load16_s', operands: ['uleb128', 'uleb128'], opKind: OpKind.LOAD}],
+  [Opcode.I32_LOAD16_U, {op: 'i32.load16_u', operands: ['uleb128', 'uleb128'], opKind: OpKind.LOAD}],
+  [Opcode.I32_STORE8, {op: 'i32.store8', operands: ['uleb128', 'uleb128'], opKind: OpKind.STORE}],
+  [Opcode.I32_STORE16, {op: 'i32.store16', operands: ['uleb128', 'uleb128'], opKind: OpKind.STORE}],
+  [Opcode.I64_STORE8, {op: 'i64.store8', operands: ['uleb128', 'uleb128'], opKind: OpKind.STORE}],
+  [Opcode.I64_STORE16, {op: 'i64.store16', operands: ['uleb128', 'uleb128'], opKind: OpKind.STORE}],
+  [Opcode.I64_STORE32, {op: 'i64.store32', operands: ['uleb128', 'uleb128'], opKind: OpKind.STORE}],
   [Opcode.MEMORY_SIZE, {op: 'memory.size', operands: ['uleb128']}],
   [Opcode.MEMORY_GROW, {op: 'memory.grow', operands: ['uleb128']}],
   [Opcode.I32_CONST, {op: 'i32.const', operands: ['leb128']}],
@@ -422,7 +436,9 @@ class Type {
 
   public toString(): string {
     if (typeof(this.type) === 'object') {
-      return `Func{params: ${this.type.params}, result:${this.type.results}}`
+      const params = this.type.params.length === 0 ? '' : ` (param ${this.type.params.map(param => `${param}`).join(' ')})`
+      const results = this.type.results.length === 0 ? '' : ` (result ${this.type.results.map(param => `${param}`).join(' ')})`
+      return `(func${params}${results})`
     } else {
       switch (this.type) {
       case WasmType.VOID:  return 'void'
@@ -498,8 +514,11 @@ function readOperand(bufferReader: BufferReader, operand: string): Operand|Type 
 }
 
 class Inst {
-  public op: string
+  public opcode: Opcode
+  public opKind: OpKind
+  public opstr: string
   public operands?: Array<Operand|Type>
+  public operandTypes?: Array<string>
 }
 
 function readInst(bufferReader: BufferReader): Inst {
@@ -510,18 +529,31 @@ function readInst(bufferReader: BufferReader): Inst {
     throw `Unhandled op: 0x${op.toString(16).padStart(2, '0')} at 0x${bufferReader.getOffset().toString(16)}`
   }
 
-  const inst: Inst = {op: table.op}
+  const inst: Inst = {opcode: op as Opcode, opKind: table.opKind || OpKind.MISC, opstr: table.op}
   if (table.operands != null) {
+    inst.operandTypes = table.operands
     inst.operands = table.operands.map(operand => readOperand(bufferReader, operand))
   }
   return inst
 }
 
 let SPACES = '    '
+function makeIndent(indent: number): string {
+  const len = indent * 2
+  while (len > SPACES.length)
+    SPACES += SPACES
+  return SPACES.slice(0, len)
+}
+
+function addr(adr: number): string {
+  return `(;${adr.toString(16).padStart(5, '0')};)`
+}
 
 export class DisWasm {
   private bufferReader: BufferReader
   private version = -1
+  private types = new Array<Type>()
+  private functions = new Array<number>()
   private codes = new Array<Array<Inst>>()
   private importFuncCount = 0
   private log: (s: string)=>void = console.log
@@ -537,8 +569,10 @@ export class DisWasm {
   public dump(): void {
     if (!this.checkHeader())
       throw Error('No wasm header')
-    this.log(`WASM version: ${this.version}`)
+    this.log('(module')
+    this.log(`;; WASM version: ${this.version}`)
     this.loadSections()
+    this.log(')')
   }
 
   private checkHeader(): boolean {
@@ -571,19 +605,27 @@ export class DisWasm {
       const len = this.bufferReader.readUleb128()
       const section_start_offset = this.bufferReader.getOffset()
 
-      this.log(`\n=== 0x${offset.toString(16)}: ${SectionNames[sec] || `(section ${sec})`}, len=${len}`)
+      this.log(`\n;;=== 0x${offset.toString(16)}: ${SectionNames[sec] || `(section ${sec})`}, len=${len}`)
       switch (sec) {
-      case Section.TYPE:
-      case Section.FUNC:
       case Section.TABLE:
-      case Section.MEMORY:
       case Section.ELEM:
-      case Section.DATA:
         // TODO
+        break
+
+      case Section.TYPE:
+        this.readTypeSection()
         break
 
       case Section.IMPORT:
         this.readImportSection()
+        break
+
+      case Section.FUNC:
+        this.readFuncSection()
+        break
+
+      case Section.MEMORY:
+        this.readMemorySection()
         break
 
       case Section.GLOBAL:
@@ -598,6 +640,10 @@ export class DisWasm {
         this.readCodeSection()
         break
 
+      case Section.DATA:
+        this.readDataSection()
+        break
+
       default:
         throw `Unhandled section: ${sec}, offset=0x${offset.toString(16)}, len=${len}`
       }
@@ -606,50 +652,80 @@ export class DisWasm {
     }
   }
 
-  private readImportSection(): void {
-    const KindNames = ['FUNC  ', null, 'MEMORY', 'GLOBAL']
-
+  private readTypeSection(): void {
     const num = this.bufferReader.readUleb128()
     for (let i = 0; i < num; ++i) {
-      const mod_name = this.bufferReader.readString()
-      const name = this.bufferReader.readString()
-      const kind = this.bufferReader.readUleb128()
-      const index = this.bufferReader.readUleb128()
-      this.log(`${KindNames[kind] || `kind=${kind}`} ${mod_name}::${name}: index=${index}`)
+      const offset = this.bufferReader.getOffset()
+      const type = readType(this.bufferReader)
+      this.types.push(type)
+      this.log(`${addr(offset)} (type (;${i};) ${type.toString()})`)
+    }
+  }
 
-      if (kind === 0x00) {
-        this.importFuncCount += 1
-      }
+  private readImportSection(): void {
+    const num = this.bufferReader.readUleb128()
+    for (let i = 0; i < num; ++i) {
+      const offset = this.bufferReader.getOffset()
+      const modName = this.bufferReader.readString()
+      const name = this.bufferReader.readString()
+      const kind = this.bufferReader.readu8()
+      if (kind !== ImportKind.FUNC)
+        throw(`Illegal import kind: ${kind}`)
+      const index = this.bufferReader.readUleb128()
+      this.log(`${addr(offset)} (import "${modName}" "${name}" (func (;${this.importFuncCount};) (type ${index})))`)
+      this.importFuncCount += 1
+    }
+  }
+
+  private readFuncSection(): void {
+    const num = this.bufferReader.readUleb128()
+    for (let i = 0; i < num; ++i) {
+      const typeIndex = this.bufferReader.readUleb128()
+      this.functions.push(typeIndex)
+    }
+  }
+
+  private readMemorySection(): void {
+    const num = this.bufferReader.readUleb128()
+    for (let i = 0; i < num; ++i) {
+      const offset = this.bufferReader.getOffset()
+      const index = this.bufferReader.readUleb128()
+      const pageCount = this.bufferReader.readUleb128()
+      this.log(`${addr(offset)} (memory (;${index};) ${pageCount})`)
     }
   }
 
   private readGlobalSection(): void {
     const num = this.bufferReader.readUleb128()
     for (let i = 0; i < num; ++i) {
+      const offset = this.bufferReader.getOffset()
       const type = readType(this.bufferReader)
       const mut = this.bufferReader.readu8()
       const value = readGlobalValue(this.bufferReader)
-      this.log(`${i}: ${value} (${type}) ${mut !== 0 ? 'mutable' : 'const'}`)
+      this.log(`${addr(offset)} (global (;${i};) ${mut !== 0 ? `(mut ${type})` : `${type}`} (${type}.const ${value}))`)
       this.bufferReader.readu8()  // Skip OP_END
     }
   }
 
   private readExportSection(): void {
-    const KindNames = ['FUNC  ', null, 'MEMORY', 'GLOBAL']
+    const KindNames = ['func', null, 'memory', 'global']
 
     const num = this.bufferReader.readUleb128()
     for (let i = 0; i < num; ++i) {
+      const offset = this.bufferReader.getOffset()
       const name = this.bufferReader.readString()
-      const kind = this.bufferReader.readUleb128()
+      const kind = this.bufferReader.readu8()
       const index = this.bufferReader.readUleb128()
-      this.log(`${KindNames[kind] || `kind=${kind}`} ${name}: index=${index}`)
+      this.log(`${addr(offset)} (export "${name}" (${KindNames[kind] || `kind=${kind}`} ${index}))`)
     }
   }
 
   private readCodeSection(): void {
     const num = this.bufferReader.readUleb128()
     for (let i = 0; i < num; ++i) {
-      this.log(`-- Function ${i + this.importFuncCount}`)
+      const offset = this.bufferReader.getOffset()
+      const typeIndex = this.functions[i]
+      this.log(`${addr(offset)} (func (;${i + this.importFuncCount};) (type ${typeIndex})`)
       const code = this.readCode()
       this.codes.push(code)
     }
@@ -659,12 +735,14 @@ export class DisWasm {
     const bodySize = this.bufferReader.readUleb128()
     const endOfs = this.bufferReader.getOffset() + bodySize
     const localDeclCount = this.bufferReader.readUleb128()
-    const localTypes = [...Array(localDeclCount)].map(() => {
-      const num = this.bufferReader.readUleb128()
-      const t = readType(this.bufferReader)
-      return [num, t]
-    })
-    this.log(`localTypes: ${localTypes.map(([num, t]) => `(${num}, ${t})`).join(', ')}`)
+    if (localDeclCount > 0) {
+      for (let i = 0; i < localDeclCount; ++i) {
+        const offset = this.bufferReader.getOffset()
+        const num = this.bufferReader.readUleb128()
+        const t = readType(this.bufferReader)
+        this.log(`${addr(offset)}   ${[...Array(num)].map(_ => `(local ${t})`).join(' ')}`)
+      }
+    }
 
     const code = new Array<Inst>()
     let indent = 1
@@ -673,24 +751,66 @@ export class DisWasm {
       const inst = readInst(this.bufferReader)
       code.push(inst)
 
-      switch (inst.op) {
-      case 'else': case 'end':
+      switch (inst.opcode) {
+      case Opcode.ELSE: case Opcode.END:
         --indent
+        if (indent === 0 && inst.opcode === Opcode.END) {
+          this.log(`${addr(offset)} )`)
+          continue
+        }
         break
       }
 
-      while (indent * 2 > SPACES.length)
-        SPACES += SPACES
-      const spaces = SPACES.slice(0, indent * 2)
-      const operands = inst.operands != null ? inst.operands.map((x) => x.toString()).join(', ') : ''
-      this.log(`${offset.toString(16).padStart(5, '0')}: ${spaces}${inst.op} ${operands != null ? operands.toString() : ''}`)
+      const spaces = makeIndent(indent)
+      let operands = ''
+      if (inst.operands != null) {
+        switch (inst.opKind) {
+        case OpKind.BLOCK:
+          {
+            const t = inst.operands[0] as Type
+            if (t.getType() !== WasmType.VOID)
+              operands = `(result ${t.toString()})`
+          }
+          break
+        case OpKind.LOAD:
+        case OpKind.STORE:
+          break
+        case OpKind.BR_TABLE:
+          operands = `${(inst.operands[0] as Array<number>).join(' ')} ${inst.operands[1]}`
+          break
+        default:
+          operands = inst.operands.map((x) => x.toString()).join(' ')
+          break
+        }
+      }
+      this.log(`${addr(offset)} ${spaces}${inst.opstr} ${operands}`.trimEnd())
 
-      switch (inst.op) {
-      case 'if': case 'block': case 'loop': case 'else':
+      switch (inst.opcode) {
+      case Opcode.IF: case Opcode.BLOCK: case Opcode.LOOP: case Opcode.ELSE:
         ++indent
         break
       }
     }
     return code
+  }
+
+  private readDataSection(): void {
+    const num = this.bufferReader.readUleb128()
+    for (let i = 0; i < num; ++i) {
+      const offset = this.bufferReader.getOffset()
+      /*const flag =*/ this.bufferReader.readUleb128()
+      if (this.bufferReader.readu8() !== Opcode.I32_CONST ||
+          this.bufferReader.readu8() !== 0x00 ||
+          this.bufferReader.readu8() !== Opcode.END)
+        throw 'Illegal data'
+      const datasize = this.bufferReader.readUleb128()
+      const data = new Array<string>(datasize)
+      for (let i = 0; i < datasize; ++i) {
+        const c = this.bufferReader.readu8()
+        data[i] = (0x20 <= c && c <= 0x7e) ? String.fromCharCode(c) : `\\${c.toString(16).padStart(2, '0')}`
+      }
+
+      this.log(`${addr(offset)} (data (;${i};) (i32.const 0) "${data.join('')}")`)
+    }
   }
 }
