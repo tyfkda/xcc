@@ -23,7 +23,7 @@
             <span class="run-btn" @click="runCode()" :disabled="!loaded" x-text="`${runMode} (⌘+⏎)`"></span
             ><span class="run-dropdown-btn" :disabled="!loaded" @click="toggleRunModeDropdown()" x-text="showRunModeDropdown?'▲':'▼'"></span>
 
-            <div class="run-dropdown" x-show="showRunModeDropdown" @click="showRunModeDropdown=false" style="z-index:1000">
+            <div class="run-dropdown" x-show="showRunModeDropdown" @click="showRunModeDropdown=false" style="z-index:1000; display:none">
               <div @click="setRunMode('Run')">Run</div>
               <div @click="setRunMode('Compile')">Compile</div>
             </div>
