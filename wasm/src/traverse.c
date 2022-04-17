@@ -29,23 +29,60 @@ bool is_prim_type(const Type *type) {
   return is_number(type) || type->kind == TY_PTR;
 }
 
-int get_func_type_index(const Type *type) {
+static WasmFuncType *wasm_func_type(const Type *type) {
+  const Vector *params = type->func.params;
+  int param_count = params != NULL ? params->len : 0;
+  if (type->func.vaargs)
+    ++param_count;
+
+  DataStorage d;
+  data_init(&d);
+  data_reserve(&d, 2 + param_count + 3);
+
+  emit_uleb128(&d, d.len, param_count);  // num params
+  for (int i = 0; i < param_count; ++i) {
+    if (type->func.vaargs && i == param_count - 1) {
+      data_push(&d, to_wtype(&tyVoidPtr));  // vaarg pointer.
+    } else {
+      VarInfo *varinfo = params->data[i];
+      assert(is_prim_type(varinfo->type));
+      data_push(&d, to_wtype(varinfo->type));
+    }
+  }
+  if (type->func.ret->kind == TY_VOID) {
+    data_push(&d, 0);  // num results
+  } else {
+    assert(is_prim_type(type->func.ret));
+    data_push(&d, 1);  // num results
+    data_push(&d, to_wtype(type->func.ret));
+  }
+
+  WasmFuncType *t = malloc(sizeof(*t) - sizeof(t->buf) + d.len);
+  t->size = d.len;
+  memcpy(t->buf, d.buf, d.len);
+
+  data_release(&d);
+  return t;
+}
+
+static int getsert_func_type_index(const Type *type, bool reg) {
+  WasmFuncType *wt = wasm_func_type(type);
   int len = functypes->len;
   for (int i = 0; i < len; ++i) {
-    const Type *t = functypes->data[i];
-    if (same_type(t, type))
+    const WasmFuncType *t = functypes->data[i];
+    if (wt->size == t->size && memcmp(wt->buf, t->buf, wt->size) == 0)
       return i;
+  }
+  if (reg) {
+    int index = functypes->len;
+    vec_push(functypes, wt);
+    return index;
   }
   return -1;
 }
 
-static int register_func_type(const Type *type) {
-  int index = get_func_type_index(type);
-  if (index < 0) {
-    index = functypes->len;
-    vec_push(functypes, type);
-  }
-  return index;
+int get_func_type_index(const Type *type) {
+  return getsert_func_type_index(type, false);
 }
 
 static FuncInfo *register_func_info(const Name *funcname, Function *func, const Type *type, int flag) {
@@ -60,7 +97,7 @@ static FuncInfo *register_func_info(const Name *funcname, Function *func, const 
   if (type != NULL) {
     info->type = type;
     if (info->type_index == (uint32_t)-1)
-      info->type_index = register_func_type(type);
+      info->type_index = getsert_func_type_index(type, true);
   }
   info->flag |= flag;
   return info;
@@ -171,7 +208,7 @@ static void traverse_func_expr(Expr **pexpr) {
       register_func_info(expr->var.name, NULL, type, FF_REFERED);
     } else {
       assert(type->kind == TY_PTR && type->pa.ptrof->kind == TY_FUNC);
-      register_func_type(type->pa.ptrof);
+      getsert_func_type_index(type->pa.ptrof, true);
     }
   } else {
     traverse_expr(pexpr, true);

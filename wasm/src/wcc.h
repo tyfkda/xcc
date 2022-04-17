@@ -25,7 +25,7 @@ extern const char VA_ARGS_NAME[];
 extern DataStorage *code;
 extern Table func_info_table;
 extern Table gvar_info_table;
-extern Vector *functypes;
+extern Vector *functypes;  // <WasmFuncType*>
 extern Table indirect_function_table;
 extern uint32_t data_end_address;
 extern bool verbose;
@@ -81,9 +81,15 @@ typedef struct DataStorage {
   size_t len;
 } DataStorage;
 
+void data_release(DataStorage *data);
 void data_init(DataStorage *data);
 void data_reserve(DataStorage *data, size_t capacity);
 void data_insert(DataStorage *data, size_t pos, const unsigned char *buf, size_t size);
 void data_append(DataStorage *data, const unsigned char *buf, size_t size);
 void data_push(DataStorage *data, unsigned char c);
 void data_concat(DataStorage *data, DataStorage *data2);
+
+typedef struct {
+  size_t size;
+  unsigned char buf[1];
+} WasmFuncType;

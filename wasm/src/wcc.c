@@ -340,29 +340,9 @@ static void emit_wasm(FILE *ofp, Vector *exports, uint32_t address_bottom) {
   DataStorage types_section;
   data_init(&types_section);
   for (int i = 0, len = functypes->len; i < len; ++i) {
-    const Type *type = functypes->data[i];
+    const WasmFuncType *wt = functypes->data[i];
     data_push(&types_section, WT_FUNC);  // func
-    const Vector *params = type->func.params;
-    int param_count = params != NULL ? params->len : 0;
-    if (type->func.vaargs)
-      ++param_count;
-    emit_uleb128(&types_section, types_section.len, param_count);  // num params
-    for (int i = 0; i < param_count; ++i) {
-      if (type->func.vaargs && i == param_count - 1) {
-        data_push(&types_section, to_wtype(&tyVoidPtr));  // vaarg pointer.
-      } else {
-        VarInfo *varinfo = params->data[i];
-        assert(is_prim_type(varinfo->type));
-        data_push(&types_section, to_wtype(varinfo->type));
-      }
-    }
-    if (type->func.ret->kind == TY_VOID) {
-      data_push(&types_section, 0);  // num results
-    } else {
-      assert(is_prim_type(type->func.ret));
-      data_push(&types_section, 1);  // num results
-      data_push(&types_section, to_wtype(type->func.ret));
-    }
+    data_append(&types_section, wt->buf, wt->size);
   }
   emit_uleb128(&types_section, 0, functypes->len);  // num types
   emit_uleb128(&types_section, 0, types_section.len);  // Size

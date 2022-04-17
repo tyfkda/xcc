@@ -4,6 +4,13 @@
 #include <stdlib.h>  // malloc
 #include <string.h>
 
+void data_release(DataStorage *data) {
+  if (data->buf != NULL) {
+    free(data->buf);
+    data_init(data);
+  }
+}
+
 void data_init(DataStorage *data) {
   data->buf = NULL;
   data->capacity = 0;
