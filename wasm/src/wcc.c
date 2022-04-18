@@ -616,7 +616,7 @@ static void emit_wasm(FILE *ofp, Vector *exports, uint32_t address_bottom) {
       Function *func = info->func;
       if (func == NULL || info->flag == 0)
         continue;
-      DataStorage *code = (DataStorage*)func->bbcon;
+      DataStorage *code = ((FuncExtra*)func->extra)->code;
       // function body i.
       total_code_size += code->len;
     }
@@ -634,7 +634,7 @@ static void emit_wasm(FILE *ofp, Vector *exports, uint32_t address_bottom) {
       Function *func = info->func;
       if (func == NULL || info->flag == 0)
         continue;
-      DataStorage *code = (DataStorage*)func->bbcon;
+      DataStorage *code = ((FuncExtra*)func->extra)->code;
       fwrite(code->buf, code->len, 1, ofp);
     }
   }

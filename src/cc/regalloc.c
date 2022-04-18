@@ -468,7 +468,7 @@ void prepare_register_allocation(Function *func) {
       VarInfo *varinfo = func->type->func.params->data[j];
       VReg *vreg = varinfo->local.reg;
       // Currently, all parameters are force spilled.
-      spill_vreg(func->ra, vreg);
+      spill_vreg(((FuncBackend*)func->extra)->ra, vreg);
       // stack parameters
       if (is_stack_param(varinfo->type)) {
         vreg->offset = offset = ALIGN(offset, align_size(varinfo->type));
@@ -533,7 +533,7 @@ void prepare_register_allocation(Function *func) {
       }
 
       if (spill)
-        spill_vreg(func->ra, vreg);
+        spill_vreg(((FuncBackend*)func->extra)->ra, vreg);
     }
   }
 }

@@ -43,7 +43,7 @@ VRegType *to_vtype(const Type *type) {
 }
 
 VReg *add_new_reg(const Type *type, int flag) {
-  return reg_alloc_spawn(curfunc->ra, to_vtype(type), flag);
+  return reg_alloc_spawn(((FuncBackend*)curfunc->extra)->ra, to_vtype(type), flag);
 }
 
 static Table builtin_function_table;  // <BuiltinFunctionProc>

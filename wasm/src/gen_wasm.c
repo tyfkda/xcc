@@ -15,8 +15,7 @@
 #include "var.h"
 #include "wasm_util.h"
 
-// Store code to `bbcon`.
-#define CODE  ((DataStorage*)curfunc->bbcon)
+#define CODE  (((FuncExtra*)curfunc->extra)->code)
 
 #define ADD_CODE(...)  do { unsigned char buf[] = {__VA_ARGS__}; add_code(buf, sizeof(buf)); } while (0)
 #define ADD_LEB128(x)  emit_leb128(CODE, -1, x)
@@ -1481,9 +1480,12 @@ static void gen_defun(Function *func) {
 
   curfunc = func;
 
+  // FuncExtra *extra = func->extra = malloc(sizeof(FuncExtra));  // TODO:
+  FuncExtra *extra = malloc(sizeof(FuncExtra));
   DataStorage *code = malloc(sizeof(*code));
   data_init(code);
-  func->bbcon = (BBContainer*)code;  // Store code to `bbcon`.
+  extra->code = code;
+  func->extra = extra;
   uint32_t frame_size = allocate_local_variables(func, code);
 
   // Prologue

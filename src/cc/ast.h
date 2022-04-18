@@ -8,14 +8,11 @@
 #include <sys/types.h>  // ssize_t
 
 typedef struct BB BB;
-typedef struct BBContainer BBContainer;
 typedef struct Name Name;
-typedef struct RegAlloc RegAlloc;
 typedef struct Scope Scope;
 typedef struct Table Table;
 typedef struct Token Token;
 typedef struct Type Type;
-typedef struct VReg VReg;
 typedef struct Vector Vector;
 
 // Num
@@ -288,12 +285,7 @@ typedef struct Function {
   Vector *stmts;  // NULL => Prototype definition.
   Table *label_table;  // <const Name*, BB*>
   Vector *gotos;  // <Stmt*>
-
-  // For codegen.
-  RegAlloc *ra;
-  BBContainer *bbcon;
-  BB *ret_bb;
-  VReg *retval;
+  void *extra;
   int flag;
 } Function;
 

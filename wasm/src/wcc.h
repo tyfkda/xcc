@@ -93,3 +93,7 @@ typedef struct {
   size_t size;
   unsigned char buf[1];
 } WasmFuncType;
+
+typedef struct FuncExtra {
+  DataStorage *code;
+} FuncExtra;

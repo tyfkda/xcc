@@ -212,6 +212,15 @@ void pop_callee_save_regs(unsigned short used);
 
 void emit_bb_irs(BBContainer *bbcon);
 
+// Function info for backend
+
+typedef struct FuncBackend {
+  RegAlloc *ra;
+  BBContainer *bbcon;
+  BB *ret_bb;
+  VReg *retval;
+} FuncBackend;
+
 //
 
 #define PUSH_STACK_POS()  do { stackpos += WORD_SIZE; } while (0)

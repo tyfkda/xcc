@@ -29,7 +29,7 @@ void set_curbb(BB *bb) {
   if (curbb != NULL)
     curbb->next = bb;
   curbb = bb;
-  vec_push(curfunc->bbcon->bbs, bb);
+  vec_push(((FuncBackend*)curfunc->extra)->bbcon->bbs, bb);
 }
 
 //
@@ -96,7 +96,7 @@ static void alloc_variable_registers(Function *func) {
     VReg *vreg = add_new_reg(varinfo->type, VRF_LOCAL | VRF_PARAM);
     vreg->param_index = 0;
     varinfo->local.reg = vreg;
-    func->retval = vreg;
+    ((FuncBackend*)func->extra)->retval = vreg;
     ++param_index_offset;
   }
 
@@ -149,7 +149,7 @@ static void gen_return(Stmt *stmt) {
   if (stmt->return_.val != NULL) {
     Expr *val = stmt->return_.val;
     VReg *reg = gen_expr(val);
-    VReg *retval = curfunc->retval;
+    VReg *retval = ((FuncBackend*)curfunc->extra)->retval;
     if (retval == NULL) {
       new_ir_result(reg);
     } else {
@@ -163,7 +163,7 @@ static void gen_return(Stmt *stmt) {
       }
     }
   }
-  new_ir_jmp(COND_ANY, curfunc->ret_bb);
+  new_ir_jmp(COND_ANY, ((FuncBackend*)curfunc->extra)->ret_bb);
   set_curbb(bb);
 }
 
@@ -487,11 +487,17 @@ static void gen_defun(Function *func) {
     return;
 
   curfunc = func;
-  func->bbcon = new_func_blocks();
+  FuncBackend *fnbe = func->extra = malloc(sizeof(FuncBackend));
+  fnbe->ra = NULL;
+  fnbe->bbcon = NULL;
+  fnbe->ret_bb = NULL;
+  fnbe->retval = NULL;
+
+  fnbe->bbcon = new_func_blocks();
   set_curbb(new_bb());
-  func->ra = curra = new_reg_alloc(PHYSICAL_REG_MAX);
+  fnbe->ra = curra = new_reg_alloc(PHYSICAL_REG_MAX);
 #ifndef __NO_FLONUM
-  func->ra->fphys_max = PHYSICAL_FREG_MAX;
+  fnbe->ra->fphys_max = PHYSICAL_FREG_MAX;
 #endif
 
   // Allocate BBs for goto labels.
@@ -509,20 +515,20 @@ static void gen_defun(Function *func) {
   alloc_variable_registers(func);
 
   curscope = func->scopes->data[0];
-  func->ret_bb = new_bb();
+  fnbe->ret_bb = new_bb();
 
   // Statements
   gen_stmts(func->stmts);
 
-  set_curbb(func->ret_bb);
+  set_curbb(fnbe->ret_bb);
   curbb = NULL;
 
-  remove_unnecessary_bb(func->bbcon);
+  remove_unnecessary_bb(fnbe->bbcon);
 
   prepare_register_allocation(func);
-  convert_3to2(func->bbcon);
+  convert_3to2(fnbe->bbcon);
   int reserved_size = func->type->func.vaargs ? (MAX_REG_ARGS + MAX_FREG_ARGS) * WORD_SIZE : 0;
-  alloc_physical_registers(func->ra, func->bbcon, reserved_size);
+  alloc_physical_registers(fnbe->ra, fnbe->bbcon, reserved_size);
 
   curfunc = NULL;
   curscope = global_scope;

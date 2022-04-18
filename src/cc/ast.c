@@ -316,11 +316,7 @@ Function *new_func(Type *type, const Name *name) {
   func->stmts = NULL;
   func->label_table = NULL;
   func->gotos = NULL;
-
-  func->ra = NULL;
-  func->bbcon = NULL;
-  func->ret_bb = NULL;
-  func->retval = NULL;
+  func->extra = NULL;
   func->flag = 0;
 
   return func;
