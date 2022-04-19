@@ -1478,13 +1478,11 @@ static void gen_defun(Function *func) {
   if (func->scopes == NULL)  // Prototype definition
     return;
 
-  DataStorage *data = malloc(sizeof(*data));
-  data_init(data);
-  uint32_t frame_size = allocate_local_variables(func, data);
+  curfunc = func;
 
   code = malloc(sizeof(*code));
   data_init(code);
-  curfunc = func;
+  uint32_t frame_size = allocate_local_variables(func, code);
 
   // Prologue
 
@@ -1571,14 +1569,12 @@ static void gen_defun(Function *func) {
 
   ADD_CODE(OP_END);
 
-  emit_uleb128(data, 0, data->len + code->len);  // Insert code size at the top.
+  emit_uleb128(code, 0, code->len);  // Insert code size at the top.
 
-  data_concat(data, code);
-  func->bbcon = (BBContainer*)data;  // Store code to `bbcon`.
+  func->bbcon = (BBContainer*)code;  // Store code to `bbcon`.
+  code = NULL;
 
   curfunc = NULL;
-  free(code);
-  code = NULL;
 }
 
 static void gen_decl(Declaration *decl) {
