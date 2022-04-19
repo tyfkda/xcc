@@ -23,7 +23,6 @@ extern const char MEMCPY_NAME[];
 extern const char MEMSET_NAME[];
 extern const char VA_ARGS_NAME[];
 
-extern DataStorage *code;
 extern Table func_info_table;
 extern Table gvar_info_table;
 extern Vector *functypes;  // <WasmFuncType*>

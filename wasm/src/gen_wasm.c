@@ -15,18 +15,19 @@
 #include "var.h"
 #include "wasm_util.h"
 
+// Store code to `bbcon`.
+#define CODE  ((DataStorage*)curfunc->bbcon)
+
 #define ADD_CODE(...)  do { unsigned char buf[] = {__VA_ARGS__}; add_code(buf, sizeof(buf)); } while (0)
-#define ADD_LEB128(x)  emit_leb128(code, -1, x)
-#define ADD_ULEB128(x) emit_uleb128(code, -1, x)
+#define ADD_LEB128(x)  emit_leb128(CODE, -1, x)
+#define ADD_ULEB128(x) emit_uleb128(CODE, -1, x)
 
 // TODO: Endian.
 #define ADD_F32(x)     do { float f = (x); add_code((unsigned char*)&f, sizeof(f)); } while (0)
 #define ADD_F64(x)     do { double d = (x); add_code((unsigned char*)&d, sizeof(d)); } while (0)
 
-DataStorage *code;
-
 static void add_code(const unsigned char* buf, size_t size) {
-  data_append(code, buf, size);
+  data_append(CODE, buf, size);
 }
 
 void emit_leb128(DataStorage *data, ssize_t pos, int64_t val) {
@@ -1480,8 +1481,9 @@ static void gen_defun(Function *func) {
 
   curfunc = func;
 
-  code = malloc(sizeof(*code));
+  DataStorage *code = malloc(sizeof(*code));
   data_init(code);
+  func->bbcon = (BBContainer*)code;  // Store code to `bbcon`.
   uint32_t frame_size = allocate_local_variables(func, code);
 
   // Prologue
@@ -1570,9 +1572,6 @@ static void gen_defun(Function *func) {
   ADD_CODE(OP_END);
 
   emit_uleb128(code, 0, code->len);  // Insert code size at the top.
-
-  func->bbcon = (BBContainer*)code;  // Store code to `bbcon`.
-  code = NULL;
 
   curfunc = NULL;
 }
