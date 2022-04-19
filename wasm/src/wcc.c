@@ -106,7 +106,7 @@ static void construct_primitive_global(DataStorage *ds, const VarInfo *varinfo) 
         v += offset;
       }
       data_push(ds, type_size(type) <= I32_SIZE ? OP_I32_CONST : OP_I64_CONST);
-      emit_leb128(ds, ds->len, v);
+      emit_leb128(ds, -1, v);
     }
     break;
 #ifndef __NO_FLONUM
@@ -382,13 +382,13 @@ static void emit_wasm(FILE *ofp, Vector *exports, uint32_t address_bottom) {
 
       uint32_t type_index = info->type_index;
 
-      emit_uleb128(&imports_section, imports_section.len, module_name_len);  // string length
+      emit_uleb128(&imports_section, -1, module_name_len);  // string length
       data_append(&imports_section, (const unsigned char*)module_name, module_name_len);  // import module name
       int name_len = name->bytes;
-      emit_uleb128(&imports_section, imports_section.len, name_len);  // string length
+      emit_uleb128(&imports_section, -1, name_len);  // string length
       data_append(&imports_section, (const unsigned char*)name->chars, name_len);  // import name
       data_push(&imports_section, IMPORT_FUNC);  // import kind
-      emit_uleb128(&imports_section, imports_section.len, type_index);  // import signature index
+      emit_uleb128(&imports_section, -1, type_index);  // import signature index
       ++imports_count;
     }
   }
@@ -410,7 +410,7 @@ static void emit_wasm(FILE *ofp, Vector *exports, uint32_t address_bottom) {
         continue;
       ++function_count;
       int type_index = info->type_index;
-      emit_uleb128(&functions_section, functions_section.len, type_index);  // function i signature index
+      emit_uleb128(&functions_section, -1, type_index);  // function i signature index
     }
   }
   emit_uleb128(&functions_section, 0, function_count);  // num functions
@@ -421,10 +421,10 @@ static void emit_wasm(FILE *ofp, Vector *exports, uint32_t address_bottom) {
   data_init(&table_section);
   // TODO: Output table only when it is needed.
   int table_start_index = 1;
-  emit_leb128(&table_section, table_section.len, 1);  // num tables
+  emit_leb128(&table_section, -1, 1);  // num tables
   data_push(&table_section, WT_FUNCREF);
   data_push(&table_section, 0x00);  // limits: flags
-  emit_leb128(&table_section, table_section.len, table_start_index + indirect_function_table.count);  // initial
+  emit_leb128(&table_section, -1, table_start_index + indirect_function_table.count);  // initial
 
   // Memory.
   DataStorage memory_section;
@@ -433,9 +433,9 @@ static void emit_wasm(FILE *ofp, Vector *exports, uint32_t address_bottom) {
     uint32_t page_count = (address_bottom + MEMORY_PAGE_SIZE - 1) / MEMORY_PAGE_SIZE;
     if (page_count <= 0)
       page_count = 1;
-    emit_uleb128(&memory_section, memory_section.len, 1);  // count?
-    emit_uleb128(&memory_section, memory_section.len, 0);  // index?
-    emit_uleb128(&memory_section, memory_section.len, page_count);
+    emit_uleb128(&memory_section, -1, 1);  // count?
+    emit_uleb128(&memory_section, -1, 0);  // index?
+    emit_uleb128(&memory_section, -1, page_count);
   }
 
   // Globals.
@@ -489,10 +489,10 @@ static void emit_wasm(FILE *ofp, Vector *exports, uint32_t address_bottom) {
     uint32_t func_index = info->index;
 
     int name_len = name->bytes;
-    emit_uleb128(&exports_section, exports_section.len, name_len);  // string length
+    emit_uleb128(&exports_section, -1, name_len);  // string length
     data_append(&exports_section, (const unsigned char*)name->chars, name_len);  // export name
-    emit_uleb128(&exports_section, exports_section.len, IMPORT_FUNC);  // export kind
-    emit_uleb128(&exports_section, exports_section.len, func_index);  // export func index
+    emit_uleb128(&exports_section, -1, IMPORT_FUNC);  // export kind
+    emit_uleb128(&exports_section, -1, func_index);  // export func index
     ++num_exports;
   }
   // Export globals.
@@ -503,19 +503,19 @@ static void emit_wasm(FILE *ofp, Vector *exports, uint32_t address_bottom) {
       const VarInfo *varinfo = info->varinfo;
       if (!info->export || !is_prim_type(varinfo->type) || (varinfo->storage & VS_REF_TAKEN))
         continue;
-      emit_uleb128(&exports_section, exports_section.len, name->bytes);  // string length
+      emit_uleb128(&exports_section, -1, name->bytes);  // string length
       data_append(&exports_section, (const unsigned char*)name->chars, name->bytes);  // export name
       data_push(&exports_section, EXPORT_GLOBAL);  // export kind
-      emit_uleb128(&exports_section, exports_section.len, info->prim.index);  // export global index
+      emit_uleb128(&exports_section, -1, info->prim.index);  // export global index
       ++num_exports;
     }
   }
   /*if (memory_section.len > 0)*/ {  // TODO: Export only if memory exists
     static const char name[] = "memory";
-    emit_uleb128(&exports_section, exports_section.len, sizeof(name) - 1);  // string length
+    emit_uleb128(&exports_section, -1, sizeof(name) - 1);  // string length
     data_append(&exports_section, (const unsigned char*)name, sizeof(name) - 1);  // export name
-    emit_uleb128(&exports_section, exports_section.len, IMPORT_MEMORY);  // export kind
-    emit_uleb128(&exports_section, exports_section.len, 0);  // export global index
+    emit_uleb128(&exports_section, -1, IMPORT_MEMORY);  // export kind
+    emit_uleb128(&exports_section, -1, 0);  // export global index
     ++num_exports;
   }
   emit_uleb128(&exports_section, 0, num_exports);  // num exports
@@ -538,16 +538,16 @@ static void emit_wasm(FILE *ofp, Vector *exports, uint32_t address_bottom) {
 
     qsort(indirect_funcs, count, sizeof(*indirect_funcs), compare_indirect);
 
-    emit_leb128(&elems_section, elems_section.len, 1);  // num elem segments
-    emit_leb128(&elems_section, elems_section.len, 0);  // segment flags
+    emit_leb128(&elems_section, -1, 1);  // num elem segments
+    emit_leb128(&elems_section, -1, 0);  // segment flags
     data_push(&elems_section, OP_I32_CONST);
-    emit_leb128(&elems_section, elems_section.len, table_start_index);  // start index
+    emit_leb128(&elems_section, -1, table_start_index);  // start index
     data_push(&elems_section, OP_END);
-    emit_leb128(&elems_section, elems_section.len, count);  // num elems
+    emit_leb128(&elems_section, -1, count);  // num elems
     for (int i = 0 ; i < count; ++i) {
       FuncInfo *info = indirect_funcs[i];
       VERBOSE("%2d: %.*s (%d)\n", i, info->func->name->bytes, info->func->name->chars, (int)info->index);
-      emit_leb128(&elems_section, elems_section.len, info->index);  // elem function index
+      emit_leb128(&elems_section, -1, info->index);  // elem function index
     }
     free(indirect_funcs);
     VERBOSES("\n");
@@ -573,14 +573,14 @@ static void emit_wasm(FILE *ofp, Vector *exports, uint32_t address_bottom) {
   // Table.
   if (table_section.len > 0) {
     data_push(&sections, SEC_TABLE);  // Section "Table" (4)
-    emit_uleb128(&sections, sections.len, table_section.len);
+    emit_uleb128(&sections, -1, table_section.len);
     data_append(&sections, table_section.buf, table_section.len);
   }
 
   // Memory.
   if (memory_section.len > 0) {
     data_push(&sections, SEC_MEMORY);  // Section "Memory" (5)
-    emit_uleb128(&sections, sections.len, memory_section.len);
+    emit_uleb128(&sections, -1, memory_section.len);
     data_append(&sections, memory_section.buf, memory_section.len);
   }
 
@@ -597,7 +597,7 @@ static void emit_wasm(FILE *ofp, Vector *exports, uint32_t address_bottom) {
   // Elements
   if (elems_section.len > 0) {
     data_push(&sections, SEC_ELEM);  // Section "Elem" (9)
-    emit_uleb128(&sections, sections.len, elems_section.len);
+    emit_uleb128(&sections, -1, elems_section.len);
     data_append(&sections, elems_section.buf, elems_section.len);
   }
 
@@ -623,7 +623,7 @@ static void emit_wasm(FILE *ofp, Vector *exports, uint32_t address_bottom) {
   }
 
   // Put num function first, and insert total size after.
-  emit_uleb128(&codesec, codesec.len, function_count);  // num functions
+  emit_uleb128(&codesec, -1, function_count);  // num functions
   emit_uleb128(&codesec, size_pos, (codesec.len - size_pos) + total_code_size);  // Size
   fwrite(codesec.buf, codesec.len, 1, ofp);
 

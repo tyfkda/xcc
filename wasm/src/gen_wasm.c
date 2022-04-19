@@ -16,8 +16,8 @@
 #include "wasm_util.h"
 
 #define ADD_CODE(...)  do { unsigned char buf[] = {__VA_ARGS__}; add_code(buf, sizeof(buf)); } while (0)
-#define ADD_LEB128(x)  emit_leb128(code, code->len, x)
-#define ADD_ULEB128(x) emit_uleb128(code, code->len, x)
+#define ADD_LEB128(x)  emit_leb128(code, -1, x)
+#define ADD_ULEB128(x) emit_uleb128(code, -1, x)
 
 // TODO: Endian.
 #define ADD_F32(x)     do { float f = (x); add_code((unsigned char*)&f, sizeof(f)); } while (0)
@@ -29,7 +29,7 @@ static void add_code(const unsigned char* buf, size_t size) {
   data_append(code, buf, size);
 }
 
-void emit_leb128(DataStorage *data, size_t pos, int64_t val) {
+void emit_leb128(DataStorage *data, ssize_t pos, int64_t val) {
   unsigned char buf[5], *p = buf;
   const int64_t MAX = 1 << 6;
   for (;;) {
@@ -43,7 +43,7 @@ void emit_leb128(DataStorage *data, size_t pos, int64_t val) {
   }
 }
 
-void emit_uleb128(DataStorage *data, size_t pos, uint64_t val) {
+void emit_uleb128(DataStorage *data, ssize_t pos, uint64_t val) {
   unsigned char buf[5], *p = buf;
   const uint64_t MAX = 1 << 7;
   for (;;) {
@@ -1416,13 +1416,13 @@ static uint32_t allocate_local_variables(Function *func, DataStorage *data) {
     if (local_counts[i] > 0)
       ++local_index_count;
   }
-  emit_uleb128(data, data->len, local_index_count);
+  emit_uleb128(data, -1, local_index_count);
   int variadic = func->type->func.vaargs;
   unsigned int local_indices[4];
   for (int i = 0; i < 4; ++i) {
     unsigned int count = local_counts[i];
     if (count > 0) {
-      emit_uleb128(data, data->len, count);
+      emit_uleb128(data, -1, count);
       data_push(data, WT_I32 - i);
     }
     local_indices[i] = i == 0 ? variadic + param_count : local_indices[i - 1] + local_counts[i - 1];

@@ -3,6 +3,7 @@
 #include <stdbool.h>
 #include <stddef.h>  // size_t
 #include <stdint.h>
+#include <sys/types.h>  // ssize_t
 
 typedef struct DataStorage DataStorage;
 typedef struct Expr Expr;
@@ -70,8 +71,8 @@ uint32_t get_indirect_function_index(const Name *name);
 
 // gen_wasm
 void gen(Vector *decls);
-void emit_leb128(DataStorage *data, size_t pos, int64_t val);
-void emit_uleb128(DataStorage *data, size_t pos, uint64_t val);
+void emit_leb128(DataStorage *data, ssize_t pos, int64_t val);
+void emit_uleb128(DataStorage *data, ssize_t pos, uint64_t val);
 unsigned char to_wtype(const Type *type);
 
 // wcc_util
@@ -84,7 +85,7 @@ typedef struct DataStorage {
 void data_release(DataStorage *data);
 void data_init(DataStorage *data);
 void data_reserve(DataStorage *data, size_t capacity);
-void data_insert(DataStorage *data, size_t pos, const unsigned char *buf, size_t size);
+void data_insert(DataStorage *data, ssize_t pos, const unsigned char *buf, size_t size);
 void data_append(DataStorage *data, const unsigned char *buf, size_t size);
 void data_push(DataStorage *data, unsigned char c);
 void data_concat(DataStorage *data, DataStorage *data2);

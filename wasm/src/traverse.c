@@ -39,7 +39,7 @@ static WasmFuncType *wasm_func_type(const Type *type) {
   data_init(&d);
   data_reserve(&d, 2 + param_count + 3);
 
-  emit_uleb128(&d, d.len, param_count);  // num params
+  emit_uleb128(&d, -1, param_count);  // num params
   for (int i = 0; i < param_count; ++i) {
     if (type->func.vaargs && i == param_count - 1) {
       data_push(&d, to_wtype(&tyVoidPtr));  // vaarg pointer.
