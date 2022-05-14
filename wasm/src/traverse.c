@@ -29,26 +29,36 @@ bool is_prim_type(const Type *type) {
   return is_number(type) || type->kind == TY_PTR;
 }
 
+bool is_stack_param(const Type *type) {
+  return !is_prim_type(type);
+}
+
 static WasmFuncType *wasm_func_type(const Type *type) {
   const Vector *params = type->func.params;
-  int param_count = params != NULL ? params->len : 0;
-  if (type->func.vaargs)
-    ++param_count;
+  int param_count = 0;
+  if (params != NULL) {
+    for (int i = 0; i < params->len; ++i) {
+      VarInfo *varinfo = params->data[i];
+      if (!is_stack_param(varinfo->type))
+        ++param_count;
+    }
+  }
 
   DataStorage d;
   data_init(&d);
-  data_reserve(&d, 2 + param_count + 3);
+  data_reserve(&d, 3 + param_count + 3);
 
-  emit_uleb128(&d, -1, param_count);  // num params
-  for (int i = 0; i < param_count; ++i) {
-    if (type->func.vaargs && i == param_count - 1) {
-      data_push(&d, to_wtype(&tyVoidPtr));  // vaarg pointer.
-    } else {
+  emit_uleb128(&d, -1, param_count + (type->func.vaargs ? 1 : 0));  // num params
+  if (params != NULL) {
+    for (int i = 0; i < params->len; ++i) {
       VarInfo *varinfo = params->data[i];
-      assert(is_prim_type(varinfo->type));
-      data_push(&d, to_wtype(varinfo->type));
+      if (!is_stack_param(varinfo->type))
+        data_push(&d, to_wtype(varinfo->type));
     }
   }
+  if (type->func.vaargs)
+    data_push(&d, to_wtype(&tyVoidPtr));  // vaarg pointer.
+
   if (type->func.ret->kind == TY_VOID) {
     data_push(&d, 0);  // num results
   } else {
@@ -101,6 +111,44 @@ static FuncInfo *register_func_info(const Name *funcname, Function *func, const 
   }
   info->flag |= flag;
   return info;
+}
+
+static void register_func_info_if_not_exist(const Name *funcname, Type *(*callback)(void)) {
+  if (table_get(&func_info_table, funcname) == NULL) {
+    Type *functype = (*callback)();
+    register_func_info(funcname, NULL, functype, FF_REFERED);
+    scope_add(global_scope, funcname, functype, 0);
+  }
+}
+
+static Type *gen_memcpy_func_type(void) {
+  Type *rettype = &tyVoid;  // Differ from memcpy, no return value.
+  Vector *params = new_vector();
+  var_add(params, NULL, &tyVoidPtr, 0);
+  var_add(params, NULL, &tyVoidPtr, 0);
+  var_add(params, NULL, &tySize, 0);
+  Vector *param_types = extract_varinfo_types(params);
+  return new_func_type(rettype, params, param_types, false);
+}
+
+static void register_func_info_memcpy(void) {
+  const Name *funcname = alloc_name(MEMCPY_NAME, NULL, false);
+  register_func_info_if_not_exist(funcname, gen_memcpy_func_type);
+}
+
+static Type *gen_memset_func_type(void) {
+  Type *rettype = &tyVoid;  // Differ from memset, no return value.
+  Vector *params = new_vector();
+  var_add(params, NULL, &tyVoidPtr, 0);
+  var_add(params, NULL, &tyInt, 0);
+  var_add(params, NULL, &tySize, 0);
+  Vector *param_types = extract_varinfo_types(params);
+  return new_func_type(rettype, params, param_types, false);
+}
+
+static void register_func_info_memset(void) {
+  const Name *funcname = alloc_name(MEMSET_NAME, NULL, false);
+  register_func_info_if_not_exist(funcname, gen_memset_func_type);
 }
 
 static uint32_t register_indirect_function(const Name *name, const Type *type) {
@@ -261,19 +309,7 @@ static void traverse_expr(Expr **pexpr, bool needval) {
     traverse_expr(&expr->bop.rhs, true);
     expr->type = &tyVoid;
     if (!is_prim_type(expr->bop.lhs->type)) {
-      // Register _memcpy function for import.
-      const Name *funcname = alloc_name(MEMCPY_NAME, NULL, false);
-      if (table_get(&func_info_table, funcname) == NULL) {
-        Type *rettype = &tyVoid;  // Differ from memcpy, no return value.
-        Vector *params = new_vector();
-        var_add(params, NULL, &tyVoidPtr, 0);
-        var_add(params, NULL, &tyVoidPtr, 0);
-        var_add(params, NULL, &tySize, 0);
-        Vector *param_types = extract_varinfo_types(params);
-        Type *functype = new_func_type(rettype, params, param_types, false);
-        register_func_info(funcname, NULL, functype, FF_REFERED);
-        scope_add(global_scope, funcname, functype, 0);
-      }
+      register_func_info_memcpy();
     }
     if (needval) {
       Expr *lhs = expr->bop.lhs;
@@ -417,8 +453,12 @@ static void traverse_expr(Expr **pexpr, bool needval) {
 
       traverse_func_expr(&expr->funcall.func);
       if (args != NULL) {
-        for (int i = 0, n = args->len; i < n; ++i)
+        for (int i = 0, n = args->len; i < n; ++i) {
+          Expr *arg = args->data[i];
+          if (is_stack_param(arg->type))
+            register_func_info_memcpy();
           traverse_expr((Expr**)&args->data[i], true);
+        }
       }
     }
     break;
@@ -550,19 +590,7 @@ static void traverse_vardecl(Stmt *stmt) {
       if (varinfo != NULL && (varinfo->storage & (VS_STATIC | VS_EXTERN)) == 0 &&
           (varinfo->type->kind == TY_STRUCT ||
            varinfo->type->kind == TY_ARRAY)) {
-
-        const Name *funcname = alloc_name(MEMSET_NAME, NULL, false);
-        if (table_get(&func_info_table, funcname) == NULL) {
-          Type *rettype = &tyVoid;  // Differ from memset, no return value.
-          Vector *params = new_vector();
-          var_add(params, NULL, &tyVoidPtr, 0);
-          var_add(params, NULL, &tyInt, 0);
-          var_add(params, NULL, &tySize, 0);
-          Vector *param_types = extract_varinfo_types(params);
-          Type *functype = new_func_type(rettype, params, param_types, false);
-          register_func_info(funcname, NULL, functype, FF_REFERED);
-          scope_add(global_scope, funcname, functype, 0);
-        }
+        register_func_info_memset();
       }
     }
   }
@@ -627,14 +655,6 @@ static void traverse_defun(Function *func) {
     VarInfo *varinfo = scope_find(global_scope, func->name, NULL);
     assert(varinfo != NULL);
     varinfo->type = func->type = functype = noparam;
-  }
-  if (functype->func.params != NULL) {
-    const Vector *params = functype->func.params;
-    for (int i = 0, len = params->len; i < len; ++i) {
-      VarInfo *varinfo = params->data[i];
-      if (!is_prim_type(varinfo->type))
-        parse_error(NULL, "`%.*s' parameter #%d: parameter type except primitive is not supported (yet)", func->name->bytes, func->name->chars, i + 1);
-    }
   }
   if (functype->func.vaargs) {
     Type *tyvalist = find_typedef(curscope, alloc_name("__builtin_va_list", NULL, false), NULL);

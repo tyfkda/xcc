@@ -63,6 +63,7 @@ typedef struct {
 uint32_t traverse_ast(Vector *decls, Vector *exports, uint32_t stack_size);
 
 bool is_prim_type(const Type *type);
+bool is_stack_param(const Type *type);
 GVarInfo *get_gvar_info_from_name(const Name *name);
 GVarInfo *get_gvar_info(Expr *expr);
 int get_func_type_index(const Type *type);

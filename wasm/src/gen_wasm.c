@@ -25,6 +25,8 @@
 #define ADD_F32(x)     do { float f = (x); add_code((unsigned char*)&f, sizeof(f)); } while (0)
 #define ADD_F64(x)     do { double d = (x); add_code((unsigned char*)&d, sizeof(d)); } while (0)
 
+static void gen_lval(Expr *expr, bool needval);
+
 static void add_code(const unsigned char* buf, size_t size) {
   data_append(CODE, buf, size);
 }
@@ -315,47 +317,74 @@ static void gen_funcall(Expr *expr) {
 
   Type *functype = get_callee_type(expr->funcall.func);
   int param_count = functype->func.params != NULL ? functype->func.params->len : 0;
+
+  int sarg_siz = 0;
+  for (int i = 0; i < param_count; ++i) {
+    Expr *arg = args->data[i];
+    if (is_stack_param(arg->type))
+      sarg_siz += ALIGN(type_size(arg->type), 4);
+  }
+
   int vaarg_bufsiz = 0;
-  int *vaarg_offsets = NULL;
-  Expr *spvar = NULL;
   if (functype->func.vaargs) {
     int d = arg_count - param_count;
     if (d > 0) {
-      vaarg_offsets = malloc(sizeof(*vaarg_offsets) * d);
       for (int i = 0; i < d; ++i) {
         Expr *arg = args->data[i + param_count];
         const Type *t = arg->type;
         if (t->kind == TY_FIXNUM && t->fixnum.kind < FX_INT)
           t = &tyInt;
         //vaarg_bufsiz = ALIGN(vaarg_bufsiz, align_size(t));
-        vaarg_offsets[i] = vaarg_bufsiz;
         vaarg_bufsiz += type_size(t);
       }
-      vaarg_bufsiz = ALIGN(vaarg_bufsiz, 8);
-
-      spvar = get_sp_var();
-      // global.sp += vaarg_bufsiz;
-      gen_expr_stmt(
-          new_expr_unary(EX_MODIFY, &tyVoid, NULL,
-                         new_expr_bop(EX_SUB, &tySize, NULL, spvar,
-                                      new_expr_fixlit(&tySize, NULL, vaarg_bufsiz))));
     }
   }
 
+  Expr *spvar = NULL;
+  if (sarg_siz > 0 || vaarg_bufsiz > 0) {
+    spvar = get_sp_var();
+    // global.sp += ALIGN(sarg_siz + vaarg_bufsiz, 8);
+    gen_expr_stmt(
+        new_expr_unary(EX_MODIFY, &tyVoid, NULL,
+                       new_expr_bop(EX_SUB, &tySize, NULL, spvar,
+                                    new_expr_fixlit(&tySize, NULL, ALIGN(sarg_siz + vaarg_bufsiz, 8)))));
+  }
+
+  int sarg_offset = 0;
+  int vaarg_offset = 0;
   for (int i = 0; i < arg_count; ++i) {
     Expr *arg = args->data[i];
-    if (i >= param_count) {
-      // global.sp - (vaarg_bufsiz - vaarg_offsets[i])
-      int offset = vaarg_offsets[i - param_count];
+    if (i < param_count) {
+      if (!is_stack_param(arg->type)) {
+        gen_expr(arg, true);
+      } else {
+        assert(spvar != NULL);
+        size_t size = type_size(arg->type);
+        if (size > 0) {
+          // _memcpy(global.sp + sarg_offset, &arg, size);
+          gen_expr(new_expr_bop(EX_ADD, &tySize, NULL, spvar,
+                                new_expr_fixlit(&tySize, NULL, sarg_offset)),
+                   true);
+          gen_lval(arg, true);
+
+          ADD_CODE(type_size(&tySize) <= I32_SIZE ? OP_I32_CONST : OP_I64_CONST);
+          ADD_LEB128(size);
+          gen_funcall_by_name(alloc_name(MEMCPY_NAME, NULL, false));
+        }
+        sarg_offset += ALIGN(size, 4);
+      }
+    } else {
+      assert(!is_stack_param(arg->type));
+      // *(global.sp + sarg_siz + vaarg_offset) = arg
       gen_expr(new_expr_bop(EX_ADD, &tySize, NULL, spvar,
-                            new_expr_fixlit(&tySize, NULL, offset)),
+                            new_expr_fixlit(&tySize, NULL, sarg_siz + vaarg_offset)),
                true);
-    }
-    gen_expr(arg, true);
-    if (i >= param_count) {
       const Type *t = arg->type;
       if (t->kind == TY_FIXNUM && t->fixnum.kind < FX_INT)
         t = &tyInt;
+      vaarg_offset += type_size(t);
+
+      gen_expr(arg, true);
       gen_store(t);
     }
   }
@@ -382,12 +411,12 @@ static void gen_funcall(Expr *expr) {
     }
   }
 
-  if (vaarg_bufsiz > 0) {
+  if (sarg_siz > 0 || vaarg_bufsiz > 0) {
     // global.sp -= vaarg_bufsiz;
     gen_expr_stmt(
         new_expr_unary(EX_MODIFY, &tyVoid, NULL,
                        new_expr_bop(EX_ADD, &tySize, NULL, spvar,
-                                    new_expr_fixlit(&tySize, NULL, vaarg_bufsiz))));
+                                    new_expr_fixlit(&tySize, NULL, sarg_siz + vaarg_bufsiz))));
   }
 }
 
@@ -418,8 +447,6 @@ static void gen_lval(Expr *expr, bool needval) {
       assert(varinfo != NULL && scope == expr->var.scope);
       assert(!is_prim_type(expr->type) || varinfo->storage & VS_REF_TAKEN);
       if (is_global_scope(scope) || (varinfo->storage & (VS_STATIC | VS_EXTERN))) {
-        assert(!is_prim_type(expr->type) || varinfo->storage & VS_REF_TAKEN);
-
         if (varinfo->type->kind == TY_FUNC) {
           uint32_t indirect_func = get_indirect_function_index(expr->var.name);
           ADD_CODE(OP_I32_CONST);
@@ -1243,6 +1270,7 @@ static void gen_return(Stmt *stmt) {
     gen_expr(val, true);
   }
   if (finfo->bpident != NULL) {
+    assert(cur_depth > 0);
     ADD_CODE(OP_BR);
     ADD_ULEB128(cur_depth - 1);
   } else {
@@ -1352,7 +1380,8 @@ static void gen_stmts(Vector *stmts) {
 
 static uint32_t allocate_local_variables(Function *func, DataStorage *data) {
   const Type *functype = func->type;
-  unsigned int param_count = functype->func.params != NULL ? functype->func.params->len : 0;  // TODO: Consider stack params.
+  unsigned int param_count = functype->func.params != NULL ? functype->func.params->len : 0;
+  unsigned int pparam_count = 0;  // Primitive parameter count
 
   uint32_t frame_size = 0;
   unsigned int local_counts[4];  // I32, I64, F32, F64
@@ -1379,26 +1408,28 @@ static uint32_t allocate_local_variables(Function *func, DataStorage *data) {
           const VarInfo *v = params->data[i];
           if (equal_name(v->name, varinfo->name)) {
             param_index = i;
+            if (!is_stack_param(v->type))
+              ++pparam_count;
             break;
           }
         }
       }
-      if ((param_index >= 0 || is_prim_type(varinfo->type)) && !(varinfo->storage & VS_REF_TAKEN)) {
+      if ((varinfo->storage & VS_REF_TAKEN) || (is_stack_param(varinfo->type) && param_index < 0)) {
+        size_t size = type_size(varinfo->type);
+        if (size < 1)
+          size = 1;
+        frame_size += size;
+      } else if (!is_stack_param(varinfo->type)) {
         if (param_index < 0) {
           unsigned char wt = to_wtype(varinfo->type);
           assert(WT_F64 <= wt && wt <= WT_I32);
           int index = WT_I32 - wt;
           local_counts[index] += 1;
         }
-      } else {
-        size_t size = type_size(varinfo->type);
-        if (size < 1)
-          size = 1;
-        frame_size += size;
       }
     }
   }
-  if (frame_size > 0) {
+  if (frame_size > 0 || param_count != pparam_count) {
     frame_size = ALIGN(frame_size, 8);  // TODO:
 
     // Allocate base pointer in top scope.
@@ -1425,10 +1456,12 @@ static uint32_t allocate_local_variables(Function *func, DataStorage *data) {
       emit_uleb128(data, -1, count);
       data_push(data, WT_I32 - i);
     }
-    local_indices[i] = i == 0 ? variadic + param_count : local_indices[i - 1] + local_counts[i - 1];
+    local_indices[i] = i == 0 ? variadic + pparam_count : local_indices[i - 1] + local_counts[i - 1];
   }
 
   uint32_t frame_offset = 0;
+  int param_no = 0;
+  uint32_t sparam_offset = 0;
   for (int i = 0; i < func->scopes->len; ++i) {
     Scope *scope = func->scopes->data[i];
     if (scope->vars == NULL)
@@ -1453,21 +1486,27 @@ static uint32_t allocate_local_variables(Function *func, DataStorage *data) {
         }
       }
       vreg->param_index = param_index;
-      if ((param_index >= 0 || is_prim_type(varinfo->type)) && !(varinfo->storage & VS_REF_TAKEN)) {
-        if (param_index >= 0) {
-          vreg->prim.local_index = param_index;
-        } else {
-          unsigned char wt = to_wtype(varinfo->type);
-          int index = WT_I32 - wt;
-          vreg->prim.local_index = local_indices[index]++;
-        }
-      } else {
+      if ((varinfo->storage & VS_REF_TAKEN) || (is_stack_param(varinfo->type) && param_index < 0)) {
         vreg->non_prim.offset = ALIGN(frame_offset, align_size(varinfo->type)) - frame_size;
         size_t size = type_size(varinfo->type);
         if (size < 1)
           size = 1;
         frame_offset += size;
+      } else if (!is_stack_param(varinfo->type)) {
+        if (param_index < 0) {
+          unsigned char wt = to_wtype(varinfo->type);
+          int index = WT_I32 - wt;
+          vreg->prim.local_index = local_indices[index]++;
+        } else {
+          vreg->prim.local_index = param_no;
+        }
+      } else {
+        sparam_offset = ALIGN(sparam_offset, align_size(varinfo->type));
+        vreg->non_prim.offset = sparam_offset;
+        sparam_offset += type_size(varinfo->type);
       }
+      if (param_index >= 0 && !is_stack_param(varinfo->type))
+        ++param_no;
     }
   }
 
@@ -1504,21 +1543,22 @@ static void gen_defun(Function *func) {
   }
 
   // Set up base pointer.
+  FuncInfo *finfo = table_get(&func_info_table, func->name);
+  assert(finfo != NULL);
+  const Token *bpident = finfo->bpident;
   Expr *bpvar = NULL, *spvar = NULL;
-  if (frame_size > 0) {
-    FuncInfo *finfo = table_get(&func_info_table, func->name);
-    assert(finfo != NULL);
-    const Token *bpident = finfo->bpident;
-
+  if (bpident != NULL) {
     bpvar = new_expr_variable(bpident->ident, &tySize, bpident, func->scopes->data[0]);
     spvar = get_sp_var();
     // local.bp = global.sp;
     gen_expr_stmt(new_expr_bop(EX_ASSIGN, &tyVoid, NULL, bpvar, spvar));
     // global.sp -= frame_size;
-    gen_expr_stmt(
-        new_expr_unary(EX_MODIFY, &tyVoid, NULL,
-                       new_expr_bop(EX_SUB, &tySize, NULL, spvar,
-                                    new_expr_fixlit(&tySize, NULL, frame_size))));
+    if (frame_size > 0) {
+      gen_expr_stmt(
+          new_expr_unary(EX_MODIFY, &tyVoid, NULL,
+                         new_expr_bop(EX_SUB, &tySize, NULL, spvar,
+                                      new_expr_fixlit(&tySize, NULL, frame_size))));
+    }
   }
   // Store ref-taken parameters to stack frame.
   unsigned int param_count = functype->func.params != NULL ? functype->func.params->len : 0;  // TODO: Consider stack params.
@@ -1540,7 +1580,7 @@ static void gen_defun(Function *func) {
   curscope = func->scopes->data[0];
   {
     unsigned char wt = is_prim_type(functype->func.ret) ? to_wtype(functype->func.ret) : WT_VOID;
-    if (frame_size > 0) {
+    if (bpident != NULL) {
       ADD_CODE(OP_BLOCK, wt);
       cur_depth += 1;
     }
@@ -1556,20 +1596,20 @@ static void gen_defun(Function *func) {
   }
   gen_stmts(func->stmts);
 
-  if (frame_size > 0) {
+  if (bpident != NULL) {
     ADD_CODE(OP_END);
     cur_depth -= 1;
     assert(cur_depth == 0);
+
+    // Epilogue
+
+    // Restore stack pointer.
+    if (bpident != NULL) {
+      // global.sp = bp;
+      gen_expr_stmt(new_expr_bop(EX_ASSIGN, &tyVoid, NULL, spvar, bpvar));
+    }
   }
   curscope = global_scope;
-
-  // Epilogue
-
-  // Restore stack pointer.
-  if (frame_size > 0) {
-    // global.sp = bp;
-    gen_expr_stmt(new_expr_bop(EX_ASSIGN, &tyVoid, NULL, spvar, bpvar));
-  }
 
   ADD_CODE(OP_END);
 
