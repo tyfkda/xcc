@@ -35,22 +35,23 @@ Generated files:
   * `ld`:  Linker
 
 
-### Run
+### Usage
 
 ```sh
-$ ./xcc examples/hello.c
-$ ./a.out
+$ ./xcc -o hello examples/hello.c
+$ ./hello
 ```
 
+#### Command line options
 
-### Command line options
-
-  * `-o <filename>`: Set output filename (default: a.out)
+  * `-o <filename>`: Set output filename (default: `a.out`)
   * `-I <path>`:     Add include path
   * `-D <label>(=value)`:  Define macro
   * `-S`:            Output assembly code
   * `-E`:            Preprocess only
   * `-c`:            Output object file
+  * `-nodefaultlibs`:  Ignore libc
+  * `-nostdlib`:  Ignore libc and crt0
 
 
 ### TODO
