@@ -350,6 +350,25 @@ static void gen_funcall(Expr *expr) {
                                     new_expr_fixlit(&tySize, NULL, ALIGN(sarg_siz + vaarg_bufsiz, 8)))));
   }
 
+  bool ret_param = functype->func.ret->kind != TY_VOID && !is_prim_type(functype->func.ret);
+  if (ret_param) {
+    assert(curfunc != NULL);
+    FuncExtra *extra = curfunc->extra;
+    assert(extra != NULL);
+    assert(extra->funcall_results != NULL);
+    VarInfo *varinfo = NULL;
+    for (int i = 0; i < extra->funcall_results->len; i += 2) {
+      if (extra->funcall_results->data[i] == expr) {
+        varinfo = extra->funcall_results->data[i + 1];
+        break;
+      }
+    }
+    assert(varinfo != NULL);
+    // &ret_buf
+    Expr *e = new_expr_variable(varinfo->name, varinfo->type, NULL, curfunc->scopes->data[0]);
+    gen_lval(e, true);
+  }
+
   int sarg_offset = 0;
   int vaarg_offset = 0;
   for (int i = 0; i < arg_count; ++i) {
@@ -1267,7 +1286,19 @@ static void gen_return(Stmt *stmt) {
   assert(finfo != NULL);
   if (stmt->return_.val != NULL) {
     Expr *val = stmt->return_.val;
-    gen_expr(val, true);
+    const Type *rettype = finfo->type->func.ret;
+    if (is_prim_type(rettype)) {
+      gen_expr(val, true);
+    } else {
+      // Local #0 is the pointer for result.
+      ADD_CODE(OP_LOCAL_GET, 0);
+      gen_expr(val, true);
+      ADD_CODE(OP_I32_CONST);
+      ADD_LEB128(type_size(rettype));
+      gen_funcall_by_name(alloc_name(MEMCPY_NAME, NULL, false));
+      // Result.
+      ADD_CODE(OP_LOCAL_GET, 0);
+    }
   }
   if (finfo->bpident != NULL) {
     assert(cur_depth > 0);
@@ -1380,6 +1411,7 @@ static void gen_stmts(Vector *stmts) {
 
 static uint32_t allocate_local_variables(Function *func, DataStorage *data) {
   const Type *functype = func->type;
+  unsigned int ret_param = functype->func.ret->kind != TY_VOID && !is_prim_type(functype->func.ret) ? 1 : 0;
   unsigned int param_count = functype->func.params != NULL ? functype->func.params->len : 0;
   unsigned int pparam_count = 0;  // Primitive parameter count
 
@@ -1456,11 +1488,11 @@ static uint32_t allocate_local_variables(Function *func, DataStorage *data) {
       emit_uleb128(data, -1, count);
       data_push(data, WT_I32 - i);
     }
-    local_indices[i] = i == 0 ? variadic + pparam_count : local_indices[i - 1] + local_counts[i - 1];
+    local_indices[i] = i == 0 ? ret_param + variadic + pparam_count : local_indices[i - 1] + local_counts[i - 1];
   }
 
   uint32_t frame_offset = 0;
-  int param_no = 0;
+  unsigned int param_no = ret_param;
   uint32_t sparam_offset = 0;
   for (int i = 0; i < func->scopes->len; ++i) {
     Scope *scope = func->scopes->data[i];
@@ -1485,7 +1517,7 @@ static uint32_t allocate_local_variables(Function *func, DataStorage *data) {
           }
         }
       }
-      vreg->param_index = param_index;
+      vreg->param_index = ret_param + param_index;
       if ((varinfo->storage & VS_REF_TAKEN) || (is_stack_param(varinfo->type) && param_index < 0)) {
         vreg->non_prim.offset = ALIGN(frame_offset, align_size(varinfo->type)) - frame_size;
         size_t size = type_size(varinfo->type);
@@ -1519,10 +1551,10 @@ static void gen_defun(Function *func) {
 
   curfunc = func;
 
-  // FuncExtra *extra = func->extra = malloc(sizeof(FuncExtra));  // TODO:
-  FuncExtra *extra = malloc(sizeof(FuncExtra));
   DataStorage *code = malloc(sizeof(*code));
   data_init(code);
+  FuncExtra *extra = func->extra;
+  assert(extra != NULL);
   extra->code = code;
   func->extra = extra;
   uint32_t frame_size = allocate_local_variables(func, code);
@@ -1579,7 +1611,7 @@ static void gen_defun(Function *func) {
   // Statements
   curscope = func->scopes->data[0];
   {
-    unsigned char wt = is_prim_type(functype->func.ret) ? to_wtype(functype->func.ret) : WT_VOID;
+    unsigned char wt = is_prim_type(functype->func.ret) ? to_wtype(functype->func.ret) : functype->func.ret->kind != TY_VOID ? WT_I32 : WT_VOID;
     if (bpident != NULL) {
       ADD_CODE(OP_BLOCK, wt);
       cur_depth += 1;

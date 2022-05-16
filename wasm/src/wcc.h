@@ -96,5 +96,6 @@ typedef struct {
 } WasmFuncType;
 
 typedef struct FuncExtra {
+  Vector *funcall_results;  // [0]=Expr*, [1]=VarInfo*
   DataStorage *code;
 } FuncExtra;

@@ -34,6 +34,7 @@ bool is_stack_param(const Type *type) {
 }
 
 static WasmFuncType *wasm_func_type(const Type *type) {
+  bool ret_param = type->func.ret->kind != TY_VOID && !is_prim_type(type->func.ret);
   const Vector *params = type->func.params;
   int param_count = 0;
   if (params != NULL) {
@@ -48,7 +49,9 @@ static WasmFuncType *wasm_func_type(const Type *type) {
   data_init(&d);
   data_reserve(&d, 3 + param_count + 3);
 
-  emit_uleb128(&d, -1, param_count + (type->func.vaargs ? 1 : 0));  // num params
+  emit_uleb128(&d, -1, (int)ret_param + param_count + (type->func.vaargs ? 1 : 0));  // num params
+  if (ret_param)
+    data_push(&d, to_wtype(&tyVoidPtr));
   if (params != NULL) {
     for (int i = 0; i < params->len; ++i) {
       VarInfo *varinfo = params->data[i];
@@ -61,8 +64,10 @@ static WasmFuncType *wasm_func_type(const Type *type) {
 
   if (type->func.ret->kind == TY_VOID) {
     data_push(&d, 0);  // num results
+  } else if (ret_param) {
+    data_push(&d, 1);  // num results
+    data_push(&d, to_wtype(&tyVoidPtr));
   } else {
-    assert(is_prim_type(type->func.ret));
     data_push(&d, 1);  // num results
     data_push(&d, to_wtype(type->func.ret));
   }
@@ -263,6 +268,52 @@ static void traverse_func_expr(Expr **pexpr) {
   }
 }
 
+static void traverse_funcall(Expr *expr) {
+  Type *functype = get_callee_type(expr->funcall.func);
+  if (functype->func.ret->kind != TY_VOID && !is_prim_type(functype->func.ret)) {
+    register_func_info_memcpy();
+    // Allocate local variable for return value.
+    assert(curfunc != NULL);
+    assert(curfunc->scopes != NULL);
+    assert(curfunc->scopes->len > 0);
+    VarInfo *varinfo = add_var_to_scope(curfunc->scopes->data[0], alloc_dummy_ident(), functype->func.ret, 0);
+    FuncExtra *extra = curfunc->extra;
+    assert(extra != NULL);
+    if (extra->funcall_results == NULL)
+      extra->funcall_results = new_vector();
+    vec_push(extra->funcall_results, expr);
+    vec_push(extra->funcall_results, varinfo);
+  }
+
+  Vector *args = expr->funcall.args;
+  if (functype->func.params == NULL) {
+    if (expr->funcall.func->kind == EX_VAR) {
+      // Extract function type again.
+      Expr *func = expr->funcall.func;
+      VarInfo *varinfo = scope_find(func->var.scope, func->var.name, NULL);
+      assert(varinfo != NULL);
+      if (varinfo->type->kind == TY_FUNC) {
+        func->type = functype = varinfo->type;
+        if (functype->func.params != NULL)  // Updated.
+          check_funcall_args(func, args, curscope, toplevel);
+      }
+    }
+
+    if (functype->func.params == NULL && args != NULL)
+      parse_error(expr->funcall.func->token, "function's parameters must be known");
+  }
+
+  traverse_func_expr(&expr->funcall.func);
+  if (args != NULL) {
+    for (int i = 0, n = args->len; i < n; ++i) {
+      Expr *arg = args->data[i];
+      if (is_stack_param(arg->type))
+        register_func_info_memcpy();
+      traverse_expr((Expr**)&args->data[i], true);
+    }
+  }
+}
+
 static void traverse_expr(Expr **pexpr, bool needval) {
   Expr *expr = *pexpr;
   if (expr == NULL)
@@ -431,36 +482,7 @@ static void traverse_expr(Expr **pexpr, bool needval) {
     break;
 
   case EX_FUNCALL:
-    {
-      Vector *args = expr->funcall.args;
-      Type *functype = get_callee_type(expr->funcall.func);
-      if (functype->func.params == NULL) {
-        if (expr->funcall.func->kind == EX_VAR) {
-          // Extract function type again.
-          Expr *func = expr->funcall.func;
-          VarInfo *varinfo = scope_find(func->var.scope, func->var.name, NULL);
-          assert(varinfo != NULL);
-          if (varinfo->type->kind == TY_FUNC) {
-            func->type = functype = varinfo->type;
-            if (functype->func.params != NULL)  // Updated.
-              check_funcall_args(func, args, curscope, toplevel);
-          }
-        }
-
-        if (functype->func.params == NULL && args != NULL)
-          parse_error(expr->funcall.func->token, "function's parameters must be known");
-      }
-
-      traverse_func_expr(&expr->funcall.func);
-      if (args != NULL) {
-        for (int i = 0, n = args->len; i < n; ++i) {
-          Expr *arg = args->data[i];
-          if (is_stack_param(arg->type))
-            register_func_info_memcpy();
-          traverse_expr((Expr**)&args->data[i], true);
-        }
-      }
-    }
+    traverse_funcall(expr);
     break;
 
   case EX_COMPLIT:
@@ -642,11 +664,9 @@ static void traverse_defun(Function *func) {
   if (func->scopes == NULL)  // Prototype definition
     return;
 
+  func->extra = calloc(1, sizeof(FuncExtra));
+
   Type *functype = func->type;
-  if (functype->func.ret->kind != TY_VOID) {
-    if (!is_prim_type(functype->func.ret))
-      parse_error(NULL, "`%.*s': return type except primitive is not supported (yet)", func->name->bytes, func->name->chars);
-  }
   if (functype->func.params == NULL) {
     // Treat old-style function as a no-parameter function.
     Type *noparam = malloc(sizeof(*noparam));
