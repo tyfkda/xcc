@@ -273,11 +273,14 @@ Expr *make_refer(const Token *tok, Expr *expr) {
   check_referable(tok, expr, "Cannot take reference");
   if (expr->kind == EX_DEREF)
     return expr->unary.sub;
-  if (expr->kind == EX_VAR) {
-    VarInfo *varinfo = scope_find(expr->var.scope, expr->var.name, NULL);
+  Expr *e = expr;
+  if (e->kind == EX_COMPLIT)
+    e = e->complit.var;
+  if (e->kind == EX_VAR) {
+    VarInfo *varinfo = scope_find(e->var.scope, e->var.name, NULL);
     assert(varinfo != NULL);
     varinfo->storage |= VS_REF_TAKEN;
-    if ((varinfo->storage & VS_STATIC) != 0 && !is_global_scope(expr->var.scope)) {
+    if ((varinfo->storage & VS_STATIC) != 0 && !is_global_scope(e->var.scope)) {
       VarInfo *gvarinfo = varinfo->static_.gvar;
       gvarinfo->storage |= VS_REF_TAKEN;
     }
@@ -1243,7 +1246,7 @@ static Expr *parse_compound_literal(Type *type) {
   Expr *var = NULL;
 
   if (is_global_scope(curscope)) {
-    parse_error(token, "cannot use compound literal in global");
+    parse_error_nofatal(token, "cannot use compound literal in global");
   } else {
     if (type->kind == TY_ARRAY)
       type = fix_array_size(type, init);

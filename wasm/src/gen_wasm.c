@@ -503,18 +503,10 @@ static void gen_lval(Expr *expr, bool needval) {
       }
       return;
     }
-  /*case EX_COMPLIT:
-    {
-      Expr *var = expr->complit.var;
-      assert(var->var.scope != NULL);
-      const VarInfo *varinfo = scope_find(var->var.scope, var->var.name, NULL);
-      assert(varinfo != NULL);
-      assert(varinfo->local.reg != NULL);
-      varinfo->local.reg->flag |= VRF_REF;
-
-      gen_stmts(expr->complit.inits);
-      return gen_lval(expr->complit.var, needval);
-    }*/
+  case EX_COMPLIT:
+    gen_stmts(expr->complit.inits);
+    gen_lval(expr->complit.var, needval);
+    return;
   default: assert(false); break;
   }
 }
@@ -701,8 +693,14 @@ static void gen_expr(Expr *expr, bool needval) {
     {
       assert(is_prim_type(expr->type));
       Expr *sub = expr->unary.sub;
-      assert(sub->kind == EX_VAR);
-      gen_expr(sub, true);
+      if (sub->kind == EX_COMPLIT) {
+        gen_expr(sub, true);
+        sub = sub->complit.var;
+        assert(sub->kind == EX_VAR);
+      } else {
+        assert(sub->kind == EX_VAR);
+        gen_expr(sub, true);
+      }
       switch (to_wtype(expr->type)) {
       case WT_I32:
         ADD_CODE(OP_I32_CONST);
@@ -947,6 +945,11 @@ static void gen_expr(Expr *expr, bool needval) {
     gen_funcall(expr);
     if (!needval && is_prim_type(expr->type))
       ADD_CODE(OP_DROP);
+    break;
+
+  case EX_COMPLIT:
+    gen_stmts(expr->complit.inits);
+    gen_expr(expr->complit.var, needval);
     break;
 
   case EX_BLOCK:

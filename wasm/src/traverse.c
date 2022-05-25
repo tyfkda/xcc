@@ -409,6 +409,8 @@ static void traverse_expr(Expr **pexpr, bool needval) {
 
       traverse_expr(&expr->unary.sub, needval);
       Expr *sub = expr->unary.sub;
+      if (sub->kind == EX_COMPLIT)
+        sub = sub->complit.var;
       if (sub->kind == EX_VAR) {
         VarInfo *varinfo = scope_find(sub->var.scope, sub->var.name, NULL);
         if (!(varinfo->storage & VS_REF_TAKEN))
@@ -486,7 +488,6 @@ static void traverse_expr(Expr **pexpr, bool needval) {
     break;
 
   case EX_COMPLIT:
-    parse_error(expr->token, "compound literal not supported (yet)");
     traverse_stmts(expr->complit.inits);
     break;
 
