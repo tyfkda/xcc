@@ -77,12 +77,6 @@ static double vdot(const vec *v0, const vec *v1) {
   return v0->x * v1->x + v0->y * v1->y + v0->z * v1->z;
 }
 
-static void vcross(vec *c, const vec *v0, const vec *v1) {
-  c->x = v0->y * v1->z - v0->z * v1->y;
-  c->y = v0->z * v1->x - v0->x * v1->z;
-  c->z = v0->x * v1->y - v0->y * v1->x;
-}
-
 static void vnormalize(vec *c) {
   double length = sqrt(vdot(c, c));
   if (length > 1.0e-17) {
@@ -188,7 +182,7 @@ const Plane plane = {
   {0.0,  1.0, 0.0},
 };
 
-void ambient_occlusion(vec *col, const Isect *isect) {
+vec ambient_occlusion(const Isect *isect) {
   int ntheta = NAO_SAMPLES;
   int nphi   = NAO_SAMPLES;
 
@@ -230,7 +224,7 @@ void ambient_occlusion(vec *col, const Isect *isect) {
   }
 
   double c = (ntheta * nphi - occlusion) / (double)(ntheta * nphi);
-  col->x = col->y = col->z = c;
+  return (vec){c, c, c};
 }
 
 unsigned char clamp(double f) {
@@ -270,9 +264,7 @@ void render(unsigned char *img, int w, int h, int nsubsamples) {
           ray_plane_intersect (&isect, &ray, &plane);
 
           if (isect.t < HUGE_VAL) {
-            vec col;
-            ambient_occlusion(&col, &isect);
-
+            vec col = ambient_occlusion(&isect);
             cr += col.x;
             cg += col.y;
             cb += col.z;
