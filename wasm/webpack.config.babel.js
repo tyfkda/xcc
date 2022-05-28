@@ -16,6 +16,7 @@ module.exports = {
   module: {
     rules: [
       {test: /\.ts$/, include: /src\/www/, exclude: /node_modules/, use: {loader: 'ts-loader'}},
+      {test: /\.c$/, include: /src\/www\/examples/, type: 'asset/source'},
     ],
   },
 }
