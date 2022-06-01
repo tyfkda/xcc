@@ -516,6 +516,14 @@ static Initializer *check_global_initializer(Type *type, Initializer *init) {
     break;
   case TY_STRUCT:
     {
+      if (init->kind == IK_SINGLE) {
+        Expr *e = init->single;
+        if (e->kind != EX_COMPLIT || !can_cast(type, e->type, false, false)) {
+          parse_error_nofatal(init->token, "Illegal initializer");
+          break;
+        }
+        init = e->complit.original_init;
+      }
       assert(init->kind == IK_MULTI);
       const StructInfo *sinfo = type->struct_.info;
       for (int i = 0, n = sinfo->members->len; i < n; ++i) {

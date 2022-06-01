@@ -63,6 +63,10 @@ static void eval_initial_value(Expr *expr, Expr **pvar, Fixnum *poffset) {
       *poffset += member->offset;
     }
     break;
+  case EX_COMPLIT:
+    assert(expr->complit.var->kind == EX_VAR);
+    eval_initial_value(expr->complit.var, pvar, poffset);
+    break;
   // case EX_STR:  // should be handled in parser.
   default: assert(!"illegal"); break;
   }

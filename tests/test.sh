@@ -204,8 +204,10 @@ try 'ternary ptr:0' 98 'const char *p = "abc"; p = p != 0 ? p + 1 : 0; return *p
 try_direct 'ternary w/ func' 53 'int f(){return 27;} int g(){return 53;} int main(){return (0?f:g)();}'
 try_output 'ternary void' 'false' "0 ? (void)write(1, \"true\", 4) : (void)write(1, \"false\", 5);"
 try_direct 'compound literal:array' 2 'int main(){ int *foo = (int[]){1, 2, 3}; return foo[1]; }'
-try_direct 'compound literal:struct' 66 'struct Foo {int x;}; int main(){ struct Foo *foo = &(struct Foo){66}; return foo->x; }'
+try_direct 'compound literal:struct' 66 'struct Foo {int x;}; int main(){ struct Foo foo = (struct Foo){66}; return foo.x; }'
+try_direct 'compound literal:struct ptr' 77 'struct Foo {int x;}; int main(){ struct Foo *foo = &(struct Foo){77}; return foo->x; }'
 try_direct 'inc compound literal' 56 'int main(){ int i = ++(int){55}; return i; }'
+try_direct 'compound literal in global' 88 'struct Foo {int x;}; struct Foo *foo = &(struct Foo){88}; int main(){ return foo->x; }'
 try_direct '&()' 86 'void sub(int *p) {*p *= 2;} int main() {int x = 43; sub(&(x)); return x;}'
 try 'pre-inc ()' 34 'int x = 33; return ++(x);'
 try 'post-dec ()' 44 'int x = 44; return (x)--;'

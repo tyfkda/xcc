@@ -1242,23 +1242,26 @@ static StructInfo *parse_struct(bool is_union) {
 static Expr *parse_compound_literal(Type *type) {
   Token *token = fetch_token();
   Initializer *init = parse_initializer();
+
+  if (type->kind == TY_ARRAY)
+    type = fix_array_size(type, init);
+
+  const Token *ident = alloc_dummy_ident();
+  int storage = is_global_scope(curscope) ? VS_STATIC : 0;
+  VarInfo *varinfo = add_var_to_scope(curscope, ident, type, storage);
+
+  Expr *var = new_expr_variable(ident->ident, type, token, curscope);
   Vector *inits = NULL;
-  Expr *var = NULL;
-
   if (is_global_scope(curscope)) {
-    parse_error_nofatal(token, "cannot use compound literal in global");
+    Vector *decls = new_vector();
+    vec_push(decls, new_vardecl(type, ident, init, storage));
+    vec_push(toplevel, new_decl_vardecl(decls));
+    varinfo->global.init = init;
   } else {
-    if (type->kind == TY_ARRAY)
-      type = fix_array_size(type, init);
-
-    const Token *ident = alloc_dummy_ident();
-    add_var_to_scope(curscope, ident, type, 0);
-
-    var = new_expr_variable(ident->ident, type, token, curscope);
     inits = assign_initial_value(var, init, NULL);
   }
 
-  return new_expr_complit(type, token, var, inits);
+  return new_expr_complit(type, token, var, inits, init);
 }
 
 static Expr *parse_prim(void) {

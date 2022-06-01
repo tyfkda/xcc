@@ -8,6 +8,7 @@
 #include <sys/types.h>  // ssize_t
 
 typedef struct BB BB;
+typedef struct Initializer Initializer;
 typedef struct Name Name;
 typedef struct Scope Scope;
 typedef struct Table Table;
@@ -118,6 +119,7 @@ typedef struct Expr {
     struct {
       struct Expr *var;
       Vector *inits;  // <Stmt*>
+      Initializer *original_init;
     } complit;
     struct Stmt *block;
   };
@@ -136,7 +138,7 @@ Expr *new_expr_member(const Token *token, Type *type, Expr *target, const Token 
 Expr *new_expr_funcall(const Token *token, Expr *func, Type *functype, Vector *args);
 Expr *new_expr_cast(Type *type, const Token *token, Expr *sub);
 
-Expr *new_expr_complit(Type *type, const Token *token, Expr *var, Vector *inits);
+Expr *new_expr_complit(Type *type, const Token *token, Expr *var, Vector *inits, Initializer *original);
 Expr *new_expr_block(struct Stmt *block);
 
 bool is_const(Expr *expr);
@@ -153,7 +155,7 @@ enum InitializerKind {
   IK_ARR,     // [n]=123
 };
 
-typedef struct Initializer {
+struct Initializer {
   enum InitializerKind kind;
   const Token *token;
   union {
@@ -168,7 +170,7 @@ typedef struct Initializer {
       struct Initializer *value;
     } arr;
   };
-} Initializer;
+};
 
 // Statement
 
