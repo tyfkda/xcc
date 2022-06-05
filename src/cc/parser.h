@@ -23,6 +23,8 @@ extern Scope *curscope;
 extern Stmt *curswitch;
 extern Vector *toplevel;  // <Declaration*>
 
+extern int compile_error_count;
+
 void parse(Vector *decls);  // <Declaraion*>
 
 //

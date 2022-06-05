@@ -42,8 +42,6 @@ static void pp_parse_error_valist(const Token *token, const char *fmt, va_list a
 }
 
 void pp_parse_error(const Token *token, const char *fmt, ...) {
-  ++compile_error_count;
-
   va_list ap;
   va_start(ap, fmt);
   pp_parse_error_valist(token, fmt, ap);

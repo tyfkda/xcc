@@ -23,6 +23,8 @@ Function *curfunc;
 static int curloopflag;
 Stmt *curswitch;
 
+int compile_error_count;
+
 static Stmt *parse_stmt(void);
 
 VarInfo *add_var_to_scope(Scope *scope, const Token *ident, Type *type, int storage) {

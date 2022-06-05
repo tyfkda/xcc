@@ -111,8 +111,6 @@ static const char kSingleOperatorTypeMap[128] = {  // enum TokenKind
   ['#'] = PPTK_STRINGIFY,
 };
 
-int compile_error_count;
-
 Lexer lexer;
 static Table reserved_word_table;
 static LexEofCallback lex_eof_callback;
