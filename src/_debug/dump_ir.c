@@ -93,7 +93,8 @@ static void dump_func_ir(Function *func) {
   if (func->scopes == NULL)  // Prototype definition
     return;
 
-  BBContainer *bbcon = func->bbcon;
+  FuncBackend *fnbe = func->extra;
+  BBContainer *bbcon = fnbe->bbcon;
   assert(bbcon != NULL);
 
   fprintf(fp, "### %.*s\n\n", func->name->bytes, func->name->chars);
@@ -113,9 +114,9 @@ static void dump_func_ir(Function *func) {
     }
   }
 
-  RegAlloc *ra = func->ra;
+  RegAlloc *ra = fnbe->ra;
   fprintf(fp, "VREG: #%d\n", ra->vregs->len);
-  LiveInterval **sorted_intervals = func->ra->sorted_intervals;
+  LiveInterval **sorted_intervals = fnbe->ra->sorted_intervals;
   for (int i = 0; i < ra->vregs->len; ++i) {
     LiveInterval *li = sorted_intervals[i];
     VReg *vreg = ra->vregs->data[li->virt];
