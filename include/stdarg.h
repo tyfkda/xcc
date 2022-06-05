@@ -43,7 +43,7 @@ typedef __gnuc_va_list va_list;
   case /*flonum*/ 6: \
     p = __va_arg_fp(ap, sizeof(ty), _Alignof(ty)); break;
 #else
-#define __builtin_va_arg_fp(ap, ty)  /*none*/
+#define __builtin_va_arg_fp_case(ap, ty)  /*none*/
 #endif
 
 #define __builtin_va_arg(ap, ty) ({ \
