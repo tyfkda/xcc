@@ -159,10 +159,6 @@ static void put_value(unsigned char *p, intptr_t value, int size) {
   }
 }
 
-static void put_unresolved(Table *table, const Name *label) {
-  table_put(table, label, (void*)label);
-}
-
 typedef struct {
   const Name *label;
   intptr_t offset;
@@ -237,10 +233,10 @@ static Value calc_expr(Table *label_table, const Expr *expr) {
 }
 
 bool resolve_relative_address(Vector **section_irs, Table *label_table, Vector *unresolved) {
+  assert(unresolved != NULL);
   Table unresolved_labels;
   table_init(&unresolved_labels);
-  if (unresolved != NULL)
-    vec_clear(unresolved);
+  vec_clear(unresolved);
   bool size_upgraded = false;
   for (int sec = 0; sec < SECTION_COUNT; ++sec) {
     Vector *irs = section_irs[sec];
@@ -260,36 +256,29 @@ bool resolve_relative_address(Vector **section_irs, Table *label_table, Vector *
               Value value = calc_expr(label_table, inst->src.indirect.offset);
               if (value.label != NULL) {
                 LabelInfo *label_info = table_get(label_table, value.label);
-                if (unresolved != NULL) {
-                  if (label_info == NULL) {
-                    UnresolvedInfo *info = malloc(sizeof(*info));
-                    info->kind = UNRES_EXTERN_PC32;
-                    info->label = value.label;
-                    info->src_section = sec;
-                    info->offset = address + 3 - start_address;
-                    info->add = value.offset - 4;
-                    vec_push(unresolved, info);
-                    break;
-                  } else if (label_info->section != sec) {
-                    Vector *irs2 = section_irs[label_info->section];
-                    uintptr_t dst_start_address = irs2->len > 0 ? ((IR *)irs2->data[0])->address : 0;
-
-                    UnresolvedInfo *info = malloc(sizeof(*info));
-                    info->kind = UNRES_OTHER_SECTION;
-                    info->label = value.label;
-                    info->src_section = sec;
-                    info->offset = address + 3 - start_address;
-                    info->add = label_info->address + value.offset - dst_start_address - 4;
-                    vec_push(unresolved, info);
-                    break;
-                  }
-                } else {
-                  if (label_info == NULL) {
-                    put_unresolved(&unresolved_labels, value.label);
-                    break;
-                  }
+                if (label_info == NULL) {
+                  UnresolvedInfo *info = malloc(sizeof(*info));
+                  info->kind = UNRES_EXTERN_PC32;
+                  info->label = value.label;
+                  info->src_section = sec;
+                  info->offset = address + 3 - start_address;
+                  info->add = value.offset - 4;
+                  vec_push(unresolved, info);
+                  break;
                 }
-                assert(label_info != NULL);
+                if (label_info->section != sec) {
+                  Vector *irs2 = section_irs[label_info->section];
+                  uintptr_t dst_start_address = irs2->len > 0 ? ((IR *)irs2->data[0])->address : 0;
+
+                  UnresolvedInfo *info = malloc(sizeof(*info));
+                  info->kind = UNRES_OTHER_SECTION;
+                  info->label = value.label;
+                  info->src_section = sec;
+                  info->offset = address + 3 - start_address;
+                  info->add = label_info->address + value.offset - dst_start_address - 4;
+                  vec_push(unresolved, info);
+                  break;
+                }
                 value.offset += label_info->address;
               }
               intptr_t offset = value.offset - ((intptr_t)address + ir->code.len);
@@ -342,10 +331,6 @@ bool resolve_relative_address(Vector **section_irs, Table *label_table, Vector *
               if (value.label != NULL) {
                 LabelInfo *label_info = table_get(label_table, value.label);
                 if (label_info == NULL) {
-                  if (unresolved == NULL) {
-                    put_unresolved(&unresolved_labels, value.label);
-                    break;
-                  }
                   UnresolvedInfo *info = malloc(sizeof(*info));
                   info->kind = UNRES_EXTERN;
                   info->label = value.label;
@@ -372,25 +357,14 @@ bool resolve_relative_address(Vector **section_irs, Table *label_table, Vector *
       case IR_EXPR_QUAD:
         {
           Value value = calc_expr(label_table, ir->expr);
-          if (value.label != NULL) {
-            if (unresolved != NULL) {
-              UnresolvedInfo *info = malloc(sizeof(*info));
-              info->kind = UNRES_ABS64;  // TODO:
-              info->label = value.label;
-              info->src_section = sec;
-              info->offset = address - start_address;
-              info->add = value.offset;
-              vec_push(unresolved, info);
-              break;
-            }
-            LabelInfo *label_info = table_get(label_table, value.label);
-            if (label_info == NULL) {
-              put_unresolved(&unresolved_labels, value.label);
-              break;
-            }
-            value.offset += label_info->address;
-          }
-          put_value(ir->code.buf + 3, value.offset, sizeof(int32_t));
+          assert(value.label != NULL);
+          UnresolvedInfo *info = malloc(sizeof(*info));
+          info->kind = UNRES_ABS64;  // TODO:
+          info->label = value.label;
+          info->src_section = sec;
+          info->offset = address - start_address;
+          info->add = value.offset;
+          vec_push(unresolved, info);
         }
         break;
       case IR_LABEL:
@@ -418,7 +392,7 @@ bool resolve_relative_address(Vector **section_irs, Table *label_table, Vector *
   return !size_upgraded;
 }
 
-void emit_irs(Vector **section_irs, Table *label_table) {
+void emit_irs(Vector **section_irs) {
   for (int sec = 0; sec < SECTION_COUNT; ++sec) {
     Vector *irs = section_irs[sec];
     for (int i = 0, len = irs->len; i < len; ++i) {
@@ -443,15 +417,9 @@ void emit_irs(Vector **section_irs, Table *label_table) {
       case IR_EXPR_LONG:
       case IR_EXPR_QUAD:
         {
-          Value value = calc_expr(label_table, ir->expr);
-          if (value.label != NULL) {
-            LabelInfo *label_info = table_get(label_table, value.label);
-            if (label_info != NULL) {
-              value.offset += label_info->address;
-            }
-          }
+          int64_t zero = 0;
           int size = 1 << (ir->kind - IR_EXPR_BYTE);
-          add_section_data(sec, &value.offset, size);  // TODO: Target endian
+          add_section_data(sec, &zero, size);  // TODO: Target endian
         }
         break;
       default:  assert(false); break;

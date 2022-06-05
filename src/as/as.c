@@ -485,7 +485,7 @@ int main(int argc, char *argv[]) {
     settle1 = calc_label_address(LOAD_ADDRESS, section_irs, &label_table);
     settle2 = resolve_relative_address(section_irs, &label_table, unresolved);
   } while (!(settle1 && settle2));
-  emit_irs(section_irs, &label_table);
+  emit_irs(section_irs);
 
   fix_section_size(LOAD_ADDRESS);
 
