@@ -4,6 +4,7 @@
 
 #include "../../stdio/_fileman.h"
 #include "../wasi.h"
+#include "../unistd/wasi_impl.h"
 
 // extern FILEMAN __fileman;
 
@@ -22,6 +23,22 @@
 //   __flush_all_files();
 // }
 
+int max_preopen_fd = 3;
+
+static int find_preopens(void) {
+  for (int fd = 3; ; ++fd) {
+    Prestat prestat;
+    int result = fd_prestat_get(fd, &prestat);
+    if (result != 0)
+      return fd;
+
+    // char buf[256];
+    // fd_prestat_dir_name(fd, buf, prestat.u.dir.pr_name_len);  // TODO: Confirm prestat.u.dir.pr_name_len < sizeof(buf)
+    // buf[prestat.u.dir.pr_name_len] = '\0';
+    // fprintf(stderr, "preopens: %d, %s\n", fd, buf);
+  }
+}
+
 void _start(void) {
   extern int main(int, char**);
   char **argv;
@@ -37,6 +54,8 @@ void _start(void) {
     argv[0] = "*";
   }
   argv[argc] = NULL;
+
+  max_preopen_fd = find_preopens();
 
   // atexit(_atexit_proc);
   int ec = main(argc, argv);

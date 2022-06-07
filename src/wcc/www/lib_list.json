@@ -143,9 +143,14 @@
         "./libsrc/string/strrchr.c",
         "./libsrc/string/strstr.c",
         "./libsrc/_wasm/unistd/brk.c",
+        "./libsrc/_wasm/unistd/close.c",
         "./libsrc/_wasm/unistd/getcwd.c",
+        "./libsrc/_wasm/unistd/lseek.c",
+        "./libsrc/_wasm/unistd/open.c",
+        "./libsrc/_wasm/unistd/read.c",
         "./libsrc/_wasm/unistd/time.c",
-        "./libsrc/_wasm/unistd/unlink.c"
+        "./libsrc/_wasm/unistd/unlink.c",
+        "./libsrc/_wasm/unistd/write.c"
       ]
     }
   }
