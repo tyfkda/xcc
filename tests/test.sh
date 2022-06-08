@@ -204,6 +204,7 @@ try 'ternary string' 114 'int x = 1; const char *p = x ? "true" : "false"; retur
 try 'ternary ptr:0' 98 'const char *p = "abc"; p = p != 0 ? p + 1 : 0; return *p;'
 try_direct 'ternary w/ func' 53 'int f(){return 27;} int g(){return 53;} int main(){return (0?f:g)();}'
 try_output 'ternary void' 'false' "0 ? (void)write(1, \"true\", 4) : (void)write(1, \"false\", 5);"
+try 'ternary struct' 60 'typedef struct { int x, y, z; } S; S a = {1, 2, 3}, b = {10, 20, 30}; int x = 1; S c = x == 0 ? a : b; return c.x + c.y + c.z;'
 try_direct 'compound literal:array' 2 'int main(){ int *foo = (int[]){1, 2, 3}; return foo[1]; }'
 try_direct 'compound literal:struct' 66 'struct Foo {int x;}; int main(){ struct Foo foo = (struct Foo){66}; return foo.x; }'
 try_direct 'compound literal:struct ptr' 77 'struct Foo {int x;}; int main(){ struct Foo *foo = &(struct Foo){77}; return foo->x; }'

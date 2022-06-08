@@ -288,20 +288,19 @@ static void gen_cast(const Type *dst, Type *src) {
 }
 
 static void gen_ternary(Expr *expr, bool needval) {
-  gen_cond(expr->ternary.cond, true, needval);
-  if (needval) {
-    unsigned char type = expr->type->kind == TY_VOID ? WT_VOID : to_wtype(expr->type);
-    ADD_CODE(OP_IF, type);
-    ++cur_depth;
-    gen_expr(expr->ternary.tval, type != WT_VOID);
-    ADD_CODE(OP_ELSE);
-    gen_expr(expr->ternary.fval, type != WT_VOID);
-    ADD_CODE(OP_END);
-    --cur_depth;
-  } else {
-    gen_expr(expr->ternary.tval, false);
-    gen_expr(expr->ternary.fval, false);
+  gen_cond(expr->ternary.cond, true, true);
+  unsigned char wt = WT_VOID;
+  if (needval && expr->type->kind != TY_VOID) {
+    Type *type = expr->type;
+    wt = to_wtype((is_number(type) || ptr_or_array(type)) ? type : ptrof(type));
   }
+  ADD_CODE(OP_IF, wt);
+  ++cur_depth;
+  gen_expr(expr->ternary.tval, wt != WT_VOID);
+  ADD_CODE(OP_ELSE);
+  gen_expr(expr->ternary.fval, wt != WT_VOID);
+  ADD_CODE(OP_END);
+  --cur_depth;
 }
 
 static void gen_funcall_by_name(const Name *funcname) {
@@ -384,7 +383,7 @@ static void gen_funcall(Expr *expr) {
           gen_expr(new_expr_bop(EX_ADD, &tySize, NULL, spvar,
                                 new_expr_fixlit(&tySize, NULL, sarg_offset)),
                    true);
-          gen_lval(arg, true);
+          gen_expr(arg, true);
 
           ADD_CODE(type_size(&tySize) <= I32_SIZE ? OP_I32_CONST : OP_I64_CONST);
           ADD_LEB128(size);

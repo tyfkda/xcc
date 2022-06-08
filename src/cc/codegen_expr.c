@@ -322,20 +322,25 @@ static VReg *gen_ternary(Expr *expr) {
   BB *tbb = new_bb();
   BB *fbb = new_bb();
   BB *nbb = new_bb();
-  bool no_value = expr->type->kind == TY_VOID;
+  VReg *result = NULL;
+  if (expr->type->kind != TY_VOID) {
+    if (is_number(expr->type) || ptr_or_array(expr->type))
+      result = add_new_reg(expr->type, 0);
+    else
+      result = add_new_reg(ptrof(expr->type), 0);
+  }
 
-  VReg *result = add_new_reg(expr->type, 0);
   gen_cond_jmp(expr->ternary.cond, false, fbb);
 
   set_curbb(tbb);
   VReg *tval = gen_expr(expr->ternary.tval);
-  if (!no_value)
+  if (result != NULL)
     new_ir_mov(result, tval);
   new_ir_jmp(COND_ANY, nbb);
 
   set_curbb(fbb);
   VReg *fval = gen_expr(expr->ternary.fval);
-  if (!no_value)
+  if (result != NULL)
     new_ir_mov(result, fval);
 
   set_curbb(nbb);
