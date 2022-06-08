@@ -457,6 +457,40 @@ static void gen_bpofs(int32_t offset) {
   }
 }
 
+static void gen_clear_local_var(const VarInfo *varinfo) {
+  // Fill with zeros regardless of variable type.
+  size_t size = type_size(varinfo->type);
+  if (size <= 0)
+    return;
+  // VReg *reg = varinfo->local.reg;
+  // new_ir_clear(reg, size);
+
+  if (is_prim_type(varinfo->type) && !(varinfo->storage & VS_REF_TAKEN)) {
+#ifndef __NO_FLONUM
+    if (is_flonum(varinfo->type)) {
+      switch (varinfo->type->flonum.kind) {
+      case FL_FLOAT:  ADD_CODE(OP_F32_CONST); ADD_F32(0); break;
+      case FL_DOUBLE: ADD_CODE(OP_F64_CONST); ADD_F64(0); break;
+      default: assert(false); break;
+      }
+      return;
+    }
+#endif
+    ADD_CODE(size <= I32_SIZE ? OP_I32_CONST : OP_I64_CONST);
+    ADD_LEB128(0);
+    return;
+  }
+
+  // gen_lval(expr->bop.lhs);
+  VReg *vreg = varinfo->local.reg;
+  gen_bpofs(vreg->non_prim.offset);
+  ADD_CODE(OP_I32_CONST);
+  ADD_LEB128(0);
+  ADD_CODE(type_size(&tySize) <= I32_SIZE ? OP_I32_CONST : OP_I64_CONST);
+  ADD_LEB128(size);
+  gen_funcall_by_name(alloc_name(MEMSET_NAME, NULL, false));
+}
+
 static void gen_lval(Expr *expr, bool needval) {
   switch (expr->kind) {
   case EX_VAR:
@@ -504,8 +538,14 @@ static void gen_lval(Expr *expr, bool needval) {
       return;
     }
   case EX_COMPLIT:
-    gen_stmts(expr->complit.inits);
-    gen_lval(expr->complit.var, needval);
+    {
+      Expr *var = expr->complit.var;
+      VarInfo *varinfo = scope_find(var->var.scope, var->var.name, NULL);
+      assert(varinfo != NULL);
+      gen_clear_local_var(varinfo);
+      gen_stmts(expr->complit.inits);
+      gen_lval(var, needval);
+    }
     return;
   default: assert(false); break;
   }
@@ -600,6 +640,7 @@ static void gen_expr(Expr *expr, bool needval) {
         ADD_CODE(OP_F64_CONST);
         ADD_F64(expr->flonum);
         break;
+      default: assert(false); break;
       }
     }
     break;
@@ -660,7 +701,6 @@ static void gen_expr(Expr *expr, bool needval) {
           ADD_F64(0);
           break;
         default: assert(false); break;
-        break;
         }
         break;
 #endif
@@ -948,8 +988,14 @@ static void gen_expr(Expr *expr, bool needval) {
     break;
 
   case EX_COMPLIT:
-    gen_stmts(expr->complit.inits);
-    gen_expr(expr->complit.var, needval);
+    {
+      Expr *var = expr->complit.var;
+      VarInfo *varinfo = scope_find(var->var.scope, var->var.name, NULL);
+      assert(varinfo != NULL);
+      gen_clear_local_var(varinfo);
+      gen_stmts(expr->complit.inits);
+      gen_expr(var, needval);
+    }
     break;
 
   case EX_BLOCK:
@@ -1332,24 +1378,6 @@ static void gen_if(Stmt *stmt) {
   }
   ADD_CODE(OP_END);
   --cur_depth;
-}
-
-static void gen_clear_local_var(const VarInfo *varinfo) {
-  // Fill with zeros regardless of variable type.
-  size_t size = type_size(varinfo->type);
-  if (size <= 0)
-    return;
-  // VReg *reg = varinfo->local.reg;
-  // new_ir_clear(reg, size);
-
-  // gen_lval(expr->bop.lhs);
-  VReg *vreg = varinfo->local.reg;
-  gen_bpofs(vreg->non_prim.offset);
-  ADD_CODE(OP_I32_CONST);
-  ADD_LEB128(0);
-  ADD_CODE(type_size(&tySize) <= I32_SIZE ? OP_I32_CONST : OP_I64_CONST);
-  ADD_LEB128(size);
-  gen_funcall_by_name(alloc_name(MEMSET_NAME, NULL, false));
 }
 
 static void gen_vardecl(Vector *decls, Vector *inits) {

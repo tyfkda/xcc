@@ -277,6 +277,7 @@ static VReg *gen_lval(Expr *expr) {
       assert(varinfo->local.reg != NULL);
       varinfo->local.reg->flag |= VRF_REF;
 
+      gen_clear_local_var(varinfo);
       gen_stmts(expr->complit.inits);
       return gen_lval(expr->complit.var);
     }
@@ -943,8 +944,14 @@ VReg *gen_expr(Expr *expr) {
     }
 
   case EX_COMPLIT:
-    gen_stmts(expr->complit.inits);
-    return gen_expr(expr->complit.var);
+    {
+      Expr *var = expr->complit.var;
+      const VarInfo *varinfo = scope_find(var->var.scope, var->var.name, NULL);
+      assert(varinfo != NULL);
+      gen_clear_local_var(varinfo);
+      gen_stmts(expr->complit.inits);
+      return gen_expr(var);
+    }
 
   case EX_BLOCK:
     return gen_block_expr(expr->block);

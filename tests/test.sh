@@ -160,6 +160,7 @@ try_output_direct 'global char-array-in-struct init' 'abc' 'struct {char s[4];} 
 try_output_direct 'global ptr-ref1' '456' 'char str[] = "0123456789"; char *s = str + 4; int main(){ write(1, s, 3); return 0; }'
 try_output_direct 'global ptr-ref2' '456' 'char str[] = "0123456789"; char *s = &str[4]; int main(){ write(1, s, 3); return 0; }'
 try_direct 'global array' 42 'int array[] = {10,20,30}; int main(){ return sizeof(array) + array[2]; }'
+try_direct 'global compound literal init (deficit)' 0 'typedef struct {int x;} S; S g = (S){}; int main(){ return g.x; }'
 try 'static ref' 22 'static const int array[] = {11,22,33}; static const int *p = array; return p[1];'
 try_direct 'local static array' 42 'int main(){ static int array[] = {10,20,30}; return sizeof(array) + array[2]; }'
 try 'int static const' 34 'int static const a = 34; return a;'

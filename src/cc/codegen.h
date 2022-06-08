@@ -12,6 +12,7 @@ typedef struct StructInfo StructInfo;
 typedef struct Type Type;
 typedef struct VReg VReg;
 typedef struct VRegType VRegType;
+typedef struct VarInfo VarInfo;
 typedef struct Vector Vector;
 
 // Used for returning non-primitive (struct) value.
@@ -38,3 +39,5 @@ void gen_stmts(Vector *stmts);
 
 typedef VReg *(*BuiltinFunctionProc)(Expr *expr);
 void add_builtin_function(const char *str, Type *type, BuiltinFunctionProc *proc, bool add_to_scope);
+
+void gen_clear_local_var(const VarInfo *varinfo);

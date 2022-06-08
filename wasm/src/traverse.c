@@ -488,6 +488,7 @@ static void traverse_expr(Expr **pexpr, bool needval) {
     break;
 
   case EX_COMPLIT:
+    register_func_info_memset();
     traverse_stmts(expr->complit.inits);
     break;
 
@@ -625,7 +626,11 @@ static void traverse_stmt(Stmt *stmt) {
     return;
   switch (stmt->kind) {
   case ST_EXPR:  traverse_expr(&stmt->expr, false); break;
-  case ST_RETURN:  traverse_expr(&stmt->return_.val, true); break;
+  case ST_RETURN:
+    if (stmt->return_.val != NULL && !is_prim_type(stmt->return_.val->type))
+      register_func_info_memcpy();
+    traverse_expr(&stmt->return_.val, true);
+    break;
   case ST_BLOCK:
     if (stmt->block.scope != NULL)
       curscope = stmt->block.scope;

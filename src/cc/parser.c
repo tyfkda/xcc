@@ -524,7 +524,12 @@ static Initializer *check_global_initializer(Type *type, Initializer *init) {
           parse_error_nofatal(init->token, "Illegal initializer");
           break;
         }
-        init = e->complit.original_init;
+        init = flatten_initializer(type, e->complit.original_init);
+        Expr *var = e->complit.var;
+        VarInfo *varinfo = scope_find(var->var.scope, var->var.name, NULL);
+        assert(varinfo != NULL);
+        assert(is_global_scope(var->var.scope));
+        varinfo->global.init = init;
       }
       assert(init->kind == IK_MULTI);
       const StructInfo *sinfo = type->struct_.info;

@@ -219,9 +219,8 @@ static void construct_initial_value(const Type *type, const Initializer *init) {
     break;
   case TY_STRUCT:
     {
-      assert(init == NULL || init->kind == IK_MULTI);
-
       const StructInfo *sinfo = type->struct_.info;
+      assert(init == NULL || (init->kind == IK_MULTI && init->multi->len == sinfo->members->len));
       int count = 0;
       int offset = 0;
       for (int i = 0, n = sinfo->members->len; i < n; ++i) {

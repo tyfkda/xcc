@@ -423,7 +423,7 @@ static void gen_label(Stmt *stmt) {
   gen_stmt(stmt->label.stmt);
 }
 
-static void gen_clear_local_var(const VarInfo *varinfo) {
+void gen_clear_local_var(const VarInfo *varinfo) {
   // Fill with zeros regardless of variable type.
   size_t size = type_size(varinfo->type);
   if (size <= 0)
