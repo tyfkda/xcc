@@ -343,7 +343,7 @@ static void gen_funcall(Expr *expr) {
   Expr *spvar = NULL;
   if (sarg_siz > 0 || vaarg_bufsiz > 0) {
     spvar = get_sp_var();
-    // global.sp += ALIGN(sarg_siz + vaarg_bufsiz, 8);
+    // global.sp -= ALIGN(sarg_siz + vaarg_bufsiz, 8);
     gen_expr_stmt(
         new_expr_unary(EX_MODIFY, &tyVoid, NULL,
                        new_expr_bop(EX_SUB, &tySize, NULL, spvar,
@@ -431,11 +431,11 @@ static void gen_funcall(Expr *expr) {
   }
 
   if (sarg_siz > 0 || vaarg_bufsiz > 0) {
-    // global.sp -= vaarg_bufsiz;
+    // global.sp += ALIGN(sarg_siz + vaarg_bufsiz, 8);
     gen_expr_stmt(
         new_expr_unary(EX_MODIFY, &tyVoid, NULL,
                        new_expr_bop(EX_ADD, &tySize, NULL, spvar,
-                                    new_expr_fixlit(&tySize, NULL, sarg_siz + vaarg_bufsiz))));
+                                    new_expr_fixlit(&tySize, NULL, ALIGN(sarg_siz + vaarg_bufsiz, 8)))));
   }
 }
 
