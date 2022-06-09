@@ -184,9 +184,18 @@ export class WaProc {
 
         sin: Math.sin,
         cos: Math.cos,
+        tan: Math.tan,
+        atan: Math.atan,
         sqrt: Math.sqrt,
-        drand48: Math.random,
+        log: Math.log,
+        exp: Math.exp,
+        pow: Math.pow,
         fabs: Math.abs,
+        floor: Math.floor,
+        ceil: Math.ceil,
+        fmod: (x, y) => x % y,
+        drand48: Math.random,
+        erand48: Math.random,
 
         putstr: (ptr) => {
           const text = Util.decodeString(this.memory.buffer, ptr)
