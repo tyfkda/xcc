@@ -5,11 +5,6 @@ void _start(void) {
         "jmp exit");
 }
 
-void exit(int code) {
-  __asm("mov $2, %eax\n"  // SYS_exit
-        "int $64");
-}
-
 #elif defined(__WASM)
 
 int _start(int argc, char *argv[]) {
@@ -24,11 +19,6 @@ void _start(void) {
         "call main\n"
         "mov %eax, %edi\n"
         "jmp exit");
-}
-
-void exit(int code) {
-  __asm("mov $60, %eax\n"  // __NR_exit
-        "syscall");
 }
 
 #elif defined(__APPLE__)

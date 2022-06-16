@@ -1,5 +1,5 @@
+#include "_malloc.h"
 #include "stdlib.h"
-#include "string.h"
 #include "unistd.h"  // for sbrk
 
 // Memory allocator by Kernighan and Ritchie,
@@ -7,24 +7,10 @@
 
 #define PAGESIZE  (4096)
 
-typedef long Align;
-
-union header {
-  struct {
-    union header *ptr;
-    unsigned int size;
-  } s;
-  Align x;
-};
-
-typedef union header Header;
-
 static Header base = {.s={.ptr=&base, .size=0}};
 static Header *freep = &base;
 
-void
-free(void *ap)
-{
+void free(void *ap) {
   Header *bp, *p;
 
   if (ap == 0)
@@ -47,9 +33,7 @@ free(void *ap)
   freep = p;
 }
 
-static Header*
-morecore(size_t nu)
-{
+static Header *morecore(size_t nu) {
   size_t size;
   char *p;
   Header *hp;
@@ -64,9 +48,7 @@ morecore(size_t nu)
   return freep;
 }
 
-void*
-malloc(size_t nbytes)
-{
+void *malloc(size_t nbytes) {
   Header *p, *prevp;
   size_t nunits;
 
@@ -88,35 +70,4 @@ malloc(size_t nbytes)
       if((p = morecore(nunits)) == 0)
         return 0;
   }
-}
-
-void*
-calloc(size_t nmemb, size_t size)
-{
-  size_t nbytes = nmemb * size;
-  void *adr = malloc(nbytes);
-  if (adr != NULL)
-    memset(adr, 0, nbytes);
-  return adr;
-}
-
-void*
-realloc(void* p, size_t size)
-{
-  if (size <= 0) {
-    free(p);
-    return NULL;
-  }
-
-  if (p == NULL)
-    return malloc(size);
-
-  void* buf = malloc(size);
-  if (buf != NULL) {
-    Header* h = (Header*)p - 1;
-    size_t s = (h->s.size - 1) * sizeof(Header);
-    memcpy(buf, p, size > s ? s : size);
-    free(p);
-  }
-  return buf;
 }

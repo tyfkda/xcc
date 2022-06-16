@@ -6,6 +6,9 @@ AS_DIR:=src/as
 LD_DIR:=src/ld
 UTIL_DIR:=src/util
 OBJ_DIR:=obj
+
+LIBSRC_DIR:=libsrc
+LIBOBJ_DIR:=obj/lib
 LIB_DIR:=lib
 
 UNAME:=$(shell uname)
@@ -100,7 +103,7 @@ test-all: test test-gen2 diff-gen23
 
 .PHONY: clean
 clean:
-	rm -rf cc1 cpp as ld xcc $(OBJ_DIR) $(LIB_DIR)/*.o a.out gen2* gen3* tmp.s dump_expr dump_ir dump_type
+	rm -rf cc1 cpp as ld xcc $(OBJ_DIR) $(LIB_DIR) a.out gen2* gen3* tmp.s dump_expr dump_ir dump_type
 	$(MAKE) -C tests clean
 
 ### Library
@@ -111,31 +114,32 @@ else
 LIBS:=$(LIB_DIR)/crt0.a $(LIB_DIR)/libc.a
 endif
 
-CRT0_SRCS:=\
-	$(LIB_DIR)/crt0.c
+CRT0_SRCS:=$(wildcard $(LIBSRC_DIR)/crt0/*.c)
 
 LIBC_SRCS:=\
-	$(LIB_DIR)/assert.c \
-	$(LIB_DIR)/getopt.c \
-	$(LIB_DIR)/math.c \
-	$(LIB_DIR)/setjmp.c \
-	$(LIB_DIR)/sprintf.c \
-	$(LIB_DIR)/stdio.c \
-	$(LIB_DIR)/umalloc.c
+	$(wildcard $(LIBSRC_DIR)/math/*.c) \
+	$(wildcard $(LIBSRC_DIR)/misc/*.c) \
+	$(wildcard $(LIBSRC_DIR)/stdio/*.c) \
+	$(wildcard $(LIBSRC_DIR)/stdlib/*.c) \
+	$(wildcard $(LIBSRC_DIR)/string/*.c) \
+	$(wildcard $(LIBSRC_DIR)/unistd/*.c) \
 
-CRT0_OBJS:=$(CRT0_SRCS:.c=.o)
-LIBC_OBJS:=$(LIBC_SRCS:.c=.o)
+CRT0_OBJS:=$(addprefix $(LIBOBJ_DIR)/,$(notdir $(CRT0_SRCS:.c=.o)))
+LIBC_OBJS:=$(addprefix $(LIBOBJ_DIR)/,$(notdir $(LIBC_SRCS:.c=.o)))
 
 .PHONY: libs
 libs: exes $(LIBS)
 
 $(LIB_DIR)/crt0.a:	$(CRT0_OBJS)
+	mkdir -p $(LIB_DIR)
 	$(AR) r $@ $^
 
 $(LIB_DIR)/libc.a:	$(LIBC_OBJS)
+	mkdir -p $(LIB_DIR)
 	$(AR) r $@ $^
 
-$(LIB_DIR)/%.o: $(LIB_DIR)/%.c
+$(LIBOBJ_DIR)/%.o: $(LIBSRC_DIR)/**/%.c # exes
+	mkdir -p $(LIBOBJ_DIR)
 	./xcc -c -o $@ $<
 
 ### Self hosting
