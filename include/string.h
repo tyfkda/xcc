@@ -19,4 +19,5 @@ char *strndup(const char *str, size_t size);
 void* memcpy(void *dst, const void *src, size_t n);
 void* memmove(void* dst, const void* src, size_t);
 void* memset(void* buf, int val, size_t size);
+void *memchr(const void *buf, int c, size_t n);
 int memcmp(const void *buf1, const void *buf2, size_t n);

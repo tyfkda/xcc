@@ -188,6 +188,14 @@ void *memset(void *buf, int val, size_t size) {
   return buf;
 }
 
+void *memchr(const void *buf, int c, size_t n) {
+  for (const char *p = buf, *e = p + n; p < e; ++p) {
+    if (*p == c)
+      return p;
+  }
+  return NULL;
+}
+
 int memcmp(const void *buf1, const void *buf2, size_t n) {
   const unsigned char *p = buf1;
   const unsigned char *q = buf2;
