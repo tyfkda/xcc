@@ -232,6 +232,20 @@ static Value calc_expr(Table *label_table, const Expr *expr) {
   return (Value){.label = NULL, .offset = 0};
 }
 
+static bool make_jmp_long(IR *ir) {
+  if (ir->code.flag & INST_LONG_OFFSET)
+    return false;
+
+  Inst *inst = ir->code.inst;
+  // Change to long offset, and recalculate.
+  ir->code.flag |= INST_LONG_OFFSET;
+  if (inst->op == JMP)
+    MAKE_CODE(inst, &ir->code, 0xe9, IM32(-1));
+  else
+    MAKE_CODE(inst, &ir->code, 0x0f, 0x80 + (inst->op - JO), IM32(-1));
+  return true;
+}
+
 bool resolve_relative_address(Vector **section_irs, Table *label_table, Vector *unresolved) {
   assert(unresolved != NULL);
   Table unresolved_labels;
@@ -295,7 +309,16 @@ bool resolve_relative_address(Vector **section_irs, Table *label_table, Vector *
               if (value.label != NULL) {
                 LabelInfo *label_info = table_get(label_table, value.label);
                 if (label_info == NULL) {
-                  assert(!"Not handled");
+                  // Make unresolved label jmp to long.
+                  size_upgraded |= make_jmp_long(ir);
+
+                  UnresolvedInfo *info = malloc(sizeof(*info));
+                  info->kind = UNRES_EXTERN;
+                  info->label = value.label;
+                  info->src_section = sec;
+                  info->offset = address + 1 - start_address;
+                  info->add = value.offset - 4;
+                  vec_push(unresolved, info);
                   break;
                 } else {
                   value.offset += label_info->address;
@@ -306,13 +329,7 @@ bool resolve_relative_address(Vector **section_irs, Table *label_table, Vector *
               bool long_offset = ir->code.flag & INST_LONG_OFFSET;
               if (!long_offset) {
                 if (!is_im8(offset)) {
-                  // Change to long offset, and recalculate.
-                  ir->code.flag |= INST_LONG_OFFSET;
-                  if (inst->op == JMP)
-                    MAKE_CODE(inst, &ir->code, 0xe9, IM32(-1));
-                  else
-                    MAKE_CODE(inst, &ir->code, 0x0f, 0x80 + (inst->op - JO), IM32(-1));
-                  size_upgraded = true;
+                  size_upgraded |= make_jmp_long(ir);
                 } else {
                   put_value(ir->code.buf + 1, offset, sizeof(int8_t));
                 }
