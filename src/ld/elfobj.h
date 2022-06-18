@@ -41,6 +41,7 @@ typedef struct {
 
 typedef struct ElfObj {
   FILE *fp;
+  size_t start_offset;
   Elf64_Ehdr ehdr;
   Elf64_Shdr *shdrs;
   char *shstrtab;
@@ -50,6 +51,7 @@ typedef struct ElfObj {
 
 void elfobj_init(ElfObj *elfobj);
 bool open_elf(const char *fn, ElfObj *elfobj);
+bool read_elf(ElfObj *elfobj, FILE *fp, const char *fn);
 void close_elf(ElfObj *elfobj);
 Elf64_Sym *elfobj_find_symbol(ElfObj *elfobj, const Name *name);
 

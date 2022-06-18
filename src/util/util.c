@@ -185,6 +185,14 @@ char *cat_path(const char *root, const char *path) {
   return buf;
 }
 
+char *get_ext(const char *filename) {
+  const char *last_slash = strrchr(filename, '/');
+  if (last_slash == NULL)
+    last_slash = filename;
+  char *dot = strrchr(last_slash, '.');
+  return dot != NULL ? (char*)&dot[1]: (char*)&last_slash[strlen(last_slash)];
+}
+
 char *change_ext(const char *path, const char *ext) {
   const char *p = strrchr(path, '/');
   if (p == NULL)
