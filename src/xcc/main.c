@@ -376,8 +376,15 @@ int main(int argc, char *argv[]) {
   if (out_type >= OutExecutable) {
     if (!nostdlib)
       vec_push(sources, cat_path(root, "lib/crt0.o"));
-    if (!nodefaultlibs && !nostdlib)
-      vec_push(sources, cat_path(root, "lib/libc.o"));
+    if (!nodefaultlibs && !nostdlib) {
+      vec_push(sources, cat_path(root, "lib/assert.o"));
+      vec_push(sources, cat_path(root, "lib/getopt.o"));
+      vec_push(sources, cat_path(root, "lib/math.o"));
+      vec_push(sources, cat_path(root, "lib/setjmp.o"));
+      vec_push(sources, cat_path(root, "lib/sprintf.o"));
+      vec_push(sources, cat_path(root, "lib/stdio.o"));
+      vec_push(sources, cat_path(root, "lib/umalloc.o"));
+    }
   }
 #else
   UNUSED(nodefaultlibs);

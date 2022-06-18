@@ -23,10 +23,10 @@
       "_file.h": "../lib/_file.h",
       "crt0.c": "../lib/crt0.c",
       "libc.c": [
-        "../lib/_assert.c",
-        "../lib/_sprintf.c",
-        "../lib/_stdio.c",
-        "../lib/_umalloc.c"
+        "../lib/assert.c",
+        "../lib/sprintf.c",
+        "../lib/stdio.c",
+        "../lib/umalloc.c"
       ]
     }
   }

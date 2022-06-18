@@ -106,13 +106,34 @@ clean:
 ### Library
 
 ifeq ("$(UNAME)", "Darwin")
-LIB_SRCS:=
+LIBS:=
 else
-LIB_SRCS:=$(LIB_DIR)/crt0.c $(LIB_DIR)/libc.c
+LIBS:=$(LIB_DIR)/crt0.a $(LIB_DIR)/libc.a
 endif
-LIB_OBJS:=$(LIB_SRCS:.c=.o)
 
-libs: exes $(LIB_OBJS)
+CRT0_SRCS:=\
+	$(LIB_DIR)/crt0.c
+
+LIBC_SRCS:=\
+	$(LIB_DIR)/assert.c \
+	$(LIB_DIR)/getopt.c \
+	$(LIB_DIR)/math.c \
+	$(LIB_DIR)/setjmp.c \
+	$(LIB_DIR)/sprintf.c \
+	$(LIB_DIR)/stdio.c \
+	$(LIB_DIR)/umalloc.c
+
+CRT0_OBJS:=$(CRT0_SRCS:.c=.o)
+LIBC_OBJS:=$(LIBC_SRCS:.c=.o)
+
+.PHONY: libs
+libs: exes $(LIBS)
+
+$(LIB_DIR)/crt0.a:	$(CRT0_OBJS)
+	$(AR) r $@ $^
+
+$(LIB_DIR)/libc.a:	$(LIBC_OBJS)
+	$(AR) r $@ $^
 
 $(LIB_DIR)/%.o: $(LIB_DIR)/%.c
 	./xcc -c -o $@ $<
