@@ -36,9 +36,10 @@ try_direct() {
     };
   fi
 
-  local tmpfile=$(mktemp).c
-  echo -e "$input" > $tmpfile
-  $XCC -nodefaultlibs $tmpfile || exit 1
+  local tmpfile
+  tmpfile=$(mktemp).c
+  echo -e "$input" > "$tmpfile"
+  $XCC -nodefaultlibs "$tmpfile" || exit 1
 
   $RUN_AOUT
   local actual="$?"
@@ -69,12 +70,13 @@ try_output_direct() {
     };
   fi
 
-  local tmpfile=$(mktemp).c
-  echo -e "$input" > $tmpfile
-  $XCC -nodefaultlibs $tmpfile || exit 1
+  local tmpfile
+  tmpfile=$(mktemp).c
+  echo -e "$input" > "$tmpfile"
+  $XCC -nodefaultlibs "$tmpfile" || exit 1
 
   local actual
-  actual=`$RUN_AOUT` || exit 1
+  actual=$($RUN_AOUT) || exit 1
 
   if [ "$actual" = "$expected" ]; then
     echo "OK"
@@ -101,9 +103,10 @@ compile_error() {
     };
   fi
 
-  local tmpfile=$(mktemp).c
-  echo -e "$input" > $tmpfile
-  $XCC -nodefaultlibs $tmpfile
+  local tmpfile
+  tmpfile=$(mktemp).c
+  echo -e "$input" > "$tmpfile"
+  $XCC -nodefaultlibs "$tmpfile"
   local result="$?"
 
   if [ "$result" = "0" ]; then
@@ -136,7 +139,7 @@ try_direct 'typedef' 123 'typedef struct {int x, y;} Foo; int main(){ Foo foo; f
 try_direct 'same typedef' 66 'typedef int Foo; typedef int Foo; int main(){ return 66; }'
 try_output_direct 'empty function' '' 'void foo(){} int main(){ foo(); return 0; }'
 try_output_direct 'empty block' '' 'int main(){ ; {} {;;;} return 0; }'
-try_direct 'Undeclared struct typedef' $PTRSIZE 'typedef struct FILE FILE; int main(){ return sizeof(FILE*); }'
+try_direct 'Undeclared struct typedef' "$PTRSIZE" 'typedef struct FILE FILE; int main(){ return sizeof(FILE*); }'
 try_direct 'late declare struct' 42 'struct Foo *p; struct Foo {int x;}; int main(){ struct Foo foo; p = &foo; p->x = 42; return p->x; }'
 try 'scoped struct' 5 'int size; struct S {int x;}; { struct S {char y;}; size = sizeof(struct S); } return size + sizeof(struct S);'
 try 'scoped typedef' 5 'int size; typedef struct {int x;} S; { typedef struct {char y;} S; size = sizeof(S); } return size + sizeof(S);'
@@ -284,7 +287,7 @@ compile_error 'vardecl is not stmt' 'void main(){ if (1) int x = 0; }'
 compile_error 'same struct name' 'struct Foo{int x;}; struct Foo{int x;}; void main(){}'
 compile_error 'same struct name in scope' 'void main(){struct Foo{int x;}; struct Foo{int x;}; }'
 compile_error 'same struct/union name' 'struct Foo{int x;}; union Foo{int y;}; void main(){}'
-compile_error '`union` for struct' 'struct Foo{int x;}; void main(){ union Foo foo; }'
+compile_error 'union for struct' 'struct Foo{int x;}; void main(){ union Foo foo; }'
 compile_error 'non exist field initializer' 'struct Foo{int x;}; void main(){ struct Foo foo = {.y=1}; }'
 compile_error 'initializer for empty struct' 'struct Foo{}; void main(){ struct Foo foo = {1}; }'
 compile_error 'no name nor defined struct ptr' 'void main(){ struct *p; }'

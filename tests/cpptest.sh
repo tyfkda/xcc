@@ -6,7 +6,8 @@ CPP=${CPP:-../cpp}
 
 try() {
   local title="$1"
-  local expected=$(echo -e "$2")
+  local expected
+  expected=$(echo -e "$2")
   local input="$3"
 
   echo -n "$title => "
@@ -33,7 +34,7 @@ compile_error() {
 
   echo -n "$title => "
 
-  $(echo -e "$input" | $CPP | tr -d '\n')
+  echo -e "$input" | $CPP | tr -d '\n'
   local result="$?"
 
   if [ $result -eq 0 ]; then

@@ -9,10 +9,11 @@ try() {
 
   echo -n "$title => "
 
-  $XCC $inputs || exit 1
+  $XCC "$inputs" || exit 1
 
+  declare -a args=( "$@" )
   local actual
-  actual=`./a.out ${@:4}` || exit 1
+  actual=$(./a.out "${args[@]:3}") || exit 1
 
   if [ "$actual" = "$expected" ]; then
     echo "OK"
@@ -30,11 +31,12 @@ try_cmp() {
 
   echo -n "$title => "
 
-  $XCC $inputs || exit 1
+  $XCC "$inputs" || exit 1
 
-  `./a.out ${@:5}` || exit 1
+  declare -a args=( "$@" )
+  ./a.out "${args[@]:4}" || exit 1
 
-  cmp $expected $output || {
+  cmp "$expected" "$output" || {
     echo "NG"
     exit 1
   }

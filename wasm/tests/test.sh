@@ -13,4 +13,10 @@ EOS
 
 RE_SKIP='\/\/-WCC'
 
+export XCC
+export PTRSIZE
+export RUN_AOUT
+export PROLOGUE
+export RE_SKIP
+
 . ../../tests/test.sh || exit 1
