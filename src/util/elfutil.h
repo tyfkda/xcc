@@ -45,7 +45,6 @@ typedef struct {
 void symtab_init(Symtab *symtab);
 Elf64_Sym *symtab_add(Symtab *symtab, const Name *name);
 
-
 //
 
 void out_elf_header(FILE *fp, uintptr_t entry, int phnum, int shnum);

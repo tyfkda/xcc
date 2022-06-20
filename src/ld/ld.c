@@ -47,7 +47,7 @@ void *malloc_or_die(size_t size) {
   exit(1);
 }
 
-void* read_from(FILE *fp, unsigned long offset, size_t size) {
+void *read_from(FILE *fp, unsigned long offset, size_t size) {
   void *buf = malloc_or_die(size);
   if (fseek(fp, offset, SEEK_SET) != 0 ||
       fread(buf, 1, size, fp) != size) {
