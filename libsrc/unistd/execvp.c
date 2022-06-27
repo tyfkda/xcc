@@ -1,3 +1,4 @@
+#if !defined(__WASM)
 #include "unistd.h"
 
 //extern char **environ;
@@ -7,3 +8,4 @@ char **environ = NULL;
 int execvp(const char *path, char *const args[]) {
   return execve(path, args, environ);
 }
+#endif

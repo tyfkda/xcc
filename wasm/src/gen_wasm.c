@@ -1416,14 +1416,11 @@ static void gen_stmt(Stmt *stmt) {
   case ST_FOR:  gen_for(stmt); break;
   case ST_BREAK:  gen_break(); break;
   case ST_CONTINUE:  gen_continue(); break;
-  /*case ST_GOTO:  gen_goto(stmt); break;
-  case ST_LABEL:  gen_label(stmt); break;*/
+  // case ST_GOTO:  gen_goto(stmt); break;
+  // case ST_LABEL:  gen_label(stmt); break;
   case ST_VARDECL:  gen_vardecl(stmt->vardecl.decls, stmt->vardecl.inits); break;
-  /*case ST_ASM:  gen_asm(stmt); break;*/
-
-  default:
-    parse_error(stmt->token, "Unhandled stmt: %d", stmt->kind);
-    break;
+  // case ST_ASM:  gen_asm(stmt); break;
+  default: assert(false); break;
   }
 }
 

@@ -1,3 +1,4 @@
+#if !defined(__WASM)
 #include "sys/random.h"
 #include "fcntl.h"  // open
 #include "unistd.h"  // close
@@ -12,3 +13,4 @@ ssize_t getrandom(void *buf, size_t buflen, unsigned int flags) {
   }
   return size;
 }
+#endif

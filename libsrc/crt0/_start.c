@@ -5,13 +5,6 @@ void _start(void) {
         "jmp exit");
 }
 
-#elif defined(__WASM)
-
-int _start(int argc, char *argv[]) {
-  extern int main(int, char**);
-  return main(argc, argv);
-}
-
 #elif defined(__linux__)
 void _start(void) {
   __asm("mov (%rsp), %rdi\n"

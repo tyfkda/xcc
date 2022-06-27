@@ -1,7 +1,10 @@
 #include "unistd.h"
 #include "stdio.h"  // EOF
 
-#if defined(__linux__)
+#if defined(__WASM)
+extern void *_brk(void *);
+
+#elif defined(__linux__)
 static void *_brk(void *addr) {
   __asm("mov $12, %eax\n"  // __NR_brk
         "syscall");

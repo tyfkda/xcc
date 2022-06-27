@@ -1,7 +1,7 @@
 CC1_DIR:=../src/cc
 CPP_DIR:=../src/cpp
 UTIL_DIR:=../src/util
-LIB_DIR:=../lib
+LIB_DIR:=./lib
 OBJ_DIR:=obj
 
 OPTIMIZE:=-O2 -g3
@@ -81,7 +81,7 @@ self-hosting:	$(TARGET)cc.wasm
 test-self-hosting:
 	$(MAKE) WCC="$(TARGET_CC)" -C tests
 
-WCC_LIBS:=$(LIB_DIR)/crt0.c $(LIB_DIR)/stdio.c $(LIB_DIR)/sprintf.c $(LIB_DIR)/umalloc.c $(LIB_DIR)/getopt.c $(LIB_DIR)/assert.c
+WCC_LIBS:=$(LIB_DIR)/crt0.c $(LIB_DIR)/libc.c
 
 $(TARGET)cc.wasm:	$(WCC_SRCS) $(WCC_LIBS)
 	$(HOST_CC) -o$(TARGET)cc.wasm \

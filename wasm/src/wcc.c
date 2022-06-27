@@ -948,18 +948,11 @@ int main(int argc, char *argv[]) {
   }
   // if (out_type >= OutExecutable)
   {
-    vec_push(lib_paths, cat_path(root, "../lib"));
+    vec_push(lib_paths, cat_path(root, "./lib"));
     if (!nostdlib)
       add_lib(lib_paths, "crt0.c", sources);
-    if (!nodefaultlibs && !nostdlib) {
-      add_lib(lib_paths, "assert.c", sources);
-      add_lib(lib_paths, "getopt.c", sources);
-      add_lib(lib_paths, "math.c", sources);
-      add_lib(lib_paths, "setjmp.c", sources);
-      add_lib(lib_paths, "sprintf.c", sources);
-      add_lib(lib_paths, "stdio.c", sources);
-      add_lib(lib_paths, "umalloc.c", sources);
-    }
+    if (!nodefaultlibs && !nostdlib)
+      add_lib(lib_paths, "libc.c", sources);
   }
 
   // Preprocess.

@@ -1,3 +1,4 @@
+#if !defined(__WASM)
 #include "unistd.h"
 #include "errno.h"
 
@@ -12,3 +13,4 @@ int open(const char *fn, int flag, ...) {
   }
   return ret;
 }
+#endif

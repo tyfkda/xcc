@@ -1,3 +1,4 @@
+#if !defined(__WASM)
 #include "unistd.h"
 
 pid_t wait4(pid_t pid, int* status, int options, struct rusage *usage) {
@@ -5,3 +6,4 @@ pid_t wait4(pid_t pid, int* status, int options, struct rusage *usage) {
         "mov $61, %eax\n"  // __NR_wait4
         "syscall");
 }
+#endif

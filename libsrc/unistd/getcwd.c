@@ -2,7 +2,10 @@
 #include "errno.h"
 #include "stdlib.h"  // malloc
 
-#if defined(__linux__)
+#if defined(__WASM)
+extern int _getcwd(char *, size_t);
+
+#elif defined(__linux__)
 static int _getcwd(char *buffer, size_t size) {
   __asm("mov $79, %eax\n"  // __NR_getcwd
         "syscall");
