@@ -23,14 +23,6 @@
 
 #endif
 
-static char *get_ext(const char *filename) {
-  const char *last_slash = strrchr(filename, '/');
-  if (last_slash == NULL)
-    last_slash = filename;
-  char *dot = strrchr(last_slash, '.');
-  return dot != NULL ? (char*)&dot[1]: (char*)&last_slash[strlen(last_slash)];
-}
-
 static pid_t fork1(void) {
   pid_t pid = fork();
   if (pid < 0)
@@ -375,9 +367,10 @@ int main(int argc, char *argv[]) {
 #ifndef AS_USE_CC
   if (out_type >= OutExecutable) {
     if (!nostdlib)
-      vec_push(sources, cat_path(root, "lib/crt0.o"));
+      vec_push(sources, cat_path(root, "lib/crt0.a"));
     if (!nodefaultlibs && !nostdlib)
-      vec_push(sources, cat_path(root, "lib/libc.o"));
+      vec_push(sources, cat_path(root, "lib/libc.a"));
+
   }
 #else
   UNUSED(nodefaultlibs);
@@ -392,7 +385,7 @@ int main(int argc, char *argv[]) {
       res = compile_csource(src, out_type, ofn, ofd, cpp_cmd, cc1_cmd, as_cmd, ld_cmd);
     } else if (strcasecmp(ext, "s") == 0) {
       res = compile_asm(src, out_type, ofn, ofd, as_cmd, ld_cmd);
-    } else if (strcasecmp(ext, "o") == 0) {
+    } else if (strcasecmp(ext, "o") == 0 || strcasecmp(ext, "a") == 0)  {
       if (out_type >= OutExecutable)
         vec_push(ld_cmd, src);
     } else {

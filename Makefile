@@ -6,6 +6,9 @@ AS_DIR:=src/as
 LD_DIR:=src/ld
 UTIL_DIR:=src/util
 OBJ_DIR:=obj
+
+LIBSRC_DIR:=libsrc
+LIBOBJ_DIR:=obj/lib
 LIB_DIR:=lib
 
 UNAME:=$(shell uname)
@@ -100,21 +103,43 @@ test-all: test test-gen2 diff-gen23
 
 .PHONY: clean
 clean:
-	rm -rf cc1 cpp as ld xcc $(OBJ_DIR) $(LIB_DIR)/*.o a.out gen2* gen3* tmp.s dump_expr dump_ir dump_type
+	rm -rf cc1 cpp as ld xcc $(OBJ_DIR) $(LIB_DIR) a.out gen2* gen3* tmp.s dump_expr dump_ir dump_type
 	$(MAKE) -C tests clean
 
 ### Library
 
 ifeq ("$(UNAME)", "Darwin")
-LIB_SRCS:=
+LIBS:=
 else
-LIB_SRCS:=$(LIB_DIR)/crt0.c $(LIB_DIR)/libc.c
+LIBS:=$(LIB_DIR)/crt0.a $(LIB_DIR)/libc.a
 endif
-LIB_OBJS:=$(LIB_SRCS:.c=.o)
 
-libs: exes $(LIB_OBJS)
+CRT0_SRCS:=$(wildcard $(LIBSRC_DIR)/crt0/*.c)
 
-$(LIB_DIR)/%.o: $(LIB_DIR)/%.c
+LIBC_SRCS:=\
+	$(wildcard $(LIBSRC_DIR)/math/*.c) \
+	$(wildcard $(LIBSRC_DIR)/misc/*.c) \
+	$(wildcard $(LIBSRC_DIR)/stdio/*.c) \
+	$(wildcard $(LIBSRC_DIR)/stdlib/*.c) \
+	$(wildcard $(LIBSRC_DIR)/string/*.c) \
+	$(wildcard $(LIBSRC_DIR)/unistd/*.c) \
+
+CRT0_OBJS:=$(addprefix $(LIBOBJ_DIR)/,$(notdir $(CRT0_SRCS:.c=.o)))
+LIBC_OBJS:=$(addprefix $(LIBOBJ_DIR)/,$(notdir $(LIBC_SRCS:.c=.o)))
+
+.PHONY: libs
+libs: exes $(LIBS)
+
+$(LIB_DIR)/crt0.a:	$(CRT0_OBJS)
+	mkdir -p $(LIB_DIR)
+	$(AR) r $@ $^
+
+$(LIB_DIR)/libc.a:	$(LIBC_OBJS)
+	mkdir -p $(LIB_DIR)
+	$(AR) r $@ $^
+
+$(LIBOBJ_DIR)/%.o: $(LIBSRC_DIR)/**/%.c # exes
+	mkdir -p $(LIBOBJ_DIR)
 	./xcc -c -o $@ $<
 
 ### Self hosting

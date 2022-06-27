@@ -25,6 +25,7 @@ ssize_t getline_chomp(char **lineptr, size_t *n, FILE *stream);
 ssize_t getline_cont(char **lineptr, size_t *n, FILE *stream, int *plineno);
 bool is_fullpath(const char *filename);
 char *cat_path(const char *root, const char *path);
+char *get_ext(const char *filename);
 char *change_ext(const char *path, const char *ext);
 
 void show_version(const char *exe);

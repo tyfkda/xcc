@@ -5,20 +5,10 @@ PTRSIZE=${PTRSIZE:-8}
 RUN_AOUT=${RUN_AOUT:-./a.out}
 
 if [[ -z "$PROLOGUE" ]]; then
- if [ "$(uname)" == 'Darwin' ]; then
   PROLOGUE=$(cat <<EOS
 extern long write(int fd, const char *str, long len);
 EOS
   )
- else
-  PROLOGUE=$(cat <<EOS
-long write(int fd, const char *str, long len) {
-  __asm("mov \$1, %eax");  // __NR_write
-  __asm("syscall");
-}
-EOS
-  )
- fi
 fi
 
 
@@ -39,7 +29,7 @@ try_direct() {
   local tmpfile
   tmpfile=$(mktemp).c
   echo -e "$input" > "$tmpfile"
-  $XCC -nodefaultlibs "$tmpfile" || exit 1
+  $XCC "$tmpfile" || exit 1
 
   $RUN_AOUT
   local actual="$?"
@@ -73,7 +63,7 @@ try_output_direct() {
   local tmpfile
   tmpfile=$(mktemp).c
   echo -e "$input" > "$tmpfile"
-  $XCC -nodefaultlibs "$tmpfile" || exit 1
+  $XCC "$tmpfile" || exit 1
 
   local actual
   actual=$($RUN_AOUT) || exit 1
@@ -106,7 +96,7 @@ compile_error() {
   local tmpfile
   tmpfile=$(mktemp).c
   echo -e "$input" > "$tmpfile"
-  $XCC -nodefaultlibs "$tmpfile"
+  $XCC "$tmpfile"
   local result="$?"
 
   if [ "$result" = "0" ]; then

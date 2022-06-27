@@ -1,4 +1,5 @@
 *~
+*.a
 *.d
 *.o
 a.out
@@ -14,6 +15,8 @@ core
 /gen3*
 /ld
 /xcc
+/obj
+/lib
 /tests/core.*
 /tests/dvaltest
 /tests/fvaltest

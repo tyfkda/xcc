@@ -644,15 +644,19 @@ static void traverse_stmt(Stmt *stmt) {
   case ST_WHILE:  traverse_while(stmt); break;
   case ST_DO_WHILE:  traverse_do_while(stmt); break;
   case ST_FOR:  traverse_for(stmt); break;
-  //case ST_BREAK:  gen_break(); break;
-  //case ST_CONTINUE:  gen_continue(); break;
+  case ST_BREAK:  break;
+  case ST_CONTINUE:  break;
   case ST_GOTO:
     parse_error(stmt->token, "cannot use goto");
     break;
   case ST_LABEL:  traverse_stmt(stmt->label.stmt); break;
   case ST_VARDECL:  traverse_vardecl(stmt); break;
-  //case ST_ASM:  break;
-  default: break;
+  case ST_ASM:
+    parse_error(stmt->token, "not supported");
+    break;
+  default:
+    parse_error(stmt->token, "Unhandled stmt: %d", stmt->kind);
+    break;
   }
 }
 

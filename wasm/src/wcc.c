@@ -948,7 +948,7 @@ int main(int argc, char *argv[]) {
   }
   // if (out_type >= OutExecutable)
   {
-    vec_push(lib_paths, cat_path(root, "../lib"));
+    vec_push(lib_paths, cat_path(root, "./lib"));
     if (!nostdlib)
       add_lib(lib_paths, "crt0.c", sources);
     if (!nodefaultlibs && !nostdlib)

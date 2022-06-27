@@ -4,7 +4,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 
+#include "archive.h"
+#include "elfobj.h"
 #include "elfutil.h"
 #include "gen_section.h"
 #include "table.h"
@@ -24,12 +27,6 @@ static const char kDefaultEntryName[] = "_start";
 #else
 // *nix
 
-#if defined(__linux__)
-#include <elf.h>
-#else
-#include "../../include/elf.h"
-#endif
-
 #include <sys/stat.h>
 
 #define START_ADDRESS    (0x01000000 + PROG_START)
@@ -38,24 +35,6 @@ static const char kDefaultEntryName[] = "_start";
 
 #define LOAD_ADDRESS    START_ADDRESS
 #define DATA_ALIGN      (0x1000)
-
-void *malloc_or_die(size_t size) {
-  void *p = malloc(size);
-  if (p != NULL)
-    return p;
-  fprintf(stderr, "memory overflow\n");
-  exit(1);
-}
-
-void *read_from(FILE *fp, unsigned long offset, size_t size) {
-  void *buf = malloc_or_die(size);
-  if (fseek(fp, offset, SEEK_SET) != 0 ||
-      fread(buf, 1, size, fp) != size) {
-    free(buf);
-    buf = NULL;
-  }
-  return buf;
-}
 
 static void put_padding(FILE *fp, uintptr_t start) {
   long cur = ftell(fp);
@@ -67,254 +46,264 @@ static void put_padding(FILE *fp, uintptr_t start) {
   }
 }
 
-static Elf64_Shdr *read_all_section_headers(FILE *fp, Elf64_Ehdr *ehdr) {
-  if (ehdr->e_shnum <= 0)
-    return NULL;
-  Elf64_Shdr *esecs = read_from(fp, ehdr->e_shoff, ehdr->e_shnum * sizeof(Elf64_Shdr));
-  if (esecs == NULL) {
-    perror("read section header failed");
-  }
-  return esecs;
-}
-
-static char *read_strtab(FILE *fp, Elf64_Shdr *sec) {
-  assert(sec->sh_type == SHT_STRTAB);
-  char *buf = read_from(fp, sec->sh_offset, sec->sh_size);
-  if (buf == NULL) {
-    perror("read strtab failed");
-  }
-  return buf;
-}
+//
 
 typedef struct {
-  struct ElfObj *elfobj;
-  Elf64_Shdr *shdr;
+  enum {
+    FK_ELFOBJ,
+    FK_ARCHIVE,
+  } kind;
   union {
-    struct {
-      uintptr_t address;
-      unsigned char *content;
-    } progbits;
-    struct {
-      const char *buf;
-    } strtab;
-    struct {
-      Elf64_Sym *symtabs;
-      Table names;  // <Elf64_Sym*>
-    } symtab;
+    ElfObj *elfobj;
+    Archive *archive;
   };
-} SectionInfo;
+} File;
 
-typedef struct ElfObj {
-  FILE *fp;
-  Elf64_Ehdr ehdr;
-  Elf64_Shdr *shdrs;
-  char *shstrtab;
+//
 
-  SectionInfo *section_infos;
-} ElfObj;
-
-static void elfobj_init(ElfObj *elfobj) {
-  memset(elfobj, 0, sizeof(*elfobj));
+static Elf64_Sym *find_symbol_from_all(File *files, int nfiles, const Name *name, ElfObj **pelfobj) {
+  for (int i = 0; i < nfiles; ++i) {
+    File *file = &files[i];
+    switch (file->kind) {
+    case FK_ELFOBJ:
+      {
+        ElfObj *elfobj = file->elfobj;
+        Elf64_Sym *sym = elfobj_find_symbol(elfobj, name);
+        if (sym != NULL && sym->st_shndx != 0) {
+          if (pelfobj != NULL)
+            *pelfobj = elfobj;
+          return sym;
+        }
+      }
+      break;
+    case FK_ARCHIVE:
+      {
+        Archive *ar = file->archive;
+        for (int i = 0; i < ar->contents->len; i += 2) {
+          ArContent *content = ar->contents->data[i + 1];
+          ElfObj *elfobj = content->elfobj;
+          Elf64_Sym *sym = elfobj_find_symbol(elfobj, name);
+          if (sym != NULL && sym->st_shndx != 0) {
+            if (pelfobj != NULL)
+              *pelfobj = elfobj;
+            return sym;
+          }
+        }
+      }
+      break;
+    }
+  }
+  return NULL;
 }
 
-static bool load_symtab(ElfObj *elfobj) {
+static void resolve_rela_elfobj(ElfObj *elfobj, File *files, int nfiles) {
+  for (Elf64_Half sec = 0; sec < elfobj->ehdr.e_shnum; ++sec) {
+    Elf64_Shdr *shdr = &elfobj->shdrs[sec];
+    if (shdr->sh_type != SHT_RELA || shdr->sh_size <= 0)
+      continue;
+    const Elf64_Rela *relas = read_from(elfobj->fp, shdr->sh_offset + elfobj->start_offset, shdr->sh_size);
+    if (relas == NULL) {
+      perror("read error");
+    }
+    const Elf64_Shdr *symhdr = &elfobj->shdrs[shdr->sh_link];
+    const ElfSectionInfo *symhdrinfo = &elfobj->section_infos[shdr->sh_link];
+    const ElfSectionInfo *strinfo = &elfobj->section_infos[symhdr->sh_link];
+    assert(elfobj->shdrs[shdr->sh_info].sh_type == SHT_PROGBITS);
+    const ElfSectionInfo *dst_info = &elfobj->section_infos[shdr->sh_info];
+    for (size_t j = 0, n = shdr->sh_size / sizeof(Elf64_Rela); j < n; ++j) {
+      const Elf64_Rela *rela = &relas[j];
+      const Elf64_Sym *sym = &symhdrinfo->symtab.symtabs[ELF64_R_SYM(rela->r_info)];
+
+      uintptr_t address = 0;
+      switch (ELF64_ST_BIND(sym->st_info)) {
+      case STB_LOCAL:
+        {
+          assert(ELF64_R_SYM(rela->r_info) < elfobj->ehdr.e_shnum);
+          const ElfSectionInfo *s = &elfobj->section_infos[ELF64_R_SYM(rela->r_info)];
+          address = s->progbits.address;
+        }
+        break;
+      case STB_GLOBAL:
+        {
+          const char *label = &strinfo->strtab.buf[sym->st_name];
+          ElfObj *telfobj;
+          const Elf64_Sym *tsym = find_symbol_from_all(files, nfiles, alloc_name(label, NULL, false), &telfobj);
+          assert(tsym != NULL && tsym->st_shndx > 0);
+          const Elf64_Shdr *tshdr = &telfobj->shdrs[tsym->st_shndx];
+          assert(tshdr->sh_type == SHT_PROGBITS || tshdr->sh_type == SHT_NOBITS);
+          address = telfobj->section_infos[tsym->st_shndx].progbits.address + tsym->st_value;
+        }
+        break;
+      default: assert(false); break;
+      }
+      address += rela->r_addend;
+
+      void *p = dst_info->progbits.content + rela->r_offset;
+      uintptr_t pc = elfobj->section_infos[shdr->sh_info].progbits.address + rela->r_offset;
+      switch (ELF64_R_TYPE(rela->r_info)) {
+      case R_X86_64_64:
+        *(uint64_t*)p = address;
+        break;
+      case R_X86_64_PC32:
+      case R_X86_64_PLT32:
+        *(uint32_t*)p = address - pc;
+        break;
+      default: assert(false); break;
+      }
+    }
+  }
+}
+
+static void link_elfobj(ElfObj *elfobj, File *files, int nfiles, uintptr_t *offsets, Vector **progbit_sections, Table *unresolved) {
   for (Elf64_Half sec = 0; sec < elfobj->ehdr.e_shnum; ++sec) {
     Elf64_Shdr *shdr = &elfobj->shdrs[sec];
     switch (shdr->sh_type) {
-    case SHT_STRTAB:
+    case SHT_PROGBITS:
       {
-        const char *buf = read_strtab(elfobj->fp, shdr);
-        if (buf == NULL)
-          error("read strtab failed");
-        elfobj->section_infos[sec].strtab.buf = buf;
+        Elf64_Xword size = shdr->sh_size;
+        if (size <= 0)
+          break;
+        void *buf = read_from(elfobj->fp, shdr->sh_offset + elfobj->start_offset, size);
+        if (buf == NULL) {
+          perror("read error");
+        }
+        enum SectionType secno;
+        if (shdr->sh_flags & SHF_EXECINSTR) {
+          secno = SEC_CODE;
+        } else if (shdr->sh_flags & SHF_WRITE) {
+          secno = SEC_DATA;
+        } else {
+          secno = SEC_RODATA;
+        }
+        Elf64_Xword align = shdr->sh_addralign;
+        align_section_size(secno, align);
+
+        uintptr_t address = ALIGN(offsets[secno], align);
+        ElfSectionInfo *p = &elfobj->section_infos[sec];
+        p->progbits.address = address;
+        p->progbits.content = buf;
+        vec_push(progbit_sections[secno], p);
+        offsets[secno] = address + size;
+      }
+      break;
+    case SHT_NOBITS:
+      {
+        Elf64_Xword size = shdr->sh_size;
+        if (size <= 0)
+          break;
+        Elf64_Xword align = shdr->sh_addralign;
+        align_section_size(SEC_BSS, align);
+        add_bss(size);
+
+        uintptr_t address = ALIGN(offsets[SEC_BSS], align);
+        ElfSectionInfo *p = &elfobj->section_infos[sec];
+        p->progbits.address = address;
+        p->progbits.content = NULL;
+        vec_push(progbit_sections[SEC_BSS], p);
+        offsets[SEC_BSS] = address + size;
       }
       break;
     case SHT_SYMTAB:
       {
-        Elf64_Sym *symtabs = read_from(elfobj->fp, shdr->sh_offset, shdr->sh_size);
-        if (symtabs == NULL)
-          perror("read symtab failed");
-        if (shdr->sh_size % sizeof(Elf64_Sym) != 0)
-          error("malformed symtab");
-
-        Elf64_Shdr *strtab_sec = &elfobj->shdrs[shdr->sh_link];
-        if (strtab_sec->sh_type != SHT_STRTAB)
-          error("malformed symtab");
-
-        SectionInfo *p = &elfobj->section_infos[sec];
-        table_init(&p->symtab.names);
-        p->symtab.symtabs = symtabs;
+        ElfSectionInfo *p = &elfobj->section_infos[sec];
+        ElfSectionInfo *q = &elfobj->section_infos[shdr->sh_link];  // Strtab
+        Table *names = p->symtab.names;
+        const char *str = q->strtab.buf;
+        const Name *name;
+        Elf64_Sym *sym;
+        for (int it = 0; (it = table_iterate(names, it, &name, (void**)&sym)) != -1; ) {
+          unsigned char type = ELF64_ST_TYPE(sym->st_info);
+          if (type != STT_NOTYPE || str[sym->st_name] == '\0')
+            continue;
+          const Name *name = alloc_name(&str[sym->st_name], NULL, false);
+          if (sym->st_shndx == 0) {
+            if (find_symbol_from_all(files, nfiles, name, NULL) == NULL)
+              table_put(unresolved, name, (void*)name);
+          } else {
+            table_delete(unresolved, name);
+          }
+        }
       }
       break;
+    default: break;
     }
   }
-
-  for (Elf64_Half sec = 0; sec < elfobj->ehdr.e_shnum; ++sec) {
-    Elf64_Shdr *shdr = &elfobj->shdrs[sec];
-    if (shdr->sh_type != SHT_SYMTAB)
-      continue;
-
-    SectionInfo *p = &elfobj->section_infos[sec];
-    SectionInfo *q = &elfobj->section_infos[shdr->sh_link];  // Strtab
-    const char *str = q->strtab.buf;
-    Table *names = &p->symtab.names;
-    size_t count = shdr->sh_size / sizeof(Elf64_Sym);
-    for (uint32_t i = 0; i < count; ++i) {
-      Elf64_Sym *sym = &p->symtab.symtabs[i];
-      unsigned char type = sym->st_info & 0x0f;
-      if (type == STT_NOTYPE && str[sym->st_name] != '\0') {
-        const Name *name = alloc_name(&str[sym->st_name], NULL, false);
-        table_put(names, name, sym);
-      }
-    }
-  }
-
-  return true;
 }
 
-static bool read_elf(ElfObj *elfobj, FILE *fp, const char *fn) {
-  elfobj->fp = fp;
-  ssize_t size = fread(&elfobj->ehdr, sizeof(elfobj->ehdr), 1, fp);
-  if (size != 1 ||
-      elfobj->ehdr.e_ident[0] != ELFMAG0 || elfobj->ehdr.e_ident[1] != ELFMAG1 ||
-      elfobj->ehdr.e_ident[2] != ELFMAG2 || elfobj->ehdr.e_ident[3] != ELFMAG3) {
-    fprintf(stderr, "no elf file: %s\n", fn);
-    return false;
-  }
-  if (elfobj->ehdr.e_machine != EM_X86_64 || elfobj->ehdr.e_version != EV_CURRENT ||
-      elfobj->ehdr.e_ehsize != sizeof(Elf64_Ehdr) || elfobj->ehdr.e_shentsize != sizeof(Elf64_Shdr) ||
-      elfobj->ehdr.e_shnum < 1 || elfobj->ehdr.e_shstrndx >= elfobj->ehdr.e_shnum) {
-    fprintf(stderr, "illegal elf: %s\n", fn);
-    return false;
-  }
-  elfobj->shdrs = read_all_section_headers(fp, &elfobj->ehdr);
-  if (elfobj->shdrs != NULL) {
-    SectionInfo *section_infos = calloc(elfobj->ehdr.e_shnum, sizeof(*elfobj->section_infos));
-    elfobj->section_infos = section_infos;
-    for (unsigned short i = 0; i < elfobj->ehdr.e_shnum; ++i) {
-      Elf64_Shdr *shdr = &elfobj->shdrs[i];
-      SectionInfo *p = &section_infos[i];
-      p->elfobj = elfobj;
-      p->shdr = shdr;
-    }
-
-    elfobj->shstrtab = read_strtab(fp, &elfobj->shdrs[elfobj->ehdr.e_shstrndx]);
-    if (elfobj->shstrtab != NULL) {
-      if (!load_symtab(elfobj))
-        return false;
-    }
-  }
-  return true;
-}
-
-static bool open_elf(const char *fn, ElfObj *elfobj) {
-  FILE *fp = fopen(fn, "r");
-  if (fp == NULL) {
-    fprintf(stderr, "cannot open: %s\n", fn);
-  } else {
-    if (read_elf(elfobj, fp, fn))
-      return true;
-    fclose(fp);
-    elfobj->fp = NULL;
-  }
-  return false;
-}
-
-static void close_elf(ElfObj *elfobj) {
-  if (elfobj->fp != NULL) {
-    fclose(elfobj->fp);
-    elfobj->fp = NULL;
-  }
-}
-
-static Elf64_Sym *find_symbol(ElfObj *elfobj, const Name *name) {
-  for (Elf64_Half sec = 0; sec < elfobj->ehdr.e_shnum; ++sec) {
-    Elf64_Shdr *shdr = &elfobj->shdrs[sec];
-    if (shdr->sh_type != SHT_SYMTAB)
-      continue;
-    SectionInfo *p = &elfobj->section_infos[sec];
-    Elf64_Sym *sym = table_get(&p->symtab.names, name);
-    if (sym != NULL)
-      return sym;
-  }
-  return NULL;
-}
-
-static Elf64_Sym *find_symbol_from_all(Vector *elfobjs, const Name *name, ElfObj **pelfobj) {
-  for (int i = 0; i < elfobjs->len; ++i) {
-    ElfObj *elfobj = elfobjs->data[i];
-    Elf64_Sym *sym = find_symbol(elfobj, name);
-    if (sym != NULL && sym->st_shndx != 0) {
-      if (pelfobj != NULL)
-        *pelfobj = elfobj;
-      return sym;
-    }
-  }
-  return NULL;
-}
-
-static void resolve_relas(Vector *elfobjs) {
-  for (int i = 0; i < elfobjs->len; ++i) {
-    ElfObj *elfobj = elfobjs->data[i];
-    for (Elf64_Half sec = 0; sec < elfobj->ehdr.e_shnum; ++sec) {
-      Elf64_Shdr *shdr = &elfobj->shdrs[sec];
-      if (shdr->sh_type != SHT_RELA || shdr->sh_size <= 0)
+static void link_archive(Archive *ar, File *files, int nfiles, uintptr_t *offsets, Vector **progbit_sections, Table *unresolved) {
+  Table *table = &ar->symbol_table;
+  const Name *name;
+  void *dummy;
+  for (;;) {
+    bool retry = false;
+    for (int it = 0; (it = table_iterate(unresolved, it, &name, &dummy)) != -1;) {
+      ArSymbol *symbol;
+      if (!table_try_get(table, name, (void**)&symbol))
         continue;
-      const Elf64_Rela *relas = read_from(elfobj->fp, shdr->sh_offset, shdr->sh_size);
-      if (relas == NULL) {
-        perror("read error");
-      }
-      const Elf64_Shdr *symhdr = &elfobj->shdrs[shdr->sh_link];
-      const SectionInfo *symhdrinfo = &elfobj->section_infos[shdr->sh_link];
-      const SectionInfo *strinfo = &elfobj->section_infos[symhdr->sh_link];
-      assert(elfobj->shdrs[shdr->sh_info].sh_type == SHT_PROGBITS);
-      const SectionInfo *dst_info = &elfobj->section_infos[shdr->sh_info];
-      for (size_t j = 0, n = shdr->sh_size / sizeof(Elf64_Rela); j < n; ++j) {
-        const Elf64_Rela *rela = &relas[j];
-        const Elf64_Sym *sym = &symhdrinfo->symtab.symtabs[ELF64_R_SYM(rela->r_info)];
+      table_delete(unresolved, name);
 
-        uintptr_t address = 0;
-        switch (ELF64_ST_BIND(sym->st_info)) {
-        case STB_LOCAL:
-          {
-            assert(ELF64_R_SYM(rela->r_info) < elfobj->ehdr.e_shnum);
-            const SectionInfo *s = &elfobj->section_infos[ELF64_R_SYM(rela->r_info)];
-            address = s->progbits.address;
-          }
-          break;
-        case STB_GLOBAL:
-          {
-            const char *label = &strinfo->strtab.buf[sym->st_name];
-            ElfObj *telfobj;
-            const Elf64_Sym *tsym = find_symbol_from_all(elfobjs, alloc_name(label, NULL, false), &telfobj);
-            assert(tsym != NULL && tsym->st_shndx > 0);
-            const Elf64_Shdr *tshdr = &telfobj->shdrs[tsym->st_shndx];
-            assert(tshdr->sh_type == SHT_PROGBITS || tshdr->sh_type == SHT_NOBITS);
-            address = telfobj->section_infos[tsym->st_shndx].progbits.address + tsym->st_value;
-          }
-          break;
-        default: assert(false); break;
-        }
-        address += rela->r_addend;
-
-        void *p = dst_info->progbits.content + rela->r_offset;
-        uintptr_t pc = elfobj->section_infos[shdr->sh_info].progbits.address + rela->r_offset;
-        switch (ELF64_R_TYPE(rela->r_info)) {
-        case R_X86_64_64:
-          *(uint64_t*)p = address;
-          break;
-        case R_X86_64_PC32:
-        case R_X86_64_PLT32:
-          *(uint32_t*)p = address - pc;
-          break;
-        default: assert(false); break;
-        }
+      ElfObj *elfobj = load_archive_elfobj(ar, symbol->offset);
+      if (elfobj != NULL) {
+        link_elfobj(elfobj, files, nfiles, offsets, progbit_sections, unresolved);
+        retry = true;
+        break;
       }
+    }
+    if (!retry)
+      break;
+  }
+}
+
+static void resolve_rela_archive(Archive *ar, File *files, int nfiles) {
+  for (int i = 0; i < ar->contents->len; i += 2) {
+    ArContent *content = ar->contents->data[i + 1];
+    resolve_rela_elfobj(content->elfobj, files, nfiles);
+  }
+}
+
+static void resolve_relas(File *files, int nfiles) {
+  for (int i = 0; i < nfiles; ++i) {
+    File *file = &files[i];
+    switch (file->kind) {
+    case FK_ELFOBJ:
+      resolve_rela_elfobj(file->elfobj, files, nfiles);
+      break;
+    case FK_ARCHIVE:
+      resolve_rela_archive(file->archive, files, nfiles);
+      break;
+    default: assert(false);   break;
     }
   }
 }
 
-static bool link_elfobjs(Vector *elfobjs, const Name *entry, uintptr_t start_address) {
+static void add_elfobj_sections(ElfObj *elfobj) {
+  for (Elf64_Half sec = 0; sec < elfobj->ehdr.e_shnum; ++sec) {
+    Elf64_Shdr *shdr = &elfobj->shdrs[sec];
+    switch (shdr->sh_type) {
+    case SHT_PROGBITS:
+      {
+        const ElfSectionInfo *p = &elfobj->section_infos[sec];
+        void *content = p->progbits.content;
+        if (content == NULL)
+          continue;
+        enum SectionType secno;
+        if (shdr->sh_flags & SHF_EXECINSTR) {
+          secno = SEC_CODE;
+        } else if (shdr->sh_flags & SHF_WRITE) {
+          secno = SEC_DATA;
+        } else {
+          secno = SEC_RODATA;
+        }
+        align_section_size(secno, shdr->sh_addralign);
+        add_section_data(secno, content, shdr->sh_size);
+      }
+      break;
+    default: break;
+    }
+  }
+}
+
+static bool link_files(File *files, int nfiles, const Name *entry, uintptr_t start_address) {
   Table unresolved;
   table_init(&unresolved);
   table_put(&unresolved, entry, (void*)entry);
@@ -326,80 +315,16 @@ static bool link_elfobjs(Vector *elfobjs, const Name *entry, uintptr_t start_add
     progbit_sections[secno] = new_vector();
   }
 
-  for (int i = 0; i < elfobjs->len; ++i) {
-    ElfObj *elfobj = elfobjs->data[i];
-    for (Elf64_Half sec = 0; sec < elfobj->ehdr.e_shnum; ++sec) {
-      Elf64_Shdr *shdr = &elfobj->shdrs[sec];
-      switch (shdr->sh_type) {
-      case SHT_PROGBITS:
-        {
-          Elf64_Xword size = shdr->sh_size;
-          if (size <= 0)
-            break;
-          void *buf = read_from(elfobj->fp, shdr->sh_offset, size);
-          if (buf == NULL) {
-            perror("read error");
-          }
-          enum SectionType secno;
-          if (shdr->sh_flags & SHF_EXECINSTR) {
-            secno = SEC_CODE;
-          } else if (shdr->sh_flags & SHF_WRITE) {
-            secno = SEC_DATA;
-          } else {
-            secno = SEC_RODATA;
-          }
-          Elf64_Xword align = shdr->sh_addralign;
-          align_section_size(secno, align);
-
-          uintptr_t address = ALIGN(offsets[secno], align);
-          SectionInfo *p = &elfobj->section_infos[sec];
-          p->progbits.address = address;
-          p->progbits.content = buf;
-          vec_push(progbit_sections[secno], p);
-          offsets[secno] = address + size;
-        }
-        break;
-      case SHT_NOBITS:
-        {
-          Elf64_Xword size = shdr->sh_size;
-          if (size <= 0)
-            break;
-          Elf64_Xword align = shdr->sh_addralign;
-          align_section_size(SEC_BSS, align);
-          add_bss(size);
-
-          uintptr_t address = ALIGN(offsets[SEC_BSS], align);
-          SectionInfo *p = &elfobj->section_infos[sec];
-          p->progbits.address = address;
-          p->progbits.content = NULL;
-          vec_push(progbit_sections[SEC_BSS], p);
-          offsets[SEC_BSS] = address + size;
-        }
-        break;
-      case SHT_SYMTAB:
-        {
-          SectionInfo *p = &elfobj->section_infos[sec];
-          SectionInfo *q = &elfobj->section_infos[shdr->sh_link];  // Strtab
-          Table *names = &p->symtab.names;
-          const char *str = q->strtab.buf;
-          const Name *name;
-          Elf64_Sym *sym;
-          for (int it = 0; (it = table_iterate(names, it, &name, (void**)&sym)) != -1; ) {
-            unsigned char type = ELF64_ST_TYPE(sym->st_info);
-            if (type != STT_NOTYPE || str[sym->st_name] == '\0')
-              continue;
-            const Name *name = alloc_name(&str[sym->st_name], NULL, false);
-            if (sym->st_shndx == 0) {
-              if (find_symbol_from_all(elfobjs, name, NULL) == NULL)
-                table_put(&unresolved, name, (void *)name);
-            } else {
-              table_delete(&unresolved, name);
-            }
-          }
-        }
-        break;
-      default: break;
-      }
+  for (int i = 0; i < nfiles; ++i) {
+    File *file = &files[i];
+    switch (file->kind) {
+    case FK_ELFOBJ:
+      link_elfobj(file->elfobj, files, nfiles, offsets, progbit_sections, &unresolved);
+      break;
+    case FK_ARCHIVE:
+      link_archive(file->archive, files, nfiles, offsets, progbit_sections, &unresolved);
+      break;
+    default: assert(false); break;
     }
   }
 
@@ -421,49 +346,40 @@ static bool link_elfobjs(Vector *elfobjs, const Name *entry, uintptr_t start_add
       Vector *v = progbit_sections[secno];
       if (v->len > 0) {
         for (int i = 0; i < v->len; ++i) {
-          SectionInfo *p = v->data[i];
+          ElfSectionInfo *p = v->data[i];
           p->progbits.address += address;
         }
-        SectionInfo *last = v->data[v->len - 1];
+        ElfSectionInfo *last = v->data[v->len - 1];
         address = last->progbits.address + last->shdr->sh_size;
       }
     }
   }
 
-  resolve_relas(elfobjs);
+  resolve_relas(files, nfiles);
 
-  for (int i = 0; i < elfobjs->len; ++i) {
-    ElfObj *elfobj = elfobjs->data[i];
-    for (Elf64_Half sec = 0; sec < elfobj->ehdr.e_shnum; ++sec) {
-      Elf64_Shdr *shdr = &elfobj->shdrs[sec];
-      switch (shdr->sh_type) {
-      case SHT_PROGBITS:
-        {
-          const SectionInfo *p = &elfobj->section_infos[sec];
-          void *content = p->progbits.content;
-          if (content == NULL)
-            continue;
-          enum SectionType secno;
-          if (shdr->sh_flags & SHF_EXECINSTR) {
-            secno = SEC_CODE;
-          } else if (shdr->sh_flags & SHF_WRITE) {
-            secno = SEC_DATA;
-          } else {
-            secno = SEC_RODATA;
-          }
-          align_section_size(secno, shdr->sh_addralign);
-          add_section_data(secno, content, shdr->sh_size);
+  for (int i = 0; i < nfiles; ++i) {
+    File *file = &files[i];
+    switch (file->kind) {
+    case FK_ELFOBJ:
+      add_elfobj_sections(file->elfobj);
+      break;
+    case FK_ARCHIVE:
+      {
+        Archive *ar = file->archive;
+        for (int i = 0; i < ar->contents->len; i += 2) {
+          ArContent *content = ar->contents->data[i + 1];
+          add_elfobj_sections(content->elfobj);
         }
-        break;
-      default: break;
       }
+      break;
+    default: assert(false); break;
     }
   }
 
   return true;
 }
 
-static bool output_exe(const char *ofn, Vector *elfobjs, const Name *entry) {
+static bool output_exe(const char *ofn, File *files, int nfiles, const Name *entry) {
   size_t codesz, rodatasz, datasz, bsssz;
   uintptr_t codeloadadr, dataloadadr;
   get_section_size(SEC_CODE, &codesz, &codeloadadr);
@@ -472,7 +388,7 @@ static bool output_exe(const char *ofn, Vector *elfobjs, const Name *entry) {
   get_section_size(SEC_BSS, &bsssz, NULL);
 
   ElfObj *telfobj;
-  const Elf64_Sym *tsym = find_symbol_from_all(elfobjs, entry, &telfobj);
+  const Elf64_Sym *tsym = find_symbol_from_all(files, nfiles, entry, &telfobj);
   if (tsym == NULL)
     error("Cannot find label: `%.*s'", entry->bytes, entry->chars);
   uintptr_t entry_address = telfobj->section_infos[tsym->st_shndx].progbits.address + tsym->st_value;
@@ -565,24 +481,50 @@ int main(int argc, char *argv[]) {
 
   section_aligns[SEC_DATA] = DATA_ALIGN;
 
-  Vector *elfobjs = new_vector();
+  int nfiles = 0;
+  File *files = malloc_or_die(sizeof(*files) * (argc - iarg));
   for (int i = iarg; i < argc; ++i) {
-    ElfObj *elfobj = malloc_or_die(sizeof(*elfobj));
-    elfobj_init(elfobj);
-    if (!open_elf(argv[i], elfobj))
-      return 1;
-    vec_push(elfobjs, elfobj);
+    char *src = argv[i];
+    char *ext = get_ext(src);
+    File *file = &files[nfiles];
+    if (strcasecmp(ext, "o") == 0) {
+      ElfObj *elfobj = malloc_or_die(sizeof(*elfobj));
+      elfobj_init(elfobj);
+      if (!open_elf(src, elfobj)) {
+        close_elf(file->elfobj);
+        free(elfobj);
+        continue;
+      }
+      file->kind = FK_ELFOBJ;
+      file->elfobj = elfobj;
+    } else if (strcasecmp(ext, "a") == 0) {
+      Archive *archive = load_archive(src);
+      file->kind = FK_ARCHIVE;
+      file->archive = archive;
+    } else {
+      error("Unsupported file: %s", src);
+      continue;
+    }
+    ++nfiles;
   }
 
   const Name *entry_name = alloc_name(entry, NULL, false);
-  bool result = link_elfobjs(elfobjs, entry_name, LOAD_ADDRESS);
+  bool result = link_files(files, nfiles, entry_name, LOAD_ADDRESS);
   if (result) {
     fix_section_size(LOAD_ADDRESS);
-    result = output_exe(ofn, elfobjs, entry_name);
+    result = output_exe(ofn, files, nfiles, entry_name);
   }
 
-  for (int i = 0; i < elfobjs->len; ++i) {
-    close_elf(elfobjs->data[i]);
+  for (int i = 0; i < nfiles; ++i) {
+    File *file = &files[i];
+    switch (file->kind) {
+    case FK_ELFOBJ:
+      close_elf(file->elfobj);
+      break;
+    case FK_ARCHIVE:
+      break;
+    default: assert(false); break;
+    }
   }
   return result ? 0 : 1;
 }
