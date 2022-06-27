@@ -6,14 +6,14 @@
 // Run:
 //   $ ./echo foo bar baz  #=> foo bar baz
 
-#include "example_util.c"
+#include <stdio.h>
 
 int main(int argc, char **argv) {
   for (int i = 1; i < argc; ++i) {
     if (i > 1)
-      putstr(" ");
-    putstr(argv[i]);
+      printf(" ");
+    printf("%s", argv[i]);
   }
-  putstr("\n");
+  printf("\n");
   return 0;
 }

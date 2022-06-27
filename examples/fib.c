@@ -6,7 +6,7 @@
 // Run:
 //   $ ./fib  #=> 832040
 
-#include "example_util.c"
+#include <stdio.h>
 
 int fib(int n) {
   if (n < 2)
@@ -16,7 +16,6 @@ int fib(int n) {
 }
 
 int main() {
-  putdeci(fib(30));
-  putstr("\n");
+  printf("%d\n", fib(30));
   return 0;
 }

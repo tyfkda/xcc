@@ -1,7 +1,7 @@
 #include "stdarg.h"
 #include "stdint.h"
+#include "stdio.h"
 #include "stdlib.h"  // exit
-#include "example_util.h"
 
 #if defined(__LP64__)
 #define LONG_SIZE  (8)
@@ -12,23 +12,17 @@
 #endif
 
 void expect(char *title, long expected, long actual) {
-  putstr(title);
-  putstr(" => ");
+  printf("%s => ", title);
   if (expected == actual) {
-    putstr("OK\n");
+    printf("OK\n");
     return;
   }
-  putstr("NG: ");
-  putdeci(expected);
-  putstr(" expected, but got ");
-  putdeci(actual);
-  putstr("\n");
+  printf("NG: %ld expected, but got %ld\n", expected, actual);
   exit(1);
 }
 
 void fail(char *title) {
-  putstr(title);
-  putstr(" => NG\n");
+  printf("%s => NG", title);
   exit(1);
 }
 

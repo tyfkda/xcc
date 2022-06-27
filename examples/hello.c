@@ -6,7 +6,7 @@
 // Run:
 //   $ ./hello  #=> Hello, world!
 
-#include "example_util.c"
+#include <unistd.h>
 
 int main() {
   write(1, "Hello, world!\n", 14);

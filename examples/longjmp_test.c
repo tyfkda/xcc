@@ -7,8 +7,7 @@
 //   $ ./longjmp_test  #=> 123
 
 #include <setjmp.h>
-
-#include "example_util.c"
+#include <stdio.h>
 
 jmp_buf env;
 
@@ -20,10 +19,10 @@ int main() {
   int result;
   if ((result = setjmp(env)) == 0) {
     func();
-    putstr("never reaches here\n");
+    printf("never reaches here\n");
+    return 1;
   } else {
-    putdeci(result);
-    putstr("\n");
+    printf("%d\n", result);
   }
   return 0;
 }

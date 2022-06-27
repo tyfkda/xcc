@@ -1,7 +1,7 @@
 // Compiled on XCC
 
+#include "stdio.h"
 #include "stdlib.h"  // exit
-#include "example_util.h"
 
 extern int array[];
 extern int *ptr;
@@ -14,33 +14,23 @@ extern double many_fargs(double a, double b, double c, double d, double e, doubl
 int export = 9876;
 
 void expect(char *title, long expected, long actual) {
-  putstr(title);
-  putstr(" => ");
+  printf("%s => ", title);
   if (expected == actual) {
-    putstr("OK\n");
+    printf("OK\n");
     return;
   }
-  putstr("NG: ");
-  putdeci(expected);
-  putstr(" expected, but got ");
-  putdeci(actual);
-  putstr("\n");
+  printf("NG: %ld expected, but got %ld\n", expected, actual);
   exit(1);
 }
 
 #ifndef __NO_FLONUM
 void expectf(char *title, double expected, double actual) {
-  putstr(title);
-  putstr(" => ");
+  printf("%s => ", title);
   if (expected == actual) {
-    putstr("OK\n");
+    printf("OK\n");
     return;
   }
-  putstr("NG: ");
-  putdeci(expected);
-  putstr(" expected, but got ");
-  putdeci(actual);
-  putstr("\n");
+  printf("NG: %f expected, but got %f\n", expected, actual);
   exit(1);
 }
 #endif

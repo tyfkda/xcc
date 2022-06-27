@@ -26,6 +26,6 @@ test-val:	valtest.wasm
 	node ../runtime/runwasm.js $<
 	@echo ''
 
-VAL_SRCS:=$(ROOT_DIR)/tests/valtest.c $(EXAMPLES_DIR)/example_util.c
+VAL_SRCS:=$(ROOT_DIR)/tests/valtest.c
 valtest.wasm:	$(VAL_SRCS) # $(XCC)
 	$(WCC) -o$@ -I$(EXAMPLES_DIR) $^

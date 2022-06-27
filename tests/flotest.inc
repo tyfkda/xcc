@@ -1,58 +1,42 @@
 #include "stdbool.h"
+#include "stdio.h"
 #include "stdlib.h"  // exit
 #include "math.h"
-#include "../examples/example_util.h"
 
 void expect(char *title, Number expected, Number actual) {
-  putstr(title);
-  putstr(" => ");
+  printf("%s => ", title);
   if (expected == actual) {
-    putstr("OK\n");
+    printf("OK\n");
     return;
   }
-  putstr("NG: ");
-  putdeci(expected);
-  putstr(" expected, but got ");
-  putdeci(actual);
-  putstr("\n");
+  printf("NG: %f expected, but got %f\n", expected, actual);
   exit(1);
 }
 
 void expect_about(char *title, Number expected, Number actual) {
-  putstr(title);
-  putstr(" => ");
+  printf("%s => ", title);
   Number d = expected - actual;
   const Number eps = (Number)1e-5;
   if (d > -eps && d < eps) {
-    putstr("OK\n");
+    printf("OK\n");
     return;
   }
-  putstr("NG: ");
-  putdeci(expected);
-  putstr(" expected, but got ");
-  putdeci(actual);
-  putstr("\n");
+  printf("NG: %f expected, but got %f\n", expected, actual);
   exit(1);
 }
 
 void expecti(char *title, int expected, int actual) {
-  putstr(title);
-  putstr(" => ");
+  printf("%s => ", title);
   if (expected == actual) {
-    putstr("OK\n");
+    printf("OK\n");
     return;
   }
-  putstr("NG: ");
-  putdeci(expected);
-  putstr(" expected, but got ");
-  putdeci(actual);
-  putstr("\n");
+  printf("NG: %d expected, but got %d\n", expected, actual);
   exit(1);
 }
 
 void fail(char *title) {
-  putstr(title);
-  putstr(" => NG\n");
+  printf("%s => NG", title);
   exit(1);
 }
 
