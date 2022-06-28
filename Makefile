@@ -138,7 +138,7 @@ $(LIB_DIR)/libc.a:	$(LIBC_OBJS)
 	mkdir -p $(LIB_DIR)
 	$(AR) r $@ $^
 
-$(LIBOBJ_DIR)/%.o: $(LIBSRC_DIR)/**/%.c # exes
+$(LIBOBJ_DIR)/%.o: $(LIBSRC_DIR)/**/%.c xcc cc1 cpp as ld
 	mkdir -p $(LIBOBJ_DIR)
 	./xcc -c -o $@ $<
 
