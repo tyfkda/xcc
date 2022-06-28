@@ -9,6 +9,7 @@
 #include <../libsrc/misc/isdigit.c>
 #include <../libsrc/misc/isspace.c>
 #include <../libsrc/misc/isxdigit.c>
+#include <../libsrc/misc/longjmp.c>
 #include <../libsrc/misc/rng_xor64.c>
 #include <../libsrc/misc/setjmp.c>
 #include <../libsrc/misc/tolower.c>
@@ -32,9 +33,11 @@
 #include <../libsrc/stdio/perror.c>
 #include <../libsrc/stdio/printf.c>
 #include <../libsrc/stdio/remove.c>
-#include <../libsrc/stdio/setjmp.c>
+#include <../libsrc/stdio/snprintf.c>
+#include <../libsrc/stdio/sprintf.c>
 #include <../libsrc/stdio/stdin.c>
 #include <../libsrc/stdio/tmpfile.c>
+#include <../libsrc/stdio/vprintf.c>
 #include <../libsrc/stdio/vfprintf.c>
 #include <../libsrc/stdio/vsnprintf.c>
 #include <../libsrc/stdio/vsprintf.c>

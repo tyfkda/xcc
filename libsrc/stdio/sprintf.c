@@ -1,10 +1,11 @@
 #include "stdio.h"
 #include "stdarg.h"
 
-int printf(const char *fmt, ...) {
+int sprintf(char *out, const char *fmt, ...) {
   va_list ap;
+  int len;
   va_start(ap, fmt);
-  int len = vfprintf(stdout, fmt, ap);
+  len = vsnprintf(out, (size_t)-1, fmt, ap);
   va_end(ap);
   return len;
 }
