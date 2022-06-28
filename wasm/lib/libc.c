@@ -33,10 +33,10 @@
 #include <../libsrc/stdio/printf.c>
 #include <../libsrc/stdio/remove.c>
 #include <../libsrc/stdio/setjmp.c>
-#include <../libsrc/stdio/sprintf.c>
 #include <../libsrc/stdio/stdin.c>
 #include <../libsrc/stdio/tmpfile.c>
 #include <../libsrc/stdio/vfprintf.c>
+#include <../libsrc/stdio/vsnprintf.c>
 #include <../libsrc/stdio/vsprintf.c>
 #include <../libsrc/stdlib/atoi.c>
 #include <../libsrc/stdlib/calloc.c>
