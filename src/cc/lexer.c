@@ -479,16 +479,29 @@ static Token *read_num(const char **pp) {
   return tok;
 }
 
-const char *read_ident(const char *p) {
-  if (!isalpha(*p) && *p != '_')
+const char *read_ident(const char *p_) {
+  const unsigned char *p = (const unsigned char *)p_;
+  unsigned char uc = *p;
+  int ucc = isutf8first(uc) - 1;
+  if (!(ucc > 0 || isalpha(uc) || uc == '_'))
     return NULL;
 
-  const char *q;
-  for (q = p + 1; ; ++q) {
-    if (!isalnum_(*q))
+  for (;;) {
+    uc = *++p;
+    if (ucc > 0) {
+      if (!isutf8follow(uc)) {
+        lex_error(p_, "Illegal byte sequence");
+        break;
+      }
+      --ucc;
+      continue;
+    }
+    if ((ucc = isutf8first(uc) - 1) > 0)
+      continue;
+    if (!isalnum_(uc))
       break;
   }
-  return q;
+  return (const char*)p;
 }
 
 static Token *read_char(const char **pp) {

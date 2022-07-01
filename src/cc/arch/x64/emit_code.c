@@ -141,9 +141,10 @@ static void construct_initial_value(const Type *type, const Initializer *init) {
           name = varinfo->name;
         }
 
-        const char *label = fmt_name(name);
+        char *label = fmt_name(name);
         if ((varinfo->storage & VS_STATIC) == 0)
           label = MANGLE(label);
+        label = quote_label(label);
 
         if (offset == 0) {
           output = label;
@@ -284,11 +285,12 @@ static void emit_varinfo(const VarInfo *varinfo, const Initializer *init) {
       _DATA();
   }
 
-  const char *label = fmt_name(name);
+  char *label = fmt_name(name);
   if ((varinfo->storage & VS_STATIC) == 0) {  // global
-    label = MANGLE(label);
+    label = quote_label(MANGLE(label));
     _GLOBL(label);
   } else {
+    label = quote_label(label);
     _LOCAL(label);
   }
 
@@ -472,15 +474,15 @@ static void emit_defun(Function *func) {
     global = (varinfo->storage & VS_STATIC) == 0;
   }
 
-  const char *label = fmt_name(func->name);
+  char *label = fmt_name(func->name);
   if (global) {
-    const char *gl = MANGLE(label);
-    _GLOBL(gl);
-    EMIT_LABEL(gl);
+    label = quote_label(MANGLE(label));
+    _GLOBL(label);
   } else {
+    label = quote_label(label);
     _LOCAL(label);
-    EMIT_LABEL(label);
   }
+  EMIT_LABEL(label);
 
   bool no_stmt = true;
   if (func->stmts != NULL) {

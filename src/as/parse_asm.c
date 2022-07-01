@@ -364,9 +364,45 @@ static bool is_label_chr(char c) {
   return is_label_first_chr(c) || isdigit(c);
 }
 
+static const char *skip_until_delimiter(const char *p) {
+  if (*p == '"') {
+    ++p;
+    for (char c; c = *p, c != '\0'; ++p) {
+      if (c == '"') {
+        ++p;
+        break;
+      }
+      if (c == '\\')
+        ++p;
+    }
+  } else {
+    for (char c; c = *p, !isspace(c) && c != ':' && c != '\0'; ++p)
+      ;
+  }
+  return p;
+}
+
+static const Name *unquote_label(const char *p, const char *q) {
+  if (*p != '"')
+    return alloc_name(p, q, false);
+  if (q[-1] != '"' || q == p + 2)
+    return NULL;
+  // TODO: Unquote
+  return alloc_name(p + 1, q - 1, false);
+}
+
 static const Name *parse_label(ParseInfo *info) {
   const char *p = info->p;
   const char *start = p;
+  if (*p == '"') {
+    p = skip_until_delimiter(p);
+    if (p[-1] != '"' || p == start + 2)
+      return NULL;
+
+    info->p = p;
+    return alloc_name(start + 1, p - 1, false);
+  }
+
   if (!is_label_first_chr(*p))
     return NULL;
 
@@ -664,6 +700,17 @@ static const Token *fetch_token(ParseInfo *info) {
     token->label = alloc_name(start, p, false);
     info->next = p;
     return token;
+  } else if (c == '"') {
+    p = skip_until_delimiter(p);
+    if (p[-1] == '"') {
+      const Name *label = unquote_label(start + 1, p - 1);
+      if (label != NULL) {
+        Token *token = new_token(TK_LABEL);
+        token->label = label;
+        info->next = p;
+        return token;
+      }
+    }
   } else {
     static const char kSingleOpTable[] = "+-*/";
     static const enum TokenKind kTokenTable[] = {TK_ADD, TK_SUB, TK_MUL, TK_DIV};
@@ -894,12 +941,6 @@ static void parse_inst(ParseInfo *info, Inst *inst) {
 
 int current_section = SEC_CODE;
 
-static const char *skip_until_delimiter(const char *p) {
-  for (char c; c = *p, !isspace(c) && c != ':' && c != '\0'; ++p)
-    ;
-  return p;
-}
-
 Line *parse_line(ParseInfo *info) {
   Line *line = malloc(sizeof(*line));
   line->label = NULL;
@@ -911,9 +952,15 @@ Line *parse_line(ParseInfo *info) {
   const char *q = skip_until_delimiter(p);
   const char *r = skip_whitespaces(q);
   if (*r == ':') {
-    info->p = p;
-    line->label = alloc_name(p, q, false);
-    info->p = r + 1;
+    const Name *label = unquote_label(p, q);
+    if (label == NULL) {
+      parse_error(info, "Illegal label");
+      err = true;
+    } else {
+      info->p = p;
+      line->label = label;
+      info->p = r + 1;
+    }
   } else {
     if (*p == '.') {
       enum DirectiveType dir = find_directive(p + 1, q - p - 1);

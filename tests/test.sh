@@ -223,6 +223,8 @@ try_direct 'stdarg' 55 "#include <stdarg.h>
 int f(int n, ...) {int a[14*2]; for (int i=0; i<14*2; ++i) a[i]=100+i; va_list ap; va_start(ap, n); int sum=0; for (int i=0; i<n; ++i) sum+=va_arg(ap, int); va_end(ap); return sum;}
 int main(){return f(10, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10);}"
 
+try_direct 'unicode' 121 "int 漢字(int χ) {return χ * χ;} int main(void){return 漢字(11);}"
+
 # error cases
 echo ''
 echo '### Error cases'

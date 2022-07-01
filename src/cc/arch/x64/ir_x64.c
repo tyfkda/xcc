@@ -124,10 +124,10 @@ static void ir_out(IR *ir) {
 
   case IR_IOFS:
     {
-      const char *label = fmt_name(ir->iofs.label);
+      char *label = fmt_name(ir->iofs.label);
       if (ir->iofs.global)
         label = MANGLE(label);
-      LEA(LABEL_INDIRECT(label, RIP), kReg64s[ir->dst->phys]);
+      LEA(LABEL_INDIRECT(quote_label(label), RIP), kReg64s[ir->dst->phys]);
     }
     break;
 
@@ -752,11 +752,10 @@ static void ir_out(IR *ir) {
       }
 #endif
       if (ir->call.label != NULL) {
-        const char *label = fmt_name(ir->call.label);
+        char *label = fmt_name(ir->call.label);
         if (ir->call.global)
-          CALL(MANGLE(label));
-        else
-          CALL(label);
+          label = MANGLE(label);
+        CALL(quote_label(label));
       } else {
         assert(!(ir->opr1->flag & VRF_CONST));
         CALL(fmt("*%s", kReg64s[ir->opr1->phys]));

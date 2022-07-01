@@ -14,6 +14,25 @@ int isalnum_(int c) {
   return isalnum(c) || c == '_';
 }
 
+int isutf8first(int c_) {
+  unsigned int c = c_;
+  if (c < 0xc0)
+    return 0;  // FALSE
+  if (c >= 0xfc)
+    return 6;
+  if (c >= 0xf8)
+    return 5;
+  if (c >= 0xf0)
+    return 4;
+  if (c >= 0xe0)
+    return 3;
+  return 2;
+}
+
+int isutf8follow(int c) {
+  return c >= 0x80 && c < 0xc0;
+}
+
 int isoctal(int c) {
   return '0' <= c && c <= '7';
 }

@@ -9,6 +9,7 @@ typedef struct Name Name;
 
 char *fmt(const char *s, ...);
 char *fmt_name(const Name *name);
+char *quote_label(char *label);
 char *num(intptr_t x);  // x
 char *hexnum(intptr_t x);  // 0xnn
 #ifndef __NO_FLONUM
@@ -18,7 +19,7 @@ char *im(intptr_t x);  // $x
 char *indirect(const char *base, const char *index, int scale);
 char *offset_indirect(int offset, const char *base, const char *index, int scale);
 char *label_indirect(const char *label, const char *reg);
-const char *mangle(const char *label);
+char *mangle(char *label);
 
 void init_emit(FILE *fp);
 void emit_label(const char *label);

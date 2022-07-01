@@ -31,6 +31,14 @@ char *fmt_name(const Name *name) {
   return fmt("%.*s", name->bytes, name->chars);
 }
 
+char *quote_label(char *label) {
+  for (const unsigned char *p = (unsigned char*)label; *p != '\0'; ++p) {
+    if (isutf8first(*p))
+      return fmt("\"%s\"", label);
+  }
+  return label;
+}
+
 char *num(intptr_t x) {
   return fmt("%" PRIdPTR, x);
 }
@@ -78,7 +86,7 @@ char *label_indirect(const char *label, const char *reg) {
   return fmt("%s(%s)", label, reg);
 }
 
-const char *mangle(const char *label) {
+char *mangle(char *label) {
 #ifdef MANGLE_PREFIX
   return fmt(MANGLE_PREFIX "%s", label);
 #else
