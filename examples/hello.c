@@ -6,9 +6,9 @@
 // Run:
 //   $ ./hello  #=> Hello, world!
 
-#include <unistd.h>
+#include <stdio.h>
 
 int main() {
-  write(1, "Hello, world!\n", 14);
+  printf("Hello, world!\n");
   return 0;
 }
