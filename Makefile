@@ -187,24 +187,46 @@ test-self-hosting:	self-hosting
 
 ### Wasm version
 
+ifeq ("$(PARENT_DEPS)","")
+WCC_OBJ_DIR:=obj/wcc
+else
+WCC_OBJ_DIR:=$(OBJ_DIR)
+endif
+
 WCC_DIR:=src/wcc
 
 WCC_SRCS:=$(wildcard $(WCC_DIR)/*.c) \
 	$(CC1_DIR)/lexer.c $(CC1_DIR)/type.c $(CC1_DIR)/var.c $(CC1_DIR)/ast.c $(CC1_DIR)/parser.c $(CC1_DIR)/parser_expr.c \
 	$(CPP_DIR)/preprocessor.c $(CPP_DIR)/pp_parser.c $(CPP_DIR)/macro.c \
 	$(UTIL_DIR)/util.c $(UTIL_DIR)/table.c
-WCC_OBJS:=$(addprefix $(OBJ_DIR)/,$(notdir $(WCC_SRCS:.c=.o)))
-
-$(OBJ_DIR)/%.o: $(WCC_DIR)/%.c
-	@mkdir -p $(OBJ_DIR)
-	$(CC) $(CFLAGS) -I$(CPP_DIR) -c -o $@ $<
+WCC_OBJS:=$(addprefix $(WCC_OBJ_DIR)/,$(notdir $(WCC_SRCS:.c=.o)))
 
 wcc: $(PARENT_DEPS) $(WCC_OBJS)
 	$(CC) -o $@ $(WCC_OBJS) $(LDFLAGS)
 
+$(WCC_OBJ_DIR)/%.o: $(WCC_DIR)/%.c $(PARENT_DEPS)
+	@mkdir -p $(WCC_OBJ_DIR)
+	$(CC) $(CFLAGS) -I$(CPP_DIR) -c -o $@ $<
+
+$(WCC_OBJ_DIR)/%.o: $(CC1_DIR)/%.c $(PARENT_DEPS)
+	@mkdir -p $(WCC_OBJ_DIR)
+	$(CC) $(CFLAGS) -c -o $@ $<
+
+$(WCC_OBJ_DIR)/%.o: $(CPP_DIR)/%.c $(PARENT_DEPS)
+	@mkdir -p $(WCC_OBJ_DIR)
+	$(CC) $(CFLAGS) -c -o $@ $<
+
+$(WCC_OBJ_DIR)/%.o: $(UTIL_DIR)/%.c $(PARENT_DEPS)
+	@mkdir -p $(WCC_OBJ_DIR)
+	$(CC) $(CFLAGS) -c -o $@ $<
+
 .PHONY: test-wcc
 test-wcc:	wcc
 	$(MAKE) -C tests clean test-wcc
+
+.PHONY: wcc-on-xcc
+wcc-on-xcc:	all
+	$(MAKE) CC=./xcc wcc
 
 #### Self hosting
 
