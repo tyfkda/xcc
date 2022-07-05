@@ -172,11 +172,6 @@ Expr *make_cast(Type *type, const Token *token, Expr *sub, bool is_explicit) {
   }
 
   check_cast(type, sub->type, is_zero(sub), is_explicit, token);
-  if (sub->kind == EX_CAST) {
-    sub->type = type;
-    return sub;
-  }
-
   return new_expr_cast(type, token, sub);
 }
 
@@ -1542,10 +1537,6 @@ static Expr *parse_cast_expr(void) {
 
       Expr *sub = parse_cast_expr();
       check_cast(type, sub->type, is_zero(sub), true, token);
-      if (sub->kind == EX_CAST) {
-        sub->type = type;
-        return sub;
-      }
       if (is_const(sub) && type->kind != TY_VOID)
         return make_cast(type, token, sub, true);
       return sub->type->kind != TY_VOID ? new_expr_cast(type, token, sub) : sub;
