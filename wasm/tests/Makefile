@@ -17,7 +17,9 @@ clean:
 .PHONY: test-sh
 test-sh: # $(WCC)
 	@echo '## test.sh'
-	WCC="$(WCC)" ./test.sh
+	@XCC="$(WCC)" PTRSIZE=4 RE_SKIP='\/\/-WCC' \
+		RUN_AOUT="node ../runtime/runwasm.js a.wasm" \
+		../../tests/test.sh
 	@echo ''
 
 .PHONY: test-val

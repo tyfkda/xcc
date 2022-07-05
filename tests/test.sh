@@ -6,7 +6,7 @@ RUN_AOUT=${RUN_AOUT:-./a.out}
 
 if [[ -z "$PROLOGUE" ]]; then
   PROLOGUE=$(cat <<EOS
-extern long write(int fd, const char *str, long len);
+extern long write(int fd, const void *str, unsigned long len);
 EOS
   )
 fi
