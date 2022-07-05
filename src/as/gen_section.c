@@ -23,6 +23,9 @@ void add_bss(size_t size) {
 }
 
 void align_section_size(enum SectionType secno, size_t align) {
+  if (align > section_aligns[secno])
+    section_aligns[secno] = align;
+
   if (secno != SEC_BSS) {
     Section *sec = &sections[secno];
     buf_align(&sec->buf, align);
