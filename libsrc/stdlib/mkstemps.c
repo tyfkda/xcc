@@ -31,7 +31,7 @@ int mkstemps(char *template, int suffixlen) {
     *p++ = kLetters[r % LETTERS];
   }
 
-  return open(template, O_WRONLY | O_CREAT | O_EXCL, S_IRUSR | S_IWUSR);
+  return open(template, O_RDWR | O_CREAT | O_EXCL, S_IRUSR | S_IWUSR);
 #undef LETTERS
 }
 #endif

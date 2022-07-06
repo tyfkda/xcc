@@ -16,6 +16,8 @@
 #include <../libsrc/misc/toupper.c>
 #include <../libsrc/stdio/assert.c>
 #include <../libsrc/stdio/fclose.c>
+#include <../libsrc/stdio/fdopen.c>
+#include <../libsrc/stdio/fflush.c>
 #include <../libsrc/stdio/fgetc.c>
 #include <../libsrc/stdio/fgets.c>
 #include <../libsrc/stdio/fileno.c>

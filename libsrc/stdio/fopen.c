@@ -35,21 +35,16 @@ FILE *fopen(const char *fileName, const char *mode) {
       break;
     }
   }
-  if (flag == -1)
-    return NULL;
-
-  int mod = S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH;
-  int fd = open(fileName, flag, mod);
-  if (fd < 0) {
-    return NULL;
+  FILE *fp = NULL;
+  if (flag != -1) {
+    const int mod = S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH;
+    int fd = open(fileName, flag, mod);
+    if (fd >= 0) {
+      fp = fdopen(fd, mode);
+      if (fp == NULL) {
+        close(fd);
+      }
+    }
   }
-
-  FILE *fp = malloc(sizeof(*fp));
-  if (fp == NULL) {
-    close(fd);
-    return NULL;
-  }
-
-  fp->fd = fd;
   return fp;
 }
