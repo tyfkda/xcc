@@ -6,7 +6,6 @@
 void sieve(int n) {
   uint8_t *notprime = calloc(sizeof(*notprime), n);
   if (notprime == NULL) {
-    fprintf(stderr, "malloc failed\n");
     exit(1);
   }
 
@@ -25,7 +24,6 @@ int main(int argc, char *argv[]) {
   if (argc > 1) {
     n = atoi(argv[1]);
     if (n < 2) {
-      fprintf(stderr, "should be >= 2\n");
       return 1;
     }
   }

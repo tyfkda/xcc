@@ -983,6 +983,8 @@ int main(int argc, char *argv[]) {
     return 1;
 
   gen(toplevel);
+  if (compile_error_count != 0)
+    return 1;
 
   FILE *fp = fopen(ofn, "wb");
   if (fp == NULL) {
