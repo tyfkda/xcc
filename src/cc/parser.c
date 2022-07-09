@@ -97,7 +97,8 @@ Type *fix_array_size(Type *type, Initializer *init) {
                  init->kind == IK_SINGLE &&
                  init->single->kind == EX_STR);
   if (!is_str && init->kind != IK_MULTI) {
-    parse_error(init->token, "Error initializer");
+    // Error will be reported in another place.
+    return type;
   }
 
   ssize_t arr_len = type->pa.length;
@@ -366,7 +367,7 @@ static Initializer *flatten_initializer(Type *type, Initializer *init) {
         break;
       // Fallthrough
     default:
-      parse_error(init->token, "Illegal initializer");
+      // Error will be reported in another place.
       break;
     }
     break;
@@ -512,7 +513,7 @@ static Initializer *check_global_initializer(Type *type, Initializer *init) {
       // Fallthrough
     case IK_DOT:
     default:
-      parse_error_nofatal(init->token, "Illegal initializer");
+      parse_error_nofatal(init->token, "Array initializer requires `{'");
       break;
     }
     break;
@@ -521,7 +522,7 @@ static Initializer *check_global_initializer(Type *type, Initializer *init) {
       if (init->kind == IK_SINGLE) {
         Expr *e = init->single;
         if (e->kind != EX_COMPLIT || !can_cast(type, e->type, false, false)) {
-          parse_error_nofatal(init->token, "Illegal initializer");
+          parse_error_nofatal(init->token, "Struct initializer requires `{'");
           break;
         }
         init = flatten_initializer(type, e->complit.original_init);
@@ -610,16 +611,21 @@ Vector *assign_initial_value(Expr *expr, Initializer *init, Vector *inits) {
       }
       // Fallthrough
     default:
-      parse_error(init->token, "Error initializer");
+      parse_error_nofatal(init->token, "Array initializer requires `{'");
       break;
     }
     break;
   case TY_STRUCT:
     {
+      if (init->kind == IK_SINGLE) {
+        Expr *e = init->single;
+        if (can_cast(expr->type, e->type, false, false)) {
+          vec_push(inits, new_stmt_expr(new_expr_bop(EX_ASSIGN, expr->type, init->token, expr, e)));
+          break;
+        }
+      }
       if (init->kind != IK_MULTI) {
-        vec_push(inits,
-                 new_stmt_expr(new_expr_bop(EX_ASSIGN, expr->type, init->token, expr,
-                                            init->single)));
+        parse_error_nofatal(init->token, "Struct initializer requires `{'");
         break;
       }
 
@@ -656,7 +662,7 @@ Vector *assign_initial_value(Expr *expr, Initializer *init, Vector *inits) {
     switch (init->kind) {
     case IK_MULTI:
       if (init->multi->len != 1 || ((Initializer*)init->multi->data[0])->kind != IK_SINGLE) {
-        parse_error(init->token, "Error initializer");
+        parse_error_nofatal(init->token, "Requires scaler");
         break;
       }
       init = init->multi->data[0];
