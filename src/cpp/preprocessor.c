@@ -60,10 +60,40 @@ static void register_pragma_once(const char *filename) {
   vec_push(pragma_once_files, filename);
 }
 
-static void handle_include(const char **pp, const char *srcname) {
+static void handle_include(const char **pp, Stream *stream) {
   const char *p = *pp;
   char close;
   bool sys = false;
+
+  for (;;) {
+    p = skip_whitespaces(p);
+    char c = *p;
+    if (c == '"' || c == '<' || c == '\0' || !isalnum_(c))
+      break;
+
+    set_source_string(p, stream->filename, stream->lineno);
+    Token *ident = match(TK_IDENT);
+    Macro *macro;
+    assert(ident != NULL);
+    if ((macro = can_expand_ident(ident->ident)) != NULL) {
+      Vector *args = NULL;
+      if (macro->params != NULL)
+        args = pp_funargs();
+
+      StringBuffer sb;
+      sb_init(&sb);
+      if (!expand_macro(macro, ident, args, ident->ident, &sb)) {
+        break;
+      }
+
+      char *expanded = sb_to_string(&sb);
+      set_source_string(expanded, NULL, -1);
+      p = expanded;
+
+      // TODO: Recursive back.
+    }
+  }
+
   switch (*p++) {
   case '"':
     close = '"';
@@ -73,7 +103,7 @@ static void handle_include(const char **pp, const char *srcname) {
     sys = true;
     break;
   default:
-    error("syntax error");
+    error("illegal include: %s", *pp);
     return;
   }
 
@@ -89,7 +119,7 @@ static void handle_include(const char **pp, const char *srcname) {
   FILE *fp = NULL;
   // Search from current directory.
   if (!sys) {
-    fn = cat_path_cwd(dirname(strdup(srcname)), path);
+    fn = cat_path_cwd(dirname(strdup(stream->filename)), path);
     if (registered_pragma_once(fn))
       return;
     fp = fopen(fn, "r");
@@ -613,7 +643,7 @@ int preprocess(FILE *fp, const char *filename_) {
       condstack->len = len;
     } else if (enable) {
       if ((next = keyword(directive, "include")) != NULL) {
-        handle_include(&next, stream.filename);
+        handle_include(&next, &stream);
         fprintf(pp_ofp, "# %d \"%s\" 1\n", stream.lineno + 1, stream.filename);
       } else if ((next = keyword(directive, "define")) != NULL) {
         handle_define(next, &stream);

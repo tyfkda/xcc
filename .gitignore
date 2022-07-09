@@ -3,7 +3,7 @@
 *.d
 *.o
 a.out
-tmp.s
+tmp*
 core
 ,*
 .#*

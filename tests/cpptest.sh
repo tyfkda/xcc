@@ -3,6 +3,8 @@
 set -o pipefail
 
 CPP=${CPP:-../cpp}
+XCC=${XCC:-../xcc}
+RUN_AOUT=${RUN_AOUT:-./a.out}
 
 try() {
   local title="$1"
@@ -19,6 +21,33 @@ try() {
     echo "NG: CPP failed"
     exit 1
   fi
+
+  if [ "$actual" = "$expected" ]; then
+    echo "OK"
+  else
+    echo "NG: $expected expected, but got $actual"
+    exit 1
+  fi
+}
+
+try_run() {
+  local title="$1"
+  local expected
+  expected=$(echo -e "$2")
+  local input="$3"
+  local tmpfile="$4"
+
+  if [ "$tmpfile" = "" ]; then
+    tmpfile=$(mktemp).c
+  fi
+
+  echo -n "$title => "
+
+  echo -e "$input" > "$tmpfile"
+  $XCC "$tmpfile" || exit 1
+
+  $RUN_AOUT
+  local actual="$?"
 
   if [ "$actual" = "$expected" ]; then
     echo "OK"
@@ -95,3 +124,7 @@ compile_error '#error' '#error !!!\nvoid main(){}'
 compile_error '#if not closed' '#if 1'
 compile_error '#elif not closed' '#if 0\n#elif 1'
 compile_error 'Duplicate #else' '#if 0\n#else\n#else\n#endif'
+
+# Include with macro
+echo "#define FOO (37)" > tmp.h
+try_run 'Include with macro' 37 "#define FILE  \"tmp.h\"\n#include FILE\nint main(){return FOO;}" tmp.c
