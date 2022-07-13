@@ -33,6 +33,21 @@
 #ifndef POST_INDEX
 #define POST_INDEX(reg, ofs)  post_index(reg, ofs)
 #endif
+#ifndef LABEL_AT_PAGE
+#define LABEL_AT_PAGE(label)  label_at_page(label)
+#endif
+#ifndef LABEL_AT_PAGEOFF
+#define LABEL_AT_PAGEOFF(label)  label_at_pageoff(label)
+#endif
+#ifndef NUM
+#define NUM(x)  num(x)
+#endif
+#ifndef HEXNUM
+#define HEXNUM(x)  hexnum(x)
+#endif
+#ifndef FLONUM
+#define FLONUM(x)  flonum(x)
+#endif
 #ifndef MANGLE
 #define MANGLE(label)  mangle(label)
 #endif
@@ -126,6 +141,12 @@
 #define LDR(o1, o2)           EMIT_ASM2("ldr", o1, o2)
 #define STP(o1, o2, o3)       EMIT_ASM3("stp", o1, o2, o3)
 #define STR(o1, o2)           EMIT_ASM2("str", o1, o2)
+#define UXTB(o1, o2)          EMIT_ASM2("uxtb", o1, o2)
+#define UXTH(o1, o2)          EMIT_ASM2("uxth", o1, o2)
+#define UXTW(o1, o2)          EMIT_ASM2("uxtw", o1, o2)
+#define SXTB(o1, o2)          EMIT_ASM2("sxtb", o1, o2)
+#define SXTH(o1, o2)          EMIT_ASM2("sxth", o1, o2)
+#define SXTW(o1, o2)          EMIT_ASM2("sxtw", o1, o2)
 #define ADD(o1, o2, o3)       EMIT_ASM3("add", o1, o2, o3)
 #define SUB(o1, o2, o3)       EMIT_ASM3("sub", o1, o2, o3)
 #define MUL(o1, o2, o3)       EMIT_ASM3("mul", o1, o2, o3)
@@ -138,6 +159,8 @@
 #define BL(o1)                EMIT_ASM1("bl", o1)
 #define BLR(o1)               EMIT_ASM1("blr", o1)
 #define RET()                 EMIT_ASM0("ret")
+
+#define ADRP(o1, o2)       EMIT_ASM2("adrp", o1, o2)
 
 #define _BYTE(x)       EMIT_ASM1(".byte", x)
 #define _WORD(x)       EMIT_ASM1(".word", x)

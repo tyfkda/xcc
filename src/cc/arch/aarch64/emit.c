@@ -40,6 +40,20 @@ char *quote_label(char *label) {
   return label;
 }
 
+char *num(intptr_t x) {
+  return fmt("%" PRIdPTR, x);
+}
+
+char *hexnum(intptr_t x) {
+  return fmt("0x%" PRIxPTR, x);
+}
+
+#ifndef __NO_FLONUM
+char *flonum(double x) {
+  return fmt("%.16g", x);
+}
+#endif
+
 char *im(intptr_t x) {
   return fmt("#%" PRIdPTR, x);
 }
@@ -54,6 +68,22 @@ char *pre_index(const char *reg, int offset) {
 
 char *post_index(const char *reg, int offset) {
   return fmt("[%s],#%d", reg, offset);
+}
+
+char *label_at_page(char *label) {
+#ifdef __APPLE__
+  return fmt("%s@PAGE", label);
+#else
+  return label;
+#endif
+}
+
+char *label_at_pageoff(char *label) {
+#ifdef __APPLE__
+  return fmt("%s@PAGEOFF", label);
+#else
+  return fmt(":lo12:%s", label);
+#endif
 }
 
 char *mangle(char *label) {

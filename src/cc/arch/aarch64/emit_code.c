@@ -2,6 +2,7 @@
 #include "emit_code.h"
 
 #include <assert.h>
+#include <inttypes.h>  // PRIdPTR
 #include <stdlib.h>
 #include <string.h>
 
@@ -15,6 +16,301 @@
 #include "type.h"
 #include "util.h"
 #include "var.h"
+
+static void eval_initial_value(Expr *expr, Expr **pvar, Fixnum *poffset) {
+  switch (expr->kind) {
+  case EX_FIXNUM:
+    *poffset = expr->fixnum;
+    break;
+  case EX_VAR:
+    assert(*pvar == NULL);
+    *pvar = expr;
+    break;
+  case EX_ADD:
+  case EX_SUB:
+    {
+      Expr *var1 = NULL, *var2 = NULL;
+      Fixnum offset1 = 0, offset2 = 0;
+      eval_initial_value(expr->bop.lhs, &var1, &offset1);
+      eval_initial_value(expr->bop.rhs, &var2, &offset2);
+      if (var1 != NULL) {
+        assert(var2 == NULL);
+        *pvar = var1;
+      } else if (var2 != NULL) {
+        assert(expr->kind == EX_ADD);
+        *pvar = var2;
+      }
+      if (expr->kind == EX_SUB)
+        offset2 = -offset2;
+      *poffset = offset1 + offset2;
+    }
+    break;
+  case EX_REF:
+  case EX_DEREF:
+  case EX_CAST:
+    eval_initial_value(expr->unary.sub, pvar, poffset);
+    break;
+  case EX_MEMBER:
+    {
+      eval_initial_value(expr->member.target, pvar, poffset);
+
+      const Type *type = expr->member.target->type;
+      if (ptr_or_array(type))
+        type = type->pa.ptrof;
+      assert(type->kind == TY_STRUCT);
+      const Vector *members = type->struct_.info->members;
+      const MemberInfo *member = members->data[expr->member.index];
+      *poffset += member->offset;
+    }
+    break;
+  case EX_COMPLIT:
+    assert(expr->complit.var->kind == EX_VAR);
+    eval_initial_value(expr->complit.var, pvar, poffset);
+    break;
+  // case EX_STR:  // should be handled in parser.
+  default: assert(!"illegal"); break;
+  }
+}
+
+static void construct_initial_value(const Type *type, const Initializer *init) {
+  assert(init == NULL || init->kind != IK_DOT);
+
+  switch (type->kind) {
+#ifndef __NO_FLONUM
+  case TY_FLONUM:
+    switch (type->flonum.kind) {
+    case FL_DOUBLE:
+      {
+        union {double f; uint64_t h;} v;
+        v.f = 0;
+        if (init != NULL) {
+          assert(init->kind == IK_SINGLE);
+          Expr *value = init->single;
+          if (!(is_const(value) && is_flonum(value->type)))
+            error("Illegal initializer: constant number expected");
+          v.f = value->flonum;
+        }
+#if 0
+        _DOUBLE(FLONUM(v.d));
+#else
+        _QUAD(HEXNUM(v.h));
+#endif
+      }
+      break;
+    case FL_FLOAT:
+      {
+        union {float f; uint32_t h;} v;
+        v.f = 0;
+        if (init != NULL) {
+          assert(init->kind == IK_SINGLE);
+          Expr *value = init->single;
+          if (!(is_const(value) && is_flonum(value->type)))
+            error("Illegal initializer: constant number expected");
+          v.f = value->flonum;
+        }
+#if 0
+        _FLOAT(FLONUM(v.f));
+#else
+        _LONG(HEXNUM(v.h));
+#endif
+      }
+      break;
+    }
+    break;
+#endif
+  case TY_FIXNUM:
+  case TY_PTR:
+    {
+      Expr *var = NULL;
+      Fixnum offset = 0;
+      if (init != NULL) {
+        assert(init->kind == IK_SINGLE);
+        eval_initial_value(init->single, &var, &offset);
+      }
+      const char *output;
+      if (var == NULL) {
+        output = NUM(offset);
+      } else {
+        const Name *name = var->var.name;
+        Scope *scope;
+        VarInfo *varinfo = scope_find(var->var.scope, name, &scope);
+        assert(varinfo != NULL);
+        if (!is_global_scope(scope) && varinfo->storage & VS_STATIC) {
+          varinfo = varinfo->static_.gvar;
+          assert(varinfo != NULL);
+          name = varinfo->name;
+        }
+
+        char *label = fmt_name(name);
+        if ((varinfo->storage & VS_STATIC) == 0)
+          label = MANGLE(label);
+        label = quote_label(label);
+
+        if (offset == 0) {
+          output = label;
+        } else {
+          output = fmt("%s + %" PRIdPTR, label, offset);
+        }
+      }
+      if (type->kind == TY_PTR) {
+        _QUAD(output);
+      } else {
+        switch (type->fixnum.kind) {
+        case FX_CHAR:  _BYTE(output); break;
+        case FX_SHORT: _WORD(output); break;
+        case FX_LONG:  _QUAD(output); break;
+        case FX_LLONG: _QUAD(output); break;
+        default:
+          assert(false);
+          // Fallthrough
+        case FX_INT: case FX_ENUM:
+          _LONG(output);
+          break;
+        }
+      }
+    }
+    break;
+  case TY_ARRAY:
+    if (init == NULL || init->kind == IK_MULTI) {
+      const Type *elem_type = type->pa.ptrof;
+      ssize_t index = 0;
+      if (init != NULL) {
+        Vector *init_array = init->multi;
+        for (ssize_t i = 0; i < init_array->len; ++i, ++index) {
+          const Initializer *init_elem = init_array->data[i];
+          if (init_elem->kind == IK_ARR) {
+            ssize_t next = init_elem->arr.index->fixnum;
+            for (ssize_t j = index; j < next; ++j)
+              construct_initial_value(elem_type, NULL);
+            index = next;
+            init_elem = init_elem->arr.value;
+          }
+          construct_initial_value(elem_type, init_elem);
+        }
+      }
+      // Padding
+      for (ssize_t i = index, n = type->pa.length; i < n; ++i)
+        construct_initial_value(elem_type, NULL);
+      break;
+    }
+    if (init->kind == IK_SINGLE && is_char_type(type->pa.ptrof)) {
+      Expr *e = strip_cast(init->single);
+      if (e->kind == EX_STR) {
+        size_t src_size = e->str.size;
+        size_t size = type_size(type);
+        if (src_size > size)
+          src_size = size;
+
+        UNUSED(size);
+        StringBuffer sb;
+        sb_init(&sb);
+        sb_append(&sb, "\"", NULL);
+        escape_string(e->str.buf, src_size, &sb);
+        if (size > src_size) {
+          const char NULCHR[] = "\\0";
+          for (size_t i = 0, n = size - src_size; i < n; ++i)
+            sb_append(&sb, NULCHR, NULL);
+        }
+        sb_append(&sb, "\"", NULL);
+        _ASCII(sb_to_string(&sb));
+        break;
+      }
+    }
+    error("Illegal initializer");
+    break;
+  case TY_STRUCT:
+    {
+      const StructInfo *sinfo = type->struct_.info;
+      assert(init == NULL || (init->kind == IK_MULTI && init->multi->len == sinfo->members->len));
+      int count = 0;
+      int offset = 0;
+      for (int i = 0, n = sinfo->members->len; i < n; ++i) {
+        const MemberInfo *member = sinfo->members->data[i];
+        const Initializer *mem_init;
+        if (init == NULL) {
+          if (sinfo->is_union)
+            continue;
+          mem_init = NULL;
+        } else {
+          mem_init = init->multi->data[i];
+        }
+        if (mem_init != NULL || !sinfo->is_union) {
+          int align = align_size(member->type);
+          if (offset % align != 0) {
+            EMIT_ALIGN(align);
+            offset = ALIGN(offset, align);
+          }
+          construct_initial_value(member->type, mem_init);
+          ++count;
+          offset = ALIGN(offset, align);
+          offset += type_size(member->type);
+        }
+      }
+      if (sinfo->is_union && count <= 0) {
+        const MemberInfo *member = sinfo->members->data[0];
+        construct_initial_value(member->type, NULL);
+        offset += type_size(member->type);
+      }
+
+      size_t size = type_size(type);
+      if (size != (size_t)offset) {
+        // Put padding.
+        int d = size - offset;
+        switch (d) {
+        case 1:  _BYTE(NUM(0)); break;
+        case 2:  _WORD(NUM(0)); break;
+        case 4:  _LONG(NUM(0)); break;
+        case 8:  _QUAD(NUM(0)); break;
+        default:
+          for (int i = 0; i < d; ++i)
+            _BYTE(NUM(0));
+          break;
+        }
+      }
+    }
+    break;
+  default:
+    fprintf(stderr, "Global initial value for type %d not implemented (yet)\n", type->kind);
+    assert(false);
+    break;
+  }
+}
+
+static void emit_varinfo(const VarInfo *varinfo, const Initializer *init) {
+  const Name *name = varinfo->name;
+  if (init != NULL) {
+    if (varinfo->type->qualifier & TQ_CONST)
+      _RODATA();
+    else
+      _DATA();
+  }
+
+  char *label = fmt_name(name);
+  if ((varinfo->storage & VS_STATIC) == 0) {  // global
+    label = quote_label(MANGLE(label));
+    _GLOBL(label);
+  } else {
+    label = quote_label(label);
+    _LOCAL(label);
+  }
+
+  if (init != NULL) {
+    EMIT_ALIGN(align_size(varinfo->type));
+    EMIT_LABEL(label);
+    //size_t size = type_size(varinfo->type);
+    construct_initial_value(varinfo->type, init);
+  } else {
+    size_t size = type_size(varinfo->type);
+    if (size < 1)
+      size = 1;
+
+    size_t align = align_size(varinfo->type);
+    if (align <= 1)
+      _COMM(label, NUM(size));
+    else
+      _COMM(label, fmt("%" PRIdPTR ",%" PRIdPTR, size, align));
+  }
+}
 
 ////////////////////////////////////////////////
 
@@ -159,6 +455,21 @@ static void emit_defun(Function *func) {
   LDP(FP, LR, POST_INDEX(SP, 16));
 
   RET();
+
+  // Output static local variables.
+  for (int i = 0; i < func->scopes->len; ++i) {
+    Scope *scope = func->scopes->data[i];
+    if (scope->vars == NULL)
+      continue;
+    for (int j = 0; j < scope->vars->len; ++j) {
+      VarInfo *varinfo = scope->vars->data[j];
+      if (!(varinfo->storage & VS_STATIC))
+        continue;
+      VarInfo *gvarinfo = varinfo->static_.gvar;
+      assert(gvarinfo != NULL);
+      emit_varinfo(gvarinfo, gvarinfo->global.init);
+    }
+  }
 }
 
 void emit_code(Vector *decls) {
@@ -173,7 +484,7 @@ void emit_code(Vector *decls) {
       break;
     case DCL_VARDECL:
       {
-        emit_comment(NULL);
+        bool first = true;
         Vector *decls = decl->vardecl.decls;
         for (int i = 0; i < decls->len; ++i) {
           VarDecl *vd = decls->data[i];
@@ -182,8 +493,11 @@ void emit_code(Vector *decls) {
           const Name *name = vd->ident->ident;
           const VarInfo *varinfo = scope_find(global_scope, name, NULL);
           assert(varinfo != NULL);
-
-          // emit_varinfo(varinfo, varinfo->global.init);
+          if (first) {
+            emit_comment(NULL);
+            first = false;
+          }
+          emit_varinfo(varinfo, varinfo->global.init);
         }
       }
       break;

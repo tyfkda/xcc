@@ -827,7 +827,8 @@ static void ir_out(IR *ir) {
       MOV(RSP, kReg64s[ir->dst->phys]);
     break;
 
-  case IR_CAST: assert((ir->opr1->flag & VRF_CONST) == 0);
+  case IR_CAST:
+    assert((ir->opr1->flag & VRF_CONST) == 0);
 #ifndef __NO_FLONUM
     if (ir->dst->vtype->flag & VRTF_FLONUM) {
       if (ir->opr1->vtype->flag & VRTF_FLONUM) {

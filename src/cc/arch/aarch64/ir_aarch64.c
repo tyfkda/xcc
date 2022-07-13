@@ -58,6 +58,19 @@ static void mov_immediate(const char *dst, intptr_t value, bool b64) {
 
 static void ir_out(IR *ir) {
   switch (ir->kind) {
+
+  case IR_IOFS:
+    {
+      char *label = fmt_name(ir->iofs.label);
+      if (ir->iofs.global)
+        label = MANGLE(label);
+      label = quote_label(label);
+      const char *dst = kReg64s[ir->dst->phys];
+      ADRP(dst, LABEL_AT_PAGE(label));
+      ADD(dst, dst, LABEL_AT_PAGEOFF(label));
+    }
+    break;
+
   case IR_ADD:
     {
       assert(!(ir->opr1->flag & VRF_CONST) || !(ir->opr2->flag & VRF_CONST));
@@ -279,6 +292,41 @@ static void ir_out(IR *ir) {
         assert(0 <= pow && pow < 4);
         const char **regs = kRegSizeTable[pow];
         MOV(regs[ir->dst->phys], kRetRegTable[pow]);
+      }
+    }
+    break;
+
+  case IR_CAST:
+    assert((ir->opr1->flag & VRF_CONST) == 0);
+    if (ir->size <= ir->opr1->vtype->size) {
+      if (ir->dst->phys != ir->opr1->phys) {
+        assert(0 <= ir->size && ir->size < kPow2TableSize);
+        int pow = kPow2Table[ir->size];
+        assert(0 <= pow && pow < 3);
+        const char **regs = kRegSizeTable[pow];
+        MOV(regs[ir->dst->phys], regs[ir->opr1->phys]);
+      }
+    } else {
+      assert(0 <= ir->opr1->vtype->size && ir->opr1->vtype->size < kPow2TableSize);
+      int pows = kPow2Table[ir->opr1->vtype->size];
+      assert(0 <= ir->size && ir->size < kPow2TableSize);
+      int powd = kPow2Table[ir->size];
+      assert(0 <= pows && pows < 4);
+      assert(0 <= powd && powd < 4);
+      if (ir->opr1->vtype->flag & VRTF_UNSIGNED) {
+        switch (pows) {
+        case 0:  UXTB(kRegSizeTable[powd][ir->dst->phys], kRegSizeTable[pows][ir->opr1->phys]); break;
+        case 1:  UXTH(kRegSizeTable[powd][ir->dst->phys], kRegSizeTable[pows][ir->opr1->phys]); break;
+        case 2:  UXTW(kRegSizeTable[powd][ir->dst->phys], kRegSizeTable[pows][ir->opr1->phys]); break;
+        default: assert(false); break;
+        }
+      } else {
+        switch (pows) {
+        case 0:  SXTB(kRegSizeTable[powd][ir->dst->phys], kRegSizeTable[pows][ir->opr1->phys]); break;
+        case 1:  SXTH(kRegSizeTable[powd][ir->dst->phys], kRegSizeTable[pows][ir->opr1->phys]); break;
+        case 2:  SXTW(kRegSizeTable[powd][ir->dst->phys], kRegSizeTable[pows][ir->opr1->phys]); break;
+        default: assert(false); break;
+        }
       }
     }
     break;

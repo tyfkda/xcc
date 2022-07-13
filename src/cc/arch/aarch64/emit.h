@@ -10,10 +10,17 @@ typedef struct Name Name;
 char *fmt(const char *s, ...);
 char *fmt_name(const Name *name);
 char *quote_label(char *label);
+char *num(intptr_t x);  // x
+char *hexnum(intptr_t x);  // 0xnn
+#ifndef __NO_FLONUM
+char *flonum(double x);
+#endif
 char *im(intptr_t x);  // $x
 char *immediate_offset(const char *reg, int offset);
 char *pre_index(const char *reg, int offset);
 char *post_index(const char *reg, int offset);
+char *label_at_page(char *label);
+char *label_at_pageoff(char *label);
 char *mangle(char *label);
 
 void init_emit(FILE *fp);
