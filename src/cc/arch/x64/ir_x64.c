@@ -939,15 +939,15 @@ static void ir_out(IR *ir) {
   case IR_CLEAR:
     {
       assert(!(ir->opr1->flag & VRF_CONST));
-      const char *loop = fmt_name(alloc_label());
+      const Name *label = alloc_label();
       MOV(kReg64s[ir->opr1->phys], RSI);
       MOV(IM(ir->size), EDI);
       XOR(AL, AL);
-      EMIT_LABEL(loop);
+      EMIT_LABEL(fmt_name(label));
       MOV(AL, INDIRECT(RSI, NULL, 1));
       INC(RSI);
       DEC(EDI);
-      JNE(loop);
+      JNE(fmt_name(label));
     }
     break;
 

@@ -125,6 +125,8 @@
 #define FP    "fp"  // x29
 #define LR    "lr"  // x30
 #define SP    "sp"  // x31
+#define ZR    "zr"  // x31: zero register
+#define WZR   "wzr"  // x31: zero register(32bit)
 
 // Condition
 #define CEQ  "eq"
@@ -158,6 +160,7 @@
 #define SXTW(o1, o2)          EMIT_ASM2("sxtw", o1, o2)
 #define ADD(o1, o2, o3)       EMIT_ASM3("add", o1, o2, o3)
 #define SUB(o1, o2, o3)       EMIT_ASM3("sub", o1, o2, o3)
+#define SUBS(o1, o2, o3)      EMIT_ASM3("subs", o1, o2, o3)
 #define MUL(o1, o2, o3)       EMIT_ASM3("mul", o1, o2, o3)
 #define SDIV(o1, o2, o3)      EMIT_ASM3("sdiv", o1, o2, o3)
 #define UDIV(o1, o2, o3)      EMIT_ASM3("udiv", o1, o2, o3)

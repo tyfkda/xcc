@@ -57,6 +57,41 @@ static void mov_immediate(const char *dst, intptr_t value, bool b64) {
   }
 }
 
+static void ir_memcpy(int dst_reg, int src_reg, ssize_t size) {
+  switch (size) {
+  case 1:
+    LDRB(W9, IMMEDIATE_OFFSET(kReg64s[src_reg], 0));
+    STRB(W9, IMMEDIATE_OFFSET(kReg64s[dst_reg], 0));
+    break;
+  case 2:
+    LDRH(W9, IMMEDIATE_OFFSET(kReg64s[src_reg], 0));
+    STRH(W9, IMMEDIATE_OFFSET(kReg64s[dst_reg], 0));
+    break;
+  case 4:
+  case 8:
+    {
+      const char *reg = size == 4 ? W9 : X9;
+      LDR(reg, IMMEDIATE_OFFSET(kReg64s[src_reg], 0));
+      STR(reg, IMMEDIATE_OFFSET(kReg64s[dst_reg], 0));
+    }
+    break;
+  default:
+    // Break %x9~%x12
+    {
+      const Name *label = alloc_label();
+      MOV(X9, kReg64s[src_reg]);
+      MOV(X10, kReg64s[dst_reg]);
+      mov_immediate(W11, size, false);
+      EMIT_LABEL(fmt_name(label));
+      LDRB(W12, POST_INDEX(X9, 1));
+      STRB(W12, POST_INDEX(X10, 1));
+      SUBS(W11, W11, IM(1));
+      Bcc(CNE, fmt_name(label));
+    }
+    break;
+  }
+}
+
 static void ir_out(IR *ir) {
   switch (ir->kind) {
   case IR_BOFS:
@@ -433,6 +468,26 @@ static void ir_out(IR *ir) {
         default: assert(false); break;
         }
       }
+    }
+    break;
+
+  case IR_MEMCPY:
+    assert(!(ir->opr1->flag & VRF_CONST));
+    assert(!(ir->opr2->flag & VRF_CONST));
+    ir_memcpy(ir->opr2->phys, ir->opr1->phys, ir->size);
+    break;
+
+  case IR_CLEAR:
+    {
+      assert(!(ir->opr1->flag & VRF_CONST));
+      const Name *label = alloc_label();
+
+      MOV(X9, kReg64s[ir->opr1->phys]);
+      mov_immediate(W10, ir->size, false);
+      EMIT_LABEL(fmt_name(label));
+      STRB(WZR, POST_INDEX(X9, 1));
+      SUBS(W10, W10, IM(1));
+      Bcc(CNE, fmt_name(label));
     }
     break;
 
