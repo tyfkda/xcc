@@ -29,6 +29,7 @@ const char *kRegSizeTable[][7] = {
   {X20, X21, X22, X23, X24, X25, X26},
 };
 
+#define kReg32s  (kRegSizeTable[2])
 #define kReg64s  (kRegSizeTable[3])
 
 const char *kRetRegTable[] = {W0, W0, W0, X0};
@@ -226,6 +227,26 @@ static void ir_out(IR *ir) {
         CMP(regs[ir->opr1->phys], IM(ir->opr2->fixnum));
       else
         CMP(regs[ir->opr1->phys], regs[ir->opr2->phys]);
+    }
+    break;
+
+  case IR_COND:
+    {
+      assert(!(ir->dst->flag & VRF_CONST));
+      const char *dst = kReg32s[ir->dst->phys];  // Assume bool is 4 byte.
+      switch (ir->cond.kind) {
+      case COND_EQ:  CSET(dst, CEQ); break;
+      case COND_NE:  CSET(dst, CNE); break;
+      case COND_LT:  CSET(dst, CLT); break;
+      case COND_GT:  CSET(dst, CGT); break;
+      case COND_LE:  CSET(dst, CLE); break;
+      case COND_GE:  CSET(dst, CGE); break;
+      case COND_ULT: CSET(dst, CLO); break;
+      case COND_UGT: CSET(dst, CHI); break;
+      case COND_ULE: CSET(dst, CLS); break;
+      case COND_UGE: CSET(dst, CHS); break;
+      default: assert(false); break;
+      }
     }
     break;
 

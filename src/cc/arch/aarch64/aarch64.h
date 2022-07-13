@@ -159,6 +159,7 @@
 #define BL(o1)                EMIT_ASM1("bl", o1)
 #define BLR(o1)               EMIT_ASM1("blr", o1)
 #define RET()                 EMIT_ASM0("ret")
+#define CSET(o1, c)           EMIT_ASM2("cset", o1, c)
 
 #define ADRP(o1, o2)       EMIT_ASM2("adrp", o1, o2)
 
