@@ -33,6 +33,9 @@
 #ifndef POST_INDEX
 #define POST_INDEX(reg, ofs)  post_index(reg, ofs)
 #endif
+#ifndef REG_OFFSET
+#define REG_OFFSET(base, reg, scale)  reg_offset(base, reg, scale)
+#endif
 #ifndef LABEL_AT_PAGE
 #define LABEL_AT_PAGE(label)  label_at_page(label)
 #endif
@@ -139,8 +142,14 @@
 #define MOVK(o1, o2, o3)      EMIT_ASM3("movk", o1, o2, o3)
 #define LDP(o1, o2, o3)       EMIT_ASM3("ldp", o1, o2, o3)
 #define LDR(o1, o2)           EMIT_ASM2("ldr", o1, o2)
+#define LDRB(o1, o2)          EMIT_ASM2("ldrb", o1, o2)
+#define LDRSB(o1, o2)         EMIT_ASM2("ldrsb", o1, o2)
+#define LDRH(o1, o2)          EMIT_ASM2("ldrh", o1, o2)
+#define LDRSH(o1, o2)         EMIT_ASM2("ldrsh", o1, o2)
 #define STP(o1, o2, o3)       EMIT_ASM3("stp", o1, o2, o3)
 #define STR(o1, o2)           EMIT_ASM2("str", o1, o2)
+#define STRB(o1, o2)          EMIT_ASM2("strb", o1, o2)
+#define STRH(o1, o2)          EMIT_ASM2("strh", o1, o2)
 #define UXTB(o1, o2)          EMIT_ASM2("uxtb", o1, o2)
 #define UXTH(o1, o2)          EMIT_ASM2("uxth", o1, o2)
 #define UXTW(o1, o2)          EMIT_ASM2("uxtw", o1, o2)

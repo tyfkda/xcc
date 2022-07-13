@@ -78,6 +78,84 @@ static void ir_out(IR *ir) {
     }
     break;
 
+  case IR_LOAD:
+  case IR_LOAD_SPILLED:
+#ifndef __NO_FLONUM
+    assert(!(ir->dst->vtype->flag & VRTF_FLONUM));
+#endif
+    {
+      assert(0 <= ir->size && ir->size < kPow2TableSize);
+      int pow = kPow2Table[ir->size];
+      assert(0 <= pow && pow < 4);
+      const char **regs = kRegSizeTable[pow];
+      const char *dst = regs[ir->dst->phys];
+      assert(!(ir->opr1->flag & VRF_CONST));
+      const char *src;
+      if (ir->kind == IR_LOAD) {
+        src = IMMEDIATE_OFFSET(kReg64s[ir->opr1->phys], 0);
+      } else {
+        if (ir->opr1->offset >= -256 && ir->opr1->offset <= 256) {
+          src = IMMEDIATE_OFFSET(FP, ir->opr1->offset);
+        } else {
+          const char *tmp = kTmpRegTable[3];
+          mov_immediate(tmp, ir->opr1->offset, true);
+          src = REG_OFFSET(FP, tmp, _LSL(0));
+        }
+      }
+      switch (pow) {
+      case 0:
+        if (ir->dst->vtype->flag & VRTF_UNSIGNED) LDRB(dst, src);
+        else                                      LDRSB(dst, src);
+        break;
+      case 1:
+        if (ir->dst->vtype->flag & VRTF_UNSIGNED) LDRH(dst, src);
+        else                                      LDRSH(dst, src);
+        break;
+      case 2: case 3:
+        LDR(dst, src);
+        break;
+      default: assert(false); break;
+      }
+    }
+    break;
+
+  case IR_STORE:
+  case IR_STORE_SPILLED:
+#ifndef __NO_FLONUM
+    assert(!(ir->opr1->vtype->flag & VRTF_FLONUM));
+#endif
+    {
+      assert(!(ir->opr2->flag & VRF_CONST));
+      assert(0 <= ir->size && ir->size < kPow2TableSize);
+      int pow = kPow2Table[ir->size];
+      const char *target;
+      if (ir->kind == IR_STORE) {
+        target = IMMEDIATE_OFFSET(kReg64s[ir->opr2->phys], 0);
+      } else {
+        if (ir->opr2->offset >= -256 && ir->opr2->offset <= 256) {
+          target = IMMEDIATE_OFFSET(FP, ir->opr2->offset);
+        } else {
+          const char *tmp = kTmpRegTable[3];
+          mov_immediate(tmp, ir->opr2->offset, true);
+          target = REG_OFFSET(FP, tmp, _LSL(0));
+        }
+      }
+      const char *src;
+      if (ir->opr1->flag & VRF_CONST) {
+        src = kTmpRegTable[pow];
+        mov_immediate(src, ir->opr1->fixnum, pow >= 3);
+      } else {
+        src = kRegSizeTable[pow][ir->opr1->phys];
+      }
+      switch (pow) {
+      case 0:          STRB(src, target); break;
+      case 1:          STRH(src, target); break;
+      case 2: case 3:  STR(src, target); break;
+      default: assert(false); break;
+      }
+    }
+    break;
+
   case IR_ADD:
     {
       assert(!(ir->opr1->flag & VRF_CONST) || !(ir->opr2->flag & VRF_CONST));
@@ -355,16 +433,6 @@ static void ir_out(IR *ir) {
         default: assert(false); break;
         }
       }
-    }
-    break;
-
-  case IR_LOAD_SPILLED:
-    {
-      assert(0 <= ir->size && ir->size < kPow2TableSize);
-      int pow = kPow2Table[ir->size];
-      assert(0 <= pow && pow < 4);
-      const char **regs = kRegSizeTable[pow];
-      LDR(regs[ir->dst->phys], IMMEDIATE_OFFSET(FP, ir->opr1->offset));
     }
     break;
 

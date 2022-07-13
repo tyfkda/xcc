@@ -70,6 +70,10 @@ char *post_index(const char *reg, int offset) {
   return fmt("[%s],#%d", reg, offset);
 }
 
+char *reg_offset(const char *base, const char *reg, const char *shift) {
+  return fmt("[%s,%s,%s]", base, reg, shift);
+}
+
 char *label_at_page(char *label) {
 #ifdef __APPLE__
   return fmt("%s@PAGE", label);
