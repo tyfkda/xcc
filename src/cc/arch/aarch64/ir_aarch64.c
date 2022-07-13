@@ -59,6 +59,12 @@ static void mov_immediate(const char *dst, intptr_t value, bool b64) {
 
 static void ir_out(IR *ir) {
   switch (ir->kind) {
+  case IR_BOFS:
+    if (ir->opr1->flag & VRF_CONST)
+      mov_immediate(kReg64s[ir->dst->phys], ir->opr1->fixnum, true);
+    else
+      ADD(kReg64s[ir->dst->phys], FP, IM(ir->opr1->offset));
+    break;
 
   case IR_IOFS:
     {
