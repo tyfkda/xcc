@@ -5,15 +5,15 @@ void qsort(void *base, size_t nmemb, size_t size, int (*compare)(const void *, c
     return;
 
   char *a = base;
-  const char *px;
 
-  px = &a[(nmemb >> 1) * size];
-  int i = 0;
-  int j = nmemb - 1;
+  size_t mid = nmemb >> 1;
+  const char *px = &a[mid * size];
+  size_t i = 0;
+  size_t j = nmemb - 1;
   for (;;) {
-    while (compare(&a[i * size], px) < 0)
+    while (i < mid && compare(&a[i * size], px) < 0)
       ++i;
-    while (compare(px, &a[j * size]) < 0)
+    while (j > mid && compare(px, &a[j * size]) < 0)
       --j;
     if (i >= j)
       break;
@@ -25,12 +25,18 @@ void qsort(void *base, size_t nmemb, size_t size, int (*compare)(const void *, c
       pi[k] = pj[k];
       pj[k] = t;
     }
-    if (px == pi)
+    if (px == pi) {
       px = pj;
-    else if (px == pj)
+      mid = j;
+      ++i;
+    } else if (px == pj) {
       px = pi;
-    ++i;
-    --j;
+      mid = i;
+      --j;
+    } else {
+      ++i;
+      --j;
+    }
   }
   if (i > 1)
     qsort(a, i, size, compare);

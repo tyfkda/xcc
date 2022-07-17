@@ -73,7 +73,7 @@ static int sort_live_interval(const void *pa, const void *pb) {
   LiveInterval *a = *(LiveInterval**)pa, *b = *(LiveInterval**)pb;
   int d = a->start - b->start;
   if (d == 0)
-    d = b->end - a->start;
+    d = b->end - a->end;
   return d;
 }
 
