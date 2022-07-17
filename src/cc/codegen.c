@@ -76,7 +76,7 @@ static void alloc_variable_registers(Function *func) {
         continue;
       }
 
-      VReg *vreg = add_new_reg(varinfo->type, VRF_LOCAL);
+      VReg *vreg = add_new_reg(varinfo->type, 0);
       if (varinfo->storage & VS_REF_TAKEN)
         vreg->flag |= VRF_REF;
       varinfo->local.reg = vreg;
@@ -93,7 +93,7 @@ static void alloc_variable_registers(Function *func) {
     Type *retptrtype = ptrof(rettype);
     Scope *top_scope = func->scopes->data[0];
     VarInfo *varinfo = scope_add(top_scope, retval_name, retptrtype, 0);
-    VReg *vreg = add_new_reg(varinfo->type, VRF_LOCAL | VRF_PARAM);
+    VReg *vreg = add_new_reg(varinfo->type, VRF_PARAM);
     vreg->param_index = 0;
     varinfo->local.reg = vreg;
     ((FuncBackend*)func->extra)->retval = vreg;

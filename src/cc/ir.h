@@ -34,9 +34,8 @@ typedef struct VRegType {
 } VRegType;
 
 #define VRF_PARAM  (1 << 0)  // Function parameter
-#define VRF_LOCAL  (1 << 1)  // Local variable
-#define VRF_REF    (1 << 2)  // Reference(&) taken
-#define VRF_CONST  (1 << 3)  // Constant
+#define VRF_REF    (1 << 1)  // Reference(&) taken
+#define VRF_CONST  (1 << 2)  // Constant
 
 typedef struct VReg {
   const VRegType *vtype;

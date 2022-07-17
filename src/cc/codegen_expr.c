@@ -374,7 +374,7 @@ static VReg *gen_funcall(Expr *expr) {
   if (is_stack_param(expr->type)) {
     const Name *name = alloc_label();
     VarInfo *ret_varinfo = scope_add(curscope, name, expr->type, 0);
-    ret_varinfo->local.reg = retvar_reg = add_new_reg(expr->type, VRF_LOCAL);
+    ret_varinfo->local.reg = retvar_reg = add_new_reg(expr->type, 0);
   }
 
   int total_arg_count = arg_count + (retvar_reg != NULL ? 1 : 0);
