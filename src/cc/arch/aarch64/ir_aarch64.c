@@ -311,6 +311,66 @@ static void ir_out(IR *ir) {
     }
     break;
 
+  case IR_BITAND:
+    {
+      assert(!(ir->opr1->flag & VRF_CONST) || !(ir->opr2->flag & VRF_CONST));
+      assert(0 <= ir->size && ir->size < kPow2TableSize);
+      int pow = kPow2Table[ir->size];
+      assert(0 <= pow && pow < 4);
+      const char **regs = kRegSizeTable[pow];
+      const char *opr1, *opr2;
+      if (ir->opr1->flag & VRF_CONST)
+        mov_immediate(opr1 = kTmpRegTable[pow], ir->opr1->fixnum, pow >= 3);
+      else
+        opr1 = regs[ir->opr1->phys];
+      if (ir->opr2->flag & VRF_CONST)
+        mov_immediate(opr2 = kTmpRegTable[pow], ir->opr2->fixnum, pow >= 3);
+      else
+        opr2 = regs[ir->opr2->phys];
+      AND(regs[ir->dst->phys], opr1, opr2);
+    }
+    break;
+
+  case IR_BITOR:
+    {
+      assert(!(ir->opr1->flag & VRF_CONST) || !(ir->opr2->flag & VRF_CONST));
+      assert(0 <= ir->size && ir->size < kPow2TableSize);
+      int pow = kPow2Table[ir->size];
+      assert(0 <= pow && pow < 4);
+      const char **regs = kRegSizeTable[pow];
+      const char *opr1, *opr2;
+      if (ir->opr1->flag & VRF_CONST)
+        mov_immediate(opr1 = kTmpRegTable[pow], ir->opr1->fixnum, pow >= 3);
+      else
+        opr1 = regs[ir->opr1->phys];
+      if (ir->opr2->flag & VRF_CONST)
+        mov_immediate(opr2 = kTmpRegTable[pow], ir->opr2->fixnum, pow >= 3);
+      else
+        opr2 = regs[ir->opr2->phys];
+      ORR(regs[ir->dst->phys], opr1, opr2);
+    }
+    break;
+
+  case IR_BITXOR:
+    {
+      assert(!(ir->opr1->flag & VRF_CONST) || !(ir->opr2->flag & VRF_CONST));
+      assert(0 <= ir->size && ir->size < kPow2TableSize);
+      int pow = kPow2Table[ir->size];
+      assert(0 <= pow && pow < 4);
+      const char **regs = kRegSizeTable[pow];
+      const char *opr1, *opr2;
+      if (ir->opr1->flag & VRF_CONST)
+        mov_immediate(opr1 = kTmpRegTable[pow], ir->opr1->fixnum, pow >= 3);
+      else
+        opr1 = regs[ir->opr1->phys];
+      if (ir->opr2->flag & VRF_CONST)
+        mov_immediate(opr2 = kTmpRegTable[pow], ir->opr2->fixnum, pow >= 3);
+      else
+        opr2 = regs[ir->opr2->phys];
+      EOR(regs[ir->dst->phys], opr1, opr2);
+    }
+    break;
+
   case IR_RESULT:
     {
       assert(0 <= ir->size && ir->size < kPow2TableSize);
