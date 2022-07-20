@@ -37,6 +37,11 @@ const char *kRetRegTable[] = {W0, W0, W0, X0};
 const char *kTmpRegTable[] = {W9, W9, W9, X9};
 const char *kTmpRegTable2[] = {W10, W10, W10, X10};
 
+#define CALLEE_SAVE_REG_COUNT  ((int)(sizeof(kCalleeSaveRegs) / sizeof(*kCalleeSaveRegs)))
+const int kCalleeSaveRegs[] = {
+  0, 1, 2, 3, 4, 5, 6,
+};
+
 static const int kPow2Table[] = {-1, 0, 1, -1, 2, -1, -1, -1, 3};
 #define kPow2TableSize ((int)(sizeof(kPow2Table) / sizeof(*kPow2Table)))
 
@@ -616,19 +621,37 @@ void remove_unnecessary_bb(BBContainer *bbcon) {
   }
 }
 
+static int enum_save_regs(unsigned short used, const char *saves[CALLEE_SAVE_REG_COUNT]) {
+  int count = 0;
+  for (int i = 0; i < CALLEE_SAVE_REG_COUNT; ++i) {
+    int ireg = kCalleeSaveRegs[i];
+    if (used & (1 << ireg))
+      saves[count++] = kReg64s[ireg];
+  }
+  return count;
+}
+
 int push_callee_save_regs(unsigned short used) {
-  // int count = 0;
-  // for (int i = 0; i < CALLEE_SAVE_REG_COUNT; ++i) {
-  //   int ireg = kCalleeSaveRegs[i];
-  //   if (used & (1 << ireg)) {
-  //     PUSH(kReg64s[ireg]);
-  //     PUSH_STACK_POS();
-  //     ++count;
-  //   }
-  // }
-  // return count;
-  UNUSED(used);
-  return 0;
+  const char *saves[(CALLEE_SAVE_REG_COUNT + 1) & ~1];
+  int count = enum_save_regs(used, saves);
+  for (int i = 0; i < count; i += 2) {
+    if (i + 1 < count)
+      STP(saves[i], saves[i + 1], PRE_INDEX(SP, -16));
+    else
+      STR(saves[i], PRE_INDEX(SP, -16));
+  }
+  return count;
+}
+
+void pop_callee_save_regs(unsigned short used) {
+  const char *saves[(CALLEE_SAVE_REG_COUNT + 1) & ~1];
+  int count = enum_save_regs(used, saves);
+  if ((count & 1) != 0)
+    LDR(saves[--count], POST_INDEX(SP, 16));
+  for (int i = count; i > 0; ) {
+    i -= 2;
+    LDP(saves[i], saves[i + 1], POST_INDEX(SP, 16));
+  }
 }
 
 void emit_bb_irs(BBContainer *bbcon) {

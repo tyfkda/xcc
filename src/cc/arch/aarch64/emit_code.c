@@ -450,6 +450,7 @@ static void emit_defun(Function *func) {
   emit_bb_irs(fnbe->bbcon);
 
   // Epilogue
+  pop_callee_save_regs(fnbe->ra->used_reg_bits);
   if (frame_size > 0)
     ADD(SP, SP, IM(frame_size));
   LDP(FP, LR, POST_INDEX(SP, 16));

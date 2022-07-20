@@ -526,10 +526,10 @@ static void emit_defun(Function *func) {
           RSP);
     }
 
-    pop_callee_save_regs(((FuncBackend*)func->extra)->ra->used_reg_bits);
+    pop_callee_save_regs(fnbe->ra->used_reg_bits);
 
     MOV(RBP, RSP);
-    stackpos -= ((FuncBackend*)func->extra)->ra->frame_size;
+    stackpos -= fnbe->ra->frame_size;
     POP(RBP); POP_STACK_POS();
   }
 
