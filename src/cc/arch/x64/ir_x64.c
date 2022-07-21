@@ -616,7 +616,6 @@ static void ir_out(IR *ir) {
 
   case IR_TJMP:
     {
-      const Name *table_label = alloc_label();
       int phys = ir->opr1->phys;
       const int powd = 3;
       assert(0 <= ir->opr1->vtype->size && ir->opr1->vtype->size < kPow2TableSize);
@@ -631,6 +630,7 @@ static void ir_out(IR *ir) {
         }
       }
 
+      const Name *table_label = alloc_label();
       LEA(LABEL_INDIRECT(fmt_name(table_label), RIP), RAX);
       JMP(fmt("*%s", OFFSET_INDIRECT(0, RAX, kReg64s[phys], 8)));
 

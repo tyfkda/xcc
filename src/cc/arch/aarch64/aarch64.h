@@ -55,6 +55,7 @@
 #define MANGLE(label)  mangle(label)
 #endif
 
+#define _UXTW(shift)  fmt("uxtw #%d", shift)
 #define _LSL(shift)   fmt("lsl #%d", shift)
 
 #define W0    "w0"
@@ -169,8 +170,10 @@
 #define ORR(o1, o2, o3)       EMIT_ASM3("orr", o1, o2, o3)
 #define EOR(o1, o2, o3)       EMIT_ASM3("eor", o1, o2, o3)
 #define CMP(o1, o2)           EMIT_ASM2("cmp", o1, o2)
+#define LSL(o1, o2, o3)       EMIT_ASM3("lsl", o1, o2, o3)
 #define BRANCH(o1)            EMIT_ASM1("b", o1)
 #define Bcc(c, o1)            EMIT_ASM1("b" c, o1)
+#define BR(o1)                EMIT_ASM1("br", o1)
 #define BL(o1)                EMIT_ASM1("bl", o1)
 #define BLR(o1)               EMIT_ASM1("blr", o1)
 #define RET()                 EMIT_ASM0("ret")

@@ -451,6 +451,37 @@ static void ir_out(IR *ir) {
     }
     break;
 
+  case IR_TJMP:
+    {
+      int phys = ir->opr1->phys;
+      const int powd = 3;
+      assert(0 <= ir->opr1->vtype->size && ir->opr1->vtype->size < kPow2TableSize);
+      int pows = kPow2Table[ir->opr1->vtype->size];
+      assert(0 <= pows && pows < 4);
+
+      const char *dst = kTmpRegTable[3];
+      const Name *table_label = alloc_label();
+      char *label = fmt_name(table_label);
+      ADRP(dst, LABEL_AT_PAGE(label));
+      ADD(dst, dst, LABEL_AT_PAGEOFF(label));
+      if (pows < powd) {
+        LDR(dst, REG_OFFSET(dst, kRegSizeTable[pows][phys], _UXTW(3)));  // dst = label + (opr1 << 3)
+      } else {
+        LDR(dst, REG_OFFSET(dst, kRegSizeTable[pows][phys], _LSL(3)));  // dst = label + (opr1 << 3)
+      }
+      BR(dst);
+
+      _RODATA();
+      EMIT_ALIGN(8);
+      EMIT_LABEL(fmt_name(table_label));
+      for (size_t i = 0, len = ir->tjmp.len; i < len; ++i) {
+        BB *bb = ir->tjmp.bbs[i];
+        _QUAD(fmt("%.*s", bb->label->bytes, bb->label->chars));
+      }
+      _TEXT();
+    }
+    break;
+
   case IR_PRECALL:
     break;
 
