@@ -10,3 +10,9 @@
 #else
 #define ALLOCA(size)  malloc(size)
 #endif
+
+#if defined(__aarch64__)
+#define REGARG_SIZE  (16)
+#else
+#define REGARG_SIZE  (8)
+#endif

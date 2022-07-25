@@ -118,6 +118,11 @@ static void ir_out(IR *ir) {
     }
     break;
 
+  case IR_SOFS:
+    assert(ir->opr1->flag & VRF_CONST);
+    ADD(kReg64s[ir->dst->phys], SP, IM(ir->opr1->fixnum));
+    break;
+
   case IR_LOAD:
   case IR_LOAD_SPILLED:
 #ifndef __NO_FLONUM
@@ -384,6 +389,21 @@ static void ir_out(IR *ir) {
     }
     break;
 
+  case IR_SUBSP:
+    if (ir->opr1->flag & VRF_CONST) {
+      assert(ir->opr1->fixnum % 16 == 0);
+      if (ir->opr1->fixnum > 0)
+        SUB(SP, SP, IM(ir->opr1->fixnum));
+      else if (ir->opr1->fixnum < 0)
+        ADD(SP, SP, IM(-ir->opr1->fixnum));
+      // stackpos += ir->opr1->fixnum;
+    } else {
+      SUB(SP, SP, kReg64s[ir->opr1->phys]);
+    }
+    if (ir->dst != NULL)
+      MOV(kReg64s[ir->dst->phys], SP);
+    break;
+
   case IR_MOV:
     {
       assert(0 <= ir->size && ir->size < kPow2TableSize);
@@ -520,6 +540,12 @@ static void ir_out(IR *ir) {
       } else {
         assert(!(ir->opr1->flag & VRF_CONST));
         BLR(kReg64s[ir->opr1->phys]);
+      }
+
+      IR *precall = ir->call.precall;
+      int align_stack = precall->precall.stack_aligned + precall->precall.stack_args_size;
+      if (align_stack != 0) {
+        ADD(SP, SP, IM(align_stack));
       }
 
       assert(0 <= ir->size && ir->size < kPow2TableSize);

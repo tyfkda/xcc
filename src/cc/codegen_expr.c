@@ -380,6 +380,7 @@ static VReg *gen_funcall(Expr *expr) {
 
   ArgInfo *arg_infos = NULL;
   int stack_arg_count = 0;
+  int reg_arg_count = 0;
   if (args != NULL) {
     int arg_start = retvar_reg != NULL ? 1 : 0;
     int ireg_index = arg_start;
@@ -415,6 +416,7 @@ static VReg *gen_funcall(Expr *expr) {
         offset += ALIGN(p->size, WORD_SIZE);
         ++stack_arg_count;
       } else {
+        ++reg_arg_count;
 #ifndef __NO_FLONUM
         if (p->is_flonum)
           p->reg_index = freg_index++;
@@ -429,26 +431,26 @@ static VReg *gen_funcall(Expr *expr) {
       arg_vtypes[i + arg_start] = to_vtype(arg->type);
     }
   }
-  offset = ALIGN(offset, 8);
+  offset = ALIGN(offset, 16);
 
   IR *precall = new_ir_precall(arg_count - stack_arg_count, offset);
 
-  int reg_arg_count = 0;
   if (offset > 0)
     new_ir_subsp(new_const_vreg(offset, to_vtype(&tySSize)), NULL);
   if (args != NULL) {
     // Register arguments.
+    int iregarg = 0;
     for (int i = arg_count; --i >= 0; ) {
       Expr *arg = args->data[i];
       VReg *reg = gen_expr(arg);
       const ArgInfo *p = &arg_infos[i];
       if (p->offset < 0) {
         new_ir_pusharg(reg, to_vtype(arg->type));
-        ++reg_arg_count;
+        ++iregarg;
       } else {
         VRegType offset_type = {.size = 4, .align = 4, .flag = 0};  // TODO:
-        VReg *dst = new_ir_sofs(new_const_vreg(p->offset + reg_arg_count * WORD_SIZE,
-                                               &offset_type));
+        int ofs = p->offset + iregarg * REGARG_SIZE;
+        VReg *dst = new_ir_sofs(new_const_vreg(ofs, &offset_type));
         if (p->stack_arg) {
           new_ir_memcpy(dst, reg, type_size(arg->type));
         } else {
