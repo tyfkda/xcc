@@ -171,6 +171,7 @@
 #define EOR(o1, o2, o3)       EMIT_ASM3("eor", o1, o2, o3)
 #define CMP(o1, o2)           EMIT_ASM2("cmp", o1, o2)
 #define LSL(o1, o2, o3)       EMIT_ASM3("lsl", o1, o2, o3)
+#define NEG(o1, o2)           EMIT_ASM2("neg", o1, o2)
 #define BRANCH(o1)            EMIT_ASM1("b", o1)
 #define Bcc(c, o1)            EMIT_ASM1("b" c, o1)
 #define BR(o1)                EMIT_ASM1("br", o1)

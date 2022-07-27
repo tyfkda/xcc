@@ -34,6 +34,8 @@ const char *kRegSizeTable[][7] = {
 
 const char *kRetRegTable[] = {W0, W0, W0, X0};
 
+const char *kZeroRegTable[] = {WZR, WZR, WZR, ZR};
+
 const char *kTmpRegTable[] = {W9, W9, W9, X9};
 const char *kTmpRegTable2[] = {W10, W10, W10, X10};
 
@@ -431,6 +433,17 @@ static void ir_out(IR *ir) {
         CMP(regs[ir->opr1->phys], IM(ir->opr2->fixnum));
       else
         CMP(regs[ir->opr1->phys], regs[ir->opr2->phys]);
+    }
+    break;
+
+  case IR_NEG:
+    {
+      assert(!(ir->dst->flag & VRF_CONST));
+      assert(0 <= ir->size && ir->size < kPow2TableSize);
+      int pow = kPow2Table[ir->size];
+      assert(0 <= pow && pow < 4);
+      const char **regs = kRegSizeTable[pow];
+      NEG(regs[ir->dst->phys], regs[ir->opr1->phys]);
     }
     break;
 
