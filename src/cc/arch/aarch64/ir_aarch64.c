@@ -378,6 +378,43 @@ static void ir_out(IR *ir) {
     }
     break;
 
+  case IR_LSHIFT:
+    {
+      assert(!(ir->opr1->flag & VRF_CONST) || !(ir->opr2->flag & VRF_CONST));
+      assert(0 <= ir->size && ir->size < kPow2TableSize);
+      int pow = kPow2Table[ir->size];
+      assert(0 <= pow && pow < 4);
+      const char **regs = kRegSizeTable[pow];
+      if (ir->opr1->flag & VRF_CONST) {
+        const char *tmp = kTmpRegTable[pow];
+        mov_immediate(tmp, ir->opr1->fixnum, pow >= 3);
+        LSL(regs[ir->dst->phys], tmp, regs[ir->opr2->phys]);
+      } else if (ir->opr2->flag & VRF_CONST) {
+        LSL(regs[ir->dst->phys], regs[ir->opr1->phys], IM(ir->opr2->fixnum));
+      } else {
+        LSL(regs[ir->dst->phys], regs[ir->opr1->phys], regs[ir->opr2->phys]);
+      }
+    }
+    break;
+  case IR_RSHIFT:
+    {
+      assert(!(ir->opr1->flag & VRF_CONST) || !(ir->opr2->flag & VRF_CONST));
+      assert(0 <= ir->size && ir->size < kPow2TableSize);
+      int pow = kPow2Table[ir->size];
+      assert(0 <= pow && pow < 4);
+      const char **regs = kRegSizeTable[pow];
+      if (ir->opr1->flag & VRF_CONST) {
+        const char *tmp = kTmpRegTable[pow];
+        mov_immediate(tmp, ir->opr1->fixnum, pow >= 3);
+        ASR(regs[ir->dst->phys], tmp, regs[ir->opr2->phys]);
+      } else if (ir->opr2->flag & VRF_CONST) {
+        ASR(regs[ir->dst->phys], regs[ir->opr1->phys], IM(ir->opr2->fixnum));
+      } else {
+        ASR(regs[ir->dst->phys], regs[ir->opr1->phys], regs[ir->opr2->phys]);
+      }
+    }
+    break;
+
   case IR_RESULT:
     {
       assert(0 <= ir->size && ir->size < kPow2TableSize);
@@ -444,6 +481,18 @@ static void ir_out(IR *ir) {
       assert(0 <= pow && pow < 4);
       const char **regs = kRegSizeTable[pow];
       NEG(regs[ir->dst->phys], regs[ir->opr1->phys]);
+    }
+    break;
+
+  case IR_BITNOT:
+    {
+      assert(!(ir->dst->flag & VRF_CONST));
+      assert(0 <= ir->size && ir->size < kPow2TableSize);
+      int pow = kPow2Table[ir->size];
+      assert(0 <= pow && pow < 4);
+      const char **regs = kRegSizeTable[pow];
+      mov_immediate(regs[ir->dst->phys], -1, pow >= 3);
+      EOR(regs[ir->dst->phys], regs[ir->dst->phys], regs[ir->opr1->phys]);
     }
     break;
 
