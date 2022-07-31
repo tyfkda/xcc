@@ -16,3 +16,8 @@
 #else
 #define REGARG_SIZE  (8)
 #endif
+
+#if defined(__APPLE__) && defined(__aarch64__)
+// variadic arguments are passed through stack, not registers.
+#define VAARG_ON_STACK
+#endif

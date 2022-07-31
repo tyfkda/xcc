@@ -264,6 +264,9 @@ int main(int argc, char *argv[]) {
 #elif defined(__x86_64__)
   vec_push(cpp_cmd, "-D__x86_64__");
 #endif
+#if defined(__APPLE__)
+  vec_push(cpp_cmd, "-D__APPLE__");
+#endif
 
   Vector *cc1_cmd = new_vector();
   vec_push(cc1_cmd, cc1_path);

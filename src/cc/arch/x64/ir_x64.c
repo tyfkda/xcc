@@ -744,7 +744,7 @@ static void ir_out(IR *ir) {
       }
 
 #ifndef __NO_FLONUM
-      if (ir->call.vaargs) {
+      if (ir->call.vaarg_start >= 0) {
         if (freg > 0)
           MOV(IM(freg), AL);
         else
