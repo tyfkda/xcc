@@ -20,7 +20,7 @@ int isalnum_(int c);
 int isutf8first(int c);
 int isutf8follow(int c);
 int isoctal(int c);
-char xvalue(char c);
+int xvalue(char c);
 bool starts_with(const char *str, const char *prefix);
 const Name *alloc_label(void);
 ssize_t getline_chomp(char **lineptr, size_t *n, FILE *stream);

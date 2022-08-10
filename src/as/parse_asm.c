@@ -991,7 +991,7 @@ static char unescape_char(ParseInfo *info) {
     {
       c = 0;
       for (int i = 0; i < 2; ++i, ++p) {
-        char v = xvalue(*p);
+        int v = xvalue(*p);
         if (v < 0)
           break;  // TODO: Error
         c = (c << 4) | v;

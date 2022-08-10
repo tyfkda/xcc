@@ -37,7 +37,7 @@ int isoctal(int c) {
   return '0' <= c && c <= '7';
 }
 
-char xvalue(char c) {
+int xvalue(char c) {
   return ('0' <= c && c <= '9') ? c - '0' :
          ('A' <= c && c <= 'F') ? c - ('A' - 10) :
          ('a' <= c && c <= 'f') ? c - ('a' - 10) :

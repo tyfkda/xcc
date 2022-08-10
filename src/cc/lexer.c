@@ -82,7 +82,7 @@ static const struct {
   {"##", PPTK_CONCAT},
 };
 
-static const char kSingleOperatorTypeMap[128] = {  // enum TokenKind
+static const char kSingleOperatorTypeMap[] = {  // enum TokenKind
   ['+'] = TK_ADD,
   ['-'] = TK_SUB,
   ['*'] = TK_MUL,
@@ -170,7 +170,7 @@ static enum TokenKind reserved_word(const Name *name) {
   return ptr != NULL ? (enum TokenKind)(intptr_t)ptr : (enum TokenKind)-1;
 }
 
-static char backslash(char c, const char **pp) {
+static int backslash(int c, const char **pp) {
   switch (c) {
   case '0':
     if (!isoctal((*pp)[1]))
@@ -178,17 +178,15 @@ static char backslash(char c, const char **pp) {
     // Fallthrough
   case '1': case '2': case '3': case '4': case '5': case '6': case '7':
     {
-      const char *p = *pp;
+      const char *p = *pp + 1;
       int v = c - '0';
-      for (int i = 0; i < 2; ++i) {
-        char c2 = p[1];
+      for (int i = 0; i < 2; ++i, ++p) {
+        char c2 = *p;
         if (!isoctal(c2))
           break;
         v = (v << 3) | (c2 - '0');
-        ++p;
       }
-      *pp = p;
-      // TODO: Check value.
+      *pp = p - 1;
       return v;
     }
   case 'x':
@@ -196,7 +194,7 @@ static char backslash(char c, const char **pp) {
       const char *p = *pp + 1;
       c = 0;
       for (int i = 0; i < 2; ++i, ++p) {
-        char v = xvalue(*p);
+        int v = xvalue(*p);
         if (v < 0)
           break;  // TODO: Error
         c = (c << 4) | v;
@@ -507,11 +505,11 @@ const char *read_ident(const char *p_) {
 static Token *read_char(const char **pp) {
   const char *p = *pp;
   const char *begin = p++;
-  char c = *p;
+  int c = *(unsigned char*)p;
   if (c == '\'')
     lex_error(p, "Empty character");
   if (c == '\\') {
-    c = *(++p);
+    c = *(unsigned char*)(++p);
     if (c == '\0')
       --p;
     else
@@ -535,7 +533,7 @@ static Token *read_string(const char **pp) {
   char *str = malloc(capa);
   for (;;) {
     begin = p++;  // Skip first '"'
-    for (char c; (c = *p++) != '"'; ) {
+    for (int c; (c = *(unsigned char*)p++) != '"'; ) {
       if (c == '\0')
         lex_error(p - 1, "String not closed");
       if (size + 1 >= capa) {
@@ -546,7 +544,7 @@ static Token *read_string(const char **pp) {
       }
 
       if (c == '\\') {
-        c = *p;
+        c = *(unsigned char*)p;
         if (c == '\0')
           lex_error(p, "String not closed");
         c = backslash(c, &p);
@@ -573,13 +571,14 @@ static Token *read_string(const char **pp) {
 
 static Token *get_op_token(const char **pp) {
   const char *p = *pp;
-  char c = *p;
-  if (c >= 0 /*&& c < sizeof(kSingleOperatorTypeMap)*/) {
-    enum TokenKind single = kSingleOperatorTypeMap[(int)c];
+  unsigned char c = *(unsigned char*)p;
+  if (c < sizeof(kSingleOperatorTypeMap)) {
+    enum TokenKind single = kSingleOperatorTypeMap[c];
     if (single != 0) {
       int n;
       for (n = 1; n < 3; ++n) {
-        if (kSingleOperatorTypeMap[(int)p[n]] == 0)
+        unsigned char c = *(unsigned char*)(p + n);
+        if (c >= sizeof(kSingleOperatorTypeMap) || kSingleOperatorTypeMap[c] == 0)
           break;
       }
 
