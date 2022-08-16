@@ -242,9 +242,7 @@ static int insert_load_store_spilled_irs(RegAlloc *ra, BBContainer *bbcon) {
       case IR_SUB:
       case IR_MUL:
       case IR_DIV:
-      case IR_DIVU:
       case IR_MOD:
-      case IR_MODU:
       case IR_BITAND:
       case IR_BITOR:
       case IR_BITXOR:

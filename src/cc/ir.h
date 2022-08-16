@@ -69,8 +69,6 @@ enum IrKind {
   IR_BITXOR,
   IR_LSHIFT,
   IR_RSHIFT,
-  IR_DIVU,
-  IR_MODU,
   IR_CMP,     // opr1 - opr2
   IR_NEG,
   IR_BITNOT,

@@ -303,7 +303,7 @@ static void ir_out(IR *ir) {
     break;
 
   case IR_DIV:
-  case IR_DIVU: assert(!(ir->opr1->flag & VRF_CONST));
+    assert(!(ir->opr1->flag & VRF_CONST));
 #ifndef __NO_FLONUM
     if (ir->dst->vtype->flag & VRTF_FLONUM) {
       assert(ir->dst->phys == ir->opr1->phys);
@@ -317,7 +317,7 @@ static void ir_out(IR *ir) {
     }
 #endif
     if (ir->size == 1) {
-      if (ir->kind == IR_DIV) {
+      if (!(ir->dst->vtype->flag & VRTF_UNSIGNED)) {
         MOVSX(kReg8s[ir->opr1->phys], AX);
         const char *opr2;
         if (ir->opr2->flag & VRF_CONST) {
@@ -353,7 +353,7 @@ static void ir_out(IR *ir) {
       } else {
         opr2 = regs[ir->opr2->phys];
       }
-      if (ir->kind == IR_DIV) {
+      if (!(ir->dst->vtype->flag & VRTF_UNSIGNED)) {
         switch (pow) {
         case 1: CWTL(); break;
         case 2: CLTD(); break;
@@ -375,10 +375,9 @@ static void ir_out(IR *ir) {
     break;
 
   case IR_MOD:
-  case IR_MODU:
     assert(!(ir->opr1->flag & VRF_CONST));
     if (ir->size == 1) {
-      if (ir->kind == IR_MOD) {
+      if (!(ir->dst->vtype->flag & VRTF_UNSIGNED)) {
         MOVSX(kReg8s[ir->opr1->phys], AX);
         const char *opr2;
         if (ir->opr2->flag & VRF_CONST) {
@@ -415,7 +414,7 @@ static void ir_out(IR *ir) {
       } else {
         opr2 = regs[ir->opr2->phys];
       }
-      if (ir->kind == IR_MOD) {
+      if (!(ir->dst->vtype->flag & VRTF_UNSIGNED)) {
         switch (pow) {
         case 1: CWTL(); break;
         case 2: CLTD(); break;
@@ -1238,9 +1237,7 @@ static void three_to_two(BB *bb) {
     case IR_SUB:
     case IR_MUL:
     case IR_DIV:
-    case IR_DIVU:
     case IR_MOD:
-    case IR_MODU:
     case IR_BITAND:
     case IR_BITOR:
     case IR_BITXOR:

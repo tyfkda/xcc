@@ -78,16 +78,22 @@ VReg *new_ir_bop(enum IrKind kind, VReg *opr1, VReg *opr2, const VRegType *vtype
       case IR_MUL:     value = opr1->fixnum * opr2->fixnum; break;
 
       case IR_DIV:
-      case IR_DIVU:
       case IR_MOD:
-      case IR_MODU:
         if (opr2->fixnum == 0)
           error("Divide by 0");
         switch (kind) {
-        case IR_DIV:  value = opr1->fixnum / opr2->fixnum; break;
-        case IR_DIVU: value = (uintptr_t)opr1->fixnum / opr2->fixnum; break;
-        case IR_MOD:  value = opr1->fixnum / opr2->fixnum; break;
-        case IR_MODU: value = (uintptr_t)opr1->fixnum / opr2->fixnum; break;
+        case IR_DIV:
+          if (vtype->flag & VRTF_UNSIGNED)
+            value = (uintptr_t)opr1->fixnum / opr2->fixnum;
+          else
+            value = opr1->fixnum / opr2->fixnum;
+          break;
+        case IR_MOD:
+          if (vtype->flag & VRTF_UNSIGNED)
+            value = opr1->fixnum / opr2->fixnum;
+          else
+            value = (uintptr_t)opr1->fixnum / opr2->fixnum;
+          break;
         default: assert(false); break;
         }
         break;
@@ -118,9 +124,7 @@ VReg *new_ir_bop(enum IrKind kind, VReg *opr1, VReg *opr2, const VRegType *vtype
           return opr2;
         break;
       case IR_DIV:
-      case IR_DIVU:
       case IR_MOD:
-      case IR_MODU:
         if (opr1->fixnum == 0)
           return opr1;  // TODO: whether opr2 is zero.
         break;
@@ -155,7 +159,6 @@ VReg *new_ir_bop(enum IrKind kind, VReg *opr1, VReg *opr2, const VRegType *vtype
         break;
       case IR_MUL:
       case IR_DIV:
-      case IR_DIVU:
         if (opr2->fixnum == 0)
           error("Divide by 0");
         if (opr2->fixnum == 1)

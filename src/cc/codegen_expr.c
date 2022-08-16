@@ -520,7 +520,7 @@ VReg *gen_arith(enum ExprKind kind, const Type *type, VReg *lhs, VReg *rhs) {
       return new_ir_bop(kind + (IR_DIV - EX_DIV), lhs, rhs, to_vtype(type));
     }
 #endif
-    return new_ir_bop(kind + ((type->fixnum.is_unsigned ? IR_DIVU : IR_DIV) - EX_DIV), lhs, rhs, to_vtype(type));
+    return new_ir_bop(kind + (IR_DIV - EX_DIV), lhs, rhs, to_vtype(type));
 
   default:
     assert(false);
