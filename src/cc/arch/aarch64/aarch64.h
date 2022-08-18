@@ -244,7 +244,11 @@
 
 
 #ifndef __NO_FLONUM
-#define FMOV(o1, o2)    EMIT_ASM2("fmov", o1, o2)  // dst <- src
+#define FMOV(o1, o2)        EMIT_ASM2("fmov", o1, o2)  // dst <- src
+#define FADD(o1, o2, o3)    EMIT_ASM3("fadd", o1, o2, o3)
+#define FSUB(o1, o2, o3)    EMIT_ASM3("fsub", o1, o2, o3)
+#define FMUL(o1, o2, o3)    EMIT_ASM3("fmul", o1, o2, o3)
+#define FDIV(o1, o2, o3)    EMIT_ASM3("fdiv", o1, o2, o3)
 
 #define SCVTF(o1, o2)   EMIT_ASM2("scvtf", o1, o2)  // float <- int
 #define UCVTF(o1, o2)   EMIT_ASM2("ucvtf", o1, o2)  // float <- unsigned int

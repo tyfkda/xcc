@@ -112,6 +112,7 @@ compile_error() {
 }
 
 try_direct 'float' 12 'double sub(){return 12;} int main(void){return sub();}'
+try_direct 'float +*' 40 'double sub(void){double x=12; return x * 3 + 4;} int main(void){return sub();}'
 exit 0
 
 try 'calc' 5 'int x = 1; return x * 2 + 3;'

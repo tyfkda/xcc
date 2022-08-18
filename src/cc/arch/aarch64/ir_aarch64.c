@@ -229,6 +229,18 @@ static void ir_out(IR *ir) {
 
   case IR_ADD:
     {
+#ifndef __NO_FLONUM
+      if (ir->dst->vtype->flag & VRTF_FLONUM) {
+        const char **regs;
+        switch (ir->size) {
+        default: assert(false);  // Fallthrough
+        case SZ_FLOAT:   regs = kFReg32s; break;
+        case SZ_DOUBLE:  regs = kFReg64s; break;
+        }
+        FADD(regs[ir->dst->phys], regs[ir->opr1->phys], regs[ir->opr2->phys]);
+        break;
+      }
+#endif
       assert(!(ir->opr1->flag & VRF_CONST) || !(ir->opr2->flag & VRF_CONST));
       assert(0 <= ir->size && ir->size < kPow2TableSize);
       int pow = kPow2Table[ir->size];
@@ -245,6 +257,18 @@ static void ir_out(IR *ir) {
 
   case IR_SUB:
     {
+#ifndef __NO_FLONUM
+      if (ir->dst->vtype->flag & VRTF_FLONUM) {
+        const char **regs;
+        switch (ir->size) {
+        default: assert(false);  // Fallthrough
+        case SZ_FLOAT:   regs = kFReg32s; break;
+        case SZ_DOUBLE:  regs = kFReg64s; break;
+        }
+        FSUB(regs[ir->dst->phys], regs[ir->opr1->phys], regs[ir->opr2->phys]);
+        break;
+      }
+#endif
       assert(!(ir->opr1->flag & VRF_CONST) || !(ir->opr2->flag & VRF_CONST));
       assert(0 <= ir->size && ir->size < kPow2TableSize);
       int pow = kPow2Table[ir->size];
@@ -263,6 +287,18 @@ static void ir_out(IR *ir) {
 
   case IR_MUL:
     {
+#ifndef __NO_FLONUM
+      if (ir->dst->vtype->flag & VRTF_FLONUM) {
+        const char **regs;
+        switch (ir->size) {
+        default: assert(false);  // Fallthrough
+        case SZ_FLOAT:   regs = kFReg32s; break;
+        case SZ_DOUBLE:  regs = kFReg64s; break;
+        }
+        FMUL(regs[ir->dst->phys], regs[ir->opr1->phys], regs[ir->opr2->phys]);
+        break;
+      }
+#endif
       assert(!(ir->opr1->flag & VRF_CONST) || !(ir->opr2->flag & VRF_CONST));
       assert(0 <= ir->size && ir->size < kPow2TableSize);
       int pow = kPow2Table[ir->size];
@@ -284,6 +320,18 @@ static void ir_out(IR *ir) {
 
   case IR_DIV:
     {
+#ifndef __NO_FLONUM
+      if (ir->dst->vtype->flag & VRTF_FLONUM) {
+        const char **regs;
+        switch (ir->size) {
+        default: assert(false);  // Fallthrough
+        case SZ_FLOAT:   regs = kFReg32s; break;
+        case SZ_DOUBLE:  regs = kFReg64s; break;
+        }
+        FDIV(regs[ir->dst->phys], regs[ir->opr1->phys], regs[ir->opr2->phys]);
+        break;
+      }
+#endif
       assert(!(ir->opr1->flag & VRF_CONST) || !(ir->opr2->flag & VRF_CONST));
       assert(0 <= ir->size && ir->size < kPow2TableSize);
       int pow = kPow2Table[ir->size];
