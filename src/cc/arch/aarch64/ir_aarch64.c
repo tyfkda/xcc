@@ -39,6 +39,13 @@ const char *kZeroRegTable[] = {WZR, WZR, WZR, ZR};
 const char *kTmpRegTable[] = {W9, W9, W9, X9};
 const char *kTmpRegTable2[] = {W10, W10, W10, X10};
 
+#ifndef __NO_FLONUM
+#define SZ_FLOAT   (4)
+#define SZ_DOUBLE  (8)
+const char *kFReg32s[7] = {S8, S9, S10, S11, S12, S13, S14};
+const char *kFReg64s[7] = {D8, D9, D10, D11, D12, D13, D14};
+#endif
+
 #define CALLEE_SAVE_REG_COUNT  ((int)(sizeof(kCalleeSaveRegs) / sizeof(*kCalleeSaveRegs)))
 const int kCalleeSaveRegs[] = {
   0, 1, 2, 3, 4, 5, 6,
@@ -127,15 +134,10 @@ static void ir_out(IR *ir) {
 
   case IR_LOAD:
   case IR_LOAD_SPILLED:
-#ifndef __NO_FLONUM
-    assert(!(ir->dst->vtype->flag & VRTF_FLONUM));
-#endif
     {
       assert(0 <= ir->size && ir->size < kPow2TableSize);
       int pow = kPow2Table[ir->size];
       assert(0 <= pow && pow < 4);
-      const char **regs = kRegSizeTable[pow];
-      const char *dst = regs[ir->dst->phys];
       assert(!(ir->opr1->flag & VRF_CONST));
       const char *src;
       if (ir->kind == IR_LOAD) {
@@ -149,6 +151,22 @@ static void ir_out(IR *ir) {
           src = REG_OFFSET(FP, tmp, _LSL(0));
         }
       }
+
+      const char *dst;
+#ifndef __NO_FLONUM
+      if (ir->dst->vtype->flag & VRTF_FLONUM) {
+        switch (ir->size) {
+        case SZ_FLOAT:   dst = kFReg32s[ir->dst->phys]; break;
+        case SZ_DOUBLE:  dst = kFReg64s[ir->dst->phys]; break;
+        default: assert(false); break;
+        }
+      } else
+#endif
+      {
+        const char **regs = kRegSizeTable[pow];
+        dst = regs[ir->dst->phys];
+      }
+
       switch (pow) {
       case 0:
         if (ir->dst->vtype->flag & VRTF_UNSIGNED) LDRB(dst, src);
@@ -168,9 +186,6 @@ static void ir_out(IR *ir) {
 
   case IR_STORE:
   case IR_STORE_SPILLED:
-#ifndef __NO_FLONUM
-    assert(!(ir->opr1->vtype->flag & VRTF_FLONUM));
-#endif
     {
       assert(!(ir->opr2->flag & VRF_CONST));
       assert(0 <= ir->size && ir->size < kPow2TableSize);
@@ -188,6 +203,15 @@ static void ir_out(IR *ir) {
         }
       }
       const char *src;
+#ifndef __NO_FLONUM
+      if (ir->opr1->vtype->flag & VRTF_FLONUM) {
+        switch (ir->size) {
+        default: assert(false); // Fallthrough
+        case SZ_FLOAT:   src = kFReg32s[ir->opr1->phys]; break;
+        case SZ_DOUBLE:  src = kFReg64s[ir->opr1->phys]; break;
+        }
+      } else
+#endif
       if (ir->opr1->flag & VRF_CONST) {
         src = kTmpRegTable[pow];
         mov_immediate(src, ir->opr1->fixnum, pow >= 3);
@@ -416,6 +440,18 @@ static void ir_out(IR *ir) {
     break;
 
   case IR_RESULT:
+#ifndef __NO_FLONUM
+    if (ir->opr1->vtype->flag & VRTF_FLONUM) {
+      const char *src, *dst;
+      switch (ir->size) {
+      default: assert(false);  // Fallthroguh
+      case SZ_FLOAT:  dst = S0; src = kFReg32s[ir->opr1->phys]; break;
+      case SZ_DOUBLE: dst = D0; src = kFReg64s[ir->opr1->phys]; break;
+      }
+      FMOV(dst, src);
+      break;
+    }
+#endif
     {
       assert(0 <= ir->size && ir->size < kPow2TableSize);
       int pow = kPow2Table[ir->size];
@@ -615,6 +651,17 @@ static void ir_out(IR *ir) {
       }
 
       assert(0 <= ir->size && ir->size < kPow2TableSize);
+#ifndef __NO_FLONUM
+      if (ir->dst->vtype->flag & VRTF_FLONUM) {
+        const char *src, *dst;
+        switch (ir->size) {
+        default: assert(false);  // Fallthrough
+        case SZ_FLOAT:   src = S0; dst = kFReg32s[ir->dst->phys]; break;
+        case SZ_DOUBLE:  src = D0; dst = kFReg64s[ir->dst->phys]; break;
+        }
+        FMOV(dst, src);
+      } else
+#endif
       if (ir->size > 0) {
         int pow = kPow2Table[ir->size];
         assert(0 <= pow && pow < 4);
@@ -625,6 +672,45 @@ static void ir_out(IR *ir) {
     break;
 
   case IR_CAST:
+#ifndef __NO_FLONUM
+    if (ir->dst->vtype->flag & VRTF_FLONUM) {
+      if (ir->opr1->vtype->flag & VRTF_FLONUM) {
+        // flonum->flonum
+        // Assume flonum are just two types.
+        const char *src, *dst;
+        switch (ir->size) {
+        default: assert(false); // Fallthrough
+        case SZ_FLOAT:   dst = kFReg32s[ir->dst->phys]; src = kFReg64s[ir->opr1->phys]; break;
+        case SZ_DOUBLE:  dst = kFReg64s[ir->dst->phys]; src = kFReg32s[ir->opr1->phys]; break;
+        }
+        FCVT(dst, src);
+      } else {
+        // fix->flonum
+        assert(0 <= ir->opr1->vtype->size && ir->opr1->vtype->size < kPow2TableSize);
+        int pows = kPow2Table[ir->opr1->vtype->size];
+
+        const char *dst;
+        switch (ir->size) {
+        case SZ_FLOAT:   dst = kFReg32s[ir->dst->phys]; break;
+        case SZ_DOUBLE:  dst = kFReg64s[ir->dst->phys]; break;
+        default: assert(false); break;
+        }
+        const char *src = kRegSizeTable[pows][ir->opr1->phys];
+        if (ir->opr1->vtype->flag & VRTF_UNSIGNED)  UCVTF(dst, src);
+        else                                        SCVTF(dst, src);
+      }
+      break;
+    } else if (ir->opr1->vtype->flag & VRTF_FLONUM) {
+      // flonum->fix
+      int powd = kPow2Table[ir->dst->vtype->size];
+      switch (ir->opr1->vtype->size) {
+      case SZ_FLOAT:   FCVTZS(kRegSizeTable[powd][ir->dst->phys], kFReg32s[ir->opr1->phys]); break;
+      case SZ_DOUBLE:  FCVTZS(kRegSizeTable[powd][ir->dst->phys], kFReg64s[ir->opr1->phys]); break;
+      default: assert(false); break;
+      }
+      break;
+    }
+#endif
     assert((ir->opr1->flag & VRF_CONST) == 0);
     if (ir->size <= ir->opr1->vtype->size) {
       if (ir->dst->phys != ir->opr1->phys) {

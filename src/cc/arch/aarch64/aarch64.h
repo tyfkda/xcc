@@ -129,6 +129,42 @@
 #define ZR    "zr"  // x31: zero register
 #define WZR   "wzr"  // x31: zero register(32bit)
 
+#ifndef __NO_FLONUM
+#define D0    "d0"
+#define D1    "d1"
+#define D2    "d2"
+#define D3    "d3"
+#define D4    "d4"
+#define D5    "d5"
+#define D6    "d6"
+#define D7    "d7"
+#define D8    "d8"
+#define D9    "d9"
+#define D10   "d10"
+#define D11   "d11"
+#define D12   "d12"
+#define D13   "d13"
+#define D14   "d14"
+#define D15   "d15"
+
+#define S0    "s0"
+#define S1    "s1"
+#define S2    "s2"
+#define S3    "s3"
+#define S4    "s4"
+#define S5    "s5"
+#define S6    "s6"
+#define S7    "s7"
+#define S8    "s8"
+#define S9    "s9"
+#define S10   "s10"
+#define S11   "s11"
+#define S12   "s12"
+#define S13   "s13"
+#define S14   "s14"
+#define S15   "s15"
+#endif
+
 // Condition
 #define CEQ  "eq"
 #define CNE  "ne"
@@ -204,4 +240,14 @@
 #define _RODATA()      _SECTION(".rodata")
 #define EMIT_ALIGN(x)  emit_align(x)
 #define _LOCAL(x)      EMIT_ASM1(".local", x)
+#endif
+
+
+#ifndef __NO_FLONUM
+#define FMOV(o1, o2)    EMIT_ASM2("fmov", o1, o2)  // dst <- src
+
+#define SCVTF(o1, o2)   EMIT_ASM2("scvtf", o1, o2)  // float <- int
+#define UCVTF(o1, o2)   EMIT_ASM2("ucvtf", o1, o2)  // float <- unsigned int
+#define FCVT(o1, o2)    EMIT_ASM2("fcvt", o1, o2)  // float <- float
+#define FCVTZS(o1, o2)  EMIT_ASM2("fcvtzs", o1, o2)  // int <- float
 #endif

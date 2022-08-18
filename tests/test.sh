@@ -111,6 +111,9 @@ compile_error() {
   fi
 }
 
+try_direct 'float' 12 'double sub(){return 12;} int main(void){return sub();}'
+exit 0
+
 try 'calc' 5 'int x = 1; return x * 2 + 3;'
 try 'if' 3 'int x = 1; if (x == 0) x = 2; else x = 3; return x;'
 try_direct 'func' 123 'int sub(){return 123;} int main(){return sub();}'

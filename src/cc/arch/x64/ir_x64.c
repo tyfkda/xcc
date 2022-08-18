@@ -770,6 +770,7 @@ static void ir_out(IR *ir) {
       // Resore caller save registers.
       pop_caller_save_regs(precall->precall.living_pregs);
 
+      assert(0 <= ir->size && ir->size < kPow2TableSize);
 #ifndef __NO_FLONUM
       if (ir->dst->vtype->flag & VRTF_FLONUM) {
         switch (ir->size) {
@@ -777,10 +778,8 @@ static void ir_out(IR *ir) {
         case SZ_DOUBLE: MOVSD(XMM0, kFReg64s[ir->dst->phys]); break;
         default: assert(false); break;
         }
-        break;
-      }
+      } else
 #endif
-      assert(0 <= ir->size && ir->size < kPow2TableSize);
       if (ir->size > 0) {
         int pow = kPow2Table[ir->size];
         assert(0 <= pow && pow < 4);
@@ -865,10 +864,8 @@ static void ir_out(IR *ir) {
       // flonum->fix
       int powd = kPow2Table[ir->dst->vtype->size];
       switch (ir->opr1->vtype->size) {
-      case SZ_FLOAT: CVTTSS2SI(kFReg64s[ir->opr1->phys], kRegSizeTable[powd][ir->dst->phys]); break;
-      case SZ_DOUBLE:
-        CVTTSD2SI(kFReg64s[ir->opr1->phys], kRegSizeTable[powd][ir->dst->phys]);
-        break;
+      case SZ_FLOAT:   CVTTSS2SI(kFReg64s[ir->opr1->phys], kRegSizeTable[powd][ir->dst->phys]); break;
+      case SZ_DOUBLE:  CVTTSD2SI(kFReg64s[ir->opr1->phys], kRegSizeTable[powd][ir->dst->phys]); break;
       default: assert(false); break;
       }
       break;
