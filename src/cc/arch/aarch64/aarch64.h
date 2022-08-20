@@ -249,6 +249,7 @@
 #define FSUB(o1, o2, o3)    EMIT_ASM3("fsub", o1, o2, o3)
 #define FMUL(o1, o2, o3)    EMIT_ASM3("fmul", o1, o2, o3)
 #define FDIV(o1, o2, o3)    EMIT_ASM3("fdiv", o1, o2, o3)
+#define FCMP(o1, o2)        EMIT_ASM2("fcmp", o1, o2)
 
 #define SCVTF(o1, o2)   EMIT_ASM2("scvtf", o1, o2)  // float <- int
 #define UCVTF(o1, o2)   EMIT_ASM2("ucvtf", o1, o2)  // float <- unsigned int

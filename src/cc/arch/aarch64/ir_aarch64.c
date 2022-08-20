@@ -11,6 +11,9 @@
 
 #define WORK_REG_NO  (PHYSICAL_REG_MAX)
 
+static void push_caller_save_regs(unsigned short living, int base);
+static void pop_caller_save_regs(unsigned short living, int base);
+
 static enum ConditionKind invert_cond(enum ConditionKind cond) {
   assert(COND_EQ <= cond && cond <= COND_UGT);
   if (cond <= COND_NE)
@@ -50,6 +53,17 @@ const char *kFReg64s[7] = {D8, D9, D10, D11, D12, D13, D14};
 const int kCalleeSaveRegs[] = {
   0, 1, 2, 3, 4, 5, 6,
 };
+
+#define CALLER_SAVE_REG_COUNT  ((int)(sizeof(kCallerSaveRegs) / sizeof(*kCallerSaveRegs)))
+const int kCallerSaveRegs[] = {
+  1,  // R10
+  2,  // R11
+};
+
+#ifndef __NO_FLONUM
+#define CALLER_SAVE_FREG_COUNT  ((int)(sizeof(kCallerSaveFRegs) / sizeof(*kCallerSaveFRegs)))
+const int kCallerSaveFRegs[] = {0, 1, 2, 3, 4, 5};
+#endif
 
 static const int kPow2Table[] = {-1, 0, 1, -1, 2, -1, -1, -1, 3};
 #define kPow2TableSize ((int)(sizeof(kPow2Table) / sizeof(*kPow2Table)))
@@ -529,6 +543,20 @@ static void ir_out(IR *ir) {
 
   case IR_MOV:
     {
+#ifndef __NO_FLONUM
+      if (ir->dst->vtype->flag & VRTF_FLONUM) {
+        if (ir->opr1->phys != ir->dst->phys) {
+          const char *src, *dst;
+          switch (ir->size) {
+          default: assert(false); // Fallthrough
+          case SZ_FLOAT:   dst = kFReg32s[ir->dst->phys]; src = kFReg32s[ir->opr1->phys]; break;
+          case SZ_DOUBLE:  dst = kFReg64s[ir->dst->phys]; src = kFReg64s[ir->opr1->phys]; break;
+          }
+          FMOV(dst, src);
+          break;
+        }
+      }
+#endif
       assert(0 <= ir->size && ir->size < kPow2TableSize);
       assert(!(ir->dst->flag & VRF_CONST));
       int pow = kPow2Table[ir->size];
@@ -545,6 +573,19 @@ static void ir_out(IR *ir) {
 
   case IR_CMP:
     {
+#ifndef __NO_FLONUM
+      if (ir->opr1->vtype->flag & VRTF_FLONUM) {
+        assert(ir->opr2->vtype->flag & VRTF_FLONUM);
+        const char *opr1, *opr2;
+        switch (ir->size) {
+        default: assert(false); // Fallthrough
+        case SZ_FLOAT:   opr1 = kFReg32s[ir->opr1->phys]; opr2 = kFReg32s[ir->opr2->phys]; break;
+        case SZ_DOUBLE:  opr1 = kFReg64s[ir->opr1->phys]; opr2 = kFReg64s[ir->opr2->phys]; break;
+        }
+        FCMP(opr1, opr2);
+        break;
+      }
+#endif
       assert(!(ir->opr1->flag & VRF_CONST));
       assert(0 <= ir->size && ir->size < kPow2TableSize);
       int pow = kPow2Table[ir->size];
@@ -649,10 +690,46 @@ static void ir_out(IR *ir) {
     break;
 
   case IR_PRECALL:
+    {
+      // Make room for caller save.
+      int add = 0;
+      unsigned short living_pregs = ir->precall.living_pregs;
+      for (int i = 0; i < CALLER_SAVE_REG_COUNT; ++i) {
+        int ireg = kCallerSaveRegs[i];
+        if (living_pregs & (1 << ireg))
+          add += WORD_SIZE;
+      }
+#ifndef __NO_FLONUM
+      for (int i = 0; i < CALLER_SAVE_FREG_COUNT; ++i) {
+        int freg = kCallerSaveFRegs[i];
+        if (living_pregs & (1 << (freg + PHYSICAL_REG_MAX)))
+          add += WORD_SIZE;
+      }
+#endif
+
+      int align_stack = (16 - (/*stackpos +*/ add + ir->precall.stack_args_size)) & 15;
+// fprintf(stderr, "PRECALL: add=%d, align_stack=%d, final=%d\n", add, align_stack, add + align_stack);
+      ir->precall.stack_aligned = align_stack;
+      add += align_stack;
+
+      if (add > 0) {
+        SUB(SP, SP, IM(add));
+      }
+    }
     break;
 
   case IR_PUSHARG:
     {
+#ifndef __NO_FLONUM
+    if (ir->opr1->vtype->flag & VRTF_FLONUM) {
+      switch (ir->opr1->vtype->size) {
+      case SZ_FLOAT:  STR(kFReg32s[ir->opr1->phys], PRE_INDEX(SP, -16)); break;
+      case SZ_DOUBLE: STR(kFReg64s[ir->opr1->phys], PRE_INDEX(SP, -16)); break;
+      default: assert(false); break;
+      }
+      break;
+    }
+#endif
       const char *src;
       if (ir->opr1->flag & VRF_CONST) {
         src = kTmpRegTable[3];
@@ -666,7 +743,20 @@ static void ir_out(IR *ir) {
 
   case IR_CALL:
     {
+      const int FIELD_SIZE = 16;
+      IR *precall = ir->call.precall;
+      int reg_args = ir->call.reg_arg_count;
+// fprintf(stderr, "CALL: regs_args=%d, stack_arg_size=%d, aligned=%d\n", reg_args, precall->precall.stack_args_size, precall->precall.stack_aligned);
+      push_caller_save_regs(
+          precall->precall.living_pregs,
+          reg_args * FIELD_SIZE + precall->precall.stack_args_size + precall->precall.stack_aligned);
+
       static const char *kArgReg64s[] = {X0, X1, X2, X3, X4, X5, X6, X7};
+#ifndef __NO_FLONUM
+      static const char *kArgFReg32s[] = {S0, S1, S2, S3, S4, S5, S6, S7};
+      static const char *kArgFReg64s[] = {D0, D1, D2, D3, D4, D5, D6, D7};
+      int freg = 0;
+#endif
 
       int ireg = 0;
       int total_arg_count = ir->call.total_arg_count;
@@ -677,6 +767,19 @@ static void ir_out(IR *ir) {
 #endif
         if (ir->call.arg_vtypes[i]->flag & VRTF_NON_REG)
           continue;
+#ifndef __NO_FLONUM
+        if (ir->call.arg_vtypes[i]->flag & VRTF_FLONUM) {
+          if (freg < MAX_FREG_ARGS) {
+            switch (ir->call.arg_vtypes[i]->size) {
+            case SZ_FLOAT:  LDR(kArgFReg32s[freg], POST_INDEX(SP, 16)); break;
+            case SZ_DOUBLE: LDR(kArgFReg64s[freg], POST_INDEX(SP, 16)); break;
+            default: assert(false); break;
+            }
+            ++freg;
+          }
+          continue;
+        }
+#endif
         if (ireg < MAX_REG_ARGS) {
           LDR(kArgReg64s[ireg++], POST_INDEX(SP, 16));
         }
@@ -692,11 +795,30 @@ static void ir_out(IR *ir) {
         BLR(kReg64s[ir->opr1->phys]);
       }
 
-      IR *precall = ir->call.precall;
+      // Resore caller save registers.
+      pop_caller_save_regs(precall->precall.living_pregs, precall->precall.stack_aligned);
+
+{
+int add = 0;
+unsigned short living_pregs = precall->precall.living_pregs;
+for (int i = 0; i < CALLER_SAVE_REG_COUNT; ++i) {
+  int ireg = kCallerSaveRegs[i];
+  if (living_pregs & (1 << ireg))
+    add += WORD_SIZE;
+}
+#ifndef __NO_FLONUM
+for (int i = 0; i < CALLER_SAVE_FREG_COUNT; ++i) {
+  int freg = kCallerSaveFRegs[i];
+  if (living_pregs & (1 << (freg + PHYSICAL_REG_MAX)))
+    add += WORD_SIZE;
+}
+#endif
+
       int align_stack = precall->precall.stack_aligned + precall->precall.stack_args_size;
-      if (align_stack != 0) {
-        ADD(SP, SP, IM(align_stack));
+      if (add + align_stack != 0) {
+        ADD(SP, SP, IM(add + align_stack));
       }
+}
 
       assert(0 <= ir->size && ir->size < kPow2TableSize);
 #ifndef __NO_FLONUM
@@ -968,6 +1090,62 @@ void pop_callee_save_regs(unsigned short used) {
   for (int i = count; i > 0; ) {
     i -= 2;
     LDP(saves[i], saves[i + 1], POST_INDEX(SP, 16));
+  }
+}
+
+static void push_caller_save_regs(unsigned short living, int base) {
+  const int FIELD_SIZE = 16;
+
+// fprintf(stderr, "push_caller_save_regs: living=%x, base=%d\n", living, base);
+#ifndef __NO_FLONUM
+  {
+    for (int i = CALLER_SAVE_FREG_COUNT; i > 0;) {
+      int ireg = kCallerSaveFRegs[--i];
+      if (living & (1U << (ireg + PHYSICAL_REG_MAX))) {
+        // TODO: Detect register size.
+        STR(kFReg64s[ireg], IMMEDIATE_OFFSET(SP, base));
+        base += FIELD_SIZE;
+      }
+    }
+  }
+#endif
+
+  for (int i = CALLER_SAVE_REG_COUNT; i > 0;) {
+    int ireg = kCallerSaveRegs[--i];
+    if (living & (1 << ireg)) {
+      STR(kReg64s[ireg], IMMEDIATE_OFFSET(SP, base));
+      base += FIELD_SIZE;
+    }
+  }
+}
+
+static void pop_caller_save_regs(unsigned short living, int base) {
+  const int FIELD_SIZE = 16;
+
+// fprintf(stderr, "pop_caller_save_regs: living=%x\n", living);
+#ifndef __NO_FLONUM
+  {
+    for (int i = CALLER_SAVE_FREG_COUNT; i > 0;) {
+      int ireg = kCallerSaveFRegs[--i];
+      if (living & (1U << (ireg + PHYSICAL_REG_MAX))) {
+        // TODO: Detect register size.
+        LDR(kFReg64s[ireg], IMMEDIATE_OFFSET(SP, base));
+        base += FIELD_SIZE;
+      }
+    }
+    // if (count > 0) {
+    //   ADD(SP, SP, IM(FIELD_SIZE * count));
+    //   // stackpos -= FIELD_SIZE * count;
+    // }
+  }
+#endif
+
+  for (int i = CALLER_SAVE_REG_COUNT; --i >= 0;) {
+    int ireg = kCallerSaveRegs[i];
+    if (living & (1 << ireg)) {
+      LDR(kReg64s[ireg], IMMEDIATE_OFFSET(SP, base));
+      base += FIELD_SIZE;
+    }
   }
 }
 

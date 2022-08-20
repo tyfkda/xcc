@@ -325,6 +325,10 @@ static void put_args_to_stack(Function *func) {
   static const char *kReg32s[] = {W0, W1, W2, W3, W4, W5, W6, W7};
   static const char *kReg64s[] = {X0, X1, X2, X3, X4, X5, X6, X7};
   static const char **kRegTable[] = {NULL, kReg8s, kReg16s, NULL, kReg32s, NULL, NULL, NULL, kReg64s};
+#ifndef __NO_FLONUM
+  const char *kFReg32s[] = {S0, S1, S2, S3, S4, S5, S6, S7};
+  const char *kFReg64s[] = {D0, D1, D2, D3, D4, D5, D6, D7};
+#endif
 
   int arg_index = 0;
   if (is_stack_param(func->type->func.ret)) {
@@ -347,6 +351,9 @@ static void put_args_to_stack(Function *func) {
 
   int len = params->len;
   if (!func->type->func.vaargs) {
+#ifndef __NO_FLONUM
+    int farg_index = 0;
+#endif
     for (int i = 0; i < len; ++i) {
       const VarInfo *varinfo = params->data[i];
       const Type *type = varinfo->type;
@@ -356,7 +363,17 @@ static void put_args_to_stack(Function *func) {
         continue;
 
 #ifndef __NO_FLONUM
-      assert(!is_flonum(type));
+      if (is_flonum(type)) {
+        if (farg_index < MAX_FREG_ARGS) {
+          switch (type->flonum.kind) {
+          case FL_FLOAT:   STR(kFReg32s[farg_index], IMMEDIATE_OFFSET(FP, offset)); break;
+          case FL_DOUBLE:  STR(kFReg64s[farg_index], IMMEDIATE_OFFSET(FP, offset)); break;
+          default: assert(false); break;
+          }
+          ++farg_index;
+        }
+        continue;
+      }
 #endif
 
       switch (type->kind) {
