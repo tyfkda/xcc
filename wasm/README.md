@@ -58,3 +58,8 @@ $ ./wcc -o out.wasm foo.c
 ```sh
 $ node runtime/runwasm.js out.wasm main foo bar baz
 ```
+
+
+### Missing features
+
+  * `goto` statement
