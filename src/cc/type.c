@@ -503,6 +503,9 @@ void print_type_recur(FILE *fp, const Type *type, PrintTypeChain *parent) {
     call_print_type_chain(parent, fp);
     break;
   case TY_FIXNUM:
+    if(type->fixnum.is_unsigned)
+      fprintf(fp, "unsigned ");
+
     switch (type->fixnum.kind) {
     case FX_CHAR:  fprintf(fp, "char"); break;
     case FX_SHORT: fprintf(fp, "short"); break;
