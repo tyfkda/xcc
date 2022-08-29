@@ -32,6 +32,8 @@ void check_print_type(const char *expected, const Type *type) {
 
 void print_type_test(void) {
   check_print_type("char", &tyChar);
+  check_print_type("unsigned int", &tyUnsignedInt);
+  check_print_type("long long", get_fixnum_type(FX_LLONG, false, 0));
 #ifndef __NO_FLONUM
   check_print_type("float", &tyFloat);
   check_print_type("double", &tyDouble);

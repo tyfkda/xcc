@@ -503,23 +503,21 @@ void print_type_recur(FILE *fp, const Type *type, PrintTypeChain *parent) {
     call_print_type_chain(parent, fp);
     break;
   case TY_FIXNUM:
-    if(type->fixnum.is_unsigned)
-      fprintf(fp, "unsigned ");
-
-    switch (type->fixnum.kind) {
-    case FX_CHAR:  fprintf(fp, "char"); break;
-    case FX_SHORT: fprintf(fp, "short"); break;
-    case FX_INT:   fprintf(fp, "int"); break;
-    case FX_LONG:  fprintf(fp, "long"); break;
-    case FX_ENUM:
-      if (type->fixnum.enum_.ident != NULL)
-        fprintf(fp, "enum %.*s", type->fixnum.enum_.ident->bytes, type->fixnum.enum_.ident->chars);
-      else
-        fprintf(fp, "enum (anonymous)");
-      break;
-    default: assert(false); break;
+    {
+      enum FixnumKind kind = type->fixnum.kind;
+      if (kind == FX_ENUM) {
+        if (type->fixnum.enum_.ident != NULL)
+          fprintf(fp, "enum %.*s", type->fixnum.enum_.ident->bytes, type->fixnum.enum_.ident->chars);
+        else
+          fprintf(fp, "enum (anonymous)");
+      } else {
+        static const char *names[] = {"char", "short", "int", "long", "long long"};
+        assert(kind >= 0 && kind < sizeof(names) / sizeof(*names));
+        const char *sign = type->fixnum.is_unsigned ? "unsigned " : "";
+        fprintf(fp, "%s%s", sign, names[kind]);
+      }
+      call_print_type_chain(parent, fp);
     }
-    call_print_type_chain(parent, fp);
     break;
 #ifndef __NO_FLONUM
   case TY_FLONUM:
