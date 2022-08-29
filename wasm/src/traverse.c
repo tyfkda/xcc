@@ -338,8 +338,6 @@ static void traverse_expr(Expr **pexpr, bool needval) {
   case EX_BITAND:
   case EX_BITOR:
   case EX_BITXOR:
-  case EX_LSHIFT:
-  case EX_RSHIFT:
   case EX_EQ:
   case EX_NE:
   case EX_LT:
@@ -348,6 +346,13 @@ static void traverse_expr(Expr **pexpr, bool needval) {
   case EX_GT:
   case EX_LOGAND:
   case EX_LOGIOR:
+    traverse_expr(&expr->bop.lhs, needval);
+    traverse_expr(&expr->bop.rhs, needval);
+    break;
+  case EX_LSHIFT:
+  case EX_RSHIFT:
+    // Make sure that RHS type is same as LHS.
+    expr->bop.rhs = make_cast(expr->bop.lhs->type, expr->bop.rhs->token, expr->bop.rhs, false);
     traverse_expr(&expr->bop.lhs, needval);
     traverse_expr(&expr->bop.rhs, needval);
     break;
