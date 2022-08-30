@@ -60,8 +60,8 @@ static void register_pragma_once(const char *filename) {
   vec_push(pragma_once_files, filename);
 }
 
-static void handle_include(const char **pp, Stream *stream) {
-  const char *p = *pp;
+static void handle_include(const char *p, Stream *stream) {
+  const char *orgp = p;
   char close;
   bool sys = false;
 
@@ -103,7 +103,7 @@ static void handle_include(const char **pp, Stream *stream) {
     sys = true;
     break;
   default:
-    error("illegal include: %s", *pp);
+    error("illegal include: %s", orgp);
     return;
   }
 
@@ -112,7 +112,22 @@ static void handle_include(const char **pp, Stream *stream) {
     if (*q == '\0')
       error("not closed");
   }
-  *pp = q + 1;
+
+  // Ensure line end after include.
+  {
+    const char *after = q + 1;
+    set_source_string(after, stream->filename, stream->lineno);
+    bool err = false;
+    for (;;) {
+      Token *tok = pp_match(-1);
+      if (tok->kind == TK_EOF)
+        break;
+      if (!err) {
+        error("Illegal token after include: %s", tok->begin);
+        err = true;
+      }
+    }
+  }
 
   char *path = strndup(p, q - p);
   char *fn = NULL;
@@ -201,6 +216,7 @@ static Vector *parse_macro_body(const char *p, const Vector *params, bool va_arg
     if (q != NULL) {
       const char *comment_start = q;
       push_text_segment(segments, start, q);
+      q += 2;
       for (;;) {
         q = block_comment_end(q);
         if (q != NULL)
@@ -643,8 +659,9 @@ int preprocess(FILE *fp, const char *filename_) {
       condstack->len = len;
     } else if (enable) {
       if ((next = keyword(directive, "include")) != NULL) {
-        handle_include(&next, &stream);
+        handle_include(next, &stream);
         fprintf(pp_ofp, "# %d \"%s\" 1\n", stream.lineno + 1, stream.filename);
+        next = NULL;
       } else if ((next = keyword(directive, "define")) != NULL) {
         handle_define(next, &stream);
         next = NULL;  // `#define' consumes the line all.

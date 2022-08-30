@@ -61,7 +61,7 @@ compile_error() {
   local title="$1"
   local input="$2"
 
-  echo -n "$title => "
+  echo -n "Error case: $title => "
 
   echo -e "$input" | $CPP | tr -d '\n'
   local result="$?"
@@ -128,3 +128,8 @@ compile_error 'Duplicate #else' '#if 0\n#else\n#else\n#endif'
 # Include with macro
 echo "#define FOO (37)" > tmp.h
 try_run 'Include with macro' 37 "#define FILE  \"tmp.h\"\n#include FILE\nint main(){return FOO;}" tmp.c
+
+# Block comment after include
+echo "#define FOO (73)" > tmp.h
+try_run 'Comment after include' 73 "#include \"tmp.h\" /*block\n*/ // line\nint main(){return FOO;}" tmp.c
+compile_error 'Token after include comment' "#include \"tmp.h\" /*block\n*/ illegal-token\nint main(){return FOO;}" tmp.c

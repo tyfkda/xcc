@@ -20,6 +20,7 @@ Stream *set_pp_stream(Stream *stream);
 PpResult pp_expr(void);
 Vector *pp_funargs(void);
 
+Token *pp_match(enum TokenKind kind);
 Token *pp_consume(enum TokenKind kind, const char *error);
 
 void pp_parse_error(const Token *token, const char *fmt, ...);

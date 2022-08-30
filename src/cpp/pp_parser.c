@@ -115,6 +115,7 @@ Token *pp_match(enum TokenKind kind) {
         break;
 
       const char *comment_start = q;
+      q += 2;
       for (;;) {
         q = block_comment_end(q);
         if (q != NULL) {
