@@ -1213,13 +1213,10 @@ static StructInfo *parse_struct(bool is_union) {
         parse_error(NULL, "type expected");
       } else {
         not_void(type, NULL);
-        if (type->kind == TY_STRUCT) {
-          ensure_struct(type, ident, curscope);
-          // Allow ident to be null for anonymous struct member.
-        } else {
-          if (ident == NULL)
-            parse_error_nofatal(NULL, "`ident' expected");
-        }
+        ensure_struct(type, ident, curscope);
+        // Allow ident to be null for anonymous struct member, otherwise raise error.
+        if (ident == NULL && type->kind != TY_STRUCT)
+          parse_error_nofatal(NULL, "`ident' expected");
         const Name *name = ident != NULL ? ident->ident : NULL;
         if (!add_struct_member(members, name, type))
           parse_error_nofatal(ident, "`%.*s' already defined", name->bytes, name->chars);
