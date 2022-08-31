@@ -1199,33 +1199,27 @@ Vector *parse_funparams(bool *pvaargs) {
 // Parse struct or union definition `{...}`
 static StructInfo *parse_struct(bool is_union) {
   Vector *members = new_vector();
-  for (;;) {
-    if (match(TK_RBRACE))
-      break;
-
+  while (!match(TK_RBRACE)) {
     Type *rawType = NULL;
-    for (;;) {
+    do {
       int storage;
       Token *ident;
       Type *type = parse_var_def(&rawType, &storage, &ident);
       if (type == NULL) {
         parse_error(NULL, "type expected");
-      } else {
-        not_void(type, NULL);
-        ensure_struct(type, ident, curscope);
-        // Allow ident to be null for anonymous struct member, otherwise raise error.
-        if (ident == NULL && type->kind != TY_STRUCT)
-          parse_error_nofatal(NULL, "`ident' expected");
-        const Name *name = ident != NULL ? ident->ident : NULL;
-        if (!add_struct_member(members, name, type))
-          parse_error_nofatal(ident, "`%.*s' already defined", name->bytes, name->chars);
+        break;
       }
 
-      if (match(TK_COMMA))
-        continue;
-      consume(TK_SEMICOL, "`;' expected");
-      break;
-    }
+      not_void(type, NULL);
+      ensure_struct(type, ident, curscope);
+      // Allow ident to be null for anonymous struct member, otherwise raise error.
+      if (ident == NULL && type->kind != TY_STRUCT)
+        parse_error_nofatal(NULL, "`ident' expected");
+      const Name *name = ident != NULL ? ident->ident : NULL;
+      if (!add_struct_member(members, name, type))
+        parse_error_nofatal(ident, "`%.*s' already defined", name->bytes, name->chars);
+    } while (match(TK_COMMA));
+    consume(TK_SEMICOL, "`;' expected");
   }
   return create_struct_info(members, is_union);
 }
