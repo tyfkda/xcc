@@ -456,7 +456,7 @@ bool assemble_inst(Inst *inst, const ParseInfo *info, Code *code) {
       unsigned char dno = opr_regno(&inst->dst.indirect.reg);
       unsigned char code = (offset == 0 && (dno & 7) != RBP - RAX) ? 0x00 : is_im8(offset) ? (unsigned char)0x40 : (unsigned char)0x80;
       short buf[] = {
-        inst->op == MOVW ? 0x66 : (inst->op == MOVQ || dno >= 8) ? 0x48 | ((dno & 8) >> 3) | ((sno & 8) >> 1) : -1,
+        inst->op == MOVW ? 0x66 : (inst->op == MOVQ || dno >= 8) ? 0x40 | (inst->op == MOVQ ? 0x08 : 0) | ((dno & 8) >> 3) | ((sno & 8) >> 1) : -1,
         0xc6 | (inst->op == MOVB ? 0 : 1),
         code | (dno & 7) | ((sno & 7) << 3),
         (dno & 7) == RSP - RAX ? 0x24 : -1,
