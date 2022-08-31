@@ -184,50 +184,60 @@ const enum OpKind {
   BR_TABLE,
 }
 
+const enum OperandKind {
+  TYPE,
+  ULEB128,
+  ULEB128ARRAY,
+  I32CONST,
+  I64CONST,
+  F32CONST,
+  F64CONST,
+}
+
 const InstTable = new Map([
   [Opcode.UNREACHABLE, {op: 'unreachable'}],
   [Opcode.NOP, {op: 'nop'}],
-  [Opcode.BLOCK, {op: 'block', operands: ['type'], opKind: OpKind.BLOCK}],
-  [Opcode.LOOP, {op: 'loop', operands: ['type'], opKind: OpKind.BLOCK}],
-  [Opcode.IF, {op: 'if', operands: ['type'], opKind: OpKind.BLOCK}],
+  [Opcode.BLOCK, {op: 'block', operands: [OperandKind.TYPE], opKind: OpKind.BLOCK}],
+  [Opcode.LOOP, {op: 'loop', operands: [OperandKind.TYPE], opKind: OpKind.BLOCK}],
+  [Opcode.IF, {op: 'if', operands: [OperandKind.TYPE], opKind: OpKind.BLOCK}],
   [Opcode.ELSE, {op: 'else'}],
   [Opcode.END, {op: 'end'}],
-  [Opcode.BR, {op: 'br', operands: ['uleb128']}],
-  [Opcode.BR_IF, {op: 'br_if', operands: ['uleb128']}],
-  [Opcode.BR_TABLE, {op: 'br_table', operands: ['uleb128array', 'uleb128'], opKind: OpKind.BR_TABLE}],
+  [Opcode.BR, {op: 'br', operands: [OperandKind.ULEB128]}],
+  [Opcode.BR_IF, {op: 'br_if', operands: [OperandKind.ULEB128]}],
+  [Opcode.BR_TABLE, {op: 'br_table', operands: [OperandKind.ULEB128ARRAY, OperandKind.ULEB128], opKind: OpKind.BR_TABLE}],
   [Opcode.RETURN, {op: 'return'}],
-  [Opcode.CALL, {op: 'call', operands: ['uleb128']}],
-  [Opcode.CALL_INDIRECT, {op: 'call_indirect', operands: ['uleb128', 'uleb128']}],
+  [Opcode.CALL, {op: 'call', operands: [OperandKind.ULEB128]}],
+  [Opcode.CALL_INDIRECT, {op: 'call_indirect', operands: [OperandKind.ULEB128, OperandKind.ULEB128]}],
   [Opcode.DROP, {op: 'drop'}],
   [Opcode.SELECT, {op: 'select'}],
-  [Opcode.LOCAL_GET, {op: 'local.get', operands: ['uleb128']}],
-  [Opcode.LOCAL_SET, {op: 'local.set', operands: ['uleb128']}],
-  [Opcode.LOCAL_TEE, {op: 'local.tee', operands: ['uleb128']}],
-  [Opcode.GLOBAL_GET, {op: 'global.get', operands: ['uleb128']}],
-  [Opcode.GLOBAL_SET, {op: 'global.set', operands: ['uleb128']}],
-  [Opcode.I32_LOAD, {op: 'i32.load', operands: ['uleb128', 'uleb128'], opKind: OpKind.LOAD}],
-  [Opcode.I64_LOAD, {op: 'i64.load', operands: ['uleb128', 'uleb128'], opKind: OpKind.LOAD}],
-  [Opcode.F32_LOAD, {op: 'f32.load', operands: ['uleb128', 'uleb128'], opKind: OpKind.LOAD}],
-  [Opcode.F64_LOAD, {op: 'f64.load', operands: ['uleb128', 'uleb128'], opKind: OpKind.LOAD}],
-  [Opcode.I32_STORE, {op: 'i32.store', operands: ['uleb128', 'uleb128'], opKind: OpKind.STORE}],
-  [Opcode.I64_STORE, {op: 'i64.store', operands: ['uleb128', 'uleb128'], opKind: OpKind.STORE}],
-  [Opcode.F32_STORE, {op: 'f32.store', operands: ['uleb128', 'uleb128'], opKind: OpKind.STORE}],
-  [Opcode.F64_STORE, {op: 'f64.store', operands: ['uleb128', 'uleb128'], opKind: OpKind.STORE}],
-  [Opcode.I32_LOAD8_S, {op: 'i32.load8_s', operands: ['uleb128', 'uleb128'], opKind: OpKind.LOAD}],
-  [Opcode.I32_LOAD8_U, {op: 'i32.load8_u', operands: ['uleb128', 'uleb128'], opKind: OpKind.LOAD}],
-  [Opcode.I32_LOAD16_S, {op: 'i32.load16_s', operands: ['uleb128', 'uleb128'], opKind: OpKind.LOAD}],
-  [Opcode.I32_LOAD16_U, {op: 'i32.load16_u', operands: ['uleb128', 'uleb128'], opKind: OpKind.LOAD}],
-  [Opcode.I32_STORE8, {op: 'i32.store8', operands: ['uleb128', 'uleb128'], opKind: OpKind.STORE}],
-  [Opcode.I32_STORE16, {op: 'i32.store16', operands: ['uleb128', 'uleb128'], opKind: OpKind.STORE}],
-  [Opcode.I64_STORE8, {op: 'i64.store8', operands: ['uleb128', 'uleb128'], opKind: OpKind.STORE}],
-  [Opcode.I64_STORE16, {op: 'i64.store16', operands: ['uleb128', 'uleb128'], opKind: OpKind.STORE}],
-  [Opcode.I64_STORE32, {op: 'i64.store32', operands: ['uleb128', 'uleb128'], opKind: OpKind.STORE}],
-  [Opcode.MEMORY_SIZE, {op: 'memory.size', operands: ['uleb128']}],
-  [Opcode.MEMORY_GROW, {op: 'memory.grow', operands: ['uleb128']}],
-  [Opcode.I32_CONST, {op: 'i32.const', operands: ['leb128']}],
-  [Opcode.I64_CONST, {op: 'i64.const', operands: ['leb128']}],
-  [Opcode.F32_CONST, {op: 'f32.const', operands: ['f32']}],
-  [Opcode.F64_CONST, {op: 'f64.const', operands: ['f64']}],
+  [Opcode.LOCAL_GET, {op: 'local.get', operands: [OperandKind.ULEB128]}],
+  [Opcode.LOCAL_SET, {op: 'local.set', operands: [OperandKind.ULEB128]}],
+  [Opcode.LOCAL_TEE, {op: 'local.tee', operands: [OperandKind.ULEB128]}],
+  [Opcode.GLOBAL_GET, {op: 'global.get', operands: [OperandKind.ULEB128]}],
+  [Opcode.GLOBAL_SET, {op: 'global.set', operands: [OperandKind.ULEB128]}],
+  [Opcode.I32_LOAD, {op: 'i32.load', operands: [OperandKind.ULEB128, OperandKind.ULEB128], opKind: OpKind.LOAD}],
+  [Opcode.I64_LOAD, {op: 'i64.load', operands: [OperandKind.ULEB128, OperandKind.ULEB128], opKind: OpKind.LOAD}],
+  [Opcode.F32_LOAD, {op: 'f32.load', operands: [OperandKind.ULEB128, OperandKind.ULEB128], opKind: OpKind.LOAD}],
+  [Opcode.F64_LOAD, {op: 'f64.load', operands: [OperandKind.ULEB128, OperandKind.ULEB128], opKind: OpKind.LOAD}],
+  [Opcode.I32_STORE, {op: 'i32.store', operands: [OperandKind.ULEB128, OperandKind.ULEB128], opKind: OpKind.STORE}],
+  [Opcode.I64_STORE, {op: 'i64.store', operands: [OperandKind.ULEB128, OperandKind.ULEB128], opKind: OpKind.STORE}],
+  [Opcode.F32_STORE, {op: 'f32.store', operands: [OperandKind.ULEB128, OperandKind.ULEB128], opKind: OpKind.STORE}],
+  [Opcode.F64_STORE, {op: 'f64.store', operands: [OperandKind.ULEB128, OperandKind.ULEB128], opKind: OpKind.STORE}],
+  [Opcode.I32_LOAD8_S, {op: 'i32.load8_s', operands: [OperandKind.ULEB128, OperandKind.ULEB128], opKind: OpKind.LOAD}],
+  [Opcode.I32_LOAD8_U, {op: 'i32.load8_u', operands: [OperandKind.ULEB128, OperandKind.ULEB128], opKind: OpKind.LOAD}],
+  [Opcode.I32_LOAD16_S, {op: 'i32.load16_s', operands: [OperandKind.ULEB128, OperandKind.ULEB128], opKind: OpKind.LOAD}],
+  [Opcode.I32_LOAD16_U, {op: 'i32.load16_u', operands: [OperandKind.ULEB128, OperandKind.ULEB128], opKind: OpKind.LOAD}],
+  [Opcode.I32_STORE8, {op: 'i32.store8', operands: [OperandKind.ULEB128, OperandKind.ULEB128], opKind: OpKind.STORE}],
+  [Opcode.I32_STORE16, {op: 'i32.store16', operands: [OperandKind.ULEB128, OperandKind.ULEB128], opKind: OpKind.STORE}],
+  [Opcode.I64_STORE8, {op: 'i64.store8', operands: [OperandKind.ULEB128, OperandKind.ULEB128], opKind: OpKind.STORE}],
+  [Opcode.I64_STORE16, {op: 'i64.store16', operands: [OperandKind.ULEB128, OperandKind.ULEB128], opKind: OpKind.STORE}],
+  [Opcode.I64_STORE32, {op: 'i64.store32', operands: [OperandKind.ULEB128, OperandKind.ULEB128], opKind: OpKind.STORE}],
+  [Opcode.MEMORY_SIZE, {op: 'memory.size', operands: [OperandKind.ULEB128]}],
+  [Opcode.MEMORY_GROW, {op: 'memory.grow', operands: [OperandKind.ULEB128]}],
+  [Opcode.I32_CONST, {op: 'i32.const', operands: [OperandKind.I32CONST]}],
+  [Opcode.I64_CONST, {op: 'i64.const', operands: [OperandKind.I64CONST]}],
+  [Opcode.F32_CONST, {op: 'f32.const', operands: [OperandKind.F32CONST]}],
+  [Opcode.F64_CONST, {op: 'f64.const', operands: [OperandKind.F64CONST]}],
   [Opcode.I32_EQZ, {op: 'i32.eqz'}],
   [Opcode.I32_EQ, {op: 'i32.eq'}],
   [Opcode.I32_NE, {op: 'i32.ne'}],
@@ -351,6 +361,42 @@ class BufferReader {
     const value = new Int32Array(this.byteArray.buffer, this.offset, 1)[0]
     this.offset += 4
     return value
+  }
+
+  public readiconst(): number|bigint {
+    let x = 0
+    let bits = 0
+    let ofs = this.offset
+    while (ofs < this.byteArray.byteLength) {
+      if (bits >= 32 - 7)
+        return this.readiconstBig(BigInt(x), bits, ofs)
+      const c = this.byteArray[ofs++]
+      x |= (c & 0x7f) << bits
+      bits += 7
+
+      if ((c & 0x80) === 0) {
+        if ((c & 0x40) !== 0)
+          x -= 1 << bits
+        break
+      }
+    }
+    this.offset = ofs
+    return x
+  }
+  public readiconstBig(x: bigint, bits: number, ofs: number): bigint {
+    while (ofs < this.byteArray.byteLength) {
+      const c = this.byteArray[ofs++]
+      x += BigInt(c & 0x7f) << BigInt(bits)
+      bits += 7
+
+      if ((c & 0x80) === 0) {
+        if ((c & 0x40) !== 0)
+          x -= BigInt(1 << bits)
+        break
+      }
+    }
+    this.offset = ofs
+    return x
   }
 
   public readf32(): number {
@@ -479,7 +525,7 @@ function readGlobalValue(bufferReader: BufferReader): any {
   switch (op) {
   case Opcode.I32_CONST:
   case Opcode.I64_CONST:
-    return bufferReader.readLeb128()
+    return bufferReader.readiconst()
   case Opcode.F32_CONST:
     return bufferReader.readf32()
   case Opcode.F64_CONST:
@@ -489,27 +535,28 @@ function readGlobalValue(bufferReader: BufferReader): any {
   }
 }
 
-type Operand = number | Array<number>
+type Operand = number | bigint | Array<number>
 
-function readOperand(bufferReader: BufferReader, operand: string): Operand|Type {
-  switch (operand) {
-  case 'type':
+function readOperand(bufferReader: BufferReader, kind: OperandKind): Operand|Type {
+  switch (kind) {
+  case OperandKind.TYPE:
     return readType(bufferReader)
-  case 'leb128':
-    return bufferReader.readLeb128()
-  case 'uleb128':
+  case OperandKind.ULEB128:
     return bufferReader.readUleb128()
-  case 'uleb128array':
+  case OperandKind.ULEB128ARRAY:
     {
       const count = bufferReader.readUleb128()
       return [...Array(count)].map(_ => bufferReader.readUleb128())
     }
-  case 'f32':
+  case OperandKind.I32CONST:
+  case OperandKind.I64CONST:
+    return bufferReader.readiconst()
+  case OperandKind.F32CONST:
     return bufferReader.readf32()
-  case 'f64':
+  case OperandKind.F64CONST:
     return bufferReader.readf64()
   default:
-    throw `Unhandled operand: ${operand} at 0x${bufferReader.getOffset().toString(16)}`
+    throw `Unhandled operand: ${kind} at 0x${bufferReader.getOffset().toString(16)}`
   }
 }
 
@@ -518,7 +565,7 @@ class Inst {
   public opKind: OpKind
   public opstr: string
   public operands?: Array<Operand|Type>
-  public operandTypes?: Array<string>
+  public operandKinds?: Array<OperandKind>
 }
 
 function readInst(bufferReader: BufferReader): Inst {
@@ -531,7 +578,7 @@ function readInst(bufferReader: BufferReader): Inst {
 
   const inst: Inst = {opcode: op as Opcode, opKind: table.opKind || OpKind.MISC, opstr: table.op}
   if (table.operands != null) {
-    inst.operandTypes = table.operands
+    inst.operandKinds = table.operands
     inst.operands = table.operands.map(operand => readOperand(bufferReader, operand))
   }
   return inst
