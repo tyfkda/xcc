@@ -114,6 +114,7 @@ try 'non nul-terminated str in struct' 4 'struct S {char str[4];} static s={"abc
 try 'cast string' 120 'char *s = (char*)"x"; return s[0];'
 try 'cast string static' 120 'static char *s = (char*)"x"; return s[0];'
 try_direct 'cast str to int' 116 'long x = (long)"str"; int main(){ char *p = (char*)x; return p[1]; }'
+try_direct 'cast str to int param' 97 'void sub(long x){} int main(){ sub((long)"str"); return 97; }'
 try_direct 'brace initializer' 34 'int main(){ int x = {34}; return x; }'
 try 'paren =' 98 'int x; (x) = 98; return x;'
 try_direct 'enum' 11 'enum Num { Zero, One, Two }; int main(){ return One + 10; }'
