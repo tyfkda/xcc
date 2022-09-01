@@ -651,10 +651,9 @@ void check_funcall_args(Expr *func, Vector *args, Scope *scope, Vector *toplevel
     int paramc = param_types != NULL ? param_types->len : 0;
     for (int i = 0, len = args->len; i < len; ++i) {
       Expr *arg = args->data[i];
-      if (arg->type->kind == TY_ARRAY) {
-        arg = str_to_char_array_var(scope, arg, toplevel);
+      arg = str_to_char_array_var(scope, arg, toplevel);
+      if (arg->type->kind == TY_ARRAY)
         arg = make_cast(array_to_ptr(arg->type), arg->token, arg, false);
-      }
       if (i < paramc) {
         Type *type = param_types->data[i];
         arg = make_cast(type, arg->token, arg, false);
