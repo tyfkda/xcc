@@ -223,6 +223,24 @@ static void linear_scan_register_allocation(RegAlloc *ra, LiveInterval **sorted_
 #endif
 }
 
+static int insert_tmp_reg(RegAlloc *ra, Vector *irs, int j, VReg *spilled, int size) {
+  VReg *tmp = reg_alloc_spawn(ra, spilled->vtype, VRF_NO_SPILL);
+  IR *ir = irs->data[j];
+  VReg *opr = ir->opr1 == spilled ? ir->opr1 : ir->opr2 == spilled ? ir->opr2 : NULL;
+  if (opr != NULL) {
+    vec_insert(irs, j++, new_ir_load_spilled(tmp, opr, size));
+    if (ir->opr1 == spilled)
+      ir->opr1 = tmp;
+    if (ir->opr2 == spilled)
+      ir->opr2 = tmp;
+  }
+  if (ir->dst == spilled) {
+    vec_insert(irs, ++j, new_ir_store_spilled(ir->dst, tmp, size));
+    ir->dst = tmp;
+  }
+  return j;
+}
+
 static int insert_load_store_spilled_irs(RegAlloc *ra, BBContainer *bbcon) {
   int inserted = 0;
   for (int i = 0; i < bbcon->bbs->len; ++i) {
@@ -288,25 +306,19 @@ static int insert_load_store_spilled_irs(RegAlloc *ra, BBContainer *bbcon) {
 
       if (ir->opr1 != NULL && (flag & 1) != 0 &&
           !(ir->opr1->flag & VRF_CONST) && (ir->opr1->flag & VRF_SPILLED)) {
-        VReg *tmp = reg_alloc_spawn(ra, ir->opr1->vtype, VRF_NO_SPILL);
-        vec_insert(irs, j++, new_ir_load_spilled(tmp, ir->opr1, load_size));
-        ir->opr1 = tmp;
+        j = insert_tmp_reg(ra, irs, j, ir->opr1, load_size);
         ++inserted;
       }
 
       if (ir->opr2 != NULL && (flag & 2) != 0 &&
           !(ir->opr2->flag & VRF_CONST) && (ir->opr2->flag & VRF_SPILLED)) {
-        VReg *tmp = reg_alloc_spawn(ra, ir->opr2->vtype, VRF_NO_SPILL);
-        vec_insert(irs, j++, new_ir_load_spilled(tmp, ir->opr2, load_size));
-        ir->opr2 = tmp;
+        j = insert_tmp_reg(ra, irs, j, ir->opr2, load_size);
         ++inserted;
       }
 
       if (ir->dst != NULL && (flag & 4) != 0 &&
           !(ir->dst->flag & VRF_CONST) && (ir->dst->flag & VRF_SPILLED)) {
-        VReg *tmp = reg_alloc_spawn(ra, ir->dst->vtype, VRF_NO_SPILL);
-        vec_insert(irs, ++j, new_ir_store_spilled(ir->dst, tmp, load_size));
-        ir->dst = tmp;
+        j = insert_tmp_reg(ra, irs, j, ir->dst, load_size);
         ++inserted;
       }
     }
