@@ -394,29 +394,49 @@ static void analyze_reg_flow(BBContainer *bbcon) {
 static void detect_living_registers(
   RegAlloc *ra, BBContainer *bbcon, LiveInterval **sorted_intervals, int vreg_count
 ) {
+#define N  (16)
   unsigned int living_pregs = 0;
-  int nip = 0;
+  LiveInterval *livings[N];
+  for (int i = 0; i < (int)(sizeof(livings) / sizeof(*livings)); ++i)
+    livings[i] = NULL;
+
+  int nip = 0, head = 0;
   for (int i = 0; i < bbcon->bbs->len; ++i) {
     BB *bb = bbcon->bbs->data[i];
     for (int j = 0; j < bb->irs->len; ++j, ++nip) {
-      for (int k = 0; k < vreg_count; ++k) {
-        LiveInterval *li = sorted_intervals[k];
+      // Add activated registers.
+      for (; head < vreg_count; ++head) {
+        LiveInterval *li = sorted_intervals[head];
         if (li->state != LI_NORMAL)
           continue;
-        if (nip < li->start)
+        if (li->start > nip)
           break;
         int phys = li->phys;
 #ifndef __NO_FLONUM
         if (((VReg*)ra->vregs->data[li->virt])->vtype->flag & VRTF_FLONUM)
           phys += ra->phys_max;
 #endif
-        if (nip == li->start)
+        if (nip == li->start) {
           living_pregs |= 1U << phys;
-        if (nip == li->end)
+          livings[phys] = li;
+        }
+      }
+      // Eliminate deactivated registers.
+      for (int k = 0; k < N; ++k) {
+        LiveInterval *li = livings[k];
+        if (li != NULL && nip == li->end) {
+          int phys = li->phys;
+#ifndef __NO_FLONUM
+          if (((VReg*)ra->vregs->data[li->virt])->vtype->flag & VRTF_FLONUM)
+            phys += ra->phys_max;
+#endif
+          assert(phys == k);
           living_pregs &= ~(1U << phys);
+          livings[k] = NULL;
+        }
       }
 
-      // Store living regs to IR.
+      // Store living regs to IR_CALL.
       IR *ir = bb->irs->data[j];
       if (ir->kind == IR_CALL) {
         ir->call.precall->precall.living_pregs = living_pregs;
@@ -426,6 +446,7 @@ static void detect_living_registers(
       }
     }
   }
+#undef N
 }
 
 void prepare_register_allocation(Function *func) {
