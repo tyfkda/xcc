@@ -53,6 +53,9 @@
 #include <../libsrc/stdlib/mkstemps.c>
 #include <../libsrc/stdlib/qsort.c>
 #include <../libsrc/stdlib/realloc.c>
+#include <../libsrc/stdlib/strtod.c>
+#include <../libsrc/stdlib/strtol.c>
+#include <../libsrc/stdlib/strtoul.c>
 #include <../libsrc/string/memchr.c>
 #include <../libsrc/string/memcmp.c>
 #include <../libsrc/string/memcpy.c>
@@ -72,9 +75,6 @@
 #include <../libsrc/string/strndup.c>
 #include <../libsrc/string/strrchr.c>
 #include <../libsrc/string/strstr.c>
-#include <../libsrc/string/strtod.c>
-#include <../libsrc/string/strtol.c>
-#include <../libsrc/string/strtoul.c>
 #include <../libsrc/unistd/brk.c>
 #include <../libsrc/unistd/chmod.c>
 #include <../libsrc/unistd/close.c>

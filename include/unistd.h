@@ -8,7 +8,6 @@
 #define STDOUT_FILENO  (1)
 #define STDERR_FILENO  (2)
 
-void exit(int code);
 ssize_t write(int fd, const void *str, size_t len);
 int close(int fd);
 ssize_t read(int fd, void *buf, size_t size);
@@ -18,7 +17,6 @@ char *getcwd(char *buffer, size_t size);
 pid_t fork(void);
 int pipe(int *);
 int dup(int);
-int execv(const char *, char *const[]);
 int execvp(const char *, char *const[]);
 int execve(const char *, char *const[], char *const[]);
 off_t lseek(int fd, off_t offset, int whence);

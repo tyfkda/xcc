@@ -1,4 +1,4 @@
-#include "string.h"
+#include "stdlib.h"
 
 extern unsigned long strtoul_sub(const char *p, char **pp, int base);
 
