@@ -1,5 +1,3 @@
-// dirs=`ls -1 ../libsrc | grep -v crt0 | grep -v math`; for d in $dirs; do ls -1 ../libsrc/$d/*.c | ruby -ne 'puts "#include <#{$_.chomp}>"'; done
-
 #include <../libsrc/misc/basename.c>
 #include <../libsrc/misc/dirname.c>
 #include <../libsrc/misc/errno.c>
@@ -39,8 +37,8 @@
 #include <../libsrc/stdio/sprintf.c>
 #include <../libsrc/stdio/stdin.c>
 #include <../libsrc/stdio/tmpfile.c>
-#include <../libsrc/stdio/vprintf.c>
 #include <../libsrc/stdio/vfprintf.c>
+#include <../libsrc/stdio/vprintf.c>
 #include <../libsrc/stdio/vsnprintf.c>
 #include <../libsrc/stdio/vsprintf.c>
 #include <../libsrc/stdlib/atoi.c>

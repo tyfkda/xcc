@@ -104,6 +104,18 @@ $(ASSETS_DIR)/libs.json:	lib_list.json
 	mkdir -p $(ASSETS_DIR)
 	node tool/pack_libs.js lib_list.json > $@
 
+.PHONY: update-lib
+update-lib:
+	find ../libsrc/* -type d \
+		| egrep -v \(crt0\|math\) \
+		| while read d; do \
+			ls -1 $$d/*.c; \
+		  done \
+		| sort \
+		| awk '{print "#include <" $$0 ">"}' \
+		> lib/libc.c
+	npx ts-node tool/update_lib_list.ts
+
 .PHONY: deploy
 deploy:	assets
 	npm run release
