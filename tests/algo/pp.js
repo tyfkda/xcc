@@ -97,83 +97,98 @@ class MacroExpander {
   }
 
   expand(ts) {
-    if (ts.length === 0) {
-      return []
-    } else if (ts[0].kind === TK_IDENT && ts[0].t in this.macros && (ts[0].hs == null || !ts[0].hs.has(ts[0].t))) {
-      const t = ts[0].t
-      const hs = ts[0].hs
+    for (let i = 0; i < ts.length; ++i) {
+      const tt = ts[i]
+      if (tt.kind !== TK_IDENT ||
+          !(tt.t in this.macros) ||
+          (tt.hs != null && tt.hs.has(tt.t)))
+        continue
+
+      const t = tt.t
+      const hs = tt.hs
       const macro = this.macros[t]
       if (!macro.fp) {  // "()-less macro"
-        return this.expand(this.subst(macro.body, [], [], union(hs, new Set([t])), []).concat(ts.slice(1)))
-      } else if (ts.length > 1 && ts[1].t === '(') {  // "()'d macro"
-        const [actuals, hs2, ts3] = this.getActuals(ts.slice(2))
+        const replaced = this.subst(macro.body, [], [], union(hs, new Set([t])))
+        ts.splice(i, 1, ...replaced)
+        --i
+      } else if (ts.length > i + 1 && ts[i + 1].t === '(') {  // "()'d macro"
+        const [actuals, closeParenIndex] = this.getActuals(ts, i + 2)
         if (macro.fp.length !== actuals.length) {
-          throw "illegal parameters for #{ts[0].t}, #{actuals}"
+          throw "illegal parameters for #{tt.t}, #{actuals}"
         }
-        return this.expand(this.subst(macro.body, macro.fp, actuals, union(intersection(hs, hs2), new Set([t])), []).concat(ts3))
+        const hs2 = ts[closeParenIndex].hs
+        const replaced = this.subst(macro.body, macro.fp, actuals, union(intersection(hs, hs2), new Set([t])))
+        ts.splice(i, closeParenIndex + 1 - i, ...replaced)
+        --i
       }
     }
-    // note TS must be T^HS・TS'
-    return [ts[0]].concat(this.expand(ts.slice(1)))
+    return ts
   }
 
-  subst(is, fp, ap, hs, os) {
-    if (is.length === 0) {
-      return this.hsadd(hs, os)
-    }
+  subst(is, fp, ap, hs) {
+    const os = []
+    for (let i = 0; i < is.length; ++i) {
+      const tt = is[i]
 
-    if (is[0].kind === TK_STRINGIFY && is.length > 1) {
-      let i
-      if (is[1].kind == TK_IDENT && (i = fp.indexOf(is[1].t)) >= 0) {
-        const selected = ap[i]  //this.select(i, ap)
-        return this.subst(is.slice(2), fp, ap, hs, os.concat([this.stringize(selected)]))
+      if (tt.kind === TK_STRINGIFY && is.length > i + 1) {
+        let j
+        if (is[i + 1].kind == TK_IDENT && (j = fp.indexOf(is[i + 1].t)) >= 0) {
+          const selected = ap[j]  //this.select(j, ap)
+          os.push(this.stringize(selected))
+          ++i
+          continue
+        }
       }
-    }
 
-    if (is[0].kind === TK_CONCAT && is.length > 1) {
-      let i
-      if (is[1].kind == TK_IDENT && (i = fp.indexOf(is[1].t)) >= 0) {
-        const selected = ap[i]  //this.select(i, ap)
-        if (selected.length === 0)  // only if actuals can be empty
-          return this.subst(is.slice(2), fp, ap, hs, os)
-        else
-          return this.subst(is.slice(2), fp, ap, hs, this.glue(os, selected))
+      if (tt.kind === TK_CONCAT && is.length > i + 1) {
+        let j
+        if (is[i + 1].kind == TK_IDENT && (j = fp.indexOf(is[i + 1].t)) >= 0) {
+          const selected = ap[j]  //this.select(i, ap)
+          if (selected.length > 0)  // only if actuals can be empty
+            this.glue(os, selected)
+          ++i
+          continue
+        }
       }
-    }
 
-    const i = fp.indexOf(is[0].t)
-    if (i >= 0) {
-      return this.subst(is.slice(1), fp, ap, hs, os.concat(this.expand(ap[i])))
+      if (tt.kind === TK_IDENT) {
+        const j = fp.indexOf(tt.t)
+        if (j >= 0) {
+          os.push(...this.expand(ap[j]))
+          continue
+        }
+      }
+      os.push(tt.dup())
     }
-
-    return this.subst(is.slice(1), fp, ap, hs, os.concat([is[0].dup()]))
+    this.hsadd(hs, os)
+    return os
   }
 
   glue(ls, rs) {  // paste last of left side with first of right side
-    if (ls.length === 1) {
-      console.assert(ls[0].kind === TK_IDENT)
-      console.assert(rs[0].t.match(/^[a-zA-Z0-9_]+$/))
-      const combined = ls[0].t + rs[0].t
-      const hs = union(ls[0].hs, rs[0].hs)
-      return [new Token(TK_IDENT, combined, hs)].concat(rs.slice(1))
+    if (ls.length <= 0) {
+      ls.push(...rs)
+    } else {
+      const last = ls.length - 1
+      const ll = ls[ls.length - 1]
+      const rr = rs[0]
+      console.assert(ll.kind === TK_IDENT)
+      console.assert(rr.t.match(/^[a-zA-Z0-9_]+$/))
+      const combined = ll.t + rr.t
+      const hs = union(ll.hs, rr.hs)
+      ll.t = combined
+      ll.hs = hs
+      ls.push(...rs.slice(1))
     }
-    // note LS must be L^HS・LS'
-    return [ls[0]].concat(this.glue(ls.slice(1), rs))
   }
 
   hsadd(hs, ts) {
-    if (ts.length === 0) {
-      return []
+    for (let i = 0; i < ts.length; ++i) {
+      const tt = ts[i]
+      if (tt.kind !== TK_IDENT && (tt.kind !== TK_OTHER || tt.t !== ')'))
+        continue
+
+      ts[i].hs = union(hs, ts[i].hs)
     }
-
-    if (ts[0].kind !== TK_IDENT && (ts[0].kind !== TK_OTHER || ts[0].t !== ')'))
-      return [ts[0]].concat(this.hsadd(hs, ts.slice(1)))
-
-    const t = ts[0].dup()
-    const hs2 = ts[0].hs
-    const ts2 = ts.slice(1)
-    t.hs = union(hs, hs2)
-    return [t].concat(this.hsadd(hs, ts2))
   }
 
   stringize(x) {
@@ -181,10 +196,9 @@ class MacroExpander {
     return new Token(TK_OTHER, s)
   }
 
-  getActuals(ts) {
+  getActuals(ts, i) {
     const ap = []
-    let i  = 0
-    if (ts[0].t !== ')') {
+    if (ts[i].t !== ')') {
       for (;;) {
         let paren = 0
         while (ts[i].kind === TK_SPACE)
@@ -218,7 +232,7 @@ class MacroExpander {
         i += 1
       }
     }
-    return [ap, ts[i].hs, ts.slice(i+1)]
+    return [ap, i]
   }
 }
 
