@@ -4,33 +4,19 @@
 
 typedef struct Name Name;
 typedef struct StringBuffer StringBuffer;
+typedef struct Table Table;
 typedef struct Token Token;
 typedef struct Vector Vector;
 
-enum SegmentKind {
-  SK_TEXT,
-  SK_PARAM,
-  SK_STRINGIFY,
-};
-
-typedef struct {
-  enum SegmentKind kind;
-  union {
-    const char *text;
-    int param;
-  };
-} Segment;
-
 typedef struct Macro {
-  Vector *params;  // <const char*>
+  Table *param_table;  // key=variable name, value=parameter index
+  int params_len;  // -1 => no param macro
   bool va_args;
-  Vector *segments;  // <Segment*>
+  Vector *body;  // <Token*>
 } Macro;
 
-Macro *new_macro(Vector *params, bool va_args, Vector *segments);
-Macro *new_macro_single(const char *text);
-
-bool expand_macro(Macro *macro, Vector *args, const Token *token, StringBuffer *sb);
+Macro *new_macro(Vector *params, bool va_args, Vector *body);
+bool expand_macro(Macro *macro, Vector *args, const Token *token, Vector *expanded);
 
 //
 

@@ -130,7 +130,11 @@ void lex_error(const char *p, const char *fmt, ...) {
   exit(1);
 }
 
-static Token *alloc_token(enum TokenKind kind, const char *begin, const char *end) {
+Token *alloc_token(enum TokenKind kind, const char *begin, const char *end) {
+  if (end == NULL) {
+    assert(begin != NULL);
+    end = begin + strlen(begin);
+  }
   Token *token = malloc(sizeof(*token));
   token->kind = kind;
   token->line = lexer.line;
@@ -146,7 +150,7 @@ static Token *alloc_ident(const Name *name, const char *begin, const char *end) 
 }
 
 Token *alloc_dummy_ident(void) {
-  return alloc_ident(alloc_label(), NULL, NULL);
+  return alloc_ident(alloc_label(), "", NULL);
 }
 
 static void init_reserved_word_table(void) {

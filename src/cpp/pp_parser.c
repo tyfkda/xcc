@@ -151,12 +151,17 @@ static PpResult expand_ident(const Token *ident) {
     return 0;
 
   Vector *args = NULL;
-  if (macro->params != NULL)
+  if (macro->params_len >= 0)
     args = pp_funargs();
 
+  Vector *tokens = new_vector();
+  expand_macro(macro, args, ident, tokens);
   StringBuffer sb;
   sb_init(&sb);
-  expand_macro(macro, args, ident, &sb);
+  for (int i = 0; i < tokens->len; ++i) {
+    const Token *tok = tokens->data[i];
+    sb_append(&sb, tok->begin, tok->end);
+  }
 
   push_lex(ident->ident, NULL);
 
@@ -467,66 +472,56 @@ Vector *pp_funargs(void) {
   Vector *args = NULL;
   if (match2(TK_LPAR)) {
     args = new_vector();
-    if (!match2(TK_RPAR)) {
-      StringBuffer sb;
-      sb_init(&sb);
-      const char *start = NULL;
-      const char *end = NULL;
-      int paren = 0;
-      for (;;) {
-        Token *tok;
-        for (;;) {
-          tok = pp_match(-1);
-          if (tok->kind != TK_EOF)
-            break;
-
-          if (start != end)
-            sb_append(&sb, start, end);
-          if (!sb_empty(&sb))
-            sb_append(&sb, "\n", NULL);
-          start = end = NULL;
-
-          ssize_t len = -1;
-          char *line = NULL;
-          if (pp_stream != NULL) {
-            size_t capa = 0;
-            len = getline_cont(&line, &capa, pp_stream->fp, &pp_stream->lineno);
-          }
-          if (len == -1) {
-            pp_parse_error(NULL, "`)' expected");
-            return NULL;
-          }
-          set_source_string(line, pp_stream->filename, pp_stream->lineno);
+    Vector *arg = NULL;
+    int paren = 0;
+    bool need_space = false;
+    const Token *tok_space = NULL;
+    for (;;) {
+      const char *start;
+      Token *tok;
+      while ((start = get_lex_p(), tok = pp_match(-1), tok->kind) == TK_EOF) {
+        ssize_t len = -1;
+        char *line = NULL;
+        if (pp_stream != NULL) {
+          size_t capa = 0;
+          len = getline_cont(&line, &capa, pp_stream->fp, &pp_stream->lineno);
         }
-
-        if (tok->kind == TK_COMMA || tok->kind == TK_RPAR) {
-          if (paren <= 0) {
-            if (sb_empty(&sb)) {
-              vec_push(args, strndup(start, end - start));
-            } else {
-              if (start != end)
-                sb_append(&sb, start, end);
-              vec_push(args, sb_to_string(&sb));
-              sb_clear(&sb);
-            }
-            start = end = NULL;
-
-            if (tok->kind == TK_RPAR)
-              break;
-            else
-              continue;
-          }
-
-          if (tok->kind == TK_RPAR)
-            --paren;
-        } else if (tok->kind == TK_LPAR) {
-          ++paren;
+        if (len == -1) {
+          pp_parse_error(NULL, "`)' expected");
+          return NULL;
         }
-        if (start == NULL)
-          start = tok->begin;
-        end = tok->end;
+        set_source_string(line, pp_stream->filename, pp_stream->lineno);
+        need_space = true;
       }
+
+      if (tok->kind == TK_LPAR) {
+        ++paren;
+      } else if (tok->kind == TK_RPAR) {
+        if (paren <= 0)
+          break;
+        --paren;
+      }
+
+      if (arg == NULL)
+        arg = new_vector();
+
+      if (tok->kind == TK_COMMA && paren <= 0) {
+        vec_push(args, arg);
+        arg = new_vector();
+        continue;
+      }
+      if (need_space || tok->begin != start) {
+        if (arg->len > 0) {
+          if (tok_space == NULL)
+            tok_space = alloc_token(PPTK_SPACE, " ", NULL);
+          vec_push(arg, tok_space);
+        }
+        need_space = false;
+      }
+      vec_push(arg, tok);
     }
+    if (arg != NULL)
+      vec_push(args, arg);
   }
   return args;
 }

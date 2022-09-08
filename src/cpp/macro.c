@@ -9,31 +9,40 @@
 #include "table.h"
 #include "util.h"
 
-Macro *new_macro(Vector *params, bool va_args, Vector *segments) {
+Macro *new_macro(Vector *params, bool va_args, Vector *body) {
   Macro *macro = malloc(sizeof(*macro));
-  macro->params = params;
+  int len = params != NULL ? params->len : -1;
+  macro->params_len = len;
   macro->va_args = va_args;
-  macro->segments = segments;
+  macro->body = body;
+
+  Table *table = NULL;
+  if (params != NULL) {
+    // Store parameter index.
+    table = alloc_table();
+    for (int i = 0; i < len; ++i) {
+      const Name *ident = params->data[i];
+      table_put(table, ident, (void*)(intptr_t)i);
+    }
+    if (macro->va_args) {
+      const Name *ident = alloc_name("__VA_ARGS__", NULL, false);
+      table_put(table, ident, (void*)(intptr_t)len);
+    }
+  }
+  macro->param_table = table;
+
   return macro;
 }
 
-Macro *new_macro_single(const char *text) {
-  Vector *segments = new_vector();
-  Segment *seg = malloc(sizeof(*seg));
-  seg->kind = SK_TEXT;
-  seg->text = text;
-  vec_push(segments, seg);
-  return new_macro(NULL, false, segments);
-}
-
-bool expand_macro(Macro *macro, Vector *args, const Token *token, StringBuffer *sb) {
-  if (macro->params != NULL) {
+bool expand_macro(Macro *macro, Vector *args, const Token *token, Vector *expanded) {
+  int plen = macro->params_len;
+  if (macro->param_table != NULL) {
     if (args == NULL)
       return false;
 
-    if ((!macro->va_args && args->len != macro->params->len) ||
-        (macro->va_args && args->len < macro->params->len)) {
-      const char *cmp = args->len > macro->params->len ? "many" : "few";
+    if ((!macro->va_args && args->len != plen) ||
+        (macro->va_args && args->len < plen)) {
+      const char *cmp = args->len > plen ? "many" : "few";
       pp_parse_error(token, "Too %s arguments for macro `%.*s'", cmp, token->ident->bytes, token->ident->chars);
     }
   } else {
@@ -45,45 +54,89 @@ bool expand_macro(Macro *macro, Vector *args, const Token *token, StringBuffer *
   // __VA_ARGS__
   if (macro->va_args) {
     // Concat.
-    StringBuffer sb;
-    sb_init(&sb);
-    int plen = macro->params->len;
+    Vector *vaargs = new_vector();
+    Token *tok_comma = NULL;
     for (int i = plen; i < args->len; ++i) {
-      if (i > plen)
-        sb_append(&sb, ",", NULL);
-      sb_append(&sb, (char*)args->data[i], NULL);
+      if (i > plen) {
+        if (tok_comma == NULL)
+          tok_comma = alloc_token(TK_COMMA, ",", NULL);
+        vec_push(vaargs, tok_comma);
+      }
+      const Vector *arg = args->data[i];
+      for (int j = 0; j < arg->len; ++j)
+        vec_push(vaargs, arg->data[j]);
     }
-    char *vaargs = sb_to_string(&sb);
 
+    // Side effect: args modified.
     if (args->len <= plen)
       vec_push(args, vaargs);
     else
       args->data[plen] = vaargs;
   }
 
-  if (macro->segments != NULL) {
-    for (int i = 0; i < macro->segments->len; ++i) {
-      Segment *seg = macro->segments->data[i];
-      switch (seg->kind) {
-      case SK_TEXT:
-        sb_append(sb, seg->text, NULL);
-        break;
-      case SK_PARAM:
-        sb_append(sb, (char*)args->data[seg->param], NULL);
-        break;
-      case SK_STRINGIFY:
+  if (macro->body != NULL) {
+    for (int i = 0; i < macro->body->len; ++i) {
+      const Token *tok = macro->body->data[i];
+      switch (tok->kind) {
+      case TK_IDENT:
         {
-          static const char DQUOTE[] = "\"";
-          sb_append(sb, DQUOTE, NULL);
-          const char *text = args->data[seg->param];
-          escape_string(text, strlen(text), sb);
-          sb_append(sb, DQUOTE, NULL);
+          intptr_t index;
+          if (macro->param_table != NULL &&
+              table_try_get(macro->param_table, tok->ident, (void**)&index)) {
+            const Vector *arg = args->data[index];
+            for (int i = 0; i < arg->len; ++i) {
+              const Token *tok = arg->data[i];
+              vec_push(expanded, tok);
+            }
+            continue;
+          }
+        }
+        break;
+      case PPTK_CONCAT:
+        assert(false);
+        continue;
+      case PPTK_STRINGIFY:
+        if (i + 1 >= macro->body->len) {
+          pp_parse_error(tok, "Macro parameter required");
+        } else {
+          const Token *next = macro->body->data[i + 1];
+          intptr_t index;
+          if (macro->param_table != NULL &&
+              table_try_get(macro->param_table, next->ident, (void**)&index)) {
+            StringBuffer sb;
+            sb_init(&sb);
+            const Vector *arg = args->data[index];
+            for (int i = 0; i < arg->len; ++i) {
+              const Token *tok = arg->data[i];
+              sb_append(&sb, tok->begin, tok->end);
+            }
+            const char *str = sb_to_string(&sb);
+            size_t size = strlen(str);
+
+            sb_clear(&sb);
+            static const char DQUOTE[] = "\"";
+            sb_append(&sb, DQUOTE, NULL);
+            escape_string(str, size, &sb);
+            sb_append(&sb, DQUOTE, NULL);
+            const char *escaped = sb_to_string(&sb);
+
+            Token *tok = alloc_token(TK_STR, escaped, NULL);
+            tok->str.buf = str;
+            tok->str.size = size;
+
+            vec_push(expanded, tok);
+            ++i;
+            continue;
+          } else {
+            pp_parse_error(next, "Macro parameter required");
+          }
         }
         break;
       default:
-        assert(false);
         break;
       }
+
+      vec_push(expanded, tok);
     }
   }
   return true;

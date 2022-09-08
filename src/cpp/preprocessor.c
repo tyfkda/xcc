@@ -77,13 +77,18 @@ static void handle_include(const char *p, Stream *stream) {
     assert(ident != NULL);
     if ((macro = can_expand_ident(ident->ident)) != NULL) {
       Vector *args = NULL;
-      if (macro->params != NULL)
+      if (macro->params_len >= 0)
         args = pp_funargs();
 
+      Vector *tokens = new_vector();
+      if (!expand_macro(macro, args, ident, tokens)) {
+        break;
+      }
       StringBuffer sb;
       sb_init(&sb);
-      if (!expand_macro(macro, args, ident, &sb)) {
-        break;
+      for (int i = 0; i < tokens->len; ++i) {
+        const Token *tok = tokens->data[i];
+        sb_append(&sb, tok->begin, tok->end);
       }
 
       char *expanded = sb_to_string(&sb);
@@ -195,114 +200,60 @@ static const char *handle_line_directive(const char **pp, const char *filename, 
   return filename;
 }
 
-static void push_text_segment(Vector *segments, const char *start, const char *end) {
-  if (end > start) {
-    Segment *seg = malloc(sizeof(*seg));
-    seg->kind = SK_TEXT;
-    seg->text = strndup(start, end - start);
-    vec_push(segments, seg);
-  }
-}
+static Vector *parse_macro_body(const char *p, Stream *stream) {
+  p = skip_whitespaces(p);
+  if (*p == '\0')
+    return NULL;
 
-static Vector *parse_macro_body(const char *p, const Vector *params, bool va_args, Stream *stream) {
-  Vector *segments = new_vector();
-  set_source_string(p, stream->filename, stream->lineno);
-  int param_len = params != NULL ? params->len : 0;
-  const Name *key_va_args = alloc_name("__VA_ARGS__", NULL, false);
-  const char *start = p;
-  const char *end = start;
+  Vector *tokens = new_vector();
+  set_source_string(p, stream == NULL ? "?" : stream->filename, stream == NULL ? 0 : stream->lineno);
+  Token *tok_space = NULL;
+  bool need_space = false;
   for (;;) {
-    const char *q = block_comment_start(get_lex_p());
+    const char *start = get_lex_p();
+    const char *q = block_comment_start(start);
     if (q != NULL) {
       const char *comment_start = q;
-      push_text_segment(segments, start, q);
       q += 2;
       for (;;) {
         q = block_comment_end(q);
         if (q != NULL)
           break;
 
+        ssize_t len = -1;
         char *line = NULL;
-        size_t capa = 0;
-        ssize_t len = getline_cont(&line, &capa, stream->fp, &stream->lineno);
+        if (stream != NULL) {
+          size_t capa = 0;
+          len = getline_cont(&line, &capa, stream->fp, &stream->lineno);
+        }
         if (len == -1) {
           lex_error(comment_start, "Block comment not closed");
         }
         q = line;
       }
-      set_source_string(q, stream->filename, stream->lineno);
-      start = end = q;
+      set_source_string(q, stream == NULL ? "?" : stream->filename, stream == NULL ? 0 : stream->lineno);
+      need_space = true;
       continue;
     }
 
     Token *tok = match(-1);
     if (tok->kind == TK_EOF)
       break;
-    switch (tok->kind) {
-    case TK_IDENT:
-      {
-        int param_index = -1;
-        if (va_args && equal_name(tok->ident, key_va_args)) {
-          param_index = param_len;
-        } else {
-          for (int i = 0; i < param_len; ++i) {
-            if (equal_name(tok->ident, params->data[i])) {
-              param_index = i;
-              break;
-            }
-          }
-        }
-        if (param_index >= 0) {
-          push_text_segment(segments, start, tok->begin);
-
-          Segment *seg = malloc(sizeof(*seg));
-          seg->kind = SK_PARAM;
-          seg->param = param_index;
-          vec_push(segments, seg);
-
-          start = end = tok->end;
-          continue;
-        }
-      }
-      break;
-    case PPTK_CONCAT:
-      push_text_segment(segments, start, end);
-
-      start = end = skip_whitespaces(tok->end);
+    if (tok->kind == PPTK_CONCAT) {
+      // Ignore surrounding spaces.
+      const char *s = skip_whitespaces(get_lex_p());
+      set_source_string(s, stream == NULL ? "?" : stream->filename, stream == NULL ? 0 : stream->lineno);
       continue;
-    case PPTK_STRINGIFY:
-      {
-        Token *ident;
-        if ((ident = match(TK_IDENT)) != NULL) {
-          int param_index = -1;
-          for (int i = 0; i < param_len; ++i) {
-            if (equal_name(ident->ident, params->data[i])) {
-              param_index = i;
-              break;
-            }
-          }
-          if (param_index >= 0) {
-            push_text_segment(segments, start, tok->begin);
-
-            Segment *seg = malloc(sizeof(*seg));
-            seg->kind = SK_STRINGIFY;
-            seg->param = param_index;
-            vec_push(segments, seg);
-
-            start = end = ident->end;
-            continue;
-          }
-      }
-      }
-      break;
-    default:
-      break;
     }
-    end = tok->end;
+    if (need_space || tok->begin != start) {
+      if (tok_space == NULL)
+        tok_space = alloc_token(PPTK_SPACE, " ", NULL);
+      vec_push(tokens, tok_space);
+      need_space = false;
+    }
+    vec_push(tokens, tok);
   }
-
-  push_text_segment(segments, start, end);
-  return segments;
+  return tokens;
 }
 
 static void handle_define(const char *p, Stream *stream) {
@@ -338,12 +289,8 @@ static void handle_define(const char *p, Stream *stream) {
     p = get_lex_p();
   }
 
-  Vector *segments = NULL;
-  p = skip_whitespaces(p);
-  if (*p != '\0') {
-    segments = parse_macro_body(p, params, va_args, stream);
-  }
-  macro_add(name, new_macro(params, va_args, segments));
+  Vector *tokens = parse_macro_body(p, stream);
+  macro_add(name, new_macro(params, va_args, tokens));
 }
 
 static void handle_undef(const char **pp) {
@@ -493,14 +440,19 @@ static void process_line(const char *line, bool enable, Stream *stream) {
           const char *p = begin;
           begin = ident->end;  // Update for EOF callback.
           Vector *args = NULL;
-          if (macro->params != NULL)
+          if (macro->params_len >= 0)
             args = pp_funargs();
 
-          StringBuffer sb;
-          sb_init(&sb);
-          if (!expand_macro(macro, args, ident, &sb)) {
+          Vector *tokens = new_vector();
+          if (!expand_macro(macro, args, ident, tokens)) {
             begin = p;
             continue;
+          }
+          StringBuffer sb;
+          sb_init(&sb);
+          for (int i = 0; i < tokens->len; ++i) {
+            const Token *tok = tokens->data[i];
+            sb_append(&sb, tok->begin, tok->end);
           }
 
           if (ident->begin != p)
@@ -558,7 +510,7 @@ static void define_file_macro(const char *filename, const Name *key_file) {
   size_t len = strlen(filename);
   char *buf = malloc(len + 2 + 1);
   snprintf(buf, len + 2 + 1, "\"%s\"", filename);
-  macro_add(key_file, new_macro_single(buf));
+  macro_add(key_file, new_macro(NULL, false, parse_macro_body(buf, NULL)));
 }
 
 void init_preprocessor(FILE *ofp) {
@@ -587,7 +539,12 @@ int preprocess(FILE *fp, const char *filename_) {
   Stream *old_stream = set_pp_stream(&stream);
 
   define_file_macro(stream.filename, key_file);
-  macro_add(key_line, new_macro_single(linenobuf));
+
+  // __LINE__ : Dirty hack.
+  Token *tok_lineno = alloc_token(TK_STR, linenobuf, linenobuf);
+  Vector *lineno_tokens = new_vector();
+  vec_push(lineno_tokens, tok_lineno);
+  macro_add(key_line, new_macro(NULL, false, lineno_tokens));
 
   stream.lineno = 0;
   for (;;) {
@@ -597,7 +554,7 @@ int preprocess(FILE *fp, const char *filename_) {
     if (len == -1)
       break;
 
-    snprintf(linenobuf, sizeof(linenobuf), "%d", stream.lineno);
+    tok_lineno->end = tok_lineno->begin + snprintf(linenobuf, sizeof(linenobuf), "%d", stream.lineno);
 
     // Find '#'
     const char *directive = find_directive(line);
@@ -703,7 +660,7 @@ int preprocess(FILE *fp, const char *filename_) {
 
 void define_macro(const char *arg) {
   char *p = strchr(arg, '=');
-  Macro *macro = p == NULL ? new_macro(NULL, false, NULL) : new_macro_single(p + 1);
+  Macro *macro = new_macro(NULL, false, p == NULL ? NULL : parse_macro_body(p + 1, NULL));
   macro_add(alloc_name(arg, p, true), macro);
 }
 
