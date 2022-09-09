@@ -845,8 +845,8 @@ int main(int argc, char *argv[]) {
     error("cannot open temporary file");
 
   init_preprocessor(ppout);
-  define_macro_simple("__ILP32__");
-  define_macro_simple("__WASM");
+  define_macro("__ILP32__");
+  define_macro("__WASM");
   add_system_inc_path(cat_path(root, "include"));
   add_system_inc_path(cat_path(root, "../include"));
 

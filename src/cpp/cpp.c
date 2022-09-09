@@ -11,16 +11,16 @@ int main(int argc, char *argv[]) {
   init_preprocessor(ofp);
 
   // Predefeined macros.
-  define_macro_simple("__XCC");
+  define_macro("__XCC");
 #if defined(__XV6)
-  define_macro_simple("__XV6");
+  define_macro("__XV6");
 #elif defined(__linux__)
-  define_macro_simple("__linux__");
+  define_macro("__linux__");
 #elif defined(__APPLE__)
-  define_macro_simple("__APPLE__");
+  define_macro("__APPLE__");
 #endif
 #if defined(__NO_FLONUM)
-  define_macro_simple("__NO_FLONUM");
+  define_macro("__NO_FLONUM");
 #endif
 
   struct option longopts[] = {

@@ -707,10 +707,6 @@ void define_macro(const char *arg) {
   macro_add(alloc_name(arg, p, true), macro);
 }
 
-void define_macro_simple(const char *label) {
-  macro_add(alloc_name(label, NULL, true), new_macro(NULL, false, NULL));
-}
-
 void add_system_inc_path(const char *path) {
   vec_push(sys_inc_paths, strdup(path));
 }
