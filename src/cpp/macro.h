@@ -30,7 +30,7 @@ typedef struct Macro {
 Macro *new_macro(Vector *params, bool va_args, Vector *segments);
 Macro *new_macro_single(const char *text);
 
-bool expand_macro(Macro *macro, const Token *token, Vector *args, const Name *name, StringBuffer *sb);
+bool expand_macro(Macro *macro, Vector *args, const Token *token, StringBuffer *sb);
 
 //
 

@@ -82,7 +82,7 @@ static void handle_include(const char *p, Stream *stream) {
 
       StringBuffer sb;
       sb_init(&sb);
-      if (!expand_macro(macro, ident, args, ident->ident, &sb)) {
+      if (!expand_macro(macro, args, ident, &sb)) {
         break;
       }
 
@@ -498,7 +498,7 @@ static void process_line(const char *line, bool enable, Stream *stream) {
 
           StringBuffer sb;
           sb_init(&sb);
-          if (!expand_macro(macro, ident, args, ident->ident, &sb)) {
+          if (!expand_macro(macro, args, ident, &sb)) {
             begin = p;
             continue;
           }

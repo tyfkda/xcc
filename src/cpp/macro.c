@@ -26,7 +26,7 @@ Macro *new_macro_single(const char *text) {
   return new_macro(NULL, false, segments);
 }
 
-bool expand_macro(Macro *macro, const Token *token, Vector *args, const Name *name, StringBuffer *sb) {
+bool expand_macro(Macro *macro, Vector *args, const Token *token, StringBuffer *sb) {
   if (macro->params != NULL) {
     if (args == NULL)
       return false;
@@ -34,11 +34,11 @@ bool expand_macro(Macro *macro, const Token *token, Vector *args, const Name *na
     if ((!macro->va_args && args->len != macro->params->len) ||
         (macro->va_args && args->len < macro->params->len)) {
       const char *cmp = args->len > macro->params->len ? "many" : "few";
-      pp_parse_error(token, "Too %s arguments for macro `%.*s'", cmp, name->bytes, name->chars);
+      pp_parse_error(token, "Too %s arguments for macro `%.*s'", cmp, token->ident->bytes, token->ident->chars);
     }
   } else {
     if (args != NULL) {
-      pp_parse_error(token, "Illegal argument for macro `%.*s'", name->bytes, name->chars);
+      pp_parse_error(token, "Illegal argument for macro `%.*s'", token->ident->bytes, token->ident->chars);
     }
   }
 

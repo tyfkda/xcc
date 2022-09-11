@@ -156,7 +156,7 @@ static PpResult expand_ident(const Token *ident) {
 
   StringBuffer sb;
   sb_init(&sb);
-  expand_macro(macro, ident, args, ident->ident, &sb);
+  expand_macro(macro, args, ident, &sb);
 
   push_lex(ident->ident, NULL);
 
