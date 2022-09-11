@@ -16,10 +16,10 @@ typedef struct Macro {
 } Macro;
 
 Macro *new_macro(Vector *params, bool va_args, Vector *body);
-bool expand_macro(Macro *macro, Vector *args, const Token *token, Vector *expanded);
 
 //
 
 void macro_add(const Name *name, Macro *macro);
 Macro *macro_get(const Name *name);
 void macro_delete(const Name *name);
+void macro_expand(Vector *tokens);

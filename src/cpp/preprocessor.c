@@ -73,17 +73,11 @@ static void handle_include(const char *p, Stream *stream) {
 
     set_source_string(p, stream->filename, stream->lineno);
     Token *ident = match(TK_IDENT);
-    Macro *macro;
     assert(ident != NULL);
-    if ((macro = can_expand_ident(ident->ident)) != NULL) {
-      Vector *args = NULL;
-      if (macro->params_len >= 0)
-        args = pp_funargs();
-
+    if (can_expand_ident(ident->ident)) {
       Vector *tokens = new_vector();
-      if (!expand_macro(macro, args, ident, tokens)) {
-        break;
-      }
+      vec_push(tokens, ident);
+      macro_expand(tokens);
       StringBuffer sb;
       sb_init(&sb);
       for (int i = 0; i < tokens->len; ++i) {
@@ -243,9 +237,7 @@ static Vector *parse_macro_body(const char *p, Stream *stream) {
       // Ignore surrounding spaces.
       const char *s = skip_whitespaces(get_lex_p());
       set_source_string(s, stream == NULL ? "?" : stream->filename, stream == NULL ? 0 : stream->lineno);
-      continue;
-    }
-    if (need_space || tok->begin != start) {
+    } else if (need_space || tok->begin != start) {
       if (tok_space == NULL)
         tok_space = alloc_token(PPTK_SPACE, " ", NULL);
       vec_push(tokens, tok_space);
@@ -421,6 +413,7 @@ static void process_line(const char *line, bool enable, Stream *stream) {
 
   for (;;) {
     const char *p = get_lex_p();
+// fprintf(stderr, "process_line: [%s], NULL=%d\n", p, p==NULL);
     if (p != NULL) {
       if (handle_block_comment(begin, &p, stream)) {
         begin = p;
@@ -434,35 +427,26 @@ static void process_line(const char *line, bool enable, Stream *stream) {
 
     if (enable) {
       Token *ident = match(TK_IDENT);
-      Macro *macro;
       if (ident != NULL) {
-        if ((macro = can_expand_ident(ident->ident)) != NULL) {
+        if (can_expand_ident(ident->ident)) {
           const char *p = begin;
           begin = ident->end;  // Update for EOF callback.
-          Vector *args = NULL;
-          if (macro->params_len >= 0)
-            args = pp_funargs();
 
           Vector *tokens = new_vector();
-          if (!expand_macro(macro, args, ident, tokens)) {
-            begin = p;
-            continue;
-          }
-          StringBuffer sb;
-          sb_init(&sb);
-          for (int i = 0; i < tokens->len; ++i) {
-            const Token *tok = tokens->data[i];
-            sb_append(&sb, tok->begin, tok->end);
-          }
+          vec_push(tokens, ident);
+          macro_expand(tokens);
 
           if (ident->begin != p)
             fwrite(p, ident->begin - p, 1, pp_ofp);
 
-          push_lex(ident->ident, &on_eof_callback);
 
-          char *expanded = sb_to_string(&sb);
-          set_source_string(expanded, NULL, -1);
-          begin = expanded;
+          // 全て展開されたはずなので、出力
+          for (int i = 0; i < tokens->len; ++i) {
+            const Token *tok = tokens->data[i];
+            fwrite(tok->begin, tok->end - tok->begin, 1, pp_ofp);
+          }
+UNUSED(on_eof_callback);
+          begin = get_lex_p();
         }
         continue;
       }
@@ -471,7 +455,7 @@ static void process_line(const char *line, bool enable, Stream *stream) {
     match(-1);
   }
 
-  if (enable)
+  if (enable && begin != NULL)
     fprintf(pp_ofp, "%s\n", begin);
   else
     fprintf(pp_ofp, "\n");
