@@ -120,6 +120,7 @@ enum TokenKind {
   // For preprocessor.
   PPTK_CONCAT,       // ##
   PPTK_STRINGIFY,    // #
+  PPTK_SPACE,        // for macro body
 };
 
 // Token
@@ -159,6 +160,7 @@ Token *match(enum TokenKind kind);
 void unget_token(Token *token);
 const char *read_ident(const char *p);
 Token *alloc_dummy_ident(void);
+Token *alloc_token(enum TokenKind kind, const char *begin, const char *end);
 const char *get_lex_p(void);
 void lex_error(const char *p, const char *fmt, ...);
 

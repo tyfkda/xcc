@@ -18,7 +18,7 @@ typedef struct {
 
 Stream *set_pp_stream(Stream *stream);
 PpResult pp_expr(void);
-Vector *pp_funargs(void);
+Vector *pp_funargs(Vector *tokens, int *pindex, int vaarg);  // <Vector*<Token*>>
 
 Token *pp_match(enum TokenKind kind);
 Token *pp_consume(enum TokenKind kind, const char *error);

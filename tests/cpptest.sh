@@ -77,7 +77,7 @@ try '#undef' 'undefined' "#define FOO\n#undef FOO\n#ifdef FOO\ndefined\n#else\nu
 try 'Param' '((1) + (2))' "#define ADD(x,y)  ((x) + (y))\nADD(1, 2)"
 try 'No arguments keeps as is' 'int MAX=123;' "#define MAX(a,b) ((a)>=(b)?(a):(b))\nint MAX=123;"
 try 'Newline in macro' '1+2' "#define ADD(x,y) x+y\nADD(1,\n2)"
-try 'Newline in macro2' '(1+ 2)' "#define FOO(x) (x)\nFOO( 1  \n + 2 )"
+try 'Newline in macro2' '(1 + 2)' "#define FOO(x) (x)\nFOO( 1  \n + 2 )"
 try 'Newline in macro3' '(123)' "#define FOO(x) (x)\nFOO\n(123)"
 try 'Block comment after #define' '88' '#define X 88/*block\ncomment*/\nX'
 try 'Nothing' 'ABC ' '#define NOTHING /*nothing*/\nABC NOTHING'
@@ -109,21 +109,24 @@ try '#line' "# 123 \"foobar.p\" 1\"foobar.p\":123" "#line  123\t\"foobar.p\"\n__
 try '#line number only' "# 123 \"*stdin*\" 1\"dummy\"\"*stdin*\":124" "#line  123\n\"dummy\"\n__FILE__:__LINE__"
 try 'Block comment' '/*block comment*/' "/*\nblock comment\n*/"
 try 'Quote in comment' "/*I'm fine*/" "/*\nI'm fine\n*/"
-try 'Concat' 'FOO_123' '#define FOO(x)  FOO_ ## x\nFOO( 123 )'
+try 'Concat' 'FOON' "#define CAT(x, y) x ## y\n#define N 1\n#define FOO1 MATCHED\nCAT(FOO, N)"
+try 'Concat indirect' 'MATCHED' "#define CAT(x, y) x ## y\n#define INDIRECT(x, y) CAT(x, y)\n#define N 1\n#define FOO1 MATCHED\nINDIRECT(FOO, N)"
 try 'Stringify' '"1 + 2"' '#define S(x)  #x\nS(1 + 2)'
 try 'Stringify escaped' '"\"abc\""' '#define S(x)  #x\nS("abc")'
 try 'recursive macro' 'SELF(123-1)' "#define SELF(n) SELF(n-1)\nSELF(123)"
 try 'recursive macro in expr' 'false' "#define SELF SELF\n#if SELF\ntrue\n#else\nfalse\n#endif"
-try 'Nested' 'foo' "#define F G\n#define G(p) p\nF(foo)"
+try 'Nested' 'H(987)' "#define F(x) C(G(x))\n#define G(x) C(H(x))\n#define C(x) x\nF(987)"
 try 'Empty arg' '"" ""' "#define F(x, y) #x #y\nF(  ,  )"
-try 'vaarg' '1 2 3,4,5' "#define VAARG(x, y, ...)  x y __VA_ARGS__\nVAARG(1, 2, 3, 4, 5)"
-try 'all vaarg' '{x,y,z};' "#define ALL(...)  {__VA_ARGS__};\nALL(x, y, z)"
-try 'no vaarg' 'foo bar' "#define NOVAARG(x, y, ...)  x y\nNOVAARG(foo, bar)"
+try 'vaarg' '1 2 (3, 4, 5)' "#define VAARG(x, y, ...)  x y (__VA_ARGS__)\nVAARG(1, 2, 3, 4, 5)"
+try 'no vaarg' '1 2 ()' "#define VAARG(x, y, ...)  x y (__VA_ARGS__)\nVAARG(1, 2)"
+try 'all vaarg' '{x, y, z};' "#define ALL(...)  {__VA_ARGS__};\nALL(x, y, z)"
 
 compile_error '#error' '#error !!!\nvoid main(){}'
 compile_error '#if not closed' '#if 1'
 compile_error '#elif not closed' '#if 0\n#elif 1'
 compile_error 'Duplicate #else' '#if 0\n#else\n#else\n#endif'
+compile_error 'less params' '#define FOO(x, y) x+y\nFOO(1)'
+compile_error 'more params' '#define FOO(x, y) x+y\nFOO(1, 2, 3)'
 
 # Include with macro
 echo "#define FOO (37)" > tmp.h
