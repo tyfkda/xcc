@@ -179,6 +179,9 @@ static void hsadd(HideSet *hs, Vector *ts) {
 
 static Vector *subst(Vector *body, Table *param_table, Vector *args, HideSet *hs) {
   Vector *os = new_vector();
+  if (body == NULL)
+    return os;
+
   for (int i = 0; i < body->len; ++i) {
     const Token *tok = body->data[i];
 
@@ -199,19 +202,25 @@ static Vector *subst(Vector *body, Table *param_table, Vector *args, HideSet *hs
     if (tok->kind == PPTK_CONCAT && os->len > 0 && i + 1 < body->len) {
       const Token *prev = os->data[os->len - 1];
       const Token *next = body->data[i + 1];
-      intptr_t j;
-      if (prev->kind == TK_IDENT && next->kind == TK_IDENT &&
-          param_table != NULL && table_try_get(param_table, next->ident, (void*)&j)) {
-        assert(j < args->len);
-        const Vector *arg = args->data[j];
-        if (arg->len > 0) {
-          os->data[os->len - 1] = glue(prev, arg->data[0]);
-          for (int k = 1; k < arg->len; ++k)
-            vec_push(os, arg->data[k]);
-          ++i;
-          continue;
+      if (prev->kind == TK_IDENT && next->kind == TK_IDENT) {
+        intptr_t j;
+        if (param_table != NULL && table_try_get(param_table, next->ident, (void*)&j)) {
+          assert(j < args->len);
+          const Vector *arg = args->data[j];
+          if (arg->len > 0) {
+            os->data[os->len - 1] = glue(prev, arg->data[0]);
+            for (int k = 1; k < arg->len; ++k)
+              vec_push(os, arg->data[k]);
+          }
+        } else {
+          os->data[os->len - 1] = glue(prev, next);
         }
+        ++i;
+        continue;
       }
+      // continue to skip `##` and just follow next token.
+      // TODO: Concatenate tokens appropriately. e.g. 123 ## UL
+      continue;
     }
 
     if (tok->kind == TK_IDENT) {

@@ -73,6 +73,7 @@ compile_error() {
 }
 
 try '#define' '0' "#define NULL 0\nNULL"
+try 'empty' '' "#define EMPTY\nEMPTY"
 try '#undef' 'undefined' "#define FOO\n#undef FOO\n#ifdef FOO\ndefined\n#else\nundefined\n#endif"
 try 'Param' '((1) + (2))' "#define ADD(x,y)  ((x) + (y))\nADD(1, 2)"
 try 'No arguments keeps as is' 'int MAX=123;' "#define MAX(a,b) ((a)>=(b)?(a):(b))\nint MAX=123;"
@@ -111,8 +112,10 @@ try 'Block comment' '/*block comment*/' "/*\nblock comment\n*/"
 try 'Quote in comment' "/*I'm fine*/" "/*\nI'm fine\n*/"
 try 'Concat' 'FOON' "#define CAT(x, y) x ## y\n#define N 1\n#define FOO1 MATCHED\nCAT(FOO, N)"
 try 'Concat indirect' 'MATCHED' "#define CAT(x, y) x ## y\n#define INDIRECT(x, y) CAT(x, y)\n#define N 1\n#define FOO1 MATCHED\nINDIRECT(FOO, N)"
+try 'Concat with non-param' 'x y z_' "#define POST(x) x ## _\nPOST(x y z)"
+try 'Concat num with postfix' '123U' "# define UINT32_C(c) c ## U\nUINT32_C(123)"
 try 'Stringify' '"1 + 2"' '#define S(x)  #x\nS(1 + 2)'
-try 'Stringify escaped' '"\"abc\""' '#define S(x)  #x\nS("abc")'
+try 'Stringify escaped' '"\"abc\""' '#define S(x)  # x\nS("abc")'
 try 'recursive macro' 'SELF(123-1)' "#define SELF(n) SELF(n-1)\nSELF(123)"
 try 'recursive macro in expr' 'false' "#define SELF SELF\n#if SELF\ntrue\n#else\nfalse\n#endif"
 try 'Nested' 'H(987)' "#define F(x) C(G(x))\n#define G(x) C(H(x))\n#define C(x) x\nF(987)"

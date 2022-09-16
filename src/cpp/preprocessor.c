@@ -233,17 +233,21 @@ static Vector *parse_macro_body(const char *p, Stream *stream) {
     Token *tok = match(-1);
     if (tok->kind == TK_EOF)
       break;
-    if (tok->kind == PPTK_CONCAT) {
-      // Ignore surrounding spaces.
-      const char *s = skip_whitespaces(get_lex_p());
-      set_source_string(s, stream == NULL ? "?" : stream->filename, stream == NULL ? 0 : stream->lineno);
-    } else if (need_space || tok->begin != start) {
-      if (tok_space == NULL)
-        tok_space = alloc_token(PPTK_SPACE, " ", NULL);
-      vec_push(tokens, tok_space);
+    if (need_space || tok->begin != start) {
+      if (tok->kind != PPTK_CONCAT) {
+        if (tok_space == NULL)
+          tok_space = alloc_token(PPTK_SPACE, " ", NULL);
+        vec_push(tokens, tok_space);
+      }
       need_space = false;
     }
     vec_push(tokens, tok);
+
+    if (tok->kind == PPTK_CONCAT || tok->kind == PPTK_STRINGIFY) {
+      // Ignore after space.
+      const char *s = skip_whitespaces(get_lex_p());
+      set_source_string(s, stream == NULL ? "?" : stream->filename, stream == NULL ? 0 : stream->lineno);
+    }
   }
   return tokens;
 }

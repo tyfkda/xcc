@@ -464,7 +464,7 @@ static Token *match2(enum TokenKind kind) {
   return pp_match(kind);
 }
 
-Token *match3(enum TokenKind kind, Vector *tokens, int *pindex) {
+static Token *match3(enum TokenKind kind, Vector *tokens, int *pindex) {
   int index = *pindex;
   Token *tok;
   if (index < tokens->len) {
@@ -486,6 +486,8 @@ Token *match3(enum TokenKind kind, Vector *tokens, int *pindex) {
 
 Vector *pp_funargs(Vector *tokens, int *pindex, int vaarg) {
   Vector *args = NULL;
+  while (match3(PPTK_SPACE, tokens, pindex))
+    ;
   if (match3(TK_LPAR, tokens, pindex)) {
     args = new_vector();
     Vector *arg = NULL;
