@@ -1,6 +1,5 @@
 #include "../config.h"
 
-#include <getopt.h>
 #include <string.h>
 
 #include "preprocessor.h"
@@ -23,13 +22,14 @@ int main(int argc, char *argv[]) {
   define_macro("__NO_FLONUM");
 #endif
 
-  struct option longopts[] = {
-    {"version", no_argument, NULL, 'V'},
+  static const struct option options[] = {
+    {"I", required_argument},  // Add include path
+    {"D", required_argument},  // Define macro
+    {"-version", no_argument, 'V'},
     {0},
   };
   int opt;
-  int longindex;
-  while ((opt = getopt_long(argc, argv, "VI:D:", longopts, &longindex)) != -1) {
+  while ((opt = optparse(argc, argv, options)) != -1) {
     switch (opt) {
     case 'V':
       show_version("cpp");

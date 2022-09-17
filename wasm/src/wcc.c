@@ -1,7 +1,6 @@
 #include "wcc.h"
 
 #include <assert.h>
-#include <getopt.h>
 #include <libgen.h>  // dirname
 #include <limits.h>  // CHAR_BIT
 #include <stdint.h>
@@ -856,16 +855,24 @@ int main(int argc, char *argv[]) {
     OPT_VERBOSE = 256,
     OPT_ENTRY_POINT,
     OPT_STACK_SIZE,
+    OPT_NODEFAULTLIBS,
+    OPT_NOSTDLIB,
   };
-  struct option longopts[] = {
-    {"verbose", no_argument, NULL, OPT_VERBOSE},
-    {"entry-point", required_argument, NULL, OPT_ENTRY_POINT},
-    {"stack-size", required_argument, NULL, OPT_STACK_SIZE},
-    {0},
+  static const struct option options[] = {
+    {"I", required_argument},  // Add include path
+    {"L", required_argument},  // Add library path
+    {"D", required_argument},  // Define macro
+    {"o", required_argument},  // Specify output filename
+    {"e", required_argument},  // Export names
+    {"nodefaultlibs", no_argument, OPT_NODEFAULTLIBS},
+    {"nostdlib", no_argument, OPT_NOSTDLIB},
+    {"-verbose", no_argument, OPT_VERBOSE},
+    {"-entry-point", required_argument, OPT_ENTRY_POINT},
+    {"-stack-size", required_argument, OPT_STACK_SIZE},
+    {NULL},
   };
   int opt;
-  int longindex;
-  while ((opt = getopt_long(argc, argv, "o:e:I:D:L:n:", longopts, &longindex)) != -1) {
+  while ((opt = optparse(argc, argv, options)) != -1) {
     switch (opt) {
     case 'o':
       ofn = optarg;
@@ -917,8 +924,8 @@ int main(int argc, char *argv[]) {
       entry_point = *optarg != '\0' ? optarg : NULL;
       break;
     default:
-      fprintf(stderr, "Unknown option: %s\n", argv[optind]);
-      return 1;
+      fprintf(stderr, "Warning: unknown option: %s\n", argv[optind - 1]);
+      break;
     }
   }
 

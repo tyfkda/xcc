@@ -2,7 +2,6 @@
 
 #include <assert.h>
 #include <fcntl.h>  // open
-#include <getopt.h>
 #include <libgen.h>  // dirname
 #include <signal.h>
 #include <stdbool.h>
@@ -274,19 +273,33 @@ int main(int argc, char *argv[]) {
 
   const char *ofn = NULL;
 
-  struct option longopts[] = {
-    {"help", no_argument, NULL, 'h'},
-    {"version", no_argument, NULL, 'V'},
-    {0},
+  enum {
+    OPT_HELP = 128,
+    OPT_VERSION,
+    OPT_NODEFAULTLIBS,
+    OPT_NOSTDLIB,
+  };
+
+  static const struct option options[] = {
+    {"c", no_argument},  // Output .o
+    {"E", no_argument},  // Output preprocess result
+    {"S", no_argument},  // Output assembly code
+    {"I", required_argument},  // Add include path
+    {"D", required_argument},  // Define macro
+    {"o", required_argument},  // Specify output filename
+    {"nodefaultlibs", no_argument, OPT_NODEFAULTLIBS},
+    {"nostdlib", no_argument, OPT_NOSTDLIB},
+    {"-help", no_argument, OPT_HELP},
+    {"-version", no_argument, OPT_VERSION},
+    {NULL},
   };
   int opt;
-  int longindex;
-  while ((opt = getopt_long(argc, argv, "hVcESI:D:o:n:", longopts, &longindex)) != -1) {
+  while ((opt = optparse(argc, argv, options)) != -1) {
     switch (opt) {
-    case 'h':
+    case OPT_HELP:
       usage(stdout);
       return 0;
-    case 'V':
+    case OPT_VERSION:
       show_version("xcc");
       return 0;
     case 'I':
@@ -310,14 +323,14 @@ int main(int argc, char *argv[]) {
     case 'S':
       out_type = OutAssembly;
       break;
-    case 'n':
-      if (strcmp(optarg, "odefaultlibs") == 0) {
-        nodefaultlibs = true;
-      } else if (strcmp(optarg, "ostdlib") == 0) {
-        nostdlib = true;
-      } else {
-        fprintf(stderr, "unknown option: n%s\n", optarg);
-      }
+    case OPT_NODEFAULTLIBS:
+      nodefaultlibs = true;
+      break;
+    case OPT_NOSTDLIB:
+      nostdlib = true;
+      break;
+    default:
+      fprintf(stderr, "Warning: unknown option: %s\n", argv[optind - 1]);
       break;
     }
   }

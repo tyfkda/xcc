@@ -2,7 +2,6 @@
 
 #include <assert.h>
 #include <ctype.h>
-#include <getopt.h>
 #include <stdint.h>  // uintptr_t
 #include <stdio.h>
 #include <stdlib.h>  // malloc, calloc
@@ -430,17 +429,16 @@ static int output_obj(const char *ofn, Table *label_table, Vector *unresolved) {
 
 int main(int argc, char *argv[]) {
   const char *ofn = NULL;
-  enum LongOpt {
+  enum {
     OPT_LOCAL_LABEL_PREFIX = 256,
   };
-  struct option longopts[] = {
-    {"version", no_argument, NULL, 'V'},
-    {0},
+  static const struct option options[] = {
+    {"o", required_argument},  // Specify output filename
+    {"-version", no_argument, 'V'},
+    {NULL},
   };
-  const char shortopts[] = "Vo:";
   int opt;
-  int longindex;
-  while ((opt = getopt_long(argc, argv, shortopts, longopts, &longindex)) != -1) {
+  while ((opt = optparse(argc, argv, options)) != -1) {
     switch (opt) {
     case 'V':
       show_version("as");

@@ -1,7 +1,6 @@
 #include "../config.h"
 
 #include <assert.h>
-#include <getopt.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -40,13 +39,12 @@ static void compile1(FILE *ifp, const char *filename, Vector *decls) {
 }
 
 int main(int argc, char *argv[]) {
-  struct option longopts[] = {
-    {"version", no_argument, NULL, 'V'},
-    {0},
+  static const struct option options[] = {
+    {"-version", no_argument, 'V'},
+    {NULL},
   };
   int opt;
-  int longindex;
-  while ((opt = getopt_long(argc, argv, "V", longopts, &longindex)) != -1) {
+  while ((opt = optparse(argc, argv, options)) != -1) {
     switch (opt) {
     case 'V':
       show_version("cc1");

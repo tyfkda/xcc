@@ -79,3 +79,19 @@ void sb_append(StringBuffer *sb, const char *start, const char *end);
 char *sb_to_string(StringBuffer *sb);
 
 void escape_string(const char *str, size_t size, StringBuffer *sb);
+
+// Optparse
+
+#define no_argument        (0)
+#define required_argument  (1)
+
+struct option {
+  const char *name;
+  int has_arg;
+  int val;
+};
+
+extern int optind, opterr, optopt;
+extern char *optarg;
+
+int optparse(int argc, char *const argv[], const struct option *opts);

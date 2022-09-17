@@ -486,3 +486,62 @@ void escape_string(const char *str, size_t size, StringBuffer *sb) {
   if (p > s)
     sb_append(sb, s, p);
 }
+
+// Optparse
+
+int optind, optopt;
+int opterr = 1;
+char *optarg;
+
+int optparse(int argc, char *const argv[], const struct option *opts) {
+#define ERROR(...)  do { if (opterr) fprintf(stderr, __VA_ARGS__); } while (0)
+  if (optind == 0) {
+    optind = 1;
+  }
+
+  if (optind >= argc)
+    return -1;
+
+  optarg = NULL;
+  optopt = 0;
+
+  char *arg = argv[optind];
+  char *p = arg;
+  if (*p != '-')
+    return -1;
+
+  p += 1;
+  ++optind;
+  for (; opts->name != NULL; ++opts) {
+    size_t len = strlen(opts->name);
+    if (strncmp(p, opts->name, len) == 0) {
+      int opt = opts->val;
+      if (opt == 0)
+        opt = arg[1];
+      char *q = p + len;
+      char c = *q;
+      if (opts->has_arg) {
+        if (c != '\0') {
+          optarg = q + (c == '=' ? 1 : 0);
+        } else if (optind < argc) {
+          optarg = argv[optind++];
+        } else {
+          ERROR("%s: option '--%s' requires an argument\n", argv[0], opts->name);
+          break;
+        }
+      } else {
+        if (c != '\0') {
+          if (c != '=')
+            continue;
+          ERROR("%s: option '--%s' doesn't allow an argument\n", argv[0], opts->name);
+          break;
+        }
+      }
+      return opt;
+    }
+  }
+
+  optopt = arg[1];
+  return '?';
+#undef ERROR
+}

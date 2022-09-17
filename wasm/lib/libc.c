@@ -1,7 +1,6 @@
 #include <../libsrc/misc/basename.c>
 #include <../libsrc/misc/dirname.c>
 #include <../libsrc/misc/errno.c>
-#include <../libsrc/misc/getopt.c>
 #include <../libsrc/misc/isalnum.c>
 #include <../libsrc/misc/isalpha.c>
 #include <../libsrc/misc/isdigit.c>

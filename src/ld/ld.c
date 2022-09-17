@@ -1,5 +1,4 @@
 #include <assert.h>
-#include <getopt.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -449,13 +448,14 @@ int main(int argc, char *argv[]) {
   const char *ofn = NULL;
   const char *entry = kDefaultEntryName;
 
-  struct option longopts[] = {
-    {"version", no_argument, NULL, 'V'},
-    {0},
+  static const struct option options[] = {
+    {"o", required_argument},  // Specify output filename
+    {"e", required_argument},  // Entry name
+    {"-version", no_argument, 'V'},
+    {NULL},
   };
   int opt;
-  int longindex;
-  while ((opt = getopt_long(argc, argv, "Vo:e:", longopts, &longindex)) != -1) {
+  while ((opt = optparse(argc, argv, options)) != -1) {
     switch (opt) {
     case 'V':
       show_version("ld");
@@ -467,8 +467,8 @@ int main(int argc, char *argv[]) {
       entry = optarg;
       break;
     default:
-      fprintf(stderr, "Unknown option: %s\n", argv[optind]);
-      return 1;
+      fprintf(stderr, "Warning: unknown option: %s\n", argv[optind - 1]);
+      break;
     }
   }
 
