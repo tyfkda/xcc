@@ -278,6 +278,14 @@ int main(int argc, char *argv[]) {
     OPT_VERSION,
     OPT_NODEFAULTLIBS,
     OPT_NOSTDLIB,
+
+    OPT_WARNING,
+    OPT_OPTIMIZE,
+    OPT_DEBUGINFO,
+    OPT_ANSI,
+    OPT_STD,
+    OPT_PEDANTIC,
+    OPT_MMD,
   };
 
   static const struct option options[] = {
@@ -291,6 +299,16 @@ int main(int argc, char *argv[]) {
     {"nostdlib", no_argument, OPT_NOSTDLIB},
     {"-help", no_argument, OPT_HELP},
     {"-version", no_argument, OPT_VERSION},
+
+    // Suppress warnings
+    {"W", required_argument, OPT_WARNING},
+    {"O", required_argument, OPT_OPTIMIZE},
+    {"g", required_argument, OPT_DEBUGINFO},
+    {"ansi", no_argument, OPT_ANSI},
+    {"std", required_argument, OPT_STD},
+    {"pedantic", no_argument, OPT_PEDANTIC},
+    {"MMD", no_argument, OPT_MMD},
+
     {NULL},
   };
   int opt;
@@ -331,6 +349,16 @@ int main(int argc, char *argv[]) {
       break;
     default:
       fprintf(stderr, "Warning: unknown option: %s\n", argv[optind - 1]);
+      break;
+
+    case OPT_WARNING:
+    case OPT_OPTIMIZE:
+    case OPT_DEBUGINFO:
+    case OPT_ANSI:
+    case OPT_STD:
+    case OPT_PEDANTIC:
+    case OPT_MMD:
+      // Silently ignored.
       break;
     }
   }
