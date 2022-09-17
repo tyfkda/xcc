@@ -7,8 +7,8 @@ OBJ_DIR:=obj
 OPTIMIZE:=-O2 -g3
 CFLAGS:=-ansi -std=c11 -pedantic -MMD -Wall -Wextra -Werror -Wold-style-definition \
 	-Wno-missing-field-initializers -Wno-typedef-redefinition -Wno-empty-body \
-	-D_DEFAULT_SOURCE
-CFLAGS+=-I$(CC1_DIR) -I$(CPP_DIR) -I$(UTIL_DIR) $(OPTIMIZE)
+	-D_DEFAULT_SOURCE \
+	-I$(CC1_DIR) -I$(CPP_DIR) -I$(UTIL_DIR) $(OPTIMIZE)
 
 WCC_DIR:=src
 WCC_SRCS:=$(wildcard $(WCC_DIR)/*.c) \
@@ -59,16 +59,18 @@ clean:
 
 ### Self hosting
 
+GEN2CC:=node ../runtime/runwasm.js ../cc.wasm --
+
 .PHONY: gen2
 gen2:	wcc
 	$(MAKE) HOST_TARGET=wcc HOST_CC="./wcc" TARGET= self-hosting
 .PHONY: test-gen2
 test-gen2: gen2
-	$(MAKE) TARGET_CC="node ../runtime/runwasm.js ../cc.wasm --" test-self-hosting
+	$(MAKE) TARGET_CC="$(GEN2CC)" test-self-hosting
 
 .PHONY: gen3
 gen3:	gen2
-	$(MAKE) HOST_TARGET=gen2 HOST_CC="node ./runtime/runwasm.js ./cc.wasm --" TARGET=gen3 self-hosting
+	$(MAKE) HOST_TARGET=gen2 HOST_CC="$(GEN2CC)" TARGET=gen3 self-hosting
 
 .PHONY: diff-gen23
 diff-gen23:	gen2 gen3
