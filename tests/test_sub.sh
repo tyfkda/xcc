@@ -177,7 +177,8 @@ function check_error_line() {
 
   local actual
   actual=$(echo -e "$input" | $XCC -o "$AOUT" -Wall -Werror -xc - 2>&1 | \
-      grep -E -o '\([0-9]+\)' | sed 's/[()]//g' | head -n 1)
+      grep -E -o '^<.*>:[0-9]+:' | sed 's/[^0-9]//g' | head -n 1)
+      # grep -E -o '\([0-9]+\)' | sed 's/[()]//g' | head -n 1)
 
   local err=''; [[ "$actual" == "$expected" ]] || err="${expected} expected, but ${actual}"
   end_test "$err"

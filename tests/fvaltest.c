@@ -40,7 +40,14 @@ TEST(mix) {
   }
 
   {
+#if defined(__GNUC__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wimplicit-const-int-float-conversion"
+#endif
     double d = 0xf123456789012345LLU;
+#if defined(__GNUC__)
+#pragma GCC diagnostic pop
+#endif
     uint64_t x = d;
     char buf[32];
     snprintf(buf, sizeof(buf), "%" PRIx64, x);
@@ -49,7 +56,14 @@ TEST(mix) {
 #endif
 
 #ifndef USE_SINGLE
+#if defined(__GNUC__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wliteral-range"
+#endif
   EXPECT_TRUE(DBL_MAX != INFINITY);
+#if defined(__GNUC__)
+#pragma GCC diagnostic pop
+#endif
   EXPECT_TRUE(DBL_MAX < INFINITY);
   EXPECT_TRUE(DBL_MIN != 0.0);
   EXPECT_TRUE(DBL_MIN > 0.0);
