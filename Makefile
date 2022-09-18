@@ -346,3 +346,20 @@ $(1):	$$($(1)_OBJS)
 	$(CC) -o $$@ $(DEBUG_CFLAGS) $$^
 endef
 $(foreach D, $(DEBUG_EXES), $(eval $(call DEFINE_DEBUG_TARGET,$(D))))
+
+### Test "Test code"
+
+GCCFLAGS:=-Wno-unused-value \
+	-Wno-error=overflow -Wno-implicit-int \
+	-Wno-shift-op-parentheses \
+	-Wno-deprecated-non-prototype \
+	-Wno-string-plus-int \
+	-Wno-gnu-designator \
+	-Wno-constant-conversion -Wno-bitfield-constant-conversion \
+	-Wno-macro-redefined \
+	-Wno-parentheses -Wno-parentheses -Wno-array-compare
+
+.PHONY:	test-test
+test-test:
+	$(MAKE) XCC="gcc $(GCCFLAGS)" CPP="cpp" \
+		-C tests clean cc-tests misc-tests

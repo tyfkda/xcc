@@ -764,8 +764,10 @@ TEST(all) {
     char buf[3] = {};
     EXPECT("char array with empty initializer", 0, buf[0]);
 
+#if !defined(__GNUC__)
     int z = {};
     EXPECT("primitive with empty initializer", 0, z);
+#endif
   }
   {
     struct {int x; int y;} s = {3};
@@ -1040,6 +1042,7 @@ TEST(basic) {
 
   {
     typedef char T1, T2[29];
+    EXPECT("multi typedef", 1, sizeof(T1));
     EXPECT("multi typedef", 29, sizeof(T2));
   }
 
@@ -1155,18 +1158,32 @@ TTT:;
     EXPECT("switch w/o case", 1, x);
 
     x = 0;
+#if defined(__GNUC__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wswitch-unreachable"
+#endif
     switch (z) {
       x = 1;
     }
+#if defined(__GNUC__)
+#pragma GCC diagnostic pop
+#endif
     EXPECT("switch w/o case & default", 0, x);
 
 #if !defined(__WASM)
     x = 94;
+#if defined(__GNUC__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wswitch-unreachable"
+#endif
     switch (z) {
       if (0) {
         default: x = 49;
       }
     }
+#if defined(__GNUC__)
+#pragma GCC diagnostic pop
+#endif
     EXPECT("switch-if-default", 49, x);
 #endif
 
@@ -1885,6 +1902,7 @@ int vaarg_and_array(int n, ...) {
   for (int i = 0; i < n; ++i)
     sum += va_arg(ap, int);
   va_end(ap);
+  (void)a;
   return sum;
 }
 
