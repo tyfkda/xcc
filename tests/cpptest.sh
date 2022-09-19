@@ -114,6 +114,9 @@ try 'Concat' 'FOON' "#define CAT(x, y) x ## y\n#define N 1\n#define FOO1 MATCHED
 try 'Concat indirect' 'MATCHED' "#define CAT(x, y) x ## y\n#define INDIRECT(x, y) CAT(x, y)\n#define N 1\n#define FOO1 MATCHED\nINDIRECT(FOO, N)"
 try 'Concat with non-param' 'x y z_' "#define POST(x) x ## _\nPOST(x y z)"
 try 'Concat num with postfix' '123U' "# define UINT32_C(c) c ## U\nUINT32_C(123)"
+try 'Concat empty l' 'R' "#define CAT(x, y) x ## y\nCAT(, R)"
+try 'Concat empty r' 'L' "#define CAT(x, y) x ## y\nCAT(L, )"
+try 'Concat empty both' '' "#define CAT(x, y) x ## y\nCAT(, )"
 try 'Stringify' '"1 + 2"' '#define S(x)  #x\nS(1 + 2)'
 try 'Stringify escaped' '"\"abc\""' '#define S(x)  # x\nS("abc")'
 try 'recursive macro' 'SELF(123-1)' "#define SELF(n) SELF(n-1)\nSELF(123)"
