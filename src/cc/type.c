@@ -466,9 +466,12 @@ static void print_func_params(FILE *fp, const Type *type) {
   fprintf(fp, ")");
 }
 
-static void print_ptr_type(FILE *fp, const Type *_type) {
-  UNUSED(_type);
+static void print_ptr_type(FILE *fp, const Type *type) {
   fprintf(fp, "*");
+  if (type->qualifier & TQ_CONST)
+    fprintf(fp, " const");
+  if (type->qualifier & TQ_VOLATILE)
+    fprintf(fp, " volatile");
 }
 
 static void print_nested_ptr_type(FILE *fp, const Type *type) {
@@ -492,10 +495,12 @@ static void print_array_type(FILE *fp, const Type *type) {
 }
 
 void print_type_recur(FILE *fp, const Type *type, PrintTypeChain *parent) {
-  if (type->qualifier & TQ_CONST)
-    fprintf(fp, "const ");
-  if (type->qualifier & TQ_VOLATILE)
-    fprintf(fp, "volatile ");
+  if (type->kind != TY_PTR) {
+    if (type->qualifier & TQ_CONST)
+      fprintf(fp, "const ");
+    if (type->qualifier & TQ_VOLATILE)
+      fprintf(fp, "volatile ");
+  }
 
   switch (type->kind) {
   case TY_VOID:
@@ -576,7 +581,7 @@ void print_type_recur(FILE *fp, const Type *type, PrintTypeChain *parent) {
         PrintTypeChain chain = {
           parent,
           print_ptr_type,
-          NULL,
+          type,
         };
         print_type_recur(fp, type->pa.ptrof, &chain);
       }

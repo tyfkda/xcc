@@ -54,6 +54,15 @@ void print_type_test(void) {
     check_print_type("enum Enum", type);
   }
 
+  check_print_type("const int", get_fixnum_type(FX_INT, false, TQ_CONST));
+  check_print_type("const int*", ptrof(get_fixnum_type(FX_INT, false, TQ_CONST)));
+  { Type *t = ptrof(&tyInt); t->qualifier = TQ_CONST; check_print_type("int* const", t); }
+  {
+    Type *t = ptrof(get_fixnum_type(FX_INT, false, TQ_CONST)); t->qualifier = TQ_CONST;
+    Type *u = ptrof(t); u->qualifier = TQ_CONST;
+    check_print_type("const int* const* const", u);
+  }
+
   {
     Vector *members = new_vector();
     StructInfo *sinfo = create_struct_info(members, false);
