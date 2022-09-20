@@ -293,7 +293,19 @@ Initializer *flatten_initializer(Type *type, Initializer *init) {
 
   switch (type->kind) {
   case TY_STRUCT:
-    if (init->kind == IK_MULTI) {
+    if (init->kind == IK_SINGLE) {
+      Expr *e = init->single;
+      assert(same_type(type, e->type));
+      if (e->kind == EX_COMPLIT) {
+        init = flatten_initializer(type, e->complit.original_init);
+        assert(init->kind == IK_MULTI);
+        Expr *var = e->complit.var;
+        VarInfo *varinfo = scope_find(var->var.scope, var->var.name, NULL);
+        assert(varinfo != NULL);
+        if (is_global_scope(var->var.scope))
+          varinfo->global.init = init;
+      }
+    } else if (init->kind == IK_MULTI) {
       const StructInfo *sinfo = type->struct_.info;
       int n = sinfo->members->len;
       int m = init->multi->len;
@@ -336,8 +348,10 @@ Initializer *flatten_initializer(Type *type, Initializer *init) {
             value = init2;
           }
         }
-        if (index >= n)
-          parse_error(PE_FATAL, NULL, "Too many init values");
+        if (index >= n) {
+          parse_error(PE_NOFATAL, value->token, "Too many init values");
+          return NULL;
+        }
 
         // Allocate string literal for char* as a char array.
         if (value->kind == IK_SINGLE && value->single->kind == EX_STR) {
@@ -348,6 +362,8 @@ Initializer *flatten_initializer(Type *type, Initializer *init) {
           }
         }
 
+        MemberInfo *minfo = sinfo->members->data[index];
+        value = flatten_initializer(minfo->type, value);
         values[index++] = value;
       }
 
@@ -364,7 +380,17 @@ Initializer *flatten_initializer(Type *type, Initializer *init) {
   case TY_ARRAY:
     switch (init->kind) {
     case IK_MULTI:
-      init = flatten_array_initializer(init);
+      {
+        init = flatten_array_initializer(init);
+        assert(init->kind == IK_MULTI);
+        Type *elem_type = type->pa.ptrof;
+        for (int i = 0; i < init->multi->len; ++i) {
+          Initializer **pp = (Initializer**)&init->multi->data[i];
+          if ((*pp)->kind == IK_ARR)
+            pp = &(*pp)->arr.value;
+          *pp = flatten_initializer(elem_type, *pp);
+        }
+      }
       break;
     case IK_SINGLE:
       // Special handling for string (char[]), and accept length difference.
@@ -387,8 +413,23 @@ Initializer *flatten_initializer(Type *type, Initializer *init) {
         break;
       }
     }
-    break;
+    // Fallthrough
   default:
+    switch (init->kind) {
+    case IK_MULTI:
+      if (init->multi->len != 1 || ((Initializer*)init->multi->data[0])->kind != IK_SINGLE) {
+        parse_error(PE_NOFATAL, init->token, "Requires scaler");
+        break;
+      }
+      init = init->multi->data[0];
+      // Fallthrough
+    case IK_SINGLE:
+      break;
+    default:
+      parse_error(PE_NOFATAL, init->token, "Error initializer");
+      // TODO: Modify init
+      break;
+    }
     break;
   }
   return init;
@@ -456,8 +497,6 @@ static Expr *check_global_initializer_fixnum(Expr *value, bool *isconst) {
 static Initializer *check_global_initializer(Type *type, Initializer *init) {
   if (init == NULL)
     return NULL;
-
-  init = flatten_initializer(type, init);
 
   switch (type->kind) {
 #ifndef __NO_FLONUM
@@ -527,19 +566,6 @@ static Initializer *check_global_initializer(Type *type, Initializer *init) {
     break;
   case TY_STRUCT:
     {
-      if (init->kind == IK_SINGLE) {
-        Expr *e = init->single;
-        if (e->kind != EX_COMPLIT || !can_cast(type, e->type, false, false)) {
-          parse_error(PE_NOFATAL, init->token, "Struct initializer requires `{'");
-          break;
-        }
-        init = flatten_initializer(type, e->complit.original_init);
-        Expr *var = e->complit.var;
-        VarInfo *varinfo = scope_find(var->var.scope, var->var.name, NULL);
-        assert(varinfo != NULL);
-        assert(is_global_scope(var->var.scope));
-        varinfo->global.init = init;
-      }
       assert(init->kind == IK_MULTI);
       const StructInfo *sinfo = type->struct_.info;
       for (int i = 0, n = sinfo->members->len; i < n; ++i) {
@@ -563,9 +589,6 @@ Vector *assign_initial_value(Expr *expr, Initializer *init, Vector *inits) {
 
   if (inits == NULL)
     inits = new_vector();
-
-  Initializer *org_init = init;
-  init = flatten_initializer(expr->type, init);
 
   switch (expr->type->kind) {
   case TY_ARRAY:
@@ -651,41 +674,32 @@ Vector *assign_initial_value(Expr *expr, Initializer *init, Vector *inits) {
         int m = init->multi->len;
         if (n <= 0 && m > 0)
           parse_error(PE_FATAL, init->token, "Initializer for empty union");
-        if (org_init->multi->len > 1)
-          parse_error(PE_FATAL, init->token, "More than one initializer for union");
 
+        int count = 0;
         for (int i = 0; i < n; ++i) {
           Initializer *init_elem = init->multi->data[i];
           if (init_elem == NULL)
             continue;
+          if (count > 0) {
+            parse_error(PE_FATAL, init_elem->token, "More than one initializer for union");
+            break;
+          }
+
           const VarInfo *member = sinfo->members->data[i];
           Expr *mem = new_expr_member(NULL, member->type, expr, NULL, i);
           assign_initial_value(mem, init_elem, inits);
-          break;
+          ++count;
         }
       }
     }
     break;
   default:
-    switch (init->kind) {
-    case IK_MULTI:
-      if (init->multi->len != 1 || ((Initializer*)init->multi->data[0])->kind != IK_SINGLE) {
-        parse_error(PE_NOFATAL, init->token, "Requires scaler");
-        break;
-      }
-      init = init->multi->data[0];
-      // Fallthrough
-    case IK_SINGLE:
-      {
-        Expr *value = str_to_char_array_var(curscope, init->single, toplevel);
-        vec_push(inits,
-                 new_stmt_expr(new_expr_bop(EX_ASSIGN, expr->type, init->token, expr,
-                                            make_cast(expr->type, init->token, value, false))));
-      }
-      break;
-    default:
-      parse_error(PE_FATAL, init->token, "Error initializer");
-      break;
+    {
+      assert(init->kind == IK_SINGLE);
+      Expr *value = str_to_char_array_var(curscope, init->single, toplevel);
+      vec_push(inits,
+                new_stmt_expr(new_expr_bop(EX_ASSIGN, expr->type, init->token, expr,
+                                           make_cast(expr->type, init->token, value, false))));
     }
     break;
   }
@@ -700,6 +714,7 @@ Vector *construct_initializing_stmts(Vector *decls) {
     if (decl->storage & VS_STATIC)
       continue;
     Expr *var = new_expr_variable(decl->ident->ident, decl->type, NULL, curscope);
+    decl->init = flatten_initializer(var->type, decl->init);
     inits = assign_initial_value(var, decl->init, inits);
   }
   return inits;
@@ -720,6 +735,7 @@ static Initializer *check_vardecl(Type **ptype, const Token *ident, int storage,
     if (storage & VS_STATIC) {
       VarInfo *gvarinfo = varinfo->static_.gvar;
       assert(gvarinfo != NULL);
+      init = flatten_initializer(type, init);
       gvarinfo->global.init = init = check_global_initializer(type, init);
       gvarinfo->type = type;
       // static variable initializer is handled in codegen, same as global variable.
@@ -735,6 +751,7 @@ static Initializer *check_vardecl(Type **ptype, const Token *ident, int storage,
     // Toplevel
     VarInfo *gvarinfo = scope_find(global_scope, ident->ident, NULL);
     assert(gvarinfo != NULL);
+    init = flatten_initializer(type, init);
     gvarinfo->global.init = init = check_global_initializer(type, init);
     gvarinfo->type = type;
   }

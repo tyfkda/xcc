@@ -1276,6 +1276,7 @@ static Expr *parse_compound_literal(Type *type) {
     vec_push(toplevel, new_decl_vardecl(decls));
     varinfo->global.init = init;
   } else {
+    init = flatten_initializer(var->type, init);
     inits = assign_initial_value(var, init, NULL);
   }
 
