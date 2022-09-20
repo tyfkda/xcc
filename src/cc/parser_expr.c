@@ -15,9 +15,6 @@
 #include "util.h"
 #include "var.h"
 
-Scope *curscope;
-Vector *toplevel;
-
 static Table builtin_expr_ident_table;
 
 static StructInfo *parse_struct(bool is_union);

@@ -20,6 +20,9 @@ const int LF_BREAK = 1 << 0;
 const int LF_CONTINUE = 1 << 0;
 
 Function *curfunc;
+Scope *curscope;
+Vector *toplevel;
+
 static int curloopflag;
 Stmt *curswitch;
 
