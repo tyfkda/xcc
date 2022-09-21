@@ -214,16 +214,10 @@ Stmt *new_stmt_switch(const Token *token, Expr *value) {
   return stmt;
 }
 
-Stmt *new_stmt_case(const Token *token, Expr *value) {
-  Stmt *stmt = new_stmt(ST_CASE, token);
+Stmt *new_stmt_case(const Token *token, Stmt *swtch, Expr *value) {
+  Stmt *stmt = new_stmt(value != NULL ? ST_CASE : ST_DEFAULT, token);
+  stmt->case_.swtch = swtch;
   stmt->case_.value = value;
-  stmt->case_.bb = NULL;
-  return stmt;
-}
-
-Stmt *new_stmt_default(const Token *token) {
-  Stmt *stmt = new_stmt(ST_DEFAULT, token);
-  stmt->case_.value = NULL;
   stmt->case_.bb = NULL;
   return stmt;
 }
@@ -232,13 +226,6 @@ Stmt *new_stmt_while(const Token *token, Expr *cond, Stmt *body) {
   Stmt *stmt = new_stmt(ST_WHILE, token);
   stmt->while_.cond = cond;
   stmt->while_.body = body;
-  return stmt;
-}
-
-Stmt *new_stmt_do_while(Stmt *body, const Token *token, Expr *cond) {
-  Stmt *stmt = new_stmt(ST_DO_WHILE, token);
-  stmt->while_.body = body;
-  stmt->while_.cond = cond;
   return stmt;
 }
 

@@ -16,19 +16,24 @@
 
 #define MAX_ERROR_COUNT  (25)
 
-const int LF_BREAK = 1 << 0;
-const int LF_CONTINUE = 1 << 0;
-
 Function *curfunc;
 Scope *curscope;
 Vector *toplevel;
 
-static int curloopflag;
-Stmt *curswitch;
-
 int compile_error_count;
 
 static Stmt *parse_stmt(void);
+
+typedef struct {
+  Stmt *swtch;
+  Stmt *break_;
+  Stmt *continu;
+} LoopScope;
+
+static LoopScope loop_scope;
+
+#define SAVE_LOOP_SCOPE(var, b, c)  LoopScope var = loop_scope; if (b != NULL) loop_scope.break_ = b; if (c != NULL) loop_scope.continu = c;
+#define RESTORE_LOOP_SCOPE(var)     loop_scope = var
 
 VarInfo *add_var_to_scope(Scope *scope, const Token *ident, Type *type, int storage) {
   assert(ident != NULL);
@@ -939,18 +944,27 @@ static Stmt *parse_switch(const Token *tok) {
   not_void(value->type, value->token);
   consume(TK_RPAR, "`)' expected");
 
-  Stmt *swtch = new_stmt_switch(tok, value);
-  Stmt *save_switch = curswitch;
-  int save_flag = curloopflag;
-  curloopflag |= LF_BREAK;
-  curswitch = swtch;
+  Stmt *stmt = new_stmt_switch(tok, value);
+  SAVE_LOOP_SCOPE(save, stmt, NULL);
+  loop_scope.swtch = stmt;
 
-  swtch->switch_.body = parse_stmt();
+  stmt->switch_.body = parse_stmt();
 
-  curloopflag = save_flag;
-  curswitch = save_switch;
+  RESTORE_LOOP_SCOPE(save);
 
-  return swtch;
+  return stmt;
+}
+
+static int find_case(Stmt *swtch, Fixnum v) {
+  Vector *cases = swtch->switch_.cases;
+  for (int i = 0, len = cases->len; i < len; ++i) {
+    Stmt *c = cases->data[i];
+    if (c->case_.value == NULL)
+      continue;
+    if (c->case_.value->fixnum == v)
+      return i;
+  }
+  return -1;
 }
 
 static Stmt *parse_case(const Token *tok) {
@@ -958,21 +972,15 @@ static Stmt *parse_case(const Token *tok) {
   consume(TK_COLON, "`:' expected");
   assert(value->kind == EX_FIXNUM);
 
-  Stmt *stmt = new_stmt_case(tok, value);
-  if (curswitch == NULL) {
-    parse_error(tok, "`case' cannot use outside of `switch`");
+  Stmt *stmt = NULL;
+  Stmt *swtch = loop_scope.swtch;
+  if (swtch == NULL) {
+    parse_error_nofatal(tok, "`case' cannot use outside of `switch`");
+  } else if (find_case(swtch, value->fixnum) >= 0) {
+    parse_error_nofatal(tok, "Case value `%" PRIdPTR "' already defined", value->fixnum);
   } else {
-    // Check duplication.
-    Fixnum v = value->fixnum;
-    Vector *cases = curswitch->switch_.cases;
-    for (int i = 0, len = cases->len; i < len; ++i) {
-      Stmt *c = cases->data[i];
-      if (c->case_.value == NULL)
-        continue;
-      if (c->case_.value->fixnum == v)
-        parse_error_nofatal(tok, "Case value `%" PRIdPTR "' already defined", v);
-    }
-    vec_push(cases, stmt);
+    stmt = new_stmt_case(tok, swtch, value);
+    vec_push(swtch->switch_.cases, stmt);
   }
   return stmt;
 }
@@ -980,14 +988,16 @@ static Stmt *parse_case(const Token *tok) {
 static Stmt *parse_default(const Token *tok) {
   consume(TK_COLON, "`:' expected");
 
-  Stmt *stmt = new_stmt_default(tok);
-  if (curswitch == NULL) {
+  Stmt *stmt = NULL;
+  Stmt *swtch = loop_scope.swtch;
+  if (swtch == NULL) {
     parse_error_nofatal(tok, "`default' cannot use outside of `switch'");
-  } else if (curswitch->switch_.default_ != NULL) {
+  } else if (swtch->switch_.default_ != NULL) {
     parse_error_nofatal(tok, "`default' already defined in `switch'");
   } else {
-    curswitch->switch_.default_ = stmt;
-    vec_push(curswitch->switch_.cases, stmt);
+    stmt = new_stmt_default(tok, swtch);
+    swtch->switch_.default_ = stmt;
+    vec_push(swtch->switch_.cases, stmt);
   }
   return stmt;
 }
@@ -997,30 +1007,33 @@ static Stmt *parse_while(const Token *tok) {
   Expr *cond = make_cond(parse_expr());
   consume(TK_RPAR, "`)' expected");
 
-  int save_flag = curloopflag;
-  curloopflag |= LF_BREAK | LF_CONTINUE;
+  Stmt *stmt = new_stmt_while(tok, cond, NULL);
 
-  Stmt *body = parse_stmt();
+  SAVE_LOOP_SCOPE(save, stmt, stmt);
 
-  curloopflag = save_flag;
+  stmt->while_.body = parse_stmt();
 
-  return new_stmt_while(tok, cond, body);
+  RESTORE_LOOP_SCOPE(save);
+
+  return stmt;
 }
 
-static Stmt *parse_do_while(void) {
-  int save_flag = curloopflag;
-  curloopflag |= LF_BREAK | LF_CONTINUE;
+static Stmt *parse_do_while(const Token *tok) {
+  Stmt *stmt = new_stmt(ST_DO_WHILE, tok);
 
-  Stmt *body = parse_stmt();
+  SAVE_LOOP_SCOPE(save, stmt, stmt);
+  loop_scope.break_ = loop_scope.continu = stmt;
 
-  curloopflag = save_flag;
+  stmt->while_.body = parse_stmt();
 
-  const Token *tok = consume(TK_WHILE, "`while' expected");
+  RESTORE_LOOP_SCOPE(save);
+
+  consume(TK_WHILE, "`while' expected");
   consume(TK_LPAR, "`(' expected");
-  Expr *cond = make_cond(parse_expr());
+  stmt->while_.cond = make_cond(parse_expr());
   consume(TK_RPAR, "`)' expected");
   consume(TK_SEMICOL, "`;' expected");
-  return new_stmt_do_while(body, tok, cond);
+  return stmt;
 }
 
 static Stmt *parse_for(const Token *tok) {
@@ -1047,7 +1060,6 @@ static Stmt *parse_for(const Token *tok) {
 
   Expr *cond = NULL;
   Expr *post = NULL;
-  Stmt *body = NULL;
   if (!match(TK_SEMICOL)) {
     cond = make_cond(parse_expr());
     consume(TK_SEMICOL, "`;' expected");
@@ -1057,10 +1069,13 @@ static Stmt *parse_for(const Token *tok) {
     consume(TK_RPAR, "`)' expected");
   }
 
-  int save_flag = curloopflag;
-  curloopflag |= LF_BREAK | LF_CONTINUE;
+  Stmt *stmt = new_stmt_for(tok, pre, cond, post, NULL);
 
-  body = parse_stmt();
+  SAVE_LOOP_SCOPE(save, stmt, stmt);
+
+  stmt->for_.body = parse_stmt();
+
+  RESTORE_LOOP_SCOPE(save);
 
   Vector *stmts = new_vector();
   if (decls != NULL) {
@@ -1068,27 +1083,24 @@ static Stmt *parse_for(const Token *tok) {
     vec_push(stmts, new_stmt_vardecl(decls, inits));
   }
 
-  curloopflag = save_flag;
-
   if (scope != NULL)
     exit_scope();
 
-  Stmt *stmt = new_stmt_for(tok, pre, cond, post, body);
   vec_push(stmts, stmt);
   return new_stmt_block(tok, stmts, scope);
 }
 
 static Stmt *parse_break_continue(enum StmtKind kind, const Token *tok) {
   consume(TK_SEMICOL, "`;' expected");
-  if ((curloopflag & LF_BREAK) == 0) {
-    const char *err;
-    if (kind == ST_BREAK)
-      err = "`break' cannot be used outside of loop";
-    else
-      err = "`continue' cannot be used outside of loop";
-    parse_error_nofatal(tok, err);
+  Stmt *parent = kind == ST_BREAK ? loop_scope.break_ : loop_scope.continu;
+  if (parent == NULL) {
+    parse_error_nofatal(tok, "`%.*s' cannot be used outside of loop",
+                        (int)(tok->end - tok->begin), tok->begin);
+    return NULL;
   }
-  return new_stmt(kind, tok);
+  Stmt *stmt = new_stmt(kind, tok);
+  stmt->break_.parent = parent;
+  return stmt;
 }
 
 static Stmt *parse_goto(const Token *tok) {
@@ -1213,7 +1225,7 @@ static Stmt *parse_stmt(void) {
   case TK_WHILE:
     return parse_while(tok);
   case TK_DO:
-    return parse_do_while();
+    return parse_do_while(tok);
   case TK_FOR:
     return parse_for(tok);
   case TK_BREAK: case TK_CONTINUE:

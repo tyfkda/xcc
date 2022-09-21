@@ -225,6 +225,7 @@ typedef struct Stmt {
       BB *break_bb;
     } switch_;
     struct {
+      struct Stmt *swtch;
       Expr *value;  // NULL => default
       //
       BB *bb;
@@ -239,6 +240,9 @@ typedef struct Stmt {
       Expr *post;
       struct Stmt *body;
     } for_;
+    struct {
+      struct Stmt *parent;
+    } break_;
     struct {
       const Token *label;
     } goto_;
@@ -264,10 +268,9 @@ Stmt *new_stmt_expr(Expr *e);
 Stmt *new_stmt_block(const Token *token, Vector *stmts, Scope *scope);
 Stmt *new_stmt_if(const Token *token, Expr *cond, Stmt *tblock, Stmt *fblock);
 Stmt *new_stmt_switch(const Token *token, Expr *value);
-Stmt *new_stmt_case(const Token *token, Expr *value);
-Stmt *new_stmt_default(const Token *token);
+Stmt *new_stmt_case(const Token *token, Stmt *swtch, Expr *value);
+#define new_stmt_default(token, swtch)  new_stmt_case(token, swtch, NULL)
 Stmt *new_stmt_while(const Token *token, Expr *cond, Stmt *body);
-Stmt *new_stmt_do_while(Stmt *body, const Token *token, Expr *cond);
 Stmt *new_stmt_for(const Token *token, Expr *pre, Expr *cond, Expr *post, Stmt *body);
 Stmt *new_stmt_return(const Token *token, Expr *val);
 Stmt *new_stmt_goto(const Token *tok, const Token *label);
