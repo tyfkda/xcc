@@ -29,7 +29,7 @@ try_direct() {
   local tmpfile
   tmpfile=$(mktemp).c
   echo -e "$input" > "$tmpfile"
-  $XCC "$tmpfile" || exit 1
+  $XCC -Werror "$tmpfile" || exit 1
 
   $RUN_AOUT
   local actual="$?"
@@ -63,7 +63,7 @@ try_output_direct() {
   local tmpfile
   tmpfile=$(mktemp).c
   echo -e "$input" > "$tmpfile"
-  $XCC "$tmpfile" || exit 1
+  $XCC -Werror "$tmpfile" || exit 1
 
   local actual
   actual=$($RUN_AOUT) || exit 1
@@ -96,7 +96,7 @@ compile_error() {
   local tmpfile
   tmpfile=$(mktemp).c
   echo -e "$input" > "$tmpfile"
-  $XCC "$tmpfile"
+  $XCC -Werror "$tmpfile"
   local result="$?"
 
   if [ "$result" = "0" ]; then

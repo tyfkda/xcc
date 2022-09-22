@@ -51,7 +51,7 @@ static VReg *gen_builtin_va_start(Expr *expr) {
     }
   }
   if (gn < 0) {
-    parse_error(var->token, "Must be function argument");
+    parse_error(PE_FATAL, var->token, "Must be function argument");
     return NULL;
   }
 
