@@ -731,14 +731,14 @@ static Initializer *check_vardecl(Type **ptype, const Token *ident, int storage,
   return init;
 }
 
-static void add_func_label(const Token *label) {
+static void add_func_label(const Token *tok, Stmt *label) {
   assert(curfunc != NULL);
   Table *table = curfunc->label_table;
   if (table == NULL) {
     curfunc->label_table = table = alloc_table();
   }
-  if (!table_put(table, label->ident, (void*)-1))  // Put dummy value.
-    parse_error(PE_NOFATAL, label, "Label `%.*s' already defined", label->ident->bytes, label->ident->chars);
+  if (!table_put(table, tok->ident, label))
+    parse_error(PE_NOFATAL, tok, "Label `%.*s' already defined", tok->ident->bytes, tok->ident->chars);
 }
 
 static void add_func_goto(Stmt *stmt) {
@@ -746,6 +746,39 @@ static void add_func_goto(Stmt *stmt) {
   if (curfunc->gotos == NULL)
     curfunc->gotos = new_vector();
   vec_push(curfunc->gotos, stmt);
+}
+
+static void check_goto_labels(Function *func) {
+  Table *label_table = func->label_table;
+
+  // Check whether goto label exist.
+  Vector *gotos = func->gotos;
+  if (gotos != NULL) {
+    for (int i = 0; i < gotos->len; ++i) {
+      Stmt *stmt = gotos->data[i];
+      Stmt *label;
+      if (label_table != NULL && (label = table_get(label_table, stmt->goto_.label->ident)) != NULL) {
+        label->label.used = true;
+      } else {
+        const Name *name = stmt->goto_.label->ident;
+        parse_error(PE_NOFATAL, stmt->goto_.label, "`%.*s' not found", name->bytes, name->chars);
+      }
+    }
+  }
+
+  // Check label is used.
+  if (label_table != NULL) {
+    const Name *name;
+    Stmt *label;
+    for (int it = 0; (it = table_iterate(label_table, it, &name, (void**)&label)) != -1; ) {
+      if (!label->label.used) {
+        parse_error(PE_WARNING, label->token, "`%.*s' not used", name->bytes, name->chars);
+        // Remove label in safely.
+        table_delete(label_table, name);
+        *label = *label->label.stmt;
+      }
+    }
+  }
 }
 
 // Scope
@@ -1102,9 +1135,9 @@ static Stmt *parse_goto(const Token *tok) {
   return stmt;
 }
 
-static Stmt *parse_label(const Token *label) {
-  Stmt *stmt = new_stmt_label(label, parse_stmt());
-  add_func_label(label);
+static Stmt *parse_label(const Token *tok) {
+  Stmt *stmt = new_stmt_label(tok, parse_stmt());
+  add_func_label(tok, stmt);
   return stmt;
 }
 
@@ -1295,18 +1328,7 @@ static Declaration *parse_defun(Type *functype, int storage, Token *ident) {
     exit_scope();
     assert(is_global_scope(curscope));
 
-    // Check goto labels.
-    if (func->gotos != NULL) {
-      Vector *gotos = func->gotos;
-      Table *label_table = func->label_table;
-      for (int i = 0; i < gotos->len; ++i) {
-        Stmt *stmt = gotos->data[i];
-        if (label_table == NULL || !table_try_get(label_table, stmt->goto_.label->ident, NULL)) {
-          const Name *name = stmt->goto_.label->ident;
-          parse_error(PE_NOFATAL, stmt->goto_.label, "`%.*s' not found", name->bytes, name->chars);
-        }
-      }
-    }
+    check_goto_labels(func);
 
     curfunc = NULL;
   }

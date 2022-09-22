@@ -400,17 +400,15 @@ static void gen_continue(void) {
 
 static void gen_goto(Stmt *stmt) {
   assert(curfunc->label_table != NULL);
-  BB *bb = table_get(curfunc->label_table, stmt->goto_.label->ident);
-  assert(bb != NULL);
-  new_ir_jmp(COND_ANY, bb);
+  Stmt *label = table_get(curfunc->label_table, stmt->goto_.label->ident);
+  assert(label != NULL);
+  new_ir_jmp(COND_ANY, label->label.bb);
   set_curbb(new_bb());
 }
 
 static void gen_label(Stmt *stmt) {
-  assert(curfunc->label_table != NULL);
-  BB *bb = table_get(curfunc->label_table, stmt->token->ident);
-  assert(bb != NULL);
-  set_curbb(bb);
+  assert(stmt->label.bb != NULL);
+  set_curbb(stmt->label.bb);
   gen_stmt(stmt->label.stmt);
 }
 
@@ -494,12 +492,11 @@ static void gen_defun(Function *func) {
   // Allocate BBs for goto labels.
   if (func->label_table != NULL) {
     Table *label_table = func->label_table;
-    for (int i = 0;;) {
-      const Name *name;
-      i = table_iterate(label_table, i, &name, NULL);
-      if (i < 0)
-        break;
-      table_put(label_table, name, new_bb());
+    const Name *name;
+    Stmt *label;
+    for (int it = 0; (it = table_iterate(label_table, it, &name, (void**)&label)) != -1; ) {
+      assert(label->label.used);
+      label->label.bb = new_bb();
     }
   }
 

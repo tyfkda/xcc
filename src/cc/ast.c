@@ -253,6 +253,8 @@ Stmt *new_stmt_goto(const Token *tok, const Token *label) {
 Stmt *new_stmt_label(const Token *label, Stmt *follow) {
   Stmt *stmt = new_stmt(ST_LABEL, label);
   stmt->label.stmt = follow;
+  stmt->label.used = false;
+  stmt->label.bb = NULL;
   return stmt;
 }
 

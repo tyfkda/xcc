@@ -248,6 +248,9 @@ typedef struct Stmt {
     } goto_;
     struct {
       struct Stmt *stmt;
+      bool used;
+      //
+      BB *bb;
     } label;
     struct {
       Expr *val;
@@ -288,7 +291,7 @@ typedef struct Function {
 
   Vector *scopes;  // NULL => prototype definition.
   Vector *stmts;  // NULL => Prototype definition.
-  Table *label_table;  // <const Name*, BB*>
+  Table *label_table;  // <const Name*, Stmt*>
   Vector *gotos;  // <Stmt*>
   void *extra;
   int flag;
