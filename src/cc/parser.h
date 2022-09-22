@@ -22,6 +22,8 @@ extern Function *curfunc;
 extern Scope *curscope;
 extern Vector *toplevel;  // <Declaration*>
 
+extern bool error_warning;
+extern int compile_warning_count;
 extern int compile_error_count;
 
 void parse(Vector *decls);  // <Declaraion*>
@@ -70,6 +72,7 @@ VarInfo *add_var_to_scope(Scope *scope, const Token *ident, Type *type, int stor
 Token *consume(/*enum TokenKind*/int kind, const char *error);
 
 enum ParseErrorLevel {
+  PE_WARNING,
   PE_NOFATAL,
   PE_FATAL,
 };

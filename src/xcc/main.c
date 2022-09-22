@@ -341,6 +341,10 @@ int main(int argc, char *argv[]) {
     case 'S':
       out_type = OutAssembly;
       break;
+    case OPT_WARNING:
+      vec_push(cc1_cmd, "-W");
+      vec_push(cc1_cmd, optarg);
+      break;
     case OPT_NODEFAULTLIBS:
       nodefaultlibs = true;
       break;
@@ -351,7 +355,6 @@ int main(int argc, char *argv[]) {
       fprintf(stderr, "Warning: unknown option: %s\n", argv[optind - 1]);
       break;
 
-    case OPT_WARNING:
     case OPT_OPTIMIZE:
     case OPT_DEBUGINFO:
     case OPT_ANSI:

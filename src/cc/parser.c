@@ -20,6 +20,8 @@ Function *curfunc;
 Scope *curscope;
 Vector *toplevel;
 
+bool error_warning;
+int compile_warning_count;
 int compile_error_count;
 
 static Stmt *parse_stmt(void);
@@ -53,8 +55,6 @@ VarInfo *add_var_to_scope(Scope *scope, const Token *ident, Type *type, int stor
 }
 
 void parse_error(enum ParseErrorLevel level, const Token *token, const char *fmt, ...) {
-  ++compile_error_count;
-
   va_list ap;
   va_start(ap, fmt);
   if (fmt != NULL) {
@@ -64,6 +64,8 @@ void parse_error(enum ParseErrorLevel level, const Token *token, const char *fmt
       fprintf(stderr, "%s(%d): ", token->line->filename, token->line->lineno);
     }
 
+    if (level == PE_WARNING && !error_warning)
+      fprintf(stderr, "warning: ");
     vfprintf(stderr, fmt, ap);
     fprintf(stderr, "\n");
   }
@@ -72,8 +74,13 @@ void parse_error(enum ParseErrorLevel level, const Token *token, const char *fmt
     show_error_line(token->line->buf, token->begin, token->end - token->begin);
   va_end(ap);
 
-  if (level == PE_FATAL || compile_error_count >= MAX_ERROR_COUNT)
-    exit(1);
+  if (level == PE_WARNING) {
+    ++compile_warning_count;
+  } else {
+    ++compile_error_count;
+    if (level == PE_FATAL || compile_error_count >= MAX_ERROR_COUNT)
+      exit(1);
+  }
 }
 
 Token *consume(/*enum TokenKind*/int kind, const char *error) {
@@ -374,9 +381,6 @@ static Initializer *flatten_initializer(Type *type, Initializer *init) {
         parse_error(PE_NOFATAL, init->token, "Initializer type error");
         break;
       }
-
-      Expr *value = p->single;
-      check_cast(type, value->type, is_zero(value), false, init->token);
     }
     break;
   default:

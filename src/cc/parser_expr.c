@@ -111,12 +111,14 @@ bool check_cast(const Type *dst, const Type *src, bool zero, bool is_explicit, c
       token = fetch_token();
     fprintf(stderr, "%s(%d): ", token->line->filename, token->line->lineno);
 
-    fprintf(stderr, "Cannot convert value from type `");
+    if (!error_warning)
+      fprintf(stderr, "warning: ");
+    fprintf(stderr, "cannot convert value from type `");
     print_type(stderr, src);
     fprintf(stderr, "' to %s`", dst->kind == TY_ARRAY ? "array type " : "");
     print_type(stderr, dst);
     fprintf(stderr, "'\n");
-    parse_error(PE_FATAL, token, NULL);
+    parse_error(PE_WARNING, token, NULL);
     return false;
   }
   return true;

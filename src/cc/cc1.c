@@ -39,7 +39,12 @@ static void compile1(FILE *ifp, const char *filename, Vector *decls) {
 }
 
 int main(int argc, char *argv[]) {
+  enum {
+    OPT_WARNING = 128,
+  };
+
   static const struct option options[] = {
+    {"W", required_argument, OPT_WARNING},
     {"-version", no_argument, 'V'},
     {NULL},
   };
@@ -49,6 +54,17 @@ int main(int argc, char *argv[]) {
     case 'V':
       show_version("cc1");
       return 0;
+    case OPT_WARNING:
+      if (strcmp(optarg, "error") == 0) {
+        error_warning = true;
+      } else {
+        // Silently ignored.
+        // fprintf(stderr, "Warning: unknown option for -W: %s\n", optarg);
+      }
+      break;
+    default:
+      fprintf(stderr, "Warning: unknown option: %s\n", argv[optind - 1]);
+      break;
     }
   }
 
@@ -71,6 +87,8 @@ int main(int argc, char *argv[]) {
   }
   if (compile_error_count != 0)
     exit(1);
+  if (error_warning && compile_warning_count != 0)
+    exit(2);
 
   gen(toplevel);
   emit_code(toplevel);

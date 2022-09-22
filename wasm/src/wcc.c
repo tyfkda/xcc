@@ -872,6 +872,7 @@ int main(int argc, char *argv[]) {
     {"D", required_argument},  // Define macro
     {"o", required_argument},  // Specify output filename
     {"e", required_argument},  // Export names
+    {"W", required_argument, OPT_WARNING},
     {"nodefaultlibs", no_argument, OPT_NODEFAULTLIBS},
     {"nostdlib", no_argument, OPT_NOSTDLIB},
     {"-verbose", no_argument, OPT_VERBOSE},
@@ -879,7 +880,6 @@ int main(int argc, char *argv[]) {
     {"-stack-size", required_argument, OPT_STACK_SIZE},
 
     // Suppress warnings
-    {"W", required_argument, OPT_WARNING},
     {"O", required_argument, OPT_OPTIMIZE},
     {"g", required_argument, OPT_DEBUGINFO},
     {"ansi", no_argument, OPT_ANSI},
@@ -926,6 +926,14 @@ int main(int argc, char *argv[]) {
         fprintf(stderr, "unknown option: n%s\n", optarg);
       }
       break;
+    case OPT_WARNING:
+      if (strcmp(optarg, "error") == 0) {
+        error_warning = true;
+      } else {
+        // Silently ignored.
+        // fprintf(stderr, "Warning: unknown option for -W: %s\n", optarg);
+      }
+      break;
     case OPT_STACK_SIZE:
       {
         int size = atoi(optarg);
@@ -945,7 +953,6 @@ int main(int argc, char *argv[]) {
       fprintf(stderr, "Warning: unknown option: %s\n", argv[optind - 1]);
       break;
 
-    case OPT_WARNING:
     case OPT_OPTIMIZE:
     case OPT_DEBUGINFO:
     case OPT_ANSI:
@@ -1020,6 +1027,8 @@ int main(int argc, char *argv[]) {
   gen(toplevel);
   if (compile_error_count != 0)
     return 1;
+  if (error_warning && compile_warning_count != 0)
+    return 2;
 
   FILE *fp = fopen(ofn, "wb");
   if (fp == NULL) {
