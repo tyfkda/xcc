@@ -672,7 +672,7 @@ static void emit_wasm(FILE *ofp, Vector *exports, uint32_t address_bottom) {
 
 static Expr *proc_builtin_va_start(const Token *ident) {
   if (curfunc == NULL || !curfunc->type->func.vaargs) {
-    parse_error(ident, "`va_start' can only be used in a variadic function");
+    parse_error(PE_FATAL, ident, "`va_start' can only be used in a variadic function");
     return NULL;
   }
 
@@ -681,7 +681,7 @@ static Expr *proc_builtin_va_start(const Token *ident) {
   Token *token;
   Vector *args = parse_args(&token);
   if (args == NULL || args->len != 2) {
-    parse_error(token, "two arguments expected");
+    parse_error(PE_FATAL, token, "two arguments expected");
     return NULL;
   }
 
@@ -693,12 +693,12 @@ static Expr *proc_builtin_va_start(const Token *ident) {
   Expr *ap = args->data[0];
   Expr *param = args->data[1];
   if (param->kind != EX_VAR)
-    parse_error(param->token, "variable expected");
+    parse_error(PE_FATAL, param->token, "variable expected");
   const Type *functype = curfunc->type;
   const Vector *funparams = functype->func.params;
   if (funparams == NULL ||
       !equal_name(((VarInfo*)funparams->data[funparams->len - 1])->name, param->var.name)) {
-    parse_error(param->token, "must be the last parameter");
+    parse_error(PE_FATAL, param->token, "must be the last parameter");
     return NULL;
   }
 
@@ -718,7 +718,7 @@ static Expr *proc_builtin_va_end(const Token *ident) {
   Token *token;
   Vector *args = parse_args(&token);
   if (args == NULL || args->len != 1) {
-    parse_error(token, "one arguments expected");
+    parse_error(PE_FATAL, token, "one arguments expected");
     return NULL;
   }
 
@@ -758,7 +758,7 @@ static Expr *proc_builtin_va_copy(const Token *ident) {
   Token *token;
   Vector *args = parse_args(&token);
   if (args == NULL || args->len != 2) {
-    parse_error(token, "two arguments expected");
+    parse_error(PE_FATAL, token, "two arguments expected");
     return NULL;
   }
 

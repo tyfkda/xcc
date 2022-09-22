@@ -27,7 +27,7 @@ void expect_parse_type(const char *title, const Type *expected, const char *iden
 
     const Token *end = fetch_token();
     if (end->kind != TK_EOF)
-      parse_error(end, "EOF expected\n");
+      parse_error(PE_FATAL, end, "EOF expected\n");
 
     if (!same_type(expected, actual))
       error("%s: type different\n", title);

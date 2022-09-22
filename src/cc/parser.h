@@ -69,5 +69,9 @@ VarInfo *add_var_to_scope(Scope *scope, const Token *ident, Type *type, int stor
 
 Token *consume(/*enum TokenKind*/int kind, const char *error);
 
-void parse_error(const Token *token, const char *fmt, ...);
-void parse_error_nofatal(const Token *token, const char *fmt, ...);
+enum ParseErrorLevel {
+  PE_NOFATAL,
+  PE_FATAL,
+};
+
+void parse_error(enum ParseErrorLevel level, const Token *token, const char *fmt, ...);

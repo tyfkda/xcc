@@ -203,7 +203,7 @@ GVarInfo *get_gvar_info(Expr *expr) {
   }
   GVarInfo *info = NULL;
   if (varinfo == NULL) {
-    parse_error(expr->token, "Variable not found: %.*s", expr->var.name->bytes, expr->var.name->chars);
+    parse_error(PE_FATAL, expr->token, "Variable not found: %.*s", expr->var.name->bytes, expr->var.name->chars);
   } else {
     info = get_gvar_info_from_name(varinfo->name);
     if (info == NULL) {
@@ -300,7 +300,7 @@ static void traverse_funcall(Expr *expr) {
     }
 
     if (functype->func.params == NULL && args != NULL)
-      parse_error(expr->funcall.func->token, "function's parameters must be known");
+      parse_error(PE_FATAL, expr->funcall.func->token, "function's parameters must be known");
   }
 
   traverse_func_expr(&expr->funcall.func);
@@ -580,7 +580,7 @@ static void traverse_switch(Stmt *stmt) {
 
 static void traverse_case(Stmt *stmt) {
   if (branching_stmt->kind != ST_SWITCH)
-    parse_error(stmt->token, "case/default inside branch not supported");
+    parse_error(PE_FATAL, stmt->token, "case/default inside branch not supported");
 }
 
 static void traverse_while(Stmt *stmt) {
@@ -652,15 +652,15 @@ static void traverse_stmt(Stmt *stmt) {
   case ST_BREAK:  break;
   case ST_CONTINUE:  break;
   case ST_GOTO:
-    parse_error(stmt->token, "cannot use goto");
+    parse_error(PE_FATAL, stmt->token, "cannot use goto");
     break;
   case ST_LABEL:  traverse_stmt(stmt->label.stmt); break;
   case ST_VARDECL:  traverse_vardecl(stmt); break;
   case ST_ASM:
-    parse_error(stmt->token, "not supported");
+    parse_error(PE_FATAL, stmt->token, "not supported");
     break;
   default:
-    parse_error(stmt->token, "Unhandled stmt: %d", stmt->kind);
+    parse_error(PE_FATAL, stmt->token, "Unhandled stmt: %d", stmt->kind);
     break;
   }
 }

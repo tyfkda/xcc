@@ -44,7 +44,7 @@ VarInfo *add_var_to_scope(Scope *scope, const Token *ident, Type *type, int stor
     if (idx >= 0) {
       VarInfo *varinfo = scope->vars->data[idx];
       if (!(varinfo->storage & VS_EXTERN || storage & VS_EXTERN)) {
-        parse_error_nofatal(ident, "`%.*s' already defined", name->bytes, name->chars);
+        parse_error(PE_NOFATAL, ident, "`%.*s' already defined", name->bytes, name->chars);
         return varinfo;
       }
     }
@@ -52,7 +52,11 @@ VarInfo *add_var_to_scope(Scope *scope, const Token *ident, Type *type, int stor
   return scope_add(scope, name, type, storage);
 }
 
-static void parse_error_valist(const Token *token, const char *fmt, va_list ap) {
+void parse_error(enum ParseErrorLevel level, const Token *token, const char *fmt, ...) {
+  ++compile_error_count;
+
+  va_list ap;
+  va_start(ap, fmt);
   if (fmt != NULL) {
     if (token == NULL)
       token = fetch_token();
@@ -66,34 +70,16 @@ static void parse_error_valist(const Token *token, const char *fmt, va_list ap) 
 
   if (token != NULL && token->line != NULL && token->begin != NULL)
     show_error_line(token->line->buf, token->begin, token->end - token->begin);
-}
-
-void parse_error_nofatal(const Token *token, const char *fmt, ...) {
-  va_list ap;
-  va_start(ap, fmt);
-  parse_error_valist(token, fmt, ap);
   va_end(ap);
 
-  ++compile_error_count;
-  if (compile_error_count >= MAX_ERROR_COUNT)
+  if (level == PE_FATAL || compile_error_count >= MAX_ERROR_COUNT)
     exit(1);
-}
-
-void parse_error(const Token *token, const char *fmt, ...) {
-  ++compile_error_count;
-
-  va_list ap;
-  va_start(ap, fmt);
-  parse_error_valist(token, fmt, ap);
-  va_end(ap);
-
-  exit(1);
 }
 
 Token *consume(/*enum TokenKind*/int kind, const char *error) {
   Token *tok = match(kind);
   if (tok == NULL)
-    parse_error(tok, error);
+    parse_error(PE_FATAL, tok, error);
   return tok;
 }
 
@@ -136,7 +122,7 @@ Type *fix_array_size(Type *type, Initializer *init) {
     assert(!is_str || init->single->kind == EX_STR);
     ssize_t init_len = is_str ? (ssize_t)init->single->str.size : (ssize_t)init->multi->len;
     if (init_len > arr_len && (!is_str || init_len - 1 > arr_len))  // Allow non-nul string.
-      parse_error(NULL, "Initializer more than array size");
+      parse_error(PE_FATAL, NULL, "Initializer more than array size");
     return type;
   }
 }
@@ -199,7 +185,7 @@ static Stmt *init_char_array_by_string(Expr *dst, Initializer *src) {
     dst->type->pa.length = dstsize = size;
   } else {
     if (dstsize < size - 1)
-      parse_error(NULL, "Buffer is shorter than string: %d for \"%s\"", (int)dstsize, str);
+      parse_error(PE_FATAL, NULL, "Buffer is shorter than string: %d for \"%s\"", (int)dstsize, str);
   }
 
   Type *strtype = dst->type;
@@ -221,7 +207,7 @@ static Initializer *flatten_array_initializer(Initializer *init) {
   for (; i < len; ++i) {
     Initializer *init_elem = init->multi->data[i];
     if (init_elem->kind == IK_DOT)
-      parse_error(NULL, "dot initializer for array");
+      parse_error(PE_FATAL, NULL, "dot initializer for array");
     if (init_elem->kind == IK_ARR)
       break;
   }
@@ -237,7 +223,7 @@ static Initializer *flatten_array_initializer(Initializer *init) {
     Initializer *init_elem = NULL;
     if (i >= len || (init_elem = init->multi->data[i])->kind == IK_ARR) {
       if (i < len && init_elem->arr.index->kind != EX_FIXNUM)
-        parse_error(NULL, "Constant value expected");
+        parse_error(PE_FATAL, NULL, "Constant value expected");
       if ((size_t)i > lastStartIndex) {
         size_t *range = malloc(sizeof(size_t) * 3);
         range[0] = lastStart;
@@ -250,7 +236,7 @@ static Initializer *flatten_array_initializer(Initializer *init) {
       lastStart = index = init_elem->arr.index->fixnum;
       lastStartIndex = i;
     } else if (init_elem->kind == IK_DOT)
-      parse_error(NULL, "dot initializer for array");
+      parse_error(PE_FATAL, NULL, "dot initializer for array");
   }
 
   // Sort
@@ -267,7 +253,7 @@ static Initializer *flatten_array_initializer(Initializer *init) {
     if (i > 0) {
       size_t *q = ranges->data[i - 1];
       if (start < q[0] + q[2])
-        parse_error(NULL, "Initializer for array overlapped");
+        parse_error(PE_FATAL, NULL, "Initializer for array overlapped");
     }
     for (size_t j = 0; j < count; ++j) {
       Initializer *elem = init->multi->data[index + j];
@@ -301,11 +287,11 @@ static Initializer *flatten_initializer(Type *type, Initializer *init) {
       int m = init->multi->len;
       if (n <= 0) {
         if (m > 0)
-          parse_error_nofatal(init->token, "Initializer for empty struct");
+          parse_error(PE_NOFATAL, init->token, "Initializer for empty struct");
         return init;
       }
       if (sinfo->is_union && m > 1)
-        parse_error(((Initializer*)init->multi->data[1])->token, "Initializer for union more than 1");
+        parse_error(PE_FATAL, ((Initializer*)init->multi->data[1])->token, "Initializer for union more than 1");
 
       Initializer **values = malloc(sizeof(Initializer*) * n);
       for (int i = 0; i < n; ++i)
@@ -315,7 +301,7 @@ static Initializer *flatten_initializer(Type *type, Initializer *init) {
       for (int i = 0; i < m; ++i) {
         Initializer *value = init->multi->data[i];
         if (value->kind == IK_ARR)
-          parse_error(NULL, "indexed initializer for struct");
+          parse_error(PE_FATAL, NULL, "indexed initializer for struct");
 
         if (value->kind == IK_DOT) {
           const Name *name = value->dot.name;
@@ -325,7 +311,7 @@ static Initializer *flatten_initializer(Type *type, Initializer *init) {
           } else {
             Vector *stack = new_vector();
             if (search_from_anonymous(type, name, NULL, stack) == NULL) {
-              parse_error_nofatal(value->token, "`%.*s' is not member of struct", name->bytes, name->chars);
+              parse_error(PE_NOFATAL, value->token, "`%.*s' is not member of struct", name->bytes, name->chars);
               continue;
             }
 
@@ -339,7 +325,7 @@ static Initializer *flatten_initializer(Type *type, Initializer *init) {
           }
         }
         if (index >= n)
-          parse_error(NULL, "Too many init values");
+          parse_error(PE_FATAL, NULL, "Too many init values");
 
         // Allocate string literal for char* as a char array.
         if (value->kind == IK_SINGLE && value->single->kind == EX_STR) {
@@ -385,7 +371,7 @@ static Initializer *flatten_initializer(Type *type, Initializer *init) {
       if (p->kind == IK_ARR)
         p = p->arr.value;
       if (p->kind != IK_SINGLE) {
-        parse_error_nofatal(init->token, "Initializer type error");
+        parse_error(PE_NOFATAL, init->token, "Initializer type error");
         break;
       }
 
@@ -418,7 +404,7 @@ static Expr *check_global_initializer_fixnum(Expr *value, bool *isconst) {
       VarInfo *varinfo = scope_find(value->var.scope, value->var.name, &scope);
       assert(varinfo != NULL);
       if (!is_global_scope(scope) && !(varinfo->storage & VS_STATIC))
-        parse_error(value->token, "Allowed global reference only");
+        parse_error(PE_FATAL, value->token, "Allowed global reference only");
       *isconst = value->type->kind == TY_ARRAY || value->type->kind == TY_FUNC ||
                  (value->type->kind == TY_PTR && value->type->pa.ptrof->kind == TY_FUNC);
     }
@@ -443,7 +429,7 @@ static Expr *check_global_initializer_fixnum(Expr *value, bool *isconst) {
   case EX_MEMBER:
     value->member.target = check_global_initializer_fixnum(value->member.target, isconst);
     if (value->token->kind != TK_DOT)
-      parse_error(value->token, "Allowed global reference only");
+      parse_error(PE_FATAL, value->token, "Allowed global reference only");
     *isconst = value->type->kind == TY_ARRAY;
     break;
   default:
@@ -473,7 +459,7 @@ static Initializer *check_global_initializer(Type *type, Initializer *init) {
       case EX_FLONUM:
         return init;
       default:
-        parse_error_nofatal(init->single->token, "Constant expression expected");
+        parse_error(PE_NOFATAL, init->single->token, "Constant expression expected");
         break;
       }
     }
@@ -487,7 +473,7 @@ static Initializer *check_global_initializer(Type *type, Initializer *init) {
       Expr *value = check_global_initializer_fixnum(init->single, &isconst);
       init->single = make_cast(type, init->single->token, value, false);
       if (!isconst) {
-        parse_error_nofatal(init->single->token, "Initializer must be constant");
+        parse_error(PE_NOFATAL, init->single->token, "Initializer must be constant");
       }
     }
     break;
@@ -513,7 +499,7 @@ static Initializer *check_global_initializer(Type *type, Initializer *init) {
         if (e->kind == EX_STR) {
           assert(type->pa.length > 0);
           if ((ssize_t)e->str.size - 1 > type->pa.length) {  // Allow non-nul string.
-            parse_error_nofatal(init->single->token, "Array size shorter than initializer");
+            parse_error(PE_NOFATAL, init->single->token, "Array size shorter than initializer");
           }
           break;
         }
@@ -521,7 +507,7 @@ static Initializer *check_global_initializer(Type *type, Initializer *init) {
       // Fallthrough
     case IK_DOT:
     default:
-      parse_error_nofatal(init->token, "Array initializer requires `{'");
+      parse_error(PE_NOFATAL, init->token, "Array initializer requires `{'");
       break;
     }
     break;
@@ -530,7 +516,7 @@ static Initializer *check_global_initializer(Type *type, Initializer *init) {
       if (init->kind == IK_SINGLE) {
         Expr *e = init->single;
         if (e->kind != EX_COMPLIT || !can_cast(type, e->type, false, false)) {
-          parse_error_nofatal(init->token, "Struct initializer requires `{'");
+          parse_error(PE_NOFATAL, init->token, "Struct initializer requires `{'");
           break;
         }
         init = flatten_initializer(type, e->complit.original_init);
@@ -551,7 +537,7 @@ static Initializer *check_global_initializer(Type *type, Initializer *init) {
     }
     break;
   default:
-    parse_error_nofatal(NULL, "Global initial value for type %d not implemented (yet)\n", type->kind);
+    parse_error(PE_NOFATAL, NULL, "Global initial value for type %d not implemented (yet)\n", type->kind);
     break;
   }
   return init;
@@ -575,7 +561,7 @@ Vector *assign_initial_value(Expr *expr, Initializer *init, Vector *inits) {
         ssize_t arr_len = expr->type->pa.length;
         assert(arr_len > 0);
         if (init->multi->len > arr_len)
-          parse_error(init->token, "Initializer more than array size");
+          parse_error(PE_FATAL, init->token, "Initializer more than array size");
 
         assert(!is_global_scope(curscope));
         Type *ptr_type = array_to_ptr(expr->type);
@@ -591,7 +577,7 @@ Vector *assign_initial_value(Expr *expr, Initializer *init, Vector *inits) {
           if (init_elem->kind == IK_ARR) {
             Expr *ind = init_elem->arr.index;
             if (ind->kind != EX_FIXNUM)
-              parse_error(init_elem->token, "Number required");
+              parse_error(PE_FATAL, init_elem->token, "Number required");
             index = ind->fixnum;
             init_elem = init_elem->arr.value;
           }
@@ -619,7 +605,7 @@ Vector *assign_initial_value(Expr *expr, Initializer *init, Vector *inits) {
       }
       // Fallthrough
     default:
-      parse_error_nofatal(init->token, "Array initializer requires `{'");
+      parse_error(PE_NOFATAL, init->token, "Array initializer requires `{'");
       break;
     }
     break;
@@ -633,7 +619,7 @@ Vector *assign_initial_value(Expr *expr, Initializer *init, Vector *inits) {
         }
       }
       if (init->kind != IK_MULTI) {
-        parse_error_nofatal(init->token, "Struct initializer requires `{'");
+        parse_error(PE_NOFATAL, init->token, "Struct initializer requires `{'");
         break;
       }
 
@@ -650,9 +636,9 @@ Vector *assign_initial_value(Expr *expr, Initializer *init, Vector *inits) {
         int n = sinfo->members->len;
         int m = init->multi->len;
         if (n <= 0 && m > 0)
-          parse_error(init->token, "Initializer for empty union");
+          parse_error(PE_FATAL, init->token, "Initializer for empty union");
         if (org_init->multi->len > 1)
-          parse_error(init->token, "More than one initializer for union");
+          parse_error(PE_FATAL, init->token, "More than one initializer for union");
 
         for (int i = 0; i < n; ++i) {
           Initializer *init_elem = init->multi->data[i];
@@ -670,7 +656,7 @@ Vector *assign_initial_value(Expr *expr, Initializer *init, Vector *inits) {
     switch (init->kind) {
     case IK_MULTI:
       if (init->multi->len != 1 || ((Initializer*)init->multi->data[0])->kind != IK_SINGLE) {
-        parse_error_nofatal(init->token, "Requires scaler");
+        parse_error(PE_NOFATAL, init->token, "Requires scaler");
         break;
       }
       init = init->multi->data[0];
@@ -684,7 +670,7 @@ Vector *assign_initial_value(Expr *expr, Initializer *init, Vector *inits) {
       }
       break;
     default:
-      parse_error(init->token, "Error initializer");
+      parse_error(PE_FATAL, init->token, "Error initializer");
       break;
     }
     break;
@@ -727,9 +713,9 @@ static Initializer *check_vardecl(Type **ptype, const Token *ident, int storage,
   } else {
     //intptr_t eval;
     //if (find_enum_value(ident->ident, &eval))
-    //  parse_error(ident, "`%.*s' is already defined", ident->ident->bytes, ident->ident->chars);
+    //  parse_error(PE_FATAL, ident, "`%.*s' is already defined", ident->ident->bytes, ident->ident->chars);
     if (storage & VS_EXTERN && init != NULL) {
-      parse_error_nofatal(init->token, "extern with initializer");
+      parse_error(PE_NOFATAL, init->token, "extern with initializer");
       return NULL;
     }
     // Toplevel
@@ -748,7 +734,7 @@ static void add_func_label(const Token *label) {
     curfunc->label_table = table = alloc_table();
   }
   if (!table_put(table, label->ident, (void*)-1))  // Put dummy value.
-    parse_error_nofatal(label, "Label `%.*s' already defined", label->ident->bytes, label->ident->chars);
+    parse_error(PE_NOFATAL, label, "Label `%.*s' already defined", label->ident->bytes, label->ident->chars);
 }
 
 static void add_func_goto(Stmt *stmt) {
@@ -833,7 +819,7 @@ static bool def_type(Type *type, Token *ident) {
   Type *conflict = find_typedef(curscope, name, &scope);
   if (conflict != NULL && scope == curscope) {
     if (!same_type(type, conflict))
-      parse_error(ident, "Conflict typedef");
+      parse_error(PE_FATAL, ident, "Conflict typedef");
   } else {
     conflict = NULL;
   }
@@ -857,7 +843,7 @@ static Vector *parse_vardecl_cont(Type *rawType, Type *type, int storage, Token 
     if (!first) {
       type = parse_var_def(&rawType, &tmp_storage, &ident);
       if (type == NULL || ident == NULL) {
-        parse_error(NULL, "`ident' expected");
+        parse_error(PE_FATAL, NULL, "`ident' expected");
         return NULL;
       }
     }
@@ -913,7 +899,7 @@ static bool parse_vardecl(Stmt **pstmt) {
          match(TK_SEMICOL)) {
       // Just struct/union or enum definition.
     } else {
-      parse_error(NULL, "Ident expected");
+      parse_error(PE_FATAL, NULL, "Ident expected");
     }
   } else {
     Vector *decls = parse_vardecl_cont(rawType, type, storage, ident);
@@ -975,9 +961,9 @@ static Stmt *parse_case(const Token *tok) {
   Stmt *stmt = NULL;
   Stmt *swtch = loop_scope.swtch;
   if (swtch == NULL) {
-    parse_error_nofatal(tok, "`case' cannot use outside of `switch`");
+    parse_error(PE_NOFATAL, tok, "`case' cannot use outside of `switch`");
   } else if (find_case(swtch, value->fixnum) >= 0) {
-    parse_error_nofatal(tok, "Case value `%" PRIdPTR "' already defined", value->fixnum);
+    parse_error(PE_NOFATAL, tok, "Case value `%" PRIdPTR "' already defined", value->fixnum);
   } else {
     stmt = new_stmt_case(tok, swtch, value);
     vec_push(swtch->switch_.cases, stmt);
@@ -991,9 +977,9 @@ static Stmt *parse_default(const Token *tok) {
   Stmt *stmt = NULL;
   Stmt *swtch = loop_scope.swtch;
   if (swtch == NULL) {
-    parse_error_nofatal(tok, "`default' cannot use outside of `switch'");
+    parse_error(PE_NOFATAL, tok, "`default' cannot use outside of `switch'");
   } else if (swtch->switch_.default_ != NULL) {
-    parse_error_nofatal(tok, "`default' already defined in `switch'");
+    parse_error(PE_NOFATAL, tok, "`default' already defined in `switch'");
   } else {
     stmt = new_stmt_default(tok, swtch);
     swtch->switch_.default_ = stmt;
@@ -1048,7 +1034,7 @@ static Stmt *parse_for(const Token *tok) {
     Type *type = parse_var_def(&rawType, &storage, &ident);
     if (type != NULL) {
       if (ident == NULL)
-        parse_error(NULL, "Ident expected");
+        parse_error(PE_FATAL, NULL, "Ident expected");
       scope = enter_scope(curfunc, NULL);
       decls = parse_vardecl_cont(rawType, type, storage, ident);
       consume(TK_SEMICOL, "`;' expected");
@@ -1094,7 +1080,7 @@ static Stmt *parse_break_continue(enum StmtKind kind, const Token *tok) {
   consume(TK_SEMICOL, "`;' expected");
   Stmt *parent = kind == ST_BREAK ? loop_scope.break_ : loop_scope.continu;
   if (parent == NULL) {
-    parse_error_nofatal(tok, "`%.*s' cannot be used outside of loop",
+    parse_error(PE_NOFATAL, tok, "`%.*s' cannot be used outside of loop",
                         (int)(tok->end - tok->begin), tok->begin);
     return NULL;
   }
@@ -1130,10 +1116,10 @@ static Stmt *parse_return(const Token *tok) {
   Type *rettype = curfunc->type->func.ret;
   if (val == NULL) {
     if (rettype->kind != TY_VOID)
-      parse_error_nofatal(tok, "`return' required a value");
+      parse_error(PE_NOFATAL, tok, "`return' required a value");
   } else {
     if (rettype->kind == TY_VOID)
-      parse_error_nofatal(val->token, "void function `return' a value");
+      parse_error(PE_NOFATAL, val->token, "void function `return' a value");
     else
       val = make_cast(rettype, val->token, val, false);
   }
@@ -1146,7 +1132,7 @@ static Expr *parse_asm_arg(void) {
   consume(TK_LPAR, "`(' expected");
   Expr *var = parse_expr();
   if (var == NULL || var->kind != EX_VAR) {
-    parse_error(var != NULL ? var->token : NULL, "string literal expected");
+    parse_error(PE_FATAL, var != NULL ? var->token : NULL, "string literal expected");
   }
   consume(TK_RPAR, "`)' expected");
   return var;
@@ -1157,7 +1143,7 @@ static Stmt *parse_asm(const Token *tok) {
 
   Expr *str = parse_expr();
   if (str == NULL || str->kind != EX_STR) {
-    parse_error(str != NULL ? str->token : NULL, "`__asm' expected string literal");
+    parse_error(PE_FATAL, str != NULL ? str->token : NULL, "`__asm' expected string literal");
   }
 
   Expr *arg = NULL;
@@ -1189,7 +1175,7 @@ static Vector *parse_stmts(void) {
     if (stmt == NULL) {
       if (match(TK_RBRACE))
         return stmts;
-      parse_error(NULL, "`}' expected");
+      parse_error(PE_FATAL, NULL, "`}' expected");
     }
     vec_push(stmts, stmt);
   }
@@ -1267,7 +1253,7 @@ static Declaration *parse_defun(Type *functype, int storage, Token *ident) {
     if (varinfo->type->kind != TY_FUNC ||
         !same_type(varinfo->type->func.ret, functype->func.ret) ||
         (varinfo->type->func.params != NULL && !same_type(varinfo->type, functype))) {
-      parse_error_nofatal(ident, "Definition conflict: `%.*s'", func->name->bytes, func->name->chars);
+      parse_error(PE_NOFATAL, ident, "Definition conflict: `%.*s'", func->name->bytes, func->name->chars);
       err = true;
     } else {
       if (varinfo->global.func == NULL) {
@@ -1283,7 +1269,7 @@ static Declaration *parse_defun(Type *functype, int storage, Token *ident) {
     consume(TK_LBRACE, "`;' or `{' expected");
 
     if (!err && varinfo->global.func != NULL) {
-      parse_error_nofatal(ident, "`%.*s' function already defined", func->name->bytes,
+      parse_error(PE_NOFATAL, ident, "`%.*s' function already defined", func->name->bytes,
                           func->name->chars);
     } else {
       varinfo->global.func = func;
@@ -1313,7 +1299,7 @@ static Declaration *parse_defun(Type *functype, int storage, Token *ident) {
         Stmt *stmt = gotos->data[i];
         if (label_table == NULL || !table_try_get(label_table, stmt->goto_.label->ident, NULL)) {
           const Name *name = stmt->goto_.label->ident;
-          parse_error_nofatal(stmt->goto_.label, "`%.*s' not found", name->bytes, name->chars);
+          parse_error(PE_NOFATAL, stmt->goto_.label, "`%.*s' not found", name->bytes, name->chars);
         }
       }
     }
@@ -1336,7 +1322,7 @@ static Declaration *parse_global_var_decl(
       def_type(type, ident);
     } else {
       if (type->kind == TY_VOID)
-        parse_error(ident, "`void' not allowed");
+        parse_error(PE_FATAL, ident, "`void' not allowed");
 
       VarInfo *varinfo = add_var_to_scope(global_scope, ident, type, storage);
 
@@ -1380,7 +1366,7 @@ static Declaration *parse_declaration(void) {
           match(TK_SEMICOL)) {
         // Just struct/union or enum definition.
       } else {
-        parse_error(NULL, "Ident expected");
+        parse_error(PE_FATAL, NULL, "Ident expected");
       }
       return NULL;
     }
@@ -1397,7 +1383,7 @@ static Declaration *parse_declaration(void) {
 
     return parse_global_var_decl(rawtype, storage, type, ident);
   }
-  parse_error(NULL, "Unexpected token");
+  parse_error(PE_FATAL, NULL, "Unexpected token");
   return NULL;
 }
 
