@@ -111,16 +111,6 @@ compile_error() {
   fi
 }
 
-try_direct 'float' 12 'double sub(){return 12;} int main(void){return sub();}'
-try_direct 'float +*' 40 'double sub(void){double x=12; return x * 3 + 4;} int main(void){return sub();}'
-try_direct 'float param' 46 'double add(double x, double y){return x + y;} int main(){return add(12, 34);}'
-exit 0
-
-try 'calc' 5 'int x = 1; return x * 2 + 3;'
-try 'if' 3 'int x = 1; if (x == 0) x = 2; else x = 3; return x;'
-try_direct 'func' 123 'int sub(){return 123;} int main(){return sub();}'
-try_direct 'func with arg' 46 'int add(int x, int y){return x + y;} int main(){return add(12, 34);}'
-
 try_output 'write' 'hello' "write(1, \"hello\\\\n\", 6);"
 try_output 'char array' 123 "char s[16]; s[0] = '1'; s[1] = '2'; s[2] = '3'; s[3] = '\\\\n'; write(1, s, 4);"
 try 'zero array' 0 'int array[0]; return 0;'

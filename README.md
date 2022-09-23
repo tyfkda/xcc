@@ -8,6 +8,7 @@ XCC
     * Also work on Linux
   * Assembler
   * Output ELF64 (x86-64) file format
+    * Also support Aarch64 (Arm64)
   * Register allocation (Linear scan)
   * Self hosting
 
