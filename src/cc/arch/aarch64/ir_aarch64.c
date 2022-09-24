@@ -85,6 +85,14 @@ static void mov_immediate(const char *dst, intptr_t value, bool b64) {
   }
 }
 
+static const char *im12_or_tmpreg(uintptr_t value, int pow) {
+  if (value <= 0x0fff)  // 0~4095
+    return IM(value);
+  const char *tmp = kTmpRegTable[pow];
+  mov_immediate(tmp, value, pow >= 3);
+  return tmp;
+}
+
 static void ir_memcpy(int dst_reg, int src_reg, ssize_t size) {
   switch (size) {
   case 1:
@@ -260,12 +268,19 @@ static void ir_out(IR *ir) {
       int pow = kPow2Table[ir->size];
       assert(0 <= pow && pow < 4);
       const char **regs = kRegSizeTable[pow];
-      if (ir->opr1->flag & VRF_CONST)
-        ADD(regs[ir->dst->phys], regs[ir->opr2->phys], IM(ir->opr1->fixnum));
-      else if (ir->opr2->flag & VRF_CONST)
-        ADD(regs[ir->dst->phys], regs[ir->opr1->phys], IM(ir->opr2->fixnum));
-      else
+      if (ir->opr1->flag & VRF_CONST) {
+        if (ir->opr1->fixnum >= 0)
+          ADD(regs[ir->dst->phys], regs[ir->opr2->phys], im12_or_tmpreg(ir->opr1->fixnum, pow));
+        else
+          SUB(regs[ir->dst->phys], regs[ir->opr2->phys], im12_or_tmpreg(-ir->opr1->fixnum, pow));
+      } else if (ir->opr2->flag & VRF_CONST) {
+        if (ir->opr2->fixnum >= 0)
+          ADD(regs[ir->dst->phys], regs[ir->opr1->phys], im12_or_tmpreg(ir->opr2->fixnum, pow));
+        else
+          SUB(regs[ir->dst->phys], regs[ir->opr1->phys], im12_or_tmpreg(-ir->opr2->fixnum, pow));
+      } else {
         ADD(regs[ir->dst->phys], regs[ir->opr1->phys], regs[ir->opr2->phys]);
+      }
     }
     break;
 
@@ -292,10 +307,14 @@ static void ir_out(IR *ir) {
         const char *tmp = kTmpRegTable[pow];
         mov_immediate(tmp, ir->opr1->fixnum, pow >= 3);
         SUB(regs[ir->dst->phys], tmp, regs[ir->opr2->phys]);
-      } else if (ir->opr2->flag & VRF_CONST)
-        SUB(regs[ir->dst->phys], regs[ir->opr1->phys], IM(ir->opr2->fixnum));
-      else
+      } else if (ir->opr2->flag & VRF_CONST) {
+        if (ir->opr2->fixnum >= 0)
+          SUB(regs[ir->dst->phys], regs[ir->opr1->phys], im12_or_tmpreg(ir->opr2->fixnum, pow));
+        else
+          ADD(regs[ir->dst->phys], regs[ir->opr1->phys], im12_or_tmpreg(-ir->opr2->fixnum, pow));
+      } else {
         SUB(regs[ir->dst->phys], regs[ir->opr1->phys], regs[ir->opr2->phys]);
+      }
     }
     break;
 
@@ -591,10 +610,14 @@ static void ir_out(IR *ir) {
       int pow = kPow2Table[ir->size];
       assert(0 <= pow && pow < 4);
       const char **regs = kRegSizeTable[pow];
-      if (ir->opr2->flag & VRF_CONST)
-        CMP(regs[ir->opr1->phys], IM(ir->opr2->fixnum));
-      else
+      if (ir->opr2->flag & VRF_CONST) {
+        if (ir->opr2->fixnum >= 0)
+          CMP(regs[ir->opr1->phys], im12_or_tmpreg(ir->opr2->fixnum, pow));
+        else
+          CMN(regs[ir->opr1->phys], im12_or_tmpreg(-ir->opr2->fixnum, pow));
+      } else {
         CMP(regs[ir->opr1->phys], regs[ir->opr2->phys]);
+      }
     }
     break;
 

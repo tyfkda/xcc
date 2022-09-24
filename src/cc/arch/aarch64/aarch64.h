@@ -206,6 +206,7 @@
 #define ORR(o1, o2, o3)       EMIT_ASM3("orr", o1, o2, o3)
 #define EOR(o1, o2, o3)       EMIT_ASM3("eor", o1, o2, o3)
 #define CMP(o1, o2)           EMIT_ASM2("cmp", o1, o2)
+#define CMN(o1, o2)           EMIT_ASM2("cmn", o1, o2)
 #define LSL(o1, o2, o3)       EMIT_ASM3("lsl", o1, o2, o3)
 #define ASR(o1, o2, o3)       EMIT_ASM3("asr", o1, o2, o3)
 #define NEG(o1, o2)           EMIT_ASM2("neg", o1, o2)
