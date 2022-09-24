@@ -380,6 +380,7 @@ static VReg *gen_funcall(Expr *expr) {
 
   ArgInfo *arg_infos = NULL;
   int stack_arg_count = 0;
+  int reg_arg_count = 0;
   if (args != NULL) {
     int arg_start = retvar_reg != NULL ? 1 : 0;
     int ireg_index = arg_start;
@@ -400,6 +401,10 @@ static VReg *gen_funcall(Expr *expr) {
       p->is_flonum = is_flonum(arg->type);
 #endif
       p->stack_arg = is_stack_param(arg->type);
+#if defined(VAARG_ON_STACK)
+      if (func->type->func.vaargs && func->type->func.params != NULL && i >= func->type->func.params->len)
+        p->stack_arg = true;
+#endif
       bool reg_arg = !p->stack_arg;
       if (reg_arg) {
 #ifndef __NO_FLONUM
@@ -415,6 +420,7 @@ static VReg *gen_funcall(Expr *expr) {
         offset += ALIGN(p->size, WORD_SIZE);
         ++stack_arg_count;
       } else {
+        ++reg_arg_count;
 #ifndef __NO_FLONUM
         if (p->is_flonum)
           p->reg_index = freg_index++;
@@ -429,27 +435,27 @@ static VReg *gen_funcall(Expr *expr) {
       arg_vtypes[i + arg_start] = to_vtype(arg->type);
     }
   }
-  offset = ALIGN(offset, 8);
+  offset = ALIGN(offset, 16);
 
   IR *precall = new_ir_precall(arg_count - stack_arg_count, offset);
 
-  int reg_arg_count = 0;
   if (offset > 0)
     new_ir_subsp(new_const_vreg(offset, to_vtype(&tySSize)), NULL);
   if (args != NULL) {
     // Register arguments.
+    int iregarg = 0;
     for (int i = arg_count; --i >= 0; ) {
       Expr *arg = args->data[i];
       VReg *reg = gen_expr(arg);
       const ArgInfo *p = &arg_infos[i];
       if (p->offset < 0) {
         new_ir_pusharg(reg, to_vtype(arg->type));
-        ++reg_arg_count;
+        ++iregarg;
       } else {
         VRegType offset_type = {.size = 4, .align = 4, .flag = 0};  // TODO:
-        VReg *dst = new_ir_sofs(new_const_vreg(p->offset + reg_arg_count * WORD_SIZE,
-                                               &offset_type));
-        if (p->stack_arg) {
+        int ofs = p->offset + iregarg * REGARG_SIZE;
+        VReg *dst = new_ir_sofs(new_const_vreg(ofs, &offset_type));
+        if (is_stack_param(arg->type)) {
           new_ir_memcpy(dst, reg, type_size(arg->type));
         } else {
           new_ir_store(dst, reg);
@@ -477,17 +483,19 @@ static VReg *gen_funcall(Expr *expr) {
 
   VReg *result_reg = NULL;
   {
+    int vaarg_start = !func->type->func.vaargs || func->type->func.params == NULL ? -1 :
+        func->type->func.params->len + (retvar_reg != NULL ? 1 : 0);
     Type *type = expr->type;
     if (retvar_reg != NULL)
       type = ptrof(type);
     VRegType *ret_vtype = to_vtype(type);
     if (label_call) {
       result_reg = new_ir_call(func->var.name, global, NULL, total_arg_count, reg_arg_count,
-                               ret_vtype, precall, arg_vtypes, func->type->func.vaargs);
+                               ret_vtype, precall, arg_vtypes, vaarg_start);
     } else {
       VReg *freg = gen_expr(func);
       result_reg = new_ir_call(NULL, false, freg, total_arg_count, reg_arg_count, ret_vtype,
-                               precall, arg_vtypes, func->type->func.vaargs);
+                               precall, arg_vtypes, vaarg_start);
     }
   }
 

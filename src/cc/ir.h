@@ -141,8 +141,8 @@ typedef struct IR {
       VRegType **arg_vtypes;
       int total_arg_count;
       int reg_arg_count;
+      int vaarg_start;
       bool global;
-      bool vaargs;
     } call;
     struct {
       const char *str;
@@ -164,7 +164,7 @@ void new_ir_jmp(enum ConditionKind cond, BB *bb);
 void new_ir_tjmp(VReg *val, BB **bbs, size_t len);
 IR *new_ir_precall(int arg_count, int stack_args_size);
 void new_ir_pusharg(VReg *vreg, const VRegType *vtype);
-VReg *new_ir_call(const Name *label, bool global, VReg *freg, int total_arg_count, int reg_arg_count, const VRegType *result_type, IR *precall, VRegType **arg_vtypes, bool vaargs);
+VReg *new_ir_call(const Name *label, bool global, VReg *freg, int total_arg_count, int reg_arg_count, const VRegType *result_type, IR *precall, VRegType **arg_vtypes, int vaarg_start);
 void new_ir_result(VReg *reg);
 void new_ir_subsp(VReg *value, VReg *dst);
 VReg *new_ir_cast(VReg *vreg, const VRegType *dsttype);

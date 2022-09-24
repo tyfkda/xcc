@@ -1,3 +1,4 @@
+#include "../config.h"
 #include "ir.h"
 
 #include <assert.h>
@@ -615,7 +616,6 @@ static void ir_out(IR *ir) {
 
   case IR_TJMP:
     {
-      const Name *table_label = alloc_label();
       int phys = ir->opr1->phys;
       const int powd = 3;
       assert(0 <= ir->opr1->vtype->size && ir->opr1->vtype->size < kPow2TableSize);
@@ -630,6 +630,7 @@ static void ir_out(IR *ir) {
         }
       }
 
+      const Name *table_label = alloc_label();
       LEA(LABEL_INDIRECT(fmt_name(table_label), RIP), RAX);
       JMP(fmt("*%s", OFFSET_INDIRECT(0, RAX, kReg64s[phys], 8)));
 
@@ -743,7 +744,7 @@ static void ir_out(IR *ir) {
       }
 
 #ifndef __NO_FLONUM
-      if (ir->call.vaargs) {
+      if (ir->call.vaarg_start >= 0) {
         if (freg > 0)
           MOV(IM(freg), AL);
         else
@@ -769,6 +770,7 @@ static void ir_out(IR *ir) {
       // Resore caller save registers.
       pop_caller_save_regs(precall->precall.living_pregs);
 
+      assert(0 <= ir->size && ir->size < kPow2TableSize);
 #ifndef __NO_FLONUM
       if (ir->dst->vtype->flag & VRTF_FLONUM) {
         switch (ir->size) {
@@ -776,10 +778,8 @@ static void ir_out(IR *ir) {
         case SZ_DOUBLE: MOVSD(XMM0, kFReg64s[ir->dst->phys]); break;
         default: assert(false); break;
         }
-        break;
-      }
+      } else
 #endif
-      assert(0 <= ir->size && ir->size < kPow2TableSize);
       if (ir->size > 0) {
         int pow = kPow2Table[ir->size];
         assert(0 <= pow && pow < 4);
@@ -826,7 +826,8 @@ static void ir_out(IR *ir) {
       MOV(RSP, kReg64s[ir->dst->phys]);
     break;
 
-  case IR_CAST: assert((ir->opr1->flag & VRF_CONST) == 0);
+  case IR_CAST:
+    assert((ir->opr1->flag & VRF_CONST) == 0);
 #ifndef __NO_FLONUM
     if (ir->dst->vtype->flag & VRTF_FLONUM) {
       if (ir->opr1->vtype->flag & VRTF_FLONUM) {
@@ -863,10 +864,8 @@ static void ir_out(IR *ir) {
       // flonum->fix
       int powd = kPow2Table[ir->dst->vtype->size];
       switch (ir->opr1->vtype->size) {
-      case SZ_FLOAT: CVTTSS2SI(kFReg64s[ir->opr1->phys], kRegSizeTable[powd][ir->dst->phys]); break;
-      case SZ_DOUBLE:
-        CVTTSD2SI(kFReg64s[ir->opr1->phys], kRegSizeTable[powd][ir->dst->phys]);
-        break;
+      case SZ_FLOAT:   CVTTSS2SI(kFReg64s[ir->opr1->phys], kRegSizeTable[powd][ir->dst->phys]); break;
+      case SZ_DOUBLE:  CVTTSD2SI(kFReg64s[ir->opr1->phys], kRegSizeTable[powd][ir->dst->phys]); break;
       default: assert(false); break;
       }
       break;
@@ -937,15 +936,15 @@ static void ir_out(IR *ir) {
   case IR_CLEAR:
     {
       assert(!(ir->opr1->flag & VRF_CONST));
-      const char *loop = fmt_name(alloc_label());
+      const Name *label = alloc_label();
       MOV(kReg64s[ir->opr1->phys], RSI);
       MOV(IM(ir->size), EDI);
       XOR(AL, AL);
-      EMIT_LABEL(loop);
+      EMIT_LABEL(fmt_name(label));
       MOV(AL, INDIRECT(RSI, NULL, 1));
       INC(RSI);
       DEC(EDI);
-      JNE(loop);
+      JNE(fmt_name(label));
     }
     break;
 

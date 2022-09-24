@@ -11,6 +11,12 @@ EOS
   )
 fi
 
+ARCH=$(arch)
+if [[ -z "$RE_SKIP" ]]; then
+  if [[ "$ARCH" = "arm64" ]] || [[ "$ARCH" = "aarch64" ]]; then
+    RE_SKIP='\/\/-AARCH64'
+  fi
+fi
 
 try_direct() {
   local title="$1"
@@ -224,7 +230,7 @@ try 'data-bss alignment' 0 'static char data = 123; static int bss; return (long
 
 try_direct 'stdarg' 55 "#include <stdarg.h>
 int f(int n, ...) {int a[14*2]; for (int i=0; i<14*2; ++i) a[i]=100+i; va_list ap; va_start(ap, n); int sum=0; for (int i=0; i<n; ++i) sum+=va_arg(ap, int); va_end(ap); return sum;}
-int main(){return f(10, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10);}"
+int main(){return f(10, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10);}  //-AARCH64"
 
 try_direct 'unicode' 121 "int 漢字(int χ) {return χ * χ;} int main(void){return 漢字(11);}"
 

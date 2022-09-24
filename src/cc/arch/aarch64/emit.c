@@ -55,36 +55,39 @@ char *flonum(double x) {
 #endif
 
 char *im(intptr_t x) {
-  return fmt("$%" PRIdPTR, x);
+  return fmt("#%" PRIdPTR, x);
 }
 
-char *indirect(const char *base, const char *index, int scale) {
-  if (index == NULL) {
-    return fmt("(%s)", base);
-  } else {
-    if (scale == 1)
-      return fmt("(%s,%s)", base, index);
-    else
-      return fmt("(%s,%s,%d)", base, index, scale);
-  }
+char *immediate_offset(const char *reg, int offset) {
+  return fmt("[%s,#%d]", reg, offset);
 }
 
-char *offset_indirect(int offset, const char *base, const char *index, int scale) {
-  if (offset == 0)
-    return indirect(base, index, scale);
-
-  if (index == NULL) {
-    return fmt("%d(%s)", offset, base);
-  } else {
-    if (scale == 1)
-      return fmt("%d(%s,%s)", offset, base, index);
-    else
-      return fmt("%d(%s,%s,%d)", offset, base, index, scale);
-  }
+char *pre_index(const char *reg, int offset) {
+  return fmt("[%s,#%d]!", reg, offset);
 }
 
-char *label_indirect(const char *label, const char *reg) {
-  return fmt("%s(%s)", label, reg);
+char *post_index(const char *reg, int offset) {
+  return fmt("[%s],#%d", reg, offset);
+}
+
+char *reg_offset(const char *base, const char *reg, const char *shift) {
+  return fmt("[%s,%s,%s]", base, reg, shift);
+}
+
+char *label_at_page(char *label) {
+#ifdef __APPLE__
+  return fmt("%s@PAGE", label);
+#else
+  return label;
+#endif
+}
+
+char *label_at_pageoff(char *label) {
+#ifdef __APPLE__
+  return fmt("%s@PAGEOFF", label);
+#else
+  return fmt(":lo12:%s", label);
+#endif
 }
 
 char *mangle(char *label) {
@@ -102,6 +105,32 @@ void emit_asm2(const char *op, const char *operand1, const char *operand2) {
     fprintf(emit_fp, "\t%s %s\n", op, operand1);
   } else {
     fprintf(emit_fp, "\t%s %s, %s\n", op, operand1, operand2);
+  }
+}
+
+void emit_asm3(const char *op, const char *operand1, const char *operand2, const char *operand3) {
+  if (operand1 == NULL) {
+    fprintf(emit_fp, "\t%s\n", op);
+  } else if (operand2 == NULL) {
+    fprintf(emit_fp, "\t%s %s\n", op, operand1);
+  } else if (operand3 == NULL) {
+    fprintf(emit_fp, "\t%s %s, %s\n", op, operand1, operand2);
+  } else {
+    fprintf(emit_fp, "\t%s %s, %s, %s\n", op, operand1, operand2, operand3);
+  }
+}
+
+void emit_asm4(const char *op, const char *operand1, const char *operand2, const char *operand3, const char *operand4) {
+  if (operand1 == NULL) {
+    fprintf(emit_fp, "\t%s\n", op);
+  } else if (operand2 == NULL) {
+    fprintf(emit_fp, "\t%s %s\n", op, operand1);
+  } else if (operand3 == NULL) {
+    fprintf(emit_fp, "\t%s %s, %s\n", op, operand1, operand2);
+  } else if (operand4 == NULL) {
+    fprintf(emit_fp, "\t%s %s, %s, %s\n", op, operand1, operand2, operand3);
+  } else {
+    fprintf(emit_fp, "\t%s %s, %s, %s, %s\n", op, operand1, operand2, operand3, operand4);
   }
 }
 

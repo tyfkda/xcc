@@ -3,10 +3,10 @@
 
 #include <assert.h>
 #include <inttypes.h>  // PRIdPTR
-#include <limits.h>  // CHAR_BIT
 #include <stdlib.h>
 #include <string.h>
 
+#include "aarch64.h"
 #include "ast.h"
 #include "codegen.h"
 #include "ir.h"
@@ -16,7 +16,6 @@
 #include "type.h"
 #include "util.h"
 #include "var.h"
-#include "x64.h"
 
 static void eval_initial_value(Expr *expr, Expr **pvar, Fixnum *poffset) {
   switch (expr->kind) {
@@ -315,23 +314,20 @@ static void emit_varinfo(const VarInfo *varinfo, const Initializer *init) {
 
 ////////////////////////////////////////////////
 
-static bool is_asm(Stmt *stmt) {
-  return stmt->kind == ST_ASM;
-}
-
 static VarInfo *find_ret_var(Scope *scope) {
   const Name *retval_name = alloc_name(RET_VAR_NAME, NULL, false);
   return scope_find(scope, retval_name, NULL);
 }
 
 static void put_args_to_stack(Function *func) {
-  static const char *kReg8s[] = {DIL, SIL, DL, CL, R8B, R9B};
-  static const char *kReg16s[] = {DI, SI, DX, CX, R8W, R9W};
-  static const char *kReg32s[] = {EDI, ESI, EDX, ECX, R8D, R9D};
-  static const char *kReg64s[] = {RDI, RSI, RDX, RCX, R8, R9};
+  static const char *kReg8s[] = {W0, W1, W2, W3, W4, W5, W6, W7};
+  static const char *kReg16s[] = {W0, W1, W2, W3, W4, W5, W6, W7};
+  static const char *kReg32s[] = {W0, W1, W2, W3, W4, W5, W6, W7};
+  static const char *kReg64s[] = {X0, X1, X2, X3, X4, X5, X6, X7};
   static const char **kRegTable[] = {NULL, kReg8s, kReg16s, NULL, kReg32s, NULL, NULL, NULL, kReg64s};
 #ifndef __NO_FLONUM
-  static const char *kFReg64s[] = {XMM0, XMM1, XMM2, XMM3, XMM4, XMM5, XMM6, XMM7};
+  const char *kFReg32s[] = {S0, S1, S2, S3, S4, S5, S6, S7};
+  const char *kFReg64s[] = {D0, D1, D2, D3, D4, D5, D6, D7};
 #endif
 
   int arg_index = 0;
@@ -344,7 +340,7 @@ static void put_args_to_stack(Function *func) {
     int offset = varinfo->local.reg->offset;
     assert(size < (int)(sizeof(kRegTable) / sizeof(*kRegTable)) &&
            kRegTable[size] != NULL);
-    MOV(kRegTable[size][0], OFFSET_INDIRECT(offset, RBP, NULL, 1));
+    STR(kRegTable[size][0], IMMEDIATE_OFFSET(FP, offset));
     ++arg_index;
   }
 
@@ -370,8 +366,8 @@ static void put_args_to_stack(Function *func) {
       if (is_flonum(type)) {
         if (farg_index < MAX_FREG_ARGS) {
           switch (type->flonum.kind) {
-          case FL_FLOAT:   MOVSS(kFReg64s[farg_index], OFFSET_INDIRECT(offset, RBP, NULL, 1)); break;
-          case FL_DOUBLE:  MOVSD(kFReg64s[farg_index], OFFSET_INDIRECT(offset, RBP, NULL, 1)); break;
+          case FL_FLOAT:   STR(kFReg32s[farg_index], IMMEDIATE_OFFSET(FP, offset)); break;
+          case FL_DOUBLE:  STR(kFReg64s[farg_index], IMMEDIATE_OFFSET(FP, offset)); break;
           default: assert(false); break;
           }
           ++farg_index;
@@ -391,7 +387,7 @@ static void put_args_to_stack(Function *func) {
         int size = type_size(type);
         assert(size < (int)(sizeof(kRegTable) / sizeof(*kRegTable)) &&
                kRegTable[size] != NULL);
-        MOV(kRegTable[size][arg_index], OFFSET_INDIRECT(offset, RBP, NULL, 1));
+        STR(kRegTable[size][arg_index], IMMEDIATE_OFFSET(FP, offset));
         ++arg_index;
       }
     }
@@ -418,53 +414,21 @@ static void put_args_to_stack(Function *func) {
         assert(size < (int)(sizeof(kRegTable) / sizeof(*kRegTable)) &&
                kRegTable[size] != NULL);
         int offset = varinfo->local.reg->offset;
-        MOV(kRegTable[size][i], OFFSET_INDIRECT(offset, RBP, NULL, 1));
+        STR(kRegTable[size][i], IMMEDIATE_OFFSET(FP, offset));
       } else {
         int size = type_size(&tyVoidPtr);
         assert(size < (int)(sizeof(kRegTable) / sizeof(*kRegTable)) &&
                kRegTable[size] != NULL);
         int offset = (i - MAX_REG_ARGS - MAX_FREG_ARGS) * WORD_SIZE;
-        MOV(kRegTable[size][i], OFFSET_INDIRECT(offset, RBP, NULL, 1));
+        STR(kRegTable[size][i], IMMEDIATE_OFFSET(FP, offset));
       }
     }
-
-#ifndef __NO_FLONUM
-    ip = 0;
-    for (int i = 0; i < MAX_FREG_ARGS; ++i) {
-      const VarInfo *varinfo = NULL;
-      while (ip < len) {
-        const VarInfo *p = params->data[ip++];
-        const Type *type = p->type;
-        if (!is_stack_param(type)
-            && is_flonum(type)
-        ) {
-          varinfo = p;
-          break;
-        }
-      }
-      if (varinfo != NULL) {
-        const Type *type = varinfo->type;
-        assert(type->kind == TY_FLONUM);
-        int offset = varinfo->local.reg->offset;
-        switch (type->flonum.kind) {
-        case FL_FLOAT:   MOVSS(kFReg64s[i], OFFSET_INDIRECT(offset, RBP, NULL, 1)); break;
-        case FL_DOUBLE:  MOVSD(kFReg64s[i], OFFSET_INDIRECT(offset, RBP, NULL, 1)); break;
-        default: assert(false); break;
-        }
-      } else {
-        int offset = (i - MAX_FREG_ARGS) * WORD_SIZE;
-        MOVSD(kFReg64s[i], OFFSET_INDIRECT(offset, RBP, NULL, 1));
-      }
-    }
-#endif
   }
 }
 
 static void emit_defun(Function *func) {
   if (func->scopes == NULL)  // Prototype definition
     return;
-
-  assert(stackpos == 8);
 
   emit_comment(NULL);
   _TEXT();
@@ -480,58 +444,33 @@ static void emit_defun(Function *func) {
     label = quote_label(MANGLE(label));
     _GLOBL(label);
   } else {
+    emit_comment("%.*s: static func", func->name->bytes, func->name->chars);
     label = quote_label(label);
     _LOCAL(label);
   }
+  EMIT_ALIGN(4);
   EMIT_LABEL(label);
-
-  bool no_stmt = true;
-  if (func->stmts != NULL) {
-    for (int i = 0; i < func->stmts->len; ++i) {
-      Stmt *stmt = func->stmts->data[i];
-      if (stmt == NULL)
-        continue;
-      if (!is_asm(stmt)) {
-        no_stmt = false;
-        break;
-      }
-    }
-  }
 
   // Prologue
   // Allocate variable bufer.
   FuncBackend *fnbe = func->extra;
-  int callee_saved_count = 0;
-  if (!no_stmt) {
-    PUSH(RBP); PUSH_STACK_POS();
-    MOV(RSP, RBP);
-    if (fnbe->ra->frame_size > 0) {
-      SUB(IM(fnbe->ra->frame_size), RSP);
-      stackpos += fnbe->ra->frame_size;
-    }
+  size_t frame_size = ALIGN(fnbe->ra->frame_size, 16);
+  STP(FP, LR, PRE_INDEX(SP, -16));
+  MOV(FP, SP);
+  if (frame_size > 0)
+    SUB(SP, SP, IM(frame_size));
+  put_args_to_stack(func);
 
-    put_args_to_stack(func);
-
-    // Callee save.
-    callee_saved_count = push_callee_save_regs(fnbe->ra->used_reg_bits);
-  }
+  // Callee save.
+  push_callee_save_regs(fnbe->ra->used_reg_bits);
 
   emit_bb_irs(fnbe->bbcon);
 
   // Epilogue
-  if (!no_stmt) {
-    if (func->flag & FUNCF_STACK_MODIFIED) {
-      // Stack pointer might be changed if alloca is used, so it need to be recalculated.
-      LEA(OFFSET_INDIRECT(callee_saved_count * -WORD_SIZE - fnbe->ra->frame_size, RBP, NULL, 1),
-          RSP);
-    }
-
-    pop_callee_save_regs(fnbe->ra->used_reg_bits);
-
-    MOV(RBP, RSP);
-    stackpos -= fnbe->ra->frame_size;
-    POP(RBP); POP_STACK_POS();
-  }
+  pop_callee_save_regs(fnbe->ra->used_reg_bits);
+  if (frame_size > 0)
+    ADD(SP, SP, IM(frame_size));
+  LDP(FP, LR, POST_INDEX(SP, 16));
 
   RET();
 
@@ -549,8 +488,6 @@ static void emit_defun(Function *func) {
       emit_varinfo(gvarinfo, gvarinfo->global.init);
     }
   }
-
-  assert(stackpos == 8);
 }
 
 void emit_code(Vector *decls) {

@@ -16,7 +16,7 @@
 
 #include "util.h"
 
-#if !defined(__XV6) && !defined(__linux__)
+#if (!defined(__XV6) && !defined(__linux__)) || defined(__aarch64__)
 
 #define AS_USE_CC
 
@@ -259,6 +259,14 @@ int main(int argc, char *argv[]) {
   vec_push(cpp_cmd, "-D__LP64__");  // Memory model.
   vec_push(cpp_cmd, "-I");
   vec_push(cpp_cmd, cat_path(root, "include"));
+#if defined(__aarch64__)
+  vec_push(cpp_cmd, "-D__aarch64__");
+#elif defined(__x86_64__)
+  vec_push(cpp_cmd, "-D__x86_64__");
+#endif
+#if defined(__APPLE__)
+  vec_push(cpp_cmd, "-D__APPLE__");
+#endif
 
   Vector *cc1_cmd = new_vector();
   vec_push(cc1_cmd, cc1_path);
