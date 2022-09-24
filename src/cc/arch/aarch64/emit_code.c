@@ -462,12 +462,12 @@ static void emit_defun(Function *func) {
   put_args_to_stack(func);
 
   // Callee save.
-  push_callee_save_regs(fnbe->ra->used_reg_bits);
+  push_callee_save_regs(fnbe->ra->used_reg_bits, fnbe->ra->used_freg_bits);
 
   emit_bb_irs(fnbe->bbcon);
 
   // Epilogue
-  pop_callee_save_regs(fnbe->ra->used_reg_bits);
+  pop_callee_save_regs(fnbe->ra->used_reg_bits, fnbe->ra->used_freg_bits);
   if (frame_size > 0)
     ADD(SP, SP, IM(frame_size));
   LDP(FP, LR, POST_INDEX(SP, 16));

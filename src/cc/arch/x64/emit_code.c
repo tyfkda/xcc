@@ -513,7 +513,7 @@ static void emit_defun(Function *func) {
     put_args_to_stack(func);
 
     // Callee save.
-    callee_saved_count = push_callee_save_regs(fnbe->ra->used_reg_bits);
+    callee_saved_count = push_callee_save_regs(fnbe->ra->used_reg_bits, fnbe->ra->used_freg_bits);
   }
 
   emit_bb_irs(fnbe->bbcon);
@@ -526,7 +526,7 @@ static void emit_defun(Function *func) {
           RSP);
     }
 
-    pop_callee_save_regs(fnbe->ra->used_reg_bits);
+    pop_callee_save_regs(fnbe->ra->used_reg_bits, fnbe->ra->used_freg_bits);
 
     MOV(RBP, RSP);
     stackpos -= fnbe->ra->frame_size;

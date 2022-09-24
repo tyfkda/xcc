@@ -11,6 +11,15 @@
 #define ALLOCA(size)  malloc(size)
 #endif
 
+#if defined(__x86_64__)
+#define PHYSICAL_REG_MAX   (7 - 1)  // TODO: Remove `-1`
+#define PHYSICAL_FREG_MAX  (7)
+
+#elif defined(__aarch64__)
+#define PHYSICAL_REG_MAX   (16)
+#define PHYSICAL_FREG_MAX  (24)
+#endif
+
 #if defined(__aarch64__)
 #define REGARG_SIZE  (16)
 #else

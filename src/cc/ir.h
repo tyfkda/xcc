@@ -14,10 +14,7 @@ typedef struct Vector Vector;
 #define MAX_REG_ARGS  (6)
 #define WORD_SIZE  (8)  /*sizeof(void*)*/
 
-#define PHYSICAL_REG_MAX  (7 - 1)  // TODO: Remove `-1`
-
 #define MAX_FREG_ARGS  (8)
-#define PHYSICAL_FREG_MAX  (7 - 1)  // TODO: Remove `-1`
 
 // Virtual register
 
@@ -133,7 +130,7 @@ typedef struct IR {
       int arg_count;
       int stack_args_size;
       int stack_aligned;
-      unsigned int living_pregs;
+      unsigned long living_pregs;
     } precall;
     struct {
       const Name *label;
@@ -203,8 +200,8 @@ typedef struct BBContainer {
 
 BBContainer *new_func_blocks(void);
 void remove_unnecessary_bb(BBContainer *bbcon);
-int push_callee_save_regs(unsigned short used);
-void pop_callee_save_regs(unsigned short used);
+int push_callee_save_regs(unsigned long used, unsigned long fused);
+void pop_callee_save_regs(unsigned long used, unsigned long fused);
 
 void emit_bb_irs(BBContainer *bbcon);
 

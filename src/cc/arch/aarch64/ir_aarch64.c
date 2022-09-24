@@ -11,8 +11,8 @@
 
 #define WORK_REG_NO  (PHYSICAL_REG_MAX)
 
-static void push_caller_save_regs(unsigned short living, int base);
-static void pop_caller_save_regs(unsigned short living, int base);
+static void push_caller_save_regs(unsigned long living, int base);
+static void pop_caller_save_regs(unsigned long living, int base);
 
 static enum ConditionKind invert_cond(enum ConditionKind cond) {
   assert(COND_EQ <= cond && cond <= COND_UGT);
@@ -25,11 +25,11 @@ static enum ConditionKind invert_cond(enum ConditionKind cond) {
 
 // Register allocator
 
-const char *kRegSizeTable[][7] = {
-  {W20, W21, W22, W23, W24, W25, W26},
-  {W20, W21, W22, W23, W24, W25, W26},
-  {W20, W21, W22, W23, W24, W25, W26},
-  {X20, X21, X22, X23, X24, X25, X26},
+const char *kRegSizeTable[][PHYSICAL_REG_MAX] = {
+  {W20, W21, W22, W23, W24, W25, W26, W27, W28, W11, W12, W13, W14, W15, W16, W17},
+  {W20, W21, W22, W23, W24, W25, W26, W27, W28, W11, W12, W13, W14, W15, W16, W17},
+  {W20, W21, W22, W23, W24, W25, W26, W27, W28, W11, W12, W13, W14, W15, W16, W17},
+  {X20, X21, X22, X23, X24, X25, X26, X27, X28, X11, X12, X13, X14, X15, X16, X17},
 };
 
 #define kReg32s  (kRegSizeTable[2])
@@ -45,24 +45,30 @@ const char *kTmpRegTable2[] = {W10, W10, W10, X10};
 #ifndef __NO_FLONUM
 #define SZ_FLOAT   (4)
 #define SZ_DOUBLE  (8)
-const char *kFReg32s[7] = {S8, S9, S10, S11, S12, S13, S14};
-const char *kFReg64s[7] = {D8, D9, D10, D11, D12, D13, D14};
+const char *kFReg32s[PHYSICAL_FREG_MAX] = {
+   S8,  S9, S10, S11, S12, S13, S14, S15,
+  S16, S17, S18, S19, S20, S21, S22, S23,
+  S24, S25, S26, S27, S28, S29, S30, S31,
+};
+const char *kFReg64s[PHYSICAL_FREG_MAX] = {
+   D8,  D9, D10, D11, D12, D13, D14, D15,
+  D16, D17, D18, D19, D20, D21, D22, D23,
+  D24, D25, D26, D27, D28, D29, D30, D31,
+};
 #endif
 
 #define CALLEE_SAVE_REG_COUNT  ((int)(sizeof(kCalleeSaveRegs) / sizeof(*kCalleeSaveRegs)))
-const int kCalleeSaveRegs[] = {
-  0, 1, 2, 3, 4, 5, 6,
-};
+const int kCalleeSaveRegs[] = {0, 1, 2, 3, 4, 5, 6, 7, 8};
 
 #define CALLER_SAVE_REG_COUNT  ((int)(sizeof(kCallerSaveRegs) / sizeof(*kCallerSaveRegs)))
-const int kCallerSaveRegs[] = {
-  1,  // R10
-  2,  // R11
-};
+const int kCallerSaveRegs[] = {9, 10, 11, 12, 13, 14, 15};
 
 #ifndef __NO_FLONUM
+#define CALLEE_SAVE_FREG_COUNT  ((int)(sizeof(kCalleeSaveFRegs) / sizeof(*kCalleeSaveFRegs)))
+const int kCalleeSaveFRegs[] = {0, 1, 2, 3, 4, 5, 6, 7};
+
 #define CALLER_SAVE_FREG_COUNT  ((int)(sizeof(kCallerSaveFRegs) / sizeof(*kCallerSaveFRegs)))
-const int kCallerSaveFRegs[] = {0, 1, 2, 3, 4, 5};
+const int kCallerSaveFRegs[] = {8, 9, 10, 11, 12, 13, 14, 15};
 #endif
 
 static const int kPow2Table[] = {-1, 0, 1, -1, 2, -1, -1, -1, 3};
@@ -711,16 +717,16 @@ static void ir_out(IR *ir) {
     {
       // Make room for caller save.
       int add = 0;
-      unsigned short living_pregs = ir->precall.living_pregs;
+      unsigned long living_pregs = ir->precall.living_pregs;
       for (int i = 0; i < CALLER_SAVE_REG_COUNT; ++i) {
         int ireg = kCallerSaveRegs[i];
-        if (living_pregs & (1 << ireg))
+        if (living_pregs & (1UL << ireg))
           add += WORD_SIZE;
       }
 #ifndef __NO_FLONUM
       for (int i = 0; i < CALLER_SAVE_FREG_COUNT; ++i) {
         int freg = kCallerSaveFRegs[i];
-        if (living_pregs & (1 << (freg + PHYSICAL_REG_MAX)))
+        if (living_pregs & (1UL << (freg + PHYSICAL_REG_MAX)))
           add += WORD_SIZE;
       }
 #endif
@@ -816,16 +822,16 @@ static void ir_out(IR *ir) {
 
 {
 int add = 0;
-unsigned short living_pregs = precall->precall.living_pregs;
+unsigned long living_pregs = precall->precall.living_pregs;
 for (int i = 0; i < CALLER_SAVE_REG_COUNT; ++i) {
   int ireg = kCallerSaveRegs[i];
-  if (living_pregs & (1 << ireg))
+  if (living_pregs & (1UL << ireg))
     add += WORD_SIZE;
 }
 #ifndef __NO_FLONUM
 for (int i = 0; i < CALLER_SAVE_FREG_COUNT; ++i) {
   int freg = kCallerSaveFRegs[i];
-  if (living_pregs & (1 << (freg + PHYSICAL_REG_MAX)))
+  if (living_pregs & (1UL << (freg + PHYSICAL_REG_MAX)))
     add += WORD_SIZE;
 }
 #endif
@@ -1076,31 +1082,61 @@ void remove_unnecessary_bb(BBContainer *bbcon) {
   }
 }
 
-static int enum_save_regs(unsigned short used, const char *saves[CALLEE_SAVE_REG_COUNT]) {
+static int enum_callee_save_regs(unsigned long bit, int n, const int *indices, const char **regs, const char *saves[CALLEE_SAVE_REG_COUNT]) {
   int count = 0;
-  for (int i = 0; i < CALLEE_SAVE_REG_COUNT; ++i) {
-    int ireg = kCalleeSaveRegs[i];
-    if (used & (1 << ireg))
-      saves[count++] = kReg64s[ireg];
+  for (int i = 0; i < n; ++i) {
+    int ireg = indices[i];
+    if (bit & (1 << ireg))
+      saves[count++] = regs[ireg];
   }
   return count;
 }
 
-int push_callee_save_regs(unsigned short used) {
-  const char *saves[(CALLEE_SAVE_REG_COUNT + 1) & ~1];
-  int count = enum_save_regs(used, saves);
+#ifdef __NO_FLONUM
+#define N  CALLEE_SAVE_REG_COUNT
+
+#else
+#define N  (CALLEE_SAVE_REG_COUNT > CALLEE_SAVE_FREG_COUNT ? CALLEE_SAVE_REG_COUNT : CALLEE_SAVE_FREG_COUNT)
+#endif
+
+int push_callee_save_regs(unsigned long used, unsigned long fused) {
+  const char *saves[(N + 1) & ~1];
+  int count = enum_callee_save_regs(used, CALLEE_SAVE_REG_COUNT, kCalleeSaveRegs, kReg64s, saves);
   for (int i = 0; i < count; i += 2) {
     if (i + 1 < count)
       STP(saves[i], saves[i + 1], PRE_INDEX(SP, -16));
     else
       STR(saves[i], PRE_INDEX(SP, -16));
   }
+#ifndef __NO_FLONUM
+  int fcount = enum_callee_save_regs(fused, CALLEE_SAVE_FREG_COUNT, kCalleeSaveFRegs, kFReg64s, saves);
+  for (int i = 0; i < fcount; i += 2) {
+    if (i + 1 < fcount)
+      STP(saves[i], saves[i + 1], PRE_INDEX(SP, -16));
+    else
+      STR(saves[i], PRE_INDEX(SP, -16));
+  }
+  count += fcount;
+#else
+  UNUSED(fused);
+#endif
   return count;
 }
 
-void pop_callee_save_regs(unsigned short used) {
-  const char *saves[(CALLEE_SAVE_REG_COUNT + 1) & ~1];
-  int count = enum_save_regs(used, saves);
+void pop_callee_save_regs(unsigned long used, unsigned long fused) {
+  const char *saves[(N + 1) & ~1];
+#ifndef __NO_FLONUM
+  int fcount = enum_callee_save_regs(fused, CALLEE_SAVE_FREG_COUNT, kCalleeSaveFRegs, kFReg64s, saves);
+  if ((fcount & 1) != 0)
+    LDR(saves[--fcount], POST_INDEX(SP, 16));
+  for (int i = fcount; i > 0; ) {
+    i -= 2;
+    LDP(saves[i], saves[i + 1], POST_INDEX(SP, 16));
+  }
+#else
+  UNUSED(fused);
+#endif
+  int count = enum_callee_save_regs(used, CALLEE_SAVE_REG_COUNT, kCalleeSaveRegs, kReg64s, saves);
   if ((count & 1) != 0)
     LDR(saves[--count], POST_INDEX(SP, 16));
   for (int i = count; i > 0; ) {
@@ -1108,15 +1144,16 @@ void pop_callee_save_regs(unsigned short used) {
     LDP(saves[i], saves[i + 1], POST_INDEX(SP, 16));
   }
 }
+#undef N
 
-static void push_caller_save_regs(unsigned short living, int base) {
+static void push_caller_save_regs(unsigned long living, int base) {
   const int FIELD_SIZE = 16;
 
 #ifndef __NO_FLONUM
   {
     for (int i = CALLER_SAVE_FREG_COUNT; i > 0;) {
       int ireg = kCallerSaveFRegs[--i];
-      if (living & (1U << (ireg + PHYSICAL_REG_MAX))) {
+      if (living & (1UL << (ireg + PHYSICAL_REG_MAX))) {
         // TODO: Detect register size.
         STR(kFReg64s[ireg], IMMEDIATE_OFFSET(SP, base));
         base += FIELD_SIZE;
@@ -1127,21 +1164,21 @@ static void push_caller_save_regs(unsigned short living, int base) {
 
   for (int i = CALLER_SAVE_REG_COUNT; i > 0;) {
     int ireg = kCallerSaveRegs[--i];
-    if (living & (1 << ireg)) {
+    if (living & (1UL << ireg)) {
       STR(kReg64s[ireg], IMMEDIATE_OFFSET(SP, base));
       base += FIELD_SIZE;
     }
   }
 }
 
-static void pop_caller_save_regs(unsigned short living, int base) {
+static void pop_caller_save_regs(unsigned long living, int base) {
   const int FIELD_SIZE = 16;
 
 #ifndef __NO_FLONUM
   {
     for (int i = CALLER_SAVE_FREG_COUNT; i > 0;) {
       int ireg = kCallerSaveFRegs[--i];
-      if (living & (1U << (ireg + PHYSICAL_REG_MAX))) {
+      if (living & (1UL << (ireg + PHYSICAL_REG_MAX))) {
         // TODO: Detect register size.
         LDR(kFReg64s[ireg], IMMEDIATE_OFFSET(SP, base));
         base += FIELD_SIZE;
@@ -1152,7 +1189,7 @@ static void pop_caller_save_regs(unsigned short living, int base) {
 
   for (int i = CALLER_SAVE_REG_COUNT; --i >= 0;) {
     int ireg = kCallerSaveRegs[i];
-    if (living & (1 << ireg)) {
+    if (living & (1UL << ireg)) {
       LDR(kReg64s[ireg], IMMEDIATE_OFFSET(SP, base));
       base += FIELD_SIZE;
     }

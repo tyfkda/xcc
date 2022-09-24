@@ -11,8 +11,8 @@
 
 #define WORK_REG_NO  (PHYSICAL_REG_MAX)
 
-static void push_caller_save_regs(unsigned short living, int base);
-static void pop_caller_save_regs(unsigned short living);
+static void push_caller_save_regs(unsigned long living, int base);
+static void pop_caller_save_regs(unsigned long living);
 
 int stackpos = 8;
 
@@ -27,7 +27,7 @@ static enum ConditionKind invert_cond(enum ConditionKind cond) {
 
 // Register allocator
 
-const char *kRegSizeTable[][7] = {
+const char *kRegSizeTable[][PHYSICAL_REG_MAX + 1] = {
   { BL, R10B, R11B, R12B, R13B, R14B, R15B},
   { BX, R10W, R11W, R12W, R13W, R14W, R15W},
   {EBX, R10D, R11D, R12D, R13D, R14D, R15D},
@@ -44,7 +44,7 @@ const char *kRegDTable[] = {DL, DX, EDX, RDX};
 #ifndef __NO_FLONUM
 #define SZ_FLOAT   (4)
 #define SZ_DOUBLE  (8)
-const char *kFReg64s[7] = {XMM8, XMM9, XMM10, XMM11, XMM12, XMM13, XMM14};
+const char *kFReg64s[PHYSICAL_FREG_MAX] = {XMM8, XMM9, XMM10, XMM11, XMM12, XMM13, XMM14};
 #endif
 
 #define CALLEE_SAVE_REG_COUNT  ((int)(sizeof(kCalleeSaveRegs) / sizeof(*kCalleeSaveRegs)))
@@ -649,16 +649,16 @@ static void ir_out(IR *ir) {
     {
       // Make room for caller save.
       int add = 0;
-      unsigned short living_pregs = ir->precall.living_pregs;
+      unsigned long living_pregs = ir->precall.living_pregs;
       for (int i = 0; i < CALLER_SAVE_REG_COUNT; ++i) {
         int ireg = kCallerSaveRegs[i];
-        if (living_pregs & (1 << ireg))
+        if (living_pregs & (1UL << ireg))
           add += WORD_SIZE;
       }
 #ifndef __NO_FLONUM
       for (int i = 0; i < CALLER_SAVE_FREG_COUNT; ++i) {
         int freg = kCallerSaveFRegs[i];
-        if (living_pregs & (1 << (freg + PHYSICAL_REG_MAX)))
+        if (living_pregs & (1UL << (freg + PHYSICAL_REG_MAX)))
           add += WORD_SIZE;
       }
 #endif
@@ -1129,7 +1129,10 @@ void remove_unnecessary_bb(BBContainer *bbcon) {
   }
 }
 
-int push_callee_save_regs(unsigned short used) {
+int push_callee_save_regs(unsigned long used, unsigned long fused) {
+  // Assume no callee save freg exists.
+  UNUSED(fused);
+
   int count = 0;
   for (int i = 0; i < CALLEE_SAVE_REG_COUNT; ++i) {
     int ireg = kCalleeSaveRegs[i];
@@ -1142,7 +1145,10 @@ int push_callee_save_regs(unsigned short used) {
   return count;
 }
 
-void pop_callee_save_regs(unsigned short used) {
+void pop_callee_save_regs(unsigned long used, unsigned long fused) {
+  // Assume no callee save freg exists.
+  UNUSED(fused);
+
   for (int i = CALLEE_SAVE_REG_COUNT; --i >= 0;) {
     int ireg = kCalleeSaveRegs[i];
     if (used & (1 << ireg)) {
@@ -1152,12 +1158,12 @@ void pop_callee_save_regs(unsigned short used) {
   }
 }
 
-static void push_caller_save_regs(unsigned short living, int base) {
+static void push_caller_save_regs(unsigned long living, int base) {
 #ifndef __NO_FLONUM
   {
     for (int i = CALLER_SAVE_FREG_COUNT; i > 0;) {
       int ireg = kCallerSaveFRegs[--i];
-      if (living & (1U << (ireg + PHYSICAL_REG_MAX))) {
+      if (living & (1UL << (ireg + PHYSICAL_REG_MAX))) {
         // TODO: Detect register size.
         MOVSD(kFReg64s[ireg], OFFSET_INDIRECT(base, RSP, NULL, 1));
         base += WORD_SIZE;
@@ -1168,20 +1174,20 @@ static void push_caller_save_regs(unsigned short living, int base) {
 
   for (int i = CALLER_SAVE_REG_COUNT; i > 0;) {
     int ireg = kCallerSaveRegs[--i];
-    if (living & (1 << ireg)) {
+    if (living & (1UL << ireg)) {
       MOV(kReg64s[ireg], OFFSET_INDIRECT(base, RSP, NULL, 1));
       base += WORD_SIZE;
     }
   }
 }
 
-static void pop_caller_save_regs(unsigned short living) {
+static void pop_caller_save_regs(unsigned long living) {
 #ifndef __NO_FLONUM
   {
     int count = 0;
     for (int i = CALLER_SAVE_FREG_COUNT; i > 0;) {
       int ireg = kCallerSaveFRegs[--i];
-      if (living & (1U << (ireg + PHYSICAL_REG_MAX))) {
+      if (living & (1UL << (ireg + PHYSICAL_REG_MAX))) {
         // TODO: Detect register size.
         MOVSD(OFFSET_INDIRECT(count * WORD_SIZE, RSP, NULL, 1), kFReg64s[ireg]);
         ++count;
@@ -1196,7 +1202,7 @@ static void pop_caller_save_regs(unsigned short living) {
 
   for (int i = CALLER_SAVE_REG_COUNT; --i >= 0;) {
     int ireg = kCallerSaveRegs[i];
-    if (living & (1 << ireg)) {
+    if (living & (1UL << ireg)) {
       POP(kReg64s[ireg]);
       POP_STACK_POS();
     }

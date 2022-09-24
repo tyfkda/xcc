@@ -39,6 +39,7 @@ RegAlloc *new_reg_alloc(int phys_max) {
   assert(phys_max < (int)(sizeof(ra->used_reg_bits) * CHAR_BIT));
 #endif
   ra->used_reg_bits = 0;
+  ra->used_freg_bits = 0;
   return ra;
 }
 
@@ -95,11 +96,11 @@ static void split_at_interval(RegAlloc *ra, LiveInterval **active, int active_co
 }
 
 static void expire_old_intervals(
-  LiveInterval **active, int *pactive_count, unsigned short *pusing_bits, int start
+  LiveInterval **active, int *pactive_count, unsigned long *pusing_bits, int start
 ) {
   int active_count = *pactive_count;
   int j;
-  short using_bits = *pusing_bits;
+  unsigned long using_bits = *pusing_bits;
   for (j = 0; j < active_count; ++j) {
     LiveInterval *li = active[j];
     if (li->end > start)
@@ -162,8 +163,8 @@ static void linear_scan_register_allocation(RegAlloc *ra, LiveInterval **sorted_
     LiveInterval **active;
     int phys_max;
     int active_count;
-    unsigned short using_bits;
-    unsigned short used_bits;
+    unsigned long using_bits;
+    unsigned long used_bits;
   } Info;
 
   Info ireg_info = {
@@ -182,7 +183,6 @@ static void linear_scan_register_allocation(RegAlloc *ra, LiveInterval **sorted_
     .used_bits = 0,
   };
 #endif
-  Info *info = &ireg_info;
 
   for (int i = 0; i < vreg_count; ++i) {
     LiveInterval *li = sorted_intervals[i];
@@ -190,13 +190,12 @@ static void linear_scan_register_allocation(RegAlloc *ra, LiveInterval **sorted_
       continue;
     expire_old_intervals(ireg_info.active, &ireg_info.active_count, &ireg_info.using_bits,
                          li->start);
+    Info *info = &ireg_info;
 #ifndef __NO_FLONUM
     expire_old_intervals(freg_info.active, &freg_info.active_count, &freg_info.using_bits,
                          li->start);
     if (((VReg*)ra->vregs->data[li->virt])->vtype->flag & VRTF_FLONUM)
       info = &freg_info;
-    else
-      info = &ireg_info;
 #endif
     if (info->active_count >= info->phys_max) {
       split_at_interval(ra, info->active, info->active_count, li);
@@ -406,10 +405,15 @@ static void analyze_reg_flow(BBContainer *bbcon) {
 static void detect_living_registers(
   RegAlloc *ra, BBContainer *bbcon, LiveInterval **sorted_intervals, int vreg_count
 ) {
-#define N  (16)
-  unsigned int living_pregs = 0;
-  LiveInterval *livings[N];
-  for (int i = 0; i < (int)(sizeof(livings) / sizeof(*livings)); ++i)
+#ifdef __NO_FLONUM
+  int maxbit = ra->phys_max;
+#else
+  int maxbit = ra->phys_max + ra->fphys_max;
+#endif
+  unsigned long living_pregs = 0;
+  assert((int)sizeof(living_pregs) * CHAR_BIT >= maxbit);
+  LiveInterval **livings = ALLOCA(sizeof(*livings) * maxbit);
+  for (int i = 0; i < maxbit; ++i)
     livings[i] = NULL;
 
   int nip = 0, head = 0;
@@ -429,12 +433,12 @@ static void detect_living_registers(
           phys += ra->phys_max;
 #endif
         if (nip == li->start) {
-          living_pregs |= 1U << phys;
+          living_pregs |= 1UL << phys;
           livings[phys] = li;
         }
       }
       // Eliminate deactivated registers.
-      for (int k = 0; k < N; ++k) {
+      for (int k = 0; k < maxbit; ++k) {
         LiveInterval *li = livings[k];
         if (li != NULL && nip == li->end) {
           int phys = li->phys;
@@ -458,7 +462,6 @@ static void detect_living_registers(
       }
     }
   }
-#undef N
 }
 
 void prepare_register_allocation(Function *func) {
@@ -547,8 +550,9 @@ void prepare_register_allocation(Function *func) {
 }
 
 void alloc_physical_registers(RegAlloc *ra, BBContainer *bbcon, int reserved_size) {
+  assert(ra->phys_max < (int)(sizeof(ra->used_reg_bits) * CHAR_BIT));
 #ifndef __NO_FLONUM
-  assert(ra->phys_max + ra->fphys_max < (int)(sizeof(ra->used_reg_bits) * CHAR_BIT));
+  assert(ra->fphys_max < (int)(sizeof(ra->used_freg_bits) * CHAR_BIT));
 #endif
   analyze_reg_flow(bbcon);
 
