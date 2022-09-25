@@ -417,7 +417,6 @@ static void process_line(const char *line, bool enable, Stream *stream) {
 
   for (;;) {
     const char *p = get_lex_p();
-// fprintf(stderr, "process_line: [%s], NULL=%d\n", p, p==NULL);
     if (p != NULL) {
       if (handle_block_comment(begin, &p, stream)) {
         begin = p;

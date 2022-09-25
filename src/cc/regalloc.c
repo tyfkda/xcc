@@ -557,7 +557,6 @@ void alloc_physical_registers(RegAlloc *ra, BBContainer *bbcon, int reserved_siz
 
   int vreg_count = ra->vregs->len;
 
-// int iter_count = 0;
   for (;;) {
     intervals = realloc(intervals, sizeof(LiveInterval) * vreg_count);
     check_live_interval(bbcon, vreg_count, intervals);

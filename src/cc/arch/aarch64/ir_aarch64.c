@@ -552,7 +552,6 @@ static void ir_out(IR *ir) {
         SUB(SP, SP, IM(ir->opr1->fixnum));
       else if (ir->opr1->fixnum < 0)
         ADD(SP, SP, IM(-ir->opr1->fixnum));
-      // stackpos += ir->opr1->fixnum;
     } else {
       SUB(SP, SP, kReg64s[ir->opr1->phys]);
     }
@@ -694,11 +693,7 @@ static void ir_out(IR *ir) {
       char *label = fmt_name(table_label);
       ADRP(dst, LABEL_AT_PAGE(label));
       ADD(dst, dst, LABEL_AT_PAGEOFF(label));
-      if (pows < powd) {
-        LDR(dst, REG_OFFSET(dst, kRegSizeTable[pows][phys], _UXTW(3)));  // dst = label + (opr1 << 3)
-      } else {
-        LDR(dst, REG_OFFSET(dst, kRegSizeTable[pows][phys], _LSL(3)));  // dst = label + (opr1 << 3)
-      }
+      LDR(dst, REG_OFFSET(dst, kRegSizeTable[pows][phys], pows < powd ? _UXTW(3) : _LSL(3)));  // dst = label + (opr1 << 3)
       BR(dst);
 
       _RODATA();
@@ -730,8 +725,7 @@ static void ir_out(IR *ir) {
       }
 #endif
 
-      int align_stack = (16 - (/*stackpos +*/ add + ir->precall.stack_args_size)) & 15;
-// fprintf(stderr, "PRECALL: add=%d, align_stack=%d, final=%d\n", add, align_stack, add + align_stack);
+      int align_stack = (16 - (add + ir->precall.stack_args_size)) & 15;
       ir->precall.stack_aligned = align_stack;
       add += align_stack;
 
@@ -769,7 +763,6 @@ static void ir_out(IR *ir) {
       const int FIELD_SIZE = 16;
       IR *precall = ir->call.precall;
       int reg_args = ir->call.reg_arg_count;
-// fprintf(stderr, "CALL: regs_args=%d, stack_arg_size=%d, aligned=%d\n", reg_args, precall->precall.stack_args_size, precall->precall.stack_aligned);
       push_caller_save_regs(
           precall->precall.living_pregs,
           reg_args * FIELD_SIZE + precall->precall.stack_args_size + precall->precall.stack_aligned);
@@ -1119,7 +1112,6 @@ void pop_callee_save_regs(unsigned short used) {
 static void push_caller_save_regs(unsigned short living, int base) {
   const int FIELD_SIZE = 16;
 
-// fprintf(stderr, "push_caller_save_regs: living=%x, base=%d\n", living, base);
 #ifndef __NO_FLONUM
   {
     for (int i = CALLER_SAVE_FREG_COUNT; i > 0;) {
@@ -1145,7 +1137,6 @@ static void push_caller_save_regs(unsigned short living, int base) {
 static void pop_caller_save_regs(unsigned short living, int base) {
   const int FIELD_SIZE = 16;
 
-// fprintf(stderr, "pop_caller_save_regs: living=%x\n", living);
 #ifndef __NO_FLONUM
   {
     for (int i = CALLER_SAVE_FREG_COUNT; i > 0;) {
@@ -1156,10 +1147,6 @@ static void pop_caller_save_regs(unsigned short living, int base) {
         base += FIELD_SIZE;
       }
     }
-    // if (count > 0) {
-    //   ADD(SP, SP, IM(FIELD_SIZE * count));
-    //   // stackpos -= FIELD_SIZE * count;
-    // }
   }
 #endif
 
