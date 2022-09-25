@@ -16,7 +16,7 @@
 #define PHYSICAL_FREG_MAX  (7)
 
 #elif defined(__aarch64__)
-#define PHYSICAL_REG_MAX   (16)
+#define PHYSICAL_REG_MAX   (17)
 #define PHYSICAL_FREG_MAX  (24)
 #endif
 

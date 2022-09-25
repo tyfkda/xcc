@@ -4,12 +4,11 @@
 #include <assert.h>
 #include <stdlib.h>  // malloc
 
+#include "emit_code.h"
 #include "regalloc.h"
 #include "table.h"
 #include "util.h"
 #include "x64.h"
-
-#define WORK_REG_NO  (PHYSICAL_REG_MAX)
 
 static void push_caller_save_regs(unsigned long living, int base);
 static void pop_caller_save_regs(unsigned long living);
@@ -27,7 +26,7 @@ static enum ConditionKind invert_cond(enum ConditionKind cond) {
 
 // Register allocator
 
-const char *kRegSizeTable[][PHYSICAL_REG_MAX + 1] = {
+static const char *kRegSizeTable[][PHYSICAL_REG_MAX + 1] = {
   { BL, R10B, R11B, R12B, R13B, R14B, R15B},
   { BX, R10W, R11W, R12W, R13W, R14W, R15W},
   {EBX, R10D, R11D, R12D, R13D, R14D, R15D},
@@ -38,17 +37,17 @@ const char *kRegSizeTable[][PHYSICAL_REG_MAX + 1] = {
 #define kReg32s  (kRegSizeTable[2])
 #define kReg64s  (kRegSizeTable[3])
 
-const char *kRegATable[] = {AL, AX, EAX, RAX};
-const char *kRegDTable[] = {DL, DX, EDX, RDX};
+static const char *kRegATable[] = {AL, AX, EAX, RAX};
+static const char *kRegDTable[] = {DL, DX, EDX, RDX};
 
 #ifndef __NO_FLONUM
 #define SZ_FLOAT   (4)
 #define SZ_DOUBLE  (8)
-const char *kFReg64s[PHYSICAL_FREG_MAX] = {XMM8, XMM9, XMM10, XMM11, XMM12, XMM13, XMM14};
+static const char *kFReg64s[PHYSICAL_FREG_MAX] = {XMM8, XMM9, XMM10, XMM11, XMM12, XMM13, XMM14};
 #endif
 
 #define CALLEE_SAVE_REG_COUNT  ((int)(sizeof(kCalleeSaveRegs) / sizeof(*kCalleeSaveRegs)))
-const int kCalleeSaveRegs[] = {
+static const int kCalleeSaveRegs[] = {
   0,  // RBX
   3,  // R12
   4,  // R13
@@ -56,14 +55,14 @@ const int kCalleeSaveRegs[] = {
 };
 
 #define CALLER_SAVE_REG_COUNT  ((int)(sizeof(kCallerSaveRegs) / sizeof(*kCallerSaveRegs)))
-const int kCallerSaveRegs[] = {
+static const int kCallerSaveRegs[] = {
   1,  // R10
   2,  // R11
 };
 
 #ifndef __NO_FLONUM
 #define CALLER_SAVE_FREG_COUNT  ((int)(sizeof(kCallerSaveFRegs) / sizeof(*kCallerSaveFRegs)))
-const int kCallerSaveFRegs[] = {0, 1, 2, 3, 4, 5};
+static const int kCallerSaveFRegs[] = {0, 1, 2, 3, 4, 5};
 #endif
 
 //
@@ -272,6 +271,7 @@ static void ir_out(IR *ir) {
 
   case IR_MUL:
     {
+      assert(!(ir->opr1->flag & VRF_CONST) && !(ir->opr2->flag & VRF_CONST));
 #ifndef __NO_FLONUM
       if (ir->dst->vtype->flag & VRTF_FLONUM) {
         assert(ir->dst->phys == ir->opr1->phys);
@@ -285,26 +285,18 @@ static void ir_out(IR *ir) {
       }
 #endif
       assert(0 <= ir->size && ir->size < kPow2TableSize);
-      assert(!(ir->opr1->flag & VRF_CONST));
       int pow = kPow2Table[ir->size];
       assert(0 <= pow && pow < 4);
       const char **regs = kRegSizeTable[pow];
       const char *a = kRegATable[pow];
       MOV(regs[ir->opr1->phys], a);
-      const char *opr2;
-      if (ir->opr2->flag & VRF_CONST) {
-        MOV(IM(ir->opr2->fixnum), regs[WORK_REG_NO]);
-        opr2 = regs[WORK_REG_NO];
-      } else {
-        opr2 = regs[ir->opr2->phys];
-      }
-      MUL(opr2);
+      MUL(regs[ir->opr2->phys]);
       MOV(a, regs[ir->dst->phys]);
     }
     break;
 
   case IR_DIV:
-    assert(!(ir->opr1->flag & VRF_CONST));
+    assert(!(ir->opr1->flag & VRF_CONST) && !(ir->opr2->flag & VRF_CONST));
 #ifndef __NO_FLONUM
     if (ir->dst->vtype->flag & VRTF_FLONUM) {
       assert(ir->dst->phys == ir->opr1->phys);
@@ -320,24 +312,10 @@ static void ir_out(IR *ir) {
     if (ir->size == 1) {
       if (!(ir->dst->vtype->flag & VRTF_UNSIGNED)) {
         MOVSX(kReg8s[ir->opr1->phys], AX);
-        const char *opr2;
-        if (ir->opr2->flag & VRF_CONST) {
-          opr2 = kReg8s[WORK_REG_NO];
-          MOV(IM(ir->opr2->fixnum), opr2);
-        } else {
-          opr2 = kReg8s[ir->opr2->phys];
-        }
-        IDIV(opr2);
+        IDIV(kReg8s[ir->opr2->phys]);
       } else {
         MOVZX(kReg8s[ir->opr1->phys], AX);
-        const char *opr2;
-        if (ir->opr2->flag & VRF_CONST) {
-          opr2 = kReg8s[WORK_REG_NO];
-          MOV(IM(ir->opr2->fixnum), opr2);
-        } else {
-          opr2 = kReg8s[ir->opr2->phys];
-        }
-        DIV(opr2);
+        DIV(kReg8s[ir->opr2->phys]);
       }
       MOV(AL, kReg8s[ir->dst->phys]);
     } else {
@@ -347,13 +325,6 @@ static void ir_out(IR *ir) {
       const char **regs = kRegSizeTable[pow];
       const char *a = kRegATable[pow];
       MOV(regs[ir->opr1->phys], a);
-      const char *opr2;
-      if (ir->opr2->flag & VRF_CONST) {
-        opr2 = regs[WORK_REG_NO];
-        MOV(IM(ir->opr2->fixnum), opr2);
-      } else {
-        opr2 = regs[ir->opr2->phys];
-      }
       if (!(ir->dst->vtype->flag & VRTF_UNSIGNED)) {
         switch (pow) {
         case 1: CWTL(); break;
@@ -361,7 +332,7 @@ static void ir_out(IR *ir) {
         case 3: CQTO(); break;
         default: assert(false); break;
         }
-        IDIV(opr2);
+        IDIV(regs[ir->opr2->phys]);
       } else {
         switch (pow) {
         case 1: XOR(DX, DX); break;
@@ -369,35 +340,21 @@ static void ir_out(IR *ir) {
         case 3: XOR(EDX, EDX); break;  // Clear 64bit register.
         default: assert(false); break;
         }
-        DIV(opr2);
+        DIV(regs[ir->opr2->phys]);
       }
       MOV(a, regs[ir->dst->phys]);
     }
     break;
 
   case IR_MOD:
-    assert(!(ir->opr1->flag & VRF_CONST));
+    assert(!(ir->opr1->flag & VRF_CONST) && !(ir->opr2->flag & VRF_CONST));
     if (ir->size == 1) {
       if (!(ir->dst->vtype->flag & VRTF_UNSIGNED)) {
         MOVSX(kReg8s[ir->opr1->phys], AX);
-        const char *opr2;
-        if (ir->opr2->flag & VRF_CONST) {
-          opr2 = kReg8s[WORK_REG_NO];
-          MOV(IM(ir->opr2->fixnum), opr2);
-        } else {
-          opr2 = kReg8s[ir->opr2->phys];
-        }
-        IDIV(opr2);
+        IDIV(kReg8s[ir->opr2->phys]);
       } else {
         MOVZX(kReg8s[ir->opr1->phys], AX);
-        const char *opr2;
-        if (ir->opr2->flag & VRF_CONST) {
-          opr2 = kReg8s[WORK_REG_NO];
-          MOV(IM(ir->opr2->fixnum), opr2);
-        } else {
-          opr2 = kReg8s[ir->opr2->phys];
-        }
-        DIV(opr2);
+        DIV(kReg8s[ir->opr2->phys]);
       }
       MOV(AH, kReg8s[ir->dst->phys]);
     } else {
@@ -408,13 +365,6 @@ static void ir_out(IR *ir) {
       const char *a = kRegATable[pow];
       const char *d = kRegDTable[pow];
       MOV(regs[ir->opr1->phys], a);
-      const char *opr2;
-      if (ir->opr2->flag & VRF_CONST) {
-        opr2 = regs[WORK_REG_NO];
-        MOV(IM(ir->opr2->fixnum), opr2);
-      } else {
-        opr2 = regs[ir->opr2->phys];
-      }
       if (!(ir->dst->vtype->flag & VRTF_UNSIGNED)) {
         switch (pow) {
         case 1: CWTL(); break;
@@ -422,7 +372,7 @@ static void ir_out(IR *ir) {
         case 3: CQTO(); break;
         default: assert(false); break;
         }
-        IDIV(opr2);
+        IDIV(regs[ir->opr2->phys]);
       } else {
         switch (pow) {
         case 1: XOR(DX, DX); break;
@@ -430,7 +380,7 @@ static void ir_out(IR *ir) {
         case 3: XOR(EDX, EDX); break;  // Clear 64bit register.
         default: assert(false); break;
         }
-        DIV(opr2);
+        DIV(regs[ir->opr2->phys]);
       }
       MOV(d, regs[ir->dst->phys]);
     }
@@ -1232,48 +1182,68 @@ void emit_bb_irs(BBContainer *bbcon) {
 }
 
 // Rewrite `A = B op C` to `A = B; A = A op C`.
-static void three_to_two(BB *bb) {
-  Vector *irs = bb->irs;
-  for (int i = 0; i < irs->len; ++i) {
-    IR *ir = bb->irs->data[i];
-
-    switch (ir->kind) {
-    case IR_ADD:  // binops
-    case IR_SUB:
-    case IR_MUL:
-    case IR_DIV:
-    case IR_MOD:
-    case IR_BITAND:
-    case IR_BITOR:
-    case IR_BITXOR:
-    case IR_LSHIFT:
-    case IR_RSHIFT:
-    case IR_NEG:  // unary ops
-    case IR_BITNOT:
-      {
-        assert(!(ir->dst->flag & VRF_CONST));
-        IR *ir2 = malloc(sizeof(*ir2));
-        ir2->kind = IR_MOV;
-        ir2->dst = ir->dst;
-        ir2->opr1 = ir->opr1;
-        ir2->opr2 = NULL;
-        ir2->size = ir->size;
-        vec_insert(irs, i, ir2);
-
-        ir->opr1 = ir->dst;
-        ++i;
-      }
-      break;
-
-    default: break;
-    }
-  }
-  bb->irs = irs;
-}
-
-void convert_3to2(BBContainer *bbcon) {
+static void convert_3to2(BBContainer *bbcon) {
   for (int i = 0; i < bbcon->bbs->len; ++i) {
     BB *bb = bbcon->bbs->data[i];
-    three_to_two(bb);
+    Vector *irs = bb->irs;
+    for (int i = 0; i < irs->len; ++i) {
+      IR *ir = irs->data[i];
+      switch (ir->kind) {
+      case IR_ADD:  // binops
+      case IR_SUB:
+      case IR_MUL:
+      case IR_DIV:
+      case IR_MOD:
+      case IR_BITAND:
+      case IR_BITOR:
+      case IR_BITXOR:
+      case IR_LSHIFT:
+      case IR_RSHIFT:
+      case IR_NEG:  // unary ops
+      case IR_BITNOT:
+        {
+          assert(!(ir->dst->flag & VRF_CONST));
+          IR *mov = new_ir_mov(ir->dst, ir->opr1);
+          vec_insert(irs, i++, mov);
+          ir->opr1 = ir->dst;
+        }
+        break;
+
+      default: break;
+      }
+    }
+  }
+}
+
+static void insert_const_mov(VReg **pvreg, RegAlloc *ra, Vector *irs, int i) {
+  VReg *c = *pvreg;
+  VReg *tmp = reg_alloc_spawn(ra, c->vtype, 0);
+  IR *mov = new_ir_mov(tmp, c);
+  vec_insert(irs, i, mov);
+  *pvreg = tmp;
+}
+
+void tweak_irs(FuncBackend *fnbe) {
+  convert_3to2(fnbe->bbcon);
+
+  BBContainer *bbcon = fnbe->bbcon;
+  RegAlloc *ra = fnbe->ra;
+  for (int i = 0; i < bbcon->bbs->len; ++i) {
+    BB *bb = bbcon->bbs->data[i];
+    Vector *irs = bb->irs;
+    for (int i = 0; i < irs->len; ++i) {
+      IR *ir = irs->data[i];
+      switch (ir->kind) {
+      case IR_MUL:
+      case IR_DIV:
+      case IR_MOD:
+        assert(!(ir->opr1->flag & VRF_CONST));
+        if (ir->opr2->flag & VRF_CONST)
+          insert_const_mov(&ir->opr2, ra, irs, i++);
+        break;
+
+      default: break;
+      }
+    }
   }
 }

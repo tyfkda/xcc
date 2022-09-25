@@ -514,7 +514,7 @@ static void gen_defun(Function *func) {
   remove_unnecessary_bb(fnbe->bbcon);
 
   prepare_register_allocation(func);
-  convert_3to2(fnbe->bbcon);
+  tweak_irs(fnbe);
   int reserved_size = func->type->func.vaargs ? (MAX_REG_ARGS + MAX_FREG_ARGS) * WORD_SIZE : 0;
   alloc_physical_registers(fnbe->ra, fnbe->bbcon, reserved_size);
 

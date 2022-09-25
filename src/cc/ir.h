@@ -150,7 +150,7 @@ typedef struct IR {
 VReg *new_const_vreg(intptr_t value, const VRegType *vtype);
 VReg *new_ir_bop(enum IrKind kind, VReg *opr1, VReg *opr2, const VRegType *vtype);
 VReg *new_ir_unary(enum IrKind kind, VReg *opr, const VRegType *vtype);
-void new_ir_mov(VReg *dst, VReg *src);
+IR *new_ir_mov(VReg *dst, VReg *src);
 VReg *new_ir_bofs(VReg *src);
 VReg *new_ir_iofs(const Name *label, bool global);
 VReg *new_ir_sofs(VReg *src);
@@ -216,9 +216,4 @@ typedef struct FuncBackend {
 
 //
 
-#define PUSH_STACK_POS()  do { stackpos += WORD_SIZE; } while (0)
-#define POP_STACK_POS()   do { stackpos -= WORD_SIZE; } while (0)
-
-extern int stackpos;
-
-void convert_3to2(BBContainer *bbcon);  // Make 3 address code to 2.
+void tweak_irs(FuncBackend *fnbe);

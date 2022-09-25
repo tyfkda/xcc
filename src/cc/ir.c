@@ -8,8 +8,6 @@
 #include "table.h"
 #include "util.h"
 
-#define WORK_REG_NO  (PHYSICAL_REG_MAX)
-
 static VRegType vtVoidPtr = {.size = WORD_SIZE, .align = WORD_SIZE, .flag = 0};
 static VRegType vtBool    = {.size = 4, .align = 4, .flag = 0};
 
@@ -320,11 +318,12 @@ VReg *new_ir_cast(VReg *vreg, const VRegType *dsttype) {
   return ir->dst = reg_alloc_spawn(curra, dsttype, 0);
 }
 
-void new_ir_mov(VReg *dst, VReg *src) {
+IR *new_ir_mov(VReg *dst, VReg *src) {
   IR *ir = new_ir(IR_MOV);
   ir->dst = dst;
   ir->opr1 = src;
   ir->size = dst->vtype->size;
+  return ir;
 }
 
 void new_ir_memcpy(VReg *dst, VReg *src, int size) {
