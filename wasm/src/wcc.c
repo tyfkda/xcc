@@ -917,15 +917,6 @@ int main(int argc, char *argv[]) {
     case 'L':
       vec_push(lib_paths, optarg);
       break;
-    case 'n':
-      if (strcmp(optarg, "odefaultlibs") == 0) {
-        nodefaultlibs = true;
-      } else if (strcmp(optarg, "ostdlib") == 0) {
-        nostdlib = true;
-      } else {
-        fprintf(stderr, "unknown option: n%s\n", optarg);
-      }
-      break;
     case OPT_WARNING:
       if (strcmp(optarg, "error") == 0) {
         error_warning = true;
@@ -933,6 +924,12 @@ int main(int argc, char *argv[]) {
         // Silently ignored.
         // fprintf(stderr, "Warning: unknown option for -W: %s\n", optarg);
       }
+      break;
+    case OPT_NODEFAULTLIBS:
+      nodefaultlibs = true;
+      break;
+    case OPT_NOSTDLIB:
+      nostdlib = true;
       break;
     case OPT_STACK_SIZE:
       {
