@@ -11,6 +11,8 @@ LIBSRC_DIR:=libsrc
 LIBOBJ_DIR:=obj/lib
 LIB_DIR:=lib
 
+# NO_FLONUM:=1
+
 UNAME:=$(shell uname)
 
 ifeq ("$(ARCHTYPE)", "")
@@ -34,9 +36,12 @@ endif
 OPTIMIZE:=-O2 -g3
 CFLAGS:=-ansi -std=c11 -pedantic -MMD -Wall -Wextra -Werror -Wold-style-definition \
 	-Wno-missing-field-initializers -Wno-typedef-redefinition -Wno-empty-body \
-	-D_DEFAULT_SOURCE \
-	-I$(CC1_DIR) -I$(AS_DIR) -I$(UTIL_DIR) $(OPTIMIZE) \
+	-D_DEFAULT_SOURCE $(OPTIMIZE) \
+	-I$(CC1_DIR) -I$(AS_DIR) -I$(UTIL_DIR) \
 	-I$(CC1_ARCH_DIR)/$(ARCHTYPE)
+ifneq ("$(NO_FLONUM)","")
+CFLAGS+=-D__NO_FLONUM
+endif
 
 XCC_SRCS:=$(wildcard $(XCC_DIR)/*.c) \
 	$(UTIL_DIR)/util.c $(UTIL_DIR)/table.c

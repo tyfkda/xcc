@@ -31,6 +31,7 @@
 #include <../libsrc/stdio/getline.c>
 #include <../libsrc/stdio/perror.c>
 #include <../libsrc/stdio/printf.c>
+#include <../libsrc/stdio/puts.c>
 #include <../libsrc/stdio/remove.c>
 #include <../libsrc/stdio/snprintf.c>
 #include <../libsrc/stdio/sprintf.c>

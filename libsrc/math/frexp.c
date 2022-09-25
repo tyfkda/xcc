@@ -2,6 +2,7 @@
 #include "stdint.h"  // int64_t
 #include "_ieee.h"
 
+#ifndef __NO_FLONUM
 double frexp(double x, int *p) {
   if (x == 0 || !isfinite(x)) {
     *p = 0;
@@ -13,3 +14,4 @@ double frexp(double x, int *p) {
   *q = (*q & ~((((int64_t)1 << EXP_BIT) - 1) << EXP_POS)) | ((int64_t)EXP_BIOS << EXP_POS);
   return x;
 }
+#endif

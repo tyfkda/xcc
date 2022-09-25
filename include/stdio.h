@@ -34,6 +34,7 @@ char *fgets(char *s, int n, FILE *fp);
 int fputs(const char *s, FILE *fp);
 int getc(FILE *fp);
 int getchar(void);
+int puts(const char *s);
 
 int fprintf(FILE *fp, const char *fmt, ...);
 int printf(const char *fmt, ...);

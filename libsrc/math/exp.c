@@ -1,6 +1,7 @@
 #include "math.h"
 #include "stdbool.h"
 
+#ifndef __NO_FLONUM
 double exp(double x) {
   bool neg = x < 0;
   x = fabs(x);
@@ -21,3 +22,4 @@ double exp(double x) {
   }
   return neg ? 1.0 / result : result;
 }
+#endif

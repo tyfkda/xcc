@@ -1,5 +1,6 @@
 #include "math.h"
 
+#ifndef __NO_FLONUM
 static const double LOG2 = 0.693147180559945;
 
 double log(double x) {
@@ -21,3 +22,4 @@ double log(double x) {
   }
   return 2 * total + n * LOG2;
 }
+#endif

@@ -126,7 +126,9 @@ typedef struct Expr {
 } Expr;
 
 Expr *new_expr_fixlit(Type *type, const Token *token, const Fixnum fixnum);
+#ifndef __NO_FLONUM
 Expr *new_expr_flolit(Type *type, const Token *token, double flonum);
+#endif
 Expr *new_expr_str(const Token *token, const char *str, ssize_t size);
 Expr *new_expr_bop(enum ExprKind kind, Type *type, const Token *token, Expr *lhs, Expr *rhs);
 Expr *new_expr_unary(enum ExprKind kind, Type *type, const Token *token, Expr *sub);

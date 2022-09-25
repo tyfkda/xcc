@@ -1,5 +1,6 @@
 #include "math.h"
 
+#ifndef __NO_FLONUM
 extern double normalize_radian(double x);
 
 double sin(double x) {
@@ -26,3 +27,4 @@ double sin(double x) {
   }
   return v;
 }
+#endif

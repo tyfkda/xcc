@@ -1,6 +1,7 @@
 #include "math.h"
 #include "stdbool.h"
 
+#ifndef __NO_FLONUM
 static const double TAN225 = 0.414213562373095;  // tan(22.5 degree)
 
 double atan(double x) {
@@ -33,3 +34,4 @@ double atan(double x) {
     t = (M_PI / 2) - t;
   return neg ? -t : t;
 }
+#endif

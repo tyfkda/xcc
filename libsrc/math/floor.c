@@ -1,5 +1,6 @@
 #include "math.h"
 
+#ifndef __NO_FLONUM
 double floor(double x) {
   // TODO:
   if (x >= 0) {
@@ -10,3 +11,4 @@ double floor(double x) {
     return x + l < 0 ? -l - 1 : l;
   }
 }
+#endif
