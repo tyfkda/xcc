@@ -25,15 +25,12 @@ static enum ConditionKind invert_cond(enum ConditionKind cond) {
 
 // Register allocator
 
-const char *kRegSizeTable[][PHYSICAL_REG_MAX] = {
-  {W20, W21, W22, W23, W24, W25, W26, W27, W28, W11, W12, W13, W14, W15, W16, W17},
-  {W20, W21, W22, W23, W24, W25, W26, W27, W28, W11, W12, W13, W14, W15, W16, W17},
-  {W20, W21, W22, W23, W24, W25, W26, W27, W28, W11, W12, W13, W14, W15, W16, W17},
-  {X20, X21, X22, X23, X24, X25, X26, X27, X28, X11, X12, X13, X14, X15, X16, X17},
-};
+static const char *kReg32s[PHYSICAL_REG_MAX] = {
+  W20, W21, W22, W23, W24, W25, W26, W27, W28, W11, W12, W13, W14, W15, W16, W17};
+static const char *kReg64s[PHYSICAL_REG_MAX] = {
+  X20, X21, X22, X23, X24, X25, X26, X27, X28, X11, X12, X13, X14, X15, X16, X17};
 
-#define kReg32s  (kRegSizeTable[2])
-#define kReg64s  (kRegSizeTable[3])
+static const char **kRegSizeTable[] = {kReg32s, kReg32s, kReg32s, kReg64s};
 
 const char *kRetRegTable[] = {W0, W0, W0, X0};
 
