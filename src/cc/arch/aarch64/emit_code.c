@@ -387,7 +387,15 @@ static void put_args_to_stack(Function *func) {
         int size = type_size(type);
         assert(size < (int)(sizeof(kRegTable) / sizeof(*kRegTable)) &&
                kRegTable[size] != NULL);
-        STR(kRegTable[size][arg_index], IMMEDIATE_OFFSET(FP, offset));
+        assert(offset < 0);
+        const char *dst;
+        if (offset >= -256) {
+          dst = IMMEDIATE_OFFSET(FP, offset);
+        } else {
+          mov_immediate(X9, offset, true);  // x9 broken.
+          dst = REG_OFFSET(FP, X9, NULL);
+        }
+        STR(kRegTable[size][arg_index], dst);
         ++arg_index;
       }
     }
@@ -457,8 +465,14 @@ static void emit_defun(Function *func) {
   size_t frame_size = ALIGN(fnbe->ra->frame_size, 16);
   STP(FP, LR, PRE_INDEX(SP, -16));
   MOV(FP, SP);
-  if (frame_size > 0)
-    SUB(SP, SP, IM(frame_size));
+  if (frame_size > 0) {
+    const char *value;
+    if (frame_size <= 0x0fff)
+      value = IM(frame_size);
+    else
+      mov_immediate(value = X9, frame_size, true);  // x9 broken
+    SUB(SP, SP, value);
+  }
   put_args_to_stack(func);
 
   // Callee save.
@@ -468,8 +482,14 @@ static void emit_defun(Function *func) {
 
   // Epilogue
   pop_callee_save_regs(fnbe->ra->used_reg_bits, fnbe->ra->used_freg_bits);
-  if (frame_size > 0)
-    ADD(SP, SP, IM(frame_size));
+  if (frame_size > 0) {
+    const char *value;
+    if (frame_size <= 0x0fff)
+      value = IM(frame_size);
+    else
+      mov_immediate(value = X8, frame_size, true);  // x9 broken
+    ADD(SP, SP, value);
+  }
   LDP(FP, LR, POST_INDEX(SP, 16));
 
   RET();

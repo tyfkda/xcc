@@ -68,7 +68,7 @@ static const int kPow2Table[] = {-1, 0, 1, -1, 2, -1, -1, -1, 3};
 
 //
 
-static void mov_immediate(const char *dst, intptr_t value, bool b64) {
+void mov_immediate(const char *dst, intptr_t value, bool b64) {
   if (is_im16(value)) {
     MOV(dst, IM(value));
   } else if (!b64 || is_im32(value)) {
@@ -160,7 +160,7 @@ static void ir_out(IR *ir) {
         } else {
           const char *tmp = kTmpRegTable[3];
           mov_immediate(tmp, ir->opr1->offset, true);
-          src = REG_OFFSET(FP, tmp, _LSL(0));
+          src = REG_OFFSET(FP, tmp, NULL);
         }
       }
 
@@ -211,7 +211,7 @@ static void ir_out(IR *ir) {
         } else {
           const char *tmp = kTmpRegTable[3];
           mov_immediate(tmp, ir->opr2->offset, true);
-          target = REG_OFFSET(FP, tmp, _LSL(0));
+          target = REG_OFFSET(FP, tmp, NULL);
         }
       }
       const char *src;

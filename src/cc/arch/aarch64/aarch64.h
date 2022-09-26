@@ -1,5 +1,7 @@
 #pragma once
 
+#include <stdbool.h>
+
 #include "emit.h"
 
 #ifndef EMIT_LABEL
@@ -289,3 +291,5 @@
 #define FCVT(o1, o2)    EMIT_ASM2("fcvt", o1, o2)  // float <- float
 #define FCVTZS(o1, o2)  EMIT_ASM2("fcvtzs", o1, o2)  // int <- float
 #endif
+
+void mov_immediate(const char *dst, intptr_t value, bool b64);

@@ -71,7 +71,9 @@ char *post_index(const char *reg, int offset) {
 }
 
 char *reg_offset(const char *base, const char *reg, const char *shift) {
-  return fmt("[%s,%s,%s]", base, reg, shift);
+  if (shift != NULL)
+    return fmt("[%s,%s,%s]", base, reg, shift);
+  return fmt("[%s,%s]", base, reg);
 }
 
 char *label_at_page(char *label) {
