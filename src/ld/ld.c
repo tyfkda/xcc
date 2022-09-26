@@ -128,8 +128,10 @@ static void resolve_rela_elfobj(ElfObj *elfobj, File *files, int nfiles) {
           ElfObj *telfobj;
           const Elf64_Sym *tsym = find_symbol_from_all(files, nfiles, alloc_name(label, NULL, false), &telfobj);
           assert(tsym != NULL && tsym->st_shndx > 0);
+#ifndef NDEBUG
           const Elf64_Shdr *tshdr = &telfobj->shdrs[tsym->st_shndx];
           assert(tshdr->sh_type == SHT_PROGBITS || tshdr->sh_type == SHT_NOBITS);
+#endif
           address = telfobj->section_infos[tsym->st_shndx].progbits.address + tsym->st_value;
         }
         break;
