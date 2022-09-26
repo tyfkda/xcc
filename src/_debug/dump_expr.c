@@ -221,6 +221,7 @@ void dump_expr(FILE *fp, Expr *expr) {
   }
 }
 
+#ifndef NO_MAIN_DUMP_EXPR
 int main(int argc, char *argv[]) {
   if (argc < 2) {
     fprintf(stderr, "dump_expr: [declarations] expr...\n");
@@ -252,3 +253,4 @@ int main(int argc, char *argv[]) {
 
   return 0;
 }
+#endif

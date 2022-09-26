@@ -287,7 +287,7 @@ static Initializer *flatten_array_initializer(Initializer *init) {
   return init2;
 }
 
-static Initializer *flatten_initializer(Type *type, Initializer *init) {
+Initializer *flatten_initializer(Type *type, Initializer *init) {
   if (init == NULL)
     return NULL;
 

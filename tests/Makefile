@@ -2,6 +2,7 @@ ROOT_DIR:=..
 SRC_DIR:=$(ROOT_DIR)/src
 CC_DIR:=$(SRC_DIR)/cc
 UTIL_DIR:=$(SRC_DIR)/util
+DEBUG_DIR:=$(SRC_DIR)/_debug
 EXAMPLES_DIR:=$(ROOT_DIR)/examples
 
 CFLAGS:=-ansi -std=c11 -Wall -Wextra -Werror \
@@ -22,7 +23,7 @@ test:	unit-tests cpp-tests cc-tests misc-tests
 	@echo 'All tests PASS!'
 
 .PHONY: unit-tests
-unit-tests:	test-table test-util test-parser print-type-test
+unit-tests:	test-table test-util test-parser test-initializer test-print-type
 
 .PHONY: cpp-tests
 cpp-tests:	test-cpp
@@ -35,9 +36,16 @@ misc-tests:	test-link test-examples
 
 .PHONY: clean
 clean:
-	rm -f table_test util_test parser_test print_type_test valtest dvaltest fvaltest link_test \
+	rm -f table_test util_test parser_test initializer_test print_type_test \
+		valtest dvaltest fvaltest link_test \
 		a.out tmp* *.o mandelbrot.ppm \
 		a.wasm valtest.wasm
+
+.PHONY: test-initializer
+test-initializer:	initializer_test
+	@echo '## Initializer'
+	@./initializer_test
+	@echo ''
 
 .PHONY: test-table
 test-table:	table_test
@@ -57,8 +65,8 @@ test-parser:	parser_test
 	@./parser_test
 	@echo ''
 
-.PHONY: print-type-test
-print-type-test:	print_type_test
+.PHONY: test-print-type
+test-print-type:	print_type_test
 	@echo '## Print type'
 	@./print_type_test
 	@echo ''
@@ -103,6 +111,12 @@ test-link: link_test # $(XCC)
 	@echo '## Link test'
 	@./link_test
 	@echo ''
+
+INITIALIZER_SRCS:=initializer_test.c $(CC_DIR)/parser.c $(CC_DIR)/parser_expr.c $(CC_DIR)/lexer.c \
+	$(CC_DIR)/var.c $(CC_DIR)/type.c $(CC_DIR)/ast.c $(UTIL_DIR)/util.c $(UTIL_DIR)/table.c \
+	$(DEBUG_DIR)/dump_expr.c
+initializer_test:	$(INITIALIZER_SRCS)
+	$(CC) -o$@ -DNO_MAIN_DUMP_EXPR $(CFLAGS) $^
 
 TABLE_SRCS:=table_test.c $(UTIL_DIR)/table.c
 table_test:	$(TABLE_SRCS)

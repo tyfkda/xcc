@@ -137,7 +137,7 @@ Type *get_callee_type(Type *type);
 // Struct
 
 bool add_struct_member(Vector *members, const Name *name, Type *type);
-StructInfo *create_struct_info(Vector *members, bool is_union);  // members: <VarInfo*>
+StructInfo *create_struct_info(Vector *members, bool is_union);  // members: <MemberInfo*>
 Type *create_struct_type(StructInfo *sinfo, const Name *name, int qualifier);
 int find_struct_member(const Vector *members, const Name *name);
 

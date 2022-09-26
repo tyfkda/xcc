@@ -60,6 +60,7 @@ Expr *new_expr_addsub(enum ExprKind kind, const Token *tok, Expr *lhs, Expr *rhs
 Initializer *parse_initializer(void);
 Type *fix_array_size(Type *type, Initializer *init);
 Vector *assign_initial_value(Expr *expr, Initializer *init, Vector *inits);
+Initializer *flatten_initializer(Type *type, Initializer *init);
 Expr *make_refer(const Token *tok, Expr *expr);
 
 void check_funcall_args(Expr *func, Vector *args, Scope *scope, Vector *toplevel);

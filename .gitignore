@@ -20,6 +20,7 @@ core
 /tests/core.*
 /tests/dvaltest
 /tests/fvaltest
+/tests/initializer_test
 /tests/link_test
 /tests/mandelbrot.ppm
 /tests/parser_test
