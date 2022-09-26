@@ -39,10 +39,16 @@
 #define REG_OFFSET(base, reg, scale)  reg_offset(base, reg, scale)
 #endif
 #ifndef LABEL_AT_PAGE
-#define LABEL_AT_PAGE(label)  label_at_page(label)
+#define LABEL_AT_PAGE(label)  label_at_page(label, 0)
 #endif
 #ifndef LABEL_AT_PAGEOFF
-#define LABEL_AT_PAGEOFF(label)  label_at_pageoff(label)
+#define LABEL_AT_PAGEOFF(label)  label_at_page(label, 1)
+#endif
+#ifndef LABEL_AT_GOTPAGE
+#define LABEL_AT_GOTPAGE(label)  label_at_page(label, 2)
+#endif
+#ifndef LABEL_AT_GOTPAGEOFF
+#define LABEL_AT_GOTPAGEOFF(label)  label_at_page(label, 3)
 #endif
 #ifndef NUM
 #define NUM(x)  num(x)

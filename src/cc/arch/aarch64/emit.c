@@ -76,19 +76,16 @@ char *reg_offset(const char *base, const char *reg, const char *shift) {
   return fmt("[%s,%s]", base, reg);
 }
 
-char *label_at_page(char *label) {
+char *label_at_page(char *label, int flag) {
 #ifdef __APPLE__
-  return fmt("%s@PAGE", label);
+  static const char *s[] = {
+    "%s@PAGE", "%s@PAGEOFF",
+    "%s@GOTPAGE", "%s@GOTPAGEOFF",
+  };
+  return fmt(s[flag], label);
 #else
+  UNUSED(flag);
   return label;
-#endif
-}
-
-char *label_at_pageoff(char *label) {
-#ifdef __APPLE__
-  return fmt("%s@PAGEOFF", label);
-#else
-  return fmt(":lo12:%s", label);
 #endif
 }
 

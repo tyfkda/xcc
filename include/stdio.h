@@ -14,9 +14,18 @@ enum {
 
 typedef struct FILE FILE;
 
+#ifdef __APPLE__
+extern FILE *__stdinp;
+extern FILE *__stdoutp;
+extern FILE *__stderrp;
+#define stdin   __stdinp
+#define stdout  __stdoutp
+#define stderr  __stderrp
+#else
 extern FILE *stdin;
 extern FILE *stdout;
 extern FILE *stderr;
+#endif
 
 FILE *fopen(const char *fileName, const char *mode);
 FILE *fdopen(int fd, const char *mode);
