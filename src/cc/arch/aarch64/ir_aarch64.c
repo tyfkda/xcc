@@ -799,7 +799,7 @@ for (int i = 0; i < CALLER_SAVE_FREG_COUNT; ++i) {
       if (ir->dst->phys != ir->opr1->phys) {
         assert(0 <= ir->size && ir->size < kPow2TableSize);
         int pow = kPow2Table[ir->size];
-        assert(0 <= pow && pow < 3);
+        assert(0 <= pow && pow < 4);
         const char **regs = kRegSizeTable[pow];
         MOV(regs[ir->dst->phys], regs[ir->opr1->phys]);
       }
