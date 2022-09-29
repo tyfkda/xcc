@@ -132,10 +132,20 @@ static bool is_got(const Name *name) {
 static void ir_out(IR *ir) {
   switch (ir->kind) {
   case IR_BOFS:
-    if (ir->opr1->flag & VRF_CONST)
-      mov_immediate(kReg64s[ir->dst->phys], ir->opr1->fixnum, true);
-    else
-      ADD(kReg64s[ir->dst->phys], FP, IM(ir->opr1->offset));
+    {
+      const char *dst = kReg64s[ir->dst->phys];
+      if (ir->opr1->flag & VRF_CONST) {
+        mov_immediate(dst, ir->opr1->fixnum, true);
+      } else {
+        int ofs = ir->opr1->offset;
+        if (ofs < 4096 && ofs > -4096) {
+          ADD(dst, FP, IM(ofs));
+        } else {
+          mov_immediate(dst, ofs, true);
+          ADD(dst, dst, FP);
+        }
+      }
+    }
     break;
 
   case IR_IOFS:
@@ -156,8 +166,17 @@ static void ir_out(IR *ir) {
     break;
 
   case IR_SOFS:
-    assert(ir->opr1->flag & VRF_CONST);
-    ADD(kReg64s[ir->dst->phys], SP, IM(ir->opr1->fixnum));
+    {
+      assert(ir->opr1->flag & VRF_CONST);
+      const char *dst = kReg64s[ir->dst->phys];
+      int ofs = ir->opr1->offset;
+      if (ofs < 4096 && ofs > -4096) {
+        ADD(dst, SP, IM(ir->opr1->fixnum));
+      } else {
+        mov_immediate(dst, ofs, true);
+        ADD(dst, dst, SP);
+      }
+    }
     break;
 
   case IR_LOAD:
