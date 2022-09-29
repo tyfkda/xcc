@@ -13,10 +13,6 @@ async function createWasm(wasmFile, imports) {
   return new WebAssembly.Instance(module, imports)
 }
 
-function ALIGN(x, align) {
-  return (x + align - 1) & -align
-}
-
 // Decode string in linear memory to JS.
 function decodeString(buffer, ptr) {
   const memoryImage = new Uint8Array(buffer, ptr)
@@ -40,23 +36,6 @@ function tmpfileSync(len) {
 
 ;(async () => {
   let memory
-  const HEAP_ALIGN = 8
-  const HEAP_PAGE_SIZE = 65536
-  let breakStartAddress = 0
-  let breakAddress = 0
-
-  function brk(ptr) {
-    if (ptr >= breakStartAddress) {
-      if (ptr > memory.buffer.byteLength) {
-        const d = ptr - memory.buffer.byteLength
-        const page = Math.floor((d + HEAP_PAGE_SIZE - 1) / HEAP_PAGE_SIZE)
-        memory.grow(page)
-        assert(ptr <= memory.buffer.byteLength)
-      }
-      breakAddress = ptr
-    }
-    return breakAddress
-  }
 
   const O_RDONLY  = 0x00
   const O_WRONLY  = 0x01
@@ -165,8 +144,6 @@ function tmpfileSync(len) {
           return fd
         },
 
-        _brk: brk,
-
         _getcwd: (buffer, size) => {
           const cwd = process.cwd()
           const encoded = new TextEncoder('utf-8').encode(cwd)
@@ -222,22 +199,24 @@ function tmpfileSync(len) {
   async function loadWasm(wasmFile) {
     const imports = getImports()
     const instance = await createWasm(wasmFile, imports)
-    if (instance.exports.memory) {
+    if (instance.exports.memory)
       memory = instance.exports.memory
-    }
-    const stackPointer = instance.exports.$_SP
-    if (stackPointer != null)
-      breakStartAddress = breakAddress = ALIGN(stackPointer.valueOf(), HEAP_ALIGN)
     return instance
   }
 
-  function putArgs(args) {
+  function putArgs(instance, args) {
+    const sbrkFunc = instance.exports['sbrk']
+    if (sbrkFunc == null) {
+      // Cannot put arguments onto wasm memory.
+      args.length = 0
+      return 0
+    }
+
     const encodedArgs = args.map(arg => new TextEncoder('utf-8').encode(arg))
+    const ptrArrayBytes = 4 * (args.length + 1)
     const totalArgsBytes = encodedArgs.reduce((acc, arg) => acc + arg.length + 1, 0)
-    const size = 4 * (args.length + 1) + totalArgsBytes
-    const ptr = breakAddress
-    const pStrStart = ptr + 4 * (args.length + 1)
-    brk(ALIGN(ptr + size, HEAP_ALIGN))
+    const ptr = sbrkFunc(ptrArrayBytes + totalArgsBytes)
+    const pStrStart = ptr + ptrArrayBytes
 
     const ptrArgs = new Uint32Array(memory.buffer, ptr, args.length + 1)
     const ptrStr = new Uint8Array(memory.buffer, pStrStart, totalArgsBytes)
@@ -269,7 +248,7 @@ function tmpfileSync(len) {
     const opts = program.opts()
     const wasmFile = args[0]
     const instance = await loadWasm(wasmFile)
-    const argsPtr = putArgs(args)
+    const argsPtr = putArgs(instance, args)
     try {
       const result = instance.exports[opts.entryPoint](args.length, argsPtr)
       if (result !== 0)

@@ -12,14 +12,16 @@
 #include "util.h"
 #include "var.h"
 
-const char DATA_END_ADDRESS_NAME[] = "$_DE";
 const char SP_NAME[] = "$_SP";  // Hidden variable name for stack pointer (global).
+const char BREAK_ADDRESS_NAME[] = "__curbrk";
+const char MEMORY_PAGE_COUNT_NAME[] = "__memoryPageCount";
 const char MEMCPY_NAME[] = "_memcpy";
 const char MEMSET_NAME[] = "_memset";
 const char VA_ARGS_NAME[] = ".._VA_ARGS";
 
 Table func_info_table;
 Table gvar_info_table;
+Table builtin_function_table;
 Vector *functypes;
 Table indirect_function_table;
 
@@ -221,6 +223,14 @@ static GVarInfo *add_global_var(Type *type, const Name *name) {
   return register_gvar_info(name, varinfo);
 }
 
+void add_builtin_function(const char *str, Type *type, BuiltinFunctionProc *proc, bool add_to_scope) {
+  const Name *name = alloc_name(str, NULL, false);
+  table_put(&builtin_function_table, name, proc);
+
+  if (add_to_scope)
+    scope_add(global_scope, name, type, 0);
+}
+
 static void traverse_stmts(Vector *stmts);
 static void traverse_stmt(Stmt *stmt);
 
@@ -258,7 +268,8 @@ static void traverse_func_expr(Expr **pexpr) {
       global = (varinfo->storage & VS_EXTERN) != 0;
     }
     if (global && type->kind == TY_FUNC) {
-      register_func_info(expr->var.name, NULL, type, FF_REFERED);
+      if (!table_try_get(&builtin_function_table, expr->var.name, NULL))
+        register_func_info(expr->var.name, NULL, type, FF_REFERED);
     } else {
       assert(type->kind == TY_PTR && type->pa.ptrof->kind == TY_FUNC);
       getsert_func_type_index(type->pa.ptrof, true);
@@ -753,28 +764,21 @@ static void traverse_decl(Declaration *decl) {
 }
 
 static void add_builtins(void) {
-  {
-    Type *type = malloc(sizeof(*type));
-    *type = tySize;
-    type->qualifier = TQ_CONST;
-    const Name *name = alloc_name(DATA_END_ADDRESS_NAME, NULL, false);
-    /*GVarInfo *info =*/ add_global_var(type, name);
-    /*info->export = true;
-    Initializer *init = calloc(1, sizeof(*init));
-    init->kind = IK_SINGLE;
-    init->single = new_expr_fixlit(type, NULL, data_end_address);
-    info->varinfo->global.init = init;*/
-  }
   // Stack pointer.
   {
     const Name *name = alloc_name(SP_NAME, NULL, false);
     Type *type = &tySize;
     /*GVarInfo *info =*/ add_global_var(type, name);
-    /*info->export = true;
-    Initializer *init = calloc(1, sizeof(*init));
-    init->kind = IK_SINGLE;
-    init->single = new_expr_fixlit(type, NULL, ALIGN(data_end_address, 16));
-    info->varinfo->global.init = init;*/
+  }
+  {
+    const Name *name = alloc_name(BREAK_ADDRESS_NAME, NULL, false);
+    Type *type = &tySize;  // &tyVoidPtr
+    /*GVarInfo *info =*/ add_global_var(type, name);
+  }
+  {
+    const Name *name = alloc_name(MEMORY_PAGE_COUNT_NAME, NULL, false);
+    Type *type = &tySize;
+    /*GVarInfo *info =*/ add_global_var(type, name);
   }
 }
 
@@ -866,26 +870,37 @@ uint32_t traverse_ast(Vector *decls, Vector *exports, uint32_t stack_size) {
     VERBOSES("\n");
 
     // Set initial values.
-    {  // Data end address.
-      GVarInfo *info = get_gvar_info_from_name(alloc_name(DATA_END_ADDRESS_NAME, NULL, false));
-      assert(info != NULL);
-      info->export = true;
-      Initializer *init = calloc(1, sizeof(*init));
-      init->kind = IK_SINGLE;
-      init->single = new_expr_fixlit(info->varinfo->type, NULL, address);
-      info->varinfo->global.init = init;
-      VERBOSE("Data end: 0x%x\n", address);
-    }
     {  // Stack pointer.
       sp_bottom = ALIGN(address + stack_size, 16);
       GVarInfo *info = get_gvar_info_from_name(alloc_name(SP_NAME, NULL, false));
       assert(info != NULL);
-      info->export = true;
       Initializer *init = calloc(1, sizeof(*init));
       init->kind = IK_SINGLE;
       init->single = new_expr_fixlit(info->varinfo->type, NULL, sp_bottom);
       info->varinfo->global.init = init;
       VERBOSE("SP bottom: 0x%x  (size=0x%x)\n", sp_bottom, stack_size);
+    }
+    {  // Break address.
+      GVarInfo *info = get_gvar_info_from_name(alloc_name(BREAK_ADDRESS_NAME, NULL, false));
+      assert(info != NULL);
+      Initializer *init = calloc(1, sizeof(*init));
+      init->kind = IK_SINGLE;
+      init->single = new_expr_fixlit(info->varinfo->type, NULL, sp_bottom);
+      info->varinfo->global.init = init;
+      VERBOSE("Break address: 0x%x\n", sp_bottom);
+    }
+    {  // Memory page count.
+      const uint32_t MEMORY_PAGE_BIT = 16;
+      uint32_t page_count = (sp_bottom + ((1 << MEMORY_PAGE_BIT) - 1)) >> MEMORY_PAGE_BIT;
+      assert(page_count > 0);
+
+      GVarInfo *info = get_gvar_info_from_name(alloc_name(MEMORY_PAGE_COUNT_NAME, NULL, false));
+      assert(info != NULL);
+      Initializer *init = calloc(1, sizeof(*init));
+      init->kind = IK_SINGLE;
+      init->single = new_expr_fixlit(info->varinfo->type, NULL, page_count);
+      info->varinfo->global.init = init;
+      VERBOSE("Memory page count: 0x%x\n", page_count);
     }
   }
 

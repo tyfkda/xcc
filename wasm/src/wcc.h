@@ -17,7 +17,6 @@ typedef struct Vector Vector;
 
 #define I32_SIZE  (4)  //sizeof(int32_t)
 
-extern const char DATA_END_ADDRESS_NAME[];
 extern const char SP_NAME[];
 extern const char MEMCPY_NAME[];
 extern const char MEMSET_NAME[];
@@ -25,6 +24,7 @@ extern const char VA_ARGS_NAME[];
 
 extern Table func_info_table;
 extern Table gvar_info_table;
+extern Table builtin_function_table;
 extern Vector *functypes;  // <WasmFuncType*>
 extern Table indirect_function_table;
 extern uint32_t data_end_address;
@@ -71,9 +71,16 @@ uint32_t get_indirect_function_index(const Name *name);
 
 // gen_wasm
 void gen(Vector *decls);
+void gen_expr(Expr *expr, bool needval);
 void emit_leb128(DataStorage *data, ssize_t pos, int64_t val);
 void emit_uleb128(DataStorage *data, ssize_t pos, uint64_t val);
 unsigned char to_wtype(const Type *type);
+
+typedef void (*BuiltinFunctionProc)(Expr *expr);
+void add_builtin_function(const char *str, Type *type, BuiltinFunctionProc *proc, bool add_to_scope);
+
+#define ADD_CODE(...)  do { unsigned char buf[] = {__VA_ARGS__}; add_code(buf, sizeof(buf)); } while (0)
+void add_code(const unsigned char* buf, size_t size);
 
 // wcc_util
 typedef struct DataStorage {

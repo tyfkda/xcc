@@ -2,14 +2,7 @@ import {FileSystem} from './file_system'
 import {Util} from './util'
 import {WaStorage} from './file_system'
 
-const HEAP_ALIGN = 8
-const HEAP_PAGE_SIZE = 65536
-
 const ERANGE = 34
-
-function ALIGN(x, align) {
-  return (x + align - 1) & -align
-}
 
 export class ExitCalledError extends Error {
   public code: number
@@ -23,31 +16,12 @@ export class ExitCalledError extends Error {
 export class WaProc {
   private fs: FileSystem
   private memory: WebAssembly.Memory
-  private breakStartAddress = 0
-  private breakAddress = 0
   private cwd = '/'
   private imports: any
 
   constructor(storage: WaStorage) {
     this.fs = new FileSystem(storage)
     this.imports = this.createImports()
-  }
-
-  public brk(ptr: number): number {
-    if (ptr >= this.breakStartAddress) {
-      if (ptr > this.memory.buffer.byteLength) {
-        const d = ptr - this.memory.buffer.byteLength
-        const page = Math.floor((d + HEAP_PAGE_SIZE - 1) / HEAP_PAGE_SIZE)
-        try {
-          this.memory.grow(page)
-        } catch (e) {
-          console.error(e)
-          return this.breakAddress
-        }
-      }
-      this.breakAddress = ptr
-    }
-    return this.breakAddress
   }
 
   public getAbsPath(fileName: string): string {
@@ -73,7 +47,7 @@ export class WaProc {
 
   public async runWasmMain(wasmUrlOrBuffer: string|ArrayBuffer, entry: string, args: string[]): Promise<any> {
     const instance = await this.loadWasm(wasmUrlOrBuffer)
-    const argsPtr = this.putArgs(args)
+    const argsPtr = this.putArgs(instance!, args)
     return (instance!.exports[entry] as (c:number, v:number)=>void)(args.length, argsPtr)
   }
 
@@ -98,9 +72,6 @@ export class WaProc {
     if (instance.exports.memory) {
       this.memory = instance.exports.memory
     }
-    const stackPointer = instance.exports.$_SP
-    if (stackPointer != null)
-      this.breakStartAddress = this.breakAddress = ALIGN(stackPointer.valueOf(), HEAP_ALIGN)
     return instance
   }
 
@@ -112,13 +83,19 @@ export class WaProc {
     return this.memory
   }
 
-  private putArgs(args: string[]): number {
+  private putArgs(instance: WebAssembly.Instance, args: string[]): number {
+    const sbrkFunc = instance.exports['sbrk'] as (((number) => number)|undefined)
+    if (sbrkFunc == null) {
+      // Cannot put arguments onto wasm memory.
+      args.length = 0
+      return 0
+    }
+
     const encodedArgs = args.map(Util.encode)
+    const ptrArrayBytes = 4 * (args.length + 1)
     const totalArgsBytes = encodedArgs.reduce((acc, arg) => acc + arg.length + 1, 0)
-    const size = 4 * (args.length + 1) + totalArgsBytes
-    const ptr = this.breakAddress
-    const pStrStart = ptr + 4 * (args.length + 1)
-    this.brk(ALIGN(ptr + size, HEAP_ALIGN))
+    const ptr = sbrkFunc(ptrArrayBytes + totalArgsBytes)
+    const pStrStart = ptr + ptrArrayBytes
 
     const ptrArgs = new Uint32Array(this.memory.buffer, ptr, args.length + 1)
     const ptrStr = new Uint8Array(this.memory.buffer, pStrStart, totalArgsBytes)
@@ -167,8 +144,6 @@ export class WaProc {
           return 0
         },
         _tmpfile: () => this.fs.tmpfile(),
-
-        _brk: (ptr) => this.brk(ptr),
 
         _getcwd: (buffer, size) => {
           const encoded = Util.encode(this.cwd)

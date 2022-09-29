@@ -17,7 +17,6 @@
 
 #define CODE  (((FuncExtra*)curfunc->extra)->code)
 
-#define ADD_CODE(...)  do { unsigned char buf[] = {__VA_ARGS__}; add_code(buf, sizeof(buf)); } while (0)
 #define ADD_LEB128(x)  emit_leb128(CODE, -1, x)
 #define ADD_ULEB128(x) emit_uleb128(CODE, -1, x)
 
@@ -27,7 +26,7 @@
 
 static void gen_lval(Expr *expr, bool needval);
 
-static void add_code(const unsigned char* buf, size_t size) {
+void add_code(const unsigned char* buf, size_t size) {
   data_append(CODE, buf, size);
 }
 
@@ -90,7 +89,6 @@ struct VReg {
 static void gen_stmt(Stmt *stmt);
 static void gen_stmts(Vector *stmts);
 static void gen_expr_stmt(Expr *expr);
-static void gen_expr(Expr *expr, bool needval);
 
 static int cur_depth;
 static int break_depth;
@@ -311,10 +309,19 @@ static void gen_funcall_by_name(const Name *funcname) {
 }
 
 static void gen_funcall(Expr *expr) {
+  Expr *func = expr->funcall.func;
+  if (func->kind == EX_VAR && is_global_scope(func->var.scope)) {
+    void *proc = table_get(&builtin_function_table, func->var.name);
+    if (proc != NULL) {
+      (*(BuiltinFunctionProc*)proc)(expr);
+      return;
+    }
+  }
+
   Vector *args = expr->funcall.args;
   int arg_count = args != NULL ? args->len : 0;
 
-  Type *functype = get_callee_type(expr->funcall.func);
+  Type *functype = get_callee_type(func);
   int param_count = functype->func.params != NULL ? functype->func.params->len : 0;
 
   int sarg_siz = 0;
@@ -415,18 +422,15 @@ static void gen_funcall(Expr *expr) {
     }
   }
 
-  {
-    Expr *func = expr->funcall.func;
-    if (func->type->kind == TY_FUNC && func->kind == EX_VAR) {
-      gen_funcall_by_name(func->var.name);
-    } else {
-      gen_expr(func, true);
-      int index = get_func_type_index(functype);
-      assert(index >= 0);
-      ADD_CODE(OP_CALL_INDIRECT);
-      ADD_ULEB128(index);  // signature index
-      ADD_ULEB128(0);     // table index
-    }
+  if (func->type->kind == TY_FUNC && func->kind == EX_VAR) {
+    gen_funcall_by_name(func->var.name);
+  } else {
+    gen_expr(func, true);
+    int index = get_func_type_index(functype);
+    assert(index >= 0);
+    ADD_CODE(OP_CALL_INDIRECT);
+    ADD_ULEB128(index);  // signature index
+    ADD_ULEB128(0);     // table index
   }
 
   if (sarg_siz > 0 || vaarg_bufsiz > 0) {
@@ -613,7 +617,7 @@ static void gen_block_expr(Stmt *stmt, bool needval) {
     curscope = curscope->parent;
 }
 
-static void gen_expr(Expr *expr, bool needval) {
+void gen_expr(Expr *expr, bool needval) {
   switch (expr->kind) {
   case EX_FIXNUM:
     if (needval) {

@@ -770,6 +770,15 @@ static Expr *proc_builtin_va_copy(const Token *ident) {
   return new_expr_cast(&tyVoid, ident, assign);
 }
 
+static void gen_builtin_memory_grow(Expr *expr) {
+  assert(expr->kind == EX_FUNCALL);
+  Vector *args = expr->funcall.args;
+  assert(args->len == 1);
+
+  gen_expr(args->data[0], true);
+  ADD_CODE(OP_MEMORY_GROW, 0x00);
+}
+
 static void install_builtins(void) {
   // __builtin_va_list
   {
@@ -787,6 +796,18 @@ static void install_builtins(void) {
   add_builtin_expr_ident("__builtin_va_end", &p_va_end);
   add_builtin_expr_ident("__builtin_va_arg", &p_va_arg);
   add_builtin_expr_ident("__builtin_va_copy", &p_va_copy);
+
+  {
+    static BuiltinFunctionProc p_memory_grow = &gen_builtin_memory_grow;
+    Vector *params = new_vector();
+    var_add(params, NULL, &tySize, 0);
+
+    Type *rettype = &tyInt;
+    Vector *param_types = extract_varinfo_types(params);
+    Type *type = new_func_type(rettype, params, param_types, false);
+
+    add_builtin_function("__builtin_memory_grow", type, &p_memory_grow, true);
+  }
 }
 
 static void init_compiler(void) {
@@ -896,7 +917,7 @@ int main(int argc, char *argv[]) {
       ofn = optarg;
       break;
     case 'e':
-      {
+      if (*optarg != '\0') {
         const char *s = optarg;
         for (;;) {
           const char *p = strchr(s, ',');
@@ -973,6 +994,9 @@ int main(int argc, char *argv[]) {
   if (exports->len == 0) {
     error("no exports (require -e<xxx>)\n");
   }
+  // Implicit export function.
+  if (!nostdlib && !nodefaultlibs)
+    vec_push(exports, alloc_name("sbrk", NULL, false));
 
   VERBOSES("### Exports\n");
   for (int i = 0; i < exports->len; ++i) {

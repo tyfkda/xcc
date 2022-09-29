@@ -1,30 +1,58 @@
 #include "unistd.h"
 #include "stdio.h"  // EOF
 
+#if !defined(__XV6)
 #if defined(__WASM)
-extern void *_brk(void *);
+extern size_t __memoryPageCount;
+extern char *__curbrk;
+#define CURBRK  __curbrk
 
-#elif defined(__linux__)
+#define HEAP_ALIGN  (8)
+#define MEMORY_PAGE_BIT  (16)
+
+static void _growTo(void *ptr) {
+  size_t page = (((size_t)ptr) + ((1 << MEMORY_PAGE_BIT) - 1)) >> MEMORY_PAGE_BIT;
+  if (page > __memoryPageCount) {
+    const size_t grow = page - __memoryPageCount;
+    __builtin_memory_grow(grow);
+    __memoryPageCount += grow;
+  }
+}
+
+int brk(void *addr) {
+  if (addr <= __curbrk)
+    return EOF;
+  void *p = (void*)((((intptr_t)addr) + (HEAP_ALIGN - 1)) & -HEAP_ALIGN);
+  __curbrk = p;
+  _growTo(p);
+  return 0;
+}
+#else
+
+#if defined(__linux__)
 static void *_brk(void *addr) {
   __asm("mov $12, %eax\n"  // __NR_brk
         "syscall");
 }
 #endif
 
-#if !defined(__XV6)
 static char *curbrk;
+#define CURBRK  curbrk
+
 int brk(void *addr) {
   void *result = _brk(addr);
   curbrk = result;
-  if (result < addr)
-    return EOF;
-  return 0;
+  return result < addr ? EOF : 0;
 }
+#endif
 
 void *sbrk(intptr_t increment) {
-  char *p = curbrk;
-  if (p == NULL)
-    p = _brk(NULL);
+  char *p = CURBRK;
+  if (p == NULL) {
+    if (brk(NULL) < 0)
+      return (void*)-1;
+    p = CURBRK;
+  }
   char *next = p + increment;
   if (brk(next) < 0)
     return (void*)-1;
