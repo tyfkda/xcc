@@ -1,7 +1,7 @@
 #include "wcc.h"
 
 #include <assert.h>
-#include <stdlib.h>  // malloc
+#include <stdlib.h>  // realloc, free
 #include <string.h>
 
 void data_release(DataStorage *data) {

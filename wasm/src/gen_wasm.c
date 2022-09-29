@@ -1,5 +1,6 @@
 #include "wcc.h"
 
+#include <alloca.h>
 #include <assert.h>
 #include <limits.h>
 #include <stdio.h>
@@ -62,7 +63,7 @@ void emit_uleb128(DataStorage *data, ssize_t pos, uint64_t val) {
 
 static void gen_cond(Expr *cond, bool tf, bool needval);
 
-static Expr *get_sp_var(void) {
+Expr *get_sp_var(void) {
   static Expr *spvar;
   if (spvar == NULL) {
     const Name *spname = alloc_name(SP_NAME, NULL, false);
@@ -88,7 +89,6 @@ struct VReg {
 
 static void gen_stmt(Stmt *stmt);
 static void gen_stmts(Vector *stmts);
-static void gen_expr_stmt(Expr *expr);
 
 static int cur_depth;
 static int break_depth;
@@ -1109,7 +1109,8 @@ static void gen_switch_table_jump(Stmt *stmt, Expr *value, Fixnum min, Fixnum ma
   int case_count = cases->len;
 
   unsigned int vrange = max - min + 1;
-  int *table = malloc(sizeof(*table) * vrange);
+  bool use_alloca = vrange <= 64;
+  int *table = use_alloca ? alloca(sizeof(*table) * vrange) : malloc(sizeof(*table) * vrange);
   for (unsigned int i = 0; i < vrange; ++i)
     table[i] = default_index;
   for (int i = 0; i < case_count; ++i) {
@@ -1133,7 +1134,8 @@ static void gen_switch_table_jump(Stmt *stmt, Expr *value, Fixnum min, Fixnum ma
     ADD_ULEB128(table[i]);
   ADD_ULEB128(default_index);
 
-  free(table);
+  if (!use_alloca)
+    free(table);
 }
 
 static void gen_switch(Stmt *stmt) {
@@ -1400,7 +1402,7 @@ static void gen_vardecl(Vector *decls, Vector *inits) {
   gen_stmts(inits);
 }
 
-static void gen_expr_stmt(Expr *expr) {
+void gen_expr_stmt(Expr *expr) {
   gen_expr(expr, false);
 }
 

@@ -72,9 +72,11 @@ uint32_t get_indirect_function_index(const Name *name);
 // gen_wasm
 void gen(Vector *decls);
 void gen_expr(Expr *expr, bool needval);
+void gen_expr_stmt(Expr *expr);
 void emit_leb128(DataStorage *data, ssize_t pos, int64_t val);
 void emit_uleb128(DataStorage *data, ssize_t pos, uint64_t val);
 unsigned char to_wtype(const Type *type);
+Expr *get_sp_var(void);
 
 typedef void (*BuiltinFunctionProc)(Expr *expr);
 void add_builtin_function(const char *str, Type *type, BuiltinFunctionProc *proc, bool add_to_scope);

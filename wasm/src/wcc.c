@@ -529,7 +529,7 @@ static void emit_wasm(FILE *ofp, Vector *exports, uint32_t address_bottom) {
   data_init(&elems_section);
   if (indirect_function_table.count > 0) {
     int count = indirect_function_table.count;
-    FuncInfo **indirect_funcs = malloc(sizeof(*indirect_funcs) * count);
+    FuncInfo **indirect_funcs = alloca(sizeof(*indirect_funcs) * count);
 
     // Enumerate imported functions.
     VERBOSES("### Indirect functions\n");
@@ -552,7 +552,6 @@ static void emit_wasm(FILE *ofp, Vector *exports, uint32_t address_bottom) {
       VERBOSE("%2d: %.*s (%d)\n", i, info->func->name->bytes, info->func->name->chars, (int)info->index);
       emit_leb128(&elems_section, -1, info->index);  // elem function index
     }
-    free(indirect_funcs);
     VERBOSES("\n");
   }
 
@@ -770,6 +769,28 @@ static Expr *proc_builtin_va_copy(const Token *ident) {
   return new_expr_cast(&tyVoid, ident, assign);
 }
 
+static void gen_alloca(Expr *expr) {
+  const int stack_align = 8;  // TODO
+  assert(expr->kind == EX_FUNCALL);
+  Vector *args = expr->funcall.args;
+  assert(args->len == 1);
+  assert(curfunc != NULL);
+  Expr *size = args->data[0];
+  const Token *token = size->token;
+  Expr *aligned_size = new_expr_bop(EX_BITAND, &tySSize, token,
+      new_expr_addsub(EX_ADD, token,
+                      make_cast(&tySSize, token, size, false),
+                      new_expr_fixlit(&tySSize, token, stack_align - 1), false),
+      new_expr_fixlit(&tySSize, token, -stack_align));
+
+  Expr *spvar = get_sp_var();
+  gen_expr_stmt(
+      new_expr_unary(EX_MODIFY, &tyVoid, NULL,
+                     new_expr_bop(EX_SUB, &tySize, NULL, spvar,
+                                  aligned_size)));
+  gen_expr(spvar, true);
+}
+
 static void gen_builtin_memory_grow(Expr *expr) {
   assert(expr->kind == EX_FUNCALL);
   Vector *args = expr->funcall.args;
@@ -797,6 +818,17 @@ static void install_builtins(void) {
   add_builtin_expr_ident("__builtin_va_arg", &p_va_arg);
   add_builtin_expr_ident("__builtin_va_copy", &p_va_copy);
 
+  {
+    static BuiltinFunctionProc p_alloca = &gen_alloca;
+    Vector *params = new_vector();
+    var_add(params, NULL, &tySize, 0);
+
+    Type *rettype = &tyVoidPtr;
+    Vector *param_types = extract_varinfo_types(params);
+    Type *type = new_func_type(rettype, params, param_types, false);
+
+    add_builtin_function("alloca", type, &p_alloca, true);
+  }
   {
     static BuiltinFunctionProc p_memory_grow = &gen_builtin_memory_grow;
     Vector *params = new_vector();
