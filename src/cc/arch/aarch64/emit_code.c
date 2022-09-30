@@ -320,15 +320,15 @@ static VarInfo *find_ret_var(Scope *scope) {
 }
 
 static void put_args_to_stack(Function *func) {
-  static const char *kReg8s[] = {W0, W1, W2, W3, W4, W5, W6, W7};
-  static const char *kReg16s[] = {W0, W1, W2, W3, W4, W5, W6, W7};
   static const char *kReg32s[] = {W0, W1, W2, W3, W4, W5, W6, W7};
   static const char *kReg64s[] = {X0, X1, X2, X3, X4, X5, X6, X7};
-  static const char **kRegTable[] = {NULL, kReg8s, kReg16s, NULL, kReg32s, NULL, NULL, NULL, kReg64s};
+  static const char **kRegTable[] = {kReg32s, kReg32s, kReg32s, kReg64s};
 #ifndef __NO_FLONUM
   const char *kFReg32s[] = {S0, S1, S2, S3, S4, S5, S6, S7};
   const char *kFReg64s[] = {D0, D1, D2, D3, D4, D5, D6, D7};
 #endif
+  static const int kPow2Table[] = {-1, 0, 1, -1, 2, -1, -1, -1, 3};
+#define kPow2TableSize ((int)(sizeof(kPow2Table) / sizeof(*kPow2Table)))
 
   int arg_index = 0;
   if (is_stack_param(func->type->func.ret)) {
@@ -337,10 +337,17 @@ static void put_args_to_stack(Function *func) {
     assert(varinfo != NULL);
     const Type *type = varinfo->type;
     int size = type_size(type);
+    assert(0 <= size && size < kPow2TableSize);
+    int pow = kPow2Table[size];
+    const char *src = kRegTable[pow][0];
     int offset = varinfo->local.reg->offset;
-    assert(size < (int)(sizeof(kRegTable) / sizeof(*kRegTable)) &&
-           kRegTable[size] != NULL);
-    STR(kRegTable[size][0], IMMEDIATE_OFFSET(FP, offset));
+    const char *dst = IMMEDIATE_OFFSET(FP, offset);
+    switch (pow) {
+    case 0:          STRB(src, dst); break;
+    case 1:          STRH(src, dst); break;
+    case 2: case 3:  STR(src, dst); break;
+    default: assert(false); break;
+    }
     ++arg_index;
   }
 
@@ -385,8 +392,9 @@ static void put_args_to_stack(Function *func) {
 
       if (arg_index < MAX_REG_ARGS) {
         int size = type_size(type);
-        assert(size < (int)(sizeof(kRegTable) / sizeof(*kRegTable)) &&
-               kRegTable[size] != NULL);
+        assert(0 <= size && size < kPow2TableSize);
+        int pow = kPow2Table[size];
+        const char *src = kRegTable[pow][arg_index];
         assert(offset < 0);
         const char *dst;
         if (offset >= -256) {
@@ -395,7 +403,12 @@ static void put_args_to_stack(Function *func) {
           mov_immediate(X9, offset, true);  // x9 broken.
           dst = REG_OFFSET(FP, X9, NULL);
         }
-        STR(kRegTable[size][arg_index], dst);
+        switch (pow) {
+        case 0:          STRB(src, dst); break;
+        case 1:          STRH(src, dst); break;
+        case 2: case 3:  STR(src, dst); break;
+        default: assert(false); break;
+        }
         ++arg_index;
       }
     }
@@ -419,16 +432,30 @@ static void put_args_to_stack(Function *func) {
         const Type *type = varinfo->type;
         assert(type->kind == TY_FIXNUM || type->kind == TY_PTR);
         int size = type_size(type);
-        assert(size < (int)(sizeof(kRegTable) / sizeof(*kRegTable)) &&
-               kRegTable[size] != NULL);
+        assert(0 <= size && size < kPow2TableSize);
+        int pow = kPow2Table[size];
+        const char *src = kRegTable[pow][i];
         int offset = varinfo->local.reg->offset;
-        STR(kRegTable[size][i], IMMEDIATE_OFFSET(FP, offset));
+        const char *dst = IMMEDIATE_OFFSET(FP, offset);
+        switch (pow) {
+        case 0:          STRB(src, dst); break;
+        case 1:          STRH(src, dst); break;
+        case 2: case 3:  STR(src, dst); break;
+        default: assert(false); break;
+        }
       } else {
         int size = type_size(&tyVoidPtr);
-        assert(size < (int)(sizeof(kRegTable) / sizeof(*kRegTable)) &&
-               kRegTable[size] != NULL);
+        assert(0 <= size && size < kPow2TableSize);
+        int pow = kPow2Table[size];
+        const char *src = kRegTable[pow][i];
         int offset = (i - MAX_REG_ARGS - MAX_FREG_ARGS) * WORD_SIZE;
-        STR(kRegTable[size][i], IMMEDIATE_OFFSET(FP, offset));
+        const char *dst = IMMEDIATE_OFFSET(FP, offset);
+        switch (pow) {
+        case 0:          STRB(src, dst); break;
+        case 1:          STRH(src, dst); break;
+        case 2: case 3:  STR(src, dst); break;
+        default: assert(false); break;
+        }
       }
     }
   }
