@@ -1,6 +1,5 @@
 XCC_DIR:=src/xcc
 CC1_DIR:=src/cc
-CC1_ARCH_DIR:=$(CC1_DIR)/arch
 CPP_DIR:=src/cpp
 AS_DIR:=src/as
 LD_DIR:=src/ld
@@ -26,6 +25,8 @@ ifeq ("$(ARCHTYPE)", "")
   endif
 endif
 
+CC1_ARCH_DIR:=$(CC1_DIR)/arch/$(ARCHTYPE)
+
 ifneq ("$(TARGET)","")
 # Self hosting
 HOST_EXES:=$(HOST)xcc $(HOST)cc1 $(HOST)cpp $(HOST)as $(HOST)ld
@@ -38,7 +39,7 @@ CFLAGS:=-ansi -std=c11 -pedantic -MMD -Wall -Wextra -Werror -Wold-style-definiti
 	-Wno-missing-field-initializers -Wno-typedef-redefinition -Wno-empty-body \
 	-D_DEFAULT_SOURCE $(OPTIMIZE) \
 	-I$(CC1_DIR) -I$(AS_DIR) -I$(UTIL_DIR) \
-	-I$(CC1_ARCH_DIR)/$(ARCHTYPE)
+	-I$(CC1_ARCH_DIR)
 ifneq ("$(NO_FLONUM)","")
 CFLAGS+=-D__NO_FLONUM
 endif
@@ -46,7 +47,7 @@ endif
 XCC_SRCS:=$(wildcard $(XCC_DIR)/*.c) \
 	$(UTIL_DIR)/util.c $(UTIL_DIR)/table.c
 CC1_SRCS:=$(wildcard $(CC1_DIR)/*.c) \
-	$(wildcard $(CC1_ARCH_DIR)/$(ARCHTYPE)/*.c) \
+	$(wildcard $(CC1_ARCH_DIR)/*.c) \
 	$(UTIL_DIR)/util.c $(UTIL_DIR)/table.c
 CPP_SRCS:=$(wildcard $(CPP_DIR)/*.c) \
 	$(CC1_DIR)/lexer.c $(UTIL_DIR)/util.c $(UTIL_DIR)/table.c
@@ -97,7 +98,7 @@ $(OBJ_DIR)/%.o: $(CC1_DIR)/%.c $(HOST_EXES)
 	@mkdir -p $(OBJ_DIR)
 	$(CC) $(CFLAGS) -c -o $@ $<
 
-$(OBJ_DIR)/%.o: $(CC1_ARCH_DIR)/$(ARCHTYPE)/%.c $(HOST_EXES)
+$(OBJ_DIR)/%.o: $(CC1_ARCH_DIR)/%.c $(HOST_EXES)
 	@mkdir -p $(OBJ_DIR)
 	$(CC) $(CFLAGS) -c -o $@ $<
 
@@ -200,8 +201,8 @@ dump_expr:	$(DEBUG_DIR)/dump_expr.c $(CC1_DIR)/parser_expr.c $(CC1_DIR)/parser.c
 
 dump_ir:	$(DEBUG_DIR)/dump_ir.c $(CC1_DIR)/parser_expr.c $(CC1_DIR)/parser.c $(CC1_DIR)/lexer.c \
 			$(CC1_DIR)/type.c $(CC1_DIR)/ast.c $(CC1_DIR)/var.c $(CC1_DIR)/builtin.c \
-			$(CC1_DIR)/codegen_expr.c $(CC1_DIR)/codegen.c $(CC1_DIR)/ir.c \
-			$(CC1_DIR)/regalloc.c $(CC1_ARCH_DIR)/x64/emit.c $(CC1_ARCH_DIR)/x64/ir_x64.c \
+			$(CC1_DIR)/codegen_expr.c $(CC1_DIR)/codegen.c $(CC1_DIR)/ir.c $(CC1_DIR)/regalloc.c \
+			$(CC1_ARCH_DIR)/emit.c $(CC1_ARCH_DIR)/ir_$(ARCHTYPE).c \
 			$(UTIL_DIR)/util.c $(UTIL_DIR)/table.c
 	$(CC) -o $@ $(DEBUG_CFLAGS) $^
 
