@@ -78,19 +78,19 @@ void mov_immediate(const char *dst, intptr_t value, bool b64) {
 static void ir_memcpy(int dst_reg, int src_reg, ssize_t size) {
   switch (size) {
   case 1:
-    LDRB(W9, IMMEDIATE_OFFSET(kReg64s[src_reg], 0));
-    STRB(W9, IMMEDIATE_OFFSET(kReg64s[dst_reg], 0));
+    LDRB(W9, IMMEDIATE_OFFSET0(kReg64s[src_reg]));
+    STRB(W9, IMMEDIATE_OFFSET0(kReg64s[dst_reg]));
     break;
   case 2:
-    LDRH(W9, IMMEDIATE_OFFSET(kReg64s[src_reg], 0));
-    STRH(W9, IMMEDIATE_OFFSET(kReg64s[dst_reg], 0));
+    LDRH(W9, IMMEDIATE_OFFSET0(kReg64s[src_reg]));
+    STRH(W9, IMMEDIATE_OFFSET0(kReg64s[dst_reg]));
     break;
   case 4:
   case 8:
     {
       const char *reg = size == 4 ? W9 : X9;
-      LDR(reg, IMMEDIATE_OFFSET(kReg64s[src_reg], 0));
-      STR(reg, IMMEDIATE_OFFSET(kReg64s[dst_reg], 0));
+      LDR(reg, IMMEDIATE_OFFSET0(kReg64s[src_reg]));
+      STR(reg, IMMEDIATE_OFFSET0(kReg64s[dst_reg]));
     }
     break;
   default:
@@ -179,7 +179,7 @@ static void ir_out(IR *ir) {
       assert(!(ir->opr1->flag & VRF_CONST));
       const char *src;
       if (ir->kind == IR_LOAD) {
-        src = IMMEDIATE_OFFSET(kReg64s[ir->opr1->phys], 0);
+        src = IMMEDIATE_OFFSET0(kReg64s[ir->opr1->phys]);
       } else {
         if (ir->opr1->offset >= -256 && ir->opr1->offset <= 256) {
           src = IMMEDIATE_OFFSET(FP, ir->opr1->offset);

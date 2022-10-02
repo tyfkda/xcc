@@ -59,7 +59,7 @@ char *im(intptr_t x) {
 }
 
 char *immediate_offset(const char *reg, int offset) {
-  return fmt("[%s,#%d]", reg, offset);
+  return offset != 0 ? fmt("[%s,#%d]", reg, offset) : fmt("[%s]", reg);
 }
 
 char *pre_index(const char *reg, int offset) {

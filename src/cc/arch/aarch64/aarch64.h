@@ -29,6 +29,9 @@
 #ifndef IMMEDIATE_OFFSET
 #define IMMEDIATE_OFFSET(reg, ofs)  immediate_offset(reg, ofs)
 #endif
+#ifndef IMMEDIATE_OFFSET0
+#define IMMEDIATE_OFFSET0(reg)  immediate_offset(reg, 0)
+#endif
 #ifndef PRE_INDEX
 #define PRE_INDEX(reg, ofs)  pre_index(reg, ofs)
 #endif
