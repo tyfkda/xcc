@@ -35,6 +35,14 @@ function tmpfileSync(len) {
 }
 
 ;(async () => {
+  const program = require('commander')
+  program
+    .option('--entry-point <func-name>', 'Entry point', '_start')
+    .parse(process.argv)
+  const encoder = new TextEncoder()
+  const encodedArgs = program.args.map(arg => encoder.encode(arg))
+  const totalArgsBytes = encodedArgs.reduce((acc, arg) => acc + arg.length + 1, 0)
+
   let memory
 
   const O_RDONLY  = 0x00
@@ -62,6 +70,28 @@ function tmpfileSync(len) {
   function getImports() {
     const imports = {
       c: {
+        args_sizes_get: (pargc, plen) => {
+          const argc = new Uint32Array(memory.buffer, pargc, 1)
+          argc[0] = encodedArgs.length
+
+          const len = new Uint32Array(memory.buffer, plen, 1)
+          len[0] = totalArgsBytes
+        },
+        args_get: (pargv, pstr) => {
+          const argv = new Uint32Array(memory.buffer, pargv, encodedArgs.length)
+          const str = new Uint8Array(memory.buffer, pstr, totalArgsBytes)
+          let offset = 0
+          for (let i = 0; i < encodedArgs.length; ++i) {
+            argv[i] = pstr + offset
+            const encoded = encodedArgs[i]
+            const len = encoded.length
+            for (let j = 0; j < len; ++j)
+              str[j + offset] = encoded[j]
+            str[len + offset] = 0
+            offset += len + 1
+          }
+        },
+
         read: (fd, buf, size) => {
           const memoryImage = new Uint8Array(memory.buffer, buf, size)
           if (fd < 3) {
@@ -204,42 +234,7 @@ function tmpfileSync(len) {
     return instance
   }
 
-  function putArgs(instance, args) {
-    const sbrkFunc = instance.exports['sbrk']
-    if (sbrkFunc == null) {
-      // Cannot put arguments onto wasm memory.
-      args.length = 0
-      return 0
-    }
-
-    const encodedArgs = args.map(arg => new TextEncoder('utf-8').encode(arg))
-    const ptrArrayBytes = 4 * (args.length + 1)
-    const totalArgsBytes = encodedArgs.reduce((acc, arg) => acc + arg.length + 1, 0)
-    const ptr = sbrkFunc(ptrArrayBytes + totalArgsBytes)
-    const pStrStart = ptr + ptrArrayBytes
-
-    const ptrArgs = new Uint32Array(memory.buffer, ptr, args.length + 1)
-    const ptrStr = new Uint8Array(memory.buffer, pStrStart, totalArgsBytes)
-    let p = 0
-    for (let i = 0; i < args.length; ++i) {
-      const encoded = encodedArgs[i]
-      const len = encoded.length
-      for (let j = 0; j < len; ++j)
-        ptrStr[p + j] = encoded[j]
-      ptrStr[p + len] = 0
-      ptrArgs[i] = pStrStart + p
-      p += len + 1
-    }
-    ptrArgs[args.length] = 0
-    return ptr
-  }
-
-  async function main(argv) {
-    const program = require('commander')
-    program
-      .option('--entry-point <func-name>', 'Entry point', '_start')
-      .parse(argv)
-
+  async function main() {
     if (program.args < 1) {
       program.help()
     }
@@ -248,9 +243,8 @@ function tmpfileSync(len) {
     const opts = program.opts()
     const wasmFile = args[0]
     const instance = await loadWasm(wasmFile)
-    const argsPtr = putArgs(instance, args)
     try {
-      const result = instance.exports[opts.entryPoint](args.length, argsPtr)
+      const result = instance.exports[opts.entryPoint]()
       if (result !== 0)
         process.exit(result)
     } catch (e) {
@@ -259,5 +253,5 @@ function tmpfileSync(len) {
     }
   }
 
-  main(process.argv)
+  main()
 })()

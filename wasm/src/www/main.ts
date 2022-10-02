@@ -182,7 +182,7 @@ async function compile(sourceCode: string, extraOptions?: string[]): Promise<Uin
   if (extraOptions != null)
     args = args.concat(extraOptions)
   args.push(sourceName)
-  const result = await waproc.runWasmMain(wccWasm, '_start', args)
+  const result = await waproc.runWasmEntry(wccWasm, '_start', args)
   if (result !== 0)
     return null
 
@@ -243,7 +243,7 @@ async function run(argStr: string, compileAndDump: boolean) {
   const args = argStr === '' ? [] : argStr.trim().split(/\s+/)
   args.unshift('a.wasm')
   try {
-    const result = await waproc.runWasmMain(compiledCode, '_start', args)
+    const result = await waproc.runWasmEntry(compiledCode, '_start', args)
     if (result != 0)
       console.error(`Exit code=${result}`)
   } catch (e) {

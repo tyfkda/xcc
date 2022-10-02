@@ -1026,9 +1026,6 @@ int main(int argc, char *argv[]) {
   if (exports->len == 0) {
     error("no exports (require -e<xxx>)\n");
   }
-  // Implicit export function.
-  if (!nostdlib && !nodefaultlibs)
-    vec_push(exports, alloc_name("sbrk", NULL, false));
 
   VERBOSES("### Exports\n");
   for (int i = 0; i < exports->len; ++i) {

@@ -19,6 +19,9 @@ export class WaProc {
   private cwd = '/'
   private imports: any
 
+  private encodedArgs = new Array<Uint8Array>()
+  private totalArgsBytes = 0
+
   constructor(storage: WaStorage) {
     this.fs = new FileSystem(storage)
     this.imports = this.createImports()
@@ -45,14 +48,17 @@ export class WaProc {
     return this.fs.loadFile(this.getAbsPath(fileName))
   }
 
-  public async runWasmMain(wasmUrlOrBuffer: string|ArrayBuffer, entry: string, args: string[]): Promise<any> {
+  public async runWasmEntry(wasmUrlOrBuffer: string|ArrayBuffer, entry: string, args: string[]): Promise<any> {
+    const encoder = new TextEncoder()
+    this.encodedArgs = args.map(arg => encoder.encode(arg))
+    this.totalArgsBytes = this.encodedArgs.reduce((acc, arg) => acc + arg.length + 1, 0)
+
     const instance = await this.loadWasm(wasmUrlOrBuffer)
-    const argsPtr = this.putArgs(instance!, args)
-    return (instance!.exports[entry] as (c:number, v:number)=>void)(args.length, argsPtr)
+    return (instance!.exports[entry] as ()=>void)()
   }
 
   public async loadWasm(pathOrBuffer: string|ArrayBuffer): Promise<WebAssembly.Instance|null> {
-    let obj
+    let obj: WebAssembly.WebAssemblyInstantiatedSource
     if (typeof pathOrBuffer === 'string') {
       if (WebAssembly.instantiateStreaming) {
         obj = await WebAssembly.instantiateStreaming(fetch(pathOrBuffer), this.imports)
@@ -70,7 +76,7 @@ export class WaProc {
     const instance = obj.instance
 
     if (instance.exports.memory) {
-      this.memory = instance.exports.memory
+      this.memory = instance.exports.memory as WebAssembly.Memory
     }
     return instance
   }
@@ -83,39 +89,31 @@ export class WaProc {
     return this.memory
   }
 
-  private putArgs(instance: WebAssembly.Instance, args: string[]): number {
-    const sbrkFunc = instance.exports['sbrk'] as (((number) => number)|undefined)
-    if (sbrkFunc == null) {
-      // Cannot put arguments onto wasm memory.
-      args.length = 0
-      return 0
-    }
-
-    const encodedArgs = args.map(Util.encode)
-    const ptrArrayBytes = 4 * (args.length + 1)
-    const totalArgsBytes = encodedArgs.reduce((acc, arg) => acc + arg.length + 1, 0)
-    const ptr = sbrkFunc(ptrArrayBytes + totalArgsBytes)
-    const pStrStart = ptr + ptrArrayBytes
-
-    const ptrArgs = new Uint32Array(this.memory.buffer, ptr, args.length + 1)
-    const ptrStr = new Uint8Array(this.memory.buffer, pStrStart, totalArgsBytes)
-    let p = 0
-    for (let i = 0; i < args.length; ++i) {
-      const encoded = encodedArgs[i]
-      const len = encoded.length
-      for (let j = 0; j < len; ++j)
-        ptrStr[p + j] = encoded[j]
-      ptrStr[p + len] = 0
-      ptrArgs[i] = pStrStart + p
-      p += len + 1
-    }
-    ptrArgs[args.length] = 0
-    return ptr
-  }
-
   private createImports() {
     const imports = {
       c: {
+        args_sizes_get: (pargc, plen) => {
+          const argc = new Uint32Array(this.memory.buffer, pargc, 1)
+          argc[0] = this.encodedArgs.length
+
+          const len = new Uint32Array(this.memory.buffer, plen, 1)
+          len[0] = this.totalArgsBytes
+        },
+        args_get: (pargv, pstr) => {
+          const argv = new Uint32Array(this.memory.buffer, pargv, this.encodedArgs.length)
+          const str = new Uint8Array(this.memory.buffer, pstr, this.totalArgsBytes)
+          let offset = 0
+          for (let i = 0; i < this.encodedArgs.length; ++i) {
+            argv[i] = pstr + offset
+            const encoded = this.encodedArgs[i]
+            const len = encoded.length
+            for (let j = 0; j < len; ++j)
+              str[j + offset] = encoded[j]
+            str[len + offset] = 0
+            offset += len + 1
+          }
+        },
+
         read: (fd, buf, size) => {
           const memoryImage = new Uint8Array(this.memory.buffer, buf, size)
           return this.fs.read(fd, memoryImage)
