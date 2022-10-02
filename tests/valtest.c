@@ -724,7 +724,6 @@ int main(void) {
   }
   expect("?:", 2, 1 ? 2 : 3);
   expect("comma", 3333, (11, 222, 3333));
-#if !defined(__aarch64__)
   expect("vaargs 1", 1, vaargs(1, (int)1, (char)20, 300L));
   expect("vaargs 2", 21, vaargs(2, (int)1, (char)20, 300L));
   expect("vaargs 3", 321, vaargs(3, (int)1, (char)20, 300L));
@@ -732,7 +731,6 @@ int main(void) {
     char c = 'A';
     expect("vaargs char", 65, vaargs(1, c));
   }
-#endif
   expect("static local var", 44, (static_local(), static_local()));
   expect("null initializer", 0L, (long)null);
   {

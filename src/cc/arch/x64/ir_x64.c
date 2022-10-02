@@ -661,6 +661,10 @@ static void ir_out(IR *ir) {
       int ireg = 0;
       int total_arg_count = ir->call.total_arg_count;
       for (int i = 0; i < total_arg_count; ++i) {
+#if defined(VAARG_ON_STACK)
+        if (ir->call.vaarg_start >= 0 && i >= ir->call.vaarg_start)
+          break;
+#endif
         if (ir->call.arg_vtypes[i]->flag & VRTF_NON_REG)
           continue;
 #ifndef __NO_FLONUM

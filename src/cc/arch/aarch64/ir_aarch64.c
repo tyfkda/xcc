@@ -126,7 +126,7 @@ static void ir_out(IR *ir) {
     {
       const char *dst = kReg64s[ir->dst->phys];
       if (ir->opr1->flag & VRF_CONST) {
-        mov_immediate(dst, ir->opr1->fixnum, true);
+        ADD(dst, FP, IM(ir->opr1->fixnum));
       } else {
         int ofs = ir->opr1->offset;
         if (ofs < 4096 && ofs > -4096) {

@@ -19,6 +19,32 @@ static Expr *proc_builtin_type_kind(const Token *ident) {
   return new_expr_fixlit(&tySize, ident, type->kind);
 }
 
+#if defined(VAARG_ON_STACK)
+static VReg *gen_builtin_va_start(Expr *expr) {
+  assert(expr->kind == EX_FUNCALL);
+  Vector *args = expr->funcall.args;
+  assert(args->len == 2);
+  assert(curfunc != NULL);
+
+  Expr *ap = args->data[0];
+  if (ap->kind != EX_VAR || ap->type->kind != TY_PTR) {
+    parse_error(PE_NOFATAL, ap->token, "Must be local variable");
+    return NULL;
+  }
+
+  Scope *scope;
+  const VarInfo *varinfo = scope_find(ap->var.scope, ap->var.name, &scope);
+  assert(varinfo != NULL);
+  if (is_global_scope(scope) || (varinfo->storage & (VS_STATIC | VS_EXTERN))) {
+    parse_error(PE_FATAL, ap->token, "Must be local variable");
+    return NULL;
+  }
+
+  VReg *ptr = new_ir_bofs(new_const_vreg(16, to_vtype(&tyVoidPtr)));  // TODO: Consider stack argument.
+  new_ir_mov(varinfo->local.reg, ptr);
+  return NULL;
+}
+#else
 static VReg *gen_builtin_va_start(Expr *expr) {
   assert(expr->kind == EX_FUNCALL);
   Vector *args = expr->funcall.args;
@@ -79,6 +105,7 @@ static VReg *gen_builtin_va_start(Expr *expr) {
   }
   return NULL;
 }
+#endif
 
 static VReg *gen_alloca(Expr *expr) {
   const int stack_align = 16;  // TODO
@@ -104,12 +131,16 @@ void install_builtins(void) {
   static BuiltinExprProc p_reg_class = &proc_builtin_type_kind;
   add_builtin_expr_ident("__builtin_type_kind", &p_reg_class);
 
-  Type *tyVaList = create_struct_type(NULL, alloc_name("__va_elem", NULL, false), 0);
-  Type *tyVaListPtr = ptrof(tyVaList);
   {
+#if defined(VAARG_ON_STACK)
+    Type *tyVaList = ptrof(&tyVoidPtr);
+#else
+    Type *tyVaElem = create_struct_type(NULL, alloc_name("__va_elem", NULL, false), 0);
+    Type *tyVaList = ptrof(tyVaElem);
+#endif
     static BuiltinFunctionProc p_va_start = &gen_builtin_va_start;
     Vector *params = new_vector();
-    var_add(params, NULL, tyVaListPtr, 0);
+    var_add(params, NULL, tyVaList, 0);
     var_add(params, NULL, &tyVoidPtr, 0);
 
     Type *rettype = &tyVoid;

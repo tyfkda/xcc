@@ -3,6 +3,17 @@
 #include "stdint.h"
 
 #if !defined(__WASM)
+
+#if defined(__APPLE__) && defined(__aarch64__)
+typedef void **va_list;
+
+#define va_start(ap,p)    __builtin_va_start(ap,&(p))
+#define va_end(ap)        /*(void)*/(ap = 0)
+#define va_arg(ap, type)  (*(type*)(ap)++)  // Assume little endian
+#define va_copy(dst,src)  (dst = src)
+
+#else  // not __APPLE__ nor __aarch64__
+
 struct __va_elem {
   unsigned int gp_offset;
   unsigned int fp_offset;
@@ -60,6 +71,8 @@ typedef __gnuc_va_list va_list;
 #define __builtin_va_copy(dest, src) ((dest)[0] = (src)[0])
 
 #define __builtin_va_end(ap)  /* none */
+
+#endif
 
 #else  // __WASM
 
