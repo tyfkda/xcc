@@ -305,21 +305,6 @@ IR *new_ir_mov(VReg *dst, VReg *src) {
   return ir;
 }
 
-void new_ir_memcpy(VReg *dst, VReg *src, size_t size) {
-  if (size > 0) {
-    IR *ir = new_ir(IR_MEMCPY);
-    ir->opr1 = src;
-    ir->opr2 = dst;
-    ir->memcpy.size = size;
-  }
-}
-
-void new_ir_clear(VReg *vreg, size_t size) {
-  IR *ir = new_ir(IR_CLEAR);
-  ir->opr1 = vreg;
-  ir->clear.size = size;
-}
-
 void new_ir_asm(const char *asm_, VReg *dst) {
   IR *ir = new_ir(IR_ASM);
   ir->asm_.str = asm_;

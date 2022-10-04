@@ -80,8 +80,6 @@ enum IrKind {
   IR_SUBSP,   // RSP -= value
   IR_CAST,    // dst <= opr1
   IR_MOV,     // dst = opr1
-  IR_MEMCPY,  // memcpy(opr2, opr1, size)
-  IR_CLEAR,   // memset(opr1, 0, size)
   IR_ASM,     // assembler code
 
   IR_LOAD_SPILLED,   // dst(spilled) = [opr1]
@@ -183,8 +181,6 @@ VReg *new_ir_call(const Name *label, bool global, VReg *freg, int total_arg_coun
 void new_ir_result(VReg *vreg);
 void new_ir_subsp(VReg *value, VReg *dst);
 VReg *new_ir_cast(VReg *vreg, const VRegType *dsttype);
-void new_ir_memcpy(VReg *dst, VReg *src, size_t size);
-void new_ir_clear(VReg *vreg, size_t size);
 void new_ir_asm(const char *asm_, VReg *dst);
 
 IR *new_ir_load_spilled(VReg *vreg, VReg *src);

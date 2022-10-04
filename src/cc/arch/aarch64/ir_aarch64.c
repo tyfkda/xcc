@@ -93,41 +93,6 @@ void mov_immediate(const char *dst, int64_t value, bool b64, bool is_unsigned) {
   }
 }
 
-static void ir_memcpy(int dst_reg, int src_reg, ssize_t size) {
-  switch (size) {
-  case 1:
-    LDRB(W9, IMMEDIATE_OFFSET0(kReg64s[src_reg]));
-    STRB(W9, IMMEDIATE_OFFSET0(kReg64s[dst_reg]));
-    break;
-  case 2:
-    LDRH(W9, IMMEDIATE_OFFSET0(kReg64s[src_reg]));
-    STRH(W9, IMMEDIATE_OFFSET0(kReg64s[dst_reg]));
-    break;
-  case 4:
-  case 8:
-    {
-      const char *reg = size == 4 ? W9 : X9;
-      LDR(reg, IMMEDIATE_OFFSET0(kReg64s[src_reg]));
-      STR(reg, IMMEDIATE_OFFSET0(kReg64s[dst_reg]));
-    }
-    break;
-  default:
-    // Break %x4~%x7
-    {
-      const Name *label = alloc_label();
-      MOV(X4, kReg64s[src_reg]);
-      MOV(X5, kReg64s[dst_reg]);
-      mov_immediate(W6, size, false, true);
-      EMIT_LABEL(fmt_name(label));
-      LDRB(W7, POST_INDEX(X4, 1));
-      STRB(W7, POST_INDEX(X5, 1));
-      SUBS(W6, W6, IM(1));
-      Bcc(CNE, fmt_name(label));
-    }
-    break;
-  }
-}
-
 static bool is_got(const Name *name) {
 #ifdef __APPLE__
   // TODO: How to detect the label is GOT?
@@ -824,27 +789,6 @@ static void ir_out(IR *ir) {
         default: assert(false); break;
         }
       }
-    }
-    break;
-
-  case IR_MEMCPY:
-    assert(!(ir->opr1->flag & VRF_CONST));
-    assert(!(ir->opr2->flag & VRF_CONST));
-    ir_memcpy(ir->opr2->phys, ir->opr1->phys, ir->memcpy.size);
-    break;
-
-  case IR_CLEAR:
-    {
-      assert(!(ir->opr1->flag & VRF_CONST));
-      const Name *label = alloc_label();
-
-      // Break %x6~%x7
-      MOV(X6, kReg64s[ir->opr1->phys]);
-      mov_immediate(W7, ir->clear.size, false, true);
-      EMIT_LABEL(fmt_name(label));
-      STRB(WZR, POST_INDEX(X6, 1));
-      SUBS(W7, W7, IM(1));
-      Bcc(CNE, fmt_name(label));
     }
     break;
 

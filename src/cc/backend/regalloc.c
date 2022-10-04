@@ -263,8 +263,6 @@ static int insert_load_store_spilled_irs(RegAlloc *ra, BBContainer *bbcon) {
       case IR_CALL:
       case IR_RESULT:
       case IR_PRECALL:
-      case IR_MEMCPY:
-      case IR_CLEAR:
       case IR_ASM:
         break;
 

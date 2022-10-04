@@ -124,6 +124,86 @@ static void alloc_variable_registers(Function *func) {
   }
 }
 
+static VRegType *get_elem_vtype(const Type *type) {
+  const size_t MAX_REG_SIZE = 8;  // TODO:
+
+  size_t size = type_size(type);
+  assert(size > 0);
+  size_t align = align_size(type);
+  size_t s = MIN(align, size);
+  if (!IS_POWER_OF_2(s) || s > MAX_REG_SIZE) {
+    for (s = MAX_REG_SIZE; s > 1; s >>= 1) {
+      assert(s > 0);
+      if (s > size || size % s != 0)
+        continue;
+    }
+  }
+
+  VRegType *vtype = malloc(sizeof(*vtype));
+  vtype->size = s;
+  vtype->align = s;
+  vtype->flag = 0;
+  return vtype;
+}
+
+void gen_memcpy(const Type *type, VReg *dst, VReg *src) {
+  VRegType *elem_vtype = get_elem_vtype(type);
+  size_t count = type_size(type) / elem_vtype->size;
+  assert(count > 0);
+  if (count == 1) {
+    VReg *tmp = new_ir_unary(IR_LOAD, src, elem_vtype);
+    new_ir_store(dst, tmp);
+  } else {
+    VReg *srcp = add_new_reg(&tyVoidPtr, 0);
+    new_ir_mov(srcp, src);
+    VReg *dstp = add_new_reg(&tyVoidPtr, 0);
+    new_ir_mov(dstp, dst);
+
+    VRegType *vtySize = to_vtype(&tySize);
+    VReg *vcount = add_new_reg(&tySize, 0);
+    new_ir_mov(vcount, new_const_vreg(count, vtySize));
+    VReg *vadd = new_const_vreg(elem_vtype->size, vtySize);
+
+    BB *loop_bb = new_bb();
+    set_curbb(loop_bb);
+    VReg *tmp = new_ir_unary(IR_LOAD, srcp, elem_vtype);
+    new_ir_mov(srcp, new_ir_bop(IR_ADD, srcp, vadd, srcp->vtype));  // srcp += elem_size
+    new_ir_store(dstp, tmp);
+    new_ir_mov(dstp, new_ir_bop(IR_ADD, dstp, vadd, dstp->vtype));  // dstp += elem_size
+    new_ir_mov(vcount, new_ir_bop(IR_SUB, vcount, new_const_vreg(1, vtySize), vcount->vtype));  // vcount -= 1
+    new_ir_cmp(vcount, new_const_vreg(0, vcount->vtype));
+    new_ir_jmp(COND_NE, loop_bb);
+    set_curbb(new_bb());
+  }
+}
+
+static void gen_clear(const Type *type, VReg *dst) {
+  VRegType *elem_vtype = get_elem_vtype(type);
+  size_t count = type_size(type) / elem_vtype->size;
+  assert(count > 0);
+  VReg *vzero = new_const_vreg(0, elem_vtype);
+  if (count == 1) {
+    new_ir_store(dst, vzero);
+  } else {
+    VReg *dstp = add_new_reg(&tyVoidPtr, 0);
+    new_ir_mov(dstp, dst);
+
+    VRegType *vtySize = to_vtype(&tySize);
+    VReg *vcount = add_new_reg(&tySize, 0);
+    new_ir_mov(vcount, new_const_vreg(count, vtySize));
+    VReg *vadd = new_const_vreg(elem_vtype->size, vtySize);
+
+    BB *loop_bb = new_bb();
+    set_curbb(loop_bb);
+    new_ir_store(dstp, vzero);
+    new_ir_mov(dstp, new_ir_bop(IR_ADD, dstp, vadd, dstp->vtype));  // dstp += elem_size
+    new_ir_mov(vcount, new_ir_bop(IR_SUB, vcount, new_const_vreg(1, vtySize), vcount->vtype));  // vcount -= 1
+    new_ir_cmp(vcount, new_const_vreg(0, vcount->vtype));
+    new_ir_jmp(COND_NE, loop_bb);
+    set_curbb(new_bb());
+  }
+}
+
 static void gen_asm(Stmt *stmt) {
   assert(stmt->asm_.str->kind == EX_STR);
   VReg *result = NULL;
@@ -169,7 +249,7 @@ static void gen_return(Stmt *stmt) {
     } else {
       size_t size = type_size(val->type);
       if (size > 0) {
-        new_ir_memcpy(retval, vreg, size);
+        gen_memcpy(val->type, retval, vreg);
         new_ir_result(retval);
       }
     }
@@ -434,7 +514,7 @@ void gen_clear_local_var(const VarInfo *varinfo) {
   if (size <= 0)
     return;
   VReg *vreg = new_ir_bofs(varinfo->local.frameinfo, varinfo->local.vreg);
-  new_ir_clear(vreg, size);
+  gen_clear(varinfo->type, vreg);
 }
 
 static void gen_vardecl(Vector *decls) {

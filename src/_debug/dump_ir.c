@@ -75,8 +75,6 @@ static void dump_ir(FILE *fp, IR *ir) {
   case IR_SUBSP:  fprintf(fp, "\tSUBSP\t"); dump_vreg(fp, ir->opr1); fprintf(fp, "\n"); break;
   case IR_CAST:   fprintf(fp, "\tCAST\t"); dump_vreg(fp, ir->dst); fprintf(fp, " = "); dump_vreg(fp, ir->opr1); fprintf(fp, "\n"); break;
   case IR_MOV:    fprintf(fp, "\tMOV\t"); dump_vreg(fp, ir->dst); fprintf(fp, " = "); dump_vreg(fp, ir->opr1); fprintf(fp, "\n"); break;
-  case IR_MEMCPY: fprintf(fp, "\tMEMCPY(dst="); dump_vreg(fp, ir->opr2); fprintf(fp, ", src="); dump_vreg(fp, ir->opr1); fprintf(fp, ", size=%zu)\n", ir->memcpy.size); break;
-  case IR_CLEAR:  fprintf(fp, "\tCLEAR\t"); dump_vreg(fp, ir->opr1); fprintf(fp, ", %zu\n", ir->clear.size); break;
   case IR_ASM:    fprintf(fp, "\tASM \"%s\"\n", ir->asm_.str); break;
   case IR_LOAD_SPILLED:   fprintf(fp, "\tLOAD_SPILLED "); dump_vreg(fp, ir->dst); fprintf(fp, " = [v%d]\n", ir->opr1->virt); break;
   case IR_STORE_SPILLED:  fprintf(fp, "\tSTORE_SPILLED [v%d] = ", ir->opr2->virt); dump_vreg(fp, ir->opr1); fprintf(fp, "\n"); break;

@@ -564,7 +564,7 @@ static VReg *gen_funcall(Expr *expr) {
         int ofs = p->offset;
         VReg *dst = new_ir_sofs(new_const_vreg(ofs, &offset_type));
         if (is_stack_param(arg->type)) {
-          new_ir_memcpy(dst, vreg, type_size(arg->type));
+          gen_memcpy(arg->type, dst, vreg);
         } else {
           new_ir_store(dst, vreg);
         }
@@ -827,7 +827,7 @@ VReg *gen_expr(Expr *expr) {
         break;
       case TY_STRUCT:
         if (expr->type->struct_.info->size > 0) {
-          new_ir_memcpy(dst, src, expr->type->struct_.info->size);
+          gen_memcpy(expr->type, dst, src);
         }
         break;
       }

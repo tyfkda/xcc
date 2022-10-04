@@ -63,49 +63,6 @@ static const int kCallerSaveFRegs[] = {0, 1, 2, 3, 4, 5, 6, 7};
 static const int kPow2Table[] = {-1, 0, 1, -1, 2, -1, -1, -1, 3};
 #define kPow2TableSize ((int)(sizeof(kPow2Table) / sizeof(*kPow2Table)))
 
-static void ir_memcpy(int dst_reg, int src_reg, ssize_t size) {
-  const char *dst = kReg64s[dst_reg];
-  const char *src = kReg64s[src_reg];
-
-  // Break %rcx, %dl
-  switch (size) {
-  case 1:
-    MOV(INDIRECT(src, NULL, 1), DL);
-    MOV(DL, INDIRECT(dst, NULL, 1));
-    break;
-  case 2:
-    MOV(INDIRECT(src, NULL, 1), DX);
-    MOV(DX, INDIRECT(dst, NULL, 1));
-    break;
-  case 4:
-    MOV(INDIRECT(src, NULL, 1), EDX);
-    MOV(EDX, INDIRECT(dst, NULL, 1));
-    break;
-  case 8:
-    MOV(INDIRECT(src, NULL, 1), RDX);
-    MOV(RDX, INDIRECT(dst, NULL, 1));
-    break;
-  default:
-    {
-      const Name *name = alloc_label();
-      const char *label = fmt_name(name);
-      PUSH(src);
-      PUSH(dst);
-      MOV(IM(size), RCX);
-      EMIT_LABEL(label);
-      MOV(INDIRECT(src, NULL, 1), DL);
-      MOV(DL, INDIRECT(dst, NULL, 1));
-      INC(src);
-      INC(dst);
-      DEC(RCX);
-      JNE(label);
-      POP(dst);
-      POP(src);
-    }
-    break;
-  }
-}
-
 static bool is_got(const Name *name) {
 #ifdef __APPLE__
   // TODO: How to detect the label is GOT?
@@ -904,27 +861,6 @@ static void ir_out(IR *ir) {
         if (ir->opr1->phys != ir->dst->phys)
           MOV(regs[ir->opr1->phys], regs[ir->dst->phys]);
       }
-    }
-    break;
-
-  case IR_MEMCPY:
-    assert(!(ir->opr1->flag & VRF_CONST));
-    assert(!(ir->opr2->flag & VRF_CONST));
-    ir_memcpy(ir->opr2->phys, ir->opr1->phys, ir->memcpy.size);
-    break;
-
-  case IR_CLEAR:
-    {
-      assert(!(ir->opr1->flag & VRF_CONST));
-      const Name *label = alloc_label();
-      MOV(kReg64s[ir->opr1->phys], RSI);
-      MOV(IM(ir->clear.size), EDI);
-      XOR(AL, AL);
-      EMIT_LABEL(fmt_name(label));
-      MOV(AL, INDIRECT(RSI, NULL, 1));
-      INC(RSI);
-      DEC(EDI);
-      JNE(fmt_name(label));
     }
     break;
 
