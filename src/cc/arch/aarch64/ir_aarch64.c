@@ -22,6 +22,8 @@ static const char *kReg64s[PHYSICAL_REG_MAX] = {
 
 static const char **kRegSizeTable[] = {kReg32s, kReg32s, kReg32s, kReg64s};
 
+static const char *kZeroRegTable[] = {WZR, WZR, WZR, XZR};
+
 static const char *kRetRegTable[] = {W0, W0, W0, X0};
 
 static const char *kTmpRegTable[] = {W9, W9, W9, X9};
@@ -61,7 +63,9 @@ static const int kPow2Table[] = {-1, 0, 1, -1, 2, -1, -1, -1, 3};
 //
 
 void mov_immediate(const char *dst, intptr_t value, bool b64) {
-  if (is_im16(value)) {
+  if (value == 0) {
+    MOV(dst, b64 ? XZR : WZR);
+  } else if (is_im16(value)) {
     MOV(dst, IM(value));
   } else if (!b64 || is_im32(value)) {
     int32_t v = value;
@@ -230,7 +234,7 @@ static void ir_out(IR *ir) {
       int pow = kPow2Table[ir->size];
       const char *target;
       if (ir->kind == IR_STORE) {
-        target = IMMEDIATE_OFFSET(kReg64s[ir->opr2->phys], 0);
+        target = IMMEDIATE_OFFSET0(kReg64s[ir->opr2->phys]);
       } else {
         if (ir->opr2->offset >= -256 && ir->opr2->offset <= 256) {
           target = IMMEDIATE_OFFSET(FP, ir->opr2->offset);
@@ -251,8 +255,10 @@ static void ir_out(IR *ir) {
       } else
 #endif
       if (ir->opr1->flag & VRF_CONST) {
-        src = kTmpRegTable[pow];
-        mov_immediate(src, ir->opr1->fixnum, pow >= 3);
+        if (ir->opr1->fixnum == 0)
+          src = kZeroRegTable[pow];
+        else
+          mov_immediate(src = kTmpRegTable[pow], ir->opr1->fixnum, pow >= 3);
       } else {
         src = kRegSizeTable[pow][ir->opr1->phys];
       }
@@ -539,7 +545,9 @@ static void ir_out(IR *ir) {
       assert(0 <= pow && pow < 4);
       const char **regs = kRegSizeTable[pow];
       if (ir->opr2->flag & VRF_CONST) {
-        if (ir->opr2->fixnum >= 0)
+        if (ir->opr2->fixnum == 0)
+          CMP(regs[ir->opr1->phys], kZeroRegTable[pow]);
+        else if (ir->opr2->fixnum > 0)
           CMP(regs[ir->opr1->phys], IM(ir->opr2->fixnum));
         else
           CMN(regs[ir->opr1->phys], IM(-ir->opr2->fixnum));
@@ -556,7 +564,7 @@ static void ir_out(IR *ir) {
       int pow = kPow2Table[ir->size];
       assert(0 <= pow && pow < 4);
       const char **regs = kRegSizeTable[pow];
-      NEG(regs[ir->dst->phys], regs[ir->opr1->phys]);
+      SUB(regs[ir->dst->phys], kZeroRegTable[pow], regs[ir->opr1->phys]);
     }
     break;
 
@@ -567,8 +575,7 @@ static void ir_out(IR *ir) {
       int pow = kPow2Table[ir->size];
       assert(0 <= pow && pow < 4);
       const char **regs = kRegSizeTable[pow];
-      mov_immediate(regs[ir->dst->phys], -1, pow >= 3);
-      EOR(regs[ir->dst->phys], regs[ir->dst->phys], regs[ir->opr1->phys]);
+      EON(regs[ir->dst->phys], regs[ir->opr1->phys], kZeroRegTable[pow]);
     }
     break;
 

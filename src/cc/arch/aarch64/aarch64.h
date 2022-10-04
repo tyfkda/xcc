@@ -137,8 +137,8 @@
 #define FP    "fp"  // x29
 #define LR    "lr"  // x30
 #define SP    "sp"  // x31
-#define ZR    "zr"  // x31: zero register
-#define WZR   "wzr"  // x31: zero register(32bit)
+#define XZR   "xzr"  // x31: zero register
+#define WZR   "wzr"  // w31: zero register(32bit)
 
 #ifndef __NO_FLONUM
 #define D0    "d0"
@@ -248,11 +248,11 @@
 #define AND(o1, o2, o3)       EMIT_ASM3("and", o1, o2, o3)
 #define ORR(o1, o2, o3)       EMIT_ASM3("orr", o1, o2, o3)
 #define EOR(o1, o2, o3)       EMIT_ASM3("eor", o1, o2, o3)
+#define EON(o1, o2, o3)       EMIT_ASM3("eon", o1, o2, o3)
 #define CMP(o1, o2)           EMIT_ASM2("cmp", o1, o2)
 #define CMN(o1, o2)           EMIT_ASM2("cmn", o1, o2)
 #define LSL(o1, o2, o3)       EMIT_ASM3("lsl", o1, o2, o3)
 #define ASR(o1, o2, o3)       EMIT_ASM3("asr", o1, o2, o3)
-#define NEG(o1, o2)           EMIT_ASM2("neg", o1, o2)
 #define BRANCH(o1)            EMIT_ASM1("b", o1)
 #define Bcc(c, o1)            EMIT_ASM1("b" c, o1)
 #define BR(o1)                EMIT_ASM1("br", o1)
