@@ -1,6 +1,13 @@
 #pragma once
 
-extern int errno;
+#ifdef __APPLE__
+extern int * __error(void);
+#define errno (*__error())
+
+#else
+extern int *__errno_location(void) /*__THROW __attribute__((__const__))*/;
+#define errno (*__errno_location())
+#endif
 
 #define EPERM            1      /* Operation not permitted */
 #define ENOENT           2      /* No such file or directory */
