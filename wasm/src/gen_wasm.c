@@ -322,6 +322,7 @@ static void gen_funcall(Expr *expr) {
   int arg_count = args != NULL ? args->len : 0;
 
   Type *functype = get_callee_type(func);
+  assert(functype != NULL);
   int param_count = functype->func.params != NULL ? functype->func.params->len : 0;
 
   int sarg_siz = 0;

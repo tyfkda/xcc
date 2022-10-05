@@ -406,7 +406,12 @@ static Expr *check_global_initializer_fixnum(Expr *value, bool *isconst) {
     {
       Scope *scope;
       VarInfo *varinfo = scope_find(value->var.scope, value->var.name, &scope);
-      assert(varinfo != NULL);
+      if (varinfo == NULL) {
+        // Error must be raised already, so exit quietly.
+        *isconst = true;
+        break;
+      }
+
       if (!is_global_scope(scope) && !(varinfo->storage & VS_STATIC))
         parse_error(PE_FATAL, value->token, "Allowed global reference only");
       *isconst = value->type->kind == TY_ARRAY || value->type->kind == TY_FUNC ||

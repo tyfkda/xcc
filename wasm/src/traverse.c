@@ -280,7 +280,12 @@ static void traverse_func_expr(Expr **pexpr) {
 }
 
 static void traverse_funcall(Expr *expr) {
-  Type *functype = get_callee_type(expr->funcall.func);
+  Expr *func = expr->funcall.func;
+  Type *functype = get_callee_type(func);
+  if (functype == NULL) {
+    parse_error(PE_NOFATAL, func->token, "Cannot call except function");
+    return;
+  }
   if (functype->func.ret->kind != TY_VOID && !is_prim_type(functype->func.ret)) {
     register_func_info_memcpy();
     // Allocate local variable for return value.
@@ -298,9 +303,8 @@ static void traverse_funcall(Expr *expr) {
 
   Vector *args = expr->funcall.args;
   if (functype->func.params == NULL) {
-    if (expr->funcall.func->kind == EX_VAR) {
+    if (func->kind == EX_VAR) {
       // Extract function type again.
-      Expr *func = expr->funcall.func;
       VarInfo *varinfo = scope_find(func->var.scope, func->var.name, NULL);
       assert(varinfo != NULL);
       if (varinfo->type->kind == TY_FUNC) {
@@ -311,7 +315,7 @@ static void traverse_funcall(Expr *expr) {
     }
 
     if (functype->func.params == NULL && args != NULL)
-      parse_error(PE_FATAL, expr->funcall.func->token, "function's parameters must be known");
+      parse_error(PE_NOFATAL, func->token, "function's parameters must be known");
   }
 
   traverse_func_expr(&expr->funcall.func);

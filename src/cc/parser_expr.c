@@ -626,13 +626,13 @@ Type *get_callee_type(Expr *func) {
   Type *type = func->type;
   if (type->kind == TY_PTR)
     type = type->pa.ptrof;
-  if (type->kind != TY_FUNC)
-    parse_error(PE_FATAL, func->token, "Cannot call except function");
-  return type;
+  return type->kind == TY_FUNC ? type : NULL;
 }
 
 void check_funcall_args(Expr *func, Vector *args, Scope *scope, Vector *toplevel) {
   Type *functype = get_callee_type(func);
+  if (functype == NULL)
+    return;
 
   const Vector *param_types = functype->func.param_types;  // <Type*>
   bool vaargs = functype->func.vaargs;
@@ -682,7 +682,12 @@ static Expr *parse_funcall(Expr *func) {
   Vector *args = parse_args(&token);
 
   check_funcall_args(func, args, curscope, toplevel);
-  return new_expr_funcall(token, func, get_callee_type(func), args);
+  Type *functype = get_callee_type(func);
+  if (functype == NULL) {
+    parse_error(PE_NOFATAL, func->token, "Cannot call except function");
+    return func;
+  }
+  return new_expr_funcall(token, func, functype, args);
 }
 
 static Expr *parse_array_index(const Token *token, Expr *array) {
