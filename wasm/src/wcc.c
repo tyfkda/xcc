@@ -19,7 +19,7 @@
 #include "var.h"
 #include "wasm_util.h"
 
-static const char IMPORT_MODULE_NAME[] = "c";
+static const char DEFAULT_IMPORT_MODULE_NAME[] = "c";
 static const uint32_t DEFAULT_STACK_SIZE = 8 * 1024;
 static const uint32_t MEMORY_PAGE_SIZE = 65536;
 
@@ -336,7 +336,7 @@ static int compare_indirect(const void *pa, const void *pb) {
   return (int)qa->indirect_index - (int)qb->indirect_index;
 }
 
-static void emit_wasm(FILE *ofp, Vector *exports, uint32_t address_bottom) {
+static void emit_wasm(FILE *ofp, Vector *exports, const char *import_module_name, uint32_t address_bottom) {
   emit_wasm_header(ofp);
 
   // Types.
@@ -355,7 +355,7 @@ static void emit_wasm(FILE *ofp, Vector *exports, uint32_t address_bottom) {
   data_init(&imports_section);
   uint32_t imports_count = 0;
   {
-    const char *module_name = IMPORT_MODULE_NAME;
+    const char *module_name = import_module_name;
     size_t module_name_len = strlen(module_name);
 
     const Name *name;
@@ -886,6 +886,7 @@ int main(int argc, char *argv[]) {
   }
 
   const char *ofn = "a.wasm";
+  const char *import_module_name = DEFAULT_IMPORT_MODULE_NAME;
   Vector *exports = new_vector();
   uint32_t stack_size = DEFAULT_STACK_SIZE;
   const char *entry_point = "_start";
@@ -908,6 +909,7 @@ int main(int argc, char *argv[]) {
     OPT_VERBOSE = 256,
     OPT_ENTRY_POINT,
     OPT_STACK_SIZE,
+    OPT_IMPORT_MODULE_NAME,
     OPT_NODEFAULTLIBS,
     OPT_NOSTDLIB,
 
@@ -928,6 +930,7 @@ int main(int argc, char *argv[]) {
     {"W", required_argument, OPT_WARNING},
     {"nodefaultlibs", no_argument, OPT_NODEFAULTLIBS},
     {"nostdlib", no_argument, OPT_NOSTDLIB},
+    {"-import-module-name", required_argument, OPT_IMPORT_MODULE_NAME},
     {"-verbose", no_argument, OPT_VERBOSE},
     {"-entry-point", required_argument, OPT_ENTRY_POINT},
     {"-stack-size", required_argument, OPT_STACK_SIZE},
@@ -992,6 +995,9 @@ int main(int argc, char *argv[]) {
         }
         stack_size = size;
       }
+      break;
+    case OPT_IMPORT_MODULE_NAME:
+      import_module_name = optarg;
       break;
     case OPT_VERBOSE:
       verbose = true;
@@ -1084,7 +1090,7 @@ int main(int argc, char *argv[]) {
   if (fp == NULL) {
     error("Cannot open output file");
   } else {
-    emit_wasm(fp, exports, address_bottom);
+    emit_wasm(fp, exports, import_module_name, address_bottom);
     assert(compile_error_count == 0);
     fclose(fp);
   }
