@@ -222,19 +222,19 @@ static void linear_scan_register_allocation(RegAlloc *ra, LiveInterval **sorted_
 #endif
 }
 
-static int insert_tmp_reg(RegAlloc *ra, Vector *irs, int j, VReg *spilled, int size) {
+static int insert_tmp_reg(RegAlloc *ra, Vector *irs, int j, VReg *spilled) {
   VReg *tmp = reg_alloc_spawn(ra, spilled->vtype, VRF_NO_SPILL);
   IR *ir = irs->data[j];
   VReg *opr = ir->opr1 == spilled ? ir->opr1 : ir->opr2 == spilled ? ir->opr2 : NULL;
   if (opr != NULL) {
-    vec_insert(irs, j++, new_ir_load_spilled(tmp, opr, size));
+    vec_insert(irs, j++, new_ir_load_spilled(tmp, opr, tmp->vtype->size));
     if (ir->opr1 == spilled)
       ir->opr1 = tmp;
     if (ir->opr2 == spilled)
       ir->opr2 = tmp;
   }
   if (ir->dst == spilled) {
-    vec_insert(irs, ++j, new_ir_store_spilled(ir->dst, tmp, size));
+    vec_insert(irs, ++j, new_ir_store_spilled(ir->dst, tmp, tmp->vtype->size));
     ir->dst = tmp;
   }
   return j;
@@ -249,11 +249,12 @@ static int insert_load_store_spilled_irs(RegAlloc *ra, BBContainer *bbcon) {
       IR *ir = irs->data[j];
 
       int flag = 7;
-      int load_size = ir->size;
       switch (ir->kind) {
       default:
         assert(false);
         // Fallthrough.
+      case IR_LOAD:
+      case IR_STORE:
       case IR_MOV:
       case IR_ADD:  // binops
       case IR_SUB:
@@ -272,24 +273,17 @@ static int insert_load_store_spilled_irs(RegAlloc *ra, BBContainer *bbcon) {
       case IR_JMP:
       case IR_TJMP:
       case IR_PUSHARG:
+      case IR_CALL:
       case IR_RESULT:
       case IR_PRECALL:
+      case IR_MEMCPY:
+      case IR_CLEAR:
       case IR_ASM:
         break;
 
       case IR_SUBSP:
       case IR_CAST:
         flag = 5;
-        load_size = ir->opr1->vtype->size;
-        break;
-
-      case IR_CALL:
-      case IR_LOAD:
-      case IR_STORE:
-      case IR_MEMCPY:
-      case IR_CLEAR:
-        flag = 7;
-        load_size = WORD_SIZE;
         break;
 
       case IR_BOFS:
@@ -305,19 +299,19 @@ static int insert_load_store_spilled_irs(RegAlloc *ra, BBContainer *bbcon) {
 
       if (ir->opr1 != NULL && (flag & 1) != 0 &&
           !(ir->opr1->flag & VRF_CONST) && (ir->opr1->flag & VRF_SPILLED)) {
-        j = insert_tmp_reg(ra, irs, j, ir->opr1, load_size);
+        j = insert_tmp_reg(ra, irs, j, ir->opr1);
         ++inserted;
       }
 
       if (ir->opr2 != NULL && (flag & 2) != 0 &&
           !(ir->opr2->flag & VRF_CONST) && (ir->opr2->flag & VRF_SPILLED)) {
-        j = insert_tmp_reg(ra, irs, j, ir->opr2, load_size);
+        j = insert_tmp_reg(ra, irs, j, ir->opr2);
         ++inserted;
       }
 
       if (ir->dst != NULL && (flag & 4) != 0 &&
           !(ir->dst->flag & VRF_CONST) && (ir->dst->flag & VRF_SPILLED)) {
-        j = insert_tmp_reg(ra, irs, j, ir->dst, load_size);
+        j = insert_tmp_reg(ra, irs, j, ir->dst);
         ++inserted;
       }
     }
