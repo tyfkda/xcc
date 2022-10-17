@@ -1,8 +1,10 @@
 #if !defined(__WASM)
 #include "unistd.h"
+#include "_syscall.h"
 
 int pipe(int *pipefd) {
-  __asm("mov $22, %eax\n"  // __NR_pipe
-        "syscall");
+  int ret;
+  SYSCALL_RET(__NR_pipe, ret);
+  return ret;
 }
 #endif

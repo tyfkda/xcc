@@ -6,9 +6,12 @@
 extern int _getcwd(char *, size_t);
 
 #elif defined(__linux__)
+#include "_syscall.h"
+
 static int _getcwd(char *buffer, size_t size) {
-  __asm("mov $79, %eax\n"  // __NR_getcwd
-        "syscall");
+  int ret;
+  SYSCALL_RET(__NR_getcwd, ret);
+  return ret;
 }
 #endif
 

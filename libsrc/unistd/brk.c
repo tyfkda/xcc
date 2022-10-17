@@ -30,9 +30,12 @@ int brk(void *addr) {
 #else
 
 #if defined(__linux__)
+#include "_syscall.h"
+
 static void *_brk(void *addr) {
-  __asm("mov $12, %eax\n"  // __NR_brk
-        "syscall");
+  void *ret;
+  SYSCALL_RET(__NR_brk, ret);
+  return ret;
 }
 #endif
 

@@ -1,8 +1,10 @@
 #if !defined(__WASM)
 #include "unistd.h"
+#include "_syscall.h"
 
 int chmod(const char *pathname, /*mode_t*/int mode) {
-  __asm("mov $90, %eax\n"  // __NR_chmod
-        "syscall");
+  int ret;
+  SYSCALL_RET(__NR_chmod, ret);
+  return ret;
 }
 #endif

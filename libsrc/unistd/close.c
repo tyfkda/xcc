@@ -1,8 +1,10 @@
 #if !defined(__WASM)
 #include "unistd.h"
+#include "_syscall.h"
 
 int close(int fd) {
-  __asm("mov $3, %eax\n"  // __NR_close
-        "syscall\n");
+  int ret;
+  SYSCALL_RET(__NR_close, ret);
+  return ret;
 }
 #endif

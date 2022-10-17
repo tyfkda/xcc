@@ -9,10 +9,10 @@ void exit(int code) {
 #elif defined(__WASM)
 
 #elif defined(__linux__)
+#include "../unistd/_syscall.h"
 
 void exit(int code) {
-  __asm("mov $60, %eax\n"  // __NR_exit
-        "syscall");
+  SYSCALL(__NR_exit);
 }
 
 #elif defined(__APPLE__)

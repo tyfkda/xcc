@@ -9,17 +9,11 @@ ssize_t write(int fd, const void *str, size_t len) {
 #elif defined(__WASM)
 
 #elif defined(__linux__)
+#include "_syscall.h"
+
 ssize_t write(int fd, const void *str, size_t len) {
   ssize_t ret;
-#if defined(__XCC)
-  __asm("mov $1, %eax\n"  // __NR_write
-        "syscall"
-        : "=r"(ret));
-#else
-  __asm("mov $1, %%eax\n"  // __NR_write
-        "syscall"
-        : "=r"(ret));
-#endif
+  SYSCALL_RET(__NR_write, ret);
   return ret;
 }
 

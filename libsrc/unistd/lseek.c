@@ -1,8 +1,10 @@
 #if !defined(__WASM)
 #include "unistd.h"
+#include "_syscall.h"
 
 off_t lseek(int fd, off_t offset, int whence) {
-  __asm("mov $8, %eax\n"  // __NR_lseek
-        "syscall\n");
+  off_t ret;
+  SYSCALL_RET(__NR_lseek, ret);
+  return ret;
 }
 #endif

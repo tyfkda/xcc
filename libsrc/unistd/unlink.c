@@ -1,8 +1,10 @@
 #if !defined(__WASM)
 #include "unistd.h"
+#include "_syscall.h"
 
 int unlink(const char *pathname) {
-  __asm("mov $87, %eax\n"  // __NR_unlink
-        "syscall");
+  int ret;
+  SYSCALL_RET(__NR_unlink, ret);
+  return ret;
 }
 #endif
