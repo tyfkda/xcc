@@ -341,13 +341,6 @@ static bool handle_block_comment(const char *begin, const char **pp, Stream *str
   return true;
 }
 
-static const char **line_begin_ptr;
-
-static void on_eof_callback(void) {
-  fputs(*line_begin_ptr, pp_ofp);
-  *line_begin_ptr = get_lex_p();
-}
-
 static const char *find_double_quote_end(const char *p) {
   const char *start = p;
   for (;;) {
@@ -413,7 +406,6 @@ static void process_line(const char *line, bool enable, Stream *stream) {
   set_source_string(line, stream->filename, stream->lineno);
 
   const char *begin = get_lex_p();
-  line_begin_ptr = &begin;
 
   for (;;) {
     const char *p = get_lex_p();
@@ -448,7 +440,6 @@ static void process_line(const char *line, bool enable, Stream *stream) {
             const Token *tok = tokens->data[i];
             fwrite(tok->begin, tok->end - tok->begin, 1, pp_ofp);
           }
-UNUSED(on_eof_callback);
           begin = get_lex_p();
         }
         continue;
@@ -462,8 +453,6 @@ UNUSED(on_eof_callback);
     fprintf(pp_ofp, "%s\n", begin);
   else
     fprintf(pp_ofp, "\n");
-
-  line_begin_ptr = NULL;
 }
 
 static bool handle_ifdef(const char **pp) {
