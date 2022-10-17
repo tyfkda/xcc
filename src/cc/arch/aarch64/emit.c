@@ -82,11 +82,13 @@ char *label_at_page(char *label, int flag) {
     "%s@PAGE", "%s@PAGEOFF",
     "%s@GOTPAGE", "%s@GOTPAGEOFF",
   };
-  return fmt(s[flag], label);
 #else
-  UNUSED(flag);
-  return label;
+  static const char *s[] = {
+    "%s", ":lo12:%s",
+    ":got:%s", ":got_lo12:%s",
+  };
 #endif
+  return fmt(s[flag], label);
 }
 
 char *mangle(char *label) {

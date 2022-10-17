@@ -357,7 +357,12 @@ static void put_args_to_stack(Function *func) {
     return;
 
   int len = params->len;
-  if (!func->type->func.vaargs) {
+#ifdef VAARG_ON_STACK
+  bool vaargs = false;
+#else
+  bool vaargs = func->type->func.vaargs;
+#endif
+  if (!vaargs) {
 #ifndef __NO_FLONUM
     int farg_index = 0;
 #endif
@@ -444,20 +449,42 @@ static void put_args_to_stack(Function *func) {
         default: assert(false); break;
         }
       } else {
-        int size = type_size(&tyVoidPtr);
-        assert(0 <= size && size < kPow2TableSize);
-        int pow = kPow2Table[size];
-        const char *src = kRegTable[pow][i];
+        const char *src = kReg64s[i];
         int offset = (i - MAX_REG_ARGS - MAX_FREG_ARGS) * WORD_SIZE;
         const char *dst = IMMEDIATE_OFFSET(FP, offset);
-        switch (pow) {
-        case 0:          STRB(src, dst); break;
-        case 1:          STRH(src, dst); break;
-        case 2: case 3:  STR(src, dst); break;
-        default: assert(false); break;
-        }
+	      STR(src, dst);
       }
     }
+
+#ifndef __NO_FLONUM
+    ip = 0;
+    for (int i = 0; i < MAX_FREG_ARGS; ++i) {
+      const VarInfo *varinfo = NULL;
+      while (ip < len) {
+        const VarInfo *p = params->data[ip++];
+        const Type *type = p->type;
+        if (!is_stack_param(type)
+            && is_flonum(type)
+        ) {
+          varinfo = p;
+          break;
+        }
+      }
+      if (varinfo != NULL) {
+        const Type *type = varinfo->type;
+        assert(type->kind == TY_FLONUM);
+        int offset = varinfo->local.reg->offset;
+        switch (type->flonum.kind) {
+        case FL_FLOAT:   STR(kFReg32s[i], IMMEDIATE_OFFSET(FP, offset)); break;
+        case FL_DOUBLE:  STR(kFReg64s[i], IMMEDIATE_OFFSET(FP, offset)); break;
+        default: assert(false); break;
+        }
+      } else {
+        int offset = (i - MAX_FREG_ARGS) * WORD_SIZE;
+        STR(kFReg64s[i], IMMEDIATE_OFFSET(FP, offset));
+      }
+    }
+#endif
   }
 }
 

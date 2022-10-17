@@ -119,8 +119,8 @@ static bool is_got(const Name *name) {
   // TODO: How to detect the label is GOT?
   return name->bytes >= 5 && strncmp(name->chars, "__std", 5) == 0;  // __stdinp, etc.
 #else
-  UNUSED(name);
-  return false;
+  // TODO: How to detect the label is GOT?
+  return name->bytes >= 3 && strncmp(name->chars, "std", 3) == 0;  // stdin, etc.
 #endif
 }
 
@@ -878,6 +878,18 @@ for (int i = 0; i < CALLER_SAVE_FREG_COUNT; ++i) {
       STRB(WZR, POST_INDEX(X9, 1));
       SUBS(W10, W10, IM(1));
       Bcc(CNE, fmt_name(label));
+    }
+    break;
+
+  case IR_ASM:
+    EMIT_ASM0(ir->asm_.str);
+    if (ir->dst != NULL) {
+      assert(0 <= ir->size && ir->size < kPow2TableSize);
+      assert(!(ir->dst->flag & VRF_CONST));
+      int pow = kPow2Table[ir->size];
+      assert(0 <= pow && pow < 4);
+      const char **regs = kRegSizeTable[pow];
+      MOV(regs[ir->dst->phys], kRetRegTable[pow]);
     }
     break;
 

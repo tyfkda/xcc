@@ -31,6 +31,18 @@ typedef __gnuc_va_list va_list;
 #define va_arg(ap,ty)     __builtin_va_arg(ap,ty)
 #define va_copy(dst,src)  __builtin_va_copy(dst,src)
 
+#if defined(__aarch64__)
+#define __GP_REG_ARGS  (8)
+#else
+#define __GP_REG_ARGS  (6)
+#endif
+#define __FP_REG_ARGS  (8)
+#define __WORD_SIZE    (8)
+#define __DBL_SIZE     (8)
+
+#define __GP_OFFSET_MAX  (__GP_REG_ARGS * __WORD_SIZE)
+#define __FP_OFFSET_MAX  (__GP_OFFSET_MAX + __FP_REG_ARGS * __DBL_SIZE)
+
 //
 
 #define __va_arg_mem(ap, sz, align) ({ \
@@ -40,13 +52,13 @@ typedef __gnuc_va_list va_list;
   (char*)p; })
 
 #define __va_arg_gp(ap, sz, align) \
-  ((ap)->gp_offset < 6 * 8 \
-    ? (char*)(ap)->reg_save_area + ((ap)->gp_offset += 8) - 8 \
+  ((ap)->gp_offset < __GP_OFFSET_MAX \
+    ? (char*)(ap)->reg_save_area + ((ap)->gp_offset += __WORD_SIZE) - __WORD_SIZE \
     : __va_arg_mem(ap, sz, align))
 
 #define __va_arg_fp(ap, sz, align) \
-  ((ap)->fp_offset < (6 + 8) * 8 \
-    ? (char*)(ap)->reg_save_area + ((ap)->fp_offset += 8) - 8 \
+  ((ap)->fp_offset < __FP_OFFSET_MAX \
+    ? (char*)(ap)->reg_save_area + ((ap)->fp_offset += __DBL_SIZE) - __DBL_SIZE \
     : __va_arg_mem(ap, sz, align))
 
 #ifndef __NO_FLONUM

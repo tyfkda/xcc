@@ -11,10 +11,7 @@ typedef struct Name Name;
 typedef struct RegAlloc RegAlloc;
 typedef struct Vector Vector;
 
-#define MAX_REG_ARGS  (6)
 #define WORD_SIZE  (8)  /*sizeof(void*)*/
-
-#define MAX_FREG_ARGS  (8)
 
 // Virtual register
 

@@ -81,13 +81,16 @@ static VReg *gen_builtin_va_start(Expr *expr) {
     return NULL;
   }
 
+  // ap->gp_offset = gn * WORD_SIZE
   VReg *ap = gen_expr(args->data[0]);
   VReg *gp_offset = ap;
   new_ir_store(gp_offset, new_const_vreg(gn * WORD_SIZE, to_vtype(&tyInt)));
 
+  // ap->fp_offset = (MAX_REG_ARGS + fn) * WORD_SIZE
   VReg *fp_offset = new_ir_bop(IR_ADD, ap, new_const_vreg(type_size(&tyInt), to_vtype(&tySize)), ap->vtype);
   new_ir_store(fp_offset, new_const_vreg((MAX_REG_ARGS + fn) * WORD_SIZE, to_vtype(&tySize)));
 
+  // ap->overflow_arg_area = 2 * WORD_SIZE
   {
     const VRegType *vtype = to_vtype(&tyVoidPtr);
     VReg *overflow_arg_area = new_ir_bop(IR_ADD, ap, new_const_vreg(type_size(&tyInt) + type_size(&tyInt), vtype), vtype);
@@ -96,6 +99,7 @@ static VReg *gen_builtin_va_start(Expr *expr) {
     new_ir_store(overflow_arg_area, p);
   }
 
+  // ap->reg_save_area = -(MAX_REG_ARGS + MAX_FREG_ARGS) * WORD_SIZE
   {
     const VRegType *vtype = to_vtype(&tyVoidPtr);
     VReg *reg_save_area = new_ir_bop(IR_ADD, ap, new_const_vreg(type_size(&tyInt) + type_size(&tyInt) + type_size(&tyVoidPtr), vtype), vtype);

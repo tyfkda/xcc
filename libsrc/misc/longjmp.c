@@ -1,7 +1,9 @@
 #if !defined(__WASM)
 #include "setjmp.h"
+#include "assert.h"
 
 void longjmp(jmp_buf env, int result) {
+#if defined(__x86_64__)
   __asm("mov 0(%rdi), %rax\n"
         "mov 8(%rdi), %rbp\n"
         "mov 16(%rdi), %rsp\n"
@@ -16,5 +18,8 @@ void longjmp(jmp_buf env, int result) {
         "jne .longjmp_0\n"
         "mov $1, %eax\n"
         ".longjmp_0:");
+#else
+  assert(!"TODO: Implement");
+#endif
 }
 #endif

@@ -7,7 +7,7 @@ double floor(double x) {
     unsigned long l = x;
     return l;
   } else {
-    unsigned long l = -x;
+    long l = -x;
     return x + l < 0 ? -l - 1 : l;
   }
 }

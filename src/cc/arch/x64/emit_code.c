@@ -420,11 +420,8 @@ static void put_args_to_stack(Function *func) {
         int offset = varinfo->local.reg->offset;
         MOV(kRegTable[size][i], OFFSET_INDIRECT(offset, RBP, NULL, 1));
       } else {
-        int size = type_size(&tyVoidPtr);
-        assert(size < (int)(sizeof(kRegTable) / sizeof(*kRegTable)) &&
-               kRegTable[size] != NULL);
         int offset = (i - MAX_REG_ARGS - MAX_FREG_ARGS) * WORD_SIZE;
-        MOV(kRegTable[size][i], OFFSET_INDIRECT(offset, RBP, NULL, 1));
+        MOV(kReg64s[i], OFFSET_INDIRECT(offset, RBP, NULL, 1));
       }
     }
 

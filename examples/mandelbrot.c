@@ -45,6 +45,10 @@ int main(int argc, char *argv[]) {
   Number XS = 2.25, YS = XS * H / W;
 
   unsigned char *buf = malloc(W * H * 3);
+  if (buf == NULL) {
+    fprintf(stderr, "out of memory\n");
+    exit(1);
+  }
   unsigned char *p = buf;
 
   for (int i = 0; i < H; ++i) {

@@ -18,4 +18,6 @@
 #define S_IWOTH         (0002)
 #define S_IXOTH         (0001)
 
+#define AT_FDCWD  -100
+
 int open(const char *fn, int flag, ...);

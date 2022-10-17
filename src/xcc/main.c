@@ -16,12 +16,6 @@
 
 #include "util.h"
 
-#if (!defined(__XV6) && !defined(__linux__)) || defined(__aarch64__)
-
-#define AS_USE_CC
-
-#endif
-
 static pid_t fork1(void) {
   pid_t pid = fork();
   if (pid < 0)
@@ -416,18 +410,21 @@ int main(int argc, char *argv[]) {
   for (int i = iarg; i < argc; ++i) {
     vec_push(sources, argv[i]);
   }
-#ifndef AS_USE_CC
   if (out_type >= OutExecutable) {
+#if !defined(AS_USE_CC) || defined(NO_STD_LIB)
     if (!nostdlib)
       vec_push(sources, cat_path(root, "lib/crt0.a"));
     if (!nodefaultlibs && !nostdlib)
       vec_push(sources, cat_path(root, "lib/libc.a"));
+# if defined(NO_STD_LIB)
+    vec_push(ld_cmd, "-nostdlib");
+# endif
 
-  }
 #else
-  UNUSED(nodefaultlibs);
-  UNUSED(nostdlib);
+    UNUSED(nodefaultlibs);
+    UNUSED(nostdlib);
 #endif
+  }
 
   int res = 0;
   for (int i = 0; i < sources->len; ++i) {

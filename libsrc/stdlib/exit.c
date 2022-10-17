@@ -12,6 +12,9 @@ void exit(int code) {
 #include "../unistd/_syscall.h"
 
 void exit(int code) {
+#ifdef __NR_exit_group
+  SYSCALL(__NR_exit_group);
+#endif
   SYSCALL(__NR_exit);
 }
 
