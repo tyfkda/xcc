@@ -11,6 +11,8 @@
 #include "table.h"
 #include "util.h"
 
+bool auto_concat_string_literal;
+
 static const struct {
   const char *str;
   enum TokenKind kind;
@@ -235,6 +237,7 @@ bool lex_eof_continue(void) {
 
 void init_lexer(void) {
   init_reserved_word_table();
+  auto_concat_string_literal = false;
 }
 
 void set_source_file(FILE *fp, const char *filename) {
@@ -558,6 +561,8 @@ static Token *read_string(const char **pp) {
       str[size++] = c;
     }
     end = p;
+    if (auto_concat_string_literal)
+      break;
 
     // Continue string literal when next character is '"'
     const char *q = skip_whitespace_or_comment(p);

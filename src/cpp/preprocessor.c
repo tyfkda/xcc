@@ -495,6 +495,9 @@ void init_preprocessor(FILE *ofp) {
   pragma_once_files = new_vector();
 
   init_lexer();
+
+  extern bool auto_concat_string_literal;
+  auto_concat_string_literal = true;
 }
 
 int preprocess(FILE *fp, const char *filename_) {

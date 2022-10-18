@@ -80,6 +80,7 @@ try 'No arguments keeps as is' 'int MAX=123;' "#define MAX(a,b) ((a)>=(b)?(a):(b
 try 'Newline in macro' '1+2' "#define ADD(x,y) x+y\nADD(1,\n2)"
 try 'Newline in macro2' '(1 + 2)' "#define FOO(x) (x)\nFOO( 1  \n + 2 )"
 try 'Newline in macro3' '(123)' "#define FOO(x) (x)\nFOO\n(123)"
+try 'Macro w/ str str' '"a" "b"' "#define M(x) x\nM(\"a\" \"b\")"
 try 'Block comment after #define' '88' '#define X 88/*block\ncomment*/\nX'
 try 'Nothing' 'ABC ' '#define NOTHING /*nothing*/\nABC NOTHING'
 try '#ifdef' 'x' "#define X\n#ifdef X\nx\n#else\ny\n#endif"
