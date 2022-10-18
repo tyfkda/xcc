@@ -235,16 +235,13 @@ static VReg *gen_lval(Expr *expr) {
       Scope *scope;
       const VarInfo *varinfo = scope_find(expr->var.scope, expr->var.name, &scope);
       assert(varinfo != NULL && scope == expr->var.scope);
-      if (is_global_scope(scope)) {
+      if (is_global_scope(scope))
         return new_ir_iofs(expr->var.name, (varinfo->storage & VS_STATIC) == 0);
-      } else {
-        if (varinfo->storage & VS_STATIC)
-          return new_ir_iofs(varinfo->static_.gvar->name, false);
-        else if (varinfo->storage & VS_EXTERN)
-          return new_ir_iofs(expr->var.name, true);
-        else
-          return new_ir_bofs(varinfo->local.reg);
-      }
+      if (varinfo->storage & VS_STATIC)
+        return new_ir_iofs(varinfo->static_.gvar->name, false);
+      if (varinfo->storage & VS_EXTERN)
+        return new_ir_iofs(expr->var.name, true);
+      return new_ir_bofs(varinfo->local.reg);
     }
   case EX_DEREF:
     return gen_expr(expr->unary.sub);
