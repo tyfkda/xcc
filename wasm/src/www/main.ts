@@ -244,7 +244,7 @@ async function run(argStr: string, compileAndDump: boolean) {
   args.unshift('a.wasm')
   try {
     const result = await waproc.runWasmEntry(compiledCode, '_start', args)
-    if (result != 0)
+    if (result !== 0)
       console.error(`Exit code=${result}`)
   } catch (e) {
     if (!(e instanceof ExitCalledError))
