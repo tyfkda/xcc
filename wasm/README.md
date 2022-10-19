@@ -37,7 +37,7 @@ Generated files:
 Compile:
 
 ```sh
-$ ./wcc -o out.wasm foo.c
+$ ./wcc -o hello.wasm ../examples/hello.c
 ```
 
 #### Command line options
@@ -56,7 +56,8 @@ $ ./wcc -o out.wasm foo.c
 ### Run
 
 ```sh
-$ node runtime/runwasm.js out.wasm main foo bar baz
+$ node runtime/runwasm.js hello.wasm
+Hello, world!
 ```
 
 

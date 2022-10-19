@@ -40,6 +40,7 @@ Generated files:
 ```sh
 $ ./xcc -o hello examples/hello.c
 $ ./hello
+Hello, world!
 ```
 
 #### Command line options
