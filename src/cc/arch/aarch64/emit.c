@@ -151,12 +151,6 @@ void emit_comment(const char *comment, ...) {
   va_end(ap);
 }
 
-void emit_align(int align) {
-  if (align <= 1)
-    return;
-  fprintf(emit_fp, "\t.align %d\n", align);
-}
-
 void emit_align_p2(int align) {
   if (align <= 1)
     return;

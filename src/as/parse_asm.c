@@ -216,6 +216,7 @@ static const char *kDirectiveTable[] = {
   "text",
   "data",
   "align",
+  "p2align",
   "byte",
   "word",
   "long",
@@ -1102,6 +1103,14 @@ void handle_directive(ParseInfo *info, enum DirectiveType dir, Vector **section_
       if (!immediate(&info->p, &align))
         parse_error(info, ".align: number expected");
       vec_push(irs, new_ir_align(align));
+    }
+    break;
+  case DT_P2ALIGN:
+    {
+      long align;
+      if (!immediate(&info->p, &align))
+        parse_error(info, ".align: number expected");
+      vec_push(irs, new_ir_align(1 << align));
     }
     break;
 
