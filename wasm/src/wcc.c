@@ -905,6 +905,15 @@ int main(int argc, char *argv[]) {
 
   init_compiler();
 
+  enum SourceType {
+    UnknownSource,
+    // Assembly,
+    Clanguage,
+    // ObjectFile,
+    // ArchiveFile,
+  };
+  enum SourceType src_type = UnknownSource;
+
   enum {
     OPT_VERBOSE = 256,
     OPT_ENTRY_POINT,
@@ -926,6 +935,7 @@ int main(int argc, char *argv[]) {
     {"L", required_argument},  // Add library path
     {"D", required_argument},  // Define macro
     {"o", required_argument},  // Specify output filename
+    {"x", required_argument},  // Specify code type
     {"e", required_argument},  // Export names
     {"W", required_argument, OPT_WARNING},
     {"nodefaultlibs", no_argument, OPT_NODEFAULTLIBS},
@@ -945,9 +955,11 @@ int main(int argc, char *argv[]) {
 
     {NULL},
   };
+  Vector *sources = new_vector();
   int opt;
   while ((opt = optparse(argc, argv, options)) != -1) {
     switch (opt) {
+    default: assert(false); break;
     case 'o':
       ofn = optarg;
       break;
@@ -972,6 +984,15 @@ int main(int argc, char *argv[]) {
       break;
     case 'L':
       vec_push(lib_paths, optarg);
+      break;
+    case 'x':
+      if (strcmp(optarg, "c") == 0) {
+        src_type = Clanguage;
+      // } else if (strcmp(optarg, "assembler") == 0) {
+      //   src_type = Assembly;
+      } else {
+        error("language not recognized: %s", optarg);
+      }
       break;
     case OPT_WARNING:
       if (strcmp(optarg, "error") == 0) {
@@ -1005,8 +1026,15 @@ int main(int argc, char *argv[]) {
     case OPT_ENTRY_POINT:
       entry_point = *optarg != '\0' ? optarg : NULL;
       break;
-    default:
-      fprintf(stderr, "Warning: unknown option: %s\n", argv[optind - 1]);
+    case '?':
+      if (strcmp(argv[optind - 1], "-") == 0) {
+        if (src_type == UnknownSource) {
+          error("-x required");
+        }
+        vec_push(sources, NULL);
+      } else {
+        fprintf(stderr, "Warning: unknown option: %s\n", argv[optind - 1]);
+      }
       break;
 
     case OPT_OPTIMIZE:
@@ -1021,7 +1049,10 @@ int main(int argc, char *argv[]) {
   }
 
   int iarg = optind;
-  if (iarg >= argc) {
+  for (int i = iarg; i < argc; ++i)
+    vec_push(sources, argv[i]);
+
+  if (sources->len == 0) {
     fprintf(stderr, "No input files\n\n");
     // usage(stderr);
     return 1;
@@ -1040,10 +1071,6 @@ int main(int argc, char *argv[]) {
   }
   VERBOSES("\n");
 
-  Vector *sources = new_vector();
-  for (int i = iarg; i < argc; ++i) {
-    vec_push(sources, argv[i]);
-  }
   // if (out_type >= OutExecutable)
   {
     vec_push(lib_paths, cat_path(root, "./lib"));
@@ -1056,12 +1083,19 @@ int main(int argc, char *argv[]) {
   // Preprocess.
   for (int i = 0; i < sources->len; ++i) {
     const char *filename = sources->data[i];
-    FILE *ifp = fopen(filename, "r");
-    if (ifp == NULL)
-      error("Cannot open file: %s\n", filename);
+    FILE *ifp;
+    if (filename != NULL) {
+      ifp = fopen(filename, "r");
+      if (ifp == NULL)
+        error("Cannot open file: %s\n", filename);
+    } else {
+      ifp = stdin;
+      filename = "*stdin*";
+    }
     fprintf(ppout, "# 1 \"%s\" 1\n", filename);
     preprocess(ifp, filename);
-    fclose(ifp);
+    if (ifp != stdin)
+      fclose(ifp);
   }
   if (fseek(ppout, 0, SEEK_SET) != 0) {
     error("fseek failed");

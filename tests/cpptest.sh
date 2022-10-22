@@ -35,16 +35,10 @@ try_run() {
   local expected
   expected=$(echo -e "$2")
   local input="$3"
-  local tmpfile="$4"
-
-  if [ "$tmpfile" = "" ]; then
-    tmpfile=$(mktemp).c
-  fi
 
   echo -n "$title => "
 
-  echo -e "$input" > "$tmpfile"
-  $XCC "$tmpfile" || exit 1
+  echo -e "$input" | $XCC -xc - || exit 1
 
   $RUN_AOUT
   local actual="$?"
@@ -137,9 +131,9 @@ compile_error 'more params' '#define FOO(x, y) x+y\nFOO(1, 2, 3)'
 
 # Include with macro
 echo "#define FOO (37)" > tmp.h
-try_run 'Include with macro' 37 "#define FILE  \"tmp.h\"\n#include FILE\nint main(){return FOO;}" tmp.c
+try_run 'Include with macro' 37 "#define FILE  \"tmp.h\"\n#include FILE\nint main(){return FOO;}"
 
 # Block comment after include
 echo "#define FOO (73)" > tmp.h
-try_run 'Comment after include' 73 "#include \"tmp.h\" /*block\n*/ // line\nint main(){return FOO;}" tmp.c
-compile_error 'Token after include comment' "#include \"tmp.h\" /*block\n*/ illegal-token\nint main(){return FOO;}" tmp.c
+try_run 'Comment after include' 73 "#include \"tmp.h\" /*block\n*/ // line\nint main(){return FOO;}"
+compile_error 'Token after include comment' "#include \"tmp.h\" /*block\n*/ illegal-token\nint main(){return FOO;}"

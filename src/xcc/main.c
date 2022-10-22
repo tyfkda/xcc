@@ -91,7 +91,7 @@ static int compile(const char *src, Vector *cpp_cmd, Vector *cc1_cmd, int ofd) {
     ++running;
   }
 
-  cpp_cmd->data[cpp_cmd->len - 2] = (void*)src;
+  cpp_cmd->data[cpp_cmd->len - 2] = (void*)src;  // When src is NULL, no input file is given and cpp read from stdin.
   pid_t cpp_pid = exec_with_ofd((char**)cpp_cmd->data, ofd2);
   ++running;
 
@@ -273,6 +273,15 @@ int main(int argc, char *argv[]) {
 
   enum OutType out_type = OutExecutable;
 
+  enum SourceType {
+    UnknownSource,
+    Assembly,
+    Clanguage,
+    ObjectFile,
+    ArchiveFile,
+  };
+  enum SourceType src_type = UnknownSource;
+
   const char *ofn = NULL;
 
   enum {
@@ -297,6 +306,7 @@ int main(int argc, char *argv[]) {
     {"I", required_argument},  // Add include path
     {"D", required_argument},  // Define macro
     {"o", required_argument},  // Specify output filename
+    {"x", required_argument},  // Specify code type
     {"nodefaultlibs", no_argument, OPT_NODEFAULTLIBS},
     {"nostdlib", no_argument, OPT_NOSTDLIB},
     {"-help", no_argument, OPT_HELP},
@@ -313,9 +323,11 @@ int main(int argc, char *argv[]) {
 
     {NULL},
   };
+  Vector *sources = new_vector();  // NULL=>from stdin
   int opt;
   while ((opt = optparse(argc, argv, options)) != -1) {
     switch (opt) {
+    default: assert(false); break;
     case OPT_HELP:
       usage(stdout);
       return 0;
@@ -343,6 +355,15 @@ int main(int argc, char *argv[]) {
     case 'S':
       out_type = OutAssembly;
       break;
+    case 'x':
+      if (strcmp(optarg, "c") == 0) {
+        src_type = Clanguage;
+      } else if (strcmp(optarg, "assembler") == 0) {
+        src_type = Assembly;
+      } else {
+        error("language not recognized: %s", optarg);
+      }
+      break;
     case OPT_WARNING:
       vec_push(cc1_cmd, "-W");
       vec_push(cc1_cmd, optarg);
@@ -353,8 +374,15 @@ int main(int argc, char *argv[]) {
     case OPT_NOSTDLIB:
       nostdlib = true;
       break;
-    default:
-      fprintf(stderr, "Warning: unknown option: %s\n", argv[optind - 1]);
+    case '?':
+      if (strcmp(argv[optind - 1], "-") == 0) {
+        if (src_type == UnknownSource) {
+          error("-x required");
+        }
+        vec_push(sources, NULL);
+      } else {
+        fprintf(stderr, "Warning: unknown option: %s\n", argv[optind - 1]);
+      }
       break;
 
     case OPT_OPTIMIZE:
@@ -369,17 +397,26 @@ int main(int argc, char *argv[]) {
   }
 
   int iarg = optind;
-  if (iarg >= argc) {
+  for (int i = iarg; i < argc; ++i)
+    vec_push(sources, argv[i]);
+
+  if (sources->len == 0) {
     fprintf(stderr, "No input files\n\n");
     usage(stderr);
     return 1;
   }
 
   if (ofn == NULL) {
-    if (out_type == OutObject) {
-      ofn = change_ext(basename(argv[iarg]), "o");
-    } else if (out_type == OutAssembly) {
-      ofn = change_ext(basename(argv[iarg]), "s");
+    if (iarg < argc) {
+      if (out_type == OutObject)
+        ofn = change_ext(basename(argv[iarg]), "o");
+      else if (out_type == OutAssembly)
+        ofn = change_ext(basename(argv[iarg]), "s");
+    } else {
+      if (out_type == OutObject)
+        ofn = "a.o";
+      else if (out_type == OutAssembly)
+        ofn = "a.s";
     }
   }
 
@@ -406,10 +443,6 @@ int main(int argc, char *argv[]) {
 #endif
   }
 
-  Vector *sources = new_vector();
-  for (int i = iarg; i < argc; ++i) {
-    vec_push(sources, argv[i]);
-  }
   if (out_type >= OutExecutable) {
 #if !defined(AS_USE_CC) || defined(NO_STD_LIB)
     if (!nostdlib)
@@ -429,17 +462,33 @@ int main(int argc, char *argv[]) {
   int res = 0;
   for (int i = 0; i < sources->len; ++i) {
     char *src = sources->data[i];
-    char *ext = get_ext(src);
-    if (strcasecmp(ext, "c") == 0) {
+    enum SourceType st = UnknownSource;
+    if (src == NULL) {
+      st = src_type;
+    } else {
+      char *ext = get_ext(src);
+      if      (strcasecmp(ext, "c") == 0)  st = Clanguage;
+      else if (strcasecmp(ext, "s") == 0)  st = Assembly;
+      else if (strcasecmp(ext, "o") == 0)  st = ObjectFile;
+      else if (strcasecmp(ext, "a") == 0)  st = ArchiveFile;
+    }
+
+    switch (st) {
+    case UnknownSource:
+      fprintf(stderr, "Unknown source type: %s\n", src);
+      res = -1;
+      break;
+    case Clanguage:
       res = compile_csource(src, out_type, ofn, ofd, cpp_cmd, cc1_cmd, as_cmd, ld_cmd);
-    } else if (strcasecmp(ext, "s") == 0) {
+      break;
+    case Assembly:
       res = compile_asm(src, out_type, ofn, ofd, as_cmd, ld_cmd);
-    } else if (strcasecmp(ext, "o") == 0 || strcasecmp(ext, "a") == 0)  {
+      break;
+    case ObjectFile:
+    case ArchiveFile:
       if (out_type >= OutExecutable)
         vec_push(ld_cmd, src);
-    } else {
-      fprintf(stderr, "Unsupported file type: %s\n", src);
-      res = -1;
+      break;
     }
     if (res != 0)
       break;
