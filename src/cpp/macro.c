@@ -118,19 +118,36 @@ static void intersection_hideset(HideSet *hs, HideSet *hs2) {
   }
 }
 
-static Token *glue(const Token *tok1, const Token *tok2) {
-  // TODO: Check whether the concatenated is ident.
-  size_t len1 = tok1->end - tok1->begin;
-  size_t len2 = tok2->end - tok2->begin;
-  char *str = malloc(len1 + len2 + 1);
-  assert(str != NULL);
-  memcpy(str, tok1->begin, len1);
-  memcpy(str + len1, tok2->begin, len2);
-  str[len1 + len2] = '\0';
-  const Name *name = alloc_name(str, str + (len1 + len2), false);
-  Token *tok = alloc_token(TK_IDENT, str, str + (len1 + len2));
-  tok->ident = name;
-  return tok;
+static void glue1(Vector *ls, const Token *tok2) {
+  if (ls->len > 0) {
+    const Token *tok1 = ls->data[ls->len - 1];
+    // TODO: Check whether the concatenated is ident.
+    size_t len1 = tok1->end - tok1->begin;
+    size_t len2 = tok2->end - tok2->begin;
+    char *str = malloc(len1 + len2 + 1);
+    assert(str != NULL);
+    memcpy(str, tok1->begin, len1);
+    memcpy(str + len1, tok2->begin, len2);
+    str[len1 + len2] = '\0';
+    const Name *name = alloc_name(str, str + (len1 + len2), false);
+    Token *tok = alloc_token(TK_IDENT, str, str + (len1 + len2));
+    tok->ident = name;
+    ls->data[ls->len - 1] = tok;
+  } else {
+    vec_push(ls, tok2);
+  }
+}
+
+static void glue(Vector *ls, const Vector *rs) {
+  int start = 0;
+  if (ls->len > 0) {
+    assert(rs->len > 0);
+    const Token *tok2 = rs->data[0];
+    glue1(ls, tok2);
+    start = 1;
+  }
+  for (int i = start; i < rs->len; ++i)
+    vec_push(ls, rs->data[i]);
 }
 
 static Token *stringize(const Vector *arg) {
@@ -201,31 +218,49 @@ static Vector *subst(Vector *body, Table *param_table, Vector *args, HideSet *hs
 
     if (tok->kind == PPTK_CONCAT) {
       if (os->len > 0 && i + 1 < body->len) {
-        const Token *prev = os->data[os->len - 1];
         const Token *next = body->data[i + 1];
-        if (prev->kind == TK_IDENT && next->kind == TK_IDENT) {
+        if (next->kind == TK_IDENT) {
           intptr_t j;
           if (param_table != NULL && table_try_get(param_table, next->ident, (void*)&j)) {
             assert(j < args->len);
             const Vector *arg = args->data[j];
-            if (arg->len > 0) {
-              os->data[os->len - 1] = glue(prev, arg->data[0]);
-              for (int k = 1; k < arg->len; ++k)
-                vec_push(os, arg->data[k]);
-            }
-          } else {
-            os->data[os->len - 1] = glue(prev, next);
+            if (arg->len > 0)
+              glue(os, arg);
+            ++i;
+            continue;
           }
-          ++i;
-          continue;
         }
+        glue1(os, next);
+        ++i;
+        continue;
       }
-      // continue to skip `##` and just follow next token.
-      // TODO: Concatenate tokens appropriately. e.g. 123 ## UL
-      continue;
     }
 
     if (tok->kind == TK_IDENT) {
+      if (body->len > i + 1 && ((Token*)body->data[i + 1])->kind == PPTK_CONCAT) {
+        intptr_t j;
+        if (param_table != NULL && table_try_get(param_table, tok->ident, (void*)&j)) {
+          assert(j < args->len);
+          const Vector *arg = args->data[j];
+          if (arg->len == 0) {  // only if actuals can be empty
+            intptr_t k;
+            if (body->len > i + 2 && ((Token*)body->data[i + 2])->kind == TK_IDENT &&
+                table_try_get(param_table, ((Token*)body->data[i + 2])->ident, (void*)&k)) {
+              assert(k < args->len);
+              const Vector *arg2 = args->data[k];
+              for (int l = 0; l < arg2->len; ++l)
+                vec_push(os, arg2->data[l]);
+            }
+            i += 2;
+          } else {
+            for (int l = 0; l < arg->len; ++l)
+              vec_push(os, arg->data[l]);
+            // Handle `##` at next iteration.
+          }
+          continue;
+        }
+      }
+
       intptr_t j;
       if (param_table != NULL && table_try_get(param_table, tok->ident, (void*)&j)) {
         assert(j < args->len);

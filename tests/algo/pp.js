@@ -149,9 +149,31 @@ class MacroExpander {
           ++i
           continue
         }
+        this.glue(os, [is[i + 1]])
+        ++i
+        continue
       }
 
       if (tt.kind === TK_IDENT) {
+        if (is.length > i + 1 && is[i + 1].kind === TK_CONCAT) {
+          let j = fp.indexOf(tt.t)
+          if (j >= 0) {
+            const selected = ap[j]  //this.select(i, ap)
+            if (selected.length === 0) {  // only if actuals can be empty
+              let k
+              if (is.length > i + 2 && is[i + 2].kind == TK_IDENT && (k = fp.indexOf(is[i + 2].t)) >= 0) {
+                const selected2 = ap[k]  //this.select(j, ap)
+                os.push(...selected2)
+              }
+              i += 2
+            } else {
+              os.push(...selected)
+              // Handle `##` at next iteration.
+            }
+            continue
+          }
+        }
+
         const j = fp.indexOf(tt.t)
         if (j >= 0) {
           os.push(...this.expand(ap[j]))
@@ -168,7 +190,6 @@ class MacroExpander {
     if (ls.length <= 0) {
       ls.push(...rs)
     } else {
-      const last = ls.length - 1
       const ll = ls[ls.length - 1]
       const rr = rs[0]
       console.assert(ll.kind === TK_IDENT)
@@ -327,10 +348,12 @@ function main() {
 
   {
     const macros = {
-      'N': new Macro(null, '1'),
       'CAT': new Macro(['x', 'y'], 'x ## y'),
       'INDIRECT': new Macro(['x', 'y'], 'CAT(x, y)'),
+      'N': new Macro(null, '1'),
       'FOO1': new Macro(null, 'MATCHED'),
+      'X': new Macro(null, 'Y'),
+      '_': new Macro(null, ''),
     }
 
     pptest(
@@ -349,12 +372,42 @@ function main() {
         macros)
 
     pptest(
-        '"hoge"',
-        'STR(hoge)',
-        {
-          'STR': new Macro(['x'], '# x'),
-        })
+        'MATCHED',
+        'CAT(FOO, 1)',
+        macros)
+
+    pptest(
+        'XN',
+        'CAT(X, N)',
+        macros)
+
+    pptest(
+        'X_',
+        'CAT(X, _)',
+        macros)
+
+    pptest(
+        '_X',
+        'CAT(_, X)',
+        macros)
+
+    pptest(
+        'R',
+        'CAT(, R)',
+        macros)
+
+    pptest(
+        'L',
+        'CAT(L, )',
+        macros)
   }
+
+  pptest(
+      '"hoge"',
+      'STR(hoge)',
+      {
+        'STR': new Macro(['x'], '# x'),
+      })
 
   process.exit(errorCount === 0 ? 0 : 1)
 }
