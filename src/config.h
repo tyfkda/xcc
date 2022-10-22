@@ -22,7 +22,7 @@
 #endif
 
 #if defined(__x86_64__)
-#define PHYSICAL_REG_MAX   (7 - 1)  // TODO: Remove `-1`
+#define PHYSICAL_REG_MAX   (7)
 #define PHYSICAL_FREG_MAX  (7)
 
 #define MAX_REG_ARGS   (6)

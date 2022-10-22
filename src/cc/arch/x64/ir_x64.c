@@ -17,7 +17,7 @@ int stackpos = 8;
 
 // Register allocator
 
-static const char *kRegSizeTable[][PHYSICAL_REG_MAX + 1] = {
+static const char *kRegSizeTable[][PHYSICAL_REG_MAX] = {
   { BL, R10B, R11B, R12B, R13B, R14B, R15B},
   { BX, R10W, R11W, R12W, R13W, R14W, R15W},
   {EBX, R10D, R11D, R12D, R13D, R14D, R15D},
@@ -43,6 +43,7 @@ static const int kCalleeSaveRegs[] = {
   3,  // R12
   4,  // R13
   5,  // R14
+  6,  // R15
 };
 
 #define CALLER_SAVE_REG_COUNT  ((int)(sizeof(kCallerSaveRegs) / sizeof(*kCallerSaveRegs)))

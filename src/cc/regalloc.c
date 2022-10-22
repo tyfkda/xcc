@@ -13,13 +13,8 @@
 #include "util.h"
 #include "var.h"
 
-#define SPILLED_REG_NO(ra)  (ra->phys_max)
-#ifndef __NO_FLONUM
-#define SPILLED_FREG_NO(ra)  (ra->fphys_max)
-#endif
-
-static void spill_vreg(RegAlloc *ra, VReg *vreg) {
-  vreg->phys = SPILLED_REG_NO(ra);
+static void spill_vreg(VReg *vreg) {
+  vreg->phys = -1;  //SPILLED_REG_NO(ra);
   assert(!(vreg->flag & VRF_NO_SPILL));
   vreg->flag |= VRF_SPILLED;
 }
@@ -473,7 +468,7 @@ void prepare_register_allocation(Function *func) {
       VarInfo *varinfo = func->type->func.params->data[j];
       VReg *vreg = varinfo->local.reg;
       // Currently, all parameters are force spilled.
-      spill_vreg(((FuncBackend*)func->extra)->ra, vreg);
+      spill_vreg(vreg);
       // stack parameters
       if (is_stack_param(varinfo->type)) {
         vreg->offset = offset = ALIGN(offset, align_size(varinfo->type));
@@ -538,7 +533,7 @@ void prepare_register_allocation(Function *func) {
       }
 
       if (spill)
-        spill_vreg(((FuncBackend*)func->extra)->ra, vreg);
+        spill_vreg(vreg);
     }
   }
 }
@@ -570,7 +565,7 @@ void alloc_physical_registers(RegAlloc *ra, BBContainer *bbcon, int reserved_siz
 
       // Force function parameter spilled.
       if (vreg->param_index >= 0) {
-        spill_vreg(ra, vreg);
+        spill_vreg(vreg);
         li->start = 0;
         li->state = LI_SPILL;
       }
@@ -594,7 +589,7 @@ void alloc_physical_registers(RegAlloc *ra, BBContainer *bbcon, int reserved_siz
       LiveInterval *li = &intervals[i];
       if (li->state == LI_SPILL) {
         VReg *vreg = ra->vregs->data[i];
-        spill_vreg(ra, vreg);
+        spill_vreg(vreg);
       }
     }
 
@@ -637,11 +632,6 @@ void alloc_physical_registers(RegAlloc *ra, BBContainer *bbcon, int reserved_siz
     frame_size = ALIGN(frame_size + size, align);
     vreg->offset = -frame_size;
   }
-
-  int spilled = SPILLED_REG_NO(ra);
-  // int inserted = insert_load_store_spilled(bbcon, ra->vregs, spilled);
-  // if (inserted != 0)
-    ra->used_reg_bits |= 1 << spilled;
 
   ra->sorted_intervals = sorted_intervals;
 
