@@ -587,8 +587,18 @@ int main(void) {
     a[1] = 55;
     expect("ptr <- array", 55, ptr_from_array(a));
   }
+
   expect("sizeof(int)", 4, sizeof(int));
   expect("sizeof(long)", LONG_SIZE, sizeof(long));
+  expect("int8_t",  1, sizeof(int8_t));
+  expect("int16_t", 2, sizeof(int16_t));
+  expect("int32_t", 4, sizeof(int32_t));
+  expect("int64_t", 8, sizeof(int64_t));
+#if defined(__LP64__)
+  expect("intptr_t", 8, sizeof(intptr_t));
+#elif defined(__ILP32__)
+  expect("intptr_t", 4, sizeof(intptr_t));
+#endif
   expect("sizeof(array)", 3, sizeof(char [3]));
   {
     int x;
