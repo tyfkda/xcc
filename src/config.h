@@ -10,7 +10,7 @@
 # define AS_USE_CC
 #endif
 
-#if (defined(__linux__) || defined(__APPLE__)) && !defined(__XV6)
+#if !defined(__XV6)
 #define USE_ALLOCA
 #endif
 

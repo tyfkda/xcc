@@ -59,18 +59,16 @@ clean:
 
 ### Self hosting
 
-GEN2CC:=node ../runtime/runwasm.js ../cc.wasm --
-
 .PHONY: gen2
 gen2:	wcc
 	$(MAKE) HOST_TARGET=wcc HOST_CC="./wcc" TARGET= self-hosting
 .PHONY: test-gen2
 test-gen2: gen2
-	$(MAKE) TARGET_CC="$(GEN2CC)" test-self-hosting
+	$(MAKE) TARGET_CC="node ../runtime/runwasm.js ../cc.wasm --" test-self-hosting
 
 .PHONY: gen3
 gen3:	gen2
-	$(MAKE) HOST_TARGET=gen2 HOST_CC="$(GEN2CC)" TARGET=gen3 self-hosting
+	$(MAKE) HOST_TARGET=gen2 HOST_CC="node ./runtime/runwasm.js ./cc.wasm --" TARGET=gen3 self-hosting
 
 .PHONY: diff-gen23
 diff-gen23:	gen2 gen3

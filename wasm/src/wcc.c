@@ -1,5 +1,6 @@
 #include "wcc.h"
 
+#include <alloca.h>
 #include <assert.h>
 #include <libgen.h>  // dirname
 #include <limits.h>  // CHAR_BIT
