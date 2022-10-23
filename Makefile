@@ -4,6 +4,7 @@ CPP_DIR:=src/cpp
 AS_DIR:=src/as
 LD_DIR:=src/ld
 UTIL_DIR:=src/util
+DEBUG_DIR:=src/_debug
 OBJ_DIR:=obj
 
 LIBSRC_DIR:=libsrc
@@ -118,6 +119,10 @@ $(OBJ_DIR)/%.o: $(UTIL_DIR)/%.c $(HOST_EXES)
 	@mkdir -p $(OBJ_DIR)
 	$(CC) $(CFLAGS) -c -o $@ $<
 
+$(OBJ_DIR)/%.o: $(DEBUG_DIR)/%.c $(HOST_EXES)
+	@mkdir -p $(OBJ_DIR)
+	$(CC) $(CFLAGS) -c -o $@ $<
+
 .PHONY: test
 test:	all
 	$(MAKE) -C tests clean all
@@ -193,20 +198,25 @@ test-self-hosting:	self-hosting
 
 ### Debug
 
-DEBUG_DIR:=src/_debug
 DEBUG_CFLAGS:=$(subst -MMD,,$(CFLAGS))
 
-dump_expr:	$(DEBUG_DIR)/dump_expr.c $(CC1_DIR)/parser_expr.c $(CC1_DIR)/parser.c $(CC1_DIR)/lexer.c \
-			$(CC1_DIR)/type.c $(CC1_DIR)/ast.c $(CC1_DIR)/var.c $(UTIL_DIR)/util.c $(UTIL_DIR)/table.c
+DUMP_EXPR_SRCS:=$(DEBUG_DIR)/dump_expr.c $(CC1_DIR)/parser_expr.c $(CC1_DIR)/parser.c $(CC1_DIR)/lexer.c \
+	$(CC1_DIR)/type.c $(CC1_DIR)/ast.c $(CC1_DIR)/var.c $(UTIL_DIR)/util.c $(UTIL_DIR)/table.c
+DUMP_EXPR_OBJS:=$(addprefix $(OBJ_DIR)/,$(notdir $(DUMP_EXPR_SRCS:.c=.o)))
+dump_expr:	$(DUMP_EXPR_OBJS)
 	$(CC) -o $@ $(DEBUG_CFLAGS) $^
 
-dump_ir:	$(DEBUG_DIR)/dump_ir.c $(CC1_DIR)/parser_expr.c $(CC1_DIR)/parser.c $(CC1_DIR)/lexer.c \
-			$(CC1_DIR)/type.c $(CC1_DIR)/ast.c $(CC1_DIR)/var.c $(CC1_DIR)/builtin.c \
-			$(CC1_DIR)/codegen_expr.c $(CC1_DIR)/codegen.c $(CC1_DIR)/ir.c $(CC1_DIR)/regalloc.c \
-			$(CC1_ARCH_DIR)/emit.c $(CC1_ARCH_DIR)/ir_$(ARCHTYPE).c \
-			$(UTIL_DIR)/util.c $(UTIL_DIR)/table.c
+DUMP_IR_SRCS:=$(DEBUG_DIR)/dump_ir.c $(CC1_DIR)/parser_expr.c $(CC1_DIR)/parser.c $(CC1_DIR)/lexer.c \
+	$(CC1_DIR)/type.c $(CC1_DIR)/ast.c $(CC1_DIR)/var.c $(CC1_DIR)/builtin.c \
+	$(CC1_DIR)/codegen_expr.c $(CC1_DIR)/codegen.c $(CC1_DIR)/ir.c $(CC1_DIR)/regalloc.c \
+	$(CC1_ARCH_DIR)/emit.c $(CC1_ARCH_DIR)/ir_$(ARCHTYPE).c \
+	$(UTIL_DIR)/util.c $(UTIL_DIR)/table.c
+DUMP_IR_OBJS:=$(addprefix $(OBJ_DIR)/,$(notdir $(DUMP_IR_SRCS:.c=.o)))
+dump_ir:	$(DUMP_IR_OBJS)
 	$(CC) -o $@ $(DEBUG_CFLAGS) $^
 
-dump_type:	$(DEBUG_DIR)/dump_type.c $(CC1_DIR)/parser_expr.c $(CC1_DIR)/parser.c $(CC1_DIR)/lexer.c \
-			$(CC1_DIR)/type.c $(CC1_DIR)/ast.c $(CC1_DIR)/var.c $(UTIL_DIR)/util.c $(UTIL_DIR)/table.c
+DUMP_TYPE_SRCS:=$(DEBUG_DIR)/dump_type.c $(CC1_DIR)/parser_expr.c $(CC1_DIR)/parser.c $(CC1_DIR)/lexer.c \
+	$(CC1_DIR)/type.c $(CC1_DIR)/ast.c $(CC1_DIR)/var.c $(UTIL_DIR)/util.c $(UTIL_DIR)/table.c
+DUMP_TYPE_OBJS:=$(addprefix $(OBJ_DIR)/,$(notdir $(DUMP_TYPE_SRCS:.c=.o)))
+dump_type:	$(DUMP_TYPE_OBJS)
 	$(CC) -o $@ $(DEBUG_CFLAGS) $^
