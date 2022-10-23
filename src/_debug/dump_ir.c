@@ -143,7 +143,33 @@ static void dump_func_ir(Function *func) {
   for (int i = 0; i < bbcon->bbs->len; ++i) {
     BB *bb = bbcon->bbs->data[i];
     fprintf(fp, "// BB %d\n", i);
-    fprintf(fp, "%.*s:\n", bb->label->bytes, bb->label->chars);
+    fprintf(fp, "%.*s:", bb->label->bytes, bb->label->chars);
+    if (bb->from_bbs->len > 0) {
+      fprintf(fp, " from=[");
+      for (int j = 0; j < bb->from_bbs->len; ++j) {
+        BB *fbb = bb->from_bbs->data[j];
+        fprintf(fp, "%s%.*s", (j > 0 ? ", " : ""), fbb->label->bytes, fbb->label->chars);
+      }
+      fprintf(fp, "]");
+    }
+    if (bb->in_regs->len > 0) {
+      fprintf(fp, " in=[");
+      for (int j = 0; j < bb->in_regs->len; ++j) {
+        VReg *reg = bb->in_regs->data[j];
+        fprintf(fp, "%s%d", (j > 0 ? ", " : ""), reg->virt);
+      }
+      fprintf(fp, "]");
+    }
+    if (bb->out_regs->len > 0) {
+      fprintf(fp, " out=[");
+      for (int j = 0; j < bb->out_regs->len; ++j) {
+        VReg *reg = bb->out_regs->data[j];
+        fprintf(fp, "%s%d", (j > 0 ? ", " : ""), reg->virt);
+      }
+      fprintf(fp, "]");
+    }
+    fprintf(fp, "\n");
+
     for (int j = 0; j < bb->irs->len; ++j) {
       IR *ir = bb->irs->data[j];
       dump_ir(fp, ir);

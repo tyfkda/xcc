@@ -359,6 +359,7 @@ BB *curbb;
 BB *new_bb(void) {
   BB *bb = malloc(sizeof(*bb));
   bb->next = NULL;
+  bb->from_bbs = new_vector();
   bb->label = alloc_label();
   bb->irs = new_vector();
   bb->in_regs = NULL;
@@ -503,6 +504,45 @@ void remove_unnecessary_bb(BBContainer *bbcon) {
   }
 }
 
+void detect_from_bbs(BBContainer *bbcon) {
+  for (int i = 0; i < bbcon->bbs->len; ++i) {
+    BB *bb = bbcon->bbs->data[i];
+    Vector *irs = bb->irs;
+    if (irs->len == 0)
+      continue;
+    IR *ir = irs->data[irs->len - 1];
+    switch (ir->kind) {
+    case IR_JMP:
+      vec_push(ir->jmp.bb->from_bbs, bb);
+      if (ir->jmp.cond == COND_ANY)
+        continue;
+      break;
+    case IR_TJMP:
+      for (size_t j = 0; j < ir->tjmp.len; ++j) {
+        BB *nbb = ir->tjmp.bbs[j];
+        vec_push(nbb->from_bbs, bb);
+      }
+      continue;
+    default: break;
+    }
+    if (bb->next != NULL)
+      vec_push(bb->next->from_bbs, bb);
+  }
+}
+
+static void propagate_out_regs(VReg *reg, Vector *froms) {
+  for (BB *bb; (bb = vec_pop(froms)) != NULL; ) {
+    if (!vec_contains(bb->out_regs, reg))
+      vec_push(bb->out_regs, reg);
+    if (!vec_contains(bb->in_regs, reg) &&
+        !vec_contains(bb->assigned_regs, reg)) {
+      vec_push(bb->in_regs, reg);
+      for (int i = 0; i < bb->from_bbs->len; ++i)
+        vec_push(froms, bb->from_bbs->data[i]);
+    }
+  }
+}
+
 void analyze_reg_flow(BBContainer *bbcon) {
   // Enumerate in and assigned regsiters for each BB.
   for (int i = 0; i < bbcon->bbs->len; ++i) {
@@ -530,51 +570,18 @@ void analyze_reg_flow(BBContainer *bbcon) {
     bb->assigned_regs = assigned_regs;
   }
 
-  // Propagate in regs to previous BB.
-  bool cont;
-  do {
-    cont = false;
-    for (int i = 0; i < bbcon->bbs->len; ++i) {
-      BB *bb = bbcon->bbs->data[i];
-      Vector *irs = bb->irs;
-
-      BB *next_bbs[2];
-      next_bbs[0] = bb->next;
-      next_bbs[1] = NULL;
-
-      size_t tjmp_len = 0;
-      BB **tjmp_bbs = NULL;
-      if (irs->len > 0) {
-        IR *ir = irs->data[irs->len - 1];
-        switch (ir->kind) {
-        case IR_JMP:
-          next_bbs[1] = ir->jmp.bb;
-          if (ir->jmp.cond == COND_ANY)
-            next_bbs[0] = NULL;
-          break;
-        case IR_TJMP:
-          tjmp_len = ir->tjmp.len;
-          tjmp_bbs = ir->tjmp.bbs;
-          break;
-        default: break;
-        }
-      }
-      for (size_t j = 0; j < 2 + tjmp_len; ++j) {
-        BB *next = j < 2 ? next_bbs[j] : tjmp_bbs[j - 2];
-        if (next == NULL)
-          continue;
-        Vector *in_regs = next->in_regs;
-        for (int k = 0; k < in_regs->len; ++k) {
-          VReg *reg = in_regs->data[k];
-          if (!vec_contains(bb->out_regs, reg))
-            vec_push(bb->out_regs, reg);
-          if (vec_contains(bb->assigned_regs, reg) ||
-              vec_contains(bb->in_regs, reg))
-            continue;
-          vec_push(bb->in_regs, reg);
-          cont = true;
-        }
-      }
+  // Propagate in_regs to out_regs to from_bbs recursively.
+  Vector *dstbbs = new_vector();
+  for (int i = bbcon->bbs->len; --i >= 0; ) {
+    BB *bb = bbcon->bbs->data[i];
+    Vector *from_bbs = bb->from_bbs;
+    Vector *in_regs = bb->in_regs;
+    for (int j = 0; j < in_regs->len; ++j) {
+      assert(dstbbs->len == 0);
+      for (int i = 0; i < from_bbs->len; ++i)
+        vec_push(dstbbs, from_bbs->data[i]);
+      VReg *vreg = in_regs->data[j];
+      propagate_out_regs(vreg, dstbbs);
     }
-  } while (cont);
+  }
 }

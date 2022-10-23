@@ -698,6 +698,7 @@ static void gen_defun(Function *func) {
 
   prepare_register_allocation(func);
   tweak_irs(fnbe);
+  detect_from_bbs(fnbe->bbcon);
   analyze_reg_flow(fnbe->bbcon);
 
   alloc_physical_registers(fnbe->ra, fnbe->bbcon);
