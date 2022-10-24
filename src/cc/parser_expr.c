@@ -540,6 +540,9 @@ Expr *make_cond(Expr *expr) {
     expr = new_expr_fixlit(&tyBool, expr->token, expr->flonum != 0);
     break;
 #endif
+  case EX_STR:
+    expr = new_expr_fixlit(&tyBool, expr->token, true);
+    break;
   case EX_EQ:
   case EX_NE:
   case EX_LT:
@@ -556,10 +559,9 @@ Expr *make_cond(Expr *expr) {
       expr = new_expr_fixlit(&tyBool, expr->token, true);
       break;
     default:
-      {
-        Expr *zero = make_cast(expr->type, expr->token, new_expr_fixlit(&tyInt, expr->token, 0), false);
-        expr = new_expr_cmp(EX_NE, expr->token, expr, zero);
-      }
+      expr = new_expr_cmp(
+          EX_NE, expr->token, expr,
+          make_cast(expr->type, expr->token, new_expr_fixlit(&tyInt, expr->token, 0), false));
       break;
     }
     break;
@@ -567,37 +569,30 @@ Expr *make_cond(Expr *expr) {
   return expr;
 }
 
-static Expr *make_not_cond(Expr *expr) {
+static Expr *make_not_expr(Expr *expr) {
   Expr *cond = make_cond(expr);
   enum ExprKind kind = cond->kind;
   switch (kind) {
   case EX_FIXNUM:
-    cond = new_expr_fixlit(&tyBool, expr->token, cond->fixnum == 0);
+    cond->fixnum = !cond->fixnum;
     break;
-#ifndef __NO_FLONUM
-  case EX_FLONUM:
-    expr = new_expr_fixlit(&tyBool, expr->token, expr->flonum == 0);
-    break;
-#endif
   case EX_EQ:
   case EX_NE:
+    cond->kind = (EX_EQ + EX_NE) - kind;  // EQ <-> NE
+    break;
   case EX_LT:
   case EX_LE:
   case EX_GE:
   case EX_GT:
-    if (kind <= EX_NE)
-      kind = (EX_EQ + EX_NE) - kind;
-    else
-      kind = EX_LT + ((kind - EX_LT) ^ 2);
-    cond->kind = kind;
+    cond->kind = EX_LT + ((kind - EX_LT) ^ 2);  // LT <-> GE, LE <-> GT
     break;
   case EX_LOGAND:
   case EX_LOGIOR:
-    {
-      Expr *lhs = make_not_cond(cond->bop.lhs);
-      Expr *rhs = make_not_cond(cond->bop.rhs);
-      cond = new_expr_bop((EX_LOGAND + EX_LOGIOR) - kind, &tyBool, expr->token, lhs, rhs);
-    }
+    cond = new_expr_bop(
+        (EX_LOGAND + EX_LOGIOR) - kind,  // LOGAND <-> LOGIOR
+        &tyBool, expr->token,
+        make_not_expr(cond->bop.lhs),
+        make_not_expr(cond->bop.rhs));
     break;
   default: assert(false); break;
   }
@@ -1431,33 +1426,7 @@ static Expr *parse_unary(void) {
       parse_error(PE_NOFATAL, tok, "Cannot apply `!' except number or pointer types");
       return new_expr_fixlit(&tyBool, tok, false);
     }
-    if (is_const(expr)) {
-      switch (expr->kind) {
-      case EX_FIXNUM:
-        expr->fixnum = !expr->fixnum;
-        expr->type = &tyBool;
-        break;
-#ifndef __NO_FLONUM
-      case EX_FLONUM:
-        {
-          Fixnum value = expr->fixnum == 0;
-          expr = new_expr_fixlit(&tyBool, tok, value);
-        }
-        break;
-#endif
-      case EX_STR:
-        {
-          Fixnum value = 0;
-          expr = new_expr_fixlit(&tyBool, tok, value);
-        }
-        break;
-      default:
-        assert(false);
-        break;
-      }
-      return expr;
-    }
-    return make_not_cond(expr);
+    return make_not_expr(expr);
   }
 
   if ((tok = match(TK_TILDA)) != NULL) {
