@@ -144,43 +144,28 @@ void gen_cond_jmp(Expr *cond, bool tf, BB *bb) {
   case EX_GT:
     if (!tf) {
       if (ck <= EX_NE)
-        ck = (EX_EQ + EX_NE) - ck;
+        ck = (EX_EQ + EX_NE) - ck;  // EQ <-> NE
       else
-        ck = EX_LT + ((ck - EX_LT) ^ 2);
+        ck = EX_LT + ((ck - EX_LT) ^ 2);  // LT <-> GE, LE <-> GT
     }
     new_ir_jmp(gen_compare_expr(ck, cond->bop.lhs, cond->bop.rhs), bb);
     return;
   case EX_LOGAND:
-    if (!tf) {
-      BB *bb1 = new_bb();
-      BB *bb2 = new_bb();
-      gen_cond_jmp(cond->bop.lhs, false, bb);
-      set_curbb(bb1);
-      gen_cond_jmp(cond->bop.rhs, false, bb);
-      set_curbb(bb2);
-    } else {
-      BB *bb1 = new_bb();
-      BB *bb2 = new_bb();
-      gen_cond_jmp(cond->bop.lhs, false, bb2);
-      set_curbb(bb1);
-      gen_cond_jmp(cond->bop.rhs, true, bb);
-      set_curbb(bb2);
-    }
-    return;
   case EX_LOGIOR:
-    if (tf) {
+    {
       BB *bb1 = new_bb();
       BB *bb2 = new_bb();
-      gen_cond_jmp(cond->bop.lhs, true, bb);
-      set_curbb(bb1);
-      gen_cond_jmp(cond->bop.rhs, true, bb);
-      set_curbb(bb2);
-    } else {
-      BB *bb1 = new_bb();
-      BB *bb2 = new_bb();
-      gen_cond_jmp(cond->bop.lhs, true, bb2);
-      set_curbb(bb1);
-      gen_cond_jmp(cond->bop.rhs, false, bb);
+      if (!tf)
+        ck = (EX_LOGAND + EX_LOGIOR) - ck;  // LOGAND <-> LOGIOR
+      if (ck == EX_LOGAND) {
+        gen_cond_jmp(cond->bop.lhs, !tf, bb2);
+        set_curbb(bb1);
+        gen_cond_jmp(cond->bop.rhs, tf, bb);
+      } else {
+        gen_cond_jmp(cond->bop.lhs, tf, bb);
+        set_curbb(bb1);
+        gen_cond_jmp(cond->bop.rhs, tf, bb);
+      }
       set_curbb(bb2);
     }
     return;
@@ -884,41 +869,17 @@ VReg *gen_expr(Expr *expr) {
     }
 
   case EX_LOGAND:
+  case EX_LOGIOR:
     {
-      BB *bb1 = new_bb();
-      BB *bb2 = new_bb();
       BB *false_bb = new_bb();
       BB *next_bb = new_bb();
-      gen_cond_jmp(expr->bop.lhs, false, false_bb);
-      set_curbb(bb1);
-      gen_cond_jmp(expr->bop.rhs, false, false_bb);
-      set_curbb(bb2);
+      gen_cond_jmp(expr, false, false_bb);
       VRegType *vtbool = to_vtype(&tyBool);
       VReg *result = add_new_reg(&tyBool, 0);
       new_ir_mov(result, new_const_vreg(true, vtbool));
       new_ir_jmp(COND_ANY, next_bb);
       set_curbb(false_bb);
       new_ir_mov(result, new_const_vreg(false, vtbool));
-      set_curbb(next_bb);
-      return result;
-    }
-
-  case EX_LOGIOR:
-    {
-      BB *bb1 = new_bb();
-      BB *bb2 = new_bb();
-      BB *true_bb = new_bb();
-      BB *next_bb = new_bb();
-      gen_cond_jmp(expr->bop.lhs, true, true_bb);
-      set_curbb(bb1);
-      gen_cond_jmp(expr->bop.rhs, true, true_bb);
-      set_curbb(bb2);
-      VRegType *vtbool = to_vtype(&tyBool);
-      VReg *result = add_new_reg(&tyBool, 0);
-      new_ir_mov(result, new_const_vreg(false, vtbool));
-      new_ir_jmp(COND_ANY, next_bb);
-      set_curbb(true_bb);
-      new_ir_mov(result, new_const_vreg(true, vtbool));
       set_curbb(next_bb);
       return result;
     }
