@@ -318,9 +318,8 @@ static void gen_case(Stmt *stmt) {
 }
 
 static void gen_while(Stmt *stmt) {
-  BB *loop_bb = new_bb();
-
   BB *save_break, *save_cont;
+  BB *loop_bb = new_bb();
   BB *cond_bb = push_continue_bb(&save_cont);
   BB *next_bb = push_break_bb(&save_break);
 
@@ -338,9 +337,8 @@ static void gen_while(Stmt *stmt) {
 }
 
 static void gen_do_while(Stmt *stmt) {
-  BB *loop_bb = new_bb();
-
   BB *save_break, *save_cont;
+  BB *loop_bb = new_bb();
   BB *cond_bb = push_continue_bb(&save_cont);
   BB *next_bb = push_break_bb(&save_break);
 
@@ -356,28 +354,29 @@ static void gen_do_while(Stmt *stmt) {
 }
 
 static void gen_for(Stmt *stmt) {
-  BB *cond_bb = new_bb();
-  BB *body_bb = new_bb();
-
   BB *save_break, *save_cont;
+  BB *loop_bb = new_bb();
   BB *continue_bb = push_continue_bb(&save_cont);
+  BB *cond_bb = new_bb();
   BB *next_bb = push_break_bb(&save_break);
 
   if (stmt->for_.pre != NULL)
     gen_expr_stmt(stmt->for_.pre);
 
-  set_curbb(cond_bb);
+  new_ir_jmp(COND_ANY, cond_bb);
 
-  if (stmt->for_.cond != NULL)
-    gen_cond_jmp(stmt->for_.cond, false, next_bb);
-
-  set_curbb(body_bb);
+  set_curbb(loop_bb);
   gen_stmt(stmt->for_.body);
 
   set_curbb(continue_bb);
   if (stmt->for_.post != NULL)
     gen_expr_stmt(stmt->for_.post);
-  new_ir_jmp(COND_ANY, cond_bb);
+
+  set_curbb(cond_bb);
+  if (stmt->for_.cond != NULL)
+    gen_cond_jmp(stmt->for_.cond, true, loop_bb);
+  else
+    new_ir_jmp(COND_ANY, loop_bb);
 
   set_curbb(next_bb);
   pop_continue_bb(save_cont);
