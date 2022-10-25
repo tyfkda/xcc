@@ -284,7 +284,7 @@ VReg *new_ir_call(const Name *label, bool global, VReg *freg, int total_arg_coun
   ir->call.total_arg_count = total_arg_count;
   ir->call.reg_arg_count = reg_arg_count;
   ir->call.vaarg_start = vaarg_start;
-  return ir->dst = reg_alloc_spawn(curra, result_type, 0);
+  return ir->dst = result_type == NULL ? NULL : reg_alloc_spawn(curra, result_type, 0);
 }
 
 void new_ir_result(VReg *reg) {

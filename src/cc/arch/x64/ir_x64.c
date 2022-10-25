@@ -715,21 +715,23 @@ static void ir_out(IR *ir) {
       // Resore caller save registers.
       pop_caller_save_regs(precall->precall.living_pregs);
 
-      assert(0 <= ir->dst->vtype->size && ir->dst->vtype->size < kPow2TableSize);
+      if (ir->dst != NULL) {
+        assert(0 < ir->dst->vtype->size && ir->dst->vtype->size < kPow2TableSize);
 #ifndef __NO_FLONUM
-      if (ir->dst->vtype->flag & VRTF_FLONUM) {
-        switch (ir->dst->vtype->size) {
-        case SZ_FLOAT: MOVSS(XMM0, kFReg64s[ir->dst->phys]); break;
-        case SZ_DOUBLE: MOVSD(XMM0, kFReg64s[ir->dst->phys]); break;
-        default: assert(false); break;
-        }
-      } else
+        if (ir->dst->vtype->flag & VRTF_FLONUM) {
+          switch (ir->dst->vtype->size) {
+          case SZ_FLOAT: MOVSS(XMM0, kFReg64s[ir->dst->phys]); break;
+          case SZ_DOUBLE: MOVSD(XMM0, kFReg64s[ir->dst->phys]); break;
+          default: assert(false); break;
+          }
+        } else
 #endif
-      if (ir->dst->vtype->size > 0) {
-        int pow = kPow2Table[ir->dst->vtype->size];
-        assert(0 <= pow && pow < 4);
-        const char **regs = kRegSizeTable[pow];
-        MOV(kRegATable[pow], regs[ir->dst->phys]);
+        {
+          int pow = kPow2Table[ir->dst->vtype->size];
+          assert(0 <= pow && pow < 4);
+          const char **regs = kRegSizeTable[pow];
+          MOV(kRegATable[pow], regs[ir->dst->phys]);
+        }
       }
     }
     break;

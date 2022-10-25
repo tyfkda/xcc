@@ -470,7 +470,7 @@ static VReg *gen_funcall(Expr *expr) {
     Type *type = expr->type;
     if (retvar_reg != NULL)
       type = ptrof(type);
-    VRegType *ret_vtype = to_vtype(type);
+    VRegType *ret_vtype = type->kind == TY_VOID ? NULL : to_vtype(type);
     if (label_call) {
       result_reg = new_ir_call(func->var.name, global, NULL, total_arg_count, reg_arg_count,
                                ret_vtype, precall, arg_vtypes, vaarg_start);

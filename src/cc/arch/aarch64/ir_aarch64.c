@@ -766,23 +766,25 @@ for (int i = 0; i < CALLER_SAVE_FREG_COUNT; ++i) {
       }
 }
 
-      assert(0 <= ir->dst->vtype->size && ir->dst->vtype->size < kPow2TableSize);
+      if (ir->dst != NULL) {
+        assert(0 < ir->dst->vtype->size && ir->dst->vtype->size < kPow2TableSize);
 #ifndef __NO_FLONUM
-      if (ir->dst->vtype->flag & VRTF_FLONUM) {
-        const char *src, *dst;
-        switch (ir->dst->vtype->size) {
-        default: assert(false);  // Fallthrough
-        case SZ_FLOAT:   src = S0; dst = kFReg32s[ir->dst->phys]; break;
-        case SZ_DOUBLE:  src = D0; dst = kFReg64s[ir->dst->phys]; break;
-        }
-        FMOV(dst, src);
-      } else
+        if (ir->dst->vtype->flag & VRTF_FLONUM) {
+          const char *src, *dst;
+          switch (ir->dst->vtype->size) {
+          default: assert(false);  // Fallthrough
+          case SZ_FLOAT:   src = S0; dst = kFReg32s[ir->dst->phys]; break;
+          case SZ_DOUBLE:  src = D0; dst = kFReg64s[ir->dst->phys]; break;
+          }
+          FMOV(dst, src);
+        } else
 #endif
-      if (ir->dst->vtype->size > 0) {
-        int pow = kPow2Table[ir->dst->vtype->size];
-        assert(0 <= pow && pow < 4);
-        const char **regs = kRegSizeTable[pow];
-        MOV(regs[ir->dst->phys], kRetRegTable[pow]);
+        {
+          int pow = kPow2Table[ir->dst->vtype->size];
+          assert(0 <= pow && pow < 4);
+          const char **regs = kRegSizeTable[pow];
+          MOV(regs[ir->dst->phys], kRetRegTable[pow]);
+        }
       }
     }
     break;
