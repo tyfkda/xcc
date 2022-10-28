@@ -98,16 +98,16 @@ static void ir_memcpy(int dst_reg, int src_reg, ssize_t size) {
     }
     break;
   default:
-    // Break %x9~%x12
+    // Break %x4~%x7
     {
       const Name *label = alloc_label();
-      MOV(X9, kReg64s[src_reg]);
-      MOV(X10, kReg64s[dst_reg]);
-      mov_immediate(W11, size, false);
+      MOV(X4, kReg64s[src_reg]);
+      MOV(X5, kReg64s[dst_reg]);
+      mov_immediate(W6, size, false);
       EMIT_LABEL(fmt_name(label));
-      LDRB(W12, POST_INDEX(X9, 1));
-      STRB(W12, POST_INDEX(X10, 1));
-      SUBS(W11, W11, IM(1));
+      LDRB(W7, POST_INDEX(X4, 1));
+      STRB(W7, POST_INDEX(X5, 1));
+      SUBS(W6, W6, IM(1));
       Bcc(CNE, fmt_name(label));
     }
     break;
@@ -874,11 +874,12 @@ for (int i = 0; i < CALLER_SAVE_FREG_COUNT; ++i) {
       assert(!(ir->opr1->flag & VRF_CONST));
       const Name *label = alloc_label();
 
-      MOV(X9, kReg64s[ir->opr1->phys]);
-      mov_immediate(W10, ir->clear.size, false);
+      // Break %x6~%x7
+      MOV(X6, kReg64s[ir->opr1->phys]);
+      mov_immediate(W7, ir->clear.size, false);
       EMIT_LABEL(fmt_name(label));
-      STRB(WZR, POST_INDEX(X9, 1));
-      SUBS(W10, W10, IM(1));
+      STRB(WZR, POST_INDEX(X6, 1));
+      SUBS(W7, W7, IM(1));
       Bcc(CNE, fmt_name(label));
     }
     break;
