@@ -409,23 +409,6 @@ static void detect_living_registers(
   for (int i = 0; i < bbcon->bbs->len; ++i) {
     BB *bb = bbcon->bbs->data[i];
     for (int j = 0; j < bb->irs->len; ++j, ++nip) {
-      // Add activated registers.
-      for (; head < vreg_count; ++head) {
-        LiveInterval *li = sorted_intervals[head];
-        if (li->state != LI_NORMAL)
-          continue;
-        if (li->start > nip)
-          break;
-        int phys = li->phys;
-#ifndef __NO_FLONUM
-        if (((VReg*)ra->vregs->data[li->virt])->vtype->flag & VRTF_FLONUM)
-          phys += ra->phys_max;
-#endif
-        if (nip == li->start) {
-          living_pregs |= 1UL << phys;
-          livings[phys] = li;
-        }
-      }
       // Eliminate deactivated registers.
       for (int k = 0; k < maxbit; ++k) {
         LiveInterval *li = livings[k];
@@ -444,10 +427,27 @@ static void detect_living_registers(
       // Store living regs to IR_CALL.
       IR *ir = bb->irs->data[j];
       if (ir->kind == IR_CALL) {
-        ir->call.precall->precall.living_pregs = living_pregs;
-        // Store it into corresponding precall, too.
+        // Store it into corresponding precall.
         IR *ir_precall = ir->call.precall;
         ir_precall->precall.living_pregs = living_pregs;
+      }
+
+      // Add activated registers.
+      for (; head < vreg_count; ++head) {
+        LiveInterval *li = sorted_intervals[head];
+        if (li->state != LI_NORMAL)
+          continue;
+        if (li->start > nip)
+          break;
+        int phys = li->phys;
+#ifndef __NO_FLONUM
+        if (((VReg*)ra->vregs->data[li->virt])->vtype->flag & VRTF_FLONUM)
+          phys += ra->phys_max;
+#endif
+        if (nip == li->start) {
+          living_pregs |= 1UL << phys;
+          livings[phys] = li;
+        }
       }
     }
   }
