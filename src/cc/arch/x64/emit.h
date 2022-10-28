@@ -26,3 +26,4 @@ void emit_label(const char *label);
 void emit_asm2(const char *op, const char *operand1, const char *operand2);
 void emit_align_p2(int align);
 void emit_comment(const char *comment, ...);
+void emit_bss(const char *label, size_t size, size_t align);

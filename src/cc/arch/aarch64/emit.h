@@ -30,3 +30,4 @@ void emit_asm3(const char *op, const char *operand1, const char *operand2, const
 void emit_asm4(const char *op, const char *operand1, const char *operand2, const char *operand3, const char *operand4);
 void emit_align_p2(int align);
 void emit_comment(const char *comment, ...);
+void emit_bss(const char *label, size_t size, size_t align);

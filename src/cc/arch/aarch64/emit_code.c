@@ -305,10 +305,7 @@ static void emit_varinfo(const VarInfo *varinfo, const Initializer *init) {
       size = 1;
 
     size_t align = align_size(varinfo->type);
-    if (align <= 1)
-      _COMM(label, NUM(size));
-    else
-      _COMM(label, fmt("%" PRIdPTR ",%" PRIdPTR, size, align));
+    _BSS(label, size, align);
   }
 }
 

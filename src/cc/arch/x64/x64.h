@@ -214,11 +214,13 @@
 
 #ifdef __APPLE__
 #define _RODATA()      _SECTION("__DATA,__const")
-#define _LOCAL(x)      (0)
+#define _LOCAL(x)      ((void)0)
 #else
 #define _RODATA()      _SECTION(".rodata")
 #define _LOCAL(x)      EMIT_ASM1(".local", x)
 #endif
+
+#define _BSS(label, size, align)  emit_bss(label, size, align)
 
 
 #ifndef __NO_FLONUM

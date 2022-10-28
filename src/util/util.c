@@ -49,6 +49,15 @@ bool starts_with(const char *str, const char *prefix) {
   return strncmp(str, prefix, len) == 0;
 }
 
+int most_significant_bit(size_t x) {
+  int bit;
+  for (bit = 0;; ++bit) {
+    x >>= 1;
+    if (x <= 0)
+      return bit;
+  }
+}
+
 const Name *alloc_label(void) {
   static int label_no;
   ++label_no;

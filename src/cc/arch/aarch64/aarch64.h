@@ -14,7 +14,7 @@
 #define EMIT_ASM1(op, operand1)  EMIT_ASM2(op, operand1, NULL)
 #endif
 #ifndef EMIT_ASM2
-#define EMIT_ASM2(op, operand1, operand2)  EMIT_ASM3(op, operand1, operand2, NULL)
+#define EMIT_ASM2(op, operand1, operand2)  emit_asm2(op, operand1, operand2)
 #endif
 #ifndef EMIT_ASM3
 #define EMIT_ASM3(op, operand1, operand2, operand3)  emit_asm3(op, operand1, operand2, operand3)
@@ -280,11 +280,13 @@
 
 #ifdef __APPLE__
 #define _RODATA()      _SECTION("__DATA,__const")
-#define _LOCAL(x)      (0)
+#define _LOCAL(x)      ((void)0)
 #else
 #define _RODATA()      _SECTION(".rodata")
 #define _LOCAL(x)      EMIT_ASM1(".local", x)
 #endif
+
+#define _BSS(label, size, align)  emit_bss(label, size, align)
 
 
 #ifndef __NO_FLONUM

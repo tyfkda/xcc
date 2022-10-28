@@ -156,18 +156,19 @@ void emit_comment(const char *comment, ...) {
 void emit_align_p2(int align) {
   if (align <= 1)
     return;
-
-  // On Apple platform,
-  // .align directive is actually .p2align,
-  // so it has to find power of 2.
   assert(IS_POWER_OF_2(align));
-  int bit, x = align;
-  for (bit = 0;; ++bit) {
-    x >>= 1;
-    if (x <= 0)
-      break;
-  }
-  fprintf(emit_fp, "\t.p2align %d\n", bit);
+  fprintf(emit_fp, "\t.p2align %d\n", most_significant_bit(align));
+}
+
+void emit_bss(const char *label, size_t size, size_t align) {
+#ifdef __APPLE__
+  fprintf(emit_fp, "\t.zerofill __DATA,__bss,%s,%zu,%d\n", label, size, most_significant_bit(align));
+#else
+  if (align <= 1)
+    emit_asm2(".comm", label, num(size));
+  else
+    emit_asm3(".comm", label, num(size), num(align));
+#endif
 }
 
 void init_emit(FILE *fp) {
