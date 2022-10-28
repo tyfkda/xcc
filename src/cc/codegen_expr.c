@@ -343,6 +343,8 @@ static VReg *gen_funcall(Expr *expr) {
     if (proc != NULL)
       return (*(BuiltinFunctionProc*)proc)(expr);
   }
+  const Type *functype = get_callee_type(func->type);
+  assert(functype != NULL);
 
   Vector *args = expr->funcall.args;
   int arg_count = args != NULL ? args->len : 0;
@@ -384,7 +386,7 @@ static VReg *gen_funcall(Expr *expr) {
 #endif
       p->stack_arg = is_stack_param(arg->type);
 #if defined(VAARG_ON_STACK)
-      if (func->type->func.vaargs && func->type->func.params != NULL && i >= func->type->func.params->len)
+      if (functype->func.vaargs && functype->func.params != NULL && i >= functype->func.params->len)
         p->stack_arg = true;
 #endif
       bool reg_arg = !p->stack_arg;
@@ -465,8 +467,8 @@ static VReg *gen_funcall(Expr *expr) {
 
   VReg *result_reg = NULL;
   {
-    int vaarg_start = !func->type->func.vaargs || func->type->func.params == NULL ? -1 :
-        func->type->func.params->len + (retvar_reg != NULL ? 1 : 0);
+    int vaarg_start = !functype->func.vaargs || functype->func.params == NULL ? -1 :
+        functype->func.params->len + (retvar_reg != NULL ? 1 : 0);
     Type *type = expr->type;
     if (retvar_reg != NULL)
       type = ptrof(type);

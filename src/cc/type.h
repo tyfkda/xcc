@@ -132,6 +132,7 @@ Type *arrayof(Type *type, ssize_t length);
 Type *new_func_type(Type *ret, const Vector *params, const Vector *param_types, bool vaargs);
 Type *qualified_type(Type *type, int additional);
 Type *clone_type(const Type *type);
+Type *get_callee_type(Type *type);
 
 // Struct
 

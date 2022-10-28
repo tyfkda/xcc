@@ -221,6 +221,12 @@ Type *clone_type(const Type *type) {
   return cloned;
 }
 
+Type *get_callee_type(Type *type) {
+  if (type->kind == TY_PTR)
+    type = type->pa.ptrof;
+  return type->kind == TY_FUNC ? type : NULL;
+}
+
 // Struct
 bool add_struct_member(Vector *members, const Name *name, Type *type) {
   if (name != NULL && find_struct_member(members, name) >= 0)

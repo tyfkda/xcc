@@ -281,7 +281,7 @@ static void traverse_func_expr(Expr **pexpr) {
 
 static void traverse_funcall(Expr *expr) {
   Expr *func = expr->funcall.func;
-  Type *functype = get_callee_type(func);
+  Type *functype = get_callee_type(func->type);
   if (functype == NULL) {
     parse_error(PE_NOFATAL, func->token, "Cannot call except function");
     return;

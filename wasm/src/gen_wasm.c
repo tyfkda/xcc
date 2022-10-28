@@ -321,7 +321,7 @@ static void gen_funcall(Expr *expr) {
   Vector *args = expr->funcall.args;
   int arg_count = args != NULL ? args->len : 0;
 
-  Type *functype = get_callee_type(func);
+  Type *functype = get_callee_type(func->type);
   assert(functype != NULL);
   int param_count = functype->func.params != NULL ? functype->func.params->len : 0;
 
