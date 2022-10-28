@@ -742,7 +742,7 @@ static void ir_out(IR *ir) {
       }
 
       // Resore caller save registers.
-      pop_caller_save_regs(precall->precall.living_pregs, precall->precall.stack_aligned);
+      pop_caller_save_regs(precall->precall.living_pregs, precall->precall.stack_args_size + precall->precall.stack_aligned);
 
 {
 int add = 0;
@@ -967,8 +967,6 @@ void pop_callee_save_regs(unsigned long used, unsigned long fused) {
 #undef N
 
 static void push_caller_save_regs(unsigned long living, int base) {
-  const int FIELD_SIZE = 16;
-
 #ifndef __NO_FLONUM
   {
     for (int i = CALLER_SAVE_FREG_COUNT; i > 0;) {
@@ -976,7 +974,7 @@ static void push_caller_save_regs(unsigned long living, int base) {
       if (living & (1UL << (ireg + PHYSICAL_REG_MAX))) {
         // TODO: Detect register size.
         STR(kFReg64s[ireg], IMMEDIATE_OFFSET(SP, base));
-        base += FIELD_SIZE;
+        base += WORD_SIZE;
       }
     }
   }
@@ -986,14 +984,12 @@ static void push_caller_save_regs(unsigned long living, int base) {
     int ireg = kCallerSaveRegs[--i];
     if (living & (1UL << ireg)) {
       STR(kReg64s[ireg], IMMEDIATE_OFFSET(SP, base));
-      base += FIELD_SIZE;
+      base += WORD_SIZE;
     }
   }
 }
 
 static void pop_caller_save_regs(unsigned long living, int base) {
-  const int FIELD_SIZE = 16;
-
 #ifndef __NO_FLONUM
   {
     for (int i = CALLER_SAVE_FREG_COUNT; i > 0;) {
@@ -1001,7 +997,7 @@ static void pop_caller_save_regs(unsigned long living, int base) {
       if (living & (1UL << (ireg + PHYSICAL_REG_MAX))) {
         // TODO: Detect register size.
         LDR(kFReg64s[ireg], IMMEDIATE_OFFSET(SP, base));
-        base += FIELD_SIZE;
+        base += WORD_SIZE;
       }
     }
   }
@@ -1011,7 +1007,7 @@ static void pop_caller_save_regs(unsigned long living, int base) {
     int ireg = kCallerSaveRegs[i];
     if (living & (1UL << ireg)) {
       LDR(kReg64s[ireg], IMMEDIATE_OFFSET(SP, base));
-      base += FIELD_SIZE;
+      base += WORD_SIZE;
     }
   }
 }
