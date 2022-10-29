@@ -527,11 +527,21 @@ static void emit_defun(Function *func) {
   put_args_to_stack(func);
 
   // Callee save.
-  push_callee_save_regs(fnbe->ra->used_reg_bits, fnbe->ra->used_freg_bits);
+  int callee_saved_count = push_callee_save_regs(fnbe->ra->used_reg_bits, fnbe->ra->used_freg_bits);
 
   emit_bb_irs(fnbe->bbcon);
 
   // Epilogue
+  if (func->flag & FUNCF_STACK_MODIFIED) {
+    // Stack pointer might be changed if alloca is used, so it need to be recalculated.
+    size_t size = frame_size + ALIGN(callee_saved_count * WORD_SIZE, 16);
+    const char *value;
+    if (size <= 0x0fff)
+      value = IM(size);
+    else
+      mov_immediate(value = SP, size, true);
+    SUB(SP, FP, value);
+  }
   pop_callee_save_regs(fnbe->ra->used_reg_bits, fnbe->ra->used_freg_bits);
   if (frame_size > 0) {
     const char *value;
