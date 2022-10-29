@@ -90,7 +90,7 @@ static void calc_struct_size(StructInfo *sinfo) {
 size_t type_size(const Type *type) {
   switch (type->kind) {
   case TY_VOID:
-    return 0;
+    return 1;
   case TY_FIXNUM:
     return fixnum_size_table[type->fixnum.kind];
 #ifndef __NO_FLONUM

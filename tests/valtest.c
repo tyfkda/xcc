@@ -599,6 +599,7 @@ int main(void) {
 #elif defined(__ILP32__)
   expect("intptr_t", 4, sizeof(intptr_t));
 #endif
+  expect("sizeof(void)", 1, sizeof(void));
   expect("sizeof(array)", 3, sizeof(char [3]));
   {
     int x;

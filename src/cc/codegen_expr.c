@@ -21,6 +21,7 @@ bool is_stack_param(const Type *type) {
 }
 
 VRegType *to_vtype(const Type *type) {
+  assert(type->kind != TY_VOID);
   VRegType *vtype = malloc(sizeof(*vtype));
   vtype->size = type_size(type);
   vtype->align = align_size(type);
