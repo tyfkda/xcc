@@ -639,7 +639,7 @@ int preprocess(FILE *fp, const char *filename_) {
 
 void define_macro(const char *arg) {
   char *p = strchr(arg, '=');
-  Macro *macro = new_macro(NULL, false, p == NULL ? NULL : parse_macro_body(p + 1, NULL));
+  Macro *macro = new_macro(NULL, false, parse_macro_body(p != NULL ? p + 1 : "1", NULL));
   macro_add(alloc_name(arg, p, true), macro);
 }
 
