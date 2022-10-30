@@ -52,17 +52,18 @@
 #define __NR_lseek   62
 #define __NR_brk     214
 //#define __NR_ioctl   16
-//#define __NR_pipe    59
+#define __NR_pipe2    59
 #define __NR_dup     23
-//#define __NR_fork    57
+//#define __NR_clone    220
+#define __NR_clone3    435
 #define __NR_execve  221
 #define __NR_exit    93
 #define __NR_exit_group  94
 #define __NR_wait4   260
 #define __NR_kill    129
 #define __NR_getcwd  17
-//#define __NR_unlink  35
-//#define __NR_chmod   52
+#define __NR_unlinkat  35
+#define __NR_fchmodat   53
 
 #else
 #error unknow

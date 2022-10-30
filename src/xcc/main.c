@@ -243,8 +243,8 @@ int main(int argc, char *argv[]) {
   char *as_path = cat_path(root, "as");
   char *ld_path = cat_path(root, "ld");
 #else
-  char *as_path = "as";
-  char *ld_path = "cc";
+  char *as_path = "/usr/bin/as";
+  char *ld_path = "/usr/bin/cc";
 #endif
   bool nodefaultlibs = false, nostdlib = false;
 

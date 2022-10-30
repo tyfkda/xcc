@@ -28,13 +28,6 @@ endif
 
 CC1_ARCH_DIR:=$(CC1_DIR)/arch/$(ARCHTYPE)
 
-ifneq ("$(TARGET)","")
-# Self hosting
-HOST_EXES:=$(HOST)xcc $(HOST)cc1 $(HOST)cpp $(HOST)as $(HOST)ld
-OBJ_DIR:=$(TARGET)
-CC:=./$(HOST)xcc
-endif
-
 OPTIMIZE:=-O2 -g3
 CFLAGS:=-ansi -std=c11 -pedantic -MMD -Wall -Wextra -Werror -Wold-style-definition \
 	-Wno-missing-field-initializers -Wno-typedef-redefinition -Wno-empty-body \
@@ -43,6 +36,20 @@ CFLAGS:=-ansi -std=c11 -pedantic -MMD -Wall -Wextra -Werror -Wold-style-definiti
 	-I$(CC1_ARCH_DIR)
 ifneq ("$(NO_FLONUM)","")
 CFLAGS+=-D__NO_FLONUM
+endif
+
+ifeq ("$(UNAME)", "Darwin")
+LIBS:=
+else
+LIBS:=$(LIB_DIR)/crt0.a $(LIB_DIR)/libc.a
+endif
+
+ifneq ("$(TARGET)","")
+# Self hosting
+PARENT_DEPS:=$(HOST)xcc $(HOST)cc1 $(HOST)cpp $(HOST)as $(HOST)ld $(LIBS)
+OBJ_DIR:=$(TARGET)
+CC:=./$(HOST)xcc
+CFLAGS+=-DSELF_HOSTING
 endif
 
 XCC_SRCS:=$(wildcard $(XCC_DIR)/*.c) \
@@ -74,52 +81,52 @@ release:
 .PHONY:	exes
 exes:	$(TARGET)xcc $(TARGET)cc1 $(TARGET)cpp $(TARGET)as $(TARGET)ld
 
-$(TARGET)xcc: $(HOST_EXES) $(XCC_OBJS)
+$(TARGET)xcc: $(PARENT_DEPS) $(XCC_OBJS)
 	$(CC) -o $@ $(XCC_OBJS) $(LDFLAGS)
 
-$(TARGET)cc1: $(HOST_EXES) $(CC1_OBJS)
+$(TARGET)cc1: $(PARENT_DEPS) $(CC1_OBJS)
 	$(CC) -o $@ $(CC1_OBJS) $(LDFLAGS)
 
-$(TARGET)cpp: $(HOST_EXES) $(CPP_OBJS)
+$(TARGET)cpp: $(PARENT_DEPS) $(CPP_OBJS)
 	$(CC) -o $@ $(CPP_OBJS) $(LDFLAGS)
 
-$(TARGET)as: $(HOST_EXES) $(AS_OBJS)
+$(TARGET)as: $(PARENT_DEPS) $(AS_OBJS)
 	$(CC) -o $@ $(AS_OBJS) $(LDFLAGS)
 
-$(TARGET)ld: $(HOST_EXES) $(LD_OBJS)
+$(TARGET)ld: $(PARENT_DEPS) $(LD_OBJS)
 	$(CC) -o $@ $(LD_OBJS) $(LDFLAGS)
 
 -include $(OBJ_DIR)/*.d
 
-$(OBJ_DIR)/%.o: $(XCC_DIR)/%.c $(HOST_EXES)
+$(OBJ_DIR)/%.o: $(XCC_DIR)/%.c $(PARENT_DEPS)
 	@mkdir -p $(OBJ_DIR)
 	$(CC) $(CFLAGS) -c -o $@ $<
 
-$(OBJ_DIR)/%.o: $(CC1_DIR)/%.c $(HOST_EXES)
+$(OBJ_DIR)/%.o: $(CC1_DIR)/%.c $(PARENT_DEPS)
 	@mkdir -p $(OBJ_DIR)
 	$(CC) $(CFLAGS) -c -o $@ $<
 
-$(OBJ_DIR)/%.o: $(CC1_ARCH_DIR)/%.c $(HOST_EXES)
+$(OBJ_DIR)/%.o: $(CC1_ARCH_DIR)/%.c $(PARENT_DEPS)
 	@mkdir -p $(OBJ_DIR)
 	$(CC) $(CFLAGS) -c -o $@ $<
 
-$(OBJ_DIR)/%.o: $(CPP_DIR)/%.c $(HOST_EXES)
+$(OBJ_DIR)/%.o: $(CPP_DIR)/%.c $(PARENT_DEPS)
 	@mkdir -p $(OBJ_DIR)
 	$(CC) $(CFLAGS) -c -o $@ $<
 
-$(OBJ_DIR)/%.o: $(AS_DIR)/%.c $(HOST_EXES)
+$(OBJ_DIR)/%.o: $(AS_DIR)/%.c $(PARENT_DEPS)
 	@mkdir -p $(OBJ_DIR)
 	$(CC) $(CFLAGS) -c -o $@ $<
 
-$(OBJ_DIR)/%.o: $(LD_DIR)/%.c $(HOST_EXES)
+$(OBJ_DIR)/%.o: $(LD_DIR)/%.c $(PARENT_DEPS)
 	@mkdir -p $(OBJ_DIR)
 	$(CC) $(CFLAGS) -c -o $@ $<
 
-$(OBJ_DIR)/%.o: $(UTIL_DIR)/%.c $(HOST_EXES)
+$(OBJ_DIR)/%.o: $(UTIL_DIR)/%.c $(PARENT_DEPS)
 	@mkdir -p $(OBJ_DIR)
 	$(CC) $(CFLAGS) -c -o $@ $<
 
-$(OBJ_DIR)/%.o: $(DEBUG_DIR)/%.c $(HOST_EXES)
+$(OBJ_DIR)/%.o: $(DEBUG_DIR)/%.c $(PARENT_DEPS)
 	@mkdir -p $(OBJ_DIR)
 	$(CC) $(CFLAGS) -c -o $@ $<
 
@@ -137,12 +144,6 @@ clean:
 	$(MAKE) -C tests clean
 
 ### Library
-
-ifeq ("$(UNAME)", "Darwin")
-LIBS:=
-else
-LIBS:=$(LIB_DIR)/crt0.a $(LIB_DIR)/libc.a
-endif
 
 CRT0_SRCS:=$(wildcard $(LIBSRC_DIR)/crt0/*.c)
 
