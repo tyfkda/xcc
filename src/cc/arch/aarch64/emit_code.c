@@ -311,6 +311,10 @@ static void emit_varinfo(const VarInfo *varinfo, const Initializer *init) {
 
 ////////////////////////////////////////////////
 
+static bool is_asm(Stmt *stmt) {
+  return stmt->kind == ST_ASM;
+}
+
 static VarInfo *find_ret_var(Scope *scope) {
   const Name *retval_name = alloc_name(RET_VAR_NAME, NULL, false);
   return scope_find(scope, retval_name, NULL);
@@ -510,48 +514,66 @@ static void emit_defun(Function *func) {
   EMIT_ALIGN(4);
   EMIT_LABEL(label);
 
+  bool no_stmt = true;
+  if (func->stmts != NULL) {
+    for (int i = 0; i < func->stmts->len; ++i) {
+      Stmt *stmt = func->stmts->data[i];
+      if (stmt == NULL)
+        continue;
+      if (!is_asm(stmt)) {
+        no_stmt = false;
+        break;
+      }
+    }
+  }
+
   // Prologue
   // Allocate variable bufer.
   FuncBackend *fnbe = func->extra;
   size_t frame_size = ALIGN(fnbe->ra->frame_size, 16);
-  STP(FP, LR, PRE_INDEX(SP, -16));
-  MOV(FP, SP);
-  if (frame_size > 0) {
-    const char *value;
-    if (frame_size <= 0x0fff)
-      value = IM(frame_size);
-    else
-      mov_immediate(value = X9, frame_size, true);  // x9 broken
-    SUB(SP, SP, value);
-  }
-  put_args_to_stack(func);
+  int callee_saved_count = 0;
+  if (!no_stmt) {
+    STP(FP, LR, PRE_INDEX(SP, -16));
+    MOV(FP, SP);
+    if (frame_size > 0) {
+      const char *value;
+      if (frame_size <= 0x0fff)
+        value = IM(frame_size);
+      else
+        mov_immediate(value = X9, frame_size, true);  // x9 broken
+      SUB(SP, SP, value);
+    }
+    put_args_to_stack(func);
 
-  // Callee save.
-  int callee_saved_count = push_callee_save_regs(fnbe->ra->used_reg_bits, fnbe->ra->used_freg_bits);
+    // Callee save.
+    callee_saved_count = push_callee_save_regs(fnbe->ra->used_reg_bits, fnbe->ra->used_freg_bits);
+  }
 
   emit_bb_irs(fnbe->bbcon);
 
   // Epilogue
-  if (func->flag & FUNCF_STACK_MODIFIED) {
-    // Stack pointer might be changed if alloca is used, so it need to be recalculated.
-    size_t size = frame_size + ALIGN(callee_saved_count * WORD_SIZE, 16);
-    const char *value;
-    if (size <= 0x0fff)
-      value = IM(size);
-    else
-      mov_immediate(value = SP, size, true);
-    SUB(SP, FP, value);
+  if (!no_stmt) {
+    if (func->flag & FUNCF_STACK_MODIFIED) {
+      // Stack pointer might be changed if alloca is used, so it need to be recalculated.
+      size_t size = frame_size + ALIGN(callee_saved_count * WORD_SIZE, 16);
+      const char *value;
+      if (size <= 0x0fff)
+        value = IM(size);
+      else
+        mov_immediate(value = SP, size, true);
+      SUB(SP, FP, value);
+    }
+    pop_callee_save_regs(fnbe->ra->used_reg_bits, fnbe->ra->used_freg_bits);
+    if (frame_size > 0) {
+      const char *value;
+      if (frame_size <= 0x0fff)
+        value = IM(frame_size);
+      else
+        mov_immediate(value = X8, frame_size, true);  // x9 broken
+      ADD(SP, SP, value);
+    }
+    LDP(FP, LR, POST_INDEX(SP, 16));
   }
-  pop_callee_save_regs(fnbe->ra->used_reg_bits, fnbe->ra->used_freg_bits);
-  if (frame_size > 0) {
-    const char *value;
-    if (frame_size <= 0x0fff)
-      value = IM(frame_size);
-    else
-      mov_immediate(value = X8, frame_size, true);  // x9 broken
-    ADD(SP, SP, value);
-  }
-  LDP(FP, LR, POST_INDEX(SP, 16));
 
   RET();
 

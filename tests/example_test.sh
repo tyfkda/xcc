@@ -48,19 +48,10 @@ no_flonum() {
   $XCC tmp.c && ./a.out || exit 1
 }
 
-no_longjmp() {
-  if [ "$(uname)" == "Linux" ] && [ "$(arch)" == "aarch64" ]; then
-    echo true
-  fi
-}
-
 try 'hello' 'Hello, world!' ../examples/hello.c
 try 'fib' 832040 ../examples/fib.c
 try 'echo' 'foo bar baz' ../examples/echo.c foo bar baz
-
-if [ "`no_longjmp`" != "true" ]; then
 try 'longjmp_test' '123' ../examples/longjmp_test.c
-fi
 
 if [ "`no_flonum`" != "true" ]; then
 try_cmp 'mandelbrot' '../examples/mandelbrot.ppm' 'mandelbrot.ppm' ../examples/mandelbrot.c 100 256 256
