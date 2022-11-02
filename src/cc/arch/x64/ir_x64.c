@@ -129,6 +129,7 @@ static void ir_out(IR *ir) {
     break;
 
   case IR_LOAD:
+    assert(!(ir->opr1->flag & VRF_CONST));
 #ifndef __NO_FLONUM
     if (ir->dst->vtype->flag & VRTF_FLONUM) {
       switch (ir->dst->vtype->size) {
@@ -148,10 +149,7 @@ static void ir_out(IR *ir) {
       int pow = kPow2Table[ir->dst->vtype->size];
       assert(0 <= pow && pow < 4);
       const char **regs = kRegSizeTable[pow];
-      if (ir->opr1->flag & VRF_CONST)
-        MOV(INDIRECT(NUM(ir->opr1->fixnum), NULL, 1), regs[ir->dst->phys]);
-      else
-        MOV(INDIRECT(kReg64s[ir->opr1->phys], NULL, 1), regs[ir->dst->phys]);
+      MOV(INDIRECT(kReg64s[ir->opr1->phys], NULL, 1), regs[ir->dst->phys]);
     }
     break;
 

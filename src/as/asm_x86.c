@@ -160,23 +160,7 @@ static bool assemble_mov(Inst *inst, const ParseInfo *info, Code *code) {
     if (inst->src.indirect.offset->kind == EX_FIXNUM) {
       long offset = inst->src.indirect.offset->fixnum;
       enum RegSize size = inst->dst.reg.size;
-      if (inst->src.indirect.reg.no == NOREG) {
-        int dno = opr_regno(&inst->dst.reg);
-        short prefix = size == REG16 ? 0x66 : size == REG64 ? 0x48 : -1;
-        short buf[] = {
-          prefix,
-          size == REG8 ? 0x8a : 0x8b,
-          ((dno & 7) << 3) | 0x04,
-          0x25,
-        };
-        p = put_code_filtered(p, buf, ARRAY_SIZE(buf));
-
-        if (is_im32(offset)) {
-          PUT_CODE(p, IM32(offset));
-          p += 4;
-        }
-      } else if (inst->src.indirect.reg.no != RIP) {
-        enum RegSize size = inst->dst.reg.size;
+      if (inst->src.indirect.reg.no != RIP) {
         p = put_rex_indirect(
             p, size,
             opr_regno(&inst->dst.reg),
@@ -188,22 +172,7 @@ static bool assemble_mov(Inst *inst, const ParseInfo *info, Code *code) {
     if (inst->dst.indirect.offset->kind == EX_FIXNUM) {
       long offset = inst->dst.indirect.offset->fixnum;
       enum RegSize size = inst->src.reg.size;
-      if (inst->dst.indirect.reg.no == NOREG) {
-        int sno = opr_regno(&inst->src.reg);
-        short prefix = size == REG16 ? 0x66 : size == REG64 ? 0x48 : -1;
-        short buf[] = {
-          prefix,
-          size == REG8 ? 0x88 : 0x89,
-          ((sno & 7) << 3) | 0x04,
-          0x25,
-        };
-        p = put_code_filtered(p, buf, ARRAY_SIZE(buf));
-
-        if (is_im32(offset)) {
-          PUT_CODE(p, IM32(offset));
-          p += 4;
-        }
-      } else if (inst->dst.indirect.reg.no != RIP) {
+      if (inst->dst.indirect.reg.no != RIP) {
         p = put_rex_indirect(
             p, size,
             opr_regno(&inst->src.reg),
@@ -242,6 +211,34 @@ static bool assemble_mov(Inst *inst, const ParseInfo *info, Code *code) {
         }
       }
     }
+  } else if (inst->src.type == DIRECT && inst->dst.type == REG) {
+    enum RegSize size = inst->dst.reg.size;
+    int dno = opr_regno(&inst->dst.reg);
+    short prefix = size == REG16 ? 0x66 : size == REG64 ? 0x48 : -1;
+    short buf[] = {
+      prefix,
+      size == REG8 ? 0x8a : 0x8b,
+      ((dno & 7) << 3) | 0x04,
+      0x25,
+    };
+    p = put_code_filtered(p, buf, ARRAY_SIZE(buf));
+
+    PUT_CODE(p, IM32(0));
+    p += 4;
+  } else if (inst->src.type == REG && inst->dst.type == DIRECT) {
+    enum RegSize size = inst->src.reg.size;
+    int sno = opr_regno(&inst->src.reg);
+    short prefix = size == REG16 ? 0x66 : size == REG64 ? 0x48 : -1;
+    short buf[] = {
+      prefix,
+      size == REG8 ? 0x88 : 0x89,
+      ((sno & 7) << 3) | 0x04,
+      0x25,
+    };
+    p = put_code_filtered(p, buf, ARRAY_SIZE(buf));
+
+    PUT_CODE(p, IM32(0));
+    p += 4;
   }
 
   if (p > code->buf) {
@@ -271,7 +268,7 @@ static unsigned char *assemble_movsd(Inst *inst, Code *code, bool single) {
     p = put_code_filtered(p, buf, ARRAY_SIZE(buf));
   } else if (inst->src.type == INDIRECT && inst->dst.type == REG_XMM) {
     if (inst->src.indirect.offset->kind == EX_FIXNUM) {
-      if (inst->src.indirect.reg.no != NOREG && inst->src.indirect.reg.no != RIP) {
+      if (inst->src.indirect.reg.no != RIP) {
         long offset = inst->src.indirect.offset->fixnum;
         unsigned char sno = opr_regno(&inst->src.indirect.reg);
         unsigned char dno = inst->dst.regxmm - XMM0;
@@ -301,7 +298,7 @@ static unsigned char *assemble_movsd(Inst *inst, Code *code, bool single) {
     }
   } else if (inst->src.type == REG_XMM && inst->dst.type == INDIRECT) {
     if (inst->dst.indirect.offset->kind == EX_FIXNUM) {
-      if (inst->dst.indirect.reg.no != NOREG && inst->dst.indirect.reg.no != RIP) {
+      if (inst->dst.indirect.reg.no != RIP) {
         long offset = inst->dst.indirect.offset->fixnum;
         unsigned char sno = inst->src.regxmm - XMM0;
         unsigned char dno = opr_regno(&inst->dst.indirect.reg);
@@ -560,9 +557,7 @@ bool assemble_inst(Inst *inst, const ParseInfo *info, Code *code) {
         return assemble_error(info, "64 bit register expected for destination");
 
       assert(inst->src.indirect.offset != NULL);
-      if (inst->src.indirect.reg.no == NOREG) {
-        //
-      } else if (inst->src.indirect.reg.no != RIP) {
+      if (inst->src.indirect.reg.no != RIP) {
         if (inst->src.indirect.offset->kind == EX_FIXNUM) {
           long offset = inst->src.indirect.offset->fixnum;
           enum RegSize size = inst->dst.reg.size;
@@ -671,8 +666,7 @@ bool assemble_inst(Inst *inst, const ParseInfo *info, Code *code) {
     break;
   case ADDQ:
     if (inst->src.type == IMMEDIATE && inst->dst.type == INDIRECT) {
-      if (inst->dst.indirect.offset->kind == EX_FIXNUM &&
-          inst->dst.indirect.reg.no != NOREG) {
+      if (inst->dst.indirect.offset->kind == EX_FIXNUM) {
         long value = inst->src.immediate;
         if (is_im32(value)) {
           long offset = inst->dst.indirect.offset->fixnum;
@@ -773,8 +767,7 @@ bool assemble_inst(Inst *inst, const ParseInfo *info, Code *code) {
     break;
   case SUBQ:
     if (inst->src.type == IMMEDIATE && inst->dst.type == INDIRECT) {
-      if (inst->dst.indirect.offset->kind == EX_FIXNUM &&
-          inst->dst.indirect.reg.no != NOREG) {
+      if (inst->dst.indirect.offset->kind == EX_FIXNUM) {
         long value = inst->src.immediate;
         if (is_im32(value)) {
           long offset = inst->dst.indirect.offset->fixnum;
@@ -874,8 +867,7 @@ bool assemble_inst(Inst *inst, const ParseInfo *info, Code *code) {
     if (inst->src.type == NOOPERAND || inst->dst.type != NOOPERAND)
       return assemble_error(info, "Illegal operand");
 
-    if (inst->src.type == INDIRECT &&
-        inst->src.indirect.reg.no != NOREG && inst->src.indirect.reg.no != RIP) {
+    if (inst->src.type == INDIRECT && inst->src.indirect.reg.no != RIP) {
       enum RegSize size = inst->op + (REG8 - INCB);
       long offset = inst->src.indirect.offset->fixnum;
       p = put_rex_indirect(
@@ -900,8 +892,7 @@ bool assemble_inst(Inst *inst, const ParseInfo *info, Code *code) {
     if (inst->src.type == NOOPERAND)
       return assemble_error(info, "Illegal operand");
 
-    if (inst->src.type == INDIRECT &&
-        inst->src.indirect.reg.no != NOREG && inst->src.indirect.reg.no != RIP) {
+    if (inst->src.type == INDIRECT && inst->src.indirect.reg.no != RIP) {
       enum RegSize size = inst->op + (REG8 - DECB);
       long offset = inst->src.indirect.offset->fixnum;
       p = put_rex_indirect(
