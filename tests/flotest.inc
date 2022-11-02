@@ -58,6 +58,26 @@ int number_test(void) {
     expect("post dec", 10, x--);
     expect("post dec after", 9, x);
   }
+
+#define TEST_CAST_TO(ITYPE) { \
+    x = 45.6; \
+    ITYPE i = x; \
+    expecti("cast to " #ITYPE, 45, i); \
+  }
+  TEST_CAST_TO(char);
+  TEST_CAST_TO(short);
+  TEST_CAST_TO(int);
+  TEST_CAST_TO(long);
+
+#define TEST_CAST_FROM(ITYPE) { \
+    ITYPE i = -32; \
+    expecti("cast from " #ITYPE, -32, i); \
+  }
+  TEST_CAST_FROM(char);
+  TEST_CAST_FROM(short);
+  TEST_CAST_FROM(int);
+  TEST_CAST_FROM(long);
+
   {
     static Number g = 10.5;
     expect("pre dec g", 9.5, --g);

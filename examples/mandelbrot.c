@@ -14,10 +14,16 @@ typedef float Number;
 typedef double Number;
 #endif
 
+#ifdef NO_USE_MORE_FPREG
+#define Integer  int
+#else
+#define Integer  Number
+#endif
+
 // 0..finite, >0..divergence count.
-unsigned int mandelbrot(Number cx, Number cy, unsigned int threshold) {
+Integer mandelbrot(Number cx, Number cy, Integer threshold) {
   Number x = 0, y = 0;
-  for (unsigned int n = 1; n <= threshold; ++n) {
+  for (Integer n = 1; n <= threshold; ++n) {
     if (x * x + y * y > 4)
       return n;
     Number nx = x * x - y * y + cx;
@@ -36,9 +42,9 @@ unsigned int calc_color(unsigned int n) {
 }
 
 int main(int argc, char *argv[]) {
-  unsigned int threshold = argc > 1 ? atoi(argv[1]) : 3000;
-  int W = argc > 2 ? atoi(argv[2]) : 512;
-  int H = argc > 3 ? atoi(argv[3]) : 512;
+  Integer threshold = argc > 1 ? atoi(argv[1]) : 3000;
+  Integer W = argc > 2 ? atoi(argv[2]) : 512;
+  Integer H = argc > 3 ? atoi(argv[3]) : 512;
 
   const Number XMIN = -1.75;
   const Number YMIN = -1.125;
@@ -51,11 +57,11 @@ int main(int argc, char *argv[]) {
   }
   unsigned char *p = buf;
 
-  for (int i = 0; i < H; ++i) {
+  for (Integer i = 0; i < H; ++i) {
     Number cy = YS * i / H + YMIN;
-    for (int j = 0; j < W; ++j) {
+    for (Integer j = 0; j < W; ++j) {
       Number cx = XS * j / W + XMIN;
-      unsigned int n = mandelbrot(cx, cy, threshold);
+      Integer n = mandelbrot(cx, cy, threshold);
       unsigned int c = calc_color(n);
       *p++ = c >> 16;
       *p++ = c >> 8;
@@ -67,7 +73,7 @@ int main(int argc, char *argv[]) {
   if (fp == NULL) {
     exit(1);
   }
-  fprintf(fp, "P6\n%d %d\n255\n", W, H);
+  fprintf(fp, "P6\n%d %d\n255\n", (int)W, (int)H);
   fwrite(buf, W * H * 3, 1, fp);
   fclose(fp);
 

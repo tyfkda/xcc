@@ -23,7 +23,7 @@
 
 #if defined(__x86_64__)
 #define PHYSICAL_REG_MAX   (7)
-#define PHYSICAL_FREG_MAX  (7)
+#define PHYSICAL_FREG_MAX  (8)
 
 #define MAX_REG_ARGS   (6)
 #define MAX_FREG_ARGS  (8)

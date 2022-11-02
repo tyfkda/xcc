@@ -35,7 +35,7 @@ static const char *kRegDTable[] = {DL, DX, EDX, RDX};
 #ifndef __NO_FLONUM
 #define SZ_FLOAT   (4)
 #define SZ_DOUBLE  (8)
-static const char *kFReg64s[PHYSICAL_FREG_MAX] = {XMM8, XMM9, XMM10, XMM11, XMM12, XMM13, XMM14};
+static const char *kFReg64s[PHYSICAL_FREG_MAX] = {XMM8, XMM9, XMM10, XMM11, XMM12, XMM13, XMM14, XMM15};
 #endif
 
 #define CALLEE_SAVE_REG_COUNT  ((int)(sizeof(kCalleeSaveRegs) / sizeof(*kCalleeSaveRegs)))
@@ -55,7 +55,7 @@ static const int kCallerSaveRegs[] = {
 
 #ifndef __NO_FLONUM
 #define CALLER_SAVE_FREG_COUNT  ((int)(sizeof(kCallerSaveFRegs) / sizeof(*kCallerSaveFRegs)))
-static const int kCallerSaveFRegs[] = {0, 1, 2, 3, 4, 5};
+static const int kCallerSaveFRegs[] = {0, 1, 2, 3, 4, 5, 6, 7};
 #endif
 
 //
@@ -824,7 +824,9 @@ static void ir_out(IR *ir) {
     } else if (ir->opr1->vtype->flag & VRTF_FLONUM) {
       // flonum->fix
       int powd = kPow2Table[ir->dst->vtype->size];
-      switch (ir->dst->vtype->size) {
+      if (powd < 2)
+        powd = 2;
+      switch (ir->opr1->vtype->size) {
       case SZ_FLOAT:   CVTTSS2SI(kFReg64s[ir->opr1->phys], kRegSizeTable[powd][ir->dst->phys]); break;
       case SZ_DOUBLE:  CVTTSD2SI(kFReg64s[ir->opr1->phys], kRegSizeTable[powd][ir->dst->phys]); break;
       default: assert(false); break;
