@@ -161,11 +161,26 @@ static bool assemble_mov(Inst *inst, const ParseInfo *info, Code *code) {
       long offset = inst->src.indirect.offset->fixnum;
       enum RegSize size = inst->dst.reg.size;
       if (inst->src.indirect.reg.no != RIP) {
-        p = put_rex_indirect(
-            p, size,
-            opr_regno(&inst->dst.reg),
-            opr_regno(&inst->src.indirect.reg),
-            0x8a, 0x00, offset);
+        int sno = opr_regno(&inst->src.indirect.reg);
+        int dno = opr_regno(&inst->dst.reg);
+        bool ofszero = offset == 0 && ((sno & 7) != RBP - RAX);
+        short buf[] = {
+          size == REG16 ? 0x66 : -1,
+          0x40 | (size == REG64 ? 0x08 : 0) | ((dno & 8) >> 1) | ((sno & 8) >> 3),
+          0x8a | (size == REG8 ? 0 : 0x01),
+          ((dno & 7) << 3) | (sno & 7) | (ofszero ? 0 : is_im8(offset) ? 0x40: 0x80),
+          (sno & 7) == RSP - RAX ? 0x24 : -1,
+        };
+        p = put_code_filtered(p, buf, ARRAY_SIZE(buf));
+
+        if (ofszero) {
+          // Nothing.
+        } else if (is_im8(offset)) {
+          *p++ = offset;
+        } else {
+          PUT_CODE(p, IM32(offset));
+          p += 4;
+        }
       }
     }
   } else if (inst->src.type == REG && inst->dst.type == INDIRECT) {
@@ -173,11 +188,26 @@ static bool assemble_mov(Inst *inst, const ParseInfo *info, Code *code) {
       long offset = inst->dst.indirect.offset->fixnum;
       enum RegSize size = inst->src.reg.size;
       if (inst->dst.indirect.reg.no != RIP) {
-        p = put_rex_indirect(
-            p, size,
-            opr_regno(&inst->src.reg),
-            opr_regno(&inst->dst.indirect.reg),
-            0x88, 0x00, offset);
+        int sno = opr_regno(&inst->src.reg);
+        int dno = opr_regno(&inst->dst.indirect.reg);
+        bool ofszero = offset == 0 && ((dno & 7) != RBP - RAX);
+        short buf[] = {
+          size == REG16 ? 0x66 : -1,
+          0x40 | (size == REG64 ? 0x08 : 0) | ((sno & 8) >> 1) | ((dno & 8) >> 3),
+          0x88 | (size == REG8 ? 0 : 0x01),
+          ((sno & 7) << 3) | (dno & 7) | (ofszero ? 0 : is_im8(offset) ? 0x40: 0x80),
+          (dno & 7) == RSP - RAX ? 0x24 : -1,
+        };
+        p = put_code_filtered(p, buf, ARRAY_SIZE(buf));
+
+        if (ofszero) {
+          // Nothing.
+        } else if (is_im8(offset)) {
+          *p++ = offset;
+        } else {
+          PUT_CODE(p, IM32(offset));
+          p += 4;
+        }
       }
     }
   } else if (inst->src.type == INDIRECT_WITH_INDEX && inst->dst.type == REG) {
