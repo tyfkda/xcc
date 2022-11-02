@@ -95,6 +95,10 @@ char *mangle(char *label) {
 #endif
 }
 
+char *gotpcrel(char *label) {
+  return fmt("%s@GOTPCREL", label);
+}
+
 void emit_asm2(const char *op, const char *operand1, const char *operand2) {
   if (operand1 == NULL) {
     fprintf(emit_fp, "\t%s\n", op);

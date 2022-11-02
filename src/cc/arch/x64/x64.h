@@ -39,6 +39,9 @@
 #ifndef MANGLE
 #define MANGLE(label)  mangle(label)
 #endif
+#ifndef GOTPCREL
+#define GOTPCREL(label)  gotpcrel(label)
+#endif
 
 #define AL     "%al"
 #define CL     "%cl"

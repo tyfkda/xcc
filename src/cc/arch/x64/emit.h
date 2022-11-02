@@ -20,6 +20,7 @@ char *indirect(const char *base, const char *index, int scale);
 char *offset_indirect(int offset, const char *base, const char *index, int scale);
 char *label_indirect(const char *label, const char *reg);
 char *mangle(char *label);
+char *gotpcrel(char *label);
 
 void init_emit(FILE *fp);
 void emit_label(const char *label);

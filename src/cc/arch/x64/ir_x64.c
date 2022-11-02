@@ -3,6 +3,7 @@
 
 #include <assert.h>
 #include <stdlib.h>  // malloc
+#include <string.h>
 
 #include "emit_code.h"
 #include "regalloc.h"
@@ -105,6 +106,16 @@ static void ir_memcpy(int dst_reg, int src_reg, ssize_t size) {
   }
 }
 
+static bool is_got(const Name *name) {
+#ifdef __APPLE__
+  // TODO: How to detect the label is GOT?
+  return name->bytes >= 5 && strncmp(name->chars, "__std", 5) == 0;  // __stdinp, etc.
+#else
+  UNUSED(name);
+  return false;
+#endif
+}
+
 static void ir_out(IR *ir) {
   switch (ir->kind) {
   case IR_BOFS:
@@ -119,7 +130,11 @@ static void ir_out(IR *ir) {
       char *label = fmt_name(ir->iofs.label);
       if (ir->iofs.global)
         label = MANGLE(label);
-      LEA(LABEL_INDIRECT(quote_label(label), RIP), kReg64s[ir->dst->phys]);
+      if (!is_got(ir->iofs.label)) {
+        LEA(LABEL_INDIRECT(quote_label(label), RIP), kReg64s[ir->dst->phys]);
+      } else {
+        LEA(LABEL_INDIRECT(GOTPCREL(quote_label(label)), RIP), kReg64s[ir->dst->phys]);
+      }
     }
     break;
 
