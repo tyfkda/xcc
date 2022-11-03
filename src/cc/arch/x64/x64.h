@@ -1,6 +1,6 @@
 #pragma once
 
-#include "emit.h"
+#include "emit_util.h"
 
 #ifndef EMIT_LABEL
 #define EMIT_LABEL(label)  emit_label(label)

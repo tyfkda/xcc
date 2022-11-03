@@ -297,7 +297,7 @@ dump_expr:	$(DUMP_EXPR_OBJS)
 DUMP_IR_SRCS:=$(DEBUG_DIR)/dump_ir.c $(CC1_DIR)/parser_expr.c $(CC1_DIR)/parser.c $(CC1_DIR)/lexer.c \
 	$(CC1_DIR)/type.c $(CC1_DIR)/ast.c $(CC1_DIR)/var.c $(CC1_DIR)/builtin.c \
 	$(CC1_DIR)/codegen_expr.c $(CC1_DIR)/codegen.c $(CC1_DIR)/ir.c $(CC1_DIR)/regalloc.c \
-	$(CC1_ARCH_DIR)/emit.c $(CC1_ARCH_DIR)/ir_$(ARCHTYPE).c \
+	$(CC1_ARCH_DIR)/emit_code.c $(CC1_DIR)/emit_util.c $(CC1_ARCH_DIR)/ir_$(ARCHTYPE).c \
 	$(UTIL_DIR)/util.c $(UTIL_DIR)/table.c
 DUMP_IR_OBJS:=$(addprefix $(OBJ_DIR)/,$(notdir $(DUMP_IR_SRCS:.c=.o)))
 dump_ir:	$(DUMP_IR_OBJS)

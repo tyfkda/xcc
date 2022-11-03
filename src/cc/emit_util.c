@@ -1,5 +1,5 @@
 #include "../config.h"
-#include "emit.h"
+#include "emit_util.h"
 
 #include <assert.h>
 #include <inttypes.h>  // PRIdPTR
@@ -53,43 +53,6 @@ char *flonum(double x) {
   return fmt("%.16g", x);
 }
 #endif
-
-char *im(intptr_t x) {
-  return fmt("#%" PRIdPTR, x);
-}
-
-char *immediate_offset(const char *reg, int offset) {
-  return offset != 0 ? fmt("[%s,#%d]", reg, offset) : fmt("[%s]", reg);
-}
-
-char *pre_index(const char *reg, int offset) {
-  return fmt("[%s,#%d]!", reg, offset);
-}
-
-char *post_index(const char *reg, int offset) {
-  return fmt("[%s],#%d", reg, offset);
-}
-
-char *reg_offset(const char *base, const char *reg, const char *shift) {
-  if (shift != NULL)
-    return fmt("[%s,%s,%s]", base, reg, shift);
-  return fmt("[%s,%s]", base, reg);
-}
-
-char *label_at_page(char *label, int flag) {
-#ifdef __APPLE__
-  static const char *s[] = {
-    "%s@PAGE", "%s@PAGEOFF",
-    "%s@GOTPAGE", "%s@GOTPAGEOFF",
-  };
-#else
-  static const char *s[] = {
-    "%s", ":lo12:%s",
-    ":got:%s", ":got_lo12:%s",
-  };
-#endif
-  return fmt(s[flag], label);
-}
 
 char *mangle(char *label) {
 #ifdef MANGLE_PREFIX
@@ -167,7 +130,7 @@ void emit_bss(const char *label, size_t size, size_t align) {
   if (align <= 1)
     emit_asm2(".comm", label, num(size));
   else
-    emit_asm3(".comm", label, num(size), num(align));
+    fprintf(emit_fp, "\t.comm %s, %zu, %zu\n", label, size, align);
 #endif
 }
 

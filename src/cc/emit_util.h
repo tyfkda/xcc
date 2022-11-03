@@ -15,12 +15,6 @@ char *hexnum(intptr_t x);  // 0xnn
 #ifndef __NO_FLONUM
 char *flonum(double x);
 #endif
-char *im(intptr_t x);  // $x
-char *immediate_offset(const char *reg, int offset);
-char *pre_index(const char *reg, int offset);
-char *post_index(const char *reg, int offset);
-char *reg_offset(const char *base, const char *reg, const char *shift);
-char *label_at_page(char *label, int flag);  // bit0=pageoff, bit1=got
 char *mangle(char *label);
 
 void init_emit(FILE *fp);

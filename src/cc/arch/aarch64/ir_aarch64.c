@@ -6,6 +6,7 @@
 #include <string.h>
 
 #include "aarch64.h"
+#include "emit_code.h"
 #include "regalloc.h"
 #include "table.h"
 #include "util.h"

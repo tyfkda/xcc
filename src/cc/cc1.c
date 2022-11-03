@@ -6,7 +6,7 @@
 #include <string.h>
 
 #include "codegen.h"
-#include "emit.h"
+#include "emit_util.h"
 #include "emit_code.h"
 #include "lexer.h"
 #include "parser.h"

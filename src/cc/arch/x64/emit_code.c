@@ -18,6 +18,45 @@
 #include "var.h"
 #include "x64.h"
 
+char *im(intptr_t x) {
+  return fmt("$%" PRIdPTR, x);
+}
+
+char *indirect(const char *base, const char *index, int scale) {
+  if (index == NULL) {
+    return fmt("(%s)", base);
+  } else {
+    if (scale == 1)
+      return fmt("(%s,%s)", base, index);
+    else
+      return fmt("(%s,%s,%d)", base, index, scale);
+  }
+}
+
+char *offset_indirect(int offset, const char *base, const char *index, int scale) {
+  if (offset == 0)
+    return indirect(base, index, scale);
+
+  if (index == NULL) {
+    return fmt("%d(%s)", offset, base);
+  } else {
+    if (scale == 1)
+      return fmt("%d(%s,%s)", offset, base, index);
+    else
+      return fmt("%d(%s,%s,%d)", offset, base, index, scale);
+  }
+}
+
+char *label_indirect(const char *label, const char *reg) {
+  return fmt("%s(%s)", label, reg);
+}
+
+char *gotpcrel(char *label) {
+  return fmt("%s@GOTPCREL", label);
+}
+
+////////
+
 static void eval_initial_value(Expr *expr, Expr **pvar, Fixnum *poffset) {
   switch (expr->kind) {
   case EX_FIXNUM:

@@ -17,6 +17,45 @@
 #include "util.h"
 #include "var.h"
 
+char *im(intptr_t x) {
+  return fmt("#%" PRIdPTR, x);
+}
+
+char *immediate_offset(const char *reg, int offset) {
+  return offset != 0 ? fmt("[%s,#%d]", reg, offset) : fmt("[%s]", reg);
+}
+
+char *pre_index(const char *reg, int offset) {
+  return fmt("[%s,#%d]!", reg, offset);
+}
+
+char *post_index(const char *reg, int offset) {
+  return fmt("[%s],#%d", reg, offset);
+}
+
+char *reg_offset(const char *base, const char *reg, const char *shift) {
+  if (shift != NULL)
+    return fmt("[%s,%s,%s]", base, reg, shift);
+  return fmt("[%s,%s]", base, reg);
+}
+
+char *label_at_page(char *label, int flag) {
+#ifdef __APPLE__
+  static const char *s[] = {
+    "%s@PAGE", "%s@PAGEOFF",
+    "%s@GOTPAGE", "%s@GOTPAGEOFF",
+  };
+#else
+  static const char *s[] = {
+    "%s", ":lo12:%s",
+    ":got:%s", ":got_lo12:%s",
+  };
+#endif
+  return fmt(s[flag], label);
+}
+
+////////
+
 static void eval_initial_value(Expr *expr, Expr **pvar, Fixnum *poffset) {
   switch (expr->kind) {
   case EX_FIXNUM:
