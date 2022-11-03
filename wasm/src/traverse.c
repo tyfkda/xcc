@@ -418,45 +418,41 @@ static void traverse_expr(Expr **pexpr, bool needval) {
   case EX_CAST:
     traverse_expr(&expr->unary.sub, needval);
     break;
-  case EX_PREINC:
-  case EX_PREDEC:
-  case EX_POSTINC:
-  case EX_POSTDEC:
+  case EX_INCDEC:
     {
-      static const enum ExprKind kOpTable[2] = {
-        EX_SUB, EX_ADD,
-      };
+      static const enum ExprKind kOpAddSub[2] = {EX_ADD, EX_SUB};
 
-      traverse_expr(&expr->unary.sub, needval);
-      Expr *sub = expr->unary.sub;
-      if (sub->kind == EX_COMPLIT)
-        sub = sub->complit.var;
-      if (sub->kind == EX_VAR) {
-        VarInfo *varinfo = scope_find(sub->var.scope, sub->var.name, NULL);
+      traverse_expr(&expr->incdec.target, needval);
+      Expr *target = expr->incdec.target;
+      if (target->kind == EX_COMPLIT)
+        target = target->complit.var;
+      if (target->kind == EX_VAR) {
+        VarInfo *varinfo = scope_find(target->var.scope, target->var.name, NULL);
         if (!(varinfo->storage & VS_REF_TAKEN))
           break;
       }
 
-      Type *type = sub->type;
+      Type *type = target->type;
       assert(is_number(type) || type->kind == TY_PTR);
-      enum ExprKind ek = expr->kind;
-      bool pre = ek == EX_PREINC || ek == EX_PREDEC;
-      bool inc = ek == EX_PREINC || ek == EX_POSTINC;
+      bool post = expr->incdec.is_post;
+      bool dec = expr->incdec.is_dec;
       // (++xxx)  =>  (p = &xxx, tmp = *p + 1, *p = tmp, tmp)
       // (xxx++)  =>  (p = &xxx, tmp = *p, *p = tmp + 1, tmp)
-      const Token *token = sub->token;
+      const Token *token = target->token;
       Type *ptrtype = ptrof(type);
       Expr *p = alloc_tmp(token, ptrtype);
       Expr *tmp = alloc_tmp(token, type);
-      enum ExprKind op = kOpTable[inc];
+      enum ExprKind op = kOpAddSub[dec];
 
-      Expr *assign_p = new_expr_bop(EX_ASSIGN, &tyVoid, token, p, new_expr_unary(EX_REF, ptrtype, token, sub));
+      Expr *assign_p = new_expr_bop(EX_ASSIGN, &tyVoid, token, p,
+                                    new_expr_unary(EX_REF, ptrtype, token, target));
       Expr *deref_p = new_expr_deref(token, p);
-      Expr *one = type->kind == TY_PTR ? new_expr_fixlit(&tySize, token, type_size(type->pa.ptrof)) : new_expr_fixlit(type, token, 1);
-      Expr *tmpval = pre ? new_expr_bop(op, type, token, deref_p, one) : deref_p;
-      Expr *assign_tmp = new_expr_bop(EX_ASSIGN, &tyVoid, token, tmp, tmpval);
-      Expr *pval = pre ? tmp : new_expr_bop(op, type, token, tmp, one);
-      Expr *assign_deref_p = new_expr_bop(EX_ASSIGN, &tyVoid, token, deref_p, pval);
+      Expr *one = type->kind == TY_PTR ? new_expr_fixlit(&tySize, token, type_size(type->pa.ptrof))
+          : new_expr_fixlit(type, token, 1);
+      Expr *assign_tmp = new_expr_bop(EX_ASSIGN, &tyVoid, token, tmp,
+                                      !post ? new_expr_bop(op, type, token, deref_p, one) : deref_p);
+      Expr *assign_deref_p = new_expr_bop(EX_ASSIGN, &tyVoid, token, deref_p,
+                                          !post ? tmp : new_expr_bop(op, type, token, tmp, one));
 
       *pexpr = new_expr_bop(
           EX_COMMA, type, token, assign_p,

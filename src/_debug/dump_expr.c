@@ -37,15 +37,13 @@ static const char *table[] = {
   [EX_NEG] = "-",
 
   [EX_BITNOT] = "~",  // ~x
-  [EX_PREINC] = "++",  // ++e
-  [EX_PREDEC] = "--",  // --e
-  [EX_POSTINC] = "++", // e++
-  [EX_POSTDEC] = "--", // e--
   [EX_REF] = "&",     // &
   [EX_DEREF] = "*",   // *
   // [EX_CAST] = "",
   // [EX_MODIFY] = "",  // +=, etc.
 };
+
+static const char incdec[][3] = {"++", "--"};
 
 void dump_expr(FILE *fp, Expr *expr) {
   switch (expr->kind) {
@@ -130,17 +128,24 @@ void dump_expr(FILE *fp, Expr *expr) {
   case EX_POS:
   case EX_NEG:
   case EX_BITNOT:
-  case EX_PREINC:
-  case EX_PREDEC:
   case EX_REF:
   case EX_DEREF:
     fputs(table[expr->kind], fp);
     dump_expr(fp, expr->unary.sub);
     break;
-  case EX_POSTINC:
-  case EX_POSTDEC:
-    dump_expr(fp, expr->unary.sub);
-    fputs(table[expr->kind], fp);
+  case EX_INCDEC:
+    {
+      if (!expr->incdec.is_post)
+        fputs(incdec[expr->incdec.is_dec], fp);
+      Expr *target = expr->incdec.target;
+      if (target->kind != EX_VAR)
+        fputc('(', fp);
+      dump_expr(fp, expr->incdec.target);
+      if (target->kind != EX_VAR)
+        fputc(')', fp);
+      if (expr->incdec.is_post)
+        fputs(incdec[expr->incdec.is_dec], fp);
+    }
     break;
   case EX_CAST:
     fprintf(fp, "(");

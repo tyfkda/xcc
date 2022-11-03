@@ -726,106 +726,45 @@ VReg *gen_expr(Expr *expr) {
       }
     }
 
-  case EX_PREINC:
-  case EX_PREDEC:
+  case EX_INCDEC:
     {
-      size_t value = 1;
-      if (expr->type->kind == TY_PTR)
-        value = type_size(expr->type->pa.ptrof);
+      static enum IrKind kOpAddSub[] = {IR_ADD, IR_SUB};
+
+      Expr *target = expr->incdec.target;
+      const VarInfo *varinfo = NULL;
+      if (target->kind == EX_VAR && !is_global_scope(target->var.scope)) {
+        const VarInfo *vi = scope_find(target->var.scope, target->var.name, NULL);
+        assert(vi != NULL);
+        if (!(vi->storage & (VS_STATIC | VS_EXTERN)))
+          varinfo = vi;
+      }
 
       VRegType *vtype = to_vtype(expr->type);
-      Expr *sub = expr->unary.sub;
-      if (sub->kind == EX_VAR && !is_global_scope(sub->var.scope)) {
-        const VarInfo *varinfo = scope_find(sub->var.scope, sub->var.name, NULL);
-        assert(varinfo != NULL);
-        if (!(varinfo->storage & (VS_STATIC | VS_EXTERN))) {
-#ifndef __NO_FLONUM
-          if (is_flonum(sub->type)) {
-            VReg *one = gen_const_flonum(new_expr_flolit(sub->type, NULL, 1));
-            VReg *result = new_ir_bop(expr->kind == EX_PREINC ? IR_ADD : IR_SUB,
-                                      varinfo->local.reg, one, vtype);
-            new_ir_mov(varinfo->local.reg, result);
-            return result;
-          }
-#endif
-          VReg *num = new_const_vreg(value, vtype);
-          VReg *result = new_ir_bop(expr->kind == EX_PREINC ? IR_ADD : IR_SUB,
-                                    varinfo->local.reg, num, vtype);
-          new_ir_mov(varinfo->local.reg, result);
-          return result;
+      VReg *before = NULL;
+      VReg *lval = NULL;
+      VReg *val;
+      if (varinfo != NULL) {
+        val = varinfo->local.reg;
+        if (expr->incdec.is_post) {
+          before = add_new_reg(target->type, 0);
+          new_ir_mov(before, val);
         }
+      } else {
+        lval = gen_lval(target);
+        val = new_ir_unary(IR_LOAD, lval, vtype);
+        if (expr->incdec.is_post)
+          before = val;
       }
 
-      VReg *lval = gen_lval(sub);
+      VReg *addend =
 #ifndef __NO_FLONUM
-      if (is_flonum(sub->type)) {
-        VReg *val = new_ir_unary(IR_LOAD, lval, vtype);
-        VReg *one = gen_const_flonum(new_expr_flolit(sub->type, NULL, value));
-        VReg *result = new_ir_bop(expr->kind == EX_PREINC ? IR_ADD : IR_SUB,
-                                  val, one, vtype);
-        new_ir_store(lval, result);
-        return result;
-      }
+          is_flonum(target->type) ? gen_const_flonum(new_expr_flolit(target->type, NULL, 1)) :
 #endif
-      VReg *val = new_ir_unary(IR_LOAD, lval, vtype);
-      VReg *num = new_const_vreg(value, vtype);
-      VReg *result = new_ir_bop(expr->kind == EX_PREINC ? IR_ADD : IR_SUB,
-                                val, num, vtype);
-      new_ir_store(lval, result);
-      return result;
-    }
-
-  case EX_POSTINC:
-  case EX_POSTDEC:
-    {
-      size_t value = 1;
-      if (expr->type->kind == TY_PTR)
-        value = type_size(expr->type->pa.ptrof);
-
-      VRegType *vtype = to_vtype(expr->type);
-      Expr *sub = expr->unary.sub;
-      if (sub->kind == EX_VAR && !is_global_scope(sub->var.scope)) {
-        const VarInfo *varinfo = scope_find(sub->var.scope, sub->var.name, NULL);
-        assert(varinfo != NULL);
-        if (!(varinfo->storage & (VS_STATIC | VS_EXTERN))) {
-#ifndef __NO_FLONUM
-          if (is_flonum(sub->type)) {
-            VReg *org_val = add_new_reg(sub->type, 0);
-            new_ir_mov(org_val, varinfo->local.reg);
-            VReg *one = gen_const_flonum(new_expr_flolit(sub->type, NULL, 1));
-            VReg *result = new_ir_bop(expr->kind == EX_POSTINC ? IR_ADD : IR_SUB,
-                                      varinfo->local.reg, one, vtype);
-            new_ir_mov(varinfo->local.reg, result);
-            return org_val;
-          }
-#endif
-          VReg *org_val = add_new_reg(sub->type, 0);
-          new_ir_mov(org_val, varinfo->local.reg);
-          VReg *num = new_const_vreg(value, vtype);
-          VReg *result = new_ir_bop(expr->kind == EX_POSTINC ? IR_ADD : IR_SUB,
-                                    varinfo->local.reg, num, vtype);
-          new_ir_mov(varinfo->local.reg, result);
-          return org_val;
-        }
-      }
-
-      VReg *lval = gen_lval(expr->unary.sub);
-#ifndef __NO_FLONUM
-      if (is_flonum(sub->type)) {
-        VReg *val = new_ir_unary(IR_LOAD, lval, vtype);
-        VReg *one = gen_const_flonum(new_expr_flolit(sub->type, NULL, value));
-        VReg *result = new_ir_bop(expr->kind == EX_POSTINC ? IR_ADD : IR_SUB,
-                                  val, one, vtype);
-        new_ir_store(lval, result);
-        return val;
-      }
-#endif
-      VReg *result = new_ir_unary(IR_LOAD, lval, vtype);
-      VReg *num = new_const_vreg(value, vtype);
-      VReg *added = new_ir_bop(expr->kind == EX_POSTINC ? IR_ADD : IR_SUB,
-                               result, num, vtype);
-      new_ir_store(lval, added);
-      return result;
+          new_const_vreg(expr->type->kind == TY_PTR ? type_size(expr->type->pa.ptrof) : 1, vtype);
+      VReg *after = new_ir_bop(kOpAddSub[expr->incdec.is_dec], val, addend, vtype);
+      if (varinfo != NULL)  new_ir_mov(varinfo->local.reg, after);
+                      else  new_ir_store(lval, after);
+      return before != NULL ? before : after;
     }
 
   case EX_FUNCALL:

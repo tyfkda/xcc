@@ -106,6 +106,14 @@ Expr *new_expr_unary(enum ExprKind kind, Type *type, const Token *token, Expr *s
   return expr;
 }
 
+Expr *new_expr_incdec(const Token *token, Expr *target, bool is_post, bool is_dec) {
+  Expr *expr = new_expr(EX_INCDEC, target->type, token);
+  expr->incdec.target = target;
+  expr->incdec.is_post = is_post;
+  expr->incdec.is_dec = is_dec;
+  return expr;
+}
+
 Expr *new_expr_deref(const Token *token, Expr *sub) {
   assert(sub->type != NULL);
   assert(sub->type->kind == TY_PTR || sub->type->kind == TY_ARRAY);

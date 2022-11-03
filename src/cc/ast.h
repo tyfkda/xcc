@@ -61,10 +61,7 @@ enum ExprKind {
   EX_POS,     // +
   EX_NEG,     // -
   EX_BITNOT,  // ~x
-  EX_PREINC,  // ++e
-  EX_PREDEC,  // --e
-  EX_POSTINC, // e++
-  EX_POSTDEC, // e--
+  EX_INCDEC,  // ++e or --e, or e++ or e--
   EX_REF,     // &
   EX_DEREF,   // *
   EX_CAST,
@@ -103,6 +100,11 @@ typedef struct Expr {
       struct Expr *sub;
     } unary;
     struct {
+      struct Expr *target;
+      bool is_post;
+      bool is_dec;
+    } incdec;
+    struct {
       struct Expr *cond;
       struct Expr *tval;
       struct Expr *fval;
@@ -132,6 +134,7 @@ Expr *new_expr_flolit(Type *type, const Token *token, double flonum);
 Expr *new_expr_str(const Token *token, const char *str, ssize_t size);
 Expr *new_expr_bop(enum ExprKind kind, Type *type, const Token *token, Expr *lhs, Expr *rhs);
 Expr *new_expr_unary(enum ExprKind kind, Type *type, const Token *token, Expr *sub);
+Expr *new_expr_incdec(const Token *token, Expr *target, bool is_post, bool is_dec);
 Expr *new_expr_deref(const Token *token, Expr *sub);
 Expr *new_expr_ternary(const Token *token, Expr *cond, Expr *tval, Expr *fval, Type *type);
 Expr *new_expr_variable(const Name *name, Type *type, const Token *token, Scope *scope);

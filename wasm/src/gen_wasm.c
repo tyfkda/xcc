@@ -768,23 +768,26 @@ void gen_expr(Expr *expr, bool needval) {
     }
     break;
 
-  case EX_PREINC:
-  case EX_PREDEC:
+  case EX_INCDEC:
     {
       assert(is_prim_type(expr->type));
-      Expr *sub = expr->unary.sub;
-      if (sub->kind == EX_COMPLIT) {
-        gen_expr(sub, true);
-        sub = sub->complit.var;
-        assert(sub->kind == EX_VAR);
+      Expr *target = expr->incdec.target;
+      if (target->kind == EX_COMPLIT) {
+        gen_expr(target, true);
+        target = target->complit.var;
+        assert(target->kind == EX_VAR);
       } else {
-        assert(sub->kind == EX_VAR);
-        gen_expr(sub, true);
+        assert(target->kind == EX_VAR);
+        gen_expr(target, true);
       }
-      gen_incdec(expr->type, expr->kind - EX_PREINC);
+      if (expr->incdec.is_post && needval) {
+        gen_expr(target, true);  // Duplicate the result: target is VAR.
+        needval = false;
+      }
+      gen_incdec(expr->type, expr->incdec.is_dec);
 
       Scope *scope;
-      const VarInfo *varinfo = scope_find(sub->var.scope, sub->var.name, &scope);
+      const VarInfo *varinfo = scope_find(target->var.scope, target->var.name, &scope);
       assert(varinfo != NULL);
       if (!is_global_scope(scope) && !(varinfo->storage & (VS_STATIC | VS_EXTERN))) {
         VReg *vreg = varinfo->local.reg;
@@ -792,40 +795,13 @@ void gen_expr(Expr *expr, bool needval) {
         ADD_CODE(needval ? OP_LOCAL_TEE : OP_LOCAL_SET);
         ADD_ULEB128(vreg->prim.local_index);
       } else {
-        GVarInfo *info = get_gvar_info(sub);
+        GVarInfo *info = get_gvar_info(target);
         ADD_CODE(OP_GLOBAL_SET);
         ADD_ULEB128(info->prim.index);
         if (needval) {
           ADD_CODE(OP_GLOBAL_GET);
           ADD_ULEB128(info->prim.index);
         }
-      }
-    }
-    break;
-
-  case EX_POSTINC:
-  case EX_POSTDEC:
-    {
-      assert(is_prim_type(expr->type));
-      Expr *sub = expr->unary.sub;
-      assert(sub->kind == EX_VAR);
-      if (needval)
-        gen_expr(sub, true);  // Push the result first.
-      gen_expr(sub, true);
-      gen_incdec(expr->type, expr->kind - EX_POSTINC);
-
-      Scope *scope;
-      const VarInfo *varinfo = scope_find(sub->var.scope, sub->var.name, &scope);
-      assert(varinfo != NULL);
-      if (!is_global_scope(scope) && !(varinfo->storage & (VS_STATIC | VS_EXTERN))) {
-        VReg *vreg = varinfo->local.reg;
-        assert(vreg != NULL);
-        ADD_CODE(OP_LOCAL_SET);
-        ADD_ULEB128(vreg->prim.local_index);
-      } else {
-        GVarInfo *info = get_gvar_info(sub);
-        ADD_CODE(OP_GLOBAL_SET);
-        ADD_ULEB128(info->prim.index);
       }
     }
     break;

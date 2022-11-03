@@ -157,13 +157,13 @@ static Stmt *build_memcpy(Expr *dst, Expr *src, size_t size) {
       NULL,
       new_expr_bop(EX_ASSIGN, &tySize, NULL, sizeexpr, size_num),    // for (_size = size;
       new_expr_bop(EX_GT, &tyBool, NULL, sizeexpr, zeroexpr),        //      _size > 0;
-      new_expr_unary(EX_PREDEC, &tySize, NULL, sizeexpr),            //      --_size)
+      new_expr_incdec(NULL, sizeexpr, false, true),  //      --_size)
       new_stmt_expr(                                                 //   *_dst++ = *_src++;
           new_expr_bop(EX_ASSIGN, &tyChar, NULL,
                        new_expr_unary(EX_DEREF, &tyChar, NULL,
-                                      new_expr_unary(EX_POSTINC, charptr_type, NULL, dstexpr)),
+                                      new_expr_incdec(NULL, dstexpr, true, false)),
                        new_expr_unary(EX_DEREF, &tyChar, NULL,
-                                      new_expr_unary(EX_POSTINC, charptr_type, NULL, srcexpr))))));
+                                      new_expr_incdec(NULL, srcexpr, true, false))))));
   return new_stmt_block(NULL, stmts, NULL);
 }
 
