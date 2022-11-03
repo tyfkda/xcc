@@ -618,6 +618,42 @@ static void gen_block_expr(Stmt *stmt, bool needval) {
     curscope = curscope->parent;
 }
 
+static void gen_incdec(const Type *type, bool dec) {
+  int addend = type->kind == TY_PTR ? type_size(type->pa.ptrof) : 1;
+  unsigned char wtype = to_wtype(type);
+  switch (wtype) {
+  case WT_I32:
+  case WT_I64:
+    {
+      static unsigned char CONST_OP[] = {OP_I32_CONST, OP_I64_CONST};
+      static unsigned char ADDSUB_OP[] = {OP_I32_ADD, OP_I64_ADD, OP_I32_SUB, OP_I64_SUB};
+      int i1 = wtype == WT_I32 ? 0 : 1;
+      int i2 = dec ? 2 : 0;
+      ADD_CODE(CONST_OP[i1]);
+      ADD_ULEB128(addend);
+      ADD_CODE(ADDSUB_OP[i1 | i2]);
+    }
+    break;
+  case WT_F32:
+  case WT_F64:
+    {
+      static unsigned char ADDSUB_OP[] = {OP_F32_ADD, OP_F64_ADD, OP_F32_SUB, OP_F64_SUB};
+      int i2 = dec ? 2 : 0;
+      if (wtype == WT_F32) {
+        ADD_CODE(OP_F32_CONST);
+        ADD_F32(addend);
+      } else {
+        ADD_CODE(OP_F64_CONST);
+        ADD_F64(addend);
+        i2 += 1;
+      }
+      ADD_CODE(ADDSUB_OP[i2]);
+    }
+    break;
+  default: assert(false); break;
+  }
+}
+
 void gen_expr(Expr *expr, bool needval) {
   switch (expr->kind) {
   case EX_FIXNUM:
@@ -745,14 +781,7 @@ void gen_expr(Expr *expr, bool needval) {
         assert(sub->kind == EX_VAR);
         gen_expr(sub, true);
       }
-      switch (to_wtype(expr->type)) {
-      case WT_I32:
-        ADD_CODE(OP_I32_CONST);
-        ADD_ULEB128(expr->type->kind == TY_PTR ? type_size(expr->type->pa.ptrof) : 1);
-        ADD_CODE(expr->kind == EX_PREINC ? OP_I32_ADD : OP_I32_SUB);
-        break;
-      default: assert(false); break;
-      }
+      gen_incdec(expr->type, expr->kind - EX_PREINC);
 
       Scope *scope;
       const VarInfo *varinfo = scope_find(sub->var.scope, sub->var.name, &scope);
@@ -783,14 +812,7 @@ void gen_expr(Expr *expr, bool needval) {
       if (needval)
         gen_expr(sub, true);  // Push the result first.
       gen_expr(sub, true);
-      switch (to_wtype(expr->type)) {
-      case WT_I32:
-        ADD_CODE(OP_I32_CONST);
-        ADD_ULEB128(expr->type->kind == TY_PTR ? type_size(expr->type->pa.ptrof) : 1);
-        ADD_CODE(expr->kind == EX_POSTINC ? OP_I32_ADD : OP_I32_SUB);
-        break;
-      default: assert(false); break;
-      }
+      gen_incdec(expr->type, expr->kind - EX_POSTINC);
 
       Scope *scope;
       const VarInfo *varinfo = scope_find(sub->var.scope, sub->var.name, &scope);
