@@ -116,7 +116,6 @@ update-lib:
 		> lib/libc.c
 	npx ts-node tool/update_lib_list.ts
 
-.PHONY: deploy
-deploy:	assets
+.PHONY: release
+release:	assets
 	npm run release
-	cd ../gh-pages && git commit -a --amend -m 'Deploy' && git push -f && cd ../wasm

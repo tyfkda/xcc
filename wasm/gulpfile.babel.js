@@ -35,7 +35,7 @@ const SRC_HTML_FILES = `${SRC_HTML_DIR}/*.html`
 const SRC_SASS_FILES = `${ROOT_DIR}/src/www/**/*.scss`
 const SRC_TEST_DIR = `${ROOT_DIR}/test`
 const SRC_TEST_FILES = `${SRC_TEST_DIR}/**/*.spec.ts`
-const RELEASE_DIR = `${ROOT_DIR}/../gh-pages`
+const RELEASE_DIR = `${ROOT_DIR}/release`
 const RELEASE_ASSETS_DIR = `${RELEASE_DIR}`
 
 function convertHtml(buildTarget, dest) {

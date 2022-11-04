@@ -5,5 +5,5 @@ a.wasm
 /tests/*.wasm
 
 /public/
+/release/
 node_modules
-package-lock.json
