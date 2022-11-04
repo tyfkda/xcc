@@ -44,6 +44,7 @@ typedef struct VReg {
 } VReg;
 
 VReg *new_vreg(int vreg_no, const VRegType *vtype, int flag);
+void spill_vreg(VReg *vreg);
 
 // Intermediate Representation
 
@@ -202,6 +203,7 @@ typedef struct BBContainer {
 
 BBContainer *new_func_blocks(void);
 void remove_unnecessary_bb(BBContainer *bbcon);
+void analyze_reg_flow(BBContainer *bbcon);
 int push_callee_save_regs(unsigned long used, unsigned long fused);
 void pop_callee_save_regs(unsigned long used, unsigned long fused);
 
@@ -214,6 +216,7 @@ typedef struct FuncBackend {
   BBContainer *bbcon;
   BB *ret_bb;
   VReg *retval;
+  size_t frame_size;
 } FuncBackend;
 
 //

@@ -2,7 +2,7 @@
 #include "regalloc.h"
 
 #include <assert.h>
-#include <limits.h>
+#include <limits.h>  // CHAR_BIT
 #include <stdlib.h>  // malloc
 #include <string.h>
 
@@ -13,26 +13,16 @@
 #include "util.h"
 #include "var.h"
 
-static void spill_vreg(VReg *vreg) {
-  vreg->phys = -1;  //SPILLED_REG_NO(ra);
-  assert(!(vreg->flag & VRF_NO_SPILL));
-  vreg->flag |= VRF_SPILLED;
-}
-
 // Register allocator
 
 RegAlloc *new_reg_alloc(int phys_max) {
   RegAlloc *ra = malloc(sizeof(*ra));
-  ra->vregs = new_vector();
-  //ra->regno = 0;
-  vec_clear(ra->vregs);
-  ra->frame_size = 0;
-  ra->phys_max = phys_max;
-#ifndef __NO_FLONUM
-  ra->fphys_max = 0;
-#else
   assert(phys_max < (int)(sizeof(ra->used_reg_bits) * CHAR_BIT));
-#endif
+  ra->vregs = new_vector();
+  ra->intervals = NULL;
+  ra->sorted_intervals = NULL;
+  ra->phys_max = phys_max;
+  ra->fphys_max = 0;
   ra->used_reg_bits = 0;
   ra->used_freg_bits = 0;
   return ra;
@@ -314,243 +304,17 @@ static int insert_load_store_spilled_irs(RegAlloc *ra, BBContainer *bbcon) {
   return inserted;
 }
 
-static void analyze_reg_flow(BBContainer *bbcon) {
-  // Enumerate in and defined regsiters for each BB.
-  for (int i = 0; i < bbcon->bbs->len; ++i) {
-    BB *bb = bbcon->bbs->data[i];
-    Vector *in_regs = new_vector();
-    Vector *assigned_regs = new_vector();
-    Vector *irs = bb->irs;
-    for (int j = 0; j < irs->len; ++j) {
-      IR *ir = irs->data[j];
-      VReg *regs[] = {ir->opr1, ir->opr2};
-      for (int k = 0; k < 2; ++k) {
-        VReg *reg = regs[k];
-        if (reg == NULL || reg->flag & VRF_CONST)
-          continue;
-        if (!vec_contains(in_regs, reg) &&
-            !vec_contains(assigned_regs, reg))
-          vec_push(in_regs, reg);
-      }
-      if (ir->dst != NULL && !vec_contains(assigned_regs, ir->dst))
-        vec_push(assigned_regs, ir->dst);
-    }
-
-    bb->in_regs = in_regs;
-    bb->out_regs = new_vector();
-    bb->assigned_regs = assigned_regs;
-  }
-
-  // Propagate in regs to previous BB.
-  bool cont;
-  do {
-    cont = false;
-    for (int i = 0; i < bbcon->bbs->len; ++i) {
-      BB *bb = bbcon->bbs->data[i];
-      Vector *irs = bb->irs;
-
-      BB *next_bbs[2];
-      next_bbs[0] = bb->next;
-      next_bbs[1] = NULL;
-
-      size_t tjmp_len = 0;
-      BB **tjmp_bbs = NULL;
-      if (irs->len > 0) {
-        IR *ir = irs->data[irs->len - 1];
-        switch (ir->kind) {
-        case IR_JMP:
-          next_bbs[1] = ir->jmp.bb;
-          if (ir->jmp.cond == COND_ANY)
-            next_bbs[0] = NULL;
-          break;
-        case IR_TJMP:
-          tjmp_len = ir->tjmp.len;
-          tjmp_bbs = ir->tjmp.bbs;
-          break;
-        default: break;
-        }
-      }
-      for (size_t j = 0; j < 2 + tjmp_len; ++j) {
-        BB *next = j < 2 ? next_bbs[j] : tjmp_bbs[j - 2];
-        if (next == NULL)
-          continue;
-        Vector *in_regs = next->in_regs;
-        for (int k = 0; k < in_regs->len; ++k) {
-          VReg *reg = in_regs->data[k];
-          if (!vec_contains(bb->out_regs, reg))
-            vec_push(bb->out_regs, reg);
-          if (vec_contains(bb->assigned_regs, reg) ||
-              vec_contains(bb->in_regs, reg))
-            continue;
-          vec_push(bb->in_regs, reg);
-          cont = true;
-        }
-      }
-    }
-  } while (cont);
-}
-
-// Detect living registers for each instruction.
-static void detect_living_registers(
-  RegAlloc *ra, BBContainer *bbcon, LiveInterval **sorted_intervals, int vreg_count
-) {
-#ifdef __NO_FLONUM
-  int maxbit = ra->phys_max;
-#else
-  int maxbit = ra->phys_max + ra->fphys_max;
-#endif
-  unsigned long living_pregs = 0;
-  assert((int)sizeof(living_pregs) * CHAR_BIT >= maxbit);
-  LiveInterval **livings = ALLOCA(sizeof(*livings) * maxbit);
-  for (int i = 0; i < maxbit; ++i)
-    livings[i] = NULL;
-
-  int nip = 0, head = 0;
-  for (int i = 0; i < bbcon->bbs->len; ++i) {
-    BB *bb = bbcon->bbs->data[i];
-    for (int j = 0; j < bb->irs->len; ++j, ++nip) {
-      // Eliminate deactivated registers.
-      for (int k = 0; k < maxbit; ++k) {
-        LiveInterval *li = livings[k];
-        if (li != NULL && nip == li->end) {
-          int phys = li->phys;
-#ifndef __NO_FLONUM
-          if (((VReg*)ra->vregs->data[li->virt])->vtype->flag & VRTF_FLONUM)
-            phys += ra->phys_max;
-#endif
-          assert(phys == k);
-          living_pregs &= ~(1U << phys);
-          livings[k] = NULL;
-        }
-      }
-
-      // Store living regs to IR_CALL.
-      IR *ir = bb->irs->data[j];
-      if (ir->kind == IR_CALL) {
-        // Store it into corresponding precall.
-        IR *ir_precall = ir->call.precall;
-        ir_precall->precall.living_pregs = living_pregs;
-      }
-
-      // Add activated registers.
-      for (; head < vreg_count; ++head) {
-        LiveInterval *li = sorted_intervals[head];
-        if (li->state != LI_NORMAL)
-          continue;
-        if (li->start > nip)
-          break;
-        int phys = li->phys;
-#ifndef __NO_FLONUM
-        if (((VReg*)ra->vregs->data[li->virt])->vtype->flag & VRTF_FLONUM)
-          phys += ra->phys_max;
-#endif
-        if (nip == li->start) {
-          living_pregs |= 1UL << phys;
-          livings[phys] = li;
-        }
-      }
-    }
-  }
-}
-
-void prepare_register_allocation(Function *func) {
-  // Handle function parameters first.
-  if (func->type->func.params != NULL) {
-    const int DEFAULT_OFFSET = WORD_SIZE * 2;  // Return address, saved base pointer.
-    assert((Scope*)func->scopes->data[0] != NULL);
-    int ireg_index = is_stack_param(func->type->func.ret) ? 1 : 0;
-#ifndef __NO_FLONUM
-    int freg_index = 0;
-#endif
-    int reg_param_index = ireg_index;
-    int offset = DEFAULT_OFFSET;
-    for (int j = 0; j < func->type->func.params->len; ++j) {
-      VarInfo *varinfo = func->type->func.params->data[j];
-      VReg *vreg = varinfo->local.reg;
-      // Currently, all parameters are force spilled.
-      spill_vreg(vreg);
-      // stack parameters
-      if (is_stack_param(varinfo->type)) {
-        vreg->offset = offset = ALIGN(offset, align_size(varinfo->type));
-        offset += type_size(varinfo->type);
-        continue;
-      }
-
-      if (func->type->func.vaargs) {  // Variadic function parameters.
-#ifndef __NO_FLONUM
-        if (is_flonum(varinfo->type))
-          vreg->offset = (freg_index - MAX_FREG_ARGS) * WORD_SIZE;
-        else
-#endif
-          vreg->offset = (ireg_index - MAX_REG_ARGS - MAX_FREG_ARGS) * WORD_SIZE;
-      }
-      ++reg_param_index;
-      bool through_stack;
-#ifndef __NO_FLONUM
-      if (is_flonum(varinfo->type)) {
-        through_stack = freg_index >= MAX_FREG_ARGS;
-        ++freg_index;
-      } else
-#endif
-      {
-        through_stack = ireg_index >= MAX_REG_ARGS;
-        ++ireg_index;
-      }
-
-      if (through_stack) {
-        // Function argument passed through the stack.
-        vreg->offset = offset;
-        offset += WORD_SIZE;
-      }
-    }
-  }
-
-  for (int i = 0; i < func->scopes->len; ++i) {
-    Scope *scope = (Scope*)func->scopes->data[i];
-    if (scope->vars == NULL)
-      continue;
-
-    for (int j = 0; j < scope->vars->len; ++j) {
-      VarInfo *varinfo = scope->vars->data[j];
-      if (varinfo->storage & (VS_STATIC | VS_EXTERN | VS_ENUM_MEMBER))
-        continue;
-      VReg *vreg = varinfo->local.reg;
-      if (vreg == NULL || vreg->flag & VRF_PARAM)
-        continue;
-
-      bool spill = false;
-      if (vreg->flag & VRF_REF)
-        spill = true;
-
-      switch (varinfo->type->kind) {
-      case TY_ARRAY:
-      case TY_STRUCT:
-        // Make non-primitive variable spilled.
-        spill = true;
-        break;
-      default:
-        break;
-      }
-
-      if (spill)
-        spill_vreg(vreg);
-    }
-  }
-}
-
-void alloc_physical_registers(RegAlloc *ra, BBContainer *bbcon, int reserved_size) {
+void alloc_physical_registers(RegAlloc *ra, BBContainer *bbcon) {
   assert(ra->phys_max < (int)(sizeof(ra->used_reg_bits) * CHAR_BIT));
 #ifndef __NO_FLONUM
   assert(ra->fphys_max < (int)(sizeof(ra->used_freg_bits) * CHAR_BIT));
 #endif
-  analyze_reg_flow(bbcon);
 
   LiveInterval *intervals = NULL;
   LiveInterval **sorted_intervals = NULL;
 
-  int vreg_count = ra->vregs->len;
-
   for (;;) {
+    int vreg_count = ra->vregs->len;
     intervals = realloc(intervals, sizeof(LiveInterval) * vreg_count);
     check_live_interval(bbcon, vreg_count, intervals);
 
@@ -579,7 +343,7 @@ void alloc_physical_registers(RegAlloc *ra, BBContainer *bbcon, int reserved_siz
     sorted_intervals = realloc(sorted_intervals, sizeof(LiveInterval*) * vreg_count);
     for (int i = 0; i < vreg_count; ++i)
       sorted_intervals[i] = &intervals[i];
-    myqsort(sorted_intervals, vreg_count, sizeof(LiveInterval *), sort_live_interval);
+    myqsort(sorted_intervals, vreg_count, sizeof(LiveInterval*), sort_live_interval);
     ra->sorted_intervals = sorted_intervals;
 
     linear_scan_register_allocation(ra, sorted_intervals, vreg_count);
@@ -589,51 +353,16 @@ void alloc_physical_registers(RegAlloc *ra, BBContainer *bbcon, int reserved_siz
       LiveInterval *li = &intervals[i];
       if (li->state == LI_SPILL) {
         VReg *vreg = ra->vregs->data[i];
+        if (vreg->flag & VRF_SPILLED)
+          continue;
         spill_vreg(vreg);
       }
     }
 
     if (insert_load_store_spilled_irs(ra, bbcon) <= 0)
       break;
-    vreg_count = ra->vregs->len;
   }
 
-  // Map vreg to preg.
-  for (int i = 0; i < vreg_count; ++i) {
-    VReg *vreg = ra->vregs->data[i];
-    LiveInterval *li = &intervals[i];
-    if (li->state != LI_CONST)
-      vreg->phys = intervals[vreg->virt].phys;
-  }
-
-  detect_living_registers(ra, bbcon, sorted_intervals, vreg_count);
-
-  // Allocate spilled virtual registers onto stack.
-  int frame_size = reserved_size;
-  for (int i = 0; i < vreg_count; ++i) {
-    LiveInterval *li = sorted_intervals[i];
-    if (li->state != LI_SPILL)
-      continue;
-    VReg *vreg = ra->vregs->data[li->virt];
-    if (vreg->offset != 0) {  // Variadic function parameter or stack parameter.
-      if (-vreg->offset > frame_size)
-        frame_size = -vreg->offset;
-      continue;
-    }
-
-    int size, align;
-    const VRegType *vtype = vreg->vtype;
-    assert(vtype != NULL);
-    size = vtype->size;
-    align = vtype->align;
-    if (size < 1)
-      size = 1;
-
-    frame_size = ALIGN(frame_size + size, align);
-    vreg->offset = -frame_size;
-  }
-
+  ra->intervals = intervals;
   ra->sorted_intervals = sorted_intervals;
-
-  ra->frame_size = ALIGN(frame_size, 8);
 }

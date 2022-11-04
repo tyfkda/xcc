@@ -11,11 +11,25 @@ typedef struct VReg VReg;
 typedef struct VRegType VRegType;
 typedef struct Vector Vector;
 
-typedef struct RegAlloc {
-  Vector *vregs;
-  struct LiveInterval **sorted_intervals;
+enum LiveIntervalState {
+  LI_NORMAL,
+  LI_SPILL,
+  LI_CONST,
+};
 
-  size_t frame_size;
+typedef struct LiveInterval {
+  enum LiveIntervalState state;
+  int start;
+  int end;
+  int virt;  // Virtual reg no.
+  int phys;  // Mapped physical reg no.
+} LiveInterval;
+
+typedef struct RegAlloc {
+  Vector *vregs;  // <VReg*>
+  LiveInterval *intervals;  // size=vregs->len
+  LiveInterval **sorted_intervals;
+
   int phys_max;  // Max physical register count.
   int fphys_max;  // Floating-point register.
   unsigned long used_reg_bits;
@@ -24,22 +38,4 @@ typedef struct RegAlloc {
 
 RegAlloc *new_reg_alloc(int phys_max);
 VReg *reg_alloc_spawn(RegAlloc *ra, const VRegType *vtype, int flag);
-
-void prepare_register_allocation(Function *func);
-void alloc_physical_registers(RegAlloc *ra, BBContainer *bbcon, int reserved_size);
-
-// Private
-
-enum LiveIntervalState {
-  LI_NORMAL,
-  LI_SPILL,
-  LI_CONST,
-};
-
-typedef struct LiveInterval {
-  int virt;  // Virtual reg no.
-  int start;
-  int end;
-  enum LiveIntervalState state;
-  int phys;  // Mapped physical reg no.
-} LiveInterval;
+void alloc_physical_registers(RegAlloc *ra, BBContainer *bbcon);

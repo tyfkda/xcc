@@ -499,9 +499,9 @@ static void emit_defun(Function *func) {
   if (!no_stmt) {
     PUSH(RBP); PUSH_STACK_POS();
     MOV(RSP, RBP);
-    if (fnbe->ra->frame_size > 0) {
-      SUB(IM(fnbe->ra->frame_size), RSP);
-      stackpos += fnbe->ra->frame_size;
+    if (fnbe->frame_size > 0) {
+      SUB(IM(fnbe->frame_size), RSP);
+      stackpos += fnbe->frame_size;
     }
 
     put_args_to_stack(func);
@@ -516,14 +516,14 @@ static void emit_defun(Function *func) {
   if (!no_stmt) {
     if (func->flag & FUNCF_STACK_MODIFIED) {
       // Stack pointer might be changed if alloca is used, so it need to be recalculated.
-      LEA(OFFSET_INDIRECT(callee_saved_count * -WORD_SIZE - fnbe->ra->frame_size, RBP, NULL, 1),
+      LEA(OFFSET_INDIRECT(callee_saved_count * -WORD_SIZE - fnbe->frame_size, RBP, NULL, 1),
           RSP);
     }
 
     pop_callee_save_regs(fnbe->ra->used_reg_bits, fnbe->ra->used_freg_bits);
 
     MOV(RBP, RSP);
-    stackpos -= fnbe->ra->frame_size;
+    stackpos -= fnbe->frame_size;
     POP(RBP); POP_STACK_POS();
   }
 

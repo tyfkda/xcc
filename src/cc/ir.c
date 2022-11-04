@@ -25,6 +25,12 @@ VReg *new_vreg(int vreg_no, const VRegType *vtype, int flag) {
   return vreg;
 }
 
+void spill_vreg(VReg *vreg) {
+  vreg->phys = -1;  //SPILLED_REG_NO(ra);
+  assert(!(vreg->flag & VRF_NO_SPILL));
+  vreg->flag |= VRF_SPILLED;
+}
+
 //
 RegAlloc *curra;
 
@@ -495,4 +501,80 @@ void remove_unnecessary_bb(BBContainer *bbcon) {
     if (ir != NULL && ir->jmp.bb == bb->next)
       vec_pop(bb->irs);
   }
+}
+
+void analyze_reg_flow(BBContainer *bbcon) {
+  // Enumerate in and assigned regsiters for each BB.
+  for (int i = 0; i < bbcon->bbs->len; ++i) {
+    BB *bb = bbcon->bbs->data[i];
+    Vector *in_regs = new_vector();
+    Vector *assigned_regs = new_vector();
+    Vector *irs = bb->irs;
+    for (int j = 0; j < irs->len; ++j) {
+      IR *ir = irs->data[j];
+      VReg *regs[] = {ir->opr1, ir->opr2};
+      for (int k = 0; k < 2; ++k) {
+        VReg *reg = regs[k];
+        if (reg == NULL || reg->flag & VRF_CONST)
+          continue;
+        if (!vec_contains(in_regs, reg) &&
+            !vec_contains(assigned_regs, reg))
+          vec_push(in_regs, reg);
+      }
+      if (ir->dst != NULL && !vec_contains(assigned_regs, ir->dst))
+        vec_push(assigned_regs, ir->dst);
+    }
+
+    bb->in_regs = in_regs;
+    bb->out_regs = new_vector();
+    bb->assigned_regs = assigned_regs;
+  }
+
+  // Propagate in regs to previous BB.
+  bool cont;
+  do {
+    cont = false;
+    for (int i = 0; i < bbcon->bbs->len; ++i) {
+      BB *bb = bbcon->bbs->data[i];
+      Vector *irs = bb->irs;
+
+      BB *next_bbs[2];
+      next_bbs[0] = bb->next;
+      next_bbs[1] = NULL;
+
+      size_t tjmp_len = 0;
+      BB **tjmp_bbs = NULL;
+      if (irs->len > 0) {
+        IR *ir = irs->data[irs->len - 1];
+        switch (ir->kind) {
+        case IR_JMP:
+          next_bbs[1] = ir->jmp.bb;
+          if (ir->jmp.cond == COND_ANY)
+            next_bbs[0] = NULL;
+          break;
+        case IR_TJMP:
+          tjmp_len = ir->tjmp.len;
+          tjmp_bbs = ir->tjmp.bbs;
+          break;
+        default: break;
+        }
+      }
+      for (size_t j = 0; j < 2 + tjmp_len; ++j) {
+        BB *next = j < 2 ? next_bbs[j] : tjmp_bbs[j - 2];
+        if (next == NULL)
+          continue;
+        Vector *in_regs = next->in_regs;
+        for (int k = 0; k < in_regs->len; ++k) {
+          VReg *reg = in_regs->data[k];
+          if (!vec_contains(bb->out_regs, reg))
+            vec_push(bb->out_regs, reg);
+          if (vec_contains(bb->assigned_regs, reg) ||
+              vec_contains(bb->in_regs, reg))
+            continue;
+          vec_push(bb->in_regs, reg);
+          cont = true;
+        }
+      }
+    }
+  } while (cont);
 }

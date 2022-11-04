@@ -3,6 +3,7 @@
 
 #include <assert.h>
 #include <inttypes.h>
+#include <limits.h>  // CHAR_BIT
 #include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
@@ -470,6 +471,188 @@ void gen_stmt(Stmt *stmt) {
 
 ////////////////////////////////////////////////
 
+static void prepare_register_allocation(Function *func) {
+  // Handle function parameters first.
+  if (func->type->func.params != NULL) {
+    const int DEFAULT_OFFSET = WORD_SIZE * 2;  // Return address, saved base pointer.
+    assert((Scope*)func->scopes->data[0] != NULL);
+    int ireg_index = is_stack_param(func->type->func.ret) ? 1 : 0;
+#ifndef __NO_FLONUM
+    int freg_index = 0;
+#endif
+    int reg_param_index = ireg_index;
+    int offset = DEFAULT_OFFSET;
+    for (int j = 0; j < func->type->func.params->len; ++j) {
+      VarInfo *varinfo = func->type->func.params->data[j];
+      VReg *vreg = varinfo->local.reg;
+      // Currently, all parameters are force spilled.
+      spill_vreg(vreg);
+      // stack parameters
+      if (is_stack_param(varinfo->type)) {
+        vreg->offset = offset = ALIGN(offset, align_size(varinfo->type));
+        offset += type_size(varinfo->type);
+        continue;
+      }
+
+      if (func->type->func.vaargs) {  // Variadic function parameters.
+#ifndef __NO_FLONUM
+        if (is_flonum(varinfo->type))
+          vreg->offset = (freg_index - MAX_FREG_ARGS) * WORD_SIZE;
+        else
+#endif
+          vreg->offset = (ireg_index - MAX_REG_ARGS - MAX_FREG_ARGS) * WORD_SIZE;
+      }
+      ++reg_param_index;
+      bool through_stack;
+#ifndef __NO_FLONUM
+      if (is_flonum(varinfo->type)) {
+        through_stack = freg_index >= MAX_FREG_ARGS;
+        ++freg_index;
+      } else
+#endif
+      {
+        through_stack = ireg_index >= MAX_REG_ARGS;
+        ++ireg_index;
+      }
+
+      if (through_stack) {
+        // Function argument passed through the stack.
+        vreg->offset = offset;
+        offset += WORD_SIZE;
+      }
+    }
+  }
+
+  for (int i = 0; i < func->scopes->len; ++i) {
+    Scope *scope = (Scope*)func->scopes->data[i];
+    if (scope->vars == NULL)
+      continue;
+
+    for (int j = 0; j < scope->vars->len; ++j) {
+      VarInfo *varinfo = scope->vars->data[j];
+      if (varinfo->storage & (VS_STATIC | VS_EXTERN | VS_ENUM_MEMBER))
+        continue;
+      VReg *vreg = varinfo->local.reg;
+      if (vreg == NULL || vreg->flag & VRF_PARAM)
+        continue;
+
+      bool spill = false;
+      if (vreg->flag & VRF_REF)
+        spill = true;
+
+      switch (varinfo->type->kind) {
+      case TY_ARRAY:
+      case TY_STRUCT:
+        // Make non-primitive variable spilled.
+        spill = true;
+        break;
+      default:
+        break;
+      }
+
+      if (spill)
+        spill_vreg(vreg);
+    }
+  }
+}
+
+static void map_virtual_to_physical_registers(RegAlloc *ra) {
+  for (int i = 0, vreg_count = ra->vregs->len; i < vreg_count; ++i) {
+    VReg *vreg = ra->vregs->data[i];
+    if (!(vreg->flag & VRF_CONST))
+      vreg->phys = ra->intervals[vreg->virt].phys;
+  }
+}
+
+// Detect living registers for each instruction.
+static void detect_living_registers(RegAlloc *ra, BBContainer *bbcon) {
+#ifdef __NO_FLONUM
+  int maxbit = ra->phys_max;
+#else
+  int maxbit = ra->phys_max + ra->fphys_max;
+#endif
+  unsigned long living_pregs = 0;
+  assert((int)sizeof(living_pregs) * CHAR_BIT >= maxbit);
+  LiveInterval **livings = ALLOCA(sizeof(*livings) * maxbit);
+  for (int i = 0; i < maxbit; ++i)
+    livings[i] = NULL;
+
+  int nip = 0, head = 0;
+  for (int i = 0; i < bbcon->bbs->len; ++i) {
+    BB *bb = bbcon->bbs->data[i];
+    for (int j = 0; j < bb->irs->len; ++j, ++nip) {
+      // Eliminate deactivated registers.
+      for (int k = 0; k < maxbit; ++k) {
+        LiveInterval *li = livings[k];
+        if (li != NULL && nip == li->end) {
+          int phys = li->phys;
+#ifndef __NO_FLONUM
+          if (((VReg*)ra->vregs->data[li->virt])->vtype->flag & VRTF_FLONUM)
+            phys += ra->phys_max;
+#endif
+          assert(phys == k);
+          living_pregs &= ~(1U << phys);
+          livings[k] = NULL;
+        }
+      }
+
+      // Store living regs to IR_CALL.
+      IR *ir = bb->irs->data[j];
+      if (ir->kind == IR_CALL) {
+        // Store it into corresponding precall.
+        IR *ir_precall = ir->call.precall;
+        ir_precall->precall.living_pregs = living_pregs;
+      }
+
+      // Add activated registers.
+      for (; head < ra->vregs->len; ++head) {
+        LiveInterval *li = ra->sorted_intervals[head];
+        if (li->state != LI_NORMAL)
+          continue;
+        if (li->start > nip)
+          break;
+        int phys = li->phys;
+#ifndef __NO_FLONUM
+        if (((VReg*)ra->vregs->data[li->virt])->vtype->flag & VRTF_FLONUM)
+          phys += ra->phys_max;
+#endif
+        if (nip == li->start) {
+          living_pregs |= 1UL << phys;
+          livings[phys] = li;
+        }
+      }
+    }
+  }
+}
+
+static int alloc_spilled_vregs_onto_stack_frame(RegAlloc *ra, int reserved_size) {
+  int frame_size = reserved_size;
+  for (int i = 0; i < ra->vregs->len; ++i) {
+    LiveInterval *li = ra->sorted_intervals[i];
+    if (li->state != LI_SPILL)
+      continue;
+    VReg *vreg = ra->vregs->data[li->virt];
+    if (vreg->offset != 0) {  // Variadic function parameter or stack parameter.
+      if (-vreg->offset > frame_size)
+        frame_size = -vreg->offset;
+      continue;
+    }
+
+    int size, align;
+    const VRegType *vtype = vreg->vtype;
+    assert(vtype != NULL);
+    size = vtype->size;
+    align = vtype->align;
+    if (size < 1)
+      size = 1;
+
+    frame_size = ALIGN(frame_size + size, align);
+    vreg->offset = -frame_size;
+  }
+
+  return frame_size;
+}
+
 static void gen_defun(Function *func) {
   if (func->scopes == NULL)  // Prototype definition
     return;
@@ -480,6 +663,7 @@ static void gen_defun(Function *func) {
   fnbe->bbcon = NULL;
   fnbe->ret_bb = NULL;
   fnbe->retval = NULL;
+  fnbe->frame_size = 0;
 
   fnbe->bbcon = new_func_blocks();
   set_curbb(new_bb());
@@ -514,8 +698,14 @@ static void gen_defun(Function *func) {
 
   prepare_register_allocation(func);
   tweak_irs(fnbe);
+  analyze_reg_flow(fnbe->bbcon);
+
+  alloc_physical_registers(fnbe->ra, fnbe->bbcon);
+  map_virtual_to_physical_registers(fnbe->ra);
+  detect_living_registers(fnbe->ra, fnbe->bbcon);
+
   int reserved_size = func->type->func.vaargs ? (MAX_REG_ARGS + MAX_FREG_ARGS) * WORD_SIZE : 0;
-  alloc_physical_registers(fnbe->ra, fnbe->bbcon, reserved_size);
+  fnbe->frame_size = alloc_spilled_vregs_onto_stack_frame(fnbe->ra, reserved_size);
 
   curfunc = NULL;
   curscope = global_scope;
