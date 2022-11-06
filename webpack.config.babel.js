@@ -3,7 +3,7 @@ import path from 'path'
 module.exports = {
   mode: 'production',
   entry: {
-    main: './src/www/main.ts',
+    main: './src/wcc/www/main.ts',
   },
   output: {
     path: path.resolve(__dirname, 'public/assets'),
@@ -15,8 +15,8 @@ module.exports = {
   },
   module: {
     rules: [
-      {test: /\.ts$/, include: /src\/www/, exclude: /node_modules/, use: {loader: 'ts-loader'}},
-      {test: /\.c$/, include: /src\/www\/examples/, type: 'asset/source'},
+      {test: /\.ts$/, include: /src\/wcc\/www/, exclude: /node_modules/, use: {loader: 'ts-loader'}},
+      {test: /\.c$/, include: /src\/wcc\/www\/examples/, type: 'asset/source'},
     ],
   },
 }

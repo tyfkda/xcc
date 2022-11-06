@@ -3,7 +3,7 @@
 'use strict'
 
 import * as fs from 'fs'
-import {DisWasm} from '../src/www/diswasm'
+import {DisWasm} from '../src/wcc/www/diswasm'
 
 function main(argv: string[]) {
   if (argv.length < 3) {

@@ -28,11 +28,11 @@ import del from 'del'
 const ROOT_DIR = `${__dirname}`
 const DEST_DIR = `${ROOT_DIR}/public`
 const ASSETS_DIR = `${DEST_DIR}`
-const SRC_TS_DIR = `${ROOT_DIR}/src/www`
+const SRC_TS_DIR = `${ROOT_DIR}/src/wcc/www`
 const SRC_TS_FILES = `${SRC_TS_DIR}/**/*.ts`
-const SRC_HTML_DIR = `${ROOT_DIR}/src/www`
+const SRC_HTML_DIR = `${ROOT_DIR}/src/wcc/www`
 const SRC_HTML_FILES = `${SRC_HTML_DIR}/*.html`
-const SRC_SASS_FILES = `${ROOT_DIR}/src/www/**/*.scss`
+const SRC_SASS_FILES = `${ROOT_DIR}/src/wcc/www/**/*.scss`
 const SRC_TEST_DIR = `${ROOT_DIR}/test`
 const SRC_TEST_FILES = `${SRC_TEST_DIR}/**/*.spec.ts`
 const RELEASE_DIR = `${ROOT_DIR}/release`

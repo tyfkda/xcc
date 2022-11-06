@@ -25,6 +25,6 @@ jobs:
     steps:
     - uses: actions/checkout@v3
     - name: setup
-      run: cd wasm && npm install
+      run: npm ci
     - name: test
-      run:  make -C wasm test test-gen2
+      run:  make test-wcc test-wcc-gen2

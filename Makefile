@@ -140,7 +140,8 @@ test-all: test test-gen2 diff-gen23
 .PHONY: clean
 clean:
 	rm -rf cc1 cpp as ld xcc $(OBJ_DIR) $(LIB_DIR) a.out gen2* gen3* tmp.s \
-		dump_expr* dump_ir* dump_type*
+		dump_expr* dump_ir* dump_type* \
+		wcc cc.wasm a.wasm public release
 	$(MAKE) -C tests clean
 
 ### Library
@@ -196,6 +197,92 @@ self-hosting:	$(TARGET)cpp $(TARGET)cc1 $(TARGET)as $(TARGET)ld $(TARGET)xcc
 .PHONY: test-self-hosting
 test-self-hosting:	self-hosting
 	$(MAKE) PREFIX=$(TARGET) -C tests clean cc-tests
+
+
+### Wasm version
+
+WCC_DIR:=src/wcc
+
+WCC_SRCS:=$(wildcard $(WCC_DIR)/*.c) \
+	$(CC1_DIR)/lexer.c $(CC1_DIR)/type.c $(CC1_DIR)/var.c $(CC1_DIR)/ast.c $(CC1_DIR)/parser.c $(CC1_DIR)/parser_expr.c \
+	$(CPP_DIR)/preprocessor.c $(CPP_DIR)/pp_parser.c $(CPP_DIR)/macro.c \
+	$(UTIL_DIR)/util.c $(UTIL_DIR)/table.c
+WCC_OBJS:=$(addprefix $(OBJ_DIR)/,$(notdir $(WCC_SRCS:.c=.o)))
+
+$(OBJ_DIR)/%.o: $(WCC_DIR)/%.c
+	@mkdir -p $(OBJ_DIR)
+	$(CC) $(CFLAGS) -I$(CPP_DIR) -c -o $@ $<
+
+wcc: $(PARENT_DEPS) $(WCC_OBJS)
+	$(CC) -o $@ $(WCC_OBJS) $(LDFLAGS)
+
+.PHONY: test-wcc
+test-wcc:	wcc
+	$(MAKE) -C tests clean test-wcc
+
+#### Self hosting
+
+.PHONY: wcc-gen2
+wcc-gen2:	wcc
+	$(MAKE) HOST_TARGET=wcc HOST_CC="./wcc" WCC_TARGET= wcc-self-hosting
+.PHONY: test-wcc-gen2
+test-wcc-gen2: wcc-gen2
+	$(MAKE) TARGET_CC="node ../tool/runwasm.js ../cc.wasm --" test-wcc-self-hosting
+
+.PHONY: wcc-gen3
+wcc-gen3:	wcc-gen2
+	$(MAKE) HOST_TARGET=gen2 HOST_CC="node ./tool/runwasm.js ./cc.wasm --" WCC_TARGET=gen3 wcc-self-hosting
+
+.PHONY: wcc-diff-gen23
+wcc-diff-gen23:	wcc-gen2 wcc-gen3
+	diff -b cc.wasm gen3cc.wasm
+
+.PHONY: wcc-self-hosting
+wcc-self-hosting:	$(WCC_TARGET)cc.wasm
+
+.PHONY: test-wcc-self-hosting
+test-wcc-self-hosting:
+	$(MAKE) WCC="$(TARGET_CC)" -C tests test-wcc
+
+WCC_LIBS:=$(LIBSRC_DIR)/_wasm/crt0.c $(LIBSRC_DIR)/_wasm/libc.c
+
+$(WCC_TARGET)cc.wasm:	$(WCC_SRCS) $(WCC_LIBS)
+	$(HOST_CC) -o $@ \
+		-I$(CC1_DIR) -I$(CPP_DIR) -I$(UTIL_DIR) \
+		$(WCC_SRCS)
+
+#### www
+
+ASSETS_DIR:=public
+
+.PHONY:	assets
+assets:	wcc-gen2 $(ASSETS_DIR)/cc.wasm $(ASSETS_DIR)/libs.json
+
+$(ASSETS_DIR)/cc.wasm:	cc.wasm
+	mkdir -p $(ASSETS_DIR)
+	cp cc.wasm $@
+
+$(ASSETS_DIR)/libs.json:	$(WCC_DIR)/www/lib_list.json
+	mkdir -p $(ASSETS_DIR)
+	node tool/pack_libs.js $(WCC_DIR)/www/lib_list.json > $@
+
+.PHONY: update-wcc-lib
+update-wcc-lib:
+	find libsrc/* -type d \
+		| egrep -v \(crt0\|math\|_wasm\) \
+		| while read d; do \
+			ls -1 $$d/*.c; \
+		  done \
+		| sed -e 's/libsrc/../g' \
+		| sort \
+		| awk '{print "#include \"" $$0 "\""}' \
+		> libsrc/_wasm/libc.c
+	npx ts-node tool/update_lib_list.ts
+
+.PHONY: release-wcc
+release-wcc:	assets
+	npm run release
+
 
 ### Debug
 

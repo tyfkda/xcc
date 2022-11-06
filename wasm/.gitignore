@@ -1,9 +1,0 @@
-a.wasm
-/wcc
-/cc.wasm
-/gen3cc.wasm
-/tests/*.wasm
-
-/public/
-/release/
-node_modules

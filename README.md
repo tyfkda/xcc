@@ -70,7 +70,65 @@ C compiler:
 
 ### WebAssembly
 
-[WCC](https://github.com/tyfkda/xcc/blob/main/wasm/README.md): Compile C to WebAssembly.
+Compile C to WebAssembly.
+
+[Online demo](https://tyfkda.github.io/xcc/)
+
+#### Requirements
+
+#### Build
+
+Requirements:
+
+  * node.js (>=16), npm
+
+Setup:
+
+```sh
+$ npm install
+```
+
+Build:
+
+```sh
+$ make wcc
+```
+
+Generated files:
+
+  * `wcc`: Compiler entry
+
+#### Usage
+
+Compile:
+
+```sh
+$ ./wcc -o hello.wasm examples/hello.c
+```
+
+Command line options:
+
+  * `-o <filename>`: Set output filename (default: `a.wasm`)
+  * `-I <path>`:     Add include path
+  * `-D <label>(=value)`:  Define macro
+  * `-entry-point=func_name`:  Specify entry point (default: _start)
+  * `-e func_name,...`:  Export function names (comma separated)
+  * `--stack-size=<size>`:  Set stack size (default: 8192)
+  * `-nodefaultlibs`:  Ignore libc
+  * `-nostdlib`:  Ignore libc and crt0
+  * `--verbose`:  Output debug information
+
+#### Run
+
+```sh
+$ node tool/runwasm.js hello.wasm
+Hello, world!
+```
+
+#### Missing features
+
+  * `goto` statement
+  * `setjmp`
 
 
 ### Reference

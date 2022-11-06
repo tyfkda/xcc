@@ -18,13 +18,13 @@ jobs:
       with:
         node-version: 16.x
     - name: Install NPM packages
-      run: cd wasm && npm ci
+      run: npm ci
     - name: Build release
-      run: make -C wasm release
+      run: make release-wcc
     - name: Upload artifact
       uses: actions/upload-pages-artifact@v1
       with:
-        path: wasm/release
+        path: release
 
   deploy:
     runs-on: ubuntu-latest

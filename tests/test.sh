@@ -4,6 +4,8 @@ XCC=${XCC:-../xcc}
 PTRSIZE=${PTRSIZE:-8}
 RUN_AOUT=${RUN_AOUT:-./a.out}
 
+echo Compile=[$XCC], Run=[$RUN_AOUT]
+
 if [[ -z "$PROLOGUE" ]]; then
   PROLOGUE=$(cat <<EOS
 extern long write(int fd, const void *str, unsigned long len);

@@ -36,7 +36,8 @@ misc-tests:	test-link test-examples
 .PHONY: clean
 clean:
 	rm -f table_test util_test parser_test print_type_test valtest dvaltest fvaltest link_test \
-		a.out tmp* *.o mandelbrot.ppm
+		a.out tmp* *.o mandelbrot.ppm \
+		a.wasm valtest.wasm
 
 .PHONY: test-table
 test-table:	table_test
@@ -81,26 +82,26 @@ test-fval:	fvaltest
 .PHONY: test-cpp
 test-cpp: # $(CPP)
 	@echo '## cpptest'
-	CPP=$(CPP) ./cpptest.sh
+	@CPP=$(CPP) ./cpptest.sh
 	@echo ''
 
 .PHONY: test-sh
 test-sh: # $(XCC)
 	@echo '## test.sh'
-	XCC=$(XCC) ./test.sh
-	rm -f core
+	@XCC=$(XCC) ./test.sh
+	@rm -f core
 	@echo ''
 
 .PHONY: test-examples
 test-examples: # $(XCC)
 	@echo '## Example test'
-	XCC=$(XCC) ./example_test.sh
+	@XCC=$(XCC) ./example_test.sh
 	@echo ''
 
 .PHONY: test-link
 test-link: link_test # $(XCC)
 	@echo '## Link test'
-	./link_test
+	@./link_test
 	@echo ''
 
 TABLE_SRCS:=table_test.c $(UTIL_DIR)/table.c
@@ -140,3 +141,28 @@ link_test: link_main.c link_sub.c
 test-std-valtest:
 	$(CC) -Wno-builtin-declaration-mismatch -Wno-overflow valtest.c
 	./a.out
+
+### Wasm version
+
+WCC:=../wcc
+
+.PHONY: test-wcc
+test-wcc:	test-wcc-sh test-wcc-val
+	@echo 'All tests PASS!'
+
+.PHONY: test-wcc-sh
+test-wcc-sh:
+	@echo '## test.sh'
+	@XCC="$(WCC)" PTRSIZE=4 RE_SKIP='\/\/-WCC' \
+		RUN_AOUT="node ../tool/runwasm.js a.wasm" \
+		./test.sh
+	@echo ''
+
+.PHONY: test-wcc-val
+test-wcc-val:	valtest.wasm
+	@echo '## valtest'
+	node ../tool/runwasm.js $<
+	@echo ''
+
+valtest.wasm:	$(VAL_SRCS) # $(XCC)
+	$(WCC) -o$@ -I$(EXAMPLES_DIR) $^

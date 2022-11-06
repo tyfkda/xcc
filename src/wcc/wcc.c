@@ -902,7 +902,6 @@ int main(int argc, char *argv[]) {
   define_macro("__ILP32__");
   define_macro("__WASM");
   add_system_inc_path(cat_path(root, "include"));
-  add_system_inc_path(cat_path(root, "../include"));
 
   init_compiler();
 
@@ -1074,7 +1073,7 @@ int main(int argc, char *argv[]) {
 
   // if (out_type >= OutExecutable)
   {
-    vec_push(lib_paths, cat_path(root, "./lib"));
+    vec_push(lib_paths, cat_path(root, "./libsrc/_wasm"));
     if (!nostdlib)
       add_lib(lib_paths, "crt0.c", sources);
     if (!nodefaultlibs && !nostdlib)

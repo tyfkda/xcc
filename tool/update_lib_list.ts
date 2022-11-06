@@ -2,9 +2,9 @@ import { assert } from 'console'
 import * as fs from 'fs'
 import { promisify } from 'util'
 
-const JSON_FN = 'lib_list.json'
-const LIB_DIR = '../libsrc'
-const EXCLUDES = ['crt0', 'math']
+const JSON_FN = 'src/wcc/www/lib_list.json'
+const LIB_DIR = './libsrc'
+const EXCLUDES = ['crt0', 'math', '_wasm']
 
 async function updateLibc(fileList: object): Promise<object> {
   assert(fileList && fileList['usr'] && fileList['usr']['lib'])
