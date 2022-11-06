@@ -9,22 +9,24 @@ on:
     branches: [ main ]
 
 jobs:
-  test_c:
+  test:
     runs-on: ubuntu-latest
 
     steps:
     - uses: actions/checkout@v3
-    - name: make
-      run: make
-    - name: test
-      run: make test test-gen2
 
-  test_wasm:
-    runs-on: ubuntu-latest
+    - name: make xcc
+      run: make -j8 all
+    - name: test xcc
+      run: make test
+    - name: test xcc gen2
+      run: make test-gen2
 
-    steps:
-    - uses: actions/checkout@v3
     - name: setup
       run: npm ci
-    - name: test
-      run:  make test-wcc test-wcc-gen2
+    - name: make -j8 wcc
+      run: make wcc
+    - name: test wcc
+      run:  make test-wcc
+    - name: test wcc gen2
+      run:  make test-wcc-gen2
