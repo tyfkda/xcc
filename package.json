@@ -51,7 +51,6 @@
     "browser-sync": "~2.27.7",
     "clone": "~2.1.2",
     "commander": "~8.3.0",
-    "del": "~6.0.0",
     "eslint": "~8.4.0",
     "gulp": "~4.0.2",
     "gulp-cssnano": "~2.1.3",

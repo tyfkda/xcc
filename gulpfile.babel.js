@@ -23,7 +23,7 @@ import cssnano from 'gulp-cssnano'
 const jest = require('gulp-jest').default
 
 import plumber from 'gulp-plumber'
-import del from 'del'
+import fs from 'fs'
 
 const ROOT_DIR = `${__dirname}`
 const DEST_DIR = `${ROOT_DIR}/public`
@@ -168,8 +168,10 @@ export function watchTest() {
 }
 
 export function clean(done) {
-  del(DEST_DIR)
-  done()
+  return Promise.all([
+      fs.promises.rm(DEST_DIR, {recursive: true, force: true}),
+      fs.promises.rm(RELEASE_DIR, {recursive: true, force: true}),
+    ]).then((_results) => done())
 }
 
 export const watch = gulp.parallel(watchHtml, watchTs, watchSass,
