@@ -50,7 +50,7 @@
     "@typescript-eslint/parser": "~5.5.0",
     "browser-sync": "~2.27.7",
     "clone": "~2.1.2",
-    "commander": "~8.3.0",
+    "commander": "~9.4.1",
     "eslint": "~8.4.0",
     "gulp": "~4.0.2",
     "gulp-cssnano": "~2.1.3",
