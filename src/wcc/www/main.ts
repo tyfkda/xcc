@@ -249,7 +249,7 @@ async function run(argStr: string, compileAndDump: boolean) {
   editor.focus()
 
   // Compile
-  const extraOptions = compileAndDump ? ['-nodefaultlibs'] : undefined
+  const extraOptions = compileAndDump ? ['-nostdlib', '--entry-point=', '--export-all-non-static'] : undefined
   const compiledCode = await compile(editor.getValue(), extraOptions)
   if (compiledCode == null)
     return

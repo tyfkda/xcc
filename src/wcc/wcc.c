@@ -879,6 +879,52 @@ static bool add_lib(Vector *lib_paths, const char *fn, Vector *sources) {
   return false;
 }
 
+static void export_non_static_functions(Vector *exports) {
+  Vector *gvars = global_scope->vars;
+  for (int i = 0; i < gvars->len; ++i) {
+    VarInfo *vi = gvars->data[i];
+    if (vi->type->kind != TY_FUNC ||
+        vi->global.func == NULL ||
+        table_try_get(&builtin_function_table, vi->name, NULL) ||
+        vi->storage & VS_STATIC)
+      continue;
+    const Name *name = vi->name;
+    vec_push(exports, name);
+  }
+}
+
+static void preprocess_and_compile(FILE *ppout, Vector *sources) {
+  size_t pos = ftell(ppout);
+
+  // Preprocess.
+  for (int i = 0; i < sources->len; ++i) {
+    const char *filename = sources->data[i];
+    FILE *ifp;
+    if (filename != NULL) {
+      ifp = fopen(filename, "r");
+      if (ifp == NULL)
+        error("Cannot open file: %s\n", filename);
+    } else {
+      ifp = stdin;
+      filename = "*stdin*";
+    }
+    fprintf(ppout, "# 1 \"%s\" 1\n", filename);
+    preprocess(ifp, filename);
+    if (ifp != stdin)
+      fclose(ifp);
+  }
+  if (fseek(ppout, pos, SEEK_SET) != 0) {
+    error("fseek failed");
+    exit(1);
+  }
+
+  // Compile.
+  FILE *ppin = ppout;
+  compile1(ppin, "*", toplevel);
+  if (compile_error_count != 0)
+    exit(1);
+}
+
 int main(int argc, char *argv[]) {
   const char *root = dirname(strdup(argv[0]));
   if (!is_fullpath(root)) {
@@ -893,6 +939,7 @@ int main(int argc, char *argv[]) {
   const char *entry_point = "_start";
   bool nodefaultlibs = false, nostdlib = false;
   Vector *lib_paths = new_vector();
+  bool export_all = false;
 
   FILE *ppout = tmpfile();
   if (ppout == NULL)
@@ -921,6 +968,7 @@ int main(int argc, char *argv[]) {
     OPT_IMPORT_MODULE_NAME,
     OPT_NODEFAULTLIBS,
     OPT_NOSTDLIB,
+    OPT_EXPORT_ALL_NON_STATIC,
 
     OPT_WARNING,
     OPT_OPTIMIZE,
@@ -944,6 +992,7 @@ int main(int argc, char *argv[]) {
     {"-verbose", no_argument, OPT_VERBOSE},
     {"-entry-point", required_argument, OPT_ENTRY_POINT},
     {"-stack-size", required_argument, OPT_STACK_SIZE},
+    {"-export-all-non-static", no_argument, OPT_EXPORT_ALL_NON_STATIC},
 
     // Suppress warnings
     {"O", required_argument, OPT_OPTIMIZE},
@@ -1008,6 +1057,9 @@ int main(int argc, char *argv[]) {
     case OPT_NOSTDLIB:
       nostdlib = true;
       break;
+    case OPT_EXPORT_ALL_NON_STATIC:
+      export_all = true;
+      break;
     case OPT_STACK_SIZE:
       {
         int size = atoi(optarg);
@@ -1060,7 +1112,7 @@ int main(int argc, char *argv[]) {
 
   if (entry_point != NULL)
     vec_push(exports, alloc_name(entry_point, NULL, false));
-  if (exports->len == 0) {
+  if (exports->len == 0 && !export_all) {
     error("no exports (require -e<xxx>)\n");
   }
 
@@ -1072,43 +1124,23 @@ int main(int argc, char *argv[]) {
   VERBOSES("\n");
 
   // if (out_type >= OutExecutable)
+  Vector *libs = new_vector();
   {
     vec_push(lib_paths, cat_path(root, "./libsrc/_wasm"));
     if (!nostdlib)
-      add_lib(lib_paths, "crt0.c", sources);
+      add_lib(lib_paths, "crt0.c", libs);
     if (!nodefaultlibs && !nostdlib)
-      add_lib(lib_paths, "libc.c", sources);
+      add_lib(lib_paths, "libc.c", libs);
   }
 
-  // Preprocess.
-  for (int i = 0; i < sources->len; ++i) {
-    const char *filename = sources->data[i];
-    FILE *ifp;
-    if (filename != NULL) {
-      ifp = fopen(filename, "r");
-      if (ifp == NULL)
-        error("Cannot open file: %s\n", filename);
-    } else {
-      ifp = stdin;
-      filename = "*stdin*";
-    }
-    fprintf(ppout, "# 1 \"%s\" 1\n", filename);
-    preprocess(ifp, filename);
-    if (ifp != stdin)
-      fclose(ifp);
-  }
-  if (fseek(ppout, 0, SEEK_SET) != 0) {
-    error("fseek failed");
-    return 1;
-  }
-
-  // Compile.
   toplevel = new_vector();
-  FILE *ppin = ppout;
-  compile1(ppin, "*", toplevel);
-  fclose(ppin);
-  if (compile_error_count != 0)
-    return 1;
+
+  preprocess_and_compile(ppout, sources);
+  if (export_all)
+    export_non_static_functions(exports);
+  preprocess_and_compile(ppout, libs);
+
+  fclose(ppout);
 
   uint32_t address_bottom = traverse_ast(toplevel, exports, stack_size);
   if (compile_error_count != 0)
