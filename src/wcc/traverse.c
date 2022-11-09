@@ -418,12 +418,15 @@ static void traverse_expr(Expr **pexpr, bool needval) {
   case EX_CAST:
     traverse_expr(&expr->unary.sub, needval);
     break;
-  case EX_INCDEC:
+  case EX_PREINC:
+  case EX_PREDEC:
+  case EX_POSTINC:
+  case EX_POSTDEC:
     {
       static const enum ExprKind kOpAddSub[2] = {EX_ADD, EX_SUB};
 
-      traverse_expr(&expr->incdec.target, needval);
-      Expr *target = expr->incdec.target;
+      traverse_expr(&expr->unary.sub, needval);
+      Expr *target = expr->unary.sub;
       if (target->kind == EX_COMPLIT)
         target = target->complit.var;
       if (target->kind == EX_VAR) {
@@ -434,8 +437,8 @@ static void traverse_expr(Expr **pexpr, bool needval) {
 
       Type *type = target->type;
       assert(is_number(type) || type->kind == TY_PTR);
-      bool post = expr->incdec.is_post;
-      bool dec = expr->incdec.is_dec;
+      bool post = expr->kind >= EX_POSTINC;
+      bool dec = (expr->kind - EX_PREINC) & 1;
       // (++xxx)  =>  (p = &xxx, tmp = *p + 1, *p = tmp, tmp)
       // (xxx++)  =>  (p = &xxx, tmp = *p, *p = tmp + 1, tmp)
       const Token *token = target->token;

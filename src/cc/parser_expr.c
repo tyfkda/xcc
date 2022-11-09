@@ -448,9 +448,9 @@ Expr *new_expr_addsub(enum ExprKind kind, const Token *tok, Expr *lhs, Expr *rhs
   return new_expr_bop(kind, type, tok, lhs, rhs);
 }
 
-static Expr *incdec_of(Expr *target, const Token *tok, bool is_post, bool is_dec) {
+static Expr *incdec_of(enum ExprKind kind, Expr *target, const Token *tok) {
   check_referable(tok, target, "lvalue expected");
-  return new_expr_incdec(tok, target, is_post, is_dec);
+  return new_expr_unary(kind, target->type, tok, target);
 }
 
 static enum ExprKind swap_cmp(enum ExprKind kind) {
@@ -1337,10 +1337,10 @@ static Expr *parse_postfix(void) {
       expr = parse_member_access(expr, tok);
     else if ((tok = match(TK_INC)) != NULL) {
       not_const(expr->type, tok);
-      expr = incdec_of(expr, tok, true, false);
+      expr = incdec_of(EX_POSTINC, expr, tok);
     } else if ((tok = match(TK_DEC)) != NULL) {
       not_const(expr->type, tok);
-      expr = incdec_of(expr, tok, true, true);
+      expr = incdec_of(EX_POSTDEC, expr, tok);
     } else
       return expr;
   }
@@ -1465,13 +1465,13 @@ static Expr *parse_unary(void) {
   if ((tok = match(TK_INC)) != NULL) {
     Expr *expr = parse_unary();
     not_const(expr->type, tok);
-    return incdec_of(expr, tok, false, false);
+    return incdec_of(EX_PREINC, expr, tok);
   }
 
   if ((tok = match(TK_DEC)) != NULL) {
     Expr *expr = parse_unary();
     not_const(expr->type, tok);
-    return incdec_of(expr, tok, false, true);
+    return incdec_of(EX_PREDEC, expr, tok);
   }
 
   if ((tok = match(TK_SIZEOF)) != NULL ||

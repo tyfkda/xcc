@@ -726,11 +726,16 @@ VReg *gen_expr(Expr *expr) {
       }
     }
 
-  case EX_INCDEC:
+  case EX_PREINC:
+  case EX_PREDEC:
+  case EX_POSTINC:
+  case EX_POSTDEC:
     {
+#define IS_POST(expr)  ((expr)->kind >= EX_POSTINC)
+#define IS_DEC(expr)   (((expr)->kind - EX_PREINC) & 1)
       static enum IrKind kOpAddSub[] = {IR_ADD, IR_SUB};
 
-      Expr *target = expr->incdec.target;
+      Expr *target = expr->unary.sub;
       const VarInfo *varinfo = NULL;
       if (target->kind == EX_VAR && !is_global_scope(target->var.scope)) {
         const VarInfo *vi = scope_find(target->var.scope, target->var.name, NULL);
@@ -745,14 +750,14 @@ VReg *gen_expr(Expr *expr) {
       VReg *val;
       if (varinfo != NULL) {
         val = varinfo->local.reg;
-        if (expr->incdec.is_post) {
+        if (IS_POST(expr)) {
           before = add_new_reg(target->type, 0);
           new_ir_mov(before, val);
         }
       } else {
         lval = gen_lval(target);
         val = new_ir_unary(IR_LOAD, lval, vtype);
-        if (expr->incdec.is_post)
+        if (IS_POST(expr))
           before = val;
       }
 
@@ -761,10 +766,12 @@ VReg *gen_expr(Expr *expr) {
           is_flonum(target->type) ? gen_const_flonum(new_expr_flolit(target->type, NULL, 1)) :
 #endif
           new_const_vreg(expr->type->kind == TY_PTR ? type_size(expr->type->pa.ptrof) : 1, vtype);
-      VReg *after = new_ir_bop(kOpAddSub[expr->incdec.is_dec], val, addend, vtype);
+      VReg *after = new_ir_bop(kOpAddSub[IS_DEC(expr)], val, addend, vtype);
       if (varinfo != NULL)  new_ir_mov(varinfo->local.reg, after);
                       else  new_ir_store(lval, after);
       return before != NULL ? before : after;
+#undef IS_POST
+#undef IS_DEC
     }
 
   case EX_FUNCALL:

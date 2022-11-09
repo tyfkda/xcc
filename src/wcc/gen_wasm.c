@@ -768,10 +768,15 @@ void gen_expr(Expr *expr, bool needval) {
     }
     break;
 
-  case EX_INCDEC:
+  case EX_PREINC:
+  case EX_PREDEC:
+  case EX_POSTINC:
+  case EX_POSTDEC:
     {
+#define IS_POST(expr)  ((expr)->kind >= EX_POSTINC)
+#define IS_DEC(expr)   (((expr)->kind - EX_PREINC) & 1)
       assert(is_prim_type(expr->type));
-      Expr *target = expr->incdec.target;
+      Expr *target = expr->unary.sub;
       if (target->kind == EX_COMPLIT) {
         gen_expr(target, true);
         target = target->complit.var;
@@ -780,11 +785,11 @@ void gen_expr(Expr *expr, bool needval) {
         assert(target->kind == EX_VAR);
         gen_expr(target, true);
       }
-      if (expr->incdec.is_post && needval) {
+      if (IS_POST(expr) && needval) {
         gen_expr(target, true);  // Duplicate the result: target is VAR.
         needval = false;
       }
-      gen_incdec(expr->type, expr->incdec.is_dec);
+      gen_incdec(expr->type, IS_DEC(expr));
 
       Scope *scope;
       const VarInfo *varinfo = scope_find(target->var.scope, target->var.name, &scope);
@@ -803,6 +808,8 @@ void gen_expr(Expr *expr, bool needval) {
           ADD_ULEB128(info->prim.index);
         }
       }
+#undef IS_POST
+#undef IS_DEC
     }
     break;
 
