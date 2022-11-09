@@ -79,7 +79,6 @@ export class FileSystem {
     }
     if ((flag & (OpenFlag.WRONLY | OpenFlag.RDWR)) !== 0) {
       desc.write = []
-      desc.writeTotal = 0
     }
     this.fileDescs[fd] = desc
     return fd
@@ -123,7 +122,6 @@ if (fd < 3) {
     if (desc == null)
       return 0
     desc.write.push(buffer.slice(0))
-    desc.writeTotal += buffer.byteLength
     return buffer.length
   }
 
@@ -134,18 +132,20 @@ if (fd < 3) {
 
     this.commitDesc(fd)
 
-    let position
+    let position: number
     switch (where) {
     default:
     case SeekWhere.SET:
       position = offset
       break
     case SeekWhere.CUR:
-      position = this.fileDescs[fd].position + offset
+      position = desc.rp + offset
       break
     case SeekWhere.END:
-      //position = files[fd].position + offset
-      console.assert(false, 'TODO: Implement')
+      {
+        const file = desc.absPath != null ? this.storage.getFile(desc.absPath) : desc.written
+        position = (file != null ? file.byteLength : 0) + offset
+      }
       break
     }
     desc.rp = position
@@ -163,7 +163,6 @@ if (fd < 3) {
       absPath: null,  // temporary: not related to storage
       rp: 0,
       write: [],
-      writeTotal: 0,
     }
     return fd
   }
@@ -183,8 +182,16 @@ if (fd < 3) {
       const desc = this.fileDescs[fd]
       if (desc != null) {
         if (desc.write != null && desc.write.length > 0) {
-          const content = new Uint8Array(desc.writeTotal)
+          const written = desc.absPath == null ? desc.written : null
+          const writeTotal =  desc.write.reduce((acc, src) => acc + src.byteLength, 0)
+          const content = new Uint8Array(writeTotal + (written ? written.byteLength : 0))
           let p = 0
+          if (written != null) {
+            const dst = new Uint8Array(content.buffer, 0, written.byteLength)
+            dst.set(written)
+            p = written.byteLength
+          }
+
           for (let i = 0; i < desc.write.length; ++i) {
             const src = desc.write[i]
             const dst = new Uint8Array(content.buffer, p, src.byteLength)
@@ -196,6 +203,7 @@ if (fd < 3) {
           else
             desc.written = content
           desc.write.length = 0
+          desc.rp = p
         }
       }
     }
