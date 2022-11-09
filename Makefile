@@ -142,7 +142,7 @@ clean:
 	rm -rf cc1 cpp as ld xcc $(OBJ_DIR) $(LIB_DIR) a.out gen2* gen3* tmp.s \
 		dump_expr* dump_ir* dump_type* \
 		wcc cc.wasm a.wasm public release
-	$(MAKE) -C tests clean
+	@$(MAKE) -C tests clean
 
 ### Library
 
