@@ -41,9 +41,12 @@ int fgetc(FILE *fp);
 int fputc(int c, FILE *fp);
 char *fgets(char *s, int n, FILE *fp);
 int fputs(const char *s, FILE *fp);
-int getc(FILE *fp);
-int getchar(void);
 int puts(const char *s);
+
+#define getc(fp)     fgetc(fp)
+#define getchar()    fgetc(stdin)
+#define putc(c, fp)  fputc(c, fp)
+#define putchar(c)   fputc(c, stdout)
 
 int fprintf(FILE *fp, const char *fmt, ...);
 int printf(const char *fmt, ...);

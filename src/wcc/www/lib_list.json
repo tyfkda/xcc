@@ -56,8 +56,6 @@
         "./libsrc/stdio/fseek.c",
         "./libsrc/stdio/ftell.c",
         "./libsrc/stdio/fwrite.c",
-        "./libsrc/stdio/getc.c",
-        "./libsrc/stdio/getchar.c",
         "./libsrc/stdio/getline.c",
         "./libsrc/stdio/perror.c",
         "./libsrc/stdio/printf.c",

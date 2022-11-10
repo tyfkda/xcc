@@ -26,8 +26,6 @@
 #include "../stdio/fseek.c"
 #include "../stdio/ftell.c"
 #include "../stdio/fwrite.c"
-#include "../stdio/getc.c"
-#include "../stdio/getchar.c"
 #include "../stdio/getline.c"
 #include "../stdio/perror.c"
 #include "../stdio/printf.c"
