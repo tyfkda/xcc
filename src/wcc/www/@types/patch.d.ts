@@ -23,3 +23,9 @@ interface WritableStream {
 interface FileSystemWritableFileStream extends WritableStream {
   write(content: any): Promise<any>
 }
+
+declare namespace AceAjax {
+  interface Ace {
+    Range: any
+  }
+}

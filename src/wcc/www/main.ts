@@ -116,6 +116,27 @@ const terminal = (() => {
   // terminal.renderer.setShowGutter(false)
   terminal.getSession().setMode('ace/mode/text')
   terminal.setValue('XCC browser version.\n', -1)
+
+  terminal.on('click', (e) => {
+    const compileErrors = Util.compileErrors
+    if (compileErrors == null)
+      return
+    const pos = e.getDocumentPosition()
+    // TODO: Use Array.findLast in the future.
+    for (let i = compileErrors.length; --i >= 0; ) {
+      const err = compileErrors[i]
+      if (err.terminalLineNo <= pos.row) {
+        editor.gotoLine(err.sourceLineNo, err.colStart, true)
+
+        const range = new ace.Range(err.sourceLineNo, err.colStart + err.tokenLength, err.sourceLineNo, err.colStart)
+        editor.selection.setRange(range, false)
+
+        setTimeout(() => editor.focus(), 0)  // Sometimes focus is not set, without `setTimeout`.
+        break
+      }
+    }
+  })
+
   return terminal
 })()
 
@@ -178,15 +199,25 @@ async function compile(sourceCode: string, extraOptions?: string[]): Promise<Uin
   waproc.chdir(`/home/${USER}`)
   waproc.saveFile(sourceName, sourceCode)
 
+  Util.clearCompileErrors()
   let args = ['cc', '-I/usr/include', '-L/usr/lib']
   if (extraOptions != null)
     args = args.concat(extraOptions)
   args.push(sourceName)
-  const result = await waproc.runWasmEntry(wccWasm, '_start', args)
-  if (result !== 0)
-    return null
 
-  return waproc.loadFile('a.wasm')
+  try {
+    const result = await waproc.runWasmEntry(wccWasm, '_start', args)
+    if (result === 0)
+      return waproc.loadFile('a.wasm')
+  } catch (e) {
+    if (!(e instanceof ExitCalledError)) {
+      Util.putTerminalError(e)
+      return null
+    }
+  }
+
+  Util.analyzeCompileErrors()
+  return null
 }
 
 async function run(argStr: string, compileAndDump: boolean) {
@@ -197,17 +228,10 @@ async function run(argStr: string, compileAndDump: boolean) {
   editor.focus()
 
   // Compile
-  let compiledCode: Uint8Array|null
-  try {
-    const extraOptions = compileAndDump ? ['-nodefaultlibs'] : undefined
-    compiledCode = await compile(editor.getValue(), extraOptions)
-    if (compiledCode == null)
-      return
-  } catch (e) {
-    if (!(e instanceof ExitCalledError))
-      Util.putTerminalError(e)
+  const extraOptions = compileAndDump ? ['-nodefaultlibs'] : undefined
+  const compiledCode = await compile(editor.getValue(), extraOptions)
+  if (compiledCode == null)
     return
-  }
 
   if (compileAndDump) {
     const disWasm = new DisWasm(compiledCode.buffer)
