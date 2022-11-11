@@ -275,11 +275,14 @@ Expr *make_refer(const Token *tok, Expr *expr) {
     e = e->complit.var;
   if (e->kind == EX_VAR) {
     VarInfo *varinfo = scope_find(e->var.scope, e->var.name, NULL);
-    assert(varinfo != NULL);
-    varinfo->storage |= VS_REF_TAKEN;
-    if ((varinfo->storage & VS_STATIC) != 0 && !is_global_scope(e->var.scope)) {
-      VarInfo *gvarinfo = varinfo->static_.gvar;
-      gvarinfo->storage |= VS_REF_TAKEN;
+    if (varinfo == NULL) {
+      // Variable undeclared error must be raised already, so ignore here.
+    } else {
+      varinfo->storage |= VS_REF_TAKEN;
+      if ((varinfo->storage & VS_STATIC) != 0 && !is_global_scope(e->var.scope)) {
+        VarInfo *gvarinfo = varinfo->static_.gvar;
+        gvarinfo->storage |= VS_REF_TAKEN;
+      }
     }
   }
   return new_expr_unary(EX_REF, ptrof(expr->type), tok, expr);
