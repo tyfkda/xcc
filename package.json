@@ -58,7 +58,6 @@
     "gulp-eslint": "~6.0.0",
     "gulp-htmlmin": "~5.0.1",
     "gulp-jest": "~4.0.4",
-    "gulp-plumber": "~1.2.1",
     "gulp-sass": "~5.0.0",
     "gulp-util": "~3.0.8",
     "jest": "~27.4.3",

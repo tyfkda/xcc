@@ -22,7 +22,6 @@ import cssnano from 'gulp-cssnano'
 // Unit test
 const jest = require('gulp-jest').default
 
-import plumber from 'gulp-plumber'
 import fs from 'fs'
 
 const ROOT_DIR = `${__dirname}`
@@ -41,7 +40,6 @@ const RELEASE_ASSETS_DIR = `${RELEASE_DIR}`
 function convertHtml(buildTarget, dest) {
   return gulp.src([SRC_HTML_FILES,
                    `!${SRC_HTML_DIR}/**/_*.html`])
-    .pipe(plumber())
     .pipe(ejs({buildTarget}))
     .pipe(htmlmin({
       collapseWhitespace: true,
@@ -88,7 +86,6 @@ export function ts() {
   config.mode = 'development'
   config.devtool = 'source-map'
   return gulp.src([`${SRC_TS_DIR}/main.ts`])
-    .pipe(plumber())
     .pipe(webpackStream(config, webpack))
     .pipe(gulp.dest(ASSETS_DIR))
 }
@@ -99,14 +96,12 @@ export function watchTs() {
   config.watch = true
   config.devtool = 'source-map'
   return gulp.src(SRC_TS_FILES, {base: SRC_TS_DIR})
-    .pipe(plumber())
     .pipe(webpackStream(config, webpack))
     .pipe(gulp.dest(ASSETS_DIR))
 }
 
 export function sass() {
   return gulp.src(SRC_SASS_FILES)
-    .pipe(plumber())
     .pipe(gulpSass(sassPlugin)())
     .pipe(cssnano())
     .pipe(gulp.dest(ASSETS_DIR))
@@ -117,18 +112,18 @@ export function watchSass() {
   return gulp.watch(SRC_SASS_FILES, gulp.series(sass))
 }
 
+const LINT_GLOBS = [
+  SRC_TS_FILES,
+  SRC_TEST_FILES,
+  `!${SRC_TS_DIR}/lib.ts`,
+]
+
 export function lint() {
-  return checkLint([SRC_TS_FILES,
-                    SRC_TEST_FILES,
-                    `!${SRC_TS_DIR}/lib.ts`
-                  ])
+  return checkLint(LINT_GLOBS)
 }
 
 export function watchLint() {
-  const globs = [SRC_TS_FILES,
-                 SRC_TEST_FILES,
-                 `!${SRC_TS_DIR}/lib.ts`]
-  return buildWhenModified(globs,
+  return buildWhenModified(LINT_GLOBS,
                            () => checkLint(globs))
 }
 
@@ -161,10 +156,9 @@ export function test() {
     }))
 }
 export function watchTest() {
-  return gulp.watch(
-    [SRC_TS_FILES,
-     SRC_TEST_FILES],
-    gulp.series(test))
+  return gulp.watch([SRC_TS_FILES,
+                     SRC_TEST_FILES],
+                    gulp.series(test))
 }
 
 export async function clean(done) {
@@ -181,7 +175,7 @@ export const watch = gulp.parallel(watchHtml, watchTs, watchSass,
 
 export const build = gulp.parallel(html, ts, sass, lint)
 
-exports.default = gulp.series(build, gulp.parallel(server, watch))
+exports.default = gulp.parallel(build, server, watch)
 
 export const releaseBuild = gulp.series(sass, () => {
   // Copy resources.
@@ -204,7 +198,6 @@ export function releaseTs() {
   const config = clone(webpackConfig)
   // delete config.output.sourceMapFilename
   return gulp.src(`${SRC_TS_DIR}/main.ts`)
-    .pipe(plumber())
     .pipe(webpackStream(config, webpack))
     .pipe(gulp.dest(RELEASE_ASSETS_DIR))
 }
