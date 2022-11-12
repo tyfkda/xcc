@@ -256,7 +256,7 @@ static void handle_define(const char *p, Stream *stream) {
   const char *begin = p;
   const char *end = read_ident(p);
   if (end == NULL)
-    error("`ident' expected");
+    error("ident expected");
   const Name *name = alloc_name(begin, end, false);
   p = end;
 
@@ -274,7 +274,7 @@ static void handle_define(const char *p, Stream *stream) {
           pp_consume(TK_RPAR, "`)' expected");
           break;
         } else {
-          tok = pp_consume(TK_IDENT, "`ident' expected");
+          tok = pp_consume(TK_IDENT, "ident expected");
           vec_push(params, tok->ident);
           if (match(TK_RPAR))
             break;
@@ -294,7 +294,7 @@ static void handle_undef(const char **pp) {
   const char *begin = p;
   const char *end = read_ident(p);
   if (end == NULL)
-    error("`ident' expected");
+    error("ident expected");
   const Name *name = alloc_name(begin, end, false);
 
   macro_delete(name);
@@ -461,7 +461,7 @@ static bool handle_ifdef(const char **pp) {
   const char *end = read_ident(p);
   *pp = end;
   if (end == NULL)
-    error("`ident' expected");
+    error("ident expected");
   const Name *name = alloc_name(begin, end, false);
   return macro_get(name) != NULL;
 }

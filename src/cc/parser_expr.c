@@ -623,7 +623,8 @@ Vector *parse_args(Token **ptoken) {
       vec_push(args, arg);
       if ((token = match(TK_RPAR)) != NULL)
         break;
-      consume(TK_COMMA, "Comma or `)` expected");
+      if (!consume(TK_COMMA, "`,' or `)` expected"))
+        break;
     }
   }
 
@@ -700,32 +701,41 @@ static Expr *parse_array_index(const Token *token, Expr *array) {
 }
 
 static Expr *parse_member_access(Expr *target, Token *acctok) {
-  Token *ident = consume(TK_IDENT, "`ident' expected");
-  const Name *name = ident->ident;
+  Token *ident = consume(TK_IDENT, "member name expected");
 
   // Find member's type from struct info.
   Type *type = target->type;
-  if (acctok->kind == TK_DOT) {
+  switch (acctok->kind) {
+  case TK_DOT:
     if (type->kind != TY_STRUCT) {
       parse_error(PE_NOFATAL, acctok, "`.' for non struct value");
-      if (!ptr_or_array(type) || (type = type->pa.ptrof, type->kind != TY_STRUCT))
+      // Suppose `dot` is mistakenly used instead of `arrow`, continue parsing for pointer type.
+      if (!(ptr_or_array(type) && (type = type->pa.ptrof, type->kind == TY_STRUCT)))
         return target;
     }
-  } else {  // TK_ARROW
+    break;
+  case TK_ARROW:
     if (!ptr_or_array(type)) {
       parse_error(PE_NOFATAL, acctok, "`->' for non pointer value");
+      // Suppose `arrow` is mistakenly used instead of `dot`, continue parsing for struct type.
       if (type->kind != TY_STRUCT)
-        return target;
+        return target;  // Error is already reported in above, so return here.
     } else {
       type = type->pa.ptrof;
     }
     if (type->kind != TY_STRUCT) {
-      parse_error(PE_FATAL, acctok, "`->' for non struct value");
+      parse_error(PE_NOFATAL, acctok, "`->' for non struct value");
       return target;
     }
+    break;
+  default: assert(false); break;
   }
+  if (ident == NULL)
+    return target;
 
   ensure_struct(type, ident, curscope);
+
+  const Name *name = ident->ident;
   int index = find_struct_member(type->struct_.info->members, name);
   if (index >= 0) {
     const MemberInfo *member = type->struct_.info->members->data[index];
@@ -751,25 +761,29 @@ static void parse_enum_members(Type *type) {
   assert(type != NULL && type->kind == TY_FIXNUM && type->fixnum.kind == FX_ENUM);
   Type *ctype = qualified_type(type, TQ_CONST);
   int value = 0;
-  for (;;) {
-    Token *token = consume(TK_IDENT, "ident expected");
+  while (!match(TK_RBRACE)) {
+    Token *ident = consume(TK_IDENT, "ident expected");
+    if (ident == NULL)
+      break;
     if (match(TK_ASSIGN)) {
       Expr *expr = parse_const();
       value = expr->fixnum;
     }
 
-    if (scope_find(global_scope, token->ident, NULL) != NULL) {
-      parse_error(PE_NOFATAL, token, "`%.*s' is already defined",
-                          token->ident->bytes, token->ident->chars);
+    if (scope_find(global_scope, ident->ident, NULL) != NULL) {
+      parse_error(PE_NOFATAL, ident, "`%.*s' is already defined",
+                  ident->ident->bytes, ident->ident->chars);
     } else {
-      define_enum_member(ctype, token, value);
+      define_enum_member(ctype, ident, value);
     }
     ++value;
 
-    if (match(TK_COMMA))
-      ;
-    if (match(TK_RBRACE))
-      break;
+    if (!match(TK_COMMA)) {
+      if (fetch_token()->kind != TK_RBRACE) {
+        parse_error(PE_NOFATAL, NULL, "`}' expected");
+        break;
+      }
+    }
   }
 }
 
@@ -780,8 +794,7 @@ static Type *parse_enum(void) {
     if (type != NULL)
       parse_error(PE_FATAL, ident, "Duplicate enum type");
     type = define_enum(curscope, ident != NULL ? ident->ident : NULL);
-    if (!match(TK_RBRACE))
-      parse_enum_members(type);
+    parse_enum_members(type);
   } else {
     if (type == NULL)
       parse_error(PE_FATAL, ident, "Unknown enum type");
@@ -1195,7 +1208,8 @@ Vector *parse_funparams(bool *pvaargs) {
       }
       if (match(TK_RPAR))
         break;
-      consume(TK_COMMA, "Comma or `)' expected");
+      if (!consume(TK_COMMA, "`,' or `)' expected"))
+        break;
     }
   }
   *pvaargs = vaargs;
@@ -1220,7 +1234,7 @@ static StructInfo *parse_struct(bool is_union) {
       ensure_struct(type, ident, curscope);
       // Allow ident to be null for anonymous struct member, otherwise raise error.
       if (ident == NULL && type->kind != TY_STRUCT)
-        parse_error(PE_NOFATAL, NULL, "`ident' expected");
+        parse_error(PE_NOFATAL, NULL, "ident expected");
       const Name *name = ident != NULL ? ident->ident : NULL;
       if (!add_struct_member(members, name, type))
         parse_error(PE_NOFATAL, ident, "`%.*s' already defined", name->bytes, name->chars);
@@ -1262,8 +1276,10 @@ static Expr *parse_prim(void) {
     Type *type = parse_var_def(NULL, &storage, NULL);
     if (type != NULL) {  // Compound literal
       consume(TK_RPAR, "`)' expected");
-      Token *tok2 = consume(TK_LBRACE, "`{' expected");
-      unget_token(tok2);
+      if (fetch_token()->kind != TK_LBRACE) {
+        parse_error(PE_NOFATAL, NULL, "`{' expected");
+        return new_expr_variable(alloc_label(), type, tok, curscope);  // Dummy
+      }
       return parse_compound_literal(type);
     } else if (match(TK_LBRACE)) {  // ({})
       // gcc extension: Statement expression.
@@ -1313,13 +1329,13 @@ static Expr *parse_prim(void) {
     return new_expr_str(tok, tok->str.buf, tok->str.size);
 
   Token *ident = consume(TK_IDENT, "Number or Ident or open paren expected");
+  if (ident == NULL)
+    return new_expr_fixlit(&tyInt, NULL, 0);  // Dummy.
+
   const Name *name = ident->ident;
-  {
-    BuiltinExprProc *proc = table_get(&builtin_expr_ident_table, name);
-    if (proc != NULL) {
-      return (*proc)(ident);
-    }
-  }
+  BuiltinExprProc *proc = table_get(&builtin_expr_ident_table, name);
+  if (proc != NULL)
+    return (*proc)(ident);
   Scope *scope;
   VarInfo *varinfo = scope_find(curscope, name, &scope);
   Type *type;
@@ -1330,7 +1346,8 @@ static Expr *parse_prim(void) {
   } else {
     parse_error(PE_NOFATAL, ident, "`%.*s' undeclared", ident->ident->bytes, ident->ident->chars);
     type = &tyInt;
-    add_var_to_scope(curscope, ident, type, 0);
+    scope = curscope;
+    add_var_to_scope(scope, ident, type, 0);
   }
   return new_expr_variable(name, type, ident, scope);
 }
@@ -1362,14 +1379,12 @@ static Expr *parse_sizeof(const Token *token) {
   const Token *tok;
   if ((tok = match(TK_LPAR)) != NULL) {
     type = parse_var_def(NULL, NULL, NULL);
-    if (type != NULL) {
-      consume(TK_RPAR, "`)' expected");
-    } else {
-      unget_token((Token*)tok);
-      Expr *expr = parse_prim();
+    if (type == NULL) {
+      Expr *expr = parse_expr();
       type = expr->type;
       tok = expr->token;
     }
+    consume(TK_RPAR, "`)' expected");
   } else {
     Expr *expr = parse_unary();
     type = expr->type;
@@ -1502,7 +1517,7 @@ static Expr *parse_cast_expr(void) {
       consume(TK_RPAR, "`)' expected");
 
       Token *token2 = fetch_token();
-      if (token2 != NULL && token2->kind == TK_LBRACE)
+      if (token2->kind == TK_LBRACE)
         return parse_compound_literal(type);
 
       Expr *sub = parse_cast_expr();

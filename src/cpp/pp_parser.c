@@ -173,7 +173,7 @@ static PpResult parse_defined(void) {
   const char *start = skip_whitespaces(get_lex_p());
   const char *end = read_ident(start);
   if (end == NULL) {
-    lex_error(start, "Ident expected");
+    lex_error(start, "ident expected");
   }
 
   set_source_string(end, pp_stream->filename, pp_stream->lineno);

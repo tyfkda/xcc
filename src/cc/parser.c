@@ -86,7 +86,7 @@ void parse_error(enum ParseErrorLevel level, const Token *token, const char *fmt
 Token *consume(/*enum TokenKind*/int kind, const char *error) {
   Token *tok = match(kind);
   if (tok == NULL)
-    parse_error(PE_FATAL, tok, error);
+    parse_error(PE_NOFATAL, tok, error);
   return tok;
 }
 
@@ -809,17 +809,19 @@ Initializer *parse_initializer(void) {
     Vector *multi = new_vector();
     if (!match(TK_RBRACE)) {
       for (;;) {
-        Initializer *init;
+        Initializer *init = NULL;
         const Token *tok;
         if (match(TK_DOT)) {  // .member=value
-          Token *ident = consume(TK_IDENT, "`ident' expected for dotted initializer");
+          Token *ident = consume(TK_IDENT, "ident expected for dotted initializer");
           consume(TK_ASSIGN, "`=' expected for dotted initializer");
           Initializer *value = parse_initializer();
-          init = malloc(sizeof(*init));
-          init->kind = IK_DOT;
-          init->token = ident;
-          init->dot.name = ident->ident;
-          init->dot.value = value;
+          if (ident != NULL) {
+            init = malloc(sizeof(*init));
+            init->kind = IK_DOT;
+            init->token = ident;
+            init->dot.name = ident->ident;
+            init->dot.value = value;
+          }
         } else if ((tok = match(TK_LBRACKET)) != NULL) {
           Expr *index = parse_const();
           consume(TK_RBRACKET, "`]' expected");
@@ -833,7 +835,8 @@ Initializer *parse_initializer(void) {
         } else {
           init = parse_initializer();
         }
-        vec_push(multi, init);
+        if (init != NULL)
+          vec_push(multi, init);
 
         if (match(TK_COMMA)) {
           if (match(TK_RBRACE))
@@ -885,7 +888,7 @@ static Vector *parse_vardecl_cont(Type *rawType, Type *type, int storage, Token 
     if (!first) {
       type = parse_var_def(&rawType, &tmp_storage, &ident);
       if (type == NULL || ident == NULL) {
-        parse_error(PE_FATAL, NULL, "`ident' expected");
+        parse_error(PE_FATAL, NULL, "ident expected");
         return NULL;
       }
     }
@@ -941,7 +944,7 @@ static bool parse_vardecl(Stmt **pstmt) {
          match(TK_SEMICOL)) {
       // Just struct/union or enum definition.
     } else {
-      parse_error(PE_FATAL, NULL, "Ident expected");
+      parse_error(PE_FATAL, NULL, "ident expected");
     }
   } else {
     Vector *decls = parse_vardecl_cont(rawType, type, storage, ident);
@@ -1076,14 +1079,13 @@ static Stmt *parse_for(const Token *tok) {
     Type *type = parse_var_def(&rawType, &storage, &ident);
     if (type != NULL) {
       if (ident == NULL)
-        parse_error(PE_FATAL, NULL, "Ident expected");
+        parse_error(PE_FATAL, NULL, "ident expected");
       scope = enter_scope(curfunc, NULL);
       decls = parse_vardecl_cont(rawType, type, storage, ident);
-      consume(TK_SEMICOL, "`;' expected");
     } else {
       pre = parse_expr();
-      consume(TK_SEMICOL, "`;' expected");
     }
+    consume(TK_SEMICOL, "`;' expected");
   }
 
   Expr *cond = NULL;
@@ -1136,7 +1138,8 @@ static Stmt *parse_goto(const Token *tok) {
   consume(TK_SEMICOL, "`;' expected");
 
   Stmt *stmt = new_stmt_goto(tok, label);
-  add_func_goto(stmt);
+  if (label != NULL)
+    add_func_goto(stmt);
   return stmt;
 }
 
@@ -1350,24 +1353,32 @@ static Declaration *parse_global_var_decl(
       type = parse_type_suffix(type);
 
     if (storage & VS_TYPEDEF) {
-      def_type(type, ident);
+      if (ident != NULL)
+        def_type(type, ident);
     } else {
-      if (type->kind == TY_VOID)
-        parse_error(PE_FATAL, ident, "`void' not allowed");
+      if (type->kind == TY_VOID) {
+        if (ident != NULL)
+          parse_error(PE_NOFATAL, ident, "`void' not allowed");
+      } else {
+        VarInfo *varinfo = NULL;
+        if (ident != NULL)
+          varinfo = add_var_to_scope(global_scope, ident, type, storage);
+        Initializer *init = NULL;
+        if (match(TK_ASSIGN) != NULL) {
+          init = parse_initializer();
+          if (varinfo != NULL)
+            varinfo->global.init = init;
+        }
 
-      VarInfo *varinfo = add_var_to_scope(global_scope, ident, type, storage);
-
-      Initializer *init = NULL;
-      if (match(TK_ASSIGN) != NULL)
-        init = parse_initializer();
-      varinfo->global.init = init;
-
-      init = check_vardecl(&type, ident, storage, init);
-      varinfo->type = type;  // type might be changed.
-      VarDecl *decl = new_vardecl(type, ident, init, storage);
-      if (decls == NULL)
-        decls = new_vector();
-      vec_push(decls, decl);
+        if (ident != NULL) {
+          init = check_vardecl(&type, ident, storage, init);
+          varinfo->type = type;  // type might be changed.
+          VarDecl *decl = new_vardecl(type, ident, init, storage);
+          if (decls == NULL)
+            decls = new_vector();
+          vec_push(decls, decl);
+        }
+      }
     }
 
     if (!match(TK_COMMA))
@@ -1375,14 +1386,10 @@ static Declaration *parse_global_var_decl(
 
     // Next declaration.
     type = parse_type_modifier(rawtype);
-    ident = consume(TK_IDENT, "`ident' expected");
+    ident = consume(TK_IDENT, "ident expected");
   }
-
   consume(TK_SEMICOL, "`;' or `,' expected");
-
-  if (decls == NULL)
-    return NULL;
-  return new_decl_vardecl(decls);
+  return decls == NULL ? NULL : new_decl_vardecl(decls);
 }
 
 static Declaration *parse_declaration(void) {
@@ -1397,7 +1404,7 @@ static Declaration *parse_declaration(void) {
           match(TK_SEMICOL)) {
         // Just struct/union or enum definition.
       } else {
-        parse_error(PE_FATAL, NULL, "Ident expected");
+        parse_error(PE_FATAL, NULL, "ident expected");
       }
       return NULL;
     }
@@ -1414,7 +1421,8 @@ static Declaration *parse_declaration(void) {
 
     return parse_global_var_decl(rawtype, storage, type, ident);
   }
-  parse_error(PE_FATAL, NULL, "Unexpected token");
+  parse_error(PE_NOFATAL, NULL, "Unexpected token");
+  match(-1);  // Drop the token.
   return NULL;
 }
 
