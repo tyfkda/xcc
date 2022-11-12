@@ -167,11 +167,12 @@ export function watchTest() {
     gulp.series(test))
 }
 
-export function clean(done) {
-  return Promise.all([
-      fs.promises.rm(DEST_DIR, {recursive: true, force: true}),
-      fs.promises.rm(RELEASE_DIR, {recursive: true, force: true}),
-    ]).then((_results) => done())
+export async function clean(done) {
+  await Promise.all([
+    fs.promises.rm(DEST_DIR, { recursive: true, force: true }),
+    fs.promises.rm(RELEASE_DIR, { recursive: true, force: true }),
+  ])
+  return done()
 }
 
 export const watch = gulp.parallel(watchHtml, watchTs, watchSass,
