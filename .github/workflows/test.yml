@@ -24,8 +24,8 @@ jobs:
 
     - name: setup
       run: npm ci
-    - name: make -j8 wcc
-      run: make wcc
+    - name: make wcc
+      run: make -j8 wcc
     - name: test wcc
       run:  make test-wcc
     - name: test wcc gen2
