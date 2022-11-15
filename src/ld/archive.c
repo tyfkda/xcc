@@ -99,7 +99,8 @@ ElfObj *load_archive_elfobj(Archive *ar, uint32_t offset) {
 
   memcpy(content->name, hdr.ar_name, sizeof(hdr.ar_name));
   char *p = memchr(content->name, '/', sizeof(hdr.ar_name));
-  if (p == NULL) p = &content->name[sizeof(hdr.ar_name)];
+  if (p == NULL)
+    p = &content->name[sizeof(hdr.ar_name)];
   *p = '\0';
 
   char sizestr[sizeof(hdr.ar_size) + 1];

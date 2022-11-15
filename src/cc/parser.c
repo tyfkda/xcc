@@ -1315,7 +1315,7 @@ static Declaration *parse_defun(Type *functype, int storage, Token *ident) {
 
     if (!err && varinfo->global.func != NULL) {
       parse_error(PE_NOFATAL, ident, "`%.*s' function already defined", func->name->bytes,
-                          func->name->chars);
+                  func->name->chars);
     } else {
       varinfo->global.func = func;
     }

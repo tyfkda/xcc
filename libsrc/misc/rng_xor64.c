@@ -1,6 +1,6 @@
 #if !defined(__WASM)
-#include "stdint.h"
 #include "stdbool.h"
+#include "stdint.h"
 #include "sys/random.h"
 
 uint32_t xor64(void) {

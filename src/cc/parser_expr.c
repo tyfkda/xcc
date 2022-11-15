@@ -500,16 +500,16 @@ static Expr *new_expr_cmp(enum ExprKind kind, const Token *tok, Expr *lhs, Expr 
       parse_error(PE_FATAL, tok, "Cannot compare except numbers");
 
     if (is_const(lhs) && is_const(rhs)) {
-#define JUDGE(kind, tf, l, r)  \
-switch (kind) { \
-default: assert(false); /* Fallthrough */ \
-case EX_EQ:  tf = l == r; break; \
-case EX_NE:  tf = l != r; break; \
-case EX_LT:  tf = l < r; break; \
-case EX_LE:  tf = l <= r; break; \
-case EX_GE:  tf = l >= r; break; \
-case EX_GT:  tf = l > r; break; \
-}
+#define JUDGE(kind, tf, l, r)               \
+  switch (kind) {                           \
+  default: assert(false); /* Fallthrough */ \
+  case EX_EQ: tf = l == r; break;           \
+  case EX_NE: tf = l != r; break;           \
+  case EX_LT: tf = l < r; break;            \
+  case EX_LE: tf = l <= r; break;           \
+  case EX_GE: tf = l >= r; break;           \
+  case EX_GT: tf = l > r; break;            \
+  }
       bool tf;
       switch (lhs->kind) {
       default:
