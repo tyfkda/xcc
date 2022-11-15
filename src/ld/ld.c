@@ -495,17 +495,21 @@ int main(int argc, char *argv[]) {
       if (!open_elf(src, elfobj)) {
         close_elf(file->elfobj);
         free(elfobj);
-        continue;
+        exit(1);
       }
       file->kind = FK_ELFOBJ;
       file->elfobj = elfobj;
     } else if (strcasecmp(ext, "a") == 0) {
       Archive *archive = load_archive(src);
+      if (archive == NULL) {
+        fprintf(stderr, "load failed: %s\n", src);
+        exit(1);
+      }
       file->kind = FK_ARCHIVE;
       file->archive = archive;
     } else {
       error("Unsupported file: %s", src);
-      continue;
+      exit(1);
     }
     ++nfiles;
   }
