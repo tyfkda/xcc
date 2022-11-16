@@ -4,5 +4,8 @@
 
 struct FILE {
   int fd;
+  int wp;
   int flag;
+
+  unsigned char wbuf[32];
 };

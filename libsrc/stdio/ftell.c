@@ -4,5 +4,6 @@
 #include "./_file.h"
 
 long ftell(FILE *fp) {
-  return lseek(fp->fd, 0, SEEK_CUR);
+  off_t result = lseek(fp->fd, 0, SEEK_CUR);
+  return result >= 0 ? result + fp->wp : result;
 }
