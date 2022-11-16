@@ -30,6 +30,7 @@ FILE *fdopen(int fd, const char *mode) {
   FILE *fp = malloc(sizeof(*fp));
   if (fp != NULL) {
     fp->fd = fd;
+    fp->rp = fp->rs = 0;
     fp->wp = 0;
 
     int flag = 0;
