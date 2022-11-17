@@ -172,8 +172,8 @@ static void init_reserved_word_table(void) {
 }
 
 static enum TokenKind reserved_word(const Name *name) {
-  void *ptr = table_get(&reserved_word_table, name);
-  return ptr != NULL ? (enum TokenKind)(intptr_t)ptr : (enum TokenKind)-1;
+  void *kind = table_get(&reserved_word_table, name);
+  return kind != NULL ? (enum TokenKind)(intptr_t)kind : TK_EOF;
 }
 
 static int backslash(int c, const char **pp) {
@@ -594,7 +594,7 @@ static Token *get_op_token(const char **pp) {
       for (int len = n; len > 1; --len) {
         const Name *op = alloc_name(p, p + len, false);
         enum TokenKind kind = reserved_word(op);
-        if ((int)kind != -1) {
+        if (kind != TK_EOF) {
           const char *q = p + len;
           *pp = q;
           return alloc_token(kind, p, q);
@@ -625,12 +625,9 @@ static Token *get_token(void) {
   const char *ident_end = read_ident(p);
   if (ident_end != NULL) {
     const Name *name = alloc_name(begin, ident_end, false);
-    enum TokenKind word = reserved_word(name);
-    if ((int)word != -1) {
-      tok = alloc_token(word, begin, ident_end);
-    } else {
-      tok = alloc_ident(name, begin, ident_end);
-    }
+    enum TokenKind kind = reserved_word(name);
+    tok = kind != TK_EOF ? alloc_token(kind, begin, ident_end)
+                         : alloc_ident(name, begin, ident_end);
     p = ident_end;
   } else if (isdigit(*p)) {
     tok = read_num(&p);
