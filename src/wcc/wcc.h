@@ -36,7 +36,7 @@ extern bool verbose;
 typedef struct {
   Function *func;
   const Type *type;
-  const Token *bpident;
+  const Name *bpname;
   uint32_t index;
   int flag;
   uint32_t type_index;

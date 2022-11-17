@@ -445,8 +445,8 @@ static void gen_funcall(Expr *expr) {
 
 static void gen_bpofs(int32_t offset) {
   FuncInfo *finfo = table_get(&func_info_table, curfunc->name);
-  assert(finfo != NULL && finfo->bpident != NULL);
-  const Name *bpname = finfo->bpident->ident;
+  assert(finfo != NULL && finfo->bpname != NULL);
+  const Name *bpname = finfo->bpname;
   Scope *scope = curfunc->scopes->data[0];
   const VarInfo *bpvarinfo = scope_find(scope, bpname, &scope);
   assert(bpvarinfo != NULL && !is_global_scope(scope));
@@ -1360,7 +1360,7 @@ static void gen_return(Stmt *stmt) {
       ADD_CODE(OP_LOCAL_GET, 0);
     }
   }
-  if (finfo->bpident != NULL) {
+  if (finfo->bpname != NULL) {
     assert(cur_depth > 0);
     ADD_CODE(OP_BR);
     ADD_ULEB128(cur_depth - 1);
@@ -1503,13 +1503,13 @@ static uint32_t allocate_local_variables(Function *func, DataStorage *data) {
   if (frame_size > 0 || param_count != pparam_count) {
     frame_size = ALIGN(frame_size, 8);  // TODO:
 
-    // Allocate base pointer in top scope.
-    const Token *bpident = alloc_dummy_ident();
+    // Allocate a variable for base pointer in function top scope.
+    const Name *bpname = alloc_label();
     FuncInfo *finfo = table_get(&func_info_table, func->name);
     assert(finfo != NULL);
-    finfo->bpident = bpident;
+    finfo->bpname = bpname;
 
-    scope_add(func->scopes->data[0], bpident->ident, &tySize, 0);
+    scope_add(func->scopes->data[0], bpname, &tySize, 0);
     local_counts[WT_I32 - WT_I32] += 1;
   }
 
@@ -1616,10 +1616,10 @@ static void gen_defun(Function *func) {
   // Set up base pointer.
   FuncInfo *finfo = table_get(&func_info_table, func->name);
   assert(finfo != NULL);
-  const Token *bpident = finfo->bpident;
+  const Name *bpname = finfo->bpname;
   Expr *bpvar = NULL, *spvar = NULL;
-  if (bpident != NULL) {
-    bpvar = new_expr_variable(bpident->ident, &tySize, bpident, func->scopes->data[0]);
+  if (bpname != NULL) {
+    bpvar = new_expr_variable(bpname, &tySize, NULL, func->scopes->data[0]);
     spvar = get_sp_var();
     // local.bp = global.sp;
     gen_expr_stmt(new_expr_bop(EX_ASSIGN, &tyVoid, NULL, bpvar, spvar));
@@ -1651,7 +1651,7 @@ static void gen_defun(Function *func) {
   curscope = func->scopes->data[0];
   {
     unsigned char wt = is_prim_type(functype->func.ret) ? to_wtype(functype->func.ret) : functype->func.ret->kind != TY_VOID ? WT_I32 : WT_VOID;
-    if (bpident != NULL) {
+    if (bpname != NULL) {
       ADD_CODE(OP_BLOCK, wt);
       cur_depth += 1;
     }
@@ -1667,7 +1667,7 @@ static void gen_defun(Function *func) {
   }
   gen_stmts(func->stmts);
 
-  if (bpident != NULL) {
+  if (bpname != NULL) {
     ADD_CODE(OP_END);
     cur_depth -= 1;
     assert(cur_depth == 0);
@@ -1675,7 +1675,7 @@ static void gen_defun(Function *func) {
     // Epilogue
 
     // Restore stack pointer.
-    if (bpident != NULL) {
+    if (bpname != NULL) {
       // global.sp = bp;
       gen_expr_stmt(new_expr_bop(EX_ASSIGN, &tyVoid, NULL, spvar, bpvar));
     }
