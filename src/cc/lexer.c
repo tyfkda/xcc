@@ -11,6 +11,19 @@
 #include "table.h"
 #include "util.h"
 
+Token *alloc_token(enum TokenKind kind, Line *line, const char *begin, const char *end) {
+  if (end == NULL) {
+    assert(begin != NULL);
+    end = begin + strlen(begin);
+  }
+  Token *token = malloc(sizeof(*token));
+  token->kind = kind;
+  token->line = line;
+  token->begin = begin;
+  token->end = end;
+  return token;
+}
+
 bool auto_concat_string_literal;
 
 static const struct {
@@ -132,27 +145,15 @@ void lex_error(const char *p, const char *fmt, ...) {
   exit(1);
 }
 
-Token *alloc_token(enum TokenKind kind, const char *begin, const char *end) {
-  if (end == NULL) {
-    assert(begin != NULL);
-    end = begin + strlen(begin);
-  }
-  Token *token = malloc(sizeof(*token));
-  token->kind = kind;
-  token->line = lexer.line;
-  token->begin = begin;
-  token->end = end;
-  return token;
-}
-
-static Token *alloc_ident(const Name *name, const char *begin, const char *end) {
-  Token *tok = alloc_token(TK_IDENT, begin, end);
+static Token *alloc_ident(const Name *name, Line *line, const char *begin, const char *end) {
+  Token *tok = alloc_token(TK_IDENT, line, begin, end);
   tok->ident = name;
   return tok;
 }
 
 Token *alloc_dummy_ident(void) {
-  return alloc_ident(alloc_label(), "", NULL);
+  const Name *label = alloc_label();
+  return alloc_ident(label, NULL, label->chars, label->chars + label->bytes);
 }
 
 static void init_reserved_word_table(void) {
@@ -428,7 +429,7 @@ static Token *read_flonum(const char **pp) {
     tk = TK_FLOATLIT;
     ++next;
   }
-  Token *tok = alloc_token(tk, start, next);
+  Token *tok = alloc_token(tk, lexer.line, start, next);
   tok->flonum = val;
   *pp = next;
   return tok;
@@ -478,7 +479,7 @@ static Token *read_num(const char **pp) {
       ++p;
     }
   }
-  Token *tok = alloc_token(tt + (is_unsigned ? (TK_UINTLIT - TK_INTLIT) : 0), start, p);
+  Token *tok = alloc_token(tt + (is_unsigned ? (TK_UINTLIT - TK_INTLIT) : 0), lexer.line, start, p);
   tok->fixnum = val;
   *pp = p;
   return tok;
@@ -526,7 +527,7 @@ static Token *read_char(const char **pp) {
     lex_error(p, "Character not closed");
 
   ++p;
-  Token *tok = alloc_token(TK_CHARLIT, begin, p);
+  Token *tok = alloc_token(TK_CHARLIT, lexer.line, begin, p);
   tok->fixnum = c;
   *pp = p;
   return tok;
@@ -571,7 +572,7 @@ static Token *read_string(const char **pp) {
   }
   assert(size < capa);
   str[size++] = '\0';
-  Token *tok = alloc_token(TK_STR, begin, end);
+  Token *tok = alloc_token(TK_STR, lexer.line, begin, end);
   tok->str.buf = str;
   tok->str.size = size;
   *pp = p;
@@ -597,13 +598,13 @@ static Token *get_op_token(const char **pp) {
         if (kind != TK_EOF) {
           const char *q = p + len;
           *pp = q;
-          return alloc_token(kind, p, q);
+          return alloc_token(kind, lexer.line, p, q);
         }
       }
 
       const char *q = p + 1;
       *pp = q;
-      return alloc_token(single, p, q);
+      return alloc_token(single, lexer.line, p, q);
     }
   }
   return NULL;
@@ -626,8 +627,8 @@ static Token *get_token(void) {
   if (ident_end != NULL) {
     const Name *name = alloc_name(begin, ident_end, false);
     enum TokenKind kind = reserved_word(name);
-    tok = kind != TK_EOF ? alloc_token(kind, begin, ident_end)
-                         : alloc_ident(name, begin, ident_end);
+    tok = kind != TK_EOF ? alloc_token(kind, lexer.line, begin, ident_end)
+                         : alloc_ident(name, lexer.line, begin, ident_end);
     p = ident_end;
   } else if (isdigit(*p)) {
     tok = read_num(&p);

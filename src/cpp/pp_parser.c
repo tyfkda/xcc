@@ -522,7 +522,7 @@ Vector *pp_funargs(Vector *tokens, int *pindex, int vaarg) {
       if (need_space || (fetched && tok->begin != start)) {
         if (arg->len > 0) {
           if (tok_space == NULL)
-            tok_space = alloc_token(PPTK_SPACE, " ", NULL);
+            tok_space = alloc_token(PPTK_SPACE, NULL, " ", NULL);
           vec_push(arg, tok_space);
         }
         need_space = false;

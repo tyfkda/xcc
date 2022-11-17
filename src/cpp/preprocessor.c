@@ -236,7 +236,7 @@ static Vector *parse_macro_body(const char *p, Stream *stream) {
     if (need_space || tok->begin != start) {
       if (tok->kind != PPTK_CONCAT) {
         if (tok_space == NULL)
-          tok_space = alloc_token(PPTK_SPACE, " ", NULL);
+          tok_space = alloc_token(PPTK_SPACE, NULL, " ", NULL);
         vec_push(tokens, tok_space);
       }
       need_space = false;
@@ -520,7 +520,7 @@ int preprocess(FILE *fp, const char *filename_) {
   define_file_macro(stream.filename, key_file);
 
   // __LINE__ : Dirty hack.
-  Token *tok_lineno = alloc_token(TK_STR, linenobuf, linenobuf);
+  Token *tok_lineno = alloc_token(TK_STR, NULL, linenobuf, linenobuf);
   Vector *lineno_tokens = new_vector();
   vec_push(lineno_tokens, tok_lineno);
   macro_add(key_line, new_macro(NULL, false, lineno_tokens));

@@ -30,7 +30,6 @@ Token *match(enum TokenKind kind);
 void unget_token(Token *token);
 const char *read_ident(const char *p);
 Token *alloc_dummy_ident(void);
-Token *alloc_token(enum TokenKind kind, const char *begin, const char *end);
 const char *get_lex_p(void);
 void lex_error(const char *p, const char *fmt, ...);
 
@@ -40,3 +39,5 @@ const char *block_comment_end(const char *p);
 typedef bool (*LexEofCallback)(void);
 LexEofCallback set_lex_eof_callback(LexEofCallback callback);
 bool lex_eof_continue(void);
+
+Token *alloc_token(enum TokenKind kind, Line *line, const char *begin, const char *end);

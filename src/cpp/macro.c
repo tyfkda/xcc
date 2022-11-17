@@ -130,7 +130,7 @@ static void glue1(Vector *ls, const Token *tok2) {
     memcpy(str + len1, tok2->begin, len2);
     str[len1 + len2] = '\0';
     const Name *name = alloc_name(str, str + (len1 + len2), false);
-    Token *tok = alloc_token(TK_IDENT, str, str + (len1 + len2));
+    Token *tok = alloc_token(TK_IDENT, NULL, str, str + (len1 + len2));
     tok->ident = name;
     ls->data[ls->len - 1] = tok;
   } else {
@@ -167,7 +167,7 @@ static Token *stringize(const Vector *arg) {
   sb_append(&sb, DQUOTE, NULL);
   const char *escaped = sb_to_string(&sb);
 
-  Token *tok = alloc_token(TK_STR, escaped, NULL);
+  Token *tok = alloc_token(TK_STR, NULL, escaped, NULL);
   tok->str.buf = str + 1;
   tok->str.size = len + (- 2 /*for ""*/ + 1 /*for \0*/);
   return tok;
