@@ -4,7 +4,7 @@
 
 #include <stdbool.h>
 
-#include "ast.h"  // ExprKind
+#include "ast.h"  // ExprKind, TokenKind
 
 typedef struct Expr Expr;
 typedef struct Function Function;
@@ -68,7 +68,7 @@ Stmt *parse_block(const Token *tok);
 
 VarInfo *add_var_to_scope(Scope *scope, const Token *ident, Type *type, int storage);
 
-Token *consume(/*enum TokenKind*/int kind, const char *error);
+Token *consume(enum TokenKind kind, const char *error);
 
 enum ParseErrorLevel {
   PE_WARNING,

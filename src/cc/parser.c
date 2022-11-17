@@ -83,7 +83,7 @@ void parse_error(enum ParseErrorLevel level, const Token *token, const char *fmt
   }
 }
 
-Token *consume(/*enum TokenKind*/int kind, const char *error) {
+Token *consume(enum TokenKind kind, const char *error) {
   Token *tok = match(kind);
   if (tok == NULL)
     parse_error(PE_NOFATAL, tok, error);

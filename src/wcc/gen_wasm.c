@@ -8,7 +8,6 @@
 #include <string.h>
 
 #include "ast.h"
-#include "lexer.h"  // parse_error
 #include "parser.h"  // curfunc
 #include "table.h"
 #include "type.h"

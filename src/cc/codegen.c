@@ -10,7 +10,6 @@
 
 #include "ast.h"
 #include "ir.h"
-#include "lexer.h"
 #include "parser.h"  // curfunc, curscope
 #include "regalloc.h"
 #include "table.h"
