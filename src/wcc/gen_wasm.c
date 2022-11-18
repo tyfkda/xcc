@@ -31,7 +31,7 @@ void add_code(const unsigned char* buf, size_t size) {
 }
 
 void emit_leb128(DataStorage *data, ssize_t pos, int64_t val) {
-  unsigned char buf[5], *p = buf;
+  unsigned char buf[12], *p = buf;
   const int64_t MAX = 1 << 6;
   for (;;) {
     if (val < MAX && val >= -MAX) {
@@ -45,7 +45,7 @@ void emit_leb128(DataStorage *data, ssize_t pos, int64_t val) {
 }
 
 void emit_uleb128(DataStorage *data, ssize_t pos, uint64_t val) {
-  unsigned char buf[5], *p = buf;
+  unsigned char buf[12], *p = buf;
   const uint64_t MAX = 1 << 7;
   for (;;) {
     if (val < MAX) {

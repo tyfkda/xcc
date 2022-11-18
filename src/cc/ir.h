@@ -4,7 +4,7 @@
 
 #include <stdbool.h>
 #include <stddef.h>  // size_t
-#include <stdint.h>  // intptr_t
+#include <stdint.h>  // int64_t
 
 typedef struct BB BB;
 typedef struct Name Name;
@@ -40,7 +40,7 @@ typedef struct VReg {
   int flag;
   int param_index;  // Function parameter index: -1=not a param
   int offset;       // Local offset for spilled register.
-  intptr_t fixnum;  // Constant value.
+  int64_t fixnum;   // Constant value.
 } VReg;
 
 VReg *new_vreg(int vreg_no, const VRegType *vtype, int flag);
@@ -110,7 +110,7 @@ typedef struct IR {
   VReg *dst;
   VReg *opr1;
   VReg *opr2;
-  intptr_t value;
+  int64_t value;
 
   union {
     struct {
@@ -155,7 +155,7 @@ typedef struct IR {
   };
 } IR;
 
-VReg *new_const_vreg(intptr_t value, const VRegType *vtype);
+VReg *new_const_vreg(int64_t value, const VRegType *vtype);
 VReg *new_ir_bop(enum IrKind kind, VReg *opr1, VReg *opr2, const VRegType *vtype);
 VReg *new_ir_unary(enum IrKind kind, VReg *opr, const VRegType *vtype);
 IR *new_ir_mov(VReg *dst, VReg *src);

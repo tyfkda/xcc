@@ -2,6 +2,8 @@
 
 #pragma once
 
+#include <stdint.h>  // int64_t
+
 typedef struct Name Name;
 
 // Must match the order with kOpTable in parse_asm.c
@@ -254,7 +256,7 @@ typedef struct Expr {
   enum ExprKind kind;
   union {
     const Name *label;
-    long fixnum;
+    int64_t fixnum;
     struct {
       struct Expr *lhs;
       struct Expr *rhs;

@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include <stdint.h>  // intptr_t
+#include <stdint.h>  // int64_t
 #include <stdio.h>
 
 typedef struct Name Name;
@@ -10,8 +10,8 @@ typedef struct Name Name;
 char *fmt(const char *s, ...);
 char *fmt_name(const Name *name);
 char *quote_label(char *label);
-char *num(intptr_t x);  // x
-char *hexnum(intptr_t x);  // 0xnn
+char *num(int64_t x);  // x
+char *hexnum(int64_t x);  // 0xnn
 #ifndef __NO_FLONUM
 char *flonum(double x);
 #endif

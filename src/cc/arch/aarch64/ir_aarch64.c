@@ -63,7 +63,7 @@ static const int kPow2Table[] = {-1, 0, 1, -1, 2, -1, -1, -1, 3};
 
 //
 
-void mov_immediate(const char *dst, intptr_t value, bool b64) {
+void mov_immediate(const char *dst, int64_t value, bool b64) {
   if (value == 0) {
     MOV(dst, b64 ? XZR : WZR);
   } else if (is_im16(value)) {

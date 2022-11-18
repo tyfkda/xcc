@@ -455,7 +455,7 @@ static Token *read_num(const char **pp) {
     }
   }
   const char *q = p;
-  unsigned long val = strtoul(p, (char**)&p, base);
+  unsigned long long val = strtoull(p, (char**)&p, base);
   if (p == q)
     lex_error(p, "Illegal literal");
 

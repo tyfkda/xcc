@@ -2,7 +2,7 @@
 #include "emit_code.h"
 
 #include <assert.h>
-#include <inttypes.h>  // PRIdPTR
+#include <inttypes.h>  // PRId64
 #include <limits.h>  // CHAR_BIT
 #include <stdlib.h>
 #include <string.h>
@@ -18,8 +18,8 @@
 #include "var.h"
 #include "x64.h"
 
-char *im(intptr_t x) {
-  return fmt("$%" PRIdPTR, x);
+char *im(int64_t x) {
+  return fmt("$%" PRId64, x);
 }
 
 char *indirect(const char *base, const char *index, int scale) {

@@ -2,9 +2,9 @@
 #include "emit_util.h"
 
 #include <assert.h>
-#include <inttypes.h>  // PRIdPTR
+#include <inttypes.h>  // PRId64
 #include <stdarg.h>
-#include <stdint.h>  // intptr_t
+#include <stdint.h>  // int64_t
 
 #include "table.h"
 #include "util.h"
@@ -40,11 +40,11 @@ char *quote_label(char *label) {
   return label;
 }
 
-char *num(intptr_t x) {
-  return fmt("%" PRIdPTR, x);
+char *num(int64_t x) {
+  return fmt("%" PRId64, x);
 }
 
-char *hexnum(intptr_t x) {
+char *hexnum(int64_t x) {
   return fmt("0x%" PRIxPTR, x);
 }
 

@@ -2,13 +2,13 @@
 
 #pragma once
 
-#include <stdint.h>  // intptr_t
+#include <stdint.h>  // int64_t
 
 typedef struct Vector Vector;
 
 void emit_code(Vector *decls);
 
-char *im(intptr_t x);  // #x
+char *im(int64_t x);  // #x
 char *immediate_offset(const char *reg, int offset);
 char *pre_index(const char *reg, int offset);
 char *post_index(const char *reg, int offset);

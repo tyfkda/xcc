@@ -757,6 +757,14 @@ int main(void) {
 
   expect("block expr", 169, ({int x = 13; x * x;}));
 
+  {
+    int64_t x = 0x123456789abcdef0LL;
+    expect("64bit literal 1", 0xdef0,  x        & 0xffff);
+    expect("64bit literal 2", 0x9abc, (x >> 16) & 0xffff);
+    expect("64bit literal 3", 0x5678, (x >> 32) & 0xffff);
+    expect("64bit literal 4", 0x1234, (x >> 48) & 0xffff);
+  }
+
   return 0;
 }
 

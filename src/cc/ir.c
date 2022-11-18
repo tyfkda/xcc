@@ -46,25 +46,25 @@ static IR *new_ir(enum IrKind kind) {
   return ir;
 }
 
-VReg *new_const_vreg(intptr_t value, const VRegType *vtype) {
+VReg *new_const_vreg(int64_t value, const VRegType *vtype) {
   VReg *vreg = reg_alloc_spawn(curra, vtype, VRF_CONST);
   vreg->fixnum = value;
   return vreg;
 }
 
-static intptr_t clamp_value(intptr_t value, const VRegType *vtype) {
+static int64_t clamp_value(int64_t value, const VRegType *vtype) {
   if (vtype->flag & VRTF_UNSIGNED) {
     switch (vtype->size) {
-    case 1:  value = (unsigned char)value; break;
-    case 2:  value = (unsigned short)value; break;
-    case 4:  value = (unsigned int)value; break;
+    case 1:  value = (uint8_t)value; break;
+    case 2:  value = (uint16_t)value; break;
+    case 4:  value = (uint32_t)value; break;
     default:  break;
     }
   } else {
     switch (vtype->size) {
-    case 1:  value = (char)value; break;
-    case 2:  value = (short)value; break;
-    case 4:  value = (int)value; break;
+    case 1:  value = (int8_t)value; break;
+    case 2:  value = (int16_t)value; break;
+    case 4:  value = (int32_t)value; break;
     default:  break;
     }
   }
@@ -74,7 +74,7 @@ static intptr_t clamp_value(intptr_t value, const VRegType *vtype) {
 VReg *new_ir_bop(enum IrKind kind, VReg *opr1, VReg *opr2, const VRegType *vtype) {
   if (opr1->flag & VRF_CONST) {
     if (opr2->flag & VRF_CONST) {
-      intptr_t value = 0;
+      int64_t value = 0;
       switch (kind) {
       case IR_ADD:     value = opr1->fixnum + opr2->fixnum; break;
       case IR_SUB:     value = opr1->fixnum - opr2->fixnum; break;
@@ -87,7 +87,7 @@ VReg *new_ir_bop(enum IrKind kind, VReg *opr1, VReg *opr2, const VRegType *vtype
         switch (kind) {
         case IR_DIV:
           if (vtype->flag & VRTF_UNSIGNED)
-            value = (uintptr_t)opr1->fixnum / opr2->fixnum;
+            value = (uint64_t)opr1->fixnum / opr2->fixnum;
           else
             value = opr1->fixnum / opr2->fixnum;
           break;
@@ -95,7 +95,7 @@ VReg *new_ir_bop(enum IrKind kind, VReg *opr1, VReg *opr2, const VRegType *vtype
           if (vtype->flag & VRTF_UNSIGNED)
             value = opr1->fixnum / opr2->fixnum;
           else
-            value = (uintptr_t)opr1->fixnum / opr2->fixnum;
+            value = (uint64_t)opr1->fixnum / opr2->fixnum;
           break;
         default: assert(false); break;
         }
@@ -108,7 +108,7 @@ VReg *new_ir_bop(enum IrKind kind, VReg *opr1, VReg *opr2, const VRegType *vtype
       case IR_RSHIFT:
         //assert(opr1->type->kind == TY_FIXNUM);
         if (opr1->vtype->flag & VRTF_UNSIGNED)
-          value = (uintptr_t)opr1->fixnum >> opr2->fixnum;
+          value = (uint64_t)opr1->fixnum >> opr2->fixnum;
         else
           value = opr1->fixnum >> opr2->fixnum;
         break;
@@ -198,7 +198,7 @@ VReg *new_ir_bop(enum IrKind kind, VReg *opr1, VReg *opr2, const VRegType *vtype
 
 VReg *new_ir_unary(enum IrKind kind, VReg *opr, const VRegType *vtype) {
   if (opr->flag & VRF_CONST && kind != IR_LOAD) {
-    intptr_t value = 0;
+    int64_t value = 0;
     switch (kind) {
     case IR_NEG:     value = -opr->fixnum; break;
     case IR_BITNOT:  value = ~opr->fixnum; break;

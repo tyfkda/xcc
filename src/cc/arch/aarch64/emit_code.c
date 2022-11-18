@@ -2,7 +2,7 @@
 #include "emit_code.h"
 
 #include <assert.h>
-#include <inttypes.h>  // PRIdPTR
+#include <inttypes.h>  // PRId64
 #include <stdlib.h>
 #include <string.h>
 
@@ -17,8 +17,8 @@
 #include "util.h"
 #include "var.h"
 
-char *im(intptr_t x) {
-  return fmt("#%" PRIdPTR, x);
+char *im(int64_t x) {
+  return fmt("#%" PRId64, x);
 }
 
 char *immediate_offset(const char *reg, int offset) {
@@ -188,7 +188,7 @@ static void construct_initial_value(const Type *type, const Initializer *init) {
         if (offset == 0) {
           output = label;
         } else {
-          output = fmt("%s + %" PRIdPTR, label, offset);
+          output = fmt("%s + %" PRId64, label, offset);
         }
       }
       if (type->kind == TY_PTR) {

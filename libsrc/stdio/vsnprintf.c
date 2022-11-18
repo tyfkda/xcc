@@ -1,5 +1,6 @@
 #include "ctype.h"
 #include "stdarg.h"
+#include "stdbool.h"
 #include "stdint.h"  // uintptr_t
 #include "stdio.h"
 #include "string.h"
@@ -42,32 +43,8 @@ putpadding(char *out, int o, int n, int m, char padding)
 
 // Output is not '\0' terminated.
 static int
-snprintuint(char *out, unsigned int n, unsigned int x,
-            int base, const char* digits, int order, int padding)
-{
-  char buf[16];
-  unsigned int i, o;
-
-  i = 0;
-  do{
-    buf[i++] = digits[x % base];
-    x /= base;
-  }while(x != 0);
-
-  if (i < order) {
-    memset(buf + i, padding, order - i);
-    i = order;
-  }
-
-  for (o = 0; i > 0 && o < n; ++o)
-    out[o] = buf[--i];
-
-  return o;
-}
-
-static int
-snprintulong(char *out, unsigned int n, unsigned long x,
-             int base, const char* digits, int order, int padding)
+snprintullong(char *out, unsigned int n, unsigned long long x,
+              int base, const char* digits, int order, int padding)
 {
   char buf[32];
   unsigned int i, o;
@@ -148,7 +125,7 @@ vsnprintf(char *out, size_t n, const char *fmt_, va_list ap)
     int order = 0, suborder = 0;
     int sign = 0;
     int leftalign = 0;
-    int bLong = 0;
+    int nlong = 0;
     c = fmt[++i];
     if (c == '+') {
       sign = 1;
@@ -181,30 +158,32 @@ vsnprintf(char *out, size_t n, const char *fmt_, va_list ap)
     }
 
     if(c == 'l'){
-      bLong = 1;
+      nlong = 1;
       c = fmt[++i];
+      if(c == 'l'){
+        nlong = 2;
+        c = fmt[++i];
+      }
     }
     if(c == 'd'){
-      if (bLong) {
-        long x = va_arg(ap, long);
-        o += sprintsign(out + o, x < 0, sign, &order);
-        unsigned long ux = x < 0 ? -x : x;
-        o += snprintulong(out + o, n - o, ux, 10, kHexDigits, order, padding);
-      } else {
-        int x = va_arg(ap, int);
-        o += sprintsign(out + o, x < 0, sign, &order);
-        unsigned int ux = x < 0 ? -x : x;
-        o += snprintuint(out + o, n - o, ux, 10, kHexDigits, order, padding);
+      long long x;
+      switch (nlong) {
+      case 0:  x = va_arg(ap, int); break;
+      case 1:  x = va_arg(ap, long); break;
+      default: x = va_arg(ap, long long); break;  // case 2:
       }
+      o += sprintsign(out + o, x < 0, sign, &order);
+      unsigned long long ux = x < 0 ? -x : x;
+      o += snprintullong(out + o, n - o, ux, 10, kHexDigits, order, padding);
     } else if(tolower(c) == 'x') {
       const char *digits = c == 'x' ? kHexDigits : kUpperHexDigits;
-      if (bLong) {
-        long x = va_arg(ap, long);
-        o += snprintulong(out + o, n - o, x, 16, digits, order, padding);
-      } else {
-        int x = va_arg(ap, int);
-        o += snprintuint(out + o, n - o, x, 16, digits, order, padding);
+      unsigned long long x;
+      switch (nlong) {
+      case 0:  x = va_arg(ap, unsigned int); break;
+      case 1:  x = va_arg(ap, unsigned long); break;
+      default: x = va_arg(ap, unsigned long long); break;  // case 2:
       }
+      o += snprintullong(out + o, n - o, x, 16, digits, order, padding);
     } else if(c == 'p') {
       void *ptr = va_arg(ap, void*);
       order -= 2;
@@ -212,10 +191,10 @@ vsnprintf(char *out, size_t n, const char *fmt_, va_list ap)
         order = 0;
       if (order == 0 || padding != ' ') {
         o += snprintstr(out + o, n - o, "0x", 0, 0, 0);
-        o += snprintulong(out + o, n - o, (uintptr_t)ptr, 16, kHexDigits, order, padding);
+        o += snprintullong(out + o, n - o, (uintptr_t)ptr, 16, kHexDigits, order, padding);
       } else {
         char buf[32];
-        int oo = snprintulong(buf, sizeof(buf), (uintptr_t)ptr, 16, kHexDigits, 0, padding);
+        int oo = snprintullong(buf, sizeof(buf), (uintptr_t)ptr, 16, kHexDigits, 0, padding);
         if (order > oo)
           o = putpadding(out, o, n, order - oo, padding);
         o += snprintstr(out + o, n - o, "0x", 0, 0, 0);
@@ -243,14 +222,14 @@ vsnprintf(char *out, size_t n, const char *fmt_, va_list ap)
       x = x < 0 ? -x : x;
 
       long intPart = x >= 0 ? (long)x : -(long)(-x);
-      o += snprintulong(out + o, n - o, intPart, 10, kHexDigits,
-                        order, padding);
+      o += snprintullong(out + o, n - o, intPart, 10, kHexDigits,
+                         order, padding);
       if (o < n) {
         out[o++] = '.';
         suborder = suborder > 0 ? suborder : 6;
         unsigned long fraction = (unsigned long)((x - intPart) * pow10(suborder));
-        o += snprintulong(out + o, n - o, fraction, 10, kHexDigits,
-                          suborder, '0');
+        o += snprintullong(out + o, n - o, fraction, 10, kHexDigits,
+                           suborder, '0');
       }
 #endif
     } else {

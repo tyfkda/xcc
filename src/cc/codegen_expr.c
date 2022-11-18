@@ -106,12 +106,12 @@ static enum ConditionKind gen_compare_expr(enum ExprKind kind, Expr *lhs, Expr *
     case COND_LE:  return lhs_reg->fixnum <= rhs_reg->fixnum ? COND_ANY : COND_NONE;
     case COND_GE:  return lhs_reg->fixnum >= rhs_reg->fixnum ? COND_ANY : COND_NONE;
     case COND_GT:  return lhs_reg->fixnum >  rhs_reg->fixnum ? COND_ANY : COND_NONE;
-    case COND_EQ | COND_UNSIGNED:  return (uintptr_t)lhs_reg->fixnum == (uintptr_t)rhs_reg->fixnum ? COND_ANY : COND_NONE;
-    case COND_NE | COND_UNSIGNED:  return (uintptr_t)lhs_reg->fixnum != (uintptr_t)rhs_reg->fixnum ? COND_ANY : COND_NONE;
-    case COND_LT | COND_UNSIGNED:  return (uintptr_t)lhs_reg->fixnum <  (uintptr_t)rhs_reg->fixnum ? COND_ANY : COND_NONE;
-    case COND_LE | COND_UNSIGNED:  return (uintptr_t)lhs_reg->fixnum <= (uintptr_t)rhs_reg->fixnum ? COND_ANY : COND_NONE;
-    case COND_GE | COND_UNSIGNED:  return (uintptr_t)lhs_reg->fixnum >= (uintptr_t)rhs_reg->fixnum ? COND_ANY : COND_NONE;
-    case COND_GT | COND_UNSIGNED:  return (uintptr_t)lhs_reg->fixnum >  (uintptr_t)rhs_reg->fixnum ? COND_ANY : COND_NONE;
+    case COND_EQ | COND_UNSIGNED:  return (uint64_t)lhs_reg->fixnum == (uint64_t)rhs_reg->fixnum ? COND_ANY : COND_NONE;
+    case COND_NE | COND_UNSIGNED:  return (uint64_t)lhs_reg->fixnum != (uint64_t)rhs_reg->fixnum ? COND_ANY : COND_NONE;
+    case COND_LT | COND_UNSIGNED:  return (uint64_t)lhs_reg->fixnum <  (uint64_t)rhs_reg->fixnum ? COND_ANY : COND_NONE;
+    case COND_LE | COND_UNSIGNED:  return (uint64_t)lhs_reg->fixnum <= (uint64_t)rhs_reg->fixnum ? COND_ANY : COND_NONE;
+    case COND_GE | COND_UNSIGNED:  return (uint64_t)lhs_reg->fixnum >= (uint64_t)rhs_reg->fixnum ? COND_ANY : COND_NONE;
+    case COND_GT | COND_UNSIGNED:  return (uint64_t)lhs_reg->fixnum >  (uint64_t)rhs_reg->fixnum ? COND_ANY : COND_NONE;
     default: assert(false); break;
     }
   }

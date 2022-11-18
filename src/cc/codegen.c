@@ -263,7 +263,7 @@ static void gen_switch_cond(Stmt *stmt) {
   int len = cases->len;
 
   if (reg->flag & VRF_CONST) {
-    intptr_t value = reg->fixnum;
+    Fixnum value = reg->fixnum;
     Stmt *target = stmt->switch_.default_;
     for (int i = 0; i < len; ++i) {
       Stmt *c = cases->data[i];

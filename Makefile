@@ -242,7 +242,7 @@ wcc-self-hosting:	$(WCC_TARGET)cc.wasm
 
 .PHONY: test-wcc-self-hosting
 test-wcc-self-hosting:
-	$(MAKE) WCC="$(TARGET_CC)" -C tests test-wcc
+	$(MAKE) WCC="$(TARGET_CC)" -C tests clean test-wcc
 
 WCC_LIBS:=$(LIBSRC_DIR)/_wasm/crt0.c $(LIBSRC_DIR)/_wasm/libc.c
 

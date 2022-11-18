@@ -4,7 +4,7 @@
 
 #include <stdbool.h>
 #include <stddef.h>  // size_t
-#include <stdint.h>  // intptr_t
+#include <stdint.h>  // int64_t
 #include <sys/types.h>  // ssize_t
 
 typedef struct BB BB;
@@ -17,8 +17,8 @@ typedef struct Vector Vector;
 
 // Num
 
-typedef intptr_t  Fixnum;
-typedef uintptr_t UFixnum;
+typedef int64_t  Fixnum;
+typedef uint64_t UFixnum;
 
 // ================================================
 
@@ -148,7 +148,7 @@ typedef struct Token {
       const char *buf;
       size_t size;  // Include last '\0'.
     } str;
-    intptr_t fixnum;
+    Fixnum fixnum;
 #ifndef __NO_FLONUM
     double flonum;
 #endif

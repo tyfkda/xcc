@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include <stdint.h>  // intptr_t
+#include <stdint.h>  // int64_t
 
 typedef struct Vector Vector;
 
@@ -13,7 +13,7 @@ extern int stackpos;
 
 void emit_code(Vector *decls);
 
-char *im(intptr_t x);  // $x
+char *im(int64_t x);  // $x
 char *indirect(const char *base, const char *index, int scale);
 char *offset_indirect(int offset, const char *base, const char *index, int scale);
 char *label_indirect(const char *label, const char *reg);

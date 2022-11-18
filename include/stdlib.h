@@ -12,6 +12,8 @@ void exit(int code);
 
 long strtol(const char *p, char **pp, int base);
 unsigned long strtoul(const char *p, char **pp, int base);
+long long strtoll(const char *p, char **pp, int base);
+unsigned long long strtoull(const char *p, char **pp, int base);
 
 void qsort(void *base, size_t nmemb, size_t size, int (*compare)(const void *, const void *));
 

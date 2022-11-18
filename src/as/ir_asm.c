@@ -2,6 +2,7 @@
 #include "ir_asm.h"
 
 #include <assert.h>
+#include <stdint.h>
 #include <stdlib.h>  // malloc
 
 #include "gen_section.h"
@@ -161,7 +162,7 @@ static void put_value(unsigned char *p, intptr_t value, int size) {
 
 typedef struct {
   const Name *label;
-  intptr_t offset;
+  int64_t offset;
 } Value;
 
 static Value calc_expr(Table *label_table, const Expr *expr) {

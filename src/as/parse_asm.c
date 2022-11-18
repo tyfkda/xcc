@@ -4,6 +4,7 @@
 #include <assert.h>
 #include <ctype.h>
 #include <stddef.h>
+#include <stdint.h>
 #include <stdlib.h>  // strtoul
 #include <string.h>
 #include <strings.h>
@@ -619,7 +620,7 @@ typedef struct Token {
   enum TokenKind kind;
   union {
     const Name *label;
-    long fixnum;
+    int64_t fixnum;
 #ifndef __NO_FLONUM
     double flonum;
 #endif
@@ -658,7 +659,7 @@ static const Token *fetch_token(ParseInfo *info) {
       base = 16;
     }
     char *q;
-    unsigned long v = strtoul(p, &q, base);
+    unsigned long long v = strtoull(p, &q, base);
 #ifndef __NO_FLONUM
     if (*q == '.' || tolower(*q)== 'e') {
       info->p = p;
