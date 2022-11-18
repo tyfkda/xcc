@@ -133,18 +133,25 @@ void dump_expr(FILE *fp, Expr *expr) {
     fputs(table[expr->kind], fp);
     dump_expr(fp, expr->unary.sub);
     break;
-  case EX_INCDEC:
+  case EX_PREINC:
+  case EX_PREDEC:
+  case EX_POSTINC:
+  case EX_POSTDEC:
     {
-      if (!expr->incdec.is_post)
-        fputs(incdec[expr->incdec.is_dec], fp);
-      Expr *target = expr->incdec.target;
+#define IS_POST(expr)  ((expr)->kind >= EX_POSTINC)
+#define IS_DEC(expr)   (((expr)->kind - EX_PREINC) & 1)
+      if (!IS_POST(expr))
+        fputs(incdec[IS_DEC(expr)], fp);
+      Expr *target = expr->unary.sub;
       if (target->kind != EX_VAR)
         fputc('(', fp);
-      dump_expr(fp, expr->incdec.target);
+      dump_expr(fp, target);
       if (target->kind != EX_VAR)
         fputc(')', fp);
-      if (expr->incdec.is_post)
-        fputs(incdec[expr->incdec.is_dec], fp);
+      if (IS_POST(expr))
+        fputs(incdec[IS_DEC(expr)], fp);
+#undef IS_POST
+#undef IS_DEC
     }
     break;
   case EX_CAST:
