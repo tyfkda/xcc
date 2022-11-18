@@ -85,6 +85,8 @@ enum IrKind {
   IR_STORE_SPILLED,  // [opr2] = opr1(spilled)
 };
 
+// ConditionKind occupies lower bits and bitOR-ed with COND_UNSIGNED or COND_FLONUM.
+// The value can be extracted with bitAND with COND_MASK.
 enum ConditionKind {
   COND_NONE,
   COND_ANY,
@@ -94,10 +96,13 @@ enum ConditionKind {
   COND_LE,
   COND_GE,
   COND_GT,
-  COND_ULT,  // Unsigned
-  COND_ULE,
-  COND_UGE,
-  COND_UGT,
+};
+enum {
+  COND_MASK = 0x07,
+  COND_UNSIGNED = 1 << 3,
+#ifndef __NO_FLONUM
+  COND_FLONUM = 1 << 4,
+#endif
 };
 
 typedef struct IR {

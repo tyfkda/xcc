@@ -59,15 +59,15 @@ void add_builtin_function(const char *str, Type *type, BuiltinFunctionProc *proc
 static enum ConditionKind swap_cond(enum ConditionKind cond) {
   assert(COND_EQ <= cond && cond <= COND_GT);
   if (cond >= COND_LT)
-    cond = COND_GT - (cond - COND_LT);
+    cond = (COND_GT + COND_LT) - cond;
   return cond;
 }
 
 static enum ConditionKind gen_compare_expr(enum ExprKind kind, Expr *lhs, Expr *rhs) {
   assert(lhs->type->kind == rhs->type->kind);
 
+  assert(EX_EQ <= kind && kind <= EX_GT);
   enum ConditionKind cond = kind + (COND_EQ - EX_EQ);
-  assert(cond >= COND_EQ && cond < COND_ULT);
   if (is_const(lhs)) {
     assert(!is_const(rhs));
     Expr *tmp = lhs;
@@ -76,41 +76,43 @@ static enum ConditionKind gen_compare_expr(enum ExprKind kind, Expr *lhs, Expr *
     cond = swap_cond(cond);
   }
 
-  if (cond > COND_NE &&
-      ((is_fixnum(lhs->type->kind) && lhs->type->fixnum.is_unsigned) ||
-#ifndef __NO_FLONUM
-        is_flonum(lhs->type) ||
-#endif
-       lhs->type->kind == TY_PTR)) {
+  int flag = 0;
+  if ((is_fixnum(lhs->type->kind) && lhs->type->fixnum.is_unsigned) ||
+       lhs->type->kind == TY_PTR) {
     // unsigned
-    cond += COND_ULT - COND_LT;
+    flag = COND_UNSIGNED;
   }
+#ifndef __NO_FLONUM
+  if (is_flonum(lhs->type))
+    flag |= COND_FLONUM;
+#endif
 
   VReg *lhs_reg = gen_expr(lhs);
   VReg *rhs_reg = gen_expr(rhs);
-  if ((rhs_reg->flag & VRF_CONST) != 0) {
-    if ((lhs_reg->flag & VRF_CONST) != 0) {
-      switch (cond) {
-      case COND_NONE:
-      case COND_ANY:
-        return cond;
-      case COND_EQ:  return lhs_reg->fixnum == rhs_reg->fixnum ? COND_ANY : COND_NONE;
-      case COND_NE:  return lhs_reg->fixnum != rhs_reg->fixnum ? COND_ANY : COND_NONE;
-      case COND_LT:  return lhs_reg->fixnum <  rhs_reg->fixnum ? COND_ANY : COND_NONE;
-      case COND_LE:  return lhs_reg->fixnum <= rhs_reg->fixnum ? COND_ANY : COND_NONE;
-      case COND_GE:  return lhs_reg->fixnum >= rhs_reg->fixnum ? COND_ANY : COND_NONE;
-      case COND_GT:  return lhs_reg->fixnum >  rhs_reg->fixnum ? COND_ANY : COND_NONE;
-      case COND_ULT: return (uintptr_t)lhs_reg->fixnum <  (uintptr_t)rhs_reg->fixnum ? COND_ANY : COND_NONE;
-      case COND_ULE: return (uintptr_t)lhs_reg->fixnum <= (uintptr_t)rhs_reg->fixnum ? COND_ANY : COND_NONE;
-      case COND_UGE: return (uintptr_t)lhs_reg->fixnum >= (uintptr_t)rhs_reg->fixnum ? COND_ANY : COND_NONE;
-      case COND_UGT: return (uintptr_t)lhs_reg->fixnum >  (uintptr_t)rhs_reg->fixnum ? COND_ANY : COND_NONE;
-      }
-    }
-
-    if ((is_fixnum(lhs->type->kind) && lhs->type->fixnum.kind < FX_LONG) ||
-        is_im32(rhs_reg->fixnum)) {
-      new_ir_cmp(lhs_reg, rhs_reg);
+  if ((rhs_reg->flag & VRF_CONST) != 0 && (lhs_reg->flag & VRF_CONST) != 0) {
+#ifndef __NO_FLONUM
+    // Const VReg is must be non-flonum.
+    assert(!(lhs_reg->vtype->flag & VRTF_FLONUM));
+    assert(!(rhs_reg->vtype->flag & VRTF_FLONUM));
+    assert(!(flag & COND_FLONUM));
+#endif
+    switch (cond | flag) {
+    case COND_NONE:
+    case COND_ANY:
       return cond;
+    case COND_EQ:  return lhs_reg->fixnum == rhs_reg->fixnum ? COND_ANY : COND_NONE;
+    case COND_NE:  return lhs_reg->fixnum != rhs_reg->fixnum ? COND_ANY : COND_NONE;
+    case COND_LT:  return lhs_reg->fixnum <  rhs_reg->fixnum ? COND_ANY : COND_NONE;
+    case COND_LE:  return lhs_reg->fixnum <= rhs_reg->fixnum ? COND_ANY : COND_NONE;
+    case COND_GE:  return lhs_reg->fixnum >= rhs_reg->fixnum ? COND_ANY : COND_NONE;
+    case COND_GT:  return lhs_reg->fixnum >  rhs_reg->fixnum ? COND_ANY : COND_NONE;
+    case COND_EQ | COND_UNSIGNED:  return (uintptr_t)lhs_reg->fixnum == (uintptr_t)rhs_reg->fixnum ? COND_ANY : COND_NONE;
+    case COND_NE | COND_UNSIGNED:  return (uintptr_t)lhs_reg->fixnum != (uintptr_t)rhs_reg->fixnum ? COND_ANY : COND_NONE;
+    case COND_LT | COND_UNSIGNED:  return (uintptr_t)lhs_reg->fixnum <  (uintptr_t)rhs_reg->fixnum ? COND_ANY : COND_NONE;
+    case COND_LE | COND_UNSIGNED:  return (uintptr_t)lhs_reg->fixnum <= (uintptr_t)rhs_reg->fixnum ? COND_ANY : COND_NONE;
+    case COND_GE | COND_UNSIGNED:  return (uintptr_t)lhs_reg->fixnum >= (uintptr_t)rhs_reg->fixnum ? COND_ANY : COND_NONE;
+    case COND_GT | COND_UNSIGNED:  return (uintptr_t)lhs_reg->fixnum >  (uintptr_t)rhs_reg->fixnum ? COND_ANY : COND_NONE;
+    default: assert(false); break;
     }
   }
 
@@ -124,7 +126,7 @@ static enum ConditionKind gen_compare_expr(enum ExprKind kind, Expr *lhs, Expr *
   }
 
   new_ir_cmp(lhs_reg, rhs_reg);
-  return cond;
+  return cond | flag;
 }
 
 void gen_cond_jmp(Expr *cond, bool tf, BB *bb) {

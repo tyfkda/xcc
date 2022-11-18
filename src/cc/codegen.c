@@ -210,19 +210,20 @@ static void gen_switch_cond_table_jump(Stmt *swtch, VReg *reg, Stmt **cases, int
   BB *nextbb = new_bb();
   VReg *val = min == 0 ? reg : new_ir_bop(IR_SUB, reg, new_const_vreg(min, reg->vtype), reg->vtype);
   new_ir_cmp(val, new_const_vreg(max - min, val->vtype));
-  new_ir_jmp(COND_UGT, skip_bb);
+  new_ir_jmp(COND_GT | COND_UNSIGNED, skip_bb);
   set_curbb(nextbb);
   new_ir_tjmp(val, table, range);
 }
 
 static void gen_switch_cond_recur(Stmt *swtch, VReg *reg, Stmt **cases, int len) {
+  int cond_flag = reg->vtype->flag & VRTF_UNSIGNED ? COND_UNSIGNED : 0;
   if (len <= 2) {
     for (int i = 0; i < len; ++i) {
       BB *nextbb = new_bb();
       Stmt *c = cases[i];
       VReg *num = new_const_vreg(c->case_.value->fixnum, reg->vtype);
       new_ir_cmp(reg, num);
-      new_ir_jmp(COND_EQ, c->case_.bb);
+      new_ir_jmp(COND_EQ | cond_flag, c->case_.bb);
       set_curbb(nextbb);
     }
     Stmt *def = swtch->switch_.default_;
@@ -241,12 +242,12 @@ static void gen_switch_cond_recur(Stmt *swtch, VReg *reg, Stmt **cases, int len)
     Stmt *c = cases[m];
     VReg *num = new_const_vreg(c->case_.value->fixnum, reg->vtype);
     new_ir_cmp(reg, num);
-    new_ir_jmp(COND_EQ, c->case_.bb);
+    new_ir_jmp(COND_EQ | cond_flag, c->case_.bb);
     set_curbb(bbne);
 
     BB *bblt = new_bb();
     BB *bbgt = new_bb();
-    new_ir_jmp(COND_GT, bbgt);
+    new_ir_jmp(COND_GT | cond_flag, bbgt);
     set_curbb(bblt);
     gen_switch_cond_recur(swtch, reg, cases, m);
     set_curbb(bbgt);

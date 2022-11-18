@@ -584,36 +584,52 @@ static void ir_out(IR *ir) {
     {
       assert(!(ir->dst->flag & VRF_CONST));
       const char *dst = kReg32s[ir->dst->phys];  // Assume bool is 4 byte.
-      switch (ir->cond.kind) {
+      // On aarch64, flag for comparing flonum is signed.
+      switch (ir->cond.kind & (COND_MASK | COND_UNSIGNED)) {
+      case COND_EQ | COND_UNSIGNED:  // Fallthrough
       case COND_EQ:  CSET(dst, CEQ); break;
+
+      case COND_NE | COND_UNSIGNED:  // Fallthrough
       case COND_NE:  CSET(dst, CNE); break;
+
       case COND_LT:  CSET(dst, CLT); break;
       case COND_GT:  CSET(dst, CGT); break;
       case COND_LE:  CSET(dst, CLE); break;
       case COND_GE:  CSET(dst, CGE); break;
-      case COND_ULT: CSET(dst, CLO); break;
-      case COND_UGT: CSET(dst, CHI); break;
-      case COND_ULE: CSET(dst, CLS); break;
-      case COND_UGE: CSET(dst, CHS); break;
+
+      case COND_LT | COND_UNSIGNED:  CSET(dst, CLO); break;
+      case COND_GT | COND_UNSIGNED:  CSET(dst, CHI); break;
+      case COND_LE | COND_UNSIGNED:  CSET(dst, CLS); break;
+      case COND_GE | COND_UNSIGNED:  CSET(dst, CHS); break;
       default: assert(false); break;
       }
     }
     break;
 
   case IR_JMP:
-    switch (ir->jmp.cond) {
-    case COND_ANY: BRANCH(fmt_name(ir->jmp.bb->label)); break;
-    case COND_EQ:  Bcc(CEQ, fmt_name(ir->jmp.bb->label)); break;
-    case COND_NE:  Bcc(CNE, fmt_name(ir->jmp.bb->label)); break;
-    case COND_LT:  Bcc(CLT, fmt_name(ir->jmp.bb->label)); break;
-    case COND_GT:  Bcc(CGT, fmt_name(ir->jmp.bb->label)); break;
-    case COND_LE:  Bcc(CLE, fmt_name(ir->jmp.bb->label)); break;
-    case COND_GE:  Bcc(CGE, fmt_name(ir->jmp.bb->label)); break;
-    case COND_ULT: Bcc(CLO, fmt_name(ir->jmp.bb->label)); break;
-    case COND_UGT: Bcc(CHI, fmt_name(ir->jmp.bb->label)); break;
-    case COND_ULE: Bcc(CLS, fmt_name(ir->jmp.bb->label)); break;
-    case COND_UGE: Bcc(CHS, fmt_name(ir->jmp.bb->label)); break;
-    default: assert(false); break;
+    {
+      const char *label = fmt_name(ir->jmp.bb->label);
+      // On aarch64, flag for comparing flonum is signed.
+      switch (ir->jmp.cond & (COND_MASK | COND_UNSIGNED)) {
+      case COND_ANY: BRANCH(label); break;
+
+      case COND_EQ | COND_UNSIGNED:  // Fallthrough
+      case COND_EQ:  Bcc(CEQ, label); break;
+
+      case COND_NE | COND_UNSIGNED:  // Fallthrough
+      case COND_NE:  Bcc(CNE, label); break;
+
+      case COND_LT:  Bcc(CLT, label); break;
+      case COND_GT:  Bcc(CGT, label); break;
+      case COND_LE:  Bcc(CLE, label); break;
+      case COND_GE:  Bcc(CGE, label); break;
+
+      case COND_LT | COND_UNSIGNED:  Bcc(CLO, label); break;
+      case COND_GT | COND_UNSIGNED:  Bcc(CHI, label); break;
+      case COND_LE | COND_UNSIGNED:  Bcc(CLS, label); break;
+      case COND_GE | COND_UNSIGNED:  Bcc(CHS, label); break;
+      default: assert(false); break;
+      }
     }
     break;
 

@@ -535,17 +535,28 @@ static void ir_out(IR *ir) {
     {
       assert(!(ir->dst->flag & VRF_CONST));
       const char *dst = kReg8s[ir->dst->phys];
-      switch (ir->cond.kind) {
-      case COND_EQ: SETE(dst); break;
-      case COND_NE: SETNE(dst); break;
-      case COND_LT: SETL(dst); break;
-      case COND_GT: SETG(dst); break;
-      case COND_LE: SETLE(dst); break;
-      case COND_GE: SETGE(dst); break;
-      case COND_ULT: SETB(dst); break;
-      case COND_UGT: SETA(dst); break;
-      case COND_ULE: SETBE(dst); break;
-      case COND_UGE: SETAE(dst); break;
+      int kind = ir->cond.kind;
+#ifndef __NO_FLONUM
+      // On x64, flag for comparing flonum is same as unsigned.
+      if (kind & COND_FLONUM)
+        kind ^= COND_FLONUM | COND_UNSIGNED;  // Turn off flonum, and turn on unsigned
+#endif
+      switch (kind) {
+      case COND_EQ | COND_UNSIGNED:  // Fallthrough
+      case COND_EQ:  SETE(dst); break;
+
+      case COND_NE | COND_UNSIGNED:   // Fallthrough
+      case COND_NE:  SETNE(dst); break;
+
+      case COND_LT:  SETL(dst); break;
+      case COND_GT:  SETG(dst); break;
+      case COND_LE:  SETLE(dst); break;
+      case COND_GE:  SETGE(dst); break;
+
+      case COND_LT | COND_UNSIGNED:  SETB(dst); break;
+      case COND_GT | COND_UNSIGNED:  SETA(dst); break;
+      case COND_LE | COND_UNSIGNED:  SETBE(dst); break;
+      case COND_GE | COND_UNSIGNED:  SETAE(dst); break;
       default: assert(false); break;
       }
       MOVSX(dst, kReg32s[ir->dst->phys]);  // Assume bool is 4 byte.
@@ -553,19 +564,34 @@ static void ir_out(IR *ir) {
     break;
 
   case IR_JMP:
-    switch (ir->jmp.cond) {
-    case COND_ANY: JMP(fmt_name(ir->jmp.bb->label)); break;
-    case COND_EQ: JE(fmt_name(ir->jmp.bb->label)); break;
-    case COND_NE: JNE(fmt_name(ir->jmp.bb->label)); break;
-    case COND_LT: JL(fmt_name(ir->jmp.bb->label)); break;
-    case COND_GT: JG(fmt_name(ir->jmp.bb->label)); break;
-    case COND_LE: JLE(fmt_name(ir->jmp.bb->label)); break;
-    case COND_GE: JGE(fmt_name(ir->jmp.bb->label)); break;
-    case COND_ULT: JB(fmt_name(ir->jmp.bb->label)); break;
-    case COND_UGT: JA(fmt_name(ir->jmp.bb->label)); break;
-    case COND_ULE: JBE(fmt_name(ir->jmp.bb->label)); break;
-    case COND_UGE: JAE(fmt_name(ir->jmp.bb->label)); break;
-    default: assert(false); break;
+    {
+      const char *label = fmt_name(ir->jmp.bb->label);
+      int kind = ir->jmp.cond;
+#ifndef __NO_FLONUM
+      // On x64, flag for comparing flonum is same as unsigned.
+      if (kind & COND_FLONUM)
+        kind ^= COND_FLONUM | COND_UNSIGNED;  // Turn off flonum, and turn on unsigned
+#endif
+      switch (kind) {
+      case COND_ANY: JMP(label); break;
+
+      case COND_EQ | COND_UNSIGNED:  // Fallthrough
+      case COND_EQ:  JE(label); break;
+
+      case COND_NE | COND_UNSIGNED:  // Fallthrough
+      case COND_NE:  JNE(label); break;
+
+      case COND_LT:  JL(label); break;
+      case COND_GT:  JG(label); break;
+      case COND_LE:  JLE(label); break;
+      case COND_GE:  JGE(label); break;
+
+      case COND_LT | COND_UNSIGNED:  JB(label); break;
+      case COND_GT | COND_UNSIGNED:  JA(label); break;
+      case COND_LE | COND_UNSIGNED:  JBE(label); break;
+      case COND_GE | COND_UNSIGNED:  JAE(label); break;
+      default: assert(false); break;
+      }
     }
     break;
 

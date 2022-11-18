@@ -250,7 +250,7 @@ VReg *new_ir_cond(enum ConditionKind cond) {
 }
 
 void new_ir_jmp(enum ConditionKind cond, BB *bb) {
-  if (cond == COND_NONE)
+  if ((cond & COND_MASK) == COND_NONE)
     return;
   IR *ir = new_ir(IR_JMP);
   ir->jmp.bb = bb;
@@ -377,12 +377,11 @@ BBContainer *new_func_blocks(void) {
 //
 
 static enum ConditionKind invert_cond(enum ConditionKind cond) {
-  assert(COND_EQ <= cond && cond <= COND_UGT);
-  if (cond <= COND_NE)
-    return COND_NE + COND_EQ - cond;
-  if (cond <= COND_ULT)
-    return COND_LT + ((cond - COND_LT) ^ 2);
-  return COND_ULT + ((cond - COND_ULT) ^ 2);
+  int c = cond & COND_MASK;
+  assert(COND_EQ <= c && c <= COND_GT);
+  int ic = c <= COND_NE ? (COND_NE + COND_EQ) - c
+                        : (assert((COND_LT & 3) == 0), COND_LT ^ 2);  // COND_LT + ((c - COND_LT) ^ 2)
+  return ic | (cond & ~COND_MASK);
 }
 
 static IR *is_last_jmp(BB *bb) {
