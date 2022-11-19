@@ -2,9 +2,10 @@
 
 set -o pipefail
 
+AOUT=${AOUT:-$(basename `mktemp -u`)}
 CPP=${CPP:-../cpp}
 XCC=${XCC:-../xcc}
-RUN_AOUT=${RUN_AOUT:-./a.out}
+RUN_AOUT=${RUN_AOUT:-./"$AOUT"}
 
 try() {
   local title="$1"
@@ -38,7 +39,7 @@ try_run() {
 
   echo -n "$title => "
 
-  echo -e "$input" | $XCC -xc - || exit 1
+  echo -e "$input" | $XCC -o "$AOUT" -xc - || exit 1
 
   $RUN_AOUT
   local actual="$?"

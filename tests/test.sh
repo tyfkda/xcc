@@ -1,8 +1,9 @@
 #!/bin/bash
 
+AOUT=${AOUT:-$(basename `mktemp -u`)}
 XCC=${XCC:-../xcc}
 PTRSIZE=${PTRSIZE:-8}
-RUN_AOUT=${RUN_AOUT:-./a.out}
+RUN_AOUT=${RUN_AOUT:-./"$AOUT"}
 
 echo Compile=[$XCC], Run=[$RUN_AOUT]
 
@@ -34,7 +35,7 @@ try_direct() {
     };
   fi
 
-  echo -e "$input" | $XCC -Werror -xc - || exit 1
+  echo -e "$input" | $XCC -Werror -o "$AOUT" -xc - || exit 1
 
   $RUN_AOUT
   local actual="$?"
@@ -65,7 +66,7 @@ try_output_direct() {
     };
   fi
 
-  echo -e "$input" | $XCC -Werror -xc - || exit 1
+  echo -e "$input" | $XCC -Werror -o "$AOUT" -xc - || exit 1
 
   local actual
   actual=$($RUN_AOUT) || exit 1
@@ -95,7 +96,7 @@ compile_error() {
     };
   fi
 
-  echo -e "$input" | $XCC -Werror -xc -
+  echo -e "$input" | $XCC -Werror -o "$AOUT" -xc -
   local result="$?"
 
   if [ "$result" = "0" ]; then

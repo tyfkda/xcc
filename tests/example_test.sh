@@ -1,5 +1,6 @@
 #!/bin/bash
 
+AOUT=${AOUT:-$(basename `mktemp -u`)}
 XCC=${XCC:-../xcc}
 
 try() {
@@ -9,11 +10,11 @@ try() {
 
   echo -n "$title => "
 
-  $XCC "$inputs" || exit 1
+  $XCC -o "$AOUT" "$inputs" || exit 1
 
   declare -a args=( "$@" )
   local actual
-  actual=$(./a.out "${args[@]:3}") || exit 1
+  actual=$(./"$AOUT" "${args[@]:3}") || exit 1
 
   if [ "$actual" = "$expected" ]; then
     echo "OK"
@@ -31,10 +32,10 @@ try_cmp() {
 
   echo -n "$title => "
 
-  $XCC "$inputs" || exit 1
+  $XCC -o "$AOUT" "$inputs" || exit 1
 
   declare -a args=( "$@" )
-  ./a.out "${args[@]:4}" || exit 1
+  ./"$AOUT" "${args[@]:4}" || exit 1
 
   cmp "$expected" "$output" || {
     echo "NG"

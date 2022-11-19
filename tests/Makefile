@@ -153,8 +153,9 @@ test-wcc:	test-wcc-sh test-wcc-val
 .PHONY: test-wcc-sh
 test-wcc-sh:
 	@echo '## test.sh'
+	@$(eval AWASM := $(shell basename `mktemp -u`).wasm)
 	@XCC="$(WCC)" PTRSIZE=4 RE_SKIP='\/\/-WCC' \
-		RUN_AOUT="node ../tool/runwasm.js a.wasm" \
+		AOUT="$(AWASM)" RUN_AOUT="node ../tool/runwasm.js $(AWASM)" \
 		./test.sh
 	@echo ''
 

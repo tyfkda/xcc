@@ -132,7 +132,7 @@ $(OBJ_DIR)/%.o: $(DEBUG_DIR)/%.c $(PARENT_DEPS)
 
 .PHONY: test
 test:	all
-	$(MAKE) -C tests clean all
+	$(MAKE) -C tests clean && $(MAKE) -C tests all
 
 .PHONY: test-all
 test-all: test test-gen2 diff-gen23
@@ -196,7 +196,7 @@ self-hosting:	$(TARGET)cpp $(TARGET)cc1 $(TARGET)as $(TARGET)ld $(TARGET)xcc
 
 .PHONY: test-self-hosting
 test-self-hosting:	self-hosting
-	$(MAKE) PREFIX=$(TARGET) -C tests clean cc-tests
+	$(MAKE) PREFIX=$(TARGET) -C tests clean && $(MAKE) PREFIX=$(TARGET) -C tests cc-tests
 
 
 ### Wasm version
@@ -246,17 +246,24 @@ test-wcc-self-hosting:
 
 WCC_LIBS:=$(LIBSRC_DIR)/_wasm/crt0.c $(LIBSRC_DIR)/_wasm/libc.c
 
+ifeq ("$(WCC_TARGET)", "")
+cc.wasm:	$(WCC_SRCS) $(WCC_LIBS) wcc
+	./wcc -o $@ \
+		-I$(CC1_DIR) -I$(CPP_DIR) -I$(UTIL_DIR) \
+		$(WCC_SRCS)
+else
 $(WCC_TARGET)cc.wasm:	$(WCC_SRCS) $(WCC_LIBS)
 	$(HOST_CC) -o $@ \
 		-I$(CC1_DIR) -I$(CPP_DIR) -I$(UTIL_DIR) \
 		$(WCC_SRCS)
+endif
 
 #### www
 
 ASSETS_DIR:=public
 
 .PHONY:	assets
-assets:	wcc-gen2 $(ASSETS_DIR)/cc.wasm $(ASSETS_DIR)/libs.json
+assets:	$(ASSETS_DIR)/cc.wasm $(ASSETS_DIR)/libs.json
 
 $(ASSETS_DIR)/cc.wasm:	cc.wasm
 	mkdir -p $(ASSETS_DIR)
