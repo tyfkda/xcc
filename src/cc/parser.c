@@ -45,10 +45,15 @@ VarInfo *add_var_to_scope(Scope *scope, const Token *ident, Type *type, int stor
     int idx = var_find(scope->vars, name);
     if (idx >= 0) {
       VarInfo *varinfo = scope->vars->data[idx];
-      if (!(varinfo->storage & VS_EXTERN || storage & VS_EXTERN)) {
-        parse_error(PE_NOFATAL, ident, "`%.*s' already defined", name->bytes, name->chars);
-        return varinfo;
+      if (!same_type(type, varinfo->type)) {
+        parse_error(PE_NOFATAL, ident, "`%.*s' type conflict", name->bytes, name->chars);
+      } else if (!(storage & VS_EXTERN)) {
+        if (varinfo->storage & VS_EXTERN)
+          varinfo->storage &= ~VS_EXTERN;
+        else
+          parse_error(PE_NOFATAL, ident, "`%.*s' already defined", name->bytes, name->chars);
       }
+      return varinfo;
     }
   }
   return scope_add(scope, name, type, storage);
@@ -948,10 +953,11 @@ static bool parse_vardecl(Stmt **pstmt) {
     }
   } else {
     Vector *decls = parse_vardecl_cont(rawType, type, storage, ident);
-    consume(TK_SEMICOL, "`;' expected");
-    if (decls != NULL) {
-      Vector *inits = !is_global_scope(curscope) ? construct_initializing_stmts(decls) : NULL;
-      *pstmt = new_stmt_vardecl(decls, inits);
+    if (consume(TK_SEMICOL, "`;' expected")) {
+      if (decls != NULL) {
+        Vector *inits = !is_global_scope(curscope) ? construct_initializing_stmts(decls) : NULL;
+        *pstmt = new_stmt_vardecl(decls, inits);
+      }
     }
   }
   return true;
