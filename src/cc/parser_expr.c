@@ -693,11 +693,26 @@ static Expr *parse_funcall(Expr *func) {
   return new_expr_funcall(token, func, functype, args);
 }
 
-static Expr *parse_array_index(const Token *token, Expr *array) {
+static Expr *parse_array_index(const Token *token, Expr *expr) {
   Expr *index = parse_expr();
   consume(TK_RBRACKET, "`]' expected");
-  array = str_to_char_array_var(curscope, array, toplevel);
-  return new_expr_deref(token, new_expr_addsub(EX_ADD, token, array, index, false));
+  expr = str_to_char_array_var(curscope, expr, toplevel);
+  index = str_to_char_array_var(curscope, index, toplevel);
+  if (!ptr_or_array(expr->type)) {
+    if (!ptr_or_array(index->type)) {
+      parse_error(PE_NOFATAL, expr->token, "array or pointer required for `['");
+      return expr;
+    }
+    Expr *tmp = expr;
+    expr = index;
+    index = tmp;
+  }
+  if (!is_fixnum(index->type->kind)) {
+    parse_error(PE_NOFATAL, index->token, "int required for `['");
+  } else {
+    expr = new_expr_addsub(EX_ADD, token, expr, index, false);
+  }
+  return new_expr_deref(token, expr);
 }
 
 static Expr *parse_member_access(Expr *target, Token *acctok) {
