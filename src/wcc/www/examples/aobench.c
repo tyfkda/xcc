@@ -3,8 +3,8 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define WIDTH        (256)
-#define HEIGHT       (256)
+#define WIDTH        (80)
+#define HEIGHT       (40)
 #define NSUBSAMPLES  (2)
 #define NAO_SAMPLES  (8)
 
@@ -217,7 +217,21 @@ void render(unsigned char *img, int w, int h, int nsubsamples) {
   }
 }
 
-extern void showGraphic(int width, int height, void *img);
+void showGraphic(int width, int height, unsigned char *img) {
+  static const char GRAYSCALE[] = "$@B%8&WM#*oahkbdpqwmZO0QLCJUYXzcvunxrjft/\\|()1{}[]?-_+~<>i!lI;:,\"^`'. ";
+  const double S = (sizeof(GRAYSCALE) - 1) / 256.0;
+  for (int i = 0; i < height; ++i) {
+    for (int j = 0; j < width; ++j) {
+      int index = (j + i * width) * 4;
+      unsigned char r = img[index + 0];
+      unsigned char g = img[index + 1];
+      unsigned char b = img[index + 2];
+      int k = r * (0.3 * S) + g * (0.59 * S) + b * (0.11 * S);
+      putchar(GRAYSCALE[k]);
+    }
+    putchar('\n');
+  }
+}
 
 int main(void) {
   unsigned char *img = malloc(WIDTH * HEIGHT * 4);
