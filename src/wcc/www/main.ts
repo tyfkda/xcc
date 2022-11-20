@@ -81,8 +81,6 @@ function loadCodeToEditor(code: string, message: string): boolean {
 
   Util.clearTerminal()
 
-  if (code !== '')
-    code = code.trim() + '\n'
   editor.setValue(code, -1)
   clearUndoHistory()
   editor.gotoLine(0, 0, false)
