@@ -1,5 +1,6 @@
 import {DisWasm} from './diswasm'
 import {DomUtil} from './dom_util'
+import * as Split from 'split.js'
 import {Util} from './util'
 import {WaProc, ExitCalledError} from './wa_proc'
 import {WaStorage} from './file_system'
@@ -10,16 +11,12 @@ const FONT_SIZE = 16
 const USER = 'wasm'
 const KEY_CODE = 'wcc-code'
 
-const aceSplit = ace.require('ace/ext/split') as typeof AceAjax.Split
-const split = new aceSplit.Split(document.getElementById('editor')!) as AceAjax.Split
-split.setOrientation(split.BESIDE)
-split.setSplits(2)
-split.setFontSize(FONT_SIZE)
 const UndoManager = ace.require('ace/undomanager').UndoManager as typeof AceAjax.UndoManager
 
 const editor = (() => {
-  const editor = split.getEditor(0)
+  const editor = ace.edit('editor')
   editor.setOptions({
+    fontSize: FONT_SIZE,
     tabSize: 2,
     useSoftTabs: true,
     printMarginColumn: false,
@@ -103,15 +100,18 @@ function saveCodeToStorage() {
 }
 
 const terminal = (() => {
-  const terminal = split.getEditor(1)
+  const terminal = ace.edit('terminal')
   terminal.$blockScrolling = Infinity
   terminal.setOptions({
+    fontSize: FONT_SIZE,
     tabSize: 2,
     useSoftTabs: true,
     printMarginColumn: false,
+    showLineNumbers: false,
+    showGutter: false,
+    highlightActiveLine: false,
   })
   terminal.setReadOnly(true)
-  // terminal.renderer.setShowGutter(false)
   terminal.getSession().setMode('ace/mode/text')
   terminal.setValue('XCC browser version.\n', -1)
 
@@ -139,6 +139,36 @@ const terminal = (() => {
 })()
 
 Util.setTerminal(terminal)
+
+let terminalRatio = 33
+
+const mysplit = Split['default'](['#editor', '#terminal-container'], {
+  direction: 'vertical',
+  sizes: [100, 0],
+  minSize: [100, 0],
+  onDrag: () => {
+    editor.resize()
+    terminal.resize()
+  },
+  onDragEnd: (sizes) => {
+    if (sizes[1] >= 5)
+      terminalRatio = sizes[1]
+  },
+})
+
+function showTerminal(show = true) {
+  if (show) {
+    mysplit.setSizes([100 - terminalRatio, terminalRatio])
+  } else {
+    mysplit.collapse(1)
+  }
+  editor.resize()
+  terminal.resize()
+}
+
+function toggleTerminal() {
+  showTerminal(mysplit.getSizes()[1] < 5)
+}
 
 ////////////////////////////////////////////////
 
@@ -210,11 +240,13 @@ async function compile(sourceCode: string, extraOptions?: string[]): Promise<Uin
   } catch (e) {
     if (!(e instanceof ExitCalledError)) {
       Util.putTerminalError(e)
+      showTerminal()
       return null
     }
   }
 
   Util.analyzeCompileErrors()
+  showTerminal()
   return null
 }
 
@@ -235,6 +267,7 @@ async function run(argStr: string, compileAndDump: boolean) {
     const disWasm = new DisWasm(compiledCode.buffer)
     disWasm.setLogFunc(s => Util.putTerminal(`${s}\n`))
     disWasm.dump()
+    showTerminal()
     return
   }
 
@@ -264,6 +297,7 @@ async function run(argStr: string, compileAndDump: boolean) {
     })
   const args = argStr === '' ? [] : argStr.trim().split(/\s+/)
   args.unshift('a.wasm')
+  showTerminal()
   try {
     const result = await waproc.runWasmEntry(compiledCode, '_start', args)
     if (result !== 0)
@@ -277,7 +311,9 @@ async function run(argStr: string, compileAndDump: boolean) {
 
 window.addEventListener('load', () => {
   window.addEventListener('resize', () => {
-    split.resize()
+    // split.resize()
+    editor.resize()
+    terminal.resize()
   }, false)
 
   window.addEventListener('beforeunload', event => {
@@ -286,6 +322,9 @@ window.addEventListener('load', () => {
     event.preventDefault()
     event.returnValue = ''
   })
+
+  editor.resize()
+  terminal.resize()
 })
 
 const kFilePickerOption = {
@@ -471,6 +510,9 @@ window.initialData = {
     this.showRunModeDropdown = !this.showRunModeDropdown
     if (!this.showRunModeDropdown)
       editor.focus()
+  },
+  toggleTerminal() {
+    toggleTerminal()
   },
   setRunMode(mode: RunMode) {
     this.runMode = mode

@@ -44,12 +44,40 @@ a.disabled {
   border-bottom: 1px solid #444;
 }
 
-.editor {
+.split-root {
+  display: flex;
+  flex-direction: column;
   position: absolute;
   top: $HEADER_HEIGHT;
   bottom: 0;
   left: 0;
   right: 0;
+}
+
+.gutter {
+  background-color: #eee;
+  background-repeat: no-repeat;
+  background-position: 50%;
+}
+
+.gutter.gutter-vertical {
+  background-image: url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAB4AAAAFAQMAAABo7865AAAABlBMVEVHcEzMzMzyAv2sAAAAAXRSTlMAQObYZgAAABBJREFUeF5jOAMEEAIEEFwAn3kMwcB6I2AAAAAASUVORK5CYII=');
+  cursor: row-resize;
+}
+
+#toggle-terminal-btn {
+  position:absolute;
+  top: -(/*height*/16px + /*padding-top*/4px + /*gutterSize*/10px);
+  height: 16px;
+  background-color: #eee;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 10px;
+  color: #222;
+  z-index: 1000;
+  padding: 4px 10px 0 10px;
+  border-radius: 8px 8px 0 0;
+  cursor: pointer;
 }
 
 .run-btn {
