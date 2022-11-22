@@ -938,7 +938,7 @@ static void ir_out(IR *ir) {
     break;
 
   case IR_ASM:
-    EMIT_ASM0(ir->asm_.str);
+    EMIT_ASM(ir->asm_.str);
     if (ir->dst != NULL) {
       assert(0 <= ir->dst->vtype->size && ir->dst->vtype->size < kPow2TableSize);
       assert(!(ir->dst->flag & VRF_CONST));

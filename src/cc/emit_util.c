@@ -62,40 +62,24 @@ char *mangle(char *label) {
 #endif
 }
 
-void emit_asm2(const char *op, const char *operand1, const char *operand2) {
-  if (operand1 == NULL) {
-    fprintf(emit_fp, "\t%s\n", op);
-  } else if (operand2 == NULL) {
-    fprintf(emit_fp, "\t%s %s\n", op, operand1);
-  } else {
-    fprintf(emit_fp, "\t%s %s, %s\n", op, operand1, operand2);
-  }
+void emit_asm0(const char *op) {
+  fprintf(emit_fp, "\t%s\n", op);
 }
 
-void emit_asm3(const char *op, const char *operand1, const char *operand2, const char *operand3) {
-  if (operand1 == NULL) {
-    fprintf(emit_fp, "\t%s\n", op);
-  } else if (operand2 == NULL) {
-    fprintf(emit_fp, "\t%s %s\n", op, operand1);
-  } else if (operand3 == NULL) {
-    fprintf(emit_fp, "\t%s %s, %s\n", op, operand1, operand2);
-  } else {
-    fprintf(emit_fp, "\t%s %s, %s, %s\n", op, operand1, operand2, operand3);
-  }
+void emit_asm1(const char *op, const char *a1) {
+  fprintf(emit_fp, "\t%s %s\n", op, a1);
 }
 
-void emit_asm4(const char *op, const char *operand1, const char *operand2, const char *operand3, const char *operand4) {
-  if (operand1 == NULL) {
-    fprintf(emit_fp, "\t%s\n", op);
-  } else if (operand2 == NULL) {
-    fprintf(emit_fp, "\t%s %s\n", op, operand1);
-  } else if (operand3 == NULL) {
-    fprintf(emit_fp, "\t%s %s, %s\n", op, operand1, operand2);
-  } else if (operand4 == NULL) {
-    fprintf(emit_fp, "\t%s %s, %s, %s\n", op, operand1, operand2, operand3);
-  } else {
-    fprintf(emit_fp, "\t%s %s, %s, %s, %s\n", op, operand1, operand2, operand3, operand4);
-  }
+void emit_asm2(const char *op, const char *a1, const char *a2) {
+  fprintf(emit_fp, "\t%s %s, %s\n", op, a1, a2);
+}
+
+void emit_asm3(const char *op, const char *a1, const char *a2, const char *a3) {
+  fprintf(emit_fp, "\t%s %s, %s, %s\n", op, a1, a2, a3);
+}
+
+void emit_asm4(const char *op, const char *a1, const char *a2, const char *a3, const char *a4) {
+  fprintf(emit_fp, "\t%s %s, %s, %s, %s\n", op, a1, a2, a3, a4);
 }
 
 void emit_label(const char *label) {
