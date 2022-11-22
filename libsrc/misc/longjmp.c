@@ -1,9 +1,8 @@
 #if !defined(__WASM)
 #include "setjmp.h"
-#include "assert.h"
 
-void longjmp(jmp_buf env, int result) {
 #if defined(__x86_64__)
+void longjmp(jmp_buf env, int result) {
   __asm("mov 0(%rdi), %rax\n"  // return address.
         "mov 8(%rdi), %rbp\n"
         "mov 16(%rdi), %rsp\n"
@@ -26,7 +25,9 @@ void longjmp(jmp_buf env, int result) {
         "jne .longjmp_0\n"
         "mov $1, %eax\n"
         ".longjmp_0:");
+}
 #elif defined(__aarch64__)
+void longjmp(jmp_buf env, int result) {
   __asm("ldp fp, lr, [x0]\n"
         "ldp x9, x19, [x0, 16]\n"
         "ldp x20, x21, [x0, 32]\n"
@@ -44,8 +45,6 @@ void longjmp(jmp_buf env, int result) {
         "b.ne .longjmp_0\n"
         "mov w0, #1\n"
         ".longjmp_0:");
-#else
-  assert(!"TODO: Implement");
-#endif
 }
+#endif
 #endif

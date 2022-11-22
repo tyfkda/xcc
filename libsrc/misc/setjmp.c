@@ -1,9 +1,8 @@
 #if !defined(__WASM)
 #include "setjmp.h"
-#include "assert.h"
 
-int setjmp(jmp_buf env) {
 #if defined(__x86_64__)
+int setjmp(jmp_buf env) {
   __asm("mov (%rsp), %rax\n"  // return address.
         "mov %rax, 0(%rdi)\n"
         "mov %rbp, 8(%rdi)\n"
@@ -22,7 +21,9 @@ int setjmp(jmp_buf env) {
         "movsd %xmm6, 112(%rdi)\n"
         "movsd %xmm7, 120(%rdi)\n"
         "xor %eax, %eax");
+}
 #elif defined(__aarch64__)
+int setjmp(jmp_buf env) {
   __asm("stp fp, lr, [x0]\n"
         "mov x9, sp\n"
         "stp x9, x19, [x0, 16]\n"
@@ -36,8 +37,6 @@ int setjmp(jmp_buf env) {
         "stp d12, d13, [x0, 144]\n"
         "stp d14, d15, [x0, 160]\n"
         "mov w0, wzr");
-#else
-  assert(!"TODO: Implement");
-#endif
 }
+#endif
 #endif

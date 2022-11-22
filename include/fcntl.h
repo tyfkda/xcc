@@ -21,3 +21,4 @@
 #define AT_FDCWD  -100
 
 int open(const char *fn, int flag, ...);
+int openat(int dirfd, const char *fn, int flag, ...);

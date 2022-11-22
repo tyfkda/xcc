@@ -10,16 +10,4 @@ int unlinkat(int dirfd, const char *pathname, int flags) {
   return ret;
 }
 #endif
-
-#if defined(__NR_unlink)
-int unlink(const char *pathname) {
-  int ret;
-  SYSCALL_RET(__NR_unlink, ret);
-  return ret;
-}
-#elif defined(__NR_unlinkat)
-int unlink(const char *pathname) {
-  return unlinkat(AT_FDCWD, pathname, 0);
-}
-#endif
 #endif

@@ -1,5 +1,4 @@
 #include "math.h"
-#include "assert.h"
 
 #ifndef __NO_FLONUM
 double sqrt(double x) {
