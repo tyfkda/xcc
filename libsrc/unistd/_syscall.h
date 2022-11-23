@@ -9,7 +9,7 @@
 
 #define SYSCALL_RET(no, ret)  _SYSCALL_RET2(no, ret)
 #define _SYSCALL_RET2(no, ret) \
-    __asm("mov $" #no ", %eax\n" \
+    __asm("mov $" #no ", %%eax\n" \
           "syscall" \
           : "=r"(ret))
 

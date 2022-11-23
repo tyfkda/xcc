@@ -29,6 +29,7 @@
 #include "../stdio/getline.c"
 #include "../stdio/perror.c"
 #include "../stdio/printf.c"
+#include "../stdio/putchar.c"
 #include "../stdio/puts.c"
 #include "../stdio/remove.c"
 #include "../stdio/snprintf.c"

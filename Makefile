@@ -140,40 +140,21 @@ test-all: test test-gen2 diff-gen23
 
 .PHONY: clean
 clean:
-	rm -rf cc1 cpp as ld xcc $(OBJ_DIR) $(LIB_DIR) a.out gen2* gen3* tmp.s \
+	rm -rf cc1 cpp as ld xcc $(OBJ_DIR) a.out gen2* gen3* tmp.s \
 		dump_expr* dump_ir* dump_type* \
 		wcc cc.wasm a.wasm public release
+	@$(MAKE) -C libsrc clean
 	@$(MAKE) -C tests clean
 
 ### Library
 
-CRT0_SRCS:=$(wildcard $(LIBSRC_DIR)/crt0/*.c)
-
-LIBC_SRCS:=\
-	$(wildcard $(LIBSRC_DIR)/math/*.c) \
-	$(wildcard $(LIBSRC_DIR)/misc/*.c) \
-	$(wildcard $(LIBSRC_DIR)/stdio/*.c) \
-	$(wildcard $(LIBSRC_DIR)/stdlib/*.c) \
-	$(wildcard $(LIBSRC_DIR)/string/*.c) \
-	$(wildcard $(LIBSRC_DIR)/unistd/*.c) \
-
-CRT0_OBJS:=$(addprefix $(LIBOBJ_DIR)/,$(notdir $(CRT0_SRCS:.c=.o)))
-LIBC_OBJS:=$(addprefix $(LIBOBJ_DIR)/,$(notdir $(LIBC_SRCS:.c=.o)))
-
 .PHONY: libs
-libs: exes $(LIBS)
-
-$(LIB_DIR)/crt0.a:	$(CRT0_OBJS)
-	mkdir -p $(LIB_DIR)
-	$(AR) r $@ $^
-
-$(LIB_DIR)/libc.a:	$(LIBC_OBJS)
-	mkdir -p $(LIB_DIR)
-	$(AR) r $@ $^
-
-$(LIBOBJ_DIR)/%.o: $(LIBSRC_DIR)/**/%.c xcc cc1 cpp as ld
-	mkdir -p $(LIBOBJ_DIR)
-	./xcc -c -o $@ -Werror $<
+ifeq ("$(LIBS)", "")
+libs: exes
+else
+libs: exes
+	$(MAKE) CC=../xcc -C libsrc
+endif
 
 ### Self hosting
 
@@ -267,11 +248,11 @@ ASSETS_DIR:=public
 assets:	$(ASSETS_DIR)/cc.wasm $(ASSETS_DIR)/libs.json
 
 $(ASSETS_DIR)/cc.wasm:	cc.wasm
-	mkdir -p $(ASSETS_DIR)
+	@mkdir -p $(ASSETS_DIR)
 	cp cc.wasm $@
 
 $(ASSETS_DIR)/libs.json:	$(WCC_DIR)/www/lib_list.json
-	mkdir -p $(ASSETS_DIR)
+	@mkdir -p $(ASSETS_DIR)
 	node tool/pack_libs.js $(WCC_DIR)/www/lib_list.json > $@
 
 .PHONY: update-wcc-lib

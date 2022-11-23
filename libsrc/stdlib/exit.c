@@ -16,6 +16,10 @@ void exit(int code) {
   SYSCALL(__NR_exit_group);
 #endif
   SYSCALL(__NR_exit);
+#if defined(__GNUC__)  // Avoid `noreturn` warning.
+  for (;;)
+    ;
+#endif
 }
 
 #elif defined(__APPLE__)

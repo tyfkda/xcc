@@ -59,6 +59,7 @@
         "./libsrc/stdio/getline.c",
         "./libsrc/stdio/perror.c",
         "./libsrc/stdio/printf.c",
+        "./libsrc/stdio/putchar.c",
         "./libsrc/stdio/puts.c",
         "./libsrc/stdio/remove.c",
         "./libsrc/stdio/snprintf.c",

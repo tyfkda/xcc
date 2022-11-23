@@ -12,6 +12,17 @@ typedef void **va_list;
 #define va_arg(ap, type)  (*(type*)(ap)++)  // Assume little endian
 #define va_copy(dst,src)  (dst = src)
 
+#elif defined(__GNUC__)
+
+// TODO:
+#if defined(__x86_64__)
+#include "/usr/lib/gcc/x86_64-linux-gnu/9/include/stdarg.h"
+#elif defined(__aarch64__)
+#include "/usr/lib/gcc/aarch64-linux-gnu/8/include/stdarg.h"
+#else
+#error xxx
+#endif
+
 #else  // not __APPLE__ nor __aarch64__
 
 struct __va_elem {
