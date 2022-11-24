@@ -10,7 +10,7 @@ try() {
 
   echo -n "$title => "
 
-  $XCC -o "$AOUT" "$inputs" || exit 1
+  $XCC -o "$AOUT" -Werror "$inputs" || exit 1
 
   declare -a args=( "$@" )
   local actual
@@ -32,7 +32,7 @@ try_cmp() {
 
   echo -n "$title => "
 
-  $XCC -o "$AOUT" "$inputs" || exit 1
+  $XCC -o "$AOUT" -Werror "$inputs" || exit 1
 
   declare -a args=( "$@" )
   ./"$AOUT" "${args[@]:4}" || exit 1

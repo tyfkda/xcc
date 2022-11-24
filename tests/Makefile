@@ -120,13 +120,13 @@ parser_test:	$(PARSER_SRCS)
 
 VAL_SRCS:=valtest.c
 valtest:	$(VAL_SRCS) # $(XCC)
-	$(XCC) -o$@ -I$(EXAMPLES_DIR) $^
+	$(XCC) -o$@ -Werror -I$(EXAMPLES_DIR) $^
 
 FVAL_SRCS:=fvaltest.c
 dvaltest:	$(FVAL_SRCS) flotest.inc # $(XCC)
-	$(XCC) -o$@ $(FVAL_SRCS)
+	$(XCC) -o$@ -Werror $(FVAL_SRCS)
 fvaltest:	$(FVAL_SRCS) flotest.inc # $(XCC)
-	$(XCC) -o$@ -DUSE_SINGLE $(FVAL_SRCS)
+	$(XCC) -o$@ -Werror -DUSE_SINGLE $(FVAL_SRCS)
 
 TYPE_SRCS:=print_type_test.c $(CC_DIR)/type.c $(UTIL_DIR)/util.c $(UTIL_DIR)/table.c
 print_type_test:	$(TYPE_SRCS)
@@ -134,7 +134,7 @@ print_type_test:	$(TYPE_SRCS)
 
 .PHONY: test-link
 link_test: link_main.c link_sub.c
-	$(XCC) -c -olink_main.o -I$(EXAMPLES_DIR) link_main.c
+	$(XCC) -c -olink_main.o -Werror -I$(EXAMPLES_DIR) link_main.c
 	$(CC) -o $@ link_sub.c link_main.o
 
 .PHONY: test-std-valtest
@@ -165,5 +165,5 @@ test-wcc-val:	valtest.wasm
 	node ../tool/runwasm.js $<
 	@echo ''
 
-valtest.wasm:	$(VAL_SRCS) # $(XCC)
+valtest.wasm:	$(VAL_SRCS) # $(WCC)
 	$(WCC) -o$@ -I$(EXAMPLES_DIR) $^

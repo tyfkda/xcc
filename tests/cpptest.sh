@@ -39,7 +39,7 @@ try_run() {
 
   echo -n "$title => "
 
-  echo -e "$input" | $XCC -o "$AOUT" -xc - || exit 1
+  echo -e "$input" | $XCC -o "$AOUT" -Werror -xc - || exit 1
 
   $RUN_AOUT
   local actual="$?"
