@@ -310,6 +310,8 @@ compile_error 'for-var scoped' 'int main(){ for (int i = 0; i < 5; ++i) ; return
 compile_error 'global pointer init with undefined' 'char *p = &x; void main(){}'
 compile_error 'global pointer init with other type' 'int x; char *p = &x; void main(){}'
 compile_error 'global pointer init with fixnum' 'void *main = 1234;'
+compile_error 'const cast' 'int main(){const void *p = 0; void *q = p; return 0;}'
+try 'Except str to char*' 98 'char *s = "foobar"; return s[3];'
 compile_error 'use void' 'void func(){} void main(){ int a = (int)func(); }'
 compile_error 'goto no-label' 'void main(){ goto label; }'
 compile_error 'goto dup-label' 'void main(){ label: goto label; label:; }'

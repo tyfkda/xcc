@@ -268,10 +268,11 @@ static void gen_cast(const Type *dst, Type *src) {
       return;
     case TY_FLONUM:
       {
-        assert(dst->flonum.kind != src->flonum.kind);
-        switch (dst->flonum.kind) {
-        case FL_FLOAT:  ADD_CODE(OP_F32_DEMOTE_F64); break;
-        case FL_DOUBLE: ADD_CODE(OP_F64_PROMOTE_F32); break;
+        if (dst->flonum.kind != src->flonum.kind) {
+          switch (dst->flonum.kind) {
+          case FL_FLOAT:  ADD_CODE(OP_F32_DEMOTE_F64); break;
+          case FL_DOUBLE: ADD_CODE(OP_F64_PROMOTE_F32); break;
+          }
         }
       }
       return;

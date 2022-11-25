@@ -102,6 +102,7 @@ extern Type tyUnsignedChar;
 extern Type tyUnsignedInt;
 extern Type tyEnum;
 extern Type tyVoid;
+extern Type tyConstVoid;
 extern Type tyVoidPtr;
 extern Type tyBool;
 extern Type tySize;
@@ -143,6 +144,7 @@ int find_struct_member(const Vector *members, const Name *name);
 Type *create_enum_type(const Name *name);
 
 bool same_type(const Type *type1, const Type *type2);
+bool same_type_without_qualifier(const Type *type1, const Type *type2, bool ignore_qualifier);
 bool can_cast(const Type *dst, const Type *src, bool zero, bool is_explicit);
 
 //

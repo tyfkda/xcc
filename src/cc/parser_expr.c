@@ -988,7 +988,7 @@ Type *parse_raw_type(int *pstorage) {
         type = find_typedef(curscope, ident->ident, NULL);
       }
     } else if (tok->kind == TK_VOID) {
-      type = &tyVoid;
+      type = tc.qualifier & TQ_CONST ? &tyConstVoid : &tyVoid;
     }
     if (type == NULL) {
       unget_token(tok);
@@ -1752,6 +1752,9 @@ static Type *choose_type(Expr *tval, Expr *fval) {
       if (is_void_ptr(ttype))
         return ftype;
       if (is_void_ptr(ftype))
+        return ttype;
+      if (same_type_without_qualifier(ttype, ftype, true))
+        // TODO: Choose which type to return.
         return ttype;
     } else {
       if (can_cast(ttype, ftype, is_zero(fval), false))

@@ -14,6 +14,7 @@ Type tyUnsignedChar =  {.kind=TY_FIXNUM, .fixnum={.kind=FX_CHAR,  .is_unsigned=t
 Type tyUnsignedInt =   {.kind=TY_FIXNUM, .fixnum={.kind=FX_INT,   .is_unsigned=true}};
 Type tyEnum =          {.kind=TY_FIXNUM, .fixnum={.kind=FX_ENUM}};
 Type tyVoid =          {.kind=TY_VOID};
+Type tyConstVoid =     {.kind=TY_VOID, .qualifier=TQ_CONST};
 Type tyVoidPtr =       {.kind=TY_PTR, .pa={.ptrof=&tyVoid}};
 Type tyBool =          {.kind=TY_FIXNUM, .fixnum={.kind=FX_INT,   .is_unsigned=false}};
 Type tySize =          {.kind=TY_FIXNUM, .fixnum={.kind=FX_LONG,  .is_unsigned=true}};
@@ -280,9 +281,9 @@ Type *create_enum_type(const Name *name) {
   return type;
 }
 
-bool same_type(const Type *type1, const Type *type2) {
+bool same_type_without_qualifier(const Type *type1, const Type *type2, bool ignore_qualifier) {
   for (;;) {
-    if (type1->kind != type2->kind)
+    if (type1->kind != type2->kind || (!ignore_qualifier && type1->qualifier != type2->qualifier))
       return false;
 
     switch (type1->kind) {
@@ -330,6 +331,10 @@ bool same_type(const Type *type1, const Type *type2) {
       }
     }
   }
+}
+
+bool same_type(const Type *type1, const Type *type2) {
+  return same_type_without_qualifier(type1, type2, false);
 }
 
 bool can_cast(const Type *dst, const Type *src, bool zero, bool is_explicit) {
@@ -381,22 +386,24 @@ bool can_cast(const Type *dst, const Type *src, bool zero, bool is_explicit) {
       if (is_explicit)
         return true;
       break;
+    case TY_ARRAY:
+      if (is_explicit)
+        return true;
+      // Fallthrough
     case TY_PTR:
       if (is_explicit)
         return true;
+      // non-const <- const implicitly.
+      if ((src->pa.ptrof->qualifier & TQ_CONST) && !(dst->pa.ptrof->qualifier & TQ_CONST)) {
+        // Allow const char to char for string literal, otherwise disallow.
+        return is_char_type(src->pa.ptrof) && is_char_type(dst->pa.ptrof);
+      }
       // void* is interchangable with any pointer type.
       if (dst->pa.ptrof->kind == TY_VOID || src->pa.ptrof->kind == TY_VOID)
         return true;
       if (src->pa.ptrof->kind == TY_FUNC)
         return can_cast(dst, src->pa.ptrof, zero, is_explicit);
-      break;
-    case TY_ARRAY:
-      if (is_explicit)
-        return true;
-      if (same_type(dst->pa.ptrof, src->pa.ptrof) ||
-          can_cast(dst, ptrof(src->pa.ptrof), zero, is_explicit))
-        return true;
-      break;
+      return same_type_without_qualifier(dst->pa.ptrof, src->pa.ptrof, true);
     case TY_FUNC:
       if (is_explicit)
         return true;
