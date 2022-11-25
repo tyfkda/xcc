@@ -7,7 +7,36 @@ void _start(void) {
         "jmp exit");
 }
 
-#elif defined(__linux__)
+#elif defined(__linux__) || defined(__WASM)
+
+#if defined(__WASM)
+#include <stdlib.h>  // malloc, exit
+extern int args_sizes_get(int *pargc, int *plen);
+extern int args_get(char **pargv, char *pstr);
+#endif
+
+#if defined(__WASM)
+int _start(void) {
+  extern int main(int, char**);
+  char **argv;
+  int argc, len;
+  int r = args_sizes_get(&argc, &len);
+  if (r == 0) {
+    argv = malloc(sizeof(char*) * (argc + 1) + len);
+    char *str = ((char*)argv) + sizeof(char*) * (argc + 1);
+    args_get(argv, str);
+  } else {  // Ignore error.
+    argc = 1;
+    char **argv = malloc(sizeof(char*) * (argc + 1));
+    argv[0] = "*";
+  }
+  argv[argc] = NULL;
+
+  int ec = main(argc, argv);
+  exit(ec);
+  return ec;  // Dummy.
+}
+#else
 void _start(void) {
 #if defined(__x86_64__)
   __asm("mov (%rsp), %rdi\n"
@@ -35,6 +64,7 @@ void _start(void) {
 #error unknown target
 #endif
 }
+#endif
 
 #elif defined(__APPLE__)
 

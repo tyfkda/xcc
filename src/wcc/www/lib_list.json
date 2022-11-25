@@ -27,7 +27,9 @@
     "lib": {
       "_file.h": "./libsrc/stdio/_file.h",
       "_malloc.h": "./libsrc/stdlib/_malloc.h",
-      "crt0.c": "./libsrc/_wasm/crt0.c",
+      "crt0.c": [
+        "./libsrc/crt0/_start.c"
+      ],
       "libc.c": [
         "./libsrc/misc/basename.c",
         "./libsrc/misc/dirname.c",
