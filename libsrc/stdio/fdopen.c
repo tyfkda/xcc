@@ -1,5 +1,6 @@
 #include "stdio.h"
 #include "stdlib.h"  // malloc, realloc
+#include "string.h"
 
 #include "_file.h"
 #include "_fileman.h"
@@ -24,11 +25,17 @@ static void add_opened(FILE *fp) {
 }
 
 FILE *fdopen(int fd, const char *mode) {
-  // TODO: Validate fd and mode.
+  // TODO: Validate fd.
 
   FILE *fp = malloc(sizeof(*fp));
   if (fp != NULL) {
     fp->fd = fd;
+
+    int flag = 0;
+    if (strchr(mode, 'b') != NULL)
+      flag |= FF_BINARY;
+    fp->flag = flag;
+
     add_opened(fp);
   }
   return fp;
