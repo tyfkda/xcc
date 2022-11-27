@@ -5,6 +5,7 @@
         "random.h": "./include/sys/random.h",
         "types.h": "./include/sys/types.h"
       },
+      "alloca.h": "./include/alloca.h",
       "assert.h": "./include/assert.h",
       "ctype.h": "./include/ctype.h",
       "errno.h": "./include/errno.h",

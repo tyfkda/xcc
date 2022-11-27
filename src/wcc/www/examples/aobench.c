@@ -1,3 +1,4 @@
+#include <alloca.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -220,6 +221,8 @@ void render(unsigned char *img, int w, int h, int nsubsamples) {
 void showGraphic(int width, int height, unsigned char *img) {
   static const char GRAYSCALE[] = "$@B%8&WM#*oahkbdpqwmZO0QLCJUYXzcvunxrjft/\\|()1{}[]?-_+~<>i!lI;:,\"^`'. ";
   const double S = (sizeof(GRAYSCALE) - 1) / 256.0;
+  char *line = alloca(width + 1);
+  line[width] = '\0';
   for (int i = 0; i < height; ++i) {
     for (int j = 0; j < width; ++j) {
       int index = (j + i * width) * 4;
@@ -227,15 +230,18 @@ void showGraphic(int width, int height, unsigned char *img) {
       unsigned char g = img[index + 1];
       unsigned char b = img[index + 2];
       int k = r * (0.3 * S) + g * (0.59 * S) + b * (0.11 * S);
-      putchar(GRAYSCALE[k]);
+      line[j] = GRAYSCALE[k];
     }
-    putchar('\n');
+    puts(line);
   }
 }
 
-int main(void) {
-  unsigned char *img = malloc(WIDTH * HEIGHT * 4);
-  render(img, WIDTH, HEIGHT, NSUBSAMPLES);
-  showGraphic(WIDTH, HEIGHT, img);
+int main(int argc, char *argv[]) {
+  int width = argc > 1 ? atoi(argv[1]) : WIDTH;
+  int height = argc > 2 ? atoi(argv[2]) : HEIGHT;
+  int nsubsamples = argc > 3 ? atoi(argv[3]) : NSUBSAMPLES;
+   unsigned char *img = malloc(width * height * 4);
+  render(img, width, height, nsubsamples);
+  showGraphic(width, height, img);
   return 0;
 }
