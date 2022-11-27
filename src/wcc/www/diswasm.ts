@@ -592,10 +592,6 @@ function makeIndent(indent: number): string {
   return SPACES.slice(0, len)
 }
 
-function addr(adr: number): string {
-  return `(;${adr.toString(16).padStart(5, '0')};)`
-}
-
 export class DisWasm {
   private bufferReader: BufferReader
   private version = -1
@@ -605,7 +601,7 @@ export class DisWasm {
   private importFuncCount = 0
   private log: (s: string)=>void = console.log
 
-  constructor(buffer: ArrayBuffer) {
+  constructor(buffer: ArrayBuffer, private opts: object = {}) {
     this.bufferReader = new BufferReader(buffer)
   }
 
@@ -705,7 +701,7 @@ export class DisWasm {
       const offset = this.bufferReader.getOffset()
       const type = readType(this.bufferReader)
       this.types.push(type)
-      this.log(`${addr(offset)} (type (;${i};) ${type.toString()})`)
+      this.log(`${this.addr(offset)}(type (;${i};) ${type.toString()})`)
     }
   }
 
@@ -719,7 +715,7 @@ export class DisWasm {
       if (kind !== ImportKind.FUNC)
         throw(`Illegal import kind: ${kind}`)
       const index = this.bufferReader.readUleb128()
-      this.log(`${addr(offset)} (import "${modName}" "${name}" (func (;${this.importFuncCount};) (type ${index})))`)
+      this.log(`${this.addr(offset)}(import "${modName}" "${name}" (func (;${this.importFuncCount};) (type ${index})))`)
       this.importFuncCount += 1
     }
   }
@@ -738,7 +734,7 @@ export class DisWasm {
       const offset = this.bufferReader.getOffset()
       const index = this.bufferReader.readUleb128()
       const pageCount = this.bufferReader.readUleb128()
-      this.log(`${addr(offset)} (memory (;${index};) ${pageCount})`)
+      this.log(`${this.addr(offset)}(memory (;${index};) ${pageCount})`)
     }
   }
 
@@ -749,7 +745,7 @@ export class DisWasm {
       const type = readType(this.bufferReader)
       const mut = this.bufferReader.readu8()
       const value = readGlobalValue(this.bufferReader)
-      this.log(`${addr(offset)} (global (;${i};) ${mut !== 0 ? `(mut ${type})` : `${type}`} (${type}.const ${value}))`)
+      this.log(`${this.addr(offset)}(global (;${i};) ${mut !== 0 ? `(mut ${type})` : `${type}`} (${type}.const ${value}))`)
       this.bufferReader.readu8()  // Skip OP_END
     }
   }
@@ -763,7 +759,7 @@ export class DisWasm {
       const name = this.bufferReader.readString()
       const kind = this.bufferReader.readu8()
       const index = this.bufferReader.readUleb128()
-      this.log(`${addr(offset)} (export "${name}" (${KindNames[kind] || `kind=${kind}`} ${index}))`)
+      this.log(`${this.addr(offset)}(export "${name}" (${KindNames[kind] || `kind=${kind}`} ${index}))`)
     }
   }
 
@@ -772,13 +768,23 @@ export class DisWasm {
     for (let i = 0; i < num; ++i) {
       const offset = this.bufferReader.getOffset()
       const typeIndex = this.functions[i]
-      this.log(`${addr(offset)} (func (;${i + this.importFuncCount};) (type ${typeIndex})`)
+      this.log(`${this.addr(offset)}(func (;${i + this.importFuncCount};) (type ${typeIndex})`)
       const code = this.readCode()
       this.codes.push(code)
     }
   }
 
   private readCode(): Inst[] {
+    const toStringOperand = (x) => {
+      if (x === Number.POSITIVE_INFINITY)
+        return 'inf'
+      if (x === Number.NEGATIVE_INFINITY)
+        return '-inf'
+      if (isNaN(x))
+        return 'nan'
+      return x.toString()
+    }
+
     const bodySize = this.bufferReader.readUleb128()
     const endOfs = this.bufferReader.getOffset() + bodySize
     const localDeclCount = this.bufferReader.readUleb128()
@@ -787,7 +793,7 @@ export class DisWasm {
         const offset = this.bufferReader.getOffset()
         const num = this.bufferReader.readUleb128()
         const t = readType(this.bufferReader)
-        this.log(`${addr(offset)}   ${[...Array(num)].map(_ => `(local ${t})`).join(' ')}`)
+        this.log(`${this.addr(offset)}  ${[...Array(num)].map(_ => `(local ${t})`).join(' ')}`)
       }
     }
 
@@ -802,7 +808,7 @@ export class DisWasm {
       case Opcode.ELSE: case Opcode.END:
         --indent
         if (indent === 0 && inst.opcode === Opcode.END) {
-          this.log(`${addr(offset)} )`)
+          this.log(`${this.addr(offset)})`)
           continue
         }
         break
@@ -826,11 +832,11 @@ export class DisWasm {
           operands = `${(inst.operands[0] as Array<number>).join(' ')} ${inst.operands[1]}`
           break
         default:
-          operands = inst.operands.map((x) => x.toString()).join(' ')
+          operands = inst.operands.map(toStringOperand).join(' ')
           break
         }
       }
-      this.log(`${addr(offset)} ${spaces}${inst.opstr} ${operands}`.trimEnd())
+      this.log(`${this.addr(offset)}${spaces}${inst.opstr} ${operands}`.trimEnd())
 
       switch (inst.opcode) {
       case Opcode.IF: case Opcode.BLOCK: case Opcode.LOOP: case Opcode.ELSE:
@@ -842,6 +848,17 @@ export class DisWasm {
   }
 
   private readDataSection(): void {
+    const escapeChar = (c: number) => {
+      switch (c) {
+      case 34:  return '\\"'
+      case 92:  return '\\\\'
+      default:
+        if (c < 0x20 || c > 0x7e)
+          return `\\${c.toString(16).padStart(2, '0')}`
+        return String.fromCharCode(c)
+      }
+    }
+
     const num = this.bufferReader.readUleb128()
     for (let i = 0; i < num; ++i) {
       const offset = this.bufferReader.getOffset()
@@ -854,10 +871,14 @@ export class DisWasm {
       const data = new Array<string>(datasize)
       for (let i = 0; i < datasize; ++i) {
         const c = this.bufferReader.readu8()
-        data[i] = (0x20 <= c && c <= 0x7e) ? String.fromCharCode(c) : `\\${c.toString(16).padStart(2, '0')}`
+        data[i] = escapeChar(c)
       }
 
-      this.log(`${addr(offset)} (data (;${i};) (i32.const 0) "${data.join('')}")`)
+      this.log(`${this.addr(offset)}(data (;${i};) (i32.const 0) "${data.join('')}")`)
     }
+  }
+
+  private addr(adr: number): string {
+    return this.opts['dumpAddr'] ? `(;${adr.toString(16).padStart(5, '0')};) ` : ''
   }
 }

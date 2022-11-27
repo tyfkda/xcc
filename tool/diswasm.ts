@@ -6,14 +6,21 @@ import * as fs from 'fs'
 import {DisWasm} from '../src/wcc/www/diswasm'
 
 function main(argv: string[]) {
-  if (argv.length < 3) {
+  const program = require('commander')
+  program
+    .option('--dump-addr', 'Dump address')
+    .parse(argv)
+  const opts = program.opts()
+  const args = program.args
+
+  if (args < 1) {
     console.error('Usage: [wasm file]')
     process.exit(1)
   }
 
-  const content = fs.readFileSync(argv[2])
+  const content = fs.readFileSync(args[0])
   const buffer = new Uint8Array(content).buffer
-  const diswasm = new DisWasm(buffer)
+  const diswasm = new DisWasm(buffer, opts)
   try {
     diswasm.dump()
   } catch (e) {
