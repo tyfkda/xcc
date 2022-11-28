@@ -3,10 +3,30 @@
 #include "unistd.h"  // close
 
 #include "_file.h"
+#include "_fileman.h"
+
+static void remove_opened(FILE *fp) {
+  extern FILEMAN __fileman;
+
+  FILE **files = __fileman.opened;
+  for (int i = 0, length = __fileman.length; i < length; ++i) {
+    if (files[i] == fp) {
+      --length;
+      if (i < length) {
+        // Swap to the last.
+        files[i] = files[length];
+      }
+      __fileman.length = length;
+      break;
+    }
+  }
+}
 
 int fclose(FILE *fp) {
   if (fp == NULL || fp->fd < 0)
     return EOF;
+  remove_opened(fp);
+  fflush(fp);
   close(fp->fd);
   fp->fd = -1;
   free(fp);

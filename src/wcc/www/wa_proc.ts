@@ -177,7 +177,7 @@ export class WaProc {
         puti: (x) => {
           Util.putTerminal(x)
         },
-        exit: (x) => {
+        proc_exit: (x) => {
           throw new ExitCalledError(x)
         },
         _memcpy: (dst, src, len) => {

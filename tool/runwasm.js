@@ -209,7 +209,7 @@ function tmpfileSync(len) {
         puti: (x) => {
           process.stdout.write(x.toString())
         },
-        exit: (x) => {
+        proc_exit: (x) => {
           process.exit(x)
         },
         _memcpy: (dst, src, len) => {
@@ -244,9 +244,7 @@ function tmpfileSync(len) {
     const wasmFile = args[0]
     const instance = await loadWasm(wasmFile)
     try {
-      const result = instance.exports[opts.entryPoint]()
-      if (result !== 0)
-        process.exit(result)
+      instance.exports[opts.entryPoint]()
     } catch (e) {
       console.error(e.toString())
       process.exit(1)

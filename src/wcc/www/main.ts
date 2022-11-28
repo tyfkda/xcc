@@ -224,21 +224,25 @@ async function compile(sourceCode: string, extraOptions?: string[]): Promise<Uin
     args = args.concat(extraOptions)
   args.push(sourceName)
 
+  let err = false
   try {
-    const result = await waproc.runWasmEntry(wccWasm, '_start', args)
-    if (result === 0)
-      return waproc.loadFile('a.wasm')
+    await waproc.runWasmEntry(wccWasm, '_start', args)
   } catch (e) {
     if (!(e instanceof ExitCalledError)) {
       Util.putTerminalError(e)
       showTerminal()
       return null
     }
+    const ec = e as ExitCalledError
+    err = ec.code !== 0
+  }
+  if (err) {
+    Util.analyzeCompileErrors()
+    showTerminal()
+    return null
   }
 
-  Util.analyzeCompileErrors()
-  showTerminal()
-  return null
+  return waproc.loadFile('a.wasm')
 }
 
 async function run(argStr: string, compileAndDump: boolean) {
@@ -269,9 +273,7 @@ async function run(argStr: string, compileAndDump: boolean) {
   args.unshift('a.wasm')
   showTerminal()
   try {
-    const result = await waproc.runWasmEntry(compiledCode, '_start', args)
-    if (result !== 0)
-      console.error(`Exit code=${result}`)
+    await waproc.runWasmEntry(compiledCode, '_start', args)
   } catch (e) {
     if (!(e instanceof ExitCalledError))
       Util.putTerminalError(e)

@@ -3,13 +3,22 @@
 const {assert} = require('console')
 const fs = require('fs')
 
+function replaceRelativeInclude(content) {
+  return content.replace(/^(#include\s+)"\..+\/([\w\d\-_.]+)"$/gm, '$1"$2"')
+}
+
+function readFile(path) {
+  const content = fs.readFileSync(path, 'utf8')
+  return replaceRelativeInclude(content)
+}
+
 function mapFileJson(json) {
   switch (typeof json) {
   case 'string':
-    return fs.readFileSync(json, 'utf8')
+    return readFile(json)
   case 'object':
     if (Array.isArray(json)) {
-      const files = json.map((fn) => fs.readFileSync(fn, 'utf8'))
+      const files = json.map((fn) => readFile(fn))
       return files.join('\n')
     } else {
       Object.keys(json).map(key => json[key] = mapFileJson(json[key]))
