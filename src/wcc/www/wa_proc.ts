@@ -170,13 +170,6 @@ export class WaProc {
         drand48: Math.random,
         erand48: Math.random,
 
-        putstr: (ptr) => {
-          const text = Util.decodeString(this.memory.buffer, ptr)
-          Util.putTerminal(text)
-        },
-        puti: (x) => {
-          Util.putTerminal(x)
-        },
         proc_exit: (x) => {
           throw new ExitCalledError(x)
         },

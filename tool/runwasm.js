@@ -202,13 +202,6 @@ function tmpfileSync(len) {
         drand48: Math.random,
         erand48: Math.random,
 
-        putstr: (ptr) => {
-          const text = decodeString(memory.buffer, ptr)
-          process.stdout.write(text)
-        },
-        puti: (x) => {
-          process.stdout.write(x.toString())
-        },
         proc_exit: (x) => {
           process.exit(x)
         },
