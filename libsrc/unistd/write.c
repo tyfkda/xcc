@@ -1,5 +1,9 @@
 #include "unistd.h"
 
+#if defined(__GNUC__)
+#pragma GCC diagnostic ignored "-Wunused-parameter"
+#endif
+
 #if defined(__XV6)
 ssize_t write(int fd, const void *str, size_t len) {
   __asm("mov $16, %eax\n"  // SYS_write

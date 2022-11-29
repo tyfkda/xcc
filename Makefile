@@ -13,8 +13,6 @@ LIB_DIR:=lib
 
 # NO_FLONUM:=1
 
-UNAME:=$(shell uname)
-
 ifeq ("$(ARCHTYPE)", "")
   ARCHTYPE:=x64
   ARCH:=$(shell arch)
@@ -39,6 +37,7 @@ ifneq ("$(NO_FLONUM)","")
 CFLAGS+=-D__NO_FLONUM
 endif
 
+UNAME:=$(shell uname)
 ifeq ("$(UNAME)", "Darwin")
 LIBS:=
 else

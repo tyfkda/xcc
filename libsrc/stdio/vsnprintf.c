@@ -55,7 +55,7 @@ snprintullong(char *out, unsigned int n, unsigned long long x,
     x /= base;
   }while(x != 0);
 
-  if (i < order) {
+  if (i < (unsigned int)order) {
     memset(buf + i, padding, order - i);
     i = order;
   }
@@ -75,8 +75,8 @@ snprintstr(char *out, unsigned int n, const char* s,
     s = "(null)";
   size_t len = strlen(s);
   if (suborder > 0)
-    len = MIN(len, suborder);
-  if (order <= 0 || len >= order) {
+    len = MIN(len, (unsigned int)suborder);
+  if (order <= 0 || len >= (unsigned int)order) {
     o = putnstr(out, o, MIN(n, o + len), s);
   } else {
     if (leftalign) {
@@ -113,7 +113,7 @@ vsnprintf(char *out, size_t n, const char *fmt_, va_list ap)
   int c, i;
   int o;
 
-  for(i = o = 0; fmt[i] != '\0' && o < n; i++){
+  for(i = o = 0; fmt[i] != '\0' && (size_t)o < n; i++){
     c = fmt[i];
     if(c != '%'){
       out[o++] = c;
@@ -224,7 +224,7 @@ vsnprintf(char *out, size_t n, const char *fmt_, va_list ap)
       long intPart = x >= 0 ? (long)x : -(long)(-x);
       o += snprintullong(out + o, n - o, intPart, 10, kHexDigits,
                          order, padding);
-      if (o < n) {
+      if ((size_t)o < n) {
         out[o++] = '.';
         suborder = suborder > 0 ? suborder : 6;
         unsigned long fraction = (unsigned long)((x - intPart) * pow10(suborder));
@@ -235,14 +235,14 @@ vsnprintf(char *out, size_t n, const char *fmt_, va_list ap)
     } else {
       // Unknown % sequence.  Print it to draw attention.
       out[o++] = '%';
-      if (o >= n)
+      if ((size_t)o >= n)
         break;
       if (c != '\0')
         out[o++] = c;
     }
   }
 
-  if (o < n)
+  if ((size_t)o < n)
     out[o] = '\0';
   return o;
 }

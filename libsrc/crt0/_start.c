@@ -1,5 +1,9 @@
 #include "stdlib.h"  // atexit, exit
 
+#if defined(__GNUC__)
+#pragma GCC diagnostic ignored "-Wunused-function"
+#endif
+
 char **environ;
 
 #if defined(__XV6)

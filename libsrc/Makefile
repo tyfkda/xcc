@@ -5,9 +5,15 @@ INC_DIR:=../include
 
 LIBS:=$(LIB_DIR)/crt0.a $(LIB_DIR)/libc.a
 
-CFLAGS:=-nostdlib -I$(INC_DIR) \
+UNAME:=$(shell uname)
+ifeq ("$(UNAME)", "Darwin")
+CFLAGS:=-I$(INC_DIR) -Wall -Wextra -Werror \
+	-Wno-incompatible-library-redeclaration
+else
+CFLAGS:=-I$(INC_DIR) -Wall -Wextra -Werror \
 	-Wno-builtin-declaration-mismatch \
 	-Wno-format-truncation
+endif
 
 ### Library
 
@@ -41,4 +47,4 @@ $(LIB_DIR)/libc.a:	$(LIBC_OBJS)
 
 $(LIBOBJ_DIR)/%.o: $(LIBSRC_DIR)/**/%.c
 	@mkdir -p $(LIBOBJ_DIR)
-	$(CC) -c -o $@ -Werror $(CFLAGS) $<
+	$(CC) -c -o $@ -nostdinc -Werror -ffreestanding $(CFLAGS) $<

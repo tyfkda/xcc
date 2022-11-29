@@ -2,7 +2,11 @@
 #include "errno.h"
 #include "stdlib.h"  // malloc
 
-#if defined(__WASM)
+#if defined(__GNUC__)
+#pragma GCC diagnostic ignored "-Wunused-parameter"
+#endif
+
+#if defined(__WASM) || defined(__APPLE__)
 extern int _getcwd(char *, size_t);
 
 #elif defined(__linux__)

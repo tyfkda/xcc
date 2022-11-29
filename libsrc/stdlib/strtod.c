@@ -49,7 +49,6 @@ double strtod(const char* /*restrict*/ p, char ** /*restrict*/ pp) {
     size_t len = strlen(str);
     if (strncmp(p, str, len) == 0) {
       p += len;
-      char c = *p;
       if (pp != 0)
         *pp = (char*)p;
       return neg ? CONST[i].neg : CONST[i].pos;

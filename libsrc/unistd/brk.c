@@ -1,6 +1,10 @@
 #include "unistd.h"
 #include "stdio.h"  // EOF
 
+#if defined(__GNUC__)
+#pragma GCC diagnostic ignored "-Wunused-parameter"
+#endif
+
 #if !defined(__XV6)
 #if defined(__WASM)
 extern size_t __memoryPageCount;
@@ -37,6 +41,8 @@ static void *_brk(void *addr) {
   SYSCALL_RET(__NR_brk, ret);
   return ret;
 }
+#elif defined(__APPLE__)
+extern void *_brk(void *addr);
 #endif
 
 static char *curbrk;

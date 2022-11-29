@@ -4,24 +4,26 @@
 
 #if !defined(__WASM)
 
-#if defined(__APPLE__) && defined(__aarch64__)
-typedef void **va_list;
-
-#define va_start(ap,p)    __builtin_va_start(ap,&(p))
-#define va_end(ap)        /*(void)*/(ap = 0)
-#define va_arg(ap, type)  (*(type*)(ap)++)  // Assume little endian
-#define va_copy(dst,src)  (dst = src)
-
-#elif defined(__GNUC__)
+#if defined(__GNUC__)
 
 // TODO:
-#if defined(__x86_64__)
+#if defined(__APPLE__)
+#include "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/clang/14.0.0/include/stdarg.h"
+#elif defined(__x86_64__)
 #include "/usr/lib/gcc/x86_64-linux-gnu/9/include/stdarg.h"
 #elif defined(__aarch64__)
 #include "/usr/lib/gcc/aarch64-linux-gnu/8/include/stdarg.h"
 #else
 #error xxx
 #endif
+
+#elif defined(__APPLE__) && defined(__aarch64__)
+typedef void **va_list;
+
+#define va_start(ap,p)    __builtin_va_start(ap,&(p))
+#define va_end(ap)        /*(void)*/(ap = 0)
+#define va_arg(ap, type)  (*(type*)(ap)++)  // Assume little endian
+#define va_copy(dst,src)  (dst = src)
 
 #else  // not __APPLE__ nor __aarch64__
 

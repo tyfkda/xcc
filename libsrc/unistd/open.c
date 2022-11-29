@@ -4,6 +4,10 @@
 #include "sys/stat.h"  // mode_t
 #include "_syscall.h"
 
+#if defined(__GNUC__)
+#pragma GCC diagnostic ignored "-Wunused-parameter"
+#endif
+
 #if defined(__NR_open)
 int open(const char *fn, int flag, mode_t mode) {
   int ret;

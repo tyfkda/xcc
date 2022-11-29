@@ -2,9 +2,9 @@
 
 #ifndef __NO_FLONUM
 double sqrt(double x) {
-#if defined(__x86_64__)
+#if defined(__x86_64__) && !defined(__GNUC__)
   __asm("sqrtsd %xmm0, %xmm0");
-#elif defined(__aarch64__)
+#elif defined(__aarch64__) && !defined(__GNUC__)
   __asm("fsqrt d0, d0");
 #else
   if (x <= 0)

@@ -1,7 +1,11 @@
-#if !defined(__WASM)
+#if !defined(__WASM) && !defined(__APPLE__)
 #include "sys/wait.h"
 #include "_syscall.h"
 #include "errno.h"
+
+#if defined(__GNUC__)
+#pragma GCC diagnostic ignored "-Wunused-parameter"
+#endif
 
 pid_t wait4(pid_t pid, int* status, int options, struct rusage *usage) {
   int ret;

@@ -246,13 +246,11 @@ int main(int argc, char *argv[]) {
   char *as_path = "/usr/bin/as";
   char *ld_path = "/usr/bin/cc";
 #endif
-  bool nodefaultlibs = false, nostdlib = false;
+  bool nodefaultlibs = false, nostdlib = false, nostdinc = false;
 
   Vector *cpp_cmd = new_vector();
   vec_push(cpp_cmd, cpp_path);
   vec_push(cpp_cmd, "-D__LP64__");  // Memory model.
-  vec_push(cpp_cmd, "-I");
-  vec_push(cpp_cmd, cat_path(root, "include"));
 #if defined(__aarch64__)
   vec_push(cpp_cmd, "-D__aarch64__");
 #elif defined(__x86_64__)
@@ -289,10 +287,8 @@ int main(int argc, char *argv[]) {
     OPT_VERSION,
     OPT_NODEFAULTLIBS,
     OPT_NOSTDLIB,
+    OPT_NOSTDINC,
 
-    OPT_WARNING,
-    OPT_OPTIMIZE,
-    OPT_DEBUGINFO,
     OPT_ANSI,
     OPT_STD,
     OPT_PEDANTIC,
@@ -309,13 +305,15 @@ int main(int argc, char *argv[]) {
     {"x", required_argument},  // Specify code type
     {"nodefaultlibs", no_argument, OPT_NODEFAULTLIBS},
     {"nostdlib", no_argument, OPT_NOSTDLIB},
+    {"nostdinc", no_argument, OPT_NOSTDINC},
     {"-help", no_argument, OPT_HELP},
     {"-version", no_argument, OPT_VERSION},
 
     // Suppress warnings
-    {"W", required_argument, OPT_WARNING},
-    {"O", required_argument, OPT_OPTIMIZE},
-    {"g", required_argument, OPT_DEBUGINFO},
+    {"W", required_argument},
+    {"O", required_argument},
+    {"g", required_argument},  // Debug info
+    {"f", required_argument},
     {"ansi", no_argument, OPT_ANSI},
     {"std", required_argument, OPT_STD},
     {"pedantic", no_argument, OPT_PEDANTIC},
@@ -364,7 +362,7 @@ int main(int argc, char *argv[]) {
         error("language not recognized: %s", optarg);
       }
       break;
-    case OPT_WARNING:
+    case 'W':
       vec_push(cc1_cmd, "-W");
       vec_push(cc1_cmd, optarg);
       break;
@@ -373,6 +371,9 @@ int main(int argc, char *argv[]) {
       break;
     case OPT_NOSTDLIB:
       nostdlib = true;
+      break;
+    case OPT_NOSTDINC:
+      nostdinc = true;
       break;
     case '?':
       if (strcmp(argv[optind - 1], "-") == 0) {
@@ -385,8 +386,9 @@ int main(int argc, char *argv[]) {
       }
       break;
 
-    case OPT_OPTIMIZE:
-    case OPT_DEBUGINFO:
+    case 'O':
+    case 'g':
+    case 'f':
     case OPT_ANSI:
     case OPT_STD:
     case OPT_PEDANTIC:
@@ -404,6 +406,11 @@ int main(int argc, char *argv[]) {
     fprintf(stderr, "No input files\n\n");
     usage(stderr);
     return 1;
+  }
+
+  if (!nostdinc) {
+    vec_push(cpp_cmd, "-I");
+    vec_push(cpp_cmd, cat_path(root, "include"));
   }
 
   if (ofn == NULL) {
