@@ -34,7 +34,7 @@ LIBC_OBJS:=$(addprefix $(LIBOBJ_DIR)/,$(notdir $(LIBC_SRCS:.c=.o)))
 libs: $(LIBS)
 
 .PHONY: clean
-clean:
+clean:	clean-test
 	rm -rf $(LIBOBJ_DIR) $(LIB_DIR)
 
 $(LIB_DIR)/crt0.a:	$(CRT0_OBJS)
@@ -48,3 +48,21 @@ $(LIB_DIR)/libc.a:	$(LIBC_OBJS)
 $(LIBOBJ_DIR)/%.o: $(LIBSRC_DIR)/**/%.c
 	@mkdir -p $(LIBOBJ_DIR)
 	$(CC) -c -o $@ -nostdinc -Werror -ffreestanding $(CFLAGS) $<
+
+### Test
+
+.PHONY:	test
+test:	test-printf
+
+.PHONY: clean-test
+clean-test:
+	rm -rf printf_test
+
+.PHONY: test-printf
+test-printf:	printf_test
+	@echo '## printf test'
+	@./printf_test
+	@echo ''
+
+printf_test:	tests/printf_test.c stdio/vsnprintf.c
+	$(CC) -o$@ $(CFLAGS) -I$(INC_DIR) -DUNIT_TEST $^

@@ -5,7 +5,6 @@
 #include "stdio.h"
 #include "string.h"
 
-#define NULL  ((void*)0)
 #define MIN(a, b)  ((a) < (b) ? (a) : (b))
 
 static char kHexDigits[] = "0123456789abcdef";

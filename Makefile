@@ -135,7 +135,11 @@ test:	all
 	$(MAKE) -C tests clean && $(MAKE) -C tests all
 
 .PHONY: test-all
-test-all: test test-gen2 diff-gen23
+test-all: test test-libsrc test-gen2 diff-gen23 test-wcc test-wcc-gen2
+
+.PHONY: test-libs
+test-libs:	all
+	$(MAKE) -C libsrc clean-test && $(MAKE) CC=../xcc -C libsrc test
 
 .PHONY: clean
 clean:
