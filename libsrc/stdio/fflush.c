@@ -9,6 +9,10 @@ int fflush(FILE *fp) {
     if (wp < fp->ws) {
       fp->wbuf[wp] = '\0';
     }
+    if (fp->pmem != NULL)
+      *fp->pmem = (char*)fp->wbuf;
+    if (fp->psize != NULL)
+      *fp->psize = wp;
   } else if (wp > 0) {
     size_t write_size = write(fp->fd, fp->wbuf, wp);
     if (write_size != (size_t)wp)

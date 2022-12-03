@@ -64,7 +64,26 @@ void test_vsnprintf(void) {
 #undef ASSERT
 }
 
+void test_open_memstream(void) {
+  char *ptr = NULL;
+  size_t size = 0;
+  FILE *fp = open_memstream(&ptr, &size);
+  if (fp == NULL) {
+    fprintf(stderr, "Failed to open memstream\n");
+    ++error_count;
+  } else {
+    int len1 = fprintf(fp, "Hello world\n");
+    int len2 = fprintf(fp, "Number: %d\n", 12345);
+    fclose(fp);
+    if (ptr == NULL || size != (size_t)(len1 + len2)) {
+      fprintf(stderr, "open_memstream, ERR, %p, %d, %d, %d\n", ptr, len1, len2, (int)size);
+      ++error_count;
+    }
+  }
+}
+
 int main() {
   test_vsnprintf();
+  test_open_memstream();
   return error_count > 255 ? 255 : error_count;
 }

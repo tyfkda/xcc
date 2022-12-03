@@ -1,7 +1,10 @@
 #pragma once
 
-#define FF_BINARY  (1 << 0)
-#define FF_MEMORY  (1 << 1)
+#include "stddef.h"  // size_t
+
+#define FF_BINARY   (1 << 0)
+#define FF_MEMORY   (1 << 1)
+#define FF_GROWMEM  (1 << 2)
 
 struct FILE {
   int (*fputc)(int c, FILE *fp);
@@ -14,9 +17,15 @@ struct FILE {
   int flag;
 
   // TODO: allocate buffers only if required.
-  struct {
-    unsigned char rbuf[256];
-    unsigned char wwork[32];
+  union {
+    struct {
+      unsigned char rbuf[256];
+      unsigned char wwork[32];
+    };  // For file.
+    struct {
+      char **pmem;
+      size_t *psize;
+    };  // For memory.
   };
 };
 

@@ -65,3 +65,4 @@ FILE *tmpfile(void);
 ssize_t getline(char **lineptr, size_t *n, FILE *stream);
 
 FILE *fmemopen(void *buf, size_t size, const char *mode);
+FILE *open_memstream(char **ptr, size_t *sizeloc);
