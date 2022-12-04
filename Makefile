@@ -47,7 +47,7 @@ endif
 ifneq ("$(TARGET)","")
 # Self hosting
 PARENT_DEPS:=$(HOST)xcc $(HOST)cc1 $(HOST)cpp $(HOST)as $(HOST)ld $(LIBS)
-OBJ_DIR:=$(TARGET)
+OBJ_DIR:=obj/$(TARGET)
 CC:=./$(HOST)xcc
 CFLAGS+=-DSELF_HOSTING
 endif
