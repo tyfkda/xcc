@@ -64,5 +64,9 @@ test-printf:	printf_test
 	@./printf_test
 	@echo ''
 
-printf_test:	tests/printf_test.c stdio/vsnprintf.c
+PRINTF_TEST_OBJS:=$(LIBOBJ_DIR)/vfprintf.o $(LIBOBJ_DIR)/vsnprintf.o $(LIBOBJ_DIR)/fprintf.o \
+	$(LIBOBJ_DIR)/printf.o $(LIBOBJ_DIR)/fwrite.o $(LIBOBJ_DIR)/fputc.o $(LIBOBJ_DIR)/_fputc.o \
+	$(LIBOBJ_DIR)/stdin.o $(LIBOBJ_DIR)/fclose.o $(LIBOBJ_DIR)/fflush.o $(LIBOBJ_DIR)/fdopen.o \
+	$(LIBOBJ_DIR)/fmemopen.o
+printf_test:	tests/printf_test.c $(PRINTF_TEST_OBJS)
 	$(CC) -o$@ $(CFLAGS) -I$(INC_DIR) -DUNIT_TEST $^

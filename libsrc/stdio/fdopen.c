@@ -7,9 +7,9 @@
 
 #define INITIAL_CAPACITY  (4)
 
-static void add_opened(FILE *fp) {
-  extern FILEMAN __fileman;
+FILEMAN __fileman;
 
+static void add_opened(FILE *fp) {
   if (__fileman.length >= __fileman.capacity) {
     int ncapa = __fileman.capacity > 0 ? __fileman.capacity << 1 : INITIAL_CAPACITY;
     FILE **buf = realloc(__fileman.opened, ncapa * sizeof(*__fileman.opened));
@@ -29,9 +29,12 @@ FILE *fdopen(int fd, const char *mode) {
 
   FILE *fp = malloc(sizeof(*fp));
   if (fp != NULL) {
+    fp->fputc = _fputc;
     fp->fd = fd;
     fp->rp = fp->rs = 0;
     fp->wp = 0;
+    fp->wbuf = fp->wwork;
+    fp->ws = sizeof(fp->wwork);;
 
     int flag = 0;
     if (strchr(mode, 'b') != NULL)

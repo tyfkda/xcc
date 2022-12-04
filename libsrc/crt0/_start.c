@@ -24,7 +24,7 @@ extern int args_sizes_get(int *pargc, int *plen);
 extern int args_get(char **pargv, char *pstr);
 #endif
 
-FILEMAN __fileman;
+extern FILEMAN __fileman;
 
 static void __flush_all_files(void) {
   fflush(stdout);

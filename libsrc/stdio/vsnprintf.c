@@ -1,9 +1,13 @@
 #include "stdio.h"
 #include "unistd.h"
+#include "stdarg.h"
 
-int vfprintf(FILE *fp, const char *fmt, va_list ap) {
-  // TODO: directly output to fd, not use vsnprintf.
-  char buf[1024];
-  int len = vsnprintf(buf, sizeof(buf), fmt, ap);
-  return fwrite(buf, 1, len, fp);
+int vsnprintf(char *out, size_t n, const char *fmt, va_list ap) {
+  int result = 0;
+  FILE *fp = fmemopen(out, n, "w");
+  if (fp != NULL) {
+    result = vfprintf(fp, fmt, ap);
+    fclose(fp);
+  }
+  return result;
 }

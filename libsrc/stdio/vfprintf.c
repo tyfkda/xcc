@@ -5,6 +5,8 @@
 #include "stdio.h"
 #include "string.h"
 
+#include "_file.h"
+
 #define MIN(a, b)  ((a) < (b) ? (a) : (b))
 
 static char kHexDigits[] = "0123456789abcdef";
@@ -22,29 +24,20 @@ static double pow10(int order) {
 }
 #endif
 
-static int
-putnstr(char *out, int o, int n, const char *s)
-{
-  while (*s != '\0' && o < n)
-    out[o++] = *s++;
-  return o;
+static void putnstr(FILE *fp, int n, const char *s) {
+  int c;
+  for (; (c = *s++) != '\0' && n > 0; --n)
+    FPUTC(c, fp);
 }
 
-static int
-putpadding(char *out, int o, int n, int m, char padding)
-{
-  if (m > n - o)
-    m = n - o;
+static void putpadding(FILE *fp, int m, char padding) {
   for (; m > 0; --m)
-    out[o++] = padding;
-  return o;
+    FPUTC(padding, fp);
 }
 
 // Output is not '\0' terminated.
-static int
-snprintullong(char *out, unsigned int n, unsigned long long x,
-              int base, const char* digits, int order, int padding)
-{
+static int snprintullong(FILE *fp, unsigned long long x,
+                         int base, const char* digits, int order, int padding) {
   char buf[32];
   unsigned int i, o;
 
@@ -59,16 +52,14 @@ snprintullong(char *out, unsigned int n, unsigned long long x,
     i = order;
   }
 
-  for (o = 0; i > 0 && o < n; ++o)
-    out[o] = buf[--i];
+  for (o = 0; i > 0; ++o)
+    FPUTC(buf[--i], fp);
 
   return o;
 }
 
-static int
-snprintstr(char *out, unsigned int n, const char* s,
-           int order, int suborder, int leftalign)
-{
+static int snprintstr(FILE *fp, const char* s,
+                      int order, int suborder, int leftalign) {
   int o = 0;
   if(s == NULL)
     s = "(null)";
@@ -76,27 +67,29 @@ snprintstr(char *out, unsigned int n, const char* s,
   if (suborder > 0)
     len = MIN(len, (unsigned int)suborder);
   if (order <= 0 || len >= (unsigned int)order) {
-    o = putnstr(out, o, MIN(n, o + len), s);
+    putnstr(fp, len, s);
+    o += len;
   } else {
     if (leftalign) {
-      o = putnstr(out, o, MIN(n, o + len), s);
-      o = putpadding(out, o, n, order - len, ' ');
+      putnstr(fp, len, s);
+      putpadding(fp, order - len, ' ');
     } else {
-      o = putpadding(out, o, n, order - len, ' ');
-      o = putnstr(out, o, MIN(n, o + len), s);
+      putpadding(fp, order - len, ' ');
+      putnstr(fp, len, s);
     }
+    o += order;
   }
   return o;
 }
 
-static int
-sprintsign(char *out, int negative, int force, int *porder)
-{
+static int sprintsign(FILE *fp, int negative, int force, int *porder) {
   int o = 0;
   if (negative) {
-    out[o++] = '-';
+    FPUTC('-', fp);
+    ++o;
   } else if (force) {
-    out[o++] = '+';
+    FPUTC('+', fp);
+    ++o;
   }
   if (*porder > 1 && o > 0)
     *porder -= o;
@@ -105,17 +98,16 @@ sprintsign(char *out, int negative, int force, int *porder)
 
 // Only understands %d, %x, %X, %p, %s, %c, %f and "+-0~9".
 // '\0' is not put at the end if the buffer is smaller than output.
-int
-vsnprintf(char *out, size_t n, const char *fmt_, va_list ap)
-{
+int vfprintf(FILE *fp, const char *fmt_, va_list ap) {
   const unsigned char *fmt = (const unsigned char*)fmt_;
   int c, i;
   int o;
 
-  for(i = o = 0; fmt[i] != '\0' && (size_t)o < n; i++){
+  for(i = o = 0; fmt[i] != '\0'; i++){
     c = fmt[i];
     if(c != '%'){
-      out[o++] = c;
+      FPUTC(c, fp);
+      ++o;
       continue;
     }
 
@@ -171,9 +163,9 @@ vsnprintf(char *out, size_t n, const char *fmt_, va_list ap)
       case 1:  x = va_arg(ap, long); break;
       default: x = va_arg(ap, long long); break;  // case 2:
       }
-      o += sprintsign(out + o, x < 0, sign, &order);
+      o += sprintsign(fp, x < 0, sign, &order);
       unsigned long long ux = x < 0 ? -x : x;
-      o += snprintullong(out + o, n - o, ux, 10, kHexDigits, order, padding);
+      o += snprintullong(fp, ux, 10, kHexDigits, order, padding);
     } else if(tolower(c) == 'x') {
       const char *digits = c == 'x' ? kHexDigits : kUpperHexDigits;
       unsigned long long x;
@@ -182,22 +174,26 @@ vsnprintf(char *out, size_t n, const char *fmt_, va_list ap)
       case 1:  x = va_arg(ap, unsigned long); break;
       default: x = va_arg(ap, unsigned long long); break;  // case 2:
       }
-      o += snprintullong(out + o, n - o, x, 16, digits, order, padding);
+      o += snprintullong(fp, x, 16, digits, order, padding);
     } else if(c == 'p') {
       void *ptr = va_arg(ap, void*);
       order -= 2;
       if (order < 0)
         order = 0;
       if (order == 0 || padding != ' ') {
-        o += snprintstr(out + o, n - o, "0x", 0, 0, 0);
-        o += snprintullong(out + o, n - o, (uintptr_t)ptr, 16, kHexDigits, order, padding);
+        o += snprintstr(fp, "0x", 0, 0, 0);
+        o += snprintullong(fp, (uintptr_t)ptr, 16, kHexDigits, order, padding);
       } else {
-        char buf[32];
-        int oo = snprintullong(buf, sizeof(buf), (uintptr_t)ptr, 16, kHexDigits, 0, padding);
-        if (order > oo)
-          o = putpadding(out, o, n, order - oo, padding);
-        o += snprintstr(out + o, n - o, "0x", 0, 0, 0);
-        o += snprintstr(out + o, n - o, buf, 0, 0, 0);
+        int oo = 0;
+        for (uintptr_t x = (uintptr_t)ptr; x >= 0x10; x >>= 4)
+          ++oo;
+        if (order > oo) {
+          putpadding(fp, order - oo, padding);
+          o += order - oo;
+        }
+        snprintstr(fp, "0x", 0, 0, 0);
+        snprintullong(fp, (uintptr_t)ptr, 16, kHexDigits, 0, padding);
+        o += 2 + oo;
       }
     } else if(c == 's'){
       // ("%5", "foo")         = "  foo"
@@ -208,40 +204,40 @@ vsnprintf(char *out, size_t n, const char *fmt_, va_list ap)
       // ("%5.3", "foobarbaz") = "  foo"
 
       const char *s = va_arg(ap, const char*);
-      o += snprintstr(out + o, n - o, s, order, suborder, leftalign);
+      o += snprintstr(fp, s, order, suborder, leftalign);
     } else if(c == 'c'){
-      out[o++] = va_arg(ap, unsigned int);
+      FPUTC(va_arg(ap, unsigned int), fp);
+      ++o;
     } else if(c == '%'){
-      out[o++] = c;
+      FPUTC(c, fp);
+      ++o;
 #ifndef __NO_FLONUM
     } else if(c == 'f'){
       double x = va_arg(ap, double);
 
-      o += sprintsign(out + o, x < 0, sign, &order);
+      o += sprintsign(fp, x < 0, sign, &order);
       x = x < 0 ? -x : x;
 
       long intPart = x >= 0 ? (long)x : -(long)(-x);
-      o += snprintullong(out + o, n - o, intPart, 10, kHexDigits,
+      o += snprintullong(fp, intPart, 10, kHexDigits,
                          order, padding);
-      if ((size_t)o < n) {
-        out[o++] = '.';
-        suborder = suborder > 0 ? suborder : 6;
-        unsigned long fraction = (unsigned long)((x - intPart) * pow10(suborder));
-        o += snprintullong(out + o, n - o, fraction, 10, kHexDigits,
-                           suborder, '0');
-      }
+      FPUTC('.', fp);
+      ++o;
+      suborder = suborder > 0 ? suborder : 6;
+      unsigned long fraction = (unsigned long)((x - intPart) * pow10(suborder));
+      o += snprintullong(fp, fraction, 10, kHexDigits,
+                          suborder, '0');
 #endif
     } else {
       // Unknown % sequence.  Print it to draw attention.
-      out[o++] = '%';
-      if ((size_t)o >= n)
-        break;
-      if (c != '\0')
-        out[o++] = c;
+      FPUTC('%', fp);
+      ++o;
+      if (c != '\0') {
+        FPUTC(c, fp);
+        ++o;
+      }
     }
   }
 
-  if ((size_t)o < n)
-    out[o] = '\0';
   return o;
 }
