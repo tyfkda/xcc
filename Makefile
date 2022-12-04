@@ -261,7 +261,7 @@ $(ASSETS_DIR)/libs.json:	$(WCC_DIR)/www/lib_list.json
 .PHONY: update-wcc-lib
 update-wcc-lib:
 	find libsrc/* -type d \
-		| egrep -v \(crt0\|math\|_wasm\) \
+		| egrep -v \(crt0\|math\|_wasm\|tests\) \
 		| while read d; do \
 			ls -1 $$d/*.c; \
 		  done \
