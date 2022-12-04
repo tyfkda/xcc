@@ -14,7 +14,7 @@ int mkstemps(char *template, int suffixlen) {
   const uint32_t RNDMAX = ((1UL << 32) / LETTERS) * LETTERS;
 
   size_t len = strlen(template);
-  if (len < LEN + suffixlen) {
+  if (len < (size_t)(LEN + suffixlen)) {
     errno = EINVAL;
     return -1;
   }

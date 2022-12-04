@@ -1,4 +1,4 @@
-#if !defined(__WASM)
+#if !defined(__WASM) && !defined(__APPLE__)
 #include "unistd.h"
 #include "_syscall.h"
 #include "fcntl.h"

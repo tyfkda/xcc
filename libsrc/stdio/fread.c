@@ -5,10 +5,14 @@
 #include "./_file.h"
 
 size_t fread(void *buffer, size_t size, size_t count, FILE *fp) {
+  // TODO
+  if (fp->flag & FF_MEMORY)
+    return 0;
+
   unsigned char *p = buffer;
   size_t total = size * count;
   if (fp->rs > 0) {
-    int d = fp->rs - fp->rp;
+    size_t d = fp->rs - fp->rp;
     if (total <= d) {
       memcpy(p, &fp->rbuf[fp->rp], total);
       fp->rp += total;
@@ -25,7 +29,7 @@ size_t fread(void *buffer, size_t size, size_t count, FILE *fp) {
     // Read more than requested size and store them to the buffer.
     ssize_t len = read(fp->fd, fp->rbuf, sizeof(fp->rbuf));
     fp->rs = len;
-    size_t n = len < total ? len : total;
+    size_t n = len < 0 || (size_t)len < total ? (size_t)len : total;
     fp->rp = n;
     if (n > 0) {
       memcpy(p, fp->rbuf, n);

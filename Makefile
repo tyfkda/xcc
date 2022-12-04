@@ -13,8 +13,6 @@ LIB_DIR:=lib
 
 # NO_FLONUM:=1
 
-UNAME:=$(shell uname)
-
 ifeq ("$(ARCHTYPE)", "")
   ARCHTYPE:=x64
   ARCH:=$(shell arch)
@@ -39,6 +37,7 @@ ifneq ("$(NO_FLONUM)","")
 CFLAGS+=-D__NO_FLONUM
 endif
 
+UNAME:=$(shell uname)
 ifeq ("$(UNAME)", "Darwin")
 LIBS:=
 else
@@ -136,7 +135,11 @@ test:	all
 	$(MAKE) -C tests clean && $(MAKE) -C tests all
 
 .PHONY: test-all
-test-all: test test-gen2 diff-gen23
+test-all: test test-libsrc test-gen2 diff-gen23 test-wcc test-wcc-gen2
+
+.PHONY: test-libs
+test-libs:	all
+	$(MAKE) -C libsrc clean-test && $(MAKE) CC=../xcc -C libsrc test
 
 .PHONY: clean
 clean:
@@ -258,7 +261,7 @@ $(ASSETS_DIR)/libs.json:	$(WCC_DIR)/www/lib_list.json
 .PHONY: update-wcc-lib
 update-wcc-lib:
 	find libsrc/* -type d \
-		| egrep -v \(crt0\|math\|_wasm\) \
+		| egrep -v \(crt0\|math\|_wasm\|tests\) \
 		| while read d; do \
 			ls -1 $$d/*.c; \
 		  done \

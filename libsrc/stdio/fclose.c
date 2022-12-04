@@ -23,12 +23,12 @@ static void remove_opened(FILE *fp) {
 }
 
 int fclose(FILE *fp) {
-  if (fp == NULL || fp->fd < 0)
+  if (fp == NULL)
     return EOF;
   remove_opened(fp);
   fflush(fp);
-  close(fp->fd);
-  fp->fd = -1;
+  if (!(fp->flag & FF_MEMORY))
+    close(fp->fd);
   free(fp);
   return 0;
 }

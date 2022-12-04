@@ -1,4 +1,4 @@
-#if !defined(__WASM)
+#if !defined(__WASM) && !defined(__GNUC__)
 #include "setjmp.h"
 
 #if defined(__x86_64__)

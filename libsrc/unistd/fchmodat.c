@@ -1,4 +1,4 @@
-#if !defined(__WASM)
+#if !defined(__WASM) && !defined(__APPLE__)
 #include "sys/stat.h"  // mode_t
 #include "_syscall.h"
 

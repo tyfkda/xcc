@@ -1,5 +1,9 @@
 #include "stdlib.h"  // atexit, exit
 
+#if defined(__GNUC__)
+#pragma GCC diagnostic ignored "-Wunused-function"
+#endif
+
 char **environ;
 
 #if defined(__XV6)
@@ -20,7 +24,7 @@ extern int args_sizes_get(int *pargc, int *plen);
 extern int args_get(char **pargv, char *pstr);
 #endif
 
-FILEMAN __fileman;
+extern FILEMAN __fileman;
 
 static void __flush_all_files(void) {
   fflush(stdout);

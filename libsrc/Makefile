@@ -5,9 +5,15 @@ INC_DIR:=../include
 
 LIBS:=$(LIB_DIR)/crt0.a $(LIB_DIR)/libc.a
 
-CFLAGS:=-nostdlib -I$(INC_DIR) \
+UNAME:=$(shell uname)
+ifeq ("$(UNAME)", "Darwin")
+CFLAGS:=-I$(INC_DIR) -Wall -Wextra -Werror \
+	-Wno-incompatible-library-redeclaration
+else
+CFLAGS:=-I$(INC_DIR) -Wall -Wextra -Werror \
 	-Wno-builtin-declaration-mismatch \
 	-Wno-format-truncation
+endif
 
 ### Library
 
@@ -28,7 +34,7 @@ LIBC_OBJS:=$(addprefix $(LIBOBJ_DIR)/,$(notdir $(LIBC_SRCS:.c=.o)))
 libs: $(LIBS)
 
 .PHONY: clean
-clean:
+clean:	clean-test
 	rm -rf $(LIBOBJ_DIR) $(LIB_DIR)
 
 $(LIB_DIR)/crt0.a:	$(CRT0_OBJS)
@@ -41,4 +47,26 @@ $(LIB_DIR)/libc.a:	$(LIBC_OBJS)
 
 $(LIBOBJ_DIR)/%.o: $(LIBSRC_DIR)/**/%.c
 	@mkdir -p $(LIBOBJ_DIR)
-	$(CC) -c -o $@ -Werror $(CFLAGS) $<
+	$(CC) -c -o $@ -nostdinc -Werror -ffreestanding $(CFLAGS) $<
+
+### Test
+
+.PHONY:	test
+test:	test-printf
+
+.PHONY: clean-test
+clean-test:
+	rm -rf printf_test
+
+.PHONY: test-printf
+test-printf:	printf_test
+	@echo '## printf test'
+	@./printf_test
+	@echo ''
+
+PRINTF_TEST_OBJS:=$(LIBOBJ_DIR)/vfprintf.o $(LIBOBJ_DIR)/vsnprintf.o $(LIBOBJ_DIR)/fprintf.o \
+	$(LIBOBJ_DIR)/printf.o $(LIBOBJ_DIR)/fwrite.o $(LIBOBJ_DIR)/fputc.o $(LIBOBJ_DIR)/_fputc.o \
+	$(LIBOBJ_DIR)/stdin.o $(LIBOBJ_DIR)/fclose.o $(LIBOBJ_DIR)/fflush.o $(LIBOBJ_DIR)/fdopen.o \
+	$(LIBOBJ_DIR)/fmemopen.o $(LIBOBJ_DIR)/open_memstream.o
+printf_test:	tests/printf_test.c $(PRINTF_TEST_OBJS)
+	$(CC) -o$@ $(CFLAGS) -I$(INC_DIR) -DUNIT_TEST $^

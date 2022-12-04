@@ -13,6 +13,11 @@ void exit(int code) {
 extern void proc_exit(int);
 #else
 #include "../unistd/_syscall.h"
+
+#if defined(__GNUC__)
+static void proc_exit(int code) __attribute((noreturn));
+#pragma GCC diagnostic ignored "-Wunused-parameter"
+#endif
 static void proc_exit(int code) {
 #ifdef __NR_exit_group
   SYSCALL(__NR_exit_group);
@@ -26,10 +31,7 @@ static void proc_exit(int code) {
 #endif
 
 void exit(int code) {
-  static bool exiting;
-  if (exiting)
-    return;
-  exiting = true;
+  // TODO: Guard multiple calls
 
   extern void __atexit_call(void);
   __atexit_call();

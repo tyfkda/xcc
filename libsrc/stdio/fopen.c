@@ -29,7 +29,7 @@ FILE *fopen(const char *fileName, const char *mode) {
   };
 
   int flag = -1;
-  for (int i = 0; i < sizeof(kTable) / sizeof(*kTable); ++i) {
+  for (int i = 0; i < (int)(sizeof(kTable) / sizeof(*kTable)); ++i) {
     if (strcmp(kTable[i].str, mode) == 0) {
       flag = kTable[i].flag;
       break;
