@@ -5,6 +5,10 @@
 #include "./_file.h"
 
 size_t fread(void *buffer, size_t size, size_t count, FILE *fp) {
+  // TODO
+  if (fp->flag & FF_MEMORY)
+    return 0;
+
   unsigned char *p = buffer;
   size_t total = size * count;
   if (fp->rs > 0) {
