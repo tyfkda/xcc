@@ -715,9 +715,7 @@ static void traverse_defun(Function *func) {
 
   register_func_info(func->name, func, func->type, 0);
   curfunc = func;
-  curscope = func->scopes->data[0];
-  traverse_stmts(func->stmts);
-  curscope = curscope->parent;
+  traverse_stmt(func->body_block);
   curfunc = NULL;
 
   // Output static local variables.

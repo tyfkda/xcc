@@ -1298,7 +1298,7 @@ static Expr *parse_prim(void) {
       return parse_compound_literal(type);
     } else if (match(TK_LBRACE)) {  // ({})
       // gcc extension: Statement expression.
-      Stmt *block = parse_block(tok);
+      Stmt *block = parse_block(tok, NULL);
       consume(TK_RPAR, "`)' expected");
       return new_expr_block(block);
     } else {

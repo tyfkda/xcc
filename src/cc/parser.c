@@ -1226,8 +1226,8 @@ static Vector *parse_stmts(void) {
   }
 }
 
-Stmt *parse_block(const Token *tok) {
-  Scope *scope = enter_scope(curfunc, NULL);
+Stmt *parse_block(const Token *tok, Vector *vars) {
+  Scope *scope = enter_scope(curfunc, vars);
   Vector *stmts = parse_stmts();
   Stmt *stmt = new_stmt_block(tok, stmts, scope);
   exit_scope();
@@ -1248,7 +1248,7 @@ static Stmt *parse_stmt(void) {
   case TK_SEMICOL:
     return new_stmt_block(tok, NULL, NULL);
   case TK_LBRACE:
-    return parse_block(tok);
+    return parse_block(tok, NULL);
   case TK_IF:
     return parse_if(tok);
   case TK_SWITCH:
@@ -1311,7 +1311,7 @@ static Declaration *parse_defun(Type *functype, int storage, Token *ident) {
   if (prototype) {
     // Prototype declaration.
   } else {
-    consume(TK_LBRACE, "`;' or `{' expected");
+    const Token *tok = consume(TK_LBRACE, "`;' or `{' expected");
 
     if (!err && varinfo->global.func != NULL) {
       parse_error(PE_NOFATAL, ident, "`%.*s' function already defined", func->name->bytes,
@@ -1331,9 +1331,7 @@ static Declaration *parse_defun(Type *functype, int storage, Token *ident) {
         vec_push(top_vars, params->data[i]);
     }
     func->scopes = new_vector();
-    enter_scope(func, top_vars);  // Scope for parameters.
-    func->stmts = parse_stmts();
-    exit_scope();
+    func->body_block = parse_block(tok, top_vars);
     assert(is_global_scope(curscope));
 
     check_goto_labels(func);

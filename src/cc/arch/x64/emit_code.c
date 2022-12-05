@@ -519,9 +519,10 @@ static void emit_defun(Function *func) {
   EMIT_LABEL(label);
 
   bool no_stmt = true;
-  if (func->stmts != NULL) {
-    for (int i = 0; i < func->stmts->len; ++i) {
-      Stmt *stmt = func->stmts->data[i];
+  if (func->body_block != NULL) {
+    Vector *stmts = func->body_block->block.stmts;
+    for (int i = 0; i < stmts->len; ++i) {
+      Stmt *stmt = stmts->data[i];
       if (stmt == NULL)
         continue;
       if (!is_asm(stmt)) {

@@ -1648,7 +1648,6 @@ static void gen_defun(Function *func) {
   }
 
   // Statements
-  curscope = func->scopes->data[0];
   {
     unsigned char wt = is_prim_type(functype->func.ret) ? to_wtype(functype->func.ret) : functype->func.ret->kind != TY_VOID ? WT_I32 : WT_VOID;
     if (bpname != NULL) {
@@ -1665,7 +1664,7 @@ static void gen_defun(Function *func) {
     default: assert(false); break;
     }
   }
-  gen_stmts(func->stmts);
+  gen_stmt(func->body_block);
 
   if (bpname != NULL) {
     ADD_CODE(OP_END);
@@ -1680,7 +1679,6 @@ static void gen_defun(Function *func) {
       gen_expr_stmt(new_expr_bop(EX_ASSIGN, &tyVoid, NULL, spvar, bpvar));
     }
   }
-  curscope = global_scope;
 
   ADD_CODE(OP_END);
 

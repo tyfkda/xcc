@@ -64,7 +64,7 @@ Expr *make_refer(const Token *tok, Expr *expr);
 
 void check_funcall_args(Expr *func, Vector *args, Scope *scope, Vector *toplevel);
 
-Stmt *parse_block(const Token *tok);
+Stmt *parse_block(const Token *tok, Vector *vars);
 
 VarInfo *add_var_to_scope(Scope *scope, const Token *ident, Type *type, int storage);
 

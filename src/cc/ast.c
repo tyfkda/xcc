@@ -303,7 +303,7 @@ Function *new_func(Type *type, const Name *name) {
   func->name = name;
 
   func->scopes = NULL;
-  func->stmts = NULL;
+  func->body_block = NULL;
   func->label_table = NULL;
   func->gotos = NULL;
   func->extra = NULL;

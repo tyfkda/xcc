@@ -685,11 +685,10 @@ static void gen_defun(Function *func) {
 
   alloc_variable_registers(func);
 
-  curscope = func->scopes->data[0];
   fnbe->ret_bb = new_bb();
 
   // Statements
-  gen_stmts(func->stmts);
+  gen_stmt(func->body_block);
 
   set_curbb(fnbe->ret_bb);
   curbb = NULL;
@@ -709,7 +708,6 @@ static void gen_defun(Function *func) {
   fnbe->frame_size = alloc_spilled_vregs_onto_stack_frame(fnbe->ra, reserved_size);
 
   curfunc = NULL;
-  curscope = global_scope;
   curra = NULL;
 }
 

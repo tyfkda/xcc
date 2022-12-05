@@ -426,7 +426,7 @@ typedef struct Function {
   const Name *name;
 
   Vector *scopes;  // NULL => prototype definition.
-  Vector *stmts;  // NULL => Prototype definition.
+  Stmt *body_block;  // NULL => Prototype definition.
   Table *label_table;  // <const Name*, Stmt*>
   Vector *gotos;  // <Stmt*>
   void *extra;
