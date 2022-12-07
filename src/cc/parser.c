@@ -1440,7 +1440,16 @@ static Declaration *parse_defun(Type *functype, int storage, Token *ident) {
         !(func->body_block->reach & REACH_STOP)) {
       Vector *stmts = func->body_block->block.stmts;
       if (stmts->len == 0 || ((Stmt*)stmts->data[stmts->len - 1])->kind != ST_ASM) {
-        parse_error(PE_WARNING, func->body_block->block.rbrace, "`return' required");
+        if (equal_name(func->name, alloc_name("main", NULL, false))) {
+          // Return 0 if `return` statement is omitted in `main` function.
+          if (!is_fixnum(functype->func.ret->kind)) {
+            parse_error(PE_WARNING, func->body_block->block.rbrace, "`main' return type should be `int'");
+          } else {
+            vec_push(stmts, new_stmt_return(NULL, new_expr_fixlit(functype->func.ret, NULL, 0)));
+          }
+        } else {
+          parse_error(PE_WARNING, func->body_block->block.rbrace, "`return' required");
+        }
       }
     }
 
