@@ -470,18 +470,19 @@ static void gen_clear_local_var(const VarInfo *varinfo) {
   // new_ir_clear(reg, size);
 
   if (is_prim_type(varinfo->type) && !(varinfo->storage & VS_REF_TAKEN)) {
+    unsigned char wt = to_wtype(varinfo->type);
+    switch (wt) {
+    case WT_I32:  ADD_CODE(OP_I32_CONST); ADD_LEB128(0); break;
+    case WT_I64:  ADD_CODE(OP_I64_CONST); ADD_LEB128(0); break;
 #ifndef __NO_FLONUM
-    if (is_flonum(varinfo->type)) {
-      switch (varinfo->type->flonum.kind) {
-      case FL_FLOAT:  ADD_CODE(OP_F32_CONST); ADD_F32(0); break;
-      case FL_DOUBLE: ADD_CODE(OP_F64_CONST); ADD_F64(0); break;
-      default: assert(false); break;
-      }
-      return;
-    }
+    case WT_F32:  ADD_CODE(OP_F32_CONST); ADD_F32(0); break;
+    case WT_F64:  ADD_CODE(OP_F64_CONST); ADD_F64(0); break;
 #endif
-    ADD_CODE(size <= I32_SIZE ? OP_I32_CONST : OP_I64_CONST);
-    ADD_LEB128(0);
+    }
+    VReg *vreg = varinfo->local.reg;
+    assert(vreg != NULL);
+    ADD_CODE(OP_LOCAL_SET);
+    ADD_ULEB128(vreg->prim.local_index);
     return;
   }
 
