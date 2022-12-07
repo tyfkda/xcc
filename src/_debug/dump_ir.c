@@ -21,7 +21,7 @@ static void dump_vreg(FILE *fp, VReg *vreg) {
   assert(vreg != NULL);
   static char *kSize[] = {"0", "b", "w", "3", "d", "5", "6", "7", ""};
   if (vreg->flag & VRF_CONST) {
-    fprintf(fp, "(%" PRIdPTR ")", vreg->fixnum);
+    fprintf(fp, "(%" PRId64 ")", vreg->fixnum);
   } else {
     char regtype = 'R';
 #ifndef __NO_FLONUM
@@ -38,7 +38,7 @@ static void dump_ir(FILE *fp, IR *ir) {
   switch (ir->kind) {
   case IR_BOFS:   fprintf(fp, "\tBOFS\t"); dump_vreg(fp, ir->dst); fprintf(fp, " = &[rbp %c %d]\n", ir->opr1->offset >= 0 ? '+' : '-', ir->opr1->offset > 0 ? ir->opr1->offset : -ir->opr1->offset); break;
   case IR_IOFS:   fprintf(fp, "\tIOFS\t"); dump_vreg(fp, ir->dst); fprintf(fp, " = &%.*s\n", ir->iofs.label->bytes, ir->iofs.label->chars); break;
-  case IR_SOFS:   fprintf(fp, "\tSOFS\t"); dump_vreg(fp, ir->dst); fprintf(fp, " = &[rsp %c %ld]\n", ir->opr1->fixnum >= 0 ? '+' : '-', ir->opr1->fixnum > 0 ? ir->opr1->fixnum : -ir->opr1->fixnum); break;
+  case IR_SOFS:   fprintf(fp, "\tSOFS\t"); dump_vreg(fp, ir->dst); fprintf(fp, " = &[rsp %c %" PRId64 "]\n", ir->opr1->fixnum >= 0 ? '+' : '-', ir->opr1->fixnum > 0 ? ir->opr1->fixnum : -ir->opr1->fixnum); break;
   case IR_LOAD:   fprintf(fp, "\tLOAD\t"); dump_vreg(fp, ir->dst); fprintf(fp, " = ["); dump_vreg(fp, ir->opr1); fprintf(fp, "]\n"); break;
   case IR_STORE:  fprintf(fp, "\tSTORE\t["); dump_vreg(fp, ir->opr2); fprintf(fp, "] = "); dump_vreg(fp, ir->opr1); fprintf(fp, "\n"); break;
   case IR_ADD:    fprintf(fp, "\tADD\t"); dump_vreg(fp, ir->dst); fprintf(fp, " = "); dump_vreg(fp, ir->opr1); fprintf(fp, " + "); dump_vreg(fp, ir->opr2); fprintf(fp, "\n"); break;
@@ -133,7 +133,7 @@ static void dump_func_ir(Function *func) {
       fprintf(fp, "  V%3d (flag=%x): live %3d - %3d (spilled, offset=%d)\n", li->virt, vreg->flag, li->start, li->end, vreg->offset);
       break;
     case LI_CONST:
-      fprintf(fp, "  V%3d (flag=%x): (const, value=%" PRIdPTR ")\n", li->virt, vreg->flag, vreg->fixnum);
+      fprintf(fp, "  V%3d (flag=%x): (const, value=%" PRId64 ")\n", li->virt, vreg->flag, vreg->fixnum);
       break;
     default:  assert(false); break;
     }

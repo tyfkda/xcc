@@ -51,7 +51,7 @@ int _start(void) {
     args_get(argv, str);
   } else {  // Ignore error.
     argc = 1;
-    char **argv = malloc(sizeof(char*) * (argc + 1));
+    argv = malloc(sizeof(char*) * (argc + 1));
     argv[0] = "*";
   }
   argv[argc] = NULL;

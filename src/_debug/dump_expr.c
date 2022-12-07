@@ -48,7 +48,7 @@ static const char incdec[][3] = {"++", "--"};
 void dump_expr(FILE *fp, Expr *expr) {
   switch (expr->kind) {
   case EX_FIXNUM:
-    fprintf(fp, "%" PRIdPTR, expr->fixnum);
+    fprintf(fp, "%" PRId64, expr->fixnum);
     assert(expr->type->kind == TY_FIXNUM);
     if (expr->type->fixnum.is_unsigned)
       fputc('U', fp);
