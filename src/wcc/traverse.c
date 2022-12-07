@@ -696,6 +696,25 @@ static void traverse_defun(Function *func) {
   func->extra = calloc(1, sizeof(FuncExtra));
 
   Type *functype = func->type;
+  if (equal_name(func->name, alloc_name("main", NULL, false))) {
+    // Force `main' function takes two arguments.
+    if (functype->func.params->len < 1) {
+      assert(func->scopes->len > 0);
+      const Name *name = alloc_label();
+      Type *type = &tyInt;
+      Scope *scope = func->scopes->data[0];
+      vec_push((Vector*)functype->func.params, scope_add(scope, name, type, 0));
+      vec_push((Vector*)functype->func.param_types, type);
+    }
+    if (functype->func.params->len < 2) {
+      assert(func->scopes->len > 0);
+      Type *type = ptrof(ptrof(&tyChar));
+      const Name *name = alloc_label();
+      Scope *scope = func->scopes->data[0];
+      vec_push((Vector*)functype->func.params, scope_add(scope, name, type, 0));
+      vec_push((Vector*)functype->func.param_types, type);
+    }
+  }
   if (functype->func.params == NULL) {
     // Treat old-style function as a no-parameter function.
     Type *noparam = malloc(sizeof(*noparam));

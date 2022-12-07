@@ -1384,7 +1384,8 @@ static Declaration *parse_defun(Type *functype, int storage, Token *ident) {
   bool prototype = match(TK_SEMICOL) != NULL;
   if (!prototype && functype->func.params == NULL) { // Old-style
     // Treat it as a zero-parameter function.
-    functype->func.params = functype->func.param_types = new_vector();
+    functype->func.params = new_vector();
+    functype->func.param_types = new_vector();
     functype->func.vaargs = false;
   }
 
