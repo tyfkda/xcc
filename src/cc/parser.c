@@ -1378,6 +1378,20 @@ static void check_reachability(Stmt *stmt) {
   }
 }
 
+static void check_funcend_return(Function *func) {
+  const Type *functype = func->type;
+  if (functype->func.ret->kind == TY_VOID)
+    return;
+
+  Vector *stmts = func->body_block->block.stmts;
+  if (stmts->len == 0)
+    return;
+  Stmt *last = stmts->data[stmts->len - 1];
+  if (last->kind == ST_RETURN) {
+    last->return_.func_end = true;
+  }
+}
+
 static Declaration *parse_defun(Type *functype, int storage, Token *ident) {
   assert(functype->kind == TY_FUNC);
 
@@ -1453,6 +1467,8 @@ static Declaration *parse_defun(Type *functype, int storage, Token *ident) {
         }
       }
     }
+
+    check_funcend_return(func);
 
     curfunc = NULL;
   }

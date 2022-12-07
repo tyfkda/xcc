@@ -1361,12 +1361,14 @@ static void gen_return(Stmt *stmt) {
       ADD_CODE(OP_LOCAL_GET, 0);
     }
   }
-  if (finfo->bpname != NULL) {
-    assert(cur_depth > 0);
-    ADD_CODE(OP_BR);
-    ADD_ULEB128(cur_depth - 1);
-  } else {
-    ADD_CODE(OP_RETURN);
+  if (!stmt->return_.func_end) {
+    if (finfo->bpname != NULL) {
+      assert(cur_depth > 0);
+      ADD_CODE(OP_BR);
+      ADD_ULEB128(cur_depth - 1);
+    } else {
+      ADD_CODE(OP_RETURN);
+    }
   }
 }
 
