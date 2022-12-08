@@ -4,8 +4,7 @@
 
 #ifndef __NO_FLONUM
 int isfinite(double x) {
-  int64_t *q = (int64_t*)&x;
-  int e = ((int)((*q) >> EXP_POS)) & ((1 << EXP_BIT) - 1);
-  return e != (1 << EXP_BIT) - 1;
+  int64_t q = *(int64_t*)&x;
+  return (q & EXPO_MASK) != EXPO_MASK;
 }
 #endif
