@@ -52,11 +52,11 @@ $(LIBOBJ_DIR)/%.o: $(LIBSRC_DIR)/**/%.c
 ### Test
 
 .PHONY:	test
-test:	test-printf
+test:	test-printf test-math
 
 .PHONY: clean-test
 clean-test:
-	rm -rf printf_test
+	rm -rf printf_test math_test
 
 .PHONY: test-printf
 test-printf:	printf_test
@@ -67,4 +67,15 @@ test-printf:	printf_test
 STDIO_SRCS:=$(wildcard stdio/*.c)
 STDIO_OBJS:=$(addprefix $(LIBOBJ_DIR)/,$(notdir $(STDIO_SRCS:.c=.o)))
 printf_test:	tests/printf_test.c $(STDIO_OBJS)
+	$(CC) -o$@ $(CFLAGS) -I$(INC_DIR) -DUNIT_TEST -ffreestanding $^
+
+.PHONY: test-math
+test-math:	math_test
+	@echo '## math test'
+	@./math_test
+	@echo ''
+
+MATH_SRCS:=$(wildcard math/*.c)
+MATH_OBJS:=$(addprefix $(LIBOBJ_DIR)/,$(notdir $(MATH_SRCS:.c=.o)))
+math_test:	tests/math_test.c $(MATH_OBJS)
 	$(CC) -o$@ $(CFLAGS) -I$(INC_DIR) -DUNIT_TEST -ffreestanding $^

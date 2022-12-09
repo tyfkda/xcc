@@ -2,9 +2,13 @@
 #include "stdint.h"  // int64_t
 #include "_ieee.h"
 
+#include "stdio.h"
+
 #ifndef __NO_FLONUM
 double frexp(double x, int *p) {
-  if (x == 0 || !isfinite(x)) {
+  if (!isfinite(x))
+    return x;
+  if (x == 0) {
     *p = 0;
     return x;
   }
