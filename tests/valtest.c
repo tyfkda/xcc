@@ -125,6 +125,14 @@ int main(void) {
     expect("unsigned char", 255, c);
   }
   {
+    char c = 0xbd;
+    expect("cast to unsigned", 0xbd, (unsigned char)c);
+  }
+  {
+    unsigned char c = 0xbd;
+    expect("cast to signed", -0x43, (char)c);
+  }
+  {
     unsigned int x = 0x80000000U;
     expect("unsigned division", 173, x / 12345678);
   }

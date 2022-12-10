@@ -6,6 +6,7 @@
 
 #include "ast.h"
 #include "lexer.h"
+#include "limits.h"  // CHAR_BIT
 #include "parser.h"  // curscope
 #include "table.h"
 #include "type.h"
@@ -415,8 +416,44 @@ static void traverse_expr(Expr **pexpr, bool needval) {
   case EX_BITNOT:
   case EX_REF:
   case EX_DEREF:
+    traverse_expr(&expr->unary.sub, needval);
+    break;
   case EX_CAST:
     traverse_expr(&expr->unary.sub, needval);
+    {
+      Expr *src = expr->unary.sub;
+      Type *stype = src->type;
+      Type *dtype = expr->type;
+      bool du = dtype->kind != TY_FIXNUM || dtype->fixnum.is_unsigned;
+      bool su = stype->kind != TY_FIXNUM || stype->fixnum.is_unsigned;
+      if (su && !du) {  // signed <- unsigned.
+        int d = type_size(dtype);
+        int s = type_size(stype);
+        if (d == s && d < I32_SIZE) {
+          // This conversion requires conditional branch with MSB.
+          // Stack machine architecture cannot handle the case well, so replace the expression.
+          Expr *assign = NULL;
+          if (src->kind != EX_VAR) {
+            // To use the src value multiple times, store it to temporary variable.
+            Expr *orgsrc = src;
+            const Name *name = alloc_label();
+            scope_add(curscope, name, stype, 0);
+            Expr *var = new_expr_variable(name, stype, NULL, curscope);
+            assign = new_expr_bop(EX_ASSIGN, &tyVoid, NULL, var, orgsrc);
+            src = var;
+          }
+          // sign: src & (1 << (s * CHAR_BIT - 1))
+          Expr *msb = new_expr_bop(EX_BITAND, stype, NULL, src,
+              new_expr_fixlit(stype, NULL, 1 << (s * CHAR_BIT - 1)));
+          // src | -msb
+          Expr *replaced = new_expr_bop(EX_BITOR, dtype, NULL, src,
+                  new_expr_unary(EX_NEG, stype, NULL, msb));
+          *pexpr = assign == NULL ? replaced
+              : new_expr_bop(EX_COMMA, dtype, NULL, assign, replaced);
+          // traverse_expr(pexpr, needval);
+        }
+      }
+    }
     break;
   case EX_PREINC:
   case EX_PREDEC:

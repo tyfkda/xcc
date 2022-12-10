@@ -231,6 +231,17 @@ static void gen_cast(const Type *dst, Type *src) {
               ADD_CODE(OP_I32_SHR_S);
             }
           }
+        } else if (du != su) {
+          if (du) {  // unsigned <- signed
+            if (d < I32_SIZE && s < I32_SIZE) {
+              ADD_CODE(OP_I32_CONST);
+              ADD_LEB128((1 << (d * CHAR_BIT)) - 1);
+              ADD_CODE(OP_I32_AND);
+            }
+          } else {  // signed <- unsigned
+            // Should be handled in traverse.
+            assert(d != s || d >= I32_SIZE);
+          }
         }
       }
       return;
