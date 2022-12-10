@@ -5,6 +5,8 @@
 #include <stdio.h>
 #include <stdint.h>
 
+#include "../math/_ieee.h"
+
 int error_count;
 
 #define EXPECT(expected, actual)  expect(#actual, expected, actual)
@@ -58,14 +60,48 @@ void test_math(void) {
   EXPECT_ABOUT(M_E, exp(1.0));
   EXPECT_ABOUT(1.858729, pow(1.2, 3.4));
   EXPECT(1.23, fabs(-1.23));
-  EXPECT(1.0, floor(1.999999));
-  EXPECT(-2.0, floor(-1.000001));
-  EXPECT(2.0, ceil(1.000001));
-  EXPECT(-1.0, ceil(-1.999999));
   EXPECT_ABOUT( 1.14, fmod( 12.34,  5.6));
   EXPECT_ABOUT( 1.14, fmod( 12.34, -5.6));
   EXPECT_ABOUT(-1.14, fmod(-12.34,  5.6));
   EXPECT_ABOUT(-1.14, fmod(-12.34, -5.6));
+}
+
+void test_floor(void) {
+  EXPECT(1.0, floor(1.999999));
+  EXPECT(0.0, floor(0.999999));
+  EXPECT(0.0, floor(-0.0));
+  EXPECT(1999.0, floor(1999.999999));
+  EXPECT(123.0, floor(123.0));
+  EXPECT(-2.0, floor(-1.000001));
+  EXPECT(-1.0, floor(-1.0));
+  EXPECT(-2000.0, floor(-1999.999999));
+
+  EXPECT(0.0, floor(0.5));
+  EXPECT(-1.0, floor(-0.5));
+
+  EXPECT((double)(1L << (FRAC_BIT - 1)), floor((double)(1L << (FRAC_BIT - 1)) + 0.5));
+  EXPECT((double)(1L << FRAC_BIT), floor((double)(1L << FRAC_BIT) + 0.5));
+  EXPECT((double)-(1L << (FRAC_BIT - 1)) - 1, floor((double)-(1L << (FRAC_BIT - 1)) - 0.5));
+  EXPECT((double)-(1L << FRAC_BIT), floor((double)-(1L << FRAC_BIT) - 0.5));  // Fraction is under precision, so floor function doesn't detect fraction.
+}
+
+void test_ceil(void) {
+  EXPECT(2.0, ceil(1.999999));
+  EXPECT(1.0, ceil(0.999999));
+  EXPECT(0.0, ceil(-0.0));
+  EXPECT(2000.0, ceil(1999.999999));
+  EXPECT(123.0, ceil(123.0));
+  EXPECT(-1.0, ceil(-1.000001));
+  EXPECT(-1.0, ceil(-1.0));
+  EXPECT(-1999.0, ceil(-1999.999999));
+
+  EXPECT(1.0, ceil(0.5));
+  EXPECT(0.0, ceil(-0.5));
+
+  EXPECT((double)(1L << (FRAC_BIT - 1)) + 1, ceil((double)(1L << (FRAC_BIT - 1)) + 0.5));
+  EXPECT((double)(1L << FRAC_BIT), ceil((double)(1L << FRAC_BIT) + 0.5));  // Fraction is under precision, so ceil function doesn't detect fraction.
+  EXPECT((double)-(1L << (FRAC_BIT - 1)), ceil((double)-(1L << (FRAC_BIT - 1)) - 0.5));
+  EXPECT((double)-(1L << FRAC_BIT), ceil((double)-(1L << FRAC_BIT) - 0.5));
 }
 
 void test_frexp(void) {
@@ -97,6 +133,8 @@ void test_isnan(void) {
 
 int main() {
   test_math();
+  test_floor();
+  test_ceil();
   test_frexp();
   test_isinf();
   test_isnan();
