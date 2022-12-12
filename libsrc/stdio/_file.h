@@ -12,9 +12,9 @@ struct FILE {
   // TODO: fflush.
 
   int fd;
-  int rp, rs;
-  int wp, ws;
-  int flag;
+  unsigned int rp, rs;
+  unsigned int wp, ws;
+  unsigned int flag;
 
   // TODO: allocate buffers only if required.
   union {

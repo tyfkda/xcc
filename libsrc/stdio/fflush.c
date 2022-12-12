@@ -4,7 +4,7 @@
 #include "_file.h"
 
 int fflush(FILE *fp) {
-  int wp = fp->wp;
+  unsigned int wp = fp->wp;
   if (fp->flag & FF_MEMORY) {
     if (wp < fp->ws) {
       fp->wbuf[wp] = '\0';
