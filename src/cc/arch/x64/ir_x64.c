@@ -836,14 +836,44 @@ static void ir_out(IR *ir) {
             MOVSX(kRegSizeTable[pows][ir->opr1->phys], kRegSizeTable[2][ir->opr1->phys]);
           pows = 2;
         }
-        switch (ir->dst->vtype->size) {
-        case SZ_FLOAT:
-          CVTSI2SS(kRegSizeTable[pows][ir->opr1->phys], kFReg64s[ir->dst->phys]);
-          break;
-        case SZ_DOUBLE:
-          CVTSI2SD(kRegSizeTable[pows][ir->opr1->phys], kFReg64s[ir->dst->phys]);
-          break;
-        default: assert(false); break;
+        const char *s = kRegSizeTable[pows][ir->opr1->phys];
+        const char *d = kFReg64s[ir->dst->phys];
+        if (!(ir->opr1->vtype->flag & VRTF_UNSIGNED)) {
+          switch (ir->dst->vtype->size) {
+          case SZ_FLOAT:   CVTSI2SS(s, d); break;
+          case SZ_DOUBLE:  CVTSI2SD(s, d); break;
+          default: assert(false); break;
+          }
+        } else if (pows < 3) {
+          const char *s64 = kReg64s[ir->opr1->phys];
+          switch (ir->dst->vtype->size) {
+          case SZ_FLOAT:   CVTSI2SS(s64, d); break;
+          case SZ_DOUBLE:  CVTSI2SD(s64, d); break;
+          default: assert(false); break;
+          }
+        } else {
+          // x64 support signed 64bit-signed-int to double only, so pass half value
+          // (precision is lost anyway).
+          // Break %rax
+          const Name *neglabel = alloc_label();
+          const Name *skiplabel = alloc_label();
+          TEST(s, s);
+          JS(fmt_name(neglabel));
+          switch (ir->dst->vtype->size) {
+          case SZ_FLOAT:   CVTSI2SS(s, d); break;
+          case SZ_DOUBLE:  CVTSI2SD(s, d); break;
+          default: assert(false); break;
+          }
+          JMP(fmt_name(skiplabel));
+          EMIT_LABEL(fmt_name(neglabel));
+          MOV(s, RAX);
+          SHR(IM(1), RAX);
+          switch (ir->dst->vtype->size) {
+          case SZ_FLOAT:   CVTSI2SS(RAX, d); ADDSS(d, d); break;
+          case SZ_DOUBLE:  CVTSI2SD(RAX, d); ADDSD(d, d); break;
+          default: assert(false); break;
+          }
+          EMIT_LABEL(fmt_name(skiplabel));
         }
       }
       break;

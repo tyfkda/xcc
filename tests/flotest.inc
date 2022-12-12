@@ -1,4 +1,5 @@
 #include "stdbool.h"
+#include "stdint.h"
 #include "stdio.h"
 #include "stdlib.h"  // exit
 #include "math.h"
@@ -99,6 +100,11 @@ int number_test(void) {
   expecti("!", false, (x=5, !x));
   expecti("&&", false, (x=0.2, y=0.0, x && y));
   expecti("||", true, (x=0.0, y=0.05, x || y));
+
+  {
+    uint64_t ul = (uint64_t)-1L;
+    expecti("from unsigned max", 1, (x = ul, x >= 0));
+  }
 
   return 0;
 }

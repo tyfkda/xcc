@@ -171,6 +171,7 @@
 #define JA(o1)         EMIT_ASM("ja", o1)
 #define JBE(o1)        EMIT_ASM("jbe", o1)
 #define JAE(o1)        EMIT_ASM("jae", o1)
+#define JS(o1)         EMIT_ASM("js", o1)
 #define CALL(o1)       EMIT_ASM("call", o1)
 #define RET()          EMIT_ASM("ret")
 #define SETE(o1)       EMIT_ASM("sete", o1)

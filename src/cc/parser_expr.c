@@ -150,7 +150,7 @@ Expr *make_cast(Type *type, const Token *token, Expr *sub, bool is_explicit) {
       return sub;
     case TY_FIXNUM:
       if (type->kind == TY_FLONUM) {
-        double flonum = sub->fixnum;
+        double flonum = sub->type->fixnum.is_unsigned ? (double)(UFixnum)sub->fixnum : (double)sub->fixnum;
         return new_expr_flolit(type, sub->token, flonum);
       }
       break;
