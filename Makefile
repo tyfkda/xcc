@@ -132,10 +132,11 @@ $(OBJ_DIR)/%.o: $(DEBUG_DIR)/%.c $(PARENT_DEPS)
 
 .PHONY: test
 test:	all
-	$(MAKE) -C tests clean && $(MAKE) -C tests all
+	$(MAKE) -C tests clean && $(MAKE) -C tests all && \
+		$(MAKE) test-libs
 
 .PHONY: test-all
-test-all: test test-libsrc test-gen2 diff-gen23 test-wcc test-wcc-gen2
+test-all: test test-gen2 diff-gen23 test-wcc test-wcc-gen2
 
 .PHONY: test-libs
 test-libs:	all
