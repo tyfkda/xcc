@@ -114,6 +114,19 @@ void test_ceil(void) {
   EXPECT((double)-(1L << FRAC_BIT), ceil((double)-(1L << FRAC_BIT) - 0.5));
 }
 
+void test_modf(void) {
+  double i = 123;
+  EXPECT(0.5, modf(1.5, &i));
+  EXPECT(1.0, i);
+  EXPECT(-0.25, modf(-1234.25, &i));
+  EXPECT(-1234.0, i);
+
+  EXPECT_NAN(modf(NAN, &i));
+  EXPECT_NAN(i);
+  EXPECT(0.0, modf(HUGE_VAL, &i));
+  EXPECT(HUGE_VAL, i);
+}
+
 void test_frexp(void) {
   int e;
   EXPECT(0.5, frexp(1.0, &e));
@@ -146,6 +159,7 @@ int main() {
   test_math();
   test_floor();
   test_ceil();
+  test_modf();
   test_frexp();
   test_isinf();
   test_isnan();
