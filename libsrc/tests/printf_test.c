@@ -94,6 +94,13 @@ void test_vsnprintf(void) {
   EXPECT("Hex:89ab", "Hex:%x", 0x89ab);
   if (sizeof(int) == 4) {
     EXPECT("Hex-:ffff7655", "Hex-:%x", -0x89ab);
+    EXPECT("Unsigned:4294932053", "Unsigned:%u", -0x89ab);
+  }
+  if (sizeof(long) == 8) {
+    EXPECT("ULong:18446744073709551615", "ULong:%lu", -1L);
+  }
+  if (sizeof(long long) == 8) {
+    EXPECT("ULLong:18446744073709551615", "ULLong:%llu", -1LL);
   }
 
   EXPECT("String:Foo.", "String:%s.", "Foo");

@@ -189,6 +189,18 @@ int vfprintf(FILE *fp, const char *fmt_, va_list ap) {
         *(--p) = SIGN(x >= 0);
       o += snprintstr(fp, p, order, suborder, leftalign, padding);
     } break;
+    case 'u': {
+      unsigned long long x;
+      switch (nlong) {
+      case 0:  x = va_arg(ap, unsigned int); break;
+      case 1:  x = va_arg(ap, unsigned long); break;
+      default: x = va_arg(ap, unsigned long long); break;  // case 2:
+      }
+      char *p = snprintullong2(buf, x, 10, kHexDigits);
+      if (sign)
+        *(--p) = '+';
+      o += snprintstr(fp, p, order, suborder, leftalign, padding);
+    } break;
     case 'x': case 'X': {
       const char *digits = c == 'x' ? kHexDigits : kUpperHexDigits;
       unsigned long long x;
