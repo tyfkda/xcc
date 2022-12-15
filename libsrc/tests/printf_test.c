@@ -3,6 +3,7 @@
 #include <inttypes.h>
 #include <stdarg.h>
 #include <stdbool.h>
+#include <stdint.h>  // intptr_t
 #include <string.h>
 
 #define SSIZE  (64)
@@ -85,16 +86,20 @@ void test_vsnprintf(void) {
   EXPECT("Padding:  654", "Padding:%5d", 654);
   EXPECT("ZeroPadding:00321", "ZeroPadding:%05d", 321);
   EXPECT("PaddingOver:12345678", "PaddingOver:%5d", 12345678);
-  // EXPECT("EndPadding:234  ", "EndPadding:%-5d", 234);
+  EXPECT("EndPadding:234  ", "EndPadding:%-5d", 234);
   EXPECT("Hex:89ab", "Hex:%x", 0x89ab);
+  if (sizeof(int) == 4) {
+    EXPECT("Hex-:ffff7655", "Hex-:%x", -0x89ab);
+  }
 
   EXPECT("String:Foo.", "String:%s.", "Foo");
   EXPECT("BeginPadding:  Bar", "BeginPadding:%5s", "Bar");
   EXPECT("EndPadding:Baz  ", "EndPadding:%-5s", "Baz");
   EXPECT("SubstringRemain:   Fo", "SubstringRemain:%5.5s", "Fo");
   EXPECT("SubstringCut:FooBa", "SubstringCut:%5.5s", "FooBarBaz");
+  EXPECT("NullString:(null)", "NullString:%s", NULL);
 
-  // EXPECT("Param:  Foo", "Param:%*s", 5, "Foo");
+  EXPECT("Param:  Foo", "Param:%*s", 5, "Foo");
   EXPECT("Param2:FooBa", "Param2:%.*s", 5, "FooBarBaz");
 
   EXPECT("Character", "Char%ccter", 'a');
@@ -102,6 +107,10 @@ void test_vsnprintf(void) {
   EXPECT("%", "%%", 666);
 
   EXPECT("MoreThanBufferSize:12345678901234567890123456789012345678901234567890", "MoreThanBufferSize:%s", "12345678901234567890123456789012345678901234567890");
+
+  EXPECT("Pointer:0x1234", "Pointer:%p", (void*)(intptr_t)0x1234);
+  EXPECT("Pointer:  0x1234", "Pointer:%8p", (void*)(intptr_t)0x1234);
+  EXPECT("NullPointer:0x0", "NullPointer:%p", NULL);
 #undef EXPECT
 }
 
