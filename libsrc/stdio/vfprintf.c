@@ -7,7 +7,11 @@
 #include "stdint.h"  // uintptr_t
 #include "string.h"
 
-#include "_file.h"
+#include "_file.h"  // FPUTC
+
+#ifndef __NO_FLONUM
+#include "math.h"
+#endif
 
 #define PRINTF_BUFSIZ  (32)
 #define MIN(a, b)  ((a) < (b) ? (a) : (b))
@@ -221,18 +225,22 @@ int vfprintf(FILE *fp, const char *fmt_, va_list ap) {
 #ifndef __NO_FLONUM
     case 'f': {
       double x = va_arg(ap, double);
+      if (!isfinite(x)) {
+        const char *s = isnan(x) ? "nan" : x > 0 ? "inf" : "-inf";
+        o += snprintstr(fp, s, order, suborder, leftalign, ' ');
+      } else {
+        o += sprintsign(fp, x < 0, sign, &order);
+        x = x < 0 ? -x : x;
 
-      o += sprintsign(fp, x < 0, sign, &order);
-      x = x < 0 ? -x : x;
-
-      long intPart = x >= 0 ? (long)x : -(long)(-x);
-      o += snprintullong(fp, intPart, 10, kHexDigits, order, padding);
-      FPUTC('.', fp);
-      ++o;
-      suborder = suborder > 0 ? suborder : 6;
-      unsigned long fraction = (unsigned long)((x - intPart) * pow10(suborder));
-      o += snprintullong(fp, fraction, 10, kHexDigits,
-                          suborder, '0');
+        long intPart = x >= 0 ? (long)x : -(long)(-x);
+        o += snprintullong(fp, intPart, 10, kHexDigits, order, padding);
+        FPUTC('.', fp);
+        ++o;
+        suborder = suborder > 0 ? suborder : 6;
+        unsigned long fraction = (unsigned long)((x - intPart) * pow10(suborder));
+        o += snprintullong(fp, fraction, 10, kHexDigits,
+                           suborder, '0');
+      }
     } break;
 #endif
     default:

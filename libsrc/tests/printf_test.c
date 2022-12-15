@@ -6,6 +6,10 @@
 #include <stdint.h>  // intptr_t
 #include <string.h>
 
+#ifndef __NO_FLONUM
+#include <math.h>
+#endif
+
 #define SSIZE  (64)
 #define MARKER  (0xbd)
 
@@ -111,6 +115,15 @@ void test_vsnprintf(void) {
   EXPECT("Pointer:0x1234", "Pointer:%p", (void*)(intptr_t)0x1234);
   EXPECT("Pointer:  0x1234", "Pointer:%8p", (void*)(intptr_t)0x1234);
   EXPECT("NullPointer:0x0", "NullPointer:%p", NULL);
+
+#ifndef __NO_FLONUM
+  EXPECT("Float:1.234000", "Float:%f", 1.234);
+  EXPECT("Float-:-1.234000", "Float-:%f", -1.234);
+  EXPECT("Float+:+1.234000", "Float+:%+f", 1.234);
+  EXPECT("FloatSub:1.23", "FloatSub:%.2f", 1.234);
+  EXPECT("inf:inf", "inf:%f", HUGE_VAL);
+  EXPECT("nan:nan", "nan:%f", NAN);
+#endif
 #undef EXPECT
 }
 
