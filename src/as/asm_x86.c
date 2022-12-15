@@ -468,7 +468,7 @@ bool assemble_inst(Inst *inst, const ParseInfo *info, Code *code) {
   code->flag = 0;
   code->len = 0;
 
-  switch(inst->op) {
+  switch (inst->op) {
   case NOOP:
     return true;
   case MOV:

@@ -42,10 +42,10 @@ static int snprintullong(FILE *fp, unsigned long long x,
   unsigned int i, o;
 
   i = 0;
-  do{
+  do {
     buf[i++] = digits[x % base];
     x /= base;
-  }while(x != 0);
+  } while (x != 0);
 
   if (i < (unsigned int)order) {
     memset(buf + i, padding, order - i);
@@ -61,7 +61,7 @@ static int snprintullong(FILE *fp, unsigned long long x,
 static int snprintstr(FILE *fp, const char* s,
                       int order, int suborder, int leftalign) {
   int o = 0;
-  if(s == NULL)
+  if (s == NULL)
     s = "(null)";
   size_t len = strlen(s);
   if (suborder > 0)
@@ -103,9 +103,9 @@ int vfprintf(FILE *fp, const char *fmt_, va_list ap) {
   int c, i;
   int o;
 
-  for(i = o = 0; fmt[i] != '\0'; i++){
+  for (i = o = 0; fmt[i] != '\0'; i++) {
     c = fmt[i];
-    if(c != '%'){
+    if (c != '%') {
       FPUTC(c, fp);
       ++o;
       continue;
@@ -148,15 +148,15 @@ int vfprintf(FILE *fp, const char *fmt_, va_list ap) {
       }
     }
 
-    if(c == 'l'){
+    if (c == 'l') {
       nlong = 1;
       c = fmt[++i];
-      if(c == 'l'){
+      if (c == 'l') {
         nlong = 2;
         c = fmt[++i];
       }
     }
-    if(c == 'd'){
+    if (c == 'd') {
       long long x;
       switch (nlong) {
       case 0:  x = va_arg(ap, int); break;
@@ -166,7 +166,7 @@ int vfprintf(FILE *fp, const char *fmt_, va_list ap) {
       o += sprintsign(fp, x < 0, sign, &order);
       unsigned long long ux = x < 0 ? -x : x;
       o += snprintullong(fp, ux, 10, kHexDigits, order, padding);
-    } else if(tolower(c) == 'x') {
+    } else if (tolower(c) == 'x') {
       const char *digits = c == 'x' ? kHexDigits : kUpperHexDigits;
       unsigned long long x;
       switch (nlong) {
@@ -175,7 +175,7 @@ int vfprintf(FILE *fp, const char *fmt_, va_list ap) {
       default: x = va_arg(ap, unsigned long long); break;  // case 2:
       }
       o += snprintullong(fp, x, 16, digits, order, padding);
-    } else if(c == 'p') {
+    } else if (c == 'p') {
       void *ptr = va_arg(ap, void*);
       order -= 2;
       if (order < 0)
@@ -195,7 +195,7 @@ int vfprintf(FILE *fp, const char *fmt_, va_list ap) {
         snprintullong(fp, (uintptr_t)ptr, 16, kHexDigits, 0, padding);
         o += 2 + oo;
       }
-    } else if(c == 's'){
+    } else if (c == 's') {
       // ("%5", "foo")         = "  foo"
       // ("%-5", "foo")        = "foo  "
       // ("%5", "foobarbaz")   = "foobarbaz"
@@ -205,14 +205,14 @@ int vfprintf(FILE *fp, const char *fmt_, va_list ap) {
 
       const char *s = va_arg(ap, const char*);
       o += snprintstr(fp, s, order, suborder, leftalign);
-    } else if(c == 'c'){
+    } else if (c == 'c') {
       FPUTC(va_arg(ap, unsigned int), fp);
       ++o;
-    } else if(c == '%'){
+    } else if (c == '%') {
       FPUTC(c, fp);
       ++o;
 #ifndef __NO_FLONUM
-    } else if(c == 'f'){
+    } else if (c == 'f') {
       double x = va_arg(ap, double);
 
       o += sprintsign(fp, x < 0, sign, &order);
