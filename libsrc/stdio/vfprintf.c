@@ -96,8 +96,6 @@ static int sprintsign(FILE *fp, int negative, int force, int *porder) {
   return o;
 }
 
-// Only understands %d, %x, %X, %p, %s, %c, %f and "+-0~9".
-// '\0' is not put at the end if the buffer is smaller than output.
 int vfprintf(FILE *fp, const char *fmt_, va_list ap) {
   const unsigned char *fmt = (const unsigned char*)fmt_;
   int c, i;
@@ -156,7 +154,9 @@ int vfprintf(FILE *fp, const char *fmt_, va_list ap) {
         c = fmt[++i];
       }
     }
-    if (c == 'd') {
+
+    switch (c) {
+    case 'd': {
       long long x;
       switch (nlong) {
       case 0:  x = va_arg(ap, int); break;
@@ -166,7 +166,8 @@ int vfprintf(FILE *fp, const char *fmt_, va_list ap) {
       o += sprintsign(fp, x < 0, sign, &order);
       unsigned long long ux = x < 0 ? -x : x;
       o += snprintullong(fp, ux, 10, kHexDigits, order, padding);
-    } else if (tolower(c) == 'x') {
+    } break;
+    case 'x': case 'X': {
       const char *digits = c == 'x' ? kHexDigits : kUpperHexDigits;
       unsigned long long x;
       switch (nlong) {
@@ -175,7 +176,8 @@ int vfprintf(FILE *fp, const char *fmt_, va_list ap) {
       default: x = va_arg(ap, unsigned long long); break;  // case 2:
       }
       o += snprintullong(fp, x, 16, digits, order, padding);
-    } else if (c == 'p') {
+    } break;
+    case 'p': {
       void *ptr = va_arg(ap, void*);
       order -= 2;
       if (order < 0)
@@ -195,24 +197,21 @@ int vfprintf(FILE *fp, const char *fmt_, va_list ap) {
         snprintullong(fp, (uintptr_t)ptr, 16, kHexDigits, 0, padding);
         o += 2 + oo;
       }
-    } else if (c == 's') {
-      // ("%5", "foo")         = "  foo"
-      // ("%-5", "foo")        = "foo  "
-      // ("%5", "foobarbaz")   = "foobarbaz"
-      // ("%.3", "foobarbaz")  = "foo"
-      // ("%5.7", "foobarbaz") = "foobarb"
-      // ("%5.3", "foobarbaz") = "  foo"
-
+    } break;
+    case 's': {
       const char *s = va_arg(ap, const char*);
       o += snprintstr(fp, s, order, suborder, leftalign);
-    } else if (c == 'c') {
+    } break;
+    case 'c':
       FPUTC(va_arg(ap, unsigned int), fp);
       ++o;
-    } else if (c == '%') {
+      break;
+    case '%':
       FPUTC(c, fp);
       ++o;
+      break;
 #ifndef __NO_FLONUM
-    } else if (c == 'f') {
+    case 'f': {
       double x = va_arg(ap, double);
 
       o += sprintsign(fp, x < 0, sign, &order);
@@ -227,8 +226,9 @@ int vfprintf(FILE *fp, const char *fmt_, va_list ap) {
       unsigned long fraction = (unsigned long)((x - intPart) * pow10(suborder));
       o += snprintullong(fp, fraction, 10, kHexDigits,
                           suborder, '0');
+    } break;
 #endif
-    } else {
+    default:
       // Unknown % sequence.  Print it to draw attention.
       FPUTC('%', fp);
       ++o;
@@ -236,6 +236,7 @@ int vfprintf(FILE *fp, const char *fmt_, va_list ap) {
         FPUTC(c, fp);
         ++o;
       }
+      break;
     }
   }
 
