@@ -6,7 +6,7 @@ const JSON_FN = 'src/wcc/www/lib_list.json'
 const LIB_DIR = './libsrc'
 
 const CRT0_DIRS = ['crt0']
-const LIBC_DIRS = ['misc', 'stdio', 'stdlib', 'string', 'unistd']
+const LIBC_DIRS = ['math', 'misc', 'stdio', 'stdlib', 'string', 'unistd']
 
 async function updateFiles(fileList: object, dirs: Array<string>, fn: string): Promise<object> {
   assert(fileList && fileList['usr'] && fileList['usr']['lib'])

@@ -187,21 +187,6 @@ function tmpfileSync(len) {
           return len + 1
         },
 
-        sin: Math.sin,
-        cos: Math.cos,
-        tan: Math.tan,
-        atan: Math.atan,
-        sqrt: Math.sqrt,
-        log: Math.log,
-        exp: Math.exp,
-        pow: Math.pow,
-        fabs: Math.abs,
-        floor: Math.floor,
-        ceil: Math.ceil,
-        fmod: (x, y) => x % y,
-        drand48: Math.random,
-        erand48: Math.random,
-
         proc_exit: (x) => {
           process.exit(x)
         },
