@@ -611,15 +611,15 @@ static Token *get_op_token(const char **pp) {
 }
 
 static Token *get_token(void) {
-  static Token kEofToken = {.kind = TK_EOF};
+  static Line kEofLine = {.buf = ""};
+  static Token kEofToken = {.kind = TK_EOF, .line = &kEofLine};
 
   const char *p = lexer.p;
-  if (p == NULL)
+  if (p == NULL || (p = skip_whitespace_or_comment(p)) == NULL) {
+    kEofLine.filename = lexer.filename;
+    kEofLine.lineno = lexer.lineno;
     return &kEofToken;
-
-  p = skip_whitespace_or_comment(p);
-  if (p == NULL)
-    return &kEofToken;
+  }
 
   Token *tok = NULL;
   const char *begin = p;

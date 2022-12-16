@@ -60,7 +60,7 @@ void parse_error(enum ParseErrorLevel level, const Token *token, const char *fmt
   if (fmt != NULL) {
     if (token == NULL)
       token = fetch_token();
-    if (token != NULL && token->line != NULL) {
+    if (token->line != NULL) {
       fprintf(stderr, "%s(%d): ", token->line->filename, token->line->lineno);
     }
 
