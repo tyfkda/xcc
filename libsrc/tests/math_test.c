@@ -29,9 +29,15 @@ void expect(const char *title, double expected, double actual) {
 
 void expect_about(char *title, double expected, double actual) {
   printf("%s => ", title);
-  double d = expected - actual;
-  const double eps = (double)1e-5;
-  if (d < -eps || d > eps) {
+  bool ok = false;
+  if (isfinite(actual)) {
+    double d = expected - actual;
+    const double eps = (double)1e-5;
+    ok = d >= -eps && d <= eps;
+  } else if (!isnan(expected)) {
+    ok = expected == actual;
+  }
+  if (!ok) {
     printf("ERR, %f expected, but got %f\n", expected, actual);
     ++error_count;
   } else {

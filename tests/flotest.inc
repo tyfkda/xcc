@@ -16,9 +16,15 @@ void expect(char *title, Number expected, Number actual) {
 
 void expect_about(char *title, Number expected, Number actual) {
   printf("%s => ", title);
-  Number d = expected - actual;
-  const Number eps = (Number)1e-5;
-  if (d > -eps && d < eps) {
+  bool ok = false;
+  if (isfinite(actual)) {
+    Number d = expected - actual;
+    const Number eps = (Number)1e-5;
+    ok = d >= -eps && d <= eps;
+  } else if (!isnan(expected)) {
+    ok = expected == actual;
+  }
+  if (ok) {
     printf("OK\n");
     return;
   }
