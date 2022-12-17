@@ -118,9 +118,10 @@ void test_frexp(void) {
   EXPECTI(0, e);
   e = 1234;
   EXPECT(HUGE_VAL, frexp(HUGE_VAL, &e));
-  EXPECTI(1234, e);
+  EXPECTI(0, e);
+  e = 5678;
   EXPECT_NAN(frexp(NAN, &e));
-  EXPECTI(1234, e);
+  EXPECTI(0, e);
 }
 
 void test_isinf(void) {

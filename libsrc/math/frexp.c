@@ -6,9 +6,7 @@
 
 #ifndef __NO_FLONUM
 double frexp(double x, int *p) {
-  if (!isfinite(x))
-    return x;
-  if (x == 0) {
+  if (!isfinite(x) || x == 0) {
     *p = 0;
     return x;
   }
