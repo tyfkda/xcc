@@ -3,6 +3,7 @@
 #include "_ieee.h"
 
 #ifndef __NO_FLONUM
+#undef isfinite
 int isfinite(double x) {
   int64_t q = *(int64_t*)&x;
   return (q & EXPO_MASK) != EXPO_MASK;

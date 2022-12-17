@@ -23,4 +23,33 @@ double frexp(double x, int *p);
 int isfinite(double x);
 int isnan(double x);
 int isinf(double x);
+
+#if defined(__APPLE__)
+// isfinite, isinf and isnan is defined by macro and not included in lib file,
+// so it will be link error.
+#include "stdint.h"
+#define isfinite(x)  ({ \
+  const int64_t __mask = ((((int64_t)1 << 11) - 1) << 52); \
+  double __tmp = (x); \
+  int64_t __q = *(int64_t*)&__tmp; \
+  (__q & __mask) != __mask; \
+})
+
+#define isinf(x)  ({ \
+  const int64_t __mask = ((((int64_t)1 << 11) - 1) << 52); \
+  const int64_t __mask2 = ((((int64_t)1 << 12) - 1) << 51); \
+  double __tmp = (x); \
+  int64_t __q = *(int64_t*)&__tmp; \
+  (__q & __mask2) == __mask; \
+})
+
+#define isnan(x)  ({ \
+  const int64_t __mask2 = ((((int64_t)1 << 12) - 1) << 51); \
+  double __tmp = (x); \
+  int64_t __q = *(int64_t*)&__tmp; \
+  (__q & __mask2) == __mask2; \
+})
+
+#endif
+
 #endif

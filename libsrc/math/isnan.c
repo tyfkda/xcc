@@ -3,6 +3,7 @@
 #include "_ieee.h"
 
 #ifndef __NO_FLONUM
+#undef isnan
 int isnan(double x) {
   int64_t q = *(int64_t*)&x;
   return (q & NAN_MASK) == NAN_MASK;
