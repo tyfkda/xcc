@@ -58,6 +58,10 @@ void expecti(const char *title, int64_t expected, int64_t actual) {
 
 void test_math(void) {
   EXPECT_ABOUT(1.41421356, sqrt(2.0));
+  EXPECT_ABOUT(0.0, sqrt(0.0));
+  EXPECT_NAN(sqrt(-1.0));
+  EXPECT_ABOUT(HUGE_VAL, sqrt(HUGE_VAL));
+
   EXPECT_ABOUT(0.5, cos(M_PI / 3));
   EXPECT_ABOUT(-0.8660254, sin(-M_PI / 3));
   EXPECT_ABOUT(-0.267949, tan(2 * 11 * M_PI / 24));
