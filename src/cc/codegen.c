@@ -17,9 +17,6 @@
 #include "util.h"
 #include "var.h"
 
-const int FRAME_ALIGN = 8;
-const int STACK_PARAM_BASE_OFFSET = (2 - MAX_REG_ARGS) * WORD_SIZE;
-
 const char RET_VAR_NAME[] = ".ret";
 
 static void gen_expr_stmt(Expr *expr);
