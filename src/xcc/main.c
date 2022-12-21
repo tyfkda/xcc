@@ -349,6 +349,8 @@ int main(int argc, char *argv[]) {
       break;
     case 'E':
       out_type = OutPreprocess;
+      if (src_type == UnknownSource)
+        src_type = Clanguage;
       break;
     case 'S':
       out_type = OutAssembly;
@@ -439,16 +441,16 @@ int main(int argc, char *argv[]) {
 
   int ofd = STDOUT_FILENO;
 
-  if (out_type == OutAssembly) {
 #if !defined(__XCC) && !defined(__XV6)
+  if (out_type <= OutAssembly && ofn != NULL && strcmp(ofn, "-") != 0) {
     close(STDOUT_FILENO);
     ofd = open(ofn, O_WRONLY | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
     if (ofd == -1) {
       perror("Failed to open output file");
       exit(1);
     }
-#endif
   }
+#endif
 
   if (out_type >= OutExecutable) {
 #if !defined(AS_USE_CC) || defined(NO_STD_LIB)
