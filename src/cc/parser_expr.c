@@ -203,7 +203,15 @@ const MemberInfo *search_from_anonymous(const Type *type, const Name *name, cons
   return NULL;
 }
 
-static bool cast_numbers(Expr **pLhs, Expr **pRhs) {
+static Expr *promote_to_int(Expr *expr) {
+  assert(expr->type->kind == TY_FIXNUM);
+  if (expr->type->fixnum.kind >= FX_INT)
+    return expr;
+  Type *type = get_fixnum_type(FX_INT, expr->type->fixnum.is_unsigned, expr->type->qualifier);
+  return make_cast(type, expr->token, expr, false);
+}
+
+static bool cast_numbers(Expr **pLhs, Expr **pRhs, bool make_int) {
   Expr *lhs = *pLhs;
   Expr *rhs = *pRhs;
   Type *ltype = lhs->type;
@@ -243,12 +251,17 @@ static bool cast_numbers(Expr **pLhs, Expr **pRhs) {
     rkind = FX_INT;
   }
 
-  int l = (lkind << 1) | (ltype->fixnum.is_unsigned ? 1 : 0);
-  int r = (rkind << 1) | (rtype->fixnum.is_unsigned ? 1 : 0);
-  if (l > r)
-    *pRhs = make_cast(ltype, rhs->token, rhs, false);
-  else if (l < r)
-    *pLhs = make_cast(rtype, lhs->token, lhs, false);
+  if (make_int && lkind < FX_INT && rkind < FX_INT) {
+    *pLhs = promote_to_int(lhs);
+    *pRhs = promote_to_int(rhs);
+  } else {
+    int l = (lkind << 1) | (ltype->fixnum.is_unsigned ? 1 : 0);
+    int r = (rkind << 1) | (rtype->fixnum.is_unsigned ? 1 : 0);
+    if (l > r)
+      *pRhs = make_cast(ltype, rhs->token, rhs, false);
+    else if (l < r)
+      *pLhs = make_cast(rtype, lhs->token, lhs, false);
+  }
   return true;
 }
 
@@ -343,10 +356,12 @@ static Expr *new_expr_num_bop(enum ExprKind kind, const Token *tok, Expr *lhs, E
     }
 #undef CALC
     Type *type = lhs->type->fixnum.kind >= rhs->type->fixnum.kind ? lhs->type : rhs->type;
-    return new_expr_fixlit(type, lhs->token, value);
+    if (type->fixnum.kind < FX_INT)
+      type = &tyInt;
+    return new_expr_fixlit(type, lhs->token, clamp_value(value, type_size(type), type->fixnum.is_unsigned));
   }
 
-  cast_numbers(&lhs, &rhs);
+  cast_numbers(&lhs, &rhs, true);
   return new_expr_bop(kind, lhs->type, tok, lhs, rhs);
 }
 
@@ -409,10 +424,12 @@ Expr *new_expr_addsub(enum ExprKind kind, const Token *tok, Expr *lhs, Expr *rhs
         break;
       }
       Type *type = lnt >= rnt ? lhs->type : rhs->type;
-      return new_expr_fixlit(type, lhs->token, value);
+      if (type->fixnum.kind < FX_INT)
+        type = &tyInt;
+      return new_expr_fixlit(type, lhs->token, clamp_value(value, type_size(type), type->fixnum.is_unsigned));
     }
 
-    cast_numbers(&lhs, &rhs);
+    cast_numbers(&lhs, &rhs, true);
     type = lhs->type;
   } else if (ptr_or_array(ltype)) {
     if (is_fixnum(rtype->kind)) {
@@ -492,7 +509,7 @@ static Expr *new_expr_cmp(enum ExprKind kind, const Token *tok, Expr *lhs, Expr 
     if (rt->kind != TY_PTR)
       rhs = make_cast(lhs->type, rhs->token, rhs, false);
   } else {
-    if (!cast_numbers(&lhs, &rhs))
+    if (!cast_numbers(&lhs, &rhs, false))
       parse_error(PE_FATAL, tok, "Cannot compare except numbers");
 
     if (is_const(lhs) && is_const(rhs)) {
@@ -1455,6 +1472,8 @@ static Expr *parse_unary(void) {
       parse_error(PE_NOFATAL, tok, "Cannot apply `+' except number types");
       return expr;
     }
+    if (is_fixnum(expr->type->kind))
+      expr = promote_to_int(expr);
     if (is_const(expr))
       return expr;
     return new_expr_unary(EX_POS, expr->type, tok, expr);
@@ -1466,6 +1485,8 @@ static Expr *parse_unary(void) {
       parse_error(PE_NOFATAL, tok, "Cannot apply `-' except number types");
       return expr;
     }
+    if (is_fixnum(expr->type->kind))
+      expr = promote_to_int(expr);
     if (is_const(expr)) {
 #ifndef __NO_FLONUM
       if (is_flonum(expr->type)) {
@@ -1499,6 +1520,7 @@ static Expr *parse_unary(void) {
       parse_error(PE_NOFATAL, tok, "Cannot apply `~' except integer");
       return new_expr_fixlit(&tyInt, expr->token, 0);
     }
+    expr = promote_to_int(expr);
     if (is_const(expr)) {
       expr->fixnum = ~expr->fixnum;
       return expr;
@@ -1807,7 +1829,8 @@ static Expr *parse_conditional(void) {
       type = choose_type(tval, fval);
       if (type == NULL)
         parse_error(PE_FATAL, tok, "lhs and rhs must be same type");
-      assert(type->kind != TY_VOID);
+      if (is_fixnum(type->kind) && type->fixnum.kind < FX_INT)
+        type = &tyInt;
       tval = make_cast(type, tval->token, tval, false);
       fval = make_cast(type, fval->token, fval, false);
     }

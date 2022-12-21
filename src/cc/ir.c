@@ -52,25 +52,6 @@ VReg *new_const_vreg(int64_t value, const VRegType *vtype) {
   return vreg;
 }
 
-static int64_t clamp_value(int64_t value, const VRegType *vtype) {
-  if (vtype->flag & VRTF_UNSIGNED) {
-    switch (vtype->size) {
-    case 1:  value = (uint8_t)value; break;
-    case 2:  value = (uint16_t)value; break;
-    case 4:  value = (uint32_t)value; break;
-    default:  break;
-    }
-  } else {
-    switch (vtype->size) {
-    case 1:  value = (int8_t)value; break;
-    case 2:  value = (int16_t)value; break;
-    case 4:  value = (int32_t)value; break;
-    default:  break;
-    }
-  }
-  return value;
-}
-
 VReg *new_ir_bop(enum IrKind kind, VReg *opr1, VReg *opr2, const VRegType *vtype) {
   if (opr1->flag & VRF_CONST) {
     if (opr2->flag & VRF_CONST) {
@@ -114,7 +95,7 @@ VReg *new_ir_bop(enum IrKind kind, VReg *opr1, VReg *opr2, const VRegType *vtype
         break;
       default: assert(false); break;
       }
-      return new_const_vreg(clamp_value(value, vtype), vtype);
+      return new_const_vreg(clamp_value(value, vtype->size, (vtype->flag & VRTF_UNSIGNED) != 0), vtype);
     } else {
       switch (kind) {
       case IR_ADD:
@@ -204,7 +185,7 @@ VReg *new_ir_unary(enum IrKind kind, VReg *opr, const VRegType *vtype) {
     case IR_BITNOT:  value = ~opr->fixnum; break;
     default: assert(false); break;
     }
-    return new_const_vreg(clamp_value(value, vtype), vtype);
+    return new_const_vreg(clamp_value(value, vtype->size, (vtype->flag & VRTF_UNSIGNED) != 0), vtype);
   }
 
   IR *ir = new_ir(kind);
