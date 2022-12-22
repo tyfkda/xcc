@@ -261,32 +261,37 @@ static void handle_define(const char *p, Stream *stream) {
   p = end;
 
   Vector *params = NULL;
-  bool va_args = false;
+  const Name *vaargs_ident = NULL;
   if (*p == '(') {
     // Macro with parameter.
     params = new_vector();
     set_source_string(p + 1, stream->filename, stream->lineno);
     if (!match(TK_RPAR)) {
       for (;;) {
-        Token *tok;
-        if ((tok = match(TK_ELLIPSIS)) != NULL) {
-          va_args = true;
-          pp_consume(TK_RPAR, "`)' expected");
+        if (match(TK_ELLIPSIS)) {
+          vaargs_ident = alloc_name("__VA_ARGS__", NULL, false);
           break;
-        } else {
-          tok = pp_consume(TK_IDENT, "ident expected");
-          vec_push(params, tok->ident);
-          if (match(TK_RPAR))
-            break;
-          pp_consume(TK_COMMA, "`,' or `)' expected");
         }
+
+        Token *tok = pp_consume(TK_IDENT, "ident expected");
+        if (match(TK_ELLIPSIS)) {
+          vaargs_ident = tok->ident;
+          break;
+        }
+
+        vec_push(params, tok->ident);
+        if (match(TK_RPAR))
+          break;
+        pp_consume(TK_COMMA, "`,' or `)' expected");
       }
+      if (vaargs_ident != NULL)
+        pp_consume(TK_RPAR, "`)' expected");
     }
     p = get_lex_p();
   }
 
   Vector *tokens = parse_macro_body(p, stream);
-  macro_add(name, new_macro(params, va_args, tokens));
+  macro_add(name, new_macro(params, vaargs_ident, tokens));
 }
 
 static void handle_undef(const char **pp) {
@@ -486,7 +491,7 @@ static void define_file_macro(const char *filename, const Name *key_file) {
   size_t len = strlen(filename);
   char *buf = malloc(len + 2 + 1);
   snprintf(buf, len + 2 + 1, "\"%s\"", filename);
-  macro_add(key_file, new_macro(NULL, false, parse_macro_body(buf, NULL)));
+  macro_add(key_file, new_macro(NULL, NULL, parse_macro_body(buf, NULL)));
 }
 
 void init_preprocessor(FILE *ofp) {
@@ -523,7 +528,7 @@ int preprocess(FILE *fp, const char *filename_) {
   Token *tok_lineno = alloc_token(TK_STR, NULL, linenobuf, linenobuf);
   Vector *lineno_tokens = new_vector();
   vec_push(lineno_tokens, tok_lineno);
-  macro_add(key_line, new_macro(NULL, false, lineno_tokens));
+  macro_add(key_line, new_macro(NULL, NULL, lineno_tokens));
 
   stream.lineno = 0;
   for (;;) {
@@ -639,7 +644,7 @@ int preprocess(FILE *fp, const char *filename_) {
 
 void define_macro(const char *arg) {
   char *p = strchr(arg, '=');
-  Macro *macro = new_macro(NULL, false, parse_macro_body(p != NULL ? p + 1 : "1", NULL));
+  Macro *macro = new_macro(NULL, NULL, parse_macro_body(p != NULL ? p + 1 : "1", NULL));
   macro_add(alloc_name(arg, p, true), macro);
 }
 

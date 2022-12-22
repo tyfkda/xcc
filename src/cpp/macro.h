@@ -11,11 +11,11 @@ typedef struct Vector Vector;
 typedef struct Macro {
   Table *param_table;  // key=variable name, value=parameter index
   int params_len;  // -1 => no param macro
-  bool va_args;
+  const Name *vaargs_ident;
   Vector *body;  // <Token*>
 } Macro;
 
-Macro *new_macro(Vector *params, bool va_args, Vector *body);
+Macro *new_macro(Vector *params, const Name *vaargs_ident, Vector *body);
 
 //
 

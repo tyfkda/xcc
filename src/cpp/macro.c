@@ -10,11 +10,11 @@
 #include "table.h"
 #include "util.h"
 
-Macro *new_macro(Vector *params, bool va_args, Vector *body) {
+Macro *new_macro(Vector *params, const Name *vaargs_ident, Vector *body) {
   Macro *macro = malloc(sizeof(*macro));
   int len = params != NULL ? params->len : -1;
   macro->params_len = len;
-  macro->va_args = va_args;
+  macro->vaargs_ident = vaargs_ident;
   macro->body = body;
 
   Table *table = NULL;
@@ -25,8 +25,8 @@ Macro *new_macro(Vector *params, bool va_args, Vector *body) {
       const Name *ident = params->data[i];
       table_put(table, ident, (void*)(intptr_t)i);
     }
-    if (macro->va_args) {
-      const Name *ident = alloc_name("__VA_ARGS__", NULL, false);
+    if (macro->vaargs_ident) {
+      const Name *ident = macro->vaargs_ident;
       table_put(table, ident, (void*)(intptr_t)len);
     }
   }
@@ -322,9 +322,9 @@ void macro_expand(Vector *tokens) {
       hideset_put(hs, tok->ident);
       replaced = subst(macro->body, NULL, NULL, hs);
     } else {  // "()'d macro"
-      Vector *args = pp_funargs(tokens, &next, macro->va_args ? macro->params_len : INT_MAX);
+      Vector *args = pp_funargs(tokens, &next, macro->vaargs_ident != NULL ? macro->params_len : INT_MAX);
       if (args != NULL) {
-        int count = macro->params_len + (macro->va_args ? 1 : 0);  // variadic argument is concatenated.
+        int count = macro->params_len + (macro->vaargs_ident != NULL);  // variadic argument is concatenated.
         if (count != args->len) {
           const char *cmp = args->len > count ? "many" : "few";
           pp_parse_error(tok, "Too %s arguments for macro `%.*s'", cmp, tok->ident->bytes, tok->ident->chars);

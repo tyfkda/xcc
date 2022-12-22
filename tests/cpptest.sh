@@ -115,6 +115,7 @@ test_misc() {
   try 'vaarg' '1 2 (3, 4, 5)' "#define VAARG(x, y, ...)  x y (__VA_ARGS__)\nVAARG(1, 2, 3, 4, 5)"
   try 'no vaarg' '1 2 ()' "#define VAARG(x, y, ...)  x y (__VA_ARGS__)\nVAARG(1, 2)"
   try 'all vaarg' '{x, y, z};' "#define ALL(...)  {__VA_ARGS__};\nALL(x, y, z)"
+  try 'named vaarg' '{3, 4, 5}' "#define NAMED(x, y, rest...)  {rest}\nNAMED(1, 2, 3, 4, 5)"
 }
 
 test_cat() {
