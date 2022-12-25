@@ -1402,6 +1402,8 @@ char *g_ptr_ref1 = nums + 4;
 char *g_ptr_ref2 = &nums[2];
 int g_array[] = {10,20,30};
 FooStruct g_comp_deficit = (FooStruct){};
+int g_comp_array[] = (int[]){11, 22, 33, 0};
+int *g_comp_ptr = (int[]){45, 56, 67, 78, 0};
 union { int x; struct { char a; short b; } y; } g_union = {.y={.b=77}};
 struct {union {int x;};} g_anonymous = {.x = 99};
 FooStruct *g_comp_p = &(FooStruct){88};
@@ -1433,6 +1435,35 @@ TEST(initializer) {
   EXPECT("global array", 42, sizeof(g_array) + g_array[2]);
 
   EXPECT("global compound literal init (deficit)", 0, g_comp_deficit.x);
+  {
+    int *p, sum;
+
+    p = g_comp_array;
+    sum = 0;
+    while (*p != 0)
+      sum += *p++;
+    EXPECT("global compound literal array", 66, sum);
+
+    p = g_comp_ptr;
+    sum = 0;
+    while (*p != 0)
+      sum += *p++;
+    EXPECT("global compound literal ptr", 246, sum);
+
+    int l_comp_array[] = (int[]){111, 222, 333, 0};
+    p = l_comp_array;
+    sum = 0;
+    while (*p != 0)
+      sum += *p++;
+    EXPECT("local compound literal array", 666, sum);
+
+    int *l_comp_ptr = (int[]){1, 11, 111, 1111, 0};
+    p = l_comp_ptr;
+    sum = 0;
+    while (*p != 0)
+      sum += *p++;
+    EXPECT("local compound literal ptr", 1234, sum);
+  }
 
   {
     static const int array[] = {11,22,33};
