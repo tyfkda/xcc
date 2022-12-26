@@ -38,3 +38,5 @@ void srand48(long seedval);
 
 int mkstemp(char *tmpl);
 int mkstemps(char *tmpl, int suffixlen);
+
+char *getenv(const char *varname);
