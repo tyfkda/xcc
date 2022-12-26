@@ -84,10 +84,11 @@ void dump_expr(FILE *fp, Expr *expr) {
   assert(expr != NULL);
   switch (expr->kind) {
   case EX_FIXNUM:
-    fprintf(fp, "%" PRId64, expr->fixnum);
     assert(expr->type->kind == TY_FIXNUM);
     if (expr->type->fixnum.is_unsigned)
-      fputc('U', fp);
+      fprintf(fp, "%" PRIu64 "U", expr->fixnum);
+    else
+      fprintf(fp, "%" PRId64, expr->fixnum);
     switch (expr->type->fixnum.kind) {
     case FX_LONG:
       fputc('L', fp);

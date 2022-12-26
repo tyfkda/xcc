@@ -78,7 +78,12 @@ TEST(vsnprintf) {
   }
   if (sizeof(long long) == 8) {
     EXPECT("ULLong:18446744073709551615", "ULLong:%llu", -1LL);
+    EXPECT("PRIdMAX:9223372036854775807", "PRIdMAX:%" PRIdMAX, INTMAX_MAX);
+    EXPECT("PRIuMAX:18446744073709551615", "PRIuMAX:%" PRIuMAX, UINTMAX_MAX);
   }
+  EXPECT("size_t:54321", "size_t:%zu", (size_t)54321);
+  EXPECT("PRId64:1311768467463790320", "PRId64:%" PRId64, (int64_t)0x123456789abcdef0);
+  EXPECT("PRIu64:18364758544493064720", "PRIu64:%" PRIu64, (uint64_t)0xfedcba9876543210);
 
   EXPECT("String:Foo.", "String:%s.", "Foo");
   EXPECT("BeginPadding:  Bar", "BeginPadding:%5s", "Bar");

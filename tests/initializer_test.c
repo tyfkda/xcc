@@ -1,5 +1,4 @@
 #include <assert.h>
-#include <inttypes.h>  // PRId64
 #include <stdarg.h>
 #include <stdbool.h>
 #include <stdio.h>

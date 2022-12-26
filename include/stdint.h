@@ -30,5 +30,11 @@ typedef int64_t  intptr_t;
 typedef uint64_t uintptr_t;
 #endif
 
+typedef long long  intmax_t;
+typedef unsigned long long  uintmax_t;
+
 #define INTPTR_MAX  ((((intptr_t)1) << (sizeof(intptr_t) * 8 - 1)) - 1)
 #define INTPTR_MIN  (((intptr_t)-1) << (sizeof(intptr_t) * 8 - 1))
+
+#define INTMAX_MAX   ((intmax_t)((((uintmax_t)1) << (sizeof(intmax_t) * 8 - 1)) - 1))
+#define UINTMAX_MAX  ((uintmax_t)-1)
