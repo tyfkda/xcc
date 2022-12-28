@@ -16,7 +16,7 @@ typedef struct Code {
   unsigned char buf[14];
 } Code;
 
-bool assemble_inst(Inst *inst, const ParseInfo *info, Code *code);
+void assemble_inst(Inst *inst, const ParseInfo *info, Code *code);
 
 #ifndef MAKE_CODE
 #define MAKE_CODE(inst, code, ...)  do { unsigned char buf[] = {__VA_ARGS__}; make_code(inst, code, buf, sizeof(buf)); } while (0)

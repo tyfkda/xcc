@@ -64,10 +64,9 @@ static void parse_file(FILE *fp, const char *filename, Vector **section_irs, Tab
 
     if (line->dir == NODIRECTIVE) {
       Code code;
-      if (assemble_inst(&line->inst, &info, &code)) {
-        if (code.len > 0)
-          vec_push(irs, new_ir_code(&code));
-      }
+      assemble_inst(&line->inst, &info, &code);
+      if (code.len > 0)
+        vec_push(irs, new_ir_code(&code));
     } else {
       handle_directive(&info, line->dir, section_irs, label_table);
     }
