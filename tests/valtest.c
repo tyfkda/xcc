@@ -758,6 +758,11 @@ int main(void) {
     expect("diff ptr and array2", -13, buf - p);
   }
   {
+    int buf[16];
+    const int *p = &buf[9];
+    expect("diff ptr and const ptr", 9, p - buf);
+  }
+  {
     int array1[] = {1}, array2[] = {2};
     expect("compare arrays", 0, array1 == array2);
     expect("compare arrays2", 1, array1 == array1);

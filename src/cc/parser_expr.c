@@ -433,7 +433,7 @@ Expr *new_expr_addsub(enum ExprKind kind, const Token *tok, Expr *lhs, Expr *rhs
         ltype = array_to_ptr(ltype);
       if (rtype->kind == TY_ARRAY)
         rtype = array_to_ptr(rtype);
-      if (!same_type(ltype, rtype))
+      if (!same_type_without_qualifier(ltype, rtype, true))
         parse_error(PE_FATAL, tok, "Different pointer diff");
       // ((size_t)lhs - (size_t)rhs) / sizeof(*lhs)
       ensure_struct(ltype->pa.ptrof, tok, curscope);
