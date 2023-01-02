@@ -52,11 +52,11 @@ $(LIBOBJ_DIR)/%.o: $(LIBSRC_DIR)/**/%.c
 ### Test
 
 .PHONY:	test
-test:	test-printf test-math
+test:	test-printf test-math test-longjmp
 
 .PHONY: clean-test
 clean-test:
-	rm -rf printf_test math_test
+	rm -rf printf_test math_test longjmp_test
 
 .PHONY: test-printf
 test-printf:	printf_test
@@ -78,4 +78,15 @@ test-math:	math_test
 MATH_SRCS:=$(wildcard math/*.c)
 MATH_OBJS:=$(addprefix $(LIBOBJ_DIR)/,$(notdir $(MATH_SRCS:.c=.o)))
 math_test:	tests/math_test.c $(MATH_OBJS)
+	$(CC) -o$@ $(CFLAGS) -I$(INC_DIR) -DUNIT_TEST -ffreestanding $^
+
+.PHONY: test-longjmp
+test-longjmp:	longjmp_test
+	@echo '## longjmp test'
+	@./longjmp_test
+	@echo ''
+
+LONGJMP_SRCS:=misc/setjmp.c
+LONGJMP_OBJS:=$(addprefix $(LIBOBJ_DIR)/,$(notdir $(LONGJMP_SRCS:.c=.o)))
+longjmp_test:	tests/longjmp_test.c $(LONGJMP_OBJS)
 	$(CC) -o$@ $(CFLAGS) -I$(INC_DIR) -DUNIT_TEST -ffreestanding $^

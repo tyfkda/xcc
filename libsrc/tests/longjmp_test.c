@@ -1,13 +1,12 @@
 // Longjmp test
 //
 // Compile:
-//   $ ./xcc -olongjmp_test examples/longjmp_test.c
+//   $ ./xcc -olongjmp_test libsrc/tests/longjmp_test.c
 //
 // Run:
-//   $ ./longjmp_test  #=> 123
+//   $ ./longjmp_test || echo fail
 
 #include <setjmp.h>
-#include <stdio.h>
 
 jmp_buf env;
 
@@ -19,10 +18,9 @@ int main() {
   int result;
   if ((result = setjmp(env)) == 0) {
     func();
-    printf("never reaches here\n");
+    // never reaches here
     return 1;
   } else {
-    printf("%d\n", result);
+    return result == 123 ? 0 : 2;
   }
-  return 0;
 }

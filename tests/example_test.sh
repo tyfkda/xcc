@@ -52,7 +52,6 @@ no_flonum() {
 try 'hello' 'Hello, world!' ../examples/hello.c
 try 'fib' 832040 ../examples/fib.c
 try 'echo' 'foo bar baz' ../examples/echo.c foo bar baz
-try 'longjmp_test' '123' ../examples/longjmp_test.c
 
 if [ "`no_flonum`" != "true" ]; then
 try_cmp 'mandelbrot' '../examples/mandelbrot.ppm' 'mandelbrot.ppm' ../examples/mandelbrot.c 100 256 256
