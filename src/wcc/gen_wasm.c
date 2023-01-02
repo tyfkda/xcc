@@ -1673,18 +1673,9 @@ static void gen_defun(Function *func) {
     Vector *stmts = func->body_block->block.stmts;
     if (stmts->len > 0) {
       Stmt *last = stmts->data[stmts->len - 1];
-      if (last->kind != ST_RETURN) {
-        // Function end is not `return` statement (e.g. infinite loop, etc.),
-        // but wasm runtime requires it. So put a dummy value.
-        unsigned char wt = is_prim_type(functype->func.ret) ? to_wtype(functype->func.ret) : functype->func.ret->kind != TY_VOID ? WT_I32 : WT_VOID;
-        switch (wt) {
-        case WT_I32:  ADD_CODE(OP_I32_CONST); ADD_LEB128(0); break;
-        case WT_I64:  ADD_CODE(OP_I64_CONST); ADD_LEB128(0); break;
-        case WT_F32:  ADD_CODE(OP_F32_CONST); ADD_F32(0); break;
-        case WT_F64:  ADD_CODE(OP_F64_CONST); ADD_F64(0); break;
-        case WT_VOID: break;
-        default: assert(false); break;
-        }
+      if (last->kind != ST_RETURN && functype->func.ret->kind != TY_VOID) {
+        assert(func->body_block->reach & REACH_STOP);
+        ADD_CODE(OP_UNREACHABLE);
       }
     }
   }

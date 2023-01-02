@@ -25,6 +25,7 @@ typedef struct {
 #define EXPORT_GLOBAL  (3)
 
 // Wasm opcode
+#define OP_UNREACHABLE    (0x00)
 #define OP_NOP            (0x01)
 #define OP_BLOCK          (0x02)
 #define OP_LOOP           (0x03)
