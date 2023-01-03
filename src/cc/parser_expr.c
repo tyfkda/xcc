@@ -17,8 +17,6 @@
 
 static Table builtin_expr_ident_table;
 
-static StructInfo *parse_struct(bool is_union);
-static Expr *parse_cast_expr(void);
 static Expr *parse_unary(void);
 
 void add_builtin_expr_ident(const char *str, BuiltinExprProc *proc) {
@@ -817,6 +815,34 @@ static Type *parse_enum(void) {
   return type;
 }
 
+// Parse struct or union definition `{...}`
+static StructInfo *parse_struct(bool is_union) {
+  Vector *members = new_vector();
+  while (!match(TK_RBRACE)) {
+    Type *rawType = NULL;
+    do {
+      int storage;
+      Token *ident;
+      Type *type = parse_var_def(&rawType, &storage, &ident);
+      if (type == NULL) {
+        parse_error(PE_FATAL, NULL, "type expected");
+        break;
+      }
+
+      not_void(type, NULL);
+      ensure_struct(type, ident, curscope);
+      // Allow ident to be null for anonymous struct member, otherwise raise error.
+      if (ident == NULL && type->kind != TY_STRUCT)
+        parse_error(PE_NOFATAL, NULL, "ident expected");
+      const Name *name = ident != NULL ? ident->ident : NULL;
+      if (!add_struct_member(members, name, type))
+        parse_error(PE_NOFATAL, ident, "`%.*s' already defined", name->bytes, name->chars);
+    } while (match(TK_COMMA));
+    consume(TK_SEMICOL, "`;' expected");
+  }
+  return create_struct_info(members, is_union);
+}
+
 typedef struct {
   int storage, qualifier;
   int unsigned_num, signed_num;
@@ -1231,34 +1257,6 @@ Vector *parse_funparams(bool *pvaargs) {
   return params;
 }
 
-// Parse struct or union definition `{...}`
-static StructInfo *parse_struct(bool is_union) {
-  Vector *members = new_vector();
-  while (!match(TK_RBRACE)) {
-    Type *rawType = NULL;
-    do {
-      int storage;
-      Token *ident;
-      Type *type = parse_var_def(&rawType, &storage, &ident);
-      if (type == NULL) {
-        parse_error(PE_FATAL, NULL, "type expected");
-        break;
-      }
-
-      not_void(type, NULL);
-      ensure_struct(type, ident, curscope);
-      // Allow ident to be null for anonymous struct member, otherwise raise error.
-      if (ident == NULL && type->kind != TY_STRUCT)
-        parse_error(PE_NOFATAL, NULL, "ident expected");
-      const Name *name = ident != NULL ? ident->ident : NULL;
-      if (!add_struct_member(members, name, type))
-        parse_error(PE_NOFATAL, ident, "`%.*s' already defined", name->bytes, name->chars);
-    } while (match(TK_COMMA));
-    consume(TK_SEMICOL, "`;' expected");
-  }
-  return create_struct_info(members, is_union);
-}
-
 static Expr *parse_compound_literal(Type *type) {
   Token *token = fetch_token();
   Initializer *init = parse_initializer();
@@ -1420,6 +1418,30 @@ static Expr *parse_sizeof(const Token *token) {
   return new_expr_fixlit(&tySize, token, size);
 }
 
+static Expr *parse_cast_expr(void) {
+  Token *lpar;
+  if ((lpar = match(TK_LPAR)) != NULL) {
+    int storage;
+    const Token *token = fetch_token();
+    Type *type = parse_var_def(NULL, &storage, NULL);
+    if (type != NULL) {  // Cast
+      consume(TK_RPAR, "`)' expected");
+
+      Token *token2 = fetch_token();
+      if (token2->kind == TK_LBRACE)
+        return parse_compound_literal(type);
+
+      Expr *sub = parse_cast_expr();
+      check_cast(type, sub->type, is_zero(sub), true, token);
+      if (is_const(sub) && type->kind != TY_VOID)
+        return make_cast(type, token, sub, true);
+      return sub->type->kind != TY_VOID ? new_expr_cast(type, token, sub) : sub;
+    }
+    unget_token(lpar);
+  }
+  return parse_unary();
+}
+
 static Expr *parse_unary(void) {
   Token *tok;
   if ((tok = match(TK_ADD)) != NULL) {
@@ -1520,30 +1542,6 @@ static Expr *parse_unary(void) {
     return parse_sizeof(tok);
 
   return parse_postfix();
-}
-
-static Expr *parse_cast_expr(void) {
-  Token *lpar;
-  if ((lpar = match(TK_LPAR)) != NULL) {
-    int storage;
-    const Token *token = fetch_token();
-    Type *type = parse_var_def(NULL, &storage, NULL);
-    if (type != NULL) {  // Cast
-      consume(TK_RPAR, "`)' expected");
-
-      Token *token2 = fetch_token();
-      if (token2->kind == TK_LBRACE)
-        return parse_compound_literal(type);
-
-      Expr *sub = parse_cast_expr();
-      check_cast(type, sub->type, is_zero(sub), true, token);
-      if (is_const(sub) && type->kind != TY_VOID)
-        return make_cast(type, token, sub, true);
-      return sub->type->kind != TY_VOID ? new_expr_cast(type, token, sub) : sub;
-    }
-    unget_token(lpar);
-  }
-  return parse_unary();
 }
 
 static Expr *parse_mul(void) {
