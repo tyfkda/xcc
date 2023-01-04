@@ -54,5 +54,5 @@ try 'fib' 832040 ../examples/fib.c
 try 'echo' 'foo bar baz' ../examples/echo.c foo bar baz
 
 if [ "`no_flonum`" != "true" ]; then
-try_cmp 'mandelbrot' '../examples/mandelbrot.ppm' 'mandelbrot.ppm' ../examples/mandelbrot.c 100 256 256
+try_cmp 'mandelbrot' 'mandel256.ppm' 'mandelbrot.ppm' ../examples/mandelbrot.c 100 256 256
 fi
