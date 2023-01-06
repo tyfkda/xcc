@@ -725,6 +725,15 @@ int main(void) {
     static const int *p = t.x[1].b;
     expect("member[].member initializer", 33, *p);
   }
+  {
+    struct S {
+      int a;
+      int b;
+    };
+    struct S x = {11, 22};
+    struct S a[] = {x};
+    expect("struct initializer with variable", 33, a[0].a + a[0].b);
+  }
 
   {
     int desig[] = {[2] = 100, [1] 200};
