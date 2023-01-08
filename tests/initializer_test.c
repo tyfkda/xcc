@@ -53,7 +53,7 @@ static bool same_init(const Initializer *init1, const Initializer *init2) {
     }
     return true;
   case IK_ARR:
-    return same_expr(init1->arr.index, init2->arr.index) && same_init(init1->arr.value, init2->arr.value);
+    return init1->arr.index == init2->arr.index && same_init(init1->arr.value, init2->arr.value);
   default:
     return false;
   }
@@ -89,8 +89,7 @@ void dump_init(FILE *fp, const Initializer *init) {
     }
     break;
   case IK_ARR:
-    assert(init->arr.index->kind == EX_FIXNUM);
-    fprintf(fp, "[%" PRId64 "]=", init->arr.index->fixnum);
+    fprintf(fp, "[%zu]=", init->arr.index);
     dump_init(fp, init->arr.value);
     break;
   default: assert(false); break;
@@ -146,10 +145,10 @@ Initializer *new_init_multi(int count, ...) {
   return init;
 }
 
-Initializer *new_init_arr(int index, Initializer *value) {
+Initializer *new_init_arr(size_t index, Initializer *value) {
   Initializer *init = calloc(1, sizeof(*init));
   init->kind = IK_ARR;
-  init->arr.index = new_expr_fixlit(&tyInt, NULL, index);
+  init->arr.index = index;
   init->arr.value = value;
   return init;
 }

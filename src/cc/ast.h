@@ -303,7 +303,7 @@ struct Initializer {
       struct Initializer *value;
     } dot;
     struct {
-      Expr *index;
+      size_t index;
       struct Initializer *value;
     } arr;
   };

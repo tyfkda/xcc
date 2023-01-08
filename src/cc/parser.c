@@ -117,8 +117,7 @@ Type *fix_array_size(Type *type, Initializer *init) {
       for (ssize_t i = 0; i < init->multi->len; ++i) {
         Initializer *init_elem = init->multi->data[i];
         if (init_elem->kind == IK_ARR) {
-          assert(init_elem->arr.index->kind == EX_FIXNUM);
-          index = init_elem->arr.index->fixnum;
+          index = init_elem->arr.index;
         }
         ++index;
         if (max_index < index)
@@ -222,8 +221,6 @@ static Initializer *flatten_array_initializer(Initializer *init) {
   for (; i <= len; ++i, ++index) {  // '+1' is for last range.
     Initializer *init_elem = NULL;
     if (i >= len || (init_elem = init->multi->data[i])->kind == IK_ARR) {
-      if (i < len && init_elem->arr.index->kind != EX_FIXNUM)
-        parse_error(PE_FATAL, NULL, "Constant value expected");
       if ((size_t)i > lastStartIndex) {
         size_t *range = malloc(sizeof(size_t) * 3);
         range[0] = lastStart;
@@ -233,7 +230,7 @@ static Initializer *flatten_array_initializer(Initializer *init) {
       }
       if (i >= len)
         break;
-      lastStart = index = init_elem->arr.index->fixnum;
+      lastStart = index = init_elem->arr.index;
       lastStartIndex = i;
     } else if (init_elem->kind == IK_DOT)
       parse_error(PE_FATAL, NULL, "dot initializer for array");
@@ -260,8 +257,7 @@ static Initializer *flatten_array_initializer(Initializer *init) {
       if (j == 0 && index != start && elem->kind != IK_ARR) {
         Initializer *arr = malloc(sizeof(*arr));
         arr->kind = IK_ARR;
-        Fixnum n = start;
-        arr->arr.index = new_expr_fixlit(&tyInt, NULL, n);
+        arr->arr.index = start;
         arr->arr.value = elem;
         elem = arr;
       }
@@ -406,8 +402,7 @@ static Initializer *flatten_initializer_multi(Type *type, Initializer *init, int
         Initializer *elem_init = init->multi->data[*pindex];
         if (elem_init->kind == IK_ARR) {
           elem_init->arr.value = flatten_initializer(elem_type, elem_init->arr.value);
-          assert(elem_init->arr.index->kind == EX_FIXNUM);
-          eidx = elem_init->arr.index->fixnum;
+          eidx = elem_init->arr.index;
           assert(type->pa.length < 0 || eidx < type->pa.length);
           *pindex += 1;
         } else {
@@ -667,8 +662,7 @@ Vector *assign_initial_value(Expr *expr, Initializer *init, Vector *inits) {
     case IK_MULTI:
       {
         ssize_t arr_len = expr->type->pa.length;
-        assert(arr_len > 0);
-        if (init->multi->len > arr_len)
+        if (arr_len > 0 && init->multi->len > arr_len)
           parse_error(PE_FATAL, init->token, "Initializer more than array size");
 
         assert(!is_global_scope(curscope));
@@ -683,10 +677,7 @@ Vector *assign_initial_value(Expr *expr, Initializer *init, Vector *inits) {
         for (size_t i = 0; i < len; ++i) {
           Initializer *init_elem = init->multi->data[i];
           if (init_elem->kind == IK_ARR) {
-            Expr *ind = init_elem->arr.index;
-            if (ind->kind != EX_FIXNUM)
-              parse_error(PE_FATAL, init_elem->token, "Number required");
-            index = ind->fixnum;
+            index = init_elem->arr.index;
             init_elem = init_elem->arr.value;
           }
 
@@ -915,7 +906,12 @@ Initializer *parse_initializer(void) {
             init->dot.value = value;
           }
         } else if ((tok = match(TK_LBRACKET)) != NULL) {
-          Expr *index = parse_const();
+          Expr *expr = parse_const();
+          size_t index = 0;
+          if (expr->kind != EX_FIXNUM || expr->fixnum < 0)
+            parse_error(PE_NOFATAL, expr->token, "non negative integer required");
+          else
+            index = expr->fixnum;
           consume(TK_RBRACKET, "`]' expected");
           match(TK_ASSIGN);  // both accepted: `[1] = 2`, and `[1] 2`
           Initializer *value = parse_initializer();

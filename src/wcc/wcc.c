@@ -211,7 +211,7 @@ static void construct_initial_value(DataStorage *ds, const Type *type, const Ini
         for (size_t i = 0; i < len; ++i, ++index) {
           const Initializer *init_elem = init_array->data[i];
           if (init_elem->kind == IK_ARR) {
-            size_t next = init_elem->arr.index->fixnum;
+            size_t next = init_elem->arr.index;
             for (size_t j = index; j < next; ++j)
               construct_initial_value(ds, elem_type, NULL);
             index = next;

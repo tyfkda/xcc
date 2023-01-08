@@ -1412,7 +1412,7 @@ static Expr *parse_sizeof(const Token *token) {
       parse_error(PE_NOFATAL, tok, "size unknown");
       type->pa.length = 1;  // Continue parsing.
     }
-    assert(type->pa.length > 0);
+    assert(type->pa.length >= 0);
   }
 
   const Fixnum size = token->kind == TK_SIZEOF ? type_size(type) : align_size(type);
