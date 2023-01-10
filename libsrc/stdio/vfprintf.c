@@ -201,6 +201,14 @@ int vfprintf(FILE *fp, const char *fmt_, va_list ap) {
         *(--p) = '+';
       o += snprintstr(fp, p, order, suborder, leftalign, padding);
     } break;
+    case 'z': {
+      if (fmt[i + 1] == 'u') {
+        ++i;
+        size_t x = va_arg(ap, unsigned int);
+        char *p = snprintullong2(buf, x, 10, kHexDigits);
+        o += snprintstr(fp, p, order, suborder, leftalign, padding);
+      }
+    } break;
     case 'x': case 'X': {
       const char *digits = c == 'x' ? kHexDigits : kUpperHexDigits;
       unsigned long long x;
