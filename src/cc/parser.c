@@ -432,10 +432,10 @@ static Initializer *flatten_initializer_multi0(Type *type, Initializer *init) {
   Initializer *flat = flatten_initializer_multi(type, init, &index);
   switch (type->kind) {
   case TY_ARRAY:
-    break;
   case TY_STRUCT:
     if (index < init->multi->len) {
-      parse_error(PE_NOFATAL, ((Initializer*)init->multi->data[index])->token, "Too many init values");
+      const char *tstr = type->kind == TY_ARRAY ? "array" : "struct";
+      parse_error(PE_WARNING, ((Initializer*)init->multi->data[index])->token, "Excess elements in %s initializer", tstr);
     }
     break;
   default: assert(false); break;
