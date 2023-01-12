@@ -247,6 +247,7 @@ int main(int argc, char *argv[]) {
   char *ld_path = "/usr/bin/cc";
 #endif
   bool nodefaultlibs = false, nostdlib = false, nostdinc = false;
+  bool use_ld = false;
 
   Vector *cpp_cmd = new_vector();
   vec_push(cpp_cmd, cpp_path);
@@ -267,7 +268,6 @@ int main(int argc, char *argv[]) {
   vec_push(as_cmd, as_path);
 
   Vector *ld_cmd = new_vector();
-  vec_push(ld_cmd, ld_path);
 
   enum OutType out_type = OutExecutable;
 
@@ -293,6 +293,7 @@ int main(int argc, char *argv[]) {
     OPT_STD,
     OPT_PEDANTIC,
     OPT_MMD,
+    OPT_NO_PIE,
   };
 
   static const struct option options[] = {
@@ -318,6 +319,7 @@ int main(int argc, char *argv[]) {
     {"std", required_argument, OPT_STD},
     {"pedantic", no_argument, OPT_PEDANTIC},
     {"MMD", no_argument, OPT_MMD},
+    {"no-pie", no_argument, OPT_NO_PIE},
 
     {NULL},
   };
@@ -377,6 +379,18 @@ int main(int argc, char *argv[]) {
     case OPT_NOSTDINC:
       nostdinc = true;
       break;
+    case 'f':
+      if (strncmp(optarg, "use-ld", 6) == 0) {
+        if (optarg[6] == '=') {
+          ld_path = &optarg[7];
+        } else if (optarg[6] == '\0' && optind < argc) {
+          ld_path = argv[optind++];
+        } else {
+          fprintf(stderr, "extra argument required for '-fuse-ld");
+        }
+        use_ld = true;
+      }
+      break;
     case '?':
       if (strcmp(argv[optind - 1], "-") == 0) {
         if (src_type == UnknownSource) {
@@ -390,11 +404,11 @@ int main(int argc, char *argv[]) {
 
     case 'O':
     case 'g':
-    case 'f':
     case OPT_ANSI:
     case OPT_STD:
     case OPT_PEDANTIC:
     case OPT_MMD:
+    case OPT_NO_PIE:
       // Silently ignored.
       break;
     }
@@ -436,8 +450,23 @@ int main(int argc, char *argv[]) {
   vec_push(as_cmd, "-o");
   vec_push(as_cmd, ofn);
   vec_push(as_cmd, NULL);  // Terminator.
-  vec_push(ld_cmd, "-o");
-  vec_push(ld_cmd, ofn != NULL ? ofn : "a.out");
+
+  vec_push(ld_cmd, ld_path);
+  if (use_ld) {
+    // Pass through command line options.
+    for (int i = 1; i < iarg; ++i) {
+      const char *arg = argv[i];
+      if (strncmp(arg, "-fuse-ld", 6) == 0) {
+        if (arg[6] == '\0')
+          ++i;
+        continue;
+      }
+      vec_push(ld_cmd, argv[i]);
+    }
+  } else {
+    vec_push(ld_cmd, "-o");
+    vec_push(ld_cmd, ofn != NULL ? ofn : "a.out");
+  }
 
   int ofd = STDOUT_FILENO;
 
@@ -452,7 +481,7 @@ int main(int argc, char *argv[]) {
   }
 #endif
 
-  if (out_type >= OutExecutable) {
+  if (out_type >= OutExecutable && !use_ld) {
 #if !defined(AS_USE_CC) || defined(NO_STD_LIB)
     if (!nostdlib)
       vec_push(sources, cat_path(root, "lib/crt0.a"));
@@ -471,6 +500,15 @@ int main(int argc, char *argv[]) {
   int res = 0;
   for (int i = 0; i < sources->len; ++i) {
     char *src = sources->data[i];
+    if (src != NULL) {
+      if (*src == '\0')
+        continue;
+      if (*src == '-') {  // Suppose -lxxx
+        vec_push(ld_cmd, src);
+        continue;
+      }
+    }
+
     enum SourceType st = UnknownSource;
     if (src == NULL) {
       st = src_type;
