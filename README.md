@@ -5,17 +5,14 @@ XCC
 [![Open in Gitpod](https://gitpod.io/button/open-in-gitpod.svg)](https://gitpod.io/#https://github.com/tyfkda/xcc)
 
   * C compiler for [XV6 (64bit)](https://github.com/tyfkda/xv6)
-    * Also work on Linux
-  * Assembler
+    * Also work on Linux/MacOS
   * Output ELF64 (x86-64) file format
     * Also support Aarch64 (Arm64)
-  * Register allocation (Linear scan)
-  * Self hosting
 
 
 ### Requirements
 
-  * Linux
+  * Linux (or MacOS)
   * C compiler (gcc or clang)
   * make
 
@@ -68,6 +65,14 @@ C compiler:
   * Bit field
 
 
+### Reference
+
+  * [低レイヤを知りたい人のためのCコンパイラ作成入門](https://www.sigbus.info/compilerbook)
+  * [rui314/9cc: A Small C Compiler](https://github.com/rui314/9cc)
+
+
+----
+
 ### WebAssembly
 
 Compile C to WebAssembly.
@@ -76,19 +81,15 @@ Compile C to WebAssembly.
 
 #### Requirements
 
-#### Build
-
-Requirements:
-
   * node.js (>=16), npm
 
 Setup:
 
 ```sh
-$ npm install
+$ npm ci
 ```
 
-Build:
+#### Build
 
 ```sh
 $ make wcc
@@ -96,7 +97,7 @@ $ make wcc
 
 Generated files:
 
-  * `wcc`: Compiler entry
+  * `wcc`: C compiler (including preprocessor, and output .wasm directly)
 
 #### Usage
 
@@ -111,7 +112,7 @@ Command line options:
   * `-o <filename>`: Set output filename (default: `a.wasm`)
   * `-I <path>`:     Add include path
   * `-D <label>(=value)`:  Define macro
-  * `-entry-point=func_name`:  Specify entry point (default: _start)
+  * `-entry-point=func_name`:  Specify entry point (default: `_start`)
   * `-e func_name,...`:  Export function names (comma separated)
   * `--stack-size=<size>`:  Set stack size (default: 8192)
   * `-nodefaultlibs`:  Ignore libc
@@ -129,9 +130,4 @@ Hello, world!
 
   * `goto` statement
   * `setjmp`
-
-
-### Reference
-
-  * [低レイヤを知りたい人のためのCコンパイラ作成入門](https://www.sigbus.info/compilerbook)
-  * [rui314/9cc: A Small C Compiler](https://github.com/rui314/9cc)
+  * WASI
