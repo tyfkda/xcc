@@ -1888,22 +1888,25 @@ Expr *parse_assign(void) {
       Expr *lhs = expr, *rhs = parse_assign();
 
       check_lval(tok, lhs, "Cannot assign");
+      not_const(lhs->type, tok);
 
       switch (lhs->type->kind) {
       case TY_ARRAY:
-        parse_error(PE_FATAL, tok, "Cannot assign to array");
-        break;
       case TY_FUNC:
-        parse_error(PE_FATAL, tok, "Cannot assign to function");
-        break;
+        parse_error(PE_NOFATAL, tok, "Cannot assign to %s", lhs->type->kind == TY_ARRAY ? "array" : "function");
+        return expr;
       default: break;
       }
 
-      not_const(lhs->type, tok);
-
       if (kAssignWithOps[i].mode == ASSIGN) {
         rhs = str_to_char_array_var(curscope, rhs, toplevel);
-        return new_expr_bop(EX_ASSIGN, lhs->type, tok, lhs, make_cast(lhs->type, tok, rhs, false));
+        if (lhs->type->kind == TY_STRUCT) {  // Struct assignment requires same type.
+          if (!same_type_without_qualifier(lhs->type, rhs->type, true))
+            parse_error(PE_NOFATAL, tok, "Cannot assign to incompatible struct");
+        } else {  // Otherwise, cast-ability required.
+          rhs = make_cast(lhs->type, tok, rhs, false);
+        }
+        return new_expr_bop(EX_ASSIGN, lhs->type, tok, lhs, rhs);
       }
 
       // Expand expression `lhs += rhs` to `lhs = lhs + rhs`.

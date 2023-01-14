@@ -627,7 +627,10 @@ static Initializer *check_global_initializer(Type *type, Initializer *init) {
     break;
   case TY_STRUCT:
     {
-      assert(init->kind == IK_MULTI);
+      if (init->kind != IK_MULTI) {
+        parse_error(PE_NOFATAL, init->token, "Struct initializer requires `{'");
+        return NULL;
+      }
       const StructInfo *sinfo = type->struct_.info;
       for (int i = 0, n = sinfo->members->len; i < n; ++i) {
         const MemberInfo *member = sinfo->members->data[i];
@@ -707,7 +710,7 @@ Vector *assign_initial_value(Expr *expr, Initializer *init, Vector *inits) {
     {
       if (init->kind == IK_SINGLE) {
         Expr *e = init->single;
-        if (can_cast(expr->type, e->type, false, false)) {
+        if (same_type_without_qualifier(expr->type, e->type, true)) {
           vec_push(inits, new_stmt_expr(new_expr_bop(EX_ASSIGN, expr->type, init->token, expr, e)));
           break;
         }
