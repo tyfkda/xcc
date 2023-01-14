@@ -1,5 +1,5 @@
 LIBSRC_DIR:=../libsrc
-LIBOBJ_DIR:=../obj/lib
+LIBOBJ_DIR:=./obj
 LIB_DIR:=../lib
 INC_DIR:=../include
 
