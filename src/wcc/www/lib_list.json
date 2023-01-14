@@ -46,6 +46,7 @@
         "./libsrc/math/isinf.c",
         "./libsrc/math/isnan.c",
         "./libsrc/math/log.c",
+        "./libsrc/math/modf.c",
         "./libsrc/math/pow.c",
         "./libsrc/math/sin.c",
         "./libsrc/math/sqrt.c",

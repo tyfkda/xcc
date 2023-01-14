@@ -11,6 +11,7 @@
 #include "../math/isinf.c"
 #include "../math/isnan.c"
 #include "../math/log.c"
+#include "../math/modf.c"
 #include "../math/pow.c"
 #include "../math/sin.c"
 #include "../math/sqrt.c"
