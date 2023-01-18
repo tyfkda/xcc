@@ -1,6 +1,6 @@
 #pragma once
 
-#include "sys/types.h"  // pid_t
+#include <sys/types.h>  // pid_t
 
 #define	SIGKILL	9
 #define	SIGCHLD	17

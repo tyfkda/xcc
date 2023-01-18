@@ -1,8 +1,8 @@
 #pragma once
 
-#include "stddef.h"  // size_t
-#include "stdint.h"  // intptr_t, uint64_t
-#include "sys/types.h"  // ssize_t, pid_t, off_t
+#include <stddef.h>  // size_t
+#include <stdint.h>  // intptr_t, uint64_t
+#include <sys/types.h>  // ssize_t, pid_t, off_t
 
 #define STDIN_FILENO   (0)
 #define STDOUT_FILENO  (1)

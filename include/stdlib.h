@@ -1,6 +1,6 @@
 #pragma once
 
-#include "stddef.h"  // size_t
+#include <stddef.h>  // size_t
 
 int atoi(const char* s);
 void *malloc(size_t size);

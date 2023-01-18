@@ -25,10 +25,10 @@ int isfinite(double x);
 int isnan(double x);
 int isinf(double x);
 
-#if defined(__APPLE__)
+#if defined(__APPLE__) || defined(__GNUC__)
 // isfinite, isinf and isnan is defined by macro and not included in lib file,
 // so it will be link error.
-#include "stdint.h"
+#include <stdint.h>
 #define isfinite(x)  ({ \
   const int64_t __mask = ((((int64_t)1 << 11) - 1) << 52); \
   double __tmp = (x); \

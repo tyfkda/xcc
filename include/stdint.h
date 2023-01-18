@@ -1,6 +1,6 @@
 #pragma once
 
-#include "stddef.h"
+#include <stddef.h>
 
 #if defined(__ILP32__)
 typedef char       int8_t;

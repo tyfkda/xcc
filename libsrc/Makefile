@@ -47,7 +47,7 @@ $(LIB_DIR)/libc.a:	$(LIBC_OBJS)
 
 $(LIBOBJ_DIR)/%.o: $(LIBSRC_DIR)/**/%.c
 	@mkdir -p $(LIBOBJ_DIR)
-	$(CC) -c -o $@ -nostdinc -Werror -ffreestanding $(CFLAGS) $<
+	$(CC) -c -o $@ -Werror -ffreestanding $(CFLAGS) $<
 
 ### Test
 

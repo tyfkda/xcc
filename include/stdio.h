@@ -1,8 +1,8 @@
 #pragma once
 
-#include "stdarg.h"
-#include "stddef.h"
-#include "sys/types.h"  // ssize_t
+#include <stdarg.h>
+#include <stddef.h>
+#include <sys/types.h>  // ssize_t
 
 #define EOF  (-1)
 

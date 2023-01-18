@@ -1,21 +1,18 @@
 #pragma once
 
-#include "stdint.h"
-
-#if !defined(__WASM)
-
 #if defined(__GNUC__)
 
-// TODO:
-#if defined(__APPLE__)
-#include "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/clang/14.0.0/include/stdarg.h"
-#elif defined(__x86_64__)
-#include "/usr/lib/gcc/x86_64-linux-gnu/9/include/stdarg.h"
-#elif defined(__aarch64__)
-#include "/usr/lib/gcc/aarch64-linux-gnu/8/include/stdarg.h"
-#else
-#error xxx
-#endif
+#include_next <stdarg.h>
+
+#elif defined(__WASM)
+
+typedef __builtin_va_list __gnuc_va_list;
+typedef __gnuc_va_list va_list;
+
+#define va_start(ap,p)    __builtin_va_start(ap,p)
+#define va_end(ap)        __builtin_va_end(ap)
+#define va_arg(ap,ty)     __builtin_va_arg(ap,ty)
+#define va_copy(dst,src)  __builtin_va_copy(dst,src)
 
 #elif defined(__APPLE__) && defined(__aarch64__)
 typedef void **va_list;
@@ -26,6 +23,8 @@ typedef void **va_list;
 #define va_copy(dst,src)  (dst = src)
 
 #else  // not __APPLE__ nor __aarch64__
+
+#include <stdint.h>
 
 struct __va_elem {
   unsigned int gp_offset;
@@ -96,17 +95,5 @@ typedef __gnuc_va_list va_list;
 #define __builtin_va_copy(dest, src) ((dest)[0] = (src)[0])
 
 #define __builtin_va_end(ap)  /* none */
-
-#endif
-
-#else  // __WASM
-
-typedef __builtin_va_list __gnuc_va_list;
-typedef __gnuc_va_list va_list;
-
-#define va_start(ap,p)    __builtin_va_start(ap,p)
-#define va_end(ap)        __builtin_va_end(ap)
-#define va_arg(ap,ty)     __builtin_va_arg(ap,ty)
-#define va_copy(dst,src)  __builtin_va_copy(dst,src)
 
 #endif
