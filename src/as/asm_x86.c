@@ -95,36 +95,6 @@ static unsigned char *put_rex_indirect(
   return p;
 }
 
-static unsigned char *put_rex_indirect_with_index(
-    unsigned char *p, int base_reg, int index_reg, int dst_reg,
-    unsigned char opcode, unsigned char op2, long offset, int scale)
-{
-  *p++ = 0x48 | ((base_reg & 8) >> 3) | ((index_reg & 8) >> 2) | ((dst_reg & 8) >> 1);
-  *p++ = opcode | 1;
-
-  int b = base_reg & 7;
-  int i = index_reg & 7;
-  int d = dst_reg & 7;
-
-  char scale_bit = kPow2Table[scale];
-
-  unsigned char code = (offset == 0 && b != RBP - RAX) ? op2 : is_im8(offset) ? (unsigned char)0x40 : (unsigned char)0x80;
-  *p++ = code | (d << 3) | 0x04;
-  *p++ = b | (i << 3) | (scale_bit << 6);
-  //if (b == RSP - RAX)
-  //  *p++ = 0x24;
-
-  if (offset == 0 && b != RBP - RAX) {
-    ;
-  } else if (is_im8(offset)) {
-    *p++ = IM8(offset);
-  } else if (is_im32(offset)) {
-    PUT_CODE(p, IM32(offset));
-    p += 4;
-  }
-  return p;
-}
-
 static unsigned char *asm_noop(Inst *inst, Code *code) {
   UNUSED(inst);
   unsigned char *p = code->buf;
@@ -657,7 +627,6 @@ static unsigned char *asm_lea_ir(Inst *inst, Code *code) {
 }
 
 static unsigned char *asm_lea_iir(Inst *inst, Code *code) {
-  unsigned char *p = code->buf;
   Expr *offset_expr = inst->src.indirect_with_index.offset;
   Expr *scale_expr = inst->src.indirect_with_index.scale;
   if ((offset_expr == NULL || offset_expr->kind == EX_FIXNUM) &&
@@ -665,14 +634,28 @@ static unsigned char *asm_lea_iir(Inst *inst, Code *code) {
     long offset = offset_expr != NULL ? offset_expr->fixnum : 0;
     long scale = scale_expr != NULL ? scale_expr->fixnum : 1;
     if (is_im32(offset) && 1 <= scale && scale <= 8 && IS_POWER_OF_2(scale)) {
-      const Reg *base_reg = &inst->src.indirect_with_index.base_reg;
-      const Reg *index_reg = &inst->src.indirect_with_index.index_reg;
-      p = put_rex_indirect_with_index(
-          p,
-          opr_regno(base_reg),
-          opr_regno(index_reg),
-          opr_regno(&inst->dst.reg),
-          0x8c, 0x00, offset, scale);
+      int breg = opr_regno(&inst->src.indirect_with_index.base_reg);
+      int ireg = opr_regno(&inst->src.indirect_with_index.index_reg);
+      int dreg = opr_regno(&inst->dst.reg);
+      bool noofs = offset == 0 && breg != RBP - RAX;
+      short buf[] = {
+        0x48 | ((breg & 8) >> 3) | ((ireg & 8) >> 2) | ((dreg & 8) >> 1),
+        0x8d,
+        (noofs ? 0x00 : is_im8(offset) ? 0x40 : 0x80) | ((dreg & 7) << 3) | 0x04,
+        (breg & 7) | ((ireg & 7) << 3) | (kPow2Table[scale] << 6),
+        breg == RSP - RAX ? 0x24 : -1,
+      };
+
+      unsigned char *p = code->buf;
+      p = put_code_filtered(p, buf, ARRAY_SIZE(buf));
+      if (noofs) {
+        ;
+      } else if (is_im8(offset)) {
+        *p++ = IM8(offset);
+      } else if (is_im32(offset)) {
+        PUT_CODE(p, IM32(offset));
+        p += 4;
+      }
       return p;
     }
   }
