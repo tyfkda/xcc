@@ -11,6 +11,8 @@
 #include "util.h"
 #include "var.h"
 
+void dump_expr(FILE *fp, Expr *expr);
+
 static const char *table[] = {
   [EX_ADD] = "+",
   [EX_SUB] = "-",
@@ -45,7 +47,42 @@ static const char *table[] = {
 
 static const char incdec[][3] = {"++", "--"};
 
+void dump_init(FILE *fp, const Initializer *init) {
+  if (init == NULL) {
+    fprintf(fp, "NULL");
+    return;
+  }
+
+  switch (init->kind) {
+  case IK_SINGLE:
+    dump_expr(fp, init->single);
+    break;
+  case IK_MULTI:
+    {
+      fprintf(fp, "{");
+      Vector *multi = init->multi;
+      for (int i = 0; i < multi->len; ++i) {
+        if (i != 0)
+          fprintf(fp, ", ");
+        dump_init(fp, multi->data[i]);
+      }
+      fprintf(fp, "}");
+    }
+    break;
+  case IK_DOT:
+    fprintf(fp, ".%.*s=", init->dot.name->bytes, init->dot.name->chars);
+    dump_init(fp, init->dot.value);
+    break;
+  case IK_ARR:
+    fprintf(fp, "[%zu]=", init->arr.index);
+    dump_init(fp, init->arr.value);
+    break;
+  default: assert(false); break;
+  }
+}
+
 void dump_expr(FILE *fp, Expr *expr) {
+  assert(expr != NULL);
   switch (expr->kind) {
   case EX_FIXNUM:
     fprintf(fp, "%" PRId64, expr->fixnum);
@@ -187,8 +224,13 @@ void dump_expr(FILE *fp, Expr *expr) {
     {
       dump_expr(fp, expr->member.target);
       fputs(expr->token->kind == TK_DOT ? "." : "->", fp);
-      const Name *ident = expr->member.ident->ident;
-      fprintf(fp, "%.*s", ident->bytes, ident->chars);
+      const Token *ident = expr->member.ident;
+      if (ident != NULL) {
+        assert(ident->kind == TK_IDENT);
+        fprintf(fp, "%.*s", ident->ident->bytes, ident->ident->chars);
+      } else {
+        fprintf(fp, "%d", expr->member.index);
+      }
     }
     break;
   case EX_FUNCALL:
@@ -214,10 +256,13 @@ void dump_expr(FILE *fp, Expr *expr) {
     }
     break;
   case EX_COMPLIT:
-  default:
-    fprintf(stderr, "kind=%d, ", expr->kind);
-    assert(!"not handled");
+    fprintf(fp, "((");
+    print_type(fp, expr->type);
+    fprintf(fp, ")");
+    dump_init(fp, expr->complit.original_init);
+    fprintf(fp, ")");
     break;
+  default: assert(!"not handled"); break;
   }
 }
 
@@ -231,7 +276,7 @@ int main(int argc, char *argv[]) {
   init_lexer();
   init_global();
 
-  Vector *toplevel = new_vector();
+  toplevel = new_vector();
   int i = 1;
   if (i < argc - 1) {
     set_source_string(argv[i++], "*decl*", 1);

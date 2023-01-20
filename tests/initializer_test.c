@@ -15,6 +15,7 @@
 static int error_count;
 
 extern void dump_expr(FILE *fp, Expr *expr);
+extern void dump_init(FILE *fp, const Initializer *init);
 
 static bool same_expr(const Expr *expr1, const Expr *expr2) {
   if (expr1->kind != expr2->kind)
@@ -64,36 +65,6 @@ static Initializer *parse_init(const char *source) {
   set_source_file(NULL, fn);
   set_source_string(source, fn, 1);
   return parse_initializer();
-}
-
-void dump_init(FILE *fp, const Initializer *init) {
-  if (init == NULL) {
-    fprintf(fp, "NULL");
-    return;
-  }
-
-  switch (init->kind) {
-  case IK_SINGLE:
-    dump_expr(fp, init->single);
-    break;
-  case IK_MULTI:
-    {
-      Vector *multi = init->multi;
-      fprintf(fp, "{#%d:", multi->len);
-      for (int i = 0; i < multi->len; ++i) {
-        if (i != 0)
-          fprintf(fp, ", ");
-        dump_init(fp, multi->data[i]);
-      }
-      fprintf(fp, "}");
-    }
-    break;
-  case IK_ARR:
-    fprintf(fp, "[%zu]=", init->arr.index);
-    dump_init(fp, init->arr.value);
-    break;
-  default: assert(false); break;
-  }
 }
 
 void expect(Initializer *expected, const char *input_str, Type *type) {

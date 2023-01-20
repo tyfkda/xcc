@@ -748,8 +748,7 @@ static Expr *parse_member_access(Expr *target, Token *acctok) {
 
   ensure_struct(type, ident, curscope);
 
-  const Name *name = ident->ident;
-  int index = find_struct_member(type->struct_.info->members, name);
+  int index = find_struct_member(type->struct_.info->members, ident->ident);
   if (index >= 0) {
     const MemberInfo *member = type->struct_.info->members->data[index];
     Type *type = qualified_type(member->type, target->type->qualifier);
@@ -757,14 +756,21 @@ static Expr *parse_member_access(Expr *target, Token *acctok) {
   } else {
     Vector *stack = new_vector();
     const MemberInfo *member = search_from_anonymous(type, ident->ident, ident, stack);
-    if (member == NULL)
-      parse_error(PE_FATAL, ident, "`%.*s' doesn't exist in the struct", name->bytes, name->chars);
+    if (member == NULL) {
+      parse_error(PE_NOFATAL, ident, "`%.*s' doesn't exist in the struct", ident->ident->bytes, ident->ident->chars);
+      return target;
+    }
     Expr *p = target;
     for (int i = 0; i < stack->len; ++i) {
       int index = (int)(long)stack->data[i];
       const MemberInfo *member = type->struct_.info->members->data[index];
       type = qualified_type(member->type, type->qualifier);
-      p = new_expr_member(acctok, type, p, acctok, index);
+      const Token *memtok = NULL;
+      if (i == stack->len - 1) {  // Last one must be specified member.
+        assert(equal_name(member->name, ident->ident));
+        memtok = ident;
+      }
+      p = new_expr_member(acctok, type, p, memtok, index);
     }
     return p;
   }
