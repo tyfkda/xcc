@@ -255,8 +255,7 @@ static Initializer *flatten_array_initializer(Initializer *init) {
     for (size_t j = 0; j < count; ++j) {
       Initializer *elem = init->multi->data[index + j];
       if (j == 0 && index != start && elem->kind != IK_ARR) {
-        Initializer *arr = malloc(sizeof(*arr));
-        arr->kind = IK_ARR;
+        Initializer *arr = new_initializer(IK_ARR, elem->token);
         arr->arr.index = start;
         arr->arr.value = elem;
         elem = arr;
@@ -265,8 +264,7 @@ static Initializer *flatten_array_initializer(Initializer *init) {
     }
   }
 
-  Initializer *init2 = malloc(sizeof(*init2));
-  init2->kind = IK_MULTI;
+  Initializer *init2 = new_initializer(IK_MULTI, init->token);
   init2->multi = reordered;
   return init2;
 }
@@ -354,8 +352,7 @@ static Initializer *flatten_initializer_multi(Type *type, Initializer *init, int
             midx = (intptr_t)stack->data[0];
             Vector *multi = new_vector();
             vec_push(multi, value);
-            Initializer *init2 = malloc(sizeof(*init2));
-            init2->kind = IK_MULTI;
+            Initializer *init2 = new_initializer(IK_MULTI, value->token);
             init2->multi = multi;
             value = init2;
           }
@@ -377,9 +374,8 @@ static Initializer *flatten_initializer_multi(Type *type, Initializer *init, int
           break;
       }
 
-      Initializer *flat = malloc(sizeof(*flat));
-      flat->kind = IK_MULTI;
-      Vector *v = malloc(sizeof(*v));
+      Initializer *flat = new_initializer(IK_MULTI, init->token);
+      Vector *v = new_vector();
       v->len = v->capacity = n;
       v->data = (void**)values;
       flat->multi = v;
@@ -414,8 +410,7 @@ static Initializer *flatten_initializer_multi(Type *type, Initializer *init, int
         ++eidx;
       }
 
-      Initializer *init2 = malloc(sizeof(*init2));
-      init2->kind = IK_MULTI;
+      Initializer *init2 = new_initializer(IK_MULTI, init->token);
       init2->multi = elems;
       return init2;
     }
@@ -886,7 +881,7 @@ static void exit_scope(void) {
 // Initializer
 
 Initializer *parse_initializer(void) {
-  Initializer *result = malloc(sizeof(*result));
+  Initializer *result;
   const Token *lblace_tok;
   if ((lblace_tok = match(TK_LBRACE)) != NULL) {
     Vector *multi = new_vector();
@@ -899,9 +894,7 @@ Initializer *parse_initializer(void) {
           consume(TK_ASSIGN, "`=' expected for dotted initializer");
           Initializer *value = parse_initializer();
           if (ident != NULL) {
-            init = malloc(sizeof(*init));
-            init->kind = IK_DOT;
-            init->token = ident;
+            init = new_initializer(IK_DOT, ident);
             init->dot.name = ident->ident;
             init->dot.value = value;
           }
@@ -915,9 +908,7 @@ Initializer *parse_initializer(void) {
           consume(TK_RBRACKET, "`]' expected");
           match(TK_ASSIGN);  // both accepted: `[1] = 2`, and `[1] 2`
           Initializer *value = parse_initializer();
-          init = malloc(sizeof(*init));
-          init->kind = IK_ARR;
-          init->token = tok;
+          init = new_initializer(IK_ARR, tok);
           init->arr.index = index;
           init->arr.value = value;
         } else {
@@ -935,13 +926,12 @@ Initializer *parse_initializer(void) {
         }
       }
     }
-    result->kind = IK_MULTI;
-    result->token = lblace_tok;
+    result = new_initializer(IK_MULTI, lblace_tok);
     result->multi = multi;
   } else {
-    result->kind = IK_SINGLE;
-    result->single = parse_assign();
-    result->token = result->single->token;
+    Expr *value = parse_assign();
+    result = new_initializer(IK_SINGLE, value->token);
+    result->single = value;
   }
   return result;
 }
@@ -982,7 +972,6 @@ static Vector *parse_vardecl_cont(Type *rawType, Type *type, int storage, Token 
     }
     first = false;
 
-    Initializer *init = NULL;
     if (match(TK_LPAR)) {  // Function prototype.
       bool vaargs;
       Vector *params = parse_funparams(&vaargs);
@@ -1006,8 +995,7 @@ static Vector *parse_vardecl_cont(Type *rawType, Type *type, int storage, Token 
 
     VarInfo *varinfo = add_var_to_scope(curscope, ident, type, tmp_storage);
     varinfo->type = type;  // type might be changed.
-    if (type->kind != TY_FUNC && match(TK_ASSIGN))
-      init = parse_initializer();
+    Initializer *init = (type->kind != TY_FUNC && match(TK_ASSIGN)) ? parse_initializer() : NULL;
     init = check_vardecl(&type, ident, tmp_storage, init);
     VarDecl *decl = new_vardecl(type, ident, init, tmp_storage);
     if (decls == NULL)

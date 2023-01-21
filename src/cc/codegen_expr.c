@@ -525,10 +525,8 @@ VReg *gen_arith(enum ExprKind kind, const Type *type, VReg *lhs, VReg *rhs) {
 #ifndef __NO_FLONUM
 VReg *gen_const_flonum(Expr *expr) {
   assert(expr->type->kind == TY_FLONUM);
-  Initializer *init = malloc(sizeof(*init));
-  init->kind = IK_SINGLE;
+  Initializer *init = new_initializer(IK_SINGLE, expr->token);
   init->single = expr;
-  init->token = expr->token;
 
   assert(curscope != NULL);
   Type *type = qualified_type(expr->type, TQ_CONST);

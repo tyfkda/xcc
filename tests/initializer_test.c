@@ -94,8 +94,7 @@ void expect2(const char *expected_str, const char *input_str, Type *type) {
 }
 
 Initializer *new_init_single(Expr *expr) {
-  Initializer *init = calloc(1, sizeof(*init));
-  init->kind = IK_SINGLE;
+  Initializer *init = new_initializer(IK_SINGLE, NULL);
   init->single = expr;
   return init;
 }
@@ -110,15 +109,13 @@ Initializer *new_init_multi(int count, ...) {
   }
   va_end(ap);
 
-  Initializer *init = calloc(1, sizeof(*init));
-  init->kind = IK_MULTI;
+  Initializer *init = new_initializer(IK_MULTI, NULL);
   init->multi = elems;
   return init;
 }
 
 Initializer *new_init_arr(size_t index, Initializer *value) {
-  Initializer *init = calloc(1, sizeof(*init));
-  init->kind = IK_ARR;
+  Initializer *init = new_initializer(IK_ARR, NULL);
   init->arr.index = index;
   init->arr.value = value;
   return init;

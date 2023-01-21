@@ -63,10 +63,8 @@ Expr *str_to_char_array_var(Scope *scope, Expr *str, Vector *toplevel) {
     return new_expr_cast(str->type, str->token, str_to_char_array_var(scope, str->unary.sub, toplevel));
 
   Type *type = str->type;
-  Initializer *init = malloc(sizeof(*init));
-  init->kind = IK_SINGLE;
+  Initializer *init = new_initializer(IK_SINGLE, str->token);
   init->single = str;
-  init->token = str->token;
 
   VarInfo *varinfo = str_to_char_array(scope, type, init, toplevel);
   return new_expr_variable(varinfo->name, type, str->token, scope);

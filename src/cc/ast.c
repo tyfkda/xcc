@@ -178,6 +178,13 @@ Expr *new_expr_block(Stmt *block) {
 
 // ================================================
 
+Initializer *new_initializer(enum InitializerKind kind, const Token *token) {
+  Initializer *init = calloc(1, sizeof(*init));
+  init->kind = kind;
+  init->token = token;
+  return init;
+}
+
 VarDecl *new_vardecl(Type *type, const Token *ident, Initializer *init, int storage) {
   VarDecl *decl = malloc(sizeof(*decl));
   decl->type = type;

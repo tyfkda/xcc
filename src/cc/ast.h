@@ -309,6 +309,8 @@ struct Initializer {
   };
 };
 
+Initializer *new_initializer(enum InitializerKind kind, const Token *token);
+
 // Statement
 
 enum StmtKind {

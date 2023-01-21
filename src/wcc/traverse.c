@@ -929,8 +929,7 @@ uint32_t traverse_ast(Vector *decls, Vector *exports, uint32_t stack_size) {
       sp_bottom = ALIGN(address + stack_size, 16);
       GVarInfo *info = get_gvar_info_from_name(alloc_name(SP_NAME, NULL, false));
       assert(info != NULL);
-      Initializer *init = calloc(1, sizeof(*init));
-      init->kind = IK_SINGLE;
+      Initializer *init = new_initializer(IK_SINGLE, NULL);
       init->single = new_expr_fixlit(info->varinfo->type, NULL, sp_bottom);
       info->varinfo->global.init = init;
       VERBOSE("SP bottom: 0x%x  (size=0x%x)\n", sp_bottom, stack_size);
@@ -938,8 +937,7 @@ uint32_t traverse_ast(Vector *decls, Vector *exports, uint32_t stack_size) {
     {  // Break address.
       GVarInfo *info = get_gvar_info_from_name(alloc_name(BREAK_ADDRESS_NAME, NULL, false));
       assert(info != NULL);
-      Initializer *init = calloc(1, sizeof(*init));
-      init->kind = IK_SINGLE;
+      Initializer *init = new_initializer(IK_SINGLE, NULL);
       init->single = new_expr_fixlit(info->varinfo->type, NULL, sp_bottom);
       info->varinfo->global.init = init;
       VERBOSE("Break address: 0x%x\n", sp_bottom);
@@ -951,8 +949,7 @@ uint32_t traverse_ast(Vector *decls, Vector *exports, uint32_t stack_size) {
 
       GVarInfo *info = get_gvar_info_from_name(alloc_name(MEMORY_PAGE_COUNT_NAME, NULL, false));
       assert(info != NULL);
-      Initializer *init = calloc(1, sizeof(*init));
-      init->kind = IK_SINGLE;
+      Initializer *init = new_initializer(IK_SINGLE, NULL);
       init->single = new_expr_fixlit(info->varinfo->type, NULL, page_count);
       info->varinfo->global.init = init;
       VERBOSE("Memory page count: 0x%x\n", page_count);
