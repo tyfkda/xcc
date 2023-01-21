@@ -635,7 +635,7 @@ static Initializer *check_global_initializer(Type *type, Initializer *init) {
       assert(init->kind == IK_MULTI);
       const StructInfo *sinfo = type->struct_.info;
       for (int i = 0, n = sinfo->members->len; i < n; ++i) {
-        const VarInfo *member = sinfo->members->data[i];
+        const MemberInfo *member = sinfo->members->data[i];
         Initializer *init_elem = init->multi->data[i];
         if (init_elem != NULL)
           init->multi->data[i] = check_global_initializer(member->type, init_elem);
@@ -725,7 +725,7 @@ Vector *assign_initial_value(Expr *expr, Initializer *init, Vector *inits) {
       const StructInfo *sinfo = expr->type->struct_.info;
       if (!sinfo->is_union) {
         for (int i = 0, n = sinfo->members->len; i < n; ++i) {
-          const VarInfo *member = sinfo->members->data[i];
+          const MemberInfo *member = sinfo->members->data[i];
           Expr *mem = new_expr_member(NULL, member->type, expr, NULL, i);
           Initializer *init_elem = init->multi->data[i];
           if (init_elem != NULL)
@@ -747,7 +747,7 @@ Vector *assign_initial_value(Expr *expr, Initializer *init, Vector *inits) {
             break;
           }
 
-          const VarInfo *member = sinfo->members->data[i];
+          const MemberInfo *member = sinfo->members->data[i];
           Expr *mem = new_expr_member(NULL, member->type, expr, NULL, i);
           assign_initial_value(mem, init_elem, inits);
           ++count;
