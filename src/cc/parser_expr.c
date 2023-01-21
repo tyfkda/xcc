@@ -750,7 +750,7 @@ static Expr *parse_member_access(Expr *target, Token *acctok) {
   if (index >= 0) {
     const MemberInfo *member = type->struct_.info->members->data[index];
     Type *type = qualified_type(member->type, target->type->qualifier);
-    return new_expr_member(acctok, type, target, ident, index);
+    return new_expr_member(acctok, type, target, ident->ident, index);
   } else {
     Vector *stack = new_vector();
     const MemberInfo *member = search_from_anonymous(type, ident->ident, ident, stack);
@@ -763,12 +763,12 @@ static Expr *parse_member_access(Expr *target, Token *acctok) {
       int index = (int)(long)stack->data[i];
       const MemberInfo *member = type->struct_.info->members->data[index];
       type = qualified_type(member->type, type->qualifier);
-      const Token *memtok = NULL;
+      const Name *member_name = NULL;
       if (i == stack->len - 1) {  // Last one must be specified member.
         assert(equal_name(member->name, ident->ident));
-        memtok = ident;
+        member_name = ident->ident;
       }
-      p = new_expr_member(acctok, type, p, memtok, index);
+      p = new_expr_member(acctok, type, p, member_name, index);
     }
     return p;
   }

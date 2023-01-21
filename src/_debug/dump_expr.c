@@ -224,10 +224,9 @@ void dump_expr(FILE *fp, Expr *expr) {
     {
       dump_expr(fp, expr->member.target);
       fputs(expr->token->kind == TK_DOT ? "." : "->", fp);
-      const Token *ident = expr->member.ident;
+      const Name *ident = expr->member.ident;
       if (ident != NULL) {
-        assert(ident->kind == TK_IDENT);
-        fprintf(fp, "%.*s", ident->ident->bytes, ident->ident->chars);
+        fprintf(fp, "%.*s", ident->bytes, ident->chars);
       } else {
         fprintf(fp, "%d", expr->member.index);
       }
