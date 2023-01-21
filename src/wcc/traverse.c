@@ -707,9 +707,7 @@ static void traverse_stmt(Stmt *stmt) {
     break;
   case ST_LABEL:  traverse_stmt(stmt->label.stmt); break;
   case ST_VARDECL:  traverse_vardecl(stmt); break;
-  case ST_ASM:
-    parse_error(PE_FATAL, stmt->token, "not supported");
-    break;
+  case ST_ASM:  break;
   default:
     parse_error(PE_FATAL, stmt->token, "Unhandled stmt: %d", stmt->kind);
     break;

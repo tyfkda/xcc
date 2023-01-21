@@ -20,6 +20,7 @@ double ceil(double x);
 double modf(double x, double *pint);
 double fmod(double x, double m);
 double frexp(double x, int *p);
+double copysign(double x, double f);
 
 int isfinite(double x);
 int isnan(double x);

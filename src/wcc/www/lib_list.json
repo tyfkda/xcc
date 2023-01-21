@@ -36,6 +36,7 @@
         "./libsrc/math/_normalize_radian.c",
         "./libsrc/math/atan.c",
         "./libsrc/math/ceil.c",
+        "./libsrc/math/copysign.c",
         "./libsrc/math/cos.c",
         "./libsrc/math/exp.c",
         "./libsrc/math/fabs.c",

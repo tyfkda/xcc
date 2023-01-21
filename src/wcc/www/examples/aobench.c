@@ -92,10 +92,6 @@ void ray_plane_intersect(Isect *isect, const Ray *ray, const Plane *plane) {
   }
 }
 
-double copysign(double x, double f) {
-  return f >= 0 ? x : -x;
-}
-
 void orthoBasis(vec *basis, const vec *n) {
   basis[2] = *n;
   double sign = copysign(1.0, n->z);

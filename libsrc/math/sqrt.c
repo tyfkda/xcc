@@ -2,7 +2,15 @@
 
 #ifndef __NO_FLONUM
 double sqrt(double x) {
-#if defined(__x86_64__) && !defined(__GNUC__)
+#if defined(__WASM)
+#define S(x)   S_(x)
+#define S_(x)  #x
+#define OP_LOCAL_GET      32   // 0x20
+#define OP_F64_SQRT       159  // 0x9f
+  __asm(
+      S(OP_LOCAL_GET) ",0,"  // local.get 0
+      S(OP_F64_SQRT));       // f64.sqrt
+#elif defined(__x86_64__) && !defined(__GNUC__)
   __asm("sqrtsd %xmm0, %xmm0");
 #elif defined(__aarch64__) && !defined(__GNUC__)
   __asm("fsqrt d0, d0");

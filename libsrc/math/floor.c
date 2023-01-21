@@ -4,6 +4,15 @@
 
 #ifndef __NO_FLONUM
 double floor(double x) {
+#if defined(__WASM)
+#define S(x)   S_(x)
+#define S_(x)  #x
+#define OP_LOCAL_GET      32   // 0x20
+#define OP_F64_FLOOR      156  // 0x9c
+  __asm(
+      S(OP_LOCAL_GET) ",0,"  // local.get 0
+      S(OP_F64_FLOOR));      // f64.floor
+#else
   int64_t q = *(int64_t*)&x;
   int e = GET_BIASED_EXPO(q);
   if (e <= EXPO_BIAS + FRAC_BIT && e != 0) {
@@ -23,5 +32,6 @@ double floor(double x) {
     }
   }
   return x;
+#endif
 }
 #endif

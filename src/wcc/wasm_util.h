@@ -127,10 +127,14 @@ typedef struct {
 #define OP_F32_SUB        (0x93)
 #define OP_F32_MUL        (0x94)
 #define OP_F32_DIV        (0x95)
+#define OP_F64_CEIL       (0x9b)
+#define OP_F64_FLOOR      (0x9c)
+#define OP_F64_SQRT       (0x9f)
 #define OP_F64_ADD        (0xa0)
 #define OP_F64_SUB        (0xa1)
 #define OP_F64_MUL        (0xa2)
 #define OP_F64_DIV        (0xa3)
+#define OP_F64_COPYSIGN   (0xa6)
 #define OP_I32_WRAP_I64       (0xa7)  // i32 <- i64
 #define OP_I32_TRUNC_F32_S    (0xa8)  // i32 <- f32
 #define OP_I32_TRUNC_F32_U    (0xa9)  // i32 <- f32

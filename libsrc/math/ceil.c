@@ -4,6 +4,15 @@
 
 #ifndef __NO_FLONUM
 double ceil(double x) {
+#if defined(__WASM)
+#define S(x)   S_(x)
+#define S_(x)  #x
+#define OP_LOCAL_GET      32   // 0x20
+#define OP_F64_CEIL       155  // 0x9b
+  __asm(
+      S(OP_LOCAL_GET) ",0,"  // local.get 0
+      S(OP_F64_CEIL));       // f64.ceil
+#else
   int64_t q = *(int64_t*)&x;
   int e = GET_BIASED_EXPO(q);
   if (e <= EXPO_BIAS + FRAC_BIT && e != 0) {
@@ -23,5 +32,6 @@ double ceil(double x) {
     }
   }
   return x;
+#endif
 }
 #endif

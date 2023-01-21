@@ -1426,6 +1426,24 @@ void gen_expr_stmt(Expr *expr) {
   gen_expr(expr, false);
 }
 
+static void gen_asm(Stmt *stmt) {
+  assert(stmt->asm_.str->kind == EX_STR);
+
+  // Assume non-digit character is at the end.
+  for (const char *p = skip_whitespaces(stmt->asm_.str->str.buf);;) {
+    char *next;
+    long op = strtol(p, &next, 10);
+    if (next == p)
+      break;
+    ADD_CODE(op);
+
+    p = skip_whitespaces(next);
+    if (*p != ',')
+      break;
+    p = skip_whitespaces(p + 1);
+  }
+}
+
 static void gen_stmt(Stmt *stmt) {
   if (stmt == NULL)
     return;
@@ -1445,7 +1463,7 @@ static void gen_stmt(Stmt *stmt) {
   // case ST_GOTO:  gen_goto(stmt); break;
   // case ST_LABEL:  gen_label(stmt); break;
   case ST_VARDECL:  gen_vardecl(stmt->vardecl.decls, stmt->vardecl.inits); break;
-  // case ST_ASM:  gen_asm(stmt); break;
+  case ST_ASM:  gen_asm(stmt); break;
   default: assert(false); break;
   }
 }
@@ -1673,7 +1691,7 @@ static void gen_defun(Function *func) {
     Vector *stmts = func->body_block->block.stmts;
     if (stmts->len > 0) {
       Stmt *last = stmts->data[stmts->len - 1];
-      if (last->kind != ST_RETURN && functype->func.ret->kind != TY_VOID) {
+      if (last->kind != ST_RETURN && last->kind != ST_ASM && functype->func.ret->kind != TY_VOID) {
         assert(func->body_block->reach & REACH_STOP);
         ADD_CODE(OP_UNREACHABLE);
       }

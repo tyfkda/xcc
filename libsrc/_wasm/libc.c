@@ -1,6 +1,7 @@
 #include "../math/_normalize_radian.c"
 #include "../math/atan.c"
 #include "../math/ceil.c"
+#include "../math/copysign.c"
 #include "../math/cos.c"
 #include "../math/exp.c"
 #include "../math/fabs.c"

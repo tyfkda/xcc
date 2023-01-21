@@ -132,10 +132,14 @@ const enum Opcode {
   F32_DIV       = 0x95,
   F64_ABS       = 0x99,
   F64_NEG       = 0x9a,
+  F64_CEIL      = 0x9b,
+  F64_FLOOR     = 0x9c,
+  F64_SQRT      = 0x9f,
   F64_ADD       = 0xa0,
   F64_SUB       = 0xa1,
   F64_MUL       = 0xa2,
   F64_DIV       = 0xa3,
+  F64_COPYSIGN  = 0xa6,
   I32_WRAP_I64        = 0xa7,  // i32 <- i64
   I32_TRUNC_F32_S     = 0xa8,  // i32 <- f32
   I32_TRUNC_F32_U     = 0xa9,  // i32 <- f32
@@ -310,10 +314,14 @@ const InstTable = new Map([
   [Opcode.F32_DIV, {op: 'f32.div'}],
   [Opcode.F64_ABS, {op: 'f64.abs'}],
   [Opcode.F64_NEG, {op: 'f64.neg'}],
+  [Opcode.F64_CEIL, {op: 'f64.ceil'}],
+  [Opcode.F64_FLOOR, {op: 'f64.floor'}],
+  [Opcode.F64_SQRT, {op: 'f64.sqrt'}],
   [Opcode.F64_ADD, {op: 'f64.add'}],
   [Opcode.F64_SUB, {op: 'f64.sub'}],
   [Opcode.F64_MUL, {op: 'f64.mul'}],
   [Opcode.F64_DIV, {op: 'f64.div'}],
+  [Opcode.F64_COPYSIGN, {op: 'f64.copysign'}],
 
   [Opcode.I32_WRAP_I64, {op: 'i32.wrap_i64'}],
   [Opcode.I32_TRUNC_F32_S, {op: 'i32.trunc_f32_s'}],
