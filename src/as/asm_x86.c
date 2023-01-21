@@ -57,6 +57,14 @@ static unsigned char *put_rex0(unsigned char *p, enum RegSize size, int sno, int
   return p;
 }
 
+#define MAKE_REX0(size, sno, dno, opcode) \
+  (size) == REG16 ? 0x66 : -1, \
+  ((sno) >= 8 || (dno) >= 8 || \
+      ((size) == REG8 && ((sno) >= 4 || (dno) >= 4)) || \
+      (size) == REG64) \
+    ? (0x40 | (((dno) & 8) >> 3) | (((sno) & 8) >> 1) | ((size) != REG64 ? 0 : 8)) : -1, \
+  opcode
+
 static unsigned char *put_rex1(unsigned char *p, enum RegSize size, int rex_prefix, int dno,
                                unsigned char opcode) {
   p = put_rex0(p, size, 0, dno, opcode);
@@ -71,29 +79,27 @@ static unsigned char *put_rex2(unsigned char *p, enum RegSize size, int sno, int
   return p;
 }
 
-static unsigned char *put_rex_indirect(
-    unsigned char *p, enum RegSize size, int reg, int indirect_reg,
-    unsigned char opcode, unsigned char op2, long offset)
-{
-  p = put_rex0(p, size, reg, indirect_reg,
-               size == REG8 ? opcode : (unsigned char)(opcode + 1));
-  int d = reg & 7;
-  int s = indirect_reg & 7;
-  unsigned char code = (offset == 0 && s != RBP - RAX) ? op2 : is_im8(offset) ? (unsigned char)0x40 : (unsigned char)0x80;
-  *p++ = code | s | (d << 3);
-  if (s == RSP - RAX)
-    *p++ = 0x24;
+#define MAKE_REX_INDIRECT(size, reg, indirect_reg, opcode, op2, offset) \
+  MAKE_REX0(size, reg, indirect_reg, \
+            (size) == REG8 ? opcode : (unsigned char)((opcode) + 1)), \
+  (((offset) == 0 && indirect_reg != RBP - RAX) ? op2 : is_im8(offset) ? 0x40 : 0x80) | (indirect_reg & 7) | ((reg & 7) << 3), \
+  indirect_reg == RSP - RAX ? 0x24 : -1
 
-  if (offset == 0 && s != RBP - RAX) {
-    ;
-  } else if (is_im8(offset)) {
-    *p++ = IM8(offset);
-  } else if (is_im32(offset)) {
-    PUT_CODE(p, IM32(offset));
-    p += 4;
-  }
-  return p;
-}
+#define MAKE_OFFSET(offset, no) \
+  ((offset) == 0 && no) ? -1 : (offset) & 0xff, \
+  ((offset) == 0 && no) || is_im8(offset) ? -1 : ((offset) >>  8) & 0xff, \
+  ((offset) == 0 && no) || is_im8(offset) ? -1 : ((offset) >> 16) & 0xff, \
+  ((offset) == 0 && no) || is_im8(offset) ? -1 : ((offset) >> 24) & 0xff
+
+#define MAKE_IM(size, value) \
+  (value) & 0xff, \
+  size < REG16 ? -1 : ((value) >>  8) & 0xff, \
+  size < REG32 ? -1 : ((value) >>  16) & 0xff, \
+  size < REG32 ? -1 : ((value) >>  24) & 0xff, \
+  size < REG64 ? -1 : ((value) >>  32) & 0xff, \
+  size < REG64 ? -1 : ((value) >>  40) & 0xff, \
+  size < REG64 ? -1 : ((value) >>  48) & 0xff, \
+  size < REG64 ? -1 : ((value) >>  56) & 0xff
 
 static unsigned char *asm_noop(Inst *inst, Code *code) {
   UNUSED(inst);
@@ -119,15 +125,13 @@ static unsigned char *asm_mov_imr(Inst *inst, Code *code) {
     return code->buf;
   }
 
-  p = put_rex0(p, size, 0, opr_regno(&inst->dst.reg),
-               0xb0 | (size == REG8 ? 0 : 8) | inst->dst.reg.no);
-  switch (size) {
-  case REG8:  PUT_CODE(p, IM8(inst->src.immediate)); break;
-  case REG16: PUT_CODE(p, IM16(inst->src.immediate)); break;
-  case REG32: PUT_CODE(p, IM32(inst->src.immediate)); break;
-  case REG64: PUT_CODE(p, IM64(inst->src.immediate)); break;
-  }
-  p += 1 << size;
+  short buf[] = {
+    MAKE_REX0(
+      size, 0, opr_regno(&inst->dst.reg),
+      0xb0 | (size == REG8 ? 0 : 8) | inst->dst.reg.no),
+      MAKE_IM(size, inst->src.immediate),
+  };
+  p = put_code_filtered(p, buf, ARRAY_SIZE(buf));
   return p;
 }
 
@@ -605,11 +609,15 @@ static unsigned char *asm_lea_ir(Inst *inst, Code *code) {
     if (inst->src.indirect.offset->kind == EX_FIXNUM) {
       long offset = inst->src.indirect.offset->fixnum;
       enum RegSize size = inst->dst.reg.size;
-      p = put_rex_indirect(
-          p, size,
+      short buf[] = {
+        MAKE_REX_INDIRECT(
+          size,
           opr_regno(&inst->dst.reg),
           opr_regno(&inst->src.indirect.reg),
-          0x8c, 0x00, offset);
+          0x8c, 0x00, offset),
+        MAKE_OFFSET(offset, inst->src.indirect.reg.no != RBP - RAX),
+      };
+      p = put_code_filtered(p, buf, ARRAY_SIZE(buf));
       return p;
     }
   } else {
@@ -702,11 +710,15 @@ static unsigned char *asm_add_ir(Inst *inst, Code *code) {
     long offset = inst->src.indirect.offset->fixnum;
     enum RegSize size = inst->dst.reg.size;
     unsigned char *p = code->buf;
-    p = put_rex_indirect(
-        p, size,
+    short buf[] = {
+      MAKE_REX_INDIRECT(
+        size,
         opr_regno(&inst->dst.reg),
         opr_regno(&inst->src.indirect.reg),
-        0x02, 0x00, offset);
+        0x02, 0x00, offset),
+      MAKE_OFFSET(offset, inst->src.indirect.reg.no != RBP - RAX),
+    };
+    p = put_code_filtered(p, buf, ARRAY_SIZE(buf));
     return p;
   }
   return NULL;
@@ -816,11 +828,15 @@ static unsigned char *asm_sub_ir(Inst *inst, Code *code) {
     long offset = inst->src.indirect.offset->fixnum;
     enum RegSize size = inst->dst.reg.size;
     unsigned char *p = code->buf;
-    p = put_rex_indirect(
-        p, size,
+    short buf[] = {
+      MAKE_REX_INDIRECT(
+        size,
         opr_regno(&inst->dst.reg),
         opr_regno(&inst->src.indirect.reg),
-        0x2a, 0x00, offset);
+        0x2a, 0x00, offset),
+      MAKE_OFFSET(offset, inst->src.indirect.reg.no != RBP - RAX),
+    };
+    p = put_code_filtered(p, buf, ARRAY_SIZE(buf));
     return p;
   }
   return NULL;
@@ -890,27 +906,39 @@ static unsigned char *asm_subq_imi(Inst *inst, Code *code) {
 static unsigned char *asm_mul_r(Inst *inst, Code *code) {
   enum RegSize size = inst->src.reg.size;
   unsigned char *p = code->buf;
-  p = put_rex0(p, size, 0, opr_regno(&inst->src.reg),
-               0xf6 | (size == REG8 ? 0 : 1));
-  *p++ = 0xe0 | inst->src.reg.no;
+  short buf[] = {
+    MAKE_REX0(
+        size, 0, opr_regno(&inst->src.reg),
+        0xf6 | (size == REG8 ? 0 : 1)),
+    0xe0 | inst->src.reg.no,
+  };
+  p = put_code_filtered(p, buf, ARRAY_SIZE(buf));
   return p;
 }
 
 static unsigned char *asm_div_r(Inst *inst, Code *code) {
   enum RegSize size = inst->src.reg.size;
   unsigned char *p = code->buf;
-  p = put_rex0(p, size, 0, opr_regno(&inst->src.reg),
-               0xf6 | (size == REG8 ? 0 : 1));
-  *p++ = 0xf0 | inst->src.reg.no;
+  short buf[] = {
+    MAKE_REX0(
+        size, 0, opr_regno(&inst->src.reg),
+        0xf6 | (size == REG8 ? 0 : 1)),
+    0xf0 | inst->src.reg.no,
+  };
+  p = put_code_filtered(p, buf, ARRAY_SIZE(buf));
   return p;
 }
 
 static unsigned char *asm_idiv_r(Inst *inst, Code *code) {
   enum RegSize size = inst->src.reg.size;
   unsigned char *p = code->buf;
-  p = put_rex0(p, size, 0, opr_regno(&inst->src.reg),
-               0xf6 | (size == REG8 ? 0 : 1));
-  *p++ = 0xf8 | inst->src.reg.no;
+  short buf[] = {
+    MAKE_REX0(
+        size, 0, opr_regno(&inst->src.reg),
+        0xf6 | (size == REG8 ? 0 : 1)),
+    0xf8 | inst->src.reg.no,
+  };
+  p = put_code_filtered(p, buf, ARRAY_SIZE(buf));
   return p;
 }
 
@@ -940,10 +968,14 @@ static unsigned char *asm_incbwlq_i(Inst *inst, Code *code) {
     enum RegSize size = inst->op + (REG8 - INCB);
     long offset = inst->src.indirect.offset->fixnum;
     unsigned char *p = code->buf;
-    p = put_rex_indirect(
-        p, size,
+    short buf[] = {
+      MAKE_REX_INDIRECT(
+        size,
         0, opr_regno(&inst->src.indirect.reg),
-        0xfe, 0x00, offset);
+        0xfe, 0x00, offset),
+      MAKE_OFFSET(offset, inst->src.indirect.reg.no != RBP - RAX),
+    };
+    p = put_code_filtered(p, buf, ARRAY_SIZE(buf));
     return p;
   }
   return NULL;
@@ -961,10 +993,14 @@ static unsigned char *asm_decbwlq_i(Inst *inst, Code *code) {
     enum RegSize size = inst->op + (REG8 - DECB);
     long offset = inst->src.indirect.offset->fixnum;
     unsigned char *p = code->buf;
-    p = put_rex_indirect(
-        p, size,
+    short buf[] = {
+      MAKE_REX_INDIRECT(
+        size,
         1, opr_regno(&inst->src.indirect.reg),
-        0xfe, 0x08, offset);
+        0xfe, 0x08, offset),
+      MAKE_OFFSET(offset, inst->src.indirect.reg.no != RBP - RAX),
+    };
+    p = put_code_filtered(p, buf, ARRAY_SIZE(buf));
     return p;
   }
   return NULL;
@@ -1223,16 +1259,24 @@ static unsigned char *asm_cqto(Inst *inst, Code *code) {
 
 static unsigned char *asm_set_r(Inst *inst, Code *code) {
   unsigned char *p = code->buf;
-  p = put_rex0(p, REG8, 0, opr_regno(&inst->src.reg), 0x0f);
-  *p++ = 0x90 | (inst->op - SETO);
-  *p++ = 0xc0 | inst->src.reg.no;
+  short buf[] = {
+    MAKE_REX0(
+        REG8, 0, opr_regno(&inst->src.reg), 0x0f),
+    0x90 | (inst->op - SETO),
+    0xc0 | inst->src.reg.no,
+  };
+  p = put_code_filtered(p, buf, ARRAY_SIZE(buf));
   return p;
 }
 
 static unsigned char *asm_push_r(Inst *inst, Code *code) {
   unsigned char *p = code->buf;
-  p = put_rex0(p, REG32, 0, opr_regno(&inst->src.reg),
-               0x50 | inst->src.reg.no);
+  short buf[] = {
+    MAKE_REX0(
+        REG32, 0, opr_regno(&inst->src.reg),
+        0x50 | inst->src.reg.no),
+  };
+  p = put_code_filtered(p, buf, ARRAY_SIZE(buf));
   return p;
 }
 
@@ -1254,8 +1298,12 @@ static unsigned char *asm_push_im(Inst *inst, Code *code) {
 
 static unsigned char *asm_pop_r(Inst *inst, Code *code) {
   unsigned char *p = code->buf;
-  p = put_rex0(p, REG32, 0, opr_regno(&inst->src.reg),
-               0x58 | inst->src.reg.no);
+  short buf[] = {
+    MAKE_REX0(
+        REG32, 0, opr_regno(&inst->src.reg),
+        0x58 | inst->src.reg.no),
+  };
+  p = put_code_filtered(p, buf, ARRAY_SIZE(buf));
   return p;
 }
 
