@@ -56,7 +56,8 @@ test:	test-printf test-math test-longjmp
 
 .PHONY: clean-test
 clean-test:
-	rm -rf printf_test math_test longjmp_test
+	rm -rf printf_test math_test longjmp_test \
+		*.wasm
 
 .PHONY: test-printf
 test-printf:	printf_test
@@ -90,3 +91,28 @@ LONGJMP_SRCS:=misc/setjmp.c
 LONGJMP_OBJS:=$(addprefix $(LIBOBJ_DIR)/,$(notdir $(LONGJMP_SRCS:.c=.o)))
 longjmp_test:	tests/longjmp_test.c $(LONGJMP_OBJS)
 	$(CC) -o$@ $(CFLAGS) -I$(INC_DIR) -DUNIT_TEST -ffreestanding $^
+
+### Wasm version
+
+WCC:=../wcc
+
+.PHONY: test-wcc
+test-wcc:	test-wcc-printf test-wcc-math
+
+.PHONY: test-wcc-printf
+test-wcc-printf:	printf_test.wasm
+	@echo '## printf test'
+	node ../tool/runwasm.js $<
+	@echo ''
+
+printf_test.wasm:	tests/printf_test.c # $(WCC)
+	$(WCC) -o$@ $^
+
+.PHONY: test-wcc-math
+test-wcc-math:	math_test.wasm
+	@echo '## math test'
+	node ../tool/runwasm.js $<
+	@echo ''
+
+math_test.wasm:	tests/math_test.c # $(WCC)
+	$(WCC) -o$@ $^

@@ -222,7 +222,8 @@ $(WCC_OBJ_DIR)/%.o: $(UTIL_DIR)/%.c $(PARENT_DEPS)
 
 .PHONY: test-wcc
 test-wcc:	wcc
-	$(MAKE) -C tests clean test-wcc
+	$(MAKE) -C tests clean && $(MAKE) -C tests test-wcc
+	$(MAKE) -C libsrc clean-test && $(MAKE) -C libsrc test-wcc
 
 .PHONY: wcc-on-xcc
 wcc-on-xcc:	all

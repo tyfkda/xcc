@@ -39,7 +39,7 @@ clean:
 	rm -f table_test util_test parser_test initializer_test print_type_test \
 		valtest dvaltest fvaltest link_test \
 		a.out tmp* *.o mandelbrot.ppm \
-		a.wasm valtest.wasm
+		*.wasm
 
 .PHONY: test-initializer
 test-initializer:	initializer_test
@@ -161,7 +161,7 @@ test-std-valtest:
 WCC:=../wcc
 
 .PHONY: test-wcc
-test-wcc:	test-wcc-sh test-wcc-val
+test-wcc:	test-wcc-sh test-wcc-val test-wcc-dval test-wcc-fval
 	@echo 'All tests PASS!'
 
 .PHONY: test-wcc-sh
@@ -181,3 +181,21 @@ test-wcc-val:	valtest.wasm
 
 valtest.wasm:	$(VAL_SRCS) # $(WCC)
 	$(WCC) -o$@ -I$(EXAMPLES_DIR) $^
+
+.PHONY: test-wcc-dval
+test-wcc-dval:	dvaltest.wasm
+	@echo '## dvaltest'
+	node ../tool/runwasm.js $<
+	@echo ''
+
+dvaltest.wasm:	$(FVAL_SRCS) # $(WCC)
+	$(WCC) -o$@ -I$(EXAMPLES_DIR) $^
+
+.PHONY: test-wcc-fval
+test-wcc-fval:	fvaltest.wasm
+	@echo '## fvaltest'
+	node ../tool/runwasm.js $<
+	@echo ''
+
+fvaltest.wasm:	$(FVAL_SRCS) # $(WCC)
+	$(WCC) -o$@ -I$(EXAMPLES_DIR) -DUSE_SINGLE $^
