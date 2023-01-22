@@ -168,6 +168,7 @@ const enum Opcode {
 const enum WasmType {
   VOID       = 0x40,
   FUNC       = 0x60,
+  FUNCREF    = 0x70,
   F64        = 0x7c,
   F32        = 0x7d,
   I64        = 0x7e,
@@ -186,6 +187,9 @@ const enum OpKind {
   LOAD,
   STORE,
   BR_TABLE,
+  CALL,
+  CALL_INDIRECT,
+  MEMORY_GROW,
 }
 
 const enum OperandKind {
@@ -210,8 +214,8 @@ const InstTable = new Map([
   [Opcode.BR_IF, {op: 'br_if', operands: [OperandKind.ULEB128]}],
   [Opcode.BR_TABLE, {op: 'br_table', operands: [OperandKind.ULEB128ARRAY, OperandKind.ULEB128], opKind: OpKind.BR_TABLE}],
   [Opcode.RETURN, {op: 'return'}],
-  [Opcode.CALL, {op: 'call', operands: [OperandKind.ULEB128]}],
-  [Opcode.CALL_INDIRECT, {op: 'call_indirect', operands: [OperandKind.ULEB128, OperandKind.ULEB128]}],
+  [Opcode.CALL, {op: 'call', operands: [OperandKind.ULEB128], opKind: OpKind.CALL}],
+  [Opcode.CALL_INDIRECT, {op: 'call_indirect', operands: [OperandKind.ULEB128, OperandKind.ULEB128], opKind: OpKind.CALL_INDIRECT}],
   [Opcode.DROP, {op: 'drop'}],
   [Opcode.SELECT, {op: 'select'}],
   [Opcode.LOCAL_GET, {op: 'local.get', operands: [OperandKind.ULEB128]}],
@@ -237,7 +241,7 @@ const InstTable = new Map([
   [Opcode.I64_STORE16, {op: 'i64.store16', operands: [OperandKind.ULEB128, OperandKind.ULEB128], opKind: OpKind.STORE}],
   [Opcode.I64_STORE32, {op: 'i64.store32', operands: [OperandKind.ULEB128, OperandKind.ULEB128], opKind: OpKind.STORE}],
   [Opcode.MEMORY_SIZE, {op: 'memory.size', operands: [OperandKind.ULEB128]}],
-  [Opcode.MEMORY_GROW, {op: 'memory.grow', operands: [OperandKind.ULEB128]}],
+  [Opcode.MEMORY_GROW, {op: 'memory.grow', operands: [OperandKind.ULEB128], opKind: OpKind.MEMORY_GROW}],
   [Opcode.I32_CONST, {op: 'i32.const', operands: [OperandKind.I32CONST]}],
   [Opcode.I64_CONST, {op: 'i64.const', operands: [OperandKind.I64CONST]}],
   [Opcode.F32_CONST, {op: 'f32.const', operands: [OperandKind.F32CONST]}],
@@ -377,7 +381,7 @@ class BufferReader {
     let ofs = this.offset
     while (ofs < this.byteArray.byteLength) {
       if (bits >= 32 - 7)
-        return this.readiconstBig(BigInt(x), bits, ofs)
+        return this.readiconstBig(BigInt(x), BigInt(bits), ofs)
       const c = this.byteArray[ofs++]
       x |= (c & 0x7f) << bits
       bits += 7
@@ -391,15 +395,15 @@ class BufferReader {
     this.offset = ofs
     return x
   }
-  public readiconstBig(x: bigint, bits: number, ofs: number): bigint {
+  public readiconstBig(x: bigint, bits: bigint, ofs: number): bigint {
     while (ofs < this.byteArray.byteLength) {
       const c = this.byteArray[ofs++]
-      x += BigInt(c & 0x7f) << BigInt(bits)
-      bits += 7
+      x += BigInt(c & 0x7f) << bits
+      bits += BigInt(7)
 
       if ((c & 0x80) === 0) {
         if ((c & 0x40) !== 0)
-          x -= BigInt(1 << bits)
+          x -= BigInt(1) << bits
         break
       }
     }
@@ -607,6 +611,7 @@ export class DisWasm {
   private functions = new Array<number>()
   private codes = new Array<Array<Inst>>()
   private importFuncCount = 0
+  private funcs = new Map<number, [string, string]>()
   private log: (s: string)=>void = console.log
 
   constructor(buffer: ArrayBuffer, private opts: object = {}) {
@@ -658,11 +663,6 @@ export class DisWasm {
 
       this.log(`\n;;=== 0x${offset.toString(16)}: ${SectionNames[sec] || `(section ${sec})`}, len=${len}`)
       switch (sec) {
-      case Section.TABLE:
-      case Section.ELEM:
-        // TODO
-        break
-
       case Section.TYPE:
         this.readTypeSection()
         break
@@ -675,6 +675,10 @@ export class DisWasm {
         this.readFuncSection()
         break
 
+      case Section.TABLE:
+        this.readTableSection()
+        break
+
       case Section.MEMORY:
         this.readMemorySection()
         break
@@ -685,6 +689,10 @@ export class DisWasm {
 
       case Section.EXPORT:
         this.readExportSection()
+        break
+
+      case Section.ELEM:
+        this.readElemSection()
         break
 
       case Section.CODE:
@@ -709,7 +717,7 @@ export class DisWasm {
       const offset = this.bufferReader.getOffset()
       const type = readType(this.bufferReader)
       this.types.push(type)
-      this.log(`${this.addr(offset)}(type (;${i};) ${type.toString()})`)
+      this.log(`${this.addr(offset)}(type ${type.toString()})  ;; ${i}`)
     }
   }
 
@@ -722,10 +730,12 @@ export class DisWasm {
       const kind = this.bufferReader.readu8()
       if (kind !== ImportKind.FUNC)
         throw(`Illegal import kind: ${kind}`)
-      const index = this.bufferReader.readUleb128()
-      this.log(`${this.addr(offset)}(import "${modName}" "${name}" (func (;${this.importFuncCount};) (type ${index})))`)
-      this.importFuncCount += 1
+      const typeIndex = this.bufferReader.readUleb128()
+      const funcNo = this.funcs.size
+      this.log(`${this.addr(offset)}(import "${modName}" "${name}" (func $${name} (type ${typeIndex})))  ;; ${funcNo}`)
+      this.funcs.set(funcNo, [modName, name])
     }
+    this.importFuncCount = this.funcs.size
   }
 
   private readFuncSection(): void {
@@ -733,6 +743,16 @@ export class DisWasm {
     for (let i = 0; i < num; ++i) {
       const typeIndex = this.bufferReader.readUleb128()
       this.functions.push(typeIndex)
+    }
+  }
+
+  private readTableSection(): void {
+    const num = this.bufferReader.readUleb128()
+    for (let i = 0; i < num; ++i) {
+      const tt = this.bufferReader.readUleb128()
+      const limits = this.bufferReader.readUleb128()
+      const initial = this.bufferReader.readUleb128()
+      this.log(`(table ${initial} ${tt == WasmType.FUNCREF ? 'funcref' : '?'})  ;; ${i}: limits=${limits}`)
     }
   }
 
@@ -753,13 +773,14 @@ export class DisWasm {
       const type = readType(this.bufferReader)
       const mut = this.bufferReader.readu8()
       const value = readGlobalValue(this.bufferReader)
-      this.log(`${this.addr(offset)}(global (;${i};) ${mut !== 0 ? `(mut ${type})` : `${type}`} (${type}.const ${value}))`)
+      this.log(`${this.addr(offset)}(global ${mut !== 0 ? `(mut ${type})` : `${type}`} (${type}.const ${value}))  ;; ${i}`)
       this.bufferReader.readu8()  // Skip OP_END
     }
   }
 
   private readExportSection(): void {
     const KindNames = ['func', null, 'memory', 'global']
+    const FUNC = 0
 
     const num = this.bufferReader.readUleb128()
     for (let i = 0; i < num; ++i) {
@@ -768,6 +789,24 @@ export class DisWasm {
       const kind = this.bufferReader.readu8()
       const index = this.bufferReader.readUleb128()
       this.log(`${this.addr(offset)}(export "${name}" (${KindNames[kind] || `kind=${kind}`} ${index}))`)
+      if (kind === FUNC) {
+        this.funcs.set(index, ['', name])
+      }
+    }
+  }
+
+  private readElemSection(): void {
+    const segnum = this.bufferReader.readUleb128()
+    for (let i = 0; i < segnum; ++i) {
+      /*const flag =*/ this.bufferReader.readUleb128()
+      let start = 0
+      if (this.bufferReader.readu8() !== Opcode.I32_CONST ||
+          (start = this.bufferReader.readUleb128(),
+           this.bufferReader.readu8() !== Opcode.END))
+        throw 'Unsupported elem section'
+      const count = this.bufferReader.readUleb128()
+      const indices = [...Array(count)].map(_ => this.bufferReader.readUleb128())
+      this.log(`(elem (i32.const ${start}) func ${indices.join(' ')})  ;; ${i}`)
     }
   }
 
@@ -776,20 +815,28 @@ export class DisWasm {
     for (let i = 0; i < num; ++i) {
       const offset = this.bufferReader.getOffset()
       const typeIndex = this.functions[i]
-      this.log(`${this.addr(offset)}(func (;${i + this.importFuncCount};) (type ${typeIndex})`)
+      const funcNo = i + this.importFuncCount
+      let funcComment = `(;${funcNo};)`
+      if (this.funcs.has(funcNo)) {
+        const [_mod, name] = this.funcs.get(funcNo)!
+        funcComment = `$${name} ${funcComment}`
+      }
+      this.log(`${this.addr(offset)}(func ${funcComment} (type ${typeIndex})`)
       const code = this.readCode()
       this.codes.push(code)
     }
   }
 
   private readCode(): Inst[] {
-    const toStringOperand = (x) => {
-      if (x === Number.POSITIVE_INFINITY)
-        return 'inf'
-      if (x === Number.NEGATIVE_INFINITY)
-        return '-inf'
-      if (isNaN(x))
-        return 'nan'
+    const toStringOperand = (x: any) => {
+      if (typeof x !== 'bigint') {
+        if (x === Number.POSITIVE_INFINITY)
+          return 'inf'
+        if (x === Number.NEGATIVE_INFINITY)
+          return '-inf'
+        if (isNaN(x))
+          return 'nan'
+      }
       return x.toString()
     }
 
@@ -797,12 +844,13 @@ export class DisWasm {
     const endOfs = this.bufferReader.getOffset() + bodySize
     const localDeclCount = this.bufferReader.readUleb128()
     if (localDeclCount > 0) {
-      for (let i = 0; i < localDeclCount; ++i) {
-        const offset = this.bufferReader.getOffset()
+      const offset = this.bufferReader.getOffset()
+      const types = [...Array(localDeclCount)].map(_ => {
         const num = this.bufferReader.readUleb128()
         const t = readType(this.bufferReader)
-        this.log(`${this.addr(offset)}  ${[...Array(num)].map(_ => `(local ${t})`).join(' ')}`)
-      }
+        return [...Array(num)].map(_ => t)
+      }).flat().join(' ')
+      this.log(`${this.addr(offset)}  (local ${types})`)
     }
 
     const code = new Array<Inst>()
@@ -839,6 +887,23 @@ export class DisWasm {
         case OpKind.BR_TABLE:
           operands = `${(inst.operands[0] as Array<number>).join(' ')} ${inst.operands[1]}`
           break
+        case OpKind.CALL:
+          {
+            const funcNo = inst.operands[0] as number
+            if (this.funcs.has(funcNo)) {
+              const [_mod, name] = this.funcs.get(funcNo)!
+              operands = `$${name}`
+            } else {
+              operands = `${funcNo}`
+            }
+          }
+          break
+        case OpKind.CALL_INDIRECT:
+          operands = `(type ${inst.operands[0]})`
+          break
+        case OpKind.MEMORY_GROW:
+          // Omit operands.
+          break
         default:
           operands = inst.operands.map(toStringOperand).join(' ')
           break
@@ -871,10 +936,11 @@ export class DisWasm {
     for (let i = 0; i < num; ++i) {
       const offset = this.bufferReader.getOffset()
       /*const flag =*/ this.bufferReader.readUleb128()
+      let start = 0
       if (this.bufferReader.readu8() !== Opcode.I32_CONST ||
-          this.bufferReader.readu8() !== 0x00 ||
-          this.bufferReader.readu8() !== Opcode.END)
-        throw 'Illegal data'
+          (start = this.bufferReader.readUleb128(),
+           this.bufferReader.readu8() !== Opcode.END))
+        throw 'Unsupported data section'
       const datasize = this.bufferReader.readUleb128()
       const data = new Array<string>(datasize)
       for (let i = 0; i < datasize; ++i) {
@@ -882,7 +948,7 @@ export class DisWasm {
         data[i] = escapeChar(c)
       }
 
-      this.log(`${this.addr(offset)}(data (;${i};) (i32.const 0) "${data.join('')}")`)
+      this.log(`${this.addr(offset)}(data (;${i};) (i32.const ${start}) "${data.join('')}")`)
     }
   }
 
