@@ -276,7 +276,7 @@ static void gen_switch_cond(Stmt *stmt) {
   } else {
     if (len > 0) {
       // Sort cases in increasing order.
-      myqsort(cases->data, len, sizeof(void*), compare_cases);
+      qsort(cases->data, len, sizeof(void*), compare_cases);
 
       if (stmt->switch_.default_ != NULL)
         --len;  // Ignore default.

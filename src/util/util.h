@@ -41,8 +41,6 @@ bool is_im16(intptr_t x);
 bool is_im32(intptr_t x);
 const char *skip_whitespaces(const char *s);
 
-void myqsort(void *base, size_t nmemb, size_t size, int (*compare)(const void *, const void *));
-
 // Container
 
 typedef struct Buffer {

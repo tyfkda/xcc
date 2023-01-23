@@ -343,7 +343,7 @@ void alloc_physical_registers(RegAlloc *ra, BBContainer *bbcon) {
     sorted_intervals = realloc(sorted_intervals, sizeof(LiveInterval*) * vreg_count);
     for (int i = 0; i < vreg_count; ++i)
       sorted_intervals[i] = &intervals[i];
-    myqsort(sorted_intervals, vreg_count, sizeof(LiveInterval*), sort_live_interval);
+    qsort(sorted_intervals, vreg_count, sizeof(LiveInterval*), sort_live_interval);
     ra->sorted_intervals = sorted_intervals;
 
     linear_scan_register_allocation(ra, sorted_intervals, vreg_count);
