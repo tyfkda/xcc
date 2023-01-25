@@ -222,7 +222,7 @@ static void gen_cast(const Type *dst, Type *src) {
               ADD_LEB128((1 << (d * CHAR_BIT)) - 1);
               ADD_CODE(OP_I32_AND);
             } else {
-              int shift = (s - d) * CHAR_BIT;
+              int shift = (I32_SIZE - d) * CHAR_BIT;
               ADD_CODE(OP_I32_CONST);
               ADD_LEB128(shift);
               ADD_CODE(OP_I32_SHL);
