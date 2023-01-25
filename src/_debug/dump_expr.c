@@ -42,7 +42,6 @@ static const char *table[] = {
   [EX_REF] = "&",     // &
   [EX_DEREF] = "*",   // *
   // [EX_CAST] = "",
-  // [EX_MODIFY] = "",  // +=, etc.
 };
 
 static const char incdec[][3] = {"++", "--"};
@@ -197,16 +196,6 @@ void dump_expr(FILE *fp, Expr *expr) {
     fprintf(fp, ")");
     dump_expr(fp, expr->unary.sub);
     break;
-  case EX_MODIFY:
-    {
-      Expr *sub = expr->unary.sub;
-      fprintf(fp, "(");
-      dump_expr(fp, sub->bop.lhs);
-      fprintf(fp, " %s= ", table[sub->kind]);
-      dump_expr(fp, sub->bop.rhs);
-      fprintf(fp, ")");
-    }
-    break;
 
   case EX_TERNARY:
     {
@@ -281,6 +270,9 @@ int main(int argc, char *argv[]) {
     set_source_string(argv[i++], "*decl*", 1);
     parse(toplevel);
   }
+
+  Scope *scope = new_scope(global_scope, NULL);
+  curscope = scope;
 
   for (; i < argc; ++i) {
     char *source = argv[i];

@@ -363,9 +363,9 @@ static void gen_funcall(Expr *expr) {
     spvar = get_sp_var();
     // global.sp -= ALIGN(sarg_siz + vaarg_bufsiz, 8);
     gen_expr_stmt(
-        new_expr_unary(EX_MODIFY, &tyVoid, NULL,
-                       new_expr_bop(EX_SUB, &tySize, NULL, spvar,
-                                    new_expr_fixlit(&tySize, NULL, ALIGN(sarg_siz + vaarg_bufsiz, 8)))));
+        new_expr_bop(EX_ASSIGN, &tyVoid, NULL, spvar,
+            new_expr_bop(EX_SUB, &tySize, NULL, spvar,
+                new_expr_fixlit(&tySize, NULL, ALIGN(sarg_siz + vaarg_bufsiz, 8)))));
   }
 
   bool ret_param = functype->func.ret->kind != TY_VOID && !is_prim_type(functype->func.ret);
@@ -448,9 +448,9 @@ static void gen_funcall(Expr *expr) {
   if (sarg_siz > 0 || vaarg_bufsiz > 0) {
     // global.sp += ALIGN(sarg_siz + vaarg_bufsiz, 8);
     gen_expr_stmt(
-        new_expr_unary(EX_MODIFY, &tyVoid, NULL,
-                       new_expr_bop(EX_ADD, &tySize, NULL, spvar,
-                                    new_expr_fixlit(&tySize, NULL, ALIGN(sarg_siz + vaarg_bufsiz, 8)))));
+        new_expr_bop(EX_ASSIGN, &tyVoid, NULL, spvar,
+            new_expr_bop(EX_ADD, &tySize, NULL, spvar,
+                new_expr_fixlit(&tySize, NULL, ALIGN(sarg_siz + vaarg_bufsiz, 8)))));
   }
 }
 
@@ -873,69 +873,6 @@ void gen_expr(Expr *expr, bool needval) {
           }
         }
         break;
-      default: assert(false); break;
-      }
-    }
-    break;
-
-  case EX_MODIFY:
-    {
-      assert(expr->type->kind == TY_VOID);
-      Expr *sub = expr->unary.sub;
-      Expr *lhs = sub->bop.lhs;
-      switch (lhs->type->kind) {
-      case TY_FIXNUM:
-      case TY_PTR:
-#ifndef __NO_FLONUM
-      case TY_FLONUM:
-#endif
-        {
-          bool simple = false;
-          switch (lhs->kind) {
-          case EX_VAR:
-            {
-              VarInfo *varinfo = scope_find(lhs->var.scope, lhs->var.name, NULL);
-              assert(varinfo != NULL);
-              simple = !(varinfo->storage & VS_REF_TAKEN);
-            }
-            break;
-          case EX_DEREF:
-            assert(lhs->unary.sub->kind == EX_VAR);
-            simple = false;
-            break;
-          default: assert(false); break;
-          }
-          if (!simple) {
-            const Type *type = lhs->type;
-            gen_lval(lhs, true);
-            gen_lval(lhs, true);  // We can safely evaluate lhs two times, since lhs has no side effect.
-            gen_load(type);
-            gen_expr(sub->bop.rhs, true);
-            gen_arith(sub->kind, type);
-            gen_store(type);
-            return;
-          }
-
-          assert(lhs->kind == EX_VAR);
-          gen_expr(lhs, true);
-          gen_expr(sub->bop.rhs, true);
-          gen_arith(sub->kind, sub->type);
-
-          Scope *scope;
-          const VarInfo *varinfo = scope_find(lhs->var.scope, lhs->var.name, &scope);
-          assert(varinfo != NULL);
-          if (!is_global_scope(scope) && !(varinfo->storage & (VS_STATIC | VS_EXTERN))) {
-            assert(varinfo->local.reg != NULL);
-            assert(!(varinfo->storage & VS_REF_TAKEN));
-            ADD_CODE(OP_LOCAL_SET);
-            ADD_ULEB128(varinfo->local.reg->prim.local_index);
-          } else {
-            GVarInfo *info = get_gvar_info(lhs);
-            ADD_CODE(OP_GLOBAL_SET);
-            ADD_ULEB128(info->prim.index);
-          }
-        }
-        return;
       default: assert(false); break;
       }
     }
@@ -1658,9 +1595,9 @@ static void gen_defun(Function *func) {
     // global.sp -= frame_size;
     if (frame_size > 0) {
       gen_expr_stmt(
-          new_expr_unary(EX_MODIFY, &tyVoid, NULL,
-                         new_expr_bop(EX_SUB, &tySize, NULL, spvar,
-                                      new_expr_fixlit(&tySize, NULL, frame_size))));
+          new_expr_bop(EX_ASSIGN, &tyVoid, NULL, spvar,
+              new_expr_bop(EX_SUB, &tySize, NULL, spvar,
+                  new_expr_fixlit(&tySize, NULL, frame_size))));
     }
   }
   // Store ref-taken parameters to stack frame.

@@ -112,6 +112,19 @@ int main(void) {
   expect("&", 0xa0, (x=0xa5, x & 0xf0));
   expect("|", 0xbc, (x=0x88, x | 0x3c));
   expect("^", 0x66, (x=0xc3, x ^ 0xa5));
+
+  {
+    unsigned char x = 0xff;
+    unsigned char y = 0x13;
+    unsigned char z;
+    expect("unsigned char +", 0x12, z = x + y);
+    expect("unsigned char -", 0xec, z = x - y);
+    expect("unsigned char -", 0x14, z = y - x);
+    expect("unsigned char *", 0xed, z = x * y);
+    expect("unsigned char /", 0x0d, z = x / y);
+    expect("unsigned char %", 0x08, z = x % y);
+  }
+
   {
     short x = 3;
     expect("short", 1, x == 3 && sizeof(x) == 2);
@@ -125,7 +138,7 @@ int main(void) {
     expect("unsigned char", 255, c);
   }
   {
-    char c = 0xbd;
+    char c = -0x43;
     expect("cast to unsigned", 0xbd, (unsigned char)c);
   }
   {

@@ -55,7 +55,7 @@ const MemberInfo *search_from_anonymous(const Type *type, const Name *name, cons
                                         Vector *stack);
 VarInfo *str_to_char_array(Scope *scope, Type *type, Initializer *init, Vector *toplevel);
 Expr *str_to_char_array_var(Scope *scope, Expr *str, Vector *toplevel);
-Expr *new_expr_addsub(enum ExprKind kind, const Token *tok, Expr *lhs, Expr *rhs, bool keep_left);
+Expr *new_expr_addsub(enum ExprKind kind, const Token *tok, Expr *lhs, Expr *rhs);
 
 Initializer *parse_initializer(void);
 Type *fix_array_size(Type *type, Initializer *init);
