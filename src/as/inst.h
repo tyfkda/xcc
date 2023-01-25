@@ -124,10 +124,11 @@ enum RegType {
   CL,
   DL,
   BL,
-  SPL,
-  BPL,
-  SIL,
-  DIL,
+  // 8bit (high)
+  AH,
+  CH,
+  DH,
+  BH,
 
   // 8bit
   R8B,
@@ -138,6 +139,11 @@ enum RegType {
   R13B,
   R14B,
   R15B,
+
+  SPL = R15B + 1 + 4,
+  BPL,
+  SIL,
+  DIL,
 
   // 16bit
   AX,
