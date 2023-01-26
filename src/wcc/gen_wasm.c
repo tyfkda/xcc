@@ -519,7 +519,7 @@ static void gen_lval(Expr *expr, bool needval) {
         if (varinfo->type->kind == TY_FUNC) {
           uint32_t indirect_func = get_indirect_function_index(expr->var.name);
           ADD_CODE(OP_I32_CONST);
-          ADD_ULEB128(indirect_func);
+          ADD_LEB128(indirect_func);
         } else {
           GVarInfo *info = get_gvar_info(expr);
           ADD_CODE(OP_I32_CONST);
