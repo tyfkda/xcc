@@ -333,6 +333,10 @@ static Expr *new_expr_num_bop(enum ExprKind kind, const Token *tok, Expr *lhs, E
     }
 #endif
 
+    if ((kind == EX_DIV || kind == EX_MOD) && rhs->fixnum == 0) {
+      parse_error(PE_FATAL, tok, "Divide by 0");
+    }
+
 #define CALC(kind, l, r, value) \
   switch (kind) { \
   default: assert(false); /* Fallthrough */ \
@@ -359,6 +363,11 @@ static Expr *new_expr_num_bop(enum ExprKind kind, const Token *tok, Expr *lhs, E
     if (type->fixnum.kind < FX_INT)
       type = &tyInt;
     return new_expr_fixlit(type, lhs->token, clamp_value(value, type_size(type), type->fixnum.is_unsigned));
+  }
+
+  if ((kind == EX_DIV || kind == EX_MOD) && is_const(rhs) &&
+      is_fixnum(rhs->type->kind) && rhs->fixnum == 0) {
+    parse_error(PE_WARNING, tok, "Divide by 0");
   }
 
   cast_numbers(&lhs, &rhs, true);

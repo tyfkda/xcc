@@ -143,8 +143,6 @@ VReg *new_ir_bop(enum IrKind kind, VReg *opr1, VReg *opr2, const VRegType *vtype
         break;
       case IR_MUL:
       case IR_DIV:
-        if (opr2->fixnum == 0)
-          error("Divide by 0");
         if (opr2->fixnum == 1)
           return opr1;
         break;
