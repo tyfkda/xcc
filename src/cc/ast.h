@@ -202,7 +202,6 @@ enum ExprKind {
   EX_REF,     // &
   EX_DEREF,   // *
   EX_CAST,
-  EX_MODIFY,  // +=, etc.
 
   EX_TERNARY, // a ? b : c
   EX_MEMBER,  // x.member or x->member

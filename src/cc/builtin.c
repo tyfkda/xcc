@@ -122,7 +122,7 @@ static VReg *gen_alloca(Expr *expr) {
   Expr *aligned_size = new_expr_bop(EX_BITAND, &tySSize, token,
       new_expr_addsub(EX_ADD, token,
                       make_cast(&tySSize, token, size, false),
-                      new_expr_fixlit(&tySSize, token, stack_align - 1), false),
+                      new_expr_fixlit(&tySSize, token, stack_align - 1)),
       new_expr_fixlit(&tySSize, token, -stack_align));
   VReg *addend = gen_expr(aligned_size);
   VReg *result = add_new_reg(&tyVoidPtr, 0);

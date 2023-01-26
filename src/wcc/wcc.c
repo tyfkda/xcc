@@ -781,14 +781,14 @@ static void gen_alloca(Expr *expr) {
   Expr *aligned_size = new_expr_bop(EX_BITAND, &tySSize, token,
       new_expr_addsub(EX_ADD, token,
                       make_cast(&tySSize, token, size, false),
-                      new_expr_fixlit(&tySSize, token, stack_align - 1), false),
+                      new_expr_fixlit(&tySSize, token, stack_align - 1)),
       new_expr_fixlit(&tySSize, token, -stack_align));
 
   Expr *spvar = get_sp_var();
   gen_expr_stmt(
-      new_expr_unary(EX_MODIFY, &tyVoid, NULL,
-                     new_expr_bop(EX_SUB, &tySize, NULL, spvar,
-                                  aligned_size)));
+      new_expr_bop(EX_ASSIGN, &tyVoid, NULL, spvar,
+          new_expr_bop(EX_SUB, &tySize, NULL, spvar,
+              aligned_size)));
   gen_expr(spvar, true);
 }
 

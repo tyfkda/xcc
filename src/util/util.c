@@ -282,6 +282,25 @@ const char *skip_whitespaces(const char *s) {
   return s;
 }
 
+int64_t clamp_value(int64_t value, int size, bool is_unsigned) {
+  if (is_unsigned) {
+    switch (size) {
+    case 1:  value = (uint8_t)value; break;
+    case 2:  value = (uint16_t)value; break;
+    case 4:  value = (uint32_t)value; break;
+    default:  break;
+    }
+  } else {
+    switch (size) {
+    case 1:  value = (int8_t)value; break;
+    case 2:  value = (int16_t)value; break;
+    case 4:  value = (int32_t)value; break;
+    default:  break;
+    }
+  }
+  return value;
+}
+
 // Container
 
 #define BUF_MIN    (16 / 2)

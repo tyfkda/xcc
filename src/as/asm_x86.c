@@ -51,9 +51,7 @@ static unsigned char *put_rex0(unsigned char *p, enum RegSize size, int sno, int
                                unsigned char opcode) {
   if (size == REG16)
     *p++ = 0x66;
-  if (sno >= 8 || dno >= 8 ||
-      (size == REG8 && (sno >= 4 || dno >= 4)) ||
-      size == REG64)
+  if (sno >= 8 || dno >= 8 || size == REG64)
     *p++ = 0x40 | ((dno & 8) >> 3) | ((sno & 8) >> 1) | (size != REG64 ? 0 : 8);
   *p++ = opcode;
   return p;

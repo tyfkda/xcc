@@ -361,7 +361,10 @@ static void ir_out(IR *ir) {
         MOVZX(kReg8s[ir->opr1->phys], AX);
         DIV(kReg8s[ir->opr2->phys]);
       }
-      MOV(AH, kReg8s[ir->dst->phys]);
+      // Cannot `mov` directly from %ah to %r8b
+      // MOV(AH, kReg8s[ir->dst->phys]);
+      MOV(AH, AL);
+      MOV(AL, kReg8s[ir->dst->phys]);
     } else {
       assert(0 <= ir->dst->vtype->size && ir->dst->vtype->size < kPow2TableSize);
       int pow = kPow2Table[ir->dst->vtype->size];

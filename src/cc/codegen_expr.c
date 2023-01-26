@@ -705,26 +705,6 @@ VReg *gen_expr(Expr *expr) {
       return src;
     }
 
-  case EX_MODIFY:
-    {
-      Expr *sub = expr->unary.sub;
-      if (sub->bop.lhs->kind == EX_VAR && !is_global_scope(sub->bop.lhs->var.scope)) {
-        VReg *lhs = gen_expr(sub->bop.lhs);
-        VReg *rhs = gen_expr(sub->bop.rhs);
-        VReg *result = gen_arith(sub->kind, sub->type, lhs, rhs);
-        new_ir_mov(lhs, result);
-        return result;
-      } else {
-        VReg *lval = gen_lval(sub->bop.lhs);
-        VReg *rhs = gen_expr(sub->bop.rhs);
-        VReg *lhs = new_ir_unary(IR_LOAD, lval, to_vtype(sub->bop.lhs->type));
-        VReg *result = gen_arith(sub->kind, sub->type, lhs, rhs);
-        VReg *cast = gen_cast(result, expr->type);
-        new_ir_store(lval, cast);
-        return result;
-      }
-    }
-
   case EX_PREINC:
   case EX_PREDEC:
   case EX_POSTINC:

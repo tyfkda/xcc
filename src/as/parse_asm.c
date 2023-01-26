@@ -133,10 +133,10 @@ static const struct {
   {"cl", CL},
   {"dl", DL},
   {"bl", BL},
-  {"spl", SPL},
-  {"bpl", BPL},
-  {"sil", SIL},
-  {"dil", DIL},
+  {"ah", AH},
+  {"ch", CH},
+  {"dh", DH},
+  {"bh", BH},
 
   {"r8b", R8B},
   {"r9b", R9B},
@@ -146,6 +146,11 @@ static const struct {
   {"r13b", R13B},
   {"r14b", R14B},
   {"r15b", R15B},
+
+  {"spl", SPL},
+  {"bpl", BPL},
+  {"sil", SIL},
+  {"dil", DIL},
 
   {"ax", AX},
   {"cx", CX},
@@ -241,7 +246,7 @@ void parse_error(const ParseInfo *info, const char *message) {
 }
 
 static bool is_reg8(enum RegType reg) {
-  return reg >= AL && reg <= R15B;
+  return reg >= AL && reg <= DIL;
 }
 
 static bool is_reg16(enum RegType reg) {
@@ -466,7 +471,7 @@ static enum RegType parse_direct_register(ParseInfo *info, Operand *operand) {
   operand->type = REG;
   operand->reg.size = size;
   operand->reg.no = no & 7;
-  operand->reg.x = (no & 8) >> 3;
+  operand->reg.x = no >> 3;
   return true;
 }
 

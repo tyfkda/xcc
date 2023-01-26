@@ -502,32 +502,6 @@ static void traverse_expr(Expr **pexpr, bool needval) {
                   EX_COMMA, type, token, assign_deref_p, tmp)));
     }
     break;
-  case EX_MODIFY:
-    {
-      traverse_expr(&expr->unary.sub, true);
-      expr->type = &tyVoid;
-
-      Expr *sub = expr->unary.sub;
-      Expr *lhs = sub->bop.lhs;
-      if (!(lhs->kind == EX_VAR ||
-            (lhs->kind == EX_DEREF && lhs->unary.sub->kind == EX_VAR))) {
-        const Token *token = sub->token;
-        Type *type = lhs->type;
-        Type *ptrtype = ptrof(type);
-        Expr *tmp = alloc_tmp(token, ptrtype);
-        Expr *assign_tmp = new_expr_bop(
-            EX_ASSIGN, &tyVoid, token, tmp,
-            new_expr_unary(EX_REF, ptrtype, token, lhs));
-        sub->bop.lhs = new_expr_unary(EX_DEREF, type, token, tmp);
-        *pexpr = new_expr_bop(EX_COMMA, type, token, assign_tmp, expr);
-        traverse_expr(pexpr, needval);
-        return;
-      }
-
-      if (needval)
-        *pexpr = new_expr_bop(EX_COMMA, lhs->type, expr->token, expr, lhs);  // (lhs+=rhs, lhs)
-    }
-    break;
 
   case EX_TERNARY:
     traverse_expr(&expr->ternary.cond, true);
