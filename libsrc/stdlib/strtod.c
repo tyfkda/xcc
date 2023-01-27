@@ -6,18 +6,13 @@ bool parse_sign(const char **pp);
 
 #ifndef __NO_FLONUM
 static double ipow(double base, long x) {
-  bool neg = false;
-  if (x < 0) {
-    neg = true;
-    x = -x;
-  }
   double result = 1;
   double a = base;
   for (; x > 0; x >>= 1, a *= a) {
     if ((x & 1) != 0)
       result *= a;
   }
-  return neg ? 1.0 / result : result;
+  return result;
 }
 
 static double strtod_i(const char *p, const char **pp) {
@@ -29,6 +24,26 @@ static double strtod_i(const char *p, const char **pp) {
     result = result * 10 + (c - '0');
   }
   *pp = p;
+  return result;
+}
+
+static double strtod_i2(const char *p, const char **pp) {
+  const char *q = p, *r = p;
+  for (;;) {
+    char c = *q;
+    if (!(c >= '0' && c <= '9'))
+      break;
+    ++q;
+    if (c != '0')
+      r = q;
+  }
+
+  double result = 0;
+  for (size_t order = r - p; r > p; --order) {
+    char c = *(--r);
+    result += (c - '0') / ipow(10, order);
+  }
+  *pp = q;
   return result;
 }
 
@@ -59,8 +74,8 @@ double strtod(const char* /*restrict*/ p, char ** /*restrict*/ pp) {
   double result = strtod_i(p, &p);
   if (*p == '.') {
     const char *q = p + 1;
-    double frac = strtod_i(q, &p);
-    result += frac * ipow(10, q - p);
+    double frac = strtod_i2(q, &p);
+    result += frac;
   }
   if (*p == 'e' || *p == 'E') {
     const char *q = p + 1;
@@ -69,7 +84,11 @@ double strtod(const char* /*restrict*/ p, char ** /*restrict*/ pp) {
     if (q == p) {
       // Error.
     } else {
-      result *= ipow(10, neg2 ? -order : order);
+      double k = ipow(10, order);
+      if (neg2)
+        result /= k;
+      else
+        result *= k;
     }
   }
   if (p == op)
