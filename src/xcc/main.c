@@ -441,20 +441,6 @@ int main(int argc, char *argv[]) {
     vec_push(cpp_cmd, cat_path(root, "include"));
   }
 
-  if (ofn == NULL) {
-    if (iarg < argc) {
-      if (out_type == OutObject)
-        ofn = change_ext(basename(argv[iarg]), "o");
-      else if (out_type == OutAssembly)
-        ofn = change_ext(basename(argv[iarg]), "s");
-    } else {
-      if (out_type == OutObject)
-        ofn = "a.o";
-      else if (out_type == OutAssembly)
-        ofn = "a.s";
-    }
-  }
-
   vec_push(cpp_cmd, NULL);  // Buffer for src.
   vec_push(cpp_cmd, NULL);  // Terminator.
   vec_push(cc1_cmd, NULL);  // Buffer for label prefix.
@@ -482,17 +468,6 @@ int main(int argc, char *argv[]) {
 
   int ofd = STDOUT_FILENO;
 
-#if !defined(__XCC) && !defined(__XV6)
-  if (out_type <= OutAssembly && ofn != NULL && strcmp(ofn, "-") != 0) {
-    close(STDOUT_FILENO);
-    ofd = open(ofn, O_WRONLY | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
-    if (ofd == -1) {
-      perror("Failed to open output file");
-      exit(1);
-    }
-  }
-#endif
-
   if (out_type >= OutExecutable && !use_ld) {
 #if !defined(AS_USE_CC) || defined(NO_STD_LIB)
     if (!nostdlib)
@@ -512,6 +487,7 @@ int main(int argc, char *argv[]) {
   int res = 0;
   for (int i = 0; i < sources->len; ++i) {
     char *src = sources->data[i];
+    const char *outfn = ofn;
     if (src != NULL) {
       if (*src == '\0')
         continue;
@@ -519,7 +495,25 @@ int main(int argc, char *argv[]) {
         vec_push(ld_cmd, src);
         continue;
       }
+
+      if (outfn == NULL) {
+        if (out_type == OutObject)
+          outfn = change_ext(basename(src), "o");
+        else if (out_type == OutAssembly)
+          outfn = change_ext(basename(src), "s");
+      }
     }
+
+#if !defined(__XCC) && !defined(__XV6)
+    if (out_type <= OutAssembly && outfn != NULL && strcmp(outfn, "-") != 0) {
+      close(STDOUT_FILENO);
+      ofd = open(outfn, O_WRONLY | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
+      if (ofd == -1) {
+        perror("Failed to open output file");
+        exit(1);
+      }
+    }
+#endif
 
     enum SourceType st = UnknownSource;
     if (src == NULL) {
@@ -538,10 +532,10 @@ int main(int argc, char *argv[]) {
       res = -1;
       break;
     case Clanguage:
-      res = compile_csource(src, out_type, ofn, ofd, cpp_cmd, cc1_cmd, as_cmd, ld_cmd);
+      res = compile_csource(src, out_type, outfn, ofd, cpp_cmd, cc1_cmd, as_cmd, ld_cmd);
       break;
     case Assembly:
-      res = compile_asm(src, out_type, ofn, ofd, as_cmd, ld_cmd);
+      res = compile_asm(src, out_type, outfn, ofd, as_cmd, ld_cmd);
       break;
     case ObjectFile:
     case ArchiveFile:
