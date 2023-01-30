@@ -252,12 +252,18 @@ int vfprintf(FILE *fp, const char *fmt_, va_list ap) {
         o += sprintsign(fp, x < 0, sign, &order);
         x = x < 0 ? -x : x;
 
-        long intPart = x >= 0 ? (long)x : -(long)(-x);
-        o += snprintullong(fp, intPart, 10, kHexDigits, order, padding);
+        unsigned long long int_part = x;
+        suborder = suborder > 0 ? suborder : 6;
+        double one = pow10(suborder);
+        unsigned long long fraction = (x - int_part) * one + 0.5;
+        unsigned long long uone = one;
+        if (fraction >= uone) {
+          ++int_part;
+          fraction -= uone;
+        }
+        o += snprintullong(fp, int_part, 10, kHexDigits, order, padding);
         FPUTC('.', fp);
         ++o;
-        suborder = suborder > 0 ? suborder : 6;
-        unsigned long fraction = (unsigned long)((x - intPart) * pow10(suborder));
         o += snprintullong(fp, fraction, 10, kHexDigits,
                            suborder, '0');
       }
