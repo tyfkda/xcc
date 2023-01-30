@@ -30,6 +30,8 @@
 #define __NR_getcwd  79
 #define __NR_unlink  87
 #define __NR_chmod   90
+#define __NR_time    201
+#define __NR_clock_gettime  228
 
 #elif defined(__aarch64__)
 
@@ -64,6 +66,7 @@
 #define __NR_getcwd  17
 #define __NR_unlinkat  35
 #define __NR_fchmodat   53
+#define __NR_clock_gettime  113
 
 #else
 #error unknow

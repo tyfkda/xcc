@@ -1,5 +1,14 @@
+#include <alloca.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <time.h>
+
+void dump(const char *title, int *array, int n) {
+  printf("%s", title);
+  for (int i = 0; i < n; ++i)
+    printf("%d ", array[i]);
+  printf("\n");
+}
 
 int compare(const void *va, const void *vb) {
   const int *pa = va;
@@ -8,12 +17,20 @@ int compare(const void *va, const void *vb) {
 }
 
 int main(int argc, char *argv[]) {
-  int array[] = {5, 9, 3, 8, 4, 0, 7, 1, 6, 2};
+  int N = 10;
+  if (argc > 1)
+    N = atoi(argv[1]);
 
-  qsort(array, sizeof(array) / sizeof(*array), sizeof(*array), compare);
+  srand(time(NULL));
 
-  for (int i = 0; i < sizeof(array) / sizeof(*array); ++i)
-    printf("%d ", array[i]);
-  printf("\n");
+  int *array = alloca(sizeof(*array) * N);
+  for (int i = 0; i < N; ++i) {
+    array[i] = rand() % N;
+  }
+
+  dump("Before:", array, N);
+  qsort(array, N, sizeof(*array), compare);
+  dump("After :", array, N);
+
   return 0;
 }

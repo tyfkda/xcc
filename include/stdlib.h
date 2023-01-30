@@ -2,6 +2,8 @@
 
 #include <stddef.h>  // size_t
 
+#define RAND_MAX  (0x7fffffff)
+
 int atoi(const char* s);
 long atol(const char* s);
 long long atoll(const char* s);
@@ -20,12 +22,18 @@ unsigned long long strtoull(const char *p, char **pp, int base);
 
 void qsort(void *base, size_t nmemb, size_t size, int (*compare)(const void *, const void *));
 
+int rand(void);  // [0, RAND_MAX]
+void srand(unsigned int seed);
+
 #ifndef __NO_FLONUM
 double atof(const char* p);
 double strtod(const char* /*restrict*/ p, char ** /*restrict*/ pp);
-double drand48(void);
-double erand48(unsigned short xsubi[3]);
+double drand48(void);                     // [0.0, 1.0)
+double erand48(unsigned short xsubi[3]);  // [0.0, 1.0)
 #endif
+long lrand48(void);                       // [0, 2<<31)
+long nrand48(unsigned short xsubi[3]);    // [0, 2<<31)
+void srand48(long seedval);
 
 int mkstemp(char *template);
 int mkstemps(char *template, int suffixlen);

@@ -158,6 +158,15 @@ export class WaProc {
         proc_exit: (x) => {
           throw new ExitCalledError(x)
         },
+
+        clock_gettime: (_clkId, tp) => {
+          // TODO: Check clkId
+          const ts = new Uint32Array(this.memory.buffer, tp, 2)
+          const t = new Date().getTime()
+          ts[0] = (t / 1000) | 0
+          ts[1] = (t % 1000) * 1000000
+          return 0
+        },
       },
       env: {
         memory: this.memory,
