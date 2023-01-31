@@ -40,7 +40,7 @@ extern LoopScope loop_scope;
 
 void parse_error(enum ParseErrorLevel level, const Token *token, const char *fmt, ...);
 
-void not_void(const Type *type, const Token *token);
+bool not_void(const Type *type, const Token *token);
 void not_const(const Type *type, const Token *token);
 
 typedef struct {

@@ -53,9 +53,11 @@ void parse_error(enum ParseErrorLevel level, const Token *token, const char *fmt
   }
 }
 
-void not_void(const Type *type, const Token *token) {
-  if (type->kind == TY_VOID)
-    parse_error(PE_FATAL, token, "`void' not allowed");
+bool not_void(const Type *type, const Token *token) {
+  if (type->kind != TY_VOID)
+    return true;
+  parse_error(PE_NOFATAL, token, "`void' not allowed");
+  return false;
 }
 
 void not_const(const Type *type, const Token *token) {
@@ -913,7 +915,7 @@ Expr *new_expr_cmp(enum ExprKind kind, const Token *tok, Expr *lhs, Expr *rhs) {
           (lt->kind == TY_PTR && lt->pa.ptrof->kind == TY_VOID) ||
           (rt->kind == TY_PTR && rt->pa.ptrof->kind == TY_VOID) ||
           is_zero(rhs)))
-      parse_error(PE_FATAL, tok, "Cannot compare pointer to other types");
+      parse_error(PE_WARNING, tok, "Compare pointer to other types");
     if (rt->kind != TY_PTR)
       rhs = make_cast(lhs->type, rhs->token, rhs, false);
   } else {

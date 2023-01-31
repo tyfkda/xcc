@@ -226,7 +226,8 @@ static StructInfo *parse_struct(bool is_union) {
         break;
       }
 
-      not_void(type, NULL);
+      if (!not_void(type, NULL))
+        type = &tyInt;  // Deceive to continue compiling.
       ensure_struct(type, ident, curscope);
       Expr *bit = NULL;
 #ifndef __NO_BITFIELD
@@ -750,7 +751,8 @@ Vector *parse_funparams(bool *pvaargs) {
             break;
           }
         } else {
-          not_void(type, NULL);
+          if (!not_void(type, NULL))
+            type = &tyInt;  // Deceive to continue compiling.
         }
 
         // Treat array or function as its pointer type automatically.
