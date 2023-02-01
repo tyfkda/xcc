@@ -10,11 +10,15 @@
 #include "type.h"
 #include "util.h"
 
+#include "./xtest.h"
+
 void expect_parse_type(const char *title, const Type *expected, const char *ident_expected, const char *source) {
+  begin_test(title);
+
   pid_t pid = fork();
   if (pid < 0) {
-    fprintf(stderr, "fork failed\n");
-    exit(1);
+    fail("fork failed");
+    return;
   }
   if (pid == 0) {
     set_source_file(NULL, title);
@@ -22,35 +26,47 @@ void expect_parse_type(const char *title, const Type *expected, const char *iden
     int storage;
     Token *ident;
     const Type *actual = parse_var_def(NULL, &storage, &ident);
-    if (actual == NULL && expected != NULL)
-      error("%s: parsing type failed\n", title);
+    if (actual == NULL && expected != NULL) {
+      fail("parsing type failed");
+      exit(1);
+    }
 
     const Token *end = fetch_token();
-    if (end->kind != TK_EOF)
-      parse_error(PE_FATAL, end, "EOF expected\n");
+    if (end->kind != TK_EOF) {
+      fail("EOF expected");
+      exit(1);
+    }
 
-    if (!same_type(expected, actual))
-      error("%s: type different\n", title);
-    if (ident_expected == NULL && ident != NULL)
-      error("%s: ident is not NULL (%.*s)\n", title, ident->ident->bytes, ident->ident->chars);
-    if (ident_expected != NULL && ident == NULL)
-      error("%s: ident(%s) expected, but NULL\n", title, ident_expected);
+    if (!same_type(expected, actual)) {
+      fail("type different");
+      exit(1);
+    }
+    if (ident_expected == NULL && ident != NULL) {
+      fail("ident is not NULL (%.*s)", ident->ident->bytes, ident->ident->chars);
+      exit(1);
+    }
+    if (ident_expected != NULL && ident == NULL) {
+      fail("ident(%s) expected, but NULL", ident_expected);
+      exit(1);
+    }
     if (ident_expected != NULL && ident != NULL &&
-        (ident->ident->bytes != (int)strlen(ident_expected) || strncmp(ident->ident->chars, ident_expected, strlen(ident_expected))))
-      error("%s: ident(%s) expected, but (%.*s)\n", title, ident_expected, ident->ident->bytes, ident->ident->chars);
-
-    printf("%s => OK\n", title);
+        (ident->ident->bytes != (int)strlen(ident_expected) ||
+         strncmp(ident->ident->chars, ident_expected, strlen(ident_expected)))) {
+      fail("ident(%s) expected, but (%.*s)", ident_expected, ident->ident->bytes, ident->ident->chars);
+      exit(1);
+    }
     exit(0);
   }
 
   int ec = -1;
   if (waitpid(pid, &ec, 0) < 0)
-    error("wait failed");
-  if (ec != 0)
-    exit(1);
+    fail("wait failed");
+  if (ec != 0) {
+    ++error_count;
+  }
 }
 
-void test_parse_full_type(void) {
+TEST(parse_full_type) {
   expect_parse_type("int", get_fixnum_type(FX_INT, false, 0), NULL, "int");
   expect_parse_type("short", get_fixnum_type(FX_SHORT, false, 0), NULL, "short");
   expect_parse_type("short int", get_fixnum_type(FX_SHORT, false, 0), NULL, "short int");
@@ -108,15 +124,15 @@ void test_parse_full_type(void) {
   expect_parse_type("float", &tyFloat, NULL, "float");
   expect_parse_type("long double", &tyLDouble, NULL, "long double");
 #endif
-}
+} END_TEST()
 
 void runtest(void) {
-  test_parse_full_type();
 }
 
 int main(void) {
   init_lexer();
 
-  runtest();
-  return 0;
+  return RUN_ALL_TESTS(
+    test_parse_full_type,
+  );
 }

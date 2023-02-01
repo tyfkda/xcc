@@ -11,24 +11,7 @@
 #include <stdbool.h>
 #include <stdio.h>
 
-int error_count;
-
-void fail(const char *fmt, ...) {
-  va_list ap;
-  va_start(ap, fmt);
-  printf("FAILED, ");
-  vprintf(fmt, ap);
-  puts("");
-  va_end(ap);
-  ++error_count;
-}
-
-void expect(const char *title, int expected, int actual) {
-  if (expected != actual) {
-    printf("%s: ", title);
-    fail("%d expected, but got %d", expected, actual);
-  }
-}
+#include "./xtest.h"
 
 jmp_buf env;
 
@@ -36,66 +19,67 @@ void simple(int param) {
   if (param)
     longjmp(env, param * 2);
 }
-void test_simple(void) {
+TEST(simple) {
   int result;
   result = setjmp(env);
   if (result == 0) {
     simple(0);
   } else {
-    fail("simple-nolongjmp, unreachable");
+    fail("unreachable1");
   }
 
   if ((result = setjmp(env)) == 0) {
     simple(255);
-    fail("simple-longjmp, unreachable");
+    fail("unreachable2");
   } else {
-    expect("simple-longjmp", 510, result);
+    EXPECT_EQ(510, result);
   }
-}
+} END_TEST()
 
-void test_zero(void) {
+TEST(zero) {
   int result = setjmp(env);
   if (result == 0) {
     longjmp(env, 0);
-    fail("zero, unreachable");
+    fail("unreachable");
   } else {
-    expect("zero", true, result != 0);
+    EXPECT_TRUE(result != 0);
   }
-}
+} END_TEST()
 
-void test_multiple_times(void) {
+TEST(multiple_times) {
   int result;
   static int i;  // Local variable might be roll back!
   i = 0;
   if (result = setjmp(env), result == 0) {
     simple(1);
-    fail("multiple-times, unreachable");
+    fail("unreachable");
   } else {
     if (++i < 5)
       simple(result);
-    expect("multiple-times", 32, result);
+    EXPECT_EQ(32, result);
   }
-}
+} END_TEST()
 
 void nested(jmp_buf env2) {
   if (!setjmp(env))
     longjmp(env2, 777);
 }
-void test_nested(void) {
+TEST(nested) {
   jmp_buf env2;
   int result;
   if (result = setjmp(env2), result) {
-    expect("nested", 777, result);
+    EXPECT_EQ(777, result);
   } else {
     nested(env2);
     fail("nested, unreachable");
   }
-}
+} END_TEST()
 
 int main(void) {
-  test_simple();
-  test_zero();
-  test_multiple_times();
-  test_nested();
-  return error_count < 255 ? error_count : 255;
+  return RUN_ALL_TESTS(
+    test_simple,
+    test_zero,
+    test_multiple_times,
+    test_nested,
+  );
 }

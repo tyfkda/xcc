@@ -12,7 +12,7 @@
 #include "type.h"
 #include "util.h"
 
-static int error_count;
+#include "./xtest.h"
 
 extern void dump_expr(FILE *fp, Expr *expr);
 extern void dump_init(FILE *fp, const Initializer *init);
@@ -68,24 +68,14 @@ static Initializer *parse_init(const char *source) {
 }
 
 void expect(Initializer *expected, const char *input_str, Type *type) {
-  printf("%s => ", input_str);
+  begin_test(input_str);
 
   Initializer *init = parse_init(input_str);
   Initializer *actual = flatten_initializer(type, init);
 
   // Compare initializer
-  if (same_init(expected, actual)) {
-    printf("OK\n");
-    return;
-  }
-
-  fflush(stdout);
-  fprintf(stderr, "Fail, expected[");
-  dump_init(stderr, expected);
-  fprintf(stderr, "], actual[");
-  dump_init(stderr, actual);
-  fprintf(stderr, "]\n");
-  ++error_count;
+  if (!same_init(expected, actual))
+    fail("different");
 }
 
 void expect2(const char *expected_str, const char *input_str, Type *type) {
@@ -121,7 +111,7 @@ Initializer *new_init_arr(size_t index, Initializer *value) {
   return init;
 }
 
-void test_flatten(void) {
+TEST(flatten) {
   expect2("1234", "1234", &tyInt);
   expect2("\"str\"", "\"str\"", ptrof(&tyChar));
   expect2("\"array\"", "\"array\"", arrayof(&tyChar, 4));
@@ -201,9 +191,10 @@ void test_flatten(void) {
     expect2("{{11, 12}, {21, 22}}", "{11, 12, 21, 22}", arrayof(type, -1));
     expect2("{{11, 12}, {21, 22}}", "{{11, 12}, 21, 22}", arrayof(type, 2));
   }
-}
+} END_TEST()
 
 int main(void) {
-  test_flatten();
-  return MIN(error_count, 255);
+  return RUN_ALL_TESTS(
+    test_flatten,
+  );
 }

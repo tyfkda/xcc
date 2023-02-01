@@ -1,5 +1,7 @@
 #!/bin/bash
 
+source ./test_sub.sh
+
 AOUT=${AOUT:-$(basename `mktemp -u`)}
 XCC=${XCC:-../xcc}
 
@@ -8,20 +10,22 @@ try() {
   local expected="$2"
   local inputs="$3"
 
-  echo -n "$title => "
+  begin_test "$title"
 
-  $XCC -o "$AOUT" -Werror "$inputs" || exit 1
+  $XCC -o "$AOUT" -Werror "$inputs" > /dev/null 2>&1 || {
+    end_test 'Compile failed'
+    return
+  }
 
   declare -a args=( "$@" )
   local actual
-  actual=$(./"$AOUT" "${args[@]:3}") || exit 1
+  actual=$(./"$AOUT" "${args[@]:3}") > /dev/null 2>&1 || {
+    end_test 'Exec failed'
+    return
+  }
 
-  if [ "$actual" = "$expected" ]; then
-    echo "OK"
-  else
-    echo "NG: $expected expected, but got $actual"
-    exit 1
-  fi
+  local err=''; [[ "$actual" == "$expected" ]] || err="${expected} expected, but ${actual}"
+  end_test "$err"
 }
 
 try_cmp() {
@@ -30,18 +34,21 @@ try_cmp() {
   local output="$3"
   local inputs="$4"
 
-  echo -n "$title => "
+ begin_test "$title"
 
-  $XCC -o "$AOUT" -Werror "$inputs" || exit 1
+  $XCC -o "$AOUT" -Werror "$inputs" > /dev/null 2>&1 || {
+    end_test 'Compile failed'
+    return
+  }
 
   declare -a args=( "$@" )
-  ./"$AOUT" "${args[@]:4}" || exit 1
-
-  cmp "$expected" "$output" || {
-    echo "NG"
-    exit 1
+  ./"$AOUT" "${args[@]:4}" > /dev/null 2>&1 || {
+    end_test 'Exec failed'
+    return
   }
-  echo "OK"
+
+  local err=''; cmp "$expected" "$output" > /dev/null 2>&1 || err="Differ"
+  end_test "$err"
 }
 
 no_flonum() {
@@ -49,10 +56,22 @@ no_flonum() {
   $XCC tmp.c && ./a.out || exit 1
 }
 
-try 'hello' 'Hello, world!' ../examples/hello.c
-try 'fib' 832040 ../examples/fib.c
-try 'echo' 'foo bar baz' ../examples/echo.c foo bar baz
+test_all() {
+  begin_test_suite "All"
 
-if [ "`no_flonum`" != "true" ]; then
-try_cmp 'mandelbrot' 'mandel256.ppm' 'mandelbrot.ppm' ../examples/mandelbrot.c 100 256 256
+  try 'hello' 'Hello, world!' ../examples/hello.c
+  try 'fib' 832040 ../examples/fib.c
+  try 'echo' 'foo bar baz' ../examples/echo.c foo bar baz
+
+  if [ "`no_flonum`" != "true" ]; then
+  try_cmp 'mandelbrot' 'mandel256.ppm' 'mandelbrot.ppm' ../examples/mandelbrot.c 100 256 256
+  fi
+
+  end_test_suite
+}
+
+test_all
+
+if [[ $FAILED_SUITE_COUNT -ne 0 ]]; then
+  exit $FAILED_SUITE_COUNT
 fi

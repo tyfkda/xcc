@@ -45,72 +45,60 @@ clean:
 test-initializer:	initializer_test
 	@echo '## Initializer'
 	@./initializer_test
-	@echo ''
 
 .PHONY: test-table
 test-table:	table_test
 	@echo '## NameTable'
 	@./table_test
-	@echo ''
 
 .PHONY: test-util
 test-util:	util_test
 	@echo '## Util'
 	@./util_test
-	@echo ''
 
 .PHONY: test-parser
 test-parser:	parser_test
 	@echo '## Parser'
 	@./parser_test
-	@echo ''
 
 .PHONY: test-print-type
 test-print-type:	print_type_test
 	@echo '## Print type'
 	@./print_type_test
-	@echo ''
 
 .PHONY: test-val
 test-val:	valtest
 	@echo '## valtest'
 	@./valtest
-	@echo ''
 
 .PHONY: test-dval, test-fval
 test-dval:	dvaltest
 	@echo '## dvaltest'
 	@./dvaltest
-	@echo ''
 test-fval:	fvaltest
 	@echo '## fvaltest'
 	@./fvaltest
-	@echo ''
 
 .PHONY: test-cpp
 test-cpp: # $(CPP)
 	@echo '## cpptest'
 	@CPP=$(CPP) ./cpptest.sh
-	@echo ''
 
 .PHONY: test-sh
 test-sh: # $(XCC)
 	@echo '## test.sh'
 	@XCC=$(XCC) ./test.sh
 	@rm -f core
-	@echo ''
 
 .PHONY: test-examples
 test-examples: # $(XCC)
 	@echo '## Example test'
 	@XCC=$(XCC) ./example_test.sh
-	@echo ''
 
 .PHONY: test-link
 test-link: link_test # $(XCC)
 	@echo '## Link test'
 	@./link_test
-	@echo ''
 
 INITIALIZER_SRCS:=initializer_test.c $(CC_DIR)/parser.c $(CC_DIR)/parser_expr.c $(CC_DIR)/lexer.c \
 	$(CC_DIR)/var.c $(CC_DIR)/type.c $(CC_DIR)/ast.c $(UTIL_DIR)/util.c $(UTIL_DIR)/table.c \
@@ -171,13 +159,11 @@ test-wcc-sh:
 	@XCC="$(WCC)" PTRSIZE=4 RE_SKIP='\/\/-WCC' \
 		AOUT="$(AWASM)" RUN_AOUT="node ../tool/runwasm.js $(AWASM)" \
 		./test.sh
-	@echo ''
 
 .PHONY: test-wcc-val
 test-wcc-val:	valtest.wasm
 	@echo '## valtest'
 	node ../tool/runwasm.js $<
-	@echo ''
 
 valtest.wasm:	$(VAL_SRCS) # $(WCC)
 	$(WCC) -o$@ -I$(EXAMPLES_DIR) $^
@@ -186,7 +172,6 @@ valtest.wasm:	$(VAL_SRCS) # $(WCC)
 test-wcc-dval:	dvaltest.wasm
 	@echo '## dvaltest'
 	node ../tool/runwasm.js $<
-	@echo ''
 
 dvaltest.wasm:	$(FVAL_SRCS) # $(WCC)
 	$(WCC) -o$@ -I$(EXAMPLES_DIR) $^
@@ -195,7 +180,6 @@ dvaltest.wasm:	$(FVAL_SRCS) # $(WCC)
 test-wcc-fval:	fvaltest.wasm
 	@echo '## fvaltest'
 	node ../tool/runwasm.js $<
-	@echo ''
 
 fvaltest.wasm:	$(FVAL_SRCS) # $(WCC)
 	$(WCC) -o$@ -I$(EXAMPLES_DIR) -DUSE_SINGLE $^

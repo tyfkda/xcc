@@ -63,7 +63,6 @@ clean-test:
 test-printf:	printf_test
 	@echo '## printf test'
 	@./printf_test
-	@echo ''
 
 STDIO_SRCS:=$(wildcard stdio/*.c)
 STDIO_OBJS:=$(addprefix $(LIBOBJ_DIR)/,$(notdir $(STDIO_SRCS:.c=.o)))
@@ -74,7 +73,6 @@ printf_test:	tests/printf_test.c $(STDIO_OBJS)
 test-math:	math_test
 	@echo '## math test'
 	@./math_test
-	@echo ''
 
 MATH_SRCS:=$(wildcard math/*.c)
 MATH_OBJS:=$(addprefix $(LIBOBJ_DIR)/,$(notdir $(MATH_SRCS:.c=.o)))
@@ -85,7 +83,6 @@ math_test:	tests/math_test.c $(MATH_OBJS)
 test-longjmp:	longjmp_test
 	@echo '## longjmp test'
 	@./longjmp_test
-	@echo ''
 
 LONGJMP_SRCS:=misc/setjmp.c
 LONGJMP_OBJS:=$(addprefix $(LIBOBJ_DIR)/,$(notdir $(LONGJMP_SRCS:.c=.o)))
@@ -103,7 +100,6 @@ test-wcc:	test-wcc-printf test-wcc-math test-wcc-longjmp
 test-wcc-printf:	printf_test.wasm
 	@echo '## printf test'
 	node ../tool/runwasm.js $<
-	@echo ''
 
 printf_test.wasm:	tests/printf_test.c # $(WCC)
 	$(WCC) -o$@ $^
@@ -112,7 +108,6 @@ printf_test.wasm:	tests/printf_test.c # $(WCC)
 test-wcc-math:	math_test.wasm
 	@echo '## math test'
 	node ../tool/runwasm.js $<
-	@echo ''
 
 math_test.wasm:	tests/math_test.c # $(WCC)
 	$(WCC) -o$@ $^
@@ -121,7 +116,6 @@ math_test.wasm:	tests/math_test.c # $(WCC)
 test-wcc-longjmp:	longjmp_test.wasm
 	@echo '## longjmp test'
 	node --experimental-wasm-eh ../tool/runwasm.js $<
-	@echo ''
 
 longjmp_test.wasm:	tests/longjmp_test.c # $(WCC)
 	$(WCC) -o$@ $^

@@ -1,6 +1,5 @@
 #include <stdio.h>
 
-#include <inttypes.h>
 #include <stdarg.h>
 #include <stdbool.h>
 #include <stdint.h>  // intptr_t
@@ -10,29 +9,14 @@
 #include <math.h>
 #endif
 
+#include "./xtest.h"
+
 #define SSIZE  (64)
 #define MARKER  (0xbd)
 
-int error_count;
-
-#define EXPECT_EQUALS(expected, actual)  expect(#actual, expected, actual)
-#define EXPECT_TRUE(actual)   expect(#actual, true, !!(actual))
-#define EXPECT_FALSE(actual)  expect(#actual, false, !!(actual))
-#define EXPECT_NOT_NULL(actual)  EXPECT_TRUE(actual != NULL)
-
-void expect(const char *title, int64_t expected, int64_t actual) {
-  printf("%s => ", title);
-
-  if (expected != actual) {
-    printf("ERR, %" PRId64 " expected, but got %" PRId64 "\n", expected, actual);
-    ++error_count;
-  } else {
-    printf("OK\n");
-  }
-}
-
 void expect_vsnprintf(const char *expected, int expected_len, const char *fmt, ...) {
-  printf("%s => ", expected);
+  begin_test(expected);
+
   char out[SSIZE + 1];
   out[SSIZE] = MARKER;
 
@@ -43,45 +27,37 @@ void expect_vsnprintf(const char *expected, int expected_len, const char *fmt, .
   int written = len < SSIZE - 1 ? len : SSIZE - 1;
 
   if (len != expected_len || memcmp(expected, out, written) != 0) {
-    fflush(stdout);
-    fprintf(stderr, "ERR, actual [%s], len=%d/%d\n", out, len, expected_len);
-    ++error_count;
+    fail("actal [%s], len=%d/%d", out, len, expected_len);
   } else if ((unsigned char)out[SSIZE] != MARKER) {
-    fflush(stdout);
-    fprintf(stderr, "ERR, marker broken\n");
-    ++error_count;
+    fail("marker broken");
   } else if (out[written] != '\0') {
-    fflush(stdout);
-    fprintf(stderr, "ERR, not nul terminated, %d, [%s]\n", len, out);
-    ++error_count;
-  } else {
-    printf("OK\n");
+    fail("not nul terminated, %d, [%s]\n", len, out);
   }
 }
 
-void test_open_memstream(void) {
+TEST(open_memstream) {
   char *ptr = NULL;
   size_t size = 0;
   FILE *fp = open_memstream(&ptr, &size);
   EXPECT_NOT_NULL(fp);
   if (fp != NULL) {
-    EXPECT_EQUALS(12, fprintf(fp, "Hello world\n"));
-    EXPECT_EQUALS(14, fprintf(fp, "Number: %d\n", 12345));
+    EXPECT_EQ(12, fprintf(fp, "Hello world\n"));
+    EXPECT_EQ(14, fprintf(fp, "Number: %d\n", 12345));
     fclose(fp);
     EXPECT_NOT_NULL(ptr);
-    EXPECT_EQUALS(12 + 14, size);
+    EXPECT_EQ(12 + 14, size);
   }
-}
+} END_TEST()
 
-void test_sprintf(void) {
+TEST(sprintf) {
   char buf[16];
   memset(buf, 0x7f, sizeof(buf));
-  EXPECT_EQUALS(5, sprintf(buf, "%d", 12345));
-  EXPECT_EQUALS('\0', buf[5]);
-  EXPECT_EQUALS(0x7f, buf[6]);
-}
+  EXPECT_EQ(5, sprintf(buf, "%d", 12345));
+  EXPECT_EQ('\0', buf[5]);
+  EXPECT_EQ(0x7f, buf[6]);
+} END_TEST()
 
-void test_vsnprintf(void) {
+TEST(vsnprintf) {
 #define EXPECT(expected, fmt, ...)  expect_vsnprintf(expected, sizeof(expected)-1, fmt, __VA_ARGS__)
   EXPECT("Number:123", "Number:%d", 123);
   EXPECT("Negative:-456", "Negative:%d", -456);
@@ -132,11 +108,12 @@ void test_vsnprintf(void) {
   EXPECT("nan:nan", "nan:%f", NAN);
 #endif
 #undef EXPECT
-}
+} END_TEST()
 
 int main() {
-  test_open_memstream();
-  test_sprintf();
-  test_vsnprintf();
-  return error_count > 255 ? 255 : error_count;
+  return RUN_ALL_TESTS(
+    test_open_memstream,
+    test_sprintf,
+    test_vsnprintf,
+  );
 }

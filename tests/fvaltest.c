@@ -20,20 +20,25 @@ double mix_many_params(int n, int i1, double d1, int i2, double d2, int i3, doub
 
 #include "flotest.inc"
 
-int main(void) {
-  number_test();
-
+TEST(mix) {
 #ifndef USE_SINGLE
-  expect_about("mix_params", 0.2734375, mix_params(1, 2, 3, 4, 5, 6, 7, 8));
-  expect_about("mix_many_params", 322.0, mix_many_params(20, 1, 2.0, 3, 4.0f, 5, 6.0, 7, 8.0f, 9, 10.0, 11, 12.0f));
+  begin_test_suite("mix");
+
+  EXPECT_NEAR(0.2734375, mix_params(1, 2, 3, 4, 5, 6, 7, 8));
+  EXPECT_NEAR(322.0, mix_many_params(20, 1, 2.0, 3, 4.0f, 5, 6.0, 7, 8.0f, 9, 10.0, 11, 12.0f));
 
   {
     float a=12.34f;
     a+=56.78;
-    expect_about("float+=double", 69.12f, a);
+    EXPECT_NEAR(69.12f, a);
   }
 #endif
+} END_TEST()
 
-  return 0;
+int main(void) {
+  return RUN_ALL_TESTS(
+    test_number,
+    test_mix,
+  );
 }
 #endif

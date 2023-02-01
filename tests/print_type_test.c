@@ -6,31 +6,28 @@
 #include "type.h"
 #include "util.h"
 
+#include "./xtest.h"
+
 void check_print_type(const char *expected, const Type *type) {
-  printf("%s - ", expected);
-  fflush(stdout);
+  begin_test(expected);
 
   char *buf;
   size_t size;
   FILE *fp = open_memstream(&buf, &size);
   if (fp == NULL) {
-    fprintf(stderr, "Failed to create tmpfile\n");
-    exit(1);
+    fail("Failed to create tmpfile");
+  } else {
+    print_type(fp, type);
+    fclose(fp);
+
+    if (strcmp(buf, expected) != 0) {
+      fail("`%s' expected, but `%s'", expected, buf);
+    }
+    free(buf);
   }
-
-  print_type(fp, type);
-  fclose(fp);
-
-  if (strcmp(buf, expected) != 0) {
-    fprintf(stderr, "ERROR: `%s' expected, but `%s'\n", expected, buf);
-    exit(1);
-  }
-
-  printf("OK\n");
-  free(buf);
 }
 
-void print_type_test(void) {
+TEST(print_type) {
   check_print_type("char", &tyChar);
   check_print_type("unsigned int", &tyUnsignedInt);
   check_print_type("long long", get_fixnum_type(FX_LLONG, false, 0));
@@ -107,13 +104,10 @@ void print_type_test(void) {
 
     check_print_type("void(*(int, void(*)(int)))(int)", functype);
   }
-}
-
-void runtest(void) {
-  print_type_test();
-}
+} END_TEST()
 
 int main(void) {
-  runtest();
-  return 0;
+  return RUN_ALL_TESTS(
+    test_print_type,
+  );
 }

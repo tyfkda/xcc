@@ -5,47 +5,35 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define EXPECT(result)  expect(__LINE__, result)
+#include "./xtest.h"
 
-void expect(int line, bool result) {
-  if (result)
-    return;
-  fprintf(stderr, "at line %d: failed\n", line);
-  exit(1);
-}
-
-void test_table(void) {
+TEST(table) {
   const Name *key = alloc_name("1", NULL, false);
 
   Table table;
   table_init(&table);
-  EXPECT(table_get(&table, key) == NULL);
-  EXPECT(!table_delete(&table, key));
+  EXPECT_NULL(table_get(&table, key));
+  EXPECT_FALSE(table_delete(&table, key));
 
   void *data = &table;
   table_put(&table, key, data);
-  EXPECT(table_get(&table, key) == data);
-  EXPECT(table_try_get(&table, key, NULL));
-  EXPECT(table.count == 1);
+  EXPECT_PTREQ(data, table_get(&table, key));
+  EXPECT_TRUE(table_try_get(&table, key, NULL));
+  EXPECT_EQ(1, table.count);
 
   const Name *key_dup = alloc_name("1", NULL, false);
   table_put(&table, key_dup, data);
-  EXPECT(table.count == 1);
+  EXPECT_EQ(1, table.count);
 
-  EXPECT(table_delete(&table, key));
-  EXPECT(table_get(&table, key) == NULL);
-  EXPECT(!table_try_get(&table, key, NULL));
-  EXPECT(table.count == 0);
-  EXPECT(table.used == 1);
-}
-
-void runtest(void) {
-  test_table();
-
-  printf("OK\n");
-}
+  EXPECT_TRUE(table_delete(&table, key));
+  EXPECT_NULL(table_get(&table, key));
+  EXPECT_TRUE(!table_try_get(&table, key, NULL));
+  EXPECT_EQ(0, table.count);
+  EXPECT_EQ(1, table.used);
+} END_TEST()
 
 int main(void) {
-  runtest();
-  return 0;
+  return RUN_ALL_TESTS(
+    test_table,
+  );
 }
