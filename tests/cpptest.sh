@@ -2,6 +2,8 @@
 
 set -o pipefail
 
+source ./test_sub.sh
+
 AOUT=${AOUT:-$(basename `mktemp -u`)}
 CPP=${CPP:-../cpp}
 XCC=${XCC:-../xcc}
@@ -13,22 +15,18 @@ try() {
   expected=$(echo -e "$2")
   local input="$3"
 
-  echo -n "$title => "
+  begin_test "$title"
 
   local actual
-  actual=$(echo -e "$input" | $CPP | tr -d '\n')
+  actual=$(echo -e "$input" | $CPP 2>/dev/null | tr -d '\n')
   local exitcode=$?
   if [ $exitcode -ne 0 ]; then
-    echo "NG: CPP failed"
-    exit 1
+    end_test "CPP failed: exitcode=${exitcode}"
+    return
   fi
 
-  if [ "$actual" = "$expected" ]; then
-    echo "OK"
-  else
-    echo "NG: $expected expected, but got $actual"
-    exit 1
-  fi
+  local err=''; [[ "$actual" == "$expected" ]] || err="${expected} expected, but ${actual}"
+  end_test "$err"
 }
 
 try_run() {
@@ -37,37 +35,33 @@ try_run() {
   expected=$(echo -e "$2")
   local input="$3"
 
-  echo -n "$title => "
+  begin_test "$title"
 
   echo -e "$input" | $XCC -o "$AOUT" -Werror -xc - || exit 1
 
   $RUN_AOUT
   local actual="$?"
 
-  if [ "$actual" = "$expected" ]; then
-    echo "OK"
-  else
-    echo "NG: $expected expected, but got $actual"
-    exit 1
-  fi
+  local err=''; [[ "$actual" == "$expected" ]] || err="${expected} expected, but ${actual}"
+  end_test "$err"
 }
 
 pp_error() {
   local title="$1"
   local input="$2"
 
-  echo -n "Error case: $title => "
+  begin_test "$title"
 
-  echo -e "$input" | $CPP | tr -d '\n'
+  echo -e "$input" | $CPP > /dev/null 2>&1 | tr -d '\n'
   local result="$?"
 
-  if [ $result -eq 0 ]; then
-    echo "NG: Compile error expected, but succeeded"
-    exit 1
-  fi
+  local err=''; [[ "$result" -ne 0 ]] || err="Compile error expected, but succeeded"
+  end_test "$err"
 }
 
 test_misc() {
+  begin_test_suite "Misc"
+
   try '#define' '0' "#define NULL 0\nNULL"
   try 'empty' '' "#define EMPTY\nEMPTY"
   try '#undef' 'undefined' "#define FOO\n#undef FOO\n#ifdef FOO\ndefined\n#else\nundefined\n#endif"
@@ -116,9 +110,13 @@ test_misc() {
   try 'no vaarg' '1 2 ()' "#define VAARG(x, y, ...)  x y (__VA_ARGS__)\nVAARG(1, 2)"
   try 'all vaarg' '{x, y, z};' "#define ALL(...)  {__VA_ARGS__};\nALL(x, y, z)"
   try 'named vaarg' '{3, 4, 5}' "#define NAMED(x, y, rest...)  {rest}\nNAMED(1, 2, 3, 4, 5)"
+
+  end_test_suite
 }
 
 test_cat() {
+  begin_test_suite "Concat"
+
   local CATDEFS=`cat <<EOS
 #define CAT(x, y) x ## y
 #define INDIRECT(x, y) CAT(x, y)
@@ -128,47 +126,68 @@ test_cat() {
 #define _ /* empty */
 EOS
 `
-  try 'Concat simple'   'ABCDEF'   "$CATDEFS\nCAT(ABC, DEF)"
-  try 'Concat non-sym'  '123UL'    "$CATDEFS\nCAT(123, UL)"
-  try 'Concat non-sym2' '123.f'    "$CATDEFS\nCAT(123, .f)"
-  try 'Concat match'    'MATCHED'  "$CATDEFS\nCAT(FOO, 1)"
-  try 'Concat unmatch'  'FOON'     "$CATDEFS\nCAT(FOO, N)"
-  try 'Concat indirect' 'MATCHED'  "$CATDEFS\nINDIRECT(FOO, N)"
-  try 'Concat unmatch2' 'XN'       "$CATDEFS\nCAT(X, N)"
-  try 'Concat unmatch3' 'X_'       "$CATDEFS\nCAT(X, _)"
-  try 'Concat unmatch4' '_X'       "$CATDEFS\nCAT(_, X)"
+  try 'simple'   'ABCDEF'   "$CATDEFS\nCAT(ABC, DEF)"
+  try 'non-sym'  '123UL'    "$CATDEFS\nCAT(123, UL)"
+  try 'non-sym2' '123.f'    "$CATDEFS\nCAT(123, .f)"
+  try 'match'    'MATCHED'  "$CATDEFS\nCAT(FOO, 1)"
+  try 'unmatch'  'FOON'     "$CATDEFS\nCAT(FOO, N)"
+  try 'indirect' 'MATCHED'  "$CATDEFS\nINDIRECT(FOO, N)"
+  try 'unmatch2' 'XN'       "$CATDEFS\nCAT(X, N)"
+  try 'unmatch3' 'X_'       "$CATDEFS\nCAT(X, _)"
+  try 'unmatch4' '_X'       "$CATDEFS\nCAT(_, X)"
 
-  try 'Concat with non-param' 'x y z_' "#define POST(x) x ## _\nPOST(x y z)"
-  try 'Concat num with postfix' '123U' "# define UINT32_C(c) c ## U\nUINT32_C(123)"
-  try 'Concat empty l' 'R' "#define CAT(x, y) x ## y\nCAT(, R)"
-  try 'Concat empty r' 'L' "#define CAT(x, y) x ## y\nCAT(L, )"
-  try 'Concat empty both' '' "#define CAT(x, y) x ## y\nCAT(, )"
+  try 'with non-param' 'x y z_' "#define POST(x) x ## _\nPOST(x y z)"
+  try 'num with postfix' '123U' "# define UINT32_C(c) c ## U\nUINT32_C(123)"
+  try 'empty l' 'R' "#define CAT(x, y) x ## y\nCAT(, R)"
+  try 'empty r' 'L' "#define CAT(x, y) x ## y\nCAT(L, )"
+  try 'empty both' '' "#define CAT(x, y) x ## y\nCAT(, )"
+
+  end_test_suite
 }
 
 test_stringify() {
-  try 'Stringify' '"1 + 2"' '#define S(x)  #x\nS(1 + 2)'
-  try 'Stringify escaped' '"\"abc\""' '#define S(x)  # x\nS("abc")'
+  begin_test_suite "Stringify"
+
+  try 'basic' '"1 + 2"' '#define S(x)  #x\nS(1 + 2)'
+  try 'escaped' '"\"abc\""' '#define S(x)  # x\nS("abc")'
+
+  end_test_suite
 }
 
 test_error() {
+  begin_test_suite "Error"
+
   pp_error '#error' '#error !!!\nvoid main(){}'
   pp_error '#if not closed' '#if 1'
   pp_error '#elif not closed' '#if 0\n#elif 1'
   pp_error 'Duplicate #else' '#if 0\n#else\n#else\n#endif'
   pp_error 'less params' '#define FOO(x, y) x+y\nFOO(1)'
   pp_error 'more params' '#define FOO(x, y) x+y\nFOO(1, 2, 3)'
+
+  end_test_suite
+}
+
+test_run() {
+  begin_test_suite "Run"
+
+  # Include with macro
+  echo "#define FOO (37)" > tmp.h
+  try_run 'Include with macro' 37 "#define FILE  \"tmp.h\"\n#include FILE\nint main(){return FOO;}"
+
+  # Block comment after include
+  echo "#define FOO (73)" > tmp.h
+  try_run 'Comment after include' 73 "#include \"tmp.h\" /*block\n*/ // line\nint main(){return FOO;}"
+  pp_error 'Token after include comment' "#include \"tmp.h\" /*block\n*/ illegal-token\nint main(){return FOO;}"
+
+  end_test_suite
 }
 
 test_misc
 test_cat
 test_stringify
 test_error
+test_run
 
-# Include with macro
-echo "#define FOO (37)" > tmp.h
-try_run 'Include with macro' 37 "#define FILE  \"tmp.h\"\n#include FILE\nint main(){return FOO;}"
-
-# Block comment after include
-echo "#define FOO (73)" > tmp.h
-try_run 'Comment after include' 73 "#include \"tmp.h\" /*block\n*/ // line\nint main(){return FOO;}"
-pp_error 'Token after include comment' "#include \"tmp.h\" /*block\n*/ illegal-token\nint main(){return FOO;}"
+if [[ $FAILED_SUITE_COUNT -ne 0 ]]; then
+  exit $FAILED_SUITE_COUNT
+fi
