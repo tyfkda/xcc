@@ -13,8 +13,7 @@ class Token {
   constructor(kind, t, hs) {
     this.kind = kind
     this.t = t
-    if (this.hs != null)
-      this.hs = hs
+    this.hs = hs
   }
 
   static make(ts) {
@@ -180,7 +179,7 @@ class MacroExpander {
           continue
         }
       }
-      os.push(tt.dup())
+      os.push(tt)
     }
     this.hsadd(hs, os)
     return os
@@ -344,6 +343,13 @@ function main() {
         'F': new Macro(['x'], 'C(G(x))'),
         'G': new Macro(['x'], 'C(H(x))'),
         'C': new Macro(['x'], 'x'),
+      })
+  pptest(
+      'SELF',
+      'SELF',
+      {
+        'SELF': new Macro(null, 'I(SELF)'),
+        'I': new Macro(['v'], 'v'),
       })
 
   {

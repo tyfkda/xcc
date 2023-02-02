@@ -100,7 +100,7 @@ static void union_hideset(HideSet *hs, HideSet *hs2) {
     const Name *name;
     void *value;
     for (int it = 0; (it = table_iterate(hs2, it, &name, &value)) != -1; )
-      table_put(hs, name, (void*)name);
+      table_put(hs, name, value);
   }
 }
 
@@ -171,12 +171,6 @@ static Token *stringize(const Vector *arg) {
   tok->str.buf = str + 1;
   tok->str.size = len + (- 2 /*for ""*/ + 1 /*for \0*/);
   return tok;
-}
-
-static Token *clone_token(const Token *tok) {
-  Token *dup = malloc(sizeof(*dup));
-  *dup = *tok;
-  return dup;
 }
 
 static void hsadd(HideSet *hs, Vector *ts) {
@@ -265,21 +259,16 @@ static Vector *subst(Vector *body, Table *param_table, Vector *args, HideSet *hs
       if (param_table != NULL && table_try_get(param_table, tok->ident, (void*)&j)) {
         assert(j < args->len);
         Vector *arg = args->data[j];
-        Vector *duplicated = new_vector();
+        macro_expand(arg);
         for (int k = 0; k < arg->len; ++k) {
           const Token *t = arg->data[k];
-          vec_push(duplicated, clone_token(t));
-        }
-        macro_expand(duplicated);
-        for (int k = 0; k < duplicated->len; ++k) {
-          const Token *t = duplicated->data[k];
           vec_push(os, t);
         }
         continue;
       }
     }
 
-    vec_push(os, clone_token(tok));
+    vec_push(os, tok);
   }
   hsadd(hs, os);
   return os;
