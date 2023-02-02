@@ -494,6 +494,11 @@ static enum ExprKind swap_cmp(enum ExprKind kind) {
 }
 
 static Expr *new_expr_cmp(enum ExprKind kind, const Token *tok, Expr *lhs, Expr *rhs) {
+  if (lhs->type->kind == TY_FUNC)
+    lhs = new_expr_unary(EX_REF, ptrof(lhs->type), lhs->token, lhs);
+  if (rhs->type->kind == TY_FUNC)
+    rhs = new_expr_unary(EX_REF, ptrof(rhs->type), rhs->token, rhs);
+
   Type *lt = lhs->type, *rt = rhs->type;
   if (ptr_or_array(lt) || ptr_or_array(rt)) {
     if (lt->kind == TY_ARRAY) {
@@ -513,7 +518,10 @@ static Expr *new_expr_cmp(enum ExprKind kind, const Token *tok, Expr *lhs, Expr 
       rt = tt;
       kind = swap_cmp(kind);
     }
-    if (!can_cast(lt, rt, is_zero(rhs), false))
+    if (!(same_type_without_qualifier(lt, rt, true) ||
+          (lt->kind == TY_PTR && lt->pa.ptrof->kind == TY_VOID) ||
+          (rt->kind == TY_PTR && rt->pa.ptrof->kind == TY_VOID) ||
+          is_zero(rhs)))
       parse_error(PE_FATAL, tok, "Cannot compare pointer to other types");
     if (rt->kind != TY_PTR)
       rhs = make_cast(lhs->type, rhs->token, rhs, false);
@@ -775,7 +783,7 @@ static Expr *parse_member_access(Expr *target, Token *acctok) {
   int index = find_struct_member(type->struct_.info->members, ident->ident);
   if (index >= 0) {
     const MemberInfo *member = type->struct_.info->members->data[index];
-    Type *type = qualified_type(member->type, target->type->qualifier);
+    Type *type = acctok->kind == TK_DOT ? qualified_type(member->type, target->type->qualifier) : member->type;
     return new_expr_member(acctok, type, target, ident->ident, index);
   } else {
     Vector *stack = new_vector();
@@ -1040,8 +1048,7 @@ Type *parse_raw_type(int *pstorage) {
       type = parse_enum();
     } else if (tok->kind == TK_IDENT) {
       if (no_type_combination(&tc, 0, 0)) {
-        Token *ident = tok;
-        type = find_typedef(curscope, ident->ident, NULL);
+        type = find_typedef(curscope, tok->ident, NULL);
       }
     } else if (tok->kind == TK_VOID) {
       type = tc.qualifier & TQ_CONST ? &tyConstVoid : &tyVoid;
@@ -1052,7 +1059,10 @@ Type *parse_raw_type(int *pstorage) {
     }
   }
 
-  if (type == NULL && !no_type_combination(&tc, ~0, ~0)) {
+  if (type != NULL) {
+    if (tc.qualifier != 0)
+      type = qualified_type(type, tc.qualifier);
+  } else if (!no_type_combination(&tc, ~0, ~0)) {
 #ifndef __NO_FLONUM
     if (tc.float_num > 0) {
       type = &tyFloat;

@@ -292,6 +292,7 @@ test_function() {
   try_direct 'modify arg' 32 'int sub(int x, int y) {return x+y;} int main() {int w=0, x=0, y=5; int z=sub(++x, y+=10); return x+y+z+w;}'
   try_direct 'long immediate' 240 'int sub(unsigned long x){return x;} int main(){ return sub(0x123456789abcdef0); }'
   try_direct 'inline' 93 'inline int f(){return 93;} int main(){return f();}'
+  try_direct 'const typedef-ed type' 0 'typedef unsigned char u8; void f(const u8 x); void f(const unsigned char x) {(void)x;} int main(){return 0;}'
 
   try_direct 'stdarg' 55 "#include <stdarg.h>
   int f(int n, ...) {int a[14*2]; for (int i=0; i<14*2; ++i) a[i]=100+i; va_list ap; va_start(ap, n); int sum=0; for (int i=0; i<n; ++i) sum+=va_arg(ap, int); va_end(ap); return sum;}
