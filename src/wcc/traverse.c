@@ -13,7 +13,7 @@
 #include "util.h"
 #include "var.h"
 
-const char SP_NAME[] = "$_SP";  // Hidden variable name for stack pointer (global).
+const char SP_NAME[] = "__stack_pointer";  // Variable name for stack pointer (global).
 const char BREAK_ADDRESS_NAME[] = "__curbrk";
 const char MEMORY_PAGE_COUNT_NAME[] = "__memoryPageCount";
 const char MEMCPY_NAME[] = "_memcpy";
