@@ -940,6 +940,7 @@ int main(int argc, char *argv[]) {
   bool nodefaultlibs = false, nostdlib = false;
   Vector *lib_paths = new_vector();
   bool export_all = false;
+  bool export_stack_pointer = false;
 
   FILE *ppout = tmpfile();
   if (ppout == NULL)
@@ -969,6 +970,7 @@ int main(int argc, char *argv[]) {
     OPT_NODEFAULTLIBS,
     OPT_NOSTDLIB,
     OPT_EXPORT_ALL_NON_STATIC,
+    OPT_EXPORT_STACK_POINTER,
 
     OPT_WARNING,
     OPT_OPTIMIZE,
@@ -993,6 +995,7 @@ int main(int argc, char *argv[]) {
     {"-entry-point", required_argument, OPT_ENTRY_POINT},
     {"-stack-size", required_argument, OPT_STACK_SIZE},
     {"-export-all-non-static", no_argument, OPT_EXPORT_ALL_NON_STATIC},
+    {"-export-stack-pointer", no_argument, OPT_EXPORT_STACK_POINTER},
 
     // Suppress warnings
     {"O", required_argument, OPT_OPTIMIZE},
@@ -1078,6 +1081,9 @@ int main(int argc, char *argv[]) {
     case OPT_ENTRY_POINT:
       entry_point = *optarg != '\0' ? optarg : NULL;
       break;
+    case OPT_EXPORT_STACK_POINTER:
+      export_stack_pointer = true;
+      break;
     case '?':
       if (strcmp(argv[optind - 1], "-") == 0) {
         if (src_type == UnknownSource) {
@@ -1145,6 +1151,11 @@ int main(int argc, char *argv[]) {
   uint32_t address_bottom = traverse_ast(toplevel, exports, stack_size);
   if (compile_error_count != 0)
     return 1;
+
+  if (export_stack_pointer) {
+    GVarInfo *info = get_gvar_info_from_name(alloc_name(SP_NAME, NULL, false));
+    info->export = true;
+  }
 
   gen(toplevel);
   if (compile_error_count != 0)
