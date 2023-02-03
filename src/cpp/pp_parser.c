@@ -164,7 +164,7 @@ static PpResult expand_ident(const Token *ident) {
   char *expanded = sb_to_string(&sb);
   set_source_string(expanded, NULL, -1);
 
-  return pp_prim();
+  return pp_expr();
 }
 
 static PpResult parse_defined(void) {
