@@ -297,7 +297,8 @@ bool same_type_without_qualifier(const Type *type1, const Type *type2, bool igno
       return type1->flonum.kind == type2->flonum.kind;
 #endif
     case TY_ARRAY:
-      if (type1->pa.length != type2->pa.length)
+      if (type1->pa.length != type2->pa.length &&
+          type1->pa.length != -1 && type2->pa.length != -1)
         return false;
       // Fallthrough
     case TY_PTR:
@@ -396,7 +397,8 @@ bool can_cast(const Type *dst, const Type *src, bool zero, bool is_explicit) {
       // non-const <- const implicitly.
       if ((src->pa.ptrof->qualifier & TQ_CONST) && !(dst->pa.ptrof->qualifier & TQ_CONST)) {
         // Allow const char to char for string literal, otherwise disallow.
-        return is_char_type(src->pa.ptrof) && is_char_type(dst->pa.ptrof);
+        // TODO: Allows string literal only.
+        return is_char_type(src->pa.ptrof) && (is_char_type(dst->pa.ptrof) || dst->pa.ptrof->kind == TY_VOID);
       }
       // void* is interchangable with any pointer type.
       if (dst->pa.ptrof->kind == TY_VOID || src->pa.ptrof->kind == TY_VOID)
