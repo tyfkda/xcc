@@ -1521,8 +1521,11 @@ static Declaration *parse_defun(Type *functype, int storage, Token *ident) {
     const Vector *params = func->type->func.params;
     if (params != NULL) {
       top_vars = new_vector();
-      for (int i = 0; i < params->len; ++i)
-        vec_push(top_vars, params->data[i]);
+      for (int i = 0; i < params->len; ++i) {
+        VarInfo *varinfo = params->data[i];
+        vec_push(top_vars, varinfo);
+        ensure_struct(varinfo->type, tok, curscope);
+      }
     }
     func->scopes = new_vector();
     func->body_block = parse_block(tok, top_vars);
