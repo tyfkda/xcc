@@ -360,9 +360,8 @@ static Expr *new_expr_num_bop(enum ExprKind kind, const Token *tok, Expr *lhs, E
     }
 #undef CALC
     Type *type = lhs->type->fixnum.kind >= rhs->type->fixnum.kind ? lhs->type : rhs->type;
-    if (type->fixnum.kind < FX_INT)
-      type = &tyInt;
-    return new_expr_fixlit(type, lhs->token, clamp_value(value, type_size(type), type->fixnum.is_unsigned));
+    Expr *result = new_expr_fixlit(type, lhs->token, clamp_value(value, type_size(type), type->fixnum.is_unsigned));
+    return promote_to_int(result);
   }
 
   if ((kind == EX_DIV || kind == EX_MOD) && is_const(rhs) &&
@@ -433,9 +432,8 @@ Expr *new_expr_addsub(enum ExprKind kind, const Token *tok, Expr *lhs, Expr *rhs
         break;
       }
       Type *type = lnt >= rnt ? lhs->type : rhs->type;
-      if (type->fixnum.kind < FX_INT)
-        type = &tyInt;
-      return new_expr_fixlit(type, lhs->token, clamp_value(value, type_size(type), type->fixnum.is_unsigned));
+      Expr *result = new_expr_fixlit(type, lhs->token, clamp_value(value, type_size(type), type->fixnum.is_unsigned));
+      return promote_to_int(result);
     }
 
     cast_numbers(&lhs, &rhs, true);
@@ -693,8 +691,7 @@ void check_funcall_args(Expr *func, Vector *args, Scope *scope, Vector *toplevel
         const Type *type = arg->type;
         switch (type->kind) {
         case TY_FIXNUM:
-          if (type->fixnum.kind < FX_INT)  // Promote variadic argument.
-            arg = make_cast(&tyInt, arg->token, arg, false);
+          arg = promote_to_int(arg);
           break;
 #ifndef __NO_FLONUM
         case TY_FLONUM:
@@ -1849,7 +1846,7 @@ static Expr *parse_conditional(void) {
       if (type == NULL)
         parse_error(PE_FATAL, tok, "lhs and rhs must be same type");
       if (is_fixnum(type->kind) && type->fixnum.kind < FX_INT)
-        type = &tyInt;
+        type = get_fixnum_type(FX_INT, type->fixnum.is_unsigned, type->qualifier);
       tval = make_cast(type, tval->token, tval, false);
       fval = make_cast(type, fval->token, fval, false);
     }

@@ -350,8 +350,7 @@ static void gen_funcall(Expr *expr) {
       for (int i = 0; i < d; ++i) {
         Expr *arg = args->data[i + param_count];
         const Type *t = arg->type;
-        if (t->kind == TY_FIXNUM && t->fixnum.kind < FX_INT)
-          t = &tyInt;
+        assert(!(t->kind == TY_FIXNUM && t->fixnum.kind < FX_INT));
         //vaarg_bufsiz = ALIGN(vaarg_bufsiz, align_size(t));
         vaarg_bufsiz += type_size(t);
       }
@@ -417,8 +416,7 @@ static void gen_funcall(Expr *expr) {
                             new_expr_fixlit(&tySize, NULL, sarg_siz + vaarg_offset)),
                true);
       const Type *t = arg->type;
-      if (t->kind == TY_FIXNUM && t->fixnum.kind < FX_INT)
-        t = &tyInt;
+      assert(!(t->kind == TY_FIXNUM && t->fixnum.kind < FX_INT));
       vaarg_offset += type_size(t);
 
       gen_expr(arg, true);
