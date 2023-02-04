@@ -937,7 +937,7 @@ int main(int argc, char *argv[]) {
   Vector *exports = new_vector();
   uint32_t stack_size = DEFAULT_STACK_SIZE;
   const char *entry_point = "_start";
-  bool nodefaultlibs = false, nostdlib = false;
+  bool nodefaultlibs = false, nostdlib = false, nostdinc = false;
   Vector *lib_paths = new_vector();
   bool export_all = false;
   bool export_stack_pointer = false;
@@ -949,7 +949,6 @@ int main(int argc, char *argv[]) {
   init_preprocessor(ppout);
   define_macro("__ILP32__");
   define_macro("__WASM");
-  add_system_inc_path(cat_path(root, "include"));
 
   init_compiler();
 
@@ -969,6 +968,9 @@ int main(int argc, char *argv[]) {
     OPT_IMPORT_MODULE_NAME,
     OPT_NODEFAULTLIBS,
     OPT_NOSTDLIB,
+    OPT_NOSTDINC,
+    OPT_ISYSTEM,
+    OPT_IDIRAFTER,
     OPT_EXPORT_ALL_NON_STATIC,
     OPT_EXPORT_STACK_POINTER,
 
@@ -982,6 +984,8 @@ int main(int argc, char *argv[]) {
   };
   static const struct option options[] = {
     {"I", required_argument},  // Add include path
+    {"isystem", required_argument, OPT_ISYSTEM},  // Add system include path
+    {"idirafter", required_argument, OPT_IDIRAFTER},  // Add include path (after)
     {"L", required_argument},  // Add library path
     {"D", required_argument},  // Define macro
     {"o", required_argument},  // Specify output filename
@@ -990,6 +994,7 @@ int main(int argc, char *argv[]) {
     {"W", required_argument, OPT_WARNING},
     {"nodefaultlibs", no_argument, OPT_NODEFAULTLIBS},
     {"nostdlib", no_argument, OPT_NOSTDLIB},
+    {"nostdinc", no_argument, OPT_NOSTDINC},
     {"-import-module-name", required_argument, OPT_IMPORT_MODULE_NAME},
     {"-verbose", no_argument, OPT_VERBOSE},
     {"-entry-point", required_argument, OPT_ENTRY_POINT},
@@ -1029,7 +1034,13 @@ int main(int argc, char *argv[]) {
       }
       break;
     case 'I':
-      add_system_inc_path(optarg);
+      add_inc_path(INC_NORMAL, optarg);
+      break;
+    case OPT_ISYSTEM:
+      add_inc_path(INC_SYSTEM, optarg);
+      break;
+    case OPT_IDIRAFTER:
+      add_inc_path(INC_AFTER, optarg);
       break;
     case 'D':
       define_macro(optarg);
@@ -1059,6 +1070,9 @@ int main(int argc, char *argv[]) {
       break;
     case OPT_NOSTDLIB:
       nostdlib = true;
+      break;
+    case OPT_NOSTDINC:
+      nostdinc = true;
       break;
     case OPT_EXPORT_ALL_NON_STATIC:
       export_all = true;
@@ -1114,6 +1128,10 @@ int main(int argc, char *argv[]) {
     fprintf(stderr, "No input files\n\n");
     // usage(stderr);
     return 1;
+  }
+
+  if (!nostdinc) {
+    add_inc_path(INC_AFTER, cat_path(root, "include"));
   }
 
   if (entry_point != NULL)

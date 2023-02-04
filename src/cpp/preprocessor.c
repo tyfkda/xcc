@@ -41,13 +41,15 @@ static const char *find_directive(const char *line) {
   return skip_whitespaces(p + 1);
 }
 
+#define INC_ORDERS  (INC_AFTER + 1)
+
 static FILE *pp_ofp;
-static Vector *sys_inc_paths;  // <const char*>
-static Vector *pragma_once_files;  // <const char*>
+static Vector sys_inc_paths[INC_ORDERS];  // <const char*>
+static Vector pragma_once_files;  // <const char*>
 
 static bool registered_pragma_once(const char *filename) {
-  for (int i = 0, len = pragma_once_files->len; i < len; ++i) {
-    const char *fn = pragma_once_files->data[i];
+  for (int i = 0, len = pragma_once_files.len; i < len; ++i) {
+    const char *fn = pragma_once_files.data[i];
     if (strcmp(fn, filename) == 0)
       return true;
   }
@@ -57,7 +59,24 @@ static bool registered_pragma_once(const char *filename) {
 static void register_pragma_once(const char *filename) {
   if (!is_fullpath(filename))
     filename = fullpath(filename);
-  vec_push(pragma_once_files, filename);
+  vec_push(&pragma_once_files, filename);
+}
+
+static FILE *search_sysinc(const char *path, char **pfn) {
+  for (int i = 0; i < INC_ORDERS; ++i) {
+    Vector *v = &sys_inc_paths[i];
+    for (int j = 0; j < v->len; ++j) {
+      FILE *fp = NULL;
+      char *fn = cat_path_cwd(v->data[j], path);
+      if (registered_pragma_once(fn) ||
+          (fp = fopen(fn, "r")) != NULL) {
+        *pfn = fn;
+        return fp;
+      }
+    }
+  }
+  *pfn = NULL;
+  return NULL;
 }
 
 static void handle_include(const char *p, Stream *stream) {
@@ -139,17 +158,10 @@ static void handle_include(const char *p, Stream *stream) {
     fp = fopen(fn, "r");
   }
   if (fp == NULL) {
-    // Search from system include directries.
-    for (int i = 0; i < sys_inc_paths->len; ++i) {
-      fn = cat_path_cwd(sys_inc_paths->data[i], path);
-      if (registered_pragma_once(fn))
-        return;
-      fp = fopen(fn, "r");
-      if (fp != NULL)
-        break;
-    }
+    fp = search_sysinc(path, &fn);
     if (fp == NULL) {
-      error("Cannot open file: %s", path);
+      if (fn == NULL)  // Except pragma once.
+        error("Cannot open file: %s", path);
       return;
     }
   }
@@ -496,8 +508,6 @@ static void define_file_macro(const char *filename, const Name *key_file) {
 
 void init_preprocessor(FILE *ofp) {
   pp_ofp = ofp;
-  sys_inc_paths = new_vector();
-  pragma_once_files = new_vector();
 
   init_lexer();
 
@@ -648,6 +658,7 @@ void define_macro(const char *arg) {
   macro_add(alloc_name(arg, p, true), macro);
 }
 
-void add_system_inc_path(const char *path) {
-  vec_push(sys_inc_paths, strdup(path));
+void add_inc_path(enum IncludeOrder order, const char *path) {
+  assert(order < INC_ORDERS);
+  vec_push(&sys_inc_paths[order], strdup(path));
 }

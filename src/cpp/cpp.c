@@ -36,29 +36,25 @@ int main(int argc, char *argv[]) {
     {0},
   };
   int opt;
-  Vector *idirafter = new_vector();
   while ((opt = optparse(argc, argv, options)) != -1) {
     switch (opt) {
     case 'V':
       show_version("cpp");
       return 0;
     case 'I':
-      add_system_inc_path(optarg);
+      add_inc_path(INC_NORMAL, optarg);
       break;
     case OPT_ISYSTEM:
-      add_system_inc_path(optarg);
+      add_inc_path(INC_SYSTEM, optarg);
       break;
     case OPT_IDIRAFTER:
-      vec_push(idirafter, optarg);
+      add_inc_path(INC_AFTER, optarg);
       break;
     case 'D':
       define_macro(optarg);
       break;
     }
   }
-
-  for (int i = 0; i < idirafter->len; ++i)
-    add_system_inc_path(idirafter->data[i]);
 
   int iarg = optind;
   if (iarg < argc) {
