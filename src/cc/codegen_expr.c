@@ -574,7 +574,6 @@ VReg *gen_expr(Expr *expr) {
   switch (expr->kind) {
   case EX_FIXNUM:
     {
-      assert(expr->type->kind == TY_FIXNUM);
       VReg *reg = new_const_vreg(expr->fixnum, to_vtype(expr->type));
       if (!is_im32(expr->fixnum)) {
         // Large constant value is not allowed in x86,

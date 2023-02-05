@@ -132,21 +132,24 @@ bool check_cast(const Type *dst, const Type *src, bool zero, bool is_explicit, c
 }
 
 Expr *make_cast(Type *type, const Token *token, Expr *sub, bool is_explicit) {
+  check_cast(type, sub->type, is_zero(sub), is_explicit, token);
   if (same_type(type, sub->type))
     return sub;
-  if (is_const(sub) && is_number(sub->type) && is_number(type)) {
+
+  if (is_const(sub) && sub->kind != EX_STR) {
 #ifndef __NO_FLONUM
-    switch (sub->type->kind) {
-    case TY_FLONUM:
+    switch (sub->kind) {
+    case EX_FLONUM:
       if (type->kind == TY_FIXNUM) {
         Fixnum fixnum = sub->flonum;
         return new_expr_fixlit(type, sub->token, fixnum);
       }
+      assert(type->kind == TY_FLONUM);
       sub->type = type;
       return sub;
-    case TY_FIXNUM:
+    case EX_FIXNUM:
       if (type->kind == TY_FLONUM) {
-        double flonum = sub->type->fixnum.is_unsigned ? (double)(UFixnum)sub->fixnum : (double)sub->fixnum;
+        double flonum = (sub->type->kind != TY_FIXNUM || sub->type->fixnum.is_unsigned) ? (double)(UFixnum)sub->fixnum : (double)sub->fixnum;
         return new_expr_flolit(type, sub->token, flonum);
       }
       break;
@@ -155,29 +158,27 @@ Expr *make_cast(Type *type, const Token *token, Expr *sub, bool is_explicit) {
     }
 #endif
 
-    {
-      int bytes = type_size(type);
-      int src_bytes = type_size(sub->type);
-      if (bytes < (int)type_size(&tySize) &&
-          (bytes < src_bytes ||
-           (bytes == src_bytes &&
-            type->fixnum.is_unsigned != sub->type->fixnum.is_unsigned))) {
-        int bits = bytes * CHAR_BIT;
-        UFixnum mask = (-1UL) << bits;
-        Fixnum value = sub->fixnum;
-        if (!type->fixnum.is_unsigned &&    // signed
-            (value & (1UL << (bits - 1))))  // negative
-          value |= mask;
-        else
-          value &= ~mask;
-        sub->fixnum = value;
-      }
+    assert(sub->kind == EX_FIXNUM);
+    int bytes = type_size(type);
+    int src_bytes = type_size(sub->type);
+    if (bytes < (int)type_size(&tySize) &&
+        (bytes < src_bytes ||
+          (bytes == src_bytes &&
+          type->fixnum.is_unsigned != sub->type->fixnum.is_unsigned))) {
+      int bits = bytes * CHAR_BIT;
+      UFixnum mask = (-1UL) << bits;
+      Fixnum value = sub->fixnum;
+      if (!type->fixnum.is_unsigned &&    // signed
+          (value & (1UL << (bits - 1))))  // negative
+        value |= mask;
+      else
+        value &= ~mask;
+      sub->fixnum = value;
     }
     sub->type = type;
     return sub;
   }
 
-  check_cast(type, sub->type, is_zero(sub), is_explicit, token);
   return new_expr_cast(type, token, sub);
 }
 
@@ -285,6 +286,19 @@ static void check_referable(const Token *tok, Expr *expr, const char *error) {
 
 Expr *make_refer(const Token *tok, Expr *expr) {
   check_referable(tok, expr, "Cannot take reference");
+
+  if (expr->kind == EX_MEMBER &&
+      expr->member.target->kind == EX_FIXNUM && expr->token->kind == TK_ARROW) {
+    assert(expr->member.target->type->kind == TY_PTR);
+    const Type *stype = expr->member.target->type->pa.ptrof;
+    assert(stype->kind == TY_STRUCT);
+    StructInfo *sinfo = stype->struct_.info;
+    assert(sinfo != NULL);
+    MemberInfo *minfo = sinfo->members->data[expr->member.index];
+    Fixnum value = expr->member.target->fixnum + minfo->offset;
+    return new_expr_fixlit(ptrof(minfo->type), tok, value);
+  }
+
   if (expr->kind == EX_DEREF)
     return expr->unary.sub;
   Expr *e = expr;
@@ -526,8 +540,9 @@ static Expr *new_expr_cmp(enum ExprKind kind, const Token *tok, Expr *lhs, Expr 
   } else {
     if (!cast_numbers(&lhs, &rhs, false))
       parse_error(PE_FATAL, tok, "Cannot compare except numbers");
+  }
 
-    if (is_const(lhs) && is_const(rhs)) {
+  if (is_const(lhs) && is_const(rhs)) {
 #define JUDGE(kind, tf, l, r)               \
   switch (kind) {                           \
   default: assert(false); /* Fallthrough */ \
@@ -538,35 +553,35 @@ static Expr *new_expr_cmp(enum ExprKind kind, const Token *tok, Expr *lhs, Expr 
   case EX_GE: tf = l >= r; break;           \
   case EX_GT: tf = l > r; break;            \
   }
-      bool tf;
-      switch (lhs->kind) {
-      default:
-        assert(false);
-        // Fallthrough to suppress warning.
-      case EX_FIXNUM:
-        assert(rhs->kind == EX_FIXNUM);
-        if (lhs->type->fixnum.is_unsigned) {
-          UFixnum l = lhs->fixnum, r = rhs->fixnum;
-          JUDGE(kind, tf, l, r);
-        } else {
-          Fixnum l = lhs->fixnum, r = rhs->fixnum;
-          JUDGE(kind, tf, l, r);
-        }
-        break;
-#ifndef __NO_FLONUM
-      case EX_FLONUM:
-        {
-          assert(rhs->kind == EX_FLONUM);
-          double l = lhs->flonum, r = rhs->flonum;
-          JUDGE(kind, tf, l, r);
-        }
-        break;
-#endif
+    bool tf;
+    switch (lhs->kind) {
+    default:
+      assert(false);
+      // Fallthrough to suppress warning.
+    case EX_FIXNUM:
+      assert(rhs->kind == EX_FIXNUM);
+      if (lhs->type->fixnum.is_unsigned) {
+        UFixnum l = lhs->fixnum, r = rhs->fixnum;
+        JUDGE(kind, tf, l, r);
+      } else {
+        Fixnum l = lhs->fixnum, r = rhs->fixnum;
+        JUDGE(kind, tf, l, r);
       }
-      return new_expr_fixlit(&tyBool, tok, tf);
-#undef JUDGE
+      break;
+#ifndef __NO_FLONUM
+    case EX_FLONUM:
+      {
+        assert(rhs->kind == EX_FLONUM);
+        double l = lhs->flonum, r = rhs->flonum;
+        JUDGE(kind, tf, l, r);
+      }
+      break;
+#endif
     }
+    return new_expr_fixlit(&tyBool, tok, tf);
+#undef JUDGE
   }
+
   return new_expr_bop(kind, &tyBool, tok, lhs, rhs);
 }
 
