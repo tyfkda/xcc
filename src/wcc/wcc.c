@@ -792,6 +792,14 @@ static void gen_alloca(Expr *expr) {
   gen_expr(spvar, true);
 }
 
+static void gen_builtin_memory_size(Expr *expr) {
+  assert(expr->kind == EX_FUNCALL);
+  Vector *args = expr->funcall.args;
+  assert(args->len == 0);
+
+  ADD_CODE(OP_MEMORY_SIZE, 0x00);
+}
+
 static void gen_builtin_memory_grow(Expr *expr) {
   assert(expr->kind == EX_FUNCALL);
   Vector *args = expr->funcall.args;
@@ -829,6 +837,16 @@ static void install_builtins(void) {
     Type *type = new_func_type(rettype, params, param_types, false);
 
     add_builtin_function("alloca", type, &p_alloca, true);
+  }
+  {
+    static BuiltinFunctionProc p_memory_size = &gen_builtin_memory_size;
+    Vector *params = new_vector();
+
+    Type *rettype = &tyInt;
+    Vector *param_types = extract_varinfo_types(params);
+    Type *type = new_func_type(rettype, params, param_types, false);
+
+    add_builtin_function("__builtin_memory_size", type, &p_memory_size, true);
   }
   {
     static BuiltinFunctionProc p_memory_grow = &gen_builtin_memory_grow;

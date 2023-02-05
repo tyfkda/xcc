@@ -7,7 +7,6 @@
 
 #if !defined(__XV6)
 #if defined(__WASM)
-extern size_t __memoryPageCount;
 extern char *__curbrk;
 #define CURBRK  __curbrk
 
@@ -16,10 +15,10 @@ extern char *__curbrk;
 
 static void _growTo(void *ptr) {
   size_t page = (((size_t)ptr) + ((1 << MEMORY_PAGE_BIT) - 1)) >> MEMORY_PAGE_BIT;
-  if (page > __memoryPageCount) {
-    const size_t grow = page - __memoryPageCount;
+  size_t count = __builtin_memory_size();
+  if (page > count) {
+    const size_t grow = page - count;
     __builtin_memory_grow(grow);
-    __memoryPageCount += grow;
   }
 }
 

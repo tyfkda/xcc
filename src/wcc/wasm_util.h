@@ -58,6 +58,7 @@ typedef struct {
 #define OP_F64_STORE      (0x39)
 #define OP_I32_STORE8     (0x3a)
 #define OP_I32_STORE16    (0x3b)
+#define OP_MEMORY_SIZE    (0x3f)
 #define OP_MEMORY_GROW    (0x40)
 #define OP_I32_CONST      (0x41)
 #define OP_I64_CONST      (0x42)

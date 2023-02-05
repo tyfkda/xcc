@@ -15,7 +15,6 @@
 
 const char SP_NAME[] = "__stack_pointer";  // Variable name for stack pointer (global).
 const char BREAK_ADDRESS_NAME[] = "__curbrk";
-const char MEMORY_PAGE_COUNT_NAME[] = "__memoryPageCount";
 const char MEMCPY_NAME[] = "_memcpy";
 const char MEMSET_NAME[] = "_memset";
 const char VA_ARGS_NAME[] = ".._VA_ARGS";
@@ -802,11 +801,6 @@ static void add_builtins(void) {
     Type *type = &tySize;  // &tyVoidPtr
     /*GVarInfo *info =*/ add_global_var(type, name);
   }
-  {
-    const Name *name = alloc_name(MEMORY_PAGE_COUNT_NAME, NULL, false);
-    Type *type = &tySize;
-    /*GVarInfo *info =*/ add_global_var(type, name);
-  }
 }
 
 uint32_t traverse_ast(Vector *decls, Vector *exports, uint32_t stack_size) {
@@ -913,18 +907,6 @@ uint32_t traverse_ast(Vector *decls, Vector *exports, uint32_t stack_size) {
       init->single = new_expr_fixlit(info->varinfo->type, NULL, sp_bottom);
       info->varinfo->global.init = init;
       VERBOSE("Break address: 0x%x\n", sp_bottom);
-    }
-    {  // Memory page count.
-      const uint32_t MEMORY_PAGE_BIT = 16;
-      uint32_t page_count = (sp_bottom + ((1 << MEMORY_PAGE_BIT) - 1)) >> MEMORY_PAGE_BIT;
-      assert(page_count > 0);
-
-      GVarInfo *info = get_gvar_info_from_name(alloc_name(MEMORY_PAGE_COUNT_NAME, NULL, false));
-      assert(info != NULL);
-      Initializer *init = new_initializer(IK_SINGLE, NULL);
-      init->single = new_expr_fixlit(info->varinfo->type, NULL, page_count);
-      info->varinfo->global.init = init;
-      VERBOSE("Memory page count: 0x%x\n", page_count);
     }
   }
 
