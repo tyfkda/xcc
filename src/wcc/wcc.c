@@ -680,7 +680,7 @@ static Expr *proc_builtin_va_start(const Token *ident) {
 
   Token *token;
   Vector *args = parse_args(&token);
-  if (args == NULL || args->len != 2) {
+  if (args->len != 2) {
     parse_error(PE_FATAL, token, "two arguments expected");
     return NULL;
   }
@@ -717,7 +717,7 @@ static Expr *proc_builtin_va_end(const Token *ident) {
 
   Token *token;
   Vector *args = parse_args(&token);
-  if (args == NULL || args->len != 1) {
+  if (args->len != 1) {
     parse_error(PE_FATAL, token, "one arguments expected");
     return NULL;
   }
@@ -757,7 +757,7 @@ static Expr *proc_builtin_va_copy(const Token *ident) {
 
   Token *token;
   Vector *args = parse_args(&token);
-  if (args == NULL || args->len != 2) {
+  if (args->len != 2) {
     parse_error(PE_FATAL, token, "two arguments expected");
     return NULL;
   }

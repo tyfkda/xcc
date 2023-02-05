@@ -232,15 +232,13 @@ void dump_expr(FILE *fp, Expr *expr) {
         dump_expr(fp, func);
         fprintf(fp, ")");
       }
-      if (args == NULL) {
-        fprintf(fp, "()");
-      } else {
-        for (int i = 0; i < args->len; ++i) {
-          fputs(i == 0 ? "(" : ", ", fp);
-          dump_expr(fp, args->data[i]);
-        }
-        fprintf(fp, ")");
+      fprintf(fp, "(");
+      for (int i = 0; i < args->len; ++i) {
+        if (i != 0)
+          fputs(", ", fp);
+        dump_expr(fp, args->data[i]);
       }
+      fprintf(fp, ")");
     }
     break;
   case EX_COMPLIT:
@@ -279,6 +277,9 @@ int main(int argc, char *argv[]) {
     set_source_string(source, "*exp*", 1);
 
     Expr *expr = parse_expr();
+    if (compile_error_count != 0)
+      return 1;
+
     FILE *fp = stdout;
     fprintf(fp, "%s : ", source);
     print_type(fp, expr->type);

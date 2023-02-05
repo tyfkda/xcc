@@ -315,18 +315,16 @@ static void traverse_funcall(Expr *expr) {
       }
     }
 
-    if (functype->func.params == NULL && args != NULL)
+    if (functype->func.params == NULL)
       parse_error(PE_NOFATAL, func->token, "function's parameters must be known");
   }
 
   traverse_func_expr(&expr->funcall.func);
-  if (args != NULL) {
-    for (int i = 0, n = args->len; i < n; ++i) {
-      Expr *arg = args->data[i];
-      if (is_stack_param(arg->type))
-        register_func_info_memcpy();
-      traverse_expr((Expr**)&args->data[i], true);
-    }
+  for (int i = 0, n = args->len; i < n; ++i) {
+    Expr *arg = args->data[i];
+    if (is_stack_param(arg->type))
+      register_func_info_memcpy();
+    traverse_expr((Expr**)&args->data[i], true);
   }
 }
 

@@ -349,7 +349,7 @@ static VReg *gen_funcall(Expr *expr) {
   assert(functype != NULL);
 
   Vector *args = expr->funcall.args;
-  int arg_count = args != NULL ? args->len : 0;
+  int arg_count = args->len;
 
   int offset = 0;
 
@@ -367,7 +367,7 @@ static VReg *gen_funcall(Expr *expr) {
   ArgInfo *arg_infos = NULL;
   int stack_arg_count = 0;
   int reg_arg_count = 0;
-  if (args != NULL) {
+  {
     int arg_start = retvar_reg != NULL ? 1 : 0;
     int ireg_index = arg_start;
 #ifndef __NO_FLONUM
@@ -427,7 +427,8 @@ static VReg *gen_funcall(Expr *expr) {
 
   if (offset > 0)
     new_ir_subsp(new_const_vreg(offset, to_vtype(&tySSize)), NULL);
-  if (args != NULL) {
+
+  {
     // Register arguments.
     int iregarg = 0;
     for (int i = arg_count; --i >= 0; ) {

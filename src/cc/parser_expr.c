@@ -657,10 +657,9 @@ static Expr *make_not_expr(Expr *expr) {
 }
 
 Vector *parse_args(Token **ptoken) {
-  Vector *args = NULL;
+  Vector *args = new_vector();
   Token *token;
   if ((token = match(TK_RPAR)) == NULL) {
-    args = new_vector();
     for (;;) {
       Expr *arg = parse_assign();
       vec_push(args, arg);
@@ -683,7 +682,7 @@ void check_funcall_args(Expr *func, Vector *args, Scope *scope, Vector *toplevel
   const Vector *param_types = functype->func.param_types;  // <Type*>
   bool vaargs = functype->func.vaargs;
   if (param_types != NULL) {
-    int argc = args != NULL ? args->len : 0;
+    int argc = args->len;
     int paramc = param_types->len;
     if (!(argc == paramc ||
           (vaargs && argc >= paramc))) {
@@ -692,33 +691,31 @@ void check_funcall_args(Expr *func, Vector *args, Scope *scope, Vector *toplevel
     }
   }
 
-  if (args != NULL) {
-    int paramc = param_types != NULL ? param_types->len : 0;
-    for (int i = 0, len = args->len; i < len; ++i) {
-      Expr *arg = args->data[i];
-      arg = str_to_char_array_var(scope, arg, toplevel);
-      if (arg->type->kind == TY_ARRAY)
-        arg = make_cast(array_to_ptr(arg->type), arg->token, arg, false);
-      if (i < paramc) {
-        Type *type = param_types->data[i];
-        arg = make_cast(type, arg->token, arg, false);
-      } else if (vaargs && i >= paramc) {
-        const Type *type = arg->type;
-        switch (type->kind) {
-        case TY_FIXNUM:
-          arg = promote_to_int(arg);
-          break;
+  int paramc = param_types != NULL ? param_types->len : 0;
+  for (int i = 0, len = args->len; i < len; ++i) {
+    Expr *arg = args->data[i];
+    arg = str_to_char_array_var(scope, arg, toplevel);
+    if (arg->type->kind == TY_ARRAY)
+      arg = make_cast(array_to_ptr(arg->type), arg->token, arg, false);
+    if (i < paramc) {
+      Type *type = param_types->data[i];
+      arg = make_cast(type, arg->token, arg, false);
+    } else if (vaargs && i >= paramc) {
+      const Type *type = arg->type;
+      switch (type->kind) {
+      case TY_FIXNUM:
+        arg = promote_to_int(arg);
+        break;
 #ifndef __NO_FLONUM
-        case TY_FLONUM:
-          if (type->flonum.kind < FL_DOUBLE)  // Promote variadic argument.
-            arg = make_cast(&tyDouble, arg->token, arg, false);
-          break;
+      case TY_FLONUM:
+        if (type->flonum.kind < FL_DOUBLE)  // Promote variadic argument.
+          arg = make_cast(&tyDouble, arg->token, arg, false);
+        break;
 #endif
-        default: break;
-        }
+      default: break;
       }
-      args->data[i] = arg;
     }
+    args->data[i] = arg;
   }
 }
 
