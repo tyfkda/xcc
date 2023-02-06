@@ -1484,10 +1484,14 @@ static int check_reachability_stmts(Vector *stmts) {
       check_reachability(stmt);
       reach |= stmt->reach;
       if (reach & REACH_STOP) {
-        if (i < n - 1) {
+        for (; i < n - 1; ++i) {
           Stmt *next = stmts->data[i + 1];
+          if ((next->kind == ST_BREAK && next->break_.parent->kind == ST_SWITCH) &&
+              (stmt->kind != ST_RETURN && stmt->kind != ST_BREAK))
+            continue;
           if (!(next->kind == ST_LABEL || next->kind == ST_CASE || next->kind == ST_DEFAULT))
             parse_error(PE_WARNING, next->token, "unreachable");
+          break;
         }
       }
     }

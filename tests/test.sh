@@ -242,9 +242,19 @@ test_error() {
   compile_error 'extern only' 'extern int x; void main(){ x = 123; }'
   compile_error 'for-var scoped' 'int main(){ for (int i = 0; i < 5; ++i) ; return i; }'
   compile_error 'use void' 'void func(){} void main(){ int a = (int)func(); }'
+
   compile_error 'goto no-label' 'void main(){ goto label; }'
   compile_error 'goto dup-label' 'void main(){ label: goto label; label:; }'
   compile_error 'unused label' 'void main(){ label:; }'
+
+  # Reachability check.
+  compile_error 'unreachable after return' 'int main(){ int x=0; return x; x=1; }'
+  compile_error 'unreachable break' 'int main(){ for (;;) { break; break; } }'
+  compile_error 'unreachable after if' 'int main(int x, char *argv[]){ for (;;) { if (x) break; else return 1; ++x; } }'
+  compile_error 'unreachable after switch' 'int main(int x, char *argv[]){ switch (x){case 0: return 1; default: return 2;} return 3; }'
+  compile_error 'unreachable after infinite loop' 'int main(int x, char *argv[]){ for (;;) { ++x; } return x; }'
+  try 'allow switch break after block' 21 'int x=21; switch (x) {case 1: {return -1;} break; case 2: {break;} break;} return x;'
+
   compile_error 'enum and global' 'enum Foo { BAR }; int BAR; void main(){}'
   compile_error 'global and enum' 'int BAR; enum Foo { BAR }; void main(){}'
   compile_error 'dup enum elem' 'enum Foo { BAR, BAR }; void main(){}'
