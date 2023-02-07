@@ -454,6 +454,7 @@ static Token *read_num(const char **pp) {
       if (c >= '8')
         lex_error(p, "Octal expected");
       base = 8;
+      is_unsigned = true;
     }
   }
   const char *q = p;

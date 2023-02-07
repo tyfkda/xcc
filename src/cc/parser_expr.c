@@ -359,8 +359,9 @@ static Expr *new_expr_num_bop(enum ExprKind kind, const Token *tok, Expr *lhs, E
     }
 #undef CALC
     Type *type = lhs->type->fixnum.kind >= rhs->type->fixnum.kind ? lhs->type : rhs->type;
-    Expr *result = new_expr_fixlit(type, lhs->token, wrap_value(value, type_size(type), type->fixnum.is_unsigned));
-    return promote_to_int(result);
+    if (type->fixnum.kind < FX_INT)
+      type = &tyInt;
+    return new_expr_fixlit(type, lhs->token, wrap_value(value, type_size(type), type->fixnum.is_unsigned));
   }
 
   if ((kind == EX_DIV || kind == EX_MOD) && is_const(rhs) &&
@@ -431,8 +432,9 @@ Expr *new_expr_addsub(enum ExprKind kind, const Token *tok, Expr *lhs, Expr *rhs
         break;
       }
       Type *type = lnt >= rnt ? lhs->type : rhs->type;
-      Expr *result = new_expr_fixlit(type, lhs->token, wrap_value(value, type_size(type), type->fixnum.is_unsigned));
-      return promote_to_int(result);
+      if (type->fixnum.kind < FX_INT)
+        type = &tyInt;
+      return new_expr_fixlit(type, lhs->token, wrap_value(value, type_size(type), type->fixnum.is_unsigned));
     }
 
     cast_numbers(&lhs, &rhs, true);
@@ -1496,11 +1498,8 @@ static Expr *parse_unary(void) {
       parse_error(PE_NOFATAL, tok, "Cannot apply `-' except number types");
       return expr;
     }
-    if (is_fixnum(expr->type->kind)) {
-      enum FixnumKind fk = MAX(expr->type->fixnum.kind, FX_INT);
-      Type *type = get_fixnum_type(fk, false, expr->type->qualifier);  // To signed type.
-      expr = make_cast(type, tok, expr, false);
-    }
+    if (is_fixnum(expr->type->kind))
+      expr = promote_to_int(expr);
     if (is_const(expr)) {
 #ifndef __NO_FLONUM
       if (is_flonum(expr->type)) {
@@ -1840,7 +1839,7 @@ static Expr *parse_conditional(void) {
       if (type == NULL)
         parse_error(PE_FATAL, tok, "lhs and rhs must be same type");
       if (is_fixnum(type->kind) && type->fixnum.kind < FX_INT)
-        type = get_fixnum_type(FX_INT, type->fixnum.is_unsigned, type->qualifier);
+        type = &tyInt;
       tval = make_cast(type, tval->token, tval, false);
       fval = make_cast(type, fval->token, fval, false);
     }
