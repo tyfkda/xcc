@@ -15,8 +15,6 @@
 
 const char SP_NAME[] = "__stack_pointer";  // Variable name for stack pointer (global).
 const char BREAK_ADDRESS_NAME[] = "__curbrk";
-const char MEMCPY_NAME[] = "_memcpy";
-const char MEMSET_NAME[] = "_memset";
 const char VA_ARGS_NAME[] = ".._VA_ARGS";
 
 Table func_info_table;
@@ -120,43 +118,13 @@ static FuncInfo *register_func_info(const Name *funcname, Function *func, const 
   return info;
 }
 
-static void register_func_info_if_not_exist(const Name *funcname, Type *(*callback)(void)) {
-  if (table_get(&func_info_table, funcname) == NULL) {
-    Type *functype = (*callback)();
-    register_func_info(funcname, NULL, functype, FF_REFERED);
-    scope_add(global_scope, funcname, functype, 0);
-  }
-}
-
-static Type *gen_memcpy_func_type(void) {
-  Type *rettype = &tyVoid;  // Differ from memcpy, no return value.
-  Vector *params = new_vector();
-  var_add(params, NULL, &tyVoidPtr, 0);
-  var_add(params, NULL, &tyVoidPtr, 0);
-  var_add(params, NULL, &tySize, 0);
-  Vector *param_types = extract_varinfo_types(params);
-  return new_func_type(rettype, params, param_types, false);
-}
-
-static void register_func_info_memcpy(void) {
-  const Name *funcname = alloc_name(MEMCPY_NAME, NULL, false);
-  register_func_info_if_not_exist(funcname, gen_memcpy_func_type);
-}
-
-static Type *gen_memset_func_type(void) {
-  Type *rettype = &tyVoid;  // Differ from memset, no return value.
-  Vector *params = new_vector();
-  var_add(params, NULL, &tyVoidPtr, 0);
-  var_add(params, NULL, &tyInt, 0);
-  var_add(params, NULL, &tySize, 0);
-  Vector *param_types = extract_varinfo_types(params);
-  return new_func_type(rettype, params, param_types, false);
-}
-
-static void register_func_info_memset(void) {
-  const Name *funcname = alloc_name(MEMSET_NAME, NULL, false);
-  register_func_info_if_not_exist(funcname, gen_memset_func_type);
-}
+// static void register_func_info_if_not_exist(const Name *funcname, Type *(*callback)(void)) {
+//   if (table_get(&func_info_table, funcname) == NULL) {
+//     Type *functype = (*callback)();
+//     register_func_info(funcname, NULL, functype, FF_REFERED);
+//     scope_add(global_scope, funcname, functype, 0);
+//   }
+// }
 
 static uint32_t register_indirect_function(const Name *name, const Type *type) {
   FuncInfo *info;
@@ -287,7 +255,6 @@ static void traverse_funcall(Expr *expr) {
     return;
   }
   if (functype->func.ret->kind != TY_VOID && !is_prim_type(functype->func.ret)) {
-    register_func_info_memcpy();
     // Allocate local variable for return value.
     assert(curfunc != NULL);
     assert(curfunc->scopes != NULL);
@@ -319,12 +286,8 @@ static void traverse_funcall(Expr *expr) {
   }
 
   traverse_func_expr(&expr->funcall.func);
-  for (int i = 0, n = args->len; i < n; ++i) {
-    Expr *arg = args->data[i];
-    if (is_stack_param(arg->type))
-      register_func_info_memcpy();
+  for (int i = 0, n = args->len; i < n; ++i)
     traverse_expr((Expr**)&args->data[i], true);
-  }
 }
 
 static void traverse_expr(Expr **pexpr, bool needval) {
@@ -377,9 +340,6 @@ static void traverse_expr(Expr **pexpr, bool needval) {
     traverse_expr(&expr->bop.lhs, true);
     traverse_expr(&expr->bop.rhs, true);
     expr->type = &tyVoid;
-    if (!is_prim_type(expr->bop.lhs->type)) {
-      register_func_info_memcpy();
-    }
     if (needval) {
       Expr *lhs = expr->bop.lhs;
       if (!(lhs->kind == EX_VAR ||
@@ -515,7 +475,6 @@ static void traverse_expr(Expr **pexpr, bool needval) {
     break;
 
   case EX_COMPLIT:
-    register_func_info_memset();
     traverse_stmts(expr->complit.inits);
     break;
 
@@ -636,13 +595,6 @@ static void traverse_vardecl(Stmt *stmt) {
       if (decl->init == NULL)
         continue;
       traverse_initializer(decl->init);
-
-      VarInfo *varinfo = scope_find(curscope, decl->ident->ident, NULL);
-      if (varinfo != NULL && (varinfo->storage & (VS_STATIC | VS_EXTERN)) == 0 &&
-          (varinfo->type->kind == TY_STRUCT ||
-           varinfo->type->kind == TY_ARRAY)) {
-        register_func_info_memset();
-      }
     }
   }
   traverse_stmts(stmt->vardecl.inits);
@@ -654,8 +606,6 @@ static void traverse_stmt(Stmt *stmt) {
   switch (stmt->kind) {
   case ST_EXPR:  traverse_expr(&stmt->expr, false); break;
   case ST_RETURN:
-    if (stmt->return_.val != NULL && !is_prim_type(stmt->return_.val->type))
-      register_func_info_memcpy();
     traverse_expr(&stmt->return_.val, true);
     break;
   case ST_BLOCK:

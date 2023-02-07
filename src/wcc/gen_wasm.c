@@ -403,9 +403,9 @@ static void gen_funcall(Expr *expr) {
                    true);
           gen_expr(arg, true);
 
-          ADD_CODE(type_size(&tySize) <= I32_SIZE ? OP_I32_CONST : OP_I64_CONST);
+          ADD_CODE(OP_I32_CONST);
           ADD_LEB128(size);
-          gen_funcall_by_name(alloc_name(MEMCPY_NAME, NULL, false));
+          ADD_CODE(OP_EXTENSION, OPEX_MEMORY_COPY, 0, 0);  // src, dst
         }
         sarg_offset += ALIGN(size, 4);
       }
@@ -498,11 +498,9 @@ static void gen_clear_local_var(const VarInfo *varinfo) {
   // gen_lval(expr->bop.lhs);
   VReg *vreg = varinfo->local.reg;
   gen_bpofs(vreg->non_prim.offset);
-  ADD_CODE(OP_I32_CONST);
-  ADD_LEB128(0);
-  ADD_CODE(type_size(&tySize) <= I32_SIZE ? OP_I32_CONST : OP_I64_CONST);
+  ADD_CODE(OP_I32_CONST, 0, OP_I32_CONST);
   ADD_LEB128(size);
-  gen_funcall_by_name(alloc_name(MEMSET_NAME, NULL, false));
+  ADD_CODE(OP_EXTENSION, OPEX_MEMORY_FILL, 0);
 }
 
 static void gen_lval(Expr *expr, bool needval) {
@@ -865,9 +863,9 @@ void gen_expr(Expr *expr, bool needval) {
           if (size > 0) {
             gen_lval(expr->bop.lhs, true);
             gen_expr(expr->bop.rhs, true);
-            ADD_CODE(type_size(&tySize) <= I32_SIZE ? OP_I32_CONST : OP_I64_CONST);
+            ADD_CODE(OP_I32_CONST);
             ADD_LEB128(size);
-            gen_funcall_by_name(alloc_name(MEMCPY_NAME, NULL, false));
+            ADD_CODE(OP_EXTENSION, OPEX_MEMORY_COPY, 0, 0);  // src, dst
           }
         }
         break;
@@ -1302,7 +1300,7 @@ static void gen_return(Stmt *stmt) {
       gen_expr(val, true);
       ADD_CODE(OP_I32_CONST);
       ADD_LEB128(type_size(rettype));
-      gen_funcall_by_name(alloc_name(MEMCPY_NAME, NULL, false));
+      ADD_CODE(OP_EXTENSION, OPEX_MEMORY_COPY, 0, 0);  // src, dst
       // Result.
       ADD_CODE(OP_LOCAL_GET, 0);
     }

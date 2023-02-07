@@ -18,8 +18,6 @@ typedef struct Vector Vector;
 #define I32_SIZE  (4)  //sizeof(int32_t)
 
 extern const char SP_NAME[];
-extern const char MEMCPY_NAME[];
-extern const char MEMSET_NAME[];
 extern const char VA_ARGS_NAME[];
 
 extern Table func_info_table;

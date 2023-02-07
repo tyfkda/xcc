@@ -163,6 +163,13 @@ const enum Opcode {
   F64_PROMOTE_F32     = 0xbb,  // f64 <- f32
   I32_REINTERPRET_F32 = 0xbc,  // i32 <- f32
   I64_REINTERPRET_F64 = 0xbd,  // i64 <- f64
+  EXTENSION     = 0xfc,
+}
+
+// Wasm opcode
+const enum OpcodeEx {
+  MEMORY_COPY  = 0x0a,
+  MEMORY_FILL  = 0x0b,
 }
 
 const enum WasmType {
@@ -189,7 +196,7 @@ const enum OpKind {
   BR_TABLE,
   CALL,
   CALL_INDIRECT,
-  MEMORY_GROW,
+  OMIT_OPERANDS,
 }
 
 const enum OperandKind {
@@ -241,7 +248,7 @@ const InstTable = new Map([
   [Opcode.I64_STORE16, {op: 'i64.store16', operands: [OperandKind.ULEB128, OperandKind.ULEB128], opKind: OpKind.STORE}],
   [Opcode.I64_STORE32, {op: 'i64.store32', operands: [OperandKind.ULEB128, OperandKind.ULEB128], opKind: OpKind.STORE}],
   [Opcode.MEMORY_SIZE, {op: 'memory.size', operands: [OperandKind.ULEB128]}],
-  [Opcode.MEMORY_GROW, {op: 'memory.grow', operands: [OperandKind.ULEB128], opKind: OpKind.MEMORY_GROW}],
+  [Opcode.MEMORY_GROW, {op: 'memory.grow', operands: [OperandKind.ULEB128], opKind: OpKind.OMIT_OPERANDS}],
   [Opcode.I32_CONST, {op: 'i32.const', operands: [OperandKind.I32CONST]}],
   [Opcode.I64_CONST, {op: 'i64.const', operands: [OperandKind.I64CONST]}],
   [Opcode.F32_CONST, {op: 'f32.const', operands: [OperandKind.F32CONST]}],
@@ -350,6 +357,12 @@ const InstTable = new Map([
   [Opcode.F64_PROMOTE_F32, {op: 'f64.promote_f32'}],
   [Opcode.I32_REINTERPRET_F32, {op: 'i32.reinterpret_f32'}],
   [Opcode.I64_REINTERPRET_F64, {op: 'i64.reinterpret_f64'}],
+])
+
+
+const InstTableEx = new Map([
+  [OpcodeEx.MEMORY_COPY, {op: 'memory.copy', operands: [OperandKind.ULEB128, OperandKind.ULEB128], opKind: OpKind.OMIT_OPERANDS}],  // src, dst
+  [OpcodeEx.MEMORY_FILL, {op: 'memory.fill', operands: [OperandKind.ULEB128], opKind: OpKind.OMIT_OPERANDS}],  // dst
 ])
 
 class BufferReader {
@@ -574,6 +587,7 @@ function readOperand(bufferReader: BufferReader, kind: OperandKind): Operand|Typ
 
 class Inst {
   public opcode: Opcode
+  public opcodeex?: OpcodeEx
   public opKind: OpKind
   public opstr: string
   public operands?: Array<Operand|Type>
@@ -582,13 +596,27 @@ class Inst {
 
 function readInst(bufferReader: BufferReader): Inst {
   const op = bufferReader.readu8()
+  if (op === Opcode.EXTENSION) {
+    const opex = bufferReader.readu8()
+    const table = InstTableEx.get(opex)
+    if (table == null) {
+      throw `Unhandled opex: 0x${opex.toString(16).padStart(2, '0')} at 0x${bufferReader.getOffset().toString(16)}`
+    }
+
+    const inst: Inst = {opcode: op, opcodeex: opex, opKind: table.opKind || OpKind.MISC, opstr: table.op}
+    if (table.operands != null) {
+      inst.operandKinds = table.operands
+      inst.operands = table.operands.map(operand => readOperand(bufferReader, operand))
+    }
+    return inst
+  }
 
   const table = InstTable.get(op)
   if (table == null) {
     throw `Unhandled op: 0x${op.toString(16).padStart(2, '0')} at 0x${bufferReader.getOffset().toString(16)}`
   }
 
-  const inst: Inst = {opcode: op as Opcode, opKind: table.opKind || OpKind.MISC, opstr: table.op}
+  const inst: Inst = {opcode: op, opKind: table.opKind || OpKind.MISC, opstr: table.op}
   if (table.operands != null) {
     inst.operandKinds = table.operands
     inst.operands = table.operands.map(operand => readOperand(bufferReader, operand))
@@ -901,7 +929,7 @@ export class DisWasm {
         case OpKind.CALL_INDIRECT:
           operands = `(type ${inst.operands[0]})`
           break
-        case OpKind.MEMORY_GROW:
+        case OpKind.OMIT_OPERANDS:
           // Omit operands.
           break
         default:
