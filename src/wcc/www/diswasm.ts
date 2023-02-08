@@ -13,6 +13,7 @@ const enum Section {
   ELEM      = 9,
   CODE      = 10,
   DATA      = 11,
+  TAG       = 13,
 }
 
 // Wasm opcode
@@ -23,6 +24,10 @@ const enum Opcode {
   LOOP          = 0x03,
   IF            = 0x04,
   ELSE          = 0x05,
+  TRY           = 0x06,
+  CATCH         = 0x07,
+  THROW         = 0x08,
+  RETHROW       = 0x09,
   END           = 0x0b,
   BR            = 0x0c,
   BR_IF         = 0x0d,
@@ -30,6 +35,7 @@ const enum Opcode {
   RETURN        = 0x0f,
   CALL          = 0x10,
   CALL_INDIRECT = 0x11,
+  CATCH_ALL     = 0x19,
   DROP          = 0x1a,
   SELECT        = 0x1b,
   LOCAL_GET     = 0x20,
@@ -191,6 +197,7 @@ const enum ImportKind {
 const enum OpKind {
   MISC,
   BLOCK,
+  ELSE,
   LOAD,
   STORE,
   BR_TABLE,
@@ -215,7 +222,11 @@ const InstTable = new Map([
   [Opcode.BLOCK, {op: 'block', operands: [OperandKind.TYPE], opKind: OpKind.BLOCK}],
   [Opcode.LOOP, {op: 'loop', operands: [OperandKind.TYPE], opKind: OpKind.BLOCK}],
   [Opcode.IF, {op: 'if', operands: [OperandKind.TYPE], opKind: OpKind.BLOCK}],
-  [Opcode.ELSE, {op: 'else'}],
+  [Opcode.ELSE, {op: 'else', opKind: OpKind.ELSE}],
+  [Opcode.TRY, {op: 'try', operands: [OperandKind.TYPE], opKind: OpKind.BLOCK}],
+  [Opcode.CATCH, {op: 'catch', operands: [OperandKind.ULEB128], opKind: OpKind.ELSE}],
+  [Opcode.THROW, {op: 'throw', operands: [OperandKind.ULEB128]}],
+  [Opcode.RETHROW, {op: 'rethrow', operands: [OperandKind.ULEB128]}],
   [Opcode.END, {op: 'end'}],
   [Opcode.BR, {op: 'br', operands: [OperandKind.ULEB128]}],
   [Opcode.BR_IF, {op: 'br_if', operands: [OperandKind.ULEB128]}],
@@ -223,6 +234,7 @@ const InstTable = new Map([
   [Opcode.RETURN, {op: 'return'}],
   [Opcode.CALL, {op: 'call', operands: [OperandKind.ULEB128], opKind: OpKind.CALL}],
   [Opcode.CALL_INDIRECT, {op: 'call_indirect', operands: [OperandKind.ULEB128, OperandKind.ULEB128], opKind: OpKind.CALL_INDIRECT}],
+  [Opcode.CATCH_ALL, {op: 'catch_all', opKind: OpKind.ELSE}],
   [Opcode.DROP, {op: 'drop'}],
   [Opcode.SELECT, {op: 'select'}],
   [Opcode.LOCAL_GET, {op: 'local.get', operands: [OperandKind.ULEB128]}],
@@ -600,7 +612,7 @@ function readInst(bufferReader: BufferReader): Inst {
     const opex = bufferReader.readu8()
     const table = InstTableEx.get(opex)
     if (table == null) {
-      throw `Unhandled opex: 0x${opex.toString(16).padStart(2, '0')} at 0x${bufferReader.getOffset().toString(16)}`
+      throw `Unhandled opex: 0x${opex.toString(16).padStart(2, '0')} at 0x${(bufferReader.getOffset() - 1).toString(16)}`
     }
 
     const inst: Inst = {opcode: op, opcodeex: opex, opKind: table.opKind || OpKind.MISC, opstr: table.op}
@@ -613,7 +625,7 @@ function readInst(bufferReader: BufferReader): Inst {
 
   const table = InstTable.get(op)
   if (table == null) {
-    throw `Unhandled op: 0x${op.toString(16).padStart(2, '0')} at 0x${bufferReader.getOffset().toString(16)}`
+    throw `Unhandled op: 0x${op.toString(16).padStart(2, '0')} at 0x${(bufferReader.getOffset() - 1).toString(16)}`
   }
 
   const inst: Inst = {opcode: op, opKind: table.opKind || OpKind.MISC, opstr: table.op}
@@ -681,6 +693,8 @@ export class DisWasm {
       'ELEM',
       'CODE',
       'DATA',
+      null,
+      'TAG',
     ]
 
     while (!this.bufferReader.isEof()) {
@@ -729,6 +743,9 @@ export class DisWasm {
 
       case Section.DATA:
         this.readDataSection()
+        break
+
+      case Section.TAG:
         break
 
       default:
@@ -889,7 +906,7 @@ export class DisWasm {
       code.push(inst)
 
       switch (inst.opcode) {
-      case Opcode.ELSE: case Opcode.END:
+      case Opcode.ELSE: case Opcode.END: case Opcode.CATCH:
         --indent
         if (indent === 0 && inst.opcode === Opcode.END) {
           this.log(`${this.addr(offset)})`)
@@ -939,8 +956,8 @@ export class DisWasm {
       }
       this.log(`${this.addr(offset)}${spaces}${inst.opstr} ${operands}`.trimEnd())
 
-      switch (inst.opcode) {
-      case Opcode.IF: case Opcode.BLOCK: case Opcode.LOOP: case Opcode.ELSE:
+      switch (inst.opKind) {
+      case OpKind.BLOCK: case OpKind.ELSE:
         ++indent
         break
       }
