@@ -410,7 +410,9 @@ static void gen_label(Stmt *stmt) {
 }
 
 void gen_clear_local_var(const VarInfo *varinfo) {
-  // Fill with zeros regardless of variable type.
+  if (is_prim_type(varinfo->type))
+    return;
+
   size_t size = type_size(varinfo->type);
   if (size <= 0)
     return;
@@ -418,21 +420,15 @@ void gen_clear_local_var(const VarInfo *varinfo) {
   new_ir_clear(reg, size);
 }
 
-static void gen_vardecl(Vector *decls, Vector *inits) {
-  if (curfunc != NULL) {
-    for (int i = 0; i < decls->len; ++i) {
-      VarDecl *decl = decls->data[i];
-      if (decl->init == NULL)
-        continue;
+static void gen_vardecl(Vector *decls) {
+  for (int i = 0; i < decls->len; ++i) {
+    VarDecl *decl = decls->data[i];
+    if (decl->init_stmt != NULL) {
       VarInfo *varinfo = scope_find(curscope, decl->ident->ident, NULL);
-      if (varinfo == NULL || (varinfo->storage & (VS_STATIC | VS_EXTERN)) ||
-          !(varinfo->type->kind == TY_STRUCT ||
-            varinfo->type->kind == TY_ARRAY))
-        continue;
       gen_clear_local_var(varinfo);
+      gen_stmt(decl->init_stmt);
     }
   }
-  gen_stmts(inits);
 }
 
 static void gen_expr_stmt(Expr *expr) {
@@ -457,7 +453,7 @@ void gen_stmt(Stmt *stmt) {
   case ST_CONTINUE:  gen_continue(); break;
   case ST_GOTO:  gen_goto(stmt); break;
   case ST_LABEL:  gen_label(stmt); break;
-  case ST_VARDECL:  gen_vardecl(stmt->vardecl.decls, stmt->vardecl.inits); break;
+  case ST_VARDECL:  gen_vardecl(stmt->vardecl.decls); break;
   case ST_ASM:  gen_asm(stmt); break;
 
   default:

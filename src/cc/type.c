@@ -165,6 +165,10 @@ bool is_void_ptr(const Type *type) {
   return type->kind == TY_PTR && type->pa.ptrof->kind == TY_VOID;
 }
 
+bool is_prim_type(const Type *type) {
+  return is_number(type) || type->kind == TY_PTR;
+}
+
 bool ptr_or_array(const Type *type) {
   return type->kind == TY_PTR || type->kind == TY_ARRAY;
 }

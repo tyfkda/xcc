@@ -191,6 +191,7 @@ VarDecl *new_vardecl(Type *type, const Token *ident, Initializer *init, int stor
   decl->ident = ident;
   decl->init = init;
   decl->storage = storage;
+  decl->init_stmt = NULL;
   return decl;
 }
 
@@ -279,10 +280,9 @@ Stmt *new_stmt_label(const Token *label, Stmt *follow) {
   return stmt;
 }
 
-Stmt *new_stmt_vardecl(Vector *decls, Vector *inits) {
+Stmt *new_stmt_vardecl(Vector *decls) {
   Stmt *stmt = new_stmt(ST_VARDECL, NULL);
   stmt->vardecl.decls = decls;
-  stmt->vardecl.inits = inits;
   return stmt;
 }
 

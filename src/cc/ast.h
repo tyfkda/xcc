@@ -336,6 +336,7 @@ typedef struct VarDecl {
   const Token *ident;
   Initializer *init;
   int storage;
+  struct Stmt *init_stmt;
 } VarDecl;
 
 VarDecl *new_vardecl(Type *type, const Token *ident, Initializer *init, int storage);
@@ -403,7 +404,6 @@ typedef struct Stmt {
     } return_;
     struct {
       Vector *decls;  // <VarDecl*>
-      Vector *inits;  // <Stmt*>
     } vardecl;
     struct {
       Expr *str;
@@ -424,7 +424,7 @@ Stmt *new_stmt_for(const Token *token, Expr *pre, Expr *cond, Expr *post, Stmt *
 Stmt *new_stmt_return(const Token *token, Expr *val);
 Stmt *new_stmt_goto(const Token *tok, const Token *label);
 Stmt *new_stmt_label(const Token *label, Stmt *follow);
-Stmt *new_stmt_vardecl(Vector *decls, Vector *inits);
+Stmt *new_stmt_vardecl(Vector *decls);
 Stmt *new_stmt_asm(const Token *token, Expr *str, Expr *arg);
 
 // ================================================

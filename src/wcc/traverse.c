@@ -25,10 +25,6 @@ Table indirect_function_table;
 
 static Stmt *branching_stmt;
 
-bool is_prim_type(const Type *type) {
-  return is_number(type) || type->kind == TY_PTR;
-}
-
 bool is_stack_param(const Type *type) {
   return !is_prim_type(type);
 }
@@ -499,24 +495,15 @@ static void traverse_initializer(Initializer *init) {
   case IK_MULTI:
     {
       Vector *multi = init->multi;
-      for (int i = 0; i < multi->len; ++i) {
-        Initializer *elem = multi->data[i];
-        if (elem == NULL)
-          continue;
-        switch (elem->kind) {
-        case IK_SINGLE:
-        case IK_MULTI:
-          traverse_initializer(elem);
-          break;
-        case IK_DOT:
-          traverse_initializer(elem->dot.value);
-          break;
-        case IK_ARR:
-          traverse_initializer(elem->arr.value);
-          break;
-        }
-      }
+      for (int i = 0; i < multi->len; ++i)
+        traverse_initializer(multi->data[i]);
     }
+    break;
+  case IK_DOT:
+    traverse_initializer(init->dot.value);
+    break;
+  case IK_ARR:
+    traverse_initializer(init->arr.value);
     break;
   default: assert(false); break;
   }
@@ -594,12 +581,10 @@ static void traverse_vardecl(Stmt *stmt) {
   if (decls != NULL) {
     for (int i = 0, n = decls->len; i < n; ++i) {
       VarDecl *decl = decls->data[i];
-      if (decl->init == NULL)
-        continue;
       traverse_initializer(decl->init);
+      traverse_stmt(decl->init_stmt);
     }
   }
-  traverse_stmts(stmt->vardecl.inits);
 }
 
 static void traverse_stmt(Stmt *stmt) {

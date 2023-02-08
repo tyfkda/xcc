@@ -767,17 +767,18 @@ Vector *assign_initial_value(Expr *expr, Initializer *init, Vector *inits) {
   return inits;
 }
 
-Vector *construct_initializing_stmts(Vector *decls) {
-  Vector *inits = NULL;
+void construct_initializing_stmts(Vector *decls) {
   for (int i = 0; i < decls->len; ++i) {
     VarDecl *decl = decls->data[i];
-    if (decl->storage & VS_STATIC)
+    if (decl->storage & (VS_STATIC | VS_EXTERN))
       continue;
     Expr *var = new_expr_variable(decl->ident->ident, decl->type, NULL, curscope);
-    decl->init = decl->init;
-    inits = assign_initial_value(var, decl->init, inits);
+    if (decl->init != NULL) {
+      Vector *inits = assign_initial_value(var, decl->init, NULL);
+      decl->init_stmt = new_stmt_block(NULL, inits, NULL, NULL);
+      decl->init = NULL;
+    }
   }
-  return inits;
 }
 
 static Initializer *check_vardecl(Type **ptype, const Token *ident, int storage, Initializer *init) {
@@ -1029,8 +1030,9 @@ static bool parse_vardecl(Stmt **pstmt) {
     Vector *decls = parse_vardecl_cont(rawType, type, storage, ident);
     if (consume(TK_SEMICOL, "`;' expected")) {
       if (decls != NULL) {
-        Vector *inits = !is_global_scope(curscope) ? construct_initializing_stmts(decls) : NULL;
-        *pstmt = new_stmt_vardecl(decls, inits);
+        if (!is_global_scope(curscope))
+          construct_initializing_stmts(decls);
+        *pstmt = new_stmt_vardecl(decls);
       }
     }
   }
@@ -1189,8 +1191,8 @@ static Stmt *parse_for(const Token *tok) {
 
   Vector *stmts = new_vector();
   if (decls != NULL) {
-    Vector *inits = construct_initializing_stmts(decls);
-    vec_push(stmts, new_stmt_vardecl(decls, inits));
+    construct_initializing_stmts(decls);
+    vec_push(stmts, new_stmt_vardecl(decls));
   }
 
   if (scope != NULL)

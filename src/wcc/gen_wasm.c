@@ -471,31 +471,12 @@ static void gen_bpofs(int32_t offset) {
 }
 
 static void gen_clear_local_var(const VarInfo *varinfo) {
-  // Fill with zeros regardless of variable type.
+  if (is_prim_type(varinfo->type))
+    return;
+
   size_t size = type_size(varinfo->type);
   if (size <= 0)
     return;
-  // VReg *reg = varinfo->local.reg;
-  // new_ir_clear(reg, size);
-
-  if (is_prim_type(varinfo->type) && !(varinfo->storage & VS_REF_TAKEN)) {
-    unsigned char wt = to_wtype(varinfo->type);
-    switch (wt) {
-    case WT_I32:  ADD_CODE(OP_I32_CONST); ADD_LEB128(0); break;
-    case WT_I64:  ADD_CODE(OP_I64_CONST); ADD_LEB128(0); break;
-#ifndef __NO_FLONUM
-    case WT_F32:  ADD_CODE(OP_F32_CONST); ADD_F32(0); break;
-    case WT_F64:  ADD_CODE(OP_F64_CONST); ADD_F64(0); break;
-#endif
-    }
-    VReg *vreg = varinfo->local.reg;
-    assert(vreg != NULL);
-    ADD_CODE(OP_LOCAL_SET);
-    ADD_ULEB128(vreg->prim.local_index);
-    return;
-  }
-
-  // gen_lval(expr->bop.lhs);
   VReg *vreg = varinfo->local.reg;
   gen_bpofs(vreg->non_prim.offset);
   ADD_CODE(OP_I32_CONST, 0, OP_I32_CONST);
@@ -1338,21 +1319,17 @@ static void gen_if(Stmt *stmt) {
   --cur_depth;
 }
 
-static void gen_vardecl(Vector *decls, Vector *inits) {
+static void gen_vardecl(Vector *decls) {
   if (curfunc != NULL) {
     for (int i = 0; i < decls->len; ++i) {
       VarDecl *decl = decls->data[i];
-      if (decl->init == NULL)
-        continue;
-      VarInfo *varinfo = scope_find(curscope, decl->ident->ident, NULL);
-      if (varinfo == NULL || (varinfo->storage & (VS_STATIC | VS_EXTERN)) ||
-          !(varinfo->type->kind == TY_STRUCT ||
-            varinfo->type->kind == TY_ARRAY))
-        continue;
-      gen_clear_local_var(varinfo);
+      if (decl->init_stmt != NULL) {
+        VarInfo *varinfo = scope_find(curscope, decl->ident->ident, NULL);
+        gen_clear_local_var(varinfo);
+        gen_stmt(decl->init_stmt);
+      }
     }
   }
-  gen_stmts(inits);
 }
 
 void gen_expr_stmt(Expr *expr) {
@@ -1395,7 +1372,7 @@ static void gen_stmt(Stmt *stmt) {
   case ST_CONTINUE:  gen_continue(); break;
   // case ST_GOTO:  gen_goto(stmt); break;
   // case ST_LABEL:  gen_label(stmt); break;
-  case ST_VARDECL:  gen_vardecl(stmt->vardecl.decls, stmt->vardecl.inits); break;
+  case ST_VARDECL:  gen_vardecl(stmt->vardecl.decls); break;
   case ST_ASM:  gen_asm(stmt); break;
   default: assert(false); break;
   }

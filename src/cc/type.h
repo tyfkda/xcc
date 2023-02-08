@@ -124,6 +124,7 @@ bool is_flonum(const Type *type);
 #endif
 bool is_char_type(const Type *type);
 bool is_void_ptr(const Type *type);
+bool is_prim_type(const Type *type);
 bool ptr_or_array(const Type *type);
 Type *get_fixnum_type(enum FixnumKind kind, bool is_unsigned, int qualifier);
 Type *ptrof(Type *type);
