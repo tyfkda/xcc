@@ -18,6 +18,7 @@ typedef struct {
 #define SEC_ELEM      (9)
 #define SEC_CODE      (10)
 #define SEC_DATA      (11)
+#define SEC_TAG       (13)
 
 // Import kind
 #define IMPORT_FUNC    (0)
@@ -31,6 +32,10 @@ typedef struct {
 #define OP_LOOP           (0x03)
 #define OP_IF             (0x04)
 #define OP_ELSE           (0x05)
+#define OP_TRY            (0x06)
+#define OP_CATCH          (0x07)
+#define OP_THROW          (0x08)
+#define OP_RETHROW        (0x09)
 #define OP_END            (0x0b)
 #define OP_BR             (0x0c)
 #define OP_BR_IF          (0x0d)
@@ -38,7 +43,9 @@ typedef struct {
 #define OP_RETURN         (0x0f)
 #define OP_CALL           (0x10)
 #define OP_CALL_INDIRECT  (0x11)
+#define OP_CATCH_ALL      (0x19)
 #define OP_DROP           (0x1a)
+#define OP_SELECT         (0x1b)
 #define OP_LOCAL_GET      (0x20)
 #define OP_LOCAL_SET      (0x21)
 #define OP_LOCAL_TEE      (0x22)

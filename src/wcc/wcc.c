@@ -556,6 +556,20 @@ static void emit_wasm(FILE *ofp, Vector *exports, const char *import_module_name
     VERBOSES("\n");
   }
 
+  // Tag.
+  DataStorage tag_section;
+  data_init(&tag_section);
+  if (tags->len > 0) {
+    for (int i = 0; i < tags->len; ++i) {
+      int typeindex = (intptr_t)tags->data[i];
+      int attribute = 0;
+      emit_uleb128(&tag_section, -1, attribute);
+      emit_uleb128(&tag_section, -1, typeindex);
+    }
+    emit_uleb128(&tag_section, 0, tags->len);  // tag count
+    emit_uleb128(&tag_section, 0, tag_section.len);  // Size
+  }
+
   // Combine all sections.
   DataStorage sections;
   data_init(&sections);
@@ -585,6 +599,12 @@ static void emit_wasm(FILE *ofp, Vector *exports, const char *import_module_name
     data_push(&sections, SEC_MEMORY);  // Section "Memory" (5)
     emit_uleb128(&sections, -1, memory_section.len);
     data_append(&sections, memory_section.buf, memory_section.len);
+  }
+
+  // Tag (must put earlier than Global section.)
+  if (tag_section.len > 0) {
+    data_push(&sections, SEC_TAG);  // Section "Tag" (13)
+    data_append(&sections, tag_section.buf, tag_section.len);
   }
 
   // Globals
@@ -794,9 +814,6 @@ static void gen_alloca(Expr *expr) {
 
 static void gen_builtin_memory_size(Expr *expr) {
   assert(expr->kind == EX_FUNCALL);
-  Vector *args = expr->funcall.args;
-  assert(args->len == 0);
-
   ADD_CODE(OP_MEMORY_SIZE, 0x00);
 }
 
@@ -804,7 +821,6 @@ static void gen_builtin_memory_grow(Expr *expr) {
   assert(expr->kind == EX_FUNCALL);
   Vector *args = expr->funcall.args;
   assert(args->len == 1);
-
   gen_expr(args->data[0], true);
   ADD_CODE(OP_MEMORY_GROW, 0x00);
 }
@@ -859,11 +875,49 @@ static void install_builtins(void) {
 
     add_builtin_function("__builtin_memory_grow", type, &p_memory_grow, true);
   }
+
+  {
+    static BuiltinFunctionProc p_setjmp = &gen_builtin_setjmp;
+    Vector *params = new_vector();
+    var_add(params, NULL, &tyVoidPtr, 0);
+
+    Type *rettype = &tyInt;
+    Vector *param_types = extract_varinfo_types(params);
+    Type *type = new_func_type(rettype, params, param_types, false);
+
+    add_builtin_function("__builtin_setjmp", type, &p_setjmp, true);
+  }
+  {
+    static BuiltinFunctionProc p_longjmp = &gen_builtin_longjmp;
+    Vector *params = new_vector();
+    var_add(params, NULL, &tyVoidPtr, 0);
+    var_add(params, NULL, &tyInt, 0);
+
+    Type *rettype = &tyInt;
+    Vector *param_types = extract_varinfo_types(params);
+    Type *type = new_func_type(rettype, params, param_types, false);
+
+    add_builtin_function("__builtin_longjmp", type, &p_longjmp, true);
+  }
+  {
+    static BuiltinFunctionProc p_try_catch_longjmp = &gen_builtin_try_catch_longjmp;
+    Vector *params = new_vector();
+    var_add(params, NULL, &tyVoidPtr, 0);  // jmpbuf
+    var_add(params, NULL, &tyInt, 0);      // r
+    var_add(params, NULL, &tyVoid, 0);     // try_block_expr
+
+    Type *rettype = &tyInt;
+    Vector *param_types = extract_varinfo_types(params);
+    Type *type = new_func_type(rettype, params, param_types, false);
+
+    add_builtin_function("__builtin_try_catch_longjmp", type, &p_try_catch_longjmp, true);
+  }
 }
 
 static void init_compiler(void) {
   table_init(&func_info_table);
   functypes = new_vector();
+  tags = new_vector();
   table_init(&indirect_function_table);
   init_lexer();
   init_global();

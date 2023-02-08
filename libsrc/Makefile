@@ -97,7 +97,7 @@ longjmp_test:	tests/longjmp_test.c $(LONGJMP_OBJS)
 WCC:=../wcc
 
 .PHONY: test-wcc
-test-wcc:	test-wcc-printf test-wcc-math
+test-wcc:	test-wcc-printf test-wcc-math test-wcc-longjmp
 
 .PHONY: test-wcc-printf
 test-wcc-printf:	printf_test.wasm
@@ -115,4 +115,13 @@ test-wcc-math:	math_test.wasm
 	@echo ''
 
 math_test.wasm:	tests/math_test.c # $(WCC)
+	$(WCC) -o$@ $^
+
+.PHONY: test-wcc-longjmp
+test-wcc-longjmp:	longjmp_test.wasm
+	@echo '## longjmp test'
+	node --experimental-wasm-eh ../tool/runwasm.js $<
+	@echo ''
+
+longjmp_test.wasm:	tests/longjmp_test.c # $(WCC)
 	$(WCC) -o$@ $^

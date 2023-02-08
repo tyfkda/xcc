@@ -11,7 +11,7 @@
 #error Environment unknonwn
 #endif
 
-void expect(char *title, long expected, long actual) {
+void expect(const char *title, long expected, long actual) {
   printf("%s => ", title);
   if (expected == actual) {
     printf("OK\n");
@@ -21,7 +21,7 @@ void expect(char *title, long expected, long actual) {
   exit(1);
 }
 
-void fail(char *title) {
+void fail(const char *title) {
   printf("%s => NG", title);
   exit(1);
 }

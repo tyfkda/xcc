@@ -24,6 +24,7 @@ extern Table func_info_table;
 extern Table gvar_info_table;
 extern Table builtin_function_table;
 extern Vector *functypes;  // <WasmFuncType*>
+extern Vector *tags;  // <int>
 extern Table indirect_function_table;
 extern uint32_t data_end_address;
 extern bool verbose;
@@ -64,8 +65,10 @@ bool is_prim_type(const Type *type);
 bool is_stack_param(const Type *type);
 GVarInfo *get_gvar_info_from_name(const Name *name);
 GVarInfo *get_gvar_info(Expr *expr);
+int getsert_func_type_index(const Type *type, bool reg);
 int get_func_type_index(const Type *type);
 uint32_t get_indirect_function_index(const Name *name);
+Expr *alloc_tmp(const Token *token, Type *type);
 
 // gen_wasm
 void gen(Vector *decls);
@@ -81,6 +84,10 @@ void add_builtin_function(const char *str, Type *type, BuiltinFunctionProc *proc
 
 #define ADD_CODE(...)  do { unsigned char buf[] = {__VA_ARGS__}; add_code(buf, sizeof(buf)); } while (0)
 void add_code(const unsigned char* buf, size_t size);
+
+void gen_builtin_setjmp(Expr *expr);
+void gen_builtin_longjmp(Expr *expr);
+void gen_builtin_try_catch_longjmp(Expr *expr);
 
 // wcc_util
 typedef struct DataStorage {
@@ -105,4 +112,5 @@ typedef struct {
 typedef struct FuncExtra {
   Vector *funcall_results;  // [0]=Expr*, [1]=VarInfo*
   DataStorage *code;
+  int setjmp_count;
 } FuncExtra;

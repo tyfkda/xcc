@@ -1,7 +1,10 @@
-#if !defined(__WASM) && !defined(__GNUC__)
+#if !defined(__GNUC__)
 #include "setjmp.h"
 
-#if defined(__x86_64__)
+#if defined(__WASM)
+// handled by builtin
+
+#elif defined(__x86_64__)
 void longjmp(jmp_buf env, int result) {
   __asm("mov 0(%rdi), %rax\n"  // return address.
         "mov 8(%rdi), %rbp\n"

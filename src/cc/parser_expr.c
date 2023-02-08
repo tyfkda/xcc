@@ -641,6 +641,9 @@ static Expr *make_not_expr(Expr *expr) {
         make_not_expr(cond->bop.lhs),
         make_not_expr(cond->bop.rhs));
     break;
+  case EX_COMMA:
+    cond->bop.rhs = make_not_expr(cond->bop.rhs);
+    break;
   default: assert(false); break;
   }
   return cond;

@@ -112,7 +112,7 @@ Command line options:
   * `-o <filename>`: Set output filename (default: `a.wasm`)
   * `-I <path>`:     Add include path
   * `-D <label>(=value)`:  Define macro
-  * `-entry-point=func_name`:  Specify entry point (default: `_start`)
+  * `--entry-point=func_name`:  Specify entry point (default: `_start`)
   * `-e func_name,...`:  Export function names (comma separated)
   * `--stack-size=<size>`:  Set stack size (default: 8192)
   * `-nodefaultlibs`:  Ignore libc
@@ -129,5 +129,4 @@ Hello, world!
 #### Missing features
 
   * `goto` statement
-  * `setjmp`
   * WASI

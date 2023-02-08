@@ -1,7 +1,10 @@
-#if !defined(__WASM) && !defined(__GNUC__) && !defined(__APPLE__)
+#if !defined(__GNUC__) && !defined(__APPLE__)
 #include "setjmp.h"
 
-#if defined(__x86_64__)
+#if defined(__WASM)
+// handled by builtin
+
+#elif defined(__x86_64__)
 int setjmp(jmp_buf env) {
   __asm("mov (%rsp), %rax\n"  // return address.
         "mov %rax, 0(%rdi)\n"

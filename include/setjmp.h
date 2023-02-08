@@ -1,17 +1,21 @@
 #pragma once
 
-#ifdef __WASM
-#error cannot use setjmp on wasm
-#endif
-
 #include <stdint.h>  // uintptr_t
 
-#ifdef __aarch64__
+#if defined(__WASM)
+typedef uintptr_t jmp_buf[1];  // Stack pointer.
+
+#elif defined(__aarch64__)
 typedef uintptr_t jmp_buf[192 / 8];
 
-#else
+#elif defined(__x86_64__)
 typedef uintptr_t jmp_buf[200 / 8];  // GCC
 #endif
 
 int setjmp(jmp_buf env);
 void longjmp(jmp_buf env, int result);
+
+#ifdef __WASM
+#define setjmp(env)           __builtin_setjmp(env)
+#define longjmp(env, result)  __builtin_longjmp(env, result)
+#endif

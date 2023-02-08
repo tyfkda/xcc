@@ -14,6 +14,7 @@
       "libgen.h": "./include/libgen.h",
       "limits.h": "./include/limits.h",
       "math.h": "./include/math.h",
+      "setjmp.h": "./include/setjmp.h",
       "stdarg.h": "./include/stdarg.h",
       "stdbool.h": "./include/stdbool.h",
       "stddef.h": "./include/stddef.h",

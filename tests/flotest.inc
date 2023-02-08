@@ -4,7 +4,7 @@
 #include "stdlib.h"  // exit
 #include "math.h"
 
-void expect(char *title, Number expected, Number actual) {
+void expect(const char *title, Number expected, Number actual) {
   printf("%s => ", title);
   if (expected == actual) {
     printf("OK\n");
@@ -14,7 +14,7 @@ void expect(char *title, Number expected, Number actual) {
   exit(1);
 }
 
-void expect_about(char *title, Number expected, Number actual) {
+void expect_about(const char *title, Number expected, Number actual) {
   printf("%s => ", title);
   bool ok = false;
   if (isfinite(actual)) {
@@ -32,7 +32,7 @@ void expect_about(char *title, Number expected, Number actual) {
   exit(1);
 }
 
-void expecti(char *title, int expected, int actual) {
+void expecti(const char *title, int expected, int actual) {
   printf("%s => ", title);
   if (expected == actual) {
     printf("OK\n");
@@ -42,7 +42,7 @@ void expecti(char *title, int expected, int actual) {
   exit(1);
 }
 
-void fail(char *title) {
+void fail(const char *title) {
   printf("%s => NG", title);
   exit(1);
 }

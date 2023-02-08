@@ -643,6 +643,23 @@ static void gen_incdec(const Type *type, bool dec) {
   }
 }
 
+static void gen_set_to_var(Expr *var) {
+  assert(var->kind == EX_VAR);
+  const VarInfo *varinfo = scope_find(var->var.scope, var->var.name, NULL);
+  assert(varinfo != NULL);
+  assert(!(varinfo->storage & VS_REF_TAKEN));
+  if (!is_global_scope(var->var.scope) && !(varinfo->storage & (VS_STATIC | VS_EXTERN))) {
+    VReg *vreg = varinfo->local.reg;
+    assert(vreg != NULL);
+    ADD_CODE(OP_LOCAL_SET);
+    ADD_ULEB128(vreg->prim.local_index);
+  } else {
+    GVarInfo *info = get_gvar_info(var);
+    ADD_CODE(OP_GLOBAL_SET);
+    ADD_ULEB128(info->prim.index);
+  }
+}
+
 void gen_expr(Expr *expr, bool needval) {
   switch (expr->kind) {
   case EX_FIXNUM:
@@ -813,30 +830,17 @@ void gen_expr(Expr *expr, bool needval) {
       case TY_FLONUM:
 #endif
         if (expr->bop.lhs->kind == EX_VAR) {
-          Scope *scope;
-          const VarInfo *varinfo = scope_find(lhs->var.scope, lhs->var.name, &scope);
+          const VarInfo *varinfo = scope_find(lhs->var.scope, lhs->var.name, NULL);
           assert(varinfo != NULL);
-          if (varinfo->storage & VS_REF_TAKEN) {
-            gen_lval(lhs, true);
+          if (!(varinfo->storage & VS_REF_TAKEN)) {
             gen_expr(expr->bop.rhs, true);
-            gen_store(lhs->type);
-          } else if (!is_global_scope(scope) && !(varinfo->storage & (VS_STATIC | VS_EXTERN))) {
-            VReg *vreg = varinfo->local.reg;
-            assert(vreg != NULL);
-            gen_expr(expr->bop.rhs, true);
-            ADD_CODE(OP_LOCAL_SET);
-            ADD_ULEB128(vreg->prim.local_index);
-          } else {
-            GVarInfo *info = get_gvar_info(lhs);
-            gen_expr(expr->bop.rhs, true);
-            ADD_CODE(OP_GLOBAL_SET);
-            ADD_ULEB128(info->prim.index);
+            gen_set_to_var(lhs);
+            break;
           }
-        } else {
-          gen_lval(expr->bop.lhs, true);
-          gen_expr(expr->bop.rhs, true);
-          gen_store(expr->bop.lhs->type);
         }
+        gen_lval(lhs, true);
+        gen_expr(expr->bop.rhs, true);
+        gen_store(lhs->type);
         break;
       case TY_STRUCT:
         {
@@ -1658,4 +1662,105 @@ void gen(Vector *decls) {
       continue;
     gen_decl(decl);
   }
+}
+
+////////////////////////////////////////////////
+
+Vector *tags;
+
+int getsert_tag(int typeindex) {
+  int len = tags->len;
+  for (int i = 0; i < len; ++i) {
+    int t = (intptr_t)tags->data[i];
+    if (t == typeindex)
+      return i;
+  }
+  vec_push(tags, (void*)(intptr_t)typeindex);
+  return len;
+}
+
+static int register_longjmp_tag(void) {
+  // Exception type: (void*, int)
+  Vector *param_types = new_vector();
+  vec_push(param_types, &tyInt);
+  vec_push(param_types, &tyVoidPtr);
+  Type *functype = new_func_type(&tyVoid, NULL, param_types, false);
+  int typeindex = getsert_func_type_index(functype, true);
+  return getsert_tag(typeindex);
+}
+
+void gen_builtin_setjmp(Expr *expr) {
+  UNUSED(expr);
+  // Handled by traverse.
+  assert(!"Unexpected");
+}
+
+void gen_builtin_longjmp(Expr *expr) {
+  assert(expr->kind == EX_FUNCALL);
+  Vector *args = expr->funcall.args;
+  assert(args->len == 2);
+
+  // result == 0 ? 1 : result
+  Expr *result = args->data[1];
+  if (is_const(result)) {
+    assert(result->kind == EX_FIXNUM);
+    if (result->fixnum != 0)
+      gen_expr(args->data[1], true);
+    else
+      ADD_CODE(OP_I32_CONST, 1);
+  } else {
+    gen_expr(args->data[1], true);
+    ADD_CODE(OP_I32_CONST, 1);
+    gen_expr(args->data[1], true);  // Assume result has no side effect.
+    ADD_CODE(OP_SELECT);
+  }
+
+  gen_expr(args->data[0], true);
+  int tag = register_longjmp_tag();
+  ADD_CODE(OP_THROW);
+  ADD_ULEB128(tag);
+}
+
+void gen_builtin_try_catch_longjmp(Expr *expr) {
+  assert(expr->kind == EX_FUNCALL);
+  Vector *args = expr->funcall.args;
+  assert(args->len == 3);
+
+  ADD_CODE(OP_BLOCK, WT_VOID); {
+    ADD_CODE(OP_LOOP, WT_VOID); {
+      cur_depth += 3;
+      ADD_CODE(OP_TRY, WT_VOID); {
+        Expr *try_block_expr = args->data[2];
+        assert(try_block_expr->kind == EX_BLOCK);
+        gen_stmt(try_block_expr->block);
+        ADD_CODE(OP_BR, 2);
+      } ADD_CODE(OP_CATCH); {
+        int tag = register_longjmp_tag();
+        ADD_ULEB128(tag);
+
+        // Assume env has no side effect.
+        Expr *env = args->data[0];
+        gen_expr(env, true);
+        ADD_CODE(OP_I32_NE,
+                 OP_IF, WT_VOID,
+                   OP_RETHROW, 1,
+                 OP_END);
+        Expr *var = args->data[1];
+        if (var != NULL)
+          gen_set_to_var(var);
+        else
+          ADD_CODE(OP_DROP);
+
+        // Restore stack pointer.
+        GVarInfo *info = get_gvar_info_from_name(alloc_name(SP_NAME, NULL, false));
+        assert(info != NULL);
+        gen_expr(env, true);
+        ADD_CODE(OP_I32_LOAD, 2, 0,
+                 OP_GLOBAL_SET);
+        ADD_ULEB128(info->prim.index);
+      } ADD_CODE(OP_END);
+      ADD_CODE(OP_BR, 0);  // loop.
+      cur_depth -= 3;
+    } ADD_CODE(OP_END);
+  } ADD_CODE(OP_END);
 }
