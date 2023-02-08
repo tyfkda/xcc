@@ -209,13 +209,15 @@ static Expr *alloc_tmp(const Token *token, Type *type) {
 }
 
 // l=r  =>  (t=r, l=t)
-static Expr *assign_to_tmp(Expr *assign, Expr *bop) {
+static Expr *assign_to_tmp(Expr *assign, Expr **ptmp) {
+  assert(assign->kind == EX_ASSIGN);
   const Token *token = assign->token;
-  Type *type = bop->bop.lhs->type;
-  Expr *rhs = bop->bop.rhs;
+  Type *type = assign->bop.lhs->type;
+  Expr *rhs = assign->bop.rhs;
   Expr *tmp = alloc_tmp(token, type);
+  *ptmp = tmp;
   Expr *assign_tmp = new_expr_bop(EX_ASSIGN, &tyVoid, token, tmp, rhs);
-  bop->bop.rhs = tmp;
+  assign->bop.rhs = tmp;
   return new_expr_bop(EX_COMMA, type, token, assign_tmp, assign);
 }
 
@@ -358,10 +360,10 @@ static void traverse_expr(Expr **pexpr, bool needval) {
 
       Expr *rhs = expr->bop.rhs;
       Type *type = rhs->type;
-      if (!(is_const(rhs) || rhs->kind == EX_VAR)) {  // Rhs is not simple value.
-        Expr *old = expr;
-        expr = assign_to_tmp(expr, expr);
-        rhs = old->bop.rhs;  // tmp
+      if (!(is_const(rhs) || rhs->kind == EX_VAR)) {  // Rhs may have side effect.
+        Expr *tmp;
+        expr = assign_to_tmp(expr, &tmp);
+        rhs = tmp;
       }
       *pexpr = new_expr_bop(EX_COMMA, type, expr->token, expr, rhs);
     }
