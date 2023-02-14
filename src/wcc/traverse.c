@@ -337,29 +337,20 @@ static void traverse_expr(Expr **pexpr, bool needval) {
   case EX_ASSIGN:
     traverse_expr(&expr->bop.lhs, true);
     traverse_expr(&expr->bop.rhs, true);
-    expr->type = &tyVoid;
+    expr->type = &tyVoid;  // Make assigment expression as void.
     if (needval) {
-      Expr *lhs = expr->bop.lhs;
-      if (!(lhs->kind == EX_VAR ||
-            (lhs->kind == EX_DEREF && lhs->unary.sub->kind == EX_VAR))) {
-        const Token *token = expr->token;
-        Type *type = lhs->type, *ptrtype = ptrof(type);
-        Expr *tmp = alloc_tmp(token, ptrtype);
-        Expr *assign_tmp = new_expr_bop(
-            EX_ASSIGN, &tyVoid, token, tmp,
-            new_expr_unary(EX_REF, ptrtype, token, lhs));
-        expr->bop.lhs = new_expr_unary(EX_DEREF, type, token, tmp);
-        *pexpr = new_expr_bop(EX_COMMA, type, token, assign_tmp, expr);
-        traverse_expr(pexpr, needval);
-        return;
-      }
-
       Expr *rhs = expr->bop.rhs;
       Type *type = rhs->type;
       if (!(is_const(rhs) || rhs->kind == EX_VAR)) {  // Rhs may have side effect.
-        Expr *tmp;
-        expr = assign_to_tmp(expr, &tmp);
-        rhs = tmp;
+        Expr *lhs = expr->bop.lhs;
+        if (lhs->kind == EX_VAR) {
+          type = lhs->type;
+          rhs = lhs;
+        } else {
+          Expr *tmp;
+          expr = assign_to_tmp(expr, &tmp);
+          rhs = tmp;
+        }
       }
       *pexpr = new_expr_bop(EX_COMMA, type, expr->token, expr, rhs);
     }
