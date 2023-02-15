@@ -171,6 +171,10 @@ void gen_cond_jmp(Expr *cond, bool tf, BB *bb) {
       set_curbb(bb2);
     }
     return;
+  case EX_COMMA:
+    gen_expr(cond->bop.lhs);
+    gen_cond_jmp(cond->bop.rhs, tf, bb);
+    break;
   default:
     assert(false);
     break;

@@ -1024,6 +1024,10 @@ static void gen_cond(Expr *cond, bool tf, bool needval) {
     ADD_CODE(OP_END);
     --cur_depth;
     break;
+  case EX_COMMA:
+    gen_expr(cond->bop.lhs, false);
+    gen_cond(cond->bop.rhs, tf, needval);
+    break;
   default:
     assert(false);
     break;

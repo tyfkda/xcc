@@ -596,6 +596,9 @@ Expr *make_cond(Expr *expr) {
   case EX_LOGAND:
   case EX_LOGIOR:
     break;
+  case EX_COMMA:
+    expr->bop.rhs = make_cond(expr->bop.rhs);
+    break;
   default:
     switch (expr->type->kind) {
     case TY_ARRAY:
