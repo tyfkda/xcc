@@ -952,15 +952,20 @@ static bool add_lib(Vector *lib_paths, const char *fn, Vector *sources) {
 }
 
 static void export_non_static_functions(Vector *exports) {
+  Table table;
+  table_init(&table);
+  for (int i = 0; i < exports->len; ++i)
+    table_put(&table, exports->data[i], exports->data[i]);
+
   Vector *gvars = global_scope->vars;
   for (int i = 0; i < gvars->len; ++i) {
     VarInfo *vi = gvars->data[i];
-    if (vi->type->kind != TY_FUNC ||
-        vi->global.func == NULL ||
-        table_try_get(&builtin_function_table, vi->name, NULL) ||
-        vi->storage & VS_STATIC)
-      continue;
     const Name *name = vi->name;
+    if (vi->type->kind != TY_FUNC ||
+        vi->global.func == NULL || (vi->storage & VS_STATIC) ||
+        table_try_get(&builtin_function_table, vi->name, NULL) ||
+        table_try_get(&table, name, NULL))
+      continue;
     vec_push(exports, name);
   }
 }
