@@ -109,6 +109,10 @@ TEST(strtod) {
   EXPECT_EQ(0, strtod(s="+ 333.33", &p));
   EXPECT_PTREQ(s, p);
   EXPECT_DEQ(987.06125, strtod(s="987.06125", NULL));  // Null accepted
+
+  union u { double d; uint64_t x; } u;
+  u.d = strtod("-0.0", NULL);
+  EXPECT_EQ(0x8000000000000000LL, u.x);
 #endif
 } END_TEST()
 

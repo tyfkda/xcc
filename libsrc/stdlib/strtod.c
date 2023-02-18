@@ -2,6 +2,8 @@
 #include "ctype.h"  // isspace, tolower
 #include "stdbool.h"
 #include "string.h"
+#include "stdint.h"
+#include "../math/_ieee.h"
 
 bool parse_sign(const char **pp);
 
@@ -133,8 +135,14 @@ double strtod(const char * restrict p, char ** restrict pp) {
   }
   if (p == op)
     p = orig;
-  if (neg)
-    result = -result;
+  if (neg) {
+    if (result != 0) {
+      result = -result;
+    } else {
+      uint64_t *p = (uint64_t*)&result;
+      *p ^= (uint64_t)SIGN_MASK;
+    }
+  }
 
   if (pp != NULL)
     *pp = (char*)p;

@@ -134,6 +134,19 @@ TEST(isnan) {
   EXPECT_FALSE(isnan(HUGE_VAL));
 } END_TEST()
 
+TEST(negative_zero) {
+  double nzero = -0.0;
+  EXPECT_TRUE(nzero == 0.0);
+  EXPECT_EQ(1, signbit(nzero));
+  EXPECT_EQ(-1.0, copysign(1.0, nzero));
+
+  double inv = 1.0 / nzero;
+  EXPECT_TRUE(isinf(inv));
+  EXPECT_TRUE(inv < 0.0);
+
+  EXPECT_NEAR(M_PI, atan2(0.0, nzero));
+} END_TEST()
+
 int main() {
   return RUN_ALL_TESTS(
     test_misc,
@@ -144,6 +157,7 @@ int main() {
     test_frexp,
     test_isinf,
     test_isnan,
+    test_negative_zero,
   );
 }
 #else

@@ -42,11 +42,13 @@ double round(double x);
 double modf(double x, double *pint);
 double fmod(double x, double m);
 double frexp(double x, int *p);
-double copysign(double x, double f);
 
 int isfinite(double x);
 int isnan(double x);
 int isinf(double x);
+
+int signbit(double x);
+double copysign(double x, double f);
 
 #if defined(__APPLE__) || defined(__GNUC__) || defined(__riscv)
 // isfinite, isinf and isnan is defined by macro and not included in lib file,
@@ -72,6 +74,12 @@ int isinf(double x);
   union { double d; int64_t q; } __u; \
   __u.d = (x); \
   (__u.q & __mask2) == __mask2; \
+})
+
+#define signbit(x)  ({ \
+  union { double d; uint64_t xx; } __u; \
+  __u.d = (x); \
+  __u.d != 0 ? __u.d < 0 : __u.xx >> 63; \
 })
 
 #endif

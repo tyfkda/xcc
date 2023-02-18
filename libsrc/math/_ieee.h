@@ -8,10 +8,11 @@
 #define EXPO_POS   FRAC_BIT
 #define EXPO_BIT   (11)
 #define EXPO_BIAS  (1022)
+#define SIGN_POS   (FRAC_BIT + EXPO_BIT)
 
 #define FRAC_MASK  (((int64_t)1 << FRAC_BIT) - 1)
 #define EXPO_MASK  ((((int64_t)1 << EXPO_BIT) - 1) << EXPO_POS)
-#define SIGN_MASK  ((int64_t)1 << (EXPO_POS + EXPO_BIT))
+#define SIGN_MASK  ((int64_t)1 << SIGN_POS)
 
 #define NAN_MASK   ((((int64_t)1 << (EXPO_BIT + 1)) - 1) << (EXPO_POS - 1))
 
