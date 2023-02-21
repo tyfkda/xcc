@@ -1,4 +1,5 @@
 #include "stdlib.h"
+#include "ctype.h"  // isspace
 #include "stdbool.h"
 #include "string.h"
 
@@ -49,6 +50,10 @@ static double strtod_i2(const char *p, const char **pp) {
 
 double strtod(const char* /*restrict*/ p, char ** /*restrict*/ pp) {
   const char *orig = p;
+
+  for (; isspace(*p); ++p)
+    ;
+
   bool neg = parse_sign(&p);
 
   static const struct {
