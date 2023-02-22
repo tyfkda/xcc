@@ -63,20 +63,30 @@ static const int kPow2Table[] = {-1, 0, 1, -1, 2, -1, -1, -1, 3};
 
 //
 
-void mov_immediate(const char *dst, int64_t value, bool b64) {
+static bool is_im48(intptr_t x) {
+  return x <= ((1L << 47) - 1) && x >= -(1L << 47);
+}
+
+void mov_immediate(const char *dst, int64_t value, bool b64, bool is_unsigned) {
+  // TODO: Investigate available immediate value range.
+  // It looks the architecture can take more than 16-bit immediate.
+
   if (value == 0) {
     MOV(dst, b64 ? XZR : WZR);
   } else if (is_im16(value)) {
     MOV(dst, IM(value));
-  } else if (!b64 || is_im32(value)) {
-    int32_t v = value;
-    MOV(dst, IM(v & 0xffff));
-    MOVK(dst, IM((v >> 16) & 0xffff), _LSL(16));
   } else {
-    MOV(dst, IM(value & 0xffff));
-    MOVK(dst, IM((value >> 16) & 0xffff), _LSL(16));
-    MOVK(dst, IM((value >> 32) & 0xffff), _LSL(32));
-    MOVK(dst, IM((value >> 48) & 0xffff), _LSL(48));
+    int32_t l = !is_unsigned && value < 0 ? (int32_t)-((uint16_t)(-(int)value)) : (int32_t)(uint16_t)value;
+    MOV(dst, IM(l));
+    if (!b64 || is_im32(value)) {
+      uint32_t u = value;
+      MOVK(dst, IM(u >> 16), _LSL(16));
+    } else {
+      MOVK(dst, IM((value >> 16) & 0xffff), _LSL(16));
+      MOVK(dst, IM((value >> 32) & 0xffff), _LSL(32));
+      if (!is_im48(value))
+        MOVK(dst, IM((value >> 48) & 0xffff), _LSL(48));
+    }
   }
 }
 
@@ -104,7 +114,7 @@ static void ir_memcpy(int dst_reg, int src_reg, ssize_t size) {
       const Name *label = alloc_label();
       MOV(X4, kReg64s[src_reg]);
       MOV(X5, kReg64s[dst_reg]);
-      mov_immediate(W6, size, false);
+      mov_immediate(W6, size, false, true);
       EMIT_LABEL(fmt_name(label));
       LDRB(W7, POST_INDEX(X4, 1));
       STRB(W7, POST_INDEX(X5, 1));
@@ -137,7 +147,7 @@ static void ir_out(IR *ir) {
         if (ofs < 4096 && ofs > -4096) {
           ADD(dst, FP, IM(ofs));
         } else {
-          mov_immediate(dst, ofs, true);
+          mov_immediate(dst, ofs, true, false);
           ADD(dst, dst, FP);
         }
       }
@@ -169,7 +179,7 @@ static void ir_out(IR *ir) {
       if (ofs < 4096 && ofs > -4096) {
         ADD(dst, SP, IM(ir->opr1->fixnum));
       } else {
-        mov_immediate(dst, ofs, true);
+        mov_immediate(dst, ofs, true, false);
         ADD(dst, dst, SP);
       }
     }
@@ -190,7 +200,7 @@ static void ir_out(IR *ir) {
           src = IMMEDIATE_OFFSET(FP, ir->opr1->offset);
         } else {
           const char *tmp = kTmpRegTable[3];
-          mov_immediate(tmp, ir->opr1->offset, true);
+          mov_immediate(tmp, ir->opr1->offset, true, false);
           src = REG_OFFSET(FP, tmp, NULL);
         }
       }
@@ -241,7 +251,7 @@ static void ir_out(IR *ir) {
           target = IMMEDIATE_OFFSET(FP, ir->opr2->offset);
         } else {
           const char *tmp = kTmpRegTable[3];
-          mov_immediate(tmp, ir->opr2->offset, true);
+          mov_immediate(tmp, ir->opr2->offset, true, false);
           target = REG_OFFSET(FP, tmp, NULL);
         }
       }
@@ -259,7 +269,7 @@ static void ir_out(IR *ir) {
         if (ir->opr1->fixnum == 0)
           src = kZeroRegTable[pow];
         else
-          mov_immediate(src = kTmpRegTable[pow], ir->opr1->fixnum, pow >= 3);
+          mov_immediate(src = kTmpRegTable[pow], ir->opr1->fixnum, pow >= 3, ir->opr1->vtype->flag & VRTF_UNSIGNED);
       } else {
         src = kRegSizeTable[pow][ir->opr1->phys];
       }
@@ -474,7 +484,7 @@ static void ir_out(IR *ir) {
       int pow = kPow2Table[ir->opr1->vtype->size];
       assert(0 <= pow && pow < 4);
       if (ir->opr1->flag & VRF_CONST) {
-        mov_immediate(kRetRegTable[pow], ir->opr1->fixnum, pow >= 3);
+        mov_immediate(kRetRegTable[pow], ir->opr1->fixnum, pow >= 3, ir->opr1->vtype->flag & VRTF_UNSIGNED);
       } else {
         MOV(kRetRegTable[pow], kRegSizeTable[pow][ir->opr1->phys]);
       }
@@ -517,7 +527,7 @@ static void ir_out(IR *ir) {
       assert(0 <= pow && pow < 4);
       const char **regs = kRegSizeTable[pow];
       if (ir->opr1->flag & VRF_CONST) {
-        mov_immediate(regs[ir->dst->phys], ir->opr1->fixnum, pow >= 3);
+        mov_immediate(regs[ir->dst->phys], ir->opr1->fixnum, pow >= 3, ir->opr1->vtype->flag & VRTF_UNSIGNED);
       } else {
         if (ir->opr1->phys != ir->dst->phys)
           MOV(regs[ir->dst->phys], regs[ir->opr1->phys]);
@@ -893,7 +903,7 @@ for (int i = 0; i < CALLER_SAVE_FREG_COUNT; ++i) {
 
       // Break %x6~%x7
       MOV(X6, kReg64s[ir->opr1->phys]);
-      mov_immediate(W7, ir->clear.size, false);
+      mov_immediate(W7, ir->clear.size, false, true);
       EMIT_LABEL(fmt_name(label));
       STRB(WZR, POST_INDEX(X6, 1));
       SUBS(W7, W7, IM(1));

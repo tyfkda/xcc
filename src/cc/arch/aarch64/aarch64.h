@@ -284,4 +284,4 @@
 #define FCVTZS(o1, o2)     EMIT_ASM("fcvtzs", o1, o2)  // int <- float
 #endif
 
-void mov_immediate(const char *dst, int64_t value, bool b64);
+void mov_immediate(const char *dst, int64_t value, bool b64, bool is_unsigned);

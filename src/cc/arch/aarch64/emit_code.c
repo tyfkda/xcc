@@ -445,7 +445,7 @@ static void put_args_to_stack(Function *func) {
         if (offset >= -256) {
           dst = IMMEDIATE_OFFSET(FP, offset);
         } else {
-          mov_immediate(X9, offset, true);  // x9 broken.
+          mov_immediate(X9, offset, true, false);  // x9 broken.
           dst = REG_OFFSET(FP, X9, NULL);
         }
         switch (pow) {
@@ -580,7 +580,7 @@ static void emit_defun(Function *func) {
       if (frame_size <= 0x0fff)
         value = IM(frame_size);
       else
-        mov_immediate(value = X9, frame_size, true);  // x9 broken
+        mov_immediate(value = X9, frame_size, true, false);  // x9 broken
       SUB(SP, SP, value);
     }
     put_args_to_stack(func);
@@ -600,7 +600,7 @@ static void emit_defun(Function *func) {
       if (size <= 0x0fff)
         value = IM(size);
       else
-        mov_immediate(value = SP, size, true);
+        mov_immediate(value = SP, size, true, false);
       SUB(SP, FP, value);
     }
     pop_callee_save_regs(fnbe->ra->used_reg_bits, fnbe->ra->used_freg_bits);
@@ -609,7 +609,7 @@ static void emit_defun(Function *func) {
       if (frame_size <= 0x0fff)
         value = IM(frame_size);
       else
-        mov_immediate(value = X8, frame_size, true);  // x9 broken
+        mov_immediate(value = X8, frame_size, true, false);  // x9 broken
       ADD(SP, SP, value);
     }
     LDP(FP, LR, POST_INDEX(SP, 16));
