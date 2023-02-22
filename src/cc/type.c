@@ -343,7 +343,7 @@ bool same_type(const Type *type1, const Type *type2) {
 }
 
 bool can_cast(const Type *dst, const Type *src, bool zero, bool is_explicit) {
-  if (same_type(dst, src))
+  if (same_type_without_qualifier(dst, src, dst->kind == TY_STRUCT))
     return true;
 
   if (dst->kind == TY_VOID)

@@ -291,6 +291,9 @@ static void gen_cast(const Type *dst, Type *src) {
     }
     break;
 #endif
+  case TY_STRUCT:
+    assert(same_type_without_qualifier(dst, src, true));
+    return;
   default: break;
   }
   assert(!"Cast not handled");

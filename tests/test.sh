@@ -207,6 +207,7 @@ test_struct() {
   try_direct 'struct args' 82 'typedef struct {int a; int b;} X; int sub(X x, int k) { return x.a * k + x.b; } int main() { X x = {12, 34}; return sub(x, 4); }'
   try 'ternary struct' 60 'typedef struct { int x, y, z; } S; S a = {1, 2, 3}, b = {10, 20, 30}; int x = 1; S c = x == 0 ? a : b; return c.x + c.y + c.z;'
   try_direct 'offsetof is const' 5 "#define NULL  ((void*)0)\n#define offsetof(S, m)  ((long)(&((S*)NULL)->m))\nstruct X {char x[5]; char z;}; int main(){ char a[offsetof(struct X, z)]; return sizeof(a); }"
+  try_direct 'implicit cast to non-const' 87 "struct S {int x;}; int foo(struct S s) {return s.x;} int main(void){ const struct S s = {87}; return foo(s); }"
 
   try_direct 'return struct' 46 'typedef struct { int x; int y; } S; S func(void) { S s = {.x = 12, .y = 34}; return s; } int main(){ S s = func(); return s.x + s.y; }'
   try_direct 'return struct not broken' 222 'typedef struct {long x; long y;} S; S sub(){S s={111, 222}; return s;} int main(){int dummy[1]; S s; s = sub(); return s.y;}'
