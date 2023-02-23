@@ -1,7 +1,7 @@
 #include "math.h"
 
 #ifndef __NO_FLONUM
-static const double LOG2 = 0.693147180559945;
+#define LOG2  0.693147180559945
 
 double log(double x) {
   if (x <= 0)

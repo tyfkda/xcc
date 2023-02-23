@@ -2,7 +2,7 @@
 #include "stdbool.h"
 
 #ifndef __NO_FLONUM
-static const double TAN225 = 0.414213562373095;  // tan(22.5 degree)
+#define TAN225  0.414213562373095  // tan(22.5 degree)
 
 double atan(double x) {
   bool neg = x < 0;

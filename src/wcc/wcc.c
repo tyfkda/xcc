@@ -21,8 +21,9 @@
 #include "wasm_util.h"
 
 static const char DEFAULT_IMPORT_MODULE_NAME[] = "c";
-static const uint32_t DEFAULT_STACK_SIZE = 8 * 1024;
-static const uint32_t MEMORY_PAGE_SIZE = 65536;
+
+#define DEFAULT_STACK_SIZE  (8 * 1024)
+#define MEMORY_PAGE_SIZE  65536
 
 bool verbose;
 
