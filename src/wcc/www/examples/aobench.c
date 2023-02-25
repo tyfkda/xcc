@@ -4,8 +4,14 @@
 #include <stdlib.h>
 #include <string.h>
 
+#ifdef SAVE_PPM
+#define WIDTH        (256)
+#define HEIGHT       (256)
+#else
 #define WIDTH        (80)
 #define HEIGHT       (40)
+#endif
+
 #define NSUBSAMPLES  (2)
 #define NAO_SAMPLES  (8)
 
@@ -209,19 +215,18 @@ void render(unsigned char *img, int w, int h, int nsubsamples) {
       *dst++ = clamp(cr * coeff);
       *dst++ = clamp(cg * coeff);
       *dst++ = clamp(cb * coeff);
-      *dst++ = 255;
     }
   }
 }
 
-void showGraphic(int width, int height, unsigned char *img) {
+void showGraphicAsText(int width, int height, unsigned char *img) {
   static const char GRAYSCALE[] = "$@B%8&WM#*oahkbdpqwmZO0QLCJUYXzcvunxrjft/\\|()1{}[]?-_+~<>i!lI;:,\"^`'. ";
   const double S = (sizeof(GRAYSCALE) - 1) / 256.0;
   char *line = alloca(width + 1);
   line[width] = '\0';
   for (int i = 0; i < height; ++i) {
     for (int j = 0; j < width; ++j) {
-      int index = (j + i * width) * 4;
+      int index = (j + i * width) * 3;
       unsigned char r = img[index + 0];
       unsigned char g = img[index + 1];
       unsigned char b = img[index + 2];
@@ -232,12 +237,25 @@ void showGraphic(int width, int height, unsigned char *img) {
   }
 }
 
+#ifdef SAVE_PPM
+void save_ppm(const char *fname, int w, int h, unsigned char *img) {
+  FILE *fp = fopen(fname, "wb");
+  fprintf(fp, "P6\n%d %d\n255\n", w, h);
+  fwrite(img, w * h * 3, 1, fp);
+  fclose(fp);
+}
+#endif
+
 int main(int argc, char *argv[]) {
   int width = argc > 1 ? atoi(argv[1]) : WIDTH;
   int height = argc > 2 ? atoi(argv[2]) : HEIGHT;
   int nsubsamples = argc > 3 ? atoi(argv[3]) : NSUBSAMPLES;
-   unsigned char *img = malloc(width * height * 4);
+  unsigned char *img = malloc(width * height * 3);
   render(img, width, height, nsubsamples);
-  showGraphic(width, height, img);
+#ifdef SAVE_PPM
+  save_ppm("ao.ppm", width, height, img);
+#else
+  showGraphicAsText(width, height, img);
+#endif
   return 0;
 }
