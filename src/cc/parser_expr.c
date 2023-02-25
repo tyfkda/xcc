@@ -929,6 +929,9 @@ static bool no_type_combination(const TypeCombination *tc, int storage_mask, int
 }
 
 Type *parse_raw_type(int *pstorage) {
+  static const char MULTIPLE_STORAGE_SPECIFIED[] = "multiple storage specified";
+  static const char MULTIPLE_QUALIFIER_SPECIFIED[] = "multiple qualifier specified";
+
   Type *type = NULL;
 
   TypeCombination tc = {0};
@@ -937,70 +940,67 @@ Type *parse_raw_type(int *pstorage) {
     if (tok != NULL)
       check_type_combination(&tc, tok);  // Check for last token
     tok = match(-1);
-    if (tok->kind == TK_UNSIGNED) {
+    switch (tok->kind) {
+    case TK_UNSIGNED:
       ++tc.unsigned_num;
       continue;
-    }
-    if (tok->kind == TK_SIGNED) {
+    case TK_SIGNED:
       ++tc.signed_num;
       continue;
-    }
-    if (tok->kind == TK_STATIC) {
-      ASSERT_PARSE_ERROR((tc.storage & ~VS_INLINE) == 0, tok, "multiple storage specified");
+    case TK_STATIC:
+      ASSERT_PARSE_ERROR((tc.storage & ~VS_INLINE) == 0, tok, MULTIPLE_STORAGE_SPECIFIED);
       tc.storage |= VS_STATIC;
       continue;
-    }
-    if (tok->kind == TK_INLINE) {
-      ASSERT_PARSE_ERROR((tc.storage & ~VS_STATIC) == 0, tok, "multiple storage specified");
+    case TK_INLINE:
+      ASSERT_PARSE_ERROR((tc.storage & ~VS_STATIC) == 0, tok, MULTIPLE_STORAGE_SPECIFIED);
       tc.storage |= VS_INLINE;
       continue;
-    }
-    if (tok->kind == TK_EXTERN) {
-      ASSERT_PARSE_ERROR(tc.storage == 0, tok, "multiple storage specified");
+    case TK_EXTERN:
+      ASSERT_PARSE_ERROR(tc.storage == 0, tok, MULTIPLE_STORAGE_SPECIFIED);
       tc.storage |= VS_EXTERN;
       continue;
-    }
-    if (tok->kind == TK_TYPEDEF) {
-      ASSERT_PARSE_ERROR(tc.storage == 0, tok, "multiple storage specified");
+    case TK_TYPEDEF:
+      ASSERT_PARSE_ERROR(tc.storage == 0, tok, MULTIPLE_STORAGE_SPECIFIED);
       tc.storage |= VS_TYPEDEF;
       continue;
-    }
-    if (tok->kind == TK_CONST) {
-      ASSERT_PARSE_ERROR((tc.qualifier & TQ_CONST) == 0, tok, "multiple qualifier specified");
+    case TK_AUTO:
+      ASSERT_PARSE_ERROR((tc.storage & ~VS_REGISTER) == 0, tok, MULTIPLE_STORAGE_SPECIFIED);
+      tc.storage |= VS_AUTO;
+      continue;
+    case TK_REGISTER:
+      ASSERT_PARSE_ERROR((tc.storage & ~VS_AUTO) == 0, tok, MULTIPLE_STORAGE_SPECIFIED);
+      tc.storage |= VS_REGISTER;
+      continue;
+    case TK_CONST:
+      ASSERT_PARSE_ERROR((tc.qualifier & TQ_CONST) == 0, tok, MULTIPLE_QUALIFIER_SPECIFIED);
       tc.qualifier |= TQ_CONST;
       continue;
-    }
-    if (tok->kind == TK_VOLATILE) {
-      ASSERT_PARSE_ERROR((tc.qualifier & TQ_VOLATILE) == 0, tok, "multiple qualifier specified");
+    case TK_VOLATILE:
+      ASSERT_PARSE_ERROR((tc.qualifier & TQ_VOLATILE) == 0, tok, MULTIPLE_QUALIFIER_SPECIFIED);
       tc.qualifier |= TQ_VOLATILE;
       continue;
-    }
-    if (tok->kind == TK_CHAR) {
+    case TK_CHAR:
       ++tc.char_num;
       continue;
-    }
-    if (tok->kind == TK_SHORT) {
+    case TK_SHORT:
       ++tc.short_num;
       continue;
-    }
-    if (tok->kind == TK_INT) {
+    case TK_INT:
       ++tc.int_num;
       continue;
-    }
-    if (tok->kind == TK_LONG) {
+    case TK_LONG:
       ++tc.long_num;
       continue;
-    }
 #ifndef __NO_FLONUM
-    if (tok->kind == TK_FLOAT) {
+    case TK_FLOAT:
       ++tc.float_num;
       continue;
-    }
-    if (tok->kind == TK_DOUBLE) {
+    case TK_DOUBLE:
       ++tc.double_num;
       continue;
-    }
 #endif
+    default: break;
+    }
 
     if (type != NULL) {
       unget_token(tok);

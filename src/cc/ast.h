@@ -114,6 +114,8 @@ enum TokenKind {
   TK_INLINE,
   TK_EXTERN,
   TK_VOLATILE,
+  TK_AUTO,
+  TK_REGISTER,
   TK_STRUCT,
   TK_UNION,
   TK_ENUM,

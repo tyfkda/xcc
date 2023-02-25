@@ -55,6 +55,8 @@ static const struct {
   {"inline", TK_INLINE},
   {"extern", TK_EXTERN},
   {"volatile", TK_VOLATILE},
+  {"auto", TK_AUTO},
+  {"register", TK_REGISTER},
   {"struct", TK_STRUCT},
   {"union", TK_UNION},
   {"enum", TK_ENUM},

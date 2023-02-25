@@ -20,8 +20,10 @@ enum {
   VS_EXTERN = 1 << 2,
   VS_ENUM_MEMBER = 1 << 3,
   VS_TYPEDEF = 1 << 4,
+  VS_AUTO = 1 << 5,
+  VS_REGISTER = 1 << 6,
 
-  VS_REF_TAKEN = 1 << 5,  // `&x` used.
+  VS_REF_TAKEN = 1 << 7,  // `&x` used.
 };
 
 typedef struct VarInfo {
