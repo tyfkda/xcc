@@ -94,12 +94,7 @@ static void eval_initial_value(Expr *expr, Expr **pvar, Fixnum *poffset) {
     {
       eval_initial_value(expr->member.target, pvar, poffset);
 
-      const Type *type = expr->member.target->type;
-      if (ptr_or_array(type))
-        type = type->pa.ptrof;
-      assert(type->kind == TY_STRUCT);
-      const Vector *members = type->struct_.info->members;
-      const MemberInfo *member = members->data[expr->member.index];
+      const MemberInfo *member = member_info(expr);
       *poffset += member->offset;
     }
     break;

@@ -60,6 +60,17 @@ Expr *strip_cast(Expr *expr) {
   return expr;
 }
 
+const MemberInfo *member_info(Expr *expr) {
+  assert(expr->kind == EX_MEMBER);
+  Type *type = expr->member.target->type;
+  if (ptr_or_array(type))
+    type = type->pa.ptrof;
+  assert(type->kind == TY_STRUCT);
+  const Vector *members = type->struct_.info->members;
+  assert(expr->member.index < members->len);
+  return members->data[expr->member.index];
+}
+
 static Expr *new_expr(enum ExprKind kind, Type *type, const Token *token) {
   Expr *expr = malloc(sizeof(*expr));
   expr->kind = kind;

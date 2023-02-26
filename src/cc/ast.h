@@ -9,6 +9,7 @@
 
 typedef struct BB BB;
 typedef struct Initializer Initializer;
+typedef struct MemberInfo MemberInfo;
 typedef struct Name Name;
 typedef struct Scope Scope;
 typedef struct Table Table;
@@ -283,6 +284,7 @@ bool is_const_truthy(Expr *expr);
 bool is_const_falsy(Expr *expr);
 bool is_zero(Expr *expr);
 Expr *strip_cast(Expr *expr);
+const MemberInfo *member_info(Expr *expr);
 
 // Initializer
 
