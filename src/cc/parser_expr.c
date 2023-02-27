@@ -1861,39 +1861,65 @@ static Expr *parse_conditional(void) {
   }
 }
 
-Expr *parse_assign(void) {
-  enum {
-    ASSIGN,
-    ADDSUB,
-    MULDIV,
-    FIXNUM_BOP,
-    SHIFT,
-  };
+static Expr *calc_assign_with(const Token *tok, Expr *lhs, Expr *rhs) {
+  enum ExprKind kind = tok->kind + (EX_ADD - TK_ADD_ASSIGN);  // Assume token-kind and expr-kind is same arrangement.
+  switch (kind) {
+  default:  assert(false);
+    // Fallthrough to avoid compile error.
+  case EX_ADD: case EX_SUB:
+    return new_expr_addsub(kind, tok, lhs, rhs);
+  case EX_MUL: case EX_DIV:
+    return new_expr_num_bop(kind, tok, lhs, rhs);
+  case EX_MOD: case EX_BITAND: case EX_BITOR: case EX_BITXOR:
+    return new_expr_int_bop(kind, tok, lhs, rhs);
+  case EX_LSHIFT: case EX_RSHIFT:
+    {
+      Type *ltype = lhs->type;
+      Type *rtype = rhs->type;
+      if (!is_fixnum(ltype->kind) || !is_fixnum(rtype->kind))
+        parse_error(PE_FATAL, tok, "Cannot use `%.*s' except numbers.",
+                    (int)(tok->end - tok->begin), tok->begin);
+      return new_expr_bop(kind, ltype, tok, lhs, rhs);
+    }
+  }
+}
 
-  static const struct {
-    enum TokenKind tk;
-    enum ExprKind ex;
-    int mode;
-  } kAssignWithOps[] = {
-    { TK_ASSIGN, EX_ASSIGN, ASSIGN },
-    { TK_ADD_ASSIGN, EX_ADD, ADDSUB },
-    { TK_SUB_ASSIGN, EX_SUB, ADDSUB },
-    { TK_MUL_ASSIGN, EX_MUL, MULDIV },
-    { TK_DIV_ASSIGN, EX_DIV, MULDIV },
-    { TK_MOD_ASSIGN, EX_MOD, FIXNUM_BOP },
-    { TK_AND_ASSIGN, EX_BITAND, FIXNUM_BOP },
-    { TK_OR_ASSIGN, EX_BITOR, FIXNUM_BOP },
-    { TK_HAT_ASSIGN, EX_BITXOR, FIXNUM_BOP },
-    { TK_LSHIFT_ASSIGN, EX_LSHIFT, SHIFT },
-    { TK_RSHIFT_ASSIGN, EX_RSHIFT, SHIFT },
+static Expr *transform_assign_with(const Token *tok, Expr *lhs, Expr *rhs) {
+  // Transform expression `lhs += rhs` to `lhs = lhs + rhs`.
+  // If LHS is not a variable, add temporary variable to keep `&LHS` to avoid side effect.
+  // Replace expression to (ptr = &lhs, *ptr = *ptr + rhs)
+  Expr *tmp_assign = NULL;
+  if (lhs->kind != EX_VAR) {
+    Type *ptype = ptrof(lhs->type);
+    assert(!is_global_scope(curscope));
+    Expr *ptr = alloc_tmp_var(curscope, ptype);
+    tmp_assign = new_expr_bop(EX_ASSIGN, ptype, tok, ptr,
+                              new_expr_unary(EX_REF, ptype, lhs->token, lhs));
+    lhs = new_expr_unary(EX_DEREF, lhs->type, lhs->token, ptr);
+  }
+
+  Expr *bop = calc_assign_with(tok, lhs, rhs);
+  Expr *result = new_expr_bop(EX_ASSIGN, lhs->type, tok, lhs,
+                              make_cast(lhs->type, tok, bop, false));
+
+  return tmp_assign == NULL ? result
+      : new_expr_bop(EX_COMMA, result->type, tok, tmp_assign, result);
+}
+
+Expr *parse_assign(void) {
+  static const enum TokenKind kAssignWithOps[] = {
+    TK_ASSIGN,
+    TK_ADD_ASSIGN, TK_SUB_ASSIGN,
+    TK_MUL_ASSIGN, TK_DIV_ASSIGN,
+    TK_MOD_ASSIGN, TK_AND_ASSIGN, TK_OR_ASSIGN, TK_HAT_ASSIGN,
+    TK_LSHIFT_ASSIGN, TK_RSHIFT_ASSIGN,
   };
 
   Expr *expr = parse_conditional();
 
   for (int i = 0; i < (int)(sizeof(kAssignWithOps) / sizeof(*kAssignWithOps)); ++i) {
     Token *tok;
-    if ((tok = match(kAssignWithOps[i].tk)) != NULL) {
-      enum ExprKind kind = kAssignWithOps[i].ex;
+    if ((tok = match(kAssignWithOps[i])) != NULL) {
       Expr *lhs = expr, *rhs = parse_assign();
 
       check_lval(tok, lhs, "Cannot assign");
@@ -1907,7 +1933,7 @@ Expr *parse_assign(void) {
       default: break;
       }
 
-      if (kAssignWithOps[i].mode == ASSIGN) {
+      if (tok->kind == TK_ASSIGN) {
         rhs = str_to_char_array_var(curscope, rhs, toplevel);
         if (lhs->type->kind == TY_STRUCT) {  // Struct assignment requires same type.
           if (!same_type_without_qualifier(lhs->type, rhs->type, true))
@@ -1918,43 +1944,7 @@ Expr *parse_assign(void) {
         return new_expr_bop(EX_ASSIGN, lhs->type, tok, lhs, rhs);
       }
 
-      // Expand expression `lhs += rhs` to `lhs = lhs + rhs`.
-      // If LHS is not a variable, add temporary variable to keep `&LHS` to avoid side effect.
-      // Replace expression to (ptr = &lhs, *ptr = *ptr + rhs)
-      Expr *tmp_assign = NULL;
-      if (lhs->kind != EX_VAR) {
-        Type *ptype = ptrof(lhs->type);
-        assert(!is_global_scope(curscope));
-        Expr *ptr = alloc_tmp_var(curscope, ptype);
-        tmp_assign = new_expr_bop(EX_ASSIGN, ptype, tok, ptr,
-                                  new_expr_unary(EX_REF, ptrof(lhs->type), lhs->token, lhs));
-        lhs = new_expr_unary(EX_DEREF, lhs->type, lhs->token, ptr);
-      }
-
-      Expr *bop;
-      switch (kAssignWithOps[i].mode) {
-      default:  assert(false);
-        // Fallthrough to avoid compile error.
-      case ADDSUB:  bop = new_expr_addsub(kind, tok, lhs, rhs); break;
-      case MULDIV:  bop = new_expr_num_bop(kind, tok, lhs, rhs); break;
-      case FIXNUM_BOP:  bop = new_expr_int_bop(kind, tok, lhs, rhs); break;
-      case SHIFT:
-        {
-          Type *ltype = lhs->type;
-          Type *rtype = rhs->type;
-          assert(ltype != NULL);
-          assert(rtype != NULL);
-          if (!is_fixnum(ltype->kind) || !is_fixnum(rtype->kind))
-            parse_error(PE_FATAL, tok, "Cannot use `%.*s' except numbers.",
-                        (int)(tok->end - tok->begin), tok->begin);
-          bop = new_expr_bop(kind, ltype, tok, lhs, rhs);
-        }
-        break;
-      }
-      Expr *result = new_expr_bop(EX_ASSIGN, lhs->type, tok, lhs,
-                                  make_cast(lhs->type, tok, bop, false));
-      return tmp_assign == NULL ? result
-          : new_expr_bop(EX_COMMA, result->type, tok, tmp_assign, result);
+      return transform_assign_with(tok, lhs, rhs);
     }
   }
   return expr;
