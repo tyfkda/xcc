@@ -24,7 +24,7 @@
 #define ADD_F32(x)     do { float f = (x); add_code((unsigned char*)&f, sizeof(f)); } while (0)
 #define ADD_F64(x)     do { double d = (x); add_code((unsigned char*)&d, sizeof(d)); } while (0)
 
-static void gen_lval(Expr *expr, bool needval);
+static void gen_lval(Expr *expr);
 
 void add_code(const unsigned char* buf, size_t size) {
   data_append(CODE, buf, size);
@@ -386,7 +386,7 @@ static void gen_funcall(Expr *expr) {
     assert(varinfo != NULL);
     // &ret_buf
     Expr *e = new_expr_variable(varinfo->name, varinfo->type, NULL, curfunc->scopes->data[0]);
-    gen_lval(e, true);
+    gen_lval(e);
   }
 
   int sarg_offset = 0;
@@ -487,10 +487,10 @@ static void gen_clear_local_var(const VarInfo *varinfo) {
   ADD_CODE(OP_EXTENSION, OPEX_MEMORY_FILL, 0);
 }
 
-static void gen_lval(Expr *expr, bool needval) {
+static void gen_lval(Expr *expr) {
   switch (expr->kind) {
   case EX_VAR:
-    if (needval) {
+    {
       Scope *scope;
       const VarInfo *varinfo = scope_find(expr->var.scope, expr->var.name, &scope);
       assert(varinfo != NULL && scope == expr->var.scope);
@@ -512,7 +512,7 @@ static void gen_lval(Expr *expr, bool needval) {
     }
     return;
   case EX_DEREF:
-    gen_expr(expr->unary.sub, needval);
+    gen_expr(expr->unary.sub, true);
     return;
   case EX_MEMBER:
     {
@@ -523,14 +523,12 @@ static void gen_lval(Expr *expr, bool needval) {
       const Vector *members = type->struct_.info->members;
       const MemberInfo *member = members->data[expr->member.index];
 
-      gen_expr(expr->member.target, needval);
-      if (needval) {
-        if (member->offset == 0)
-          return;
-        ADD_CODE(OP_I32_CONST);
-        ADD_LEB128(member->offset);
-        ADD_CODE(OP_I32_ADD);
-      }
+      gen_expr(expr->member.target, true);
+      if (member->offset == 0)
+        return;
+      ADD_CODE(OP_I32_CONST);
+      ADD_LEB128(member->offset);
+      ADD_CODE(OP_I32_ADD);
       return;
     }
   case EX_COMPLIT:
@@ -540,7 +538,7 @@ static void gen_lval(Expr *expr, bool needval) {
       assert(varinfo != NULL);
       gen_clear_local_var(varinfo);
       gen_stmts(expr->complit.inits);
-      gen_lval(var, needval);
+      gen_lval(var);
     }
     return;
   default: assert(false); break;
@@ -559,7 +557,7 @@ static void gen_var(Expr *expr) {
       const VarInfo *varinfo = scope_find(expr->var.scope, expr->var.name, &scope);
       assert(varinfo != NULL && scope == expr->var.scope);
       if (varinfo->storage & VS_REF_TAKEN) {
-        gen_lval(expr, true);
+        gen_lval(expr);
         gen_load(expr->type);
       } else if (!is_global_scope(scope) && !(varinfo->storage & (VS_STATIC | VS_EXTERN))) {
         VReg *vreg = varinfo->local.reg;
@@ -580,7 +578,7 @@ static void gen_var(Expr *expr) {
   case TY_ARRAY:   // Use variable address as a pointer.
   case TY_STRUCT:  // struct value is handled as a pointer.
   case TY_FUNC:
-    gen_lval(expr, true);
+    gen_lval(expr);
     return;
   }
 }
@@ -841,7 +839,7 @@ void gen_expr(Expr *expr, bool needval) {
             break;
           }
         }
-        gen_lval(lhs, true);
+        gen_lval(lhs);
         gen_expr(expr->bop.rhs, true);
         gen_store(lhs->type);
         break;
@@ -849,7 +847,7 @@ void gen_expr(Expr *expr, bool needval) {
         {
           size_t size = type_size(expr->bop.lhs->type);
           if (size > 0) {
-            gen_lval(expr->bop.lhs, true);
+            gen_lval(expr->bop.lhs);
             gen_expr(expr->bop.rhs, true);
             ADD_CODE(OP_I32_CONST);
             ADD_LEB128(size);
@@ -882,7 +880,10 @@ void gen_expr(Expr *expr, bool needval) {
         assert(varinfo->local.reg != NULL);
         varinfo->local.reg->flag |= VRF_REF;
       }*/
-      gen_lval(sub, needval);
+      if (needval)
+        gen_lval(sub);
+      else
+        gen_expr(sub, false);
     }
     break;
 
@@ -917,9 +918,12 @@ void gen_expr(Expr *expr, bool needval) {
     break;
 
   case EX_MEMBER:
-    gen_lval(expr, needval);
-    if (needval && is_prim_type(expr->type)) {
-      gen_load(expr->type);
+    if (needval) {
+      gen_lval(expr);
+      if (is_prim_type(expr->type))
+        gen_load(expr->type);
+    } else {
+      gen_expr(expr->member.target, false);
     }
     break;
 

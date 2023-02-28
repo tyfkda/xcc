@@ -667,7 +667,7 @@ static void traverse_expr(Expr **pexpr, bool needval) {
     traverse_expr(&expr->bop.rhs, needval);
     break;
   case EX_ASSIGN:
-    traverse_expr(&expr->bop.lhs, true);
+    traverse_expr(&expr->bop.lhs, false);
     traverse_expr(&expr->bop.rhs, true);
     expr->type = &tyVoid;  // Make assigment expression as void.
     if (needval) {
