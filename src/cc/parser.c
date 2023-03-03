@@ -59,6 +59,14 @@ VarInfo *add_var_to_scope(Scope *scope, const Token *ident, Type *type, int stor
   return scope_add(scope, name, type, storage);
 }
 
+Expr *alloc_tmp_var(Scope *scope, Type *type) {
+  const Token *ident = alloc_dummy_ident();
+  // No need to use `add_var_to_scope`, because `name` must be unique.
+  const Name *name = ident->ident;
+  scope_add(scope, name, type, 0);
+  return new_expr_variable(name, type, ident, scope);
+}
+
 void parse_error(enum ParseErrorLevel level, const Token *token, const char *fmt, ...) {
   va_list ap;
   va_start(ap, fmt);
@@ -141,12 +149,9 @@ Type *fix_array_size(Type *type, Initializer *init) {
 static Stmt *build_memcpy(Expr *dst, Expr *src, size_t size) {
   assert(!is_global_scope(curscope));
   Type *charptr_type = ptrof(&tyChar);
-  VarInfo *dstvar = add_var_to_scope(curscope, alloc_dummy_ident(), charptr_type, 0);
-  VarInfo *srcvar = add_var_to_scope(curscope, alloc_dummy_ident(), charptr_type, 0);
-  VarInfo *sizevar = add_var_to_scope(curscope, alloc_dummy_ident(), &tySize, 0);
-  Expr *dstexpr = new_expr_variable(dstvar->name, dstvar->type, NULL, curscope);
-  Expr *srcexpr = new_expr_variable(srcvar->name, srcvar->type, NULL, curscope);
-  Expr *sizeexpr = new_expr_variable(sizevar->name, sizevar->type, NULL, curscope);
+  Expr *dstexpr = alloc_tmp_var(curscope, charptr_type);
+  Expr *srcexpr = alloc_tmp_var(curscope, charptr_type);
+  Expr *sizeexpr = alloc_tmp_var(curscope, &tySize);
 
   Fixnum size_num_lit = size;
   Expr *size_num = new_expr_fixlit(&tySize, NULL, size_num_lit);
@@ -665,8 +670,7 @@ Vector *assign_initial_value(Expr *expr, Initializer *init, Vector *inits) {
 
         assert(!is_global_scope(curscope));
         Type *ptr_type = array_to_ptr(expr->type);
-        VarInfo *ptr_varinfo = add_var_to_scope(curscope, alloc_dummy_ident(), ptr_type, 0);
-        Expr *ptr_var = new_expr_variable(ptr_varinfo->name, ptr_type, NULL, curscope);
+        Expr *ptr_var = alloc_tmp_var(curscope, ptr_type);
         vec_push(inits, new_stmt_expr(new_expr_bop(EX_ASSIGN, ptr_type, NULL, ptr_var, expr)));
 
         const size_t len = init->multi->len;

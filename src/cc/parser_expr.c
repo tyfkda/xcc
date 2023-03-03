@@ -1304,15 +1304,14 @@ static Expr *parse_compound_literal(Type *type) {
   if (type->kind == TY_ARRAY)
     type = fix_array_size(type, init);
 
-  const Token *ident = alloc_dummy_ident();
-  int storage = is_global_scope(curscope) ? VS_STATIC : 0;
-  VarInfo *varinfo = add_var_to_scope(curscope, ident, type, storage);
-
-  Expr *var = new_expr_variable(ident->ident, type, token, curscope);
+  Expr *var = alloc_tmp_var(curscope, type);
   Vector *inits = NULL;
   if (is_global_scope(curscope)) {
+    VarInfo *varinfo = scope_find(curscope, var->var.name, NULL);
+    assert(varinfo != NULL);
+    varinfo->storage |= VS_STATIC;
     Vector *decls = new_vector();
-    vec_push(decls, new_vardecl(type, ident, init, storage));
+    vec_push(decls, new_vardecl(type, var->token, init, varinfo->storage));
     vec_push(toplevel, new_decl_vardecl(decls));
     varinfo->global.init = init;
   } else {
@@ -1924,11 +1923,9 @@ Expr *parse_assign(void) {
       // Replace expression to (ptr = &lhs, *ptr = *ptr + rhs)
       Expr *tmp_assign = NULL;
       if (lhs->kind != EX_VAR) {
-        const Token *pname = alloc_dummy_ident();
         Type *ptype = ptrof(lhs->type);
         assert(!is_global_scope(curscope));
-        add_var_to_scope(curscope, pname, ptype, 0);
-        Expr *ptr = new_expr_variable(pname->ident, ptype, tok, curscope);
+        Expr *ptr = alloc_tmp_var(curscope, ptype);
         tmp_assign = new_expr_bop(EX_ASSIGN, ptype, tok, ptr,
                                   new_expr_unary(EX_REF, ptrof(lhs->type), lhs->token, lhs));
         lhs = new_expr_unary(EX_DEREF, lhs->type, lhs->token, ptr);

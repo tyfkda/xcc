@@ -68,7 +68,6 @@ GVarInfo *get_gvar_info(Expr *expr);
 int getsert_func_type_index(const Type *type, bool reg);
 int get_func_type_index(const Type *type);
 uint32_t get_indirect_function_index(const Name *name);
-Expr *alloc_tmp(const Token *token, Type *type);
 
 // gen_wasm
 void gen(Vector *decls);

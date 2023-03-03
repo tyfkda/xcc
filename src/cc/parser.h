@@ -68,6 +68,7 @@ void check_funcall_args(Expr *func, Vector *args, Scope *scope, Vector *toplevel
 Stmt *parse_block(const Token *tok, Vector *vars);
 
 VarInfo *add_var_to_scope(Scope *scope, const Token *ident, Type *type, int storage);
+Expr *alloc_tmp_var(Scope *scope, Type *type);
 
 Token *consume(enum TokenKind kind, const char *error);
 

@@ -198,19 +198,13 @@ void add_builtin_function(const char *str, Type *type, BuiltinFunctionProc *proc
 static void traverse_stmts(Vector *stmts);
 static void traverse_stmt(Stmt *stmt);
 
-Expr *alloc_tmp(const Token *token, Type *type) {
-  const Name *name = alloc_label();
-  scope_add(curscope, name, type, 0);
-  return new_expr_variable(name, type, token, curscope);
-}
-
 // l=r  =>  (t=r, l=t)
 static Expr *assign_to_tmp(Expr *assign, Expr **ptmp) {
   assert(assign->kind == EX_ASSIGN);
   const Token *token = assign->token;
   Type *type = assign->bop.lhs->type;
   Expr *rhs = assign->bop.rhs;
-  Expr *tmp = alloc_tmp(token, type);
+  Expr *tmp = alloc_tmp_var(curscope, type);
   *ptmp = tmp;
   Expr *assign_tmp = new_expr_bop(EX_ASSIGN, &tyVoid, token, tmp, rhs);
   assign->bop.rhs = tmp;
@@ -758,8 +752,8 @@ static void traverse_expr(Expr **pexpr, bool needval) {
       // (xxx++)  =>  (p = &xxx, tmp = *p, *p = tmp + 1, tmp)
       const Token *token = target->token;
       Type *ptrtype = ptrof(type);
-      Expr *p = alloc_tmp(token, ptrtype);
-      Expr *tmp = alloc_tmp(token, type);
+      Expr *p = alloc_tmp_var(curscope, ptrtype);
+      Expr *tmp = alloc_tmp_var(curscope, type);
       enum ExprKind op = kOpAddSub[dec];
 
       Expr *assign_p = new_expr_bop(EX_ASSIGN, &tyVoid, token, p,
