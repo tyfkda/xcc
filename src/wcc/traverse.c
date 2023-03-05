@@ -1032,7 +1032,7 @@ static void traverse_decl(Declaration *decl) {
       for (int i = 0; i < decls->len; ++i) {
         VarDecl *d = decls->data[i];
         if (!(d->storage & VS_EXTERN)) {
-          const Name *name = d->ident->ident;
+          const Name *name = d->ident;
           VarInfo *varinfo = scope_find(curscope, name, NULL);
           assert(varinfo != NULL);
           register_gvar_info(name, varinfo);

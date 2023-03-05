@@ -600,7 +600,7 @@ void emit_code(Vector *decls) {
           VarDecl *vd = decls->data[i];
           if ((vd->storage & VS_EXTERN) != 0)
             continue;
-          const Name *name = vd->ident->ident;
+          const Name *name = vd->ident;
           const VarInfo *varinfo = scope_find(global_scope, name, NULL);
           assert(varinfo != NULL);
           if (first) {

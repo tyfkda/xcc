@@ -337,13 +337,13 @@ enum StmtKind {
 
 typedef struct VarDecl {
   Type *type;
-  const Token *ident;
+  const Name *ident;
   Initializer *init;
   int storage;
   struct Stmt *init_stmt;
 } VarDecl;
 
-VarDecl *new_vardecl(Type *type, const Token *ident, Initializer *init, int storage);
+VarDecl *new_vardecl(Type *type, const Name *ident, Initializer *init, int storage);
 
 enum {
   REACH_STOP = 1 << 0,

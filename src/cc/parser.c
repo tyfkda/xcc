@@ -776,7 +776,7 @@ void construct_initializing_stmts(Vector *decls) {
     VarDecl *decl = decls->data[i];
     if (decl->storage & (VS_STATIC | VS_EXTERN))
       continue;
-    Expr *var = new_expr_variable(decl->ident->ident, decl->type, NULL, curscope);
+    Expr *var = new_expr_variable(decl->ident, decl->type, NULL, curscope);
     if (decl->init != NULL) {
       Vector *inits = assign_initial_value(var, decl->init, NULL);
       decl->init_stmt = new_stmt_block(NULL, inits, NULL, NULL);
@@ -1005,7 +1005,7 @@ static Vector *parse_vardecl_cont(Type *rawType, Type *type, int storage, Token 
     varinfo->type = type;  // type might be changed.
     Initializer *init = (type->kind != TY_FUNC && match(TK_ASSIGN)) ? parse_initializer() : NULL;
     init = check_vardecl(&type, ident, tmp_storage, init);
-    VarDecl *decl = new_vardecl(type, ident, init, tmp_storage);
+    VarDecl *decl = new_vardecl(type, ident->ident, init, tmp_storage);
     if (decls == NULL)
       decls = new_vector();
     vec_push(decls, decl);
@@ -1594,7 +1594,7 @@ static Declaration *parse_global_var_decl(
         if (ident != NULL) {
           init = check_vardecl(&type, ident, storage, init);
           varinfo->type = type;  // type might be changed.
-          VarDecl *decl = new_vardecl(type, ident, init, storage);
+          VarDecl *decl = new_vardecl(type, ident->ident, init, storage);
           if (decls == NULL)
             decls = new_vector();
           vec_push(decls, decl);
