@@ -66,9 +66,9 @@ const MemberInfo *member_info(Expr *expr) {
   if (ptr_or_array(type))
     type = type->pa.ptrof;
   assert(type->kind == TY_STRUCT);
-  const Vector *members = type->struct_.info->members;
-  assert(expr->member.index < members->len);
-  return members->data[expr->member.index];
+  const MemberInfo *members = type->struct_.info->members;
+  assert(expr->member.index < type->struct_.info->member_count);
+  return &members[expr->member.index];
 }
 
 static Expr *new_expr(enum ExprKind kind, Type *type, const Token *token) {

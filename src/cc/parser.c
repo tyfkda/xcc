@@ -313,7 +313,7 @@ static Initializer *flatten_initializer_multi(Type *type, Initializer *init, int
   case TY_STRUCT:
     {
       const StructInfo *sinfo = type->struct_.info;
-      int n = sinfo->members->len;
+      int n = sinfo->member_count;
       int m = init->multi->len;
       if (n <= 0) {
         return init;
@@ -343,7 +343,7 @@ static Initializer *flatten_initializer_multi(Type *type, Initializer *init, int
         bool dot = value->kind == IK_DOT;
         if (dot) {
           const Name *name = value->dot.name;
-          midx = var_find(sinfo->members, name);
+          midx = find_struct_member(sinfo, name);
           if (midx >= 0) {
             value = value->dot.value;
           } else {
@@ -366,7 +366,7 @@ static Initializer *flatten_initializer_multi(Type *type, Initializer *init, int
         if (midx >= n)
           break;
 
-        MemberInfo *minfo = sinfo->members->data[midx];
+        MemberInfo *minfo = &sinfo->members[midx];
         if (dot) {
           value = flatten_initializer(minfo->type, value);
           *pindex += 1;
@@ -637,8 +637,8 @@ static Initializer *check_global_initializer(Type *type, Initializer *init) {
         return NULL;
       }
       const StructInfo *sinfo = type->struct_.info;
-      for (int i = 0, n = sinfo->members->len; i < n; ++i) {
-        const MemberInfo *member = sinfo->members->data[i];
+      for (int i = 0, n = sinfo->member_count; i < n; ++i) {
+        const MemberInfo *member = &sinfo->members[i];
         Initializer *init_elem = init->multi->data[i];
         if (init_elem != NULL)
           init->multi->data[i] = check_global_initializer(member->type, init_elem);
@@ -726,15 +726,15 @@ Vector *assign_initial_value(Expr *expr, Initializer *init, Vector *inits) {
 
       const StructInfo *sinfo = expr->type->struct_.info;
       if (!sinfo->is_union) {
-        for (int i = 0, n = sinfo->members->len; i < n; ++i) {
-          const MemberInfo *member = sinfo->members->data[i];
+        for (int i = 0, n = sinfo->member_count; i < n; ++i) {
+          const MemberInfo *member = &sinfo->members[i];
           Expr *mem = new_expr_member(NULL, member->type, expr, NULL, i);
           Initializer *init_elem = init->multi->data[i];
           if (init_elem != NULL)
             assign_initial_value(mem, init_elem, inits);
         }
       } else {
-        int n = sinfo->members->len;
+        int n = sinfo->member_count;
         int m = init->multi->len;
         if (n <= 0 && m > 0)
           parse_error(PE_FATAL, init->token, "Initializer for empty union");
@@ -749,7 +749,7 @@ Vector *assign_initial_value(Expr *expr, Initializer *init, Vector *inits) {
             break;
           }
 
-          const MemberInfo *member = sinfo->members->data[i];
+          const MemberInfo *member = &sinfo->members[i];
           Expr *mem = new_expr_member(NULL, member->type, expr, NULL, i);
           assign_initial_value(mem, init_elem, inits);
           ++count;

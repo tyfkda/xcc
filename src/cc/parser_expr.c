@@ -85,10 +85,10 @@ void ensure_struct(Type *type, const Token *token, Scope *scope) {
 
       // Recursively.
       StructInfo *sinfo = type->struct_.info;
-      for (int i = 0; i < sinfo->members->len; ++i) {
-        VarInfo *varinfo = sinfo->members->data[i];
-        if (varinfo->type->kind == TY_STRUCT)
-          ensure_struct(varinfo->type, token, scope);
+      for (int i = 0; i < sinfo->member_count; ++i) {
+        MemberInfo *minfo = &sinfo->members[i];
+        if (minfo->type->kind == TY_STRUCT)
+          ensure_struct(minfo->type, token, scope);
       }
     }
     break;
@@ -170,9 +170,9 @@ Expr *make_cast(Type *type, const Token *token, Expr *sub, bool is_explicit) {
 const MemberInfo *search_from_anonymous(const Type *type, const Name *name, const Token *ident,
                                         Vector *stack) {
   assert(type->kind == TY_STRUCT);
-  const Vector *members = type->struct_.info->members;
-  for (int i = 0, len = members->len; i < len; ++i) {
-    const MemberInfo *member = members->data[i];
+  const StructInfo *sinfo = type->struct_.info;
+  for (int i = 0, len = sinfo->member_count; i < len; ++i) {
+    const MemberInfo *member = &sinfo->members[i];
     if (member->name != NULL) {
       if (equal_name(member->name, name)) {
         vec_push(stack, (void*)(long)i);
@@ -279,7 +279,7 @@ Expr *make_refer(const Token *tok, Expr *expr) {
     assert(stype->kind == TY_STRUCT);
     StructInfo *sinfo = stype->struct_.info;
     assert(sinfo != NULL);
-    MemberInfo *minfo = sinfo->members->data[expr->member.index];
+    MemberInfo *minfo = &sinfo->members[expr->member.index];
     Fixnum value = expr->member.target->fixnum + minfo->offset;
     return new_expr_fixlit(ptrof(minfo->type), tok, value);
   }
@@ -782,9 +782,9 @@ static Expr *parse_member_access(Expr *target, Token *acctok) {
 
   ensure_struct(type, ident, curscope);
 
-  int index = find_struct_member(type->struct_.info->members, ident->ident);
+  int index = find_struct_member(type->struct_.info, ident->ident);
   if (index >= 0) {
-    const MemberInfo *member = type->struct_.info->members->data[index];
+    const MemberInfo *member = &type->struct_.info->members[index];
     Type *type = acctok->kind == TK_DOT ? qualified_type(member->type, target->type->qualifier) : member->type;
     return new_expr_member(acctok, type, target, ident->ident, index);
   } else {
@@ -797,7 +797,7 @@ static Expr *parse_member_access(Expr *target, Token *acctok) {
     Expr *p = target;
     for (int i = 0; i < stack->len; ++i) {
       int index = (int)(long)stack->data[i];
-      const MemberInfo *member = type->struct_.info->members->data[index];
+      const MemberInfo *member = &type->struct_.info->members[index];
       type = qualified_type(member->type, type->qualifier);
       const Name *member_name = NULL;
       if (i == stack->len - 1) {  // Last one must be specified member.
@@ -857,7 +857,8 @@ static Type *parse_enum(void) {
 
 // Parse struct or union definition `{...}`
 static StructInfo *parse_struct(bool is_union) {
-  Vector *members = new_vector();
+  int count = 0;
+  MemberInfo *members = NULL;
   while (!match(TK_RBRACE)) {
     Type *rawType = NULL;
     do {
@@ -875,12 +876,27 @@ static StructInfo *parse_struct(bool is_union) {
       if (ident == NULL && type->kind != TY_STRUCT)
         parse_error(PE_NOFATAL, NULL, "ident expected");
       const Name *name = ident != NULL ? ident->ident : NULL;
-      if (!add_struct_member(members, name, type))
-        parse_error(PE_NOFATAL, ident, "`%.*s' already defined", name->bytes, name->chars);
+
+      if (name != NULL) {
+        for (int i = 0; i < count; ++i) {
+          const MemberInfo *minfo = &members[i];
+          if (minfo->name != NULL && equal_name(minfo->name, name)) {
+            parse_error(PE_NOFATAL, ident, "`%.*s' already defined", name->bytes, name->chars);
+            name = NULL;  // Avoid conflict.
+            break;
+          }
+        }
+      }
+
+      members = realloc(members, sizeof(*members) * (count + 1));
+      MemberInfo *p = &members[count++];
+      p->name = name;
+      p->type = type;
+      p->offset = 0;
     } while (match(TK_COMMA));
     consume(TK_SEMICOL, "`;' expected");
   }
-  return create_struct_info(members, is_union);
+  return create_struct_info(members, count, is_union);
 }
 
 typedef struct {

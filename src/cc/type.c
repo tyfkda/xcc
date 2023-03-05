@@ -65,8 +65,8 @@ static void calc_struct_size(StructInfo *sinfo) {
   size_t maxsize = 0;
   int max_align = 1;
 
-  for (int i = 0, len = sinfo->members->len; i < len; ++i) {
-    MemberInfo *member = sinfo->members->data[i];
+  for (int i = 0, len = sinfo->member_count; i < len; ++i) {
+    MemberInfo *member = &sinfo->members[i];
     size_t sz = type_size(member->type);
     int align = align_size(member->type);
     size = ALIGN(size, align);
@@ -233,21 +233,10 @@ Type *get_callee_type(Type *type) {
 }
 
 // Struct
-bool add_struct_member(Vector *members, const Name *name, Type *type) {
-  if (name != NULL && find_struct_member(members, name) >= 0)
-    return false;
-
-  MemberInfo *member = malloc(sizeof(*member));
-  member->name = name;
-  member->type = type;
-  member->offset = 0;
-  vec_push(members, member);
-  return true;
-}
-
-StructInfo *create_struct_info(Vector *members, bool is_union) {
+StructInfo *create_struct_info(MemberInfo *members, int count, bool is_union) {
   StructInfo *sinfo = malloc(sizeof(*sinfo));
   sinfo->members = members;
+  sinfo->member_count = count;
   sinfo->is_union = is_union;
   sinfo->size = -1;
   sinfo->align = 0;
@@ -264,9 +253,10 @@ Type *create_struct_type(StructInfo *sinfo, const Name *name, int qualifier) {
   return type;
 }
 
-int find_struct_member(const Vector *members, const Name *name) {
-  for (int i = 0, len = members->len; i < len; ++i) {
-    MemberInfo *info = members->data[i];
+int find_struct_member(const StructInfo *sinfo, const Name *name) {
+  const MemberInfo *members = sinfo->members;
+  for (int i = 0, len = sinfo->member_count; i < len; ++i) {
+    const MemberInfo *info = &members[i];
     if (info->name != NULL && equal_name(info->name, name))
       return i;
   }

@@ -247,8 +247,8 @@ static void construct_initial_value(DataStorage *ds, const Type *type, const Ini
       const StructInfo *sinfo = type->struct_.info;
       int count = 0;
       int offset = 0;
-      for (int i = 0, n = sinfo->members->len; i < n; ++i) {
-        const VarInfo* member = sinfo->members->data[i];
+      for (int i = 0, n = sinfo->member_count; i < n; ++i) {
+        const MemberInfo* member = &sinfo->members[i];
         const Initializer *mem_init;
         if (init == NULL) {
           if (sinfo->is_union)
@@ -273,7 +273,7 @@ static void construct_initial_value(DataStorage *ds, const Type *type, const Ini
         }
       }
       if (sinfo->is_union && count <= 0) {
-        const VarInfo* member = sinfo->members->data[0];
+        const MemberInfo* member = &sinfo->members[0];
         construct_initial_value(ds, member->type, NULL);
         offset += type_size(member->type);
       }

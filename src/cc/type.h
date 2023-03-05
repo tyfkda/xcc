@@ -51,14 +51,13 @@ enum {
 typedef struct MemberInfo {
   const Name *name;
   struct Type *type;
-
-  // For codegen.
   int offset;
 } MemberInfo;
 
 typedef struct StructInfo {
-  Vector *members;  // <MemberInfo*>
+  MemberInfo *members;
   ssize_t size;
+  int member_count;
   int align;
   bool is_union;
 } StructInfo;
@@ -137,10 +136,9 @@ Type *get_callee_type(Type *type);
 
 // Struct
 
-bool add_struct_member(Vector *members, const Name *name, Type *type);
-StructInfo *create_struct_info(Vector *members, bool is_union);  // members: <MemberInfo*>
+StructInfo *create_struct_info(MemberInfo *members, int count, bool is_union);
 Type *create_struct_type(StructInfo *sinfo, const Name *name, int qualifier);
-int find_struct_member(const Vector *members, const Name *name);
+int find_struct_member(const StructInfo *sinfo, const Name *name);
 
 Type *create_enum_type(const Name *name);
 

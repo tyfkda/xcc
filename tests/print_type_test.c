@@ -61,8 +61,7 @@ TEST(print_type) {
   }
 
   {
-    Vector *members = new_vector();
-    StructInfo *sinfo = create_struct_info(members, false);
+    StructInfo *sinfo = create_struct_info(NULL, 0, false);
     const Name *name = alloc_name("Foo", NULL, false);
     Type *type = create_struct_type(sinfo, name, 0);
     check_print_type("struct Foo", type);
