@@ -6,6 +6,7 @@ const assert = require('assert')
 const fs = require('fs')
 const os = require('os')
 const path = require('path')
+const tmp = require('tmp')
 
 async function createWasm(wasmFile, imports) {
   const buffer = fs.readFileSync(wasmFile)
@@ -21,17 +22,6 @@ function decodeString(buffer, ptr) {
     ;
   const arr = new Uint8Array(buffer, ptr, len)
   return new TextDecoder('utf-8').decode(arr)
-}
-
-function tmppath() {
-  const CHARS = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz'
-  const len = 8
-  return [...Array(len)].map(_ => CHARS[(Math.random() * CHARS.length) | 0]).join('')
-}
-
-function tmpfileSync(len) {
-  const filePath = path.join(os.tmpdir(), tmppath())
-  return fs.openSync(filePath, 'w+', 0o600)
 }
 
 ;(async () => {
@@ -182,13 +172,19 @@ function tmpfileSync(len) {
           }
         },
         _tmpfile: () => {
-          const fd = tmpfileSync()
-          if (fd >= 0) {
-            files[fd] = {
-              position: 0,
+          try {
+            const tmpobj = tmp.fileSync()
+            const fd = tmpobj.fd
+            if (fd >= 0) {
+              files[fd] = {
+                position: 0,
+                tmpobj,
+              }
             }
+            return fd
+          } catch (e) {
+            return -1
           }
-          return fd
         },
 
         _getcwd: (buffer, size) => {
