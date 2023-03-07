@@ -2,23 +2,29 @@
 #include "stdlib.h"
 #include "errno.h"
 #include "fcntl.h"  // open
+#include "stdbool.h"
 #include "stdint.h"  // uint32_t
 #include "string.h"  // strlen
+#include "sys/random.h"
 
-extern uint32_t xor64(void);
-
-int mkstemps(char *template, int suffixlen) {
+int mkstemps(char *tmpl, int suffixlen) {
 #define LETTERS (10 + 26 + 26)
   static const char kLetters[LETTERS] = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
   const int LEN = 6;
-  const uint32_t RNDMAX = ((1UL << 32) / LETTERS) * LETTERS;
+  const uint32_t RNDMAX = ((1UL << 31) / LETTERS) * LETTERS;
 
-  size_t len = strlen(template);
+  static bool initialized;
+  static unsigned short xsubi[3] = {11, 222, 3333};
+  if (!initialized) {
+    initialized = getrandom(xsubi, sizeof(xsubi), 0) == sizeof(xsubi);
+  }
+
+  size_t len = strlen(tmpl);
   if (len < (size_t)(LEN + suffixlen)) {
     errno = EINVAL;
     return -1;
   }
-  char *p = &template[len - suffixlen - LEN];
+  char *p = &tmpl[len - suffixlen - LEN];
   for (int j = 0; j < LEN; ++j) {
     if (*p != 'X') {
       errno = EINVAL;
@@ -26,12 +32,12 @@ int mkstemps(char *template, int suffixlen) {
     }
     uint32_t r;
     do {
-      r = xor64();
+      r = nrand48(xsubi);
     } while (r >= RNDMAX);
     *p++ = kLetters[r % LETTERS];
   }
 
-  return open(template, O_RDWR | O_CREAT | O_EXCL, S_IRUSR | S_IWUSR);
+  return open(tmpl, O_RDWR | O_CREAT | O_EXCL, S_IRUSR | S_IWUSR);
 #undef LETTERS
 }
 #endif

@@ -31,9 +31,9 @@ double strtod(const char* /*restrict*/ p, char ** /*restrict*/ pp);
 double drand48(void);                     // [0.0, 1.0)
 double erand48(unsigned short xsubi[3]);  // [0.0, 1.0)
 #endif
-long lrand48(void);                       // [0, 2<<31)
-long nrand48(unsigned short xsubi[3]);    // [0, 2<<31)
+long lrand48(void);                       // [0, 1<<31)
+long nrand48(unsigned short xsubi[3]);    // [0, 1<<31)
 void srand48(long seedval);
 
-int mkstemp(char *template);
-int mkstemps(char *template, int suffixlen);
+int mkstemp(char *tmpl);
+int mkstemps(char *tmpl, int suffixlen);

@@ -2,7 +2,7 @@
 
 #include "stdint.h"  // uint64_t
 
-// [0, 2<<31)
+// [0, 1<<31)
 long nrand48(unsigned short xsubi[3]) {
   #define A  0x5deece66d
   #define C  0x0b

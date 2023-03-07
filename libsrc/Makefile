@@ -75,7 +75,6 @@ test-math:	math_test
 	@./math_test
 
 STDLIB_SRCS:=$(wildcard stdlib/*.c)
-STDLIB_SRCS:=$(filter-out stdlib/mkstemp%.c,$(STDLIB_SRCS))  # mkstemps uses `xor64', which exists in unistd.
 STDLIB_OBJS:=$(addprefix $(LIBOBJ_DIR)/,$(notdir $(STDLIB_SRCS:.c=.o)))
 stdlib_test:	tests/stdlib_test.c $(STDLIB_OBJS)
 	$(CC) -o$@ $(CFLAGS) -I$(INC_DIR) -DUNIT_TEST -ffreestanding $^
