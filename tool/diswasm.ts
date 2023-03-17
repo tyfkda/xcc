@@ -2,7 +2,7 @@
 
 'use strict'
 
-import * as fs from 'fs'
+import fs from 'fs'
 import {DisWasm} from '../src/wcc/www/diswasm'
 
 function main(argv: string[]) {

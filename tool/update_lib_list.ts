@@ -1,5 +1,5 @@
 import { assert } from 'console'
-import * as fs from 'fs'
+import fs from 'fs'
 import { promisify } from 'util'
 
 const JSON_FN = 'src/wcc/www/lib_list.json'
