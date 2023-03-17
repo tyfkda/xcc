@@ -654,7 +654,7 @@ export class DisWasm {
   private funcs = new Map<number, [string, string]>()
   private log: (s: string)=>void = console.log
 
-  constructor(buffer: ArrayBuffer, private opts: object = {}) {
+  constructor(buffer: ArrayBuffer, private opts: any = {}) {
     this.bufferReader = new BufferReader(buffer)
   }
 

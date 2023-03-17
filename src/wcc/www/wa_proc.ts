@@ -81,7 +81,7 @@ export class WaProc {
     return instance
   }
 
-  public registerCFunction(funcName: string, func: (...args) => any): void {
+  public registerCFunction(funcName: string, func: (...args: Array<any>) => any): void {
     this.imports.c[funcName] = func
   }
 
@@ -92,14 +92,14 @@ export class WaProc {
   private createImports() {
     const imports = {
       c: {
-        args_sizes_get: (pargc, plen) => {
+        args_sizes_get: (pargc: number, plen: number) => {
           const argc = new Uint32Array(this.memory.buffer, pargc, 1)
           argc[0] = this.encodedArgs.length
 
           const len = new Uint32Array(this.memory.buffer, plen, 1)
           len[0] = this.totalArgsBytes
         },
-        args_get: (pargv, pstr) => {
+        args_get: (pargv: number, pstr: number) => {
           const argv = new Uint32Array(this.memory.buffer, pargv, this.encodedArgs.length)
           const str = new Uint8Array(this.memory.buffer, pstr, this.totalArgsBytes)
           let offset = 0
@@ -114,15 +114,15 @@ export class WaProc {
           }
         },
 
-        read: (fd, buf, size) => {
+        read: (fd: number, buf: number, size: number) => {
           const memoryImage = new Uint8Array(this.memory.buffer, buf, size)
           return this.fs.read(fd, memoryImage)
         },
-        write: (fd, buf, size) => {
+        write: (fd: number, buf: number, size: number) => {
           const memoryImage = new Uint8Array(this.memory.buffer, buf, size)
           return this.fs.write(fd, memoryImage)
         },
-        open: (fileNamePtr, flag, mode) => {
+        open: (fileNamePtr: number, flag: number, mode: number) => {
           if (fileNamePtr === 0)
             return -1
           const fileName = Util.decodeString(this.memory.buffer, fileNamePtr)
@@ -131,9 +131,9 @@ export class WaProc {
           const absPath = this.getAbsPath(fileName)
           return this.fs.open(absPath, flag, mode)
         },
-        close: (fd) => this.fs.close(fd),
-        lseek: (fd, offset, where) => this.fs.lseek(fd, offset, where),
-        unlink: (fileNamePtr) => {
+        close: (fd: number) => this.fs.close(fd),
+        lseek: (fd: number, offset: number, where: number) => this.fs.lseek(fd, offset, where),
+        unlink: (fileNamePtr: number) => {
           const fileName = Util.decodeString(this.memory.buffer, fileNamePtr)
           if (fileName == null || fileName === '')
             return -1
@@ -143,7 +143,7 @@ export class WaProc {
         },
         _tmpfile: () => this.fs.tmpfile(),
 
-        _getcwd: (buffer, size) => {
+        _getcwd: (buffer: number, size: number) => {
           const encoded = Util.encode(this.cwd)
           const len = encoded.length
           if (len + 1 > size)
@@ -155,11 +155,11 @@ export class WaProc {
           return len + 1
         },
 
-        proc_exit: (x) => {
+        proc_exit: (x: number) => {
           throw new ExitCalledError(x)
         },
 
-        clock_gettime: (_clkId, tp) => {
+        clock_gettime: (_clkId: number, tp: number) => {
           // TODO: Check clkId
           const ts = new Uint32Array(this.memory.buffer, tp, 2)
           const t = new Date().getTime()

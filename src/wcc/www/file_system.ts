@@ -15,14 +15,14 @@ const enum SeekWhere {
   END = 2,
 }
 
-const kOpenFlags = {}
+const kOpenFlags: Record<number, string> = {}
 kOpenFlags[OpenFlag.RDONLY] = 'r'
 kOpenFlags[OpenFlag.WRONLY] = 'w'
 kOpenFlags[OpenFlag.RDWR] = 'w+'
 kOpenFlags[OpenFlag.WRONLY | OpenFlag.CREAT | OpenFlag.TRUNC] = 'w'
 
 export class WaStorage {
-  private files = {}
+  private files: Record<string, Uint8Array> = {}
 
   public putFile(path: string, content: string|Uint8Array): void {
     if (typeof(content) === 'string')
@@ -183,7 +183,7 @@ if (fd < 3) {
       if (desc != null) {
         if (desc.write != null && desc.write.length > 0) {
           const written = desc.absPath == null ? desc.written : null
-          const writeTotal =  desc.write.reduce((acc, src) => acc + src.byteLength, 0)
+          const writeTotal =  desc.write.reduce((acc: number, src: Uint8Array) => acc + src.byteLength, 0)
           const content = new Uint8Array(writeTotal + (written ? written.byteLength : 0))
           let p = 0
           if (written != null) {

@@ -8,7 +8,7 @@ const LIB_DIR = './libsrc'
 const CRT0_DIRS = ['crt0']
 const LIBC_DIRS = ['math', 'misc', 'stdio', 'stdlib', 'string', 'unistd']
 
-async function updateFiles(fileList: object, dirs: Array<string>, fn: string): Promise<object> {
+async function updateFiles(fileList: Record<string, any>, dirs: Array<string>, fn: string): Promise<object> {
   assert(fileList && fileList['usr'] && fileList['usr']['lib'])
   let libcFiles = new Array<string>()
   for (const dir of dirs) {

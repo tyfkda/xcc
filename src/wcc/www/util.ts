@@ -18,7 +18,7 @@ export class Util {
   // Decode string in buffer to JS.
   public static decodeString(buffer: ArrayBuffer, ptr: number, size: number|undefined = undefined): string {
     const memoryImage = new Uint8Array(buffer, ptr, size)
-    let len
+    let len: number
     for (len = 0; len < memoryImage.length && memoryImage[len] !== 0x00; ++len)
       ;
     const arr = new Uint8Array(buffer, ptr, len)

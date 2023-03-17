@@ -11,6 +11,7 @@ const USER = 'wasm'
 const KEY_CODE = 'wcc-code'
 
 const UndoManager = ace.require('ace/undomanager').UndoManager as typeof AceAjax.UndoManager
+const Range = ace.require('ace/range').Range as typeof AceAjax.Range
 
 const editor = (() => {
   const editor = ace.edit('editor')
@@ -125,7 +126,7 @@ const terminal = (() => {
       if (err.terminalLineNo <= pos.row) {
         editor.gotoLine(err.sourceLineNo, err.colStart, true)
 
-        const range = new ace.Range(err.sourceLineNo, err.colStart + err.tokenLength, err.sourceLineNo, err.colStart)
+        const range = new Range(err.sourceLineNo, err.colStart + err.tokenLength, err.sourceLineNo, err.colStart)
         editor.selection.setRange(range, false)
 
         setTimeout(() => editor.focus(), 0)  // Sometimes focus is not set, without `setTimeout`.
@@ -141,7 +142,7 @@ Util.setTerminal(terminal)
 
 let terminalRatio = 33
 
-const mysplit = Split['default'](['#editor', '#terminal-container'], {
+const mysplit = (Split as any)['default'](['#editor', '#terminal-container'], {
   direction: 'vertical',
   sizes: [100, 0],
   minSize: [100, 0],
@@ -149,7 +150,7 @@ const mysplit = Split['default'](['#editor', '#terminal-container'], {
     editor.resize()
     terminal.resize()
   },
-  onDragEnd: (sizes) => {
+  onDragEnd: (sizes: Array<number>) => {
     if (sizes[1] >= 5)
       terminalRatio = sizes[1]
   },
@@ -171,7 +172,7 @@ function toggleTerminal() {
 
 ////////////////////////////////////////////////
 
-function encodeForHashString(str) {
+function encodeForHashString(str: string) {
   return encodeURIComponent(str).replace(/[!'()*]/g, c => {
     return '%' + c.charCodeAt(0).toString(16)
   })
@@ -334,7 +335,7 @@ window.initialData = {
 
       Util.loadFromServer(LIBS_PATH)
         .then(libs => {
-          function setFiles(path, json) {
+          function setFiles(path: string, json: any) {
             for (const key of Object.keys(json)) {
               const newPath = `${path}/${key}`
               if (typeof json[key] === 'string')
