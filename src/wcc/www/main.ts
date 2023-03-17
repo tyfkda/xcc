@@ -3,7 +3,6 @@ import * as Split from 'split.js'
 import {Util} from './util'
 import {WaProc, ExitCalledError} from './wa_proc'
 import {WaStorage} from './file_system'
-import {ExampleCodes} from './example_code'
 
 const FONT_SIZE = 16
 
@@ -312,6 +311,18 @@ const kFilePickerOption = {
 const RUN = 'Run'
 const COMPILE = 'Compile'
 type RunMode = typeof RUN | typeof COMPILE
+
+import hello from './examples/hello.c'
+import sieve from './examples/sieve.c'
+import qsort from './examples/qsort.c'
+import aobench from './examples/aobench.c'
+
+const ExampleCodes: Record<string, string> = {
+  hello,
+  sieve,
+  qsort,
+  aobench,
+}
 
 window.initialData = {
   showSysmenu: false,
