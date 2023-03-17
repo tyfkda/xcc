@@ -2,7 +2,8 @@ import {DisWasm} from './diswasm'
 import * as Split from 'split.js'
 import {Util} from './util'
 import {WaProc, ExitCalledError} from './wa_proc'
-import {WaStorage} from './file_system'
+import {FileSystem} from './file_system'
+import {fs} from 'memfs-browser'
 
 const FONT_SIZE = 16
 
@@ -208,13 +209,13 @@ async function saveToLocalFile(fileHandle: FileSystemFileHandle): Promise<boolea
 const WCC_PATH = 'cc.wasm'
 const LIBS_PATH = 'libs.json'
 
-const storage = new WaStorage()
+const fileSystem = new FileSystem(fs)
 
 let wccWasm: Uint8Array
 
 async function compile(sourceCode: string, extraOptions?: string[]): Promise<Uint8Array|null> {
   const sourceName = 'main.c'
-  const waproc = new WaProc(storage)
+  const waproc = new WaProc(fileSystem)
   waproc.chdir(`/home/${USER}`)
   waproc.saveFile(sourceName, sourceCode)
 
@@ -267,7 +268,7 @@ async function run(argStr: string, compileAndDump: boolean) {
   }
 
   // Run
-  const waproc = new WaProc(storage)
+  const waproc = new WaProc(fileSystem)
   waproc.chdir(`/home/${USER}`)
   const args = argStr === '' ? [] : argStr.trim().split(/\s+/)
   args.unshift('a.wasm')
@@ -349,10 +350,12 @@ window.initialData = {
           function setFiles(path: string, json: any) {
             for (const key of Object.keys(json)) {
               const newPath = `${path}/${key}`
-              if (typeof json[key] === 'string')
-                storage.putFile(newPath, json[key])
-              else
+              if (typeof json[key] === 'string') {
+                fileSystem.writeFileSync(newPath, json[key])
+              } else {
+                fileSystem.mkdirSync(newPath)
                 setFiles(newPath, json[key])
+              }
             }
           }
 
@@ -365,6 +368,8 @@ window.initialData = {
     ]).then((_) => {
       this.loaded = true
     })
+
+    fileSystem.mkdirSync(`/home/${USER}`, {recursive: true})
 
     const searchParams = new URLSearchParams(window.location.search)
     if (searchParams.has('code')) {

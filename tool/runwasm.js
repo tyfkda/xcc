@@ -8,6 +8,10 @@ const os = require('os')
 const path = require('path')
 const tmp = require('tmp')
 
+const SEEK_SET = 0
+const SEEK_CUR = 1
+const SEEK_END = 2
+
 async function createWasm(wasmFile, imports) {
   const buffer = fs.readFileSync(wasmFile)
   const module = await WebAssembly.compile(buffer)
@@ -22,6 +26,73 @@ function decodeString(buffer, ptr) {
     ;
   const arr = new Uint8Array(buffer, ptr, len)
   return new TextDecoder('utf-8').decode(arr)
+}
+
+class IFileEntry {
+  constructor(fd) {
+    this.fd = fd
+  }
+
+  readSync(buffer) {
+    return fs.readSync(this.fd, buffer)
+  }
+  writeSync(buffer) {
+    return fs.writeSync(this.fd, buffer)
+  }
+  lseek(offset, where) {
+    return -1
+  }
+}
+
+class StandardEntry extends IFileEntry {
+  constructor(fd, name) {
+    super(fd)
+    this.name = name
+  }
+
+  toString() {
+    return `${this.name}`
+  }
+}
+
+class FileEntry extends IFileEntry {
+  position = 0
+
+  constructor(fd, fn) {
+    super(fd)
+    this.fn = fn
+  }
+
+  readSync(buffer) {
+    const bytes = fs.readSync(this.fd, buffer, 0, buffer.length, this.position)
+    this.position += bytes
+    return bytes
+  }
+
+  writeSync(buffer) {
+    const bytes = fs.writeSync(this.fd, buffer, undefined, undefined, this.position)
+    this.position += bytes
+    return bytes
+  }
+
+  lseek(offset, where) {
+    switch (where) {
+    default:
+    case SEEK_SET:
+      this.position = offset
+      break
+    case SEEK_CUR:
+      this.position = this.position + offset
+      break
+    case SEEK_END:
+      {
+        const stat = fs.fstatSync(this.fd)
+        this.position = stat.size + offset
+      }
+      break
+    }
+    return this.position
+  }
 }
 
 ;(async () => {
@@ -43,15 +114,13 @@ function decodeString(buffer, ptr) {
   const O_TRUNC   = 0x200  // 01000
   const O_APPEND  = 0x400  // 02000
 
-  const SEEK_SET = 0
-  const SEEK_CUR = 1
-  const SEEK_END = 2
-
-  const kOpenFlags = {}
-  kOpenFlags[O_RDONLY] = 'r'
-  kOpenFlags[O_WRONLY] = 'w'
-  kOpenFlags[O_RDWR] = 'w+'
-  kOpenFlags[O_WRONLY | O_CREAT | O_TRUNC] = 'w'
+  const kOpenFlags = new Map()
+  kOpenFlags.set(O_RDONLY, 'r')
+  kOpenFlags.set(O_WRONLY | O_CREAT | O_TRUNC, 'w')
+  kOpenFlags.set(O_WRONLY | O_CREAT | O_APPEND, 'a')
+  kOpenFlags.set(O_RDWR, 'r+')
+  kOpenFlags.set(O_RDWR | O_CREAT | O_TRUNC, 'w+')
+  kOpenFlags.set(O_RDWR | O_CREAT | O_APPEND, 'a+')
 
   const ENOENT = 2
   const ERANGE = 34
@@ -70,6 +139,9 @@ function decodeString(buffer, ptr) {
   }
 
   const files = new Map()
+  files.set(0, new StandardEntry(0, '<stdin>'))
+  files.set(1, new StandardEntry(1, '<stdout>'))
+  files.set(2, new StandardEntry(2, '<stderr>'))
 
   function getImports() {
     const imports = {
@@ -97,24 +169,16 @@ function decodeString(buffer, ptr) {
         },
 
         read: (fd, buf, size) => {
+          if (!files.has(fd))
+            return 0
           const memoryImage = new Uint8Array(memory.buffer, buf, size)
-          if (fd < 3) {
-            return fs.readSync(fd, memoryImage)
-          } else {
-            const bytes = fs.readSync(fd, memoryImage, files[fd])
-            files[fd].position += bytes
-            return bytes
-          }
+          return files.get(fd).readSync(memoryImage)
         },
         write: (fd, buf, size) => {
+          if (!files.has(fd))
+            return 0
           const memoryImage = new Uint8Array(memory.buffer, buf, size)
-          if (fd < 3) {
-            return fs.writeSync(fd, memoryImage)
-          } else {
-            const bytes = fs.writeSync(fd, memoryImage)
-            files[fd].position += bytes
-            return bytes
-          }
+          return files.get(fd).writeSync(memoryImage)
         },
         open: (filename, flag, mode) => {
           if (filename === 0)
@@ -123,7 +187,7 @@ function decodeString(buffer, ptr) {
           if (fn == null || fn === '')
             return -1
 
-          const flagStr = kOpenFlags[flag]
+          const flagStr = kOpenFlags.get(flag)
           if (flagStr == null) {
             console.error(`Unsupported open flag: ${flag}`)
             return -1
@@ -131,36 +195,24 @@ function decodeString(buffer, ptr) {
 
           try {
             const fd = fs.openSync(fn, flagStr)
-            files[fd] = {
-              position: 0,
-            }
+            console.assert(!files.has(fd))
+            files.set(fd, new FileEntry(fd, fn))
             return fd
           } catch (exc) {
             return code2err(exc)
           }
         },
         close: (fd) => {
+          if (files.has(fd)) {
+            files.delete(fd)
+          }
           fs.closeSync(fd)
-          files.delete(fd)
           return 0
         },
         lseek: (fd, offset, where) => {
-          let position
-          switch (where) {
-          default:
-          case SEEK_SET:
-            position = offset
-            break
-          case SEEK_CUR:
-            position = files[fd].position + offset
-            break
-          case SEEK_END:
-            //position = files[fd].position + offset
-            assert(false, 'TODO: Implement')
-            break
-          }
-          files[fd].position = position
-          return position
+          if (!files.has(fd))
+            return 0
+          return files.get(fd).lseek(offset, where)
         },
         _unlink: (filename) => {
           const fn = decodeString(memory.buffer, filename)
@@ -176,10 +228,7 @@ function decodeString(buffer, ptr) {
             const tmpobj = tmp.fileSync()
             const fd = tmpobj.fd
             if (fd >= 0) {
-              files[fd] = {
-                position: 0,
-                tmpobj,
-              }
+              files.set(fd, new FileEntry(fd, tmpobj.name))
             }
             return fd
           } catch (e) {

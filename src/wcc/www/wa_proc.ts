@@ -1,6 +1,5 @@
 import {FileSystem} from './file_system'
 import {Util} from './util'
-import {WaStorage} from './file_system'
 
 const ENOENT = 2
 const ERANGE = 34
@@ -15,7 +14,6 @@ export class ExitCalledError extends Error {
 }
 
 export class WaProc {
-  private fs: FileSystem
   private memory: WebAssembly.Memory
   private cwd = '/'
   private imports: any
@@ -23,8 +21,7 @@ export class WaProc {
   private encodedArgs = new Array<Uint8Array>()
   private totalArgsBytes = 0
 
-  constructor(storage: WaStorage) {
-    this.fs = new FileSystem(storage)
+  constructor(private fs: FileSystem) {
     this.imports = this.createImports()
   }
 
@@ -42,11 +39,11 @@ export class WaProc {
   }
 
   public saveFile(fileName: string, content: string): void {
-    this.fs.saveFile(this.getAbsPath(fileName), content)
+    this.fs.writeFileSync(this.getAbsPath(fileName), content)
   }
 
   public loadFile(fileName: string): Uint8Array|null {
-    return this.fs.loadFile(this.getAbsPath(fileName))
+    return this.fs.readFileSync(this.getAbsPath(fileName))
   }
 
   public async runWasmEntry(wasmUrlOrBuffer: string|ArrayBuffer, entry: string, args: string[]): Promise<any> {
@@ -68,7 +65,7 @@ export class WaProc {
         const bytes = await response.arrayBuffer()
         obj = await WebAssembly.instantiate(bytes, this.imports)
       }
-    } else if (pathOrBuffer.constructor === Uint8Array) {
+    } else if (pathOrBuffer instanceof Uint8Array) {
       obj = await WebAssembly.instantiate(pathOrBuffer, this.imports)
     } else {
       console.error(`Path or buffer required: ${pathOrBuffer}`)
@@ -125,14 +122,14 @@ export class WaProc {
         },
         open: (fileNamePtr: number, flag: number, mode: number) => {
           if (fileNamePtr === 0)
-            return -1
+            return -ENOENT
           const fileName = Util.decodeString(this.memory.buffer, fileNamePtr)
           if (fileName == null || fileName === '')
-            return -1
+            return -ENOENT
           const absPath = this.getAbsPath(fileName)
           return this.fs.open(absPath, flag, mode)
         },
-        close: (fd: number) => this.fs.close(fd),
+        close: (fd: number) => this.fs.close(fd) ? 0 : -ENOENT,
         lseek: (fd: number, offset: number, where: number) => this.fs.lseek(fd, offset, where),
         _unlink: (fileNamePtr: number) => {
           const fileName = Util.decodeString(this.memory.buffer, fileNamePtr)
