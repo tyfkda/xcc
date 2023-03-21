@@ -2,7 +2,6 @@
 #include "codegen.h"
 
 #include <assert.h>
-#include <limits.h>  // CHAR_BIT
 #include <stdlib.h>  // malloc
 
 #include "ast.h"
@@ -198,7 +197,7 @@ static VReg *gen_cast(VReg *reg, const Type *dst_type) {
     size_t dst_size = type_size(dst_type);
     if (dst_size < (size_t)reg->vtype->size && dst_size < sizeof(Fixnum)) {
       // Assume that integer is represented in Two's complement
-      size_t bit = dst_size * CHAR_BIT;
+      size_t bit = dst_size * TARGET_CHAR_BIT;
       UFixnum mask = (-1UL) << bit;
       if (dst_type->kind == TY_FIXNUM && !dst_type->fixnum.is_unsigned &&  // signed
           (value & (1 << (bit - 1))))  // negative

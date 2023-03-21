@@ -46,3 +46,5 @@
 // variadic arguments are passed through stack, not registers.
 #define VAARG_ON_STACK
 #endif
+
+#define TARGET_CHAR_BIT  8

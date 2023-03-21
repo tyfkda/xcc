@@ -1,3 +1,4 @@
+#include "../config.h"
 #include "wcc.h"
 
 #include <alloca.h>

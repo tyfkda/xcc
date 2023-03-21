@@ -3,7 +3,6 @@
 
 #include <assert.h>
 #include <inttypes.h>  // PRId64
-#include <limits.h>  // CHAR_BIT
 #include <stdlib.h>
 #include <string.h>
 

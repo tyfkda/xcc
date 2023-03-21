@@ -1,3 +1,4 @@
+#include "../config.h"
 #include "wcc.h"
 
 #include <assert.h>
@@ -6,7 +7,6 @@
 
 #include "ast.h"
 #include "lexer.h"
-#include "limits.h"  // CHAR_BIT
 #include "parser.h"  // curscope
 #include "table.h"
 #include "type.h"
@@ -714,9 +714,9 @@ static void traverse_expr(Expr **pexpr, bool needval) {
             assign = new_expr_bop(EX_ASSIGN, &tyVoid, NULL, var, orgsrc);
             src = var;
           }
-          // sign: src & (1 << (s * CHAR_BIT - 1))
+          // sign: src & (1 << (s * TARGET_CHAR_BIT - 1))
           Expr *msb = new_expr_bop(EX_BITAND, stype, NULL, src,
-              new_expr_fixlit(stype, NULL, 1 << (s * CHAR_BIT - 1)));
+              new_expr_fixlit(stype, NULL, 1 << (s * TARGET_CHAR_BIT - 1)));
           // src | -msb
           Expr *replaced = new_expr_bop(EX_BITOR, dtype, NULL, src,
                   new_expr_unary(EX_NEG, stype, NULL, msb));
