@@ -2005,7 +2005,7 @@ static Expr *parse_conditional(void) {
   }
 }
 
-static Expr *assign_to_bitfield(const Token *tok, Expr *lhs, Expr *rhs, const MemberInfo *minfo) {
+Expr *assign_to_bitfield(const Token *tok, Expr *lhs, Expr *rhs, const MemberInfo *minfo) {
   // Transform expression to (ptr = &lhs, val = rhs, *ptr = (*ptr & ~(mask << bitpos)) | ((val & mask) << bitpos), val)
 
   Type *type = lhs->type;  // TODO: promote to int.

@@ -910,6 +910,28 @@ TEST(bitfield) {
     EXPECT("union 1", 0x5, s.x);
     EXPECT("union 2", -0x5b, s.y);
   }
+
+  {
+    struct S {
+      int x : 4;
+      int y : 6;
+      int z : 10;
+    };
+    struct S s = {
+      1,
+      22,
+      333,
+    };
+
+    EXPECT("value 1", 1, s.x);
+    EXPECT("value 2", 22, s.y);
+    EXPECT("value 3", 333, s.z);
+
+    struct S s2 = s;
+    EXPECT("value 1'", 1, s2.x);
+    EXPECT("value 2'", 22, s2.y);
+    EXPECT("value 3'", 333, s2.z);
+  }
 } END_TEST()
 
 int main(void) {

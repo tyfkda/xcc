@@ -637,9 +637,16 @@ static Initializer *check_global_initializer(Type *type, Initializer *init) {
         return NULL;
       }
       const StructInfo *sinfo = type->struct_.info;
+      bool bitfield_exist = false;
       for (int i = 0, n = sinfo->member_count; i < n; ++i) {
         const MemberInfo *member = &sinfo->members[i];
         Initializer *init_elem = init->multi->data[i];
+        if (member->bitfield.width > 0) {
+          if (!bitfield_exist) {
+            parse_error(PE_NOFATAL, init_elem != NULL ? init_elem->token : init->token, "`%.*s': initializer for bitfield not supported (yet)", member->name->bytes, member->name->chars);
+            bitfield_exist = true;
+          }
+        }
         if (init_elem != NULL)
           init->multi->data[i] = check_global_initializer(member->type, init_elem);
       }
@@ -727,11 +734,21 @@ Vector *assign_initial_value(Expr *expr, Initializer *init, Vector *inits) {
       const StructInfo *sinfo = expr->type->struct_.info;
       if (!sinfo->is_union) {
         for (int i = 0, n = sinfo->member_count; i < n; ++i) {
-          const MemberInfo *member = &sinfo->members[i];
-          Expr *mem = new_expr_member(NULL, member->type, expr, NULL, i);
           Initializer *init_elem = init->multi->data[i];
-          if (init_elem != NULL)
-            assign_initial_value(mem, init_elem, inits);
+          if (init_elem == NULL)
+            continue;
+          const MemberInfo *minfo = &sinfo->members[i];
+          Expr *member = new_expr_member(NULL, minfo->type, expr, NULL, i);
+          if (minfo->bitfield.width > 0) {
+            if (init_elem->kind != IK_SINGLE || init_elem->single->kind != EX_FIXNUM) {
+              parse_error(PE_FATAL, init_elem->token, "illegal initializer for member `%.*s'", minfo->name->bytes, minfo->name->chars);
+            } else {
+              vec_push(inits, new_stmt_expr(
+                  assign_to_bitfield(init_elem->token, member, init_elem->single, minfo)));
+            }
+          } else {
+            assign_initial_value(member, init_elem, inits);
+          }
         }
       } else {
         int n = sinfo->member_count;

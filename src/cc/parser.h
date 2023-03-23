@@ -57,6 +57,7 @@ VarInfo *str_to_char_array(Scope *scope, Type *type, Initializer *init, Vector *
 Expr *str_to_char_array_var(Scope *scope, Expr *str, Vector *toplevel);
 Expr *new_expr_addsub(enum ExprKind kind, const Token *tok, Expr *lhs, Expr *rhs);
 Expr *extract_bitfield_value(Expr *src, const MemberInfo *minfo);
+Expr *assign_to_bitfield(const Token *tok, Expr *lhs, Expr *rhs, const MemberInfo *minfo);
 
 Initializer *parse_initializer(void);
 Type *fix_array_size(Type *type, Initializer *init);

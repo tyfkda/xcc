@@ -104,10 +104,8 @@ static size_t calc_bitfield_size(StructInfo *sinfo, int *pi, size_t size, size_t
           break;
         }
       }
-      if (kind > FX_LLONG) {
-        // parser_error()
+      if (kind > FX_LLONG)
         break;
-      }
     }
 
     minfo->offset = size;
@@ -182,7 +180,7 @@ size_t type_size(const Type *type) {
   case TY_FUNC:
     return 1;
   case TY_STRUCT:
-    calc_struct_size(type->struct_.info);
+    assert(type->struct_.info->size >= 0);
     return type->struct_.info->size;
   default:
     assert(false);
@@ -207,7 +205,7 @@ size_t align_size(const Type *type) {
   case TY_ARRAY:
     return align_size(type->pa.ptrof);
   case TY_STRUCT:
-    calc_struct_size(type->struct_.info);
+    assert(type->struct_.info->align > 0);
     return type->struct_.info->align;
   default:
     assert(false);
