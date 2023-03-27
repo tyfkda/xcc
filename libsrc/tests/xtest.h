@@ -3,6 +3,7 @@
 #include <inttypes.h>  // PRId64
 #include <math.h>
 #include <stdarg.h>
+#include <stdbool.h>
 #include <stdint.h>  // int64_t
 #include <stdio.h>
 #include <string.h>

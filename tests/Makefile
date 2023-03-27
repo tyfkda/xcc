@@ -156,7 +156,7 @@ test-wcc:	test-wcc-sh test-wcc-val test-wcc-dval test-wcc-fval
 test-wcc-sh:
 	@echo '## test.sh'
 	@$(eval AWASM := $(shell basename `mktemp -u`).wasm)
-	@XCC="$(WCC)" PTRSIZE=4 RE_SKIP='\/\/-WCC' \
+	@XCC="$(WCC)" RE_SKIP='\/\/-WCC' \
 		AOUT="$(AWASM)" RUN_AOUT="node ../tool/runwasm.js $(AWASM)" \
 		./test.sh
 

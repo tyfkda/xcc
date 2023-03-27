@@ -1003,7 +1003,8 @@ static Vector *parse_vardecl_cont(Type *rawType, Type *type, int storage, Token 
       Vector *param_types = extract_varinfo_types(params);
       type = new_func_type(type, params, param_types, vaargs);
     } else {
-      not_void(type, NULL);
+      if (!(tmp_storage & VS_TYPEDEF))
+        not_void(type, NULL);
     }
 
     if (type->kind == TY_FUNC /* && !is_global_scope(curscope)*/) {

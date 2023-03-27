@@ -4,7 +4,6 @@ source ./test_sub.sh
 
 AOUT=${AOUT:-$(basename `mktemp -u`)}
 XCC=${XCC:-../xcc}
-PTRSIZE=${PTRSIZE:-8}
 RUN_AOUT=${RUN_AOUT:-./"$AOUT"}
 
 echo Compile=[$XCC], Run=[$RUN_AOUT]
@@ -115,71 +114,6 @@ compile_error() {
 test_basic() {
   begin_test_suite "Basic"
 
-  try_output 'write' 'hello' "write(1, \"hello\\\\n\", 6);"
-  try_output 'char array' 123 "char s[16]; s[0] = '1'; s[1] = '2'; s[2] = '3'; s[3] = '\\\\n'; write(1, s, 4);"
-  try 'zero array' 0 'int array[0]; return 0;'
-  try 'non nul-terminated str' 8 'static char s[4]="abcd"; char l[4]="efgh"; return sizeof(s) + sizeof(l);'
-  try 'non nul-terminated str in struct' 4 'struct S {char str[4];} static s={"abcd"}; return sizeof(s);'
-  try 'cast string' 120 'char *s = (char*)"x"; return s[0];'
-  try 'cast string static' 120 'static char *s = (char*)"x"; return s[0];'
-  try_direct 'cast str to int' 116 'long x = (long)"str"; int main(){ char *p = (char*)x; return p[1]; }'
-  try_direct 'cast str to int param' 97 'void sub(long x){} int main(){ sub((long)"str"); return 97; }'
-  try 'paren =' 98 'int x; (x) = 98; return x;'
-  try_direct 'enum' 11 'enum Num { Zero, One, Two }; int main(){ return One + 10; }'
-  try 'local enum' 23 'enum Num { Zero, One, Two }; return One + 22;'
-  try_direct 'enum with trailing comma' 11 'enum Num { Zero, One, }; int main(){ return One + 10; }'
-  try_direct 'enum with assign' 11 'enum Num { Ten = 10, Eleven }; int main(){ return Eleven; }'
-  try_direct 'enum can use in case' 1 'enum Num { Zero, One, Two }; int main(){ switch (1) { case One: return 1; } return 0; }'
-  try_direct 'compare enum' 0 'enum Num { Zero, One, Two }; int main(){ enum Num num = Zero; return num == One; }'
-  try_direct 'global enum variable' 1 'enum Foo { BAR, BAZ }; enum Foo foo; int main(){ foo = BAZ; return foo; }'
-  try_direct 'same typedef' 66 'typedef int Foo; typedef int Foo; int main(){ return 66; }'
-  try_direct 'empty block' 0 'int main(){ ; {} {;;;} return 0; }'
-  try_direct 'typedef func-ptr' 84 'typedef int (*Func)(int); int twice(Func f, int x) { return f(f(x)); } int mul2(int x) { return x * 2; } int main(){ return twice(&mul2, 21); }'
-  try_direct 'typedef func' 25 'typedef int Func(int); int twice(Func f, int x) { return f(f(x)); } int add2(int x) { return x + 2; } int main(){ return twice(add2, 21); }'
-  try_direct 'multi typedef' 4 'typedef char T1, T2[4]; int main() {return sizeof(T2);}'
-  try_direct 'typedef void' 91 'typedef void VOID; VOID sub(VOID){} int main(){sub(); return 91;}'
-  try 'typedef[]' 25 'typedef char T[]; T t1={1, 2}; T t2={3, 4, 5, 6, 7}; return sizeof(t1) * 10 + sizeof(t2);'
-  try_direct 'old-style func' 93 'int sub(); int main(){ return sub(31); } int sub(int x) { return x * 3; }'
-  try_direct 'old-func-ptr' 81 'int twice(int(*f)(), int x) { return f(f(x)); } int sqr(int x) { return x * x; } int main(){ return twice(sqr, 3); }  //-WCC'
-  try_direct 'global-func-var' 88 'int sub(void) { return 88; } int (*f)(void) = sub; int main(){ return f(); }'
-  try_direct 'static-func-var' 99 'int sub(void) { return 99; } int main(){ static int (*f)(void) = sub; return f(); }'
-  try_direct 'for-var' 55 'int main(){ int acc = 0; for (int i = 1, len = 10; i <= len; ++i) acc += i; return acc; }'
-  try_direct 'for-no-initial-val' 3 "int main(){ const char *p = \"abc\"; int len = 0; for (char c; (c = *p) != '\\\\0'; ++p) ++len; return len; }"
-  try 'break' 15 'int acc = 0; for (int i = 0; i < 10; ++i) { if (i > 5) break; acc += i; } return acc;'
-  try 'continue' 30 'int acc = 0; for (int i = 0; i < 10; ++i) { if (i <= 5) continue; acc += i; } return acc;'
-  try_direct 'args' 51 'int func(int x, ...) { return x; } int main(){ return func(51, 1, 2); }'
-
-  try_direct '(void)x;' 0 'void func(int x) { (void)x; } int main(){ func(123); return 0; }'
-  try_output 'strings' 'hello world' "write(1, \"hello \" \"world\\\\n\", 12);"
-  try_direct 'goto' 1 'int main(){ int x = 1; goto label; x = 2; label: return x; }  //-WCC //-WNOERR'
-  try 'goto opt' 88 'j3: goto j1; goto j2; j2: goto j3; j1: return 88;  //-WCC //-WNOERR'
-  try_output '*const' foobar 'const char* const str = "foobar"; write(1, str, 6);'
-  try_direct 'switch w/o case' 1 'int main(){ int x = 0; switch (0) {default: x = 1; break;} return x; }'
-  try_direct 'switch w/o case & default' 0 'int main(){ int x = 0; switch (0) {x = 1;} return x; }'
-  try 'switch-if-default' 49 'switch(0){if(0){default: return 49;}} return 94;  //-WCC //-WNOERR'
-  try 'switch table' 22 'int x=2; switch(x){case 0: x=0; break; case 1: x=11; break; case 2: x=22; break; case 3: x=33; break;} return x;'
-  try 'switch table less' 99 'short x=1; switch(x){case 2: x=22; break; case 3: x=33; break; case 4: x=44; break; case 5: x=55; break; default: x=99; break;} return x;'
-  try 'post inc pointer' 1 'char *p = (char*)(-1L); p++; return p == 0;'
-
-  try 'shadow var' 10 'int x = 1; { x = 10; int x = 100; } return x;'
-  try_direct 'typedef name can use in local' 61 'typedef int Foo; int main(){ int Foo = 61; return Foo; }'
-  try 'implicit int' 92 'unsigned x = 92; return x;'
-
-  try 'ternary string' 114 'int x = 1; const char *p = x ? "true" : "false"; return p[1];'
-  try 'ternary ptr:0' 98 'const char *p = "abc"; p = p != 0 ? p + 1 : 0; return *p;'
-  try_direct 'ternary w/ func' 53 'int f(){return 27;} int g(){return 53;} int main(){return (0?f:g)();}'
-  try_output 'ternary void' 'false' "0 ? (void)write(1, \"true\", 4) : (void)write(1, \"false\", 5);"
-  try_direct '&()' 86 'void sub(int *p) {*p *= 2;} int main() {int x = 43; sub(&(x)); return x;}'
-  try 'pre-inc ()' 34 'int x = 33; return ++(x);'
-  try 'post-dec ()' 44 'int x = 44; return (x)--;'
-
-  try 'can assign const ptr' 97 'const char *p = "foo"; p = "bar"; return p[1];'
-  try 'str' 75 '"use strict"; return 75;'
-  try 'str in comma' 117 'char *p = (1, "use strict", "dummy"); return p[1];'
-  try 'condition with comma expr' 0 'int x = 1; x != 0 && (x = 0, 1); return x;'
-  try_direct 'return str' 111 'const char *foo(){ return "foo"; } int main(){ return foo()[2]; }'
-  try 'deref str' 48 'return *"0";'
-
   try 'data-bss alignment' 0 'static char data = 123; static int bss; return (long)&bss & 3;'
 
   end_test_suite
@@ -188,30 +122,7 @@ test_basic() {
 test_struct() {
   begin_test_suite "Struct"
 
-  try_direct 'typedef' 123 'typedef struct {int x, y;} Foo; int main(){ Foo foo; foo.x = 123; return foo.x; }'
-  try_direct 'Undeclared struct typedef' "$PTRSIZE" 'typedef struct FILE FILE; int main(){ return sizeof(FILE*); }'
-  try_direct 'late declare struct' 42 'struct Foo *p; struct Foo {int x;}; int main(){ struct Foo foo; p = &foo; p->x = 42; return p->x; }'
-  try 'scoped struct' 5 'int size; struct S {int x;}; { struct S {char y;}; size = sizeof(struct S); } return size + sizeof(struct S);'
-  try 'scoped typedef' 5 'int size; typedef struct {int x;} S; { typedef struct {char y;} S; size = sizeof(S); } return size + sizeof(S);'
-  try 'self referential struct' 1 'struct S {struct S *p;} *s = 0; return sizeof(s->p[0]) == sizeof(void*);'
-
-  try_direct 'struct assign' 33 'struct Foo { int x; }; int main(){ struct Foo foo, bar; foo.x = 33; bar = foo; return bar.x; }'
-  try_direct 'struct initial assign' 55 'struct Foo { int x; }; int main(){ struct Foo foo = {55}, bar = foo; return bar.x; }'
-  try_direct 'struct deref' 44 'struct Foo { long x; }; int main(){ struct Foo foo, bar, *baz = &bar; baz->x = 44; foo = *baz; return foo.x; }'
-  try_direct 'struct copy' 51 'typedef struct {int x;} S; void copy(S *e1, S *e2){*e1=*e2;} int main(){S s={51},x; copy(&x,&s); return x.x;}'
-  try_direct 'empty struct size' 0 'struct empty {}; int main(){ return sizeof(struct empty); }'
-  try 'empty struct copy' 0 'struct empty {}; struct empty a = {}, b; b = a; return sizeof(b);'
-  try 'copy struct from const' 123 'struct S {int x;}; const struct S s={123}; struct S a; a=s; return a.x;'
-  try 'init struct with variable' 123 'struct S {int x;}; const struct S s={123}; struct S a=s; return a.x;'
   compile_error 'init struct with variable on global' 'struct S {int x;}; const struct S s={123}; struct S a=s; int main(){return 0;}'
-  try_direct 'struct args' 82 'typedef struct {int a; int b;} X; int sub(X x, int k) { return x.a * k + x.b; } int main() { X x = {12, 34}; return sub(x, 4); }'
-  try 'ternary struct' 60 'typedef struct { int x, y, z; } S; S a = {1, 2, 3}, b = {10, 20, 30}; int x = 1; S c = x == 0 ? a : b; return c.x + c.y + c.z;'
-  try_direct 'offsetof is const' 5 "#define NULL  ((void*)0)\n#define offsetof(S, m)  ((long)(&((S*)NULL)->m))\nstruct X {char x[5]; char z;}; int main(){ char a[offsetof(struct X, z)]; return sizeof(a); }"
-  try_direct 'implicit cast to non-const' 87 "struct S {int x;}; int foo(struct S s) {return s.x;} int main(void){ const struct S s = {87}; return foo(s); }"
-
-  try_direct 'return struct' 46 'typedef struct { int x; int y; } S; S func(void) { S s = {.x = 12, .y = 34}; return s; } int main(){ S s = func(); return s.x + s.y; }'
-  try_direct 'return struct not broken' 222 'typedef struct {long x; long y;} S; S sub(){S s={111, 222}; return s;} int main(){int dummy[1]; S s; s = sub(); return s.y;}'
-  try_direct 'return struct member' 57 'typedef struct {int x;} S; S func() {return (S){57};} int main(){return func().x;}'
 
   compile_error 'same struct name' 'struct Foo{int x;}; struct Foo{int x;}; void main(){}'
   compile_error 'same struct name in scope' 'void main(){struct Foo{int x;}; struct Foo{int x;}; }'
@@ -239,35 +150,6 @@ test_bitfield() {
 test_initializer() {
   begin_test_suite "Initializer"
 
-  try_output 'string initializer' 'aBc' "char s[] = \"abc\\\\n\"; s[1] = 'B'; write(1, s, 4);"
-  try_direct 'enum initializer' 0 'enum Num { Zero } num = Zero; int main(){ return num; }'
-  try_direct 'enum initializer2' 67 'enum Num { Zero } num = 67; int main(){ return num; }'
-  try 'brace initializer' 34 'int x = {34}; return x;'
-  try_output_direct 'global str-array init' 'StrArray' 'char g_str[] = "StrArray"; int main(){ write(1, g_str, sizeof(g_str) - 1); return 0; }'
-  try_output_direct 'global str-ptr init' 'StrPtr' 'char *g_str = "StrPtr"; int main(){ write(1, g_str, 6); return 0; }'
-  try_output_direct 'global str-array init' 'StrPtr' 'char *g_str[] = {"StrPtr"}; int main(){ write(1, g_str[0], 6); return 0; }'
-  try_output_direct 'global str-in-struct init' 'StrPtr' 'struct {char *s;} g_str[] = {{"StrPtr"}}; int main(){ write(1, g_str[0].s, 6); return 0; }'
-  try_output_direct 'global char-array-in-struct init' 'abc' 'struct {char s[4];} g_str[] = {{"abc"}}; int main(){ write(1, g_str[0].s, 3); return 0; }'
-  try_output_direct 'global ptr-ref1' '456' 'char str[] = "0123456789"; char *s = str + 4; int main(){ write(1, s, 3); return 0; }'
-  try_output_direct 'global ptr-ref2' '456' 'char str[] = "0123456789"; char *s = &str[4]; int main(){ write(1, s, 3); return 0; }'
-  try_direct 'global array' 42 'int array[] = {10,20,30}; int main(){ return sizeof(array) + array[2]; }'
-  try_direct 'global compound literal init (deficit)' 0 'typedef struct {int x;} S; S g = (S){}; int main(){ return g.x; }'
-  try 'static ref' 22 'static const int array[] = {11,22,33}; static const int *p = array; return p[1];'
-  try_direct 'local static array' 42 'int main(){ static int array[] = {10,20,30}; return sizeof(array) + array[2]; }'
-  try 'int static const' 34 'int static const a = 34; return a;'
-  try 'struct static const' 67 'struct {int x;} static const a[] = {{67}}; return a[0].x;'
-  try 'init struct contain union' 99 'struct { union { long a; char b; } x; int y; } static s = {.x={.b=88}, .y=99}; return s.y;'
-  try 'sizeof(self) in initializer' 4 'int x = sizeof(x); return x;'
-  try_direct 'init union' 77 'union { int x; struct { char a; short b; } y; } u = {.y={.b=77}}; int main(){ return u.y.b; }'
-  try_direct 'anonymous union init' 99 'struct {union {int x;};} a = {.x = 99}; int main(){ return a.x; }'
-
-  try_direct 'compound literal:array' 2 'int main(){ int *foo = (int[]){1, 2, 3}; return foo[1]; }'
-  try_direct 'compound literal:struct' 66 'struct Foo {int x;}; int main(){ struct Foo foo = (struct Foo){66}; return foo.x; }'
-  try_direct 'compound literal:struct ptr' 77 'struct Foo {int x;}; int main(){ struct Foo *foo = &(struct Foo){77}; return foo->x; }'
-  try_direct 'inc compound literal' 56 'int main(){ int i = ++(int){55}; return i; }'
-  try_direct 'compound literal in global' 88 'struct Foo {int x;}; struct Foo *foo = &(struct Foo){88}; int main(){ return foo->x; }'
-  try 'Initializer with compound literal' 44 'struct S {int x;}; struct S s = (struct S){44}; return s.x;'
-
   compile_error 'non exist field initializer' 'struct Foo{int x;}; void main(){ struct Foo foo = {.y=1}; }'
   compile_error 'initializer for empty struct' 'struct Foo{}; void main(){ struct Foo foo = {1}; }'
   compile_error 'array initializer (global)' 'int a[1] = 1; void main(){}'
@@ -284,7 +166,6 @@ test_initializer() {
   compile_error 'global pointer init with other type' 'int x; char *p = &x; void main(){}'
   compile_error 'global pointer init with fixnum' 'void *main = 1234;'
   compile_error 'const cast' 'int main(){const void *p = 0; void *q = p; return 0;}'
-  try 'Except str to char*' 98 'char *s = "foobar"; return s[3];'
   compile_error 'no name nor defined struct ptr' 'void main(){ struct *p; }'
   compile_error 'refer undeclared struct member' 'void main(){ struct Foo *p; p->x; }'
 
@@ -293,36 +174,6 @@ test_initializer() {
 
 test_function() {
   begin_test_suite "Function"
-
-  try_direct 'empty function' 0 'void foo(){} int main(){ foo(); return 0; }'
-  try_direct 'more params' 36 'int func(int a, int b, int c, int d, int e, int f, char g, int h) { return a + b + c + d + e + f + g + h; } int main(){ return func(1, 2, 3, 4, 5, 6, 7, 8); }'
-  try_direct 'more params w/ struct' 143 'typedef struct {int x;} S; S func(int a, int b, int c, int d, int e, int f, int g) { return (S){f + g}; } int main(){ S s = func(11, 22, 33, 44, 55, 66, 77); return s.x; }'
-  try_direct 'proto in func' 78 'int main(){ int sub(int); return sub(77); } int sub(int x) { return x + 1; }'
-  try_direct 'extern in func' 45 'int main(){ extern int g; g = 45; return g; } int g;'
-  try_direct 'array arg w/o size' 22 'extern int array[]; int sub(int arg[]) { return arg[1]; } int main(){ return sub(array); } int array[] = {11, 22, 33};'
-  try 'func ref' 1 'return main == &main;'
-  try 'func deref' 1 'return (long)main == (long)*main;'
-  try_direct 'func-ptr-array' 30 'int mul2(int x) {return x*2;} int div2(int x) {return x/2;} int (*funcs[])(int)={mul2, div2}; int main() {int acc=0; for (int i=0; i<2; ++i) acc+=funcs[i](12); return acc;}'
-  try_direct 'func-ptr-array in local' 30 'int mul2(int x) {return x*2;} int div2(int x) {return x/2;} int main() {int (*funcs[])(int)={mul2, div2}; int acc=0; for (int i=0; i<2; ++i) acc+=funcs[i](12); return acc;}'
-
-  try_direct 'modify arg' 32 'int sub(int x, int y) {return x+y;} int main() {int w=0, x=0, y=5; int z=sub(++x, y+=10); return x+y+z+w;}'
-  try_direct 'long immediate' 240 'int sub(unsigned long x){return x;} int main(){ return sub(0x123456789abcdef0); }'
-  try_direct 'inline' 93 'inline int f(){return 93;} int main(){return f();}'
-  try_direct 'const typedef-ed type' 0 'typedef unsigned char u8; void f(const u8 x); void f(const unsigned char x) {(void)x;} int main(){return 0;}'
-
-  try_direct 'stdarg' 55 "#include <stdarg.h>
-  int f(int n, ...) {int a[14*2]; for (int i=0; i<14*2; ++i) a[i]=100+i; va_list ap; va_start(ap, n); int sum=0; for (int i=0; i<n; ++i) sum+=va_arg(ap, int); va_end(ap); return sum;}
-  int main(){return f(10, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10);}"
-
-  try_direct 'alloca' 82 "#include \"alloca.h\"
-  int pick(int index) {
-    int *a = alloca(10 * sizeof(*a));
-    for (int i = 0; i < 10; ++i)  a[i] = i;
-    return a[index];
-  }
-  int main() { int x = 77; int y = pick(5); return x + y; }"
-
-  try_direct 'unicode' 121 "int 漢字(int χ) {return χ * χ;} int main(void){return 漢字(11);}"
 
   compile_error 'few arg num' 'void foo(int x){} void main(){ foo(); }'
   compile_error 'many arg num' 'void foo(int x){} void main(){ foo(1, 2); }'
