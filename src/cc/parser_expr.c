@@ -1435,6 +1435,7 @@ static Expr *parse_compound_literal(Type *type) {
   Expr *var = alloc_tmp_var(curscope, type);
   Vector *inits = NULL;
   if (is_global_scope(curscope)) {
+    // Global variable initializer is flattened in `check_vardecl()`
     const Name *name = var->var.name;
     VarInfo *varinfo = scope_find(curscope, name, NULL);
     assert(varinfo != NULL);
@@ -1444,7 +1445,7 @@ static Expr *parse_compound_literal(Type *type) {
     vec_push(toplevel, new_decl_vardecl(decls));
     varinfo->global.init = init;
   } else {
-    init = flatten_initializer(var->type, init);
+    init = flatten_initializer(type, init);
     inits = assign_initial_value(var, init, NULL);
   }
 

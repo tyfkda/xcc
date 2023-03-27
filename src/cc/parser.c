@@ -443,6 +443,34 @@ static Initializer *flatten_initializer_multi0(Type *type, Initializer *init) {
   return flat;
 }
 
+static void flatten_initializer_single(Expr *value) {
+  switch (value->kind) {
+  case EX_REF:
+  case EX_DEREF:
+  case EX_CAST:
+    flatten_initializer_single(value->unary.sub);
+    break;
+
+  case EX_COMPLIT:
+    {
+      Initializer *init = flatten_initializer(value->type, value->complit.original_init);
+      value->complit.original_init = init;
+
+      Expr *var = value->complit.var;
+      if (is_global_scope(var->var.scope)) {
+        assert(init->kind == IK_MULTI);
+        VarInfo *varinfo = scope_find(var->var.scope, var->var.name, NULL);
+        assert(varinfo != NULL);
+        varinfo->global.init = init;
+      }
+    }
+    break;
+  default:
+    // TODO: Confirm.
+    break;
+  }
+}
+
 Initializer *flatten_initializer(Type *type, Initializer *init) {
   if (init == NULL)
     return NULL;
@@ -456,15 +484,8 @@ Initializer *flatten_initializer(Type *type, Initializer *init) {
       Expr *e = init->single;
       if (!same_type_without_qualifier(type, e->type, true))
         parse_error(PE_NOFATAL, init->token, "Incompatible type");
-      if (e->kind == EX_COMPLIT) {
-        init = flatten_initializer(type, e->complit.original_init);
-        assert(init->kind == IK_MULTI);
-        Expr *var = e->complit.var;
-        VarInfo *varinfo = scope_find(var->var.scope, var->var.name, NULL);
-        assert(varinfo != NULL);
-        if (is_global_scope(var->var.scope))
-          varinfo->global.init = init;
-      }
+      if (e->kind == EX_COMPLIT)
+        flatten_initializer_single(e);
     }
     break;
   case TY_ARRAY:
@@ -488,8 +509,10 @@ Initializer *flatten_initializer(Type *type, Initializer *init) {
         break;
       }
       init = init->multi->data[0];
+      assert(init->kind == IK_SINGLE);
       // Fallthrough
     case IK_SINGLE:
+      flatten_initializer_single(init->single);
       break;
     default:
       parse_error(PE_NOFATAL, init->token, "Error initializer");
@@ -632,6 +655,8 @@ static Initializer *check_global_initializer(Type *type, Initializer *init) {
     break;
   case TY_STRUCT:
     {
+      if (init->kind == IK_SINGLE && init->single->kind == EX_COMPLIT)
+        init = init->single->complit.original_init;
       if (init->kind != IK_MULTI) {
         parse_error(PE_NOFATAL, init->token, "Struct initializer requires `{'");
         return NULL;

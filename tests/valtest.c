@@ -1404,7 +1404,7 @@ int g_array[] = {10,20,30};
 FooStruct g_comp_deficit = (FooStruct){};
 union { int x; struct { char a; short b; } y; } g_union = {.y={.b=77}};
 struct {union {int x;};} g_anonymous = {.x = 99};
-FooStruct *g_comp_p = &(FooStruct){88, 99};
+FooStruct *g_comp_p = &(FooStruct){88};
 
 TEST(initializer) {
   {
