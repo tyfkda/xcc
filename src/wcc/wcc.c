@@ -970,6 +970,10 @@ static void export_non_static_functions(Vector *exports) {
 static void preprocess_and_compile(FILE *ppout, Vector *sources) {
   size_t pos = ftell(ppout);
 
+  // Need to set flag on preprocessor.
+  extern bool auto_concat_string_literal;
+  auto_concat_string_literal = true;
+
   // Preprocess.
   for (int i = 0; i < sources->len; ++i) {
     const char *filename = sources->data[i];
@@ -991,6 +995,9 @@ static void preprocess_and_compile(FILE *ppout, Vector *sources) {
     error("fseek failed");
     exit(1);
   }
+
+  // Need to clear flag on parser.
+  auto_concat_string_literal = false;
 
   // Compile.
   FILE *ppin = ppout;
