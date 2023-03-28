@@ -1,3 +1,4 @@
+#include "alloca.h"
 #include "stdarg.h"
 #include "stddef.h"  // offsetof
 #include "stdint.h"
@@ -29,12 +30,18 @@ extern int e_val;
 
 short protodecl(short);
 
-int foo() {
+int foo(void) {
   return 123;
+}
+int (*foop)(void) = foo;
+
+int sq(int x) {
+  return x * x;
 }
 
 int sqsub(int x, int y) {
-  int xx = x * x; int yy = y * y;
+  int xx = x * x;
+  int yy = y * y;
   return xx - yy;
 }
 
@@ -43,6 +50,10 @@ int sub(int x, int y) {
 }
 
 int apply(int (*f)(int, int), int x, int y) {
+  return f(x, y);
+}
+
+int apply2(int f(int, int), int x, int y) {
   return f(x, y);
 }
 
@@ -78,6 +89,12 @@ int static_local(void) {
   static int x = 42;
   return ++x;
 }
+
+#if !defined(__WASM)
+int oldfuncptr(int(*f)(), int x) {
+  return f(f(x));
+}
+#endif
 
 TEST(all) {
   int x, y;
@@ -487,10 +504,16 @@ TEST(all) {
   }
   EXPECT("func pointer", 9, apply(&sub, 15, 6));
   EXPECT("func pointer w/o &", 9, apply(sub, 15, 6));
+  EXPECT("func", 2469, apply2(sub, 12345, 9876));
   EXPECT("block comment", 123, /* comment */ 123);
   EXPECT("line comment", 123, // comment
          123);
   EXPECT("proto decl", 12321, protodecl(111));
+  {
+    long proto_in_func(short);
+    EXPECT("proto in func", 78, proto_in_func(77));
+  }
+
   {
     int i, acc;
     for (i = acc = 0; i <= 10; i++) {
@@ -797,6 +820,439 @@ TEST(all) {
   }
 } END_TEST()
 
+int e_val = 789;
+
+int extern_only = 22;
+
+short protodecl(short x) { return x * x; }
+long proto_in_func(short x) { return x + 1; }
+
+//
+
+typedef int SameTypedefAllowed;
+typedef int SameTypedefAllowed;
+
+int f27(void){return 27;}
+int f53(void){return 53;}
+void mul2p(int *p) {*p *= 2;}
+const char *retstr(void){ return "foo"; }
+
+TEST(basic) {
+  {
+    int array[0];
+    EXPECT("zero sized array", 0, sizeof(array));
+  }
+
+  {
+    static char s[4]="abcd";
+    EXPECT("non nul-terminated str static", 4, sizeof(s));
+    char l[6]="efghij";
+    EXPECT("non nul-terminated str local", 6, sizeof(l));
+
+    struct S {char str[7];} static ss = {"klmnopq"};
+    EXPECT("non nul-terminated str in struct", 7, sizeof(ss));
+  }
+
+  {
+    char *l = (char*)"x";
+    EXPECT("cast string", 120, l[0]);
+
+    static char *s = (char*)"x";
+    EXPECT("cast string static", 120, s[0]);
+  }
+
+  {
+    static uintptr_t x = (uintptr_t)"str";
+    char *p = (char*)x;
+    EXPECT("cast str to int", 116, p[1]);
+  }
+
+  {
+    int x;
+    (x) = 98;
+    EXPECT("paren =", 98, x);
+  }
+
+  {
+    enum Num { Zero, One, Two };
+    EXPECT("enum", 11, One + 10);
+
+    enum Num2 { Ten = 10, Eleven, };
+    EXPECT("enum with assign and trailing comma", 11, Eleven);
+
+    int x = 0;
+    switch (1) {
+    case One: EXPECT_TRUE("enum can use in case"); break;
+    default: fail("enum can use in case"); break;
+    }
+
+    enum Num num = Zero;
+    EXPECT_FALSE(num == One);
+  }
+
+  // empty block
+  ; {} {;;;}
+
+  {
+    typedef char T1, T2[29];
+    EXPECT("multi typedef", 29, sizeof(T2));
+  }
+
+  {
+    typedef void VOID;
+    extern VOID voidfunc(VOID);
+    EXPECT_TRUE("typedef void");
+
+    typedef char T[];
+    T t1 = {1, 2};
+    T t2 = {3, 4, 5, 6, 7};
+    EXPECT("typedef[]", 2, sizeof(t1));
+    EXPECT("typedef[]", 5, sizeof(t2));
+  }
+
+#if !defined(__WASM)
+  {
+    int oldstylefunc();
+    EXPECT("old-style func", 93, oldstylefunc(31));
+
+    EXPECT("old-func-ptr", 81, oldfuncptr(sq, 3));
+  }
+#endif
+
+  {
+    EXPECT("global-func-var", 123, foop());
+
+    static int (*f)(void) = foo;
+    EXPECT("static-func-var", 123, f());
+  }
+
+  {
+    int acc;
+    acc = 0;
+    for (int i = 1, len = 10; i <= len; ++i)
+      acc += i;
+    EXPECT("for-var", 55, acc);
+
+    const char *p = "abc";
+    int len = 0;
+    for (char c; (c = *p) != '\0'; ++p)
+      ++len;
+    EXPECT("for-no-initial-val", 3, len);
+
+    acc = 0;
+    for (int i = 1; i <= 10; ++i) {
+      if (i > 5)
+        break;
+      acc += i;
+    }
+    EXPECT("break", 15, acc);
+
+    acc = 0;
+    for (int i = 1; i <= 10; ++i) {
+      if (i <= 5)
+        continue;
+      acc += i;
+    }
+    EXPECT("continue", 40, acc);
+  }
+
+  {
+    int x = 123;
+    (void)x;
+  }
+
+  EXPECT_STREQ("strings", "hello world", "hello " "world");
+  {
+    const char* const ccc = "foobar";
+    EXPECT_STREQ("const char* const", "foobar", ccc);
+  }
+
+#if !defined(__WASM)
+  {
+#define SUPPRESS_LABEL(label)  do { if (false) goto label; } while (0)
+    int x = 1;
+    SUPPRESS_LABEL(dummy1);
+    goto label;
+dummy1:
+    x = 2;
+label:
+    EXPECT("goto", 1, x);
+
+//j3:
+    goto j1;
+dummy2:
+    goto j2;
+j2:
+    goto dummy2;
+j1:;
+  }
+#endif
+
+  {
+    int x;
+    x = 0;
+    switch (0) {
+    default: x = 1; break;
+    }
+    EXPECT("switch w/o case", 1, x);
+
+    x = 0;
+    switch (0) {
+      x = 1;
+    }
+    EXPECT("switch w/o case & default", 0, x);
+
+#if !defined(__WASM)
+    x = 94;
+    switch (0) {
+      if (0) {
+        default: x = 49;
+      }
+    }
+    EXPECT("switch-if-default", 49, x);
+#endif
+
+    x = 2;
+    switch (x) {
+    case 0: x = 0; break;
+    case 1: x = 11; break;
+    case 2: x = 22; break;
+    case 3: x = 33; break;
+    }
+    EXPECT("switch table", 22, x);
+
+    short y = 1;
+    switch (y) {
+    case 2: y = 22; break;
+    case 3: y = 33; break;
+    case 4: y = 44; break;
+    case 5: y = 55; break;
+    default: y = 99; break;
+    }
+    EXPECT("switch table less", 99, y);
+  }
+
+  {  // "post inc pointer"
+    char *p = (char*)(-1L);
+    p++;
+    EXPECT_NULL(p);
+  }
+
+  {
+    int x = 1;
+    {
+      x = 10;
+      int x = 100;
+    }
+    EXPECT("shadow var", 10, x);
+  }
+
+  {
+    typedef int Foo;
+    {
+      int Foo = 61;
+      EXPECT("typedef name can use in local", 61, Foo);
+    }
+  }
+
+  {
+    unsigned x = 92;
+    EXPECT("implicit int", 92, x);
+  }
+
+  {
+    int x = 1;
+    const char *p = x ? "true" : "false";
+    EXPECT("ternary string", 114, p[1]);
+
+    const char *q = "abc";
+    q = q != 0 ? q + 1 : 0;
+    EXPECT("ternary ptr:0", 98, *q);
+
+    int selector = 0;
+    EXPECT("ternary w/ func", 53, (selector?f27:f53)());
+
+    char buf[16] = "";
+    selector ? (void)strcpy(buf, "true") : (void)strcpy(buf, "false");
+    EXPECT_STREQ("ternary void", "false", buf);
+  }
+
+  {
+    int x;
+    x = 43;
+    mul2p(&(x));
+    EXPECT("&()", 86, x);
+    x = 33;
+    EXPECT("pre-inc ()", 34, ++(x));
+    x = 44;
+    EXPECT("post-dec ()", 44, (x)--);
+  }
+
+  {
+    const char *p = "foo";
+    p = "bar";
+    EXPECT("can assign const ptr", 97, p[1]);
+
+    "use strict";
+
+    p = (1, "use strict", "dummy");
+    EXPECT("str in comma", 117, p[1]);
+
+    int x = 1;
+    x != 0 && (x = 0, 1);
+    EXPECT("condition with comma expr", 0, x);
+
+    EXPECT("return str", 111, retstr()[2]);
+    EXPECT("deref str", 48, *"0");
+  }
+} END_TEST()
+
+int oldstylefunc(int x) {
+  return x * 3;
+}
+
+//
+
+typedef struct {int x, y;} FooStruct;
+
+int struct_arg(FooStruct foo, int k) { return foo.x * k + foo.y; }
+FooStruct return_struct(void) { FooStruct s = {.x = 12, .y = 34}; return s; }
+
+typedef struct {long x; long y;} LongStruct;
+LongStruct return_lstruct(void) { LongStruct s = {111, 222}; return s; }
+
+TEST(struct) {
+  FooStruct foo;
+  foo.x = 123;
+  EXPECT("typedef", 123, foo.x);
+
+  {
+    typedef struct FILE FILE;
+    EXPECT("Undeclared struct typedef", sizeof(void*), sizeof(FILE*));
+  }
+
+  {
+    struct Foo *p;
+    struct Foo {int x;};
+    struct Foo foo;
+    p = &foo;
+    p->x = 42;
+    EXPECT("late declare struct", 42, p->x);
+  }
+
+  {
+    int size;
+    struct S {int x;};
+    {
+      struct S {char y;};
+      size = sizeof(struct S);
+    }
+    EXPECT("scoped struct", 5, size + sizeof(struct S));
+  }
+
+  {
+    int size;
+    typedef struct {int x;} S;
+    {
+      typedef struct {char y;} S;
+      size = sizeof(S);
+    }
+    EXPECT("scoped typedef", 5, size + sizeof(S));
+  }
+
+  {
+    struct S {struct S *p;} *s = 0;
+    EXPECT("self referential struct", sizeof(void*), sizeof(s->p[0]));
+  }
+
+  {
+    struct Foo { int x; };
+    struct Foo foo, bar;
+    foo.x = 33;
+    bar = foo;
+    EXPECT("struct assign", 33, bar.x);
+  }
+
+  {
+    struct Foo { int x; };
+    struct Foo foo = {55}, bar = foo;
+    EXPECT("struct initial assign", 55, bar.x);
+  }
+
+  {
+    struct Foo { long x; };
+    struct Foo foo, bar, *baz = &bar;
+    baz->x = 44;
+    foo = *baz;
+    EXPECT("struct deref", 44, foo.x);
+  }
+
+  {
+    typedef struct {int x;} S;
+    S s = {51}, x;
+    S *e1 = &x;
+    S *e2 = &s;
+    *e1 = *e2;
+    EXPECT("struct copy", 51, x.x);
+  }
+
+  {
+    struct empty {};
+    EXPECT("empty struct size", 0, sizeof(struct empty));
+
+    struct empty a = {}, b;
+    b = a;
+    EXPECT("empty struct copy", 0, sizeof(b));
+  }
+
+  {
+    struct S {int x;};
+    const struct S s = {123};
+    struct S a;
+    a = s;
+    EXPECT("copy struct from const", 123, a.x);
+
+    struct S b = s;
+    EXPECT("init struct with variable", 123, b.x);
+  }
+
+  {
+    FooStruct foo = {12, 34};
+    EXPECT("struct args", 82, struct_arg(foo, 4));
+
+    const FooStruct bar = {56, 78};
+    EXPECT("implicit cast to non-const", 246, struct_arg(bar, 3));
+  }
+
+  {
+    typedef struct { int x, y, z; } S;
+    S a = {1, 2, 3}, b = {10, 20, 30};
+    int x = 1;
+    S c = x == 0 ? a : b;
+    EXPECT("ternary struct", 60, c.x + c.y + c.z);
+  }
+
+  {
+    #define NULL  ((void*)0)
+    #define offsetof(S, m)  ((long)(&((S*)NULL)->m))
+    struct X {char x[5]; char z;};
+    char a[offsetof(struct X, z)];
+    EXPECT("offsetof is const", 5, sizeof(a));
+  }
+
+  {
+    FooStruct s = return_struct();
+    EXPECT("return struct", 46, s.x + s.y);
+
+    EXPECT("return struct member", 12, return_struct().x);
+  }
+  {
+    int dummy[1];
+    LongStruct s; s = return_lstruct();
+    EXPECT("return struct not broken", 222, s.y);
+  }
+} END_TEST()
+
 TEST(bitfield) {
   {
     union {
@@ -934,17 +1390,207 @@ TEST(bitfield) {
   }
 } END_TEST()
 
+//
+
+char g_strarray[] = "StrArray";
+char *g_strptr = "StrPtr";
+char *g_strptrarray[] = {"StrPtrArray"};
+struct {char *s;} g_str_struct_array[] = {{"StrStructArray"}};
+struct {char s[4];} g_chararray_struct[] = {{"abc"}};
+char nums[] = "0123456789";
+char *g_ptr_ref1 = nums + 4;
+char *g_ptr_ref2 = &nums[2];
+int g_array[] = {10,20,30};
+FooStruct g_comp_deficit = (FooStruct){};
+union { int x; struct { char a; short b; } y; } g_union = {.y={.b=77}};
+struct {union {int x;};} g_anonymous = {.x = 99};
+FooStruct *g_comp_p = &(FooStruct){88, 99};
+
+TEST(initializer) {
+  {
+    char s[] = "abc";
+    s[1] = 'B';
+    EXPECT_STREQ("string initializer", "aBc", s);
+  }
+
+  {
+    enum Num { Zero } num = Zero;
+    EXPECT("enum initializer", 0, num);
+
+    enum Num num2 = 67;
+    EXPECT("enum initializer2", 67, num2);
+  }
+
+  { int x = {34}; EXPECT("brace initializer", 34, x); }
+
+  EXPECT_STREQ("global str-array init", "StrArray", g_strarray);
+  EXPECT_STREQ("global str-ptr init", "StrPtr", g_strptr);
+  EXPECT_STREQ("global str-ptr-array init", "StrPtrArray", g_strptrarray[0]);
+  EXPECT_STREQ("global str-in-struct init", "StrStructArray", g_str_struct_array[0].s);
+  EXPECT_STREQ("global char-array-in-struct init", "abc", g_chararray_struct[0].s);
+  EXPECT_STREQ("global ptr-ref1", "456789", g_ptr_ref1);
+  EXPECT_STREQ("global ptr-ref2", "23456789", g_ptr_ref2);
+  EXPECT("global array", 42, sizeof(g_array) + g_array[2]);
+
+  EXPECT("global compound literal init (deficit)", 0, g_comp_deficit.x);
+
+  {
+    static const int array[] = {11,22,33};
+    static const int *p = array;
+    EXPECT("static ref", 22, p[1]);
+  }
+  {
+    static int array[] = {10,20,30};
+    EXPECT("local static array", 42, sizeof(array) + array[2]);
+  }
+  {
+    int static const a = 34;
+    EXPECT("int static const", 34, a);
+  }
+  {
+    struct {int x;} static const a[] = {{67}};
+    EXPECT("struct static const", 67, a[0].x);
+  }
+  {
+    struct { union { long a; char b; } x; int y; } static s = {.x={.b=88}, .y=99};
+    EXPECT("init struct contain union", 99, s.y);
+  }
+  {
+    int x = sizeof(x);
+    EXPECT("sizeof(self) in initializer", 4, x);
+  }
+  EXPECT("init union", 77, g_union.y.b);
+  EXPECT("anonymous union init", 99, g_anonymous.x);
+
+  {
+    int *foo = (int[]){1, 2, 3};
+    EXPECT("compound literal:array", 2, foo[1]);
+  }
+  {
+    struct Foo {int x;};
+    struct Foo foo = (struct Foo){66};
+    EXPECT("compound literal:struct", 66, foo.x);
+
+    struct Foo *foop = &(struct Foo){77};
+    EXPECT("compound literal:struct ptr", 77, foop->x);
+  }
+  {
+    int i = ++(int){55};
+    EXPECT("inc compound literal", 56, i);
+  }
+  EXPECT("compound literal in global", 88, g_comp_p->x);
+  {
+    struct S {int x;};
+    struct S s = (struct S){44};
+    EXPECT("Initializer with compound literal", 44, s.x);
+  }
+} END_TEST()
+
+//
+
+void empty_function(void){}
+int more_params(int a, int b, int c, int d, int e, int f, char g, int h) { return a + b + c + d + e + f + g + h; }
+typedef struct {int x;} MoreParamsReturnsStruct;
+MoreParamsReturnsStruct more_params_returns_struct(int a, int b, int c, int d, int e, int f, int g) { return (MoreParamsReturnsStruct){f + g}; }
+int array_arg_wo_size(int arg[]) { return arg[1]; }
+long long long_immediate(unsigned long long x) { return x / 11; }
+static inline int inline_func(void) { return 93; }
+
+int mul2(int x) {return x * 2;}
+int div2(int x) {return x / 2;}
+int (*func_ptr_array[])(int) = {mul2, div2};
+
+typedef unsigned char u8;
+u8 const_typedefed(const u8 x);
+u8 const_typedefed(const unsigned char x) { return x - 1;}
+
+int vaarg_and_array(int n, ...) {
+  int a[14 * 2];
+  for (int i = 0; i < 14 * 2; ++i)
+    a[i] = 100 + i;
+  va_list ap;
+  va_start(ap, n);
+  int sum = 0;
+  for (int i = 0; i < n; ++i)
+    sum += va_arg(ap, int);
+  va_end(ap);
+  return sum;
+}
+
+int use_alloca(int index) {
+  int *a = alloca(10 * sizeof(*a));
+  for (int i = 0; i < 10; ++i)
+    a[i] = i;
+  return a[index];
+}
+
+int 漢字(int χ) { return χ * χ; }
+
+TEST(function) {
+  empty_function();
+  EXPECT("more params", 36, more_params(1, 2, 3, 4, 5, 6, 7, 8));
+  {
+    MoreParamsReturnsStruct s = more_params_returns_struct(11, 22, 33, 44, 55, 66, 77);
+    EXPECT("more params w/ struct", 143, s.x);
+  }
+
+  // EXPECT("proto in func' 78 'int main(){ int sub(int); return sub(77); } int sub(int x) { return x + 1; }'
+  {
+    extern long extern_in_func;
+    extern_in_func = 45;
+    EXPECT("extern in func", 45, extern_in_func);
+  }
+  {
+    extern int extern_array_wo_size[];
+    EXPECT("array arg w/o size", 22, array_arg_wo_size(extern_array_wo_size));
+  }
+  EXPECT_PTREQ(empty_function, &empty_function);  // "func ref"
+  EXPECT_PTREQ((void*)empty_function, (void*)*empty_function);  // "func deref"
+  {
+    int acc = 0;
+    for (int i = 0; i < 2; ++i)
+      acc += func_ptr_array[i](12);
+    EXPECT("func-ptr-array", 30, acc);
+
+    int (*funcs[])(int) = {div2, sq, mul2};
+    int value = 18;
+    for (int i = 0; i < 3; ++i)
+      value = funcs[i](value);
+    EXPECT("func-ptr-array in local", 162, value);
+  }
+  {
+    int w = 0, x = 2, y = 5;
+    int z = sub(++x, y += 10);
+    EXPECT("modify arg", 6, x + y + z + w);
+  }
+
+  EXPECT("long immediate", 119251678860344574LL, long_immediate(0x123456789abcdef0));
+  EXPECT("inline", 93, inline_func());
+  EXPECT("const typedef-ed type", 65, const_typedefed(66));
+
+  EXPECT("stdarg", 55, vaarg_and_array(10, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10));
+
+  {
+    int x = 77;
+    int y = use_alloca(5);
+    EXPECT("alloca", 82, x + y);
+  }
+
+  EXPECT("unicode", 121, 漢字(11));
+} END_TEST()
+
+long extern_in_func;
+int extern_array_wo_size[] = {11, 22, 33};
+
+//
+
 int main(void) {
   return RUN_ALL_TESTS(
     test_all,
+    test_basic,
+    test_struct,
     test_bitfield,
+    test_initializer,
+    test_function,
   );
-}
-
-int e_val = 789;
-
-int extern_only = 22;
-
-short protodecl(short x) {
-  return x * x;
 }
