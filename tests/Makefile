@@ -3,7 +3,6 @@ SRC_DIR:=$(ROOT_DIR)/src
 CC_DIR:=$(SRC_DIR)/cc
 UTIL_DIR:=$(SRC_DIR)/util
 DEBUG_DIR:=$(SRC_DIR)/_debug
-EXAMPLES_DIR:=$(ROOT_DIR)/examples
 
 CFLAGS:=-ansi -std=c11 -Wall -Wextra -Werror \
 	-Wold-style-definition -Wno-missing-field-initializers -Wno-typedef-redefinition \
@@ -122,7 +121,7 @@ parser_test:	$(PARSER_SRCS)
 
 VAL_SRCS:=valtest.c
 valtest:	$(VAL_SRCS) # $(XCC)
-	$(XCC) -o$@ -Werror -I$(EXAMPLES_DIR) $^
+	$(XCC) -o$@ -Werror $^
 
 FVAL_SRCS:=fvaltest.c
 dvaltest:	$(FVAL_SRCS) flotest.inc # $(XCC)
@@ -136,7 +135,7 @@ print_type_test:	$(TYPE_SRCS)
 
 .PHONY: test-link
 link_test: link_main.c link_sub.c
-	$(XCC) -c -olink_main.o -Werror -I$(EXAMPLES_DIR) link_main.c
+	$(XCC) -c -olink_main.o -Werror link_main.c
 	$(CC) -o $@ link_sub.c link_main.o
 
 .PHONY: test-std-valtest
@@ -166,7 +165,7 @@ test-wcc-val:	valtest.wasm
 	node ../tool/runwasm.js $<
 
 valtest.wasm:	$(VAL_SRCS) # $(WCC)
-	$(WCC) -o$@ -I$(EXAMPLES_DIR) $^
+	$(WCC) -o$@ $^
 
 .PHONY: test-wcc-dval
 test-wcc-dval:	dvaltest.wasm
@@ -174,7 +173,7 @@ test-wcc-dval:	dvaltest.wasm
 	node ../tool/runwasm.js $<
 
 dvaltest.wasm:	$(FVAL_SRCS) # $(WCC)
-	$(WCC) -o$@ -I$(EXAMPLES_DIR) $^
+	$(WCC) -o$@ $^
 
 .PHONY: test-wcc-fval
 test-wcc-fval:	fvaltest.wasm
@@ -182,4 +181,4 @@ test-wcc-fval:	fvaltest.wasm
 	node ../tool/runwasm.js $<
 
 fvaltest.wasm:	$(FVAL_SRCS) # $(WCC)
-	$(WCC) -o$@ -I$(EXAMPLES_DIR) -DUSE_SINGLE $^
+	$(WCC) -o$@ -DUSE_SINGLE $^
