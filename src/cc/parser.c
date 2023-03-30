@@ -107,15 +107,33 @@ Type *fix_array_size(Type *type, Initializer *init) {
   assert(init != NULL);
   assert(type->kind == TY_ARRAY);
 
-  bool is_str = (is_char_type(type->pa.ptrof) &&
-                 init->kind == IK_SINGLE &&
-                 init->single->kind == EX_STR);
+  ssize_t arr_len = type->pa.length;
+
+  bool is_str = false;
+  if (init->kind == IK_SINGLE) {
+    Expr *single = init->single;
+    switch (single->kind) {
+    case EX_STR:
+      is_str = is_char_type(type->pa.ptrof);
+      break;
+    case EX_COMPLIT:
+      assert(single->type->kind == TY_ARRAY);
+      if (arr_len == -1) {
+        type = single->type;
+      } else {
+        if (single->type->pa.length != arr_len)
+          parse_error(PE_NOFATAL, NULL, "Array length different");
+      }
+      return type;
+    default: break;
+    }
+  }
+
   if (!is_str && init->kind != IK_MULTI) {
     // Error will be reported in another place.
     return type;
   }
 
-  ssize_t arr_len = type->pa.length;
   if (arr_len == -1) {
     if (is_str) {
       arr_len = init->single->str.size;
@@ -141,7 +159,7 @@ Type *fix_array_size(Type *type, Initializer *init) {
     assert(!is_str || init->single->kind == EX_STR);
     ssize_t init_len = is_str ? (ssize_t)init->single->str.size : (ssize_t)init->multi->len;
     if (init_len > arr_len && (!is_str || init_len - 1 > arr_len))  // Allow non-nul string.
-      parse_error(PE_FATAL, NULL, "Initializer more than array size");
+      parse_error(PE_NOFATAL, NULL, "Initializer more than array size");
     return type;
   }
 }
@@ -443,6 +461,34 @@ static Initializer *flatten_initializer_multi0(Type *type, Initializer *init) {
   return flat;
 }
 
+static void flatten_initializer_single(Expr *value) {
+  switch (value->kind) {
+  case EX_REF:
+  case EX_DEREF:
+  case EX_CAST:
+    flatten_initializer_single(value->unary.sub);
+    break;
+
+  case EX_COMPLIT:
+    {
+      Initializer *init = flatten_initializer(value->type, value->complit.original_init);
+      value->complit.original_init = init;
+
+      Expr *var = value->complit.var;
+      if (is_global_scope(var->var.scope)) {
+        assert(init->kind == IK_MULTI);
+        VarInfo *varinfo = scope_find(var->var.scope, var->var.name, NULL);
+        assert(varinfo != NULL);
+        varinfo->global.init = init;
+      }
+    }
+    break;
+  default:
+    // TODO: Confirm.
+    break;
+  }
+}
+
 Initializer *flatten_initializer(Type *type, Initializer *init) {
   if (init == NULL)
     return NULL;
@@ -456,15 +502,8 @@ Initializer *flatten_initializer(Type *type, Initializer *init) {
       Expr *e = init->single;
       if (!same_type_without_qualifier(type, e->type, true))
         parse_error(PE_NOFATAL, init->token, "Incompatible type");
-      if (e->kind == EX_COMPLIT) {
-        init = flatten_initializer(type, e->complit.original_init);
-        assert(init->kind == IK_MULTI);
-        Expr *var = e->complit.var;
-        VarInfo *varinfo = scope_find(var->var.scope, var->var.name, NULL);
-        assert(varinfo != NULL);
-        if (is_global_scope(var->var.scope))
-          varinfo->global.init = init;
-      }
+      if (e->kind == EX_COMPLIT)
+        flatten_initializer_single(e);
     }
     break;
   case TY_ARRAY:
@@ -488,8 +527,10 @@ Initializer *flatten_initializer(Type *type, Initializer *init) {
         break;
       }
       init = init->multi->data[0];
+      assert(init->kind == IK_SINGLE);
       // Fallthrough
     case IK_SINGLE:
+      flatten_initializer_single(init->single);
       break;
     default:
       parse_error(PE_NOFATAL, init->token, "Error initializer");
@@ -529,6 +570,9 @@ static Expr *check_global_initializer_fixnum(Expr *value, bool *isconst) {
       *isconst = value->type->kind == TY_ARRAY || value->type->kind == TY_FUNC ||
                  (value->type->kind == TY_PTR && value->type->pa.ptrof->kind == TY_FUNC);
     }
+    break;
+  case EX_COMPLIT:
+    *isconst = value->type->kind == TY_ARRAY;
     break;
   case EX_ADD:
   case EX_SUB:
@@ -597,6 +641,8 @@ static Initializer *check_global_initializer(Type *type, Initializer *init) {
     }
     break;
   case TY_ARRAY:
+    if (init->kind == IK_SINGLE && init->single->kind == EX_COMPLIT)
+      init = init->single->complit.original_init;
     switch (init->kind) {
     case IK_MULTI:
       {
@@ -632,6 +678,8 @@ static Initializer *check_global_initializer(Type *type, Initializer *init) {
     break;
   case TY_STRUCT:
     {
+      if (init->kind == IK_SINGLE && init->single->kind == EX_COMPLIT)
+        init = init->single->complit.original_init;
       if (init->kind != IK_MULTI) {
         parse_error(PE_NOFATAL, init->token, "Struct initializer requires `{'");
         return NULL;
@@ -709,6 +757,16 @@ Vector *assign_initial_value(Expr *expr, Initializer *init, Vector *inits) {
       if (is_char_type(expr->type->pa.ptrof) &&
           init->single->kind == EX_STR) {
         vec_push(inits, init_char_array_by_string(expr, init));
+        break;
+      }
+      if (init->kind == IK_SINGLE && init->single->kind == EX_COMPLIT) {
+        Expr *single = init->single;
+        if (!same_type_without_qualifier(expr->type, single->type, true)) {
+          // Error should be raised before here.
+          // parse_error(PE_NOFATAL, init->token, "Different type initializer");
+        } else {
+          vec_push(inits, build_memcpy(expr, single, type_size(expr->type)));
+        }
         break;
       }
       // Fallthrough

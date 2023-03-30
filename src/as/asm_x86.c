@@ -1399,20 +1399,6 @@ typedef struct {
   int flag;
 } AsmInstTable;
 
-static const AsmInstTable table_noop[] ={
-    {asm_noop, NOOPERAND, NOOPERAND},
-    {NULL} };
-
-static const AsmInstTable table_mov[] ={
-    {asm_mov_rr, REG, REG},
-    {asm_mov_imr, IMMEDIATE, REG},
-    {asm_mov_ir, INDIRECT, REG},
-    {asm_mov_ri, REG, INDIRECT},
-    {asm_mov_iir, INDIRECT_WITH_INDEX, REG},
-    {asm_mov_dr, DIRECT, REG},
-    {asm_mov_rd, REG, DIRECT},
-    {NULL} };
-
 static const AsmInstTable table_movbwlq[] ={
     {asm_movbwlq_imi, IMMEDIATE, INDIRECT},
     {NULL} };
@@ -1421,288 +1407,150 @@ static const AsmInstTable table_movszx[] ={
     {asm_movszx_rr, REG, REG, NO_SAME_REG_SIZE},
     {NULL} };
 
-static const AsmInstTable table_lea[] ={
-    {asm_lea_ir, INDIRECT, REG, DST_REG64_ONLY},
-    {asm_lea_iir, INDIRECT_WITH_INDEX, REG, DST_REG64_ONLY},
-    {NULL} };
-
-static const AsmInstTable table_add[] ={
-    {asm_add_rr, REG, REG},
-    {asm_add_imr, IMMEDIATE, REG},
-    {asm_add_ir, INDIRECT, REG},
-    {asm_add_iir, INDIRECT_WITH_INDEX, REG},
-    {NULL} };
-
-static const AsmInstTable table_addq[] ={
-    {asm_addq_imi, IMMEDIATE, INDIRECT},
-    {NULL} };
-
-static const AsmInstTable table_sub[] ={
-    {asm_sub_rr, REG, REG},
-    {asm_sub_imr, IMMEDIATE, REG},
-    {asm_sub_ir, INDIRECT, REG},
-    {asm_sub_iir, INDIRECT_WITH_INDEX, REG},
-    {NULL} };
-
-static const AsmInstTable table_subq[] ={
-    {asm_subq_imi, IMMEDIATE, INDIRECT},
-    {NULL} };
-
-static const AsmInstTable table_mul[] ={
-    {asm_mul_r, REG, NOOPERAND},
-    {NULL} };
-
-static const AsmInstTable table_div[] ={
-    {asm_div_r, REG, NOOPERAND},
-    {NULL} };
-
-static const AsmInstTable table_idiv[] ={
-    {asm_idiv_r, REG, NOOPERAND},
-    {NULL} };
-
-static const AsmInstTable table_neg[] ={
-    {asm_neg_r, REG, NOOPERAND},
-    {NULL} };
-
-static const AsmInstTable table_not[] ={
-    {asm_not_r, REG, NOOPERAND},
-    {NULL} };
-
-static const AsmInstTable table_inc[] ={
-    {asm_inc_r, REG, NOOPERAND},
-    {NULL} };
-
 static const AsmInstTable table_incbwlq[] ={
     {asm_incbwlq_i, INDIRECT, NOOPERAND},
-    {NULL} };
-
-static const AsmInstTable table_dec[] ={
-    {asm_dec_r, REG, NOOPERAND},
     {NULL} };
 
 static const AsmInstTable table_decbwlq[] ={
     {asm_decbwlq_i, INDIRECT, NOOPERAND},
     {NULL} };
 
-static const AsmInstTable table_and[] ={
-    {asm_and_rr, REG, REG},
-    {asm_and_imr, IMMEDIATE, REG},
-    {NULL} };
-
-static const AsmInstTable table_or[] ={
-    {asm_or_rr, REG, REG},
-    {asm_or_imr, IMMEDIATE, REG},
-    {NULL} };
-
-static const AsmInstTable table_xor[] ={
-    {asm_xor_rr, REG, REG},
-    {asm_xor_imr, IMMEDIATE, REG},
-    {NULL} };
-
-static const AsmInstTable table_shl[] ={
-    {asm_shl_rr, REG, REG, NO_SAME_REG_SIZE | SRC_CL_ONLY},
-    {asm_shl_imr, IMMEDIATE, REG},
-    {NULL} };
-
-static const AsmInstTable table_shr[] ={
-    {asm_shr_rr, REG, REG, NO_SAME_REG_SIZE | SRC_CL_ONLY},
-    {asm_shr_imr, IMMEDIATE, REG},
-    {NULL} };
-
-static const AsmInstTable table_sar[] ={
-    {asm_sar_rr, REG, REG, NO_SAME_REG_SIZE | SRC_CL_ONLY},
-    {asm_sar_imr, IMMEDIATE, REG},
-    {NULL} };
-
-static const AsmInstTable table_cmp[] ={
-    {asm_cmp_rr, REG, REG},
-    {asm_cmp_imr, IMMEDIATE, REG},
-    {NULL} };
-
-static const AsmInstTable table_test[] ={
-    {asm_test_rr, REG, REG},
-    {NULL} };
-
-static const AsmInstTable table_cwtl[] ={
-    {asm_cwtl, NOOPERAND, NOOPERAND},
-    {NULL} };
-
-static const AsmInstTable table_cltd[] ={
-    {asm_cltd, NOOPERAND, NOOPERAND},
-    {NULL} };
-
-static const AsmInstTable table_cqto[] ={
-    {asm_cqto, NOOPERAND, NOOPERAND},
-    {NULL} };
-
 static const AsmInstTable table_set[] ={
     {asm_set_r, REG, NOOPERAND, SRC_REG8_ONLY},
-    {NULL} };
-
-static const AsmInstTable table_push[] ={
-    {asm_push_r, REG, NOOPERAND, SRC_REG64_ONLY},
-    {asm_push_im, IMMEDIATE, NOOPERAND},
-    {NULL} };
-
-static const AsmInstTable table_pop[] ={
-    {asm_pop_r, REG, NOOPERAND, SRC_REG64_ONLY},
-    {NULL} };
-
-static const AsmInstTable table_jmp[] ={
-    {asm_jmp_d, DIRECT, NOOPERAND},
-    {asm_jmp_der, DEREF_REG, NOOPERAND},
-    {asm_jmp_dei, DEREF_INDIRECT, NOOPERAND},
-    {asm_jmp_deii, DEREF_INDIRECT_WITH_INDEX, NOOPERAND},
     {NULL} };
 
 static const AsmInstTable table_jxx[] ={
     {asm_jxx_d, DIRECT, NOOPERAND},
     {NULL} };
 
-static const AsmInstTable table_call[] ={
-    {asm_call_d, DIRECT, NOOPERAND},
-    {asm_call_der, DEREF_REG, NOOPERAND},
-    {NULL} };
-
-static const AsmInstTable table_ret[] ={
-    {asm_ret, NOOPERAND, NOOPERAND},
-    {NULL} };
-
-static const AsmInstTable table_int[] ={
-    {asm_int_im, IMMEDIATE, NOOPERAND},
-    {NULL} };
-
-static const AsmInstTable table_syscall[] ={
-    {asm_syscall, NOOPERAND, NOOPERAND},
-    {NULL} };
-
-#ifndef __NO_FLONUM
-static const AsmInstTable table_movsd[] ={
-    {asm_movsd_xx, REG_XMM, REG_XMM},
-    {asm_movsd_ix, INDIRECT, REG_XMM},
-    {asm_movsd_xi, REG_XMM, INDIRECT},
-    {NULL} };
-static const AsmInstTable table_movss[] ={
-    {asm_movss_xx, REG_XMM, REG_XMM},
-    {asm_movss_ix, INDIRECT, REG_XMM},
-    {asm_movss_xi, REG_XMM, INDIRECT},
-    {NULL} };
-
-static const AsmInstTable table_addsd[] ={
-    {asm_addsd_xx, REG_XMM, REG_XMM},
-    {NULL} };
-static const AsmInstTable table_addss[] ={
-    {asm_addss_xx, REG_XMM, REG_XMM},
-    {NULL} };
-
-static const AsmInstTable table_subsd[] ={
-    {asm_subsd_xx, REG_XMM, REG_XMM},
-    {NULL} };
-static const AsmInstTable table_subss[] ={
-    {asm_subss_xx, REG_XMM, REG_XMM},
-    {NULL} };
-
-static const AsmInstTable table_mulsd[] ={
-    {asm_mulsd_xx, REG_XMM, REG_XMM},
-    {NULL} };
-static const AsmInstTable table_mulss[] ={
-    {asm_mulss_xx, REG_XMM, REG_XMM},
-    {NULL} };
-
-static const AsmInstTable table_divsd[] ={
-    {asm_divsd_xx, REG_XMM, REG_XMM},
-    {NULL} };
-static const AsmInstTable table_divss[] ={
-    {asm_divss_xx, REG_XMM, REG_XMM},
-    {NULL} };
-
-static const AsmInstTable table_ucomisd[] ={
-    {asm_ucomisd_xx, REG_XMM, REG_XMM},
-    {NULL} };
-static const AsmInstTable table_ucomiss[] ={
-    {asm_ucomiss_xx, REG_XMM, REG_XMM},
-    {NULL} };
-
-static const AsmInstTable table_cvtsi2sd[] ={
-    {asm_cvtsi2sd_rx, REG, REG_XMM},
-    {NULL} };
-static const AsmInstTable table_cvtsi2ss[] ={
-    {asm_cvtsi2ss_rx, REG, REG_XMM},
-    {NULL} };
-
-static const AsmInstTable table_cvttsd2si[] ={
-    {asm_cvttsd2si_xr, REG_XMM, REG},
-    {NULL} };
-static const AsmInstTable table_cvttss2si[] ={
-    {asm_cvttss2si_xr, REG_XMM, REG},
-    {NULL} };
-
-static const AsmInstTable table_cvtsd2ss[] ={
-    {asm_cvtsd2ss_xx, REG_XMM, REG_XMM},
-    {NULL} };
-static const AsmInstTable table_cvtss2sd[] ={
-    {asm_cvtss2sd_xx, REG_XMM, REG_XMM},
-    {NULL} };
-
-static const AsmInstTable table_sqrtsd[] ={
-    {asm_sqrtsd_xx, REG_XMM, REG_XMM},
-    {NULL} };
-#endif
-
 static const AsmInstTable *table[] = {
-  [NOOP] = table_noop,
-  [MOV] = table_mov,
+  [NOOP] = (const AsmInstTable[]){ {asm_noop, NOOPERAND, NOOPERAND}, {NULL} },
+  [MOV] = (const AsmInstTable[]){
+    {asm_mov_rr, REG, REG},
+    {asm_mov_imr, IMMEDIATE, REG},
+    {asm_mov_ir, INDIRECT, REG},
+    {asm_mov_ri, REG, INDIRECT},
+    {asm_mov_iir, INDIRECT_WITH_INDEX, REG},
+    {asm_mov_dr, DIRECT, REG},
+    {asm_mov_rd, REG, DIRECT},
+    {NULL} },
   [MOVB] = table_movbwlq,  [MOVW] = table_movbwlq,  [MOVL] = table_movbwlq,  [MOVQ] = table_movbwlq,
   [MOVSX] = table_movszx,  [MOVZX] = table_movszx,
-  [LEA] = table_lea,
-  [ADD] = table_add,
-  [ADDQ] = table_addq,
-  [SUB] = table_sub,
-  [SUBQ] = table_subq,
-  [MUL] = table_mul,
-  [DIV] = table_div,
-  [IDIV] = table_idiv,
-  [NEG] = table_neg,
-  [NOT] = table_not,
-  [INC] = table_inc,
+  [LEA] = (const AsmInstTable[]){
+    {asm_lea_ir, INDIRECT, REG, DST_REG64_ONLY},
+    {asm_lea_iir, INDIRECT_WITH_INDEX, REG, DST_REG64_ONLY},
+    {NULL} },
+  [ADD] = (const AsmInstTable[]){
+    {asm_add_rr, REG, REG},
+    {asm_add_imr, IMMEDIATE, REG},
+    {asm_add_ir, INDIRECT, REG},
+    {asm_add_iir, INDIRECT_WITH_INDEX, REG},
+    {NULL} },
+  [ADDQ] = (const AsmInstTable[]){ {asm_addq_imi, IMMEDIATE, INDIRECT}, {NULL} },
+  [SUB] = (const AsmInstTable[]){
+    {asm_sub_rr, REG, REG},
+    {asm_sub_imr, IMMEDIATE, REG},
+    {asm_sub_ir, INDIRECT, REG},
+    {asm_sub_iir, INDIRECT_WITH_INDEX, REG},
+    {NULL} },
+  [SUBQ] = (const AsmInstTable[]){ {asm_subq_imi, IMMEDIATE, INDIRECT}, {NULL} },
+  [MUL] = (const AsmInstTable[]){ {asm_mul_r, REG, NOOPERAND}, {NULL} },
+  [DIV] = (const AsmInstTable[]){ {asm_div_r, REG, NOOPERAND}, {NULL} },
+  [IDIV] = (const AsmInstTable[]){ {asm_idiv_r, REG, NOOPERAND}, {NULL} },
+  [NEG] = (const AsmInstTable[]){ {asm_neg_r, REG, NOOPERAND}, {NULL} },
+  [NOT] = (const AsmInstTable[]){ {asm_not_r, REG, NOOPERAND}, {NULL} },
+  [INC] = (const AsmInstTable[]){ {asm_inc_r, REG, NOOPERAND}, {NULL} },
   [INCB] = table_incbwlq,  [INCW] = table_incbwlq,  [INCL] = table_incbwlq,  [INCQ] = table_incbwlq,
-  [DEC] = table_dec,
+  [DEC] = (const AsmInstTable[]){ {asm_dec_r, REG, NOOPERAND}, {NULL} },
   [DECB] = table_decbwlq,  [DECW] = table_decbwlq,  [DECL] = table_decbwlq,  [DECQ] = table_decbwlq,
-  [AND] = table_and,
-  [OR] = table_or,
-  [XOR] = table_xor,
-  [SHL] = table_shl,
-  [SHR] = table_shr,
-  [SAR] = table_sar,
-  [CMP] = table_cmp,
-  [TEST] = table_test,
-  [CWTL] = table_cwtl,  [CLTD] = table_cltd,  [CQTO] = table_cqto,
+  [AND] = (const AsmInstTable[]){
+    {asm_and_rr, REG, REG},
+    {asm_and_imr, IMMEDIATE, REG},
+    {NULL} },
+  [OR] = (const AsmInstTable[]){
+    {asm_or_rr, REG, REG},
+    {asm_or_imr, IMMEDIATE, REG},
+    {NULL} },
+  [XOR] = (const AsmInstTable[]){
+    {asm_xor_rr, REG, REG},
+    {asm_xor_imr, IMMEDIATE, REG},
+    {NULL} },
+  [SHL] = (const AsmInstTable[]){
+    {asm_shl_rr, REG, REG, NO_SAME_REG_SIZE | SRC_CL_ONLY},
+    {asm_shl_imr, IMMEDIATE, REG},
+    {NULL} },
+  [SHR] = (const AsmInstTable[]){
+    {asm_shr_rr, REG, REG, NO_SAME_REG_SIZE | SRC_CL_ONLY},
+    {asm_shr_imr, IMMEDIATE, REG},
+    {NULL} },
+  [SAR] = (const AsmInstTable[]){
+    {asm_sar_rr, REG, REG, NO_SAME_REG_SIZE | SRC_CL_ONLY},
+    {asm_sar_imr, IMMEDIATE, REG},
+    {NULL} },
+  [CMP] = (const AsmInstTable[]){
+    {asm_cmp_rr, REG, REG},
+    {asm_cmp_imr, IMMEDIATE, REG},
+    {NULL} },
+  [TEST] = (const AsmInstTable[]){
+    {asm_test_rr, REG, REG},
+    {NULL} },
+  [CWTL] = (const AsmInstTable[]){ {asm_cwtl, NOOPERAND, NOOPERAND}, {NULL} },
+  [CLTD] = (const AsmInstTable[]){ {asm_cltd, NOOPERAND, NOOPERAND}, {NULL} },
+  [CQTO] = (const AsmInstTable[]){ {asm_cqto, NOOPERAND, NOOPERAND}, {NULL} },
   [SETO] = table_set,  [SETNO] = table_set,  [SETB] = table_set,  [SETAE] = table_set,
   [SETE] = table_set,  [SETNE] = table_set,  [SETBE] = table_set,  [SETA] = table_set,
   [SETS] = table_set,  [SETNS] = table_set,  [SETP] = table_set,  [SETNP] = table_set,
   [SETL] = table_set,  [SETGE] = table_set,  [SETLE] = table_set,  [SETG] = table_set,
-  [JMP] = table_jmp,
+  [JMP] = (const AsmInstTable[]){
+    {asm_jmp_d, DIRECT, NOOPERAND},
+    {asm_jmp_der, DEREF_REG, NOOPERAND},
+    {asm_jmp_dei, DEREF_INDIRECT, NOOPERAND},
+    {asm_jmp_deii, DEREF_INDIRECT_WITH_INDEX, NOOPERAND},
+    {NULL} },
   [JO] = table_jxx,  [JNO] = table_jxx,  [JB] = table_jxx,  [JAE] = table_jxx,
   [JE] = table_jxx,  [JNE] = table_jxx,  [JBE] = table_jxx,  [JA] = table_jxx,
   [JS] = table_jxx,  [JNS] = table_jxx,  [JP] = table_jxx,  [JNP] = table_jxx,
   [JL] = table_jxx,  [JGE] = table_jxx,  [JLE] = table_jxx,  [JG] = table_jxx,
-  [CALL] = table_call,
-  [RET] = table_ret,
-  [PUSH] = table_push,
-  [POP] = table_pop,
-  [INT] = table_int,
-  [SYSCALL] = table_syscall,
+  [CALL] = (const AsmInstTable[]){
+    {asm_call_d, DIRECT, NOOPERAND},
+    {asm_call_der, DEREF_REG, NOOPERAND},
+    {NULL} },
+  [RET] = (const AsmInstTable[]){ {asm_ret, NOOPERAND, NOOPERAND}, {NULL} },
+  [PUSH] = (const AsmInstTable[]){
+    {asm_push_r, REG, NOOPERAND, SRC_REG64_ONLY},
+    {asm_push_im, IMMEDIATE, NOOPERAND},
+    {NULL} },
+  [POP] = (const AsmInstTable[]){ {asm_pop_r, REG, NOOPERAND, SRC_REG64_ONLY}, {NULL} },
+  [INT] = (const AsmInstTable[]){ {asm_int_im, IMMEDIATE, NOOPERAND}, {NULL} },
+  [SYSCALL] = (const AsmInstTable[]){ {asm_syscall, NOOPERAND, NOOPERAND}, {NULL} },
 #ifndef __NO_FLONUM
-  [MOVSD] = table_movsd,  [MOVSS] = table_movss,
-  [ADDSD] = table_addsd,  [ADDSS] = table_addss,
-  [SUBSD] = table_subsd,  [SUBSS] = table_subss,
-  [MULSD] = table_mulsd,  [MULSS] = table_mulss,
-  [DIVSD] = table_divsd,  [DIVSS] = table_divss,
-  [UCOMISD] = table_ucomisd,  [UCOMISS] = table_ucomiss,
-  [CVTSI2SD] = table_cvtsi2sd,  [CVTSI2SS] = table_cvtsi2ss,
-  [CVTTSD2SI] = table_cvttsd2si,  [CVTTSS2SI] = table_cvttss2si,
-  [CVTSD2SS] = table_cvtsd2ss,  [CVTSS2SD] = table_cvtss2sd,
-  [SQRTSD] = table_sqrtsd,
+  [MOVSD] = (const AsmInstTable[]){
+    {asm_movsd_xx, REG_XMM, REG_XMM},
+    {asm_movsd_ix, INDIRECT, REG_XMM},
+    {asm_movsd_xi, REG_XMM, INDIRECT},
+    {NULL} },
+  [MOVSS] = (const AsmInstTable[]){
+    {asm_movss_xx, REG_XMM, REG_XMM},
+    {asm_movss_ix, INDIRECT, REG_XMM},
+    {asm_movss_xi, REG_XMM, INDIRECT},
+    {NULL} },
+  [ADDSD] = (const AsmInstTable[]){ {asm_addsd_xx, REG_XMM, REG_XMM}, {NULL} },
+  [ADDSS] = (const AsmInstTable[]){ {asm_addss_xx, REG_XMM, REG_XMM}, {NULL} },
+  [SUBSD] = (const AsmInstTable[]){ {asm_subsd_xx, REG_XMM, REG_XMM}, {NULL} },
+  [SUBSS] = (const AsmInstTable[]){ {asm_subss_xx, REG_XMM, REG_XMM}, {NULL} },
+  [MULSD] = (const AsmInstTable[]){ {asm_mulsd_xx, REG_XMM, REG_XMM}, {NULL} },
+  [MULSS] = (const AsmInstTable[]){ {asm_mulss_xx, REG_XMM, REG_XMM}, {NULL} },
+  [DIVSD] = (const AsmInstTable[]){ {asm_divsd_xx, REG_XMM, REG_XMM}, {NULL} },
+  [DIVSS] = (const AsmInstTable[]){ {asm_divss_xx, REG_XMM, REG_XMM}, {NULL} },
+  [UCOMISD] = (const AsmInstTable[]){ {asm_ucomisd_xx, REG_XMM, REG_XMM}, {NULL} },
+  [UCOMISS] = (const AsmInstTable[]){ {asm_ucomiss_xx, REG_XMM, REG_XMM}, {NULL} },
+  [CVTSI2SD] = (const AsmInstTable[]){ {asm_cvtsi2sd_rx, REG, REG_XMM}, {NULL} },
+  [CVTSI2SS] = (const AsmInstTable[]){ {asm_cvtsi2ss_rx, REG, REG_XMM}, {NULL} },
+  [CVTTSD2SI] = (const AsmInstTable[]){ {asm_cvttsd2si_xr, REG_XMM, REG}, {NULL} },
+  [CVTTSS2SI] = (const AsmInstTable[]){ {asm_cvttss2si_xr, REG_XMM, REG}, {NULL} },
+  [CVTSD2SS] = (const AsmInstTable[]){ {asm_cvtsd2ss_xx, REG_XMM, REG_XMM}, {NULL} },
+  [CVTSS2SD] = (const AsmInstTable[]){ {asm_cvtss2sd_xx, REG_XMM, REG_XMM}, {NULL} },
+  [SQRTSD] = (const AsmInstTable[]){ {asm_sqrtsd_xx, REG_XMM, REG_XMM}, {NULL} },
 #endif
 };
 
