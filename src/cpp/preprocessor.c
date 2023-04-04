@@ -66,18 +66,20 @@ static FILE *search_sysinc_next(const char *dir, const char *path, char **pfn) {
   int ord = 0, idx = 0;
   Vector *v;
 
-  if (!dir) goto _check;
-  for (ord = 0; ord < INC_ORDERS; ++ord) {
+  bool found = false;
+
+  for (ord = 0; dir && ord < INC_ORDERS; ++ord) {
     v = &sys_inc_paths[ord];
     for (idx = 0; idx < v->len; ++idx) {
       if (!strcmp(fullpath(v->data[idx]), dir)) {
-	++idx;
-        goto _check;
+        ++idx;
+        found = true;
+        break;
       }
     }
+    if (found) break;
   }
 
-_check:
   for (; ord < INC_ORDERS; ++ord) {
     v = &sys_inc_paths[ord];
     for (; idx < v->len; ++idx) {
