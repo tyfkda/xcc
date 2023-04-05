@@ -60,6 +60,7 @@ struct proghdr {
 // Machine
 #define EM_386     (3)   // Intel 80386
 #define EM_X86_64  (62)  // AMD x86-64 architecture
+#define EM_AARCH64 (183) // ARM AARCH64
 
 #define ET_REL   (1)  // Relocatable file
 #define ET_EXEC  (2)  // Executable file

@@ -1,3 +1,4 @@
+#include "../config.h"
 #include "elfutil.h"
 
 #ifndef ELF_NOT_SUPPORTED
@@ -76,7 +77,7 @@ void out_elf_header(FILE *fp, uintptr_t entry, int phnum, int shnum) {
     .e_ident     = { ELFMAG0, ELFMAG1, ELFMAG2 ,ELFMAG3,
                      ELFCLASS64, ELFDATA2LSB, EV_CURRENT, ELFOSABI_SYSV },
     .e_type      = phnum > 0 ? ET_EXEC : ET_REL,
-    .e_machine   = EM_X86_64,
+    .e_machine   = MACHINE_TYPE,
     .e_version   = EV_CURRENT,
     .e_entry     = entry,
     .e_phoff     = phnum > 0 ? sizeof(Elf64_Ehdr) : 0,

@@ -1,3 +1,4 @@
+#include "../config.h"
 #include "elfobj.h"
 
 #include <assert.h>
@@ -111,7 +112,7 @@ bool read_elf(ElfObj *elfobj, FILE *fp, const char *fn) {
     fprintf(stderr, "no elf file: %s\n", fn);
     return false;
   }
-  if (elfobj->ehdr.e_machine != EM_X86_64 || elfobj->ehdr.e_version != EV_CURRENT ||
+  if (elfobj->ehdr.e_machine != MACHINE_TYPE || elfobj->ehdr.e_version != EV_CURRENT ||
       elfobj->ehdr.e_ehsize != sizeof(Elf64_Ehdr) || elfobj->ehdr.e_shentsize != sizeof(Elf64_Shdr) ||
       elfobj->ehdr.e_shnum < 1 || elfobj->ehdr.e_shstrndx >= elfobj->ehdr.e_shnum) {
     fprintf(stderr, "illegal elf: %s\n", fn);

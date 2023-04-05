@@ -48,3 +48,10 @@
 #endif
 
 #define TARGET_CHAR_BIT  8
+
+// Elf
+#if defined(__x86_64__)
+#define MACHINE_TYPE  EM_X86_64
+#elif defined(__aarch64__)
+#define MACHINE_TYPE  EM_AARCH64
+#endif
