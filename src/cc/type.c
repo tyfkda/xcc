@@ -95,16 +95,18 @@ static size_t calc_bitfield_size(StructInfo *sinfo, int *pi, size_t size, size_t
       break;
 
     if (bit_position + minfo->bitfield.width > s) {
-      while (++kind <= FX_LLONG) {
-        const Type *t = get_fixnum_type(kind, false, 0);
+      enum FixnumKind k;
+      for (k = kind; ++k <= FX_LLONG; ) {
+        const Type *t = get_fixnum_type(k, false, 0);
         unsigned int ss = type_size(t) * TARGET_CHAR_BIT;
         if (bit_position + minfo->bitfield.width <= ss) {
           bitfield_type = t;
           s = ss;
+          kind = k;
           break;
         }
       }
-      if (kind > FX_LLONG)
+      if (k > FX_LLONG)
         break;
     }
 

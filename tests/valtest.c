@@ -1386,14 +1386,25 @@ TEST(bitfield) {
       333,
     };
 
-    EXPECT("value 1", 1, s.x);
-    EXPECT("value 2", 22, s.y);
-    EXPECT("value 3", 333, s.z);
-
     struct S s2 = s;
-    EXPECT("value 1'", 1, s2.x);
-    EXPECT("value 2'", 22, s2.y);
-    EXPECT("value 3'", 333, s2.z);
+    EXPECT("copy 1'", 1, s2.x);
+    EXPECT("copy 2'", 22, s2.y);
+    EXPECT("copy 3'", 333, s2.z);
+  }
+
+  {
+    struct {
+      int _: 1;
+      long long ll : 33;
+      unsigned long long ull : 33;
+    } s = {
+      0,
+      0x123456789LL,
+      0x123456789LL,
+    };
+
+    EXPECT("long long 1", -0xDCBA9877LL, s.ll);
+    EXPECT("long long 2", 0x123456789LL, s.ull);
   }
 } END_TEST()
 
