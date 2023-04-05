@@ -7,7 +7,7 @@
 
 #define INITIAL_CAPACITY  (4)
 
-FILEMAN __fileman;
+extern FILEMAN __fileman;
 
 static void add_opened(FILE *fp) {
   if (__fileman.length >= __fileman.capacity) {
@@ -15,7 +15,7 @@ static void add_opened(FILE *fp) {
     FILE **buf = realloc(__fileman.opened, ncapa * sizeof(*__fileman.opened));
     if (buf == NULL) {
       // TODO:
-      fprintf(stderr, "Out of memory\n");
+      fputs("Out of memory\n", stderr);
       exit(1);
     }
     __fileman.opened = buf;
