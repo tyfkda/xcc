@@ -1,4 +1,5 @@
 #include <assert.h>
+#include <fcntl.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -390,11 +391,15 @@ static bool output_exe(const char *ofn, File *files, int nfiles, const Name *ent
   if (ofn == NULL) {
     fp = stdout;
   } else {
-    fp = fopen(ofn, "wb");
-    if (fp == NULL) {
-      fprintf(stderr, "Failed to open output file: %s\n", ofn);
+    const int mod = S_IRUSR | S_IWUSR | S_IXUSR | S_IRGRP | S_IXGRP | S_IROTH | S_IXOTH;  // 0755
+    const int flag = O_WRONLY | O_CREAT;
+    int fd = open(ofn, flag, mod);
+    if (fd < 0) {
+      perror("open failed");
       return false;
     }
+    fp = fdopen(fd, "wb");
+    assert(fp != NULL);
   }
 
   size_t rodata_align = MAX(section_aligns[SEC_RODATA], 1);
@@ -427,12 +432,6 @@ static bool output_exe(const char *ofn, File *files, int nfiles, const Name *ent
   }
   fclose(fp);
 
-#if !defined(__XV6)
-  if (chmod(ofn, 0755) == -1) {
-    perror("chmod failed\n");
-    return false;
-  }
-#endif
   return true;
 }
 

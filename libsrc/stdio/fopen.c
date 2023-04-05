@@ -68,7 +68,7 @@ FILE *fopen(const char *fileName, const char *mode) {
   FILE *fp = NULL;
   int flag = detect_flag(mode);
   if (flag != -1) {
-    const int mod = S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH;
+    const int mod = S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH;
     int fd = open(fileName, flag, mod);
     if (fd >= 0) {
       fp = fdopen(fd, mode);
