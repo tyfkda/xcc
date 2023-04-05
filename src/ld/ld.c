@@ -275,6 +275,30 @@ static void resolve_rela_elfobj(LinkEditor *ld, ElfObj *elfobj) {
         break;
 #endif
 
+      case R_AARCH64_ABS64:
+        *(uint64_t*)p = address;
+        break;
+      case R_AARCH64_ADR_PREL_PG_HI21:  // Page(S+A)-Page(P)
+        {
+          const int PAGE = 12;
+          const uint32_t MASK = ~0x60ffffe0;
+          uint32_t d = (address >> PAGE) - (pc >> PAGE);
+          *(uint32_t*)p = (*(uint32_t*)p & MASK) | ((d & 0x03) << 29) | ((d & 0x1ffffc) << 3);
+        }
+        break;
+      case R_AARCH64_ADD_ABS_LO12_NC:  // S + A
+        {
+          const uint32_t MASK = ~(((1U << 12) - 1) << 10);
+          *(uint32_t*)p = (*(uint32_t*)p & MASK) | ((address << 10) & ~MASK);
+        }
+        break;
+      case R_AARCH64_CALL26:  // S+A-P
+        {
+          const uint32_t MASK = -(1U << 26);
+          *(uint32_t*)p = (*(uint32_t*)p & MASK) | (((address - pc) >> 2) & ~MASK);
+        }
+        break;
+
       case R_RISCV_CALL:
         {
           int64_t offset = address - pc;
