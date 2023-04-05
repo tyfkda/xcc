@@ -8,6 +8,8 @@
 #include "table.h"
 #include "util.h"
 
+#include <inttypes.h>
+
 void *read_from(FILE *fp, unsigned long offset, size_t size) {
   void *buf = malloc_or_die(size);
   if (fseek(fp, offset, SEEK_SET) != 0 || fread(buf, 1, size, fp) != size) {
@@ -18,6 +20,7 @@ void *read_from(FILE *fp, unsigned long offset, size_t size) {
 }
 
 static Elf64_Shdr *read_all_section_headers(FILE *fp, size_t start_offset, Elf64_Ehdr *ehdr) {
+fprintf(stderr, "shnum: %d\n", ehdr->e_shnum);
   if (ehdr->e_shnum <= 0)
     return NULL;
   Elf64_Shdr *esecs = read_from(fp, ehdr->e_shoff + start_offset,
@@ -29,11 +32,19 @@ static Elf64_Shdr *read_all_section_headers(FILE *fp, size_t start_offset, Elf64
 }
 
 static char *read_strtab(FILE *fp, size_t start_offset, Elf64_Shdr *sec) {
+fprintf(stderr, "strtab: at 0x%lx\n", sec->sh_offset + start_offset);
   assert(sec->sh_type == SHT_STRTAB);
   char *buf = read_from(fp, sec->sh_offset + start_offset, sec->sh_size);
   if (buf == NULL) {
     perror("read strtab failed");
   }
+
+for (size_t i = 0; i < sec->sh_size; ++i) {
+  int c = (unsigned char)buf[i];
+  fprintf(stderr, "%c", c >= ' ' && c < 0x7f ? c : '.');
+}
+fprintf(stderr, "\n");
+
   return buf;
 }
 
@@ -92,6 +103,7 @@ static bool load_symtab(ElfObj *elfobj) {
       Elf64_Sym *sym = &symbols[i];
       unsigned char type = ELF64_ST_TYPE(sym->st_info);
       if (type == STT_NOTYPE && str[sym->st_name] != '\0') {
+fprintf(stderr, "  %s, type=%d, shndx=%x, size=%" PRIx64 "\n", &str[sym->st_name], type, sym->st_shndx, sym->st_size);
         const Name *name = alloc_name(&str[sym->st_name], NULL, false);
         table_put(symbol_table, name, sym);
       }
@@ -102,6 +114,7 @@ static bool load_symtab(ElfObj *elfobj) {
 }
 
 bool read_elf(ElfObj *elfobj, FILE *fp, const char *fn) {
+fprintf(stderr, "\nread_elf: %s\n", fn);
   elfobj->fp = fp;
   elfobj->start_offset = ftell(fp);
   ssize_t size = fread(&elfobj->ehdr, sizeof(elfobj->ehdr), 1, fp);

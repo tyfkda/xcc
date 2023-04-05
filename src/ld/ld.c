@@ -217,7 +217,15 @@ static void resolve_rela_elfobj(LinkEditor *ld, ElfObj *elfobj) {
       case R_X86_64_PLT32:
         *(uint32_t*)p = address - pc;
         break;
-      default: assert(false); break;
+      case R_AARCH64_CALL26:  // S+A-P
+        {
+          const uint32_t mask = -(1 << 26);
+          *(uint32_t*)p = (*(uint32_t*)p & mask) | (((address - pc) >> 2) & ~mask);
+        }
+        break;
+      default:
+fprintf(stderr, "%d: at %08lx: [%08x], ", (int)ELF64_R_TYPE(rela->r_info), rela->r_offset, *(uint32_t*)p);
+        assert(false); break;
       }
     }
   }
