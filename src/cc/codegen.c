@@ -473,7 +473,6 @@ static void prepare_register_allocation(Function *func) {
 #ifndef __NO_FLONUM
     int freg_index = 0;
 #endif
-    int reg_param_index = ireg_index;
     int offset = DEFAULT_OFFSET;
     for (int j = 0; j < func->type->func.params->len; ++j) {
       VarInfo *varinfo = func->type->func.params->data[j];
@@ -495,7 +494,6 @@ static void prepare_register_allocation(Function *func) {
 #endif
           vreg->offset = (ireg_index - MAX_REG_ARGS - MAX_FREG_ARGS) * WORD_SIZE;
       }
-      ++reg_param_index;
       bool through_stack;
 #ifndef __NO_FLONUM
       if (is_flonum(varinfo->type)) {
