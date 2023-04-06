@@ -172,7 +172,7 @@ static void handle_include(const char *p, Stream *stream, bool next) {
   char *path = strndup(p, q - p);
   char *fn = NULL;
   FILE *fp = NULL;
-  char *dir = dirname(strdup(stream->filename));
+  char *dir = strdup(dirname(strdup(stream->filename)));
   // Search from current directory.
   if (!next && !sys) {
     fn = cat_path_cwd(dir, path);

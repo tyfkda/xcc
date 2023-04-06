@@ -181,7 +181,7 @@ test_run() {
   try_run 'Comment after include' 73 "#include \"tmp.h\" /*block\n*/ // line\nint main(){return FOO;}"
   pp_error 'Token after include comment' "#include \"tmp.h\" /*block\n*/ illegal-token\nint main(){return FOO;}"
 
-  mkdir test_include
+  mkdir -p test_include
   echo -e "#define BAR (13)" > test_include/tmp.h
   echo -e "#include_next <tmp.h>\n#define FOO (29)" > tmp.h
   try_run "Include with include_next" 42 "#include <tmp.h>\nint main(){return FOO+BAR;}"
