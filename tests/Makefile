@@ -35,7 +35,7 @@ misc-tests:	test-link test-examples
 
 .PHONY: clean
 clean:
-	rm -f table_test util_test parser_test initializer_test print_type_test \
+	rm -rf table_test util_test parser_test initializer_test print_type_test \
 		valtest dvaltest fvaltest link_test \
 		a.out tmp* *.o mandelbrot.ppm \
 		*.wasm

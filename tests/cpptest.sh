@@ -37,7 +37,7 @@ try_run() {
 
   begin_test "$title"
 
-  echo -e "$input" | $XCC -o "$AOUT" -Werror -xc -I. -Itest_include - || exit 1
+  echo -e "$input" | $XCC -o "$AOUT" -Werror -xc -I. -Itmp_include - || exit 1
 
   $RUN_AOUT
   local actual="$?"
@@ -181,8 +181,8 @@ test_run() {
   try_run 'Comment after include' 73 "#include \"tmp.h\" /*block\n*/ // line\nint main(){return FOO;}"
   pp_error 'Token after include comment' "#include \"tmp.h\" /*block\n*/ illegal-token\nint main(){return FOO;}"
 
-  mkdir -p test_include
-  echo -e "#define BAR (13)" > test_include/tmp.h
+  mkdir -p tmp_include
+  echo -e "#define BAR (13)" > tmp_include/tmp.h
   echo -e "#include_next <tmp.h>\n#define FOO (29)" > tmp.h
   try_run "Include with include_next" 42 "#include <tmp.h>\nint main(){return FOO+BAR;}"
 
