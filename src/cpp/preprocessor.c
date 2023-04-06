@@ -62,24 +62,46 @@ static void register_pragma_once(const char *filename) {
   vec_push(&pragma_once_files, filename);
 }
 
-static FILE *search_sysinc(const char *path, char **pfn) {
-  for (int i = 0; i < INC_ORDERS; ++i) {
-    Vector *v = &sys_inc_paths[i];
-    for (int j = 0; j < v->len; ++j) {
+static FILE *search_sysinc_next(const char *dir, const char *path, char **pfn) {
+  int ord = 0, idx = 0;
+  Vector *v;
+
+  bool found = false;
+
+  for (ord = 0; dir && ord < INC_ORDERS; ++ord) {
+    v = &sys_inc_paths[ord];
+    for (idx = 0; idx < v->len; ++idx) {
+      if (!strcmp(fullpath(v->data[idx]), dir)) {
+        ++idx;
+        found = true;
+        break;
+      }
+    }
+    if (found) break;
+  }
+
+  for (; ord < INC_ORDERS; ++ord) {
+    v = &sys_inc_paths[ord];
+    for (; idx < v->len; ++idx) {
       FILE *fp = NULL;
-      char *fn = cat_path_cwd(v->data[j], path);
+      char *fn = cat_path_cwd(v->data[idx], path);
       if (registered_pragma_once(fn) ||
           (fp = fopen(fn, "r")) != NULL) {
         *pfn = fn;
         return fp;
       }
     }
+    idx = 0;
   }
   *pfn = NULL;
   return NULL;
 }
 
-static void handle_include(const char *p, Stream *stream) {
+static FILE *search_sysinc(const char *path, char **pfn) {
+  return search_sysinc_next(NULL, path, pfn);
+}
+
+static void handle_include(const char *p, Stream *stream, bool next) {
   const char *orgp = p;
   char close;
   bool sys = false;
@@ -150,15 +172,18 @@ static void handle_include(const char *p, Stream *stream) {
   char *path = strndup(p, q - p);
   char *fn = NULL;
   FILE *fp = NULL;
+  char *dir = strdup(dirname(strdup(stream->filename)));
   // Search from current directory.
-  if (!sys) {
-    fn = cat_path_cwd(dirname(strdup(stream->filename)), path);
+  if (!next && !sys) {
+    fn = cat_path_cwd(dir, path);
     if (registered_pragma_once(fn))
       return;
     fp = fopen(fn, "r");
   }
   if (fp == NULL) {
-    fp = search_sysinc(path, &fn);
+    if (next) fp = search_sysinc_next(dir, path, &fn);
+    else fp = search_sysinc(path, &fn);
+
     if (fp == NULL) {
       if (fn == NULL)  // Except pragma once.
         error("Cannot open file: %s", path);
@@ -610,7 +635,11 @@ int preprocess(FILE *fp, const char *filename_) {
       condstack->len = len;
     } else if (enable) {
       if ((next = keyword(directive, "include")) != NULL) {
-        handle_include(next, &stream);
+        handle_include(next, &stream, false);
+        fprintf(pp_ofp, "# %d \"%s\" 1\n", stream.lineno + 1, stream.filename);
+        next = NULL;
+      } else if ((next = keyword(directive, "include_next")) != NULL) {
+        handle_include(next, &stream, true);
         fprintf(pp_ofp, "# %d \"%s\" 1\n", stream.lineno + 1, stream.filename);
         next = NULL;
       } else if ((next = keyword(directive, "define")) != NULL) {
