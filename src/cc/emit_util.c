@@ -17,7 +17,7 @@
 static FILE *emit_fp;
 
 char *fmt(const char *fm, ...) {
-#define N  4
+#define N  8
 #define MIN_SIZE  16
   typedef struct {
     char *buf;

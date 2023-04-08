@@ -76,7 +76,10 @@ void mov_immediate(const char *dst, int64_t value, bool b64, bool is_unsigned) {
   } else if (is_im16(value)) {
     MOV(dst, IM(value));
   } else {
-    int32_t l = !is_unsigned && value < 0 ? (int32_t)-((uint16_t)(-(int)value)) : (int32_t)(uint16_t)value;
+    int32_t l = !is_unsigned && value < 0
+        ? (int16_t)value == 0 ? (int32_t)0xffff0000  // This bit patten can be represented in MOV.
+                              : (int32_t)-((uint16_t)(-(int)value))
+        : (int32_t)(uint16_t)value;
     MOV(dst, IM(l));
     if (!b64 || is_im32(value)) {
       uint32_t u = value;

@@ -111,6 +111,13 @@ TEST(all) {
   EXPECT("negative", -42, (x=42, -x));
   EXPECT("long", 123, 123L);
   { long long x = 9876543LL; EXPECT("long long", 9876543, x); }
+  {
+    long long x = 0;
+    EXPECT_FALSE(x < -32768LL);       // 0xFFFFFFFFFFFF8000
+    EXPECT_FALSE(x < -65536LL);       // 0xFFFFFFFFFFFF0000
+    EXPECT_FALSE(x < -2147483648LL);  // 0xFFFFFFFF80000000
+    EXPECT_FALSE(2147483647LL < x);
+  }
   EXPECT("escape sequence octal", 28, '\034');
   EXPECT("escape sequence hex", 27, '\x1b');
   EXPECT("escape char in str", 19, "\023"[0]);
