@@ -1406,6 +1406,31 @@ TEST(bitfield) {
     EXPECT("long long 1", -0xDCBA9877LL, s.ll);
     EXPECT("long long 2", 0x123456789LL, s.ull);
   }
+
+  {
+    enum Num {
+      Zero,
+      One,
+      Two,
+      Three,
+    };
+
+    struct {
+      enum Num x : 2;
+      enum Num y : 2;
+      enum Num z : 4;
+    } s = {
+      One,
+      Two,
+      Three,
+    };
+
+    EXPECT("enum 1", One, s.x);
+#if !defined(__GNUC__)
+    EXPECT("enum 2", -Two, s.y);  // enum is treated as signed on XCC.
+#endif
+    EXPECT("enum 3", Three, s.z);
+  }
 } END_TEST()
 
 //

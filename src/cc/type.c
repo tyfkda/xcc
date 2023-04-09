@@ -66,6 +66,8 @@ static size_t calc_bitfield_size(StructInfo *sinfo, int *pi, size_t size, size_t
     size_t remain = size % align;
     if (remain == 0) {
       kind = minfo->type->fixnum.kind;
+      if (kind == FX_ENUM)
+        kind = FX_INT;
     } else {
       // Detect LSB.
       ssize_t s;
