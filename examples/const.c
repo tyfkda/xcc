@@ -1,5 +1,5 @@
-// ./xcc -c examples/const.c
-// ./ld const.o
+// ./xcc -c examples/const.c examples/extern.c
+// ./ld const.o extern.o
 
 #include "../libsrc/unistd/_syscall.h"
 
@@ -32,7 +32,8 @@ void _start(void) {
 #endif
 }
 
+extern int value;
 
 int main(void) {
-  return 123;
+  return value;
 }

@@ -133,6 +133,8 @@ typedef struct {
 #define R_X86_64_PC32   (2)        /* PC relative 32 bit signed */
 #define R_X86_64_PLT32  (4)        /* 32 bit PLT address */
 
+#define R_AARCH64_ADR_PREL_PG_HI21  (275)  /* Page(S+A)-Page(P) */
+#define R_AARCH64_ADD_ABS_LO12_NC   (277)  /* S+A */
 #define R_AARCH64_CALL26            (283)  /* S+A-P: Set a CALL immediate field to bits [27:2] of X; check that -2^27 <= X < 2^27 */
 
 #define ELF64_R_SYM(info)            ((info) >> 32)
