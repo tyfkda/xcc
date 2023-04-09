@@ -96,6 +96,11 @@ test_misc() {
   try '#if w/ block comment' 'AAA' '#if 1==2/*\n*/-1\nAAA\n#else\nBBB\n#endif'
   try '#else w/ block comment' '/**/BBB' '#if 0\nAAA\n#else/*\n*/\nBBB\n#endif'
   try '#endif w/ block comment' '/**/CCC' '#if 0\nAAA\n#endif/*\n*/CCC'
+
+  try 'Block comment hide #else' 'AAA /*#elseBBB */' '#if 1\nAAA /*\n#else\nBBB */\n#endif'
+  try 'Line omment hide #else' '' '#if 0\nAAA\n//#else\nBBB\n#endif'
+  try 'Double quote in #if' '' "#if 0\n// \"str not closed, but in comment'\n#endif"
+
   try '__FILE__' '"*stdin*"' "__FILE__"
   try '__LINE__' "3" "\n\n__LINE__"
   try '#line' "# 123 \"foobar.p\" 1\"foobar.p\":123" "#line  123\t\"foobar.p\"\n__FILE__:__LINE__"
@@ -165,6 +170,8 @@ test_error() {
   pp_error 'Duplicate #else' '#if 0\n#else\n#else\n#endif'
   pp_error 'less params' '#define FOO(x, y) x+y\nFOO(1)'
   pp_error 'more params' '#define FOO(x, y) x+y\nFOO(1, 2, 3)'
+  pp_error 'Block comment not closed' 'AAA /* BBB'
+  pp_error 'Double quote not closed' 'CCC " DDD'
 
   end_test_suite
 }

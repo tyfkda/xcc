@@ -429,8 +429,13 @@ static void process_disabled_line(const char *p, Stream *stream) {
       p = find_double_quote_end(p);
       break;
     case '/':
-      if (*p == '*') {
+      switch (*p) {
+      case '*':
         p = find_block_comment_end(p + 1, stream);
+        break;
+      case '/':
+        return;
+      default: break;
       }
       break;
     default:

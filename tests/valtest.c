@@ -1632,7 +1632,7 @@ TEST(function) {
     EXPECT("more params w/ struct", 143, s.x);
   }
 
-  // EXPECT("proto in func' 78 'int main(){ int sub(int); return sub(77); } int sub(int x) { return x + 1; }'
+  // EXPECT("proto in func", 78, 'int main(){ int sub(int); return sub(77); } int sub(int x) { return x + 1; }')
   {
     extern long extern_in_func;
     extern_in_func = 45;
