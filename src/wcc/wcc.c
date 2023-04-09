@@ -140,6 +140,38 @@ static void construct_primitive_global(DataStorage *ds, const VarInfo *varinfo) 
   }
 }
 
+static int emit_align(DataStorage *ds, int offset, int align) {
+  int d = offset % align;
+  if (d > 0) {
+    d = align - d;
+    for (int i = 0; i < d; ++i)
+      data_push(ds, 0);
+    offset += d;
+  }
+  return offset;
+}
+
+static void emit_fixnum(DataStorage *ds, Fixnum v, size_t size) {
+  data_append(ds, (unsigned char*)&v, size);  // Assume endian and CHAR_BIT are same on host and target.
+}
+
+static int construct_initial_value_bitfield(DataStorage *ds, const StructInfo *sinfo, const Initializer *init, int start, int *poffset) {
+  const MemberInfo *member = &sinfo->members[start];
+  const Type *et = get_fixnum_type(member->bitfield.base_kind, false, 0);
+
+  int offset = *poffset;
+  int align = align_size(et);
+  offset = emit_align(ds, offset, align);
+
+  int i = start;
+  Fixnum x = calc_bitfield_initial_value(sinfo, init, &i);
+
+  emit_fixnum(ds, x, type_size(et));
+  *poffset = offset += type_size(et);
+
+  return i;
+}
+
 static void construct_initial_value(DataStorage *ds, const Type *type, const Initializer *init) {
   assert(init == NULL || init->kind != IK_DOT);
 
@@ -165,13 +197,7 @@ static void construct_initial_value(DataStorage *ds, const Type *type, const Ini
         }
       }
 
-      unsigned char buf[16];
-      int size = type_size(type);
-      assert(size <= (int)sizeof(buf));
-      for (int i = 0; i < size; ++i)
-        buf[i] = v >> (i * CHAR_BIT);  // Little endian
-
-      data_append(ds, buf, size);
+      emit_fixnum(ds, v, type_size(type));
     }
     break;
 #ifndef __NO_FLONUM
@@ -250,6 +276,11 @@ static void construct_initial_value(DataStorage *ds, const Type *type, const Ini
       int offset = 0;
       for (int i = 0, n = sinfo->member_count; i < n; ++i) {
         const MemberInfo* member = &sinfo->members[i];
+        if (member->bitfield.width > 0) {
+          i = construct_initial_value_bitfield(ds, sinfo, init, i, &offset) - 1;
+          ++count;
+          continue;
+        }
         const Initializer *mem_init;
         if (init == NULL) {
           if (sinfo->is_union)
@@ -260,16 +291,9 @@ static void construct_initial_value(DataStorage *ds, const Type *type, const Ini
         }
         if (mem_init != NULL || !sinfo->is_union) {
           int align = align_size(member->type);
-          int d = offset % align;
-          if (d > 0) {
-            d = align - d;
-            for (int i = 0; i < d; ++i)
-              data_push(ds, 0);
-            offset += d;
-          }
+          offset = emit_align(ds, offset, align);
           construct_initial_value(ds, member->type, mem_init);
           ++count;
-          offset = ALIGN(offset, align);
           offset += type_size(member->type);
         }
       }

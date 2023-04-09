@@ -13,6 +13,7 @@ typedef struct MemberInfo MemberInfo;
 typedef struct Name Name;
 typedef struct Scope Scope;
 typedef struct Stmt Stmt;
+typedef struct StructInfo StructInfo;
 typedef struct Token Token;
 typedef struct Type Type;
 typedef struct VarInfo VarInfo;
@@ -63,6 +64,7 @@ Initializer *parse_initializer(void);
 Type *fix_array_size(Type *type, Initializer *init);
 Vector *assign_initial_value(Expr *expr, Initializer *init, Vector *inits);
 Initializer *flatten_initializer(Type *type, Initializer *init);
+Fixnum calc_bitfield_initial_value(const StructInfo *sinfo, const Initializer *init, int *pi);
 
 void check_funcall_args(Expr *func, Vector *args, Scope *scope, Vector *toplevel);
 

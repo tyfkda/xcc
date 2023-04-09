@@ -11,6 +11,7 @@
 #include "codegen.h"
 #include "ir.h"
 #include "lexer.h"
+#include "parser.h"  // calc_bitfield_initial_value
 #include "regalloc.h"
 #include "table.h"
 #include "type.h"
@@ -106,6 +107,39 @@ static void eval_initial_value(Expr *expr, Expr **pvar, Fixnum *poffset) {
   }
 }
 
+static int construct_initial_value_bitfield(const StructInfo *sinfo, const Initializer *init, int start, int *poffset) {
+  const MemberInfo *member = &sinfo->members[start];
+  const Type *et = get_fixnum_type(member->bitfield.base_kind, false, 0);
+
+  int offset = *poffset;
+  int align = align_size(et);
+  if (offset % align != 0) {
+    EMIT_ALIGN(align);
+    offset = ALIGN(offset, align);
+  }
+
+  int i = start;
+  Fixnum x = calc_bitfield_initial_value(sinfo, init, &i);
+
+  const char *output = NUM(x);
+  switch (et->fixnum.kind) {
+  case FX_CHAR:  _BYTE(output); break;
+  case FX_SHORT: _WORD(output); break;
+  case FX_LONG: case FX_LLONG:
+    _QUAD(output);
+    break;
+  default:
+    assert(false);
+    // Fallthrough
+  case FX_INT: case FX_ENUM:
+    _LONG(output);
+    break;
+  }
+  *poffset = offset += type_size(et);
+
+  return i;
+}
+
 static void construct_initial_value(const Type *type, const Initializer *init) {
   assert(init == NULL || init->kind != IK_DOT);
 
@@ -192,8 +226,9 @@ static void construct_initial_value(const Type *type, const Initializer *init) {
         switch (type->fixnum.kind) {
         case FX_CHAR:  _BYTE(output); break;
         case FX_SHORT: _WORD(output); break;
-        case FX_LONG:  _QUAD(output); break;
-        case FX_LLONG: _QUAD(output); break;
+        case FX_LONG: case FX_LLONG:
+          _QUAD(output);
+          break;
         default:
           assert(false);
           // Fallthrough
@@ -260,6 +295,11 @@ static void construct_initial_value(const Type *type, const Initializer *init) {
       int offset = 0;
       for (int i = 0, n = sinfo->member_count; i < n; ++i) {
         const MemberInfo *member = &sinfo->members[i];
+        if (member->bitfield.width > 0) {
+          i = construct_initial_value_bitfield(sinfo, init, i, &offset) - 1;
+          ++count;
+          continue;
+        }
         const Initializer *mem_init;
         if (init == NULL) {
           if (sinfo->is_union)
@@ -276,7 +316,6 @@ static void construct_initial_value(const Type *type, const Initializer *init) {
           }
           construct_initial_value(member->type, mem_init);
           ++count;
-          offset = ALIGN(offset, align);
           offset += type_size(member->type);
         }
       }

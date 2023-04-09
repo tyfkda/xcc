@@ -112,13 +112,17 @@ static size_t calc_bitfield_size(StructInfo *sinfo, int *pi, size_t size, size_t
         break;
     }
 
-    minfo->offset = size;
     minfo->bitfield.position = bit_position;
     bit_position += minfo->bitfield.width;
   }
 
   size_t align = align_size(bitfield_type);
-  size = ALIGN(size + type_size(bitfield_type), align);
+  size = ALIGN(size, align);
+  for (int j = *pi; j < i; ++j) {
+    MemberInfo *minfo = &sinfo->members[j];
+    minfo->offset = size;
+  }
+  size += type_size(bitfield_type);
 
   // Write back base kind.
   for (int j = *pi; j < i; ++j) {
@@ -153,6 +157,10 @@ static void calc_struct_size(StructInfo *sinfo) {
         size += sz;
       }
     } else {
+      if (minfo->bitfield.width > 0) {
+        minfo->bitfield.position = 0;
+        minfo->bitfield.base_kind = minfo->type->fixnum.kind;
+      }
       minfo->offset = 0;
       if (size < sz)
         size = sz;

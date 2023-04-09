@@ -1260,6 +1260,22 @@ TEST(struct) {
   }
 } END_TEST()
 
+//
+
+struct {
+  char x;
+  int b1 : 4;
+  unsigned int b2 : 5;
+  int b3 : 3;
+  int z;
+} g_bfwinit = {
+  111,
+  0x05,
+  0x0a,
+  0x03,
+  222,
+};
+
 TEST(bitfield) {
   {
     union {
@@ -1430,6 +1446,14 @@ TEST(bitfield) {
     EXPECT("enum 2", -Two, s.y);  // enum is treated as signed on XCC.
 #endif
     EXPECT("enum 3", Three, s.z);
+  }
+
+  {
+    EXPECT("global w/init x", 111, g_bfwinit.x);
+    EXPECT("global w/init b1", 0x05, g_bfwinit.b1);
+    EXPECT("global w/init b2", 0x0a, g_bfwinit.b2);
+    EXPECT("global w/init b3", 0x03, g_bfwinit.b3);
+    EXPECT("global w/init z", 222, g_bfwinit.z);
   }
 } END_TEST()
 

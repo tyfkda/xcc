@@ -142,7 +142,6 @@ test_bitfield() {
   compile_error 'bit size over' 'void main(){struct {int x:33;} s;}'
   compile_error 'prohibit &' 'void main(){struct {int x:1;} s; int *p = &s.x;}'
   compile_error 'prohibit sizeof' 'int main(){struct {int x:1;} s; return sizeof(s.x);}'
-  compile_error 'static initializer' 'struct S {int x: 15;} s = {55}; int main(){return s.x;}'
 
   end_test_suite
 }

@@ -685,16 +685,9 @@ static Initializer *check_global_initializer(Type *type, Initializer *init) {
         return NULL;
       }
       const StructInfo *sinfo = type->struct_.info;
-      bool bitfield_exist = false;
       for (int i = 0, n = sinfo->member_count; i < n; ++i) {
         const MemberInfo *member = &sinfo->members[i];
         Initializer *init_elem = init->multi->data[i];
-        if (member->bitfield.width > 0) {
-          if (!bitfield_exist) {
-            parse_error(PE_NOFATAL, init_elem != NULL ? init_elem->token : init->token, "`%.*s': initializer for bitfield not supported (yet)", member->name->bytes, member->name->chars);
-            bitfield_exist = true;
-          }
-        }
         if (init_elem != NULL)
           init->multi->data[i] = check_global_initializer(member->type, init_elem);
       }
@@ -798,7 +791,7 @@ Vector *assign_initial_value(Expr *expr, Initializer *init, Vector *inits) {
           const MemberInfo *minfo = &sinfo->members[i];
           Expr *member = new_expr_member(NULL, minfo->type, expr, NULL, i);
           if (minfo->bitfield.width > 0) {
-            if (init_elem->kind != IK_SINGLE || init_elem->single->kind != EX_FIXNUM) {
+            if (init_elem->kind != IK_SINGLE) {
               parse_error(PE_FATAL, init_elem->token, "illegal initializer for member `%.*s'", minfo->name->bytes, minfo->name->chars);
             } else {
               vec_push(inits, new_stmt_expr(
@@ -846,7 +839,31 @@ Vector *assign_initial_value(Expr *expr, Initializer *init, Vector *inits) {
   return inits;
 }
 
-void construct_initializing_stmts(Vector *decls) {
+Fixnum calc_bitfield_initial_value(const StructInfo *sinfo, const Initializer *init, int *pi) {
+  assert(!sinfo->is_union);  // TODO
+  assert(init == NULL || (init->kind == IK_MULTI && init->multi->len == sinfo->member_count));
+  Fixnum x = 0;
+  int i = *pi, n = sinfo->member_count;
+  for (bool top = true; i < n; ++i, top = false) {
+    const MemberInfo *member = &sinfo->members[i];
+    if (member->bitfield.width <= 0 || (!top && member->bitfield.position == 0))
+      break;
+
+    if (init == NULL)
+      continue;
+    const Initializer *mem_init = init->multi->data[i];
+    if (mem_init == NULL)
+      continue;  // 0
+    assert(mem_init->kind == IK_SINGLE && mem_init->single->kind == EX_FIXNUM);
+
+    Fixnum mask = (1LL << member->bitfield.width) - 1;
+    x |= (mem_init->single->fixnum & mask) << member->bitfield.position;
+  }
+  *pi = i;
+  return x;
+}
+
+static void construct_initializing_stmts(Vector *decls) {
   for (int i = 0; i < decls->len; ++i) {
     VarDecl *decl = decls->data[i];
     if (decl->storage & (VS_STATIC | VS_EXTERN))
