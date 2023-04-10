@@ -4,10 +4,10 @@ XCC
 [![Action Status](https://github.com/tyfkda/xcc/workflows/AllTests/badge.svg)](https://github.com/tyfkda/xcc)
 [![Open in Gitpod](https://gitpod.io/button/open-in-gitpod.svg)](https://gitpod.io/#https://github.com/tyfkda/xcc)
 
-  * C compiler for [XV6 (64bit)](https://github.com/tyfkda/xv6)
-    * Also work on Linux/MacOS
-  * Output ELF64 (x86-64) file format
-    * Also support Aarch64 (Arm64)
+C compiler running on Linux or MacOS.
+
+  * Supporting architecture: x86-64, aarch64 (arm64), wasm
+  * Binary format: ELF64
 
 
 ### Requirements
