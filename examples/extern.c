@@ -1,1 +1,2 @@
-int value = 123;
+int value = 7;
+const char message[] = "Hello!\n";

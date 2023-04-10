@@ -2,6 +2,8 @@
 // ./ld const.o extern.o
 
 #include "../libsrc/unistd/_syscall.h"
+#include "sys/types.h"  // ssize_t
+#include "stdint.h"
 
 static void proc_exit(int code) {
 #ifdef __NR_exit_group
@@ -32,8 +34,16 @@ void _start(void) {
 #endif
 }
 
+ssize_t write(int fd, const void *str, size_t len) {
+  ssize_t ret;
+  SYSCALL_RET(__NR_write, ret);
+  return ret;
+}
+
 extern int value;
+extern const char message[];
 
 int main(void) {
+  write(1, message, value);
   return value;
 }
