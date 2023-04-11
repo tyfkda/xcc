@@ -2,6 +2,7 @@ import {FileSystem} from './file_system'
 import {Util} from './util'
 import {WaStorage} from './file_system'
 
+const ENOENT = 2
 const ERANGE = 34
 
 export class ExitCalledError extends Error {
@@ -133,13 +134,12 @@ export class WaProc {
         },
         close: (fd: number) => this.fs.close(fd),
         lseek: (fd: number, offset: number, where: number) => this.fs.lseek(fd, offset, where),
-        unlink: (fileNamePtr: number) => {
+        _unlink: (fileNamePtr: number) => {
           const fileName = Util.decodeString(this.memory.buffer, fileNamePtr)
           if (fileName == null || fileName === '')
-            return -1
+            return -ENOENT
           const absPath = this.getAbsPath(fileName)
-          this.fs.delete(absPath)
-          return 0
+          return this.fs.unlink(absPath) ? 0 : -ENOENT
         },
         _tmpfile: () => this.fs.tmpfile(),
 

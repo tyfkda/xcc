@@ -63,7 +63,21 @@ function tmpfileSync(len) {
   kOpenFlags[O_RDWR] = 'w+'
   kOpenFlags[O_WRONLY | O_CREAT | O_TRUNC] = 'w'
 
+  const ENOENT = 2
   const ERANGE = 34
+
+  const Code2errMap = {
+    ENOENT: -ENOENT,
+    ERANGE: -ERANGE,
+  }
+
+  function code2err(exc, orDefault = -1) {
+    if (exc.code in Code2errMap) {
+      return Code2errMap[exc.code]
+    }
+    console.error(exc)
+    return orDefault
+  }
 
   const files = new Map()
 
@@ -131,10 +145,8 @@ function tmpfileSync(len) {
               position: 0,
             }
             return fd
-          } catch (e) {
-            if (e.code !== 'ENOENT')
-              console.error(e)
-            return -1
+          } catch (exc) {
+            return code2err(exc)
           }
         },
         close: (fd) => {
@@ -160,9 +172,14 @@ function tmpfileSync(len) {
           files[fd].position = position
           return position
         },
-        unlink: (fn) => {
-          fs.delete(fn)
-          return 0
+        _unlink: (filename) => {
+          const fn = decodeString(memory.buffer, filename)
+          try {
+            fs.unlinkSync(fn)
+            return 0
+          } catch (exc) {
+            return code2err(exc)
+          }
         },
         _tmpfile: () => {
           const fd = tmpfileSync()

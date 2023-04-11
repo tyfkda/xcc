@@ -153,8 +153,11 @@ if (fd < 3) {
     return position
   }
 
-  public delete(absPath: string) {
+  public unlink(absPath: string): boolean {
+    if (!this.storage.contains(absPath))
+      return false
     this.storage.delete(absPath)
+    return true
   }
 
   public tmpfile(): number {

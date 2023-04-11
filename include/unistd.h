@@ -34,6 +34,7 @@ int close(int fd);
 ssize_t read(int fd, void *buf, size_t size);
 off_t lseek(int fd, off_t offset, int whence);
 int unlink(const char *pathname);
+int unlinkat(int dirfd, const char *pathname, int flags);
 int dup(int);
 int pipe(int *);
 int pipe2(int *pipefd, int flag);
