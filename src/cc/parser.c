@@ -878,12 +878,23 @@ static void construct_initializing_stmts(Vector *decls) {
 }
 
 static Initializer *check_vardecl(Type **ptype, const Token *ident, int storage, Initializer *init) {
+  if (storage & VS_EXTERN && init != NULL) {
+    parse_error(PE_NOFATAL, init->token, "extern with initializer");
+    return NULL;
+  }
+
   Type *type = *ptype;
   if (!(storage & VS_EXTERN))
     ensure_struct(type, ident, curscope);
   init = flatten_initializer(type, init);
-  if (type->kind == TY_ARRAY && init != NULL)
-    *ptype = type = fix_array_size(type, init);
+  if (type->kind == TY_ARRAY) {
+      if (init != NULL) {
+        *ptype = type = fix_array_size(type, init);
+      } else if (type->pa.length == -1 && !(storage & VS_EXTERN)) {
+        parse_error(PE_WARNING, ident, "Array size undetermined, assume as one");
+        type->pa.length = 1;
+      }
+  }
 
   if (curfunc != NULL) {
     VarInfo *varinfo = scope_find(curscope, ident->ident, NULL);
@@ -901,10 +912,6 @@ static Initializer *check_vardecl(Type **ptype, const Token *ident, int storage,
     //intptr_t eval;
     //if (find_enum_value(ident->ident, &eval))
     //  parse_error(PE_FATAL, ident, "`%.*s' is already defined", ident->ident->bytes, ident->ident->chars);
-    if (storage & VS_EXTERN && init != NULL) {
-      parse_error(PE_NOFATAL, init->token, "extern with initializer");
-      return NULL;
-    }
     // Toplevel
     VarInfo *gvarinfo = scope_find(global_scope, ident->ident, NULL);
     assert(gvarinfo != NULL);
