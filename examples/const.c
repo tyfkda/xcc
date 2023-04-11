@@ -1,5 +1,6 @@
 // ./xcc -c examples/const.c examples/extern.c
 // ./ld const.o extern.o
+// ./ld examples/const.o examples/extern.o
 
 #include "../libsrc/unistd/_syscall.h"
 #include "sys/types.h"  // ssize_t
@@ -42,8 +43,9 @@ ssize_t write(int fd, const void *str, size_t len) {
 
 extern int value;
 extern const char message[];
+extern int bss;
 
 int main(void) {
   write(1, message, value);
-  return value;
+  return bss;
 }
