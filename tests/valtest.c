@@ -985,13 +985,20 @@ dummy1:
 label:
     EXPECT("goto", 1, x);
 
-//j3:
+j3:
     goto j1;
 dummy2:
     goto j2;
 j2:
     goto dummy2;
 j1:;
+    SUPPRESS_LABEL(j3);
+
+    typedef int TTT;
+    goto TTT;
+TTT:;
+    TTT ttt = 369;
+    EXPECT("typedef and label", 369, ttt);
   }
 #endif
 

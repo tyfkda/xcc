@@ -5,7 +5,7 @@
 
 #include "ast.h"  // Token, TokenKind
 
-#define MAX_LEX_LOOKAHEAD  (2)
+#define MAX_LEX_LOOKAHEAD  (3)
 
 typedef struct Line Line;
 typedef struct Name Name;

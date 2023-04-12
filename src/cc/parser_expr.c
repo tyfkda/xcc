@@ -1178,7 +1178,10 @@ Type *parse_raw_type(int *pstorage) {
       type = parse_enum();
     } else if (tok->kind == TK_IDENT) {
       if (no_type_combination(&tc, 0, 0)) {
-        type = find_typedef(curscope, tok->ident, NULL);
+        Token *next = match(-1);
+        if (next->kind != TK_COLON)
+          type = find_typedef(curscope, tok->ident, NULL);
+        unget_token(next);
       }
     } else if (tok->kind == TK_VOID) {
       type = tc.qualifier & TQ_CONST ? &tyConstVoid : &tyVoid;
