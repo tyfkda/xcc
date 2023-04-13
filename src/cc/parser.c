@@ -1293,14 +1293,17 @@ static Stmt *parse_for(const Token *tok) {
 
   RESTORE_LOOP_SCOPE(save);
 
-  Vector *stmts = new_vector();
-  if (decls != NULL) {
-    construct_initializing_stmts(decls);
-    vec_push(stmts, new_stmt_vardecl(decls));
+  if (scope == NULL) {
+    assert(decls == NULL);
+    return stmt;
   }
 
-  if (scope != NULL)
-    exit_scope();
+  assert(decls != NULL);
+  Vector *stmts = new_vector();
+  construct_initializing_stmts(decls);
+  vec_push(stmts, new_stmt_vardecl(decls));
+
+  exit_scope();
 
   vec_push(stmts, stmt);
   return new_stmt_block(tok, stmts, scope, NULL);
@@ -1489,8 +1492,25 @@ static int check_reachability_stmts(Vector *stmts) {
           if ((next->kind == ST_BREAK && next->break_.parent->kind == ST_SWITCH) &&
               (stmt->kind != ST_RETURN && stmt->kind != ST_BREAK))
             continue;
-          if (!(next->kind == ST_LABEL || next->kind == ST_CASE || next->kind == ST_DEFAULT))
+          switch (next->kind) {
+          case ST_LABEL:
+          case ST_CASE:
+          case ST_DEFAULT:
+            break;
+
+          // Avoid false positive:
+          case ST_WHILE: case ST_DO_WHILE:
+            // TODO: Check the loop is jumped inside from other place using `goto` statement.
+            break;
+          case ST_FOR:
+            if (next->for_.pre == NULL)
+              break;
+            // Fallthrough
+
+          default:
             parse_error(PE_WARNING, next->token, "unreachable");
+            break;
+          }
           break;
         }
       }
