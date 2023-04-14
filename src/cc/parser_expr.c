@@ -1808,7 +1808,7 @@ static Expr *parse_shift(void) {
         Fixnum rval = rhs->fixnum;
         value = kind == EX_LSHIFT ? lval << rval : lval >> rval;
       }
-      expr = new_expr_fixlit(type, tok, value);
+      expr = new_expr_fixlit(type, tok, wrap_value(value, type_size(type), type->fixnum.is_unsigned));
     } else {
       lhs = promote_to_int(lhs);
       expr = new_expr_bop(kind, lhs->type, tok, lhs, rhs);
