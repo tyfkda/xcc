@@ -629,8 +629,8 @@ VReg *gen_expr(Expr *expr) {
     {
       const MemberInfo *minfo = member_info(expr);
       if (minfo->bitfield.width > 0) {
-        Expr *extract_bitfield_value(Expr *src, const MemberInfo *minfo);
-        Expr *ptr = new_expr_unary(EX_REF, ptrof(minfo->type), NULL, expr);  // promote-to-int
+        Type *type = get_fixnum_type(minfo->bitfield.base_kind, minfo->type->fixnum.is_unsigned, 0);
+        Expr *ptr = new_expr_unary(EX_REF, ptrof(type), NULL, expr);  // promote-to-int
         Expr *load = new_expr_deref(NULL, ptr);
         Expr *e = extract_bitfield_value(load, minfo);
         return gen_expr(e);

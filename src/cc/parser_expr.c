@@ -530,7 +530,7 @@ static Expr *transform_incdec_of_bitfield(enum ExprKind kind, Expr *target, cons
   // ++target => (&ptr = &target, src = *ptr, val = ((src + (1 << bitpos)) >> bitpos), *ptr = (src & (mask << bitpos)) | ((val & mask) << bitpos), val)
   // target++ => (&ptr = &target, src = *ptr, val = src >> bitpos, *ptr = (src & (mask << bitpos)) | (((val + 1) & mask) << bitpos), val)
 
-  Type *type = target->type;  // TODO: promote to int.
+  Type *type = get_fixnum_type(minfo->bitfield.base_kind, target->type->fixnum.is_unsigned, 0);
 
   Type *ptype = ptrof(type);
   assert(!is_global_scope(curscope));
@@ -2017,9 +2017,9 @@ static Expr *parse_conditional(void) {
 Expr *assign_to_bitfield(const Token *tok, Expr *lhs, Expr *rhs, const MemberInfo *minfo) {
   // Transform expression to (ptr = &lhs, val = rhs, *ptr = (*ptr & ~(mask << bitpos)) | ((val & mask) << bitpos), val)
 
-  Type *type = lhs->type;  // TODO: promote to int.
+  Type *type = get_fixnum_type(minfo->bitfield.base_kind, minfo->type->fixnum.is_unsigned, 0);
 
-  Type *ptype = ptrof(get_fixnum_type(minfo->bitfield.base_kind, type->fixnum.is_unsigned, 0));
+  Type *ptype = ptrof(type);
   assert(!is_global_scope(curscope));
   Expr *ptr = alloc_tmp_var(curscope, ptype);
   Expr *ptr_assign = new_expr_bop(EX_ASSIGN, ptype, tok, ptr,
