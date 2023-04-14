@@ -109,8 +109,10 @@ static void eval_initial_value(Expr *expr, Expr **pvar, Fixnum *poffset) {
 
 static int construct_initial_value_bitfield(const StructInfo *sinfo, const Initializer *init, int start, int *poffset) {
   const MemberInfo *member = &sinfo->members[start];
-  const Type *et = get_fixnum_type(member->bitfield.base_kind, false, 0);
+  if (member->bitfield.width == 0)
+    return start;
 
+  const Type *et = get_fixnum_type(member->bitfield.base_kind, false, 0);
   int offset = *poffset;
   int align = align_size(et);
   if (offset % align != 0) {
@@ -295,8 +297,8 @@ static void construct_initial_value(const Type *type, const Initializer *init) {
       int offset = 0;
       for (int i = 0, n = sinfo->member_count; i < n; ++i) {
         const MemberInfo *member = &sinfo->members[i];
-        if (member->bitfield.width > 0) {
-          i = construct_initial_value_bitfield(sinfo, init, i, &offset) - 1;
+        if (member->bitfield.width >= 0) {
+          i = construct_initial_value_bitfield(sinfo, init, i, &offset);
           ++count;
           continue;
         }

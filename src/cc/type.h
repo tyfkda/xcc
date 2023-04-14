@@ -54,7 +54,7 @@ typedef struct MemberInfo {
   struct Type *type;
   size_t offset;
   struct {
-    uint8_t width;
+    int8_t width;
     uint8_t position;
     uint8_t base_kind;  // FixnumKind
   } bitfield;

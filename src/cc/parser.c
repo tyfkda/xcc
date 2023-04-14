@@ -859,7 +859,7 @@ Fixnum calc_bitfield_initial_value(const StructInfo *sinfo, const Initializer *i
     Fixnum mask = (1LL << member->bitfield.width) - 1;
     x |= (mem_init->single->fixnum & mask) << member->bitfield.position;
   }
-  *pi = i;
+  *pi = i - 1;
   return x;
 }
 

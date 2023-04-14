@@ -1462,6 +1462,20 @@ TEST(bitfield) {
     EXPECT("global w/init b3", 0x03, g_bfwinit.b3);
     EXPECT("global w/init z", 222, g_bfwinit.z);
   }
+
+  {
+    struct S1 {
+      char x : 3;
+      char y : 4;
+    };
+    struct S2 {
+      char x : 3;
+      char : 0;
+      char y : 4;
+    };
+    // Bit width zero breaks bit packing.
+    EXPECT_TRUE(sizeof(struct S1) < sizeof(struct S2));
+  }
 } END_TEST()
 
 //

@@ -62,6 +62,9 @@ static size_t calc_bitfield_size(StructInfo *sinfo, int *pi, size_t size, size_t
   enum FixnumKind kind;
   {
     MemberInfo *minfo = &sinfo->members[i];
+    if (minfo->bitfield.width == 0)
+      return size;
+
     size_t align = align_size(minfo->type);
     size_t remain = size % align;
     if (remain == 0) {
@@ -130,7 +133,7 @@ static size_t calc_bitfield_size(StructInfo *sinfo, int *pi, size_t size, size_t
     minfo->bitfield.base_kind = kind;
   }
 
-  *pi = i;
+  *pi = i - 1;
   *palign = align;
   return size;
 }
@@ -146,22 +149,24 @@ static void calc_struct_size(StructInfo *sinfo) {
   for (int i = 0, len = sinfo->member_count; i < len; ++i) {
     MemberInfo *minfo = &sinfo->members[i];
     size_t sz = type_size(minfo->type);
-    size_t align = align_size(minfo->type);
+    size_t align = 1;
     if (!sinfo->is_union) {
-      if (minfo->bitfield.width > 0) {
+      if (minfo->bitfield.width >= 0) {
         size = calc_bitfield_size(sinfo, &i, size, &align);
-        --i;
       } else {
+        align = align_size(minfo->type);
         size = ALIGN(size, align);
         minfo->offset = size;
         size += sz;
       }
     } else {
+      minfo->offset = 0;
       if (minfo->bitfield.width > 0) {
         minfo->bitfield.position = 0;
         minfo->bitfield.base_kind = minfo->type->fixnum.kind;
+      } else {
+        align = align_size(minfo->type);
       }
-      minfo->offset = 0;
       if (size < sz)
         size = sz;
     }

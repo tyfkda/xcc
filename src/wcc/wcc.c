@@ -277,7 +277,7 @@ static void construct_initial_value(DataStorage *ds, const Type *type, const Ini
       for (int i = 0, n = sinfo->member_count; i < n; ++i) {
         const MemberInfo* member = &sinfo->members[i];
         if (member->bitfield.width > 0) {
-          i = construct_initial_value_bitfield(ds, sinfo, init, i, &offset) - 1;
+          i = construct_initial_value_bitfield(ds, sinfo, init, i, &offset);
           ++count;
           continue;
         }

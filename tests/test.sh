@@ -138,6 +138,7 @@ test_bitfield() {
 
   compile_error 'bit width 0' 'void main(){struct {int x:0;} s;}'
   compile_error 'bit width neg' 'void main(){struct {int x:-1;} s;}'
+  compile_error 'bit width zero with name' 'void main(){struct {int q:0;} s;}'
   compile_error 'require bit width' 'void main(){struct {int x:;} s;}'
   compile_error 'bit size over' 'void main(){struct {int x:33;} s;}'
   compile_error 'prohibit &' 'void main(){struct {int x:1;} s; int *p = &s.x;}'

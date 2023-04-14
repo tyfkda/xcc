@@ -976,12 +976,14 @@ static StructInfo *parse_struct(bool is_union) {
       if (ident == NULL && type->kind != TY_STRUCT && bit == NULL)
         parse_error(PE_NOFATAL, NULL, "ident expected");
       if (bit != NULL) {
-        if (bit->fixnum <= 0) {
+        if (bit->fixnum < 0) {
           parse_error(PE_NOFATAL, NULL, "illegal bit width");
           bit = NULL;
         } else if (bit->fixnum > (Fixnum)(type_size(type) * CHAR_BIT)) {  // TODO: target CHAR_BIT
           parse_error(PE_NOFATAL, NULL, "bit width exceeds");
           bit = NULL;
+        } else if (bit->fixnum == 0 && ident != NULL) {
+          parse_error(PE_NOFATAL, NULL, "bit width zero with name");
         }
       }
 
@@ -1003,7 +1005,7 @@ static StructInfo *parse_struct(bool is_union) {
       p->name = name;
       p->type = type;
       p->offset = 0;
-      p->bitfield.width = bit == NULL ? 0 : bit->fixnum;
+      p->bitfield.width = bit == NULL ? -1 : bit->fixnum;
 
     } while (match(TK_COMMA));
     consume(TK_SEMICOL, "`;' expected");
