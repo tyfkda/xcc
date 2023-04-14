@@ -382,6 +382,9 @@ static Expr *new_expr_int_bop(enum ExprKind kind, const Token *tok, Expr *lhs, E
 }
 
 Expr *new_expr_addsub(enum ExprKind kind, const Token *tok, Expr *lhs, Expr *rhs) {
+  lhs = str_to_char_array_var(curscope, lhs, toplevel);
+  rhs = str_to_char_array_var(curscope, rhs, toplevel);
+
   Type *type = NULL;
   Type *ltype = lhs->type;
   Type *rtype = rhs->type;

@@ -875,6 +875,12 @@ TEST(basic) {
   }
 
   {
+    int num = 4;
+    EXPECT("cast str to int", 52, *("012345" + num));
+    EXPECT("cast str to int", 52, "012345"[num]);
+  }
+
+  {
     int x;
     (x) = 98;
     EXPECT("paren =", 98, x);
