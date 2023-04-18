@@ -1,5 +1,14 @@
-#if !defined(__WASM)
 #include "sys/random.h"
+
+#if defined(__WASM)
+#include "../_wasm/wasi.h"
+
+ssize_t getrandom(void *buf, size_t buflen, unsigned int flags) {
+  random_get(buf, buflen);
+  return buflen;
+}
+
+#else
 #include "fcntl.h"  // open
 #include "unistd.h"  // close
 

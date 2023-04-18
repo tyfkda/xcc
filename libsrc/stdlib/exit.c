@@ -10,7 +10,7 @@ void exit(int code) {
 #include "stdbool.h"
 
 #if defined(__WASM)
-extern void proc_exit(int);
+#include "../_wasm/wasi.h"
 #else
 #include "../unistd/_syscall.h"
 

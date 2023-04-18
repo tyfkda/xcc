@@ -116,9 +116,11 @@ class FileEntry extends IFileEntry {
 
   const kOpenFlags = new Map()
   kOpenFlags.set(O_RDONLY, 'r')
+  kOpenFlags.set(O_WRONLY | O_CREAT, 'w')
   kOpenFlags.set(O_WRONLY | O_CREAT | O_TRUNC, 'w')
   kOpenFlags.set(O_WRONLY | O_CREAT | O_APPEND, 'a')
   kOpenFlags.set(O_RDWR, 'r+')
+  kOpenFlags.set(O_RDWR | O_CREAT, 'w+')
   kOpenFlags.set(O_RDWR | O_CREAT | O_TRUNC, 'w+')
   kOpenFlags.set(O_RDWR | O_CREAT | O_APPEND, 'a+')
 
@@ -187,7 +189,7 @@ class FileEntry extends IFileEntry {
           if (fn == null || fn === '')
             return -1
 
-          const flagStr = kOpenFlags.get(flag)
+          const flagStr = kOpenFlags.get(flag & ~O_EXCL)
           if (flagStr == null) {
             console.error(`Unsupported open flag: ${flag}`)
             return -1
@@ -223,18 +225,6 @@ class FileEntry extends IFileEntry {
             return code2err(exc)
           }
         },
-        _tmpfile: () => {
-          try {
-            const tmpobj = tmp.fileSync()
-            const fd = tmpobj.fd
-            if (fd >= 0) {
-              files.set(fd, new FileEntry(fd, tmpobj.name))
-            }
-            return fd
-          } catch (e) {
-            return -1
-          }
-        },
 
         _getcwd: (buffer, size) => {
           const cwd = process.cwd()
@@ -260,6 +250,16 @@ class FileEntry extends IFileEntry {
           ts[0] = (t / 1000) | 0
           ts[1] = (t % 1000) * 1000000
           return 0
+        },
+        random_get: (bufptr, buflen) => {
+          const buf = new Uint32Array(memory.buffer, bufptr, buflen)
+          const fd = fs.openSync('/dev/random', 'r')
+          let size = -1
+          if (fd != -1) {
+            size = fs.readSync(fd, buf)
+            fs.closeSync(fd)
+          }
+          return size
         },
       },
     }

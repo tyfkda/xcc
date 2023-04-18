@@ -7,6 +7,7 @@ const enum OpenFlag {
   WRONLY  = 0x001,
   RDWR    = 0x002,
   CREAT   = 0x040,  //  0100
+  EXCL    = 0x080,  //  0200
   TRUNC   = 0x200,  // 01000
   APPEND  = 0x400,  // 02000
 }
@@ -19,9 +20,11 @@ const enum SeekWhere {
 
 const kOpenFlags = new Map<number, string>()
 kOpenFlags.set(OpenFlag.RDONLY, 'r')
+kOpenFlags.set(OpenFlag.WRONLY | OpenFlag.CREAT, 'w')
 kOpenFlags.set(OpenFlag.WRONLY | OpenFlag.CREAT | OpenFlag.TRUNC, 'w')
 kOpenFlags.set(OpenFlag.WRONLY | OpenFlag.CREAT | OpenFlag.APPEND, 'a')
 kOpenFlags.set(OpenFlag.RDWR, 'r+')
+kOpenFlags.set(OpenFlag.RDWR | OpenFlag.CREAT, 'w+')
 kOpenFlags.set(OpenFlag.RDWR | OpenFlag.CREAT | OpenFlag.TRUNC, 'w+')
 kOpenFlags.set(OpenFlag.RDWR | OpenFlag.CREAT | OpenFlag.APPEND, 'a+')
 
@@ -102,76 +105,6 @@ class FileEntry implements IFileEntry {
   }
 }
 
-class TmpEntry implements IFileEntry {
-  private rp = 0
-  private write = new Array<Uint8Array>()
-  private content: Uint8Array|null = null
-
-  public readSync(buffer: Uint8Array): number {
-    const content = this.content
-    if (content == null || this.rp >= content.length)
-      return 0
-
-    const end = Math.min(content.length, this.rp + buffer.length)
-    buffer.set(content.subarray(this.rp, end))
-    const readSize = end - this.rp
-    this.rp = end
-    return readSize
-  }
-
-  public writeSync(buffer: Uint8Array): number {
-    this.write.push(buffer.slice(0))
-    return buffer.length
-  }
-
-  public lseek(offset: number, where: SeekWhere): number {
-    this.commit()
-
-    let position: number
-    switch (where) {
-    default:
-    case SeekWhere.SET:
-      position = offset
-      break
-    case SeekWhere.CUR:
-      position = this.rp + offset
-      break
-    case SeekWhere.END:
-      {
-        const file = this.content
-        position = (file != null ? file.byteLength : 0) + offset
-      }
-      break
-    }
-    this.rp = position
-    return position
-  }
-
-  private commit(): void {
-    if (this.write.length > 0) {
-      const written = this.content
-      const writeTotal =  this.write.reduce((acc: number, src: Uint8Array) => acc + src.byteLength, 0)
-      const content = new Uint8Array(writeTotal + (written?.byteLength || 0))
-      let p = 0
-      if (written != null) {
-        const dst = new Uint8Array(content.buffer, 0, written.byteLength)
-        dst.set(written)
-        p = written.byteLength
-      }
-
-      for (let i = 0; i < this.write.length; ++i) {
-        const src = this.write[i]
-        const dst = new Uint8Array(content.buffer, p, src.byteLength)
-        dst.set(src)
-        p += src.byteLength
-      }
-      this.content = content
-      this.write.length = 0
-      this.rp = p
-    }
-  }
-}
-
 export class FileSystem {
   private fileEntries = new Map<number, IFileEntry>()
 
@@ -201,7 +134,7 @@ export class FileSystem {
         return -1
     }
 
-    const flagStr = kOpenFlags.get(flag)
+    const flagStr = kOpenFlags.get(flag & ~OpenFlag.EXCL)
     if (flagStr == null)
       throw new Error(`Unsupported open flag: ${flag}`)
 
@@ -246,19 +179,5 @@ export class FileSystem {
       return false
     this.fs.unlinkSync(absPath)
     return true
-  }
-
-  public tmpfile(): number {
-    const fd = this.allocFd()
-    this.fileEntries.set(fd, new TmpEntry())
-    return fd
-  }
-
-  private allocFd(): number {
-    // TODO: Ensure temporary fd and memfs-allocated fd is not conflict.
-    for (let fd = 3; ; ++fd) {
-      if (!this.fileEntries.has(fd))
-        return fd
-    }
   }
 }

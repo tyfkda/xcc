@@ -1,4 +1,3 @@
-#if !defined(__WASM)
 #include "time.h"
 #include "_syscall.h"
 
@@ -12,6 +11,4 @@ int clock_gettime(clockid_t clk_id, struct timespec *tp) {
   SYSCALL_RET(__NR_clock_gettime, ret);
   return ret;
 }
-#endif
-
 #endif

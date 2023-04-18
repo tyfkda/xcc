@@ -1,4 +1,3 @@
-#if !defined(__WASM)
 #include "stdlib.h"
 #include "errno.h"
 #include "fcntl.h"  // open
@@ -37,7 +36,6 @@ int mkstemps(char *tmpl, int suffixlen) {
     *p++ = kLetters[r % LETTERS];
   }
 
-  return open(tmpl, O_RDWR | O_CREAT | O_EXCL, S_IRUSR | S_IWUSR);
+  return open(tmpl, O_RDWR | O_CREAT | O_EXCL | O_TRUNC, S_IRUSR | S_IWUSR);
 #undef LETTERS
 }
-#endif

@@ -5,8 +5,8 @@ import { promisify } from 'util'
 const JSON_FN = 'src/wcc/www/lib_list.json'
 const LIB_DIR = './libsrc'
 
-const CRT0_DIRS = ['crt0']
-const LIBC_DIRS = ['math', 'misc', 'stdio', 'stdlib', 'string', 'unistd']
+const CRT0_DIRS = ['_wasm/crt0']
+const LIBC_DIRS = ['math', 'misc', 'stdio', 'stdlib', 'string', '_wasm/unistd']
 
 const DST_DIR = './libsrc/_wasm'
 

@@ -1,8 +1,5 @@
 #include "time.h"
-
-#if !defined(__WASM)
 #include "_syscall.h"
-#endif
 
 #if defined(__GNUC__)
 #pragma GCC diagnostic ignored "-Wunused-parameter"
@@ -15,7 +12,7 @@ time_t time(time_t *timer) {
   return ret;
 }
 
-#elif defined(__NR_clock_gettime) || defined(__WASM)
+#elif defined(__NR_clock_gettime)
 #include "stddef.h"  // NULL
 
 time_t time(time_t *timer) {

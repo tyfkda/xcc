@@ -2,22 +2,7 @@
 #include "errno.h"
 #include "stdlib.h"  // malloc
 
-#if defined(__GNUC__)
-#pragma GCC diagnostic ignored "-Wunused-parameter"
-#endif
-
-#if defined(__APPLE__)
 extern int _getcwd(char *, size_t);
-
-#elif defined(__linux__)
-#include "_syscall.h"
-
-static int _getcwd(char *buffer, size_t size) {
-  int ret;
-  SYSCALL_RET(__NR_getcwd, ret);
-  return ret;
-}
-#endif
 
 char *getcwd(char *buffer, size_t size) {
   void *allocated = NULL;

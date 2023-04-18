@@ -9,6 +9,7 @@ const FONT_SIZE = 16
 
 const USER = 'wasm'
 const KEY_CODE = 'wcc-code'
+const TMP_PATH = '/tmp'
 
 const UndoManager = ace.require('ace/undomanager').UndoManager as typeof AceAjax.UndoManager
 const Range = ace.require('ace/range').Range as typeof AceAjax.Range
@@ -246,6 +247,12 @@ async function compile(sourceCode: string, extraOptions?: string[]): Promise<Uin
   return waproc.loadFile('a.wasm')
 }
 
+async function clearTemporaryFiles() {
+  const files = fs.readdirSync(TMP_PATH)
+  // TODO: Remove directory, too.
+  files.forEach((file) => fs.unlinkSync(`${TMP_PATH}/${file}`))
+}
+
 async function run(argStr: string, compileAndDump: boolean) {
   if (wccWasm == null)
     return  // TODO: Error message
@@ -278,8 +285,9 @@ async function run(argStr: string, compileAndDump: boolean) {
   } catch (e) {
     if (!(e instanceof ExitCalledError))
       Util.putTerminalError(e)
-    return
   }
+
+  clearTemporaryFiles()
 }
 
 window.addEventListener('load', () => {
@@ -370,6 +378,7 @@ window.initialData = {
     })
 
     fileSystem.mkdirSync(`/home/${USER}`, {recursive: true})
+    fileSystem.mkdirSync(TMP_PATH)
 
     const searchParams = new URLSearchParams(window.location.search)
     if (searchParams.has('code')) {

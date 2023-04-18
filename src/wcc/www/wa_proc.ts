@@ -138,7 +138,6 @@ export class WaProc {
           const absPath = this.getAbsPath(fileName)
           return this.fs.unlink(absPath) ? 0 : -ENOENT
         },
-        _tmpfile: () => this.fs.tmpfile(),
 
         _getcwd: (buffer: number, size: number) => {
           const encoded = Util.encode(this.cwd)
