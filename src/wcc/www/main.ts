@@ -415,8 +415,14 @@ window.initialData = {
   onClickNavOpen() {
     const code = editor.getValue().trim()
     if (code !== '') {
+      const params: Record<string, string> = {
+        code,
+      }
       const args = this.args.trim()
-      this.shareUrl = `?code=${encodeForHashString(code)}&args=${encodeForHashString(args)}`
+      if (args !== '')
+        params.args = args
+      const query = Object.keys(params).map(key => `${key}=${encodeForHashString(params[key])}`).join('&')
+      this.shareUrl = `?${query}`
     } else {
       this.shareUrl = null
     }
