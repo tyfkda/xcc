@@ -105,6 +105,7 @@
 #include "../string/strrchr.c"
 #include "../string/strstr.c"
 #include "../_wasm/unistd/brk.c"
+#include "../_wasm/unistd/clock_gettime.c"
 #include "../_wasm/unistd/close.c"
 #include "../_wasm/unistd/getcwd.c"
 #include "../_wasm/unistd/lseek.c"

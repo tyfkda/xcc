@@ -143,6 +143,7 @@
         "./libsrc/string/strrchr.c",
         "./libsrc/string/strstr.c",
         "./libsrc/_wasm/unistd/brk.c",
+        "./libsrc/_wasm/unistd/clock_gettime.c",
         "./libsrc/_wasm/unistd/close.c",
         "./libsrc/_wasm/unistd/getcwd.c",
         "./libsrc/_wasm/unistd/lseek.c",

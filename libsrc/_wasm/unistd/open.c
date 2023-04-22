@@ -1,13 +1,8 @@
 #include "unistd.h"
 #include "fcntl.h"
+#include "string.h"
 #include "../wasi.h"
 #include "./wasi_impl.h"
-
-int strncmp(const char *p, const char *q, size_t n) {
-  while (n > 0 && *p == *q && *p != '\0')
-    n--, p++, q++;
-  return n == 0 ? 0 : (int)*(unsigned char*)p - (int)*(unsigned char*)q;
-}
 
 int open(const char *fn, int flag, ...) {
   int dirflags = LOOKUPFLAGS_SYMLINK_FOLLOW;
