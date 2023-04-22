@@ -285,15 +285,6 @@ $(ASSETS_DIR)/libs.json:	$(WCC_DIR)/www/lib_list.json
 
 .PHONY: update-wcc-lib
 update-wcc-lib:
-	find libsrc/* -type d \
-		| egrep -v \(crt0\|_wasm\|tests\) \
-		| while read d; do \
-			ls -1 $$d/*.c; \
-		  done \
-		| sed -e 's/libsrc/../g' \
-		| sort \
-		| awk '{print "#include \"" $$0 "\""}' \
-		> libsrc/_wasm/libc.c
 	npx ts-node tool/update_lib_list.ts
 
 .PHONY: release-wcc
