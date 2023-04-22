@@ -40,6 +40,7 @@ int pipe(int *);
 int pipe2(int *pipefd, int flag);
 int isatty(int fd);
 char *getcwd(char *buffer, size_t size);
+int chdir(const char *path);
 
 pid_t fork(void);
 long clone3(struct clone_args *cl_args, size_t size);

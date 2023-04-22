@@ -31,6 +31,7 @@
 #define __NR_wait4   61
 #define __NR_kill    62
 #define __NR_getcwd  79
+#define __NR_chdir   80
 #define __NR_unlink  87
 #define __NR_chmod   90
 #define __NR_time    201
@@ -68,6 +69,7 @@
 #define __NR_wait4   260
 #define __NR_kill    129
 #define __NR_getcwd  17
+#define __NR_chdir   49
 #define __NR_unlinkat  35
 #define __NR_fchmodat   53
 #define __NR_clock_gettime  113
