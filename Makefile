@@ -244,11 +244,11 @@ wcc-gen2:	wcc
 	$(MAKE) HOST_TARGET=wcc WCC_TARGET= wcc-self-hosting
 .PHONY: test-wcc-gen2
 test-wcc-gen2: wcc-gen2
-	$(MAKE) TARGET_CC="node ../tool/runwasm.js ../cc.wasm --" test-wcc-self-hosting
+	$(MAKE) TARGET_CC="../tool/run-gen2wcc.sh" test-wcc-self-hosting
 
 .PHONY: wcc-gen3
 wcc-gen3:	wcc-gen2
-	$(MAKE) HOST_TARGET=gen2 HOST_WCC="node ./tool/runwasm.js ./cc.wasm --" WCC_TARGET=gen3 WCC_PARENT=cc.wasm wcc-self-hosting
+	$(MAKE) HOST_TARGET=gen2 HOST_WCC="./tool/run-gen2wcc.sh" WCC_TARGET=gen3 WCC_PARENT=cc.wasm wcc-self-hosting
 
 .PHONY: wcc-diff-gen23
 wcc-diff-gen23:	wcc-gen2 wcc-gen3

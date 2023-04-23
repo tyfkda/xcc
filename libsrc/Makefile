@@ -113,7 +113,7 @@ test-wcc:	test-wcc-printf test-wcc-stdlib test-wcc-math test-wcc-longjmp
 .PHONY: test-wcc-printf
 test-wcc-printf:	printf_test.wasm
 	@echo '## printf test'
-	node ../tool/runwasm.js $<
+	node ../tool/runwasi.js $<
 
 printf_test.wasm:	tests/printf_test.c # $(WCC)
 	$(WCC) -o$@ $^
@@ -121,7 +121,7 @@ printf_test.wasm:	tests/printf_test.c # $(WCC)
 .PHONY: test-wcc-stdlib
 test-wcc-stdlib:	stdlib_test.wasm
 	@echo '## stdlib test'
-	node ../tool/runwasm.js $<
+	node ../tool/runwasi.js $<
 
 stdlib_test.wasm:	tests/stdlib_test.c # $(WCC)
 	$(WCC) -o$@ $^
@@ -129,7 +129,7 @@ stdlib_test.wasm:	tests/stdlib_test.c # $(WCC)
 .PHONY: test-wcc-math
 test-wcc-math:	math_test.wasm
 	@echo '## math test'
-	node ../tool/runwasm.js $<
+	node ../tool/runwasi.js $<
 
 math_test.wasm:	tests/math_test.c # $(WCC)
 	$(WCC) -o$@ $^
@@ -137,7 +137,7 @@ math_test.wasm:	tests/math_test.c # $(WCC)
 .PHONY: test-wcc-longjmp
 test-wcc-longjmp:	longjmp_test.wasm
 	@echo '## longjmp test'
-	node --experimental-wasm-eh ../tool/runwasm.js $<
+	node --experimental-wasm-eh ../tool/runwasi.js $<
 
 longjmp_test.wasm:	tests/longjmp_test.c # $(WCC)
 	$(WCC) -o$@ $^

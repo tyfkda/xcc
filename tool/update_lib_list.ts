@@ -45,7 +45,7 @@ async function updateLibSource(contentMap: Map<string, Map<string, string[]>>): 
   for (const [fn, fileEntries] of contentMap.entries()) {
     let files = new Array<string>()
     for (const dir of fileEntries.keys()) {
-      files = files.concat(fileEntries.get(dir)!.map(fn => `#include "${fn.replace(LIB_DIR, '..')}"`))
+      files = files.concat(fileEntries.get(dir)!.map(fn => `#include <${fn.replace(`${LIB_DIR}/`, '')}>`))
     }
 
     await writeFile(`${DST_DIR}/${fn}`, `${files.join('\n')}\n`)
