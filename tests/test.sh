@@ -8,13 +8,6 @@ RUN_AOUT=${RUN_AOUT:-./"$AOUT"}
 
 echo Compile=[$XCC], Run=[$RUN_AOUT]
 
-if [[ -z "$PROLOGUE" ]]; then
-  PROLOGUE=$(cat <<EOS
-extern long write(int fd, const void *str, unsigned long len);
-EOS
-  )
-fi
-
 ARCH=$(arch)
 if [[ -z "$RE_SKIP" ]]; then
   if [[ "$ARCH" = "arm64" ]] || [[ "$ARCH" = "aarch64" ]]; then
@@ -27,7 +20,7 @@ RE_WNOERR='\/\/-WNOERR'
 try_direct() {
   local title="$1"
   local expected="$2"
-  local input="$PROLOGUE\n$3"
+  local input="$3"
 
   begin_test "$title"
 
@@ -56,42 +49,9 @@ try() {
   try_direct "$1" "$2" "int main(void){$3\n}"
 }
 
-try_output_direct() {
-  local title="$1"
-  local expected="$2"
-  local input="$PROLOGUE\n$3"
-
-  begin_test "$title"
-
-  if [[ -n "$RE_SKIP" ]]; then
-    echo -n "$input" | grep "$RE_SKIP" > /dev/null && {
-      end_test
-      return
-    };
-  fi
-  local OPT=''
-  echo -n "$input" | grep "$RE_WNOERR" > /dev/null || OPT=-Werror
-
-  echo -e "$input" | $XCC $OPT -o "$AOUT" -xc - 2>/dev/null || {
-    end_test 'Compile failed'
-    return
-  }
-
-  local actual
-  actual=$($RUN_AOUT)
-  local exitcode="$?"
-
-  local err=''; [[ "$actual" == "$expected" && "$exitcode" -eq 0 ]] || err="${expected} expected, but ${actual}"
-  end_test "$err"
-}
-
-try_output() {
-  try_output_direct "$1" "$2" "int main(){ $3\n return 0; }"
-}
-
 compile_error() {
   local title="$1"
-  local input="$PROLOGUE\n$2"
+  local input="$2"
 
   begin_test "$title"
 
