@@ -1,9 +1,9 @@
 import {DisWasm} from './diswasm'
 import * as Split from 'split.js'
 import {Util} from './util'
-import {WaProc, ExitCalledError} from './wa_proc'
-import {FileSystem} from './file_system'
-import {fs} from 'memfs-browser'
+import {WaProc} from './wa_proc'
+import {WasmFs} from '@wasmer/wasmfs'
+import {WASIExitError} from '@wasmer/wasi'
 
 const FONT_SIZE = 16
 
@@ -210,32 +210,46 @@ async function saveToLocalFile(fileHandle: FileSystemFileHandle): Promise<boolea
 const WCC_PATH = 'cc.wasm'
 const LIBS_PATH = 'libs.json'
 
-const fileSystem = new FileSystem(fs)
+const wasmFs = new WasmFs()
+{
+  const originalWriteSync = wasmFs.fs.writeSync.bind(wasmFs.fs)
+  wasmFs.fs.writeSync = (fd: number, buffer: Uint8Array|string|any, offset?: number, length?: any, position?: any) => {
+    switch (fd) {
+    case 1: case 2:
+      {
+        const text = typeof buffer === 'string' ? buffer : new TextDecoder('utf-8').decode(buffer)
+        Util.putTerminal(text)
+      }
+      break
+    }
+    return originalWriteSync(fd, buffer, offset, length, position)
+  }
+}
 
 let wccWasm: Uint8Array
 
 async function compile(sourceCode: string, extraOptions?: string[]): Promise<Uint8Array|null> {
   const sourceName = 'main.c'
-  const waproc = new WaProc(fileSystem)
-  waproc.chdir(`/home/${USER}`)
-  waproc.saveFile(sourceName, sourceCode)
-
-  Util.clearCompileErrors()
-  let args = ['cc', '-I/usr/include', '-L/usr/lib']
+  let args = ['cc', '-I/usr/include', '-I/usr/local/include', '-L/usr/lib']
   if (extraOptions != null)
     args = args.concat(extraOptions)
   args.push(sourceName)
 
+  const curDir = `/home/${USER}`
+  const waproc = new WaProc(wasmFs, args, curDir)
+  waproc.saveFile(sourceName, sourceCode)
+
+  Util.clearCompileErrors()
   let err = false
   try {
-    await waproc.runWasmEntry(wccWasm, '_start', args)
+    await waproc.runWasiEntry(wccWasm)
   } catch (e) {
-    if (!(e instanceof ExitCalledError)) {
+    if (!(e instanceof WASIExitError)) {
       Util.putTerminalError(e)
       showTerminal()
       return null
     }
-    const ec = e as ExitCalledError
+    const ec = e as WASIExitError
     err = ec.code !== 0
   }
   if (err) {
@@ -248,9 +262,9 @@ async function compile(sourceCode: string, extraOptions?: string[]): Promise<Uin
 }
 
 async function clearTemporaryFiles() {
-  const files = fs.readdirSync(TMP_PATH)
+  const files = wasmFs.fs.readdirSync(TMP_PATH)
   // TODO: Remove directory, too.
-  files.forEach((file) => fs.unlinkSync(`${TMP_PATH}/${file}`))
+  files.forEach((file) => wasmFs.fs.unlinkSync(`${TMP_PATH}/${file}`))
 }
 
 async function run(argStr: string, compileAndDump: boolean) {
@@ -275,15 +289,15 @@ async function run(argStr: string, compileAndDump: boolean) {
   }
 
   // Run
-  const waproc = new WaProc(fileSystem)
-  waproc.chdir(`/home/${USER}`)
   const args = argStr === '' ? [] : argStr.trim().split(/\s+/)
   args.unshift('a.wasm')
+  const curDir = `/home/${USER}`
+  const waproc = new WaProc(wasmFs, args, curDir)
   showTerminal()
   try {
-    await waproc.runWasmEntry(compiledCode, '_start', args)
+    await waproc.runWasiEntry(compiledCode)
   } catch (e) {
-    if (!(e instanceof ExitCalledError))
+    if (!(e instanceof WASIExitError))
       Util.putTerminalError(e)
   }
 
@@ -359,9 +373,9 @@ window.initialData = {
             for (const key of Object.keys(json)) {
               const newPath = `${path}/${key}`
               if (typeof json[key] === 'string') {
-                fileSystem.writeFileSync(newPath, json[key])
+                wasmFs.fs.writeFileSync(newPath, json[key])
               } else {
-                fileSystem.mkdirSync(newPath)
+                wasmFs.fs.mkdirSync(newPath)
                 setFiles(newPath, json[key])
               }
             }
@@ -377,8 +391,8 @@ window.initialData = {
       this.loaded = true
     })
 
-    fileSystem.mkdirSync(`/home/${USER}`, {recursive: true})
-    fileSystem.mkdirSync(TMP_PATH)
+    wasmFs.fs.mkdirSync(`/home/${USER}`, {recursive: true})
+    wasmFs.fs.mkdirSync(TMP_PATH)
 
     const searchParams = new URLSearchParams(window.location.search)
     if (searchParams.has('code')) {

@@ -25,7 +25,8 @@
       "strings.h": "./include/strings.h",
       "time.h": "./include/time.h",
       "unistd.h": "./include/unistd.h",
-      "wasi.h": "./libsrc/_wasm/wasi.h"
+      "wasi.h": "./libsrc/_wasm/wasi.h",
+      "wasi_impl.h": "./libsrc/_wasm/unistd/wasi_impl.h"
     },
     "lib": {
       "_file.h": "./libsrc/stdio/_file.h",
