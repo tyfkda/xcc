@@ -73,6 +73,30 @@ typedef struct {
   PrestatU u;
 } Prestat;
 
+typedef uint64_t Timestamp;
+
+typedef struct Filestat {
+  uint64_t dev;
+  uint64_t ino;
+  uint8_t filetype;
+  uint64_t nlink;
+  uint64_t size;
+  Timestamp atim;
+  Timestamp mtim;
+  Timestamp ctim;
+} Filestat;
+
+enum Filetype {
+  FILETYPE_UNKNOWN,
+  FILETYPE_BLOCK_DEVICE,
+  FILETYPE_CHARACTER_DEVICE,
+  FILETYPE_DIRECTORY,
+  FILETYPE_REGULAR_FILE,
+  FILETYPE_SOCKET_DGRAM,
+  FILETYPE_SOCKET_STREAM,
+  FILETYPE_SYMBOLIC_LINK,
+};
+
 int args_sizes_get(int *pargc, int *plen);
 int args_get(char **pargv, char *pstr);
 void proc_exit(int);
@@ -80,15 +104,17 @@ void proc_exit(int);
 int fd_prestat_get(int fd, Prestat *prestat);
 int fd_prestat_dir_name(int fd, char *out, size_t size);
 
-int path_open(int fd, int dirflags, const char *path, int path_len, int oflags,
+int path_open(int fd, int dirflags, const char *path, size_t path_len, int oflags,
               uint64_t fs_rights_base, uint64_t fs_rights_inherting, uint16_t fdflags,
               uint32_t *opend_fd);
-int path_unlink_file(int fd, const char *path, int path_len);
+int path_unlink_file(int fd, const char *path, size_t path_len);
+int path_filestat_get(int fd, int flags, const char *path, size_t path_len, Filestat *out);
 
 int fd_read(int fd, const void *iov, int count, size_t *out);
 int fd_write(int fd, const void *iov, int count, size_t *out);
 int fd_close(int fd);
 int fd_seek(int fd, int64_t offset, int whence, size_t *psize);
+int fd_filestat_get(int fd, Filestat *out);
 
 int clock_time_get(int clockid, uint64_t precision, uint64_t *out);
 

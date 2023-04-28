@@ -3,6 +3,7 @@
     "include": {
       "sys": {
         "random.h": "./include/sys/random.h",
+        "stat.h": "./include/sys/stat.h",
         "types.h": "./include/sys/types.h"
       },
       "alloca.h": "./include/alloca.h",
@@ -156,10 +157,13 @@
         "./libsrc/_wasm/unistd/brk.c",
         "./libsrc/_wasm/unistd/clock_gettime.c",
         "./libsrc/_wasm/unistd/close.c",
+        "./libsrc/_wasm/unistd/fstat.c",
         "./libsrc/_wasm/unistd/getcwd.c",
         "./libsrc/_wasm/unistd/lseek.c",
+        "./libsrc/_wasm/unistd/lstat.c",
         "./libsrc/_wasm/unistd/open.c",
         "./libsrc/_wasm/unistd/read.c",
+        "./libsrc/_wasm/unistd/stat.c",
         "./libsrc/_wasm/unistd/time.c",
         "./libsrc/_wasm/unistd/unlink.c",
         "./libsrc/_wasm/unistd/write.c"

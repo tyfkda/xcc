@@ -17,6 +17,9 @@
 #define __NR_write   1
 #define __NR_open    2
 #define __NR_close   3
+#define __NR_stat    4
+#define __NR_fstat   5
+#define __NR_lstat   6
 #define __NR_lseek   8
 #define __NR_brk     12
 #define __NR_ioctl   16
@@ -32,6 +35,7 @@
 #define __NR_chmod   90
 #define __NR_time    201
 #define __NR_clock_gettime  228
+#define __NR_newfstatat  262
 
 #elif defined(__aarch64__)
 
@@ -67,7 +71,8 @@
 #define __NR_unlinkat  35
 #define __NR_fchmodat   53
 #define __NR_clock_gettime  113
+#define __NR_newfstatat  79
 
 #else
-#error unknow
+#error unknown
 #endif

@@ -9,6 +9,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
 #include <unistd.h>
 
 #include "ast.h"
@@ -959,9 +960,8 @@ static void compile1(FILE *ifp, const char *filename, Vector *decls) {
 static bool add_lib(Vector *lib_paths, const char *fn, Vector *sources) {
   for (int i = 0; i < lib_paths->len; ++i) {
     char *path = JOIN_PATHS(lib_paths->data[i], fn);
-    FILE *fp = fopen(path, "r");  // TODO: use stat.
-    if (fp != NULL) {
-      fclose(fp);
+    struct stat st;
+    if (stat(path, &st) == 0 && S_ISREG(st.st_mode)) {
       vec_push(sources, path);
       return true;
     }
