@@ -85,6 +85,7 @@ printf_SRCS:=$(wildcard stdio/*.c) \
 file_SRCS:=$(wildcard stdio/*.c) \
 	math/finite.c math/signbit.c
 stdlib_SRCS:=$(wildcard stdlib/*.c)
+# stdlib_SRCS:=$(filter-out stdlib/realpath.c,$(wildcard stdlib/*.c))
 math_SRCS:=$(wildcard math/*.c)
 longjmp_SRCS:=misc/setjmp.c misc/longjmp.c
 

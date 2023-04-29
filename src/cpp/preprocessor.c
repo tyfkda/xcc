@@ -50,10 +50,6 @@ static char *cat_path_cwd(const char *dir, const char *path) {
   return JOIN_PATHS(cwd, dir, path);
 }
 
-static char *fullpath(const char *filename) {
-  return cat_path_cwd(dirname(strdup(filename)), basename((char*)filename));
-}
-
 static const char *keyword(const char *s, const char *word) {
   size_t len = strlen(word);
   if (strncmp(s, word, len) != 0 || isalnum_(s[len]))
@@ -248,8 +244,12 @@ static bool registered_pragma_once(const char *filename) {
 }
 
 static void register_pragma_once(const char *filename) {
-  if (!is_fullpath(filename))
-    filename = fullpath(filename);
+  if (!is_fullpath(filename)) {
+    const char *rp = realpath(filename, NULL);
+    if (rp == NULL)
+      error("realpath failed: %s\n", filename);
+    filename = rp;
+  }
   vec_push(&pragma_once_files, filename);
 }
 
@@ -262,8 +262,10 @@ static FILE *search_sysinc(const char *prevdir, const char *path, char **pfn) {
     Vector *v = &sys_inc_paths[ord];
     for (int idx = 0; idx < v->len; ++idx) {
       if (prevdir != NULL) {  // Searching previous directory.
-        if (strcmp(fullpath(v->data[idx]), prevdir) == 0)
+        char *rpath = realpath(v->data[idx], NULL);
+        if (rpath != NULL && strcmp(rpath, prevdir) == 0)
           prevdir = NULL;
+        free(rpath);
         continue;
       }
 
