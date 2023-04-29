@@ -61,11 +61,13 @@
 #define __NR_mkdir   83
 #define __NR_rmdir   84
 #define __NR_unlink  87
+#define __NR_readlink  89
 #define __NR_chmod   90
 #define __NR_time    201
 #define __NR_clock_gettime  228
 #define __NR_mkdirat     258
 #define __NR_newfstatat  262
+#define __NR_readlinkat  267
 
 #elif defined(__aarch64__)
 
@@ -169,6 +171,8 @@
 #define __NR_fstatat   79
 #define __NR_mkdirat   34
 #define __NR_unlinkat  35
+#define __NR_readlinkat  78
+#define __NR_newfstatat  79
 
 #else
 #error unknown

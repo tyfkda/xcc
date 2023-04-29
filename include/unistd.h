@@ -47,6 +47,8 @@ int dup(int);
 int pipe(int*);
 int pipe2(int *pipefd, int flag);
 int isatty(int fd);
+ssize_t readlink(const char *pathname, char *buf, size_t bufsiz);
+ssize_t readlinkat(int dirfd, const char *pathname, char *buf, size_t bufsiz);
 
 pid_t fork(void);
 long clone3(struct clone_args *cl_args, size_t size);

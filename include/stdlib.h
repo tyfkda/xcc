@@ -45,6 +45,8 @@ long lrand48(void);                       // [0, 1<<31)
 long nrand48(unsigned short xsubi[3]);    // [0, 1<<31)
 void srand48(long seedval);
 
+char *realpath(const char *path, char *resolved_path);
+
 int mkstemp(char *tmpl);
 int mkstemps(char *tmpl, int suffixlen);
 
