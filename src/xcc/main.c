@@ -237,11 +237,11 @@ static int compile_asm(const char *source_fn, enum OutType out_type, const char 
 
 int main(int argc, char *argv[]) {
   const char *root = dirname(strdup(argv[0]));
-  char *cpp_path = cat_path(root, "cpp");
-  char *cc1_path = cat_path(root, "cc1");
+  char *cpp_path = JOIN_PATHS(root, "cpp");
+  char *cc1_path = JOIN_PATHS(root, "cc1");
 #if !defined(AS_USE_CC)
-  char *as_path = cat_path(root, "as");
-  char *ld_path = cat_path(root, "ld");
+  char *as_path = JOIN_PATHS(root, "as");
+  char *ld_path = JOIN_PATHS(root, "ld");
 #else
   char *as_path = "/usr/bin/as";
   char *ld_path = "/usr/bin/cc";
@@ -438,7 +438,7 @@ int main(int argc, char *argv[]) {
 
   if (!nostdinc) {
     vec_push(cpp_cmd, "-idirafter");
-    vec_push(cpp_cmd, cat_path(root, "include"));
+    vec_push(cpp_cmd, JOIN_PATHS(root, "include"));
   }
 
   vec_push(cpp_cmd, NULL);  // Buffer for src.
@@ -471,9 +471,9 @@ int main(int argc, char *argv[]) {
   if (out_type >= OutExecutable && !use_ld) {
 #if !defined(AS_USE_CC) || defined(NO_STD_LIB)
     if (!nostdlib)
-      vec_push(sources, cat_path(root, "lib/crt0.a"));
+      vec_push(sources, JOIN_PATHS(root, "lib/crt0.a"));
     if (!nodefaultlibs && !nostdlib)
-      vec_push(sources, cat_path(root, "lib/libc.a"));
+      vec_push(sources, JOIN_PATHS(root, "lib/libc.a"));
 # if defined(NO_STD_LIB)
     vec_push(ld_cmd, "-nostdlib");
 # endif

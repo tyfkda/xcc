@@ -126,91 +126,67 @@ bool is_fullpath(const char *filename) {
   }
 }
 
-char *cat_path(const char *root, const char *path) {
-  if (is_fullpath(path))
-    return strdup(path);
-  if (*path == '/')
-    root = "/";
+char *join_paths(const char *paths[]) {
+  StringBuffer sb;
+  sb_init(&sb);
+  int parent_count = 0;
+  enum Top {
+    OTHER,
+    ROOTDIR,  // /
+    CURDIR,   // .
+  };
+  enum Top top = OTHER;
 
-  // Assume that root doesn't include ".."
-
-  bool is_root = *root == '/';
-  int ancestor = 0;
-
-  Vector *dirs = new_vector();  // [start, end]
-  for (const char *p = root; *p != '\0'; ) {
-    if (*p == '/')
-      if (*(++p) == '\0')
-        break;
-    vec_push(dirs, p);
-    const char *q = strchr(p, '/');
-    if (q == NULL) {
-      vec_push(dirs, p + strlen(p));
-      break;
+  const char *p;
+  for (const char **pp = paths; (p = *pp++) != NULL; ) {
+    if (*p == '/') {  // Root.
+      sb_init(&sb);
+      parent_count = 0;
+      top = ROOTDIR;
     }
-    vec_push(dirs, q);
-    p = q;
-  }
 
-  for (const char *p = path; *p != '\0'; ) {
-    if (*p == '/') {
+    for (bool end = false; !end;) {
       while (*p == '/')
         ++p;
-      if (*p == '\0') {
-        // End with '/'.
-        vec_push(dirs, p);
-        vec_push(dirs, p);
+      if (*p == '\0')
         break;
+
+      const char *q = strchr(p, '/');
+      if (q == NULL) {  // Last.
+        q = p + strlen(p);
+        end = true;
       }
-    }
-    const char *q = strchr(p, '/');
-    if (q == NULL)
-      q = p + strlen(p);
-    size_t size = q - p;
-    if (size == 1 && strncmp(p, ".", size) == 0) {
-      // Skip
-    } else if (size == 2 && strncmp(p, "..", size) == 0) {
-      if (dirs->len < 2) {
-        if (is_root)
-          return NULL;  // Illegal
-        ++ancestor;
+      ptrdiff_t len = q - p;
+      if (len == 1 && *p == '.') {
+        if (sb.elems->len == 0 && top == OTHER)
+          top = CURDIR;
+      } else if (len == 2 && strncmp(p, "..", 2) == 0) {
+        if (sb.elems->len > 0) {
+          void *elem = vec_pop(sb.elems);
+          free(elem);
+        } else {
+          if (top == ROOTDIR) {
+            // Illegal.
+            return NULL;
+          }
+          ++parent_count;
+          top = OTHER;
+        }
       } else {
-        dirs->len -= 2;
+        sb_append(&sb, p, q);
       }
-    } else {
-      vec_push(dirs, p);
-      vec_push(dirs, q);
+      p = q;
     }
-    p = q;
   }
 
-  if (dirs->len <= 0 && ancestor <= 0)
-    return strdup("/");
-
-  size_t total_len = 1;  // 1 for NUL-terminate.
-  if (ancestor > 0)
-    total_len += ancestor * 3;
-  for (int i = 0; i < dirs->len; i += 2) {
-    if (i != 0 || is_root)
-      total_len += 1;
-    total_len += ((char*)dirs->data[i + 1] - (char*)dirs->data[i]);
+  for (; parent_count > 0; --parent_count)
+    sb_prepend(&sb, "..", NULL);
+  switch (top) {
+  case CURDIR:   sb_prepend(&sb, ".", NULL); break;
+  case ROOTDIR:  sb_prepend(&sb, sb.elems->len > 0 ? "" : "/", NULL); break;
+  default: break;
   }
-
-  char *buf = malloc(total_len);
-  char *p = buf;
-  for (int i = 0; i < ancestor; ++i) {
-    memcpy(p, "../", 3);
-    p += 3;
-  }
-  for (int i = 0; i < dirs->len; i += 2) {
-    if (i != 0 || is_root)
-      *p++ = '/';
-    size_t size = (char*)dirs->data[i + 1] - (char*)dirs->data[i];
-    memcpy(p, dirs->data[i], size);
-    p += size;
-  }
-  *p = '\0';
-  return buf;
+  return sb_join(&sb, "/");
 }
 
 char *get_ext(const char *filename) {
@@ -414,24 +390,32 @@ bool sb_empty(StringBuffer *sb) {
   return sb->elems->len == 0;
 }
 
-void sb_append(StringBuffer *sb, const char *start, const char *end) {
+void sb_insert(StringBuffer *sb, int pos, const char *start, const char *end) {
   StringElement *elem = malloc(sizeof(*elem));
   elem->start = start;
   elem->len = end != NULL ? (size_t)(end - start) : strlen(start);
-  vec_push(sb->elems, elem);
+  assert(0 <= pos && pos <= sb->elems->len);
+  vec_insert(sb->elems, pos, elem);
 }
 
-char *sb_to_string(StringBuffer *sb) {
+char *sb_join(StringBuffer *sb, const char *separator) {
   size_t total_len = 0;
   int count = sb->elems->len;
   for (int i = 0; i < count; ++i) {
     StringElement *elem = sb->elems->data[i];
     total_len += elem->len;
   }
+  size_t sepalen = separator != NULL ? strlen(separator) : 0;
+  if (count > 0 && sepalen > 0)
+    total_len += sepalen * (count - 1);
 
   char *str = malloc(total_len + 1);
   char *p = str;
   for (int i = 0; i < count; ++i) {
+    if (i > 0 && sepalen > 0) {
+      memcpy(p, separator, sepalen);
+      p += sepalen;
+    }
     StringElement *elem = sb->elems->data[i];
     memcpy(p, elem->start, elem->len);
     p += elem->len;

@@ -27,7 +27,8 @@ const Name *alloc_label(void);
 ssize_t getline_chomp(char **lineptr, size_t *n, FILE *stream);
 ssize_t getline_cont(char **lineptr, size_t *n, FILE *stream, int *plineno);
 bool is_fullpath(const char *filename);
-char *cat_path(const char *root, const char *path);
+char *join_paths(const char *paths[]);
+#define JOIN_PATHS(...)  join_paths((const char*[]){__VA_ARGS__, NULL})
 char *get_ext(const char *filename);
 char *change_ext(const char *path, const char *ext);
 
@@ -76,8 +77,11 @@ typedef struct StringBuffer {
 void sb_init(StringBuffer *sb);
 void sb_clear(StringBuffer *sb);
 bool sb_empty(StringBuffer *sb);
-void sb_append(StringBuffer *sb, const char *start, const char *end);
-char *sb_to_string(StringBuffer *sb);
+void sb_insert(StringBuffer *sb, int pos, const char *start, const char *end);
+#define sb_append(sb, start, end)  sb_insert(sb, (sb)->elems->len, start, end)
+#define sb_prepend(sb, start, end)  sb_insert(sb, 0, start, end)
+#define sb_to_string(sb)  sb_join(sb, NULL)
+char *sb_join(StringBuffer *sb, const char *separator);
 
 void escape_string(const char *str, size_t size, StringBuffer *sb);
 

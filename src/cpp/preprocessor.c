@@ -18,9 +18,7 @@
 
 static char *cat_path_cwd(const char *dir, const char *path) {
   char *cwd = getcwd(NULL, 0);
-  char *root = cat_path(cwd, dir);
-  free(cwd);
-  return cat_path(root, path);
+  return JOIN_PATHS(cwd, dir, path);
 }
 
 static char *fullpath(const char *filename) {

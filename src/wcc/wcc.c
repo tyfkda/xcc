@@ -960,7 +960,7 @@ static void compile1(FILE *ifp, const char *filename, Vector *decls) {
 
 static bool add_lib(Vector *lib_paths, const char *fn, Vector *sources) {
   for (int i = 0; i < lib_paths->len; ++i) {
-    char *path = cat_path(lib_paths->data[i], fn);
+    char *path = JOIN_PATHS(lib_paths->data[i], fn);
     FILE *fp = fopen(path, "r");  // TODO: use stat.
     if (fp != NULL) {
       fclose(fp);
@@ -1034,7 +1034,7 @@ int main(int argc, char *argv[]) {
   const char *root = dirname(strdup(argv[0]));
   if (!is_fullpath(root)) {
     char *cwd = getcwd(NULL, 0);
-    root = cat_path(cwd, root);
+    root = JOIN_PATHS(cwd, root);
   }
 
   const char *ofn = "a.wasm";
@@ -1236,7 +1236,7 @@ int main(int argc, char *argv[]) {
   }
 
   if (!nostdinc) {
-    add_inc_path(INC_AFTER, cat_path(root, "include"));
+    add_inc_path(INC_AFTER, JOIN_PATHS(root, "include"));
   }
 
   if (entry_point != NULL)
@@ -1255,7 +1255,7 @@ int main(int argc, char *argv[]) {
   // if (out_type >= OutExecutable)
   Vector *libs = new_vector();
   {
-    vec_push(lib_paths, cat_path(root, "./libsrc/_wasm"));
+    vec_push(lib_paths, JOIN_PATHS(root, "./libsrc/_wasm"));
     if (!nostdlib)
       add_lib(lib_paths, "crt0.c", libs);
     if (!nodefaultlibs && !nostdlib)
