@@ -232,16 +232,23 @@ wcc-on-xcc:	all
 
 #### Self hosting
 
+ifeq ("$(HOST_WCC)", "")
+  HOST_WCC=./wcc
+endif
+ifeq ("$(WCC_PARENT)", "")
+  WCC_PARENT=wcc
+endif
+
 .PHONY: wcc-gen2
 wcc-gen2:	wcc
-	$(MAKE) HOST_TARGET=wcc HOST_CC="./wcc" WCC_TARGET= wcc-self-hosting
+	$(MAKE) HOST_TARGET=wcc WCC_TARGET= wcc-self-hosting
 .PHONY: test-wcc-gen2
 test-wcc-gen2: wcc-gen2
 	$(MAKE) TARGET_CC="node ../tool/runwasm.js ../cc.wasm --" test-wcc-self-hosting
 
 .PHONY: wcc-gen3
 wcc-gen3:	wcc-gen2
-	$(MAKE) HOST_TARGET=gen2 HOST_CC="node ./tool/runwasm.js ./cc.wasm --" WCC_TARGET=gen3 wcc-self-hosting
+	$(MAKE) HOST_TARGET=gen2 HOST_WCC="node ./tool/runwasm.js ./cc.wasm --" WCC_TARGET=gen3 WCC_PARENT=cc.wasm wcc-self-hosting
 
 .PHONY: wcc-diff-gen23
 wcc-diff-gen23:	wcc-gen2 wcc-gen3
@@ -256,17 +263,10 @@ test-wcc-self-hosting:
 
 WCC_LIBS:=$(LIBSRC_DIR)/_wasm/crt0.c $(LIBSRC_DIR)/_wasm/libc.c
 
-ifeq ("$(WCC_TARGET)", "")
-cc.wasm:	$(WCC_SRCS) $(WCC_LIBS) wcc
-	./wcc -o $@ \
+$(WCC_TARGET)cc.wasm:	$(WCC_SRCS) $(WCC_LIBS) $(WCC_PARENT)
+	$(HOST_WCC) -o $@ \
 		-I$(CC1_DIR) -I$(CPP_DIR) -I$(UTIL_DIR) \
 		$(WCC_SRCS)
-else
-$(WCC_TARGET)cc.wasm:	$(WCC_SRCS) $(WCC_LIBS)
-	$(HOST_CC) -o $@ \
-		-I$(CC1_DIR) -I$(CPP_DIR) -I$(UTIL_DIR) \
-		$(WCC_SRCS)
-endif
 
 #### www
 
