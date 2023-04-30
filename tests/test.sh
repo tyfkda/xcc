@@ -15,6 +15,11 @@ if [[ -z "$RE_SKIP" ]]; then
   fi
 fi
 
+SILENT=' > /dev/null 2>&1'
+if [[ "$VERBOSE" != "" ]]; then
+  SILENT=''
+fi
+
 RE_WNOERR='\/\/-WNOERR'
 
 try_direct() {
@@ -33,7 +38,7 @@ try_direct() {
   local OPT=''
   echo -n "$input" | grep "$RE_WNOERR" > /dev/null || OPT=-Werror
 
-  echo -e "$input" | $XCC $OPT -o "$AOUT" -xc - > /dev/null 2>&1 ||  {
+  echo -e "$input" | eval $XCC $OPT -o "$AOUT" -xc - $SILENT ||  {
     end_test 'Compile failed'
     return
   }
@@ -64,7 +69,7 @@ compile_error() {
   local OPT=''
   echo -n "$input" | grep "$RE_WNOERR" > /dev/null || OPT=-Werror
 
-  echo -e "$input" | $XCC $OPT -o "$AOUT" -xc - > /dev/null 2>&1
+  echo -e "$input" | eval $XCC $OPT -o "$AOUT" -xc - $SILENT
   local exitcode="$?"
 
   local err=''; [[ "$exitcode" -ne 0 ]] || err="Compile error expected, but succeeded"
