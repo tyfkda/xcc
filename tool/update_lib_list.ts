@@ -5,8 +5,8 @@ import { promisify } from 'util'
 const JSON_FN = 'src/wcc/www/lib_list.json'
 const LIB_DIR = './libsrc'
 
-const CRT0_DIRS = ['crt0']
-const LIBC_DIRS = ['math', 'misc', 'stdio', 'stdlib', 'string', 'unistd']
+const CRT0_DIRS = ['_wasm/crt0']
+const LIBC_DIRS = ['math', 'misc', 'stdio', 'stdlib', 'string', '_wasm/unistd']
 
 const DST_DIR = './libsrc/_wasm'
 
@@ -45,7 +45,7 @@ async function updateLibSource(contentMap: Map<string, Map<string, string[]>>): 
   for (const [fn, fileEntries] of contentMap.entries()) {
     let files = new Array<string>()
     for (const dir of fileEntries.keys()) {
-      files = files.concat(fileEntries.get(dir)!.map(fn => `#include "${fn.replace(LIB_DIR, '..')}"`))
+      files = files.concat(fileEntries.get(dir)!.map(fn => `#include <${fn.replace(`${LIB_DIR}/`, '')}>`))
     }
 
     await writeFile(`${DST_DIR}/${fn}`, `${files.join('\n')}\n`)

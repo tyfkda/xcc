@@ -21,7 +21,7 @@
 #include "var.h"
 #include "wasm_util.h"
 
-static const char DEFAULT_IMPORT_MODULE_NAME[] = "c";
+static const char DEFAULT_IMPORT_MODULE_NAME[] = "wasi_snapshot_preview1";
 
 #define DEFAULT_STACK_SIZE  (8 * 1024)
 #define MEMORY_PAGE_SIZE  65536
@@ -1236,7 +1236,13 @@ int main(int argc, char *argv[]) {
   }
 
   if (!nostdinc) {
+#if defined(__WASM)
+    add_inc_path(INC_AFTER, "/usr/include");
+    add_inc_path(INC_AFTER, "/usr/local/include");
+#else
     add_inc_path(INC_AFTER, JOIN_PATHS(root, "include"));
+    add_inc_path(INC_AFTER, JOIN_PATHS(root, "libsrc"));
+#endif
   }
 
   if (entry_point != NULL)
@@ -1255,7 +1261,11 @@ int main(int argc, char *argv[]) {
   // if (out_type >= OutExecutable)
   Vector *libs = new_vector();
   {
+#if defined(__WASM)
+    vec_push(lib_paths, "/usr/lib");
+#else
     vec_push(lib_paths, JOIN_PATHS(root, "./libsrc/_wasm"));
+#endif
     if (!nostdlib)
       add_lib(lib_paths, "crt0.c", libs);
     if (!nodefaultlibs && !nostdlib)

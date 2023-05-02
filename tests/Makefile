@@ -156,13 +156,13 @@ test-wcc-sh:
 	@echo '## test.sh'
 	@$(eval AWASM := $(shell basename `mktemp -u`).wasm)
 	@XCC="$(WCC)" RE_SKIP='\/\/-WCC' \
-		AOUT="$(AWASM)" RUN_AOUT="node ../tool/runwasm.js $(AWASM)" \
+		AOUT="$(AWASM)" RUN_AOUT="node ../tool/runwasi.js $(AWASM)" \
 		./test.sh
 
 .PHONY: test-wcc-val
 test-wcc-val:	valtest.wasm
 	@echo '## valtest'
-	node ../tool/runwasm.js $<
+	node ../tool/runwasi.js $<
 
 valtest.wasm:	$(VAL_SRCS) # $(WCC)
 	$(WCC) -o$@ $^
@@ -170,7 +170,7 @@ valtest.wasm:	$(VAL_SRCS) # $(WCC)
 .PHONY: test-wcc-dval
 test-wcc-dval:	dvaltest.wasm
 	@echo '## dvaltest'
-	node ../tool/runwasm.js $<
+	node ../tool/runwasi.js $<
 
 dvaltest.wasm:	$(FVAL_SRCS) # $(WCC)
 	$(WCC) -o$@ $^
@@ -178,7 +178,7 @@ dvaltest.wasm:	$(FVAL_SRCS) # $(WCC)
 .PHONY: test-wcc-fval
 test-wcc-fval:	fvaltest.wasm
 	@echo '## fvaltest'
-	node ../tool/runwasm.js $<
+	node ../tool/runwasi.js $<
 
 fvaltest.wasm:	$(FVAL_SRCS) # $(WCC)
 	$(WCC) -o$@ -DUSE_SINGLE $^

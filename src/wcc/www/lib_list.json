@@ -24,7 +24,9 @@
       "string.h": "./include/string.h",
       "strings.h": "./include/strings.h",
       "time.h": "./include/time.h",
-      "unistd.h": "./include/unistd.h"
+      "unistd.h": "./include/unistd.h",
+      "wasi.h": "./libsrc/_wasm/wasi.h",
+      "wasi_impl.h": "./libsrc/_wasm/unistd/wasi_impl.h"
     },
     "lib": {
       "_file.h": "./libsrc/stdio/_file.h",
@@ -32,7 +34,7 @@
       "_malloc.h": "./libsrc/stdlib/_malloc.h",
       "_ieee.h": "./libsrc/math/_ieee.h",
       "crt0.c": [
-        "./libsrc/crt0/_start.c"
+        "./libsrc/_wasm/crt0/_start.c"
       ],
       "libc.c": [
         "./libsrc/math/_normalize_radian.c",
@@ -141,32 +143,16 @@
         "./libsrc/string/strndup.c",
         "./libsrc/string/strrchr.c",
         "./libsrc/string/strstr.c",
-        "./libsrc/unistd/brk.c",
-        "./libsrc/unistd/chmod.c",
-        "./libsrc/unistd/clock_gettime.c",
-        "./libsrc/unistd/clone3.c",
-        "./libsrc/unistd/close.c",
-        "./libsrc/unistd/dup.c",
-        "./libsrc/unistd/execve.c",
-        "./libsrc/unistd/execvp.c",
-        "./libsrc/unistd/fchmodat.c",
-        "./libsrc/unistd/fork.c",
-        "./libsrc/unistd/getcwd.c",
-        "./libsrc/unistd/ioctl.c",
-        "./libsrc/unistd/isatty.c",
-        "./libsrc/unistd/kill.c",
-        "./libsrc/unistd/lseek.c",
-        "./libsrc/unistd/open.c",
-        "./libsrc/unistd/openat.c",
-        "./libsrc/unistd/pipe.c",
-        "./libsrc/unistd/pipe2.c",
-        "./libsrc/unistd/read.c",
-        "./libsrc/unistd/time.c",
-        "./libsrc/unistd/unlink.c",
-        "./libsrc/unistd/unlinkat.c",
-        "./libsrc/unistd/wait4.c",
-        "./libsrc/unistd/waitpid.c",
-        "./libsrc/unistd/write.c"
+        "./libsrc/_wasm/unistd/brk.c",
+        "./libsrc/_wasm/unistd/clock_gettime.c",
+        "./libsrc/_wasm/unistd/close.c",
+        "./libsrc/_wasm/unistd/getcwd.c",
+        "./libsrc/_wasm/unistd/lseek.c",
+        "./libsrc/_wasm/unistd/open.c",
+        "./libsrc/_wasm/unistd/read.c",
+        "./libsrc/_wasm/unistd/time.c",
+        "./libsrc/_wasm/unistd/unlink.c",
+        "./libsrc/_wasm/unistd/write.c"
       ]
     }
   }

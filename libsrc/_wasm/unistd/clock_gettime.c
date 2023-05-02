@@ -1,0 +1,15 @@
+#include "time.h"
+
+#include "stddef.h"  // NULL
+#include "stdint.h"
+
+int clock_gettime(clockid_t clk_id, struct timespec *tp) {
+  if (tp == NULL)
+    return -1;
+
+  uint64_t time;
+  clock_time_get(clk_id, 1, &time);
+  tp->tv_sec = time / 1000000000ULL;
+  tp->tv_nsec = time % 1000000000ULL;
+  return 0;
+}

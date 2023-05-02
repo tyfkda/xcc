@@ -1,28 +1,35 @@
-import {FileSystem} from './file_system'
-import {Util} from './util'
-
-const ENOENT = 2
-const ERANGE = 34
-
-export class ExitCalledError extends Error {
-  public code: number
-
-  constructor(code: number) {
-    super(`Exit code: ${code}`)
-    this.code = code
-  }
-}
+import {WASI} from '@wasmer/wasi'
+import {WasmFs} from '@wasmer/wasmfs'
+import path from 'path-browserify'
 
 export class WaProc {
   private memory: WebAssembly.Memory
   private cwd = '/'
   private imports: any
+  private wasi: WASI
 
-  private encodedArgs = new Array<Uint8Array>()
-  private totalArgsBytes = 0
+  constructor(private wasmFs: WasmFs, args: string[], curDir?: string) {
+    if (curDir == null)
+      curDir = '/'
 
-  constructor(private fs: FileSystem) {
-    this.imports = this.createImports()
+    this.wasi = new WASI({
+      args,
+      bindings: {
+        ...WASI.defaultBindings,
+        fs: this.wasmFs.fs,
+        path,
+      },
+      preopens: {
+        '/': '/',
+        '.': curDir,
+      },
+    })
+
+    this.imports = {
+      wasi_snapshot_preview1: this.wasi.wasiImport,
+    }
+
+    this.chdir(curDir)
   }
 
   public getAbsPath(fileName: string): string {
@@ -33,26 +40,25 @@ export class WaProc {
     return `${this.cwd}${this.cwd === '/' ? '' : '/'}${fileName}`
   }
 
-  public chdir(path: string): void {
-    // TODO: Validate path.
-    this.cwd = path
+  public chdir(absPath: string): boolean {
+    const st = this.wasmFs.fs.statSync(absPath)
+    if (!st?.isDirectory())
+      return false
+    this.cwd = absPath
+    return true
   }
 
   public saveFile(fileName: string, content: string): void {
-    this.fs.writeFileSync(this.getAbsPath(fileName), content)
+    this.wasmFs.fs.writeFileSync(this.getAbsPath(fileName), content)
   }
 
   public loadFile(fileName: string): Uint8Array|null {
-    return this.fs.readFileSync(this.getAbsPath(fileName))
+    return this.wasmFs.fs.readFileSync(this.getAbsPath(fileName)) as Uint8Array
   }
 
-  public async runWasmEntry(wasmUrlOrBuffer: string|ArrayBuffer, entry: string, args: string[]): Promise<any> {
-    const encoder = new TextEncoder()
-    this.encodedArgs = args.map(arg => encoder.encode(arg))
-    this.totalArgsBytes = this.encodedArgs.reduce((acc, arg) => acc + arg.length + 1, 0)
-
+  public async runWasiEntry(wasmUrlOrBuffer: string|ArrayBuffer): Promise<any> {
     const instance = await this.loadWasm(wasmUrlOrBuffer)
-    return (instance!.exports[entry] as ()=>void)()
+    this.wasi.start(instance!)
   }
 
   public async loadWasm(pathOrBuffer: string|ArrayBuffer): Promise<WebAssembly.Instance|null> {
@@ -75,6 +81,7 @@ export class WaProc {
 
     if (instance.exports.memory) {
       this.memory = instance.exports.memory as WebAssembly.Memory
+      this.wasi.setMemory(this.memory)
     }
     return instance
   }
@@ -85,90 +92,5 @@ export class WaProc {
 
   public getLinearMemory(): WebAssembly.Memory {
     return this.memory
-  }
-
-  private createImports() {
-    const imports = {
-      c: {
-        args_sizes_get: (pargc: number, plen: number) => {
-          const argc = new Uint32Array(this.memory.buffer, pargc, 1)
-          argc[0] = this.encodedArgs.length
-
-          const len = new Uint32Array(this.memory.buffer, plen, 1)
-          len[0] = this.totalArgsBytes
-        },
-        args_get: (pargv: number, pstr: number) => {
-          const argv = new Uint32Array(this.memory.buffer, pargv, this.encodedArgs.length)
-          const str = new Uint8Array(this.memory.buffer, pstr, this.totalArgsBytes)
-          let offset = 0
-          for (let i = 0; i < this.encodedArgs.length; ++i) {
-            argv[i] = pstr + offset
-            const encoded = this.encodedArgs[i]
-            const len = encoded.length
-            for (let j = 0; j < len; ++j)
-              str[j + offset] = encoded[j]
-            str[len + offset] = 0
-            offset += len + 1
-          }
-        },
-
-        read: (fd: number, buf: number, size: number) => {
-          const memoryImage = new Uint8Array(this.memory.buffer, buf, size)
-          return this.fs.read(fd, memoryImage)
-        },
-        write: (fd: number, buf: number, size: number) => {
-          const memoryImage = new Uint8Array(this.memory.buffer, buf, size)
-          return this.fs.write(fd, memoryImage)
-        },
-        open: (fileNamePtr: number, flag: number, mode: number) => {
-          if (fileNamePtr === 0)
-            return -ENOENT
-          const fileName = Util.decodeString(this.memory.buffer, fileNamePtr)
-          if (fileName == null || fileName === '')
-            return -ENOENT
-          const absPath = this.getAbsPath(fileName)
-          return this.fs.open(absPath, flag, mode)
-        },
-        close: (fd: number) => this.fs.close(fd) ? 0 : -ENOENT,
-        lseek: (fd: number, offset: number, where: number) => this.fs.lseek(fd, offset, where),
-        _unlink: (fileNamePtr: number) => {
-          const fileName = Util.decodeString(this.memory.buffer, fileNamePtr)
-          if (fileName == null || fileName === '')
-            return -ENOENT
-          const absPath = this.getAbsPath(fileName)
-          return this.fs.unlink(absPath) ? 0 : -ENOENT
-        },
-        _tmpfile: () => this.fs.tmpfile(),
-
-        _getcwd: (buffer: number, size: number) => {
-          const encoded = Util.encode(this.cwd)
-          const len = encoded.length
-          if (len + 1 > size)
-            return -ERANGE
-          const memoryImage = new Uint8Array(this.memory.buffer, buffer, len + 1)
-          for (let i = 0; i < len; ++i)
-            memoryImage[i] = encoded[i]
-          memoryImage[len] = 0
-          return len + 1
-        },
-
-        proc_exit: (x: number) => {
-          throw new ExitCalledError(x)
-        },
-
-        clock_gettime: (_clkId: number, tp: number) => {
-          // TODO: Check clkId
-          const ts = new Uint32Array(this.memory.buffer, tp, 2)
-          const t = new Date().getTime()
-          ts[0] = (t / 1000) | 0
-          ts[1] = (t % 1000) * 1000000
-          return 0
-        },
-      },
-      env: {
-        memory: this.memory,
-      },
-    }
-    return imports
   }
 }
