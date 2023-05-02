@@ -68,7 +68,7 @@ Hello, world!
 
 ### WebAssembly
 
-Compile C to WebAssembly.
+Compile C to WebAssembly/WASI binary.
 
 [Online demo](https://tyfkda.github.io/xcc/)
 
@@ -122,4 +122,3 @@ Hello, world!
 #### Missing features
 
   * `goto` statement
-  * WASI
