@@ -3,6 +3,7 @@
 'use strict'
 
 const enum Section {
+  CUSTOM    = 0,
   TYPE      = 1,
   IMPORT    = 2,
   FUNC      = 3,
@@ -51,6 +52,12 @@ const enum Opcode {
   I32_LOAD8_U   = 0x2d,
   I32_LOAD16_S  = 0x2e,
   I32_LOAD16_U  = 0x2f,
+  I64_LOAD8_S   = 0x30,
+  I64_LOAD8_U   = 0x31,
+  I64_LOAD16_S  = 0x32,
+  I64_LOAD16_U  = 0x33,
+  I64_LOAD32_S  = 0x34,
+  I64_LOAD32_U  = 0x35,
   I32_STORE     = 0x36,
   I64_STORE     = 0x37,
   F32_STORE     = 0x38,
@@ -100,6 +107,9 @@ const enum Opcode {
   F64_GT        = 0x64,
   F64_LE        = 0x65,
   F64_GE        = 0x66,
+  I32_CLZ       = 0x67,
+  I32_CTZ       = 0x68,
+  I32_POPCNT    = 0x69,
   I32_ADD       = 0x6a,
   I32_SUB       = 0x6b,
   I32_MUL       = 0x6c,
@@ -115,6 +125,9 @@ const enum Opcode {
   I32_SHR_U     = 0x76,
   I32_ROTL      = 0x77,
   I32_ROTR      = 0x78,
+  I64_CLZ       = 0x79,
+  I64_CTZ       = 0x7a,
+  I64_POPCNT    = 0x7b,
   I64_ADD       = 0x7c,
   I64_SUB       = 0x7d,
   I64_MUL       = 0x7e,
@@ -132,19 +145,31 @@ const enum Opcode {
   I64_ROTR      = 0x8a,
   F32_ABS       = 0x8b,
   F32_NEG       = 0x8c,
+  F32_CEIL      = 0x8d,
+  F32_FLOOR     = 0x8e,
+  F32_TRUNC     = 0x8f,
+  F32_NEAREST   = 0x90,
+  F32_SQRT      = 0x91,
   F32_ADD       = 0x92,
   F32_SUB       = 0x93,
   F32_MUL       = 0x94,
   F32_DIV       = 0x95,
+  F32_MIN       = 0x96,
+  F32_MAX       = 0x97,
+  F32_COPYSIGN  = 0x98,
   F64_ABS       = 0x99,
   F64_NEG       = 0x9a,
   F64_CEIL      = 0x9b,
   F64_FLOOR     = 0x9c,
+  F64_TRUNC     = 0x9d,
+  F64_NEAREST   = 0x9e,
   F64_SQRT      = 0x9f,
   F64_ADD       = 0xa0,
   F64_SUB       = 0xa1,
   F64_MUL       = 0xa2,
   F64_DIV       = 0xa3,
+  F64_MIN       = 0xa4,
+  F64_MAX       = 0xa5,
   F64_COPYSIGN  = 0xa6,
   I32_WRAP_I64        = 0xa7,  // i32 <- i64
   I32_TRUNC_F32_S     = 0xa8,  // i32 <- f32
@@ -169,6 +194,8 @@ const enum Opcode {
   F64_PROMOTE_F32     = 0xbb,  // f64 <- f32
   I32_REINTERPRET_F32 = 0xbc,  // i32 <- f32
   I64_REINTERPRET_F64 = 0xbd,  // i64 <- f64
+  F32_REINTERPRET_I32 = 0xbe,  // f32 <- i32
+  F64_REINTERPRET_I64 = 0xbf,  // f64 <- i64
   EXTENSION     = 0xfc,
 }
 
@@ -254,6 +281,12 @@ const InstTable = new Map([
   [Opcode.I32_LOAD8_U, {op: 'i32.load8_u', operands: [OperandKind.ULEB128, OperandKind.ULEB128], opKind: OpKind.LOAD}],
   [Opcode.I32_LOAD16_S, {op: 'i32.load16_s', operands: [OperandKind.ULEB128, OperandKind.ULEB128], opKind: OpKind.LOAD}],
   [Opcode.I32_LOAD16_U, {op: 'i32.load16_u', operands: [OperandKind.ULEB128, OperandKind.ULEB128], opKind: OpKind.LOAD}],
+  [Opcode.I64_LOAD8_S, {op: 'i64.load8_s', operands: [OperandKind.ULEB128, OperandKind.ULEB128], opKind: OpKind.LOAD}],
+  [Opcode.I64_LOAD8_U, {op: 'i64.load8_u', operands: [OperandKind.ULEB128, OperandKind.ULEB128], opKind: OpKind.LOAD}],
+  [Opcode.I64_LOAD16_S, {op: 'i64.load16_s', operands: [OperandKind.ULEB128, OperandKind.ULEB128], opKind: OpKind.LOAD}],
+  [Opcode.I64_LOAD16_U, {op: 'i64.load16_u', operands: [OperandKind.ULEB128, OperandKind.ULEB128], opKind: OpKind.LOAD}],
+  [Opcode.I64_LOAD32_S, {op: 'i64.load32_s', operands: [OperandKind.ULEB128, OperandKind.ULEB128], opKind: OpKind.LOAD}],
+  [Opcode.I64_LOAD32_U, {op: 'i64.load32_u', operands: [OperandKind.ULEB128, OperandKind.ULEB128], opKind: OpKind.LOAD}],
   [Opcode.I32_STORE8, {op: 'i32.store8', operands: [OperandKind.ULEB128, OperandKind.ULEB128], opKind: OpKind.STORE}],
   [Opcode.I32_STORE16, {op: 'i32.store16', operands: [OperandKind.ULEB128, OperandKind.ULEB128], opKind: OpKind.STORE}],
   [Opcode.I64_STORE8, {op: 'i64.store8', operands: [OperandKind.ULEB128, OperandKind.ULEB128], opKind: OpKind.STORE}],
@@ -299,6 +332,9 @@ const InstTable = new Map([
   [Opcode.F64_GT, {op: 'f64.gt'}],
   [Opcode.F64_LE, {op: 'f64.le'}],
   [Opcode.F64_GE, {op: 'f64.ge'}],
+  [Opcode.I32_CLZ, {op: 'i32.clz'}],
+  [Opcode.I32_CTZ, {op: 'i32.ctz'}],
+  [Opcode.I32_POPCNT, {op: 'i32.popcnt'}],
   [Opcode.I32_ADD, {op: 'i32.add'}],
   [Opcode.I32_SUB, {op: 'i32.sub'}],
   [Opcode.I32_MUL, {op: 'i32.mul'}],
@@ -314,6 +350,9 @@ const InstTable = new Map([
   [Opcode.I32_SHR_U, {op: 'i32.shr_u'}],
   [Opcode.I32_ROTL, {op: 'i32.rotl'}],
   [Opcode.I32_ROTR, {op: 'i32.rotr'}],
+  [Opcode.I64_CLZ, {op: 'i64.clz'}],
+  [Opcode.I64_CTZ, {op: 'i64.ctz'}],
+  [Opcode.I64_POPCNT, {op: 'i64.popcnt'}],
   [Opcode.I64_ADD, {op: 'i64.add'}],
   [Opcode.I64_SUB, {op: 'i64.sub'}],
   [Opcode.I64_MUL, {op: 'i64.mul'}],
@@ -331,19 +370,31 @@ const InstTable = new Map([
   [Opcode.I64_ROTR, {op: 'i64.rotr'}],
   [Opcode.F32_ABS, {op: 'f32.abs'}],
   [Opcode.F32_NEG, {op: 'f32.neg'}],
+  [Opcode.F32_CEIL, {op: 'f32.ceil'}],
+  [Opcode.F32_FLOOR, {op: 'f32.floor'}],
+  [Opcode.F32_TRUNC, {op: 'f32.trunc'}],
+  [Opcode.F32_NEAREST, {op: 'f32.nearest'}],
+  [Opcode.F32_SQRT, {op: 'f32.sqrt'}],
   [Opcode.F32_ADD, {op: 'f32.add'}],
   [Opcode.F32_SUB, {op: 'f32.sub'}],
   [Opcode.F32_MUL, {op: 'f32.mul'}],
   [Opcode.F32_DIV, {op: 'f32.div'}],
+  [Opcode.F32_MIN, {op: 'f32.min'}],
+  [Opcode.F32_MAX, {op: 'f32.max'}],
+  [Opcode.F32_COPYSIGN, {op: 'f32.copysign'}],
   [Opcode.F64_ABS, {op: 'f64.abs'}],
   [Opcode.F64_NEG, {op: 'f64.neg'}],
   [Opcode.F64_CEIL, {op: 'f64.ceil'}],
   [Opcode.F64_FLOOR, {op: 'f64.floor'}],
+  [Opcode.F64_TRUNC, {op: 'f64.trunc'}],
+  [Opcode.F64_NEAREST, {op: 'f64.nearest'}],
   [Opcode.F64_SQRT, {op: 'f64.sqrt'}],
   [Opcode.F64_ADD, {op: 'f64.add'}],
   [Opcode.F64_SUB, {op: 'f64.sub'}],
   [Opcode.F64_MUL, {op: 'f64.mul'}],
   [Opcode.F64_DIV, {op: 'f64.div'}],
+  [Opcode.F64_MIN, {op: 'f64.min'}],
+  [Opcode.F64_MAX, {op: 'f64.max'}],
   [Opcode.F64_COPYSIGN, {op: 'f64.copysign'}],
 
   [Opcode.I32_WRAP_I64, {op: 'i32.wrap_i64'}],
@@ -369,6 +420,8 @@ const InstTable = new Map([
   [Opcode.F64_PROMOTE_F32, {op: 'f64.promote_f32'}],
   [Opcode.I32_REINTERPRET_F32, {op: 'i32.reinterpret_f32'}],
   [Opcode.I64_REINTERPRET_F64, {op: 'i64.reinterpret_f64'}],
+  [Opcode.F32_REINTERPRET_I32, {op: 'f32.reinterpret_i32'}],
+  [Opcode.F64_REINTERPRET_I64, {op: 'f64.reinterpret_i64'}],
 ])
 
 
@@ -705,6 +758,9 @@ export class DisWasm {
 
       this.log(`\n;;=== 0x${offset.toString(16)}: ${SectionNames[sec] || `(section ${sec})`}, len=${len}`)
       switch (sec) {
+      case Section.CUSTOM:
+        break
+
       case Section.TYPE:
         this.readTypeSection()
         break
