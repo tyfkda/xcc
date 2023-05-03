@@ -146,7 +146,7 @@ test-libs:	all
 clean:
 	rm -rf cc1 cpp as ld xcc $(OBJ_DIR) a.out gen2* gen3* tmp.s \
 		dump_expr* dump_ir* dump_type* \
-		wcc cc.wasm a.wasm public release
+		wcc cc.wasm a.wasm public release $(WCC_LIBS)
 	@$(MAKE) -C libsrc clean
 	@$(MAKE) -C tests clean
 
@@ -201,8 +201,9 @@ WCC_SRCS:=$(wildcard $(WCC_DIR)/*.c) \
 	$(CPP_DIR)/preprocessor.c $(CPP_DIR)/pp_parser.c $(CPP_DIR)/macro.c \
 	$(UTIL_DIR)/util.c $(UTIL_DIR)/table.c
 WCC_OBJS:=$(addprefix $(WCC_OBJ_DIR)/,$(notdir $(WCC_SRCS:.c=.o)))
+WCC_LIBS:=$(LIBSRC_DIR)/_wasm/crt0.c $(LIBSRC_DIR)/_wasm/libc.c
 
-wcc: $(PARENT_DEPS) $(WCC_OBJS)
+wcc: $(PARENT_DEPS) $(WCC_OBJS) $(WCC_LIBS)
 	$(CC) -o $@ $(WCC_OBJS) $(LDFLAGS)
 
 $(WCC_OBJ_DIR)/%.o: $(WCC_DIR)/%.c $(PARENT_DEPS)
@@ -220,6 +221,19 @@ $(WCC_OBJ_DIR)/%.o: $(CPP_DIR)/%.c $(PARENT_DEPS)
 $(WCC_OBJ_DIR)/%.o: $(UTIL_DIR)/%.c $(PARENT_DEPS)
 	@mkdir -p $(WCC_OBJ_DIR)
 	$(CC) $(WCC_CFLAGS) -c -o $@ $<
+
+WCC_CRT0_SRCS:=$(wildcard $(LIBSRC_DIR)/_wasm/crt0/*.c)
+WCC_LIBC_SRCS:=$(wildcard $(LIBSRC_DIR)/_wasm/unistd/*.c) \
+	$(wildcard $(LIBSRC_DIR)/math/*.c) \
+	$(wildcard $(LIBSRC_DIR)/misc/*.c) \
+	$(wildcard $(LIBSRC_DIR)/stdio/*.c) \
+	$(wildcard $(LIBSRC_DIR)/stdlib/*.c) \
+	$(wildcard $(LIBSRC_DIR)/string/*.c) \
+
+$(LIBSRC_DIR)/_wasm/crt0.c:	$(WCC_CRT0_SRCS)
+	$(MAKE) update-wcc-lib
+$(LIBSRC_DIR)/_wasm/libc.c:	$(WCC_LIBC_SRCS)
+	$(MAKE) update-wcc-lib
 
 .PHONY: test-wcc
 test-wcc:	wcc
@@ -260,8 +274,6 @@ wcc-self-hosting:	$(WCC_TARGET)cc.wasm
 .PHONY: test-wcc-self-hosting
 test-wcc-self-hosting:
 	$(MAKE) -C tests clean && $(MAKE) WCC="$(TARGET_CC)" -C tests test-wcc
-
-WCC_LIBS:=$(LIBSRC_DIR)/_wasm/crt0.c $(LIBSRC_DIR)/_wasm/libc.c
 
 $(WCC_TARGET)cc.wasm:	$(WCC_SRCS) $(WCC_LIBS) $(WCC_PARENT)
 	$(HOST_WCC) -o $@ \
