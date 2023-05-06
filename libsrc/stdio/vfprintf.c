@@ -21,18 +21,6 @@
 static char kHexDigits[] = "0123456789abcdef";
 static char kUpperHexDigits[] = "0123456789ABCDEF";
 
-#ifndef __NO_FLONUM
-static double pow10(int order) {
-  double a = 1, x = 10;
-  for (; order > 0; order >>= 1) {
-    if ((order & 1) != 0)
-      a *= x;
-    x *= x;
-  }
-  return a;
-}
-#endif
-
 static void putnstr(FILE *fp, int n, const char *s) {
   int c;
   for (; (c = *s++) != '\0' && n > 0; --n)
@@ -44,31 +32,31 @@ static void putpadding(FILE *fp, int m, char padding) {
     FPUTC(padding, fp);
 }
 
-// Output is not '\0' terminated.
 static int snprintullong(FILE *fp, unsigned long long x,
                          int base, const char* digits, int order, int padding) {
   char buf[32];
-  unsigned int i, o;
+  STATIC_ASSERT(sizeof(buf) >= (sizeof(long long) * CHAR_BIT + 2) / 3);
+  unsigned int i = 0, o = 0;
 
-  i = 0;
   do {
     buf[i++] = digits[x % base];
     x /= base;
   } while (x != 0);
 
   if (i < (unsigned int)order) {
-    memset(buf + i, padding, order - i);
-    i = order;
+    unsigned int d = (unsigned int)order - i;
+    putpadding(fp, d, padding);
+    o += d;
   }
 
-  for (o = 0; i > 0; ++o)
+  for (; i > 0; ++o)
     FPUTC(buf[--i], fp);
 
   return o;
 }
 
-char *snprintullong2(char *buf, unsigned long long x, int base, const char *digits) {
-  char *p = buf + PRINTF_BUFSIZ;
+char *snprintullong2(char *bufend, unsigned long long x, int base, const char *digits) {
+  char *p = bufend;
   *(--p) = '\0';
   do {
     *(--p) = digits[x % base];
@@ -111,8 +99,105 @@ static int sprintsign(FILE *fp, bool negative, bool force, int *porder) {
   return o;
 }
 
+#ifndef __NO_FLONUM
+static double pow10(int order) {
+  double a = 1, x = 10;
+  for (; order > 0; order >>= 1) {
+    if ((order & 1) != 0)
+      a *= x;
+    x *= x;
+  }
+  return a;
+}
+
+static int printfloat(FILE *fp, double x,
+                      int order, int suborder, bool sign, bool leftalign, char padding) {
+  if (!isfinite(x)) {
+    const char *s = isnan(x) ? "nan" : x > 0 ? "inf" : "-inf";
+    return snprintstr(fp, s, order, suborder, leftalign, ' ');
+  }
+
+  int o = sprintsign(fp, x < 0, sign, &order);
+  x = x < 0 ? -x : x;
+
+  unsigned long long int_part = x;
+  suborder = suborder > 0 ? suborder : 6;
+  double one = pow10(suborder);
+  unsigned long long fraction = (x - int_part) * one + 0.5;
+  if (fraction >= one) {
+    ++int_part;
+    fraction -= one;
+  }
+  o += snprintullong(fp, int_part, 10, kHexDigits, order, padding);
+  FPUTC('.', fp); ++o;
+  o += snprintullong(fp, fraction, 10, kHexDigits,
+                      suborder, '0');
+  return o;
+}
+
+static int normalize_float(double *px) {
+  double x = *px;
+  int exp = 0;
+  if (x >= 1e6) {
+    do {
+      x /= 10;
+      ++exp;
+    } while (x >= 10);
+  }
+  if (x > 0 && x <= 1e-4) {
+    do {
+      x *= 10;
+      --exp;
+    } while (x < 1.0);
+  }
+  *px = x;
+  return exp;
+}
+
+static int printscientific(
+    FILE *fp, double x,
+    int order, int suborder, bool sign, bool leftalign, char padding) {
+  if (!isfinite(x)) {
+    const char *s = isnan(x) ? "nan" : x > 0 ? "inf" : "-inf";
+    return snprintstr(fp, s, order, suborder, leftalign, ' ');
+  }
+
+  int o = sprintsign(fp, x < 0, sign, &order);
+  x = x < 0 ? -x : x;
+
+  int e = normalize_float(&x);
+  unsigned long long int_part = x;
+  suborder = suborder > 0 ? suborder : 6;
+  double one = pow10(suborder);
+  unsigned long long fraction = (x - int_part) * one + 0.5;
+  if (fraction >= one) {
+    ++int_part;
+    fraction -= one;
+  }
+  while (fraction % 10 == 0 && suborder > 0) {
+    fraction /= 10;
+    --suborder;
+  }
+  o += snprintullong(fp, int_part, 10, kHexDigits, order, padding);
+  if (fraction != 0) {
+    FPUTC('.', fp); ++o;
+    o += snprintullong(fp, fraction, 10, kHexDigits,
+                       suborder, '0');
+  }
+
+  if (e != 0) {
+    FPUTC('e', fp); ++o;
+    o += sprintsign(fp, e < 0, true, &order);
+    e = e < 0 ? -e : e;
+    o += snprintullong(fp, e, 10, kHexDigits, 2, '0');
+  }
+  return o;
+}
+#endif
+
 int vfprintf(FILE *fp, const char *fmt_, va_list ap) {
   char buf[PRINTF_BUFSIZ];
+#define bufend  (buf + sizeof(buf))
   STATIC_ASSERT(sizeof(buf) >= (sizeof(long long) * CHAR_BIT + 2) / 3);
 
   const unsigned char *fmt = (const unsigned char*)fmt_;
@@ -187,7 +272,7 @@ int vfprintf(FILE *fp, const char *fmt_, va_list ap) {
       unsigned long long ux = negative ? -x : x;
       if (negative || order > 0 || sign)
         o += sprintsign(fp, negative, sign, &order);
-      char *p = snprintullong2(buf, ux, 10, kHexDigits);
+      char *p = snprintullong2(bufend, ux, 10, kHexDigits);
       o += snprintstr(fp, p, order, suborder, leftalign, padding);
     } break;
     case 'u': {
@@ -197,7 +282,7 @@ int vfprintf(FILE *fp, const char *fmt_, va_list ap) {
       case 1:  x = va_arg(ap, unsigned long); break;
       default: x = va_arg(ap, unsigned long long); break;  // case 2:
       }
-      char *p = snprintullong2(buf, x, 10, kHexDigits);
+      char *p = snprintullong2(bufend, x, 10, kHexDigits);
       if (sign)
         *(--p) = '+';
       o += snprintstr(fp, p, order, suborder, leftalign, padding);
@@ -206,8 +291,7 @@ int vfprintf(FILE *fp, const char *fmt_, va_list ap) {
       if (fmt[i + 1] == 'u') {
         ++i;
         size_t x = va_arg(ap, unsigned int);
-        char *p = snprintullong2(buf, x, 10, kHexDigits);
-        o += snprintstr(fp, p, order, suborder, leftalign, padding);
+        o += snprintullong(fp, x, 10, kHexDigits, order, padding);
       }
     } break;
     case 'x': case 'X': {
@@ -218,12 +302,11 @@ int vfprintf(FILE *fp, const char *fmt_, va_list ap) {
       case 1:  x = va_arg(ap, unsigned long); break;
       default: x = va_arg(ap, unsigned long long); break;  // case 2:
       }
-      char *p = snprintullong2(buf, x, 16, digits);
-      o += snprintstr(fp, p, order, suborder, leftalign, padding);
+      o += snprintullong(fp, x, 16, digits, order, padding);
     } break;
     case 'p': {
       void *ptr = va_arg(ap, void*);
-      char *p = snprintullong2(buf, (uintptr_t)ptr, 16, kHexDigits);
+      char *p = snprintullong2(bufend, (uintptr_t)ptr, 16, kHexDigits);
       p -= 2;
       p[0] = '0';
       p[1] = 'x';
@@ -246,28 +329,11 @@ int vfprintf(FILE *fp, const char *fmt_, va_list ap) {
 #ifndef __NO_FLONUM
     case 'f': {
       double x = va_arg(ap, double);
-      if (!isfinite(x)) {
-        const char *s = isnan(x) ? "nan" : x > 0 ? "inf" : "-inf";
-        o += snprintstr(fp, s, order, suborder, leftalign, ' ');
-      } else {
-        o += sprintsign(fp, x < 0, sign, &order);
-        x = x < 0 ? -x : x;
-
-        unsigned long long int_part = x;
-        suborder = suborder > 0 ? suborder : 6;
-        double one = pow10(suborder);
-        unsigned long long fraction = (x - int_part) * one + 0.5;
-        unsigned long long uone = one;
-        if (fraction >= uone) {
-          ++int_part;
-          fraction -= uone;
-        }
-        o += snprintullong(fp, int_part, 10, kHexDigits, order, padding);
-        FPUTC('.', fp);
-        ++o;
-        o += snprintullong(fp, fraction, 10, kHexDigits,
-                           suborder, '0');
-      }
+      o += printfloat(fp, x, order, suborder, sign, leftalign, padding);
+    } break;
+    case 'g': {
+      double x = va_arg(ap, double);
+      o += printscientific(fp, x, order, suborder, sign, leftalign, padding);
     } break;
 #endif
     default:

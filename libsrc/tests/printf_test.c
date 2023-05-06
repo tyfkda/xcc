@@ -105,8 +105,20 @@ TEST(vsnprintf) {
   EXPECT("Float-:-1.234000", "Float-:%f", -1.234);
   EXPECT("Float+:+1.234000", "Float+:%+f", 1.234);
   EXPECT("FloatSub:1.23", "FloatSub:%.2f", 1.234);
+  EXPECT("Float:0.000000", "Float:0.000000", 0.0);
   EXPECT("inf:inf", "inf:%f", HUGE_VAL);
   EXPECT("nan:nan", "nan:%f", NAN);
+
+  EXPECT("Scientific:0.999999", "Scientific:%g", 0.999999);
+  EXPECT("Scientific:1", "Scientific:%g", 0.9999999);
+  EXPECT("Scientific:-12.345", "Scientific:%g", -12.345);
+  EXPECT("Scientific:0", "Scientific:%g", 0.0);
+  EXPECT("Scientific:123400", "Scientific:%g", 1.234e5);
+  EXPECT("Scientific:1.234e+06", "Scientific:%g", 1.234e6);
+  // EXPECT("Scientific:0.0001234", "Scientific:%g", 1.234e-4);
+  EXPECT("Scientific:1.234e-05", "Scientific:%g", 1.234e-5);
+  EXPECT("Scientific:-inf", "Scientific:%g", -HUGE_VAL);
+  EXPECT("Scientific:nan", "Scientific:%g", NAN);
 #endif
 #undef EXPECT
 } END_TEST()
