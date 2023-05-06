@@ -97,7 +97,7 @@ static int snprintstr(FILE *fp, const char* s,
   }
 }
 
-static int sprintsign(FILE *fp, int negative, int force, int *porder) {
+static int sprintsign(FILE *fp, bool negative, bool force, int *porder) {
   int o = 0;
   if (negative) {
     FPUTC('-', fp);
@@ -183,10 +183,11 @@ int vfprintf(FILE *fp, const char *fmt_, va_list ap) {
       case 1:  x = va_arg(ap, long); break;
       default: x = va_arg(ap, long long); break;  // case 2:
       }
-      unsigned long long ux = x < 0 ? -x : x;
+      bool negative = x < 0;
+      unsigned long long ux = negative ? -x : x;
+      if (negative || order > 0 || sign)
+        o += sprintsign(fp, negative, sign, &order);
       char *p = snprintullong2(buf, ux, 10, kHexDigits);
-      if (x < 0 || sign)
-        *(--p) = SIGN(x >= 0);
       o += snprintstr(fp, p, order, suborder, leftalign, padding);
     } break;
     case 'u': {

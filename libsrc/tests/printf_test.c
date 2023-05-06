@@ -65,6 +65,7 @@ TEST(vsnprintf) {
   EXPECT("FlagNeg:-987", "FlagNeg:%+d", -987);
   EXPECT("Padding:  654", "Padding:%5d", 654);
   EXPECT("ZeroPadding:00321", "ZeroPadding:%05d", 321);
+  EXPECT("ZeroPaddingNeg:-000456", "ZeroPaddingNeg:%07d", -456);
   EXPECT("PaddingOver:12345678", "PaddingOver:%5d", 12345678);
   EXPECT("EndPadding:234  ", "EndPadding:%-5d", 234);
   EXPECT("Hex:89ab", "Hex:%x", 0x89ab);
