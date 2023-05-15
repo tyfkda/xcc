@@ -15,6 +15,8 @@
 #include "table.h"
 #include "util.h"
 
+#include <inttypes.h>
+
 static const char kDefaultEntryName[] = "_start";
 
 #define PROG_START      (0x100)
@@ -196,11 +198,23 @@ static void resolve_rela_elfobj(LinkEditor *ld, ElfObj *elfobj) {
           ElfObj *telfobj;
           const Elf64_Sym *tsym = ld_find_symbol(ld, alloc_name(label, NULL, false), &telfobj);
           assert(tsym != NULL && tsym->st_shndx != SHN_UNDEF);
+          if (tsym->st_shndx < SHN_LORESERVE) {
 #ifndef NDEBUG
-          const Elf64_Shdr *tshdr = &telfobj->shdrs[tsym->st_shndx];
-          assert(tshdr->sh_type == SHT_PROGBITS || tshdr->sh_type == SHT_NOBITS);
+            const Elf64_Shdr *tshdr = &telfobj->shdrs[tsym->st_shndx];
+            assert(tshdr->sh_type == SHT_PROGBITS || tshdr->sh_type == SHT_NOBITS);
 #endif
-          address = telfobj->section_infos[tsym->st_shndx].progbits.address + tsym->st_value;
+            address = telfobj->section_infos[tsym->st_shndx].progbits.address + tsym->st_value;
+          } else {
+            switch (tsym->st_shndx) {
+            case SHN_COMMON:
+              break;
+            default:
+fprintf(stderr, "%s: shndx=%04x\n", label, tsym->st_shndx);
+              assert(!"Unhandled shndx");
+              break;
+            }
+            continue;
+          }
         }
         break;
       default: assert(false); break;
@@ -421,12 +435,14 @@ bool ld_link(LinkEditor *ld, Table *unresolved, uintptr_t start_address) {
     for (int secno = 0; secno < SEC_BSS + 1; ++secno) {
       address = ALIGN(address, section_aligns[secno]);
       Vector *v = ld->progbit_sections[secno];
+fprintf(stderr, "SECTION %d: address=%08lx, len=%x\n", secno, address, v->len);
       if (v->len > 0) {
         for (int i = 0; i < v->len; ++i) {
           ElfSectionInfo *p = v->data[i];
           p->progbits.address += address;
         }
         ElfSectionInfo *last = v->data[v->len - 1];
+fprintf(stderr, "  size=%" PRIx64 "\n", last->shdr->sh_size);
         address = last->progbits.address + last->shdr->sh_size;
       }
     }

@@ -102,7 +102,8 @@ static bool load_symtab(ElfObj *elfobj) {
     for (uint32_t i = 0; i < count; ++i) {
       Elf64_Sym *sym = &symbols[i];
       unsigned char type = ELF64_ST_TYPE(sym->st_info);
-      if (type == STT_NOTYPE && str[sym->st_name] != '\0') {
+      unsigned char bind = ELF64_ST_BIND(sym->st_info);
+      if (bind == STB_GLOBAL) {
 fprintf(stderr, "  %s, type=%d, shndx=%x, size=%" PRIx64 "\n", &str[sym->st_name], type, sym->st_shndx, sym->st_size);
         const Name *name = alloc_name(&str[sym->st_name], NULL, false);
         table_put(symbol_table, name, sym);

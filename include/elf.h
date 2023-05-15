@@ -96,6 +96,8 @@ typedef uintptr_t Elf64_Off;
 #define SHF_INFO_LINK     (1 << 6)        /* `sh_info' contains SHT index */
 
 #define SHN_UNDEF         (0)
+#define SHN_LORESERVE     (0xff00)
+#define SHN_COMMON        (0xfff2)
 
 typedef struct {
   Elf64_Word    sh_name;                /* Section name (string tbl index) */
@@ -114,6 +116,8 @@ typedef struct {
 #define STB_GLOBAL  (1)
 
 #define STT_NOTYPE   (0)
+#define STT_OBJECT   (1)
+#define STT_FUNC     (2)
 #define STT_SECTION  (3)
 
 #define ELF64_ST_BIND(info)          ((info) >> 4)
