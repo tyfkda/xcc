@@ -33,8 +33,7 @@ typedef struct {
       const char *buf;
     } strtab;
     struct {
-      Elf64_Sym *symtabs;
-      Table *names;  // <Elf64_Sym*>
+      Elf64_Sym *syms;
     } symtab;
   };
 } ElfSectionInfo;
@@ -45,6 +44,7 @@ typedef struct ElfObj {
   Elf64_Ehdr ehdr;
   Elf64_Shdr *shdrs;
   char *shstrtab;
+  Table *symbol_table;  // <Elf64_Sym*>
 
   ElfSectionInfo *section_infos;
 } ElfObj;

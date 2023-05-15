@@ -95,6 +95,8 @@ typedef uintptr_t Elf64_Off;
 #define SHF_EXECINSTR     (1 << 2)        /* Executable */
 #define SHF_INFO_LINK     (1 << 6)        /* `sh_info' contains SHT index */
 
+#define SHN_UNDEF         (0)
+
 typedef struct {
   Elf64_Word    sh_name;                /* Section name (string tbl index) */
   Elf64_Word    sh_type;                /* Section type */
@@ -114,7 +116,7 @@ typedef struct {
 #define STT_NOTYPE   (0)
 #define STT_SECTION  (3)
 
-#define ELF64_ST_BIND(info)          ((info)>> 4)
+#define ELF64_ST_BIND(info)          ((info) >> 4)
 #define ELF64_ST_TYPE(info)          ((info) & 0xf)
 #define ELF64_ST_INFO(bind, type)    (((bind)<<4)+((type)&0xf))
 
@@ -132,7 +134,7 @@ typedef struct {
 #define R_X86_64_PLT32  (4)        /* 32 bit PLT address */
 
 #define ELF64_R_SYM(info)            ((info) >> 32)
-#define ELF64_R_TYPE(info)           ((unsigned char)(info))
+#define ELF64_R_TYPE(info)           ((Elf64_Word)(info))
 #define ELF64_R_INFO(sym,type)       ((((Elf64_Xword) (sym)) << 32) + (type))
 
 typedef struct {

@@ -60,7 +60,7 @@ static Elf64_Sym *find_symbol_from_all(File *files, int nfiles, const Name *name
       {
         ElfObj *elfobj = file->elfobj;
         Elf64_Sym *sym = elfobj_find_symbol(elfobj, name);
-        if (sym != NULL && sym->st_shndx != 0) {
+        if (sym != NULL) {
           if (pelfobj != NULL)
             *pelfobj = elfobj;
           return sym;
@@ -74,7 +74,7 @@ static Elf64_Sym *find_symbol_from_all(File *files, int nfiles, const Name *name
           ArContent *content = ar->contents->data[i + 1];
           ElfObj *elfobj = content->elfobj;
           Elf64_Sym *sym = elfobj_find_symbol(elfobj, name);
-          if (sym != NULL && sym->st_shndx != 0) {
+          if (sym != NULL) {
             if (pelfobj != NULL)
               *pelfobj = elfobj;
             return sym;
@@ -104,7 +104,7 @@ static void resolve_rela_elfobj(ElfObj *elfobj, File *files, int nfiles) {
     const ElfSectionInfo *dst_info = &elfobj->section_infos[shdr->sh_info];
     for (size_t j = 0, n = shdr->sh_size / sizeof(Elf64_Rela); j < n; ++j) {
       const Elf64_Rela *rela = &relas[j];
-      const Elf64_Sym *sym = &symhdrinfo->symtab.symtabs[ELF64_R_SYM(rela->r_info)];
+      const Elf64_Sym *sym = &symhdrinfo->symtab.syms[ELF64_R_SYM(rela->r_info)];
 
       uintptr_t address = 0;
       switch (ELF64_ST_BIND(sym->st_info)) {
@@ -121,7 +121,7 @@ static void resolve_rela_elfobj(ElfObj *elfobj, File *files, int nfiles) {
           ElfObj *telfobj;
           const Elf64_Sym *tsym = find_symbol_from_all(files, nfiles,
                                                        alloc_name(label, NULL, false), &telfobj);
-          assert(tsym != NULL && tsym->st_shndx > 0);
+          assert(tsym != NULL && tsym->st_shndx != SHN_UNDEF);
 #ifndef NDEBUG
           const Elf64_Shdr *tshdr = &telfobj->shdrs[tsym->st_shndx];
           assert(tshdr->sh_type == SHT_PROGBITS || tshdr->sh_type == SHT_NOBITS);
@@ -201,18 +201,17 @@ static void link_elfobj(ElfObj *elfobj, File *files, int nfiles, uintptr_t *offs
       break;
     case SHT_SYMTAB:
       {
-        ElfSectionInfo *p = &elfobj->section_infos[sec];
         ElfSectionInfo *q = &elfobj->section_infos[shdr->sh_link];  // Strtab
-        Table *names = p->symtab.names;
+        Table *symbol_table = elfobj->symbol_table;
         const char *str = q->strtab.buf;
         const Name *name;
         Elf64_Sym *sym;
-        for (int it = 0; (it = table_iterate(names, it, &name, (void**)&sym)) != -1; ) {
+        for (int it = 0; (it = table_iterate(symbol_table, it, &name, (void**)&sym)) != -1; ) {
           unsigned char type = ELF64_ST_TYPE(sym->st_info);
           if (type != STT_NOTYPE || str[sym->st_name] == '\0')
             continue;
           const Name *name = alloc_name(&str[sym->st_name], NULL, false);
-          if (sym->st_shndx == 0) {
+          if (sym->st_shndx == SHN_UNDEF) {
             if (find_symbol_from_all(files, nfiles, name, NULL) == NULL)
               table_put(unresolved, name, (void*)name);
           } else {

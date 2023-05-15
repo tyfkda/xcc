@@ -38,6 +38,7 @@ static char *read_strtab(FILE *fp, size_t start_offset, Elf64_Shdr *sec) {
 }
 
 static bool load_symtab(ElfObj *elfobj) {
+  int symtab_count = 0;
   for (Elf64_Half sec = 0; sec < elfobj->ehdr.e_shnum; ++sec) {
     Elf64_Shdr *shdr = &elfobj->shdrs[sec];
     switch (shdr->sh_type) {
@@ -51,9 +52,13 @@ static bool load_symtab(ElfObj *elfobj) {
       break;
     case SHT_SYMTAB:
       {
-        Elf64_Sym *symtabs = read_from(elfobj->fp, shdr->sh_offset + elfobj->start_offset,
+        if (symtab_count > 0)
+          error("Multiple symtabs not supported\n");
+        ++symtab_count;
+
+        Elf64_Sym *symbols = read_from(elfobj->fp, shdr->sh_offset + elfobj->start_offset,
                                        shdr->sh_size);
-        if (symtabs == NULL)
+        if (symbols == NULL)
           perror("read symtab failed");
         if (shdr->sh_size % sizeof(Elf64_Sym) != 0)
           error("malformed symtab");
@@ -63,9 +68,7 @@ static bool load_symtab(ElfObj *elfobj) {
           error("malformed symtab");
 
         ElfSectionInfo *p = &elfobj->section_infos[sec];
-        p->symtab.names = malloc_or_die(sizeof(*p->symtab.names));
-        table_init(p->symtab.names);
-        p->symtab.symtabs = symtabs;
+        p->symtab.syms = symbols;
       }
       break;
     }
@@ -76,17 +79,21 @@ static bool load_symtab(ElfObj *elfobj) {
     if (shdr->sh_type != SHT_SYMTAB)
       continue;
 
+    size_t count = shdr->sh_size / sizeof(Elf64_Sym);
+    assert(elfobj->symbol_table == NULL);
+    Table *symbol_table = alloc_table();
+    elfobj->symbol_table = symbol_table;
+
     ElfSectionInfo *p = &elfobj->section_infos[sec];
     ElfSectionInfo *q = &elfobj->section_infos[shdr->sh_link];  // Strtab
     const char *str = q->strtab.buf;
-    Table *names = p->symtab.names;
-    size_t count = shdr->sh_size / sizeof(Elf64_Sym);
+    Elf64_Sym *symbols = p->symtab.syms;
     for (uint32_t i = 0; i < count; ++i) {
-      Elf64_Sym *sym = &p->symtab.symtabs[i];
-      unsigned char type = sym->st_info & 0x0f;
+      Elf64_Sym *sym = &symbols[i];
+      unsigned char type = ELF64_ST_TYPE(sym->st_info);
       if (type == STT_NOTYPE && str[sym->st_name] != '\0') {
         const Name *name = alloc_name(&str[sym->st_name], NULL, false);
-        table_put(names, name, sym);
+        table_put(symbol_table, name, sym);
       }
     }
   }
@@ -156,14 +163,6 @@ void close_elf(ElfObj *elfobj) {
 }
 
 Elf64_Sym *elfobj_find_symbol(ElfObj *elfobj, const Name *name) {
-  for (Elf64_Half sec = 0; sec < elfobj->ehdr.e_shnum; ++sec) {
-    Elf64_Shdr *shdr = &elfobj->shdrs[sec];
-    if (shdr->sh_type != SHT_SYMTAB)
-      continue;
-    ElfSectionInfo *p = &elfobj->section_infos[sec];
-    Elf64_Sym *sym = table_get(p->symtab.names, name);
-    if (sym != NULL)
-      return sym;
-  }
-  return NULL;
+  Elf64_Sym *sym = table_get(elfobj->symbol_table, name);
+  return (sym != NULL && sym->st_shndx != SHN_UNDEF) ? sym : NULL;
 }
