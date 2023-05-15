@@ -127,39 +127,60 @@ void ld_load(LinkEditor *ld, int i, const char *filename) {
   }
 }
 
-static Elf64_Sym *ld_find_symbol(LinkEditor *ld, const Name *name, ElfObj **pelfobj) {
+static uintptr_t ld_symbol_address(LinkEditor *ld, const Name *name) {
+  ElfObj *elfobj = NULL;
+  Elf64_Sym *sym = NULL;
   for (int i = 0; i < ld->nfiles; ++i) {
     File *file = &ld->files[i];
     switch (file->kind) {
     case FK_ELFOBJ:
       {
-        ElfObj *elfobj = file->elfobj;
-        Elf64_Sym *sym = elfobj_find_symbol(elfobj, name);
+        elfobj = file->elfobj;
+        sym = elfobj_find_symbol(elfobj, name);
         if (sym != NULL) {
-          if (pelfobj != NULL)
-            *pelfobj = elfobj;
-          return sym;
+          i = ld->nfiles;  // Found.
+          break;
         }
       }
       break;
     case FK_ARCHIVE:
       {
         Archive *ar = file->archive;
-        for (int i = 0; i < ar->contents->len; i += 2) {
-          ArContent *content = ar->contents->data[i + 1];
-          ElfObj *elfobj = content->elfobj;
-          Elf64_Sym *sym = elfobj_find_symbol(elfobj, name);
+        for (int j = 0; j < ar->contents->len; j += 2) {
+          ArContent *content = ar->contents->data[j + 1];
+          elfobj = content->elfobj;
+          sym = elfobj_find_symbol(elfobj, name);
           if (sym != NULL) {
-            if (pelfobj != NULL)
-              *pelfobj = elfobj;
-            return sym;
+            i = ld->nfiles;  // Found.
+            break;
           }
         }
       }
       break;
     }
   }
-  return NULL;
+
+  uintptr_t address = (uintptr_t)-1;
+  if (sym != NULL) {
+    assert(sym != NULL && sym->st_shndx != SHN_UNDEF);
+    if (sym->st_shndx < SHN_LORESERVE) {
+#ifndef NDEBUG
+      const Elf64_Shdr *tshdr = &elfobj->shdrs[sym->st_shndx];
+      assert(tshdr->sh_type == SHT_PROGBITS || tshdr->sh_type == SHT_NOBITS);
+#endif
+      address = elfobj->section_infos[sym->st_shndx].progbits.address + sym->st_value;
+    } else {
+      switch (sym->st_shndx) {
+      case SHN_COMMON:
+        assert(!"Unhandled shndx:common");
+        break;
+      default:
+        assert(!"Unhandled shndx");
+        break;
+      }
+    }
+  }
+  return address;
 }
 
 static void resolve_rela_elfobj(LinkEditor *ld, ElfObj *elfobj) {
@@ -193,14 +214,8 @@ static void resolve_rela_elfobj(LinkEditor *ld, ElfObj *elfobj) {
       case STB_GLOBAL:
         {
           const char *label = &strinfo->strtab.buf[sym->st_name];
-          ElfObj *telfobj;
-          const Elf64_Sym *tsym = ld_find_symbol(ld, alloc_name(label, NULL, false), &telfobj);
-          assert(tsym != NULL && tsym->st_shndx != SHN_UNDEF);
-#ifndef NDEBUG
-          const Elf64_Shdr *tshdr = &telfobj->shdrs[tsym->st_shndx];
-          assert(tshdr->sh_type == SHT_PROGBITS || tshdr->sh_type == SHT_NOBITS);
-#endif
-          address = telfobj->section_infos[tsym->st_shndx].progbits.address + tsym->st_value;
+          address = ld_symbol_address(ld, alloc_name(label, NULL, false));
+          assert(address != (uintptr_t)-1);
         }
         break;
       default: assert(false); break;
@@ -285,7 +300,7 @@ static void link_elfobj(LinkEditor *ld, ElfObj *elfobj, Table *unresolved) {
             continue;
           const Name *name = alloc_name(&str[sym->st_name], NULL, false);
           if (sym->st_shndx == SHN_UNDEF) {
-            if (ld_find_symbol(ld, name, NULL) == NULL)
+            if (ld_symbol_address(ld, name) == (uintptr_t)-1)
               table_put(unresolved, name, (void*)name);
           } else {
             table_delete(unresolved, name);
@@ -507,11 +522,7 @@ static void dump_map_elfobj(LinkEditor *ld, ElfObj *elfobj, File *file, ArConten
       }
       break;
     case STB_GLOBAL:
-      {
-        ElfObj *telfobj;
-        const Elf64_Sym *tsym = ld_find_symbol(ld, name, &telfobj);
-        address = telfobj->section_infos[tsym->st_shndx].progbits.address + tsym->st_value;
-      }
+      address = ld_symbol_address(ld, name);
       break;
     default: assert(false); break;
     }
@@ -606,11 +617,8 @@ int main(int argc, char *argv[]) {
   if (result) {
     fix_section_size(LOAD_ADDRESS);
 
-    ElfObj *telfobj;
-    const Elf64_Sym *tsym = ld_find_symbol(ld, entry_name, &telfobj);
-    if (tsym == NULL)
-      error("Cannot find label: `%.*s'", NAMES(entry_name));
-    uintptr_t entry_address = telfobj->section_infos[tsym->st_shndx].progbits.address + tsym->st_value;
+    uintptr_t entry_address = ld_symbol_address(ld, entry_name);
+    assert(entry_address != (uintptr_t)-1);
 
     result = output_exe(ofn, entry_address);
 
