@@ -1,15 +1,11 @@
 import {DisWasm} from './diswasm'
 import * as Split from 'split.js'
 import {Util} from './util'
-import {WaProc} from './wa_proc'
-import {WasmFs} from '@wasmer/wasmfs'
-import {WASIExitError} from '@wasmer/wasi'
+import {WccRunner} from './wcc_runner'
 
 const FONT_SIZE = 16
 
-const USER = 'wasm'
 const KEY_CODE = 'wcc-code'
-const TMP_PATH = '/tmp'
 
 const UndoManager = ace.require('ace/undomanager').UndoManager as typeof AceAjax.UndoManager
 const Range = ace.require('ace/range').Range as typeof AceAjax.Range
@@ -207,81 +203,36 @@ async function saveToLocalFile(fileHandle: FileSystemFileHandle): Promise<boolea
   }
 }
 
-const WCC_PATH = 'cc.wasm'
-const LIBS_PATH = 'libs.json'
+const wccRunner = new WccRunner()
 
-const wasmFs = new WasmFs()
-{
-  const originalWriteSync = wasmFs.fs.writeSync.bind(wasmFs.fs)
-  wasmFs.fs.writeSync = (fd: number, buffer: Uint8Array|string|any, offset?: number, length?: any, position?: any) => {
-    switch (fd) {
-    case 1: case 2:
-      {
-        const text = typeof buffer === 'string' ? buffer : new TextDecoder('utf-8').decode(buffer)
-        Util.putTerminal(text)
-      }
-      break
-    }
-    return originalWriteSync(fd, buffer, offset, length, position)
-  }
-}
-
-let wccWasm: Uint8Array
-
-async function compile(sourceCode: string, extraOptions?: string[]): Promise<Uint8Array|null> {
+async function compile(sourceCode: string, extraOptions?: string[]): Promise<string|null> {
   const sourceName = 'main.c'
-  let args = ['cc', '-I/usr/include', '-I/usr/local/include', '-L/usr/lib']
-  if (extraOptions != null)
-    args = args.concat(extraOptions)
-  args.push(sourceName)
-
-  const curDir = `/home/${USER}`
-  const waproc = new WaProc(wasmFs, args, curDir)
-  waproc.saveFile(sourceName, sourceCode)
+  await wccRunner.writeFile(sourceName, sourceCode)
 
   Util.clearCompileErrors()
-  let err = false
-  try {
-    await waproc.runWasiEntry(wccWasm)
-  } catch (e) {
-    if (!(e instanceof WASIExitError)) {
-      Util.putTerminalError(e)
-      showTerminal()
-      return null
-    }
-    const ec = e as WASIExitError
-    err = ec.code !== 0
-  }
-  if (err) {
+  const exitCode = await wccRunner.compile(sourceName, extraOptions)
+  if (exitCode !== 0) {
     Util.analyzeCompileErrors()
     showTerminal()
     return null
   }
 
-  return waproc.loadFile('a.wasm')
-}
-
-async function clearTemporaryFiles() {
-  const files = wasmFs.fs.readdirSync(TMP_PATH)
-  // TODO: Remove directory, too.
-  files.forEach((file) => wasmFs.fs.unlinkSync(`${TMP_PATH}/${file}`))
+  return 'a.wasm'
 }
 
 async function run(argStr: string, compileAndDump: boolean) {
-  if (wccWasm == null)
-    return  // TODO: Error message
-
   Util.clearTerminal()
   editor.focus()
 
   // Compile
   const extraOptions = compileAndDump ? ['-nostdlib', '--entry-point=', '--export-all-non-static'] : undefined
-  const compiledCode = await compile(editor.getValue(), extraOptions)
-  if (compiledCode == null)
+  const compiledPath = await compile(editor.getValue(), extraOptions)
+  if (compiledPath == null)
     return
 
   if (compileAndDump) {
-    const disWasm = new DisWasm(compiledCode.buffer)
+    const compiledCode = await wccRunner.readFile(compiledPath)!
+    const disWasm = new DisWasm(compiledCode!.buffer)
     disWasm.setLogFunc(s => Util.putTerminal(`${s}\n`))
     disWasm.dump()
     showTerminal()
@@ -291,17 +242,10 @@ async function run(argStr: string, compileAndDump: boolean) {
   // Run
   const args = argStr === '' ? [] : argStr.trim().split(/\s+/)
   args.unshift('a.wasm')
-  const curDir = `/home/${USER}`
-  const waproc = new WaProc(wasmFs, args, curDir)
   showTerminal()
-  try {
-    await waproc.runWasiEntry(compiledCode)
-  } catch (e) {
-    if (!(e instanceof WASIExitError))
-      Util.putTerminalError(e)
-  }
+  await wccRunner.runWasi(compiledPath, args)
 
-  clearTemporaryFiles()
+  await wccRunner.clearTemporaries()
 }
 
 window.addEventListener('load', () => {
@@ -353,46 +297,16 @@ window.initialData = {
   shareUrl: null,
   args: '',
   loaded: false,
+  busy: false,
   canAccessLocalFile: !!window.showOpenFilePicker,
   fileHandle: null,
   runMode: RUN,
   showRunModeDropdown: false,
 
   init() {
-    Promise.all([
-      Util.loadFromServer(WCC_PATH, {binary: true})
-        .then(wasm => wccWasm = new Uint8Array(wasm as ArrayBuffer))
-        .catch(error => {
-          Util.putTerminalError('Failed to load compiler.wasm\n')
-          throw error
-        }),
-
-      Util.loadFromServer(LIBS_PATH)
-        .then(libs => {
-          function setFiles(path: string, json: any) {
-            for (const key of Object.keys(json)) {
-              const newPath = `${path}/${key}`
-              if (typeof json[key] === 'string') {
-                wasmFs.fs.writeFileSync(newPath, json[key])
-              } else {
-                wasmFs.fs.mkdirSync(newPath)
-                setFiles(newPath, json[key])
-              }
-            }
-          }
-
-          setFiles('', JSON.parse(libs as string))
-        })
-        .catch(error => {
-          Util.putTerminalError('Failed to load libs\n')
-          throw error
-        }),
-    ]).then((_) => {
-      this.loaded = true
-    })
-
-    wasmFs.fs.mkdirSync(`/home/${USER}`, {recursive: true})
-    wasmFs.fs.mkdirSync(TMP_PATH)
+    wccRunner.setConsoleOutFunction((text, _isError) => Util.putTerminal(text))
+    wccRunner.setUp()
+      .then(() => this.loaded = true)
 
     const searchParams = new URLSearchParams(window.location.search)
     if (searchParams.has('code')) {
@@ -409,7 +323,7 @@ window.initialData = {
           win : 'Ctrl-Enter',
           mac : 'Command-Enter',
         },
-        exec: (_editor) => this.loaded && run(this.args, this.runMode === COMPILE),
+        exec: (_editor) => this.runCode(),
       },
       {
         name: 'Save',
@@ -521,8 +435,12 @@ window.initialData = {
     }
     return false
   },
-  runCode() {
-    this.loaded && run(this.args, this.runMode === COMPILE)
+  async runCode() {
+    if (!this.loaded && this.busy)
+      return
+    this.busy = true
+    await run(this.args, this.runMode === COMPILE)
+    this.busy = false
   },
   toggleRunModeDropdown() {
     this.showRunModeDropdown = !this.showRunModeDropdown

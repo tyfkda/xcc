@@ -20,7 +20,7 @@
         <div class="header">
           <label class="nav-open" @click="onClickNavOpen"><span></span></label>
           <div style="position:relative; display:inline">
-            <span class="run-btn" @click="runCode()" :disabled="!loaded" x-text="`${runMode} (⌘+⏎)`"></span
+            <span class="run-btn" :class="{busy:busy, loading:!loaded}" @click="runCode()" x-text="`${runMode} (⌘+⏎)`"></span
             ><span class="run-dropdown-btn" :disabled="!loaded" @click="toggleRunModeDropdown()" x-text="showRunModeDropdown?'▲':'▼'"></span>
 
             <div class="run-dropdown" x-show="showRunModeDropdown" @click="showRunModeDropdown=false" style="z-index:1000; display:none">

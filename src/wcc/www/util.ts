@@ -25,16 +25,6 @@ export class Util {
     return new TextDecoder('utf-8').decode(arr)
   }
 
-  public static async loadFromServer(path: string, opt: any = null): Promise<string|ArrayBuffer> {
-    const response = await fetch(path, {method: 'GET'})
-    if (!response.ok)
-      return Promise.reject(response)
-    if (opt != null && opt.binary)
-      return await response.arrayBuffer()
-    const text = await response.text()
-    return text
-  }
-
   public static encode(text: string): Uint8Array {
     return new TextEncoder().encode(text)
   }

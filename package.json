@@ -39,6 +39,10 @@
       "node"
     ]
   },
+  "sideEffects": [
+    "./src/wcc/www/main.ts",
+    "./src/wcc/www/wasi_woker.ts"
+  ],
   "devDependencies": {
     "@babel/core": "~7.20.7",
     "@babel/preset-env": "~7.20.2",

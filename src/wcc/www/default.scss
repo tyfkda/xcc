@@ -98,6 +98,11 @@ a.disabled {
     color: #4ff;
   }
 }
+.run-btn.busy, .run-btn.loading {
+  background-color: #888;
+  color: #ccc;
+  cursor: default;
+}
 
 .run-dropdown-btn {
   background-color: #14f;

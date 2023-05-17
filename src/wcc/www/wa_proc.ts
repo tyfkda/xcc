@@ -32,49 +32,22 @@ export class WaProc {
     this.chdir(curDir)
   }
 
-  public getAbsPath(fileName: string): string {
-    if (fileName.length > 0 && fileName[0] === '/')
-      return fileName
-    // TODO: Handle ., ..
-    //return `${this.cwd}/${fileName}`
-    return `${this.cwd}${this.cwd === '/' ? '' : '/'}${fileName}`
-  }
-
-  public chdir(absPath: string): boolean {
-    const st = this.wasmFs.fs.statSync(absPath)
-    if (!st?.isDirectory())
-      return false
-    this.cwd = absPath
-    return true
-  }
-
-  public saveFile(fileName: string, content: string): void {
-    this.wasmFs.fs.writeFileSync(this.getAbsPath(fileName), content)
-  }
-
-  public loadFile(fileName: string): Uint8Array|null {
-    return this.wasmFs.fs.readFileSync(this.getAbsPath(fileName)) as Uint8Array
-  }
-
-  public async runWasiEntry(wasmUrlOrBuffer: string|ArrayBuffer): Promise<any> {
-    const instance = await this.loadWasm(wasmUrlOrBuffer)
+  public async runWasiEntry(wasmPath: string): Promise<any> {
+    const instance = await this.loadWasm(wasmPath)
     this.wasi.start(instance!)
   }
 
-  public async loadWasm(pathOrBuffer: string|ArrayBuffer): Promise<WebAssembly.Instance|null> {
+  private async loadWasm(wasmPath: string): Promise<WebAssembly.Instance|null> {
     let obj: WebAssembly.WebAssemblyInstantiatedSource
-    if (typeof pathOrBuffer === 'string') {
-      if (WebAssembly.instantiateStreaming) {
-        obj = await WebAssembly.instantiateStreaming(fetch(pathOrBuffer), this.imports)
-      } else {
-        const response = await fetch(pathOrBuffer)
-        const bytes = await response.arrayBuffer()
-        obj = await WebAssembly.instantiate(bytes, this.imports)
+    if (typeof wasmPath === 'string') {
+      const bin = this.wasmFs.fs.readFileSync(this.getAbsPath(wasmPath)) as Uint8Array
+
+      if (bin == null) {
+        throw 'File not found'
       }
-    } else if (pathOrBuffer instanceof Uint8Array) {
-      obj = await WebAssembly.instantiate(pathOrBuffer, this.imports)
+      obj = await WebAssembly.instantiate(bin, this.imports)
     } else {
-      console.error(`Path or buffer required: ${pathOrBuffer}`)
+      console.error(`Path or buffer required: ${wasmPath}`)
       return null
     }
     const instance = obj.instance
@@ -86,11 +59,19 @@ export class WaProc {
     return instance
   }
 
-  public registerCFunction(funcName: string, func: (...args: Array<any>) => any): void {
-    this.imports.c[funcName] = func
+  private chdir(absPath: string): boolean {
+    const st = this.wasmFs.fs.statSync(absPath)
+    if (!st?.isDirectory())
+      return false
+    this.cwd = absPath
+    return true
   }
 
-  public getLinearMemory(): WebAssembly.Memory {
-    return this.memory
+  private getAbsPath(fileName: string): string {
+    if (fileName.length > 0 && fileName[0] === '/')
+      return fileName
+    // TODO: Handle ., ..
+    //return `${this.cwd}/${fileName}`
+    return `${this.cwd}${this.cwd === '/' ? '' : '/'}${fileName}`
   }
 }
