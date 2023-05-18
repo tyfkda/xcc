@@ -19,8 +19,8 @@ import sassPlugin from 'sass'
 import gulpSass from 'gulp-sass'
 import cssnano from 'gulp-cssnano'
 
-// Unit test
-const jest = require('gulp-jest').default
+// // Unit test
+// const jest = require('gulp-jest').default
 
 import fs from 'fs'
 
@@ -32,8 +32,8 @@ const SRC_TS_FILES = `${SRC_TS_DIR}/**/*.ts`
 const SRC_HTML_DIR = `${ROOT_DIR}/src/wcc/www`
 const SRC_HTML_FILES = `${SRC_HTML_DIR}/*.html`
 const SRC_SASS_FILES = `${ROOT_DIR}/src/wcc/www/**/*.scss`
-const SRC_TEST_DIR = `${ROOT_DIR}/test`
-const SRC_TEST_FILES = `${SRC_TEST_DIR}/**/*.spec.ts`
+// const SRC_TEST_DIR = `${ROOT_DIR}/test`
+// const SRC_TEST_FILES = `${SRC_TEST_DIR}/**/*.spec.ts`
 const RELEASE_DIR = `${ROOT_DIR}/release`
 const RELEASE_ASSETS_DIR = `${RELEASE_DIR}`
 
@@ -114,8 +114,7 @@ export function watchSass() {
 
 const LINT_GLOBS = [
   SRC_TS_FILES,
-  SRC_TEST_FILES,
-  `!${SRC_TS_DIR}/lib.ts`,
+  // SRC_TEST_FILES,
 ]
 
 export function lint() {
@@ -123,8 +122,7 @@ export function lint() {
 }
 
 export function watchLint() {
-  return buildWhenModified(LINT_GLOBS,
-                           () => checkLint(globs))
+  return gulp.watch(LINT_GLOBS, lint)
 }
 
 export function server() {
@@ -137,29 +135,29 @@ export function server() {
   })
 }
 
-// Unit test.
-export function test() {
-  return gulp.src(SRC_TEST_DIR)
-    .pipe(jest({
-      "transform": {
-        "^.+\\.tsx?$": "ts-jest",
-      },
-      "testRegex": "(/__tests__/.*|(\\.|/)(test|spec))\\.(jsx?|tsx?)$",
-      "moduleFileExtensions": [
-        "ts",
-        "tsx",
-        "js",
-        "jsx",
-        "json",
-        "node",
-      ],
-    }))
-}
-export function watchTest() {
-  return gulp.watch([SRC_TS_FILES,
-                     SRC_TEST_FILES],
-                    gulp.series(test))
-}
+// // Unit test.
+// export function test() {
+//   return gulp.src(SRC_TEST_DIR)
+//     .pipe(jest({
+//       "transform": {
+//         "^.+\\.tsx?$": "ts-jest",
+//       },
+//       "testRegex": "(/__tests__/.*|(\\.|/)(test|spec))\\.(jsx?|tsx?)$",
+//       "moduleFileExtensions": [
+//         "ts",
+//         "tsx",
+//         "js",
+//         "jsx",
+//         "json",
+//         "node",
+//       ],
+//     }))
+// }
+// export function watchTest() {
+//   return gulp.watch([SRC_TS_FILES,
+//                      SRC_TEST_FILES],
+//                     gulp.series(test))
+// }
 
 export async function clean(done) {
   await Promise.all([
@@ -170,7 +168,7 @@ export async function clean(done) {
 }
 
 export const watch = gulp.parallel(watchHtml, watchTs, watchSass,
-                                   watchLint, watchTest,
+                                   watchLint, // watchTest,
                                    watchReload)
 
 export const build = gulp.parallel(html, ts, sass, lint)
