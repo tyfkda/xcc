@@ -115,7 +115,7 @@ Command line options:
 #### Run
 
 ```sh
-$ node tool/runwasm.js hello.wasm
+$ node tool/runwasi.js hello.wasm
 Hello, world!
 ```
 
