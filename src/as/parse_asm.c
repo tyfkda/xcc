@@ -635,7 +635,7 @@ typedef struct Token {
 } Token;
 
 static Token *new_token(enum TokenKind kind) {
-  Token *token = malloc(sizeof(*token));
+  Token *token = malloc_or_die(sizeof(*token));
   token->kind = kind;
   return token;
 }
@@ -724,7 +724,7 @@ static const Token *match(ParseInfo *info, enum TokenKind kind) {
 }
 
 static Expr *new_expr(enum ExprKind kind) {
-  Expr *expr = malloc(sizeof(*expr));
+  Expr *expr = malloc_or_die(sizeof(*expr));
   expr->kind = kind;
   return expr;
 }
@@ -899,7 +899,7 @@ static bool parse_operand(ParseInfo *info, Operand *operand) {
     if (info->p[1] == '%') {
       info->p += 2;
       if (expr == NULL) {
-        expr = malloc(sizeof(*expr));
+        expr = malloc_or_die(sizeof(*expr));
         expr->kind = EX_FIXNUM;
         expr->fixnum = 0;
       }
@@ -928,7 +928,7 @@ static void parse_inst(ParseInfo *info, Inst *inst) {
 int current_section = SEC_CODE;
 
 Line *parse_line(ParseInfo *info) {
-  Line *line = malloc(sizeof(*line));
+  Line *line = malloc_or_die(sizeof(*line));
   line->label = NULL;
   line->inst.op = NOOP;
   line->inst.src.type = line->inst.dst.type = NOOPERAND;
@@ -1030,7 +1030,7 @@ void handle_directive(ParseInfo *info, enum DirectiveType dir, Vector **section_
       ++info->p;
       const char *p = info->p;
       size_t len = unescape_string(info, NULL);
-      char *str = malloc(len);
+      char *str = malloc_or_die(len);
       info->p = p;  // Again.
       unescape_string(info, str);
 
@@ -1117,7 +1117,7 @@ void handle_directive(ParseInfo *info, enum DirectiveType dir, Vector **section_
         // TODO: Target endian.
         long value = expr->fixnum;
         int size = 1 << (dir - DT_BYTE);
-        unsigned char *buf = malloc(size);
+        unsigned char *buf = malloc_or_die(size);
         for (int i = 0; i < size; ++i)
           buf[i] = value >> (8 * i);
         vec_push(irs, new_ir_data(buf, size));
@@ -1147,7 +1147,7 @@ void handle_directive(ParseInfo *info, enum DirectiveType dir, Vector **section_
         break;
       }
       int size = dir == DT_FLOAT ? sizeof(float) : sizeof(double);
-      unsigned char *buf = malloc(size);
+      unsigned char *buf = malloc_or_die(size);
       if (dir == DT_FLOAT) {
         float fval = value;
         memcpy(buf, (void*)&fval, sizeof(fval));  // TODO: Endian

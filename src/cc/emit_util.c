@@ -38,10 +38,7 @@ char *fmt(const char *fm, ...) {
     int newsize = n + (n >> 1);
     if (newsize < MIN_SIZE)
       newsize = MIN_SIZE;
-    char *newbuf = realloc(p->buf, newsize);
-    if (newbuf == NULL)
-      error("Out of memory");
-    p->buf = newbuf;
+    p->buf = realloc_or_die(p->buf, newsize);
     p->size = newsize;
 
     // Retry

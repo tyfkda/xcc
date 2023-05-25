@@ -23,6 +23,8 @@ int isoctal(int c);
 int xvalue(char c);
 bool starts_with(const char *str, const char *prefix);
 int most_significant_bit(size_t x);
+void *malloc_or_die(size_t size);
+void *realloc_or_die(void *ptr, size_t size);
 const Name *alloc_label(void);
 ssize_t getline_chomp(char **lineptr, size_t *n, FILE *stream);
 ssize_t getline_cont(char **lineptr, size_t *n, FILE *stream, int *plineno);

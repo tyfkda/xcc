@@ -8,15 +8,6 @@
 #include "table.h"
 #include "util.h"
 
-void *malloc_or_die(size_t size) {
-  void *p = malloc(size);
-  if (p == NULL) {
-    fprintf(stderr, "memory overflow\n");
-    exit(1);
-  }
-  return p;
-}
-
 void *read_from(FILE *fp, unsigned long offset, size_t size) {
   void *buf = malloc_or_die(size);
   if (fseek(fp, offset, SEEK_SET) != 0 ||
@@ -71,7 +62,7 @@ static bool load_symtab(ElfObj *elfobj) {
           error("malformed symtab");
 
         ElfSectionInfo *p = &elfobj->section_infos[sec];
-        p->symtab.names = malloc(sizeof(*p->symtab.names));
+        p->symtab.names = malloc_or_die(sizeof(*p->symtab.names));
         table_init(p->symtab.names);
         p->symtab.symtabs = symtabs;
       }

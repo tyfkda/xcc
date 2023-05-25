@@ -529,7 +529,7 @@ static intptr_t cond_value(bool enable, int satisfy) {
 
 static void define_file_macro(const char *filename, const Name *key_file) {
   size_t len = strlen(filename);
-  char *buf = malloc(len + 2 + 1);
+  char *buf = malloc_or_die(len + 2 + 1);
   snprintf(buf, len + 2 + 1, "\"%s\"", filename);
   macro_add(key_file, new_macro(NULL, NULL, parse_macro_body(buf, NULL)));
 }

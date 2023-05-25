@@ -210,7 +210,7 @@ static int compile_asm(const char *source_fn, enum OutType out_type, const char 
       objfn = ofn;
     } else {
       size_t len = strlen(source_fn);
-      char *p = malloc(len + 3);
+      char *p = malloc_or_die(len + 3);
       memcpy(p, source_fn, len);
       strcpy(p + len, ".o");
       objfn = p;

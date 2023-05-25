@@ -4,8 +4,10 @@
 #ifndef ELF_NOT_SUPPORTED
 
 #include <stdio.h>
-#include <stdlib.h>  // calloc
+#include <stdlib.h>  // realloc
 #include <string.h>  // memcpy
+
+#include "util.h"
 
 void strtab_init(Strtab *strtab) {
   table_init(&strtab->offsets);
@@ -25,16 +27,14 @@ size_t strtab_add(Strtab *strtab, const Name *name) {
 }
 
 void *strtab_dump(Strtab *strtab) {
-  void *buf = malloc(strtab->size);
-  if (buf != NULL) {
-    unsigned char *p = buf;
-    const Name *name;
-    void *value;
-    for (int it = 0; (it = table_iterate(&strtab->offsets, it, &name, &value)) != -1; ) {
-      uintptr_t offset = (uintptr_t)value;
-      memcpy(p + offset, name->chars, name->bytes);
-      p[offset + name->bytes] = '\0';
-    }
+  void *buf = malloc_or_die(strtab->size);
+  unsigned char *p = buf;
+  const Name *name;
+  void *value;
+  for (int it = 0; (it = table_iterate(&strtab->offsets, it, &name, &value)) != -1; ) {
+    uintptr_t offset = (uintptr_t)value;
+    memcpy(p + offset, name->chars, name->bytes);
+    p[offset + name->bytes] = '\0';
   }
   return buf;
 }
@@ -61,7 +61,7 @@ Elf64_Sym *symtab_add(Symtab *symtab, const Name *name) {
 
   int old_count = symtab->count;
   int new_count = old_count + 1;
-  symtab->buf = realloc(symtab->buf, sizeof(Elf64_Sym) * new_count);
+  symtab->buf = realloc_or_die(symtab->buf, sizeof(*symtab->buf) * new_count);;
   symtab->count = new_count;
   Elf64_Sym *sym = &symtab->buf[old_count];
   memset(sym, 0x00, sizeof(*sym));

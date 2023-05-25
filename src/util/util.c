@@ -58,6 +58,24 @@ int most_significant_bit(size_t x) {
   }
 }
 
+void *malloc_or_die(size_t size) {
+  void *p = malloc(size);
+  if (p == NULL) {
+    fprintf(stderr, "memory overflow\n");
+    exit(1);
+  }
+  return p;
+}
+
+void *realloc_or_die(void *ptr, size_t size) {
+  void *p = realloc(ptr, size);
+  if (p == NULL) {
+    fprintf(stderr, "memory overflow\n");
+    exit(1);
+  }
+  return p;
+}
+
 const Name *alloc_label(void) {
   static int label_no;
   ++label_no;
@@ -315,9 +333,11 @@ void buf_align(Buffer *buf, int align) {
 
 Vector *new_vector(void) {
   Vector *vec = malloc(sizeof(Vector));
-  vec->data = NULL;
-  vec->capacity = 0;
-  vec->len = 0;
+  if (vec != NULL) {
+    vec->data = NULL;
+    vec->capacity = 0;
+    vec->len = 0;
+  }
   return vec;
 }
 
@@ -331,7 +351,7 @@ void vec_push(Vector *vec, const void *elem) {
       vec->capacity = 16;
     else
       vec->capacity <<= 1;
-    vec->data = realloc(vec->data, sizeof(*vec->data) * vec->capacity);
+    vec->data = realloc_or_die(vec->data, sizeof(*vec->data) * vec->capacity);
   }
   vec->data[vec->len++] = (void*)elem;
 }
@@ -392,10 +412,12 @@ bool sb_empty(StringBuffer *sb) {
 
 void sb_insert(StringBuffer *sb, int pos, const char *start, const char *end) {
   StringElement *elem = malloc(sizeof(*elem));
-  elem->start = start;
-  elem->len = end != NULL ? (size_t)(end - start) : strlen(start);
-  assert(0 <= pos && pos <= sb->elems->len);
-  vec_insert(sb->elems, pos, elem);
+  if (elem != NULL) {
+    elem->start = start;
+    elem->len = end != NULL ? (size_t)(end - start) : strlen(start);
+    assert(0 <= pos && pos <= sb->elems->len);
+    vec_insert(sb->elems, pos, elem);
+  }
 }
 
 char *sb_join(StringBuffer *sb, const char *separator) {
@@ -410,17 +432,19 @@ char *sb_join(StringBuffer *sb, const char *separator) {
     total_len += sepalen * (count - 1);
 
   char *str = malloc(total_len + 1);
-  char *p = str;
-  for (int i = 0; i < count; ++i) {
-    if (i > 0 && sepalen > 0) {
-      memcpy(p, separator, sepalen);
-      p += sepalen;
+  if (str != NULL) {
+    char *p = str;
+    for (int i = 0; i < count; ++i) {
+      if (i > 0 && sepalen > 0) {
+        memcpy(p, separator, sepalen);
+        p += sepalen;
+      }
+      StringElement *elem = sb->elems->data[i];
+      memcpy(p, elem->start, elem->len);
+      p += elem->len;
     }
-    StringElement *elem = sb->elems->data[i];
-    memcpy(p, elem->start, elem->len);
-    p += elem->len;
+    *p = '\0';
   }
-  *p = '\0';
   return str;
 }
 
@@ -435,8 +459,10 @@ static const char *escape(int c) {
   default:
     if (c < 0x20 || c >= 0x7f) {
       char *s = malloc(5);
-      snprintf(s, 5, "\\x%02x", c & 0xff);
-      return s;
+      if (s != NULL) {
+        snprintf(s, 5, "\\x%02x", c & 0xff);
+        return s;
+      }
     }
     return NULL;
   }

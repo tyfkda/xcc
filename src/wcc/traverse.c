@@ -68,7 +68,7 @@ static WasmFuncType *wasm_func_type(const Type *type) {
     data_push(&d, to_wtype(type->func.ret));
   }
 
-  WasmFuncType *t = malloc(sizeof(*t) - sizeof(t->buf) + d.len);
+  WasmFuncType *t = malloc_or_die(sizeof(*t) - sizeof(t->buf) + d.len);
   t->size = d.len;
   memcpy(t->buf, d.buf, d.len);
 
@@ -977,7 +977,7 @@ static void traverse_defun(Function *func) {
   }
   if (functype->func.params == NULL) {
     // Treat old-style function as a no-parameter function.
-    Type *noparam = malloc(sizeof(*noparam));
+    Type *noparam = malloc_or_die(sizeof(*noparam));
     memcpy(noparam, functype, sizeof(*noparam));
     noparam->func.params = noparam->func.param_types = new_vector();
     VarInfo *varinfo = scope_find(global_scope, func->name, NULL);

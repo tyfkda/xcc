@@ -55,5 +55,4 @@ bool read_elf(ElfObj *elfobj, FILE *fp, const char *fn);
 void close_elf(ElfObj *elfobj);
 Elf64_Sym *elfobj_find_symbol(ElfObj *elfobj, const Name *name);
 
-void *malloc_or_die(size_t size);
 void *read_from(FILE *fp, unsigned long offset, size_t size);

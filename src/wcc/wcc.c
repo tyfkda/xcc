@@ -336,9 +336,7 @@ static void construct_data_segment(DataStorage *ds) {
     if (adr > address) {
       uint32_t sz = adr - address;
       if (sz > zerosz) {
-        zerobuf = realloc(zerobuf, sz);
-        if (zerobuf == NULL)
-          error("Out of memory");
+        zerobuf = realloc_or_die(zerobuf, sz);
         memset(zerobuf + zerosz, 0x00, sz - zerosz);
         zerosz = sz;
       }

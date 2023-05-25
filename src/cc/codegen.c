@@ -194,7 +194,7 @@ static void gen_switch_cond_table_jump(Stmt *swtch, VReg *reg, Stmt **cases, int
   Fixnum max = (cases[len - 1])->case_.value->fixnum;
   Fixnum range = max - min + 1;
 
-  BB **table = malloc(sizeof(*table) * range);
+  BB **table = malloc_or_die(sizeof(*table) * range);
   Stmt *def = swtch->switch_.default_;
   BB *skip_bb = def != NULL ? def->case_.bb : swtch->switch_.break_bb;
   for (Fixnum i = 0; i < range; ++i)
@@ -649,7 +649,7 @@ static void gen_defun(Function *func) {
     return;
 
   curfunc = func;
-  FuncBackend *fnbe = func->extra = malloc(sizeof(FuncBackend));
+  FuncBackend *fnbe = func->extra = malloc_or_die(sizeof(FuncBackend));
   fnbe->ra = NULL;
   fnbe->bbcon = NULL;
   fnbe->ret_bb = NULL;

@@ -3,7 +3,7 @@
 
 #include <assert.h>
 #include <stdint.h>
-#include <stdlib.h>  // malloc
+#include <stdlib.h>  // exit
 
 #include "gen_section.h"
 #include "inst.h"
@@ -16,7 +16,7 @@
 #define QUAD_SIZE  (8)
 
 static LabelInfo *new_label(int section, uintptr_t address) {
-  LabelInfo *info = malloc(sizeof(*info));
+  LabelInfo *info = malloc_or_die(sizeof(*info));
   info->section = section;
   info->flag = 0;
   info->address = address;
@@ -46,21 +46,21 @@ bool add_label_table(Table *label_table, const Name *label, int section, bool de
 }
 
 IR *new_ir_label(const Name *label) {
-  IR *ir = malloc(sizeof(*ir));
+  IR *ir = malloc_or_die(sizeof(*ir));
   ir->kind = IR_LABEL;
   ir->label = label;
   return ir;
 }
 
 IR *new_ir_code(const Code *code) {
-  IR *ir = malloc(sizeof(*ir));
+  IR *ir = malloc_or_die(sizeof(*ir));
   ir->kind = IR_CODE;
   ir->code = *code;
   return ir;
 }
 
 IR *new_ir_data(const void *data, size_t size) {
-  IR *ir = malloc(sizeof(*ir));
+  IR *ir = malloc_or_die(sizeof(*ir));
   ir->kind = IR_DATA;
   ir->data.len = size;
   ir->data.buf = (unsigned char*)data;
@@ -68,21 +68,21 @@ IR *new_ir_data(const void *data, size_t size) {
 }
 
 IR *new_ir_bss(size_t size) {
-  IR *ir = malloc(sizeof(*ir));
+  IR *ir = malloc_or_die(sizeof(*ir));
   ir->kind = IR_BSS;
   ir->bss = size;
   return ir;
 }
 
 IR *new_ir_align(int align) {
-  IR *ir = malloc(sizeof(*ir));
+  IR *ir = malloc_or_die(sizeof(*ir));
   ir->kind = IR_ALIGN;
   ir->align = align;
   return ir;
 }
 
 IR *new_ir_expr(enum IrKind kind, const Expr *expr) {
-  IR *ir = malloc(sizeof(*ir));
+  IR *ir = malloc_or_die(sizeof(*ir));
   ir->kind = kind;
   ir->expr = expr;
   return ir;
@@ -272,7 +272,7 @@ bool resolve_relative_address(Vector **section_irs, Table *label_table, Vector *
               if (value.label != NULL) {
                 LabelInfo *label_info = table_get(label_table, value.label);
                 if (label_info == NULL) {
-                  UnresolvedInfo *info = malloc(sizeof(*info));
+                  UnresolvedInfo *info = malloc_or_die(sizeof(*info));
                   info->kind = UNRES_EXTERN_PC32;
                   info->label = value.label;
                   info->src_section = sec;
@@ -285,7 +285,7 @@ bool resolve_relative_address(Vector **section_irs, Table *label_table, Vector *
                   Vector *irs2 = section_irs[label_info->section];
                   uintptr_t dst_start_address = irs2->len > 0 ? ((IR *)irs2->data[0])->address : 0;
 
-                  UnresolvedInfo *info = malloc(sizeof(*info));
+                  UnresolvedInfo *info = malloc_or_die(sizeof(*info));
                   info->kind = UNRES_OTHER_SECTION;
                   info->label = value.label;
                   info->src_section = sec;
@@ -313,7 +313,7 @@ bool resolve_relative_address(Vector **section_irs, Table *label_table, Vector *
                   // Make unresolved label jmp to long.
                   size_upgraded |= make_jmp_long(ir);
 
-                  UnresolvedInfo *info = malloc(sizeof(*info));
+                  UnresolvedInfo *info = malloc_or_die(sizeof(*info));
                   info->kind = UNRES_EXTERN;
                   info->label = value.label;
                   info->src_section = sec;
@@ -349,7 +349,7 @@ bool resolve_relative_address(Vector **section_irs, Table *label_table, Vector *
               if (value.label != NULL) {
                 LabelInfo *label_info = table_get(label_table, value.label);
                 if (label_info == NULL) {
-                  UnresolvedInfo *info = malloc(sizeof(*info));
+                  UnresolvedInfo *info = malloc_or_die(sizeof(*info));
                   info->kind = UNRES_EXTERN;
                   info->label = value.label;
                   info->src_section = sec;
@@ -376,7 +376,7 @@ bool resolve_relative_address(Vector **section_irs, Table *label_table, Vector *
         {
           Value value = calc_expr(label_table, ir->expr);
           assert(value.label != NULL);
-          UnresolvedInfo *info = malloc(sizeof(*info));
+          UnresolvedInfo *info = malloc_or_die(sizeof(*info));
           info->kind = UNRES_ABS64;  // TODO:
           info->label = value.label;
           info->src_section = sec;

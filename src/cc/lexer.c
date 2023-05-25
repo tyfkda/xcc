@@ -16,7 +16,7 @@ Token *alloc_token(enum TokenKind kind, Line *line, const char *begin, const cha
     assert(begin != NULL);
     end = begin + strlen(begin);
   }
-  Token *token = malloc(sizeof(*token));
+  Token *token = malloc_or_die(sizeof(*token));
   token->kind = kind;
   token->line = line;
   token->begin = begin;
@@ -253,7 +253,7 @@ void set_source_file(FILE *fp, const char *filename) {
 }
 
 void set_source_string(const char *line, const char *filename, int lineno) {
-  Line *p = malloc(sizeof(*p));
+  Line *p = malloc_or_die(sizeof(*p));
   p->filename = lexer.filename;
   p->buf = line;
   p->lineno = lineno;
@@ -344,7 +344,7 @@ static void read_next_line(void) {
     }
   }
 
-  Line *p = malloc(sizeof(*p));
+  Line *p = malloc_or_die(sizeof(*p));
   p->filename = lexer.filename;
   p->buf = line;
   p->lineno = lexer.lineno;
@@ -548,7 +548,7 @@ static Token *read_string(const char **pp) {
   const char *p = *pp;
   const char *begin, *end;
   size_t capa = 16, size = 0;
-  char *str = malloc(capa);
+  char *str = malloc_or_die(capa);
   for (;;) {
     begin = p++;  // Skip first '"'
     for (int c; (c = *(unsigned char*)p++) != '"'; ) {
@@ -556,9 +556,7 @@ static Token *read_string(const char **pp) {
         lex_error(p - 1, "String not closed");
       if (size + 1 >= capa) {
         capa += ADD;
-        str = realloc(str, capa);
-        if (str == NULL)
-          lex_error(p, "Out of memory");
+        str = realloc_or_die(str, capa);
       }
 
       if (c == '\\') {

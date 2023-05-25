@@ -16,7 +16,7 @@
 // Register allocator
 
 RegAlloc *new_reg_alloc(int phys_max) {
-  RegAlloc *ra = malloc(sizeof(*ra));
+  RegAlloc *ra = malloc_or_die(sizeof(*ra));
   assert(phys_max < (int)(sizeof(ra->used_reg_bits) * CHAR_BIT));
   ra->vregs = new_vector();
   ra->intervals = NULL;
@@ -315,7 +315,7 @@ void alloc_physical_registers(RegAlloc *ra, BBContainer *bbcon) {
 
   for (;;) {
     int vreg_count = ra->vregs->len;
-    intervals = realloc(intervals, sizeof(LiveInterval) * vreg_count);
+    intervals = realloc_or_die(intervals, sizeof(LiveInterval) * vreg_count);
     check_live_interval(bbcon, vreg_count, intervals);
 
     for (int i = 0; i < vreg_count; ++i) {
@@ -340,7 +340,7 @@ void alloc_physical_registers(RegAlloc *ra, BBContainer *bbcon) {
     }
 
     // Sort by start, end
-    sorted_intervals = realloc(sorted_intervals, sizeof(LiveInterval*) * vreg_count);
+    sorted_intervals = realloc_or_die(sorted_intervals, sizeof(LiveInterval*) * vreg_count);
     for (int i = 0; i < vreg_count; ++i)
       sorted_intervals[i] = &intervals[i];
     qsort(sorted_intervals, vreg_count, sizeof(LiveInterval*), sort_live_interval);

@@ -1062,7 +1062,7 @@ static void gen_switch_table_jump(Stmt *stmt, Expr *value, Fixnum min, Fixnum ma
 
   unsigned int vrange = max - min + 1;
   bool use_alloca = vrange <= 64;
-  int *table = use_alloca ? alloca(sizeof(*table) * vrange) : malloc(sizeof(*table) * vrange);
+  int *table = use_alloca ? alloca(sizeof(*table) * vrange) : malloc_or_die(sizeof(*table) * vrange);
   for (unsigned int i = 0; i < vrange; ++i)
     table[i] = default_index;
   for (int i = 0; i < case_count; ++i) {
@@ -1552,7 +1552,7 @@ static void gen_defun(Function *func) {
 
   curfunc = func;
 
-  DataStorage *code = malloc(sizeof(*code));
+  DataStorage *code = malloc_or_die(sizeof(*code));
   data_init(code);
   FuncExtra *extra = func->extra;
   assert(extra != NULL);

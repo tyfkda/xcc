@@ -14,7 +14,7 @@ static VRegType vtBool    = {.size = 4, .align = 4, .flag = 0};
 // Virtual register
 
 VReg *new_vreg(int vreg_no, const VRegType *vtype, int flag) {
-  VReg *vreg = malloc(sizeof(*vreg));
+  VReg *vreg = malloc_or_die(sizeof(*vreg));
   vreg->virt = vreg_no;
   vreg->phys = -1;
   vreg->fixnum = 0;
@@ -37,7 +37,7 @@ RegAlloc *curra;
 // Intermediate Representation
 
 static IR *new_ir(enum IrKind kind) {
-  IR *ir = malloc(sizeof(*ir));
+  IR *ir = malloc_or_die(sizeof(*ir));
   ir->kind = kind;
   ir->dst = ir->opr1 = ir->opr2 = NULL;
   ir->value = 0;
@@ -336,7 +336,7 @@ IR *new_ir_store_spilled(VReg *dst, VReg *reg) {
 BB *curbb;
 
 BB *new_bb(void) {
-  BB *bb = malloc(sizeof(*bb));
+  BB *bb = malloc_or_die(sizeof(*bb));
   bb->next = NULL;
   bb->from_bbs = new_vector();
   bb->label = alloc_label();
@@ -348,7 +348,7 @@ BB *new_bb(void) {
 }
 
 BBContainer *new_func_blocks(void) {
-  BBContainer *bbcon = malloc(sizeof(*bbcon));
+  BBContainer *bbcon = malloc_or_die(sizeof(*bbcon));
   bbcon->bbs = new_vector();
   return bbcon;
 }

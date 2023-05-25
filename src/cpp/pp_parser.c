@@ -89,10 +89,7 @@ static bool on_process_line_eof(void) {
 void push_lex(const Name *ident, void (*callback)(void)) {
   if (lex_stack.sp >= lex_stack.capacity) {
     lex_stack.capacity += 1;
-    LexStackElem *new_stack = realloc(lex_stack.buf, sizeof(*new_stack) * lex_stack.capacity);
-    if (new_stack == NULL)
-      error("out of memory");
-    lex_stack.buf = new_stack;
+    lex_stack.buf = realloc_or_die(lex_stack.buf, sizeof(*lex_stack.buf) * lex_stack.capacity);
   }
 
   LexStackElem *p = &lex_stack.buf[lex_stack.sp++];

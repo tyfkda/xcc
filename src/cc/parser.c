@@ -245,7 +245,7 @@ static Initializer *flatten_array_initializer(Initializer *init) {
     Initializer *init_elem = NULL;
     if (i >= len || (init_elem = init->multi->data[i])->kind == IK_ARR) {
       if ((size_t)i > lastStartIndex) {
-        size_t *range = malloc(sizeof(size_t) * 3);
+        size_t *range = malloc_or_die(sizeof(size_t) * 3);
         range[0] = lastStart;
         range[1] = lastStartIndex;
         range[2] = index - lastStart;
@@ -345,7 +345,7 @@ static Initializer *flatten_initializer_multi(Type *type, Initializer *init, int
         }
       }
 
-      Initializer **values = malloc(sizeof(Initializer*) * n);
+      Initializer **values = malloc_or_die(sizeof(Initializer*) * n);
       for (int i = 0; i < n; ++i)
         values[i] = NULL;
 

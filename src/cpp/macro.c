@@ -11,7 +11,7 @@
 #include "util.h"
 
 Macro *new_macro(Vector *params, const Name *vaargs_ident, Vector *body) {
-  Macro *macro = malloc(sizeof(*macro));
+  Macro *macro = malloc_or_die(sizeof(*macro));
   int len = params != NULL ? params->len : -1;
   macro->params_len = len;
   macro->vaargs_ident = vaargs_ident;
@@ -124,8 +124,7 @@ static void glue1(Vector *ls, const Token *tok2) {
     // TODO: Check whether the concatenated is ident.
     size_t len1 = tok1->end - tok1->begin;
     size_t len2 = tok2->end - tok2->begin;
-    char *str = malloc(len1 + len2 + 1);
-    assert(str != NULL);
+    char *str = malloc_or_die(len1 + len2 + 1);
     memcpy(str, tok1->begin, len1);
     memcpy(str + len1, tok2->begin, len2);
     str[len1 + len2] = '\0';

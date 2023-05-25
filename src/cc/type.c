@@ -270,7 +270,7 @@ Type *get_fixnum_type(enum FixnumKind kind, bool is_unsigned, int qualifier) {
 }
 
 Type *ptrof(Type *type) {
-  Type *ptr = malloc(sizeof(*ptr));
+  Type *ptr = malloc_or_die(sizeof(*ptr));
   ptr->kind = TY_PTR;
   ptr->qualifier = 0;
   ptr->pa.ptrof = type;
@@ -283,7 +283,7 @@ Type *array_to_ptr(Type *type) {
 }
 
 Type *arrayof(Type *type, ssize_t length) {
-  Type *arr = malloc(sizeof(*arr));
+  Type *arr = malloc_or_die(sizeof(*arr));
   arr->kind = TY_ARRAY;
   arr->qualifier = 0;
   arr->pa.ptrof = type;
@@ -292,7 +292,7 @@ Type *arrayof(Type *type, ssize_t length) {
 }
 
 Type *new_func_type(Type *ret, const Vector *params, const Vector *param_types, bool vaargs) {
-  Type *f = malloc(sizeof(*f));
+  Type *f = malloc_or_die(sizeof(*f));
   f->kind = TY_FUNC;
   f->qualifier = 0;
   f->func.ret = ret;
@@ -312,7 +312,7 @@ Type *qualified_type(Type *type, int additional) {
 }
 
 Type *clone_type(const Type *type) {
-  Type *cloned = malloc(sizeof(*cloned));
+  Type *cloned = malloc_or_die(sizeof(*cloned));
   *cloned = *type;
   return cloned;
 }
@@ -325,7 +325,7 @@ Type *get_callee_type(Type *type) {
 
 // Struct
 StructInfo *create_struct_info(MemberInfo *members, int count, bool is_union) {
-  StructInfo *sinfo = malloc(sizeof(*sinfo));
+  StructInfo *sinfo = malloc_or_die(sizeof(*sinfo));
   sinfo->members = members;
   sinfo->member_count = count;
   sinfo->is_union = is_union;
@@ -336,7 +336,7 @@ StructInfo *create_struct_info(MemberInfo *members, int count, bool is_union) {
 }
 
 Type *create_struct_type(StructInfo *sinfo, const Name *name, int qualifier) {
-  Type *type = malloc(sizeof(*type));
+  Type *type = malloc_or_die(sizeof(*type));
   type->kind = TY_STRUCT;
   type->qualifier = qualifier;
   type->struct_.name = name;
@@ -357,7 +357,7 @@ int find_struct_member(const StructInfo *sinfo, const Name *name) {
 // Enum
 
 Type *create_enum_type(const Name *name) {
-  Type *type = malloc(sizeof(*type));
+  Type *type = malloc_or_die(sizeof(*type));
   type->kind = TY_FIXNUM;
   type->qualifier = 0;
   type->fixnum.kind = FX_ENUM;

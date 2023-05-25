@@ -72,7 +72,7 @@ const MemberInfo *member_info(Expr *expr) {
 }
 
 static Expr *new_expr(enum ExprKind kind, Type *type, const Token *token) {
-  Expr *expr = malloc(sizeof(*expr));
+  Expr *expr = malloc_or_die(sizeof(*expr));
   expr->kind = kind;
   expr->type = type;
   expr->token = token;
@@ -96,7 +96,7 @@ Expr *new_expr_flolit(Type *type, const Token *token, double flonum) {
 #endif
 
 Expr *new_expr_str(const Token *token, const char *str, ssize_t size) {
-  Type *type = malloc(sizeof(*type));
+  Type *type = malloc_or_die(sizeof(*type));
   type->kind = TY_ARRAY;
   type->qualifier = TQ_CONST;
   type->pa.ptrof = get_fixnum_type(FX_CHAR, false, TQ_CONST);
@@ -197,7 +197,7 @@ Initializer *new_initializer(enum InitializerKind kind, const Token *token) {
 }
 
 VarDecl *new_vardecl(Type *type, const Name *ident, Initializer *init, int storage) {
-  VarDecl *decl = malloc(sizeof(*decl));
+  VarDecl *decl = malloc_or_die(sizeof(*decl));
   decl->type = type;
   decl->ident = ident;
   decl->init = init;
@@ -207,7 +207,7 @@ VarDecl *new_vardecl(Type *type, const Name *ident, Initializer *init, int stora
 }
 
 Stmt *new_stmt(enum StmtKind kind, const Token *token) {
-  Stmt *stmt = malloc(sizeof(Stmt));
+  Stmt *stmt = malloc_or_die(sizeof(Stmt));
   stmt->kind = kind;
   stmt->token = token;
   stmt->reach = 0;
@@ -307,7 +307,7 @@ Stmt *new_stmt_asm(const Token *token, Expr *str, Expr *arg) {
 //
 
 static Declaration *new_decl(enum DeclKind kind) {
-  Declaration *decl = malloc(sizeof(*decl));
+  Declaration *decl = malloc_or_die(sizeof(*decl));
   decl->kind = kind;
   return decl;
 }
@@ -330,7 +330,7 @@ Declaration *new_decl_vardecl(Vector *decls) {
 
 Function *new_func(Type *type, const Name *name) {
   assert(type->kind == TY_FUNC);
-  Function *func = malloc(sizeof(*func));
+  Function *func = malloc_or_die(sizeof(*func));
   func->type = type;
   func->name = name;
 

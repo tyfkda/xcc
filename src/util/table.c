@@ -44,15 +44,22 @@ const Name *alloc_name(const char *begin, const char *end, bool make_copy) {
   if (name == NULL) {
     if (make_copy) {
       char *new_str = malloc(bytes);
+      if (new_str == NULL)
+        return NULL;
       memcpy(new_str, begin, bytes);
       begin = new_str;
     }
     Name *new_name = malloc(sizeof(*new_name));
-    new_name->chars = begin;
-    new_name->bytes = bytes;
-    new_name->hash = hash;
-    table_put(&name_table, new_name, new_name);
-    name = new_name;
+    if (new_name == NULL) {
+      if (make_copy)
+        free((void*)begin);
+    } else {
+      new_name->chars = begin;
+      new_name->bytes = bytes;
+      new_name->hash = hash;
+      table_put(&name_table, new_name, new_name);
+      name = new_name;
+    }
   }
   return name;
 }
@@ -82,6 +89,8 @@ static TableEntry *find_entry(TableEntry *entries, int capacity, const Name *key
 
 static void adjust_capacity(Table *table, int new_capacity) {
   TableEntry *new_entries = malloc(sizeof(TableEntry) * new_capacity);
+  if (new_entries == NULL)
+    return;
   for (int i = 0; i < new_capacity; ++i) {
     TableEntry *entry = &new_entries[i];
     entry->key = NULL;

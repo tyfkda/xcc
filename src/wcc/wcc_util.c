@@ -4,6 +4,8 @@
 #include <stdlib.h>  // realloc, free
 #include <string.h>
 
+#include "util.h"
+
 void data_release(DataStorage *data) {
   if (data->buf != NULL) {
     free(data->buf);
@@ -25,7 +27,7 @@ void data_reserve(DataStorage *data, size_t capacity) {
       capacity = c;
     if (MIN > capacity)
       capacity = MIN;
-    data->buf = realloc(data->buf, sizeof(*data->buf) * capacity);
+    data->buf = realloc_or_die(data->buf, sizeof(*data->buf) * capacity);
     data->capacity = capacity;
   }
 }

@@ -1003,7 +1003,7 @@ static StructInfo *parse_struct(bool is_union) {
         }
       }
 
-      members = realloc(members, sizeof(*members) * (count + 1));
+      members = realloc_or_die(members, sizeof(*members) * (count + 1));
       MemberInfo *p = &members[count++];
       p->name = name;
       p->type = type;
