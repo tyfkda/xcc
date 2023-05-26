@@ -298,11 +298,7 @@ static void add_elfobj_sections(ElfObj *elfobj) {
   }
 }
 
-static bool link_files(File *files, int nfiles, const Name *entry, uintptr_t start_address) {
-  Table unresolved;
-  table_init(&unresolved);
-  table_put(&unresolved, entry, (void*)entry);
-
+static bool link_files(File *files, int nfiles, Table *unresolved, uintptr_t start_address) {
   uintptr_t offsets[SEC_BSS + 1];
   Vector *progbit_sections[SEC_BSS + 1];
   for (int secno = 0; secno < SEC_BSS + 1; ++secno) {
@@ -314,19 +310,19 @@ static bool link_files(File *files, int nfiles, const Name *entry, uintptr_t sta
     File *file = &files[i];
     switch (file->kind) {
     case FK_ELFOBJ:
-      link_elfobj(file->elfobj, files, nfiles, offsets, progbit_sections, &unresolved);
+      link_elfobj(file->elfobj, files, nfiles, offsets, progbit_sections, unresolved);
       break;
     case FK_ARCHIVE:
-      link_archive(file->archive, files, nfiles, offsets, progbit_sections, &unresolved);
+      link_archive(file->archive, files, nfiles, offsets, progbit_sections, unresolved);
       break;
     }
   }
 
-  if (unresolved.count > 0) {
-    fprintf(stderr, "Unresolved: #%d\n", unresolved.count);
+  if (unresolved->count > 0) {
+    fprintf(stderr, "Unresolved: #%d\n", unresolved->count);
     const Name *name;
     void *dummy;
-    for (int it = 0; (it = table_iterate(&unresolved, it, &name, &dummy)) != -1;) {
+    for (int it = 0; (it = table_iterate(unresolved, it, &name, &dummy)) != -1;) {
       fprintf(stderr, "  %.*s\n", NAMES(name));
     }
     return false;
@@ -502,7 +498,11 @@ int main(int argc, char *argv[]) {
   }
 
   const Name *entry_name = alloc_name(entry, NULL, false);
-  bool result = link_files(files, nfiles, entry_name, LOAD_ADDRESS);
+  Table unresolved;
+  table_init(&unresolved);
+  table_put(&unresolved, entry_name, (void*)entry_name);
+
+  bool result = link_files(files, nfiles, &unresolved, LOAD_ADDRESS);
   if (result) {
     fix_section_size(LOAD_ADDRESS);
     result = output_exe(ofn, files, nfiles, entry_name);
