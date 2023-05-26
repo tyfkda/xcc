@@ -484,8 +484,6 @@ int main(int argc, char *argv[]) {
       ElfObj *elfobj = malloc_or_die(sizeof(*elfobj));
       elfobj_init(elfobj);
       if (!open_elf(src, elfobj)) {
-        close_elf(file->elfobj);
-        free(elfobj);
         exit(1);
       }
       file->kind = FK_ELFOBJ;
@@ -493,8 +491,7 @@ int main(int argc, char *argv[]) {
     } else if (strcasecmp(ext, "a") == 0) {
       Archive *archive = load_archive(src);
       if (archive == NULL) {
-        fprintf(stderr, "load failed: %s\n", src);
-        exit(1);
+        error("load failed: %s\n", src);
       }
       file->kind = FK_ARCHIVE;
       file->archive = archive;
@@ -509,17 +506,6 @@ int main(int argc, char *argv[]) {
   if (result) {
     fix_section_size(LOAD_ADDRESS);
     result = output_exe(ofn, files, nfiles, entry_name);
-  }
-
-  for (int i = 0; i < nfiles; ++i) {
-    File *file = &files[i];
-    switch (file->kind) {
-    case FK_ELFOBJ:
-      close_elf(file->elfobj);
-      break;
-    case FK_ARCHIVE:
-      break;
-    }
   }
   return result ? 0 : 1;
 }
