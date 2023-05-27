@@ -232,6 +232,15 @@ char *change_ext(const char *path, const char *ext) {
   return s;
 }
 
+void put_padding(FILE *fp, uintptr_t start) {
+  long cur = ftell(fp);
+  if (start > (size_t)cur) {
+    size_t size = start - (uintptr_t)cur;
+    for (size_t i = 0; i < size; ++i)
+      fputc(0x00, fp);
+  }
+}
+
 void show_version(const char *exe) {
   printf("%s %s\n", exe, VERSION);
 }

@@ -33,6 +33,7 @@ char *join_paths(const char *paths[]);
 #define JOIN_PATHS(...)  join_paths((const char*[]){__VA_ARGS__, NULL})
 char *get_ext(const char *filename);
 char *change_ext(const char *path, const char *ext);
+void put_padding(FILE *fp, uintptr_t start);
 
 void show_version(const char *exe);
 

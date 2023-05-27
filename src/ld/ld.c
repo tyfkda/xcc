@@ -35,16 +35,6 @@ static const char kDefaultEntryName[] = "_start";
 #define LOAD_ADDRESS    START_ADDRESS
 #define DATA_ALIGN      (0x1000)
 
-static void put_padding(FILE *fp, uintptr_t start) {
-  long cur = ftell(fp);
-  if (start > (size_t)cur) {
-    size_t size = start - (uintptr_t)cur;
-    char *buf = calloc(1, size);
-    fwrite(buf, size, 1, fp);
-    free(buf);
-  }
-}
-
 //
 
 typedef struct {
