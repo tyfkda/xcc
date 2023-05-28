@@ -27,6 +27,16 @@ static const char kDefaultEntryName[] = "_start";
 //
 
 typedef struct {
+  size_t offset;
+} MockEntry;
+
+typedef struct {
+  Table label_table;  // <index>
+  MockEntry *entries;
+  size_t entry_count;
+} Mocked;
+
+typedef struct {
   ElfObj *elfobj;
   size_t size;
   char name[1];  // [sizeof(((struct ar_hdr*)0)->ar_name) + 1]
@@ -93,6 +103,7 @@ typedef struct {
   int nfiles;
   uintptr_t offsets[SEC_BSS + 1];
   Vector *progbit_sections[SEC_BSS + 1];
+  Mocked mocked;
 } LinkEditor;
 
 void ld_init(LinkEditor *ld, int nfiles) {
@@ -103,6 +114,10 @@ void ld_init(LinkEditor *ld, int nfiles) {
     ld->offsets[secno] = 0;
     ld->progbit_sections[secno] = new_vector();
   }
+
+  table_init(&ld->mocked.label_table);
+  ld->mocked.entries = NULL;
+  ld->mocked.entry_count = 0;
 }
 
 void ld_load(LinkEditor *ld, int i, const char *filename) {
@@ -133,7 +148,6 @@ static uintptr_t ld_symbol_address(LinkEditor *ld, const Name *name) {
   ElfObj *elfobj = NULL;
   Elf64_Sym *sym = NULL;
   Elf64_Sym *common_sym = NULL;
-  ElfObj *common_elfobj = NULL;
 
   for (int i = 0; i < ld->nfiles; ++i) {
     File *file = &ld->files[i];
@@ -146,8 +160,8 @@ static uintptr_t ld_symbol_address(LinkEditor *ld, const Name *name) {
           if (sym->st_shndx == SHN_COMMON) {
             if (common_sym == NULL) {
               common_sym = sym;
-              common_elfobj = elfobj;
             }
+            sym = NULL;
             continue;
           }
           i = ld->nfiles;  // Quit.
@@ -165,8 +179,8 @@ static uintptr_t ld_symbol_address(LinkEditor *ld, const Name *name) {
             if (sym->st_shndx == SHN_COMMON) {
               if (common_sym == NULL) {
                 common_sym = sym;
-                common_elfobj = elfobj;
               }
+              sym = NULL;
               continue;
             }
             i = ld->nfiles;  // Quit.
@@ -178,18 +192,7 @@ static uintptr_t ld_symbol_address(LinkEditor *ld, const Name *name) {
     }
   }
 
-  if (sym == NULL) {
-    if (common_sym != NULL) {
-fprintf(stderr, "%.*s: SHN_COMMON\n", NAMES(name));
-      // TODO: 追加かなんか
-      // if (paddress != NULL)
-      //   *paddress = common_elfobj;
-      // return common_sym;
-      elfobj = common_elfobj;
-    }
-  }
-
-  uintptr_t address = 0;
+  uintptr_t address = (uintptr_t)-1;
   if (sym != NULL) {
     assert(sym != NULL && sym->st_shndx != SHN_UNDEF);
     if (sym->st_shndx < SHN_LORESERVE) {
@@ -208,6 +211,24 @@ fprintf(stderr, "%.*s: shndx=%04x\n", NAMES(name), sym->st_shndx);
         assert(!"Unhandled shndx");
         break;
       }
+    }
+  } else if (common_sym != NULL) {
+    void *poffset;
+    if (table_try_get(&ld->mocked.label_table, name, &poffset)) {
+      address = (uintptr_t)poffset;
+    } else {
+      address = ld->offsets[SEC_BSS];  // TODO: alingment
+      ld->offsets[SEC_BSS] += common_sym->st_size;
+      add_bss(common_sym->st_size);
+
+      size_t index = ld->mocked.entry_count;
+      size_t count = index + 1;
+      ld->mocked.entries = realloc_or_die(ld->mocked.entries, sizeof(*ld->mocked.entries) * count);
+      ld->mocked.entry_count = count;
+      MockEntry *e = &ld->mocked.entries[index];
+      e->offset = address;
+fprintf(stderr, "common_sym: offset=%" PRIdPTR "\n", address);
+      table_put(&ld->mocked.label_table, name, (void*)(uintptr_t)index);
     }
   }
   return address;
@@ -315,6 +336,7 @@ static void link_elfobj(LinkEditor *ld, ElfObj *elfobj, Table *unresolved) {
 
         uintptr_t address = ALIGN(ld->offsets[secno], align);
         ElfSectionInfo *p = &elfobj->section_infos[sec];
+fprintf(stderr, "\nSEC=%d, ADDRESS=%lx, size=%" PRIx64 "\n\n", secno, address, size);
         p->progbits.address = address;
         p->progbits.content = buf;
         vec_push(ld->progbit_sections[secno], p);
@@ -332,6 +354,7 @@ static void link_elfobj(LinkEditor *ld, ElfObj *elfobj, Table *unresolved) {
 
         uintptr_t address = ALIGN(ld->offsets[SEC_BSS], align);
         ElfSectionInfo *p = &elfobj->section_infos[sec];
+fprintf(stderr, "\nSEC=BSS, ADDRESS=%lx\n\n", address);
         p->progbits.address = address;
         p->progbits.content = NULL;
         vec_push(ld->progbit_sections[SEC_BSS], p);
@@ -352,7 +375,7 @@ static void link_elfobj(LinkEditor *ld, ElfObj *elfobj, Table *unresolved) {
           const Name *name = alloc_name(&str[sym->st_name], NULL, false);
           if (sym->st_shndx == SHN_UNDEF) {
             uintptr_t address = ld_symbol_address(ld, name);
-            if (address == 0) {
+            if (address == (uintptr_t)-1) {
               table_put(unresolved, name, (void*)name);
             }
           } else {
@@ -483,8 +506,8 @@ fprintf(stderr, "SECTION %d: address=%08lx, len=%x\n", secno, address, v->len);
           p->progbits.address += address;
         }
         ElfSectionInfo *last = v->data[v->len - 1];
-fprintf(stderr, "  size=%" PRIx64 "\n", last->shdr->sh_size);
         address = last->progbits.address + last->shdr->sh_size;
+fprintf(stderr, "  size=%" PRIx64 ", address=%" PRIxPTR "\n", last->shdr->sh_size, address);
       }
     }
   }
@@ -519,6 +542,7 @@ static bool output_exe(const char *ofn, uintptr_t entry_address) {
   get_section_size(SEC_RODATA, &rodatasz, NULL);
   get_section_size(SEC_DATA, &datasz, &dataloadadr);
   get_section_size(SEC_BSS, &bsssz, NULL);
+fprintf(stderr, "bsssz: %zu\n", bsssz);
 
   int phnum = datasz > 0 || bsssz > 0 ? 2 : 1;
 
