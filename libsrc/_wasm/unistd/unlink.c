@@ -1,7 +1,8 @@
 #include "unistd.h"
 #include "errno.h"
 #include "../wasi.h"
-#include "./wasi_impl.h"
+
+extern int max_preopen_fd;
 
 int unlink(const char *fn) {
   // Search from preopens

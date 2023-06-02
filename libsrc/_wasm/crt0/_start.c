@@ -4,7 +4,6 @@
 
 #include "../../stdio/_fileman.h"
 #include "../wasi.h"
-#include "../unistd/wasi_impl.h"
 
 extern FILEMAN __fileman;
 

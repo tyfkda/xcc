@@ -2,7 +2,8 @@
 #include "fcntl.h"
 #include "string.h"
 #include "../wasi.h"
-#include "./wasi_impl.h"
+
+extern int max_preopen_fd;
 
 int open(const char *fn, int flag, ...) {
   int dirflags = LOOKUPFLAGS_SYMLINK_FOLLOW;

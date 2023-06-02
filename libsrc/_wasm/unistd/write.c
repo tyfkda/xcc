@@ -1,6 +1,5 @@
 #include "unistd.h"
 #include "../wasi.h"
-#include "./wasi_impl.h"
 
 ssize_t write(int fd, const void *str, size_t len) {
   Iov iov;
