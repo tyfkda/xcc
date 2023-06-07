@@ -116,7 +116,8 @@ bool check_cast(const Type *dst, const Type *src, bool zero, bool is_explicit, c
     fprintf(stderr, "%s(%d): ", token->line->filename, token->line->lineno);
 
     enum ParseErrorLevel level = PE_WARNING;
-    if (dst->kind == TY_ARRAY || !scalar(src->kind) || !scalar(dst->kind))
+    if (dst->kind == TY_ARRAY || !scalar(dst->kind) ||
+        !(scalar(src->kind) || (src->kind == TY_ARRAY && dst->kind == TY_PTR)))
       level = PE_NOFATAL;
     else if (!error_warning)
       fprintf(stderr, "warning: ");

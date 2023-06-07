@@ -80,6 +80,8 @@ test_basic() {
   begin_test_suite "Basic"
 
   try 'data-bss alignment' 0 'static char data = 123; static int bss; return (long)&bss & 3;'
+  try 'cast array to pointer' 44 'int a[3][2] = {11,22,33,44,55,66}; int *p = a; return p[3]; //-WNOERR'
+  compile_error 'int main(void) {int a[3][2] = {11,22,33,44,55,66}; struct { int a[3][2]; } s; s = a; return s.a[1][1]; } //-WNOERR'
 
   end_test_suite
 }
