@@ -462,6 +462,11 @@ Expr *new_expr_addsub(enum ExprKind kind, const Token *tok, Expr *lhs, Expr *rhs
         parse_error(PE_FATAL, tok, "Different pointer diff");
       // ((size_t)lhs - (size_t)rhs) / sizeof(*lhs)
       ensure_struct(ltype->pa.ptrof, tok, curscope);
+      if (is_const(lhs) && is_const(rhs)) {
+        assert(lhs->kind == EX_FIXNUM);
+        assert(rhs->kind == EX_FIXNUM);
+        return new_expr_fixlit(&tySize, tok, (lhs->fixnum - rhs->fixnum) / type_size(ltype->pa.ptrof));
+      }
       return new_expr_bop(EX_DIV, &tySSize, tok,
                           new_expr_bop(EX_SUB, &tySSize, tok, lhs, rhs),
                           new_expr_fixlit(&tySSize, tok, type_size(ltype->pa.ptrof)));
@@ -473,13 +478,28 @@ Expr *new_expr_addsub(enum ExprKind kind, const Token *tok, Expr *lhs, Expr *rhs
         type = array_to_ptr(type);
       // ((size_t)lhs * sizeof(*rhs)) + rhs
       ensure_struct(type->pa.ptrof, tok, curscope);
-      lhs = new_expr_num_bop(EX_MUL, lhs->token,
-                             make_cast(&tySize, lhs->token, lhs, false),
-                             new_expr_fixlit(&tySize, tok, type_size(type->pa.ptrof)));
+      Expr *tmp = new_expr_num_bop(EX_MUL, lhs->token,
+                                   make_cast(&tySize, lhs->token, lhs, false),
+                                   new_expr_fixlit(&tySize, tok, type_size(type->pa.ptrof)));
+      lhs = rhs;
+      rhs = tmp;
+      Type *t = ltype;
+      ltype = rtype;
+      rtype = t;
     }
   }
   if (type == NULL) {
-    parse_error(PE_FATAL, tok, "Cannot apply `%.*s'", (int)(tok->end - tok->begin), tok->begin);
+    parse_error(PE_NOFATAL, tok, "Cannot apply `%.*s'", (int)(tok->end - tok->begin), tok->begin);
+    type = ltype;  // Dummy
+  } else if (ptr_or_array(ltype) && is_const(lhs) && is_const(rhs)) {
+    assert(lhs->kind == EX_FIXNUM);
+    if (kind == EX_ADD) {
+      lhs->fixnum += rhs->fixnum;
+    } else {
+      assert(kind == EX_SUB);
+      lhs->fixnum -= rhs->fixnum;
+    }
+    return lhs;
   }
   return new_expr_bop(kind, type, tok, lhs, rhs);
 }
