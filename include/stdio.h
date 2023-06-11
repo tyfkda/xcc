@@ -35,6 +35,7 @@ size_t fread(void *buffer, size_t size, size_t count, FILE *fp);
 int fflush(FILE *fp);
 int fseek(FILE *fp, long offset, int origin);
 long ftell(FILE *fp);
+int feof(FILE *fp);
 int remove(const char *fn);
 
 int fgetc(FILE *fp);

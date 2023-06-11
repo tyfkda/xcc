@@ -25,10 +25,14 @@ TEST(basic_access) {
     EXPECT_EQ(datasize, fread(buf, 1, sizeof(buf), fp));
     EXPECT_EQ(0, memcmp(buf, data, datasize));
 
+    // feof
+    EXPECT_TRUE(feof(fp));
+
     // fseek: from current position.
     EXPECT_EQ(0, fseek(fp, -22, SEEK_CUR));
     // ftell
     EXPECT_EQ(datasize - 22, ftell(fp));
+    EXPECT_FALSE(feof(fp));
 
     // fseek: to the end.
     EXPECT_EQ(0, fseek(fp, 0, SEEK_END));

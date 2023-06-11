@@ -81,6 +81,7 @@
         "./libsrc/stdio/assert.c",
         "./libsrc/stdio/fclose.c",
         "./libsrc/stdio/fdopen.c",
+        "./libsrc/stdio/feof.c",
         "./libsrc/stdio/fflush.c",
         "./libsrc/stdio/fgetc.c",
         "./libsrc/stdio/fgets.c",

@@ -35,11 +35,19 @@ size_t fread(void *buffer, size_t size, size_t count, FILE *fp) {
       memcpy(p, fp->rbuf, n);
       p += n;
     }
+    if (len < (ssize_t)sizeof(fp->rbuf) && (ssize_t)n == len) {
+      fp->flag |= FF_EOF;
+    }
   } else {
     // Read to the given buffer directly.
     ssize_t len = read(fp->fd, p, total);
-    p += len;
-    fp->rp = fp->rs = 0;
+    if (len >= 0) {
+      p += len;
+      fp->rp = fp->rs = 0;
+      if ((size_t)len < total) {
+        fp->flag |= FF_EOF;
+      }
+    }
   }
 
   // TODO: Align by size.
