@@ -69,19 +69,20 @@ STDIO_OBJS:=$(addprefix $(LIBOBJ_DIR)/,$(notdir $(STDIO_SRCS:.c=.o)))
 printf_test:	tests/printf_test.c $(STDIO_OBJS)
 	$(CC) -o$@ $(CFLAGS) -I$(INC_DIR) -DUNIT_TEST -ffreestanding $^
 
-.PHONY: test-math
-test-math:	math_test
-	@echo '## math test'
-	@./math_test
+.PHONY: test-stdlib
+test-stdlib:	stdlib_test
+	@echo '## stdlib test'
+	@./stdlib_test
 
 STDLIB_SRCS:=$(wildcard stdlib/*.c)
 STDLIB_OBJS:=$(addprefix $(LIBOBJ_DIR)/,$(notdir $(STDLIB_SRCS:.c=.o)))
 stdlib_test:	tests/stdlib_test.c $(STDLIB_OBJS)
 	$(CC) -o$@ $(CFLAGS) -I$(INC_DIR) -DUNIT_TEST -ffreestanding $^
 
-.PHONY: echo-stdlib
-echo-stdlib:
-	@echo $(STDLIB_SRCS)
+.PHONY: test-math
+test-math:	math_test
+	@echo '## math test'
+	@./math_test
 
 MATH_SRCS:=$(wildcard math/*.c)
 MATH_OBJS:=$(addprefix $(LIBOBJ_DIR)/,$(notdir $(MATH_SRCS:.c=.o)))
@@ -97,11 +98,6 @@ LONGJMP_SRCS:=misc/setjmp.c
 LONGJMP_OBJS:=$(addprefix $(LIBOBJ_DIR)/,$(notdir $(LONGJMP_SRCS:.c=.o)))
 longjmp_test:	tests/longjmp_test.c $(LONGJMP_OBJS)
 	$(CC) -o$@ $(CFLAGS) -I$(INC_DIR) -DUNIT_TEST -ffreestanding $^
-
-.PHONY: test-stdlib
-test-stdlib:	stdlib_test
-	@echo '## stdlib test'
-	@./stdlib_test
 
 ### Wasm version
 
