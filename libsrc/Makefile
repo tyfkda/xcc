@@ -52,17 +52,20 @@ $(OBJ_DIR)/%.o: $(SRC_DIR)/**/%.c
 ### Test
 
 .PHONY:	test
-test:	test-printf test-stdlib test-math test-longjmp
+test:	test-printf test-file test-stdlib test-math test-longjmp
 
 .PHONY: clean-test
 clean-test:
-	rm -rf printf_test stdlib_test math_test longjmp_test \
-		*.wasm
+	rm -rf printf_test file_test stdlib_test math_test longjmp_test \
+		a.out *.wasm tmp*
 
-TESTS=printf stdlib math longjmp
+TESTS=printf file stdlib math longjmp
 
 printf_SRCS:=$(wildcard stdio/*.c)
 printf_OBJS:=$(addprefix $(OBJ_DIR)/,$(notdir $(printf_SRCS:.c=.o)))
+
+file_SRCS:=$(wildcard stdio/*.c)
+file_OBJS:=$(addprefix $(OBJ_DIR)/,$(notdir $(file_SRCS:.c=.o)))
 
 stdlib_SRCS:=$(wildcard stdlib/*.c)
 stdlib_OBJS:=$(addprefix $(OBJ_DIR)/,$(notdir $(stdlib_SRCS:.c=.o)))
@@ -95,7 +98,7 @@ define DEFINE_WCCTEST_TARGET
 .PHONY: test-wcc-$(1)
 test-wcc-$(1):	$(1)_test.wasm
 	@echo '## $(1) test'
-	node --experimental-wasm-eh ../tool/runwasi.js $$<
+	node --experimental-wasm-eh ../tool/runwasi.js --dir=. $$<
 
 $(1)_test.wasm:	tests/$(1)_test.c # $(WCC)
 	$(WCC) -o$$@ $$^
