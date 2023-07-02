@@ -11,7 +11,7 @@
 #define EXPECT(expected, actual)  EXPECT_DEQ(expected, actual)
 
 TEST(misc) {
-  EXPECT_NEAR(1.41421356, sqrt(2.0));
+  EXPECT_NEAR(M_SQRT2, sqrt(2.0));
   EXPECT_NEAR(0.0, sqrt(0.0));
   EXPECT_NAN(sqrt(-1.0));
   EXPECT_NEAR(HUGE_VAL, sqrt(HUGE_VAL));
@@ -20,6 +20,8 @@ TEST(misc) {
   EXPECT_NEAR(-0.8660254, sin(-M_PI / 3));
   EXPECT_NEAR(-0.267949, tan(2 * 11 * M_PI / 24));
   EXPECT_NEAR(1.107148, atan(2));
+  EXPECT_NEAR(2.034443, atan2(2, -1));
+  EXPECT_NEAR(0.0, atan2(0, 0));
   EXPECT_NEAR(1.0, log(M_E));
   EXPECT_NEAR(M_E, exp(1.0));
   EXPECT_NEAR(1.858729, pow(1.2, 3.4));
