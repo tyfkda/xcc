@@ -131,6 +131,8 @@ enum TokenKind {
   TK_DOUBLE,
   TK_DOUBLELIT,  // double literal
 
+  TK_FUNCNAME,
+
   // For preprocessor.
   PPTK_CONCAT,       // ##
   PPTK_STRINGIFY,    // #

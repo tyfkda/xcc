@@ -67,6 +67,8 @@ static const struct {
   {"float", TK_FLOAT},
   {"double", TK_DOUBLE},
 #endif
+  {"__FUNCTION__", TK_FUNCNAME},
+  {"__func__", TK_FUNCNAME},
 };
 
 static const struct {

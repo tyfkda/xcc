@@ -1683,6 +1683,9 @@ int identity(int x) { return x; }
 
 int 漢字(int χ) { return χ * χ; }
 
+const char *get_FUNCTION(void) { return __FUNCTION__; }
+const char *get_func(void) { return __func__; }
+
 TEST(function) {
   empty_function();
   EXPECT("more params", 36, more_params(1, 2, 3, 4, 5, 6, 7, 8));
@@ -1741,6 +1744,9 @@ TEST(function) {
   }
 
   EXPECT("unicode", 121, 漢字(11));
+
+  EXPECT_STREQ("__FUNCTION__", "get_FUNCTION", get_FUNCTION());
+  EXPECT_STREQ("__func__", "get_func", get_func());
 } END_TEST()
 
 long extern_in_func;
