@@ -250,6 +250,9 @@ test_error() {
   compile_error 'unreachable after do-while(1)' 'int main(int x, char *argv[]){ do {++x;} while (1); return x; }'
   try 'allow switch break after block' 21 'int x=21; switch (x) {case 1: {return -1;} break; case 2: {break;} break;} return x;'
   try 'use goto to skip first' 54 'int acc=0, i=1; goto inner; for (; i<=10;) {acc += i; inner: ++i;} return acc;  //-WCC'
+  compile_error 'after noreturn function' '#include <stdlib.h>\nint main(){ exit(0); return 1; }'
+  compile_error 'noreturn should not return' 'void sub(void) __attribute__((noreturn));\nvoid sub(void){}\nint main(){ sub(); }'
+  compile_error 'noreturn should be void' 'int sub(void) __attribute__((noreturn));\nint sub(void){}\nint main(){ sub(); }'
 
   compile_error 'enum and global' 'enum Foo { BAR }; int BAR; void main(){}'
   compile_error 'global and enum' 'int BAR; enum Foo { BAR }; void main(){}'

@@ -382,15 +382,12 @@ void emit_wasm(FILE *ofp, Vector *exports, const char *import_module_name,
       VarInfo *varinfo = scope_find(global_scope, name, NULL);
       if (varinfo == NULL) {
         error("Import: `%.*s' not found", NAMES(name));
-        continue;
       }
       if (varinfo->type->kind != TY_FUNC) {
         error("Import: `%.*s' is not function", NAMES(name));
-        continue;
       }
       if (varinfo->storage & VS_STATIC) {
         error("Import: `%.*s' is not public", NAMES(name));
-        continue;
       }
 
       FuncInfo *info = table_get(&func_info_table, name);
@@ -489,15 +486,12 @@ void emit_wasm(FILE *ofp, Vector *exports, const char *import_module_name,
     VarInfo *varinfo = scope_find(global_scope, name, NULL);
     if (varinfo == NULL) {
       error("Export: `%.*s' not found", NAMES(name));
-      continue;
     }
     if (varinfo->type->kind != TY_FUNC) {
       error("Export: `%.*s' is not function", NAMES(name));
-      continue;
     }
     if (varinfo->storage & VS_STATIC) {
       error("Export: `%.*s' is not public", NAMES(name));
-      continue;
     }
 
     FuncInfo *info = table_get(&func_info_table, name);

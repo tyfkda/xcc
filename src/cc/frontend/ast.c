@@ -321,7 +321,7 @@ Declaration *new_decl_vardecl(Vector *decls) {
 
 // Function
 
-Function *new_func(Type *type, const Name *name) {
+Function *new_func(Type *type, const Name *name, int flag) {
   assert(type->kind == TY_FUNC);
   Function *func = malloc_or_die(sizeof(*func));
   func->type = type;
@@ -332,7 +332,7 @@ Function *new_func(Type *type, const Name *name) {
   func->label_table = NULL;
   func->gotos = NULL;
   func->extra = NULL;
-  func->flag = 0;
+  func->flag = flag;
 
   return func;
 }

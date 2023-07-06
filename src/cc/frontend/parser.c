@@ -4,6 +4,7 @@
 #include <assert.h>
 #include <inttypes.h>  // PRId64
 #include <stdbool.h>
+#include <string.h>
 
 #include "ast.h"
 #include "fe_misc.h"
@@ -562,8 +563,51 @@ static Stmt *parse_stmt(void) {
   return new_stmt_expr(str_to_char_array_var(curscope, val));
 }
 
+static int parse_attribute(void) {
+  if (consume(TK_LPAR, "`(' expected") == NULL) {
+    match(TK_RPAR);
+    return 0;
+  }
+
+  int paren_count = 0;
+  int flag = 0;
+  for (bool loop = true; loop; ) {
+    Token *tok = match(-1);
+    if (tok->kind == TK_EOF) {
+      parse_error(PE_NOFATAL, tok, "`)' expected");
+      break;
+    }
+    switch (tok->kind) {
+    case TK_LPAR:
+      ++paren_count;
+      break;
+    case TK_RPAR:
+      if (paren_count <= 0) {
+        loop = false;
+        break;
+      }
+      --paren_count;
+      break;
+    case TK_IDENT:
+      {
+        static const char kNoreturn[] = "noreturn";
+        if (tok->end - tok->begin == sizeof(kNoreturn) -1 &&
+            memcmp(tok->begin, kNoreturn, sizeof(kNoreturn) - 1) == 0)
+          flag |= FUNCF_NORETURN;
+      }
+      break;
+    default: break;
+    }
+  }
+  return flag;
+}
+
 static Declaration *parse_defun(Type *functype, int storage, Token *ident) {
   assert(functype->kind == TY_FUNC);
+
+  int flag = 0;
+  if (match(TK_ATTRIBUTE))
+    flag = parse_attribute();
 
   bool prototype = match(TK_SEMICOL) != NULL;
   if (!prototype && functype->func.params == NULL) {  // Old-style
@@ -573,12 +617,22 @@ static Declaration *parse_defun(Type *functype, int storage, Token *ident) {
     functype->func.vaargs = false;
   }
 
-  Function *func = new_func(functype, ident->ident);
+  Function *func = new_func(functype, ident->ident, flag);
   VarInfo *varinfo = scope_find(global_scope, func->name, NULL);
   bool err = false;
   if (varinfo == NULL) {
     varinfo = add_var_to_scope(global_scope, ident, functype, storage);
   } else {
+    Declaration *predecl = varinfo->global.funcdecl;
+    if (predecl != NULL) {
+      assert(predecl->kind == DCL_DEFUN);
+      if (predecl->defun.func != NULL) {
+        int merge_flag = (flag | predecl->defun.func->flag) & FUNCF_NORETURN;
+        func->flag |= merge_flag;
+        predecl->defun.func->flag |= merge_flag;
+      }
+    }
+
     if (varinfo->type->kind != TY_FUNC ||
         !same_type(varinfo->type->func.ret, functype->func.ret) ||
         (varinfo->type->func.params != NULL && !same_type(varinfo->type, functype))) {
@@ -623,8 +677,19 @@ static Declaration *parse_defun(Type *functype, int storage, Token *ident) {
     check_goto_labels(func);
 
     check_reachability(func->body_block);
-    if (functype->func.ret->kind != TY_VOID &&
-        !(func->body_block->reach & REACH_STOP)) {
+    if (func->flag & FUNCF_NORETURN) {
+      if (functype->func.ret->kind != TY_VOID) {
+        parse_error(PE_WARNING, ident,
+                    "`noreturn' function should not return value");
+      } else if (!(func->body_block->reach & REACH_STOP)) {
+        Vector *stmts = func->body_block->block.stmts;
+        if (stmts->len == 0 || ((Stmt*)stmts->data[stmts->len - 1])->kind != ST_ASM) {
+          parse_error(PE_WARNING, func->body_block->block.rbrace,
+                      "`noreturn' function should not return");
+        }
+      }
+    } else if (functype->func.ret->kind != TY_VOID &&
+               !(func->body_block->reach & REACH_STOP)) {
       Vector *stmts = func->body_block->block.stmts;
       if (stmts->len == 0 || ((Stmt*)stmts->data[stmts->len - 1])->kind != ST_ASM) {
         if (equal_name(func->name, alloc_name("main", NULL, false))) {
@@ -643,7 +708,9 @@ static Declaration *parse_defun(Type *functype, int storage, Token *ident) {
 
     curfunc = NULL;
   }
-  return new_decl_defun(func);
+  Declaration *decl = new_decl_defun(func);
+  varinfo->global.funcdecl = decl;
+  return decl;
 }
 
 static Declaration *parse_global_var_decl(Type *rawtype, int storage, Type *type, Token *ident) {

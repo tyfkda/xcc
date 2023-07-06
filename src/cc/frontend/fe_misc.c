@@ -1296,7 +1296,27 @@ void check_reachability(Stmt *stmt) {
   case ST_CONTINUE:
     stmt->reach |= REACH_STOP;
     break;
-  case ST_EMPTY: case ST_EXPR: case ST_CASE: case ST_VARDECL: case ST_ASM:
+  case ST_EXPR:
+    {
+      // Lazily, check noreturn function call only top of the expression statement.
+      Expr *expr = stmt->expr;
+      if (expr->kind == EX_FUNCALL) {
+        Expr *fexpr = expr->funcall.func;
+        if (fexpr->kind == EX_VAR && is_global_scope(fexpr->var.scope)) {
+          VarInfo *varinfo = scope_find(fexpr->var.scope, fexpr->var.name, NULL);
+          assert(varinfo != NULL);
+          Declaration *decl = varinfo->global.funcdecl;
+          if (decl != NULL) {
+            assert(decl->kind == DCL_DEFUN && decl->defun.func != NULL);
+            if (decl->defun.func->flag & FUNCF_NORETURN) {
+              stmt->reach |= REACH_STOP;
+            }
+          }
+        }
+      }
+    }
+    break;
+  case ST_EMPTY: case ST_CASE: case ST_VARDECL: case ST_ASM:
     stmt->reach = 0;
     break;
   }

@@ -12,7 +12,7 @@ void free(void* ptr);
 void *realloc(void* ptr, size_t size);
 void *calloc(size_t size, size_t n);
 
-void exit(int code);
+void exit(int code) __attribute__((noreturn));
 int atexit(void (*func)(void));
 
 long strtol(const char *p, char **pp, int base);

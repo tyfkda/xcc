@@ -4,6 +4,7 @@
 
 #include <stdbool.h>
 
+typedef struct Declaration Declaration;
 typedef struct Function Function;
 typedef struct FrameInfo FrameInfo;
 typedef struct Initializer Initializer;
@@ -41,7 +42,10 @@ typedef struct VarInfo {
     } local;
     union {
       Initializer *init;
-      Function *func;
+      struct {
+        Function *func;
+        Declaration *funcdecl;
+      };
     } global;
     struct {
       struct VarInfo *gvar;  // which points to global(static) variable.

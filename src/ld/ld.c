@@ -501,7 +501,6 @@ int main(int argc, char *argv[]) {
       file->archive = archive;
     } else {
       error("Unsupported file: %s", src);
-      exit(1);
     }
     ++nfiles;
   }

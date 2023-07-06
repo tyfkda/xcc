@@ -38,11 +38,7 @@ bool is_file(const char *path);
 
 void show_version(const char *exe);
 
-#ifdef __GNUC__
 void error(const char *fmt, ...) __attribute__((noreturn));
-#else
-void error(const char *fmt, ...);
-#endif
 
 void show_error_line(const char *line, const char *p, int len);
 

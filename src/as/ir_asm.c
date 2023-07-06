@@ -190,7 +190,6 @@ static Value calc_expr(Table *label_table, const Expr *expr) {
         }
         if (expr->kind != EX_ADD || lhs.label != NULL) {
           error("Illegal expression");
-          return rhs;
         }
         // offset + label
         return (Value){.label = rhs.label, .offset = lhs.offset + rhs.offset};
@@ -198,7 +197,6 @@ static Value calc_expr(Table *label_table, const Expr *expr) {
       if (lhs.label != NULL) {
         if (expr->kind != EX_ADD) {
           error("Illegal expression");
-          return lhs;
         }
         // label + offset
         return (Value){.label = lhs.label, .offset = lhs.offset + rhs.offset};

@@ -70,6 +70,7 @@ static const struct {
 #endif
   {"__FUNCTION__", TK_FUNCNAME},
   {"__func__", TK_FUNCNAME},
+  {"__attribute__", TK_ATTRIBUTE},
 };
 
 static const struct {
@@ -505,7 +506,6 @@ const char *read_ident(const char *p_) {
     if (ucc > 0) {
       if (!isutf8follow(uc)) {
         lex_error(p_, "Illegal byte sequence");
-        break;
       }
       --ucc;
       continue;
@@ -665,7 +665,6 @@ static Token *get_token(void) {
   } else {
     if (!for_preprocess) {
       lex_error(p, "Unexpected character `%c'(%d)", *p, *p);
-      return NULL;
     }
 
     assert(*p != '\0');

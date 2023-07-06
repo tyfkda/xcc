@@ -15,18 +15,16 @@ void exit(int code) {
 #include "../unistd/_syscall.h"
 
 #if defined(__GNUC__)
-static void proc_exit(int code) __attribute((noreturn));
 #pragma GCC diagnostic ignored "-Wunused-parameter"
 #endif
+static void proc_exit(int code) __attribute__((noreturn));
 static void proc_exit(int code) {
 #ifdef __NR_exit_group
   SYSCALL(__NR_exit_group);
 #endif
   SYSCALL(__NR_exit);
-#if defined(__GNUC__)  // Avoid `noreturn` warning.
   for (;;)
     ;
-#endif
 }
 #endif
 

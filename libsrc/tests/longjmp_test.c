@@ -40,10 +40,8 @@ TEST(zero) {
   int result = setjmp(env);
   if (result == 0) {
     longjmp(env, 0);
-    fail("unreachable");
-  } else {
-    EXPECT_TRUE(result != 0);
   }
+  EXPECT_TRUE(result != 0);
 } END_TEST()
 
 TEST(multiple_times) {

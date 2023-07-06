@@ -13,7 +13,7 @@ typedef uintptr_t jmp_buf[200 / 8];  // GCC
 #endif
 
 int setjmp(jmp_buf env);
-void longjmp(jmp_buf env, int result);
+void longjmp(jmp_buf env, int result) __attribute__((noreturn));
 
 #ifdef __WASM
 #define setjmp(env)           __builtin_setjmp(env)

@@ -65,7 +65,6 @@ Archive *load_archive(const char *filename) {
       char *q = memchr(p, '\0', &strtab[strtablen] - p);
       if (q == NULL) {
         error("Illegal strtab");
-        return false;
       }
       p = q + 1;
     }
@@ -113,7 +112,6 @@ ElfObj *load_archive_elfobj(Archive *ar, uint32_t offset) {
   elfobj_init(elfobj);
   if (!read_elf(elfobj, ar->fp, content->name)) {
     error("Failed to extract .o: %s", content->name);
-    return NULL;
   }
 
   vec_push(contents, (void*)(intptr_t)offset);

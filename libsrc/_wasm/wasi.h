@@ -99,7 +99,7 @@ enum Filetype {
 
 int args_sizes_get(int *pargc, int *plen);
 int args_get(char **pargv, char *pstr);
-void proc_exit(int);
+void proc_exit(int) __attribute__((noreturn));
 
 int fd_prestat_get(int fd, Prestat *prestat);
 int fd_prestat_dir_name(int fd, char *out, size_t size);

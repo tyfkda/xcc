@@ -183,7 +183,6 @@ static void handle_include(const char *p, Stream *stream, bool is_next) {
     break;
   default:
     error("illegal include: %s", orgp);
-    return;
   }
 
   const char *q;
@@ -203,7 +202,6 @@ static void handle_include(const char *p, Stream *stream, bool is_next) {
         break;
       if (!err) {
         error("Illegal token after include: %s", tok->begin);
-        err = true;
       }
     }
   }
@@ -432,7 +430,6 @@ static const char *find_double_quote_end(const char *p) {
     switch (*p++) {
     case '\0':
       lex_error(start, "Quote not closed");
-      return p - 1;
     case '"':
       return p;
     case '\\':
@@ -456,7 +453,6 @@ static const char *find_block_comment_end(const char *comment_start, Stream *str
     ssize_t len = getline_cont(&line, &capa, stream->fp, &stream->lineno);
     if (len == -1) {
       lex_error(comment_start, "Block comment not closed");
-      return strchr(p, '\0');
     }
     p = line;
     OUTPUT_PPLINE("\n");

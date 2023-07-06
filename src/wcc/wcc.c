@@ -102,7 +102,6 @@ static void preprocess_and_compile(FILE *ppout, Vector *sources, Vector *topleve
   }
   if (fseek(ppout, pos, SEEK_SET) != 0) {
     error("fseek failed");
-    exit(1);
   }
 
   // Set lexer for compiler.

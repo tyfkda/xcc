@@ -495,7 +495,6 @@ Vector *pp_funargs(Vector *tokens, int *pindex, int vaarg) {
       Token *tok = match3(-1, tokens, pindex);
       if (tok == NULL /*|| tok->kind == TK_EOF*/) {
         pp_parse_error(NULL, "`)' expected");
-        break;
       }
 
       if (tok->kind == TK_LPAR) {
