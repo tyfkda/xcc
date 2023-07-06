@@ -2,7 +2,7 @@
 #include "parser.h"
 
 #include <assert.h>
-#include <inttypes.h>  // PRIdPTR
+#include <inttypes.h>  // PRId64
 #include <limits.h>
 #include <stdbool.h>
 #include <stdlib.h>  // malloc
@@ -1276,7 +1276,7 @@ Type *parse_type_suffix(Type *type) {
   } else {
     Expr *expr = parse_const_fixnum();
     if (expr->fixnum < 0)
-      parse_error(PE_NOFATAL, expr->token, "Array size must be greater than 0, but %" PRIdPTR, expr->fixnum);
+      parse_error(PE_NOFATAL, expr->token, "Array size must be greater than 0, but %" PRId64, expr->fixnum);
     length = expr->fixnum;
     consume(TK_RBRACKET, "`]' expected");
   }

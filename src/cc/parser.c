@@ -2,7 +2,7 @@
 #include "parser.h"
 
 #include <assert.h>
-#include <inttypes.h>  // PRIdPTR
+#include <inttypes.h>  // PRId64
 #include <stdarg.h>
 #include <stdbool.h>
 #include <stdlib.h>  // malloc
@@ -1193,7 +1193,7 @@ static Stmt *parse_case(const Token *tok) {
   if (swtch == NULL) {
     parse_error(PE_NOFATAL, tok, "`case' cannot use outside of `switch`");
   } else if (find_case(swtch, value->fixnum) >= 0) {
-    parse_error(PE_NOFATAL, tok, "Case value `%" PRIdPTR "' already defined", value->fixnum);
+    parse_error(PE_NOFATAL, tok, "Case value `%" PRId64 "' already defined", value->fixnum);
   } else {
     value = make_cast(swtch->switch_.value->type, value->token, value, false);
     stmt = new_stmt_case(tok, swtch, value);

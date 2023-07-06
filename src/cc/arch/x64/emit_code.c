@@ -219,7 +219,7 @@ static void construct_initial_value(const Type *type, const Initializer *init) {
         if (offset == 0) {
           output = label;
         } else {
-          output = fmt("%s + %" PRIdPTR, label, offset);
+          output = fmt("%s + %" PRId64, label, offset);
         }
       }
       if (type->kind == TY_PTR) {
