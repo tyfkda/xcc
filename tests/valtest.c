@@ -478,7 +478,7 @@ TEST(all) {
   EXPECT("global cleared", 0, g_zero);
   EXPECT("global initializer", 330, g_init);
   EXPECT("global struct initializer: int", 42, g_struct.x);
-  EXPECT("global struct initializer: ptr", (long)&g_zero, (long)g_struct.p);
+  EXPECT("global struct initializer: ptr", (intptr_t)&g_zero, (intptr_t)g_struct.p);
   {
     g_work = 1;
     EXPECT("global access", 11, g_work + 10);
@@ -507,7 +507,7 @@ TEST(all) {
     } a;
     a.x = 596;
     EXPECT("anonymous", 596, a.x);
-    EXPECT("anonymous adr", (long)&a, (long)&a.x);
+    EXPECT("anonymous adr", (intptr_t)&a, (intptr_t)&a.x);
   }
   EXPECT("func pointer", 9, apply(&sub, 15, 6));
   EXPECT("func pointer w/o &", 9, apply(sub, 15, 6));
