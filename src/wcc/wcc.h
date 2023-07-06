@@ -69,6 +69,8 @@ int getsert_func_type_index(const Type *type, bool reg);
 int get_func_type_index(const Type *type);
 uint32_t get_indirect_function_index(const Name *name);
 
+void modify_ast_for_setjmp(int n);
+
 // gen_wasm
 void gen(Vector *decls);
 void gen_expr(Expr *expr, bool needval);
