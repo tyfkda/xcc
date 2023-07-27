@@ -401,6 +401,7 @@ static void gen_funcall(Expr *expr) {
         assert(spvar != NULL);
         size_t size = type_size(arg->type);
         if (size > 0) {
+          sarg_offset = ALIGN(sarg_offset, align_size(arg->type));
           // _memcpy(global.sp + sarg_offset, &arg, size);
           gen_expr(new_expr_bop(EX_ADD, &tySize, NULL, spvar,
                                 new_expr_fixlit(&tySize, NULL, sarg_offset)),
@@ -411,7 +412,7 @@ static void gen_funcall(Expr *expr) {
           ADD_LEB128(size);
           ADD_CODE(OP_EXTENSION, OPEX_MEMORY_COPY, 0, 0);  // src, dst
         }
-        sarg_offset += ALIGN(size, 4);
+        sarg_offset += size;
       }
     } else {
       assert(!is_stack_param(arg->type));

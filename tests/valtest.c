@@ -1141,6 +1141,12 @@ FooStruct return_struct(void) { FooStruct s = {.x = 12, .y = 34}; return s; }
 typedef struct {long x; long y;} LongStruct;
 LongStruct return_lstruct(void) { LongStruct s = {111, 222}; return s; }
 
+typedef struct { short x, y, z; } SVec3;
+
+SVec3 vadd(SVec3 va, SVec3 vb) {
+  return (SVec3){va.x + vb.x, va.y + vb.y, va.z + vb.z};
+}
+
 TEST(struct) {
   FooStruct foo;
   foo.x = 123;
@@ -1270,6 +1276,12 @@ TEST(struct) {
     int dummy[1];
     LongStruct s; s = return_lstruct();
     EXPECT("return struct not broken", 222, s.y);
+  }
+
+  {
+    static const SVec3 v1 = {11, 22, 33}, v2 = {99, 88, 77};
+    SVec3 v = vadd(v1, v2);
+    EXPECT_TRUE(v.x == 110 && v.y == 110 && v.z == 110);
   }
 } END_TEST()
 

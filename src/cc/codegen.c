@@ -486,7 +486,7 @@ static void prepare_register_allocation(Function *func) {
       // stack parameters
       if (is_stack_param(varinfo->type)) {
         vreg->offset = offset = ALIGN(offset, align_size(varinfo->type));
-        offset += type_size(varinfo->type);
+        offset += ALIGN(type_size(varinfo->type), WORD_SIZE);
         continue;
       }
 
