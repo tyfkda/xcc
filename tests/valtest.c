@@ -1668,6 +1668,18 @@ int use_alloca(int index) {
   return a[index];
 }
 
+bool add_n_false(int *dst, int add) {
+  *dst += add;
+  return false;
+}
+
+bool add_n_true(int *dst, int add) {
+  *dst += add;
+  return true;
+}
+
+int identity(int x) { return x; }
+
 int 漢字(int χ) { return χ * χ; }
 
 TEST(function) {
@@ -1718,6 +1730,13 @@ TEST(function) {
     int x = 77;
     int y = use_alloca(5);
     EXPECT("alloca", 82, x + y);
+  }
+
+  {
+    EXPECT("funcall and shortcut 1", 1,  ({ int x=0; identity(add_n_false(&x, 1) && add_n_true(&x, 10)), x;}));
+    EXPECT("funcall and shortcut 2", 11, ({ int x=0; identity(add_n_true(&x, 1)  && add_n_true(&x, 10)), x;}));
+    EXPECT("funcall and shortcut 3", 11, ({ int x=0; identity(add_n_false(&x, 1) || add_n_true(&x, 10)), x;}));
+    EXPECT("funcall and shortcut 4", 1,  ({ int x=0; identity(add_n_true(&x, 1)  || add_n_true(&x, 10)), x;}));
   }
 
   EXPECT("unicode", 121, 漢字(11));

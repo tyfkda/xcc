@@ -340,6 +340,92 @@ typedef struct {
 #endif
 } ArgInfo;
 
+// If an argument is complex expression,
+// precalculate it and make function argument simple.
+static Expr *simplify_funarg(Expr *arg) {
+  switch (arg->kind) {
+  default: assert(false); break;
+
+  case EX_ASSIGN:
+  case EX_TERNARY:
+  case EX_FUNCALL:
+  case EX_BLOCK:
+  case EX_LOGAND:  // Shortcut must be handled properly.
+  case EX_LOGIOR:
+    {
+      // Precalculate expr and store the result to temporary variable.
+      Type *type = arg->type;
+      if (type->kind == TY_STRUCT)
+        type = ptrof(type);
+      Scope *scope = curscope;
+      const Name *name = alloc_label();
+      VarInfo *varinfo = scope_add(scope, name, type, 0);
+      varinfo->local.reg = gen_expr(arg);
+      // Replace the argument to temporary variable reference.
+      return new_expr_variable(name, type, NULL, scope);
+    }
+
+  case EX_COMPLIT:
+    // Precalculate compound literal, and returns its stored variable name.
+    gen_expr(arg);
+    return arg->complit.var;
+
+  case EX_COMMA:
+    // Precalculate first expression in comma.
+    gen_expr(arg->bop.lhs);
+    return simplify_funarg(arg->bop.rhs);
+
+  // Binary operators
+  case EX_ADD:
+  case EX_SUB:
+  case EX_MUL:
+  case EX_DIV:
+  case EX_MOD:
+  case EX_BITAND:
+  case EX_BITOR:
+  case EX_BITXOR:
+  case EX_LSHIFT:
+  case EX_RSHIFT:
+  case EX_EQ:
+  case EX_NE:
+  case EX_LT:
+  case EX_LE:
+  case EX_GE:
+  case EX_GT:
+    arg->bop.lhs = simplify_funarg(arg->bop.lhs);
+    arg->bop.rhs = simplify_funarg(arg->bop.rhs);
+    break;
+
+  // Unary operators
+  case EX_POS:
+  case EX_NEG:
+  case EX_BITNOT:
+  case EX_PREINC:
+  case EX_PREDEC:
+  case EX_POSTINC:
+  case EX_POSTDEC:
+  case EX_REF:
+  case EX_DEREF:
+  case EX_CAST:
+    arg->unary.sub = simplify_funarg(arg->unary.sub);
+    break;
+
+  case EX_MEMBER:
+    arg->member.target = simplify_funarg(arg->member.target);
+    break;
+
+  // Literals
+  case EX_FIXNUM:
+#ifndef __NO_FLONUM
+  case EX_FLONUM:
+#endif
+  case EX_STR:
+  case EX_VAR:
+    break;
+  }
+  return arg;
+}
+
 static VReg *gen_funcall(Expr *expr) {
   Expr *func = expr->funcall.func;
   if (func->kind == EX_VAR && is_global_scope(func->var.scope)) {
@@ -352,6 +438,12 @@ static VReg *gen_funcall(Expr *expr) {
 
   Vector *args = expr->funcall.args;
   int arg_count = args->len;
+  // To avoid nested funcall,
+  // simplify funargs and precalculate complex expression before funcall.
+  for (int i = 0; i < arg_count; ++i) {
+    Expr *arg = args->data[i];
+    args->data[i] = simplify_funarg(arg);
+  }
 
   int offset = 0;
 
