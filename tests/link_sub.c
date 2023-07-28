@@ -3,14 +3,14 @@
 int array[] = {0, 111, 222, 333, 444, 555, 666, 777};
 int *ptr = array;
 
-extern int export;
+extern int export_var;
 
 int sq(int x) {
   return x * x;
 }
 
 int ref_export(void) {
-  return export;
+  return export_var;
 }
 
 #ifndef __NO_FLONUM

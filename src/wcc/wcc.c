@@ -524,7 +524,7 @@ static void emit_wasm(FILE *ofp, Vector *exports, const char *import_module_name
     GVarInfo *info;
     for (int it = 0; (it = table_iterate(&gvar_info_table, it, &name, (void**)&info)) != -1; ) {
       const VarInfo *varinfo = info->varinfo;
-      if (!info->export || !is_prim_type(varinfo->type) || (varinfo->storage & VS_REF_TAKEN))
+      if (!info->is_export || !is_prim_type(varinfo->type) || (varinfo->storage & VS_REF_TAKEN))
         continue;
       emit_uleb128(&exports_section, -1, name->bytes);  // string length
       data_append(&exports_section, (const unsigned char*)name->chars, name->bytes);  // export name
@@ -1285,7 +1285,7 @@ int main(int argc, char *argv[]) {
 
   if (export_stack_pointer) {
     GVarInfo *info = get_gvar_info_from_name(alloc_name(SP_NAME, NULL, false));
-    info->export = true;
+    info->is_export = true;
   }
 
   gen(toplevel);

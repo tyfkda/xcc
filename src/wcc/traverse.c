@@ -146,7 +146,7 @@ static GVarInfo *register_gvar_info(const Name *name, VarInfo *varinfo) {
 #endif
   GVarInfo *info = calloc(1, sizeof(*info));
   info->varinfo = varinfo;
-  info->export = false;
+  info->is_export = false;
   table_put(&gvar_info_table, name, info);
   return info;
 }
