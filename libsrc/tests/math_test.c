@@ -1,5 +1,6 @@
 #include <math.h>
 
+#ifndef __NO_FLONUM
 #include <inttypes.h>
 #include <stdbool.h>
 #include <stdint.h>
@@ -124,3 +125,11 @@ int main() {
     test_isnan,
   );
 }
+#else
+
+#include <stdio.h>
+int main() {
+  printf("math_test: Skipped\n");
+  return 0;
+}
+#endif
