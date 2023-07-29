@@ -1,3 +1,4 @@
 -I./src/as
--I./src/cc
+-I./src/cc/backend
+-I./src/cc/frontend
 -I./src/util

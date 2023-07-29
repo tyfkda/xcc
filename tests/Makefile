@@ -1,13 +1,16 @@
 ROOT_DIR:=..
 SRC_DIR:=$(ROOT_DIR)/src
-CC_DIR:=$(SRC_DIR)/cc
+CC1_DIR:=$(SRC_DIR)/cc
 UTIL_DIR:=$(SRC_DIR)/util
 DEBUG_DIR:=$(SRC_DIR)/_debug
+
+CC1_FE_DIR:=$(CC1_DIR)/frontend
+CC1_BE_DIR:=$(CC1_DIR)/backend
 
 CFLAGS:=-ansi -std=c11 -Wall -Wextra -Werror \
 	-Wold-style-definition -Wno-missing-field-initializers -Wno-typedef-redefinition \
 	-Wno-empty-body
-CFLAGS+=-I$(CC_DIR) -I$(UTIL_DIR)
+CFLAGS+=-I$(CC1_FE_DIR) -I$(UTIL_DIR)
 CFLAGS+=-D_POSIX_C_SOURCE=200809L  # for getline
 
 PREFIX:=
@@ -99,8 +102,8 @@ test-link: link_test # $(XCC)
 	@echo '## Link test'
 	@./link_test
 
-INITIALIZER_SRCS:=initializer_test.c $(CC_DIR)/parser.c $(CC_DIR)/parser_expr.c $(CC_DIR)/lexer.c \
-	$(CC_DIR)/var.c $(CC_DIR)/type.c $(CC_DIR)/ast.c $(UTIL_DIR)/util.c $(UTIL_DIR)/table.c \
+INITIALIZER_SRCS:=initializer_test.c $(CC1_FE_DIR)/parser.c $(CC1_FE_DIR)/parser_expr.c $(CC1_FE_DIR)/lexer.c \
+	$(CC1_FE_DIR)/var.c $(CC1_FE_DIR)/type.c $(CC1_FE_DIR)/ast.c $(UTIL_DIR)/util.c $(UTIL_DIR)/table.c \
 	$(DEBUG_DIR)/dump_expr.c
 initializer_test:	$(INITIALIZER_SRCS)
 	$(CC) -o$@ -DNO_MAIN_DUMP_EXPR $(CFLAGS) $^
@@ -113,8 +116,8 @@ UTIL_SRCS:=util_test.c $(UTIL_DIR)/util.c $(UTIL_DIR)/table.c
 util_test:	$(UTIL_SRCS)
 	$(CC) -o$@ $(CFLAGS) $^
 
-PARSER_SRCS:=parser_test.c $(CC_DIR)/parser_expr.c $(CC_DIR)/lexer.c $(CC_DIR)/parser.c \
-	$(CC_DIR)/type.c $(CC_DIR)/ast.c $(CC_DIR)/var.c \
+PARSER_SRCS:=parser_test.c $(CC1_FE_DIR)/parser_expr.c $(CC1_FE_DIR)/lexer.c $(CC1_FE_DIR)/parser.c \
+	$(CC1_FE_DIR)/type.c $(CC1_FE_DIR)/ast.c $(CC1_FE_DIR)/var.c \
 	$(UTIL_DIR)/util.c $(UTIL_DIR)/table.c
 parser_test:	$(PARSER_SRCS)
 	$(CC) -o$@ $(CFLAGS) $^
@@ -129,7 +132,7 @@ dvaltest:	$(FVAL_SRCS) flotest.inc # $(XCC)
 fvaltest:	$(FVAL_SRCS) flotest.inc # $(XCC)
 	$(XCC) -o$@ -Werror -DUSE_SINGLE $(FVAL_SRCS)
 
-TYPE_SRCS:=print_type_test.c $(CC_DIR)/type.c $(UTIL_DIR)/util.c $(UTIL_DIR)/table.c
+TYPE_SRCS:=print_type_test.c $(CC1_FE_DIR)/type.c $(UTIL_DIR)/util.c $(UTIL_DIR)/table.c
 print_type_test:	$(TYPE_SRCS)
 	$(CC) -o $@ $(CFLAGS) $^
 

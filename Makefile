@@ -25,14 +25,15 @@ ifeq ("$(ARCHTYPE)", "")
 endif
 
 CC1_ARCH_DIR:=$(CC1_DIR)/arch/$(ARCHTYPE)
+CC1_FE_DIR:=$(CC1_DIR)/frontend
+CC1_BE_DIR:=$(CC1_DIR)/backend
 
 OPTIMIZE:=-O2 -g3
 CFLAGS:=-ansi -std=c11 -pedantic -MMD -Wall -Wextra -Werror -Wold-style-definition \
 	-Wno-missing-field-initializers -Wno-typedef-redefinition -Wno-empty-body \
 	-Wno-gnu-zero-variadic-macro-arguments \
 	-D_DEFAULT_SOURCE $(OPTIMIZE) \
-	-I$(CC1_DIR) -I$(AS_DIR) -I$(UTIL_DIR) \
-	-I$(CC1_ARCH_DIR)
+	-I$(CC1_FE_DIR) -I$(CC1_BE_DIR) -I$(CC1_ARCH_DIR) -I$(AS_DIR) -I$(UTIL_DIR)
 ifneq ("$(NO_FLONUM)","")
 CFLAGS+=-D__NO_FLONUM
 endif
@@ -56,7 +57,7 @@ EXES:=xcc cc1 cpp as ld
 
 xcc_SRCS:=$(wildcard $(XCC_DIR)/*.c) \
 	$(UTIL_DIR)/util.c $(UTIL_DIR)/table.c
-cc1_SRCS:=$(wildcard $(CC1_DIR)/*.c) \
+cc1_SRCS:=$(wildcard $(CC1_FE_DIR)/*.c) $(wildcard $(CC1_BE_DIR)/*.c) $(wildcard $(CC1_DIR)/*.c) \
 	$(wildcard $(CC1_ARCH_DIR)/*.c) \
 	$(UTIL_DIR)/util.c $(UTIL_DIR)/table.c
 cpp_SRCS:=$(wildcard $(CPP_DIR)/*.c) \
@@ -96,8 +97,8 @@ $(OBJ_DIR)/%.o: $(1)/%.c $(PARENT_DEPS)
 	@mkdir -p $(OBJ_DIR)
 	$(CC) $(CFLAGS) -c -o $$@ $$<
 endef
-XCC_SRC_DIRS:=$(XCC_DIR) $(CC1_DIR) $(CC1_ARCH_DIR) $(CPP_DIR) $(AS_DIR) $(LD_DIR) $(UTIL_DIR) \
-	$(DEBUG_DIR)
+XCC_SRC_DIRS:=$(XCC_DIR) $(CC1_FE_DIR) $(CC1_BE_DIR) $(CC1_DIR) $(CC1_ARCH_DIR) $(CPP_DIR) \
+	$(AS_DIR) $(LD_DIR) $(UTIL_DIR) $(DEBUG_DIR)
 $(foreach D, $(XCC_SRC_DIRS), $(eval $(call DEFINE_OBJ_TARGET,$(D))))
 
 .PHONY: test
@@ -168,9 +169,9 @@ WCC_DIR:=src/wcc
 WCC_CFLAGS:=$(CFLAGS) -I$(CPP_DIR) -DTARGET_WASM
 
 WCC_SRCS:=$(wildcard $(WCC_DIR)/*.c) \
-	$(CC1_DIR)/lexer.c $(CC1_DIR)/type.c $(CC1_DIR)/var.c $(CC1_DIR)/ast.c $(CC1_DIR)/parser.c \
-	$(CC1_DIR)/parser_expr.c $(CPP_DIR)/preprocessor.c $(CPP_DIR)/pp_parser.c $(CPP_DIR)/macro.c \
-	$(UTIL_DIR)/util.c $(UTIL_DIR)/table.c
+	$(CC1_FE_DIR)/lexer.c $(CC1_FE_DIR)/type.c $(CC1_FE_DIR)/var.c $(CC1_FE_DIR)/ast.c \
+	$(CC1_FE_DIR)/parser.c $(CC1_FE_DIR)/parser_expr.c $(CPP_DIR)/preprocessor.c \
+	$(CPP_DIR)/pp_parser.c $(CPP_DIR)/macro.c $(UTIL_DIR)/util.c $(UTIL_DIR)/table.c
 WCC_OBJS:=$(addprefix $(WCC_OBJ_DIR)/,$(notdir $(WCC_SRCS:.c=.o)))
 WCC_LIBS:=$(LIBSRC_DIR)/_wasm/crt0.c $(LIBSRC_DIR)/_wasm/libc.c
 
@@ -182,7 +183,7 @@ $(WCC_OBJ_DIR)/%.o: $(1)/%.c $(PARENT_DEPS)
 	@mkdir -p $(WCC_OBJ_DIR)
 	$(CC) $(WCC_CFLAGS) -c -o $$@ $$<
 endef
-WCC_SRC_DIRS:=$(WCC_DIR) $(CC1_DIR) $(CPP_DIR) $(UTIL_DIR)
+WCC_SRC_DIRS:=$(WCC_DIR) $(CC1_FE_DIR) $(CC1_BE_DIR) $(CC1_DIR) $(CPP_DIR) $(UTIL_DIR)
 $(foreach D, $(WCC_SRC_DIRS), $(eval $(call DEFINE_WCCOBJ_TARGET,$(D))))
 
 WCC_CRT0_SRCS:=$(wildcard $(LIBSRC_DIR)/_wasm/crt0/*.c)
@@ -243,7 +244,7 @@ test-wcc-self-hosting:
 
 $(WCC_TARGET)cc.wasm:	$(WCC_SRCS) $(WCC_LIBS) $(WCC_PARENT)
 	$(HOST_WCC) -o $@ \
-		-I$(CC1_DIR) -I$(CPP_DIR) -I$(UTIL_DIR) \
+		-I$(CC1_FE_DIR) -I$(CPP_DIR) -I$(UTIL_DIR) \
 		$(WCC_SRCS)
 
 #### www
@@ -274,20 +275,20 @@ release-wcc:	assets
 DEBUG_EXES:=dump_expr dump_ir dump_type
 DEBUG_CFLAGS:=$(subst -MMD,,$(CFLAGS))
 
-dump_expr_SRCS:=$(DEBUG_DIR)/dump_expr.c $(CC1_DIR)/parser_expr.c $(CC1_DIR)/parser.c \
-	$(CC1_DIR)/lexer.c $(CC1_DIR)/type.c $(CC1_DIR)/ast.c $(CC1_DIR)/var.c \
+dump_expr_SRCS:=$(DEBUG_DIR)/dump_expr.c $(CC1_FE_DIR)/parser_expr.c $(CC1_FE_DIR)/parser.c \
+	$(CC1_FE_DIR)/lexer.c $(CC1_FE_DIR)/type.c $(CC1_FE_DIR)/ast.c $(CC1_FE_DIR)/var.c \
 	$(UTIL_DIR)/util.c $(UTIL_DIR)/table.c
 dump_expr_OBJS:=$(addprefix $(OBJ_DIR)/,$(notdir $(dump_expr_SRCS:.c=.o)))
 
-dump_ir_SRCS:=$(DEBUG_DIR)/dump_ir.c $(CC1_DIR)/parser_expr.c $(CC1_DIR)/parser.c \
-	$(CC1_DIR)/lexer.c $(CC1_DIR)/type.c $(CC1_DIR)/ast.c $(CC1_DIR)/var.c $(CC1_DIR)/builtin.c \
-	$(CC1_DIR)/codegen_expr.c $(CC1_DIR)/codegen.c $(CC1_DIR)/ir.c $(CC1_DIR)/regalloc.c \
-	$(CC1_ARCH_DIR)/emit_code.c $(CC1_DIR)/emit_util.c $(CC1_ARCH_DIR)/ir_$(ARCHTYPE).c \
-	$(UTIL_DIR)/util.c $(UTIL_DIR)/table.c
+dump_ir_SRCS:=$(DEBUG_DIR)/dump_ir.c $(CC1_FE_DIR)/parser_expr.c $(CC1_FE_DIR)/parser.c \
+	$(CC1_FE_DIR)/lexer.c $(CC1_FE_DIR)/type.c $(CC1_FE_DIR)/ast.c $(CC1_FE_DIR)/var.c \
+	$(CC1_BE_DIR)/codegen_expr.c $(CC1_BE_DIR)/codegen.c $(CC1_BE_DIR)/ir.c \
+	$(CC1_BE_DIR)/regalloc.c $(CC1_BE_DIR)/emit_util.c $(CC1_ARCH_DIR)/emit_code.c \
+	 $(CC1_ARCH_DIR)/ir_$(ARCHTYPE).c $(CC1_DIR)/builtin.c $(UTIL_DIR)/util.c $(UTIL_DIR)/table.c
 dump_ir_OBJS:=$(addprefix $(OBJ_DIR)/,$(notdir $(dump_ir_SRCS:.c=.o)))
 
-dump_type_SRCS:=$(DEBUG_DIR)/dump_type.c $(CC1_DIR)/parser_expr.c $(CC1_DIR)/parser.c \
-	$(CC1_DIR)/lexer.c $(CC1_DIR)/type.c $(CC1_DIR)/ast.c $(CC1_DIR)/var.c \
+dump_typ_SRCS:=$(DEBUG_DIR)/dump_type.c $(CC1_FE_DIR)/parser_expr.c $(CC1_FE_DIR)/parser.c \
+	$(CC1_FE_DIR)/lexer.c $(CC1_FE_DIR)/type.c $(CC1_FE_DIR)/ast.c $(CC1_FE_DIR)/var.c \
 	$(UTIL_DIR)/util.c $(UTIL_DIR)/table.c
 dump_type_OBJS:=$(addprefix $(OBJ_DIR)/,$(notdir $(dump_type_SRCS:.c=.o)))
 

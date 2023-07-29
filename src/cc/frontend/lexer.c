@@ -1,4 +1,4 @@
-#include "../config.h"
+#include "../../config.h"
 #include "lexer.h"
 
 #include <assert.h>
