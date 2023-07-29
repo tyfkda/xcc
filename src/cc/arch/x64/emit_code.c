@@ -390,32 +390,26 @@ static bool is_asm(Stmt *stmt) {
   return stmt->kind == ST_ASM;
 }
 
-static VarInfo *find_ret_var(Scope *scope) {
-  const Name *retval_name = alloc_name(RET_VAR_NAME, NULL, false);
-  return scope_find(scope, retval_name, NULL);
-}
-
 static void put_args_to_stack(Function *func) {
   static const char *kReg8s[] = {DIL, SIL, DL, CL, R8B, R9B};
   static const char *kReg16s[] = {DI, SI, DX, CX, R8W, R9W};
   static const char *kReg32s[] = {EDI, ESI, EDX, ECX, R8D, R9D};
   static const char *kReg64s[] = {RDI, RSI, RDX, RCX, R8, R9};
-  static const char **kRegTable[] = {NULL, kReg8s, kReg16s, NULL, kReg32s, NULL, NULL, NULL, kReg64s};
+  static const char **kRegTable[] = {kReg8s, kReg16s, kReg32s, kReg64s};
 #ifndef __NO_FLONUM
   static const char *kFReg64s[] = {XMM0, XMM1, XMM2, XMM3, XMM4, XMM5, XMM6, XMM7};
 #endif
+  static const int kPow2Table[] = {-1, 0, 1, -1, 2, -1, -1, -1, 3};
+#define kPow2TableSize ((int)(sizeof(kPow2Table) / sizeof(*kPow2Table)))
 
   int arg_index = 0;
   if (is_stack_param(func->type->func.ret)) {
-    Scope *top_scope = func->scopes->data[0];
-    VarInfo *varinfo = find_ret_var(top_scope);
-    assert(varinfo != NULL);
-    const Type *type = varinfo->type;
-    int size = type_size(type);
-    int offset = varinfo->local.reg->offset;
-    assert(size < (int)(sizeof(kRegTable) / sizeof(*kRegTable)) &&
-           kRegTable[size] != NULL);
-    MOV(kRegTable[size][0], OFFSET_INDIRECT(offset, RBP, NULL, 1));
+    // Received as a pointer at the first parameter.
+    const int pow = 3;
+    const char *src = kRegTable[pow][0];
+    int offset = ((FuncBackend*)func->extra)->retval->offset;
+    const char *dst = OFFSET_INDIRECT(offset, RBP, NULL, 1);
+    MOV(src, dst);
     ++arg_index;
   }
 
@@ -460,9 +454,10 @@ static void put_args_to_stack(Function *func) {
 
       if (arg_index < MAX_REG_ARGS) {
         int size = type_size(type);
-        assert(size < (int)(sizeof(kRegTable) / sizeof(*kRegTable)) &&
-               kRegTable[size] != NULL);
-        MOV(kRegTable[size][arg_index], OFFSET_INDIRECT(offset, RBP, NULL, 1));
+        assert(0 <= size && size < kPow2TableSize && kPow2Table[size] >= 0);
+        int pow = kPow2Table[size];
+        const char *src = kRegTable[pow][arg_index];
+        MOV(src, OFFSET_INDIRECT(offset, RBP, NULL, 1));
         ++arg_index;
       }
     }
@@ -486,10 +481,11 @@ static void put_args_to_stack(Function *func) {
         const Type *type = varinfo->type;
         assert(type->kind == TY_FIXNUM || type->kind == TY_PTR);
         int size = type_size(type);
-        assert(size < (int)(sizeof(kRegTable) / sizeof(*kRegTable)) &&
-               kRegTable[size] != NULL);
+        assert(0 <= size && size < kPow2TableSize && kPow2Table[size] >= 0);
+        int pow = kPow2Table[size];
+        const char *src = kRegTable[pow][i];
         int offset = varinfo->local.reg->offset;
-        MOV(kRegTable[size][i], OFFSET_INDIRECT(offset, RBP, NULL, 1));
+        MOV(src, OFFSET_INDIRECT(offset, RBP, NULL, 1));
       } else {
         int offset = (i - MAX_REG_ARGS - MAX_FREG_ARGS) * WORD_SIZE;
         MOV(kReg64s[i], OFFSET_INDIRECT(offset, RBP, NULL, 1));

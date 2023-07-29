@@ -15,9 +15,6 @@ typedef struct VRegType VRegType;
 typedef struct VarInfo VarInfo;
 typedef struct Vector Vector;
 
-// Used for returning non-primitive (struct) value.
-extern const char RET_VAR_NAME[];
-
 // Public
 
 void gen(Vector *decls);

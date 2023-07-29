@@ -390,11 +390,6 @@ static bool is_asm(Stmt *stmt) {
   return stmt->kind == ST_ASM;
 }
 
-static VarInfo *find_ret_var(Scope *scope) {
-  const Name *retval_name = alloc_name(RET_VAR_NAME, NULL, false);
-  return scope_find(scope, retval_name, NULL);
-}
-
 static void put_args_to_stack(Function *func) {
   static const char *kReg32s[] = {W0, W1, W2, W3, W4, W5, W6, W7};
   static const char *kReg64s[] = {X0, X1, X2, X3, X4, X5, X6, X7};
@@ -408,22 +403,12 @@ static void put_args_to_stack(Function *func) {
 
   int arg_index = 0;
   if (is_stack_param(func->type->func.ret)) {
-    Scope *top_scope = func->scopes->data[0];
-    VarInfo *varinfo = find_ret_var(top_scope);
-    assert(varinfo != NULL);
-    const Type *type = varinfo->type;
-    int size = type_size(type);
-    assert(0 <= size && size < kPow2TableSize);
-    int pow = kPow2Table[size];
+    // Received as a pointer at the first parameter.
+    const int pow = 3;
     const char *src = kRegTable[pow][0];
-    int offset = varinfo->local.reg->offset;
+    int offset = ((FuncBackend*)func->extra)->retval->offset;
     const char *dst = IMMEDIATE_OFFSET(FP, offset);
-    switch (pow) {
-    case 0:          STRB(src, dst); break;
-    case 1:          STRH(src, dst); break;
-    case 2: case 3:  STR(src, dst); break;
-    default: assert(false); break;
-    }
+    STR(src, dst);
     ++arg_index;
   }
 
@@ -473,7 +458,7 @@ static void put_args_to_stack(Function *func) {
 
       if (arg_index < MAX_REG_ARGS) {
         int size = type_size(type);
-        assert(0 <= size && size < kPow2TableSize);
+        assert(0 <= size && size < kPow2TableSize && kPow2Table[size] >= 0);
         int pow = kPow2Table[size];
         const char *src = kRegTable[pow][arg_index];
         assert(offset < 0);
@@ -513,7 +498,7 @@ static void put_args_to_stack(Function *func) {
         const Type *type = varinfo->type;
         assert(type->kind == TY_FIXNUM || type->kind == TY_PTR);
         int size = type_size(type);
-        assert(0 <= size && size < kPow2TableSize);
+        assert(0 <= size && size < kPow2TableSize && kPow2Table[size] >= 0);
         int pow = kPow2Table[size];
         const char *src = kRegTable[pow][i];
         int offset = varinfo->local.reg->offset;

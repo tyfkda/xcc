@@ -17,8 +17,6 @@
 #include "util.h"
 #include "var.h"
 
-const char RET_VAR_NAME[] = ".ret";
-
 static void gen_expr_stmt(Expr *expr);
 
 void set_curbb(BB *bb) {
@@ -56,6 +54,21 @@ static BB *push_break_bb(BB **save) {
   return bb;
 }
 
+static VarInfo *prepare_retvar(Function *func) {
+  // Insert vreg for return value pointer into top of the function scope.
+  Type *rettype = func->type->func.ret;
+  const Name *retval_name = alloc_label();
+  Type *retptrtype = ptrof(rettype);
+  Scope *top_scope = func->scopes->data[0];
+  VarInfo *varinfo = scope_add(top_scope, retval_name, retptrtype, 0);
+  VReg *vreg = add_new_reg(varinfo->type, VRF_PARAM);
+  vreg->param_index = 0;
+  varinfo->local.reg = vreg;
+  FuncBackend *fnbe = func->extra;
+  fnbe->retval = vreg;
+  return varinfo;
+}
+
 static void alloc_variable_registers(Function *func) {
   assert(func->type->kind == TY_FUNC);
 
@@ -81,19 +94,9 @@ static void alloc_variable_registers(Function *func) {
   }
 
   // Handle if return value is on the stack.
-  Type *rettype = func->type->func.ret;
-  const Name *retval_name = NULL;
   int param_index_offset = 0;
-  if (is_stack_param(rettype)) {
-    // Insert vreg for return value pointer into top of the function scope.
-    retval_name = alloc_name(RET_VAR_NAME, NULL, false);
-    Type *retptrtype = ptrof(rettype);
-    Scope *top_scope = func->scopes->data[0];
-    VarInfo *varinfo = scope_add(top_scope, retval_name, retptrtype, 0);
-    VReg *vreg = add_new_reg(varinfo->type, VRF_PARAM);
-    vreg->param_index = 0;
-    varinfo->local.reg = vreg;
-    ((FuncBackend*)func->extra)->retval = vreg;
+  if (is_stack_param(func->type->func.ret)) {
+    prepare_retvar(func);
     ++param_index_offset;
   }
 
@@ -143,10 +146,11 @@ static void gen_block(Stmt *stmt) {
 static void gen_return(Stmt *stmt) {
   assert(curfunc != NULL);
   BB *bb = new_bb();
+  FuncBackend *fnbe = curfunc->extra;
   if (stmt->return_.val != NULL) {
     Expr *val = stmt->return_.val;
     VReg *reg = gen_expr(val);
-    VReg *retval = ((FuncBackend*)curfunc->extra)->retval;
+    VReg *retval = fnbe->retval;
     if (retval == NULL) {
       new_ir_result(reg);
     } else {
@@ -157,7 +161,7 @@ static void gen_return(Stmt *stmt) {
       }
     }
   }
-  new_ir_jmp(COND_ANY, ((FuncBackend*)curfunc->extra)->ret_bb);
+  new_ir_jmp(COND_ANY, fnbe->ret_bb);
   set_curbb(bb);
 }
 
