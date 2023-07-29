@@ -146,9 +146,10 @@ test-std-valtest:
 ### Wasm version
 
 WCC:=../wcc
+WCC_TESTS:=valtest dvaltest fvaltest
 
 .PHONY: test-wcc
-test-wcc:	test-wcc-sh test-wcc-val test-wcc-dval test-wcc-fval
+test-wcc:	test-wcc-sh $(foreach D, $(WCC_TESTS), $(addprefix test-wcc-,$(D)))
 	@echo 'All tests PASS!'
 
 .PHONY: test-wcc-sh
@@ -159,26 +160,17 @@ test-wcc-sh:
 		AOUT="$(AWASM)" RUN_AOUT="node ../tool/runwasi.js $(AWASM)" \
 		./test.sh
 
-.PHONY: test-wcc-val
-test-wcc-val:	valtest.wasm
-	@echo '## valtest'
-	node ../tool/runwasi.js $<
+valtest_WCCSRCS:=$(VAL_SRCS)
+dvaltest_WCCSRCS:=$(FVAL_SRCS)
+fvaltest_WCCSRCS:=$(FVAL_SRCS)
 
-valtest.wasm:	$(VAL_SRCS) # $(WCC)
-	$(WCC) -o$@ $^
+define DEFINE_WCCTEST_TARGET
+.PHONY: test-wcc-$(1)
+test-wcc-$(1):	$(1).wasm
+	@echo "## $(1)"
+	node ../tool/runwasi.js $$<
 
-.PHONY: test-wcc-dval
-test-wcc-dval:	dvaltest.wasm
-	@echo '## dvaltest'
-	node ../tool/runwasi.js $<
-
-dvaltest.wasm:	$(FVAL_SRCS) # $(WCC)
-	$(WCC) -o$@ $^
-
-.PHONY: test-wcc-fval
-test-wcc-fval:	fvaltest.wasm
-	@echo '## fvaltest'
-	node ../tool/runwasi.js $<
-
-fvaltest.wasm:	$(FVAL_SRCS) # $(WCC)
-	$(WCC) -o$@ -DUSE_SINGLE $^
+$(1).wasm:	$$($(1)_WCCSRCS) # $(WCC)
+	$(WCC) -o $$@ $$^
+endef
+$(foreach D, $(WCC_TESTS), $(eval $(call DEFINE_WCCTEST_TARGET,$(D))))

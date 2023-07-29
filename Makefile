@@ -52,24 +52,26 @@ CC:=./$(HOST)xcc
 CFLAGS+=-DSELF_HOSTING
 endif
 
-XCC_SRCS:=$(wildcard $(XCC_DIR)/*.c) \
+EXES:=xcc cc1 cpp as ld
+
+xcc_SRCS:=$(wildcard $(XCC_DIR)/*.c) \
 	$(UTIL_DIR)/util.c $(UTIL_DIR)/table.c
-CC1_SRCS:=$(wildcard $(CC1_DIR)/*.c) \
+cc1_SRCS:=$(wildcard $(CC1_DIR)/*.c) \
 	$(wildcard $(CC1_ARCH_DIR)/*.c) \
 	$(UTIL_DIR)/util.c $(UTIL_DIR)/table.c
-CPP_SRCS:=$(wildcard $(CPP_DIR)/*.c) \
+cpp_SRCS:=$(wildcard $(CPP_DIR)/*.c) \
 	$(CC1_DIR)/lexer.c $(UTIL_DIR)/util.c $(UTIL_DIR)/table.c
-AS_SRCS:=$(wildcard $(AS_DIR)/*.c) \
+as_SRCS:=$(wildcard $(AS_DIR)/*.c) \
 	$(UTIL_DIR)/util.c $(UTIL_DIR)/elfutil.c $(UTIL_DIR)/table.c
-LD_SRCS:=$(wildcard $(LD_DIR)/*.c) \
+ld_SRCS:=$(wildcard $(LD_DIR)/*.c) \
 	$(AS_DIR)/gen_section.c \
 	$(UTIL_DIR)/util.c $(UTIL_DIR)/elfutil.c $(UTIL_DIR)/table.c
 
-XCC_OBJS:=$(addprefix $(OBJ_DIR)/,$(notdir $(XCC_SRCS:.c=.o)))
-CC1_OBJS:=$(addprefix $(OBJ_DIR)/,$(notdir $(CC1_SRCS:.c=.o)))
-CPP_OBJS:=$(addprefix $(OBJ_DIR)/,$(notdir $(CPP_SRCS:.c=.o)))
-AS_OBJS:=$(addprefix $(OBJ_DIR)/,$(notdir $(AS_SRCS:.c=.o)))
-LD_OBJS:=$(addprefix $(OBJ_DIR)/,$(notdir $(LD_SRCS:.c=.o)))
+xcc_OBJS:=$(addprefix $(OBJ_DIR)/,$(notdir $(xcc_SRCS:.c=.o)))
+cc1_OBJS:=$(addprefix $(OBJ_DIR)/,$(notdir $(cc1_SRCS:.c=.o)))
+cpp_OBJS:=$(addprefix $(OBJ_DIR)/,$(notdir $(cpp_SRCS:.c=.o)))
+as_OBJS:=$(addprefix $(OBJ_DIR)/,$(notdir $(as_SRCS:.c=.o)))
+ld_OBJS:=$(addprefix $(OBJ_DIR)/,$(notdir $(ld_SRCS:.c=.o)))
 
 .PHONY: all
 all:	exes libs
@@ -79,56 +81,24 @@ release:
 	$(MAKE) OPTIMIZE=-O2
 
 .PHONY:	exes
-exes:	$(TARGET)xcc $(TARGET)cc1 $(TARGET)cpp $(TARGET)as $(TARGET)ld
+exes:	$(foreach D, $(EXES), $(addprefix $(TARGET),$(D)))
 
-$(TARGET)xcc: $(PARENT_DEPS) $(XCC_OBJS)
-	$(CC) -o $@ $(XCC_OBJS) $(LDFLAGS)
-
-$(TARGET)cc1: $(PARENT_DEPS) $(CC1_OBJS)
-	$(CC) -o $@ $(CC1_OBJS) $(LDFLAGS)
-
-$(TARGET)cpp: $(PARENT_DEPS) $(CPP_OBJS)
-	$(CC) -o $@ $(CPP_OBJS) $(LDFLAGS)
-
-$(TARGET)as: $(PARENT_DEPS) $(AS_OBJS)
-	$(CC) -o $@ $(AS_OBJS) $(LDFLAGS)
-
-$(TARGET)ld: $(PARENT_DEPS) $(LD_OBJS)
-	$(CC) -o $@ $(LD_OBJS) $(LDFLAGS)
+define DEFINE_EXE_TARGET
+$(TARGET)$(1):	$(PARENT_DEPS) $$($(1)_OBJS)
+	$(CC) -o $$@ $$($(1)_OBJS) $(LDFLAGS)
+endef
+$(foreach D, $(EXES), $(eval $(call DEFINE_EXE_TARGET,$(D))))
 
 -include $(OBJ_DIR)/*.d
 
-$(OBJ_DIR)/%.o: $(XCC_DIR)/%.c $(PARENT_DEPS)
+define DEFINE_OBJ_TARGET
+$(OBJ_DIR)/%.o: $(1)/%.c $(PARENT_DEPS)
 	@mkdir -p $(OBJ_DIR)
-	$(CC) $(CFLAGS) -c -o $@ $<
-
-$(OBJ_DIR)/%.o: $(CC1_DIR)/%.c $(PARENT_DEPS)
-	@mkdir -p $(OBJ_DIR)
-	$(CC) $(CFLAGS) -c -o $@ $<
-
-$(OBJ_DIR)/%.o: $(CC1_ARCH_DIR)/%.c $(PARENT_DEPS)
-	@mkdir -p $(OBJ_DIR)
-	$(CC) $(CFLAGS) -c -o $@ $<
-
-$(OBJ_DIR)/%.o: $(CPP_DIR)/%.c $(PARENT_DEPS)
-	@mkdir -p $(OBJ_DIR)
-	$(CC) $(CFLAGS) -c -o $@ $<
-
-$(OBJ_DIR)/%.o: $(AS_DIR)/%.c $(PARENT_DEPS)
-	@mkdir -p $(OBJ_DIR)
-	$(CC) $(CFLAGS) -c -o $@ $<
-
-$(OBJ_DIR)/%.o: $(LD_DIR)/%.c $(PARENT_DEPS)
-	@mkdir -p $(OBJ_DIR)
-	$(CC) $(CFLAGS) -c -o $@ $<
-
-$(OBJ_DIR)/%.o: $(UTIL_DIR)/%.c $(PARENT_DEPS)
-	@mkdir -p $(OBJ_DIR)
-	$(CC) $(CFLAGS) -c -o $@ $<
-
-$(OBJ_DIR)/%.o: $(DEBUG_DIR)/%.c $(PARENT_DEPS)
-	@mkdir -p $(OBJ_DIR)
-	$(CC) $(CFLAGS) -c -o $@ $<
+	$(CC) $(CFLAGS) -c -o $$@ $$<
+endef
+XCC_SRC_DIRS:=$(XCC_DIR) $(CC1_DIR) $(CC1_ARCH_DIR) $(CPP_DIR) $(AS_DIR) $(LD_DIR) $(UTIL_DIR) \
+	$(DEBUG_DIR)
+$(foreach D, $(XCC_SRC_DIRS), $(eval $(call DEFINE_OBJ_TARGET,$(D))))
 
 .PHONY: test
 test:	all
@@ -144,7 +114,7 @@ test-libs:	all
 
 .PHONY: clean
 clean:
-	rm -rf cc1 cpp as ld xcc $(OBJ_DIR) a.out gen2* gen3* tmp.s \
+	rm -rf $(EXES) $(OBJ_DIR) a.out gen2* gen3* tmp.s \
 		dump_expr* dump_ir* dump_type* \
 		wcc cc.wasm a.wasm public release $(WCC_LIBS)
 	@$(MAKE) -C libsrc clean
@@ -175,7 +145,8 @@ gen3: gen2
 
 .PHONY: diff-gen23
 diff-gen23:	gen2 gen3
-	diff -b gen2cc1 gen3cc1 && diff -b gen2as gen3as && diff -b gen2cpp gen3cpp && diff -b gen2ld gen3ld && diff -b gen2xcc gen3xcc
+	diff -b gen2cc1 gen3cc1 && diff -b gen2as gen3as && diff -b gen2cpp gen3cpp && \
+		diff -b gen2ld gen3ld && diff -b gen2xcc gen3xcc
 
 .PHONY: self-hosting
 self-hosting:	$(TARGET)cpp $(TARGET)cc1 $(TARGET)as $(TARGET)ld $(TARGET)xcc
@@ -194,11 +165,11 @@ WCC_OBJ_DIR:=$(OBJ_DIR)
 endif
 
 WCC_DIR:=src/wcc
-WCC_CFLAGS:=$(CFLAGS) -DTARGET_WASM
+WCC_CFLAGS:=$(CFLAGS) -I$(CPP_DIR) -DTARGET_WASM
 
 WCC_SRCS:=$(wildcard $(WCC_DIR)/*.c) \
-	$(CC1_DIR)/lexer.c $(CC1_DIR)/type.c $(CC1_DIR)/var.c $(CC1_DIR)/ast.c $(CC1_DIR)/parser.c $(CC1_DIR)/parser_expr.c \
-	$(CPP_DIR)/preprocessor.c $(CPP_DIR)/pp_parser.c $(CPP_DIR)/macro.c \
+	$(CC1_DIR)/lexer.c $(CC1_DIR)/type.c $(CC1_DIR)/var.c $(CC1_DIR)/ast.c $(CC1_DIR)/parser.c \
+	$(CC1_DIR)/parser_expr.c $(CPP_DIR)/preprocessor.c $(CPP_DIR)/pp_parser.c $(CPP_DIR)/macro.c \
 	$(UTIL_DIR)/util.c $(UTIL_DIR)/table.c
 WCC_OBJS:=$(addprefix $(WCC_OBJ_DIR)/,$(notdir $(WCC_SRCS:.c=.o)))
 WCC_LIBS:=$(LIBSRC_DIR)/_wasm/crt0.c $(LIBSRC_DIR)/_wasm/libc.c
@@ -206,21 +177,13 @@ WCC_LIBS:=$(LIBSRC_DIR)/_wasm/crt0.c $(LIBSRC_DIR)/_wasm/libc.c
 wcc: $(PARENT_DEPS) $(WCC_OBJS) $(WCC_LIBS)
 	$(CC) -o $@ $(WCC_OBJS) $(LDFLAGS)
 
-$(WCC_OBJ_DIR)/%.o: $(WCC_DIR)/%.c $(PARENT_DEPS)
+define DEFINE_WCCOBJ_TARGET
+$(WCC_OBJ_DIR)/%.o: $(1)/%.c $(PARENT_DEPS)
 	@mkdir -p $(WCC_OBJ_DIR)
-	$(CC) $(WCC_CFLAGS) -I$(CPP_DIR) -c -o $@ $<
-
-$(WCC_OBJ_DIR)/%.o: $(CC1_DIR)/%.c $(PARENT_DEPS)
-	@mkdir -p $(WCC_OBJ_DIR)
-	$(CC) $(WCC_CFLAGS) -c -o $@ $<
-
-$(WCC_OBJ_DIR)/%.o: $(CPP_DIR)/%.c $(PARENT_DEPS)
-	@mkdir -p $(WCC_OBJ_DIR)
-	$(CC) $(WCC_CFLAGS) -c -o $@ $<
-
-$(WCC_OBJ_DIR)/%.o: $(UTIL_DIR)/%.c $(PARENT_DEPS)
-	@mkdir -p $(WCC_OBJ_DIR)
-	$(CC) $(WCC_CFLAGS) -c -o $@ $<
+	$(CC) $(WCC_CFLAGS) -c -o $$@ $$<
+endef
+WCC_SRC_DIRS:=$(WCC_DIR) $(CC1_DIR) $(CPP_DIR) $(UTIL_DIR)
+$(foreach D, $(WCC_SRC_DIRS), $(eval $(call DEFINE_WCCOBJ_TARGET,$(D))))
 
 WCC_CRT0_SRCS:=$(wildcard $(LIBSRC_DIR)/_wasm/crt0/*.c)
 WCC_LIBC_SRCS:=$(wildcard $(LIBSRC_DIR)/math/*.c) \
@@ -264,7 +227,8 @@ test-wcc-gen2: wcc-gen2
 
 .PHONY: wcc-gen3
 wcc-gen3:	wcc-gen2
-	$(MAKE) HOST_TARGET=gen2 HOST_WCC="./tool/run-gen2wcc.sh" WCC_TARGET=gen3 WCC_PARENT=cc.wasm wcc-self-hosting
+	$(MAKE) HOST_TARGET=gen2 HOST_WCC="./tool/run-gen2wcc.sh" WCC_TARGET=gen3 WCC_PARENT=cc.wasm \
+		wcc-self-hosting
 
 .PHONY: wcc-diff-gen23
 wcc-diff-gen23:	wcc-gen2 wcc-gen3
@@ -307,25 +271,28 @@ release-wcc:	assets
 
 ### Debug
 
+DEBUG_EXES:=dump_expr dump_ir dump_type
 DEBUG_CFLAGS:=$(subst -MMD,,$(CFLAGS))
 
-DUMP_EXPR_SRCS:=$(DEBUG_DIR)/dump_expr.c $(CC1_DIR)/parser_expr.c $(CC1_DIR)/parser.c $(CC1_DIR)/lexer.c \
-	$(CC1_DIR)/type.c $(CC1_DIR)/ast.c $(CC1_DIR)/var.c $(UTIL_DIR)/util.c $(UTIL_DIR)/table.c
-DUMP_EXPR_OBJS:=$(addprefix $(OBJ_DIR)/,$(notdir $(DUMP_EXPR_SRCS:.c=.o)))
-dump_expr:	$(DUMP_EXPR_OBJS)
-	$(CC) -o $@ $(DEBUG_CFLAGS) $^
+dump_expr_SRCS:=$(DEBUG_DIR)/dump_expr.c $(CC1_DIR)/parser_expr.c $(CC1_DIR)/parser.c \
+	$(CC1_DIR)/lexer.c $(CC1_DIR)/type.c $(CC1_DIR)/ast.c $(CC1_DIR)/var.c \
+	$(UTIL_DIR)/util.c $(UTIL_DIR)/table.c
+dump_expr_OBJS:=$(addprefix $(OBJ_DIR)/,$(notdir $(dump_expr_SRCS:.c=.o)))
 
-DUMP_IR_SRCS:=$(DEBUG_DIR)/dump_ir.c $(CC1_DIR)/parser_expr.c $(CC1_DIR)/parser.c $(CC1_DIR)/lexer.c \
-	$(CC1_DIR)/type.c $(CC1_DIR)/ast.c $(CC1_DIR)/var.c $(CC1_DIR)/builtin.c \
+dump_ir_SRCS:=$(DEBUG_DIR)/dump_ir.c $(CC1_DIR)/parser_expr.c $(CC1_DIR)/parser.c \
+	$(CC1_DIR)/lexer.c $(CC1_DIR)/type.c $(CC1_DIR)/ast.c $(CC1_DIR)/var.c $(CC1_DIR)/builtin.c \
 	$(CC1_DIR)/codegen_expr.c $(CC1_DIR)/codegen.c $(CC1_DIR)/ir.c $(CC1_DIR)/regalloc.c \
 	$(CC1_ARCH_DIR)/emit_code.c $(CC1_DIR)/emit_util.c $(CC1_ARCH_DIR)/ir_$(ARCHTYPE).c \
 	$(UTIL_DIR)/util.c $(UTIL_DIR)/table.c
-DUMP_IR_OBJS:=$(addprefix $(OBJ_DIR)/,$(notdir $(DUMP_IR_SRCS:.c=.o)))
-dump_ir:	$(DUMP_IR_OBJS)
-	$(CC) -o $@ $(DEBUG_CFLAGS) $^
+dump_ir_OBJS:=$(addprefix $(OBJ_DIR)/,$(notdir $(dump_ir_SRCS:.c=.o)))
 
-DUMP_TYPE_SRCS:=$(DEBUG_DIR)/dump_type.c $(CC1_DIR)/parser_expr.c $(CC1_DIR)/parser.c $(CC1_DIR)/lexer.c \
-	$(CC1_DIR)/type.c $(CC1_DIR)/ast.c $(CC1_DIR)/var.c $(UTIL_DIR)/util.c $(UTIL_DIR)/table.c
-DUMP_TYPE_OBJS:=$(addprefix $(OBJ_DIR)/,$(notdir $(DUMP_TYPE_SRCS:.c=.o)))
-dump_type:	$(DUMP_TYPE_OBJS)
-	$(CC) -o $@ $(DEBUG_CFLAGS) $^
+dump_type_SRCS:=$(DEBUG_DIR)/dump_type.c $(CC1_DIR)/parser_expr.c $(CC1_DIR)/parser.c \
+	$(CC1_DIR)/lexer.c $(CC1_DIR)/type.c $(CC1_DIR)/ast.c $(CC1_DIR)/var.c \
+	$(UTIL_DIR)/util.c $(UTIL_DIR)/table.c
+dump_type_OBJS:=$(addprefix $(OBJ_DIR)/,$(notdir $(dump_type_SRCS:.c=.o)))
+
+define DEFINE_DEBUG_TARGET
+$(1):	$$($(1)_OBJS)
+	$(CC) -o $$@ $(DEBUG_CFLAGS) $$^
+endef
+$(foreach D, $(DEBUG_EXES), $(eval $(call DEFINE_DEBUG_TARGET,$(D))))

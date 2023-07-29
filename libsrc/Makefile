@@ -59,81 +59,45 @@ clean-test:
 	rm -rf printf_test stdlib_test math_test longjmp_test \
 		*.wasm
 
-.PHONY: test-printf
-test-printf:	printf_test
-	@echo '## printf test'
-	@./printf_test
+TESTS=printf stdlib math longjmp
 
-STDIO_SRCS:=$(wildcard stdio/*.c)
-STDIO_OBJS:=$(addprefix $(LIBOBJ_DIR)/,$(notdir $(STDIO_SRCS:.c=.o)))
-printf_test:	tests/printf_test.c $(STDIO_OBJS)
-	$(CC) -o$@ $(CFLAGS) -I$(INC_DIR) -DUNIT_TEST -ffreestanding $^
+printf_SRCS:=$(wildcard stdio/*.c)
+printf_OBJS:=$(addprefix $(LIBOBJ_DIR)/,$(notdir $(printf_SRCS:.c=.o)))
 
-.PHONY: test-stdlib
-test-stdlib:	stdlib_test
-	@echo '## stdlib test'
-	@./stdlib_test
+stdlib_SRCS:=$(wildcard stdlib/*.c)
+stdlib_OBJS:=$(addprefix $(LIBOBJ_DIR)/,$(notdir $(stdlib_SRCS:.c=.o)))
 
-STDLIB_SRCS:=$(wildcard stdlib/*.c)
-STDLIB_OBJS:=$(addprefix $(LIBOBJ_DIR)/,$(notdir $(STDLIB_SRCS:.c=.o)))
-stdlib_test:	tests/stdlib_test.c $(STDLIB_OBJS)
-	$(CC) -o$@ $(CFLAGS) -I$(INC_DIR) -DUNIT_TEST -ffreestanding $^
+math_SRCS:=$(wildcard math/*.c)
+math_OBJS:=$(addprefix $(LIBOBJ_DIR)/,$(notdir $(math_SRCS:.c=.o)))
 
-.PHONY: test-math
-test-math:	math_test
-	@echo '## math test'
-	@./math_test
+longjmp_SRCS:=misc/setjmp.c
+longjmp_OBJS:=$(addprefix $(LIBOBJ_DIR)/,$(notdir $(longjmp_SRCS:.c=.o)))
 
-MATH_SRCS:=$(wildcard math/*.c)
-MATH_OBJS:=$(addprefix $(LIBOBJ_DIR)/,$(notdir $(MATH_SRCS:.c=.o)))
-math_test:	tests/math_test.c $(MATH_OBJS)
-	$(CC) -o$@ $(CFLAGS) -I$(INC_DIR) -DUNIT_TEST -ffreestanding $^
+define DEFINE_TEST_TARGET
+test-$(1):	$(1)_test
+	@echo "## $(1)"
+	@./$(1)_test
 
-.PHONY: test-longjmp
-test-longjmp:	longjmp_test
-	@echo '## longjmp test'
-	@./longjmp_test
-
-LONGJMP_SRCS:=misc/setjmp.c
-LONGJMP_OBJS:=$(addprefix $(LIBOBJ_DIR)/,$(notdir $(LONGJMP_SRCS:.c=.o)))
-longjmp_test:	tests/longjmp_test.c $(LONGJMP_OBJS)
-	$(CC) -o$@ $(CFLAGS) -I$(INC_DIR) -DUNIT_TEST -ffreestanding $^
+$(1)_test:	tests/$(1)_test.c $$($(1)_OBJS)
+	$(CC) -o$$@ $(CFLAGS) -I$(INC_DIR) -DUNIT_TEST -ffreestanding $$^
+endef
+$(foreach D, $(TESTS), $(eval $(call DEFINE_TEST_TARGET,$(D))))
 
 ### Wasm version
 
 WCC:=../wcc
+WCC_TESTS:=$(TESTS)
 
 .PHONY: test-wcc
-test-wcc:	test-wcc-printf test-wcc-stdlib test-wcc-math test-wcc-longjmp
+test-wcc:	$(foreach D, $(WCC_TESTS), $(addprefix test-wcc-,$(D)))
 
-.PHONY: test-wcc-printf
-test-wcc-printf:	printf_test.wasm
-	@echo '## printf test'
-	node ../tool/runwasi.js $<
+define DEFINE_WCCTEST_TARGET
+.PHONY: test-wcc-$(1)
+test-wcc-$(1):	$(1)_test.wasm
+	@echo '## $(1) test'
+	node --experimental-wasm-eh ../tool/runwasi.js $$<
 
-printf_test.wasm:	tests/printf_test.c # $(WCC)
-	$(WCC) -o$@ $^
-
-.PHONY: test-wcc-stdlib
-test-wcc-stdlib:	stdlib_test.wasm
-	@echo '## stdlib test'
-	node ../tool/runwasi.js $<
-
-stdlib_test.wasm:	tests/stdlib_test.c # $(WCC)
-	$(WCC) -o$@ $^
-
-.PHONY: test-wcc-math
-test-wcc-math:	math_test.wasm
-	@echo '## math test'
-	node ../tool/runwasi.js $<
-
-math_test.wasm:	tests/math_test.c # $(WCC)
-	$(WCC) -o$@ $^
-
-.PHONY: test-wcc-longjmp
-test-wcc-longjmp:	longjmp_test.wasm
-	@echo '## longjmp test'
-	node --experimental-wasm-eh ../tool/runwasi.js $<
-
-longjmp_test.wasm:	tests/longjmp_test.c # $(WCC)
-	$(WCC) -o$@ $^
+$(1)_test.wasm:	tests/$(1)_test.c # $(WCC)
+	$(WCC) -o$$@ $$^
+endef
+$(foreach D, $(TESTS), $(eval $(call DEFINE_WCCTEST_TARGET,$(D))))
