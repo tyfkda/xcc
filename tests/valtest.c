@@ -1147,6 +1147,11 @@ SVec3 vadd(SVec3 va, SVec3 vb) {
   return (SVec3){va.x + vb.x, va.y + vb.y, va.z + vb.z};
 }
 
+SVec3 refvadd(SVec3 va, SVec3 vb) {
+  SVec3 *pa = &va, *pb = &vb;
+  return (SVec3){pa->x + pb->x, pa->y + pb->y, pa->z + pb->z};
+}
+
 TEST(struct) {
   FooStruct foo;
   foo.x = 123;
@@ -1282,6 +1287,8 @@ TEST(struct) {
     static const SVec3 v1 = {11, 22, 33}, v2 = {99, 88, 77};
     SVec3 v = vadd(v1, v2);
     EXPECT_TRUE(v.x == 110 && v.y == 110 && v.z == 110);
+    SVec3 pv = refvadd(v1, v2);
+    EXPECT_TRUE(pv.x == 110 && pv.y == 110 && pv.z == 110);
   }
 } END_TEST()
 

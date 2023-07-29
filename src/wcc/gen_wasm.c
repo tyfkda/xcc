@@ -1520,13 +1520,15 @@ static uint32_t allocate_local_variables(Function *func, DataStorage *data) {
         }
       }
       vreg->param_index = ret_param + param_index;
-      if ((varinfo->storage & VS_REF_TAKEN) || (is_stack_param(varinfo->type) && param_index < 0)) {
+      bool stack_param = is_stack_param(varinfo->type);
+      if ((!stack_param && varinfo->storage & VS_REF_TAKEN) ||  // `&` taken wasm local var.
+          (stack_param && param_index < 0)) {                   // non-prim variable (not function parameter)
         vreg->non_prim.offset = ALIGN(frame_offset, align_size(varinfo->type)) - frame_size;
         size_t size = type_size(varinfo->type);
         if (size < 1)
           size = 1;
         frame_offset += size;
-      } else if (!is_stack_param(varinfo->type)) {
+      } else if (!stack_param) {  // Not `&` taken, wasm local var.
         if (param_index < 0) {
           unsigned char wt = to_wtype(varinfo->type);
           int index = WT_I32 - wt;
@@ -1534,12 +1536,12 @@ static uint32_t allocate_local_variables(Function *func, DataStorage *data) {
         } else {
           vreg->prim.local_index = param_no;
         }
-      } else {
+      } else {  // Non primitive parameter, passed through stack.
         sparam_offset = ALIGN(sparam_offset, align_size(varinfo->type));
         vreg->non_prim.offset = sparam_offset;
         sparam_offset += type_size(varinfo->type);
       }
-      if (param_index >= 0 && !is_stack_param(varinfo->type))
+      if (param_index >= 0 && !stack_param)
         ++param_no;
     }
   }
@@ -1600,7 +1602,7 @@ static void gen_defun(Function *func) {
     const Vector *params = functype->func.params;
     for (unsigned int i = 0; i < param_count; ++i) {
       VarInfo *varinfo = params->data[i];
-      if (!(varinfo->storage & VS_REF_TAKEN))
+      if (!(varinfo->storage & VS_REF_TAKEN) || is_stack_param(varinfo->type))
         continue;
       VReg *vreg = varinfo->local.reg;
       gen_bpofs(vreg->non_prim.offset);
