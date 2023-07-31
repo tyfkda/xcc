@@ -223,17 +223,19 @@ $(WCC_OBJ_DIR)/%.o: $(UTIL_DIR)/%.c $(PARENT_DEPS)
 	$(CC) $(WCC_CFLAGS) -c -o $@ $<
 
 WCC_CRT0_SRCS:=$(wildcard $(LIBSRC_DIR)/_wasm/crt0/*.c)
-WCC_LIBC_SRCS:=$(wildcard $(LIBSRC_DIR)/_wasm/unistd/*.c) \
-	$(wildcard $(LIBSRC_DIR)/math/*.c) \
+WCC_LIBC_SRCS:=$(wildcard $(LIBSRC_DIR)/math/*.c) \
 	$(wildcard $(LIBSRC_DIR)/misc/*.c) \
 	$(wildcard $(LIBSRC_DIR)/stdio/*.c) \
 	$(wildcard $(LIBSRC_DIR)/stdlib/*.c) \
 	$(wildcard $(LIBSRC_DIR)/string/*.c) \
+	$(wildcard $(LIBSRC_DIR)/_wasm/unistd/*.c)
 
 $(LIBSRC_DIR)/_wasm/crt0.c:	$(WCC_CRT0_SRCS)
-	$(MAKE) update-wcc-lib
+	npx ts-node tool/generate_include_srcs.ts --base=libsrc _wasm/crt0 > $@
 $(LIBSRC_DIR)/_wasm/libc.c:	$(WCC_LIBC_SRCS)
-	$(MAKE) update-wcc-lib
+	-# Caution: directory order matters.
+	npx ts-node tool/generate_include_srcs.ts --base=libsrc \
+		math misc stdio stdlib string _wasm/unistd > $@
 
 .PHONY: test-wcc
 test-wcc:	wcc
@@ -291,13 +293,12 @@ $(ASSETS_DIR)/cc.wasm:	cc.wasm
 	@mkdir -p $(ASSETS_DIR)
 	cp cc.wasm $@
 
+$(WCC_DIR)/www/lib_list.json:	$(LIBSRC_DIR)/_wasm/crt0.c $(LIBSRC_DIR)/_wasm/libc.c
+	npx ts-node tool/update_lib_list.ts --base=./libsrc $^
+
 $(ASSETS_DIR)/libs.json:	$(WCC_DIR)/www/lib_list.json
 	@mkdir -p $(ASSETS_DIR)
 	node tool/pack_libs.js $(WCC_DIR)/www/lib_list.json > $@
-
-.PHONY: update-wcc-lib
-update-wcc-lib:
-	npx ts-node tool/update_lib_list.ts
 
 .PHONY: release-wcc
 release-wcc:	assets

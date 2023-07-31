@@ -1,67 +1,60 @@
 import { assert } from 'console'
-import fs from 'fs'
-import { promisify } from 'util'
+import fs from 'node:fs/promises'
+import path from 'path'
 
 const JSON_FN = 'src/wcc/www/lib_list.json'
-const LIB_DIR = './libsrc'
 
-const CRT0_DIRS = ['_wasm/crt0']
-const LIBC_DIRS = ['math', 'misc', 'stdio', 'stdlib', 'string', '_wasm/unistd']
-
-const DST_DIR = './libsrc/_wasm'
-
-const readFile = promisify(fs.readFile)
-const writeFile = promisify(fs.writeFile)
-const readdir = promisify(fs.readdir)
-
-async function readDirFiles(dirs: string[], ext: string = '.c'): Promise<Map<string, string[]>> {
-  const fileEntries = new Map<string, string[]>()
-  for (const dir of dirs) {
-    const files = (await readdir(`${LIB_DIR}/${dir}`))
-        .filter(fn => fn.endsWith(ext))
-        .map(fn => `${LIB_DIR}/${dir}/${fn}`)
-        .sort()
-    fileEntries.set(dir, files)
-  }
-  return fileEntries
+async function readIncludeFiles(fn: string): Promise<Array<string>> {
+  const content = await fs.readFile(fn, 'utf8')
+  const files = content.split('\n')
+    .map(line => {
+      const m = line.match(/^#include\s+<(.+)>$/)
+      return m ? m[1] : null
+    })
+    .filter(src => src != null) as Array<string>
+  return files
 }
 
-function updateJsonLibContent(fileList: Record<string, any>, fn: string, fileEntries: Map<string, string[]>): void {
+function updateJsonLibContent(fileList: Record<string, any>, fn: string, fileEntries: Array<string>): void {
   assert(fileList && fileList['usr'] && fileList['usr']['lib'])
-  fileList['usr']['lib'][fn] = Array.from(fileEntries.values()).flat()
+  fileList['usr']['lib'][fn] = fileEntries
 }
 
-async function updateJson(contentMap: Map<string, Map<string, string[]>>): Promise<void> {
-  const content = await readFile(JSON_FN, 'utf8')
+async function updateJson(contentMap: Map<string, Array<string>>): Promise<void> {
+  const content = await fs.readFile(JSON_FN, 'utf8')
   const json = JSON.parse(content) as object
 
   contentMap.forEach((fileEntries, fn) => updateJsonLibContent(json, fn, fileEntries))
 
   const updated = JSON.stringify(json, null, 2)
-  await writeFile(JSON_FN, `${updated}\n`)
-}
-
-async function updateLibSource(contentMap: Map<string, Map<string, string[]>>): Promise<void> {
-  for (const [fn, fileEntries] of contentMap.entries()) {
-    let files = new Array<string>()
-    for (const dir of fileEntries.keys()) {
-      files = files.concat(fileEntries.get(dir)!.map(fn => `#include <${fn.replace(`${LIB_DIR}/`, '')}>`))
-    }
-
-    await writeFile(`${DST_DIR}/${fn}`, `${files.join('\n')}\n`)
-  }
+  await fs.writeFile(JSON_FN, `${updated}\n`)
 }
 
 async function main(): Promise<void> {
-  const crt0Files = await readDirFiles(CRT0_DIRS)
-  const libcFiles = await readDirFiles(LIBC_DIRS)
+  let baseDir: string | undefined
 
-  const contentMap = new Map<string, Map<string, string[]>>([
-    ['crt0.c', crt0Files],
-    ['libc.c', libcFiles],
-  ])
+  const program = require('commander')
+  program
+    .option('--base <directory>', 'Specify base directory', (value: string) => baseDir = value)
+    .description('Update lib_list.json')
+    .usage('[options] <include-only c-sources...>')
+    .parse(process.argv)
+
+  const files = program.args
+  if (files.length <= 0) {
+    program.help()
+    process.exit(1)
+  }
+
+  const contentMap = new Map<string, Array<string>>()
+  for (const fn of files) {
+    let files = await readIncludeFiles(fn)
+    if (baseDir != null) {
+      files = files.map(fn => `${baseDir}/${fn}`)
+    }
+    contentMap.set(path.basename(fn), files)
+  }
   updateJson(contentMap)
-  updateLibSource(contentMap)
 }
 
 main()
