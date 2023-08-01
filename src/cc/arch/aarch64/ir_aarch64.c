@@ -704,62 +704,34 @@ static void ir_out(IR *ir) {
   case IR_PUSHARG:
     {
       assert(!(ir->opr1->flag & VRF_CONST));
+      assert(0 < ir->opr1->vtype->size && ir->opr1->vtype->size < kPow2TableSize);
+      int pow = kPow2Table[ir->opr1->vtype->size];
 #ifndef __NO_FLONUM
-    if (ir->opr1->vtype->flag & VRTF_FLONUM) {
-      switch (ir->opr1->vtype->size) {
-      case SZ_FLOAT:  STR(kFReg32s[ir->opr1->phys], PRE_INDEX(SP, -16)); break;
-      case SZ_DOUBLE: STR(kFReg64s[ir->opr1->phys], PRE_INDEX(SP, -16)); break;
-      default: assert(false); break;
+      if (ir->opr1->vtype->flag & VRTF_FLONUM) {
+        static const char *kArgFReg32s[] = {S0, S1, S2, S3, S4, S5, S6, S7};
+        static const char *kArgFReg64s[] = {D0, D1, D2, D3, D4, D5, D6, D7};
+        switch (ir->opr1->vtype->size) {
+        case SZ_FLOAT:  FMOV(kArgFReg32s[ir->pusharg.index], kFReg32s[ir->opr1->phys]); break;
+        case SZ_DOUBLE:  FMOV(kArgFReg64s[ir->pusharg.index], kFReg64s[ir->opr1->phys]); break;
+        default: assert(false); break;
+        }
+        break;
       }
-      break;
-    }
 #endif
-      STR(kRegSizeTable[3][ir->opr1->phys], PRE_INDEX(SP, -16));
+
+      static const char *kArgReg32s[] = {W0, W1, W2, W3, W4, W5, W6, W7};
+      static const char *kArgReg64s[] = {X0, X1, X2, X3, X4, X5, X6, X7};
+      static const char **kArgRegSizeTable[] = {kArgReg32s, kArgReg32s, kArgReg32s, kArgReg64s};
+      MOV(kArgRegSizeTable[pow][ir->pusharg.index], kRegSizeTable[pow][ir->opr1->phys]);
     }
     break;
 
   case IR_CALL:
     {
-      const int FIELD_SIZE = 16;
       IR *precall = ir->call.precall;
-      int reg_args = ir->call.reg_arg_count;
       push_caller_save_regs(
           precall->precall.living_pregs,
-          reg_args * FIELD_SIZE + precall->precall.stack_args_size + precall->precall.stack_aligned);
-
-      static const char *kArgReg64s[] = {X0, X1, X2, X3, X4, X5, X6, X7};
-#ifndef __NO_FLONUM
-      static const char *kArgFReg32s[] = {S0, S1, S2, S3, S4, S5, S6, S7};
-      static const char *kArgFReg64s[] = {D0, D1, D2, D3, D4, D5, D6, D7};
-      int freg = 0;
-#endif
-
-      int ireg = 0;
-      int total_arg_count = ir->call.total_arg_count;
-      for (int i = 0; i < total_arg_count; ++i) {
-#if defined(VAARG_ON_STACK)
-        if (ir->call.vaarg_start >= 0 && i >= ir->call.vaarg_start)
-          break;
-#endif
-        if (ir->call.arg_vtypes[i]->flag & VRTF_NON_REG)
-          continue;
-#ifndef __NO_FLONUM
-        if (ir->call.arg_vtypes[i]->flag & VRTF_FLONUM) {
-          if (freg < MAX_FREG_ARGS) {
-            switch (ir->call.arg_vtypes[i]->size) {
-            case SZ_FLOAT:  LDR(kArgFReg32s[freg], POST_INDEX(SP, 16)); break;
-            case SZ_DOUBLE: LDR(kArgFReg64s[freg], POST_INDEX(SP, 16)); break;
-            default: assert(false); break;
-            }
-            ++freg;
-          }
-          continue;
-        }
-#endif
-        if (ireg < MAX_REG_ARGS) {
-          LDR(kArgReg64s[ireg++], POST_INDEX(SP, 16));
-        }
-      }
+          precall->precall.stack_args_size + precall->precall.stack_aligned);
 
       if (ir->call.label != NULL) {
         char *label = fmt_name(ir->call.label);

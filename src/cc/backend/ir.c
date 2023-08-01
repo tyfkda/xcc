@@ -244,9 +244,16 @@ void new_ir_tjmp(VReg *val, BB **bbs, size_t len) {
   ir->tjmp.len = len;
 }
 
-void new_ir_pusharg(VReg *vreg) {
+void new_ir_pusharg(VReg *vreg, int index) {
+  assert(index >= 0);
+#ifdef __NO_FLONUM
+  assert(index < MAX_REG_ARGS);
+#else
+  assert(index < ((vreg->vtype->flag & VRTF_FLONUM) ? MAX_FREG_ARGS : MAX_REG_ARGS));
+#endif
   IR *ir = new_ir(IR_PUSHARG);
   ir->opr1 = vreg;
+  ir->pusharg.index = index;
 }
 
 IR *new_ir_precall(int arg_count, int stack_args_size) {

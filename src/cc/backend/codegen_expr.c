@@ -340,6 +340,20 @@ typedef struct {
 #endif
 } ArgInfo;
 
+//
+static Expr *gen_expr_as_tmpvar(Expr *arg) {
+  // Precalculate expr and store the result to temporary variable.
+  Type *type = arg->type;
+  if (type->kind == TY_STRUCT)
+    type = ptrof(type);
+  Scope *scope = curscope;
+  const Name *name = alloc_label();
+  VarInfo *varinfo = scope_add(scope, name, type, 0);
+  varinfo->local.reg = gen_expr(arg);
+  // Replace the argument to temporary variable reference.
+  return new_expr_variable(name, type, NULL, scope);
+}
+
 // If an argument is complex expression,
 // precalculate it and make function argument simple.
 static Expr *simplify_funarg(Expr *arg) {
@@ -352,18 +366,7 @@ static Expr *simplify_funarg(Expr *arg) {
   case EX_BLOCK:
   case EX_LOGAND:  // Shortcut must be handled properly.
   case EX_LOGIOR:
-    {
-      // Precalculate expr and store the result to temporary variable.
-      Type *type = arg->type;
-      if (type->kind == TY_STRUCT)
-        type = ptrof(type);
-      Scope *scope = curscope;
-      const Name *name = alloc_label();
-      VarInfo *varinfo = scope_add(scope, name, type, 0);
-      varinfo->local.reg = gen_expr(arg);
-      // Replace the argument to temporary variable reference.
-      return new_expr_variable(name, type, NULL, scope);
-    }
+    return gen_expr_as_tmpvar(arg);
 
   case EX_COMPLIT:
     // Precalculate compound literal, and returns its stored variable name.
@@ -376,10 +379,16 @@ static Expr *simplify_funarg(Expr *arg) {
     return simplify_funarg(arg->bop.rhs);
 
   // Binary operators
-  case EX_ADD:
-  case EX_SUB:
   case EX_MUL:
   case EX_DIV:
+#if defined(__x86_64__)
+    // On x64, MUL and DIV instruction implicitly uses (breaks) %rdx
+    // and %rdx is used as 3rd argument.
+    // so must be precalculated.
+    return gen_expr_as_tmpvar(arg);
+#endif
+  case EX_ADD:
+  case EX_SUB:
   case EX_MOD:
   case EX_BITAND:
   case EX_BITOR:
@@ -462,8 +471,13 @@ static VReg *gen_funcall(Expr *expr) {
   ArgInfo *arg_infos = NULL;
   int stack_arg_count = 0;
   int reg_arg_count = 0;
+#ifndef __NO_FLONUM
+  int freg_arg_count = 0;
+#else
+  const int freg_arg_count = 0;
+#endif
+  int arg_start = retvar_reg != NULL ? 1 : 0;
   {
-    int arg_start = retvar_reg != NULL ? 1 : 0;
     int ireg_index = arg_start;
 #ifndef __NO_FLONUM
     int freg_index = 0;
@@ -501,13 +515,16 @@ static VReg *gen_funcall(Expr *expr) {
         offset += ALIGN(p->size, WORD_SIZE);
         ++stack_arg_count;
       } else {
-        ++reg_arg_count;
 #ifndef __NO_FLONUM
-        if (p->is_flonum)
+        if (p->is_flonum) {
           p->reg_index = freg_index++;
-        else
+          ++freg_arg_count;
+        } else
 #endif
+        {
           p->reg_index = ireg_index++;
+          ++reg_arg_count;
+        }
       }
     }
 
@@ -526,16 +543,27 @@ static VReg *gen_funcall(Expr *expr) {
   {
     // Register arguments.
     int iregarg = 0;
+#ifndef __NO_FLONUM
+    int fregarg = 0;
+#endif
     for (int i = arg_count; --i >= 0; ) {
       Expr *arg = args->data[i];
       VReg *reg = gen_expr(arg);
       const ArgInfo *p = &arg_infos[i];
       if (p->offset < 0) {
-        new_ir_pusharg(reg);
-        ++iregarg;
+#ifndef __NO_FLONUM
+        if (p->is_flonum) {
+          ++fregarg;
+          new_ir_pusharg(reg, freg_arg_count - fregarg);
+        } else
+#endif
+        {
+          ++iregarg;
+          new_ir_pusharg(reg, reg_arg_count - iregarg + arg_start);
+        }
       } else {
         VRegType offset_type = {.size = 4, .align = 4, .flag = 0};  // TODO:
-        int ofs = p->offset + iregarg * REGARG_SIZE;
+        int ofs = p->offset;
         VReg *dst = new_ir_sofs(new_const_vreg(ofs, &offset_type));
         if (is_stack_param(arg->type)) {
           new_ir_memcpy(dst, reg, type_size(arg->type));
@@ -549,7 +577,7 @@ static VReg *gen_funcall(Expr *expr) {
     // gen_lval(retvar)
     VReg *dst = new_ir_bofs(retvar_reg);
     VRegType *vtype = to_vtype(ptrof(expr->type));
-    new_ir_pusharg(dst);
+    new_ir_pusharg(dst, 0);
     arg_vtypes[0] = vtype;
     ++reg_arg_count;
   }
@@ -572,12 +600,12 @@ static VReg *gen_funcall(Expr *expr) {
       type = ptrof(type);
     VRegType *ret_vtype = type->kind == TY_VOID ? NULL : to_vtype(type);
     if (label_call) {
-      result_reg = new_ir_call(func->var.name, global, NULL, total_arg_count, reg_arg_count,
+      result_reg = new_ir_call(func->var.name, global, NULL, total_arg_count, reg_arg_count + freg_arg_count,
                                ret_vtype, precall, arg_vtypes, vaarg_start);
     } else {
       VReg *freg = gen_expr(func);
-      result_reg = new_ir_call(NULL, false, freg, total_arg_count, reg_arg_count, ret_vtype,
-                               precall, arg_vtypes, vaarg_start);
+      result_reg = new_ir_call(NULL, false, freg, total_arg_count, reg_arg_count + freg_arg_count,
+                               ret_vtype, precall, arg_vtypes, vaarg_start);
     }
   }
 

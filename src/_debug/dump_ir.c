@@ -63,7 +63,7 @@ static void dump_ir(FILE *fp, IR *ir) {
     fprintf(fp, "]\n");
     break;
   case IR_PRECALL: fprintf(fp, "\tPRECALL\n"); break;
-  case IR_PUSHARG: fprintf(fp, "\tPUSHARG\t"); dump_vreg(fp, ir->opr1); fprintf(fp, "\n"); break;
+  case IR_PUSHARG: fprintf(fp, "\tPUSHARG\t%d, ", ir->pusharg.index); dump_vreg(fp, ir->opr1); fprintf(fp, "\n"); break;
   case IR_CALL:
     if (ir->call.label != NULL) {
       fprintf(fp, "\tCALL\t"); if (ir->dst != NULL) { dump_vreg(fp, ir->dst); fprintf(fp, " = "); } fprintf(fp, "%.*s(args=#%d)\n", ir->call.label->bytes, ir->call.label->chars, ir->call.reg_arg_count);

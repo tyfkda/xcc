@@ -659,80 +659,56 @@ static void ir_out(IR *ir) {
     break;
 
   case IR_PUSHARG:
+    {
 #ifndef __NO_FLONUM
-    if (ir->opr1->vtype->flag & VRTF_FLONUM) {
-      SUB(IM(WORD_SIZE), RSP);
-      PUSH_STACK_POS();
-      switch (ir->opr1->vtype->size) {
-      case SZ_FLOAT: MOVSS(kFReg64s[ir->opr1->phys], INDIRECT(RSP, NULL, 1)); break;
-      case SZ_DOUBLE: MOVSD(kFReg64s[ir->opr1->phys], INDIRECT(RSP, NULL, 1)); break;
-      default: assert(false); break;
+      if (ir->opr1->vtype->flag & VRTF_FLONUM) {
+        static const char *kArgFReg64s[] = {XMM0, XMM1, XMM2, XMM3, XMM4, XMM5, XMM6, XMM7};
+        switch (ir->opr1->vtype->size) {
+        case SZ_FLOAT: MOVSS(kFReg64s[ir->opr1->phys], kArgFReg64s[ir->pusharg.index]); break;
+        case SZ_DOUBLE: MOVSD(kFReg64s[ir->opr1->phys], kArgFReg64s[ir->pusharg.index]); break;
+        default: assert(false); break;
+        }
+        break;
       }
-      break;
-    }
 #endif
-    if (ir->opr1->flag & VRF_CONST) {
-      if (is_im32(ir->opr1->fixnum)) {
-        PUSH(IM(ir->opr1->fixnum));
-        PUSH_STACK_POS();
-      } else {
-        MOV(IM(ir->opr1->fixnum), RAX);  // TODO: Check.
-        PUSH(RAX);
-        PUSH_STACK_POS();
-      }
-    } else {
-      PUSH(kReg64s[ir->opr1->phys]);
-      PUSH_STACK_POS();
+
+      static const char *kArgRegSizeTable[][MAX_REG_ARGS] = {
+        {DIL, SIL,  DL,  CL, R8B, R9B},
+        { DI,  SI,  DX,  CX, R8W, R9W},
+        {EDI, ESI, EDX, ECX, R8D, R9D},
+        {RDI, RSI, RDX, RCX, R8 , R9},
+      };
+
+      assert(0 <= ir->opr1->vtype->size && ir->opr1->vtype->size < kPow2TableSize);
+      int pow = kPow2Table[ir->opr1->vtype->size];
+      assert(0 <= pow && pow < 4);
+
+      const char *dst = kArgRegSizeTable[pow][ir->pusharg.index];
+      if (ir->opr1->flag & VRF_CONST)
+        MOV(IM(ir->opr1->fixnum), dst);
+      else
+        MOV(kRegSizeTable[pow][ir->opr1->phys], dst);
     }
     break;
 
   case IR_CALL:
     {
       IR *precall = ir->call.precall;
-      int reg_args = ir->call.reg_arg_count;
       push_caller_save_regs(
           precall->precall.living_pregs,
-          reg_args * WORD_SIZE + precall->precall.stack_args_size + precall->precall.stack_aligned);
-
-      static const char *kArgReg64s[] = {RDI, RSI, RDX, RCX, R8, R9};
-#ifndef __NO_FLONUM
-      static const char *kArgFReg64s[] = {XMM0, XMM1, XMM2, XMM3, XMM4, XMM5, XMM6, XMM7};
-      int freg = 0;
-#endif
-
-      // Pop register arguments.
-      int ireg = 0;
-      int total_arg_count = ir->call.total_arg_count;
-      for (int i = 0; i < total_arg_count; ++i) {
-#if defined(VAARG_ON_STACK)
-        if (ir->call.vaarg_start >= 0 && i >= ir->call.vaarg_start)
-          break;
-#endif
-        if (ir->call.arg_vtypes[i]->flag & VRTF_NON_REG)
-          continue;
-#ifndef __NO_FLONUM
-        if (ir->call.arg_vtypes[i]->flag & VRTF_FLONUM) {
-          if (freg < MAX_FREG_ARGS) {
-            switch (ir->call.arg_vtypes[i]->size) {
-            case SZ_FLOAT: MOVSS(INDIRECT(RSP, NULL, 1), kArgFReg64s[freg]); break;
-            case SZ_DOUBLE: MOVSD(INDIRECT(RSP, NULL, 1), kArgFReg64s[freg]); break;
-            default: assert(false); break;
-            }
-            ++freg;
-            ADD(IM(WORD_SIZE), RSP);
-            POP_STACK_POS();
-          }
-          continue;
-        }
-#endif
-        if (ireg < MAX_REG_ARGS) {
-          POP(kArgReg64s[ireg++]);
-          POP_STACK_POS();
-        }
-      }
+          precall->precall.stack_args_size + precall->precall.stack_aligned);
 
 #ifndef __NO_FLONUM
       if (ir->call.vaarg_start >= 0) {
+        int total_arg_count = ir->call.total_arg_count;
+        int freg = 0;
+        for (int i = 0; i < total_arg_count; ++i) {
+          if (ir->call.arg_vtypes[i]->flag & VRTF_FLONUM &&
+              freg < MAX_FREG_ARGS) {
+            ++freg;
+          }
+        }
+
         if (freg > 0)
           MOV(IM(freg), AL);
         else
