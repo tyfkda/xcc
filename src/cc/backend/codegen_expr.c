@@ -444,6 +444,7 @@ static VReg *gen_funcall(Expr *expr) {
     Expr *arg = args->data[i];
     args->data[i] = simplify_funarg(arg);
   }
+  func = simplify_funarg(func);
 
   int offset = 0;
 
