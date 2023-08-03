@@ -700,7 +700,8 @@ static void gen_defun(Function *func) {
   detect_living_registers(fnbe->ra, fnbe->bbcon);
 
   int reserved_size = func->type->func.vaargs ? (MAX_REG_ARGS + MAX_FREG_ARGS) * WORD_SIZE : 0;
-  fnbe->frame_size = alloc_spilled_vregs_onto_stack_frame(fnbe->ra, reserved_size);
+  size_t frame_size = alloc_spilled_vregs_onto_stack_frame(fnbe->ra, reserved_size);
+  fnbe->frame_size = ALIGN(frame_size, 16);
 
   curfunc = NULL;
   curra = NULL;
