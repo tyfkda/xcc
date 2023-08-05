@@ -55,7 +55,7 @@ static const int kCallerSaveRegs[] = {9, 10, 11, 12, 13, 14, 15, 16};
 static const int kCalleeSaveFRegs[] = {0, 1, 2, 3, 4, 5, 6, 7};
 
 #define CALLER_SAVE_FREG_COUNT  ((int)(sizeof(kCallerSaveFRegs) / sizeof(*kCallerSaveFRegs)))
-static const int kCallerSaveFRegs[] = {8, 9, 10, 11, 12, 13, 14, 15};
+static const int kCallerSaveFRegs[] = {8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23};
 #endif
 
 static const int kPow2Table[] = {-1, 0, 1, -1, 2, -1, -1, -1, 3};
