@@ -360,6 +360,10 @@ static Expr *simplify_funarg(Expr *arg) {
   switch (arg->kind) {
   default: assert(false); break;
 
+  case EX_PREINC:
+  case EX_PREDEC:
+  case EX_POSTINC:
+  case EX_POSTDEC:
   case EX_ASSIGN:
   case EX_TERNARY:
   case EX_FUNCALL:
@@ -409,10 +413,6 @@ static Expr *simplify_funarg(Expr *arg) {
   case EX_POS:
   case EX_NEG:
   case EX_BITNOT:
-  case EX_PREINC:
-  case EX_PREDEC:
-  case EX_POSTINC:
-  case EX_POSTDEC:
   case EX_REF:
   case EX_DEREF:
   case EX_CAST:
