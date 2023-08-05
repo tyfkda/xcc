@@ -11,8 +11,8 @@
 #include "util.h"
 #include "x64.h"
 
-static void push_caller_save_regs(unsigned long living, int base);
-static void pop_caller_save_regs(unsigned long living);
+static Vector *push_caller_save_regs(unsigned long living);
+static void pop_caller_save_regs(Vector *saves);
 
 int stackpos = 8;
 
@@ -631,29 +631,16 @@ static void ir_out(IR *ir) {
 
   case IR_PRECALL:
     {
-      // Make room for caller save.
-      int add = 0;
-      unsigned long living_pregs = ir->precall.living_pregs;
-      for (int i = 0; i < CALLER_SAVE_REG_COUNT; ++i) {
-        int ireg = kCallerSaveRegs[i];
-        if (living_pregs & (1UL << ireg))
-          add += WORD_SIZE;
-      }
-#ifndef __NO_FLONUM
-      for (int i = 0; i < CALLER_SAVE_FREG_COUNT; ++i) {
-        int freg = kCallerSaveFRegs[i];
-        if (living_pregs & (1UL << (freg + PHYSICAL_REG_MAX)))
-          add += WORD_SIZE;
-      }
-#endif
+      // Living registers are not modified between preparing function arguments,
+      // so safely saved before calculating argument values.
+      ir->precall.caller_saves = push_caller_save_regs(ir->precall.living_pregs);
 
-      int align_stack = (16 - (stackpos + add + ir->precall.stack_args_size)) & 15;
+      int align_stack = (16 - (stackpos + ir->precall.stack_args_size)) & 15;
       ir->precall.stack_aligned = align_stack;
-      add += align_stack;
 
-      if (add > 0) {
-        SUB(IM(add), RSP);
-        stackpos += add;
+      if (align_stack > 0) {
+        SUB(IM(align_stack), RSP);
+        stackpos += align_stack;
       }
     }
     break;
@@ -693,11 +680,6 @@ static void ir_out(IR *ir) {
 
   case IR_CALL:
     {
-      IR *precall = ir->call.precall;
-      push_caller_save_regs(
-          precall->precall.living_pregs,
-          precall->precall.stack_args_size + precall->precall.stack_aligned);
-
 #ifndef __NO_FLONUM
       if (ir->call.vaarg_start >= 0) {
         int total_arg_count = ir->call.total_arg_count;
@@ -725,6 +707,7 @@ static void ir_out(IR *ir) {
         CALL(fmt("*%s", kReg64s[ir->opr1->phys]));
       }
 
+      IR *precall = ir->call.precall;
       int align_stack = precall->precall.stack_aligned + precall->precall.stack_args_size;
       if (align_stack != 0) {
         ADD(IM(align_stack), RSP);
@@ -732,7 +715,7 @@ static void ir_out(IR *ir) {
       }
 
       // Resore caller save registers.
-      pop_caller_save_regs(precall->precall.living_pregs);
+      pop_caller_save_regs(precall->precall.caller_saves);
 
       if (ir->dst != NULL) {
         assert(0 < ir->dst->vtype->size && ir->dst->vtype->size < kPow2TableSize);
@@ -1037,54 +1020,64 @@ void pop_callee_save_regs(unsigned long used, unsigned long fused) {
   }
 }
 
-static void push_caller_save_regs(unsigned long living, int base) {
-#ifndef __NO_FLONUM
-  {
-    for (int i = CALLER_SAVE_FREG_COUNT; i > 0;) {
-      int ireg = kCallerSaveFRegs[--i];
-      if (living & (1UL << (ireg + PHYSICAL_REG_MAX))) {
-        // TODO: Detect register size.
-        MOVSD(kFReg64s[ireg], OFFSET_INDIRECT(base, RSP, NULL, 1));
-        base += WORD_SIZE;
-      }
-    }
-  }
-#endif
+static Vector *push_caller_save_regs(unsigned long living) {
+  Vector *saves = new_vector();
 
-  for (int i = CALLER_SAVE_REG_COUNT; i > 0;) {
-    int ireg = kCallerSaveRegs[--i];
-    if (living & (1UL << ireg)) {
-      MOV(kReg64s[ireg], OFFSET_INDIRECT(base, RSP, NULL, 1));
-      base += WORD_SIZE;
-    }
-  }
-}
-
-static void pop_caller_save_regs(unsigned long living) {
-#ifndef __NO_FLONUM
-  {
-    int count = 0;
-    for (int i = CALLER_SAVE_FREG_COUNT; i > 0;) {
-      int ireg = kCallerSaveFRegs[--i];
-      if (living & (1UL << (ireg + PHYSICAL_REG_MAX))) {
-        // TODO: Detect register size.
-        MOVSD(OFFSET_INDIRECT(count * WORD_SIZE, RSP, NULL, 1), kFReg64s[ireg]);
-        ++count;
-      }
-    }
-    if (count > 0) {
-      ADD(IM(WORD_SIZE * count), RSP);
-      stackpos -= WORD_SIZE * count;
-    }
-  }
-#endif
-
-  for (int i = CALLER_SAVE_REG_COUNT; --i >= 0;) {
+  for (int i = 0; i < CALLER_SAVE_REG_COUNT; ++i) {
     int ireg = kCallerSaveRegs[i];
     if (living & (1UL << ireg)) {
-      POP(kReg64s[ireg]);
-      POP_STACK_POS();
+      const char *reg = kReg64s[ireg];
+      PUSH(reg);
+      PUSH_STACK_POS();
+      vec_push(saves, reg);
     }
+  }
+
+#ifndef __NO_FLONUM
+  {
+    int fstart = saves->len;
+    for (int i = 0; i < CALLER_SAVE_FREG_COUNT; ++i) {
+      int ireg = kCallerSaveFRegs[i];
+      if (living & (1UL << (ireg + PHYSICAL_REG_MAX))) {
+        // TODO: Detect register size.
+        vec_push(saves, kFReg64s[ireg]);
+      }
+    }
+    int n = saves->len - fstart;
+    int ofs = n * WORD_SIZE;
+    SUB(IM(ofs), RSP);
+    stackpos += ofs;
+    for (int i = 0; i < n; ++i) {
+      ofs -= WORD_SIZE;
+      MOVSD(saves->data[i + fstart], OFFSET_INDIRECT(ofs, RSP, NULL, 1));
+    }
+  }
+#endif
+
+  return saves;
+}
+
+static void pop_caller_save_regs(Vector *saves) {
+  int i = saves->len;
+#ifndef __NO_FLONUM
+  int ofs = 0;
+  while (--i >= 0) {
+    const char *reg = saves->data[i];
+    if (strncmp(reg, "%xmm", 4) != 0)
+      break;
+    MOVSD(OFFSET_INDIRECT(ofs, RSP, NULL, 1), reg);
+    ofs += WORD_SIZE;
+  }
+  if (ofs > 0) {
+    ADD(IM(ofs), RSP);
+    stackpos -= ofs;
+  }
+  ++i;
+#endif
+  while (--i >= 0) {
+    const char *reg = saves->data[i];
+    POP(reg);
+    POP_STACK_POS();
   }
 }
 

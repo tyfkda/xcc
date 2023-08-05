@@ -133,6 +133,7 @@ typedef struct IR {
       int stack_args_size;
       int stack_aligned;
       unsigned long living_pregs;
+      Vector *caller_saves;  // <const char*>
     } precall;
     struct {
       int index;
