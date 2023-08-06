@@ -490,7 +490,13 @@ void remove_unnecessary_bb(BBContainer *bbcon) {
   }
 }
 
-void detect_from_bbs(BBContainer *bbcon) {
+static void detect_from_bbs(BBContainer *bbcon) {
+  // Clear all from_bbs
+  for (int i = 0; i < bbcon->bbs->len; ++i) {
+    BB *bb = bbcon->bbs->data[i];
+    vec_clear(bb->from_bbs);
+  }
+
   for (int i = 0; i < bbcon->bbs->len; ++i) {
     BB *bb = bbcon->bbs->data[i];
     Vector *irs = bb->irs;
@@ -530,6 +536,8 @@ static void propagate_out_regs(VReg *reg, Vector *froms) {
 }
 
 void analyze_reg_flow(BBContainer *bbcon) {
+  detect_from_bbs(bbcon);
+
   // Enumerate in and assigned regsiters for each BB.
   for (int i = 0; i < bbcon->bbs->len; ++i) {
     BB *bb = bbcon->bbs->data[i];

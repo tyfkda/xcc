@@ -213,7 +213,6 @@ typedef struct BBContainer {
 
 BBContainer *new_func_blocks(void);
 void remove_unnecessary_bb(BBContainer *bbcon);
-void detect_from_bbs(BBContainer *bbcon);
 void analyze_reg_flow(BBContainer *bbcon);
 int push_callee_save_regs(unsigned long used, unsigned long fused);
 void pop_callee_save_regs(unsigned long used, unsigned long fused);
