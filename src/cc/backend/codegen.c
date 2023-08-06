@@ -10,6 +10,7 @@
 
 #include "ast.h"
 #include "ir.h"
+#include "optimize.h"
 #include "parser.h"  // curfunc, curscope
 #include "regalloc.h"
 #include "table.h"
@@ -688,7 +689,7 @@ static void gen_defun(Function *func) {
   set_curbb(fnbe->ret_bb);
   curbb = NULL;
 
-  remove_unnecessary_bb(fnbe->bbcon);
+  optimize(fnbe->bbcon);
 
   prepare_register_allocation(func);
   tweak_irs(fnbe);
