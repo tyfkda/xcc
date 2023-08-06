@@ -118,6 +118,11 @@ static void dump_func_ir(Function *func) {
   for (int i = 0; i < ra->vregs->len; ++i) {
     LiveInterval *li = sorted_intervals[i];
     VReg *vreg = ra->vregs->data[li->virt];
+    if (vreg == NULL) {
+      fprintf(fp, "  V%3d: unused\n", li->virt);
+      continue;
+    }
+
     switch (li->state) {
     case LI_NORMAL:
       {

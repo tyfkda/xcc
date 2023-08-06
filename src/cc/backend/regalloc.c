@@ -171,6 +171,8 @@ static void linear_scan_register_allocation(RegAlloc *ra, LiveInterval **sorted_
 
   for (int i = 0; i < vreg_count; ++i) {
     LiveInterval *li = sorted_intervals[i];
+    if (ra->vregs->data[li->virt] == NULL)
+      continue;
     if (li->state != LI_NORMAL)
       continue;
     expire_old_intervals(ireg_info.active, &ireg_info.active_count, &ireg_info.using_bits,
@@ -321,6 +323,8 @@ void alloc_physical_registers(RegAlloc *ra, BBContainer *bbcon) {
     for (int i = 0; i < vreg_count; ++i) {
       LiveInterval *li = &intervals[i];
       VReg *vreg = ra->vregs->data[i];
+      if (vreg == NULL)
+        continue;
 
       if (vreg->flag & VRF_CONST) {
         li->state = LI_CONST;

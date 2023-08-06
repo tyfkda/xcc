@@ -2,8 +2,10 @@
 #include "optimize.h"
 
 #include <assert.h>
+#include <stdlib.h>  // free
 
 #include "ir.h"
+#include "regalloc.h"
 #include "table.h"
 #include "util.h"
 
@@ -136,6 +138,59 @@ static void remove_unnecessary_bb(BBContainer *bbcon) {
 
 //
 
-void optimize(BBContainer *bbcon) {
+static void remove_unused_vregs(RegAlloc *ra, BBContainer *bbcon) {
+  int vreg_count = ra->vregs->len;
+  unsigned char *vreg_read = malloc_or_die(vreg_count);
+  for (int i = 0; i < vreg_count; ++i) {
+    VReg *vreg = ra->vregs->data[i];
+    vreg_read[i] = (vreg->flag & VRF_PARAM) != 0;  // Must keep function parameter.
+  }
+
+  // Check VReg usage.
+  for (int i = 0; i < bbcon->bbs->len; ++i) {
+    BB *bb = bbcon->bbs->data[i];
+     for (int j = 0; j < bb->irs->len; ++j) {
+      IR *ir = bb->irs->data[j];
+      VReg *operands[] = {ir->opr1, ir->opr2};
+      for (int k = 0; k < 2; ++k) {
+        VReg *vreg = operands[k];
+        if (vreg != NULL)
+          vreg_read[vreg->virt] = true;
+      }
+    }
+  }
+
+  // Remove instruction if the destination is unread.
+  for (int i = 0; i < bbcon->bbs->len; ++i) {
+    BB *bb = bbcon->bbs->data[i];
+     for (int j = 0; j < bb->irs->len; ++j) {
+      IR *ir = bb->irs->data[j];
+      if (ir->dst == NULL || vreg_read[ir->dst->virt])
+        continue;
+      if (ir->kind == IR_CALL) {
+        // Function must be CALLed even if the result is unused.
+        ir->dst = NULL;
+      } else {
+        vec_remove_at(bb->irs, j);
+        --j;
+      }
+    }
+  }
+
+  // Release unused VRegs.
+  for (int i = 0; i < vreg_count; ++i) {
+    if (!vreg_read[i]) {
+      free(ra->vregs->data[i]);
+      ra->vregs->data[i] = NULL;
+    }
+  }
+
+  free(vreg_read);
+}
+
+//
+
+void optimize(RegAlloc *ra, BBContainer *bbcon) {
+  remove_unused_vregs(ra, bbcon);
   remove_unnecessary_bb(bbcon);
 }

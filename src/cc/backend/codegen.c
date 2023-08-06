@@ -555,6 +555,8 @@ static void prepare_register_allocation(Function *func) {
 static void map_virtual_to_physical_registers(RegAlloc *ra) {
   for (int i = 0, vreg_count = ra->vregs->len; i < vreg_count; ++i) {
     VReg *vreg = ra->vregs->data[i];
+    if (vreg == NULL)
+      continue;
     if (!(vreg->flag & VRF_CONST))
       vreg->phys = ra->intervals[vreg->virt].phys;
   }
@@ -603,6 +605,8 @@ static void detect_living_registers(RegAlloc *ra, BBContainer *bbcon) {
       // Add activated registers.
       for (; head < ra->vregs->len; ++head) {
         LiveInterval *li = ra->sorted_intervals[head];
+        if (ra->vregs->data[li->virt] == NULL)
+          continue;
         if (li->state != LI_NORMAL)
           continue;
         if (li->start > nip)
@@ -689,7 +693,7 @@ static void gen_defun(Function *func) {
   set_curbb(fnbe->ret_bb);
   curbb = NULL;
 
-  optimize(fnbe->bbcon);
+  optimize(fnbe->ra, fnbe->bbcon);
 
   prepare_register_allocation(func);
   tweak_irs(fnbe);
