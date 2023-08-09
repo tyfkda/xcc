@@ -28,7 +28,7 @@ void gen_cond_jmp(Expr *cond, bool tf, BB *bb);
 
 void set_curbb(BB *bb);
 VReg *add_new_reg(const Type *type, int flag);
-VRegType *to_vtype(const Type *type);
+VRegType to_vtype(const Type *type);
 
 bool is_stack_param(const Type *type);
 

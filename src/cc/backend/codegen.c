@@ -119,7 +119,7 @@ static void alloc_variable_registers(Function *func) {
       VReg *vreg = varinfo->local.vreg;
       if (vreg != NULL) {
         vreg->flag |= VRF_PARAM;
-        if (vreg->vtype->flag & VRTF_FLONUM) {
+        if (vreg->vtype.flag & VRTF_FLONUM) {
           if (fregindex < MAX_FREG_ARGS)
             vreg->reg_param_index = fregindex++;
         } else {
@@ -176,7 +176,7 @@ void enumerate_register_params(
   *pfarg_count = farg_count;
 }
 
-static VRegType *get_elem_vtype(const Type *type) {
+static VRegType get_elem_vtype(const Type *type) {
   const size_t MAX_REG_SIZE = 8;  // TODO:
 
   size_t size = type_size(type);
@@ -192,18 +192,19 @@ static VRegType *get_elem_vtype(const Type *type) {
   }
 
   VRegType *vtype = malloc(sizeof(*vtype));
-  vtype->size = s;
-  vtype->align = s;
-  vtype->flag = 0;
-  return vtype;
+  return (VRegType) {
+    .size = s,
+    .align = s,
+    .flag = 0,
+  };
 }
 
 void gen_memcpy(const Type *type, VReg *dst, VReg *src) {
   size_t size = type_size(type);
   if (size == 0)
     return;
-  VRegType *elem_vtype = get_elem_vtype(type);
-  size_t count = size / elem_vtype->size;
+  VRegType elem_vtype = get_elem_vtype(type);
+  size_t count = size / elem_vtype.size;
   assert(count > 0);
   if (count == 1) {
     VReg *tmp = new_ir_unary(IR_LOAD, src, elem_vtype);
@@ -214,10 +215,10 @@ void gen_memcpy(const Type *type, VReg *dst, VReg *src) {
     VReg *dstp = add_new_reg(&tyVoidPtr, 0);
     new_ir_mov(dstp, dst);
 
-    VRegType *vtySize = to_vtype(&tySize);
+    VRegType vtySize = to_vtype(&tySize);
     VReg *vcount = add_new_reg(&tySize, 0);
     new_ir_mov(vcount, new_const_vreg(count, vtySize));
-    VReg *vadd = new_const_vreg(elem_vtype->size, vtySize);
+    VReg *vadd = new_const_vreg(elem_vtype.size, vtySize);
 
     BB *loop_bb = new_bb();
     set_curbb(loop_bb);
@@ -236,8 +237,8 @@ static void gen_clear(const Type *type, VReg *dst) {
   size_t size = type_size(type);
   if (size == 0)
     return;
-  VRegType *elem_vtype = get_elem_vtype(type);
-  size_t count = size / elem_vtype->size;
+  VRegType elem_vtype = get_elem_vtype(type);
+  size_t count = size / elem_vtype.size;
   assert(count > 0);
   VReg *vzero = new_const_vreg(0, elem_vtype);
   if (count == 1) {
@@ -246,10 +247,10 @@ static void gen_clear(const Type *type, VReg *dst) {
     VReg *dstp = add_new_reg(&tyVoidPtr, 0);
     new_ir_mov(dstp, dst);
 
-    VRegType *vtySize = to_vtype(&tySize);
+    VRegType vtySize = to_vtype(&tySize);
     VReg *vcount = add_new_reg(&tySize, 0);
     new_ir_mov(vcount, new_const_vreg(count, vtySize));
-    VReg *vadd = new_const_vreg(elem_vtype->size, vtySize);
+    VReg *vadd = new_const_vreg(elem_vtype.size, vtySize);
 
     BB *loop_bb = new_bb();
     set_curbb(loop_bb);
@@ -385,7 +386,7 @@ static void gen_switch_cond_table_jump(Stmt *swtch, VReg *vreg, Stmt **cases, in
 }
 
 static void gen_switch_cond_recur(Stmt *swtch, VReg *vreg, Stmt **cases, int len) {
-  int cond_flag = vreg->vtype->flag & VRTF_UNSIGNED ? COND_UNSIGNED : 0;
+  int cond_flag = vreg->vtype.flag & VRTF_UNSIGNED ? COND_UNSIGNED : 0;
   if (len <= 2) {
     for (int i = 0; i < len; ++i) {
       BB *nextbb = new_bb();
@@ -710,7 +711,7 @@ static void detect_living_registers(RegAlloc *ra, BBContainer *bbcon) {
     livings[i] = NULL;
 
 #define VREGFOR(li, ra)  ((VReg*)ra->vregs->data[li->virt])
-#define BITNO(li, ra)    (li->phys + (VREGFOR(li, ra)->vtype->flag & VRTF_FLONUM ? ra->phys_max : 0))
+#define BITNO(li, ra)    (li->phys + (VREGFOR(li, ra)->vtype.flag & VRTF_FLONUM ? ra->phys_max : 0))
   // Activate function parameters a priori.
   for (int i = 0; i < ra->vregs->len; ++i) {
     LiveInterval *li = ra->sorted_intervals[i];
@@ -826,8 +827,7 @@ static void alloc_stack_variables_onto_stack_frame(Function *func) {
     }
 
     int size, align;
-    const VRegType *vtype = vreg->vtype;
-    assert(vtype != NULL);
+    const VRegType *vtype = &vreg->vtype;
     size = vtype->size;
     align = vtype->align;
     if (size < 1)

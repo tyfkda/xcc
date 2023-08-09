@@ -36,7 +36,7 @@ typedef struct VRegType {
 #define VRF_UNUSED    (1 << 9)  // Unused
 
 typedef struct VReg {
-  const VRegType *vtype;
+  VRegType vtype;
   int virt;         // Virtual reg no.
   int phys;         // Physical reg no.
   int flag;
@@ -158,9 +158,9 @@ typedef struct IR {
   };
 } IR;
 
-VReg *new_const_vreg(int64_t value, const VRegType *vtype);
-VReg *new_ir_bop(enum IrKind kind, VReg *opr1, VReg *opr2, const VRegType *vtype);
-VReg *new_ir_unary(enum IrKind kind, VReg *opr, const VRegType *vtype);
+VReg *new_const_vreg(int64_t value, VRegType vtype);
+VReg *new_ir_bop(enum IrKind kind, VReg *opr1, VReg *opr2, VRegType vtype);
+VReg *new_ir_unary(enum IrKind kind, VReg *opr, VRegType vtype);
 IR *new_ir_mov(VReg *dst, VReg *src);
 VReg *new_ir_bofs(FrameInfo *fi, VReg *src);
 VReg *new_ir_iofs(const Name *label, bool global);
@@ -175,7 +175,7 @@ void new_ir_pusharg(VReg *vreg, int index);
 VReg *new_ir_call(const Name *label, bool global, VReg *freg, int total_arg_count, int reg_arg_count, const VRegType *result_type, IR *precall, VReg **args, int vaarg_start);
 void new_ir_result(VReg *vreg);
 void new_ir_subsp(VReg *value, VReg *dst);
-VReg *new_ir_cast(VReg *vreg, const VRegType *dsttype);
+VReg *new_ir_cast(VReg *vreg, VRegType dsttype);
 void new_ir_asm(const char *asm_, VReg *dst);
 
 IR *new_ir_load_spilled(VReg *vreg, VReg *src);

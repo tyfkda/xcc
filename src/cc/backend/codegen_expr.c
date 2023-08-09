@@ -17,13 +17,11 @@ bool is_stack_param(const Type *type) {
   return type->kind == TY_STRUCT;
 }
 
-VRegType *to_vtype(const Type *type) {
+VRegType to_vtype(const Type *type) {
   assert(is_prim_type(type));
-  size_t size = type_size(type);
+  int size = type_size(type);
   assert(1 <= size && size <= 8 && IS_POWER_OF_2(size));
-  VRegType *vtype = malloc_or_die(sizeof(*vtype));
-  vtype->size = size;
-  vtype->align = align_size(type);
+  int align = align_size(type);
 
   int flag = 0;
   bool is_unsigned = is_fixnum(type->kind) ? type->fixnum.is_unsigned : true;
@@ -33,9 +31,8 @@ VRegType *to_vtype(const Type *type) {
   }
   if (is_unsigned)
     flag |= VRTF_UNSIGNED;
-  vtype->flag = flag;
 
-  return vtype;
+  return (VRegType){.size = size, .align = align, .flag = flag};
 }
 
 VReg *add_new_reg(const Type *type, int flag) {
@@ -85,8 +82,8 @@ static enum ConditionKind gen_compare_expr(enum ExprKind kind, Expr *lhs, Expr *
   VReg *rhs_reg = gen_expr(rhs);
   if ((rhs_reg->flag & VRF_CONST) != 0 && (lhs_reg->flag & VRF_CONST) != 0) {
     // Const VReg is must be non-flonum.
-    assert(!(lhs_reg->vtype->flag & VRTF_FLONUM));
-    assert(!(rhs_reg->vtype->flag & VRTF_FLONUM));
+    assert(!(lhs_reg->vtype.flag & VRTF_FLONUM));
+    assert(!(rhs_reg->vtype.flag & VRTF_FLONUM));
     assert(!(flag & COND_FLONUM));
     switch (cond | flag) {
     case COND_NONE:
@@ -174,10 +171,10 @@ static VReg *gen_cast(VReg *vreg, const Type *dst_type) {
   }
 
   if (vreg->flag & VRF_CONST) {
-    assert(!(vreg->vtype->flag & VRTF_FLONUM));  // No const vreg for flonum.
+    assert(!(vreg->vtype.flag & VRTF_FLONUM));  // No const vreg for flonum.
     Fixnum value = vreg->fixnum;
     size_t dst_size = type_size(dst_type);
-    if (dst_size < (size_t)vreg->vtype->size && dst_size < sizeof(Fixnum)) {
+    if (dst_size < (size_t)vreg->vtype.size && dst_size < sizeof(Fixnum)) {
       // Assume that integer is represented in Two's complement
       size_t bit = dst_size * TARGET_CHAR_BIT;
       UFixnum mask = (-1UL) << bit;
@@ -188,15 +185,14 @@ static VReg *gen_cast(VReg *vreg, const Type *dst_type) {
         value &= ~mask;
     }
 
-    VRegType *vtype = to_vtype(dst_type);
-    return new_const_vreg(value, vtype);
+    return new_const_vreg(value, to_vtype(dst_type));
   }
 
   int dst_size = type_size(dst_type);
   bool lu = dst_type->kind == TY_FIXNUM ? dst_type->fixnum.is_unsigned : dst_type->kind == TY_PTR;
-  bool ru = (vreg->vtype->flag & VRTF_UNSIGNED) ? true : false;
-  if (dst_size == vreg->vtype->size && lu == ru
-      && is_flonum(dst_type) == ((vreg->vtype->flag & VRTF_FLONUM) != 0)
+  bool ru = (vreg->vtype.flag & VRTF_UNSIGNED) ? true : false;
+  if (dst_size == vreg->vtype.size && lu == ru
+      && is_flonum(dst_type) == ((vreg->vtype.flag & VRTF_FLONUM) != 0)
   )
     return vreg;
 
@@ -227,7 +223,7 @@ static VReg *gen_lval(Expr *expr) {
       VReg *vreg = gen_expr(expr->member.target);
       if (member->offset == 0)
         return vreg;
-      VRegType *vtype = to_vtype(&tySize);
+      VRegType vtype = to_vtype(&tySize);
       VReg *imm = new_const_vreg(member->offset, vtype);
       VReg *result = new_ir_bop(IR_ADD, vreg, imm, vtype);
       return result;
@@ -512,7 +508,7 @@ static VReg *gen_funcall(Expr *expr) {
       } else {
         VRegType offset_type = {.size = 4, .align = 4, .flag = 0};  // TODO:
         int ofs = p->offset;
-        VReg *dst = new_ir_sofs(new_const_vreg(ofs, &offset_type));
+        VReg *dst = new_ir_sofs(new_const_vreg(ofs, offset_type));
         if (is_stack_param(arg->type)) {
           gen_memcpy(arg->type, dst, vreg);
         } else {
@@ -545,7 +541,11 @@ static VReg *gen_funcall(Expr *expr) {
     Type *type = expr->type;
     if (ret_varinfo != NULL)
       type = ptrof(type);
-    VRegType *ret_vtype = type->kind == TY_VOID ? NULL : to_vtype(type);
+    VRegType *ret_vtype = NULL, ret_vtype_;
+    if (type->kind != TY_VOID) {
+      ret_vtype_ = to_vtype(type);
+      ret_vtype = &ret_vtype_;
+    }
     if (label_call) {
       result_reg = new_ir_call(func->var.name, global, NULL, total_arg_count, reg_arg_count + freg_arg_count,
                                ret_vtype, precall, arg_vregs, vaarg_start);
@@ -768,7 +768,7 @@ VReg *gen_expr(Expr *expr) {
           varinfo = vi;
       }
 
-      VRegType *vtype = to_vtype(expr->type);
+      VRegType vtype = to_vtype(expr->type);
       VReg *before = NULL;
       VReg *lval = NULL;
       VReg *val;
@@ -847,7 +847,7 @@ VReg *gen_expr(Expr *expr) {
       BB *false_bb = new_bb();
       BB *next_bb = new_bb();
       gen_cond_jmp(expr, false, false_bb);
-      VRegType *vtbool = to_vtype(&tyBool);
+      VRegType vtbool = to_vtype(&tyBool);
       VReg *result = add_new_reg(&tyBool, 0);
       new_ir_mov(result, new_const_vreg(true, vtbool));
       new_ir_jmp(COND_ANY, next_bb);

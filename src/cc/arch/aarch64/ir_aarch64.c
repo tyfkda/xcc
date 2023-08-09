@@ -190,27 +190,27 @@ static void ir_out(IR *ir) {
       }
 
       const char *dst;
-      if (ir->dst->vtype->flag & VRTF_FLONUM) {
-        switch (ir->dst->vtype->size) {
+      if (ir->dst->vtype.flag & VRTF_FLONUM) {
+        switch (ir->dst->vtype.size) {
         case SZ_FLOAT:   dst = kFReg32s[ir->dst->phys]; break;
         case SZ_DOUBLE:  dst = kFReg64s[ir->dst->phys]; break;
         default: assert(false); break;
         }
         LDR(dst, src);
       } else {
-        assert(0 <= ir->dst->vtype->size && ir->dst->vtype->size < kPow2TableSize);
-        int pow = kPow2Table[ir->dst->vtype->size];
+        assert(0 <= ir->dst->vtype.size && ir->dst->vtype.size < kPow2TableSize);
+        int pow = kPow2Table[ir->dst->vtype.size];
         assert(0 <= pow && pow < 4);
         const char **regs = kRegSizeTable[pow];
         dst = regs[ir->dst->phys];
         switch (pow) {
         case 0:
-          if (ir->dst->vtype->flag & VRTF_UNSIGNED) LDRB(dst, src);
-          else                                      LDRSB(dst, src);
+          if (ir->dst->vtype.flag & VRTF_UNSIGNED) LDRB(dst, src);
+          else                                     LDRSB(dst, src);
           break;
         case 1:
-          if (ir->dst->vtype->flag & VRTF_UNSIGNED) LDRH(dst, src);
-          else                                      LDRSH(dst, src);
+          if (ir->dst->vtype.flag & VRTF_UNSIGNED) LDRH(dst, src);
+          else                                     LDRSH(dst, src);
           break;
         case 2: case 3:
           LDR(dst, src);
@@ -225,8 +225,8 @@ static void ir_out(IR *ir) {
   case IR_STORE_S:
     {
       assert(!(ir->opr2->flag & VRF_CONST));
-      assert(0 <= ir->opr1->vtype->size && ir->opr1->vtype->size < kPow2TableSize);
-      int pow = kPow2Table[ir->opr1->vtype->size];
+      assert(0 <= ir->opr1->vtype.size && ir->opr1->vtype.size < kPow2TableSize);
+      int pow = kPow2Table[ir->opr1->vtype.size];
       const char *target;
       if (ir->kind == IR_STORE) {
         assert(!(ir->opr2->flag & VRF_SPILLED));
@@ -242,8 +242,8 @@ static void ir_out(IR *ir) {
         }
       }
       const char *src;
-      if (ir->opr1->vtype->flag & VRTF_FLONUM) {
-        switch (ir->opr1->vtype->size) {
+      if (ir->opr1->vtype.flag & VRTF_FLONUM) {
+        switch (ir->opr1->vtype.size) {
         default: assert(false); // Fallthrough
         case SZ_FLOAT:   src = kFReg32s[ir->opr1->phys]; break;
         case SZ_DOUBLE:  src = kFReg64s[ir->opr1->phys]; break;
@@ -252,7 +252,7 @@ static void ir_out(IR *ir) {
         if (ir->opr1->fixnum == 0)
           src = kZeroRegTable[pow];
         else
-          mov_immediate(src = kTmpRegTable[pow], ir->opr1->fixnum, pow >= 3, ir->opr1->vtype->flag & VRTF_UNSIGNED);
+          mov_immediate(src = kTmpRegTable[pow], ir->opr1->fixnum, pow >= 3, ir->opr1->vtype.flag & VRTF_UNSIGNED);
       } else {
         src = kRegSizeTable[pow][ir->opr1->phys];
       }
@@ -267,9 +267,9 @@ static void ir_out(IR *ir) {
 
   case IR_ADD:
     {
-      if (ir->dst->vtype->flag & VRTF_FLONUM) {
+      if (ir->dst->vtype.flag & VRTF_FLONUM) {
         const char **regs;
-        switch (ir->dst->vtype->size) {
+        switch (ir->dst->vtype.size) {
         default: assert(false);  // Fallthrough
         case SZ_FLOAT:   regs = kFReg32s; break;
         case SZ_DOUBLE:  regs = kFReg64s; break;
@@ -278,8 +278,8 @@ static void ir_out(IR *ir) {
         break;
       }
       assert(!(ir->opr1->flag & VRF_CONST));
-      assert(0 <= ir->dst->vtype->size && ir->dst->vtype->size < kPow2TableSize);
-      int pow = kPow2Table[ir->dst->vtype->size];
+      assert(0 <= ir->dst->vtype.size && ir->dst->vtype.size < kPow2TableSize);
+      int pow = kPow2Table[ir->dst->vtype.size];
       assert(0 <= pow && pow < 4);
       const char **regs = kRegSizeTable[pow];
       if (ir->opr2->flag & VRF_CONST) {
@@ -293,9 +293,9 @@ static void ir_out(IR *ir) {
 
   case IR_SUB:
     {
-      if (ir->dst->vtype->flag & VRTF_FLONUM) {
+      if (ir->dst->vtype.flag & VRTF_FLONUM) {
         const char **regs;
-        switch (ir->dst->vtype->size) {
+        switch (ir->dst->vtype.size) {
         default: assert(false);  // Fallthrough
         case SZ_FLOAT:   regs = kFReg32s; break;
         case SZ_DOUBLE:  regs = kFReg64s; break;
@@ -304,8 +304,8 @@ static void ir_out(IR *ir) {
         break;
       }
       assert(!(ir->opr1->flag & VRF_CONST));
-      assert(0 <= ir->dst->vtype->size && ir->dst->vtype->size < kPow2TableSize);
-      int pow = kPow2Table[ir->dst->vtype->size];
+      assert(0 <= ir->dst->vtype.size && ir->dst->vtype.size < kPow2TableSize);
+      int pow = kPow2Table[ir->dst->vtype.size];
       assert(0 <= pow && pow < 4);
       const char **regs = kRegSizeTable[pow];
       if (ir->opr2->flag & VRF_CONST) {
@@ -319,9 +319,9 @@ static void ir_out(IR *ir) {
 
   case IR_MUL:
     {
-      if (ir->dst->vtype->flag & VRTF_FLONUM) {
+      if (ir->dst->vtype.flag & VRTF_FLONUM) {
         const char **regs;
-        switch (ir->dst->vtype->size) {
+        switch (ir->dst->vtype.size) {
         default: assert(false);  // Fallthrough
         case SZ_FLOAT:   regs = kFReg32s; break;
         case SZ_DOUBLE:  regs = kFReg64s; break;
@@ -330,8 +330,8 @@ static void ir_out(IR *ir) {
         break;
       }
       assert(!(ir->opr1->flag & VRF_CONST) && !(ir->opr2->flag & VRF_CONST));
-      assert(0 <= ir->dst->vtype->size && ir->dst->vtype->size < kPow2TableSize);
-      int pow = kPow2Table[ir->dst->vtype->size];
+      assert(0 <= ir->dst->vtype.size && ir->dst->vtype.size < kPow2TableSize);
+      int pow = kPow2Table[ir->dst->vtype.size];
       assert(0 <= pow && pow < 4);
       const char **regs = kRegSizeTable[pow];
       MUL(regs[ir->dst->phys], regs[ir->opr1->phys], regs[ir->opr2->phys]);
@@ -340,9 +340,9 @@ static void ir_out(IR *ir) {
 
   case IR_DIV:
     {
-      if (ir->dst->vtype->flag & VRTF_FLONUM) {
+      if (ir->dst->vtype.flag & VRTF_FLONUM) {
         const char **regs;
-        switch (ir->dst->vtype->size) {
+        switch (ir->dst->vtype.size) {
         default: assert(false);  // Fallthrough
         case SZ_FLOAT:   regs = kFReg32s; break;
         case SZ_DOUBLE:  regs = kFReg64s; break;
@@ -351,11 +351,11 @@ static void ir_out(IR *ir) {
         break;
       }
       assert(!(ir->opr1->flag & VRF_CONST) && !(ir->opr2->flag & VRF_CONST));
-      assert(0 <= ir->dst->vtype->size && ir->dst->vtype->size < kPow2TableSize);
-      int pow = kPow2Table[ir->dst->vtype->size];
+      assert(0 <= ir->dst->vtype.size && ir->dst->vtype.size < kPow2TableSize);
+      int pow = kPow2Table[ir->dst->vtype.size];
       assert(0 <= pow && pow < 4);
       const char **regs = kRegSizeTable[pow];
-      if (!(ir->dst->vtype->flag & VRTF_UNSIGNED))
+      if (!(ir->dst->vtype.flag & VRTF_UNSIGNED))
         SDIV(regs[ir->dst->phys], regs[ir->opr1->phys], regs[ir->opr2->phys]);
       else
         UDIV(regs[ir->dst->phys], regs[ir->opr1->phys], regs[ir->opr2->phys]);
@@ -365,14 +365,14 @@ static void ir_out(IR *ir) {
   case IR_MOD:
     {
       assert(!(ir->opr1->flag & VRF_CONST) && !(ir->opr2->flag & VRF_CONST));
-      assert(0 <= ir->dst->vtype->size && ir->dst->vtype->size < kPow2TableSize);
-      int pow = kPow2Table[ir->dst->vtype->size];
+      assert(0 <= ir->dst->vtype.size && ir->dst->vtype.size < kPow2TableSize);
+      int pow = kPow2Table[ir->dst->vtype.size];
       assert(0 <= pow && pow < 4);
       const char **regs = kRegSizeTable[pow];
       const char *num = regs[ir->opr1->phys];
       const char *div = regs[ir->opr2->phys];
       const char *tmp = kTmpRegTable[pow];
-      if (!(ir->dst->vtype->flag & VRTF_UNSIGNED))
+      if (!(ir->dst->vtype.flag & VRTF_UNSIGNED))
         SDIV(tmp, num, div);
       else
         UDIV(tmp, num, div);
@@ -384,8 +384,8 @@ static void ir_out(IR *ir) {
   case IR_BITAND:
     {
       assert(!(ir->opr1->flag & VRF_CONST) && !(ir->opr2->flag & VRF_CONST));
-      assert(0 <= ir->dst->vtype->size && ir->dst->vtype->size < kPow2TableSize);
-      int pow = kPow2Table[ir->dst->vtype->size];
+      assert(0 <= ir->dst->vtype.size && ir->dst->vtype.size < kPow2TableSize);
+      int pow = kPow2Table[ir->dst->vtype.size];
       assert(0 <= pow && pow < 4);
       const char **regs = kRegSizeTable[pow];
       AND(regs[ir->dst->phys], regs[ir->opr1->phys], regs[ir->opr2->phys]);
@@ -395,8 +395,8 @@ static void ir_out(IR *ir) {
   case IR_BITOR:
     {
       assert(!(ir->opr1->flag & VRF_CONST) && !(ir->opr2->flag & VRF_CONST));
-      assert(0 <= ir->dst->vtype->size && ir->dst->vtype->size < kPow2TableSize);
-      int pow = kPow2Table[ir->dst->vtype->size];
+      assert(0 <= ir->dst->vtype.size && ir->dst->vtype.size < kPow2TableSize);
+      int pow = kPow2Table[ir->dst->vtype.size];
       assert(0 <= pow && pow < 4);
       const char **regs = kRegSizeTable[pow];
       ORR(regs[ir->dst->phys], regs[ir->opr1->phys], regs[ir->opr2->phys]);
@@ -406,8 +406,8 @@ static void ir_out(IR *ir) {
   case IR_BITXOR:
     {
       assert(!(ir->opr1->flag & VRF_CONST) && !(ir->opr2->flag & VRF_CONST));
-      assert(0 <= ir->dst->vtype->size && ir->dst->vtype->size < kPow2TableSize);
-      int pow = kPow2Table[ir->dst->vtype->size];
+      assert(0 <= ir->dst->vtype.size && ir->dst->vtype.size < kPow2TableSize);
+      int pow = kPow2Table[ir->dst->vtype.size];
       assert(0 <= pow && pow < 4);
       const char **regs = kRegSizeTable[pow];
       EOR(regs[ir->dst->phys], regs[ir->opr1->phys], regs[ir->opr2->phys]);
@@ -417,8 +417,8 @@ static void ir_out(IR *ir) {
   case IR_LSHIFT:
     {
       assert(!(ir->opr1->flag & VRF_CONST));
-      assert(0 <= ir->dst->vtype->size && ir->dst->vtype->size < kPow2TableSize);
-      int pow = kPow2Table[ir->dst->vtype->size];
+      assert(0 <= ir->dst->vtype.size && ir->dst->vtype.size < kPow2TableSize);
+      int pow = kPow2Table[ir->dst->vtype.size];
       assert(0 <= pow && pow < 4);
       const char **regs = kRegSizeTable[pow];
       if (ir->opr2->flag & VRF_CONST)
@@ -430,8 +430,8 @@ static void ir_out(IR *ir) {
   case IR_RSHIFT:
     {
       assert(!(ir->opr1->flag & VRF_CONST));
-      assert(0 <= ir->dst->vtype->size && ir->dst->vtype->size < kPow2TableSize);
-      int pow = kPow2Table[ir->dst->vtype->size];
+      assert(0 <= ir->dst->vtype.size && ir->dst->vtype.size < kPow2TableSize);
+      int pow = kPow2Table[ir->dst->vtype.size];
       assert(0 <= pow && pow < 4);
       const char **regs = kRegSizeTable[pow];
       if (ir->opr2->flag & VRF_CONST)
@@ -442,10 +442,10 @@ static void ir_out(IR *ir) {
     break;
 
   case IR_RESULT:
-    if (ir->opr1->vtype->flag & VRTF_FLONUM) {
+    if (ir->opr1->vtype.flag & VRTF_FLONUM) {
       if (ir->opr1->phys != 0) {  // Source is not return register.
         const char *src, *dst;
-        switch (ir->opr1->vtype->size) {
+        switch (ir->opr1->vtype.size) {
         default: assert(false);  // Fallthroguh
         case SZ_FLOAT:  dst = S0; src = kFReg32s[ir->opr1->phys]; break;
         case SZ_DOUBLE: dst = D0; src = kFReg64s[ir->opr1->phys]; break;
@@ -453,11 +453,11 @@ static void ir_out(IR *ir) {
         FMOV(dst, src);
       }
     } else {
-      assert(0 <= ir->opr1->vtype->size && ir->opr1->vtype->size < kPow2TableSize);
-      int pow = kPow2Table[ir->opr1->vtype->size];
+      assert(0 <= ir->opr1->vtype.size && ir->opr1->vtype.size < kPow2TableSize);
+      int pow = kPow2Table[ir->opr1->vtype.size];
       assert(0 <= pow && pow < 4);
       if (ir->opr1->flag & VRF_CONST) {
-        mov_immediate(kRetRegTable[pow], ir->opr1->fixnum, pow >= 3, ir->opr1->vtype->flag & VRTF_UNSIGNED);
+        mov_immediate(kRetRegTable[pow], ir->opr1->fixnum, pow >= 3, ir->opr1->vtype.flag & VRTF_UNSIGNED);
       } else if (ir->opr1->phys != ArchRegParamMapping[0]) {  // Source is not return register.
         MOV(kRetRegTable[pow], kRegSizeTable[pow][ir->opr1->phys]);
       }
@@ -480,10 +480,10 @@ static void ir_out(IR *ir) {
 
   case IR_MOV:
     {
-      if (ir->dst->vtype->flag & VRTF_FLONUM) {
+      if (ir->dst->vtype.flag & VRTF_FLONUM) {
         if (ir->opr1->phys != ir->dst->phys) {
           const char *src, *dst;
-          switch (ir->dst->vtype->size) {
+          switch (ir->dst->vtype.size) {
           default: assert(false); // Fallthrough
           case SZ_FLOAT:   dst = kFReg32s[ir->dst->phys]; src = kFReg32s[ir->opr1->phys]; break;
           case SZ_DOUBLE:  dst = kFReg64s[ir->dst->phys]; src = kFReg64s[ir->opr1->phys]; break;
@@ -492,13 +492,13 @@ static void ir_out(IR *ir) {
         }
         break;
       }
-      assert(0 <= ir->dst->vtype->size && ir->dst->vtype->size < kPow2TableSize);
+      assert(0 <= ir->dst->vtype.size && ir->dst->vtype.size < kPow2TableSize);
       assert(!(ir->dst->flag & VRF_CONST));
-      int pow = kPow2Table[ir->dst->vtype->size];
+      int pow = kPow2Table[ir->dst->vtype.size];
       assert(0 <= pow && pow < 4);
       const char **regs = kRegSizeTable[pow];
       if (ir->opr1->flag & VRF_CONST) {
-        mov_immediate(regs[ir->dst->phys], ir->opr1->fixnum, pow >= 3, ir->opr1->vtype->flag & VRTF_UNSIGNED);
+        mov_immediate(regs[ir->dst->phys], ir->opr1->fixnum, pow >= 3, ir->opr1->vtype.flag & VRTF_UNSIGNED);
       } else {
         if (ir->opr1->phys != ir->dst->phys)
           MOV(regs[ir->dst->phys], regs[ir->opr1->phys]);
@@ -508,10 +508,10 @@ static void ir_out(IR *ir) {
 
   case IR_CMP:
     {
-      if (ir->opr1->vtype->flag & VRTF_FLONUM) {
-        assert(ir->opr2->vtype->flag & VRTF_FLONUM);
+      if (ir->opr1->vtype.flag & VRTF_FLONUM) {
+        assert(ir->opr2->vtype.flag & VRTF_FLONUM);
         const char *opr1, *opr2;
-        switch (ir->opr1->vtype->size) {
+        switch (ir->opr1->vtype.size) {
         default: assert(false); // Fallthrough
         case SZ_FLOAT:   opr1 = kFReg32s[ir->opr1->phys]; opr2 = kFReg32s[ir->opr2->phys]; break;
         case SZ_DOUBLE:  opr1 = kFReg64s[ir->opr1->phys]; opr2 = kFReg64s[ir->opr2->phys]; break;
@@ -520,8 +520,8 @@ static void ir_out(IR *ir) {
         break;
       }
       assert(!(ir->opr1->flag & VRF_CONST));
-      assert(0 <= ir->opr1->vtype->size && ir->opr1->vtype->size < kPow2TableSize);
-      int pow = kPow2Table[ir->opr1->vtype->size];
+      assert(0 <= ir->opr1->vtype.size && ir->opr1->vtype.size < kPow2TableSize);
+      int pow = kPow2Table[ir->opr1->vtype.size];
       assert(0 <= pow && pow < 4);
       const char **regs = kRegSizeTable[pow];
       if (ir->opr2->flag & VRF_CONST) {
@@ -540,8 +540,8 @@ static void ir_out(IR *ir) {
   case IR_NEG:
     {
       assert(!(ir->dst->flag & VRF_CONST));
-      assert(0 <= ir->dst->vtype->size && ir->dst->vtype->size < kPow2TableSize);
-      int pow = kPow2Table[ir->dst->vtype->size];
+      assert(0 <= ir->dst->vtype.size && ir->dst->vtype.size < kPow2TableSize);
+      int pow = kPow2Table[ir->dst->vtype.size];
       assert(0 <= pow && pow < 4);
       const char **regs = kRegSizeTable[pow];
       SUB(regs[ir->dst->phys], kZeroRegTable[pow], regs[ir->opr1->phys]);
@@ -551,8 +551,8 @@ static void ir_out(IR *ir) {
   case IR_BITNOT:
     {
       assert(!(ir->dst->flag & VRF_CONST));
-      assert(0 <= ir->dst->vtype->size && ir->dst->vtype->size < kPow2TableSize);
-      int pow = kPow2Table[ir->dst->vtype->size];
+      assert(0 <= ir->dst->vtype.size && ir->dst->vtype.size < kPow2TableSize);
+      int pow = kPow2Table[ir->dst->vtype.size];
       assert(0 <= pow && pow < 4);
       const char **regs = kRegSizeTable[pow];
       EON(regs[ir->dst->phys], regs[ir->opr1->phys], kZeroRegTable[pow]);
@@ -616,8 +616,8 @@ static void ir_out(IR *ir) {
     {
       int phys = ir->opr1->phys;
       const int powd = 3;
-      assert(0 <= ir->opr1->vtype->size && ir->opr1->vtype->size < kPow2TableSize);
-      int pows = kPow2Table[ir->opr1->vtype->size];
+      assert(0 <= ir->opr1->vtype.size && ir->opr1->vtype.size < kPow2TableSize);
+      int pows = kPow2Table[ir->opr1->vtype.size];
       assert(0 <= pows && pows < 4);
 
       const char *dst = kTmpRegTable[3];
@@ -657,12 +657,12 @@ static void ir_out(IR *ir) {
   case IR_PUSHARG:
     {
       assert(!(ir->opr1->flag & VRF_CONST));
-      assert(0 < ir->opr1->vtype->size && ir->opr1->vtype->size < kPow2TableSize);
-      int pow = kPow2Table[ir->opr1->vtype->size];
-      if (ir->opr1->vtype->flag & VRTF_FLONUM) {
+      assert(0 < ir->opr1->vtype.size && ir->opr1->vtype.size < kPow2TableSize);
+      int pow = kPow2Table[ir->opr1->vtype.size];
+      if (ir->opr1->vtype.flag & VRTF_FLONUM) {
         static const char *kArgFReg32s[] = {S0, S1, S2, S3, S4, S5, S6, S7};
         static const char *kArgFReg64s[] = {D0, D1, D2, D3, D4, D5, D6, D7};
-        switch (ir->opr1->vtype->size) {
+        switch (ir->opr1->vtype.size) {
         case SZ_FLOAT:  FMOV(kArgFReg32s[ir->pusharg.index], kFReg32s[ir->opr1->phys]); break;
         case SZ_DOUBLE:  FMOV(kArgFReg64s[ir->pusharg.index], kFReg64s[ir->opr1->phys]); break;
         default: assert(false); break;
@@ -699,11 +699,11 @@ static void ir_out(IR *ir) {
       pop_caller_save_regs(precall->precall.caller_saves);
 
       if (ir->dst != NULL) {
-        assert(0 < ir->dst->vtype->size && ir->dst->vtype->size < kPow2TableSize);
-        if (ir->dst->vtype->flag & VRTF_FLONUM) {
+        assert(0 < ir->dst->vtype.size && ir->dst->vtype.size < kPow2TableSize);
+        if (ir->dst->vtype.flag & VRTF_FLONUM) {
           if (ir->dst->phys != 0) {  // Destination is not return register.
             const char *src, *dst;
-            switch (ir->dst->vtype->size) {
+            switch (ir->dst->vtype.size) {
             default: assert(false);  // Fallthrough
             case SZ_FLOAT:   src = S0; dst = kFReg32s[ir->dst->phys]; break;
             case SZ_DOUBLE:  src = D0; dst = kFReg64s[ir->dst->phys]; break;
@@ -712,7 +712,7 @@ static void ir_out(IR *ir) {
           }
         } else {
           if (ir->dst->phys != ArchRegParamMapping[0]) {  // Destination is not return register.
-            int pow = kPow2Table[ir->dst->vtype->size];
+            int pow = kPow2Table[ir->dst->vtype.size];
             assert(0 <= pow && pow < 4);
             const char **regs = kRegSizeTable[pow];
             MOV(regs[ir->dst->phys], kRetRegTable[pow]);
@@ -724,12 +724,12 @@ static void ir_out(IR *ir) {
 
   case IR_CAST:
     assert((ir->opr1->flag & VRF_CONST) == 0);
-    if (ir->dst->vtype->flag & VRTF_FLONUM) {
-      if (ir->opr1->vtype->flag & VRTF_FLONUM) {
+    if (ir->dst->vtype.flag & VRTF_FLONUM) {
+      if (ir->opr1->vtype.flag & VRTF_FLONUM) {
         // flonum->flonum
         // Assume flonum are just two types.
         const char *src, *dst;
-        switch (ir->dst->vtype->size) {
+        switch (ir->dst->vtype.size) {
         default: assert(false); // Fallthrough
         case SZ_FLOAT:   dst = kFReg32s[ir->dst->phys]; src = kFReg64s[ir->opr1->phys]; break;
         case SZ_DOUBLE:  dst = kFReg64s[ir->dst->phys]; src = kFReg32s[ir->opr1->phys]; break;
@@ -737,24 +737,24 @@ static void ir_out(IR *ir) {
         FCVT(dst, src);
       } else {
         // fix->flonum
-        assert(0 <= ir->opr1->vtype->size && ir->opr1->vtype->size < kPow2TableSize);
-        int pows = kPow2Table[ir->opr1->vtype->size];
+        assert(0 <= ir->opr1->vtype.size && ir->opr1->vtype.size < kPow2TableSize);
+        int pows = kPow2Table[ir->opr1->vtype.size];
 
         const char *dst;
-        switch (ir->dst->vtype->size) {
+        switch (ir->dst->vtype.size) {
         case SZ_FLOAT:   dst = kFReg32s[ir->dst->phys]; break;
         case SZ_DOUBLE:  dst = kFReg64s[ir->dst->phys]; break;
         default: assert(false); break;
         }
         const char *src = kRegSizeTable[pows][ir->opr1->phys];
-        if (ir->opr1->vtype->flag & VRTF_UNSIGNED)  UCVTF(dst, src);
-        else                                        SCVTF(dst, src);
+        if (ir->opr1->vtype.flag & VRTF_UNSIGNED)  UCVTF(dst, src);
+        else                                       SCVTF(dst, src);
       }
       break;
-    } else if (ir->opr1->vtype->flag & VRTF_FLONUM) {
+    } else if (ir->opr1->vtype.flag & VRTF_FLONUM) {
       // flonum->fix
-      int powd = kPow2Table[ir->dst->vtype->size];
-      switch (ir->opr1->vtype->size) {
+      int powd = kPow2Table[ir->dst->vtype.size];
+      switch (ir->opr1->vtype.size) {
       case SZ_FLOAT:   FCVTZS(kRegSizeTable[powd][ir->dst->phys], kFReg32s[ir->opr1->phys]); break;
       case SZ_DOUBLE:  FCVTZS(kRegSizeTable[powd][ir->dst->phys], kFReg64s[ir->opr1->phys]); break;
       default: assert(false); break;
@@ -763,22 +763,22 @@ static void ir_out(IR *ir) {
     }
 
     // fix->fix
-    if (ir->dst->vtype->size <= ir->opr1->vtype->size) {
+    if (ir->dst->vtype.size <= ir->opr1->vtype.size) {
       if (ir->dst->phys != ir->opr1->phys) {
-        assert(0 <= ir->dst->vtype->size && ir->dst->vtype->size < kPow2TableSize);
-        int pow = kPow2Table[ir->dst->vtype->size];
+        assert(0 <= ir->dst->vtype.size && ir->dst->vtype.size < kPow2TableSize);
+        int pow = kPow2Table[ir->dst->vtype.size];
         assert(0 <= pow && pow < 4);
         const char **regs = kRegSizeTable[pow];
         MOV(regs[ir->dst->phys], regs[ir->opr1->phys]);
       }
     } else {
-      assert(0 <= ir->opr1->vtype->size && ir->opr1->vtype->size < kPow2TableSize);
-      int pows = kPow2Table[ir->opr1->vtype->size];
-      assert(0 <= ir->dst->vtype->size && ir->dst->vtype->size < kPow2TableSize);
-      int powd = kPow2Table[ir->dst->vtype->size];
+      assert(0 <= ir->opr1->vtype.size && ir->opr1->vtype.size < kPow2TableSize);
+      int pows = kPow2Table[ir->opr1->vtype.size];
+      assert(0 <= ir->dst->vtype.size && ir->dst->vtype.size < kPow2TableSize);
+      int powd = kPow2Table[ir->dst->vtype.size];
       assert(0 <= pows && pows < 4);
       assert(0 <= powd && powd < 4);
-      if (ir->opr1->vtype->flag & VRTF_UNSIGNED) {
+      if (ir->opr1->vtype.flag & VRTF_UNSIGNED) {
         switch (pows) {
         case 0:  UXTB(kRegSizeTable[powd][ir->dst->phys], kRegSizeTable[pows][ir->opr1->phys]); break;
         case 1:  UXTH(kRegSizeTable[powd][ir->dst->phys], kRegSizeTable[pows][ir->opr1->phys]); break;
@@ -799,9 +799,9 @@ static void ir_out(IR *ir) {
   case IR_ASM:
     EMIT_ASM(ir->asm_.str);
     if (ir->dst != NULL) {
-      assert(0 <= ir->dst->vtype->size && ir->dst->vtype->size < kPow2TableSize);
+      assert(0 <= ir->dst->vtype.size && ir->dst->vtype.size < kPow2TableSize);
       assert(!(ir->dst->flag & VRF_CONST));
-      int pow = kPow2Table[ir->dst->vtype->size];
+      int pow = kPow2Table[ir->dst->vtype.size];
       assert(0 <= pow && pow < 4);
       const char **regs = kRegSizeTable[pow];
       MOV(regs[ir->dst->phys], kRetRegTable[pow]);

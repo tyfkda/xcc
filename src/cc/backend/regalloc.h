@@ -43,6 +43,6 @@ typedef struct RegAlloc {
 } RegAlloc;
 
 RegAlloc *new_reg_alloc(const int *reg_param_mapping, int phys_max, int temporary_count);
-VReg *reg_alloc_spawn(RegAlloc *ra, const VRegType *vtype, int flag);
+VReg *reg_alloc_spawn(RegAlloc *ra, const VRegType vtype, int flag);
 void alloc_physical_registers(RegAlloc *ra, BBContainer *bbcon);
 void occupy_regs(RegAlloc *ra, Vector *actives, unsigned long ioccupy, unsigned long foccupy);

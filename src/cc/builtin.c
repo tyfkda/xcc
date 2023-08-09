@@ -93,7 +93,7 @@ static VReg *gen_builtin_va_start(Expr *expr) {
 
   // ap->overflow_arg_area = 2 * WORD_SIZE
   {
-    const VRegType *vtype = to_vtype(&tyVoidPtr);
+    const VRegType vtype = to_vtype(&tyVoidPtr);
     VReg *overflow_arg_area = new_ir_bop(IR_ADD, ap, new_const_vreg(type_size(&tyInt) + type_size(&tyInt), vtype), vtype);
     FrameInfo *fi = malloc_or_die(sizeof(*fi));
     fi->offset = 2 * WORD_SIZE;
@@ -103,7 +103,7 @@ static VReg *gen_builtin_va_start(Expr *expr) {
 
   // ap->reg_save_area = -(MAX_REG_ARGS + MAX_FREG_ARGS) * WORD_SIZE
   {
-    const VRegType *vtype = to_vtype(&tyVoidPtr);
+    const VRegType vtype = to_vtype(&tyVoidPtr);
     VReg *reg_save_area = new_ir_bop(IR_ADD, ap, new_const_vreg(type_size(&tyInt) + type_size(&tyInt) + type_size(&tyVoidPtr), vtype), vtype);
     FrameInfo *fi = malloc_or_die(sizeof(*fi));
     fi->offset = -(MAX_REG_ARGS + MAX_FREG_ARGS) * WORD_SIZE;

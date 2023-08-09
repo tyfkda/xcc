@@ -34,13 +34,13 @@ static IR *new_ir(enum IrKind kind) {
   return ir;
 }
 
-VReg *new_const_vreg(int64_t value, const VRegType *vtype) {
+VReg *new_const_vreg(int64_t value, VRegType vtype) {
   VReg *vreg = reg_alloc_spawn(curra, vtype, VRF_CONST);
   vreg->fixnum = value;
   return vreg;
 }
 
-VReg *new_ir_bop(enum IrKind kind, VReg *opr1, VReg *opr2, const VRegType *vtype) {
+VReg *new_ir_bop(enum IrKind kind, VReg *opr1, VReg *opr2, VRegType vtype) {
   if (opr1->flag & VRF_CONST) {
     if (opr2->flag & VRF_CONST) {
       int64_t value = 0;
@@ -55,13 +55,13 @@ VReg *new_ir_bop(enum IrKind kind, VReg *opr1, VReg *opr2, const VRegType *vtype
           error("Divide by 0");
         switch (kind) {
         case IR_DIV:
-          if (vtype->flag & VRTF_UNSIGNED)
+          if (vtype.flag & VRTF_UNSIGNED)
             value = (uint64_t)opr1->fixnum / opr2->fixnum;
           else
             value = opr1->fixnum / opr2->fixnum;
           break;
         case IR_MOD:
-          if (vtype->flag & VRTF_UNSIGNED)
+          if (vtype.flag & VRTF_UNSIGNED)
             value = opr1->fixnum / opr2->fixnum;
           else
             value = (uint64_t)opr1->fixnum / opr2->fixnum;
@@ -76,14 +76,14 @@ VReg *new_ir_bop(enum IrKind kind, VReg *opr1, VReg *opr2, const VRegType *vtype
       case IR_LSHIFT:  value = opr1->fixnum << opr2->fixnum; break;
       case IR_RSHIFT:
         //assert(opr1->type->kind == TY_FIXNUM);
-        if (opr1->vtype->flag & VRTF_UNSIGNED)
+        if (opr1->vtype.flag & VRTF_UNSIGNED)
           value = (uint64_t)opr1->fixnum >> opr2->fixnum;
         else
           value = opr1->fixnum >> opr2->fixnum;
         break;
       default: assert(false); break;
       }
-      return new_const_vreg(wrap_value(value, vtype->size, (vtype->flag & VRTF_UNSIGNED) != 0), vtype);
+      return new_const_vreg(wrap_value(value, vtype.size, (vtype.flag & VRTF_UNSIGNED) != 0), vtype);
     } else {
       switch (kind) {
       case IR_ADD:
@@ -160,7 +160,7 @@ VReg *new_ir_bop(enum IrKind kind, VReg *opr1, VReg *opr2, const VRegType *vtype
   return ir->dst = reg_alloc_spawn(curra, vtype, 0);
 }
 
-VReg *new_ir_unary(enum IrKind kind, VReg *opr, const VRegType *vtype) {
+VReg *new_ir_unary(enum IrKind kind, VReg *opr, VRegType vtype) {
   if (opr->flag & VRF_CONST && kind != IR_LOAD) {
     int64_t value = 0;
     switch (kind) {
@@ -168,7 +168,7 @@ VReg *new_ir_unary(enum IrKind kind, VReg *opr, const VRegType *vtype) {
     case IR_BITNOT:  value = ~opr->fixnum; break;
     default: assert(false); break;
     }
-    return new_const_vreg(wrap_value(value, vtype->size, (vtype->flag & VRTF_UNSIGNED) != 0), vtype);
+    return new_const_vreg(wrap_value(value, vtype.size, (vtype.flag & VRTF_UNSIGNED) != 0), vtype);
   }
 
   IR *ir = new_ir(kind);
@@ -180,20 +180,20 @@ VReg *new_ir_bofs(FrameInfo *fi, VReg *src) {
   IR *ir = new_ir(IR_BOFS);
   ir->bofs.frameinfo = fi;
   ir->opr1 = src;  // Just keep the vreg is referred.
-  return ir->dst = reg_alloc_spawn(curra, &vtVoidPtr, 0);
+  return ir->dst = reg_alloc_spawn(curra, vtVoidPtr, 0);
 }
 
 VReg *new_ir_iofs(const Name *label, bool global) {
   IR *ir = new_ir(IR_IOFS);
   ir->iofs.label = label;
   ir->iofs.global = global;
-  return ir->dst = reg_alloc_spawn(curra, &vtVoidPtr, 0);
+  return ir->dst = reg_alloc_spawn(curra, vtVoidPtr, 0);
 }
 
 VReg *new_ir_sofs(VReg *src) {
   IR *ir = new_ir(IR_SOFS);
   ir->opr1 = src;
-  return ir->dst = reg_alloc_spawn(curra, &vtVoidPtr, 0);
+  return ir->dst = reg_alloc_spawn(curra, vtVoidPtr, 0);
 }
 
 void new_ir_store(VReg *dst, VReg *src) {
@@ -211,7 +211,7 @@ void new_ir_cmp(VReg *opr1, VReg *opr2) {
 VReg *new_ir_cond(enum ConditionKind cond) {
   IR *ir = new_ir(IR_COND);
   ir->cond.kind = cond;
-  return ir->dst = reg_alloc_spawn(curra, &vtBool, 0);
+  return ir->dst = reg_alloc_spawn(curra, vtBool, 0);
 }
 
 void new_ir_jmp(enum ConditionKind cond, BB *bb) {
@@ -232,7 +232,7 @@ void new_ir_tjmp(VReg *val, BB **bbs, size_t len) {
 
 void new_ir_pusharg(VReg *vreg, int index) {
   assert(index >= 0);
-  assert(index < ((vreg->vtype->flag & VRTF_FLONUM) ? MAX_FREG_ARGS : MAX_REG_ARGS));
+  assert(index < ((vreg->vtype.flag & VRTF_FLONUM) ? MAX_FREG_ARGS : MAX_REG_ARGS));
   IR *ir = new_ir(IR_PUSHARG);
   ir->opr1 = vreg;
   ir->pusharg.index = index;
@@ -259,7 +259,7 @@ VReg *new_ir_call(const Name *label, bool global, VReg *freg, int total_arg_coun
   ir->call.total_arg_count = total_arg_count;
   ir->call.reg_arg_count = reg_arg_count;
   ir->call.vaarg_start = vaarg_start;
-  return ir->dst = result_type == NULL ? NULL : reg_alloc_spawn(curra, result_type, 0);
+  return ir->dst = result_type == NULL ? NULL : reg_alloc_spawn(curra, *result_type, 0);
 }
 
 void new_ir_result(VReg *vreg) {
@@ -273,7 +273,7 @@ void new_ir_subsp(VReg *value, VReg *dst) {
   ir->dst = dst;
 }
 
-VReg *new_ir_cast(VReg *vreg, const VRegType *dsttype) {
+VReg *new_ir_cast(VReg *vreg, VRegType dsttype) {
   IR *ir = new_ir(IR_CAST);
   ir->opr1 = vreg;
   return ir->dst = reg_alloc_spawn(curra, dsttype, 0);
