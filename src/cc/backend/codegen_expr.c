@@ -36,8 +36,6 @@ VRegType *to_vtype(const Type *type) {
 #endif
   if (is_unsigned)
     flag |= VRTF_UNSIGNED;
-  if (is_stack_param(type))
-    flag |= VRTF_NON_REG;
   vtype->flag = flag;
 
   return vtype;
