@@ -464,10 +464,6 @@ static VReg *gen_funcall(Expr *expr) {
     ret_varinfo->local.reg = retvar_reg = add_new_reg(expr->type, 0);
   }
 
-  int total_arg_count = arg_count + (retvar_reg != NULL ? 1 : 0);
-  VRegType **arg_vtypes = (retvar_reg == NULL && arg_count <= 0) ? NULL :
-    calloc(total_arg_count, sizeof(*arg_vtypes));
-
   ArgInfo *arg_infos = NULL;
   int stack_arg_count = 0;
   int reg_arg_count = 0;
@@ -527,11 +523,6 @@ static VReg *gen_funcall(Expr *expr) {
         }
       }
     }
-
-    for (int i = 0; i < arg_count; ++i) {
-      Expr *arg = args->data[i];
-      arg_vtypes[i + arg_start] = to_vtype(arg->type);
-    }
   }
   offset = ALIGN(offset, 16);
 
@@ -539,6 +530,9 @@ static VReg *gen_funcall(Expr *expr) {
 
   if (offset > 0)
     new_ir_subsp(new_const_vreg(offset, to_vtype(&tySSize)), NULL);
+
+  int total_arg_count = arg_count + (retvar_reg != NULL ? 1 : 0);
+  VReg **arg_vregs = total_arg_count == 0 ? NULL : calloc(total_arg_count, sizeof(*arg_vregs));
 
   {
     // Register arguments.
@@ -571,14 +565,14 @@ static VReg *gen_funcall(Expr *expr) {
           new_ir_store(dst, reg);
         }
       }
+      arg_vregs[i + arg_start] = reg;
     }
   }
   if (retvar_reg != NULL) {
     // gen_lval(retvar)
     VReg *dst = new_ir_bofs(retvar_reg);
-    VRegType *vtype = to_vtype(ptrof(expr->type));
     new_ir_pusharg(dst, 0);
-    arg_vtypes[0] = vtype;
+    arg_vregs[0] = dst;
     ++reg_arg_count;
   }
 
@@ -601,11 +595,11 @@ static VReg *gen_funcall(Expr *expr) {
     VRegType *ret_vtype = type->kind == TY_VOID ? NULL : to_vtype(type);
     if (label_call) {
       result_reg = new_ir_call(func->var.name, global, NULL, total_arg_count, reg_arg_count + freg_arg_count,
-                               ret_vtype, precall, arg_vtypes, vaarg_start);
+                               ret_vtype, precall, arg_vregs, vaarg_start);
     } else {
       VReg *freg = gen_expr(func);
       result_reg = new_ir_call(NULL, false, freg, total_arg_count, reg_arg_count + freg_arg_count,
-                               ret_vtype, precall, arg_vtypes, vaarg_start);
+                               ret_vtype, precall, arg_vregs, vaarg_start);
     }
   }
 

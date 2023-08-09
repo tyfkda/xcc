@@ -267,13 +267,13 @@ IR *new_ir_precall(int arg_count, int stack_args_size) {
 }
 
 VReg *new_ir_call(const Name *label, bool global, VReg *freg, int total_arg_count, int reg_arg_count,
-                  const VRegType *result_type, IR *precall, VRegType **arg_vtypes, int vaarg_start) {
+                  const VRegType *result_type, IR *precall, VReg **args, int vaarg_start) {
   IR *ir = new_ir(IR_CALL);
   ir->call.label = label;
   ir->call.global = global;
   ir->opr1 = freg;
   ir->call.precall = precall;
-  ir->call.arg_vtypes = arg_vtypes;
+  ir->call.args = args;
   ir->call.total_arg_count = total_arg_count;
   ir->call.reg_arg_count = reg_arg_count;
   ir->call.vaarg_start = vaarg_start;

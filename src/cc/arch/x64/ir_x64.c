@@ -685,9 +685,10 @@ static void ir_out(IR *ir) {
         int total_arg_count = ir->call.total_arg_count;
         int freg = 0;
         for (int i = 0; i < total_arg_count; ++i) {
-          if (ir->call.arg_vtypes[i]->flag & VRTF_FLONUM &&
-              freg < MAX_FREG_ARGS) {
+          if (ir->call.args[i]->vtype->flag & VRTF_FLONUM) {
             ++freg;
+            if (freg >= MAX_FREG_ARGS)
+              break;
           }
         }
 
