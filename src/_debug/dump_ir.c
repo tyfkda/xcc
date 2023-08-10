@@ -105,9 +105,9 @@ static void dump_func_ir(Function *func) {
     for (int j = 0; j < scope->vars->len; ++j) {
       VarInfo *varinfo = scope->vars->data[j];
       if (varinfo->storage & (VS_STATIC | VS_EXTERN | VS_ENUM_MEMBER) ||
-          varinfo->local.reg == NULL)
+          varinfo->local.vreg == NULL)
         continue;
-      fprintf(fp, "  V%3d (flag=%x): %.*s\n", varinfo->local.reg->virt, varinfo->local.reg->flag,
+      fprintf(fp, "  V%3d (flag=%x): %.*s\n", varinfo->local.vreg->virt, varinfo->local.vreg->flag,
               varinfo->name->bytes, varinfo->name->chars);
     }
   }
@@ -160,16 +160,16 @@ static void dump_func_ir(Function *func) {
     if (bb->in_regs->len > 0) {
       fprintf(fp, " in=[");
       for (int j = 0; j < bb->in_regs->len; ++j) {
-        VReg *reg = bb->in_regs->data[j];
-        fprintf(fp, "%s%d", (j > 0 ? ", " : ""), reg->virt);
+        VReg *vreg = bb->in_regs->data[j];
+        fprintf(fp, "%s%d", (j > 0 ? ", " : ""), vreg->virt);
       }
       fprintf(fp, "]");
     }
     if (bb->out_regs->len > 0) {
       fprintf(fp, " out=[");
       for (int j = 0; j < bb->out_regs->len; ++j) {
-        VReg *reg = bb->out_regs->data[j];
-        fprintf(fp, "%s%d", (j > 0 ? ", " : ""), reg->virt);
+        VReg *vreg = bb->out_regs->data[j];
+        fprintf(fp, "%s%d", (j > 0 ? ", " : ""), vreg->virt);
       }
       fprintf(fp, "]");
     }

@@ -64,7 +64,7 @@ static VarInfo *prepare_retvar(Function *func) {
   VarInfo *varinfo = scope_add(top_scope, retval_name, retptrtype, 0);
   VReg *vreg = add_new_reg(varinfo->type, VRF_PARAM);
   vreg->param_index = 0;
-  varinfo->local.reg = vreg;
+  varinfo->local.vreg = vreg;
   FuncBackend *fnbe = func->extra;
   fnbe->retval = vreg;
   return varinfo;
@@ -90,7 +90,7 @@ static void alloc_variable_registers(Function *func) {
       VReg *vreg = add_new_reg(varinfo->type, 0);
       if (varinfo->storage & VS_REF_TAKEN)
         vreg->flag |= VRF_REF;
-      varinfo->local.reg = vreg;
+      varinfo->local.vreg = vreg;
     }
   }
 
@@ -105,7 +105,7 @@ static void alloc_variable_registers(Function *func) {
   if (func->type->func.params != NULL) {
     for (int j = 0; j < func->type->func.params->len; ++j) {
       VarInfo *varinfo = func->type->func.params->data[j];
-      VReg *vreg = varinfo->local.reg;
+      VReg *vreg = varinfo->local.vreg;
       vreg->flag |= VRF_PARAM;
       vreg->param_index = j + param_index_offset;
     }
@@ -150,14 +150,14 @@ static void gen_return(Stmt *stmt) {
   FuncBackend *fnbe = curfunc->extra;
   if (stmt->return_.val != NULL) {
     Expr *val = stmt->return_.val;
-    VReg *reg = gen_expr(val);
+    VReg *vreg = gen_expr(val);
     VReg *retval = fnbe->retval;
     if (retval == NULL) {
-      new_ir_result(reg);
+      new_ir_result(vreg);
     } else {
       size_t size = type_size(val->type);
       if (size > 0) {
-        new_ir_memcpy(retval, reg, size);
+        new_ir_memcpy(retval, vreg, size);
         new_ir_result(retval);
       }
     }
@@ -194,7 +194,7 @@ static int compare_cases(const void *pa, const void *pb) {
   return d > 0 ? 1 : d < 0 ? -1 : 0;
 }
 
-static void gen_switch_cond_table_jump(Stmt *swtch, VReg *reg, Stmt **cases, int len) {
+static void gen_switch_cond_table_jump(Stmt *swtch, VReg *vreg, Stmt **cases, int len) {
   Fixnum min = (cases[0])->case_.value->fixnum;
   Fixnum max = (cases[len - 1])->case_.value->fixnum;
   Fixnum range = max - min + 1;
@@ -210,21 +210,21 @@ static void gen_switch_cond_table_jump(Stmt *swtch, VReg *reg, Stmt **cases, int
   }
 
   BB *nextbb = new_bb();
-  VReg *val = min == 0 ? reg : new_ir_bop(IR_SUB, reg, new_const_vreg(min, reg->vtype), reg->vtype);
+  VReg *val = min == 0 ? vreg : new_ir_bop(IR_SUB, vreg, new_const_vreg(min, vreg->vtype), vreg->vtype);
   new_ir_cmp(val, new_const_vreg(max - min, val->vtype));
   new_ir_jmp(COND_GT | COND_UNSIGNED, skip_bb);
   set_curbb(nextbb);
   new_ir_tjmp(val, table, range);
 }
 
-static void gen_switch_cond_recur(Stmt *swtch, VReg *reg, Stmt **cases, int len) {
-  int cond_flag = reg->vtype->flag & VRTF_UNSIGNED ? COND_UNSIGNED : 0;
+static void gen_switch_cond_recur(Stmt *swtch, VReg *vreg, Stmt **cases, int len) {
+  int cond_flag = vreg->vtype->flag & VRTF_UNSIGNED ? COND_UNSIGNED : 0;
   if (len <= 2) {
     for (int i = 0; i < len; ++i) {
       BB *nextbb = new_bb();
       Stmt *c = cases[i];
-      VReg *num = new_const_vreg(c->case_.value->fixnum, reg->vtype);
-      new_ir_cmp(reg, num);
+      VReg *num = new_const_vreg(c->case_.value->fixnum, vreg->vtype);
+      new_ir_cmp(vreg, num);
       new_ir_jmp(COND_EQ | cond_flag, c->case_.bb);
       set_curbb(nextbb);
     }
@@ -235,15 +235,15 @@ static void gen_switch_cond_recur(Stmt *swtch, VReg *reg, Stmt **cases, int len)
     Stmt *max = cases[len - 1];
     Fixnum range = max->case_.value->fixnum - min->case_.value->fixnum + 1;
     if (range >= 4 && len > (range >> 1)) {
-      gen_switch_cond_table_jump(swtch, reg, cases, len);
+      gen_switch_cond_table_jump(swtch, vreg, cases, len);
       return;
     }
 
     BB *bbne = new_bb();
     int m = len >> 1;
     Stmt *c = cases[m];
-    VReg *num = new_const_vreg(c->case_.value->fixnum, reg->vtype);
-    new_ir_cmp(reg, num);
+    VReg *num = new_const_vreg(c->case_.value->fixnum, vreg->vtype);
+    new_ir_cmp(vreg, num);
     new_ir_jmp(COND_EQ | cond_flag, c->case_.bb);
     set_curbb(bbne);
 
@@ -251,21 +251,21 @@ static void gen_switch_cond_recur(Stmt *swtch, VReg *reg, Stmt **cases, int len)
     BB *bbgt = new_bb();
     new_ir_jmp(COND_GT | cond_flag, bbgt);
     set_curbb(bblt);
-    gen_switch_cond_recur(swtch, reg, cases, m);
+    gen_switch_cond_recur(swtch, vreg, cases, m);
     set_curbb(bbgt);
-    gen_switch_cond_recur(swtch, reg, cases + (m + 1), len - (m + 1));
+    gen_switch_cond_recur(swtch, vreg, cases + (m + 1), len - (m + 1));
   }
 }
 
 static void gen_switch_cond(Stmt *stmt) {
   Expr *value = stmt->switch_.value;
-  VReg *reg = gen_expr(value);
+  VReg *vreg = gen_expr(value);
 
   Vector *cases = stmt->switch_.cases;
   int len = cases->len;
 
-  if (reg->flag & VRF_CONST) {
-    Fixnum value = reg->fixnum;
+  if (vreg->flag & VRF_CONST) {
+    Fixnum value = vreg->fixnum;
     Stmt *target = stmt->switch_.default_;
     for (int i = 0; i < len; ++i) {
       Stmt *c = cases->data[i];
@@ -285,7 +285,7 @@ static void gen_switch_cond(Stmt *stmt) {
 
       if (stmt->switch_.default_ != NULL)
         --len;  // Ignore default.
-      gen_switch_cond_recur(stmt, reg, (Stmt**)cases->data, len);
+      gen_switch_cond_recur(stmt, vreg, (Stmt**)cases->data, len);
     } else {
       Stmt *def = stmt->switch_.default_;
       new_ir_jmp(COND_ANY, def != NULL ? def->case_.bb : stmt->switch_.break_bb);
@@ -421,8 +421,8 @@ void gen_clear_local_var(const VarInfo *varinfo) {
   size_t size = type_size(varinfo->type);
   if (size <= 0)
     return;
-  VReg *reg = new_ir_bofs(varinfo->local.reg);
-  new_ir_clear(reg, size);
+  VReg *vreg = new_ir_bofs(varinfo->local.vreg);
+  new_ir_clear(vreg, size);
 }
 
 static void gen_vardecl(Vector *decls) {
@@ -481,7 +481,7 @@ static void prepare_register_allocation(Function *func) {
     int offset = DEFAULT_OFFSET;
     for (int j = 0; j < func->type->func.params->len; ++j) {
       VarInfo *varinfo = func->type->func.params->data[j];
-      VReg *vreg = varinfo->local.reg;
+      VReg *vreg = varinfo->local.vreg;
       // Currently, all parameters are force spilled.
       spill_vreg(vreg);
       // stack parameters
@@ -528,7 +528,7 @@ static void prepare_register_allocation(Function *func) {
       VarInfo *varinfo = scope->vars->data[j];
       if (varinfo->storage & (VS_STATIC | VS_EXTERN | VS_ENUM_MEMBER))
         continue;
-      VReg *vreg = varinfo->local.reg;
+      VReg *vreg = varinfo->local.vreg;
       if (vreg == NULL || vreg->flag & VRF_PARAM)
         continue;
 
@@ -594,7 +594,7 @@ static void detect_living_registers(RegAlloc *ra, BBContainer *bbcon) {
         }
       }
 
-      // Store living regs to IR_CALL.
+      // Store living vregs to IR_CALL.
       IR *ir = bb->irs->data[j];
       if (ir->kind == IR_CALL) {
         // Store it into corresponding precall.

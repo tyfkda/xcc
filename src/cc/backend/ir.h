@@ -174,15 +174,15 @@ void new_ir_tjmp(VReg *val, BB **bbs, size_t len);
 IR *new_ir_precall(int arg_count, int stack_args_size);
 void new_ir_pusharg(VReg *vreg, int index);
 VReg *new_ir_call(const Name *label, bool global, VReg *freg, int total_arg_count, int reg_arg_count, const VRegType *result_type, IR *precall, VReg **args, int vaarg_start);
-void new_ir_result(VReg *reg);
+void new_ir_result(VReg *vreg);
 void new_ir_subsp(VReg *value, VReg *dst);
 VReg *new_ir_cast(VReg *vreg, const VRegType *dsttype);
 void new_ir_memcpy(VReg *dst, VReg *src, size_t size);
-void new_ir_clear(VReg *reg, size_t size);
+void new_ir_clear(VReg *vreg, size_t size);
 void new_ir_asm(const char *asm_, VReg *dst);
 
-IR *new_ir_load_spilled(VReg *reg, VReg *src);
-IR *new_ir_store_spilled(VReg *dst, VReg *reg);
+IR *new_ir_load_spilled(VReg *vreg, VReg *src);
+IR *new_ir_store_spilled(VReg *dst, VReg *vreg);
 
 // Register allocator
 

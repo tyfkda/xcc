@@ -180,22 +180,22 @@ void gen_cond_jmp(Expr *cond, bool tf, BB *bb) {
   }
 }
 
-static VReg *gen_cast(VReg *reg, const Type *dst_type) {
+static VReg *gen_cast(VReg *vreg, const Type *dst_type) {
   switch (dst_type->kind) {
   case TY_VOID:
     return NULL;  // Assume void value is not used.
   case TY_STRUCT:
-    return reg;
+    return vreg;
   default: break;
   }
 
-  if (reg->flag & VRF_CONST) {
+  if (vreg->flag & VRF_CONST) {
 #ifndef __NO_FLONUM
-    assert(!(reg->vtype->flag & VRTF_FLONUM));  // No const vreg for flonum.
+    assert(!(vreg->vtype->flag & VRTF_FLONUM));  // No const vreg for flonum.
 #endif
-    Fixnum value = reg->fixnum;
+    Fixnum value = vreg->fixnum;
     size_t dst_size = type_size(dst_type);
-    if (dst_size < (size_t)reg->vtype->size && dst_size < sizeof(Fixnum)) {
+    if (dst_size < (size_t)vreg->vtype->size && dst_size < sizeof(Fixnum)) {
       // Assume that integer is represented in Two's complement
       size_t bit = dst_size * TARGET_CHAR_BIT;
       UFixnum mask = (-1UL) << bit;
@@ -212,15 +212,15 @@ static VReg *gen_cast(VReg *reg, const Type *dst_type) {
 
   int dst_size = type_size(dst_type);
   bool lu = dst_type->kind == TY_FIXNUM ? dst_type->fixnum.is_unsigned : dst_type->kind == TY_PTR;
-  bool ru = (reg->vtype->flag & VRTF_UNSIGNED) ? true : false;
-  if (dst_size == reg->vtype->size && lu == ru
+  bool ru = (vreg->vtype->flag & VRTF_UNSIGNED) ? true : false;
+  if (dst_size == vreg->vtype->size && lu == ru
 #ifndef __NO_FLONUM
-      && is_flonum(dst_type) == ((reg->vtype->flag & VRTF_FLONUM) != 0)
+      && is_flonum(dst_type) == ((vreg->vtype->flag & VRTF_FLONUM) != 0)
 #endif
   )
-    return reg;
+    return vreg;
 
-  return new_ir_cast(reg, to_vtype(dst_type));
+  return new_ir_cast(vreg, to_vtype(dst_type));
 }
 
 static VReg *gen_lval(Expr *expr) {
@@ -236,19 +236,19 @@ static VReg *gen_lval(Expr *expr) {
         return new_ir_iofs(varinfo->static_.gvar->name, false);
       if (varinfo->storage & VS_EXTERN)
         return new_ir_iofs(expr->var.name, true);
-      return new_ir_bofs(varinfo->local.reg);
+      return new_ir_bofs(varinfo->local.vreg);
     }
   case EX_DEREF:
     return gen_expr(expr->unary.sub);
   case EX_MEMBER:
     {
       const MemberInfo *member = member_info(expr);
-      VReg *reg = gen_expr(expr->member.target);
+      VReg *vreg = gen_expr(expr->member.target);
       if (member->offset == 0)
-        return reg;
+        return vreg;
       VRegType *vtype = to_vtype(&tySize);
       VReg *imm = new_const_vreg(member->offset, vtype);
-      VReg *result = new_ir_bop(IR_ADD, reg, imm, vtype);
+      VReg *result = new_ir_bop(IR_ADD, vreg, imm, vtype);
       return result;
     }
   case EX_COMPLIT:
@@ -257,8 +257,8 @@ static VReg *gen_lval(Expr *expr) {
       assert(var->var.scope != NULL);
       const VarInfo *varinfo = scope_find(var->var.scope, var->var.name, NULL);
       assert(varinfo != NULL);
-      assert(varinfo->local.reg != NULL);
-      varinfo->local.reg->flag |= VRF_REF;
+      assert(varinfo->local.vreg != NULL);
+      varinfo->local.vreg->flag |= VRF_REF;
 
       gen_clear_local_var(varinfo);
       gen_stmts(expr->complit.inits);
@@ -283,12 +283,12 @@ static VReg *gen_variable(Expr *expr) {
       const VarInfo *varinfo = scope_find(expr->var.scope, expr->var.name, &scope);
       assert(varinfo != NULL && scope == expr->var.scope);
       if (!is_global_scope(scope) && !(varinfo->storage & (VS_STATIC | VS_EXTERN))) {
-        assert(varinfo->local.reg != NULL);
-        return varinfo->local.reg;
+        assert(varinfo->local.vreg != NULL);
+        return varinfo->local.vreg;
       }
 
-      VReg *reg = gen_lval(expr);
-      VReg *result = new_ir_unary(IR_LOAD, reg, to_vtype(expr->type));
+      VReg *vreg = gen_lval(expr);
+      VReg *result = new_ir_unary(IR_LOAD, vreg, to_vtype(expr->type));
       return result;
     }
   default:
@@ -339,7 +339,7 @@ static Expr *gen_expr_as_tmpvar(Expr *arg) {
   Scope *scope = curscope;
   const Name *name = alloc_label();
   VarInfo *varinfo = scope_add(scope, name, type, 0);
-  varinfo->local.reg = gen_expr(arg);
+  varinfo->local.vreg = gen_expr(arg);
   // Replace the argument to temporary variable reference.
   return new_expr_variable(name, type, NULL, scope);
 }
@@ -451,7 +451,7 @@ static VReg *gen_funcall(Expr *expr) {
   if (is_stack_param(expr->type)) {
     const Name *name = alloc_label();
     VarInfo *ret_varinfo = scope_add(curscope, name, expr->type, 0);
-    ret_varinfo->local.reg = retvar_reg = add_new_reg(expr->type, 0);
+    ret_varinfo->local.vreg = retvar_reg = add_new_reg(expr->type, 0);
   }
 
   typedef struct {
@@ -542,30 +542,30 @@ static VReg *gen_funcall(Expr *expr) {
 #endif
     for (int i = arg_count; --i >= 0; ) {
       Expr *arg = args->data[i];
-      VReg *reg = gen_expr(arg);
+      VReg *vreg = gen_expr(arg);
       const ArgInfo *p = &arg_infos[i];
       if (p->offset < 0) {
 #ifndef __NO_FLONUM
         if (p->is_flonum) {
           ++fregarg;
-          new_ir_pusharg(reg, freg_arg_count - fregarg);
+          new_ir_pusharg(vreg, freg_arg_count - fregarg);
         } else
 #endif
         {
           ++iregarg;
-          new_ir_pusharg(reg, reg_arg_count - iregarg + arg_start);
+          new_ir_pusharg(vreg, reg_arg_count - iregarg + arg_start);
         }
       } else {
         VRegType offset_type = {.size = 4, .align = 4, .flag = 0};  // TODO:
         int ofs = p->offset;
         VReg *dst = new_ir_sofs(new_const_vreg(ofs, &offset_type));
         if (is_stack_param(arg->type)) {
-          new_ir_memcpy(dst, reg, type_size(arg->type));
+          new_ir_memcpy(dst, vreg, type_size(arg->type));
         } else {
-          new_ir_store(dst, reg);
+          new_ir_store(dst, vreg);
         }
       }
-      arg_vregs[i + arg_start] = reg;
+      arg_vregs[i + arg_start] = vreg;
     }
   }
   if (retvar_reg != NULL) {
@@ -692,15 +692,15 @@ VReg *gen_expr(Expr *expr) {
   switch (expr->kind) {
   case EX_FIXNUM:
     {
-      VReg *reg = new_const_vreg(expr->fixnum, to_vtype(expr->type));
+      VReg *vreg = new_const_vreg(expr->fixnum, to_vtype(expr->type));
       if (!is_im32(expr->fixnum)) {
         // Large constant value is not allowed in x86,
         // so use mov instruction.
         VReg *tmp = add_new_reg(expr->type, 0);
-        new_ir_mov(tmp, reg);
-        reg = tmp;
+        new_ir_mov(tmp, vreg);
+        vreg = tmp;
       }
-      return reg;
+      return vreg;
     }
 #ifndef __NO_FLONUM
   case EX_FLONUM:
@@ -718,7 +718,7 @@ VReg *gen_expr(Expr *expr) {
 
   case EX_DEREF:
     {
-      VReg *reg = gen_expr(expr->unary.sub);
+      VReg *vreg = gen_expr(expr->unary.sub);
       VReg *result;
       switch (expr->type->kind) {
       case TY_FIXNUM:
@@ -726,7 +726,7 @@ VReg *gen_expr(Expr *expr) {
 #ifndef __NO_FLONUM
       case TY_FLONUM:
 #endif
-        result = new_ir_unary(IR_LOAD, reg, to_vtype(expr->type));
+        result = new_ir_unary(IR_LOAD, vreg, to_vtype(expr->type));
         return result;
 
       default:
@@ -736,7 +736,7 @@ VReg *gen_expr(Expr *expr) {
       case TY_STRUCT:
       case TY_FUNC:
         // array, struct and func values are handled as a pointer.
-        return reg;
+        return vreg;
       }
     }
 
@@ -751,7 +751,7 @@ VReg *gen_expr(Expr *expr) {
         return gen_expr(e);
       }
 
-      VReg *reg = gen_lval(expr);
+      VReg *vreg = gen_lval(expr);
       VReg *result;
       switch (expr->type->kind) {
       case TY_FIXNUM:
@@ -759,14 +759,14 @@ VReg *gen_expr(Expr *expr) {
 #ifndef __NO_FLONUM
       case TY_FLONUM:
 #endif
-        result = new_ir_unary(IR_LOAD, reg, to_vtype(expr->type));
+        result = new_ir_unary(IR_LOAD, vreg, to_vtype(expr->type));
         break;
       default:
         assert(false);
         // Fallthrough to suppress compile error.
       case TY_ARRAY:
       case TY_STRUCT:
-        result = reg;
+        result = vreg;
         break;
       }
       return result;
@@ -798,8 +798,8 @@ VReg *gen_expr(Expr *expr) {
             const VarInfo *varinfo = scope_find(lhs->var.scope, lhs->var.name, &scope);
             assert(varinfo != NULL);
             if (!is_global_scope(scope) && !(varinfo->storage & (VS_STATIC | VS_EXTERN))) {
-              assert(varinfo->local.reg != NULL);
-              new_ir_mov(varinfo->local.reg, src);
+              assert(varinfo->local.vreg != NULL);
+              new_ir_mov(varinfo->local.vreg, src);
               return src;
             }
           }
@@ -854,7 +854,7 @@ VReg *gen_expr(Expr *expr) {
       VReg *lval = NULL;
       VReg *val;
       if (varinfo != NULL) {
-        val = varinfo->local.reg;
+        val = varinfo->local.vreg;
         if (IS_POST(expr)) {
           before = add_new_reg(target->type, 0);
           new_ir_mov(before, val);
@@ -872,7 +872,7 @@ VReg *gen_expr(Expr *expr) {
 #endif
           new_const_vreg(expr->type->kind == TY_PTR ? type_size(expr->type->pa.ptrof) : 1, vtype);
       VReg *after = new_ir_bop(kOpAddSub[IS_DEC(expr)], val, addend, vtype);
-      if (varinfo != NULL)  new_ir_mov(varinfo->local.reg, after);
+      if (varinfo != NULL)  new_ir_mov(varinfo->local.vreg, after);
                       else  new_ir_store(lval, after);
       return before != NULL ? before : after;
 #undef IS_POST
@@ -887,21 +887,21 @@ VReg *gen_expr(Expr *expr) {
 
   case EX_NEG:
     {
-      VReg *reg = gen_expr(expr->unary.sub);
+      VReg *vreg = gen_expr(expr->unary.sub);
 #ifndef __NO_FLONUM
       if (is_flonum(expr->type)) {
         VReg *zero = gen_expr(new_expr_flolit(expr->type, NULL, 0.0));
-        return gen_arith(EX_SUB, expr->type, zero, reg);
+        return gen_arith(EX_SUB, expr->type, zero, vreg);
       }
 #endif
-      VReg *result = new_ir_unary(IR_NEG, reg, to_vtype(expr->type));
+      VReg *result = new_ir_unary(IR_NEG, vreg, to_vtype(expr->type));
       return result;
     }
 
   case EX_BITNOT:
     {
-      VReg *reg = gen_expr(expr->unary.sub);
-      VReg *result = new_ir_unary(IR_BITNOT, reg, to_vtype(expr->type));
+      VReg *vreg = gen_expr(expr->unary.sub);
+      VReg *result = new_ir_unary(IR_BITNOT, vreg, to_vtype(expr->type));
       return result;
     }
 

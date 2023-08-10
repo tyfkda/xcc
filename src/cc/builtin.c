@@ -41,7 +41,7 @@ static VReg *gen_builtin_va_start(Expr *expr) {
   }
 
   VReg *ptr = new_ir_bofs(new_const_vreg(16, to_vtype(&tyVoidPtr)));  // TODO: Consider stack argument.
-  new_ir_mov(varinfo->local.reg, ptr);
+  new_ir_mov(varinfo->local.vreg, ptr);
   return NULL;
 }
 #else

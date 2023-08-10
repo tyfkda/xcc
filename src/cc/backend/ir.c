@@ -280,9 +280,9 @@ VReg *new_ir_call(const Name *label, bool global, VReg *freg, int total_arg_coun
   return ir->dst = result_type == NULL ? NULL : reg_alloc_spawn(curra, result_type, 0);
 }
 
-void new_ir_result(VReg *reg) {
+void new_ir_result(VReg *vreg) {
   IR *ir = new_ir(IR_RESULT);
-  ir->opr1 = reg;
+  ir->opr1 = vreg;
 }
 
 void new_ir_subsp(VReg *value, VReg *dst) {
@@ -313,9 +313,9 @@ void new_ir_memcpy(VReg *dst, VReg *src, size_t size) {
   }
 }
 
-void new_ir_clear(VReg *reg, size_t size) {
+void new_ir_clear(VReg *vreg, size_t size) {
   IR *ir = new_ir(IR_CLEAR);
-  ir->opr1 = reg;
+  ir->opr1 = vreg;
   ir->clear.size = size;
 }
 
@@ -325,16 +325,16 @@ void new_ir_asm(const char *asm_, VReg *dst) {
   ir->dst = dst;
 }
 
-IR *new_ir_load_spilled(VReg *reg, VReg *src) {
+IR *new_ir_load_spilled(VReg *vreg, VReg *src) {
   IR *ir = new_ir(IR_LOAD_SPILLED);
-  ir->dst = reg;
+  ir->dst = vreg;
   ir->opr1 = src;
   return ir;
 }
 
-IR *new_ir_store_spilled(VReg *dst, VReg *reg) {
+IR *new_ir_store_spilled(VReg *dst, VReg *vreg) {
   IR *ir = new_ir(IR_STORE_SPILLED);
-  ir->opr1 = reg;
+  ir->opr1 = vreg;
   ir->opr2 = dst;  // `dst` is used by indirect, so it is not actually `dst`.
   return ir;
 }
@@ -395,13 +395,13 @@ static void detect_from_bbs(BBContainer *bbcon) {
   }
 }
 
-static void propagate_out_regs(VReg *reg, Vector *froms) {
+static void propagate_out_regs(VReg *vreg, Vector *froms) {
   for (BB *bb; (bb = vec_pop(froms)) != NULL; ) {
-    if (!vec_contains(bb->out_regs, reg))
-      vec_push(bb->out_regs, reg);
-    if (!vec_contains(bb->in_regs, reg) &&
-        !vec_contains(bb->assigned_regs, reg)) {
-      vec_push(bb->in_regs, reg);
+    if (!vec_contains(bb->out_regs, vreg))
+      vec_push(bb->out_regs, vreg);
+    if (!vec_contains(bb->in_regs, vreg) &&
+        !vec_contains(bb->assigned_regs, vreg)) {
+      vec_push(bb->in_regs, vreg);
       for (int i = 0; i < bb->from_bbs->len; ++i)
         vec_push(froms, bb->from_bbs->data[i]);
     }
@@ -419,14 +419,14 @@ void analyze_reg_flow(BBContainer *bbcon) {
     Vector *irs = bb->irs;
     for (int j = 0; j < irs->len; ++j) {
       IR *ir = irs->data[j];
-      VReg *regs[] = {ir->opr1, ir->opr2};
+      VReg *vregs[] = {ir->opr1, ir->opr2};
       for (int k = 0; k < 2; ++k) {
-        VReg *reg = regs[k];
-        if (reg == NULL || reg->flag & VRF_CONST)
+        VReg *vreg = vregs[k];
+        if (vreg == NULL || vreg->flag & VRF_CONST)
           continue;
-        if (!vec_contains(in_regs, reg) &&
-            !vec_contains(assigned_regs, reg))
-          vec_push(in_regs, reg);
+        if (!vec_contains(in_regs, vreg) &&
+            !vec_contains(assigned_regs, vreg))
+          vec_push(in_regs, vreg);
       }
       if (ir->dst != NULL && !vec_contains(assigned_regs, ir->dst))
         vec_push(assigned_regs, ir->dst);

@@ -33,7 +33,7 @@ typedef struct VarInfo {
   union {
     struct {
       // For codegen.
-      VReg *reg;
+      VReg *vreg;
     } local;
     union {
       Initializer *init;

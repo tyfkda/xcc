@@ -21,8 +21,8 @@ typedef struct LiveInterval {
   enum LiveIntervalState state;
   int start;
   int end;
-  int virt;  // Virtual reg no.
-  int phys;  // Mapped physical reg no.
+  int virt;  // Virtual register no.
+  int phys;  // Mapped physical register no.
 } LiveInterval;
 
 typedef struct RegAlloc {

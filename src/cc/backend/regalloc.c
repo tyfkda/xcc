@@ -97,10 +97,10 @@ static void expire_old_intervals(
   *pusing_bits = using_bits;
 }
 
-static void set_inout_interval(Vector *regs, LiveInterval *intervals, int nip) {
-  for (int j = 0; j < regs->len; ++j) {
-    VReg *reg = regs->data[j];
-    LiveInterval *li = &intervals[reg->virt];
+static void set_inout_interval(Vector *vregs, LiveInterval *intervals, int nip) {
+  for (int j = 0; j < vregs->len; ++j) {
+    VReg *vreg = vregs->data[j];
+    LiveInterval *li = &intervals[vreg->virt];
     if (li->start < 0 || li->start > nip)
       li->start = nip;
     if (li->end < nip)
@@ -125,12 +125,12 @@ static void check_live_interval(BBContainer *bbcon, int vreg_count, LiveInterval
 
     for (int j = 0; j < bb->irs->len; ++j, ++nip) {
       IR *ir = bb->irs->data[j];
-      VReg *regs[] = {ir->dst, ir->opr1, ir->opr2};
+      VReg *vregs[] = {ir->dst, ir->opr1, ir->opr2};
       for (int k = 0; k < 3; ++k) {
-        VReg *reg = regs[k];
-        if (reg == NULL)
+        VReg *vreg = vregs[k];
+        if (vreg == NULL)
           continue;
-        LiveInterval *li = &intervals[reg->virt];
+        LiveInterval *li = &intervals[vreg->virt];
         if (li->start < 0)
           li->start = nip;
         if (li->end < nip)
