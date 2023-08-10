@@ -197,6 +197,7 @@ size_t type_size(const Type *type) {
   case TY_FUNC:
     return 1;
   case TY_STRUCT:
+    assert(type->struct_.info != NULL);
     assert(type->struct_.info->size >= 0);
     return type->struct_.info->size;
   default:
@@ -222,6 +223,7 @@ size_t align_size(const Type *type) {
   case TY_ARRAY:
     return align_size(type->pa.ptrof);
   case TY_STRUCT:
+    assert(type->struct_.info != NULL);
     assert(type->struct_.info->align > 0);
     return type->struct_.info->align;
   default:

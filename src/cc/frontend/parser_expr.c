@@ -811,6 +811,7 @@ void check_funcall_args(Expr *func, Vector *args, Scope *scope, Vector *toplevel
       arg = make_cast(array_to_ptr(arg->type), arg->token, arg, false);
     if (i < paramc) {
       Type *type = param_types->data[i];
+      ensure_struct(type, func->token, scope);
       arg = make_cast(type, arg->token, arg, false);
     } else if (vaargs && i >= paramc) {
       const Type *type = arg->type;
