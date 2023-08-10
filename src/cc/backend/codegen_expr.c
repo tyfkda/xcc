@@ -330,16 +330,6 @@ static VReg *gen_ternary(Expr *expr) {
   return result;
 }
 
-typedef struct {
-  int reg_index;
-  int offset;
-  int size;
-  bool stack_arg;
-#ifndef __NO_FLONUM
-  bool is_flonum;
-#endif
-} ArgInfo;
-
 //
 static Expr *gen_expr_as_tmpvar(Expr *arg) {
   // Precalculate expr and store the result to temporary variable.
@@ -463,6 +453,16 @@ static VReg *gen_funcall(Expr *expr) {
     VarInfo *ret_varinfo = scope_add(curscope, name, expr->type, 0);
     ret_varinfo->local.reg = retvar_reg = add_new_reg(expr->type, 0);
   }
+
+  typedef struct {
+    int reg_index;
+    int offset;
+    int size;
+    bool stack_arg;
+#ifndef __NO_FLONUM
+    bool is_flonum;
+#endif
+  } ArgInfo;
 
   ArgInfo *arg_infos = NULL;
   int stack_arg_count = 0;
