@@ -19,9 +19,11 @@ bool is_stack_param(const Type *type) {
 }
 
 VRegType *to_vtype(const Type *type) {
-  assert(type->kind != TY_VOID);
+  assert(is_prim_type(type));
+  size_t size = type_size(type);
+  assert(1 <= size && size <= 8 && IS_POWER_OF_2(size));
   VRegType *vtype = malloc_or_die(sizeof(*vtype));
-  vtype->size = type_size(type);
+  vtype->size = size;
   vtype->align = align_size(type);
 
   int flag = 0;
@@ -236,7 +238,7 @@ static VReg *gen_lval(Expr *expr) {
         return new_ir_iofs(varinfo->static_.gvar->name, false);
       if (varinfo->storage & VS_EXTERN)
         return new_ir_iofs(expr->var.name, true);
-      return new_ir_bofs(varinfo->local.vreg);
+      return new_ir_bofs(varinfo->local.frameinfo, varinfo->local.vreg);
     }
   case EX_DEREF:
     return gen_expr(expr->unary.sub);
@@ -257,8 +259,9 @@ static VReg *gen_lval(Expr *expr) {
       assert(var->var.scope != NULL);
       const VarInfo *varinfo = scope_find(var->var.scope, var->var.name, NULL);
       assert(varinfo != NULL);
-      assert(varinfo->local.vreg != NULL);
-      varinfo->local.vreg->flag |= VRF_REF;
+      VReg *vreg = varinfo->local.vreg;
+      if (vreg != NULL)
+        vreg->flag |= VRF_REF;
 
       gen_clear_local_var(varinfo);
       gen_stmts(expr->complit.inits);
@@ -447,11 +450,14 @@ static VReg *gen_funcall(Expr *expr) {
 
   int offset = 0;
 
-  VReg *retvar_reg = NULL;  // Return value is on the stack.
+  VarInfo *ret_varinfo = NULL;  // Return value is on the stack.
   if (is_stack_param(expr->type)) {
     const Name *name = alloc_label();
-    VarInfo *ret_varinfo = scope_add(curscope, name, expr->type, 0);
-    ret_varinfo->local.vreg = retvar_reg = add_new_reg(expr->type, 0);
+    Type *type = expr->type;
+    ret_varinfo = scope_add(curscope, name, type, 0);
+    FrameInfo *fi = malloc_or_die(sizeof(*fi));
+    fi->offset = 0;
+    ret_varinfo->local.frameinfo = fi;
   }
 
   typedef struct {
@@ -472,7 +478,7 @@ static VReg *gen_funcall(Expr *expr) {
 #else
   const int freg_arg_count = 0;
 #endif
-  int arg_start = retvar_reg != NULL ? 1 : 0;
+  int arg_start = ret_varinfo != NULL ? 1 : 0;
   {
     int ireg_index = arg_start;
 #ifndef __NO_FLONUM
@@ -531,7 +537,7 @@ static VReg *gen_funcall(Expr *expr) {
   if (offset > 0)
     new_ir_subsp(new_const_vreg(offset, to_vtype(&tySSize)), NULL);
 
-  int total_arg_count = arg_count + (retvar_reg != NULL ? 1 : 0);
+  int total_arg_count = arg_count + (ret_varinfo != NULL ? 1 : 0);
   VReg **arg_vregs = total_arg_count == 0 ? NULL : calloc(total_arg_count, sizeof(*arg_vregs));
 
   {
@@ -568,9 +574,8 @@ static VReg *gen_funcall(Expr *expr) {
       arg_vregs[i + arg_start] = vreg;
     }
   }
-  if (retvar_reg != NULL) {
-    // gen_lval(retvar)
-    VReg *dst = new_ir_bofs(retvar_reg);
+  if (ret_varinfo != NULL) {
+    VReg *dst = new_ir_bofs(ret_varinfo->local.frameinfo, ret_varinfo->local.vreg);
     new_ir_pusharg(dst, 0);
     arg_vregs[0] = dst;
     ++reg_arg_count;
@@ -588,9 +593,9 @@ static VReg *gen_funcall(Expr *expr) {
   VReg *result_reg = NULL;
   {
     int vaarg_start = !functype->func.vaargs || functype->func.params == NULL ? -1 :
-        functype->func.params->len + (retvar_reg != NULL ? 1 : 0);
+        functype->func.params->len + (ret_varinfo != NULL ? 1 : 0);
     Type *type = expr->type;
-    if (retvar_reg != NULL)
+    if (ret_varinfo != NULL)
       type = ptrof(type);
     VRegType *ret_vtype = type->kind == TY_VOID ? NULL : to_vtype(type);
     if (label_call) {

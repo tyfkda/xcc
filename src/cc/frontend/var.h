@@ -5,6 +5,7 @@
 #include <stdbool.h>
 
 typedef struct Function Function;
+typedef struct FrameInfo FrameInfo;
 typedef struct Initializer Initializer;
 typedef struct Name Name;
 typedef struct StructInfo StructInfo;
@@ -34,6 +35,7 @@ typedef struct VarInfo {
     struct {
       // For codegen.
       VReg *vreg;
+      FrameInfo *frameinfo;
     } local;
     union {
       Initializer *init;

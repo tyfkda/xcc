@@ -143,16 +143,12 @@ static void ir_out(IR *ir) {
   case IR_BOFS:
     {
       const char *dst = kReg64s[ir->dst->phys];
-      if (ir->opr1->flag & VRF_CONST) {
-        ADD(dst, FP, IM(ir->opr1->fixnum));
+      int ofs = ir->bofs.frameinfo->offset;
+      if (ofs < 4096 && ofs > -4096) {
+        ADD(dst, FP, IM(ofs));
       } else {
-        int ofs = ir->opr1->offset;
-        if (ofs < 4096 && ofs > -4096) {
-          ADD(dst, FP, IM(ofs));
-        } else {
-          mov_immediate(dst, ofs, true, false);
-          ADD(dst, dst, FP);
-        }
+        mov_immediate(dst, ofs, true, false);
+        ADD(dst, dst, FP);
       }
     }
     break;
@@ -178,7 +174,7 @@ static void ir_out(IR *ir) {
     {
       assert(ir->opr1->flag & VRF_CONST);
       const char *dst = kReg64s[ir->dst->phys];
-      int ofs = ir->opr1->offset;
+      int ofs = ir->opr1->frame.offset;
       if (ofs < 4096 && ofs > -4096) {
         ADD(dst, SP, IM(ir->opr1->fixnum));
       } else {
@@ -199,11 +195,11 @@ static void ir_out(IR *ir) {
       if (ir->kind == IR_LOAD) {
         src = IMMEDIATE_OFFSET0(kReg64s[ir->opr1->phys]);
       } else {
-        if (ir->opr1->offset >= -256 && ir->opr1->offset <= 256) {
-          src = IMMEDIATE_OFFSET(FP, ir->opr1->offset);
+        if (ir->opr1->frame.offset >= -256 && ir->opr1->frame.offset <= 256) {
+          src = IMMEDIATE_OFFSET(FP, ir->opr1->frame.offset);
         } else {
           const char *tmp = kTmpRegTable[3];
-          mov_immediate(tmp, ir->opr1->offset, true, false);
+          mov_immediate(tmp, ir->opr1->frame.offset, true, false);
           src = REG_OFFSET(FP, tmp, NULL);
         }
       }
@@ -250,11 +246,11 @@ static void ir_out(IR *ir) {
       if (ir->kind == IR_STORE) {
         target = IMMEDIATE_OFFSET0(kReg64s[ir->opr2->phys]);
       } else {
-        if (ir->opr2->offset >= -256 && ir->opr2->offset <= 256) {
-          target = IMMEDIATE_OFFSET(FP, ir->opr2->offset);
+        if (ir->opr2->frame.offset >= -256 && ir->opr2->frame.offset <= 256) {
+          target = IMMEDIATE_OFFSET(FP, ir->opr2->frame.offset);
         } else {
           const char *tmp = kTmpRegTable[3];
-          mov_immediate(tmp, ir->opr2->offset, true, false);
+          mov_immediate(tmp, ir->opr2->frame.offset, true, false);
           target = REG_OFFSET(FP, tmp, NULL);
         }
       }

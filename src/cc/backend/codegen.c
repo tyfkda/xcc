@@ -87,10 +87,20 @@ static void alloc_variable_registers(Function *func) {
         continue;
       }
 
+      varinfo->local.vreg = NULL;
+      varinfo->local.frameinfo = NULL;
+      if (!is_prim_type(varinfo->type)) {
+        FrameInfo *fi = malloc_or_die(sizeof(*fi));
+        fi->offset = 0;
+        varinfo->local.frameinfo = fi;
+        continue;
+      }
+
       VReg *vreg = add_new_reg(varinfo->type, 0);
       if (varinfo->storage & VS_REF_TAKEN)
         vreg->flag |= VRF_REF;
       varinfo->local.vreg = vreg;
+      varinfo->local.frameinfo = &vreg->frame;
     }
   }
 
@@ -106,8 +116,10 @@ static void alloc_variable_registers(Function *func) {
     for (int j = 0; j < func->type->func.params->len; ++j) {
       VarInfo *varinfo = func->type->func.params->data[j];
       VReg *vreg = varinfo->local.vreg;
-      vreg->flag |= VRF_PARAM;
-      vreg->param_index = j + param_index_offset;
+      if (vreg != NULL) {
+        vreg->flag |= VRF_PARAM;
+        vreg->param_index = j + param_index_offset;
+      }
     }
   }
 }
@@ -421,7 +433,7 @@ void gen_clear_local_var(const VarInfo *varinfo) {
   size_t size = type_size(varinfo->type);
   if (size <= 0)
     return;
-  VReg *vreg = new_ir_bofs(varinfo->local.vreg);
+  VReg *vreg = new_ir_bofs(varinfo->local.frameinfo, varinfo->local.vreg);
   new_ir_clear(vreg, size);
 }
 
@@ -481,23 +493,27 @@ static void prepare_register_allocation(Function *func) {
     int offset = DEFAULT_OFFSET;
     for (int j = 0; j < func->type->func.params->len; ++j) {
       VarInfo *varinfo = func->type->func.params->data[j];
-      VReg *vreg = varinfo->local.vreg;
-      // Currently, all parameters are force spilled.
-      spill_vreg(vreg);
-      // stack parameters
-      if (is_stack_param(varinfo->type)) {
-        vreg->offset = offset = ALIGN(offset, align_size(varinfo->type));
+      if (!is_prim_type(varinfo->type)) {
+        // stack parameters
+        FrameInfo *fi = varinfo->local.frameinfo;
+        fi->offset = offset = ALIGN(offset, align_size(varinfo->type));
         offset += ALIGN(type_size(varinfo->type), WORD_SIZE);
         continue;
       }
 
+      VReg *vreg = varinfo->local.vreg;
+      assert(vreg != NULL);
+
+      // Currently, all parameters are force spilled.
+      spill_vreg(vreg);
+
       if (func->type->func.vaargs) {  // Variadic function parameters.
 #ifndef __NO_FLONUM
         if (is_flonum(varinfo->type))
-          vreg->offset = (freg_index - MAX_FREG_ARGS) * WORD_SIZE;
+          vreg->frame.offset = (freg_index - MAX_FREG_ARGS) * WORD_SIZE;
         else
 #endif
-          vreg->offset = (ireg_index - MAX_REG_ARGS - MAX_FREG_ARGS) * WORD_SIZE;
+          vreg->frame.offset = (ireg_index - MAX_REG_ARGS - MAX_FREG_ARGS) * WORD_SIZE;
       }
       bool through_stack;
 #ifndef __NO_FLONUM
@@ -513,7 +529,7 @@ static void prepare_register_allocation(Function *func) {
 
       if (through_stack) {
         // Function argument passed through the stack.
-        vreg->offset = offset;
+        vreg->frame.offset = offset;
         offset += WORD_SIZE;
       }
     }
@@ -532,21 +548,8 @@ static void prepare_register_allocation(Function *func) {
       if (vreg == NULL || vreg->flag & VRF_PARAM)
         continue;
 
-      bool spill = false;
+      assert(is_prim_type(varinfo->type));
       if (vreg->flag & VRF_REF)
-        spill = true;
-
-      switch (varinfo->type->kind) {
-      case TY_ARRAY:
-      case TY_STRUCT:
-        // Make non-primitive variable spilled.
-        spill = true;
-        break;
-      default:
-        break;
-      }
-
-      if (spill)
         spill_vreg(vreg);
     }
   }
@@ -625,16 +628,50 @@ static void detect_living_registers(RegAlloc *ra, BBContainer *bbcon) {
   }
 }
 
-static int alloc_spilled_vregs_onto_stack_frame(RegAlloc *ra, int reserved_size) {
-  int frame_size = reserved_size;
+static void alloc_stack_variables_onto_stack_frame(Function *func) {
+  FuncBackend *fnbe = func->extra;
+  size_t frame_size = fnbe->frame_size;
+
+  for (int i = 0; i < func->scopes->len; ++i) {
+    Scope *scope = func->scopes->data[i];
+    if (scope->vars == NULL)
+      continue;
+
+    for (int j = 0; j < scope->vars->len; ++j) {
+      VarInfo *varinfo = scope->vars->data[j];
+      if (varinfo->storage & (VS_STATIC | VS_EXTERN | VS_ENUM_MEMBER | VS_TYPEDEF) ||
+          is_prim_type(varinfo->type))
+        continue;
+
+      assert(varinfo->local.vreg == NULL);
+      FrameInfo *fi = varinfo->local.frameinfo;
+      assert(fi != NULL);
+      if (fi->offset != 0) {
+        // Variadic function parameter or stack parameter, set in `prepare_register_allocation`.
+        continue;
+      }
+
+      Type *type = varinfo->type;
+      size_t size = type_size(type);
+      if (size < 1)
+        size = 1;
+      size_t align = align_size(type);
+
+      frame_size = ALIGN(frame_size + size, align);
+      fi->offset = -(int)frame_size;
+    }
+  }
+
+  RegAlloc *ra = fnbe->ra;
   for (int i = 0; i < ra->vregs->len; ++i) {
     LiveInterval *li = ra->sorted_intervals[i];
     if (li->state != LI_SPILL)
       continue;
     VReg *vreg = ra->vregs->data[li->virt];
-    if (vreg->offset != 0) {  // Variadic function parameter or stack parameter.
-      if (-vreg->offset > frame_size)
-        frame_size = -vreg->offset;
+    if (vreg->frame.offset != 0) {
+      // Variadic function parameter or stack parameter, set in `prepare_register_allocation`.
+      if (-vreg->frame.offset > (int)frame_size)
+        frame_size = -vreg->frame.offset;
       continue;
     }
 
@@ -647,10 +684,10 @@ static int alloc_spilled_vregs_onto_stack_frame(RegAlloc *ra, int reserved_size)
       size = 1;
 
     frame_size = ALIGN(frame_size + size, align);
-    vreg->offset = -frame_size;
+    vreg->frame.offset = -(int)frame_size;
   }
 
-  return frame_size;
+  fnbe->frame_size = frame_size;
 }
 
 static void gen_defun(Function *func) {
@@ -663,7 +700,7 @@ static void gen_defun(Function *func) {
   fnbe->bbcon = NULL;
   fnbe->ret_bb = NULL;
   fnbe->retval = NULL;
-  fnbe->frame_size = 0;
+  fnbe->frame_size = func->type->func.vaargs ? (MAX_REG_ARGS + MAX_FREG_ARGS) * WORD_SIZE : 0;
 
   fnbe->bbcon = new_func_blocks();
   set_curbb(new_bb());
@@ -703,9 +740,8 @@ static void gen_defun(Function *func) {
   map_virtual_to_physical_registers(fnbe->ra);
   detect_living_registers(fnbe->ra, fnbe->bbcon);
 
-  int reserved_size = func->type->func.vaargs ? (MAX_REG_ARGS + MAX_FREG_ARGS) * WORD_SIZE : 0;
-  size_t frame_size = alloc_spilled_vregs_onto_stack_frame(fnbe->ra, reserved_size);
-  fnbe->frame_size = ALIGN(frame_size, 16);
+  alloc_stack_variables_onto_stack_frame(func);
+  fnbe->frame_size = ALIGN(fnbe->frame_size, 16);
 
   curfunc = NULL;
   curra = NULL;

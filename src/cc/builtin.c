@@ -40,7 +40,9 @@ static VReg *gen_builtin_va_start(Expr *expr) {
     return NULL;
   }
 
-  VReg *ptr = new_ir_bofs(new_const_vreg(16, to_vtype(&tyVoidPtr)));  // TODO: Consider stack argument.
+  FrameInfo *fi = malloc_or_die(sizeof(*fi));
+  fi->offset = 16;  // TODO: Consider stack argument.
+  VReg *ptr = new_ir_bofs(fi, NULL);
   new_ir_mov(varinfo->local.vreg, ptr);
   return NULL;
 }
@@ -94,8 +96,9 @@ static VReg *gen_builtin_va_start(Expr *expr) {
   {
     const VRegType *vtype = to_vtype(&tyVoidPtr);
     VReg *overflow_arg_area = new_ir_bop(IR_ADD, ap, new_const_vreg(type_size(&tyInt) + type_size(&tyInt), vtype), vtype);
-    VReg *offset = new_const_vreg(2 * WORD_SIZE, to_vtype(&tySize));
-    VReg *p = new_ir_bofs(offset);
+    FrameInfo *fi = malloc_or_die(sizeof(*fi));
+    fi->offset = 2 * WORD_SIZE;
+    VReg *p = new_ir_bofs(fi, NULL);
     new_ir_store(overflow_arg_area, p);
   }
 
@@ -103,8 +106,9 @@ static VReg *gen_builtin_va_start(Expr *expr) {
   {
     const VRegType *vtype = to_vtype(&tyVoidPtr);
     VReg *reg_save_area = new_ir_bop(IR_ADD, ap, new_const_vreg(type_size(&tyInt) + type_size(&tyInt) + type_size(&tyVoidPtr), vtype), vtype);
-    VReg *offset = new_const_vreg(-(MAX_REG_ARGS + MAX_FREG_ARGS) * WORD_SIZE, to_vtype(&tySize));
-    VReg *p = new_ir_bofs(offset);
+    FrameInfo *fi = malloc_or_die(sizeof(*fi));
+    fi->offset = -(MAX_REG_ARGS + MAX_FREG_ARGS) * WORD_SIZE;
+    VReg *p = new_ir_bofs(fi, NULL);
     new_ir_store(reg_save_area, p);
   }
   return NULL;

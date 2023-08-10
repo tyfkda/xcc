@@ -13,6 +13,10 @@ typedef struct Vector Vector;
 
 #define WORD_SIZE  (8)  /*sizeof(void*)*/
 
+typedef struct FrameInfo {
+  int offset;
+} FrameInfo;
+
 // Virtual register
 
 #define VRTF_NON_REG   (1 << 0)
@@ -39,8 +43,8 @@ typedef struct VReg {
   int phys;         // Physical reg no.
   int flag;
   int param_index;  // Function parameter index: -1=not a param
-  int offset;       // Local offset for spilled register.
   int64_t fixnum;   // Constant value.
+  FrameInfo frame;  // FrameInfo for spilled register.
 } VReg;
 
 VReg *new_vreg(int vreg_no, const VRegType *vtype, int flag);
@@ -114,6 +118,9 @@ typedef struct IR {
 
   union {
     struct {
+      FrameInfo *frameinfo;
+    } bofs;
+    struct {
       const Name *label;
       bool global;
     } iofs;
@@ -163,7 +170,7 @@ VReg *new_const_vreg(int64_t value, const VRegType *vtype);
 VReg *new_ir_bop(enum IrKind kind, VReg *opr1, VReg *opr2, const VRegType *vtype);
 VReg *new_ir_unary(enum IrKind kind, VReg *opr, const VRegType *vtype);
 IR *new_ir_mov(VReg *dst, VReg *src);
-VReg *new_ir_bofs(VReg *src);
+VReg *new_ir_bofs(FrameInfo *fi, VReg *src);
 VReg *new_ir_iofs(const Name *label, bool global);
 VReg *new_ir_sofs(VReg *src);
 void new_ir_store(VReg *dst, VReg *src);

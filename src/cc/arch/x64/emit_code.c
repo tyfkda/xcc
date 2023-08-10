@@ -407,7 +407,7 @@ static void put_args_to_stack(Function *func) {
     // Received as a pointer at the first parameter.
     const int pow = 3;
     const char *src = kRegTable[pow][0];
-    int offset = ((FuncBackend*)func->extra)->retval->offset;
+    int offset = ((FuncBackend*)func->extra)->retval->frame.offset;
     const char *dst = OFFSET_INDIRECT(offset, RBP, NULL, 1);
     MOV(src, dst);
     ++arg_index;
@@ -426,7 +426,8 @@ static void put_args_to_stack(Function *func) {
     for (int i = 0; i < len; ++i) {
       const VarInfo *varinfo = params->data[i];
       const Type *type = varinfo->type;
-      int offset = varinfo->local.vreg->offset;
+      FrameInfo *fi = varinfo->local.frameinfo;
+      int offset = fi->offset;
 
       if (is_stack_param(type))
         continue;
@@ -484,7 +485,7 @@ static void put_args_to_stack(Function *func) {
         assert(0 <= size && size < kPow2TableSize && kPow2Table[size] >= 0);
         int pow = kPow2Table[size];
         const char *src = kRegTable[pow][i];
-        int offset = varinfo->local.vreg->offset;
+        int offset = varinfo->local.vreg->frame.offset;
         MOV(src, OFFSET_INDIRECT(offset, RBP, NULL, 1));
       } else {
         int offset = (i - MAX_REG_ARGS - MAX_FREG_ARGS) * WORD_SIZE;
@@ -509,7 +510,7 @@ static void put_args_to_stack(Function *func) {
       if (varinfo != NULL) {
         const Type *type = varinfo->type;
         assert(type->kind == TY_FLONUM);
-        int offset = varinfo->local.vreg->offset;
+        int offset = varinfo->local.vreg->frame.offset;
         switch (type->flonum.kind) {
         case FL_FLOAT:   MOVSS(kFReg64s[i], OFFSET_INDIRECT(offset, RBP, NULL, 1)); break;
         case FL_DOUBLE:  MOVSD(kFReg64s[i], OFFSET_INDIRECT(offset, RBP, NULL, 1)); break;

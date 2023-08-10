@@ -119,10 +119,7 @@ static bool is_got(const Name *name) {
 static void ir_out(IR *ir) {
   switch (ir->kind) {
   case IR_BOFS:
-    if (ir->opr1->flag & VRF_CONST)
-      LEA(OFFSET_INDIRECT(ir->opr1->fixnum, RBP, NULL, 1), kReg64s[ir->dst->phys]);
-    else
-      LEA(OFFSET_INDIRECT(ir->opr1->offset, RBP, NULL, 1), kReg64s[ir->dst->phys]);
+    LEA(OFFSET_INDIRECT(ir->bofs.frameinfo->offset, RBP, NULL, 1), kReg64s[ir->dst->phys]);
     break;
 
   case IR_IOFS:
@@ -948,8 +945,8 @@ static void ir_out(IR *ir) {
     if (ir->opr1->vtype->flag & VRTF_FLONUM) {
       const char **regs = kFReg64s;
       switch (ir->dst->vtype->size) {
-      case SZ_FLOAT: MOVSS(OFFSET_INDIRECT(ir->opr1->offset, RBP, NULL, 1), regs[ir->dst->phys]); break;
-      case SZ_DOUBLE: MOVSD(OFFSET_INDIRECT(ir->opr1->offset, RBP, NULL, 1), regs[ir->dst->phys]); break;
+      case SZ_FLOAT: MOVSS(OFFSET_INDIRECT(ir->opr1->frame.offset, RBP, NULL, 1), regs[ir->dst->phys]); break;
+      case SZ_DOUBLE: MOVSD(OFFSET_INDIRECT(ir->opr1->frame.offset, RBP, NULL, 1), regs[ir->dst->phys]); break;
       default: assert(false); break;
       }
       break;
@@ -960,7 +957,7 @@ static void ir_out(IR *ir) {
       int pow = kPow2Table[ir->dst->vtype->size];
       assert(0 <= pow && pow < 4);
       const char **regs = kRegSizeTable[pow];
-      MOV(OFFSET_INDIRECT(ir->opr1->offset, RBP, NULL, 1), regs[ir->dst->phys]);
+      MOV(OFFSET_INDIRECT(ir->opr1->frame.offset, RBP, NULL, 1), regs[ir->dst->phys]);
     }
     break;
 
@@ -970,8 +967,8 @@ static void ir_out(IR *ir) {
     if (ir->opr2->vtype->flag & VRTF_FLONUM) {
       const char **regs = kFReg64s;
       switch (ir->opr1->vtype->size) {
-      case SZ_FLOAT: MOVSS(regs[ir->opr1->phys], OFFSET_INDIRECT(ir->opr2->offset, RBP, NULL, 1)); break;
-      case SZ_DOUBLE: MOVSD(regs[ir->opr1->phys], OFFSET_INDIRECT(ir->opr2->offset, RBP, NULL, 1)); break;
+      case SZ_FLOAT: MOVSS(regs[ir->opr1->phys], OFFSET_INDIRECT(ir->opr2->frame.offset, RBP, NULL, 1)); break;
+      case SZ_DOUBLE: MOVSD(regs[ir->opr1->phys], OFFSET_INDIRECT(ir->opr2->frame.offset, RBP, NULL, 1)); break;
       default: assert(false); break;
       }
       break;
@@ -982,7 +979,7 @@ static void ir_out(IR *ir) {
       int pow = kPow2Table[ir->opr1->vtype->size];
       assert(0 <= pow && pow < 4);
       const char **regs = kRegSizeTable[pow];
-      MOV(regs[ir->opr1->phys], OFFSET_INDIRECT(ir->opr2->offset, RBP, NULL, 1));
+      MOV(regs[ir->opr1->phys], OFFSET_INDIRECT(ir->opr2->frame.offset, RBP, NULL, 1));
     }
     break;
 
