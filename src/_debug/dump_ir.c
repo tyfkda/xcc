@@ -115,32 +115,34 @@ static void dump_func_ir(Function *func) {
   RegAlloc *ra = fnbe->ra;
   fprintf(fp, "VREG: #%d\n", ra->vregs->len);
   LiveInterval **sorted_intervals = ra->sorted_intervals;
-  for (int i = 0; i < ra->vregs->len; ++i) {
-    LiveInterval *li = sorted_intervals[i];
-    VReg *vreg = ra->vregs->data[li->virt];
-    if (vreg == NULL) {
-      fprintf(fp, "  V%3d: unused\n", li->virt);
-      continue;
-    }
-
-    switch (li->state) {
-    case LI_NORMAL:
-      {
-        char regtype = 'R';
-#ifndef __NO_FLONUM
-        if (vreg->vtype->flag & VRTF_FLONUM)
-          regtype = 'F';
-#endif
-        fprintf(fp, "  V%3d (flag=%x): live %3d - %3d, => %c%3d\n", li->virt, vreg->flag, li->start, li->end, regtype, li->phys);
+  if (sorted_intervals != NULL) {
+    for (int i = 0; i < ra->vregs->len; ++i) {
+      LiveInterval *li = sorted_intervals[i];
+      VReg *vreg = ra->vregs->data[li->virt];
+      if (vreg == NULL) {
+        fprintf(fp, "  V%3d: unused\n", li->virt);
+        continue;
       }
-      break;
-    case LI_SPILL:
-      fprintf(fp, "  V%3d (flag=%x): live %3d - %3d (spilled, offset=%d)\n", li->virt, vreg->flag, li->start, li->end, vreg->offset);
-      break;
-    case LI_CONST:
-      fprintf(fp, "  V%3d (flag=%x): (const, value=%" PRId64 ")\n", li->virt, vreg->flag, vreg->fixnum);
-      break;
-    default:  assert(false); break;
+
+      switch (li->state) {
+      case LI_NORMAL:
+        {
+          char regtype = 'R';
+#ifndef __NO_FLONUM
+          if (vreg->vtype->flag & VRTF_FLONUM)
+            regtype = 'F';
+#endif
+          fprintf(fp, "  V%3d (flag=%x): live %3d - %3d, => %c%3d\n", li->virt, vreg->flag, li->start, li->end, regtype, li->phys);
+        }
+        break;
+      case LI_SPILL:
+        fprintf(fp, "  V%3d (flag=%x): live %3d - %3d (spilled, offset=%d)\n", li->virt, vreg->flag, li->start, li->end, vreg->offset);
+        break;
+      case LI_CONST:
+        fprintf(fp, "  V%3d (flag=%x): (const, value=%" PRId64 ")\n", li->virt, vreg->flag, vreg->fixnum);
+        break;
+      default:  assert(false); break;
+      }
     }
   }
 
@@ -157,7 +159,7 @@ static void dump_func_ir(Function *func) {
       }
       fprintf(fp, "]");
     }
-    if (bb->in_regs->len > 0) {
+    if (bb->in_regs != NULL && bb->in_regs->len > 0) {
       fprintf(fp, " in=[");
       for (int j = 0; j < bb->in_regs->len; ++j) {
         VReg *vreg = bb->in_regs->data[j];
@@ -165,7 +167,7 @@ static void dump_func_ir(Function *func) {
       }
       fprintf(fp, "]");
     }
-    if (bb->out_regs->len > 0) {
+    if (bb->out_regs != NULL && bb->out_regs->len > 0) {
       fprintf(fp, " out=[");
       for (int j = 0; j < bb->out_regs->len; ++j) {
         VReg *vreg = bb->out_regs->data[j];
