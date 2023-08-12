@@ -17,8 +17,11 @@ enum LiveIntervalState {
   LI_CONST,
 };
 
+#define LIF_CONTAINS_CALL  (1 << 0)
+
 typedef struct LiveInterval {
   enum LiveIntervalState state;
+  int flag;
   int start;
   int end;
   int virt;  // Virtual register no.

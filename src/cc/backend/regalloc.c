@@ -111,10 +111,11 @@ static void set_inout_interval(Vector *vregs, LiveInterval *intervals, int nip) 
 static void check_live_interval(BBContainer *bbcon, int vreg_count, LiveInterval *intervals) {
   for (int i = 0; i < vreg_count; ++i) {
     LiveInterval *li = &intervals[i];
+    li->state = LI_NORMAL;
+    li->flag = 0;
+    li->start = li->end = -1;
     li->virt = i;
     li->phys = -1;
-    li->start = li->end = -1;
-    li->state = LI_NORMAL;
   }
 
   int nip = 0;
@@ -140,6 +141,48 @@ static void check_live_interval(BBContainer *bbcon, int vreg_count, LiveInterval
 
     set_inout_interval(bb->out_regs, intervals, nip);
   }
+}
+
+static void detect_live_interval_flags(BBContainer *bbcon, int vreg_count,
+                                       LiveInterval **sorted_intervals) {
+  Vector *inactives = new_vector();
+  for (int i = 0; i < vreg_count; ++i)
+    vec_push(inactives, sorted_intervals[i]);
+  Vector *actives = new_vector();
+
+  int nip = 0;
+  for (int i = 0; i < bbcon->bbs->len; ++i) {
+    BB *bb = bbcon->bbs->data[i];
+    for (int j = 0; j < bb->irs->len; ++j, ++nip) {
+      while (inactives->len > 0) {
+        LiveInterval *li = inactives->data[0];
+        if (li->start > nip)
+          break;
+        vec_remove_at(inactives, 0);
+        vec_push(actives, li);
+      }
+      for (int k = 0; k < actives->len; ++k) {
+        LiveInterval *li = actives->data[k];
+        if (li->end < nip)
+          vec_remove_at(actives, k--);
+      }
+
+      IR *ir = bb->irs->data[j];
+      switch (ir->kind) {
+      case IR_CALL: case IR_PRECALL:
+        for (int k = 0; k < actives->len; ++k) {
+          LiveInterval *li = actives->data[k];
+          if (li->start < nip)
+            li->flag |= LIF_CONTAINS_CALL;
+        }
+        break;
+      default: break;
+      }
+    }
+  }
+
+  free_vector(inactives);
+  free_vector(actives);
 }
 
 static void linear_scan_register_allocation(RegAlloc *ra, LiveInterval **sorted_intervals,
@@ -346,6 +389,7 @@ void alloc_physical_registers(RegAlloc *ra, BBContainer *bbcon) {
     qsort(sorted_intervals, vreg_count, sizeof(LiveInterval*), sort_live_interval);
     ra->sorted_intervals = sorted_intervals;
 
+    detect_live_interval_flags(bbcon, vreg_count, sorted_intervals);
     linear_scan_register_allocation(ra, sorted_intervals, vreg_count);
 
     // Spill vregs.
