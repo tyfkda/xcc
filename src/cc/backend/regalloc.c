@@ -3,7 +3,7 @@
 
 #include <assert.h>
 #include <limits.h>  // CHAR_BIT
-#include <stdlib.h>  // malloc
+#include <stdlib.h>  // free
 #include <string.h>
 
 #include "ast.h"
@@ -312,12 +312,11 @@ void alloc_physical_registers(RegAlloc *ra, BBContainer *bbcon) {
   assert(ra->fphys_max < (int)(sizeof(ra->used_freg_bits) * CHAR_BIT));
 #endif
 
-  LiveInterval *intervals = NULL;
-  LiveInterval **sorted_intervals = NULL;
+  int vreg_count = ra->vregs->len;
+  LiveInterval *intervals = malloc_or_die(sizeof(LiveInterval) * vreg_count);
+  LiveInterval **sorted_intervals = malloc_or_die(sizeof(LiveInterval*) * vreg_count);
 
   for (;;) {
-    int vreg_count = ra->vregs->len;
-    intervals = realloc_or_die(intervals, sizeof(LiveInterval) * vreg_count);
     check_live_interval(bbcon, vreg_count, intervals);
 
     for (int i = 0; i < vreg_count; ++i) {
@@ -344,7 +343,6 @@ void alloc_physical_registers(RegAlloc *ra, BBContainer *bbcon) {
     }
 
     // Sort by start, end
-    sorted_intervals = realloc_or_die(sorted_intervals, sizeof(LiveInterval*) * vreg_count);
     for (int i = 0; i < vreg_count; ++i)
       sorted_intervals[i] = &intervals[i];
     qsort(sorted_intervals, vreg_count, sizeof(LiveInterval*), sort_live_interval);
@@ -365,6 +363,14 @@ void alloc_physical_registers(RegAlloc *ra, BBContainer *bbcon) {
 
     if (insert_load_store_spilled_irs(ra, bbcon) <= 0)
       break;
+
+    if (vreg_count != ra->vregs->len) {
+      vreg_count = ra->vregs->len;
+      free(intervals);
+      free(sorted_intervals);
+      intervals = malloc_or_die(sizeof(LiveInterval) * vreg_count);
+      sorted_intervals = malloc_or_die(sizeof(LiveInterval*) * vreg_count);
+    }
   }
 
   ra->intervals = intervals;
