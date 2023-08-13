@@ -27,6 +27,7 @@ static const char *kZeroRegTable[] = {WZR, WZR, WZR, XZR};
 
 static const char *kRetRegTable[] = {W0, W0, W0, X0};
 
+// Break %x9 in store, mod and tjmp
 static const char *kTmpRegTable[] = {W9, W9, W9, X9};
 
 #ifndef __NO_FLONUM
