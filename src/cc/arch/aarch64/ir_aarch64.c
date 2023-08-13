@@ -17,14 +17,20 @@ static void pop_caller_save_regs(Vector *saves);
 // Register allocator
 
 static const char *kReg32s[PHYSICAL_REG_MAX] = {
+  W0, W1, W2, W3, W4, W5, W6, W7,
   W20, W21, W22, W23, W24, W25, W26, W27, W28, W10, W11, W12, W13, W14, W15, W16, W17};
 static const char *kReg64s[PHYSICAL_REG_MAX] = {
+  X0, X1, X2, X3, X4, X5, X6, X7,
   X20, X21, X22, X23, X24, X25, X26, X27, X28, X10, X11, X12, X13, X14, X15, X16, X17};
 
+#define CALLEE_SAVE_REG_COUNT  ((int)(sizeof(kCalleeSaveRegs) / sizeof(*kCalleeSaveRegs)))
+static const int kCalleeSaveRegs[] = {8, 9, 10, 11, 12, 13, 14, 15, 16};
+
+#define CALLER_SAVE_REG_COUNT  ((int)(sizeof(kCallerSaveRegs) / sizeof(*kCallerSaveRegs)))
+static const int kCallerSaveRegs[] = {17, 18, 19, 20, 21, 22, 23, 24};
+
 static const char **kRegSizeTable[] = {kReg32s, kReg32s, kReg32s, kReg64s};
-
 static const char *kZeroRegTable[] = {WZR, WZR, WZR, XZR};
-
 static const char *kRetRegTable[] = {W0, W0, W0, X0};
 
 // Break %x9 in store, mod and tjmp
@@ -34,29 +40,23 @@ static const char *kTmpRegTable[] = {W9, W9, W9, X9};
 #define SZ_FLOAT   (4)
 #define SZ_DOUBLE  (8)
 static const char *kFReg32s[PHYSICAL_FREG_MAX] = {
+   S0,  S1,  S2,  S3,  S4,  S5,  S6,  S7,
    S8,  S9, S10, S11, S12, S13, S14, S15,
   S16, S17, S18, S19, S20, S21, S22, S23,
   S24, S25, S26, S27, S28, S29, S30, S31,
 };
 static const char *kFReg64s[PHYSICAL_FREG_MAX] = {
+   D0,  D1,  D2,  D3,  D4,  D5,  D6,  D7,
    D8,  D9, D10, D11, D12, D13, D14, D15,
   D16, D17, D18, D19, D20, D21, D22, D23,
   D24, D25, D26, D27, D28, D29, D30, D31,
 };
-#endif
 
-#define CALLEE_SAVE_REG_COUNT  ((int)(sizeof(kCalleeSaveRegs) / sizeof(*kCalleeSaveRegs)))
-static const int kCalleeSaveRegs[] = {0, 1, 2, 3, 4, 5, 6, 7, 8};
-
-#define CALLER_SAVE_REG_COUNT  ((int)(sizeof(kCallerSaveRegs) / sizeof(*kCallerSaveRegs)))
-static const int kCallerSaveRegs[] = {9, 10, 11, 12, 13, 14, 15, 16};
-
-#ifndef __NO_FLONUM
 #define CALLEE_SAVE_FREG_COUNT  ((int)(sizeof(kCalleeSaveFRegs) / sizeof(*kCalleeSaveFRegs)))
-static const int kCalleeSaveFRegs[] = {0, 1, 2, 3, 4, 5, 6, 7};
+static const int kCalleeSaveFRegs[] = {8, 9, 10, 11, 12, 13, 14, 15};
 
 #define CALLER_SAVE_FREG_COUNT  ((int)(sizeof(kCallerSaveFRegs) / sizeof(*kCallerSaveFRegs)))
-static const int kCallerSaveFRegs[] = {8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23};
+static const int kCallerSaveFRegs[] = {16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31};
 #endif
 
 static const int kPow2Table[] = {-1, 0, 1, -1, 2, -1, -1, -1, 3};

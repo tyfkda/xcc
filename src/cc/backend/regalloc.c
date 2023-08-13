@@ -15,14 +15,16 @@
 
 // Register allocator
 
-RegAlloc *new_reg_alloc(int phys_max) {
+RegAlloc *new_reg_alloc(int phys_max, int temporary_count) {
   RegAlloc *ra = malloc_or_die(sizeof(*ra));
   assert(phys_max < (int)(sizeof(ra->used_reg_bits) * CHAR_BIT));
   ra->vregs = new_vector();
   ra->intervals = NULL;
   ra->sorted_intervals = NULL;
   ra->phys_max = phys_max;
+  ra->phys_temporary_count = temporary_count;
   ra->fphys_max = 0;
+  ra->fphys_temporary_count = 0;
   ra->used_reg_bits = 0;
   ra->used_freg_bits = 0;
   return ra;
@@ -80,21 +82,34 @@ static void split_at_interval(RegAlloc *ra, LiveInterval **active, int active_co
   }
 }
 
-static void expire_old_intervals(
-  LiveInterval **active, int *pactive_count, unsigned long *pusing_bits, int start
-) {
-  int active_count = *pactive_count;
+typedef struct {
+  LiveInterval **active;
+  int phys_max;
+  int phys_temporary;
+  int active_count;
+  int active_tmp_count;
+  unsigned long using_bits;
+  unsigned long used_bits;
+} PhysicalRegisterSet;
+
+static void expire_old_intervals(PhysicalRegisterSet *p, int start) {
+  int active_count = p->active_count;
+  int active_tmp_count = p->active_tmp_count;
+  unsigned long using_bits = p->using_bits;
   int j;
-  unsigned long using_bits = *pusing_bits;
   for (j = 0; j < active_count; ++j) {
-    LiveInterval *li = active[j];
+    LiveInterval *li = p->active[j];
     if (li->end > start)
       break;
-    using_bits &= ~((short)1 << li->phys);
+    int phys = li->phys;
+    using_bits &= ~(1UL << phys);
+    if (phys < p->phys_temporary)
+      --active_tmp_count;
   }
-  remove_active(active, active_count, 0, j);
-  *pactive_count = active_count - j;
-  *pusing_bits = using_bits;
+  remove_active(p->active, active_count, 0, j);
+  p->active_count = active_count - j;
+  p->active_tmp_count = active_tmp_count;
+  p->using_bits = using_bits;
 }
 
 static void set_inout_interval(Vector *vregs, LiveInterval *intervals, int nip) {
@@ -151,6 +166,7 @@ static void detect_live_interval_flags(BBContainer *bbcon, int vreg_count,
   Vector *actives = new_vector();
 
   int nip = 0;
+  bool calling = false;
   for (int i = 0; i < bbcon->bbs->len; ++i) {
     BB *bb = bbcon->bbs->data[i];
     for (int j = 0; j < bb->irs->len; ++j, ++nip) {
@@ -168,16 +184,17 @@ static void detect_live_interval_flags(BBContainer *bbcon, int vreg_count,
       }
 
       IR *ir = bb->irs->data[j];
-      switch (ir->kind) {
-      case IR_CALL: case IR_PRECALL:
+      if (ir->kind == IR_PRECALL)
+        calling = true;
+      if (calling) {
         for (int k = 0; k < actives->len; ++k) {
           LiveInterval *li = actives->data[k];
           if (li->start < nip)
             li->flag |= LIF_CONTAINS_CALL;
         }
-        break;
-      default: break;
       }
+      if (ir->kind == IR_CALL)
+        calling = false;
     }
   }
 
@@ -187,26 +204,22 @@ static void detect_live_interval_flags(BBContainer *bbcon, int vreg_count,
 
 static void linear_scan_register_allocation(RegAlloc *ra, LiveInterval **sorted_intervals,
                                             int vreg_count) {
-  typedef struct {
-    LiveInterval **active;
-    int phys_max;
-    int active_count;
-    unsigned long using_bits;
-    unsigned long used_bits;
-  } Info;
-
-  Info ireg_info = {
+  PhysicalRegisterSet iregset = {
     .active = ALLOCA(sizeof(LiveInterval*) * ra->phys_max),
     .phys_max = ra->phys_max,
+    .phys_temporary = ra->phys_temporary_count,
     .active_count = 0,
+    .active_tmp_count = 0,
     .using_bits = 0,
     .used_bits = 0,
   };
 #ifndef __NO_FLONUM
-  Info freg_info = {
+  PhysicalRegisterSet fregset = {
     .active = ALLOCA(sizeof(LiveInterval*) * ra->fphys_max),
     .phys_max = ra->fphys_max,
+    .phys_temporary = ra->fphys_temporary_count,
     .active_count = 0,
+    .active_tmp_count = 0,
     .using_bits = 0,
     .used_bits = 0,
   };
@@ -218,37 +231,44 @@ static void linear_scan_register_allocation(RegAlloc *ra, LiveInterval **sorted_
       continue;
     if (li->state != LI_NORMAL)
       continue;
-    expire_old_intervals(ireg_info.active, &ireg_info.active_count, &ireg_info.using_bits,
-                         li->start);
-    Info *info = &ireg_info;
+    expire_old_intervals(&iregset, li->start);
+    PhysicalRegisterSet *prsp = &iregset;
 #ifndef __NO_FLONUM
-    expire_old_intervals(freg_info.active, &freg_info.active_count, &freg_info.using_bits,
-                         li->start);
+    expire_old_intervals(&fregset, li->start);
     if (((VReg*)ra->vregs->data[li->virt])->vtype->flag & VRTF_FLONUM)
-      info = &freg_info;
+      prsp = &fregset;
 #endif
-    if (info->active_count >= info->phys_max) {
-      split_at_interval(ra, info->active, info->active_count, li);
+    int start_index = 0;
+    int active_count = prsp->active_count;
+    if (li->flag & LIF_CONTAINS_CALL) {
+      start_index = prsp->phys_temporary;
+      active_count = (active_count - prsp->active_tmp_count) + prsp->phys_temporary;
+    }
+
+    if (active_count >= prsp->phys_max) {
+      split_at_interval(ra, prsp->active, prsp->active_count, li);
     } else {
       int regno = -1;
-      for (int j = 0; j < info->phys_max; ++j) {
-        if (!(info->using_bits & (1 << j))) {
+      for (int j = start_index; j < prsp->phys_max; ++j) {
+        if (!(prsp->using_bits & (1 << j))) {
           regno = j;
           break;
         }
       }
       assert(regno >= 0);
       li->phys = regno;
-      info->using_bits |= 1 << regno;
+      prsp->using_bits |= 1 << regno;
 
-      insert_active(info->active, info->active_count, li);
-      ++info->active_count;
+      insert_active(prsp->active, prsp->active_count, li);
+      ++prsp->active_count;
+      if (regno < prsp->phys_temporary)
+        ++prsp->active_tmp_count;
     }
-    info->used_bits |= info->using_bits;
+    prsp->used_bits |= prsp->using_bits;
   }
-  ra->used_reg_bits = ireg_info.used_bits;
+  ra->used_reg_bits = iregset.used_bits;
 #ifndef __NO_FLONUM
-  ra->used_freg_bits = freg_info.used_bits;
+  ra->used_freg_bits = fregset.used_bits;
 #endif
 }
 

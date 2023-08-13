@@ -22,15 +22,19 @@
 #endif
 
 #if defined(__x86_64__)
-#define PHYSICAL_REG_MAX   (7)
-#define PHYSICAL_FREG_MAX  (8)
+#define PHYSICAL_REG_TEMPORARY   (5)
+#define PHYSICAL_REG_MAX   (PHYSICAL_REG_TEMPORARY + 7)
+#define PHYSICAL_FREG_TEMPORARY  (8)
+#define PHYSICAL_FREG_MAX  (PHYSICAL_FREG_TEMPORARY + 8)
 
 #define MAX_REG_ARGS   (6)
 #define MAX_FREG_ARGS  (8)
 
 #elif defined(__aarch64__)
-#define PHYSICAL_REG_MAX   (17)
-#define PHYSICAL_FREG_MAX  (24)
+#define PHYSICAL_REG_TEMPORARY   (8)
+#define PHYSICAL_REG_MAX   (PHYSICAL_REG_TEMPORARY + 17)
+#define PHYSICAL_FREG_TEMPORARY  (8)
+#define PHYSICAL_FREG_MAX  (PHYSICAL_FREG_TEMPORARY + 24)
 
 #define MAX_REG_ARGS   (8)
 #define MAX_FREG_ARGS  (8)

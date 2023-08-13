@@ -33,12 +33,14 @@ typedef struct RegAlloc {
   LiveInterval *intervals;  // size=vregs->len
   LiveInterval **sorted_intervals;
 
-  int phys_max;  // Max physical register count.
-  int fphys_max;  // Floating-point register.
+  int phys_max;              // Max physical register count.
+  int phys_temporary_count;  // Temporary register count (= start index for saved registers)
+  int fphys_max;             // Floating-point register.
+  int fphys_temporary_count;
   unsigned long used_reg_bits;
   unsigned long used_freg_bits;
 } RegAlloc;
 
-RegAlloc *new_reg_alloc(int phys_max);
+RegAlloc *new_reg_alloc(int phys_max, int temporary_count);
 VReg *reg_alloc_spawn(RegAlloc *ra, const VRegType *vtype, int flag);
 void alloc_physical_registers(RegAlloc *ra, BBContainer *bbcon);
