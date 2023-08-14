@@ -1042,12 +1042,14 @@ static Vector *push_caller_save_regs(unsigned long living) {
       }
     }
     int n = saves->len - fstart;
-    int ofs = n * WORD_SIZE;
-    SUB(IM(ofs), RSP);
-    stackpos += ofs;
-    for (int i = 0; i < n; ++i) {
-      ofs -= WORD_SIZE;
-      MOVSD(saves->data[i + fstart], OFFSET_INDIRECT(ofs, RSP, NULL, 1));
+    if (n > 0) {
+      int ofs = n * WORD_SIZE;
+      SUB(IM(ofs), RSP);
+      stackpos += ofs;
+      for (int i = 0; i < n; ++i) {
+        ofs -= WORD_SIZE;
+        MOVSD(saves->data[i + fstart], OFFSET_INDIRECT(ofs, RSP, NULL, 1));
+      }
     }
   }
 #endif
