@@ -140,6 +140,7 @@ enum RegType {
   R14B,
   R15B,
 
+  // 8bit: corresponds to AH~ in lower 4bit to handle easily.
   SPL = R15B + 1 + 4,
   BPL,
   SIL,
@@ -226,7 +227,7 @@ enum RegSize {
 typedef struct {
   char size;  // RegSize
   char no;  // 0~7, or RIP
-  char x;   // 0 or 1
+  char x;   // 0 or 1, (or 2 if size == REG8, SPL~DIL)
 } Reg;
 
 enum OperandType {

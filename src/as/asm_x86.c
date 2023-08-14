@@ -142,7 +142,7 @@ static unsigned char *asm_mov_ir(Inst *inst, Code *code) {
       bool ofszero = offset == 0 && ((sno & 7) != RBP - RAX);
       short buf[] = {
         size == REG16 ? 0x66 : -1,
-        0x40 | (size == REG64 ? 0x08 : 0) | ((dno & 8) >> 1) | ((sno & 8) >> 3),
+        (size == REG64 || sno >= 8 || dno >= 8) ?  0x40 | (size == REG64 ? 0x08 : 0) | ((dno & 8) >> 1) | ((sno & 8) >> 3) : -1,
         0x8a | (size == REG8 ? 0 : 0x01),
         ((dno & 7) << 3) | (sno & 7) | (ofszero ? 0 : is_im8(offset) ? 0x40: 0x80),
         (sno & 7) == RSP - RAX ? 0x24 : -1,
@@ -174,7 +174,7 @@ static unsigned char *asm_mov_ri(Inst *inst, Code *code) {
       bool ofszero = offset == 0 && ((dno & 7) != RBP - RAX);
       short buf[] = {
         size == REG16 ? 0x66 : -1,
-        0x40 | (size == REG64 ? 0x08 : 0) | ((sno & 8) >> 1) | ((dno & 8) >> 3),
+        (size == REG64 || sno >= 8 || dno >= 8) ? 0x40 | (size == REG64 ? 0x08 : 0) | ((sno & 8) >> 1) | ((dno & 8) >> 3) : -1,
         0x88 | (size == REG8 ? 0 : 0x01),
         ((sno & 7) << 3) | (dno & 7) | (ofszero ? 0 : is_im8(offset) ? 0x40: 0x80),
         (dno & 7) == RSP - RAX ? 0x24 : -1,
@@ -317,7 +317,7 @@ static unsigned char *asm_movszx_rr(Inst *inst, Code *code) {
       if (opr_reg8(&inst->src.reg) && !inst->dst.reg.x) {
         MAKE_CODE(inst, code, 0x66, 0x0f, op, 0xc0 + s + d * 8);
       } else {
-        int pre = (!inst->src.reg.x ? 0x40 : 0x41) + (!inst->dst.reg.x ? 0 : 4);
+        int pre = ((inst->src.reg.x & 1) == 0 ? 0x40 : 0x41) + (!inst->dst.reg.x ? 0 : 4);
         MAKE_CODE(inst, code, 0x66, pre, 0x0f, op, 0xc0 + s + d * 8);
       }
       return p;
@@ -325,13 +325,13 @@ static unsigned char *asm_movszx_rr(Inst *inst, Code *code) {
       if (opr_reg8(&inst->src.reg) && !inst->dst.reg.x) {
         MAKE_CODE(inst, code, 0x0f, op, 0xc0 + s + d * 8);
       } else {
-        int pre = (!inst->src.reg.x ? 0x40 : 0x41) + (!inst->dst.reg.x ? 0 : 4);
+        int pre = ((inst->src.reg.x & 1) == 0 ? 0x40 : 0x41) + (!inst->dst.reg.x ? 0 : 4);
         MAKE_CODE(inst, code, pre, 0x0f, op, 0xc0 + s + d * 8);
       }
       return p;
     case REG64:
       {
-        int pre = (!inst->src.reg.x ? 0x48 : 0x49) + (!inst->dst.reg.x ? 0 : 4);
+        int pre = ((inst->src.reg.x & 1) == 0 ? 0x48 : 0x49) + (!inst->dst.reg.x ? 0 : 4);
         MAKE_CODE(inst, code, pre, 0x0f, op, 0xc0 + s + d * 8);
         return p;
       }
