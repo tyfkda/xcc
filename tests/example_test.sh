@@ -34,7 +34,7 @@ try_cmp() {
   local output="$3"
   local inputs="$4"
 
- begin_test "$title"
+  begin_test "$title"
 
   $XCC -o "$AOUT" -Werror "$inputs" > /dev/null 2>&1 || {
     end_test 'Compile failed'
@@ -64,7 +64,7 @@ test_all() {
   try 'echo' 'foo bar baz' ../examples/echo.c foo bar baz
 
   if [ "`no_flonum`" != "true" ]; then
-  try_cmp 'mandelbrot' 'mandel256.ppm' 'mandelbrot.ppm' ../examples/mandelbrot.c 100 256 256
+    try_cmp 'mandelbrot' 'mandel256.ppm' 'mandelbrot.ppm' ../examples/mandelbrot.c 100 256 256
   fi
 
   end_test_suite
