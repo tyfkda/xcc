@@ -989,6 +989,19 @@ static void ir_out(IR *ir) {
 
 //
 
+int count_callee_save_regs(unsigned long used, unsigned long fused) {
+  // Assume no callee save freg exists.
+  UNUSED(fused);
+
+  int count = 0;
+  for (int i = 0; i < CALLEE_SAVE_REG_COUNT; ++i) {
+    int ireg = kCalleeSaveRegs[i];
+    if (used & (1 << ireg))
+      ++count;
+  }
+  return count;
+}
+
 int push_callee_save_regs(unsigned long used, unsigned long fused) {
   // Assume no callee save freg exists.
   UNUSED(fused);

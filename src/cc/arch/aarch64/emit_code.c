@@ -592,7 +592,7 @@ static void emit_defun(Function *func) {
   // Prologue
   // Allocate variable bufer.
   FuncBackend *fnbe = func->extra;
-  size_t frame_size = fnbe->frame_size;
+  size_t frame_size = ALIGN(fnbe->frame_size, 16);
   int callee_saved_count = 0;
   if (!no_stmt) {
     STP(FP, LR, PRE_INDEX(SP, -16));

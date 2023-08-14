@@ -741,7 +741,6 @@ static void gen_defun(Function *func) {
   detect_living_registers(fnbe->ra, fnbe->bbcon);
 
   alloc_stack_variables_onto_stack_frame(func);
-  fnbe->frame_size = ALIGN(fnbe->frame_size, 16);
 
   curfunc = NULL;
   curra = NULL;

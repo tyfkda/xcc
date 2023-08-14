@@ -18,6 +18,8 @@
 #include "var.h"
 #include "x64.h"
 
+int count_callee_save_regs(unsigned long used, unsigned long fused);
+
 char *im(int64_t x) {
   return fmt("$%" PRId64, x);
 }
@@ -568,18 +570,23 @@ static void emit_defun(Function *func) {
   // Allocate variable bufer.
   FuncBackend *fnbe = func->extra;
   int callee_saved_count = 0;
+  size_t frame_size = 0;
   if (!no_stmt) {
+    callee_saved_count = count_callee_save_regs(fnbe->ra->used_reg_bits, fnbe->ra->used_freg_bits);
+
     PUSH(RBP); PUSH_STACK_POS();
     MOV(RSP, RBP);
-    if (fnbe->frame_size > 0) {
-      SUB(IM(fnbe->frame_size), RSP);
-      stackpos += fnbe->frame_size;
+    size_t callee_saved_size = callee_saved_count * WORD_SIZE;
+    frame_size = ALIGN(fnbe->frame_size + callee_saved_size, 16) - callee_saved_size;
+    if (frame_size > 0) {
+      SUB(IM(frame_size), RSP);
+      stackpos += frame_size;
     }
 
     put_args_to_stack(func);
 
     // Callee save.
-    callee_saved_count = push_callee_save_regs(fnbe->ra->used_reg_bits, fnbe->ra->used_freg_bits);
+    push_callee_save_regs(fnbe->ra->used_reg_bits, fnbe->ra->used_freg_bits);
   }
 
   emit_bb_irs(fnbe->bbcon);
@@ -588,14 +595,14 @@ static void emit_defun(Function *func) {
   if (!no_stmt) {
     if (func->flag & FUNCF_STACK_MODIFIED) {
       // Stack pointer might be changed if alloca is used, so it need to be recalculated.
-      LEA(OFFSET_INDIRECT(callee_saved_count * -WORD_SIZE - fnbe->frame_size, RBP, NULL, 1),
+      LEA(OFFSET_INDIRECT(callee_saved_count * -WORD_SIZE - frame_size, RBP, NULL, 1),
           RSP);
     }
 
     pop_callee_save_regs(fnbe->ra->used_reg_bits, fnbe->ra->used_freg_bits);
 
     MOV(RBP, RSP);
-    stackpos -= fnbe->frame_size;
+    stackpos -= frame_size;
     POP(RBP); POP_STACK_POS();
   }
 
