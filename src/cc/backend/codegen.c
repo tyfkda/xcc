@@ -207,11 +207,32 @@ static void gen_clear(const Type *type, VReg *dst) {
 static void gen_asm(Stmt *stmt) {
   assert(stmt->asm_.str->kind == EX_STR);
   VReg *result = NULL;
+  const char *str = stmt->asm_.str->str.buf;
   if (stmt->asm_.arg != NULL) {
     assert(stmt->asm_.arg->kind == EX_VAR);
     result = gen_expr(stmt->asm_.arg);
+
+    // In gcc, `%' is handled only if `__asm' takes parameters.
+    // Otherwise, `%' is not handled.
+
+    // TODO: Embed parameters.
+    //   Here, just escape %.
+    if (strchr(str, '%') != NULL) {
+      size_t len = strlen(str + 1);
+      char *buf = malloc_or_die(len);
+      char *dst = buf;
+      for (const char *src = str;;) {
+        char c = *src++;
+        if (c == '%')
+          c = *src++;
+        *dst++ = c;
+        if (c == '\0')
+          break;
+      }
+      str = buf;
+    }
   }
-  new_ir_asm(stmt->asm_.str->str.buf, result);
+  new_ir_asm(str, result);
 }
 
 void gen_stmts(Vector *stmts) {

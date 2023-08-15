@@ -299,8 +299,6 @@ static enum DirectiveType find_directive(const char *p, size_t n) {
 
 static enum RegType find_register(const char **pp) {
   const char *p = *pp;
-  if (*p == '%')
-    ++p;  // Allow "%%eax", etc.
   for (int i = 0, len = sizeof(kRegisters) / sizeof(*kRegisters); i < len; ++i) {
     const char *name = kRegisters[i].name;
     size_t n = strlen(name);
