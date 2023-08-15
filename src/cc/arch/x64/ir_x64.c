@@ -127,11 +127,12 @@ static void ir_out(IR *ir) {
       char *label = fmt_name(ir->iofs.label);
       if (ir->iofs.global)
         label = MANGLE(label);
-      if (!is_got(ir->iofs.label)) {
-        LEA(LABEL_INDIRECT(quote_label(label), RIP), kReg64s[ir->dst->phys]);
-      } else {
-        LEA(LABEL_INDIRECT(GOTPCREL(quote_label(label)), RIP), kReg64s[ir->dst->phys]);
-      }
+      label = quote_label(label);
+      const char *dst = kReg64s[ir->dst->phys];
+      if (!is_got(ir->iofs.label))
+        LEA(LABEL_INDIRECT(label, RIP), dst);
+      else
+        MOV(LABEL_INDIRECT(GOTPCREL(label), RIP), dst);
     }
     break;
 
