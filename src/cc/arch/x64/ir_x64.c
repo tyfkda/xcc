@@ -19,10 +19,10 @@ int stackpos = 8;
 // Register allocator
 
 static const char *kRegSizeTable[][PHYSICAL_REG_MAX] = {
-  { BL, R10B, R11B, R12B, R13B, R14B, R15B},
-  { BX, R10W, R11W, R12W, R13W, R14W, R15W},
-  {EBX, R10D, R11D, R12D, R13D, R14D, R15D},
-  {RBX, R10,  R11,  R12,  R13,  R14,  R15},
+  { BL, R12B, R13B, R14B, R15B, R10B, R11B},
+  { BX, R12W, R13W, R14W, R15W, R10W, R11W},
+  {EBX, R12D, R13D, R14D, R15D, R10D, R11D},
+  {RBX,  R12,  R13,  R14,  R15,  R10,  R11},
 };
 
 #define kReg8s   (kRegSizeTable[0])
@@ -39,19 +39,10 @@ static const char *kFReg64s[PHYSICAL_FREG_MAX] = {XMM8, XMM9, XMM10, XMM11, XMM1
 #endif
 
 #define CALLEE_SAVE_REG_COUNT  ((int)(sizeof(kCalleeSaveRegs) / sizeof(*kCalleeSaveRegs)))
-static const int kCalleeSaveRegs[] = {
-  0,  // RBX
-  3,  // R12
-  4,  // R13
-  5,  // R14
-  6,  // R15
-};
+static const int kCalleeSaveRegs[] = {0, 1, 2, 3, 4};
 
 #define CALLER_SAVE_REG_COUNT  ((int)(sizeof(kCallerSaveRegs) / sizeof(*kCallerSaveRegs)))
-static const int kCallerSaveRegs[] = {
-  1,  // R10
-  2,  // R11
-};
+static const int kCallerSaveRegs[] = {5, 6};
 
 #ifndef __NO_FLONUM
 #define CALLER_SAVE_FREG_COUNT  ((int)(sizeof(kCallerSaveFRegs) / sizeof(*kCallerSaveFRegs)))
