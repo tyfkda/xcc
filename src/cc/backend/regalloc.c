@@ -15,12 +15,13 @@
 
 // Register allocator
 
-RegAlloc *new_reg_alloc(int phys_max, int temporary_count) {
+RegAlloc *new_reg_alloc(const int *reg_param_mapping, int phys_max, int temporary_count) {
   RegAlloc *ra = malloc_or_die(sizeof(*ra));
   assert(phys_max < (int)(sizeof(ra->used_reg_bits) * CHAR_BIT));
   ra->vregs = new_vector();
   ra->intervals = NULL;
   ra->sorted_intervals = NULL;
+  ra->reg_param_mapping = reg_param_mapping;
   ra->phys_max = phys_max;
   ra->phys_temporary_count = temporary_count;
   ra->fphys_max = 0;
@@ -126,8 +127,13 @@ static void set_inout_interval(Vector *vregs, LiveInterval *intervals, int nip) 
   for (int j = 0; j < vregs->len; ++j) {
     VReg *vreg = vregs->data[j];
     LiveInterval *li = &intervals[vreg->virt];
-    if (li->start < 0 || li->start > nip)
-      li->start = nip;
+    if (vreg->flag & VRF_PARAM) {
+      // If the vreg is register parameter for function,
+      // it is given a priori and keep live interval start as is.
+    } else {
+      if (li->start < 0 || li->start > nip)
+        li->start = nip;
+    }
     if (li->end < nip)
       li->end = nip;
   }
@@ -157,7 +163,7 @@ static void check_live_interval(BBContainer *bbcon, int vreg_count, LiveInterval
         if (vreg == NULL)
           continue;
         LiveInterval *li = &intervals[vreg->virt];
-        if (li->start < 0)
+        if (li->start < 0 && !(vreg->flag & VRF_PARAM))
           li->start = nip;
         if (li->end < nip)
           li->end = nip;
@@ -255,13 +261,38 @@ static void linear_scan_register_allocation(RegAlloc *ra, LiveInterval **sorted_
       split_at_interval(ra, prsp->active, prsp->active_count, li);
     } else {
       int regno = -1;
-      for (int j = start_index; j < prsp->phys_max; ++j) {
-        if (!(prsp->using_bits & (1UL << j))) {
-          regno = j;
-          break;
+      VReg *vreg = ra->vregs->data[li->virt];
+      int ip = vreg->reg_param_index;
+      if (ip >= 0) {
+        if (!(li->flag & LIF_CONTAINS_CALL)) {
+          // If the live interval doesn't contain `CALL` instruction,
+          // prefer to use the parameter register passed to the function.
+          if (vreg->vtype->flag & VRTF_FLONUM) {
+            // Assume floating-pointer parameter registers are same order,
+            // and no mapping required.
+          } else {
+            ip = ra->reg_param_mapping[ip];
+            if (ip < 0) {
+              // The parameter register is not mapped => cannot hold the value in the given register,
+              // assign to non-temporary register to be on the safe side.
+              start_index = prsp->phys_temporary;
+              active_count = (active_count - prsp->active_tmp_count) + prsp->phys_temporary;
+            }
+          }
+
+          if (ip >= 0 && !(prsp->using_bits & (1UL << ip)))
+            regno = ip;
         }
       }
-      assert(regno >= 0);
+      if (regno < 0) {
+        for (int j = start_index; j < prsp->phys_max; ++j) {
+          if (!(prsp->using_bits & (1UL << j))) {
+            regno = j;
+            break;
+          }
+        }
+        assert(regno >= 0);
+      }
       li->phys = regno;
       prsp->using_bits |= 1UL << regno;
 
@@ -393,12 +424,6 @@ void alloc_physical_registers(RegAlloc *ra, BBContainer *bbcon) {
         continue;
       }
 
-      // Force function parameter spilled.
-      if (vreg->flag & VRF_PARAM) {
-        spill_vreg(vreg);
-        li->start = 0;
-        li->state = LI_SPILL;
-      }
       if (vreg->flag & VRF_SPILLED) {
         li->state = LI_SPILL;
         li->phys = vreg->phys;

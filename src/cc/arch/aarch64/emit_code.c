@@ -390,7 +390,11 @@ static bool is_asm(Stmt *stmt) {
   return stmt->kind == ST_ASM;
 }
 
-static void put_args_to_stack(Function *func) {
+static void move_params_to_assigned(Function *func) {
+  extern const char **kRegSizeTable[];
+  extern const int ArchRegParamMapping[];
+  extern const char *kFReg32s[], *kFReg64s[];
+
   static const char *kRegParam32s[] = {W0, W1, W2, W3, W4, W5, W6, W7};
   static const char *kRegParam64s[] = {X0, X1, X2, X3, X4, X5, X6, X7};
   static const char **kRegParamTable[] = {kRegParam32s, kRegParam32s, kRegParam32s, kRegParam64s};
@@ -399,75 +403,70 @@ static void put_args_to_stack(Function *func) {
   static const int kPow2Table[] = {-1, 0, 1, -1, 2, -1, -1, -1, 3};
 #define kPow2TableSize ((int)(sizeof(kPow2Table) / sizeof(*kPow2Table)))
 
-  int arg_index = 0;
-  if (is_stack_param(func->type->func.ret)) {
-    // Received as a pointer at the first parameter.
-    const int pow = 3;
-    const char *src = kRegParamTable[pow][0];
-    int offset = ((FuncBackend*)func->extra)->retval->frame.offset;
-    const char *dst = IMMEDIATE_OFFSET(FP, offset);
-    STR(src, dst);
-    ++arg_index;
+  RegParamInfo iparams[MAX_REG_ARGS];
+  RegParamInfo fparams[MAX_FREG_ARGS];
+  int iparam_count = 0;
+  int fparam_count = 0;
+  enumerate_register_params(func, iparams, MAX_REG_ARGS, fparams, MAX_FREG_ARGS,
+                            &iparam_count, &fparam_count);
+
+  // Generate code to store parameters to the destination.
+  for (int i = 0; i < iparam_count; ++i) {
+    RegParamInfo *p = &iparams[i];
+    VReg *vreg = p->vreg;
+    size_t size = type_size(p->type);
+    assert(0 < size && size < kPow2TableSize && kPow2Table[size] >= 0);
+    int pow = kPow2Table[size];
+    const char *src = kRegParamTable[pow][p->index];
+    if (vreg->flag & VRF_SPILLED) {
+      int offset = vreg->frame.offset;
+      assert(offset != 0);
+      const char *dst;
+      if (offset >= -256) {
+        dst = IMMEDIATE_OFFSET(FP, offset);
+      } else {
+        mov_immediate(X9, offset, true, false);  // x9 broken.
+        dst = REG_OFFSET(FP, X9, NULL);
+      }
+      switch (pow) {
+      case 0:          STRB(src, dst); break;
+      case 1:          STRH(src, dst); break;
+      case 2: case 3:  STR(src, dst); break;
+      default: assert(false); break;
+      }
+    } else if (ArchRegParamMapping[p->index] != vreg->phys) {
+      const char *dst = kRegSizeTable[pow][vreg->phys];
+      MOV(dst, src);
+    }
+  }
+  for (int i = 0; i < fparam_count; ++i) {
+    RegParamInfo *p = &fparams[i];
+    VReg *vreg = p->vreg;
+    const char *src = (p->type->flonum.kind == FL_DOUBLE ? kFRegParam64s : kFRegParam32s)[p->index];
+    if (vreg->flag & VRF_SPILLED) {
+      int offset = vreg->frame.offset;
+      assert(offset != 0);
+      assert(offset != 0);
+      STR(src, IMMEDIATE_OFFSET(FP, offset));
+    } else {
+      if (p->index != vreg->phys) {
+        const char *dst = (p->type->flonum.kind == FL_DOUBLE ? kFReg64s : kFReg32s)[vreg->phys];
+        FMOV(dst, src);
+      }
+    }
   }
 
-  // Store arguments into local frame.
-  const Vector *params = func->type->func.params;
-  if (params == NULL)
-    return;
-
-  int len = params->len;
 #ifdef VAARG_ON_STACK
   bool vaargs = false;
 #else
   bool vaargs = func->type->func.vaargs;
 #endif
-  int farg_index = 0;
-  for (int i = 0; i < len; ++i) {
-    const VarInfo *varinfo = params->data[i];
-    const Type *type = varinfo->type;
-    int offset = varinfo->local.frameinfo->offset;
-
-    if (is_stack_param(type))
-      continue;
-
-    if (is_flonum(type)) {
-      if (farg_index < MAX_FREG_ARGS) {
-        const char *src = type->flonum.kind == FL_DOUBLE ? kFRegParam64s[farg_index] : kFRegParam32s[farg_index];
-        assert(offset != 0);
-        STR(src, IMMEDIATE_OFFSET(FP, offset));
-        ++farg_index;
-      }
-    } else {
-      if (arg_index < MAX_REG_ARGS) {
-        int size = type_size(type);
-        assert(0 <= size && size < kPow2TableSize && kPow2Table[size] >= 0);
-        int pow = kPow2Table[size];
-        const char *src = kRegParamTable[pow][arg_index];
-        assert(offset < 0);
-        const char *dst;
-        if (offset >= -256) {
-          dst = IMMEDIATE_OFFSET(FP, offset);
-        } else {
-          mov_immediate(X9, offset, true, false);  // x9 broken.
-          dst = REG_OFFSET(FP, X9, NULL);
-        }
-        switch (pow) {
-        case 0:          STRB(src, dst); break;
-        case 1:          STRH(src, dst); break;
-        case 2: case 3:  STR(src, dst); break;
-        default: assert(false); break;
-        }
-        ++arg_index;
-      }
-    }
-  }
-
   if (vaargs) {
-    for (int i = arg_index; i < MAX_REG_ARGS; ++i) {
+    for (int i = iparam_count; i < MAX_REG_ARGS; ++i) {
       int offset = (i - MAX_REG_ARGS - MAX_FREG_ARGS) * WORD_SIZE;
       STR(kRegParam64s[i], IMMEDIATE_OFFSET(FP, offset));
     }
-    for (int i = farg_index; i < MAX_FREG_ARGS; ++i) {
+    for (int i = fparam_count; i < MAX_FREG_ARGS; ++i) {
       int offset = (i - MAX_FREG_ARGS) * WORD_SIZE;
       STR(kFRegParam64s[i], IMMEDIATE_OFFSET(FP, offset));
     }
@@ -533,7 +532,7 @@ static void emit_defun(Function *func) {
     // Callee save.
     callee_saved_count = push_callee_save_regs(fnbe->ra->used_reg_bits, fnbe->ra->used_freg_bits);
 
-    put_args_to_stack(func);
+    move_params_to_assigned(func);
   }
 
   emit_bb_irs(fnbe->bbcon);

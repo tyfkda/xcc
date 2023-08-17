@@ -18,7 +18,7 @@ int stackpos = 8;
 
 // Register allocator
 
-static const char *kRegSizeTable[][PHYSICAL_REG_MAX] = {
+const char *kRegSizeTable[][PHYSICAL_REG_MAX] = {
   {R9B, R8B,  CL, DIL, SIL,  BL, R12B, R13B, R14B, R15B, R10B, R11B},
   {R9W, R8W,  CX,  DI,  SI,  BX, R12W, R13W, R14W, R15W, R10W, R11W},
   {R9D, R8D, ECX, EDI, ESI, EBX, R12D, R13D, R14D, R15D, R10D, R11D},
@@ -31,6 +31,8 @@ static const int kCalleeSaveRegs[] = {5, 6, 7, 8, 9};
 #define CALLER_SAVE_REG_COUNT  ((int)(sizeof(kCallerSaveRegs) / sizeof(*kCallerSaveRegs)))
 static const int kCallerSaveRegs[] = {10, 11};
 
+const int ArchRegParamMapping[] = {3, 4, -1, 2, 1, 0};
+
 #define kReg8s   (kRegSizeTable[0])
 #define kReg32s  (kRegSizeTable[2])
 #define kReg64s  (kRegSizeTable[3])
@@ -40,7 +42,7 @@ static const char *kRegDTable[] = {DL, DX, EDX, RDX};
 
 #define SZ_FLOAT   (4)
 #define SZ_DOUBLE  (8)
-static const char *kFReg64s[PHYSICAL_FREG_MAX] = {
+const char *kFReg64s[PHYSICAL_FREG_MAX] = {
   XMM0, XMM1, XMM2, XMM3, XMM4, XMM5, XMM6, XMM7,
   XMM8, XMM9, XMM10, XMM11, XMM12, XMM13, XMM14, XMM15};
 
