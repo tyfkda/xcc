@@ -805,9 +805,10 @@ static void gen_defun(Function *func) {
 
   fnbe->bbcon = new_func_blocks();
   set_curbb(new_bb());
-  fnbe->ra = curra = new_reg_alloc(PHYSICAL_REG_MAX);
+  fnbe->ra = curra = new_reg_alloc(PHYSICAL_REG_MAX, PHYSICAL_REG_TEMPORARY);
 #ifndef __NO_FLONUM
   fnbe->ra->fphys_max = PHYSICAL_FREG_MAX;
+  fnbe->ra->fphys_temporary_count = PHYSICAL_FREG_TEMPORARY;
 #endif
 
   // Allocate BBs for goto labels.

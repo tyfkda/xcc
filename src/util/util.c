@@ -341,13 +341,16 @@ void buf_align(Buffer *buf, int align) {
 }
 
 Vector *new_vector(void) {
-  Vector *vec = malloc(sizeof(Vector));
-  if (vec != NULL) {
-    vec->data = NULL;
-    vec->capacity = 0;
-    vec->len = 0;
-  }
+  Vector *vec = malloc_or_die(sizeof(Vector));
+  vec->data = NULL;
+  vec->capacity = 0;
+  vec->len = 0;
   return vec;
+}
+
+void free_vector(Vector *vec) {
+  free(vec->data);
+  free(vec);
 }
 
 void vec_clear(Vector *vec) {
