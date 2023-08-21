@@ -421,107 +421,57 @@ static void put_args_to_stack(Function *func) {
     return;
 
   int len = params->len;
-  if (!func->type->func.vaargs) {
 #ifndef __NO_FLONUM
-    int farg_index = 0;
+  int farg_index = 0;
 #endif
-    for (int i = 0; i < len; ++i) {
-      const VarInfo *varinfo = params->data[i];
-      const Type *type = varinfo->type;
-      FrameInfo *fi = varinfo->local.frameinfo;
-      int offset = fi->offset;
+  for (int i = 0; i < len; ++i) {
+    const VarInfo *varinfo = params->data[i];
+    const Type *type = varinfo->type;
+    int offset = varinfo->local.frameinfo->offset;
 
-      if (is_stack_param(type))
-        continue;
-
-#ifndef __NO_FLONUM
-      if (is_flonum(type)) {
-        if (farg_index < MAX_FREG_ARGS) {
-          switch (type->flonum.kind) {
-          case FL_FLOAT:   MOVSS(kFReg64s[farg_index], OFFSET_INDIRECT(offset, RBP, NULL, 1)); break;
-          case FL_DOUBLE:  MOVSD(kFReg64s[farg_index], OFFSET_INDIRECT(offset, RBP, NULL, 1)); break;
-          default: assert(false); break;
-          }
-          ++farg_index;
-        }
-        continue;
-      }
-#endif
-
-      switch (type->kind) {
-      case TY_FIXNUM:
-      case TY_PTR:
-        break;
-      default: assert(false); break;
-      }
-
-      if (arg_index < MAX_REG_ARGS) {
-        int size = type_size(type);
-        assert(0 <= size && size < kPow2TableSize && kPow2Table[size] >= 0);
-        int pow = kPow2Table[size];
-        const char *src = kRegTable[pow][arg_index];
-        MOV(src, OFFSET_INDIRECT(offset, RBP, NULL, 1));
-        ++arg_index;
-      }
-    }
-  } else {  // vaargs
-    int ip = 0;
-    for (int i = arg_index; i < MAX_REG_ARGS; ++i) {
-      const VarInfo *varinfo = NULL;
-      while (ip < len) {
-        const VarInfo *p = params->data[ip++];
-        const Type *type = p->type;
-        if (!is_stack_param(type)
-#ifndef __NO_FLONUM
-            && !is_flonum(type)
-#endif
-        ) {
-          varinfo = p;
-          break;
-        }
-      }
-      if (varinfo != NULL) {
-        const Type *type = varinfo->type;
-        assert(type->kind == TY_FIXNUM || type->kind == TY_PTR);
-        int size = type_size(type);
-        assert(0 <= size && size < kPow2TableSize && kPow2Table[size] >= 0);
-        int pow = kPow2Table[size];
-        const char *src = kRegTable[pow][i];
-        int offset = varinfo->local.vreg->frame.offset;
-        MOV(src, OFFSET_INDIRECT(offset, RBP, NULL, 1));
-      } else {
-        int offset = (i - MAX_REG_ARGS - MAX_FREG_ARGS) * WORD_SIZE;
-        MOV(kReg64s[i], OFFSET_INDIRECT(offset, RBP, NULL, 1));
-      }
-    }
+    if (is_stack_param(type))
+      continue;
 
 #ifndef __NO_FLONUM
-    ip = 0;
-    for (int i = 0; i < MAX_FREG_ARGS; ++i) {
-      const VarInfo *varinfo = NULL;
-      while (ip < len) {
-        const VarInfo *p = params->data[ip++];
-        const Type *type = p->type;
-        if (!is_stack_param(type)
-            && is_flonum(type)
-        ) {
-          varinfo = p;
-          break;
-        }
-      }
-      if (varinfo != NULL) {
-        const Type *type = varinfo->type;
-        assert(type->kind == TY_FLONUM);
-        int offset = varinfo->local.vreg->frame.offset;
+    if (is_flonum(type)) {
+      if (farg_index < MAX_FREG_ARGS) {
         switch (type->flonum.kind) {
-        case FL_FLOAT:   MOVSS(kFReg64s[i], OFFSET_INDIRECT(offset, RBP, NULL, 1)); break;
-        case FL_DOUBLE:  MOVSD(kFReg64s[i], OFFSET_INDIRECT(offset, RBP, NULL, 1)); break;
+        case FL_FLOAT:   MOVSS(kFReg64s[farg_index], OFFSET_INDIRECT(offset, RBP, NULL, 1)); break;
+        case FL_DOUBLE:  MOVSD(kFReg64s[farg_index], OFFSET_INDIRECT(offset, RBP, NULL, 1)); break;
         default: assert(false); break;
         }
-      } else {
-        int offset = (i - MAX_FREG_ARGS) * WORD_SIZE;
-        MOVSD(kFReg64s[i], OFFSET_INDIRECT(offset, RBP, NULL, 1));
+        ++farg_index;
       }
+      continue;
+    }
+#endif
+
+    switch (type->kind) {
+    case TY_FIXNUM:
+    case TY_PTR:
+      break;
+    default: assert(false); break;
+    }
+
+    if (arg_index < MAX_REG_ARGS) {
+      int size = type_size(type);
+      assert(0 <= size && size < kPow2TableSize && kPow2Table[size] >= 0);
+      int pow = kPow2Table[size];
+      const char *src = kRegTable[pow][arg_index];
+      MOV(src, OFFSET_INDIRECT(offset, RBP, NULL, 1));
+      ++arg_index;
+    }
+  }
+
+  if (func->type->func.vaargs) {
+    for (int i = arg_index; i < MAX_REG_ARGS; ++i) {
+      int offset = (i - MAX_REG_ARGS - MAX_FREG_ARGS) * WORD_SIZE;
+      MOV(kReg64s[i], OFFSET_INDIRECT(offset, RBP, NULL, 1));
+    }
+#ifndef __NO_FLONUM
+    for (int i = farg_index; i < MAX_FREG_ARGS; ++i) {
+      int offset = (i - MAX_FREG_ARGS) * WORD_SIZE;
+      MOVSD(kFReg64s[i], OFFSET_INDIRECT(offset, RBP, NULL, 1));
     }
 #endif
   }

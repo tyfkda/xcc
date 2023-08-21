@@ -423,128 +423,70 @@ static void put_args_to_stack(Function *func) {
 #else
   bool vaargs = func->type->func.vaargs;
 #endif
-  if (!vaargs) {
 #ifndef __NO_FLONUM
-    int farg_index = 0;
+  int farg_index = 0;
 #endif
-    for (int i = 0; i < len; ++i) {
-      const VarInfo *varinfo = params->data[i];
-      const Type *type = varinfo->type;
-      FrameInfo *fi = varinfo->local.frameinfo;
-      int offset = fi->offset;
+  for (int i = 0; i < len; ++i) {
+    const VarInfo *varinfo = params->data[i];
+    const Type *type = varinfo->type;
+    int offset = varinfo->local.frameinfo->offset;
 
-      if (is_stack_param(type))
-        continue;
+    if (is_stack_param(type))
+      continue;
 
 #ifndef __NO_FLONUM
-      if (is_flonum(type)) {
-        if (farg_index < MAX_FREG_ARGS) {
-          switch (type->flonum.kind) {
-          case FL_FLOAT:   STR(kFReg32s[farg_index], IMMEDIATE_OFFSET(FP, offset)); break;
-          case FL_DOUBLE:  STR(kFReg64s[farg_index], IMMEDIATE_OFFSET(FP, offset)); break;
-          default: assert(false); break;
-          }
-          ++farg_index;
+    if (is_flonum(type)) {
+      if (farg_index < MAX_FREG_ARGS) {
+        switch (type->flonum.kind) {
+        case FL_FLOAT:   STR(kFReg32s[farg_index], IMMEDIATE_OFFSET(FP, offset)); break;
+        case FL_DOUBLE:  STR(kFReg64s[farg_index], IMMEDIATE_OFFSET(FP, offset)); break;
+        default: assert(false); break;
         }
-        continue;
+        ++farg_index;
       }
+      continue;
+    }
 #endif
 
-      switch (type->kind) {
-      case TY_FIXNUM:
-      case TY_PTR:
-        break;
+    switch (type->kind) {
+    case TY_FIXNUM:
+    case TY_PTR:
+      break;
+    default: assert(false); break;
+    }
+
+    if (arg_index < MAX_REG_ARGS) {
+      int size = type_size(type);
+      assert(0 <= size && size < kPow2TableSize && kPow2Table[size] >= 0);
+      int pow = kPow2Table[size];
+      const char *src = kRegTable[pow][arg_index];
+      assert(offset < 0);
+      const char *dst;
+      if (offset >= -256) {
+        dst = IMMEDIATE_OFFSET(FP, offset);
+      } else {
+        mov_immediate(X9, offset, true, false);  // x9 broken.
+        dst = REG_OFFSET(FP, X9, NULL);
+      }
+      switch (pow) {
+      case 0:          STRB(src, dst); break;
+      case 1:          STRH(src, dst); break;
+      case 2: case 3:  STR(src, dst); break;
       default: assert(false); break;
       }
-
-      if (arg_index < MAX_REG_ARGS) {
-        int size = type_size(type);
-        assert(0 <= size && size < kPow2TableSize && kPow2Table[size] >= 0);
-        int pow = kPow2Table[size];
-        const char *src = kRegTable[pow][arg_index];
-        assert(offset < 0);
-        const char *dst;
-        if (offset >= -256) {
-          dst = IMMEDIATE_OFFSET(FP, offset);
-        } else {
-          mov_immediate(X9, offset, true, false);  // x9 broken.
-          dst = REG_OFFSET(FP, X9, NULL);
-        }
-        switch (pow) {
-        case 0:          STRB(src, dst); break;
-        case 1:          STRH(src, dst); break;
-        case 2: case 3:  STR(src, dst); break;
-        default: assert(false); break;
-        }
-        ++arg_index;
-      }
+      ++arg_index;
     }
-  } else {  // vaargs
-    int ip = 0;
+  }
+
+  if (vaargs) {
     for (int i = arg_index; i < MAX_REG_ARGS; ++i) {
-      const VarInfo *varinfo = NULL;
-      while (ip < len) {
-        const VarInfo *p = params->data[ip++];
-        const Type *type = p->type;
-        if (!is_stack_param(type)
-#ifndef __NO_FLONUM
-            && !is_flonum(type)
-#endif
-        ) {
-          varinfo = p;
-          break;
-        }
-      }
-      if (varinfo != NULL) {
-        const Type *type = varinfo->type;
-        assert(type->kind == TY_FIXNUM || type->kind == TY_PTR);
-        int size = type_size(type);
-        assert(0 <= size && size < kPow2TableSize && kPow2Table[size] >= 0);
-        int pow = kPow2Table[size];
-        const char *src = kRegTable[pow][i];
-        int offset = varinfo->local.vreg->frame.offset;
-        const char *dst = IMMEDIATE_OFFSET(FP, offset);
-        switch (pow) {
-        case 0:          STRB(src, dst); break;
-        case 1:          STRH(src, dst); break;
-        case 2: case 3:  STR(src, dst); break;
-        default: assert(false); break;
-        }
-      } else {
-        const char *src = kReg64s[i];
-        int offset = (i - MAX_REG_ARGS - MAX_FREG_ARGS) * WORD_SIZE;
-        const char *dst = IMMEDIATE_OFFSET(FP, offset);
-	      STR(src, dst);
-      }
+      int offset = (i - MAX_REG_ARGS - MAX_FREG_ARGS) * WORD_SIZE;
+      STR(kReg64s[i], IMMEDIATE_OFFSET(FP, offset));
     }
-
 #ifndef __NO_FLONUM
-    ip = 0;
-    for (int i = 0; i < MAX_FREG_ARGS; ++i) {
-      const VarInfo *varinfo = NULL;
-      while (ip < len) {
-        const VarInfo *p = params->data[ip++];
-        const Type *type = p->type;
-        if (!is_stack_param(type)
-            && is_flonum(type)
-        ) {
-          varinfo = p;
-          break;
-        }
-      }
-      if (varinfo != NULL) {
-        const Type *type = varinfo->type;
-        assert(type->kind == TY_FLONUM);
-        int offset = varinfo->local.vreg->frame.offset;
-        switch (type->flonum.kind) {
-        case FL_FLOAT:   STR(kFReg32s[i], IMMEDIATE_OFFSET(FP, offset)); break;
-        case FL_DOUBLE:  STR(kFReg64s[i], IMMEDIATE_OFFSET(FP, offset)); break;
-        default: assert(false); break;
-        }
-      } else {
-        int offset = (i - MAX_FREG_ARGS) * WORD_SIZE;
-        STR(kFReg64s[i], IMMEDIATE_OFFSET(FP, offset));
-      }
+    for (int i = farg_index; i < MAX_FREG_ARGS; ++i) {
+      int offset = (i - MAX_FREG_ARGS) * WORD_SIZE;
+      STR(kFReg64s[i], IMMEDIATE_OFFSET(FP, offset));
     }
 #endif
   }
