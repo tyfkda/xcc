@@ -42,7 +42,7 @@ void expect_parse_type(const char *title, const Type *expected, const char *iden
       exit(1);
     }
     if (ident_expected == NULL && ident != NULL) {
-      fail("ident is not NULL (%.*s)", ident->ident->bytes, ident->ident->chars);
+      fail("ident is not NULL (%.*s)", NAMES(ident->ident));
       exit(1);
     }
     if (ident_expected != NULL && ident == NULL) {
@@ -52,7 +52,7 @@ void expect_parse_type(const char *title, const Type *expected, const char *iden
     if (ident_expected != NULL && ident != NULL &&
         (ident->ident->bytes != (int)strlen(ident_expected) ||
          strncmp(ident->ident->chars, ident_expected, strlen(ident_expected)))) {
-      fail("ident(%s) expected, but (%.*s)", ident_expected, ident->ident->bytes, ident->ident->chars);
+      fail("ident(%s) expected, but (%.*s)", ident_expected, NAMES(ident->ident));
       exit(1);
     }
     exit(0);

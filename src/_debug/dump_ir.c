@@ -37,7 +37,7 @@ static void dump_ir(FILE *fp, IR *ir) {
 
   switch (ir->kind) {
   case IR_BOFS:   fprintf(fp, "\tBOFS\t"); dump_vreg(fp, ir->dst); fprintf(fp, " = &[rbp %c %d]\n", ir->bofs.frameinfo->offset >= 0 ? '+' : '-', ir->bofs.frameinfo->offset > 0 ? ir->bofs.frameinfo->offset : -ir->bofs.frameinfo->offset); break;
-  case IR_IOFS:   fprintf(fp, "\tIOFS\t"); dump_vreg(fp, ir->dst); fprintf(fp, " = &%.*s\n", ir->iofs.label->bytes, ir->iofs.label->chars); break;
+  case IR_IOFS:   fprintf(fp, "\tIOFS\t"); dump_vreg(fp, ir->dst); fprintf(fp, " = &%.*s\n", NAMES(ir->iofs.label)); break;
   case IR_SOFS:   fprintf(fp, "\tSOFS\t"); dump_vreg(fp, ir->dst); fprintf(fp, " = &[rsp %c %" PRId64 "]\n", ir->opr1->fixnum >= 0 ? '+' : '-', ir->opr1->fixnum > 0 ? ir->opr1->fixnum : -ir->opr1->fixnum); break;
   case IR_LOAD:   fprintf(fp, "\tLOAD\t"); dump_vreg(fp, ir->dst); fprintf(fp, " = ["); dump_vreg(fp, ir->opr1); fprintf(fp, "]\n"); break;
   case IR_STORE:  fprintf(fp, "\tSTORE\t["); dump_vreg(fp, ir->opr2); fprintf(fp, "] = "); dump_vreg(fp, ir->opr1); fprintf(fp, "\n"); break;
@@ -55,18 +55,19 @@ static void dump_ir(FILE *fp, IR *ir) {
   case IR_NEG:    fprintf(fp, "\tNEG\t"); dump_vreg(fp, ir->dst); fprintf(fp, " = -"); dump_vreg(fp, ir->opr1); fprintf(fp, "\n"); break;
   case IR_BITNOT: fprintf(fp, "\tBITNOT\t"); dump_vreg(fp, ir->dst); fprintf(fp, " = ~"); dump_vreg(fp, ir->opr1); fprintf(fp, "\n"); break;
   case IR_COND:   fprintf(fp, "\tCOND\t"); dump_vreg(fp, ir->dst); fprintf(fp, " = %s\n", kCond[ir->cond.kind]); break;
-  case IR_JMP:    fprintf(fp, "\tJ%s\t%.*s\n", kCond[ir->jmp.cond], ir->jmp.bb->label->bytes, ir->jmp.bb->label->chars); break;
+  case IR_JMP:    fprintf(fp, "\tJ%s\t%.*s\n", kCond[ir->jmp.cond], NAMES(ir->jmp.bb->label)); break;
   case IR_TJMP:
     fprintf(fp, "\tTJMP\t");
     dump_vreg(fp, ir->opr1);
-    for (size_t i = 0; i < ir->tjmp.len; ++i) fprintf(fp, "%s%.*s", i == 0 ? ", [" : ", ", ((BB*)ir->tjmp.bbs[i])->label->bytes, ((BB*)ir->tjmp.bbs[i])->label->chars);
+    for (size_t i = 0; i < ir->tjmp.len; ++i)
+      fprintf(fp, "%s%.*s", i == 0 ? ", [" : ", ", NAMES(((BB*)ir->tjmp.bbs[i])->label));
     fprintf(fp, "]\n");
     break;
   case IR_PRECALL: fprintf(fp, "\tPRECALL\n"); break;
   case IR_PUSHARG: fprintf(fp, "\tPUSHARG\t%d, ", ir->pusharg.index); dump_vreg(fp, ir->opr1); fprintf(fp, "\n"); break;
   case IR_CALL:
     if (ir->call.label != NULL) {
-      fprintf(fp, "\tCALL\t"); if (ir->dst != NULL) { dump_vreg(fp, ir->dst); fprintf(fp, " = "); } fprintf(fp, "%.*s(args=#%d)\n", ir->call.label->bytes, ir->call.label->chars, ir->call.reg_arg_count);
+      fprintf(fp, "\tCALL\t"); if (ir->dst != NULL) { dump_vreg(fp, ir->dst); fprintf(fp, " = "); } fprintf(fp, "%.*s(args=#%d)\n", NAMES(ir->call.label), ir->call.reg_arg_count);
     } else {
       fprintf(fp, "\tCALL\t"); if (ir->dst != NULL) { dump_vreg(fp, ir->dst); fprintf(fp, " = "); } fprintf(fp, "*"); dump_vreg(fp, ir->opr1); fprintf(fp, "(args=#%d)\n", ir->call.reg_arg_count);
     }
@@ -93,7 +94,7 @@ static void dump_func_ir(Function *func) {
   BBContainer *bbcon = fnbe->bbcon;
   assert(bbcon != NULL);
 
-  fprintf(fp, "### %.*s\n\n", func->name->bytes, func->name->chars);
+  fprintf(fp, "### %.*s\n\n", NAMES(func->name));
 
   fprintf(fp, "params and locals:\n");
   for (int i = 0; i < func->scopes->len; ++i) {
@@ -106,7 +107,7 @@ static void dump_func_ir(Function *func) {
           varinfo->local.vreg == NULL)
         continue;
       fprintf(fp, "  V%3d (flag=%x): %.*s\n", varinfo->local.vreg->virt, varinfo->local.vreg->flag,
-              varinfo->name->bytes, varinfo->name->chars);
+              NAMES(varinfo->name));
     }
   }
 
@@ -148,12 +149,12 @@ static void dump_func_ir(Function *func) {
   for (int i = 0; i < bbcon->bbs->len; ++i) {
     BB *bb = bbcon->bbs->data[i];
     fprintf(fp, "// BB %d\n", i);
-    fprintf(fp, "%.*s:", bb->label->bytes, bb->label->chars);
+    fprintf(fp, "%.*s:", NAMES(bb->label));
     if (bb->from_bbs->len > 0) {
       fprintf(fp, " from=[");
       for (int j = 0; j < bb->from_bbs->len; ++j) {
         BB *fbb = bb->from_bbs->data[j];
-        fprintf(fp, "%s%.*s", (j > 0 ? ", " : ""), fbb->label->bytes, fbb->label->chars);
+        fprintf(fp, "%s%.*s", (j > 0 ? ", " : ""), NAMES(fbb->label));
       }
       fprintf(fp, "]");
     }

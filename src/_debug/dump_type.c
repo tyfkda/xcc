@@ -98,7 +98,7 @@ int main(int argc, char *argv[]) {
     print_type(fp, type);
     fprintf(fp, " => ");
     if (ident != NULL) {
-      fprintf(fp, "%.*s: ", ident->ident->bytes, ident->ident->chars);
+      fprintf(fp, "%.*s: ", NAMES(ident->ident));
     }
     dump_type(fp, type);
     fputs("\n", fp);

@@ -510,7 +510,7 @@ static void emit_defun(Function *func) {
     label = quote_label(MANGLE(label));
     _GLOBL(label);
   } else {
-    emit_comment("%.*s: static func", func->name->bytes, func->name->chars);
+    emit_comment("%.*s: static func", NAMES(func->name));
     label = quote_label(label);
     _LOCAL(label);
   }

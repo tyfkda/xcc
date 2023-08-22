@@ -388,15 +388,15 @@ static void emit_wasm(FILE *ofp, Vector *exports, const char *import_module_name
 
       VarInfo *varinfo = scope_find(global_scope, name, NULL);
       if (varinfo == NULL) {
-        error("Import: `%.*s' not found", name->bytes, name->chars);
+        error("Import: `%.*s' not found", NAMES(name));
         continue;
       }
       if (varinfo->type->kind != TY_FUNC) {
-        error("Import: `%.*s' is not function", name->bytes, name->chars);
+        error("Import: `%.*s' is not function", NAMES(name));
         continue;
       }
       if (varinfo->storage & VS_STATIC) {
-        error("Import: `%.*s' is not public", name->bytes, name->chars);
+        error("Import: `%.*s' is not public", NAMES(name));
         continue;
       }
 
@@ -494,15 +494,15 @@ static void emit_wasm(FILE *ofp, Vector *exports, const char *import_module_name
     const Name *name = exports->data[i];
     VarInfo *varinfo = scope_find(global_scope, name, NULL);
     if (varinfo == NULL) {
-      error("Export: `%.*s' not found", name->bytes, name->chars);
+      error("Export: `%.*s' not found", NAMES(name));
       continue;
     }
     if (varinfo->type->kind != TY_FUNC) {
-      error("Export: `%.*s' is not function", name->bytes, name->chars);
+      error("Export: `%.*s' is not function", NAMES(name));
       continue;
     }
     if (varinfo->storage & VS_STATIC) {
-      error("Export: `%.*s' is not public", name->bytes, name->chars);
+      error("Export: `%.*s' is not public", NAMES(name));
       continue;
     }
 
@@ -569,7 +569,7 @@ static void emit_wasm(FILE *ofp, Vector *exports, const char *import_module_name
     emit_leb128(&elems_section, -1, count);  // num elems
     for (int i = 0 ; i < count; ++i) {
       FuncInfo *info = indirect_funcs[i];
-      VERBOSE("%2d: %.*s (%d)\n", i, info->func->name->bytes, info->func->name->chars, (int)info->index);
+      VERBOSE("%2d: %.*s (%d)\n", i, NAMES(info->func->name), (int)info->index);
       emit_leb128(&elems_section, -1, info->index);  // elem function index
     }
     VERBOSES("\n");
@@ -1252,7 +1252,7 @@ int main(int argc, char *argv[]) {
   VERBOSES("### Exports\n");
   for (int i = 0; i < exports->len; ++i) {
     const Name *name = exports->data[i];
-    VERBOSE("%.*s\n", name->bytes, name->chars);
+    VERBOSE("%.*s\n", NAMES(name));
   }
   VERBOSES("\n");
 

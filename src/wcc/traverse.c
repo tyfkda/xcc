@@ -169,11 +169,11 @@ GVarInfo *get_gvar_info(Expr *expr) {
   }
   GVarInfo *info = NULL;
   if (varinfo == NULL) {
-    parse_error(PE_FATAL, expr->token, "Variable not found: %.*s", expr->var.name->bytes, expr->var.name->chars);
+    parse_error(PE_FATAL, expr->token, "Variable not found: %.*s", NAMES(expr->var.name));
   } else {
     info = get_gvar_info_from_name(varinfo->name);
     if (info == NULL) {
-      fprintf(stderr, "Global variable not found: %.*s\n", expr->var.name->bytes, expr->var.name->chars);
+      fprintf(stderr, "Global variable not found: %.*s\n", NAMES(expr->var.name));
       ++compile_error_count;
       // Returns dummy.
       info = register_gvar_info(varinfo->name, varinfo);
@@ -751,7 +751,7 @@ uint32_t traverse_ast(Vector *decls, Vector *exports, uint32_t stack_size) {
     const Name *name = exports->data[i];
     FuncInfo *info = table_get(&func_info_table, name);
     if (info == NULL)
-      error("`%.*s' not found", name->bytes, name->chars);
+      error("`%.*s' not found", NAMES(name));
     register_func_info(name, NULL, info->type, FF_REFERED);
   }
 
@@ -765,14 +765,14 @@ uint32_t traverse_ast(Vector *decls, Vector *exports, uint32_t stack_size) {
       if (info->func != NULL)
         continue;
       info->index = index++;
-      VERBOSE("%2d: %.*s  (import)\n", info->index, name->bytes, name->chars);
+      VERBOSE("%2d: %.*s  (import)\n", info->index, NAMES(name));
     }
     // Enumerate defined and refered functions.
     for (int it = 0; (it = table_iterate(&func_info_table, it, &name, (void**)&info)) != -1; ) {
       if (info->func == NULL || info->flag == 0)
         continue;
       info->index = index++;
-      VERBOSE("%2d: %.*s\n", info->index, name->bytes, name->chars);
+      VERBOSE("%2d: %.*s\n", info->index, NAMES(name));
     }
     VERBOSES("\n");
   }
@@ -797,7 +797,7 @@ uint32_t traverse_ast(Vector *decls, Vector *exports, uint32_t stack_size) {
       info->non_prim.address = address;
       size_t size = type_size(varinfo->type);
       address += size;
-      VERBOSE("%04x: %.*s  (size=0x%lx)\n", info->non_prim.address, name->bytes, name->chars, size);
+      VERBOSE("%04x: %.*s  (size=0x%lx)\n", info->non_prim.address, NAMES(name), size);
     }
     VERBOSE("---- BSS  0x%x\n", address);
     // Mapped to memory, without initialzer (BSS).
@@ -810,7 +810,7 @@ uint32_t traverse_ast(Vector *decls, Vector *exports, uint32_t stack_size) {
       info->non_prim.address = address;
       size_t size = type_size(varinfo->type);
       address += size;
-      VERBOSE("%04x: %.*s  (size=0x%lx)\n", info->non_prim.address, name->bytes, name->chars, size);
+      VERBOSE("%04x: %.*s  (size=0x%lx)\n", info->non_prim.address, NAMES(name), size);
     }
 
     // Primitive types (Globals).
@@ -821,7 +821,7 @@ uint32_t traverse_ast(Vector *decls, Vector *exports, uint32_t stack_size) {
       if (!is_prim_type(varinfo->type) || (varinfo->storage & VS_REF_TAKEN))
         continue;
       info->prim.index = index++;
-      VERBOSE("%2d: %.*s\n", info->prim.index, name->bytes, name->chars);
+      VERBOSE("%2d: %.*s\n", info->prim.index, NAMES(name));
     }
     VERBOSES("\n");
 

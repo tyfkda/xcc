@@ -78,8 +78,7 @@ void ensure_struct(Type *type, const Token *token, Scope *scope) {
       if (type->struct_.info == NULL) {
         StructInfo *sinfo = find_struct(scope, type->struct_.name, NULL);
         if (sinfo == NULL)
-          parse_error(PE_FATAL, token, "Imcomplete struct: `%.*s'", type->struct_.name->bytes,
-                      type->struct_.name->chars);
+          parse_error(PE_FATAL, token, "Imcomplete struct: `%.*s'", NAMES(type->struct_.name));
         type->struct_.info = sinfo;
       }
 
@@ -790,7 +789,8 @@ void check_funcall_args(Expr *func, Vector *args, Scope *scope, Vector *toplevel
     int paramc = param_types->len;
     if (!(argc == paramc ||
           (vaargs && argc >= paramc))) {
-      parse_error(PE_NOFATAL, func->token, "function `%.*s' expect %d arguments, but %d", func->var.name->bytes, func->var.name->chars, paramc, argc);
+      parse_error(PE_NOFATAL, func->token, "function `%.*s' expect %d arguments, but %d",
+                  NAMES(func->var.name), paramc, argc);
       return;
     }
   }
@@ -903,7 +903,7 @@ static Expr *parse_member_access(Expr *target, Token *acctok) {
     Vector *stack = new_vector();
     const MemberInfo *member = search_from_anonymous(type, ident->ident, ident, stack);
     if (member == NULL) {
-      parse_error(PE_NOFATAL, ident, "`%.*s' doesn't exist in the struct", ident->ident->bytes, ident->ident->chars);
+      parse_error(PE_NOFATAL, ident, "`%.*s' doesn't exist in the struct", NAMES(ident->ident));
       return target;
     }
     Expr *p = target;
@@ -936,8 +936,7 @@ static void parse_enum_members(Type *type) {
     }
 
     if (scope_find(global_scope, ident->ident, NULL) != NULL) {
-      parse_error(PE_NOFATAL, ident, "`%.*s' is already defined",
-                  ident->ident->bytes, ident->ident->chars);
+      parse_error(PE_NOFATAL, ident, "`%.*s' is already defined", NAMES(ident->ident));
     } else {
       define_enum_member(ctype, ident, value);
     }
@@ -1010,7 +1009,7 @@ static StructInfo *parse_struct(bool is_union) {
         for (int i = 0; i < count; ++i) {
           const MemberInfo *minfo = &members[i];
           if (minfo->name != NULL && equal_name(minfo->name, name)) {
-            parse_error(PE_NOFATAL, ident, "`%.*s' already defined", name->bytes, name->chars);
+            parse_error(PE_NOFATAL, ident, "`%.*s' already defined", NAMES(name));
             name = NULL;  // Avoid conflict.
             break;
           }
@@ -1172,7 +1171,7 @@ Type *parse_raw_type(int *pstorage) {
           Scope *scope;
           StructInfo *exist = find_struct(curscope, name, &scope);
           if (exist != NULL && scope == curscope)
-            parse_error(PE_NOFATAL, ident, "`%.*s' already defined", name->bytes, name->chars);
+            parse_error(PE_NOFATAL, ident, "`%.*s' already defined", NAMES(name));
           else
             define_struct(curscope, name, sinfo);
         }
@@ -1181,7 +1180,7 @@ Type *parse_raw_type(int *pstorage) {
           sinfo = find_struct(curscope, name, NULL);
           if (sinfo != NULL) {
             if (sinfo->is_union != is_union)
-              parse_error(PE_NOFATAL, tok, "Wrong tag for `%.*s'", name->bytes, name->chars);
+              parse_error(PE_NOFATAL, tok, "Wrong tag for `%.*s'", NAMES(name));
           }
         }
       }
@@ -1433,7 +1432,7 @@ Vector *parse_funparams(bool *pvaargs) {
         }
 
         if (ident != NULL && var_find(params, ident->ident) >= 0)
-          parse_error(PE_NOFATAL, ident, "`%.*s' already defined", ident->ident->bytes, ident->ident->chars);
+          parse_error(PE_NOFATAL, ident, "`%.*s' already defined", NAMES(ident->ident));
         else
           var_add(params, ident != NULL ? ident->ident : NULL, type, storage);
       }
@@ -1549,7 +1548,7 @@ static Expr *parse_prim(void) {
       return new_expr_fixlit(varinfo->type, ident, varinfo->enum_member.value);
     type = varinfo->type;
   } else {
-    parse_error(PE_NOFATAL, ident, "`%.*s' undeclared", ident->ident->bytes, ident->ident->chars);
+    parse_error(PE_NOFATAL, ident, "`%.*s' undeclared", NAMES(ident->ident));
     type = &tyInt;
     scope = curscope;
     add_var_to_scope(scope, ident, type, 0);

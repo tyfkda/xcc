@@ -324,7 +324,7 @@ static bool link_files(File *files, int nfiles, const Name *entry, uintptr_t sta
     const Name *name;
     void *dummy;
     for (int it = 0; (it = table_iterate(&unresolved, it, &name, &dummy)) != -1;) {
-      fprintf(stderr, "  %.*s\n", name->bytes, name->chars);
+      fprintf(stderr, "  %.*s\n", NAMES(name));
     }
     return false;
   }
@@ -381,7 +381,7 @@ static bool output_exe(const char *ofn, File *files, int nfiles, const Name *ent
   ElfObj *telfobj;
   const Elf64_Sym *tsym = find_symbol_from_all(files, nfiles, entry, &telfobj);
   if (tsym == NULL)
-    error("Cannot find label: `%.*s'", entry->bytes, entry->chars);
+    error("Cannot find label: `%.*s'", NAMES(entry));
   uintptr_t entry_address = telfobj->section_infos[tsym->st_shndx].progbits.address + tsym->st_value;
 
   int phnum = datasz > 0 || bsssz > 0 ? 2 : 1;

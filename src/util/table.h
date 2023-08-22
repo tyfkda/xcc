@@ -16,6 +16,9 @@ typedef struct Name {
 const Name *alloc_name(const char *begin, const char *end, bool make_copy);
 bool equal_name(const Name *name1, const Name *name2);
 
+// For printf, usage: printf("%.*s\n", NAMES(name))
+#define NAMES(name)  ((name)->bytes), ((name)->chars)
+
 // Hash Table
 
 typedef struct TableEntry {

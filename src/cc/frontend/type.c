@@ -614,7 +614,7 @@ void print_type_recur(FILE *fp, const Type *type, PrintTypeChain *parent) {
       enum FixnumKind kind = type->fixnum.kind;
       if (kind == FX_ENUM) {
         if (type->fixnum.enum_.ident != NULL)
-          fprintf(fp, "enum %.*s", type->fixnum.enum_.ident->bytes, type->fixnum.enum_.ident->chars);
+          fprintf(fp, "enum %.*s", NAMES(type->fixnum.enum_.ident));
         else
           fprintf(fp, "enum (anonymous)");
       } else {
@@ -715,7 +715,7 @@ void print_type_recur(FILE *fp, const Type *type, PrintTypeChain *parent) {
     break;
   case TY_STRUCT:
     if (type->struct_.name != NULL) {
-      fprintf(fp, "struct %.*s", type->struct_.name->bytes, type->struct_.name->chars);
+      fprintf(fp, "struct %.*s", NAMES(type->struct_.name));
     } else {
       fprintf(fp, "struct (anonymous)");
     }

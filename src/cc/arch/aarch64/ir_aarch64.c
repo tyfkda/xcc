@@ -629,7 +629,7 @@ static void ir_out(IR *ir) {
       EMIT_LABEL(fmt_name(table_label));
       for (size_t i = 0, len = ir->tjmp.len; i < len; ++i) {
         BB *bb = ir->tjmp.bbs[i];
-        _QUAD(fmt("%.*s", bb->label->bytes, bb->label->chars));
+        _QUAD(fmt("%.*s", NAMES(bb->label)));
       }
       _TEXT();
     }

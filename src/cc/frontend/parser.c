@@ -46,12 +46,12 @@ VarInfo *add_var_to_scope(Scope *scope, const Token *ident, Type *type, int stor
     if (idx >= 0) {
       VarInfo *varinfo = scope->vars->data[idx];
       if (!same_type(type, varinfo->type)) {
-        parse_error(PE_NOFATAL, ident, "`%.*s' type conflict", name->bytes, name->chars);
+        parse_error(PE_NOFATAL, ident, "`%.*s' type conflict", NAMES(name));
       } else if (!(storage & VS_EXTERN)) {
         if (varinfo->storage & VS_EXTERN)
           varinfo->storage &= ~VS_EXTERN;
         else
-          parse_error(PE_NOFATAL, ident, "`%.*s' already defined", name->bytes, name->chars);
+          parse_error(PE_NOFATAL, ident, "`%.*s' already defined", NAMES(name));
       }
       return varinfo;
     }
@@ -367,7 +367,7 @@ static Initializer *flatten_initializer_multi(Type *type, Initializer *init, int
           } else {
             Vector *stack = new_vector();
             if (search_from_anonymous(type, name, NULL, stack) == NULL) {
-              parse_error(PE_NOFATAL, value->token, "`%.*s' is not member of struct", name->bytes, name->chars);
+              parse_error(PE_NOFATAL, value->token, "`%.*s' is not member of struct", NAMES(name));
               *pindex += 1;
               continue;
             }
@@ -792,7 +792,7 @@ Vector *assign_initial_value(Expr *expr, Initializer *init, Vector *inits) {
           Expr *member = new_expr_member(NULL, minfo->type, expr, NULL, i);
           if (minfo->bitfield.width > 0) {
             if (init_elem->kind != IK_SINGLE) {
-              parse_error(PE_FATAL, init_elem->token, "illegal initializer for member `%.*s'", minfo->name->bytes, minfo->name->chars);
+              parse_error(PE_FATAL, init_elem->token, "illegal initializer for member `%.*s'", NAMES(minfo->name));
             } else {
               vec_push(inits, new_stmt_expr(
                   assign_to_bitfield(init_elem->token, member, init_elem->single, minfo)));
@@ -909,10 +909,6 @@ static Initializer *check_vardecl(Type **ptype, const Token *ident, int storage,
       // static variable initializer is handled in codegen, same as global variable.
     }
   } else {
-    //intptr_t eval;
-    //if (find_enum_value(ident->ident, &eval))
-    //  parse_error(PE_FATAL, ident, "`%.*s' is already defined", ident->ident->bytes, ident->ident->chars);
-    // Toplevel
     VarInfo *gvarinfo = scope_find(global_scope, ident->ident, NULL);
     assert(gvarinfo != NULL);
     gvarinfo->global.init = init = check_global_initializer(type, init);
@@ -928,7 +924,7 @@ static void add_func_label(const Token *tok, Stmt *label) {
     curfunc->label_table = table = alloc_table();
   }
   if (!table_put(table, tok->ident, label))
-    parse_error(PE_NOFATAL, tok, "Label `%.*s' already defined", tok->ident->bytes, tok->ident->chars);
+    parse_error(PE_NOFATAL, tok, "Label `%.*s' already defined", NAMES(tok->ident));
 }
 
 static void add_func_goto(Stmt *stmt) {
@@ -951,7 +947,7 @@ static void check_goto_labels(Function *func) {
         label->label.used = true;
       } else {
         const Name *name = stmt->goto_.label->ident;
-        parse_error(PE_NOFATAL, stmt->goto_.label, "`%.*s' not found", name->bytes, name->chars);
+        parse_error(PE_NOFATAL, stmt->goto_.label, "`%.*s' not found", NAMES(name));
       }
     }
   }
@@ -962,7 +958,7 @@ static void check_goto_labels(Function *func) {
     Stmt *label;
     for (int it = 0; (it = table_iterate(label_table, it, &name, (void**)&label)) != -1; ) {
       if (!label->label.used) {
-        parse_error(PE_WARNING, label->token, "`%.*s' not used", name->bytes, name->chars);
+        parse_error(PE_WARNING, label->token, "`%.*s' not used", NAMES(name));
         // Remove label in safely.
         table_delete(label_table, name);
         *label = *label->label.stmt;
@@ -1622,7 +1618,7 @@ static Declaration *parse_defun(Type *functype, int storage, Token *ident) {
     if (varinfo->type->kind != TY_FUNC ||
         !same_type(varinfo->type->func.ret, functype->func.ret) ||
         (varinfo->type->func.params != NULL && !same_type(varinfo->type, functype))) {
-      parse_error(PE_NOFATAL, ident, "Definition conflict: `%.*s'", func->name->bytes, func->name->chars);
+      parse_error(PE_NOFATAL, ident, "Definition conflict: `%.*s'", NAMES(func->name));
       err = true;
     } else {
       if (varinfo->global.func == NULL) {
@@ -1638,8 +1634,7 @@ static Declaration *parse_defun(Type *functype, int storage, Token *ident) {
     const Token *tok = consume(TK_LBRACE, "`;' or `{' expected");
 
     if (!err && varinfo->global.func != NULL) {
-      parse_error(PE_NOFATAL, ident, "`%.*s' function already defined", func->name->bytes,
-                  func->name->chars);
+      parse_error(PE_NOFATAL, ident, "`%.*s' function already defined", NAMES(func->name));
     } else {
       varinfo->global.func = func;
     }

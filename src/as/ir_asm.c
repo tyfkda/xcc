@@ -28,7 +28,7 @@ bool add_label_table(Table *label_table, const Name *label, int section, bool de
   if (info != NULL) {
     if (define) {
       if ((info->flag & LF_DEFINED) != 0) {
-        fprintf(stderr, "`%.*s' already defined\n", label->bytes, label->chars);
+        fprintf(stderr, "`%.*s' already defined\n", NAMES(label));
         return false;
       }
       info->address = 1;
@@ -111,7 +111,7 @@ bool calc_label_address(uintptr_t start_address, Vector **section_irs, Table *la
         {
           LabelInfo *info;
           if (!table_try_get(label_table, ir->label, (void**)&info)) {
-            fprintf(stderr, "[%.*s] not found\n", ir->label->bytes, ir->label->chars);
+            fprintf(stderr, "[%.*s] not found\n", NAMES(ir->label));
             assert(!"Unexpected");
           } else {
             info->address = address;
@@ -402,7 +402,7 @@ bool resolve_relative_address(Vector **section_irs, Table *label_table, Vector *
       i = table_iterate(&unresolved_labels, i, &name, &dummy);
       if (i < 0)
         break;
-      fprintf(stderr, "Undefined reference: `%.*s'\n", name->bytes, name->chars);
+      fprintf(stderr, "Undefined reference: `%.*s'\n", NAMES(name));
     }
     exit(1);
   }

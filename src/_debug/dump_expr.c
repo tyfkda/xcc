@@ -69,7 +69,7 @@ void dump_init(FILE *fp, const Initializer *init) {
     }
     break;
   case IK_DOT:
-    fprintf(fp, ".%.*s=", init->dot.name->bytes, init->dot.name->chars);
+    fprintf(fp, ".%.*s=", NAMES(init->dot.name));
     dump_init(fp, init->dot.value);
     break;
   case IK_ARR:
@@ -122,7 +122,7 @@ void dump_expr(FILE *fp, Expr *expr) {
     }
     break;
   case EX_VAR:
-    fprintf(fp, "%.*s", expr->var.name->bytes, expr->var.name->chars);
+    fprintf(fp, "%.*s", NAMES(expr->var.name));
     break;
   case EX_ADD:
   case EX_SUB:
@@ -215,7 +215,7 @@ void dump_expr(FILE *fp, Expr *expr) {
       fputs(expr->token->kind == TK_DOT ? "." : "->", fp);
       const Name *ident = expr->member.ident;
       if (ident != NULL) {
-        fprintf(fp, "%.*s", ident->bytes, ident->chars);
+        fprintf(fp, "%.*s", NAMES(ident));
       } else {
         fprintf(fp, "%d", expr->member.index);
       }
@@ -226,7 +226,7 @@ void dump_expr(FILE *fp, Expr *expr) {
       Expr *func = expr->funcall.func;
       Vector *args = expr->funcall.args;
       if (func->kind == EX_VAR) {
-        fprintf(fp, "%.*s", func->var.name->bytes, func->var.name->chars);
+        fprintf(fp, "%.*s", NAMES(func->var.name));
       } else {
         fprintf(fp, "(");
         dump_expr(fp, func);

@@ -53,7 +53,7 @@ char *fmt(const char *fm, ...) {
 }
 
 char *fmt_name(const Name *name) {
-  return fmt("%.*s", name->bytes, name->chars);
+  return fmt("%.*s", NAMES(name));
 }
 
 char *quote_label(char *label) {
