@@ -147,8 +147,11 @@ static VRegType *get_elem_vtype(const Type *type) {
 }
 
 void gen_memcpy(const Type *type, VReg *dst, VReg *src) {
+  size_t size = type_size(type);
+  if (size == 0)
+    return;
   VRegType *elem_vtype = get_elem_vtype(type);
-  size_t count = type_size(type) / elem_vtype->size;
+  size_t count = size / elem_vtype->size;
   assert(count > 0);
   if (count == 1) {
     VReg *tmp = new_ir_unary(IR_LOAD, src, elem_vtype);
@@ -178,8 +181,11 @@ void gen_memcpy(const Type *type, VReg *dst, VReg *src) {
 }
 
 static void gen_clear(const Type *type, VReg *dst) {
+  size_t size = type_size(type);
+  if (size == 0)
+    return;
   VRegType *elem_vtype = get_elem_vtype(type);
-  size_t count = type_size(type) / elem_vtype->size;
+  size_t count = size / elem_vtype->size;
   assert(count > 0);
   VReg *vzero = new_const_vreg(0, elem_vtype);
   if (count == 1) {
@@ -265,15 +271,11 @@ static void gen_return(Stmt *stmt) {
     Expr *val = stmt->return_.val;
     VReg *vreg = gen_expr(val);
     VReg *retval = fnbe->retval;
-    if (retval == NULL) {
-      new_ir_result(vreg);
-    } else {
-      size_t size = type_size(val->type);
-      if (size > 0) {
-        gen_memcpy(val->type, retval, vreg);
-        new_ir_result(retval);
-      }
+    if (retval != NULL) {
+      gen_memcpy(val->type, retval, vreg);
+      vreg = retval;
     }
+    new_ir_result(vreg);
   }
   new_ir_jmp(COND_ANY, fnbe->ret_bb);
   set_curbb(bb);
@@ -531,9 +533,6 @@ void gen_clear_local_var(const VarInfo *varinfo) {
   if (is_prim_type(varinfo->type))
     return;
 
-  size_t size = type_size(varinfo->type);
-  if (size <= 0)
-    return;
   VReg *vreg = new_ir_bofs(varinfo->local.frameinfo, varinfo->local.vreg);
   gen_clear(varinfo->type, vreg);
 }
