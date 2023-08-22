@@ -1049,8 +1049,8 @@ static void convert_3to2(BBContainer *bbcon) {
   for (int i = 0; i < bbcon->bbs->len; ++i) {
     BB *bb = bbcon->bbs->data[i];
     Vector *irs = bb->irs;
-    for (int i = 0; i < irs->len; ++i) {
-      IR *ir = irs->data[i];
+    for (int j = 0; j < irs->len; ++j) {
+      IR *ir = irs->data[j];
       switch (ir->kind) {
       case IR_ADD:  // binops
       case IR_SUB:
@@ -1067,7 +1067,7 @@ static void convert_3to2(BBContainer *bbcon) {
         {
           assert(!(ir->dst->flag & VRF_CONST));
           IR *mov = new_ir_mov(ir->dst, ir->opr1);
-          vec_insert(irs, i++, mov);
+          vec_insert(irs, j++, mov);
           ir->opr1 = ir->dst;
         }
         break;
@@ -1094,15 +1094,15 @@ void tweak_irs(FuncBackend *fnbe) {
   for (int i = 0; i < bbcon->bbs->len; ++i) {
     BB *bb = bbcon->bbs->data[i];
     Vector *irs = bb->irs;
-    for (int i = 0; i < irs->len; ++i) {
-      IR *ir = irs->data[i];
+    for (int j = 0; j < irs->len; ++j) {
+      IR *ir = irs->data[j];
       switch (ir->kind) {
       case IR_MUL:
       case IR_DIV:
       case IR_MOD:
         assert(!(ir->opr1->flag & VRF_CONST));
         if (ir->opr2->flag & VRF_CONST)
-          insert_const_mov(&ir->opr2, ra, irs, i++);
+          insert_const_mov(&ir->opr2, ra, irs, j++);
         break;
 
       default: break;

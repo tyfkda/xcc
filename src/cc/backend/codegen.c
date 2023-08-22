@@ -113,12 +113,12 @@ static void alloc_variable_registers(Function *func) {
 
   // Add flag to parameters.
   if (func->type->func.params != NULL) {
-    for (int j = 0; j < func->type->func.params->len; ++j) {
-      VarInfo *varinfo = func->type->func.params->data[j];
+    for (int i = 0; i < func->type->func.params->len; ++i) {
+      VarInfo *varinfo = func->type->func.params->data[i];
       VReg *vreg = varinfo->local.vreg;
       if (vreg != NULL) {
         vreg->flag |= VRF_PARAM;
-        vreg->param_index = j + param_index_offset;
+        vreg->param_index = i + param_index_offset;
       }
     }
   }
@@ -591,8 +591,8 @@ static void prepare_register_allocation(Function *func) {
     int freg_index = 0;
 #endif
     int offset = DEFAULT_OFFSET;
-    for (int j = 0; j < func->type->func.params->len; ++j) {
-      VarInfo *varinfo = func->type->func.params->data[j];
+    for (int i = 0; i < func->type->func.params->len; ++i) {
+      VarInfo *varinfo = func->type->func.params->data[i];
       if (!is_prim_type(varinfo->type)) {
         // stack parameters
         FrameInfo *fi = varinfo->local.frameinfo;

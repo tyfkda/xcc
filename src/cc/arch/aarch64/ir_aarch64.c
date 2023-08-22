@@ -963,8 +963,8 @@ void tweak_irs(FuncBackend *fnbe) {
   for (int i = 0; i < bbcon->bbs->len; ++i) {
     BB *bb = bbcon->bbs->data[i];
     Vector *irs = bb->irs;
-    for (int i = 0; i < irs->len; ++i) {
-      IR *ir = irs->data[i];
+    for (int j = 0; j < irs->len; ++j) {
+      IR *ir = irs->data[j];
       switch (ir->kind) {
       case IR_ADD:
         assert(!(ir->opr1->flag & VRF_CONST) || !(ir->opr2->flag & VRF_CONST));
@@ -976,20 +976,20 @@ void tweak_irs(FuncBackend *fnbe) {
             ir->opr2->fixnum = -ir->opr2->fixnum;
           }
           if (ir->opr2->fixnum > 0x0fff)
-            insert_const_mov(&ir->opr2, ra, irs, i++);
+            insert_const_mov(&ir->opr2, ra, irs, j++);
         }
         break;
       case IR_SUB:
         assert(!(ir->opr1->flag & VRF_CONST) || !(ir->opr2->flag & VRF_CONST));
         if (ir->opr1->flag & VRF_CONST)
-          insert_const_mov(&ir->opr1, ra, irs, i++);
+          insert_const_mov(&ir->opr1, ra, irs, j++);
         if (ir->opr2->flag & VRF_CONST) {
           if (ir->opr2->fixnum < 0) {
             ir->kind = IR_ADD;
             ir->opr2->fixnum = -ir->opr2->fixnum;
           }
           if (ir->opr2->fixnum > 0x0fff)
-            insert_const_mov(&ir->opr2, ra, irs, i++);
+            insert_const_mov(&ir->opr2, ra, irs, j++);
         }
         break;
       case IR_MUL:
@@ -1000,24 +1000,24 @@ void tweak_irs(FuncBackend *fnbe) {
       case IR_BITXOR:
         assert(!(ir->opr1->flag & VRF_CONST) || !(ir->opr2->flag & VRF_CONST));
         if (ir->opr1->flag & VRF_CONST)
-          insert_const_mov(&ir->opr1, ra, irs, i++);
+          insert_const_mov(&ir->opr1, ra, irs, j++);
         if (ir->opr2->flag & VRF_CONST)
-          insert_const_mov(&ir->opr2, ra, irs, i++);
+          insert_const_mov(&ir->opr2, ra, irs, j++);
         break;
       case IR_LSHIFT:
       case IR_RSHIFT:
         assert(!(ir->opr1->flag & VRF_CONST) || !(ir->opr2->flag & VRF_CONST));
         if (ir->opr1->flag & VRF_CONST)
-          insert_const_mov(&ir->opr1, ra, irs, i++);
+          insert_const_mov(&ir->opr1, ra, irs, j++);
         break;
       case IR_CMP:
         if ((ir->opr2->flag & VRF_CONST) &&
             (ir->opr2->fixnum > 0x0fff || ir->opr2->fixnum < -0x0fff))
-          insert_const_mov(&ir->opr2, ra, irs, i++);
+          insert_const_mov(&ir->opr2, ra, irs, j++);
         break;
       case IR_PUSHARG:
         if (ir->opr1->flag & VRF_CONST)
-          insert_const_mov(&ir->opr1, ra, irs, i++);
+          insert_const_mov(&ir->opr1, ra, irs, j++);
         break;
 
       default: break;
