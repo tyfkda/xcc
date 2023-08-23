@@ -610,37 +610,9 @@ static VReg *gen_funcall(Expr *expr) {
 }
 
 VReg *gen_arith(enum ExprKind kind, const Type *type, VReg *lhs, VReg *rhs) {
-  switch (kind) {
-  case EX_ADD:
-  case EX_SUB:
-  case EX_MUL:
-#ifndef __NO_FLONUM
-    if (is_flonum(type)) {
-      return new_ir_bop(kind + (IR_ADD - EX_ADD), lhs, rhs, to_vtype(type));
-    }
-#endif
-    return new_ir_bop(kind + (IR_ADD - EX_ADD), lhs, rhs, to_vtype(type));
-  case EX_BITAND:
-  case EX_BITOR:
-  case EX_BITXOR:
-  case EX_LSHIFT:
-  case EX_RSHIFT:
-    return new_ir_bop(kind + (IR_ADD - EX_ADD), lhs, rhs, to_vtype(type));
-
-  case EX_DIV:
-  case EX_MOD:
-    assert(is_number(type));
-#ifndef __NO_FLONUM
-    if (is_flonum(type)) {
-      return new_ir_bop(kind + (IR_DIV - EX_DIV), lhs, rhs, to_vtype(type));
-    }
-#endif
-    return new_ir_bop(kind + (IR_DIV - EX_DIV), lhs, rhs, to_vtype(type));
-
-  default:
-    assert(false);
-    return NULL;
-  }
+  assert(EX_ADD <= kind && kind <= EX_RSHIFT);
+  assert(!(kind == EX_DIV || kind == EX_MOD) || is_number(type));
+  return new_ir_bop(kind + (IR_ADD - EX_ADD), lhs, rhs, to_vtype(type));
 }
 
 #ifndef __NO_FLONUM
