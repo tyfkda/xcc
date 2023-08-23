@@ -587,9 +587,7 @@ static void prepare_register_allocation(Function *func) {
     const int DEFAULT_OFFSET = WORD_SIZE * 2;  // Return address, saved base pointer.
     assert((Scope*)func->scopes->data[0] != NULL);
     int ireg_index = is_stack_param(func->type->func.ret) ? 1 : 0;
-#ifndef __NO_FLONUM
     int freg_index = 0;
-#endif
     int offset = DEFAULT_OFFSET;
     for (int i = 0; i < func->type->func.params->len; ++i) {
       VarInfo *varinfo = func->type->func.params->data[i];
@@ -607,31 +605,18 @@ static void prepare_register_allocation(Function *func) {
       // Currently, all parameters are force spilled.
       spill_vreg(vreg);
 
-      if (func->type->func.vaargs) {  // Variadic function parameters.
-#ifndef __NO_FLONUM
-        if (is_flonum(varinfo->type))
-          vreg->frame.offset = (freg_index - MAX_FREG_ARGS) * WORD_SIZE;
-        else
-#endif
-          vreg->frame.offset = (ireg_index - MAX_REG_ARGS - MAX_FREG_ARGS) * WORD_SIZE;
-      }
-      bool through_stack;
-#ifndef __NO_FLONUM
-      if (is_flonum(varinfo->type)) {
-        through_stack = freg_index >= MAX_FREG_ARGS;
-        ++freg_index;
-      } else
-#endif
-      {
-        through_stack = ireg_index >= MAX_REG_ARGS;
-        ++ireg_index;
-      }
-
-      if (through_stack) {
+      const bool flo = is_flonum(varinfo->type);
+      if (flo ? freg_index >= MAX_FREG_ARGS : ireg_index >= MAX_REG_ARGS) {
         // Function argument passed through the stack.
         vreg->frame.offset = offset;
         offset += WORD_SIZE;
+      } else if (func->type->func.vaargs) {  // Variadic function parameters.
+        vreg->frame.offset = flo ? (freg_index - MAX_FREG_ARGS) * WORD_SIZE :
+                                   (ireg_index - MAX_REG_ARGS - MAX_FREG_ARGS) * WORD_SIZE;
       }
+
+      ireg_index += 1 - flo;
+      freg_index += flo;
     }
   }
 
@@ -667,11 +652,7 @@ static void map_virtual_to_physical_registers(RegAlloc *ra) {
 
 // Detect living registers for each instruction.
 static void detect_living_registers(RegAlloc *ra, BBContainer *bbcon) {
-#ifdef __NO_FLONUM
-  int maxbit = ra->phys_max;
-#else
   int maxbit = ra->phys_max + ra->fphys_max;
-#endif
   unsigned long living_pregs = 0;
   assert((int)sizeof(living_pregs) * CHAR_BIT >= maxbit);
   LiveInterval **livings = ALLOCA(sizeof(*livings) * maxbit);
@@ -687,10 +668,8 @@ static void detect_living_registers(RegAlloc *ra, BBContainer *bbcon) {
         LiveInterval *li = livings[k];
         if (li != NULL && nip == li->end) {
           int phys = li->phys;
-#ifndef __NO_FLONUM
           if (((VReg*)ra->vregs->data[li->virt])->vtype->flag & VRTF_FLONUM)
             phys += ra->phys_max;
-#endif
           assert(phys == k);
           living_pregs &= ~(1U << phys);
           livings[k] = NULL;
@@ -715,10 +694,8 @@ static void detect_living_registers(RegAlloc *ra, BBContainer *bbcon) {
         if (li->start > nip)
           break;
         int phys = li->phys;
-#ifndef __NO_FLONUM
         if (((VReg*)ra->vregs->data[li->virt])->vtype->flag & VRTF_FLONUM)
           phys += ra->phys_max;
-#endif
         if (nip == li->start) {
           living_pregs |= 1UL << phys;
           livings[phys] = li;

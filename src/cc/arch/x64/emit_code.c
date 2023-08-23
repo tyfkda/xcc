@@ -398,9 +398,7 @@ static void put_args_to_stack(Function *func) {
   static const char *kReg32s[] = {EDI, ESI, EDX, ECX, R8D, R9D};
   static const char *kReg64s[] = {RDI, RSI, RDX, RCX, R8, R9};
   static const char **kRegTable[] = {kReg8s, kReg16s, kReg32s, kReg64s};
-#ifndef __NO_FLONUM
   static const char *kFReg64s[] = {XMM0, XMM1, XMM2, XMM3, XMM4, XMM5, XMM6, XMM7};
-#endif
   static const int kPow2Table[] = {-1, 0, 1, -1, 2, -1, -1, -1, 3};
 #define kPow2TableSize ((int)(sizeof(kPow2Table) / sizeof(*kPow2Table)))
 
@@ -421,9 +419,7 @@ static void put_args_to_stack(Function *func) {
     return;
 
   int len = params->len;
-#ifndef __NO_FLONUM
   int farg_index = 0;
-#endif
   for (int i = 0; i < len; ++i) {
     const VarInfo *varinfo = params->data[i];
     const Type *type = varinfo->type;
@@ -432,7 +428,6 @@ static void put_args_to_stack(Function *func) {
     if (is_stack_param(type))
       continue;
 
-#ifndef __NO_FLONUM
     if (is_flonum(type)) {
       if (farg_index < MAX_FREG_ARGS) {
         switch (type->flonum.kind) {
@@ -444,7 +439,6 @@ static void put_args_to_stack(Function *func) {
       }
       continue;
     }
-#endif
 
     switch (type->kind) {
     case TY_FIXNUM:
@@ -468,12 +462,10 @@ static void put_args_to_stack(Function *func) {
       int offset = (i - MAX_REG_ARGS - MAX_FREG_ARGS) * WORD_SIZE;
       MOV(kReg64s[i], OFFSET_INDIRECT(offset, RBP, NULL, 1));
     }
-#ifndef __NO_FLONUM
     for (int i = farg_index; i < MAX_FREG_ARGS; ++i) {
       int offset = (i - MAX_FREG_ARGS) * WORD_SIZE;
       MOVSD(kFReg64s[i], OFFSET_INDIRECT(offset, RBP, NULL, 1));
     }
-#endif
   }
 }
 

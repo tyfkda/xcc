@@ -104,7 +104,6 @@
 
 #define RIP    "%rip"
 
-#ifndef __NO_FLONUM
 #define XMM0   "%xmm0"
 #define XMM1   "%xmm1"
 #define XMM2   "%xmm2"
@@ -121,7 +120,6 @@
 #define XMM13  "%xmm13"
 #define XMM14  "%xmm14"
 #define XMM15  "%xmm15"
-#endif
 
 #define MOV(o1, o2)    EMIT_ASM("mov", o1, o2)
 #define MOVB(o1, o2)   EMIT_ASM("movb", o1, o2)
@@ -214,7 +212,6 @@
 #define _BSS(label, size, align)  emit_bss(label, size, align)
 
 
-#ifndef __NO_FLONUM
 // SIMD
 #define MOVSD(o1, o2)      EMIT_ASM("movsd", o1, o2)
 #define ADDSD(o1, o2)      EMIT_ASM("addsd", o1, o2)
@@ -236,4 +233,3 @@
 
 #define CVTSD2SS(o1, o2)   EMIT_ASM("cvtsd2ss", o1, o2)  // double->single
 #define CVTSS2SD(o1, o2)   EMIT_ASM("cvtss2sd", o1, o2)  // single->double
-#endif

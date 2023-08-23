@@ -100,7 +100,6 @@ static const char *kOpTable[] = {
   "int",
   "syscall",
 
-#ifndef __NO_FLONUM
   "movsd",
   "addsd",
   "subsd",
@@ -122,7 +121,6 @@ static const char *kOpTable[] = {
 
   "cvtsd2ss",
   "cvtss2sd",
-#endif
 };
 
 static const struct {
@@ -209,12 +207,10 @@ static const struct {
   {"rip", RIP},
 };
 
-#ifndef __NO_FLONUM
 static const char kXmmRegisters[][6] = {
   "xmm0", "xmm1", "xmm2", "xmm3", "xmm4", "xmm5", "xmm6", "xmm7",
   "xmm8", "xmm9", "xmm10", "xmm11", "xmm12", "xmm13", "xmm14", "xmm15",
 };
-#endif
 
 static const char *kDirectiveTable[] = {
   "ascii",
@@ -310,7 +306,6 @@ static enum RegType find_register(const char **pp) {
   return NOREG;
 }
 
-#ifndef __NO_FLONUM
 static enum RegXmmType find_xmm_register(const char **pp) {
   const char *p = *pp;
   const char *q;
@@ -328,7 +323,6 @@ static enum RegXmmType find_xmm_register(const char **pp) {
   }
   return NOREGXMM;
 }
-#endif
 
 static bool immediate(const char **pp, long *value) {
   const char *p = *pp;
@@ -435,7 +429,6 @@ static const Name *parse_section_name(ParseInfo *info) {
 }
 
 static enum RegType parse_direct_register(ParseInfo *info, Operand *operand) {
-#ifndef __NO_FLONUM
   {
     enum RegXmmType regxmm = find_xmm_register(&info->p);
     if (regxmm != NOREGXMM) {
@@ -444,7 +437,6 @@ static enum RegType parse_direct_register(ParseInfo *info, Operand *operand) {
       return true;
     }
   }
-#endif
 
   enum RegType reg = find_register(&info->p);
   enum RegSize size;
@@ -616,9 +608,7 @@ enum TokenKind {
   TK_SUB,
   TK_MUL,
   TK_DIV,
-#ifndef __NO_FLONUM
   TK_FLONUM,
-#endif
 };
 
 typedef struct Token {
@@ -753,9 +743,7 @@ static Expr *unary(ParseInfo *info) {
       return NULL;
     switch (expr->kind) {
     case EX_FIXNUM:
-#ifndef __NO_FLONUM
     case EX_FLONUM:
-#endif
       return expr;
     default:
       {
@@ -1108,9 +1096,7 @@ void handle_directive(ParseInfo *info, enum DirectiveType dir, Vector **section_
         break;
       }
 
-#ifndef __NO_FLONUM
       assert(expr->kind != EX_FLONUM);
-#endif
       if (expr->kind == EX_FIXNUM) {
         // TODO: Target endian.
         long value = expr->fixnum;

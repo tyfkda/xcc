@@ -205,7 +205,6 @@ static bool cast_numbers(Expr **pLhs, Expr **pRhs, bool make_int) {
     return false;
   }
 
-#ifndef __NO_FLONUM
   {
     bool lflo = is_flonum(ltype), rflo = is_flonum(rtype);
     if (lflo || rflo) {
@@ -217,7 +216,6 @@ static bool cast_numbers(Expr **pLhs, Expr **pRhs, bool make_int) {
       return true;
     }
   }
-#endif
   enum FixnumKind lkind = ltype->fixnum.kind;
   enum FixnumKind rkind = rtype->fixnum.kind;
   if (ltype->fixnum.kind == FX_ENUM) {
@@ -811,12 +809,10 @@ void check_funcall_args(Expr *func, Vector *args, Scope *scope, Vector *toplevel
       case TY_FIXNUM:
         arg = promote_to_int(arg);
         break;
-#ifndef __NO_FLONUM
       case TY_FLONUM:
         if (type->flonum.kind < FL_DOUBLE)  // Promote variadic argument.
           arg = make_cast(&tyDouble, arg->token, arg, false);
         break;
-#endif
       default: break;
       }
     }
@@ -1033,9 +1029,7 @@ typedef struct {
   int storage, qualifier;
   int unsigned_num, signed_num;
   int char_num, short_num, int_num, long_num;
-#ifndef __NO_FLONUM
   int float_num, double_num;
-#endif
 } TypeCombination;
 
 static const enum FixnumKind kLongKinds[] = {
@@ -1048,9 +1042,8 @@ static void check_type_combination(const TypeCombination *tc, const Token *tok) 
   if (tc->unsigned_num > 1 || tc->signed_num > 1 ||
       tc->char_num > 1 || tc->short_num > 1 || tc->int_num > 1 ||
       tc->long_num >= (int)(sizeof(kLongKinds) / sizeof(*kLongKinds)) ||
-      ((tc->char_num > 0) + (tc->short_num > 0) + (tc->long_num > 0) > 1)
-#ifndef __NO_FLONUM
-      || tc->float_num > 1 || tc->double_num > 1 ||
+      ((tc->char_num > 0) + (tc->short_num > 0) + (tc->long_num > 0) > 1) ||
+      tc->float_num > 1 || tc->double_num > 1 ||
       ((tc->float_num > 0 || tc->double_num > 0) &&
        (tc->char_num > 0 || tc->short_num > 0 || tc->int_num > 0 || tc->long_num > 0 ||
         tc->unsigned_num > 0 || tc->signed_num > 0) &&
@@ -1058,7 +1051,6 @@ static void check_type_combination(const TypeCombination *tc, const Token *tok) 
          tc->char_num <= 0 && tc->short_num <= 0 && tc->int_num <= 0 &&
          tc->unsigned_num <= 0 && tc->signed_num <= 0)
       )
-#endif
   ) {
     parse_error(PE_FATAL, tok, "Illegal type combination");
   }
@@ -1067,11 +1059,8 @@ static void check_type_combination(const TypeCombination *tc, const Token *tok) 
 static bool no_type_combination(const TypeCombination *tc, int storage_mask, int qualifier_mask) {
   return tc->unsigned_num == 0 && tc->signed_num == 0 &&
       tc->char_num == 0 && tc->short_num == 0 && tc->int_num == 0 && tc->long_num == 0 &&
-      (tc->storage & storage_mask) == 0 && (tc->qualifier & qualifier_mask) == 0
-#ifndef __NO_FLONUM
-      && tc->float_num == 0 && tc->double_num == 0
-#endif
-      ;
+      (tc->storage & storage_mask) == 0 && (tc->qualifier & qualifier_mask) == 0 &&
+      tc->float_num == 0 && tc->double_num == 0;
 }
 
 Type *parse_raw_type(int *pstorage) {
@@ -1137,14 +1126,12 @@ Type *parse_raw_type(int *pstorage) {
     case TK_LONG:
       ++tc.long_num;
       continue;
-#ifndef __NO_FLONUM
     case TK_FLOAT:
       ++tc.float_num;
       continue;
     case TK_DOUBLE:
       ++tc.double_num;
       continue;
-#endif
     default: break;
     }
 
@@ -1214,14 +1201,11 @@ Type *parse_raw_type(int *pstorage) {
     if (tc.qualifier != 0)
       type = qualified_type(type, tc.qualifier);
   } else if (!no_type_combination(&tc, ~0, ~0)) {
-#ifndef __NO_FLONUM
     if (tc.float_num > 0) {
       type = &tyFloat;
     } else if (tc.double_num > 0) {
       type = (tc.double_num > 1 ? &tyLDouble : &tyDouble);
-    } else
-#endif
-    {
+    } else {
       enum FixnumKind fk =
           (tc.char_num > 0) ? FX_CHAR :
           (tc.short_num > 0) ? FX_SHORT : kLongKinds[tc.long_num];
@@ -1972,7 +1956,6 @@ static Type *choose_type(Expr *tval, Expr *fval) {
   } else if (ftype->kind == TY_PTR) {
     return choose_type(fval, tval);  // Make ttype to pointer, and check again.
   } else if (is_number(ttype) && is_number(ftype)) {
-#ifndef __NO_FLONUM
     if (is_flonum(ttype)) {
       // TODO: Choose lager one.
       //if (is_flonum(ftype)) {
@@ -1982,7 +1965,6 @@ static Type *choose_type(Expr *tval, Expr *fval) {
     } else if (is_flonum(ftype)) {
       return ftype;
     }
-#endif
     assert(is_fixnum(ttype->kind));
     assert(is_fixnum(ftype->kind));
     if (ttype->fixnum.kind > ftype->fixnum.kind)

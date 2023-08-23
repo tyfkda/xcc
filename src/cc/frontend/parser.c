@@ -545,9 +545,7 @@ Initializer *flatten_initializer(Type *type, Initializer *init) {
 static Expr *check_global_initializer_fixnum(Expr *value, bool *isconst) {
   switch (value->kind) {
   case EX_FIXNUM:
-#ifndef __NO_FLONUM
   case EX_FLONUM:
-#endif
     *isconst = true;
     break;
   case EX_STR:

@@ -373,7 +373,6 @@ static unsigned char *asm_movszx_rr(Inst *inst, Code *code) {
   return NULL;
 }
 
-#ifndef __NO_FLONUM
 static unsigned char *asm_movsds_xx(Inst *inst, Code *code, bool single) {
   unsigned char prefix = single ? 0xf3 : 0xf2;
   unsigned char sno = inst->src.regxmm - XMM0;
@@ -588,8 +587,6 @@ static unsigned char *asm_sqrtsd_xx(Inst *inst, Code *code) {
   p = put_code_filtered(p, buf, ARRAY_SIZE(buf));
   return p;
 }
-
-#endif
 
 static long signed_immediate(long value, enum RegSize size) {
   switch (size) {
@@ -1523,7 +1520,6 @@ static const AsmInstTable *table[] = {
   [POP] = (const AsmInstTable[]){ {asm_pop_r, REG, NOOPERAND, SRC_REG64_ONLY}, {NULL} },
   [INT] = (const AsmInstTable[]){ {asm_int_im, IMMEDIATE, NOOPERAND}, {NULL} },
   [SYSCALL] = (const AsmInstTable[]){ {asm_syscall, NOOPERAND, NOOPERAND}, {NULL} },
-#ifndef __NO_FLONUM
   [MOVSD] = (const AsmInstTable[]){
     {asm_movsd_xx, REG_XMM, REG_XMM},
     {asm_movsd_ix, INDIRECT, REG_XMM},
@@ -1551,7 +1547,6 @@ static const AsmInstTable *table[] = {
   [CVTSD2SS] = (const AsmInstTable[]){ {asm_cvtsd2ss_xx, REG_XMM, REG_XMM}, {NULL} },
   [CVTSS2SD] = (const AsmInstTable[]){ {asm_cvtss2sd_xx, REG_XMM, REG_XMM}, {NULL} },
   [SQRTSD] = (const AsmInstTable[]){ {asm_sqrtsd_xx, REG_XMM, REG_XMM}, {NULL} },
-#endif
 };
 
 void assemble_inst(Inst *inst, const ParseInfo *info, Code *code) {

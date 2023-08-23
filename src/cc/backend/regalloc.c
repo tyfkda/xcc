@@ -213,7 +213,6 @@ static void linear_scan_register_allocation(RegAlloc *ra, LiveInterval **sorted_
     .using_bits = 0,
     .used_bits = 0,
   };
-#ifndef __NO_FLONUM
   PhysicalRegisterSet fregset = {
     .active = ALLOCA(sizeof(LiveInterval*) * ra->fphys_max),
     .phys_max = ra->fphys_max,
@@ -223,7 +222,6 @@ static void linear_scan_register_allocation(RegAlloc *ra, LiveInterval **sorted_
     .using_bits = 0,
     .used_bits = 0,
   };
-#endif
 
   for (int i = 0; i < vreg_count; ++i) {
     LiveInterval *li = sorted_intervals[i];
@@ -233,11 +231,9 @@ static void linear_scan_register_allocation(RegAlloc *ra, LiveInterval **sorted_
       continue;
     expire_old_intervals(&iregset, li->start);
     PhysicalRegisterSet *prsp = &iregset;
-#ifndef __NO_FLONUM
     expire_old_intervals(&fregset, li->start);
     if (((VReg*)ra->vregs->data[li->virt])->vtype->flag & VRTF_FLONUM)
       prsp = &fregset;
-#endif
     int start_index = 0;
     int active_count = prsp->active_count;
     if (li->flag & LIF_CONTAINS_CALL) {
@@ -267,9 +263,7 @@ static void linear_scan_register_allocation(RegAlloc *ra, LiveInterval **sorted_
     prsp->used_bits |= prsp->using_bits;
   }
   ra->used_reg_bits = iregset.used_bits;
-#ifndef __NO_FLONUM
   ra->used_freg_bits = fregset.used_bits;
-#endif
 }
 
 static int insert_tmp_reg(RegAlloc *ra, Vector *irs, int j, VReg *spilled) {
@@ -369,9 +363,7 @@ static int insert_load_store_spilled_irs(RegAlloc *ra, BBContainer *bbcon) {
 
 void alloc_physical_registers(RegAlloc *ra, BBContainer *bbcon) {
   assert(ra->phys_max < (int)(sizeof(ra->used_reg_bits) * CHAR_BIT));
-#ifndef __NO_FLONUM
   assert(ra->fphys_max < (int)(sizeof(ra->used_freg_bits) * CHAR_BIT));
-#endif
 
   int vreg_count = ra->vregs->len;
   LiveInterval *intervals = malloc_or_die(sizeof(LiveInterval) * vreg_count);

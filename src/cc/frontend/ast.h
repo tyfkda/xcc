@@ -126,12 +126,10 @@ enum TokenKind {
   TK_ELLIPSIS,       // ...
   TK_ASM,
 
-#ifndef __NO_FLONUM
   TK_FLOAT,
   TK_FLOATLIT,   // float literal
   TK_DOUBLE,
   TK_DOUBLELIT,  // double literal
-#endif
 
   // For preprocessor.
   PPTK_CONCAT,       // ##
@@ -165,9 +163,7 @@ typedef struct Token {
 enum ExprKind {
   // Literals
   EX_FIXNUM,  // 1234
-#ifndef __NO_FLONUM
   EX_FLONUM,  // 1.23
-#endif
   EX_STR,     // "foobar"
 
   EX_VAR,     // Variable: foobar

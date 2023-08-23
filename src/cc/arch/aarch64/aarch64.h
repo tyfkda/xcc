@@ -121,7 +121,6 @@
 #define XZR   "xzr"  // x31: zero register
 #define WZR   "wzr"  // w31: zero register(32bit)
 
-#ifndef __NO_FLONUM
 #define D0    "d0"
 #define D1    "d1"
 #define D2    "d2"
@@ -187,7 +186,6 @@
 #define S29   "s29"
 #define S30   "s30"
 #define S31   "s31"
-#endif
 
 // Condition
 #define CEQ  "eq"
@@ -270,7 +268,6 @@
 #define _BSS(label, size, align)  emit_bss(label, size, align)
 
 
-#ifndef __NO_FLONUM
 #define FMOV(o1, o2)       EMIT_ASM("fmov", o1, o2)  // dst <- src
 #define FADD(o1, o2, o3)   EMIT_ASM("fadd", o1, o2, o3)
 #define FSUB(o1, o2, o3)   EMIT_ASM("fsub", o1, o2, o3)
@@ -282,6 +279,5 @@
 #define UCVTF(o1, o2)      EMIT_ASM("ucvtf", o1, o2)  // float <- unsigned int
 #define FCVT(o1, o2)       EMIT_ASM("fcvt", o1, o2)  // float <- float
 #define FCVTZS(o1, o2)     EMIT_ASM("fcvtzs", o1, o2)  // int <- float
-#endif
 
 void mov_immediate(const char *dst, int64_t value, bool b64, bool is_unsigned);

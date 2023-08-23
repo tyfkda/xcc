@@ -12,9 +12,7 @@ bool is_const(Expr *expr) {
 
   switch (expr->kind) {
   case EX_FIXNUM:
-#ifndef __NO_FLONUM
   case EX_FLONUM:
-#endif
   case EX_STR:
     return true;
   default:

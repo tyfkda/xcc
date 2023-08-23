@@ -36,7 +36,6 @@ static const char *kRetRegTable[] = {W0, W0, W0, X0};
 // Break %x9 in store, mod and tjmp
 static const char *kTmpRegTable[] = {W9, W9, W9, X9};
 
-#ifndef __NO_FLONUM
 #define SZ_FLOAT   (4)
 #define SZ_DOUBLE  (8)
 static const char *kFReg32s[PHYSICAL_FREG_MAX] = {
@@ -57,7 +56,6 @@ static const int kCalleeSaveFRegs[] = {8, 9, 10, 11, 12, 13, 14, 15};
 
 #define CALLER_SAVE_FREG_COUNT  ((int)(sizeof(kCallerSaveFRegs) / sizeof(*kCallerSaveFRegs)))
 static const int kCallerSaveFRegs[] = {16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31};
-#endif
 
 static const int kPow2Table[] = {-1, 0, 1, -1, 2, -1, -1, -1, 3};
 #define kPow2TableSize ((int)(sizeof(kPow2Table) / sizeof(*kPow2Table)))
@@ -171,16 +169,13 @@ static void ir_out(IR *ir) {
       }
 
       const char *dst;
-#ifndef __NO_FLONUM
       if (ir->dst->vtype->flag & VRTF_FLONUM) {
         switch (ir->dst->vtype->size) {
         case SZ_FLOAT:   dst = kFReg32s[ir->dst->phys]; break;
         case SZ_DOUBLE:  dst = kFReg64s[ir->dst->phys]; break;
         default: assert(false); break;
         }
-      } else
-#endif
-      {
+      } else {
         const char **regs = kRegSizeTable[pow];
         dst = regs[ir->dst->phys];
       }
@@ -221,16 +216,13 @@ static void ir_out(IR *ir) {
         }
       }
       const char *src;
-#ifndef __NO_FLONUM
       if (ir->opr1->vtype->flag & VRTF_FLONUM) {
         switch (ir->opr1->vtype->size) {
         default: assert(false); // Fallthrough
         case SZ_FLOAT:   src = kFReg32s[ir->opr1->phys]; break;
         case SZ_DOUBLE:  src = kFReg64s[ir->opr1->phys]; break;
         }
-      } else
-#endif
-      if (ir->opr1->flag & VRF_CONST) {
+      } else if (ir->opr1->flag & VRF_CONST) {
         if (ir->opr1->fixnum == 0)
           src = kZeroRegTable[pow];
         else
@@ -249,7 +241,6 @@ static void ir_out(IR *ir) {
 
   case IR_ADD:
     {
-#ifndef __NO_FLONUM
       if (ir->dst->vtype->flag & VRTF_FLONUM) {
         const char **regs;
         switch (ir->dst->vtype->size) {
@@ -260,7 +251,6 @@ static void ir_out(IR *ir) {
         FADD(regs[ir->dst->phys], regs[ir->opr1->phys], regs[ir->opr2->phys]);
         break;
       }
-#endif
       assert(!(ir->opr1->flag & VRF_CONST));
       assert(0 <= ir->dst->vtype->size && ir->dst->vtype->size < kPow2TableSize);
       int pow = kPow2Table[ir->dst->vtype->size];
@@ -277,7 +267,6 @@ static void ir_out(IR *ir) {
 
   case IR_SUB:
     {
-#ifndef __NO_FLONUM
       if (ir->dst->vtype->flag & VRTF_FLONUM) {
         const char **regs;
         switch (ir->dst->vtype->size) {
@@ -288,7 +277,6 @@ static void ir_out(IR *ir) {
         FSUB(regs[ir->dst->phys], regs[ir->opr1->phys], regs[ir->opr2->phys]);
         break;
       }
-#endif
       assert(!(ir->opr1->flag & VRF_CONST));
       assert(0 <= ir->dst->vtype->size && ir->dst->vtype->size < kPow2TableSize);
       int pow = kPow2Table[ir->dst->vtype->size];
@@ -305,7 +293,6 @@ static void ir_out(IR *ir) {
 
   case IR_MUL:
     {
-#ifndef __NO_FLONUM
       if (ir->dst->vtype->flag & VRTF_FLONUM) {
         const char **regs;
         switch (ir->dst->vtype->size) {
@@ -316,7 +303,6 @@ static void ir_out(IR *ir) {
         FMUL(regs[ir->dst->phys], regs[ir->opr1->phys], regs[ir->opr2->phys]);
         break;
       }
-#endif
       assert(!(ir->opr1->flag & VRF_CONST) && !(ir->opr2->flag & VRF_CONST));
       assert(0 <= ir->dst->vtype->size && ir->dst->vtype->size < kPow2TableSize);
       int pow = kPow2Table[ir->dst->vtype->size];
@@ -328,7 +314,6 @@ static void ir_out(IR *ir) {
 
   case IR_DIV:
     {
-#ifndef __NO_FLONUM
       if (ir->dst->vtype->flag & VRTF_FLONUM) {
         const char **regs;
         switch (ir->dst->vtype->size) {
@@ -339,7 +324,6 @@ static void ir_out(IR *ir) {
         FDIV(regs[ir->dst->phys], regs[ir->opr1->phys], regs[ir->opr2->phys]);
         break;
       }
-#endif
       assert(!(ir->opr1->flag & VRF_CONST) && !(ir->opr2->flag & VRF_CONST));
       assert(0 <= ir->dst->vtype->size && ir->dst->vtype->size < kPow2TableSize);
       int pow = kPow2Table[ir->dst->vtype->size];
@@ -432,7 +416,6 @@ static void ir_out(IR *ir) {
     break;
 
   case IR_RESULT:
-#ifndef __NO_FLONUM
     if (ir->opr1->vtype->flag & VRTF_FLONUM) {
       const char *src, *dst;
       switch (ir->opr1->vtype->size) {
@@ -443,7 +426,6 @@ static void ir_out(IR *ir) {
       FMOV(dst, src);
       break;
     }
-#endif
     {
       assert(0 <= ir->opr1->vtype->size && ir->opr1->vtype->size < kPow2TableSize);
       int pow = kPow2Table[ir->opr1->vtype->size];
@@ -472,7 +454,6 @@ static void ir_out(IR *ir) {
 
   case IR_MOV:
     {
-#ifndef __NO_FLONUM
       if (ir->dst->vtype->flag & VRTF_FLONUM) {
         if (ir->opr1->phys != ir->dst->phys) {
           const char *src, *dst;
@@ -485,7 +466,6 @@ static void ir_out(IR *ir) {
           break;
         }
       }
-#endif
       assert(0 <= ir->dst->vtype->size && ir->dst->vtype->size < kPow2TableSize);
       assert(!(ir->dst->flag & VRF_CONST));
       int pow = kPow2Table[ir->dst->vtype->size];
@@ -502,7 +482,6 @@ static void ir_out(IR *ir) {
 
   case IR_CMP:
     {
-#ifndef __NO_FLONUM
       if (ir->opr1->vtype->flag & VRTF_FLONUM) {
         assert(ir->opr2->vtype->flag & VRTF_FLONUM);
         const char *opr1, *opr2;
@@ -514,7 +493,6 @@ static void ir_out(IR *ir) {
         FCMP(opr1, opr2);
         break;
       }
-#endif
       assert(!(ir->opr1->flag & VRF_CONST));
       assert(0 <= ir->opr1->vtype->size && ir->opr1->vtype->size < kPow2TableSize);
       int pow = kPow2Table[ir->opr1->vtype->size];
@@ -655,7 +633,6 @@ static void ir_out(IR *ir) {
       assert(!(ir->opr1->flag & VRF_CONST));
       assert(0 < ir->opr1->vtype->size && ir->opr1->vtype->size < kPow2TableSize);
       int pow = kPow2Table[ir->opr1->vtype->size];
-#ifndef __NO_FLONUM
       if (ir->opr1->vtype->flag & VRTF_FLONUM) {
         static const char *kArgFReg32s[] = {S0, S1, S2, S3, S4, S5, S6, S7};
         static const char *kArgFReg64s[] = {D0, D1, D2, D3, D4, D5, D6, D7};
@@ -666,7 +643,6 @@ static void ir_out(IR *ir) {
         }
         break;
       }
-#endif
 
       static const char *kArgReg32s[] = {W0, W1, W2, W3, W4, W5, W6, W7};
       static const char *kArgReg64s[] = {X0, X1, X2, X3, X4, X5, X6, X7};
@@ -698,7 +674,6 @@ static void ir_out(IR *ir) {
 
       if (ir->dst != NULL) {
         assert(0 < ir->dst->vtype->size && ir->dst->vtype->size < kPow2TableSize);
-#ifndef __NO_FLONUM
         if (ir->dst->vtype->flag & VRTF_FLONUM) {
           const char *src, *dst;
           switch (ir->dst->vtype->size) {
@@ -707,9 +682,7 @@ static void ir_out(IR *ir) {
           case SZ_DOUBLE:  src = D0; dst = kFReg64s[ir->dst->phys]; break;
           }
           FMOV(dst, src);
-        } else
-#endif
-        {
+        } else {
           int pow = kPow2Table[ir->dst->vtype->size];
           assert(0 <= pow && pow < 4);
           const char **regs = kRegSizeTable[pow];
@@ -720,7 +693,7 @@ static void ir_out(IR *ir) {
     break;
 
   case IR_CAST:
-#ifndef __NO_FLONUM
+    assert((ir->opr1->flag & VRF_CONST) == 0);
     if (ir->dst->vtype->flag & VRTF_FLONUM) {
       if (ir->opr1->vtype->flag & VRTF_FLONUM) {
         // flonum->flonum
@@ -758,8 +731,7 @@ static void ir_out(IR *ir) {
       }
       break;
     }
-#endif
-    assert((ir->opr1->flag & VRF_CONST) == 0);
+
     if (ir->dst->vtype->size <= ir->opr1->vtype->size) {
       if (ir->dst->phys != ir->opr1->phys) {
         assert(0 <= ir->dst->vtype->size && ir->dst->vtype->size < kPow2TableSize);
@@ -821,12 +793,7 @@ static int enum_callee_save_regs(unsigned long bit, int n, const int *indices, c
   return count;
 }
 
-#ifdef __NO_FLONUM
-#define N  CALLEE_SAVE_REG_COUNT
-
-#else
 #define N  (CALLEE_SAVE_REG_COUNT > CALLEE_SAVE_FREG_COUNT ? CALLEE_SAVE_REG_COUNT : CALLEE_SAVE_FREG_COUNT)
-#endif
 
 int push_callee_save_regs(unsigned long used, unsigned long fused) {
   const char *saves[(N + 1) & ~1];
@@ -837,7 +804,6 @@ int push_callee_save_regs(unsigned long used, unsigned long fused) {
     else
       STR(saves[i], PRE_INDEX(SP, -16));
   }
-#ifndef __NO_FLONUM
   int fcount = enum_callee_save_regs(fused, CALLEE_SAVE_FREG_COUNT, kCalleeSaveFRegs, kFReg64s, saves);
   for (int i = 0; i < fcount; i += 2) {
     if (i + 1 < fcount)
@@ -845,16 +811,11 @@ int push_callee_save_regs(unsigned long used, unsigned long fused) {
     else
       STR(saves[i], PRE_INDEX(SP, -16));
   }
-  count += fcount;
-#else
-  UNUSED(fused);
-#endif
-  return count;
+  return count + fcount;
 }
 
 void pop_callee_save_regs(unsigned long used, unsigned long fused) {
   const char *saves[(N + 1) & ~1];
-#ifndef __NO_FLONUM
   int fcount = enum_callee_save_regs(fused, CALLEE_SAVE_FREG_COUNT, kCalleeSaveFRegs, kFReg64s, saves);
   if ((fcount & 1) != 0)
     LDR(saves[--fcount], POST_INDEX(SP, 16));
@@ -862,9 +823,6 @@ void pop_callee_save_regs(unsigned long used, unsigned long fused) {
     i -= 2;
     LDP(saves[i], saves[i + 1], POST_INDEX(SP, 16));
   }
-#else
-  UNUSED(fused);
-#endif
   int count = enum_callee_save_regs(used, CALLEE_SAVE_REG_COUNT, kCalleeSaveRegs, kReg64s, saves);
   if ((count & 1) != 0)
     LDR(saves[--count], POST_INDEX(SP, 16));
@@ -885,7 +843,6 @@ static Vector *push_caller_save_regs(unsigned long living) {
     }
   }
 
-#ifndef __NO_FLONUM
   {
     for (int i = 0; i < CALLER_SAVE_FREG_COUNT; ++i) {
       int ireg = kCallerSaveFRegs[i];
@@ -895,7 +852,6 @@ static Vector *push_caller_save_regs(unsigned long living) {
       }
     }
   }
-#endif
 
   int n = saves->len;
   for (int i = 1; i < n; i += 2) {

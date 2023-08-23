@@ -38,9 +38,7 @@ enum TypeKind {
   TY_ARRAY,
   TY_FUNC,
   TY_STRUCT,  // include union
-#ifndef __NO_FLONUM
   TY_FLONUM,
-#endif
 };
 
 // Qualifier
@@ -79,11 +77,9 @@ typedef struct Type {
         const Name *ident;
       } enum_;
     } fixnum;
-#ifndef __NO_FLONUM
     struct {
       enum FlonumKind kind;
     } flonum;
-#endif
     struct {  // Pointer or array.
       struct Type *ptrof;
       ssize_t length;  // of array. -1 represents length is not specified (= []).
@@ -112,11 +108,9 @@ extern Type tyVoidPtr;
 extern Type tyBool;
 extern Type tySize;
 extern Type tySSize;
-#ifndef __NO_FLONUM
 extern Type tyFloat;
 extern Type tyDouble;
 #define tyLDouble  tyDouble
-#endif
 
 void set_fixnum_size(enum FixnumKind kind, size_t size, int align);
 size_t type_size(const Type *type);
@@ -126,6 +120,8 @@ bool is_fixnum(enum TypeKind kind);
 bool is_number(const Type *type);
 #ifndef __NO_FLONUM
 bool is_flonum(const Type *type);
+#else
+#define is_flonum(type)  (false)
 #endif
 bool is_char_type(const Type *type);
 bool is_void_ptr(const Type *type);

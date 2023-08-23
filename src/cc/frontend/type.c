@@ -19,10 +19,8 @@ Type tyVoidPtr =       {.kind=TY_PTR, .pa={.ptrof=&tyVoid}};
 Type tyBool =          {.kind=TY_FIXNUM, .fixnum={.kind=FX_INT,   .is_unsigned=false}};
 Type tySize =          {.kind=TY_FIXNUM, .fixnum={.kind=FX_LONG,  .is_unsigned=true}};
 Type tySSize =         {.kind=TY_FIXNUM, .fixnum={.kind=FX_LONG,  .is_unsigned=false}};
-#ifndef __NO_FLONUM
 Type tyFloat =         {.kind=TY_FLONUM, .flonum={.kind=FL_FLOAT}};
 Type tyDouble =        {.kind=TY_FLONUM, .flonum={.kind=FL_DOUBLE}};
-#endif
 
 #define FIXNUM_TABLE(uns, qual) \
     { \
@@ -46,10 +44,8 @@ static Type kFixnumTypeTable[2][4][FX_LLONG + 1] = {
 size_t fixnum_size_table[]  = {1, 2, 4, 8, 8, 4};
 int    fixnum_align_table[] = {1, 2, 4, 8, 8, 4};
 
-#ifndef __NO_FLONUM
 size_t flonum_size_table[]  = {4, 8};
 int    flonum_align_table[] = {4, 8};
-#endif
 
 void set_fixnum_size(enum FixnumKind kind, size_t size, int align) {
   fixnum_size_table[kind] = size;
@@ -185,10 +181,8 @@ size_t type_size(const Type *type) {
     return 1;
   case TY_FIXNUM:
     return fixnum_size_table[type->fixnum.kind];
-#ifndef __NO_FLONUM
   case TY_FLONUM:
     return flonum_size_table[type->flonum.kind];
-#endif
   case TY_PTR:
     return fixnum_size_table[FX_LONG];
   case TY_ARRAY:
@@ -212,10 +206,8 @@ size_t align_size(const Type *type) {
     return 1;  // Just in case.
   case TY_FIXNUM:
     return fixnum_align_table[type->fixnum.kind];
-#ifndef __NO_FLONUM
   case TY_FLONUM:
     return flonum_align_table[type->fixnum.kind];
-#endif
   case TY_PTR:
     return fixnum_align_table[FX_LONG];
   case TY_FUNC:
@@ -237,11 +229,7 @@ bool is_fixnum(enum TypeKind kind) {
 }
 
 bool is_number(const Type *type) {
-#ifndef __NO_FLONUM
-  if (is_flonum(type))
-    return true;
-#endif
-  return is_fixnum(type->kind);
+  return is_flonum(type) || is_fixnum(type->kind);
 }
 
 #ifndef __NO_FLONUM
@@ -379,10 +367,8 @@ bool same_type_without_qualifier(const Type *type1, const Type *type2, bool igno
     case TY_FIXNUM:
       return type1->fixnum.kind == type2->fixnum.kind &&
           type1->fixnum.is_unsigned == type2->fixnum.is_unsigned;
-#ifndef __NO_FLONUM
     case TY_FLONUM:
       return type1->flonum.kind == type2->flonum.kind;
-#endif
     case TY_ARRAY:
       if (type1->pa.length != type2->pa.length &&
           type1->pa.length != -1 && type2->pa.length != -1)
@@ -438,9 +424,7 @@ bool can_cast(const Type *dst, const Type *src, bool zero, bool is_explicit) {
   case TY_FIXNUM:
     switch (src->kind) {
     case TY_FIXNUM:
-#ifndef __NO_FLONUM
     case TY_FLONUM:
-#endif
       return true;
     case TY_PTR:
     case TY_ARRAY:
@@ -454,7 +438,6 @@ bool can_cast(const Type *dst, const Type *src, bool zero, bool is_explicit) {
       break;
     }
     break;
-#ifndef __NO_FLONUM
   case TY_FLONUM:
     switch (src->kind) {
     case TY_FIXNUM:
@@ -465,7 +448,6 @@ bool can_cast(const Type *dst, const Type *src, bool zero, bool is_explicit) {
       break;
     }
     break;
-#endif
   case TY_PTR:
     switch (src->kind) {
     case TY_FIXNUM:
@@ -626,7 +608,6 @@ void print_type_recur(FILE *fp, const Type *type, PrintTypeChain *parent) {
       call_print_type_chain(parent, fp);
     }
     break;
-#ifndef __NO_FLONUM
   case TY_FLONUM:
     switch (type->flonum.kind) {
     case FL_FLOAT:  fprintf(fp, "float"); break;
@@ -635,7 +616,6 @@ void print_type_recur(FILE *fp, const Type *type, PrintTypeChain *parent) {
     }
     call_print_type_chain(parent, fp);
     break;
-#endif
   case TY_PTR:
     {
       const Type *nestedtype = NULL;

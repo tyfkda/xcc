@@ -394,10 +394,8 @@ static void put_args_to_stack(Function *func) {
   static const char *kReg32s[] = {W0, W1, W2, W3, W4, W5, W6, W7};
   static const char *kReg64s[] = {X0, X1, X2, X3, X4, X5, X6, X7};
   static const char **kRegTable[] = {kReg32s, kReg32s, kReg32s, kReg64s};
-#ifndef __NO_FLONUM
   const char *kFReg32s[] = {S0, S1, S2, S3, S4, S5, S6, S7};
   const char *kFReg64s[] = {D0, D1, D2, D3, D4, D5, D6, D7};
-#endif
   static const int kPow2Table[] = {-1, 0, 1, -1, 2, -1, -1, -1, 3};
 #define kPow2TableSize ((int)(sizeof(kPow2Table) / sizeof(*kPow2Table)))
 
@@ -423,9 +421,7 @@ static void put_args_to_stack(Function *func) {
 #else
   bool vaargs = func->type->func.vaargs;
 #endif
-#ifndef __NO_FLONUM
   int farg_index = 0;
-#endif
   for (int i = 0; i < len; ++i) {
     const VarInfo *varinfo = params->data[i];
     const Type *type = varinfo->type;
@@ -434,7 +430,6 @@ static void put_args_to_stack(Function *func) {
     if (is_stack_param(type))
       continue;
 
-#ifndef __NO_FLONUM
     if (is_flonum(type)) {
       if (farg_index < MAX_FREG_ARGS) {
         switch (type->flonum.kind) {
@@ -446,7 +441,6 @@ static void put_args_to_stack(Function *func) {
       }
       continue;
     }
-#endif
 
     switch (type->kind) {
     case TY_FIXNUM:
@@ -483,12 +477,10 @@ static void put_args_to_stack(Function *func) {
       int offset = (i - MAX_REG_ARGS - MAX_FREG_ARGS) * WORD_SIZE;
       STR(kReg64s[i], IMMEDIATE_OFFSET(FP, offset));
     }
-#ifndef __NO_FLONUM
     for (int i = farg_index; i < MAX_FREG_ARGS; ++i) {
       int offset = (i - MAX_FREG_ARGS) * WORD_SIZE;
       STR(kFReg64s[i], IMMEDIATE_OFFSET(FP, offset));
     }
-#endif
   }
 }
 

@@ -28,12 +28,10 @@ VRegType *to_vtype(const Type *type) {
 
   int flag = 0;
   bool is_unsigned = is_fixnum(type->kind) ? type->fixnum.is_unsigned : true;
-#ifndef __NO_FLONUM
   if (is_flonum(type)) {
     flag |= VRTF_FLONUM;
     is_unsigned = false;
   }
-#endif
   if (is_unsigned)
     flag |= VRTF_UNSIGNED;
   vtype->flag = flag;
@@ -81,20 +79,16 @@ static enum ConditionKind gen_compare_expr(enum ExprKind kind, Expr *lhs, Expr *
     // unsigned
     flag = COND_UNSIGNED;
   }
-#ifndef __NO_FLONUM
   if (is_flonum(lhs->type))
     flag |= COND_FLONUM;
-#endif
 
   VReg *lhs_reg = gen_expr(lhs);
   VReg *rhs_reg = gen_expr(rhs);
   if ((rhs_reg->flag & VRF_CONST) != 0 && (lhs_reg->flag & VRF_CONST) != 0) {
-#ifndef __NO_FLONUM
     // Const VReg is must be non-flonum.
     assert(!(lhs_reg->vtype->flag & VRTF_FLONUM));
     assert(!(rhs_reg->vtype->flag & VRTF_FLONUM));
     assert(!(flag & COND_FLONUM));
-#endif
     switch (cond | flag) {
     case COND_NONE:
     case COND_ANY:
@@ -117,9 +111,7 @@ static enum ConditionKind gen_compare_expr(enum ExprKind kind, Expr *lhs, Expr *
 
   switch (lhs->type->kind) {
   case TY_FIXNUM: case TY_PTR:
-#ifndef __NO_FLONUM
   case TY_FLONUM:
-#endif
     break;
   default: assert(false); break;
   }
@@ -190,9 +182,7 @@ static VReg *gen_cast(VReg *vreg, const Type *dst_type) {
   }
 
   if (vreg->flag & VRF_CONST) {
-#ifndef __NO_FLONUM
     assert(!(vreg->vtype->flag & VRTF_FLONUM));  // No const vreg for flonum.
-#endif
     Fixnum value = vreg->fixnum;
     size_t dst_size = type_size(dst_type);
     if (dst_size < (size_t)vreg->vtype->size && dst_size < sizeof(Fixnum)) {
@@ -214,9 +204,7 @@ static VReg *gen_cast(VReg *vreg, const Type *dst_type) {
   bool lu = dst_type->kind == TY_FIXNUM ? dst_type->fixnum.is_unsigned : dst_type->kind == TY_PTR;
   bool ru = (vreg->vtype->flag & VRTF_UNSIGNED) ? true : false;
   if (dst_size == vreg->vtype->size && lu == ru
-#ifndef __NO_FLONUM
       && is_flonum(dst_type) == ((vreg->vtype->flag & VRTF_FLONUM) != 0)
-#endif
   )
     return vreg;
 
@@ -276,9 +264,7 @@ static VReg *gen_variable(Expr *expr) {
   switch (expr->type->kind) {
   case TY_FIXNUM:
   case TY_PTR:
-#ifndef __NO_FLONUM
   case TY_FLONUM:
-#endif
     {
       Scope *scope;
       const VarInfo *varinfo = scope_find(expr->var.scope, expr->var.name, &scope);
@@ -416,9 +402,7 @@ static Expr *simplify_funarg(Expr *arg) {
 
   // Literals
   case EX_FIXNUM:
-#ifndef __NO_FLONUM
   case EX_FLONUM:
-#endif
   case EX_STR:
   case EX_VAR:
     break;
@@ -463,25 +447,17 @@ static VReg *gen_funcall(Expr *expr) {
     int offset;
     int size;
     bool stack_arg;
-#ifndef __NO_FLONUM
-    bool is_flonum;
-#endif
+    bool is_flo;
   } ArgInfo;
 
   ArgInfo *arg_infos = NULL;
   int stack_arg_count = 0;
   int reg_arg_count = 0;
-#ifndef __NO_FLONUM
   int freg_arg_count = 0;
-#else
-  const int freg_arg_count = 0;
-#endif
   int arg_start = ret_varinfo != NULL ? 1 : 0;
   {
     int ireg_index = arg_start;
-#ifndef __NO_FLONUM
     int freg_index = 0;
-#endif
 
     // Check stack arguments.
     arg_infos = ALLOCA(sizeof(*arg_infos) * arg_count);
@@ -492,36 +468,22 @@ static VReg *gen_funcall(Expr *expr) {
       Expr *arg = args->data[i];
       assert(arg->type->kind != TY_ARRAY);
       p->size = type_size(arg->type);
-#ifndef __NO_FLONUM
-      p->is_flonum = is_flonum(arg->type);
-#endif
+      p->is_flo = is_flonum(arg->type);
       p->stack_arg = is_stack_param(arg->type);
 #if defined(VAARG_ON_STACK)
       if (functype->func.vaargs && functype->func.params != NULL && i >= functype->func.params->len)
         p->stack_arg = true;
 #endif
-      bool reg_arg = !p->stack_arg;
-      if (reg_arg) {
-#ifndef __NO_FLONUM
-        if (p->is_flonum)
-          reg_arg = freg_index < MAX_FREG_ARGS;
-        else
-#endif
-          reg_arg = ireg_index < MAX_REG_ARGS;
-      }
-      if (!reg_arg) {
+      if (p->stack_arg || (p->is_flo ? freg_index >= MAX_FREG_ARGS : ireg_index >= MAX_REG_ARGS)) {
         offset = ALIGN(offset, align_size(arg->type));
         p->offset = offset;
         offset += ALIGN(p->size, WORD_SIZE);
         ++stack_arg_count;
       } else {
-#ifndef __NO_FLONUM
-        if (p->is_flonum) {
+        if (p->is_flo) {
           p->reg_index = freg_index++;
           ++freg_arg_count;
-        } else
-#endif
-        {
+        } else {
           p->reg_index = ireg_index++;
           ++reg_arg_count;
         }
@@ -541,21 +503,16 @@ static VReg *gen_funcall(Expr *expr) {
   {
     // Register arguments.
     int iregarg = 0;
-#ifndef __NO_FLONUM
     int fregarg = 0;
-#endif
     for (int i = arg_count; --i >= 0; ) {
       Expr *arg = args->data[i];
       VReg *vreg = gen_expr(arg);
       const ArgInfo *p = &arg_infos[i];
       if (p->offset < 0) {
-#ifndef __NO_FLONUM
-        if (p->is_flonum) {
+        if (p->is_flo) {
           ++fregarg;
           new_ir_pusharg(vreg, freg_arg_count - fregarg);
-        } else
-#endif
-        {
+        } else {
           ++iregarg;
           new_ir_pusharg(vreg, reg_arg_count - iregarg + arg_start);
         }
@@ -698,9 +655,7 @@ VReg *gen_expr(Expr *expr) {
       switch (expr->type->kind) {
       case TY_FIXNUM:
       case TY_PTR:
-#ifndef __NO_FLONUM
       case TY_FLONUM:
-#endif
         result = new_ir_unary(IR_LOAD, vreg, to_vtype(expr->type));
         return result;
 
@@ -731,9 +686,7 @@ VReg *gen_expr(Expr *expr) {
       switch (expr->type->kind) {
       case TY_FIXNUM:
       case TY_PTR:
-#ifndef __NO_FLONUM
       case TY_FLONUM:
-#endif
         result = new_ir_unary(IR_LOAD, vreg, to_vtype(expr->type));
         break;
       default:
@@ -765,9 +718,7 @@ VReg *gen_expr(Expr *expr) {
         switch (lhs->type->kind) {
         case TY_FIXNUM:
         case TY_PTR:
-#ifndef __NO_FLONUM
         case TY_FLONUM:
-#endif
           {
             Scope *scope;
             const VarInfo *varinfo = scope_find(lhs->var.scope, lhs->var.name, &scope);
@@ -792,9 +743,7 @@ VReg *gen_expr(Expr *expr) {
         // Fallthrough to suppress compiler error.
       case TY_FIXNUM:
       case TY_PTR:
-#ifndef __NO_FLONUM
       case TY_FLONUM:
-#endif
         new_ir_store(dst, src);
         break;
       case TY_STRUCT:

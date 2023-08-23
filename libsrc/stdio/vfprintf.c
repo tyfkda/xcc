@@ -9,10 +9,6 @@
 
 #include "_file.h"  // FPUTC
 
-#ifndef __NO_FLONUM
-#include "math.h"
-#endif
-
 #define PRINTF_BUFSIZ  (32)
 #define MIN(a, b)  ((a) < (b) ? (a) : (b))
 #define SIGN(p)  ((p) ? '+' : '-')
@@ -100,6 +96,8 @@ static int sprintsign(FILE *fp, bool negative, bool force, int *porder) {
 }
 
 #ifndef __NO_FLONUM
+#include "math.h"  // isfinite
+
 static double pow10(int order) {
   double a = 1, x = 10;
   for (; order > 0; order >>= 1) {
@@ -131,7 +129,7 @@ static int printfloat(FILE *fp, double x,
   o += snprintullong(fp, int_part, 10, kHexDigits, order, padding);
   FPUTC('.', fp); ++o;
   o += snprintullong(fp, fraction, 10, kHexDigits,
-                      suborder, '0');
+                     suborder, '0');
   return o;
 }
 

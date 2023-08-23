@@ -30,7 +30,6 @@ void dump_type(FILE *fp, const Type *type) {
     default: assert(false); break;
     }
     break;
-#ifndef __NO_FLONUM
   case TY_FLONUM:
     switch (type->flonum.kind) {
     case FL_FLOAT:  fprintf(fp, "float"); break;
@@ -38,7 +37,6 @@ void dump_type(FILE *fp, const Type *type) {
     default: assert(false); break;
     }
     break;
-#endif
   case TY_PTR:
     fprintf(fp, "Ptr<");
     dump_type(fp, type->pa.ptrof);

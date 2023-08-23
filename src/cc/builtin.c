@@ -63,11 +63,9 @@ static VReg *gen_builtin_va_start(Expr *expr) {
       VarInfo *info = params->data[i];
       const Type *t = info->type;
       if (t->kind != TY_STRUCT) {
-#ifndef __NO_FLONUM
         if (is_flonum(t))
           ++f;
         else
-#endif
           ++g;
       }
 

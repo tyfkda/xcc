@@ -91,7 +91,6 @@ enum Opcode {
   INT,
   SYSCALL,
 
-#ifndef __NO_FLONUM
   MOVSD,
   ADDSD,
   SUBSD,
@@ -113,7 +112,6 @@ enum Opcode {
 
   CVTSD2SS,
   CVTSS2SD,
-#endif
 };
 
 enum RegType {
@@ -209,13 +207,11 @@ enum RegType {
   RIP,
 };
 
-#ifndef __NO_FLONUM
 enum RegXmmType {
   NOREGXMM,
   XMM0, XMM1, XMM2, XMM3, XMM4, XMM5, XMM6, XMM7,
   XMM8, XMM9, XMM10, XMM11, XMM12, XMM13, XMM14, XMM15,
 };
-#endif
 
 enum RegSize {
   REG8,
@@ -240,9 +236,7 @@ enum OperandType {
   DEREF_REG,  // *%rax
   DEREF_INDIRECT,  // *ofs(%rax)
   DEREF_INDIRECT_WITH_INDEX,  // *(%rax, %rcx, 4)
-#ifndef __NO_FLONUM
   REG_XMM,
-#endif
 };
 
 enum ExprKind {
@@ -254,9 +248,7 @@ enum ExprKind {
   EX_SUB,
   EX_MUL,
   EX_DIV,
-#ifndef __NO_FLONUM
   EX_FLONUM,
-#endif
 };
 
 typedef struct Expr {
@@ -295,9 +287,7 @@ typedef struct {
       Reg base_reg;
       Reg index_reg;
     } indirect_with_index;
-#ifndef __NO_FLONUM
     enum RegXmmType regxmm;
-#endif
   };
 } Operand;
 
@@ -323,8 +313,6 @@ enum DirectiveType {
   DT_GLOBL,
   DT_LOCAL,
   DT_EXTERN,
-#ifndef __NO_FLONUM
   DT_FLOAT,
   DT_DOUBLE,
-#endif
 };

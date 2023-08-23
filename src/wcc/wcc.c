@@ -1052,6 +1052,9 @@ int main(int argc, char *argv[]) {
   init_preprocessor(ppout);
   define_macro("__ILP32__");
   define_macro("__WASM");
+#if defined(__NO_FLONUM)
+  define_macro("__NO_FLONUM");
+#endif
 
   init_compiler();
 

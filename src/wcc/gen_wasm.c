@@ -124,14 +124,12 @@ static void gen_load(const Type *type) {
       }
     }
     break;
-#ifndef __NO_FLONUM
   case TY_FLONUM:
     if (type->flonum.kind < FL_DOUBLE)
       ADD_CODE(OP_F32_LOAD, 2, 0);
     else
       ADD_CODE(OP_F64_LOAD, 3, 0);
     break;
-#endif
   default: assert(false); break;
   }
 }
@@ -148,14 +146,12 @@ static void gen_store(const Type *type) {
     default: assert(false); break;
     }
     break;
-#ifndef __NO_FLONUM
   case TY_FLONUM:
     if (type->flonum.kind < FL_DOUBLE)
       ADD_CODE(OP_F32_STORE, 2, 0);
     else
       ADD_CODE(OP_F64_STORE, 3, 0);
     break;
-#endif
   default: assert(false); break;
   }
 }
@@ -164,13 +160,10 @@ static void gen_arith(enum ExprKind kind, const Type *type) {
   assert(is_number(type) || ptr_or_array(type));
   int index = 0;
   bool is_unsigned = is_fixnum(type->kind) && type->fixnum.is_unsigned;
-#ifndef __NO_FLONUM
   if (is_flonum(type)) {
     assert(kind < EX_MOD);
     index = type->flonum.kind != FL_FLOAT ? 3 : 2;
-  } else
-#endif
-  {
+  } else {
     index = type_size(type) > I32_SIZE ? 1 : 0;
   }
 
@@ -246,7 +239,6 @@ static void gen_cast(const Type *dst, Type *src) {
         }
       }
       return;
-#ifndef __NO_FLONUM
     case TY_FLONUM:
       {
         static const unsigned char OpTable[][4] = {
@@ -259,11 +251,9 @@ static void gen_cast(const Type *dst, Type *src) {
         ADD_CODE(OpTable[du][index]);
       }
       return;
-#endif
     default: break;
     }
     break;
-#ifndef __NO_FLONUM
   case TY_FLONUM:
     switch (src->kind) {
     case TY_FIXNUM:
@@ -291,7 +281,6 @@ static void gen_cast(const Type *dst, Type *src) {
     default: break;
     }
     break;
-#endif
   case TY_STRUCT:
     assert(same_type_without_qualifier(dst, src, true));
     return;
@@ -545,9 +534,7 @@ static void gen_var(Expr *expr) {
   switch (expr->type->kind) {
   case TY_FIXNUM:
   case TY_PTR:
-#ifndef __NO_FLONUM
   case TY_FLONUM:
-#endif
     {
       Scope *scope;
       const VarInfo *varinfo = scope_find(expr->var.scope, expr->var.name, &scope);
@@ -620,6 +607,7 @@ static void gen_incdec(const Type *type, bool dec) {
       ADD_CODE(ADDSUB_OP[i1 | i2]);
     }
     break;
+#ifndef __NO_FLONUM
   case WT_F32:
   case WT_F64:
     {
@@ -636,6 +624,7 @@ static void gen_incdec(const Type *type, bool dec) {
       ADD_CODE(ADDSUB_OP[i2]);
     }
     break;
+#endif
   default: assert(false); break;
   }
 }
@@ -823,9 +812,7 @@ void gen_expr(Expr *expr, bool needval) {
       switch (lhs->type->kind) {
       case TY_FIXNUM:
       case TY_PTR:
-#ifndef __NO_FLONUM
       case TY_FLONUM:
-#endif
         if (expr->bop.lhs->kind == EX_VAR) {
           const VarInfo *varinfo = scope_find(lhs->var.scope, lhs->var.name, NULL);
           assert(varinfo != NULL);
@@ -889,9 +876,7 @@ void gen_expr(Expr *expr, bool needval) {
       switch (expr->type->kind) {
       case TY_FIXNUM:
       case TY_PTR:
-#ifndef __NO_FLONUM
       case TY_FLONUM:
-#endif
         gen_load(expr->type);
         return;
 
@@ -970,12 +955,9 @@ static void gen_compare_expr(enum ExprKind kind, Expr *lhs, Expr *rhs, bool need
     return;
 
   int index = 0;
-#ifndef __NO_FLONUM
   if (is_flonum(lhs->type)) {
     index = lhs->type->flonum.kind != FL_FLOAT ? 5 : 4;
-  } else
-#endif
-  {
+  } else {
     index = (!is_fixnum(lhs->type->kind) || lhs->type->fixnum.is_unsigned ? 2 : 0) +
         (type_size(lhs->type) > I32_SIZE ? 1 : 0);
   }

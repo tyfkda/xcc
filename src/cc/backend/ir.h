@@ -20,9 +20,7 @@ typedef struct FrameInfo {
 // Virtual register
 
 #define VRTF_UNSIGNED  (1 << 0)
-#ifndef __NO_FLONUM
 #define VRTF_FLONUM    (1 << 1)
-#endif
 
 typedef struct VRegType {
   int size;
@@ -101,9 +99,7 @@ enum ConditionKind {
 enum {
   COND_MASK = 0x07,
   COND_UNSIGNED = 1 << 3,
-#ifndef __NO_FLONUM
   COND_FLONUM = 1 << 4,
-#endif
 };
 
 typedef struct IR {
