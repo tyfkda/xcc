@@ -40,7 +40,7 @@ typedef struct VReg {
   int virt;         // Virtual reg no.
   int phys;         // Physical reg no.
   int flag;
-  int param_index;  // Function parameter index: -1=not a param
+  int reg_param_index;  // Index of function parameter through register: -1=not a register param.
   int64_t fixnum;   // Constant value.
   FrameInfo frame;  // FrameInfo for spilled register.
 } VReg;

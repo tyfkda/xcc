@@ -39,7 +39,7 @@ VReg *reg_alloc_spawn(RegAlloc *ra, const VRegType *vtype, int flag) {
   vreg->fixnum = 0;
   vreg->vtype = vtype;
   vreg->flag = flag;
-  vreg->param_index = -1;
+  vreg->reg_param_index = -1;
   vreg->frame.offset = 0;
 
   vec_push(ra->vregs, vreg);
@@ -256,14 +256,14 @@ static void linear_scan_register_allocation(RegAlloc *ra, LiveInterval **sorted_
     } else {
       int regno = -1;
       for (int j = start_index; j < prsp->phys_max; ++j) {
-        if (!(prsp->using_bits & (1 << j))) {
+        if (!(prsp->using_bits & (1UL << j))) {
           regno = j;
           break;
         }
       }
       assert(regno >= 0);
       li->phys = regno;
-      prsp->using_bits |= 1 << regno;
+      prsp->using_bits |= 1UL << regno;
 
       insert_active(prsp->active, prsp->active_count, li);
       ++prsp->active_count;
@@ -394,7 +394,7 @@ void alloc_physical_registers(RegAlloc *ra, BBContainer *bbcon) {
       }
 
       // Force function parameter spilled.
-      if (vreg->param_index >= 0) {
+      if (vreg->flag & VRF_PARAM) {
         spill_vreg(vreg);
         li->start = 0;
         li->state = LI_SPILL;

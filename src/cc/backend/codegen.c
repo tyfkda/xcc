@@ -63,7 +63,7 @@ static VarInfo *prepare_retvar(Function *func) {
   Scope *top_scope = func->scopes->data[0];
   VarInfo *varinfo = scope_add(top_scope, retval_name, retptrtype, 0);
   VReg *vreg = add_new_reg(varinfo->type, VRF_PARAM);
-  vreg->param_index = 0;
+  vreg->reg_param_index = 0;
   varinfo->local.vreg = vreg;
   FuncBackend *fnbe = func->extra;
   fnbe->retval = vreg;
@@ -105,20 +105,27 @@ static void alloc_variable_registers(Function *func) {
   }
 
   // Handle if return value is on the stack.
-  int param_index_offset = 0;
+  int iregindex = 0;
   if (is_stack_param(func->type->func.ret)) {
     prepare_retvar(func);
-    ++param_index_offset;
+    ++iregindex;
   }
 
   // Add flag to parameters.
+  int fregindex = 0;
   if (func->type->func.params != NULL) {
     for (int i = 0; i < func->type->func.params->len; ++i) {
       VarInfo *varinfo = func->type->func.params->data[i];
       VReg *vreg = varinfo->local.vreg;
       if (vreg != NULL) {
         vreg->flag |= VRF_PARAM;
-        vreg->param_index = i + param_index_offset;
+        if (vreg->vtype->flag & VRTF_FLONUM) {
+          if (fregindex < MAX_FREG_ARGS)
+            vreg->reg_param_index = fregindex++;
+        } else {
+          if (iregindex < MAX_REG_ARGS)
+            vreg->reg_param_index = iregindex++;
+        }
       }
     }
   }
@@ -591,13 +598,14 @@ static void prepare_register_allocation(Function *func) {
     int offset = DEFAULT_OFFSET;
     for (int i = 0; i < func->type->func.params->len; ++i) {
       VarInfo *varinfo = func->type->func.params->data[i];
-      if (!is_prim_type(varinfo->type)) {
+      if (is_stack_param(varinfo->type)) {
         // stack parameters
         FrameInfo *fi = varinfo->local.frameinfo;
         fi->offset = offset = ALIGN(offset, align_size(varinfo->type));
         offset += ALIGN(type_size(varinfo->type), WORD_SIZE);
         continue;
       }
+      assert(is_prim_type(varinfo->type));
 
       VReg *vreg = varinfo->local.vreg;
       assert(vreg != NULL);

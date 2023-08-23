@@ -393,12 +393,12 @@ static bool is_asm(Stmt *stmt) {
 }
 
 static void put_args_to_stack(Function *func) {
-  static const char *kReg8s[] = {DIL, SIL, DL, CL, R8B, R9B};
-  static const char *kReg16s[] = {DI, SI, DX, CX, R8W, R9W};
-  static const char *kReg32s[] = {EDI, ESI, EDX, ECX, R8D, R9D};
-  static const char *kReg64s[] = {RDI, RSI, RDX, RCX, R8, R9};
-  static const char **kRegTable[] = {kReg8s, kReg16s, kReg32s, kReg64s};
-  static const char *kFReg64s[] = {XMM0, XMM1, XMM2, XMM3, XMM4, XMM5, XMM6, XMM7};
+  static const char *kRegParam8s[] = {DIL, SIL, DL, CL, R8B, R9B};
+  static const char *kRegParam16s[] = {DI, SI, DX, CX, R8W, R9W};
+  static const char *kRegParam32s[] = {EDI, ESI, EDX, ECX, R8D, R9D};
+  static const char *kRegParam64s[] = {RDI, RSI, RDX, RCX, R8, R9};
+  static const char **kRegParamTable[] = {kRegParam8s, kRegParam16s, kRegParam32s, kRegParam64s};
+  static const char *kFRegParam64s[] = {XMM0, XMM1, XMM2, XMM3, XMM4, XMM5, XMM6, XMM7};
   static const int kPow2Table[] = {-1, 0, 1, -1, 2, -1, -1, -1, 3};
 #define kPow2TableSize ((int)(sizeof(kPow2Table) / sizeof(*kPow2Table)))
 
@@ -406,7 +406,7 @@ static void put_args_to_stack(Function *func) {
   if (is_stack_param(func->type->func.ret)) {
     // Received as a pointer at the first parameter.
     const int pow = 3;
-    const char *src = kRegTable[pow][0];
+    const char *src = kRegParamTable[pow][0];
     int offset = ((FuncBackend*)func->extra)->retval->frame.offset;
     const char *dst = OFFSET_INDIRECT(offset, RBP, NULL, 1);
     MOV(src, dst);
@@ -430,41 +430,35 @@ static void put_args_to_stack(Function *func) {
 
     if (is_flonum(type)) {
       if (farg_index < MAX_FREG_ARGS) {
+        const char *src = kFRegParam64s[farg_index];
+        assert(offset != 0);
         switch (type->flonum.kind) {
-        case FL_FLOAT:   MOVSS(kFReg64s[farg_index], OFFSET_INDIRECT(offset, RBP, NULL, 1)); break;
-        case FL_DOUBLE:  MOVSD(kFReg64s[farg_index], OFFSET_INDIRECT(offset, RBP, NULL, 1)); break;
+        case FL_FLOAT:   MOVSS(src, OFFSET_INDIRECT(offset, RBP, NULL, 1)); break;
+        case FL_DOUBLE:  MOVSD(src, OFFSET_INDIRECT(offset, RBP, NULL, 1)); break;
         default: assert(false); break;
         }
         ++farg_index;
       }
-      continue;
-    }
-
-    switch (type->kind) {
-    case TY_FIXNUM:
-    case TY_PTR:
-      break;
-    default: assert(false); break;
-    }
-
-    if (arg_index < MAX_REG_ARGS) {
-      int size = type_size(type);
-      assert(0 <= size && size < kPow2TableSize && kPow2Table[size] >= 0);
-      int pow = kPow2Table[size];
-      const char *src = kRegTable[pow][arg_index];
-      MOV(src, OFFSET_INDIRECT(offset, RBP, NULL, 1));
-      ++arg_index;
+    } else {
+      if (arg_index < MAX_REG_ARGS) {
+        int size = type_size(type);
+        assert(0 <= size && size < kPow2TableSize && kPow2Table[size] >= 0);
+        int pow = kPow2Table[size];
+        const char *src = kRegParamTable[pow][arg_index];
+        MOV(src, OFFSET_INDIRECT(offset, RBP, NULL, 1));
+        ++arg_index;
+      }
     }
   }
 
   if (func->type->func.vaargs) {
     for (int i = arg_index; i < MAX_REG_ARGS; ++i) {
       int offset = (i - MAX_REG_ARGS - MAX_FREG_ARGS) * WORD_SIZE;
-      MOV(kReg64s[i], OFFSET_INDIRECT(offset, RBP, NULL, 1));
+      MOV(kRegParam64s[i], OFFSET_INDIRECT(offset, RBP, NULL, 1));
     }
     for (int i = farg_index; i < MAX_FREG_ARGS; ++i) {
       int offset = (i - MAX_FREG_ARGS) * WORD_SIZE;
-      MOVSD(kFReg64s[i], OFFSET_INDIRECT(offset, RBP, NULL, 1));
+      MOVSD(kFRegParam64s[i], OFFSET_INDIRECT(offset, RBP, NULL, 1));
     }
   }
 }
@@ -525,10 +519,10 @@ static void emit_defun(Function *func) {
       stackpos += frame_size;
     }
 
-    put_args_to_stack(func);
-
     // Callee save.
     push_callee_save_regs(fnbe->ra->used_reg_bits, fnbe->ra->used_freg_bits);
+
+    put_args_to_stack(func);
   }
 
   emit_bb_irs(fnbe->bbcon);
