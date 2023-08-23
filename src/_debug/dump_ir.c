@@ -101,11 +101,12 @@ static void dump_func_ir(Function *func) {
       continue;
     for (int j = 0; j < scope->vars->len; ++j) {
       VarInfo *varinfo = scope->vars->data[j];
-      if (varinfo->storage & (VS_STATIC | VS_EXTERN | VS_ENUM_MEMBER) ||
-          varinfo->local.vreg == NULL)
+      if (!is_local_storage(varinfo))
         continue;
-      fprintf(fp, "  V%3d (flag=%x): %.*s\n", varinfo->local.vreg->virt, varinfo->local.vreg->flag,
-              NAMES(varinfo->name));
+      VReg *vreg = varinfo->local.vreg;
+      if (vreg == NULL)
+        continue;
+      fprintf(fp, "  V%3d (flag=%x): %.*s\n", vreg->virt, vreg->flag, NAMES(varinfo->name));
     }
   }
 
@@ -116,10 +117,8 @@ static void dump_func_ir(Function *func) {
     for (int i = 0; i < ra->vregs->len; ++i) {
       LiveInterval *li = sorted_intervals[i];
       VReg *vreg = ra->vregs->data[li->virt];
-      if (vreg == NULL) {
-        fprintf(fp, "  V%3d: unused\n", li->virt);
+      if (vreg == NULL)
         continue;
-      }
 
       switch (li->state) {
       case LI_NORMAL:

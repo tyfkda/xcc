@@ -35,7 +35,7 @@ static VReg *gen_builtin_va_start(Expr *expr) {
   Scope *scope;
   const VarInfo *varinfo = scope_find(ap->var.scope, ap->var.name, &scope);
   assert(varinfo != NULL);
-  if (is_global_scope(scope) || (varinfo->storage & (VS_STATIC | VS_EXTERN))) {
+  if (is_global_scope(scope) || !is_local_storage(varinfo)) {
     parse_error(PE_FATAL, ap->token, "Must be local variable");
     return NULL;
   }

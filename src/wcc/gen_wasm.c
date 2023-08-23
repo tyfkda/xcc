@@ -486,7 +486,7 @@ static void gen_lval(Expr *expr) {
       const VarInfo *varinfo = scope_find(expr->var.scope, expr->var.name, &scope);
       assert(varinfo != NULL && scope == expr->var.scope);
       assert(!is_prim_type(expr->type) || varinfo->storage & VS_REF_TAKEN);
-      if (is_global_scope(scope) || (varinfo->storage & (VS_STATIC | VS_EXTERN))) {
+      if (is_global_scope(scope) || !is_local_storage(varinfo)) {
         if (varinfo->type->kind == TY_FUNC) {
           uint32_t indirect_func = get_indirect_function_index(expr->var.name);
           ADD_CODE(OP_I32_CONST);
@@ -542,7 +542,7 @@ static void gen_var(Expr *expr) {
       if (varinfo->storage & VS_REF_TAKEN) {
         gen_lval(expr);
         gen_load(expr->type);
-      } else if (!is_global_scope(scope) && !(varinfo->storage & (VS_STATIC | VS_EXTERN))) {
+      } else if (!is_global_scope(scope) && is_local_storage(varinfo)) {
         VReg *vreg = varinfo->local.vreg;
         assert(vreg != NULL);
         ADD_CODE(OP_LOCAL_GET);
@@ -634,7 +634,7 @@ static void gen_set_to_var(Expr *var) {
   const VarInfo *varinfo = scope_find(var->var.scope, var->var.name, NULL);
   assert(varinfo != NULL);
   assert(!(varinfo->storage & VS_REF_TAKEN));
-  if (!is_global_scope(var->var.scope) && !(varinfo->storage & (VS_STATIC | VS_EXTERN))) {
+  if (!is_global_scope(var->var.scope) && is_local_storage(varinfo)) {
     VReg *vreg = varinfo->local.vreg;
     assert(vreg != NULL);
     ADD_CODE(OP_LOCAL_SET);
@@ -786,7 +786,7 @@ void gen_expr(Expr *expr, bool needval) {
       Scope *scope;
       const VarInfo *varinfo = scope_find(target->var.scope, target->var.name, &scope);
       assert(varinfo != NULL);
-      if (!is_global_scope(scope) && !(varinfo->storage & (VS_STATIC | VS_EXTERN))) {
+      if (!is_global_scope(scope) && is_local_storage(varinfo)) {
         VReg *vreg = varinfo->local.vreg;
         assert(vreg != NULL);
         ADD_CODE(needval ? OP_LOCAL_TEE : OP_LOCAL_SET);
@@ -1408,7 +1408,7 @@ static uint32_t allocate_local_variables(Function *func, DataStorage *data) {
 
     for (int j = 0; j < scope->vars->len; ++j) {
       VarInfo *varinfo = scope->vars->data[j];
-      if (varinfo->storage & (VS_STATIC | VS_EXTERN | VS_ENUM_MEMBER)) {
+      if (!is_local_storage(varinfo)) {
         // Static entity is allocated in global, not on stack.
         // Extern doesn't have its entity.
         // Enum members are replaced to constant value.
@@ -1483,7 +1483,7 @@ static uint32_t allocate_local_variables(Function *func, DataStorage *data) {
 
     for (int j = 0; j < scope->vars->len; ++j) {
       VarInfo *varinfo = scope->vars->data[j];
-      if (varinfo->storage & (VS_STATIC | VS_EXTERN | VS_ENUM_MEMBER))
+      if (!is_local_storage(varinfo))
         continue;
 
       VReg *vreg = calloc(1, sizeof(*vreg));

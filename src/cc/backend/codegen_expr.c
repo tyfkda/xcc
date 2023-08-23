@@ -220,11 +220,12 @@ static VReg *gen_lval(Expr *expr) {
       assert(varinfo != NULL && scope == expr->var.scope);
       if (is_global_scope(scope))
         return new_ir_iofs(expr->var.name, (varinfo->storage & VS_STATIC) == 0);
-      if (varinfo->storage & VS_STATIC)
+      else if (is_local_storage(varinfo))
+        return new_ir_bofs(varinfo->local.frameinfo, varinfo->local.vreg);
+      else if (varinfo->storage & VS_STATIC)
         return new_ir_iofs(varinfo->static_.gvar->name, false);
-      if (varinfo->storage & VS_EXTERN)
+      else
         return new_ir_iofs(expr->var.name, true);
-      return new_ir_bofs(varinfo->local.frameinfo, varinfo->local.vreg);
     }
   case EX_DEREF:
     return gen_expr(expr->unary.sub);
@@ -269,7 +270,7 @@ static VReg *gen_variable(Expr *expr) {
       Scope *scope;
       const VarInfo *varinfo = scope_find(expr->var.scope, expr->var.name, &scope);
       assert(varinfo != NULL && scope == expr->var.scope);
-      if (!is_global_scope(scope) && !(varinfo->storage & (VS_STATIC | VS_EXTERN))) {
+      if (!is_global_scope(scope) && is_local_storage(varinfo)) {
         assert(varinfo->local.vreg != NULL);
         return varinfo->local.vreg;
       }
@@ -723,7 +724,7 @@ VReg *gen_expr(Expr *expr) {
             Scope *scope;
             const VarInfo *varinfo = scope_find(lhs->var.scope, lhs->var.name, &scope);
             assert(varinfo != NULL);
-            if (!is_global_scope(scope) && !(varinfo->storage & (VS_STATIC | VS_EXTERN))) {
+            if (!is_global_scope(scope) && is_local_storage(varinfo)) {
               assert(varinfo->local.vreg != NULL);
               new_ir_mov(varinfo->local.vreg, src);
               return src;
@@ -769,7 +770,7 @@ VReg *gen_expr(Expr *expr) {
       if (target->kind == EX_VAR && !is_global_scope(target->var.scope)) {
         const VarInfo *vi = scope_find(target->var.scope, target->var.name, NULL);
         assert(vi != NULL);
-        if (!(vi->storage & (VS_STATIC | VS_EXTERN)))
+        if (is_local_storage(vi))
           varinfo = vi;
       }
 

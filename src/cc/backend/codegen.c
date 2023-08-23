@@ -80,7 +80,7 @@ static void alloc_variable_registers(Function *func) {
 
     for (int j = 0; j < scope->vars->len; ++j) {
       VarInfo *varinfo = scope->vars->data[j];
-      if (varinfo->storage & (VS_STATIC | VS_EXTERN | VS_ENUM_MEMBER | VS_TYPEDEF)) {
+      if (!is_local_storage(varinfo)) {
         // Static entity is allocated in global, not on stack.
         // Extern doesn't have its entity.
         // Enum members are replaced to constant value.
@@ -627,7 +627,7 @@ static void prepare_register_allocation(Function *func) {
 
     for (int j = 0; j < scope->vars->len; ++j) {
       VarInfo *varinfo = scope->vars->data[j];
-      if (varinfo->storage & (VS_STATIC | VS_EXTERN | VS_ENUM_MEMBER))
+      if (!is_local_storage(varinfo))
         continue;
       VReg *vreg = varinfo->local.vreg;
       if (vreg == NULL || vreg->flag & VRF_PARAM)
@@ -716,8 +716,7 @@ static void alloc_stack_variables_onto_stack_frame(Function *func) {
 
     for (int j = 0; j < scope->vars->len; ++j) {
       VarInfo *varinfo = scope->vars->data[j];
-      if (varinfo->storage & (VS_STATIC | VS_EXTERN | VS_ENUM_MEMBER | VS_TYPEDEF) ||
-          is_prim_type(varinfo->type))
+      if (!is_local_storage(varinfo) || is_prim_type(varinfo->type))
         continue;
 
       assert(varinfo->local.vreg == NULL);

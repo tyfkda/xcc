@@ -285,7 +285,7 @@ static Expr *make_refer(const Token *tok, Expr *expr) {
       // Variable undeclared error must be raised already, so ignore here.
     } else {
       varinfo->storage |= VS_REF_TAKEN;
-      if ((varinfo->storage & VS_STATIC) != 0 && !is_global_scope(e->var.scope)) {
+      if (varinfo->storage & VS_STATIC && !is_global_scope(e->var.scope)) {
         VarInfo *gvarinfo = varinfo->static_.gvar;
         gvarinfo->storage |= VS_REF_TAKEN;
       }
