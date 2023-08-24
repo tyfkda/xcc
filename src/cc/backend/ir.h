@@ -33,6 +33,7 @@ typedef struct VRegType {
 #define VRF_CONST     (1 << 2)  // Constant
 #define VRF_SPILLED   (1 << 3)  // Spilled
 #define VRF_NO_SPILL  (1 << 4)  // No Spill
+#define VRF_UNUSED    (1 << 9)  // Unused
 
 typedef struct VReg {
   const VRegType *vtype;

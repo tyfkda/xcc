@@ -177,11 +177,12 @@ static void remove_unused_vregs(RegAlloc *ra, BBContainer *bbcon) {
     }
   }
 
-  // Release unused VRegs.
+  // Mark unused VRegs.
   for (int i = 0; i < vreg_count; ++i) {
     if (!vreg_read[i]) {
-      free(ra->vregs->data[i]);
+      VReg *vreg = ra->vregs->data[i];
       ra->vregs->data[i] = NULL;
+      vreg->flag |= VRF_UNUSED;
     }
   }
 
