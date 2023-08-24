@@ -44,7 +44,6 @@ typedef struct VReg {
   FrameInfo frame;  // FrameInfo for spilled register.
 } VReg;
 
-VReg *new_vreg(int vreg_no, const VRegType *vtype, int flag);
 void spill_vreg(VReg *vreg);
 
 // Intermediate Representation

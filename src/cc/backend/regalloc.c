@@ -31,7 +31,17 @@ RegAlloc *new_reg_alloc(int phys_max, int temporary_count) {
 }
 
 VReg *reg_alloc_spawn(RegAlloc *ra, const VRegType *vtype, int flag) {
-  VReg *vreg = new_vreg(ra->vregs->len, vtype, flag);
+  int vreg_no = ra->vregs->len;
+
+  VReg *vreg = malloc_or_die(sizeof(*vreg));
+  vreg->virt = vreg_no;
+  vreg->phys = -1;
+  vreg->fixnum = 0;
+  vreg->vtype = vtype;
+  vreg->flag = flag;
+  vreg->param_index = -1;
+  vreg->frame.offset = 0;
+
   vec_push(ra->vregs, vreg);
   return vreg;
 }

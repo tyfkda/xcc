@@ -13,18 +13,6 @@ static VRegType vtBool    = {.size = 4, .align = 4, .flag = 0};
 
 // Virtual register
 
-VReg *new_vreg(int vreg_no, const VRegType *vtype, int flag) {
-  VReg *vreg = malloc_or_die(sizeof(*vreg));
-  vreg->virt = vreg_no;
-  vreg->phys = -1;
-  vreg->fixnum = 0;
-  vreg->vtype = vtype;
-  vreg->flag = flag;
-  vreg->param_index = -1;
-  vreg->frame.offset = 0;
-  return vreg;
-}
-
 void spill_vreg(VReg *vreg) {
   vreg->phys = -1;  //SPILLED_REG_NO(ra);
   assert(!(vreg->flag & VRF_NO_SPILL));
