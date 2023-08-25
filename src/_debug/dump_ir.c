@@ -31,7 +31,7 @@ static void dump_vreg(FILE *fp, VReg *vreg) {
 }
 
 static void dump_ir(FILE *fp, IR *ir) {
-  static char *kCond[] = {"__", "MP", "EQ", "NE", "LT", "LE", "GE", "GT", "ULT", "ULE", "UGE", "UGT"};
+  static char *kCond[] = {NULL, "MP", "EQ", "NE", "LT", "LE", "GE", "GT", NULL, NULL, NULL, NULL, "ULT", "ULE", "UGE", "UGT"};
 
   switch (ir->kind) {
   case IR_BOFS:   fprintf(fp, "\tBOFS\t"); dump_vreg(fp, ir->dst); fprintf(fp, " = &[rbp %c %d]\n", ir->bofs.frameinfo->offset >= 0 ? '+' : '-', ir->bofs.frameinfo->offset > 0 ? ir->bofs.frameinfo->offset : -ir->bofs.frameinfo->offset); break;
@@ -53,7 +53,7 @@ static void dump_ir(FILE *fp, IR *ir) {
   case IR_NEG:    fprintf(fp, "\tNEG\t"); dump_vreg(fp, ir->dst); fprintf(fp, " = -"); dump_vreg(fp, ir->opr1); fprintf(fp, "\n"); break;
   case IR_BITNOT: fprintf(fp, "\tBITNOT\t"); dump_vreg(fp, ir->dst); fprintf(fp, " = ~"); dump_vreg(fp, ir->opr1); fprintf(fp, "\n"); break;
   case IR_COND:   fprintf(fp, "\tCOND\t"); dump_vreg(fp, ir->dst); fprintf(fp, " = %s\n", kCond[ir->cond.kind]); break;
-  case IR_JMP:    fprintf(fp, "\tJ%s\t%.*s\n", kCond[ir->jmp.cond], NAMES(ir->jmp.bb->label)); break;
+  case IR_JMP:    fprintf(fp, "\tJ%s\t%.*s\n", kCond[ir->jmp.cond & (COND_MASK | COND_UNSIGNED)], NAMES(ir->jmp.bb->label)); break;
   case IR_TJMP:
     fprintf(fp, "\tTJMP\t");
     dump_vreg(fp, ir->opr1);
@@ -133,8 +133,7 @@ static void dump_func_ir(Function *func) {
         fprintf(fp, "  V%3d (flag=%x): live %3d - %3d (spilled, offset=%d)\n", li->virt, vreg->flag, li->start, li->end, vreg->frame.offset);
         break;
       case LI_CONST:
-        fprintf(fp, "  V%3d (flag=%x): (const, value=%" PRId64 ")\n", li->virt, vreg->flag, vreg->fixnum);
-        break;
+        continue;
       default:  assert(false); break;
       }
     }
