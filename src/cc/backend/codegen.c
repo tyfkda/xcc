@@ -131,6 +131,51 @@ static void alloc_variable_registers(Function *func) {
   }
 }
 
+void enumerate_register_params(
+    Function *func, RegParamInfo iargs[], int max_ireg, RegParamInfo fargs[], int max_freg,
+    int *piarg_count, int *pfarg_count) {
+  int iarg_count = 0;
+  int farg_count = 0;
+
+  VReg *retval = ((FuncBackend*)func->extra)->retval;
+  if (retval != NULL) {
+    RegParamInfo *p = &iargs[iarg_count++];
+    p->type = &tyVoid;
+    p->vreg = retval;
+    p->index = 0;
+  }
+
+  const Vector *params = func->type->func.params;
+  if (params != NULL) {
+    int len = params->len;
+    for (int i = 0; i < len; ++i) {
+      const VarInfo *varinfo = params->data[i];
+      const Type *type = varinfo->type;
+      if (is_stack_param(type))
+        continue;
+      VReg *vreg = varinfo->local.vreg;
+      assert(vreg != NULL);
+      RegParamInfo *p = NULL;
+      int index = 0;
+      if (is_flonum(type)) {
+        if (farg_count < max_freg)
+          p = &fargs[index = farg_count++];
+      } else {
+        if (iarg_count < max_ireg)
+          p = &iargs[index = iarg_count++];
+      }
+      if (p != NULL) {
+        p->type = type;
+        p->vreg = vreg;
+        p->index = index;
+      }
+    }
+  }
+
+  *piarg_count = iarg_count;
+  *pfarg_count = farg_count;
+}
+
 static VRegType *get_elem_vtype(const Type *type) {
   const size_t MAX_REG_SIZE = 8;  // TODO:
 
@@ -610,17 +655,18 @@ static void prepare_register_allocation(Function *func) {
       VReg *vreg = varinfo->local.vreg;
       assert(vreg != NULL);
 
-      // Currently, all parameters are force spilled.
-      spill_vreg(vreg);
-
       const bool flo = is_flonum(varinfo->type);
-      if (flo ? freg_index >= MAX_FREG_ARGS : ireg_index >= MAX_REG_ARGS) {
+      if (( flo && freg_index >= MAX_FREG_ARGS) ||
+          (!flo && ireg_index >= MAX_REG_ARGS)) {
         // Function argument passed through the stack.
+        spill_vreg(vreg);
         vreg->frame.offset = offset;
         offset += WORD_SIZE;
       } else if (func->type->func.vaargs) {  // Variadic function parameters.
-        vreg->frame.offset = flo ? (freg_index - MAX_FREG_ARGS) * WORD_SIZE :
-                                   (ireg_index - MAX_REG_ARGS - MAX_FREG_ARGS) * WORD_SIZE;
+        if (i >= func->type->func.params->len) {  // Store vaargs to jmp_buf.
+          vreg->frame.offset = flo ? (freg_index - MAX_FREG_ARGS) * WORD_SIZE :
+                                     (ireg_index - MAX_REG_ARGS - MAX_FREG_ARGS) * WORD_SIZE;
+        }
       }
 
       ireg_index += 1 - flo;
@@ -638,7 +684,7 @@ static void prepare_register_allocation(Function *func) {
       if (!is_local_storage(varinfo))
         continue;
       VReg *vreg = varinfo->local.vreg;
-      if (vreg == NULL || vreg->flag & VRF_PARAM)
+      if (vreg == NULL)
         continue;
 
       assert(is_prim_type(varinfo->type));
@@ -667,6 +713,21 @@ static void detect_living_registers(RegAlloc *ra, BBContainer *bbcon) {
   for (int i = 0; i < maxbit; ++i)
     livings[i] = NULL;
 
+#define VREGFOR(li, ra)  ((VReg*)ra->vregs->data[li->virt])
+#define BITNO(li, ra)    (li->phys + (VREGFOR(li, ra)->vtype->flag & VRTF_FLONUM ? ra->phys_max : 0))
+  // Activate function parameters a priori.
+  for (int i = 0; i < ra->vregs->len; ++i) {
+    LiveInterval *li = ra->sorted_intervals[i];
+    assert(li != NULL);
+    if (li->start >= 0)
+      break;
+    if (li->state != LI_NORMAL || VREGFOR(li, ra) == NULL)
+      continue;
+    int bitno = BITNO(li, ra);
+    living_pregs |= 1UL << bitno;
+    livings[bitno] = li;
+  }
+
   int nip = 0, head = 0;
   for (int i = 0; i < bbcon->bbs->len; ++i) {
     BB *bb = bbcon->bbs->data[i];
@@ -675,11 +736,8 @@ static void detect_living_registers(RegAlloc *ra, BBContainer *bbcon) {
       for (int k = 0; k < maxbit; ++k) {
         LiveInterval *li = livings[k];
         if (li != NULL && nip == li->end) {
-          int phys = li->phys;
-          if (((VReg*)ra->vregs->data[li->virt])->vtype->flag & VRTF_FLONUM)
-            phys += ra->phys_max;
-          assert(phys == k);
-          living_pregs &= ~(1U << phys);
+          assert(BITNO(li, ra) == k);
+          living_pregs &= ~(1UL << k);
           livings[k] = NULL;
         }
       }
@@ -695,22 +753,21 @@ static void detect_living_registers(RegAlloc *ra, BBContainer *bbcon) {
       // Add activated registers.
       for (; head < ra->vregs->len; ++head) {
         LiveInterval *li = ra->sorted_intervals[head];
-        if (ra->vregs->data[li->virt] == NULL)
-          continue;
-        if (li->state != LI_NORMAL)
-          continue;
         if (li->start > nip)
           break;
-        int phys = li->phys;
-        if (((VReg*)ra->vregs->data[li->virt])->vtype->flag & VRTF_FLONUM)
-          phys += ra->phys_max;
+        if (li->state != LI_NORMAL)
+          continue;
         if (nip == li->start) {
-          living_pregs |= 1UL << phys;
-          livings[phys] = li;
+          assert(VREGFOR(li, ra) != NULL);
+          int bitno = BITNO(li, ra);
+          living_pregs |= 1UL << bitno;
+          livings[bitno] = li;
         }
       }
     }
   }
+#undef BITNO
+#undef VREGFOR
 }
 
 static void alloc_stack_variables_onto_stack_frame(Function *func) {
@@ -788,7 +845,8 @@ static void gen_defun(Function *func) {
 
   fnbe->bbcon = new_func_blocks();
   set_curbb(new_bb());
-  fnbe->ra = curra = new_reg_alloc(PHYSICAL_REG_MAX, PHYSICAL_REG_TEMPORARY);
+  extern const int ArchRegParamMapping[];
+  fnbe->ra = curra = new_reg_alloc(ArchRegParamMapping, PHYSICAL_REG_MAX, PHYSICAL_REG_TEMPORARY);
 #ifndef __NO_FLONUM
   fnbe->ra->fphys_max = PHYSICAL_FREG_MAX;
   fnbe->ra->fphys_temporary_count = PHYSICAL_FREG_TEMPORARY;

@@ -29,7 +29,9 @@ static const int kCalleeSaveRegs[] = {8, 9, 10, 11, 12, 13, 14, 15, 16};
 #define CALLER_SAVE_REG_COUNT  ((int)(sizeof(kCallerSaveRegs) / sizeof(*kCallerSaveRegs)))
 static const int kCallerSaveRegs[] = {17, 18, 19, 20, 21, 22, 23, 24};
 
-static const char **kRegSizeTable[] = {kReg32s, kReg32s, kReg32s, kReg64s};
+const int ArchRegParamMapping[] = {0, 1, 2, 3, 4, 5, 6, 7};
+
+const char **kRegSizeTable[] = {kReg32s, kReg32s, kReg32s, kReg64s};
 static const char *kZeroRegTable[] = {WZR, WZR, WZR, XZR};
 static const char *kRetRegTable[] = {W0, W0, W0, X0};
 
@@ -38,13 +40,13 @@ static const char *kTmpRegTable[] = {W9, W9, W9, X9};
 
 #define SZ_FLOAT   (4)
 #define SZ_DOUBLE  (8)
-static const char *kFReg32s[PHYSICAL_FREG_MAX] = {
+const char *kFReg32s[PHYSICAL_FREG_MAX] = {
    S0,  S1,  S2,  S3,  S4,  S5,  S6,  S7,
    S8,  S9, S10, S11, S12, S13, S14, S15,
   S16, S17, S18, S19, S20, S21, S22, S23,
   S24, S25, S26, S27, S28, S29, S30, S31,
 };
-static const char *kFReg64s[PHYSICAL_FREG_MAX] = {
+const char *kFReg64s[PHYSICAL_FREG_MAX] = {
    D0,  D1,  D2,  D3,  D4,  D5,  D6,  D7,
    D8,  D9, D10, D11, D12, D13, D14, D15,
   D16, D17, D18, D19, D20, D21, D22, D23,

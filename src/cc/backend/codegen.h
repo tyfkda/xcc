@@ -7,6 +7,7 @@
 
 typedef struct BB BB;
 typedef struct Expr Expr;
+typedef struct Function Function;
 typedef struct Stmt Stmt;
 typedef struct StructInfo StructInfo;
 typedef struct Type Type;
@@ -39,3 +40,13 @@ void add_builtin_function(const char *str, Type *type, BuiltinFunctionProc *proc
 
 void gen_clear_local_var(const VarInfo *varinfo);
 void gen_memcpy(const Type *type, VReg *dst, VReg *src);
+
+typedef struct {
+  const Type *type;
+  VReg *vreg;
+  int index;
+} RegParamInfo;
+
+void enumerate_register_params(
+    Function *func, RegParamInfo iargs[], int max_ireg, RegParamInfo fargs[], int max_freg,
+    int *piarg_count, int *pfarg_count);
