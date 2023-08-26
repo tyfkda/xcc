@@ -56,7 +56,7 @@ unsigned long detect_extra_occupied(IR *ir) {
   unsigned long ioccupy = 0;
   switch (ir->kind) {
   case IR_MUL: case IR_DIV: case IR_MOD:
-    if (!(ir->dst->vtype.flag & VRTF_FLONUM))
+    if (!(ir->dst->flag & VRF_FLONUM))
       ioccupy = (1UL << GET_DREG_INDEX()) | (1UL << GET_AREG_INDEX());
     break;
   case IR_LSHIFT: case IR_RSHIFT:
@@ -129,7 +129,7 @@ static void ir_out(IR *ir) {
         src = OFFSET_INDIRECT(ir->opr1->frame.offset, RBP, NULL, 1);
       }
 
-      if (ir->dst->vtype.flag & VRTF_FLONUM) {
+      if (ir->dst->flag & VRF_FLONUM) {
         switch (ir->dst->vtype.size) {
         case SZ_FLOAT:  MOVSS(src, kFReg64s[ir->dst->phys]); break;
         case SZ_DOUBLE: MOVSD(src, kFReg64s[ir->dst->phys]); break;
@@ -158,7 +158,7 @@ static void ir_out(IR *ir) {
         target = OFFSET_INDIRECT(ir->opr2->frame.offset, RBP, NULL, 1);
       }
 
-      if (ir->opr1->vtype.flag & VRTF_FLONUM) {
+      if (ir->opr1->flag & VRF_FLONUM) {
         switch (ir->opr1->vtype.size) {
         case SZ_FLOAT:  MOVSS(kFReg64s[ir->opr1->phys], target); break;
         case SZ_DOUBLE: MOVSD(kFReg64s[ir->opr1->phys], target); break;
@@ -187,7 +187,7 @@ static void ir_out(IR *ir) {
   case IR_ADD:
     {
       assert(ir->dst->phys == ir->opr1->phys);
-      if (ir->dst->vtype.flag & VRTF_FLONUM) {
+      if (ir->dst->flag & VRF_FLONUM) {
         const char **regs = kFReg64s;
         switch (ir->dst->vtype.size) {
         case SZ_FLOAT: ADDSS(regs[ir->opr2->phys], regs[ir->dst->phys]); break;
@@ -220,7 +220,7 @@ static void ir_out(IR *ir) {
   case IR_SUB:
     {
       assert(ir->dst->phys == ir->opr1->phys);
-      if (ir->dst->vtype.flag & VRTF_FLONUM) {
+      if (ir->dst->flag & VRF_FLONUM) {
         const char **regs = kFReg64s;
         switch (ir->dst->vtype.size) {
         case SZ_FLOAT: SUBSS(regs[ir->opr2->phys], regs[ir->dst->phys]); break;
@@ -252,7 +252,7 @@ static void ir_out(IR *ir) {
 
   case IR_MUL:
     assert(!(ir->opr1->flag & VRF_CONST) && !(ir->opr2->flag & VRF_CONST));
-    if (ir->dst->vtype.flag & VRTF_FLONUM) {
+    if (ir->dst->flag & VRF_FLONUM) {
       assert(ir->dst->phys == ir->opr1->phys);
       const char **regs = kFReg64s;
       switch (ir->dst->vtype.size) {
@@ -279,7 +279,7 @@ static void ir_out(IR *ir) {
 
   case IR_DIV:
     assert(!(ir->opr1->flag & VRF_CONST) && !(ir->opr2->flag & VRF_CONST));
-    if (ir->dst->vtype.flag & VRTF_FLONUM) {
+    if (ir->dst->flag & VRF_FLONUM) {
       assert(ir->dst->phys == ir->opr1->phys);
       const char **regs = kFReg64s;
       switch (ir->dst->vtype.size) {
@@ -291,7 +291,7 @@ static void ir_out(IR *ir) {
       assert(ir->dst->phys == ir->opr1->phys);
       assert(ir->opr2->phys != GET_AREG_INDEX());
       // Break %ax
-      if (!(ir->dst->vtype.flag & VRTF_UNSIGNED)) {
+      if (!(ir->dst->flag & VRF_UNSIGNED)) {
         if (ir->opr1->phys != GET_AREG_INDEX())
           MOVSX(kReg8s[ir->opr1->phys], AX);
         IDIV(kReg8s[ir->opr2->phys]);
@@ -313,7 +313,7 @@ static void ir_out(IR *ir) {
       const char *a = regs[GET_AREG_INDEX()];
       if (ir->opr1->phys != GET_AREG_INDEX())
         MOV(regs[ir->opr1->phys], a);
-      if (!(ir->dst->vtype.flag & VRTF_UNSIGNED)) {
+      if (!(ir->dst->flag & VRF_UNSIGNED)) {
         switch (pow) {
         case 1: CWTL(); break;
         case 2: CLTD(); break;
@@ -341,7 +341,7 @@ static void ir_out(IR *ir) {
       assert(ir->dst->phys == ir->opr1->phys);
       assert(ir->opr2->phys != GET_AREG_INDEX());
       // Break %ax
-      if (!(ir->dst->vtype.flag & VRTF_UNSIGNED)) {
+      if (!(ir->dst->flag & VRF_UNSIGNED)) {
         if (ir->opr1->phys != GET_AREG_INDEX())
           MOVSX(kReg8s[ir->opr1->phys], AX);
         IDIV(kReg8s[ir->opr2->phys]);
@@ -366,7 +366,7 @@ static void ir_out(IR *ir) {
       const char *a = regs[GET_AREG_INDEX()];
       if (ir->opr1->phys != GET_AREG_INDEX())
         MOV(regs[ir->opr1->phys], a);
-      if (!(ir->dst->vtype.flag & VRTF_UNSIGNED)) {
+      if (!(ir->dst->flag & VRF_UNSIGNED)) {
         switch (pow) {
         case 1: CWTL(); break;
         case 2: CLTD(); break;
@@ -456,7 +456,7 @@ static void ir_out(IR *ir) {
     break;
   case IR_RSHIFT:
     {
-#define RSHIFT_INST(n, x)  do  { if (ir->opr1->vtype.flag & VRTF_UNSIGNED) SHR(n, x); else SAR(n, x); } while (0)
+#define RSHIFT_INST(n, x)  do  { if (ir->opr1->flag & VRF_UNSIGNED) SHR(n, x); else SAR(n, x); } while (0)
       assert(ir->dst->phys == ir->opr1->phys);
       assert(!(ir->opr1->flag & VRF_CONST));
       assert(0 <= ir->dst->vtype.size && ir->dst->vtype.size < kPow2TableSize);
@@ -479,8 +479,8 @@ static void ir_out(IR *ir) {
 
   case IR_CMP:
     {
-      if (ir->opr1->vtype.flag & VRTF_FLONUM) {
-        assert(ir->opr2->vtype.flag & VRTF_FLONUM);
+      if (ir->opr1->flag & VRF_FLONUM) {
+        assert(ir->opr2->flag & VRF_FLONUM);
         switch (ir->opr1->vtype.size) {
         case SZ_FLOAT: UCOMISS(kFReg64s[ir->opr2->phys], kFReg64s[ir->opr1->phys]); break;
         case SZ_DOUBLE: UCOMISD(kFReg64s[ir->opr2->phys], kFReg64s[ir->opr1->phys]); break;
@@ -639,7 +639,7 @@ static void ir_out(IR *ir) {
 
   case IR_PUSHARG:
     {
-      if (ir->opr1->vtype.flag & VRTF_FLONUM) {
+      if (ir->opr1->flag & VRF_FLONUM) {
         static const char *kArgFReg64s[] = {XMM0, XMM1, XMM2, XMM3, XMM4, XMM5, XMM6, XMM7};
         switch (ir->opr1->vtype.size) {
         case SZ_FLOAT: MOVSS(kFReg64s[ir->opr1->phys], kArgFReg64s[ir->pusharg.index]); break;
@@ -674,7 +674,7 @@ static void ir_out(IR *ir) {
         int total_arg_count = ir->call.total_arg_count;
         int freg = 0;
         for (int i = 0; i < total_arg_count; ++i) {
-          if (ir->call.args[i]->vtype.flag & VRTF_FLONUM) {
+          if (ir->call.args[i]->flag & VRF_FLONUM) {
             ++freg;
             if (freg >= MAX_FREG_ARGS)
               break;
@@ -709,7 +709,7 @@ static void ir_out(IR *ir) {
 
       if (ir->dst != NULL) {
         assert(0 < ir->dst->vtype.size && ir->dst->vtype.size < kPow2TableSize);
-        if (ir->dst->vtype.flag & VRTF_FLONUM) {
+        if (ir->dst->flag & VRF_FLONUM) {
           switch (ir->dst->vtype.size) {
           case SZ_FLOAT: MOVSS(XMM0, kFReg64s[ir->dst->phys]); break;
           case SZ_DOUBLE: MOVSD(XMM0, kFReg64s[ir->dst->phys]); break;
@@ -727,7 +727,7 @@ static void ir_out(IR *ir) {
     break;
 
   case IR_RESULT:
-    if (ir->opr1->vtype.flag & VRTF_FLONUM) {
+    if (ir->opr1->flag & VRF_FLONUM) {
       switch (ir->opr1->vtype.size) {
       case SZ_FLOAT: MOVSS(kFReg64s[ir->opr1->phys], XMM0); break;
       case SZ_DOUBLE: MOVSD(kFReg64s[ir->opr1->phys], XMM0); break;
@@ -761,8 +761,8 @@ static void ir_out(IR *ir) {
 
   case IR_CAST:
     assert((ir->opr1->flag & VRF_CONST) == 0);
-    if (ir->dst->vtype.flag & VRTF_FLONUM) {
-      if (ir->opr1->vtype.flag & VRTF_FLONUM) {
+    if (ir->dst->flag & VRF_FLONUM) {
+      if (ir->opr1->flag & VRF_FLONUM) {
         // flonum->flonum
         // Assume flonum are just two types.
         switch (ir->dst->vtype.size) {
@@ -775,7 +775,7 @@ static void ir_out(IR *ir) {
         assert(0 <= ir->opr1->vtype.size && ir->opr1->vtype.size < kPow2TableSize);
         int pows = kPow2Table[ir->opr1->vtype.size];
         if (pows < 2) {
-          if (ir->opr1->vtype.flag & VRTF_UNSIGNED)
+          if (ir->opr1->flag & VRF_UNSIGNED)
             MOVZX(kRegSizeTable[pows][ir->opr1->phys], kRegSizeTable[2][ir->opr1->phys]);
           else
             MOVSX(kRegSizeTable[pows][ir->opr1->phys], kRegSizeTable[2][ir->opr1->phys]);
@@ -783,7 +783,7 @@ static void ir_out(IR *ir) {
         }
         const char *s = kRegSizeTable[pows][ir->opr1->phys];
         const char *d = kFReg64s[ir->dst->phys];
-        if (!(ir->opr1->vtype.flag & VRTF_UNSIGNED)) {
+        if (!(ir->opr1->flag & VRF_UNSIGNED)) {
           switch (ir->dst->vtype.size) {
           case SZ_FLOAT:   CVTSI2SS(s, d); break;
           case SZ_DOUBLE:  CVTSI2SD(s, d); break;
@@ -823,7 +823,7 @@ static void ir_out(IR *ir) {
         }
       }
       break;
-    } else if (ir->opr1->vtype.flag & VRTF_FLONUM) {
+    } else if (ir->opr1->flag & VRF_FLONUM) {
       // flonum->fix
       int powd = kPow2Table[ir->dst->vtype.size];
       if (powd < 2)
@@ -852,7 +852,7 @@ static void ir_out(IR *ir) {
       int powd = kPow2Table[ir->dst->vtype.size];
       assert(0 <= pows && pows < 4);
       assert(0 <= powd && powd < 4);
-      if (ir->opr1->vtype.flag & VRTF_UNSIGNED) {
+      if (ir->opr1->flag & VRF_UNSIGNED) {
         if (pows == 2 && powd == 3) {
           // MOVZX %64bit, %32bit doesn't exist!
           if (ir->dst->phys != ir->opr1->phys)
@@ -868,7 +868,7 @@ static void ir_out(IR *ir) {
 
   case IR_MOV:
     {
-      if (ir->dst->vtype.flag & VRTF_FLONUM) {
+      if (ir->dst->flag & VRF_FLONUM) {
         if (ir->opr1->phys != ir->dst->phys) {
           switch (ir->dst->vtype.size) {
           case SZ_FLOAT: MOVSS(kFReg64s[ir->opr1->phys], kFReg64s[ir->dst->phys]); break;

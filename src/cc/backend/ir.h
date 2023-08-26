@@ -19,13 +19,9 @@ typedef struct FrameInfo {
 
 // Virtual register
 
-#define VRTF_UNSIGNED  (1 << 0)
-#define VRTF_FLONUM    (1 << 1)
-
 typedef struct VRegType {
   int size;
   int align;
-  int flag;
 } VRegType;
 
 #define VRF_PARAM     (1 << 0)  // Function parameter
@@ -33,7 +29,11 @@ typedef struct VRegType {
 #define VRF_CONST     (1 << 2)  // Constant
 #define VRF_SPILLED   (1 << 3)  // Spilled
 #define VRF_NO_SPILL  (1 << 4)  // No Spill
+#define VRF_UNSIGNED  (1 << 5)  // Unsigned?
+#define VRF_FLONUM    (1 << 6)  // Floating-point register?
 #define VRF_UNUSED    (1 << 9)  // Unused
+
+#define VRF_MASK      (VRF_UNSIGNED | VRF_FLONUM)
 
 typedef struct VReg {
   VRegType vtype;
@@ -158,9 +158,9 @@ typedef struct IR {
   };
 } IR;
 
-VReg *new_const_vreg(int64_t value, VRegType vtype);
+VReg *new_const_vreg(int64_t value, VRegType vtype, int vflag);
 VReg *new_ir_bop(enum IrKind kind, VReg *opr1, VReg *opr2, VRegType vtype);
-VReg *new_ir_unary(enum IrKind kind, VReg *opr, VRegType vtype);
+VReg *new_ir_unary(enum IrKind kind, VReg *opr, VRegType vtype, int vflag);
 IR *new_ir_mov(VReg *dst, VReg *src);
 VReg *new_ir_bofs(FrameInfo *fi, VReg *src);
 VReg *new_ir_iofs(const Name *label, bool global);
@@ -172,10 +172,10 @@ void new_ir_jmp(enum ConditionKind cond, BB *bb);
 void new_ir_tjmp(VReg *val, BB **bbs, size_t len);
 IR *new_ir_precall(int arg_count, int stack_args_size);
 void new_ir_pusharg(VReg *vreg, int index);
-VReg *new_ir_call(const Name *label, bool global, VReg *freg, int total_arg_count, int reg_arg_count, const VRegType *result_type, IR *precall, VReg **args, int vaarg_start);
+VReg *new_ir_call(const Name *label, bool global, VReg *freg, int total_arg_count, int reg_arg_count, const VRegType *result_type, int result_flag, IR *precall, VReg **args, int vaarg_start);
 void new_ir_result(VReg *vreg);
 void new_ir_subsp(VReg *value, VReg *dst);
-VReg *new_ir_cast(VReg *vreg, VRegType dsttype);
+VReg *new_ir_cast(VReg *vreg, VRegType dsttype, int vflag);
 void new_ir_asm(const char *asm_, VReg *dst);
 
 IR *new_ir_load_spilled(VReg *vreg, VReg *src);

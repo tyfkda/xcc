@@ -26,7 +26,7 @@ static void dump_vreg(FILE *fp, VReg *vreg) {
     fprintf(fp, "(%" PRId64 ")", vreg->fixnum);
   } else {
     char regtype = 'R';
-    if (vreg->vtype.flag & VRTF_FLONUM)
+    if (vreg->flag & VRF_FLONUM)
       regtype = 'F';
     fprintf(fp, "%c%d%s<v%d>", regtype, vreg->phys, kSize[vreg->vtype.size], vreg->virt);
   }
@@ -45,7 +45,7 @@ static void dump_ir(FILE *fp, IR *ir) {
   switch (ir->kind) {
   case IR_DIV:
   case IR_MOD:
-    fprintf(fp, "%s%s\t", kOps[ir->kind], ir->dst->vtype.flag & VRTF_UNSIGNED ? "U" : "");
+    fprintf(fp, "%s%s\t", kOps[ir->kind], ir->dst->flag & VRF_UNSIGNED ? "U" : "");
     break;
   case IR_JMP:
     fprintf(fp, "J%s\t", kCond[ir->jmp.cond & (COND_MASK | COND_UNSIGNED)]);
@@ -145,7 +145,7 @@ static void dump_func_ir(Function *func) {
       case LI_NORMAL:
         {
           char regtype = 'R';
-          if (vreg->vtype.flag & VRTF_FLONUM)
+          if (vreg->flag & VRF_FLONUM)
             regtype = 'F';
           fprintf(fp, "  V%3d (flag=%x): live %3d - %3d, => %c%3d", li->virt, vreg->flag, li->start, li->end, regtype, li->phys);
           if (li->occupied_reg_bit != 0)

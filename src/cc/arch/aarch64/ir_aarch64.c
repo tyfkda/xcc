@@ -190,7 +190,7 @@ static void ir_out(IR *ir) {
       }
 
       const char *dst;
-      if (ir->dst->vtype.flag & VRTF_FLONUM) {
+      if (ir->dst->flag & VRF_FLONUM) {
         switch (ir->dst->vtype.size) {
         case SZ_FLOAT:   dst = kFReg32s[ir->dst->phys]; break;
         case SZ_DOUBLE:  dst = kFReg64s[ir->dst->phys]; break;
@@ -205,12 +205,12 @@ static void ir_out(IR *ir) {
         dst = regs[ir->dst->phys];
         switch (pow) {
         case 0:
-          if (ir->dst->vtype.flag & VRTF_UNSIGNED) LDRB(dst, src);
-          else                                     LDRSB(dst, src);
+          if (ir->dst->flag & VRF_UNSIGNED) LDRB(dst, src);
+          else                              LDRSB(dst, src);
           break;
         case 1:
-          if (ir->dst->vtype.flag & VRTF_UNSIGNED) LDRH(dst, src);
-          else                                     LDRSH(dst, src);
+          if (ir->dst->flag & VRF_UNSIGNED) LDRH(dst, src);
+          else                              LDRSH(dst, src);
           break;
         case 2: case 3:
           LDR(dst, src);
@@ -242,7 +242,7 @@ static void ir_out(IR *ir) {
         }
       }
       const char *src;
-      if (ir->opr1->vtype.flag & VRTF_FLONUM) {
+      if (ir->opr1->flag & VRF_FLONUM) {
         switch (ir->opr1->vtype.size) {
         default: assert(false); // Fallthrough
         case SZ_FLOAT:   src = kFReg32s[ir->opr1->phys]; break;
@@ -252,7 +252,7 @@ static void ir_out(IR *ir) {
         if (ir->opr1->fixnum == 0)
           src = kZeroRegTable[pow];
         else
-          mov_immediate(src = kTmpRegTable[pow], ir->opr1->fixnum, pow >= 3, ir->opr1->vtype.flag & VRTF_UNSIGNED);
+          mov_immediate(src = kTmpRegTable[pow], ir->opr1->fixnum, pow >= 3, ir->opr1->flag & VRF_UNSIGNED);
       } else {
         src = kRegSizeTable[pow][ir->opr1->phys];
       }
@@ -267,7 +267,7 @@ static void ir_out(IR *ir) {
 
   case IR_ADD:
     {
-      if (ir->dst->vtype.flag & VRTF_FLONUM) {
+      if (ir->dst->flag & VRF_FLONUM) {
         const char **regs;
         switch (ir->dst->vtype.size) {
         default: assert(false);  // Fallthrough
@@ -293,7 +293,7 @@ static void ir_out(IR *ir) {
 
   case IR_SUB:
     {
-      if (ir->dst->vtype.flag & VRTF_FLONUM) {
+      if (ir->dst->flag & VRF_FLONUM) {
         const char **regs;
         switch (ir->dst->vtype.size) {
         default: assert(false);  // Fallthrough
@@ -319,7 +319,7 @@ static void ir_out(IR *ir) {
 
   case IR_MUL:
     {
-      if (ir->dst->vtype.flag & VRTF_FLONUM) {
+      if (ir->dst->flag & VRF_FLONUM) {
         const char **regs;
         switch (ir->dst->vtype.size) {
         default: assert(false);  // Fallthrough
@@ -340,7 +340,7 @@ static void ir_out(IR *ir) {
 
   case IR_DIV:
     {
-      if (ir->dst->vtype.flag & VRTF_FLONUM) {
+      if (ir->dst->flag & VRF_FLONUM) {
         const char **regs;
         switch (ir->dst->vtype.size) {
         default: assert(false);  // Fallthrough
@@ -355,7 +355,7 @@ static void ir_out(IR *ir) {
       int pow = kPow2Table[ir->dst->vtype.size];
       assert(0 <= pow && pow < 4);
       const char **regs = kRegSizeTable[pow];
-      if (!(ir->dst->vtype.flag & VRTF_UNSIGNED))
+      if (!(ir->dst->flag & VRF_UNSIGNED))
         SDIV(regs[ir->dst->phys], regs[ir->opr1->phys], regs[ir->opr2->phys]);
       else
         UDIV(regs[ir->dst->phys], regs[ir->opr1->phys], regs[ir->opr2->phys]);
@@ -372,7 +372,7 @@ static void ir_out(IR *ir) {
       const char *num = regs[ir->opr1->phys];
       const char *div = regs[ir->opr2->phys];
       const char *tmp = kTmpRegTable[pow];
-      if (!(ir->dst->vtype.flag & VRTF_UNSIGNED))
+      if (!(ir->dst->flag & VRF_UNSIGNED))
         SDIV(tmp, num, div);
       else
         UDIV(tmp, num, div);
@@ -442,7 +442,7 @@ static void ir_out(IR *ir) {
     break;
 
   case IR_RESULT:
-    if (ir->opr1->vtype.flag & VRTF_FLONUM) {
+    if (ir->opr1->flag & VRF_FLONUM) {
       if (ir->opr1->phys != 0) {  // Source is not return register.
         const char *src, *dst;
         switch (ir->opr1->vtype.size) {
@@ -457,7 +457,7 @@ static void ir_out(IR *ir) {
       int pow = kPow2Table[ir->opr1->vtype.size];
       assert(0 <= pow && pow < 4);
       if (ir->opr1->flag & VRF_CONST) {
-        mov_immediate(kRetRegTable[pow], ir->opr1->fixnum, pow >= 3, ir->opr1->vtype.flag & VRTF_UNSIGNED);
+        mov_immediate(kRetRegTable[pow], ir->opr1->fixnum, pow >= 3, ir->opr1->flag & VRF_UNSIGNED);
       } else if (ir->opr1->phys != ArchRegParamMapping[0]) {  // Source is not return register.
         MOV(kRetRegTable[pow], kRegSizeTable[pow][ir->opr1->phys]);
       }
@@ -480,7 +480,7 @@ static void ir_out(IR *ir) {
 
   case IR_MOV:
     {
-      if (ir->dst->vtype.flag & VRTF_FLONUM) {
+      if (ir->dst->flag & VRF_FLONUM) {
         if (ir->opr1->phys != ir->dst->phys) {
           const char *src, *dst;
           switch (ir->dst->vtype.size) {
@@ -498,7 +498,7 @@ static void ir_out(IR *ir) {
       assert(0 <= pow && pow < 4);
       const char **regs = kRegSizeTable[pow];
       if (ir->opr1->flag & VRF_CONST) {
-        mov_immediate(regs[ir->dst->phys], ir->opr1->fixnum, pow >= 3, ir->opr1->vtype.flag & VRTF_UNSIGNED);
+        mov_immediate(regs[ir->dst->phys], ir->opr1->fixnum, pow >= 3, ir->opr1->flag & VRF_UNSIGNED);
       } else {
         if (ir->opr1->phys != ir->dst->phys)
           MOV(regs[ir->dst->phys], regs[ir->opr1->phys]);
@@ -508,8 +508,8 @@ static void ir_out(IR *ir) {
 
   case IR_CMP:
     {
-      if (ir->opr1->vtype.flag & VRTF_FLONUM) {
-        assert(ir->opr2->vtype.flag & VRTF_FLONUM);
+      if (ir->opr1->flag & VRF_FLONUM) {
+        assert(ir->opr2->flag & VRF_FLONUM);
         const char *opr1, *opr2;
         switch (ir->opr1->vtype.size) {
         default: assert(false); // Fallthrough
@@ -659,7 +659,7 @@ static void ir_out(IR *ir) {
       assert(!(ir->opr1->flag & VRF_CONST));
       assert(0 < ir->opr1->vtype.size && ir->opr1->vtype.size < kPow2TableSize);
       int pow = kPow2Table[ir->opr1->vtype.size];
-      if (ir->opr1->vtype.flag & VRTF_FLONUM) {
+      if (ir->opr1->flag & VRF_FLONUM) {
         static const char *kArgFReg32s[] = {S0, S1, S2, S3, S4, S5, S6, S7};
         static const char *kArgFReg64s[] = {D0, D1, D2, D3, D4, D5, D6, D7};
         switch (ir->opr1->vtype.size) {
@@ -700,7 +700,7 @@ static void ir_out(IR *ir) {
 
       if (ir->dst != NULL) {
         assert(0 < ir->dst->vtype.size && ir->dst->vtype.size < kPow2TableSize);
-        if (ir->dst->vtype.flag & VRTF_FLONUM) {
+        if (ir->dst->flag & VRF_FLONUM) {
           if (ir->dst->phys != 0) {  // Destination is not return register.
             const char *src, *dst;
             switch (ir->dst->vtype.size) {
@@ -724,8 +724,8 @@ static void ir_out(IR *ir) {
 
   case IR_CAST:
     assert((ir->opr1->flag & VRF_CONST) == 0);
-    if (ir->dst->vtype.flag & VRTF_FLONUM) {
-      if (ir->opr1->vtype.flag & VRTF_FLONUM) {
+    if (ir->dst->flag & VRF_FLONUM) {
+      if (ir->opr1->flag & VRF_FLONUM) {
         // flonum->flonum
         // Assume flonum are just two types.
         const char *src, *dst;
@@ -747,11 +747,11 @@ static void ir_out(IR *ir) {
         default: assert(false); break;
         }
         const char *src = kRegSizeTable[pows][ir->opr1->phys];
-        if (ir->opr1->vtype.flag & VRTF_UNSIGNED)  UCVTF(dst, src);
-        else                                       SCVTF(dst, src);
+        if (ir->opr1->flag & VRF_UNSIGNED)  UCVTF(dst, src);
+        else                                SCVTF(dst, src);
       }
       break;
-    } else if (ir->opr1->vtype.flag & VRTF_FLONUM) {
+    } else if (ir->opr1->flag & VRF_FLONUM) {
       // flonum->fix
       int powd = kPow2Table[ir->dst->vtype.size];
       switch (ir->opr1->vtype.size) {
@@ -778,7 +778,7 @@ static void ir_out(IR *ir) {
       int powd = kPow2Table[ir->dst->vtype.size];
       assert(0 <= pows && pows < 4);
       assert(0 <= powd && powd < 4);
-      if (ir->opr1->vtype.flag & VRTF_UNSIGNED) {
+      if (ir->opr1->flag & VRF_UNSIGNED) {
         switch (pows) {
         case 0:  UXTB(kRegSizeTable[powd][ir->dst->phys], kRegSizeTable[pows][ir->opr1->phys]); break;
         case 1:  UXTH(kRegSizeTable[powd][ir->dst->phys], kRegSizeTable[pows][ir->opr1->phys]); break;

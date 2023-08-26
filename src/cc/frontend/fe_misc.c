@@ -521,7 +521,8 @@ Expr *new_expr_addsub(enum ExprKind kind, const Token *tok, Expr *lhs, Expr *rhs
         return new_expr_fixlit(&tySize, tok, (lhs->fixnum - rhs->fixnum) / type_size(ltype->pa.ptrof));
       }
       return new_expr_bop(EX_DIV, &tySSize, tok,
-                          new_expr_bop(EX_SUB, &tySSize, tok, lhs, rhs),
+                          make_cast(&tySSize, tok,
+                              new_expr_bop(EX_SUB, &tySize, tok, lhs, rhs), false),
                           new_expr_fixlit(&tySSize, tok, type_size(ltype->pa.ptrof)));
     }
   } else if (ptr_or_array(rtype)) {
