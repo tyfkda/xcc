@@ -97,9 +97,7 @@ static int continue_depth;
 unsigned char to_wtype(const Type *type) {
   switch (type->kind) {
   case TY_FIXNUM: return type_size(type) <= I32_SIZE ? WT_I32 : WT_I64;
-#ifndef __NO_FLONUM
   case TY_FLONUM: return type->flonum.kind == FL_FLOAT ? WT_F32 : WT_F64;
-#endif
   case TY_PTR:
   case TY_ARRAY:
     // Pointer and array is handled as an index of linear memroy.

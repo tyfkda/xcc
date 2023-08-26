@@ -295,10 +295,10 @@ static VReg *gen_ternary(Expr *expr) {
   BB *nbb = new_bb();
   VReg *result = NULL;
   if (expr->type->kind != TY_VOID) {
-    if (is_number(expr->type) || ptr_or_array(expr->type))
-      result = add_new_reg(expr->type, 0);
-    else
-      result = add_new_reg(ptrof(expr->type), 0);
+    Type *type = expr->type;
+    if (!is_number(type) && !ptr_or_array(type))
+      type = ptrof(type);
+    result = add_new_reg(type, 0);
   }
 
   gen_cond_jmp(expr->ternary.cond, false, fbb);

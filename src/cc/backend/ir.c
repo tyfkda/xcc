@@ -105,12 +105,9 @@ VReg *new_ir_bop(enum IrKind kind, VReg *opr1, VReg *opr2, const VRegType *vtype
         break;
       case IR_BITAND:
         if (opr1->fixnum == 0)
-          return opr1;
+          return opr1;  // 0
         break;
       case IR_BITOR:
-        if (opr1->fixnum == 0)
-          return opr2;
-        break;
       case IR_BITXOR:
         if (opr1->fixnum == 0)
           return opr2;
@@ -118,7 +115,7 @@ VReg *new_ir_bop(enum IrKind kind, VReg *opr1, VReg *opr2, const VRegType *vtype
       case IR_LSHIFT:
       case IR_RSHIFT:
         if (opr1->fixnum == 0)
-          return opr1;
+          return opr1;  // 0
         break;
       default:
         break;
@@ -139,12 +136,9 @@ VReg *new_ir_bop(enum IrKind kind, VReg *opr1, VReg *opr2, const VRegType *vtype
         break;
       case IR_BITAND:
         if (opr2->fixnum == 0)
-          return opr2;
+          return opr2;  // 0
         break;
       case IR_BITOR:
-        if (opr2->fixnum == 0)
-          return opr1;
-        break;
       case IR_BITXOR:
         if (opr2->fixnum == 0)
           return opr1;
