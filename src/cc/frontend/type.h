@@ -172,4 +172,4 @@ bool can_cast(const Type *dst, const Type *src, bool zero, bool is_explicit);
 
 //
 
-void print_type(FILE *fp, const Type *type);
+int print_type(FILE *fp, const Type *type);

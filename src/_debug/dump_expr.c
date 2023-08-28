@@ -18,8 +18,8 @@
 #pragma GCC diagnostic ignored "-Wunused-function"
 #endif
 
-void dump_init(FILE *fp, const Initializer *init);
-void dump_expr(FILE *fp, Expr *expr);
+int dump_init(FILE *fp, const Initializer *init);
+int dump_expr(FILE *fp, Expr *expr);
 
 ////////////////////////////////////////////////
 
@@ -48,15 +48,13 @@ printf_domain_t g_domain;
 static int print_init_fn(FILE *stream, const struct printf_info *info, const void *const *args) {
   UNUSED(info);
   Initializer *init = *((Initializer**)args[0]);
-  dump_init(stream, init);
-  return 0;  // TODO!
+  return dump_init(stream, init);
 }
 
 static int print_expr_fn(FILE *stream, const struct printf_info *info, const void *const *args) {
   UNUSED(info);
   Expr *expr = *((Expr**)args[0]);
-  dump_expr(stream, expr);
-  return 0;  // TODO!
+  return dump_expr(stream, expr);
 }
 
 static int print_type_fn(FILE *stream, const struct printf_info *info, const void *const *args) {
@@ -108,55 +106,53 @@ static const char *table[] = {
   // [EX_CAST] = "",
 };
 
-static const char incdec[][3] = {"++", "--"};
-
-void dump_init(FILE *fp, const Initializer *init) {
+int dump_init(FILE *fp, const Initializer *init) {
   if (init == NULL) {
-    fprintf(fp, "NULL");
-    return;
+    return fprintf(fp, "NULL");
   }
 
+  int total = 0;
   switch (init->kind) {
   case IK_SINGLE:
-    dump_expr(fp, init->single);
+    total = dump_expr(fp, init->single);
     break;
   case IK_MULTI:
     {
-      fprintf(fp, "{");
+      total = fprintf(fp, "{");
       Vector *multi = init->multi;
       const char *sep = "";
       for (int i = 0; i < multi->len; ++i) {
-        FPRINTF(fp, "%s%I", sep, multi->data[i]);
+        total += FPRINTF(fp, "%s%I", sep, multi->data[i]);
         sep = ", ";
       }
-      fprintf(fp, "}");
+      total += fprintf(fp, "}");
     }
     break;
   case IK_DOT:
-    FPRINTF(fp, ".%.*s=%I", NAMES(init->dot.name), init->dot.value);
+    total = FPRINTF(fp, ".%.*s=%I", NAMES(init->dot.name), init->dot.value);
     break;
   case IK_BRKT:
-    FPRINTF(fp, "[%zu]=%I", init->bracket.index, init->bracket.value);
+    total = FPRINTF(fp, "[%zu]=%I", init->bracket.index, init->bracket.value);
     break;
   }
+  return total;
 }
 
-static void dump_args(FILE *fp, Vector *args) {
-  fprintf(fp, "(");
+static int dump_args(FILE *fp, Vector *args) {
+  int total = fprintf(fp, "(");
   for (int i = 0; i < args->len; ++i)
-    FPRINTF(fp, "%s%V", i == 0 ? "" : ", ", args->data[i]);
-  fprintf(fp, ")");
+    total += FPRINTF(fp, "%s%V", i == 0 ? "" : ", ", args->data[i]);
+  total += fprintf(fp, ")");
+  return total;
 }
 
-void dump_expr(FILE *fp, Expr *expr) {
+int dump_expr(FILE *fp, Expr *expr) {
   assert(expr != NULL);
   switch (expr->kind) {
   case EX_FIXNUM:
-    if (expr->type->kind != TY_FIXNUM || expr->type->fixnum.is_unsigned)
-      fprintf(fp, "%" PRIu64 "U", expr->fixnum);
-    else
-      fprintf(fp, "%" PRId64, expr->fixnum);
-    if (expr->type->kind == TY_FIXNUM) {
+    {
+      const char *us = expr->type->fixnum.is_unsigned ? "U" : "";
+      const char *postfix = "";
       switch (expr->type->fixnum.kind) {
       case FX_LONG:
         fputc('L', fp);
@@ -166,8 +162,11 @@ void dump_expr(FILE *fp, Expr *expr) {
         break;
       default: break;
       }
+      if (expr->type->fixnum.is_unsigned)
+        return FPRINTF(fp, "%" PRIu64 "%s%s", expr->fixnum, us, postfix);
+      else
+        return FPRINTF(fp, "%" PRId64 "%s%s", expr->fixnum, us, postfix);
     }
-    break;
   case EX_FLONUM:
 #ifndef __NO_FLONUM
     {
@@ -181,11 +180,12 @@ void dump_expr(FILE *fp, Expr *expr) {
       case FL_LDOUBLE:  strcat(buf, "L"); break;
       }
       fputs(buf, fp);
+      return strlen(buf);
     }
 #else
     assert(false);
-#endif
     break;
+#endif
   case EX_STR:
     {
       StringBuffer sb;
@@ -193,12 +193,12 @@ void dump_expr(FILE *fp, Expr *expr) {
       sb_append(&sb, "\"", NULL);
       escape_string(expr->str.buf, expr->str.len, &sb);
       sb_append(&sb, "\"", NULL);
-      fputs(sb_to_string(&sb), fp);
+      const char *s = sb_to_string(&sb);
+      fputs(s, fp);
+      return strlen(s);
     }
-    break;
   case EX_VAR:
-    fprintf(fp, "%.*s", NAMES(expr->var.name));
-    break;
+    return fprintf(fp, "%.*s", NAMES(expr->var.name));
   case EX_ADD:
   case EX_SUB:
   case EX_MUL:
@@ -218,19 +218,16 @@ void dump_expr(FILE *fp, Expr *expr) {
   case EX_LOGAND:
   case EX_LOGIOR:
   case EX_ASSIGN:
-    FPRINTF(fp, "(%V %s %V)", expr->bop.lhs, table[expr->kind], expr->bop.rhs);
-    break;
+    return FPRINTF(fp, "(%V %s %V)", expr->bop.lhs, table[expr->kind], expr->bop.rhs);
   case EX_COMMA:
-    FPRINTF(fp, "(%V, %V)", expr->bop.lhs, expr->bop.rhs);
-    break;
+    return FPRINTF(fp, "(%V, %V)", expr->bop.lhs, expr->bop.rhs);
 
   case EX_POS:
   case EX_NEG:
   case EX_BITNOT:
   case EX_REF:
   case EX_DEREF:
-    FPRINTF(fp, "%s(%V)", table[expr->kind], expr->unary.sub);
-    break;
+    return FPRINTF(fp, "%s(%V)", table[expr->kind], expr->unary.sub);
   case EX_PREINC:
   case EX_PREDEC:
   case EX_POSTINC:
@@ -238,56 +235,60 @@ void dump_expr(FILE *fp, Expr *expr) {
     {
 #define IS_POST(expr)  ((expr)->kind >= EX_POSTINC)
 #define IS_DEC(expr)   (((expr)->kind - EX_PREINC) & 1)
-      if (!IS_POST(expr))
-        fputs(incdec[IS_DEC(expr)], fp);
+      static const char *table[][2] = {{"", "++"}, {"", "--"}};
+      const char **p = table[IS_DEC(expr)];
+      int i = IS_POST(expr);
       Expr *target = expr->unary.sub;
-      FPRINTF(fp, target->kind == EX_VAR ? "%V" : "(%V)", target);
-      if (IS_POST(expr))
-        fputs(incdec[IS_DEC(expr)], fp);
+      if (target->kind == EX_VAR) {
+        return FPRINTF(fp, "%s%V%s", p[1 - i], target, p[i]);
+      } else {
+        return FPRINTF(fp, "%s(%V)%s", p[1 - i], target, p[i]);
+      }
 #undef IS_POST
 #undef IS_DEC
     }
-    break;
   case EX_CAST:
-    FPRINTF(fp, "(%T)%V", expr->type, expr->unary.sub);
-    break;
+    return FPRINTF(fp, "(%T)%V", expr->type, expr->unary.sub);
 
   case EX_TERNARY:
-    FPRINTF(fp, "(%V ? %V : %V)", expr->ternary.cond, expr->ternary.tval, expr->ternary.fval);
-    break;
+    return FPRINTF(fp, "(%V ? %V : %V)", expr->ternary.cond, expr->ternary.tval, expr->ternary.fval);
 
   case EX_MEMBER:
     {
-      FPRINTF(fp, "%V%s", expr->member.target, expr->token->kind == TK_DOT ? "." : "->");
+      int total = FPRINTF(fp, "%V%s", expr->member.target, expr->token->kind == TK_DOT ? "." : "->");
       const Name *ident = expr->member.ident;
       if (ident != NULL)
-        fprintf(fp, "%.*s", NAMES(ident));
+        total += fprintf(fp, "%.*s", NAMES(ident));
       else
-        fprintf(fp, "*anonymous*");
+        total += fprintf(fp, "*anonymous*");
+      return total;
     }
-    break;
   case EX_FUNCALL:
     {
       Expr *func = expr->funcall.func;
+      int total;
       if (func->kind == EX_VAR)
-        fprintf(fp, "%.*s", NAMES(func->var.name));
+        total = fprintf(fp, "%.*s(", NAMES(func->var.name));
       else
-        FPRINTF(fp, "(%V)", func);
-      dump_args(fp, expr->funcall.args);
+        total = FPRINTF(fp, "(%V)", func);
+      total += dump_args(fp, expr->funcall.args);
+      return total;
+    }
+  case EX_INLINED:
+    {
+      int total = fprintf(fp, "%.*s", NAMES(expr->inlined.funcname));
+      total += dump_args(fp, expr->inlined.args);
+      return total;
     }
     break;
-  case EX_INLINED:
-    fprintf(fp, "%.*s", NAMES(expr->inlined.funcname));
-    dump_args(fp, expr->inlined.args);
-    break;
   case EX_COMPLIT:
-    FPRINTF(fp, "((%T)%I)", expr->type, expr->complit.original_init);
-    break;
+    return FPRINTF(fp, "((%T)%I)", expr->type, expr->complit.original_init);
   case EX_BLOCK:
     // TODO: Dump statement.
     assert(!"not implemented");
     break;
   }
+  return 0;
 }
 
 #ifndef NO_MAIN_DUMP_EXPR

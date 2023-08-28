@@ -559,82 +559,90 @@ bool can_cast(const Type *dst, const Type *src, bool zero, bool is_explicit) {
 typedef struct PrintTypeChain PrintTypeChain;
 struct PrintTypeChain {
   struct PrintTypeChain *parent;
-  void (*callback)(FILE *fp, const Type *type);
+  int (*callback)(FILE *fp, const Type *type);
   const Type *type;
 };
 
-static void call_print_type_chain(const PrintTypeChain *chain, FILE *fp) {
+static int call_print_type_chain(const PrintTypeChain *chain, FILE *fp) {
+  int total = 0;
   for (; chain != NULL; chain = chain->parent)
-    (*chain->callback)(fp, chain->type);
+    total += (*chain->callback)(fp, chain->type);
+  return total;
 }
 
-static void print_func_params(FILE *fp, const Type *type) {
+static int print_func_params(FILE *fp, const Type *type) {
   assert(type->kind == TY_FUNC);
-  fprintf(fp, "(");
+  int total = fprintf(fp, "(");
   if (type->func.params != NULL) {
     int param_count = type->func.params->len;
     if (param_count == 0 && !type->func.vaargs) {
-      fprintf(fp, "void");
+      total += fprintf(fp, "void");
     } else {
       for (int i = 0; i < param_count; ++i) {
         if (i > 0)
-          fprintf(fp, ", ");
-        print_type(fp, type->func.params->data[i]);
+          total += fprintf(fp, ", ");
+        total += print_type(fp, type->func.params->data[i]);
       }
       if (type->func.vaargs) {
         if (param_count > 0)
-          fprintf(fp, ", ");
-        fprintf(fp, "...");
+          total += fprintf(fp, ", ");
+        total += fprintf(fp, "...");
       }
     }
   }
-  fprintf(fp, ")");
+  total += fprintf(fp, ")");
+  return total;
 }
 
-static void print_ptr_type(FILE *fp, const Type *type) {
-  fprintf(fp, "*");
+static int print_ptr_type(FILE *fp, const Type *type) {
+  int total = fprintf(fp, "*");
   if (type->qualifier & TQ_CONST)
-    fprintf(fp, " const");
+    total += fprintf(fp, " const");
   if (type->qualifier & TQ_VOLATILE)
-    fprintf(fp, " volatile");
+    total += fprintf(fp, " volatile");
   if (type->qualifier & TQ_RESTRICT)
-    fprintf(fp, " restrict");
+    total += fprintf(fp, " restrict");
+  return total;
 }
 
-static void print_nested_ptr_type(FILE *fp, const Type *type) {
-  fprintf(fp, "(");
+static int print_nested_ptr_type(FILE *fp, const Type *type) {
+  int total = fprintf(fp, "(");
   for (const Type *p = type; p->kind == TY_PTR; p = p->pa.ptrof)
-    fprintf(fp, "*");
+    total += fprintf(fp, "*");
+  return total;
 }
 
-static void print_nested_ptr_type2(FILE *fp, const Type *_type) {
+static int print_nested_ptr_type2(FILE *fp, const Type *_type) {
   UNUSED(_type);
-  fprintf(fp, ")");
+  return fprintf(fp, ")");
 }
 
-static void print_array_type(FILE *fp, const Type *type) {
+static int print_array_type(FILE *fp, const Type *type) {
+  int total = 0;
   for (; type->kind == TY_ARRAY; type = type->pa.ptrof) {
     if (type->pa.length > 0)
-      fprintf(fp, "[%zu]", type->pa.length);
+      total += fprintf(fp, "[%zu]", type->pa.length);
     else
-      fprintf(fp, "[]");
+      total += fprintf(fp, "[]");
   }
+  return total;
 }
 
-void print_type_recur(FILE *fp, const Type *type, PrintTypeChain *parent) {
+int print_type_recur(FILE *fp, const Type *type, PrintTypeChain *parent) {
+  int total = 0;
   if (type->kind != TY_PTR) {
     if (type->qualifier & TQ_CONST)
-      fprintf(fp, "const ");
+      total += fprintf(fp, "const ");
     if (type->qualifier & TQ_VOLATILE)
-      fprintf(fp, "volatile ");
+      total += fprintf(fp, "volatile ");
     if (type->qualifier & TQ_RESTRICT)
-      fprintf(fp, "restrict");
+      total += fprintf(fp, "restrict ");
   }
 
   switch (type->kind) {
   case TY_VOID:
-    fprintf(fp, "void");
-    call_print_type_chain(parent, fp);
+    total += fprintf(fp, "void");
+    total += call_print_type_chain(parent, fp);
     break;
   case TY_FIXNUM:
     {
@@ -643,33 +651,33 @@ void print_type_recur(FILE *fp, const Type *type, PrintTypeChain *parent) {
       case FX_ENUM:
         {
           if (type->fixnum.enum_.ident != NULL)
-            fprintf(fp, "enum %.*s", NAMES(type->fixnum.enum_.ident));
+            total += fprintf(fp, "enum %.*s", NAMES(type->fixnum.enum_.ident));
           else
-            fprintf(fp, "enum (anonymous)");
+            total += fprintf(fp, "enum (anonymous)");
         }
         break;
       case FX_BOOL:
-        fprintf(fp, "bool");
+        total += fprintf(fp, "bool");
         break;
       default:
         {
           static const char *names[] = {"char", "short", "int", "long", "long long"};
           assert(kind >= 0 && kind < (int)ARRAY_SIZE(names));
           const char *sign = type->fixnum.is_unsigned ? "unsigned " : "";
-          fprintf(fp, "%s%s", sign, names[kind]);
+          total += fprintf(fp, "%s%s", sign, names[kind]);
         }
         break;
       }
-      call_print_type_chain(parent, fp);
+      total += call_print_type_chain(parent, fp);
     }
     break;
   case TY_FLONUM:
     switch (type->flonum.kind) {
-    case FL_FLOAT:  fprintf(fp, "float"); break;
-    case FL_DOUBLE: fprintf(fp, "double"); break;
-    case FL_LDOUBLE: fprintf(fp, "long double"); break;
+    case FL_FLOAT:  total += fprintf(fp, "float"); break;
+    case FL_DOUBLE: total += fprintf(fp, "double"); break;
+    case FL_LDOUBLE: total += fprintf(fp, "long double"); break;
     }
-    call_print_type_chain(parent, fp);
+    total += call_print_type_chain(parent, fp);
     break;
   case TY_PTR:
     {
@@ -705,12 +713,12 @@ void print_type_recur(FILE *fp, const Type *type, PrintTypeChain *parent) {
         };
         switch (nestedtype->kind) {
         case TY_FUNC:
-          print_type_recur(fp, nestedtype->func.ret, &chain);
-          print_func_params(fp, nestedtype);
+          total += print_type_recur(fp, nestedtype->func.ret, &chain);
+          total += print_func_params(fp, nestedtype);
           break;
         case TY_ARRAY:
-          print_type_recur(fp, nestedtype->pa.ptrof, &chain);
-          print_array_type(fp, nestedtype);
+          total += print_type_recur(fp, nestedtype->pa.ptrof, &chain);
+          total += print_array_type(fp, nestedtype);
           break;
         default: assert(false); break;
         }
@@ -720,7 +728,7 @@ void print_type_recur(FILE *fp, const Type *type, PrintTypeChain *parent) {
           print_ptr_type,
           type,
         };
-        print_type_recur(fp, type->pa.ptrof, &chain);
+        total += print_type_recur(fp, type->pa.ptrof, &chain);
       }
     }
     break;
@@ -734,7 +742,7 @@ void print_type_recur(FILE *fp, const Type *type, PrintTypeChain *parent) {
       const Type *nonarray;
       for (nonarray = type; nonarray->kind == TY_ARRAY; nonarray = nonarray->pa.ptrof)
         ;
-      print_type_recur(fp, nonarray, &chain);
+      total += print_type_recur(fp, nonarray, &chain);
     }
     break;
   case TY_FUNC:
@@ -745,20 +753,21 @@ void print_type_recur(FILE *fp, const Type *type, PrintTypeChain *parent) {
         print_func_params,
         type,
       };
-      print_type_recur(fp, type->func.ret, &chain);
+      total += print_type_recur(fp, type->func.ret, &chain);
     }
     break;
   case TY_STRUCT:
     if (type->struct_.name != NULL) {
-      fprintf(fp, "struct %.*s", NAMES(type->struct_.name));
+      total += fprintf(fp, "struct %.*s", NAMES(type->struct_.name));
     } else {
-      fprintf(fp, "struct (anonymous)");
+      total += fprintf(fp, "struct (anonymous)");
     }
-    call_print_type_chain(parent, fp);
+    total += call_print_type_chain(parent, fp);
     break;
   }
+  return total;
 }
 
-void print_type(FILE *fp, const Type *type) {
-  print_type_recur(fp, type, NULL);
+int print_type(FILE *fp, const Type *type) {
+  return print_type_recur(fp, type, NULL);
 }
