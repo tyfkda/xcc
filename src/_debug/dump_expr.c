@@ -1,5 +1,6 @@
 #include <assert.h>
 #include <inttypes.h>
+#include <printf.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -12,7 +13,69 @@
 #include "util.h"
 #include "var.h"
 
+#ifdef __GNUC__
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wunused-function"
+#endif
+
+void dump_init(FILE *fp, const Initializer *init);
 void dump_expr(FILE *fp, Expr *expr);
+
+////////////////////////////////////////////////
+
+#ifndef __APPLE__
+#pragma GCC diagnostic ignored "-Wformat"
+#pragma GCC diagnostic ignored "-Wformat-extra-args"
+
+// typedef int printf_arginfo_size_function (const struct printf_info *__info,
+// 					  size_t __n, int *__argtypes,
+// 					  int *__size);
+
+#define FPRINTF  fprintf
+#define REGISTER_PRINTF_SPECIFIER  register_printf_specifier
+#define GLUE_PRINTF_ARGINFO_FUNC(specfn)
+#else
+#include <alloca.h>
+printf_domain_t g_domain;
+#define FPRINTF(fp, ...)  fxprintf(fp, g_domain, NULL, __VA_ARGS__)
+#define REGISTER_PRINTF_SPECIFIER(spec, render, arginfo)  \
+    register_printf_domain_function(g_domain, spec, render, arginfo ## _glue, NULL)
+#define GLUE_PRINTF_ARGINFO_FUNC(specfn)  \
+    static int specfn ## _glue(const struct printf_info *info, size_t n, int *argtypes) { \
+        int *psize = alloca(n * sizeof(*psize)); return specfn(info, n, argtypes, psize); }
+#endif
+
+static int print_init_fn(FILE *stream, const struct printf_info *info, const void *const *args) {
+  UNUSED(info);
+  Initializer *init = *((Initializer**)args[0]);
+  dump_init(stream, init);
+  return 0;  // TODO!
+}
+
+static int print_expr_fn(FILE *stream, const struct printf_info *info, const void *const *args) {
+  UNUSED(info);
+  Expr *expr = *((Expr**)args[0]);
+  dump_expr(stream, expr);
+  return 0;  // TODO!
+}
+
+static int print_type_fn(FILE *stream, const struct printf_info *info, const void *const *args) {
+  UNUSED(info);
+  Type *type = *((Type**)args[0]);
+  print_type(stream, type);
+  return 0;  // TODO!
+}
+
+static int print_single_pointer_arginfo(const struct printf_info *info, size_t n, int *argtypes, int *psize) {
+  UNUSED(info);
+  UNUSED(psize);
+  if (n > 0)
+    argtypes[0] = PA_POINTER;
+  return 1;
+}
+GLUE_PRINTF_ARGINFO_FUNC(print_single_pointer_arginfo)
+
+////////////////////////////////////////////////
 
 static const char *table[] = {
   [EX_ADD] = "+",
@@ -61,32 +124,27 @@ void dump_init(FILE *fp, const Initializer *init) {
     {
       fprintf(fp, "{");
       Vector *multi = init->multi;
+      const char *sep = "";
       for (int i = 0; i < multi->len; ++i) {
-        if (i != 0)
-          fprintf(fp, ", ");
-        dump_init(fp, multi->data[i]);
+        FPRINTF(fp, "%s%I", sep, multi->data[i]);
+        sep = ", ";
       }
       fprintf(fp, "}");
     }
     break;
   case IK_DOT:
-    fprintf(fp, ".%.*s=", NAMES(init->dot.name));
-    dump_init(fp, init->dot.value);
+    FPRINTF(fp, ".%.*s=%I", NAMES(init->dot.name), init->dot.value);
     break;
   case IK_BRKT:
-    fprintf(fp, "[%zu]=", init->bracket.index);
-    dump_init(fp, init->bracket.value);
+    FPRINTF(fp, "[%zu]=%I", init->bracket.index, init->bracket.value);
     break;
   }
 }
 
 static void dump_args(FILE *fp, Vector *args) {
   fprintf(fp, "(");
-  for (int i = 0; i < args->len; ++i) {
-    if (i != 0)
-      fputs(", ", fp);
-    dump_expr(fp, args->data[i]);
-  }
+  for (int i = 0; i < args->len; ++i)
+    FPRINTF(fp, "%s%V", i == 0 ? "" : ", ", args->data[i]);
   fprintf(fp, ")");
 }
 
@@ -160,22 +218,10 @@ void dump_expr(FILE *fp, Expr *expr) {
   case EX_LOGAND:
   case EX_LOGIOR:
   case EX_ASSIGN:
-    {
-      fprintf(fp, "(");
-      dump_expr(fp, expr->bop.lhs);
-      fprintf(fp, " %s ", table[expr->kind]);
-      dump_expr(fp, expr->bop.rhs);
-      fprintf(fp, ")");
-    }
+    FPRINTF(fp, "(%V %s %V)", expr->bop.lhs, table[expr->kind], expr->bop.rhs);
     break;
   case EX_COMMA:
-    {
-      fprintf(fp, "(");
-      dump_expr(fp, expr->bop.lhs);
-      fprintf(fp, ", ");
-      dump_expr(fp, expr->bop.rhs);
-      fprintf(fp, ")");
-    }
+    FPRINTF(fp, "(%V, %V)", expr->bop.lhs, expr->bop.rhs);
     break;
 
   case EX_POS:
@@ -183,10 +229,7 @@ void dump_expr(FILE *fp, Expr *expr) {
   case EX_BITNOT:
   case EX_REF:
   case EX_DEREF:
-    fputs(table[expr->kind], fp);
-    fprintf(fp, "(");
-    dump_expr(fp, expr->unary.sub);
-    fprintf(fp, ")");
+    FPRINTF(fp, "%s(%V)", table[expr->kind], expr->unary.sub);
     break;
   case EX_PREINC:
   case EX_PREDEC:
@@ -198,11 +241,7 @@ void dump_expr(FILE *fp, Expr *expr) {
       if (!IS_POST(expr))
         fputs(incdec[IS_DEC(expr)], fp);
       Expr *target = expr->unary.sub;
-      if (target->kind != EX_VAR)
-        fputc('(', fp);
-      dump_expr(fp, target);
-      if (target->kind != EX_VAR)
-        fputc(')', fp);
+      FPRINTF(fp, target->kind == EX_VAR ? "%V" : "(%V)", target);
       if (IS_POST(expr))
         fputs(incdec[IS_DEC(expr)], fp);
 #undef IS_POST
@@ -210,46 +249,30 @@ void dump_expr(FILE *fp, Expr *expr) {
     }
     break;
   case EX_CAST:
-    fprintf(fp, "(");
-    print_type(fp, expr->type);
-    fprintf(fp, ")");
-    dump_expr(fp, expr->unary.sub);
+    FPRINTF(fp, "(%T)%V", expr->type, expr->unary.sub);
     break;
 
   case EX_TERNARY:
-    {
-      fprintf(fp, "(");
-      dump_expr(fp, expr->ternary.cond);
-      fprintf(fp, " ? ");
-      dump_expr(fp, expr->ternary.tval);
-      fprintf(fp, " : ");
-      dump_expr(fp, expr->ternary.fval);
-      fprintf(fp, ")");
-    }
+    FPRINTF(fp, "(%V ? %V : %V)", expr->ternary.cond, expr->ternary.tval, expr->ternary.fval);
     break;
 
   case EX_MEMBER:
     {
-      dump_expr(fp, expr->member.target);
-      fputs(expr->token->kind == TK_DOT ? "." : "->", fp);
-      const Name *name = expr->member.info->name;
-      if (name != NULL) {
-        fprintf(fp, "%.*s", NAMES(name));
-      } else {
+      FPRINTF(fp, "%V%s", expr->member.target, expr->token->kind == TK_DOT ? "." : "->");
+      const Name *ident = expr->member.ident;
+      if (ident != NULL)
+        fprintf(fp, "%.*s", NAMES(ident));
+      else
         fprintf(fp, "*anonymous*");
-      }
     }
     break;
   case EX_FUNCALL:
     {
       Expr *func = expr->funcall.func;
-      if (func->kind == EX_VAR) {
+      if (func->kind == EX_VAR)
         fprintf(fp, "%.*s", NAMES(func->var.name));
-      } else {
-        fprintf(fp, "(");
-        dump_expr(fp, func);
-        fprintf(fp, ")");
-      }
+      else
+        FPRINTF(fp, "(%V)", func);
       dump_args(fp, expr->funcall.args);
     }
     break;
@@ -258,11 +281,7 @@ void dump_expr(FILE *fp, Expr *expr) {
     dump_args(fp, expr->inlined.args);
     break;
   case EX_COMPLIT:
-    fprintf(fp, "((");
-    print_type(fp, expr->type);
-    fprintf(fp, ")");
-    dump_init(fp, expr->complit.original_init);
-    fprintf(fp, ")");
+    FPRINTF(fp, "((%T)%I)", expr->type, expr->complit.original_init);
     break;
   case EX_BLOCK:
     // TODO: Dump statement.
@@ -277,6 +296,17 @@ int main(int argc, char *argv[]) {
     fprintf(stderr, "dump_expr: [declarations] expr...\n");
     return 1;
   }
+
+#ifdef __APPLE__
+  g_domain = new_printf_domain();
+  if (g_domain == NULL) {
+    fprintf(stderr, "new_printf_domain failed\n");
+    return 1;
+  }
+#endif
+  REGISTER_PRINTF_SPECIFIER('I', print_init_fn, print_single_pointer_arginfo);
+  REGISTER_PRINTF_SPECIFIER('V', print_expr_fn, print_single_pointer_arginfo);
+  REGISTER_PRINTF_SPECIFIER('T', print_type_fn, print_single_pointer_arginfo);
 
   init_lexer();
   init_global();
@@ -302,11 +332,17 @@ int main(int argc, char *argv[]) {
     FILE *fp = stdout;
     fprintf(fp, "%s : ", source);
     print_type(fp, expr->type);
-    fputs(" => ", fp);
-    dump_expr(fp, expr);
-    fputs("\n", fp);
+    FPRINTF(fp, " => %V\n", expr);
   }
+
+#ifdef __APPLE__
+  free_printf_domain(g_domain);
+#endif
 
   return 0;
 }
+#endif
+
+#ifdef __GNUC__
+#pragma GCC diagnostic pop
 #endif

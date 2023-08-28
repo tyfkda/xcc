@@ -1,5 +1,6 @@
 #include <assert.h>
 #include <inttypes.h>
+#include <printf.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -19,21 +20,56 @@
 
 extern void install_builtins(void);
 
-static void dump_vreg(FILE *fp, VReg *vreg) {
+static int dump_vreg(FILE *fp, VReg *vreg) {
   assert(vreg != NULL);
   assert(!(vreg->flag & VRF_SPILLED));
   static const char *kSize[] = {"b", "w", "d", ""};
   if (vreg->flag & VRF_CONST) {
-    fprintf(fp, "(%" PRId64 ")", vreg->fixnum);
+    return fprintf(fp, "(%" PRId64 ")", vreg->fixnum);
   } else if (vreg->phys >= 0) {
-    char regtype = 'R';
-    if (vreg->flag & VRF_FLONUM)
-      regtype = 'F';
-    fprintf(fp, "%c%d%s<v%d>", regtype, vreg->phys, kSize[vreg->vsize], vreg->virt);
+    char regtype = (vreg->flag & VRF_FLONUM) ? 'F' : 'R';
+    return fprintf(fp, "%c%d%s<v%d>", regtype, vreg->phys, kSize[vreg->vsize], vreg->virt);
   } else {
-    fprintf(fp, "v%d", vreg->virt);
+    return fprintf(fp, "v%d", vreg->virt);
   }
 }
+
+////////////////////////////////////////////////
+
+#ifndef __APPLE__
+#pragma GCC diagnostic ignored "-Wformat"
+#pragma GCC diagnostic ignored "-Wformat-extra-args"
+
+#define FPRINTF  fprintf
+#define REGISTER_PRINTF_SPECIFIER  register_printf_specifier
+#define GLUE_PRINTF_ARGINFO_FUNC(specfn)
+#else
+#include <alloca.h>
+printf_domain_t g_domain;
+#define FPRINTF(fp, ...)  fxprintf(fp, g_domain, NULL, __VA_ARGS__)
+#define REGISTER_PRINTF_SPECIFIER(spec, render, arginfo)  \
+    register_printf_domain_function(g_domain, spec, render, arginfo ## _glue, NULL)
+#define GLUE_PRINTF_ARGINFO_FUNC(specfn)  \
+    static int specfn ## _glue(const struct printf_info *info, size_t n, int *argtypes) { \
+        int *psize = alloca(n * sizeof(*psize)); return specfn(info, n, argtypes, psize); }
+#endif
+
+static int print_vreg_fn(FILE *stream, const struct printf_info *info, const void *const *args) {
+  UNUSED(info);
+  VReg *vreg = *((VReg**)args[0]);
+  return dump_vreg(stream, vreg);
+}
+
+static int print_single_pointer_arginfo(const struct printf_info *info, size_t n, int *argtypes, int *psize) {
+  UNUSED(info);
+  UNUSED(psize);
+  if (n > 0)
+    argtypes[0] = PA_POINTER;
+  return 1;
+}
+GLUE_PRINTF_ARGINFO_FUNC(print_single_pointer_arginfo)
+
+////////////////////////////////////////////////
 
 static void dump_ir(FILE *fp, IR *ir) {
   static char *kOps[] = {
@@ -61,29 +97,29 @@ static void dump_ir(FILE *fp, IR *ir) {
   }
 
   switch (ir->kind) {
-  case IR_BOFS:   { int64_t offset = ir->bofs.frameinfo->offset + ir->bofs.offset; dump_vreg(fp, ir->dst); fprintf(fp, " = &[rbp %c %" PRId64 "]\n", offset >= 0 ? '+' : '-', offset > 0 ? offset : -offset); } break;
-  case IR_IOFS:   dump_vreg(fp, ir->dst); fprintf(fp, " = &%.*s", NAMES(ir->iofs.label)); if (ir->iofs.offset != 0) { int64_t offset = ir->iofs.offset; fprintf(fp, " %c %" PRId64, offset >= 0 ? '+' : '-', offset > 0 ? offset : -offset); } fprintf(fp, "\n"); break;
-  case IR_SOFS:   dump_vreg(fp, ir->dst); fprintf(fp, " = &[rsp %c %" PRId64 "]\n", ir->opr1->fixnum >= 0 ? '+' : '-', ir->opr1->fixnum > 0 ? ir->opr1->fixnum : -ir->opr1->fixnum); break;
-  case IR_LOAD:   dump_vreg(fp, ir->dst); fprintf(fp, " = ["); dump_vreg(fp, ir->opr1); fprintf(fp, "]\n"); break;
-  case IR_LOAD_S: dump_vreg(fp, ir->dst); fprintf(fp, " = [v%d]\n", ir->opr1->virt); break;
-  case IR_STORE:  fprintf(fp, "["); dump_vreg(fp, ir->opr2); fprintf(fp, "] = "); dump_vreg(fp, ir->opr1); fprintf(fp, "\n"); break;
-  case IR_STORE_S:fprintf(fp, "[v%d] = ", ir->opr2->virt); dump_vreg(fp, ir->opr1); fprintf(fp, "\n"); break;
-  case IR_ADD:    dump_vreg(fp, ir->dst); fprintf(fp, " = "); dump_vreg(fp, ir->opr1); fprintf(fp, " + "); dump_vreg(fp, ir->opr2); fprintf(fp, "\n"); break;
-  case IR_SUB:    dump_vreg(fp, ir->dst); fprintf(fp, " = "); dump_vreg(fp, ir->opr1); fprintf(fp, " - "); dump_vreg(fp, ir->opr2); fprintf(fp, "\n"); break;
-  case IR_MUL:    dump_vreg(fp, ir->dst); fprintf(fp, " = "); dump_vreg(fp, ir->opr1); fprintf(fp, " * "); dump_vreg(fp, ir->opr2); fprintf(fp, "\n"); break;
-  case IR_DIV:    dump_vreg(fp, ir->dst); fprintf(fp, " = "); dump_vreg(fp, ir->opr1); fprintf(fp, " / "); dump_vreg(fp, ir->opr2); fprintf(fp, "\n"); break;
-  case IR_MOD:    dump_vreg(fp, ir->dst); fprintf(fp, " = "); dump_vreg(fp, ir->opr1); fprintf(fp, " %% "); dump_vreg(fp, ir->opr2); fprintf(fp, "\n"); break;
-  case IR_BITAND: dump_vreg(fp, ir->dst); fprintf(fp, " = "); dump_vreg(fp, ir->opr1); fprintf(fp, " & "); dump_vreg(fp, ir->opr2); fprintf(fp, "\n"); break;
-  case IR_BITOR:  dump_vreg(fp, ir->dst); fprintf(fp, " = "); dump_vreg(fp, ir->opr1); fprintf(fp, " | "); dump_vreg(fp, ir->opr2); fprintf(fp, "\n"); break;
-  case IR_BITXOR: dump_vreg(fp, ir->dst); fprintf(fp, " = "); dump_vreg(fp, ir->opr1); fprintf(fp, " ^ "); dump_vreg(fp, ir->opr2); fprintf(fp, "\n"); break;
-  case IR_LSHIFT: dump_vreg(fp, ir->dst); fprintf(fp, " = "); dump_vreg(fp, ir->opr1); fprintf(fp, " << "); dump_vreg(fp, ir->opr2); fprintf(fp, "\n"); break;
-  case IR_RSHIFT: dump_vreg(fp, ir->dst); fprintf(fp, " = "); dump_vreg(fp, ir->opr1); fprintf(fp, " >> "); dump_vreg(fp, ir->opr2); fprintf(fp, "\n"); break;
-  case IR_NEG:    dump_vreg(fp, ir->dst); fprintf(fp, " = -"); dump_vreg(fp, ir->opr1); fprintf(fp, "\n"); break;
-  case IR_BITNOT: dump_vreg(fp, ir->dst); fprintf(fp, " = ~"); dump_vreg(fp, ir->opr1); fprintf(fp, "\n"); break;
-  case IR_COND:   dump_vreg(fp, ir->dst); fprintf(fp, " = "); if (ir->cond.kind != COND_ANY && ir->cond.kind != COND_NONE) {dump_vreg(fp, ir->opr1); fprintf(fp, " %s ", kCond2[ir->cond.kind & (COND_MASK | COND_UNSIGNED)]); dump_vreg(fp, ir->opr2);} fprintf(fp, "\n"); break;
-  case IR_JMP:    if (ir->jmp.cond != COND_ANY && ir->jmp.cond != COND_NONE) {dump_vreg(fp, ir->opr1); fprintf(fp, ", "); dump_vreg(fp, ir->opr2); fprintf(fp, ", ");} fprintf(fp, "%.*s\n", NAMES(ir->jmp.bb->label)); break;
+  case IR_BOFS:   { int64_t offset = ir->bofs.frameinfo->offset + ir->bofs.offset; FPRINTF(fp, "%R = &[rbp %c %" PRId64 "]\n", ir->dst, offset >= 0 ? '+' : '-', offset > 0 ? offset : -offset); } break;
+  case IR_IOFS:   FPRINTF(fp, "%R = &%.*s", ir->dst, NAMES(ir->iofs.label)); if (ir->iofs.offset != 0) { int64_t offset = ir->iofs.offset; fprintf(fp, " %c %" PRId64, offset >= 0 ? '+' : '-', offset > 0 ? offset : -offset); } fprintf(fp, "\n"); break;
+  case IR_SOFS:   FPRINTF(fp, "%R = &[rsp %c %" PRId64 "]\n", ir->dst, ir->opr1->fixnum >= 0 ? '+' : '-', ir->opr1->fixnum > 0 ? ir->opr1->fixnum : -ir->opr1->fixnum); break;
+  case IR_LOAD:   FPRINTF(fp, "%R = [%R]\n", ir->dst, ir->opr1); break;
+  case IR_LOAD_S: FPRINTF(fp, "%R = [v%d]\n", ir->dst, ir->opr1->virt); break;
+  case IR_STORE:  FPRINTF(fp, "[%R] = %R\n", ir->opr2, ir->opr1); break;
+  case IR_STORE_S:FPRINTF(fp, "[v%d] = %R\n", ir->opr2->virt, ir->opr1); break;
+  case IR_ADD:    FPRINTF(fp, "%R = %R + %R\n", ir->dst, ir->opr1, ir->opr2); break;
+  case IR_SUB:    FPRINTF(fp, "%R = %R - %R\n", ir->dst, ir->opr1, ir->opr2); break;
+  case IR_MUL:    FPRINTF(fp, "%R = %R * %R\n", ir->dst, ir->opr1, ir->opr2); break;
+  case IR_DIV:    FPRINTF(fp, "%R = %R / %R\n", ir->dst, ir->opr1, ir->opr2); break;
+  case IR_MOD:    FPRINTF(fp, "%R = %R %% %R\n", ir->dst, ir->opr1, ir->opr2); break;
+  case IR_BITAND: FPRINTF(fp, "%R = %R & %R\n", ir->dst, ir->opr1, ir->opr2); break;
+  case IR_BITOR:  FPRINTF(fp, "%R = %R | %R\n", ir->dst, ir->opr1, ir->opr2); break;
+  case IR_BITXOR: FPRINTF(fp, "%R = %R ^ %R\n", ir->dst, ir->opr1, ir->opr2); break;
+  case IR_LSHIFT: FPRINTF(fp, "%R = %R << %R\n", ir->dst, ir->opr1, ir->opr2); break;
+  case IR_RSHIFT: FPRINTF(fp, "%R = %R >> %R\n", ir->dst, ir->opr1, ir->opr2); break;
+  case IR_NEG:    FPRINTF(fp, "%R = -%R\n", ir->dst, ir->opr1); break;
+  case IR_BITNOT: FPRINTF(fp, "%R = ~%R\n", ir->dst, ir->opr1); break;
+  case IR_COND:   FPRINTF(fp, "%R = ", ir->dst); if (ir->cond.kind != COND_ANY && ir->cond.kind != COND_NONE) {FPRINTF(fp, "%R %s %R", ir->opr1, kCond2[ir->cond.kind & (COND_MASK | COND_UNSIGNED)], ir->opr2);} fprintf(fp, "\n"); break;
+  case IR_JMP:    if (ir->jmp.cond != COND_ANY && ir->jmp.cond != COND_NONE) {FPRINTF(fp, "%R, %R, ", ir->opr1, ir->opr2);} fprintf(fp, "%.*s\n", NAMES(ir->jmp.bb->label)); break;
   case IR_TJMP:
-    dump_vreg(fp, ir->opr1);
+    FPRINTF(fp, "%R", ir->opr1);
     for (size_t i = 0; i < ir->tjmp.len; ++i)
       fprintf(fp, "%s%.*s", i == 0 ? ", [" : ", ", NAMES(((BB*)ir->tjmp.bbs[i])->label));
     fprintf(fp, "]");
@@ -91,27 +127,26 @@ static void dump_ir(FILE *fp, IR *ir) {
     fprintf(fp, "\n");
     break;
   case IR_PRECALL: fprintf(fp, "\n"); break;
-  case IR_PUSHARG: fprintf(fp, "%d, ", ir->pusharg.index); dump_vreg(fp, ir->opr1); fprintf(fp, "\n"); break;
+  case IR_PUSHARG: FPRINTF(fp, "%d, %R\n", ir->pusharg.index, ir->opr1); break;
   case IR_CALL:
-    if (ir->dst != NULL) { dump_vreg(fp, ir->dst); fprintf(fp, " = "); }
-    if (ir->call.label != NULL) {
-      fprintf(fp, "%.*s(args=#%d)\n", NAMES(ir->call.label), ir->call.reg_arg_count);
-    } else {
-      fprintf(fp, "*"); dump_vreg(fp, ir->opr1); fprintf(fp, "(args=#%d)\n", ir->call.reg_arg_count);
-    }
+    if (ir->dst != NULL)
+      FPRINTF(fp, "%R = ", ir->dst);
+    if (ir->call.label != NULL)
+      fprintf(fp, "%.*s", NAMES(ir->call.label));
+    else
+      FPRINTF(fp, "*%R", ir->opr1);
+    fprintf(fp, "(args=#%d)\n", ir->call.reg_arg_count);
     break;
-  case IR_RESULT: if (ir->dst != NULL) { dump_vreg(fp, ir->dst); fprintf(fp, " = "); } dump_vreg(fp, ir->opr1); fprintf(fp, "\n"); break;
-  case IR_SUBSP:  dump_vreg(fp, ir->opr1); fprintf(fp, "\n"); break;
-  case IR_CAST:   dump_vreg(fp, ir->dst); fprintf(fp, " = "); dump_vreg(fp, ir->opr1); fprintf(fp, "\n"); break;
-  case IR_MOV:    dump_vreg(fp, ir->dst); fprintf(fp, " = "); dump_vreg(fp, ir->opr1); fprintf(fp, "\n"); break;
+  case IR_RESULT: if (ir->dst != NULL) { FPRINTF(fp, "%R\n", ir->dst); } FPRINTF(fp, "%R\n", ir->opr1); break;
+  case IR_SUBSP:  FPRINTF(fp, "%R\n", ir->opr1); break;
+  case IR_CAST:   FPRINTF(fp, "%R = %R\n", ir->dst, ir->opr1); break;
+  case IR_MOV:    FPRINTF(fp, "%R = %R\n", ir->dst, ir->opr1); break;
   case IR_KEEP:
-    if (ir->dst != NULL) { fprintf(fp, "dst:"); dump_vreg(fp, ir->dst); fprintf(fp, ", "); }
+    if (ir->dst != NULL) FPRINTF(fp, "dst:%R, ", ir->dst);
     if (ir->opr1 != NULL) {
-      dump_vreg(fp, ir->opr1);
-      if (ir->opr2 != NULL) {
-        fprintf(fp, ", ");
-        dump_vreg(fp, ir->opr2);
-      }
+      FPRINTF(fp, "%R", ir->opr1);
+      if (ir->opr2 != NULL)
+        FPRINTF(fp, ", %R", ir->opr2);
     }
     fprintf(fp, "\n");
     break;
@@ -288,6 +323,15 @@ static void compile1(FILE *ifp, const char *filename, Vector *decls) {
 int main(int argc, char *argv[]) {
   int iarg = 1;
 
+#ifdef __APPLE__
+  g_domain = new_printf_domain();
+  if (g_domain == NULL) {
+    fprintf(stderr, "new_printf_domain failed\n");
+    return 1;
+  }
+#endif
+  REGISTER_PRINTF_SPECIFIER('R', print_vreg_fn, print_single_pointer_arginfo);
+
   // Compile.
   init_compiler();
 
@@ -308,6 +352,10 @@ int main(int argc, char *argv[]) {
     exit(1);
 
   do_dump_ir(toplevel);
+
+#ifdef __APPLE__
+  free_printf_domain(g_domain);
+#endif
 
   return 0;
 }
