@@ -33,6 +33,10 @@ static const int kCallerSaveRegs[] = {10, 11};
 
 const int ArchRegParamMapping[] = {3, 4, -1, 2, 1, 0};
 
+// Return index of %rcx register.
+// Detect the index using the fact that %rcx is 4th parameter on calling convention.
+#define GET_CREG_INDEX()  ArchRegParamMapping[3]
+
 #define kReg8s   (kRegSizeTable[0])
 #define kReg32s  (kRegSizeTable[2])
 #define kReg64s  (kRegSizeTable[3])
@@ -213,6 +217,7 @@ static void ir_out(IR *ir) {
     break;
 
   case IR_MUL:
+    // Break %rdx
     {
       assert(!(ir->opr1->flag & VRF_CONST) && !(ir->opr2->flag & VRF_CONST));
       if (ir->dst->vtype->flag & VRTF_FLONUM) {
@@ -237,6 +242,7 @@ static void ir_out(IR *ir) {
     break;
 
   case IR_DIV:
+    // Break %rdx
     assert(!(ir->opr1->flag & VRF_CONST) && !(ir->opr2->flag & VRF_CONST));
     if (ir->dst->vtype->flag & VRTF_FLONUM) {
       assert(ir->dst->phys == ir->opr1->phys);
@@ -286,6 +292,7 @@ static void ir_out(IR *ir) {
     break;
 
   case IR_MOD:
+    // Break %rdx
     assert(!(ir->opr1->flag & VRF_CONST) && !(ir->opr2->flag & VRF_CONST));
     if (ir->dst->vtype->size == 1) {
       if (!(ir->dst->vtype->flag & VRTF_UNSIGNED)) {
@@ -381,37 +388,66 @@ static void ir_out(IR *ir) {
       int pow = kPow2Table[ir->dst->vtype->size];
       assert(0 <= pow && pow < 4);
       const char **regs = kRegSizeTable[pow];
+      const char *dst = regs[ir->dst->phys];
       if (ir->opr2->flag & VRF_CONST) {
-        SHL(IM(ir->opr2->fixnum), regs[ir->dst->phys]);
+        SHL(IM(ir->opr2->fixnum), dst);
       } else {
-        MOV(kReg8s[ir->opr2->phys], CL);
-        SHL(CL, regs[ir->dst->phys]);
+        // TODO: handle register mapping in regalloc.
+        const int creg = GET_CREG_INDEX();
+        if (ir->opr2->phys == creg) {
+          SHL(CL, dst);
+        } else if (ir->dst->phys == creg) {
+          assert(ir->opr2->phys != creg);
+          const char *rega = kRegATable[pow];
+          PUSH(RAX);
+          MOV(dst, rega);
+          MOV(kReg8s[ir->opr2->phys], CL);
+          SHL(CL, rega);
+          MOV(rega, dst);
+          POP(RAX);
+        } else {
+          PUSH(RCX);
+          MOV(kReg8s[ir->opr2->phys], CL);
+          SHL(CL, dst);
+          POP(RCX);
+        }
       }
     }
     break;
   case IR_RSHIFT:
     {
+#define RSHIFT_INST(n, x)  do  { if (ir->opr1->vtype->flag & VRTF_UNSIGNED) SHR(n, x); else SAR(n, x); } while (0)
       assert(ir->dst->phys == ir->opr1->phys);
       assert(!(ir->opr1->flag & VRF_CONST));
       assert(0 <= ir->dst->vtype->size && ir->dst->vtype->size < kPow2TableSize);
       int pow = kPow2Table[ir->dst->vtype->size];
       assert(0 <= pow && pow < 4);
       const char **regs = kRegSizeTable[pow];
-      if (ir->opr1->vtype->flag & VRTF_UNSIGNED) {
-        if (ir->opr2->flag & VRF_CONST) {
-          SHR(IM(ir->opr2->fixnum), regs[ir->dst->phys]);
-        } else {
-          MOV(kReg8s[ir->opr2->phys], CL);
-          SHR(CL, regs[ir->dst->phys]);
-        }
+      const char *dst = regs[ir->dst->phys];
+      if (ir->opr2->flag & VRF_CONST) {
+        RSHIFT_INST(IM(ir->opr2->fixnum), dst);
       } else {
-        if (ir->opr2->flag & VRF_CONST) {
-          SAR(IM(ir->opr2->fixnum), regs[ir->dst->phys]);
-        } else {
+        // TODO: handle register mapping in regalloc.
+        const int creg = GET_CREG_INDEX();
+        if (ir->opr2->phys == creg) {
+          RSHIFT_INST(CL, dst);
+        } else if (ir->dst->phys == creg) {
+          assert(ir->opr2->phys != creg);
+          const char *rega = kRegATable[pow];
+          PUSH(RAX);
+          MOV(dst, rega);
           MOV(kReg8s[ir->opr2->phys], CL);
-          SAR(CL, regs[ir->dst->phys]);
+          RSHIFT_INST(CL, rega);
+          MOV(rega, dst);
+          POP(RAX);
+        } else {
+          PUSH(RCX);
+          MOV(kReg8s[ir->opr2->phys], CL);
+          RSHIFT_INST(CL, dst);
+          POP(RCX);
         }
       }
+#undef RSHIFT_INST
     }
     break;
 
