@@ -8,7 +8,7 @@
 #include "table.h"
 #include "util.h"
 
-static VRegType vtVoidPtr = {.size = WORD_SIZE, .align = WORD_SIZE, .flag = 0};
+static VRegType vtVoidPtr = {.size = WORD_SIZE, .align = WORD_SIZE, .flag = VRTF_UNSIGNED};
 static VRegType vtBool    = {.size = 4, .align = 4, .flag = 0};
 
 // Virtual register
