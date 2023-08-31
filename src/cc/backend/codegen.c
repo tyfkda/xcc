@@ -140,7 +140,7 @@ void enumerate_register_params(
   VReg *retval = ((FuncBackend*)func->extra)->retval;
   if (retval != NULL) {
     RegParamInfo *p = &iargs[iarg_count++];
-    p->type = &tyVoid;
+    p->type = &tyVoidPtr;
     p->vreg = retval;
     p->index = 0;
   }
