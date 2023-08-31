@@ -87,9 +87,12 @@ VReg *new_ir_bop(enum IrKind kind, VReg *opr1, VReg *opr2, const VRegType *vtype
     } else {
       switch (kind) {
       case IR_ADD:
-      case IR_SUB:
         if (opr1->fixnum == 0)
           return opr2;
+        break;
+      case IR_SUB:
+        if (opr1->fixnum == 0)
+          return new_ir_unary(IR_NEG, opr2, opr2->vtype);
         break;
       case IR_MUL:
         if (opr1->fixnum == 1)

@@ -109,6 +109,7 @@ TEST(all) {
   EXPECT("hex", 18, 0x12);
   EXPECT("octal", 83, 0123);
   EXPECT("negative", -42, (x=42, -x));
+  EXPECT("0 - x", -42, (x=42, 0-x));
   EXPECT("long", 123, 123L);
   { long long x = 9876543LL; EXPECT("long long", 9876543, x); }
   {

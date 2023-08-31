@@ -939,8 +939,15 @@ void tweak_irs(FuncBackend *fnbe) {
         break;
       case IR_SUB:
         assert(!(ir->opr1->flag & VRF_CONST) || !(ir->opr2->flag & VRF_CONST));
-        if (ir->opr1->flag & VRF_CONST)
+        if (ir->opr1->flag & VRF_CONST) {
+          if (ir->opr1->fixnum == 0) {
+            ir->kind = IR_NEG;
+            ir->opr1 = ir->opr2;
+            ir->opr2 = NULL;
+            break;
+          }
           insert_const_mov(&ir->opr1, ra, irs, j++);
+        }
         if (ir->opr2->flag & VRF_CONST) {
           if (ir->opr2->fixnum < 0) {
             ir->kind = IR_ADD;
