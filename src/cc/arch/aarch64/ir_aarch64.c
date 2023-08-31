@@ -465,8 +465,8 @@ static void ir_out(IR *ir) {
           case SZ_DOUBLE:  dst = kFReg64s[ir->dst->phys]; src = kFReg64s[ir->opr1->phys]; break;
           }
           FMOV(dst, src);
-          break;
         }
+        break;
       }
       assert(0 <= ir->dst->vtype->size && ir->dst->vtype->size < kPow2TableSize);
       assert(!(ir->dst->flag & VRF_CONST));
