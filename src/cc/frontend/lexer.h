@@ -29,7 +29,11 @@ void unget_token(Token *token);
 const char *read_ident(const char *p);
 Token *alloc_dummy_ident(void);
 const char *get_lex_p(void);
+#ifdef __GNUC__
+void lex_error(const char *p, const char *fmt, ...) __attribute__((noreturn));
+#else
 void lex_error(const char *p, const char *fmt, ...);
+#endif
 
 const char *block_comment_start(const char *p);
 const char *block_comment_end(const char *p);

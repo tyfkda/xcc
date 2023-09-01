@@ -23,7 +23,11 @@ Vector *pp_funargs(Vector *tokens, int *pindex, int vaarg);  // <Vector*<Token*>
 Token *pp_match(enum TokenKind kind);
 Token *pp_consume(enum TokenKind kind, const char *error);
 
+#ifdef __GNUC__
+void pp_parse_error(const Token *token, const char *fmt, ...) __attribute__((noreturn));
+#else
 void pp_parse_error(const Token *token, const char *fmt, ...);
+#endif
 
 Macro *can_expand_ident(const Name *ident);
 void push_lex(const Name *ident, void (*callback)(void));

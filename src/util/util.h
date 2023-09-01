@@ -37,7 +37,12 @@ void put_padding(FILE *fp, uintptr_t start);
 
 void show_version(const char *exe);
 
-void error(const char *fmt, ...) /*__attribute((noreturn))*/;
+#ifdef __GNUC__
+void error(const char *fmt, ...) __attribute__((noreturn));
+#else
+void error(const char *fmt, ...);
+#endif
+
 void show_error_line(const char *line, const char *p, int len);
 
 bool is_im8(intptr_t x);
