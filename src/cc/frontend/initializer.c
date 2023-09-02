@@ -325,7 +325,14 @@ static Initializer *flatten_initializer_multi(Type *type, Initializer *init, int
           value = flatten_initializer(minfo->type, value);
           *pindex += 1;
         } else {
-          value = flatten_initializer_multi(minfo->type, init, pindex);
+          Type *mt = minfo->type;
+          if (sinfo->is_flexible && midx == sinfo->member_count - 1) {
+            // Special handling for flexible array member: allow arbitrary length of initializer.
+            mt = clone_type(mt);
+            assert(mt->kind == TY_ARRAY);
+            mt->pa.length = -1;
+          }
+          value = flatten_initializer_multi(mt, init, pindex);
         }
         values[midx++] = value;
 
@@ -810,7 +817,7 @@ void construct_initializing_stmts(Vector *decls) {
     if (varinfo->local.init != NULL) {
       Vector *inits = assign_initial_value(var, varinfo->local.init, NULL);
       decl->init_stmt = new_stmt_block(NULL, inits, NULL, NULL);
-      varinfo->local.init = NULL;
+      // varinfo->local.init = NULL;
     }
   }
 }

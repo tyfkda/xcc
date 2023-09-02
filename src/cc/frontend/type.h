@@ -64,6 +64,7 @@ typedef struct StructInfo {
   int member_count;
   size_t align;
   bool is_union;
+  bool is_flexible;
 } StructInfo;
 
 typedef struct Type {
@@ -138,7 +139,7 @@ Type *get_callee_type(Type *type);
 
 // Struct
 
-StructInfo *create_struct_info(MemberInfo *members, int count, bool is_union);
+StructInfo *create_struct_info(MemberInfo *members, int count, bool is_union, bool is_flexible);
 Type *create_struct_type(StructInfo *sinfo, const Name *name, int qualifier);
 int find_struct_member(const StructInfo *sinfo, const Name *name);
 

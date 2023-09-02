@@ -879,6 +879,12 @@ void check_funcall_args(Expr *func, Vector *args, Scope *scope) {
       Type *type = param_types->data[i];
       ensure_struct(type, func->token, scope);
       arg = make_cast(type, arg->token, arg, false);
+
+      if (type->kind == TY_STRUCT) {
+        assert(type->struct_.info != NULL);
+        if (type->struct_.info->is_flexible)
+          parse_error(PE_NOFATAL, arg->token, "flexible array as an argument not allowed");
+      }
     } else if (vaargs && i >= paramc) {
       const Type *type = arg->type;
       switch (type->kind) {

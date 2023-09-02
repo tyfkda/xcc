@@ -98,6 +98,9 @@ test_struct() {
   compile_error 'same struct/union name' 'struct Foo{int x;}; union Foo{int y;}; void main(){}'
   compile_error 'union for struct' 'struct Foo{int x;}; void main(){ union Foo foo; }'
   compile_error 'no member name' 'struct Foo{union{int anon;}; int;}; void main(){}'
+  compile_error 'FAM must be last' 'struct Foo{int a; int b[]; int y;}; void main(){}'
+  compile_error 'FAM cannot array' 'struct Foo{int a; int b[];}; struct Foo x[5]; void main(){}'
+  compile_error 'FAM cannot struct' 'struct Foo{int a; int b[];}; struct Bar {struct Foo foo; int x;}; void main(){}'
 
   end_test_suite
 }

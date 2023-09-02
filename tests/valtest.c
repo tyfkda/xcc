@@ -1291,6 +1291,41 @@ TEST(struct) {
     SVec3 pv = refvadd(v1, v2);
     EXPECT_TRUE(pv.x == 110 && pv.y == 110 && pv.z == 110);
   }
+
+  {
+    struct FlexibleArrayMember {
+      int a;
+      int b[];
+    };
+    EXPECT("flexible array member", sizeof(int), sizeof(struct FlexibleArrayMember));
+
+    struct FlexibleArrayMember fam;
+
+    int buf[4];
+    memset(buf, -1, sizeof(buf));
+    struct FlexibleArrayMember *p = (struct FlexibleArrayMember*)&buf;
+    p->a = 12;
+    p->b[0] = 23;
+    p->b[1] = 34;
+    p->b[2] = 45;
+    EXPECT_TRUE(buf[0] == 12 && buf[1] == 23 && buf[2] == 34 && buf[3] == 45);
+
+    struct RequirePadding {
+      short a;
+      long b[];
+    };
+    EXPECT("flexible array member", sizeof(long), sizeof(struct RequirePadding));
+
+#if defined(__XCC)  // gcc does not allow initializer for local variable.
+    struct FlexibleArrayMember local = {111, {222, 333, 444, 555}};
+    EXPECT("FAM local 1", 111, local.a);
+    EXPECT("FAM local 2", 222, local.b[0]);
+    EXPECT("FAM local 3", 333, local.b[1]);
+    EXPECT("FAM local 4", 444, local.b[2]);
+    EXPECT("FAM local 5", 555, local.b[3]);
+    EXPECT("sizeof(x) with flexible is not actual", sizeof(struct FlexibleArrayMember), sizeof(local));
+#endif
+  }
 } END_TEST()
 
 //

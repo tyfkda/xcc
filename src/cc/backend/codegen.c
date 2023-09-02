@@ -790,6 +790,19 @@ static void alloc_stack_variables_onto_stack_frame(Function *func) {
 
       Type *type = varinfo->type;
       size_t size = type_size(type);
+      if (type->kind == TY_STRUCT && type->struct_.info->is_flexible) {
+        Initializer *init = varinfo->local.init;
+        if (init != NULL) {
+          int m = type->struct_.info->member_count;
+          assert(init->kind == IK_MULTI);
+          assert(init->multi->len == m);
+          Initializer *e = init->multi->data[m - 1];
+          assert(e->kind == IK_MULTI);
+          MemberInfo *me = &type->struct_.info->members[m - 1];
+          assert(me->type->kind == TY_ARRAY);
+          size += type_size(me->type->pa.ptrof) * e->multi->len;
+        }
+      }
       if (size < 1)
         size = 1;
       size_t align = align_size(type);

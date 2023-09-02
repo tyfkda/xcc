@@ -190,7 +190,13 @@ static Type *parse_enum(void) {
 static StructInfo *parse_struct(bool is_union) {
   int count = 0;
   MemberInfo *members = NULL;
+  Token *flex_arr_mem = NULL;  // Flexible array member appeared.
   while (!match(TK_RBRACE)) {
+    if (flex_arr_mem != NULL) {
+      parse_error(PE_NOFATAL, flex_arr_mem,"Flexible array meber must be last element");
+      flex_arr_mem = NULL;
+    }
+
     Type *rawType = NULL;
     do {
       int storage;
@@ -223,8 +229,25 @@ static StructInfo *parse_struct(bool is_union) {
         }
       }
 
-      const Name *name = ident != NULL ? ident->ident : NULL;
+      switch (type->kind) {
+      case TY_ARRAY:
+        if (type->pa.length < 0) {
+          assert(ident != NULL);
+          flex_arr_mem = ident;
+          type->pa.length = 0;
+        }
+        break;
+      case TY_STRUCT:
+        assert(type->struct_.info != NULL);
+        if (type->struct_.info->is_flexible) {
+          assert(ident != NULL);
+          flex_arr_mem = ident;
+        }
+        break;
+      default:  break;
+      }
 
+      const Name *name = ident != NULL ? ident->ident : NULL;
       if (name != NULL) {
         for (int i = 0; i < count; ++i) {
           const MemberInfo *minfo = &members[i];
@@ -242,11 +265,10 @@ static StructInfo *parse_struct(bool is_union) {
       p->type = type;
       p->offset = 0;
       p->bitfield.width = bit == NULL ? -1 : bit->fixnum;
-
-    } while (match(TK_COMMA));
+    } while (flex_arr_mem == NULL && match(TK_COMMA));
     consume(TK_SEMICOL, "`;' expected");
   }
-  return create_struct_info(members, count, is_union);
+  return create_struct_info(members, count, is_union, flex_arr_mem != NULL);
 }
 
 #define ASSERT_PARSE_ERROR(cond, tok, ...)  do { if (!(cond)) parse_error(PE_FATAL, tok, __VA_ARGS__); } while (0)
@@ -478,7 +500,8 @@ static Type *parse_declarator(Type *rawtype, Token **pident);
 //                       | <direct-declarator> ( <parameter-type-list> )
 //                       | <direct-declarator> ( {<identifier>}* )
 static Type *parse_direct_declarator_suffix(Type *type) {
-  if (match(TK_LBRACKET)) {
+  Token *tok;
+  if ((tok = match(TK_LBRACKET)) != NULL) {
     ssize_t length = -1;
     if (match(TK_RBRACKET)) {
       // Arbitrary size.
@@ -493,6 +516,11 @@ static Type *parse_direct_declarator_suffix(Type *type) {
     type = arrayof(parse_direct_declarator_suffix(type), length);
     if (basetype->qualifier & TQ_CONST)
       type = qualified_type(type, TQ_CONST);
+    // Flexible array struct not allowd.
+    if (basetype->kind == TY_STRUCT) {
+      if (basetype->struct_.info != NULL && basetype->struct_.info->is_flexible)
+        parse_error(PE_NOFATAL, tok, "using flexible array as an array not allowed.");
+    }
   } else if (match(TK_LPAR)) {
     bool vaargs;
     Vector *params = parse_funparams(&vaargs);
@@ -589,6 +617,11 @@ Vector *parse_funparams(bool *pvaargs) {
         case TY_ARRAY:  type = array_to_ptr(type); break;
         case TY_FUNC:   type = ptrof(type); break;
         default: break;
+        }
+
+        if (type->kind == TY_STRUCT) {
+          if (type->struct_.info != NULL && type->struct_.info->is_flexible)
+            parse_error(PE_NOFATAL, ident, "using flexible array as a parameter not allowed");
         }
 
         if (ident != NULL && var_find(params, ident->ident) >= 0)

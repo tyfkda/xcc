@@ -306,11 +306,12 @@ Type *get_callee_type(Type *type) {
 }
 
 // Struct
-StructInfo *create_struct_info(MemberInfo *members, int count, bool is_union) {
+StructInfo *create_struct_info(MemberInfo *members, int count, bool is_union, bool is_flexible) {
   StructInfo *sinfo = malloc_or_die(sizeof(*sinfo));
   sinfo->members = members;
   sinfo->member_count = count;
   sinfo->is_union = is_union;
+  sinfo->is_flexible = is_flexible;
   sinfo->size = -1;
   sinfo->align = 0;
   calc_struct_size(sinfo);
