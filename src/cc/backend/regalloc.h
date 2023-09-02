@@ -17,11 +17,9 @@ enum LiveIntervalState {
   LI_CONST,
 };
 
-#define LIF_CONTAINS_CALL  (1 << 0)
-
 typedef struct LiveInterval {
+  unsigned long occupied_reg_bit;  // Represent occupied registers in bit.
   enum LiveIntervalState state;
-  int flag;
   int start;
   int end;
   int virt;  // Virtual register no.
@@ -45,3 +43,4 @@ typedef struct RegAlloc {
 RegAlloc *new_reg_alloc(const int *reg_param_mapping, int phys_max, int temporary_count);
 VReg *reg_alloc_spawn(RegAlloc *ra, const VRegType *vtype, int flag);
 void alloc_physical_registers(RegAlloc *ra, BBContainer *bbcon);
+void occupy_regs(RegAlloc *ra, Vector *actives, unsigned long ioccupy, unsigned long foccupy);

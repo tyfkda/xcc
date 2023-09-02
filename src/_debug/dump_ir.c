@@ -147,7 +147,10 @@ static void dump_func_ir(Function *func) {
           char regtype = 'R';
           if (vreg->vtype->flag & VRTF_FLONUM)
             regtype = 'F';
-          fprintf(fp, "  V%3d (flag=%x): live %3d - %3d, => %c%3d\n", li->virt, vreg->flag, li->start, li->end, regtype, li->phys);
+          fprintf(fp, "  V%3d (flag=%x): live %3d - %3d, => %c%3d", li->virt, vreg->flag, li->start, li->end, regtype, li->phys);
+          if (li->occupied_reg_bit != 0)
+            fprintf(fp, ", occupied=%lx", li->occupied_reg_bit);
+          fprintf(fp, "\n");
         }
         break;
       case LI_SPILL:

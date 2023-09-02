@@ -94,14 +94,12 @@ typedef struct {
   int phys_max;
   int phys_temporary;
   int active_count;
-  int active_tmp_count;
   unsigned long using_bits;
   unsigned long used_bits;
 } PhysicalRegisterSet;
 
 static void expire_old_intervals(PhysicalRegisterSet *p, int start) {
   int active_count = p->active_count;
-  int active_tmp_count = p->active_tmp_count;
   unsigned long using_bits = p->using_bits;
   int j;
   for (j = 0; j < active_count; ++j) {
@@ -110,12 +108,9 @@ static void expire_old_intervals(PhysicalRegisterSet *p, int start) {
       break;
     int phys = li->phys;
     using_bits &= ~(1UL << phys);
-    if (phys < p->phys_temporary)
-      --active_tmp_count;
   }
   remove_active(p->active, active_count, 0, j);
   p->active_count = active_count - j;
-  p->active_tmp_count = active_tmp_count;
   p->using_bits = using_bits;
 }
 
@@ -138,8 +133,8 @@ static void set_inout_interval(Vector *vregs, LiveInterval *intervals, int nip) 
 static void check_live_interval(BBContainer *bbcon, int vreg_count, LiveInterval *intervals) {
   for (int i = 0; i < vreg_count; ++i) {
     LiveInterval *li = &intervals[i];
+    li->occupied_reg_bit = 0;
     li->state = LI_NORMAL;
-    li->flag = 0;
     li->start = li->end = -1;
     li->virt = i;
     li->phys = -1;
@@ -170,18 +165,62 @@ static void check_live_interval(BBContainer *bbcon, int vreg_count, LiveInterval
   }
 }
 
-static void detect_live_interval_flags(BBContainer *bbcon, int vreg_count,
+void occupy_regs(RegAlloc *ra, Vector *actives, unsigned long ioccupy, unsigned long foccupy) {
+  for (int k = 0; k < actives->len; ++k) {
+    LiveInterval *li = actives->data[k];
+    VReg *vreg = ra->vregs->data[li->virt];
+    assert(vreg != NULL);
+    li->occupied_reg_bit |= (vreg->vtype->flag & VRTF_FLONUM) ? foccupy : ioccupy;
+  }
+}
+
+static void detect_live_interval_flags(RegAlloc *ra, BBContainer *bbcon, int vreg_count,
                                        LiveInterval **sorted_intervals) {
   Vector *inactives = new_vector();
-  for (int i = 0; i < vreg_count; ++i)
-    vec_push(inactives, sorted_intervals[i]);
   Vector *actives = new_vector();
+  for (int i = 0; i < vreg_count; ++i) {
+    LiveInterval *li = sorted_intervals[i];
+    vec_push(li->start < 0 ? actives : inactives, li);
+  }
 
   int nip = 0;
-  bool calling = false;
+  unsigned long iargset = 0, fargset = 0;
   for (int i = 0; i < bbcon->bbs->len; ++i) {
     BB *bb = bbcon->bbs->data[i];
     for (int j = 0; j < bb->irs->len; ++j, ++nip) {
+      IR *ir = bb->irs->data[j];
+      if (ir->kind == IR_PUSHARG) {
+        VReg *opr1 = ir->opr1;
+        if (opr1->vtype->flag & VRTF_FLONUM) {
+          int n = ir->pusharg.index;
+          // Assume same order on FP-register.
+          fargset |= 1UL << n;
+        } else {
+          int n = ra->reg_param_mapping[ir->pusharg.index];
+          if (n >= 0)
+            iargset |= 1UL << n;
+        }
+      }
+      if (iargset != 0 || fargset != 0)
+        occupy_regs(ra, actives, iargset, fargset);
+
+      // Deactivate registers which end at this ip.
+      for (int k = 0; k < actives->len; ++k) {
+        LiveInterval *li = actives->data[k];
+        if (li->end <= nip)
+          vec_remove_at(actives, k--);
+      }
+
+      // Call instruction breaks registers which contain in their live interval (start < nip < end).
+      if (ir->kind == IR_CALL) {
+        // Non-saved registers on calling convention.
+        const unsigned long ibroken = (1UL << ra->phys_temporary_count) - 1;
+        const unsigned long fbroken = (1UL << ra->fphys_temporary_count) - 1;
+        occupy_regs(ra, actives, ibroken, fbroken);
+        iargset = fargset = 0;
+      }
+
+      // Activate registers after usage checked.
       while (inactives->len > 0) {
         LiveInterval *li = inactives->data[0];
         if (li->start > nip)
@@ -189,24 +228,6 @@ static void detect_live_interval_flags(BBContainer *bbcon, int vreg_count,
         vec_remove_at(inactives, 0);
         vec_push(actives, li);
       }
-      for (int k = 0; k < actives->len; ++k) {
-        LiveInterval *li = actives->data[k];
-        if (li->end < nip)
-          vec_remove_at(actives, k--);
-      }
-
-      IR *ir = bb->irs->data[j];
-      if (ir->kind == IR_PRECALL)
-        calling = true;
-      if (calling) {
-        for (int k = 0; k < actives->len; ++k) {
-          LiveInterval *li = actives->data[k];
-          if (li->start < nip)
-            li->flag |= LIF_CONTAINS_CALL;
-        }
-      }
-      if (ir->kind == IR_CALL)
-        calling = false;
     }
   }
 
@@ -221,7 +242,6 @@ static void linear_scan_register_allocation(RegAlloc *ra, LiveInterval **sorted_
     .phys_max = ra->phys_max,
     .phys_temporary = ra->phys_temporary_count,
     .active_count = 0,
-    .active_tmp_count = 0,
     .using_bits = 0,
     .used_bits = 0,
   };
@@ -230,7 +250,6 @@ static void linear_scan_register_allocation(RegAlloc *ra, LiveInterval **sorted_
     .phys_max = ra->fphys_max,
     .phys_temporary = ra->fphys_temporary_count,
     .active_count = 0,
-    .active_tmp_count = 0,
     .using_bits = 0,
     .used_bits = 0,
   };
@@ -242,60 +261,45 @@ static void linear_scan_register_allocation(RegAlloc *ra, LiveInterval **sorted_
     if (li->state != LI_NORMAL)
       continue;
     expire_old_intervals(&iregset, li->start);
-    PhysicalRegisterSet *prsp = &iregset;
     expire_old_intervals(&fregset, li->start);
+
+    PhysicalRegisterSet *prsp = &iregset;
     if (((VReg*)ra->vregs->data[li->virt])->vtype->flag & VRTF_FLONUM)
       prsp = &fregset;
     int start_index = 0;
-    int active_count = prsp->active_count;
-    if (li->flag & LIF_CONTAINS_CALL) {
-      start_index = prsp->phys_temporary;
-      active_count = (active_count - prsp->active_tmp_count) + prsp->phys_temporary;
+    int regno = -1;
+    VReg *vreg = ra->vregs->data[li->virt];
+    int ip = vreg->reg_param_index;
+    unsigned long occupied = prsp->using_bits | li->occupied_reg_bit;
+    if (ip >= 0) {
+      if (vreg->vtype->flag & VRTF_FLONUM) {
+        // Assume floating-pointer parameter registers are same order,
+        // and no mapping required.
+      } else {
+        ip = ra->reg_param_mapping[ip];
+      }
+
+      if (ip >= 0 && !(occupied & (1UL << ip)))
+        regno = ip;
+      else
+        start_index = prsp->phys_temporary;
     }
-
-    if (active_count >= prsp->phys_max) {
-      split_at_interval(ra, prsp->active, prsp->active_count, li);
-    } else {
-      int regno = -1;
-      VReg *vreg = ra->vregs->data[li->virt];
-      int ip = vreg->reg_param_index;
-      if (ip >= 0) {
-        if (!(li->flag & LIF_CONTAINS_CALL)) {
-          // If the live interval doesn't contain `CALL` instruction,
-          // prefer to use the parameter register passed to the function.
-          if (vreg->vtype->flag & VRTF_FLONUM) {
-            // Assume floating-pointer parameter registers are same order,
-            // and no mapping required.
-          } else {
-            ip = ra->reg_param_mapping[ip];
-            if (ip < 0) {
-              // The parameter register is not mapped => cannot hold the value in the given register,
-              // assign to non-temporary register to be on the safe side.
-              start_index = prsp->phys_temporary;
-              active_count = (active_count - prsp->active_tmp_count) + prsp->phys_temporary;
-            }
-          }
-
-          if (ip >= 0 && !(prsp->using_bits & (1UL << ip)))
-            regno = ip;
+    if (regno < 0) {
+      for (int j = start_index; j < prsp->phys_max; ++j) {
+        if (!(occupied & (1UL << j))) {
+          regno = j;
+          break;
         }
       }
-      if (regno < 0) {
-        for (int j = start_index; j < prsp->phys_max; ++j) {
-          if (!(prsp->using_bits & (1UL << j))) {
-            regno = j;
-            break;
-          }
-        }
-        assert(regno >= 0);
-      }
+    }
+    if (regno >= 0) {
       li->phys = regno;
       prsp->using_bits |= 1UL << regno;
 
       insert_active(prsp->active, prsp->active_count, li);
       ++prsp->active_count;
-      if (regno < prsp->phys_temporary)
-        ++prsp->active_tmp_count;
+    } else {
+      split_at_interval(ra, prsp->active, prsp->active_count, li);
     }
     prsp->used_bits |= prsp->using_bits;
   }
@@ -432,7 +436,7 @@ void alloc_physical_registers(RegAlloc *ra, BBContainer *bbcon) {
     qsort(sorted_intervals, vreg_count, sizeof(LiveInterval*), sort_live_interval);
     ra->sorted_intervals = sorted_intervals;
 
-    detect_live_interval_flags(bbcon, vreg_count, sorted_intervals);
+    detect_live_interval_flags(ra, bbcon, vreg_count, sorted_intervals);
     linear_scan_register_allocation(ra, sorted_intervals, vreg_count);
 
     // Spill vregs.
