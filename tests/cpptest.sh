@@ -96,6 +96,8 @@ test_misc() {
   try '#if w/ block comment' 'AAA' '#if 1==2/*\n*/-1\nAAA\n#else\nBBB\n#endif'
   try '#else w/ block comment' '/**/BBB' '#if 0\nAAA\n#else/*\n*/\nBBB\n#endif'
   try '#endif w/ block comment' '/**/CCC' '#if 0\nAAA\n#endif/*\n*/CCC'
+  try 'block comment in #if 0' '' "#if 0\n/**/\n#endif"
+  try 'quote char in #if 0' '' "#if 0\nchar c='\"';\n#endif"
 
   try 'Block comment hide #else' 'AAA /*#elseBBB */' '#if 1\nAAA /*\n#else\nBBB */\n#endif'
   try 'Line omment hide #else' '' '#if 0\nAAA\n//#else\nBBB\n#endif'

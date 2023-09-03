@@ -400,7 +400,7 @@ static const char *find_double_quote_end(const char *p) {
 }
 
 static const char *find_block_comment_end(const char *comment_start, Stream *stream) {
-  const char *p = comment_start + 2;
+  const char *p = comment_start;
   for (;;) {
     const char *e = block_comment_end(p);
     if (e != NULL)
@@ -425,6 +425,21 @@ static void process_disabled_line(const char *p, Stream *stream) {
       return;
     case '"':
       p = find_double_quote_end(p);
+      break;
+    case '\'':
+      for (bool closed = false; !closed;) {
+        switch (*p++) {
+        case '\0':
+          return;
+        case '\\':
+          if (*p != '\0')
+            ++p;
+          break;
+        case '\'':
+          closed = true;
+          break;
+        }
+      }
       break;
     case '/':
       switch (*p) {
