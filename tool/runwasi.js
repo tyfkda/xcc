@@ -2,10 +2,8 @@
 
 'use strict'
 
-const fs = require('fs')
 const fsPromises = require('fs').promises
-const path = require('path')
-const { WASI } = require('@wasmer/wasi')
+const { WASI } = require('wasi')
 
 async function getRealpaths(map) {
   const promises = Object.keys(map).map(async key => {
@@ -48,22 +46,20 @@ async function getRealpaths(map) {
 
   const wasmFileName = program.args[0]
   const wasi = new WASI({
+    version: 'preview1',
     args: program.args,
     env: process.env,
-    bindings: {
-      ...WASI.defaultBindings,
-      fs,
-      path,
-    },
     preopens: await getRealpaths(preopens),
   })
 
   try {
     const wasmBin = await fsPromises.readFile(wasmFileName)
     const wasmModule = await WebAssembly.compile(wasmBin)
-    const importObject = Object.assign({}, wasi.getImports(wasmModule))
+    const importObject = wasi.getImportObject?.call(wasi) ??
+        { wasi_snapshot_preview1: wasi.wasiImport }
     const instance = await WebAssembly.instantiate(wasmModule, importObject)
-    wasi.start(instance)
+    const result = wasi.start(instance)
+    process.exit(result)
   } catch (e) {
     console.error(e)
     process.exit(1)
