@@ -81,6 +81,8 @@ test_basic() {
 
   try 'data-bss alignment' 0 'static char data = 123; static int bss; return (long)&bss & 3;'
   try 'cast array to pointer' 44 'int a[3][2] = {11,22,33,44,55,66}; int *p = a; return p[3]; //-WNOERR'
+  try_direct 'variable definition overwrite' 123 'int x; int x = 123; int main(void) {return x;}'
+  compile_error 'variable definition conflict' 123 'int x = 0; int x = 123; int main(void) {return x;}'
   compile_error 'int main(void) {int a[3][2] = {11,22,33,44,55,66}; struct { int a[3][2]; } s; s = a; return s.a[1][1]; } //-WNOERR'
 
   end_test_suite

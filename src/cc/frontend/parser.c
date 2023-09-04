@@ -37,11 +37,11 @@ static LoopScope loop_scope;
 #define SAVE_LOOP_SCOPE(var, b, c)  LoopScope var = loop_scope; if (b != NULL) loop_scope.break_ = b; if (c != NULL) loop_scope.continu = c;
 #define RESTORE_LOOP_SCOPE(var)     loop_scope = var
 
-VarInfo *add_var_to_scope(Scope *scope, const Token *ident, Type *type, int storage) {
-  assert(ident != NULL);
-  const Name *name = ident->ident;
-  assert(name != NULL);
+VarInfo *find_var_from_scope(Scope *scope, const Token *ident, Type *type, int storage) {
   if (scope->vars != NULL) {
+    assert(ident != NULL);
+    const Name *name = ident->ident;
+    assert(name != NULL);
     int idx = var_find(scope->vars, name);
     if (idx >= 0) {
       VarInfo *varinfo = scope->vars->data[idx];
@@ -50,13 +50,22 @@ VarInfo *add_var_to_scope(Scope *scope, const Token *ident, Type *type, int stor
       } else if (!(storage & VS_EXTERN)) {
         if (varinfo->storage & VS_EXTERN)
           varinfo->storage &= ~VS_EXTERN;
+        else if (is_global_scope(scope) && varinfo->global.init == NULL)
+          ; // Ignore variable duplication if predecessor doesn't have initializer.
         else
           parse_error(PE_NOFATAL, ident, "`%.*s' already defined", NAMES(name));
       }
       return varinfo;
     }
   }
-  return scope_add(scope, name, type, storage);
+  return NULL;
+}
+
+VarInfo *add_var_to_scope(Scope *scope, const Token *ident, Type *type, int storage) {
+  VarInfo *varinfo = find_var_from_scope(scope, ident, type, storage);
+  if (varinfo != NULL)
+    return varinfo;
+  return scope_add(scope, ident->ident, type, storage);
 }
 
 Expr *alloc_tmp_var(Scope *scope, Type *type) {
@@ -1102,9 +1111,9 @@ static Vector *parse_vardecl_cont(Type *rawType, Type *type, int storage, Token 
     }
 
     VarInfo *varinfo = add_var_to_scope(curscope, ident, type, tmp_storage);
-    varinfo->type = type;  // type might be changed.
     Initializer *init = (type->kind != TY_FUNC && match(TK_ASSIGN)) ? parse_initializer() : NULL;
     init = check_vardecl(&type, ident, tmp_storage, init);
+    varinfo->type = type;  // type might be changed.
     VarDecl *decl = new_vardecl(ident->ident);
     if (decls == NULL)
       decls = new_vector();
@@ -1704,23 +1713,29 @@ static Declaration *parse_global_var_decl(
         if (ident != NULL)
           parse_error(PE_NOFATAL, ident, "`void' not allowed");
       } else {
+        bool reg = false;
         VarInfo *varinfo = NULL;
-        if (ident != NULL)
-          varinfo = add_var_to_scope(global_scope, ident, type, storage);
-        Initializer *init = NULL;
-        if (match(TK_ASSIGN) != NULL) {
-          init = parse_initializer();
-          if (varinfo != NULL)
-            varinfo->global.init = init;
+        if (ident != NULL) {
+          varinfo = find_var_from_scope(curscope, ident, type, storage);
+          if (varinfo == NULL) {
+            varinfo = add_var_to_scope(global_scope, ident, type, storage);
+            reg = true;
+          }
         }
 
+        Initializer *init = NULL;
+        if (match(TK_ASSIGN) != NULL)
+          init = parse_initializer();
+
         if (ident != NULL) {
-          init = check_vardecl(&type, ident, storage, init);
+          varinfo->global.init = check_vardecl(&type, ident, storage, init);
           varinfo->type = type;  // type might be changed.
-          VarDecl *decl = new_vardecl(ident->ident);
-          if (decls == NULL)
-            decls = new_vector();
-          vec_push(decls, decl);
+          if (reg) {
+            VarDecl *decl = new_vardecl(ident->ident);
+            if (decls == NULL)
+              decls = new_vector();
+            vec_push(decls, decl);
+          }
         }
       }
     }
