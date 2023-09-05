@@ -70,6 +70,7 @@ void check_funcall_args(Expr *func, Vector *args, Scope *scope, Vector *toplevel
 
 Stmt *parse_block(const Token *tok, Vector *vars);
 
+VarInfo *find_var_from_scope(Scope *scope, const Token *ident, Type *type, int storage);
 VarInfo *add_var_to_scope(Scope *scope, const Token *ident, Type *type, int storage);
 Expr *alloc_tmp_var(Scope *scope, Type *type);
 

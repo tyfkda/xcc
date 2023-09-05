@@ -194,12 +194,9 @@ Initializer *new_initializer(enum InitializerKind kind, const Token *token) {
   return init;
 }
 
-VarDecl *new_vardecl(Type *type, const Name *ident, Initializer *init, int storage) {
+VarDecl *new_vardecl(const Name *ident) {
   VarDecl *decl = malloc_or_die(sizeof(*decl));
-  decl->type = type;
   decl->ident = ident;
-  decl->init = init;
-  decl->storage = storage;
   decl->init_stmt = NULL;
   return decl;
 }

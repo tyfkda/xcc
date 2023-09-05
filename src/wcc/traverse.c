@@ -182,10 +182,7 @@ GVarInfo *get_gvar_info(Expr *expr) {
   return info;
 }
 
-static GVarInfo *add_global_var(Type *type, const Name *name) {
-  VarInfo *varinfo = scope_add(global_scope, name, type, 0);
-  return register_gvar_info(name, varinfo);
-}
+#define add_global_var(type, name)  scope_add(global_scope, name, type, 0)
 
 void add_builtin_function(const char *str, Type *type, BuiltinFunctionProc *proc, bool add_to_scope) {
   const Name *name = alloc_name(str, NULL, false);
@@ -574,7 +571,10 @@ static void traverse_vardecl(Stmt *stmt) {
   if (decls != NULL) {
     for (int i = 0, n = decls->len; i < n; ++i) {
       VarDecl *decl = decls->data[i];
-      traverse_initializer(decl->init);
+      VarInfo *varinfo = scope_find(curscope, decl->ident, NULL);
+      assert(varinfo != NULL);
+      if (!(varinfo->storage & (VS_EXTERN | VS_STATIC)))
+        traverse_initializer(varinfo->local.init);
       traverse_stmt(decl->init_stmt);
     }
   }
@@ -678,20 +678,7 @@ static void traverse_defun(Function *func) {
   }
   curfunc = NULL;
 
-  // Output static local variables.
-  for (int i = 0; i < func->scopes->len; ++i) {
-    Scope *scope = func->scopes->data[i];
-    if (scope->vars == NULL)
-      continue;
-    for (int j = 0; j < scope->vars->len; ++j) {
-      VarInfo *varinfo = scope->vars->data[j];
-      if (!(varinfo->storage & VS_STATIC))
-        continue;
-      VarInfo *gvarinfo = varinfo->static_.gvar;
-      assert(gvarinfo != NULL);
-      register_gvar_info(gvarinfo->name, gvarinfo);
-    }
-  }
+  // Static variables are traversed through global variables.
 }
 
 static void traverse_decl(Declaration *decl) {
@@ -703,19 +690,6 @@ static void traverse_decl(Declaration *decl) {
     traverse_defun(decl->defun.func);
     break;
   case DCL_VARDECL:
-    {
-      Vector *decls = decl->vardecl.decls;
-      for (int i = 0; i < decls->len; ++i) {
-        VarDecl *d = decls->data[i];
-        if (!(d->storage & VS_EXTERN)) {
-          const Name *name = d->ident;
-          VarInfo *varinfo = scope_find(curscope, name, NULL);
-          assert(varinfo != NULL);
-          register_gvar_info(name, varinfo);
-          traverse_initializer(d->init);
-        }
-      }
-    }
     break;
 
   default:
@@ -740,6 +714,15 @@ static void add_builtins(void) {
 
 uint32_t traverse_ast(Vector *decls, Vector *exports, uint32_t stack_size) {
   add_builtins();
+
+  // Global scope
+  for (int i = 0, len = global_scope->vars->len; i < len; ++i) {
+    VarInfo *varinfo = global_scope->vars->data[i];
+    if (varinfo->storage & VS_EXTERN || varinfo->type->kind == TY_FUNC || (varinfo->type->kind == TY_FIXNUM && varinfo->type->fixnum.kind == FX_ENUM))
+      continue;
+    register_gvar_info(varinfo->name, varinfo);
+    traverse_initializer(varinfo->global.init);
+  }
 
   for (int i = 0, len = decls->len; i < len; ++i) {
     Declaration *decl = decls->data[i];

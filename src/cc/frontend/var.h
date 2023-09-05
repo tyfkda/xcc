@@ -33,6 +33,7 @@ typedef struct VarInfo {
   int storage;
   union {
     struct {
+      Initializer *init;
       // For codegen.
       VReg *vreg;
       FrameInfo *frameinfo;

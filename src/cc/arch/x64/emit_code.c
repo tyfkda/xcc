@@ -548,20 +548,7 @@ static void emit_defun(Function *func) {
 
   RET();
 
-  // Output static local variables.
-  for (int i = 0; i < func->scopes->len; ++i) {
-    Scope *scope = func->scopes->data[i];
-    if (scope->vars == NULL)
-      continue;
-    for (int j = 0; j < scope->vars->len; ++j) {
-      VarInfo *varinfo = scope->vars->data[j];
-      if (!(varinfo->storage & VS_STATIC))
-        continue;
-      VarInfo *gvarinfo = varinfo->static_.gvar;
-      assert(gvarinfo != NULL);
-      emit_varinfo(gvarinfo, gvarinfo->global.init);
-    }
-  }
+  // Static variables are emitted through global variables.
 
   assert(stackpos == 8);
 }
@@ -577,28 +564,19 @@ void emit_code(Vector *decls) {
       emit_defun(decl->defun.func);
       break;
     case DCL_VARDECL:
-      {
-        bool first = true;
-        Vector *decls = decl->vardecl.decls;
-        for (int i = 0; i < decls->len; ++i) {
-          VarDecl *vd = decls->data[i];
-          if ((vd->storage & VS_EXTERN) != 0)
-            continue;
-          const Name *name = vd->ident;
-          const VarInfo *varinfo = scope_find(global_scope, name, NULL);
-          assert(varinfo != NULL);
-          if (first) {
-            emit_comment(NULL);
-            first = false;
-          }
-          emit_varinfo(varinfo, varinfo->global.init);
-        }
-      }
       break;
 
     default:
       error("Unhandled decl in emit_code: %d", decl->kind);
       break;
     }
+  }
+
+  emit_comment(NULL);
+  for (int i = 0; i < global_scope->vars->len; ++i) {
+    VarInfo *varinfo = global_scope->vars->data[i];
+    if ((varinfo->storage & (VS_EXTERN | VS_ENUM_MEMBER)) || varinfo->type->kind == TY_FUNC)
+      continue;
+    emit_varinfo(varinfo, varinfo->global.init);
   }
 }

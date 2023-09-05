@@ -864,13 +864,17 @@ Fixnum calc_bitfield_initial_value(const StructInfo *sinfo, const Initializer *i
 static void construct_initializing_stmts(Vector *decls) {
   for (int i = 0; i < decls->len; ++i) {
     VarDecl *decl = decls->data[i];
-    if (decl->storage & (VS_STATIC | VS_EXTERN))
+    Scope *scope;
+    VarInfo *varinfo = scope_find(curscope, decl->ident, &scope);
+    assert(scope == curscope);
+    if (varinfo->storage & (VS_STATIC | VS_EXTERN))
       continue;
-    Expr *var = new_expr_variable(decl->ident, decl->type, NULL, curscope);
-    if (decl->init != NULL) {
-      Vector *inits = assign_initial_value(var, decl->init, NULL);
+    Expr *var = new_expr_variable(decl->ident, varinfo->type, NULL, curscope);
+    assert(!is_global_scope(curscope));
+    if (varinfo->local.init != NULL) {
+      Vector *inits = assign_initial_value(var, varinfo->local.init, NULL);
       decl->init_stmt = new_stmt_block(NULL, inits, NULL, NULL);
-      decl->init = NULL;
+      varinfo->local.init = NULL;
     }
   }
 }
@@ -905,6 +909,8 @@ static Initializer *check_vardecl(Type **ptype, const Token *ident, int storage,
       gvarinfo->global.init = init = check_global_initializer(type, init);
       gvarinfo->type = type;
       // static variable initializer is handled in codegen, same as global variable.
+    } else {
+      varinfo->local.init = init;
     }
   } else {
     VarInfo *gvarinfo = scope_find(global_scope, ident->ident, NULL);
@@ -1099,7 +1105,7 @@ static Vector *parse_vardecl_cont(Type *rawType, Type *type, int storage, Token 
     varinfo->type = type;  // type might be changed.
     Initializer *init = (type->kind != TY_FUNC && match(TK_ASSIGN)) ? parse_initializer() : NULL;
     init = check_vardecl(&type, ident, tmp_storage, init);
-    VarDecl *decl = new_vardecl(type, ident->ident, init, tmp_storage);
+    VarDecl *decl = new_vardecl(ident->ident);
     if (decls == NULL)
       decls = new_vector();
     vec_push(decls, decl);
@@ -1711,7 +1717,7 @@ static Declaration *parse_global_var_decl(
         if (ident != NULL) {
           init = check_vardecl(&type, ident, storage, init);
           varinfo->type = type;  // type might be changed.
-          VarDecl *decl = new_vardecl(type, ident->ident, init, storage);
+          VarDecl *decl = new_vardecl(ident->ident);
           if (decls == NULL)
             decls = new_vector();
           vec_push(decls, decl);

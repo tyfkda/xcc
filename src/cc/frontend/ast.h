@@ -332,14 +332,11 @@ enum StmtKind {
 };
 
 typedef struct VarDecl {
-  Type *type;
   const Name *ident;
-  Initializer *init;
-  int storage;
-  struct Stmt *init_stmt;
+  struct Stmt *init_stmt;  // Local variable only.
 } VarDecl;
 
-VarDecl *new_vardecl(Type *type, const Name *ident, Initializer *init, int storage);
+VarDecl *new_vardecl(const Name *ident);
 
 enum {
   REACH_STOP = 1 << 0,

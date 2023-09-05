@@ -46,7 +46,7 @@ VarInfo *str_to_char_array(Scope *scope, Type *type, Initializer *init, Vector *
   VarInfo *varinfo = add_var_to_scope(scope, ident, type, VS_STATIC);
   if (is_global_scope(scope)) {
     Vector *decls = new_vector();
-    vec_push(decls, new_vardecl(varinfo->type, ident->ident, init, varinfo->storage));
+    vec_push(decls, new_vardecl(ident->ident));
     vec_push(toplevel, new_decl_vardecl(decls));
     varinfo->global.init = init;
   } else {
@@ -1446,7 +1446,7 @@ static Expr *parse_compound_literal(Type *type) {
     assert(varinfo != NULL);
     varinfo->storage |= VS_STATIC;
     Vector *decls = new_vector();
-    vec_push(decls, new_vardecl(type, name, init, varinfo->storage));
+    vec_push(decls, new_vardecl(name));
     vec_push(toplevel, new_decl_vardecl(decls));
     varinfo->global.init = init;
   } else {
