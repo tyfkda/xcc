@@ -21,7 +21,6 @@ typedef struct Vector Vector;
 
 extern Function *curfunc;
 extern Scope *curscope;
-extern Vector *toplevel;  // <Declaration*>
 
 extern bool error_warning;
 extern int compile_warning_count;
@@ -54,8 +53,8 @@ Expr *make_cast(Type *type, const Token *token, Expr *sub, bool is_explicit);
 Expr *make_cond(Expr *expr);
 const MemberInfo *search_from_anonymous(const Type *type, const Name *name, const Token *ident,
                                         Vector *stack);
-VarInfo *str_to_char_array(Scope *scope, Type *type, Initializer *init, Vector *toplevel);
-Expr *str_to_char_array_var(Scope *scope, Expr *str, Vector *toplevel);
+VarInfo *str_to_char_array(Scope *scope, Type *type, Initializer *init);
+Expr *str_to_char_array_var(Scope *scope, Expr *str);
 Expr *new_expr_addsub(enum ExprKind kind, const Token *tok, Expr *lhs, Expr *rhs);
 Expr *extract_bitfield_value(Expr *src, const MemberInfo *minfo);
 Expr *assign_to_bitfield(const Token *tok, Expr *lhs, Expr *rhs, const MemberInfo *minfo);
@@ -66,7 +65,7 @@ Vector *assign_initial_value(Expr *expr, Initializer *init, Vector *inits);
 Initializer *flatten_initializer(Type *type, Initializer *init);
 Fixnum calc_bitfield_initial_value(const StructInfo *sinfo, const Initializer *init, int *pi);
 
-void check_funcall_args(Expr *func, Vector *args, Scope *scope, Vector *toplevel);
+void check_funcall_args(Expr *func, Vector *args, Scope *scope);
 
 Stmt *parse_block(const Token *tok, Vector *vars);
 

@@ -262,7 +262,7 @@ int main(int argc, char *argv[]) {
   init_lexer();
   init_global();
 
-  toplevel = new_vector();
+  Vector *toplevel = new_vector();
   int i = 1;
   if (i < argc - 1) {
     set_source_string(argv[i++], "*decl*", 1);

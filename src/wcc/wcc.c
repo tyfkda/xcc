@@ -989,7 +989,7 @@ static void export_non_static_functions(Vector *exports) {
   }
 }
 
-static void preprocess_and_compile(FILE *ppout, Vector *sources) {
+static void preprocess_and_compile(FILE *ppout, Vector *sources, Vector *toplevel) {
   size_t pos = ftell(ppout);
 
   // Need to set flag on preprocessor.
@@ -1272,12 +1272,12 @@ int main(int argc, char *argv[]) {
       add_lib(lib_paths, "libc.c", libs);
   }
 
-  toplevel = new_vector();
+  Vector *toplevel = new_vector();
 
-  preprocess_and_compile(ppout, sources);
+  preprocess_and_compile(ppout, sources, toplevel);
   if (export_all)
     export_non_static_functions(exports);
-  preprocess_and_compile(ppout, libs);
+  preprocess_and_compile(ppout, libs, toplevel);
 
   fclose(ppout);
 

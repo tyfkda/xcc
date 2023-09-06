@@ -246,7 +246,7 @@ int main(int argc, char *argv[]) {
   // Compile.
   init_compiler();
 
-  toplevel = new_vector();
+  Vector *toplevel = new_vector();
   if (iarg < argc) {
     for (int i = iarg; i < argc; ++i) {
       const char *filename = argv[i];

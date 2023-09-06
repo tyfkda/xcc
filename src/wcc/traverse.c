@@ -266,7 +266,7 @@ static void traverse_funcall(Expr *expr) {
       if (varinfo->type->kind == TY_FUNC) {
         func->type = functype = varinfo->type;
         if (functype->func.params != NULL)  // Updated.
-          check_funcall_args(func, args, curscope, toplevel);
+          check_funcall_args(func, args, curscope);
       }
     }
 

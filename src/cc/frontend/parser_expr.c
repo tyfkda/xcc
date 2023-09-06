@@ -40,33 +40,29 @@ void not_const(const Type *type, const Token *token) {
 }
 
 // Returns created global variable info.
-VarInfo *str_to_char_array(Scope *scope, Type *type, Initializer *init, Vector *toplevel) {
+VarInfo *str_to_char_array(Scope *scope, Type *type, Initializer *init) {
   assert(type->kind == TY_ARRAY && is_char_type(type->pa.ptrof));
   const Token *ident = alloc_dummy_ident();
   VarInfo *varinfo = add_var_to_scope(scope, ident, type, VS_STATIC);
-  if (is_global_scope(scope)) {
-    Vector *decls = new_vector();
-    vec_push(decls, new_vardecl(ident->ident));
-    vec_push(toplevel, new_decl_vardecl(decls));
+  if (is_global_scope(scope))
     varinfo->global.init = init;
-  } else {
+  else
     varinfo->static_.gvar->global.init = init;
-  }
   return varinfo;
 }
 
-Expr *str_to_char_array_var(Scope *scope, Expr *str, Vector *toplevel) {
+Expr *str_to_char_array_var(Scope *scope, Expr *str) {
   Expr *s = strip_cast(str);
   if (s->kind != EX_STR)
     return str;
   if (str->kind == EX_CAST)
-    return new_expr_cast(str->type, str->token, str_to_char_array_var(scope, str->unary.sub, toplevel));
+    return new_expr_cast(str->type, str->token, str_to_char_array_var(scope, str->unary.sub));
 
   Type *type = str->type;
   Initializer *init = new_initializer(IK_SINGLE, str->token);
   init->single = str;
 
-  VarInfo *varinfo = str_to_char_array(scope, type, init, toplevel);
+  VarInfo *varinfo = str_to_char_array(scope, type, init);
   return new_expr_variable(varinfo->name, type, str->token, scope);
 }
 
@@ -372,8 +368,8 @@ static Expr *new_expr_int_bop(enum ExprKind kind, const Token *tok, Expr *lhs, E
 }
 
 Expr *new_expr_addsub(enum ExprKind kind, const Token *tok, Expr *lhs, Expr *rhs) {
-  lhs = str_to_char_array_var(curscope, lhs, toplevel);
-  rhs = str_to_char_array_var(curscope, rhs, toplevel);
+  lhs = str_to_char_array_var(curscope, lhs);
+  rhs = str_to_char_array_var(curscope, rhs);
 
   Type *type = NULL;
   Type *ltype = lhs->type;
@@ -775,7 +771,7 @@ Vector *parse_args(Token **ptoken) {
   return args;
 }
 
-void check_funcall_args(Expr *func, Vector *args, Scope *scope, Vector *toplevel) {
+void check_funcall_args(Expr *func, Vector *args, Scope *scope) {
   Type *functype = get_callee_type(func->type);
   if (functype == NULL)
     return;
@@ -796,7 +792,7 @@ void check_funcall_args(Expr *func, Vector *args, Scope *scope, Vector *toplevel
   int paramc = param_types != NULL ? param_types->len : 0;
   for (int i = 0, len = args->len; i < len; ++i) {
     Expr *arg = args->data[i];
-    arg = str_to_char_array_var(scope, arg, toplevel);
+    arg = str_to_char_array_var(scope, arg);
     if (arg->type->kind == TY_ARRAY)
       arg = make_cast(array_to_ptr(arg->type), arg->token, arg, false);
     if (i < paramc) {
@@ -824,7 +820,7 @@ static Expr *parse_funcall(Expr *func) {
   Token *token;
   Vector *args = parse_args(&token);
 
-  check_funcall_args(func, args, curscope, toplevel);
+  check_funcall_args(func, args, curscope);
   Type *functype = get_callee_type(func->type);
   if (functype == NULL) {
     parse_error(PE_NOFATAL, func->token, "Cannot call except function");
@@ -836,8 +832,8 @@ static Expr *parse_funcall(Expr *func) {
 static Expr *parse_array_index(const Token *token, Expr *expr) {
   Expr *index = parse_expr();
   consume(TK_RBRACKET, "`]' expected");
-  expr = str_to_char_array_var(curscope, expr, toplevel);
-  index = str_to_char_array_var(curscope, index, toplevel);
+  expr = str_to_char_array_var(curscope, expr);
+  index = str_to_char_array_var(curscope, index);
   if (!ptr_or_array(expr->type)) {
     if (!ptr_or_array(index->type)) {
       parse_error(PE_NOFATAL, expr->token, "array or pointer required for `['");
@@ -1445,9 +1441,6 @@ static Expr *parse_compound_literal(Type *type) {
     VarInfo *varinfo = scope_find(curscope, name, NULL);
     assert(varinfo != NULL);
     varinfo->storage |= VS_STATIC;
-    Vector *decls = new_vector();
-    vec_push(decls, new_vardecl(name));
-    vec_push(toplevel, new_decl_vardecl(decls));
     varinfo->global.init = init;
   } else {
     init = flatten_initializer(type, init);
@@ -1712,7 +1705,7 @@ static Expr *parse_unary(void) {
       parse_error(PE_NOFATAL, tok, "Cannot dereference raw type");
       return expr;
     }
-    expr = str_to_char_array_var(curscope, expr, toplevel);
+    expr = str_to_char_array_var(curscope, expr);
     return new_expr_unary(EX_DEREF, type, tok, expr);
   }
 
@@ -1985,8 +1978,8 @@ static Expr *parse_conditional(void) {
     consume(TK_COLON, "`:' expected");
     Expr *fval = parse_conditional();
 
-    tval = str_to_char_array_var(curscope, tval, toplevel);
-    fval = str_to_char_array_var(curscope, fval, toplevel);
+    tval = str_to_char_array_var(curscope, tval);
+    fval = str_to_char_array_var(curscope, fval);
 
     Type *type;
     if (tval->type->kind == TY_VOID || fval->type->kind == TY_VOID) {
@@ -2136,7 +2129,7 @@ Expr *parse_assign(void) {
       }
 
       if (tok->kind == TK_ASSIGN) {
-        rhs = str_to_char_array_var(curscope, rhs, toplevel);
+        rhs = str_to_char_array_var(curscope, rhs);
         if (lhs->type->kind == TY_STRUCT) {  // Struct assignment requires same type.
           if (!same_type_without_qualifier(lhs->type, rhs->type, true))
             parse_error(PE_NOFATAL, tok, "Cannot assign to incompatible struct");

@@ -71,7 +71,7 @@ int main(int argc, char *argv[]) {
   // Compile.
   init_compiler(stdout);
 
-  toplevel = new_vector();
+  Vector *toplevel = new_vector();
   int iarg = optind;
   if (iarg < argc) {
     for (int i = iarg; i < argc; ++i) {

@@ -18,7 +18,6 @@
 
 Function *curfunc;
 Scope *curscope;
-Vector *toplevel;
 
 bool error_warning;
 int compile_warning_count;
@@ -220,7 +219,7 @@ static Stmt *init_char_array_by_string(Expr *dst, Initializer *src) {
   }
 
   Type *strtype = dst->type;
-  VarInfo *varinfo = str_to_char_array(curscope, strtype, src, toplevel);
+  VarInfo *varinfo = str_to_char_array(curscope, strtype, src);
   Expr *var = new_expr_variable(varinfo->name, strtype, NULL, curscope);
   return build_memcpy(dst, var, size);
 }
@@ -559,7 +558,7 @@ static Expr *check_global_initializer_fixnum(Expr *value, bool *isconst) {
     break;
   case EX_STR:
     // Create string and point to it.
-    value = str_to_char_array_var(curscope, value, toplevel);
+    value = str_to_char_array_var(curscope, value);
     *isconst = true;
     break;
   case EX_VAR:
@@ -835,7 +834,7 @@ Vector *assign_initial_value(Expr *expr, Initializer *init, Vector *inits) {
   default:
     {
       assert(init->kind == IK_SINGLE);
-      Expr *value = str_to_char_array_var(curscope, init->single, toplevel);
+      Expr *value = str_to_char_array_var(curscope, init->single);
       vec_push(inits,
                 new_stmt_expr(new_expr_bop(EX_ASSIGN, expr->type, init->token, expr,
                                            make_cast(expr->type, init->token, value, false))));
@@ -1352,7 +1351,7 @@ static Stmt *parse_return(const Token *tok) {
   if (!match(TK_SEMICOL)) {
     val = parse_expr();
     consume(TK_SEMICOL, "`;' expected");
-    val = str_to_char_array_var(curscope, val, toplevel);
+    val = str_to_char_array_var(curscope, val);
   }
 
   assert(curfunc != NULL);
@@ -1478,7 +1477,7 @@ static Stmt *parse_stmt(void) {
   // expression statement.
   Expr *val = parse_expr();
   consume(TK_SEMICOL, "`;' expected");
-  return new_stmt_expr(str_to_char_array_var(curscope, val, toplevel));
+  return new_stmt_expr(str_to_char_array_var(curscope, val));
 }
 
 static void check_reachability(Stmt *stmt);
