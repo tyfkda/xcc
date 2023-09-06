@@ -419,22 +419,22 @@ static void ir_out(IR *ir) {
 
   case IR_RESULT:
     if (ir->opr1->vtype->flag & VRTF_FLONUM) {
-      const char *src, *dst;
-      switch (ir->opr1->vtype->size) {
-      default: assert(false);  // Fallthroguh
-      case SZ_FLOAT:  dst = S0; src = kFReg32s[ir->opr1->phys]; break;
-      case SZ_DOUBLE: dst = D0; src = kFReg64s[ir->opr1->phys]; break;
+      if (ir->opr1->phys != 0) {  // Source is not return register.
+        const char *src, *dst;
+        switch (ir->opr1->vtype->size) {
+        default: assert(false);  // Fallthroguh
+        case SZ_FLOAT:  dst = S0; src = kFReg32s[ir->opr1->phys]; break;
+        case SZ_DOUBLE: dst = D0; src = kFReg64s[ir->opr1->phys]; break;
+        }
+        FMOV(dst, src);
       }
-      FMOV(dst, src);
-      break;
-    }
-    {
+    } else {
       assert(0 <= ir->opr1->vtype->size && ir->opr1->vtype->size < kPow2TableSize);
       int pow = kPow2Table[ir->opr1->vtype->size];
       assert(0 <= pow && pow < 4);
       if (ir->opr1->flag & VRF_CONST) {
         mov_immediate(kRetRegTable[pow], ir->opr1->fixnum, pow >= 3, ir->opr1->vtype->flag & VRTF_UNSIGNED);
-      } else {
+      } else if (ir->opr1->phys != ArchRegParamMapping[0]) {  // Source is not return register.
         MOV(kRetRegTable[pow], kRegSizeTable[pow][ir->opr1->phys]);
       }
     }
@@ -677,18 +677,22 @@ static void ir_out(IR *ir) {
       if (ir->dst != NULL) {
         assert(0 < ir->dst->vtype->size && ir->dst->vtype->size < kPow2TableSize);
         if (ir->dst->vtype->flag & VRTF_FLONUM) {
-          const char *src, *dst;
-          switch (ir->dst->vtype->size) {
-          default: assert(false);  // Fallthrough
-          case SZ_FLOAT:   src = S0; dst = kFReg32s[ir->dst->phys]; break;
-          case SZ_DOUBLE:  src = D0; dst = kFReg64s[ir->dst->phys]; break;
+          if (ir->dst->phys != 0) {  // Destination is not return register.
+            const char *src, *dst;
+            switch (ir->dst->vtype->size) {
+            default: assert(false);  // Fallthrough
+            case SZ_FLOAT:   src = S0; dst = kFReg32s[ir->dst->phys]; break;
+            case SZ_DOUBLE:  src = D0; dst = kFReg64s[ir->dst->phys]; break;
+            }
+            FMOV(dst, src);
           }
-          FMOV(dst, src);
         } else {
-          int pow = kPow2Table[ir->dst->vtype->size];
-          assert(0 <= pow && pow < 4);
-          const char **regs = kRegSizeTable[pow];
-          MOV(regs[ir->dst->phys], kRetRegTable[pow]);
+          if (ir->dst->phys != ArchRegParamMapping[0]) {  // Destination is not return register.
+            int pow = kPow2Table[ir->dst->vtype->size];
+            assert(0 <= pow && pow < 4);
+            const char **regs = kRegSizeTable[pow];
+            MOV(regs[ir->dst->phys], kRetRegTable[pow]);
+          }
         }
       }
     }
