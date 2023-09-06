@@ -1,3 +1,5 @@
+// Floating point number example
+
 #include <alloca.h>
 #include <math.h>
 #include <stdio.h>
@@ -17,11 +19,11 @@
 
 typedef struct {double x, y, z;} vec;
 
-static double vdot(const vec *v0, const vec *v1) {
+double vdot(const vec *v0, const vec *v1) {
   return v0->x * v1->x + v0->y * v1->y + v0->z * v1->z;
 }
 
-static void vnormalize(vec *c) {
+void vnormalize(vec *c) {
   double length = sqrt(vdot(c, c));
   if (length > 1.0e-17) {
     c->x /= length;

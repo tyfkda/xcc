@@ -1,3 +1,5 @@
+// Malloc and pointer example
+
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>

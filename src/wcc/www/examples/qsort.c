@@ -1,3 +1,5 @@
+// Function pointer example
+
 #include <alloca.h>
 #include <stdio.h>
 #include <stdlib.h>
