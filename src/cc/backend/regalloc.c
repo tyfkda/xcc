@@ -6,12 +6,8 @@
 #include <stdlib.h>  // free
 #include <string.h>
 
-#include "ast.h"
-#include "codegen.h"  // WORD_SIZE
 #include "ir.h"
-#include "type.h"
 #include "util.h"
-#include "var.h"
 
 // Register allocator
 

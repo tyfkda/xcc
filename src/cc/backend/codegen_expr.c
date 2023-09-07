@@ -6,13 +6,12 @@
 
 #include "ast.h"
 #include "ir.h"
+#include "parser.h"  // curscope
 #include "regalloc.h"
 #include "table.h"
 #include "type.h"
 #include "util.h"
 #include "var.h"
-
-#include "parser.h"  // curfunc
 
 bool is_stack_param(const Type *type) {
   return type->kind == TY_STRUCT;
@@ -40,7 +39,7 @@ VRegType *to_vtype(const Type *type) {
 }
 
 VReg *add_new_reg(const Type *type, int flag) {
-  return reg_alloc_spawn(((FuncBackend*)curfunc->extra)->ra, to_vtype(type), flag);
+  return reg_alloc_spawn(curra, to_vtype(type), flag);
 }
 
 static Table builtin_function_table;  // <BuiltinFunctionProc>
