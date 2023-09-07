@@ -17,6 +17,7 @@ RegAlloc *new_reg_alloc(const int *reg_param_mapping, int phys_max, int temporar
   ra->vregs = new_vector();
   ra->intervals = NULL;
   ra->sorted_intervals = NULL;
+  ra->detect_extra_occupied = NULL;
   ra->reg_param_mapping = reg_param_mapping;
   ra->phys_max = phys_max;
   ra->phys_temporary_count = temporary_count;
@@ -189,6 +190,12 @@ static void detect_live_interval_flags(RegAlloc *ra, BBContainer *bbcon, int vre
     BB *bb = bbcon->bbs->data[i];
     for (int j = 0; j < bb->irs->len; ++j, ++nip) {
       IR *ir = bb->irs->data[j];
+      if (ra->detect_extra_occupied != NULL) {
+        unsigned long ioccupy = (*ra->detect_extra_occupied)(ir);
+        if (ioccupy != 0)
+          occupy_regs(ra, actives, ioccupy, 0);
+      }
+
       if (ir->kind == IR_PUSHARG) {
         VReg *opr1 = ir->opr1;
         if (opr1->vtype->flag & VRTF_FLONUM) {

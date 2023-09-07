@@ -7,6 +7,7 @@
 
 typedef struct BBContainer BBContainer;
 typedef struct Function Function;
+typedef struct IR IR;
 typedef struct VReg VReg;
 typedef struct VRegType VRegType;
 typedef struct Vector Vector;
@@ -30,6 +31,7 @@ typedef struct RegAlloc {
   Vector *vregs;  // <VReg*>
   LiveInterval *intervals;  // size=vregs->len
   LiveInterval **sorted_intervals;
+  unsigned long (*detect_extra_occupied)(IR *ir);
 
   const int *reg_param_mapping;
   int phys_max;              // Max physical register count.
