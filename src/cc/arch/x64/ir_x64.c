@@ -19,30 +19,30 @@ int stackpos = 8;
 // Register allocator
 
 const char *kRegSizeTable[][PHYSICAL_REG_MAX] = {
-  {R9B, R8B,  CL, DIL, SIL,  BL, R12B, R13B, R14B, R15B, R10B, R11B},
-  {R9W, R8W,  CX,  DI,  SI,  BX, R12W, R13W, R14W, R15W, R10W, R11W},
-  {R9D, R8D, ECX, EDI, ESI, EBX, R12D, R13D, R14D, R15D, R10D, R11D},
-  { R9,  R8, RCX, RDI, RSI, RBX,  R12,  R13,  R14,  R15,  R10,  R11},
+  {DIL, SIL,  DL,  CL, R8B, R9B,  BL, R12B, R13B, R14B, R15B, R10B, R11B},
+  { DI,  SI,  DX,  CX, R8W, R9W,  BX, R12W, R13W, R14W, R15W, R10W, R11W},
+  {EDI, ESI, EDX, ECX, R8D, R9D, EBX, R12D, R13D, R14D, R15D, R10D, R11D},
+  {RDI, RSI, RDX, RCX,  R8,  R9, RBX,  R12,  R13,  R14,  R15,  R10,  R11},
 };
 
 #define CALLEE_SAVE_REG_COUNT  ((int)(sizeof(kCalleeSaveRegs) / sizeof(*kCalleeSaveRegs)))
-static const int kCalleeSaveRegs[] = {5, 6, 7, 8, 9};
+static const int kCalleeSaveRegs[] = {6, 7, 8, 9, 10};
 
 #define CALLER_SAVE_REG_COUNT  ((int)(sizeof(kCallerSaveRegs) / sizeof(*kCallerSaveRegs)))
-static const int kCallerSaveRegs[] = {10, 11};
+static const int kCallerSaveRegs[] = {11, 12};
 
-const int ArchRegParamMapping[] = {3, 4, -1, 2, 1, 0};
+const int ArchRegParamMapping[] = {0, 1, 2, 3, 4, 5};
 
 // Return index of %rcx register.
 // Detect the index using the fact that %rcx is 4th parameter on calling convention.
-#define GET_CREG_INDEX()  2  // ArchRegParamMapping[3]
+#define GET_CREG_INDEX()  3  // ArchRegParamMapping[3]
+#define GET_DREG_INDEX()  2  // ArchRegParamMapping[2]
 
 #define kReg8s   (kRegSizeTable[0])
 #define kReg32s  (kRegSizeTable[2])
 #define kReg64s  (kRegSizeTable[3])
 
 static const char *kRegATable[] = {AL, AX, EAX, RAX};
-static const char *kRegDTable[] = {DL, DX, EDX, RDX};
 
 #define SZ_FLOAT   (4)
 #define SZ_DOUBLE  (8)
@@ -56,6 +56,10 @@ static const int kCallerSaveFRegs[] = {8, 9, 10, 11, 12, 13, 14, 15};
 unsigned long detect_extra_occupied(IR *ir) {
   unsigned long ioccupy = 0;
   switch (ir->kind) {
+  case IR_MUL: case IR_DIV: case IR_MOD:
+    if (!(ir->dst->vtype->flag & VRTF_FLONUM))
+      ioccupy = 1UL << GET_DREG_INDEX();
+    break;
   case IR_LSHIFT: case IR_RSHIFT:
     if (!(ir->opr2->flag & VRF_CONST))
       ioccupy = 1UL << GET_CREG_INDEX();
@@ -229,19 +233,17 @@ static void ir_out(IR *ir) {
     break;
 
   case IR_MUL:
-    // Break %rdx
-    {
-      assert(!(ir->opr1->flag & VRF_CONST) && !(ir->opr2->flag & VRF_CONST));
-      if (ir->dst->vtype->flag & VRTF_FLONUM) {
-        assert(ir->dst->phys == ir->opr1->phys);
-        const char **regs = kFReg64s;
-        switch (ir->dst->vtype->size) {
-        case SZ_FLOAT: MULSS(regs[ir->opr2->phys], regs[ir->dst->phys]); break;
-        case SZ_DOUBLE: MULSD(regs[ir->opr2->phys], regs[ir->dst->phys]); break;
-        default: assert(false); break;
-        }
-        break;
+    assert(!(ir->opr1->flag & VRF_CONST) && !(ir->opr2->flag & VRF_CONST));
+    if (ir->dst->vtype->flag & VRTF_FLONUM) {
+      assert(ir->dst->phys == ir->opr1->phys);
+      const char **regs = kFReg64s;
+      switch (ir->dst->vtype->size) {
+      case SZ_FLOAT: MULSS(regs[ir->opr2->phys], regs[ir->dst->phys]); break;
+      case SZ_DOUBLE: MULSD(regs[ir->opr2->phys], regs[ir->dst->phys]); break;
+      default: assert(false); break;
       }
+    } else {
+      // Break %rax, %rdx
       assert(0 <= ir->dst->vtype->size && ir->dst->vtype->size < kPow2TableSize);
       int pow = kPow2Table[ir->dst->vtype->size];
       assert(0 <= pow && pow < 4);
@@ -254,7 +256,6 @@ static void ir_out(IR *ir) {
     break;
 
   case IR_DIV:
-    // Break %rdx
     assert(!(ir->opr1->flag & VRF_CONST) && !(ir->opr2->flag & VRF_CONST));
     if (ir->dst->vtype->flag & VRTF_FLONUM) {
       assert(ir->dst->phys == ir->opr1->phys);
@@ -264,9 +265,8 @@ static void ir_out(IR *ir) {
       case SZ_DOUBLE: DIVSD(regs[ir->opr2->phys], regs[ir->dst->phys]); break;
       default: assert(false); break;
       }
-      break;
-    }
-    if (ir->dst->vtype->size == 1) {
+    } else if (ir->dst->vtype->size == 1) {
+      // Break %ax
       if (!(ir->dst->vtype->flag & VRTF_UNSIGNED)) {
         MOVSX(kReg8s[ir->opr1->phys], AX);
         IDIV(kReg8s[ir->opr2->phys]);
@@ -276,6 +276,7 @@ static void ir_out(IR *ir) {
       }
       MOV(AL, kReg8s[ir->dst->phys]);
     } else {
+      // Break %rax, %rdx
       assert(0 <= ir->dst->vtype->size && ir->dst->vtype->size < kPow2TableSize);
       int pow = kPow2Table[ir->dst->vtype->size];
       assert(0 <= pow && pow < 4);
@@ -304,9 +305,9 @@ static void ir_out(IR *ir) {
     break;
 
   case IR_MOD:
-    // Break %rdx
     assert(!(ir->opr1->flag & VRF_CONST) && !(ir->opr2->flag & VRF_CONST));
     if (ir->dst->vtype->size == 1) {
+      // Break %ax
       if (!(ir->dst->vtype->flag & VRTF_UNSIGNED)) {
         MOVSX(kReg8s[ir->opr1->phys], AX);
         IDIV(kReg8s[ir->opr2->phys]);
@@ -319,12 +320,12 @@ static void ir_out(IR *ir) {
       MOV(AH, AL);
       MOV(AL, kReg8s[ir->dst->phys]);
     } else {
+      // Break %rax, %rdx
       assert(0 <= ir->dst->vtype->size && ir->dst->vtype->size < kPow2TableSize);
       int pow = kPow2Table[ir->dst->vtype->size];
       assert(0 <= pow && pow < 4);
       const char **regs = kRegSizeTable[pow];
       const char *a = kRegATable[pow];
-      const char *d = kRegDTable[pow];
       MOV(regs[ir->opr1->phys], a);
       if (!(ir->dst->vtype->flag & VRTF_UNSIGNED)) {
         switch (pow) {
@@ -343,7 +344,9 @@ static void ir_out(IR *ir) {
         }
         DIV(regs[ir->opr2->phys]);
       }
-      MOV(d, regs[ir->dst->phys]);
+      const int dreg = GET_DREG_INDEX();
+      if (ir->dst->phys != dreg)
+        MOV(regs[dreg], regs[ir->dst->phys]);
     }
     break;
 
@@ -687,9 +690,7 @@ static void ir_out(IR *ir) {
       case SZ_DOUBLE: MOVSD(kFReg64s[ir->opr1->phys], XMM0); break;
       default: assert(false); break;
       }
-      break;
-    }
-    {
+    } else {
       assert(0 <= ir->opr1->vtype->size && ir->opr1->vtype->size < kPow2TableSize);
       int pow = kPow2Table[ir->opr1->vtype->size];
       assert(0 <= pow && pow < 4);
@@ -755,7 +756,6 @@ static void ir_out(IR *ir) {
         } else {
           // x64 support signed 64bit-signed-int to double only, so pass half value
           // (precision is lost anyway).
-          // Break %rax
           const Name *neglabel = alloc_label();
           const Name *skiplabel = alloc_label();
           TEST(s, s);
@@ -767,6 +767,7 @@ static void ir_out(IR *ir) {
           }
           JMP(fmt_name(skiplabel));
           EMIT_LABEL(fmt_name(neglabel));
+          PUSH(RAX);  // Push %rax to avoid Break
           MOV(s, RAX);
           SHR(IM(1), RAX);
           switch (ir->dst->vtype->size) {
@@ -774,6 +775,7 @@ static void ir_out(IR *ir) {
           case SZ_DOUBLE:  CVTSI2SD(RAX, d); ADDSD(d, d); break;
           default: assert(false); break;
           }
+          POP(RAX);  // Pop %rax
           EMIT_LABEL(fmt_name(skiplabel));
         }
       }
