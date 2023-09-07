@@ -68,12 +68,6 @@ ld_SRCS:=$(wildcard $(LD_DIR)/*.c) \
 	$(AS_DIR)/gen_section.c \
 	$(UTIL_DIR)/util.c $(UTIL_DIR)/elfutil.c $(UTIL_DIR)/table.c
 
-xcc_OBJS:=$(addprefix $(OBJ_DIR)/,$(notdir $(xcc_SRCS:.c=.o)))
-cc1_OBJS:=$(addprefix $(OBJ_DIR)/,$(notdir $(cc1_SRCS:.c=.o)))
-cpp_OBJS:=$(addprefix $(OBJ_DIR)/,$(notdir $(cpp_SRCS:.c=.o)))
-as_OBJS:=$(addprefix $(OBJ_DIR)/,$(notdir $(as_SRCS:.c=.o)))
-ld_OBJS:=$(addprefix $(OBJ_DIR)/,$(notdir $(ld_SRCS:.c=.o)))
-
 .PHONY: all
 all:	exes libs
 
@@ -85,6 +79,7 @@ release:
 exes:	$(foreach D, $(EXES), $(addprefix $(TARGET),$(D)))
 
 define DEFINE_EXE_TARGET
+$(1)_OBJS:=$(addprefix $(OBJ_DIR)/,$(notdir $($(1)_SRCS:.c=.o)))
 $(TARGET)$(1):	$(PARENT_DEPS) $$($(1)_OBJS)
 	$(CC) -o $$@ $$($(1)_OBJS) $(LDFLAGS)
 endef
@@ -278,7 +273,6 @@ DEBUG_CFLAGS:=$(subst -MMD,,$(CFLAGS))
 dump_expr_SRCS:=$(DEBUG_DIR)/dump_expr.c $(CC1_FE_DIR)/parser_expr.c $(CC1_FE_DIR)/parser.c \
 	$(CC1_FE_DIR)/lexer.c $(CC1_FE_DIR)/type.c $(CC1_FE_DIR)/ast.c $(CC1_FE_DIR)/var.c \
 	$(UTIL_DIR)/util.c $(UTIL_DIR)/table.c
-dump_expr_OBJS:=$(addprefix $(OBJ_DIR)/,$(notdir $(dump_expr_SRCS:.c=.o)))
 
 dump_ir_SRCS:=$(DEBUG_DIR)/dump_ir.c $(CC1_FE_DIR)/parser_expr.c $(CC1_FE_DIR)/parser.c \
 	$(CC1_FE_DIR)/lexer.c $(CC1_FE_DIR)/type.c $(CC1_FE_DIR)/ast.c $(CC1_FE_DIR)/var.c \
@@ -287,14 +281,13 @@ dump_ir_SRCS:=$(DEBUG_DIR)/dump_ir.c $(CC1_FE_DIR)/parser_expr.c $(CC1_FE_DIR)/p
 	$(CC1_DIR)/builtin.c \
 	$(CC1_ARCH_DIR)/emit_code.c $(CC1_ARCH_DIR)/ir_$(ARCHTYPE).c \
 	$(UTIL_DIR)/util.c $(UTIL_DIR)/table.c
-dump_ir_OBJS:=$(addprefix $(OBJ_DIR)/,$(notdir $(dump_ir_SRCS:.c=.o)))
 
 dump_type_SRCS:=$(DEBUG_DIR)/dump_type.c $(CC1_FE_DIR)/parser_expr.c $(CC1_FE_DIR)/parser.c \
 	$(CC1_FE_DIR)/lexer.c $(CC1_FE_DIR)/type.c $(CC1_FE_DIR)/ast.c $(CC1_FE_DIR)/var.c \
 	$(UTIL_DIR)/util.c $(UTIL_DIR)/table.c
-dump_type_OBJS:=$(addprefix $(OBJ_DIR)/,$(notdir $(dump_type_SRCS:.c=.o)))
 
 define DEFINE_DEBUG_TARGET
+$(1)_OBJS:=$(addprefix $(OBJ_DIR)/,$(notdir $($(1)_SRCS:.c=.o)))
 $(1):	$$($(1)_OBJS)
 	$(CC) -o $$@ $(DEBUG_CFLAGS) $$^
 endef

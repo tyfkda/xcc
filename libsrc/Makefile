@@ -62,24 +62,17 @@ clean-test:
 TESTS=printf file stdlib math longjmp
 
 printf_SRCS:=$(wildcard stdio/*.c)
-printf_OBJS:=$(addprefix $(OBJ_DIR)/,$(notdir $(printf_SRCS:.c=.o)))
-
 file_SRCS:=$(wildcard stdio/*.c)
-file_OBJS:=$(addprefix $(OBJ_DIR)/,$(notdir $(file_SRCS:.c=.o)))
-
 stdlib_SRCS:=$(wildcard stdlib/*.c)
-stdlib_OBJS:=$(addprefix $(OBJ_DIR)/,$(notdir $(stdlib_SRCS:.c=.o)))
-
 math_SRCS:=$(wildcard math/*.c)
-math_OBJS:=$(addprefix $(OBJ_DIR)/,$(notdir $(math_SRCS:.c=.o)))
-
 longjmp_SRCS:=misc/setjmp.c
-longjmp_OBJS:=$(addprefix $(OBJ_DIR)/,$(notdir $(longjmp_SRCS:.c=.o)))
 
 define DEFINE_TEST_TARGET
 test-$(1):	$(1)_test
 	@echo "## $(1)"
 	@./$(1)_test
+
+$(1)_OBJS:=$(addprefix $(OBJ_DIR)/,$(notdir $($(1)_SRCS:.c=.o)))
 
 $(1)_test:	tests/$(1)_test.c $$($(1)_OBJS)
 	$(CC) -o$$@ $(CFLAGS) -I$(INC_DIR) -DUNIT_TEST -ffreestanding $$^
