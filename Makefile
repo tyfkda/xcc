@@ -169,9 +169,9 @@ WCC_DIR:=src/wcc
 WCC_CFLAGS:=$(CFLAGS) -I$(CPP_DIR) -DTARGET_WASM
 
 WCC_SRCS:=$(wildcard $(WCC_DIR)/*.c) \
-	$(CC1_FE_DIR)/lexer.c $(CC1_FE_DIR)/type.c $(CC1_FE_DIR)/var.c $(CC1_FE_DIR)/ast.c \
-	$(CC1_FE_DIR)/parser.c $(CC1_FE_DIR)/parser_expr.c $(CPP_DIR)/preprocessor.c \
-	$(CPP_DIR)/pp_parser.c $(CPP_DIR)/macro.c $(UTIL_DIR)/util.c $(UTIL_DIR)/table.c
+	$(wildcard $(CC1_FE_DIR)/*.c) \
+	$(CPP_DIR)/preprocessor.c $(CPP_DIR)/pp_parser.c $(CPP_DIR)/macro.c \
+	$(UTIL_DIR)/util.c $(UTIL_DIR)/table.c
 WCC_OBJS:=$(addprefix $(WCC_OBJ_DIR)/,$(notdir $(WCC_SRCS:.c=.o)))
 WCC_LIBS:=$(LIBSRC_DIR)/_wasm/crt0.c $(LIBSRC_DIR)/_wasm/libc.c
 
