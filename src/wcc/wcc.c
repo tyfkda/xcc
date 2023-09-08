@@ -276,7 +276,7 @@ static void construct_initial_value(DataStorage *ds, const Type *type, const Ini
       int count = 0;
       int offset = 0;
       for (int i = 0, n = sinfo->member_count; i < n; ++i) {
-        const MemberInfo* member = &sinfo->members[i];
+        const MemberInfo *member = &sinfo->members[i];
         if (member->bitfield.width > 0) {
           i = construct_initial_value_bitfield(ds, sinfo, init, i, &offset);
           ++count;
@@ -299,7 +299,7 @@ static void construct_initial_value(DataStorage *ds, const Type *type, const Ini
         }
       }
       if (sinfo->is_union && count <= 0) {
-        const MemberInfo* member = &sinfo->members[0];
+        const MemberInfo *member = &sinfo->members[0];
         construct_initial_value(ds, member->type, NULL);
         offset += type_size(member->type);
       }
@@ -330,7 +330,7 @@ static void construct_data_segment(DataStorage *ds) {
   for (int it = 0; (it = table_iterate(&gvar_info_table, it, &name, (void**)&info)) != -1; ) {
     const VarInfo *varinfo = info->varinfo;
     if ((is_prim_type(varinfo->type) && !(varinfo->storage & VS_REF_TAKEN)) ||
-         varinfo->global.init == NULL)
+        varinfo->global.init == NULL)
       continue;
     uint32_t adr = info->non_prim.address;
     assert(adr >= address);

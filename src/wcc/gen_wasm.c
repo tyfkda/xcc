@@ -27,7 +27,7 @@
 
 static void gen_lval(Expr *expr);
 
-void add_code(const unsigned char* buf, size_t size) {
+void add_code(const unsigned char *buf, size_t size) {
   data_append(CODE, buf, size);
 }
 
@@ -432,7 +432,7 @@ static void gen_funcall(Expr *expr) {
     assert(index >= 0);
     ADD_CODE(OP_CALL_INDIRECT);
     ADD_ULEB128(index);  // signature index
-    ADD_ULEB128(0);     // table index
+    ADD_ULEB128(0);      // table index
   }
 
   if (sarg_siz > 0 || vaarg_bufsiz > 0) {
