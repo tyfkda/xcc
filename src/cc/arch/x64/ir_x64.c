@@ -807,6 +807,7 @@ static void ir_out(IR *ir) {
       break;
     }
 
+    // fix->fix
     if (ir->dst->vtype->size <= ir->opr1->vtype->size) {
       if (ir->dst->phys != ir->opr1->phys) {
         assert(0 <= ir->dst->vtype->size && ir->dst->vtype->size < kPow2TableSize);
@@ -825,7 +826,8 @@ static void ir_out(IR *ir) {
       if (ir->opr1->vtype->flag & VRTF_UNSIGNED) {
         if (pows == 2 && powd == 3) {
           // MOVZX %64bit, %32bit doesn't exist!
-          MOV(kRegSizeTable[pows][ir->opr1->phys], kRegSizeTable[pows][ir->dst->phys]);
+          if (ir->dst->phys != ir->opr1->phys)
+            MOV(kRegSizeTable[pows][ir->opr1->phys], kRegSizeTable[pows][ir->dst->phys]);
         } else {
           MOVZX(kRegSizeTable[pows][ir->opr1->phys], kRegSizeTable[powd][ir->dst->phys]);
         }
