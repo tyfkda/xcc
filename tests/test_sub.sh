@@ -25,7 +25,7 @@ end_test_suite() {
 
 begin_test() {
   local title="$1"
-  TEST_COUNT=$(($TEST_COUNT + 1))
+  TEST_COUNT=$((TEST_COUNT + 1))
   printf "${CLEAR_LINE}  ${SUITE_NAME} ${TEST_COUNT}: $title"
 }
 
@@ -33,6 +33,6 @@ end_test() {
   local err="$1"
   if [[ "$err" != "" ]]; then
     printf "  ${RED}${BOLD}FAILED${RESET_COLOR}: ${err}\n"
-    ERROR_COUNT=$(($ERROR_COUNT + 1))
+    ERROR_COUNT=$((ERROR_COUNT + 1))
   fi
 }

@@ -2,7 +2,7 @@
 
 source ./test_sub.sh
 
-AOUT=${AOUT:-$(basename `mktemp -u`)}
+AOUT=${AOUT:-$(basename "$(mktemp -u)")}
 XCC=${XCC:-../xcc}
 
 try() {
@@ -63,7 +63,7 @@ test_all() {
   try 'fib' 832040 ../examples/fib.c
   try 'echo' 'foo bar baz' ../examples/echo.c foo bar baz
 
-  if [ "`no_flonum`" != "true" ]; then
+  if [ "$(no_flonum)" != "true" ]; then
     try_cmp 'mandelbrot' 'mandel256.ppm' 'mandelbrot.ppm' ../examples/mandelbrot.c 100 256 256
   fi
 
@@ -73,5 +73,5 @@ test_all() {
 test_all
 
 if [[ $FAILED_SUITE_COUNT -ne 0 ]]; then
-  exit $FAILED_SUITE_COUNT
+  exit "$FAILED_SUITE_COUNT"
 fi

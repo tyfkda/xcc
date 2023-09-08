@@ -2,11 +2,11 @@
 
 source ./test_sub.sh
 
-AOUT=${AOUT:-$(basename `mktemp -u`)}
+AOUT=${AOUT:-$(basename "$(mktemp -u)")}
 XCC=${XCC:-../xcc}
 RUN_AOUT=${RUN_AOUT:-./"$AOUT"}
 
-echo Compile=[$XCC], Run=[$RUN_AOUT]
+echo "Compile=[$XCC], Run=[$RUN_AOUT]"
 
 ARCH=$(arch)
 if [[ -z "$RE_SKIP" ]]; then
@@ -38,7 +38,7 @@ try_direct() {
   local OPT=''
   echo -n "$input" | grep "$RE_WNOERR" > /dev/null || OPT=-Werror
 
-  echo -e "$input" | eval $XCC $OPT -o "$AOUT" -xc - $SILENT ||  {
+  echo -e "$input" | eval "$XCC" $OPT -o "$AOUT" -xc - "$SILENT" ||  {
     end_test 'Compile failed'
     return
   }
@@ -69,7 +69,7 @@ compile_error() {
   local OPT=''
   echo -n "$input" | grep "$RE_WNOERR" > /dev/null || OPT=-Werror
 
-  echo -e "$input" | eval $XCC $OPT -o "$AOUT" -xc - $SILENT
+  echo -e "$input" | eval "$XCC" $OPT -o "$AOUT" -xc - "$SILENT"
   local exitcode="$?"
 
   local err=''; [[ "$exitcode" -ne 0 ]] || err="Compile error expected, but succeeded"
@@ -263,5 +263,5 @@ test_function
 test_error
 
 if [[ $FAILED_SUITE_COUNT -ne 0 ]]; then
-  exit $FAILED_SUITE_COUNT
+  exit "$FAILED_SUITE_COUNT"
 fi

@@ -4,7 +4,7 @@ set -o pipefail
 
 source ./test_sub.sh
 
-AOUT=${AOUT:-$(basename `mktemp -u`)}
+AOUT=${AOUT:-$(basename "$(mktemp -u)")}
 CPP=${CPP:-../cpp}
 XCC=${XCC:-../xcc}
 RUN_AOUT=${RUN_AOUT:-./"$AOUT"}
@@ -126,7 +126,8 @@ test_misc() {
 test_cat() {
   begin_test_suite "Concat"
 
-  local CATDEFS=`cat <<EOS
+  local CATDEFS
+  CATDEFS=$(cat <<EOS
 #define CAT(x, y) x ## y
 #define INDIRECT(x, y) CAT(x, y)
 #define N 1
@@ -134,7 +135,7 @@ test_cat() {
 #define X Y
 #define _ /* empty */
 EOS
-`
+)
   try 'simple'   'ABCDEF'   "$CATDEFS\nCAT(ABC, DEF)"
   try 'non-sym'  '123UL'    "$CATDEFS\nCAT(123, UL)"
   try 'non-sym2' '123.f'    "$CATDEFS\nCAT(123, .f)"
@@ -205,5 +206,5 @@ test_error
 test_run
 
 if [[ $FAILED_SUITE_COUNT -ne 0 ]]; then
-  exit $FAILED_SUITE_COUNT
+  exit "$FAILED_SUITE_COUNT"
 fi
