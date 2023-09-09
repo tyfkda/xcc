@@ -229,3 +229,4 @@ typedef struct FuncBackend {
 //
 
 void tweak_irs(FuncBackend *fnbe);
+unsigned long detect_extra_occupied(IR* ir);

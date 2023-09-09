@@ -1662,6 +1662,10 @@ int vaarg_and_array(int n, ...) {
   return sum;
 }
 
+int (*fnptr(int (*fn)(int n, ...)))(int, ...) {
+  return fn;
+}
+
 int use_alloca(int index) {
   int *a = alloca(10 * sizeof(*a));
   for (int i = 0; i < 10; ++i)
@@ -1729,6 +1733,7 @@ TEST(function) {
   EXPECT("const typedef-ed type", 65, const_typedefed(66));
 
   EXPECT("stdarg", 55, vaarg_and_array(10, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10));
+  EXPECT("vaarg fnptr", 15, fnptr(vaarg_and_array)(5, 1, 2, 3, 4, 5));
 
   {
     int x = 77;

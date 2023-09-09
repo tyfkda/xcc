@@ -362,20 +362,24 @@ static Expr *simplify_funarg(Expr *arg) {
   // Binary operators
   case EX_MUL:
   case EX_DIV:
+  case EX_MOD:
+  case EX_LSHIFT:
+  case EX_RSHIFT:
 #if defined(__x86_64__)
-    // On x64, MUL and DIV instruction implicitly uses (breaks) %rdx
+    // On x64, MUL, DIV and MOD instruction implicitly uses (breaks) %rdx
     // and %rdx is used as 3rd argument.
+    // Similary, Shift instructions (SHL, SHR) uses %cl which is 4th argument.
     // so must be precalculated.
     return gen_expr_as_tmpvar(arg);
+#else
+    // Except x64, these opcodes can be used in function argument.
+    // Fallthrough
 #endif
   case EX_ADD:
   case EX_SUB:
-  case EX_MOD:
   case EX_BITAND:
   case EX_BITOR:
   case EX_BITXOR:
-  case EX_LSHIFT:
-  case EX_RSHIFT:
   case EX_EQ:
   case EX_NE:
   case EX_LT:

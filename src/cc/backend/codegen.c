@@ -848,8 +848,11 @@ static void gen_defun(Function *func) {
   extern const int ArchRegParamMapping[];
   fnbe->ra = curra = new_reg_alloc(ArchRegParamMapping, PHYSICAL_REG_MAX, PHYSICAL_REG_TEMPORARY);
 #ifndef __NO_FLONUM
-  fnbe->ra->fphys_max = PHYSICAL_FREG_MAX;
-  fnbe->ra->fphys_temporary_count = PHYSICAL_FREG_TEMPORARY;
+  curra->fphys_max = PHYSICAL_FREG_MAX;
+  curra->fphys_temporary_count = PHYSICAL_FREG_TEMPORARY;
+#endif
+#if defined(__x86_64__)
+  curra->detect_extra_occupied = detect_extra_occupied;
 #endif
 
   // Allocate BBs for goto labels.
