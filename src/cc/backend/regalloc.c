@@ -181,6 +181,8 @@ static void detect_live_interval_flags(RegAlloc *ra, BBContainer *bbcon, int vre
   Vector *actives = new_vector();
   for (int i = 0; i < vreg_count; ++i) {
     LiveInterval *li = sorted_intervals[i];
+    if (li->end < 0)
+      continue;
     vec_push(li->start < 0 ? actives : inactives, li);
   }
 

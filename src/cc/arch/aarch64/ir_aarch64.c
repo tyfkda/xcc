@@ -16,27 +16,36 @@ static void pop_caller_save_regs(Vector *saves);
 
 // Register allocator
 
+// AArch64: Calling Convention
+//   X8(XR):              Indirect return value address.
+//   X16(IP0), X17(IP1):  Intra-Procedure-call scratch registers.
+//   X18(PR):             Platform register. Used for some operating-system-specific special purpose or an additional caller-saved register.
+
 static const char *kReg32s[PHYSICAL_REG_MAX] = {
-  W0, W1, W2, W3, W4, W5, W6, W7,
-  W20, W21, W22, W23, W24, W25, W26, W27, W28, W10, W11, W12, W13, W14, W15, W16, W17};
+  W0, W1, W2, W3, W4, W5, W6, W7, W8, W9, W16,       // Temporary
+  W19, W20, W21, W22, W23, W24, W25, W26, W27, W28,  // Callee save
+  W10, W11, W12, W13, W14, W15, W18};                // Caller save
 static const char *kReg64s[PHYSICAL_REG_MAX] = {
-  X0, X1, X2, X3, X4, X5, X6, X7,
-  X20, X21, X22, X23, X24, X25, X26, X27, X28, X10, X11, X12, X13, X14, X15, X16, X17};
+  X0, X1, X2, X3, X4, X5, X6, X7, X8, X9, X16,       // Temporary
+  X19, X20, X21, X22, X23, X24, X25, X26, X27, X28,  // Callee save
+  X10, X11, X12, X13, X14, X15, X18};                // Caller save
 
 #define CALLEE_SAVE_REG_COUNT  ((int)(sizeof(kCalleeSaveRegs) / sizeof(*kCalleeSaveRegs)))
-static const int kCalleeSaveRegs[] = {8, 9, 10, 11, 12, 13, 14, 15, 16};
+static const int kCalleeSaveRegs[] = {11, 12, 13, 14, 15, 16, 17, 18, 19, 20};
 
 #define CALLER_SAVE_REG_COUNT  ((int)(sizeof(kCallerSaveRegs) / sizeof(*kCallerSaveRegs)))
-static const int kCallerSaveRegs[] = {17, 18, 19, 20, 21, 22, 23, 24};
+static const int kCallerSaveRegs[] = {21, 22, 23, 24, 25, 26, 27};
 
 const int ArchRegParamMapping[] = {0, 1, 2, 3, 4, 5, 6, 7};
+
+#define GET_X16_INDEX()  10
 
 const char **kRegSizeTable[] = {kReg32s, kReg32s, kReg32s, kReg64s};
 static const char *kZeroRegTable[] = {WZR, WZR, WZR, XZR};
 static const char *kRetRegTable[] = {W0, W0, W0, X0};
 
-// Break %x9 in store, mod and tjmp
-static const char *kTmpRegTable[] = {W9, W9, W9, X9};
+// Break %x16 in store, mod and tjmp
+static const char *kTmpRegTable[] = {W17, W17, W17, X17};
 
 #define SZ_FLOAT   (4)
 #define SZ_DOUBLE  (8)
@@ -61,6 +70,17 @@ static const int kCallerSaveFRegs[] = {16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 2
 
 static const int kPow2Table[] = {-1, 0, 1, -1, 2, -1, -1, -1, 3};
 #define kPow2TableSize ((int)(sizeof(kPow2Table) / sizeof(*kPow2Table)))
+
+unsigned long detect_extra_occupied(IR *ir) {
+  unsigned long ioccupy = 0;
+  switch (ir->kind) {
+  case IR_JMP: case IR_TJMP: case IR_CALL:
+    ioccupy = 1UL << GET_X16_INDEX();
+    break;
+  default: break;
+  }
+  return ioccupy;
+}
 
 //
 

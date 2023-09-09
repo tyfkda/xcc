@@ -847,9 +847,7 @@ static void gen_defun(Function *func) {
   curra->fphys_max = PHYSICAL_FREG_MAX;
   curra->fphys_temporary_count = PHYSICAL_FREG_TEMPORARY;
 #endif
-#if defined(__x86_64__)
   curra->detect_extra_occupied = detect_extra_occupied;
-#endif
 
   // Allocate BBs for goto labels.
   if (func->label_table != NULL) {
