@@ -63,6 +63,11 @@ unsigned long detect_extra_occupied(IR *ir) {
     if (!(ir->opr2->flag & VRF_CONST))
       ioccupy = 1UL << GET_CREG_INDEX();
     break;
+  case IR_CALL:
+    if (ir->call.vaarg_start < 0)
+      break;
+    // Break %al if function is vaarg.
+    // Fallthrough
   case IR_TJMP:
     ioccupy = 1UL << GET_AREG_INDEX();
     break;
@@ -665,6 +670,7 @@ static void ir_out(IR *ir) {
           }
         }
 
+        // Break %al
         if (freg > 0)
           MOV(IM(freg), AL);
         else
