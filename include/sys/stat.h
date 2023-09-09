@@ -1,21 +1,50 @@
 #pragma once
 
-typedef int mode_t;
-
 #include <time.h>  // timespec
 #include <stddef.h>  // size_t
 #include <stdint.h>
 #include <sys/types.h>  // off_t
 
-typedef unsigned long dev_t;  // uint32_t, %ld
-typedef unsigned long ino_t;  // uint64_t, %lu
-typedef uint32_t uid_t;  // uint32_t, %d
-typedef uint32_t gid_t;  // uint32_t, %d
-typedef unsigned long blksize_t;  // uint32_t, %ld
-typedef unsigned long blkcnt_t;  // uint64_t, %lu
+typedef unsigned long ino_t;
+typedef uint32_t uid_t;
+typedef uint32_t gid_t;
+typedef unsigned long blkcnt_t;
 
-#if defined(__x86_64__)
-typedef unsigned long nlink_t;  // uint16_t, %ld
+#if defined(__APPLE__)
+typedef int32_t dev_t;
+typedef uint16_t mode_t;
+typedef uint16_t nlink_t;
+typedef int32_t blksize_t;
+
+// __DARWIN_STRUCT_STAT64
+struct stat {
+  dev_t       st_dev;                 /* [XSI] ID of device containing file */
+  mode_t      st_mode;                /* [XSI] Mode of file (see below) */
+  nlink_t     st_nlink;               /* [XSI] Number of hard links */
+  uint64_t    st_ino;                 /* [XSI] File serial number */
+  uid_t       st_uid;                 /* [XSI] User ID of the file */
+  gid_t       st_gid;                 /* [XSI] Group ID of the file */
+  dev_t       st_rdev;                /* [XSI] Device ID */
+
+  // __DARWIN_STRUCT_STAT64_TIMES
+  struct timespec st_atimespec;           /* time of last access */
+  struct timespec st_mtimespec;           /* time of last data modification */
+  struct timespec st_ctimespec;           /* time of last status change */
+  struct timespec st_birthtimespec;       /* time of file creation(birth) */
+
+  off_t       st_size;                /* [XSI] file size, in bytes */
+  blkcnt_t    st_blocks;              /* [XSI] blocks allocated for file */
+  blksize_t   st_blksize;             /* [XSI] optimal blocksize for I/O */
+  uint32_t    st_flags;               /* user defined flags for file */
+  uint32_t    st_gen;                 /* file generation number */
+  int32_t     st_lspare;              /* RESERVED: DO NOT USE! */
+  int64_t     st_qspare[2];           /* RESERVED: DO NOT USE! */
+};
+#elif defined(__x86_64__)
+typedef unsigned long dev_t;
+typedef int mode_t;
+typedef unsigned long nlink_t;
+typedef unsigned long blksize_t;
 
 struct stat {
   dev_t     st_dev;
@@ -40,9 +69,12 @@ struct stat {
 
   /*__syscall_slong_t*/ long __glibc_reserved[3];
 };
-#else
 
-typedef unsigned int nlink_t;  // uint16_t, %ld
+#else
+typedef unsigned long dev_t;
+typedef int mode_t;
+typedef unsigned int nlink_t;
+typedef unsigned long blksize_t;
 
 struct stat {
   dev_t     st_dev;
@@ -90,3 +122,4 @@ int fchmodat(int dirfd, const char *pathname, mode_t mode, int flags);
 int stat(const char *pathname, struct stat *buf);
 int fstat(int fd, struct stat *buf);
 int lstat(const char *pathname, struct stat *buf);
+int fstatat(int fd, const char *pathname, struct stat *buf, int flag);

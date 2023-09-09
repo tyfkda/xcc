@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <sys/stat.h>
 
 #include <string.h>
 
@@ -45,8 +46,39 @@ TEST(basic_access) {
   EXPECT_EQ(0, remove(fn));
 } END_TEST()
 
+TEST(stat) {
+  // Test regular file.
+  const char fn[] = "tmp_stat.txt";
+  FILE *fp = fopen(fn, "w");
+  EXPECT_NOT_NULL(fp);
+  if (fp != NULL) {
+    fprintf(fp, "Dummy\n");
+    fclose(fp);
+
+    struct stat st;
+    EXPECT_EQ(0, stat(fn, &st));
+    EXPECT_TRUE(S_ISREG(st.st_mode));
+    EXPECT_FALSE(S_ISDIR(st.st_mode));
+
+    // remove(fn);
+  }
+
+  // Test directory.
+  // TODO: Add `mkdir`
+  const char dn[] = "tests";
+  // EXPECT_EQ(0, mkdir(dn, S_IRWXU | S_IRGRP | S_IXGRP | S_IROTH | S_IXOTH));
+  {
+    struct stat st;
+    EXPECT_EQ(0, stat(dn, &st));
+    EXPECT_TRUE(S_ISDIR(st.st_mode));
+    EXPECT_FALSE(S_ISREG(st.st_mode));
+  }
+  // EXPECT_EQ(0, rmdir());
+} END_TEST()
+
 int main() {
   return RUN_ALL_TESTS(
     test_basic_access,
+    test_stat,
   );
 }

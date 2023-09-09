@@ -1,5 +1,5 @@
 #if !defined(__WASM) && !defined(__APPLE__)
-#include "unistd.h"
+#include "sys/stat.h"
 #include "_syscall.h"
 
 #if defined(__GNUC__)
@@ -7,7 +7,7 @@
 #endif
 
 #if defined(__NR_newfstatat)
-int newfstatat(int fd, const char *pathname, struct stat *buf, int flag) {
+int fstatat(int fd, const char *pathname, struct stat *buf, int flag) {
   int ret;
   SYSCALL_RET(__NR_newfstatat, ret);
   return ret;
