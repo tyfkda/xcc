@@ -63,6 +63,9 @@ unsigned long detect_extra_occupied(IR *ir) {
     if (!(ir->opr2->flag & VRF_CONST))
       ioccupy = 1UL << GET_CREG_INDEX();
     break;
+  case IR_TJMP:
+    ioccupy = 1UL << GET_AREG_INDEX();
+    break;
   default: break;
   }
   return ioccupy;
@@ -571,7 +574,9 @@ static void ir_out(IR *ir) {
 
   case IR_TJMP:
     {
+      // Break %rax
       int phys = ir->opr1->phys;
+      assert(phys != GET_AREG_INDEX());
       const int powd = 3;
       assert(0 <= ir->opr1->vtype->size && ir->opr1->vtype->size < kPow2TableSize);
       int pows = kPow2Table[ir->opr1->vtype->size];
