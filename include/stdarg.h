@@ -75,7 +75,7 @@ typedef __gnuc_va_list va_list;
 
 #ifndef __NO_FLONUM
 #define __builtin_va_arg_fp_case(ap, ty) \
-  case /*flonum*/ 6: \
+  case /*flonum*/ 2: \
     p = __va_arg_fp(ap, sizeof(ty), _Alignof(ty)); break;
 #else
 #define __builtin_va_arg_fp_case(ap, ty)  /*none*/
@@ -85,7 +85,7 @@ typedef __gnuc_va_list va_list;
   char *p; \
   switch (__builtin_type_kind(ty)) { \
   __builtin_va_arg_fp_case(ap, ty) \
-  case /*fixnum*/ 1: case /*ptr*/ 2: \
+  case /*fixnum*/ 1: case /*ptr*/ 3: \
     p = __va_arg_gp(ap, sizeof(ty), _Alignof(ty)); break; \
   default: \
     p = __va_arg_mem(ap, sizeof(ty), _Alignof(ty)); break; \

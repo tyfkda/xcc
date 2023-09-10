@@ -34,11 +34,11 @@ enum FlonumKind {
 enum TypeKind {
   TY_VOID,
   TY_FIXNUM,
+  TY_FLONUM,
   TY_PTR,
   TY_ARRAY,
   TY_FUNC,
   TY_STRUCT,  // include union
-  TY_FLONUM,
 };
 
 // Qualifier
