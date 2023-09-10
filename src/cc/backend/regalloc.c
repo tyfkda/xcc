@@ -342,9 +342,6 @@ static int insert_load_store_spilled_irs(RegAlloc *ra, BBContainer *bbcon) {
 
       int flag = 7;
       switch (ir->kind) {
-      default:
-        assert(false);
-        // Fallthrough.
       case IR_LOAD:
       case IR_STORE:
       case IR_MOV:

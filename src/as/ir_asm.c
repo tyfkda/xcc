@@ -146,7 +146,6 @@ bool calc_label_address(uintptr_t start_address, Vector **section_irs, Table *la
       case IR_EXPR_QUAD:
         address += QUAD_SIZE;
         break;
-      default:  assert(false); break;
       }
     }
   }
@@ -390,7 +389,6 @@ bool resolve_relative_address(Vector **section_irs, Table *label_table, Vector *
       case IR_BSS:
       case IR_ALIGN:
         break;
-      default:  assert(false); break;
       }
     }
   }
@@ -440,7 +438,6 @@ void emit_irs(Vector **section_irs) {
           add_section_data(sec, &zero, size);  // TODO: Target endian
         }
         break;
-      default:  assert(false); break;
       }
     }
   }

@@ -45,6 +45,9 @@ static bool traverse_ast_expr(Expr **pexpr, LexicalStack *parent, TraverseAstPar
     return true;
 
   switch (expr->kind) {
+  case EX_FIXNUM: case EX_FLONUM: case EX_STR: case EX_VAR:
+    break;
+
   // Bop
   case EX_ADD:
   case EX_SUB:
@@ -110,8 +113,6 @@ static bool traverse_ast_expr(Expr **pexpr, LexicalStack *parent, TraverseAstPar
   case EX_BLOCK:
     traverse_ast_stmt(&expr->block, &lstack, param);
     break;
-
-  default: break;
   }
   return false;
 }
@@ -169,6 +170,7 @@ static bool traverse_ast_stmt(Stmt **pstmt, LexicalStack *parent, TraverseAstPar
   case ST_RETURN:  return traverse_ast_expr(&stmt->return_.val, &lstack, param);
   case ST_CASE: case ST_DEFAULT:
     return traverse_ast_expr(&stmt->case_.value, &lstack, param);
+  case ST_GOTO:  break;
   case ST_LABEL:  return traverse_ast_stmt(&stmt->label.stmt, &lstack, param);
   case ST_VARDECL:
     {
@@ -183,9 +185,6 @@ static bool traverse_ast_stmt(Stmt **pstmt, LexicalStack *parent, TraverseAstPar
     }
     break;
   case ST_ASM:  break;
-  default:
-    parse_error(PE_FATAL, stmt->token, "Unhandled stmt: %d", stmt->kind);
-    break;
   }
   return false;
 }

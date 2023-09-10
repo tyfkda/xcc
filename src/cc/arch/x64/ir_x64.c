@@ -933,8 +933,6 @@ static void ir_out(IR *ir) {
       MOV(regs[ir->opr1->phys], OFFSET_INDIRECT(ir->opr2->frame.offset, RBP, NULL, 1));
     }
     break;
-
-  default: assert(false); break;
   }
 }
 

@@ -783,8 +783,6 @@ static void ir_out(IR *ir) {
       MOV(regs[ir->dst->phys], kRetRegTable[pow]);
     }
     break;
-
-  default: assert(false); break;
   }
 }
 

@@ -263,7 +263,6 @@ static void resolve_relas(File *files, int nfiles) {
     case FK_ARCHIVE:
       resolve_rela_archive(file->archive, files, nfiles);
       break;
-    default: assert(false);   break;
     }
   }
 }
@@ -316,7 +315,6 @@ static bool link_files(File *files, int nfiles, const Name *entry, uintptr_t sta
     case FK_ARCHIVE:
       link_archive(file->archive, files, nfiles, offsets, progbit_sections, &unresolved);
       break;
-    default: assert(false); break;
     }
   }
 
@@ -364,7 +362,6 @@ static bool link_files(File *files, int nfiles, const Name *entry, uintptr_t sta
         }
       }
       break;
-    default: assert(false); break;
     }
   }
 
@@ -518,7 +515,6 @@ int main(int argc, char *argv[]) {
       break;
     case FK_ARCHIVE:
       break;
-    default: assert(false); break;
     }
   }
   return result ? 0 : 1;

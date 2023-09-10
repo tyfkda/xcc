@@ -203,7 +203,7 @@ char *join_paths(const char *paths[]) {
   switch (top) {
   case CURDIR:   sb_prepend(&sb, ".", NULL); break;
   case ROOTDIR:  sb_prepend(&sb, sb.elems->len > 0 ? "" : "/", NULL); break;
-  default: break;
+  case OTHER: break;
   }
   return sb_join(&sb, "/");
 }

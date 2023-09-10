@@ -126,7 +126,6 @@ static unsigned char *asm_mov_imr(Inst *inst, Code *code) {
   case REG16: PUT_CODE(p, IM16(inst->src.immediate)); break;
   case REG32: PUT_CODE(p, IM32(inst->src.immediate)); break;
   case REG64: PUT_CODE(p, IM64(inst->src.immediate)); break;
-  default: assert(false); break;
   }
   p += 1 << size;
   return p;
@@ -593,9 +592,10 @@ static long signed_immediate(long value, enum RegSize size) {
   case REG8:   return (int8_t)value;
   case REG16:  return (int16_t)value;
   case REG32:  return (int32_t)value;
-  default: assert(false);  // Fallthrough
   case REG64:  return (int64_t)value;
   }
+  assert(!"Must not reached");
+  return value;
 }
 
 static unsigned char *asm_lea_ir(Inst *inst, Code *code) {
@@ -690,7 +690,6 @@ static unsigned char *asm_add_imr(Inst *inst, Code *code) {
         PUT_CODE(p, IM32(value));
         p += 4;
         break;
-      default:  assert(false); break;
       }
     }
     return p;
@@ -805,7 +804,6 @@ static unsigned char *asm_sub_imr(Inst *inst, Code *code) {
         PUT_CODE(p, IM32(value));
         p += 4;
         break;
-      default:  assert(false); break;
       }
     }
     return p;
@@ -1008,7 +1006,6 @@ static unsigned char *asm_and_imr(Inst *inst, Code *code) {
       PUT_CODE(p, IM32(value));
       p += 4;
       break;
-    default: assert(false); break;
     }
     return p;
   }
@@ -1050,7 +1047,6 @@ static unsigned char *asm_or_imr(Inst *inst, Code *code) {
       PUT_CODE(p, IM32(value));
       p += 4;
       break;
-    default: assert(false); break;
     }
     return p;
   }
@@ -1092,7 +1088,6 @@ static unsigned char *asm_xor_imr(Inst *inst, Code *code) {
       PUT_CODE(p, IM32(value));
       p += 4;
       break;
-    default: assert(false); break;
     }
     return p;
   }

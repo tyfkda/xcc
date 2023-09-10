@@ -553,14 +553,12 @@ static void gen_var(Expr *expr) {
     }
     break;
 
-  default:
-    assert(false);
-    // Fallthrough to suppress compile error.
   case TY_ARRAY:   // Use variable address as a pointer.
   case TY_STRUCT:  // struct value is handled as a pointer.
   case TY_FUNC:
     gen_lval(expr);
-    return;
+    break;
+  case TY_VOID: assert(false); break;
   }
 }
 
@@ -658,8 +656,8 @@ void gen_expr(Expr *expr, bool needval) {
     }
     break;
 
-#ifndef __NO_FLONUM
   case EX_FLONUM:
+#ifndef __NO_FLONUM
     if (needval) {
       switch (expr->type->flonum.kind) {
       case FL_FLOAT:
@@ -670,11 +668,14 @@ void gen_expr(Expr *expr, bool needval) {
         ADD_CODE(OP_F64_CONST);
         ADD_F64(expr->flonum);
         break;
-      default: assert(false); break;
       }
     }
-    break;
+#else
+    assert(false);
 #endif
+    break;
+
+  case EX_STR: assert(false); break;
 
   case EX_VAR:
     if (needval)
@@ -719,8 +720,8 @@ void gen_expr(Expr *expr, bool needval) {
         ADD_CODE(type_size(expr->type) <= I32_SIZE ? OP_I32_CONST : OP_I64_CONST);
         ADD_LEB128(0);
         break;
-#ifndef __NO_FLONUM
       case TY_FLONUM:
+#ifndef __NO_FLONUM
         switch (expr->type->flonum.kind) {
         case FL_FLOAT:
           ADD_CODE(OP_F32_CONST);
@@ -730,10 +731,11 @@ void gen_expr(Expr *expr, bool needval) {
           ADD_CODE(OP_F64_CONST);
           ADD_F64(0);
           break;
-        default: assert(false); break;
         }
-        break;
+#else
+        assert(false);
 #endif
+        break;
       default: assert(false); break;
       }
 
@@ -836,7 +838,7 @@ void gen_expr(Expr *expr, bool needval) {
           }
         }
         break;
-      default: assert(false); break;
+      case TY_ARRAY: case TY_FUNC: case TY_VOID: assert(false); break;
       }
     }
     break;
@@ -876,16 +878,15 @@ void gen_expr(Expr *expr, bool needval) {
       case TY_PTR:
       case TY_FLONUM:
         gen_load(expr->type);
-        return;
+        break;
 
-      default:
-        assert(false);
-        // Fallthrough to suppress compile error.
       case TY_ARRAY:
       case TY_STRUCT:
       case TY_FUNC:
         // array, struct and func values are handled as a pointer.
-        return;
+        break;
+
+      case TY_VOID: assert(false); break;
       }
     }
     break;
@@ -934,8 +935,6 @@ void gen_expr(Expr *expr, bool needval) {
   case EX_BLOCK:
     gen_block_expr(expr->block, needval);
     break;
-
-  default: assert(!"Not implemeneted"); break;
   }
 }
 
@@ -1023,9 +1022,7 @@ static void gen_cond(Expr *cond, bool tf, bool needval) {
     gen_expr(cond->bop.lhs, false);
     gen_cond(cond->bop.rhs, tf, needval);
     break;
-  default:
-    assert(false);
-    break;
+  default: assert(false); break;
   }
 }
 
@@ -1369,11 +1366,10 @@ static void gen_stmt(Stmt *stmt) {
   case ST_FOR:  gen_for(stmt); break;
   case ST_BREAK:  gen_break(); break;
   case ST_CONTINUE:  gen_continue(); break;
-  // case ST_GOTO:  gen_goto(stmt); break;
-  // case ST_LABEL:  gen_label(stmt); break;
+  case ST_LABEL: gen_stmt(stmt->label.stmt); break;
   case ST_VARDECL:  gen_vardecl(stmt->vardecl.decls); break;
   case ST_ASM:  gen_asm(stmt); break;
-  default: assert(false); break;
+  case ST_GOTO: assert(false); break;
   }
 }
 
@@ -1637,10 +1633,6 @@ static void gen_decl(Declaration *decl) {
     gen_defun(decl->defun.func);
     break;
   case DCL_VARDECL:
-    break;
-
-  default:
-    error("Unhandled decl: %d", decl->kind);
     break;
   }
 }

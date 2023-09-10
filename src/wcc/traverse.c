@@ -292,9 +292,9 @@ static void traverse_expr(Expr **pexpr, bool needval) {
   if (expr == NULL)
     return;
   switch (expr->kind) {
-  //case EX_FIXNUM:  break;
-  //case EX_FLONUM:  break;
-  //case EX_STR:  break;
+  case EX_FIXNUM:  break;
+  case EX_FLONUM:  break;
+  case EX_STR:  break;
   case EX_VAR:
     if (expr->type->kind == TY_FUNC) {
       register_indirect_function(expr->var.name, expr->type);
@@ -469,8 +469,6 @@ static void traverse_expr(Expr **pexpr, bool needval) {
   case EX_BLOCK:
     traverse_stmt(expr->block);
     break;
-
-  default: break;
   }
 }
 
@@ -495,7 +493,6 @@ static void traverse_initializer(Initializer *init) {
   case IK_ARR:
     traverse_initializer(init->arr.value);
     break;
-  default: assert(false); break;
   }
 }
 
@@ -609,9 +606,6 @@ static void traverse_stmt(Stmt *stmt) {
   case ST_LABEL:  traverse_stmt(stmt->label.stmt); break;
   case ST_VARDECL:  traverse_vardecl(stmt); break;
   case ST_ASM:  break;
-  default:
-    parse_error(PE_FATAL, stmt->token, "Unhandled stmt: %d", stmt->kind);
-    break;
   }
 }
 
@@ -690,10 +684,6 @@ static void traverse_decl(Declaration *decl) {
     traverse_defun(decl->defun.func);
     break;
   case DCL_VARDECL:
-    break;
-
-  default:
-    error("Unhandled decl: %d", decl->kind);
     break;
   }
 }

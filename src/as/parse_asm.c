@@ -1009,6 +1009,8 @@ void handle_directive(ParseInfo *info, enum DirectiveType dir, Vector **section_
   Vector *irs = section_irs[current_section];
 
   switch (dir) {
+  case NODIRECTIVE:
+    break;
   case DT_ASCII:
     {
       if (*info->p != '"')
@@ -1111,9 +1113,9 @@ void handle_directive(ParseInfo *info, enum DirectiveType dir, Vector **section_
     }
     break;
 
-#ifndef __NO_FLONUM
   case DT_FLOAT:
   case DT_DOUBLE:
+#ifndef __NO_FLONUM
     {
       Expr *expr = parse_expr(info);
       if (expr == NULL) {
@@ -1140,8 +1142,10 @@ void handle_directive(ParseInfo *info, enum DirectiveType dir, Vector **section_
       }
       vec_push(irs, new_ir_data(buf, size));
     }
-    break;
+#else
+    assert(false);
 #endif
+    break;
 
   case DT_GLOBL:
   case DT_LOCAL:
@@ -1176,10 +1180,6 @@ void handle_directive(ParseInfo *info, enum DirectiveType dir, Vector **section_
     break;
 
   case DT_EXTERN:
-    break;
-
-  default:
-    parse_error(info, "Unhandled directive");
     break;
   }
 }

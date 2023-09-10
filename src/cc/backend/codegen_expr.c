@@ -108,12 +108,7 @@ static enum ConditionKind gen_compare_expr(enum ExprKind kind, Expr *lhs, Expr *
     }
   }
 
-  switch (lhs->type->kind) {
-  case TY_FIXNUM: case TY_PTR:
-  case TY_FLONUM:
-    break;
-  default: assert(false); break;
-  }
+  assert(is_prim_type(lhs->type));
 
   new_ir_cmp(lhs_reg, rhs_reg);
   return cond | flag;
@@ -165,9 +160,7 @@ void gen_cond_jmp(Expr *cond, bool tf, BB *bb) {
     gen_expr(cond->bop.lhs);
     gen_cond_jmp(cond->bop.rhs, tf, bb);
     break;
-  default:
-    assert(false);
-    break;
+  default: assert(false); break;
   }
 }
 
@@ -253,9 +246,7 @@ static VReg *gen_lval(Expr *expr) {
       gen_stmts(expr->complit.inits);
       return gen_lval(expr->complit.var);
     }
-  default:
-    assert(false);
-    break;
+  default: assert(false); break;
   }
   return NULL;
 }
@@ -278,14 +269,14 @@ static VReg *gen_variable(Expr *expr) {
       VReg *result = new_ir_unary(IR_LOAD, vreg, to_vtype(expr->type));
       return result;
     }
-  default:
-    assert(false);
-    // Fallthrough to suppress compile error.
   case TY_ARRAY:   // Use variable address as a pointer.
   case TY_STRUCT:  // struct value is handled as a pointer.
   case TY_FUNC:
     return gen_lval(expr);
+  case TY_VOID: break;
   }
+  assert(!"Must not reached");
+  return NULL;
 }
 
 static VReg *gen_ternary(Expr *expr) {
@@ -335,8 +326,6 @@ static Expr *gen_expr_as_tmpvar(Expr *arg) {
 // precalculate it and make function argument simple.
 static Expr *simplify_funarg(Expr *arg) {
   switch (arg->kind) {
-  default: assert(false); break;
-
   case EX_PREINC:
   case EX_PREDEC:
   case EX_POSTINC:
@@ -638,9 +627,12 @@ VReg *gen_expr(Expr *expr) {
       }
       return vreg;
     }
-#ifndef __NO_FLONUM
   case EX_FLONUM:
+#ifndef __NO_FLONUM
     return gen_const_flonum(expr);
+#else
+    assert(false);
+    return NULL;
 #endif
 
   case EX_STR:
@@ -655,23 +647,22 @@ VReg *gen_expr(Expr *expr) {
   case EX_DEREF:
     {
       VReg *vreg = gen_expr(expr->unary.sub);
-      VReg *result;
       switch (expr->type->kind) {
       case TY_FIXNUM:
       case TY_PTR:
       case TY_FLONUM:
-        result = new_ir_unary(IR_LOAD, vreg, to_vtype(expr->type));
-        return result;
+        vreg = new_ir_unary(IR_LOAD, vreg, to_vtype(expr->type));
+        break;
 
-      default:
-        assert(false);
-        // Fallthrough to suppress compile error.
       case TY_ARRAY:
       case TY_STRUCT:
       case TY_FUNC:
         // array, struct and func values are handled as a pointer.
-        return vreg;
+        break;
+
+      case TY_VOID: assert(false); break;
       }
+      return vreg;
     }
 
   case EX_MEMBER:
@@ -693,7 +684,7 @@ VReg *gen_expr(Expr *expr) {
       case TY_FLONUM:
         result = new_ir_unary(IR_LOAD, vreg, to_vtype(expr->type));
         break;
-      default:
+      case TY_FUNC: case TY_VOID:
         assert(false);
         // Fallthrough to suppress compile error.
       case TY_ARRAY:
@@ -742,7 +733,7 @@ VReg *gen_expr(Expr *expr) {
       VReg *dst = gen_lval(expr->bop.lhs);
 
       switch (expr->type->kind) {
-      default:
+      case TY_ARRAY: case TY_FUNC: case TY_VOID:
         assert(false);
         // Fallthrough to suppress compiler error.
       case TY_FIXNUM:
@@ -894,12 +885,8 @@ VReg *gen_expr(Expr *expr) {
 
   case EX_BLOCK:
     return gen_block_expr(expr->block);
-
-  default:
-    fprintf(stderr, "Expr kind=%d, ", expr->kind);
-    assert(!"Unhandled in gen_expr");
-    break;
   }
 
+  assert(!"Must not reached");
   return NULL;
 }

@@ -225,7 +225,6 @@ static int output_obj(const char *ofn, Table *label_table, Vector *unresolved) {
         }
       }
       break;
-    default: assert(false); break;
     }
   }
 

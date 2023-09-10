@@ -201,8 +201,8 @@ static void construct_initial_value(DataStorage *ds, const Type *type, const Ini
       emit_fixnum(ds, v, type_size(type));
     }
     break;
-#ifndef __NO_FLONUM
   case TY_FLONUM:
+#ifndef __NO_FLONUM
     {
       double v = 0;
       if (init != NULL) {
@@ -223,8 +223,10 @@ static void construct_initial_value(DataStorage *ds, const Type *type, const Ini
         data_append(ds, (unsigned char*)&d, sizeof(double));  // TODO: Endian
       }
     }
-    break;
+#else
+    assert(false);
 #endif
+    break;
   case TY_ARRAY:
     if (init == NULL || init->kind == IK_MULTI) {
       const Type *elem_type = type->pa.ptrof;
@@ -314,7 +316,7 @@ static void construct_initial_value(DataStorage *ds, const Type *type, const Ini
       }
     }
     break;
-  default: assert(false); break;
+  case TY_FUNC: case TY_VOID: assert(false); break;
   }
 }
 

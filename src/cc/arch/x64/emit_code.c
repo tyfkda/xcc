@@ -132,9 +132,6 @@ static int construct_initial_value_bitfield(const StructInfo *sinfo, const Initi
   case FX_LONG: case FX_LLONG:
     _QUAD(output);
     break;
-  default:
-    assert(false);
-    // Fallthrough
   case FX_INT: case FX_ENUM:
     _LONG(output);
     break;
@@ -148,8 +145,8 @@ static void construct_initial_value(const Type *type, const Initializer *init) {
   assert(init == NULL || init->kind != IK_DOT);
 
   switch (type->kind) {
-#ifndef __NO_FLONUM
   case TY_FLONUM:
+#ifndef __NO_FLONUM
     switch (type->flonum.kind) {
     case FL_DOUBLE:
       {
@@ -188,8 +185,10 @@ static void construct_initial_value(const Type *type, const Initializer *init) {
       }
       break;
     }
-    break;
+#else
+    assert(false);
 #endif
+    break;
   case TY_FIXNUM:
   case TY_PTR:
     {
@@ -233,9 +232,6 @@ static void construct_initial_value(const Type *type, const Initializer *init) {
         case FX_LONG: case FX_LLONG:
           _QUAD(output);
           break;
-        default:
-          assert(false);
-          // Fallthrough
         case FX_INT: case FX_ENUM:
           _LONG(output);
           break;
@@ -346,10 +342,7 @@ static void construct_initial_value(const Type *type, const Initializer *init) {
       }
     }
     break;
-  default:
-    fprintf(stderr, "Global initial value for type %d not implemented (yet)\n", type->kind);
-    assert(false);
-    break;
+  case TY_FUNC: case TY_VOID: assert(false); break;
   }
 }
 
@@ -441,7 +434,6 @@ static void move_params_to_assigned(Function *func) {
       switch (p->type->flonum.kind) {
       case FL_FLOAT:   MOVSS(src, dst); break;
       case FL_DOUBLE:  MOVSD(src, dst); break;
-      default: assert(false); break;
       }
     } else {
       if (p->index != vreg->phys) {
@@ -449,7 +441,6 @@ static void move_params_to_assigned(Function *func) {
         switch (p->type->flonum.kind) {
         case FL_FLOAT:   MOVSS(src, dst); break;
         case FL_DOUBLE:  MOVSD(src, dst); break;
-        default: assert(false); break;
         }
       }
     }
@@ -564,10 +555,6 @@ void emit_code(Vector *decls) {
       emit_defun(decl->defun.func);
       break;
     case DCL_VARDECL:
-      break;
-
-    default:
-      error("Unhandled decl in emit_code: %d", decl->kind);
       break;
     }
   }

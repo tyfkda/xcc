@@ -76,7 +76,6 @@ void dump_init(FILE *fp, const Initializer *init) {
     fprintf(fp, "[%zu]=", init->arr.index);
     dump_init(fp, init->arr.value);
     break;
-  default: assert(false); break;
   }
 }
 
@@ -248,7 +247,10 @@ void dump_expr(FILE *fp, Expr *expr) {
     dump_init(fp, expr->complit.original_init);
     fprintf(fp, ")");
     break;
-  default: assert(!"not handled"); break;
+  case EX_BLOCK:
+    // TODO: Dump statement.
+    assert(!"not implemented");
+    break;
   }
 }
 

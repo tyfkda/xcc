@@ -177,8 +177,6 @@ static void calc_struct_size(StructInfo *sinfo) {
 
 size_t type_size(const Type *type) {
   switch (type->kind) {
-  case TY_VOID:
-    return 1;
   case TY_FIXNUM:
     return fixnum_size_table[type->fixnum.kind];
   case TY_FLONUM:
@@ -188,40 +186,34 @@ size_t type_size(const Type *type) {
   case TY_ARRAY:
     assert(type->pa.length >= 0);
     return type_size(type->pa.ptrof) * type->pa.length;
-  case TY_FUNC:
-    return 1;
   case TY_STRUCT:
     assert(type->struct_.info != NULL);
     assert(type->struct_.info->size >= 0);
     return type->struct_.info->size;
-  default:
-    assert(false);
-    return 1;
+  case TY_FUNC: case TY_VOID:
+    break;
   }
+  return 1;
 }
 
 size_t align_size(const Type *type) {
   switch (type->kind) {
-  case TY_VOID:
-    return 1;  // Just in case.
   case TY_FIXNUM:
     return fixnum_align_table[type->fixnum.kind];
   case TY_FLONUM:
     return flonum_align_table[type->fixnum.kind];
   case TY_PTR:
     return fixnum_align_table[FX_LONG];
-  case TY_FUNC:
-    return 1;
   case TY_ARRAY:
     return align_size(type->pa.ptrof);
   case TY_STRUCT:
     assert(type->struct_.info != NULL);
     assert(type->struct_.info->align > 0);
     return type->struct_.info->align;
-  default:
-    assert(false);
-    return 1;
+  case TY_FUNC: case TY_VOID:
+    break;
   }
+  return 1;  // Just in case.
 }
 
 bool is_fixnum(enum TypeKind kind) {
@@ -612,7 +604,6 @@ void print_type_recur(FILE *fp, const Type *type, PrintTypeChain *parent) {
     switch (type->flonum.kind) {
     case FL_FLOAT:  fprintf(fp, "float"); break;
     case FL_DOUBLE: fprintf(fp, "double"); break;
-    default: assert(false); break;
     }
     call_print_type_chain(parent, fp);
     break;

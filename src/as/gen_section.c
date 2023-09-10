@@ -76,9 +76,6 @@ void get_section_size(int section, size_t *psize, uintptr_t *ploadadr) {
       *psize = bss_size;
     }
     break;
-  default:
-    assert(!"Illegal");
-    break;
   }
 }
 

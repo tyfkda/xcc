@@ -98,8 +98,6 @@ static void dump_ir(FILE *fp, IR *ir) {
   case IR_ASM:    fprintf(fp, "\"%s\"\n", ir->asm_.str); break;
   case IR_LOAD_SPILLED:   dump_vreg(fp, ir->dst); fprintf(fp, " = [v%d]\n", ir->opr1->virt); break;
   case IR_STORE_SPILLED:  fprintf(fp, "[v%d] = ", ir->opr2->virt); dump_vreg(fp, ir->opr1); fprintf(fp, "\n"); break;
-
-  default: assert(false); break;
   }
 }
 
@@ -158,7 +156,6 @@ static void dump_func_ir(Function *func) {
         break;
       case LI_CONST:
         continue;
-      default:  assert(false); break;
       }
     }
   }
@@ -215,10 +212,6 @@ void do_dump_ir(Vector *decls) {
       dump_func_ir(decl->defun.func);
       break;
     case DCL_VARDECL:
-      break;
-
-    default:
-      assert(false);
       break;
     }
   }

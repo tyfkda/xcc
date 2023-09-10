@@ -624,10 +624,6 @@ void gen_stmt(Stmt *stmt) {
   case ST_LABEL:  gen_label(stmt); break;
   case ST_VARDECL:  gen_vardecl(stmt->vardecl.decls); break;
   case ST_ASM:  gen_asm(stmt); break;
-
-  default:
-    error("Unhandled stmt: %d", stmt->kind);
-    break;
   }
 }
 
@@ -901,10 +897,6 @@ void gen_decl(Declaration *decl) {
     gen_defun(decl->defun.func);
     break;
   case DCL_VARDECL:
-    break;
-
-  default:
-    error("Unhandled decl: %d", decl->kind);
     break;
   }
 }
