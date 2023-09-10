@@ -524,7 +524,11 @@ static void emit_defun(Function *func) {
     }
 
     size_t callee_saved_size = callee_saved_count * WORD_SIZE;
-    frame_size = fnbe->frame_size + (-(fnbe->frame_size + callee_saved_size + frame_offset) & 15);
+    frame_size = fnbe->frame_size;
+    if (func->flag & FUNCF_HAS_FUNCALL) {
+      // Align frame size to 16 only it contains funcall.
+      frame_size += -(fnbe->frame_size + callee_saved_size + frame_offset) & 15;
+    }
     if (frame_size > 0) {
       SUB(IM(frame_size), RSP);
       stackpos += frame_size;

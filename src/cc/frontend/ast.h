@@ -440,6 +440,7 @@ typedef struct Function {
 } Function;
 
 #define FUNCF_STACK_MODIFIED  (1 << 0)
+#define FUNCF_HAS_FUNCALL     (1 << 1)
 
 Function *new_func(Type *type, const Name *name);
 
