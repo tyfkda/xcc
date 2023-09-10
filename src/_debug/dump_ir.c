@@ -19,6 +19,7 @@ extern void install_builtins(void);
 
 static void dump_vreg(FILE *fp, VReg *vreg) {
   assert(vreg != NULL);
+  assert(!(vreg->flag & VRF_SPILLED));
   static char *kSize[] = {"0", "b", "w", "3", "d", "5", "6", "7", ""};
   if (vreg->flag & VRF_CONST) {
     fprintf(fp, "(%" PRId64 ")", vreg->fixnum);
@@ -32,11 +33,11 @@ static void dump_vreg(FILE *fp, VReg *vreg) {
 
 static void dump_ir(FILE *fp, IR *ir) {
   static char *kOps[] = {
-    "BOFS", "IOFS", "SOFS", "LOAD", "STORE",
+    "BOFS", "IOFS", "SOFS", "LOAD", "LOAD_S", "STORE", "STORE_S",
     "ADD", "SUB", "MUL", "DIV", "MOD", "BITAND", "BITOR", "BITXOR", "LSHIFT", "RSHIFT",
     "CMP", "NEG", "BITNOT", "COND", "JMP", "TJMP",
     "PRECALL", "PUSHARG", "CALL", "RESULT", "SUBSP",
-    "CAST", "MOV", "ASM", "LOAD_SPILLED", "STORE_SPILLED",
+    "CAST", "MOV", "ASM",
   };
   static char *kCond[] = {NULL, "MP", "EQ", "NE", "LT", "LE", "GE", "GT", NULL, "MP", "EQ", "NE", "ULT", "ULE", "UGE", "UGT"};
 
@@ -49,7 +50,7 @@ static void dump_ir(FILE *fp, IR *ir) {
     fprintf(fp, "J%s\t", kCond[ir->jmp.cond & (COND_MASK | COND_UNSIGNED)]);
     break;
   default:
-    assert(0 <= ir->kind && ir->kind <= IR_STORE_SPILLED);
+    assert(0 <= ir->kind && ir->kind <= IR_ASM);
     fprintf(fp, "%s\t", kOps[ir->kind]);
     break;
   }
@@ -59,7 +60,9 @@ static void dump_ir(FILE *fp, IR *ir) {
   case IR_IOFS:   dump_vreg(fp, ir->dst); fprintf(fp, " = &%.*s\n", NAMES(ir->iofs.label)); break;
   case IR_SOFS:   dump_vreg(fp, ir->dst); fprintf(fp, " = &[rsp %c %" PRId64 "]\n", ir->opr1->fixnum >= 0 ? '+' : '-', ir->opr1->fixnum > 0 ? ir->opr1->fixnum : -ir->opr1->fixnum); break;
   case IR_LOAD:   dump_vreg(fp, ir->dst); fprintf(fp, " = ["); dump_vreg(fp, ir->opr1); fprintf(fp, "]\n"); break;
-  case IR_STORE:  dump_vreg(fp, ir->opr2); fprintf(fp, "] = "); dump_vreg(fp, ir->opr1); fprintf(fp, "\n"); break;
+  case IR_LOAD_S: dump_vreg(fp, ir->dst); fprintf(fp, " = [v%d]\n", ir->opr1->virt); break;
+  case IR_STORE:  fprintf(fp, "["); dump_vreg(fp, ir->opr2); fprintf(fp, "] = "); dump_vreg(fp, ir->opr1); fprintf(fp, "\n"); break;
+  case IR_STORE_S:fprintf(fp, "[v%d] = ", ir->opr2->virt); dump_vreg(fp, ir->opr1); fprintf(fp, "\n"); break;
   case IR_ADD:    dump_vreg(fp, ir->dst); fprintf(fp, " = "); dump_vreg(fp, ir->opr1); fprintf(fp, " + "); dump_vreg(fp, ir->opr2); fprintf(fp, "\n"); break;
   case IR_SUB:    dump_vreg(fp, ir->dst); fprintf(fp, " = "); dump_vreg(fp, ir->opr1); fprintf(fp, " - "); dump_vreg(fp, ir->opr2); fprintf(fp, "\n"); break;
   case IR_MUL:    dump_vreg(fp, ir->dst); fprintf(fp, " = "); dump_vreg(fp, ir->opr1); fprintf(fp, " * "); dump_vreg(fp, ir->opr2); fprintf(fp, "\n"); break;
@@ -96,8 +99,6 @@ static void dump_ir(FILE *fp, IR *ir) {
   case IR_CAST:   dump_vreg(fp, ir->dst); fprintf(fp, " = "); dump_vreg(fp, ir->opr1); fprintf(fp, "\n"); break;
   case IR_MOV:    dump_vreg(fp, ir->dst); fprintf(fp, " = "); dump_vreg(fp, ir->opr1); fprintf(fp, "\n"); break;
   case IR_ASM:    fprintf(fp, "\"%s\"\n", ir->asm_.str); break;
-  case IR_LOAD_SPILLED:   dump_vreg(fp, ir->dst); fprintf(fp, " = [v%d]\n", ir->opr1->virt); break;
-  case IR_STORE_SPILLED:  fprintf(fp, "[v%d] = ", ir->opr2->virt); dump_vreg(fp, ir->opr1); fprintf(fp, "\n"); break;
   }
 }
 

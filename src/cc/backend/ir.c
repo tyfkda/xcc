@@ -293,14 +293,14 @@ void new_ir_asm(const char *asm_, VReg *dst) {
 }
 
 IR *new_ir_load_spilled(VReg *vreg, VReg *src) {
-  IR *ir = new_ir(IR_LOAD_SPILLED);
+  IR *ir = new_ir(IR_LOAD_S);
   ir->dst = vreg;
   ir->opr1 = src;
   return ir;
 }
 
 IR *new_ir_store_spilled(VReg *dst, VReg *vreg) {
-  IR *ir = new_ir(IR_STORE_SPILLED);
+  IR *ir = new_ir(IR_STORE_S);
   ir->opr1 = vreg;
   ir->opr2 = dst;  // `dst` is used by indirect, so it is not actually `dst`.
   return ir;

@@ -54,7 +54,9 @@ enum IrKind {
   IR_IOFS,    // dst = [rip + label]
   IR_SOFS,    // dst = [rsp + offset]
   IR_LOAD,    // dst = [opr1]
+  IR_LOAD_S,  // dst = [opr1(spilled)]
   IR_STORE,   // [opr2] = opr1
+  IR_STORE_S, // [opr2(spilled)] = opr1
   IR_ADD,     // dst = opr1 + opr2
   IR_SUB,
   IR_MUL,
@@ -79,9 +81,6 @@ enum IrKind {
   IR_CAST,    // dst <= opr1
   IR_MOV,     // dst = opr1
   IR_ASM,     // assembler code
-
-  IR_LOAD_SPILLED,   // dst(spilled) = [opr1]
-  IR_STORE_SPILLED,  // [opr2] = opr1(spilled)
 };
 
 // ConditionKind occupies lower bits and bitOR-ed with COND_UNSIGNED or COND_FLONUM.

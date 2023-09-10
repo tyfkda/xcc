@@ -117,58 +117,69 @@ static void ir_out(IR *ir) {
     break;
 
   case IR_LOAD:
-    assert(!(ir->opr1->flag & VRF_CONST));
-    if (ir->dst->vtype->flag & VRTF_FLONUM) {
-      switch (ir->dst->vtype->size) {
-      case SZ_FLOAT:
-        MOVSS(INDIRECT(kReg64s[ir->opr1->phys], NULL, 1), kFReg64s[ir->dst->phys]);
-        break;
-      case SZ_DOUBLE:
-        MOVSD(INDIRECT(kReg64s[ir->opr1->phys], NULL, 1), kFReg64s[ir->dst->phys]);
-        break;
-      default: assert(false); break;
-      }
-      break;
-    }
+  case IR_LOAD_S:
     {
-      assert(0 <= ir->dst->vtype->size && ir->dst->vtype->size < kPow2TableSize);
-      int pow = kPow2Table[ir->dst->vtype->size];
-      assert(0 <= pow && pow < 4);
-      const char **regs = kRegSizeTable[pow];
-      MOV(INDIRECT(kReg64s[ir->opr1->phys], NULL, 1), regs[ir->dst->phys]);
+      assert(!(ir->opr1->flag & VRF_CONST));
+      const char *src;
+      if (ir->kind == IR_LOAD) {
+        assert(!(ir->opr1->flag & VRF_SPILLED));
+        src = INDIRECT(kReg64s[ir->opr1->phys], NULL, 1);
+      } else {
+        assert(ir->opr1->flag & VRF_SPILLED);
+        src = OFFSET_INDIRECT(ir->opr1->frame.offset, RBP, NULL, 1);
+      }
+
+      if (ir->dst->vtype->flag & VRTF_FLONUM) {
+        switch (ir->dst->vtype->size) {
+        case SZ_FLOAT:  MOVSS(src, kFReg64s[ir->dst->phys]); break;
+        case SZ_DOUBLE: MOVSD(src, kFReg64s[ir->dst->phys]); break;
+        default: assert(false); break;
+        }
+      } else {
+        assert(0 <= ir->dst->vtype->size && ir->dst->vtype->size < kPow2TableSize);
+        int pow = kPow2Table[ir->dst->vtype->size];
+        assert(0 <= pow && pow < 4);
+        const char **regs = kRegSizeTable[pow];
+        MOV(src, regs[ir->dst->phys]);
+      }
     }
     break;
 
   case IR_STORE:
-    if (ir->opr1->vtype->flag & VRTF_FLONUM) {
-      switch (ir->opr1->vtype->size) {
-      case SZ_FLOAT:
-        MOVSS(kFReg64s[ir->opr1->phys], INDIRECT(kReg64s[ir->opr2->phys], NULL, 1));
-        break;
-      case SZ_DOUBLE:
-        MOVSD(kFReg64s[ir->opr1->phys], INDIRECT(kReg64s[ir->opr2->phys], NULL, 1));
-        break;
-      default: assert(false); break;
-      }
-      break;
-    }
+  case IR_STORE_S:
     {
       assert(!(ir->opr2->flag & VRF_CONST));
-      assert(0 <= ir->opr1->vtype->size && ir->opr1->vtype->size < kPow2TableSize);
-      int pow = kPow2Table[ir->opr1->vtype->size];
-      assert(0 <= pow && pow < 4);
-      const char **regs = kRegSizeTable[pow];
-      if (ir->opr1->flag & VRF_CONST) {
-        const char *dst = INDIRECT(kReg64s[ir->opr2->phys], NULL, 1);
-        switch (pow) {
-        case 0: MOVB(IM(ir->opr1->fixnum), dst); break;
-        case 1: MOVW(IM(ir->opr1->fixnum), dst); break;
-        case 2: MOVL(IM(ir->opr1->fixnum), dst); break;
-        case 3: MOVQ(IM(ir->opr1->fixnum), dst); break;
+      const char *target;
+      if (ir->kind == IR_STORE) {
+        assert(!(ir->opr2->flag & VRF_SPILLED));
+        target = INDIRECT(kReg64s[ir->opr2->phys], NULL, 1);
+      } else {
+        assert(ir->opr2->flag & VRF_SPILLED);
+        target = OFFSET_INDIRECT(ir->opr2->frame.offset, RBP, NULL, 1);
+      }
+
+      if (ir->opr1->vtype->flag & VRTF_FLONUM) {
+        switch (ir->opr1->vtype->size) {
+        case SZ_FLOAT:  MOVSS(kFReg64s[ir->opr1->phys], target); break;
+        case SZ_DOUBLE: MOVSD(kFReg64s[ir->opr1->phys], target); break;
         default: assert(false); break;
         }
       } else {
-        MOV(regs[ir->opr1->phys], INDIRECT(kReg64s[ir->opr2->phys], NULL, 1));
+        assert(0 <= ir->opr1->vtype->size && ir->opr1->vtype->size < kPow2TableSize);
+        int pow = kPow2Table[ir->opr1->vtype->size];
+        assert(0 <= pow && pow < 4);
+        if (ir->opr1->flag & VRF_CONST) {
+          switch (pow) {
+          case 0: MOVB(IM(ir->opr1->fixnum), target); break;
+          case 1: MOVW(IM(ir->opr1->fixnum), target); break;
+          case 2: MOVL(IM(ir->opr1->fixnum), target); break;
+          case 3: MOVQ(IM(ir->opr1->fixnum), target); break;
+          default: assert(false); break;
+          }
+        } else {
+          const char **regs = kRegSizeTable[pow];
+          MOV(regs[ir->opr1->phys], target);
+        }
       }
     }
     break;
@@ -891,46 +902,6 @@ static void ir_out(IR *ir) {
       const char **regs = kRegSizeTable[pow];
       if (ir->dst->phys != GET_AREG_INDEX())
         MOV(regs[GET_AREG_INDEX()], regs[ir->dst->phys]);
-    }
-    break;
-
-  case IR_LOAD_SPILLED:
-    assert(ir->opr1->flag & VRF_SPILLED);
-    if (ir->opr1->vtype->flag & VRTF_FLONUM) {
-      const char **regs = kFReg64s;
-      switch (ir->dst->vtype->size) {
-      case SZ_FLOAT: MOVSS(OFFSET_INDIRECT(ir->opr1->frame.offset, RBP, NULL, 1), regs[ir->dst->phys]); break;
-      case SZ_DOUBLE: MOVSD(OFFSET_INDIRECT(ir->opr1->frame.offset, RBP, NULL, 1), regs[ir->dst->phys]); break;
-      default: assert(false); break;
-      }
-      break;
-    }
-    {
-      assert(0 <= ir->dst->vtype->size && ir->dst->vtype->size < kPow2TableSize);
-      int pow = kPow2Table[ir->dst->vtype->size];
-      assert(0 <= pow && pow < 4);
-      const char **regs = kRegSizeTable[pow];
-      MOV(OFFSET_INDIRECT(ir->opr1->frame.offset, RBP, NULL, 1), regs[ir->dst->phys]);
-    }
-    break;
-
-  case IR_STORE_SPILLED:
-    assert(ir->opr2->flag & VRF_SPILLED);
-    if (ir->opr2->vtype->flag & VRTF_FLONUM) {
-      const char **regs = kFReg64s;
-      switch (ir->opr1->vtype->size) {
-      case SZ_FLOAT: MOVSS(regs[ir->opr1->phys], OFFSET_INDIRECT(ir->opr2->frame.offset, RBP, NULL, 1)); break;
-      case SZ_DOUBLE: MOVSD(regs[ir->opr1->phys], OFFSET_INDIRECT(ir->opr2->frame.offset, RBP, NULL, 1)); break;
-      default: assert(false); break;
-      }
-      break;
-    }
-    {
-      assert(0 <= ir->opr1->vtype->size && ir->opr1->vtype->size < kPow2TableSize);
-      int pow = kPow2Table[ir->opr1->vtype->size];
-      assert(0 <= pow && pow < 4);
-      const char **regs = kRegSizeTable[pow];
-      MOV(regs[ir->opr1->phys], OFFSET_INDIRECT(ir->opr2->frame.offset, RBP, NULL, 1));
     }
     break;
   }

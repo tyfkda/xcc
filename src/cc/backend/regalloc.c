@@ -379,8 +379,8 @@ static int insert_load_store_spilled_irs(RegAlloc *ra, BBContainer *bbcon) {
         flag = 4;
         break;
 
-      case IR_LOAD_SPILLED:
-      case IR_STORE_SPILLED:
+      case IR_LOAD_S:
+      case IR_STORE_S:
         continue;
       }
 
