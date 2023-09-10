@@ -33,7 +33,7 @@ static const char *kReg64s[PHYSICAL_REG_MAX] = {
   X10, X11, X12, X13, X14, X15, X18};                     // Caller save
 
 #define CALLEE_SAVE_REG_COUNT  ((int)(sizeof(kCalleeSaveRegs) / sizeof(*kCalleeSaveRegs)))
-static const int kCalleeSaveRegs[] = {11, 12, 13, 14, 15, 16, 17, 18, 19, 20, /*21*/};  // X29 (FP) is always saved currently, so exclude from callee save.
+static const int kCalleeSaveRegs[] = {11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21};
 
 #define CALLER_SAVE_REG_COUNT  ((int)(sizeof(kCallerSaveRegs) / sizeof(*kCallerSaveRegs)))
 static const int kCallerSaveRegs[] = {22, 23, 24, 25, 26, 27, 28};
@@ -41,7 +41,6 @@ static const int kCallerSaveRegs[] = {22, 23, 24, 25, 26, 27, 28};
 const int ArchRegParamMapping[] = {0, 1, 2, 3, 4, 5, 6, 7};
 
 #define GET_X16_INDEX()   10
-#define GET_FPREG_INDEX() 21
 
 const char **kRegSizeTable[] = {kReg32s, kReg32s, kReg32s, kReg64s};
 static const char *kZeroRegTable[] = {WZR, WZR, WZR, XZR};

@@ -514,13 +514,23 @@ static void emit_defun(Function *func) {
   // Allocate variable bufer.
   FuncBackend *fnbe = func->extra;
   size_t frame_size = ALIGN(fnbe->frame_size, 16);
-  bool fp_saved = false;
+  bool fp_saved = false;  // Frame pointer saved?
+  bool lr_saved = false;  // Link register saved?
   int callee_saved_count = 0;
+  unsigned long used_reg_bits = fnbe->ra->used_reg_bits;
   if (!no_stmt) {
-    // FP is saved anyway on aarch64, to avoid tedious stack alignment.
-    STP(FP, LR, PRE_INDEX(SP, -16));
-    if (frame_size > 0 || fnbe->ra->flag & RAF_STACK_FRAME) {
-      fp_saved = true;  // theoretically.
+    fp_saved = frame_size > 0 || fnbe->ra->flag & RAF_STACK_FRAME;
+    lr_saved = (func->flag & FUNCF_HAS_FUNCALL) != 0;
+
+    // TODO: Handle fp_saved and lr_saved individually.
+    if (fp_saved || lr_saved) {
+      STP(FP, LR, PRE_INDEX(SP, -16));
+
+      // FP is saved, so omit from callee save.
+      used_reg_bits &= ~(1UL << GET_FPREG_INDEX());
+    }
+
+    if (fp_saved) {
       MOV(FP, SP);
       if (frame_size > 0) {
         const char *value;
@@ -535,7 +545,7 @@ static void emit_defun(Function *func) {
     }
 
     // Callee save.
-    callee_saved_count = push_callee_save_regs(fnbe->ra->used_reg_bits, fnbe->ra->used_freg_bits);
+    callee_saved_count = push_callee_save_regs(used_reg_bits, fnbe->ra->used_freg_bits);
 
     move_params_to_assigned(func);
   }
@@ -554,7 +564,7 @@ static void emit_defun(Function *func) {
         mov_immediate(value = SP, size, true, false);
       SUB(SP, FP, value);
     }
-    pop_callee_save_regs(fnbe->ra->used_reg_bits, fnbe->ra->used_freg_bits);
+    pop_callee_save_regs(used_reg_bits, fnbe->ra->used_freg_bits);
     if (fp_saved) {
       const char *value;
       if (frame_size <= 0x0fff) {
@@ -565,7 +575,9 @@ static void emit_defun(Function *func) {
       }
       ADD(SP, SP, value);
     }
-    LDP(FP, LR, POST_INDEX(SP, 16));
+
+    if (fp_saved || lr_saved)
+      LDP(FP, LR, POST_INDEX(SP, 16));
   }
 
   RET();
