@@ -8,9 +8,9 @@
 
 #include "ast.h"
 #include "codegen.h"
+#include "initializer.h"  // calc_bitfield_initial_value
 #include "ir.h"
 #include "lexer.h"
-#include "parser.h"  // calc_bitfield_initial_value
 #include "regalloc.h"
 #include "table.h"
 #include "type.h"

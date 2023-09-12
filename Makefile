@@ -271,11 +271,11 @@ DEBUG_EXES:=dump_expr dump_ir dump_type
 DEBUG_CFLAGS:=$(subst -MMD,,$(CFLAGS))
 
 dump_expr_SRCS:=$(DEBUG_DIR)/dump_expr.c $(CC1_FE_DIR)/parser_expr.c $(CC1_FE_DIR)/parser.c \
-	$(CC1_FE_DIR)/lexer.c $(CC1_FE_DIR)/type.c $(CC1_FE_DIR)/ast.c $(CC1_FE_DIR)/var.c \
+	$(CC1_FE_DIR)/initializer.c $(CC1_FE_DIR)/lexer.c $(CC1_FE_DIR)/type.c $(CC1_FE_DIR)/ast.c $(CC1_FE_DIR)/var.c \
 	$(UTIL_DIR)/util.c $(UTIL_DIR)/table.c
 
 dump_ir_SRCS:=$(DEBUG_DIR)/dump_ir.c $(CC1_FE_DIR)/parser_expr.c $(CC1_FE_DIR)/parser.c \
-	$(CC1_FE_DIR)/lexer.c $(CC1_FE_DIR)/type.c $(CC1_FE_DIR)/ast.c $(CC1_FE_DIR)/var.c \
+	$(CC1_FE_DIR)/initializer.c $(CC1_FE_DIR)/lexer.c $(CC1_FE_DIR)/type.c $(CC1_FE_DIR)/ast.c $(CC1_FE_DIR)/var.c \
 	$(CC1_BE_DIR)/codegen_expr.c $(CC1_BE_DIR)/codegen.c $(CC1_BE_DIR)/ir.c \
 	$(CC1_BE_DIR)/optimize.c $(CC1_BE_DIR)/regalloc.c $(CC1_BE_DIR)/emit_util.c \
 	$(CC1_DIR)/builtin.c \
@@ -283,7 +283,7 @@ dump_ir_SRCS:=$(DEBUG_DIR)/dump_ir.c $(CC1_FE_DIR)/parser_expr.c $(CC1_FE_DIR)/p
 	$(UTIL_DIR)/util.c $(UTIL_DIR)/table.c
 
 dump_type_SRCS:=$(DEBUG_DIR)/dump_type.c $(CC1_FE_DIR)/parser_expr.c $(CC1_FE_DIR)/parser.c \
-	$(CC1_FE_DIR)/lexer.c $(CC1_FE_DIR)/type.c $(CC1_FE_DIR)/ast.c $(CC1_FE_DIR)/var.c \
+	$(CC1_FE_DIR)/initializer.c $(CC1_FE_DIR)/lexer.c $(CC1_FE_DIR)/type.c $(CC1_FE_DIR)/ast.c $(CC1_FE_DIR)/var.c \
 	$(UTIL_DIR)/util.c $(UTIL_DIR)/table.c
 
 define DEFINE_DEBUG_TARGET

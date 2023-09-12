@@ -9,6 +9,7 @@
 #include <string.h>
 
 #include "ast.h"
+#include "initializer.h"
 #include "lexer.h"
 #include "table.h"
 #include "type.h"
@@ -38,34 +39,6 @@ void not_const(const Type *type, const Token *token) {
   if (type->qualifier & TQ_CONST)
     parse_error(PE_NOFATAL, token, "Cannot modify `const'");
 }
-
-// Returns created global variable info.
-VarInfo *str_to_char_array(Scope *scope, Type *type, Initializer *init) {
-  assert(type->kind == TY_ARRAY && is_char_type(type->pa.ptrof));
-  const Token *ident = alloc_dummy_ident();
-  VarInfo *varinfo = add_var_to_scope(scope, ident, type, VS_STATIC);
-  if (is_global_scope(scope))
-    varinfo->global.init = init;
-  else
-    varinfo->static_.gvar->global.init = init;
-  return varinfo;
-}
-
-Expr *str_to_char_array_var(Scope *scope, Expr *str) {
-  Expr *s = strip_cast(str);
-  if (s->kind != EX_STR)
-    return str;
-  if (str->kind == EX_CAST)
-    return new_expr_cast(str->type, str->token, str_to_char_array_var(scope, str->unary.sub));
-
-  Type *type = str->type;
-  Initializer *init = new_initializer(IK_SINGLE, str->token);
-  init->single = str;
-
-  VarInfo *varinfo = str_to_char_array(scope, type, init);
-  return new_expr_variable(varinfo->name, type, str->token, scope);
-}
-
 // Call before accessing struct member to ensure that struct is declared.
 void ensure_struct(Type *type, const Token *token, Scope *scope) {
   switch (type->kind) {
@@ -487,23 +460,6 @@ Expr *new_expr_addsub(enum ExprKind kind, const Token *tok, Expr *lhs, Expr *rhs
     return lhs;
   }
   return new_expr_bop(kind, type, tok, lhs, rhs);
-}
-
-static Expr *assign_bitfield_member(const Token *tok, Expr *dst, Expr *src, Expr *val, const MemberInfo *minfo) {
-  Type *type = dst->type;
-  Type *vtype = val->type;
-
-  UFixnum mask = ((UFixnum)1 << minfo->bitfield.width) - 1;
-  Expr *val_masked = new_expr_bop(EX_BITAND, vtype, tok, val,
-                                  new_expr_fixlit(vtype, tok, mask));
-  val_masked = make_cast(type, tok, val_masked, false);
-  if (minfo->bitfield.position > 0)
-    val_masked = new_expr_bop(EX_LSHIFT, type, tok, val_masked, new_expr_fixlit(vtype, tok, minfo->bitfield.position));
-  val_masked = make_cast(type, tok, val_masked, false);
-  Expr *src_masked = new_expr_bop(EX_BITAND, type, tok, src,
-                                  new_expr_fixlit(type, tok, ~(mask << minfo->bitfield.position)));
-  return new_expr_bop(EX_ASSIGN, type, tok, dst,
-                      new_expr_bop(EX_BITOR, type, tok, val_masked, src_masked));
 }
 
 Expr *extract_bitfield_value(Expr *src, const MemberInfo *minfo) {
@@ -2015,28 +1971,6 @@ static Expr *parse_conditional(void) {
     else
       expr = new_expr_ternary(tok, expr, tval, fval, type);
   }
-}
-
-Expr *assign_to_bitfield(const Token *tok, Expr *lhs, Expr *rhs, const MemberInfo *minfo) {
-  // Transform expression to (ptr = &lhs, val = rhs, *ptr = (*ptr & ~(mask << bitpos)) | ((val & mask) << bitpos), val)
-
-  Type *type = get_fixnum_type(minfo->bitfield.base_kind, minfo->type->fixnum.is_unsigned, 0);
-
-  Type *ptype = ptrof(type);
-  assert(!is_global_scope(curscope));
-  Expr *ptr = alloc_tmp_var(curscope, ptype);
-  Expr *ptr_assign = new_expr_bop(EX_ASSIGN, ptype, tok, ptr,
-                                  new_expr_unary(EX_REF, ptype, lhs->token, lhs));
-
-  Type *vtype = rhs->type;
-  Expr *val = alloc_tmp_var(curscope, vtype);
-  Expr *val_assign = new_expr_bop(EX_ASSIGN, vtype, tok, val, rhs);
-
-  Expr *dst = new_expr_unary(EX_DEREF, type, tok, ptr);
-  Expr *assign = assign_bitfield_member(tok, dst, dst, val, minfo);
-  return new_expr_bop(EX_COMMA, vtype, tok, ptr_assign,
-                      new_expr_bop(EX_COMMA, vtype, tok, val_assign,
-                                   new_expr_bop(EX_COMMA, vtype, tok, assign, val)));
 }
 
 static Expr *calc_assign_with(const Token *tok, Expr *lhs, Expr *rhs) {

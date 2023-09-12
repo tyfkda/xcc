@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "initializer.h"
 #include "lexer.h"
 #include "parser.h"
 #include "table.h"
