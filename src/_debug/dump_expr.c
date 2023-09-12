@@ -4,6 +4,7 @@
 #include <string.h>
 
 #include "ast.h"
+#include "fe_misc.h"
 #include "lexer.h"
 #include "parser.h"
 #include "table.h"

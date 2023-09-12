@@ -6,8 +6,8 @@
 #include <string.h>  // memcpy
 
 #include "ast.h"
+#include "fe_misc.h"  // curscope
 #include "lexer.h"
-#include "parser.h"  // curscope
 #include "table.h"
 #include "type.h"
 #include "util.h"

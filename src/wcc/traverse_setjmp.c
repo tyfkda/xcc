@@ -4,7 +4,7 @@
 #include <assert.h>
 
 #include "ast.h"
-#include "parser.h"  // curscope
+#include "fe_misc.h"  // curscope
 #include "table.h"
 #include "type.h"
 #include "util.h"

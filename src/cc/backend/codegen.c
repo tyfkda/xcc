@@ -11,7 +11,7 @@
 #include "ast.h"
 #include "ir.h"
 #include "optimize.h"
-#include "parser.h"  // curfunc, curscope
+#include "fe_misc.h"  // curfunc, curscope
 #include "regalloc.h"
 #include "table.h"
 #include "type.h"

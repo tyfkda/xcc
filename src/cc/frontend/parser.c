@@ -3,26 +3,16 @@
 
 #include <assert.h>
 #include <inttypes.h>  // PRId64
-#include <stdarg.h>
 #include <stdbool.h>
-#include <stdlib.h>  // exit
 
 #include "ast.h"
+#include "fe_misc.h"
 #include "initializer.h"
 #include "lexer.h"
 #include "table.h"
 #include "type.h"
 #include "util.h"
 #include "var.h"
-
-#define MAX_ERROR_COUNT  (25)
-
-Function *curfunc;
-Scope *curscope;
-
-bool error_warning;
-int compile_warning_count;
-int compile_error_count;
 
 static Stmt *parse_stmt(void);
 
@@ -36,74 +26,6 @@ static LoopScope loop_scope;
 
 #define SAVE_LOOP_SCOPE(var, b, c)  LoopScope var = loop_scope; if (b != NULL) loop_scope.break_ = b; if (c != NULL) loop_scope.continu = c;
 #define RESTORE_LOOP_SCOPE(var)     loop_scope = var
-
-VarInfo *find_var_from_scope(Scope *scope, const Token *ident, Type *type, int storage) {
-  if (scope->vars != NULL) {
-    assert(ident != NULL);
-    const Name *name = ident->ident;
-    assert(name != NULL);
-    int idx = var_find(scope->vars, name);
-    if (idx >= 0) {
-      VarInfo *varinfo = scope->vars->data[idx];
-      if (!same_type(type, varinfo->type)) {
-        parse_error(PE_NOFATAL, ident, "`%.*s' type conflict", NAMES(name));
-      } else if (!(storage & VS_EXTERN)) {
-        if (varinfo->storage & VS_EXTERN)
-          varinfo->storage &= ~VS_EXTERN;
-        else if (is_global_scope(scope) && varinfo->global.init == NULL)
-          ; // Ignore variable duplication if predecessor doesn't have initializer.
-        else
-          parse_error(PE_NOFATAL, ident, "`%.*s' already defined", NAMES(name));
-      }
-      return varinfo;
-    }
-  }
-  return NULL;
-}
-
-VarInfo *add_var_to_scope(Scope *scope, const Token *ident, Type *type, int storage) {
-  VarInfo *varinfo = find_var_from_scope(scope, ident, type, storage);
-  if (varinfo != NULL)
-    return varinfo;
-  return scope_add(scope, ident->ident, type, storage);
-}
-
-Expr *alloc_tmp_var(Scope *scope, Type *type) {
-  const Token *ident = alloc_dummy_ident();
-  // No need to use `add_var_to_scope`, because `name` must be unique.
-  const Name *name = ident->ident;
-  scope_add(scope, name, type, 0);
-  return new_expr_variable(name, type, ident, scope);
-}
-
-void parse_error(enum ParseErrorLevel level, const Token *token, const char *fmt, ...) {
-  va_list ap;
-  va_start(ap, fmt);
-  if (fmt != NULL) {
-    if (token == NULL)
-      token = fetch_token();
-    if (token->line != NULL) {
-      fprintf(stderr, "%s(%d): ", token->line->filename, token->line->lineno);
-    }
-
-    if (level == PE_WARNING && !error_warning)
-      fprintf(stderr, "warning: ");
-    vfprintf(stderr, fmt, ap);
-    fprintf(stderr, "\n");
-  }
-
-  if (token != NULL && token->line != NULL && token->begin != NULL)
-    show_error_line(token->line->buf, token->begin, token->end - token->begin);
-  va_end(ap);
-
-  if (level == PE_WARNING) {
-    ++compile_warning_count;
-  } else {
-    ++compile_error_count;
-    if (level == PE_FATAL || compile_error_count >= MAX_ERROR_COUNT)
-      exit(1);
-  }
-}
 
 Token *consume(enum TokenKind kind, const char *error) {
   Token *tok = match(kind);
@@ -663,136 +585,6 @@ static Stmt *parse_stmt(void) {
   Expr *val = parse_expr();
   consume(TK_SEMICOL, "`;' expected");
   return new_stmt_expr(str_to_char_array_var(curscope, val));
-}
-
-static void check_reachability(Stmt *stmt);
-
-static int check_reachability_stmts(Vector *stmts) {
-  int reach = 0;
-  if (stmts != NULL) {
-    for (int i = 0, n = stmts->len; i < n; ++i) {
-      Stmt *stmt = stmts->data[i];
-      if (reach & REACH_STOP) {
-        if (!(stmt->kind == ST_LABEL || stmt->kind == ST_CASE || stmt->kind == ST_DEFAULT))
-          continue;
-        reach = 0;
-      }
-      check_reachability(stmt);
-      reach |= stmt->reach;
-      if (reach & REACH_STOP) {
-        for (; i < n - 1; ++i) {
-          Stmt *next = stmts->data[i + 1];
-          if ((next->kind == ST_BREAK && next->break_.parent->kind == ST_SWITCH) &&
-              (stmt->kind != ST_RETURN && stmt->kind != ST_BREAK))
-            continue;
-          switch (next->kind) {
-          case ST_LABEL:
-          case ST_CASE:
-          case ST_DEFAULT:
-            break;
-
-          // Avoid false positive:
-          case ST_WHILE: case ST_DO_WHILE:
-            // TODO: Check the loop is jumped inside from other place using `goto` statement.
-            break;
-          case ST_FOR:
-            if (next->for_.pre == NULL)
-              break;
-            // Fallthrough
-
-          default:
-            parse_error(PE_WARNING, next->token, "unreachable");
-            break;
-          }
-          break;
-        }
-      }
-    }
-  }
-  return reach;
-}
-
-static void check_reachability(Stmt *stmt) {
-  if (stmt == NULL)
-    return;
-  switch (stmt->kind) {
-  case ST_IF:
-    check_reachability(stmt->if_.tblock);
-    check_reachability(stmt->if_.fblock);
-    if (is_const_truthy(stmt->if_.cond)) {
-      stmt->reach = stmt->if_.tblock->reach;
-    } else if (is_const_falsy(stmt->if_.cond)) {
-      stmt->reach = stmt->if_.fblock != NULL ? stmt->if_.fblock->reach : 0;
-    } else {
-      stmt->reach = stmt->if_.tblock->reach & (stmt->if_.fblock != NULL ? stmt->if_.fblock->reach : 0);
-    }
-    break;
-  case ST_SWITCH:
-    stmt->reach = (stmt->reach & ~REACH_STOP) |
-        ((stmt->switch_.default_ != NULL) ? REACH_STOP : 0);
-    check_reachability(stmt->switch_.body);
-    stmt->reach &= stmt->switch_.body->reach;
-    break;
-  case ST_WHILE:
-    if (!is_const_truthy(stmt->while_.cond))
-      stmt->reach &= REACH_STOP;
-    if (!is_const_falsy(stmt->while_.cond))
-      check_reachability(stmt->while_.body);
-    break;
-  case ST_DO_WHILE:
-    check_reachability(stmt->while_.body);
-    stmt->reach = stmt->reach;  // Reload.
-    if (!is_const_truthy(stmt->while_.cond))
-      stmt->reach &= stmt->while_.body->reach;
-    break;
-  case ST_FOR:
-    if (stmt->for_.cond != NULL && is_const_falsy(stmt->for_.cond)) {
-      stmt->reach &= ~REACH_STOP;
-    } else {
-      stmt->reach = (stmt->reach & ~REACH_STOP) |
-          ((stmt->for_.cond == NULL || is_const_truthy(stmt->for_.cond)) ? REACH_STOP : 0);
-      check_reachability(stmt->for_.body);
-    }
-    break;
-  case ST_BLOCK:
-    stmt->reach = check_reachability_stmts(stmt->block.stmts);
-    break;
-  case ST_LABEL:
-    check_reachability(stmt->label.stmt);
-    stmt->reach = stmt->label.stmt->reach;
-    break;
-  case ST_RETURN:
-    stmt->reach |= REACH_RETURN | REACH_STOP;
-    break;
-  case ST_BREAK:
-    stmt->break_.parent->reach &= ~REACH_STOP;
-    stmt->reach |= REACH_STOP;
-    break;
-  case ST_GOTO:
-    // TODO:
-    stmt->reach |= REACH_STOP;
-    break;
-  case ST_CONTINUE:
-    stmt->reach |= REACH_STOP;
-    break;
-  default:
-    stmt->reach = 0;
-    break;
-  }
-}
-
-static void check_funcend_return(Function *func) {
-  const Type *functype = func->type;
-  if (functype->func.ret->kind == TY_VOID)
-    return;
-
-  Vector *stmts = func->body_block->block.stmts;
-  if (stmts->len == 0)
-    return;
-  Stmt *last = stmts->data[stmts->len - 1];
-  if (last->kind == ST_RETURN) {
-    last->return_.func_end = true;
-  }
 }
 
 static Declaration *parse_defun(Type *functype, int storage, Token *ident) {

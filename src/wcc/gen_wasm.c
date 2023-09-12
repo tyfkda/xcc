@@ -9,7 +9,7 @@
 #include <string.h>
 
 #include "ast.h"
-#include "parser.h"  // curfunc
+#include "fe_misc.h"  // curfunc
 #include "table.h"
 #include "type.h"
 #include "util.h"

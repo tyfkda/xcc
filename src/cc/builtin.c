@@ -3,6 +3,7 @@
 
 #include "ast.h"
 #include "codegen.h"
+#include "fe_misc.h"
 #include "ir.h"
 #include "lexer.h"
 #include "parser.h"

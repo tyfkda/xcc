@@ -13,6 +13,7 @@
 #include <unistd.h>
 
 #include "ast.h"
+#include "fe_misc.h"
 #include "initializer.h"
 #include "lexer.h"
 #include "parser.h"

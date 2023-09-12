@@ -5,8 +5,8 @@
 #include <stdlib.h>  // malloc
 
 #include "ast.h"
+#include "fe_misc.h"  // curscope, extract_bitfield_vale
 #include "ir.h"
-#include "parser.h"  // curscope
 #include "regalloc.h"
 #include "table.h"
 #include "type.h"
