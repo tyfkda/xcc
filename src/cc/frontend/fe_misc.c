@@ -558,6 +558,7 @@ Expr *new_expr_addsub(enum ExprKind kind, const Token *tok, Expr *lhs, Expr *rhs
   return new_expr_bop(kind, type, tok, lhs, rhs);
 }
 
+#ifndef __NO_BITFIELD
 void not_bitfield_member(Expr *expr) {
   if (expr->kind == EX_MEMBER) {
     const MemberInfo *minfo = member_info(expr);
@@ -677,14 +678,17 @@ static Expr *transform_incdec_of_bitfield(enum ExprKind kind, Expr *target, cons
                                                 new_expr_bop(EX_COMMA, vtype, tok, val_assign, store))),
                       val);
 }
+#endif
 
 Expr *incdec_of(enum ExprKind kind, Expr *target, const Token *tok) {
   check_referable(tok, target, "lvalue expected");
+#ifndef __NO_BITFIELD
   if (target->kind == EX_MEMBER) {
     const MemberInfo *minfo = member_info(target);
     if (minfo->bitfield.width > 0)
       return transform_incdec_of_bitfield(kind, target, tok, minfo);
   }
+#endif
   return new_expr_unary(kind, target->type, tok, target);
 }
 
@@ -994,6 +998,7 @@ static Expr *calc_assign_with(const Token *tok, Expr *lhs, Expr *rhs) {
   }
 }
 
+#ifndef __NO_BITFIELD
 static Expr *transform_assign_with_bitfield(const Token *tok, Expr *lhs, Expr *rhs, const MemberInfo *minfo) {
   // Transform expression to (ptr = &lhs, src = *ptr, tmp = ((src >> bitpos) & mask) + rhs, *ptr = (src & ~(mask << bitpos)) | ((tmp & mask) << bitpos), (*ptr >> bitpos) & mask)
 
@@ -1019,6 +1024,7 @@ static Expr *transform_assign_with_bitfield(const Token *tok, Expr *lhs, Expr *r
                                    new_expr_bop(EX_COMMA, vtype, tok, src_assign, store)),
                       extract_bitfield_value(dst, minfo));
 }
+#endif
 
 Expr *transform_assign_with(const Token *tok, Expr *lhs, Expr *rhs) {
   // Transform expression `lhs += rhs` to `lhs = lhs + rhs`.
@@ -1026,11 +1032,13 @@ Expr *transform_assign_with(const Token *tok, Expr *lhs, Expr *rhs) {
   // Replace expression to (ptr = &lhs, *ptr = *ptr + rhs)
   Expr *tmp_assign = NULL;
   if (lhs->kind != EX_VAR) {
+#ifndef __NO_BITFIELD
     if (lhs->kind == EX_MEMBER) {
       const MemberInfo *minfo = member_info(lhs);
       if (minfo->bitfield.width > 0)
         return transform_assign_with_bitfield(tok, lhs, rhs, minfo);
     }
+#endif
 
     Type *ptype = ptrof(lhs->type);
     assert(!is_global_scope(curscope));

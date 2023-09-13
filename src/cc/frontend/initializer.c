@@ -731,6 +731,7 @@ Vector *assign_initial_value(Expr *expr, Initializer *init, Vector *inits) {
             continue;
           const MemberInfo *minfo = &sinfo->members[i];
           Expr *member = new_expr_member(NULL, minfo->type, expr, NULL, i);
+#ifndef __NO_BITFIELD
           if (minfo->bitfield.width > 0) {
             if (init_elem->kind != IK_SINGLE) {
               parse_error(PE_FATAL, init_elem->token, "illegal initializer for member `%.*s'", NAMES(minfo->name));
@@ -738,7 +739,9 @@ Vector *assign_initial_value(Expr *expr, Initializer *init, Vector *inits) {
               vec_push(inits, new_stmt_expr(
                   assign_to_bitfield(init_elem->token, member, init_elem->single, minfo)));
             }
-          } else {
+          } else
+#endif
+          {
             assign_initial_value(member, init_elem, inits);
           }
         }
@@ -780,6 +783,7 @@ Vector *assign_initial_value(Expr *expr, Initializer *init, Vector *inits) {
   return inits;
 }
 
+#ifndef __NO_BITFIELD
 Fixnum calc_bitfield_initial_value(const StructInfo *sinfo, const Initializer *init, int *pi) {
   assert(!sinfo->is_union);  // TODO
   assert(init == NULL || (init->kind == IK_MULTI && init->multi->len == sinfo->member_count));
@@ -803,6 +807,7 @@ Fixnum calc_bitfield_initial_value(const StructInfo *sinfo, const Initializer *i
   *pi = i - 1;
   return x;
 }
+#endif
 
 void construct_initializing_stmts(Vector *decls) {
   for (int i = 0; i < decls->len; ++i) {

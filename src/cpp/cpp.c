@@ -21,6 +21,9 @@ int main(int argc, char *argv[]) {
 #if defined(__NO_FLONUM)
   define_macro("__NO_FLONUM");
 #endif
+#if defined(__NO_BITFIELD)
+  define_macro("__NO_BITFIELD");
+#endif
 
   enum {
     OPT_ISYSTEM = 128,

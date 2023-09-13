@@ -672,6 +672,7 @@ VReg *gen_expr(Expr *expr) {
 
   case EX_MEMBER:
     {
+#ifndef __NO_BITFIELD
       const MemberInfo *minfo = member_info(expr);
       if (minfo->bitfield.width > 0) {
         Type *type = get_fixnum_type(minfo->bitfield.base_kind, minfo->type->fixnum.is_unsigned, 0);
@@ -680,6 +681,7 @@ VReg *gen_expr(Expr *expr) {
         Expr *e = extract_bitfield_value(load, minfo);
         return gen_expr(e);
       }
+#endif
 
       VReg *vreg = gen_lval(expr);
       VReg *result;

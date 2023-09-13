@@ -158,6 +158,7 @@ static void emit_fixnum(DataStorage *ds, Fixnum v, size_t size) {
   data_append(ds, (unsigned char*)&v, size);  // Assume endian and CHAR_BIT are same on host and target.
 }
 
+#ifndef __NO_BITFIELD
 static int construct_initial_value_bitfield(DataStorage *ds, const StructInfo *sinfo, const Initializer *init, int start, int *poffset) {
   const MemberInfo *member = &sinfo->members[start];
   const Type *et = get_fixnum_type(member->bitfield.base_kind, false, 0);
@@ -174,6 +175,7 @@ static int construct_initial_value_bitfield(DataStorage *ds, const StructInfo *s
 
   return i;
 }
+#endif
 
 static void construct_initial_value(DataStorage *ds, const Type *type, const Initializer *init) {
   assert(init == NULL || init->kind != IK_DOT);
@@ -281,11 +283,13 @@ static void construct_initial_value(DataStorage *ds, const Type *type, const Ini
       int offset = 0;
       for (int i = 0, n = sinfo->member_count; i < n; ++i) {
         const MemberInfo *member = &sinfo->members[i];
+#ifndef __NO_BITFIELD
         if (member->bitfield.width > 0) {
           i = construct_initial_value_bitfield(ds, sinfo, init, i, &offset);
           ++count;
           continue;
         }
+#endif
         const Initializer *mem_init;
         if (init == NULL) {
           if (sinfo->is_union)
@@ -1057,6 +1061,9 @@ int main(int argc, char *argv[]) {
   define_macro("__WASM");
 #if defined(__NO_FLONUM)
   define_macro("__NO_FLONUM");
+#endif
+#if defined(__NO_BITFIELD)
+  define_macro("__NO_BITFIELD");
 #endif
 
   init_compiler();

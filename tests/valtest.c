@@ -1330,6 +1330,7 @@ TEST(struct) {
 
 //
 
+#ifndef __NO_BITFIELD
 struct {
   char x;
   int b1 : 4;
@@ -1343,8 +1344,10 @@ struct {
   0x03,
   222,
 };
+#endif
 
 TEST(bitfield) {
+#ifndef __NO_BITFIELD
   {
     union {
       int16_t _;
@@ -1537,6 +1540,7 @@ TEST(bitfield) {
     // Bit width zero breaks bit packing.
     EXPECT_TRUE(sizeof(struct S1) < sizeof(struct S2));
   }
+#endif
 } END_TEST()
 
 //

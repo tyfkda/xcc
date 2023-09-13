@@ -209,14 +209,19 @@ static StructInfo *parse_struct(bool is_union) {
 
       not_void(type, NULL);
       ensure_struct(type, ident, curscope);
+#ifndef __NO_BITFIELD
       Expr *bit = NULL;
       if (type->kind == TY_FIXNUM) {
         if (match(TK_COLON))
           bit = parse_const_fixnum();
       }
+#else
+      const Expr *bit = NULL;
+#endif
       // Allow ident to be null for anonymous struct member or bitfield, otherwise raise error.
       if (ident == NULL && type->kind != TY_STRUCT && bit == NULL)
         parse_error(PE_NOFATAL, NULL, "ident expected");
+#ifndef __NO_BITFIELD
       if (bit != NULL) {
         if (bit->fixnum < 0) {
           parse_error(PE_NOFATAL, NULL, "illegal bit width");
@@ -228,6 +233,7 @@ static StructInfo *parse_struct(bool is_union) {
           parse_error(PE_NOFATAL, NULL, "bit width zero with name");
         }
       }
+#endif
 
       switch (type->kind) {
       case TY_ARRAY:
@@ -264,7 +270,9 @@ static StructInfo *parse_struct(bool is_union) {
       p->name = name;
       p->type = type;
       p->offset = 0;
+#ifndef __NO_BITFIELD
       p->bitfield.width = bit == NULL ? -1 : bit->fixnum;
+#endif
     } while (flex_arr_mem == NULL && match(TK_COMMA));
     consume(TK_SEMICOL, "`;' expected");
   }
@@ -790,14 +798,18 @@ static Expr *parse_sizeof(const Token *token) {
     type = parse_var_def(NULL, NULL, NULL);
     if (type == NULL) {
       Expr *expr = parse_expr();
+#ifndef __NO_BITFIELD
       not_bitfield_member(expr);
+#endif
       type = expr->type;
       tok = expr->token;
     }
     consume(TK_RPAR, "`)' expected");
   } else {
     Expr *expr = parse_unary();
-      not_bitfield_member(expr);
+#ifndef __NO_BITFIELD
+    not_bitfield_member(expr);
+#endif
     type = expr->type;
     tok = expr->token;
   }
@@ -903,11 +915,13 @@ static Expr *parse_unary(void) {
   if ((tok = match(TK_AND)) != NULL) {
     Expr *expr = parse_cast_expr();
     assert(expr->type != NULL);
+#ifndef __NO_BITFIELD
     if (expr->kind == EX_MEMBER) {
       const MemberInfo *minfo = member_info(expr);
       if (minfo->bitfield.width > 0)
         parse_error(PE_NOFATAL, tok, "Cannot take reference for bitfield");
     }
+#endif
     return make_refer(tok, expr);
   }
 
@@ -1204,11 +1218,13 @@ Expr *parse_assign(void) {
         } else {  // Otherwise, cast-ability required.
           rhs = make_cast(lhs->type, tok, rhs, false);
         }
+#ifndef __NO_BITFIELD
         if (lhs->kind == EX_MEMBER) {
           const MemberInfo *minfo = member_info(lhs);
           if (minfo->bitfield.width > 0)
             return assign_to_bitfield(tok, lhs, rhs, minfo);
         }
+#endif
         return new_expr_bop(EX_ASSIGN, lhs->type, tok, lhs, rhs);
       }
 

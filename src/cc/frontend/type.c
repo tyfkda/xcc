@@ -52,6 +52,7 @@ void set_fixnum_size(enum FixnumKind kind, size_t size, int align) {
   fixnum_align_table[kind] = align;
 }
 
+#ifndef __NO_BITFIELD
 static size_t calc_bitfield_size(StructInfo *sinfo, int *pi, size_t size, size_t *palign) {
   // Detect initial fixnum kind.
   int i = *pi;
@@ -133,6 +134,7 @@ static size_t calc_bitfield_size(StructInfo *sinfo, int *pi, size_t size, size_t
   *palign = align;
   return size;
 }
+#endif
 
 static void calc_struct_size(StructInfo *sinfo) {
   assert(sinfo != NULL);
@@ -147,9 +149,12 @@ static void calc_struct_size(StructInfo *sinfo) {
     size_t sz = type_size(minfo->type);
     size_t align = 1;
     if (!sinfo->is_union) {
+#ifndef __NO_BITFIELD
       if (minfo->bitfield.width >= 0) {
         size = calc_bitfield_size(sinfo, &i, size, &align);
-      } else {
+      } else
+#endif
+      {
         align = align_size(minfo->type);
         size = ALIGN(size, align);
         minfo->offset = size;
@@ -157,10 +162,13 @@ static void calc_struct_size(StructInfo *sinfo) {
       }
     } else {
       minfo->offset = 0;
+#ifndef __NO_BITFIELD
       if (minfo->bitfield.width > 0) {
         minfo->bitfield.position = 0;
         minfo->bitfield.base_kind = minfo->type->fixnum.kind;
-      } else {
+      } else
+#endif
+      {
         align = align_size(minfo->type);
       }
       if (size < sz)

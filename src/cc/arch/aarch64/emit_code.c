@@ -107,6 +107,7 @@ static void eval_initial_value(Expr *expr, Expr **pvar, Fixnum *poffset) {
   }
 }
 
+#ifndef __NO_BITFIELD
 static int construct_initial_value_bitfield(const StructInfo *sinfo, const Initializer *init, int start, int *poffset) {
   const MemberInfo *member = &sinfo->members[start];
   if (member->bitfield.width == 0)
@@ -138,6 +139,7 @@ static int construct_initial_value_bitfield(const StructInfo *sinfo, const Initi
 
   return i;
 }
+#endif
 
 static void construct_initial_value(const Type *type, const Initializer *init) {
   assert(init == NULL || init->kind != IK_DOT);
@@ -293,11 +295,13 @@ static void construct_initial_value(const Type *type, const Initializer *init) {
       int offset = 0;
       for (int i = 0, n = sinfo->member_count; i < n; ++i) {
         const MemberInfo *member = &sinfo->members[i];
+#ifndef __NO_BITFIELD
         if (member->bitfield.width >= 0) {
           i = construct_initial_value_bitfield(sinfo, init, i, &offset);
           ++count;
           continue;
         }
+#endif
         const Initializer *mem_init;
         if (init == NULL) {
           if (sinfo->is_union)

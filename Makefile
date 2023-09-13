@@ -37,6 +37,9 @@ CFLAGS:=-ansi -std=c11 -pedantic -MMD -Wall -Wextra -Werror -Wold-style-definiti
 ifneq ("$(NO_FLONUM)","")
 CFLAGS+=-D__NO_FLONUM
 endif
+ifneq ("$(NO_BITFIELD)","")
+CFLAGS+=-D__NO_BITFIELD
+endif
 
 UNAME:=$(shell uname)
 ifeq ("$(UNAME)", "Darwin")

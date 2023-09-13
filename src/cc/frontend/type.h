@@ -51,11 +51,13 @@ typedef struct MemberInfo {
   const Name *name;
   struct Type *type;
   size_t offset;
+#ifndef __NO_BITFIELD
   struct {
     int8_t width;
     uint8_t position;
     uint8_t base_kind;  // FixnumKind
   } bitfield;
+#endif
 } MemberInfo;
 
 typedef struct StructInfo {
