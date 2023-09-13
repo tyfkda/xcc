@@ -28,15 +28,15 @@ RegAlloc *new_reg_alloc(const int *reg_param_mapping, int phys_max, int temporar
   return ra;
 }
 
-VReg *reg_alloc_spawn(RegAlloc *ra, const VRegType *vtype, int flag) {
+VReg *reg_alloc_spawn(RegAlloc *ra, enum VRegSize vsize, int vflag) {
   int vreg_no = ra->vregs->len;
 
   VReg *vreg = malloc_or_die(sizeof(*vreg));
   vreg->virt = vreg_no;
   vreg->phys = -1;
   vreg->fixnum = 0;
-  vreg->vtype = vtype;
-  vreg->flag = flag;
+  vreg->vsize = vsize;
+  vreg->flag = vflag;
   vreg->reg_param_index = -1;
   vreg->frame.offset = 0;
 
@@ -171,7 +171,7 @@ void occupy_regs(RegAlloc *ra, Vector *actives, unsigned long ioccupy, unsigned 
     LiveInterval *li = actives->data[k];
     VReg *vreg = ra->vregs->data[li->virt];
     assert(vreg != NULL);
-    li->occupied_reg_bit |= (vreg->vtype->flag & VRTF_FLONUM) ? foccupy : ioccupy;
+    li->occupied_reg_bit |= (vreg->flag & VRF_FLONUM) ? foccupy : ioccupy;
   }
 }
 
@@ -200,7 +200,7 @@ static void detect_live_interval_flags(RegAlloc *ra, BBContainer *bbcon, int vre
 
       if (ir->kind == IR_PUSHARG) {
         VReg *opr1 = ir->opr1;
-        if (opr1->vtype->flag & VRTF_FLONUM) {
+        if (opr1->flag & VRF_FLONUM) {
           int n = ir->pusharg.index;
           // Assume same order on FP-register.
           fargset |= 1UL << n;
@@ -273,7 +273,7 @@ static void linear_scan_register_allocation(RegAlloc *ra, LiveInterval **sorted_
     expire_old_intervals(&fregset, li->start);
 
     PhysicalRegisterSet *prsp = &iregset;
-    if (((VReg*)ra->vregs->data[li->virt])->vtype->flag & VRTF_FLONUM)
+    if (((VReg*)ra->vregs->data[li->virt])->flag & VRF_FLONUM)
       prsp = &fregset;
     int start_index = 0;
     int regno = -1;
@@ -281,7 +281,7 @@ static void linear_scan_register_allocation(RegAlloc *ra, LiveInterval **sorted_
     int ip = vreg->reg_param_index;
     unsigned long occupied = prsp->using_bits | li->occupied_reg_bit;
     if (ip >= 0) {
-      if (vreg->vtype->flag & VRTF_FLONUM) {
+      if (vreg->flag & VRF_FLONUM) {
         // Assume floating-pointer parameter registers are same order,
         // and no mapping required.
       } else {
@@ -317,7 +317,7 @@ static void linear_scan_register_allocation(RegAlloc *ra, LiveInterval **sorted_
 }
 
 static int insert_tmp_reg(RegAlloc *ra, Vector *irs, int j, VReg *spilled) {
-  VReg *tmp = reg_alloc_spawn(ra, spilled->vtype, VRF_NO_SPILL);
+  VReg *tmp = reg_alloc_spawn(ra, spilled->vsize, VRF_NO_SPILL | (spilled->flag & VRF_MASK));
   IR *ir = irs->data[j];
   VReg *opr = ir->opr1 == spilled ? ir->opr1 : ir->opr2 == spilled ? ir->opr2 : NULL;
   if (opr != NULL) {
