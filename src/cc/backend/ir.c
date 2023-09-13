@@ -8,8 +8,8 @@
 #include "table.h"
 #include "util.h"
 
-static VRegType vtVoidPtr = {.size = WORD_SIZE, .align = WORD_SIZE};
-static VRegType vtBool    = {.size = 4, .align = 4};
+static enum VRegSize vtVoidPtr = VRegSize8;
+static enum VRegSize vtBool    = VRegSize4;
 
 // Virtual register
 
@@ -34,13 +34,13 @@ static IR *new_ir(enum IrKind kind) {
   return ir;
 }
 
-VReg *new_const_vreg(int64_t value, VRegType vtype, int vflag) {
-  VReg *vreg = reg_alloc_spawn(curra, vtype, vflag | VRF_CONST);
+VReg *new_const_vreg(int64_t value, enum VRegSize vsize, int vflag) {
+  VReg *vreg = reg_alloc_spawn(curra, vsize, vflag | VRF_CONST);
   vreg->fixnum = value;
   return vreg;
 }
 
-VReg *new_ir_bop(enum IrKind kind, VReg *opr1, VReg *opr2, VRegType vtype) {
+VReg *new_ir_bop(enum IrKind kind, VReg *opr1, VReg *opr2, enum VRegSize vsize) {
   if (opr1->flag & VRF_CONST) {
     if (opr2->flag & VRF_CONST) {
       int64_t value = 0;
@@ -83,7 +83,7 @@ VReg *new_ir_bop(enum IrKind kind, VReg *opr1, VReg *opr2, VRegType vtype) {
         break;
       default: assert(false); break;
       }
-      return new_const_vreg(wrap_value(value, vtype.size, (opr1->flag & VRF_UNSIGNED) != 0), vtype, opr1->flag & VRF_MASK);
+      return new_const_vreg(wrap_value(value, 1 << vsize, (opr1->flag & VRF_UNSIGNED) != 0), vsize, opr1->flag & VRF_MASK);
     } else {
       switch (kind) {
       case IR_ADD:
@@ -92,7 +92,7 @@ VReg *new_ir_bop(enum IrKind kind, VReg *opr1, VReg *opr2, VRegType vtype) {
         break;
       case IR_SUB:
         if (opr1->fixnum == 0)
-          return new_ir_unary(IR_NEG, opr2, opr2->vtype, opr2->flag & VRF_MASK);
+          return new_ir_unary(IR_NEG, opr2, opr2->vsize, opr2->flag & VRF_MASK);
         break;
       case IR_MUL:
         if (opr1->fixnum == 1)
@@ -157,10 +157,10 @@ VReg *new_ir_bop(enum IrKind kind, VReg *opr1, VReg *opr2, VRegType vtype) {
   IR *ir = new_ir(kind);
   ir->opr1 = opr1;
   ir->opr2 = opr2;
-  return ir->dst = reg_alloc_spawn(curra, vtype, opr1->flag & VRF_MASK);
+  return ir->dst = reg_alloc_spawn(curra, vsize, opr1->flag & VRF_MASK);
 }
 
-VReg *new_ir_unary(enum IrKind kind, VReg *opr, VRegType vtype, int vflag) {
+VReg *new_ir_unary(enum IrKind kind, VReg *opr, enum VRegSize vsize, int vflag) {
   if (opr->flag & VRF_CONST && kind != IR_LOAD) {
     int64_t value = 0;
     switch (kind) {
@@ -168,12 +168,12 @@ VReg *new_ir_unary(enum IrKind kind, VReg *opr, VRegType vtype, int vflag) {
     case IR_BITNOT:  value = ~opr->fixnum; break;
     default: assert(false); break;
     }
-    return new_const_vreg(wrap_value(value, vtype.size, (opr->flag & VRF_UNSIGNED) != 0), vtype, opr->flag & VRF_MASK);
+    return new_const_vreg(wrap_value(value, 1 << vsize, (opr->flag & VRF_UNSIGNED) != 0), vsize, opr->flag & VRF_MASK);
   }
 
   IR *ir = new_ir(kind);
   ir->opr1 = opr;
-  return ir->dst = reg_alloc_spawn(curra, vtype, vflag);
+  return ir->dst = reg_alloc_spawn(curra, vsize, vflag);
 }
 
 VReg *new_ir_bofs(FrameInfo *fi, VReg *src) {
@@ -249,7 +249,7 @@ IR *new_ir_precall(int arg_count, int stack_args_size) {
 }
 
 VReg *new_ir_call(const Name *label, bool global, VReg *freg, int total_arg_count, int reg_arg_count,
-                  const VRegType *result_type, int result_flag, IR *precall, VReg **args, int vaarg_start) {
+                  enum VRegSize result_size, int result_flag, IR *precall, VReg **args, int vaarg_start) {
   IR *ir = new_ir(IR_CALL);
   ir->call.label = label;
   ir->call.global = global;
@@ -259,7 +259,7 @@ VReg *new_ir_call(const Name *label, bool global, VReg *freg, int total_arg_coun
   ir->call.total_arg_count = total_arg_count;
   ir->call.reg_arg_count = reg_arg_count;
   ir->call.vaarg_start = vaarg_start;
-  return ir->dst = result_type == NULL ? NULL : reg_alloc_spawn(curra, *result_type, result_flag);
+  return ir->dst = result_size < 0 ? NULL : reg_alloc_spawn(curra, result_size, result_flag);
 }
 
 void new_ir_result(VReg *vreg) {
@@ -273,10 +273,10 @@ void new_ir_subsp(VReg *value, VReg *dst) {
   ir->dst = dst;
 }
 
-VReg *new_ir_cast(VReg *vreg, VRegType dsttype, int vflag) {
+VReg *new_ir_cast(VReg *vreg, enum VRegSize dstsize, int vflag) {
   IR *ir = new_ir(IR_CAST);
   ir->opr1 = vreg;
-  return ir->dst = reg_alloc_spawn(curra, dsttype, vflag);
+  return ir->dst = reg_alloc_spawn(curra, dstsize, vflag);
 }
 
 IR *new_ir_mov(VReg *dst, VReg *src) {

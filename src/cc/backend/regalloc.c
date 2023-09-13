@@ -28,14 +28,14 @@ RegAlloc *new_reg_alloc(const int *reg_param_mapping, int phys_max, int temporar
   return ra;
 }
 
-VReg *reg_alloc_spawn(RegAlloc *ra, const VRegType vtype, int vflag) {
+VReg *reg_alloc_spawn(RegAlloc *ra, enum VRegSize vsize, int vflag) {
   int vreg_no = ra->vregs->len;
 
   VReg *vreg = malloc_or_die(sizeof(*vreg));
   vreg->virt = vreg_no;
   vreg->phys = -1;
   vreg->fixnum = 0;
-  vreg->vtype = vtype;
+  vreg->vsize = vsize;
   vreg->flag = vflag;
   vreg->reg_param_index = -1;
   vreg->frame.offset = 0;
@@ -317,7 +317,7 @@ static void linear_scan_register_allocation(RegAlloc *ra, LiveInterval **sorted_
 }
 
 static int insert_tmp_reg(RegAlloc *ra, Vector *irs, int j, VReg *spilled) {
-  VReg *tmp = reg_alloc_spawn(ra, spilled->vtype, VRF_NO_SPILL | (spilled->flag & VRF_MASK));
+  VReg *tmp = reg_alloc_spawn(ra, spilled->vsize, VRF_NO_SPILL | (spilled->flag & VRF_MASK));
   IR *ir = irs->data[j];
   VReg *opr = ir->opr1 == spilled ? ir->opr1 : ir->opr2 == spilled ? ir->opr2 : NULL;
   if (opr != NULL) {

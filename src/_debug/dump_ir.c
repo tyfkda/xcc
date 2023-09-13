@@ -21,14 +21,14 @@ extern void install_builtins(void);
 static void dump_vreg(FILE *fp, VReg *vreg) {
   assert(vreg != NULL);
   assert(!(vreg->flag & VRF_SPILLED));
-  static char *kSize[] = {"0", "b", "w", "3", "d", "5", "6", "7", ""};
+  static const char *kSize[] = {"b", "w", "d", ""};
   if (vreg->flag & VRF_CONST) {
     fprintf(fp, "(%" PRId64 ")", vreg->fixnum);
   } else {
     char regtype = 'R';
     if (vreg->flag & VRF_FLONUM)
       regtype = 'F';
-    fprintf(fp, "%c%d%s<v%d>", regtype, vreg->phys, kSize[vreg->vtype.size], vreg->virt);
+    fprintf(fp, "%c%d%s<v%d>", regtype, vreg->phys, kSize[vreg->vsize], vreg->virt);
   }
 }
 

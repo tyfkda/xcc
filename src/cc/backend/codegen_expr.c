@@ -17,13 +17,17 @@ bool is_stack_param(const Type *type) {
   return type->kind == TY_STRUCT;
 }
 
-VRegType to_vtype(const Type *type) {
+enum VRegSize to_vsize(const Type *type) {
+  const int MAX_REG_SIZE = 8;
   assert(is_prim_type(type));
   int size = type_size(type);
-  assert(1 <= size && size <= 8 && IS_POWER_OF_2(size));
-  int align = align_size(type);
-
-  return (VRegType){.size = size, .align = align};
+  assert(1 <= size && size <= MAX_REG_SIZE && IS_POWER_OF_2(size));
+  for (enum VRegSize vsize = VRegSize1; vsize <= VRegSize8 ; ++vsize) {
+    if (size == 1 << vsize)
+      return vsize;
+  }
+  assert(!"Must not reached");
+  return -1;
 }
 
 int to_vflag(const Type *type) {
@@ -33,7 +37,7 @@ int to_vflag(const Type *type) {
 }
 
 VReg *add_new_reg(const Type *type, int vflag) {
-  return reg_alloc_spawn(curra, to_vtype(type), vflag);
+  return reg_alloc_spawn(curra, to_vsize(type), vflag);
 }
 
 static Table builtin_function_table;  // <BuiltinFunctionProc>
@@ -171,7 +175,7 @@ static VReg *gen_cast(VReg *vreg, const Type *dst_type) {
     assert(!(vreg->flag & VRF_FLONUM));  // No const vreg for flonum.
     Fixnum value = vreg->fixnum;
     size_t dst_size = type_size(dst_type);
-    if (dst_size < (size_t)vreg->vtype.size && dst_size < sizeof(Fixnum)) {
+    if (dst_size < (size_t)(1 << vreg->vsize) && dst_size < sizeof(Fixnum)) {
       // Assume that integer is represented in Two's complement
       size_t bit = dst_size * TARGET_CHAR_BIT;
       UFixnum mask = (-1UL) << bit;
@@ -182,20 +186,20 @@ static VReg *gen_cast(VReg *vreg, const Type *dst_type) {
         value &= ~mask;
     }
 
-    VRegType vtype = to_vtype(dst_type);
+    enum VRegSize vsize = to_vsize(dst_type);
     int vflag = to_vflag(dst_type);
-    return new_const_vreg(value, vtype, vflag);
+    return new_const_vreg(value, vsize, vflag);
   }
 
   int dst_size = type_size(dst_type);
   bool lu = dst_type->kind == TY_FIXNUM ? dst_type->fixnum.is_unsigned : dst_type->kind == TY_PTR;
   bool ru = (vreg->flag & VRF_UNSIGNED) ? true : false;
-  if (dst_size == vreg->vtype.size && lu == ru
+  if (dst_size == 1 << vreg->vsize && lu == ru
       && is_flonum(dst_type) == ((vreg->flag & VRF_FLONUM) != 0)
   )
     return vreg;
 
-  return new_ir_cast(vreg, to_vtype(dst_type), to_vflag(dst_type));
+  return new_ir_cast(vreg, to_vsize(dst_type), to_vflag(dst_type));
 }
 
 static VReg *gen_lval(Expr *expr) {
@@ -222,10 +226,10 @@ static VReg *gen_lval(Expr *expr) {
       VReg *vreg = gen_expr(expr->member.target);
       if (member->offset == 0)
         return vreg;
-      VRegType vtype = to_vtype(&tySize);
+      enum VRegSize vsize = to_vsize(&tySize);
       int vflag = vreg->flag & VRF_MASK;
-      VReg *imm = new_const_vreg(member->offset, vtype, vflag);
-      VReg *result = new_ir_bop(IR_ADD, vreg, imm, vtype);
+      VReg *imm = new_const_vreg(member->offset, vsize, vflag);
+      VReg *result = new_ir_bop(IR_ADD, vreg, imm, vsize);
       return result;
     }
   case EX_COMPLIT:
@@ -262,7 +266,7 @@ static VReg *gen_variable(Expr *expr) {
       }
 
       VReg *vreg = gen_lval(expr);
-      VReg *result = new_ir_unary(IR_LOAD, vreg, to_vtype(expr->type), to_vflag(expr->type));
+      VReg *result = new_ir_unary(IR_LOAD, vreg, to_vsize(expr->type), to_vflag(expr->type));
       return result;
     }
   case TY_ARRAY:   // Use variable address as a pointer.
@@ -484,7 +488,7 @@ static VReg *gen_funcall(Expr *expr) {
   IR *precall = new_ir_precall(arg_count - stack_arg_count, offset);
 
   if (offset > 0)
-    new_ir_subsp(new_const_vreg(offset, to_vtype(&tySSize), VRF_UNSIGNED), NULL);
+    new_ir_subsp(new_const_vreg(offset, to_vsize(&tySSize), VRF_UNSIGNED), NULL);
 
   int total_arg_count = arg_count + (ret_varinfo != NULL ? 1 : 0);
   VReg **arg_vregs = total_arg_count == 0 ? NULL : calloc(total_arg_count, sizeof(*arg_vregs));
@@ -506,7 +510,7 @@ static VReg *gen_funcall(Expr *expr) {
           new_ir_pusharg(vreg, reg_arg_count - iregarg + arg_start);
         }
       } else {
-        VRegType offset_type = {.size = 4, .align = 4};  // TODO:
+        enum VRegSize offset_type = 2;  //{.size = 4, .align = 4};  // TODO:
         int ofs = p->offset;
         VReg *dst = new_ir_sofs(new_const_vreg(ofs, offset_type, 0));
         if (is_stack_param(arg->type)) {
@@ -541,20 +545,19 @@ static VReg *gen_funcall(Expr *expr) {
     Type *type = expr->type;
     if (ret_varinfo != NULL)
       type = ptrof(type);
-    VRegType *ret_vtype = NULL, ret_vtype_;
+    enum VRegSize ret_vsize = -1;
     int ret_vflag = 0;
     if (type->kind != TY_VOID) {
-      ret_vtype_ = to_vtype(type);
-      ret_vtype = &ret_vtype_;
+      ret_vsize = to_vsize(type);
       ret_vflag = to_vflag(type);
     }
     if (label_call) {
       result_reg = new_ir_call(func->var.name, global, NULL, total_arg_count, reg_arg_count + freg_arg_count,
-                               ret_vtype, ret_vflag, precall, arg_vregs, vaarg_start);
+                               ret_vsize, ret_vflag, precall, arg_vregs, vaarg_start);
     } else {
       VReg *freg = gen_expr(func);
       result_reg = new_ir_call(NULL, false, freg, total_arg_count, reg_arg_count + freg_arg_count,
-                               ret_vtype, ret_vflag, precall, arg_vregs, vaarg_start);
+                               ret_vsize, ret_vflag, precall, arg_vregs, vaarg_start);
     }
   }
 
@@ -564,7 +567,7 @@ static VReg *gen_funcall(Expr *expr) {
 VReg *gen_arith(enum ExprKind kind, const Type *type, VReg *lhs, VReg *rhs) {
   assert(EX_ADD <= kind && kind <= EX_RSHIFT);
   assert(!(kind == EX_DIV || kind == EX_MOD) || is_number(type));
-  return new_ir_bop(kind + (IR_ADD - EX_ADD), lhs, rhs, to_vtype(type));
+  return new_ir_bop(kind + (IR_ADD - EX_ADD), lhs, rhs, to_vsize(type));
 }
 
 #ifndef __NO_FLONUM
@@ -581,7 +584,7 @@ VReg *gen_const_flonum(Expr *expr) {
   gvarinfo->global.init = init;
 
   VReg *src = new_ir_iofs(gvarinfo->name, false);
-  return new_ir_unary(IR_LOAD, src, to_vtype(type), to_vflag(type));
+  return new_ir_unary(IR_LOAD, src, to_vsize(type), to_vflag(type));
 }
 #endif
 
@@ -619,7 +622,7 @@ VReg *gen_expr(Expr *expr) {
   switch (expr->kind) {
   case EX_FIXNUM:
     {
-      VReg *vreg = new_const_vreg(expr->fixnum, to_vtype(expr->type), to_vflag(expr->type));
+      VReg *vreg = new_const_vreg(expr->fixnum, to_vsize(expr->type), to_vflag(expr->type));
       if (!is_im32(expr->fixnum)) {
         // Large constant value is not allowed in x86,
         // so use mov instruction.
@@ -653,7 +656,7 @@ VReg *gen_expr(Expr *expr) {
       case TY_FIXNUM:
       case TY_PTR:
       case TY_FLONUM:
-        vreg = new_ir_unary(IR_LOAD, vreg, to_vtype(expr->type), to_vflag(expr->type));
+        vreg = new_ir_unary(IR_LOAD, vreg, to_vsize(expr->type), to_vflag(expr->type));
         break;
 
       case TY_ARRAY:
@@ -684,7 +687,7 @@ VReg *gen_expr(Expr *expr) {
       case TY_FIXNUM:
       case TY_PTR:
       case TY_FLONUM:
-        result = new_ir_unary(IR_LOAD, vreg, to_vtype(expr->type), to_vflag(expr->type));
+        result = new_ir_unary(IR_LOAD, vreg, to_vsize(expr->type), to_vflag(expr->type));
         break;
       case TY_FUNC: case TY_VOID:
         assert(false);
@@ -770,7 +773,7 @@ VReg *gen_expr(Expr *expr) {
           varinfo = vi;
       }
 
-      VRegType vtype = to_vtype(expr->type);
+      enum VRegSize vsize = to_vsize(expr->type);
       VReg *before = NULL;
       VReg *lval = NULL;
       VReg *val;
@@ -782,7 +785,7 @@ VReg *gen_expr(Expr *expr) {
         }
       } else {
         lval = gen_lval(target);
-        val = new_ir_unary(IR_LOAD, lval, vtype, to_vflag(expr->type));
+        val = new_ir_unary(IR_LOAD, lval, vsize, to_vflag(expr->type));
         if (IS_POST(expr))
           before = val;
       }
@@ -791,8 +794,8 @@ VReg *gen_expr(Expr *expr) {
 #ifndef __NO_FLONUM
           is_flonum(target->type) ? gen_const_flonum(new_expr_flolit(target->type, NULL, 1)) :
 #endif
-          new_const_vreg(expr->type->kind == TY_PTR ? type_size(expr->type->pa.ptrof) : 1, vtype, val->flag & VRF_MASK);
-      VReg *after = new_ir_bop(kOpAddSub[IS_DEC(expr)], val, addend, vtype);
+          new_const_vreg(expr->type->kind == TY_PTR ? type_size(expr->type->pa.ptrof) : 1, vsize, val->flag & VRF_MASK);
+      VReg *after = new_ir_bop(kOpAddSub[IS_DEC(expr)], val, addend, vsize);
       if (varinfo != NULL)  new_ir_mov(varinfo->local.vreg, after);
                       else  new_ir_store(lval, after);
       return before != NULL ? before : after;
@@ -815,14 +818,14 @@ VReg *gen_expr(Expr *expr) {
         return gen_arith(EX_SUB, expr->type, zero, vreg);
       }
 #endif
-      VReg *result = new_ir_unary(IR_NEG, vreg, to_vtype(expr->type), to_vflag(expr->type));
+      VReg *result = new_ir_unary(IR_NEG, vreg, to_vsize(expr->type), to_vflag(expr->type));
       return result;
     }
 
   case EX_BITNOT:
     {
       VReg *vreg = gen_expr(expr->unary.sub);
-      VReg *result = new_ir_unary(IR_BITNOT, vreg, to_vtype(expr->type), to_vflag(expr->type));
+      VReg *result = new_ir_unary(IR_BITNOT, vreg, to_vsize(expr->type), to_vflag(expr->type));
       return result;
     }
 
@@ -837,7 +840,7 @@ VReg *gen_expr(Expr *expr) {
       switch (cond) {
       case COND_NONE:
       case COND_ANY:
-        return new_const_vreg(cond == COND_ANY, to_vtype(&tyBool), 0);
+        return new_const_vreg(cond == COND_ANY, to_vsize(&tyBool), 0);
       default:
         return new_ir_cond(cond);
       }
@@ -849,7 +852,7 @@ VReg *gen_expr(Expr *expr) {
       BB *false_bb = new_bb();
       BB *next_bb = new_bb();
       gen_cond_jmp(expr, false, false_bb);
-      VRegType vtbool = to_vtype(&tyBool);
+      enum VRegSize vtbool = to_vsize(&tyBool);
       VReg *result = add_new_reg(&tyBool, 0);
       new_ir_mov(result, new_const_vreg(true, vtbool, 0));
       new_ir_jmp(COND_ANY, next_bb);

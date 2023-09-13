@@ -5,6 +5,8 @@
 #include <stdbool.h>
 #include <stddef.h>  // size_t
 
+#include "ir.h"  // enum VRegSize
+
 typedef struct BB BB;
 typedef struct Expr Expr;
 typedef struct Function Function;
@@ -12,7 +14,6 @@ typedef struct Stmt Stmt;
 typedef struct StructInfo StructInfo;
 typedef struct Type Type;
 typedef struct VReg VReg;
-typedef struct VRegType VRegType;
 typedef struct VarInfo VarInfo;
 typedef struct Vector Vector;
 
@@ -28,7 +29,7 @@ void gen_cond_jmp(Expr *cond, bool tf, BB *bb);
 
 void set_curbb(BB *bb);
 VReg *add_new_reg(const Type *type, int vflag);
-VRegType to_vtype(const Type *type);
+enum VRegSize to_vsize(const Type *type);
 int to_vflag(const Type *type);
 
 bool is_stack_param(const Type *type);

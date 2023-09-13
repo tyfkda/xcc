@@ -5,11 +5,12 @@
 #include <stdbool.h>
 #include <stddef.h>  // size_t
 
+#include "ir.h"  // enum VRegSize
+
 typedef struct BBContainer BBContainer;
 typedef struct Function Function;
 typedef struct IR IR;
 typedef struct VReg VReg;
-typedef struct VRegType VRegType;
 typedef struct Vector Vector;
 
 enum LiveIntervalState {
@@ -43,6 +44,6 @@ typedef struct RegAlloc {
 } RegAlloc;
 
 RegAlloc *new_reg_alloc(const int *reg_param_mapping, int phys_max, int temporary_count);
-VReg *reg_alloc_spawn(RegAlloc *ra, const VRegType vtype, int vflag);
+VReg *reg_alloc_spawn(RegAlloc *ra, enum VRegSize vsize, int vflag);
 void alloc_physical_registers(RegAlloc *ra, BBContainer *bbcon);
 void occupy_regs(RegAlloc *ra, Vector *actives, unsigned long ioccupy, unsigned long foccupy);
