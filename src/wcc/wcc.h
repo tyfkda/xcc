@@ -23,7 +23,7 @@ extern const char VA_ARGS_NAME[];
 extern Table func_info_table;
 extern Table gvar_info_table;
 extern Table builtin_function_table;
-extern Vector *functypes;  // <WasmFuncType*>
+extern Vector *functypes;  // <DataStorage*>
 extern Vector *tags;  // <int>
 extern Table indirect_function_table;
 extern uint32_t data_end_address;
@@ -104,11 +104,6 @@ void data_insert(DataStorage *data, ssize_t pos, const unsigned char *buf, size_
 void data_append(DataStorage *data, const unsigned char *buf, size_t size);
 void data_push(DataStorage *data, unsigned char c);
 void data_concat(DataStorage *data, DataStorage *data2);
-
-typedef struct {
-  size_t size;
-  unsigned char buf[1];
-} WasmFuncType;
 
 typedef struct FuncExtra {
   Vector *funcall_results;  // [0]=Expr*, [1]=VarInfo*

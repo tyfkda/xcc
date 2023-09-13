@@ -20,7 +20,7 @@ const char VA_ARGS_NAME[] = ".._VA_ARGS";
 Table func_info_table;
 Table gvar_info_table;
 Table builtin_function_table;
-Vector *functypes;
+Vector *functypes;  // <DataStorage*>
 Table indirect_function_table;
 
 static Stmt *branching_stmt;
@@ -29,7 +29,7 @@ bool is_stack_param(const Type *type) {
   return !is_prim_type(type);
 }
 
-static WasmFuncType *wasm_func_type(const Type *type) {
+static void wasm_func_type(const Type *type, DataStorage *ds) {
   bool ret_param = type->func.ret->kind != TY_VOID && !is_prim_type(type->func.ret);
   const Vector *param_types = type->func.param_types;
   int param_count = 0;
@@ -41,52 +41,49 @@ static WasmFuncType *wasm_func_type(const Type *type) {
     }
   }
 
-  DataStorage d;
-  data_init(&d);
-  data_reserve(&d, 3 + param_count + 3);
+  data_init(ds);
+  data_reserve(ds, 3 + param_count + 3);
 
-  emit_uleb128(&d, -1, (int)ret_param + param_count + (type->func.vaargs ? 1 : 0));  // num params
+  emit_uleb128(ds, -1, (int)ret_param + param_count + (type->func.vaargs ? 1 : 0));  // num params
   if (ret_param)
-    data_push(&d, to_wtype(&tyVoidPtr));
+    data_push(ds, to_wtype(&tyVoidPtr));
   if (param_types != NULL) {
     for (int i = 0; i < param_types->len; ++i) {
       const Type *type = param_types->data[i];
       if (!is_stack_param(type))
-        data_push(&d, to_wtype(type));
+        data_push(ds, to_wtype(type));
     }
   }
   if (type->func.vaargs)
-    data_push(&d, to_wtype(&tyVoidPtr));  // vaarg pointer.
+    data_push(ds, to_wtype(&tyVoidPtr));  // vaarg pointer.
 
   if (type->func.ret->kind == TY_VOID) {
-    data_push(&d, 0);  // num results
+    data_push(ds, 0);  // num results
   } else if (ret_param) {
-    data_push(&d, 1);  // num results
-    data_push(&d, to_wtype(&tyVoidPtr));
+    data_push(ds, 1);  // num results
+    data_push(ds, to_wtype(&tyVoidPtr));
   } else {
-    data_push(&d, 1);  // num results
-    data_push(&d, to_wtype(type->func.ret));
+    data_push(ds, 1);  // num results
+    data_push(ds, to_wtype(type->func.ret));
   }
-
-  WasmFuncType *t = malloc_or_die(sizeof(*t) - sizeof(t->buf) + d.len);
-  t->size = d.len;
-  memcpy(t->buf, d.buf, d.len);
-
-  data_release(&d);
-  return t;
 }
 
 int getsert_func_type_index(const Type *type, bool reg) {
-  WasmFuncType *wt = wasm_func_type(type);
+  DataStorage ds;
+  wasm_func_type(type, &ds);
   int len = functypes->len;
   for (int i = 0; i < len; ++i) {
-    const WasmFuncType *t = functypes->data[i];
-    if (wt->size == t->size && memcmp(wt->buf, t->buf, wt->size) == 0)
+    const DataStorage *t = functypes->data[i];
+    if (ds.len == t->len && memcmp(ds.buf, t->buf, ds.len) == 0) {
+      data_release(&ds);
       return i;
+    }
   }
   if (reg) {
     int index = functypes->len;
-    vec_push(functypes, wt);
+    DataStorage *p = malloc_or_die(sizeof(*p));
+    *p = ds;
+    vec_push(functypes, p);
     return index;
   }
   return -1;

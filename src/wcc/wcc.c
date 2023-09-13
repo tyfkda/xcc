@@ -368,9 +368,9 @@ static void emit_wasm(FILE *ofp, Vector *exports, const char *import_module_name
   DataStorage types_section;
   data_init(&types_section);
   for (int i = 0, len = functypes->len; i < len; ++i) {
-    const WasmFuncType *wt = functypes->data[i];
+    const DataStorage *wt = functypes->data[i];
     data_push(&types_section, WT_FUNC);  // func
-    data_append(&types_section, wt->buf, wt->size);
+    data_append(&types_section, wt->buf, wt->len);
   }
   emit_uleb128(&types_section, 0, functypes->len);  // num types
   emit_uleb128(&types_section, 0, types_section.len);  // Size
