@@ -695,16 +695,10 @@ static void traverse_decl(Declaration *decl) {
 
 static void add_builtins(void) {
   // Stack pointer.
-  {
-    const Name *name = alloc_name(SP_NAME, NULL, false);
-    Type *type = &tySize;
-    /*GVarInfo *info =*/ add_global_var(type, name);
-  }
-  {
-    const Name *name = alloc_name(BREAK_ADDRESS_NAME, NULL, false);
-    Type *type = &tySize;  // &tyVoidPtr
-    /*GVarInfo *info =*/ add_global_var(type, name);
-  }
+  add_global_var(&tyVoidPtr, alloc_name(SP_NAME, NULL, false));
+
+  // Break address.
+  add_global_var(&tyVoidPtr, alloc_name(BREAK_ADDRESS_NAME, NULL, false));
 }
 
 uint32_t traverse_ast(Vector *decls, Vector *exports, uint32_t stack_size) {
