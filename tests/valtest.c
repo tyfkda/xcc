@@ -668,6 +668,11 @@ TEST(all) {
   EXPECT("sizeof(struct ptr)", sizeof(void*), sizeof(struct Undefined*));
   EXPECT("sizeof(func ptr)", sizeof(void*), sizeof(int (*)()));
   {
+    struct S { char a[77]; };
+    EXPECT("sizeof cast expression", 77, sizeof ((struct S*)0)->a);
+  }
+
+  {
     int a[3] = {1, 2, 3};
     EXPECT("array initializer", 1, a[0] == 1 && a[1] == 2 && a[2] == 3);
   }

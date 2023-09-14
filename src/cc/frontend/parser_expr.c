@@ -796,15 +796,17 @@ static Expr *parse_sizeof(const Token *token) {
   const Token *tok;
   if ((tok = match(TK_LPAR)) != NULL) {
     type = parse_var_def(NULL, NULL, NULL);
-    if (type == NULL) {
-      Expr *expr = parse_expr();
+    if (type != NULL) {
+      consume(TK_RPAR, "`)' expected");
+    } else {
+      unget_token((Token*)tok);
+      Expr *expr = parse_unary();
 #ifndef __NO_BITFIELD
       not_bitfield_member(expr);
 #endif
       type = expr->type;
       tok = expr->token;
     }
-    consume(TK_RPAR, "`)' expected");
   } else {
     Expr *expr = parse_unary();
 #ifndef __NO_BITFIELD
