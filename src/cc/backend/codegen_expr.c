@@ -504,10 +504,14 @@ static VReg *gen_funcall(Expr *expr) {
       if (p->offset < 0) {
         if (p->is_flo) {
           ++fregarg;
-          new_ir_pusharg(vreg, freg_arg_count - fregarg);
+          int index = freg_arg_count - fregarg;
+          assert(index < MAX_FREG_ARGS);
+          new_ir_pusharg(vreg, index);
         } else {
           ++iregarg;
-          new_ir_pusharg(vreg, reg_arg_count - iregarg + arg_start);
+          int index = reg_arg_count - iregarg + arg_start;
+          assert(index < MAX_REG_ARGS);
+          new_ir_pusharg(vreg, index);
         }
       } else {
         enum VRegSize offset_type = 2;  //{.size = 4, .align = 4};  // TODO:

@@ -232,7 +232,6 @@ void new_ir_tjmp(VReg *val, BB **bbs, size_t len) {
 
 void new_ir_pusharg(VReg *vreg, int index) {
   assert(index >= 0);
-  assert(index < ((vreg->flag & VRF_FLONUM) ? MAX_FREG_ARGS : MAX_REG_ARGS));
   IR *ir = new_ir(IR_PUSHARG);
   ir->opr1 = vreg;
   ir->pusharg.index = index;
