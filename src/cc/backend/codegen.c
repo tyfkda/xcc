@@ -630,6 +630,7 @@ void gen_stmt(Stmt *stmt) {
 ////////////////////////////////////////////////
 
 static void prepare_register_allocation(Function *func) {
+  bool require_stack_frame = (func->flag & FUNCF_STACK_MODIFIED) != 0;
   // Handle function parameters first.
   const Vector *params = func->type->func.params;
   if (params != NULL) {
@@ -645,6 +646,7 @@ static void prepare_register_allocation(Function *func) {
         FrameInfo *fi = varinfo->local.frameinfo;
         fi->offset = offset = ALIGN(offset, align_size(varinfo->type));
         offset += ALIGN(type_size(varinfo->type), WORD_SIZE);
+        require_stack_frame = true;
         continue;
       }
       assert(is_prim_type(varinfo->type));
@@ -659,6 +661,7 @@ static void prepare_register_allocation(Function *func) {
         spill_vreg(vreg);
         vreg->frame.offset = offset;
         offset += WORD_SIZE;
+        require_stack_frame = true;
       } else if (func->type->func.vaargs) {  // Variadic function parameters.
         if (i >= param_count) {  // Store vaargs to jmp_buf.
           vreg->frame.offset = flo ? (freg_index - MAX_FREG_ARGS) * WORD_SIZE :
@@ -681,13 +684,26 @@ static void prepare_register_allocation(Function *func) {
       if (!is_local_storage(varinfo))
         continue;
       VReg *vreg = varinfo->local.vreg;
-      if (vreg == NULL)
+      if (vreg == NULL) {
+        assert(!is_prim_type(varinfo->type));
+        // Confirm whether this variable require stack frame:
+        // If the variable is function parameter, it passed through the stack,
+        // and it is not consume current stack frame, so exclude it.
+        if (!require_stack_frame && !(varinfo->storage & VS_PARAM))
+          require_stack_frame = true;
         continue;
+      }
 
       assert(is_prim_type(varinfo->type));
-      if (vreg->flag & VRF_REF)
+      if (vreg->flag & VRF_REF) {
         spill_vreg(vreg);
+        require_stack_frame = true;
+      }
     }
+  }
+  if (require_stack_frame) {
+    FuncBackend *fnbe = func->extra;
+    fnbe->ra->flag |= RAF_STACK_FRAME;
   }
 }
 

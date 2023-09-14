@@ -21,25 +21,27 @@ static void pop_caller_save_regs(Vector *saves);
 //   X8(XR):              Indirect return value address.
 //   X16(IP0), X17(IP1):  Intra-Procedure-call scratch registers.
 //   X18(PR):             Platform register. Used for some operating-system-specific special purpose or an additional caller-saved register.
+//   X29(FP):             Frame pointer (Callee save)
 
 static const char *kReg32s[PHYSICAL_REG_MAX] = {
-  W0, W1, W2, W3, W4, W5, W6, W7, W8, W9, W16,       // Temporary
-  W19, W20, W21, W22, W23, W24, W25, W26, W27, W28,  // Callee save
-  W10, W11, W12, W13, W14, W15, W18};                // Caller save
+  W0, W1, W2, W3, W4, W5, W6, W7, W8, W9, W16,            // Temporary
+  W19, W20, W21, W22, W23, W24, W25, W26, W27, W28, W29,  // Callee save
+  W10, W11, W12, W13, W14, W15, W18};                     // Caller save
 static const char *kReg64s[PHYSICAL_REG_MAX] = {
-  X0, X1, X2, X3, X4, X5, X6, X7, X8, X9, X16,       // Temporary
-  X19, X20, X21, X22, X23, X24, X25, X26, X27, X28,  // Callee save
-  X10, X11, X12, X13, X14, X15, X18};                // Caller save
+  X0, X1, X2, X3, X4, X5, X6, X7, X8, X9, X16,            // Temporary
+  X19, X20, X21, X22, X23, X24, X25, X26, X27, X28, X29,  // Callee save
+  X10, X11, X12, X13, X14, X15, X18};                     // Caller save
 
 #define CALLEE_SAVE_REG_COUNT  ((int)(sizeof(kCalleeSaveRegs) / sizeof(*kCalleeSaveRegs)))
-static const int kCalleeSaveRegs[] = {11, 12, 13, 14, 15, 16, 17, 18, 19, 20};
+static const int kCalleeSaveRegs[] = {11, 12, 13, 14, 15, 16, 17, 18, 19, 20, /*21*/};  // X29 (FP) is always saved currently, so exclude from callee save.
 
 #define CALLER_SAVE_REG_COUNT  ((int)(sizeof(kCallerSaveRegs) / sizeof(*kCallerSaveRegs)))
-static const int kCallerSaveRegs[] = {21, 22, 23, 24, 25, 26, 27};
+static const int kCallerSaveRegs[] = {22, 23, 24, 25, 26, 27, 28};
 
 const int ArchRegParamMapping[] = {0, 1, 2, 3, 4, 5, 6, 7};
 
-#define GET_X16_INDEX()  10
+#define GET_X16_INDEX()   10
+#define GET_FPREG_INDEX() 21
 
 const char **kRegSizeTable[] = {kReg32s, kReg32s, kReg32s, kReg64s};
 static const char *kZeroRegTable[] = {WZR, WZR, WZR, XZR};
@@ -69,7 +71,7 @@ static const int kCalleeSaveFRegs[] = {8, 9, 10, 11, 12, 13, 14, 15};
 #define CALLER_SAVE_FREG_COUNT  ((int)(sizeof(kCallerSaveFRegs) / sizeof(*kCallerSaveFRegs)))
 static const int kCallerSaveFRegs[] = {16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31};
 
-static unsigned long detect_extra_occupied(IR *ir) {
+static unsigned long detect_extra_occupied(RegAlloc *ra, IR *ir) {
   unsigned long ioccupy = 0;
   switch (ir->kind) {
   case IR_JMP: case IR_TJMP: case IR_CALL:
@@ -77,6 +79,8 @@ static unsigned long detect_extra_occupied(IR *ir) {
     break;
   default: break;
   }
+  if (ra->flag & RAF_STACK_FRAME)
+    ioccupy |= 1UL << GET_FPREG_INDEX();
   return ioccupy;
 }
 

@@ -20,6 +20,7 @@ RegAlloc *new_reg_alloc(const RegAllocSettings *settings) {
   ra->sorted_intervals = NULL;
   ra->used_reg_bits = 0;
   ra->used_freg_bits = 0;
+  ra->flag = 0;
   return ra;
 }
 
@@ -189,7 +190,7 @@ static void detect_live_interval_flags(RegAlloc *ra, BBContainer *bbcon, int vre
     for (int j = 0; j < bb->irs->len; ++j, ++nip) {
       IR *ir = bb->irs->data[j];
       if (settings->detect_extra_occupied != NULL) {
-        unsigned long ioccupy = (*settings->detect_extra_occupied)(ir);
+        unsigned long ioccupy = (*settings->detect_extra_occupied)(ra, ir);
         if (ioccupy != 0)
           occupy_regs(ra, actives, ioccupy, 0);
       }
@@ -442,6 +443,7 @@ void alloc_physical_registers(RegAlloc *ra, BBContainer *bbcon) {
     linear_scan_register_allocation(ra, sorted_intervals, vreg_count);
 
     // Spill vregs.
+    bool spilled = false;
     for (int i = 0; i < vreg_count; ++i) {
       LiveInterval *li = &intervals[i];
       if (li->state == LI_SPILL) {
@@ -449,8 +451,11 @@ void alloc_physical_registers(RegAlloc *ra, BBContainer *bbcon) {
         if (vreg->flag & VRF_SPILLED)
           continue;
         spill_vreg(vreg);
+        spilled = true;
       }
     }
+    if (spilled)
+      ra->flag |= RAF_STACK_FRAME;
 
     if (insert_load_store_spilled_irs(ra, bbcon) <= 0)
       break;

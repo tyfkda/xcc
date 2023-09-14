@@ -514,19 +514,24 @@ static void emit_defun(Function *func) {
   // Allocate variable bufer.
   FuncBackend *fnbe = func->extra;
   size_t frame_size = ALIGN(fnbe->frame_size, 16);
+  bool fp_saved = false;
   int callee_saved_count = 0;
   if (!no_stmt) {
+    // FP is saved anyway on aarch64, to avoid tedious stack alignment.
     STP(FP, LR, PRE_INDEX(SP, -16));
-    MOV(FP, SP);
-    if (frame_size > 0) {
-      const char *value;
-      if (frame_size <= 0x0fff) {
-        value = IM(frame_size);
-      } else {
-        // Break x17
-        mov_immediate(value = X17, frame_size, true, false);
+    if (frame_size > 0 || fnbe->ra->flag & RAF_STACK_FRAME) {
+      fp_saved = true;  // theoretically.
+      MOV(FP, SP);
+      if (frame_size > 0) {
+        const char *value;
+        if (frame_size <= 0x0fff) {
+          value = IM(frame_size);
+        } else {
+          // Break x17
+          mov_immediate(value = X17, frame_size, true, false);
+        }
+        SUB(SP, SP, value);
       }
-      SUB(SP, SP, value);
     }
 
     // Callee save.
@@ -550,7 +555,7 @@ static void emit_defun(Function *func) {
       SUB(SP, FP, value);
     }
     pop_callee_save_regs(fnbe->ra->used_reg_bits, fnbe->ra->used_freg_bits);
-    if (frame_size > 0) {
+    if (fp_saved) {
       const char *value;
       if (frame_size <= 0x0fff) {
         value = IM(frame_size);
