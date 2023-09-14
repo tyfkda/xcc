@@ -1,0 +1,8 @@
+#pragma once
+
+// Configuration for aarch64
+
+#define PHYSICAL_REG_TEMPORARY   (11)
+#define PHYSICAL_REG_MAX         (PHYSICAL_REG_TEMPORARY + 17)
+#define PHYSICAL_FREG_TEMPORARY  (8)
+#define PHYSICAL_FREG_MAX        (PHYSICAL_FREG_TEMPORARY + 24)

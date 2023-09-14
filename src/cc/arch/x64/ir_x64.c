@@ -1,4 +1,5 @@
 #include "../../../config.h"
+#include "./arch_config.h"
 #include "ir.h"
 
 #include <assert.h>
