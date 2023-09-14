@@ -514,12 +514,9 @@ static Vector *parse_stmts(const Token **prbrace) {
     if (parse_vardecl(&stmt)) {
       if (stmt == NULL)
         continue;
-    } else if ((tok = match(TK_CASE)) != NULL)
-      stmt = parse_case(tok);
-    else if ((tok = match(TK_DEFAULT)) != NULL)
-      stmt = parse_default(tok);
-    else
+    } else {
       stmt = parse_stmt();
+    }
 
     if (stmt == NULL) {
       if ((tok = match(TK_RBRACE)) != NULL) {
@@ -553,6 +550,10 @@ static Stmt *parse_stmt(void) {
     if (match(TK_COLON))
       return parse_label(tok);
     break;
+  case TK_CASE:
+    return parse_case(tok);
+  case TK_DEFAULT:
+    return parse_default(tok);
   case TK_SEMICOL:
     return new_stmt_block(tok, NULL, NULL, NULL);
   case TK_LBRACE:
