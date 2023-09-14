@@ -11,18 +11,13 @@
 
 // Register allocator
 
-RegAlloc *new_reg_alloc(const int *reg_param_mapping, int phys_max, int temporary_count) {
+RegAlloc *new_reg_alloc(const RegAllocSettings *settings) {
   RegAlloc *ra = malloc_or_die(sizeof(*ra));
-  assert(phys_max < (int)(sizeof(ra->used_reg_bits) * CHAR_BIT));
+  assert(settings->phys_max < (int)(sizeof(ra->used_reg_bits) * CHAR_BIT));
+  ra->settings = settings;
   ra->vregs = new_vector();
   ra->intervals = NULL;
   ra->sorted_intervals = NULL;
-  ra->detect_extra_occupied = NULL;
-  ra->reg_param_mapping = reg_param_mapping;
-  ra->phys_max = phys_max;
-  ra->phys_temporary_count = temporary_count;
-  ra->fphys_max = 0;
-  ra->fphys_temporary_count = 0;
   ra->used_reg_bits = 0;
   ra->used_freg_bits = 0;
   return ra;
@@ -81,11 +76,11 @@ static void split_at_interval(RegAlloc *ra, LiveInterval **active, int active_co
   LiveInterval *spill = active[active_count - 1];
   if (spill->end > li->end) {
     li->phys = spill->phys;
-    spill->phys = ra->phys_max;
+    spill->phys = ra->settings->phys_max;
     spill->state = LI_SPILL;
     insert_active(active, active_count - 1, li);
   } else {
-    li->phys = ra->phys_max;
+    li->phys = ra->settings->phys_max;
     li->state = LI_SPILL;
   }
 }
@@ -186,14 +181,15 @@ static void detect_live_interval_flags(RegAlloc *ra, BBContainer *bbcon, int vre
     vec_push(li->start < 0 ? actives : inactives, li);
   }
 
+  const RegAllocSettings *settings = ra->settings;
   int nip = 0;
   unsigned long iargset = 0, fargset = 0;
   for (int i = 0; i < bbcon->bbs->len; ++i) {
     BB *bb = bbcon->bbs->data[i];
     for (int j = 0; j < bb->irs->len; ++j, ++nip) {
       IR *ir = bb->irs->data[j];
-      if (ra->detect_extra_occupied != NULL) {
-        unsigned long ioccupy = (*ra->detect_extra_occupied)(ir);
+      if (settings->detect_extra_occupied != NULL) {
+        unsigned long ioccupy = (*settings->detect_extra_occupied)(ir);
         if (ioccupy != 0)
           occupy_regs(ra, actives, ioccupy, 0);
       }
@@ -205,7 +201,7 @@ static void detect_live_interval_flags(RegAlloc *ra, BBContainer *bbcon, int vre
           // Assume same order on FP-register.
           fargset |= 1UL << n;
         } else {
-          int n = ra->reg_param_mapping[ir->pusharg.index];
+          int n = settings->reg_param_mapping[ir->pusharg.index];
           if (n >= 0)
             iargset |= 1UL << n;
         }
@@ -223,8 +219,8 @@ static void detect_live_interval_flags(RegAlloc *ra, BBContainer *bbcon, int vre
       // Call instruction breaks registers which contain in their live interval (start < nip < end).
       if (ir->kind == IR_CALL) {
         // Non-saved registers on calling convention.
-        const unsigned long ibroken = (1UL << ra->phys_temporary_count) - 1;
-        const unsigned long fbroken = (1UL << ra->fphys_temporary_count) - 1;
+        const unsigned long ibroken = (1UL << settings->phys_temporary_count) - 1;
+        const unsigned long fbroken = (1UL << settings->fphys_temporary_count) - 1;
         occupy_regs(ra, actives, ibroken, fbroken);
         iargset = fargset = 0;
       }
@@ -247,17 +243,17 @@ static void detect_live_interval_flags(RegAlloc *ra, BBContainer *bbcon, int vre
 static void linear_scan_register_allocation(RegAlloc *ra, LiveInterval **sorted_intervals,
                                             int vreg_count) {
   PhysicalRegisterSet iregset = {
-    .active = ALLOCA(sizeof(LiveInterval*) * ra->phys_max),
-    .phys_max = ra->phys_max,
-    .phys_temporary = ra->phys_temporary_count,
+    .active = ALLOCA(sizeof(LiveInterval*) * ra->settings->phys_max),
+    .phys_max = ra->settings->phys_max,
+    .phys_temporary = ra->settings->phys_temporary_count,
     .active_count = 0,
     .using_bits = 0,
     .used_bits = 0,
   };
   PhysicalRegisterSet fregset = {
-    .active = ALLOCA(sizeof(LiveInterval*) * ra->fphys_max),
-    .phys_max = ra->fphys_max,
-    .phys_temporary = ra->fphys_temporary_count,
+    .active = ALLOCA(sizeof(LiveInterval*) * ra->settings->fphys_max),
+    .phys_max = ra->settings->fphys_max,
+    .phys_temporary = ra->settings->fphys_temporary_count,
     .active_count = 0,
     .using_bits = 0,
     .used_bits = 0,
@@ -285,7 +281,7 @@ static void linear_scan_register_allocation(RegAlloc *ra, LiveInterval **sorted_
         // Assume floating-pointer parameter registers are same order,
         // and no mapping required.
       } else {
-        ip = ra->reg_param_mapping[ip];
+        ip = ra->settings->reg_param_mapping[ip];
       }
 
       if (ip >= 0 && !(occupied & (1UL << ip)))
@@ -409,8 +405,8 @@ static int insert_load_store_spilled_irs(RegAlloc *ra, BBContainer *bbcon) {
 }
 
 void alloc_physical_registers(RegAlloc *ra, BBContainer *bbcon) {
-  assert(ra->phys_max < (int)(sizeof(ra->used_reg_bits) * CHAR_BIT));
-  assert(ra->fphys_max < (int)(sizeof(ra->used_freg_bits) * CHAR_BIT));
+  assert(ra->settings->phys_max < (int)(sizeof(ra->used_reg_bits) * CHAR_BIT));
+  assert(ra->settings->fphys_max < (int)(sizeof(ra->used_freg_bits) * CHAR_BIT));
 
   int vreg_count = ra->vregs->len;
   LiveInterval *intervals = malloc_or_die(sizeof(LiveInterval) * vreg_count);

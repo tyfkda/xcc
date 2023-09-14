@@ -68,7 +68,7 @@ static const int kCalleeSaveFRegs[] = {8, 9, 10, 11, 12, 13, 14, 15};
 #define CALLER_SAVE_FREG_COUNT  ((int)(sizeof(kCallerSaveFRegs) / sizeof(*kCallerSaveFRegs)))
 static const int kCallerSaveFRegs[] = {16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31};
 
-unsigned long detect_extra_occupied(IR *ir) {
+static unsigned long detect_extra_occupied(IR *ir) {
   unsigned long ioccupy = 0;
   switch (ir->kind) {
   case IR_JMP: case IR_TJMP: case IR_CALL:
@@ -78,6 +78,17 @@ unsigned long detect_extra_occupied(IR *ir) {
   }
   return ioccupy;
 }
+
+const RegAllocSettings kArchRegAllocSettings = {
+  .detect_extra_occupied = detect_extra_occupied,
+  .reg_param_mapping = ArchRegParamMapping,
+  .phys_max = PHYSICAL_REG_MAX,
+  .phys_temporary_count = PHYSICAL_REG_TEMPORARY,
+#ifndef __NO_FLONUM
+  .fphys_max = PHYSICAL_FREG_MAX,
+  .fphys_temporary_count = PHYSICAL_FREG_TEMPORARY,
+#endif
+};
 
 //
 

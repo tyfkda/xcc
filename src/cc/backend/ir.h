@@ -9,6 +9,7 @@
 typedef struct BB BB;
 typedef struct Name Name;
 typedef struct RegAlloc RegAlloc;
+typedef struct RegAllocSettings RegAllocSettings;
 typedef struct Vector Vector;
 
 #define WORD_SIZE  (8)  /*sizeof(void*)*/
@@ -229,5 +230,6 @@ typedef struct FuncBackend {
 
 //
 
+extern const RegAllocSettings kArchRegAllocSettings;
+
 void tweak_irs(FuncBackend *fnbe);
-unsigned long detect_extra_occupied(IR* ir);

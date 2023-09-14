@@ -702,7 +702,7 @@ static void map_virtual_to_physical_registers(RegAlloc *ra) {
 
 // Detect living registers for each instruction.
 static void detect_living_registers(RegAlloc *ra, BBContainer *bbcon) {
-  int maxbit = ra->phys_max + ra->fphys_max;
+  int maxbit = ra->settings->phys_max + ra->settings->fphys_max;
   unsigned long living_pregs = 0;
   assert((int)sizeof(living_pregs) * CHAR_BIT >= maxbit);
   LiveInterval **livings = ALLOCA(sizeof(*livings) * maxbit);
@@ -710,7 +710,8 @@ static void detect_living_registers(RegAlloc *ra, BBContainer *bbcon) {
     livings[i] = NULL;
 
 #define VREGFOR(li, ra)  ((VReg*)ra->vregs->data[li->virt])
-#define BITNO(li, ra)    (li->phys + (VREGFOR(li, ra)->flag & VRF_FLONUM ? ra->phys_max : 0))
+#define BITNO(li, ra)    (li->phys + (VREGFOR(li, ra)->flag & VRF_FLONUM ? floreg_offset : 0))
+  const int floreg_offset = ra->settings->phys_max;
   // Activate function parameters a priori.
   for (int i = 0; i < ra->vregs->len; ++i) {
     LiveInterval *li = ra->sorted_intervals[i];
@@ -849,13 +850,7 @@ static void gen_defun(Function *func) {
 
   fnbe->bbcon = new_func_blocks();
   set_curbb(new_bb());
-  extern const int ArchRegParamMapping[];
-  fnbe->ra = curra = new_reg_alloc(ArchRegParamMapping, PHYSICAL_REG_MAX, PHYSICAL_REG_TEMPORARY);
-#ifndef __NO_FLONUM
-  curra->fphys_max = PHYSICAL_FREG_MAX;
-  curra->fphys_temporary_count = PHYSICAL_FREG_TEMPORARY;
-#endif
-  curra->detect_extra_occupied = detect_extra_occupied;
+  fnbe->ra = curra = new_reg_alloc(&kArchRegAllocSettings);
 
   // Allocate BBs for goto labels.
   if (func->label_table != NULL) {

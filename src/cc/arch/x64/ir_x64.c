@@ -52,7 +52,7 @@ const char *kFReg64s[PHYSICAL_FREG_MAX] = {
 #define CALLER_SAVE_FREG_COUNT  ((int)(sizeof(kCallerSaveFRegs) / sizeof(*kCallerSaveFRegs)))
 static const int kCallerSaveFRegs[] = {8, 9, 10, 11, 12, 13, 14, 15};
 
-unsigned long detect_extra_occupied(IR *ir) {
+static unsigned long detect_extra_occupied(IR *ir) {
   unsigned long ioccupy = 0;
   switch (ir->kind) {
   case IR_MUL: case IR_DIV: case IR_MOD:
@@ -75,6 +75,17 @@ unsigned long detect_extra_occupied(IR *ir) {
   }
   return ioccupy;
 }
+
+const RegAllocSettings kArchRegAllocSettings = {
+  .detect_extra_occupied = detect_extra_occupied,
+  .reg_param_mapping = ArchRegParamMapping,
+  .phys_max = PHYSICAL_REG_MAX,
+  .phys_temporary_count = PHYSICAL_REG_TEMPORARY,
+#ifndef __NO_FLONUM
+  .fphys_max = PHYSICAL_FREG_MAX,
+  .fphys_temporary_count = PHYSICAL_FREG_TEMPORARY,
+#endif
+};
 
 //
 
