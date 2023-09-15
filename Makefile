@@ -193,11 +193,13 @@ WCC_LIBC_SRCS:=$(wildcard $(LIBSRC_DIR)/math/*.c) \
 	$(wildcard $(LIBSRC_DIR)/_wasm/unistd/*.c)
 
 $(LIBSRC_DIR)/_wasm/crt0.c:	$(WCC_CRT0_SRCS)
-	npx ts-node tool/generate_include_srcs.ts --base=libsrc _wasm/crt0 > $@
+	(cd $(LIBSRC_DIR) && \
+		find _wasm/crt0 -name '*.c' -printf '#include <%p>\n') > $@
 $(LIBSRC_DIR)/_wasm/libc.c:	$(WCC_LIBC_SRCS)
 	-# Caution: directory order matters.
-	npx ts-node tool/generate_include_srcs.ts --base=libsrc \
-		math misc stdio stdlib string _wasm/unistd > $@
+	(cd $(LIBSRC_DIR) && \
+		find math misc stdio stdlib string _wasm/unistd \
+		-name '*.c' -printf '#include <%p>\n') > $@
 
 .PHONY: test-wcc
 test-wcc:	wcc
