@@ -72,16 +72,6 @@ Compile C to WebAssembly/WASI binary.
 
 [Online demo](https://tyfkda.github.io/xcc/)
 
-#### Requirements
-
-  * node.js (>=16), npm
-
-Setup:
-
-```sh
-$ npm ci
-```
-
 #### Build
 
 ```sh
