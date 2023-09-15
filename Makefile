@@ -192,14 +192,14 @@ WCC_LIBC_SRCS:=$(wildcard $(LIBSRC_DIR)/math/*.c) \
 	$(wildcard $(LIBSRC_DIR)/string/*.c) \
 	$(wildcard $(LIBSRC_DIR)/_wasm/unistd/*.c)
 
+define GENERATE_INCLUDE_SRCS
+(cd $(LIBSRC_DIR) && find $1 -name '*.c' -exec echo '#include <{}>' \;)
+endef
+
 $(LIBSRC_DIR)/_wasm/crt0.c:	$(WCC_CRT0_SRCS)
-	(cd $(LIBSRC_DIR) && \
-		find _wasm/crt0 -name '*.c' -printf '#include <%p>\n') > $@
+	$(call GENERATE_INCLUDE_SRCS,_wasm/crt0) > $@
 $(LIBSRC_DIR)/_wasm/libc.c:	$(WCC_LIBC_SRCS)
-	-# Caution: directory order matters.
-	(cd $(LIBSRC_DIR) && \
-		find math misc stdio stdlib string _wasm/unistd \
-		-name '*.c' -printf '#include <%p>\n') > $@
+	$(call GENERATE_INCLUDE_SRCS,math misc stdio stdlib string _wasm/unistd) > $@
 
 .PHONY: test-wcc
 test-wcc:	wcc

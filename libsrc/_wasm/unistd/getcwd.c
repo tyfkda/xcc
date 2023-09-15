@@ -1,6 +1,7 @@
 #include "unistd.h"
 #include "errno.h"
 #include "stdlib.h"  // malloc
+#include "string.h"  // strlen
 
 const char *__cwd = ".";
 
