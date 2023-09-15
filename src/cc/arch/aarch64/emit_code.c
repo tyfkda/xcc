@@ -520,10 +520,12 @@ static void emit_defun(Function *func) {
     MOV(FP, SP);
     if (frame_size > 0) {
       const char *value;
-      if (frame_size <= 0x0fff)
+      if (frame_size <= 0x0fff) {
         value = IM(frame_size);
-      else
-        mov_immediate(value = X9, frame_size, true, false);  // x9 broken
+      } else {
+        // Break x17
+        mov_immediate(value = X17, frame_size, true, false);
+      }
       SUB(SP, SP, value);
     }
 
@@ -550,10 +552,12 @@ static void emit_defun(Function *func) {
     pop_callee_save_regs(fnbe->ra->used_reg_bits, fnbe->ra->used_freg_bits);
     if (frame_size > 0) {
       const char *value;
-      if (frame_size <= 0x0fff)
+      if (frame_size <= 0x0fff) {
         value = IM(frame_size);
-      else
-        mov_immediate(value = X8, frame_size, true, false);  // x9 broken
+      } else {
+        // Break x17
+        mov_immediate(value = X17, frame_size, true, false);
+      }
       ADD(SP, SP, value);
     }
     LDP(FP, LR, POST_INDEX(SP, 16));

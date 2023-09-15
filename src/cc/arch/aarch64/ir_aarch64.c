@@ -45,7 +45,7 @@ const char **kRegSizeTable[] = {kReg32s, kReg32s, kReg32s, kReg64s};
 static const char *kZeroRegTable[] = {WZR, WZR, WZR, XZR};
 static const char *kRetRegTable[] = {W0, W0, W0, X0};
 
-// Break %x16 in store, mod and tjmp
+// Break x17 in store, mod and tjmp
 static const char *kTmpRegTable[] = {W17, W17, W17, X17};
 
 #define SZ_FLOAT   VRegSize4
