@@ -178,4 +178,6 @@ typedef struct {
 #define WT_I64            (0x7e)
 #define WT_I32            (0x7f)
 
+#define MEMORY_PAGE_SIZE  65536
+
 void emit_wasm_header(FILE *ofp);

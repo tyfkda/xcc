@@ -3,6 +3,7 @@
 #include <stdbool.h>
 #include <stddef.h>  // size_t
 #include <stdint.h>
+#include <stdio.h>
 #include <sys/types.h>  // ssize_t
 
 typedef struct DataStorage DataStorage;
@@ -89,6 +90,11 @@ void add_code(const unsigned char* buf, size_t size);
 void gen_builtin_setjmp(Expr *expr);
 void gen_builtin_longjmp(Expr *expr);
 void gen_builtin_try_catch_longjmp(Expr *expr);
+
+// emit_wasm
+
+void emit_wasm(FILE *ofp, Vector *exports, const char *import_module_name, uint32_t address_bottom);
+void install_builtins(void);
 
 // wcc_util
 typedef struct DataStorage {
