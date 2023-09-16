@@ -1413,15 +1413,11 @@ static uint32_t allocate_local_variables(Function *func, DataStorage *data) {
 
       int param_index = -1;
       if (i == 0 && param_count > 0) {
-        const Vector *params = functype->func.params;
-        for (int i = 0, n = params->len; i < n; ++i) {
-          const VarInfo *v = params->data[i];
-          if (equal_name(v->name, varinfo->name)) {
-            param_index = i;
-            if (!is_stack_param(v->type))
-              ++pparam_count;
-            break;
-          }
+        int k = get_funparam_index(func, varinfo->name);
+        if (k >= 0) {
+          param_index = k;
+          if (!is_stack_param(varinfo->type))
+            ++pparam_count;
         }
       }
       if ((varinfo->storage & VS_REF_TAKEN) || (is_stack_param(varinfo->type) && param_index < 0)) {
@@ -1486,14 +1482,9 @@ static uint32_t allocate_local_variables(Function *func, DataStorage *data) {
       varinfo->local.vreg = vreg;
       int param_index = -1;
       if (i == 0 && param_count > 0) {
-        const Vector *params = functype->func.params;
-        for (int i = 0, n = params->len; i < n; ++i) {
-          const VarInfo *v = params->data[i];
-          if (equal_name(v->name, varinfo->name)) {
-            param_index = i;
-            break;
-          }
-        }
+        int k = get_funparam_index(func, varinfo->name);
+        if (k >= 0)
+          param_index = k;
       }
       vreg->param_index = ret_param + param_index;
       bool stack_param = is_stack_param(varinfo->type);
@@ -1573,10 +1564,9 @@ static void gen_defun(Function *func) {
     }
   }
   // Store ref-taken parameters to stack frame.
-  unsigned int param_count = functype->func.params != NULL ? functype->func.params->len : 0;  // TODO: Consider stack params.
-  if (param_count > 0) {
+  if (functype->func.params != NULL) {
     const Vector *params = functype->func.params;
-    for (unsigned int i = 0; i < param_count; ++i) {
+    for (int i = 0, param_count = params->len; i < param_count; ++i) {
       VarInfo *varinfo = params->data[i];
       if (!(varinfo->storage & VS_REF_TAKEN) || is_stack_param(varinfo->type))
         continue;

@@ -1185,3 +1185,13 @@ void check_funcend_return(Function *func) {
     last->return_.func_end = true;
   }
 }
+
+int get_funparam_index(Function *func, const Name *name) {
+  const Vector *params = func->type->func.params;
+  for (int i = 0, param_count = params->len; i < param_count; ++i) {
+    VarInfo *v = params->data[i];
+    if (equal_name(v->name, name))
+      return i;
+  }
+  return -1;
+}

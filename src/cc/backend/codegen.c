@@ -113,9 +113,10 @@ static void alloc_variable_registers(Function *func) {
 
   // Add flag to parameters.
   int fregindex = 0;
-  if (func->type->func.params != NULL) {
-    for (int i = 0; i < func->type->func.params->len; ++i) {
-      VarInfo *varinfo = func->type->func.params->data[i];
+  const Vector *params = func->type->func.params;
+  if (params != NULL) {
+    for (int i = 0; i < params->len; ++i) {
+      VarInfo *varinfo = params->data[i];
       VReg *vreg = varinfo->local.vreg;
       if (vreg != NULL) {
         vreg->flag |= VRF_PARAM;
@@ -147,8 +148,7 @@ void enumerate_register_params(
 
   const Vector *params = func->type->func.params;
   if (params != NULL) {
-    int len = params->len;
-    for (int i = 0; i < len; ++i) {
+    for (int i = 0, len = params->len; i < len; ++i) {
       const VarInfo *varinfo = params->data[i];
       const Type *type = varinfo->type;
       if (is_stack_param(type))
@@ -631,14 +631,15 @@ void gen_stmt(Stmt *stmt) {
 
 static void prepare_register_allocation(Function *func) {
   // Handle function parameters first.
-  if (func->type->func.params != NULL) {
+  const Vector *params = func->type->func.params;
+  if (params != NULL) {
     const int DEFAULT_OFFSET = WORD_SIZE * 2;  // Return address, saved base pointer.
     assert((Scope*)func->scopes->data[0] != NULL);
     int ireg_index = is_stack_param(func->type->func.ret) ? 1 : 0;
     int freg_index = 0;
     int offset = DEFAULT_OFFSET;
-    for (int i = 0; i < func->type->func.params->len; ++i) {
-      VarInfo *varinfo = func->type->func.params->data[i];
+    for (int i = 0, param_count = params->len; i < param_count; ++i) {
+      VarInfo *varinfo = params->data[i];
       if (is_stack_param(varinfo->type)) {
         // stack parameters
         FrameInfo *fi = varinfo->local.frameinfo;
@@ -659,7 +660,7 @@ static void prepare_register_allocation(Function *func) {
         vreg->frame.offset = offset;
         offset += WORD_SIZE;
       } else if (func->type->func.vaargs) {  // Variadic function parameters.
-        if (i >= func->type->func.params->len) {  // Store vaargs to jmp_buf.
+        if (i >= param_count) {  // Store vaargs to jmp_buf.
           vreg->frame.offset = flo ? (freg_index - MAX_FREG_ARGS) * WORD_SIZE :
                                      (ireg_index - MAX_REG_ARGS - MAX_FREG_ARGS) * WORD_SIZE;
         }

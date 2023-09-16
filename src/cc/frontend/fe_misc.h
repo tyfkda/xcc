@@ -77,3 +77,5 @@ Expr *transform_assign_with(const Token *tok, Expr *lhs, Expr *rhs);
 
 void check_reachability(Stmt *stmt);
 void check_funcend_return(Function *func);
+
+int get_funparam_index(Function *func, const Name *name);  // -1: Not funparam.
