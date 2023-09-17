@@ -162,7 +162,10 @@ void gen_cond_jmp(Expr *cond, bool tf, BB *bb) {
   }
 }
 
-static VReg *gen_cast(VReg *vreg, const Type *dst_type) {
+static VReg *gen_cast(Expr *expr) {
+  VReg *vreg = gen_expr(expr->unary.sub);
+  const Type *dst_type = expr->type;
+
   switch (dst_type->kind) {
   case TY_VOID:
     return NULL;  // Assume void value is not used.
@@ -592,7 +595,8 @@ VReg *gen_const_flonum(Expr *expr) {
 }
 #endif
 
-static VReg *gen_block_expr(Stmt *stmt) {
+static VReg *gen_block_expr(Expr *expr) {
+  Stmt *stmt = expr->block;
   assert(stmt->kind == ST_BLOCK);
 
   if (stmt->block.scope != NULL) {
@@ -622,282 +626,263 @@ static VReg *gen_block_expr(Stmt *stmt) {
   return result;
 }
 
-VReg *gen_expr(Expr *expr) {
-  switch (expr->kind) {
-  case EX_FIXNUM:
-    {
-      VReg *vreg = new_const_vreg(expr->fixnum, to_vsize(expr->type), to_vflag(expr->type));
-      if (!is_im32(expr->fixnum)) {
-        // Large constant value is not allowed in x86,
-        // so use mov instruction.
-        VReg *tmp = add_new_reg(expr->type, 0);
-        new_ir_mov(tmp, vreg);
-        vreg = tmp;
-      }
-      return vreg;
-    }
-  case EX_FLONUM:
+static VReg *gen_fixnum(Expr *expr) {
+  VReg *vreg = new_const_vreg(expr->fixnum, to_vsize(expr->type), to_vflag(expr->type));
+  if (!is_im32(expr->fixnum)) {
+    // Large constant value is not allowed in x86,
+    // so use mov instruction.
+    VReg *tmp = add_new_reg(expr->type, 0);
+    new_ir_mov(tmp, vreg);
+    vreg = tmp;
+  }
+  return vreg;
+}
+
+static VReg *gen_flonum(Expr *expr) {
 #ifndef __NO_FLONUM
-    return gen_const_flonum(expr);
+  return gen_const_flonum(expr);
 #else
-    assert(false);
-    return NULL;
+  assert(false);
+  return NULL;
 #endif
+}
 
-  case EX_STR:
-    assert(!"should be handled in parser");
+static VReg *gen_str(Expr *expr) {
+  UNUSED(expr);
+  assert(!"should be handled in parser");
+  return NULL;
+}
 
-  case EX_VAR:
-    return gen_variable(expr);
+static VReg *gen_ref(Expr *expr) {
+  return gen_lval(expr->unary.sub);
+}
 
-  case EX_REF:
-    return gen_lval(expr->unary.sub);
+static VReg *gen_deref(Expr *expr) {
+  VReg *vreg = gen_expr(expr->unary.sub);
+  switch (expr->type->kind) {
+  case TY_FIXNUM:
+  case TY_PTR:
+  case TY_FLONUM:
+    vreg = new_ir_unary(IR_LOAD, vreg, to_vsize(expr->type), to_vflag(expr->type));
+    break;
 
-  case EX_DEREF:
-    {
-      VReg *vreg = gen_expr(expr->unary.sub);
-      switch (expr->type->kind) {
-      case TY_FIXNUM:
-      case TY_PTR:
-      case TY_FLONUM:
-        vreg = new_ir_unary(IR_LOAD, vreg, to_vsize(expr->type), to_vflag(expr->type));
-        break;
+  case TY_ARRAY:
+  case TY_STRUCT:
+  case TY_FUNC:
+    // array, struct and func values are handled as a pointer.
+    break;
 
-      case TY_ARRAY:
-      case TY_STRUCT:
-      case TY_FUNC:
-        // array, struct and func values are handled as a pointer.
-        break;
+  case TY_VOID: assert(false); break;
+  }
+  return vreg;
+}
 
-      case TY_VOID: assert(false); break;
-      }
-      return vreg;
-    }
-
-  case EX_MEMBER:
-    {
+static VReg *gen_member(Expr *expr) {
 #ifndef __NO_BITFIELD
-      const MemberInfo *minfo = member_info(expr);
-      if (minfo->bitfield.width > 0) {
-        Type *type = get_fixnum_type(minfo->bitfield.base_kind, minfo->type->fixnum.is_unsigned, 0);
-        Expr *ptr = new_expr_unary(EX_REF, ptrof(type), NULL, expr);  // promote-to-int
-        Expr *load = new_expr_deref(NULL, ptr);
-        Expr *e = extract_bitfield_value(load, minfo);
-        return gen_expr(e);
-      }
+  const MemberInfo *minfo = member_info(expr);
+  if (minfo->bitfield.width > 0) {
+    Type *type = get_fixnum_type(minfo->bitfield.base_kind, minfo->type->fixnum.is_unsigned, 0);
+    Expr *ptr = new_expr_unary(EX_REF, ptrof(type), NULL, expr);  // promote-to-int
+    Expr *load = new_expr_deref(NULL, ptr);
+    Expr *e = extract_bitfield_value(load, minfo);
+    return gen_expr(e);
+  }
 #endif
 
-      VReg *vreg = gen_lval(expr);
-      VReg *result;
-      switch (expr->type->kind) {
-      case TY_FIXNUM:
-      case TY_PTR:
-      case TY_FLONUM:
-        result = new_ir_unary(IR_LOAD, vreg, to_vsize(expr->type), to_vflag(expr->type));
-        break;
-      case TY_FUNC: case TY_VOID:
-        assert(false);
-        // Fallthrough to suppress compile error.
-      case TY_ARRAY:
-      case TY_STRUCT:
-        result = vreg;
-        break;
-      }
-      return result;
-    }
+  VReg *vreg = gen_lval(expr);
+  VReg *result = vreg;
+  switch (expr->type->kind) {
+  case TY_FIXNUM:
+  case TY_PTR:
+  case TY_FLONUM:
+    result = new_ir_unary(IR_LOAD, vreg, to_vsize(expr->type), to_vflag(expr->type));
+    break;
+  case TY_FUNC: case TY_VOID:
+    assert(false);
+    // Fallthrough to suppress compile error.
+  case TY_ARRAY:
+  case TY_STRUCT:
+    break;
+  }
+  return result;
+}
 
-  case EX_COMMA:
-    gen_expr(expr->bop.lhs);
-    return gen_expr(expr->bop.rhs);
+static VReg *gen_comma(Expr *expr) {
+  gen_expr(expr->bop.lhs);
+  return gen_expr(expr->bop.rhs);
+}
 
-  case EX_TERNARY:
-    return gen_ternary(expr);
-
-  case EX_CAST:
-    return gen_cast(gen_expr(expr->unary.sub), expr->type);
-
-  case EX_ASSIGN:
-    {
-      VReg *src = gen_expr(expr->bop.rhs);
-      if (expr->bop.lhs->kind == EX_VAR) {
-        Expr *lhs = expr->bop.lhs;
-        switch (lhs->type->kind) {
-        case TY_FIXNUM:
-        case TY_PTR:
-        case TY_FLONUM:
-          {
-            Scope *scope;
-            const VarInfo *varinfo = scope_find(lhs->var.scope, lhs->var.name, &scope);
-            assert(varinfo != NULL);
-            if (!is_global_scope(scope) && is_local_storage(varinfo)) {
-              assert(varinfo->local.vreg != NULL);
-              new_ir_mov(varinfo->local.vreg, src);
-              return src;
-            }
-          }
-          break;
-        default:
-          break;
+static VReg *gen_assign(Expr *expr) {
+  VReg *src = gen_expr(expr->bop.rhs);
+  if (expr->bop.lhs->kind == EX_VAR) {
+    Expr *lhs = expr->bop.lhs;
+    switch (lhs->type->kind) {
+    case TY_FIXNUM:
+    case TY_PTR:
+    case TY_FLONUM:
+      {
+        Scope *scope;
+        const VarInfo *varinfo = scope_find(lhs->var.scope, lhs->var.name, &scope);
+        assert(varinfo != NULL);
+        if (!is_global_scope(scope) && is_local_storage(varinfo)) {
+          assert(varinfo->local.vreg != NULL);
+          new_ir_mov(varinfo->local.vreg, src);
+          return src;
         }
       }
-
-      VReg *dst = gen_lval(expr->bop.lhs);
-
-      switch (expr->type->kind) {
-      case TY_ARRAY: case TY_FUNC: case TY_VOID:
-        assert(false);
-        // Fallthrough to suppress compiler error.
-      case TY_FIXNUM:
-      case TY_PTR:
-      case TY_FLONUM:
-        new_ir_store(dst, src);
-        break;
-      case TY_STRUCT:
-        if (expr->type->struct_.info->size > 0) {
-          gen_memcpy(expr->type, dst, src);
-        }
-        break;
-      }
-      return src;
+      break;
+    default:
+      break;
     }
-
-  case EX_PREINC:
-  case EX_PREDEC:
-  case EX_POSTINC:
-  case EX_POSTDEC:
-    {
-#define IS_POST(expr)  ((expr)->kind >= EX_POSTINC)
-#define IS_DEC(expr)   (((expr)->kind - EX_PREINC) & 1)
-      static enum IrKind kOpAddSub[] = {IR_ADD, IR_SUB};
-
-      Expr *target = expr->unary.sub;
-      const VarInfo *varinfo = NULL;
-      if (target->kind == EX_VAR && !is_global_scope(target->var.scope)) {
-        const VarInfo *vi = scope_find(target->var.scope, target->var.name, NULL);
-        assert(vi != NULL);
-        if (is_local_storage(vi))
-          varinfo = vi;
-      }
-
-      enum VRegSize vsize = to_vsize(expr->type);
-      VReg *before = NULL;
-      VReg *lval = NULL;
-      VReg *val;
-      if (varinfo != NULL) {
-        val = varinfo->local.vreg;
-        if (IS_POST(expr)) {
-          before = add_new_reg(target->type, val->flag & VRF_MASK);
-          new_ir_mov(before, val);
-        }
-      } else {
-        lval = gen_lval(target);
-        val = new_ir_unary(IR_LOAD, lval, vsize, to_vflag(expr->type));
-        if (IS_POST(expr))
-          before = val;
-      }
-
-      VReg *addend =
-#ifndef __NO_FLONUM
-          is_flonum(target->type) ? gen_const_flonum(new_expr_flolit(target->type, NULL, 1)) :
-#endif
-          new_const_vreg(expr->type->kind == TY_PTR ? type_size(expr->type->pa.ptrof) : 1, vsize, val->flag & VRF_MASK);
-      VReg *after = new_ir_bop(kOpAddSub[IS_DEC(expr)], val, addend, vsize);
-      if (varinfo != NULL)  new_ir_mov(varinfo->local.vreg, after);
-                      else  new_ir_store(lval, after);
-      return before != NULL ? before : after;
-#undef IS_POST
-#undef IS_DEC
-    }
-
-  case EX_FUNCALL:
-    return gen_funcall(expr);
-
-  case EX_POS:
-    return gen_expr(expr->unary.sub);
-
-  case EX_NEG:
-    {
-      VReg *vreg = gen_expr(expr->unary.sub);
-#ifndef __NO_FLONUM
-      if (is_flonum(expr->type)) {
-        VReg *zero = gen_expr(new_expr_flolit(expr->type, NULL, 0.0));
-        return gen_arith(EX_SUB, expr->type, zero, vreg);
-      }
-#endif
-      VReg *result = new_ir_unary(IR_NEG, vreg, to_vsize(expr->type), to_vflag(expr->type));
-      return result;
-    }
-
-  case EX_BITNOT:
-    {
-      VReg *vreg = gen_expr(expr->unary.sub);
-      VReg *result = new_ir_unary(IR_BITNOT, vreg, to_vsize(expr->type), to_vflag(expr->type));
-      return result;
-    }
-
-  case EX_EQ:
-  case EX_NE:
-  case EX_LT:
-  case EX_GT:
-  case EX_LE:
-  case EX_GE:
-    {
-      enum ConditionKind cond = gen_compare_expr(expr->kind, expr->bop.lhs, expr->bop.rhs);
-      switch (cond) {
-      case COND_NONE:
-      case COND_ANY:
-        return new_const_vreg(cond == COND_ANY, to_vsize(&tyBool), 0);
-      default:
-        return new_ir_cond(cond);
-      }
-    }
-
-  case EX_LOGAND:
-  case EX_LOGIOR:
-    {
-      BB *false_bb = new_bb();
-      BB *next_bb = new_bb();
-      gen_cond_jmp(expr, false, false_bb);
-      enum VRegSize vtbool = to_vsize(&tyBool);
-      VReg *result = add_new_reg(&tyBool, 0);
-      new_ir_mov(result, new_const_vreg(true, vtbool, 0));
-      new_ir_jmp(COND_ANY, next_bb);
-      set_curbb(false_bb);
-      new_ir_mov(result, new_const_vreg(false, vtbool, 0));
-      set_curbb(next_bb);
-      return result;
-    }
-
-  case EX_ADD:
-  case EX_SUB:
-  case EX_MUL:
-  case EX_DIV:
-  case EX_MOD:
-  case EX_LSHIFT:
-  case EX_RSHIFT:
-  case EX_BITAND:
-  case EX_BITOR:
-  case EX_BITXOR:
-    {
-      VReg *lhs = gen_expr(expr->bop.lhs);
-      VReg *rhs = gen_expr(expr->bop.rhs);
-      return gen_arith(expr->kind, expr->type, lhs, rhs);
-    }
-
-  case EX_COMPLIT:
-    {
-      Expr *var = expr->complit.var;
-      const VarInfo *varinfo = scope_find(var->var.scope, var->var.name, NULL);
-      assert(varinfo != NULL);
-      gen_clear_local_var(varinfo);
-      gen_stmts(expr->complit.inits);
-      return gen_expr(var);
-    }
-
-  case EX_BLOCK:
-    return gen_block_expr(expr->block);
   }
 
-  assert(!"Must not reached");
-  return NULL;
+  VReg *dst = gen_lval(expr->bop.lhs);
+
+  switch (expr->type->kind) {
+  case TY_ARRAY: case TY_FUNC: case TY_VOID:
+    assert(false);
+    // Fallthrough to suppress compiler error.
+  case TY_FIXNUM:
+  case TY_PTR:
+  case TY_FLONUM:
+    new_ir_store(dst, src);
+    break;
+  case TY_STRUCT:
+    if (expr->type->struct_.info->size > 0) {
+      gen_memcpy(expr->type, dst, src);
+    }
+    break;
+  }
+  return src;
+}
+
+static VReg *gen_expr_incdec(Expr *expr) {
+#define IS_POST(expr)  ((expr)->kind >= EX_POSTINC)
+#define IS_DEC(expr)   (((expr)->kind - EX_PREINC) & 1)
+  static enum IrKind kOpAddSub[] = {IR_ADD, IR_SUB};
+
+  Expr *target = expr->unary.sub;
+  const VarInfo *varinfo = NULL;
+  if (target->kind == EX_VAR && !is_global_scope(target->var.scope)) {
+    const VarInfo *vi = scope_find(target->var.scope, target->var.name, NULL);
+    assert(vi != NULL);
+    if (is_local_storage(vi))
+      varinfo = vi;
+  }
+
+  enum VRegSize vsize = to_vsize(expr->type);
+  VReg *before = NULL;
+  VReg *lval = NULL;
+  VReg *val;
+  if (varinfo != NULL) {
+    val = varinfo->local.vreg;
+    if (IS_POST(expr)) {
+      before = add_new_reg(target->type, val->flag & VRF_MASK);
+      new_ir_mov(before, val);
+    }
+  } else {
+    lval = gen_lval(target);
+    val = new_ir_unary(IR_LOAD, lval, vsize, to_vflag(expr->type));
+    if (IS_POST(expr))
+      before = val;
+  }
+
+  VReg *addend =
+#ifndef __NO_FLONUM
+      is_flonum(target->type) ? gen_const_flonum(new_expr_flolit(target->type, NULL, 1)) :
+#endif
+      new_const_vreg(expr->type->kind == TY_PTR ? type_size(expr->type->pa.ptrof) : 1, vsize, val->flag & VRF_MASK);
+  VReg *after = new_ir_bop(kOpAddSub[IS_DEC(expr)], val, addend, vsize);
+  if (varinfo != NULL)  new_ir_mov(varinfo->local.vreg, after);
+                  else  new_ir_store(lval, after);
+  return before != NULL ? before : after;
+#undef IS_POST
+#undef IS_DEC
+}
+
+static VReg *gen_pos(Expr *expr) {
+  return gen_expr(expr->unary.sub);
+}
+
+static VReg *gen_neg(Expr *expr) {
+  VReg *vreg = gen_expr(expr->unary.sub);
+#ifndef __NO_FLONUM
+  if (is_flonum(expr->type)) {
+    VReg *zero = gen_expr(new_expr_flolit(expr->type, NULL, 0.0));
+    return gen_arith(EX_SUB, expr->type, zero, vreg);
+  }
+#endif
+  VReg *result = new_ir_unary(IR_NEG, vreg, to_vsize(expr->type), to_vflag(expr->type));
+  return result;
+}
+
+static VReg *gen_bitnot(Expr *expr) {
+  VReg *vreg = gen_expr(expr->unary.sub);
+  VReg *result = new_ir_unary(IR_BITNOT, vreg, to_vsize(expr->type), to_vflag(expr->type));
+  return result;
+}
+
+static VReg *gen_relation(Expr *expr) {
+  enum ConditionKind cond = gen_compare_expr(expr->kind, expr->bop.lhs, expr->bop.rhs);
+  switch (cond) {
+  case COND_NONE:
+  case COND_ANY:
+    return new_const_vreg(cond == COND_ANY, to_vsize(&tyBool), 0);
+  default:
+    return new_ir_cond(cond);
+  }
+}
+
+static VReg *gen_expr_logandor(Expr *expr) {
+  BB *false_bb = new_bb();
+  BB *next_bb = new_bb();
+  gen_cond_jmp(expr, false, false_bb);
+  enum VRegSize vtbool = to_vsize(&tyBool);
+  VReg *result = add_new_reg(&tyBool, 0);
+  new_ir_mov(result, new_const_vreg(true, vtbool, 0));
+  new_ir_jmp(COND_ANY, next_bb);
+  set_curbb(false_bb);
+  new_ir_mov(result, new_const_vreg(false, vtbool, 0));
+  set_curbb(next_bb);
+  return result;
+}
+
+static VReg *gen_expr_bop(Expr *expr) {
+  VReg *lhs = gen_expr(expr->bop.lhs);
+  VReg *rhs = gen_expr(expr->bop.rhs);
+  return gen_arith(expr->kind, expr->type, lhs, rhs);
+}
+
+static VReg *gen_complit(Expr *expr) {
+  Expr *var = expr->complit.var;
+  const VarInfo *varinfo = scope_find(var->var.scope, var->var.name, NULL);
+  assert(varinfo != NULL);
+  gen_clear_local_var(varinfo);
+  gen_stmts(expr->complit.inits);
+  return gen_expr(var);
+}
+
+VReg *gen_expr(Expr *expr) {
+  typedef VReg *(*GenExprFunc)(Expr *);
+  static const GenExprFunc table[] = {
+    [EX_FIXNUM] = gen_fixnum, [EX_FLONUM] = gen_flonum, [EX_STR] = gen_str,
+    [EX_VAR] = gen_variable,
+    [EX_ADD] = gen_expr_bop, [EX_SUB] = gen_expr_bop, [EX_MUL] = gen_expr_bop,
+    [EX_DIV] = gen_expr_bop, [EX_MOD] = gen_expr_bop, [EX_BITAND] = gen_expr_bop,
+    [EX_BITOR] = gen_expr_bop, [EX_BITXOR] = gen_expr_bop,
+    [EX_LSHIFT] = gen_expr_bop, [EX_RSHIFT] = gen_expr_bop,
+    [EX_EQ] = gen_relation, [EX_NE] = gen_relation, [EX_LT] = gen_relation,
+    [EX_LE] = gen_relation, [EX_GE] = gen_relation, [EX_GT] = gen_relation,
+    [EX_LOGAND] = gen_expr_logandor, [EX_LOGIOR] = gen_expr_logandor,
+    [EX_ASSIGN] = gen_assign, [EX_COMMA] = gen_comma,
+    [EX_POS] = gen_pos, [EX_NEG] = gen_neg, [EX_BITNOT] = gen_bitnot,
+    [EX_PREINC] = gen_expr_incdec, [EX_PREDEC] = gen_expr_incdec,
+    [EX_POSTINC] = gen_expr_incdec, [EX_POSTDEC] = gen_expr_incdec,
+    [EX_REF] = gen_ref, [EX_DEREF] = gen_deref, [EX_CAST] = gen_cast, [EX_TERNARY] = gen_ternary,
+    [EX_MEMBER] = gen_member, [EX_FUNCALL] = gen_funcall, [EX_COMPLIT] = gen_complit,
+    [EX_BLOCK] = gen_block_expr,
+  };
+
+  assert(expr->kind < (int)sizeof(table) / sizeof(*table));
+  return (*table[expr->kind])(expr);
 }

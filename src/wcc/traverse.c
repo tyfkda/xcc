@@ -233,7 +233,10 @@ static void traverse_func_expr(Expr **pexpr) {
   }
 }
 
-static void traverse_funcall(Expr *expr) {
+static void traverse_funcall(Expr **pexpr, bool needval) {
+  Expr *expr = *pexpr;
+  UNUSED(needval);
+
   Expr *func = expr->funcall.func;
   Type *functype = get_callee_type(func->type);
   if (functype == NULL) {
@@ -284,189 +287,194 @@ static void traverse_funcall(Expr *expr) {
   }
 }
 
+static void te_noop(Expr **pexpr, bool needval) { UNUSED(pexpr); UNUSED(needval); }
+
+static void te_var(Expr **pexpr, bool needval) {
+  Expr *expr = *pexpr;
+  UNUSED(needval);
+  if (expr->type->kind == TY_FUNC) {
+    register_indirect_function(expr->var.name, expr->type);
+    traverse_func_expr(pexpr);
+  }
+}
+
+static void te_bop(Expr **pexpr, bool needval) {
+  Expr *expr = *pexpr;
+  traverse_expr(&expr->bop.lhs, needval);
+  traverse_expr(&expr->bop.rhs, needval);
+}
+
+static void te_shift(Expr **pexpr, bool needval) {
+  Expr *expr = *pexpr;
+  // Make sure that RHS type is same as LHS.
+  expr->bop.rhs = make_cast(expr->bop.lhs->type, expr->bop.rhs->token, expr->bop.rhs, false);
+  traverse_expr(&expr->bop.lhs, needval);
+  traverse_expr(&expr->bop.rhs, needval);
+}
+
+static void te_comma(Expr **pexpr, bool needval) {
+  Expr *expr = *pexpr;
+  traverse_expr(&expr->bop.lhs, false);
+  traverse_expr(&expr->bop.rhs, needval);
+}
+
+static void te_assign(Expr **pexpr, bool needval) {
+  Expr *expr = *pexpr;
+  traverse_expr(&expr->bop.lhs, false);
+  traverse_expr(&expr->bop.rhs, true);
+  expr->type = &tyVoid;  // Make assigment expression as void.
+  if (needval) {
+    Expr *rhs = expr->bop.rhs;
+    Type *type = rhs->type;
+    if (!(is_const(rhs) || rhs->kind == EX_VAR)) {  // Rhs may have side effect.
+      Expr *lhs = expr->bop.lhs;
+      if (lhs->kind == EX_VAR) {
+        type = lhs->type;
+        rhs = lhs;
+      } else {
+        Expr *tmp;
+        expr = assign_to_tmp(expr, &tmp);
+        rhs = tmp;
+      }
+    }
+    *pexpr = new_expr_bop(EX_COMMA, type, expr->token, expr, rhs);
+  }
+}
+
+static void te_unary(Expr **pexpr, bool needval) {
+  Expr *expr = *pexpr;
+  traverse_expr(&expr->unary.sub, needval);
+}
+
+static void te_cast(Expr **pexpr, bool needval) {
+  Expr *expr = *pexpr;
+  traverse_expr(&expr->unary.sub, needval);
+
+  Expr *src = expr->unary.sub;
+  Type *stype = src->type;
+  Type *dtype = expr->type;
+  bool du = dtype->kind != TY_FIXNUM || dtype->fixnum.is_unsigned;
+  bool su = stype->kind != TY_FIXNUM || stype->fixnum.is_unsigned;
+  if (su && !du) {  // signed <- unsigned.
+    int d = type_size(dtype);
+    int s = type_size(stype);
+    if (d == s && d < I32_SIZE) {
+      // This conversion requires conditional branch with MSB.
+      // Stack machine architecture cannot handle the case well, so replace the expression.
+      Expr *assign = NULL;
+      if (src->kind != EX_VAR) {
+        // To use the src value multiple times, store it to temporary variable.
+        Expr *orgsrc = src;
+        const Name *name = alloc_label();
+        scope_add(curscope, name, stype, 0);
+        Expr *var = new_expr_variable(name, stype, NULL, curscope);
+        assign = new_expr_bop(EX_ASSIGN, &tyVoid, NULL, var, orgsrc);
+        src = var;
+      }
+      // sign: src & (1 << (s * TARGET_CHAR_BIT - 1))
+      Expr *msb = new_expr_bop(EX_BITAND, stype, NULL, src,
+          new_expr_fixlit(stype, NULL, 1 << (s * TARGET_CHAR_BIT - 1)));
+      // src | -msb
+      Expr *replaced = new_expr_bop(EX_BITOR, dtype, NULL, src,
+              new_expr_unary(EX_NEG, stype, NULL, msb));
+      *pexpr = assign == NULL ? replaced
+          : new_expr_bop(EX_COMMA, dtype, NULL, assign, replaced);
+      // traverse_expr(pexpr, needval);
+    }
+  }
+}
+
+static void te_incdec(Expr **pexpr, bool needval) {
+  Expr *expr = *pexpr;
+
+  static const enum ExprKind kOpAddSub[2] = {EX_ADD, EX_SUB};
+  traverse_expr(&expr->unary.sub, needval);
+  Expr *target = expr->unary.sub;
+  if (target->kind == EX_COMPLIT)
+    target = target->complit.var;
+  if (target->kind == EX_VAR) {
+    VarInfo *varinfo = scope_find(target->var.scope, target->var.name, NULL);
+    if (!(varinfo->storage & VS_REF_TAKEN))
+      return;
+  }
+
+  Type *type = target->type;
+  assert(is_number(type) || type->kind == TY_PTR);
+  bool post = expr->kind >= EX_POSTINC;
+  bool dec = (expr->kind - EX_PREINC) & 1;
+  // (++xxx)  =>  (p = &xxx, tmp = *p + 1, *p = tmp, tmp)
+  // (xxx++)  =>  (p = &xxx, tmp = *p, *p = tmp + 1, tmp)
+  const Token *token = target->token;
+  Type *ptrtype = ptrof(type);
+  Expr *p = alloc_tmp_var(curscope, ptrtype);
+  Expr *tmp = alloc_tmp_var(curscope, type);
+  enum ExprKind op = kOpAddSub[dec];
+
+  Expr *assign_p = new_expr_bop(EX_ASSIGN, &tyVoid, token, p,
+                                new_expr_unary(EX_REF, ptrtype, token, target));
+  Expr *deref_p = new_expr_deref(token, p);
+  Expr *one = type->kind == TY_PTR ? new_expr_fixlit(&tySize, token, type_size(type->pa.ptrof))
+      : new_expr_fixlit(type, token, 1);
+  Expr *assign_tmp = new_expr_bop(EX_ASSIGN, &tyVoid, token, tmp,
+                                  !post ? new_expr_bop(op, type, token, deref_p, one) : deref_p);
+  Expr *assign_deref_p = new_expr_bop(EX_ASSIGN, &tyVoid, token, deref_p,
+                                      !post ? tmp : new_expr_bop(op, type, token, tmp, one));
+
+  *pexpr = new_expr_bop(
+      EX_COMMA, type, token, assign_p,
+      new_expr_bop(
+          EX_COMMA, type, token, assign_tmp,
+          new_expr_bop(
+              EX_COMMA, type, token, assign_deref_p, tmp)));
+}
+
+static void te_ternary(Expr **pexpr, bool needval) {
+  Expr *expr = *pexpr;
+  traverse_expr(&expr->ternary.cond, true);
+  traverse_expr(&expr->ternary.tval, needval);
+  traverse_expr(&expr->ternary.fval, needval);
+}
+
+static void te_member(Expr **pexpr, bool needval) {
+  Expr *expr = *pexpr;
+  traverse_expr(&expr->member.target, needval);
+}
+
+static void te_complit(Expr **pexpr, bool needval) {
+  Expr *expr = *pexpr;
+  UNUSED(needval);
+  traverse_stmts(expr->complit.inits);
+}
+
+static void te_block(Expr **pexpr, bool needval) {
+  Expr *expr = *pexpr;
+  UNUSED(needval);
+  traverse_stmt(expr->block);
+}
+
 static void traverse_expr(Expr **pexpr, bool needval) {
   Expr *expr = *pexpr;
   if (expr == NULL)
     return;
-  switch (expr->kind) {
-  case EX_FIXNUM:  break;
-  case EX_FLONUM:  break;
-  case EX_STR:  break;
-  case EX_VAR:
-    if (expr->type->kind == TY_FUNC) {
-      register_indirect_function(expr->var.name, expr->type);
-      traverse_func_expr(pexpr);
-    }
-    break;
 
-  // bop
-  case EX_ADD:
-  case EX_SUB:
-  case EX_MUL:
-  case EX_DIV:
-  case EX_MOD:
-  case EX_BITAND:
-  case EX_BITOR:
-  case EX_BITXOR:
-  case EX_EQ:
-  case EX_NE:
-  case EX_LT:
-  case EX_LE:
-  case EX_GE:
-  case EX_GT:
-  case EX_LOGAND:
-  case EX_LOGIOR:
-    traverse_expr(&expr->bop.lhs, needval);
-    traverse_expr(&expr->bop.rhs, needval);
-    break;
-  case EX_LSHIFT:
-  case EX_RSHIFT:
-    // Make sure that RHS type is same as LHS.
-    expr->bop.rhs = make_cast(expr->bop.lhs->type, expr->bop.rhs->token, expr->bop.rhs, false);
-    traverse_expr(&expr->bop.lhs, needval);
-    traverse_expr(&expr->bop.rhs, needval);
-    break;
-  case EX_COMMA:
-    traverse_expr(&expr->bop.lhs, false);
-    traverse_expr(&expr->bop.rhs, needval);
-    break;
-  case EX_ASSIGN:
-    traverse_expr(&expr->bop.lhs, false);
-    traverse_expr(&expr->bop.rhs, true);
-    expr->type = &tyVoid;  // Make assigment expression as void.
-    if (needval) {
-      Expr *rhs = expr->bop.rhs;
-      Type *type = rhs->type;
-      if (!(is_const(rhs) || rhs->kind == EX_VAR)) {  // Rhs may have side effect.
-        Expr *lhs = expr->bop.lhs;
-        if (lhs->kind == EX_VAR) {
-          type = lhs->type;
-          rhs = lhs;
-        } else {
-          Expr *tmp;
-          expr = assign_to_tmp(expr, &tmp);
-          rhs = tmp;
-        }
-      }
-      *pexpr = new_expr_bop(EX_COMMA, type, expr->token, expr, rhs);
-    }
-    break;
+  typedef void (*TraverseExprFunc)(Expr **, bool);
+  static const TraverseExprFunc table[] = {
+    [EX_FIXNUM] = te_noop, [EX_FLONUM] = te_noop, [EX_STR] = te_noop, [EX_VAR] = te_var,
+    [EX_ADD] = te_bop, [EX_SUB] = te_bop, [EX_MUL] = te_bop, [EX_DIV] = te_bop, [EX_MOD] = te_bop,
+    [EX_BITAND] = te_bop, [EX_BITOR] = te_bop, [EX_BITXOR] = te_bop,
+    [EX_EQ] = te_bop, [EX_NE] = te_bop, [EX_LT] = te_bop,
+    [EX_LE] = te_bop, [EX_GE] = te_bop, [EX_GT] = te_bop,
+    [EX_LOGAND] = te_bop, [EX_LOGIOR] = te_bop, [EX_LSHIFT] = te_shift, [EX_RSHIFT] = te_shift,
+    [EX_POS] = te_unary, [EX_NEG] = te_unary, [EX_BITNOT] = te_unary,
+    [EX_REF] = te_unary, [EX_DEREF] = te_unary,
+    [EX_ASSIGN] = te_assign, [EX_COMMA] = te_comma,
+    [EX_PREINC] = te_incdec, [EX_PREDEC] = te_incdec, [EX_POSTINC] = te_incdec, [EX_POSTDEC] = te_incdec,
+    [EX_CAST] = te_cast, [EX_TERNARY] = te_ternary, [EX_MEMBER] = te_member,
+    [EX_FUNCALL] = traverse_funcall, [EX_COMPLIT] = te_complit, [EX_BLOCK] = te_block,
+  };
 
-  // Unary
-  case EX_POS:
-  case EX_NEG:
-  case EX_BITNOT:
-  case EX_REF:
-  case EX_DEREF:
-    traverse_expr(&expr->unary.sub, needval);
-    break;
-  case EX_CAST:
-    traverse_expr(&expr->unary.sub, needval);
-    {
-      Expr *src = expr->unary.sub;
-      Type *stype = src->type;
-      Type *dtype = expr->type;
-      bool du = dtype->kind != TY_FIXNUM || dtype->fixnum.is_unsigned;
-      bool su = stype->kind != TY_FIXNUM || stype->fixnum.is_unsigned;
-      if (su && !du) {  // signed <- unsigned.
-        int d = type_size(dtype);
-        int s = type_size(stype);
-        if (d == s && d < I32_SIZE) {
-          // This conversion requires conditional branch with MSB.
-          // Stack machine architecture cannot handle the case well, so replace the expression.
-          Expr *assign = NULL;
-          if (src->kind != EX_VAR) {
-            // To use the src value multiple times, store it to temporary variable.
-            Expr *orgsrc = src;
-            const Name *name = alloc_label();
-            scope_add(curscope, name, stype, 0);
-            Expr *var = new_expr_variable(name, stype, NULL, curscope);
-            assign = new_expr_bop(EX_ASSIGN, &tyVoid, NULL, var, orgsrc);
-            src = var;
-          }
-          // sign: src & (1 << (s * TARGET_CHAR_BIT - 1))
-          Expr *msb = new_expr_bop(EX_BITAND, stype, NULL, src,
-              new_expr_fixlit(stype, NULL, 1 << (s * TARGET_CHAR_BIT - 1)));
-          // src | -msb
-          Expr *replaced = new_expr_bop(EX_BITOR, dtype, NULL, src,
-                  new_expr_unary(EX_NEG, stype, NULL, msb));
-          *pexpr = assign == NULL ? replaced
-              : new_expr_bop(EX_COMMA, dtype, NULL, assign, replaced);
-          // traverse_expr(pexpr, needval);
-        }
-      }
-    }
-    break;
-  case EX_PREINC:
-  case EX_PREDEC:
-  case EX_POSTINC:
-  case EX_POSTDEC:
-    {
-      static const enum ExprKind kOpAddSub[2] = {EX_ADD, EX_SUB};
-
-      traverse_expr(&expr->unary.sub, needval);
-      Expr *target = expr->unary.sub;
-      if (target->kind == EX_COMPLIT)
-        target = target->complit.var;
-      if (target->kind == EX_VAR) {
-        VarInfo *varinfo = scope_find(target->var.scope, target->var.name, NULL);
-        if (!(varinfo->storage & VS_REF_TAKEN))
-          break;
-      }
-
-      Type *type = target->type;
-      assert(is_number(type) || type->kind == TY_PTR);
-      bool post = expr->kind >= EX_POSTINC;
-      bool dec = (expr->kind - EX_PREINC) & 1;
-      // (++xxx)  =>  (p = &xxx, tmp = *p + 1, *p = tmp, tmp)
-      // (xxx++)  =>  (p = &xxx, tmp = *p, *p = tmp + 1, tmp)
-      const Token *token = target->token;
-      Type *ptrtype = ptrof(type);
-      Expr *p = alloc_tmp_var(curscope, ptrtype);
-      Expr *tmp = alloc_tmp_var(curscope, type);
-      enum ExprKind op = kOpAddSub[dec];
-
-      Expr *assign_p = new_expr_bop(EX_ASSIGN, &tyVoid, token, p,
-                                    new_expr_unary(EX_REF, ptrtype, token, target));
-      Expr *deref_p = new_expr_deref(token, p);
-      Expr *one = type->kind == TY_PTR ? new_expr_fixlit(&tySize, token, type_size(type->pa.ptrof))
-          : new_expr_fixlit(type, token, 1);
-      Expr *assign_tmp = new_expr_bop(EX_ASSIGN, &tyVoid, token, tmp,
-                                      !post ? new_expr_bop(op, type, token, deref_p, one) : deref_p);
-      Expr *assign_deref_p = new_expr_bop(EX_ASSIGN, &tyVoid, token, deref_p,
-                                          !post ? tmp : new_expr_bop(op, type, token, tmp, one));
-
-      *pexpr = new_expr_bop(
-          EX_COMMA, type, token, assign_p,
-          new_expr_bop(
-              EX_COMMA, type, token, assign_tmp,
-              new_expr_bop(
-                  EX_COMMA, type, token, assign_deref_p, tmp)));
-    }
-    break;
-
-  case EX_TERNARY:
-    traverse_expr(&expr->ternary.cond, true);
-    traverse_expr(&expr->ternary.tval, needval);
-    traverse_expr(&expr->ternary.fval, needval);
-    break;
-
-  case EX_MEMBER:
-    traverse_expr(&expr->member.target, needval);
-    break;
-
-  case EX_FUNCALL:
-    traverse_funcall(expr);
-    break;
-
-  case EX_COMPLIT:
-    traverse_stmts(expr->complit.inits);
-    break;
-
-  case EX_BLOCK:
-    traverse_stmt(expr->block);
-    break;
-  }
+  assert(expr->kind < (int)sizeof(table) / sizeof(*table));
+  (*table[expr->kind])(pexpr, needval);
 }
 
 static void traverse_initializer(Initializer *init) {
