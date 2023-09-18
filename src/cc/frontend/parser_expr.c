@@ -635,7 +635,7 @@ Vector *parse_funparams(bool *pvaargs) {
         if (ident != NULL && var_find(params, ident->ident) >= 0)
           parse_error(PE_NOFATAL, ident, "`%.*s' already defined", NAMES(ident->ident));
         else
-          var_add(params, ident != NULL ? ident->ident : NULL, type, storage);
+          var_add(params, ident != NULL ? ident->ident : NULL, type, storage | VS_PARAM);
       }
       if (match(TK_RPAR))
         break;

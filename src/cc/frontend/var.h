@@ -25,6 +25,7 @@ enum {
   VS_REGISTER = 1 << 6,
 
   VS_REF_TAKEN = 1 << 7,  // `&x` used.
+  VS_PARAM = 1 << 8,  // Function parameter
 };
 
 typedef struct VarInfo {
