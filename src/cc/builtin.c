@@ -128,7 +128,7 @@ static VReg *gen_alloca(Expr *expr) {
                       new_expr_fixlit(&tySSize, token, stack_align - 1)),
       new_expr_fixlit(&tySSize, token, -stack_align));
   VReg *addend = gen_expr(aligned_size);
-  VReg *result = add_new_reg(&tyVoidPtr, 0);
+  VReg *result = add_new_vreg(&tyVoidPtr, 0);
   new_ir_subsp(addend, result);
   curfunc->flag |= FUNCF_STACK_MODIFIED;
   return result;

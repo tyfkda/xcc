@@ -62,7 +62,7 @@ static VarInfo *prepare_retvar(Function *func) {
   Type *retptrtype = ptrof(rettype);
   Scope *top_scope = func->scopes->data[0];
   VarInfo *varinfo = scope_add(top_scope, retval_name, retptrtype, 0);
-  VReg *vreg = add_new_reg(varinfo->type, VRF_PARAM);
+  VReg *vreg = add_new_vreg(varinfo->type, VRF_PARAM);
   vreg->reg_param_index = 0;
   varinfo->local.vreg = vreg;
   FuncBackend *fnbe = func->extra;
@@ -96,7 +96,7 @@ static void alloc_variable_registers(Function *func) {
         continue;
       }
 
-      VReg *vreg = add_new_reg(varinfo->type, to_vflag(varinfo->type));
+      VReg *vreg = add_new_vreg(varinfo->type, 0);
       if (varinfo->storage & VS_REF_TAKEN)
         vreg->flag |= VRF_REF;
       varinfo->local.vreg = vreg;
@@ -208,13 +208,13 @@ void gen_memcpy(const Type *type, VReg *dst, VReg *src) {
     VReg *tmp = new_ir_unary(IR_LOAD, src, elem_vsize, to_vflag(type));
     new_ir_store(dst, tmp);
   } else {
-    VReg *srcp = add_new_reg(&tyVoidPtr, 0);
+    VReg *srcp = add_new_vreg(&tyVoidPtr, 0);
     new_ir_mov(srcp, src);
-    VReg *dstp = add_new_reg(&tyVoidPtr, 0);
+    VReg *dstp = add_new_vreg(&tyVoidPtr, 0);
     new_ir_mov(dstp, dst);
 
     enum VRegSize vsSize = to_vsize(&tySize);
-    VReg *vcount = add_new_reg(&tySize, 0);
+    VReg *vcount = add_new_vreg(&tySize, 0);
     new_ir_mov(vcount, new_const_vreg(count, vsSize, VRF_UNSIGNED));
     VReg *vadd = new_const_vreg(1 << elem_vsize, vsSize, VRF_UNSIGNED);
 
@@ -242,11 +242,11 @@ static void gen_clear(const Type *type, VReg *dst) {
   if (count == 1) {
     new_ir_store(dst, vzero);
   } else {
-    VReg *dstp = add_new_reg(&tyVoidPtr, 0);
+    VReg *dstp = add_new_vreg(&tyVoidPtr, 0);
     new_ir_mov(dstp, dst);
 
     enum VRegSize vsSize = to_vsize(&tySize);
-    VReg *vcount = add_new_reg(&tySize, 0);
+    VReg *vcount = add_new_vreg(&tySize, 0);
     new_ir_mov(vcount, new_const_vreg(count, vsSize, VRF_UNSIGNED));
     VReg *vadd = new_const_vreg(1 << elem_vtype, vsSize, VRF_UNSIGNED);
 

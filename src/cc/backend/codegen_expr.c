@@ -36,8 +36,8 @@ int to_vflag(const Type *type) {
   return !is_fixnum(type->kind) || type->fixnum.is_unsigned ? VRF_UNSIGNED : 0;
 }
 
-VReg *add_new_reg(const Type *type, int vflag) {
-  return reg_alloc_spawn(curra, to_vsize(type), vflag);
+VReg *add_new_vreg(const Type *type, int vflag) {
+  return reg_alloc_spawn(curra, to_vsize(type), vflag | to_vflag(type));
 }
 
 static Table builtin_function_table;  // <BuiltinFunctionProc>
@@ -291,7 +291,7 @@ static VReg *gen_ternary(Expr *expr) {
     Type *type = expr->type;
     if (!is_number(type) && !ptr_or_array(type))
       type = ptrof(type);
-    result = add_new_reg(type, to_vflag(type));
+    result = add_new_vreg(type, 0);
   }
 
   gen_cond_jmp(expr->ternary.cond, false, fbb);
@@ -631,7 +631,7 @@ static VReg *gen_fixnum(Expr *expr) {
   if (!is_im32(expr->fixnum)) {
     // Large constant value is not allowed in x86,
     // so use mov instruction.
-    VReg *tmp = add_new_reg(expr->type, 0);
+    VReg *tmp = add_new_vreg(expr->type, 0);
     new_ir_mov(tmp, vreg);
     vreg = tmp;
   }
@@ -777,7 +777,7 @@ static VReg *gen_expr_incdec(Expr *expr) {
   if (varinfo != NULL) {
     val = varinfo->local.vreg;
     if (IS_POST(expr)) {
-      before = add_new_reg(target->type, val->flag & VRF_MASK);
+      before = add_new_vreg(target->type, val->flag & VRF_MASK);
       new_ir_mov(before, val);
     }
   } else {
@@ -837,12 +837,12 @@ static VReg *gen_expr_logandor(Expr *expr) {
   BB *false_bb = new_bb();
   BB *next_bb = new_bb();
   gen_cond_jmp(expr, false, false_bb);
-  enum VRegSize vtbool = to_vsize(&tyBool);
-  VReg *result = add_new_reg(&tyBool, 0);
-  new_ir_mov(result, new_const_vreg(true, vtbool, 0));
+  enum VRegSize vsbool = to_vsize(&tyBool);
+  VReg *result = add_new_vreg(&tyBool, 0);
+  new_ir_mov(result, new_const_vreg(true, vsbool, 0));
   new_ir_jmp(COND_ANY, next_bb);
   set_curbb(false_bb);
-  new_ir_mov(result, new_const_vreg(false, vtbool, 0));
+  new_ir_mov(result, new_const_vreg(false, vsbool, 0));
   set_curbb(next_bb);
   return result;
 }
