@@ -109,6 +109,7 @@ test_misc() {
   try '#line number only' "# 123 \"*stdin*\" 1\"dummy\"\"*stdin*\":124" "#line  123\n\"dummy\"\n__FILE__:__LINE__"
   try 'Block comment' '/*block comment*/' "/*\nblock comment\n*/"
   try 'Quote in comment' "/*I'm fine*/" "/*\nI'm fine\n*/"
+  try 'Block comment in macro body removed' 'FOO_abc' "#define M(x)  FOO_/**/x\nM(abc)"
 
   try 'recursive macro' 'SELF(123-1)' "#define SELF(n) SELF(n-1)\nSELF(123)"
   try 'recursive macro in expr' 'false' "#define SELF SELF\n#if SELF\ntrue\n#else\nfalse\n#endif"

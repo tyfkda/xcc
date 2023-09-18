@@ -262,7 +262,7 @@ static Vector *parse_macro_body(const char *p, Stream *stream) {
         q = line;
       }
       set_source_string(q, stream == NULL ? "?" : stream->filename, stream == NULL ? 0 : stream->lineno);
-      need_space = true;
+      // need_space = true;  // GNUC insert whitespace, but old compilers not and it is used to concatenate identifiers
       continue;
     }
 
