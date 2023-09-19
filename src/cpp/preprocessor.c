@@ -33,10 +33,35 @@ static const char *keyword(const char *s, const char *word) {
 }
 
 static const char *find_directive(const char *line) {
-  const char *p = skip_whitespaces(line);
-  if (*p != '#')
-    return NULL;
-  return skip_whitespaces(p + 1);
+  bool hash = false;
+  const char *p = line;
+  for (;;) {
+    p = skip_whitespaces(p);
+    if (*p == '#' && !hash) {
+      hash = true;
+      ++p;
+      continue;
+    }
+    if (p[0] != '/')
+      break;
+
+    if (p[1] == '/') {  // Line comment
+      if (hash)
+        p += strlen(p);
+      break;
+    }
+    const char *comstart = block_comment_start(p);
+    if (comstart == NULL)
+      break;
+    const char *q = block_comment_end(comstart + 2);
+    if (q == NULL) {
+      if (hash)
+        error("block comment not closed: %s", comstart);
+      break;
+    }
+    p = q;
+  }
+  return hash ? p : NULL;
 }
 
 #define INC_ORDERS  (INC_AFTER + 1)
@@ -679,7 +704,8 @@ int preprocess(FILE *fp, const char *filename_) {
         define_file_macro(stream.filename, key_file);
         --stream.lineno;
       } else {
-        error("unknown directive: %s", directive);
+        if (*directive != '\0')
+          error("unknown directive: [%s]", directive);
         next = NULL;
       }
     }
