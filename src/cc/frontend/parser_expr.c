@@ -48,6 +48,9 @@ static Expr *parse_funcall(Expr *func) {
   Token *token;
   Vector *args = parse_args(&token);
 
+  assert(curfunc != NULL);
+  curfunc->flag |= FUNCF_HAS_FUNCALL;
+
   check_funcall_args(func, args, curscope);
   Type *functype = get_callee_type(func->type);
   if (functype == NULL) {

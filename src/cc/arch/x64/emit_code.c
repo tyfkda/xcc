@@ -507,13 +507,28 @@ static void emit_defun(Function *func) {
   FuncBackend *fnbe = func->extra;
   int callee_saved_count = 0;
   size_t frame_size = 0;
+  bool rbp_saved = false;
   if (!no_stmt) {
     callee_saved_count = count_callee_save_regs(fnbe->ra->used_reg_bits, fnbe->ra->used_freg_bits);
 
-    PUSH(RBP); PUSH_STACK_POS();
-    MOV(RSP, RBP);
+    // When function is called, return address is pused onto the stack by caller,
+    // so default offset is 8.
+    size_t frame_offset = 8;
+
+    if (fnbe->frame_size > 0 || fnbe->ra->flag & RAF_STACK_FRAME) {
+      PUSH(RBP); PUSH_STACK_POS();
+      MOV(RSP, RBP);
+      rbp_saved = true;
+      // RBP is pushed so the 16-bytes-align offset becomes 0.
+      frame_offset = 0;
+    }
+
     size_t callee_saved_size = callee_saved_count * WORD_SIZE;
-    frame_size = ALIGN(fnbe->frame_size + callee_saved_size, 16) - callee_saved_size;
+    frame_size = fnbe->frame_size;
+    if (func->flag & FUNCF_HAS_FUNCALL) {
+      // Align frame size to 16 only it contains funcall.
+      frame_size += -(fnbe->frame_size + callee_saved_size + frame_offset) & 15;
+    }
     if (frame_size > 0) {
       SUB(IM(frame_size), RSP);
       stackpos += frame_size;
@@ -537,9 +552,14 @@ static void emit_defun(Function *func) {
 
     pop_callee_save_regs(fnbe->ra->used_reg_bits, fnbe->ra->used_freg_bits);
 
-    MOV(RBP, RSP);
-    stackpos -= frame_size;
-    POP(RBP); POP_STACK_POS();
+    if (rbp_saved) {
+      MOV(RBP, RSP);
+      stackpos -= frame_size;
+      POP(RBP); POP_STACK_POS();
+    } else if (frame_size > 0) {
+      ADD(IM(frame_size), RSP);
+      stackpos -= frame_size;
+    }
   }
 
   RET();

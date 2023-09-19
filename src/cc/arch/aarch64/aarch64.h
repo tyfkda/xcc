@@ -79,7 +79,7 @@
 #define W26   "w26"
 #define W27   "w27"
 #define W28   "w28"
-// #define W29   "w29"
+#define W29   "w29"
 // #define W30   "w30"
 // #define W31   "w31"
 
@@ -112,7 +112,7 @@
 #define X26   "x26"
 #define X27   "x27"
 #define X28   "x28"
-// #define X29   "x29"
+#define X29   "x29"
 // #define X30   "x30"
 // #define X31   "x31"
 #define FP    "fp"  // x29

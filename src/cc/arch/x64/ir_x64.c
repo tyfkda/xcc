@@ -20,17 +20,17 @@ int stackpos = 8;
 // Register allocator
 
 const char *kRegSizeTable[][PHYSICAL_REG_MAX] = {
-  { AL, DIL, SIL,  DL,  CL, R8B, R9B,  BL, R12B, R13B, R14B, R15B, R10B, R11B},
-  { AX,  DI,  SI,  DX,  CX, R8W, R9W,  BX, R12W, R13W, R14W, R15W, R10W, R11W},
-  {EAX, EDI, ESI, EDX, ECX, R8D, R9D, EBX, R12D, R13D, R14D, R15D, R10D, R11D},
-  {RAX, RDI, RSI, RDX, RCX,  R8,  R9, RBX,  R12,  R13,  R14,  R15,  R10,  R11},
+  { AL, DIL, SIL,  DL,  CL, R8B, R9B,  BL, R12B, R13B, R14B, R15B, BPL, R10B, R11B},
+  { AX,  DI,  SI,  DX,  CX, R8W, R9W,  BX, R12W, R13W, R14W, R15W,  BP, R10W, R11W},
+  {EAX, EDI, ESI, EDX, ECX, R8D, R9D, EBX, R12D, R13D, R14D, R15D, EBP, R10D, R11D},
+  {RAX, RDI, RSI, RDX, RCX,  R8,  R9, RBX,  R12,  R13,  R14,  R15, RBP,  R10,  R11},
 };
 
 #define CALLEE_SAVE_REG_COUNT  ((int)(sizeof(kCalleeSaveRegs) / sizeof(*kCalleeSaveRegs)))
-static const int kCalleeSaveRegs[] = {7, 8, 9, 10, 11};
+static const int kCalleeSaveRegs[] = {7, 8, 9, 10, 11, 12};
 
 #define CALLER_SAVE_REG_COUNT  ((int)(sizeof(kCallerSaveRegs) / sizeof(*kCallerSaveRegs)))
-static const int kCallerSaveRegs[] = {12, 13};
+static const int kCallerSaveRegs[] = {13, 14};
 
 const int ArchRegParamMapping[] = {1, 2, 3, 4, 5, 6};
 
@@ -39,6 +39,7 @@ const int ArchRegParamMapping[] = {1, 2, 3, 4, 5, 6};
 #define GET_AREG_INDEX()  0
 #define GET_CREG_INDEX()  4  // ArchRegParamMapping[3]
 #define GET_DREG_INDEX()  3  // ArchRegParamMapping[2]
+#define GET_BPREG_INDEX() 12
 
 #define kReg8s   (kRegSizeTable[0])
 #define kReg32s  (kRegSizeTable[2])
@@ -53,7 +54,7 @@ const char *kFReg64s[PHYSICAL_FREG_MAX] = {
 #define CALLER_SAVE_FREG_COUNT  ((int)(sizeof(kCallerSaveFRegs) / sizeof(*kCallerSaveFRegs)))
 static const int kCallerSaveFRegs[] = {8, 9, 10, 11, 12, 13, 14, 15};
 
-static unsigned long detect_extra_occupied(IR *ir) {
+static unsigned long detect_extra_occupied(RegAlloc *ra, IR *ir) {
   unsigned long ioccupy = 0;
   switch (ir->kind) {
   case IR_MUL: case IR_DIV: case IR_MOD:
@@ -74,6 +75,8 @@ static unsigned long detect_extra_occupied(IR *ir) {
     break;
   default: break;
   }
+  if (ra->flag & RAF_STACK_FRAME)
+    ioccupy |= 1UL << GET_BPREG_INDEX();
   return ioccupy;
 }
 
