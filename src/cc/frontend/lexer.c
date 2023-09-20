@@ -159,10 +159,12 @@ Token *alloc_dummy_ident(void) {
 static void init_reserved_word_table(void) {
   table_init(&reserved_word_table);
 
-  // Reserved words.
-  for (int i = 0, n = (int)(sizeof(kReservedWords) / sizeof(*kReservedWords)); i < n; ++i) {
-    const Name *key = alloc_name(kReservedWords[i].str, NULL, false);
-    table_put(&reserved_word_table, key, (void*)(intptr_t)kReservedWords[i].kind);
+  if (!for_preprocess) {
+    // Reserved words.
+    for (int i = 0, n = (int)(sizeof(kReservedWords) / sizeof(*kReservedWords)); i < n; ++i) {
+      const Name *key = alloc_name(kReservedWords[i].str, NULL, false);
+      table_put(&reserved_word_table, key, (void*)(intptr_t)kReservedWords[i].kind);
+    }
   }
 
   // Multi-char operators.
