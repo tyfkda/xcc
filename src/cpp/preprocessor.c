@@ -578,10 +578,7 @@ static void define_file_macro(const char *filename, const Name *key_file) {
 void init_preprocessor(FILE *ofp) {
   pp_ofp = ofp;
 
-  init_lexer();
-
-  extern bool auto_concat_string_literal;
-  auto_concat_string_literal = true;
+  init_lexer_for_preprocessor();
 }
 
 int preprocess(FILE *fp, const char *filename_) {

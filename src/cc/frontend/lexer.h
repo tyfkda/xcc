@@ -21,6 +21,7 @@ typedef struct {
 } Lexer;
 
 void init_lexer(void);
+void init_lexer_for_preprocessor(void);
 void set_source_file(FILE *fp, const char *filename);
 void set_source_string(const char *line, const char *filename, int lineno);
 Token *fetch_token(void);

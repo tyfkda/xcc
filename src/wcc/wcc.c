@@ -30,7 +30,6 @@ static void init_compiler(void) {
   functypes = new_vector();
   tags = new_vector();
   table_init(&indirect_function_table);
-  init_lexer();
   init_global();
 
   set_fixnum_size(FX_CHAR,  1, 1);
@@ -82,9 +81,8 @@ static void export_non_static_functions(Vector *exports) {
 static void preprocess_and_compile(FILE *ppout, Vector *sources, Vector *toplevel) {
   size_t pos = ftell(ppout);
 
-  // Need to set flag on preprocessor.
-  extern bool auto_concat_string_literal;
-  auto_concat_string_literal = true;
+  // Set lexer for preprocess.
+  init_lexer_for_preprocessor();
 
   // Preprocess.
   for (int i = 0; i < sources->len; ++i) {
@@ -107,8 +105,8 @@ static void preprocess_and_compile(FILE *ppout, Vector *sources, Vector *topleve
     exit(1);
   }
 
-  // Need to clear flag on parser.
-  auto_concat_string_literal = false;
+  // Set lexer for compiler.
+  init_lexer();
 
   // Compile.
   FILE *ppin = ppout;

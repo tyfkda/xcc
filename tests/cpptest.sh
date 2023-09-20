@@ -99,6 +99,7 @@ test_misc() {
   try 'block comment in #if 0' '' "#if 0\n/**/\n#endif"
   try 'quote char in #if 0' '' "#if 0\nchar c='\"';\n#endif"
   try 'hash only' '' "#\n/* */ #"
+  try 'through illegal char' '\`@$#' '\\`@$#'
 
   try 'Block comment hide #else' 'AAA /*#elseBBB */' '#if 1\nAAA /*\n#else\nBBB */\n#endif'
   try 'Line omment hide #else' '' '#if 0\nAAA\n//#else\nBBB\n#endif'

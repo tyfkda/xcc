@@ -24,7 +24,7 @@ Token *alloc_token(enum TokenKind kind, Line *line, const char *begin, const cha
   return token;
 }
 
-bool auto_concat_string_literal;
+static bool for_preprocess;
 
 static const struct {
   const char *str;
@@ -97,8 +97,6 @@ static const struct {
   {"||", TK_LOGIOR},
   {"<<", TK_LSHIFT},
   {">>", TK_RSHIFT},
-
-  {"##", PPTK_CONCAT},
 };
 
 static const char kSingleOperatorTypeMap[] = {  // enum TokenKind
@@ -126,8 +124,6 @@ static const char kSingleOperatorTypeMap[] = {  // enum TokenKind
   ['.'] = TK_DOT,
   ['?'] = TK_QUESTION,
   ['~'] = TK_TILDA,
-
-  ['#'] = PPTK_STRINGIFY,
 };
 
 Lexer lexer;
@@ -240,9 +236,17 @@ bool lex_eof_continue(void) {
           (*lex_eof_callback)());
 }
 
-void init_lexer(void) {
+static void init_lexer_with_flag(bool for_preprocess_) {
+  for_preprocess = for_preprocess_;
   init_reserved_word_table();
-  auto_concat_string_literal = false;
+}
+
+void init_lexer(void) {
+  init_lexer_with_flag(false);
+}
+
+void init_lexer_for_preprocessor(void) {
+  init_lexer_with_flag(true);
 }
 
 void set_source_file(FILE *fp, const char *filename) {
@@ -572,7 +576,7 @@ static Token *read_string(const char **pp) {
       str[size++] = c;
     }
     end = p;
-    if (auto_concat_string_literal)
+    if (for_preprocess)
       break;
 
     // Continue string literal when next character is '"'
@@ -592,6 +596,18 @@ static Token *read_string(const char **pp) {
 static Token *get_op_token(const char **pp) {
   const char *p = *pp;
   unsigned char c = *(unsigned char*)p;
+
+  if (for_preprocess && c == '#') {
+    enum TokenKind kind = PPTK_STRINGIFY;
+    const char *q = p + 1;
+    if (*q == '#') {
+      ++q;
+      kind = PPTK_CONCAT;
+    }
+    *pp = q;
+    return alloc_token(kind, lexer.line, p, q);
+  }
+
   if (c < sizeof(kSingleOperatorTypeMap)) {
     enum TokenKind single = kSingleOperatorTypeMap[c];
     if (single != 0) {
@@ -653,8 +669,14 @@ static Token *get_token(void) {
   } else if (*p == '"') {
     tok = read_string(&p);
   } else {
-    lex_error(p, "Unexpected character `%c'(%d)", *p, *p);
-    return NULL;
+    if (!for_preprocess) {
+      lex_error(p, "Unexpected character `%c'(%d)", *p, *p);
+      return NULL;
+    }
+
+    assert(*p != '\0');
+    tok = alloc_token(PPTK_OTHERCHAR, lexer.line, p, p + 1);
+    ++p;
   }
 
   assert(tok != NULL);

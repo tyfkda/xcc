@@ -135,6 +135,7 @@ enum TokenKind {
   PPTK_CONCAT,       // ##
   PPTK_STRINGIFY,    // #
   PPTK_SPACE,        // for macro body
+  PPTK_OTHERCHAR,    // Allows illegal character on preprocessor
 };
 
 // Token
