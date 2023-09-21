@@ -270,6 +270,7 @@ int main(int argc, char *argv[]) {
   vec_push(as_cmd, as_path);
 
   Vector *ld_cmd = new_vector();
+  vec_push(ld_cmd, ld_path);
 
   enum OutType out_type = OutExecutable;
 
@@ -330,9 +331,18 @@ int main(int argc, char *argv[]) {
 
     {NULL},
   };
-  Vector *sources = new_vector();  // NULL=>from stdin
-  int opt;
-  while ((opt = optparse(argc, argv, options)) != -1) {
+  Vector *sources = new_vector();
+  Vector *linker_options = new_vector();
+  for (;;) {
+    int opt = optparse(argc, argv, options);
+    if (opt == -1) {
+      if (optind >= argc)
+        break;
+
+      vec_push(sources, argv[optind++]);
+      continue;
+    }
+
     switch (opt) {
     default: assert(false); break;
     case OPT_HELP:
@@ -359,6 +369,8 @@ int main(int argc, char *argv[]) {
       break;
     case 'o':
       ofn = optarg;
+      vec_push(linker_options, "-o");
+      vec_push(linker_options, ofn);
       break;
     case 'c':
       out_type = OutObject;
@@ -384,12 +396,17 @@ int main(int argc, char *argv[]) {
     case 'W':
       vec_push(cc1_cmd, "-W");
       vec_push(cc1_cmd, optarg);
+      if (strncmp(argv[optind - 1], "-Wl", 3) == 0) {
+        vec_push(linker_options, argv[optind - 1]);
+      }
       break;
     case OPT_NODEFAULTLIBS:
       nodefaultlibs = true;
+      vec_push(linker_options, "-nodefaultlibs");
       break;
     case OPT_NOSTDLIB:
       nostdlib = true;
+      vec_push(linker_options, "-nostdlib");
       break;
     case OPT_NOSTDINC:
       nostdinc = true;
@@ -397,13 +414,24 @@ int main(int argc, char *argv[]) {
     case 'f':
       if (strncmp(optarg, "use-ld", 6) == 0) {
         if (optarg[6] == '=') {
-          ld_path = &optarg[7];
+          ld_cmd->data[0] = &optarg[7];
         } else if (optarg[6] == '\0' && optind < argc) {
-          ld_path = argv[optind++];
+          ld_cmd->data[0] = argv[optind++];
         } else {
           fprintf(stderr, "extra argument required for '-fuse-ld");
         }
         use_ld = true;
+      } else {
+        vec_push(linker_options, argv[optind - 1]);
+      }
+      break;
+    case 'l':
+      if (strncmp(argv[optind - 1], "-l", 2) == 0) {
+        // -lfoobar
+        // file order matters, so add to sources.
+        vec_push(sources, argv[optind - 1]);
+      } else {
+        assert(!"TODO");
       }
       break;
     case '?':
@@ -414,6 +442,7 @@ int main(int argc, char *argv[]) {
         vec_push(sources, NULL);
       } else {
         fprintf(stderr, "Warning: unknown option: %s\n", argv[optind - 1]);
+        vec_push(linker_options, argv[optind - 1]);
       }
       break;
 
@@ -425,13 +454,10 @@ int main(int argc, char *argv[]) {
     case OPT_MMD:
     case OPT_NO_PIE:
       // Silently ignored.
+      vec_push(linker_options, argv[optind - 1]);
       break;
     }
   }
-
-  int iarg = optind;
-  for (int i = iarg; i < argc; ++i)
-    vec_push(sources, argv[i]);
 
   if (sources->len == 0) {
     fprintf(stderr, "No input files\n\n");
@@ -452,18 +478,10 @@ int main(int argc, char *argv[]) {
   vec_push(as_cmd, ofn);
   vec_push(as_cmd, NULL);  // Terminator.
 
-  vec_push(ld_cmd, ld_path);
   if (use_ld) {
     // Pass through command line options.
-    for (int i = 1; i < iarg; ++i) {
-      const char *arg = argv[i];
-      if (strncmp(arg, "-fuse-ld", 6) == 0) {
-        if (arg[6] == '\0')
-          ++i;
-        continue;
-      }
-      vec_push(ld_cmd, argv[i]);
-    }
+    for (int i = 0; i < linker_options->len; ++i)
+      vec_push(ld_cmd, linker_options->data[i]);
   } else {
     vec_push(ld_cmd, "-o");
     vec_push(ld_cmd, ofn != NULL ? ofn : "a.out");
@@ -493,7 +511,8 @@ int main(int argc, char *argv[]) {
     if (src != NULL) {
       if (*src == '\0')
         continue;
-      if (*src == '-') {  // Suppose -lxxx
+      if (*src == '-') {
+        assert(src[1] == 'l');
         vec_push(ld_cmd, src);
         continue;
       }
