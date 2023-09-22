@@ -4,10 +4,10 @@ set -o pipefail
 
 source ./test_sub.sh
 
-AOUT=${AOUT:-$(basename "$(mktemp -u)")}
 CPP=${CPP:-../cpp}
-XCC=${XCC:-../xcc}
-RUN_AOUT=${RUN_AOUT:-./"$AOUT"}
+CC=cc
+AOUT=${AOUT:-$(basename "$(mktemp -u)")}
+RUN_AOUT="./$AOUT"
 
 try() {
   local title="$1"
@@ -37,7 +37,7 @@ try_run() {
 
   begin_test "$title"
 
-  echo -e "$input" | $XCC -o "$AOUT" -Werror -xc -I. -Itmp_include - || exit 1
+  echo -e "$input" | $CC -o "$AOUT" -Werror -xc -I. -Itmp_include - || exit 1
 
   $RUN_AOUT
   local actual="$?"

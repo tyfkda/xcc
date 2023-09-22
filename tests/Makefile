@@ -84,18 +84,18 @@ test-fval:	fvaltest
 .PHONY: test-cpp
 test-cpp: # $(CPP)
 	@echo '## cpptest'
-	@CPP=$(CPP) ./cpptest.sh
+	@CPP="$(CPP)" ./cpptest.sh
 
 .PHONY: test-sh
 test-sh: # $(XCC)
 	@echo '## test.sh'
-	@XCC=$(XCC) ./test.sh
+	@XCC="$(XCC)" ./test.sh
 	@rm -f core
 
 .PHONY: test-examples
 test-examples: # $(XCC)
 	@echo '## Example test'
-	@XCC=$(XCC) ./example_test.sh
+	@XCC="$(XCC)" ./example_test.sh
 
 .PHONY: test-link
 test-link: link_test # $(XCC)
