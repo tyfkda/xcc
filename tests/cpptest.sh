@@ -59,20 +59,14 @@ pp_error() {
   end_test "$err"
 }
 
-test_misc() {
-  begin_test_suite "Misc"
+test_basic() {
+  begin_test_suite "Basic"
 
   try '#define' '0' "#define NULL 0\nNULL"
   try 'empty' '' "#define EMPTY\nEMPTY"
   try '#undef' 'undefined' "#define FOO\n#undef FOO\n#ifdef FOO\ndefined\n#else\nundefined\n#endif"
   try 'Param' '((1) + (2))' "#define ADD(x,y)  ((x) + (y))\nADD(1, 2)"
-  try 'No arguments keeps as is' 'int MAX=123;' "#define MAX(a,b) ((a)>=(b)?(a):(b))\nint MAX=123;"
-  try 'Newline in macro' '1+2' "#define ADD(x,y) x+y\nADD(1,\n2)"
-  try 'Newline in macro2' '(1 + 2)' "#define FOO(x) (x)\nFOO( 1  \n + 2 )"
-  try 'Newline in macro3' '(123)' "#define FOO(x) (x)\nFOO\n(123)"
-  try 'Macro w/ str str' '"a" "b"' "#define M(x) x\nM(\"a\" \"b\")"
-  try 'Block comment after #define' '88' '#define X 88/*block\ncomment*/\nX'
-  try 'Nothing' 'ABC ' '#define NOTHING /*nothing*/\nABC NOTHING'
+
   try '#ifdef' 'x' "#define X\n#ifdef X\nx\n#else\ny\n#endif"
   try '#ifdef else' 'y' "#ifdef X\nx\n#else\ny\n#endif"
   try '#if 1' '2' "#if 1\n2\n#else\n3\n#endif"
@@ -84,6 +78,23 @@ test_misc() {
   try '#if defined' '3' "#if defined(XXX)\n2\n#else\n3\n#endif"
   try '#if defined w/o ()' '3' "#if defined XXX\n2\n#else\n3\n#endif"
   try '#if !defined' '2' "#if !defined(XXX)\n2\n#else\n3\n#endif"
+
+  try '__FILE__' '"*stdin*"' "__FILE__"
+  try '__LINE__' "3" "\n\n__LINE__"
+  try '#line' "# 123 \"foobar.p\" 1\"foobar.p\":123" "#line  123\t\"foobar.p\"\n__FILE__:__LINE__"
+  try '#line number only' "# 123 \"*stdin*\" 1\"dummy\"\"*stdin*\":124" "#line  123\n\"dummy\"\n__FILE__:__LINE__"
+  try 'Block comment' '/*block comment*/' "/*\nblock comment\n*/"
+  try 'Quote in comment' "/*I'm fine*/" "/*\nI'm fine\n*/"
+
+  try 'hash only' '' "#\n/* */ #"
+  try 'through illegal char' '\`@$#' '\\`@$#'
+
+  end_test_suite
+}
+
+test_if() {
+  begin_test_suite "If"
+
   try '#if defined reserved' 'NOT DEFINED' "#if !defined(int)\nNOT DEFINED\n#endif"
   try '#if &&' '3' "#if 1 && 2\n3\n#else\n4\n#endif"
   try '#if &&-2' '4' "#if 1 && 0\n3\n#else\n4\n#endif"
@@ -98,19 +109,24 @@ test_misc() {
   try '#endif w/ block comment' '/**/CCC' '#if 0\nAAA\n#endif/*\n*/CCC'
   try 'block comment in #if 0' '' "#if 0\n/**/\n#endif"
   try 'quote char in #if 0' '' "#if 0\nchar c='\"';\n#endif"
-  try 'hash only' '' "#\n/* */ #"
-  try 'through illegal char' '\`@$#' '\\`@$#'
 
   try 'Block comment hide #else' 'AAA /*#elseBBB */' '#if 1\nAAA /*\n#else\nBBB */\n#endif'
   try 'Line omment hide #else' '' '#if 0\nAAA\n//#else\nBBB\n#endif'
   try 'Double quote in #if' '' "#if 0\n// \"str not closed, but in comment'\n#endif"
 
-  try '__FILE__' '"*stdin*"' "__FILE__"
-  try '__LINE__' "3" "\n\n__LINE__"
-  try '#line' "# 123 \"foobar.p\" 1\"foobar.p\":123" "#line  123\t\"foobar.p\"\n__FILE__:__LINE__"
-  try '#line number only' "# 123 \"*stdin*\" 1\"dummy\"\"*stdin*\":124" "#line  123\n\"dummy\"\n__FILE__:__LINE__"
-  try 'Block comment' '/*block comment*/' "/*\nblock comment\n*/"
-  try 'Quote in comment' "/*I'm fine*/" "/*\nI'm fine\n*/"
+  end_test_suite
+}
+
+test_macro() {
+  begin_test_suite "Macro"
+
+  try 'No arguments keeps as is' 'int MAX=123;' "#define MAX(a,b) ((a)>=(b)?(a):(b))\nint MAX=123;"
+  try 'Newline in macro' '1+2' "#define ADD(x,y) x+y\nADD(1,\n2)"
+  try 'Newline in macro2' '(1 + 2)' "#define FOO(x) (x)\nFOO( 1  \n + 2 )"
+  try 'Newline in macro3' '(123)' "#define FOO(x) (x)\nFOO\n(123)"
+  try 'Macro w/ str str' '"a" "b"' "#define M(x) x\nM(\"a\" \"b\")"
+  try 'Block comment after #define' '88' '#define X 88/*block\ncomment*/\nX'
+  try 'Nothing' 'ABC ' '#define NOTHING /*nothing*/\nABC NOTHING'
   try 'Block comment in macro body removed' 'FOO_abc' "#define M(x)  FOO_/**/x\nM(abc)"
 
   try 'recursive macro' 'SELF(123-1)' "#define SELF(n) SELF(n-1)\nSELF(123)"
@@ -202,7 +218,9 @@ test_run() {
   end_test_suite
 }
 
-test_misc
+test_basic
+test_if
+test_macro
 test_cat
 test_stringify
 test_error
