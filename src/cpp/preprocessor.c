@@ -70,6 +70,9 @@ static FILE *pp_ofp;
 static Vector sys_inc_paths[INC_ORDERS];  // <const char*>
 static Vector pragma_once_files;  // <const char*>
 
+static const Name *key_file;
+static const Name *key_line;
+
 static bool registered_pragma_once(const char *filename) {
   for (int i = 0, len = pragma_once_files.len; i < len; ++i) {
     const char *fn = pragma_once_files.data[i];
@@ -483,12 +486,7 @@ static void process_disabled_line(const char *p, Stream *stream) {
   }
 }
 
-static void process_line(const char *line, bool enable, Stream *stream) {
-  if (!enable) {
-    process_disabled_line(line, stream);
-    return;
-  }
-
+static void process_line(const char *line, Stream *stream) {
   set_source_string(line, stream->filename, stream->lineno);
 
   const char *begin = get_lex_p();
@@ -506,38 +504,34 @@ static void process_line(const char *line, bool enable, Stream *stream) {
     if (match(TK_EOF))
       break;
 
-    if (enable) {
-      Token *ident = match(TK_IDENT);
-      if (ident != NULL) {
-        if (can_expand_ident(ident->ident)) {
-          const char *p = begin;
-          begin = ident->end;  // Update for EOF callback.
+    Token *ident = match(TK_IDENT);
+    if (ident != NULL) {
+      if (can_expand_ident(ident->ident)) {
+        const char *p = begin;
+        begin = ident->end;  // Update for EOF callback.
 
-          Vector *tokens = new_vector();
-          vec_push(tokens, ident);
-          macro_expand(tokens);
+        Vector *tokens = new_vector();
+        vec_push(tokens, ident);
+        macro_expand(tokens);
 
-          if (ident->begin != p)
-            fwrite(p, ident->begin - p, 1, pp_ofp);
+        if (ident->begin != p)
+          fwrite(p, ident->begin - p, 1, pp_ofp);
 
-          // Everything should have been expanded, so output
-          for (int i = 0; i < tokens->len; ++i) {
-            const Token *tok = tokens->data[i];
-            fwrite(tok->begin, tok->end - tok->begin, 1, pp_ofp);
-          }
-          begin = get_lex_p();
+        // Everything should have been expanded, so output
+        for (int i = 0; i < tokens->len; ++i) {
+          const Token *tok = tokens->data[i];
+          fwrite(tok->begin, tok->end - tok->begin, 1, pp_ofp);
         }
-        continue;
+        begin = get_lex_p();
       }
+      continue;
     }
 
     match(-1);
   }
 
-  if (enable && begin != NULL)
+  if (begin != NULL)
     fprintf(pp_ofp, "%s\n", begin);
-  else
-    fprintf(pp_ofp, "\n");
 }
 
 static bool handle_ifdef(const char **pp) {
@@ -574,7 +568,7 @@ static intptr_t cond_value(bool enable, enum Satisfy satisfy) {
   return (enable ? CF_ENABLE : 0) | (satisfy << CF_SATISFY_SHIFT);
 }
 
-static void define_file_macro(const char *filename, const Name *key_file) {
+static void define_file_macro(const char *filename) {
   size_t len = strlen(filename);
   char *buf = malloc_or_die(len + 2 + 1);
   snprintf(buf, len + 2 + 1, "\"%s\"", filename);
@@ -583,126 +577,120 @@ static void define_file_macro(const char *filename, const Name *key_file) {
 
 void init_preprocessor(FILE *ofp) {
   pp_ofp = ofp;
+  key_file = alloc_name("__FILE__", NULL, false);
+  key_line = alloc_name("__LINE__", NULL, false);
 
   init_lexer_for_preprocessor();
 }
 
-int preprocess(FILE *fp, const char *filename_) {
-  Vector *condstack = new_vector();
-  bool enable = true;
-  enum Satisfy satisfy = NotSatisfied;
-  char linenobuf[sizeof(int) * 3 + 1];  // Buffer for __LINE__
-
-  const Name *key_file = alloc_name("__FILE__", NULL, false);
-  const Name *key_line = alloc_name("__LINE__", NULL, false);
-
-  Macro *old_file_macro = macro_get(key_file);
-  Macro *old_line_macro = macro_get(key_line);
-
+typedef struct PreprocessFile {
+  Vector *condstack;
+  Token *tok_lineno;
   Stream stream;
-  stream.filename = filename_;
-  stream.fp = fp;
-  Stream *old_stream = set_pp_stream(&stream);
+  bool enable;
+  enum Satisfy satisfy;
+  char linenobuf[sizeof(int) * 3 + 1];  // Buffer for __LINE__
+} PreprocessFile;
 
-  define_file_macro(stream.filename, key_file);
+static PreprocessFile *curpf;
 
-  // __LINE__ : Dirty hack.
-  Token *tok_lineno = alloc_token(TK_STR, NULL, linenobuf, linenobuf);
-  Vector *lineno_tokens = new_vector();
-  vec_push(lineno_tokens, tok_lineno);
-  macro_add(key_line, new_macro(NULL, NULL, lineno_tokens));
-
-  stream.lineno = 0;
+const char *get_processed_next_line(void) {
+  PreprocessFile *ppf = curpf;
   for (;;) {
     char *line = NULL;
     size_t capa = 0;
-    ssize_t len = getline_cont(&line, &capa, fp, &stream.lineno);
+    ssize_t len = getline_cont(&line, &capa, ppf->stream.fp, &ppf->stream.lineno);
     if (len == -1)
-      break;
+      return NULL;
 
-    tok_lineno->end = tok_lineno->begin + snprintf(linenobuf, sizeof(linenobuf), "%d", stream.lineno);
+    ppf->tok_lineno->end = ppf->tok_lineno->begin + snprintf(ppf->linenobuf, sizeof(ppf->linenobuf), "%d", ppf->stream.lineno);
 
     // Find '#'
     const char *directive = find_directive(line);
     if (directive == NULL) {
-      process_line(line, enable, &stream);
+      if (ppf->enable)
+        return line;
+      process_disabled_line(line, &ppf->stream);
+      fprintf(pp_ofp, "\n");
       continue;
     }
+
     fprintf(pp_ofp, "\n");
 
     const char *next;
     if ((next = keyword(directive, "ifdef")) != NULL) {
-      vec_push(condstack, (void*)cond_value(enable, satisfy));
+      vec_push(ppf->condstack, (void*)cond_value(ppf->enable, ppf->satisfy));
       bool defined = handle_ifdef(&next);
-      satisfy = defined ? Satisfied : NotSatisfied;
-      enable = enable && satisfy == Satisfied;
+      ppf->satisfy = defined ? Satisfied : NotSatisfied;
+      ppf->enable = ppf->enable && ppf->satisfy == Satisfied;
     } else if ((next = keyword(directive, "ifndef")) != NULL) {
-      vec_push(condstack, (void*)cond_value(enable, satisfy));
+      vec_push(ppf->condstack, (void*)cond_value(ppf->enable, ppf->satisfy));
       bool defined = handle_ifdef(&next);
-      satisfy = defined ? NotSatisfied : Satisfied;
-      enable = enable && satisfy == Satisfied;
+      ppf->satisfy = defined ? NotSatisfied : Satisfied;
+      ppf->enable = ppf->enable && ppf->satisfy == Satisfied;
     } else if ((next = keyword(directive, "if")) != NULL) {
-      vec_push(condstack, (void*)cond_value(enable, satisfy));
-      bool cond = handle_if(&next, &stream);
-      satisfy = cond ? Satisfied : NotSatisfied;
-      enable = enable && satisfy == Satisfied;
+      vec_push(ppf->condstack, (void*)cond_value(ppf->enable, ppf->satisfy));
+      bool cond = handle_if(&next, &ppf->stream);
+      ppf->satisfy = cond ? Satisfied : NotSatisfied;
+      ppf->enable = ppf->enable && ppf->satisfy == Satisfied;
     } else if ((next = keyword(directive, "else")) != NULL) {
-      int last = condstack->len - 1;
+      int last = ppf->condstack->len - 1;
       if (last < 0)
         error("`#else' used without `#if'");
-      intptr_t flag = (intptr_t)condstack->data[last];
-      if (satisfy == ElseAppeared)
+      intptr_t flag = (intptr_t)ppf->condstack->data[last];
+      if (ppf->satisfy == ElseAppeared)
         error("Illegal #else");
-      enable = !enable && satisfy == NotSatisfied && ((flag & CF_ENABLE) != 0);
-      satisfy = ElseAppeared;
+      ppf->enable = !ppf->enable && ppf->satisfy == NotSatisfied && ((flag & CF_ENABLE) != 0);
+      ppf->satisfy = ElseAppeared;
     } else if ((next = keyword(directive, "elif")) != NULL) {
-      int last = condstack->len - 1;
+      int last = ppf->condstack->len - 1;
       if (last < 0)
         error("`#elif' used without `#if'");
-      intptr_t flag = (intptr_t)condstack->data[last];
-      if (satisfy == ElseAppeared)
+      intptr_t flag = (intptr_t)ppf->condstack->data[last];
+      if (ppf->satisfy == ElseAppeared)
         error("Illegal #elif");
 
       bool cond = false;
-      if (satisfy == NotSatisfied) {
-        cond = handle_if(&next, &stream);
+      bool cond2 = handle_if(&next, &ppf->stream);
+      if (ppf->satisfy == NotSatisfied) {
+        cond = cond2;
         if (cond)
-          satisfy = Satisfied;
+          ppf->satisfy = Satisfied;
       }
 
-      enable = !enable && cond && ((flag & CF_ENABLE) != 0);
+      ppf->enable = !ppf->enable && cond && ((flag & CF_ENABLE) != 0);
     } else if ((next = keyword(directive, "endif")) != NULL) {
-      if (condstack->len <= 0)
+      if (ppf->condstack->len <= 0)
         error("`#endif' used without `#if'");
-      int flag = (intptr_t)vec_pop(condstack);
-      enable = (flag & CF_ENABLE) != 0;
-      satisfy = (flag & CF_SATISFY_MASK) >> CF_SATISFY_SHIFT;
-    } else if (enable) {
+      int flag = (intptr_t)vec_pop(ppf->condstack);
+      ppf->enable = (flag & CF_ENABLE) != 0;
+      ppf->satisfy = (flag & CF_SATISFY_MASK) >> CF_SATISFY_SHIFT;
+    } else if (ppf->enable) {
       if ((next = keyword(directive, "include")) != NULL) {
-        handle_include(next, &stream, false);
-        fprintf(pp_ofp, "# %d \"%s\" 1\n", stream.lineno + 1, stream.filename);
+        handle_include(next, &ppf->stream, false);
+        fprintf(pp_ofp, "# %d \"%s\" 1\n", ppf->stream.lineno + 1, ppf->stream.filename);
         next = NULL;
       } else if ((next = keyword(directive, "include_next")) != NULL) {
-        handle_include(next, &stream, true);
-        fprintf(pp_ofp, "# %d \"%s\" 1\n", stream.lineno + 1, stream.filename);
+        handle_include(next, &ppf->stream, true);
+        fprintf(pp_ofp, "# %d \"%s\" 1\n", ppf->stream.lineno + 1, ppf->stream.filename);
         next = NULL;
       } else if ((next = keyword(directive, "define")) != NULL) {
-        handle_define(next, &stream);
+        handle_define(next, &ppf->stream);
         next = NULL;  // `#define' consumes the line all.
       } else if ((next = keyword(directive, "undef")) != NULL) {
         handle_undef(&next);
       } else if ((next = keyword(directive, "pragma")) != NULL) {
-        handle_pragma(&next, stream.filename);
+        handle_pragma(&next, ppf->stream.filename);
       } else if ((next = keyword(directive, "error")) != NULL) {
-        fprintf(stderr, "%s(%d): error\n", stream.filename, stream.lineno);
+        fprintf(stderr, "%s(%d): error\n", ppf->stream.filename, ppf->stream.lineno);
         error("%s", line);
         next = NULL;  // TODO:
       } else if ((next = keyword(directive, "line")) != NULL) {
-        stream.filename = handle_line_directive(&next, stream.filename, &stream.lineno);
+        ppf->stream.filename = handle_line_directive(&next, ppf->stream.filename, &ppf->stream.lineno);
         int flag = 1;
-        fprintf(pp_ofp, "# %d \"%s\" %d\n", stream.lineno, stream.filename, flag);
-        define_file_macro(stream.filename, key_file);
-        --stream.lineno;
+        fprintf(pp_ofp, "# %d \"%s\" %d\n", ppf->stream.lineno, ppf->stream.filename, flag);
+        define_file_macro(ppf->stream.filename);
+        --ppf->stream.lineno;
       } else {
         if (*directive != '\0')
           error("unknown directive: [%s]", directive);
@@ -710,20 +698,47 @@ int preprocess(FILE *fp, const char *filename_) {
       }
     }
 
-    if (next != NULL) {
-      process_line(next, enable, &stream);
-    }
+    if (next != NULL)
+      return next;
+  }
+}
+
+int preprocess(FILE *fp, const char *filename_) {
+  Macro *old_file_macro = macro_get(key_file);
+  Macro *old_line_macro = macro_get(key_line);
+
+  PreprocessFile pf;
+  pf.condstack = new_vector();
+  pf.stream = (Stream){.filename = filename_, .fp = fp, .lineno = 0};
+  pf.enable = true;
+  pf.satisfy = NotSatisfied;
+
+  Stream *old_stream = set_pp_stream(&pf.stream);
+  PreprocessFile *oldpf = curpf;
+  curpf = &pf;
+
+  define_file_macro(pf.stream.filename);
+
+  // __LINE__ : Dirty hack.
+  pf.tok_lineno = alloc_token(TK_STR, NULL, pf.linenobuf, pf.linenobuf);
+  Vector *lineno_tokens = new_vector();
+  vec_push(lineno_tokens, pf.tok_lineno);
+  macro_add(key_line, new_macro(NULL, NULL, lineno_tokens));
+
+  for (const char *line; (line = get_processed_next_line()) != NULL;) {
+    process_line(line, &pf.stream);
   }
 
-  if (condstack->len > 0)
+  if (pf.condstack->len > 0)
     error("#if not closed");
+
+  curpf = oldpf;
+  set_pp_stream(old_stream);
 
   macro_add(key_file, old_file_macro);
   macro_add(key_line, old_line_macro);
 
-  set_pp_stream(old_stream);
-
-  return stream.lineno;
+  return pf.stream.lineno;
 }
 
 void define_macro(const char *arg) {

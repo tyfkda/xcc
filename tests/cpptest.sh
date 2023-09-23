@@ -139,6 +139,8 @@ test_macro() {
   try 'all vaarg' '{x, y, z};' "#define ALL(...)  {__VA_ARGS__};\nALL(x, y, z)"
   try 'named vaarg' '{3, 4, 5}' "#define NAMED(x, y, rest...)  {rest}\nNAMED(1, 2, 3, 4, 5)"
 
+  try '#if in macro arguments' '{bar}' "#define FOO(x)  {x}\nFOO(\n#if 1\nbar\n#else\nqux\n#endif\n)\n"
+
   end_test_suite
 }
 

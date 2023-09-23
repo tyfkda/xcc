@@ -9,6 +9,7 @@
 
 #include "lexer.h"
 #include "macro.h"
+#include "preprocessor.h"
 #include "table.h"
 #include "util.h"
 
@@ -120,10 +121,8 @@ Token *pp_match(enum TokenKind kind) {
           break;
         }
 
-        char *line = NULL;
-        size_t capa = 0;
-        ssize_t len = getline_cont(&line, &capa, pp_stream->fp, &pp_stream->lineno);
-        if (len == -1) {
+        const char *line = get_processed_next_line();
+        if (line == NULL) {
           lex_error(comment_start, "Block comment not closed");
         }
         q = line;
@@ -450,10 +449,8 @@ PpResult pp_expr(void) {
 
 static Token *match2(enum TokenKind kind) {
   while (pp_match(TK_EOF)) {
-    char *line = NULL;
-    size_t capa = 0;
-    ssize_t len = getline(&line, &capa, pp_stream->fp);
-    if (len == -1)
+    const char *line = get_processed_next_line();
+    if (line == NULL)
       return NULL;
     ++pp_stream->lineno;
     set_source_string(line, pp_stream->filename, pp_stream->lineno);
