@@ -1064,7 +1064,7 @@ static int check_reachability_stmts(Vector *stmts) {
     for (int i = 0, n = stmts->len; i < n; ++i) {
       Stmt *stmt = stmts->data[i];
       if (reach & REACH_STOP) {
-        if (!(stmt->kind == ST_LABEL || stmt->kind == ST_CASE || stmt->kind == ST_DEFAULT))
+        if (!(stmt->kind == ST_LABEL || stmt->kind == ST_CASE))
           continue;
         reach = 0;
       }
@@ -1079,7 +1079,6 @@ static int check_reachability_stmts(Vector *stmts) {
           switch (next->kind) {
           case ST_LABEL:
           case ST_CASE:
-          case ST_DEFAULT:
             break;
 
           // Avoid false positive:

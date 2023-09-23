@@ -323,8 +323,7 @@ enum StmtKind {
   ST_BREAK,
   ST_CONTINUE,
   ST_RETURN,
-  ST_CASE,
-  ST_DEFAULT,
+  ST_CASE,  // Include default case.
   ST_GOTO,
   ST_LABEL,
   ST_VARDECL,

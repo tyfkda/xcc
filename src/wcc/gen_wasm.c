@@ -1103,7 +1103,7 @@ static void gen_switch(Stmt *stmt) {
     unsigned char op_eq = is_i64 ? OP_I64_EQ : OP_I32_EQ;
     for (int i = 0; i < case_count; ++i) {
       Stmt *c = cases->data[i];
-      if (c->kind == ST_DEFAULT) {
+      if (c->case_.value == NULL) {  // default.
         default_index = i;
         continue;
       }
@@ -1354,7 +1354,7 @@ static void gen_stmt(Stmt *stmt) {
   case ST_BLOCK:  gen_block(stmt); break;
   case ST_IF:  gen_if(stmt); break;
   case ST_SWITCH:  gen_switch(stmt); break;
-  case ST_CASE: case ST_DEFAULT:  gen_case(stmt); break;
+  case ST_CASE:  gen_case(stmt); break;
   case ST_WHILE:  gen_while(stmt); break;
   case ST_DO_WHILE:  gen_do_while(stmt); break;
   case ST_FOR:  gen_for(stmt); break;

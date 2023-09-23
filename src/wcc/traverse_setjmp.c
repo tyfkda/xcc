@@ -168,7 +168,7 @@ static bool traverse_ast_stmt(Stmt **pstmt, LexicalStack *parent, TraverseAstPar
   case ST_BREAK:  break;
   case ST_CONTINUE:  break;
   case ST_RETURN:  return traverse_ast_expr(&stmt->return_.val, &lstack, param);
-  case ST_CASE: case ST_DEFAULT:
+  case ST_CASE:
     return traverse_ast_expr(&stmt->case_.value, &lstack, param);
   case ST_GOTO:  break;
   case ST_LABEL:  return traverse_ast_stmt(&stmt->label.stmt, &lstack, param);

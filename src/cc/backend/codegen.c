@@ -614,7 +614,7 @@ void gen_stmt(Stmt *stmt) {
   case ST_BLOCK:  gen_block(stmt); break;
   case ST_IF:  gen_if(stmt); break;
   case ST_SWITCH:  gen_switch(stmt); break;
-  case ST_CASE: case ST_DEFAULT:  gen_case(stmt); break;
+  case ST_CASE: gen_case(stmt); break;
   case ST_WHILE:  gen_while(stmt); break;
   case ST_DO_WHILE:  gen_do_while(stmt); break;
   case ST_FOR:  gen_for(stmt); break;

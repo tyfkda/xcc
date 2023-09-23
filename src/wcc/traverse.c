@@ -599,7 +599,7 @@ static void traverse_stmt(Stmt *stmt) {
     break;
   case ST_IF:  traverse_if(stmt); break;
   case ST_SWITCH:  traverse_switch(stmt); break;
-  case ST_CASE: case ST_DEFAULT:  traverse_case(stmt); break;
+  case ST_CASE: traverse_case(stmt); break;
   case ST_WHILE:  traverse_while(stmt); break;
   case ST_DO_WHILE:  traverse_do_while(stmt); break;
   case ST_FOR:  traverse_for(stmt); break;

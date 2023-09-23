@@ -242,7 +242,7 @@ Stmt *new_stmt_switch(const Token *token, Expr *value) {
 }
 
 Stmt *new_stmt_case(const Token *token, Stmt *swtch, Expr *value) {
-  Stmt *stmt = new_stmt(value != NULL ? ST_CASE : ST_DEFAULT, token);
+  Stmt *stmt = new_stmt(ST_CASE, token);
   stmt->case_.swtch = swtch;
   stmt->case_.value = value;
   stmt->case_.bb = NULL;
