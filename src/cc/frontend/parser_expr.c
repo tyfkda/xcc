@@ -804,17 +804,13 @@ static Expr *parse_sizeof(const Token *token) {
     } else {
       unget_token((Token*)tok);
       Expr *expr = parse_unary();
-#ifndef __NO_BITFIELD
       not_bitfield_member(expr);
-#endif
       type = expr->type;
       tok = expr->token;
     }
   } else {
     Expr *expr = parse_unary();
-#ifndef __NO_BITFIELD
     not_bitfield_member(expr);
-#endif
     type = expr->type;
     tok = expr->token;
   }

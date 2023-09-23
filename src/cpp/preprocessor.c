@@ -520,8 +520,7 @@ static void process_line(const char *line, bool enable, Stream *stream) {
           if (ident->begin != p)
             fwrite(p, ident->begin - p, 1, pp_ofp);
 
-
-          // 全て展開されたはずなので、出力
+          // Everything should have been expanded, so output
           for (int i = 0; i < tokens->len; ++i) {
             const Token *tok = tokens->data[i];
             fwrite(tok->begin, tok->end - tok->begin, 1, pp_ofp);
