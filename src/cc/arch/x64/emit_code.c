@@ -464,7 +464,8 @@ static void move_params_to_assigned(Function *func) {
 }
 
 static void emit_defun(Function *func) {
-  if (func->scopes == NULL)  // Prototype definition
+  if (func->scopes == NULL ||  // Prototype definition.
+      func->extra == NULL)     // Code emission is omitted.
     return;
 
   assert(stackpos == 8);

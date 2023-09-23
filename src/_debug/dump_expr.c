@@ -80,6 +80,16 @@ void dump_init(FILE *fp, const Initializer *init) {
   }
 }
 
+static void dump_args(FILE *fp, Vector *args) {
+  fprintf(fp, "(");
+  for (int i = 0; i < args->len; ++i) {
+    if (i != 0)
+      fputs(", ", fp);
+    dump_expr(fp, args->data[i]);
+  }
+  fprintf(fp, ")");
+}
+
 void dump_expr(FILE *fp, Expr *expr) {
   assert(expr != NULL);
   switch (expr->kind) {
@@ -225,7 +235,6 @@ void dump_expr(FILE *fp, Expr *expr) {
   case EX_FUNCALL:
     {
       Expr *func = expr->funcall.func;
-      Vector *args = expr->funcall.args;
       if (func->kind == EX_VAR) {
         fprintf(fp, "%.*s", NAMES(func->var.name));
       } else {
@@ -233,14 +242,12 @@ void dump_expr(FILE *fp, Expr *expr) {
         dump_expr(fp, func);
         fprintf(fp, ")");
       }
-      fprintf(fp, "(");
-      for (int i = 0; i < args->len; ++i) {
-        if (i != 0)
-          fputs(", ", fp);
-        dump_expr(fp, args->data[i]);
-      }
-      fprintf(fp, ")");
+      dump_args(fp, expr->funcall.args);
     }
+    break;
+  case EX_INLINED:
+    fprintf(fp, "%.*s", NAMES(expr->inlined.funcname));
+    dump_args(fp, expr->inlined.args);
     break;
   case EX_COMPLIT:
     fprintf(fp, "((");

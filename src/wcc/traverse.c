@@ -452,6 +452,15 @@ static void te_block(Expr **pexpr, bool needval) {
   traverse_stmt(expr->block);
 }
 
+static void te_inlined(Expr **pexpr, bool needval) {
+  Expr *expr = *pexpr;
+  UNUSED(needval);
+  Vector *args = expr->inlined.args;
+  for (int i = 0; i < args->len; ++i)
+    traverse_expr((Expr**)&args->data[i], true);
+  traverse_stmt(expr->inlined.embedded);
+}
+
 static void traverse_expr(Expr **pexpr, bool needval) {
   Expr *expr = *pexpr;
   if (expr == NULL)
@@ -470,10 +479,12 @@ static void traverse_expr(Expr **pexpr, bool needval) {
     [EX_ASSIGN] = te_assign, [EX_COMMA] = te_comma,
     [EX_PREINC] = te_incdec, [EX_PREDEC] = te_incdec, [EX_POSTINC] = te_incdec, [EX_POSTDEC] = te_incdec,
     [EX_CAST] = te_cast, [EX_TERNARY] = te_ternary, [EX_MEMBER] = te_member,
-    [EX_FUNCALL] = traverse_funcall, [EX_COMPLIT] = te_complit, [EX_BLOCK] = te_block,
+    [EX_FUNCALL] = traverse_funcall, [EX_INLINED] = te_inlined, [EX_COMPLIT] = te_complit,
+    [EX_BLOCK] = te_block,
   };
 
   assert(expr->kind < (int)sizeof(table) / sizeof(*table));
+  assert(table[expr->kind] != NULL);
   (*table[expr->kind])(pexpr, needval);
 }
 

@@ -335,6 +335,7 @@ static Expr *simplify_funarg(Expr *arg) {
   case EX_ASSIGN:
   case EX_TERNARY:
   case EX_FUNCALL:
+  case EX_INLINED:
   case EX_BLOCK:
   case EX_LOGAND:  // Shortcut must be handled properly.
   case EX_LOGIOR:
@@ -661,10 +662,9 @@ static VReg *gen_comma(Expr *expr) {
   return gen_expr(expr->bop.rhs);
 }
 
-static VReg *gen_assign(Expr *expr) {
-  VReg *src = gen_expr(expr->bop.rhs);
-  if (expr->bop.lhs->kind == EX_VAR) {
-    Expr *lhs = expr->bop.lhs;
+static VReg *gen_assign_sub(Expr *lhs, Expr *rhs) {
+  VReg *src = gen_expr(rhs);
+  if (lhs->kind == EX_VAR) {
     if (is_prim_type(lhs->type) && !is_global_scope(lhs->var.scope)) {
       const VarInfo *varinfo = scope_find(lhs->var.scope, lhs->var.name, NULL);
       if (is_local_storage(varinfo)) {
@@ -675,9 +675,9 @@ static VReg *gen_assign(Expr *expr) {
     }
   }
 
-  VReg *dst = gen_lval(expr->bop.lhs);
+  VReg *dst = gen_lval(lhs);
 
-  switch (expr->type->kind) {
+  switch (lhs->type->kind) {
   case TY_ARRAY: case TY_FUNC: case TY_VOID:
     assert(false);
     // Fallthrough to suppress compiler error.
@@ -687,12 +687,17 @@ static VReg *gen_assign(Expr *expr) {
     new_ir_store(dst, src);
     break;
   case TY_STRUCT:
-    if (expr->type->struct_.info->size > 0) {
-      gen_memcpy(expr->type, dst, src);
+    if (lhs->type->struct_.info->size > 0) {
+      gen_memcpy(lhs->type, dst, src);
     }
     break;
   }
   return src;
+}
+
+static VReg *gen_assign(Expr *expr) {
+  assert(same_type(expr->type, expr->bop.lhs->type));
+  return gen_assign_sub(expr->bop.lhs, expr->bop.rhs);
 }
 
 static VReg *gen_expr_incdec(Expr *expr) {
@@ -801,6 +806,57 @@ static VReg *gen_complit(Expr *expr) {
   return gen_expr(var);
 }
 
+static VReg *gen_inlined(Expr *expr) {
+  // Nested inline funcall is transformed so its scope relation is modified.
+  // ex. foo(bar(123))
+  //     => ({foo-body(({bar-body(123)}))})
+  //     => tmp=({bar-body(123)}), ({foo-body(tmp)})
+  Scope *bak_curscope = curscope;
+  Stmt *embedded = expr->inlined.embedded;
+  assert(embedded->kind == ST_BLOCK);
+  Scope *top_scope = embedded->block.scope;
+  assert(top_scope != NULL);
+  Vector *top_scope_vars = top_scope->vars;
+
+  // Assign arguments to variables for embedding function parameter.
+  curscope = top_scope; {
+    Vector *args = expr->inlined.args;
+    assert(args->len <= top_scope_vars->len);
+    for (int i = 0; i < args->len; ++i) {
+      Expr *arg = args->data[i];
+      VarInfo *varinfo = top_scope_vars->data[i];
+      assert(!(varinfo->storage & VS_PARAM));
+      Expr *lhs = new_expr_variable(varinfo->name, varinfo->type, NULL, top_scope);
+      gen_assign_sub(lhs, arg);
+    }
+  } curscope = bak_curscope;
+
+  // Tweak function information to make `return` statement works for inlined function.
+  BB *inline_end_bb = new_bb();
+  FuncBackend *fnbe = curfunc->extra;
+  BB *bak_retbb = fnbe->ret_bb;
+  VReg *bak_retval = fnbe->retval;
+  VReg *bak_result_dst = fnbe->result_dst;
+  fnbe->ret_bb = inline_end_bb;
+  fnbe->retval = NULL;
+
+  const Type *rettype = expr->type;
+  VReg *dst = NULL;
+  if (rettype->kind != TY_VOID) {
+    assert(is_prim_type(rettype));
+    fnbe->result_dst = dst = add_new_vreg(rettype, 0);
+  }
+
+  gen_block(embedded);
+
+  fnbe->result_dst = bak_result_dst;
+  fnbe->retval = bak_retval;
+  fnbe->ret_bb = bak_retbb;
+
+  set_curbb(inline_end_bb);
+  return dst;
+}
+
 VReg *gen_expr(Expr *expr) {
   typedef VReg *(*GenExprFunc)(Expr *);
   static const GenExprFunc table[] = {
@@ -818,10 +874,11 @@ VReg *gen_expr(Expr *expr) {
     [EX_PREINC] = gen_expr_incdec, [EX_PREDEC] = gen_expr_incdec,
     [EX_POSTINC] = gen_expr_incdec, [EX_POSTDEC] = gen_expr_incdec,
     [EX_REF] = gen_ref, [EX_DEREF] = gen_deref, [EX_CAST] = gen_cast, [EX_TERNARY] = gen_ternary,
-    [EX_MEMBER] = gen_member, [EX_FUNCALL] = gen_funcall, [EX_COMPLIT] = gen_complit,
-    [EX_BLOCK] = gen_block_expr,
+    [EX_MEMBER] = gen_member, [EX_FUNCALL] = gen_funcall, [EX_INLINED] = gen_inlined,
+    [EX_COMPLIT] = gen_complit, [EX_BLOCK] = gen_block_expr,
   };
 
   assert(expr->kind < (int)sizeof(table) / sizeof(*table));
+  assert(table[expr->kind] != NULL);
   return (*table[expr->kind])(expr);
 }

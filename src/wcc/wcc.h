@@ -58,6 +58,7 @@ typedef struct {
 
 #define FF_REFERED   (1 << 0)
 #define FF_INDIRECT  (1 << 1)
+#define FF_INLINING  (1 << 2)
 
 // traverse
 uint32_t traverse_ast(Vector *decls, Vector *exports, uint32_t stack_size);

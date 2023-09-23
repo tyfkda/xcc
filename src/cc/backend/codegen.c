@@ -318,13 +318,13 @@ VReg *gen_stmts(Vector *stmts) {
 
 VReg *gen_block(Stmt *stmt) {
   assert(stmt->kind == ST_BLOCK);
-  if (stmt->block.scope != NULL) {
-    assert(curscope == stmt->block.scope->parent);
+  // AST may moved, so code generation traversal may differ from lexical scope chain.
+  Scope *bak_curscope = curscope;
+  if (stmt->block.scope != NULL)
     curscope = stmt->block.scope;
-  }
   VReg *result = gen_stmts(stmt->block.stmts);
   if (stmt->block.scope != NULL)
-    curscope = curscope->parent;
+    curscope = bak_curscope;
   return result;
 }
 
@@ -340,7 +340,7 @@ static void gen_return(Stmt *stmt) {
       gen_memcpy(val->type, retval, vreg);
       vreg = retval;
     }
-    new_ir_result(vreg);
+    new_ir_result(fnbe->result_dst, vreg);
   }
   new_ir_jmp(COND_ANY, fnbe->ret_bb);
   set_curbb(bb);
@@ -871,12 +871,19 @@ static void gen_defun(Function *func) {
   if (func->scopes == NULL)  // Prototype definition
     return;
 
+  VarInfo *funcvi = scope_find(global_scope, func->name, NULL);
+  if (funcvi != NULL && satisfy_inline_criteria(funcvi) && !(funcvi->storage & VS_STATIC)) {
+    // Omit inline function: func->extra preserves the value (NULL).
+    return;
+  }
+
   curfunc = func;
   FuncBackend *fnbe = func->extra = malloc_or_die(sizeof(FuncBackend));
   fnbe->ra = NULL;
   fnbe->bbcon = NULL;
   fnbe->ret_bb = NULL;
   fnbe->retval = NULL;
+  fnbe->result_dst = NULL;
   fnbe->frame_size = func->type->func.vaargs ? (MAX_REG_ARGS + MAX_FREG_ARGS) * WORD_SIZE : 0;
 
   fnbe->bbcon = new_func_blocks();

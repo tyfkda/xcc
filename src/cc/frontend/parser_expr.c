@@ -57,6 +57,15 @@ static Expr *parse_funcall(Expr *func) {
     parse_error(PE_NOFATAL, func->token, "Cannot call except function");
     return func;
   }
+
+  if (func->kind == EX_VAR && is_global_scope(func->var.scope)) {
+    VarInfo *varinfo = scope_find(func->var.scope, func->var.name, NULL);
+    assert(varinfo != NULL);
+    if (satisfy_inline_criteria(varinfo))
+      return new_expr_inlined(token, varinfo->name, functype->func.ret, args,
+                              embed_inline_funcall(varinfo));
+  }
+
   return new_expr_funcall(token, func, functype->func.ret, args);
 }
 
@@ -430,11 +439,6 @@ Type *parse_raw_type(int *pstorage) {
           (tc.short_num > 0) ? FX_SHORT : kLongKinds[tc.long_num];
       type = get_fixnum_type(fk, tc.unsigned_num > 0, tc.qualifier);
     }
-  }
-
-  if (tc.storage & VS_INLINE) {
-    // inline function is handled as static.
-    tc.storage |= VS_STATIC;
   }
 
   if (pstorage != NULL)

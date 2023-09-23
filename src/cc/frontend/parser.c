@@ -16,17 +16,6 @@
 
 static Stmt *parse_stmt(void);
 
-typedef struct {
-  Stmt *swtch;
-  Stmt *break_;
-  Stmt *continu;
-} LoopScope;
-
-static LoopScope loop_scope;
-
-#define SAVE_LOOP_SCOPE(var, b, c)  LoopScope var = loop_scope; if (b != NULL) loop_scope.break_ = b; if (c != NULL) loop_scope.continu = c;
-#define RESTORE_LOOP_SCOPE(var)     loop_scope = var
-
 Token *consume(enum TokenKind kind, const char *error) {
   Token *tok = match(kind);
   if (tok == NULL)
@@ -82,20 +71,6 @@ static void check_goto_labels(Function *func) {
       }
     }
   }
-}
-
-// Scope
-
-static Scope *enter_scope(Function *func, Vector *vars) {
-  Scope *scope = new_scope(curscope, vars);
-  curscope = scope;
-  vec_push(func->scopes, scope);
-  return scope;
-}
-
-static void exit_scope(void) {
-  assert(!is_global_scope(curscope));
-  curscope = curscope->parent;
 }
 
 //
@@ -354,7 +329,6 @@ static Stmt *parse_do_while(const Token *tok) {
   Stmt *stmt = new_stmt(ST_DO_WHILE, tok);
 
   SAVE_LOOP_SCOPE(save, stmt, stmt);
-  loop_scope.break_ = loop_scope.continu = stmt;
 
   stmt->while_.body = parse_stmt();
 

@@ -106,6 +106,10 @@ static bool traverse_ast_expr(Expr **pexpr, LexicalStack *parent, TraverseAstPar
     }
     break;
 
+  case EX_INLINED:
+    traverse_ast_stmt(&expr->inlined.embedded, &lstack, param);
+    break;
+
   case EX_COMPLIT:
     traverse_ast_stmts(expr->complit.inits, &lstack, param);
     break;

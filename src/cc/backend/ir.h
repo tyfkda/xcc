@@ -79,7 +79,7 @@ enum IrKind {
   IR_PRECALL, // Prepare for call
   IR_PUSHARG,
   IR_CALL,    // Call label or opr1
-  IR_RESULT,  // retval = opr1
+  IR_RESULT,  // retval = opr1  (Or mov to dst if set)
   IR_SUBSP,   // RSP -= value
   IR_CAST,    // dst <= opr1
   IR_MOV,     // dst = opr1
@@ -176,7 +176,7 @@ void new_ir_tjmp(VReg *val, BB **bbs, size_t len);
 IR *new_ir_precall(int arg_count, int stack_args_size);
 void new_ir_pusharg(VReg *vreg, int index);
 VReg *new_ir_call(const Name *label, bool global, VReg *freg, int total_arg_count, int reg_arg_count, enum VRegSize result_size, int result_flag, IR *precall, VReg **args, int vaarg_start);
-void new_ir_result(VReg *vreg);
+void new_ir_result(VReg *dst, VReg *vreg);
 void new_ir_subsp(VReg *value, VReg *dst);
 VReg *new_ir_cast(VReg *vreg, enum VRegSize dstsize, int vflag);
 void new_ir_asm(const char *asm_, VReg *dst);
@@ -225,6 +225,7 @@ typedef struct FuncBackend {
   BBContainer *bbcon;
   BB *ret_bb;
   VReg *retval;
+  VReg *result_dst;
   size_t frame_size;
 } FuncBackend;
 

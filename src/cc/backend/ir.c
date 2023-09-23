@@ -261,8 +261,9 @@ VReg *new_ir_call(const Name *label, bool global, VReg *freg, int total_arg_coun
   return ir->dst = result_size < 0 ? NULL : reg_alloc_spawn(curra, result_size, result_flag);
 }
 
-void new_ir_result(VReg *vreg) {
+void new_ir_result(VReg *dst, VReg *vreg) {
   IR *ir = new_ir(IR_RESULT);
+  ir->dst = dst;
   ir->opr1 = vreg;
 }
 

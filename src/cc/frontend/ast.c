@@ -157,6 +157,14 @@ Expr *new_expr_funcall(const Token *token, Expr *func, Type *rettype, Vector *ar
   return expr;
 }
 
+Expr *new_expr_inlined(const Token *token, const Name *name, Type *rettype, Vector *args, Stmt *embedded) {
+  Expr *expr = new_expr(EX_INLINED, rettype, token);
+  expr->inlined.funcname = name;
+  expr->inlined.args = args;
+  expr->inlined.embedded = embedded;
+  return expr;
+}
+
 Expr *new_expr_cast(Type *type, const Token *token, Expr *sub) {
   Expr *expr = new_expr(EX_CAST, type, token);
   expr->unary.sub = sub;

@@ -32,6 +32,9 @@ static const char *kReg64s[PHYSICAL_REG_MAX] = {
   X19, X20, X21, X22, X23, X24, X25, X26, X27, X28, X29,  // Callee save
   X10, X11, X12, X13, X14, X15, X18};                     // Caller save
 
+#define GET_X0_INDEX()   0
+#define GET_X16_INDEX()  10
+
 #define CALLEE_SAVE_REG_COUNT  ((int)(sizeof(kCalleeSaveRegs) / sizeof(*kCalleeSaveRegs)))
 static const int kCalleeSaveRegs[] = {11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21};
 
@@ -40,11 +43,8 @@ static const int kCallerSaveRegs[] = {22, 23, 24, 25, 26, 27, 28};
 
 const int ArchRegParamMapping[] = {0, 1, 2, 3, 4, 5, 6, 7};
 
-#define GET_X16_INDEX()   10
-
 const char **kRegSizeTable[] = {kReg32s, kReg32s, kReg32s, kReg64s};
 static const char *kZeroRegTable[] = {WZR, WZR, WZR, XZR};
-static const char *kRetRegTable[] = {W0, W0, W0, X0};
 
 // Break x17 in store, mod and tjmp
 static const char *kTmpRegTable[] = {W17, W17, W17, X17};
@@ -63,6 +63,8 @@ const char *kFReg64s[PHYSICAL_FREG_MAX] = {
   D16, D17, D18, D19, D20, D21, D22, D23,
   D24, D25, D26, D27, D28, D29, D30, D31,
 };
+
+#define GET_D0_INDEX()   0
 
 #define CALLEE_SAVE_FREG_COUNT  ((int)(sizeof(kCalleeSaveFRegs) / sizeof(*kCalleeSaveFRegs)))
 static const int kCalleeSaveFRegs[] = {8, 9, 10, 11, 12, 13, 14, 15};
@@ -412,22 +414,25 @@ static void ei_rshift(IR *ir) {
 
 static void ei_result(IR *ir) {
   if (ir->opr1->flag & VRF_FLONUM) {
-    if (ir->opr1->phys != 0) {  // Source is not return register.
-      const char *src, *dst;
+    int dstphys = ir->dst != NULL ? ir->dst->phys : GET_D0_INDEX();
+    if (ir->opr1->phys != dstphys) {  // Source is not return register.
+      const char **regs;
       switch (ir->opr1->vsize) {
       default: assert(false);  // Fallthroguh
-      case SZ_FLOAT:  dst = S0; src = kFReg32s[ir->opr1->phys]; break;
-      case SZ_DOUBLE: dst = D0; src = kFReg64s[ir->opr1->phys]; break;
+      case SZ_FLOAT:  regs = kFReg32s; break;
+      case SZ_DOUBLE: regs = kFReg64s; break;
       }
-      FMOV(dst, src);
+      FMOV(regs[dstphys], regs[ir->opr1->phys]);
     }
   } else {
     int pow = ir->opr1->vsize;
     assert(0 <= pow && pow < 4);
+    int dstphys = ir->dst != NULL ? ir->dst->phys : GET_X0_INDEX();
+    const char *dst = kRegSizeTable[pow][dstphys];
     if (ir->opr1->flag & VRF_CONST) {
-      mov_immediate(kRetRegTable[pow], ir->opr1->fixnum, pow >= 3, ir->opr1->flag & VRF_UNSIGNED);
-    } else if (ir->opr1->phys != ArchRegParamMapping[0]) {  // Source is not return register.
-      MOV(kRetRegTable[pow], kRegSizeTable[pow][ir->opr1->phys]);
+      mov_immediate(dst, ir->opr1->fixnum, pow >= 3, ir->opr1->flag & VRF_UNSIGNED);
+    } else if (ir->opr1->phys != dstphys) {  // Source is not return register.
+      MOV(dst, kRegSizeTable[pow][ir->opr1->phys]);
     }
   }
 }
@@ -652,11 +657,11 @@ static void ei_call(IR *ir) {
         FMOV(dst, src);
       }
     } else {
-      if (ir->dst->phys != ArchRegParamMapping[0]) {  // Destination is not return register.
+      if (ir->dst->phys != GET_X0_INDEX()) {
         int pow = ir->dst->vsize;
         assert(0 <= pow && pow < 4);
         const char **regs = kRegSizeTable[pow];
-        MOV(regs[ir->dst->phys], kRetRegTable[pow]);
+        MOV(regs[ir->dst->phys], kRegSizeTable[pow][GET_X0_INDEX()]);
       }
     }
   }
@@ -738,7 +743,7 @@ static void ei_asm(IR *ir) {
     int pow = ir->dst->vsize;
     assert(0 <= pow && pow < 4);
     const char **regs = kRegSizeTable[pow];
-    MOV(regs[ir->dst->phys], kRetRegTable[pow]);
+    MOV(regs[ir->dst->phys], regs[GET_X0_INDEX()]);
   }
 }
 
@@ -868,6 +873,7 @@ void emit_bb_irs(BBContainer *bbcon) {
     for (int j = 0; j < bb->irs->len; ++j) {
       IR *ir = bb->irs->data[j];
       assert(ir->kind < (int)(sizeof(table) / sizeof(*table)));
+      assert(table[ir->kind] != NULL);
       (*table[ir->kind])(ir);
     }
   }

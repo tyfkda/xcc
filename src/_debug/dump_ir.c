@@ -95,7 +95,7 @@ static void dump_ir(FILE *fp, IR *ir) {
       fprintf(fp, "*"); dump_vreg(fp, ir->opr1); fprintf(fp, "(args=#%d)\n", ir->call.reg_arg_count);
     }
     break;
-  case IR_RESULT: dump_vreg(fp, ir->opr1); fprintf(fp, "\n"); break;
+  case IR_RESULT: if (ir->dst != NULL) { dump_vreg(fp, ir->dst); fprintf(fp, " = "); } dump_vreg(fp, ir->opr1); fprintf(fp, "\n"); break;
   case IR_SUBSP:  dump_vreg(fp, ir->opr1); fprintf(fp, "\n"); break;
   case IR_CAST:   dump_vreg(fp, ir->dst); fprintf(fp, " = "); dump_vreg(fp, ir->opr1); fprintf(fp, "\n"); break;
   case IR_MOV:    dump_vreg(fp, ir->dst); fprintf(fp, " = "); dump_vreg(fp, ir->opr1); fprintf(fp, "\n"); break;
@@ -110,6 +110,8 @@ static void dump_func_ir(Function *func) {
     return;
 
   FuncBackend *fnbe = func->extra;
+  if (fnbe == NULL)
+    return;
   BBContainer *bbcon = fnbe->bbcon;
   assert(bbcon != NULL);
 

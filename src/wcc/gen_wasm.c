@@ -787,33 +787,30 @@ static void gen_incdec(Expr *expr, bool needval) {
 #undef IS_DEC
 }
 
-static void gen_assign(Expr *expr, bool needval) {
-  UNUSED(needval);
-  assert(expr->type->kind == TY_VOID);
-  Expr *lhs = expr->bop.lhs;
+static void gen_assign_sub(Expr *lhs, Expr *rhs) {
   switch (lhs->type->kind) {
   case TY_FIXNUM:
   case TY_PTR:
   case TY_FLONUM:
-    if (expr->bop.lhs->kind == EX_VAR) {
+    if (lhs->kind == EX_VAR) {
       const VarInfo *varinfo = scope_find(lhs->var.scope, lhs->var.name, NULL);
       assert(varinfo != NULL);
       if (!(varinfo->storage & VS_REF_TAKEN)) {
-        gen_expr(expr->bop.rhs, true);
+        gen_expr(rhs, true);
         gen_set_to_var(lhs);
         break;
       }
     }
     gen_lval(lhs);
-    gen_expr(expr->bop.rhs, true);
+    gen_expr(rhs, true);
     gen_store(lhs->type);
     break;
   case TY_STRUCT:
     {
-      size_t size = type_size(expr->bop.lhs->type);
+      size_t size = type_size(lhs->type);
       if (size > 0) {
-        gen_lval(expr->bop.lhs);
-        gen_expr(expr->bop.rhs, true);
+        gen_lval(lhs);
+        gen_expr(rhs, true);
         ADD_CODE(OP_I32_CONST);
         ADD_LEB128(size);
         ADD_CODE(OP_EXTENSION, OPEX_MEMORY_COPY, 0, 0);  // src, dst
@@ -822,6 +819,12 @@ static void gen_assign(Expr *expr, bool needval) {
     break;
   case TY_ARRAY: case TY_FUNC: case TY_VOID: assert(false); break;
   }
+}
+
+static void gen_assign(Expr *expr, bool needval) {
+  UNUSED(needval);
+  assert(expr->type->kind == TY_VOID);
+  gen_assign_sub(expr->bop.lhs, expr->bop.rhs);
 }
 
 static void gen_comma(Expr *expr, bool needval) {
@@ -907,6 +910,59 @@ static void gen_complit(Expr *expr, bool needval) {
   gen_expr(var, needval);
 }
 
+static void gen_inlined(Expr *expr, bool needval) {
+  // Nested inline funcall is transformed so its scope relation is modified.
+  // ex. foo(bar(123)) => ({foo(({bar(123)}))}) => tmp=({bar(123)}), ({foo(tmp)})
+  Scope *bak_curscope = curscope;
+  Stmt *embedded = expr->inlined.embedded;
+  assert(embedded->kind == ST_BLOCK);
+  Scope *top_scope = embedded->block.scope;
+  assert(top_scope != NULL);
+  Vector *top_scope_vars = top_scope->vars;
+  curscope = top_scope; {
+    Vector *args = expr->inlined.args;
+    assert(args->len <= top_scope_vars->len);
+    for (int i = 0; i < args->len; ++i) {
+      Expr *arg = args->data[i];
+      VarInfo *varinfo = top_scope_vars->data[i];
+      assert(!(varinfo->storage & VS_PARAM));
+      Expr *lhs = new_expr_variable(varinfo->name, varinfo->type, NULL, top_scope);
+      gen_assign_sub(lhs, arg);
+    }
+  } curscope = bak_curscope;
+
+  assert(curfunc != NULL);
+  FuncInfo *finfo = table_get(&func_info_table, curfunc->name);
+  int bak_flag = finfo->flag;
+  finfo->flag |= FF_INLINING;
+
+  int bak_depth = cur_depth;
+  cur_depth = 1;
+
+  const Type *rettype = expr->type;
+  unsigned char wt = is_prim_type(rettype) ? to_wtype(rettype) : rettype->kind != TY_VOID ? WT_I32 : WT_VOID;
+  ADD_CODE(OP_BLOCK, wt); {
+    gen_stmt(embedded);
+
+    assert(embedded->kind == ST_BLOCK);
+    Vector *stmts = embedded->block.stmts;
+    if (stmts->len > 0) {
+      Stmt *last = stmts->data[stmts->len - 1];
+      if (last->kind != ST_RETURN && last->kind != ST_ASM && rettype->kind != TY_VOID) {
+        assert(embedded->reach & REACH_STOP);
+        ADD_CODE(OP_UNREACHABLE);
+      }
+    }
+  } ADD_CODE(OP_END);
+
+  if (wt != WT_VOID && !needval)
+    ADD_CODE(OP_DROP);
+
+  cur_depth = bak_depth;
+  finfo->flag = bak_flag;
+  curscope = bak_curscope;
+}
+
 void gen_expr(Expr *expr, bool needval) {
   typedef void (*GenExprFunc)(Expr *, bool);
   static const GenExprFunc table[] = {
@@ -924,11 +980,12 @@ void gen_expr(Expr *expr, bool needval) {
     [EX_PREINC] = gen_incdec, [EX_PREDEC] = gen_incdec,
     [EX_POSTINC] = gen_incdec, [EX_POSTDEC] = gen_incdec,
     [EX_REF] = gen_ref, [EX_DEREF] = gen_deref, [EX_CAST] = gen_cast, [EX_TERNARY] = gen_ternary,
-    [EX_MEMBER] = gen_member, [EX_FUNCALL] = gen_funcall_expr, [EX_COMPLIT] = gen_complit,
-    [EX_BLOCK] = gen_block_expr,
+    [EX_MEMBER] = gen_member, [EX_FUNCALL] = gen_funcall_expr, [EX_INLINED] = gen_inlined,
+    [EX_COMPLIT] = gen_complit, [EX_BLOCK] = gen_block_expr,
   };
 
   assert(expr->kind < (int)sizeof(table) / sizeof(*table));
+  assert(table[expr->kind] != NULL);
   (*table[expr->kind])(expr, needval);
 }
 
@@ -1247,27 +1304,31 @@ static void gen_continue(void) {
 }
 
 static void gen_block(Stmt *stmt) {
-  if (stmt->block.scope != NULL) {
-    assert(curscope == stmt->block.scope->parent);
+  assert(stmt->kind == ST_BLOCK);
+  // AST may moved, so code generation traversal may differ from lexical scope chain.
+  Scope *bak_curscope = curscope;
+  if (stmt->block.scope != NULL)
     curscope = stmt->block.scope;
-  }
   gen_stmts(stmt->block.stmts);
   if (stmt->block.scope != NULL)
-    curscope = curscope->parent;
+    curscope = bak_curscope;
 }
 
 static void gen_return(Stmt *stmt) {
   assert(curfunc != NULL);
-  FuncInfo *finfo = table_get(&func_info_table, curfunc->name);
-  assert(finfo != NULL);
   if (stmt->return_.val != NULL) {
     Expr *val = stmt->return_.val;
-    const Type *rettype = finfo->type->func.ret;
+    const Type *rettype = val->type;
+    assert(rettype->kind != TY_VOID);
     if (is_prim_type(rettype)) {
       gen_expr(val, true);
     } else {
+#if !defined(NDEBUG)
+      FuncInfo *finfo = table_get(&func_info_table, curfunc->name);
+      assert(finfo != NULL && !(finfo->flag & FF_INLINING));
+#endif
       // Local #0 is the pointer for result.
-      ADD_CODE(OP_LOCAL_GET, 0);
+      ADD_CODE(OP_LOCAL_GET, 0);  // TODO: Handle inline case.
       gen_expr(val, true);
       ADD_CODE(OP_I32_CONST);
       ADD_LEB128(type_size(rettype));
@@ -1276,8 +1337,11 @@ static void gen_return(Stmt *stmt) {
       ADD_CODE(OP_LOCAL_GET, 0);
     }
   }
+
+  FuncInfo *finfo = table_get(&func_info_table, curfunc->name);
+  assert(finfo != NULL);
   if (!stmt->return_.func_end) {
-    if (finfo->bpname != NULL) {
+    if (finfo->bpname != NULL || finfo->flag & FF_INLINING) {
       assert(cur_depth > 0);
       ADD_CODE(OP_BR);
       ADD_ULEB128(cur_depth - 1);

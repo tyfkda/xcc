@@ -27,6 +27,17 @@ enum ParseErrorLevel {
   PE_FATAL,
 };
 
+typedef struct {
+  Stmt *swtch;
+  Stmt *break_;
+  Stmt *continu;
+} LoopScope;
+
+#define SAVE_LOOP_SCOPE(var, b, c)  LoopScope var = loop_scope; if (b != NULL) loop_scope.break_ = b; if (c != NULL) loop_scope.continu = c;
+#define RESTORE_LOOP_SCOPE(var)     loop_scope = var
+
+extern LoopScope loop_scope;
+
 void parse_error(enum ParseErrorLevel level, const Token *token, const char *fmt, ...);
 
 void not_void(const Type *type, const Token *token);
@@ -48,6 +59,9 @@ VarInfo *find_var_from_scope(Scope *scope, const Token *ident, Type *type, int s
 VarInfo *add_var_to_scope(Scope *scope, const Token *ident, Type *type, int storage);
 Expr *alloc_tmp_var(Scope *scope, Type *type);
 void define_enum_member(Type *type, const Token *ident, int value);
+
+Scope *enter_scope(Function *func, Vector *vars);
+void exit_scope(void);
 
 void ensure_struct(Type *type, const Token *token, Scope *scope);
 bool check_cast(const Type *dst, const Type *src, bool zero, bool is_explicit, const Token *token);
@@ -81,3 +95,6 @@ void check_reachability(Stmt *stmt);
 void check_funcend_return(Function *func);
 
 int get_funparam_index(Function *func, const Name *name);  // -1: Not funparam.
+
+bool satisfy_inline_criteria(const VarInfo *varinfo);
+Stmt *embed_inline_funcall(VarInfo *varinfo);

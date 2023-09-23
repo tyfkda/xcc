@@ -1687,7 +1687,16 @@ typedef struct {int x;} MoreParamsReturnsStruct;
 MoreParamsReturnsStruct more_params_returns_struct(int a, int b, int c, int d, int e, int f, int g) { return (MoreParamsReturnsStruct){f + g}; }
 int array_arg_wo_size(int arg[]) { return arg[1]; }
 long long long_immediate(unsigned long long x) { return x / 11; }
-static inline int inline_func(void) { return 93; }
+
+static inline int inline_square(int x) { return x * x; }
+static int g_shadow = 55;
+static inline void inline_shadow(int x) { g_shadow = x; }
+static inline int inline_conflict_varname(int x, int y) { return x * g_shadow + y; }
+static inline int inline_share_static_var(int add) { static int sum; if (add == 0) sum = 0; return sum += add; }
+static inline int inline_factorial(int x) { return x <= 1 ? 1 : x * inline_factorial(x - 1); }
+static inline bool inline_even(int x);
+static inline bool inline_odd(int x)  { return x == 0 ? false : inline_even(x - 1); }
+static inline bool inline_even(int x)  { return x == 0 ? true : inline_odd(x - 1); }
 
 int mul2(int x) {return x * 2;}
 int div2(int x) {return x / 2;}
@@ -1777,8 +1786,35 @@ TEST(function) {
   }
 
   EXPECT("long immediate", 119251678860344574LL, long_immediate(0x123456789abcdef0));
-  EXPECT("inline", 93, inline_func());
   EXPECT("const typedef-ed type", 65, const_typedefed(66));
+
+  EXPECT("inline", 1522756, inline_square(1234));
+  EXPECT("inline nest", 65536, inline_square(inline_square(16)));
+  {
+    {
+      int g_shadow = 66;
+      inline_shadow(77);
+      EXPECT("inline not overwrite local", 66, g_shadow);
+    }
+    EXPECT("inline overwrite global", 77, g_shadow);
+  }
+  {
+    int x = 3, y = 4;
+    g_shadow = 100;
+    EXPECT("inline conflict varname", 809, inline_conflict_varname(y * 2, x * 3));
+  }
+  {
+    int result;
+    for (int i = 0; i <= 10; ++i)
+      result = inline_share_static_var(i);
+    EXPECT("static variable in inline func", 55, result);
+  }
+  EXPECT("inline recursion", 5040, inline_factorial(7));
+  EXPECT_FALSE(inline_even(9));  // Inline mutual recursion
+  EXPECT_TRUE(inline_odd(9));
+  EXPECT_TRUE(inline_even(8));
+  EXPECT_FALSE(inline_odd(8));
+  // TODO: inline function called in a function that returns struct.
 
   EXPECT("stdarg", 55, vaarg_and_array(10, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10));
   EXPECT("vaarg fnptr", 15, fnptr(vaarg_and_array)(5, 1, 2, 3, 4, 5));
