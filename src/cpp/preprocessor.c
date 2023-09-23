@@ -563,7 +563,14 @@ static bool handle_if(const char **pp, Stream *stream) {
 #define CF_SATISFY_SHIFT  (1)
 #define CF_SATISFY_MASK   (3 << CF_SATISFY_SHIFT)
 
-static intptr_t cond_value(bool enable, int satisfy) {
+// Is `#if` condition satisfied?
+enum Satisfy {
+  NotSatisfied,
+  Satisfied,
+  ElseAppeared,
+};
+
+static intptr_t cond_value(bool enable, enum Satisfy satisfy) {
   return (enable ? CF_ENABLE : 0) | (satisfy << CF_SATISFY_SHIFT);
 }
 
@@ -583,7 +590,7 @@ void init_preprocessor(FILE *ofp) {
 int preprocess(FILE *fp, const char *filename_) {
   Vector *condstack = new_vector();
   bool enable = true;
-  int satisfy = 0;  // #if condition: 0=not satisfied, 1=satisfied, 2=else
+  enum Satisfy satisfy = NotSatisfied;
   char linenobuf[sizeof(int) * 3 + 1];  // Buffer for __LINE__
 
   const Name *key_file = alloc_name("__FILE__", NULL, false);
@@ -627,52 +634,49 @@ int preprocess(FILE *fp, const char *filename_) {
     if ((next = keyword(directive, "ifdef")) != NULL) {
       vec_push(condstack, (void*)cond_value(enable, satisfy));
       bool defined = handle_ifdef(&next);
-      satisfy = defined ? 1 : 0;
-      enable = enable && satisfy == 1;
+      satisfy = defined ? Satisfied : NotSatisfied;
+      enable = enable && satisfy == Satisfied;
     } else if ((next = keyword(directive, "ifndef")) != NULL) {
       vec_push(condstack, (void*)cond_value(enable, satisfy));
       bool defined = handle_ifdef(&next);
-      satisfy = defined ? 0 : 1;
-      enable = enable && satisfy == 1;
+      satisfy = defined ? NotSatisfied : Satisfied;
+      enable = enable && satisfy == Satisfied;
     } else if ((next = keyword(directive, "if")) != NULL) {
       vec_push(condstack, (void*)cond_value(enable, satisfy));
       bool cond = handle_if(&next, &stream);
-      satisfy = cond ? 1 : 0;
-      enable = enable && satisfy == 1;
+      satisfy = cond ? Satisfied : NotSatisfied;
+      enable = enable && satisfy == Satisfied;
     } else if ((next = keyword(directive, "else")) != NULL) {
       int last = condstack->len - 1;
       if (last < 0)
         error("`#else' used without `#if'");
       intptr_t flag = (intptr_t)condstack->data[last];
-      if (satisfy == 2)
+      if (satisfy == ElseAppeared)
         error("Illegal #else");
-      enable = !enable && satisfy == 0 && ((flag & CF_ENABLE) != 0);
-      satisfy = 2;
+      enable = !enable && satisfy == NotSatisfied && ((flag & CF_ENABLE) != 0);
+      satisfy = ElseAppeared;
     } else if ((next = keyword(directive, "elif")) != NULL) {
       int last = condstack->len - 1;
       if (last < 0)
         error("`#elif' used without `#if'");
       intptr_t flag = (intptr_t)condstack->data[last];
-      if (satisfy == 2)
+      if (satisfy == ElseAppeared)
         error("Illegal #elif");
 
       bool cond = false;
-      if (satisfy == 0) {
+      if (satisfy == NotSatisfied) {
         cond = handle_if(&next, &stream);
         if (cond)
-          satisfy = 1;
+          satisfy = Satisfied;
       }
 
       enable = !enable && cond && ((flag & CF_ENABLE) != 0);
     } else if ((next = keyword(directive, "endif")) != NULL) {
-      int len = condstack->len;
-      if (len <= 0)
+      if (condstack->len <= 0)
         error("`#endif' used without `#if'");
-      --len;
-      int flag = (intptr_t)condstack->data[len];
+      int flag = (intptr_t)vec_pop(condstack);
       enable = (flag & CF_ENABLE) != 0;
       satisfy = (flag & CF_SATISFY_MASK) >> CF_SATISFY_SHIFT;
-      condstack->len = len;
     } else if (enable) {
       if ((next = keyword(directive, "include")) != NULL) {
         handle_include(next, &stream, false);
