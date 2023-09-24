@@ -596,34 +596,7 @@ VReg *gen_const_flonum(Expr *expr) {
 #endif
 
 static VReg *gen_block_expr(Expr *expr) {
-  Stmt *stmt = expr->block;
-  assert(stmt->kind == ST_BLOCK);
-
-  if (stmt->block.scope != NULL) {
-    assert(curscope == stmt->block.scope->parent);
-    curscope = stmt->block.scope;
-  }
-
-  Vector *stmts = stmt->block.stmts;
-  int len = stmts->len;
-  VReg *result = NULL;
-  if (len > 0) {
-    int last = stmts->len - 1;
-    for (int i = 0; i < last; ++i) {
-      Stmt *stmt = stmts->data[i];
-      if (stmt == NULL)
-        continue;
-      gen_stmt(stmt);
-    }
-    Stmt *last_stmt = stmts->data[last];
-    if (last_stmt->kind == ST_EXPR)
-      result = gen_expr(last_stmt->expr);
-  }
-
-  if (stmt->block.scope != NULL)
-    curscope = curscope->parent;
-
-  return result;
+  return gen_block(expr->block);
 }
 
 static VReg *gen_fixnum(Expr *expr) {

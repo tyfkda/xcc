@@ -292,26 +292,40 @@ static void gen_asm(Stmt *stmt) {
   new_ir_asm(str, result);
 }
 
-void gen_stmts(Vector *stmts) {
+VReg *gen_stmts(Vector *stmts) {
   if (stmts == NULL)
-    return;
+    return NULL;
 
-  for (int i = 0, len = stmts->len; i < len; ++i) {
-    Stmt *stmt = stmts->data[i];
-    if (stmt == NULL)
-      continue;
-    gen_stmt(stmt);
+  int len = stmts->len;
+  VReg *result = NULL;
+  if (len > 0) {
+    int last = stmts->len - 1;
+    for (int i = 0; i < last; ++i) {
+      Stmt *stmt = stmts->data[i];
+      if (stmt == NULL)
+        continue;
+      gen_stmt(stmt);
+    }
+
+    Stmt *last_stmt = stmts->data[last];
+    if (last_stmt->kind == ST_EXPR)
+      result = gen_expr(last_stmt->expr);
+    else
+      gen_stmt(last_stmt);
   }
+  return result;
 }
 
-static void gen_block(Stmt *stmt) {
+VReg *gen_block(Stmt *stmt) {
+  assert(stmt->kind == ST_BLOCK);
   if (stmt->block.scope != NULL) {
     assert(curscope == stmt->block.scope->parent);
     curscope = stmt->block.scope;
   }
-  gen_stmts(stmt->block.stmts);
+  VReg *result = gen_stmts(stmt->block.stmts);
   if (stmt->block.scope != NULL)
     curscope = curscope->parent;
+  return result;
 }
 
 static void gen_return(Stmt *stmt) {

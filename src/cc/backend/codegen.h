@@ -35,7 +35,8 @@ int to_vflag(const Type *type);
 bool is_stack_param(const Type *type);
 
 void gen_stmt(struct Stmt *stmt);
-void gen_stmts(Vector *stmts);
+VReg *gen_stmts(Vector *stmts);
+VReg *gen_block(Stmt *stmt);
 
 typedef VReg *(*BuiltinFunctionProc)(Expr *expr);
 void add_builtin_function(const char *str, Type *type, BuiltinFunctionProc *proc, bool add_to_scope);
