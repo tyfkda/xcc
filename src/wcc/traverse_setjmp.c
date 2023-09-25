@@ -226,7 +226,7 @@ static bool modify_if_setjmp(LexicalStack *lp, Expr *jmpbuf_env, Expr *var) {
 
   Expr *try_catch_longjmp = new_expr_funcall(
       token, new_expr_variable(alloc_name("__builtin_try_catch_longjmp", NULL, false), functype, token, global_scope),
-      functype, args);
+      functype->func.ret, args);
 
   Expr *store_sp = new_expr_bop(EX_ASSIGN, &tyVoid, token, new_expr_unary(EX_DEREF, &tySize, token, jmpbuf_env), get_sp_var());
 

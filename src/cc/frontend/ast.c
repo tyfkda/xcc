@@ -150,8 +150,8 @@ Expr *new_expr_member(const Token *token, Type *type, Expr *target, const Name *
   return expr;
 }
 
-Expr *new_expr_funcall(const Token *token, Expr *func, Type *functype, Vector *args) {
-  Expr *expr = new_expr(EX_FUNCALL, functype->func.ret, token);
+Expr *new_expr_funcall(const Token *token, Expr *func, Type *rettype, Vector *args) {
+  Expr *expr = new_expr(EX_FUNCALL, rettype, token);
   expr->funcall.func = func;
   expr->funcall.args = args;
   return expr;

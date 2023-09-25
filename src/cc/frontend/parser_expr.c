@@ -57,7 +57,7 @@ static Expr *parse_funcall(Expr *func) {
     parse_error(PE_NOFATAL, func->token, "Cannot call except function");
     return func;
   }
-  return new_expr_funcall(token, func, functype, args);
+  return new_expr_funcall(token, func, functype->func.ret, args);
 }
 
 static Expr *parse_array_index(const Token *token, Expr *expr) {
