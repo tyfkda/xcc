@@ -675,8 +675,13 @@ static Token *get_token(void) {
     }
 
     assert(*p != '\0');
-    tok = alloc_token(PPTK_OTHERCHAR, lexer.line, p, p + 1);
-    ++p;
+    const char *q = p + 1;
+    if (isutf8first(*p)) {
+      for (; isutf8follow(*q); ++q)
+        ;
+    }
+    tok = alloc_token(PPTK_OTHERCHAR, lexer.line, p, q);
+    p = q;
   }
 
   assert(tok != NULL);

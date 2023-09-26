@@ -198,8 +198,7 @@ static VReg *gen_cast(Expr *expr) {
   bool lu = dst_type->kind == TY_FIXNUM ? dst_type->fixnum.is_unsigned : dst_type->kind == TY_PTR;
   bool ru = (vreg->flag & VRF_UNSIGNED) ? true : false;
   if (dst_size == 1 << vreg->vsize && lu == ru
-      && is_flonum(dst_type) == ((vreg->flag & VRF_FLONUM) != 0)
-  )
+      && is_flonum(dst_type) == ((vreg->flag & VRF_FLONUM) != 0))
     return vreg;
 
   return new_ir_cast(vreg, to_vsize(dst_type), to_vflag(dst_type));
@@ -632,21 +631,9 @@ static VReg *gen_ref(Expr *expr) {
 
 static VReg *gen_deref(Expr *expr) {
   VReg *vreg = gen_expr(expr->unary.sub);
-  switch (expr->type->kind) {
-  case TY_FIXNUM:
-  case TY_PTR:
-  case TY_FLONUM:
+  // array, struct and func values are handled as a pointer.
+  if (is_prim_type(expr->type))
     vreg = new_ir_unary(IR_LOAD, vreg, to_vsize(expr->type), to_vflag(expr->type));
-    break;
-
-  case TY_ARRAY:
-  case TY_STRUCT:
-  case TY_FUNC:
-    // array, struct and func values are handled as a pointer.
-    break;
-
-  case TY_VOID: assert(false); break;
-  }
   return vreg;
 }
 
@@ -664,19 +651,8 @@ static VReg *gen_member(Expr *expr) {
 
   VReg *vreg = gen_lval(expr);
   VReg *result = vreg;
-  switch (expr->type->kind) {
-  case TY_FIXNUM:
-  case TY_PTR:
-  case TY_FLONUM:
+  if (is_prim_type(expr->type))
     result = new_ir_unary(IR_LOAD, vreg, to_vsize(expr->type), to_vflag(expr->type));
-    break;
-  case TY_FUNC: case TY_VOID:
-    assert(false);
-    // Fallthrough to suppress compile error.
-  case TY_ARRAY:
-  case TY_STRUCT:
-    break;
-  }
   return result;
 }
 
@@ -689,23 +665,13 @@ static VReg *gen_assign(Expr *expr) {
   VReg *src = gen_expr(expr->bop.rhs);
   if (expr->bop.lhs->kind == EX_VAR) {
     Expr *lhs = expr->bop.lhs;
-    switch (lhs->type->kind) {
-    case TY_FIXNUM:
-    case TY_PTR:
-    case TY_FLONUM:
-      {
-        Scope *scope;
-        const VarInfo *varinfo = scope_find(lhs->var.scope, lhs->var.name, &scope);
-        assert(varinfo != NULL);
-        if (!is_global_scope(scope) && is_local_storage(varinfo)) {
-          assert(varinfo->local.vreg != NULL);
-          new_ir_mov(varinfo->local.vreg, src);
-          return src;
-        }
+    if (is_prim_type(lhs->type) && !is_global_scope(lhs->var.scope)) {
+      const VarInfo *varinfo = scope_find(lhs->var.scope, lhs->var.name, NULL);
+      if (is_local_storage(varinfo)) {
+        assert(varinfo->local.vreg != NULL);
+        new_ir_mov(varinfo->local.vreg, src);
+        return src;
       }
-      break;
-    default:
-      break;
     }
   }
 

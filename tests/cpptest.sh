@@ -87,7 +87,7 @@ test_basic() {
   try 'Quote in comment' "/*I'm fine*/" "/*\nI'm fine\n*/"
 
   try 'hash only' '' "#\n/* */ #"
-  try 'through illegal char' '\`@$#' '\\`@$#'
+  try 'through illegal char' '\`@$#🤔' '\\`@$#🤔'
 
   end_test_suite
 }
