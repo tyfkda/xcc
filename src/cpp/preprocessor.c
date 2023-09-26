@@ -113,47 +113,34 @@ static void register_pragma_once(const char *filename) {
   vec_push(&pragma_once_files, filename);
 }
 
-static FILE *search_sysinc_next(const char *dir, const char *path, char **pfn) {
-  int ord = 0, idx = 0;
-  Vector *v;
-
-  bool found = false;
-
-  for (ord = 0; dir && ord < INC_ORDERS; ++ord) {
-    v = &sys_inc_paths[ord];
-    for (idx = 0; idx < v->len; ++idx) {
-      if (!strcmp(fullpath(v->data[idx]), dir)) {
-        ++idx;
-        found = true;
-        break;
+// Search include file from system include paths.
+//   result!=NULL: Found (returns found path into *pfn)
+//   result==NULL, *pfn!=NULL: Found, but blocked because of pragma once.
+//   result==NULL, *pfn==NULL: Not found.
+static FILE *search_sysinc(const char *prevdir, const char *path, char **pfn) {
+  for (int ord = 0; ord < INC_ORDERS; ++ord) {
+    Vector *v = &sys_inc_paths[ord];
+    for (int idx = 0; idx < v->len; ++idx) {
+      if (prevdir != NULL) {  // Searching previous directory.
+        if (strcmp(fullpath(v->data[idx]), prevdir) == 0)
+          prevdir = NULL;
+        continue;
       }
-    }
-    if (found)
-      break;
-  }
 
-  for (; ord < INC_ORDERS; ++ord) {
-    v = &sys_inc_paths[ord];
-    for (; idx < v->len; ++idx) {
       FILE *fp = NULL;
       char *fn = cat_path_cwd(v->data[idx], path);
-      if (registered_pragma_once(fn) ||
+      if (registered_pragma_once(fn) ||  // If pragma once hit, then fp keeps NULL.
           (is_file(fn) && (fp = fopen(fn, "r")) != NULL)) {
         *pfn = fn;
         return fp;
       }
     }
-    idx = 0;
   }
   *pfn = NULL;
   return NULL;
 }
 
-static FILE *search_sysinc(const char *path, char **pfn) {
-  return search_sysinc_next(NULL, path, pfn);
-}
-
-static void handle_include(const char *p, Stream *stream, bool next) {
+static void handle_include(const char *p, Stream *stream, bool is_next) {
   const char *orgp = p;
   char close;
   bool sys = false;
@@ -226,7 +213,7 @@ static void handle_include(const char *p, Stream *stream, bool next) {
   FILE *fp = NULL;
   char *dir = strdup(dirname(strdup(stream->filename)));
   // Search from current directory.
-  if (!next && !sys) {
+  if (!is_next && !sys) {
     fn = cat_path_cwd(dir, path);
     if (registered_pragma_once(fn))
       return;
@@ -234,11 +221,9 @@ static void handle_include(const char *p, Stream *stream, bool next) {
       fp = fopen(fn, "r");
   }
   if (fp == NULL) {
-    if (next) fp = search_sysinc_next(dir, path, &fn);
-    else fp = search_sysinc(path, &fn);
-
+    fp = search_sysinc(is_next ? dir : NULL, path, &fn);
     if (fp == NULL) {
-      if (fn == NULL)  // Except pragma once.
+      if (fn == NULL)  // Raise error except pragma once.
         error("Cannot open file: %s", path);
       return;
     }
