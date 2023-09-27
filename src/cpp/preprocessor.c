@@ -218,10 +218,11 @@ static void handle_include(const char *p, Stream *stream, bool next) {
     }
   }
 
-  fprintf(pp_ofp, "# 1 \"%s\" 1\n", fn);
-  int lineno = preprocess(fp, fn);
-  fprintf(pp_ofp, "# %d \"%s\" 2\n", lineno, fn);
+  preprocess(fp, fn);
   fclose(fp);
+
+  // Put linemarker to restore line and filename.
+  fprintf(pp_ofp, "# %d \"%s\" 2\n", stream->lineno + 1, stream->filename);
 }
 
 static void handle_pragma(const char **pp, const char *filename) {
@@ -615,6 +616,12 @@ const char *get_processed_next_line(void) {
       continue;
     }
 
+    if (isdigit(*directive)) {
+      // Assume linemarkers: output as is.
+      fprintf(pp_ofp, "%s\n", line);
+      continue;
+    }
+
     fprintf(pp_ofp, "\n");
 
     const char *next;
@@ -668,11 +675,9 @@ const char *get_processed_next_line(void) {
     } else if (ppf->enable) {
       if ((next = keyword(directive, "include")) != NULL) {
         handle_include(next, &ppf->stream, false);
-        fprintf(pp_ofp, "# %d \"%s\" 1\n", ppf->stream.lineno + 1, ppf->stream.filename);
         next = NULL;
       } else if ((next = keyword(directive, "include_next")) != NULL) {
         handle_include(next, &ppf->stream, true);
-        fprintf(pp_ofp, "# %d \"%s\" 1\n", ppf->stream.lineno + 1, ppf->stream.filename);
         next = NULL;
       } else if ((next = keyword(directive, "define")) != NULL) {
         handle_define(next, &ppf->stream);
@@ -698,18 +703,21 @@ const char *get_processed_next_line(void) {
       }
     }
 
-    if (next != NULL)
-      return next;
+    if (next != NULL) {
+      if (ppf->enable)
+        return next;
+      process_disabled_line(next, &ppf->stream);
+    }
   }
 }
 
-int preprocess(FILE *fp, const char *filename_) {
+int preprocess(FILE *fp, const char *filename) {
   Macro *old_file_macro = macro_get(key_file);
   Macro *old_line_macro = macro_get(key_line);
 
   PreprocessFile pf;
   pf.condstack = new_vector();
-  pf.stream = (Stream){.filename = filename_, .fp = fp, .lineno = 0};
+  pf.stream = (Stream){.filename = filename, .fp = fp, .lineno = 0};
   pf.enable = true;
   pf.satisfy = NotSatisfied;
 
@@ -724,6 +732,8 @@ int preprocess(FILE *fp, const char *filename_) {
   Vector *lineno_tokens = new_vector();
   vec_push(lineno_tokens, pf.tok_lineno);
   macro_add(key_line, new_macro(NULL, NULL, lineno_tokens));
+
+  fprintf(pp_ofp, "# 1 \"%s\" 1\n", filename);
 
   for (const char *line; (line = get_processed_next_line()) != NULL;) {
     process_line(line, &pf.stream);

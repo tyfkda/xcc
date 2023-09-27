@@ -5,9 +5,10 @@ set -o pipefail
 source ./test_sub.sh
 
 CPP=${CPP:-../cpp}
-CC=cc
+CC=${CC:-cc}
 AOUT=${AOUT:-$(basename "$(mktemp -u)")}
 RUN_AOUT="./$AOUT"
+REMOVE_TOP_LINEMARKER="tail -n +2"  # First line of preprocessor output is linemarker, so remove it.
 
 try() {
   local title="$1"
@@ -18,7 +19,7 @@ try() {
   begin_test "$title"
 
   local actual
-  actual=$(echo -e "$input" | $CPP 2>/dev/null | tr -d '\n')
+  actual=$(echo -e "$input" | $CPP 2>/dev/null | $REMOVE_TOP_LINEMARKER | tr -d '\n')
   local exitcode=$?
   if [ $exitcode -ne 0 ]; then
     end_test "CPP failed: exitcode=${exitcode}"
@@ -34,10 +35,11 @@ try_run() {
   local expected
   expected=$(echo -e "$2")
   local input="$3"
+  local ppflags="$4"
 
   begin_test "$title"
 
-  echo -e "$input" | $CC -o "$AOUT" -Werror -xc -I. -Itmp_include - || exit 1
+  echo -e "$input" | $CPP $ppflags | $CC -o "$AOUT" -Werror -xc - || exit 1
 
   $RUN_AOUT
   local actual="$?"
@@ -103,6 +105,7 @@ test_if() {
   try '#if exp' 'abc' "#if 4 + 5 > 6\nabc\n#else\nxyz\n#endif"
   try '#if VAR expr' 'FOUR' "#define X  -2 + 2\n#if X * 3 == 0\nZERO\n#elif X * 3 == 4\nFOUR\n#endif"
   try 'Macro in #if' '111' "#define FOO(x) x/2\n#if FOO(2)==1\n111\n#else\n222\n#endif"
+  try 'func-macro in unmet' '' "#ifdef FOO\n#if FOO(123)\nfoo-123\n#endif\n#endif"
   try 'Direct comment' '/*comment*///comment' "#if 0\n#else/*comment*/\n#endif//comment"
   try '#if w/ block comment' 'AAA' '#if 1==2/*\n*/-1\nAAA\n#else\nBBB\n#endif'
   try '#else w/ block comment' '/**/BBB' '#if 0\nAAA\n#else/*\n*/\nBBB\n#endif'
@@ -215,7 +218,7 @@ test_run() {
   mkdir -p tmp_include
   echo -e "#define BAR (13)" > tmp_include/tmp.h
   echo -e "#include_next <tmp.h>\n#define FOO (29)" > tmp.h
-  try_run "Include with include_next" 42 "#include <tmp.h>\nint main(){return FOO+BAR;}"
+  try_run "Include with include_next" 42 "#include <tmp.h>\nint main(){return FOO+BAR;}"  "-I . -I tmp_include"
 
   end_test_suite
 }

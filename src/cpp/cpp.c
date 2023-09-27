@@ -66,7 +66,6 @@ int main(int argc, char *argv[]) {
       FILE *fp;
       if (!is_file(filename) || (fp = fopen(filename, "r")) == NULL)
         error("Cannot open file: %s\n", filename);
-      fprintf(ofp, "# 1 \"%s\" 1\n", filename);
       preprocess(fp, filename);
       fclose(fp);
     }

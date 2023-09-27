@@ -121,8 +121,10 @@ Token *pp_match(enum TokenKind kind) {
           break;
         }
 
-        const char *line = get_processed_next_line();
-        if (line == NULL) {
+        char *line = NULL;
+        size_t capa = 0;
+        ssize_t len = getline_cont(&line, &capa, pp_stream->fp, &pp_stream->lineno);
+        if (len == -1) {
           lex_error(comment_start, "Block comment not closed");
         }
         q = line;
@@ -452,7 +454,6 @@ static Token *match2(enum TokenKind kind) {
     const char *line = get_processed_next_line();
     if (line == NULL)
       return NULL;
-    ++pp_stream->lineno;
     set_source_string(line, pp_stream->filename, pp_stream->lineno);
   }
   return pp_match(kind);
