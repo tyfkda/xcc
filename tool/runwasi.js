@@ -64,5 +64,6 @@ function getRealpaths(map) {
     wasi.start(instance)
   } catch (e) {
     console.error(e)
+    process.exit(1)
   }
 })()
