@@ -116,6 +116,7 @@ static void dump_func_ir(Function *func) {
   fprintf(fp, "### %.*s\n\n", NAMES(func->name));
 
   fprintf(fp, "params and locals:\n");
+  Vector *stack_vars = new_vector();
   for (int i = 0; i < func->scopes->len; ++i) {
     Scope *scope = func->scopes->data[i];
     if (scope->vars == NULL)
@@ -125,10 +126,20 @@ static void dump_func_ir(Function *func) {
       if (!is_local_storage(varinfo))
         continue;
       VReg *vreg = varinfo->local.vreg;
-      if (vreg == NULL)
+      if (vreg == NULL) {
+        vec_push(stack_vars, varinfo);
         continue;
-      fprintf(fp, "  V%3d (flag=%x): %.*s\n", vreg->virt, vreg->flag, NAMES(varinfo->name));
+      }
+      fprintf(fp, "  V%3d (flag=%x): %.*s  : ", vreg->virt, vreg->flag, NAMES(varinfo->name));
+      print_type(fp, varinfo->type);
+      fprintf(fp, "\n");
     }
+  }
+  for (int i = 0; i < stack_vars->len; ++i) {
+    VarInfo *varinfo = stack_vars->data[i];
+    fprintf(fp, "  stack (offset=%4d, size=%zu): %.*s  : ", varinfo->local.frameinfo->offset, type_size(varinfo->type), NAMES(varinfo->name));
+    print_type(fp, varinfo->type);
+    fprintf(fp, "\n");
   }
 
   RegAlloc *ra = fnbe->ra;
