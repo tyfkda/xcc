@@ -47,15 +47,14 @@ VReg *reg_alloc_spawn(RegAlloc *ra, enum VRegSize vsize, int vflag) {
   return vreg;
 }
 
-VReg *reg_alloc_spawn_const(RegAlloc *ra, int64_t value, enum VRegSize vsize, int vflag) {
-  vflag |= VRF_CONST;
+VReg *reg_alloc_spawn_const(RegAlloc *ra, int64_t value, enum VRegSize vsize) {
   for (int i = 0; i < ra->consts->len; ++i) {
     VReg *v = ra->consts->data[i];
-    if (v->fixnum == value && v->vsize == vsize && v->flag == vflag)
+    if (v->fixnum == value && v->vsize == vsize)
       return v;
   }
 
-  VReg *vreg = reg_alloc_spawn(ra, vsize, vflag);
+  VReg *vreg = reg_alloc_spawn(ra, vsize, VRF_CONST);
   vreg->fixnum = value;
   return vreg;
 }
@@ -340,7 +339,7 @@ static int insert_tmp_reg(RegAlloc *ra, Vector *irs, int j, VReg *spilled) {
   IR *ir = irs->data[j];
   VReg *opr = ir->opr1 == spilled ? ir->opr1 : ir->opr2 == spilled ? ir->opr2 : NULL;
   if (opr != NULL) {
-    vec_insert(irs, j++, new_ir_load_spilled(tmp, opr));
+    vec_insert(irs, j++, new_ir_load_spilled(tmp, opr, ir->flag));
     if (ir->opr1 == spilled)
       ir->opr1 = tmp;
     if (ir->opr2 == spilled)

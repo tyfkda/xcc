@@ -48,7 +48,7 @@ static void dump_ir(FILE *fp, IR *ir) {
   switch (ir->kind) {
   case IR_DIV:
   case IR_MOD:
-    fprintf(fp, "%s%s\t", kOps[ir->kind], ir->dst->flag & VRF_UNSIGNED ? "U" : "");
+    fprintf(fp, "%s%s\t", kOps[ir->kind], ir->flag & IRF_UNSIGNED ? "U" : "");
     break;
   case IR_JMP:
     fprintf(fp, "J%s\t", kCond[ir->jmp.cond & (COND_MASK | COND_UNSIGNED)]);

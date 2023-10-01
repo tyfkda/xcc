@@ -131,6 +131,7 @@ bool is_flonum(const Type *type);
 #else
 #define is_flonum(type)  (false)
 #endif
+bool is_unsigned(const Type *type);
 bool is_char_type(const Type *type);
 bool is_void_ptr(const Type *type);
 bool is_prim_type(const Type *type);

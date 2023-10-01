@@ -52,5 +52,5 @@ typedef struct RegAlloc {
 
 RegAlloc *new_reg_alloc(const RegAllocSettings *settings);
 VReg *reg_alloc_spawn(RegAlloc *ra, enum VRegSize vsize, int vflag);
-VReg *reg_alloc_spawn_const(RegAlloc *ra, int64_t value, enum VRegSize vsize, int vflag);
+VReg *reg_alloc_spawn_const(RegAlloc *ra, int64_t value, enum VRegSize vsize);
 void alloc_physical_registers(RegAlloc *ra, BBContainer *bbcon);

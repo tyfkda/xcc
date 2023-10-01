@@ -29,7 +29,7 @@ VReg *gen_expr(Expr *expr);
 void gen_cond_jmp(Expr *cond, bool tf, BB *bb);
 
 void set_curbb(BB *bb);
-VReg *add_new_vreg(const Type *type, int vflag);
+VReg *add_new_vreg(const Type *type);
 enum VRegSize to_vsize(const Type *type);
 int to_vflag(const Type *type);
 

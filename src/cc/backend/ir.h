@@ -30,11 +30,10 @@ enum VRegSize {
 #define VRF_CONST     (1 << 2)  // Constant
 #define VRF_SPILLED   (1 << 3)  // Spilled
 #define VRF_NO_SPILL  (1 << 4)  // No Spill
-#define VRF_UNSIGNED  (1 << 5)  // Unsigned?
 #define VRF_FLONUM    (1 << 6)  // Floating-point register?
 #define VRF_UNUSED    (1 << 9)  // Unused
 
-#define VRF_MASK      (VRF_UNSIGNED | VRF_FLONUM)
+#define VRF_MASK      (VRF_FLONUM)
 
 typedef struct VReg {
   enum VRegSize vsize;
@@ -109,8 +108,11 @@ enum {
   COND_FLONUM = 1 << 4,
 };
 
+#define IRF_UNSIGNED  (1 << 0)
+
 typedef struct IR {
   enum IrKind kind;
+  int flag;
   VReg *dst;
   VReg *opr1;
   VReg *opr2;
@@ -166,14 +168,15 @@ typedef struct IR {
   };
 } IR;
 
-VReg *new_const_vreg(int64_t value, enum VRegSize vsize, int vflag);
-VReg *new_ir_bop(enum IrKind kind, VReg *opr1, VReg *opr2, enum VRegSize vsize);
-VReg *new_ir_unary(enum IrKind kind, VReg *opr, enum VRegSize vsize, int vflag);
-IR *new_ir_mov(VReg *dst, VReg *src);
+VReg *new_const_vreg(int64_t value, enum VRegSize vsize);
+VReg *new_ir_bop(enum IrKind kind, VReg *opr1, VReg *opr2, enum VRegSize vsize, int flag);
+VReg *new_ir_unary(enum IrKind kind, VReg *opr, enum VRegSize vsize, int flag);
+VReg *new_ir_load(VReg *opr, enum VRegSize vsize, int vflag, int irflag);
+IR *new_ir_mov(VReg *dst, VReg *src, int flag);
 VReg *new_ir_bofs(FrameInfo *fi);
 VReg *new_ir_iofs(const Name *label, bool global);
 VReg *new_ir_sofs(VReg *src);
-void new_ir_store(VReg *dst, VReg *src);
+void new_ir_store(VReg *dst, VReg *src, int flag);
 void new_ir_cmp(VReg *opr1, VReg *opr2);
 VReg *new_ir_cond(enum ConditionKind cond);
 void new_ir_jmp(enum ConditionKind cond, BB *bb);
@@ -183,12 +186,12 @@ void new_ir_pusharg(VReg *vreg, int index);
 VReg *new_ir_call(const Name *label, bool global, VReg *freg, int total_arg_count,
                   int reg_arg_count, enum VRegSize result_size, int result_flag, IR *precall,
                   VReg **args, int vaarg_start);
-void new_ir_result(VReg *dst, VReg *vreg);
+void new_ir_result(VReg *dst, VReg *vreg, int flag);
 void new_ir_subsp(VReg *value, VReg *dst);
-VReg *new_ir_cast(VReg *vreg, enum VRegSize dstsize, int vflag);
+IR *new_ir_cast(VReg *vreg, enum VRegSize dstsize, int vflag);
 void new_ir_asm(const char *asm_, VReg *dst);
 
-IR *new_ir_load_spilled(VReg *vreg, VReg *src);
+IR *new_ir_load_spilled(VReg *vreg, VReg *src, int flag);
 IR *new_ir_store_spilled(VReg *dst, VReg *vreg);
 
 // Register allocator

@@ -296,7 +296,7 @@ static void ei_div(IR *ir) {
     assert(ir->dst->phys == ir->opr1->phys);
     assert(ir->opr2->phys != GET_AREG_INDEX());
     // Break %ax
-    if (!(ir->dst->flag & VRF_UNSIGNED)) {
+    if (!(ir->flag & IRF_UNSIGNED)) {
       if (ir->opr1->phys != GET_AREG_INDEX())
         MOVSX(kReg8s[ir->opr1->phys], AX);
       IDIV(kReg8s[ir->opr2->phys]);
@@ -317,7 +317,7 @@ static void ei_div(IR *ir) {
     const char *a = regs[GET_AREG_INDEX()];
     if (ir->opr1->phys != GET_AREG_INDEX())
       MOV(regs[ir->opr1->phys], a);
-    if (!(ir->dst->flag & VRF_UNSIGNED)) {
+    if (!(ir->flag & IRF_UNSIGNED)) {
       switch (pow) {
       case 1: CWTL(); break;
       case 2: CLTD(); break;
@@ -345,7 +345,7 @@ static void ei_mod(IR *ir) {
     assert(ir->dst->phys == ir->opr1->phys);
     assert(ir->opr2->phys != GET_AREG_INDEX());
     // Break %ax
-    if (!(ir->dst->flag & VRF_UNSIGNED)) {
+    if (!(ir->flag & IRF_UNSIGNED)) {
       if (ir->opr1->phys != GET_AREG_INDEX())
         MOVSX(kReg8s[ir->opr1->phys], AX);
       IDIV(kReg8s[ir->opr2->phys]);
@@ -369,7 +369,7 @@ static void ei_mod(IR *ir) {
     const char *a = regs[GET_AREG_INDEX()];
     if (ir->opr1->phys != GET_AREG_INDEX())
       MOV(regs[ir->opr1->phys], a);
-    if (!(ir->dst->flag & VRF_UNSIGNED)) {
+    if (!(ir->flag & IRF_UNSIGNED)) {
       switch (pow) {
       case 1: CWTL(); break;
       case 2: CLTD(); break;
@@ -446,7 +446,7 @@ static void ei_lshift(IR *ir) {
 }
 
 static void ei_rshift(IR *ir) {
-#define RSHIFT_INST(n, x)  do  { if (ir->opr1->flag & VRF_UNSIGNED) SHR(n, x); else SAR(n, x); } while (0)
+#define RSHIFT_INST(n, x)  do  { if (ir->flag & IRF_UNSIGNED) SHR(n, x); else SAR(n, x); } while (0)
   assert(ir->dst->phys == ir->opr1->phys);
   assert(!(ir->opr1->flag & VRF_CONST));
   int pow = ir->dst->vsize;
@@ -739,7 +739,7 @@ static void ei_cast(IR *ir) {
       // fix->flonum
       int pows = ir->opr1->vsize;
       if (pows < 2) {
-        if (ir->opr1->flag & VRF_UNSIGNED)
+        if (ir->flag & IRF_UNSIGNED)
           MOVZX(kRegSizeTable[pows][ir->opr1->phys], kRegSizeTable[2][ir->opr1->phys]);
         else
           MOVSX(kRegSizeTable[pows][ir->opr1->phys], kRegSizeTable[2][ir->opr1->phys]);
@@ -747,7 +747,7 @@ static void ei_cast(IR *ir) {
       }
       const char *s = kRegSizeTable[pows][ir->opr1->phys];
       const char *d = kFReg64s[ir->dst->phys];
-      if (!(ir->opr1->flag & VRF_UNSIGNED)) {
+      if (!(ir->flag & IRF_UNSIGNED)) {
         switch (ir->dst->vsize) {
         case SZ_FLOAT:   CVTSI2SS(s, d); break;
         case SZ_DOUBLE:  CVTSI2SD(s, d); break;
@@ -810,7 +810,7 @@ static void ei_cast(IR *ir) {
       int powd = ir->dst->vsize;
       assert(0 <= pows && pows < 4);
       assert(0 <= powd && powd < 4);
-      if (ir->opr1->flag & VRF_UNSIGNED) {
+      if (ir->flag & IRF_UNSIGNED) {
         if (pows == 2 && powd == 3) {
           // MOVZX %64bit, %32bit doesn't exist!
           if (ir->dst->phys != ir->opr1->phys)
@@ -1024,7 +1024,7 @@ static void convert_3to2(BBContainer *bbcon) {
       case IR_BITNOT:
         {
           assert(!(ir->dst->flag & VRF_CONST));
-          IR *mov = new_ir_mov(ir->dst, ir->opr1);
+          IR *mov = new_ir_mov(ir->dst, ir->opr1, ir->flag);
           vec_insert(irs, j++, mov);
           ir->opr1 = ir->dst;
         }
@@ -1039,7 +1039,7 @@ static void convert_3to2(BBContainer *bbcon) {
 static void insert_const_mov(VReg **pvreg, RegAlloc *ra, Vector *irs, int i) {
   VReg *c = *pvreg;
   VReg *tmp = reg_alloc_spawn(ra, c->vsize, 0);
-  IR *mov = new_ir_mov(tmp, c);
+  IR *mov = new_ir_mov(tmp, c, ((IR*)irs->data[i])->flag);
   vec_insert(irs, i, mov);
   *pvreg = tmp;
 }

@@ -209,12 +209,12 @@ static void ei_load(IR *ir) {
     dst = regs[ir->dst->phys];
     switch (pow) {
     case 0:
-      if (ir->dst->flag & VRF_UNSIGNED) LDRB(dst, src);
-      else                              LDRSB(dst, src);
+      if (ir->flag & IRF_UNSIGNED) LDRB(dst, src);
+      else                         LDRSB(dst, src);
       break;
     case 1:
-      if (ir->dst->flag & VRF_UNSIGNED) LDRH(dst, src);
-      else                              LDRSH(dst, src);
+      if (ir->flag & IRF_UNSIGNED) LDRH(dst, src);
+      else                         LDRSH(dst, src);
       break;
     case 2: case 3:
       LDR(dst, src);
@@ -254,7 +254,7 @@ static void ei_store(IR *ir) {
       src = kZeroRegTable[pow];
     else
       mov_immediate(src = kTmpRegTable[pow], ir->opr1->fixnum, pow >= 3,
-                    ir->opr1->flag & VRF_UNSIGNED);
+                    ir->flag & IRF_UNSIGNED);
   } else {
     src = kRegSizeTable[pow][ir->opr1->phys];
   }
@@ -344,7 +344,7 @@ static void ei_div(IR *ir) {
     int pow = ir->dst->vsize;
     assert(0 <= pow && pow < 4);
     const char **regs = kRegSizeTable[pow];
-    if (!(ir->dst->flag & VRF_UNSIGNED))
+    if (!(ir->flag & IRF_UNSIGNED))
       SDIV(regs[ir->dst->phys], regs[ir->opr1->phys], regs[ir->opr2->phys]);
     else
       UDIV(regs[ir->dst->phys], regs[ir->opr1->phys], regs[ir->opr2->phys]);
@@ -359,7 +359,7 @@ static void ei_mod(IR *ir) {
   const char *num = regs[ir->opr1->phys];
   const char *div = regs[ir->opr2->phys];
   const char *tmp = kTmpRegTable[pow];
-  if (!(ir->dst->flag & VRF_UNSIGNED))
+  if (!(ir->flag & IRF_UNSIGNED))
     SDIV(tmp, num, div);
   else
     UDIV(tmp, num, div);
@@ -403,7 +403,7 @@ static void ei_lshift(IR *ir) {
 }
 
 static void ei_rshift(IR *ir) {
-#define RSHIFT_INST(a, b, c)  do  { if (ir->opr1->flag & VRF_UNSIGNED) LSR(a, b, c); else ASR(a, b, c); } while (0)
+#define RSHIFT_INST(a, b, c)  do  { if (ir->flag & IRF_UNSIGNED) LSR(a, b, c); else ASR(a, b, c); } while (0)
   assert(!(ir->opr1->flag & VRF_CONST));
   int pow = ir->dst->vsize;
   assert(0 <= pow && pow < 4);
@@ -433,7 +433,7 @@ static void ei_result(IR *ir) {
     int dstphys = ir->dst != NULL ? ir->dst->phys : GET_X0_INDEX();
     const char *dst = kRegSizeTable[pow][dstphys];
     if (ir->opr1->flag & VRF_CONST) {
-      mov_immediate(dst, ir->opr1->fixnum, pow >= 3, ir->opr1->flag & VRF_UNSIGNED);
+      mov_immediate(dst, ir->opr1->fixnum, pow >= 3, ir->flag & IRF_UNSIGNED);
     } else if (ir->opr1->phys != dstphys) {  // Source is not return register.
       MOV(dst, kRegSizeTable[pow][ir->opr1->phys]);
     }
@@ -471,7 +471,7 @@ static void ei_mov(IR *ir) {
     assert(0 <= pow && pow < 4);
     const char **regs = kRegSizeTable[pow];
     if (ir->opr1->flag & VRF_CONST) {
-      mov_immediate(regs[ir->dst->phys], ir->opr1->fixnum, pow >= 3, ir->opr1->flag & VRF_UNSIGNED);
+      mov_immediate(regs[ir->dst->phys], ir->opr1->fixnum, pow >= 3, ir->flag & IRF_UNSIGNED);
     } else {
       if (ir->opr1->phys != ir->dst->phys)
         MOV(regs[ir->dst->phys], regs[ir->opr1->phys]);
@@ -696,8 +696,8 @@ static void ei_cast(IR *ir) {
       default: assert(false); break;
       }
       const char *src = kRegSizeTable[pows][ir->opr1->phys];
-      if (ir->opr1->flag & VRF_UNSIGNED)  UCVTF(dst, src);
-      else                                SCVTF(dst, src);
+      if (ir->flag & IRF_UNSIGNED)  UCVTF(dst, src);
+      else                          SCVTF(dst, src);
     }
   } else if (ir->opr1->flag & VRF_FLONUM) {
     // flonum->fix
@@ -721,7 +721,7 @@ static void ei_cast(IR *ir) {
       int powd = ir->dst->vsize;
       assert(0 <= pows && pows < 4);
       assert(0 <= powd && powd < 4);
-      if (ir->opr1->flag & VRF_UNSIGNED) {
+      if (ir->flag & IRF_UNSIGNED) {
         switch (pows) {
         case 0:  UXTB(kRegSizeTable[powd][ir->dst->phys], kRegSizeTable[pows][ir->opr1->phys]); break;
         case 1:  UXTH(kRegSizeTable[powd][ir->dst->phys], kRegSizeTable[pows][ir->opr1->phys]); break;
@@ -898,7 +898,7 @@ static void swap_opr12(IR *ir) {
 static void insert_const_mov(VReg **pvreg, RegAlloc *ra, Vector *irs, int i) {
   VReg *c = *pvreg;
   VReg *tmp = reg_alloc_spawn(ra, c->vsize, 0);
-  IR *mov = new_ir_mov(tmp, c);
+  IR *mov = new_ir_mov(tmp, c, ((IR*)irs->data[i])->flag);
   vec_insert(irs, i, mov);
   *pvreg = tmp;
 }

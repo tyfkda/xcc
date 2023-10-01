@@ -241,6 +241,10 @@ bool is_flonum(const Type *type) {
 }
 #endif
 
+bool is_unsigned(const Type *type) {
+  return (is_fixnum(type->kind) && type->fixnum.is_unsigned) || type->kind == TY_PTR;
+}
+
 bool is_char_type(const Type *type) {
   return type->kind == TY_FIXNUM && type->fixnum.kind == FX_CHAR;
 }

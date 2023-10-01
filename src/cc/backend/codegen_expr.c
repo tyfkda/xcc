@@ -35,11 +35,11 @@ enum VRegSize to_vsize(const Type *type) {
 int to_vflag(const Type *type) {
   if (is_flonum(type))
     return VRF_FLONUM;
-  return !is_fixnum(type->kind) || type->fixnum.is_unsigned ? VRF_UNSIGNED : 0;
+  return 0;
 }
 
-VReg *add_new_vreg(const Type *type, int vflag) {
-  return reg_alloc_spawn(curra, to_vsize(type), vflag | to_vflag(type));
+VReg *add_new_vreg(const Type *type) {
+  return reg_alloc_spawn(curra, to_vsize(type), to_vflag(type));
 }
 
 static Table builtin_function_table;  // <BuiltinFunctionProc>
@@ -163,12 +163,12 @@ void gen_cond_jmp(Expr *cond, bool tf, BB *bb) {
 }
 
 static VReg *gen_cast(Expr *expr) {
-  VReg *vreg = gen_expr(expr->unary.sub);
+  Expr *src = expr->unary.sub;
+  VReg *vreg = gen_expr(src);
   const Type *dst_type = expr->type;
 
   switch (dst_type->kind) {
   case TY_VOID:
-    return NULL;  // Assume void value is not used.
   case TY_STRUCT:
     return vreg;
   default: break;
@@ -182,26 +182,27 @@ static VReg *gen_cast(Expr *expr) {
       // Assume that integer is represented in Two's complement
       size_t bit = dst_size * TARGET_CHAR_BIT;
       UFixnum mask = (-1UL) << bit;
-      if (dst_type->kind == TY_FIXNUM && !dst_type->fixnum.is_unsigned &&  // signed
-          (value & (1 << (bit - 1))))  // negative
+      if (!is_unsigned(dst_type) && (value & (1 << (bit - 1))))    // signed && negative
         value |= mask;
       else
         value &= ~mask;
     }
 
     enum VRegSize vsize = to_vsize(dst_type);
-    int vflag = to_vflag(dst_type);
-    return new_const_vreg(value, vsize, vflag);
+    return new_const_vreg(value, vsize);
   }
 
   int dst_size = type_size(dst_type);
-  bool lu = dst_type->kind == TY_FIXNUM ? dst_type->fixnum.is_unsigned : dst_type->kind == TY_PTR;
-  bool ru = (vreg->flag & VRF_UNSIGNED) ? true : false;
-  if (dst_size == 1 << vreg->vsize && lu == ru &&
+  bool dstu = is_unsigned(dst_type);
+  bool srcu = is_unsigned(src->type);
+  if (dst_size == 1 << vreg->vsize && dstu == srcu &&
       is_flonum(dst_type) == ((vreg->flag & VRF_FLONUM) != 0))
     return vreg;
 
-  return new_ir_cast(vreg, to_vsize(dst_type), to_vflag(dst_type));
+  IR *ir = new_ir_cast(vreg, to_vsize(dst_type), to_vflag(dst_type));
+  if (srcu)
+    ir->flag |= IRF_UNSIGNED;
+  return ir->dst;
 }
 
 static VReg *gen_ref_sub(Expr *expr) {
@@ -229,10 +230,8 @@ static VReg *gen_ref_sub(Expr *expr) {
       if (minfo->offset == 0)
         return vreg;
       enum VRegSize vsize = to_vsize(&tySize);
-      int vflag = vreg->flag & VRF_MASK;
-      VReg *imm = new_const_vreg(minfo->offset, vsize, vflag);
-      VReg *result = new_ir_bop(IR_ADD, vreg, imm, vsize);
-      return result;
+      VReg *imm = new_const_vreg(minfo->offset, vsize);
+      return new_ir_bop(IR_ADD, vreg, imm, vsize, IRF_UNSIGNED);
     }
   case EX_COMPLIT:
     {
@@ -272,7 +271,8 @@ static VReg *gen_variable(Expr *expr) {
       }
 
       VReg *vreg = gen_lval(expr);
-      VReg *result = new_ir_unary(IR_LOAD, vreg, to_vsize(expr->type), to_vflag(expr->type));
+      int irflag = is_unsigned(expr->type) ? IRF_UNSIGNED : 0;
+      VReg *result = new_ir_load(vreg, to_vsize(expr->type), to_vflag(expr->type), irflag);
       return result;
     }
   case TY_ARRAY:   // Use variable address as a pointer.
@@ -294,7 +294,7 @@ static VReg *gen_ternary(Expr *expr) {
     Type *type = expr->type;
     if (!is_number(type) && !ptr_or_array(type))
       type = ptrof(type);
-    result = add_new_vreg(type, 0);
+    result = add_new_vreg(type);
   }
 
   gen_cond_jmp(expr->ternary.cond, false, fbb);
@@ -302,13 +302,13 @@ static VReg *gen_ternary(Expr *expr) {
   set_curbb(tbb);
   VReg *tval = gen_expr(expr->ternary.tval);
   if (result != NULL)
-    new_ir_mov(result, tval);
+    new_ir_mov(result, tval, is_unsigned(expr->ternary.tval->type) ? IRF_UNSIGNED : 0);
   new_ir_jmp(COND_ANY, nbb);
 
   set_curbb(fbb);
   VReg *fval = gen_expr(expr->ternary.fval);
   if (result != NULL)
-    new_ir_mov(result, fval);
+    new_ir_mov(result, fval, is_unsigned(expr->ternary.fval->type) ? IRF_UNSIGNED : 0);
 
   set_curbb(nbb);
   return result;
@@ -495,7 +495,7 @@ static VReg *gen_funcall(Expr *expr) {
   IR *precall = new_ir_precall(arg_count - stack_arg_count, offset);
 
   if (offset > 0)
-    new_ir_subsp(new_const_vreg(offset, to_vsize(&tySSize), VRF_UNSIGNED), NULL);
+    new_ir_subsp(new_const_vreg(offset, to_vsize(&tySSize)), NULL);
 
   int total_arg_count = arg_count + (ret_varinfo != NULL ? 1 : 0);
   VReg **arg_vregs = total_arg_count == 0 ? NULL : calloc(total_arg_count, sizeof(*arg_vregs));
@@ -523,11 +523,12 @@ static VReg *gen_funcall(Expr *expr) {
       } else {
         enum VRegSize offset_type = 2;  //{.size = 4, .align = 4};  // TODO:
         int ofs = p->offset;
-        VReg *dst = new_ir_sofs(new_const_vreg(ofs, offset_type, 0));
+        VReg *dst = new_ir_sofs(new_const_vreg(ofs, offset_type));
         if (is_stack_param(arg->type)) {
           gen_memcpy(arg->type, dst, vreg);
         } else {
-          new_ir_store(dst, vreg);
+          int flag = is_unsigned(arg->type) ? IRF_UNSIGNED : 0;
+          new_ir_store(dst, vreg, flag);
         }
       }
       arg_vregs[i + arg_start] = vreg;
@@ -578,8 +579,8 @@ static VReg *gen_funcall(Expr *expr) {
 
 VReg *gen_arith(enum ExprKind kind, const Type *type, VReg *lhs, VReg *rhs) {
   assert(EX_ADD <= kind && kind <= EX_RSHIFT);
-  assert(!(kind == EX_DIV || kind == EX_MOD) || is_number(type));
-  return new_ir_bop(kind + (IR_ADD - EX_ADD), lhs, rhs, to_vsize(type));
+  int flag = is_unsigned(type) ? IRF_UNSIGNED : 0;
+  return new_ir_bop(kind + (IR_ADD - EX_ADD), lhs, rhs, to_vsize(type), flag);
 }
 
 static VReg *gen_block_expr(Expr *expr) {
@@ -587,7 +588,7 @@ static VReg *gen_block_expr(Expr *expr) {
 }
 
 static VReg *gen_fixnum(Expr *expr) {
-  return new_const_vreg(expr->fixnum, to_vsize(expr->type), to_vflag(expr->type));
+  return new_const_vreg(expr->fixnum, to_vsize(expr->type));
 }
 
 static VReg *gen_flonum(Expr *expr) {
@@ -604,7 +605,7 @@ static VReg *gen_flonum(Expr *expr) {
   gvarinfo->global.init = init;
 
   VReg *src = new_ir_iofs(gvarinfo->name, false);
-  return new_ir_unary(IR_LOAD, src, to_vsize(type), to_vflag(type));
+  return new_ir_load(src, to_vsize(type), to_vflag(type), 0);
 #else
   UNUSED(expr);
   assert(false);
@@ -625,8 +626,10 @@ static VReg *gen_ref(Expr *expr) {
 static VReg *gen_deref(Expr *expr) {
   VReg *vreg = gen_expr(expr->unary.sub);
   // array, struct and func values are handled as a pointer.
-  if (is_prim_type(expr->type))
-    vreg = new_ir_unary(IR_LOAD, vreg, to_vsize(expr->type), to_vflag(expr->type));
+  if (is_prim_type(expr->type)) {
+    int irflag = is_unsigned(expr->type) ? IRF_UNSIGNED : 0;
+    vreg = new_ir_load(vreg, to_vsize(expr->type), to_vflag(expr->type), irflag);
+  }
   return vreg;
 }
 
@@ -644,8 +647,10 @@ static VReg *gen_member(Expr *expr) {
 
   VReg *vreg = gen_lval(expr);
   VReg *result = vreg;
-  if (is_prim_type(expr->type))
-    result = new_ir_unary(IR_LOAD, vreg, to_vsize(expr->type), to_vflag(expr->type));
+  if (is_prim_type(expr->type)) {
+    int irflag = is_unsigned(expr->type) ? IRF_UNSIGNED : 0;
+    result = new_ir_load(vreg, to_vsize(expr->type), to_vflag(expr->type), irflag);
+  }
   return result;
 }
 
@@ -661,7 +666,7 @@ static VReg *gen_assign_sub(Expr *lhs, Expr *rhs) {
       const VarInfo *varinfo = scope_find(lhs->var.scope, lhs->var.name, NULL);
       if (is_local_storage(varinfo)) {
         assert(varinfo->local.vreg != NULL);
-        new_ir_mov(varinfo->local.vreg, src);
+        new_ir_mov(varinfo->local.vreg, src, is_unsigned(rhs->type) ? IRF_UNSIGNED : 0);
         return src;
       }
     }
@@ -676,7 +681,10 @@ static VReg *gen_assign_sub(Expr *lhs, Expr *rhs) {
   case TY_FIXNUM:
   case TY_PTR:
   case TY_FLONUM:
-    new_ir_store(dst, src);
+    {
+      int flag = is_unsigned(rhs->type) ? IRF_UNSIGNED : 0;
+      new_ir_store(dst, src, flag);
+    }
     break;
   case TY_STRUCT:
     if (lhs->type->struct_.info->size > 0) {
@@ -710,15 +718,16 @@ static VReg *gen_expr_incdec(Expr *expr) {
   VReg *before = NULL;
   VReg *lval = NULL;
   VReg *val;
+  int flag = is_unsigned(expr->type) ? IRF_UNSIGNED : 0;
   if (varinfo != NULL) {
     val = varinfo->local.vreg;
     if (IS_POST(expr)) {
-      before = add_new_vreg(target->type, val->flag & VRF_MASK);
-      new_ir_mov(before, val);
+      before = add_new_vreg(target->type);
+      new_ir_mov(before, val, flag);
     }
   } else {
     lval = gen_lval(target);
-    val = new_ir_unary(IR_LOAD, lval, vsize, to_vflag(expr->type));
+    val = new_ir_load(lval, vsize, to_vflag(expr->type), flag);
     if (IS_POST(expr))
       before = val;
   }
@@ -727,11 +736,10 @@ static VReg *gen_expr_incdec(Expr *expr) {
 #ifndef __NO_FLONUM
       is_flonum(target->type) ? gen_flonum(new_expr_flolit(target->type, NULL, 1)) :
 #endif
-      new_const_vreg(expr->type->kind == TY_PTR ? type_size(expr->type->pa.ptrof) : 1, vsize,
-                     val->flag & VRF_MASK);
-  VReg *after = new_ir_bop(kOpAddSub[IS_DEC(expr)], val, addend, vsize);
-  if (varinfo != NULL)  new_ir_mov(varinfo->local.vreg, after);
-  else                  new_ir_store(lval, after);
+      new_const_vreg(expr->type->kind == TY_PTR ? type_size(expr->type->pa.ptrof) : 1, vsize);
+  VReg *after = new_ir_bop(kOpAddSub[IS_DEC(expr)], val, addend, vsize, flag);
+  if (varinfo != NULL)  new_ir_mov(varinfo->local.vreg, after, flag);
+  else                  new_ir_store(lval, after, flag);
   return before != NULL ? before : after;
 #undef IS_POST
 #undef IS_DEC
@@ -749,14 +757,12 @@ static VReg *gen_neg(Expr *expr) {
     return gen_arith(EX_SUB, expr->type, zero, vreg);
   }
 #endif
-  VReg *result = new_ir_unary(IR_NEG, vreg, to_vsize(expr->type), to_vflag(expr->type));
-  return result;
+  return new_ir_unary(IR_NEG, vreg, to_vsize(expr->type), is_unsigned(expr->type) ? IRF_UNSIGNED : 0);
 }
 
 static VReg *gen_bitnot(Expr *expr) {
   VReg *vreg = gen_expr(expr->unary.sub);
-  VReg *result = new_ir_unary(IR_BITNOT, vreg, to_vsize(expr->type), to_vflag(expr->type));
-  return result;
+  return new_ir_unary(IR_BITNOT, vreg, to_vsize(expr->type), is_unsigned(expr->type) ? IRF_UNSIGNED : 0);
 }
 
 static VReg *gen_relation(Expr *expr) {
@@ -764,7 +770,7 @@ static VReg *gen_relation(Expr *expr) {
   switch (cond) {
   case COND_NONE:
   case COND_ANY:
-    return new_const_vreg(cond == COND_ANY, to_vsize(&tyBool), 0);
+    return new_const_vreg(cond == COND_ANY, to_vsize(&tyBool));
   default:
     return new_ir_cond(cond);
   }
@@ -775,11 +781,11 @@ static VReg *gen_expr_logandor(Expr *expr) {
   BB *next_bb = new_bb();
   gen_cond_jmp(expr, false, false_bb);
   enum VRegSize vsbool = to_vsize(&tyBool);
-  VReg *result = add_new_vreg(&tyBool, 0);
-  new_ir_mov(result, new_const_vreg(true, vsbool, 0));
+  VReg *result = add_new_vreg(&tyBool);
+  new_ir_mov(result, new_const_vreg(true, vsbool), 0);
   new_ir_jmp(COND_ANY, next_bb);
   set_curbb(false_bb);
-  new_ir_mov(result, new_const_vreg(false, vsbool, 0));
+  new_ir_mov(result, new_const_vreg(false, vsbool), 0);
   set_curbb(next_bb);
   return result;
 }
@@ -840,7 +846,7 @@ static VReg *gen_inlined(Expr *expr) {
       // Receive as its pointer.
       rettype = ptrof(rettype);
     }
-    fnbe->result_dst = dst = add_new_vreg(rettype, 0);
+    fnbe->result_dst = dst = add_new_vreg(rettype);
   }
 
   gen_block(embedded);
