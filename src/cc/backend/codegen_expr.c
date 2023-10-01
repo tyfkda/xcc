@@ -142,15 +142,12 @@ void gen_cond_jmp(Expr *cond, bool tf, BB *bb) {
       BB *bb2 = new_bb();
       if (!tf)
         ck = (EX_LOGAND + EX_LOGIOR) - ck;  // LOGAND <-> LOGIOR
-      if (ck == EX_LOGAND) {
+      if (ck == EX_LOGAND)
         gen_cond_jmp(cond->bop.lhs, !tf, bb2);
-        set_curbb(bb1);
-        gen_cond_jmp(cond->bop.rhs, tf, bb);
-      } else {
+      else
         gen_cond_jmp(cond->bop.lhs, tf, bb);
-        set_curbb(bb1);
-        gen_cond_jmp(cond->bop.rhs, tf, bb);
-      }
+      set_curbb(bb1);
+      gen_cond_jmp(cond->bop.rhs, tf, bb);
       set_curbb(bb2);
     }
     return;

@@ -1046,28 +1046,21 @@ static void gen_cond(Expr *cond, bool tf, bool needval) {
     gen_compare_expr(ck, cond->bop.lhs, cond->bop.rhs, needval);
     break;
   case EX_LOGAND:
-    gen_cond(cond->bop.lhs, true, true);
-    ADD_CODE(OP_IF, needval ? WT_I32 : WT_VOID);
-    ++cur_depth;
-    gen_cond(cond->bop.rhs, tf, needval);
-    if (needval) {
-      ADD_CODE(OP_ELSE);
-      ADD_CODE(OP_I32_CONST, tf ? 0 : 1);
-    }
-    ADD_CODE(OP_END);
-    --cur_depth;
-    break;
   case EX_LOGIOR:
-    gen_cond(cond->bop.lhs, false, true);
-    ADD_CODE(OP_IF, needval ? WT_I32 : WT_VOID);
-    ++cur_depth;
-    gen_cond(cond->bop.rhs, tf, needval);
-    if (needval) {
-      ADD_CODE(OP_ELSE);
-      ADD_CODE(OP_I32_CONST, tf ? 1 : 0);
+    {
+      bool logand = ck == EX_LOGAND;
+      gen_cond(cond->bop.lhs, logand, true);
+      ADD_CODE(OP_IF, needval ? WT_I32 : WT_VOID);
+      ++cur_depth;
+      gen_cond(cond->bop.rhs, tf, needval);
+      if (needval) {
+        ADD_CODE(OP_ELSE);
+        assert((tf & ~1) == 0);  // tf == true || tf == false
+        ADD_CODE(OP_I32_CONST, tf ^ logand);
+      }
+      ADD_CODE(OP_END);
+      --cur_depth;
     }
-    ADD_CODE(OP_END);
-    --cur_depth;
     break;
   case EX_COMMA:
     gen_expr(cond->bop.lhs, false);
