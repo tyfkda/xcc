@@ -1270,8 +1270,10 @@ TEST(struct) {
   }
 
   {
-    #define NULL  ((void*)0)
-    #define offsetof(S, m)  ((long)(&((S*)NULL)->m))
+#undef NULL
+#define NULL  ((void*)0)
+#undef offsetof
+#define offsetof(S, m)  ((long)(&((S*)NULL)->m))
     struct X {char x[5]; char z;};
     char a[offsetof(struct X, z)];
     EXPECT("offsetof is const", 5, sizeof(a));
@@ -1608,12 +1610,14 @@ TEST(initializer) {
       sum += *p++;
     EXPECT("global compound literal ptr", 246, sum);
 
+#if !defined(__GNUC__)
     int l_comp_array[] = (int[]){111, 222, 333, 0};
     p = l_comp_array;
     sum = 0;
     while (*p != 0)
       sum += *p++;
     EXPECT("local compound literal array", 666, sum);
+#endif
 
     int *l_comp_ptr = (int[]){1, 11, 111, 1111, 0};
     p = l_comp_ptr;

@@ -143,7 +143,7 @@ link_test: link_main.c link_sub.c
 
 .PHONY: test-std-valtest
 test-std-valtest:
-	$(CC) -Wno-builtin-declaration-mismatch -Wno-overflow valtest.c
+	$(CC) -Wno-overflow -Wno-implicit-int -Wno-switch-unreachable valtest.c
 	./a.out
 
 ### Wasm version

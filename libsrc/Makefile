@@ -10,9 +10,7 @@ ifeq ("$(UNAME)", "Darwin")
 CFLAGS:=-I$(INC_DIR) -Wall -Wextra -Werror \
 	-Wno-incompatible-library-redeclaration
 else
-CFLAGS:=-I$(INC_DIR) -Wall -Wextra -Werror \
-	-Wno-builtin-declaration-mismatch \
-	-Wno-format-truncation
+CFLAGS:=-I$(INC_DIR) -Wall -Wextra -Werror
 endif
 
 ### Library
