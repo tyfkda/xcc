@@ -337,12 +337,19 @@ static void gen_return(Stmt *stmt) {
   if (stmt->return_.val != NULL) {
     Expr *val = stmt->return_.val;
     VReg *vreg = gen_expr(val);
-    VReg *retval = fnbe->retval;
-    if (retval != NULL) {
-      gen_memcpy(val->type, retval, vreg);
-      vreg = retval;
+    if (is_prim_type(val->type)) {
+      new_ir_result(fnbe->result_dst, vreg);
+    } else {
+      VReg *retval = fnbe->retval;
+      if (retval != NULL) {
+        gen_memcpy(val->type, retval, vreg);
+        new_ir_result(fnbe->result_dst, retval);
+      } else {
+        // Embedding inline function: lval (struct pointer) is returned.
+        assert(fnbe->result_dst != NULL);
+        new_ir_mov(fnbe->result_dst, vreg);
+      }
     }
-    new_ir_result(fnbe->result_dst, vreg);
   }
   new_ir_jmp(COND_ANY, fnbe->ret_bb);
   set_curbb(bb);

@@ -841,10 +841,13 @@ static VReg *gen_inlined(Expr *expr) {
   fnbe->ret_bb = inline_end_bb;
   fnbe->retval = NULL;
 
-  const Type *rettype = expr->type;
+  Type *rettype = expr->type;
   VReg *dst = NULL;
   if (rettype->kind != TY_VOID) {
-    assert(is_prim_type(rettype));
+    if (!is_prim_type(rettype)) {
+      // Receive as its pointer.
+      rettype = ptrof(rettype);
+    }
     fnbe->result_dst = dst = add_new_vreg(rettype, 0);
   }
 

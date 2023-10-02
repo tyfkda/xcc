@@ -1319,18 +1319,22 @@ static void gen_return(Stmt *stmt) {
     if (is_prim_type(rettype)) {
       gen_expr(val, true);
     } else {
-#if !defined(NDEBUG)
       FuncInfo *finfo = table_get(&func_info_table, curfunc->name);
-      assert(finfo != NULL && !(finfo->flag & FF_INLINING));
-#endif
-      // Local #0 is the pointer for result.
-      ADD_CODE(OP_LOCAL_GET, 0);  // TODO: Handle inline case.
-      gen_expr(val, true);
-      ADD_CODE(OP_I32_CONST);
-      ADD_LEB128(type_size(rettype));
-      ADD_CODE(OP_EXTENSION, OPEX_MEMORY_COPY, 0, 0);  // src, dst
-      // Result.
-      ADD_CODE(OP_LOCAL_GET, 0);
+      assert(finfo != NULL);
+      if (!(finfo->flag & FF_INLINING)) {
+        // Local #0 is the pointer for result.
+        ADD_CODE(OP_LOCAL_GET, 0);
+        gen_expr(val, true);
+        ADD_CODE(OP_I32_CONST);
+        ADD_LEB128(type_size(rettype));
+        ADD_CODE(OP_EXTENSION, OPEX_MEMORY_COPY, 0, 0);  // src, dst
+        // Result.
+        ADD_CODE(OP_LOCAL_GET, 0);
+      } else {
+        // Inlining a function which returns struct:
+        // Put value pointer on top of the stack.
+        gen_expr(val, true);
+      }
     }
   }
 

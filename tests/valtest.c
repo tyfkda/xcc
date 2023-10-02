@@ -1683,7 +1683,7 @@ TEST(initializer) {
 
 void empty_function(void){}
 int more_params(int a, int b, int c, int d, int e, int f, char g, int h) { return a + b + c + d + e + f + g + h; }
-typedef struct {int x;} MoreParamsReturnsStruct;
+typedef struct {int x; int y;} MoreParamsReturnsStruct;
 MoreParamsReturnsStruct more_params_returns_struct(int a, int b, int c, int d, int e, int f, int g) { return (MoreParamsReturnsStruct){f + g}; }
 int array_arg_wo_size(int arg[]) { return arg[1]; }
 long long long_immediate(unsigned long long x) { return x / 11; }
@@ -1697,6 +1697,7 @@ static inline int inline_factorial(int x) { return x <= 1 ? 1 : x * inline_facto
 static inline bool inline_even(int x);
 static inline bool inline_odd(int x)  { return x == 0 ? false : inline_even(x - 1); }
 static inline bool inline_even(int x)  { return x == 0 ? true : inline_odd(x - 1); }
+static inline MoreParamsReturnsStruct inline_returns_struct(int x, int y) { return (MoreParamsReturnsStruct){-x, ~y}; }
 
 int mul2(int x) {return x * 2;}
 int div2(int x) {return x / 2;}
@@ -1814,7 +1815,11 @@ TEST(function) {
   EXPECT_TRUE(inline_odd(9));
   EXPECT_TRUE(inline_even(8));
   EXPECT_FALSE(inline_odd(8));
-  // TODO: inline function called in a function that returns struct.
+  {
+    MoreParamsReturnsStruct r = inline_returns_struct(1234, 5678);
+    EXPECT("inline return struct 1", -1234, r.x);
+    EXPECT("inline return struct 2", ~5678, r.y);
+  }
 
   EXPECT("stdarg", 55, vaarg_and_array(10, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10));
   EXPECT("vaarg fnptr", 15, fnptr(vaarg_and_array)(5, 1, 2, 3, 4, 5));

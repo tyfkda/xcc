@@ -1226,8 +1226,7 @@ int get_funparam_index(Function *func, const Name *name) {
 bool satisfy_inline_criteria(const VarInfo *varinfo) {
   // TODO: Check complexity or length of function body statements.
   const Type *type = varinfo->type;
-  if (type->kind == TY_FUNC && varinfo->storage & VS_INLINE && !type->func.vaargs &&
-      (is_prim_type(type->func.ret) || type->func.ret->kind == TY_VOID)) {
+  if (type->kind == TY_FUNC && (varinfo->storage & VS_INLINE) && !type->func.vaargs) {
     Function *func = varinfo->global.func;
     if (func != NULL) {
       // Self-recursion or mutual recursion are prevented,
@@ -1354,8 +1353,21 @@ static Expr *duplicate_inline_function_expr(Function *targetfunc, Scope *targets
         Stmt *stmt = duplicate_inline_function_stmt(targetfunc, targetscope, src_inits->data[i]);
         vec_push(inits, stmt);
       }
-      return new_expr_complit(expr->type, expr->token, expr->complit.var, inits,
-                              expr->complit.original_init);
+
+      // Refer duplicated local variable.
+      const Expr *org_var = expr->complit.var;
+      assert(org_var->kind == EX_VAR);
+#if !defined(NDEBUG)
+      // Variable for complit must be in current scope.
+      Scope *scope;
+      VarInfo *varinfo = scope_find(curscope, org_var->var.name, &scope);
+      assert(varinfo != NULL);
+      assert(scope == curscope);
+#else
+      Scope *scope = curscope;
+#endif
+      Expr *var = new_expr_variable(org_var->var.name, org_var->type, expr->token, scope);
+      return new_expr_complit(expr->type, expr->token, var, inits, expr->complit.original_init);
     }
   case EX_BLOCK:
     {
