@@ -799,6 +799,9 @@ static Expr *transform_incdec_of_bitfield(enum ExprKind kind, Expr *target, cons
                                                 new_expr_bop(EX_COMMA, vtype, tok, val_assign, store))),
                       val);
 }
+#else
+// Make sure inline function is out.
+extern inline void not_bitfield_member(Expr *expr);
 #endif
 
 Expr *incdec_of(enum ExprKind kind, Expr *target, const Token *tok) {

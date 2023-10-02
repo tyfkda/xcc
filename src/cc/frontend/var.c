@@ -32,9 +32,8 @@ VarInfo *var_add(Vector *vars, const Name *name, Type *type, int storage) {
   return varinfo;
 }
 
-bool is_local_storage(const VarInfo *varinfo) {
-  return !(varinfo->storage & (VS_STATIC | VS_EXTERN | VS_ENUM_MEMBER | VS_TYPEDEF));
-}
+// Make sure inline function is out.
+extern inline bool is_local_storage(const VarInfo *varinfo);
 
 // Global
 

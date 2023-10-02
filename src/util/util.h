@@ -84,10 +84,10 @@ void sb_init(StringBuffer *sb);
 void sb_clear(StringBuffer *sb);
 bool sb_empty(StringBuffer *sb);
 void sb_insert(StringBuffer *sb, int pos, const char *start, const char *end);
-#define sb_append(sb, start, end)  sb_insert(sb, (sb)->elems->len, start, end)
-#define sb_prepend(sb, start, end)  sb_insert(sb, 0, start, end)
-#define sb_to_string(sb)  sb_join(sb, NULL)
+inline void sb_append(StringBuffer *sb, const char *start, const char *end)  { sb_insert(sb, sb->elems->len, start, end); }
+inline void sb_prepend(StringBuffer *sb, const char *start, const char *end)  { sb_insert(sb, 0, start, end); }
 char *sb_join(StringBuffer *sb, const char *separator);
+inline char *sb_to_string(StringBuffer *sb)  { return sb_join(sb, NULL); }
 
 void escape_string(const char *str, size_t size, StringBuffer *sb);
 

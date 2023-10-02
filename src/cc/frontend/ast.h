@@ -426,7 +426,7 @@ Stmt *new_stmt_block(const Token *token, Vector *stmts, Scope *scope, const Toke
 Stmt *new_stmt_if(const Token *token, Expr *cond, Stmt *tblock, Stmt *fblock);
 Stmt *new_stmt_switch(const Token *token, Expr *value);
 Stmt *new_stmt_case(const Token *token, Stmt *swtch, Expr *value);
-#define new_stmt_default(token, swtch)  new_stmt_case(token, swtch, NULL)
+inline Stmt *new_stmt_default(const Token *token, Stmt *swtch)  { return new_stmt_case(token, swtch, NULL); }
 Stmt *new_stmt_while(const Token *token, Expr *cond, Stmt *body);
 Stmt *new_stmt_for(const Token *token, Expr *pre, Expr *cond, Expr *post, Stmt *body);
 Stmt *new_stmt_return(const Token *token, Expr *val);

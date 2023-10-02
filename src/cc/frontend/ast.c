@@ -252,6 +252,9 @@ Stmt *new_stmt_case(const Token *token, Stmt *swtch, Expr *value) {
   return stmt;
 }
 
+// Make sure inline function is out.
+extern Stmt *new_stmt_default(const Token *token, Stmt *swtch);
+
 Stmt *new_stmt_while(const Token *token, Expr *cond, Stmt *body) {
   Stmt *stmt = new_stmt(ST_WHILE, token);
   stmt->while_.cond = cond;

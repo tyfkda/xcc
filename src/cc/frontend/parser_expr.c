@@ -324,11 +324,11 @@ Type *parse_raw_type(int *pstorage) {
       tc.storage |= VS_STATIC;
       continue;
     case TK_INLINE:
-      ASSERT_PARSE_ERROR((tc.storage & ~VS_STATIC) == 0, tok, MULTIPLE_STORAGE_SPECIFIED);
+      ASSERT_PARSE_ERROR((tc.storage & ~(VS_STATIC | VS_EXTERN)) == 0, tok, MULTIPLE_STORAGE_SPECIFIED);
       tc.storage |= VS_INLINE;
       continue;
     case TK_EXTERN:
-      ASSERT_PARSE_ERROR(tc.storage == 0, tok, MULTIPLE_STORAGE_SPECIFIED);
+      ASSERT_PARSE_ERROR((tc.storage & ~VS_INLINE) == 0, tok, MULTIPLE_STORAGE_SPECIFIED);
       tc.storage |= VS_EXTERN;
       continue;
     case TK_TYPEDEF:
