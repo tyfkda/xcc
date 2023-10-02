@@ -342,7 +342,7 @@ static void gen_funcall(Expr *expr) {
         Expr *arg = args->data[i + param_count];
         const Type *t = arg->type;
         assert(!(t->kind == TY_FIXNUM && t->fixnum.kind < FX_INT));
-        //vaarg_bufsiz = ALIGN(vaarg_bufsiz, align_size(t));
+        // vaargs are promoted to int, so alignment is not needed.
         vaarg_bufsiz += type_size(t);
       }
     }
