@@ -61,7 +61,7 @@ Elf64_Sym *symtab_add(Symtab *symtab, const Name *name) {
 
   int old_count = symtab->count;
   int new_count = old_count + 1;
-  symtab->buf = realloc_or_die(symtab->buf, sizeof(*symtab->buf) * new_count);;
+  symtab->buf = realloc_or_die(symtab->buf, sizeof(*symtab->buf) * new_count);
   symtab->count = new_count;
   Elf64_Sym *sym = &symtab->buf[old_count];
   memset(sym, 0x00, sizeof(*sym));
@@ -116,6 +116,7 @@ void out_program_header(FILE *fp, int sec, uintptr_t offset, uintptr_t vaddr, si
 }
 
 #else
-// Avoid: error: ISO C requires a translation unit to contain at least one declaration [-Werror,-Wempty-translation-unit]
+// Avoid: error: ISO C requires a translation unit to contain at least one declaration
+// [-Werror,-Wempty-translation-unit]
 typedef int make_iso_compilers_happy;
 #endif  // !ELF_NOT_SUPPORTED

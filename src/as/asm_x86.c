@@ -404,7 +404,9 @@ static unsigned char *asm_movsds_ix(Inst *inst, Code *code, bool single) {
       unsigned char dno = inst->dst.regxmm - XMM0;
       int d = dno & 7;
       int s = sno & 7;
-      unsigned char op = (offset == 0 && s != RBP - RAX) ? (unsigned char)0x00 : is_im8(offset) ? (unsigned char)0x40 : (unsigned char)0x80;
+      unsigned char op = (offset == 0 && s != RBP - RAX) ? (unsigned char)0x00
+                         : is_im8(offset)                ? (unsigned char)0x40
+                                                         : (unsigned char)0x80;
 
       short buf[] = {
         prefix,
@@ -443,7 +445,9 @@ static unsigned char *asm_movsds_xi(Inst *inst, Code *code, bool single) {
       unsigned char dno = opr_regno(&inst->dst.indirect.reg);
       int d = dno & 7;
       int s = sno & 7;
-      unsigned char op = (offset == 0 && d != RBP - RAX) ? (unsigned char)0x00 : is_im8(offset) ? (unsigned char)0x40 : (unsigned char)0x80;
+      unsigned char op = (offset == 0 && d != RBP - RAX) ? (unsigned char)0x00
+                         : is_im8(offset)                ? (unsigned char)0x40
+                                                         : (unsigned char)0x80;
 
       short buf[] = {
         prefix,
@@ -1431,7 +1435,7 @@ enum {
   DST_REG64_ONLY = 1 << 4,
 };
 
-typedef unsigned char * (*AsmInstFunc)(Inst *inst, Code *code);
+typedef unsigned char *(*AsmInstFunc)(Inst *inst, Code *code);
 typedef struct {
   AsmInstFunc func;
   enum OperandType src_type;

@@ -137,11 +137,13 @@ static int emit_align(DataStorage *ds, int offset, int align) {
 }
 
 static void emit_fixnum(DataStorage *ds, Fixnum v, size_t size) {
-  data_append(ds, (unsigned char*)&v, size);  // Assume endian and CHAR_BIT are same on host and target.
+  // Assume endian and CHAR_BIT are same on host and target.
+  data_append(ds, (unsigned char *)&v, size);
 }
 
 #ifndef __NO_BITFIELD
-static int construct_initial_value_bitfield(DataStorage *ds, const StructInfo *sinfo, const Initializer *init, int start, int *poffset) {
+static int construct_initial_value_bitfield(DataStorage *ds, const StructInfo *sinfo,
+                                            const Initializer *init, int start, int *poffset) {
   const MemberInfo *member = &sinfo->members[start];
   const Type *et = get_fixnum_type(member->bitfield.base_kind, false, 0);
 
@@ -347,7 +349,8 @@ static int compare_indirect(const void *pa, const void *pb) {
   return (int)qa->indirect_index - (int)qb->indirect_index;
 }
 
-void emit_wasm(FILE *ofp, Vector *exports, const char *import_module_name, uint32_t address_bottom) {
+void emit_wasm(FILE *ofp, Vector *exports, const char *import_module_name,
+               uint32_t address_bottom) {
   emit_wasm_header(ofp);
 
   // Types.
@@ -397,7 +400,8 @@ void emit_wasm(FILE *ofp, Vector *exports, const char *import_module_name, uint3
       uint32_t type_index = info->type_index;
 
       emit_uleb128(&imports_section, -1, module_name_len);  // string length
-      data_append(&imports_section, (const unsigned char*)module_name, module_name_len);  // import module name
+      data_append(&imports_section, (const unsigned char*)module_name,
+                  module_name_len);  // import module name
       int name_len = name->bytes;
       emit_uleb128(&imports_section, -1, name_len);  // string length
       data_append(&imports_section, (const unsigned char*)name->chars, name_len);  // import name
@@ -547,7 +551,8 @@ void emit_wasm(FILE *ofp, Vector *exports, const char *import_module_name, uint3
     const Name *name;
     FuncInfo *info;
     int index = 0;
-    for (int it = 0; (it = table_iterate(&indirect_function_table, it, &name, (void**)&info)) != -1; ++index)
+    for (int it = 0; (it = table_iterate(&indirect_function_table, it, &name, (void**)&info)) != -1;
+         ++index)
       indirect_funcs[index] = info;
 
     qsort(indirect_funcs, count, sizeof(*indirect_funcs), compare_indirect);
@@ -558,7 +563,7 @@ void emit_wasm(FILE *ofp, Vector *exports, const char *import_module_name, uint3
     emit_leb128(&elems_section, -1, table_start_index);  // start index
     data_push(&elems_section, OP_END);
     emit_leb128(&elems_section, -1, count);  // num elems
-    for (int i = 0 ; i < count; ++i) {
+    for (int i = 0; i < count; ++i) {
       FuncInfo *info = indirect_funcs[i];
       VERBOSE("%2d: %.*s (%d)\n", i, NAMES(info->func->name), (int)info->index);
       emit_leb128(&elems_section, -1, info->index);  // elem function index
@@ -717,8 +722,6 @@ static Expr *proc_builtin_va_start(const Token *ident) {
     return NULL;
   }
 
-  //#define va_start(ap, param)  (void)(ap = __va_args__)
-
   Type *tyvalist = find_typedef(curscope, alloc_name("__builtin_va_list", NULL, false), NULL);
   assert(tyvalist != NULL);
 
@@ -738,6 +741,7 @@ static Expr *proc_builtin_va_start(const Token *ident) {
   for (Scope *p = curscope; p = p->parent, !is_global_scope(p); )
     top_scope = p;
 
+  // (void)(ap = __va_args__)
   const Name *name = alloc_name(VA_ARGS_NAME, NULL, false);
   Expr *va_args = new_expr_variable(name, tyvalist, param->token, top_scope);
   Expr *assign = new_expr_bop(EX_ASSIGN, ap->type, ap->token, ap, va_args);
@@ -754,8 +758,7 @@ static Expr *proc_builtin_va_end(const Token *ident) {
     return NULL;
   }
 
-  //#define va_end(ap)           (void)(ap = 0)
-
+  // (void)(ap = 0)
   Expr *ap = args->data[0];
   Expr *assign = new_expr_bop(EX_ASSIGN, ap->type, ap->token, ap,
                               new_expr_fixlit(&tyInt, ident, 0));
@@ -769,8 +772,7 @@ static Expr *proc_builtin_va_arg(const Token *ident) {
   Type *type = parse_var_def(NULL, NULL, NULL);
   consume(TK_RPAR, "`)' expected");
 
-  //#define va_arg(v,l)     (ap = (char*)ap + sizeof(type), *(type*)((char*)ap - sizeof(type)))
-
+  // (ap = (char*)ap + sizeof(type), *(type*)((char*)ap - sizeof(type)))
   size_t size = type_size(type);
   Expr *size_lit = new_expr_fixlit(&tySize, ap->token, size);
   Expr *cap = make_cast(ptrof(&tyUnsignedChar), ap->token, ap, true);
@@ -794,8 +796,7 @@ static Expr *proc_builtin_va_copy(const Token *ident) {
     return NULL;
   }
 
-  //#define va_start(ap, param)  (void)(ap = (va_list)&(param))
-
+  // (void)(dst = src)
   Expr *dst = args->data[0];
   Expr *src = args->data[1];
   Expr *assign = new_expr_bop(EX_ASSIGN, dst->type, dst->token, dst, src);
@@ -810,17 +811,15 @@ static void gen_alloca(Expr *expr) {
   assert(curfunc != NULL);
   Expr *size = args->data[0];
   const Token *token = size->token;
-  Expr *aligned_size = new_expr_bop(EX_BITAND, &tySSize, token,
-      new_expr_addsub(EX_ADD, token,
-                      make_cast(&tySSize, token, size, false),
-                      new_expr_fixlit(&tySSize, token, stack_align - 1)),
-      new_expr_fixlit(&tySSize, token, -stack_align));
+  Expr *aligned_size =
+      new_expr_bop(EX_BITAND, &tySSize, token,
+                   new_expr_addsub(EX_ADD, token, make_cast(&tySSize, token, size, false),
+                                   new_expr_fixlit(&tySSize, token, stack_align - 1)),
+                   new_expr_fixlit(&tySSize, token, -stack_align));
 
   Expr *spvar = get_sp_var();
-  gen_expr_stmt(
-      new_expr_bop(EX_ASSIGN, &tyVoid, NULL, spvar,
-          new_expr_bop(EX_SUB, &tySize, NULL, spvar,
-              aligned_size)));
+  gen_expr_stmt(new_expr_bop(EX_ASSIGN, &tyVoid, NULL, spvar,
+                             new_expr_bop(EX_SUB, &tySize, NULL, spvar, aligned_size)));
   gen_expr(spvar, true);
 }
 

@@ -253,7 +253,8 @@ static void ei_store(IR *ir) {
     if (ir->opr1->fixnum == 0)
       src = kZeroRegTable[pow];
     else
-      mov_immediate(src = kTmpRegTable[pow], ir->opr1->fixnum, pow >= 3, ir->opr1->flag & VRF_UNSIGNED);
+      mov_immediate(src = kTmpRegTable[pow], ir->opr1->fixnum, pow >= 3,
+                    ir->opr1->flag & VRF_UNSIGNED);
   } else {
     src = kRegSizeTable[pow][ir->opr1->phys];
   }
@@ -580,7 +581,8 @@ static void ei_tjmp(IR *ir) {
   char *label = fmt_name(table_label);
   ADRP(dst, LABEL_AT_PAGE(label));
   ADD(dst, dst, LABEL_AT_PAGEOFF(label));
-  LDR(dst, REG_OFFSET(dst, kRegSizeTable[pows][phys], pows < powd ? _UXTW(3) : _LSL(3)));  // dst = label + (opr1 << 3)
+  // dst = label + (opr1 << 3)
+  LDR(dst, REG_OFFSET(dst, kRegSizeTable[pows][phys], pows < powd ? _UXTW(3) : _LSL(3)));
   BR(dst);
 
   _RODATA();
@@ -749,7 +751,8 @@ static void ei_asm(IR *ir) {
 
 //
 
-static int enum_callee_save_regs(unsigned long bit, int n, const int *indices, const char **regs, const char *saves[CALLEE_SAVE_REG_COUNT]) {
+static int enum_callee_save_regs(unsigned long bit, int n, const int *indices, const char **regs,
+                                 const char *saves[CALLEE_SAVE_REG_COUNT]) {
   int count = 0;
   for (int i = 0; i < n; ++i) {
     int ireg = indices[i];
@@ -759,7 +762,8 @@ static int enum_callee_save_regs(unsigned long bit, int n, const int *indices, c
   return count;
 }
 
-#define N  (CALLEE_SAVE_REG_COUNT > CALLEE_SAVE_FREG_COUNT ? CALLEE_SAVE_REG_COUNT : CALLEE_SAVE_FREG_COUNT)
+#define N  (CALLEE_SAVE_REG_COUNT > CALLEE_SAVE_FREG_COUNT ? CALLEE_SAVE_REG_COUNT \
+                                                           : CALLEE_SAVE_FREG_COUNT)
 
 int push_callee_save_regs(unsigned long used, unsigned long fused) {
   const char *saves[(N + 1) & ~1];
@@ -770,7 +774,8 @@ int push_callee_save_regs(unsigned long used, unsigned long fused) {
     else
       STR(saves[i], PRE_INDEX(SP, -16));
   }
-  int fcount = enum_callee_save_regs(fused, CALLEE_SAVE_FREG_COUNT, kCalleeSaveFRegs, kFReg64s, saves);
+  int fcount = enum_callee_save_regs(fused, CALLEE_SAVE_FREG_COUNT, kCalleeSaveFRegs, kFReg64s,
+                                     saves);
   for (int i = 0; i < fcount; i += 2) {
     if (i + 1 < fcount)
       STP(saves[i], saves[i + 1], PRE_INDEX(SP, -16));
@@ -782,7 +787,8 @@ int push_callee_save_regs(unsigned long used, unsigned long fused) {
 
 void pop_callee_save_regs(unsigned long used, unsigned long fused) {
   const char *saves[(N + 1) & ~1];
-  int fcount = enum_callee_save_regs(fused, CALLEE_SAVE_FREG_COUNT, kCalleeSaveFRegs, kFReg64s, saves);
+  int fcount = enum_callee_save_regs(fused, CALLEE_SAVE_FREG_COUNT, kCalleeSaveFRegs, kFReg64s,
+                                     saves);
   if ((fcount & 1) != 0)
     LDR(saves[--fcount], POST_INDEX(SP, 16));
   for (int i = fcount; i > 0; ) {

@@ -39,7 +39,8 @@ VReg *gen_stmts(Vector *stmts);
 VReg *gen_block(Stmt *stmt);
 
 typedef VReg *(*BuiltinFunctionProc)(Expr *expr);
-void add_builtin_function(const char *str, Type *type, BuiltinFunctionProc *proc, bool add_to_scope);
+void add_builtin_function(const char *str, Type *type, BuiltinFunctionProc *proc,
+                          bool add_to_scope);
 
 void gen_clear_local_var(const VarInfo *varinfo);
 void gen_memcpy(const Type *type, VReg *dst, VReg *src);

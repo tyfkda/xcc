@@ -149,7 +149,7 @@ static void remove_unused_vregs(RegAlloc *ra, BBContainer *bbcon) {
   // Check VReg usage.
   for (int i = 0; i < bbcon->bbs->len; ++i) {
     BB *bb = bbcon->bbs->data[i];
-     for (int j = 0; j < bb->irs->len; ++j) {
+    for (int j = 0; j < bb->irs->len; ++j) {
       IR *ir = bb->irs->data[j];
       VReg *operands[] = {ir->opr1, ir->opr2};
       for (int k = 0; k < 2; ++k) {
@@ -163,7 +163,7 @@ static void remove_unused_vregs(RegAlloc *ra, BBContainer *bbcon) {
   // Remove instruction if the destination is unread.
   for (int i = 0; i < bbcon->bbs->len; ++i) {
     BB *bb = bbcon->bbs->data[i];
-     for (int j = 0; j < bb->irs->len; ++j) {
+    for (int j = 0; j < bb->irs->len; ++j) {
       IR *ir = bb->irs->data[j];
       if (ir->dst == NULL || vreg_read[ir->dst->virt])
         continue;

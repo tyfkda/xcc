@@ -143,7 +143,8 @@ static Stmt *init_char_array_by_string(Expr *dst, Initializer *src) {
     dst->type->pa.length = dstsize = size;
   } else {
     if (dstsize < size - 1)
-      parse_error(PE_FATAL, NULL, "Buffer is shorter than string: %d for \"%s\"", (int)dstsize, str);
+      parse_error(PE_FATAL, NULL, "Buffer is shorter than string: %d for \"%s\"", (int)dstsize,
+                  str);
   }
 
   Type *strtype = dst->type;
@@ -275,7 +276,8 @@ static Initializer *flatten_initializer_multi(Type *type, Initializer *init, int
 
       if (*pindex < m) {
         Initializer *elem_init = init->multi->data[*pindex];
-        if (elem_init->kind == IK_SINGLE && same_type_without_qualifier(type, elem_init->single->type, true)) {
+        if (elem_init->kind == IK_SINGLE &&
+            same_type_without_qualifier(type, elem_init->single->type, true)) {
           *pindex += 1;
           return elem_init;
         }
@@ -396,7 +398,8 @@ static Initializer *flatten_initializer_multi0(Type *type, Initializer *init) {
   case TY_STRUCT:
     if (index < init->multi->len) {
       const char *tstr = type->kind == TY_ARRAY ? "array" : "struct";
-      parse_error(PE_WARNING, ((Initializer*)init->multi->data[index])->token, "Excess elements in %s initializer", tstr);
+      parse_error(PE_WARNING, ((Initializer*)init->multi->data[index])->token,
+                  "Excess elements in %s initializer", tstr);
     }
     break;
   default: assert(false); break;
@@ -635,7 +638,8 @@ static Initializer *check_global_initializer(Type *type, Initializer *init) {
     }
     break;
   default:
-    parse_error(PE_NOFATAL, NULL, "Global initial value for type %d not implemented (yet)\n", type->kind);
+    parse_error(PE_NOFATAL, NULL, "Global initial value for type %d not implemented (yet)\n",
+                type->kind);
     break;
   }
   return init;
@@ -734,10 +738,11 @@ Vector *assign_initial_value(Expr *expr, Initializer *init, Vector *inits) {
 #ifndef __NO_BITFIELD
           if (minfo->bitfield.width > 0) {
             if (init_elem->kind != IK_SINGLE) {
-              parse_error(PE_FATAL, init_elem->token, "illegal initializer for member `%.*s'", NAMES(minfo->name));
+              parse_error(PE_FATAL, init_elem->token, "illegal initializer for member `%.*s'",
+                          NAMES(minfo->name));
             } else {
-              vec_push(inits, new_stmt_expr(
-                  assign_to_bitfield(init_elem->token, member, init_elem->single, minfo)));
+              vec_push(inits, new_stmt_expr(assign_to_bitfield(init_elem->token, member,
+                                                               init_elem->single, minfo)));
             }
           } else
 #endif
@@ -774,8 +779,8 @@ Vector *assign_initial_value(Expr *expr, Initializer *init, Vector *inits) {
       assert(init->kind == IK_SINGLE);
       Expr *value = str_to_char_array_var(curscope, init->single);
       vec_push(inits,
-                new_stmt_expr(new_expr_bop(EX_ASSIGN, expr->type, init->token, expr,
-                                           make_cast(expr->type, init->token, value, false))));
+               new_stmt_expr(new_expr_bop(EX_ASSIGN, expr->type, init->token, expr,
+                                          make_cast(expr->type, init->token, value, false))));
     }
     break;
   }
@@ -838,12 +843,12 @@ Initializer *check_vardecl(Type **ptype, const Token *ident, int storage, Initia
     ensure_struct(type, ident, curscope);
   init = flatten_initializer(type, init);
   if (type->kind == TY_ARRAY) {
-      if (init != NULL) {
-        *ptype = type = fix_array_size(type, init);
-      } else if (type->pa.length == -1 && !(storage & VS_EXTERN)) {
-        parse_error(PE_WARNING, ident, "Array size undetermined, assume as one");
-        type->pa.length = 1;
-      }
+    if (init != NULL) {
+      *ptype = type = fix_array_size(type, init);
+    } else if (type->pa.length == -1 && !(storage & VS_EXTERN)) {
+      parse_error(PE_WARNING, ident, "Array size undetermined, assume as one");
+      type->pa.length = 1;
+    }
   }
 
   if (curfunc != NULL) {

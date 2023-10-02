@@ -73,7 +73,7 @@ static size_t calc_bitfield_size(StructInfo *sinfo, int *pi, size_t size, size_t
       ssize_t s;
       for (s = 1; (remain & s) == 0; s <<= 1)
         ;
-      ssize_t d =  s - (ssize_t)type_size(&tyInt);
+      ssize_t d = s - (ssize_t)type_size(&tyInt);
       if (d < 0) {
         for (kind = FX_INT; kind > FX_CHAR; --kind) {
           if (s >= (ssize_t)type_size(get_fixnum_type(kind, false, 0)))
@@ -468,7 +468,8 @@ bool can_cast(const Type *dst, const Type *src, bool zero, bool is_explicit) {
       if ((src->pa.ptrof->qualifier & TQ_CONST) && !(dst->pa.ptrof->qualifier & TQ_CONST)) {
         // Allow const char to char for string literal, otherwise disallow.
         // TODO: Allows string literal only.
-        return is_char_type(src->pa.ptrof) && (is_char_type(dst->pa.ptrof) || dst->pa.ptrof->kind == TY_VOID);
+        return is_char_type(src->pa.ptrof) &&
+               (is_char_type(dst->pa.ptrof) || dst->pa.ptrof->kind == TY_VOID);
       }
       // void* is interchangable with any pointer type.
       if (dst->pa.ptrof->kind == TY_VOID || src->pa.ptrof->kind == TY_VOID)
@@ -484,7 +485,8 @@ bool can_cast(const Type *dst, const Type *src, bool zero, bool is_explicit) {
         {
           const Type *ftype = dst->pa.ptrof;
           return (same_type(ftype, src) ||
-                  (same_type(ftype->func.ret, src->func.ret) && (ftype->func.param_types == NULL || src->func.param_types == NULL)));
+                  (same_type(ftype->func.ret, src->func.ret) &&
+                   (ftype->func.param_types == NULL || src->func.param_types == NULL)));
         }
       case TY_VOID:
         return true;

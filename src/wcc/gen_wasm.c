@@ -352,10 +352,10 @@ static void gen_funcall(Expr *expr) {
   if (sarg_siz > 0 || vaarg_bufsiz > 0) {
     spvar = get_sp_var();
     // global.sp -= ALIGN(sarg_siz + vaarg_bufsiz, 8);
-    gen_expr_stmt(
-        new_expr_bop(EX_ASSIGN, &tyVoid, NULL, spvar,
-            new_expr_bop(EX_SUB, &tySize, NULL, spvar,
-                new_expr_fixlit(&tySize, NULL, ALIGN(sarg_siz + vaarg_bufsiz, 8)))));
+    gen_expr_stmt(new_expr_bop(
+        EX_ASSIGN, &tyVoid, NULL, spvar,
+        new_expr_bop(EX_SUB, &tySize, NULL, spvar,
+                     new_expr_fixlit(&tySize, NULL, ALIGN(sarg_siz + vaarg_bufsiz, 8)))));
   }
 
   bool ret_param = functype->func.ret->kind != TY_VOID && !is_prim_type(functype->func.ret);
@@ -437,10 +437,10 @@ static void gen_funcall(Expr *expr) {
 
   if (sarg_siz > 0 || vaarg_bufsiz > 0) {
     // global.sp += ALIGN(sarg_siz + vaarg_bufsiz, 8);
-    gen_expr_stmt(
-        new_expr_bop(EX_ASSIGN, &tyVoid, NULL, spvar,
-            new_expr_bop(EX_ADD, &tySize, NULL, spvar,
-                new_expr_fixlit(&tySize, NULL, ALIGN(sarg_siz + vaarg_bufsiz, 8)))));
+    gen_expr_stmt(new_expr_bop(
+        EX_ASSIGN, &tyVoid, NULL, spvar,
+        new_expr_bop(EX_ADD, &tySize, NULL, spvar,
+                     new_expr_fixlit(&tySize, NULL, ALIGN(sarg_siz + vaarg_bufsiz, 8)))));
   }
 }
 
@@ -878,7 +878,6 @@ static void gen_member(Expr *expr, bool needval) {
 #ifndef __NO_BITFIELD
     const MemberInfo *minfo = member_info(expr);
     if (minfo->bitfield.width > 0) {
-      Expr *extract_bitfield_value(Expr *src, const MemberInfo *minfo);
       Expr *ptr = new_expr_unary(EX_REF, ptrof(minfo->type), NULL, expr);  // promote-to-int
       Expr *load = new_expr_deref(NULL, ptr);
       Expr *e = extract_bitfield_value(load, minfo);
@@ -940,7 +939,9 @@ static void gen_inlined(Expr *expr, bool needval) {
   cur_depth = 1;
 
   const Type *rettype = expr->type;
-  unsigned char wt = is_prim_type(rettype) ? to_wtype(rettype) : rettype->kind != TY_VOID ? WT_I32 : WT_VOID;
+  unsigned char wt = is_prim_type(rettype)      ? to_wtype(rettype)
+                     : rettype->kind != TY_VOID ? WT_I32
+                                                : WT_VOID;
   ADD_CODE(OP_BLOCK, wt); {
     gen_stmt(embedded);
 
@@ -1007,7 +1008,7 @@ static void gen_compare_expr(enum ExprKind kind, Expr *lhs, Expr *rhs, bool need
     index = lhs->type->flonum.kind != FL_FLOAT ? 5 : 4;
   } else {
     index = (!is_fixnum(lhs->type->kind) || lhs->type->fixnum.is_unsigned ? 2 : 0) +
-        (type_size(lhs->type) > I32_SIZE ? 1 : 0);
+            (type_size(lhs->type) > I32_SIZE ? 1 : 0);
   }
 
   static const unsigned char OpTable[][6] = {
@@ -1076,13 +1077,15 @@ static void gen_cond_jmp(Expr *cond, bool tf, uint32_t depth) {
   ADD_ULEB128(depth);
 }
 
-static void gen_switch_table_jump(Stmt *stmt, Expr *value, Fixnum min, Fixnum max, int default_index) {
+static void gen_switch_table_jump(Stmt *stmt, Expr *value, Fixnum min, Fixnum max,
+                                  int default_index) {
   Vector *cases = stmt->switch_.cases;
   int case_count = cases->len;
 
   unsigned int vrange = max - min + 1;
   bool use_alloca = vrange <= 64;
-  int *table = use_alloca ? alloca(sizeof(*table) * vrange) : malloc_or_die(sizeof(*table) * vrange);
+  int *table = use_alloca ? alloca(sizeof(*table) * vrange)
+                          : malloc_or_die(sizeof(*table) * vrange);
   for (unsigned int i = 0; i < vrange; ++i)
     table[i] = default_index;
   for (int i = 0; i < case_count; ++i) {
@@ -1126,7 +1129,8 @@ static void gen_switch(Stmt *stmt) {
     gen_expr(value, false);
     value = value->bop.rhs;
   }
-  assert(is_const(value) || value->kind == EX_VAR);  // Must be simple expression, because this is evaluated multiple times.
+  // Must be simple expression, because this is evaluated multiple times.
+  assert(is_const(value) || value->kind == EX_VAR);
   assert(is_fixnum(value->type->kind));
 
   int default_index = case_count;
@@ -1160,8 +1164,7 @@ static void gen_switch(Stmt *stmt) {
       gen_expr(value, true);
       ADD_CODE(op_const);
       ADD_LEB128(c->case_.value->fixnum);
-      ADD_CODE(op_eq,
-              OP_BR_IF);
+      ADD_CODE(op_eq, OP_BR_IF);
       ADD_ULEB128(i);
     }
     // Jump to default.
@@ -1511,7 +1514,8 @@ static uint32_t allocate_local_variables(Function *func, DataStorage *data) {
       emit_uleb128(data, -1, count);
       data_push(data, WT_I32 - i);
     }
-    local_indices[i] = i == 0 ? ret_param + variadic + pparam_count : local_indices[i - 1] + local_counts[i - 1];
+    local_indices[i] = i == 0 ? ret_param + variadic + pparam_count
+                              : local_indices[i - 1] + local_counts[i - 1];
   }
 
   uint32_t frame_offset = 0;
@@ -1606,10 +1610,9 @@ static void gen_defun(Function *func) {
     gen_expr_stmt(new_expr_bop(EX_ASSIGN, &tyVoid, NULL, bpvar, spvar));
     // global.sp -= frame_size;
     if (frame_size > 0) {
-      gen_expr_stmt(
-          new_expr_bop(EX_ASSIGN, &tyVoid, NULL, spvar,
-              new_expr_bop(EX_SUB, &tySize, NULL, spvar,
-                  new_expr_fixlit(&tySize, NULL, frame_size))));
+      gen_expr_stmt(new_expr_bop(
+          EX_ASSIGN, &tyVoid, NULL, spvar,
+          new_expr_bop(EX_SUB, &tySize, NULL, spvar, new_expr_fixlit(&tySize, NULL, frame_size))));
     }
   }
   // Store ref-taken parameters to stack frame.
@@ -1629,7 +1632,9 @@ static void gen_defun(Function *func) {
 
   // Statements
   if (bpname != NULL) {
-    unsigned char wt = is_prim_type(functype->func.ret) ? to_wtype(functype->func.ret) : functype->func.ret->kind != TY_VOID ? WT_I32 : WT_VOID;
+    unsigned char wt = is_prim_type(functype->func.ret)      ? to_wtype(functype->func.ret)
+                       : functype->func.ret->kind != TY_VOID ? WT_I32
+                                                             : WT_VOID;
     ADD_CODE(OP_BLOCK, wt);
     cur_depth += 1;
   }
@@ -1769,7 +1774,7 @@ void gen_builtin_try_catch_longjmp(Expr *expr) {
         gen_expr(env, true);
         ADD_CODE(OP_I32_NE,
                  OP_IF, WT_VOID,
-                   OP_RETHROW, 1,
+                 OP_RETHROW, 1,
                  OP_END);
         Expr *var = args->data[1];
         if (var != NULL)

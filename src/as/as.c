@@ -193,7 +193,8 @@ static int output_obj(const char *ofn, Table *label_table, Vector *unresolved) {
         size_t index = sym - symtab.buf;
 
         rela->r_offset = u->offset;
-        rela->r_info = ELF64_R_INFO(index, u->kind == UNRES_EXTERN_PC32 ? R_X86_64_PC32 : R_X86_64_PLT32);
+        rela->r_info = ELF64_R_INFO(index, u->kind == UNRES_EXTERN_PC32 ? R_X86_64_PC32
+                                                                        : R_X86_64_PLT32);
         rela->r_addend = u->add;
       }
       break;
@@ -201,7 +202,8 @@ static int output_obj(const char *ofn, Table *label_table, Vector *unresolved) {
       {
         LabelInfo *label = table_get(label_table, u->label);
         assert(label != NULL);
-        int rodata_index = label->section + 1;  // Symtab index for .rodata section = section number + 1
+        // Symtab index for .rodata section = section number + 1
+        int rodata_index = label->section + 1;
         rela->r_offset = u->offset;
         rela->r_info = ELF64_R_INFO(rodata_index, R_X86_64_PC32);
         rela->r_addend = u->add;

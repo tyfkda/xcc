@@ -91,7 +91,8 @@ static int compile(const char *src, Vector *cpp_cmd, Vector *cc1_cmd, int ofd) {
     ++running;
   }
 
-  cpp_cmd->data[cpp_cmd->len - 2] = (void*)src;  // When src is NULL, no input file is given and cpp read from stdin.
+  // When src is NULL, no input file is given and cpp read from stdin.
+  cpp_cmd->data[cpp_cmd->len - 2] = (void *)src;
   pid_t cpp_pid = exec_with_ofd((char**)cpp_cmd->data, ofd2);
   ++running;
 
@@ -479,7 +480,6 @@ int main(int argc, char *argv[]) {
 # if defined(NO_STD_LIB)
     vec_push(ld_cmd, "-nostdlib");
 # endif
-
 #else
     UNUSED(nodefaultlibs);
     UNUSED(nostdlib);

@@ -10,8 +10,7 @@
 
 void *read_from(FILE *fp, unsigned long offset, size_t size) {
   void *buf = malloc_or_die(size);
-  if (fseek(fp, offset, SEEK_SET) != 0 ||
-      fread(buf, 1, size, fp) != size) {
+  if (fseek(fp, offset, SEEK_SET) != 0 || fread(buf, 1, size, fp) != size) {
     free(buf);
     buf = NULL;
   }
@@ -21,7 +20,8 @@ void *read_from(FILE *fp, unsigned long offset, size_t size) {
 static Elf64_Shdr *read_all_section_headers(FILE *fp, size_t start_offset, Elf64_Ehdr *ehdr) {
   if (ehdr->e_shnum <= 0)
     return NULL;
-  Elf64_Shdr *esecs = read_from(fp, ehdr->e_shoff + start_offset, ehdr->e_shnum * sizeof(Elf64_Shdr));
+  Elf64_Shdr *esecs = read_from(fp, ehdr->e_shoff + start_offset,
+                                ehdr->e_shnum * sizeof(Elf64_Shdr));
   if (esecs == NULL) {
     perror("read section header failed");
   }
@@ -51,7 +51,8 @@ static bool load_symtab(ElfObj *elfobj) {
       break;
     case SHT_SYMTAB:
       {
-        Elf64_Sym *symtabs = read_from(elfobj->fp, shdr->sh_offset + elfobj->start_offset, shdr->sh_size);
+        Elf64_Sym *symtabs = read_from(elfobj->fp, shdr->sh_offset + elfobj->start_offset,
+                                       shdr->sh_size);
         if (symtabs == NULL)
           perror("read symtab failed");
         if (shdr->sh_size % sizeof(Elf64_Sym) != 0)
@@ -97,14 +98,14 @@ bool read_elf(ElfObj *elfobj, FILE *fp, const char *fn) {
   elfobj->fp = fp;
   elfobj->start_offset = ftell(fp);
   ssize_t size = fread(&elfobj->ehdr, sizeof(elfobj->ehdr), 1, fp);
-  if (size != 1 ||
-      elfobj->ehdr.e_ident[0] != ELFMAG0 || elfobj->ehdr.e_ident[1] != ELFMAG1 ||
+  if (size != 1 || elfobj->ehdr.e_ident[0] != ELFMAG0 || elfobj->ehdr.e_ident[1] != ELFMAG1 ||
       elfobj->ehdr.e_ident[2] != ELFMAG2 || elfobj->ehdr.e_ident[3] != ELFMAG3) {
     fprintf(stderr, "no elf file: %s\n", fn);
     return false;
   }
   if (elfobj->ehdr.e_machine != MACHINE_TYPE || elfobj->ehdr.e_version != EV_CURRENT ||
-      elfobj->ehdr.e_ehsize != sizeof(Elf64_Ehdr) || elfobj->ehdr.e_shentsize != sizeof(Elf64_Shdr) ||
+      elfobj->ehdr.e_ehsize != sizeof(Elf64_Ehdr) ||
+      elfobj->ehdr.e_shentsize != sizeof(Elf64_Shdr) ||
       elfobj->ehdr.e_shnum < 1 || elfobj->ehdr.e_shstrndx >= elfobj->ehdr.e_shnum) {
     fprintf(stderr, "illegal elf: %s\n", fn);
     return false;
@@ -120,7 +121,8 @@ bool read_elf(ElfObj *elfobj, FILE *fp, const char *fn) {
       p->shdr = shdr;
     }
 
-    elfobj->shstrtab = read_strtab(fp, elfobj->start_offset, &elfobj->shdrs[elfobj->ehdr.e_shstrndx]);
+    elfobj->shstrtab = read_strtab(fp, elfobj->start_offset,
+                                   &elfobj->shdrs[elfobj->ehdr.e_shstrndx]);
     if (elfobj->shstrtab != NULL) {
       if (!load_symtab(elfobj))
         return false;

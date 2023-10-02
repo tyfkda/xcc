@@ -77,7 +77,8 @@ Expr *new_expr_addsub(enum ExprKind kind, const Token *tok, Expr *lhs, Expr *rhs
 #ifndef __NO_BITFIELD
 void not_bitfield_member(Expr *expr);
 Expr *extract_bitfield_value(Expr *src, const MemberInfo *minfo);
-Expr *assign_bitfield_member(const Token *tok, Expr *dst, Expr *src, Expr *val, const MemberInfo *minfo);
+Expr *assign_bitfield_member(const Token *tok, Expr *dst, Expr *src, Expr *val,
+                             const MemberInfo *minfo);
 Expr *assign_to_bitfield(const Token *tok, Expr *lhs, Expr *rhs, const MemberInfo *minfo);
 #else
 #define not_bitfield_member(expr)  // Must not, so noop.

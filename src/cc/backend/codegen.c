@@ -224,7 +224,8 @@ void gen_memcpy(const Type *type, VReg *dst, VReg *src) {
     new_ir_mov(srcp, new_ir_bop(IR_ADD, srcp, vadd, srcp->vsize));  // srcp += elem_size
     new_ir_store(dstp, tmp);
     new_ir_mov(dstp, new_ir_bop(IR_ADD, dstp, vadd, dstp->vsize));  // dstp += elem_size
-    new_ir_mov(vcount, new_ir_bop(IR_SUB, vcount, new_const_vreg(1, vsSize, VRF_UNSIGNED), vcount->vsize));  // vcount -= 1
+    new_ir_mov(vcount, new_ir_bop(IR_SUB, vcount, new_const_vreg(1, vsSize, VRF_UNSIGNED),
+                                  vcount->vsize));  // vcount -= 1
     new_ir_cmp(vcount, new_const_vreg(0, vcount->vsize, VRF_UNSIGNED));
     new_ir_jmp(COND_NE, loop_bb);
     set_curbb(new_bb());
@@ -254,7 +255,8 @@ static void gen_clear(const Type *type, VReg *dst) {
     set_curbb(loop_bb);
     new_ir_store(dstp, vzero);
     new_ir_mov(dstp, new_ir_bop(IR_ADD, dstp, vadd, dstp->vsize));  // dstp += elem_size
-    new_ir_mov(vcount, new_ir_bop(IR_SUB, vcount, new_const_vreg(1, vsSize, VRF_UNSIGNED), vcount->vsize));  // vcount -= 1
+    new_ir_mov(vcount, new_ir_bop(IR_SUB, vcount, new_const_vreg(1, vsSize, VRF_UNSIGNED),
+                                  vcount->vsize));  // vcount -= 1
     new_ir_cmp(vcount, new_const_vreg(0, vcount->vsize, VRF_UNSIGNED));
     new_ir_jmp(COND_NE, loop_bb);
     set_curbb(new_bb());
@@ -391,7 +393,9 @@ static void gen_switch_cond_table_jump(Stmt *swtch, VReg *vreg, Stmt **cases, in
 
   BB *nextbb = new_bb();
   int vflag = vreg->flag & VRF_MASK;
-  VReg *val = min == 0 ? vreg : new_ir_bop(IR_SUB, vreg, new_const_vreg(min, vreg->vsize, vflag), vreg->vsize);
+  VReg *val = vreg;
+  if (min != 0)
+    val = new_ir_bop(IR_SUB, vreg, new_const_vreg(min, vreg->vsize, vflag), vreg->vsize);
   new_ir_cmp(val, new_const_vreg(max - min, val->vsize, vflag));
   new_ir_jmp(COND_GT | COND_UNSIGNED, skip_bb);
   set_curbb(nextbb);
@@ -678,8 +682,8 @@ static void prepare_register_allocation(Function *func) {
         require_stack_frame = true;
       } else if (func->type->func.vaargs) {  // Variadic function parameters.
         if (i >= param_count) {  // Store vaargs to jmp_buf.
-          vreg->frame.offset = flo ? (freg_index - MAX_FREG_ARGS) * WORD_SIZE :
-                                     (ireg_index - MAX_REG_ARGS - MAX_FREG_ARGS) * WORD_SIZE;
+          vreg->frame.offset = flo ? (freg_index - MAX_FREG_ARGS) * WORD_SIZE
+                                   : (ireg_index - MAX_REG_ARGS - MAX_FREG_ARGS) * WORD_SIZE;
         }
       }
 

@@ -83,7 +83,8 @@ unsigned char to_wtype(const Type *type);
 Expr *get_sp_var(void);
 
 typedef void (*BuiltinFunctionProc)(Expr *expr);
-void add_builtin_function(const char *str, Type *type, BuiltinFunctionProc *proc, bool add_to_scope);
+void add_builtin_function(const char *str, Type *type, BuiltinFunctionProc *proc,
+                          bool add_to_scope);
 
 #define ADD_CODE(...)  do { unsigned char buf[] = {__VA_ARGS__}; add_code(buf, sizeof(buf)); } while (0)
 void add_code(const unsigned char* buf, size_t size);

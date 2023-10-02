@@ -232,8 +232,7 @@ LexEofCallback set_lex_eof_callback(LexEofCallback callback) {
 }
 
 bool lex_eof_continue(void) {
-  return (lex_eof_callback != NULL &&
-          (*lex_eof_callback)());
+  return (lex_eof_callback != NULL && (*lex_eof_callback)());
 }
 
 static void init_lexer_with_flag(bool for_preprocess_) {

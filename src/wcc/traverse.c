@@ -93,7 +93,8 @@ int get_func_type_index(const Type *type) {
   return getsert_func_type_index(type, false);
 }
 
-static FuncInfo *register_func_info(const Name *funcname, Function *func, const Type *type, int flag) {
+static FuncInfo *register_func_info(const Name *funcname, Function *func, const Type *type,
+                                    int flag) {
   FuncInfo *info;
   if (!table_try_get(&func_info_table, funcname, (void**)&info)) {
     info = calloc(1, sizeof(*info));
@@ -181,7 +182,8 @@ GVarInfo *get_gvar_info(Expr *expr) {
 
 #define add_global_var(type, name)  scope_add(global_scope, name, type, 0)
 
-void add_builtin_function(const char *str, Type *type, BuiltinFunctionProc *proc, bool add_to_scope) {
+void add_builtin_function(const char *str, Type *type, BuiltinFunctionProc *proc,
+                          bool add_to_scope) {
   const Name *name = alloc_name(str, NULL, false);
   table_put(&builtin_function_table, name, proc);
 
@@ -248,7 +250,8 @@ static void traverse_funcall(Expr **pexpr, bool needval) {
     assert(curfunc != NULL);
     assert(curfunc->scopes != NULL);
     assert(curfunc->scopes->len > 0);
-    VarInfo *varinfo = add_var_to_scope(curfunc->scopes->data[0], alloc_dummy_ident(), functype->func.ret, 0);
+    VarInfo *varinfo = add_var_to_scope(curfunc->scopes->data[0], alloc_dummy_ident(),
+                                        functype->func.ret, 0);
     FuncExtra *extra = curfunc->extra;
     assert(extra != NULL);
     if (extra->funcall_results == NULL)
@@ -373,12 +376,11 @@ static void te_cast(Expr **pexpr, bool needval) {
       }
       // sign: src & (1 << (s * TARGET_CHAR_BIT - 1))
       Expr *msb = new_expr_bop(EX_BITAND, stype, NULL, src,
-          new_expr_fixlit(stype, NULL, 1 << (s * TARGET_CHAR_BIT - 1)));
+                               new_expr_fixlit(stype, NULL, 1 << (s * TARGET_CHAR_BIT - 1)));
       // src | -msb
       Expr *replaced = new_expr_bop(EX_BITOR, dtype, NULL, src,
-              new_expr_unary(EX_NEG, stype, NULL, msb));
-      *pexpr = assign == NULL ? replaced
-          : new_expr_bop(EX_COMMA, dtype, NULL, assign, replaced);
+                                    new_expr_unary(EX_NEG, stype, NULL, msb));
+      *pexpr = assign == NULL ? replaced : new_expr_bop(EX_COMMA, dtype, NULL, assign, replaced);
       // traverse_expr(pexpr, needval);
     }
   }
@@ -414,18 +416,15 @@ static void te_incdec(Expr **pexpr, bool needval) {
                                 new_expr_unary(EX_REF, ptrtype, token, target));
   Expr *deref_p = new_expr_deref(token, p);
   Expr *one = type->kind == TY_PTR ? new_expr_fixlit(&tySize, token, type_size(type->pa.ptrof))
-      : new_expr_fixlit(type, token, 1);
+                                   : new_expr_fixlit(type, token, 1);
   Expr *assign_tmp = new_expr_bop(EX_ASSIGN, &tyVoid, token, tmp,
                                   !post ? new_expr_bop(op, type, token, deref_p, one) : deref_p);
   Expr *assign_deref_p = new_expr_bop(EX_ASSIGN, &tyVoid, token, deref_p,
                                       !post ? tmp : new_expr_bop(op, type, token, tmp, one));
 
-  *pexpr = new_expr_bop(
-      EX_COMMA, type, token, assign_p,
-      new_expr_bop(
-          EX_COMMA, type, token, assign_tmp,
-          new_expr_bop(
-              EX_COMMA, type, token, assign_deref_p, tmp)));
+  *pexpr = new_expr_bop(EX_COMMA, type, token, assign_p,
+                        new_expr_bop(EX_COMMA, type, token, assign_tmp,
+                                     new_expr_bop(EX_COMMA, type, token, assign_deref_p, tmp)));
 }
 
 static void te_ternary(Expr **pexpr, bool needval) {
@@ -718,7 +717,8 @@ uint32_t traverse_ast(Vector *decls, Vector *exports, uint32_t stack_size) {
   // Global scope
   for (int i = 0, len = global_scope->vars->len; i < len; ++i) {
     VarInfo *varinfo = global_scope->vars->data[i];
-    if (varinfo->storage & VS_EXTERN || varinfo->type->kind == TY_FUNC || (varinfo->type->kind == TY_FIXNUM && varinfo->type->fixnum.kind == FX_ENUM))
+    if (varinfo->storage & VS_EXTERN || varinfo->type->kind == TY_FUNC ||
+        (varinfo->type->kind == TY_FIXNUM && varinfo->type->fixnum.kind == FX_ENUM))
       continue;
     register_gvar_info(varinfo->name, varinfo);
     traverse_initializer(varinfo->global.init);

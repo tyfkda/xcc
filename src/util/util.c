@@ -39,10 +39,10 @@ int isoctal(int c) {
 }
 
 int xvalue(char c) {
-  return ('0' <= c && c <= '9') ? c - '0' :
-         ('A' <= c && c <= 'F') ? c - ('A' - 10) :
-         ('a' <= c && c <= 'f') ? c - ('a' - 10) :
-         -1;
+  return ('0' <= c && c <= '9')   ? c - '0'
+         : ('A' <= c && c <= 'F') ? c - ('A' - 10)
+         : ('a' <= c && c <= 'f') ? c - ('a' - 10)
+                                  : -1;
 }
 
 bool starts_with(const char *str, const char *prefix) {

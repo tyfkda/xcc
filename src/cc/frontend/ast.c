@@ -141,8 +141,7 @@ Expr *new_expr_ternary(const Token *token, Expr *cond, Expr *tval, Expr *fval, T
   return expr;
 }
 
-Expr *new_expr_member(const Token *token, Type *type, Expr *target, const Name *ident,
-                      int index) {
+Expr *new_expr_member(const Token *token, Type *type, Expr *target, const Name *ident, int index) {
   Expr *expr = new_expr(EX_MEMBER, type, token);
   expr->member.target = target;
   expr->member.ident = ident;
@@ -157,7 +156,8 @@ Expr *new_expr_funcall(const Token *token, Expr *func, Type *rettype, Vector *ar
   return expr;
 }
 
-Expr *new_expr_inlined(const Token *token, const Name *name, Type *rettype, Vector *args, Stmt *embedded) {
+Expr *new_expr_inlined(const Token *token, const Name *name, Type *rettype, Vector *args,
+                       Stmt *embedded) {
   Expr *expr = new_expr(EX_INLINED, rettype, token);
   expr->inlined.funcname = name;
   expr->inlined.args = args;
@@ -171,7 +171,8 @@ Expr *new_expr_cast(Type *type, const Token *token, Expr *sub) {
   return expr;
 }
 
-Expr *new_expr_complit(Type *type, const Token *token, Expr *var, Vector *inits, Initializer *original) {
+Expr *new_expr_complit(Type *type, const Token *token, Expr *var, Vector *inits,
+                       Initializer *original) {
   Expr *expr = new_expr(EX_COMPLIT, type, token);
   expr->complit.var = var;
   expr->complit.inits = inits;

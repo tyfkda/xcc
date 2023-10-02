@@ -183,7 +183,8 @@ static bool traverse_ast_stmt(Stmt **pstmt, LexicalStack *parent, TraverseAstPar
         for (int i = 0, n = decls->len; i < n; ++i) {
           VarDecl *decl = decls->data[i];
           // traverse_initializer(decl->init);
-          if (traverse_ast_stmt(&decl->init_stmt, &lstack, param))  return true;
+          if (traverse_ast_stmt(&decl->init_stmt, &lstack, param))
+            return true;
         }
       }
     }
@@ -215,8 +216,7 @@ static bool modify_if_setjmp(LexicalStack *lp, Expr *jmpbuf_env, Expr *var) {
   Token *token = NULL;
   Vector *try_stmts = new_vector();
   vec_push(try_stmts, ifstmt);
-  Expr *try_block_expr = new_expr_block(new_stmt_block(
-      token, try_stmts, NULL, token));
+  Expr *try_block_expr = new_expr_block(new_stmt_block(token, try_stmts, NULL, token));
 
   Vector *param_types = new_vector();
   vec_push(param_types, var != NULL ? var->type : &tyVoid);
@@ -232,13 +232,14 @@ static bool modify_if_setjmp(LexicalStack *lp, Expr *jmpbuf_env, Expr *var) {
       token, new_expr_variable(alloc_name("__builtin_try_catch_longjmp", NULL, false), functype, token, global_scope),
       functype->func.ret, args);
 
-  Expr *store_sp = new_expr_bop(EX_ASSIGN, &tyVoid, token, new_expr_unary(EX_DEREF, &tySize, token, jmpbuf_env), get_sp_var());
+  Expr *store_sp = new_expr_bop(EX_ASSIGN, &tyVoid, token,
+                                new_expr_unary(EX_DEREF, &tySize, token, jmpbuf_env), get_sp_var());
 
   Vector *stmts = new_vector();
   vec_push(stmts, new_stmt_expr(store_sp));
   if (var != NULL) {
-    vec_push(stmts, new_stmt_expr(
-        new_expr_bop(EX_ASSIGN, &tyVoid, token, var, new_expr_fixlit(var->type, token, 0))));
+    vec_push(stmts, new_stmt_expr(new_expr_bop(EX_ASSIGN, &tyVoid, token, var,
+                                               new_expr_fixlit(var->type, token, 0))));
   }
   vec_push(stmts, new_stmt_expr(try_catch_longjmp));
   Stmt *modified = new_stmt_block(token, stmts, NULL, token);
@@ -295,14 +296,16 @@ static bool mafscb_find_setjmp(LexicalStack *lstack, TraverseAstParam *param) {
             .userdata = &v,
           };
           if (traverse_func_ast(&param)) {
-            *lstack->parent->pexpr = new_expr_fixlit(expr->type, expr->token, 0);  // Replace setjmp funcall assignment to dummy expression.
+            // Replace setjmp funcall assignment to dummy expression.
+            *lstack->parent->pexpr = new_expr_fixlit(expr->type, expr->token, 0);
             return true;
           }
         } else if (e->kind == EX_EQ || e->kind == EX_NE) {
           // Int the case that the value of `setjmp' result directly.
           Expr *jmpbuf_env = expr->funcall.args->data[0];
           if (modify_if_setjmp(lstack->parent, jmpbuf_env, NULL)) {
-            *lstack->pexpr = new_expr_fixlit(expr->type, expr->token, 0);  // Replace setjmp funcall comparison to dummy expression.
+            // Replace setjmp funcall comparison to dummy expression.
+            *lstack->pexpr = new_expr_fixlit(expr->type, expr->token, 0);
             return true;
           }
         }

@@ -22,7 +22,7 @@ enum VRegSize to_vsize(const Type *type) {
   assert(is_prim_type(type));
   int size = type_size(type);
   assert(1 <= size && size <= MAX_REG_SIZE && IS_POWER_OF_2(size));
-  for (enum VRegSize vsize = VRegSize1; vsize <= VRegSize8 ; ++vsize) {
+  for (enum VRegSize vsize = VRegSize1; vsize <= VRegSize8; ++vsize) {
     if (size == 1 << vsize)
       return vsize;
   }
@@ -42,7 +42,8 @@ VReg *add_new_vreg(const Type *type, int vflag) {
 
 static Table builtin_function_table;  // <BuiltinFunctionProc>
 
-void add_builtin_function(const char *str, Type *type, BuiltinFunctionProc *proc, bool add_to_scope) {
+void add_builtin_function(const char *str, Type *type, BuiltinFunctionProc *proc,
+                          bool add_to_scope) {
   const Name *name = alloc_name(str, NULL, false);
   table_put(&builtin_function_table, name, proc);
 
@@ -194,8 +195,8 @@ static VReg *gen_cast(Expr *expr) {
   int dst_size = type_size(dst_type);
   bool lu = dst_type->kind == TY_FIXNUM ? dst_type->fixnum.is_unsigned : dst_type->kind == TY_PTR;
   bool ru = (vreg->flag & VRF_UNSIGNED) ? true : false;
-  if (dst_size == 1 << vreg->vsize && lu == ru
-      && is_flonum(dst_type) == ((vreg->flag & VRF_FLONUM) != 0))
+  if (dst_size == 1 << vreg->vsize && lu == ru &&
+      is_flonum(dst_type) == ((vreg->flag & VRF_FLONUM) != 0))
     return vreg;
 
   return new_ir_cast(vreg, to_vsize(dst_type), to_vflag(dst_type));
@@ -556,8 +557,9 @@ static VReg *gen_funcall(Expr *expr) {
       ret_vflag = to_vflag(type);
     }
     if (label_call) {
-      result_reg = new_ir_call(func->var.name, global, NULL, total_arg_count, reg_arg_count + freg_arg_count,
-                               ret_vsize, ret_vflag, precall, arg_vregs, vaarg_start);
+      result_reg = new_ir_call(func->var.name, global, NULL, total_arg_count,
+                               reg_arg_count + freg_arg_count, ret_vsize, ret_vflag, precall,
+                               arg_vregs, vaarg_start);
     } else {
       VReg *freg = gen_expr(func);
       result_reg = new_ir_call(NULL, false, freg, total_arg_count, reg_arg_count + freg_arg_count,
@@ -732,10 +734,11 @@ static VReg *gen_expr_incdec(Expr *expr) {
 #ifndef __NO_FLONUM
       is_flonum(target->type) ? gen_const_flonum(new_expr_flolit(target->type, NULL, 1)) :
 #endif
-      new_const_vreg(expr->type->kind == TY_PTR ? type_size(expr->type->pa.ptrof) : 1, vsize, val->flag & VRF_MASK);
+      new_const_vreg(expr->type->kind == TY_PTR ? type_size(expr->type->pa.ptrof) : 1, vsize,
+                     val->flag & VRF_MASK);
   VReg *after = new_ir_bop(kOpAddSub[IS_DEC(expr)], val, addend, vsize);
   if (varinfo != NULL)  new_ir_mov(varinfo->local.vreg, after);
-                  else  new_ir_store(lval, after);
+  else                  new_ir_store(lval, after);
   return before != NULL ? before : after;
 #undef IS_POST
 #undef IS_DEC

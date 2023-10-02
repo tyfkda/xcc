@@ -129,7 +129,8 @@ static Expr *parse_member_access(Expr *target, Token *acctok) {
   int index = find_struct_member(type->struct_.info, ident->ident);
   if (index >= 0) {
     const MemberInfo *member = &type->struct_.info->members[index];
-    Type *type = acctok->kind == TK_DOT ? qualified_type(member->type, target->type->qualifier) : member->type;
+    Type *type = acctok->kind == TK_DOT ? qualified_type(member->type, target->type->qualifier)
+                                        : member->type;
     return new_expr_member(acctok, type, target, ident->ident, index);
   } else {
     Vector *stack = new_vector();
@@ -205,7 +206,7 @@ static StructInfo *parse_struct(bool is_union) {
   Token *flex_arr_mem = NULL;  // Flexible array member appeared.
   while (!match(TK_RBRACE)) {
     if (flex_arr_mem != NULL) {
-      parse_error(PE_NOFATAL, flex_arr_mem,"Flexible array meber must be last element");
+      parse_error(PE_NOFATAL, flex_arr_mem, "Flexible array meber must be last element");
       flex_arr_mem = NULL;
     }
 
@@ -368,8 +369,7 @@ Type *parse_raw_type(int *pstorage) {
       break;
     }
 
-    if (tok->kind == TK_STRUCT ||
-        tok->kind == TK_UNION) {
+    if (tok->kind == TK_STRUCT || tok->kind == TK_UNION) {
       if (!no_type_combination(&tc, 0, 0))
         parse_error(PE_FATAL, tok, "Illegal type combination");
 
@@ -434,9 +434,9 @@ Type *parse_raw_type(int *pstorage) {
     } else if (tc.double_num > 0) {
       type = (tc.double_num > 1 ? &tyLDouble : &tyDouble);
     } else {
-      enum FixnumKind fk =
-          (tc.char_num > 0) ? FX_CHAR :
-          (tc.short_num > 0) ? FX_SHORT : kLongKinds[tc.long_num];
+      enum FixnumKind fk = (tc.char_num > 0)  ? FX_CHAR
+                         : (tc.short_num > 0) ? FX_SHORT
+                                              : kLongKinds[tc.long_num];
       type = get_fixnum_type(fk, tc.unsigned_num > 0, tc.qualifier);
     }
   }
@@ -475,7 +475,8 @@ Type *parse_type_suffix(Type *type) {
   } else {
     Expr *expr = parse_const_fixnum();
     if (expr->fixnum < 0)
-      parse_error(PE_NOFATAL, expr->token, "Array size must be greater than 0, but %" PRId64, expr->fixnum);
+      parse_error(PE_NOFATAL, expr->token, "Array size must be greater than 0, but %" PRId64,
+                  expr->fixnum);
     length = expr->fixnum;
     consume(TK_RBRACKET, "`]' expected");
   }
@@ -523,7 +524,8 @@ static Type *parse_direct_declarator_suffix(Type *type) {
     } else {
       Expr *expr = parse_const_fixnum();
       if (expr->fixnum < 0)
-        parse_error(PE_NOFATAL, expr->token, "Array size must be greater than 0, but %d", (int)expr->fixnum);
+        parse_error(PE_NOFATAL, expr->token, "Array size must be greater than 0, but %d",
+                    (int)expr->fixnum);
       length = expr->fixnum;
       consume(TK_RBRACKET, "`]' expected");
     }
@@ -1037,7 +1039,8 @@ static Expr *parse_shift(void) {
         Fixnum rval = rhs->fixnum;
         value = kind == EX_LSHIFT ? lval << rval : lval >> rval;
       }
-      expr = new_expr_fixlit(type, tok, wrap_value(value, type_size(type), type->fixnum.is_unsigned));
+      expr = new_expr_fixlit(type, tok,
+                             wrap_value(value, type_size(type), type->fixnum.is_unsigned));
     } else {
       lhs = promote_to_int(lhs);
       expr = new_expr_bop(kind, lhs->type, tok, lhs, rhs);

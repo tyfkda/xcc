@@ -53,4 +53,3 @@ typedef struct RegAlloc {
 RegAlloc *new_reg_alloc(const RegAllocSettings *settings);
 VReg *reg_alloc_spawn(RegAlloc *ra, enum VRegSize vsize, int vflag);
 void alloc_physical_registers(RegAlloc *ra, BBContainer *bbcon);
-void occupy_regs(RegAlloc *ra, Vector *actives, unsigned long ioccupy, unsigned long foccupy);

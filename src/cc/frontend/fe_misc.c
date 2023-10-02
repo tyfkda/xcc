@@ -106,7 +106,7 @@ VarInfo *find_var_from_scope(Scope *scope, const Token *ident, Type *type, int s
         if (varinfo->storage & VS_EXTERN)
           varinfo->storage &= ~VS_EXTERN;
         else if (is_global_scope(scope) && varinfo->global.init == NULL)
-          ; // Ignore variable duplication if predecessor doesn't have initializer.
+          ;  // Ignore variable duplication if predecessor doesn't have initializer.
         else
           parse_error(PE_NOFATAL, ident, "`%.*s' already defined", NAMES(name));
       }
@@ -505,7 +505,8 @@ Expr *new_expr_addsub(enum ExprKind kind, const Token *tok, Expr *lhs, Expr *rhs
       Type *type = lnt >= rnt ? lhs->type : rhs->type;
       if (type->fixnum.kind < FX_INT)
         type = &tyInt;
-      return new_expr_fixlit(type, lhs->token, wrap_value(value, type_size(type), type->fixnum.is_unsigned));
+      return new_expr_fixlit(type, lhs->token,
+                             wrap_value(value, type_size(type), type->fixnum.is_unsigned));
     }
 
     cast_numbers(&lhs, &rhs, true);
@@ -532,11 +533,12 @@ Expr *new_expr_addsub(enum ExprKind kind, const Token *tok, Expr *lhs, Expr *rhs
       if (is_const(lhs) && is_const(rhs)) {
         assert(lhs->kind == EX_FIXNUM);
         assert(rhs->kind == EX_FIXNUM);
-        return new_expr_fixlit(&tySize, tok, (lhs->fixnum - rhs->fixnum) / type_size(ltype->pa.ptrof));
+        return new_expr_fixlit(&tySize, tok,
+                               (lhs->fixnum - rhs->fixnum) / type_size(ltype->pa.ptrof));
       }
       return new_expr_bop(EX_DIV, &tySSize, tok,
                           make_cast(&tySSize, tok,
-                              new_expr_bop(EX_SUB, &tySize, tok, lhs, rhs), false),
+                                    new_expr_bop(EX_SUB, &tySize, tok, lhs, rhs), false),
                           new_expr_fixlit(&tySSize, tok, type_size(ltype->pa.ptrof)));
     }
   } else if (ptr_or_array(rtype)) {
@@ -587,9 +589,11 @@ Expr *extract_bitfield_value(Expr *src, const MemberInfo *minfo) {
   if (type->fixnum.is_unsigned) {
     tmp = src;
     if (minfo->bitfield.position > 0)
-      tmp = new_expr_bop(EX_RSHIFT, tmp->type, tmp->token, tmp, new_expr_fixlit(tmp->type, tmp->token, minfo->bitfield.position));
+      tmp = new_expr_bop(EX_RSHIFT, tmp->type, tmp->token, tmp,
+                         new_expr_fixlit(tmp->type, tmp->token, minfo->bitfield.position));
     UFixnum mask = ((UFixnum)1 << minfo->bitfield.width) - 1;
-    tmp = new_expr_bop(EX_BITAND, tmp->type, tmp->token, tmp, new_expr_fixlit(tmp->type, tmp->token, mask));
+    tmp = new_expr_bop(EX_BITAND, tmp->type, tmp->token, tmp,
+                       new_expr_fixlit(tmp->type, tmp->token, mask));
   } else {
 #if defined(__aarch64__) || defined(__WASM) || defined(TARGET_WASM)
     const unsigned int MINREGSIZE = 4;
@@ -600,23 +604,26 @@ Expr *extract_bitfield_value(Expr *src, const MemberInfo *minfo) {
     int l = w - (minfo->bitfield.position + minfo->bitfield.width);
     tmp = src;
     if (l > 0)
-      tmp = new_expr_bop(EX_LSHIFT, tmp->type, tmp->token, tmp, new_expr_fixlit(tmp->type, tmp->token, l));
+      tmp = new_expr_bop(EX_LSHIFT, tmp->type, tmp->token, tmp,
+                         new_expr_fixlit(tmp->type, tmp->token, l));
     if (minfo->bitfield.width < w)
-      tmp = new_expr_bop(EX_RSHIFT, tmp->type, tmp->token, tmp, new_expr_fixlit(tmp->type, tmp->token, w - minfo->bitfield.width));
+      tmp = new_expr_bop(EX_RSHIFT, tmp->type, tmp->token, tmp,
+                         new_expr_fixlit(tmp->type, tmp->token, w - minfo->bitfield.width));
   }
   return make_cast(minfo->type, src->token, tmp, false);
 }
 
-Expr *assign_bitfield_member(const Token *tok, Expr *dst, Expr *src, Expr *val, const MemberInfo *minfo) {
+Expr *assign_bitfield_member(const Token *tok, Expr *dst, Expr *src, Expr *val,
+                             const MemberInfo *minfo) {
   Type *type = dst->type;
   Type *vtype = val->type;
 
   UFixnum mask = ((UFixnum)1 << minfo->bitfield.width) - 1;
-  Expr *val_masked = new_expr_bop(EX_BITAND, vtype, tok, val,
-                                  new_expr_fixlit(vtype, tok, mask));
+  Expr *val_masked = new_expr_bop(EX_BITAND, vtype, tok, val, new_expr_fixlit(vtype, tok, mask));
   val_masked = make_cast(type, tok, val_masked, false);
   if (minfo->bitfield.position > 0)
-    val_masked = new_expr_bop(EX_LSHIFT, type, tok, val_masked, new_expr_fixlit(vtype, tok, minfo->bitfield.position));
+    val_masked = new_expr_bop(EX_LSHIFT, type, tok, val_masked,
+                              new_expr_fixlit(vtype, tok, minfo->bitfield.position));
   val_masked = make_cast(type, tok, val_masked, false);
   Expr *src_masked = new_expr_bop(EX_BITAND, type, tok, src,
                                   new_expr_fixlit(type, tok, ~(mask << minfo->bitfield.position)));
@@ -680,7 +687,8 @@ static Expr *transform_incdec_of_bitfield(enum ExprKind kind, Expr *target, cons
   } else {
     Expr *tmp = extract_bitfield_value(
         new_expr_bop(!dec ? EX_ADD : EX_SUB, type, tok, src,
-                     new_expr_fixlit(type, NULL, 1 << minfo->bitfield.position)), minfo);
+                     new_expr_fixlit(type, NULL, 1 << minfo->bitfield.position)),
+        minfo);
     val_assign = new_expr_bop(EX_ASSIGN, type, tok, val, tmp);
     after = val;
   }
@@ -880,8 +888,7 @@ void check_funcall_args(Expr *func, Vector *args, Scope *scope) {
   if (param_types != NULL) {
     int argc = args->len;
     int paramc = param_types->len;
-    if (!(argc == paramc ||
-          (vaargs && argc >= paramc))) {
+    if (!(argc == paramc || (vaargs && argc >= paramc))) {
       parse_error(PE_NOFATAL, func->token, "function `%.*s' expect %d arguments, but %d",
                   NAMES(func->var.name), paramc, argc);
       return;
@@ -972,9 +979,9 @@ Type *choose_ternary_result_type(Expr *tval, Expr *fval) {
   } else if (is_number(ttype) && is_number(ftype)) {
     if (is_flonum(ttype)) {
       // TODO: Choose lager one.
-      //if (is_flonum(ftype)) {
-      //  return ttype;
-      //}
+      // if (is_flonum(ftype)) {
+      //   return ttype;
+      // }
       return ttype;
     } else if (is_flonum(ftype)) {
       return ftype;
@@ -990,7 +997,8 @@ Type *choose_ternary_result_type(Expr *tval, Expr *fval) {
 }
 
 static Expr *calc_assign_with(const Token *tok, Expr *lhs, Expr *rhs) {
-  enum ExprKind kind = tok->kind + (EX_ADD - TK_ADD_ASSIGN);  // Assume token-kind and expr-kind is same arrangement.
+  // Assume token-kind and expr-kind is same arrangement.
+  enum ExprKind kind = tok->kind + (EX_ADD - TK_ADD_ASSIGN);
   switch (kind) {
   default:  assert(false);
     // Fallthrough to avoid compile error.
@@ -1013,8 +1021,11 @@ static Expr *calc_assign_with(const Token *tok, Expr *lhs, Expr *rhs) {
 }
 
 #ifndef __NO_BITFIELD
-static Expr *transform_assign_with_bitfield(const Token *tok, Expr *lhs, Expr *rhs, const MemberInfo *minfo) {
-  // Transform expression to (ptr = &lhs, src = *ptr, tmp = ((src >> bitpos) & mask) + rhs, *ptr = (src & ~(mask << bitpos)) | ((tmp & mask) << bitpos), (*ptr >> bitpos) & mask)
+static Expr *transform_assign_with_bitfield(const Token *tok, Expr *lhs, Expr *rhs,
+                                            const MemberInfo *minfo) {
+  // Transform expression to
+  // (ptr = &lhs, src = *ptr, tmp = ((src >> bitpos) & mask) + rhs,
+  //  *ptr = (src & ~(mask << bitpos)) | ((tmp & mask) << bitpos), (*ptr >> bitpos) & mask)
 
   Type *type = get_fixnum_type(minfo->bitfield.base_kind, lhs->type->fixnum.is_unsigned, 0);
 
@@ -1067,7 +1078,7 @@ Expr *transform_assign_with(const Token *tok, Expr *lhs, Expr *rhs) {
                               make_cast(lhs->type, tok, bop, false));
 
   return tmp_assign == NULL ? result
-      : new_expr_bop(EX_COMMA, result->type, tok, tmp_assign, result);
+                            : new_expr_bop(EX_COMMA, result->type, tok, tmp_assign, result);
 }
 
 //
@@ -1128,7 +1139,8 @@ void check_reachability(Stmt *stmt) {
     } else if (is_const_falsy(stmt->if_.cond)) {
       stmt->reach = stmt->if_.fblock != NULL ? stmt->if_.fblock->reach : 0;
     } else {
-      stmt->reach = stmt->if_.tblock->reach & (stmt->if_.fblock != NULL ? stmt->if_.fblock->reach : 0);
+      stmt->reach = stmt->if_.tblock->reach &
+                    (stmt->if_.fblock != NULL ? stmt->if_.fblock->reach : 0);
     }
     break;
   case ST_SWITCH:
@@ -1304,7 +1316,8 @@ static Expr *duplicate_inline_function_expr(Function *targetfunc, Scope *targets
   case EX_MEMBER:
     {
       Expr *target = duplicate_inline_function_expr(targetfunc, targetscope, expr->member.target);
-      return new_expr_member(expr->token, expr->type, target, expr->member.ident, expr->member.index);
+      return new_expr_member(expr->token, expr->type, target, expr->member.ident,
+                             expr->member.index);
     }
   case EX_FUNCALL:
     {
@@ -1341,7 +1354,8 @@ static Expr *duplicate_inline_function_expr(Function *targetfunc, Scope *targets
         Stmt *stmt = duplicate_inline_function_stmt(targetfunc, targetscope, src_inits->data[i]);
         vec_push(inits, stmt);
       }
-      return new_expr_complit(expr->type, expr->token, expr->complit.var, inits, expr->complit.original_init);
+      return new_expr_complit(expr->type, expr->token, expr->complit.var, inits,
+                              expr->complit.original_init);
     }
   case EX_BLOCK:
     {
@@ -1438,7 +1452,8 @@ static Stmt *duplicate_inline_function_stmt(Function *targetfunc, Scope *targets
       Expr *cond = duplicate_inline_function_expr(targetfunc, targetscope, stmt->while_.cond);
       Stmt *dup = new_stmt_while(stmt->token, cond, NULL);
       SAVE_LOOP_SCOPE(save, dup, dup); {
-        dup->while_.body = duplicate_inline_function_stmt(targetfunc, targetscope, stmt->while_.body);
+        dup->while_.body = duplicate_inline_function_stmt(targetfunc, targetscope,
+                                                          stmt->while_.body);
       } RESTORE_LOOP_SCOPE(save);
       return dup;
     }
@@ -1446,7 +1461,8 @@ static Stmt *duplicate_inline_function_stmt(Function *targetfunc, Scope *targets
     {
       Stmt *dup = new_stmt(ST_DO_WHILE, stmt->token);
       SAVE_LOOP_SCOPE(save, dup, dup); {
-        dup->while_.body = duplicate_inline_function_stmt(targetfunc, targetscope, stmt->while_.body);
+        dup->while_.body = duplicate_inline_function_stmt(targetfunc, targetscope,
+                                                          stmt->while_.body);
       } RESTORE_LOOP_SCOPE(save);
       dup->while_.cond = duplicate_inline_function_expr(targetfunc, targetscope, stmt->while_.cond);
       return dup;

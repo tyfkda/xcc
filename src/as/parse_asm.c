@@ -656,7 +656,7 @@ static const Token *fetch_token(ParseInfo *info) {
     char *q;
     unsigned long long v = strtoull(p, &q, base);
 #ifndef __NO_FLONUM
-    if (*q == '.' || tolower(*q)== 'e') {
+    if (*q == '.' || tolower(*q) == 'e') {
       info->p = p;
       return read_flonum(info);
     }
@@ -831,7 +831,8 @@ static Expr *parse_add(ParseInfo *info) {
       default:  assert(false); break;
       }
     } else {
-      expr = new_expr((enum ExprKind)(tok->kind + (EX_ADD - TK_ADD)));  // Assume ExprKind is same order with TokenKind.
+      // Assume ExprKind is same order with TokenKind.
+      expr = new_expr((enum ExprKind)(tok->kind + (EX_ADD - TK_ADD)));
       expr->bop.lhs = lhs;
       expr->bop.rhs = rhs;
     }

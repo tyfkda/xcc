@@ -109,7 +109,8 @@ static void eval_initial_value(Expr *expr, Expr **pvar, Fixnum *poffset) {
 }
 
 #ifndef __NO_BITFIELD
-static int construct_initial_value_bitfield(const StructInfo *sinfo, const Initializer *init, int start, int *poffset) {
+static int construct_initial_value_bitfield(const StructInfo *sinfo, const Initializer *init,
+                                            int start, int *poffset) {
   const MemberInfo *member = &sinfo->members[start];
   if (member->bitfield.width == 0)
     return start;
@@ -370,7 +371,6 @@ static void emit_varinfo(const VarInfo *varinfo, const Initializer *init) {
   if (init != NULL) {
     EMIT_ALIGN(align_size(varinfo->type));
     EMIT_LABEL(label);
-    //size_t size = type_size(varinfo->type);
     construct_initial_value(varinfo->type, init);
   } else {
     size_t size = type_size(varinfo->type);

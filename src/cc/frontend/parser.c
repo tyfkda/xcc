@@ -49,7 +49,8 @@ static void check_goto_labels(Function *func) {
     for (int i = 0; i < gotos->len; ++i) {
       Stmt *stmt = gotos->data[i];
       Stmt *label;
-      if (label_table != NULL && (label = table_get(label_table, stmt->goto_.label->ident)) != NULL) {
+      if (label_table != NULL &&
+          (label = table_get(label_table, stmt->goto_.label->ident)) != NULL) {
         label->label.used = true;
       } else {
         const Name *name = stmt->goto_.label->ident;
@@ -403,7 +404,7 @@ static Stmt *parse_break_continue(enum StmtKind kind, const Token *tok) {
   Stmt *parent = kind == ST_BREAK ? loop_scope.break_ : loop_scope.continu;
   if (parent == NULL) {
     parse_error(PE_NOFATAL, tok, "`%.*s' cannot be used outside of loop",
-                        (int)(tok->end - tok->begin), tok->begin);
+                (int)(tok->end - tok->begin), tok->begin);
     return NULL;
   }
   Stmt *stmt = new_stmt(kind, tok);
@@ -566,7 +567,7 @@ static Declaration *parse_defun(Type *functype, int storage, Token *ident) {
   assert(functype->kind == TY_FUNC);
 
   bool prototype = match(TK_SEMICOL) != NULL;
-  if (!prototype && functype->func.params == NULL) { // Old-style
+  if (!prototype && functype->func.params == NULL) {  // Old-style
     // Treat it as a zero-parameter function.
     functype->func.params = new_vector();
     functype->func.param_types = new_vector();
@@ -630,7 +631,8 @@ static Declaration *parse_defun(Type *functype, int storage, Token *ident) {
         if (equal_name(func->name, alloc_name("main", NULL, false))) {
           // Return 0 if `return` statement is omitted in `main` function.
           if (!is_fixnum(functype->func.ret->kind)) {
-            parse_error(PE_WARNING, func->body_block->block.rbrace, "`main' return type should be `int'");
+            parse_error(PE_WARNING, func->body_block->block.rbrace,
+                        "`main' return type should be `int'");
           } else {
             vec_push(stmts, new_stmt_return(NULL, new_expr_fixlit(functype->func.ret, NULL, 0)));
           }
@@ -647,9 +649,7 @@ static Declaration *parse_defun(Type *functype, int storage, Token *ident) {
   return new_decl_defun(func);
 }
 
-static Declaration *parse_global_var_decl(
-    Type *rawtype, int storage, Type *type, Token *ident
-) {
+static Declaration *parse_global_var_decl(Type *rawtype, int storage, Type *type, Token *ident) {
   Vector *decls = NULL;
   for (;;) {
     if (!(type->kind == TY_PTR && type->pa.ptrof->kind == TY_FUNC) &&

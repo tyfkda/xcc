@@ -69,8 +69,7 @@ static HideSet *get_hideset(const Token *tok) {
 static void set_token_hideset(const Token *tok, HideSet *hs) {
   int i = search_hideset(tok);
   assert(i >= 0 && i <= hideset_array.len);
-  if (i < hideset_array.len &&
-      ((Token*)hideset_array.data[i]) == tok) {
+  if (i < hideset_array.len && ((Token*)hideset_array.data[i]) == tok) {
     hideset_array.data[i + 1] = hs;
   } else {
     vec_insert(&hideset_array, i, tok);
@@ -168,7 +167,7 @@ static Token *stringize(const Vector *arg) {
 
   Token *tok = alloc_token(TK_STR, NULL, escaped, NULL);
   tok->str.buf = str + 1;
-  tok->str.size = len + (- 2 /*for ""*/ + 1 /*for \0*/);
+  tok->str.size = len + (-2 /*for ""*/ + 1 /*for \0*/);
   return tok;
 }
 
@@ -298,10 +297,8 @@ void macro_expand(Vector *tokens) {
     if (macro == NULL)
       continue;
     HideSet *hs = get_hideset(tok);
-    if (hs != NULL &&
-        table_try_get(hs, tok->ident, NULL)) {
+    if (hs != NULL && table_try_get(hs, tok->ident, NULL))
       continue;
-    }
 
     int next = i + 1;
     const Vector *replaced = NULL;
@@ -310,9 +307,11 @@ void macro_expand(Vector *tokens) {
       hideset_put(hs, tok->ident);
       replaced = subst(macro->body, NULL, NULL, hs);
     } else {  // "()'d macro"
-      Vector *args = pp_funargs(tokens, &next, macro->vaargs_ident != NULL ? macro->params_len : INT_MAX);
+      Vector *args = pp_funargs(tokens, &next,
+                                macro->vaargs_ident != NULL ? macro->params_len : INT_MAX);
       if (args != NULL) {
-        int count = macro->params_len + (macro->vaargs_ident != NULL);  // variadic argument is concatenated.
+        int count = macro->params_len +
+                    (macro->vaargs_ident != NULL);  // variadic argument is concatenated.
         if (count != args->len) {
           const char *cmp = args->len > count ? "many" : "few";
           pp_parse_error(tok, "Too %s arguments for macro `%.*s'", cmp, NAMES(tok->ident));

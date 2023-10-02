@@ -133,7 +133,8 @@ void emit_align_p2(int align) {
 
 void emit_bss(const char *label, size_t size, size_t align) {
 #ifdef __APPLE__
-  fprintf(emit_fp, "\t.zerofill __DATA,__bss,%s,%zu,%d\n", label, size, most_significant_bit(align));
+  fprintf(emit_fp, "\t.zerofill __DATA,__bss,%s,%zu,%d\n", label, size,
+          most_significant_bit(align));
 #else
   if (align <= 1)
     emit_asm2(".comm", label, num(size));

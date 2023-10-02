@@ -103,7 +103,8 @@ static FILE *search_sysinc_next(const char *dir, const char *path, char **pfn) {
         break;
       }
     }
-    if (found) break;
+    if (found)
+      break;
   }
 
   for (; ord < INC_ORDERS; ++ord) {
@@ -265,7 +266,8 @@ static Vector *parse_macro_body(const char *p, Stream *stream) {
     return NULL;
 
   Vector *tokens = new_vector();
-  set_source_string(p, stream == NULL ? "?" : stream->filename, stream == NULL ? 0 : stream->lineno);
+  set_source_string(p, stream == NULL ? "?" : stream->filename,
+                    stream == NULL ? 0 : stream->lineno);
   Token *tok_space = NULL;
   bool need_space = false;
   for (;;) {
@@ -290,8 +292,10 @@ static Vector *parse_macro_body(const char *p, Stream *stream) {
         }
         q = line;
       }
-      set_source_string(q, stream == NULL ? "?" : stream->filename, stream == NULL ? 0 : stream->lineno);
-      // need_space = true;  // GNUC insert whitespace, but old compilers not and it is used to concatenate identifiers
+      set_source_string(q, stream == NULL ? "?" : stream->filename,
+                        stream == NULL ? 0 : stream->lineno);
+      // GNUC insert whitespace, but old compilers not and it is used to concatenate identifiers.
+      // need_space = true;
       continue;
     }
 
@@ -311,7 +315,8 @@ static Vector *parse_macro_body(const char *p, Stream *stream) {
     if (tok->kind == PPTK_CONCAT || tok->kind == PPTK_STRINGIFY) {
       // Ignore after space.
       const char *s = skip_whitespaces(get_lex_p());
-      set_source_string(s, stream == NULL ? "?" : stream->filename, stream == NULL ? 0 : stream->lineno);
+      set_source_string(s, stream == NULL ? "?" : stream->filename,
+                        stream == NULL ? 0 : stream->lineno);
     }
   }
   return tokens;
@@ -604,7 +609,8 @@ const char *get_processed_next_line(void) {
     if (len == -1)
       return NULL;
 
-    ppf->tok_lineno->end = ppf->tok_lineno->begin + snprintf(ppf->linenobuf, sizeof(ppf->linenobuf), "%d", ppf->stream.lineno);
+    int ln = snprintf(ppf->linenobuf, sizeof(ppf->linenobuf), "%d", ppf->stream.lineno);
+    ppf->tok_lineno->end = ppf->tok_lineno->begin + ln;
 
     // Find '#'
     const char *directive = find_directive(line);
@@ -691,7 +697,8 @@ const char *get_processed_next_line(void) {
         error("%s", line);
         next = NULL;  // TODO:
       } else if ((next = keyword(directive, "line")) != NULL) {
-        ppf->stream.filename = handle_line_directive(&next, ppf->stream.filename, &ppf->stream.lineno);
+        ppf->stream.filename = handle_line_directive(&next, ppf->stream.filename,
+                                                     &ppf->stream.lineno);
         int flag = 1;
         fprintf(pp_ofp, "# %d \"%s\" %d\n", ppf->stream.lineno, ppf->stream.filename, flag);
         define_file_macro(ppf->stream.filename);

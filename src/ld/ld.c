@@ -51,7 +51,8 @@ typedef struct {
 
 //
 
-static Elf64_Sym *find_symbol_from_all(File *files, int nfiles, const Name *name, ElfObj **pelfobj) {
+static Elf64_Sym *find_symbol_from_all(File *files, int nfiles, const Name *name,
+                                       ElfObj **pelfobj) {
   for (int i = 0; i < nfiles; ++i) {
     File *file = &files[i];
     switch (file->kind) {
@@ -91,7 +92,8 @@ static void resolve_rela_elfobj(ElfObj *elfobj, File *files, int nfiles) {
     Elf64_Shdr *shdr = &elfobj->shdrs[sec];
     if (shdr->sh_type != SHT_RELA || shdr->sh_size <= 0)
       continue;
-    const Elf64_Rela *relas = read_from(elfobj->fp, shdr->sh_offset + elfobj->start_offset, shdr->sh_size);
+    const Elf64_Rela *relas = read_from(elfobj->fp, shdr->sh_offset + elfobj->start_offset,
+                                        shdr->sh_size);
     if (relas == NULL) {
       perror("read error");
     }
@@ -117,7 +119,8 @@ static void resolve_rela_elfobj(ElfObj *elfobj, File *files, int nfiles) {
         {
           const char *label = &strinfo->strtab.buf[sym->st_name];
           ElfObj *telfobj;
-          const Elf64_Sym *tsym = find_symbol_from_all(files, nfiles, alloc_name(label, NULL, false), &telfobj);
+          const Elf64_Sym *tsym = find_symbol_from_all(files, nfiles,
+                                                       alloc_name(label, NULL, false), &telfobj);
           assert(tsym != NULL && tsym->st_shndx > 0);
 #ifndef NDEBUG
           const Elf64_Shdr *tshdr = &telfobj->shdrs[tsym->st_shndx];
@@ -146,7 +149,8 @@ static void resolve_rela_elfobj(ElfObj *elfobj, File *files, int nfiles) {
   }
 }
 
-static void link_elfobj(ElfObj *elfobj, File *files, int nfiles, uintptr_t *offsets, Vector **progbit_sections, Table *unresolved) {
+static void link_elfobj(ElfObj *elfobj, File *files, int nfiles, uintptr_t *offsets,
+                        Vector **progbit_sections, Table *unresolved) {
   for (Elf64_Half sec = 0; sec < elfobj->ehdr.e_shnum; ++sec) {
     Elf64_Shdr *shdr = &elfobj->shdrs[sec];
     switch (shdr->sh_type) {
@@ -222,7 +226,8 @@ static void link_elfobj(ElfObj *elfobj, File *files, int nfiles, uintptr_t *offs
   }
 }
 
-static void link_archive(Archive *ar, File *files, int nfiles, uintptr_t *offsets, Vector **progbit_sections, Table *unresolved) {
+static void link_archive(Archive *ar, File *files, int nfiles, uintptr_t *offsets,
+                         Vector **progbit_sections, Table *unresolved) {
   Table *table = &ar->symbol_table;
   const Name *name;
   void *dummy;
@@ -380,7 +385,8 @@ static bool output_exe(const char *ofn, File *files, int nfiles, const Name *ent
   const Elf64_Sym *tsym = find_symbol_from_all(files, nfiles, entry, &telfobj);
   if (tsym == NULL)
     error("Cannot find label: `%.*s'", NAMES(entry));
-  uintptr_t entry_address = telfobj->section_infos[tsym->st_shndx].progbits.address + tsym->st_value;
+  uintptr_t entry_address = telfobj->section_infos[tsym->st_shndx].progbits.address +
+                            tsym->st_value;
 
   int phnum = datasz > 0 || bsssz > 0 ? 2 : 1;
 
