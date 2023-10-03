@@ -430,9 +430,8 @@ static void ei_lshift(IR *ir) {
   if (ir->opr2->flag & VRF_CONST) {
     SHL(IM(ir->opr2->fixnum), dst);
   } else {
-    const int creg = GET_CREG_INDEX();
-    assert(ir->opr2->phys != creg);
-    assert(ir->dst->phys != creg);
+    assert(ir->opr2->phys != GET_CREG_INDEX());
+    assert(ir->dst->phys != GET_CREG_INDEX());
     MOV(kReg8s[ir->opr2->phys], CL);
     SHL(CL, dst);
   }
@@ -449,9 +448,8 @@ static void ei_rshift(IR *ir) {
   if (ir->opr2->flag & VRF_CONST) {
     RSHIFT_INST(IM(ir->opr2->fixnum), dst);
   } else {
-    const int creg = GET_CREG_INDEX();
-    assert(ir->opr2->phys != creg);
-    assert(ir->dst->phys != creg);
+    assert(ir->opr2->phys != GET_CREG_INDEX());
+    assert(ir->dst->phys != GET_CREG_INDEX());
     MOV(kReg8s[ir->opr2->phys], CL);
     RSHIFT_INST(CL, dst);
   }

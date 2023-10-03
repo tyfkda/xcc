@@ -1547,8 +1547,7 @@ static Stmt *duplicate_inline_function_stmt(Function *targetfunc, Scope *targets
 }
 
 Stmt *embed_inline_funcall(VarInfo *varinfo) {
-  Type *functype = varinfo->type;
-  assert(functype->kind == TY_FUNC);
+  assert(varinfo->type->kind == TY_FUNC);
   Function *targetfunc = varinfo->global.func;
   return duplicate_inline_function_stmt(targetfunc, NULL, targetfunc->body_block);
 }

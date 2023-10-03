@@ -30,8 +30,7 @@ CC1_BE_DIR:=$(CC1_DIR)/backend
 
 OPTIMIZE:=-O2 -g3
 CFLAGS:=-ansi -std=c11 -pedantic -MMD -Wall -Wextra -Werror -Wold-style-definition \
-	-Wno-missing-field-initializers -Wno-typedef-redefinition -Wno-empty-body \
-	-Wno-gnu-zero-variadic-macro-arguments \
+	-Wno-missing-field-initializers -Wno-empty-body \
 	-D_DEFAULT_SOURCE $(OPTIMIZE) \
 	-I$(CC1_FE_DIR) -I$(CC1_BE_DIR) -I$(CC1_ARCH_DIR) -I$(AS_DIR) -I$(UTIL_DIR)
 ifneq ("$(NO_FLONUM)","")
@@ -40,6 +39,9 @@ endif
 ifneq ("$(NO_BITFIELD)","")
 CFLAGS+=-D__NO_BITFIELD
 endif
+
+# For release build:
+# CFLAGS+=-DNDEBUG
 
 UNAME:=$(shell uname)
 ifeq ("$(UNAME)", "Darwin")

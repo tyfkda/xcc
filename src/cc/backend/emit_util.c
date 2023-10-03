@@ -46,6 +46,7 @@ char *fmt(const char *fm, ...) {
     int n2 = vsnprintf(p->buf, p->size, fm, ap);
     va_end(ap);
     assert(n2 == n && n2 < p->size);
+    UNUSED(n2);
   }
   return p->buf;
 #undef MIN_SIZE
