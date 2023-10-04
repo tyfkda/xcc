@@ -569,26 +569,25 @@ static void gen_block_expr(Expr *expr, bool needval) {
   Stmt *stmt = expr->block;
   assert(stmt->kind == ST_BLOCK);
 
-  if (stmt->block.scope != NULL) {
-    assert(curscope == stmt->block.scope->parent);
+  Scope *bak_curscope = curscope;
+  if (stmt->block.scope != NULL)
     curscope = stmt->block.scope;
-  }
 
   Vector *stmts = stmt->block.stmts;
-  int last = stmts->len - 1;
-  assert(last >= 0);
-  for (int i = 0; i < last; ++i) {
+  int len = stmts->len, last = len - 1;
+  for (int i = 0; i < len; ++i) {
     Stmt *stmt = stmts->data[i];
     if (stmt == NULL)
       continue;
+    if (i == last && stmt->kind == ST_EXPR) {
+      gen_expr(stmt->expr, needval);
+      break;
+    }
     gen_stmt(stmt);
   }
-  Stmt *last_stmt = stmts->data[last];
-  assert(last_stmt->kind == ST_EXPR);
-  gen_expr(last_stmt->expr, needval);
 
   if (stmt->block.scope != NULL)
-    curscope = curscope->parent;
+    curscope = bak_curscope;
 }
 
 static void gen_set_to_var(Expr *var) {
