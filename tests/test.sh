@@ -21,6 +21,7 @@ if [[ "$VERBOSE" != "" ]]; then
 fi
 
 RE_WNOERR='\/\/-WNOERR'
+MAKE_ERR='err'
 
 try_direct() {
   local title="$1"
@@ -73,6 +74,22 @@ compile_error() {
   local exitcode="$?"
 
   local err=''; [[ "$exitcode" -ne 0 ]] || err="Compile error expected, but succeeded"
+  end_test "$err"
+}
+
+check_error_line() {
+  local title="$1"
+  local expected
+  expected=$(echo -e "$2")
+  local input="$3"
+
+  begin_test "$title"
+
+  local actual
+  actual=$(echo -e "$input" | $XCC -o "$AOUT" -Werror -xc - 2>&1 | \
+      egrep -o '\([0-9]+\)' | sed 's/[()]//g' | head -n 1)
+
+  local err=''; [[ "$actual" == "$expected" ]] || err="${expected} expected, but ${actual}"
   end_test "$err"
 }
 
@@ -258,12 +275,49 @@ test_error() {
   end_test_suite
 }
 
+test_error_line() {
+  begin_test_suite "Error line no"
+
+  check_error_line "Block comment" 5 "int main() {
+      /*
+        Block comment
+      */
+      ${MAKE_ERR};}"
+  check_error_line "Backslash" 5 "int main() {
+      int concat_line = 1 + \\
+                        2 * \\
+                        3;
+      ${MAKE_ERR};}"
+  check_error_line "newline in macro argument" 5 "#define FOO(a, b) \\
+        (a + b)
+    int main() {
+      FOO(1, 2);
+      ${MAKE_ERR};}"
+  check_error_line "newline in macro argument" 5 "#define FOO(a, b)  (a + b)
+    int main() {
+      FOO(1,
+          2);
+      ${MAKE_ERR};}"
+  check_error_line "Block comment in #if 0" 7 "int main() {
+      #if 0
+        /*
+      #else
+        */
+      #endif
+      ${MAKE_ERR};}"
+  check_error_line "After include" 2 "#include <stdio.h>
+    ${MAKE_ERR};}"
+
+  end_test_suite
+}
+
 test_basic
 test_struct
 test_bitfield
 test_initializer
 test_function
 test_error
+test_error_line
 
 if [[ $FAILED_SUITE_COUNT -ne 0 ]]; then
   exit "$FAILED_SUITE_COUNT"
