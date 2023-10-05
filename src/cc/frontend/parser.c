@@ -642,8 +642,6 @@ static Declaration *parse_defun(Type *functype, int storage, Token *ident) {
       }
     }
 
-    check_funcend_return(func);
-
     curfunc = NULL;
   }
   return new_decl_defun(func);

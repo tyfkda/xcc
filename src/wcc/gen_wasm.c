@@ -87,8 +87,8 @@ struct VReg {
   };
 };
 
-static void gen_stmt(Stmt *stmt);
-static void gen_stmts(Vector *stmts);
+static void gen_stmt(Stmt *stmt, bool is_last);
+static void gen_stmts(Vector *stmts, bool is_last);
 
 static int cur_depth;
 static int break_depth;
@@ -105,6 +105,12 @@ unsigned char to_wtype(const Type *type) {
   default: assert(!"Illegal"); break;
   }
   return WT_I32;
+}
+
+static unsigned char get_func_ret_wtype(const Type *rettype) {
+  return rettype->kind == TY_VOID ? WT_VOID
+         : is_prim_type(rettype)  ? to_wtype(rettype)
+                                  : WT_I32;  // Pointer.
 }
 
 static void gen_load(const Type *type) {
@@ -520,7 +526,7 @@ static void gen_lval(Expr *expr) {
       VarInfo *varinfo = scope_find(var->var.scope, var->var.name, NULL);
       assert(varinfo != NULL);
       gen_clear_local_var(varinfo);
-      gen_stmts(expr->complit.inits);
+      gen_stmts(expr->complit.inits, false);
       gen_lval(var);
     }
     return;
@@ -583,7 +589,7 @@ static void gen_block_expr(Expr *expr, bool needval) {
       gen_expr(stmt->expr, needval);
       break;
     }
-    gen_stmt(stmt);
+    gen_stmt(stmt, false);
   }
 
   if (stmt->block.scope != NULL)
@@ -904,7 +910,7 @@ static void gen_complit(Expr *expr, bool needval) {
   VarInfo *varinfo = scope_find(var->var.scope, var->var.name, NULL);
   assert(varinfo != NULL);
   gen_clear_local_var(varinfo);
-  gen_stmts(expr->complit.inits);
+  gen_stmts(expr->complit.inits, false);
   gen_expr(var, needval);
 }
 
@@ -938,17 +944,15 @@ static void gen_inlined(Expr *expr, bool needval) {
   cur_depth = 1;
 
   const Type *rettype = expr->type;
-  unsigned char wt = is_prim_type(rettype)      ? to_wtype(rettype)
-                     : rettype->kind != TY_VOID ? WT_I32
-                                                : WT_VOID;
+  unsigned char wt = get_func_ret_wtype(rettype);
   ADD_CODE(OP_BLOCK, wt); {
-    gen_stmt(embedded);
+    gen_stmt(embedded, true);
 
     assert(embedded->kind == ST_BLOCK);
     Vector *stmts = embedded->block.stmts;
     if (stmts->len > 0) {
       Stmt *last = stmts->data[stmts->len - 1];
-      if (last->kind != ST_RETURN && last->kind != ST_ASM && rettype->kind != TY_VOID) {
+      if (last->kind != ST_ASM && rettype->kind != TY_VOID && !check_funcend_return(embedded)) {
         assert(embedded->reach & REACH_STOP);
         ADD_CODE(OP_UNREACHABLE);
       }
@@ -1172,7 +1176,7 @@ static void gen_switch(Stmt *stmt) {
   }
 
   // Body.
-  gen_stmt(stmt->switch_.body);
+  gen_stmt(stmt->switch_.body, false);
 
   ADD_CODE(OP_END);
   --cur_depth;
@@ -1206,7 +1210,7 @@ static void gen_while(Stmt *stmt) {
   cur_depth += 2;
   if (!infinite_loop)
     gen_cond_jmp(cond, false, 1);
-  gen_stmt(stmt->while_.body);
+  gen_stmt(stmt->while_.body, false);
   ADD_CODE(OP_BR, 0);
   ADD_CODE(OP_END);
   ADD_CODE(OP_END);
@@ -1234,7 +1238,7 @@ static void gen_do_while(Stmt *stmt) {
   ADD_CODE(OP_LOOP, WT_VOID);
   ADD_CODE(OP_BLOCK, WT_VOID);
   cur_depth += 3;
-  gen_stmt(stmt->while_.body);
+  gen_stmt(stmt->while_.body, false);
   ADD_CODE(OP_END);
   --cur_depth;
   if (no_loop)
@@ -1275,7 +1279,7 @@ static void gen_for(Stmt *stmt) {
   cur_depth += 3;
   if (!infinite_loop)
     gen_cond_jmp(cond, false, 2);
-  gen_stmt(stmt->for_.body);
+  gen_stmt(stmt->for_.body, false);
   ADD_CODE(OP_END);
   --cur_depth;
   if (stmt->for_.post != NULL)
@@ -1298,18 +1302,18 @@ static void gen_continue(void) {
   ADD_CODE(OP_BR, cur_depth - continue_depth - 1);
 }
 
-static void gen_block(Stmt *stmt) {
+static void gen_block(Stmt *stmt, bool is_last) {
   assert(stmt->kind == ST_BLOCK);
   // AST may moved, so code generation traversal may differ from lexical scope chain.
   Scope *bak_curscope = curscope;
   if (stmt->block.scope != NULL)
     curscope = stmt->block.scope;
-  gen_stmts(stmt->block.stmts);
+  gen_stmts(stmt->block.stmts, is_last);
   if (stmt->block.scope != NULL)
     curscope = bak_curscope;
 }
 
-static void gen_return(Stmt *stmt) {
+static void gen_return(Stmt *stmt, bool is_last) {
   assert(curfunc != NULL);
   if (stmt->return_.val != NULL) {
     Expr *val = stmt->return_.val;
@@ -1339,7 +1343,7 @@ static void gen_return(Stmt *stmt) {
 
   FuncInfo *finfo = table_get(&func_info_table, curfunc->name);
   assert(finfo != NULL);
-  if (!stmt->return_.func_end) {
+  if (!is_last) {
     if (finfo->bpname != NULL || finfo->flag & FF_INLINING) {
       assert(cur_depth > 0);
       ADD_CODE(OP_BR);
@@ -1350,23 +1354,27 @@ static void gen_return(Stmt *stmt) {
   }
 }
 
-static void gen_if(Stmt *stmt) {
+static void gen_if(Stmt *stmt, bool is_last) {
   if (is_const(stmt->if_.cond)) {
     if (is_const_truthy(stmt->if_.cond)) {
-      gen_stmt(stmt->if_.tblock);
+      gen_stmt(stmt->if_.tblock, is_last);
     } else if (stmt->if_.fblock != NULL) {
-      gen_stmt(stmt->if_.fblock);
+      gen_stmt(stmt->if_.fblock, is_last);
     }
     return;
   }
 
+  unsigned char wt = WT_VOID;
+  if (is_last && check_funcend_return(stmt))
+    wt = get_func_ret_wtype(curfunc->type->func.ret);
+
   gen_cond(stmt->if_.cond, true, true);
-  ADD_CODE(OP_IF, WT_VOID);
+  ADD_CODE(OP_IF, wt);
   ++cur_depth;
-  gen_stmt(stmt->if_.tblock);
+  gen_stmt(stmt->if_.tblock, is_last);
   if (stmt->if_.fblock != NULL) {
     ADD_CODE(OP_ELSE);
-    gen_stmt(stmt->if_.fblock);
+    gen_stmt(stmt->if_.fblock, is_last);
   }
   ADD_CODE(OP_END);
   --cur_depth;
@@ -1379,7 +1387,7 @@ static void gen_vardecl(Vector *decls) {
       if (decl->init_stmt != NULL) {
         VarInfo *varinfo = scope_find(curscope, decl->ident, NULL);
         gen_clear_local_var(varinfo);
-        gen_stmt(decl->init_stmt);
+        gen_stmt(decl->init_stmt, false);
       }
     }
   }
@@ -1407,15 +1415,15 @@ static void gen_asm(Stmt *stmt) {
   }
 }
 
-static void gen_stmt(Stmt *stmt) {
+static void gen_stmt(Stmt *stmt, bool is_last) {
   if (stmt == NULL)
     return;
 
   switch (stmt->kind) {
   case ST_EXPR:  gen_expr_stmt(stmt->expr); break;
-  case ST_RETURN:  gen_return(stmt); break;
-  case ST_BLOCK:  gen_block(stmt); break;
-  case ST_IF:  gen_if(stmt); break;
+  case ST_RETURN:  gen_return(stmt, is_last); break;
+  case ST_BLOCK:  gen_block(stmt, is_last); break;
+  case ST_IF:  gen_if(stmt, is_last); break;
   case ST_SWITCH:  gen_switch(stmt); break;
   case ST_CASE:  gen_case(stmt); break;
   case ST_WHILE:  gen_while(stmt); break;
@@ -1423,14 +1431,14 @@ static void gen_stmt(Stmt *stmt) {
   case ST_FOR:  gen_for(stmt); break;
   case ST_BREAK:  gen_break(); break;
   case ST_CONTINUE:  gen_continue(); break;
-  case ST_LABEL: gen_stmt(stmt->label.stmt); break;
+  case ST_LABEL: gen_stmt(stmt->label.stmt, is_last); break;
   case ST_VARDECL:  gen_vardecl(stmt->vardecl.decls); break;
   case ST_ASM:  gen_asm(stmt); break;
   case ST_GOTO: assert(false); break;
   }
 }
 
-static void gen_stmts(Vector *stmts) {
+static void gen_stmts(Vector *stmts, bool is_last) {
   if (stmts == NULL)
     return;
 
@@ -1438,7 +1446,7 @@ static void gen_stmts(Vector *stmts) {
     Stmt *stmt = stmts->data[i];
     if (stmt == NULL)
       continue;
-    gen_stmt(stmt);
+    gen_stmt(stmt, is_last && i == len - 1);
   }
 }
 
@@ -1635,19 +1643,17 @@ static void gen_defun(Function *func) {
 
   // Statements
   if (bpname != NULL) {
-    unsigned char wt = is_prim_type(functype->func.ret)      ? to_wtype(functype->func.ret)
-                       : functype->func.ret->kind != TY_VOID ? WT_I32
-                                                             : WT_VOID;
+    unsigned char wt = get_func_ret_wtype(functype->func.ret);
     ADD_CODE(OP_BLOCK, wt);
     cur_depth += 1;
   }
-  gen_stmt(func->body_block);
+  gen_stmt(func->body_block, true);
 
   {
     Vector *stmts = func->body_block->block.stmts;
     if (stmts->len > 0) {
       Stmt *last = stmts->data[stmts->len - 1];
-      if (last->kind != ST_RETURN && last->kind != ST_ASM && functype->func.ret->kind != TY_VOID) {
+      if (last->kind != ST_ASM && functype->func.ret->kind != TY_VOID && !check_funcend_return(func->body_block)) {
         assert(func->body_block->reach & REACH_STOP);
         ADD_CODE(OP_UNREACHABLE);
       }
@@ -1766,7 +1772,7 @@ void gen_builtin_try_catch_longjmp(Expr *expr) {
       ADD_CODE(OP_TRY, WT_VOID); {
         Expr *try_block_expr = args->data[2];
         assert(try_block_expr->kind == EX_BLOCK);
-        gen_stmt(try_block_expr->block);
+        gen_stmt(try_block_expr->block, false);
         ADD_CODE(OP_BR, 2);
       } ADD_CODE(OP_CATCH); {
         int tag = register_longjmp_tag();

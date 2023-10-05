@@ -1197,18 +1197,30 @@ void check_reachability(Stmt *stmt) {
   }
 }
 
-void check_funcend_return(Function *func) {
-  const Type *functype = func->type;
-  if (functype->func.ret->kind == TY_VOID)
-    return;
+bool check_funcend_return(Stmt *stmt) {
+  if (stmt == NULL)
+    return false;
 
-  Vector *stmts = func->body_block->block.stmts;
-  if (stmts->len == 0)
-    return;
-  Stmt *last = stmts->data[stmts->len - 1];
-  if (last->kind == ST_RETURN) {
-    last->return_.func_end = true;
+  switch (stmt->kind) {
+  case ST_RETURN:
+    return true;
+  case ST_IF:
+    {
+      bool t = check_funcend_return(stmt->if_.tblock);
+      bool f = stmt->if_.fblock == NULL || check_funcend_return(stmt->if_.fblock);
+      return t && f;  // Return true even if else is not exist.
+    }
+  case ST_BLOCK:
+    {
+      Vector *stmts = stmt->block.stmts;
+      if (stmts != NULL && stmts->len  > 0)
+        return check_funcend_return(stmts->data[stmts->len - 1]);
+    }
+    break;
+  default:
+    break;
   }
+  return false;
 }
 
 int get_funparam_index(Function *func, const Name *name) {
@@ -1503,7 +1515,6 @@ static Stmt *duplicate_inline_function_stmt(Function *targetfunc, Scope *targets
     {
       Expr *val = duplicate_inline_function_expr(targetfunc, targetscope, stmt->return_.val);
       Stmt *dup = new_stmt_return(stmt->token, val);
-      dup->return_.func_end = stmt->return_.func_end;
       return dup;
     }
   case ST_CASE:

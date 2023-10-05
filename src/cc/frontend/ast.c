@@ -277,7 +277,6 @@ Stmt *new_stmt_for(const Token *token, Expr *pre, Expr *cond, Expr *post, Stmt *
 Stmt *new_stmt_return(const Token *token, Expr *val) {
   Stmt *stmt = new_stmt(ST_RETURN, token);
   stmt->return_.val = val;
-  stmt->return_.func_end = false;
   return stmt;
 }
 

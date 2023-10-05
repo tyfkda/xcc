@@ -405,7 +405,6 @@ typedef struct Stmt {
     } label;
     struct {
       Expr *val;
-      bool func_end;
     } return_;
     struct {
       Vector *decls;  // <VarDecl*>
