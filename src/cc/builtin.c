@@ -1,6 +1,7 @@
 #include "../config.h"
 #include <assert.h>
 
+#include "arch_config.h"
 #include "ast.h"
 #include "codegen.h"
 #include "fe_misc.h"

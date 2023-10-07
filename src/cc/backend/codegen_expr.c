@@ -4,6 +4,7 @@
 #include <assert.h>
 #include <stdlib.h>  // malloc
 
+#include "arch_config.h"
 #include "ast.h"
 #include "fe_misc.h"  // curscope, extract_bitfield_vale
 #include "ir.h"

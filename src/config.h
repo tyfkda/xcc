@@ -21,15 +21,6 @@
 #define ALLOCA(size)  malloc(size)
 #endif
 
-#if defined(__x86_64__)
-#define MAX_REG_ARGS   (6)
-#define MAX_FREG_ARGS  (8)
-
-#elif defined(__aarch64__)
-#define MAX_REG_ARGS   (8)
-#define MAX_FREG_ARGS  (8)
-#endif
-
 #if defined(__APPLE__) && defined(__aarch64__)
 // variadic arguments are passed through stack, not registers.
 #define VAARG_ON_STACK

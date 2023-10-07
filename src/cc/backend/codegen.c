@@ -8,6 +8,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "arch_config.h"
 #include "ast.h"
 #include "ir.h"
 #include "optimize.h"
