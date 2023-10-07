@@ -322,6 +322,7 @@ Initializer *new_initializer(enum InitializerKind kind, const Token *token);
 // Statement
 
 enum StmtKind {
+  ST_EMPTY,
   ST_EXPR,
   ST_BLOCK,
   ST_IF,

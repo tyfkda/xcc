@@ -442,7 +442,8 @@ static void te_member(Expr **pexpr, bool needval) {
 static void te_complit(Expr **pexpr, bool needval) {
   Expr *expr = *pexpr;
   UNUSED(needval);
-  traverse_stmts(expr->complit.inits);
+  if (expr->complit.inits != NULL)
+    traverse_stmts(expr->complit.inits);
 }
 
 static void te_block(Expr **pexpr, bool needval) {
@@ -596,6 +597,7 @@ static void traverse_stmt(Stmt *stmt) {
   if (stmt == NULL)
     return;
   switch (stmt->kind) {
+  case ST_EMPTY: break;
   case ST_EXPR:  traverse_expr(&stmt->expr, false); break;
   case ST_RETURN:
     traverse_expr(&stmt->return_.val, true);
@@ -625,9 +627,7 @@ static void traverse_stmt(Stmt *stmt) {
 }
 
 static void traverse_stmts(Vector *stmts) {
-  if (stmts == NULL)
-    return;
-
+  assert(stmts != NULL);
   for (int i = 0, len = stmts->len; i < len; ++i) {
     Stmt *stmt = stmts->data[i];
     traverse_stmt(stmt);

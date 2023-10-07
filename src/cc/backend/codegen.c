@@ -295,9 +295,7 @@ static void gen_asm(Stmt *stmt) {
 }
 
 VReg *gen_stmts(Vector *stmts) {
-  if (stmts == NULL)
-    return NULL;
-
+  assert(stmts != NULL);
   int len = stmts->len;
   VReg *result = NULL;
   if (len > 0) {
@@ -634,6 +632,7 @@ void gen_stmt(Stmt *stmt) {
     return;
 
   switch (stmt->kind) {
+  case ST_EMPTY: break;
   case ST_EXPR:  gen_expr_stmt(stmt->expr); break;
   case ST_RETURN:  gen_return(stmt); break;
   case ST_BLOCK:  gen_block(stmt); break;

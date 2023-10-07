@@ -530,7 +530,7 @@ static Stmt *parse_stmt(void) {
   case TK_DEFAULT:
     return parse_default(tok);
   case TK_SEMICOL:
-    return new_stmt_block(tok, NULL, NULL, NULL);
+    return new_stmt(ST_EMPTY, tok);
   case TK_LBRACE:
     return parse_block(tok, NULL);
   case TK_IF:

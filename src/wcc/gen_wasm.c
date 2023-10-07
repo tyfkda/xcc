@@ -1420,6 +1420,7 @@ static void gen_stmt(Stmt *stmt, bool is_last) {
     return;
 
   switch (stmt->kind) {
+  case ST_EMPTY: break;
   case ST_EXPR:  gen_expr_stmt(stmt->expr); break;
   case ST_RETURN:  gen_return(stmt, is_last); break;
   case ST_BLOCK:  gen_block(stmt, is_last); break;
@@ -1439,9 +1440,7 @@ static void gen_stmt(Stmt *stmt, bool is_last) {
 }
 
 static void gen_stmts(Vector *stmts, bool is_last) {
-  if (stmts == NULL)
-    return;
-
+  assert(stmts != NULL);
   for (int i = 0, len = stmts->len; i < len; ++i) {
     Stmt *stmt = stmts->data[i];
     if (stmt == NULL)

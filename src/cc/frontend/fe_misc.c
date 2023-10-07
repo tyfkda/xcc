@@ -1084,43 +1084,42 @@ Expr *transform_assign_with(const Token *tok, Expr *lhs, Expr *rhs) {
 //
 
 static int check_reachability_stmts(Vector *stmts) {
+  assert(stmts != NULL);
   int reach = 0;
-  if (stmts != NULL) {
-    for (int i = 0, n = stmts->len; i < n; ++i) {
-      Stmt *stmt = stmts->data[i];
-      if (reach & REACH_STOP) {
-        if (!(stmt->kind == ST_LABEL || stmt->kind == ST_CASE))
+  for (int i = 0, n = stmts->len; i < n; ++i) {
+    Stmt *stmt = stmts->data[i];
+    if (reach & REACH_STOP) {
+      if (!(stmt->kind == ST_LABEL || stmt->kind == ST_CASE))
+        continue;
+      reach = 0;
+    }
+    check_reachability(stmt);
+    reach |= stmt->reach;
+    if (reach & REACH_STOP) {
+      for (; i < n - 1; ++i) {
+        Stmt *next = stmts->data[i + 1];
+        if ((next->kind == ST_BREAK && next->break_.parent->kind == ST_SWITCH) &&
+            (stmt->kind != ST_RETURN && stmt->kind != ST_BREAK))
           continue;
-        reach = 0;
-      }
-      check_reachability(stmt);
-      reach |= stmt->reach;
-      if (reach & REACH_STOP) {
-        for (; i < n - 1; ++i) {
-          Stmt *next = stmts->data[i + 1];
-          if ((next->kind == ST_BREAK && next->break_.parent->kind == ST_SWITCH) &&
-              (stmt->kind != ST_RETURN && stmt->kind != ST_BREAK))
-            continue;
-          switch (next->kind) {
-          case ST_LABEL:
-          case ST_CASE:
-            break;
+        switch (next->kind) {
+        case ST_LABEL:
+        case ST_CASE:
+          break;
 
-          // Avoid false positive:
-          case ST_WHILE: case ST_DO_WHILE:
-            // TODO: Check the loop is jumped inside from other place using `goto` statement.
+        // Avoid false positive:
+        case ST_WHILE: case ST_DO_WHILE:
+          // TODO: Check the loop is jumped inside from other place using `goto` statement.
+          break;
+        case ST_FOR:
+          if (next->for_.pre == NULL)
             break;
-          case ST_FOR:
-            if (next->for_.pre == NULL)
-              break;
-            // Fallthrough
+          // Fallthrough
 
-          default:
-            parse_error(PE_WARNING, next->token, "unreachable");
-            break;
-          }
+        default:
+          parse_error(PE_WARNING, next->token, "unreachable");
           break;
         }
+        break;
       }
     }
   }
@@ -1212,7 +1211,8 @@ bool check_funcend_return(Stmt *stmt) {
   case ST_BLOCK:
     {
       Vector *stmts = stmt->block.stmts;
-      if (stmts != NULL && stmts->len  > 0)
+      assert(stmts != NULL);
+      if (stmts->len  > 0)
         return check_funcend_return(stmts->data[stmts->len - 1]);
     }
     break;
@@ -1425,16 +1425,14 @@ static Stmt *duplicate_inline_function_stmt(Function *targetfunc, Scope *targets
         scope = enter_scope(curfunc, vars);
         targetscope = stmt->block.scope;
       }
-      Vector *stmts = NULL;
-      if (stmt->block.stmts != NULL) {
-        stmts = new_vector();
-        for (int i = 0, len = stmt->block.stmts->len; i < len; ++i) {
-          Stmt *st = stmt->block.stmts->data[i];
-          if (st == NULL)
-            continue;
-          Stmt *dup = duplicate_inline_function_stmt(targetfunc, targetscope, st);
-          vec_push(stmts, dup);
-        }
+      assert(stmt->block.stmts != NULL);
+      Vector *stmts = new_vector();
+      for (int i = 0, len = stmt->block.stmts->len; i < len; ++i) {
+        Stmt *st = stmt->block.stmts->data[i];
+        if (st == NULL)
+          continue;
+        Stmt *dup = duplicate_inline_function_stmt(targetfunc, targetscope, st);
+        vec_push(stmts, dup);
       }
 
       if (stmt->block.scope != NULL)
@@ -1562,7 +1560,7 @@ static Stmt *duplicate_inline_function_stmt(Function *targetfunc, Scope *targets
       }
       return new_stmt_vardecl(decls);
     }
-  case ST_GOTO: case ST_ASM:
+  case ST_EMPTY: case ST_GOTO: case ST_ASM:
     return stmt;
   }
   return NULL;

@@ -122,11 +122,10 @@ static bool traverse_ast_expr(Expr **pexpr, LexicalStack *parent, TraverseAstPar
 }
 
 static bool traverse_ast_stmts(Vector *stmts, LexicalStack *lstack, TraverseAstParam *param) {
-  if (stmts != NULL) {
-    for (int i = 0, len = stmts->len; i < len; ++i) {
-      if (traverse_ast_stmt((Stmt**)&stmts->data[i], lstack, param))
-        return true;
-    }
+  assert(stmts != NULL);
+  for (int i = 0, len = stmts->len; i < len; ++i) {
+    if (traverse_ast_stmt((Stmt**)&stmts->data[i], lstack, param))
+      return true;
   }
   return false;
 }
@@ -189,7 +188,7 @@ static bool traverse_ast_stmt(Stmt **pstmt, LexicalStack *parent, TraverseAstPar
       }
     }
     break;
-  case ST_ASM:  break;
+  case ST_EMPTY: case ST_ASM:  break;
   }
   return false;
 }
