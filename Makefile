@@ -195,7 +195,10 @@ WCC_LIBC_SRCS:=$(wildcard $(LIBSRC_DIR)/math/*.c) \
 	$(wildcard $(LIBSRC_DIR)/_wasm/unistd/*.c)
 
 define GENERATE_INCLUDE_SRCS
-(cd $(LIBSRC_DIR) && find $1 -name '*.c' -exec echo '#include <{}>' \;)
+	(cd $(LIBSRC_DIR); \
+	for dir in $1; do \
+		find $${dir} -name '*.c' -exec echo '#include <{}>' \; | sort; \
+	done)
 endef
 
 $(LIBSRC_DIR)/_wasm/crt0.c:	$(WCC_CRT0_SRCS)
