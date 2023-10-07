@@ -12,8 +12,6 @@ typedef struct RegAlloc RegAlloc;
 typedef struct RegAllocSettings RegAllocSettings;
 typedef struct Vector Vector;
 
-#define WORD_SIZE  (8)  /*sizeof(void*)*/
-
 typedef struct FrameInfo {
   int offset;
 } FrameInfo;

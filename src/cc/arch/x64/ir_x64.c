@@ -922,11 +922,11 @@ static Vector *push_caller_save_regs(unsigned long living) {
     }
     int n = saves->len - fstart;
     if (n > 0) {
-      int ofs = n * WORD_SIZE;
+      int ofs = n * POINTER_SIZE;
       SUB(IM(ofs), RSP);
       stackpos += ofs;
       for (int i = 0; i < n; ++i) {
-        ofs -= WORD_SIZE;
+        ofs -= POINTER_SIZE;
         MOVSD(saves->data[i + fstart], OFFSET_INDIRECT(ofs, RSP, NULL, 1));
       }
     }
@@ -943,7 +943,7 @@ static void pop_caller_save_regs(Vector *saves) {
     if (strncmp(reg, "%xmm", 4) != 0)
       break;
     MOVSD(OFFSET_INDIRECT(ofs, RSP, NULL, 1), reg);
-    ofs += WORD_SIZE;
+    ofs += POINTER_SIZE;
   }
   if (ofs > 0) {
     ADD(IM(ofs), RSP);

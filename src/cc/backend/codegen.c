@@ -658,7 +658,7 @@ static void prepare_register_allocation(Function *func) {
   // Handle function parameters first.
   const Vector *params = func->type->func.params;
   if (params != NULL) {
-    const int DEFAULT_OFFSET = WORD_SIZE * 2;  // Return address, saved base pointer.
+    const int DEFAULT_OFFSET = POINTER_SIZE * 2;  // Return address, saved base pointer.
     assert((Scope*)func->scopes->data[0] != NULL);
     int ireg_index = is_stack_param(func->type->func.ret) ? 1 : 0;
     int freg_index = 0;
@@ -669,7 +669,7 @@ static void prepare_register_allocation(Function *func) {
         // stack parameters
         FrameInfo *fi = varinfo->local.frameinfo;
         fi->offset = offset = ALIGN(offset, align_size(varinfo->type));
-        offset += ALIGN(type_size(varinfo->type), WORD_SIZE);
+        offset += ALIGN(type_size(varinfo->type), POINTER_SIZE);
         require_stack_frame = true;
         continue;
       }
@@ -684,12 +684,12 @@ static void prepare_register_allocation(Function *func) {
         // Function argument passed through the stack.
         spill_vreg(vreg);
         vreg->frame.offset = offset;
-        offset += WORD_SIZE;
+        offset += POINTER_SIZE;
         require_stack_frame = true;
       } else if (func->type->func.vaargs) {  // Variadic function parameters.
         if (i >= param_count) {  // Store vaargs to jmp_buf.
-          vreg->frame.offset = flo ? (freg_index - MAX_FREG_ARGS) * WORD_SIZE
-                                   : (ireg_index - MAX_REG_ARGS - MAX_FREG_ARGS) * WORD_SIZE;
+          vreg->frame.offset = flo ? (freg_index - MAX_FREG_ARGS) * POINTER_SIZE
+                                   : (ireg_index - MAX_REG_ARGS - MAX_FREG_ARGS) * POINTER_SIZE;
         }
       }
 
@@ -894,7 +894,7 @@ static void gen_defun(Function *func) {
   fnbe->ret_bb = NULL;
   fnbe->retval = NULL;
   fnbe->result_dst = NULL;
-  fnbe->frame_size = func->type->func.vaargs ? (MAX_REG_ARGS + MAX_FREG_ARGS) * WORD_SIZE : 0;
+  fnbe->frame_size = func->type->func.vaargs ? (MAX_REG_ARGS + MAX_FREG_ARGS) * POINTER_SIZE : 0;
 
   fnbe->bbcon = new_func_blocks();
   set_curbb(new_bb());

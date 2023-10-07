@@ -453,11 +453,11 @@ static void move_params_to_assigned(Function *func) {
 
   if (func->type->func.vaargs) {
     for (int i = iparam_count; i < MAX_REG_ARGS; ++i) {
-      int offset = (i - MAX_REG_ARGS - MAX_FREG_ARGS) * WORD_SIZE;
+      int offset = (i - MAX_REG_ARGS - MAX_FREG_ARGS) * POINTER_SIZE;
       MOV(kRegParam64s[i], OFFSET_INDIRECT(offset, RBP, NULL, 1));
     }
     for (int i = fparam_count; i < MAX_FREG_ARGS; ++i) {
-      int offset = (i - MAX_FREG_ARGS) * WORD_SIZE;
+      int offset = (i - MAX_FREG_ARGS) * POINTER_SIZE;
       MOVSD(kFRegParam64s[i], OFFSET_INDIRECT(offset, RBP, NULL, 1));
     }
   }
@@ -524,7 +524,7 @@ static void emit_defun(Function *func) {
       frame_offset = 0;
     }
 
-    size_t callee_saved_size = callee_saved_count * WORD_SIZE;
+    size_t callee_saved_size = callee_saved_count * POINTER_SIZE;
     frame_size = fnbe->frame_size;
     if (func->flag & FUNCF_HAS_FUNCALL) {
       // Align frame size to 16 only it contains funcall.
@@ -547,7 +547,7 @@ static void emit_defun(Function *func) {
   if (!no_stmt) {
     if (func->flag & FUNCF_STACK_MODIFIED) {
       // Stack pointer might be changed if alloca is used, so it need to be recalculated.
-      LEA(OFFSET_INDIRECT(callee_saved_count * -WORD_SIZE - frame_size, RBP, NULL, 1),
+      LEA(OFFSET_INDIRECT(callee_saved_count * -POINTER_SIZE - frame_size, RBP, NULL, 1),
           RSP);
     }
 

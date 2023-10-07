@@ -82,28 +82,28 @@ static VReg *gen_builtin_va_start(Expr *expr) {
     return NULL;
   }
 
-  // ap->gp_offset = gn * WORD_SIZE
+  // ap->gp_offset = gn * POINTER_SIZE
   VReg *ap = gen_expr(args->data[0]);
   VReg *gp_offset = ap;
-  new_ir_store(gp_offset, new_const_vreg(gn * WORD_SIZE, to_vsize(&tyInt), 0));
+  new_ir_store(gp_offset, new_const_vreg(gn * POINTER_SIZE, to_vsize(&tyInt), 0));
 
-  // ap->fp_offset = (MAX_REG_ARGS + fn) * WORD_SIZE
+  // ap->fp_offset = (MAX_REG_ARGS + fn) * POINTER_SIZE
   VReg *fp_offset = new_ir_bop(IR_ADD, ap, new_const_vreg(type_size(&tyInt), to_vsize(&tySize), 0),
                                ap->vsize);
-  new_ir_store(fp_offset, new_const_vreg((MAX_REG_ARGS + fn) * WORD_SIZE, to_vsize(&tySize), 0));
+  new_ir_store(fp_offset, new_const_vreg((MAX_REG_ARGS + fn) * POINTER_SIZE, to_vsize(&tySize), 0));
 
-  // ap->overflow_arg_area = 2 * WORD_SIZE
+  // ap->overflow_arg_area = 2 * POINTER_SIZE
   {
     enum VRegSize vsize = to_vsize(&tyVoidPtr);
     VReg *overflow_arg_area = new_ir_bop(
         IR_ADD, ap, new_const_vreg(type_size(&tyInt) + type_size(&tyInt), vsize, 0), vsize);
     FrameInfo *fi = malloc_or_die(sizeof(*fi));
-    fi->offset = 2 * WORD_SIZE;
+    fi->offset = 2 * POINTER_SIZE;
     VReg *p = new_ir_bofs(fi, NULL);
     new_ir_store(overflow_arg_area, p);
   }
 
-  // ap->reg_save_area = -(MAX_REG_ARGS + MAX_FREG_ARGS) * WORD_SIZE
+  // ap->reg_save_area = -(MAX_REG_ARGS + MAX_FREG_ARGS) * POINTER_SIZE
   {
     enum VRegSize vsize = to_vsize(&tyVoidPtr);
     VReg *reg_save_area = new_ir_bop(
@@ -111,7 +111,7 @@ static VReg *gen_builtin_va_start(Expr *expr) {
         new_const_vreg(type_size(&tyInt) + type_size(&tyInt) + type_size(&tyVoidPtr), vsize, 0),
         vsize);
     FrameInfo *fi = malloc_or_die(sizeof(*fi));
-    fi->offset = -(MAX_REG_ARGS + MAX_FREG_ARGS) * WORD_SIZE;
+    fi->offset = -(MAX_REG_ARGS + MAX_FREG_ARGS) * POINTER_SIZE;
     VReg *p = new_ir_bofs(fi, NULL);
     new_ir_store(reg_save_area, p);
   }

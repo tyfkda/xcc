@@ -461,11 +461,11 @@ static void move_params_to_assigned(Function *func) {
 #endif
   if (vaargs) {
     for (int i = iparam_count; i < MAX_REG_ARGS; ++i) {
-      int offset = (i - MAX_REG_ARGS - MAX_FREG_ARGS) * WORD_SIZE;
+      int offset = (i - MAX_REG_ARGS - MAX_FREG_ARGS) * POINTER_SIZE;
       STR(kRegParam64s[i], IMMEDIATE_OFFSET(FP, offset));
     }
     for (int i = fparam_count; i < MAX_FREG_ARGS; ++i) {
-      int offset = (i - MAX_FREG_ARGS) * WORD_SIZE;
+      int offset = (i - MAX_FREG_ARGS) * POINTER_SIZE;
       STR(kFRegParam64s[i], IMMEDIATE_OFFSET(FP, offset));
     }
   }
@@ -557,7 +557,7 @@ static void emit_defun(Function *func) {
   if (!no_stmt) {
     if (func->flag & FUNCF_STACK_MODIFIED) {
       // Stack pointer might be changed if alloca is used, so it need to be recalculated.
-      size_t size = frame_size + ALIGN(callee_saved_count * WORD_SIZE, 16);
+      size_t size = frame_size + ALIGN(callee_saved_count * POINTER_SIZE, 16);
       const char *value;
       if (size <= 0x0fff)
         value = IM(size);

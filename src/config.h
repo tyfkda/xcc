@@ -37,6 +37,14 @@
 
 #define TARGET_CHAR_BIT  8
 
+#if defined(__ILP32__)
+#define POINTER_SIZE  (4)  /*sizeof(void*)*/
+#elif defined(__LP64__)
+#define POINTER_SIZE  (8)  /*sizeof(void*)*/
+#else
+// ?
+#endif
+
 // Elf
 #if defined(__x86_64__)
 #define MACHINE_TYPE  EM_X86_64
