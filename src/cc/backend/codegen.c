@@ -919,6 +919,7 @@ bool gen_defun(Function *func) {
 
   set_curbb(fnbe->ret_bb);
   curbb = NULL;
+  detect_from_bbs(fnbe->bbcon);
 
   curfunc = NULL;
   curra = NULL;

@@ -199,4 +199,5 @@ static void remove_unused_vregs(RegAlloc *ra, BBContainer *bbcon) {
 void optimize(RegAlloc *ra, BBContainer *bbcon) {
   remove_unused_vregs(ra, bbcon);
   remove_unnecessary_bb(bbcon);
+  detect_from_bbs(bbcon);
 }
