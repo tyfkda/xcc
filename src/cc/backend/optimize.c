@@ -66,14 +66,12 @@ static void remove_unnecessary_bb(BBContainer *bbcon) {
   for (;;) {
     table_init(&keeptbl);
     assert(bbs->len > 0);
-    BB *bb0 = bbs->data[0];
-    table_put(&keeptbl, bb0->label, bb0);
 
-    for (int i = 0; i < bbs->len - 1; ++i) {
+    for (int i = 0; i < bbs->len; ++i) {
       BB *bb = bbs->data[i];
       bool remove = false;
       IR *ir_jmp = is_last_jmp(bb);
-      if (bb->irs->len == 0) {  // Empty BB.
+      if (bb->irs->len == 0 && bb->next != NULL) {  // Empty BB.
         replace_jmp_destination(bbcon, bb, bb->next);
         remove = true;
       } else if (bb->irs->len == 1 && ir_jmp != NULL && ir_jmp->jmp.cond == COND_ANY &&
@@ -95,7 +93,7 @@ static void remove_unnecessary_bb(BBContainer *bbcon) {
 
       if (ir_jmp != NULL)
         table_put(&keeptbl, ir_jmp->jmp.bb->label, bb);
-      if (ir_jmp == NULL || ir_jmp->jmp.cond != COND_ANY)
+      if ((ir_jmp == NULL || ir_jmp->jmp.cond != COND_ANY) && bb->next != NULL)
         table_put(&keeptbl, bb->next->label, bb);
 
       IR *tjmp = is_last_jtable(bb);
@@ -110,7 +108,7 @@ static void remove_unnecessary_bb(BBContainer *bbcon) {
     }
 
     bool again = false;
-    for (int i = 0; i < bbs->len; ++i) {
+    for (int i = 1; i < bbs->len; ++i) {
       BB *bb = bbs->data[i];
       if (!table_try_get(&keeptbl, bb->label, NULL)) {
         if (i > 0) {

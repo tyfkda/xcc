@@ -7,6 +7,7 @@
 #include <stdint.h>  // int64_t
 #include <stdlib.h>  // realloc
 
+#include "ir.h"
 #include "table.h"
 #include "util.h"
 
@@ -146,4 +147,16 @@ void emit_bss(const char *label, size_t size, size_t align) {
 
 void init_emit(FILE *fp) {
   emit_fp = fp;
+}
+
+bool function_not_returned(FuncBackend *fnbe) {
+  BB *bb = fnbe->bbcon->bbs->data[fnbe->bbcon->bbs->len - 1];
+  if (bb->irs->len > 0) {
+    IR *ir = bb->irs->data[bb->irs->len - 1];
+    if (ir->kind == IR_JMP && ir->jmp.cond == COND_ANY && ir->jmp.bb != NULL) {
+      // No fallthrough exists: the function does not return.
+      return true;
+    }
+  }
+  return false;
 }

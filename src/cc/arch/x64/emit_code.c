@@ -543,31 +543,35 @@ static void emit_defun(Function *func) {
 
   emit_bb_irs(fnbe->bbcon);
 
-  // Epilogue
-  if (!no_stmt) {
-    if (func->flag & FUNCF_STACK_MODIFIED) {
-      // Stack pointer might be changed if alloca is used, so it need to be recalculated.
-      LEA(OFFSET_INDIRECT(callee_saved_count * -POINTER_SIZE - frame_size, RBP, NULL, 1),
-          RSP);
+  if (!function_not_returned(fnbe)) {
+    // Epilogue
+    if (!no_stmt) {
+      if (func->flag & FUNCF_STACK_MODIFIED) {
+        // Stack pointer might be changed if alloca is used, so it need to be recalculated.
+        LEA(OFFSET_INDIRECT(callee_saved_count * -POINTER_SIZE - frame_size, RBP, NULL, 1),
+            RSP);
+      }
+
+      pop_callee_save_regs(fnbe->ra->used_reg_bits, fnbe->ra->used_freg_bits);
+
+      if (rbp_saved) {
+        MOV(RBP, RSP);
+        stackpos -= frame_size;
+        POP(RBP); POP_STACK_POS();
+      } else if (frame_size > 0) {
+        ADD(IM(frame_size), RSP);
+        stackpos -= frame_size;
+      }
     }
 
-    pop_callee_save_regs(fnbe->ra->used_reg_bits, fnbe->ra->used_freg_bits);
+    RET();
 
-    if (rbp_saved) {
-      MOV(RBP, RSP);
-      stackpos -= frame_size;
-      POP(RBP); POP_STACK_POS();
-    } else if (frame_size > 0) {
-      ADD(IM(frame_size), RSP);
-      stackpos -= frame_size;
-    }
+    assert(stackpos == 8);
+  } else {
+    stackpos = 8;
   }
 
-  RET();
-
   // Static variables are emitted through global variables.
-
-  assert(stackpos == 8);
 }
 
 void emit_code(Vector *decls) {

@@ -2,8 +2,11 @@
 
 #pragma once
 
+#include <stdbool.h>
 #include <stdint.h>  // int64_t
 #include <stdio.h>
+
+typedef struct FuncBackend FuncBackend;
 
 #ifndef EMIT_LABEL
 #define EMIT_LABEL(label)  emit_label(label)
@@ -36,3 +39,5 @@ void emit_asm4(const char *op, const char *a1, const char *a2, const char *a3, c
 void emit_align_p2(int align);
 void emit_comment(const char *comment, ...);
 void emit_bss(const char *label, size_t size, size_t align);
+
+bool function_not_returned(FuncBackend *fnbe);

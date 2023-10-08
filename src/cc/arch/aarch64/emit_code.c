@@ -553,35 +553,37 @@ static void emit_defun(Function *func) {
 
   emit_bb_irs(fnbe->bbcon);
 
-  // Epilogue
-  if (!no_stmt) {
-    if (func->flag & FUNCF_STACK_MODIFIED) {
-      // Stack pointer might be changed if alloca is used, so it need to be recalculated.
-      size_t size = frame_size + ALIGN(callee_saved_count * POINTER_SIZE, 16);
-      const char *value;
-      if (size <= 0x0fff)
-        value = IM(size);
-      else
-        mov_immediate(value = SP, size, true, false);
-      SUB(SP, FP, value);
-    }
-    pop_callee_save_regs(used_reg_bits, fnbe->ra->used_freg_bits);
-    if (fp_saved) {
-      const char *value;
-      if (frame_size <= 0x0fff) {
-        value = IM(frame_size);
-      } else {
-        // Break x17
-        mov_immediate(value = X17, frame_size, true, false);
+  if (!function_not_returned(fnbe)) {
+    // Epilogue
+    if (!no_stmt) {
+      if (func->flag & FUNCF_STACK_MODIFIED) {
+        // Stack pointer might be changed if alloca is used, so it need to be recalculated.
+        size_t size = frame_size + ALIGN(callee_saved_count * POINTER_SIZE, 16);
+        const char *value;
+        if (size <= 0x0fff)
+          value = IM(size);
+        else
+          mov_immediate(value = SP, size, true, false);
+        SUB(SP, FP, value);
       }
-      ADD(SP, SP, value);
+      pop_callee_save_regs(used_reg_bits, fnbe->ra->used_freg_bits);
+      if (fp_saved) {
+        const char *value;
+        if (frame_size <= 0x0fff) {
+          value = IM(frame_size);
+        } else {
+          // Break x17
+          mov_immediate(value = X17, frame_size, true, false);
+        }
+        ADD(SP, SP, value);
+      }
+
+      if (fp_saved || lr_saved)
+        LDP(FP, LR, POST_INDEX(SP, 16));
     }
 
-    if (fp_saved || lr_saved)
-      LDP(FP, LR, POST_INDEX(SP, 16));
+    RET();
   }
-
-  RET();
 
   // Static variables are emitted through global variables.
 }

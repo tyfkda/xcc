@@ -180,6 +180,7 @@ test_function() {
   compile_error 'conflict func' 'void main(); int main(int, char**){return 0;}'
   compile_error 'duplicate var & func' 'int main; int main(){return 0;}'
   compile_error 'duplicate func & var' 'int main(){return 0;} int main;'
+  try_direct 'infinite loop and exit' 77 '#include <stdlib.h>\nint main(){for (int i = 0; ; ++i) if (i == 10) exit(77);}'
 
   end_test_suite
 }
