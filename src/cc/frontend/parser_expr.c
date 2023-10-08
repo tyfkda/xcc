@@ -849,6 +849,7 @@ static Expr *parse_cast_expr(void) {
         return parse_compound_literal(type);
 
       Expr *sub = parse_cast_expr();
+      sub = str_to_char_array_var(curscope, sub);
       check_cast(type, sub->type, is_zero(sub), true, token);
       if (is_const(sub) && type->kind != TY_VOID)
         return make_cast(type, token, sub, true);
@@ -929,6 +930,7 @@ static Expr *parse_unary(void) {
         parse_error(PE_NOFATAL, tok, "Cannot take reference for bitfield");
     }
 #endif
+    expr = str_to_char_array_var(curscope, expr);
     return make_refer(tok, expr);
   }
 
@@ -1066,6 +1068,8 @@ static Expr *parse_cmp(void) {
       return expr;
 
     Expr *lhs = expr, *rhs = parse_shift();
+    lhs = str_to_char_array_var(curscope, lhs);
+    rhs = str_to_char_array_var(curscope, rhs);
     expr = new_expr_cmp(kind, tok, lhs, rhs);
   }
 }
@@ -1084,6 +1088,8 @@ static Expr *parse_eq(void) {
       return expr;
 
     Expr *lhs = expr, *rhs = parse_cmp();
+    lhs = str_to_char_array_var(curscope, lhs);
+    rhs = str_to_char_array_var(curscope, rhs);
     expr = new_expr_cmp(kind, tok, lhs, rhs);
   }
 }
