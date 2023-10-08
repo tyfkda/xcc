@@ -186,29 +186,33 @@ static void hsadd(HideSet *hs, Vector *ts) {
   }
 }
 
-static Vector *subst(Vector *body, Table *param_table, Vector *args, HideSet *hs) {
+static Vector *subst(Macro *macro, Table *param_table, Vector *args, HideSet *hs) {
   Vector *os = new_vector();
+  Vector *body = macro->body;
   if (body == NULL)
     return os;
 
   for (int i = 0; i < body->len; ++i) {
     const Token *tok = body->data[i];
 
-    if (tok->kind == PPTK_STRINGIFY && i + 1 < body->len) {
-      const Token *next = body->data[i + 1];
-      intptr_t j;
-      if (next->kind == TK_IDENT &&
-          param_table != NULL && table_try_get(param_table, next->ident, (void*)&j)) {
-        assert(j < args->len);
-        const Vector *arg = args->data[j];
-        const Token *str = stringize(arg);
-        vec_push(os, str);
-        ++i;
-        continue;
+    switch (tok->kind) {
+    case PPTK_STRINGIFY:
+      if (i + 1 < body->len) {
+        const Token *next = body->data[i + 1];
+        intptr_t j;
+        if (next->kind == TK_IDENT &&
+            param_table != NULL && table_try_get(param_table, next->ident, (void*)&j)) {
+          assert(j < args->len);
+          const Vector *arg = args->data[j];
+          const Token *str = stringize(arg);
+          vec_push(os, str);
+          ++i;
+          continue;
+        }
       }
-    }
+      break;
 
-    if (tok->kind == PPTK_CONCAT) {
+    case PPTK_CONCAT:
       if (os->len > 0 && i + 1 < body->len) {
         const Token *next = body->data[i + 1];
         if (next->kind == TK_IDENT) {
@@ -226,9 +230,9 @@ static Vector *subst(Vector *body, Table *param_table, Vector *args, HideSet *hs
         ++i;
         continue;
       }
-    }
+      break;
 
-    if (tok->kind == TK_IDENT) {
+    case TK_IDENT:
       if (body->len > i + 1 && ((Token*)body->data[i + 1])->kind == PPTK_CONCAT) {
         intptr_t j;
         if (param_table != NULL && table_try_get(param_table, tok->ident, (void*)&j)) {
@@ -253,17 +257,40 @@ static Vector *subst(Vector *body, Table *param_table, Vector *args, HideSet *hs
         }
       }
 
-      intptr_t j;
-      if (param_table != NULL && table_try_get(param_table, tok->ident, (void*)&j)) {
-        assert(j < args->len);
-        Vector *arg = args->data[j];
-        macro_expand(arg);
-        for (int k = 0; k < arg->len; ++k) {
-          const Token *t = arg->data[k];
-          vec_push(os, t);
+      if (param_table != NULL) {
+        intptr_t j;
+        if (table_try_get(param_table, tok->ident, (void*)&j)) {
+          assert(j < args->len);
+          Vector *arg = args->data[j];
+          macro_expand(arg);
+          for (int k = 0; k < arg->len; ++k) {
+            const Token *t = arg->data[k];
+            vec_push(os, t);
+          }
+          continue;
         }
-        continue;
       }
+      break;
+
+    case TK_COMMA:
+      // Handle GNU extension: , ## __VA_ARGS__
+      if (body->len > i + 2 && ((Token*)body->data[i + 1])->kind == PPTK_CONCAT &&
+          ((Token*)body->data[i + 2])->kind == TK_IDENT && param_table != NULL) {
+        const Token *next = body->data[i + 2];
+        intptr_t j;
+        if (table_try_get(param_table, next->ident, (void*)&j)) {
+          assert(j < args->len);
+          const Vector *arg = args->data[j];
+          if (arg->len == 0) {
+            i += 2;  // Argument is empty, so omit `,` and `##`.
+            continue;
+          }
+          ++i;  // Argument is not empty, so put `,` followed by the argument (omit `##`).
+        }
+      }
+      break;
+
+    default: break;
     }
 
     vec_push(os, tok);
@@ -305,7 +332,7 @@ void macro_expand(Vector *tokens) {
     if (macro->params_len < 0) {  // "()-less macro"
       hs = clone_hideset(hs);
       hideset_put(hs, tok->ident);
-      replaced = subst(macro->body, NULL, NULL, hs);
+      replaced = subst(macro, NULL, NULL, hs);
     } else {  // "()'d macro"
       Vector *args = pp_funargs(tokens, &next,
                                 macro->vaargs_ident != NULL ? macro->params_len : INT_MAX);
@@ -322,7 +349,7 @@ void macro_expand(Vector *tokens) {
         hs = clone_hideset(hs);
         intersection_hideset(hs, hs2);
         hideset_put(hs, tok->ident);
-        replaced = subst(macro->body, macro->param_table, args, hs);
+        replaced = subst(macro, macro->param_table, args, hs);
       }
     }
 
