@@ -187,7 +187,7 @@ static void dump_func_ir(Function *func) {
       }
       fprintf(fp, "]");
     }
-    if (bb->in_regs != NULL && bb->in_regs->len > 0) {
+    if (bb->in_regs->len > 0) {
       fprintf(fp, " in=[");
       for (int j = 0; j < bb->in_regs->len; ++j) {
         VReg *vreg = bb->in_regs->data[j];
@@ -195,7 +195,7 @@ static void dump_func_ir(Function *func) {
       }
       fprintf(fp, "]");
     }
-    if (bb->out_regs != NULL && bb->out_regs->len > 0) {
+    if (bb->out_regs->len > 0) {
       fprintf(fp, " out=[");
       for (int j = 0; j < bb->out_regs->len; ++j) {
         VReg *vreg = bb->out_regs->data[j];

@@ -317,9 +317,9 @@ BB *new_bb(void) {
   bb->from_bbs = new_vector();
   bb->label = alloc_label();
   bb->irs = new_vector();
-  bb->in_regs = NULL;
-  bb->out_regs = NULL;
-  bb->assigned_regs = NULL;
+  bb->in_regs = new_vector();
+  bb->out_regs = new_vector();
+  bb->assigned_regs = new_vector();
   return bb;
 }
 
@@ -395,8 +395,12 @@ void analyze_reg_flow(BBContainer *bbcon) {
   // Enumerate in and assigned regsiters for each BB.
   for (int i = 0; i < bbcon->bbs->len; ++i) {
     BB *bb = bbcon->bbs->data[i];
-    Vector *in_regs = new_vector();
-    Vector *assigned_regs = new_vector();
+    Vector *in_regs = bb->in_regs;
+    Vector *assigned_regs = bb->assigned_regs;
+    vec_clear(in_regs);
+    vec_clear(assigned_regs);
+    vec_clear(bb->out_regs);
+
     Vector *irs = bb->irs;
     for (int j = 0; j < irs->len; ++j) {
       IR *ir = irs->data[j];
@@ -411,10 +415,6 @@ void analyze_reg_flow(BBContainer *bbcon) {
       if (ir->dst != NULL)
         insert_vreg_into_vec(assigned_regs, ir->dst);
     }
-
-    bb->in_regs = in_regs;
-    bb->out_regs = new_vector();
-    bb->assigned_regs = assigned_regs;
   }
 
   // Propagate in_regs to out_regs to from_bbs recursively.
