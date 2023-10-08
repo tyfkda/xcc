@@ -10,5 +10,5 @@ CFLAGS="-D_GNU_SOURCE -D__STDC_VERSION__=199901L -Drestrict="
 CC="$xcc" CFLAGS="$CFLAGS" ./configure
 sed -i 's/^wl=.*/wl=-Wl,/; s/^pic_flag=.*/pic_flag=-fPIC/' libtool
 $make clean
-$make -j1
+$make
 $make test
