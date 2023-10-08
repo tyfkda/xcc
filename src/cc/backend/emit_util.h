@@ -51,7 +51,6 @@ bool function_not_returned(FuncBackend *fnbe);
 #define _FLOAT(x)      EMIT_ASM(".float", x)
 #define _DOUBLE(x)     EMIT_ASM(".double", x)
 #define _GLOBL(x)      EMIT_ASM(".globl", x)
-#define _COMM(x, y)    EMIT_ASM(".comm", x, y)
 #define _ASCII(x)      EMIT_ASM(".ascii", x)
 #define _SECTION(x)    EMIT_ASM(".section", x)
 #define _TEXT()        EMIT_ASM(".text")
