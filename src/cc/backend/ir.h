@@ -44,6 +44,8 @@ typedef struct VReg {
     struct {
       int virt;             // Virtual reg no.
       int phys;             // Physical reg no.
+      int version;          // Version number for SSA.
+      int orig_virt;
       int reg_param_index;  // Index of function parameter through register: -1=non reg param.
       FrameInfo frame;      // FrameInfo for spilled register.
     };

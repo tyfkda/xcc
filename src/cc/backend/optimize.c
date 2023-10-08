@@ -6,6 +6,7 @@
 
 #include "ir.h"
 #include "regalloc.h"
+#include "ssa.h"
 #include "table.h"
 #include "util.h"
 
@@ -197,6 +198,12 @@ static void remove_unused_vregs(RegAlloc *ra, BBContainer *bbcon) {
 //
 
 void optimize(RegAlloc *ra, BBContainer *bbcon) {
+#if defined(__GNUC__)
+// Suppress unused warnings.
+UNUSED(remove_unused_vregs);
+UNUSED(remove_unnecessary_bb);
+#endif
+  make_ssa(ra, bbcon);
   remove_unused_vregs(ra, bbcon);
   remove_unnecessary_bb(bbcon);
   detect_from_bbs(bbcon);
