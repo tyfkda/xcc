@@ -27,10 +27,11 @@ RegAlloc *new_reg_alloc(const RegAllocSettings *settings) {
 
 inline VReg *alloc_vreg(enum VRegSize vsize, int vflag) {
   VReg *vreg = malloc_or_die(sizeof(*vreg));
-  vreg->virt = -1;
+  vreg->virt = vreg->orig_virt = -1;
   vreg->phys = -1;
   vreg->vsize = vsize;
   vreg->flag = vflag;
+  vreg->version = 0;
   vreg->reg_param_index = -1;
   vreg->frame.offset = 0;
   return vreg;
@@ -39,11 +40,18 @@ inline VReg *alloc_vreg(enum VRegSize vsize, int vflag) {
 VReg *reg_alloc_spawn(RegAlloc *ra, enum VRegSize vsize, int vflag) {
   VReg *vreg = alloc_vreg(vsize, vflag);
   if (!(vflag & VRF_CONST)) {
-    vreg->virt = ra->vregs->len;
+    vreg->virt = vreg->orig_virt = ra->vregs->len;
     vec_push(ra->vregs, vreg);
   } else {
     vec_push(ra->consts, vreg);
   }
+  return vreg;
+}
+
+VReg *reg_alloc_with_version(RegAlloc *ra, VReg *parent, int version) {
+  VReg *vreg = reg_alloc_spawn(ra, parent->vsize, parent->flag & VRF_MASK);
+  vreg->orig_virt = parent->virt;
+  vreg->version = version;
   return vreg;
 }
 
