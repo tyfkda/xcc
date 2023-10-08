@@ -30,9 +30,26 @@ static void dump_vreg(FILE *fp, VReg *vreg) {
     if (vreg->flag & VRF_FLONUM)
       regtype = 'F';
     fprintf(fp, "%c%d%s<v%d>", regtype, vreg->phys, kSize[vreg->vsize], vreg->virt);
+  } else if (vreg->version == 0) {
+    fprintf(fp, "V%d", vreg->virt);
   } else {
-    fprintf(fp, "v%d", vreg->virt);
+    if (vreg->version <= 26)
+      fprintf(fp, "v%d%c(%d)", vreg->orig_virt, ('a' - 1) + vreg->version, vreg->virt);
+    else
+      fprintf(fp, "v%d_%d(%d)", vreg->orig_virt, vreg->version, vreg->virt);
   }
+}
+
+static void dump_vregs(FILE *fp, const char *title, Vector *regs, bool newline) {
+  fprintf(fp, "%s=[", title);
+  for (int i = 0; i < regs->len; ++i) {
+    VReg *vreg = regs->data[i];
+    fprintf(fp, "%s%d", i==0?"":",", vreg->virt);
+  }
+  if (newline)
+    fprintf(fp, "]\n");
+  else
+    fprintf(fp, "]");
 }
 
 static void dump_ir(FILE *fp, IR *ir) {
@@ -206,22 +223,10 @@ static void dump_func_ir(Function *func) {
       }
       fprintf(fp, "]");
     }
-    if (bb->in_regs->len > 0) {
-      fprintf(fp, " in=[");
-      for (int j = 0; j < bb->in_regs->len; ++j) {
-        VReg *vreg = bb->in_regs->data[j];
-        fprintf(fp, "%s%d", (j > 0 ? ", " : ""), vreg->virt);
-      }
-      fprintf(fp, "]");
-    }
-    if (bb->out_regs->len > 0) {
-      fprintf(fp, " out=[");
-      for (int j = 0; j < bb->out_regs->len; ++j) {
-        VReg *vreg = bb->out_regs->data[j];
-        fprintf(fp, "%s%d", (j > 0 ? ", " : ""), vreg->virt);
-      }
-      fprintf(fp, "]");
-    }
+    if (bb->in_regs->len > 0)
+      dump_vregs(fp, " in", bb->in_regs, false);
+    if (bb->out_regs->len > 0)
+      dump_vregs(fp, " out", bb->out_regs, false);
     fprintf(fp, "\n");
 
     for (int j = 0; j < bb->irs->len; ++j, ++nip) {
