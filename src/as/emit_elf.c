@@ -120,8 +120,16 @@ static int construct_symtab(Symtab *symtab, Vector *sections, Table *label_table
     }
     sym->st_info = ELF64_ST_INFO(bind, type);
     sym->st_value = (info->flag & LF_DEFINED) ? info->address - info->section->start_address : 0;
+    sym->st_size = info->size;
     assert(info->section == NULL || info->section->index > 0);
-    sym->st_shndx = info->section != NULL ? info->section->index : SHN_UNDEF;  // Symbol index for Local section.
+    Elf64_Section shndx = SHN_UNDEF;
+    if (info->section != NULL) {
+      if ((info->flag & (LF_COMM | LF_GLOBAL)) == (LF_COMM | LF_GLOBAL))
+        shndx = SHN_COMMON;
+      else
+        shndx = info->section->index;  // Symbol index for Local section.
+    }
+    sym->st_shndx = shndx;
   }
 
   int local_symbol_count = symtab->count;

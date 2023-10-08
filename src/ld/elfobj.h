@@ -43,6 +43,7 @@ typedef struct ElfObj {
   Vector *prog_sections;  // <ElfSectionInfo*>, PROGBITS, NOBITS, INIT_ARRAY, FINI_ARRAY, PREINIT_ARRAY
   ElfSectionInfo *section_infos;
   ElfSectionInfo *symtab_section;
+  int nobit_shndx;
 } ElfObj;
 
 ElfObj *read_elf(FILE *fp, const char *fn);

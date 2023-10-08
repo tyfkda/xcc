@@ -43,7 +43,7 @@ void emit_asm3(const char *op, const char *a1, const char *a2, const char *a3);
 void emit_asm4(const char *op, const char *a1, const char *a2, const char *a3, const char *a4);
 void emit_align_p2(int align);
 void emit_comment(const char *comment, ...);
-void emit_bss(const char *label, size_t size, size_t align);
+void emit_comm(const char *label, size_t size, size_t align);
 
 bool function_not_returned(FuncBackend *fnbe);
 
@@ -70,7 +70,7 @@ bool function_not_returned(FuncBackend *fnbe);
 #define _LOCAL(x)      EMIT_ASM(".local", x)
 #endif
 
-#define _BSS(label, size, align)  emit_bss(label, size, align)
+#define _COMM(label, size, align)  emit_comm(label, size, align)
 
 #ifndef MANGLE
 #define MANGLE(label)  mangle(label)

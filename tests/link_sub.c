@@ -4,6 +4,7 @@ int array[] = {0, 111, 222, 333, 444, 555, 666, 777};
 int *ptr = array;
 
 extern int export_var;
+int common_var;
 
 int sq(int x) {
   return x * x;
@@ -11,6 +12,10 @@ int sq(int x) {
 
 int ref_export(void) {
   return export_var;
+}
+
+void store_common(int x) {
+  common_var = x;
 }
 
 #ifndef __NO_FLONUM

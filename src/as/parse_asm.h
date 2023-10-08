@@ -172,6 +172,7 @@ bool is_label_chr(char c);
 #define LF_GLOBAL    (1 << 0)
 #define LF_DEFINED   (1 << 1)
 #define LF_REFERRED  (1 << 2)
+#define LF_COMM      (1 << 3)
 
 enum LabelKind {
   LK_NONE,

@@ -90,8 +90,9 @@ typedef uint16_t Elf64_Half;
 typedef uint32_t Elf64_Word;
 typedef uint64_t Elf64_Xword;
 typedef int64_t Elf64_Sxword;
-typedef uintptr_t Elf64_Addr;
-typedef uintptr_t Elf64_Off;
+typedef uint64_t Elf64_Addr;
+typedef uint64_t Elf64_Off;
+typedef uint16_t Elf64_Section;
 
 #define SHT_NULL          (0)
 #define SHT_PROGBITS      (1)
@@ -144,7 +145,7 @@ typedef struct {
   Elf64_Word      st_name;
   unsigned char   st_info;
   unsigned char   st_other;
-  Elf64_Half      st_shndx;
+  Elf64_Section   st_shndx;
   Elf64_Addr      st_value;
   Elf64_Xword     st_size;
 } Elf64_Sym;

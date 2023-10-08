@@ -879,6 +879,7 @@ void handle_directive(ParseInfo *info, enum DirectiveType dir) {
         return;
       label->size = size;
       label->align = align;
+      label->flag |= LF_COMM;
     }
     break;
 

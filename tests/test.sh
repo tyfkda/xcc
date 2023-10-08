@@ -330,6 +330,24 @@ test_error_line() {
   end_test_suite
 }
 
+test_link() {
+  begin_test_suite "Link"
+
+  local exitcode
+  local err
+
+  # Duplicate symbol error expected.
+  begin_test "Duplicate symbol"
+  echo 'int foo() {return 1;} int main(){return 0;}' > tmp_link1.c
+  echo 'int foo() {return 2;}' > tmp_link2.c
+  eval "$XCC" $OPT -o "$AOUT" tmp_link1.c tmp_link2.c "$SILENT"
+  exitcode="$?"
+  err=''; [[ "$exitcode" -ne 0 ]] || err="Compile error expected, but succeeded"
+  end_test "$err"
+
+  end_test_suite
+}
+
 test_basic
 test_struct
 test_bitfield
@@ -337,6 +355,7 @@ test_initializer
 test_function
 test_error
 test_error_line
+test_link
 
 if [[ $FAILED_SUITE_COUNT -ne 0 ]]; then
   exit "$FAILED_SUITE_COUNT"

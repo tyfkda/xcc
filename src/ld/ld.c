@@ -126,22 +126,24 @@ static uintptr_t ld_symbol_address(LinkEditor *ld, const Name *name) {
   if (elfobj != NULL) {
     Elf64_Sym *sym = elfobj_find_symbol(elfobj, name);
     assert(sym != NULL && sym->st_shndx != SHN_UNDEF);
-    if (sym->st_shndx < SHN_LORESERVE) {
-#ifndef NDEBUG
-      const Elf64_Shdr *tshdr = &elfobj->shdrs[sym->st_shndx];
-      assert(tshdr->sh_type == SHT_PROGBITS || tshdr->sh_type == SHT_NOBITS);
-#endif
-      return elfobj->section_infos[sym->st_shndx].progbits.address + sym->st_value;
+    Elf64_Section shndx = sym->st_shndx;
+    if (shndx == SHN_COMMON) {
+      if (elfobj->nobit_shndx < 0) {
+        // Error.
+        return (uintptr_t)-1;
+      }
+      shndx = elfobj->nobit_shndx;
     }
 
-    switch (sym->st_shndx) {
-    case SHN_COMMON:
-      assert(!"Unhandled shndx:common");
-      break;
-    default:
-      assert(!"Unhandled shndx");
-      break;
+    if (shndx < SHN_LORESERVE) {
+#ifndef NDEBUG
+      const Elf64_Shdr *tshdr = &elfobj->shdrs[shndx];
+      assert(tshdr->sh_type == SHT_PROGBITS || tshdr->sh_type == SHT_NOBITS);
+#endif
+      return elfobj->section_infos[shndx].progbits.address + sym->st_value;
     }
+
+    assert(!"Unhandled shndx");
   } else {
     LinkElem *elem = table_get(ld->generated_symbol_table, name);
     if (elem != NULL) {
@@ -186,7 +188,15 @@ static uintptr_t calc_rela_sym_address(LinkEditor *ld, ElfObj *elfobj, const Elf
       const ElfSectionInfo *s = &elfobj->section_infos[ELF64_R_SYM(rela->r_info)];
       address = s->progbits.address;
     } else {
-      uintptr_t sectop = elfobj->section_infos[sym->st_shndx].progbits.address;
+      Elf64_Section shndx = sym->st_shndx;
+      if (shndx == SHN_COMMON) {
+        if (elfobj->nobit_shndx < 0) {
+          // Error.
+          return (uintptr_t)-1;
+        }
+        shndx = elfobj->nobit_shndx;
+      }
+      uintptr_t sectop = elfobj->section_infos[shndx].progbits.address;
       address = sectop + sym->st_value;
     }
     break;
@@ -382,12 +392,13 @@ static int resolve_rela_elfobj(LinkEditor *ld, ElfObj *elfobj) {
   return error_count;
 }
 
-static void resolve_symbols_elfobj(LinkEditor *ld, ElfObj *elfobj, Table *unresolved) {
+static int resolve_symbols_elfobj(LinkEditor *ld, ElfObj *elfobj, Table *unresolved) {
   ElfSectionInfo *symtab_section = elfobj->symtab_section;
   assert(symtab_section != NULL);
   ElfSectionInfo *strtab_section = symtab_section->symtab.strtab;
   const char *str = strtab_section->strtab.buf;
 
+  int error_count = 0;
   Table *defined = ld->symbol_table;
   Table *generated = ld->generated_symbol_table;
   Table *symbol_table = elfobj->symbol_table;
@@ -398,9 +409,22 @@ static void resolve_symbols_elfobj(LinkEditor *ld, ElfObj *elfobj, Table *unreso
       continue;
     const Name *name = alloc_name(&str[sym->st_name], NULL, false);
 
-    if (table_try_get(defined, name, NULL) || table_try_get(generated, name, NULL)) {
+    ElfObj *prev = NULL;
+    if (table_try_get(defined, name, (void**)&prev) || table_try_get(generated, name, NULL)) {
       if (sym->st_shndx != SHN_UNDEF) {
-        // TODO: Raise duplicate symbol error.
+        if (prev != NULL) {
+          Elf64_Sym *prev_sym = table_get(prev->symbol_table, name);
+          assert(prev_sym != NULL);
+          if (prev_sym->st_shndx == SHN_COMMON) {
+            if (sym->st_shndx != SHN_COMMON)
+              table_put(defined, name, elfobj);  // Overwrite common symbol with defined symbol.
+            continue;
+          }
+          if (sym->st_shndx == SHN_COMMON)
+            continue;  // Skip common symbol to overwrite.
+        }
+        fprintf(stderr, "Duplicate symbol: %.*s\n", NAMES(name));
+        ++error_count;
       }
     } else {
       if (sym->st_shndx == SHN_UNDEF) {
@@ -411,6 +435,7 @@ static void resolve_symbols_elfobj(LinkEditor *ld, ElfObj *elfobj, Table *unreso
       }
     }
   }
+  return error_count;
 }
 
 static void collect_sections_elfobj(LinkEditor *ld, ElfObj *elfobj, const char *name, Vector *seclist) {
@@ -440,7 +465,8 @@ static void *load_elfobj(FILE *fp, const char *fn, size_t size) {
   return read_elf(fp, fn);
 }
 
-static void resolve_symbols_archive(LinkEditor *ld, Archive *ar, Table *unresolved) {
+static int resolve_symbols_archive(LinkEditor *ld, Archive *ar, Table *unresolved) {
+  int error_count = 0;
   Table *table = &ar->symbol_table;
   for (;;) {
     bool retry = false;
@@ -452,7 +478,7 @@ static void resolve_symbols_archive(LinkEditor *ld, Archive *ar, Table *unresolv
 
       ElfObj *elfobj = load_archive_content(ar, symbol, load_elfobj);
       if (elfobj != NULL) {
-        resolve_symbols_elfobj(ld, elfobj, unresolved);
+        error_count += resolve_symbols_elfobj(ld, elfobj, unresolved);
         retry = true;
         break;
       }
@@ -460,6 +486,7 @@ static void resolve_symbols_archive(LinkEditor *ld, Archive *ar, Table *unresolv
     if (!retry)
       break;
   }
+  return error_count;
 }
 
 static void collect_sections_archive(LinkEditor *ld, Archive *ar, const char *name, Vector *seclist) {
@@ -510,18 +537,20 @@ static void add_elf_section(SectionGroup section_groups[SECTION_COUNT], const El
   data_append(secgroup->ds, content, shdr->sh_size);
 }
 
-static void ld_resolve_symbols(LinkEditor *ld, Table *unresolved) {
+static int ld_resolve_symbols(LinkEditor *ld, Table *unresolved) {
+  int error_count = 0;
   for (int i = 0; i < ld->nfiles; ++i) {
     File *file = &ld->files[i];
     switch (file->kind) {
     case FK_ELFOBJ:
-      resolve_symbols_elfobj(ld, file->elfobj, unresolved);
+      error_count += resolve_symbols_elfobj(ld, file->elfobj, unresolved);
       break;
     case FK_ARCHIVE:
-      resolve_symbols_archive(ld, file->archive, unresolved);
+      error_count += resolve_symbols_archive(ld, file->archive, unresolved);
       break;
     }
   }
+  return error_count;
 }
 
 static void ld_collect_sections(LinkEditor *ld, const char *name, Vector *seclist) {
@@ -1064,7 +1093,8 @@ static int do_link(Vector *sources, const Options *opts) {
   Vector *section_lists[SECTION_COUNT];  // <LinkElem*>
   prepare_section_lists(ld, section_lists);
 
-  ld_resolve_symbols(ld, &unresolved);
+  if (ld_resolve_symbols(ld, &unresolved) > 0)
+    return 1;
   if (unresolved.count > 0) {
     fprintf(stderr, "Unresolved: #%d\n", unresolved.count);
     const Name *name;

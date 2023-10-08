@@ -87,7 +87,7 @@ static int construct_symtab(Symtab *symtab, Table *label_table, uintptr_t start_
       continue;
     }
     struct nlist_64 *sym = symtab_add(symtab, name);
-    if (info->section != NULL && info->section->flag & SF_BSS) {
+    if (info->section != NULL && info->flag & LF_COMM) {
       // .comm
       assert(info->align > 0 && IS_POWER_OF_2(info->align));
       SET_COMM_ALIGN(sym->n_desc, most_significant_bit(info->align));

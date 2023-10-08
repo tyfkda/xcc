@@ -134,7 +134,7 @@ void emit_align_p2(int align) {
   fprintf(emit_fp, "\t.p2align %d\n", most_significant_bit(align));
 }
 
-void emit_bss(const char *label, size_t size, size_t align) {
+void emit_comm(const char *label, size_t size, size_t align) {
 #if XCC_TARGET_PLATFORM == XCC_PLATFORM_APPLE
   // p2align on macOS.
   assert(IS_POWER_OF_2(align));
@@ -268,7 +268,7 @@ static void emit_varinfo(const VarInfo *varinfo, const Initializer *init) {
       size = 1;
 
     size_t align = align_size(varinfo->type);
-    _BSS(label, size, align);
+    _COMM(label, size, align);
   }
 }
 

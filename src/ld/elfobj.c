@@ -93,6 +93,7 @@ ElfObj *read_elf(FILE *fp, const char *fn) {
   elfobj->shdrs = shdrs;
   elfobj->symbol_table = NULL;
   elfobj->symtab_section = NULL;
+  elfobj->nobit_shndx = -1;
 
   Vector *prog_sections = new_vector();
   ElfSectionInfo *section_infos = calloc_or_die(ehdr.e_shnum * sizeof(ElfSectionInfo));
@@ -104,8 +105,12 @@ ElfObj *read_elf(FILE *fp, const char *fn) {
     p->shdr = shdr;
     if (shdr->sh_size > 0) {
       switch (shdr->sh_type) {
-      case SHT_PROGBITS:
       case SHT_NOBITS:
+        if (elfobj->nobit_shndx >= 0)
+          error("Multiple NOBITS sections not supported");
+        elfobj->nobit_shndx = i;
+        // Fallthrough
+      case SHT_PROGBITS:
       case SHT_INIT_ARRAY:
       case SHT_FINI_ARRAY:
       case SHT_PREINIT_ARRAY:
