@@ -195,6 +195,17 @@ static void detect_live_interval_flags(RegAlloc *ra, BBContainer *bbcon, int vre
           occupy_regs(ra, actives, ioccupy, 0);
       }
 
+      if (iargset != 0 || fargset != 0)
+        occupy_regs(ra, actives, iargset, fargset);
+
+      // Deactivate registers which end at this ip.
+      for (int k = 0; k < actives->len; ++k) {
+        LiveInterval *li = actives->data[k];
+        if (li->end <= nip)
+          vec_remove_at(actives, k--);
+      }
+
+      // Update function parameter register occupation after setting it.
       if (ir->kind == IR_PUSHARG) {
         VReg *opr1 = ir->opr1;
         if (opr1->flag & VRF_FLONUM) {
@@ -206,15 +217,6 @@ static void detect_live_interval_flags(RegAlloc *ra, BBContainer *bbcon, int vre
           if (n >= 0)
             iargset |= 1UL << n;
         }
-      }
-      if (iargset != 0 || fargset != 0)
-        occupy_regs(ra, actives, iargset, fargset);
-
-      // Deactivate registers which end at this ip.
-      for (int k = 0; k < actives->len; ++k) {
-        LiveInterval *li = actives->data[k];
-        if (li->end <= nip)
-          vec_remove_at(actives, k--);
       }
 
       // Call instruction breaks registers which contain in their live interval (start < nip < end).

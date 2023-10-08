@@ -612,18 +612,18 @@ static void ei_pusharg(IR *ir) {
   assert(!(ir->opr1->flag & VRF_CONST));
   int pow = ir->opr1->vsize;
   if (ir->opr1->flag & VRF_FLONUM) {
-    static const char *kArgFReg32s[] = {S0, S1, S2, S3, S4, S5, S6, S7};
-    static const char *kArgFReg64s[] = {D0, D1, D2, D3, D4, D5, D6, D7};
-    switch (ir->opr1->vsize) {
-    case SZ_FLOAT:  FMOV(kArgFReg32s[ir->pusharg.index], kFReg32s[ir->opr1->phys]); break;
-    case SZ_DOUBLE:  FMOV(kArgFReg64s[ir->pusharg.index], kFReg64s[ir->opr1->phys]); break;
-    default: assert(false); break;
+    // Assume parameter registers are arranged from index 0.
+    if (ir->pusharg.index != ir->opr1->phys) {
+      switch (ir->opr1->vsize) {
+      case SZ_FLOAT:  FMOV(kFReg32s[ir->pusharg.index], kFReg32s[ir->opr1->phys]); break;
+      case SZ_DOUBLE:  FMOV(kFReg64s[ir->pusharg.index], kFReg64s[ir->opr1->phys]); break;
+      default: assert(false); break;
+      }
     }
   } else {
-    static const char *kArgReg32s[] = {W0, W1, W2, W3, W4, W5, W6, W7};
-    static const char *kArgReg64s[] = {X0, X1, X2, X3, X4, X5, X6, X7};
-    static const char **kArgRegSizeTable[] = {kArgReg32s, kArgReg32s, kArgReg32s, kArgReg64s};
-    MOV(kArgRegSizeTable[pow][ir->pusharg.index], kRegSizeTable[pow][ir->opr1->phys]);
+    // Assume parameter registers are arranged from index 0.
+    if (ir->pusharg.index != ir->opr1->phys)
+      MOV(kRegSizeTable[pow][ir->pusharg.index], kRegSizeTable[pow][ir->opr1->phys]);
   }
 }
 
@@ -649,7 +649,7 @@ static void ei_call(IR *ir) {
 
   if (ir->dst != NULL) {
     if (ir->dst->flag & VRF_FLONUM) {
-      if (ir->dst->phys != 0) {  // Destination is not return register.
+      if (ir->dst->phys != GET_D0_INDEX()) {
         const char *src, *dst;
         switch (ir->dst->vsize) {
         default: assert(false);  // Fallthrough

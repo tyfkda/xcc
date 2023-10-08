@@ -600,27 +600,22 @@ static void ei_precall(IR *ir) {
 
 static void ei_pusharg(IR *ir) {
   if (ir->opr1->flag & VRF_FLONUM) {
-    static const char *kArgFReg64s[] = {XMM0, XMM1, XMM2, XMM3, XMM4, XMM5, XMM6, XMM7};
-    switch (ir->opr1->vsize) {
-    case SZ_FLOAT: MOVSS(kFReg64s[ir->opr1->phys], kArgFReg64s[ir->pusharg.index]); break;
-    case SZ_DOUBLE: MOVSD(kFReg64s[ir->opr1->phys], kArgFReg64s[ir->pusharg.index]); break;
-    default: assert(false); break;
+    // Assume parameter registers are arranged from index 0.
+    if (ir->pusharg.index != ir->opr1->phys) {
+      switch (ir->opr1->vsize) {
+      case SZ_FLOAT: MOVSS(kFReg64s[ir->opr1->phys], kFReg64s[ir->pusharg.index]); break;
+      case SZ_DOUBLE: MOVSD(kFReg64s[ir->opr1->phys], kFReg64s[ir->pusharg.index]); break;
+      default: assert(false); break;
+      }
     }
   } else {
-    static const char *kArgRegSizeTable[][MAX_REG_ARGS] = {
-      {DIL, SIL,  DL,  CL, R8B, R9B},
-      { DI,  SI,  DX,  CX, R8W, R9W},
-      {EDI, ESI, EDX, ECX, R8D, R9D},
-      {RDI, RSI, RDX, RCX, R8 , R9},
-    };
-
+    const int PARAM_REG_START_INDEX = 1;  // Parameter registers are arranged from this index.
     int pow = ir->opr1->vsize;
     assert(0 <= pow && pow < 4);
-
-    const char *dst = kArgRegSizeTable[pow][ir->pusharg.index];
+    const char *dst = kRegSizeTable[pow][ir->pusharg.index + PARAM_REG_START_INDEX];
     if (ir->opr1->flag & VRF_CONST)
       MOV(IM(ir->opr1->fixnum), dst);
-    else
+    else if (ir->pusharg.index + PARAM_REG_START_INDEX != ir->opr1->phys)
       MOV(kRegSizeTable[pow][ir->opr1->phys], dst);
   }
 }
@@ -665,17 +660,20 @@ static void ei_call(IR *ir) {
 
   if (ir->dst != NULL) {
     if (ir->dst->flag & VRF_FLONUM) {
-      switch (ir->dst->vsize) {
-      case SZ_FLOAT: MOVSS(XMM0, kFReg64s[ir->dst->phys]); break;
-      case SZ_DOUBLE: MOVSD(XMM0, kFReg64s[ir->dst->phys]); break;
-      default: assert(false); break;
+      if (ir->dst->phys != GET_XMM0_INDEX()) {
+        switch (ir->dst->vsize) {
+        case SZ_FLOAT: MOVSS(XMM0, kFReg64s[ir->dst->phys]); break;
+        case SZ_DOUBLE: MOVSD(XMM0, kFReg64s[ir->dst->phys]); break;
+        default: assert(false); break;
+        }
       }
     } else {
-      int pow = ir->dst->vsize;
-      assert(0 <= pow && pow < 4);
-      const char **regs = kRegSizeTable[pow];
-      if (ir->dst->phys != GET_AREG_INDEX())
+      if (ir->dst->phys != GET_AREG_INDEX()) {
+        int pow = ir->dst->vsize;
+        assert(0 <= pow && pow < 4);
+        const char **regs = kRegSizeTable[pow];
         MOV(regs[GET_AREG_INDEX()], regs[ir->dst->phys]);
+      }
     }
   }
 }
