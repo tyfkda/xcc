@@ -320,11 +320,11 @@ int main(int argc, char *argv[]) {
 
     // Suppress warnings
     {"W", required_argument},
-    {"O", required_argument},
-    {"g", required_argument},  // Debug info
+    {"O", optional_argument},
+    {"g", optional_argument},  // Debug info
     {"f", required_argument},
     {"ansi", no_argument, OPT_ANSI},
-    {"std", required_argument, OPT_STD},
+    {"std", optional_argument, OPT_STD},
     {"pedantic", no_argument, OPT_PEDANTIC},
     {"MMD", no_argument, OPT_MMD},
     {"no-pie", no_argument, OPT_NO_PIE},

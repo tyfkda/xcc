@@ -539,11 +539,13 @@ int optparse(int argc, char *const argv[], const struct option *opts) {
       if (opts->has_arg) {
         if (c != '\0') {
           optarg = q + (c == '=' ? 1 : 0);
-        } else if (optind < argc) {
-          optarg = argv[optind++];
-        } else {
-          ERROR("%s: option '--%s' requires an argument\n", argv[0], opts->name);
-          break;
+        } else if (opts->has_arg == required_argument) {
+          if (optind < argc) {
+            optarg = argv[optind++];
+          } else {
+            ERROR("%s: option '--%s' requires an argument\n", argv[0], opts->name);
+            break;
+          }
         }
       } else {
         if (c != '\0') {

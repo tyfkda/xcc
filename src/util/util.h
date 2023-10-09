@@ -99,6 +99,7 @@ void escape_string(const char *str, size_t size, StringBuffer *sb);
 
 #define no_argument        (0)
 #define required_argument  (1)
+#define optional_argument  (2)
 
 struct option {
   const char *name;
