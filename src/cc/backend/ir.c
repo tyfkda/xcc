@@ -365,16 +365,29 @@ static void detect_from_bbs(BBContainer *bbcon) {
   }
 }
 
+static bool insert_vreg_into_vec(Vector *vregs, VReg *vreg) {
+  int lo = -1, hi = vregs->len;
+  while (hi - lo > 1) {
+    int m = lo + (hi - lo) / 2;
+    VReg *mid = vregs->data[m];
+    if      (mid->virt < vreg->virt)  lo = m;
+    else if (mid->virt > vreg->virt)  hi = m;
+    else                              return false;
+  }
+  assert(0 <= hi && hi <= vregs->len);
+  assert(hi == vregs->len || ((VReg*)vregs->data[hi])->virt != vreg->virt);
+  vec_insert(vregs, hi, vreg);
+  return true;
+}
+
 static void propagate_out_regs(VReg *vreg, Vector *froms) {
   for (BB *bb; (bb = vec_pop(froms)) != NULL; ) {
-    if (!vec_contains(bb->out_regs, vreg))
-      vec_push(bb->out_regs, vreg);
-    if (!vec_contains(bb->in_regs, vreg) &&
-        !vec_contains(bb->assigned_regs, vreg)) {
-      vec_push(bb->in_regs, vreg);
-      for (int i = 0; i < bb->from_bbs->len; ++i)
-        vec_push(froms, bb->from_bbs->data[i]);
-    }
+    insert_vreg_into_vec(bb->out_regs, vreg);
+    if (vec_contains(bb->assigned_regs, vreg) ||
+        !insert_vreg_into_vec(bb->in_regs, vreg))
+      continue;
+    for (int i = 0; i < bb->from_bbs->len; ++i)
+      vec_push(froms, bb->from_bbs->data[i]);
   }
 }
 
@@ -394,12 +407,11 @@ void analyze_reg_flow(BBContainer *bbcon) {
         VReg *vreg = vregs[k];
         if (vreg == NULL || vreg->flag & VRF_CONST)
           continue;
-        if (!vec_contains(in_regs, vreg) &&
-            !vec_contains(assigned_regs, vreg))
-          vec_push(in_regs, vreg);
+        if (!vec_contains(assigned_regs, vreg))
+          insert_vreg_into_vec(in_regs, vreg);
       }
-      if (ir->dst != NULL && !vec_contains(assigned_regs, ir->dst))
-        vec_push(assigned_regs, ir->dst);
+      if (ir->dst != NULL)
+        insert_vreg_into_vec(assigned_regs, ir->dst);
     }
 
     bb->in_regs = in_regs;
