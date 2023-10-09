@@ -488,6 +488,8 @@ Initializer *flatten_initializer(Type *type, Initializer *init) {
   return init;
 }
 
+static Initializer *check_global_initializer(Type *type, Initializer *init);
+
 static Expr *check_global_initializer_fixnum(Expr *value, bool *isconst) {
   switch (value->kind) {
   case EX_FIXNUM:
@@ -516,6 +518,7 @@ static Expr *check_global_initializer_fixnum(Expr *value, bool *isconst) {
     }
     break;
   case EX_COMPLIT:
+    value->complit.original_init = check_global_initializer(value->type, value->complit.original_init);
     *isconst = value->type->kind == TY_ARRAY;
     break;
   case EX_ADD:

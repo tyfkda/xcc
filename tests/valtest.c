@@ -1676,6 +1676,10 @@ TEST(initializer) {
     struct S {int x;};
     struct S s = (struct S){44};
     EXPECT("Initializer with compound literal", 44, s.x);
+
+    struct T {char *str;};
+    struct T *t = &(struct T){"xyz"};
+    EXPECT_STREQ("String in initializer with compound literal", "xyz", t->str);
   }
 } END_TEST()
 
