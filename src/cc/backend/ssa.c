@@ -28,6 +28,7 @@ static Vector **increment_vreg_versions(RegAlloc *ra, BBContainer *bbcon) {
         Vector *vt = vreg_table[vreg->virt];
         VReg *newver = reg_alloc_with_version(ra, ra->vregs->data[vreg->virt], vt->len);
         vec_push(vt, newver);
+        bb->in_regs->data[i] = newver;
       }
     }
 
@@ -52,11 +53,55 @@ static Vector **increment_vreg_versions(RegAlloc *ra, BBContainer *bbcon) {
         vec_push(vt, dst);
       }
     }
+
+    // Replace out_regs.
+    for (int i = 0; i < bb->out_regs->len; ++i) {
+      VReg *vreg = bb->out_regs->data[i];
+      if (vreg->flag & VRF_REF)
+        continue;
+      Vector *vt = vreg_table[vreg->virt];
+      if (vt->len <= 0) {
+        // This case exists when a variable might be uninitialized (in syntactically).
+        continue;
+      }
+      bb->out_regs->data[i] = vt->data[vt->len - 1];
+    }
   }
+
+  // assigned_regs is remained, so incorrect.
+
   return vreg_table;
+}
+
+static void insert_phis(BBContainer *bbcon) {
+  assert(curbb == NULL);
+  for (int ibb = 1; ibb < bbcon->bbs->len; ++ibb) {
+    BB *bb = bbcon->bbs->data[ibb];
+    if (bb->from_bbs->len == 0)
+      continue;
+    for (int i = bb->in_regs->len; i-- > 0; ) {
+      VReg *vreg = bb->in_regs->data[i];
+      Vector *ins = new_vector();
+      for (int ifrom = 0; ifrom < bb->from_bbs->len; ++ifrom) {
+        BB *from = bb->from_bbs->data[ifrom];
+        VReg *fv = NULL;
+        for (int j = 0; j < from->out_regs->len; ++j) {
+          VReg *o = from->out_regs->data[j];
+          if (o->orig_virt == vreg->orig_virt) {
+            fv = o;
+            break;
+          }
+        }
+        assert(fv != NULL);
+        vec_push(ins, fv);
+      }
+      vec_insert(bb->irs, 0, new_ir_phi(vreg, ins));
+    }
+  }
 }
 
 void make_ssa(RegAlloc *ra, BBContainer *bbcon) {
   analyze_reg_flow(bbcon);
   increment_vreg_versions(ra, bbcon);
+  insert_phis(bbcon);
 }

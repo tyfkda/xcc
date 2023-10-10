@@ -58,7 +58,7 @@ static void dump_ir(FILE *fp, IR *ir) {
     "ADD", "SUB", "MUL", "DIV", "MOD", "BITAND", "BITOR", "BITXOR", "LSHIFT", "RSHIFT",
     "NEG", "BITNOT", "COND", "JMP", "TJMP",
     "PRECALL", "PUSHARG", "CALL", "RESULT", "SUBSP",
-    "CAST", "MOV", "KEEP", "ASM",
+    "CAST", "MOV", "KEEP", "PHI", "ASM",
   };
   static char *kCond[] = {NULL, "MP", "EQ", "NE", "LT", "LE", "GE", "GT", NULL, "MP", "EQ", "NE", "ULT", "ULE", "UGE", "UGT"};
   static char *kCond2[] = {NULL, "MP", "==", "!=", "<", "<=", ">=", ">", NULL, "MP", "==", "!=", "<", "<=", ">=", ">"};
@@ -131,6 +131,17 @@ static void dump_ir(FILE *fp, IR *ir) {
       }
     }
     fprintf(fp, "\n");
+    break;
+  case IR_PHI:
+    dump_vreg(fp, ir->dst);
+    fprintf(fp, " = [");
+    for (int i = 0; i < ir->phi.vregs->len; ++i) {
+      VReg *vreg = ir->phi.vregs->data[i];
+      if (i > 0)
+        fprintf(fp, ", ");
+      dump_vreg(fp, vreg);
+    }
+    fprintf(fp, "]\n");
     break;
   case IR_ASM:    fprintf(fp, "\"%s\"\n", ir->asm_.str); break;
   }
