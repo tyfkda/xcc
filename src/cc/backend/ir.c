@@ -450,10 +450,18 @@ void analyze_reg_flow(BBContainer *bbcon) {
     for (int j = 0; j < irs->len; ++j) {
       IR *ir = irs->data[j];
       VReg *vregs[] = {ir->opr1, ir->opr2};
-      for (int k = 0; k < 2; ++k) {
-        VReg *vreg = vregs[k];
-        if (vreg == NULL || vreg->flag & VRF_CONST)
-          continue;
+      int n = 2;
+      if (ir->kind == IR_PHI)
+        n += ir->phi.vregs->len;
+      for (int k = 0; k < n; ++k) {
+        VReg *vreg;
+        if (k < 2) {
+          vreg = vregs[k];
+          if (vreg == NULL || vreg->flag & VRF_CONST)
+            continue;
+        } else {
+          vreg = ir->phi.vregs->data[k - 2];
+        }
         if (!vec_contains(assigned_regs, vreg))
           insert_vreg_into_vec(in_regs, vreg);
       }
