@@ -327,6 +327,13 @@ IR *new_ir_keep(VReg *dst, VReg *opr1, VReg *opr2) {
   return ir;
 }
 
+IR *new_ir_phi(VReg *dst, Vector *vregs) {
+  IR *ir = new_ir(IR_PHI);
+  ir->dst = dst;
+  ir->phi.vregs = vregs;
+  return ir;
+}
+
 void new_ir_asm(const char *asm_, VReg *dst) {
   IR *ir = new_ir(IR_ASM);
   ir->asm_.str = asm_;
