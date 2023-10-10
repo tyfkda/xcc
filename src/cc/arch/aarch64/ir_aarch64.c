@@ -535,7 +535,7 @@ static void cmp_vregs(VReg *opr1, VReg *opr2) {
 }
 
 static void ei_neg(IR *ir) {
-  assert(!(ir->dst->flag & VRF_CONST));
+  assert(!(ir->opr1->flag & VRF_CONST));
   if (ir->opr1->flag & VRF_FLONUM) {
     const char **table;
     switch (ir->dst->vsize) {
@@ -553,7 +553,7 @@ static void ei_neg(IR *ir) {
 }
 
 static void ei_bitnot(IR *ir) {
-  assert(!(ir->dst->flag & VRF_CONST));
+  assert(!(ir->opr1->flag & VRF_CONST));
   int pow = ir->dst->vsize;
   assert(0 <= pow && pow < 4);
   const char **regs = kRegSizeTable[pow];

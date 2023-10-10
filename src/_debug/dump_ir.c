@@ -53,6 +53,14 @@ static void dump_vreg(FILE *fp, VReg *vreg) {
   }
 }
 
+static void dump_vreg2(FILE *fp, VReg *vreg) {
+  if (vreg->flag & VRF_SPILLED) {
+    fprintf(fp, "spilled(v%d)", vreg->virt);
+  } else {
+    dump_vreg(fp, vreg);
+  }
+}
+
 static void dump_vregs(FILE *fp, const char *title, Vector *regs, bool newline) {
   fprintf(fp, "%s=[", title);
   for (int i = 0; i < regs->len; ++i) {
@@ -71,7 +79,7 @@ static void dump_ir(FILE *fp, IR *ir) {
     "ADD", "SUB", "MUL", "DIV", "MOD", "BITAND", "BITOR", "BITXOR", "LSHIFT", "RSHIFT",
     "NEG", "BITNOT", "COND", "JMP", "TJMP",
     "PRECALL", "PUSHARG", "CALL", "RESULT", "SUBSP",
-    "CAST", "MOV", "KEEP", "ASM",
+    "CAST", "MOV", "KEEP", "PHI", "ASM",
   };
   static char *kCond[] = {NULL, "MP", "EQ", "NE", "LT", "LE", "GE", "GT", NULL, "MP", "EQ", "NE", "ULT", "ULE", "UGE", "UGT"};
   static char *kCond2[] = {NULL, "MP", "==", "!=", "<", "<=", ">=", ">", NULL, "MP", "==", "!=", "<", "<=", ">=", ">"};
@@ -257,6 +265,22 @@ static void dump_func_ir(Function *func) {
     if (bb->out_regs->len > 0)
       dump_vregs(fp, " out", bb->out_regs, false);
     fprintf(fp, "\n");
+
+    if (bb->phis != NULL) {
+      for (int j = 0; j < bb->phis->len; ++j) {
+        Phi *phi = bb->phis->data[j];
+        fprintf(fp, "       \tPHI ");
+        dump_vreg2(fp, phi->dst);
+        fprintf(fp, " = {");
+        for (int i = 0; i < phi->params->len; ++i) {
+          VReg *vreg = phi->params->data[i];
+          if (i > 0)
+            fprintf(fp, ", ");
+          dump_vreg2(fp, vreg);
+        }
+        fprintf(fp, "}\n");
+      }
+    }
 
     for (int j = 0; j < bb->irs->len; ++j, ++nip) {
       fprintf(fp, "%6d|\t", nip);

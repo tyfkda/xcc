@@ -11,6 +11,13 @@
 static const enum VRegSize vtVoidPtr = VRegSize8;
 static const enum VRegSize vtBool    = VRegSize4;
 
+Phi *new_phi(VReg *dst, Vector *params) {
+  Phi *phi = malloc_or_die(sizeof(*phi));
+  phi->dst = dst;
+  phi->params = params;
+  return phi;
+}
+
 enum ConditionKind swap_cond(enum ConditionKind cond) {
   assert((cond & ~COND_MASK) == 0);
   if (cond >= COND_LT)
@@ -374,6 +381,7 @@ BB *new_bb(void) {
   bb->in_regs = new_vector();
   bb->out_regs = new_vector();
   bb->assigned_regs = new_vector();
+  bb->phis = NULL;
   return bb;
 }
 

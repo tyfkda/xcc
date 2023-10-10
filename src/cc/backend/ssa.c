@@ -125,6 +125,7 @@ static Vector **ssa_transform(RegAlloc *ra, BBContainer *bbcon) {
         VReg *newver = reg_alloc_with_version(ra, ra->vregs->data[virt], vt->len);
         bb->in_regs->data[i] = vregs[virt] = newver;
         vec_push(vt, newver);
+        bb->in_regs->data[i] = newver;
       }
     }
     assign_new_vregs(ra, vreg_table, bb, vregs);
@@ -138,8 +139,42 @@ static Vector **ssa_transform(RegAlloc *ra, BBContainer *bbcon) {
   return vreg_table;
 }
 
+static void insert_phis(BBContainer *bbcon) {
+  assert(curbb == NULL);
+  for (int ibb = 1; ibb < bbcon->len; ++ibb) {
+    BB *bb = bbcon->data[ibb];
+    if (bb->from_bbs->len < 2)
+      continue;
+    for (int i = 0; i < bb->in_regs->len; ++i) {
+      VReg *vreg = bb->in_regs->data[i];
+      if (vreg->flag & VRF_REF)
+        continue;
+      Vector *ins = new_vector();
+      for (int ifrom = 0; ifrom < bb->from_bbs->len; ++ifrom) {
+        BB *from = bb->from_bbs->data[ifrom];
+        VReg *fv = NULL;
+        for (int j = 0; j < from->out_regs->len; ++j) {
+          VReg *o = from->out_regs->data[j];
+          if (o->orig_virt == vreg->orig_virt) {
+            fv = o;
+            break;
+          }
+        }
+        assert(fv != NULL);
+        vec_push(ins, fv);
+      }
+
+      Vector *phis = bb->phis;
+      if (phis == NULL)
+        bb->phis = phis = new_vector();
+      vec_push(phis, new_phi(vreg, ins));
+    }
+  }
+}
+
 void make_ssa(RegAlloc *ra, BBContainer *bbcon) {
   analyze_reg_flow(bbcon);
   ra->original_vreg_count = ra->vregs->len;
   ra->vreg_table = ssa_transform(ra, bbcon);
+  insert_phis(bbcon);
 }

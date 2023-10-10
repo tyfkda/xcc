@@ -172,6 +172,13 @@ typedef struct IR {
   };
 } IR;
 
+typedef struct {
+  VReg *dst;
+  Vector *params;  // <VReg*>
+} Phi;
+
+Phi *new_phi(VReg *dst, Vector *params);
+
 VReg *new_const_vreg(int64_t value, enum VRegSize vsize);
 VReg *new_ir_bop(enum IrKind kind, VReg *opr1, VReg *opr2, enum VRegSize vsize, int flag);
 IR *new_ir_bop_raw(enum IrKind kind, VReg *dst, VReg *opr1, VReg *opr2, int flag);
@@ -216,6 +223,7 @@ typedef struct BB {
   Vector *in_regs;  // <VReg*>
   Vector *out_regs;  // <VReg*>
   Vector *assigned_regs;  // <VReg*>
+  Vector *phis;
 } BB;
 
 extern BB *curbb;
