@@ -105,3 +105,50 @@ void make_ssa(RegAlloc *ra, BBContainer *bbcon) {
   increment_vreg_versions(ra, bbcon);
   insert_phis(bbcon);
 }
+
+void resolve_phis(BBContainer *bbcon) {
+  assert(curbb == NULL);
+  for (int ibb = 0; ibb < bbcon->bbs->len; ++ibb) {
+    BB *bb = bbcon->bbs->data[ibb];
+    int nphi = 0;
+    for (nphi = 0; nphi < bb->irs->len; ++nphi) {
+      IR *ir = bb->irs->data[nphi];
+      if (ir->kind != IR_PHI)
+        break;
+    }
+    if (nphi == 0)
+      continue;
+
+    for (int ifrom = 0; ifrom < bb->from_bbs->len; ++ifrom) {
+      BB *from = bb->from_bbs->data[ifrom];
+      for (int i = 0; i < bb->in_regs->len; ++i) {
+        VReg *dst_vreg = bb->in_regs->data[i];
+        IR *phi = NULL;
+        for (int iphi = 0; iphi < nphi; ++iphi) {
+          IR *ir = bb->irs->data[iphi];
+          assert(ir->kind == IR_PHI);
+          if (ir->dst == dst_vreg) {
+            phi = ir;
+            break;
+          }
+        }
+        // assert(phi != NULL);
+        if (phi == NULL)
+          continue;
+        VReg *src_vreg = phi->phi.vregs->data[ifrom];
+        IR *mov = new_ir_mov(dst_vreg, src_vreg, 0);
+        int pos = from->irs->len;
+        if (pos > 0) {
+          IR *last = from->irs->data[pos - 1];
+          if (last->kind == IR_JMP || last->kind == IR_TJMP) {
+            --pos;
+          }
+        }
+        vec_insert(from->irs, pos, mov);
+      }
+    }
+
+    for (int i = 0; i < nphi; ++i)
+      vec_remove_at(bb->irs, 0);
+  }
+}
