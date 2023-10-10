@@ -153,10 +153,19 @@ static void remove_unused_vregs(RegAlloc *ra, BBContainer *bbcon) {
       for (int j = 0; j < bb->irs->len; ++j) {
         IR *ir = bb->irs->data[j];
         VReg *operands[] = {ir->opr1, ir->opr2};
-        for (int k = 0; k < 2; ++k) {
-          VReg *vreg = operands[k];
-          if (vreg != NULL && !(vreg->flag & VRF_CONST))
-            vreg_read[vreg->virt] = true;
+        int n = 2;
+        if (ir->kind == IR_PHI)
+          n += ir->phi.vregs->len;
+        for (int k = 0; k < n; ++k) {
+          VReg *vreg;
+          if (k < 2) {
+            vreg = operands[k];
+            if (vreg == NULL || (vreg->flag & VRF_CONST))
+              continue;
+          } else {
+            vreg = ir->phi.vregs->data[k - 2];
+          }
+          vreg_read[vreg->virt] = true;
         }
       }
     }
@@ -260,6 +269,7 @@ UNUSED(remove_unnecessary_bb);
 
   make_ssa(ra, bbcon);
   remove_unused_vregs(ra, bbcon);
+  resolve_phis(bbcon);
   remove_unnecessary_bb(bbcon);
   detect_from_bbs(bbcon);
 }
