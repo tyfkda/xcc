@@ -15,6 +15,7 @@
 #include "util.h"
 #include "var.h"
 
+extern bool keep_phi;
 static bool keep_virtual_register;
 
 ////////////////////////////////////////////////
@@ -213,7 +214,12 @@ static void dump_func_ir(Function *func) {
       case LI_NORMAL:
         {
           fprintf(fp, "  V%3d (flag=%x): live %3d - %3d", li->virt, vreg->flag, li->start, li->end);
-          if (!keep_virtual_register) {
+          if (keep_virtual_register) {
+            if (vreg->version > 0) {
+              fprintf(fp, ", ");
+              dump_vvreg(fp, vreg);
+            }
+          } else {
             char regtype = vreg->flag & VRF_FLONUM ? 'F' : 'R';
             fprintf(fp, ", => %c%3d", regtype, li->phys);
           }
@@ -308,16 +314,18 @@ void do_dump_ir(Vector *decls) {
 
     optimize(fnbe->ra, fnbe->bbcon);
 
-    prepare_register_allocation(func);
-    tweak_irs(fnbe);
-    analyze_reg_flow(fnbe->bbcon);
+    if (!keep_phi) {
+      prepare_register_allocation(func);
+      // tweak_irs(fnbe);
+      analyze_reg_flow(fnbe->bbcon);
 
-    alloc_physical_registers(fnbe->ra, fnbe->bbcon);
-    if (!keep_virtual_register)
-      map_virtual_to_physical_registers(fnbe->ra);
-    detect_living_registers(fnbe->ra, fnbe->bbcon);
+      alloc_physical_registers(fnbe->ra, fnbe->bbcon);
+      if (!keep_virtual_register)
+        map_virtual_to_physical_registers(fnbe->ra);
+      detect_living_registers(fnbe->ra, fnbe->bbcon);
 
-    alloc_stack_variables_onto_stack_frame(func);
+      alloc_stack_variables_onto_stack_frame(func);
+    }
 
     curfunc = NULL;
 
@@ -347,10 +355,12 @@ static void compile1(FILE *ifp, const char *filename, Vector *decls) {
 int main(int argc, char *argv[]) {
   enum {
     OPT_KEEP_VIRTUAL_REGISTER = 128,
+    OPT_KEEP_PHI,
   };
 
   static const struct option options[] = {
     {"-keep-virtual", no_argument, OPT_KEEP_VIRTUAL_REGISTER},
+    {"-keep-phi", no_argument, OPT_KEEP_PHI},
 
     {NULL},
   };
@@ -361,6 +371,10 @@ int main(int argc, char *argv[]) {
     default: assert(false); break;
     case OPT_KEEP_VIRTUAL_REGISTER:
       keep_virtual_register = true;
+      break;
+
+    case OPT_KEEP_PHI:
+      keep_phi = true;
       break;
 
     case '?':

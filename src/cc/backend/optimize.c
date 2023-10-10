@@ -10,6 +10,8 @@
 #include "table.h"
 #include "util.h"
 
+bool keep_phi;
+
 static IR *is_last_jmp(BB *bb) {
   int len;
   IR *ir;
@@ -140,6 +142,18 @@ static void remove_unused_vregs(RegAlloc *ra, BBContainer *bbcon) {
     // Check VReg usage.
     for (int i = 0; i < bbcon->len; ++i) {
       BB *bb = bbcon->data[i];
+      Vector *phis = bb->phis;
+      if (phis != NULL) {
+        for (int j = 0; j < phis->len; ++j) {
+          Phi *phi = phis->data[j];
+          for (int k = 0; k < phi->params->len; ++k) {
+            VReg *vreg = phi->params->data[k];
+            if (vreg != NULL && !(vreg->flag & VRF_CONST))
+              vreg_read[vreg->virt] = true;
+          }
+        }
+      }
+
       for (int j = 0; j < bb->irs->len; ++j) {
         IR *ir = bb->irs->data[j];
         VReg *operands[] = {ir->opr1, ir->opr2};
@@ -154,6 +168,17 @@ static void remove_unused_vregs(RegAlloc *ra, BBContainer *bbcon) {
     // Remove instruction if the destination is unread.
     for (int i = 0; i < bbcon->len; ++i) {
       BB *bb = bbcon->data[i];
+      Vector *phis = bb->phis;
+      if (phis != NULL) {
+        for (int j = 0; j < phis->len; ++j) {
+          Phi *phi = phis->data[j];
+          if (vreg_read[phi->dst->virt])
+            continue;
+          vec_remove_at(phis, j);
+          --j;
+        }
+      }
+
       for (int j = 0; j < bb->irs->len; ++j) {
         IR *ir = bb->irs->data[j];
         if (ir->dst == NULL || vreg_read[ir->dst->virt])
@@ -251,6 +276,9 @@ void optimize(RegAlloc *ra, BBContainer *bbcon) {
 
   make_ssa(ra, bbcon);
   remove_unused_vregs(ra, bbcon);
-  remove_unnecessary_bb(bbcon);
+  if (!keep_phi) {
+    resolve_phis(ra, bbcon);
+    remove_unnecessary_bb(bbcon);
+  }
   detect_from_bbs(bbcon);
 }

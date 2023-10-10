@@ -480,6 +480,21 @@ void analyze_reg_flow(BBContainer *bbcon) {
     vec_clear(assigned_regs);
     vec_clear(bb->out_regs);
 
+    Vector *phis = bb->phis;
+    if (phis != NULL) {
+      for (int j = 0; j < phis->len; ++j) {
+        Phi *phi = phis->data[j];
+        for (int k = 0; k < phi->params->len; ++k) {
+          VReg *vreg = phi->params->data[k];
+          if (vreg == NULL || vreg->flag & VRF_CONST)
+            continue;
+          assert(!vec_contains(assigned_regs, vreg));
+          insert_vreg_into_vec(in_regs, vreg);
+        }
+        insert_vreg_into_vec(assigned_regs, phi->dst);
+      }
+    }
+
     Vector *irs = bb->irs;
     for (int j = 0; j < irs->len; ++j) {
       IR *ir = irs->data[j];
