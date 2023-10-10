@@ -388,7 +388,7 @@ static int insert_load_store_spilled_irs(RegAlloc *ra, BBContainer *bbcon) {
 
     [IR_BOFS]    = D__, [IR_IOFS]    = D__, [IR_SOFS]    = D__,
 
-    [IR_LOAD_S]  = ___, [IR_STORE_S] = ___,
+    [IR_LOAD_S]  = ___, [IR_STORE_S] = ___, [IR_PHI]     = ___,
   };
 
   int inserted = 0;

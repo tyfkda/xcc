@@ -90,6 +90,7 @@ enum IrKind {
   IR_CAST,    // dst <= opr1
   IR_MOV,     // dst = opr1
   IR_KEEP,    // To keep live vregs.
+  IR_PHI,
   IR_ASM,     // assembler code
 };
 
@@ -171,6 +172,9 @@ typedef struct IR {
       bool global;
     } call;
     struct {
+      Vector *vregs;
+    } phi;
+    struct {
       const char *str;
     } asm_;
   };
@@ -199,6 +203,7 @@ void new_ir_result(VReg *dst, VReg *vreg, int flag);
 void new_ir_subsp(VReg *value, VReg *dst);
 IR *new_ir_cast(VReg *vreg, enum VRegSize dstsize, int vflag);
 IR *new_ir_keep(VReg *dst, VReg *opr1, VReg *opr2);
+IR *new_ir_phi(VReg *dst, Vector *vregs);
 void new_ir_asm(const char *asm_, VReg *dst);
 
 IR *new_ir_load_spilled(VReg *vreg, VReg *src, int flag);
