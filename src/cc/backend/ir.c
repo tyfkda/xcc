@@ -344,22 +344,22 @@ static void detect_from_bbs(BBContainer *bbcon) {
   for (int i = 0; i < bbcon->bbs->len; ++i) {
     BB *bb = bbcon->bbs->data[i];
     Vector *irs = bb->irs;
-    if (irs->len == 0)
-      continue;
-    IR *ir = irs->data[irs->len - 1];
-    switch (ir->kind) {
-    case IR_JMP:
-      vec_push(ir->jmp.bb->from_bbs, bb);
-      if (ir->jmp.cond == COND_ANY)
+    if (irs->len > 0) {
+      IR *ir = irs->data[irs->len - 1];
+      switch (ir->kind) {
+      case IR_JMP:
+        vec_push(ir->jmp.bb->from_bbs, bb);
+        if (ir->jmp.cond == COND_ANY)
+          continue;
+        break;
+      case IR_TJMP:
+        for (size_t j = 0; j < ir->tjmp.len; ++j) {
+          BB *nbb = ir->tjmp.bbs[j];
+          vec_push(nbb->from_bbs, bb);
+        }
         continue;
-      break;
-    case IR_TJMP:
-      for (size_t j = 0; j < ir->tjmp.len; ++j) {
-        BB *nbb = ir->tjmp.bbs[j];
-        vec_push(nbb->from_bbs, bb);
+      default: break;
       }
-      continue;
-    default: break;
     }
     if (bb->next != NULL)
       vec_push(bb->next->from_bbs, bb);
