@@ -8,6 +8,7 @@
 #include "fe_misc.h"
 #include "ir.h"
 #include "lexer.h"
+#include "optimize.h"
 #include "parser.h"
 #include "regalloc.h"
 #include "table.h"
@@ -24,11 +25,13 @@ static void dump_vreg(FILE *fp, VReg *vreg) {
   static const char *kSize[] = {"b", "w", "d", ""};
   if (vreg->flag & VRF_CONST) {
     fprintf(fp, "(%" PRId64 ")", vreg->fixnum);
-  } else {
+  } else if (vreg->phys >= 0) {
     char regtype = 'R';
     if (vreg->flag & VRF_FLONUM)
       regtype = 'F';
     fprintf(fp, "%c%d%s<v%d>", regtype, vreg->phys, kSize[vreg->vsize], vreg->virt);
+  } else {
+    fprintf(fp, "v%d", vreg->virt);
   }
 }
 
@@ -215,18 +218,35 @@ static void dump_func_ir(Function *func) {
 }
 
 void do_dump_ir(Vector *decls) {
+  if (decls == NULL)
+    return;
+
   for (int i = 0, len = decls->len; i < len; ++i) {
     Declaration *decl = decls->data[i];
-    if (decl == NULL)
+    if (decl == NULL || decl->kind != DCL_DEFUN)
+      continue;
+    Function *func = decl->defun.func;
+    if (!gen_defun(func))
       continue;
 
-    switch (decl->kind) {
-    case DCL_DEFUN:
-      dump_func_ir(decl->defun.func);
-      break;
-    case DCL_VARDECL:
-      break;
-    }
+    curfunc = func;
+    FuncBackend *fnbe = func->extra;
+
+    optimize(fnbe->ra, fnbe->bbcon);
+
+    prepare_register_allocation(func);
+    // tweak_irs(fnbe);
+    analyze_reg_flow(fnbe->bbcon);
+
+    alloc_physical_registers(fnbe->ra, fnbe->bbcon);
+    map_virtual_to_physical_registers(fnbe->ra);
+    detect_living_registers(fnbe->ra, fnbe->bbcon);
+
+    alloc_stack_variables_onto_stack_frame(func);
+
+    curfunc = NULL;
+
+    dump_func_ir(func);
   }
 }
 
@@ -270,8 +290,6 @@ int main(int argc, char *argv[]) {
   }
   if (compile_error_count != 0)
     exit(1);
-
-  gen(toplevel);
 
   do_dump_ir(toplevel);
 

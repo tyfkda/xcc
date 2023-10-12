@@ -654,7 +654,7 @@ void gen_stmt(Stmt *stmt) {
 
 ////////////////////////////////////////////////
 
-static void prepare_register_allocation(Function *func) {
+void prepare_register_allocation(Function *func) {
   bool require_stack_frame = (func->flag & FUNCF_STACK_MODIFIED) != 0;
   // Handle function parameters first.
   const Vector *params = func->type->func.params;
@@ -732,7 +732,7 @@ static void prepare_register_allocation(Function *func) {
   }
 }
 
-static void map_virtual_to_physical_registers(RegAlloc *ra) {
+void map_virtual_to_physical_registers(RegAlloc *ra) {
   for (int i = 0, vreg_count = ra->vregs->len; i < vreg_count; ++i) {
     VReg *vreg = ra->vregs->data[i];
     if (vreg == NULL)
@@ -743,7 +743,7 @@ static void map_virtual_to_physical_registers(RegAlloc *ra) {
 }
 
 // Detect living registers for each instruction.
-static void detect_living_registers(RegAlloc *ra, BBContainer *bbcon) {
+void detect_living_registers(RegAlloc *ra, BBContainer *bbcon) {
   int maxbit = ra->settings->phys_max + ra->settings->fphys_max;
   unsigned long living_pregs = 0;
   assert((int)sizeof(living_pregs) * CHAR_BIT >= maxbit);
@@ -809,7 +809,7 @@ static void detect_living_registers(RegAlloc *ra, BBContainer *bbcon) {
 #undef VREGFOR
 }
 
-static void alloc_stack_variables_onto_stack_frame(Function *func) {
+void alloc_stack_variables_onto_stack_frame(Function *func) {
   FuncBackend *fnbe = func->extra;
   size_t frame_size = fnbe->frame_size;
 
@@ -880,14 +880,14 @@ static void alloc_stack_variables_onto_stack_frame(Function *func) {
   fnbe->frame_size = frame_size;
 }
 
-static void gen_defun(Function *func) {
+bool gen_defun(Function *func) {
   if (func->scopes == NULL)  // Prototype definition
-    return;
+    return false;
 
   VarInfo *funcvi = scope_find(global_scope, func->name, NULL);
   if (funcvi != NULL && satisfy_inline_criteria(funcvi) && !(funcvi->storage & VS_STATIC)) {
     // Omit inline function: func->extra preserves the value (NULL).
-    return;
+    return false;
   }
 
   curfunc = func;
@@ -924,6 +924,15 @@ static void gen_defun(Function *func) {
   set_curbb(fnbe->ret_bb);
   curbb = NULL;
 
+  curfunc = NULL;
+  curra = NULL;
+  return true;
+}
+
+static void gen_defun_after(Function *func) {
+  FuncBackend *fnbe = func->extra;
+  curfunc = func;
+
   optimize(fnbe->ra, fnbe->bbcon);
 
   prepare_register_allocation(func);
@@ -937,16 +946,19 @@ static void gen_defun(Function *func) {
   alloc_stack_variables_onto_stack_frame(func);
 
   curfunc = NULL;
-  curra = NULL;
 }
 
-void gen_decl(Declaration *decl) {
+static void gen_decl(Declaration *decl) {
   if (decl == NULL)
     return;
 
   switch (decl->kind) {
   case DCL_DEFUN:
-    gen_defun(decl->defun.func);
+    {
+      Function *func = decl->defun.func;
+      if (gen_defun(func))
+        gen_defun_after(func);
+    }
     break;
   case DCL_VARDECL:
     break;

@@ -10,6 +10,7 @@
 typedef struct BB BB;
 typedef struct Expr Expr;
 typedef struct Function Function;
+typedef struct RegAlloc RegAlloc;
 typedef struct Stmt Stmt;
 typedef struct StructInfo StructInfo;
 typedef struct Type Type;
@@ -54,3 +55,9 @@ typedef struct {
 void enumerate_register_params(
     Function *func, RegParamInfo iargs[], int max_ireg, RegParamInfo fargs[], int max_freg,
     int *piarg_count, int *pfarg_count);
+
+bool gen_defun(Function *func);
+void prepare_register_allocation(Function *func);
+void map_virtual_to_physical_registers(RegAlloc *ra);
+void detect_living_registers(RegAlloc *ra, BBContainer *bbcon);
+void alloc_stack_variables_onto_stack_frame(Function *func);
