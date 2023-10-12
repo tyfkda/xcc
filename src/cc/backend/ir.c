@@ -178,11 +178,10 @@ VReg *new_ir_unary(enum IrKind kind, VReg *opr, enum VRegSize vsize, int vflag) 
   return ir->dst = reg_alloc_spawn(curra, vsize, vflag);
 }
 
-VReg *new_ir_bofs(FrameInfo *fi, VReg *src) {
+VReg *new_ir_bofs(FrameInfo *fi) {
   assert(fi != NULL);
   IR *ir = new_ir(IR_BOFS);
   ir->bofs.frameinfo = fi;
-  ir->opr1 = src;  // Just keep the vreg is referred.
   return ir->dst = reg_alloc_spawn(curra, vtVoidPtr, VRF_UNSIGNED);
 }
 

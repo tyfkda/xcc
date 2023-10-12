@@ -44,7 +44,7 @@ static VReg *gen_builtin_va_start(Expr *expr) {
 
   FrameInfo *fi = malloc_or_die(sizeof(*fi));
   fi->offset = 16;  // TODO: Consider stack argument.
-  VReg *ptr = new_ir_bofs(fi, NULL);
+  VReg *ptr = new_ir_bofs(fi);
   new_ir_mov(varinfo->local.vreg, ptr);
   return NULL;
 }
@@ -100,7 +100,7 @@ static VReg *gen_builtin_va_start(Expr *expr) {
         IR_ADD, ap, new_const_vreg(type_size(&tyInt) + type_size(&tyInt), vsize, 0), vsize);
     FrameInfo *fi = malloc_or_die(sizeof(*fi));
     fi->offset = 2 * POINTER_SIZE;
-    VReg *p = new_ir_bofs(fi, NULL);
+    VReg *p = new_ir_bofs(fi);
     new_ir_store(overflow_arg_area, p);
   }
 
@@ -113,7 +113,7 @@ static VReg *gen_builtin_va_start(Expr *expr) {
         vsize);
     FrameInfo *fi = malloc_or_die(sizeof(*fi));
     fi->offset = -(MAX_REG_ARGS + MAX_FREG_ARGS) * POINTER_SIZE;
-    VReg *p = new_ir_bofs(fi, NULL);
+    VReg *p = new_ir_bofs(fi);
     new_ir_store(reg_save_area, p);
   }
   return NULL;

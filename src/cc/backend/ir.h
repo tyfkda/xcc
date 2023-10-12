@@ -163,7 +163,7 @@ VReg *new_const_vreg(int64_t value, enum VRegSize vsize, int vflag);
 VReg *new_ir_bop(enum IrKind kind, VReg *opr1, VReg *opr2, enum VRegSize vsize);
 VReg *new_ir_unary(enum IrKind kind, VReg *opr, enum VRegSize vsize, int vflag);
 IR *new_ir_mov(VReg *dst, VReg *src);
-VReg *new_ir_bofs(FrameInfo *fi, VReg *src);
+VReg *new_ir_bofs(FrameInfo *fi);
 VReg *new_ir_iofs(const Name *label, bool global);
 VReg *new_ir_sofs(VReg *src);
 void new_ir_store(VReg *dst, VReg *src);

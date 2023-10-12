@@ -143,7 +143,8 @@ static void remove_unused_vregs(RegAlloc *ra, BBContainer *bbcon) {
   unsigned char *vreg_read = malloc_or_die(vreg_count);
   for (int i = 0; i < vreg_count; ++i) {
     VReg *vreg = ra->vregs->data[i];
-    vreg_read[i] = (vreg->flag & VRF_PARAM) != 0;  // Must keep function parameter.
+    // Must keep function parameter and `&` taken one.
+    vreg_read[i] = (vreg->flag & (VRF_PARAM | VRF_REF)) != 0;
   }
 
   // Check VReg usage.

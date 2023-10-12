@@ -214,7 +214,7 @@ static VReg *gen_lval(Expr *expr) {
       if (is_global_scope(scope))
         return new_ir_iofs(expr->var.name, (varinfo->storage & VS_STATIC) == 0);
       else if (is_local_storage(varinfo))
-        return new_ir_bofs(varinfo->local.frameinfo, varinfo->local.vreg);
+        return new_ir_bofs(varinfo->local.frameinfo);
       else if (varinfo->storage & VS_STATIC)
         return new_ir_iofs(varinfo->static_.gvar->name, false);
       else
@@ -530,7 +530,7 @@ static VReg *gen_funcall(Expr *expr) {
     }
   }
   if (ret_varinfo != NULL) {
-    VReg *dst = new_ir_bofs(ret_varinfo->local.frameinfo, ret_varinfo->local.vreg);
+    VReg *dst = new_ir_bofs(ret_varinfo->local.frameinfo);
     new_ir_pusharg(dst, 0);
     arg_vregs[0] = dst;
     ++reg_arg_count;

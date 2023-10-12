@@ -609,7 +609,7 @@ void gen_clear_local_var(const VarInfo *varinfo) {
   if (is_prim_type(varinfo->type))
     return;
 
-  VReg *vreg = new_ir_bofs(varinfo->local.frameinfo, varinfo->local.vreg);
+  VReg *vreg = new_ir_bofs(varinfo->local.frameinfo);
   gen_clear(varinfo->type, vreg);
 }
 
