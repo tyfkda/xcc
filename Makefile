@@ -159,11 +159,7 @@ test-self-hosting:	self-hosting
 
 ### Wasm version
 
-ifeq ("$(PARENT_DEPS)","")
 WCC_OBJ_DIR:=obj/wcc
-else
-WCC_OBJ_DIR:=$(OBJ_DIR)
-endif
 
 WCC_DIR:=src/wcc
 WCC_CFLAGS:=$(CFLAGS) -I$(CPP_DIR) -DTARGET_WASM
