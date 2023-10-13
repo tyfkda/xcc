@@ -125,6 +125,7 @@ class MacroExpander {
   }
 
   subst(is, fp, ap, hs) {
+    const expandedAp = ap.map(_ => null)
     const os = []
     for (let i = 0; i < is.length; ++i) {
       const tt = is[i]
@@ -175,7 +176,11 @@ class MacroExpander {
 
         const j = fp.indexOf(tt.t)
         if (j >= 0) {
-          os.push(...this.expand(ap[j]))
+          let expanded = expandedAp[j]
+          if (expanded == null) {
+            expanded = expandedAp[j] = this.expand([...ap[j]])
+          }
+          os.push(...expanded)
           continue
         }
       }
@@ -212,7 +217,8 @@ class MacroExpander {
   }
 
   stringize(x) {
-    const s = `"${x}"`  // TODO: Escape
+    const actual = x.map((t) => t.t.toString()).join('')
+    const s = `"${actual}"`  // TODO: Escape
     return new Token(TK_OTHER, s)
   }
 
@@ -413,6 +419,14 @@ function main() {
       'STR(hoge)',
       {
         'STR': new Macro(['x'], '# x'),
+      })
+
+  pptest(
+      'a(m_z, "M(z)")',
+      'MinM(M(z))',
+      {
+        'MinM': new Macro(['x'], 'a(x, # x)'),
+        'M': new Macro(['x'], 'm_ ## x'),
       })
 
   process.exit(errorCount === 0 ? 0 : 1)

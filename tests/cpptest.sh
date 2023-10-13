@@ -144,6 +144,8 @@ test_macro() {
 
   try '#if in macro arguments' '{bar}' "#define FOO(x)  {x}\nFOO(\n#if 1\nbar\n#else\nqux\n#endif\n)"
 
+  try 'expand and stringify' 'a(m_z, "M(z)")' "#define MinM(x) a(x, # x)\n#define M(x) m_ ## x\nMinM(M(z))"
+
   try ', ## empty' 'foo(fmt)'          "#define FOO(fmt, ...)  foo(fmt, ## __VA_ARGS__)\nFOO(fmt)"
   try ', ## some'  'foo(fmt,1, 2, 3)'  "#define FOO(fmt, ...)  foo(fmt, ## __VA_ARGS__)\nFOO(fmt, 1, 2, 3)"
 

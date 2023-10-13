@@ -1,6 +1,7 @@
 #include "../config.h"
 #include "macro.h"
 
+#include <alloca.h>
 #include <assert.h>
 #include <limits.h>  // INT_MAX
 #include <stdlib.h>  // malloc
@@ -192,6 +193,15 @@ static Vector *subst(Macro *macro, Table *param_table, Vector *args, HideSet *hs
   if (body == NULL)
     return os;
 
+  Vector **expanded_args = NULL;
+  if (args != NULL && args->len > 0) {
+    expanded_args = alloca(sizeof(*expanded_args) * args->len);
+    if (expanded_args == NULL)
+      error("alloca failed");
+    for (int i = 0; i < args->len; ++i)
+      expanded_args[i] = NULL;
+  }
+
   for (int i = 0; i < body->len; ++i) {
     const Token *tok = body->data[i];
 
@@ -261,10 +271,17 @@ static Vector *subst(Macro *macro, Table *param_table, Vector *args, HideSet *hs
         intptr_t j;
         if (table_try_get(param_table, tok->ident, (void*)&j)) {
           assert(j < args->len);
-          Vector *arg = args->data[j];
-          macro_expand(arg);
-          for (int k = 0; k < arg->len; ++k) {
-            const Token *t = arg->data[k];
+          Vector *expanded = expanded_args[j];
+          if (expanded == NULL) {
+            Vector *arg = args->data[j];
+            expanded = new_vector();
+            for (int i = 0; i < arg->len; ++i)
+              vec_push(expanded, arg->data[i]);
+            macro_expand(expanded);
+            expanded_args[j] = expanded;
+          }
+          for (int k = 0; k < expanded->len; ++k) {
+            const Token *t = expanded->data[k];
             vec_push(os, t);
           }
           continue;
