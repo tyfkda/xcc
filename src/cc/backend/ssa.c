@@ -73,17 +73,54 @@ static Vector **increment_vreg_versions(RegAlloc *ra, BBContainer *bbcon) {
   return vreg_table;
 }
 
+static void replace_vreg_all(BBContainer *bbcon, VReg *src, VReg *dst) {
+  for (int ibb = 0; ibb < bbcon->bbs->len; ++ibb) {
+    BB *bb = bbcon->bbs->data[ibb];
+    for (int i = 0; i < bb->in_regs->len; ++i) {
+      VReg *v = bb->in_regs->data[i];
+      if (v == src)
+        bb->in_regs->data[i] = dst;
+    }
+    for (int i = 0; i < bb->out_regs->len; ++i) {
+      VReg *v = bb->out_regs->data[i];
+      if (v == src)
+        bb->out_regs->data[i] = dst;
+    }
+    for (int i = 0; i < bb->assigned_regs->len; ++i) {
+      VReg *v = bb->assigned_regs->data[i];
+      if (v == src)
+        bb->assigned_regs->data[i] = dst;
+    }
+
+    for (int iir = 0; iir < bb->irs->len; ++iir) {
+      IR *ir = bb->irs->data[iir];
+      if (ir->opr1 == src)
+        ir->opr1 = dst;
+      if (ir->opr2 == src)
+        ir->opr2 = dst;
+      if (ir->dst == src)
+        ir->dst = dst;
+      if (ir->kind == IR_PHI) {
+        for (int i = 0; i < ir->phi.vregs->len; ++i) {
+          VReg *v = ir->phi.vregs->data[i];
+          if (v == src)
+            ir->phi.vregs->data[i] = dst;
+        }
+      }
+    }
+  }
+}
+
 static void insert_phis(BBContainer *bbcon) {
   assert(curbb == NULL);
   for (int ibb = 1; ibb < bbcon->bbs->len; ++ibb) {
     BB *bb = bbcon->bbs->data[ibb];
     if (bb->from_bbs->len == 0)
       continue;
-    for (int i = bb->in_regs->len; i-- > 0; ) {
-      VReg *vreg = bb->in_regs->data[i];
-      Vector *ins = new_vector();
-      for (int ifrom = 0; ifrom < bb->from_bbs->len; ++ifrom) {
-        BB *from = bb->from_bbs->data[ifrom];
+    if (bb->from_bbs->len == 1) {
+      BB *from = bb->from_bbs->data[0];
+      for (int i = 0; i < bb->in_regs->len; ++i) {
+        VReg *vreg = bb->in_regs->data[i];
         VReg *fv = NULL;
         for (int j = 0; j < from->out_regs->len; ++j) {
           VReg *o = from->out_regs->data[j];
@@ -93,9 +130,39 @@ static void insert_phis(BBContainer *bbcon) {
           }
         }
         assert(fv != NULL);
-        vec_push(ins, fv);
+        replace_vreg_all(bbcon, vreg, fv);
       }
-      vec_insert(bb->irs, 0, new_ir_phi(vreg, ins));
+    } else {
+      for (int i = bb->in_regs->len; i-- > 0; ) {
+        VReg *vreg = bb->in_regs->data[i];
+        Vector *ins = new_vector();
+        for (int ifrom = 0; ifrom < bb->from_bbs->len; ++ifrom) {
+          BB *from = bb->from_bbs->data[ifrom];
+          VReg *fv = NULL;
+          for (int j = 0; j < from->out_regs->len; ++j) {
+            VReg *o = from->out_regs->data[j];
+            if (o->orig_virt == vreg->orig_virt) {
+              fv = o;
+              break;
+            }
+          }
+          assert(fv != NULL);
+          vec_push(ins, fv);
+        }
+        bool same_all = true;
+        for (int j = 1; j < ins->len; ++j) {
+          if (ins->data[j] != ins->data[0]) {
+            same_all = false;
+            break;
+          }
+        }
+        if (same_all) {
+          assert(ins->len > 0);
+          replace_vreg_all(bbcon, vreg, ins->data[0]);
+        } else {
+          vec_insert(bb->irs, 0, new_ir_phi(vreg, ins));
+        }
+      }
     }
   }
 }
