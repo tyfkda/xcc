@@ -155,7 +155,7 @@ static void remove_unused_vregs(RegAlloc *ra, BBContainer *bbcon) {
       VReg *operands[] = {ir->opr1, ir->opr2};
       for (int k = 0; k < 2; ++k) {
         VReg *vreg = operands[k];
-        if (vreg != NULL)
+        if (vreg != NULL && !(vreg->flag & VRF_CONST))
           vreg_read[vreg->virt] = true;
       }
     }

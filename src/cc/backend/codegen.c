@@ -737,8 +737,8 @@ static void map_virtual_to_physical_registers(RegAlloc *ra) {
     VReg *vreg = ra->vregs->data[i];
     if (vreg == NULL)
       continue;
-    if (!(vreg->flag & VRF_CONST))
-      vreg->phys = ra->intervals[vreg->virt].phys;
+    assert(!(vreg->flag & VRF_CONST) && vreg->virt >= 0);
+    vreg->phys = ra->intervals[vreg->virt].phys;
   }
 }
 

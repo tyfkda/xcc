@@ -16,7 +16,6 @@ typedef struct Vector Vector;
 enum LiveIntervalState {
   LI_NORMAL,
   LI_SPILL,
-  LI_CONST,
 };
 
 typedef struct LiveInterval {
@@ -41,7 +40,8 @@ typedef struct RegAllocSettings {
 
 typedef struct RegAlloc {
   const RegAllocSettings *settings;
-  Vector *vregs;  // <VReg*>
+  Vector *vregs;   // <VReg*>, non-const vregs
+  Vector *consts;  // <VReg*>, const vregs
   LiveInterval *intervals;  // size=vregs->len
   LiveInterval **sorted_intervals;
 
@@ -52,4 +52,5 @@ typedef struct RegAlloc {
 
 RegAlloc *new_reg_alloc(const RegAllocSettings *settings);
 VReg *reg_alloc_spawn(RegAlloc *ra, enum VRegSize vsize, int vflag);
+VReg *reg_alloc_spawn_const(RegAlloc *ra, int64_t value, enum VRegSize vsize, int vflag);
 void alloc_physical_registers(RegAlloc *ra, BBContainer *bbcon);

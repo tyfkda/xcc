@@ -16,6 +16,7 @@ RegAlloc *new_reg_alloc(const RegAllocSettings *settings) {
   assert(settings->phys_max < (int)(sizeof(ra->used_reg_bits) * CHAR_BIT));
   ra->settings = settings;
   ra->vregs = new_vector();
+  ra->consts = new_vector();
   ra->intervals = NULL;
   ra->sorted_intervals = NULL;
   ra->used_reg_bits = 0;
@@ -24,19 +25,39 @@ RegAlloc *new_reg_alloc(const RegAllocSettings *settings) {
   return ra;
 }
 
-VReg *reg_alloc_spawn(RegAlloc *ra, enum VRegSize vsize, int vflag) {
-  int vreg_no = ra->vregs->len;
-
+static VReg *alloc_vreg(enum VRegSize vsize, int vflag) {
   VReg *vreg = malloc_or_die(sizeof(*vreg));
-  vreg->virt = vreg_no;
+  vreg->virt = -1;
   vreg->phys = -1;
   vreg->fixnum = 0;
   vreg->vsize = vsize;
   vreg->flag = vflag;
   vreg->reg_param_index = -1;
   vreg->frame.offset = 0;
+  return vreg;
+}
 
-  vec_push(ra->vregs, vreg);
+VReg *reg_alloc_spawn(RegAlloc *ra, enum VRegSize vsize, int vflag) {
+  VReg *vreg = alloc_vreg(vsize, vflag);
+  if (!(vflag & VRF_CONST)) {
+    vreg->virt = ra->vregs->len;
+    vec_push(ra->vregs, vreg);
+  } else {
+    vec_push(ra->consts, vreg);
+  }
+  return vreg;
+}
+
+VReg *reg_alloc_spawn_const(RegAlloc *ra, int64_t value, enum VRegSize vsize, int vflag) {
+  vflag |= VRF_CONST;
+  for (int i = 0; i < ra->consts->len; ++i) {
+    VReg *v = ra->consts->data[i];
+    if (v->fixnum == value && v->vsize == vsize && v->flag == vflag)
+      return v;
+  }
+
+  VReg *vreg = reg_alloc_spawn(ra, vsize, vflag);
+  vreg->fixnum = value;
   return vreg;
 }
 
@@ -385,20 +406,20 @@ static int insert_load_store_spilled_irs(RegAlloc *ra, BBContainer *bbcon) {
         continue;
       }
 
-      if (ir->opr1 != NULL && (flag & 1) != 0 &&
-          !(ir->opr1->flag & VRF_CONST) && (ir->opr1->flag & VRF_SPILLED)) {
+      if (ir->opr1 != NULL && (flag & 1) != 0 && (ir->opr1->flag & VRF_SPILLED)) {
+        assert(!(ir->opr1->flag & VRF_CONST));
         j = insert_tmp_reg(ra, irs, j, ir->opr1);
         ++inserted;
       }
 
-      if (ir->opr2 != NULL && (flag & 2) != 0 &&
-          !(ir->opr2->flag & VRF_CONST) && (ir->opr2->flag & VRF_SPILLED)) {
+      if (ir->opr2 != NULL && (flag & 2) != 0 && (ir->opr2->flag & VRF_SPILLED)) {
+        assert(!(ir->opr2->flag & VRF_CONST));
         j = insert_tmp_reg(ra, irs, j, ir->opr2);
         ++inserted;
       }
 
-      if (ir->dst != NULL && (flag & 4) != 0 &&
-          !(ir->dst->flag & VRF_CONST) && (ir->dst->flag & VRF_SPILLED)) {
+      if (ir->dst != NULL && (flag & 4) != 0 && (ir->dst->flag & VRF_SPILLED)) {
+        assert(!(ir->dst->flag & VRF_CONST));
         j = insert_tmp_reg(ra, irs, j, ir->dst);
         ++inserted;
       }
@@ -424,10 +445,7 @@ void alloc_physical_registers(RegAlloc *ra, BBContainer *bbcon) {
       if (vreg == NULL)
         continue;
 
-      if (vreg->flag & VRF_CONST) {
-        li->state = LI_CONST;
-        continue;
-      }
+      assert(!(vreg->flag & VRF_CONST));
 
       if (vreg->flag & VRF_SPILLED) {
         li->state = LI_SPILL;

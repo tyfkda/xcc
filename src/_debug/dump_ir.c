@@ -169,8 +169,6 @@ static void dump_func_ir(Function *func) {
       case LI_SPILL:
         fprintf(fp, "  V%3d (flag=%x): live %3d - %3d (spilled, offset=%d)\n", li->virt, vreg->flag, li->start, li->end, vreg->frame.offset);
         break;
-      case LI_CONST:
-        continue;
       }
     }
   }

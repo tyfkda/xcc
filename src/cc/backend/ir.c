@@ -35,9 +35,7 @@ static IR *new_ir(enum IrKind kind) {
 }
 
 VReg *new_const_vreg(int64_t value, enum VRegSize vsize, int vflag) {
-  VReg *vreg = reg_alloc_spawn(curra, vsize, vflag | VRF_CONST);
-  vreg->fixnum = value;
-  return vreg;
+  return reg_alloc_spawn_const(curra, value, vsize, vflag);
 }
 
 VReg *new_ir_bop(enum IrKind kind, VReg *opr1, VReg *opr2, enum VRegSize vsize) {
