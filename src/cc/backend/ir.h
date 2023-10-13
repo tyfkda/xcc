@@ -38,12 +38,19 @@ enum VRegSize {
 
 typedef struct VReg {
   enum VRegSize vsize;
-  int virt;         // Virtual reg no.
-  int phys;         // Physical reg no.
   int flag;
-  int reg_param_index;  // Index of function parameter through register: -1=not a register param.
-  int64_t fixnum;   // Constant value.
-  FrameInfo frame;  // FrameInfo for spilled register.
+  union {
+    // Non-const:
+    struct {
+      int virt;             // Virtual reg no.
+      int phys;             // Physical reg no.
+      int reg_param_index;  // Index of function parameter through register: -1=non reg param.
+      FrameInfo frame;      // FrameInfo for spilled register.
+    };
+
+    // Const:
+    int64_t fixnum;   // Constant value.
+  };
 } VReg;
 
 void spill_vreg(VReg *vreg);

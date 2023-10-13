@@ -29,7 +29,6 @@ static VReg *alloc_vreg(enum VRegSize vsize, int vflag) {
   VReg *vreg = malloc_or_die(sizeof(*vreg));
   vreg->virt = -1;
   vreg->phys = -1;
-  vreg->fixnum = 0;
   vreg->vsize = vsize;
   vreg->flag = vflag;
   vreg->reg_param_index = -1;
@@ -169,7 +168,7 @@ static void check_live_interval(BBContainer *bbcon, int vreg_count, LiveInterval
       VReg *vregs[] = {ir->dst, ir->opr1, ir->opr2};
       for (int k = 0; k < 3; ++k) {
         VReg *vreg = vregs[k];
-        if (vreg == NULL)
+        if (vreg == NULL || (vreg->flag & VRF_CONST))
           continue;
         LiveInterval *li = &intervals[vreg->virt];
         if (li->start < 0 && !(vreg->flag & VRF_PARAM))
