@@ -403,14 +403,16 @@ static void ei_lshift(IR *ir) {
 }
 
 static void ei_rshift(IR *ir) {
+#define RSHIFT_INST(a, b, c)  do  { if (ir->opr1->flag & VRF_UNSIGNED) LSR(a, b, c); else ASR(a, b, c); } while (0)
   assert(!(ir->opr1->flag & VRF_CONST));
   int pow = ir->dst->vsize;
   assert(0 <= pow && pow < 4);
   const char **regs = kRegSizeTable[pow];
   if (ir->opr2->flag & VRF_CONST)
-    ASR(regs[ir->dst->phys], regs[ir->opr1->phys], IM(ir->opr2->fixnum));
+    RSHIFT_INST(regs[ir->dst->phys], regs[ir->opr1->phys], IM(ir->opr2->fixnum));
   else
-    ASR(regs[ir->dst->phys], regs[ir->opr1->phys], regs[ir->opr2->phys]);
+    RSHIFT_INST(regs[ir->dst->phys], regs[ir->opr1->phys], regs[ir->opr2->phys]);
+#undef RSHIFT_INST
 }
 
 static void ei_result(IR *ir) {

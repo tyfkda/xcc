@@ -130,6 +130,21 @@ TEST(all) {
   EXPECT("<<", 32, (x=4, 1 << x + 1));
   EXPECT(">>", 0x0a, (x=0xa5, x >> 4));
   EXPECT(">>", -6, (x=-0x5b, x >> 4));
+  {
+    int32_t x;
+    // Signed left shift is undefined behavior if the value is negative or the result overflows.
+    // EXPECT("signed + <<",  0x25a5a5a0,     (x= 0x5a5a5a5a,     x << 4));
+    // EXPECT("signed - <<", -0x25a5a5a0 - 1, (x=-0x5a5a5a5a - 1, x << 4));
+    EXPECT("signed + >>",  0x05a5a5a5,     (x= 0x5a5a5a5a,     x >> 4));
+    EXPECT("signed - >>", -0x05a5a5a5 - 1, (x=-0x5a5a5a5a - 1, x >> 4));
+  }
+  {
+    uint32_t x;
+    EXPECT("unsigned + <<", 0xa5a5a5a0U, (x=0x5a5a5a5a, x << 4));
+    EXPECT("unsigned - <<", 0x5a5a5a50U, (x=0xa5a5a5a5, x << 4));
+    EXPECT("unsigned + >>", 0x05a5a5a5U, (x=0x5a5a5a5a, x >> 4));
+    EXPECT("unsigned - >>", 0x0a5a5a5aU, (x=0xa5a5a5a5, x >> 4));
+  }
   EXPECT("&", 0xa0, (x=0xa5, x & 0xf0));
   EXPECT("|", 0xbc, (x=0x88, x | 0x3c));
   EXPECT("^", 0x66, (x=0xc3, x ^ 0xa5));

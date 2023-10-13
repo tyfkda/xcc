@@ -231,6 +231,7 @@
 #define CMP(o1, o2)           EMIT_ASM("cmp", o1, o2)
 #define CMN(o1, o2)           EMIT_ASM("cmn", o1, o2)
 #define LSL(o1, o2, o3)       EMIT_ASM("lsl", o1, o2, o3)
+#define LSR(o1, o2, o3)       EMIT_ASM("lsr", o1, o2, o3)
 #define ASR(o1, o2, o3)       EMIT_ASM("asr", o1, o2, o3)
 #define BRANCH(o1)            EMIT_ASM("b", o1)
 #define Bcc(c, o1)            EMIT_ASM("b" c, o1)
