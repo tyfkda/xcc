@@ -840,10 +840,12 @@ static void alloc_stack_variables_onto_stack_frame(Function *func) {
           assert(init->kind == IK_MULTI);
           assert(init->multi->len == m);
           Initializer *e = init->multi->data[m - 1];
-          assert(e->kind == IK_MULTI);
-          MemberInfo *me = &type->struct_.info->members[m - 1];
-          assert(me->type->kind == TY_ARRAY);
-          size += type_size(me->type->pa.ptrof) * e->multi->len;
+          if (e != NULL) {
+            assert(e->kind == IK_MULTI);
+            MemberInfo *me = &type->struct_.info->members[m - 1];
+            assert(me->type->kind == TY_ARRAY);
+            size += type_size(me->type->pa.ptrof) * e->multi->len;
+          }
         }
       }
       if (size < 1)
