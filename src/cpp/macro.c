@@ -275,11 +275,11 @@ static Vector *subst(Macro *macro, Table *param_table, Vector *args, HideSet *hs
     case TK_COMMA:
       // Handle GNU extension: , ## __VA_ARGS__
       if (body->len > i + 2 && ((Token*)body->data[i + 1])->kind == PPTK_CONCAT &&
+          macro->vaargs_ident != NULL &&
           ((Token*)body->data[i + 2])->kind == TK_IDENT && param_table != NULL) {
         const Token *next = body->data[i + 2];
         intptr_t j;
-        if (table_try_get(param_table, next->ident, (void*)&j)) {
-          assert(j < args->len);
+        if (table_try_get(param_table, next->ident, (void*)&j) && j == macro->params_len) {
           const Vector *arg = args->data[j];
           if (arg->len == 0) {
             i += 2;  // Argument is empty, so omit `,` and `##`.
