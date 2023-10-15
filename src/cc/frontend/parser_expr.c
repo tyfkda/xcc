@@ -881,20 +881,27 @@ static Expr *parse_unary(void) {
       parse_error(PE_NOFATAL, tok, "Cannot apply `-' except number types");
       return expr;
     }
-    if (is_fixnum(expr->type->kind))
+
+    Type *type = expr->type;
+    if (is_fixnum(type->kind)) {
       expr = promote_to_int(expr);
+      type = expr->type;
+      if (type->fixnum.is_unsigned)
+        type = get_fixnum_type(type->fixnum.kind, false, type->qualifier);  // Get signed type.
+    }
     if (is_const(expr)) {
 #ifndef __NO_FLONUM
-      if (is_flonum(expr->type)) {
+      if (is_flonum(type)) {
         expr->flonum = -expr->flonum;
         return expr;
       }
 #endif
-      assert(is_fixnum(expr->type->kind));
-      expr->fixnum = wrap_value(-expr->fixnum, type_size(expr->type), false);
+      assert(is_fixnum(type->kind));
+      expr->fixnum = wrap_value(-expr->fixnum, type_size(type), false);
+      expr->type = type;
       return expr;
     }
-    return new_expr_unary(EX_NEG, expr->type, tok, expr);
+    return new_expr_unary(EX_NEG, type, tok, expr);
   }
 
   if ((tok = match(TK_NOT)) != NULL) {
