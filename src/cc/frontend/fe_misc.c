@@ -946,6 +946,15 @@ static Type *to_ptr_type(Type *type) {
   }
 }
 
+static Type *apply_ptr_qualifier(Type *type, Type *ptype) {
+  assert(type->kind == TY_PTR);
+  assert(ptype->kind == TY_PTR);
+  Type *dtype = qualified_type(type->pa.ptrof, ptype->pa.ptrof->qualifier & TQ_CONST);
+  if (dtype != type->pa.ptrof)
+    type = ptrof(dtype);
+  return type;
+}
+
 Type *choose_ternary_result_type(Expr *tval, Expr *fval) {
   Type *ttype = tval->type;
   Type *ftype = fval->type;
@@ -963,13 +972,15 @@ Type *choose_ternary_result_type(Expr *tval, Expr *fval) {
     return ttype;
   if (ttype->kind == TY_PTR) {
     if (ftype->kind == TY_PTR) {  // Both pointer type
+      if (same_type_without_qualifier(ttype, ftype, true)) {
+        if (ftype->pa.ptrof->qualifier & TQ_CONST)
+          return ftype;
+        return ttype;
+      }
       if (is_void_ptr(ttype))
-        return ftype;
+        return apply_ptr_qualifier(ftype, ttype);
       if (is_void_ptr(ftype))
-        return ttype;
-      if (same_type_without_qualifier(ttype, ftype, true))
-        // TODO: Choose which type to return.
-        return ttype;
+        return apply_ptr_qualifier(ttype, ftype);
     } else {
       if (can_cast(ttype, ftype, is_zero(fval), false))
         return ttype;

@@ -1121,6 +1121,17 @@ TTT:;
     selector ? (void)strcpy(buf, "true") : (void)strcpy(buf, "false");
     EXPECT_STREQ("ternary void", "false", buf);
   }
+  {
+    typedef struct {
+      int x;
+    } Foo;
+    Foo foo = {54321};
+    const void *p = &foo;
+    Foo *q = &foo;
+    int x = 1;
+    const Foo *r = x ? p : q;
+    EXPECT("ternary between const void* and struct*", 54321, r->x);
+  }
 
   {
     int x;
