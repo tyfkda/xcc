@@ -700,6 +700,10 @@ TEST(all) {
     EXPECT("array with last comma", 3 * sizeof(int), sizeof(a));
   }
   {
+    char buf[3] = {};
+    EXPECT("char array with empty initializer", 0, buf[0]);
+  }
+  {
     struct {int x; int y;} s = {3};
     EXPECT("struct initializer", 3, s.x + s.y);
   }

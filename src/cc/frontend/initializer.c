@@ -351,7 +351,7 @@ static Initializer *flatten_initializer_multi(Type *type, Initializer *init, int
     }
   case TY_ARRAY:
     {
-      if (is_char_type(type->pa.ptrof)) {
+      if (is_char_type(type->pa.ptrof) && *pindex < init->multi->len) {
         Initializer *elem_init = init->multi->data[*pindex];
         if (elem_init->kind == IK_SINGLE && elem_init->single->kind == EX_STR) {
           *pindex += 1;
