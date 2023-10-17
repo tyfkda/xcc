@@ -354,70 +354,53 @@ static int insert_tmp_reg(RegAlloc *ra, Vector *irs, int j, VReg *spilled) {
 }
 
 static int insert_load_store_spilled_irs(RegAlloc *ra, BBContainer *bbcon) {
+  enum {
+    OPR1 = 1 << 0,
+    OPR2 = 1 << 1,
+    DST  = 1 << 2,
+    D12 = DST | OPR1 | OPR2,
+    D__ = DST,
+    ___ = -1,
+  };
+  static const int kSpillTable[] = {
+    [IR_LOAD]    = D12, [IR_STORE]   = D12, [IR_ADD]     = D12, [IR_SUB]     = D12,
+    [IR_MUL]     = D12, [IR_DIV]     = D12, [IR_MOD]     = D12, [IR_BITAND]  = D12,
+    [IR_BITOR]   = D12, [IR_BITXOR]  = D12, [IR_LSHIFT]  = D12, [IR_RSHIFT]  = D12,
+    [IR_CMP]     = D12, [IR_NEG]     = D12, [IR_BITNOT]  = D12, [IR_COND]    = D12,
+    [IR_JMP]     = D12, [IR_TJMP]    = D12, [IR_PRECALL] = D12, [IR_PUSHARG] = D12,
+    [IR_CALL]    = D12, [IR_RESULT]  = D12, [IR_SUBSP]   = D12, [IR_CAST]    = D12,
+    [IR_MOV]     = D12, [IR_ASM]     = D12,
+
+    [IR_BOFS]    = D__, [IR_IOFS]    = D__, [IR_SOFS]    = D__,
+
+    [IR_LOAD_S]  = ___, [IR_STORE_S] = ___,
+  };
+
   int inserted = 0;
   for (int i = 0; i < bbcon->bbs->len; ++i) {
     BB *bb = bbcon->bbs->data[i];
     Vector *irs = bb->irs;
     for (int j = 0; j < irs->len; ++j) {
       IR *ir = irs->data[j];
-
-      int flag = 7;
-      switch (ir->kind) {
-      case IR_LOAD:
-      case IR_STORE:
-      case IR_MOV:
-      case IR_ADD:  // binops
-      case IR_SUB:
-      case IR_MUL:
-      case IR_DIV:
-      case IR_MOD:
-      case IR_BITAND:
-      case IR_BITOR:
-      case IR_BITXOR:
-      case IR_LSHIFT:
-      case IR_RSHIFT:
-      case IR_CMP:
-      case IR_NEG:  // unary ops
-      case IR_BITNOT:
-      case IR_COND:
-      case IR_JMP:
-      case IR_TJMP:
-      case IR_PUSHARG:
-      case IR_CALL:
-      case IR_RESULT:
-      case IR_PRECALL:
-      case IR_ASM:
-        break;
-
-      case IR_SUBSP:
-      case IR_CAST:
-        flag = 5;
-        break;
-
-      case IR_BOFS:
-      case IR_IOFS:
-      case IR_SOFS:
-        flag = 4;
-        break;
-
-      case IR_LOAD_S:
-      case IR_STORE_S:
+      assert(ir->kind < sizeof(kSpillTable) / sizeof(*kSpillTable));
+      int flag = kSpillTable[ir->kind];
+      assert(flag != 0);
+      if (flag == ___)
         continue;
-      }
 
-      if (ir->opr1 != NULL && (flag & 1) != 0 && (ir->opr1->flag & VRF_SPILLED)) {
+      if (ir->opr1 != NULL && (flag & OPR1) != 0 && (ir->opr1->flag & VRF_SPILLED)) {
         assert(!(ir->opr1->flag & VRF_CONST));
         j = insert_tmp_reg(ra, irs, j, ir->opr1);
         ++inserted;
       }
 
-      if (ir->opr2 != NULL && (flag & 2) != 0 && (ir->opr2->flag & VRF_SPILLED)) {
+      if (ir->opr2 != NULL && (flag & OPR2) != 0 && (ir->opr2->flag & VRF_SPILLED)) {
         assert(!(ir->opr2->flag & VRF_CONST));
         j = insert_tmp_reg(ra, irs, j, ir->opr2);
         ++inserted;
       }
 
-      if (ir->dst != NULL && (flag & 4) != 0 && (ir->dst->flag & VRF_SPILLED)) {
+      if (ir->dst != NULL && (flag & DST) != 0 && (ir->dst->flag & VRF_SPILLED)) {
         assert(!(ir->dst->flag & VRF_CONST));
         j = insert_tmp_reg(ra, irs, j, ir->dst);
         ++inserted;

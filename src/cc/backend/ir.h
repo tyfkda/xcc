@@ -60,7 +60,7 @@ void spill_vreg(VReg *vreg);
 enum IrKind {
   IR_BOFS,    // dst = [rbp + offset]
   IR_IOFS,    // dst = [rip + label]
-  IR_SOFS,    // dst = [rsp + offset]
+  IR_SOFS,    // dst = [rsp + opr1(offset)]
   IR_LOAD,    // dst = [opr1]
   IR_LOAD_S,  // dst = [opr1(spilled)]
   IR_STORE,   // [opr2] = opr1
