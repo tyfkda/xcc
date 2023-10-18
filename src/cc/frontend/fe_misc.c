@@ -1137,6 +1137,23 @@ static int check_reachability_stmts(Vector *stmts) {
   return reach;
 }
 
+static void check_unreachability(Stmt *stmt) {
+  if (stmt == NULL)
+    return;
+  switch (stmt->kind) {
+  case ST_EMPTY:
+    return;
+  case ST_BLOCK:
+    if (stmt->block.stmts->len == 0)
+      return;
+    stmt = stmt->block.stmts->data[0];
+    break;
+  default:
+    break;
+  }
+  parse_error(PE_WARNING, stmt->token, "unreachable");
+}
+
 void check_reachability(Stmt *stmt) {
   if (stmt == NULL)
     return;
@@ -1160,9 +1177,11 @@ void check_reachability(Stmt *stmt) {
     stmt->reach &= stmt->switch_.body->reach;
     break;
   case ST_WHILE:
-    if (!is_const_truthy(stmt->while_.cond))
-      stmt->reach &= REACH_STOP;
-    if (!is_const_falsy(stmt->while_.cond))
+    if (is_const_truthy(stmt->while_.cond))
+      stmt->reach |= REACH_STOP;
+    if (is_const_falsy(stmt->while_.cond))
+      check_unreachability(stmt->while_.body);
+    else
       check_reachability(stmt->while_.body);
     break;
   case ST_DO_WHILE:
@@ -1172,10 +1191,10 @@ void check_reachability(Stmt *stmt) {
     break;
   case ST_FOR:
     if (stmt->for_.cond != NULL && is_const_falsy(stmt->for_.cond)) {
-      stmt->reach &= ~REACH_STOP;
+      check_unreachability(stmt->for_.body);
     } else {
-      stmt->reach = (stmt->reach & ~REACH_STOP) |
-          ((stmt->for_.cond == NULL || is_const_truthy(stmt->for_.cond)) ? REACH_STOP : 0);
+      if (stmt->for_.cond == NULL || is_const_truthy(stmt->for_.cond))
+        stmt->reach |= REACH_STOP;
       check_reachability(stmt->for_.body);
     }
     break;
@@ -1200,7 +1219,7 @@ void check_reachability(Stmt *stmt) {
   case ST_CONTINUE:
     stmt->reach |= REACH_STOP;
     break;
-  default:
+  case ST_EMPTY: case ST_EXPR: case ST_CASE: case ST_VARDECL: case ST_ASM:
     stmt->reach = 0;
     break;
   }
