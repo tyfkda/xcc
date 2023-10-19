@@ -58,17 +58,6 @@ Expr *strip_cast(Expr *expr) {
   return expr;
 }
 
-const MemberInfo *member_info(Expr *expr) {
-  assert(expr->kind == EX_MEMBER);
-  Type *type = expr->member.target->type;
-  if (ptr_or_array(type))
-    type = type->pa.ptrof;
-  assert(type->kind == TY_STRUCT);
-  const MemberInfo *members = type->struct_.info->members;
-  assert(expr->member.index < type->struct_.info->member_count);
-  return &members[expr->member.index];
-}
-
 static Expr *new_expr(enum ExprKind kind, Type *type, const Token *token) {
   Expr *expr = malloc_or_die(sizeof(*expr));
   expr->kind = kind;
@@ -141,11 +130,12 @@ Expr *new_expr_ternary(const Token *token, Expr *cond, Expr *tval, Expr *fval, T
   return expr;
 }
 
-Expr *new_expr_member(const Token *token, Type *type, Expr *target, const Name *ident, int index) {
+Expr *new_expr_member(const Token *token, Type *type, Expr *target, const Name *ident,
+                      const MemberInfo *minfo) {
   Expr *expr = new_expr(EX_MEMBER, type, token);
   expr->member.target = target;
   expr->member.ident = ident;
-  expr->member.index = index;
+  expr->member.info = minfo;
   return expr;
 }
 

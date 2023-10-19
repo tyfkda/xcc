@@ -339,7 +339,7 @@ Expr *make_refer(const Token *tok, Expr *expr) {
     assert(stype->kind == TY_STRUCT);
     StructInfo *sinfo = stype->struct_.info;
     assert(sinfo != NULL);
-    MemberInfo *minfo = &sinfo->members[expr->member.index];
+    const MemberInfo *minfo = expr->member.info;
     Fixnum value = expr->member.target->fixnum + minfo->offset;
     return new_expr_fixlit(ptrof(minfo->type), tok, value);
   }
@@ -577,7 +577,7 @@ Expr *new_expr_addsub(enum ExprKind kind, const Token *tok, Expr *lhs, Expr *rhs
 #ifndef __NO_BITFIELD
 void not_bitfield_member(Expr *expr) {
   if (expr->kind == EX_MEMBER) {
-    const MemberInfo *minfo = member_info(expr);
+    const MemberInfo *minfo = expr->member.info;
     if (minfo->bitfield.width > 0)
       parse_error(PE_NOFATAL, expr->token, "cannot get size for bitfield");
   }
@@ -706,7 +706,7 @@ Expr *incdec_of(enum ExprKind kind, Expr *target, const Token *tok) {
   check_referable(tok, target, "lvalue expected");
 #ifndef __NO_BITFIELD
   if (target->kind == EX_MEMBER) {
-    const MemberInfo *minfo = member_info(target);
+    const MemberInfo *minfo = target->member.info;
     if (minfo->bitfield.width > 0)
       return transform_incdec_of_bitfield(kind, target, tok, minfo);
   }
@@ -1070,7 +1070,7 @@ Expr *transform_assign_with(const Token *tok, Expr *lhs, Expr *rhs) {
   if (lhs->kind != EX_VAR) {
 #ifndef __NO_BITFIELD
     if (lhs->kind == EX_MEMBER) {
-      const MemberInfo *minfo = member_info(lhs);
+      const MemberInfo *minfo = lhs->member.info;
       if (minfo->bitfield.width > 0)
         return transform_assign_with_bitfield(tok, lhs, rhs, minfo);
     }
@@ -1357,7 +1357,7 @@ static Expr *duplicate_inline_function_expr(Function *targetfunc, Scope *targets
     {
       Expr *target = duplicate_inline_function_expr(targetfunc, targetscope, expr->member.target);
       return new_expr_member(expr->token, expr->type, target, expr->member.ident,
-                             expr->member.index);
+                             expr->member.info);
     }
   case EX_FUNCALL:
     {

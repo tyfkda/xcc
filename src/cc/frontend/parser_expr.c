@@ -128,10 +128,10 @@ static Expr *parse_member_access(Expr *target, Token *acctok) {
 
   int index = find_struct_member(type->struct_.info, ident->ident);
   if (index >= 0) {
-    const MemberInfo *member = &type->struct_.info->members[index];
-    Type *type = acctok->kind == TK_DOT ? qualified_type(member->type, target->type->qualifier)
-                                        : member->type;
-    return new_expr_member(acctok, type, target, ident->ident, index);
+    const MemberInfo *minfo = &type->struct_.info->members[index];
+    Type *type = acctok->kind == TK_DOT ? qualified_type(minfo->type, target->type->qualifier)
+                                        : minfo->type;
+    return new_expr_member(acctok, type, target, ident->ident, minfo);
   } else {
     Vector *stack = new_vector();
     const MemberInfo *member = search_from_anonymous(type, ident->ident, ident, stack);
@@ -142,14 +142,14 @@ static Expr *parse_member_access(Expr *target, Token *acctok) {
     Expr *p = target;
     for (int i = 0; i < stack->len; ++i) {
       int index = (int)(long)stack->data[i];
-      const MemberInfo *member = &type->struct_.info->members[index];
-      type = qualified_type(member->type, type->qualifier);
+      const MemberInfo *minfo = &type->struct_.info->members[index];
+      type = qualified_type(minfo->type, type->qualifier);
       const Name *member_name = NULL;
       if (i == stack->len - 1) {  // Last one must be specified member.
-        assert(equal_name(member->name, ident->ident));
+        assert(equal_name(minfo->name, ident->ident));
         member_name = ident->ident;
       }
-      p = new_expr_member(acctok, type, p, member_name, index);
+      p = new_expr_member(acctok, type, p, member_name, minfo);
     }
     return p;
   }
@@ -932,7 +932,7 @@ static Expr *parse_unary(void) {
     assert(expr->type != NULL);
 #ifndef __NO_BITFIELD
     if (expr->kind == EX_MEMBER) {
-      const MemberInfo *minfo = member_info(expr);
+      const MemberInfo *minfo = expr->member.info;
       if (minfo->bitfield.width > 0)
         parse_error(PE_NOFATAL, tok, "Cannot take reference for bitfield");
     }
@@ -1241,7 +1241,7 @@ Expr *parse_assign(void) {
         }
 #ifndef __NO_BITFIELD
         if (lhs->kind == EX_MEMBER) {
-          const MemberInfo *minfo = member_info(lhs);
+          const MemberInfo *minfo = lhs->member.info;
           if (minfo->bitfield.width > 0)
             return assign_to_bitfield(tok, lhs, rhs, minfo);
         }

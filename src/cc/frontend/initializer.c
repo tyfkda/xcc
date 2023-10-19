@@ -737,7 +737,7 @@ Vector *assign_initial_value(Expr *expr, Initializer *init, Vector *inits) {
           if (init_elem == NULL)
             continue;
           const MemberInfo *minfo = &sinfo->members[i];
-          Expr *member = new_expr_member(NULL, minfo->type, expr, NULL, i);
+          Expr *member = new_expr_member(NULL, minfo->type, expr, NULL, minfo);
 #ifndef __NO_BITFIELD
           if (minfo->bitfield.width > 0) {
             if (init_elem->kind != IK_SINGLE) {
@@ -769,8 +769,8 @@ Vector *assign_initial_value(Expr *expr, Initializer *init, Vector *inits) {
             break;
           }
 
-          const MemberInfo *member = &sinfo->members[i];
-          Expr *mem = new_expr_member(NULL, member->type, expr, NULL, i);
+          const MemberInfo *minfo = &sinfo->members[i];
+          Expr *mem = new_expr_member(NULL, minfo->type, expr, NULL, minfo);
           assign_initial_value(mem, init_elem, inits);
           ++count;
         }

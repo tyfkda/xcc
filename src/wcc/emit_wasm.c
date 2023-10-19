@@ -53,9 +53,8 @@ static void eval_initial_value(Expr *expr, Expr **pvar, Fixnum *poffset) {
   case EX_MEMBER:
     {
       eval_initial_value(expr->member.target, pvar, poffset);
-
-      const MemberInfo *member = member_info(expr);
-      *poffset += member->offset;
+      const MemberInfo *minfo = expr->member.info;
+      *poffset += minfo->offset;
     }
     break;
   case EX_COMPLIT:

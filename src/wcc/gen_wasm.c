@@ -512,11 +512,11 @@ static void gen_lval(Expr *expr) {
   case EX_MEMBER:
     {
       gen_expr(expr->member.target, true);
-      const MemberInfo *member = member_info(expr);
-      if (member->offset == 0)
+      const MemberInfo *minfo = expr->member.info;
+      if (minfo->offset == 0)
         return;
       ADD_CODE(OP_I32_CONST);
-      ADD_LEB128(member->offset);
+      ADD_LEB128(minfo->offset);
       ADD_CODE(OP_I32_ADD);
       return;
     }
@@ -881,7 +881,7 @@ static void gen_deref(Expr *expr, bool needval) {
 static void gen_member(Expr *expr, bool needval) {
   if (needval) {
 #ifndef __NO_BITFIELD
-    const MemberInfo *minfo = member_info(expr);
+    const MemberInfo *minfo = expr->member.info;
     if (minfo->bitfield.width > 0) {
       Expr *ptr = new_expr_unary(EX_REF, ptrof(minfo->type), NULL, expr);  // promote-to-int
       Expr *load = new_expr_deref(NULL, ptr);

@@ -94,19 +94,20 @@ void dump_expr(FILE *fp, Expr *expr) {
   assert(expr != NULL);
   switch (expr->kind) {
   case EX_FIXNUM:
-    assert(expr->type->kind == TY_FIXNUM);
-    if (expr->type->fixnum.is_unsigned)
+    if (expr->type->kind != TY_FIXNUM || expr->type->fixnum.is_unsigned)
       fprintf(fp, "%" PRIu64 "U", expr->fixnum);
     else
       fprintf(fp, "%" PRId64, expr->fixnum);
-    switch (expr->type->fixnum.kind) {
-    case FX_LONG:
-      fputc('L', fp);
-      break;
-    case FX_LLONG:
-      fputs("LL", fp);
-      break;
-    default: break;
+    if (expr->type->kind == TY_FIXNUM) {
+      switch (expr->type->fixnum.kind) {
+      case FX_LONG:
+        fputc('L', fp);
+        break;
+      case FX_LLONG:
+        fputs("LL", fp);
+        break;
+      default: break;
+      }
     }
     break;
 #ifndef __NO_FLONUM
@@ -178,7 +179,9 @@ void dump_expr(FILE *fp, Expr *expr) {
   case EX_REF:
   case EX_DEREF:
     fputs(table[expr->kind], fp);
+    fprintf(fp, "(");
     dump_expr(fp, expr->unary.sub);
+    fprintf(fp, ")");
     break;
   case EX_PREINC:
   case EX_PREDEC:
@@ -224,11 +227,11 @@ void dump_expr(FILE *fp, Expr *expr) {
     {
       dump_expr(fp, expr->member.target);
       fputs(expr->token->kind == TK_DOT ? "." : "->", fp);
-      const Name *ident = expr->member.ident;
-      if (ident != NULL) {
-        fprintf(fp, "%.*s", NAMES(ident));
+      const Name *name = expr->member.info->name;
+      if (name != NULL) {
+        fprintf(fp, "%.*s", NAMES(name));
       } else {
-        fprintf(fp, "%d", expr->member.index);
+        fprintf(fp, "*anonymous*");
       }
     }
     break;

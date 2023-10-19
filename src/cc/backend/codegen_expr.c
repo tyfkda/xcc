@@ -224,13 +224,13 @@ static VReg *gen_lval(Expr *expr) {
     return gen_expr(expr->unary.sub);
   case EX_MEMBER:
     {
-      const MemberInfo *member = member_info(expr);
+      const MemberInfo *minfo = expr->member.info;
       VReg *vreg = gen_expr(expr->member.target);
-      if (member->offset == 0)
+      if (minfo->offset == 0)
         return vreg;
       enum VRegSize vsize = to_vsize(&tySize);
       int vflag = vreg->flag & VRF_MASK;
-      VReg *imm = new_const_vreg(member->offset, vsize, vflag);
+      VReg *imm = new_const_vreg(minfo->offset, vsize, vflag);
       VReg *result = new_ir_bop(IR_ADD, vreg, imm, vsize);
       return result;
     }
@@ -641,7 +641,7 @@ static VReg *gen_deref(Expr *expr) {
 
 static VReg *gen_member(Expr *expr) {
 #ifndef __NO_BITFIELD
-  const MemberInfo *minfo = member_info(expr);
+  const MemberInfo *minfo = expr->member.info;
   if (minfo->bitfield.width > 0) {
     Type *type = get_fixnum_type(minfo->bitfield.base_kind, minfo->type->fixnum.is_unsigned, 0);
     Expr *ptr = new_expr_unary(EX_REF, ptrof(type), NULL, expr);  // promote-to-int
