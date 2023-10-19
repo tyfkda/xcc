@@ -482,7 +482,7 @@ static void gen_clear_local_var(const VarInfo *varinfo) {
   ADD_CODE(OP_EXTENSION, OPEX_MEMORY_FILL, 0);
 }
 
-static void gen_lval(Expr *expr) {
+static void gen_ref_sub(Expr *expr) {
   switch (expr->kind) {
   case EX_VAR:
     {
@@ -532,6 +532,10 @@ static void gen_lval(Expr *expr) {
     return;
   default: assert(false); break;
   }
+}
+
+static void gen_lval(Expr *expr) {
+  gen_ref_sub(reduce_refer(expr));
 }
 
 static void gen_var(Expr *expr, bool needval) {
@@ -845,14 +849,8 @@ static void gen_cast(Expr *expr, bool needval) {
 
 static void gen_ref(Expr *expr, bool needval) {
   Expr *sub = expr->unary.sub;
-  /*if (sub->kind == EX_VAR && !is_global_scope(sub->var.scope)) {
-    const VarInfo *varinfo = scope_find(sub->var.scope, sub->var.name, NULL);
-    assert(varinfo != NULL);
-    assert(varinfo->local.vreg != NULL);
-    varinfo->local.vreg->flag |= VRF_REF;
-  }*/
   if (needval)
-    gen_lval(sub);
+    gen_ref_sub(sub);
   else
     gen_expr(sub, false);
 }
@@ -883,7 +881,8 @@ static void gen_member(Expr *expr, bool needval) {
 #ifndef __NO_BITFIELD
     const MemberInfo *minfo = expr->member.info;
     if (minfo->bitfield.width > 0) {
-      Expr *ptr = new_expr_unary(EX_REF, ptrof(minfo->type), NULL, expr);  // promote-to-int
+      Type *type = get_fixnum_type(minfo->bitfield.base_kind, minfo->type->fixnum.is_unsigned, 0);
+      Expr *ptr = make_cast(ptrof(type), expr->token, make_refer(expr->token, expr), true);
       Expr *load = new_expr_deref(NULL, ptr);
       Expr *e = extract_bitfield_value(load, minfo);
       gen_expr(e, needval);

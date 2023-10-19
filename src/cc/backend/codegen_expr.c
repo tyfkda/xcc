@@ -204,7 +204,7 @@ static VReg *gen_cast(Expr *expr) {
   return new_ir_cast(vreg, to_vsize(dst_type), to_vflag(dst_type));
 }
 
-static VReg *gen_lval(Expr *expr) {
+static VReg *gen_ref_sub(Expr *expr) {
   switch (expr->kind) {
   case EX_VAR:
     {
@@ -246,11 +246,15 @@ static VReg *gen_lval(Expr *expr) {
 
       gen_clear_local_var(varinfo);
       gen_stmts(expr->complit.inits);
-      return gen_lval(expr->complit.var);
+      return gen_ref_sub(expr->complit.var);
     }
   default: assert(false); break;
   }
   return NULL;
+}
+
+static VReg *gen_lval(Expr *expr) {
+  return gen_ref_sub(reduce_refer(expr));
 }
 
 static VReg *gen_variable(Expr *expr) {
@@ -628,7 +632,7 @@ static VReg *gen_str(Expr *expr) {
 }
 
 static VReg *gen_ref(Expr *expr) {
-  return gen_lval(expr->unary.sub);
+  return gen_ref_sub(expr->unary.sub);
 }
 
 static VReg *gen_deref(Expr *expr) {
@@ -644,7 +648,7 @@ static VReg *gen_member(Expr *expr) {
   const MemberInfo *minfo = expr->member.info;
   if (minfo->bitfield.width > 0) {
     Type *type = get_fixnum_type(minfo->bitfield.base_kind, minfo->type->fixnum.is_unsigned, 0);
-    Expr *ptr = new_expr_unary(EX_REF, ptrof(type), NULL, expr);  // promote-to-int
+    Expr *ptr = make_cast(ptrof(type), expr->token, make_refer(expr->token, expr), true);
     Expr *load = new_expr_deref(NULL, ptr);
     Expr *e = extract_bitfield_value(load, minfo);
     return gen_expr(e);

@@ -329,20 +329,96 @@ static void check_referable(const Token *tok, Expr *expr, const char *error) {
   check_lval(tok, expr, error);
 }
 
+static Expr *reduce_refer_deref_add(Expr *expr, Type *subtype, Expr *lhs, Fixnum rhs) {
+  if (lhs->kind == EX_FIXNUM) {
+    return new_expr_unary(EX_DEREF, expr->type, expr->token,
+                          new_expr_fixlit(subtype, lhs->token, lhs->fixnum + rhs));
+  } else if (lhs->kind == EX_DEREF && lhs->unary.sub->kind == EX_FIXNUM) {
+    // Concat 2 deref.
+    Expr *sub = lhs->unary.sub;
+    return new_expr_unary(EX_DEREF, expr->type, expr->token,
+                          new_expr_fixlit(sub->type, sub->token, sub->fixnum + rhs));
+  } else if (lhs->kind == EX_ADD && lhs->bop.rhs->kind == EX_FIXNUM) {
+    // *(((lhs->lhs) + (lhs->rhs)) + rhs) => *(lhs->lhs + (lhs->rhs + rhs))
+    return new_expr_unary(EX_DEREF, expr->type, expr->token,
+                          new_expr_bop(EX_ADD, subtype, lhs->token, lhs->bop.lhs,
+                                       new_expr_fixlit(lhs->bop.rhs->type, lhs->bop.rhs->token,
+                                                      lhs->bop.rhs->fixnum + rhs)));
+  }
+  return NULL;
+}
+
+Expr *reduce_refer(Expr *expr) {
+  // target->field => *(target + offset(field))
+  switch (expr->kind) {
+  case EX_MEMBER:
+    {
+      Expr *target = reduce_refer(expr->member.target);
+      if (target->type->kind == TY_STRUCT && target->kind == EX_DEREF) {
+        // (*sub).field => sub->field
+        target = target->unary.sub;
+      }
+
+      const MemberInfo *minfo = expr->member.info;
+      Type *ptype = minfo->type;
+      ptype = ptrof(ptype->kind == TY_ARRAY ? array_to_ptr(ptype) : ptype);
+      // target->field => *(target + offset(field))
+      Expr *result = reduce_refer_deref_add(expr, ptype, target, minfo->offset);
+      if (result != NULL)
+        return result;
+
+      // Transform member access to pointer dereference, only if target is referenceable.
+      // target->field => *(target + offset(field))
+      switch (target->kind) {
+      case EX_VAR:
+      case EX_DEREF:
+        if (target->type->kind == TY_STRUCT) {
+          // target.field => (&target)->field
+          target = new_expr_unary(EX_REF, ptrof(target->type), target->token, target);
+        }
+        return new_expr_unary(EX_DEREF, minfo->type, expr->token,
+                              new_expr_bop(EX_ADD, ptype, expr->token, target,
+                                           new_expr_fixlit(&tySize, expr->token, minfo->offset)));
+      default:
+        // ex. funcall().x cannot be taken its reference, so keep the expression.
+        break;
+      }
+    }
+    break;
+  case EX_DEREF:
+    {
+      Expr *sub = expr->unary.sub;
+      if (sub->kind == EX_ADD) {
+        // *(lhs + rhs) => *lhs + rhs
+        Expr *lhs, *rhs;
+        if (sub->bop.lhs->kind != EX_FIXNUM) {
+          lhs = sub->bop.lhs;
+          rhs = sub->bop.rhs;
+        } else {
+          lhs = sub->bop.rhs;
+          rhs = sub->bop.lhs;
+        }
+        Expr *lhs2 = reduce_refer(lhs);
+        if (rhs->kind == EX_FIXNUM) {
+          Expr *result = reduce_refer_deref_add(expr, sub->type, lhs2, rhs->fixnum);
+          if (result != NULL)
+            return result;
+        }
+        if (lhs2 != lhs)
+          return new_expr_unary(EX_DEREF, expr->type, expr->token,
+                                new_expr_bop(EX_ADD, sub->type, sub->token, lhs2, rhs));
+      }
+    }
+    break;
+  default: break;
+  }
+  return expr;
+}
+
 Expr *make_refer(const Token *tok, Expr *expr) {
   check_referable(tok, expr, "Cannot take reference");
 
-  if (expr->kind == EX_MEMBER &&
-      expr->member.target->kind == EX_FIXNUM && expr->token->kind == TK_ARROW) {
-    assert(expr->member.target->type->kind == TY_PTR);
-    const Type *stype = expr->member.target->type->pa.ptrof;
-    assert(stype->kind == TY_STRUCT);
-    StructInfo *sinfo = stype->struct_.info;
-    assert(sinfo != NULL);
-    const MemberInfo *minfo = expr->member.info;
-    Fixnum value = expr->member.target->fixnum + minfo->offset;
-    return new_expr_fixlit(ptrof(minfo->type), tok, value);
-  }
+  expr = reduce_refer(expr);
 
   if (expr->kind == EX_DEREF)
     return expr->unary.sub;
@@ -639,8 +715,7 @@ Expr *assign_to_bitfield(const Token *tok, Expr *lhs, Expr *rhs, const MemberInf
   Type *ptype = ptrof(type);
   assert(!is_global_scope(curscope));
   Expr *ptr = alloc_tmp_var(curscope, ptype);
-  Expr *ptr_assign = new_expr_bop(EX_ASSIGN, ptype, tok, ptr,
-                                  new_expr_unary(EX_REF, ptype, lhs->token, lhs));
+  Expr *ptr_assign = new_expr_bop(EX_ASSIGN, ptype, tok, ptr, make_refer(lhs->token, lhs));
 
   Type *vtype = rhs->type;
   Expr *val = alloc_tmp_var(curscope, vtype);
@@ -662,8 +737,7 @@ static Expr *transform_incdec_of_bitfield(enum ExprKind kind, Expr *target, cons
   Type *ptype = ptrof(type);
   assert(!is_global_scope(curscope));
   Expr *ptr = alloc_tmp_var(curscope, ptype);
-  Expr *ptr_assign = new_expr_bop(EX_ASSIGN, ptype, tok, ptr,
-                                  new_expr_unary(EX_REF, ptype, target->token, target));
+  Expr *ptr_assign = new_expr_bop(EX_ASSIGN, ptype, tok, ptr, make_refer(target->token, target));
   Expr *dst = new_expr_unary(EX_DEREF, type, tok, ptr);
 
   Expr *src = alloc_tmp_var(curscope, type);
@@ -723,9 +797,9 @@ static enum ExprKind swap_cmp(enum ExprKind kind) {
 
 Expr *new_expr_cmp(enum ExprKind kind, const Token *tok, Expr *lhs, Expr *rhs) {
   if (lhs->type->kind == TY_FUNC)
-    lhs = new_expr_unary(EX_REF, ptrof(lhs->type), lhs->token, lhs);
+    lhs = make_refer(lhs->token, lhs);
   if (rhs->type->kind == TY_FUNC)
-    rhs = new_expr_unary(EX_REF, ptrof(rhs->type), rhs->token, rhs);
+    rhs = make_refer(rhs->token, rhs);
 
   Type *lt = lhs->type, *rt = rhs->type;
   if (ptr_or_array(lt) || ptr_or_array(rt)) {
@@ -1043,8 +1117,7 @@ static Expr *transform_assign_with_bitfield(const Token *tok, Expr *lhs, Expr *r
   Type *ptype = ptrof(type);
   assert(!is_global_scope(curscope));
   Expr *ptr = alloc_tmp_var(curscope, ptype);
-  Expr *ptr_assign = new_expr_bop(EX_ASSIGN, ptype, tok, ptr,
-                                  new_expr_unary(EX_REF, ptype, lhs->token, lhs));
+  Expr *ptr_assign = new_expr_bop(EX_ASSIGN, ptype, tok, ptr, make_refer(lhs->token, lhs));
   Expr *dst = new_expr_unary(EX_DEREF, type, tok, ptr);
 
   Expr *src = alloc_tmp_var(curscope, type);
@@ -1079,8 +1152,7 @@ Expr *transform_assign_with(const Token *tok, Expr *lhs, Expr *rhs) {
     Type *ptype = ptrof(lhs->type);
     assert(!is_global_scope(curscope));
     Expr *ptr = alloc_tmp_var(curscope, ptype);
-    tmp_assign = new_expr_bop(EX_ASSIGN, ptype, tok, ptr,
-                              new_expr_unary(EX_REF, ptype, lhs->token, lhs));
+    tmp_assign = new_expr_bop(EX_ASSIGN, ptype, tok, ptr, make_refer(lhs->token, lhs));
     lhs = new_expr_unary(EX_DEREF, lhs->type, lhs->token, ptr);
   }
 

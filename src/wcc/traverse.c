@@ -412,8 +412,7 @@ static void te_incdec(Expr **pexpr, bool needval) {
   Expr *tmp = alloc_tmp_var(curscope, type);
   enum ExprKind op = kOpAddSub[dec];
 
-  Expr *assign_p = new_expr_bop(EX_ASSIGN, &tyVoid, token, p,
-                                new_expr_unary(EX_REF, ptrtype, token, target));
+  Expr *assign_p = new_expr_bop(EX_ASSIGN, &tyVoid, token, p, make_refer(token, target));
   Expr *deref_p = new_expr_deref(token, p);
   Expr *one = type->kind == TY_PTR ? new_expr_fixlit(&tySize, token, type_size(type->pa.ptrof))
                                    : new_expr_fixlit(type, token, 1);

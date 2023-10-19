@@ -140,6 +140,7 @@ static Expr *parse_member_access(Expr *target, Token *acctok) {
       return target;
     }
     Expr *p = target;
+    Token *tok = acctok;
     for (int i = 0; i < stack->len; ++i) {
       int index = (int)(long)stack->data[i];
       const MemberInfo *minfo = &type->struct_.info->members[index];
@@ -149,7 +150,9 @@ static Expr *parse_member_access(Expr *target, Token *acctok) {
         assert(equal_name(minfo->name, ident->ident));
         member_name = ident->ident;
       }
-      p = new_expr_member(acctok, type, p, member_name, minfo);
+      p = new_expr_member(tok, type, p, member_name, minfo);
+      if (tok->kind != TK_DOT)
+        tok = alloc_token(TK_DOT, acctok->line, acctok->begin, acctok->end);
     }
     return p;
   }

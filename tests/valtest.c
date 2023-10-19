@@ -1304,9 +1304,15 @@ TEST(struct) {
 #define NULL  ((void*)0)
 #undef offsetof
 #define offsetof(S, m)  ((long)(&((S*)NULL)->m))
-    struct X {char x[5]; char z;};
+    struct X {char x[5]; char z; struct {char b;} s; struct {char c[3];} t[4]; };
     char a[offsetof(struct X, z)];
     EXPECT("offsetof is const", 5, sizeof(a));
+    char b[offsetof(struct X, s.b)];
+    EXPECT("offsetof is const", 6, sizeof(b));
+    char c[offsetof(struct X, t[3].c)];
+    EXPECT("offsetof is const", 16, sizeof(c));
+    char d[offsetof(struct X, t[3].c[2])];
+    EXPECT("offsetof is const", 18, sizeof(d));
   }
 
   {
@@ -1314,6 +1320,8 @@ TEST(struct) {
     EXPECT("return struct", 46, s.x + s.y);
 
     EXPECT("return struct member", 12, return_struct().x);
+    int y = return_struct().y;
+    EXPECT("return struct member", 34, y);
   }
   {
     int dummy[1];

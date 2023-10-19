@@ -69,6 +69,7 @@ Expr *make_cast(Type *type, const Token *token, Expr *sub, bool is_explicit);
 const MemberInfo *search_from_anonymous(const Type *type, const Name *name, const Token *ident,
                                         Vector *stack);
 void check_lval(const Token *tok, Expr *expr, const char *error);
+Expr *reduce_refer(Expr *expr);
 Expr *make_refer(const Token *tok, Expr *expr);
 Expr *promote_to_int(Expr *expr);
 Expr *new_expr_num_bop(enum ExprKind kind, const Token *tok, Expr *lhs, Expr *rhs);

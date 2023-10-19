@@ -732,12 +732,13 @@ Vector *assign_initial_value(Expr *expr, Initializer *init, Vector *inits) {
 
       const StructInfo *sinfo = expr->type->struct_.info;
       if (!sinfo->is_union) {
+        Token *tok = alloc_token(TK_DOT, NULL, ".", NULL);
         for (int i = 0, n = sinfo->member_count; i < n; ++i) {
           Initializer *init_elem = init->multi->data[i];
           if (init_elem == NULL)
             continue;
           const MemberInfo *minfo = &sinfo->members[i];
-          Expr *member = new_expr_member(NULL, minfo->type, expr, NULL, minfo);
+          Expr *member = new_expr_member(tok, minfo->type, expr, NULL, minfo);
 #ifndef __NO_BITFIELD
           if (minfo->bitfield.width > 0) {
             if (init_elem->kind != IK_SINGLE) {
@@ -760,6 +761,7 @@ Vector *assign_initial_value(Expr *expr, Initializer *init, Vector *inits) {
           parse_error(PE_FATAL, init->token, "Initializer for empty union");
 
         int count = 0;
+        Token *tok = alloc_token(TK_DOT, NULL, ".", NULL);
         for (int i = 0; i < n; ++i) {
           Initializer *init_elem = init->multi->data[i];
           if (init_elem == NULL)
@@ -770,7 +772,7 @@ Vector *assign_initial_value(Expr *expr, Initializer *init, Vector *inits) {
           }
 
           const MemberInfo *minfo = &sinfo->members[i];
-          Expr *mem = new_expr_member(NULL, minfo->type, expr, NULL, minfo);
+          Expr *mem = new_expr_member(tok, minfo->type, expr, NULL, minfo);
           assign_initial_value(mem, init_elem, inits);
           ++count;
         }
