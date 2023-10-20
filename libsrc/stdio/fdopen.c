@@ -34,7 +34,7 @@ FILE *fdopen(int fd, const char *mode) {
     fp->rp = fp->rs = 0;
     fp->wp = 0;
     fp->wbuf = fp->wwork;
-    fp->ws = sizeof(fp->wwork);;
+    fp->ws = sizeof(fp->wwork);
 
     int flag = 0;
     if (strchr(mode, 'b') != NULL)
