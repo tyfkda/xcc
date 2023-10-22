@@ -104,6 +104,7 @@ test_if() {
   try '#if ||-2' '4' "#if 0 || 0\n3\n#else\n4\n#endif"
   try '#if exp' 'abc' "#if 4 + 5 > 6\nabc\n#else\nxyz\n#endif"
   try '#if VAR expr' 'FOUR' "#define X  -2 + 2\n#if X * 3 == 0\nZERO\n#elif X * 3 == 4\nFOUR\n#endif"
+  try '#if VAR expr2' 'equal' "#define UNIT 5\n#define NUM 3\n#define X  (UNIT * NUM)\n#if X / UNIT != NUM\nnot-equal\n#else\nequal\n#endif"
   try 'Macro in #if' '111' "#define FOO(x) x/2\n#if FOO(2)==1\n111\n#else\n222\n#endif"
   try 'func-macro in unmet' '' "#ifdef FOO\n#if FOO(123)\nfoo-123\n#endif\n#endif"
   try 'Direct comment' '/*comment*///comment' "#if 0\n#else/*comment*/\n#endif//comment"

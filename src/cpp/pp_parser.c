@@ -143,28 +143,6 @@ Token *pp_consume(enum TokenKind kind, const char *error) {
   return tok;
 }
 
-static PpResult expand_ident(const Token *ident) {
-  if (!can_expand_ident(ident->ident))
-    return 0;
-
-  Vector *tokens = new_vector();
-  vec_push(tokens, ident);
-  macro_expand(tokens);
-  StringBuffer sb;
-  sb_init(&sb);
-  for (int i = 0; i < tokens->len; ++i) {
-    const Token *tok = tokens->data[i];
-    sb_append(&sb, tok->begin, tok->end);
-  }
-
-  push_lex(ident->ident, NULL);
-
-  char *expanded = sb_to_string(&sb);
-  set_source_string(expanded, NULL, -1);
-
-  return pp_expr();
-}
-
 static PpResult parse_defined(void) {
   bool lpar = pp_match(TK_LPAR) != NULL;
 
@@ -205,7 +183,7 @@ static PpResult pp_prim(void) {
   Token *ident = pp_consume(TK_IDENT, "Number or Ident or open paren expected");
   if (equal_name(ident->ident, alloc_name("defined", NULL, false)))
     return parse_defined();
-  return expand_ident(ident);
+  return 0;  // Undefined identifier is 0.
 }
 
 static PpResult pp_postfix(void) {

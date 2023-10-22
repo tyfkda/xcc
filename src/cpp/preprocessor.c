@@ -503,6 +503,7 @@ static void process_line(const char *line, Stream *stream) {
 
   const char *begin = get_lex_p();
 
+  const Name *defined = alloc_name("defined", NULL, false);
   for (;;) {
     const char *p = get_lex_p();
     if (p != NULL) {
@@ -518,7 +519,12 @@ static void process_line(const char *line, Stream *stream) {
 
     Token *ident = match(TK_IDENT);
     if (ident != NULL) {
-      if (can_expand_ident(ident->ident)) {
+      if (equal_name(ident->ident, defined)) {
+        // TODO: Raise error if not matched.
+        match(TK_LPAR);
+        match(TK_IDENT);
+        match(TK_RPAR);
+      } else if (can_expand_ident(ident->ident)) {
         const char *p = begin;
         begin = ident->end;  // Update for EOF callback.
 
@@ -558,10 +564,43 @@ static bool handle_ifdef(const char **pp) {
 }
 
 static bool handle_if(const char **pp, Stream *stream) {
-  const char *p = *pp;
-  set_source_string(p, stream->filename, stream->lineno);
-  PpResult result = pp_expr();
-  *pp = get_lex_p();
+  // Preprocess line and receive result into memory.
+  char *expanded;
+  size_t size;
+  {
+    FILE *memfp = open_memstream(&expanded, &size);
+    if (memfp == NULL)
+      error("open_memstream failed");
+    FILE *bak_fp = pp_ofp;
+    int bak_lineno = curpf->out_lineno;
+    pp_ofp = memfp;
+
+    const char *p = *pp;
+    set_source_string(p, stream->filename, stream->lineno);
+
+    process_line(p, stream);
+    pp_ofp = bak_fp;
+    curpf->out_lineno = bak_lineno;
+    fclose(memfp);
+  }
+
+  // Parse expression.
+  PpResult result;
+  {
+    FILE *memfp = fmemopen(expanded, size, "r");
+    assert(memfp != NULL);
+
+    Stream tmp_stream;
+    tmp_stream.fp = memfp;
+    tmp_stream.filename = stream->filename;
+    tmp_stream.lineno = stream->lineno;
+    Stream *bak_stream = set_pp_stream(&tmp_stream);
+    set_source_file(memfp, stream->filename);
+    result = pp_expr();
+    set_pp_stream(bak_stream);
+    fclose(memfp);
+    *pp = get_lex_p();
+  }
   return result != 0;
 }
 
