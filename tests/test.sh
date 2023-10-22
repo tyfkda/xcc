@@ -265,6 +265,9 @@ test_error() {
   compile_error 'negative array' "void main(){ int array[-1]; }"
   compile_error 'size unknown' 'extern char string[]; int main(){ return sizeof(string); } char string[] = "Hello";'
   compile_error 'scoped typedef' 'void sub(){typedef int T;} T g=123; int main(){return g;}'
+  compile_error 'typedef and var' 'int main(){typedef int ttt; int ttt = 123; return ttt;}'
+  compile_error 'var and typedef' 'int main(){int ttt = 123; typedef int ttt; return ttt;}'
+  try_direct 'typedef and var in other scope' 123 'typedef int ttt; int main(){ttt ttt = 123; return ttt;}'
   compile_error 'func retval ref' 'typedef struct {int x;} S; S func() {return (S){111};} int main(){S *p = &func(); return s->x;}'
   compile_error 'if void' 'void main(){if ((void)0) {}}'
   compile_error 'while void' 'void main(){while ((void)1) {}}'

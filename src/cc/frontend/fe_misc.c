@@ -120,6 +120,11 @@ VarInfo *add_var_to_scope(Scope *scope, const Token *ident, Type *type, int stor
   VarInfo *varinfo = find_var_from_scope(scope, ident, type, storage);
   if (varinfo != NULL)
     return varinfo;
+
+  // Check conflict with typedef
+  if (scope->typedef_table != NULL && table_try_get(scope->typedef_table, ident->ident, NULL))
+    parse_error(PE_NOFATAL, ident, "conflict with typedef");
+
   return scope_add(scope, ident->ident, type, storage);
 }
 

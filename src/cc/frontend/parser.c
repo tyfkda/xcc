@@ -134,25 +134,24 @@ Initializer *parse_initializer(void) {
 
 //
 
-static bool def_type(Type *type, Token *ident) {
+static void def_type(Type *type, Token *ident) {
   const Name *name = ident->ident;
   Scope *scope;
-  Type *conflict = find_typedef(curscope, name, &scope);
-  if (conflict != NULL && scope == curscope) {
-    if (!same_type(type, conflict))
-      parse_error(PE_FATAL, ident, "Conflict typedef");
-  } else {
-    conflict = NULL;
+  Type *defined = find_typedef(curscope, name, &scope);
+  if (defined != NULL && scope == curscope) {
+    if (same_type(type, defined))
+      return;
+    parse_error(PE_NOFATAL, ident, "Conflict typedef");
+  } else if (scope_find(curscope, ident->ident, &scope) != NULL && scope == curscope) {
+    parse_error(PE_NOFATAL, ident, "Conflict typedef with variable");
+    return;
   }
 
-  if (conflict == NULL || (type->kind == TY_STRUCT && type->struct_.info != NULL)) {
+  if (defined == NULL || (type->kind == TY_STRUCT && type->struct_.info != NULL)) {
     if (type->kind == TY_ARRAY) {
       ensure_struct(type, ident, curscope);
     }
     add_typedef(curscope, name, type);
-    return true;
-  } else {
-    return false;
   }
 }
 

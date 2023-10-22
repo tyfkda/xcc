@@ -134,14 +134,16 @@ void define_struct(Scope *scope, const Name *name, StructInfo *sinfo) {
 
 Type *find_typedef(Scope *scope, const Name *name, Scope **pscope) {
   for (; scope != NULL; scope = scope->parent) {
-    if (scope->typedef_table == NULL)
-      continue;
-    Type *type = table_get(scope->typedef_table, name);
-    if (type != NULL) {
+    Type *type;
+    if (scope->typedef_table != NULL && (type = table_get(scope->typedef_table, name)) != NULL) {
       if (pscope != NULL)
         *pscope = scope;
       return type;
     }
+
+    // Shadowed by variable?
+    if (scope->vars != NULL && var_find(scope->vars, name) >= 0)
+      break;
   }
   return NULL;
 }
