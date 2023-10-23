@@ -706,6 +706,8 @@ static Declaration *parse_defun(Type *functype, int storage, Token *ident) {
       }
     }
 
+    match(TK_SEMICOL);  // Ignore redundant semicolon.
+
     curfunc = NULL;
   }
   Declaration *decl = new_decl_defun(func);
