@@ -1634,6 +1634,11 @@ TEST(initializer) {
 
   EXPECT("global compound literal init (deficit)", 0, g_comp_deficit.x);
   {
+    FooStruct l_comp_deficit = (FooStruct){};
+    EXPECT("global compound literal init (deficit)", 0, l_comp_deficit.x);
+  }
+
+  {
     int *p, sum;
 
     p = g_comp_array;

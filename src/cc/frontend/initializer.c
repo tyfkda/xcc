@@ -276,7 +276,7 @@ static Initializer *flatten_initializer_multi(Type *type, Initializer *init, int
 
       if (*pindex < m) {
         Initializer *elem_init = init->multi->data[*pindex];
-        if (elem_init->kind == IK_SINGLE &&
+        if (elem_init != NULL && elem_init->kind == IK_SINGLE &&
             same_type_without_qualifier(type, elem_init->single->type, true)) {
           *pindex += 1;
           return elem_init;
@@ -290,6 +290,11 @@ static Initializer *flatten_initializer_multi(Type *type, Initializer *init, int
       int midx = 0;
       while (*pindex < m) {
         Initializer *value = init->multi->data[*pindex];
+        if (value == NULL) {
+          *pindex += 1;
+          continue;
+        }
+
         if (value->kind == IK_ARR) {
           parse_error(PE_NOFATAL, value->token, "indexed initializer for struct");
           *pindex += 1;
