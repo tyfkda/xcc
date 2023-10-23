@@ -340,7 +340,7 @@ static void gen_return(Stmt *stmt) {
     if (is_prim_type(val->type)) {
       int flag = is_unsigned(val->type) ? IRF_UNSIGNED : 0;
       new_ir_result(fnbe->result_dst, vreg, flag);
-    } else {
+    } else if (val->type->kind != TY_VOID) {
       VReg *retval = fnbe->retval;
       if (retval != NULL) {
         gen_memcpy(val->type, retval, vreg);

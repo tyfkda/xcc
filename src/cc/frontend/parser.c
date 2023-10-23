@@ -443,10 +443,16 @@ static Stmt *parse_return(const Token *tok) {
     if (rettype->kind != TY_VOID)
       parse_error(PE_NOFATAL, tok, "`return' required a value");
   } else {
-    if (rettype->kind == TY_VOID)
-      parse_error(PE_NOFATAL, val->token, "void function `return' a value");
-    else
+    if (rettype->kind == TY_VOID) {
+      if (val->type->kind == TY_VOID) {
+        // Allow `return void_fnc();`.
+        parse_error(PE_WARNING, val->token, "`return' with void value");
+      } else {
+        parse_error(PE_NOFATAL, val->token, "void function `return' a value");
+      }
+    } else {
       val = make_cast(rettype, val->token, val, false);
+    }
   }
 
   return new_stmt_return(tok, val);
