@@ -619,7 +619,7 @@ TEST(all) {
   }
   {
     int x = 1;
-    { int x = 2; }
+    { int x = 2; (void)x; }
     EXPECT("block scope", 1, x);
   }
   {
@@ -900,7 +900,7 @@ const char *retstr(void){ return "foo"; }
 
 TEST(basic) {
   {
-    int array[0];
+    int array[0]; (void)array;
     EXPECT("zero sized array", 0, sizeof(array));
   }
 
@@ -947,7 +947,6 @@ TEST(basic) {
     enum Num2 { Ten = 10, Eleven, };
     EXPECT("enum with assign and trailing comma", 11, Eleven);
 
-    int x = 0;
     switch (1) {
     case One: EXPECT_TRUE("enum can use in case"); break;
     default: fail("enum can use in case"); break;
@@ -1119,7 +1118,7 @@ TTT:;
     int x = 1;
     {
       x = 10;
-      int x = 100;
+      int x = 100; (void)x;
     }
     EXPECT("shadow var", 10, x);
   }
@@ -1356,7 +1355,7 @@ TEST(struct) {
     EXPECT("return struct member", 34, y);
   }
   {
-    int dummy[1];
+    int dummy[1]; (void)dummy;
     LongStruct s;
     s = return_lstruct();
     EXPECT("return struct not broken", 222, s.y);
@@ -1377,7 +1376,8 @@ TEST(struct) {
     };
     EXPECT("flexible array member", sizeof(int), sizeof(struct FlexibleArrayMember));
 
-    struct FlexibleArrayMember fam;
+    // Can declare local variable for FAM.
+    struct FlexibleArrayMember fam; (void)fam;
 
     int buf[4];
     memset(buf, -1, sizeof(buf));
@@ -1764,7 +1764,7 @@ TEST(initializer) {
 void empty_function(void){}
 int more_params(int a, int b, int c, int d, int e, int f, char g, int h) { return a + b + c + d + e + f + g + h; }
 typedef struct {int x; int y;} MoreParamsReturnsStruct;
-MoreParamsReturnsStruct more_params_returns_struct(int a, int b, int c, int d, int e, int f, int g) { return (MoreParamsReturnsStruct){f + g}; }
+MoreParamsReturnsStruct more_params_returns_struct(int a, int b, int c, int d, int e, int f, int g) { return (MoreParamsReturnsStruct){a + b + c + d + e + f + g}; }
 int array_arg_wo_size(int arg[]) { return arg[1]; }
 long long long_immediate(unsigned long long x) { return x / 11; }
 
@@ -1833,7 +1833,7 @@ TEST(function) {
   EXPECT("more params", 36, more_params(1, 2, 3, 4, 5, 6, 7, 8));
   {
     MoreParamsReturnsStruct s = more_params_returns_struct(11, 22, 33, 44, 55, 66, 77);
-    EXPECT("more params w/ struct", 143, s.x);
+    EXPECT("more params w/ struct", 308, s.x);
   }
 
   // EXPECT("proto in func", 78, 'int main(){ int sub(int); return sub(77); } int sub(int x) { return x + 1; }')

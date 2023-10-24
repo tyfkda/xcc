@@ -51,6 +51,10 @@ static Expr *parse_funcall(Expr *func) {
   assert(curfunc != NULL);
   curfunc->flag |= FUNCF_HAS_FUNCALL;
 
+  mark_var_used(func);
+  for (int i = 0; i < args->len; ++i)
+    mark_var_used(args->data[i]);
+
   check_funcall_args(func, args, curscope);
   Type *functype = get_callee_type(func->type);
   if (functype == NULL) {
@@ -75,6 +79,8 @@ static Expr *parse_funcall(Expr *func) {
 static Expr *parse_array_index(const Token *token, Expr *expr) {
   Expr *index = parse_expr();
   consume(TK_RBRACKET, "`]' expected");
+  mark_var_used(expr);
+  mark_var_used(index);
   expr = str_to_char_array_var(curscope, expr);
   index = str_to_char_array_var(curscope, index);
   if (!ptr_or_array(expr->type)) {
@@ -96,6 +102,7 @@ static Expr *parse_array_index(const Token *token, Expr *expr) {
 
 static Expr *parse_member_access(Expr *target, Token *acctok) {
   Token *ident = consume(TK_IDENT, "member name expected");
+  mark_var_used(target);
 
   // Find member's type from struct info.
   Type *type = target->type;
@@ -579,6 +586,7 @@ static ssize_t parse_array_size(Expr **pvla) {
   default:
     if (is_fixnum(expr->type->kind)) {
       *pvla = expr;
+      mark_var_used(expr);
       length = LEN_VLA;
     } else {
       parse_error(PE_NOFATAL, expr->token, kConstIntExpected);
@@ -931,9 +939,11 @@ static Expr *parse_postfix_cont(Expr *expr) {
       expr = parse_member_access(expr, tok);
     else if ((tok = match(TK_INC)) != NULL) {
       not_const(expr->type, tok);
+      mark_var_used(expr);
       expr = incdec_of(EX_POSTINC, expr, tok);
     } else if ((tok = match(TK_DEC)) != NULL) {
       not_const(expr->type, tok);
+      mark_var_used(expr);
       expr = incdec_of(EX_POSTDEC, expr, tok);
     } else
       return expr;
@@ -959,6 +969,7 @@ static Expr *parse_sizeof(const Token *token) {
     } else {
       unget_token((Token*)tok);
       Expr *expr = parse_unary();
+      mark_var_used(expr);
       not_bitfield_member(expr);
       type = expr->type;
       tok = expr->token;
@@ -1005,6 +1016,7 @@ static Expr *parse_cast_expr(void) {
       }
 
       Expr *sub = parse_cast_expr();
+      mark_var_used(sub);
       sub = str_to_char_array_var(curscope, sub);
       check_cast(type, sub->type, is_zero(sub), true, token);
 
@@ -1024,6 +1036,7 @@ static Expr *parse_unary(void) {
   Token *tok;
   if ((tok = match(TK_ADD)) != NULL) {
     Expr *expr = parse_cast_expr();
+    mark_var_used(expr);
     if (!is_number(expr->type)) {
       parse_error(PE_NOFATAL, tok, "Cannot apply `+' except number types");
       return expr;
@@ -1037,6 +1050,7 @@ static Expr *parse_unary(void) {
 
   if ((tok = match(TK_SUB)) != NULL) {
     Expr *expr = parse_cast_expr();
+    mark_var_used(expr);
     if (!is_number(expr->type)) {
       parse_error(PE_NOFATAL, tok, "Cannot apply `-' except number types");
       return expr;
@@ -1066,6 +1080,7 @@ static Expr *parse_unary(void) {
 
   if ((tok = match(TK_NOT)) != NULL) {
     Expr *expr = parse_cast_expr();
+    mark_var_used(expr);
     if (!is_number(expr->type) && !ptr_or_array(expr->type)) {
       parse_error(PE_NOFATAL, tok, "Cannot apply `!' except number or pointer types");
       return new_expr_fixlit(&tyBool, tok, false);
@@ -1075,6 +1090,7 @@ static Expr *parse_unary(void) {
 
   if ((tok = match(TK_TILDA)) != NULL) {
     Expr *expr = parse_cast_expr();
+    mark_var_used(expr);
     if (!is_fixnum(expr->type->kind)) {
       parse_error(PE_NOFATAL, tok, "Cannot apply `~' except integer");
       return new_expr_fixlit(&tyInt, expr->token, 0);
@@ -1090,6 +1106,7 @@ static Expr *parse_unary(void) {
 
   if ((tok = match(TK_AND)) != NULL) {
     Expr *expr = parse_cast_expr();
+    mark_var_used(expr);
     assert(expr->type != NULL);
 #ifndef __NO_BITFIELD
     if (expr->kind == EX_MEMBER) {
@@ -1104,6 +1121,7 @@ static Expr *parse_unary(void) {
 
   if ((tok = match(TK_MUL)) != NULL) {
     Expr *expr = parse_cast_expr();
+    mark_var_used(expr);
     Type *type = expr->type;
     assert(type != NULL);
     switch (type->kind) {
@@ -1122,12 +1140,14 @@ static Expr *parse_unary(void) {
 
   if ((tok = match(TK_INC)) != NULL) {
     Expr *expr = parse_unary();
+    mark_var_used(expr);
     not_const(expr->type, tok);
     return incdec_of(EX_PREINC, expr, tok);
   }
 
   if ((tok = match(TK_DEC)) != NULL) {
     Expr *expr = parse_unary();
+    mark_var_used(expr);
     not_const(expr->type, tok);
     return incdec_of(EX_PREDEC, expr, tok);
   }
@@ -1155,6 +1175,8 @@ static Expr *parse_mul(void) {
       return expr;
 
     Expr *lhs = expr, *rhs = parse_cast_expr();
+    mark_var_used(lhs);
+    mark_var_used(rhs);
     expr = new_expr_num_bop(kind, tok, lhs, rhs);
   }
 }
@@ -1173,6 +1195,8 @@ static Expr *parse_add(void) {
       return expr;
 
     Expr *lhs = expr, *rhs = parse_mul();
+    mark_var_used(lhs);
+    mark_var_used(rhs);
     expr = new_expr_addsub(kind, tok, lhs, rhs);
   }
 }
@@ -1191,6 +1215,8 @@ static Expr *parse_shift(void) {
       return expr;
 
     Expr *lhs = expr, *rhs = parse_add();
+    mark_var_used(lhs);
+    mark_var_used(rhs);
     if (!is_fixnum(lhs->type->kind) ||
         !is_fixnum(rhs->type->kind))
       parse_error(PE_FATAL, tok, "Cannot use `%.*s' except numbers.", (int)(tok->end - tok->begin), tok->begin);
@@ -1236,6 +1262,8 @@ static Expr *parse_cmp(void) {
       return expr;
 
     Expr *lhs = expr, *rhs = parse_shift();
+    mark_var_used(lhs);
+    mark_var_used(rhs);
     expr = new_expr_cmp(kind, tok, lhs, rhs);
   }
 }
@@ -1254,6 +1282,8 @@ static Expr *parse_eq(void) {
       return expr;
 
     Expr *lhs = expr, *rhs = parse_cmp();
+    mark_var_used(lhs);
+    mark_var_used(rhs);
     expr = new_expr_cmp(kind, tok, lhs, rhs);
   }
 }
@@ -1266,6 +1296,8 @@ static Expr *parse_and(void) {
       return expr;
 
     Expr *lhs = expr, *rhs = parse_eq();
+    mark_var_used(lhs);
+    mark_var_used(rhs);
     expr = new_expr_int_bop(EX_BITAND, tok, lhs, rhs);
   }
 }
@@ -1278,6 +1310,8 @@ static Expr *parse_xor(void) {
       return expr;
 
     Expr *lhs = expr, *rhs = parse_and();
+    mark_var_used(lhs);
+    mark_var_used(rhs);
     expr = new_expr_int_bop(EX_BITXOR, tok, lhs, rhs);
   }
 }
@@ -1290,6 +1324,8 @@ static Expr *parse_or(void) {
       return expr;
 
     Expr *lhs = expr, *rhs = parse_xor();
+    mark_var_used(lhs);
+    mark_var_used(rhs);
     expr = new_expr_int_bop(EX_BITOR, tok, lhs, rhs);
   }
 }
@@ -1298,9 +1334,12 @@ static Expr *parse_logand(void) {
   Expr *expr = parse_or();
   Token *tok = match(TK_LOGAND);
   if (tok != NULL) {
+    mark_var_used(expr);
     expr = make_cond(expr);
     do {
-      Expr *rhs = make_cond(parse_or());
+      Expr *rhs = parse_or();
+      mark_var_used(rhs);
+      rhs = make_cond(rhs);
       if (expr->kind == EX_FIXNUM)
         expr = expr->fixnum == 0 ? expr : rhs;
       else
@@ -1314,9 +1353,12 @@ static Expr *parse_logior(void) {
   Expr *expr = parse_logand();
   Token *tok = match(TK_LOGIOR);
   if (tok != NULL) {
+    mark_var_used(expr);
     expr = make_cond(expr);
     do {
-      Expr *rhs = make_cond(parse_logand());
+      Expr *rhs = parse_logand();
+      mark_var_used(rhs);
+      rhs = make_cond(rhs);
       if (expr->kind == EX_FIXNUM)
         expr = expr->fixnum != 0 ? expr : rhs;
       else
@@ -1336,6 +1378,9 @@ static Expr *parse_conditional(void) {
     consume(TK_COLON, "`:' expected");
     Expr *fval = parse_conditional();
 
+    mark_var_used(expr);
+    mark_var_used(tval);
+    mark_var_used(fval);
     tval = str_to_char_array_var(curscope, tval);
     fval = str_to_char_array_var(curscope, fval);
 
@@ -1376,6 +1421,7 @@ Expr *parse_assign(void) {
     Token *tok;
     if ((tok = match(kAssignWithOps[i])) != NULL) {
       Expr *lhs = expr, *rhs = parse_assign();
+      mark_var_used(rhs);
 
       check_lval(tok, lhs, "Cannot assign");
       not_const(lhs->type, tok);
@@ -1406,6 +1452,7 @@ Expr *parse_assign(void) {
         return new_expr_bop(EX_ASSIGN, lhs->type, tok, lhs, rhs);
       }
 
+      mark_var_used(lhs);
       return transform_assign_with(tok, lhs, rhs);
     }
   }

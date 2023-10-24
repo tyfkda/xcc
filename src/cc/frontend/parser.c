@@ -138,6 +138,7 @@ Initializer *parse_initializer(void) {
     result->multi = multi;
   } else {
     Expr *value = parse_assign();
+    mark_var_used(value);
     result = new_initializer(IK_SINGLE, value->token);
     result->single = value;
   }
@@ -287,19 +288,21 @@ static bool parse_vardecl(Stmt **pstmt) {
 
 static Stmt *parse_if(const Token *tok) {
   consume(TK_LPAR, "`(' expected");
-  Expr *cond = make_cond(parse_expr());
+  Expr *cond = parse_expr();
+  mark_var_used(cond);
   consume(TK_RPAR, "`)' expected");
   Stmt *tblock = parse_stmt();
   Stmt *fblock = NULL;
   if (match(TK_ELSE)) {
     fblock = parse_stmt();
   }
-  return new_stmt_if(tok, cond, tblock, fblock);
+  return new_stmt_if(tok, make_cond(cond), tblock, fblock);
 }
 
 static Stmt *parse_switch(const Token *tok) {
   consume(TK_LPAR, "`(' expected");
   Expr *value = parse_expr();
+  mark_var_used(value);
   not_void(value->type, value->token);
   consume(TK_RPAR, "`)' expected");
 
@@ -364,6 +367,7 @@ extern inline Stmt *parse_default(const Token *tok) {
 static Stmt *parse_while(const Token *tok) {
   consume(TK_LPAR, "`(' expected");
   Expr *cond = make_cond(parse_expr());
+  mark_var_used(cond);
   consume(TK_RPAR, "`)' expected");
 
   Stmt *stmt = new_stmt_while(tok, cond, NULL);
@@ -388,7 +392,9 @@ static Stmt *parse_do_while(const Token *tok) {
 
   consume(TK_WHILE, "`while' expected");
   consume(TK_LPAR, "`(' expected");
-  stmt->while_.cond = make_cond(parse_expr());
+  Expr *cond = parse_expr();
+  mark_var_used(cond);
+  stmt->while_.cond = make_cond(cond);
   consume(TK_RPAR, "`)' expected");
   consume(TK_SEMICOL, "`;' expected");
   return stmt;
@@ -418,7 +424,9 @@ static Stmt *parse_for(const Token *tok) {
   Expr *cond = NULL;
   Expr *post = NULL;
   if (!match(TK_SEMICOL)) {
-    cond = make_cond(parse_expr());
+    Expr *e = parse_expr();
+    mark_var_used(e);
+    cond = make_cond(e);
     consume(TK_SEMICOL, "`;' expected");
   }
   if (!match(TK_RPAR)) {
@@ -484,6 +492,7 @@ static Stmt *parse_return(const Token *tok) {
   if (!match(TK_SEMICOL)) {
     val = parse_expr();
     consume(TK_SEMICOL, "`;' expected");
+    mark_var_used(val);
     val = str_to_char_array_var(curscope, val);
   }
 
@@ -808,6 +817,8 @@ static Declaration *parse_defun(Type *functype, int storage, Token *ident, const
 
   check_goto_labels(func);
   check_func_reachability(func);
+
+  check_unused_variables(func, tok);
 
   Declaration *decl = new_decl_defun(func);
   varinfo->global.funcdecl = decl;
