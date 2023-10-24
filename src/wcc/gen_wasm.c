@@ -1927,6 +1927,9 @@ static Expr *proc_builtin_va_start(const Token *ident) {
     return NULL;
   }
 
+  mark_var_used(ap);
+  mark_var_used(param);
+
   Scope *top_scope = curscope;
   for (Scope *p = curscope; p = p->parent, !is_global_scope(p); )
     top_scope = p;
@@ -1961,6 +1964,8 @@ static Expr *proc_builtin_va_arg(const Token *ident) {
   consume(TK_COMMA, "`,' expected");
   Type *type = parse_var_def(NULL, NULL, NULL);
   consume(TK_RPAR, "`)' expected");
+
+  mark_var_used(ap);
 
   // (ap = (char*)ap + sizeof(type), *(type*)((char*)ap - sizeof(type)))
   size_t size = type_size(type);

@@ -5,6 +5,7 @@
 extern int __max_preopen_fd;
 
 int mkdir(const char *fn, mode_t mode) {
+  (void)mode;
   size_t fnlen = strlen(fn);
   for (int base_fd = 3; base_fd < __max_preopen_fd; ++base_fd) {
     Prestat prestat;
@@ -29,7 +30,6 @@ int mkdir(const char *fn, mode_t mode) {
       fnlen2 = fnlen - 1;
     }
 
-    Filestat fs;
     uint32_t result = path_create_directory(base_fd, fn2, fnlen2);
     if (result == 0)
       return 0;

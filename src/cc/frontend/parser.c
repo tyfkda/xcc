@@ -134,6 +134,7 @@ Initializer *parse_initializer(void) {
     result->multi = multi;
   } else {
     Expr *value = parse_assign();
+    mark_var_used(value);
     result = new_initializer(IK_SINGLE, value->token);
     result->single = value;
   }
@@ -302,19 +303,21 @@ static bool parse_vardecl(Vector *stmts) {
 
 static Stmt *parse_if(const Token *tok) {
   consume(TK_LPAR, "`(' expected");
-  Expr *cond = make_cond(parse_expr());
+  Expr *cond = parse_expr();
+  mark_var_used(cond);
   consume(TK_RPAR, "`)' expected");
   Stmt *tblock = parse_stmt();
   Stmt *fblock = NULL;
   if (match(TK_ELSE)) {
     fblock = parse_stmt();
   }
-  return new_stmt_if(tok, cond, tblock, fblock);
+  return new_stmt_if(tok, make_cond(cond), tblock, fblock);
 }
 
 static Stmt *parse_switch(const Token *tok) {
   consume(TK_LPAR, "`(' expected");
   Expr *value = parse_expr();
+  mark_var_used(value);
   not_void(value->type, value->token);
   consume(TK_RPAR, "`)' expected");
 
@@ -383,6 +386,7 @@ static Stmt *parse_case(const Token *tok) {
 static Stmt *parse_while(const Token *tok) {
   consume(TK_LPAR, "`(' expected");
   Expr *cond = make_cond(parse_expr());
+  mark_var_used(cond);
   consume(TK_RPAR, "`)' expected");
 
   Stmt *stmt = new_stmt_while(tok, cond, NULL);
@@ -407,7 +411,9 @@ static Stmt *parse_do_while(const Token *tok) {
 
   consume(TK_WHILE, "`while' expected");
   consume(TK_LPAR, "`(' expected");
-  stmt->while_.cond = make_cond(parse_expr());
+  Expr *cond = parse_expr();
+  mark_var_used(cond);
+  stmt->while_.cond = make_cond(cond);
   consume(TK_RPAR, "`)' expected");
   consume(TK_SEMICOL, "`;' expected");
   return stmt;
@@ -437,7 +443,9 @@ static Stmt *parse_for(const Token *tok) {
   Expr *cond = NULL;
   Expr *post = NULL;
   if (!match(TK_SEMICOL)) {
-    cond = make_cond(parse_expr());
+    Expr *e = parse_expr();
+    mark_var_used(e);
+    cond = make_cond(e);
     consume(TK_SEMICOL, "`;' expected");
   }
   if (!match(TK_RPAR)) {
@@ -513,6 +521,7 @@ static Stmt *parse_return(const Token *tok) {
   if (!match(TK_SEMICOL)) {
     val = parse_expr();
     consume(TK_SEMICOL, "`;' expected");
+    mark_var_used(val);
     val = str_to_char_array_var(curscope, val);
   }
 
@@ -850,6 +859,9 @@ static Declaration *parse_defun(Type *functype, int storage, Token *ident, const
   check_goto_labels(func);
   check_func_reachability(func);
 
+  if (cc_flags.warn.unused_variable)
+    check_unused_variables(func, tok);
+
   Declaration *decl = new_decl_defun(func);
   varinfo->global.funcdecl = decl;
   return decl;
@@ -1001,7 +1013,7 @@ static Function *generate_dtor_caller_func(Vector *dtors) {
 
   const Token *functok = alloc_dummy_ident();
   Table *attributes = NULL;
-  Function *func = define_func(functype, functok, top_vars, VS_STATIC, attributes);
+  Function *func = define_func(functype, functok, top_vars, VS_STATIC | VS_USED, attributes);
   func->flag |= FUNCF_HAS_FUNCALL;
 
   assert(curfunc == NULL);
@@ -1040,7 +1052,7 @@ static Function *generate_dtor_register_func(Function *dtor_caller_func) {
 
   // Declare: extern void *__dso_handle;
   const Name *dso_handle_name = alloc_name("__dso_handle", NULL, false);
-  scope_add(global_scope, dso_handle_name, &tyVoidPtr, VS_EXTERN);
+  scope_add(global_scope, dso_handle_name, &tyVoidPtr, VS_EXTERN | VS_USED);
 
   // Declare: extern int __cxa_atexit(void (*)(void*), void*, void*);
   const Name *cxa_atexit_name = alloc_name("__cxa_atexit", NULL, false);
@@ -1057,7 +1069,7 @@ static Function *generate_dtor_register_func(Function *dtor_caller_func) {
     var_add(param_vars, alloc_name("z", NULL, false), &tyVoidPtr, VS_PARAM);
 
     cxa_atexit_functype = new_func_type(&tyInt, cxa_atexit_param_types, false);
-    define_func(cxa_atexit_functype, alloc_ident(cxa_atexit_name, NULL, cxa_atexit_name->chars, NULL), param_vars, VS_EXTERN, NULL);
+    define_func(cxa_atexit_functype, alloc_ident(cxa_atexit_name, NULL, cxa_atexit_name->chars, NULL), param_vars, VS_EXTERN | VS_USED, NULL);
   }
 
   Vector *param_types = new_vector();
@@ -1068,7 +1080,7 @@ static Function *generate_dtor_register_func(Function *dtor_caller_func) {
   Table *attributes = alloc_table();
   assert(attributes != NULL);
   table_put(attributes, alloc_name("constructor", NULL, false), NULL);
-  Function *func = define_func(functype, functok, top_vars, VS_STATIC, attributes);
+  Function *func = define_func(functype, functok, top_vars, VS_STATIC | VS_USED, attributes);
   func->flag |= FUNCF_HAS_FUNCALL;
 
   assert(curfunc == NULL);

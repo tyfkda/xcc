@@ -78,7 +78,7 @@ static VarInfo *str_to_char_array(Scope *scope, Type *type, Initializer *init) {
   assert(type->kind == TY_ARRAY && is_char_type(type->pa.ptrof, init->single->str.kind));
   type = qualified_type(type, TQ_FORSTRLITERAL);
   const Token *ident = alloc_dummy_ident();
-  VarInfo *varinfo = add_var_to_scope(scope, ident, type, VS_STATIC);
+  VarInfo *varinfo = add_var_to_scope(scope, ident, type, VS_STATIC | VS_USED);
   if (is_global_scope(scope))
     varinfo->global.init = init;
   else

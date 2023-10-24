@@ -174,7 +174,7 @@ Expr *alloc_tmp_var(Scope *scope, Type *type) {
   const Token *ident = alloc_dummy_ident();
   // No need to use `add_var_to_scope`, because `name` must be unique.
   const Name *name = ident->ident;
-  scope_add(scope, name, type, 0);
+  scope_add(scope, name, type, VS_USED);
   return new_expr_variable(name, type, ident, scope);
 }
 
@@ -443,6 +443,25 @@ static bool cast_numbers(Expr **pLhs, Expr **pRhs, bool make_int) {
     *pRhs = make_cast(type, rhs->token, rhs, false);
   }
   return true;
+}
+
+void mark_var_used(Expr *expr) {
+  switch (expr->kind) {
+  case EX_VAR:
+    {
+      VarInfo *varinfo = scope_find(expr->var.scope, expr->var.name, NULL);
+      assert(varinfo != NULL);
+      varinfo->storage |= VS_USED;
+    }
+    break;
+  case EX_COMPLIT:
+    mark_var_used(expr->complit.var);
+    break;
+  case EX_ASSIGN:
+    mark_var_used(expr->bop.lhs);
+    break;
+  default: break;
+  }
 }
 
 void check_lval(const Token *tok, Expr *expr, const char *error) {
@@ -1554,6 +1573,32 @@ static void check_unreachability(Stmt *stmt) {
     break;
   }
   parse_error(PE_WARNING, stmt->token, "unreachable");
+}
+
+void check_unused_variables(Function *func, const Token *tok) {
+  assert(func->body_block != NULL);
+  assert(func->body_block->kind == ST_BLOCK);
+  Vector *stmts = func->body_block->block.stmts;
+  if (stmts->len > 0) {
+    // If __asm is used, variables might be used implicitly, so skip checking.
+    for (int i = 0; i < stmts->len; ++i) {
+      Stmt *stmt = stmts->data[i];
+      if (stmt->kind == ST_ASM)
+        return;
+    }
+  }
+
+  for (int i = 0; i < func->scopes->len; ++i) {
+    Scope *scope = func->scopes->data[i];
+    if (scope->vars == NULL)
+      continue;
+    for (int j = 0; j < scope->vars->len; ++j) {
+      VarInfo *varinfo = scope->vars->data[j];
+      if (!(varinfo->storage & (VS_USED | VS_ENUM_MEMBER | VS_EXTERN)) && varinfo->name != NULL) {
+        parse_error(PE_WARNING, tok, "Unused variable `%.*s'", NAMES(varinfo->name));
+      }
+    }
+  }
 }
 
 static void check_reachability_stmt(Stmt *stmt) {

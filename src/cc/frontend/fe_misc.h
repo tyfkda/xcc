@@ -89,6 +89,7 @@ bool check_cast(const Type *dst, const Type *src, bool zero, bool is_explicit, c
 Expr *make_cast(Type *type, const Token *token, Expr *sub, bool is_explicit);
 const MemberInfo *search_from_anonymous(const Type *type, const Name *name, const Token *ident,
                                         Vector *stack);
+void mark_var_used(Expr *expr);
 void check_lval(const Token *tok, Expr *expr, const char *error);
 Expr *reduce_refer(Expr *expr);
 Expr *make_refer(const Token *tok, Expr *expr);
@@ -115,6 +116,7 @@ Type *choose_ternary_result_type(Expr *tval, Expr *fval);
 Expr *transform_assign_with(const Token *tok, Expr *lhs, Expr *rhs);
 Expr *simplify_funcall(Expr *funcall);
 
+void check_unused_variables(Function *func, const Token *tok);
 void check_func_reachability(Function *func);
 bool check_funcend_return(Stmt *stmt);
 
