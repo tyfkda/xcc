@@ -3,9 +3,11 @@
 #include "stddef.h"  // size_t
 
 #define FF_BINARY   (1 << 0)
-#define FF_MEMORY   (1 << 1)
-#define FF_GROWMEM  (1 << 2)
+#define FF_READ     (1 << 1)
+#define FF_WRITE    (1 << 2)
 #define FF_EOF      (1 << 3)
+#define FF_MEMORY   (1 << 4)
+#define FF_GROWMEM  (1 << 5)
 
 struct FILE {
   int (*fputc)(int c, FILE *fp);

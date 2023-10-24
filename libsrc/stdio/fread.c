@@ -5,6 +5,9 @@
 #include "./_file.h"
 
 size_t fread(void *buffer, size_t size, size_t count, FILE *fp) {
+  if (!(fp->flag & FF_READ))
+    return 0;
+
   // TODO
   if (fp->flag & FF_MEMORY)
     return 0;
