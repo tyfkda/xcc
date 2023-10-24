@@ -1,37 +1,94 @@
 #include "stdio.h"
+
+#include "stdbool.h"
 #include "stdlib.h"
 
 #include "_file.h"
 
 #define MINCAPA  (16)
 
-static int memputc(int c, FILE* fp) {
-  if (fp->wp + 1 >= fp->ws) {
-    if (!(fp->flag & FF_GROWMEM)) {
-      return c;  // TODO: Check return value.
+static bool _growmem(FILE *fp) {
+  int newsiz = fp->ws * 2;
+  if (newsiz < MINCAPA)
+    newsiz = MINCAPA;
+  void *newbuf = realloc(fp->wbuf, newsiz);
+  if (newbuf == NULL)
+    return false;
+  fp->wbuf = newbuf;
+  fp->ws = newsiz;
+  return true;
+}
+
+ssize_t _memread(void *cookie, char *buf, size_t size) {
+  // TODO:
+  return 0;
+}
+
+ssize_t _memwrite(void *cookie, const char *buf, size_t size) {
+  FILE *fp = cookie;
+  size_t i;
+  for (i = 0; i < size; ++i) {
+    if (fp->wp + 1 >= fp->ws &&
+        !((fp->flag & FF_GROWMEM) && _growmem(fp))) {
+      break;
     }
-    int newsiz = fp->ws * 2;
-    if (newsiz < MINCAPA)
-      newsiz = MINCAPA;
-    void *newbuf = realloc(fp->wbuf, newsiz);
-    if (newbuf == NULL) {
-      // TODO: Raise error.
-      return c;
-    }
-    fp->wbuf = newbuf;
-    fp->ws = newsiz;
+    fp->wbuf[fp->wp++] = *buf++;
   }
-  fp->wbuf[fp->wp++] = c;
-  return c;
+  return i;
+}
+
+static int _memflush(FILE *fp) {
+  unsigned int wp = fp->wp;
+  if (wp < fp->ws) {
+    fp->wbuf[wp] = '\0';
+  }
+  if (fp->pmem != NULL)
+    *fp->pmem = (char*)fp->wbuf;
+  if (fp->psize != NULL)
+    *fp->psize = wp;
+  return 0;
+}
+
+int _memseek(void *cookie, off_t *offset, int origin) {
+  FILE *fp = cookie;
+  _memflush(fp);
+  switch (origin) {
+  case SEEK_SET:
+    fp->wp = *offset;
+    break;
+  case SEEK_CUR:
+    // TODO: Check range.
+    fp->wp += *offset;
+    break;
+  case SEEK_END:
+    // TODO: Check range.
+    fp->wp = fp->ws + *offset;
+    break;
+  }
+  return 0;
+}
+
+int _memclose(void *cookie) {
+  FILE *fp = cookie;
+  _remove_opened_file(fp);
+  _memflush(fp);
+  free(fp);
+  return 0;
 }
 
 FILE *fmemopen(void *buf, size_t size, const char *mode) {
   FILE *fp = fdopen(-1, mode);
   if (fp != NULL) {
-    fp->fputc = memputc;
+    static const cookie_io_functions_t kMemVTable = {
+      .read = _memread,
+      .write = _memwrite,
+      .seek = _memseek,
+      .close = _memclose,
+    };
+
+    fp->iof = &kMemVTable;
     fp->wbuf = buf;
     fp->ws = size;
-    fp->flag |= FF_MEMORY;
     fp->pmem = NULL;
     fp->psize = NULL;
   }

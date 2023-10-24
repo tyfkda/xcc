@@ -84,12 +84,19 @@ int _detect_open_flag(const char *mode) {
   return flag;
 }
 
+const cookie_io_functions_t _kFileCookieIoFunctions = {
+  .read = _fread,
+  .write = _fwrite,
+  .seek = _fseek,
+  .close = _fclose,
+};
+
 FILE *fdopen(int fd, const char *mode) {
   // TODO: Validate fd.
 
-  FILE *fp = malloc(sizeof(*fp));
+  FILE *fp = calloc(1, sizeof(*fp));
   if (fp != NULL) {
-    fp->fputc = _fputc;
+    fp->iof = &_kFileCookieIoFunctions;
     fp->fd = fd;
     fp->rp = fp->rs = 0;
     fp->wp = 0;
