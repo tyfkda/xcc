@@ -6,6 +6,7 @@
 #include "stdbool.h"
 #include "stdint.h"  // uintptr_t
 #include "string.h"
+#include "sys/types.h"
 
 #include "_file.h"  // FPUTC
 
@@ -286,10 +287,27 @@ int vfprintf(FILE *fp, const char *fmt_, va_list ap) {
       o += snprintstr(fp, p, order, suborder, leftalign, padding);
     } break;
     case 'z': {
-      if (fmt[i + 1] == 'u') {
-        ++i;
-        size_t x = va_arg(ap, unsigned int);
-        o += snprintullong(fp, x, 10, kHexDigits, order, padding);
+      switch (fmt[i + 1]) {
+      case 'u':
+        {
+          ++i;
+          size_t x = va_arg(ap, size_t);
+          o += snprintullong(fp, x, 10, kHexDigits, order, padding);
+        }
+        break;
+      case 'd':
+        {
+          ++i;
+          ssize_t x = va_arg(ap, ssize_t);
+          bool negative = x < 0;
+          size_t ux = negative ? -x : x;
+          if (negative || order > 0 || sign)
+            o += sprintsign(fp, negative, sign, &order);
+          char *p = snprintullong2(bufend, ux, 10, kHexDigits);
+          o += snprintstr(fp, p, order, suborder, leftalign, padding);
+        }
+        break;
+      default: break;  // TODO: error
       }
     } break;
     case 'x': case 'X': {

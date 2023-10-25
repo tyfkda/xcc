@@ -1,6 +1,8 @@
 #include "stdio.h"
 #include "string.h"
 
+// Result: Success => positive value, Failure => EOF
 int fputs(const char *s, FILE *fp) {
-  return fwrite(s, strlen(s), 1, fp) == 1 ? 1 : EOF;
+  size_t result = fwrite(s, 1, strlen(s), fp);
+  return result != 0 ? result : EOF;
 }

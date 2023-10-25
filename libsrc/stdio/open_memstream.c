@@ -10,6 +10,6 @@ FILE *open_memstream(char **ptr, size_t *sizeloc) {
     fp->flag |= FF_GROWMEM;
     fp->pmem = ptr;
     fp->psize = sizeloc;
- }
+  }
   return fp;
 }
