@@ -2,6 +2,7 @@
 
 #include "stdbool.h"
 #include "stdlib.h"
+#include "string.h"
 
 #include "_file.h"
 
@@ -20,8 +21,15 @@ static bool _growmem(FILE *fp) {
 }
 
 ssize_t _memread(void *cookie, char *buf, size_t size) {
-  // TODO:
-  return 0;
+  FILE *fp = cookie;
+  unsigned char *p = (unsigned char*)buf;
+  unsigned int sz = fp->ws - fp->wp;
+  if (sz > size)
+    sz = size;
+
+  memcpy(p, &fp->wbuf[fp->wp], sz);
+  fp->wp += sz;
+  return sz;
 }
 
 ssize_t _memwrite(void *cookie, const char *buf, size_t size) {

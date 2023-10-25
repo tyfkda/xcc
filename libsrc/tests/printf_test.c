@@ -36,6 +36,26 @@ void expect_vsnprintf(const char *expected, int expected_len, const char *fmt, .
   }
 }
 
+TEST(fmemopen) {
+  static const char str[] = "abcdefghijklmnopqrstuvwxyz";
+  char buf[32];
+  FILE *fp;
+  fp = fmemopen(buf, sizeof(buf), "w");
+  EXPECT_NOT_NULL(fp);
+  if (fp != NULL) {
+    EXPECT_EQ(sizeof(str), fwrite(str, 1, sizeof(str), fp));
+    fclose(fp);
+  }
+
+  fp = fmemopen((void*)str, sizeof(str), "r");
+  EXPECT_NOT_NULL(fp);
+  if (fp != NULL) {
+    EXPECT_EQ(sizeof(str), fread(buf, 1, sizeof(buf), fp));
+    fclose(fp);
+    memcmp(buf, str, sizeof(str));
+  }
+} END_TEST()
+
 TEST(open_memstream) {
   char *ptr = NULL;
   size_t size = 0;
@@ -132,6 +152,7 @@ TEST(vsnprintf) {
 
 int main() {
   return RUN_ALL_TESTS(
+    test_fmemopen,
     test_open_memstream,
     test_sprintf,
     test_vsnprintf,
