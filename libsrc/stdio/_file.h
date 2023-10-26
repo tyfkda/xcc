@@ -3,11 +3,13 @@
 #include "stddef.h"  // size_t
 #include "sys/types.h"  // ssize_t, off64_t
 
-#define FF_BINARY   (1 << 0)
-#define FF_READ     (1 << 1)
-#define FF_WRITE    (1 << 2)
-#define FF_EOF      (1 << 3)
-#define FF_GROWMEM  (1 << 4)
+#define FF_BINARY       (1 << 0)
+#define FF_READ         (1 << 1)
+#define FF_WRITE        (1 << 2)
+#define FF_EOF          (1 << 3)
+#define FF_GROWMEM      (1 << 4)
+#define FF_FIFO         (1 << 5)
+#define FF_INITIALIZED  (1 << 15)
 
 typedef ssize_t (*cookie_read_function_t)(void *cookie, char *buf, size_t size);
 typedef ssize_t (*cookie_write_function_t)(void *cookie, const char *buf, size_t size);
@@ -49,6 +51,7 @@ extern ssize_t _fread(void *cookie, char *buf, size_t size);
 extern ssize_t _fwrite(void *cookie, const char *buf, size_t size);
 extern int _fseek(void *cookie, off_t *offset, int origin);
 extern int _fclose(void *cookie);
+extern void _finit(FILE *fp);
 
 extern void _remove_opened_file(FILE *fp);
 

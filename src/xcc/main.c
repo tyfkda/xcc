@@ -236,13 +236,36 @@ static int compile_asm(const char *source_fn, enum OutType out_type, const char 
   return res;
 }
 
+static const char *get_exe_prefix(const char *path) {
+  static const char XCC[] = "xcc";
+  size_t len = strlen(path);
+  const char *p = &path[len];
+  // endswith
+  if (len > sizeof(XCC)) {
+    const char *q = p - (sizeof(XCC) - 1);
+    if (strcmp(q, XCC) == 0)
+      p = q;
+  }
+  return p;
+}
+
+static char *join_exe_prefix(const char *xccpath, const char *prefix, char *fn) {
+  StringBuffer sb;
+  sb_init(&sb);
+  sb_append(&sb, xccpath, prefix);
+  sb_append(&sb, fn, NULL);
+  return sb_to_string(&sb);
+}
+
 int main(int argc, char *argv[]) {
-  const char *root = dirname(strdup(argv[0]));
-  char *cpp_path = JOIN_PATHS(root, "cpp");
-  char *cc1_path = JOIN_PATHS(root, "cc1");
+  const char *xccpath = argv[0];
+  const char *root = dirname(strdup(xccpath));
+  const char *prefix = get_exe_prefix(xccpath);
+  char *cpp_path = join_exe_prefix(xccpath, prefix, "cpp");
+  char *cc1_path = join_exe_prefix(xccpath, prefix, "cc1");
 #if !defined(AS_USE_CC)
-  char *as_path = JOIN_PATHS(root, "as");
-  char *ld_path = JOIN_PATHS(root, "ld");
+  char *as_path = join_exe_prefix(xccpath, prefix, "as");
+  char *ld_path = join_exe_prefix(xccpath, prefix, "ld");
 #else
   char *as_path = "/usr/bin/as";
   char *ld_path = "/usr/bin/cc";
@@ -524,7 +547,7 @@ int main(int argc, char *argv[]) {
       }
     }
 
-#if !defined(__XCC) && !defined(__XV6)
+#if !defined(__XV6)
     if (out_type <= OutAssembly && outfn != NULL && strcmp(outfn, "-") != 0) {
       close(STDOUT_FILENO);
       ofd = open(outfn, O_WRONLY | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);

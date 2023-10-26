@@ -20,7 +20,7 @@ static bool _growmem(FILE *fp) {
   return true;
 }
 
-ssize_t _memread(void *cookie, char *buf, size_t size) {
+static ssize_t _memread(void *cookie, char *buf, size_t size) {
   FILE *fp = cookie;
   unsigned char *p = (unsigned char*)buf;
   unsigned int sz = fp->ws - fp->wp;
@@ -32,7 +32,7 @@ ssize_t _memread(void *cookie, char *buf, size_t size) {
   return sz;
 }
 
-ssize_t _memwrite(void *cookie, const char *buf, size_t size) {
+static ssize_t _memwrite(void *cookie, const char *buf, size_t size) {
   FILE *fp = cookie;
   for (size_t i = 0; i < size; ++i) {
     if (fp->wp + 1 >= fp->ws &&
@@ -56,7 +56,7 @@ static int _memflush(FILE *fp) {
   return 0;
 }
 
-int _memseek(void *cookie, off_t *offset, int origin) {
+static int _memseek(void *cookie, off_t *offset, int origin) {
   FILE *fp = cookie;
   _memflush(fp);
   switch (origin) {
@@ -75,7 +75,7 @@ int _memseek(void *cookie, off_t *offset, int origin) {
   return 0;
 }
 
-int _memclose(void *cookie) {
+static int _memclose(void *cookie) {
   FILE *fp = cookie;
   _remove_opened_file(fp);
   _memflush(fp);

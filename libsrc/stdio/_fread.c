@@ -4,8 +4,13 @@
 
 #include "./_file.h"
 
+// Normal: if actual read size is less than required size, it means EOF.
+// Pipe:   if subscriber is faster than publisher, it happens. len == 0 means EOF.
+#define FILE_IS_END(fp, readsize)  (!((fp)->flag & FF_FIFO) || (readsize) == 0)
+
 extern ssize_t _fread(void *cookie, char *buf, size_t total) {
   FILE *fp = cookie;
+  _finit(fp);
   unsigned char *p = (unsigned char*)buf;
   if (fp->rs > 0) {
     size_t d = fp->rs - fp->rp;
@@ -32,7 +37,8 @@ extern ssize_t _fread(void *cookie, char *buf, size_t total) {
       p += n;
     }
     if (len < (ssize_t)sizeof(fp->rbuf) && (ssize_t)n == len) {
-      fp->flag |= FF_EOF;
+      if (FILE_IS_END(fp, len))
+        fp->flag |= FF_EOF;
     }
   } else {
     // Read to the given buffer directly.
@@ -41,7 +47,8 @@ extern ssize_t _fread(void *cookie, char *buf, size_t total) {
       p += len;
       fp->rp = fp->rs = 0;
       if ((size_t)len < total) {
-        fp->flag |= FF_EOF;
+        if (FILE_IS_END(fp, len))
+          fp->flag |= FF_EOF;
       }
     }
   }
