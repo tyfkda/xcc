@@ -5,5 +5,5 @@
 
 long ftell(FILE *fp) {
   off_t result = lseek(fp->fd, 0, SEEK_CUR);
-  return result >= 0 ? result + fp->wp : result;
+  return result >= 0 ? result + fp->wp - (fp->rs - fp->rp) : result;
 }

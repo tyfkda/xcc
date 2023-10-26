@@ -28,6 +28,7 @@ int _fseek(void *cookie, off_t *offset, int origin) {
   if (result == -1)
     return -1;
   fp->flag &= ~FF_EOF;
+  fp->rp = fp->rs = 0;
   *offset = result;
   return 0;
 }

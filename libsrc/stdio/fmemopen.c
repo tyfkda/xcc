@@ -34,15 +34,14 @@ ssize_t _memread(void *cookie, char *buf, size_t size) {
 
 ssize_t _memwrite(void *cookie, const char *buf, size_t size) {
   FILE *fp = cookie;
-  size_t i;
-  for (i = 0; i < size; ++i) {
+  for (size_t i = 0; i < size; ++i) {
     if (fp->wp + 1 >= fp->ws &&
         !((fp->flag & FF_GROWMEM) && _growmem(fp))) {
       break;
     }
     fp->wbuf[fp->wp++] = *buf++;
   }
-  return i;
+  return size;  // Returns size even if buffer filled.
 }
 
 static int _memflush(FILE *fp) {

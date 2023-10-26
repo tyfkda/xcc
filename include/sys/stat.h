@@ -105,6 +105,7 @@ int chmod(const char *pathname, mode_t mode);
 int fchmodat(int dirfd, const char *pathname, mode_t mode, int flags);
 
 #define S_IFMT    0170000
+#define S_IFIFO   0010000
 #define S_IFCHR   0020000
 #define S_IFDIR   0040000
 #define S_IFBLK   0060000
@@ -118,6 +119,7 @@ int fchmodat(int dirfd, const char *pathname, mode_t mode, int flags);
 #define S_ISBLK(m)   (((m) & S_IFMT) == S_IFBLK)
 #define S_ISLNK(m)   (((m) & S_IFMT) == S_IFLNK)
 #define S_ISSOCK(m)  (((m) & S_IFMT) == S_IFSOCK)
+#define S_ISFIFO(m)  (((m) & S_IFMT) == S_IFFIFO)
 
 int stat(const char *pathname, struct stat *buf);
 int fstat(int fd, struct stat *buf);
