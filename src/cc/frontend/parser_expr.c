@@ -450,22 +450,6 @@ Type *parse_raw_type(int *pstorage) {
   return type;
 }
 
-Type *parse_type_modifier(Type *type) {
-  if (type == NULL)
-    return NULL;
-
-  for (;;) {
-    if (match(TK_CONST))
-      type = qualified_type(type, TQ_CONST);
-    if (match(TK_MUL))
-      type = ptrof(type);
-    else
-      break;
-  }
-
-  return type;
-}
-
 Type *parse_type_suffix(Type *type) {
   if (type == NULL)
     return NULL;
@@ -487,19 +471,23 @@ Type *parse_type_suffix(Type *type) {
 }
 
 // <pointer> ::= * {<type-qualifier>}* {<pointer>}?
-static Type *parse_pointer(Type *type) {
+Type *parse_pointer(Type *type) {
   if (type == NULL)
     return NULL;
 
   for (;;) {
-    const Token *tok;
-    if ((tok = match(TK_CONST)) != NULL ||
-        (tok = match(TK_VOLATILE)) != NULL) {
-      // `type` might be pointing const value, so we cannot modify it.
-      // TODO: Manage primitive types.
-      // type->qualifier |= TQ_CONST;
-      if (ptr_or_array(type))
-        type->qualifier |= tok->kind == TK_CONST ? TQ_CONST : TQ_VOLATILE;
+    if (match(TK_CONST)) {
+      if (type->qualifier & TQ_CONST)
+        parse_error(PE_NOFATAL, NULL, "multiple `const' specified");
+      else
+        type = qualified_type(type, TQ_CONST);
+      continue;
+    }
+    if (match(TK_VOLATILE)) {
+      if (type->qualifier & TQ_VOLATILE)
+        parse_error(PE_NOFATAL, NULL, "multiple `volatile' specified");
+      else
+        type = qualified_type(type, TQ_VOLATILE);
       continue;
     }
 
@@ -510,8 +498,6 @@ static Type *parse_pointer(Type *type) {
 
   return type;
 }
-
-static Type *parse_declarator(Type *rawtype, Token **pident);
 
 // <direct-declarator> ::= <identifier>
 //                       | ( <declarator> )
@@ -576,7 +562,7 @@ static Type *parse_direct_declarator(Type *type, Token **pident) {
 }
 
 // <declarator> ::= {<pointer>}? <direct-declarator>
-static Type *parse_declarator(Type *rawtype, Token **pident) {
+Type *parse_declarator(Type *rawtype, Token **pident) {
   Type *type = parse_pointer(rawtype);
   return parse_direct_declarator(type, pident);
 }

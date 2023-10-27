@@ -344,6 +344,7 @@ enum StmtKind {
 typedef struct VarDecl {
   const Name *ident;
   struct Stmt *init_stmt;  // Local variable only.
+  struct Function *funcproto;
 } VarDecl;
 
 VarDecl *new_vardecl(const Name *ident);

@@ -181,6 +181,7 @@ test_function() {
   compile_error 'duplicate var & func' 'int main; int main(){return 0;}'
   compile_error 'duplicate func & var' 'int main(){return 0;} int main;'
   try_direct 'infinite loop and exit' 77 '#include <stdlib.h>\nint main(){for (int i = 0; ; ++i) if (i == 10) exit(77);}'
+  try_direct 'multiple prototype' 22 'int foo(), bar=76, qux(); int main(){return foo() - qux();} int foo(){return 98;} int qux(){return bar;}'
 
   end_test_suite
 }

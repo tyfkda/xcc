@@ -197,6 +197,7 @@ VarDecl *new_vardecl(const Name *ident) {
   VarDecl *decl = malloc_or_die(sizeof(*decl));
   decl->ident = ident;
   decl->init_stmt = NULL;
+  decl->funcproto = NULL;
   return decl;
 }
 

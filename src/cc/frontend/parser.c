@@ -602,24 +602,11 @@ static int parse_attribute(void) {
   return flag;
 }
 
-static Declaration *parse_defun(Type *functype, int storage, Token *ident) {
-  assert(functype->kind == TY_FUNC);
+static Declaration *parse_global_var_decl(Type *rawtype, int storage, Type *type, Token *ident);
 
-  int flag = 0;
-  if (match(TK_ATTRIBUTE))
-    flag = parse_attribute();
-
-  bool prototype = match(TK_SEMICOL) != NULL;
-  if (!prototype && functype->func.params == NULL) {  // Old-style
-    // Treat it as a zero-parameter function.
-    functype->func.params = new_vector();
-    functype->func.param_types = new_vector();
-    functype->func.vaargs = false;
-  }
-
+static Function *define_func(Type *functype, const Token *ident, int storage, int flag) {
   Function *func = new_func(functype, ident->ident, flag);
   VarInfo *varinfo = scope_find(global_scope, func->name, NULL);
-  bool err = false;
   if (varinfo == NULL) {
     varinfo = add_var_to_scope(global_scope, ident, functype, storage);
   } else {
@@ -637,7 +624,6 @@ static Declaration *parse_defun(Type *functype, int storage, Token *ident) {
         !same_type(varinfo->type->func.ret, functype->func.ret) ||
         (varinfo->type->func.params != NULL && !same_type(varinfo->type, functype))) {
       parse_error(PE_NOFATAL, ident, "Definition conflict: `%.*s'", NAMES(func->name));
-      err = true;
     } else {
       if (varinfo->global.func == NULL) {
         if (varinfo->type->func.params == NULL)  // Old-style prototype definition.
@@ -645,42 +631,50 @@ static Declaration *parse_defun(Type *functype, int storage, Token *ident) {
       }
     }
   }
+  return func;
+}
 
-  if (prototype) {
-    // Prototype declaration.
-  } else {
-    const Token *tok = consume(TK_LBRACE, "`;' or `{' expected");
+static Declaration *parse_defun(Type *functype, int storage, Token *ident, const Token *tok) {
+  assert(functype->kind == TY_FUNC);
 
-    if (!err && varinfo->global.func != NULL) {
-      parse_error(PE_NOFATAL, ident, "`%.*s' function already defined", NAMES(func->name));
-    } else {
-      varinfo->global.func = func;
-    }
-
-    assert(curfunc == NULL);
-    assert(is_global_scope(curscope));
-    curfunc = func;
-    Vector *top_vars = NULL;
-    const Vector *params = func->type->func.params;
-    if (params != NULL) {
-      top_vars = new_vector();
-      for (int i = 0; i < params->len; ++i) {
-        VarInfo *varinfo = params->data[i];
-        vec_push(top_vars, varinfo);
-        ensure_struct(varinfo->type, tok, curscope);
-      }
-    }
-    func->scopes = new_vector();
-    func->body_block = parse_block(tok, top_vars);
-    assert(is_global_scope(curscope));
-
-    check_goto_labels(func);
-    check_func_reachability(func);
-
-    match(TK_SEMICOL);  // Ignore redundant semicolon.
-
-    curfunc = NULL;
+  if (functype->func.params == NULL) {  // Old-style
+    // Treat it as a zero-parameter function.
+    functype->func.params = new_vector();
+    functype->func.param_types = new_vector();
+    functype->func.vaargs = false;
   }
+
+  Function *func = define_func(functype, ident, storage, 0);
+  VarInfo *varinfo = scope_find(global_scope, ident->ident, NULL);
+  assert(varinfo != NULL);
+  if (varinfo->global.func != NULL) {
+    parse_error(PE_NOFATAL, ident, "`%.*s' function already defined", NAMES(func->name));
+  } else {
+    varinfo->global.func = func;
+  }
+
+  assert(curfunc == NULL);
+  assert(is_global_scope(curscope));
+  curfunc = func;
+  Vector *top_vars = NULL;
+  const Vector *params = func->type->func.params;
+  if (params != NULL) {
+    top_vars = new_vector();
+    for (int i = 0; i < params->len; ++i) {
+      VarInfo *vi = params->data[i];
+      vec_push(top_vars, vi);
+      ensure_struct(vi->type, tok, curscope);
+    }
+  }
+  func->scopes = new_vector();
+  func->body_block = parse_block(tok, top_vars);
+  assert(is_global_scope(curscope));
+  match(TK_SEMICOL);  // Ignore redundant semicolon.
+  curfunc = NULL;
+
+  check_goto_labels(func);
+  check_func_reachability(func);
+
   Declaration *decl = new_decl_defun(func);
   varinfo->global.funcdecl = decl;
   return decl;
@@ -689,6 +683,10 @@ static Declaration *parse_defun(Type *functype, int storage, Token *ident) {
 static Declaration *parse_global_var_decl(Type *rawtype, int storage, Type *type, Token *ident) {
   Vector *decls = NULL;
   for (;;) {
+    int attr = 0;
+    if (match(TK_ATTRIBUTE))
+      attr = parse_attribute();
+
     if (!(type->kind == TY_PTR && type->pa.ptrof->kind == TY_FUNC) &&
         type->kind != TY_VOID)
       type = parse_type_suffix(type);
@@ -700,6 +698,19 @@ static Declaration *parse_global_var_decl(Type *rawtype, int storage, Type *type
       if (type->kind == TY_VOID) {
         if (ident != NULL)
           parse_error(PE_NOFATAL, ident, "`void' not allowed");
+      } else if (type->kind == TY_FUNC) {
+        // Prototype declaration.
+        if (ident == NULL) {
+          parse_error(PE_NOFATAL, NULL, "ident expected");
+        } else {
+          Function *func = define_func(type, ident, storage | VS_EXTERN, attr);
+          VarInfo *varinfo = scope_find(global_scope, ident->ident, NULL);
+          assert(varinfo != NULL);
+
+          Declaration *decl = new_decl_defun(func);
+          varinfo->global.funcdecl = decl;
+        }
+        // Check LBRACE?
       } else {
         bool reg = false;
         VarInfo *varinfo = NULL;
@@ -719,10 +730,10 @@ static Declaration *parse_global_var_decl(Type *rawtype, int storage, Type *type
           varinfo->global.init = check_vardecl(&type, ident, storage, init);
           varinfo->type = type;  // type might be changed.
           if (reg) {
-            VarDecl *decl = new_vardecl(ident->ident);
+            VarDecl *vardecl = new_vardecl(ident->ident);
             if (decls == NULL)
               decls = new_vector();
-            vec_push(decls, decl);
+            vec_push(decls, vardecl);
           }
         }
       }
@@ -732,8 +743,7 @@ static Declaration *parse_global_var_decl(Type *rawtype, int storage, Type *type
       break;
 
     // Next declaration.
-    type = parse_type_modifier(rawtype);
-    ident = consume(TK_IDENT, "ident expected");
+    type = parse_declarator(rawtype, &ident);
   }
   consume(TK_SEMICOL, "`;' or `,' expected");
   return decls == NULL ? NULL : new_decl_vardecl(decls);
@@ -763,7 +773,12 @@ static Declaration *parse_declaration(void) {
         def_type(type, ident);
         return NULL;
       }
-      return parse_defun(type, storage, ident);
+
+      const Token *tok = match(TK_LBRACE);
+      if (tok != NULL)
+        return parse_defun(type, storage, ident, tok);
+      // Function prototype declaration:
+      // Join with global variable declaration to handle multiple prototype declarations.
     }
 
     return parse_global_var_decl(rawtype, storage, type, ident);

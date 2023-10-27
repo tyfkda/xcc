@@ -1720,6 +1720,7 @@ static Stmt *duplicate_inline_function_stmt(Function *targetfunc, Scope *targets
           continue;
         VarDecl *decl = new_vardecl(d->ident);
         decl->init_stmt = duplicate_inline_function_stmt(targetfunc, targetscope, d->init_stmt);
+        decl->funcproto = d->funcproto;
         vec_push(decls, decl);
       }
       return new_stmt_vardecl(decls);
