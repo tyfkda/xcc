@@ -629,14 +629,27 @@ static Token *new_token(enum TokenKind kind) {
 }
 
 #ifndef __NO_FLONUM
-static const Token *read_flonum(ParseInfo *info) {
-  const char *p = info->p;
-  char *q;
-  double f = strtod(p, &q);
-  Token *token = new_token(TK_FLONUM);
-  token->flonum = f;
-  info->next = q;
-  return token;
+static Token *read_flonum(ParseInfo *info, int base) {
+  const char *start = info->p;
+  char *next;
+  double val = strtod(start, &next);
+  Token *tok = new_token(TK_FLONUM);
+  tok->flonum = val;
+  info->next = next;
+
+  if (base == 16) {
+    // Check exponent part exists.
+    const char *q;
+    for (q = start; q < next; ++q) {
+      if (tolower(*q) == 'p')
+        break;
+    }
+    if (q >= next) {
+      parse_error(info, "Hex float literal must have exponent part");
+    }
+  }
+
+  return tok;
 }
 #endif
 
@@ -649,16 +662,22 @@ static const Token *fetch_token(ParseInfo *info) {
   char c = *p;
   if (isdigit(c)) {
     int base = 10;
-    if (tolower(p[1]) == 'x' && isxdigit(p[2])) {
-      p += 2;
-      base = 16;
+    if (c == '0' && tolower(p[1]) == 'x') {
+#ifndef __NO_FLONUM
+      if (c == '.')  // Hex float literal.
+        return read_flonum(info, 16);
+#endif
+      if (isxdigit(p[2])) {
+        p += 2;
+        base = 16;
+      }
     }
     char *q;
     unsigned long long v = strtoull(p, &q, base);
 #ifndef __NO_FLONUM
     if (*q == '.' || tolower(*q) == 'e') {
       info->p = p;
-      return read_flonum(info);
+      return read_flonum(info, 10);
     }
 #endif
     Token *token = new_token(TK_FIXNUM);
@@ -668,7 +687,7 @@ static const Token *fetch_token(ParseInfo *info) {
 #ifndef __NO_FLONUM
   } else if (c == '.' && isdigit(p[1])) {
     info->p = p;
-    return read_flonum(info);
+    return read_flonum(info, 10);
 #endif
   } else if (is_label_first_chr(c)) {
     while (c = *++p, is_label_chr(c))

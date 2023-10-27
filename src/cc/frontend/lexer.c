@@ -421,7 +421,7 @@ static const char *skip_whitespace_or_comment(const char *p) {
 }
 
 #ifndef __NO_FLONUM
-static Token *read_flonum(const char **pp) {
+static Token *read_flonum(const char **pp, int base) {
   const char *start = *pp;
   char *next;
   double val = strtod(start, &next);
@@ -433,6 +433,19 @@ static Token *read_flonum(const char **pp) {
   Token *tok = alloc_token(tk, lexer.line, start, next);
   tok->flonum = val;
   *pp = next;
+
+  if (base == 16) {
+    // Check exponent part exists.
+    const char *q;
+    for (q = start; q < next; ++q) {
+      if (tolower(*q) == 'p')
+        break;
+    }
+    if (q >= next) {
+      lex_error(start, "Hex float literal must have exponent part");
+    }
+  }
+
   return tok;
 }
 #endif
@@ -448,6 +461,10 @@ static Token *read_num(const char **pp) {
       is_unsigned = true;
       p += 2;
       c = tolower(*p);
+#ifndef __NO_FLONUM
+      if (c == '.')  // Hex float literal.
+        return read_flonum(pp, 16);
+#endif
       if (!isxdigit(c))
         lex_error(p, "Hexadecimal expected");
     } else if (isdigit(c)) {
@@ -463,23 +480,12 @@ static Token *read_num(const char **pp) {
     lex_error(p, "Illegal literal");
 
 #ifndef __NO_FLONUM
-  if (base == 16 && (*p == '.' || tolower(*p) == 'p')) {
-    Token *tok = read_flonum(pp);
-    // Check exponent part exists.
-    const char *q, *end = *pp;
-    for (q = p; q < end; ++q) {
-      if (tolower(*q) == 'p')
-        break;
-    }
-    if (q >= end) {
-      lex_error(p, "Hex float literal must have exponent part");
-    }
-    return tok;
-  }
+  if (base == 16 && (*p == '.' || tolower(*p) == 'p'))
+    return read_flonum(pp, 16);
   if (*p == '.' || tolower(*p) == 'e') {
     if (base != 10)
       lex_error(p, "Illegal literal");
-    return read_flonum(pp);
+    return read_flonum(pp, 10);
   }
 #endif
   enum TokenKind tt = TK_INTLIT;
@@ -667,7 +673,7 @@ static Token *get_token(void) {
     tok = read_num(&p);
 #ifndef __NO_FLONUM
   } else if (*p == '.' && isdigit(p[1])) {
-    tok = read_flonum(&p);
+    tok = read_flonum(&p, 10);
 #endif
   } else if ((tok = get_op_token(&p)) != NULL) {
     // Ok.
