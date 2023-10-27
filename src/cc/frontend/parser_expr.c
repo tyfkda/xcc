@@ -781,9 +781,7 @@ static Expr *parse_prim(void) {
   return new_expr_variable(name, type, ident, scope);
 }
 
-static Expr *parse_postfix(void) {
-  Expr *expr = parse_prim();
-
+static Expr *parse_postfix_cont(Expr *expr) {
   for (;;) {
     Token *tok;
     if (match(TK_LPAR))
@@ -801,6 +799,10 @@ static Expr *parse_postfix(void) {
     } else
       return expr;
   }
+}
+static Expr *parse_postfix(void) {
+  Expr *expr = parse_prim();
+  return parse_postfix_cont(expr);
 }
 
 static Expr *parse_sizeof(const Token *token) {
@@ -848,8 +850,11 @@ static Expr *parse_cast_expr(void) {
       consume(TK_RPAR, "`)' expected");
 
       Token *token2 = fetch_token();
-      if (token2->kind == TK_LBRACE)
-        return parse_compound_literal(type);
+      if (token2->kind == TK_LBRACE) {
+        Expr *complit = parse_compound_literal(type);
+        // Make compound literal priority as primary expression.
+        return parse_postfix_cont(complit);
+      }
 
       Expr *sub = parse_cast_expr();
       sub = str_to_char_array_var(curscope, sub);
