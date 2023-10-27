@@ -463,6 +463,19 @@ static Token *read_num(const char **pp) {
     lex_error(p, "Illegal literal");
 
 #ifndef __NO_FLONUM
+  if (base == 16 && (*p == '.' || tolower(*p) == 'p')) {
+    Token *tok = read_flonum(pp);
+    // Check exponent part exists.
+    const char *q, *end = *pp;
+    for (q = p; q < end; ++q) {
+      if (tolower(*q) == 'p')
+        break;
+    }
+    if (q >= end) {
+      lex_error(p, "Hex float literal must have exponent part");
+    }
+    return tok;
+  }
   if (*p == '.' || tolower(*p) == 'e') {
     if (base != 10)
       lex_error(p, "Illegal literal");

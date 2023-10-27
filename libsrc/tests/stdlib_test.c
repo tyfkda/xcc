@@ -98,6 +98,7 @@ TEST(strtod) {
   EXPECT_PTREQ(s + 8, p);
   EXPECT_DEQ(-1e50, strtod(s="\t\n -1e50+", &p));
   EXPECT_PTREQ(s + 8, p);
+  EXPECT_DEQ(60.375, strtod(s="0xF1.8p-2", &p));
   EXPECT_DEQ(0.0, strtod(s="NonDecimalString", &p));
   EXPECT_PTREQ(s, p);
 

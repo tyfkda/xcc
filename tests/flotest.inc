@@ -21,6 +21,9 @@ TEST(number) {
   EXPECT("w/o initializer", 0.0, Empty);
   EXPECT("zero", 0.0, 0);
   EXPECT("decimal", 42.0, 42);
+  EXPECT("hex literal", 12.5, 0x1.9p3);
+  EXPECT("hex literal w/o .", 1.25, 0xap-3);
+
   EXPECT("+-", 21, (x=5, x+20-4));
   EXPECT("*/", 7.5, (x=5, x*3/2));
   EXPECT("unary -", -3.69, (x=3.69, -x));

@@ -1,5 +1,5 @@
 #include "stdlib.h"
-#include "ctype.h"  // isspace
+#include "ctype.h"  // isspace, tolower
 #include "stdbool.h"
 #include "string.h"
 
@@ -48,7 +48,35 @@ static double strtod_i2(const char *p, const char **pp) {
   return result;
 }
 
-double strtod(const char* /*restrict*/ p, char ** /*restrict*/ pp) {
+#define strtod_h(p, pp)  strtoull(p, pp, 16)
+
+static double strtod_hex(const char *p, char **pp) {
+  double result = strtod_h(p, &p);
+  if (*p == '.') {
+    const char *q = p + 1;
+    unsigned long long frac = strtod_h(q, &p);
+    long order = p - q;
+    result += frac * ipow(1.0f / 16, order);
+  }
+  if (tolower(*p) == 'p') {
+    const char *q = p + 1;
+    bool neg2 = parse_sign(&q);
+    double order = strtod_i(q, &p);
+    if (q == p) {
+      // Error.
+    } else {
+      double k = ipow(2, order);
+      if (neg2)
+        result /= k;
+      else
+        result *= k;
+    }
+  }
+  *pp = p;
+  return result;
+}
+
+double strtod(const char * /*restrict*/ p, char ** /*restrict*/ pp) {
   const char *orig = p;
 
   for (; isspace(*p); ++p)
@@ -75,25 +103,32 @@ double strtod(const char* /*restrict*/ p, char ** /*restrict*/ pp) {
     }
   }
 
-  const char *op = p;
-  double result = strtod_i(p, &p);
-  if (*p == '.') {
-    const char *q = p + 1;
-    double frac = strtod_i2(q, &p);
-    result += frac;
-  }
-  if (*p == 'e' || *p == 'E') {
-    const char *q = p + 1;
-    bool neg2 = parse_sign(&q);
-    double order = strtod_i(q, &p);
-    if (q == p) {
-      // Error.
-    } else {
-      double k = ipow(10, order);
-      if (neg2)
-        result /= k;
-      else
-        result *= k;
+  const char *op;
+  double result;
+  if (p[0] == '0' && tolower(p[1]) == 'x') {
+    op = p += 2;
+    result = strtod_hex(p, &p);
+  } else {
+    op = p;
+    result = strtod_i(p, &p);
+    if (*p == '.') {
+      const char *q = p + 1;
+      double frac = strtod_i2(q, &p);
+      result += frac;
+    }
+    if (tolower(*p) == 'e') {
+      const char *q = p + 1;
+      bool neg2 = parse_sign(&q);
+      double order = strtod_i(q, &p);
+      if (q == p) {
+        // Error.
+      } else {
+        double k = ipow(10, order);
+        if (neg2)
+          result /= k;
+        else
+          result *= k;
+      }
     }
   }
   if (p == op)
@@ -101,7 +136,7 @@ double strtod(const char* /*restrict*/ p, char ** /*restrict*/ pp) {
   if (neg)
     result = -result;
 
-  if (pp != 0)
+  if (pp != NULL)
     *pp = (char*)p;
 
   return result;
