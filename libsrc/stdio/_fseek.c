@@ -16,7 +16,14 @@ static int _fflush(FILE *fp) {
 
 int _fseek(void *cookie, off_t *offset, int origin) {
   FILE *fp = cookie;
-  _fflush(fp);
+  if (fp->flag & FF_WRITE) {
+    _fflush(fp);
+    if (origin == SEEK_CUR && *offset == 0) {
+      fp->flag &= ~FF_EOF;
+      *offset = 0;  // TODO:
+      return 0;
+    }
+  }
   off_t result = lseek(fp->fd, *offset, origin);
   if (result == -1)
     return -1;
