@@ -93,7 +93,7 @@ Vector *extract_varinfo_types(const Vector *params);  // <VarInfo*> => <Type*>
 Type *choose_ternary_result_type(Expr *tval, Expr *fval);
 Expr *transform_assign_with(const Token *tok, Expr *lhs, Expr *rhs);
 
-void check_reachability(Stmt *stmt);
+void check_func_reachability(Function *func);
 bool check_funcend_return(Stmt *stmt);
 
 int get_funparam_index(Function *func, const Name *name);  // -1: Not funparam.

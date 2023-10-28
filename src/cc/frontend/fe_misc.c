@@ -1171,6 +1171,8 @@ Expr *transform_assign_with(const Token *tok, Expr *lhs, Expr *rhs) {
 
 //
 
+static void check_reachability_stmt(Stmt *stmt);
+
 static int check_reachability_stmts(Vector *stmts) {
   assert(stmts != NULL);
   int reach = 0;
@@ -1181,7 +1183,7 @@ static int check_reachability_stmts(Vector *stmts) {
         continue;
       reach = 0;
     }
-    check_reachability(stmt);
+    check_reachability_stmt(stmt);
     reach |= stmt->reach;
     if (reach & REACH_STOP) {
       for (; i < n - 1; ++i) {
@@ -1231,13 +1233,13 @@ static void check_unreachability(Stmt *stmt) {
   parse_error(PE_WARNING, stmt->token, "unreachable");
 }
 
-void check_reachability(Stmt *stmt) {
+static void check_reachability_stmt(Stmt *stmt) {
   if (stmt == NULL)
     return;
   switch (stmt->kind) {
   case ST_IF:
-    check_reachability(stmt->if_.tblock);
-    check_reachability(stmt->if_.fblock);
+    check_reachability_stmt(stmt->if_.tblock);
+    check_reachability_stmt(stmt->if_.fblock);
     if (is_const_truthy(stmt->if_.cond)) {
       stmt->reach = stmt->if_.tblock->reach;
     } else if (is_const_falsy(stmt->if_.cond)) {
@@ -1250,7 +1252,7 @@ void check_reachability(Stmt *stmt) {
   case ST_SWITCH:
     stmt->reach = (stmt->reach & ~REACH_STOP) |
         ((stmt->switch_.default_ != NULL) ? REACH_STOP : 0);
-    check_reachability(stmt->switch_.body);
+    check_reachability_stmt(stmt->switch_.body);
     stmt->reach &= stmt->switch_.body->reach;
     break;
   case ST_WHILE:
@@ -1259,12 +1261,12 @@ void check_reachability(Stmt *stmt) {
     if (is_const_falsy(stmt->while_.cond))
       check_unreachability(stmt->while_.body);
     else
-      check_reachability(stmt->while_.body);
+      check_reachability_stmt(stmt->while_.body);
     break;
   case ST_DO_WHILE:
     if (is_const_truthy(stmt->while_.cond))
       stmt->reach |= REACH_STOP;
-    check_reachability(stmt->while_.body);
+    check_reachability_stmt(stmt->while_.body);
     break;
   case ST_FOR:
     if (stmt->for_.cond != NULL && is_const_falsy(stmt->for_.cond)) {
@@ -1272,14 +1274,14 @@ void check_reachability(Stmt *stmt) {
     } else {
       if (stmt->for_.cond == NULL || is_const_truthy(stmt->for_.cond))
         stmt->reach |= REACH_STOP;
-      check_reachability(stmt->for_.body);
+      check_reachability_stmt(stmt->for_.body);
     }
     break;
   case ST_BLOCK:
     stmt->reach = check_reachability_stmts(stmt->block.stmts);
     break;
   case ST_LABEL:
-    check_reachability(stmt->label.stmt);
+    check_reachability_stmt(stmt->label.stmt);
     stmt->reach = stmt->label.stmt->reach;
     break;
   case ST_RETURN:
@@ -1320,6 +1322,41 @@ void check_reachability(Stmt *stmt) {
     stmt->reach = 0;
     break;
   }
+}
+
+static void check_func_return(Function *func) {
+  Type *type = func->type;
+  Type *rettype = type->func.ret;
+  const Token *rbrace = func->body_block->block.rbrace;
+  if (func->flag & FUNCF_NORETURN) {
+    if (rettype->kind != TY_VOID) {
+      parse_error(PE_WARNING, rbrace, "`noreturn' function should not return value");
+    } else if (!(func->body_block->reach & REACH_STOP)) {
+      Vector *stmts = func->body_block->block.stmts;
+      if (stmts->len == 0 || ((Stmt*)stmts->data[stmts->len - 1])->kind != ST_ASM) {
+        parse_error(PE_WARNING, rbrace, "`noreturn' function should not return");
+      }
+    }
+  } else if (rettype->kind != TY_VOID && !(func->body_block->reach & REACH_STOP)) {
+    Vector *stmts = func->body_block->block.stmts;
+    if (stmts->len == 0 || ((Stmt*)stmts->data[stmts->len - 1])->kind != ST_ASM) {
+      if (equal_name(func->name, alloc_name("main", NULL, false))) {
+        // Return 0 if `return` statement is omitted in `main` function.
+        if (!is_fixnum(rettype->kind) || rettype->fixnum.kind != FX_INT) {
+          parse_error(PE_WARNING, rbrace, "`main' return type should be `int'");
+        } else {
+          vec_push(stmts, new_stmt_return(NULL, new_expr_fixlit(rettype, NULL, 0)));
+        }
+      } else {
+        parse_error(PE_WARNING, rbrace, "`return' required");
+      }
+    }
+  }
+}
+
+void check_func_reachability(Function *func) {
+  check_reachability_stmt(func->body_block);
+  check_func_return(func);
 }
 
 bool check_funcend_return(Stmt *stmt) {
