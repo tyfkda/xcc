@@ -558,7 +558,7 @@ void emit_wasm(FILE *ofp, Vector *exports, const char *import_module_name,
     emit_leb128(&elems_section, -1, count);  // num elems
     for (int i = 0; i < count; ++i) {
       FuncInfo *info = indirect_funcs[i];
-      VERBOSE("%2d: %.*s (%d)\n", i, NAMES(info->func->name), (int)info->index);
+      VERBOSE("%2d: %.*s (%d)\n", i + 1, NAMES(info->func->name), (int)info->index);
       emit_leb128(&elems_section, -1, info->index);  // elem function index
     }
     VERBOSES("\n");
