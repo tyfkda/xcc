@@ -114,7 +114,7 @@ static void alloc_variable_registers(Function *func) {
 
   // Add flag to parameters.
   int fregindex = 0;
-  const Vector *params = func->type->func.params;
+  const Vector *params = func->params;
   if (params != NULL) {
     for (int i = 0; i < params->len; ++i) {
       VarInfo *varinfo = params->data[i];
@@ -147,7 +147,7 @@ void enumerate_register_params(
     p->index = 0;
   }
 
-  const Vector *params = func->type->func.params;
+  const Vector *params = func->params;
   if (params != NULL) {
     for (int i = 0, len = params->len; i < len; ++i) {
       const VarInfo *varinfo = params->data[i];
@@ -657,7 +657,7 @@ void gen_stmt(Stmt *stmt) {
 void prepare_register_allocation(Function *func) {
   bool require_stack_frame = (func->flag & FUNCF_STACK_MODIFIED) != 0;
   // Handle function parameters first.
-  const Vector *params = func->type->func.params;
+  const Vector *params = func->params;
   if (params != NULL) {
     const int DEFAULT_OFFSET = POINTER_SIZE * 2;  // Return address, saved base pointer.
     assert((Scope*)func->scopes->data[0] != NULL);

@@ -722,8 +722,7 @@ static Expr *proc_builtin_va_start(const Token *ident) {
   Expr *param = args->data[1];
   if (param->kind != EX_VAR)
     parse_error(PE_FATAL, param->token, "variable expected");
-  const Type *functype = curfunc->type;
-  const Vector *funparams = functype->func.params;
+  const Vector *funparams = curfunc->params;
   if (funparams == NULL ||
       !equal_name(((VarInfo*)funparams->data[funparams->len - 1])->name, param->var.name)) {
     parse_error(PE_FATAL, param->token, "must be the last parameter");
@@ -849,70 +848,58 @@ void install_builtins(void) {
 
   {
     static BuiltinFunctionProc p_alloca = &gen_alloca;
-    Vector *params = new_vector();
-    var_add(params, NULL, &tySize, 0);
-
     Type *rettype = &tyVoidPtr;
-    Vector *param_types = extract_varinfo_types(params);
-    Type *type = new_func_type(rettype, params, param_types, false);
+    Vector *params = new_vector();
+    vec_push(params, &tySize);
+    Type *type = new_func_type(rettype, params, false);
 
     add_builtin_function("alloca", type, &p_alloca, true);
   }
   {
     static BuiltinFunctionProc p_memory_size = &gen_builtin_memory_size;
-    Vector *params = new_vector();
-
     Type *rettype = &tyInt;
-    Vector *param_types = extract_varinfo_types(params);
-    Type *type = new_func_type(rettype, params, param_types, false);
+    Vector *params = new_vector();
+    Type *type = new_func_type(rettype, params, false);
 
     add_builtin_function("__builtin_memory_size", type, &p_memory_size, true);
   }
   {
     static BuiltinFunctionProc p_memory_grow = &gen_builtin_memory_grow;
-    Vector *params = new_vector();
-    var_add(params, NULL, &tySize, 0);
-
     Type *rettype = &tyInt;
-    Vector *param_types = extract_varinfo_types(params);
-    Type *type = new_func_type(rettype, params, param_types, false);
+    Vector *params = new_vector();
+    vec_push(params, &tySize);
+    Type *type = new_func_type(rettype, params, false);
 
     add_builtin_function("__builtin_memory_grow", type, &p_memory_grow, true);
   }
 
   {
     static BuiltinFunctionProc p_setjmp = &gen_builtin_setjmp;
-    Vector *params = new_vector();
-    var_add(params, NULL, &tyVoidPtr, 0);
-
     Type *rettype = &tyInt;
-    Vector *param_types = extract_varinfo_types(params);
-    Type *type = new_func_type(rettype, params, param_types, false);
+    Vector *params = new_vector();
+    vec_push(params, &tyVoidPtr);
+    Type *type = new_func_type(rettype, params, false);
 
     add_builtin_function("__builtin_setjmp", type, &p_setjmp, true);
   }
   {
     static BuiltinFunctionProc p_longjmp = &gen_builtin_longjmp;
-    Vector *params = new_vector();
-    var_add(params, NULL, &tyVoidPtr, 0);
-    var_add(params, NULL, &tyInt, 0);
-
     Type *rettype = &tyInt;
-    Vector *param_types = extract_varinfo_types(params);
-    Type *type = new_func_type(rettype, params, param_types, false);
+    Vector *params = new_vector();
+    vec_push(params, &tyVoidPtr);
+    vec_push(params, &tyInt);
+    Type *type = new_func_type(rettype, params, false);
 
     add_builtin_function("__builtin_longjmp", type, &p_longjmp, true);
   }
   {
     static BuiltinFunctionProc p_try_catch_longjmp = &gen_builtin_try_catch_longjmp;
-    Vector *params = new_vector();
-    var_add(params, NULL, &tyVoidPtr, 0);  // jmpbuf
-    var_add(params, NULL, &tyInt, 0);      // r
-    var_add(params, NULL, &tyVoid, 0);     // try_block_expr
-
     Type *rettype = &tyInt;
-    Vector *param_types = extract_varinfo_types(params);
-    Type *type = new_func_type(rettype, params, param_types, false);
+    Vector *params = new_vector();
+    vec_push(params, &tyVoidPtr);  // jmpbuf
+    vec_push(params, &tyInt);      // r
+    vec_push(params, &tyVoid);     // try_block_expr
+    Type *type = new_func_type(rettype, params, false);
 
     add_builtin_function("__builtin_try_catch_longjmp", type, &p_try_catch_longjmp, true);
   }

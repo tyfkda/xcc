@@ -89,8 +89,8 @@ typedef struct Type {
     } pa;
     struct {
       struct Type *ret;
-      const Vector *params;  // <VarInfo*>
-      const Vector *param_types;  // <Type*>
+      const Vector *params;  // <Type*>
+      const Vector *param_vars;  // <VarInfo*>: Just for parser, do not use mainly.
       bool vaargs;
     } func;
     struct {
@@ -134,7 +134,7 @@ Type *get_fixnum_type(enum FixnumKind kind, bool is_unsigned, int qualifier);
 Type *ptrof(Type *type);
 Type *array_to_ptr(Type *type);
 Type *arrayof(Type *type, ssize_t length);
-Type *new_func_type(Type *ret, const Vector *params, const Vector *param_types, bool vaargs);
+Type *new_func_type(Type *ret, const Vector *types, bool vaargs);
 Type *qualified_type(Type *type, int additional);
 Type *clone_type(const Type *type);
 Type *get_callee_type(Type *type);

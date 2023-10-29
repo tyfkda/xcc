@@ -962,11 +962,11 @@ void check_funcall_args(Expr *func, Vector *args, Scope *scope) {
   if (functype == NULL)
     return;
 
-  const Vector *param_types = functype->func.param_types;  // <Type*>
+  const Vector *types = functype->func.params;  // <Type*>
   bool vaargs = functype->func.vaargs;
-  if (param_types != NULL) {
+  if (types != NULL) {
     int argc = args->len;
-    int paramc = param_types->len;
+    int paramc = types->len;
     if (!(argc == paramc || (vaargs && argc >= paramc))) {
       parse_error(PE_NOFATAL, func->token, "function `%.*s' expect %d arguments, but %d",
                   NAMES(func->var.name), paramc, argc);
@@ -974,14 +974,14 @@ void check_funcall_args(Expr *func, Vector *args, Scope *scope) {
     }
   }
 
-  int paramc = param_types != NULL ? param_types->len : 0;
+  int paramc = types != NULL ? types->len : 0;
   for (int i = 0, len = args->len; i < len; ++i) {
     Expr *arg = args->data[i];
     arg = str_to_char_array_var(scope, arg);
     if (arg->type->kind == TY_ARRAY)
       arg = make_cast(array_to_ptr(arg->type), arg->token, arg, false);
     if (i < paramc) {
-      Type *type = param_types->data[i];
+      Type *type = types->data[i];
       ensure_struct(type, func->token, scope);
       arg = make_cast(type, arg->token, arg, false);
 
@@ -1007,14 +1007,14 @@ void check_funcall_args(Expr *func, Vector *args, Scope *scope) {
   }
 }
 
-Vector *extract_varinfo_types(const Vector *params) {
-  Vector *param_types = NULL;
-  if (params != NULL) {
-    param_types = new_vector();
-    for (int i = 0, len = params->len; i < len; ++i)
-      vec_push(param_types, ((VarInfo*)params->data[i])->type);
+Vector *extract_varinfo_types(const Vector *vars) {
+  Vector *types = NULL;
+  if (vars != NULL) {
+    types = new_vector();
+    for (int i = 0, len = vars->len; i < len; ++i)
+      vec_push(types, ((VarInfo*)vars->data[i])->type);
   }
-  return param_types;
+  return types;
 }
 
 static Type *to_ptr_type(Type *type) {
@@ -1387,7 +1387,7 @@ bool check_funcend_return(Stmt *stmt) {
 }
 
 int get_funparam_index(Function *func, const Name *name) {
-  const Vector *params = func->type->func.params;
+  const Vector *params = func->params;
   for (int i = 0, param_count = params->len; i < param_count; ++i) {
     VarInfo *v = params->data[i];
     if (equal_name(v->name, name))

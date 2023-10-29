@@ -529,11 +529,12 @@ static Type *parse_direct_declarator_suffix(Type *type) {
     }
   } else if (match(TK_LPAR)) {
     bool vaargs;
-    Vector *params = parse_funparams(&vaargs);
+    Vector *param_vars = parse_funparams(&vaargs);
     Type *rettype = parse_direct_declarator_suffix(type);
 
-    Vector *param_types = extract_varinfo_types(params);
-    type = new_func_type(rettype, params, param_types, vaargs);
+    Vector *param_types = extract_varinfo_types(param_vars);
+    type = new_func_type(rettype, param_types, vaargs);
+    type->func.param_vars = param_vars;
   }
   return type;
 }
@@ -581,13 +582,13 @@ Type *parse_var_def(Type **prawType, int *pstorage, Token **pident) {
 }
 
 Vector *parse_funparams(bool *pvaargs) {
-  Vector *params = NULL;
+  Vector *vars = NULL;
   bool vaargs = false;
   if (match(TK_RPAR)) {
     // Arbitrary funparams.
     vaargs = true;
   } else {
-    params = new_vector();
+    vars = new_vector();
     for (;;) {
       if (match(TK_ELLIPSIS)) {
         vaargs = true;
@@ -608,7 +609,7 @@ Vector *parse_funparams(bool *pvaargs) {
         if (storage & VS_TYPEDEF)
           parse_error(PE_NOFATAL, ident, "`typedef' for function parameter");
 
-        if (params->len == 0) {
+        if (vars->len == 0) {
           if (type->kind == TY_VOID) {  // fun(void)
             if (ident != NULL || !match(TK_RPAR))
               parse_error(PE_FATAL, NULL, "`)' expected");
@@ -630,10 +631,10 @@ Vector *parse_funparams(bool *pvaargs) {
             parse_error(PE_NOFATAL, ident, "using flexible array as a parameter not allowed");
         }
 
-        if (ident != NULL && var_find(params, ident->ident) >= 0)
+        if (ident != NULL && var_find(vars, ident->ident) >= 0)
           parse_error(PE_NOFATAL, ident, "`%.*s' already defined", NAMES(ident->ident));
         else
-          var_add(params, ident != NULL ? ident->ident : NULL, type, storage | VS_PARAM);
+          var_add(vars, ident != NULL ? ident->ident : NULL, type, storage | VS_PARAM);
       }
       if (match(TK_RPAR))
         break;
@@ -642,7 +643,7 @@ Vector *parse_funparams(bool *pvaargs) {
     }
   }
   *pvaargs = vaargs;
-  return params;
+  return vars;
 }
 
 static Expr *parse_compound_literal(Type *type) {

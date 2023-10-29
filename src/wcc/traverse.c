@@ -31,11 +31,11 @@ bool is_stack_param(const Type *type) {
 
 static void wasm_func_type(const Type *type, DataStorage *ds) {
   bool ret_param = type->func.ret->kind != TY_VOID && !is_prim_type(type->func.ret);
-  const Vector *param_types = type->func.param_types;
+  const Vector *params = type->func.params;
   int param_count = 0;
-  if (param_types != NULL) {
-    for (int i = 0; i < param_types->len; ++i) {
-      const Type *type = param_types->data[i];
+  if (params != NULL) {
+    for (int i = 0; i < params->len; ++i) {
+      const Type *type = params->data[i];
       if (!is_stack_param(type))
         ++param_count;
     }
@@ -47,9 +47,9 @@ static void wasm_func_type(const Type *type, DataStorage *ds) {
   emit_uleb128(ds, -1, (int)ret_param + param_count + (type->func.vaargs ? 1 : 0));  // num params
   if (ret_param)
     data_push(ds, to_wtype(&tyVoidPtr));
-  if (param_types != NULL) {
-    for (int i = 0; i < param_types->len; ++i) {
-      const Type *type = param_types->data[i];
+  if (params != NULL) {
+    for (int i = 0; i < params->len; ++i) {
+      const Type *type = params->data[i];
       if (!is_stack_param(type))
         data_push(ds, to_wtype(type));
     }
@@ -640,33 +640,25 @@ static void traverse_defun(Function *func) {
   func->extra = calloc(1, sizeof(FuncExtra));
 
   Type *functype = func->type;
+  assert(func->params != NULL);
   if (equal_name(func->name, alloc_name("main", NULL, false))) {
     // Force `main' function takes two arguments.
-    if (functype->func.params->len < 1) {
+    if (func->params->len < 1) {
       assert(func->scopes->len > 0);
       const Name *name = alloc_label();
       Type *type = &tyInt;
       Scope *scope = func->scopes->data[0];
-      vec_push((Vector*)functype->func.params, scope_add(scope, name, type, 0));
-      vec_push((Vector*)functype->func.param_types, type);
+      vec_push((Vector*)func->params, scope_add(scope, name, type, 0));
+      vec_push((Vector*)functype->func.params, type);
     }
-    if (functype->func.params->len < 2) {
+    if (func->params->len < 2) {
       assert(func->scopes->len > 0);
       Type *type = ptrof(ptrof(&tyChar));
       const Name *name = alloc_label();
       Scope *scope = func->scopes->data[0];
-      vec_push((Vector*)functype->func.params, scope_add(scope, name, type, 0));
-      vec_push((Vector*)functype->func.param_types, type);
+      vec_push((Vector*)func->params, scope_add(scope, name, type, 0));
+      vec_push((Vector*)functype->func.params, type);
     }
-  }
-  if (functype->func.params == NULL) {
-    // Treat old-style function as a no-parameter function.
-    Type *noparam = malloc_or_die(sizeof(*noparam));
-    memcpy(noparam, functype, sizeof(*noparam));
-    noparam->func.params = noparam->func.param_types = new_vector();
-    VarInfo *varinfo = scope_find(global_scope, func->name, NULL);
-    assert(varinfo != NULL);
-    varinfo->type = func->type = functype = noparam;
   }
   if (functype->func.vaargs) {
     Type *tyvalist = find_typedef(curscope, alloc_name("__builtin_va_list", NULL, false), NULL);

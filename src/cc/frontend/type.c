@@ -281,14 +281,14 @@ Type *arrayof(Type *type, ssize_t length) {
   return arr;
 }
 
-Type *new_func_type(Type *ret, const Vector *params, const Vector *param_types, bool vaargs) {
+Type *new_func_type(Type *ret, const Vector *types, bool vaargs) {
   Type *f = malloc_or_die(sizeof(*f));
   f->kind = TY_FUNC;
   f->qualifier = 0;
   f->func.ret = ret;
   f->func.vaargs = vaargs;
-  f->func.params = params;
-  f->func.param_types = param_types;
+  f->func.params = types;
+  f->func.param_vars = NULL;
   return f;
 }
 
@@ -382,14 +382,14 @@ bool same_type_without_qualifier(const Type *type1, const Type *type2, bool igno
     case TY_FUNC:
       if (!same_type(type1->func.ret, type2->func.ret) || type1->func.vaargs != type2->func.vaargs)
         return false;
-      if (type1->func.param_types == NULL && type2->func.param_types == NULL)
+      if (type1->func.params == NULL && type2->func.params == NULL)
         return true;
-      if (type1->func.param_types == NULL || type2->func.param_types == NULL ||
-          type1->func.param_types->len != type2->func.param_types->len)
+      if (type1->func.params == NULL || type2->func.params == NULL ||
+          type1->func.params->len != type2->func.params->len)
         return false;
-      for (int i = 0, len = type1->func.param_types->len; i < len; ++i) {
-        const Type *t1 = type1->func.param_types->data[i];
-        const Type *t2 = type2->func.param_types->data[i];
+      for (int i = 0, len = type1->func.params->len; i < len; ++i) {
+        const Type *t1 = type1->func.params->data[i];
+        const Type *t2 = type2->func.params->data[i];
         if (!same_type(t1, t2))
           return false;
       }
@@ -486,7 +486,7 @@ bool can_cast(const Type *dst, const Type *src, bool zero, bool is_explicit) {
           const Type *ftype = dst->pa.ptrof;
           return (same_type(ftype, src) ||
                   (same_type(ftype->func.ret, src->func.ret) &&
-                   (ftype->func.param_types == NULL || src->func.param_types == NULL)));
+                   (ftype->func.params == NULL || src->func.params == NULL)));
         }
       case TY_VOID:
         return true;
@@ -533,15 +533,15 @@ static void call_print_type_chain(const PrintTypeChain *chain, FILE *fp) {
 static void print_func_params(FILE *fp, const Type *type) {
   assert(type->kind == TY_FUNC);
   fprintf(fp, "(");
-  if (type->func.param_types != NULL) {
-    int param_count = type->func.param_types->len;
+  if (type->func.params != NULL) {
+    int param_count = type->func.params->len;
     if (param_count == 0 && !type->func.vaargs) {
       fprintf(fp, "void");
     } else {
       for (int i = 0; i < param_count; ++i) {
         if (i > 0)
           fprintf(fp, ", ");
-        print_type(fp, type->func.param_types->data[i]);
+        print_type(fp, type->func.params->data[i]);
       }
       if (type->func.vaargs) {
         if (param_count > 0)

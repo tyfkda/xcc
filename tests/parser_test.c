@@ -81,19 +81,19 @@ TEST(parse_full_type) {
   expect_parse_type("2d array", arrayof(arrayof(&tyInt, 3), 2), NULL, "int[2][3]");
 
   {
-    Vector *param_types = new_vector();
-    vec_push(param_types, get_fixnum_type(FX_LONG, false, 0));
-    const Type *func = new_func_type(&tyInt, NULL, param_types, false);
+    Vector *params = new_vector();
+    vec_push(params, get_fixnum_type(FX_LONG, false, 0));
+    const Type *func = new_func_type(&tyInt, params, false);
     expect_parse_type("func", func, "func", "int func(long)");
   }
   {
-    Vector *param_types = new_vector();
-    vec_push(param_types, get_fixnum_type(FX_LONG, false, 0));
-    const Type *funcptr = ptrof(new_func_type(&tyInt, NULL, param_types, false));
+    Vector *params = new_vector();
+    vec_push(params, get_fixnum_type(FX_LONG, false, 0));
+    const Type *funcptr = ptrof(new_func_type(&tyInt, params, false));
     expect_parse_type("func ptr", funcptr, "func", "int(*func)(long)");
   }
   {
-    const Type *funcptr = ptrof(new_func_type(&tyVoid, NULL, NULL, true));
+    const Type *funcptr = ptrof(new_func_type(&tyVoid, NULL, true));
     expect_parse_type("func w/o params", funcptr, "func", "void(*func)()");
   }
 
@@ -101,21 +101,21 @@ TEST(parse_full_type) {
   expect_parse_type("ptr of array", ptrof(arrayof(&tyInt, 3)), NULL, "int (*)[3]");
 
   {
-    Vector *param_types = new_vector();
-    Type *funcptr = ptrof(new_func_type(&tyInt, NULL, param_types, false));
+    Vector *params = new_vector();
+    Type *funcptr = ptrof(new_func_type(&tyInt, params, false));
     const Type *aofp = arrayof(funcptr, 4);
     expect_parse_type("array of func ptr", aofp, NULL, "int(*[4])(void)");
   }
 
   {
-    Vector *param_types2 = new_vector();
-    vec_push(param_types2, &tyInt);
-    Type *param_funcptr = ptrof(new_func_type(&tyVoid, NULL, param_types2, false));
+    Vector *params2 = new_vector();
+    vec_push(params2, &tyInt);
+    Type *param_funcptr = ptrof(new_func_type(&tyVoid, params2, false));
 
-    Vector *param_types = new_vector();
-    vec_push(param_types, &tyInt);
-    vec_push(param_types, param_funcptr);
-    const Type *functype = new_func_type(param_funcptr, NULL, param_types, false);
+    Vector *params = new_vector();
+    vec_push(params, &tyInt);
+    vec_push(params, param_funcptr);
+    const Type *functype = new_func_type(param_funcptr, params, false);
     expect_parse_type("signal", functype, "signal", "void(*signal(int, void(*)(int)))(int)");
   }
 

@@ -59,7 +59,7 @@ static VReg *gen_builtin_va_start(Expr *expr) {
     var = var->unary.sub;
   int gn = -1, fn = -1;
   if (var->kind == EX_VAR) {
-    const Vector *params = curfunc->type->func.params;
+    const Vector *params = curfunc->params;
     int g = 0, f = 0;
     for (int i = 0; i < params->len; ++i) {
       VarInfo *info = params->data[i];
@@ -152,24 +152,20 @@ void install_builtins(void) {
     Type *tyVaList = ptrof(tyVaElem);
 #endif
     static BuiltinFunctionProc p_va_start = &gen_builtin_va_start;
-    Vector *params = new_vector();
-    var_add(params, NULL, tyVaList, 0);
-    var_add(params, NULL, &tyVoidPtr, 0);
-
     Type *rettype = &tyVoid;
-    Vector *param_types = extract_varinfo_types(params);
-    Type *type = new_func_type(rettype, params, param_types, false);
+    Vector *params = new_vector();
+    vec_push(params, tyVaList);
+    vec_push(params, &tyVoidPtr);
+    Type *type = new_func_type(rettype, params, false);
 
     add_builtin_function("__builtin_va_start", type, &p_va_start, true);
   }
   {
     static BuiltinFunctionProc p_alloca = &gen_alloca;
-    Vector *params = new_vector();
-    var_add(params, NULL, &tySize, 0);
-
     Type *rettype = &tyVoidPtr;
-    Vector *param_types = extract_varinfo_types(params);
-    Type *type = new_func_type(rettype, params, param_types, false);
+    Vector *params = new_vector();
+    vec_push(params, &tySize);
+    Type *type = new_func_type(rettype, params, false);
 
     add_builtin_function("alloca", type, &p_alloca, false);
   }

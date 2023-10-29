@@ -322,11 +322,12 @@ Declaration *new_decl_vardecl(Vector *decls) {
 
 // Function
 
-Function *new_func(Type *type, const Name *name, int flag) {
+Function *new_func(Type *type, const Name *name, const Vector *params, int flag) {
   assert(type->kind == TY_FUNC);
   Function *func = malloc_or_die(sizeof(*func));
   func->type = type;
   func->name = name;
+  func->params = params;
 
   func->scopes = NULL;
   func->body_block = NULL;

@@ -89,7 +89,7 @@ Expr *new_expr_cmp(enum ExprKind kind, const Token *tok, Expr *lhs, Expr *rhs);
 Expr *make_cond(Expr *expr);
 Expr *make_not_expr(Expr *expr);
 void check_funcall_args(Expr *func, Vector *args, Scope *scope);
-Vector *extract_varinfo_types(const Vector *params);  // <VarInfo*> => <Type*>
+Vector *extract_varinfo_types(const Vector *vars);  // <VarInfo*> => <Type*>
 Type *choose_ternary_result_type(Expr *tval, Expr *fval);
 Expr *transform_assign_with(const Token *tok, Expr *lhs, Expr *rhs);
 

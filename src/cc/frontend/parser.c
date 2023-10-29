@@ -172,9 +172,10 @@ static Vector *parse_vardecl_cont(Type *rawType, Type *type, int storage, Token 
 
     if (match(TK_LPAR)) {  // Function prototype.
       bool vaargs;
-      Vector *params = parse_funparams(&vaargs);
-      Vector *param_types = extract_varinfo_types(params);
-      type = new_func_type(type, params, param_types, vaargs);
+      Vector *param_vars = parse_funparams(&vaargs);
+      Vector *param_types = extract_varinfo_types(param_vars);
+      type = new_func_type(type, param_types, vaargs);
+      type->func.param_vars = param_vars;
     } else {
       if (!(tmp_storage & VS_TYPEDEF))
         not_void(type, NULL);
@@ -604,8 +605,9 @@ static int parse_attribute(void) {
 
 static Declaration *parse_global_var_decl(Type *rawtype, int storage, Type *type, Token *ident);
 
-static Function *define_func(Type *functype, const Token *ident, int storage, int flag) {
-  Function *func = new_func(functype, ident->ident, flag);
+static Function *define_func(Type *functype, const Token *ident, const Vector *param_vars, int storage, int flag) {
+  Function *func = new_func(functype, ident->ident, functype->func.param_vars, flag);
+  func->params = param_vars;
   VarInfo *varinfo = scope_find(global_scope, func->name, NULL);
   if (varinfo == NULL) {
     varinfo = add_var_to_scope(global_scope, ident, functype, storage);
@@ -637,14 +639,15 @@ static Function *define_func(Type *functype, const Token *ident, int storage, in
 static Declaration *parse_defun(Type *functype, int storage, Token *ident, const Token *tok) {
   assert(functype->kind == TY_FUNC);
 
+  const Vector *param_vars = functype->func.param_vars;
   if (functype->func.params == NULL) {  // Old-style
     // Treat it as a zero-parameter function.
     functype->func.params = new_vector();
-    functype->func.param_types = new_vector();
     functype->func.vaargs = false;
+    param_vars = new_vector();
   }
 
-  Function *func = define_func(functype, ident, storage, 0);
+  Function *func = define_func(functype, ident, param_vars, storage, 0);
   VarInfo *varinfo = scope_find(global_scope, ident->ident, NULL);
   assert(varinfo != NULL);
   if (varinfo->global.func != NULL) {
@@ -656,15 +659,11 @@ static Declaration *parse_defun(Type *functype, int storage, Token *ident, const
   assert(curfunc == NULL);
   assert(is_global_scope(curscope));
   curfunc = func;
-  Vector *top_vars = NULL;
-  const Vector *params = func->type->func.params;
-  if (params != NULL) {
-    top_vars = new_vector();
-    for (int i = 0; i < params->len; ++i) {
-      VarInfo *vi = params->data[i];
-      vec_push(top_vars, vi);
-      ensure_struct(vi->type, tok, curscope);
-    }
+  Vector *top_vars = new_vector();
+  for (int i = 0; i < param_vars->len; ++i) {
+    VarInfo *vi = param_vars->data[i];
+    vec_push(top_vars, vi);
+    ensure_struct(vi->type, tok, curscope);
   }
   func->scopes = new_vector();
   func->body_block = parse_block(tok, top_vars);
@@ -703,7 +702,7 @@ static Declaration *parse_global_var_decl(Type *rawtype, int storage, Type *type
         if (ident == NULL) {
           parse_error(PE_NOFATAL, NULL, "ident expected");
         } else {
-          Function *func = define_func(type, ident, storage | VS_EXTERN, attr);
+          Function *func = define_func(type, ident, type->func.param_vars, storage | VS_EXTERN, attr);
           VarInfo *varinfo = scope_find(global_scope, ident->ident, NULL);
           assert(varinfo != NULL);
 

@@ -1625,8 +1625,8 @@ static void gen_defun(Function *func) {
     }
   }
   // Store ref-taken parameters to stack frame.
-  if (functype->func.params != NULL) {
-    const Vector *params = functype->func.params;
+  if (func->params != NULL) {
+    const Vector *params = func->params;
     for (int i = 0, param_count = params->len; i < param_count; ++i) {
       VarInfo *varinfo = params->data[i];
       if (!(varinfo->storage & VS_REF_TAKEN) || is_stack_param(varinfo->type))
@@ -1719,10 +1719,10 @@ int getsert_tag(int typeindex) {
 
 static int register_longjmp_tag(void) {
   // Exception type: (void*, int)
-  Vector *param_types = new_vector();
-  vec_push(param_types, &tyInt);
-  vec_push(param_types, &tyVoidPtr);
-  Type *functype = new_func_type(&tyVoid, NULL, param_types, false);
+  Vector *params = new_vector();
+  vec_push(params, &tyInt);
+  vec_push(params, &tyVoidPtr);
+  Type *functype = new_func_type(&tyVoid, params, false);
   int typeindex = getsert_func_type_index(functype, true);
   return getsert_tag(typeindex);
 }

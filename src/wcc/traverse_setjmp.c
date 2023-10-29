@@ -217,10 +217,10 @@ static bool modify_if_setjmp(LexicalStack *lp, Expr *jmpbuf_env, Expr *var) {
   vec_push(try_stmts, ifstmt);
   Expr *try_block_expr = new_expr_block(new_stmt_block(token, try_stmts, NULL, token));
 
-  Vector *param_types = new_vector();
-  vec_push(param_types, var != NULL ? var->type : &tyVoid);
-  vec_push(param_types, try_block_expr->type);
-  Type *functype = new_func_type(&tyVoid, NULL, param_types, false);
+  Vector *params = new_vector();
+  vec_push(params, var != NULL ? var->type : &tyVoid);
+  vec_push(params, try_block_expr->type);
+  Type *functype = new_func_type(&tyVoid, params, false);
 
   Vector *args = new_vector();
   vec_push(args, jmpbuf_env);

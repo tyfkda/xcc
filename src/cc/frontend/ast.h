@@ -441,6 +441,7 @@ Stmt *new_stmt_asm(const Token *token, Expr *str, Expr *arg);
 typedef struct Function {
   Type *type;
   const Name *name;
+  const Vector *params;  // <VarInfo*>
 
   Vector *scopes;  // NULL => prototype definition.
   Stmt *body_block;  // NULL => Prototype definition.
@@ -454,7 +455,7 @@ typedef struct Function {
 #define FUNCF_STACK_MODIFIED  (1 << 1)
 #define FUNCF_HAS_FUNCALL     (1 << 2)
 
-Function *new_func(Type *type, const Name *name, int flag);
+Function *new_func(Type *type, const Name *name, const Vector *params, int flag);
 
 // Declaration
 
