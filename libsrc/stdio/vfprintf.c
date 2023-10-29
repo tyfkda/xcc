@@ -18,15 +18,24 @@
 static char kHexDigits[] = "0123456789abcdef";
 static char kUpperHexDigits[] = "0123456789ABCDEF";
 
-static void putnstr(FILE *fp, int n, const char *s) {
-  int c;
-  for (; (c = *s++) != '\0' && n > 0; --n)
-    FPUTC(c, fp);
+static int putnstr(FILE *fp, int n, const char *s) {
+  int i;
+  for (i = 0; i < n && s[i] != '\0'; ++i)
+    ;
+  return fwrite(s, 1, i, fp);
 }
 
 static void putpadding(FILE *fp, int m, char padding) {
-  for (; m > 0; --m)
-    FPUTC(padding, fp);
+  if (m <= 0)
+    return;
+  char buf[16];
+  int n = MIN(m, (int)sizeof(buf));
+  memset(buf, padding, n);
+  do {
+    int i = MIN(m, n);
+    fwrite(buf, 1, i, fp);
+    m -= i;
+  } while (m > 0);
 }
 
 static int snprintullong(FILE *fp, unsigned long long x,
@@ -36,7 +45,7 @@ static int snprintullong(FILE *fp, unsigned long long x,
   unsigned int i = 0, o = 0;
 
   do {
-    buf[i++] = digits[x % base];
+    buf[sizeof(buf) - (++i)] = digits[x % base];
     x /= base;
   } while (x != 0);
 
@@ -45,11 +54,7 @@ static int snprintullong(FILE *fp, unsigned long long x,
     putpadding(fp, d, padding);
     o += d;
   }
-
-  for (; i > 0; ++o)
-    FPUTC(buf[--i], fp);
-
-  return o;
+  return o + fwrite(&buf[sizeof(buf) - i], 1, i, fp);
 }
 
 char *snprintullong2(char *bufend, unsigned long long x, int base, const char *digits) {
