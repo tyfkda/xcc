@@ -24,6 +24,10 @@ int main(int argc, char *argv[]) {
 #if defined(__NO_BITFIELD)
   define_macro("__NO_BITFIELD");
 #endif
+#if defined(__NO_VLA)
+  define_macro("__NO_VLA");
+  define_macro("__STDC_NO_VLA__");
+#endif
 
   enum {
     OPT_ISYSTEM = 128,

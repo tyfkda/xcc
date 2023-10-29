@@ -8,6 +8,7 @@
 #include <stdio.h>
 #include <sys/types.h>  // ssize_t
 
+typedef struct Expr Expr;
 typedef struct Name Name;
 typedef struct Vector Vector;
 
@@ -86,6 +87,9 @@ typedef struct Type {
     struct {  // Pointer or array.
       struct Type *ptrof;
       ssize_t length;  // of array. -1 represents length is not specified (= []).
+#ifndef __NO_VLA
+      Expr *vla;  // Variable length array.
+#endif
     } pa;
     struct {
       struct Type *ret;
@@ -132,8 +136,8 @@ bool is_prim_type(const Type *type);
 bool ptr_or_array(const Type *type);
 Type *get_fixnum_type(enum FixnumKind kind, bool is_unsigned, int qualifier);
 Type *ptrof(Type *type);
-Type *array_to_ptr(Type *type);
 Type *arrayof(Type *type, ssize_t length);
+Type *array_to_ptr(Type *type);
 Type *new_func_type(Type *ret, const Vector *types, bool vaargs);
 Type *qualified_type(Type *type, int additional);
 Type *clone_type(const Type *type);

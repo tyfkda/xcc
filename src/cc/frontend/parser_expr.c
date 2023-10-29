@@ -225,14 +225,12 @@ static StructInfo *parse_struct(bool is_union) {
 
       not_void(type, NULL);
       ensure_struct(type, ident, curscope);
-#ifndef __NO_BITFIELD
       Expr *bit = NULL;
+#ifndef __NO_BITFIELD
       if (type->kind == TY_FIXNUM) {
         if (match(TK_COLON))
           bit = parse_const_fixnum();
       }
-#else
-      const Expr *bit = NULL;
 #endif
       // Allow ident to be null for anonymous struct member or bitfield, otherwise raise error.
       if (ident == NULL && type->kind != TY_STRUCT && bit == NULL)
@@ -252,6 +250,13 @@ static StructInfo *parse_struct(bool is_union) {
 #endif
 
       switch (type->kind) {
+#ifndef __NO_VLA
+      case TY_PTR:
+        if (type->pa.vla != NULL) {
+          parse_error(PE_NOFATAL, ident, "VLA not allowed in struct/union");
+        }
+        break;
+#endif
       case TY_ARRAY:
         if (type->pa.length < 0) {
           assert(ident != NULL);
@@ -507,21 +512,100 @@ Type *parse_pointer(Type *type) {
 static Type *parse_direct_declarator_suffix(Type *type) {
   Token *tok;
   if ((tok = match(TK_LBRACKET)) != NULL) {
+    static const char kConstIntExpected[] = "constant integer expected";
     ssize_t length = -1;
+    Expr *vla = NULL;
     if (match(TK_RBRACKET)) {
       // Arbitrary size.
     } else {
-      Expr *expr = parse_const_fixnum();
-      if (expr->fixnum < 0)
-        parse_error(PE_NOFATAL, expr->token, "Array size must be greater than 0, but %d",
-                    (int)expr->fixnum);
-      length = expr->fixnum;
+      Expr *expr = parse_expr();
       consume(TK_RBRACKET, "`]' expected");
+
+      switch (expr->kind) {
+      case EX_FIXNUM:
+        length = expr->fixnum;
+        break;
+      case EX_VAR:
+        {
+          VarInfo *varinfo = scope_find(expr->var.scope, expr->var.name, NULL);
+          assert(varinfo != NULL);
+          if (expr->type->qualifier & TQ_CONST) {
+            switch (expr->type->kind) {
+            case TY_FLONUM:
+              parse_error(PE_WARNING, expr->token, kConstIntExpected);
+              // Fallthrough
+            case TY_FIXNUM:
+              {
+                Initializer *init = is_global_scope(expr->var.scope) ? varinfo->global.init
+                                                                     : varinfo->local.init;
+                assert(init != NULL);
+                assert(init->kind == IK_SINGLE);
+                switch (init->single->kind) {
+                case EX_FIXNUM:
+                  length = init->single->fixnum;
+                  break;
+#ifndef __NO_FLONUM
+                case EX_FLONUM:
+                  length = init->single->flonum;
+                  break;
+#endif
+                // TODO: Compound literal?
+                default:  assert(false); break;
+                }
+              }
+              break;
+            default:
+              parse_error(PE_NOFATAL, expr->token, kConstIntExpected);
+              length = 0;
+              break;
+            }
+            break;
+          }
+        }
+        // Fallthrough
+      default:
+        if (is_fixnum(expr->type->kind)) {
+          vla = expr;
+        } else {
+          parse_error(PE_NOFATAL, expr->token, kConstIntExpected);
+          length = 0;
+        }
+        break;
+      }
+
+      if (length < 0 && vla == NULL) {
+        parse_error(PE_NOFATAL, expr->token, "Array size must be greater than 0, but %zd", length);
+        length = 0;
+      }
     }
     const Type *basetype = type;
-    type = arrayof(parse_direct_declarator_suffix(type), length);
-    if (basetype->qualifier & TQ_CONST)
-      type = qualified_type(type, TQ_CONST);
+    Type *subtype = parse_direct_declarator_suffix(type);
+#ifndef __NO_VLA
+    if (subtype->kind == TY_PTR && subtype->pa.vla != NULL) {
+      // Nested VLA: Back to array type.
+      Expr *sub_vla = subtype->pa.vla;
+      Type *orgtype = subtype;
+      subtype = arrayof(orgtype->pa.ptrof, -1);
+      subtype->qualifier = orgtype->qualifier;
+      subtype->pa.vla = sub_vla;
+      if (vla == NULL) {
+        // If subtype is VLA, make whole array as VLA.
+        vla = new_expr_fixlit(&tySize, tok, length);
+      }
+    }
+    if (vla != NULL) {
+      // VLA: Convert most outer type as a pointer, not an array.
+      type = ptrof(subtype);
+      type->pa.vla = make_cast(&tySize, tok, vla, false);
+      type->qualifier |= TQ_CONST;  // Make VLA is not modified.
+    } else
+#endif
+    {
+      type = arrayof(subtype, length);
+      if (basetype->qualifier & TQ_CONST)
+        type->qualifier |= TQ_CONST;
+    }
+
     // Flexible array struct not allowd.
     if (basetype->kind == TY_STRUCT) {
       if (basetype->struct_.info != NULL && basetype->struct_.info->is_flexible)
@@ -814,6 +898,10 @@ static Expr *parse_sizeof(const Token *token) {
   }
   assert(type != NULL);
   ensure_struct(type, token, curscope);
+#ifndef __NO_VLA
+  if (ptr_or_array(type) && type->pa.vla != NULL)
+    return calc_type_size(type);
+#endif
   if (type->kind == TY_ARRAY) {
     if (type->pa.length == -1) {
       // TODO: assert `export` modifier.

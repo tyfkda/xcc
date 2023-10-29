@@ -855,10 +855,36 @@ Initializer *check_vardecl(Type **ptype, const Token *ident, int storage, Initia
   if (type->kind == TY_ARRAY) {
     if (init != NULL) {
       *ptype = type = fix_array_size(type, init);
-    } else if (type->pa.length == -1 && !(storage & VS_EXTERN)) {
+#ifndef __NO_VLA
+    } else if (type->pa.length == -1 && !(storage & VS_EXTERN) && type->pa.vla == NULL) {
       parse_error(PE_WARNING, ident, "Array size undetermined, assume as one");
       type->pa.length = 1;
+#endif
     }
+#ifndef __NO_VLA
+  } else if (type->kind == TY_PTR && type->pa.vla != NULL) {
+    if (is_global_scope(curscope) || (storage & VS_STATIC)) {
+      parse_error(PE_NOFATAL, ident, "Variable length array cannot use in global scope");
+      init = NULL;
+    } else {
+      if (init != NULL)
+        parse_error(PE_NOFATAL, ident, "Variable length array with initializer");
+
+      // Transform VLA to `alloca(vla * type_size(elem))`.
+      const Token *tok = ident;
+      Vector *params = new_vector();
+      vec_push(params, &tySize);
+      Type *functype = new_func_type(&tyVoidPtr, params, false);
+      Expr *alloca_var = new_expr_variable(alloc_name("alloca", NULL, false), functype, tok,
+                                           global_scope);
+      Expr *size_expr = calc_type_size(type);
+      Vector *args = new_vector();
+      vec_push(args, size_expr);
+      Expr *call_alloca = new_expr_funcall(tok, alloca_var, functype->func.ret, args);
+      init = new_initializer(IK_SINGLE, tok);
+      init->single = make_cast(ptrof(type->pa.ptrof), tok, call_alloca, false);
+    }
+#endif
   }
 
   if (curfunc != NULL) {

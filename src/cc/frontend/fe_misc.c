@@ -182,6 +182,26 @@ void ensure_struct(Type *type, const Token *token, Scope *scope) {
   }
 }
 
+Expr *calc_type_size(const Type *type) {
+#ifndef __NO_VLA
+  Expr *expr = NULL;
+  for (; type != NULL;) {
+    Expr *e = NULL;
+    if (ptr_or_array(type) && type->pa.vla != NULL) {
+      e = type->pa.vla;
+      type = type->pa.ptrof;
+    } else {
+      e = new_expr_fixlit(&tySize, NULL, type_size(type));
+      type = NULL;
+    }
+    expr = expr == NULL ? e : new_expr_num_bop(EX_MUL, NULL, expr, e);
+  }
+  return expr;
+#else
+  return new_expr_fixlit(&tySize, NULL, type_size(type));
+#endif
+}
+
 bool check_cast(const Type *dst, const Type *src, bool zero, bool is_explicit, const Token *token) {
   bool ok = can_cast(dst, src, zero, is_explicit);
   if (!ok || dst->kind == TY_ARRAY) {
@@ -601,7 +621,7 @@ Expr *new_expr_addsub(enum ExprKind kind, const Token *tok, Expr *lhs, Expr *rhs
       ensure_struct(type->pa.ptrof, tok, curscope);
       rhs = new_expr_num_bop(EX_MUL, rhs->token,
                              make_cast(&tySize, rhs->token, rhs, false),
-                             new_expr_fixlit(&tySize, tok, type_size(type->pa.ptrof)));
+                             calc_type_size(type->pa.ptrof));
     } else if (kind == EX_SUB && ptr_or_array(rtype)) {
       if (ltype->kind == TY_ARRAY)
         ltype = array_to_ptr(ltype);

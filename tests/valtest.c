@@ -1895,6 +1895,46 @@ int extern_array_wo_size[] = {11, 22, 33};
 
 //
 
+#if !defined(__NO_VLA) && !defined(__STDC_NO_VLA__)
+TEST(vla) {
+  int n = 3;
+
+  {
+    int arr[n];
+    EXPECT("vla size", n * sizeof(int), sizeof(arr));
+    for (int i = 0; i < n; ++i)
+      arr[i] = (i + 1) * (i + 1);
+    int total = 0;
+    for (int i = 0; i < n; ++i)
+      total += arr[i];
+    EXPECT("vla", 14, total);
+  }
+
+  {
+    typedef long ARR[n];
+    EXPECT("vla size", n * sizeof(long), sizeof(ARR));
+  }
+
+  {
+    typedef short ARR2[n][n];
+    ARR2 arr2;
+    EXPECT("vla[][] size", n * n * sizeof(short), sizeof(arr2));
+    for (int i = 0; i < n; ++i)
+      for (int j = 0; j < n; ++j)
+        arr2[i][j] = i * 10 + j + 1;
+    short total = 0;
+    for (int i = 0; i < n; ++i) {
+      short *p = arr2[i];
+      for (int j = 0; j < n; ++j)
+        total += p[j];
+    }
+    EXPECT("vla[][]", 108, total);
+  }
+} END_TEST()
+#endif
+
+//
+
 int main(void) {
   return RUN_ALL_TESTS(
     test_all,
@@ -1903,5 +1943,8 @@ int main(void) {
     test_bitfield,
     test_initializer,
     test_function,
+#if !defined(__NO_VLA) && !defined(__STDC_NO_VLA__)
+    test_vla,
+#endif
   );
 }

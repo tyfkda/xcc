@@ -64,6 +64,7 @@ Scope *enter_scope(Function *func, Vector *vars);
 void exit_scope(void);
 
 void ensure_struct(Type *type, const Token *token, Scope *scope);
+Expr *calc_type_size(const Type *type);
 bool check_cast(const Type *dst, const Type *src, bool zero, bool is_explicit, const Token *token);
 Expr *make_cast(Type *type, const Token *token, Expr *sub, bool is_explicit);
 const MemberInfo *search_from_anonymous(const Type *type, const Name *name, const Token *ident,

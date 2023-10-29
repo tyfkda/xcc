@@ -192,6 +192,9 @@ size_t type_size(const Type *type) {
   case TY_PTR:
     return fixnum_size_table[FX_LONG];
   case TY_ARRAY:
+#ifndef __NO_VLA
+    assert(type->pa.vla == NULL);
+#endif
     assert(type->pa.length >= 0);
     return type_size(type->pa.ptrof) * type->pa.length;
   case TY_STRUCT:
@@ -264,12 +267,11 @@ Type *ptrof(Type *type) {
   ptr->kind = TY_PTR;
   ptr->qualifier = 0;
   ptr->pa.ptrof = type;
+  ptr->pa.length = 0;
+#ifndef __NO_VLA
+  ptr->pa.vla = NULL;
+#endif
   return ptr;
-}
-
-Type *array_to_ptr(Type *type) {
-  assert(type->kind == TY_ARRAY);
-  return ptrof(type->pa.ptrof);
 }
 
 Type *arrayof(Type *type, ssize_t length) {
@@ -278,7 +280,15 @@ Type *arrayof(Type *type, ssize_t length) {
   arr->qualifier = 0;
   arr->pa.ptrof = type;
   arr->pa.length = length;
+#ifndef __NO_VLA
+  arr->pa.vla = NULL;
+#endif
   return arr;
+}
+
+Type *array_to_ptr(Type *type) {
+  assert(type->kind == TY_ARRAY);
+  return ptrof(type->pa.ptrof);
 }
 
 Type *new_func_type(Type *ret, const Vector *types, bool vaargs) {

@@ -253,7 +253,6 @@ int main(int argc, char *argv[]) {
   Vector *cpp_cmd = new_vector();
   vec_push(cpp_cmd, cpp_path);
   vec_push(cpp_cmd, "-D__LP64__");  // Memory model.
-  vec_push(cpp_cmd, "-D__STDC_NO_VLA__");
 #if defined(__aarch64__)
   vec_push(cpp_cmd, "-D__aarch64__");
 #elif defined(__x86_64__)

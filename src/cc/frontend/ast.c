@@ -88,6 +88,7 @@ Expr *new_expr_str(const Token *token, const char *str, ssize_t size) {
   type->qualifier = TQ_CONST;
   type->pa.ptrof = get_fixnum_type(FX_CHAR, false, TQ_CONST);
   type->pa.length = size;
+  type->pa.vla = NULL;
 
   Expr *expr = new_expr(EX_STR, type, token);
   expr->str.buf = str;

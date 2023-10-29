@@ -266,7 +266,7 @@ test_error() {
   compile_error 'param and first scope' 'void main(int x){ int x; }'
   compile_error 'conflict typedef' 'typedef int Foo; typedef long Foo; void main(){}'
   compile_error 'conflict struct typedef' 'typedef struct{int x;} Foo; typedef struct{int x;} Foo; void main(){}'
-  compile_error 'no VLA' 'void main(int x){ int array[x]; }'
+  compile_error 'no VLA in global' "#ifndef __NO_VLA\nint n = 3; int array[n];\n#else\n#error no VLA\n#endif\n void main(){}"
   compile_error 'negative array' "void main(){ int array[-1]; }"
   compile_error 'size unknown' 'extern char string[]; int main(){ return sizeof(string); } char string[] = "Hello";'
   compile_error 'scoped typedef' 'void sub(){typedef int T;} T g=123; int main(){return g;}'
