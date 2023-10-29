@@ -308,6 +308,36 @@ static unsigned char *asm_movbwlq_imi(Inst *inst, Code *code) {
   return p;
 }
 
+static unsigned char *asm_movbwlq_imd(Inst *inst, Code *code) {
+  assert(inst->dst.direct.expr->kind == EX_FIXNUM);
+  int64_t dst = inst->dst.direct.expr->fixnum;
+  assert(is_im32(dst));
+
+  short buf[] = {
+    inst->op == MOVW ? 0x66 : -1,
+    inst->op == MOVQ ? 0x48 : -1,
+    0xc6 | (inst->op == MOVB ? 0 : 1),
+    0x04, 0x25,
+  };
+
+  unsigned char *p = code->buf;
+  p = put_code_filtered(p, buf, ARRAY_SIZE(buf));
+  PUT_CODE(p, IM32(dst));
+  p += 4;
+
+  long value = inst->src.immediate;
+  switch (inst->op) {
+  case MOVB: *p++ = IM8(value); break;
+  case MOVW: PUT_CODE(p, IM16(value)); p += 2; break;
+  case MOVL: case MOVQ:
+    PUT_CODE(p, IM32(value));
+    p += 4;
+    break;
+  default: assert(false); break;
+  }
+  return p;
+}
+
 static unsigned char *asm_movszx_rr(Inst *inst, Code *code) {
   int s = inst->src.reg.no;
   int d = inst->dst.reg.no;
@@ -1445,6 +1475,7 @@ typedef struct {
 
 static const AsmInstTable table_movbwlq[] ={
     {asm_movbwlq_imi, IMMEDIATE, INDIRECT},
+    {asm_movbwlq_imd, IMMEDIATE, DIRECT},
     {NULL} };
 
 static const AsmInstTable table_movszx[] ={

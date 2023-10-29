@@ -101,6 +101,7 @@ test_basic() {
   try_direct 'variable definition overwrite' 123 'int x; int x = 123; int main(void) {return x;}'
   compile_error 'variable definition conflict' 123 'int x = 0; int x = 123; int main(void) {return x;}'
   compile_error 'int main(void) {int a[3][2] = {11,22,33,44,55,66}; struct { int a[3][2]; } s; s = a; return s.a[1][1]; } //-WNOERR'
+  try_direct 'direct addressing' 99 'int main(int argc) {if (argc < 0) { *(volatile short*)0x12 = 0x34; return *(volatile int*)0x5678; } return 99;}'
 
   end_test_suite
 }

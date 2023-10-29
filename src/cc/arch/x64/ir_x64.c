@@ -128,12 +128,16 @@ static void ei_sofs(IR *ir) {
 
 #define ei_load_s  ei_load
 static void ei_load(IR *ir) {
-  assert(!(ir->opr1->flag & VRF_CONST));
   const char *src;
   if (ir->kind == IR_LOAD) {
-    assert(!(ir->opr1->flag & VRF_SPILLED));
-    src = INDIRECT(kReg64s[ir->opr1->phys], NULL, 1);
+    if (ir->opr1->flag & VRF_CONST) {
+      src = fmt("0x%x", ir->opr1->fixnum);
+    } else {
+      assert(!(ir->opr1->flag & VRF_SPILLED));
+      src = INDIRECT(kReg64s[ir->opr1->phys], NULL, 1);
+    }
   } else {
+    assert(!(ir->opr1->flag & VRF_CONST));
     assert(ir->opr1->flag & VRF_SPILLED);
     src = OFFSET_INDIRECT(ir->opr1->frame.offset, RBP, NULL, 1);
   }
@@ -154,12 +158,16 @@ static void ei_load(IR *ir) {
 
 #define ei_store_s  ei_store
 static void ei_store(IR *ir) {
-  assert(!(ir->opr2->flag & VRF_CONST));
   const char *target;
   if (ir->kind == IR_STORE) {
-    assert(!(ir->opr2->flag & VRF_SPILLED));
-    target = INDIRECT(kReg64s[ir->opr2->phys], NULL, 1);
+    if (ir->opr2->flag & VRF_CONST) {
+      target = fmt("0x%x", ir->opr2->fixnum);
+    } else {
+      assert(!(ir->opr2->flag & VRF_SPILLED));
+      target = INDIRECT(kReg64s[ir->opr2->phys], NULL, 1);
+    }
   } else {
+    assert(!(ir->opr2->flag & VRF_CONST));
     assert(ir->opr2->flag & VRF_SPILLED);
     target = OFFSET_INDIRECT(ir->opr2->frame.offset, RBP, NULL, 1);
   }

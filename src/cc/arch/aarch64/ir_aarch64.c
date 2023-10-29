@@ -912,6 +912,16 @@ void tweak_irs(FuncBackend *fnbe) {
     for (int j = 0; j < irs->len; ++j) {
       IR *ir = irs->data[j];
       switch (ir->kind) {
+      case IR_LOAD:
+        if (ir->opr1->flag & VRF_CONST) {
+          insert_const_mov(&ir->opr1, ra, irs, j++);
+        }
+        break;
+      case IR_STORE:
+        if (ir->opr2->flag & VRF_CONST) {
+          insert_const_mov(&ir->opr2, ra, irs, j++);
+        }
+        break;
       case IR_ADD:
         assert(!(ir->opr1->flag & VRF_CONST) || !(ir->opr2->flag & VRF_CONST));
         if (ir->opr1->flag & VRF_CONST)

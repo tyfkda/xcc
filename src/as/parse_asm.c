@@ -894,7 +894,7 @@ static bool parse_operand(ParseInfo *info, Operand *operand) {
   info->p = skip_whitespaces(info->p);
   if (*info->p != '(') {
     if (expr != NULL) {
-      if (expr->kind == EX_LABEL) {
+      if (expr->kind == EX_LABEL || expr->kind == EX_FIXNUM) {
         operand->type = DIRECT;
         operand->direct.expr = expr;
         return true;
