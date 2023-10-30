@@ -855,11 +855,13 @@ Initializer *check_vardecl(Type **ptype, const Token *ident, int storage, Initia
   if (type->kind == TY_ARRAY) {
     if (init != NULL) {
       *ptype = type = fix_array_size(type, init);
+    } else if (type->pa.length == -1 && !(storage & VS_EXTERN)
 #ifndef __NO_VLA
-    } else if (type->pa.length == -1 && !(storage & VS_EXTERN) && type->pa.vla == NULL) {
+               && type->pa.vla == NULL
+#endif
+              ) {
       parse_error(PE_WARNING, ident, "Array size undetermined, assume as one");
       type->pa.length = 1;
-#endif
     }
 #ifndef __NO_VLA
   } else if (type->kind == TY_PTR && type->pa.vla != NULL) {
