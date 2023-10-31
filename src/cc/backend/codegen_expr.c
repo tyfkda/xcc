@@ -605,15 +605,7 @@ static VReg *gen_block_expr(Expr *expr) {
 }
 
 static VReg *gen_fixnum(Expr *expr) {
-  VReg *vreg = new_const_vreg(expr->fixnum, to_vsize(expr->type), to_vflag(expr->type));
-  if (!is_im32(expr->fixnum)) {
-    // Large constant value is not allowed in x86,
-    // so use mov instruction.
-    VReg *tmp = add_new_vreg(expr->type, 0);
-    new_ir_mov(tmp, vreg);
-    vreg = tmp;
-  }
-  return vreg;
+  return new_const_vreg(expr->fixnum, to_vsize(expr->type), to_vflag(expr->type));
 }
 
 static VReg *gen_flonum(Expr *expr) {

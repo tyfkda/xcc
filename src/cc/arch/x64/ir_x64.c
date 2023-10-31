@@ -1054,6 +1054,16 @@ void tweak_irs(FuncBackend *fnbe) {
     Vector *irs = bb->irs;
     for (int j = 0; j < irs->len; ++j) {
       IR *ir = irs->data[j];
+
+      if (ir->kind != IR_MOV) {
+        VReg **vregs[] = {&ir->opr1, &ir->opr2};
+        for (int k = 0; k < 2; ++k) {
+          VReg **pp = vregs[k], *vreg = *pp;
+          if (vreg != NULL && vreg->flag & VRF_CONST && !is_im32(vreg->fixnum))
+            insert_const_mov(pp, ra, irs, j++);
+        }
+      }
+
       switch (ir->kind) {
       case IR_MUL:
       case IR_DIV:
