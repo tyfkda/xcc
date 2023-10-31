@@ -644,6 +644,8 @@ static void gen_flonum(Expr *expr, bool needval) {
     }
   }
 #else
+  UNUSED(expr);
+  UNUSED(needval);
   assert(false);
 #endif
 }

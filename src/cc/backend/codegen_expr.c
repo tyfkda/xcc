@@ -582,8 +582,16 @@ VReg *gen_arith(enum ExprKind kind, const Type *type, VReg *lhs, VReg *rhs) {
   return new_ir_bop(kind + (IR_ADD - EX_ADD), lhs, rhs, to_vsize(type));
 }
 
+static VReg *gen_block_expr(Expr *expr) {
+  return gen_block(expr->block);
+}
+
+static VReg *gen_fixnum(Expr *expr) {
+  return new_const_vreg(expr->fixnum, to_vsize(expr->type), to_vflag(expr->type));
+}
+
+static VReg *gen_flonum(Expr *expr) {
 #ifndef __NO_FLONUM
-VReg *gen_const_flonum(Expr *expr) {
   assert(expr->type->kind == TY_FLONUM);
   Initializer *init = new_initializer(IK_SINGLE, expr->token);
   init->single = expr;
@@ -597,21 +605,8 @@ VReg *gen_const_flonum(Expr *expr) {
 
   VReg *src = new_ir_iofs(gvarinfo->name, false);
   return new_ir_unary(IR_LOAD, src, to_vsize(type), to_vflag(type));
-}
-#endif
-
-static VReg *gen_block_expr(Expr *expr) {
-  return gen_block(expr->block);
-}
-
-static VReg *gen_fixnum(Expr *expr) {
-  return new_const_vreg(expr->fixnum, to_vsize(expr->type), to_vflag(expr->type));
-}
-
-static VReg *gen_flonum(Expr *expr) {
-#ifndef __NO_FLONUM
-  return gen_const_flonum(expr);
 #else
+  UNUSED(expr);
   assert(false);
   return NULL;
 #endif
@@ -730,7 +725,7 @@ static VReg *gen_expr_incdec(Expr *expr) {
 
   VReg *addend =
 #ifndef __NO_FLONUM
-      is_flonum(target->type) ? gen_const_flonum(new_expr_flolit(target->type, NULL, 1)) :
+      is_flonum(target->type) ? gen_flonum(new_expr_flolit(target->type, NULL, 1)) :
 #endif
       new_const_vreg(expr->type->kind == TY_PTR ? type_size(expr->type->pa.ptrof) : 1, vsize,
                      val->flag & VRF_MASK);
