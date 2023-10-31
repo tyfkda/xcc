@@ -367,6 +367,11 @@ Type *create_enum_type(const Name *name) {
   return type;
 }
 
+// Compare type for function parameter: Ignore const-ness if the type is value type.
+static bool same_type_func_param(const Type *type1, const Type *type2) {
+  return same_type_without_qualifier(type1, type2, !ptr_or_array(type1));
+}
+
 bool same_type_without_qualifier(const Type *type1, const Type *type2, bool ignore_qualifier) {
   for (;;) {
     if (type1->kind != type2->kind || (!ignore_qualifier && type1->qualifier != type2->qualifier))
@@ -390,7 +395,8 @@ bool same_type_without_qualifier(const Type *type1, const Type *type2, bool igno
       type2 = type2->pa.ptrof;
       continue;
     case TY_FUNC:
-      if (!same_type(type1->func.ret, type2->func.ret) || type1->func.vaargs != type2->func.vaargs)
+      if (!same_type_func_param(type1->func.ret, type2->func.ret) ||
+          type1->func.vaargs != type2->func.vaargs)
         return false;
       if (type1->func.params == NULL && type2->func.params == NULL)
         return true;
@@ -400,7 +406,7 @@ bool same_type_without_qualifier(const Type *type1, const Type *type2, bool igno
       for (int i = 0, len = type1->func.params->len; i < len; ++i) {
         const Type *t1 = type1->func.params->data[i];
         const Type *t2 = type2->func.params->data[i];
-        if (!same_type(t1, t2))
+        if (!same_type_func_param(t1, t2))
           return false;
       }
       return true;
