@@ -784,7 +784,7 @@ int push_callee_save_regs(unsigned long used, unsigned long fused) {
     else
       STR(saves[i], PRE_INDEX(SP, -16));
   }
-  return count + fcount;
+  return ALIGN(count, 2) + ALIGN(fcount, 2);
 }
 
 void pop_callee_save_regs(unsigned long used, unsigned long fused) {
