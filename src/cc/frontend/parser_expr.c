@@ -529,6 +529,15 @@ static Type *parse_direct_declarator_suffix(Type *type) {
     if (match(TK_RBRACKET)) {
       // Arbitrary size.
     } else {
+      // Arrow `arr[static expr]` (C99) (just ignored).
+      for (;;) {
+        const Token *tok = fetch_token();
+        enum TokenKind kind = tok->kind;
+        if (!(kind == TK_STATIC || kind == TK_CONST || kind == TK_VOLATILE || kind == TK_RESTRICT))
+          break;
+        consume(kind, NULL);
+      }
+
       Expr *expr = parse_expr();
       consume(TK_RBRACKET, "`]' expected");
 
