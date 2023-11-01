@@ -27,7 +27,7 @@ void srand(unsigned int seed);
 
 #ifndef __NO_FLONUM
 double atof(const char* p);
-double strtod(const char* /*restrict*/ p, char ** /*restrict*/ pp);
+double strtod(const char* restrict p, char ** restrict pp);
 double drand48(void);                     // [0.0, 1.0)
 double erand48(unsigned short xsubi[3]);  // [0.0, 1.0)
 #endif

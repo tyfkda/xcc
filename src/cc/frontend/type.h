@@ -46,6 +46,7 @@ enum TypeKind {
 enum {
   TQ_CONST = 1 << 0,
   TQ_VOLATILE = 1 << 1,
+  TQ_RESTRICT = 1 << 2,
 };
 
 typedef struct MemberInfo {

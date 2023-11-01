@@ -76,7 +76,7 @@ static double strtod_hex(const char *p, char **pp) {
   return result;
 }
 
-double strtod(const char * /*restrict*/ p, char ** /*restrict*/ pp) {
+double strtod(const char * restrict p, char ** restrict pp) {
   const char *orig = p;
 
   for (; isspace(*p); ++p)

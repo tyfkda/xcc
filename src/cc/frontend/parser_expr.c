@@ -351,6 +351,10 @@ Type *parse_raw_type(int *pstorage) {
       ASSERT_PARSE_ERROR((tc.qualifier & TQ_VOLATILE) == 0, tok, MULTIPLE_QUALIFIER_SPECIFIED);
       tc.qualifier |= TQ_VOLATILE;
       continue;
+    case TK_RESTRICT:
+      ASSERT_PARSE_ERROR((tc.qualifier & TQ_RESTRICT) == 0, tok, MULTIPLE_QUALIFIER_SPECIFIED);
+      tc.qualifier |= TQ_RESTRICT;
+      continue;
     case TK_CHAR:
       ++tc.char_num;
       continue;
@@ -493,6 +497,13 @@ Type *parse_pointer(Type *type) {
         parse_error(PE_NOFATAL, NULL, "multiple `volatile' specified");
       else
         type = qualified_type(type, TQ_VOLATILE);
+      continue;
+    }
+    if (match(TK_RESTRICT)) {
+      if (type->qualifier & TQ_RESTRICT)
+        parse_error(PE_NOFATAL, NULL, "multiple `restrict' specified");
+      else
+        type = qualified_type(type, TQ_RESTRICT);
       continue;
     }
 

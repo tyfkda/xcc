@@ -575,6 +575,8 @@ static void print_ptr_type(FILE *fp, const Type *type) {
     fprintf(fp, " const");
   if (type->qualifier & TQ_VOLATILE)
     fprintf(fp, " volatile");
+  if (type->qualifier & TQ_RESTRICT)
+    fprintf(fp, " restrict");
 }
 
 static void print_nested_ptr_type(FILE *fp, const Type *type) {
@@ -603,6 +605,8 @@ void print_type_recur(FILE *fp, const Type *type, PrintTypeChain *parent) {
       fprintf(fp, "const ");
     if (type->qualifier & TQ_VOLATILE)
       fprintf(fp, "volatile ");
+  if (type->qualifier & TQ_RESTRICT)
+    fprintf(fp, "restrict");
   }
 
   switch (type->kind) {
