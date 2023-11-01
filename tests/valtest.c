@@ -91,7 +91,7 @@ int static_local(void) {
 }
 
 #if !defined(__WASM)
-int oldfuncptr(int(*f)(), int x) {
+int oldfuncptr(int (*f)(), int x) {
   return f(f(x));
 }
 #endif
@@ -663,7 +663,7 @@ TEST(all) {
   EXPECT("intptr_t", 4, sizeof(intptr_t));
 #endif
   EXPECT("sizeof(void)", 1, sizeof(void));
-  EXPECT("sizeof(array)", 3, sizeof(char [3]));
+  EXPECT("sizeof(array)", 3, sizeof(char[3]));
   {
     int x;
     EXPECT("sizeof var", 4, sizeof(x));
@@ -876,9 +876,9 @@ TEST(basic) {
   }
 
   {
-    static char s[4]="abcd";
+    static char s[4] = "abcd";
     EXPECT("non nul-terminated str static", 4, sizeof(s));
-    char l[6]="efghij";
+    char l[6] = "efghij";
     EXPECT("non nul-terminated str local", 6, sizeof(l));
 
     struct S {char str[7];} static ss = {"klmnopq"};
@@ -1001,7 +1001,7 @@ TEST(basic) {
 
   EXPECT_STREQ("strings", "hello world", "hello " "world");
   {
-    const char* const ccc = "foobar";
+    const char *const ccc = "foobar";
     EXPECT_STREQ("const char* const", "foobar", ccc);
   }
 
@@ -1115,7 +1115,7 @@ TTT:;
     EXPECT("ternary ptr:0", 98, *q);
 
     int selector = 0;
-    EXPECT("ternary w/ func", 53, (selector?f27:f53)());
+    EXPECT("ternary w/ func", 53, (selector ? f27 : f53)());
 
     char buf[16] = "";
     selector ? (void)strcpy(buf, "true") : (void)strcpy(buf, "false");
@@ -1325,7 +1325,8 @@ TEST(struct) {
   }
   {
     int dummy[1];
-    LongStruct s; s = return_lstruct();
+    LongStruct s;
+    s = return_lstruct();
     EXPECT("return struct not broken", 222, s.y);
   }
 
@@ -1671,12 +1672,12 @@ TEST(initializer) {
   }
 
   {
-    static const int array[] = {11,22,33};
+    static const int array[] = {11, 22, 33};
     static const int *p = array;
     EXPECT("static ref", 22, p[1]);
   }
   {
-    static int array[] = {10,20,30};
+    static int array[] = {10, 20, 30};
     EXPECT("local static array", 42, sizeof(array) + array[2]);
   }
   {

@@ -52,7 +52,7 @@ void *malloc(size_t nbytes) {
   Header *p, *prevp;
   size_t nunits;
 
-  nunits = (nbytes + sizeof(Header) - 1)/sizeof(Header) + 1;
+  nunits = (nbytes + sizeof(Header) - 1) / sizeof(Header) + 1;
   prevp = freep;
   for (p = prevp->s.ptr; ; prevp = p, p = p->s.ptr) {
     if (p->s.size >= nunits) {

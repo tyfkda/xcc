@@ -181,7 +181,8 @@ static void check_live_interval(BBContainer *bbcon, int vreg_count, LiveInterval
   }
 }
 
-static void occupy_regs(RegAlloc *ra, Vector *actives, unsigned long ioccupy, unsigned long foccupy) {
+static void occupy_regs(RegAlloc *ra, Vector *actives, unsigned long ioccupy,
+                        unsigned long foccupy) {
   for (int k = 0; k < actives->len; ++k) {
     LiveInterval *li = actives->data[k];
     VReg *vreg = ra->vregs->data[li->virt];

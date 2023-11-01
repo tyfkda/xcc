@@ -598,7 +598,7 @@ extern inline int parse_attribute(void) {
     case TK_IDENT:
       {
         static const char kNoreturn[] = "noreturn";
-        if (tok->end - tok->begin == sizeof(kNoreturn) -1 &&
+        if (tok->end - tok->begin == sizeof(kNoreturn) - 1 &&
             memcmp(tok->begin, kNoreturn, sizeof(kNoreturn) - 1) == 0)
           flag |= FUNCF_NORETURN;
       }
@@ -609,7 +609,8 @@ extern inline int parse_attribute(void) {
   return flag;
 }
 
-static Function *define_func(Type *functype, const Token *ident, const Vector *param_vars, int storage, int flag) {
+static Function *define_func(Type *functype, const Token *ident, const Vector *param_vars,
+                             int storage, int flag) {
   Function *func = new_func(functype, ident->ident, functype->func.param_vars, flag);
   func->params = param_vars;
   VarInfo *varinfo = scope_find(global_scope, func->name, NULL);
@@ -706,7 +707,8 @@ static Declaration *parse_global_var_decl(Type *rawtype, int storage, Type *type
         if (ident == NULL) {
           parse_error(PE_NOFATAL, NULL, "ident expected");
         } else {
-          Function *func = define_func(type, ident, type->func.param_vars, storage | VS_EXTERN, attr);
+          Function *func = define_func(type, ident, type->func.param_vars, storage | VS_EXTERN,
+                                       attr);
           VarInfo *varinfo = scope_find(global_scope, ident->ident, NULL);
           assert(varinfo != NULL);
 

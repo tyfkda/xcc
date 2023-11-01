@@ -11,7 +11,8 @@ extern int *ptr;
 extern int sq(int x);
 extern int ref_export(void);
 #ifndef __NO_FLONUM
-extern double many_fargs(double a, double b, double c, double d, double e, double f, double g, double h, double i);
+extern double many_fargs(double a, double b, double c, double d, double e, double f, double g,
+                         double h, double i);
 #endif
 
 int export_var = 9876;

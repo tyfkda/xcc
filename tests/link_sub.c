@@ -14,7 +14,8 @@ int ref_export(void) {
 }
 
 #ifndef __NO_FLONUM
-double many_fargs(double a, double b, double c, double d, double e, double f, double g, double h, double i) {
+double many_fargs(double a, double b, double c, double d, double e, double f, double g, double h,
+                  double i) {
   return h + i;
 }
 #endif

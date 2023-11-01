@@ -10,9 +10,9 @@
 
 #include "arch_config.h"
 #include "ast.h"
+#include "fe_misc.h"  // curfunc, curscope
 #include "ir.h"
 #include "optimize.h"
-#include "fe_misc.h"  // curfunc, curscope
 #include "regalloc.h"
 #include "table.h"
 #include "type.h"

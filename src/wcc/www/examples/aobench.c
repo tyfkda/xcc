@@ -153,7 +153,7 @@ vec ambient_occlusion(const Isect *isect) {
       ray.dir.z = rz;
 
       Isect occIsect;
-      occIsect.t   = HUGE_VAL;
+      occIsect.t = HUGE_VAL;
 
       ray_sphere_intersect(&occIsect, &ray, &spheres[0]);
       ray_sphere_intersect(&occIsect, &ray, &spheres[1]);
@@ -222,7 +222,8 @@ void render(unsigned char *img, int w, int h, int nsubsamples) {
 }
 
 void showGraphicAsText(int width, int height, unsigned char *img) {
-  static const char GRAYSCALE[] = "$@B%8&WM#*oahkbdpqwmZO0QLCJUYXzcvunxrjft/\\|()1{}[]?-_+~<>i!lI;:,\"^`'. ";
+  static const char GRAYSCALE[] =
+      "$@B%8&WM#*oahkbdpqwmZO0QLCJUYXzcvunxrjft/\\|()1{}[]?-_+~<>i!lI;:,\"^`'. ";
   const double S = (sizeof(GRAYSCALE) - 1) / 256.0;
   char *line = alloca(width + 1);
   line[width] = '\0';

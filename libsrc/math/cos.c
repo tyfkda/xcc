@@ -23,7 +23,7 @@ double cos(double x) {
   double xx = x * x;
   x = 1;
   for (int i = 0; i < (int)(sizeof(TABLE) / sizeof(*TABLE)); ++i) {
-     v += x * TABLE[i];
+    v += x * TABLE[i];
     x *= xx;
   }
   return v;

@@ -12,7 +12,8 @@
 
 #include "./xtest.h"
 
-void expect_parse_type(const char *title, const Type *expected, const char *ident_expected, const char *source) {
+void expect_parse_type(const char *title, const Type *expected, const char *ident_expected,
+                       const char *source) {
   begin_test(title);
 
   pid_t pid = fork();

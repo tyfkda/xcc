@@ -142,7 +142,8 @@ static void dump_func_ir(Function *func) {
   }
   for (int i = 0; i < stack_vars->len; ++i) {
     VarInfo *varinfo = stack_vars->data[i];
-    fprintf(fp, "  stack (offset=%4d, size=%zu): %.*s  : ", varinfo->local.frameinfo->offset, type_size(varinfo->type), NAMES(varinfo->name));
+    fprintf(fp, "  stack (offset=%4d, size=%zu): %.*s  : ", varinfo->local.frameinfo->offset,
+            type_size(varinfo->type), NAMES(varinfo->name));
     print_type(fp, varinfo->type);
     fprintf(fp, "\n");
   }
@@ -163,14 +164,16 @@ static void dump_func_ir(Function *func) {
           char regtype = 'R';
           if (vreg->flag & VRF_FLONUM)
             regtype = 'F';
-          fprintf(fp, "  V%3d (flag=%x): live %3d - %3d, => %c%3d", li->virt, vreg->flag, li->start, li->end, regtype, li->phys);
+          fprintf(fp, "  V%3d (flag=%x): live %3d - %3d, => %c%3d", li->virt, vreg->flag, li->start,
+                  li->end, regtype, li->phys);
           if (li->occupied_reg_bit != 0)
             fprintf(fp, ", occupied=%lx", li->occupied_reg_bit);
           fprintf(fp, "\n");
         }
         break;
       case LI_SPILL:
-        fprintf(fp, "  V%3d (flag=%x): live %3d - %3d (spilled, offset=%d)\n", li->virt, vreg->flag, li->start, li->end, vreg->frame.offset);
+        fprintf(fp, "  V%3d (flag=%x): live %3d - %3d (spilled, offset=%d)\n", li->virt, vreg->flag,
+                li->start, li->end, vreg->frame.offset);
         break;
       }
     }

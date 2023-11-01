@@ -244,7 +244,9 @@ Expr *make_cast(Type *type, const Token *token, Expr *sub, bool is_explicit) {
       return sub;
     case EX_FIXNUM:
       if (type->kind == TY_FLONUM) {
-        double flonum = (sub->type->kind != TY_FIXNUM || sub->type->fixnum.is_unsigned) ? (double)(UFixnum)sub->fixnum : (double)sub->fixnum;
+        double flonum = (sub->type->kind != TY_FIXNUM || sub->type->fixnum.is_unsigned)
+                            ? (double)(UFixnum)sub->fixnum
+                            : (double)sub->fixnum;
         return new_expr_flolit(type, sub->token, flonum);
       }
       break;
@@ -368,7 +370,7 @@ static Expr *reduce_refer_deref_add(Expr *expr, Type *subtype, Expr *lhs, Fixnum
     return new_expr_unary(EX_DEREF, expr->type, expr->token,
                           new_expr_bop(EX_ADD, subtype, lhs->token, lhs->bop.lhs,
                                        new_expr_fixlit(lhs->bop.rhs->type, lhs->bop.rhs->token,
-                                                      lhs->bop.rhs->fixnum + rhs)));
+                                                       lhs->bop.rhs->fixnum + rhs)));
   }
   return NULL;
 }
@@ -530,7 +532,8 @@ Expr *new_expr_num_bop(enum ExprKind kind, const Token *tok, Expr *lhs, Expr *rh
     Type *type = lhs->type->fixnum.kind >= rhs->type->fixnum.kind ? lhs->type : rhs->type;
     if (type->fixnum.kind < FX_INT)
       type = &tyInt;
-    return new_expr_fixlit(type, lhs->token, wrap_value(value, type_size(type), type->fixnum.is_unsigned));
+    value = wrap_value(value, type_size(type), type->fixnum.is_unsigned);
+    return new_expr_fixlit(type, lhs->token, value);
   }
 
   if ((kind == EX_DIV || kind == EX_MOD) && is_const(rhs) &&
@@ -753,7 +756,8 @@ Expr *assign_to_bitfield(const Token *tok, Expr *lhs, Expr *rhs, const MemberInf
                                    new_expr_bop(EX_COMMA, vtype, tok, assign, val)));
 }
 
-static Expr *transform_incdec_of_bitfield(enum ExprKind kind, Expr *target, const Token *tok, const MemberInfo *minfo) {
+static Expr *transform_incdec_of_bitfield(enum ExprKind kind, Expr *target, const Token *tok,
+                                          const MemberInfo *minfo) {
   // ++target => (&ptr = &target, src = *ptr, val = ((src + (1 << bitpos)) >> bitpos), *ptr = (src & (mask << bitpos)) | ((val & mask) << bitpos), val)
   // target++ => (&ptr = &target, src = *ptr, val = src >> bitpos, *ptr = (src & (mask << bitpos)) | (((val + 1) & mask) << bitpos), val)
 

@@ -523,7 +523,8 @@ static Expr *check_global_initializer_fixnum(Expr *value, bool *isconst) {
     }
     break;
   case EX_COMPLIT:
-    value->complit.original_init = check_global_initializer(value->type, value->complit.original_init);
+    value->complit.original_init = check_global_initializer(value->type,
+                                                            value->complit.original_init);
     *isconst = value->type->kind == TY_ARRAY;
     break;
   case EX_ADD:

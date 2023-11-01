@@ -57,7 +57,8 @@ int open(const char *fn, int flag, ...) {
       fnlen2 = fnlen - 1;
     }
     uint32_t opened = -1;
-    uint32_t result = path_open(base_fd, dirflags, fn2, fnlen2, oflags, fs_rights_base, fs_rights_inheriting, fdflags, &opened);
+    uint32_t result = path_open(base_fd, dirflags, fn2, fnlen2, oflags, fs_rights_base,
+                                fs_rights_inheriting, fdflags, &opened);
     if (result == 0)
       return opened;
   }

@@ -12,7 +12,6 @@ typedef unsigned long uint64;
 
 typedef uintptr_t uintp;
 
-
 #define ELFMAG0  (0x7f)
 #define ELFMAG1  ('E')
 #define ELFMAG2  ('L')

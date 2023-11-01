@@ -4,8 +4,8 @@
 
 // [0, 1<<31)
 long nrand48(unsigned short xsubi[3]) {
-  #define A  0x5deece66d
-  #define C  0x0b
+#define A  0x5deece66d
+#define C  0x0b
   uint64_t x = xsubi[0] | ((uint64_t)xsubi[1] << 16) | ((uint64_t)xsubi[2] << 32);
   x = x * A + C;
   xsubi[0] = x;

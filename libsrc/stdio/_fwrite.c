@@ -5,7 +5,7 @@
 #define FLUSH(fp)  (fflush(fp) == 0)
 
 ssize_t _fwrite(void *cookie, const char *buf, size_t size) {
-  FILE* fp = cookie;
+  FILE *fp = cookie;
   _finit(fp);
   if (fp->wp >= fp->ws && !FLUSH(fp))
     return EOF;

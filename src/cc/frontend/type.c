@@ -599,8 +599,8 @@ void print_type_recur(FILE *fp, const Type *type, PrintTypeChain *parent) {
       fprintf(fp, "const ");
     if (type->qualifier & TQ_VOLATILE)
       fprintf(fp, "volatile ");
-  if (type->qualifier & TQ_RESTRICT)
-    fprintf(fp, "restrict");
+    if (type->qualifier & TQ_RESTRICT)
+      fprintf(fp, "restrict");
   }
 
   switch (type->kind) {
