@@ -53,7 +53,7 @@ void add_builtin_function(const char *str, Type *type, BuiltinFunctionProc *proc
     scope_add(global_scope, name, type, 0);
 }
 
-static enum ConditionKind swap_cond(enum ConditionKind cond) {
+inline enum ConditionKind swap_cond(enum ConditionKind cond) {
   assert(COND_EQ <= cond && cond <= COND_GT);
   if (cond >= COND_LT)
     cond = (COND_GT + COND_LT) - cond;
@@ -577,7 +577,7 @@ static VReg *gen_funcall(Expr *expr) {
   return result_reg;
 }
 
-VReg *gen_arith(enum ExprKind kind, const Type *type, VReg *lhs, VReg *rhs) {
+static VReg *gen_arith(enum ExprKind kind, const Type *type, VReg *lhs, VReg *rhs) {
   assert(EX_ADD <= kind && kind <= EX_RSHIFT);
   int flag = is_unsigned(type) ? IRF_UNSIGNED : 0;
   return new_ir_bop(kind + (IR_ADD - EX_ADD), lhs, rhs, to_vsize(type), flag);

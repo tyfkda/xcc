@@ -68,7 +68,7 @@ bool is_stack_param(const Type *type);
 GVarInfo *get_gvar_info_from_name(const Name *name);
 GVarInfo *get_gvar_info(Expr *expr);
 int getsert_func_type_index(const Type *type, bool reg);
-int get_func_type_index(const Type *type);
+inline int get_func_type_index(const Type *type)  { return getsert_func_type_index(type, false); }
 uint32_t get_indirect_function_index(const Name *name);
 
 void modify_ast_for_setjmp(int n);

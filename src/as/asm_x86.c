@@ -33,16 +33,16 @@ void make_code(Inst *inst, Code *code, unsigned char *buf, int len) {
   memcpy(code->buf, buf, len);
 }
 
-static char opr_regno(const Reg *reg) {
+inline char opr_regno(const Reg *reg) {
   return reg->no | (reg->x << 3);
 }
 
-static bool opr_reg8(const Reg *reg) {
+inline bool opr_reg8(const Reg *reg) {
   assert(reg->size == REG8);
   return opr_regno(reg) < 4;
 }
 
-static bool assemble_error(const ParseInfo *info, const char *message) {
+inline bool assemble_error(const ParseInfo *info, const char *message) {
   parse_error(info, message);
   return false;
 }

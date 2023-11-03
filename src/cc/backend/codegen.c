@@ -265,7 +265,7 @@ static void gen_clear(const Type *type, VReg *dst) {
   }
 }
 
-static void gen_asm(Stmt *stmt) {
+extern inline void gen_asm(Stmt *stmt) {
   assert(stmt->asm_.str->kind == EX_STR);
   VReg *result = NULL;
   const char *str = stmt->asm_.str->str.buf;
@@ -330,7 +330,7 @@ VReg *gen_block(Stmt *stmt) {
   return result;
 }
 
-static void gen_return(Stmt *stmt) {
+extern inline void gen_return(Stmt *stmt) {
   assert(curfunc != NULL);
   BB *bb = new_bb();
   FuncBackend *fnbe = curfunc->extra;
@@ -356,7 +356,7 @@ static void gen_return(Stmt *stmt) {
   set_curbb(bb);
 }
 
-static void gen_if(Stmt *stmt) {
+extern inline void gen_if(Stmt *stmt) {
   BB *tbb = new_bb();
   BB *fbb = new_bb();
   gen_cond_jmp(stmt->if_.cond, false, fbb);
@@ -510,7 +510,7 @@ static void gen_switch(Stmt *stmt) {
   pop_break_bb(save_break);
 }
 
-static void gen_case(Stmt *stmt) {
+inline void gen_case(Stmt *stmt) {
   set_curbb(stmt->case_.bb);
 }
 
@@ -594,7 +594,7 @@ static void gen_continue(void) {
   set_curbb(bb);
 }
 
-static void gen_goto(Stmt *stmt) {
+extern inline void gen_goto(Stmt *stmt) {
   assert(curfunc->label_table != NULL);
   Stmt *label = table_get(curfunc->label_table, stmt->goto_.label->ident);
   assert(label != NULL);
@@ -602,7 +602,7 @@ static void gen_goto(Stmt *stmt) {
   set_curbb(new_bb());
 }
 
-static void gen_label(Stmt *stmt) {
+extern inline void gen_label(Stmt *stmt) {
   assert(stmt->label.bb != NULL);
   set_curbb(stmt->label.bb);
   gen_stmt(stmt->label.stmt);
@@ -627,7 +627,7 @@ static void gen_vardecl(Vector *decls) {
   }
 }
 
-static void gen_expr_stmt(Expr *expr) {
+extern inline void gen_expr_stmt(Expr *expr) {
   gen_expr(expr);
 }
 
@@ -932,7 +932,7 @@ bool gen_defun(Function *func) {
   return true;
 }
 
-static void gen_defun_after(Function *func) {
+extern inline void gen_defun_after(Function *func) {
   FuncBackend *fnbe = func->extra;
   curfunc = func;
 

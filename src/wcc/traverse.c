@@ -89,9 +89,7 @@ int getsert_func_type_index(const Type *type, bool reg) {
   return -1;
 }
 
-int get_func_type_index(const Type *type) {
-  return getsert_func_type_index(type, false);
-}
+extern int get_func_type_index(const Type *type);
 
 static FuncInfo *register_func_info(const Name *funcname, Function *func, const Type *type,
                                     int flag) {
@@ -602,11 +600,14 @@ static void traverse_stmt(Stmt *stmt) {
     traverse_expr(&stmt->return_.val, true);
     break;
   case ST_BLOCK:
-    if (stmt->block.scope != NULL)
-      curscope = stmt->block.scope;
-    traverse_stmts(stmt->block.stmts);
-    if (stmt->block.scope != NULL)
-      curscope = curscope->parent;
+    {
+      Scope *bak = NULL;
+      if (stmt->block.scope != NULL)
+        curscope = bak = stmt->block.scope;
+      traverse_stmts(stmt->block.stmts);
+      if (bak != NULL)
+        curscope = bak;
+    }
     break;
   case ST_IF:  traverse_if(stmt); break;
   case ST_SWITCH:  traverse_switch(stmt); break;

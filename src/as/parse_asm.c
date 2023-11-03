@@ -241,19 +241,19 @@ void parse_error(const ParseInfo *info, const char *message) {
   err = true;
 }
 
-static bool is_reg8(enum RegType reg) {
+inline bool is_reg8(enum RegType reg) {
   return reg >= AL && reg <= DIL;
 }
 
-static bool is_reg16(enum RegType reg) {
+inline bool is_reg16(enum RegType reg) {
   return reg >= AX && reg <= R15W;
 }
 
-static bool is_reg32(enum RegType reg) {
+inline bool is_reg32(enum RegType reg) {
   return reg >= EAX && reg <= R15D;
 }
 
-static bool is_reg64(enum RegType reg) {
+inline bool is_reg64(enum RegType reg) {
   return reg >= RAX && reg <= R15;
 }
 
@@ -357,11 +357,11 @@ static bool immediate(const char **pp, long *value) {
   return true;
 }
 
-static bool is_label_first_chr(char c) {
+inline bool is_label_first_chr(char c) {
   return isalpha(c) || c == '_' || c == '.';
 }
 
-static bool is_label_chr(char c) {
+inline bool is_label_chr(char c) {
   return is_label_first_chr(c) || isdigit(c);
 }
 
