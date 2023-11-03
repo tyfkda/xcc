@@ -56,6 +56,7 @@
 //#define __NR_open    2
 #define __NR_openat    56
 #define __NR_close   57
+#define __NR_fstat   80
 #define __NR_lseek   62
 #define __NR_brk     214
 //#define __NR_ioctl   16
