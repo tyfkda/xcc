@@ -11,6 +11,9 @@
 
 extern FILEMAN __fileman;
 
+// Make sure inline function is out.
+extern inline int FPUTC(int c, FILE *fp);
+
 static void add_opened(FILE *fp) {
   if (__fileman.length >= __fileman.capacity) {
     int ncapa = __fileman.capacity > 0 ? __fileman.capacity << 1 : INITIAL_CAPACITY;

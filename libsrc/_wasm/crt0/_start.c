@@ -9,7 +9,7 @@ extern FILEMAN __fileman;
 
 char **environ;
 
-static void __flush_all_files(void) {
+inline void __flush_all_files(void) {
   fflush(stdout);
   fflush(stderr);
 

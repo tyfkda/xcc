@@ -6,7 +6,13 @@
 const char *__cwd = ".";
 
 #define MIN(a, b)  ((a) < (b) ? (a) : (b))
-#define GETCWD(dst, siz)  ({size_t _s = strlen(__cwd); size_t _m = MIN(_s + 1, siz); strncpy(dst, __cwd, _m); _m; })
+
+static inline size_t GETCWD(char *dst, size_t siz) {
+  size_t _s = strlen(__cwd);
+  size_t _m = MIN(_s + 1, siz);
+  strncpy(dst, __cwd, _m);
+  return _m;
+}
 
 char *getcwd(char *buffer, size_t size) {
   void *allocated = NULL;

@@ -55,8 +55,8 @@ extern void _finit(FILE *fp);
 
 extern void _remove_opened_file(FILE *fp);
 
-#define FPUTC(c, fp)  ({ \
-  unsigned char _buf = (c); \
-  ssize_t _result = ((fp)->iof->write)((fp), (char*)&_buf, sizeof(_buf)); \
-  _result == sizeof(_buf) ? (int)_buf : EOF; \
-})
+inline int FPUTC(int c, FILE *fp)  {
+  unsigned char _buf = c;
+  ssize_t _result = (fp->iof->write)(fp, (char*)&_buf, sizeof(_buf));
+  return _result == sizeof(_buf) ? (int)_buf : EOF;
+}

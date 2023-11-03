@@ -20,7 +20,7 @@ void _start(void) {
 
 extern FILEMAN __fileman;
 
-static void __flush_all_files(void) {
+inline void __flush_all_files(void) {
   fflush(stdout);
   fflush(stderr);
 
