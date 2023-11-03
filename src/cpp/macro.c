@@ -361,10 +361,21 @@ void macro_expand(Vector *tokens) {
       if (args != NULL) {
         int count = macro->params_len +
                     (macro->vaargs_ident != NULL);  // variadic argument is concatenated.
+#if 0
+        // 必要ない？
+        if (count < args->len) {
+          pp_parse_error(tok, "Too many arguments for macro `%.*s'", NAMES(tok->ident));
+        } else if (count > args->len) {
+          // Allow lesser macro arguments: Fill with empty arguments.
+          for (int i = args->len; i < count; ++i)
+            vec_push(args, new_vector());
+        }
+#else
         if (count != args->len) {
           const char *cmp = args->len > count ? "many" : "few";
           pp_parse_error(tok, "Too %s arguments for macro `%.*s'", cmp, NAMES(tok->ident));
         }
+#endif
 
         assert(next > 0);
         HideSet *hs2 = get_hideset(tokens->data[next - 1]);
