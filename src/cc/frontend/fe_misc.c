@@ -358,16 +358,19 @@ static void check_referable(const Token *tok, Expr *expr, const char *error) {
 
 static Expr *reduce_refer_deref_add(Expr *expr, Type *subtype, Expr *lhs, Fixnum rhs) {
   if (lhs->kind == EX_FIXNUM) {
+fprintf(stderr, "reduce_refer_deref_add, 1\n");
     return new_expr_unary(EX_DEREF, expr->type, expr->token,
                           new_expr_fixlit(subtype, lhs->token, lhs->fixnum + rhs));
   } else if (lhs->kind == EX_DEREF && lhs->unary.sub->kind == EX_FIXNUM) {
+fprintf(stderr, "reduce_refer_deref_add, 2\n");
     // Concat 2 deref.
     Expr *sub = lhs->unary.sub;
     return new_expr_unary(EX_DEREF, expr->type, expr->token,
                           new_expr_fixlit(sub->type, sub->token, sub->fixnum + rhs));
   } else if (lhs->kind == EX_ADD && lhs->bop.rhs->kind == EX_FIXNUM) {
+fprintf(stderr, "reduce_refer_deref_add, 3\n");
     // *(((lhs->lhs) + (lhs->rhs)) + rhs) => *(lhs->lhs + (lhs->rhs + rhs))
-    return new_expr_unary(EX_DEREF, expr->type, expr->token,
+    return new_expr_unary(EX_DEREF, subtype->pa.ptrof, expr->token,
                           new_expr_bop(EX_ADD, subtype, lhs->token, lhs->bop.lhs,
                                        new_expr_fixlit(lhs->bop.rhs->type, lhs->bop.rhs->token,
                                                        lhs->bop.rhs->fixnum + rhs)));
@@ -377,6 +380,7 @@ static Expr *reduce_refer_deref_add(Expr *expr, Type *subtype, Expr *lhs, Fixnum
 
 Expr *reduce_refer(Expr *expr) {
   // target->field => *(target + offset(field))
+fprintf(stderr, "reduce_refer: expr=%d\n", expr->kind);
   switch (expr->kind) {
   case EX_MEMBER:
     {
@@ -403,7 +407,7 @@ Expr *reduce_refer(Expr *expr) {
           // target.field => (&target)->field
           target = new_expr_unary(EX_REF, ptrof(target->type), target->token, target);
         }
-        return new_expr_unary(EX_DEREF, minfo->type, expr->token,
+        return new_expr_unary(EX_DEREF, ptype->pa.ptrof, expr->token,
                               new_expr_bop(EX_ADD, ptype, expr->token, target,
                                            new_expr_fixlit(&tySize, expr->token, minfo->offset)));
       default:
@@ -445,10 +449,17 @@ Expr *reduce_refer(Expr *expr) {
 Expr *make_refer(const Token *tok, Expr *expr) {
   check_referable(tok, expr, "Cannot take reference");
 
+fprintf(stderr, "make_refer: expr=%d, type=%d\n", expr->kind, expr->type->kind);
   expr = reduce_refer(expr);
 
-  if (expr->kind == EX_DEREF)
-    return expr->unary.sub;
+  if (expr->kind == EX_DEREF) {
+    Expr *sub = expr->unary.sub;
+    Type *type = sub->type;
+fprintf(stderr, "make_refer: type=%d\n", type->kind);
+    if (type->kind == TY_ARRAY)
+      sub = make_cast(array_to_ptr(type), sub->token, sub, true);
+    return sub;
+  }
   Expr *e = expr;
   if (e->kind == EX_COMPLIT)
     e = e->complit.var;
@@ -464,7 +475,11 @@ Expr *make_refer(const Token *tok, Expr *expr) {
       }
     }
   }
-  return new_expr_unary(EX_REF, ptrof(expr->type), tok, expr);
+  Type *type = expr->type;
+fprintf(stderr, "make_refer: type=%d\n", type->kind);
+  if (type->kind == TY_ARRAY)
+    type = array_to_ptr(type);
+  return new_expr_unary(EX_REF, ptrof(type), tok, expr);
 }
 
 Expr *promote_to_int(Expr *expr) {
