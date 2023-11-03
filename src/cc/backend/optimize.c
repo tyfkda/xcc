@@ -9,7 +9,7 @@
 #include "table.h"
 #include "util.h"
 
-static enum ConditionKind invert_cond(enum ConditionKind cond) {
+inline enum ConditionKind invert_cond(enum ConditionKind cond) {
   int c = cond & COND_MASK;
   assert(COND_EQ <= c && c <= COND_GT);
   int ic = c <= COND_NE ? (COND_NE + COND_EQ) - c

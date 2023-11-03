@@ -466,6 +466,11 @@ char *sb_join(StringBuffer *sb, const char *separator) {
   return str;
 }
 
+// Make sure inline function is out.
+extern inline void sb_append(StringBuffer *sb, const char *start, const char *end);
+extern inline void sb_prepend(StringBuffer *sb, const char *start, const char *end);
+extern inline char *sb_to_string(StringBuffer *sb);
+
 static const char *escape(int c) {
   switch (c) {
   case '\0': return "\\0";

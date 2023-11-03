@@ -24,7 +24,7 @@ Token *consume(enum TokenKind kind, const char *error) {
   return tok;
 }
 
-static void add_func_label(const Token *tok, Stmt *label) {
+extern inline void add_func_label(const Token *tok, Stmt *label) {
   assert(curfunc != NULL);
   Table *table = curfunc->label_table;
   if (table == NULL) {
@@ -34,14 +34,14 @@ static void add_func_label(const Token *tok, Stmt *label) {
     parse_error(PE_NOFATAL, tok, "Label `%.*s' already defined", NAMES(tok->ident));
 }
 
-static void add_func_goto(Stmt *stmt) {
+extern inline void add_func_goto(Stmt *stmt) {
   assert(curfunc != NULL);
   if (curfunc->gotos == NULL)
     curfunc->gotos = new_vector();
   vec_push(curfunc->gotos, stmt);
 }
 
-static void check_goto_labels(Function *func) {
+extern inline void check_goto_labels(Function *func) {
   Table *label_table = func->label_table;
 
   // Check whether goto label exist.
@@ -264,7 +264,7 @@ static Stmt *parse_switch(const Token *tok) {
   return stmt;
 }
 
-static int find_case(Stmt *swtch, Fixnum v) {
+extern inline int find_case(Stmt *swtch, Fixnum v) {
   Vector *cases = swtch->switch_.cases;
   for (int i = 0, len = cases->len; i < len; ++i) {
     Stmt *c = cases->data[i];
@@ -294,7 +294,7 @@ static Stmt *parse_case(const Token *tok) {
   return stmt;
 }
 
-static Stmt *parse_default(const Token *tok) {
+extern inline Stmt *parse_default(const Token *tok) {
   consume(TK_COLON, "`:' expected");
 
   Stmt *stmt = NULL;
@@ -400,7 +400,7 @@ static Stmt *parse_for(const Token *tok) {
   return new_stmt_block(tok, stmts, scope, NULL);
 }
 
-static Stmt *parse_break_continue(enum StmtKind kind, const Token *tok) {
+extern inline Stmt *parse_break_continue(enum StmtKind kind, const Token *tok) {
   consume(TK_SEMICOL, "`;' expected");
   Stmt *parent = kind == ST_BREAK ? loop_scope.break_ : loop_scope.continu;
   if (parent == NULL) {
@@ -413,7 +413,7 @@ static Stmt *parse_break_continue(enum StmtKind kind, const Token *tok) {
   return stmt;
 }
 
-static Stmt *parse_goto(const Token *tok) {
+extern inline Stmt *parse_goto(const Token *tok) {
   Token *label = consume(TK_IDENT, "label for goto expected");
   consume(TK_SEMICOL, "`;' expected");
 
@@ -458,7 +458,7 @@ static Stmt *parse_return(const Token *tok) {
   return new_stmt_return(tok, val);
 }
 
-static Expr *parse_asm_arg(void) {
+extern inline Expr *parse_asm_arg(void) {
   /*const Token *str =*/ consume(TK_STR, "string literal expected");
   consume(TK_LPAR, "`(' expected");
   Expr *var = parse_expr();
@@ -469,7 +469,7 @@ static Expr *parse_asm_arg(void) {
   return var;
 }
 
-static Stmt *parse_asm(const Token *tok) {
+extern inline Stmt *parse_asm(const Token *tok) {
   consume(TK_LPAR, "`(' expected");
 
   Expr *str = parse_expr();
@@ -570,7 +570,7 @@ static Stmt *parse_stmt(void) {
   return new_stmt_expr(str_to_char_array_var(curscope, val));
 }
 
-static int parse_attribute(void) {
+extern inline int parse_attribute(void) {
   if (consume(TK_LPAR, "`(' expected") == NULL) {
     match(TK_RPAR);
     return 0;
@@ -608,8 +608,6 @@ static int parse_attribute(void) {
   }
   return flag;
 }
-
-static Declaration *parse_global_var_decl(Type *rawtype, int storage, Type *type, Token *ident);
 
 static Function *define_func(Type *functype, const Token *ident, const Vector *param_vars, int storage, int flag) {
   Function *func = new_func(functype, ident->ident, functype->func.param_vars, flag);
