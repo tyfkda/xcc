@@ -1542,7 +1542,7 @@ static uint32_t allocate_local_variables(Function *func, DataStorage *data) {
       if (!is_local_storage(varinfo))
         continue;
 
-      VReg *vreg = calloc(1, sizeof(*vreg));
+      VReg *vreg = calloc_or_die(sizeof(*vreg));
       varinfo->local.vreg = vreg;
       int param_index = -1;
       if (i == 0 && param_count > 0) {

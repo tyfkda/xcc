@@ -4,7 +4,6 @@
 #include <ctype.h>
 #include <stdint.h>  // uintptr_t
 #include <stdio.h>
-#include <stdlib.h>  // malloc, calloc
 #include <string.h>
 #include <strings.h>  // strncasecmp
 #include <unistd.h>
@@ -177,7 +176,7 @@ static int output_obj(const char *ofn, Table *label_table, Vector *unresolved) {
   Elf64_Rela *rela_bufs[SECTION_COUNT];
   for (int i = 0; i < SECTION_COUNT; ++i) {
     int count = rela_counts[i];
-    rela_bufs[i] = count <= 0 ? NULL : calloc(count, sizeof(*rela_bufs[0]));
+    rela_bufs[i] = count <= 0 ? NULL : calloc_or_die(count * sizeof(*rela_bufs[0]));
   }
   memset(rela_counts, 0x00, sizeof(rela_counts));  // Reset count.
 

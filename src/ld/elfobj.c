@@ -2,7 +2,7 @@
 #include "elfobj.h"
 
 #include <assert.h>
-#include <stdlib.h>  // calloc
+#include <stdlib.h>  // free
 #include <string.h>
 
 #include "table.h"
@@ -119,7 +119,7 @@ bool read_elf(ElfObj *elfobj, FILE *fp, const char *fn) {
   }
   elfobj->shdrs = read_all_section_headers(fp, elfobj->start_offset, &elfobj->ehdr);
   if (elfobj->shdrs != NULL) {
-    ElfSectionInfo *section_infos = calloc(elfobj->ehdr.e_shnum, sizeof(*elfobj->section_infos));
+    ElfSectionInfo *section_infos = calloc_or_die(elfobj->ehdr.e_shnum * sizeof(*elfobj->section_infos));
     elfobj->section_infos = section_infos;
     for (unsigned short i = 0; i < elfobj->ehdr.e_shnum; ++i) {
       Elf64_Shdr *shdr = &elfobj->shdrs[i];

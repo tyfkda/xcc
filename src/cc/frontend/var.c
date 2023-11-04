@@ -22,7 +22,7 @@ int var_find(const Vector *vars, const Name *name) {
 
 VarInfo *var_add(Vector *vars, const Name *name, Type *type, int storage) {
   assert(name == NULL || var_find(vars, name) < 0);
-  VarInfo *varinfo = calloc(1, sizeof(*varinfo));
+  VarInfo *varinfo = calloc_or_die(sizeof(*varinfo));
   varinfo->name = name;
   varinfo->type = type;
   varinfo->storage = storage;
@@ -69,7 +69,7 @@ static VarInfo *define_global(const Name *name, Type *type, int storage) {
 // Scope
 
 Scope *new_scope(Scope *parent, Vector *vars) {
-  Scope *scope = calloc(1, sizeof(*scope));
+  Scope *scope = calloc_or_die(sizeof(*scope));
   scope->parent = parent;
   scope->vars = vars;
   return scope;

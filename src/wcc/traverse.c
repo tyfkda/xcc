@@ -95,7 +95,7 @@ static FuncInfo *register_func_info(const Name *funcname, Function *func, const 
                                     int flag) {
   FuncInfo *info;
   if (!table_try_get(&func_info_table, funcname, (void**)&info)) {
-    info = calloc(1, sizeof(*info));
+    info = calloc_or_die(sizeof(*info));
     table_put(&func_info_table, funcname, info);
     info->type_index = (uint32_t)-1;
   }
@@ -140,7 +140,7 @@ static GVarInfo *register_gvar_info(const Name *name, VarInfo *varinfo) {
 #if !defined(NDEBUG)
   assert(!table_try_get(&gvar_info_table, name, NULL));
 #endif
-  GVarInfo *info = calloc(1, sizeof(*info));
+  GVarInfo *info = calloc_or_die(sizeof(*info));
   info->varinfo = varinfo;
   info->is_export = false;
   table_put(&gvar_info_table, name, info);
@@ -638,7 +638,7 @@ static void traverse_defun(Function *func) {
   if (func->scopes == NULL)  // Prototype definition
     return;
 
-  func->extra = calloc(1, sizeof(FuncExtra));
+  func->extra = calloc_or_die(sizeof(FuncExtra));
 
   Type *functype = func->type;
   assert(func->params != NULL);

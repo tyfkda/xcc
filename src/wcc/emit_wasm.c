@@ -2,7 +2,7 @@
 #include "wcc.h"
 
 #include <assert.h>
-#include <stdlib.h>  // calloc, free, qsort
+#include <stdlib.h>  // free, qsort
 #include <stdio.h>
 #include <string.h>
 
@@ -244,7 +244,7 @@ static void construct_initial_value(DataStorage *ds, const Type *type, const Ini
         size_t src_size = e->str.size;
         size_t size = type_size(type);
         if (size > src_size) {
-          unsigned char *buf = calloc(1, size);
+          unsigned char *buf = calloc_or_die(size);
           assert(buf != NULL);
           memcpy(buf, init->single->str.buf, src_size);
           data_append(ds, buf, size);

@@ -68,6 +68,15 @@ void *malloc_or_die(size_t size) {
   return p;
 }
 
+void *calloc_or_die(size_t size) {
+  void *p = calloc(1, size);
+  if (p == NULL) {
+    fprintf(stderr, "memory overflow\n");
+    exit(1);
+  }
+  return p;
+}
+
 void *realloc_or_die(void *ptr, size_t size) {
   void *p = realloc(ptr, size);
   if (p == NULL) {
@@ -339,7 +348,7 @@ void buf_align(Buffer *buf, int align) {
   if (add <= 0)
     return;
 
-  void *zero = calloc(add, 1);
+  void *zero = calloc_or_die(add);
   buf_put(buf, zero, add);
   free(zero);
 
