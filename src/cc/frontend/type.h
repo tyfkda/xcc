@@ -71,6 +71,10 @@ typedef struct StructInfo {
   bool is_flexible;
 } StructInfo;
 
+#define LEN_UND  (-1)  // Indicate array length is not specified (= []).
+#define LEN_FAM  (-2)  // Indicate this array is flexible array member.
+#define LEN_VLA  (-3)  // Indicate this array is variable length array.
+
 typedef struct Type {
   enum TypeKind kind;
   int qualifier;
@@ -87,7 +91,7 @@ typedef struct Type {
     } flonum;
     struct {  // Pointer or array.
       struct Type *ptrof;
-      ssize_t length;  // of array. -1 represents length is not specified (= []).
+      ssize_t length;  // of array. Positive value, or LEN_UND, LEN_FAM or LEN_VLA.
 #ifndef __NO_VLA
       Expr *vla;  // Variable length array.
 #endif

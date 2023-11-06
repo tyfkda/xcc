@@ -258,10 +258,10 @@ static StructInfo *parse_struct(bool is_union) {
         break;
 #endif
       case TY_ARRAY:
-        if (type->pa.length < 0) {
+        if (type->pa.length == LEN_UND) {
           assert(ident != NULL);
           flex_arr_mem = ident;
-          type->pa.length = 0;
+          type->pa.length = LEN_FAM;
         }
         break;
       case TY_STRUCT:
@@ -524,7 +524,7 @@ static Type *parse_direct_declarator_suffix(Type *type) {
   Token *tok;
   if ((tok = match(TK_LBRACKET)) != NULL) {
     static const char kConstIntExpected[] = "constant integer expected";
-    ssize_t length = -1;
+    ssize_t length = LEN_UND;
     Expr *vla = NULL;
     if (match(TK_RBRACKET)) {
       // Arbitrary size.
@@ -576,7 +576,7 @@ static Type *parse_direct_declarator_suffix(Type *type) {
               break;
             default:
               parse_error(PE_NOFATAL, expr->token, kConstIntExpected);
-              length = 0;
+              length = 1;
               break;
             }
             break;
@@ -586,16 +586,17 @@ static Type *parse_direct_declarator_suffix(Type *type) {
       default:
         if (is_fixnum(expr->type->kind)) {
           vla = expr;
+          length = LEN_VLA;
         } else {
           parse_error(PE_NOFATAL, expr->token, kConstIntExpected);
-          length = 0;
+          length = 1;
         }
         break;
       }
 
       if (length < 0 && vla == NULL) {
         parse_error(PE_NOFATAL, expr->token, "Array size must be greater than 0, but %zd", length);
-        length = 0;
+        length = 1;
       }
     }
     const Type *basetype = type;

@@ -195,6 +195,8 @@ size_t type_size(const Type *type) {
 #ifndef __NO_VLA
     assert(type->pa.vla == NULL);
 #endif
+    if (type->pa.length == LEN_FAM)
+      return 0;
     assert(type->pa.length >= 0);
     return type_size(type->pa.ptrof) * type->pa.length;
   case TY_STRUCT:
