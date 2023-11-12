@@ -174,7 +174,8 @@ static PpResult pp_prim(void) {
       (tok = pp_match(TK_UCHARLIT)) != NULL ||
       (tok = pp_match(TK_UINTLIT)) != NULL ||
       (tok = pp_match(TK_ULONGLIT)) != NULL ||
-      (tok = pp_match(TK_ULLONGLIT)) != NULL) {
+      (tok = pp_match(TK_ULLONGLIT)) != NULL ||
+      (tok = pp_match(TK_WCHARLIT)) != NULL) {
     return tok->fixnum;
   }
   //if ((tok = pp_match(TK_STR)) != NULL)

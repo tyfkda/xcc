@@ -538,9 +538,7 @@ const char *read_ident(const char *p_) {
   return (const char*)p;
 }
 
-static Token *read_char(const char **pp) {
-  const char *p = *pp;
-  const char *begin = p++;
+static const char *do_read_char(const char *p, int *result) {
   int c = *(unsigned char*)p;
   if (c == '\'')
     lex_error(p, "Empty character");
@@ -551,11 +549,49 @@ static Token *read_char(const char **pp) {
     else
       c = backslash(c, &p);
   }
-  if (*(++p) != '\'')
+#ifndef __NO_WCHAR
+  else {
+    int ucc = isutf8first(c);
+    if (ucc > 0) {
+      c &= ((1 << (8 - ucc)) - 1);
+      for (int i = 1; i < ucc; ++i) {
+        int c2 = *(unsigned char*)(++p);
+        if (!isutf8follow(c2)) {
+          lex_error(p, "Illegal byte sequence");
+        }
+        c = (c << 6) | (c2 & 0x3f);
+      }
+    }
+  }
+#endif
+  *result = c;
+  return p + 1;
+}
+
+static Token *read_char(const char **pp) {
+  const char *p = *pp;
+  const char *begin = p++;
+#ifndef __NO_WCHAR
+  bool is_wide = false;
+  if (*begin == 'L') {
+    is_wide = true;
+    assert(*p == '\'');
+    ++p;
+  }
+#endif
+
+  int c;
+  p = do_read_char(p, &c);
+  if (*p != '\'')
     lex_error(p, "Character not closed");
 
   ++p;
-  Token *tok = alloc_token(TK_CHARLIT, lexer.line, begin, p);
+  enum TokenKind kind = TK_CHARLIT;
+#ifndef __NO_WCHAR
+  if (is_wide)
+    kind = TK_WCHARLIT;
+#endif
+  Token *tok = alloc_token(kind, lexer.line, begin, p);
   tok->fixnum = c;
   *pp = p;
   return tok;
@@ -662,14 +698,15 @@ static Token *get_token(void) {
   }
 
   Token *tok = NULL;
-  const char *begin = p;
-  const char *ident_end = read_ident(p);
-  if (ident_end != NULL) {
-    const Name *name = alloc_name(begin, ident_end, false);
-    enum TokenKind kind = reserved_word(name);
-    tok = kind != TK_EOF ? alloc_token(kind, lexer.line, begin, ident_end)
-                         : alloc_ident(name, lexer.line, begin, ident_end);
-    p = ident_end;
+#ifndef __NO_WCHAR
+  if (*p == 'L' && p[1] == '\'') {
+    tok = read_char(&p);
+  } else
+#endif
+  if (*p == '\'') {
+    tok = read_char(&p);
+  } else if (*p == '"') {
+    tok = read_string(&p);
   } else if (isdigit(*p)) {
     tok = read_num(&p);
 #ifndef __NO_FLONUM
@@ -678,23 +715,29 @@ static Token *get_token(void) {
 #endif
   } else if ((tok = get_op_token(&p)) != NULL) {
     // Ok.
-  } else if (*p == '\'') {
-    tok = read_char(&p);
-  } else if (*p == '"') {
-    tok = read_string(&p);
   } else {
-    if (!for_preprocess) {
-      lex_error(p, "Unexpected character `%c'(%d)", *p, *p);
-    }
+    const char *begin = p;
+    const char *ident_end = read_ident(p);
+    if (ident_end != NULL) {
+      const Name *name = alloc_name(begin, ident_end, false);
+      enum TokenKind kind = reserved_word(name);
+      tok = kind != TK_EOF ? alloc_token(kind, lexer.line, begin, ident_end)
+                          : alloc_ident(name, lexer.line, begin, ident_end);
+      p = ident_end;
+    } else {
+      if (!for_preprocess) {
+        lex_error(p, "Unexpected character `%c'(%d)", *p, *p);
+      }
 
-    assert(*p != '\0');
-    const char *q = p + 1;
-    if (isutf8first(*p)) {
-      for (; isutf8follow(*q); ++q)
-        ;
+      assert(*p != '\0');
+      const char *q = p + 1;
+      if (isutf8first(*p)) {
+        for (; isutf8follow(*q); ++q)
+          ;
+      }
+      tok = alloc_token(PPTK_OTHERCHAR, lexer.line, p, q);
+      p = q;
     }
-    tok = alloc_token(PPTK_OTHERCHAR, lexer.line, p, q);
-    p = q;
   }
 
   assert(tok != NULL);

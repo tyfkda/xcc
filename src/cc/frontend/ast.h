@@ -68,6 +68,7 @@ enum TokenKind {
   TK_UCHARLIT,       // unsigned char literal
   TK_ULONGLIT,       // unsigned long literal
   TK_ULLONGLIT,      // unsigned long long literal
+  TK_WCHARLIT,       // wide-char literal
   TK_FLOAT,
   TK_FLOATLIT,       // float literal
   TK_DOUBLE,

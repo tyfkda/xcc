@@ -122,6 +122,9 @@ TEST(all) {
   EXPECT("escape sequence octal", 28, '\034');
   EXPECT("escape sequence hex", 27, '\x1b');
   EXPECT("escape char in str", 19, "\023"[0]);
+#ifndef __NO_WCHAR
+  EXPECT("wide character", 0x1f600, L'😀');
+#endif
   EXPECT("+-", 21, (x=5, x+20-4));
   EXPECT("*+", 47, (x=6, 5+x*7));
   EXPECT("()", 15, (x=9, 5*(x-6)));

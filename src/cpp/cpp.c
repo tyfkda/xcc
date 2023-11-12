@@ -28,6 +28,9 @@ int main(int argc, char *argv[]) {
   define_macro("__NO_VLA");
   define_macro("__STDC_NO_VLA__");
 #endif
+#if defined(__NO_WCHAR)
+  define_macro("__NO_WCHAR");
+#endif
 
   enum {
     OPT_ISYSTEM = 128,

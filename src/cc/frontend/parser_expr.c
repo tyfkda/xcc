@@ -813,6 +813,9 @@ static Expr *parse_prim(void) {
       {TK_UINTLIT, FX_INT, true},
       {TK_ULONGLIT, FX_LONG, true},
       {TK_ULLONGLIT, FX_LLONG, true},
+#ifndef __NO_WCHAR
+      {TK_WCHARLIT, FX_INT, true},  // TODO: Must match with target's wchar_t
+#endif
     };
     for (int i = 0, n = sizeof(TABLE) / sizeof(*TABLE); i < n; ++i) {
       if ((tok = match(TABLE[i].tk)) != NULL) {
