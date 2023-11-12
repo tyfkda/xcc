@@ -14,6 +14,7 @@ LIB_DIR:=lib
 # NO_FLONUM:=1
 # NO_BITFIELD:=1
 # NO_VLA:=1
+# NO_WCHAR:=1
 
 ifeq ("$(ARCHTYPE)", "")
   ARCHTYPE:=x64
@@ -43,6 +44,9 @@ CFLAGS+=-D__NO_BITFIELD
 endif
 ifneq ("$(NO_VLA)","")
 CFLAGS+=-D__NO_VLA
+endif
+ifneq ("$(NO_WCHAR)","")
+CFLAGS+=-D__NO_WCHAR
 endif
 
 # For release build:

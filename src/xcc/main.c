@@ -249,7 +249,7 @@ static const char *get_exe_prefix(const char *path) {
   return p;
 }
 
-static char *join_exe_prefix(const char *xccpath, const char *prefix, char *fn) {
+static char *join_exe_prefix(const char *xccpath, const char *prefix, const char *fn) {
   StringBuffer sb;
   sb_init(&sb);
   sb_append(&sb, xccpath, prefix);

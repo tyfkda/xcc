@@ -538,10 +538,8 @@ const char *read_ident(const char *p_) {
   return (const char*)p;
 }
 
-static const char *do_read_char(const char *p, int *result) {
+static const char *read_utf8_char(const char *p, int *result) {
   int c = *(unsigned char*)p;
-  if (c == '\'')
-    lex_error(p, "Empty character");
   if (c == '\\') {
     c = *(unsigned char*)(++p);
     if (c == '\0')
@@ -580,8 +578,11 @@ static Token *read_char(const char **pp) {
   }
 #endif
 
+  if (*p == '\'')
+    lex_error(p, "Empty character");
+
   int c;
-  p = do_read_char(p, &c);
+  p = read_utf8_char(p, &c);
   if (*p != '\'')
     lex_error(p, "Character not closed");
 
@@ -597,20 +598,58 @@ static Token *read_char(const char **pp) {
   return tok;
 }
 
+#ifndef __NO_WCHAR
+static void *convert_str_to_wstr(const char *src, size_t *plen) {
+  // Count characters.
+  size_t len = 0;  // Include '\0'.
+  for (const char *p = src;; ) {
+    int c;
+    p = read_utf8_char(p, &c);
+    ++len;
+    if (c == '\0')
+      break;
+  }
+
+  wchar_t *wstr = malloc_or_die(len * sizeof(*wstr));
+  wchar_t *q = wstr;
+  for (const char *p = src;; ) {
+    int c;
+    p = read_utf8_char(p, &c);
+    *q++ = c;
+    if (c == '\0')
+      break;
+  }
+  *plen = len;
+  return wstr;
+}
+#endif
+
 static Token *read_string(const char **pp) {
   const int ADD = 16;
   const char *p = *pp;
   const char *begin, *end;
   size_t capa = 16, len = 0;
-  char *str = malloc_or_die(capa);
+  char *str = malloc_or_die(capa * sizeof(*str));
+#ifndef __NO_WCHAR
+  bool is_wide = false;
+#endif
   for (;;) {
     begin = p++;  // Skip first '"'
+#ifndef __NO_WCHAR
+  if (*begin == 'L') {
+    is_wide = true;
+    if (*p != '"') {
+      lex_error(p - 1, "`\"' expected");
+    }
+    ++p;
+  }
+#endif
     for (int c; (c = *(unsigned char*)p++) != '"'; ) {
       if (c == '\0')
         lex_error(p - 1, "String not closed");
       if (len + 1 >= capa) {
         capa += ADD;
-        str = realloc_or_die(str, capa);
+        str = realloc_or_die(str, capa * sizeof(*str));
       }
 
       if (c == '\\') {
@@ -629,14 +668,27 @@ static Token *read_string(const char **pp) {
 
     // Continue string literal when next character is '"'
     const char *q = skip_whitespace_or_comment(p);
-    if (q == NULL || (p = q, *q != '"'))
+    if (q == NULL || (p = q, *q != '"'
+#ifndef __NO_WCHAR
+        && !(*q == 'L' && q[1] == '"')
+#endif
+    ))
       break;
   }
   assert(len < capa);
   str[len++] = '\0';
+
+  enum StrKind kind = STR_CHAR;
+#ifndef __NO_WCHAR
+  if (is_wide) {
+    str = convert_str_to_wstr(str, &len);
+    kind = STR_WIDE;
+  }
+#endif
   Token *tok = alloc_token(TK_STR, lexer.line, begin, end);
   tok->str.buf = str;
   tok->str.len = len;
+  tok->str.kind = kind;
   *pp = p;
   return tok;
 }
@@ -701,6 +753,8 @@ static Token *get_token(void) {
 #ifndef __NO_WCHAR
   if (*p == 'L' && p[1] == '\'') {
     tok = read_char(&p);
+  } else if (*p == 'L' && p[1] == '"') {
+    tok = read_string(&p);
   } else
 #endif
   if (*p == '\'') {

@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "ast.h"
 #include "table.h"
 #include "util.h"
 
@@ -242,8 +243,14 @@ bool is_unsigned(const Type *type) {
   return (is_fixnum(type->kind) && type->fixnum.is_unsigned) || type->kind == TY_PTR;
 }
 
-bool is_char_type(const Type *type) {
-  return type->kind == TY_FIXNUM && type->fixnum.kind == FX_CHAR;
+bool is_char_type(const Type *type, /*enum FixnumKind*/int str_kind) {
+  switch ((enum StrKind)str_kind) {
+  case STR_CHAR:
+    return type->kind == TY_FIXNUM && type->fixnum.kind == FX_CHAR;
+  case STR_WIDE:
+    return type->kind == TY_FIXNUM && type->fixnum.kind == FX_INT;
+  }
+  return false;
 }
 
 bool is_void_ptr(const Type *type) {
@@ -285,7 +292,9 @@ Type *arrayof(Type *type, ssize_t length) {
 
 Type *array_to_ptr(Type *type) {
   assert(type->kind == TY_ARRAY);
-  return ptrof(type->pa.ptrof);
+  Type *p = ptrof(type->pa.ptrof);
+  p->qualifier |= type->qualifier & TQ_FORSTRLITERAL;
+  return p;
 }
 
 Type *new_func_type(Type *ret, const Vector *types, bool vaargs) {
@@ -479,9 +488,8 @@ bool can_cast(const Type *dst, const Type *src, bool zero, bool is_explicit) {
       // non-const <- const implicitly.
       if ((src->pa.ptrof->qualifier & TQ_CONST) && !(dst->pa.ptrof->qualifier & TQ_CONST)) {
         // Allow const char to char for string literal, otherwise disallow.
-        // TODO: Allows string literal only.
-        return is_char_type(src->pa.ptrof) &&
-               (is_char_type(dst->pa.ptrof) || dst->pa.ptrof->kind == TY_VOID);
+        return (src->qualifier & TQ_FORSTRLITERAL) &&
+               (is_char_type(dst->pa.ptrof, src->pa.ptrof->fixnum.kind) || dst->pa.ptrof->kind == TY_VOID);
       }
       // void* is interchangable with any pointer type.
       if (dst->pa.ptrof->kind == TY_VOID || src->pa.ptrof->kind == TY_VOID)

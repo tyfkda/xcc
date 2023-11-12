@@ -47,6 +47,7 @@ enum {
   TQ_CONST = 1 << 0,
   TQ_VOLATILE = 1 << 1,
   TQ_RESTRICT = 1 << 2,
+  TQ_FORSTRLITERAL = 1 << 8,
 };
 
 typedef struct MemberInfo {
@@ -138,7 +139,7 @@ inline bool is_flonum(const Type *type)  {
 }
 bool is_number(const Type *type);
 bool is_unsigned(const Type *type);
-bool is_char_type(const Type *type);
+bool is_char_type(const Type *type, /*enum StrKind*/int str_kind);
 bool is_void_ptr(const Type *type);
 bool is_prim_type(const Type *type);
 inline bool ptr_or_array(const Type *type)  { return type->kind == TY_PTR || type->kind == TY_ARRAY; }

@@ -112,7 +112,7 @@ static void expectf32(const char *title, float expected, float actual) {
 #endif
 
 #if !defined(XTEST_NO_EXPECT_NEAR) && !defined(__NO_FLONUM)
-void expect_near(char *title, double expected, double actual) {
+void expect_near(const char *title, double expected, double actual) {
   begin_test(title);
   int ok = 0;
   if (isfinite(actual)) {

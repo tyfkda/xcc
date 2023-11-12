@@ -231,7 +231,7 @@ Expr *make_cast(Type *type, const Token *token, Expr *sub, bool is_explicit) {
   if (same_type(type, sub->type))
     return sub;
 
-  if (is_const(sub) && sub->kind != EX_STR) {
+  if (sub->kind == EX_FIXNUM || sub->kind == EX_FLONUM) {
 #ifndef __NO_FLONUM
     switch (sub->kind) {
     case EX_FLONUM:

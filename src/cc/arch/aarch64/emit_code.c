@@ -263,10 +263,10 @@ static void construct_initial_value(const Type *type, const Initializer *init) {
         construct_initial_value(elem_type, NULL);
       break;
     }
-    if (init->kind == IK_SINGLE && is_char_type(type->pa.ptrof)) {
+    if (init->kind == IK_SINGLE) {
       Expr *e = strip_cast(init->single);
-      if (e->kind == EX_STR) {
-        size_t src_size = e->str.len * type_size(type->pa.ptrof);
+      if (e->kind == EX_STR && is_char_type(type->pa.ptrof, e->str.kind)) {
+        size_t src_size = e->str.len * type_size(e->type->pa.ptrof);
         size_t size = type_size(type);
         if (src_size > size)
           src_size = size;

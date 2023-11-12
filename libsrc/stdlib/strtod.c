@@ -50,7 +50,7 @@ static double strtod_i2(const char *p, const char **pp) {
 
 #define strtod_h(p, pp)  strtoull(p, pp, 16)
 
-static double strtod_hex(const char *p, char **pp) {
+static double strtod_hex(const char *p, const char **pp) {
   double result = strtod_h(p, &p);
   if (*p == '.') {
     const char *q = p + 1;

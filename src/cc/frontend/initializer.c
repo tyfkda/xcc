@@ -23,7 +23,7 @@ Type *fix_array_size(Type *type, Initializer *init) {
     Expr *single = init->single;
     switch (single->kind) {
     case EX_STR:
-      is_str = is_char_type(type->pa.ptrof);
+      is_str = is_char_type(type->pa.ptrof, single->str.kind);
       break;
     case EX_COMPLIT:
       assert(single->type->kind == TY_ARRAY);
@@ -75,7 +75,9 @@ Type *fix_array_size(Type *type, Initializer *init) {
 
 // Returns created global variable info.
 static VarInfo *str_to_char_array(Scope *scope, Type *type, Initializer *init) {
-  assert(type->kind == TY_ARRAY && is_char_type(type->pa.ptrof));
+  assert(init->kind == IK_SINGLE && init->single->kind == EX_STR);
+  assert(type->kind == TY_ARRAY && is_char_type(type->pa.ptrof, init->single->str.kind));
+  type = qualified_type(type, TQ_FORSTRLITERAL);
   const Token *ident = alloc_dummy_ident();
   VarInfo *varinfo = add_var_to_scope(scope, ident, type, VS_STATIC);
   if (is_global_scope(scope))
@@ -135,7 +137,7 @@ static Stmt *init_char_array_by_string(Expr *dst, Initializer *src) {
   assert(src->kind == IK_SINGLE);
   const Expr *str = src->single;
   assert(str->kind == EX_STR);
-  assert(dst->type->kind == TY_ARRAY && is_char_type(dst->type->pa.ptrof));
+  assert(dst->type->kind == TY_ARRAY && is_char_type(dst->type->pa.ptrof, str->str.kind));
 
   ssize_t len = str->str.len;
   ssize_t dstlen = dst->type->pa.length;
@@ -150,7 +152,8 @@ static Stmt *init_char_array_by_string(Expr *dst, Initializer *src) {
   Type *strtype = dst->type;
   VarInfo *varinfo = str_to_char_array(curscope, strtype, src);
   Expr *var = new_expr_variable(varinfo->name, strtype, NULL, curscope);
-  return build_memcpy(dst, var, len);
+  assert(str->type->kind == TY_ARRAY);
+  return build_memcpy(dst, var, len * type_size(str->type->pa.ptrof));
 }
 
 static int compare_desig_start(const void *a, const void *b) {
@@ -356,9 +359,10 @@ static Initializer *flatten_initializer_multi(Type *type, Initializer *init, int
     }
   case TY_ARRAY:
     {
-      if (is_char_type(type->pa.ptrof) && *pindex < init->multi->len) {
+      if (*pindex < init->multi->len) {
         Initializer *elem_init = init->multi->data[*pindex];
-        if (elem_init->kind == IK_SINGLE && elem_init->single->kind == EX_STR) {
+        if (elem_init->kind == IK_SINGLE && elem_init->single->kind == EX_STR &&
+            is_char_type(type->pa.ptrof, elem_init->single->str.kind)) {
           *pindex += 1;
           return elem_init;
         }
@@ -612,9 +616,9 @@ static Initializer *check_global_initializer(Type *type, Initializer *init) {
       }
       break;
     case IK_SINGLE:
-      if (is_char_type(type->pa.ptrof)) {
+      {
         Expr *e = strip_cast(init->single);
-        if (e->kind == EX_STR) {
+        if (e->kind == EX_STR && is_char_type(type->pa.ptrof, e->str.kind)) {
           assert(type->pa.length > 0);
           if ((ssize_t)e->str.len - 1 > type->pa.length) {  // Allow non-nul string.
             parse_error(PE_NOFATAL, init->single->token, "Array size shorter than initializer");
@@ -701,8 +705,8 @@ Vector *assign_initial_value(Expr *expr, Initializer *init, Vector *inits) {
       break;
     case IK_SINGLE:
       // Special handling for string (char[]).
-      if (is_char_type(expr->type->pa.ptrof) &&
-          init->single->kind == EX_STR) {
+      if (init->single->kind == EX_STR &&
+          is_char_type(expr->type->pa.ptrof, init->single->str.kind) ) {
         vec_push(inits, init_char_array_by_string(expr, init));
         break;
       }

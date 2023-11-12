@@ -238,10 +238,10 @@ static void construct_initial_value(DataStorage *ds, const Type *type, const Ini
         construct_initial_value(ds, elem_type, NULL);
       break;
     }
-    if (init->kind == IK_SINGLE && is_char_type(type->pa.ptrof)) {
+    if (init->kind == IK_SINGLE) {
       Expr *e = strip_cast(init->single);
-      if (e->kind == EX_STR) {
-        size_t src_size = e->str.len * type_size(type->pa.ptrof);
+      if (e->kind == EX_STR && is_char_type(type->pa.ptrof, init->single->str.kind)) {
+        size_t src_size = e->str.len * type_size(e->type->pa.ptrof);
         size_t size = type_size(type);
         if (size > src_size) {
           unsigned char *buf = calloc_or_die(size);

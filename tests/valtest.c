@@ -122,9 +122,6 @@ TEST(all) {
   EXPECT("escape sequence octal", 28, '\034');
   EXPECT("escape sequence hex", 27, '\x1b');
   EXPECT("escape char in str", 19, "\023"[0]);
-#ifndef __NO_WCHAR
-  EXPECT("wide character", 0x1f600, L'😀');
-#endif
   EXPECT("+-", 21, (x=5, x+20-4));
   EXPECT("*+", 47, (x=6, 5+x*7));
   EXPECT("()", 15, (x=9, 5*(x-6)));
@@ -853,6 +850,18 @@ TEST(all) {
     EXPECT("64bit literal 3", 0x5678, (x >> 32) & 0xffff);
     EXPECT("64bit literal 4", 0x1234, (x >> 48) & 0xffff);
   }
+
+#ifndef __NO_WCHAR
+  EXPECT("wide character", 0x1f600, L'😀');
+  {
+    static wchar_t ws[] = L"aあ";
+    EXPECT("wide string 1", 3 * 4, sizeof(ws));
+    EXPECT("wide string 1", L'a', ws[0]);
+    EXPECT("wide string 2", L'あ', ws[1]);
+    EXPECT("wide string 3", L'\0', ws[2]);
+  }
+#endif
+
 } END_TEST()
 
 int e_val = 789;

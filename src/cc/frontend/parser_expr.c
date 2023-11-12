@@ -835,13 +835,13 @@ static Expr *parse_prim(void) {
 #endif
 
   if ((tok = match(TK_STR)) != NULL)
-    return new_expr_str(tok, tok->str.buf, tok->str.len);
+    return new_expr_str(tok, tok->str.buf, tok->str.len, tok->str.kind);
 
   if ((tok = match(TK_FUNCNAME)) != NULL) {
     if (curfunc == NULL) {
       parse_error(PE_NOFATAL, tok, "must be inside function");
       static const char nulstr[] = "";
-      return new_expr_str(tok, nulstr, 0);
+      return new_expr_str(tok, nulstr, 0, STR_CHAR);
     }
 
     // Make nul-terminated function name.
@@ -849,7 +849,7 @@ static Expr *parse_prim(void) {
     char *str = malloc_or_die(len + 1);
     memcpy(str, curfunc->name->chars, len);
     str[len] = '\0';
-    return new_expr_str(tok, str, len + 1);
+    return new_expr_str(tok, str, len + 1, STR_CHAR);
   }
 
   Token *ident = consume(TK_IDENT, "Number or Ident or open paren expected");

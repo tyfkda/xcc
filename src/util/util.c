@@ -480,6 +480,12 @@ extern inline void sb_append(StringBuffer *sb, const char *start, const char *en
 extern inline void sb_prepend(StringBuffer *sb, const char *start, const char *end);
 extern inline char *sb_to_string(StringBuffer *sb);
 
+static const char *escape_hex(int c) {
+  char *s = malloc_or_die(5);
+  snprintf(s, 5, "\\x%02x", c & 0xff);
+  return s;
+}
+
 static const char *escape(int c) {
   switch (c) {
   case '\0': return "\\0";
@@ -489,13 +495,8 @@ static const char *escape(int c) {
   case '"': return "\\\"";
   case '\\': return "\\\\";
   default:
-    if (c < 0x20 || c >= 0x7f) {
-      char *s = malloc(5);
-      if (s != NULL) {
-        snprintf(s, 5, "\\x%02x", c & 0xff);
-        return s;
-      }
-    }
+    if (c < 0x20 || c >= 0x7f)
+      return escape_hex(c);
     return NULL;
   }
 }
@@ -503,18 +504,29 @@ static const char *escape(int c) {
 void escape_string(const char *str, size_t size, StringBuffer *sb) {
   const char *s, *p;
   const char *end = str + size;
+  bool hex = false;
   for (s = p = str; p < end; ++p) {
-    const char *e = escape(*p);
-    if (e == NULL)
-      continue;
+    const char *e;
+    if (hex && isxdigit(*p)) {
+      e = escape_hex(*p);
+    } else {
+      e = escape(*p);
+      if (e == NULL) {
+        hex = false;
+        continue;
+      }
+    }
 
     if (p > s)
       sb_append(sb, s, p);
     sb_append(sb, e, NULL);
     s = p + 1;
+    hex = e[1] == 'x';
   }
-  if (p > s)
+  if (p > s) {
+    assert(!hex);
     sb_append(sb, s, p);
+  }
 }
 
 // Optparse

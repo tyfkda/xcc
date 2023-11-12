@@ -82,11 +82,21 @@ Expr *new_expr_flolit(Type *type, const Token *token, double flonum) {
 }
 #endif
 
-Expr *new_expr_str(const Token *token, const char *str, ssize_t len) {
-  Type *type = malloc_or_die(sizeof(*type));
+Expr *new_expr_str(const Token *token, const char *str, ssize_t len, enum StrKind kind) {
+  enum FixnumKind fxkind = FX_CHAR;
+  bool is_unsigned = false;
+#ifndef __NO_WCHAR
+  switch (kind) {
+  case STR_CHAR:  break;
+  case STR_WIDE:  fxkind = FX_INT; is_unsigned = true; break;  // TODO: Match with wchar_t.
+  }
+#endif
+  Type *ctype = get_fixnum_type(fxkind, is_unsigned, TQ_CONST);
+
+  Type *type = calloc_or_die(sizeof(*type));
   type->kind = TY_ARRAY;
-  type->qualifier = TQ_CONST;
-  type->pa.ptrof = get_fixnum_type(FX_CHAR, false, TQ_CONST);
+  type->qualifier = TQ_CONST | TQ_FORSTRLITERAL;
+  type->pa.ptrof = ctype;
   type->pa.length = len;
 #ifndef __NO_VLA
   type->pa.vla = NULL;
@@ -95,6 +105,7 @@ Expr *new_expr_str(const Token *token, const char *str, ssize_t len) {
   Expr *expr = new_expr(EX_STR, type, token);
   expr->str.buf = str;
   expr->str.len = len;
+  expr->str.kind = kind;
   return expr;
 }
 
