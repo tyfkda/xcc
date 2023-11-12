@@ -929,7 +929,9 @@ void tweak_irs(FuncBackend *fnbe) {
         if (ir->opr2->flag & VRF_CONST) {
           if (ir->opr2->fixnum < 0) {
             ir->kind = IR_SUB;
-            ir->opr2->fixnum = -ir->opr2->fixnum;
+            VReg *old = ir->opr2;
+            ir->opr2 = reg_alloc_spawn_const(fnbe->ra, -old->fixnum, old->vsize);
+            ir->opr2->flag = old->flag;
           }
           if (ir->opr2->fixnum > 0x0fff)
             insert_const_mov(&ir->opr2, ra, irs, j++);
@@ -949,7 +951,9 @@ void tweak_irs(FuncBackend *fnbe) {
         if (ir->opr2->flag & VRF_CONST) {
           if (ir->opr2->fixnum < 0) {
             ir->kind = IR_ADD;
-            ir->opr2->fixnum = -ir->opr2->fixnum;
+            VReg *old = ir->opr2;
+            ir->opr2 = reg_alloc_spawn_const(fnbe->ra, -old->fixnum, old->vsize);
+            ir->opr2->flag = old->flag;
           }
           if (ir->opr2->fixnum > 0x0fff)
             insert_const_mov(&ir->opr2, ra, irs, j++);
