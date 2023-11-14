@@ -157,12 +157,6 @@ typedef struct IR {
       bool global;
     } call;
     struct {
-      size_t size;
-    } memcpy;
-    struct {
-      size_t size;
-    } clear;
-    struct {
       const char *str;
     } asm_;
   };
