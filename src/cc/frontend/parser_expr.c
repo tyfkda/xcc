@@ -835,7 +835,7 @@ static Expr *parse_prim(void) {
 #endif
 
   if ((tok = match(TK_STR)) != NULL)
-    return new_expr_str(tok, tok->str.buf, tok->str.size);
+    return new_expr_str(tok, tok->str.buf, tok->str.len);
 
   if ((tok = match(TK_FUNCNAME)) != NULL) {
     if (curfunc == NULL) {

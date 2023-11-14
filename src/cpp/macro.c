@@ -168,7 +168,7 @@ static Token *stringize(const Vector *arg) {
 
   Token *tok = alloc_token(TK_STR, NULL, escaped, NULL);
   tok->str.buf = str + 1;
-  tok->str.size = len + (-2 /*for ""*/ + 1 /*for \0*/);
+  tok->str.len = len + (-2 /*for ""*/ + 1 /*for \0*/);
   return tok;
 }
 

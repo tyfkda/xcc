@@ -45,7 +45,7 @@ Type *fix_array_size(Type *type, Initializer *init) {
 
   if (arr_len == -1) {
     if (is_str) {
-      arr_len = init->single->str.size;
+      arr_len = init->single->str.len;
     } else {
       ssize_t index = 0;
       ssize_t max_index = 0;
@@ -66,7 +66,7 @@ Type *fix_array_size(Type *type, Initializer *init) {
   } else {
     assert(arr_len > 0);
     assert(!is_str || init->single->kind == EX_STR);
-    ssize_t init_len = is_str ? (ssize_t)init->single->str.size : (ssize_t)init->multi->len;
+    ssize_t init_len = is_str ? (ssize_t)init->single->str.len : (ssize_t)init->multi->len;
     if (init_len > arr_len && (!is_str || init_len - 1 > arr_len))  // Allow non-nul string.
       parse_error(PE_NOFATAL, NULL, "Initializer more than array size");
     return type;
@@ -137,20 +137,20 @@ static Stmt *init_char_array_by_string(Expr *dst, Initializer *src) {
   assert(str->kind == EX_STR);
   assert(dst->type->kind == TY_ARRAY && is_char_type(dst->type->pa.ptrof));
 
-  ssize_t size = str->str.size;
-  ssize_t dstsize = dst->type->pa.length;
-  if (dstsize == -1) {
-    dst->type->pa.length = dstsize = size;
+  ssize_t len = str->str.len;
+  ssize_t dstlen = dst->type->pa.length;
+  if (dstlen == -1) {
+    dst->type->pa.length = dstlen = len;
   } else {
-    if (dstsize < size - 1)
-      parse_error(PE_FATAL, NULL, "Buffer is shorter than string: %d for \"%s\"", (int)dstsize,
+    if (dstlen < len - 1)
+      parse_error(PE_FATAL, NULL, "Buffer is shorter than string: %d for \"%s\"", (int)dstlen,
                   str);
   }
 
   Type *strtype = dst->type;
   VarInfo *varinfo = str_to_char_array(curscope, strtype, src);
   Expr *var = new_expr_variable(varinfo->name, strtype, NULL, curscope);
-  return build_memcpy(dst, var, size);
+  return build_memcpy(dst, var, len);
 }
 
 static int compare_desig_start(const void *a, const void *b) {
@@ -616,7 +616,7 @@ static Initializer *check_global_initializer(Type *type, Initializer *init) {
         Expr *e = strip_cast(init->single);
         if (e->kind == EX_STR) {
           assert(type->pa.length > 0);
-          if ((ssize_t)e->str.size - 1 > type->pa.length) {  // Allow non-nul string.
+          if ((ssize_t)e->str.len - 1 > type->pa.length) {  // Allow non-nul string.
             parse_error(PE_NOFATAL, init->single->token, "Array size shorter than initializer");
           }
           break;

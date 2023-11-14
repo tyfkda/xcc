@@ -128,7 +128,7 @@ void dump_expr(FILE *fp, Expr *expr) {
       StringBuffer sb;
       sb_init(&sb);
       sb_append(&sb, "\"", NULL);
-      escape_string(expr->str.buf, expr->str.size, &sb);
+      escape_string(expr->str.buf, expr->str.len, &sb);
       sb_append(&sb, "\"", NULL);
       fputs(sb_to_string(&sb), fp);
     }

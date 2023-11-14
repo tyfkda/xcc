@@ -25,7 +25,7 @@ static bool same_expr(const Expr *expr1, const Expr *expr2) {
   case EX_FIXNUM:
     return expr1->fixnum == expr2->fixnum;
   case EX_STR:
-    return expr1->str.size == expr2->str.size && memcmp(expr1->str.buf, expr2->str.buf, expr1->str.size) == 0;
+    return expr1->str.len == expr2->str.len && memcmp(expr1->str.buf, expr2->str.buf, expr1->str.len) == 0;
   default: assert(false); break;
   }
 }

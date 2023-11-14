@@ -601,14 +601,14 @@ static Token *read_string(const char **pp) {
   const int ADD = 16;
   const char *p = *pp;
   const char *begin, *end;
-  size_t capa = 16, size = 0;
+  size_t capa = 16, len = 0;
   char *str = malloc_or_die(capa);
   for (;;) {
     begin = p++;  // Skip first '"'
     for (int c; (c = *(unsigned char*)p++) != '"'; ) {
       if (c == '\0')
         lex_error(p - 1, "String not closed");
-      if (size + 1 >= capa) {
+      if (len + 1 >= capa) {
         capa += ADD;
         str = realloc_or_die(str, capa);
       }
@@ -620,8 +620,8 @@ static Token *read_string(const char **pp) {
         c = backslash(c, &p);
         ++p;
       }
-      assert(size < capa);
-      str[size++] = c;
+      assert(len < capa);
+      str[len++] = c;
     }
     end = p;
     if (for_preprocess)
@@ -632,11 +632,11 @@ static Token *read_string(const char **pp) {
     if (q == NULL || (p = q, *q != '"'))
       break;
   }
-  assert(size < capa);
-  str[size++] = '\0';
+  assert(len < capa);
+  str[len++] = '\0';
   Token *tok = alloc_token(TK_STR, lexer.line, begin, end);
   tok->str.buf = str;
-  tok->str.size = size;
+  tok->str.len = len;
   *pp = p;
   return tok;
 }

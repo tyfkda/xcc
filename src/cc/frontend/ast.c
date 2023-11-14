@@ -82,19 +82,19 @@ Expr *new_expr_flolit(Type *type, const Token *token, double flonum) {
 }
 #endif
 
-Expr *new_expr_str(const Token *token, const char *str, ssize_t size) {
+Expr *new_expr_str(const Token *token, const char *str, ssize_t len) {
   Type *type = malloc_or_die(sizeof(*type));
   type->kind = TY_ARRAY;
   type->qualifier = TQ_CONST;
   type->pa.ptrof = get_fixnum_type(FX_CHAR, false, TQ_CONST);
-  type->pa.length = size;
+  type->pa.length = len;
 #ifndef __NO_VLA
   type->pa.vla = NULL;
 #endif
 
   Expr *expr = new_expr(EX_STR, type, token);
   expr->str.buf = str;
-  expr->str.size = size;
+  expr->str.len = len;
   return expr;
 }
 
