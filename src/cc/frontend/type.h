@@ -28,6 +28,7 @@ enum FixnumKind {
 enum FlonumKind {
   FL_FLOAT,
   FL_DOUBLE,
+  FL_LDOUBLE,
 };
 
 // Type
@@ -123,7 +124,7 @@ extern Type tySize;
 extern Type tySSize;
 extern Type tyFloat;
 extern Type tyDouble;
-#define tyLDouble  tyDouble
+extern Type tyLDouble;
 
 void set_fixnum_size(enum FixnumKind kind, size_t size, int align);
 size_t type_size(const Type *type);

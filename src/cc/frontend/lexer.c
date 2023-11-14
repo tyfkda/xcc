@@ -425,11 +425,18 @@ static const char *skip_whitespace_or_comment(const char *p) {
 static Token *read_flonum(const char **pp, int base) {
   const char *start = *pp;
   char *next;
-  double val = strtod(start, &next);
+  Flonum val = strtold(start, &next);
   enum TokenKind tk = TK_DOUBLELIT;
-  if (tolower(*next) == 'f') {
+  switch (tolower(*next)) {
+  case 'f':
     tk = TK_FLOATLIT;
     ++next;
+    break;
+  case 'l':
+    tk = TK_LDOUBLELIT;
+    ++next;
+    break;
+  default: break;
   }
   Token *tok = alloc_token(tk, lexer.line, start, next);
   tok->flonum = val;

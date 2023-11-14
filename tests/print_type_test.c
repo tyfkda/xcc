@@ -34,6 +34,7 @@ TEST(print_type) {
 #ifndef __NO_FLONUM
   check_print_type("float", &tyFloat);
   check_print_type("double", &tyDouble);
+  check_print_type("long double", &tyLDouble);
 #endif
   check_print_type("void*", ptrof(&tyVoid));
   check_print_type("int[5]", arrayof(&tyInt, 5));

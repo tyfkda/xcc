@@ -104,8 +104,8 @@ static int sprintsign(FILE *fp, bool negative, bool force, int *porder) {
 #ifndef __NO_FLONUM
 #include "math.h"  // isfinite
 
-static double pow10(int order) {
-  double a = 1, x = 10;
+static long double pow10(int order) {
+  long double a = 1, x = 10;
   for (; order > 0; order >>= 1) {
     if ((order & 1) != 0)
       a *= x;
@@ -114,7 +114,7 @@ static double pow10(int order) {
   return a;
 }
 
-static int printfloat(FILE *fp, double x,
+static int printfloat(FILE *fp, long double x,
                       int order, int suborder, bool sign, bool leftalign, char padding) {
   if (!isfinite(x)) {
     const char *s = isnan(x) ? "nan" : x > 0 ? "inf" : "-inf";
@@ -126,7 +126,7 @@ static int printfloat(FILE *fp, double x,
 
   unsigned long long int_part = x;
   suborder = suborder > 0 ? suborder : 6;
-  double one = pow10(suborder);
+  long double one = pow10(suborder);
   unsigned long long fraction = (x - int_part) * one + 0.5;
   if (fraction >= one) {
     ++int_part;
@@ -138,8 +138,8 @@ static int printfloat(FILE *fp, double x,
   return o;
 }
 
-static int normalize_float(double *px) {
-  double x = *px;
+static int normalize_float(long double *px) {
+  long double x = *px;
   int exp = 0;
   if (x >= 1e6) {
     do {
@@ -157,8 +157,8 @@ static int normalize_float(double *px) {
   return exp;
 }
 
-static int printscientific(FILE *fp, double x, int order, int suborder, bool sign, bool leftalign,
-                           char padding) {
+static int printscientific(FILE *fp, long double x, int order, int suborder, bool sign,
+                           bool leftalign, char padding) {
   if (!isfinite(x)) {
     const char *s = isnan(x) ? "nan" : x > 0 ? "inf" : "-inf";
     return snprintstr(fp, s, order, suborder, leftalign, ' ');
@@ -170,7 +170,7 @@ static int printscientific(FILE *fp, double x, int order, int suborder, bool sig
   int e = normalize_float(&x);
   unsigned long long int_part = x;
   suborder = suborder > 0 ? suborder : 6;
-  double one = pow10(suborder);
+  long double one = pow10(suborder);
   unsigned long long fraction = (x - int_part) * one + 0.5;
   if (fraction >= one) {
     ++int_part;
@@ -359,13 +359,21 @@ int vfprintf(FILE *fp, const char *fmt_, va_list ap) {
 #ifndef __NO_FLONUM
     case 'f':
       {
-        double x = va_arg(ap, double);
+        long double x;
+        switch (nlong) {
+        case 0:  x = va_arg(ap, double); break;
+        default: x = va_arg(ap, long double); break;
+        }
         o += printfloat(fp, x, order, suborder, sign, leftalign, padding);
       }
       break;
     case 'g':
       {
-        double x = va_arg(ap, double);
+        long double x;
+        switch (nlong) {
+        case 0:  x = va_arg(ap, double); break;
+        default: x = va_arg(ap, long double); break;
+        }
         o += printscientific(fp, x, order, suborder, sign, leftalign, padding);
       }
       break;

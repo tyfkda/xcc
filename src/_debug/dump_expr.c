@@ -117,8 +117,11 @@ void dump_expr(FILE *fp, Expr *expr) {
       snprintf(buf, sizeof(buf) - 4, "%g", expr->flonum);
       if (strchr(buf, '.') == NULL)
         strcat(buf, ".0");
-      if (expr->type->flonum.kind == FL_FLOAT)
-        strcat(buf, "f");
+      switch (expr->type->flonum.kind) {
+      case FL_FLOAT:  strcat(buf, "f"); break;
+      case FL_DOUBLE:  break;
+      case FL_LDOUBLE:  strcat(buf, "L"); break;
+      }
       fputs(buf, fp);
     }
     break;

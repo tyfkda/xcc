@@ -244,9 +244,9 @@ Expr *make_cast(Type *type, const Token *token, Expr *sub, bool is_explicit) {
       return sub;
     case EX_FIXNUM:
       if (type->kind == TY_FLONUM) {
-        double flonum = (sub->type->kind != TY_FIXNUM || sub->type->fixnum.is_unsigned)
-                            ? (double)(UFixnum)sub->fixnum
-                            : (double)sub->fixnum;
+        Flonum flonum = (sub->type->kind != TY_FIXNUM || sub->type->fixnum.is_unsigned)
+                            ? (Flonum)(UFixnum)sub->fixnum
+                            : (Flonum)sub->fixnum;
         return new_expr_flolit(type, sub->token, flonum);
       }
       break;
@@ -480,9 +480,9 @@ Expr *new_expr_num_bop(enum ExprKind kind, const Token *tok, Expr *lhs, Expr *rh
       is_const(rhs) && is_number(rhs->type)) {
 #ifndef __NO_FLONUM
     if (is_flonum(lhs->type) || is_flonum(rhs->type)) {
-      double lval = is_flonum(lhs->type) ? lhs->flonum : lhs->fixnum;
-      double rval = is_flonum(rhs->type) ? rhs->flonum : rhs->fixnum;
-      double value;
+      Flonum lval = is_flonum(lhs->type) ? lhs->flonum : lhs->fixnum;
+      Flonum rval = is_flonum(rhs->type) ? rhs->flonum : rhs->fixnum;
+      Flonum value;
       switch (kind) {
       case EX_MUL:     value = lval * rval; break;
       case EX_DIV:     value = lval / rval; break;
@@ -566,9 +566,9 @@ Expr *new_expr_addsub(enum ExprKind kind, const Token *tok, Expr *lhs, Expr *rhs
     if (is_const(lhs) && is_const(rhs)) {
 #ifndef __NO_FLONUM
       if (is_flonum(lhs->type) || is_flonum(rhs->type)) {
-        double lval = is_flonum(lhs->type) ? lhs->flonum : lhs->fixnum;
-        double rval = is_flonum(rhs->type) ? rhs->flonum : rhs->fixnum;
-        double value;
+        Flonum lval = is_flonum(lhs->type) ? lhs->flonum : lhs->fixnum;
+        Flonum rval = is_flonum(rhs->type) ? rhs->flonum : rhs->fixnum;
+        Flonum value;
         switch (kind) {
         case EX_ADD:     value = lval + rval; break;
         case EX_SUB:     value = lval - rval; break;
@@ -894,7 +894,7 @@ Expr *new_expr_cmp(enum ExprKind kind, const Token *tok, Expr *lhs, Expr *rhs) {
     case EX_FLONUM:
       {
         assert(rhs->kind == EX_FLONUM);
-        double l = lhs->flonum, r = rhs->flonum;
+        Flonum l = lhs->flonum, r = rhs->flonum;
         JUDGE(kind, tf, l, r);
       }
       break;

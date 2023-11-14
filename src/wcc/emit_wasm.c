@@ -97,7 +97,7 @@ static void construct_primitive_global(DataStorage *ds, const VarInfo *varinfo) 
 #ifndef __NO_FLONUM
   case TY_FLONUM:
     {
-      double v = 0;
+      Flonum v = 0;
       if (init != NULL) {
         assert(init->kind == IK_SINGLE);
         Expr *expr = init->single;
@@ -191,7 +191,7 @@ static void construct_initial_value(DataStorage *ds, const Type *type, const Ini
   case TY_FLONUM:
 #ifndef __NO_FLONUM
     {
-      double v = 0;
+      Flonum v = 0;
       if (init != NULL) {
         assert(init->kind == IK_SINGLE);
         Expr *expr = init->single;

@@ -22,6 +22,7 @@ Type tySize =          {.kind=TY_FIXNUM, .fixnum={.kind=FX_LONG,  .is_unsigned=t
 Type tySSize =         {.kind=TY_FIXNUM, .fixnum={.kind=FX_LONG,  .is_unsigned=false}};
 Type tyFloat =         {.kind=TY_FLONUM, .flonum={.kind=FL_FLOAT}};
 Type tyDouble =        {.kind=TY_FLONUM, .flonum={.kind=FL_DOUBLE}};
+Type tyLDouble =       {.kind=TY_FLONUM, .flonum={.kind=FL_LDOUBLE}};
 
 #define FIXNUM_TABLE(uns, qual) \
     { \
@@ -45,8 +46,8 @@ static Type kFixnumTypeTable[2][4][FX_LLONG + 1] = {
 size_t fixnum_size_table[]  = {1, 2, 4, 8, 8, 4};
 int    fixnum_align_table[] = {1, 2, 4, 8, 8, 4};
 
-size_t flonum_size_table[]  = {4, 8};
-int    flonum_align_table[] = {4, 8};
+size_t flonum_size_table[]  = {4, 8, 8};
+int    flonum_align_table[] = {4, 8, 8};
 
 void set_fixnum_size(enum FixnumKind kind, size_t size, int align) {
   fixnum_size_table[kind] = size;
@@ -215,7 +216,7 @@ size_t align_size(const Type *type) {
   case TY_FIXNUM:
     return fixnum_align_table[type->fixnum.kind];
   case TY_FLONUM:
-    return flonum_align_table[type->fixnum.kind];
+    return flonum_align_table[type->flonum.kind];
   case TY_PTR:
     return fixnum_align_table[FX_LONG];
   case TY_ARRAY:
@@ -639,6 +640,7 @@ void print_type_recur(FILE *fp, const Type *type, PrintTypeChain *parent) {
     switch (type->flonum.kind) {
     case FL_FLOAT:  fprintf(fp, "float"); break;
     case FL_DOUBLE: fprintf(fp, "double"); break;
+    case FL_LDOUBLE: fprintf(fp, "long double"); break;
     }
     call_print_type_chain(parent, fp);
     break;

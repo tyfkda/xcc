@@ -21,6 +21,14 @@ typedef struct Vector Vector;
 typedef int64_t  Fixnum;
 typedef uint64_t UFixnum;
 
+#ifndef __NO_FLONUM
+#ifdef __XCC
+typedef long double Flonum;
+#else
+typedef double Flonum;  // TODO: long double
+#endif
+#endif
+
 enum StrKind {
   STR_CHAR,
   STR_WIDE,
@@ -78,6 +86,7 @@ enum TokenKind {
   TK_FLOATLIT,       // float literal
   TK_DOUBLE,
   TK_DOUBLELIT,      // double literal
+  TK_LDOUBLELIT,     // long double literal
   TK_STR,            // String literal
   TK_IDENT,          // Identifier
   TK_LSHIFT,         // <<
@@ -161,7 +170,7 @@ typedef struct Token {
     } str;
     Fixnum fixnum;
 #ifndef __NO_FLONUM
-    double flonum;
+    Flonum flonum;
 #endif
   };
 } Token;
@@ -228,7 +237,7 @@ typedef struct Expr {
   union {
     Fixnum fixnum;
 #ifndef __NO_FLONUM
-    double flonum;
+    Flonum flonum;
 #endif
     struct {
       const char *buf;

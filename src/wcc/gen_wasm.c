@@ -97,7 +97,7 @@ static int continue_depth;
 unsigned char to_wtype(const Type *type) {
   switch (type->kind) {
   case TY_FIXNUM: return type_size(type) <= I32_SIZE ? WT_I32 : WT_I64;
-  case TY_FLONUM: return type->flonum.kind == FL_FLOAT ? WT_F32 : WT_F64;
+  case TY_FLONUM: return type->flonum.kind < FL_DOUBLE ? WT_F32 : WT_F64;
   case TY_PTR:
   case TY_ARRAY:
     // Pointer and array is handled as an index of linear memroy.
@@ -166,7 +166,7 @@ static void gen_arith(enum ExprKind kind, const Type *type) {
   bool is_unsigned = is_fixnum(type->kind) && type->fixnum.is_unsigned;
   if (is_flonum(type)) {
     assert(kind < EX_MOD);
-    index = type->flonum.kind != FL_FLOAT ? 3 : 2;
+    index = type->flonum.kind >= FL_DOUBLE ? 3 : 2;
   } else {
     index = type_size(type) > I32_SIZE ? 1 : 0;
   }
@@ -250,7 +250,7 @@ static void gen_cast_to(const Type *dst, Type *src) {
           { OP_I32_TRUNC_F32_U, OP_I32_TRUNC_F64_U, OP_I64_TRUNC_F32_U, OP_I64_TRUNC_F64_U },
         };
         int d = type_size(dst);
-        int index = (d > I32_SIZE ? 2 : 0) + (src->flonum.kind != FL_FLOAT ? 1 : 0);
+        int index = (d > I32_SIZE ? 2 : 0) + (src->flonum.kind >= FL_DOUBLE ? 1 : 0);
         bool du = !is_fixnum(dst->kind) || dst->fixnum.is_unsigned;
         ADD_CODE(OpTable[du][index]);
       }
@@ -267,17 +267,18 @@ static void gen_cast_to(const Type *dst, Type *src) {
           { OP_F32_CONVERT_I32_U, OP_F32_CONVERT_I64_U, OP_F64_CONVERT_I32_U, OP_F64_CONVERT_I64_U },
         };
         int s = type_size(src);
-        int index = (dst->flonum.kind != FL_FLOAT ? 2 : 0) + (s > I32_SIZE ? 1 : 0);
+        int index = (dst->flonum.kind >= FL_DOUBLE ? 2 : 0) + (s > I32_SIZE ? 1 : 0);
         bool su = !is_fixnum(src->kind) || src->fixnum.is_unsigned;
         ADD_CODE(OpTable[su][index]);
       }
       return;
     case TY_FLONUM:
       {
-        if (dst->flonum.kind != src->flonum.kind) {
-          switch (dst->flonum.kind) {
-          case FL_FLOAT:  ADD_CODE(OP_F32_DEMOTE_F64); break;
-          case FL_DOUBLE: ADD_CODE(OP_F64_PROMOTE_F32); break;
+        size_t ss = type_size(src), ds = type_size(dst);
+        if (ss != ds) {
+          switch (ds) {
+          case 4:  ADD_CODE(OP_F32_DEMOTE_F64); break;
+          case 8:  ADD_CODE(OP_F64_PROMOTE_F32); break;
           }
         }
       }
@@ -637,7 +638,7 @@ static void gen_flonum(Expr *expr, bool needval) {
       ADD_CODE(OP_F32_CONST);
       ADD_F32(expr->flonum);
       break;
-    case FL_DOUBLE:
+    case FL_DOUBLE: case FL_LDOUBLE:
       ADD_CODE(OP_F64_CONST);
       ADD_F64(expr->flonum);
       break;
@@ -685,7 +686,7 @@ static void gen_neg(Expr *expr, bool needval) {
         ADD_CODE(OP_F32_CONST);
         ADD_F32(0);
         break;
-      case FL_DOUBLE:
+      case FL_DOUBLE: case FL_LDOUBLE:
         ADD_CODE(OP_F64_CONST);
         ADD_F64(0);
         break;
@@ -1009,7 +1010,7 @@ static void gen_compare_expr(enum ExprKind kind, Expr *lhs, Expr *rhs, bool need
 
   int index = 0;
   if (is_flonum(lhs->type)) {
-    index = lhs->type->flonum.kind != FL_FLOAT ? 5 : 4;
+    index = lhs->type->flonum.kind >= FL_DOUBLE ? 5 : 4;
   } else {
     index = (!is_fixnum(lhs->type->kind) || lhs->type->fixnum.is_unsigned ? 2 : 0) +
             (type_size(lhs->type) > I32_SIZE ? 1 : 0);

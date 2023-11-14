@@ -617,7 +617,7 @@ typedef struct Token {
     const Name *label;
     int64_t fixnum;
 #ifndef __NO_FLONUM
-    double flonum;
+    Flonum flonum;
 #endif
   };
 } Token;
@@ -632,7 +632,7 @@ static Token *new_token(enum TokenKind kind) {
 static Token *read_flonum(ParseInfo *info, int base) {
   const char *start = info->p;
   char *next;
-  double val = strtod(start, &next);
+  Flonum val = strtold(start, &next);
   Token *tok = new_token(TK_FLONUM);
   tok->flonum = val;
   info->next = next;
@@ -1143,7 +1143,7 @@ void handle_directive(ParseInfo *info, enum DirectiveType dir, Vector **section_
         break;
       }
 
-      double value;
+      Flonum value;
       switch (expr->kind) {
       case EX_FIXNUM:  value = expr->fixnum; break;
       case EX_FLONUM:  value = expr->flonum; break;
@@ -1152,13 +1152,19 @@ void handle_directive(ParseInfo *info, enum DirectiveType dir, Vector **section_
         value = -1;
         break;
       }
-      int size = dir == DT_FLOAT ? sizeof(float) : sizeof(double);
+      int size;
+      switch (dir) {
+      case DT_FLOAT:   size = sizeof(float); break;
+      case DT_DOUBLE:  size = sizeof(double); break;
+      default: assert(false); break;
+      }
       unsigned char *buf = malloc_or_die(size);
       if (dir == DT_FLOAT) {
         float fval = value;
         memcpy(buf, (void*)&fval, sizeof(fval));  // TODO: Endian
       } else {
-        memcpy(buf, (void*)&value, sizeof(value));  // TODO: Endian
+        double dval = value;
+        memcpy(buf, (void*)&dval, sizeof(dval));  // TODO: Endian
       }
       vec_push(irs, new_ir_data(buf, size));
     }

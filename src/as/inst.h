@@ -251,6 +251,12 @@ enum ExprKind {
   EX_FLONUM,
 };
 
+#if defined(__XCC)
+typedef long double Flonum;
+#else
+typedef double Flonum;
+#endif
+
 typedef struct Expr {
   enum ExprKind kind;
   union {
@@ -264,7 +270,7 @@ typedef struct Expr {
       struct Expr *sub;
     } unary;
 #ifndef __NO_FLONUM
-    double flonum;
+    Flonum flonum;
 #endif
   };
 } Expr;

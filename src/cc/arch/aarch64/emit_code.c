@@ -150,6 +150,7 @@ static void construct_initial_value(const Type *type, const Initializer *init) {
 #ifndef __NO_FLONUM
     switch (type->flonum.kind) {
     case FL_DOUBLE:
+    case FL_LDOUBLE:  // long-double in XCC is same as double.
       {
         union {double f; uint64_t h;} v;
         v.f = 0;
@@ -439,7 +440,7 @@ static void move_params_to_assigned(Function *func) {
   for (int i = 0; i < fparam_count; ++i) {
     RegParamInfo *p = &fparams[i];
     VReg *vreg = p->vreg;
-    const char *src = (p->type->flonum.kind == FL_DOUBLE ? kFRegParam64s : kFRegParam32s)[p->index];
+    const char *src = (p->type->flonum.kind >= FL_DOUBLE ? kFRegParam64s : kFRegParam32s)[p->index];
     if (vreg->flag & VRF_SPILLED) {
       int offset = vreg->frame.offset;
       assert(offset != 0);
@@ -447,7 +448,7 @@ static void move_params_to_assigned(Function *func) {
       STR(src, IMMEDIATE_OFFSET(FP, offset));
     } else {
       if (p->index != vreg->phys) {
-        const char *dst = (p->type->flonum.kind == FL_DOUBLE ? kFReg64s : kFReg32s)[vreg->phys];
+        const char *dst = (p->type->flonum.kind >= FL_DOUBLE ? kFReg64s : kFReg32s)[vreg->phys];
         FMOV(dst, src);
       }
     }

@@ -444,7 +444,7 @@ Type *parse_raw_type(int *pstorage) {
     if (tc.float_num > 0) {
       type = &tyFloat;
     } else if (tc.double_num > 0) {
-      type = (tc.double_num > 1 ? &tyLDouble : &tyDouble);
+      type = (tc.long_num > 0 ? &tyLDouble : &tyDouble);
     } else {
       enum FixnumKind fk = (tc.char_num > 0)  ? FX_CHAR
                          : (tc.short_num > 0) ? FX_SHORT
@@ -831,6 +831,9 @@ static Expr *parse_prim(void) {
   }
   if ((tok = match(TK_DOUBLELIT)) != NULL) {
     return new_expr_flolit(&tyDouble, tok, tok->flonum);
+  }
+  if ((tok = match(TK_LDOUBLELIT)) != NULL) {
+    return new_expr_flolit(&tyLDouble, tok, tok->flonum);
   }
 #endif
 

@@ -152,6 +152,7 @@ static void construct_initial_value(const Type *type, const Initializer *init) {
 #ifndef __NO_FLONUM
     switch (type->flonum.kind) {
     case FL_DOUBLE:
+    case FL_LDOUBLE:  // long-double in XCC is same as double.
       {
         union {double f; uint64_t h;} v;
         v.f = 0;
@@ -437,14 +438,18 @@ static void move_params_to_assigned(Function *func) {
       const char *dst = OFFSET_INDIRECT(offset, RBP, NULL, 1);
       switch (p->type->flonum.kind) {
       case FL_FLOAT:   MOVSS(src, dst); break;
-      case FL_DOUBLE:  MOVSD(src, dst); break;
+      case FL_DOUBLE: case FL_LDOUBLE:
+        MOVSD(src, dst);
+        break;
       }
     } else {
       if (p->index != vreg->phys) {
         const char *dst = kFReg64s[vreg->phys];
         switch (p->type->flonum.kind) {
         case FL_FLOAT:   MOVSS(src, dst); break;
-        case FL_DOUBLE:  MOVSD(src, dst); break;
+        case FL_DOUBLE: case FL_LDOUBLE:
+          MOVSD(src, dst);
+          break;
         }
       }
     }
