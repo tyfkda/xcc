@@ -523,6 +523,9 @@ Type *parse_pointer(Type *type) {
 static Type *parse_direct_declarator_suffix(Type *type) {
   Token *tok;
   if ((tok = match(TK_LBRACKET)) != NULL) {
+    if (match(TK_RESTRICT))
+      type = qualified_type(type, TQ_RESTRICT);
+
     static const char kConstIntExpected[] = "constant integer expected";
     ssize_t length = LEN_UND;
     Expr *vla = NULL;
