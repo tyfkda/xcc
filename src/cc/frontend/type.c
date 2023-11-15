@@ -380,8 +380,10 @@ extern inline bool same_type_func_param(const Type *type1, const Type *type2) {
 }
 
 bool same_type_without_qualifier(const Type *type1, const Type *type2, bool ignore_qualifier) {
+  const int QMASK = TQ_CONST;
   for (;;) {
-    if (type1->kind != type2->kind || (!ignore_qualifier && type1->qualifier != type2->qualifier))
+    if (type1->kind != type2->kind ||
+        (!ignore_qualifier && (type1->qualifier & QMASK) != (type2->qualifier & QMASK)))
       return false;
 
     switch (type1->kind) {
