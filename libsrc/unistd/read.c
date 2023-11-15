@@ -1,4 +1,3 @@
-#if !defined(__WASM) && !defined(__APPLE__)
 #include "unistd.h"
 #include "errno.h"
 #include "_syscall.h"
@@ -16,4 +15,3 @@ ssize_t read(int fd, void *buf, size_t size) {
   }
   return ret;
 }
-#endif

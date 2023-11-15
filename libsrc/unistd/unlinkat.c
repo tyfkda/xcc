@@ -1,4 +1,3 @@
-#if !defined(__WASM) && !defined(__APPLE__)
 #include "unistd.h"
 #include "_syscall.h"
 
@@ -14,5 +13,4 @@ int unlinkat(int dirfd, const char *pathname, int flags) {
   }
   return ret;
 }
-#endif
 #endif

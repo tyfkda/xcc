@@ -1,4 +1,3 @@
-#if !defined(__WASM) && !defined(__APPLE__)
 #include "unistd.h"
 #include "_syscall.h"
 #include "signal.h"
@@ -11,5 +10,4 @@ long clone3(struct clone_args *cl_args, size_t size) {
   SYSCALL_RET(__NR_clone3, ret);
   return ret;
 }
-#endif
 #endif

@@ -1,4 +1,3 @@
-#if !defined(__WASM) && !defined(__APPLE__)
 #include "unistd.h"
 #include "_syscall.h"
 #include "errno.h"
@@ -13,5 +12,4 @@ int pipe2(int *pipefd, int flag) {
   }
   return ret;
 }
-#endif
 #endif

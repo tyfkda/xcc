@@ -1,4 +1,4 @@
-#if !defined(__WASM) && !defined(__APPLE__)
+#if !defined(__APPLE__)
 #include "sys/wait.h"
 #include "_syscall.h"
 #include "errno.h"

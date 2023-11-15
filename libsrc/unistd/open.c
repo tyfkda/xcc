@@ -1,4 +1,3 @@
-#if !defined(__WASM)
 // #include "fcntl.h"  // Avoid conflicting with prototype definition.
 #include "errno.h"
 #include "sys/stat.h"  // mode_t
@@ -26,6 +25,4 @@ int open(const char *fn, int flag, mode_t mode) {
   extern int openat(int dirfd, const char *fn, int flag, mode_t mode);
   return openat(AT_FDCWD, fn, flag, mode);
 }
-#endif
-
 #endif

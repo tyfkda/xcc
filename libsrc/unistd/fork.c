@@ -1,4 +1,3 @@
-#if !defined(__WASM)
 #include "unistd.h"
 #include "_syscall.h"
 
@@ -18,6 +17,4 @@ pid_t fork(void) {
   };
   return clone3(&cl_args, sizeof(cl_args));
 }
-#endif
-
 #endif

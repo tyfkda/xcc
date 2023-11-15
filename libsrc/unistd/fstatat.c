@@ -1,4 +1,3 @@
-#if !defined(__WASM) && !defined(__APPLE__)
 #include "sys/stat.h"
 #include "_syscall.h"
 
@@ -12,5 +11,4 @@ int fstatat(int fd, const char *pathname, struct stat *buf, int flag) {
   SYSCALL_RET(__NR_newfstatat, ret);
   return ret;
 }
-#endif
 #endif

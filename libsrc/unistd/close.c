@@ -1,4 +1,3 @@
-#if !defined(__WASM) && !defined(__APPLE__)
 #include "unistd.h"
 #include "_syscall.h"
 
@@ -11,4 +10,3 @@ int close(int fd) {
   SYSCALL_RET(__NR_close, ret);
   return ret;
 }
-#endif

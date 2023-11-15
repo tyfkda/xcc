@@ -1,4 +1,3 @@
-#if !defined(__WASM) && !defined(__APPLE__)
 #include "unistd.h"
 #include "_syscall.h"
 
@@ -11,4 +10,3 @@ off_t lseek(int fd, off_t offset, int whence) {
   SYSCALL_RET(__NR_lseek, ret);
   return ret;
 }
-#endif

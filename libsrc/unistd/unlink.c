@@ -1,4 +1,3 @@
-#if !defined(__APPLE__)
 #include "unistd.h"
 #include "errno.h"
 
@@ -24,5 +23,4 @@ int unlink(const char *pathname) {
 int unlink(const char *pathname) {
   return unlinkat(AT_FDCWD, pathname, 0);
 }
-#endif
 #endif

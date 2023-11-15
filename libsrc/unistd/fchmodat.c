@@ -1,4 +1,3 @@
-#if !defined(__WASM) && !defined(__APPLE__)
 #include "sys/stat.h"  // mode_t
 #include "_syscall.h"
 
@@ -8,5 +7,4 @@ int fchmodat(int dirfd, const char *pathname, mode_t mode, int flags) {
   SYSCALL_RET(__NR_fchmodat, ret);
   return ret;
 }
-#endif
 #endif

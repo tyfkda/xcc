@@ -1,4 +1,3 @@
-#if !defined(__WASM) && !defined(__APPLE__)
 // #include "fcntl.h"  // Avoid conflicting with prototype definition.
 // #include "unistd.h"
 #include "errno.h"
@@ -17,6 +16,4 @@ int openat(int dirfd, const char *fn, int flag, mode_t mode) {
   }
   return ret;
 }
-#endif
-
 #endif

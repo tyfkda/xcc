@@ -1,4 +1,3 @@
-#if !defined(__WASM)
 #include "unistd.h"
 #include "_syscall.h"
 #include "errno.h"
@@ -21,5 +20,4 @@ int pipe(int *pipefd) {
 int pipe(int *pipefd) {
   return pipe2(pipefd, 0);
 }
-#endif
 #endif

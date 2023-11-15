@@ -1,4 +1,3 @@
-#if !defined(__WASM) && !defined(__APPLE__)
 #include "sys/stat.h"
 #include "_syscall.h"
 
@@ -17,5 +16,4 @@ int lstat(const char *pathname, struct stat *buf) {
 int stat(const char *pathname, struct stat *buf) {
   return fstatat(AT_FDCWD, pathname, buf, 0);  // TODO: Check flag.
 }
-#endif
 #endif

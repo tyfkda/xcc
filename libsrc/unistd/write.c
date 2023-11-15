@@ -10,8 +10,6 @@ ssize_t write(int fd, const void *str, size_t len) {
         "int $64");
 }
 
-#elif defined(__WASM)
-
 #elif defined(__linux__)
 #include "_syscall.h"
 

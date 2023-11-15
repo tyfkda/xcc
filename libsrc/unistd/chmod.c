@@ -1,4 +1,3 @@
-#if !defined(__WASM)
 #include "sys/stat.h"  // mode_t
 #include "_syscall.h"
 
@@ -19,5 +18,4 @@ int chmod(const char *pathname, mode_t mode) {
 int chmod(const char *pathname, mode_t mode) {
   return fchmodat(AT_FDCWD, pathname, mode, 0);
 }
-#endif
 #endif

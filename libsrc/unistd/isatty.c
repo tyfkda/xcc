@@ -1,4 +1,3 @@
-#if !defined(__WASM)
 #include "unistd.h"
 #include "sys/ioctl.h"  // termio
 
@@ -11,4 +10,3 @@ int isatty(int fd) {
   return fd < 3;
 #endif
 }
-#endif
