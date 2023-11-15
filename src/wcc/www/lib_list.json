@@ -81,6 +81,7 @@
         "./libsrc/misc/tolower.c",
         "./libsrc/misc/toupper.c",
         "./libsrc/stdio/_fclose.c",
+        "./libsrc/stdio/_fflush.c",
         "./libsrc/stdio/_finit.c",
         "./libsrc/stdio/_fread.c",
         "./libsrc/stdio/_fseek.c",

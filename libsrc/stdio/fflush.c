@@ -1,5 +1,7 @@
 #include "stdio.h"
 
+#include "./_file.h"
+
 int fflush(FILE *fp) {
-  return fseek(fp, 0, SEEK_CUR);
+  return (fp->flush)(fp);
 }

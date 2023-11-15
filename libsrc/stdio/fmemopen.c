@@ -94,6 +94,7 @@ FILE *fmemopen(void *buf, size_t size, const char *mode) {
     };
 
     fp->iof = &kMemVTable;
+    fp->flush = _memflush;
     fp->wbuf = buf;
     fp->ws = size;
     fp->pmem = NULL;

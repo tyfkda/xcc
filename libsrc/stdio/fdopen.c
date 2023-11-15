@@ -100,6 +100,7 @@ FILE *fdopen(int fd, const char *mode) {
   FILE *fp = calloc(1, sizeof(*fp));
   if (fp != NULL) {
     fp->iof = &_kFileCookieIoFunctions;
+    fp->flush = _fflush;
     fp->fd = fd;
     fp->rp = fp->rs = 0;
     fp->wp = 0;
