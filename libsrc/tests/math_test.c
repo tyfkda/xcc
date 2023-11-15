@@ -73,6 +73,26 @@ TEST(ceil) {
   EXPECT((double)-(ONE), ceil((double)-(ONE) - 0.5));
 } END_TEST()
 
+TEST(round) {
+  EXPECT(2.0, round(1.999999));
+  EXPECT(1.0, round(0.999999));
+  EXPECT(0.0, round(-0.0));
+  EXPECT(2000.0, round(1999.999999));
+  EXPECT(123.0, round(123.0));
+  EXPECT(-1.0, round(-1.000001));
+  EXPECT(-1.0, round(-1.0));
+  EXPECT(-2000.0, round(-1999.999999));
+
+  EXPECT(1.0, round(0.5));
+  EXPECT(-1.0, round(-0.5));
+
+  int64_t ONE = (int64_t)1 << FRAC_BIT;
+  EXPECT((double)(ONE / 2) + 1, round((double)(ONE / 2) + 0.5));
+  EXPECT((double)(ONE), round((double)(ONE) + 0.5));  // Fraction is under precision, so round function doesn't detect fraction.
+  EXPECT((double)-(ONE / 2) - 1, round((double)-(ONE / 2) - 0.5));
+  EXPECT((double)-(ONE), round((double)-(ONE) - 0.5));
+} END_TEST()
+
 TEST(modf) {
   double i = 123;
   EXPECT(0.5, modf(1.5, &i));
@@ -119,6 +139,7 @@ int main() {
     test_misc,
     test_floor,
     test_ceil,
+    test_round,
     test_modf,
     test_frexp,
     test_isinf,

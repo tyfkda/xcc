@@ -1,6 +1,6 @@
 #pragma once
 
-#if defined(__GNUC__)
+#if defined(__GNUC__) && !defined(__XCC)
 
 #include_next <stdarg.h>
 

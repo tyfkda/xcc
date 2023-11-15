@@ -38,6 +38,7 @@ double pow(double base, double x);
 double fabs(double);
 double floor(double);
 double ceil(double x);
+double round(double x);
 double modf(double x, double *pint);
 double fmod(double x, double m);
 double frexp(double x, int *p);

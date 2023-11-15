@@ -61,6 +61,7 @@
         "./libsrc/math/log10.c",
         "./libsrc/math/modf.c",
         "./libsrc/math/pow.c",
+        "./libsrc/math/round.c",
         "./libsrc/math/sin.c",
         "./libsrc/math/sinh.c",
         "./libsrc/math/sqrt.c",

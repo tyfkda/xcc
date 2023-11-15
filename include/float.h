@@ -21,3 +21,5 @@
 #define FLT_MIN         (1.1754943508222875e-38)
 #define FLT_MAX         (3.402823669209385e+38)
 #define FLT_EPSILON     (1.1920928955078125e-07)
+
+#define FLT_ROUNDS  (1)  // TODO
