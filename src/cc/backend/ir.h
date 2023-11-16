@@ -32,6 +32,7 @@ enum VRegSize {
 #define VRF_NO_SPILL  (1 << 4)  // No Spill
 #define VRF_FLONUM    (1 << 6)  // Floating-point register?
 #define VRF_UNUSED    (1 << 9)  // Unused
+#define VRF_STACK_PARAM (1 << 10)  // Function parameter, but through stack (spilled by default, so no regalloc needed)
 
 #define VRF_MASK      (VRF_FLONUM)
 

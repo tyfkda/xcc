@@ -75,6 +75,8 @@ static VarInfo *prepare_retvar(Function *func) {
 static void alloc_variable_registers(Function *func) {
   assert(func->type->kind == TY_FUNC);
 
+  bool require_stack_frame = (func->flag & FUNCF_STACK_MODIFIED) != 0;
+
   for (int i = 0; i < func->scopes->len; ++i) {
     Scope *scope = func->scopes->data[i];
     if (scope->vars == NULL)
@@ -95,6 +97,7 @@ static void alloc_variable_registers(Function *func) {
         FrameInfo *fi = malloc_or_die(sizeof(*fi));
         fi->offset = 0;
         varinfo->local.frameinfo = fi;
+        require_stack_frame = true;
         continue;
       }
 
@@ -103,18 +106,25 @@ static void alloc_variable_registers(Function *func) {
         vreg->flag |= VRF_REF;
       varinfo->local.vreg = vreg;
       varinfo->local.frameinfo = &vreg->frame;
+      require_stack_frame = true;
     }
   }
 
   // Handle if return value is on the stack.
-  int iregindex = 0;
+  struct {
+    int index;
+    int max;
+  } regparams[2] = {
+    {.index = 0, .max = MAX_REG_ARGS},
+    {.index = 0, .max = MAX_FREG_ARGS},
+  };
+  enum { IREG = 0, FREG = 1 };
   if (is_stack_param(func->type->func.ret)) {
     prepare_retvar(func);
-    ++iregindex;
+    ++regparams[IREG].index;
   }
 
   // Add flag to parameters.
-  int fregindex = 0;
   const Vector *params = func->params;
   if (params != NULL) {
     for (int i = 0; i < params->len; ++i) {
@@ -122,15 +132,20 @@ static void alloc_variable_registers(Function *func) {
       VReg *vreg = varinfo->local.vreg;
       if (vreg != NULL) {
         vreg->flag |= VRF_PARAM;
-        if (vreg->flag & VRF_FLONUM) {
-          if (fregindex < MAX_FREG_ARGS)
-            vreg->reg_param_index = fregindex++;
+        int k = (vreg->flag & VRF_FLONUM) ? FREG : IREG;
+        if (regparams[k].index < regparams[k].max) {
+          vreg->reg_param_index = regparams[k].index++;
         } else {
-          if (iregindex < MAX_REG_ARGS)
-            vreg->reg_param_index = iregindex++;
+          vreg->flag |= VRF_SPILLED | VRF_STACK_PARAM;
+          require_stack_frame = true;
         }
       }
     }
+  }
+
+  if (require_stack_frame) {
+    FuncBackend *fnbe = func->extra;
+    fnbe->ra->flag |= RAF_STACK_FRAME;
   }
 }
 
@@ -658,50 +673,6 @@ void gen_stmt(Stmt *stmt) {
 ////////////////////////////////////////////////
 
 void prepare_register_allocation(Function *func) {
-  bool require_stack_frame = (func->flag & FUNCF_STACK_MODIFIED) != 0;
-  // Handle function parameters first.
-  const Vector *params = func->params;
-  if (params != NULL) {
-    const int DEFAULT_OFFSET = POINTER_SIZE * 2;  // Return address, saved base pointer.
-    assert((Scope*)func->scopes->data[0] != NULL);
-    int ireg_index = is_stack_param(func->type->func.ret) ? 1 : 0;
-    int freg_index = 0;
-    int offset = DEFAULT_OFFSET;
-    for (int i = 0, param_count = params->len; i < param_count; ++i) {
-      VarInfo *varinfo = params->data[i];
-      if (is_stack_param(varinfo->type)) {
-        // stack parameters
-        FrameInfo *fi = varinfo->local.frameinfo;
-        fi->offset = offset = ALIGN(offset, align_size(varinfo->type));
-        offset += ALIGN(type_size(varinfo->type), POINTER_SIZE);
-        require_stack_frame = true;
-        continue;
-      }
-      assert(is_prim_type(varinfo->type));
-
-      VReg *vreg = varinfo->local.vreg;
-      assert(vreg != NULL);
-
-      const bool flo = is_flonum(varinfo->type);
-      if (( flo && freg_index >= MAX_FREG_ARGS) ||
-          (!flo && ireg_index >= MAX_REG_ARGS)) {
-        // Function argument passed through the stack.
-        spill_vreg(vreg);
-        vreg->frame.offset = offset;
-        offset += POINTER_SIZE;
-        require_stack_frame = true;
-      } else if (func->type->func.vaargs) {  // Variadic function parameters.
-        if (i >= param_count) {  // Store vaargs to jmp_buf.
-          vreg->frame.offset = flo ? (freg_index - MAX_FREG_ARGS) * POINTER_SIZE
-                                   : (ireg_index - MAX_REG_ARGS - MAX_FREG_ARGS) * POINTER_SIZE;
-        }
-      }
-
-      ireg_index += 1 - flo;
-      freg_index += flo;
-    }
-  }
-
   for (int i = 0; i < func->scopes->len; ++i) {
     Scope *scope = (Scope*)func->scopes->data[i];
     if (scope->vars == NULL)
@@ -714,24 +685,14 @@ void prepare_register_allocation(Function *func) {
       VReg *vreg = varinfo->local.vreg;
       if (vreg == NULL) {
         assert(!is_prim_type(varinfo->type));
-        // Confirm whether this variable require stack frame:
-        // If the variable is function parameter, it passed through the stack,
-        // and it is not consume current stack frame, so exclude it.
-        if (!require_stack_frame && !(varinfo->storage & VS_PARAM))
-          require_stack_frame = true;
         continue;
       }
 
       assert(is_prim_type(varinfo->type));
       if (vreg->flag & VRF_REF) {
         spill_vreg(vreg);
-        require_stack_frame = true;
       }
     }
-  }
-  if (require_stack_frame) {
-    FuncBackend *fnbe = func->extra;
-    fnbe->ra->flag |= RAF_STACK_FRAME;
   }
 }
 
@@ -814,8 +775,16 @@ void detect_living_registers(RegAlloc *ra, BBContainer *bbcon) {
 
 void alloc_stack_variables_onto_stack_frame(Function *func) {
   FuncBackend *fnbe = func->extra;
-  size_t frame_size = fnbe->frame_size;
+  assert(fnbe->frame_size == 0);
+  size_t frame_size = 0;
+  int param_offset = POINTER_SIZE * 2;  // Return address, saved base pointer.
 
+  if (func->type->func.vaargs)
+    frame_size = (MAX_REG_ARGS + MAX_FREG_ARGS) * POINTER_SIZE;
+
+  bool require_stack_frame = false;
+
+  // Allocate stack variables onto stack frame.
   for (int i = 0; i < func->scopes->len; ++i) {
     Scope *scope = func->scopes->data[i];
     if (scope->vars == NULL)
@@ -823,16 +792,34 @@ void alloc_stack_variables_onto_stack_frame(Function *func) {
 
     for (int j = 0; j < scope->vars->len; ++j) {
       VarInfo *varinfo = scope->vars->data[j];
-      if (!is_local_storage(varinfo) || is_prim_type(varinfo->type))
+      if (!is_local_storage(varinfo))
         continue;
+
+      if (varinfo->storage & VS_PARAM) {
+        assert(is_stack_param(varinfo->type) || varinfo->local.vreg != NULL);
+        if (is_stack_param(varinfo->type)) {
+          FrameInfo *fi = varinfo->local.frameinfo;
+          fi->offset = param_offset = ALIGN(param_offset, align_size(varinfo->type));
+          param_offset += ALIGN(type_size(varinfo->type), POINTER_SIZE);
+          require_stack_frame = true;
+          continue;
+        } else if (varinfo->local.vreg->flag & VRF_STACK_PARAM) {
+          FrameInfo *fi = varinfo->local.frameinfo;
+          fi->offset = param_offset = ALIGN(param_offset, POINTER_SIZE);
+          param_offset += POINTER_SIZE;
+          require_stack_frame = true;
+          continue;
+        }
+      }
+
+      if (is_prim_type(varinfo->type)) {
+        // Primitive type variables are handled according to RegAlloc results in below.
+        continue;
+      }
 
       assert(varinfo->local.vreg == NULL);
       FrameInfo *fi = varinfo->local.frameinfo;
       assert(fi != NULL);
-      if (fi->offset != 0) {
-        // Variadic function parameter or stack parameter, set in `prepare_register_allocation`.
-        continue;
-      }
 
       Type *type = varinfo->type;
       size_t size = type_size(type);
@@ -860,18 +847,16 @@ void alloc_stack_variables_onto_stack_frame(Function *func) {
     }
   }
 
+  // Allocate spilled variables onto stack frame.
   RegAlloc *ra = fnbe->ra;
   for (int i = 0; i < ra->vregs->len; ++i) {
     LiveInterval *li = ra->sorted_intervals[i];
     if (li->state != LI_SPILL)
       continue;
     VReg *vreg = ra->vregs->data[li->virt];
-    if (vreg->frame.offset != 0) {
-      // Variadic function parameter or stack parameter, set in `prepare_register_allocation`.
-      if (-vreg->frame.offset > (int)frame_size)
-        frame_size = -vreg->frame.offset;
-      continue;
-    }
+    assert(vreg->flag & VRF_SPILLED);
+    if (vreg->flag & VRF_STACK_PARAM)
+      continue;  // Handled in above, so skip here.
 
     int size, align;
     size = align = 1 << vreg->vsize;
@@ -881,6 +866,7 @@ void alloc_stack_variables_onto_stack_frame(Function *func) {
   }
 
   fnbe->frame_size = frame_size;
+  assert(!(require_stack_frame || frame_size > 0) || (fnbe->ra->flag & RAF_STACK_FRAME));
 }
 
 bool gen_defun(Function *func) {
@@ -894,13 +880,13 @@ bool gen_defun(Function *func) {
   }
 
   curfunc = func;
-  FuncBackend *fnbe = func->extra = malloc_or_die(sizeof(FuncBackend));
+  FuncBackend *fnbe = func->extra = calloc_or_die(sizeof(FuncBackend));
   fnbe->ra = NULL;
   fnbe->bbcon = NULL;
   fnbe->ret_bb = NULL;
   fnbe->retval = NULL;
   fnbe->result_dst = NULL;
-  fnbe->frame_size = func->type->func.vaargs ? (MAX_REG_ARGS + MAX_FREG_ARGS) * POINTER_SIZE : 0;
+  fnbe->frame_size = 0;
 
   fnbe->bbcon = new_func_blocks();
   set_curbb(new_bb());
