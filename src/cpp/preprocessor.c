@@ -20,6 +20,8 @@
 #define CF_SATISFY_SHIFT  (1)
 #define CF_SATISFY_MASK   (3 << CF_SATISFY_SHIFT)
 
+static FILE *pp_ofp;
+
 // Is `#if` condition satisfied?
 enum Satisfy {
   NotSatisfied,
@@ -89,9 +91,121 @@ static const char *find_directive(const char *line) {
   return hash ? p : NULL;
 }
 
+static bool handle_block_comment(const char *begin, const char **pp, Stream *stream) {
+  const char *p = *pp;
+  for (;;) {
+    p = skip_whitespaces(p);
+    if (*p != '\0')
+      break;
+    begin = p;
+    if (!lex_eof_continue())
+      return false;
+    *pp = begin = p = get_lex_p();
+  }
+
+  p = block_comment_start(p);
+  if (p == NULL)
+    return false;
+
+  const char *comment_start = p;
+  p += 2;
+  for (;;) {
+    const char *q = block_comment_end(p);
+    if (q != NULL) {
+      fwrite(begin, q - begin, 1, pp_ofp);
+      *pp = q;
+      break;
+    }
+
+    OUTPUT_PPLINE("%s\n", begin);
+
+    char *line = NULL;
+    size_t capa = 0;
+    ssize_t len = getline_cont(&line, &capa, stream->fp, &stream->lineno);
+    if (len == -1) {
+      lex_error(comment_start, "Block comment not closed");
+    }
+    begin = p = line;
+  }
+  return true;
+}
+
+static void process_line(const char *line, Stream *stream) {
+  set_source_string(line, stream->filename, stream->lineno);
+
+  const char *begin = get_lex_p();
+
+  const Name *defined = alloc_name("defined", NULL, false);
+  for (;;) {
+    const char *p = get_lex_p();
+    if (p != NULL) {
+      if (handle_block_comment(begin, &p, stream)) {
+        begin = p;
+        set_source_string(begin, stream->filename, stream->lineno);
+        continue;
+      }
+    }
+
+    if (match(TK_EOF))
+      break;
+
+    Token *ident = match(TK_IDENT);
+    if (ident != NULL) {
+      if (equal_name(ident->ident, defined)) {
+        // TODO: Raise error if not matched.
+        match(TK_LPAR);
+        match(TK_IDENT);
+        match(TK_RPAR);
+      } else if (can_expand_ident(ident->ident)) {
+        const char *p = begin;
+        begin = ident->end;  // Update for EOF callback.
+
+        Vector *tokens = new_vector();
+        vec_push(tokens, ident);
+        macro_expand(tokens);
+
+        if (ident->begin != p)
+          fwrite(p, ident->begin - p, 1, pp_ofp);
+
+        // Everything should have been expanded, so output
+        for (int i = 0; i < tokens->len; ++i) {
+          const Token *tok = tokens->data[i];
+          fwrite(tok->begin, tok->end - tok->begin, 1, pp_ofp);
+        }
+        begin = get_lex_p();
+      }
+      continue;
+    }
+
+    match(-1);
+  }
+
+  if (begin != NULL)
+    OUTPUT_PPLINE("%s\n", begin);
+}
+
+// Preprocess one line and receive result into memory.
+static char *preprocess_one_line(const char *line, Stream *stream, size_t *psize) {
+  char *expanded;
+  size_t sizebuf;
+  if (psize == NULL)
+    psize = &sizebuf;
+  FILE *memfp = open_memstream(&expanded, psize);
+  if (memfp == NULL)
+    error("open_memstream failed");
+  FILE *bak_fp = pp_ofp;
+  int bak_lineno = curpf->out_lineno;
+  pp_ofp = memfp;
+
+  process_line(line, stream);
+  pp_ofp = bak_fp;
+  curpf->out_lineno = bak_lineno;
+  fclose(memfp);
+  return expanded;
+}
+
 #define INC_ORDERS  (INC_AFTER + 1)
 
-static FILE *pp_ofp;
 static Vector sys_inc_paths[INC_ORDERS];  // <const char*>
 static Vector pragma_once_files;  // <const char*>
 
@@ -141,7 +255,7 @@ static FILE *search_sysinc(const char *prevdir, const char *path, char **pfn) {
 }
 
 static void handle_include(const char *p, Stream *stream, bool is_next) {
-  const char *orgp = p;
+  const char *orgp = p = preprocess_one_line(p, stream, NULL);;
   char close;
   bool sys = false;
 
@@ -385,45 +499,6 @@ static void handle_undef(const char **pp) {
   *pp = end;
 }
 
-static bool handle_block_comment(const char *begin, const char **pp, Stream *stream) {
-  const char *p = *pp;
-  for (;;) {
-    p = skip_whitespaces(p);
-    if (*p != '\0')
-      break;
-    begin = p;
-    if (!lex_eof_continue())
-      return false;
-    *pp = begin = p = get_lex_p();
-  }
-
-  p = block_comment_start(p);
-  if (p == NULL)
-    return false;
-
-  const char *comment_start = p;
-  p += 2;
-  for (;;) {
-    const char *q = block_comment_end(p);
-    if (q != NULL) {
-      fwrite(begin, q - begin, 1, pp_ofp);
-      *pp = q;
-      break;
-    }
-
-    OUTPUT_PPLINE("%s\n", begin);
-
-    char *line = NULL;
-    size_t capa = 0;
-    ssize_t len = getline_cont(&line, &capa, stream->fp, &stream->lineno);
-    if (len == -1) {
-      lex_error(comment_start, "Block comment not closed");
-    }
-    begin = p = line;
-  }
-  return true;
-}
-
 static const char *find_double_quote_end(const char *p) {
   const char *start = p;
   for (;;) {
@@ -498,60 +573,6 @@ static void process_disabled_line(const char *p, Stream *stream) {
   }
 }
 
-static void process_line(const char *line, Stream *stream) {
-  set_source_string(line, stream->filename, stream->lineno);
-
-  const char *begin = get_lex_p();
-
-  const Name *defined = alloc_name("defined", NULL, false);
-  for (;;) {
-    const char *p = get_lex_p();
-    if (p != NULL) {
-      if (handle_block_comment(begin, &p, stream)) {
-        begin = p;
-        set_source_string(begin, stream->filename, stream->lineno);
-        continue;
-      }
-    }
-
-    if (match(TK_EOF))
-      break;
-
-    Token *ident = match(TK_IDENT);
-    if (ident != NULL) {
-      if (equal_name(ident->ident, defined)) {
-        // TODO: Raise error if not matched.
-        match(TK_LPAR);
-        match(TK_IDENT);
-        match(TK_RPAR);
-      } else if (can_expand_ident(ident->ident)) {
-        const char *p = begin;
-        begin = ident->end;  // Update for EOF callback.
-
-        Vector *tokens = new_vector();
-        vec_push(tokens, ident);
-        macro_expand(tokens);
-
-        if (ident->begin != p)
-          fwrite(p, ident->begin - p, 1, pp_ofp);
-
-        // Everything should have been expanded, so output
-        for (int i = 0; i < tokens->len; ++i) {
-          const Token *tok = tokens->data[i];
-          fwrite(tok->begin, tok->end - tok->begin, 1, pp_ofp);
-        }
-        begin = get_lex_p();
-      }
-      continue;
-    }
-
-    match(-1);
-  }
-
-  if (begin != NULL)
-    OUTPUT_PPLINE("%s\n", begin);
-}
-
 static bool handle_ifdef(const char **pp) {
   const char *p = *pp;
   const char *begin = p;
@@ -564,25 +585,8 @@ static bool handle_ifdef(const char **pp) {
 }
 
 static bool handle_if(const char **pp, Stream *stream) {
-  // Preprocess line and receive result into memory.
-  char *expanded;
   size_t size;
-  {
-    FILE *memfp = open_memstream(&expanded, &size);
-    if (memfp == NULL)
-      error("open_memstream failed");
-    FILE *bak_fp = pp_ofp;
-    int bak_lineno = curpf->out_lineno;
-    pp_ofp = memfp;
-
-    const char *p = *pp;
-    set_source_string(p, stream->filename, stream->lineno);
-
-    process_line(p, stream);
-    pp_ofp = bak_fp;
-    curpf->out_lineno = bak_lineno;
-    fclose(memfp);
-  }
+  char *expanded = preprocess_one_line(*pp, stream, &size);
 
   // Parse expression.
   PpResult result;
