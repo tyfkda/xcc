@@ -57,7 +57,7 @@ static int snprintullong(FILE *fp, unsigned long long x,
   return o + fwrite(&buf[sizeof(buf) - i], 1, i, fp);
 }
 
-char *snprintullong2(char *bufend, unsigned long long x, int base, const char *digits) {
+static char *snprintullong2(char *bufend, unsigned long long x, int base, const char *digits) {
   char *p = bufend;
   *(--p) = '\0';
   do {
