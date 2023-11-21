@@ -315,6 +315,7 @@ int main(int argc, char *argv[]) {
     OPT_NOSTDINC,
     OPT_ISYSTEM,
     OPT_IDIRAFTER,
+    OPT_LINKOPTION,
 
     OPT_ANSI,
     OPT_STD,
@@ -337,6 +338,7 @@ int main(int argc, char *argv[]) {
     {"nodefaultlibs", no_argument, OPT_NODEFAULTLIBS},
     {"nostdlib", no_argument, OPT_NOSTDLIB},
     {"nostdinc", no_argument, OPT_NOSTDINC},
+    {"Xlinker", required_argument, OPT_LINKOPTION},
     {"-help", no_argument, OPT_HELP},
     {"-version", no_argument, OPT_VERSION},
 
@@ -416,10 +418,11 @@ int main(int argc, char *argv[]) {
       }
       break;
     case 'W':
-      vec_push(cc1_cmd, "-W");
-      vec_push(cc1_cmd, optarg);
-      if (strncmp(argv[optind - 1], "-Wl", 3) == 0) {
-        vec_push(linker_options, argv[optind - 1]);
+      if (strncmp(argv[optind - 1], "-Wl,", 4) == 0) {
+        vec_push(ld_cmd, argv[optind - 1] + 4);
+      } else {
+        vec_push(cc1_cmd, "-W");
+        vec_push(cc1_cmd, optarg);
       }
       break;
     case OPT_NODEFAULTLIBS:
@@ -432,6 +435,9 @@ int main(int argc, char *argv[]) {
       break;
     case OPT_NOSTDINC:
       nostdinc = true;
+      break;
+    case OPT_LINKOPTION:
+      vec_push(ld_cmd, optarg);
       break;
     case 'f':
       if (strncmp(optarg, "use-ld", 6) == 0) {

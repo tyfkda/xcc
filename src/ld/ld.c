@@ -39,6 +39,7 @@ static const char kDefaultEntryName[] = "_start";
 //
 
 typedef struct {
+  const char *filename;
   enum {
     FK_ELFOBJ,
     FK_ARCHIVE,
@@ -71,6 +72,7 @@ void ld_init(LinkEditor *ld, int nfiles) {
 void ld_load(LinkEditor *ld, int i, const char *filename) {
   char *ext = get_ext(filename);
   File *file = &ld->files[i];
+  file->filename = filename;
   if (strcasecmp(ext, "o") == 0) {
     ElfObj *elfobj = malloc_or_die(sizeof(*elfobj));
     elfobj_init(elfobj);
@@ -455,13 +457,72 @@ static bool output_exe(const char *ofn, uintptr_t entry_address) {
   return true;
 }
 
+static void dump_map_elfobj(LinkEditor *ld, ElfObj *elfobj, File *file, ArContent *content, FILE *fp) {
+  const Name *name;
+  Elf64_Sym* sym;
+  for (int it = 0; (it = table_iterate(elfobj->symbol_table, it, &name, (void**)&sym)) != -1; ) {
+    if (sym->st_shndx == SHN_UNDEF)
+      continue;
+
+    uintptr_t address = 0;
+    switch (ELF64_ST_BIND(sym->st_info)) {
+    case STB_LOCAL:
+      {
+        const ElfSectionInfo *s = &elfobj->section_infos[sym->st_shndx];
+        address = s->progbits.address;
+      }
+      break;
+    case STB_GLOBAL:
+      {
+        ElfObj *telfobj;
+        const Elf64_Sym *tsym = ld_find_symbol(ld, name, &telfobj);
+        address = telfobj->section_infos[tsym->st_shndx].progbits.address + tsym->st_value;
+      }
+      break;
+    default: assert(false); break;
+    }
+    fprintf(fp, "%9lx: %.*s  (%s", address, NAMES(name), file->filename);
+    if (content != NULL)
+      fprintf(fp, ", %s", content->name);
+    fprintf(fp, ")\n");
+  }
+}
+
+static void dump_map_file(LinkEditor *ld, FILE *fp) {
+  for (int i = 0; i < ld->nfiles; ++i) {
+    File *file = &ld->files[i];
+    switch (file->kind) {
+    case FK_ELFOBJ:
+      dump_map_elfobj(ld, file->elfobj, file, NULL, fp);
+      break;
+    case FK_ARCHIVE:
+      {
+        Archive *ar = file->archive;
+        for (int j = 0; j < ar->contents->len; j += 2) {
+          ArContent *content = ar->contents->data[j + 1];
+          dump_map_elfobj(ld, content->elfobj, file, content, fp);
+        }
+      }
+      break;
+    }
+  }
+}
+
 int main(int argc, char *argv[]) {
   const char *ofn = NULL;
   const char *entry = kDefaultEntryName;
+  const char *outmapfn = NULL;
+
+  enum {
+    OPT_HELP = 128,
+    OPT_VERSION,
+    OPT_OUTMAP,
+  };
 
   static const struct option options[] = {
     {"o", required_argument},  // Specify output filename
     {"e", required_argument},  // Entry name
+    {"Map", required_argument, OPT_OUTMAP},  // Output map file
     {"-version", no_argument, 'V'},
     {NULL},
   };
@@ -476,6 +537,9 @@ int main(int argc, char *argv[]) {
       break;
     case 'e':
       entry = optarg;
+      break;
+    case OPT_OUTMAP:
+      outmapfn = optarg;
       break;
     default:
       fprintf(stderr, "Warning: unknown option: %s\n", argv[optind - 1]);
@@ -515,6 +579,27 @@ int main(int argc, char *argv[]) {
     uintptr_t entry_address = telfobj->section_infos[tsym->st_shndx].progbits.address + tsym->st_value;
 
     result = output_exe(ofn, entry_address);
+
+    if (outmapfn != NULL && result) {
+      FILE *mapfp;
+      if (strcmp(outmapfn, "-") == 0) {
+        mapfp = stdout;
+      } else {
+        mapfp = fopen(outmapfn, "w");
+        if (mapfp == NULL)
+          perror("Failed to open map file");
+      }
+
+      fprintf(mapfp, "### Symbols\n");
+      fprintf(mapfp, "%9lx:  (start address)\n", (long)LOAD_ADDRESS);
+      dump_map_file(ld, mapfp);
+
+      fprintf(mapfp, "\n### Entry point\n");
+      fprintf(mapfp, "%9lx: %.*s\n", entry_address, NAMES(entry_name));
+
+      if (mapfp != stdout)
+        fclose(mapfp);
+    }
   }
   return result ? 0 : 1;
 }
