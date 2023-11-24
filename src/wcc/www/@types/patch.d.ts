@@ -4,6 +4,10 @@ interface Window {
   initialData: any
   showOpenFilePicker(option?: any): Promise<[FileSystemFileHandle]>
   showSaveFilePicker(option?: any): Promise<FileSystemFileHandle>
+
+  MonacoEnvironment: any
+  require: any
+  Alpine: any
 }
 
 interface FileSystemHandle {
@@ -23,3 +27,5 @@ interface WritableStream {
 interface FileSystemWritableFileStream extends WritableStream {
   write(content: any): Promise<any>
 }
+
+declare let monaco: any

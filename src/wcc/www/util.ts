@@ -34,7 +34,12 @@ export class Util {
   }
 
   public static putTerminal(x: any): void {
-    terminal.session.insert(terminal.getCursorPosition(), x.toString())
+    terminal.updateOptions({readOnly: false})
+    terminal.executeEdits('', [{
+      range: terminal.getSelection(),
+      text: x.toString(),
+    }])
+    terminal.updateOptions({readOnly: true})
   }
 
   public static putTerminalError(e: Error|string): void {
@@ -43,7 +48,8 @@ export class Util {
   }
 
   public static clearTerminal(): void {
-    terminal.setValue('', -1)
+    terminal.setScrollTop(0)
+    terminal.setValue('')
   }
 
   public static analyzeCompileErrors(): void {
@@ -57,7 +63,7 @@ export class Util {
       if (m) {
         const lineNo = parseInt(m[1])
         const message = m[2]
-        errors.push(new CompileErrorInfo(i, lineNo - 1, message))
+        errors.push(new CompileErrorInfo(i, lineNo, message))
       }
       m = line.match(/^(\s*)(\^~*)/)
       if (m) {
@@ -65,7 +71,7 @@ export class Util {
         const token = m[2]
         if (errors.length > 0) {
           const err = errors[errors.length - 1]
-          err.colStart = spaces.length
+          err.colStart = spaces.length + 1
           err.tokenLength = token.length
         }
       }
