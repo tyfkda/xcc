@@ -56,9 +56,12 @@ TEST(stat) {
     fclose(fp);
 
     struct stat st;
-    EXPECT_EQ(0, stat(fn, &st));
-    EXPECT_TRUE(S_ISREG(st.st_mode));
-    EXPECT_FALSE(S_ISDIR(st.st_mode));
+    int r;
+    EXPECT_EQ(0, r = stat(fn, &st));
+    if (r == 0) {
+      EXPECT_TRUE(S_ISREG(st.st_mode));
+      EXPECT_FALSE(S_ISDIR(st.st_mode));
+    }
 
     // remove(fn);
   }
@@ -69,9 +72,12 @@ TEST(stat) {
   // EXPECT_EQ(0, mkdir(dn, S_IRWXU | S_IRGRP | S_IXGRP | S_IROTH | S_IXOTH));
   {
     struct stat st;
-    EXPECT_EQ(0, stat(dn, &st));
-    EXPECT_TRUE(S_ISDIR(st.st_mode));
-    EXPECT_FALSE(S_ISREG(st.st_mode));
+    int r;
+    EXPECT_EQ(0, r = stat(dn, &st));
+    if (r == 0) {
+      EXPECT_TRUE(S_ISDIR(st.st_mode));
+      EXPECT_FALSE(S_ISREG(st.st_mode));
+    }
   }
   // EXPECT_EQ(0, rmdir());
 } END_TEST()

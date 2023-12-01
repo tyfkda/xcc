@@ -37,13 +37,13 @@ int open(const char *fn, int flag, ...) {
   for (int base_fd = 3; base_fd < max_preopen_fd; ++base_fd) {
     Prestat prestat;
     fd_prestat_get(base_fd, &prestat);
-    size_t l = prestat.u.dir.pr_name_len;
+    size_t l = prestat.u.dir.pr_name_len;  // Includes '\0' or not, depending on the environment,
     char buf[256];
     fd_prestat_dir_name(base_fd, buf, l);
     buf[l] = '\0';
 
     if ((*fn == '/' && *buf != '/') ||
-        (*fn != '/' && (*buf != '.' || l != 1)))
+        (*fn != '/' && strcmp(buf, ".") != 0))
       continue;
 
     const char *fn2 = fn;
