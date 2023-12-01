@@ -419,7 +419,10 @@ int main(int argc, char *argv[]) {
       break;
     case 'W':
       if (strncmp(argv[optind - 1], "-Wl,", 4) == 0) {
-        vec_push(ld_cmd, argv[optind - 1] + 4);
+        if (use_ld)
+          vec_push(linker_options, argv[optind - 1]);
+        else
+          vec_push(ld_cmd, argv[optind - 1] + 4);
       } else {
         vec_push(cc1_cmd, "-W");
         vec_push(cc1_cmd, optarg);
