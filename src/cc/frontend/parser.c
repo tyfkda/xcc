@@ -77,6 +77,41 @@ extern inline void check_goto_labels(Function *func) {
 
 //
 
+static Initializer *parse_initializer_multi(void) {
+  Initializer *init = NULL;
+  const Token *tok;
+  if (match(TK_DOT)) {  // .member=value
+    Token *ident = consume(TK_IDENT, "ident expected for dotted initializer");
+    Initializer *value = parse_initializer_multi();
+    if (value == NULL) {
+      consume(TK_ASSIGN, "`=' expected for dotted initializer");
+      value = parse_initializer();
+    }
+    if (ident != NULL) {
+      init = new_initializer(IK_DOT, ident);
+      init->dot.name = ident->ident;
+      init->dot.value = value;
+    }
+  } else if ((tok = match(TK_LBRACKET)) != NULL) {
+    Expr *expr = parse_const_fixnum();
+    size_t index = 0;
+    if (expr->fixnum < 0)
+      parse_error(PE_NOFATAL, expr->token, "non negative integer required");
+    else
+      index = expr->fixnum;
+    consume(TK_RBRACKET, "`]' expected");
+    Initializer *value = parse_initializer_multi();
+    if (value == NULL) {
+      match(TK_ASSIGN);  // both accepted: `[1] = 2`, and `[1] 2`
+      value = parse_initializer();
+    }
+    init = new_initializer(IK_ARR, tok);
+    init->arr.index = index;
+    init->arr.value = value;
+  }
+  return init;
+}
+
 Initializer *parse_initializer(void) {
   Initializer *result;
   const Token *lblace_tok;
@@ -84,35 +119,11 @@ Initializer *parse_initializer(void) {
     Vector *multi = new_vector();
     if (!match(TK_RBRACE)) {
       for (;;) {
-        Initializer *init = NULL;
-        const Token *tok;
-        if (match(TK_DOT)) {  // .member=value
-          Token *ident = consume(TK_IDENT, "ident expected for dotted initializer");
-          consume(TK_ASSIGN, "`=' expected for dotted initializer");
-          Initializer *value = parse_initializer();
-          if (ident != NULL) {
-            init = new_initializer(IK_DOT, ident);
-            init->dot.name = ident->ident;
-            init->dot.value = value;
-          }
-        } else if ((tok = match(TK_LBRACKET)) != NULL) {
-          Expr *expr = parse_const_fixnum();
-          size_t index = 0;
-          if (expr->fixnum < 0)
-            parse_error(PE_NOFATAL, expr->token, "non negative integer required");
-          else
-            index = expr->fixnum;
-          consume(TK_RBRACKET, "`]' expected");
-          match(TK_ASSIGN);  // both accepted: `[1] = 2`, and `[1] 2`
-          Initializer *value = parse_initializer();
-          init = new_initializer(IK_ARR, tok);
-          init->arr.index = index;
-          init->arr.value = value;
-        } else {
+        Initializer *init = parse_initializer_multi();
+        if (init == NULL)
           init = parse_initializer();
-        }
-        if (init != NULL)
-          vec_push(multi, init);
+        assert(init != NULL);
+        vec_push(multi, init);
 
         if (match(TK_COMMA)) {
           if (match(TK_RBRACE))

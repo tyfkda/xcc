@@ -163,6 +163,10 @@ static int compare_desig_start(const void *a, const void *b) {
   return d > 0 ? 1 : d < 0 ? -1 : 0;
 }
 
+typedef struct {
+  int index;
+} InitFlattener;
+
 static Initializer *flatten_array_initializer(Initializer *init) {
   // Check whether IK_DOT or IK_ARR exists.
   int i = 0, len = init->multi->len;
@@ -238,7 +242,9 @@ static bool is_multi_type(enum TypeKind kind) {
 
 static Initializer *flatten_initializer_multi0(Type *type, Initializer *init);
 
-static Initializer *flatten_initializer_multi(Type *type, Initializer *init, int *pindex) {
+static Initializer *flatten_initializer_multi(InitFlattener *flattener, Type *type, Initializer *init) {
+  int *const pindex = &flattener->index;
+
   assert(init != NULL);
   switch (init->kind) {
   case IK_SINGLE:
@@ -342,7 +348,7 @@ static Initializer *flatten_initializer_multi(Type *type, Initializer *init, int
             assert(mt->kind == TY_ARRAY);
             mt->pa.length = -1;
           }
-          value = flatten_initializer_multi(mt, init, pindex);
+          value = flatten_initializer_multi(flattener, mt, init);
         }
         values[midx++] = value;
 
@@ -381,7 +387,7 @@ static Initializer *flatten_initializer_multi(Type *type, Initializer *init, int
         } else {
           if (type->pa.length >= 0 && eidx >= type->pa.length)
             break;
-          elem_init = flatten_initializer_multi(elem_type, init, pindex);
+          elem_init = flatten_initializer_multi(flattener, elem_type, init);
         }
         vec_push(elems, elem_init);
         ++eidx;
@@ -400,14 +406,14 @@ static Initializer *flatten_initializer_multi0(Type *type, Initializer *init) {
   if (type->kind == TY_ARRAY)
     init = flatten_array_initializer(init);
 
-  int index = -1;
-  Initializer *flat = flatten_initializer_multi(type, init, &index);
+  InitFlattener flattener = { .index = -1 };
+  Initializer *flat = flatten_initializer_multi(&flattener, type, init);
   switch (type->kind) {
   case TY_ARRAY:
   case TY_STRUCT:
-    if (index < init->multi->len) {
+    if (flattener.index < init->multi->len) {
       const char *tstr = type->kind == TY_ARRAY ? "array" : "struct";
-      parse_error(PE_WARNING, ((Initializer*)init->multi->data[index])->token,
+      parse_error(PE_WARNING, ((Initializer*)init->multi->data[flattener.index])->token,
                   "Excess elements in %s initializer", tstr);
     }
     break;
