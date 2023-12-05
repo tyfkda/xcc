@@ -335,6 +335,12 @@ Declaration *new_decl_vardecl(Vector *decls) {
   return decl;
 }
 
+Declaration *new_decl_asm(Expr *str) {
+  Declaration *decl = new_decl(DCL_ASM);
+  decl->asmstr = str;
+  return decl;
+}
+
 // ================================================
 
 // Function

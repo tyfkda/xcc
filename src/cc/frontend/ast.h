@@ -480,6 +480,7 @@ Function *new_func(Type *type, const Name *name, const Vector *params, int flag)
 enum DeclKind {
   DCL_DEFUN,
   DCL_VARDECL,
+  DCL_ASM,
 };
 
 typedef struct Declaration {
@@ -491,8 +492,10 @@ typedef struct Declaration {
     struct {
       Vector *decls;  // <VarDecl*>
     } vardecl;
+    Expr *asmstr;
   };
 } Declaration;
 
 Declaration *new_decl_defun(Function *func);
 Declaration *new_decl_vardecl(Vector *decls);
+Declaration *new_decl_asm(Expr *str);

@@ -1690,6 +1690,9 @@ static void gen_decl(Declaration *decl) {
     break;
   case DCL_VARDECL:
     break;
+  case DCL_ASM:
+    assert(false);
+    break;
   }
 }
 

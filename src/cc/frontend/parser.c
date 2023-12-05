@@ -766,6 +766,14 @@ static Declaration *parse_global_var_decl(Type *rawtype, int storage, Type *type
 }
 
 static Declaration *parse_declaration(void) {
+  Token *tok;
+  if ((tok = match(TK_ASM)) != NULL) {
+    Stmt *asm_ = parse_asm(tok);
+    if (asm_->asm_.arg != NULL)
+      parse_error(PE_NOFATAL, asm_->token, "no argument required");
+    return new_decl_asm(asm_->asm_.str);
+  }
+
   Type *rawtype = NULL;
   int storage;
   Token *ident;

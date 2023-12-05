@@ -578,6 +578,11 @@ static void emit_defun(Function *func) {
   // Static variables are emitted through global variables.
 }
 
+static void emit_asm(Expr *asmstr) {
+  assert(asmstr->kind == EX_STR);
+  EMIT_ASM(asmstr->str.buf);
+}
+
 void emit_code(Vector *decls) {
   for (int i = 0, len = decls->len; i < len; ++i) {
     Declaration *decl = decls->data[i];
@@ -589,6 +594,9 @@ void emit_code(Vector *decls) {
       emit_defun(decl->defun.func);
       break;
     case DCL_VARDECL:
+      break;
+    case DCL_ASM:
+      emit_asm(decl->asmstr);
       break;
     }
   }
