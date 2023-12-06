@@ -159,6 +159,8 @@ test_initializer() {
   compile_error 'const cast' 'int main(){const void *p = 0; void *q = p; return 0;}'
   compile_error 'no name nor defined struct ptr' 'void main(){ struct *p; }'
   compile_error 'refer undeclared struct member' 'void main(){ struct Foo *p; p->x; }'
+  compile_error 'dot designator for array' 'void main(){ int a[] = {.x = 1}; }'
+  compile_error 'bracket designator for struct' 'void main(){ struct {int x; int y;} s = {[1] = 2}; }'
 
   end_test_suite
 }

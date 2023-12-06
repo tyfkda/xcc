@@ -74,8 +74,15 @@ void expect(Initializer *expected, const char *input_str, Type *type) {
   Initializer *actual = flatten_initializer(type, init);
 
   // Compare initializer
-  if (!same_init(expected, actual))
+  if (!same_init(expected, actual)) {
     fail("different");
+
+    fprintf(stderr, "expected[");
+    dump_init(stderr, expected);
+    fprintf(stderr, "], actual[");
+    dump_init(stderr, actual);
+    fprintf(stderr, "]\n");
+  }
 }
 
 void expect2(const char *expected_str, const char *input_str, Type *type) {
@@ -190,6 +197,32 @@ TEST(flatten) {
 
     expect2("{{11, 12}, {21, 22}}", "{11, 12, 21, 22}", arrayof(type, -1));
     expect2("{{11, 12}, {21, 22}}", "{{11, 12}, 21, 22}", arrayof(type, 2));
+  }
+
+  {  // Union array without brace.
+    MemberInfo *members = malloc(sizeof(*members) * 2);
+    members[0] = (MemberInfo){.name = alloc_name("i", NULL, false), .type = &tyInt};
+    members[1] = (MemberInfo){.name = alloc_name("b", NULL, false), .type = arrayof(&tyChar, 4)};
+    StructInfo *sinfo = create_struct_info(members, 2, true, false);
+    Type *type = create_struct_type(sinfo, NULL, 0);
+
+    Initializer *expected = new_init_multi(2,
+        new_init_multi(2,
+            new_init_single(new_expr_fixlit(&tyInt, NULL, 12345)),
+            NULL),
+        new_init_multi(2,
+            new_init_single(new_expr_fixlit(&tyInt, NULL, 67890)),
+            NULL));
+    expect(expected, "{12345, 67890}", arrayof(type, 2));
+  }
+
+  {  // Redundant brace for struct member.
+    MemberInfo *members = malloc(sizeof(*members) * 1);
+    members[0] = (MemberInfo){ .name = alloc_name("x", NULL, false), .type = &tyInt };
+    StructInfo *sinfo = create_struct_info(members, 1, false, false);
+    Type *type = create_struct_type(sinfo, NULL, 0);
+
+    expect2("{333}", "{{333}}", type);
   }
 } END_TEST()
 

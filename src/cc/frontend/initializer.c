@@ -164,8 +164,44 @@ static int compare_desig_start(const void *a, const void *b) {
 }
 
 typedef struct {
-  int index;
+  Type *root_type;
+  Vector *indices;
+  Initializer *flattened;
 } InitFlattener;
+
+extern inline bool is_multi_type(enum TypeKind kind) {
+  return kind == TY_STRUCT || kind == TY_ARRAY;
+}
+
+static Initializer *reserve_init_for_multi(Type *type, const Token *token) {
+  int n;
+  switch (type->kind) {
+  case TY_STRUCT:
+    {
+      const StructInfo *sinfo = type->struct_.info;
+      assert(sinfo != NULL);
+      n = sinfo->member_count;
+    }
+    break;
+  case TY_ARRAY:
+    n = type->pa.length;
+    if (n < 0) {
+      // If n < 0 ([], FAM), then the array length is expanded according to initializer.
+      // Make empty here.
+      // If the array is VLA, initializer is prohibited, so safely ignored.
+      n = 0;
+    }
+    break;
+  default: assert(false); return NULL;
+  }
+
+  Vector *multi = new_vector();
+  for (int i = 0; i < n; ++i)
+    vec_push(multi, NULL);
+  Initializer *init = new_initializer(IK_MULTI, token);
+  init->multi = multi;
+  return init;
+}
 
 static Initializer *flatten_array_initializer(Initializer *init) {
   // Check whether IK_DOT or IK_ARR exists.
@@ -236,12 +272,9 @@ static Initializer *flatten_array_initializer(Initializer *init) {
   return init2;
 }
 
-static bool is_multi_type(enum TypeKind kind) {
-  return kind == TY_STRUCT || kind == TY_ARRAY;
-}
+static Initializer *flatten_initializer_multi(Type *type, Initializer *init);
 
-static Initializer *flatten_initializer_multi0(Type *type, Initializer *init);
-
+#if 0
 static Initializer *flatten_initializer_multi(InitFlattener *flattener, Type *type, Initializer *init) {
   int *const pindex = &flattener->index;
 
@@ -401,25 +434,214 @@ static Initializer *flatten_initializer_multi(InitFlattener *flattener, Type *ty
   }
   return init;
 }
+#endif
 
-static Initializer *flatten_initializer_multi0(Type *type, Initializer *init) {
+static Type *get_multi_child_type(Type *type, int index) {
+  switch (type->kind) {
+  case TY_ARRAY:
+    assert(index >= 0 && (type->pa.length < 0 || index < type->pa.length));
+    return type->pa.ptrof;
+  case TY_STRUCT:
+    {
+      const StructInfo *sinfo = type->struct_.info;
+      assert(sinfo != NULL);
+      assert(index >= 0 && index < sinfo->member_count);
+      return sinfo->members[index].type;
+    }
+  default: assert(false); return NULL;
+  }
+}
+
+static Initializer *find_next_indices(InitFlattener *flattener, Initializer *elem_init) {
+  Vector *indices = flattener->indices;
+  for (;;) {
+    int depth = indices->len;
+    assert(depth > 0);
+    intptr_t last_index = VOIDP2INT(indices->data[depth - 1]) + 1;
+    indices->data[depth - 1] = INT2VOIDP(last_index);
+
+    Type *type = flattener->root_type;
+    for (int i = 0; i < depth - 1; ++i) {
+      type = get_multi_child_type(type, VOIDP2INT(indices->data[i]));
+    }
+
+    for (bool upward = false;;) {
+      switch (type->kind) {
+      case TY_ARRAY:
+        if (type->pa.length >= 0) {
+          if (last_index < type->pa.length) {
+            type = type->pa.ptrof;
+          } else {
+            upward = true;
+          }
+        } else {
+          assert(type->pa.length != LEN_VLA);
+          // Target array's length is determined by initializer, so able to add new element.
+          type = type->pa.ptrof;
+        }
+        break;
+      case TY_STRUCT:
+        {
+          const StructInfo *sinfo = type->struct_.info;
+          assert(sinfo != NULL);
+          int member_count = sinfo->is_union ? 1 : sinfo->member_count;
+          if (last_index < member_count) {
+            type = sinfo->members[last_index].type;
+          } else {
+            upward = true;
+          }
+        }
+        break;
+      default: assert(false); break;
+      }
+      if (upward)
+        break;
+
+      if (!is_multi_type(type->kind)) {
+        // Found the destination to store.
+        return flatten_initializer(type, elem_init);
+      }
+
+      // Dig.
+      vec_push(indices, INT2VOIDP(last_index = 0));
+    }
+
+    // Overflow elements: Move upward and continue.
+    if (indices->len <= 1) {
+      // No more elements to store.
+      parse_error(PE_NOFATAL, elem_init->token, "Excess elements in array initializer");
+      return NULL;
+    }
+    vec_pop(indices);
+  }
+}
+
+static Initializer *find_desig_indices(InitFlattener *flattener, Initializer *init) {
+  Vector *indices = flattener->indices;
+  vec_clear(indices);
+
+  Type *type = flattener->root_type;
+
+  for (;;) {
+    ssize_t index;
+    switch (init->kind) {
+    case IK_ARR:
+      if (type->kind != TY_ARRAY) {
+        parse_error(PE_NOFATAL, init->token, "Illegal bracket designator");
+        return NULL;
+      } else {
+        index = init->arr.index;
+        init = init->arr.value;
+        type = type->pa.ptrof;
+      }
+      break;
+    case IK_DOT:
+      if (type->kind != TY_STRUCT) {
+        parse_error(PE_NOFATAL, init->token, "Illegal dotted designator");
+        return NULL;
+      } else {
+        StructInfo *sinfo = type->struct_.info;
+        assert(sinfo != NULL);
+        const Name *name = init->dot.name;
+        index = find_struct_member(sinfo, name);
+        if (index < 0) {
+          Vector *stack = new_vector();
+          if (search_from_anonymous(type, name, NULL, stack) == NULL) {
+            parse_error(PE_NOFATAL, init->token, "`%.*s' is not member of struct", NAMES(name));
+            return NULL;
+          }
+
+          for (int i = 0; ;) {
+            intptr_t subindex = VOIDP2INT(stack->data[i]);
+            vec_push(indices, INT2VOIDP(subindex));
+            const MemberInfo *minfo = &sinfo->members[subindex];
+            type = minfo->type;
+            if (++i >= stack->len)
+              break;
+            assert(type->kind == TY_STRUCT);
+            sinfo = type->struct_.info;
+            assert(sinfo != NULL);
+          }
+          init = init->dot.value;
+          continue;
+        }
+
+        init = init->dot.value;
+        type = sinfo->members[index].type;
+      }
+      break;
+    default: return init;
+    }
+    vec_push(indices, INT2VOIDP(index));
+  }
+}
+
+static void store_to_current_position(InitFlattener *flattener, Initializer *init) {
+  Vector *indices = flattener->indices;
+  Type *type = flattener->root_type;
+  Initializer *target = flattener->flattened;
+  assert(target->kind == IK_MULTI);
+  int depth = indices->len;
+  for (int d = 0; ; ++d) {
+    intptr_t index = VOIDP2INT(indices->data[d]);
+    assert(index >= 0);
+    if (index >= target->multi->len) {
+      assert(type->kind == TY_ARRAY &&
+             (type->pa.length == LEN_UND || type->pa.length == LEN_FAM));
+      Vector *multi = target->multi;
+      while (index >= multi->len)
+        vec_push(multi, NULL);
+    }
+    if (d >= depth - 1) {
+      target->multi->data[index] = init;
+      return;
+    }
+
+    Type *elem_type = get_multi_child_type(type, index);
+    Initializer *elem_init = target->multi->data[index];
+    if (elem_init == NULL) {
+      assert(is_multi_type(elem_type->kind));
+      elem_init = reserve_init_for_multi(elem_type, init->token);
+      target->multi->data[index] = elem_init;
+    }
+    assert(elem_init->kind == IK_MULTI);
+    type = elem_type;
+    target = elem_init;
+  }
+}
+
+// Match multi initializer (`{...}`) to multi type (array or struct).
+static Initializer *flatten_initializer_multi(Type *type, Initializer *init) {
+  assert(is_multi_type(type->kind));
+  assert(init->kind == IK_MULTI);
   if (type->kind == TY_ARRAY)
     init = flatten_array_initializer(init);
 
-  InitFlattener flattener = { .index = -1 };
-  Initializer *flat = flatten_initializer_multi(&flattener, type, init);
-  switch (type->kind) {
-  case TY_ARRAY:
-  case TY_STRUCT:
-    if (flattener.index < init->multi->len) {
-      const char *tstr = type->kind == TY_ARRAY ? "array" : "struct";
-      parse_error(PE_WARNING, ((Initializer*)init->multi->data[flattener.index])->token,
-                  "Excess elements in %s initializer", tstr);
+  Vector *indices = new_vector();
+  vec_push(indices, INT2VOIDP(-1));
+
+  InitFlattener flattener = {
+    .root_type = type,
+    .indices = indices,
+    .flattened = reserve_init_for_multi(type, init->token),
+  };
+
+  assert(is_multi_type(type->kind));
+  for (int i = 0; i < init->multi->len; ++i) {
+    Initializer *elem_init = init->multi->data[i];
+    if (elem_init != NULL && (elem_init->kind == IK_ARR || elem_init->kind == IK_DOT)) {
+      // Search designated element and update indices.
+      elem_init = find_desig_indices(&flattener, elem_init);
+    } else {
+      // Increment indices.
+      elem_init = find_next_indices(&flattener, elem_init);
     }
-    break;
-  default: assert(false); break;
+
+    if (elem_init != NULL)
+      store_to_current_position(&flattener, elem_init);
   }
-  return flat;
+
+  return flattener.flattened;
 }
 
 static void flatten_initializer_single(Expr *value) {
@@ -454,33 +676,36 @@ Initializer *flatten_initializer(Type *type, Initializer *init) {
   if (init == NULL)
     return NULL;
 
-  if (init->kind == IK_MULTI && is_multi_type(type->kind))
-    return flatten_initializer_multi0(type, init);
+  if (is_multi_type(type->kind)) {
+    if (init->kind == IK_MULTI)
+      return flatten_initializer_multi(type, init);
 
-  switch (type->kind) {
-  case TY_STRUCT:
-    if (init->kind == IK_SINGLE) {
-      Expr *e = init->single;
-      if (!same_type_without_qualifier(type, e->type, true))
-        parse_error(PE_NOFATAL, init->token, "Incompatible type");
-      if (e->kind == EX_COMPLIT)
-        flatten_initializer_single(e);
-    }
-    break;
-  case TY_ARRAY:
-    switch (init->kind) {
-    case IK_SINGLE:
-      // Special handling for string (char[]), and accept length difference.
-      if (init->single->type->kind == TY_ARRAY &&
-          can_cast(type->pa.ptrof, init->single->type->pa.ptrof, is_zero(init->single), false))
-        break;
-      // Fallthrough
-    default:
-      // Error will be reported in another place.
+    switch (type->kind) {
+    case TY_STRUCT:
+      if (init->kind == IK_SINGLE) {
+        Expr *e = init->single;
+        if (!same_type_without_qualifier(type, e->type, true))
+          parse_error(PE_NOFATAL, init->token, "Incompatible type");
+        if (e->kind == EX_COMPLIT)
+          flatten_initializer_single(e);
+      }
       break;
+    case TY_ARRAY:
+      switch (init->kind) {
+      case IK_SINGLE:
+        // Special handling for string (char[]), and accept length difference.
+        if (init->single->type->kind == TY_ARRAY &&
+            can_cast(type->pa.ptrof, init->single->type->pa.ptrof, is_zero(init->single), false))
+          break;
+        // Fallthrough
+      default:
+        // Error will be reported in another place.
+        break;
+      }
+      break;
+    default: assert(false); break;
     }
-    break;
-  default:
+  } else {
     switch (init->kind) {
     case IK_MULTI:
       if (init->multi->len != 1 || ((Initializer*)init->multi->data[0])->kind != IK_SINGLE) {
@@ -498,7 +723,6 @@ Initializer *flatten_initializer(Type *type, Initializer *init) {
       // TODO: Modify init
       break;
     }
-    break;
   }
   return init;
 }
