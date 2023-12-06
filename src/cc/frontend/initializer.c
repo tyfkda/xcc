@@ -511,6 +511,11 @@ static Initializer *find_next_indices(InitFlattener *flattener, Initializer *ele
               return elem_init;
             }
           }
+          if (is_multi_type(elem_init->single->type->kind)) {
+            // In the case that variable or funcall is used as initializer.
+            if (same_type_without_qualifier(type, elem_init->single->type, true))
+              return elem_init;
+          }
           break;
         case IK_MULTI:
           return flatten_initializer_multi(type, elem_init);
@@ -586,7 +591,13 @@ static Initializer *find_desig_indices(InitFlattener *flattener, Initializer *in
         type = sinfo->members[index].type;
       }
       break;
-    default: return init;
+    case IK_MULTI:
+      if (is_multi_type(type->kind))
+        init = flatten_initializer_multi(type, init);
+      return init;
+    case IK_SINGLE:
+      return flatten_initializer(type, init);
+    default: assert(false); return NULL;
     }
     vec_push(indices, INT2VOIDP(index));
   }
