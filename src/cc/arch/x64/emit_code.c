@@ -251,13 +251,6 @@ static void construct_initial_value(const Type *type, const Initializer *init) {
         Vector *init_array = init->multi;
         for (ssize_t i = 0; i < init_array->len; ++i, ++index) {
           const Initializer *init_elem = init_array->data[i];
-          if (init_elem->kind == IK_ARR) {
-            ssize_t next = init_elem->arr.index;
-            for (ssize_t j = index; j < next; ++j)
-              construct_initial_value(elem_type, NULL);
-            index = next;
-            init_elem = init_elem->arr.value;
-          }
           construct_initial_value(elem_type, init_elem);
         }
       }

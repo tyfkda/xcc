@@ -51,7 +51,7 @@ Type *fix_array_size(Type *type, Initializer *init) {
       ssize_t max_index = 0;
       for (ssize_t i = 0; i < init->multi->len; ++i) {
         Initializer *init_elem = init->multi->data[i];
-        if (init_elem->kind == IK_ARR) {
+        if (init_elem != NULL && init_elem->kind == IK_ARR) {
           index = init_elem->arr.index;
         }
         ++index;
@@ -861,7 +861,7 @@ static Initializer *check_global_initializer(Type *type, Initializer *init) {
         Vector *multi = init->multi;
         for (int i = 0, len = multi->len; i < len; ++i) {
           Initializer *eleminit = multi->data[i];
-          if (eleminit->kind == IK_ARR) {
+          if (eleminit != NULL && eleminit->kind == IK_ARR) {
             eleminit->arr.value = check_global_initializer(elemtype, eleminit->arr.value);
           } else {
             multi->data[i] = check_global_initializer(elemtype, eleminit);
@@ -938,7 +938,7 @@ Vector *assign_initial_value(Expr *expr, Initializer *init, Vector *inits) {
         size_t prev_index = 0, index = 0;
         for (size_t i = 0; i < len; ++i) {
           Initializer *init_elem = init->multi->data[i];
-          if (init_elem->kind == IK_ARR) {
+          if (init_elem != NULL && init_elem->kind == IK_ARR) {
             index = init_elem->arr.index;
             init_elem = init_elem->arr.value;
           }

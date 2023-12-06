@@ -111,13 +111,6 @@ Initializer *new_init_multi(int count, ...) {
   return init;
 }
 
-Initializer *new_init_arr(size_t index, Initializer *value) {
-  Initializer *init = new_initializer(IK_ARR, NULL);
-  init->arr.index = index;
-  init->arr.value = value;
-  return init;
-}
-
 TEST(flatten) {
   expect2("1234", "1234", &tyInt);
   expect2("\"str\"", "\"str\"", ptrof(&tyChar));
