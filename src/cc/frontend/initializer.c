@@ -502,6 +502,22 @@ static Initializer *find_next_indices(InitFlattener *flattener, Initializer *ele
         return flatten_initializer(type, elem_init);
       }
 
+      if (elem_init != NULL) {
+        switch (elem_init->kind) {
+        case IK_SINGLE:
+          // Special handling for string.
+          if (type->kind == TY_ARRAY) {
+            if (elem_init->single->kind == EX_STR && is_char_type(type->pa.ptrof, elem_init->single->str.kind)) {
+              return elem_init;
+            }
+          }
+          break;
+        case IK_MULTI:
+          return flatten_initializer_multi(type, elem_init);
+        default: assert(false); break;
+        }
+      }
+
       // Dig.
       vec_push(indices, INT2VOIDP(last_index = 0));
     }
@@ -614,8 +630,16 @@ static void store_to_current_position(InitFlattener *flattener, Initializer *ini
 static Initializer *flatten_initializer_multi(Type *type, Initializer *init) {
   assert(is_multi_type(type->kind));
   assert(init->kind == IK_MULTI);
-  if (type->kind == TY_ARRAY)
+  if (type->kind == TY_ARRAY) {
     init = flatten_array_initializer(init);
+
+    if (init->multi->len == 1) {
+      Initializer *elem_init = init->multi->data[0];
+      if (elem_init->kind == IK_SINGLE && elem_init->single->kind == EX_STR &&
+          is_char_type(type->pa.ptrof, elem_init->single->str.kind))
+        return elem_init;
+    }
+  }
 
   Vector *indices = new_vector();
   vec_push(indices, INT2VOIDP(-1));

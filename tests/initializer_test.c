@@ -153,10 +153,11 @@ TEST(flatten) {
   }
 
   {  // Array index initializer.
-    Initializer *expected = new_init_multi(2,
-        new_init_arr(1, new_init_single(new_expr_fixlit(&tyInt, NULL, 11))),
-        new_init_arr(3, new_init_single(new_expr_fixlit(&tyInt, NULL, 33))),
-        NULL);
+    Initializer *expected = new_init_multi(4,
+        NULL,
+        new_init_single(new_expr_fixlit(&tyInt, NULL, 11)),
+        NULL,
+        new_init_single(new_expr_fixlit(&tyInt, NULL, 33)));
     expect(expected, "{[3] = 33, [1] = 11}", arrayof(&tyInt, -1));
   }
 
@@ -176,14 +177,15 @@ TEST(flatten) {
             new_init_single(new_expr_fixlit(&tyInt, NULL, 2)),
             new_init_single(new_expr_fixlit(&tyInt, NULL, 4)),
             new_init_single(new_expr_fixlit(&tyInt, NULL, 6))),
-        new_init_multi(2,
+        new_init_multi(3,
             new_init_single(new_expr_fixlit(&tyInt, NULL, 9)),
-            new_init_single(new_expr_fixlit(&tyInt, NULL, 11))));
+            new_init_single(new_expr_fixlit(&tyInt, NULL, 11)),
+            NULL));
     expect(expected, "{{2, 4, 6}, {9, 11}}", arrayof(arrayof(&tyInt, 3), 2));
+    expect(expected, "{2, 4, 6, 9, 11}", arrayof(arrayof(&tyInt, 3), 2));
   }
 
   // 2D array without brace.
-  expect2("{{2, 4, 6}, {9, 11}}", "{2, 4, 6, 9, 11}", arrayof(arrayof(&tyInt, 3), 2));
   expect2("{{3, 1}, {4, 1}, {5, 9}}", "{{3, 1}, 4, 1, {5, 9}}", arrayof(arrayof(&tyInt, 2), -1));
 
   // Array of struct without brace.
