@@ -51,8 +51,8 @@ Type *fix_array_size(Type *type, Initializer *init) {
       ssize_t max_index = 0;
       for (ssize_t i = 0; i < init->multi->len; ++i) {
         Initializer *init_elem = init->multi->data[i];
-        if (init_elem != NULL && init_elem->kind == IK_ARR) {
-          index = init_elem->arr.index;
+        if (init_elem != NULL && init_elem->kind == IK_BRKT) {
+          index = init_elem->bracket.index;
         }
         ++index;
         if (max_index < index)
@@ -156,13 +156,6 @@ static Stmt *init_char_array_by_string(Expr *dst, Initializer *src) {
   return build_memcpy(dst, var, len * type_size(str->type->pa.ptrof));
 }
 
-static int compare_desig_start(const void *a, const void *b) {
-  const ssize_t *pa = *(ssize_t**)a;
-  const ssize_t *pb = *(ssize_t**)b;
-  ssize_t d = *pa - *pb;
-  return d > 0 ? 1 : d < 0 ? -1 : 0;
-}
-
 typedef struct {
   Type *root_type;
   Vector *indices;
@@ -203,238 +196,7 @@ static Initializer *reserve_init_for_multi(Type *type, const Token *token) {
   return init;
 }
 
-static Initializer *flatten_array_initializer(Initializer *init) {
-  // Check whether IK_DOT or IK_ARR exists.
-  int i = 0, len = init->multi->len;
-  for (; i < len; ++i) {
-    Initializer *init_elem = init->multi->data[i];
-    if (init_elem->kind == IK_DOT)
-      parse_error(PE_FATAL, NULL, "dot initializer for array");
-    if (init_elem->kind == IK_ARR)
-      break;
-  }
-  if (i >= len)  // IK_ARR not exits.
-    return init;
-
-  // Enumerate designated initializer.
-  Vector *ranges = new_vector();  // <(start, count)>
-  size_t lastStartIndex = 0;
-  size_t lastStart = 0;
-  size_t index = i;
-  for (; i <= len; ++i, ++index) {  // '+1' is for last range.
-    Initializer *init_elem = NULL;
-    if (i >= len || (init_elem = init->multi->data[i])->kind == IK_ARR) {
-      if ((size_t)i > lastStartIndex) {
-        size_t *range = malloc_or_die(sizeof(size_t) * 3);
-        range[0] = lastStart;
-        range[1] = lastStartIndex;
-        range[2] = index - lastStart;
-        vec_push(ranges, range);
-      }
-      if (i >= len)
-        break;
-      lastStart = index = init_elem->arr.index;
-      lastStartIndex = i;
-    } else if (init_elem->kind == IK_DOT)
-      parse_error(PE_FATAL, NULL, "dot initializer for array");
-  }
-
-  // Sort
-  qsort(ranges->data, ranges->len, sizeof(size_t *), compare_desig_start);
-
-  // Reorder
-  Vector *reordered = new_vector();
-  index = 0;
-  for (int i = 0; i < ranges->len; ++i) {
-    size_t *p = ranges->data[i];
-    size_t start = p[0];
-    size_t index = p[1];
-    size_t count = p[2];
-    if (i > 0) {
-      size_t *q = ranges->data[i - 1];
-      if (start < q[0] + q[2])
-        parse_error(PE_FATAL, NULL, "Initializer for array overlapped");
-    }
-    for (size_t j = 0; j < count; ++j) {
-      Initializer *elem = init->multi->data[index + j];
-      if (j == 0 && index != start && elem->kind != IK_ARR) {
-        Initializer *arr = new_initializer(IK_ARR, elem->token);
-        arr->arr.index = start;
-        arr->arr.value = elem;
-        elem = arr;
-      }
-      vec_push(reordered, elem);
-    }
-  }
-
-  Initializer *init2 = new_initializer(IK_MULTI, init->token);
-  init2->multi = reordered;
-  return init2;
-}
-
 static Initializer *flatten_initializer_multi(Type *type, Initializer *init);
-
-#if 0
-static Initializer *flatten_initializer_multi(InitFlattener *flattener, Type *type, Initializer *init) {
-  int *const pindex = &flattener->index;
-
-  assert(init != NULL);
-  switch (init->kind) {
-  case IK_SINGLE:
-    *pindex += 1;
-    return flatten_initializer(type, init);
-  case IK_MULTI:
-    break;
-  default:
-    parse_error(PE_NOFATAL, init->token, "Illegal initializer");
-    return init;
-  }
-
-  if (*pindex < 0) {
-    *pindex = 0;
-  } else if (*pindex < init->multi->len) {
-    Initializer *e = init->multi->data[*pindex];
-    if (e->kind == IK_MULTI && is_multi_type(type->kind)) {
-      *pindex += 1;
-      return flatten_initializer_multi0(type, e);
-    }
-  }
-
-  if (!is_multi_type(type->kind)) {
-    Initializer *elem_init = init->multi->data[*pindex];
-    *pindex += 1;
-    return flatten_initializer(type, elem_init);
-  }
-
-  switch (type->kind) {
-  case TY_STRUCT:
-    {
-      const StructInfo *sinfo = type->struct_.info;
-      int n = sinfo->member_count;
-      int m = init->multi->len;
-      if (n <= 0) {
-        return init;
-      }
-
-      if (*pindex < m) {
-        Initializer *elem_init = init->multi->data[*pindex];
-        if (elem_init != NULL && elem_init->kind == IK_SINGLE &&
-            same_type_without_qualifier(type, elem_init->single->type, true)) {
-          *pindex += 1;
-          return elem_init;
-        }
-      }
-
-      Initializer **values = malloc_or_die(sizeof(Initializer*) * n);
-      for (int i = 0; i < n; ++i)
-        values[i] = NULL;
-
-      int midx = 0;
-      while (*pindex < m) {
-        Initializer *value = init->multi->data[*pindex];
-        if (value == NULL) {
-          *pindex += 1;
-          continue;
-        }
-
-        if (value->kind == IK_ARR) {
-          parse_error(PE_NOFATAL, value->token, "indexed initializer for struct");
-          *pindex += 1;
-          continue;
-        }
-
-        bool dot = value->kind == IK_DOT;
-        if (dot) {
-          const Name *name = value->dot.name;
-          midx = find_struct_member(sinfo, name);
-          if (midx >= 0) {
-            value = value->dot.value;
-          } else {
-            Vector *stack = new_vector();
-            if (search_from_anonymous(type, name, NULL, stack) == NULL) {
-              parse_error(PE_NOFATAL, value->token, "`%.*s' is not member of struct", NAMES(name));
-              *pindex += 1;
-              continue;
-            }
-
-            midx = VOIDP2INT(stack->data[0]);
-            Vector *multi = new_vector();
-            vec_push(multi, value);
-            Initializer *init2 = new_initializer(IK_MULTI, value->token);
-            init2->multi = multi;
-            value = init2;
-          }
-        }
-
-        if (midx >= n)
-          break;
-
-        MemberInfo *minfo = &sinfo->members[midx];
-        if (dot) {
-          value = flatten_initializer(minfo->type, value);
-          *pindex += 1;
-        } else {
-          Type *mt = minfo->type;
-          if (sinfo->is_flexible && midx == sinfo->member_count - 1) {
-            // Special handling for flexible array member: allow arbitrary length of initializer.
-            mt = clone_type(mt);
-            assert(mt->kind == TY_ARRAY);
-            mt->pa.length = -1;
-          }
-          value = flatten_initializer_multi(flattener, mt, init);
-        }
-        values[midx++] = value;
-
-        if (sinfo->is_union)
-          break;
-      }
-
-      Initializer *flat = new_initializer(IK_MULTI, init->token);
-      Vector *v = new_vector();
-      v->len = v->capacity = n;
-      v->data = (void**)values;
-      flat->multi = v;
-      return flat;
-    }
-  case TY_ARRAY:
-    {
-      if (*pindex < init->multi->len) {
-        Initializer *elem_init = init->multi->data[*pindex];
-        if (elem_init->kind == IK_SINGLE && elem_init->single->kind == EX_STR &&
-            is_char_type(type->pa.ptrof, elem_init->single->str.kind)) {
-          *pindex += 1;
-          return elem_init;
-        }
-      }
-
-      Type *elem_type = type->pa.ptrof;
-      Vector *elems = new_vector();
-      ssize_t eidx = 0;
-      while (*pindex < init->multi->len) {
-        Initializer *elem_init = init->multi->data[*pindex];
-        if (elem_init->kind == IK_ARR) {
-          elem_init->arr.value = flatten_initializer(elem_type, elem_init->arr.value);
-          eidx = elem_init->arr.index;
-          assert(type->pa.length < 0 || eidx < type->pa.length);
-          *pindex += 1;
-        } else {
-          if (type->pa.length >= 0 && eidx >= type->pa.length)
-            break;
-          elem_init = flatten_initializer_multi(flattener, elem_type, init);
-        }
-        vec_push(elems, elem_init);
-        ++eidx;
-      }
-
-      Initializer *init2 = new_initializer(IK_MULTI, init->token);
-      init2->multi = elems;
-      return init2;
-    }
-  default: assert(false); break;
-  }
-  return init;
-}
-#endif
 
 static Type *get_multi_child_type(Type *type, int index) {
   switch (type->kind) {
@@ -546,13 +308,13 @@ static Initializer *find_desig_indices(InitFlattener *flattener, Initializer *in
   for (;;) {
     ssize_t index;
     switch (init->kind) {
-    case IK_ARR:
+    case IK_BRKT:
       if (type->kind != TY_ARRAY) {
         parse_error(PE_NOFATAL, init->token, "Illegal bracket designator");
         return NULL;
       } else {
-        index = init->arr.index;
-        init = init->arr.value;
+        index = init->bracket.index;
+        init = init->bracket.value;
         type = type->pa.ptrof;
       }
       break;
@@ -625,7 +387,10 @@ static void store_to_current_position(InitFlattener *flattener, Initializer *ini
         vec_push(multi, NULL);
     }
     if (d >= depth - 1) {
-      target->multi->data[index] = init;
+      Initializer **pp = (Initializer**)&target->multi->data[index];
+      if (*pp != NULL)
+        parse_error(PE_WARNING, init->token, "Initializer overlapped");
+      *pp = init;
       return;
     }
 
@@ -647,8 +412,6 @@ static Initializer *flatten_initializer_multi(Type *type, Initializer *init) {
   assert(is_multi_type(type->kind));
   assert(init->kind == IK_MULTI);
   if (type->kind == TY_ARRAY) {
-    init = flatten_array_initializer(init);
-
     if (init->multi->len == 1) {
       Initializer *elem_init = init->multi->data[0];
       if (elem_init->kind == IK_SINGLE && elem_init->single->kind == EX_STR &&
@@ -669,7 +432,7 @@ static Initializer *flatten_initializer_multi(Type *type, Initializer *init) {
   assert(is_multi_type(type->kind));
   for (int i = 0; i < init->multi->len; ++i) {
     Initializer *elem_init = init->multi->data[i];
-    if (elem_init != NULL && (elem_init->kind == IK_ARR || elem_init->kind == IK_DOT)) {
+    if (elem_init != NULL && (elem_init->kind == IK_BRKT || elem_init->kind == IK_DOT)) {
       // Search designated element and update indices.
       elem_init = find_desig_indices(&flattener, elem_init);
     } else {
@@ -877,8 +640,8 @@ static Initializer *check_global_initializer(Type *type, Initializer *init) {
         Vector *multi = init->multi;
         for (int i = 0, len = multi->len; i < len; ++i) {
           Initializer *eleminit = multi->data[i];
-          if (eleminit != NULL && eleminit->kind == IK_ARR) {
-            eleminit->arr.value = check_global_initializer(elemtype, eleminit->arr.value);
+          if (eleminit != NULL && eleminit->kind == IK_BRKT) {
+            eleminit->bracket.value = check_global_initializer(elemtype, eleminit->bracket.value);
           } else {
             multi->data[i] = check_global_initializer(elemtype, eleminit);
           }
@@ -954,9 +717,9 @@ Vector *assign_initial_value(Expr *expr, Initializer *init, Vector *inits) {
         size_t prev_index = 0, index = 0;
         for (size_t i = 0; i < len; ++i) {
           Initializer *init_elem = init->multi->data[i];
-          if (init_elem != NULL && init_elem->kind == IK_ARR) {
-            index = init_elem->arr.index;
-            init_elem = init_elem->arr.value;
+          if (init_elem != NULL && init_elem->kind == IK_BRKT) {
+            index = init_elem->bracket.index;
+            init_elem = init_elem->bracket.value;
           }
 
           size_t add = index - prev_index;

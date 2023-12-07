@@ -105,9 +105,9 @@ static Initializer *parse_initializer_multi(void) {
       match(TK_ASSIGN);  // both accepted: `[1] = 2`, and `[1] 2`
       value = parse_initializer();
     }
-    init = new_initializer(IK_ARR, tok);
-    init->arr.index = index;
-    init->arr.value = value;
+    init = new_initializer(IK_BRKT, tok);
+    init->bracket.index = index;
+    init->bracket.value = value;
   }
   return init;
 }

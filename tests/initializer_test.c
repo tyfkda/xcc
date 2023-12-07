@@ -53,8 +53,8 @@ static bool same_init(const Initializer *init1, const Initializer *init2) {
       }
     }
     return true;
-  case IK_ARR:
-    return init1->arr.index == init2->arr.index && same_init(init1->arr.value, init2->arr.value);
+  case IK_BRKT:
+    return init1->bracket.index == init2->bracket.index && same_init(init1->bracket.value, init2->bracket.value);
   default:
     return false;
   }
