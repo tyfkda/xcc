@@ -596,6 +596,11 @@ static Initializer *find_desig_indices(InitFlattener *flattener, Initializer *in
         init = flatten_initializer_multi(type, init);
       return init;
     case IK_SINGLE:
+      if (is_multi_type(type->kind) && !is_multi_type(init->single->type->kind)) {
+        // To search first element of `type`, dig indices.
+        vec_push(indices, INT2VOIDP(-1));
+        return find_next_indices(flattener, init);
+      }
       return flatten_initializer(type, init);
     default: assert(false); return NULL;
     }

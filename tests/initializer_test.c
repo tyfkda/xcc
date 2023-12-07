@@ -219,6 +219,21 @@ TEST(flatten) {
 
     expect2("{333}", "{{333}}", type);
   }
+
+  {  // Point to intermediate.
+    MemberInfo *members1 = malloc(sizeof(*members1) * 2);
+    members1[0] = (MemberInfo){ .name = alloc_name("x", NULL, false), .type = &tyInt };
+    members1[1] = (MemberInfo){ .name = alloc_name("y", NULL, false), .type = &tyInt };
+    StructInfo *sinfo1 = create_struct_info(members1, 2, false, false);
+    Type *type1 = create_struct_type(sinfo1, NULL, 0);
+
+    MemberInfo *members2 = malloc(sizeof(*members2) * 1);
+    members2[0] = (MemberInfo){ .name = alloc_name("s", NULL, false), .type = type1 };
+    StructInfo *sinfo2 = create_struct_info(members2, 1, false, false);
+    Type *type2 = create_struct_type(sinfo2, NULL, 0);
+
+    expect2("{{98, 76}}", "{.s=98, 76}", type2);
+  }
 } END_TEST()
 
 int main(void) {
