@@ -276,7 +276,7 @@ const MemberInfo *search_from_anonymous(const Type *type, const Name *name, cons
         return member;
       }
     } else if (member->type->kind == TY_STRUCT) {
-      vec_push(stack, (void*)(intptr_t)i);
+      vec_push(stack, INT2VOIDP(i));
       const MemberInfo *submember = search_from_anonymous(member->type, name, ident, stack);
       if (submember != NULL)
         return submember;

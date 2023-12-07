@@ -293,7 +293,7 @@ bool resolve_relative_address(Vector **section_irs, Table *label_table, Vector *
                 }
                 value.offset += label_info->address;
               }
-              intptr_t offset = value.offset - ((intptr_t)address + ir->code.len);
+              intptr_t offset = value.offset - (VOIDP2INT(address) + ir->code.len);
               put_value(ir->code.buf + 3, offset, sizeof(int32_t));
             }
             break;
@@ -323,7 +323,7 @@ bool resolve_relative_address(Vector **section_irs, Table *label_table, Vector *
                 }
               }
 
-              intptr_t offset = value.offset - ((intptr_t)address + ir->code.len);
+              intptr_t offset = value.offset - (VOIDP2INT(address) + ir->code.len);
               bool long_offset = ir->code.flag & INST_LONG_OFFSET;
               if (!long_offset) {
                 if (!is_im8(offset)) {
@@ -357,7 +357,7 @@ bool resolve_relative_address(Vector **section_irs, Table *label_table, Vector *
                 }
                 value.offset += label_info->address;
               }
-              intptr_t offset = value.offset - ((intptr_t)address + ir->code.len);
+              intptr_t offset = value.offset - (VOIDP2INT(address) + ir->code.len);
               put_value(ir->code.buf + 1, offset, sizeof(int32_t));
             }
             break;

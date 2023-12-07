@@ -24,11 +24,11 @@ Macro *new_macro(Vector *params, const Name *vaargs_ident, Vector *body) {
     table = alloc_table();
     for (int i = 0; i < len; ++i) {
       const Name *ident = params->data[i];
-      table_put(table, ident, (void*)(intptr_t)i);
+      table_put(table, ident, INT2VOIDP(i));
     }
     if (macro->vaargs_ident) {
       const Name *ident = macro->vaargs_ident;
-      table_put(table, ident, (void*)(intptr_t)len);
+      table_put(table, ident, INT2VOIDP(len));
     }
   }
   macro->param_table = table;

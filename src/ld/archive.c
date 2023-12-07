@@ -81,7 +81,7 @@ Archive *load_archive(const char *filename) {
 ElfObj *load_archive_elfobj(Archive *ar, uint32_t offset) {
   Vector *contents = ar->contents;
   for (int i = 0; i < contents->len; i += 2) {
-    if ((intptr_t)contents->data[i] == offset) {
+    if (VOIDP2INT(contents->data[i]) == offset) {
       // Already loaded.
       return NULL;
     }
@@ -114,7 +114,7 @@ ElfObj *load_archive_elfobj(Archive *ar, uint32_t offset) {
     error("Failed to extract .o: %s", content->name);
   }
 
-  vec_push(contents, (void*)(intptr_t)offset);
+  vec_push(contents, INT2VOIDP(offset));
   vec_push(contents, content);
 
   return elfobj;

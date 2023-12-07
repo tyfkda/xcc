@@ -662,7 +662,7 @@ static const char *process_directive(PreprocessFile *ppf, const char *line) {
     int last = ppf->condstack->len - 1;
     if (last < 0)
       error("`#else' used without `#if'");
-    intptr_t flag = (intptr_t)ppf->condstack->data[last];
+    intptr_t flag = VOIDP2INT(ppf->condstack->data[last]);
     if (ppf->satisfy == ElseAppeared)
       error("Illegal #else");
     ppf->enable = !ppf->enable && ppf->satisfy == NotSatisfied && ((flag & CF_ENABLE) != 0);
@@ -671,7 +671,7 @@ static const char *process_directive(PreprocessFile *ppf, const char *line) {
     int last = ppf->condstack->len - 1;
     if (last < 0)
       error("`#elif' used without `#if'");
-    intptr_t flag = (intptr_t)ppf->condstack->data[last];
+    intptr_t flag = VOIDP2INT(ppf->condstack->data[last]);
     if (ppf->satisfy == ElseAppeared)
       error("Illegal #elif");
 
@@ -687,7 +687,7 @@ static const char *process_directive(PreprocessFile *ppf, const char *line) {
   } else if ((next = keyword(directive, "endif")) != NULL) {
     if (ppf->condstack->len <= 0)
       error("`#endif' used without `#if'");
-    int flag = (intptr_t)vec_pop(ppf->condstack);
+    int flag = VOIDP2INT(vec_pop(ppf->condstack));
     ppf->enable = (flag & CF_ENABLE) != 0;
     ppf->satisfy = (flag & CF_SATISFY_MASK) >> CF_SATISFY_SHIFT;
   } else if (ppf->enable) {

@@ -324,7 +324,7 @@ static Initializer *flatten_initializer_multi(InitFlattener *flattener, Type *ty
               continue;
             }
 
-            midx = (intptr_t)stack->data[0];
+            midx = VOIDP2INT(stack->data[0]);
             Vector *multi = new_vector();
             vec_push(multi, value);
             Initializer *init2 = new_initializer(IK_MULTI, value->token);

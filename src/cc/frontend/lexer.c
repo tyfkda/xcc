@@ -166,20 +166,20 @@ static void init_reserved_word_table(void) {
     // Reserved words.
     for (int i = 0, n = (int)(sizeof(kReservedWords) / sizeof(*kReservedWords)); i < n; ++i) {
       const Name *key = alloc_name(kReservedWords[i].str, NULL, false);
-      table_put(&reserved_word_table, key, (void*)(intptr_t)kReservedWords[i].kind);
+      table_put(&reserved_word_table, key, INT2VOIDP(kReservedWords[i].kind));
     }
   }
 
   // Multi-char operators.
   for (int i = 0, n = (int)(sizeof(kMultiOperators) / sizeof(*kMultiOperators)); i < n; ++i) {
     const Name *key = alloc_name(kMultiOperators[i].ident, NULL, false);
-    table_put(&reserved_word_table, key, (void*)(intptr_t)kMultiOperators[i].kind);
+    table_put(&reserved_word_table, key, INT2VOIDP(kMultiOperators[i].kind));
   }
 }
 
 static enum TokenKind reserved_word(const Name *name) {
   void *kind = table_get(&reserved_word_table, name);
-  return kind != NULL ? (enum TokenKind)(intptr_t)kind : TK_EOF;
+  return kind != NULL ? (enum TokenKind)VOIDP2INT(kind) : TK_EOF;
 }
 
 static int backslash(int c, const char **pp) {

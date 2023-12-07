@@ -569,7 +569,7 @@ void emit_wasm(FILE *ofp, Vector *exports, const char *import_module_name,
   data_init(&tag_section);
   if (tags->len > 0) {
     for (int i = 0; i < tags->len; ++i) {
-      int typeindex = (intptr_t)tags->data[i];
+      int typeindex = VOIDP2INT(tags->data[i]);
       int attribute = 0;
       emit_uleb128(&tag_section, -1, attribute);
       emit_uleb128(&tag_section, -1, typeindex);

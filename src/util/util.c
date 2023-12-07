@@ -245,7 +245,7 @@ char *change_ext(const char *path, const char *ext) {
 void put_padding(FILE *fp, uintptr_t start) {
   long cur = ftell(fp);
   if (start > (size_t)cur) {
-    size_t size = start - (uintptr_t)cur;
+    size_t size = start - VOIDP2UINT(cur);
     for (size_t i = 0; i < size; ++i)
       fputc(0x00, fp);
   }

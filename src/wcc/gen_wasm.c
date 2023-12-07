@@ -1715,11 +1715,11 @@ Vector *tags;
 int getsert_tag(int typeindex) {
   int len = tags->len;
   for (int i = 0; i < len; ++i) {
-    int t = (intptr_t)tags->data[i];
+    int t = VOIDP2INT(tags->data[i]);
     if (t == typeindex)
       return i;
   }
-  vec_push(tags, (void*)(intptr_t)typeindex);
+  vec_push(tags, INT2VOIDP(typeindex));
   return len;
 }
 

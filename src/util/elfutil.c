@@ -32,7 +32,7 @@ void *strtab_dump(Strtab *strtab) {
   const Name *name;
   void *value;
   for (int it = 0; (it = table_iterate(&strtab->offsets, it, &name, &value)) != -1; ) {
-    uintptr_t offset = (uintptr_t)value;
+    uintptr_t offset = VOIDP2UINT(value);
     memcpy(p + offset, name->chars, name->bytes);
     p[offset + name->bytes] = '\0';
   }
@@ -66,7 +66,7 @@ Elf64_Sym *symtab_add(Symtab *symtab, const Name *name) {
   Elf64_Sym *sym = &symtab->buf[old_count];
   memset(sym, 0x00, sizeof(*sym));
   sym->st_name = offset;
-  table_put(&symtab->indices, name, (void*)(uintptr_t)old_count);
+  table_put(&symtab->indices, name, INT2VOIDP(old_count));
   return sym;
 }
 

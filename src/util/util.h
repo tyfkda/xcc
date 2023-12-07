@@ -13,6 +13,10 @@
 #define ALIGN(x, align)  (((x) + (align) - 1) & -(align))  // align must be 2^n
 #define UNUSED(x)  ((void)(x))
 #define IS_POWER_OF_2(x)  ((x) > 0 && ((x) & ((x) - 1)) == 0)
+#define INT2VOIDP(i)   ((void*)(intptr_t)(i))
+#define UINT2VOIDP(i)  ((void*)(uintptr_t)(i))
+#define VOIDP2INT(p)   ((intptr_t)(p))
+#define VOIDP2UINT(p)  ((uintptr_t)(p))
 
 typedef struct Name Name;
 
