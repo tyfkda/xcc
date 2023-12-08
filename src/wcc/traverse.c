@@ -503,8 +503,8 @@ static void traverse_initializer(Initializer *init) {
   case IK_DOT:
     traverse_initializer(init->dot.value);
     break;
-  case IK_ARR:
-    traverse_initializer(init->arr.value);
+  case IK_BRKT:
+    traverse_initializer(init->bracket.value);
     break;
   }
 }

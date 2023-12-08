@@ -73,9 +73,9 @@ void dump_init(FILE *fp, const Initializer *init) {
     fprintf(fp, ".%.*s=", NAMES(init->dot.name));
     dump_init(fp, init->dot.value);
     break;
-  case IK_ARR:
-    fprintf(fp, "[%zu]=", init->arr.index);
-    dump_init(fp, init->arr.value);
+  case IK_BRKT:
+    fprintf(fp, "[%zu]=", init->bracket.index);
+    dump_init(fp, init->bracket.value);
     break;
   }
 }

@@ -315,8 +315,8 @@ Expr *strip_cast(Expr *expr);
 enum InitializerKind {
   IK_SINGLE,  // 123
   IK_MULTI,   // {...}
-  IK_DOT,     // .x=123
-  IK_ARR,     // [n]=123
+  IK_DOT,     // .x
+  IK_BRKT,    // [n]
 };
 
 struct Initializer {
@@ -332,7 +332,7 @@ struct Initializer {
     struct {
       size_t index;
       struct Initializer *value;
-    } arr;
+    } bracket;
   };
 };
 

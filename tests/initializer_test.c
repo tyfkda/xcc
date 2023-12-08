@@ -53,8 +53,8 @@ static bool same_init(const Initializer *init1, const Initializer *init2) {
       }
     }
     return true;
-  case IK_ARR:
-    return init1->arr.index == init2->arr.index && same_init(init1->arr.value, init2->arr.value);
+  case IK_BRKT:
+    return init1->bracket.index == init2->bracket.index && same_init(init1->bracket.value, init2->bracket.value);
   default:
     return false;
   }
@@ -74,8 +74,15 @@ void expect(Initializer *expected, const char *input_str, Type *type) {
   Initializer *actual = flatten_initializer(type, init);
 
   // Compare initializer
-  if (!same_init(expected, actual))
+  if (!same_init(expected, actual)) {
     fail("different");
+
+    fprintf(stderr, "expected[");
+    dump_init(stderr, expected);
+    fprintf(stderr, "], actual[");
+    dump_init(stderr, actual);
+    fprintf(stderr, "]\n");
+  }
 }
 
 void expect2(const char *expected_str, const char *input_str, Type *type) {
@@ -101,13 +108,6 @@ Initializer *new_init_multi(int count, ...) {
 
   Initializer *init = new_initializer(IK_MULTI, NULL);
   init->multi = elems;
-  return init;
-}
-
-Initializer *new_init_arr(size_t index, Initializer *value) {
-  Initializer *init = new_initializer(IK_ARR, NULL);
-  init->arr.index = index;
-  init->arr.value = value;
   return init;
 }
 
@@ -146,10 +146,11 @@ TEST(flatten) {
   }
 
   {  // Array index initializer.
-    Initializer *expected = new_init_multi(2,
-        new_init_arr(1, new_init_single(new_expr_fixlit(&tyInt, NULL, 11))),
-        new_init_arr(3, new_init_single(new_expr_fixlit(&tyInt, NULL, 33))),
-        NULL);
+    Initializer *expected = new_init_multi(4,
+        NULL,
+        new_init_single(new_expr_fixlit(&tyInt, NULL, 11)),
+        NULL,
+        new_init_single(new_expr_fixlit(&tyInt, NULL, 33)));
     expect(expected, "{[3] = 33, [1] = 11}", arrayof(&tyInt, -1));
   }
 
@@ -169,14 +170,15 @@ TEST(flatten) {
             new_init_single(new_expr_fixlit(&tyInt, NULL, 2)),
             new_init_single(new_expr_fixlit(&tyInt, NULL, 4)),
             new_init_single(new_expr_fixlit(&tyInt, NULL, 6))),
-        new_init_multi(2,
+        new_init_multi(3,
             new_init_single(new_expr_fixlit(&tyInt, NULL, 9)),
-            new_init_single(new_expr_fixlit(&tyInt, NULL, 11))));
+            new_init_single(new_expr_fixlit(&tyInt, NULL, 11)),
+            NULL));
     expect(expected, "{{2, 4, 6}, {9, 11}}", arrayof(arrayof(&tyInt, 3), 2));
+    expect(expected, "{2, 4, 6, 9, 11}", arrayof(arrayof(&tyInt, 3), 2));
   }
 
   // 2D array without brace.
-  expect2("{{2, 4, 6}, {9, 11}}", "{2, 4, 6, 9, 11}", arrayof(arrayof(&tyInt, 3), 2));
   expect2("{{3, 1}, {4, 1}, {5, 9}}", "{{3, 1}, 4, 1, {5, 9}}", arrayof(arrayof(&tyInt, 2), -1));
 
   // Array of struct without brace.
@@ -190,6 +192,47 @@ TEST(flatten) {
 
     expect2("{{11, 12}, {21, 22}}", "{11, 12, 21, 22}", arrayof(type, -1));
     expect2("{{11, 12}, {21, 22}}", "{{11, 12}, 21, 22}", arrayof(type, 2));
+  }
+
+  {  // Union array without brace.
+    MemberInfo *members = malloc(sizeof(*members) * 2);
+    members[0] = (MemberInfo){.name = alloc_name("i", NULL, false), .type = &tyInt};
+    members[1] = (MemberInfo){.name = alloc_name("b", NULL, false), .type = arrayof(&tyChar, 4)};
+    StructInfo *sinfo = create_struct_info(members, 2, true, false);
+    Type *type = create_struct_type(sinfo, NULL, 0);
+
+    Initializer *expected = new_init_multi(2,
+        new_init_multi(2,
+            new_init_single(new_expr_fixlit(&tyInt, NULL, 12345)),
+            NULL),
+        new_init_multi(2,
+            new_init_single(new_expr_fixlit(&tyInt, NULL, 67890)),
+            NULL));
+    expect(expected, "{12345, 67890}", arrayof(type, 2));
+  }
+
+  {  // Redundant brace for struct member.
+    MemberInfo *members = malloc(sizeof(*members) * 1);
+    members[0] = (MemberInfo){ .name = alloc_name("x", NULL, false), .type = &tyInt };
+    StructInfo *sinfo = create_struct_info(members, 1, false, false);
+    Type *type = create_struct_type(sinfo, NULL, 0);
+
+    expect2("{333}", "{{333}}", type);
+  }
+
+  {  // Point to intermediate.
+    MemberInfo *members1 = malloc(sizeof(*members1) * 2);
+    members1[0] = (MemberInfo){ .name = alloc_name("x", NULL, false), .type = &tyInt };
+    members1[1] = (MemberInfo){ .name = alloc_name("y", NULL, false), .type = &tyInt };
+    StructInfo *sinfo1 = create_struct_info(members1, 2, false, false);
+    Type *type1 = create_struct_type(sinfo1, NULL, 0);
+
+    MemberInfo *members2 = malloc(sizeof(*members2) * 1);
+    members2[0] = (MemberInfo){ .name = alloc_name("s", NULL, false), .type = type1 };
+    StructInfo *sinfo2 = create_struct_info(members2, 1, false, false);
+    Type *type2 = create_struct_type(sinfo2, NULL, 0);
+
+    expect2("{{98, 76}}", "{.s=98, 76}", type2);
   }
 } END_TEST()
 
