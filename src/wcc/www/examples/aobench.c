@@ -1,6 +1,5 @@
 // Floating point number example
 
-#include <alloca.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -225,7 +224,7 @@ void showGraphicAsText(int width, int height, unsigned char *img) {
   static const char GRAYSCALE[] =
       "$@B%8&WM#*oahkbdpqwmZO0QLCJUYXzcvunxrjft/\\|()1{}[]?-_+~<>i!lI;:,\"^`'. ";
   const double S = (sizeof(GRAYSCALE) - 1) / 256.0;
-  char *line = alloca(width + 1);
+  char line[width + 1];
   line[width] = '\0';
   for (int i = 0; i < height; ++i) {
     for (int j = 0; j < width; ++j) {
