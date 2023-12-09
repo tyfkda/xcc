@@ -75,8 +75,6 @@ static VarInfo *prepare_retvar(Function *func) {
 static void alloc_variable_registers(Function *func) {
   assert(func->type->kind == TY_FUNC);
 
-  bool require_stack_frame = (func->flag & FUNCF_STACK_MODIFIED) != 0;
-
   for (int i = 0; i < func->scopes->len; ++i) {
     Scope *scope = func->scopes->data[i];
     if (scope->vars == NULL)
@@ -97,7 +95,6 @@ static void alloc_variable_registers(Function *func) {
         FrameInfo *fi = malloc_or_die(sizeof(*fi));
         fi->offset = 0;
         varinfo->local.frameinfo = fi;
-        require_stack_frame = true;
         continue;
       }
 
@@ -106,25 +103,25 @@ static void alloc_variable_registers(Function *func) {
         vreg->flag |= VRF_REF;
       varinfo->local.vreg = vreg;
       varinfo->local.frameinfo = &vreg->frame;
-      require_stack_frame = true;
     }
   }
 
-  // Handle if return value is on the stack.
-  struct {
+  struct RegSet {
     int index;
     int max;
   } regparams[2] = {
     {.index = 0, .max = MAX_REG_ARGS},
     {.index = 0, .max = MAX_FREG_ARGS},
   };
-  enum { IREG = 0, FREG = 1 };
+  enum RegKind { IREG = 0, FREG = 1 };
+
+  // Handle if return value is on the stack.
   if (is_stack_param(func->type->func.ret)) {
     prepare_retvar(func);
     ++regparams[IREG].index;
   }
 
-  // Add flag to parameters.
+  // Count register parameters, or set flag.
   const Vector *params = func->params;
   if (params != NULL) {
     for (int i = 0; i < params->len; ++i) {
@@ -132,20 +129,14 @@ static void alloc_variable_registers(Function *func) {
       VReg *vreg = varinfo->local.vreg;
       if (vreg != NULL) {
         vreg->flag |= VRF_PARAM;
-        int k = (vreg->flag & VRF_FLONUM) ? FREG : IREG;
-        if (regparams[k].index < regparams[k].max) {
-          vreg->reg_param_index = regparams[k].index++;
-        } else {
-          vreg->flag |= VRF_SPILLED | VRF_STACK_PARAM;
-          require_stack_frame = true;
-        }
+        enum RegKind k = (vreg->flag & VRF_FLONUM) ? FREG : IREG;
+        struct RegSet *p = &regparams[k];
+        if (p->index < p->max)
+          vreg->reg_param_index = p->index++;
+        else
+          vreg->flag |= VRF_STACK_PARAM;
       }
     }
-  }
-
-  if (require_stack_frame) {
-    FuncBackend *fnbe = func->extra;
-    fnbe->ra->flag |= RAF_STACK_FRAME;
   }
 }
 
@@ -673,6 +664,8 @@ void gen_stmt(Stmt *stmt) {
 ////////////////////////////////////////////////
 
 void prepare_register_allocation(Function *func) {
+  bool require_stack_frame = func->type->func.vaargs || (func->flag & FUNCF_STACK_MODIFIED) != 0;
+
   for (int i = 0; i < func->scopes->len; ++i) {
     Scope *scope = (Scope*)func->scopes->data[i];
     if (scope->vars == NULL)
@@ -685,14 +678,23 @@ void prepare_register_allocation(Function *func) {
       VReg *vreg = varinfo->local.vreg;
       if (vreg == NULL) {
         assert(!is_prim_type(varinfo->type));
+        // Whether it is a parameter or local variable defined in a function,
+        // it is needed to access relative to base pointer.
+        require_stack_frame = true;
         continue;
       }
 
       assert(is_prim_type(varinfo->type));
-      if (vreg->flag & VRF_REF) {
+      if (vreg->flag & (VRF_REF | VRF_STACK_PARAM)) {
         spill_vreg(vreg);
+        require_stack_frame = true;
       }
     }
+  }
+
+  if (require_stack_frame) {
+    FuncBackend *fnbe = func->extra;
+    fnbe->ra->flag |= RAF_STACK_FRAME;
   }
 }
 
