@@ -779,7 +779,8 @@ void alloc_stack_variables_onto_stack_frame(Function *func) {
   FuncBackend *fnbe = func->extra;
   assert(fnbe->frame_size == 0);
   size_t frame_size = 0;
-  int param_offset = POINTER_SIZE * 2;  // Return address, saved base pointer.
+  int param_offset = calculate_func_param_bottom(func);
+  fnbe->vaarg_frame_info.offset = param_offset;
 
   if (func->type->func.vaargs)
     frame_size = (MAX_REG_ARGS + MAX_FREG_ARGS) * POINTER_SIZE;
@@ -889,6 +890,7 @@ bool gen_defun(Function *func) {
   fnbe->retval = NULL;
   fnbe->result_dst = NULL;
   fnbe->frame_size = 0;
+  fnbe->vaarg_frame_info.offset = 0;  // Calculated in later.
 
   fnbe->bbcon = new_func_blocks();
   set_curbb(new_bb());

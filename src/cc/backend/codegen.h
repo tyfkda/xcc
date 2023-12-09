@@ -61,3 +61,5 @@ void prepare_register_allocation(Function *func);
 void map_virtual_to_physical_registers(RegAlloc *ra);
 void detect_living_registers(RegAlloc *ra, BBContainer *bbcon);
 void alloc_stack_variables_onto_stack_frame(Function *func);
+
+int calculate_func_param_bottom(Function *func);

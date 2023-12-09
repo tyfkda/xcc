@@ -7,6 +7,7 @@
 #include <string.h>
 
 #include "aarch64.h"
+#include "ast.h"
 #include "emit_code.h"
 #include "regalloc.h"
 #include "table.h"
@@ -754,7 +755,7 @@ static void ei_asm(IR *ir) {
 //
 
 static int enum_callee_save_regs(unsigned long bit, int n, const int *indices, const char **regs,
-                                 const char *saves[CALLEE_SAVE_REG_COUNT]) {
+                                 const char **saves) {
   int count = 0;
   for (int i = 0; i < n; ++i) {
     int ireg = indices[i];
@@ -804,6 +805,18 @@ void pop_callee_save_regs(unsigned long used, unsigned long fused) {
     i -= 2;
     LDP(saves[i], saves[i + 1], POST_INDEX(SP, 16));
   }
+}
+
+int calculate_func_param_bottom(Function *func) {
+  const char *saves[(N + 1) & ~1];
+  FuncBackend *fnbe = func->extra;
+  unsigned long used = fnbe->ra->used_reg_bits, fused = fnbe->ra->used_freg_bits;
+  int count = enum_callee_save_regs(used, CALLEE_SAVE_REG_COUNT, kCalleeSaveRegs, kReg64s, saves);
+  int fcount = enum_callee_save_regs(fused, CALLEE_SAVE_FREG_COUNT, kCalleeSaveFRegs, kFReg64s,
+                                     saves);
+  int callee_save_count = ALIGN(count, 2) + ALIGN(fcount, 2);
+
+  return (callee_save_count * POINTER_SIZE) + (POINTER_SIZE * 2);  // Return address, saved base pointer.
 }
 #undef N
 

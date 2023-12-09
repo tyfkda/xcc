@@ -503,11 +503,11 @@ static void emit_defun(Function *func) {
   // Prologue
   // Allocate variable bufer.
   FuncBackend *fnbe = func->extra;
-  int callee_saved_count = 0;
   size_t frame_size = 0;
   bool rbp_saved = false;
   if (!no_stmt) {
-    callee_saved_count = count_callee_save_regs(fnbe->ra->used_reg_bits, fnbe->ra->used_freg_bits);
+    // Callee save.
+    int callee_saved_count = push_callee_save_regs(fnbe->ra->used_reg_bits, fnbe->ra->used_freg_bits);
 
     // When function is called, return address is pused onto the stack by caller,
     // so default offset is 8.
@@ -532,9 +532,6 @@ static void emit_defun(Function *func) {
       stackpos += frame_size;
     }
 
-    // Callee save.
-    push_callee_save_regs(fnbe->ra->used_reg_bits, fnbe->ra->used_freg_bits);
-
     move_params_to_assigned(func);
   }
 
@@ -543,14 +540,6 @@ static void emit_defun(Function *func) {
   if (!function_not_returned(fnbe)) {
     // Epilogue
     if (!no_stmt) {
-      if (func->flag & FUNCF_STACK_MODIFIED) {
-        // Stack pointer might be changed if alloca is used, so it need to be recalculated.
-        LEA(OFFSET_INDIRECT(callee_saved_count * -POINTER_SIZE - frame_size, RBP, NULL, 1),
-            RSP);
-      }
-
-      pop_callee_save_regs(fnbe->ra->used_reg_bits, fnbe->ra->used_freg_bits);
-
       if (rbp_saved) {
         MOV(RBP, RSP);
         stackpos -= frame_size;
@@ -559,6 +548,8 @@ static void emit_defun(Function *func) {
         ADD(IM(frame_size), RSP);
         stackpos -= frame_size;
       }
+
+      pop_callee_save_regs(fnbe->ra->used_reg_bits, fnbe->ra->used_freg_bits);
     }
 
     RET();

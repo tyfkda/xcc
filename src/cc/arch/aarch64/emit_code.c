@@ -510,7 +510,6 @@ static void emit_defun(Function *func) {
   size_t frame_size = ALIGN(fnbe->frame_size, 16);
   bool fp_saved = false;  // Frame pointer saved?
   bool lr_saved = false;  // Link register saved?
-  int callee_saved_count = 0;
   unsigned long used_reg_bits = fnbe->ra->used_reg_bits;
   if (!no_stmt) {
     fp_saved = frame_size > 0 || fnbe->ra->flag & RAF_STACK_FRAME;
@@ -523,6 +522,9 @@ static void emit_defun(Function *func) {
       // FP is saved, so omit from callee save.
       used_reg_bits &= ~(1UL << GET_FPREG_INDEX());
     }
+
+    // Callee save.
+    push_callee_save_regs(used_reg_bits, fnbe->ra->used_freg_bits);
 
     if (fp_saved) {
       MOV(FP, SP);
@@ -538,9 +540,6 @@ static void emit_defun(Function *func) {
       }
     }
 
-    // Callee save.
-    callee_saved_count = push_callee_save_regs(used_reg_bits, fnbe->ra->used_freg_bits);
-
     move_params_to_assigned(func);
   }
 
@@ -549,27 +548,10 @@ static void emit_defun(Function *func) {
   if (!function_not_returned(fnbe)) {
     // Epilogue
     if (!no_stmt) {
-      if (func->flag & FUNCF_STACK_MODIFIED) {
-        // Stack pointer might be changed if alloca is used, so it need to be recalculated.
-        size_t size = frame_size + ALIGN(callee_saved_count * POINTER_SIZE, 16);
-        const char *value;
-        if (size <= 0x0fff)
-          value = IM(size);
-        else
-          mov_immediate(value = SP, size, true, false);
-        SUB(SP, FP, value);
-      }
+      if (fp_saved)
+        MOV(SP, FP);
+
       pop_callee_save_regs(used_reg_bits, fnbe->ra->used_freg_bits);
-      if (fp_saved) {
-        const char *value;
-        if (frame_size <= 0x0fff) {
-          value = IM(frame_size);
-        } else {
-          // Break x17
-          mov_immediate(value = X17, frame_size, true, false);
-        }
-        ADD(SP, SP, value);
-      }
 
       if (fp_saved || lr_saved)
         LDP(FP, LR, POST_INDEX(SP, 16));

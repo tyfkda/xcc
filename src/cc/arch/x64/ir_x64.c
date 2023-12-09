@@ -6,6 +6,7 @@
 #include <stdlib.h>  // malloc
 #include <string.h>
 
+#include "ast.h"
 #include "emit_code.h"
 #include "regalloc.h"
 #include "table.h"
@@ -862,7 +863,7 @@ static void ei_asm(IR *ir) {
 
 //
 
-int count_callee_save_regs(unsigned long used, unsigned long fused) {
+static int count_callee_save_regs(unsigned long used, unsigned long fused) {
   // Assume no callee save freg exists.
   UNUSED(fused);
 
@@ -902,6 +903,14 @@ void pop_callee_save_regs(unsigned long used, unsigned long fused) {
       POP_STACK_POS();
     }
   }
+}
+
+int calculate_func_param_bottom(Function *func) {
+  FuncBackend *fnbe = func->extra;
+  unsigned long used = fnbe->ra->used_reg_bits, fused = fnbe->ra->used_freg_bits;
+  int callee_save_count = count_callee_save_regs(used, fused);
+
+  return (callee_save_count * POINTER_SIZE) + (POINTER_SIZE * 2);  // Return address, saved base pointer.
 }
 
 static Vector *push_caller_save_regs(unsigned long living) {
