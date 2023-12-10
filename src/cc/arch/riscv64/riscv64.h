@@ -23,6 +23,8 @@
 #define _UXTW(shift)  fmt("uxtw #%d", shift)
 #define _LSL(shift)   fmt("lsl #%d", shift)
 
+#define ZERO  "zero"  // x0: Zero register
+#define RA    "ra"    // x1: Return Address
 #define A0    "a0"
 #define A1    "a1"
 #define A2    "a2"
@@ -48,19 +50,50 @@
 #define T2    "t2"
 
 // Condition
-#define CEQ  "eq"
-#define CNE  "ne"
-#define CLT  "lt"
-#define CGT  "gt"
-#define CLE  "le"
-#define CGE  "ge"
-#define CLO  "lo"
-#define CHI  "hi"
-#define CLS  "ls"
-#define CHS  "hs"
+#define CEQ   "eq"
+#define CNE   "ne"
+#define CLT   "lt"
+#define CGE   "ge"
+#define CLTU  "ltu"
+#define CGEU  "geu"
 
 #define LI(o1, o2)            EMIT_ASM("li", o1, o2)
+#define ADD(o1, o2, o3)       EMIT_ASM("add", o1, o2, o3)
+#define ADDI(o1, o2, o3)      EMIT_ASM("addi", o1, o2, o3)
+#define ADDW(o1, o2, o3)      EMIT_ASM("addw", o1, o2, o3)
+#define ADDIW(o1, o2, o3)     EMIT_ASM("addiw", o1, o2, o3)
+#define SUB(o1, o2, o3)       EMIT_ASM("sub", o1, o2, o3)
+#define SUBW(o1, o2, o3)      EMIT_ASM("subw", o1, o2, o3)
+#define MUL(o1, o2, o3)       EMIT_ASM("mul", o1, o2, o3)
+#define MULW(o1, o2, o3)      EMIT_ASM("mulw", o1, o2, o3)
+#define DIV(o1, o2, o3)       EMIT_ASM("div", o1, o2, o3)
+#define DIVU(o1, o2, o3)      EMIT_ASM("divu", o1, o2, o3)
+#define DIVW(o1, o2, o3)      EMIT_ASM("divw", o1, o2, o3)
+#define DIVUW(o1, o2, o3)     EMIT_ASM("divuw", o1, o2, o3)
+#define REM(o1, o2, o3)       EMIT_ASM("rem", o1, o2, o3)
+#define REMU(o1, o2, o3)      EMIT_ASM("remu", o1, o2, o3)
+#define REMW(o1, o2, o3)      EMIT_ASM("remw", o1, o2, o3)
+#define REMUW(o1, o2, o3)     EMIT_ASM("remuw", o1, o2, o3)
+#define AND(o1, o2, o3)       EMIT_ASM("and", o1, o2, o3)
+#define ANDI(o1, o2, o3)      EMIT_ASM("andi", o1, o2, o3)
+#define OR(o1, o2, o3)        EMIT_ASM("or", o1, o2, o3)
+#define ORI(o1, o2, o3)       EMIT_ASM("ori", o1, o2, o3)
+#define XOR(o1, o2, o3)       EMIT_ASM("xor", o1, o2, o3)
+#define XORI(o1, o2, o3)      EMIT_ASM("xori", o1, o2, o3)
+#define SLL(o1, o2, o3)       EMIT_ASM("sll", o1, o2, o3)    // Logical left shift
+#define SLLI(o1, o2, o3)      EMIT_ASM("slli", o1, o2, o3)   // Logical left shift
+#define SLLIW(o1, o2, o3)     EMIT_ASM("slliw", o1, o2, o3)  // Logical left shift, 32bit
+#define SRL(o1, o2, o3)       EMIT_ASM("srl", o1, o2, o3)    // Logical right shift
+#define SRLI(o1, o2, o3)      EMIT_ASM("srli", o1, o2, o3)   // Logical right shift
+#define SRA(o1, o2, o3)       EMIT_ASM("sra", o1, o2, o3)    // Arithmetic right shift
+#define SRAI(o1, o2, o3)      EMIT_ASM("srai", o1, o2, o3)   // Arithmetic right shift
+#define J(o1)                 EMIT_ASM("j", o1)              // => jal zero, o1
+#define Bcc(c, o1, o2, o3)    EMIT_ASM("b" c, o1, o2, o3)
 #define RET()                 EMIT_ASM("ret")
+
+#define MV(o1, o2)            EMIT_ASM("mv", o1, o2)         // => addi o1, o2, 0
+#define NEG(o1, o2)           EMIT_ASM("neg", o1, o2)        // => sub o1, zero, o2
+#define NOT(o1, o2)           EMIT_ASM("not", o1, o2)        // => xori o1, o2, -1
 
 #define _BYTE(x)       EMIT_ASM(".byte", x)
 #define _WORD(x)       EMIT_ASM(".short", x)  // Or .hword
