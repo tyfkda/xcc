@@ -43,7 +43,7 @@ typedef __gnuc_va_list va_list;
 #define va_arg(ap,ty)     __builtin_va_arg(ap,ty)
 #define va_copy(dst,src)  __builtin_va_copy(dst,src)
 
-#if defined(__aarch64__)
+#if defined(__aarch64__) || defined(__riscv)
 #define __GP_REG_ARGS  (8)
 #else
 #define __GP_REG_ARGS  (6)

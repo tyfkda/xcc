@@ -4,6 +4,7 @@ source ./test_sub.sh
 
 AOUT=${AOUT:-$(basename "$(mktemp -u)")}
 XCC=${XCC:-../xcc}
+# RUN_EXE=${RUN_EXE:-}
 
 try() {
   local title="$1"
@@ -19,7 +20,7 @@ try() {
 
   declare -a args=( "$@" )
   local actual
-  actual=$(./"$AOUT" "${args[@]:3}") > /dev/null 2>&1 || {
+  actual=$(${RUN_EXE} ./"$AOUT" "${args[@]:3}") > /dev/null 2>&1 || {
     end_test 'Exec failed'
     return
   }
@@ -42,7 +43,7 @@ try_cmp() {
   }
 
   declare -a args=( "$@" )
-  ./"$AOUT" "${args[@]:4}" > /dev/null 2>&1 || {
+  ${RUN_EXE} ./"$AOUT" "${args[@]:4}" > /dev/null 2>&1 || {
     end_test 'Exec failed'
     return
   }
@@ -53,7 +54,7 @@ try_cmp() {
 
 no_flonum() {
   echo -e "#include <stdio.h>\nint main(){\n#ifdef __NO_FLONUM\nputs(\"true\");\n#endif\nreturn 0;}" > tmp.c
-  $XCC tmp.c && ./a.out || exit 1
+  $XCC tmp.c && ${RUN_EXE} ./a.out || exit 1
 }
 
 test_all() {

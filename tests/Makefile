@@ -71,15 +71,15 @@ test-print-type:	print_type_test
 .PHONY: test-val
 test-val:	valtest
 	@echo '## valtest'
-	@./valtest
+	@$(RUN_EXE) ./valtest
 
 .PHONY: test-dval, test-fval
 test-dval:	dvaltest
 	@echo '## dvaltest'
-	@./dvaltest
+	@$(RUN_EXE) ./dvaltest
 test-fval:	fvaltest
 	@echo '## fvaltest'
-	@./fvaltest
+	@$(RUN_EXE) ./fvaltest
 
 .PHONY: test-cpp
 test-cpp: # $(CPP)
@@ -89,18 +89,24 @@ test-cpp: # $(CPP)
 .PHONY: test-sh
 test-sh: # $(XCC)
 	@echo '## test.sh'
-	@XCC="$(XCC)" ./test.sh
+	@$(eval AOUT := ./$(shell basename `mktemp -u`))
+	@XCC="$(XCC)" RUN_AOUT="$(RUN_EXE) $(AOUT)" AOUT=$(AOUT) ./test.sh
 	@rm -f core
 
 .PHONY: test-examples
 test-examples: # $(XCC)
 	@echo '## Example test'
-	@XCC="$(XCC)" ./example_test.sh
+	@XCC="$(XCC)" RUN_EXE="$(RUN_EXE)" ./example_test.sh
 
 .PHONY: test-link
+ifeq ("$(NO_LINK_TEST)", "")
 test-link: link_test # $(XCC)
 	@echo '## Link test'
-	@./link_test
+	@$(RUN_EXE) ./link_test
+else
+test-link:
+	@echo '## Link test: skip'
+endif
 
 INITIALIZER_SRCS:=initializer_test.c $(CC1_FE_DIR)/parser.c $(CC1_FE_DIR)/parser_expr.c $(CC1_FE_DIR)/lexer.c \
 	$(CC1_FE_DIR)/initializer.c $(CC1_FE_DIR)/fe_misc.c $(CC1_FE_DIR)/var.c $(CC1_FE_DIR)/type.c $(CC1_FE_DIR)/ast.c $(UTIL_DIR)/util.c $(UTIL_DIR)/table.c \

@@ -21,6 +21,23 @@ extern FILE *__stderrp;
 #define stdin   __stdinp
 #define stdout  __stdoutp
 #define stderr  __stderrp
+
+#elif defined(__riscv)
+
+// Must match with newlib
+struct _reent
+{
+  int _errno;
+
+  struct FILE *_stdin, *_stdout, *_stderr;
+};
+
+extern struct _reent *_impure_ptr;
+
+#define stdin   (_impure_ptr->_stdin)
+#define stdout  (_impure_ptr->_stdout)
+#define stderr  (_impure_ptr->_stderr)
+
 #else
 extern FILE *stdin;
 extern FILE *stdout;
