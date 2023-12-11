@@ -7,6 +7,12 @@
 #ifndef IM
 #define IM(x)  im(x)
 #endif
+#ifndef IMMEDIATE_OFFSET
+#define IMMEDIATE_OFFSET(ofs, reg)  immediate_offset(ofs, reg)
+#endif
+#ifndef IMMEDIATE_OFFSET0
+#define IMMEDIATE_OFFSET0(reg)  immediate_offset(0, reg)
+#endif
 #ifndef NUM
 #define NUM(x)  num(x)
 #endif
@@ -25,6 +31,8 @@
 
 #define ZERO  "zero"  // x0: Zero register
 #define RA    "ra"    // x1: Return Address
+#define SP    "sp"    // x2: Stack Pointer
+#define FP    "fp"    // x8: Frame Pointer
 #define A0    "a0"
 #define A1    "a1"
 #define A2    "a2"
@@ -88,8 +96,19 @@
 #define SRA(o1, o2, o3)       EMIT_ASM("sra", o1, o2, o3)    // Arithmetic right shift
 #define SRAI(o1, o2, o3)      EMIT_ASM("srai", o1, o2, o3)   // Arithmetic right shift
 #define J(o1)                 EMIT_ASM("j", o1)              // => jal zero, o1
+#define JALR(o1)              EMIT_ASM("jalr", o1)           // => jalr ra, 0(o1)
 #define Bcc(c, o1, o2, o3)    EMIT_ASM("b" c, o1, o2, o3)
+#define CALL(o1)              EMIT_ASM("call", o1)
 #define RET()                 EMIT_ASM("ret")
+
+#define LB(o1, o2)            EMIT_ASM("lb", o1, o2)
+#define LH(o1, o2)            EMIT_ASM("lh", o1, o2)
+#define LW(o1, o2)            EMIT_ASM("lw", o1, o2)
+#define LD(o1, o2)            EMIT_ASM("ld", o1, o2)
+#define SB(o1, o2)            EMIT_ASM("sb", o1, o2)
+#define SH(o1, o2)            EMIT_ASM("sh", o1, o2)
+#define SW(o1, o2)            EMIT_ASM("sw", o1, o2)
+#define SD(o1, o2)            EMIT_ASM("sd", o1, o2)
 
 #define MV(o1, o2)            EMIT_ASM("mv", o1, o2)         // => addi o1, o2, 0
 #define NEG(o1, o2)           EMIT_ASM("neg", o1, o2)        // => sub o1, zero, o2

@@ -23,6 +23,10 @@ char *im(int64_t x) {
   return fmt("%" PRId64, x);
 }
 
+char *immediate_offset(int offset, const char *reg) {
+  return offset != 0 ? fmt("%d(%s)", offset, reg) : fmt("(%s)", reg);
+}
+
 ////////
 
 static void eval_initial_value(Expr *expr, Expr **pvar, Fixnum *poffset) {
@@ -344,92 +348,93 @@ static void emit_varinfo(const VarInfo *varinfo, const Initializer *init) {
 
 ////////////////////////////////////////////////
 
-// static bool is_asm(Stmt *stmt) {
-//   return stmt->kind == ST_ASM;
-// }
+static bool is_asm(Stmt *stmt) {
+  return stmt->kind == ST_ASM;
+}
 
-// static void move_params_to_assigned(Function *func) {
-//   extern const char **kRegSizeTable[];
-//   extern const int ArchRegParamMapping[];
-//   extern const char *kFReg32s[], *kFReg64s[];
+static void move_params_to_assigned(Function *func) {
+  extern const char *kReg64s[];
+  extern const int ArchRegParamMapping[];
+  // extern const char *kFReg32s[], *kFReg64s[];
 
-//   static const char *kRegParam32s[] = {W0, W1, W2, W3, W4, W5, W6, W7};
-//   static const char *kRegParam64s[] = {X0, X1, X2, X3, X4, X5, X6, X7};
-//   static const char **kRegParamTable[] = {kRegParam32s, kRegParam32s, kRegParam32s, kRegParam64s};
-//   const char *kFRegParam32s[] = {S0, S1, S2, S3, S4, S5, S6, S7};
-//   const char *kFRegParam64s[] = {D0, D1, D2, D3, D4, D5, D6, D7};
-//   static const int kPow2Table[] = {-1, 0, 1, -1, 2, -1, -1, -1, 3};
-// #define kPow2TableSize ((int)(sizeof(kPow2Table) / sizeof(*kPow2Table)))
+  // static const char *kRegParam32s[] = {W0, W1, W2, W3, W4, W5, W6, W7};
+  static const char *kRegParam64s[] = {A0, A1, A2, A3, A4, A5, A6, A7};
+  // static const char **kRegParamTable[] = {kRegParam32s, kRegParam32s, kRegParam32s, kRegParam64s};
+  // const char *kFRegParam32s[] = {S0, S1, S2, S3, S4, S5, S6, S7};
+  // const char *kFRegParam64s[] = {D0, D1, D2, D3, D4, D5, D6, D7};
+  static const int kPow2Table[] = {-1, 0, 1, -1, 2, -1, -1, -1, 3};
+#define kPow2TableSize ((int)(sizeof(kPow2Table) / sizeof(*kPow2Table)))
 
-//   RegParamInfo iparams[MAX_REG_ARGS];
-//   RegParamInfo fparams[MAX_FREG_ARGS];
-//   int iparam_count = 0;
-//   int fparam_count = 0;
-//   enumerate_register_params(func, iparams, MAX_REG_ARGS, fparams, MAX_FREG_ARGS,
-//                             &iparam_count, &fparam_count);
+  RegParamInfo iparams[MAX_REG_ARGS];
+  RegParamInfo fparams[MAX_FREG_ARGS];
+  int iparam_count = 0;
+  int fparam_count = 0;
+  enumerate_register_params(func, iparams, MAX_REG_ARGS, fparams, MAX_FREG_ARGS,
+                            &iparam_count, &fparam_count);
 
-//   // Generate code to store parameters to the destination.
-//   for (int i = 0; i < iparam_count; ++i) {
-//     RegParamInfo *p = &iparams[i];
-//     VReg *vreg = p->vreg;
-//     size_t size = type_size(p->type);
-//     assert(0 < size && size < kPow2TableSize && kPow2Table[size] >= 0);
-//     int pow = kPow2Table[size];
-//     const char *src = kRegParamTable[pow][p->index];
-//     if (vreg->flag & VRF_SPILLED) {
-//       int offset = vreg->frame.offset;
-//       assert(offset != 0);
-//       const char *dst;
-//       if (offset >= -256) {
-//         dst = IMMEDIATE_OFFSET(FP, offset);
-//       } else {
-//         mov_immediate(X9, offset, true, false);  // x9 broken.
-//         dst = REG_OFFSET(FP, X9, NULL);
-//       }
-//       switch (pow) {
-//       case 0:          STRB(src, dst); break;
-//       case 1:          STRH(src, dst); break;
-//       case 2: case 3:  STR(src, dst); break;
-//       default: assert(false); break;
-//       }
-//     } else if (ArchRegParamMapping[p->index] != vreg->phys) {
-//       const char *dst = kRegSizeTable[pow][vreg->phys];
-//       MOV(dst, src);
-//     }
-//   }
-//   for (int i = 0; i < fparam_count; ++i) {
-//     RegParamInfo *p = &fparams[i];
-//     VReg *vreg = p->vreg;
-//     const char *src = (p->type->flonum.kind >= FL_DOUBLE ? kFRegParam64s : kFRegParam32s)[p->index];
-//     if (vreg->flag & VRF_SPILLED) {
-//       int offset = vreg->frame.offset;
-//       assert(offset != 0);
-//       assert(offset != 0);
-//       STR(src, IMMEDIATE_OFFSET(FP, offset));
-//     } else {
-//       if (p->index != vreg->phys) {
-//         const char *dst = (p->type->flonum.kind >= FL_DOUBLE ? kFReg64s : kFReg32s)[vreg->phys];
-//         FMOV(dst, src);
-//       }
-//     }
-//   }
+  // Generate code to store parameters to the destination.
+  for (int i = 0; i < iparam_count; ++i) {
+    RegParamInfo *p = &iparams[i];
+    VReg *vreg = p->vreg;
+    size_t size = type_size(p->type);
+    assert(0 < size && size < kPow2TableSize && kPow2Table[size] >= 0);
+    int pow = kPow2Table[size];
+    const char *src = kReg64s[p->index];
+    if (vreg->flag & VRF_SPILLED) {
+      int offset = vreg->frame.offset;
+      assert(offset != 0);
+      const char *dst;
+      // if (offset >= -256) {
+        dst = IMMEDIATE_OFFSET(offset, FP);
+      // } else {
+      //   mov_immediate(X9, offset, true, false);  // x9 broken.
+      //   dst = REG_OFFSET(FP, X9, NULL);
+      // }
+      switch (pow) {
+      case 0:  SB(src, dst); break;
+      case 1:  SH(src, dst); break;
+      case 2:  SW(src, dst); break;
+      case 3:  SD(src, dst); break;
+      default: assert(false); break;
+      }
+    } else if (ArchRegParamMapping[p->index] != vreg->phys) {
+      const char *dst = kReg64s[vreg->phys];
+      MV(dst, src);
+    }
+  }
+  // for (int i = 0; i < fparam_count; ++i) {
+  //   RegParamInfo *p = &fparams[i];
+  //   VReg *vreg = p->vreg;
+  //   const char *src = (p->type->flonum.kind >= FL_DOUBLE ? kFRegParam64s : kFRegParam32s)[p->index];
+  //   if (vreg->flag & VRF_SPILLED) {
+  //     int offset = vreg->frame.offset;
+  //     assert(offset != 0);
+  //     assert(offset != 0);
+  //     SD(src, IMMEDIATE_OFFSET(offset, FP));
+  //   } else {
+  //     if (p->index != vreg->phys) {
+  //       const char *dst = (p->type->flonum.kind >= FL_DOUBLE ? kFReg64s : kFReg32s)[vreg->phys];
+  //       FMOV(dst, src);
+  //     }
+  //   }
+  // }
 
-// #if VAARG_ON_STACK
-//   bool vaargs = false;
-// #else
-//   bool vaargs = func->type->func.vaargs;
-// #endif
-//   if (vaargs) {
-//     for (int i = iparam_count; i < MAX_REG_ARGS; ++i) {
-//       int offset = (i - MAX_REG_ARGS - MAX_FREG_ARGS) * POINTER_SIZE;
-//       STR(kRegParam64s[i], IMMEDIATE_OFFSET(FP, offset));
-//     }
-//     for (int i = fparam_count; i < MAX_FREG_ARGS; ++i) {
-//       int offset = (i - MAX_FREG_ARGS) * POINTER_SIZE;
-//       STR(kFRegParam64s[i], IMMEDIATE_OFFSET(FP, offset));
-//     }
-//   }
-// }
+#if VAARG_ON_STACK
+  bool vaargs = false;
+#else
+  bool vaargs = func->type->func.vaargs;
+#endif
+  if (vaargs) {
+    for (int i = iparam_count; i < MAX_REG_ARGS; ++i) {
+      int offset = (i - MAX_REG_ARGS - MAX_FREG_ARGS) * POINTER_SIZE;
+      SD(kRegParam64s[i], IMMEDIATE_OFFSET(offset, FP));
+    }
+    // for (int i = fparam_count; i < MAX_FREG_ARGS; ++i) {
+    //   int offset = (i - MAX_FREG_ARGS) * POINTER_SIZE;
+    //   SD(kFRegParam64s[i], IMMEDIATE_OFFSET(offset, FP));
+    // }
+  }
+}
 
 static void emit_defun(Function *func) {
   if (func->scopes == NULL ||  // Prototype definition.
@@ -457,72 +462,78 @@ static void emit_defun(Function *func) {
   EMIT_ALIGN(2);
   EMIT_LABEL(label);
 
-  // bool no_stmt = true;
-  // if (func->body_block != NULL) {
-  //   Vector *stmts = func->body_block->block.stmts;
-  //   for (int i = 0; i < stmts->len; ++i) {
-  //     Stmt *stmt = stmts->data[i];
-  //     if (stmt == NULL)
-  //       continue;
-  //     if (!is_asm(stmt)) {
-  //       no_stmt = false;
-  //       break;
-  //     }
-  //   }
-  // }
+  bool no_stmt = true;
+  if (func->body_block != NULL) {
+    Vector *stmts = func->body_block->block.stmts;
+    for (int i = 0; i < stmts->len; ++i) {
+      Stmt *stmt = stmts->data[i];
+      if (stmt == NULL)
+        continue;
+      if (!is_asm(stmt)) {
+        no_stmt = false;
+        break;
+      }
+    }
+  }
 
   // Prologue
   // Allocate variable bufer.
   FuncBackend *fnbe = func->extra;
-  // size_t frame_size = ALIGN(fnbe->frame_size, 16);
-  // bool fp_saved = false;  // Frame pointer saved?
-  // bool lr_saved = false;  // Link register saved?
-  // unsigned long used_reg_bits = fnbe->ra->used_reg_bits;
-  // if (!no_stmt) {
-  //   fp_saved = frame_size > 0 || fnbe->ra->flag & RAF_STACK_FRAME;
-  //   lr_saved = (func->flag & FUNCF_HAS_FUNCALL) != 0;
+  size_t frame_size = ALIGN(fnbe->frame_size, 16);
+  bool fp_saved = false;  // Frame pointer saved?
+  bool ra_saved = false;  // Return Address register saved?
+  unsigned long used_reg_bits = fnbe->ra->used_reg_bits;
+  if (!no_stmt) {
+    fp_saved = frame_size > 0 || fnbe->ra->flag & RAF_STACK_FRAME;
+    ra_saved = (func->flag & FUNCF_HAS_FUNCALL) != 0;
 
-  //   // TODO: Handle fp_saved and lr_saved individually.
-  //   if (fp_saved || lr_saved) {
-  //     STP(FP, LR, PRE_INDEX(SP, -16));
+    // TODO: Handle fp_saved and ra_saved individually.
+    if (fp_saved || ra_saved) {
+      // STP(FP, LR, PRE_INDEX(SP, -16));
+      ADDI(SP, SP, IM(-16));
+      SD(RA, IMMEDIATE_OFFSET(8, SP));
+      SD(FP, IMMEDIATE_OFFSET0(SP));
 
-  //     // FP is saved, so omit from callee save.
-  //     used_reg_bits &= ~(1UL << GET_FPREG_INDEX());
-  //   }
+      // FP is saved, so omit from callee save.
+      used_reg_bits &= ~(1UL << GET_FPREG_INDEX());
+    }
 
-  //   // Callee save.
-  //   push_callee_save_regs(used_reg_bits, fnbe->ra->used_freg_bits);
+    // Callee save.
+    push_callee_save_regs(used_reg_bits, fnbe->ra->used_freg_bits);
 
-  //   if (fp_saved) {
-  //     MOV(FP, SP);
-  //     if (frame_size > 0) {
-  //       const char *value;
-  //       if (frame_size <= 0x0fff) {
-  //         value = IM(frame_size);
-  //       } else {
-  //         // Break x17
-  //         mov_immediate(value = X17, frame_size, true, false);
-  //       }
-  //       SUB(SP, SP, value);
-  //     }
-  //   }
+    if (fp_saved) {
+      MV(FP, SP);
+      if (frame_size > 0) {
+        const char *value;
+        // if (frame_size <= 0x0fff) {
+          value = IM(-frame_size);
+          ADDI(SP, SP, value);
+        // } else {
+        //   // Break x17
+        //   mov_immediate(value = X17, frame_size, true, false);
+        // }
+      }
+    }
 
-  //   move_params_to_assigned(func);
-  // }
+    move_params_to_assigned(func);
+  }
 
   emit_bb_irs(fnbe->bbcon);
 
   if (!function_not_returned(fnbe)) {
     // Epilogue
-    // if (!no_stmt) {
-    //   if (fp_saved)
-    //     MOV(SP, FP);
+    if (!no_stmt) {
+      if (fp_saved)
+        MV(SP, FP);
 
-    //   pop_callee_save_regs(used_reg_bits, fnbe->ra->used_freg_bits);
+      pop_callee_save_regs(used_reg_bits, fnbe->ra->used_freg_bits);
 
-    //   if (fp_saved || lr_saved)
-    //     LDP(FP, LR, POST_INDEX(SP, 16));
-    // }
+      if (fp_saved || ra_saved) {
+        LD(FP, IMMEDIATE_OFFSET0(SP));
+        LD(RA, IMMEDIATE_OFFSET(8, SP));
+        ADD(SP, SP, IM(16));
+      }
+    }
 
     RET();
   }

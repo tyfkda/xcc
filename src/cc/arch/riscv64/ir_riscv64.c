@@ -13,8 +13,8 @@
 #include "table.h"
 #include "util.h"
 
-// static Vector *push_caller_save_regs(unsigned long living);
-// static void pop_caller_save_regs(Vector *saves);
+static Vector *push_caller_save_regs(unsigned long living);
+static void pop_caller_save_regs(Vector *saves);
 
 // Register allocator
 
@@ -32,9 +32,9 @@
 //   X0, X1, X2, X3, X4, X5, X6, X7, X8, X9, X16,            // Temporary
 //   X19, X20, X21, X22, X23, X24, X25, X26, X27, X28, X29,  // Callee save
 //   X10, X11, X12, X13, X14, X15, X18};                     // Caller save
-static const char *kReg64s[PHYSICAL_REG_MAX] = {
+const char *kReg64s[PHYSICAL_REG_MAX] = {
   A0, A1, A2, A3, A4, A5, A6, A7,                         // Temporary
-  S2, S3, S4, S5, S6, S7, S8, S9, S10, S11,               // Callee save
+  S2, S3, S4, S5, S6, S7, S8, S9, S10, S11, FP,           // Callee save
   T0, T1, T2};                                            // Caller save
 
 #define GET_A0_INDEX()   0
@@ -78,7 +78,6 @@ const int ArchRegParamMapping[] = {0, 1, 2, 3, 4, 5, 6, 7};
 // static const int kCallerSaveFRegs[] = {16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31};
 
 static unsigned long detect_extra_occupied(RegAlloc *ra, IR *ir) {
-  UNUSED(ra);
   UNUSED(ir);
   unsigned long ioccupy = 0;
   // switch (ir->kind) {
@@ -87,8 +86,8 @@ static unsigned long detect_extra_occupied(RegAlloc *ra, IR *ir) {
   //   break;
   // default: break;
   // }
-  // if (ra->flag & RAF_STACK_FRAME)
-  //   ioccupy |= 1UL << GET_FPREG_INDEX();
+  if (ra->flag & RAF_STACK_FRAME)
+    ioccupy |= 1UL << GET_FPREG_INDEX();
   return ioccupy;
 }
 
@@ -371,18 +370,58 @@ static void ei_tjmp(IR *ir) {
 }
 
 static void ei_precall(IR *ir) {
-  UNUSED(ir);
-  assert(false);
+  // Living registers are not modified between preparing function arguments,
+  // so safely saved before calculating argument values.
+  ir->precall.caller_saves = push_caller_save_regs(ir->precall.living_pregs);
+
+  int align_stack = (16 - (ir->precall.stack_args_size)) & 15;
+  ir->precall.stack_aligned = align_stack;
+
+  if (align_stack > 0) {
+    SUB(SP, SP, IM(align_stack));
+  }
 }
 
 static void ei_pusharg(IR *ir) {
-  UNUSED(ir);
-  assert(false);
+  assert(!(ir->opr1->flag & VRF_CONST));
+  if (ir->opr1->flag & VRF_FLONUM) {
+    assert(false);
+  } else {
+    // Assume parameter registers are arranged from index 0.
+    if (ir->pusharg.index != ir->opr1->phys)
+      MV(kReg64s[ir->pusharg.index], kReg64s[ir->opr1->phys]);
+  }
 }
 
 static void ei_call(IR *ir) {
-  UNUSED(ir);
-  assert(false);
+  if (ir->call.label != NULL) {
+    char *label = fmt_name(ir->call.label);
+    if (ir->call.global)
+      label = MANGLE(label);
+    CALL(quote_label(label));
+  } else {
+    assert(!(ir->opr1->flag & VRF_CONST));
+    JALR(kReg64s[ir->opr1->phys]);
+  }
+
+  IR *precall = ir->call.precall;
+  int align_stack = precall->precall.stack_aligned + precall->precall.stack_args_size;
+  if (align_stack != 0) {
+    ADD(SP, SP, IM(align_stack));
+  }
+
+  // Resore caller save registers.
+  pop_caller_save_regs(precall->precall.caller_saves);
+
+  if (ir->dst != NULL) {
+    if (ir->dst->flag & VRF_FLONUM) {
+      assert(false);
+    } else {
+      if (ir->dst->phys != GET_A0_INDEX()) {
+        MV(kReg64s[ir->dst->phys], kReg64s[GET_A0_INDEX()]);
+      }
+    }
+  }
 }
 
 static void ei_cast(IR *ir) {
@@ -420,15 +459,15 @@ int calculate_func_param_bottom(Function *func) {
 }
 #undef N
 
-// static Vector *push_caller_save_regs(unsigned long living) {
-//   UNUSED(living);
-//   Vector *saves = new_vector();
-//   return saves;
-// }
+static Vector *push_caller_save_regs(unsigned long living) {
+  UNUSED(living);
+  Vector *saves = new_vector();
+  return saves;
+}
 
-// static void pop_caller_save_regs(Vector *saves) {
-//   UNUSED(saves);
-// }
+static void pop_caller_save_regs(Vector *saves) {
+  UNUSED(saves);
+}
 
 void emit_bb_irs(BBContainer *bbcon) {
   typedef void (*EmitIrFunc)(IR *);
