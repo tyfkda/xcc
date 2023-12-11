@@ -465,26 +465,26 @@ static void ei_rshift(IR *ir) {
 #undef RSHIFT_INST
 }
 
-static void ei_cmp(IR *ir) {
-  if (ir->opr1->flag & VRF_FLONUM) {
-    assert(ir->opr2->flag & VRF_FLONUM);
-    switch (ir->opr1->vsize) {
-    case SZ_FLOAT: UCOMISS(kFReg64s[ir->opr2->phys], kFReg64s[ir->opr1->phys]); break;
-    case SZ_DOUBLE: UCOMISD(kFReg64s[ir->opr2->phys], kFReg64s[ir->opr1->phys]); break;
+static void cmp_vregs(VReg *opr1, VReg *opr2) {
+  if (opr1->flag & VRF_FLONUM) {
+    assert(opr2->flag & VRF_FLONUM);
+    switch (opr1->vsize) {
+    case SZ_FLOAT: UCOMISS(kFReg64s[opr2->phys], kFReg64s[opr1->phys]); break;
+    case SZ_DOUBLE: UCOMISD(kFReg64s[opr2->phys], kFReg64s[opr1->phys]); break;
     default: assert(false); break;
     }
   } else {
-    assert(!(ir->opr1->flag & VRF_CONST));
-    int pow = ir->opr1->vsize;
+    assert(!(opr1->flag & VRF_CONST));
+    int pow = opr1->vsize;
     assert(0 <= pow && pow < 4);
     const char **regs = kRegSizeTable[pow];
-    const char *opr1;
-    opr1 = regs[ir->opr1->phys];
-    if ((ir->opr2->flag & VRF_CONST) && ir->opr2->fixnum == 0) {
-      TEST(opr1, opr1);
+    const char *o1;
+    o1 = regs[opr1->phys];
+    if ((opr2->flag & VRF_CONST) && opr2->fixnum == 0) {
+      TEST(o1, o1);
     } else {
-      const char *opr2 = (ir->opr2->flag & VRF_CONST) ? IM(ir->opr2->fixnum) : regs[ir->opr2->phys];
-      CMP(opr2, opr1);
+      const char *o2 = (opr2->flag & VRF_CONST) ? IM(opr2->fixnum) : regs[opr2->phys];
+      CMP(o2, o1);
     }
   }
 }
@@ -508,13 +508,15 @@ static void ei_bitnot(IR *ir) {
 }
 
 static void ei_cond(IR *ir) {
+  cmp_vregs(ir->opr1, ir->opr2);
+
   assert(!(ir->dst->flag & VRF_CONST));
   const char *dst = kReg8s[ir->dst->phys];
-  int kind = ir->cond.kind;
+  int cond = ir->cond.kind;
   // On x64, flag for comparing flonum is same as unsigned.
-  if (kind & COND_FLONUM)
-    kind ^= COND_FLONUM | COND_UNSIGNED;  // Turn off flonum, and turn on unsigned
-  switch (kind) {
+  if (cond & COND_FLONUM)
+    cond ^= COND_FLONUM | COND_UNSIGNED;  // Turn off flonum, and turn on unsigned
+  switch (cond) {
   case COND_EQ | COND_UNSIGNED:  // Fallthrough
   case COND_EQ:  SETE(dst); break;
 
@@ -537,13 +539,19 @@ static void ei_cond(IR *ir) {
 
 static void ei_jmp(IR *ir) {
   const char *label = fmt_name(ir->jmp.bb->label);
-  int kind = ir->jmp.cond;
+  int cond = ir->jmp.cond;
   // On x64, flag for comparing flonum is same as unsigned.
-  if (kind & COND_FLONUM)
-    kind ^= COND_FLONUM | COND_UNSIGNED;  // Turn off flonum, and turn on unsigned
-  switch (kind) {
-  case COND_ANY: JMP(label); break;
+  if (cond & COND_FLONUM)
+    cond ^= COND_FLONUM | COND_UNSIGNED;  // Turn off flonum, and turn on unsigned
 
+  if (cond == COND_ANY) {
+    JMP(label);
+    return;
+  }
+
+  cmp_vregs(ir->opr1, ir->opr2);
+
+  switch (cond) {
   case COND_EQ | COND_UNSIGNED:  // Fallthrough
   case COND_EQ:  JE(label); break;
 
@@ -981,7 +989,7 @@ void emit_bb_irs(BBContainer *bbcon) {
     [IR_ADD] = ei_add, [IR_SUB] = ei_sub, [IR_MUL] = ei_mul, [IR_DIV] = ei_div,
     [IR_MOD] = ei_mod, [IR_BITAND] = ei_bitand, [IR_BITOR] = ei_bitor,
     [IR_BITXOR] = ei_bitxor, [IR_LSHIFT] = ei_lshift, [IR_RSHIFT] = ei_rshift,
-    [IR_CMP] = ei_cmp, [IR_NEG] = ei_neg, [IR_BITNOT] = ei_bitnot,
+    [IR_NEG] = ei_neg, [IR_BITNOT] = ei_bitnot,
     [IR_COND] = ei_cond, [IR_JMP] = ei_jmp, [IR_TJMP] = ei_tjmp,
     [IR_PRECALL] = ei_precall, [IR_PUSHARG] = ei_pusharg, [IR_CALL] = ei_call,
     [IR_RESULT] = ei_result, [IR_SUBSP] = ei_subsp, [IR_CAST] = ei_cast,

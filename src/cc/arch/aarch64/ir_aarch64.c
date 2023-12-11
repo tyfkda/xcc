@@ -480,30 +480,31 @@ static void ei_mov(IR *ir) {
   }
 }
 
-static void ei_cmp(IR *ir) {
-  if (ir->opr1->flag & VRF_FLONUM) {
-    assert(ir->opr2->flag & VRF_FLONUM);
-    const char *opr1, *opr2;
-    switch (ir->opr1->vsize) {
+static void cmp_vregs(VReg *opr1, VReg *opr2) {
+  assert(opr1 != NULL && opr2 != NULL);
+  if (opr1->flag & VRF_FLONUM) {
+    assert(opr2->flag & VRF_FLONUM);
+    const char *o1, *o2;
+    switch (opr1->vsize) {
     default: assert(false); // Fallthrough
-    case SZ_FLOAT:   opr1 = kFReg32s[ir->opr1->phys]; opr2 = kFReg32s[ir->opr2->phys]; break;
-    case SZ_DOUBLE:  opr1 = kFReg64s[ir->opr1->phys]; opr2 = kFReg64s[ir->opr2->phys]; break;
+    case SZ_FLOAT:   o1 = kFReg32s[opr1->phys]; o2 = kFReg32s[opr2->phys]; break;
+    case SZ_DOUBLE:  o1 = kFReg64s[opr1->phys]; o2 = kFReg64s[opr2->phys]; break;
     }
-    FCMP(opr1, opr2);
+    FCMP(o1, o2);
   } else {
-    assert(!(ir->opr1->flag & VRF_CONST));
-    int pow = ir->opr1->vsize;
+    assert(!(opr1->flag & VRF_CONST));
+    int pow = opr1->vsize;
     assert(0 <= pow && pow < 4);
     const char **regs = kRegSizeTable[pow];
-    if (ir->opr2->flag & VRF_CONST) {
-      if (ir->opr2->fixnum == 0)
-        CMP(regs[ir->opr1->phys], kZeroRegTable[pow]);
-      else if (ir->opr2->fixnum > 0)
-        CMP(regs[ir->opr1->phys], IM(ir->opr2->fixnum));
+    if (opr2->flag & VRF_CONST) {
+      if (opr2->fixnum == 0)
+        CMP(regs[opr1->phys], kZeroRegTable[pow]);
+      else if (opr2->fixnum > 0)
+        CMP(regs[opr1->phys], IM(opr2->fixnum));
       else
-        CMN(regs[ir->opr1->phys], IM(-ir->opr2->fixnum));
+        CMN(regs[opr1->phys], IM(-opr2->fixnum));
     } else {
-      CMP(regs[ir->opr1->phys], regs[ir->opr2->phys]);
+      CMP(regs[opr1->phys], regs[opr2->phys]);
     }
   }
 }
@@ -525,6 +526,8 @@ static void ei_bitnot(IR *ir) {
 }
 
 static void ei_cond(IR *ir) {
+  cmp_vregs(ir->opr1, ir->opr2);
+
   assert(!(ir->dst->flag & VRF_CONST));
   const char *dst = kReg32s[ir->dst->phys];  // Assume bool is 4 byte.
   // On aarch64, flag for comparing flonum is signed.
@@ -550,10 +553,16 @@ static void ei_cond(IR *ir) {
 
 static void ei_jmp(IR *ir) {
   const char *label = fmt_name(ir->jmp.bb->label);
-  // On aarch64, flag for comparing flonum is signed.
-  switch (ir->jmp.cond & (COND_MASK | COND_UNSIGNED)) {
-  case COND_ANY: BRANCH(label); break;
+  int cond = ir->jmp.cond & (COND_MASK | COND_UNSIGNED);
+  if (cond == COND_ANY) {
+    BRANCH(label);
+    return;
+  }
 
+  cmp_vregs(ir->opr1, ir->opr2);
+
+  // On aarch64, flag for comparing flonum is signed.
+  switch (cond) {
   case COND_EQ | COND_UNSIGNED:  // Fallthrough
   case COND_EQ:  Bcc(CEQ, label); break;
 
@@ -890,7 +899,7 @@ void emit_bb_irs(BBContainer *bbcon) {
     [IR_ADD] = ei_add, [IR_SUB] = ei_sub, [IR_MUL] = ei_mul, [IR_DIV] = ei_div,
     [IR_MOD] = ei_mod, [IR_BITAND] = ei_bitand, [IR_BITOR] = ei_bitor,
     [IR_BITXOR] = ei_bitxor, [IR_LSHIFT] = ei_lshift, [IR_RSHIFT] = ei_rshift,
-    [IR_CMP] = ei_cmp, [IR_NEG] = ei_neg, [IR_BITNOT] = ei_bitnot,
+    [IR_NEG] = ei_neg, [IR_BITNOT] = ei_bitnot,
     [IR_COND] = ei_cond, [IR_JMP] = ei_jmp, [IR_TJMP] = ei_tjmp,
     [IR_PRECALL] = ei_precall, [IR_PUSHARG] = ei_pusharg, [IR_CALL] = ei_call,
     [IR_RESULT] = ei_result, [IR_SUBSP] = ei_subsp, [IR_CAST] = ei_cast,
@@ -1010,8 +1019,9 @@ void tweak_irs(FuncBackend *fnbe) {
         if (ir->opr1->flag & VRF_CONST)
           insert_const_mov(&ir->opr1, ra, irs, j++);
         break;
-      case IR_CMP:
-        if ((ir->opr2->flag & VRF_CONST) &&
+      case IR_COND: case IR_JMP:
+        if (ir->opr2 != NULL &&
+            (ir->opr2->flag & VRF_CONST) &&
             (ir->opr2->fixnum > 0x0fff || ir->opr2->fixnum < -0x0fff))
           insert_const_mov(&ir->opr2, ra, irs, j++);
         break;

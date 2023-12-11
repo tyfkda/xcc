@@ -39,11 +39,12 @@ static void dump_ir(FILE *fp, IR *ir) {
   static char *kOps[] = {
     "BOFS", "IOFS", "SOFS", "LOAD", "LOAD_S", "STORE", "STORE_S",
     "ADD", "SUB", "MUL", "DIV", "MOD", "BITAND", "BITOR", "BITXOR", "LSHIFT", "RSHIFT",
-    "CMP", "NEG", "BITNOT", "COND", "JMP", "TJMP",
+    "NEG", "BITNOT", "COND", "JMP", "TJMP",
     "PRECALL", "PUSHARG", "CALL", "RESULT", "SUBSP",
     "CAST", "MOV", "ASM",
   };
   static char *kCond[] = {NULL, "MP", "EQ", "NE", "LT", "LE", "GE", "GT", NULL, "MP", "EQ", "NE", "ULT", "ULE", "UGE", "UGT"};
+  static char *kCond2[] = {NULL, "MP", "==", "!=", "<", "<=", ">=", ">", NULL, "MP", "==", "!=", "<", "<=", ">=", ">"};
 
   switch (ir->kind) {
   case IR_DIV:
@@ -77,11 +78,10 @@ static void dump_ir(FILE *fp, IR *ir) {
   case IR_BITXOR: dump_vreg(fp, ir->dst); fprintf(fp, " = "); dump_vreg(fp, ir->opr1); fprintf(fp, " ^ "); dump_vreg(fp, ir->opr2); fprintf(fp, "\n"); break;
   case IR_LSHIFT: dump_vreg(fp, ir->dst); fprintf(fp, " = "); dump_vreg(fp, ir->opr1); fprintf(fp, " << "); dump_vreg(fp, ir->opr2); fprintf(fp, "\n"); break;
   case IR_RSHIFT: dump_vreg(fp, ir->dst); fprintf(fp, " = "); dump_vreg(fp, ir->opr1); fprintf(fp, " >> "); dump_vreg(fp, ir->opr2); fprintf(fp, "\n"); break;
-  case IR_CMP:    dump_vreg(fp, ir->opr1); fprintf(fp, " - "); dump_vreg(fp, ir->opr2); fprintf(fp, "\n"); break;
   case IR_NEG:    dump_vreg(fp, ir->dst); fprintf(fp, " = -"); dump_vreg(fp, ir->opr1); fprintf(fp, "\n"); break;
   case IR_BITNOT: dump_vreg(fp, ir->dst); fprintf(fp, " = ~"); dump_vreg(fp, ir->opr1); fprintf(fp, "\n"); break;
-  case IR_COND:   dump_vreg(fp, ir->dst); fprintf(fp, " = %s\n", kCond[ir->cond.kind & (COND_MASK | COND_UNSIGNED)]); break;
-  case IR_JMP:    fprintf(fp, "%.*s\n", NAMES(ir->jmp.bb->label)); break;
+  case IR_COND:   dump_vreg(fp, ir->dst); fprintf(fp, " = "); if (ir->cond.kind != COND_ANY && ir->cond.kind != COND_NONE) {dump_vreg(fp, ir->opr1); fprintf(fp, " %s ", kCond2[ir->cond.kind & (COND_MASK | COND_UNSIGNED)]); dump_vreg(fp, ir->opr2);} fprintf(fp, "\n"); break;
+  case IR_JMP:    if (ir->jmp.cond != COND_ANY && ir->jmp.cond != COND_NONE) {dump_vreg(fp, ir->opr1); fprintf(fp, ", "); dump_vreg(fp, ir->opr2); fprintf(fp, ", ");} fprintf(fp, "%.*s\n", NAMES(ir->jmp.bb->label)); break;
   case IR_TJMP:
     dump_vreg(fp, ir->opr1);
     for (size_t i = 0; i < ir->tjmp.len; ++i)

@@ -234,8 +234,7 @@ void gen_memcpy(const Type *type, VReg *dst, VReg *src) {
     new_ir_mov(dstp, new_ir_bop(IR_ADD, dstp, vadd, dstp->vsize, IRF_UNSIGNED), IRF_UNSIGNED);  // dstp += elem_size
     new_ir_mov(vcount, new_ir_bop(IR_SUB, vcount, new_const_vreg(1, vsSize),
                                   vcount->vsize, IRF_UNSIGNED), IRF_UNSIGNED);  // vcount -= 1
-    new_ir_cmp(vcount, new_const_vreg(0, vcount->vsize));
-    new_ir_jmp(COND_NE, loop_bb);
+    new_ir_cjmp(vcount, new_const_vreg(0, vcount->vsize), COND_NE, loop_bb);
     set_curbb(new_bb());
   }
 }
@@ -265,8 +264,7 @@ static void gen_clear(const Type *type, VReg *dst) {
     new_ir_mov(dstp, new_ir_bop(IR_ADD, dstp, vadd, dstp->vsize, IRF_UNSIGNED), IRF_UNSIGNED);  // dstp += elem_size
     new_ir_mov(vcount, new_ir_bop(IR_SUB, vcount, new_const_vreg(1, vsSize),
                                   vcount->vsize, IRF_UNSIGNED), IRF_UNSIGNED);  // vcount -= 1
-    new_ir_cmp(vcount, new_const_vreg(0, vcount->vsize));
-    new_ir_jmp(COND_NE, loop_bb);
+    new_ir_cjmp(vcount, new_const_vreg(0, vcount->vsize), COND_NE, loop_bb);
     set_curbb(new_bb());
   }
 }
@@ -358,7 +356,7 @@ extern inline void gen_return(Stmt *stmt) {
       }
     }
   }
-  new_ir_jmp(COND_ANY, fnbe->ret_bb);
+  new_ir_jmp(fnbe->ret_bb);
   set_curbb(bb);
 }
 
@@ -372,7 +370,7 @@ extern inline void gen_if(Stmt *stmt) {
     set_curbb(fbb);
   } else {
     BB *nbb = new_bb();
-    new_ir_jmp(COND_ANY, nbb);
+    new_ir_jmp(nbb);
     set_curbb(fbb);
     gen_stmt(stmt->if_.fblock);
     set_curbb(nbb);
@@ -411,8 +409,7 @@ static void gen_switch_cond_table_jump(Stmt *swtch, VReg *vreg, Stmt **cases, in
     int flag = (cond_flag & COND_UNSIGNED) ? IRF_UNSIGNED : 0;
     val = new_ir_bop(IR_SUB, vreg, new_const_vreg(min, vreg->vsize), vreg->vsize, flag);
   }
-  new_ir_cmp(val, new_const_vreg(max - min, val->vsize));
-  new_ir_jmp(COND_GT | COND_UNSIGNED, skip_bb);
+  new_ir_cjmp(val, new_const_vreg(max - min, val->vsize), COND_GT | COND_UNSIGNED, skip_bb);
   set_curbb(nextbb);
   new_ir_tjmp(val, table, range);
 }
@@ -423,12 +420,11 @@ static void gen_switch_cond_recur(Stmt *swtch, VReg *vreg, Stmt **cases, int len
       BB *nextbb = new_bb();
       Stmt *c = cases[i];
       VReg *num = new_const_vreg(c->case_.value->fixnum, vreg->vsize);
-      new_ir_cmp(vreg, num);
-      new_ir_jmp(COND_EQ | cond_flag, c->case_.bb);
+      new_ir_cjmp(vreg, num, COND_EQ | cond_flag, c->case_.bb);
       set_curbb(nextbb);
     }
     Stmt *def = swtch->switch_.default_;
-    new_ir_jmp(COND_ANY, def != NULL ? def->case_.bb : swtch->switch_.break_bb);
+    new_ir_jmp(def != NULL ? def->case_.bb : swtch->switch_.break_bb);
   } else {
     Stmt *min = cases[0];
     Stmt *max = cases[len - 1];
@@ -442,13 +438,12 @@ static void gen_switch_cond_recur(Stmt *swtch, VReg *vreg, Stmt **cases, int len
     int m = len >> 1;
     Stmt *c = cases[m];
     VReg *num = new_const_vreg(c->case_.value->fixnum, vreg->vsize);
-    new_ir_cmp(vreg, num);
-    new_ir_jmp(COND_EQ | cond_flag, c->case_.bb);
+    new_ir_cjmp(vreg, num, COND_EQ | cond_flag, c->case_.bb);
     set_curbb(bbne);
 
     BB *bblt = new_bb();
     BB *bbgt = new_bb();
-    new_ir_jmp(COND_GT | cond_flag, bbgt);
+    new_ir_cjmp(vreg, num, COND_GT | cond_flag, bbgt);
     set_curbb(bblt);
     gen_switch_cond_recur(swtch, vreg, cases, m, cond_flag);
     set_curbb(bbgt);
@@ -475,7 +470,7 @@ static void gen_switch_cond(Stmt *stmt) {
     }
 
     BB *nextbb = new_bb();
-    new_ir_jmp(COND_ANY, target != NULL ? target->case_.bb : stmt->switch_.break_bb);
+    new_ir_jmp(target != NULL ? target->case_.bb : stmt->switch_.break_bb);
     set_curbb(nextbb);
   } else {
     if (len > 0) {
@@ -488,7 +483,7 @@ static void gen_switch_cond(Stmt *stmt) {
       gen_switch_cond_recur(stmt, vreg, (Stmt**)cases->data, len, cond_flag);
     } else {
       Stmt *def = stmt->switch_.default_;
-      new_ir_jmp(COND_ANY, def != NULL ? def->case_.bb : stmt->switch_.break_bb);
+      new_ir_jmp(def != NULL ? def->case_.bb : stmt->switch_.break_bb);
     }
   }
   set_curbb(new_bb());
@@ -526,7 +521,7 @@ static void gen_while(Stmt *stmt) {
   BB *cond_bb = push_continue_bb(&save_cont);
   BB *next_bb = push_break_bb(&save_break);
 
-  new_ir_jmp(COND_ANY, cond_bb);
+  new_ir_jmp(cond_bb);
 
   set_curbb(loop_bb);
   gen_stmt(stmt->while_.body);
@@ -566,7 +561,7 @@ static void gen_for(Stmt *stmt) {
   if (stmt->for_.pre != NULL)
     gen_expr_stmt(stmt->for_.pre);
 
-  new_ir_jmp(COND_ANY, cond_bb);
+  new_ir_jmp(cond_bb);
 
   set_curbb(loop_bb);
   gen_stmt(stmt->for_.body);
@@ -579,7 +574,7 @@ static void gen_for(Stmt *stmt) {
   if (stmt->for_.cond != NULL)
     gen_cond_jmp(stmt->for_.cond, true, loop_bb);
   else
-    new_ir_jmp(COND_ANY, loop_bb);
+    new_ir_jmp(loop_bb);
 
   set_curbb(next_bb);
   pop_continue_bb(save_cont);
@@ -589,14 +584,14 @@ static void gen_for(Stmt *stmt) {
 static void gen_break(void) {
   assert(s_break_bb != NULL);
   BB *bb = new_bb();
-  new_ir_jmp(COND_ANY, s_break_bb);
+  new_ir_jmp(s_break_bb);
   set_curbb(bb);
 }
 
 static void gen_continue(void) {
   assert(s_continue_bb != NULL);
   BB *bb = new_bb();
-  new_ir_jmp(COND_ANY, s_continue_bb);
+  new_ir_jmp(s_continue_bb);
   set_curbb(bb);
 }
 
@@ -604,7 +599,7 @@ extern inline void gen_goto(Stmt *stmt) {
   assert(curfunc->label_table != NULL);
   Stmt *label = table_get(curfunc->label_table, stmt->goto_.label->ident);
   assert(label != NULL);
-  new_ir_jmp(COND_ANY, label->label.bb);
+  new_ir_jmp(label->label.bb);
   set_curbb(new_bb());
 }
 

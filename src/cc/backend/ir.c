@@ -211,22 +211,26 @@ void new_ir_store(VReg *dst, VReg *src, int flag) {
   ir->flag = flag;
 }
 
-void new_ir_cmp(VReg *opr1, VReg *opr2) {
-  IR *ir = new_ir(IR_CMP);
+VReg *new_ir_cond(VReg *opr1, VReg *opr2, enum ConditionKind cond) {
+  IR *ir = new_ir(IR_COND);
   ir->opr1 = opr1;
   ir->opr2 = opr2;
-}
-
-VReg *new_ir_cond(enum ConditionKind cond) {
-  IR *ir = new_ir(IR_COND);
   ir->cond.kind = cond;
   return ir->dst = reg_alloc_spawn(curra, vtBool, 0);
 }
 
-void new_ir_jmp(enum ConditionKind cond, BB *bb) {
+void new_ir_jmp(BB *bb) {
+  IR *ir = new_ir(IR_JMP);
+  ir->jmp.bb = bb;
+  ir->jmp.cond = COND_ANY;
+}
+
+void new_ir_cjmp(VReg *opr1, VReg *opr2, enum ConditionKind cond, BB *bb) {
   if ((cond & COND_MASK) == COND_NONE)
     return;
   IR *ir = new_ir(IR_JMP);
+  ir->opr1 = opr1;
+  ir->opr2 = opr2;
   ir->jmp.bb = bb;
   ir->jmp.cond = cond;
 }
