@@ -27,6 +27,14 @@ char *immediate_offset(int offset, const char *reg) {
   return offset != 0 ? fmt("%d(%s)", offset, reg) : fmt("(%s)", reg);
 }
 
+char *label_offset_hi(char *label) {
+  return fmt("%%hi(%s)", label);
+}
+
+char *label_offset_lo(char *label) {
+  return fmt("%%lo(%s)", label);
+}
+
 ////////
 
 static void eval_initial_value(Expr *expr, Expr **pvar, Fixnum *poffset) {

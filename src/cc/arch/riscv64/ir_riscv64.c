@@ -51,8 +51,8 @@ const int ArchRegParamMapping[] = {0, 1, 2, 3, 4, 5, 6, 7};
 // const char **kRegSizeTable[] = {kReg32s, kReg32s, kReg32s, kReg64s};
 // static const char *kZeroRegTable[] = {WZR, WZR, WZR, XZR};
 
-// // Break x17 in store, mod and tjmp
-// static const char *kTmpRegTable[] = {W17, W17, W17, X17};
+// Break s1 in store, mod and tjmp
+static const char *kTmpReg = S1;
 
 // #define SZ_FLOAT   VRegSize4
 // #define SZ_DOUBLE  VRegSize8
@@ -114,18 +114,41 @@ void mov_immediate(const char *dst, int64_t value, bool is_unsigned) {
 }
 
 static void ei_bofs(IR *ir) {
-  UNUSED(ir);
-  assert(false);
+  const char *dst = kReg64s[ir->dst->phys];
+  int ofs = ir->bofs.frameinfo->offset;
+  // if (ofs < 4096 && ofs > -4096) {
+    ADDI(dst, FP, IM(ofs));
+  // } else {
+  //   mov_immediate(dst, ofs, true, false);
+  //   ADD(dst, dst, FP);
+  // }
 }
 
 static void ei_iofs(IR *ir) {
-  UNUSED(ir);
-  assert(false);
+  char *label = fmt_name(ir->iofs.label);
+  if (ir->iofs.global)
+    label = MANGLE(label);
+  label = quote_label(label);
+  const char *dst = kReg64s[ir->dst->phys];
+  // if (!is_got(ir->iofs.label)) {
+    LUI(dst, LABEL_OFFSET_HI(label));
+    ADDI(dst, dst, LABEL_OFFSET_LO(label));
+  // } else {
+  //   ADRP(dst, LABEL_AT_GOTPAGE(label));
+  //   LDR(dst, fmt("[%s,#%s]", dst, LABEL_AT_GOTPAGEOFF(label)));
+  // }
 }
 
 static void ei_sofs(IR *ir) {
-  UNUSED(ir);
-  assert(false);
+  assert(ir->opr1->flag & VRF_CONST);
+  const char *dst = kReg64s[ir->dst->phys];
+  // int ofs = ir->opr1->frame.offset;
+  // if (ofs < 4096 && ofs > -4096) {
+    ADDI(dst, SP, IM(ir->opr1->fixnum));
+  // } else {
+  //   mov_immediate(dst, ofs, true, false);
+  //   ADD(dst, dst, SP);
+  // }
 }
 
 #define ei_load_s  ei_load
@@ -136,8 +159,39 @@ static void ei_load(IR *ir) {
 
 #define ei_store_s  ei_store
 static void ei_store(IR *ir) {
-  UNUSED(ir);
-  assert(false);
+  assert(!(ir->opr2->flag & VRF_CONST));
+  const char *target;
+  if (ir->kind == IR_STORE) {
+    assert(!(ir->opr2->flag & VRF_SPILLED));
+    target = IMMEDIATE_OFFSET0(kReg64s[ir->opr2->phys]);
+  } else {
+    assert(ir->opr2->flag & VRF_SPILLED);
+    if (ir->opr2->frame.offset >= -4096 && ir->opr2->frame.offset <= 4096) {
+      target = IMMEDIATE_OFFSET(ir->opr2->frame.offset, FP);
+    } else {
+      mov_immediate(kTmpReg, ir->opr2->frame.offset, false);
+      ADD(kTmpReg, kTmpReg, FP);
+      target = IMMEDIATE_OFFSET0(kTmpReg);
+    }
+  }
+  const char *src;
+  if (ir->opr1->flag & VRF_FLONUM) {
+    assert(false);
+  } else if (ir->opr1->flag & VRF_CONST) {
+    if (ir->opr1->fixnum == 0)
+      src = ZERO;
+    else
+      mov_immediate(src = kTmpReg, ir->opr1->fixnum, ir->flag & IRF_UNSIGNED);
+  } else {
+    src = kReg64s[ir->opr1->phys];
+  }
+  switch (ir->opr1->vsize) {
+  case 0:  SB(src, target); break;
+  case 1:  SH(src, target); break;
+  case 2:  SW(src, target); break;
+  case 3:  SD(src, target); break;
+  default: assert(false); break;
+  }
 }
 
 static void ei_add(IR *ir) {
@@ -294,8 +348,17 @@ static void ei_result(IR *ir) {
 }
 
 static void ei_subsp(IR *ir) {
-  UNUSED(ir);
-  assert(false);
+  if (ir->opr1->flag & VRF_CONST) {
+    // assert(ir->opr1->fixnum % 16 == 0);
+    if (ir->opr1->fixnum > 0)
+      ADDI(SP, SP, IM(-ir->opr1->fixnum));
+    else if (ir->opr1->fixnum < 0)
+      ADDI(SP, SP, IM(-ir->opr1->fixnum));
+  } else {
+    SUB(SP, SP, kReg64s[ir->opr1->phys]);
+  }
+  if (ir->dst != NULL)
+    MV(kReg64s[ir->dst->phys], SP);
 }
 
 static void ei_mov(IR *ir) {
@@ -425,8 +488,35 @@ static void ei_call(IR *ir) {
 }
 
 static void ei_cast(IR *ir) {
-  UNUSED(ir);
-  assert(false);
+  assert((ir->opr1->flag & VRF_CONST) == 0);
+  if (ir->dst->flag & VRF_FLONUM) {
+    assert(false);
+  } else if (ir->opr1->flag & VRF_FLONUM) {
+    assert(false);
+  } else {
+    // fix->fix
+    assert(ir->dst->vsize != ir->opr1->vsize);
+    int pows = ir->opr1->vsize;
+    int powd = ir->dst->vsize;
+    assert(0 <= pows && pows < 4);
+    assert(0 <= powd && powd < 4);
+    int pow = MIN(powd, pows);
+    const char *dst = kReg64s[ir->dst->phys], *src = kReg64s[ir->opr1->phys];
+
+    if (ir->flag & IRF_UNSIGNED) {
+      const char *shift = IM((8 - (1 << pow)) * TARGET_CHAR_BIT);
+      SLLI(dst, src, shift);
+      SRLI(dst, dst, shift);
+    } else {
+      if (pow < 2) {
+        const char *shift = IM((4 - (1 << pows)) * TARGET_CHAR_BIT);
+        SLLIW(dst, src, shift);
+        SRAI(dst, dst, shift);
+      } else {
+        SEXTW(dst, src);
+      }
+    }
+  }
 }
 
 static void ei_asm(IR *ir) {

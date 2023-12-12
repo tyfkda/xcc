@@ -13,6 +13,12 @@
 #ifndef IMMEDIATE_OFFSET0
 #define IMMEDIATE_OFFSET0(reg)  immediate_offset(0, reg)
 #endif
+#ifndef LABEL_OFFSET_HI
+#define LABEL_OFFSET_HI(label)  label_offset_hi(label)
+#endif
+#ifndef LABEL_OFFSET_LO
+#define LABEL_OFFSET_LO(label)  label_offset_lo(label)
+#endif
 #ifndef NUM
 #define NUM(x)  num(x)
 #endif
@@ -66,6 +72,7 @@
 #define CGEU  "geu"
 
 #define LI(o1, o2)            EMIT_ASM("li", o1, o2)
+#define LUI(o1, o2)           EMIT_ASM("lui", o1, o2)
 #define ADD(o1, o2, o3)       EMIT_ASM("add", o1, o2, o3)
 #define ADDI(o1, o2, o3)      EMIT_ASM("addi", o1, o2, o3)
 #define ADDW(o1, o2, o3)      EMIT_ASM("addw", o1, o2, o3)
@@ -113,6 +120,7 @@
 #define MV(o1, o2)            EMIT_ASM("mv", o1, o2)         // => addi o1, o2, 0
 #define NEG(o1, o2)           EMIT_ASM("neg", o1, o2)        // => sub o1, zero, o2
 #define NOT(o1, o2)           EMIT_ASM("not", o1, o2)        // => xori o1, o2, -1
+#define SEXTW(o1, o2)         EMIT_ASM("sext.w", o1, o2)     // => addiw o1, o2, 0
 
 #define _BYTE(x)       EMIT_ASM(".byte", x)
 #define _WORD(x)       EMIT_ASM(".short", x)  // Or .hword
@@ -129,13 +137,8 @@
 
 #define EMIT_ALIGN(x)  emit_align_p2(x)
 
-#ifdef __APPLE__
-#define _RODATA()      _SECTION("__DATA,__const")
-#define _LOCAL(x)      ((void)0)
-#else
 #define _RODATA()      _SECTION(".rodata")
 #define _LOCAL(x)      EMIT_ASM(".local", x)
-#endif
 
 #define _BSS(label, size, align)  emit_bss(label, size, align)
 
