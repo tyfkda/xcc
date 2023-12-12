@@ -193,14 +193,13 @@ static VReg *gen_cast(Expr *expr) {
   }
 
   int dst_size = type_size(dst_type);
-  bool dstu = is_unsigned(dst_type);
-  bool srcu = is_unsigned(src->type);
-  if (dst_size == 1 << vreg->vsize && dstu == srcu &&
+  int src_size = 1 << vreg->vsize;
+  if (dst_size == src_size &&
       is_flonum(dst_type) == ((vreg->flag & VRF_FLONUM) != 0))
     return vreg;
 
   IR *ir = new_ir_cast(vreg, to_vsize(dst_type), to_vflag(dst_type));
-  if (srcu)
+  if (is_unsigned(src->type))
     ir->flag |= IRF_UNSIGNED;
   return ir->dst;
 }
