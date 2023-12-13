@@ -27,11 +27,11 @@ static void pop_caller_save_regs(Vector *saves);
 static const char *kReg32s[PHYSICAL_REG_MAX] = {
   W0, W1, W2, W3, W4, W5, W6, W7, W8, W9, W16,            // Temporary
   W19, W20, W21, W22, W23, W24, W25, W26, W27, W28, W29,  // Callee save
-  W10, W11, W12, W13, W14, W15, W18};                     // Caller save
+  W10, W11, W12, W13, W14, W15};                          // Caller save
 static const char *kReg64s[PHYSICAL_REG_MAX] = {
   X0, X1, X2, X3, X4, X5, X6, X7, X8, X9, X16,            // Temporary
   X19, X20, X21, X22, X23, X24, X25, X26, X27, X28, X29,  // Callee save
-  X10, X11, X12, X13, X14, X15, X18};                     // Caller save
+  X10, X11, X12, X13, X14, X15};                          // Caller save
 
 #define GET_X0_INDEX()   0
 #define GET_X16_INDEX()  10
@@ -40,7 +40,7 @@ static const char *kReg64s[PHYSICAL_REG_MAX] = {
 static const int kCalleeSaveRegs[] = {11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21};
 
 #define CALLER_SAVE_REG_COUNT  ((int)(sizeof(kCallerSaveRegs) / sizeof(*kCallerSaveRegs)))
-static const int kCallerSaveRegs[] = {22, 23, 24, 25, 26, 27, 28};
+static const int kCallerSaveRegs[] = {22, 23, 24, 25, 26, 27};
 
 const int ArchRegParamMapping[] = {0, 1, 2, 3, 4, 5, 6, 7};
 
@@ -823,42 +823,62 @@ int calculate_func_param_bottom(Function *func) {
 static Vector *push_caller_save_regs(unsigned long living) {
   Vector *saves = new_vector();
 
-  for (int i = 0; i < CALLER_SAVE_REG_COUNT; ++i) {
-    int ireg = kCallerSaveRegs[i];
-    if (living & (1UL << ireg)) {
-      vec_push(saves, kReg64s[ireg]);
-    }
-  }
+  struct {
+    const int *reg_indices;
+    const char **reg_names;
+    int count;
+    int bitoffset;
+  } table[] = {
+    {
+      .reg_indices = kCallerSaveRegs,
+      .reg_names = kReg64s,
+      .count = CALLER_SAVE_REG_COUNT,
+      .bitoffset = 0,
+    },
+    {
+      .reg_indices = kCallerSaveFRegs,
+      .reg_names = kFReg64s,
+      .count = CALLER_SAVE_FREG_COUNT,
+      .bitoffset = PHYSICAL_REG_MAX,
+    },
+  };
 
-  {
-    for (int i = 0; i < CALLER_SAVE_FREG_COUNT; ++i) {
-      int ireg = kCallerSaveFRegs[i];
-      if (living & (1UL << (ireg + PHYSICAL_REG_MAX))) {
-        // TODO: Detect register size.
-        vec_push(saves, kFReg64s[ireg]);
-      }
+  for (int i = 0; i < (int)(sizeof(table) / sizeof(*table)); ++i) {
+    const char **reg_names = table[i].reg_names;
+    int count = table[i].count;
+    int bitoffset = table[i].bitoffset;
+    for (int j = 0; j < count; ++j) {
+      int ireg = table[i].reg_indices[j];
+      if (living & (1UL << (ireg + bitoffset)))
+        vec_push(saves, reg_names[ireg]);
     }
+    if ((saves->len & 1) != 0)
+      vec_push(saves, NULL);
   }
 
   int n = saves->len;
-  for (int i = 1; i < n; i += 2) {
-    STP(saves->data[i - 1], saves->data[i], PRE_INDEX(SP, -16));
-  }
-  if ((n & 1) != 0) {
-    STR(saves->data[n - 1], PRE_INDEX(SP, -16));
+  for (int i = 0; i < n; i += 2) {
+    const char *save1 = saves->data[i];
+    const char *save2 = saves->data[i + 1];
+    if (save2 != NULL)
+      STP(save1, save2, PRE_INDEX(SP, -16));
+    else
+      STR(save1, PRE_INDEX(SP, -16));
   }
 
   return saves;
 }
 
 static void pop_caller_save_regs(Vector *saves) {
-  int i = saves->len;
-  if ((i & 1) != 0) {
-    LDR(saves->data[i - 1], POST_INDEX(SP, 16));
-    --i;
-  }
-  for (; i > 0; i -= 2) {
-    LDP(saves->data[i - 2], saves->data[i - 1], POST_INDEX(SP, 16));
+  assert((saves->len % 2) == 0);
+  for (int i = saves->len; i > 0; ) {
+    i -= 2;
+    const char *save1 = saves->data[i];
+    const char *save2 = saves->data[i + 1];
+    if (save2 != NULL)
+      LDP(save1, save2, POST_INDEX(SP, 16));
+    else
+      LDR(save1, POST_INDEX(SP, 16));
   }
 }
 
