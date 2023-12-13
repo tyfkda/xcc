@@ -53,13 +53,6 @@ void add_builtin_function(const char *str, Type *type, BuiltinFunctionProc *proc
     scope_add(global_scope, name, type, 0);
 }
 
-inline enum ConditionKind swap_cond(enum ConditionKind cond) {
-  assert(COND_EQ <= cond && cond <= COND_GT);
-  if (cond >= COND_LT)
-    cond = (COND_GT + COND_LT) - cond;
-  return cond;
-}
-
 struct CompareExpr {
   enum ConditionKind cond;
   VReg *lhs, *rhs;

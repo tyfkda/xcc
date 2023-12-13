@@ -108,6 +108,12 @@ enum {
   COND_FLONUM = 1 << 4,
 };
 
+inline enum ConditionKind swap_cond(enum ConditionKind cond) {
+  if (cond >= COND_LT)
+    cond = (COND_GT + COND_LT) - cond;
+  return cond;
+}
+
 #define IRF_UNSIGNED  (1 << 0)
 
 typedef struct IR {
@@ -164,6 +170,7 @@ typedef struct IR {
 
 VReg *new_const_vreg(int64_t value, enum VRegSize vsize);
 VReg *new_ir_bop(enum IrKind kind, VReg *opr1, VReg *opr2, enum VRegSize vsize, int flag);
+IR *new_ir_bop_raw(enum IrKind kind, VReg *dst, VReg *opr1, VReg *opr2, int flag);
 VReg *new_ir_unary(enum IrKind kind, VReg *opr, enum VRegSize vsize, int flag);
 VReg *new_ir_load(VReg *opr, enum VRegSize vsize, int vflag, int irflag);
 IR *new_ir_mov(VReg *dst, VReg *src, int flag);

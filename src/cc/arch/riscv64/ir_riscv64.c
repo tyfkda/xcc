@@ -153,8 +153,48 @@ static void ei_sofs(IR *ir) {
 
 #define ei_load_s  ei_load
 static void ei_load(IR *ir) {
-  UNUSED(ir);
-  assert(false);
+  assert(!(ir->opr1->flag & VRF_CONST));
+  const char *src;
+  if (ir->kind == IR_LOAD) {
+    assert(!(ir->opr1->flag & VRF_SPILLED));
+    src = IMMEDIATE_OFFSET0(kReg64s[ir->opr1->phys]);
+  } else {
+    assert(ir->opr1->flag & VRF_SPILLED);
+    if (ir->opr1->frame.offset >= -4096 && ir->opr1->frame.offset <= 4096) {
+      src = IMMEDIATE_OFFSET(ir->opr1->frame.offset, FP);
+    } else {
+      mov_immediate(kTmpReg, ir->opr1->frame.offset, false);
+      ADD(kTmpReg, kTmpReg, FP);
+      src = IMMEDIATE_OFFSET0(kTmpReg);
+    }
+  }
+
+  const char *dst;
+  if (ir->dst->flag & VRF_FLONUM) {
+    assert(false);
+  } else {
+    int pow = ir->dst->vsize;
+    assert(0 <= pow && pow < 4);
+    dst = kReg64s[ir->dst->phys];
+    switch (pow) {
+    case 0:
+      if (ir->flag & IRF_UNSIGNED) LBU(dst, src);
+      else                         LB(dst, src);
+      break;
+    case 1:
+      if (ir->flag & IRF_UNSIGNED) LHU(dst, src);
+      else                         LH(dst, src);
+      break;
+    case 2:
+      if (ir->flag & IRF_UNSIGNED) LWU(dst, src);
+      else                         LW(dst, src);
+      break;
+    case 3:
+      LD(dst, src);
+      break;
+    default: assert(false); break;
+    }
+  }
 }
 
 #define ei_store_s  ei_store
@@ -388,8 +428,74 @@ static void ei_bitnot(IR *ir) {
 }
 
 static void ei_cond(IR *ir) {
-  UNUSED(ir);
-  assert(false);
+  assert(ir->opr1 != NULL);
+  assert(ir->opr2 != NULL);
+  const char *dst = kReg64s[ir->dst->phys];
+  assert(!(ir->opr1->flag & VRF_CONST));
+  const char *opr1 = kReg64s[ir->opr1->phys];
+
+  int cond = ir->cond.kind & (COND_MASK | COND_UNSIGNED);
+  switch (cond) {
+  case COND_EQ: case COND_EQ | COND_UNSIGNED:
+  case COND_NE: case COND_NE | COND_UNSIGNED:
+    assert((ir->opr2->flag & VRF_CONST) && ir->opr2->fixnum == 0);
+    if ((cond & COND_MASK) == COND_EQ)
+      SEQZ(dst, opr1);
+    else
+      SNEZ(dst, opr1);
+    break;
+
+  case COND_LT: case COND_LT | COND_UNSIGNED:
+  case COND_GT: case COND_GT | COND_UNSIGNED:
+    {
+      VReg *opr1 = ir->opr1, *opr2 = ir->opr2;
+      if ((cond & COND_MASK) == COND_GT) {
+        opr1 = ir->opr2;
+        opr2 = ir->opr1;
+      }
+      assert(!(opr1->flag & VRF_CONST));
+      const char *o1 = kReg64s[opr1->phys];
+      if (!(cond & COND_UNSIGNED)) {
+        if (opr2->flag & VRF_CONST)
+          SLTI(dst, o1, IM(opr2->fixnum));
+        else
+          SLT(dst, o1, kReg64s[opr2->phys]);
+      } else {
+        if (opr2->flag & VRF_CONST)
+          SLTIU(dst, o1, IM(opr2->fixnum));
+        else
+          SLTU(dst, o1, kReg64s[opr2->phys]);
+      }
+    }
+    break;
+  case COND_LE: case COND_LE | COND_UNSIGNED:
+  case COND_GE: case COND_GE | COND_UNSIGNED:
+    {
+      VReg *opr1 = ir->opr1, *opr2 = ir->opr2;
+      if ((cond & COND_MASK) == COND_GE) {
+        opr1 = ir->opr2;
+        opr2 = ir->opr1;
+      }
+      assert(!(opr2->flag & VRF_CONST));
+      // lhs <= rhs <=> !(rhs < lhs) <=> 1 - (rhs < lhs)
+      const char *o2 = kReg64s[opr2->phys];
+      if (!(cond & COND_UNSIGNED)) {
+        if (opr1->flag & VRF_CONST)
+          SLTI(dst, o2, IM(opr1->fixnum));
+        else
+          SLT(dst, o2, kReg64s[opr1->phys]);
+      } else {
+        if (opr1->flag & VRF_CONST)
+          SLTIU(dst, o2, IM(opr1->fixnum));
+        else
+          SLTU(dst, o2, kReg64s[opr1->phys]);
+      }
+      NEG(dst, dst);
+      ADDI(dst, dst, IM(1));
+    }
+    break;
+  default: assert(false); break;
+  }
 }
 
 static void ei_jmp(IR *ir) {
@@ -428,8 +534,27 @@ static void ei_jmp(IR *ir) {
 }
 
 static void ei_tjmp(IR *ir) {
-  UNUSED(ir);
-  assert(false);
+  const char *dst = kTmpReg;
+  const Name *table_label = alloc_label();
+  char *label = fmt_name(table_label);
+  LUI(dst, LABEL_OFFSET_HI(label));
+  ADDI(dst, dst, LABEL_OFFSET_LO(label));
+  // dst = label + (opr1 << 3)
+  assert(!(ir->opr1->flag & VRF_CONST));
+  const char *opr1 = kReg64s[ir->opr1->phys];
+  SLLI(opr1, opr1, IM(3));
+  ADD(dst, dst, opr1);
+  LD(dst, IMMEDIATE_OFFSET0(dst));
+  JR(dst);
+
+  _RODATA();
+  EMIT_ALIGN(8);
+  EMIT_LABEL(fmt_name(table_label));
+  for (size_t i = 0, len = ir->tjmp.len; i < len; ++i) {
+    BB *bb = ir->tjmp.bbs[i];
+    _QUAD(fmt("%.*s", NAMES(bb->label)));
+  }
+  _TEXT();
 }
 
 static void ei_precall(IR *ir) {
@@ -613,6 +738,8 @@ static void insert_const_mov(VReg **pvreg, RegAlloc *ra, Vector *irs, int i) {
   *pvreg = tmp;
 }
 
+#define insert_tmp_mov  insert_const_mov
+
 void tweak_irs(FuncBackend *fnbe) {
   UNUSED(fnbe);
 
@@ -624,16 +751,16 @@ void tweak_irs(FuncBackend *fnbe) {
     for (int j = 0; j < irs->len; ++j) {
       IR *ir = irs->data[j];
       switch (ir->kind) {
-      // case IR_LOAD:
-      //   if (ir->opr1->flag & VRF_CONST) {
-      //     insert_const_mov(&ir->opr1, ra, irs, j++);
-      //   }
-      //   break;
-      // case IR_STORE:
-      //   if (ir->opr2->flag & VRF_CONST) {
-      //     insert_const_mov(&ir->opr2, ra, irs, j++);
-      //   }
-      //   break;
+      case IR_LOAD:
+        if (ir->opr1->flag & VRF_CONST) {
+          insert_const_mov(&ir->opr1, ra, irs, j++);
+        }
+        break;
+      case IR_STORE:
+        if (ir->opr2->flag & VRF_CONST) {
+          insert_const_mov(&ir->opr2, ra, irs, j++);
+        }
+        break;
       case IR_ADD:
         assert(!(ir->opr1->flag & VRF_CONST) || !(ir->opr2->flag & VRF_CONST));
         if (ir->opr1->flag & VRF_CONST)
@@ -695,11 +822,45 @@ void tweak_irs(FuncBackend *fnbe) {
         if (ir->opr1->flag & VRF_CONST)
           insert_const_mov(&ir->opr1, ra, irs, j++);
         break;
-      case IR_COND: case IR_JMP:
+      case IR_COND:
+        {
+          assert(ir->opr1 != NULL);
+          assert(ir->opr2 != NULL);
+          int cond = ir->cond.kind & COND_MASK;
+          switch (cond) {
+          case COND_EQ: case COND_NE:
+            assert(!(ir->opr1->flag & VRF_CONST));
+            if (!(ir->opr2->flag & VRF_CONST) || ir->opr2->fixnum != 0) {
+              IR *sub = new_ir_bop_raw(IR_SUB, ir->dst, ir->opr1, ir->opr2, ir->flag);
+              vec_insert(irs, j++, sub);
+
+              ir->opr1 = ir->dst;
+              ir->opr2 = reg_alloc_spawn_const(ra, 0, ir->dst->vsize);
+            }
+            break;
+          case COND_LE: case COND_GT:
+            if (ir->opr2->flag & VRF_CONST)
+              insert_const_mov(&ir->opr2, ra, irs, j++);
+            break;
+          case COND_LT: case COND_GE:
+            if ((ir->opr2->flag & VRF_CONST) &&
+                (ir->opr2->fixnum < -4096 || ir->opr2->fixnum > 4096))
+              insert_const_mov(&ir->opr2, ra, irs, j++);
+            break;
+          default:
+            break;
+          }
+        }
+        break;
+      case IR_JMP:
         if (ir->opr2 != NULL &&
             (ir->opr2->flag & VRF_CONST) &&
             ir->opr2->fixnum != 0)
           insert_const_mov(&ir->opr2, ra, irs, j++);
+        break;
+      case IR_TJMP:
+        // Make sure opr1 can be broken.
+        insert_tmp_mov(&ir->opr1, ra, irs, j++);
         break;
       case IR_PUSHARG:
         if (ir->opr1->flag & VRF_CONST)

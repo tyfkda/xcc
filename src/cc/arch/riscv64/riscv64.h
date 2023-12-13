@@ -103,6 +103,7 @@
 #define SRA(o1, o2, o3)       EMIT_ASM("sra", o1, o2, o3)    // Arithmetic right shift
 #define SRAI(o1, o2, o3)      EMIT_ASM("srai", o1, o2, o3)   // Arithmetic right shift
 #define J(o1)                 EMIT_ASM("j", o1)              // => jal zero, o1
+#define JR(o1)                EMIT_ASM("jr", o1)             // => jalr zero, 0(o1)
 #define JALR(o1)              EMIT_ASM("jalr", o1)           // => jalr ra, 0(o1)
 #define Bcc(c, o1, o2, o3)    EMIT_ASM("b" c, o1, o2, o3)
 #define CALL(o1)              EMIT_ASM("call", o1)
@@ -112,6 +113,9 @@
 #define LH(o1, o2)            EMIT_ASM("lh", o1, o2)
 #define LW(o1, o2)            EMIT_ASM("lw", o1, o2)
 #define LD(o1, o2)            EMIT_ASM("ld", o1, o2)
+#define LBU(o1, o2)           EMIT_ASM("lbu", o1, o2)
+#define LHU(o1, o2)           EMIT_ASM("lhu", o1, o2)
+#define LWU(o1, o2)           EMIT_ASM("lwu", o1, o2)
 #define SB(o1, o2)            EMIT_ASM("sb", o1, o2)
 #define SH(o1, o2)            EMIT_ASM("sh", o1, o2)
 #define SW(o1, o2)            EMIT_ASM("sw", o1, o2)
@@ -121,6 +125,15 @@
 #define NEG(o1, o2)           EMIT_ASM("neg", o1, o2)        // => sub o1, zero, o2
 #define NOT(o1, o2)           EMIT_ASM("not", o1, o2)        // => xori o1, o2, -1
 #define SEXTW(o1, o2)         EMIT_ASM("sext.w", o1, o2)     // => addiw o1, o2, 0
+
+#define SEQZ(o1, o2)          EMIT_ASM("seqz", o1, o2)
+#define SNEZ(o1, o2)          EMIT_ASM("snez", o1, o2)
+#define SLTZ(o1, o2)          EMIT_ASM("sltz", o1, o2)
+#define SGTZ(o1, o2)          EMIT_ASM("sgtz", o1, o2)
+#define SLT(o1, o2, o3)       EMIT_ASM("slt", o1, o2, o3)
+#define SLTI(o1, o2, o3)      EMIT_ASM("slti", o1, o2, o3)
+#define SLTU(o1, o2, o3)      EMIT_ASM("sltu", o1, o2, o3)
+#define SLTIU(o1, o2, o3)     EMIT_ASM("sltiu", o1, o2, o3)
 
 #define _BYTE(x)       EMIT_ASM(".byte", x)
 #define _WORD(x)       EMIT_ASM(".short", x)  // Or .hword
