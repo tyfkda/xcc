@@ -40,11 +40,11 @@ const char *kReg64s[PHYSICAL_REG_MAX] = {
 #define GET_A0_INDEX()   0
 // #define GET_X16_INDEX()  10
 
-// #define CALLEE_SAVE_REG_COUNT  ((int)(sizeof(kCalleeSaveRegs) / sizeof(*kCalleeSaveRegs)))
-// static const int kCalleeSaveRegs[] = {11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21};
+#define CALLEE_SAVE_REG_COUNT  ((int)(sizeof(kCalleeSaveRegs) / sizeof(*kCalleeSaveRegs)))
+static const int kCalleeSaveRegs[] = {8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18};
 
-// #define CALLER_SAVE_REG_COUNT  ((int)(sizeof(kCallerSaveRegs) / sizeof(*kCallerSaveRegs)))
-// static const int kCallerSaveRegs[] = {22, 23, 24, 25, 26, 27, 28};
+#define CALLER_SAVE_REG_COUNT  ((int)(sizeof(kCallerSaveRegs) / sizeof(*kCallerSaveRegs)))
+static const int kCallerSaveRegs[] = {19, 20, 21};
 
 const int ArchRegParamMapping[] = {0, 1, 2, 3, 4, 5, 6, 7};
 
@@ -657,31 +657,110 @@ static void ei_asm(IR *ir) {
 
 //
 
+static int enum_callee_save_regs(unsigned long bit, int n, const int *indices, const char **regs,
+                                 const char **saves) {
+  int count = 0;
+  for (int i = 0; i < n; ++i) {
+    int ireg = indices[i];
+    if (bit & (1 << ireg))
+      saves[count++] = regs[ireg];
+  }
+  return count;
+}
+
+#define N  CALLEE_SAVE_REG_COUNT
+
 int push_callee_save_regs(unsigned long used, unsigned long fused) {
-  UNUSED(used);
   UNUSED(fused);
-  return 0;
+  const char *saves[(N + 1) & ~1];
+  int count = enum_callee_save_regs(used, CALLEE_SAVE_REG_COUNT, kCalleeSaveRegs, kReg64s, saves);
+  if (count > 0)
+    ADDI(SP, SP, IM(-POINTER_SIZE * ALIGN(count, 2)));
+  for (int i = 0; i < count; ++i) {
+    SD(saves[i], IMMEDIATE_OFFSET((count - 1 - i) * POINTER_SIZE, SP));
+  }
+  // int fcount = enum_callee_save_regs(fused, CALLEE_SAVE_FREG_COUNT, kCalleeSaveFRegs, kFReg64s,
+  //                                    saves);
+  // for (int i = 0; i < fcount; i += 2) {
+  //   if (i + 1 < fcount)
+  //     STP(saves[i], saves[i + 1], PRE_INDEX(SP, -16));
+  //   else
+  //     STR(saves[i], PRE_INDEX(SP, -16));
+  // }
+  // return ALIGN(count, 2) + ALIGN(fcount, 2);
+  return ALIGN(count, 2);
 }
 
 void pop_callee_save_regs(unsigned long used, unsigned long fused) {
-  UNUSED(used);
   UNUSED(fused);
+  const char *saves[(N + 1) & ~1];
+  // int fcount = enum_callee_save_regs(fused, CALLEE_SAVE_FREG_COUNT, kCalleeSaveFRegs, kFReg64s,
+  //                                    saves);
+  // if ((fcount & 1) != 0)
+  //   LDR(saves[--fcount], POST_INDEX(SP, 16));
+  // for (int i = fcount; i > 0; ) {
+  //   i -= 2;
+  //   LDP(saves[i], saves[i + 1], POST_INDEX(SP, 16));
+  // }
+  int count = enum_callee_save_regs(used, CALLEE_SAVE_REG_COUNT, kCalleeSaveRegs, kReg64s, saves);
+  if (count == 0)
+    return;
+
+  for (int i = count; i > 0; ) {
+    --i;
+    LD(saves[i], IMMEDIATE_OFFSET((count - 1 - i) * POINTER_SIZE, SP));
+  }
+  ADDI(SP, SP, IM(POINTER_SIZE * ALIGN(count, 2)));
 }
 
 int calculate_func_param_bottom(Function *func) {
-  UNUSED(func);
-  return (POINTER_SIZE * 2);  // Return address, saved base pointer.
+  const char *saves[(N + 1) & ~1];
+  FuncBackend *fnbe = func->extra;
+  unsigned long used = fnbe->ra->used_reg_bits; //, fused = fnbe->ra->used_freg_bits;
+  int count = enum_callee_save_regs(used, CALLEE_SAVE_REG_COUNT, kCalleeSaveRegs, kReg64s, saves);
+  // int fcount = enum_callee_save_regs(fused, CALLEE_SAVE_FREG_COUNT, kCalleeSaveFRegs, kFReg64s,
+  //                                    saves);
+  int fcount = 0;
+  int callee_save_count = ALIGN(count, 2) + ALIGN(fcount, 2);
+
+  return (callee_save_count * POINTER_SIZE) + (POINTER_SIZE * 2);  // Return address, saved base pointer.
 }
 #undef N
 
 static Vector *push_caller_save_regs(unsigned long living) {
-  UNUSED(living);
   Vector *saves = new_vector();
+
+  for (int i = 0; i < CALLER_SAVE_REG_COUNT; ++i) {
+    int ireg = kCallerSaveRegs[i];
+    if (living & (1UL << ireg)) {
+      vec_push(saves, kReg64s[ireg]);
+    }
+  }
+
+  // {
+  //   for (int i = 0; i < CALLER_SAVE_FREG_COUNT; ++i) {
+  //     int ireg = kCallerSaveFRegs[i];
+  //     if (living & (1UL << (ireg + PHYSICAL_REG_MAX))) {
+  //       // TODO: Detect register size.
+  //       vec_push(saves, kFReg64s[ireg]);
+  //     }
+  //   }
+  // }
+
+  int n = saves->len;
+  for (int i = 0; i < n; ++i) {
+    SD(saves->data[i], IMMEDIATE_OFFSET((n - 1 - i) * POINTER_SIZE, SP));
+  }
+
   return saves;
 }
 
 static void pop_caller_save_regs(Vector *saves) {
-  UNUSED(saves);
+  int n = saves->len;
+  for (int i = n; i > 0; ) {
+    --i;
+    LD(saves->data[i], IMMEDIATE_OFFSET((n - 1 - i) * POINTER_SIZE, SP));
+  }
 }
 
 void emit_bb_irs(BBContainer *bbcon) {
