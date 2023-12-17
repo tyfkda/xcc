@@ -58,15 +58,18 @@ static Expr *parse_funcall(Expr *func) {
     return func;
   }
 
+  Type *rettype = functype->func.ret;
+  ensure_struct(rettype, token, curscope);
+
   if (func->kind == EX_VAR && is_global_scope(func->var.scope)) {
     VarInfo *varinfo = scope_find(func->var.scope, func->var.name, NULL);
     assert(varinfo != NULL);
     if (satisfy_inline_criteria(varinfo))
-      return new_expr_inlined(token, varinfo->name, functype->func.ret, args,
+      return new_expr_inlined(token, varinfo->name, rettype, args,
                               embed_inline_funcall(varinfo));
   }
 
-  return new_expr_funcall(token, func, functype->func.ret, args);
+  return new_expr_funcall(token, func, rettype, args);
 }
 
 static Expr *parse_array_index(const Token *token, Expr *expr) {

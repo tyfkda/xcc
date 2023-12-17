@@ -135,6 +135,7 @@ inline bool is_flonum(const Type *type)  {
 #ifndef __NO_FLONUM
   return type->kind == TY_FLONUM;
 #else
+  (void)type;
   return false;
 #endif
 }

@@ -686,6 +686,7 @@ static void ei_cast(IR *ir) {
   if (ir->dst->flag & VRF_FLONUM) {
     if (ir->opr1->flag & VRF_FLONUM) {
       // flonum->flonum
+      assert(ir->dst->vsize != ir->opr1->vsize);
       // Assume flonum are just two types.
       const char *src, *dst;
       switch (ir->dst->vsize) {
@@ -719,7 +720,8 @@ static void ei_cast(IR *ir) {
     }
   } else {
     // fix->fix
-    if (ir->dst->vsize <= ir->opr1->vsize) {
+    assert(ir->dst->vsize != ir->opr1->vsize);
+    if (ir->dst->vsize < ir->opr1->vsize) {
       if (ir->dst->phys != ir->opr1->phys) {
         int pow = ir->dst->vsize;
         assert(0 <= pow && pow < 4);
@@ -972,7 +974,7 @@ void tweak_irs(FuncBackend *fnbe) {
           if (ir->opr2->fixnum < 0) {
             ir->kind = IR_SUB;
             VReg *old = ir->opr2;
-            ir->opr2 = reg_alloc_spawn_const(fnbe->ra, -old->fixnum, old->vsize);
+            ir->opr2 = reg_alloc_spawn_const(ra, -old->fixnum, old->vsize);
             ir->opr2->flag = old->flag;
           }
           if (ir->opr2->fixnum > 0x0fff)
@@ -994,7 +996,7 @@ void tweak_irs(FuncBackend *fnbe) {
           if (ir->opr2->fixnum < 0) {
             ir->kind = IR_ADD;
             VReg *old = ir->opr2;
-            ir->opr2 = reg_alloc_spawn_const(fnbe->ra, -old->fixnum, old->vsize);
+            ir->opr2 = reg_alloc_spawn_const(ra, -old->fixnum, old->vsize);
             ir->opr2->flag = old->flag;
           }
           if (ir->opr2->fixnum > 0x0fff)

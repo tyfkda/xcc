@@ -738,6 +738,7 @@ static void ei_cast(IR *ir) {
   if (ir->dst->flag & VRF_FLONUM) {
     if (ir->opr1->flag & VRF_FLONUM) {
       // flonum->flonum
+      assert(ir->dst->vsize != ir->opr1->vsize);
       // Assume flonum are just two types.
       switch (ir->dst->vsize) {
       case SZ_FLOAT: CVTSD2SS(kFReg64s[ir->opr1->phys], kFReg64s[ir->dst->phys]); break;
@@ -807,7 +808,8 @@ static void ei_cast(IR *ir) {
     }
   } else {
     // fix->fix
-    if (ir->dst->vsize <= ir->opr1->vsize) {
+    assert(ir->dst->vsize != ir->opr1->vsize);
+    if (ir->dst->vsize < ir->opr1->vsize) {
       if (ir->dst->phys != ir->opr1->phys) {
         int pow = ir->dst->vsize;
         assert(0 <= pow && pow < 4);

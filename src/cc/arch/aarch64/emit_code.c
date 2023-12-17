@@ -437,7 +437,6 @@ static void move_params_to_assigned(Function *func) {
     if (vreg->flag & VRF_SPILLED) {
       int offset = vreg->frame.offset;
       assert(offset != 0);
-      assert(offset != 0);
       STR(src, IMMEDIATE_OFFSET(FP, offset));
     } else {
       if (p->index != vreg->phys) {

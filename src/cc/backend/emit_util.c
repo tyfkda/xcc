@@ -120,9 +120,9 @@ void emit_comment(const char *comment, ...) {
 
   va_list ap;
   va_start(ap, comment);
-  fprintf(emit_fp, "// ");
+  fprintf(emit_fp, "/* ");
   vfprintf(emit_fp, comment, ap);
-  fprintf(emit_fp, "\n");
+  fprintf(emit_fp, " */\n");
   va_end(ap);
 }
 
