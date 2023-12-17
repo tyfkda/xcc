@@ -201,7 +201,7 @@
 
 #define EMIT_ALIGN(x)  emit_align_p2(x)
 
-#ifdef __APPLE__
+#if XCC_TARGET_PLATFORM == XCC_PLATFORM_APPLE
 #define _RODATA()      _SECTION("__DATA,__const")
 #define _LOCAL(x)      ((void)0)
 #else

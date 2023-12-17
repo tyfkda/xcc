@@ -21,7 +21,7 @@ static Expr *proc_builtin_type_kind(const Token *ident) {
   return new_expr_fixlit(&tySize, ident, type->kind);
 }
 
-#if defined(VAARG_ON_STACK)
+#if VAARG_ON_STACK
 static VReg *gen_builtin_va_start(Expr *expr) {
   assert(expr->kind == EX_FUNCALL);
   Vector *args = expr->funcall.args;
@@ -146,7 +146,7 @@ void install_builtins(void) {
   add_builtin_expr_ident("__builtin_type_kind", &p_reg_class);
 
   {
-#if defined(VAARG_ON_STACK)
+#if VAARG_ON_STACK
     Type *tyVaList = ptrof(&tyVoidPtr);
 #else
     Type *tyVaElem = create_struct_type(NULL, alloc_name("__va_elem", NULL, false), 0);

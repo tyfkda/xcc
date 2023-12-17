@@ -367,7 +367,7 @@ static Expr *simplify_funarg(Expr *arg) {
   case EX_MOD:
   case EX_LSHIFT:
   case EX_RSHIFT:
-#if defined(__x86_64__)
+#if XCC_TARGET_ARCH == XCC_ARCH_X64
     // On x64, MUL, DIV and MOD instruction implicitly uses (breaks) %rdx
     // and %rdx is used as 3rd argument.
     // Similary, Shift instructions (SHL, SHR) uses %cl which is 4th argument.
@@ -476,7 +476,7 @@ static VReg *gen_funcall(Expr *expr) {
       p->size = type_size(arg->type);
       p->is_flo = is_flonum(arg->type);
       p->stack_arg = is_stack_param(arg->type);
-#if defined(VAARG_ON_STACK)
+#if VAARG_ON_STACK
       if (functype->func.vaargs && functype->func.params != NULL && i >= functype->func.params->len)
         p->stack_arg = true;
 #endif

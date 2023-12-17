@@ -270,13 +270,17 @@ int main(int argc, char *argv[]) {
   Vector *cpp_cmd = new_vector();
   vec_push(cpp_cmd, cpp_path);
   vec_push(cpp_cmd, "-D__LP64__");  // Memory model.
-#if defined(__aarch64__)
-  vec_push(cpp_cmd, "-D__aarch64__");
-#elif defined(__x86_64__)
+#if XCC_TARGET_ARCH == XCC_ARCH_X64
   vec_push(cpp_cmd, "-D__x86_64__");
+#elif XCC_TARGET_ARCH == XCC_ARCH_AARCH64
+  vec_push(cpp_cmd, "-D__aarch64__");
+#elif XCC_TARGET_ARCH == XCC_ARCH_RISCV64
+  vec_push(cpp_cmd, "-D__riscv");
 #endif
-#if defined(__APPLE__)
+#if XCC_TARGET_PLATFORM == XCC_PLATFORM_APPLE
   vec_push(cpp_cmd, "-D__APPLE__");
+#elif XCC_TARGET_PLATFORM == XCC_PLATFORM_POSIX
+  vec_push(cpp_cmd, "-D__linux__");
 #endif
 
   Vector *cc1_cmd = new_vector();

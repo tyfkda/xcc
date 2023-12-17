@@ -42,7 +42,7 @@ char *reg_offset(const char *base, const char *reg, const char *shift) {
 }
 
 char *label_at_page(char *label, int flag) {
-#ifdef __APPLE__
+#if XCC_TARGET_PLATFORM == XCC_PLATFORM_APPLE
   static const char *s[] = {
     "%s@PAGE", "%s@PAGEOFF",
     "%s@GOTPAGE", "%s@GOTPAGEOFF",
@@ -446,7 +446,7 @@ static void move_params_to_assigned(Function *func) {
     }
   }
 
-#ifdef VAARG_ON_STACK
+#if VAARG_ON_STACK
   bool vaargs = false;
 #else
   bool vaargs = func->type->func.vaargs;

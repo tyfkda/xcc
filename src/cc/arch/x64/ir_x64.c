@@ -97,7 +97,7 @@ const RegAllocSettings kArchRegAllocSettings = {
 //
 
 static bool is_got(const Name *name) {
-#ifdef __APPLE__
+#if XCC_TARGET_PLATFORM == XCC_PLATFORM_APPLE
   // TODO: How to detect the label is GOT?
   return name->bytes >= 5 && strncmp(name->chars, "__std", 5) == 0;  // __stdinp, etc.
 #else

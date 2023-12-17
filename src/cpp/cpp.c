@@ -11,11 +11,6 @@ int main(int argc, char *argv[]) {
 
   // Predefeined macros.
   define_macro("__XCC");
-#if defined(__linux__)
-  define_macro("__linux__");
-#elif defined(__APPLE__)
-  define_macro("__APPLE__");
-#endif
 #if defined(__NO_FLONUM)
   define_macro("__NO_FLONUM");
 #endif

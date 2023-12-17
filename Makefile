@@ -26,6 +26,7 @@ ifeq ("$(ARCHTYPE)", "")
     ARCHTYPE:=aarch64
   endif
 endif
+ARCHTYPE_UPPER:=$(shell echo "$(ARCHTYPE)" | tr \'[a-z]\' \'[A-Z]\')
 
 CC1_ARCH_DIR:=$(CC1_DIR)/arch/$(ARCHTYPE)
 CC1_FE_DIR:=$(CC1_DIR)/frontend
@@ -104,7 +105,7 @@ $(foreach D, $(EXES), $(eval $(call DEFINE_EXE_TARGET,$(D))))
 define DEFINE_OBJ_TARGET
 $(OBJ_DIR)/%.o: $(1)/%.c $(PARENT_DEPS)
 	@mkdir -p $(OBJ_DIR)
-	$(CC) $(CFLAGS) -c -o $$@ $$<
+	$(CC) $(CFLAGS) -DXCC_TARGET_ARCH=XCC_ARCH_$(ARCHTYPE_UPPER)  -c -o $$@ $$<
 endef
 XCC_SRC_DIRS:=$(XCC_DIR) $(CC1_FE_DIR) $(CC1_BE_DIR) $(CC1_DIR) $(CC1_ARCH_DIR) $(CPP_DIR) \
 	$(AS_DIR) $(LD_DIR) $(UTIL_DIR) $(DEBUG_DIR)
@@ -171,7 +172,7 @@ test-self-hosting:	self-hosting
 WCC_OBJ_DIR:=obj/wcc
 
 WCC_DIR:=src/wcc
-WCC_CFLAGS:=$(CFLAGS) -I$(CPP_DIR) -DTARGET_WASM
+WCC_CFLAGS:=$(CFLAGS) -I$(CPP_DIR)
 
 WCC_SRCS:=$(wildcard $(WCC_DIR)/*.c) \
 	$(wildcard $(CC1_FE_DIR)/*.c) \
@@ -186,7 +187,7 @@ wcc: $(PARENT_DEPS) $(WCC_OBJS) $(WCC_LIBS)
 define DEFINE_WCCOBJ_TARGET
 $(WCC_OBJ_DIR)/%.o: $(1)/%.c $(PARENT_DEPS)
 	@mkdir -p $(WCC_OBJ_DIR)
-	$(CC) $(WCC_CFLAGS) -c -o $$@ $$<
+	$(CC) $(WCC_CFLAGS) -DXCC_TARGET_ARCH=XCC_ARCH_WASM -c -o $$@ $$<
 endef
 WCC_SRC_DIRS:=$(WCC_DIR) $(CC1_FE_DIR) $(CC1_BE_DIR) $(CC1_DIR) $(CPP_DIR) $(UTIL_DIR)
 $(foreach D, $(WCC_SRC_DIRS), $(eval $(call DEFINE_WCCOBJ_TARGET,$(D))))

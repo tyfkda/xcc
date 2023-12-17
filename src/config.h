@@ -1,12 +1,49 @@
 #pragma once
 
-#if defined(__aarch64__)
+// Architecture
+#define XCC_ARCH_X64      1
+#define XCC_ARCH_AARCH64  2
+#define XCC_ARCH_RISCV64  3
+#define XCC_ARCH_WASM     4
+
+#if !defined(XCC_TARGET_ARCH)
+# if defined(__WASM)
+#  define XCC_TARGET_ARCH  XCC_ARCH_WASM
+# elif defined(__x86_64__)
+#  define XCC_TARGET_ARCH  XCC_ARCH_X64
+# elif defined(__aarch64__)
+#  define XCC_TARGET_ARCH  XCC_ARCH_AARCH64
+# elif defined(__riscv) && defined(__LP64__)
+#  define XCC_TARGET_ARCH  XCC_ARCH_RISCV64
+# else
+#  error "Target architecture unspecified"
+# endif
+#endif
+
+// Apple, or not
+#define XCC_PLATFORM_POSIX  1
+#define XCC_PLATFORM_APPLE  2
+#define XCC_PLATFORM_WASI   3
+
+#if !XCC_TARGET_PLATFORM
+# if defined(__WASM) || XCC_TARGET_ARCH == XCC_ARCH_WASM
+#  define XCC_TARGET_PLATFORM  XCC_PLATFORM_WASI
+# elif defined(__APPLE__)
+#  define XCC_TARGET_PLATFORM  XCC_PLATFORM_APPLE
+# else
+#  define XCC_TARGET_PLATFORM  XCC_PLATFORM_POSIX
+# endif
+#endif
+
+//
+
+#if XCC_TARGET_ARCH == XCC_ARCH_AARCH64
 # define AS_USE_CC
-# if !defined(__APPLE__)
+# if XCC_TARGET_PLATFORM != XCC_PLATFORM_APPLE
 #  define NO_STD_LIB
 # endif
 
-#elif !defined(__linux__)
+#elif XCC_TARGET_ARCH != XCC_ARCH_X64 && XCC_TARGET_ARCH != XCC_ARCH_WASM
 # define AS_USE_CC
 #endif
 
@@ -19,9 +56,13 @@
 #define ALLOCA(size)  malloc(size)
 #endif
 
-#if defined(__APPLE__) && defined(__aarch64__)
+#if !defined(VAARG_ON_STACK) && XCC_TARGET_PLATFORM == XCC_PLATFORM_APPLE && XCC_TARGET_ARCH == XCC_ARCH_AARCH64
 // variadic arguments are passed through stack, not registers.
-#define VAARG_ON_STACK
+#define VAARG_ON_STACK  1
+#endif
+
+#if !defined(MANGLE_PREFIX) && XCC_TARGET_PLATFORM == XCC_PLATFORM_APPLE
+#define MANGLE_PREFIX  "_"
 #endif
 
 #define TARGET_CHAR_BIT  8
@@ -35,8 +76,10 @@
 #endif
 
 // Elf
-#if defined(__x86_64__)
+#if XCC_TARGET_ARCH == XCC_ARCH_X64
 #define MACHINE_TYPE  EM_X86_64
-#elif defined(__aarch64__)
+#elif XCC_TARGET_ARCH == XCC_ARCH_AARCH64
 #define MACHINE_TYPE  EM_AARCH64
+#elif XCC_TARGET_ARCH == XCC_ARCH_RISCV64
+#define MACHINE_TYPE  EM_RISCV
 #endif

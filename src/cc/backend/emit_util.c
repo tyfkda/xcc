@@ -11,10 +11,6 @@
 #include "table.h"
 #include "util.h"
 
-#ifdef __APPLE__
-#define MANGLE_PREFIX  "_"
-#endif
-
 static FILE *emit_fp;
 
 char *fmt(const char *fm, ...) {
@@ -134,7 +130,7 @@ void emit_align_p2(int align) {
 }
 
 void emit_bss(const char *label, size_t size, size_t align) {
-#ifdef __APPLE__
+#if XCC_TARGET_PLATFORM == XCC_PLATFORM_APPLE
   fprintf(emit_fp, "\t.zerofill __DATA,__bss,%s,%zu,%d\n", label, size,
           most_significant_bit(align));
 #else
