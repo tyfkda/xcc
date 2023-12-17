@@ -54,28 +54,22 @@ const int ArchRegParamMapping[] = {0, 1, 2, 3, 4, 5, 6, 7};
 // Break s1 in store, mod and tjmp
 static const char *kTmpReg = S1;
 
-// #define SZ_FLOAT   VRegSize4
-// #define SZ_DOUBLE  VRegSize8
-// const char *kFReg32s[PHYSICAL_FREG_MAX] = {
-//    S0,  S1,  S2,  S3,  S4,  S5,  S6,  S7,
-//    S8,  S9, S10, S11, S12, S13, S14, S15,
-//   S16, S17, S18, S19, S20, S21, S22, S23,
-//   S24, S25, S26, S27, S28, S29, S30, S31,
-// };
-// const char *kFReg64s[PHYSICAL_FREG_MAX] = {
-//    D0,  D1,  D2,  D3,  D4,  D5,  D6,  D7,
-//    D8,  D9, D10, D11, D12, D13, D14, D15,
-//   D16, D17, D18, D19, D20, D21, D22, D23,
-//   D24, D25, D26, D27, D28, D29, D30, D31,
-// };
+#define SZ_FLOAT   VRegSize4
+#define SZ_DOUBLE  VRegSize8
+const char *kFReg64s[PHYSICAL_FREG_MAX] = {
+  FA0, FA1, FA2, FA3, FA4, FA5, FA6, FA7,
+  FS0, FS1, FS2, FS3, FS4, FS5, FS6, FS7, FS8, FS9, FS10, FS11,
+  FT0, FT1, FT2, FT3, FT4, FT5, FT6, FT7, FT8, FT9, FT10, FT11,
+};
+#define kFReg32s  kFReg64s
 
-// #define GET_D0_INDEX()   0
+#define GET_FA0_INDEX()   0
 
 // #define CALLEE_SAVE_FREG_COUNT  ((int)(sizeof(kCalleeSaveFRegs) / sizeof(*kCalleeSaveFRegs)))
-// static const int kCalleeSaveFRegs[] = {8, 9, 10, 11, 12, 13, 14, 15};
+// static const int kCalleeSaveFRegs[] = {8, 9, 10, 11, 12, 13, 14, 15, 17, 18, 19};
 
 // #define CALLER_SAVE_FREG_COUNT  ((int)(sizeof(kCallerSaveFRegs) / sizeof(*kCallerSaveFRegs)))
-// static const int kCallerSaveFRegs[] = {16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31};
+// static const int kCallerSaveFRegs[] = {20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31};
 
 static unsigned long detect_extra_occupied(RegAlloc *ra, IR *ir) {
   UNUSED(ir);
@@ -171,7 +165,11 @@ static void ei_load(IR *ir) {
 
   const char *dst;
   if (ir->dst->flag & VRF_FLONUM) {
-    assert(false);
+    switch (ir->dst->vsize) {
+    case SZ_FLOAT:   FLW(kFReg32s[ir->dst->phys], src); break;
+    case SZ_DOUBLE:  FLD(kFReg64s[ir->dst->phys], src); break;
+    default: assert(false); break;
+    }
   } else {
     int pow = ir->dst->vsize;
     assert(0 <= pow && pow < 4);
@@ -216,7 +214,12 @@ static void ei_store(IR *ir) {
   }
   const char *src;
   if (ir->opr1->flag & VRF_FLONUM) {
-    assert(false);
+    switch (ir->opr1->vsize) {
+    default: assert(false); // Fallthrough
+    case SZ_FLOAT:   FSW(kFReg32s[ir->opr1->phys], target); break;
+    case SZ_DOUBLE:  FSD(kFReg64s[ir->opr1->phys], target); break;
+    }
+    return;
   } else if (ir->opr1->flag & VRF_CONST) {
     if (ir->opr1->fixnum == 0)
       src = ZERO;
@@ -236,7 +239,11 @@ static void ei_store(IR *ir) {
 
 static void ei_add(IR *ir) {
   if (ir->dst->flag & VRF_FLONUM) {
-    assert(false);
+    switch (ir->dst->vsize) {
+    default: assert(false);  // Fallthrough
+    case SZ_FLOAT:   FADD_S(kFReg32s[ir->dst->phys], kFReg32s[ir->opr1->phys], kFReg32s[ir->opr2->phys]); break;
+    case SZ_DOUBLE:  FADD_D(kFReg64s[ir->dst->phys], kFReg64s[ir->opr1->phys], kFReg64s[ir->opr2->phys]); break;
+    }
   } else {
     assert(!(ir->opr1->flag & VRF_CONST));
     const char *dst = kReg64s[ir->dst->phys];
@@ -258,7 +265,11 @@ static void ei_add(IR *ir) {
 
 static void ei_sub(IR *ir) {
   if (ir->dst->flag & VRF_FLONUM) {
-    assert(false);
+    switch (ir->dst->vsize) {
+    default: assert(false);  // Fallthrough
+    case SZ_FLOAT:   FSUB_S(kFReg32s[ir->dst->phys], kFReg32s[ir->opr1->phys], kFReg32s[ir->opr2->phys]); break;
+    case SZ_DOUBLE:  FSUB_D(kFReg64s[ir->dst->phys], kFReg64s[ir->opr1->phys], kFReg64s[ir->opr2->phys]); break;
+    }
   } else {
     assert(!(ir->opr1->flag & VRF_CONST));
     const char *dst = kReg64s[ir->dst->phys];
@@ -280,7 +291,11 @@ static void ei_sub(IR *ir) {
 
 static void ei_mul(IR *ir) {
   if (ir->dst->flag & VRF_FLONUM) {
-    assert(false);
+    switch (ir->dst->vsize) {
+    default: assert(false);  // Fallthrough
+    case SZ_FLOAT:   FMUL_S(kFReg32s[ir->dst->phys], kFReg32s[ir->opr1->phys], kFReg32s[ir->opr2->phys]); break;
+    case SZ_DOUBLE:  FMUL_D(kFReg64s[ir->dst->phys], kFReg64s[ir->opr1->phys], kFReg64s[ir->opr2->phys]); break;
+    }
   } else {
     assert(!(ir->opr1->flag & VRF_CONST) && !(ir->opr2->flag & VRF_CONST));
     if (ir->dst->vsize <= 2 && !(ir->flag & IRF_UNSIGNED)) {
@@ -293,7 +308,11 @@ static void ei_mul(IR *ir) {
 
 static void ei_div(IR *ir) {
   if (ir->dst->flag & VRF_FLONUM) {
-    assert(false);
+    switch (ir->dst->vsize) {
+    default: assert(false);  // Fallthrough
+    case SZ_FLOAT:   FDIV_S(kFReg32s[ir->dst->phys], kFReg32s[ir->opr1->phys], kFReg32s[ir->opr2->phys]); break;
+    case SZ_DOUBLE:  FDIV_D(kFReg64s[ir->dst->phys], kFReg64s[ir->opr1->phys], kFReg64s[ir->opr2->phys]); break;
+    }
   } else {
     assert(!(ir->opr1->flag & VRF_CONST) && !(ir->opr2->flag & VRF_CONST));
     if (ir->dst->vsize <= 2) {
@@ -375,7 +394,16 @@ static void ei_rshift(IR *ir) {
 
 static void ei_result(IR *ir) {
   if (ir->opr1->flag & VRF_FLONUM) {
-    assert(false);
+    int dstphys = ir->dst != NULL ? ir->dst->phys : GET_FA0_INDEX();
+    if (ir->opr1->phys != dstphys) {  // Source is not return register.
+      const char **regs;
+      switch (ir->opr1->vsize) {
+      default: assert(false);  // Fallthroguh
+      case SZ_FLOAT:  regs = kFReg32s; break;
+      case SZ_DOUBLE: regs = kFReg64s; break;
+      }
+      FMV_D(regs[dstphys], regs[ir->opr1->phys]);
+    }
   } else {
     int dstphys = ir->dst != NULL ? ir->dst->phys : GET_A0_INDEX();
     const char *dst = kReg64s[dstphys];
@@ -403,7 +431,15 @@ static void ei_subsp(IR *ir) {
 
 static void ei_mov(IR *ir) {
   if (ir->dst->flag & VRF_FLONUM) {
-    assert(false);
+    if (ir->opr1->phys != ir->dst->phys) {
+      const char *src, *dst;
+      switch (ir->dst->vsize) {
+      default: assert(false); // Fallthrough
+      case SZ_FLOAT:   dst = kFReg32s[ir->dst->phys]; src = kFReg32s[ir->opr1->phys]; break;
+      case SZ_DOUBLE:  dst = kFReg64s[ir->dst->phys]; src = kFReg64s[ir->opr1->phys]; break;
+      }
+      FMV_D(dst, src);
+    }
   } else {
     assert(!(ir->dst->flag & VRF_CONST));
     const char *dst = kReg64s[ir->dst->phys];
@@ -432,9 +468,64 @@ static void ei_cond(IR *ir) {
   assert(ir->opr2 != NULL);
   const char *dst = kReg64s[ir->dst->phys];
   assert(!(ir->opr1->flag & VRF_CONST));
+  int cond = ir->cond.kind & (COND_MASK | COND_UNSIGNED);
+
+  if (ir->opr1->flag & VRF_FLONUM) {
+    assert(ir->opr2->flag & VRF_FLONUM);
+    const char *o1 = kFReg64s[ir->opr1->phys];
+    const char *o2 = kFReg64s[ir->opr2->phys];
+
+    assert(!(ir->dst->flag & VRF_FLONUM));
+    const char *dst = kReg64s[ir->dst->phys];
+    switch (cond) {
+    case COND_EQ:
+    case COND_NE:
+      switch (ir->opr1->vsize) {
+      default: assert(false); // Fallthrough
+      case SZ_FLOAT:   FEQ_S(dst, o1, o2); break;
+      case SZ_DOUBLE:  FEQ_D(dst, o1, o2); break;
+      }
+      if (cond == COND_NE)
+        SEQZ(dst, dst);
+      break;
+
+    case COND_GT:
+      {
+        const char *tmp = o1;
+        o1 = o2;
+        o2 = tmp;
+      }
+      // Fallthrough
+    case COND_LT:
+      switch (ir->opr1->vsize) {
+      default: assert(false); // Fallthrough
+      case SZ_FLOAT:   FLT_S(dst, o1, o2); break;
+      case SZ_DOUBLE:  FLT_D(dst, o1, o2); break;
+      }
+      break;
+
+    case COND_GE:
+      {
+        const char *tmp = o1;
+        o1 = o2;
+        o2 = tmp;
+      }
+      // Fallthrough
+    case COND_LE:
+      switch (ir->opr1->vsize) {
+      default: assert(false); // Fallthrough
+      case SZ_FLOAT:   FLE_S(dst, o1, o2); break;
+      case SZ_DOUBLE:  FLE_D(dst, o1, o2); break;
+      }
+      break;
+
+    default: assert(false); break;
+    }
+    return;
+  }
+
   const char *opr1 = kReg64s[ir->opr1->phys];
 
-  int cond = ir->cond.kind & (COND_MASK | COND_UNSIGNED);
   switch (cond) {
   case COND_EQ: case COND_EQ | COND_UNSIGNED:
   case COND_NE: case COND_NE | COND_UNSIGNED:
@@ -573,7 +664,14 @@ static void ei_precall(IR *ir) {
 static void ei_pusharg(IR *ir) {
   assert(!(ir->opr1->flag & VRF_CONST));
   if (ir->opr1->flag & VRF_FLONUM) {
-    assert(false);
+    // Assume parameter registers are arranged from index 0.
+    if (ir->pusharg.index != ir->opr1->phys) {
+      switch (ir->opr1->vsize) {
+      case SZ_FLOAT:  FMV_D(kFReg32s[ir->pusharg.index], kFReg32s[ir->opr1->phys]); break;
+      case SZ_DOUBLE:  FMV_D(kFReg64s[ir->pusharg.index], kFReg64s[ir->opr1->phys]); break;
+      default: assert(false); break;
+      }
+    }
   } else {
     // Assume parameter registers are arranged from index 0.
     if (ir->pusharg.index != ir->opr1->phys)
@@ -603,7 +701,9 @@ static void ei_call(IR *ir) {
 
   if (ir->dst != NULL) {
     if (ir->dst->flag & VRF_FLONUM) {
-      assert(false);
+      if (ir->dst->phys != GET_FA0_INDEX()) {
+        FMV_D(kFReg64s[ir->dst->phys], FA0);
+      }
     } else {
       if (ir->dst->phys != GET_A0_INDEX()) {
         MV(kReg64s[ir->dst->phys], kReg64s[GET_A0_INDEX()]);
@@ -615,9 +715,40 @@ static void ei_call(IR *ir) {
 static void ei_cast(IR *ir) {
   assert((ir->opr1->flag & VRF_CONST) == 0);
   if (ir->dst->flag & VRF_FLONUM) {
-    assert(false);
+    if (ir->opr1->flag & VRF_FLONUM) {
+      // flonum->flonum
+      assert(ir->dst->vsize != ir->opr1->vsize);
+      // Assume flonum are just two types.
+      switch (ir->dst->vsize) {
+      default: assert(false); // Fallthrough
+      case SZ_FLOAT:   FCVT_S_D(kFReg32s[ir->dst->phys], kFReg64s[ir->opr1->phys]); break;
+      case SZ_DOUBLE:  FCVT_D_S(kFReg64s[ir->dst->phys], kFReg32s[ir->opr1->phys]); break;
+      }
+    } else {
+      // fix->flonum
+      int pows = ir->opr1->vsize;
+      assert(0 <= pows && pows < 4);
+
+      const char *src = kReg64s[ir->opr1->phys];
+      switch (ir->dst->vsize) {
+      case SZ_FLOAT:
+        if (ir->flag & IRF_UNSIGNED)  FCVT_S_WU(kFReg32s[ir->dst->phys], src);
+        else                          FCVT_S_W(kFReg32s[ir->dst->phys], src);
+        break;
+      case SZ_DOUBLE:
+        if (ir->flag & IRF_UNSIGNED)  FCVT_D_WU(kFReg32s[ir->dst->phys], src);
+        else                          FCVT_D_W(kFReg32s[ir->dst->phys], src);
+        break;
+      default: assert(false); break;
+      }
+    }
   } else if (ir->opr1->flag & VRF_FLONUM) {
-    assert(false);
+    // flonum->fix
+    switch (ir->opr1->vsize) {
+    case SZ_FLOAT:   FCVT_W_S(kReg64s[ir->dst->phys], kFReg32s[ir->opr1->phys]); break;
+    case SZ_DOUBLE:  FCVT_W_D(kReg64s[ir->dst->phys], kFReg64s[ir->opr1->phys]); break;
+    default: assert(false); break;
+    }
   } else {
     // fix->fix
     assert(ir->dst->vsize != ir->opr1->vsize);
@@ -932,10 +1063,30 @@ void tweak_irs(FuncBackend *fnbe) {
         }
         break;
       case IR_JMP:
-        if (ir->opr2 != NULL &&
+        if (ir->opr1 != NULL && ir->opr1->flag & VRF_FLONUM) {
+          // Cannot use fp registers as jump operands, so move it to a general register.
+          int c1 = ir->jmp.cond, c2 = COND_NE;
+          if (c1 == COND_NE) {
+            // No `fne` instruction, so use `feq` and negate the result.
+            c1 = COND_EQ;
+            c2 = COND_EQ;
+          }
+
+          VReg *opr1 = ir->opr1, *opr2 = ir->opr2;
+          VReg *tmp = reg_alloc_spawn(ra, VRegSize4, 0);
+          IR *cond = new_ir_bop_raw(IR_COND, tmp, opr1, opr2, 0);
+          cond->cond.kind = c1;
+
+          vec_insert(irs, j++, cond);
+
+          ir->jmp.cond = c2;
+          ir->opr1 = tmp;
+          ir->opr2 = reg_alloc_spawn_const(ra, 0, VRegSize4);
+        } else if (ir->opr2 != NULL &&
             (ir->opr2->flag & VRF_CONST) &&
-            ir->opr2->fixnum != 0)
+            ir->opr2->fixnum != 0) {
           insert_const_mov(&ir->opr2, ra, irs, j++);
+        }
         break;
       case IR_TJMP:
         // Make sure opr1 can be broken.

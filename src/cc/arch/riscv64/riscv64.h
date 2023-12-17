@@ -63,6 +63,39 @@
 #define T1    "t1"
 #define T2    "t2"
 
+#define FA0   "fa0"
+#define FA1   "fa1"
+#define FA2   "fa2"
+#define FA3   "fa3"
+#define FA4   "fa4"
+#define FA5   "fa5"
+#define FA6   "fa6"
+#define FA7   "fa7"
+#define FS0   "fs0"
+#define FS1   "fs1"
+#define FS2   "fs2"
+#define FS3   "fs3"
+#define FS4   "fs4"
+#define FS5   "fs5"
+#define FS6   "fs6"
+#define FS7   "fs7"
+#define FS8   "fs8"
+#define FS9   "fs9"
+#define FS10  "fs10"
+#define FS11  "fs11"
+#define FT0   "ft0"
+#define FT1   "ft1"
+#define FT2   "ft2"
+#define FT3   "ft3"
+#define FT4   "ft4"
+#define FT5   "ft5"
+#define FT6   "ft6"
+#define FT7   "ft7"
+#define FT8   "ft8"
+#define FT9   "ft9"
+#define FT10  "ft10"
+#define FT11  "ft11"
+
 // Condition
 #define CEQ   "eq"
 #define CNE   "ne"
@@ -155,5 +188,35 @@
 
 #define _BSS(label, size, align)  emit_bss(label, size, align)
 
+
+#define FMV_D(o1, o2)         EMIT_ASM("fmv.d", o1, o2)  // dst <- src
+#define FADD_D(o1, o2, o3)    EMIT_ASM("fadd.d", o1, o2, o3)
+#define FADD_S(o1, o2, o3)    EMIT_ASM("fadd.s", o1, o2, o3)
+#define FSUB_D(o1, o2, o3)    EMIT_ASM("fsub.d", o1, o2, o3)
+#define FSUB_S(o1, o2, o3)    EMIT_ASM("fsub.s", o1, o2, o3)
+#define FMUL_D(o1, o2, o3)    EMIT_ASM("fmul.d", o1, o2, o3)
+#define FMUL_S(o1, o2, o3)    EMIT_ASM("fmul.s", o1, o2, o3)
+#define FDIV_D(o1, o2, o3)    EMIT_ASM("fdiv.d", o1, o2, o3)
+#define FDIV_S(o1, o2, o3)    EMIT_ASM("fdiv.s", o1, o2, o3)
+#define FLD(o1, o2)           EMIT_ASM("fld", o1, o2)
+#define FLW(o1, o2)           EMIT_ASM("flw", o1, o2)
+#define FSD(o1, o2)           EMIT_ASM("fsd", o1, o2)
+#define FSW(o1, o2)           EMIT_ASM("fsw", o1, o2)
+
+#define FCVT_W_D(o1, o2)      EMIT_ASM("fcvt.w.d", o1, o2, "rtz")  // int <- double
+#define FCVT_W_S(o1, o2)      EMIT_ASM("fcvt.w.s", o1, o2, "rtz")  // int <- float
+#define FCVT_D_W(o1, o2)      EMIT_ASM("fcvt.d.w", o1, o2)   // double <- int
+#define FCVT_D_WU(o1, o2)     EMIT_ASM("fcvt.d.wu", o1, o2)  // double <- unsigned int
+#define FCVT_S_W(o1, o2)      EMIT_ASM("fcvt.s.w", o1, o2)   // float <- int
+#define FCVT_S_WU(o1, o2)     EMIT_ASM("fcvt.s.wu", o1, o2)  // float <- unsigned int
+#define FCVT_D_S(o1, o2)      EMIT_ASM("fcvt.d.s", o1, o2)   // double <- float
+#define FCVT_S_D(o1, o2)      EMIT_ASM("fcvt.s.d", o1, o2)   // float <- double
+
+#define FEQ_D(o1, o2, o3)     EMIT_ASM("feq.d", o1, o2, o3)
+#define FEQ_S(o1, o2, o3)     EMIT_ASM("feq.s", o1, o2, o3)
+#define FLT_D(o1, o2, o3)     EMIT_ASM("flt.d", o1, o2, o3)
+#define FLT_S(o1, o2, o3)     EMIT_ASM("flt.s", o1, o2, o3)
+#define FLE_D(o1, o2, o3)     EMIT_ASM("fle.d", o1, o2, o3)
+#define FLE_S(o1, o2, o3)     EMIT_ASM("fle.s", o1, o2, o3)
 
 void mov_immediate(const char *dst, int64_t value, bool is_unsigned);
