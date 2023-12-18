@@ -252,11 +252,15 @@ void new_ir_tjmp(VReg *val, BB **bbs, size_t len) {
   ir->tjmp.len = len;
 }
 
-void new_ir_pusharg(VReg *vreg, int index) {
+IR *new_ir_pusharg(VReg *vreg, int index) {
   assert(index >= 0);
   IR *ir = new_ir(IR_PUSHARG);
   ir->opr1 = vreg;
   ir->pusharg.index = index;
+#if VAARG_FP_AS_GP
+  ir->pusharg.fp_as_gp = false;
+#endif
+  return ir;
 }
 
 IR *new_ir_precall(int arg_count, int stack_args_size) {

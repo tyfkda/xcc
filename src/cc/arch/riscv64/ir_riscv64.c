@@ -664,6 +664,16 @@ static void ei_precall(IR *ir) {
 static void ei_pusharg(IR *ir) {
   assert(!(ir->opr1->flag & VRF_CONST));
   if (ir->opr1->flag & VRF_FLONUM) {
+#if VAARG_FP_AS_GP
+    if (ir->pusharg.fp_as_gp) {
+      switch (ir->opr1->vsize) {
+      case SZ_FLOAT:  FMV_X_W(kReg64s[ir->pusharg.index], kFReg32s[ir->opr1->phys]); break;
+      case SZ_DOUBLE:  FMV_X_D(kReg64s[ir->pusharg.index], kFReg64s[ir->opr1->phys]); break;
+      default: assert(false); break;
+      }
+      return;
+    }
+#endif
     // Assume parameter registers are arranged from index 0.
     if (ir->pusharg.index != ir->opr1->phys) {
       switch (ir->opr1->vsize) {

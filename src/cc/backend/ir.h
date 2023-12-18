@@ -152,6 +152,9 @@ typedef struct IR {
     } precall;
     struct {
       int index;
+#if VAARG_FP_AS_GP
+      bool fp_as_gp;
+#endif
     } pusharg;
     struct {
       const Name *label;
@@ -183,7 +186,7 @@ void new_ir_jmp(BB *bb);  // Non-conditional jump
 void new_ir_cjmp(VReg *opr1, VReg *opr2, enum ConditionKind cond, BB *bb);  // Conditional jump
 void new_ir_tjmp(VReg *val, BB **bbs, size_t len);
 IR *new_ir_precall(int arg_count, int stack_args_size);
-void new_ir_pusharg(VReg *vreg, int index);
+IR *new_ir_pusharg(VReg *vreg, int index);
 VReg *new_ir_call(const Name *label, bool global, VReg *freg, int total_arg_count,
                   int reg_arg_count, enum VRegSize result_size, int result_flag, IR *precall,
                   VReg **args, int vaarg_start);

@@ -212,6 +212,9 @@
 #define FCVT_D_S(o1, o2)      EMIT_ASM("fcvt.d.s", o1, o2)   // double <- float
 #define FCVT_S_D(o1, o2)      EMIT_ASM("fcvt.s.d", o1, o2)   // float <- double
 
+#define FMV_X_W(o1, o2)      EMIT_ASM("fmv.x.w", o1, o2)  // int <- float(hex)
+#define FMV_X_D(o1, o2)      EMIT_ASM("fmv.x.d", o1, o2)  // int <- double(hex)
+
 #define FEQ_D(o1, o2, o3)     EMIT_ASM("feq.d", o1, o2, o3)
 #define FEQ_S(o1, o2, o3)     EMIT_ASM("feq.s", o1, o2, o3)
 #define FLT_D(o1, o2, o3)     EMIT_ASM("flt.d", o1, o2, o3)
