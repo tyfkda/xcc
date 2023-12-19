@@ -22,6 +22,14 @@ typedef void **va_list;
 #define va_arg(ap, type)  (*(type*)(ap)++)  // Assume little endian
 #define va_copy(dst,src)  (dst = src)
 
+#elif defined(__riscv)
+typedef void **va_list;
+
+#define va_start(ap,p)    __builtin_va_start(ap,&(p))
+#define va_end(ap)        /*(void)*/(ap = 0)
+#define va_arg(ap, type)  ((ap) += 1, *(type*)((ap) - 1))  // Assume little endian
+#define va_copy(dst,src)  (dst = src)
+
 #else  // not __APPLE__ nor __aarch64__
 
 #include <stdint.h>

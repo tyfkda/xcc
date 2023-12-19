@@ -48,6 +48,46 @@ static VReg *gen_builtin_va_start(Expr *expr) {
   new_ir_mov(varinfo->local.vreg, ptr, IRF_UNSIGNED);
   return NULL;
 }
+#elif XCC_TARGET_ARCH == XCC_ARCH_RISCV64
+static VReg *gen_builtin_va_start(Expr *expr) {
+  assert(expr->kind == EX_FUNCALL);
+  Vector *args = expr->funcall.args;
+  assert(args->len == 2);
+  assert(curfunc != NULL);
+  Expr *var = strip_cast(args->data[1]);
+  if (var->kind == EX_REF)
+    var = var->unary.sub;
+  int gn = -1;
+  if (var->kind == EX_VAR) {
+    const Vector *params = curfunc->params;
+    int g = 0;
+    for (int i = 0; i < params->len; ++i) {
+      VarInfo *info = params->data[i];
+      const Type *t = info->type;
+      if (t->kind != TY_STRUCT) {
+        ++g;
+      }
+
+      if (info->name != NULL && equal_name(info->name, var->var.name)) {
+        gn = g;
+        break;
+      }
+    }
+  }
+  if (gn < 0) {
+    parse_error(PE_FATAL, var->token, "Must be function argument");
+    return NULL;
+  }
+
+  FuncBackend *fnbe = curfunc->extra;
+  FrameInfo *fi = &fnbe->vaarg_frame_info;
+  VReg *p = new_ir_bofs(fi);
+
+  // (void)(ap = fp + <vaarg saved offset>)
+  VReg *ap = gen_expr(args->data[0]);
+  new_ir_mov(ap, p, IRF_UNSIGNED);
+  return NULL;
+}
 #else
 static VReg *gen_builtin_va_start(Expr *expr) {
   assert(expr->kind == EX_FUNCALL);
@@ -146,7 +186,7 @@ void install_builtins(void) {
   add_builtin_expr_ident("__builtin_type_kind", &p_reg_class);
 
   {
-#if VAARG_ON_STACK
+#if VAARG_ON_STACK || XCC_TARGET_ARCH == XCC_ARCH_RISCV64
     Type *tyVaList = ptrof(&tyVoidPtr);
 #else
     Type *tyVaElem = create_struct_type(NULL, alloc_name("__va_elem", NULL, false), 0);

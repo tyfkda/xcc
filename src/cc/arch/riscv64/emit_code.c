@@ -356,8 +356,34 @@ static void emit_varinfo(const VarInfo *varinfo, const Initializer *init) {
 
 ////////////////////////////////////////////////
 
+static const char *kRegParam64s[] = {A0, A1, A2, A3, A4, A5, A6, A7};
+
 static bool is_asm(Stmt *stmt) {
   return stmt->kind == ST_ASM;
+}
+
+static int put_vaarg_params(Function *func) {
+  assert(func->type->func.vaargs);
+#if VAARG_ON_STACK
+  return;
+#else
+  RegParamInfo iparams[MAX_REG_ARGS];
+  RegParamInfo fparams[MAX_FREG_ARGS];
+  int iparam_count = 0;
+  int fparam_count = 0;
+  enumerate_register_params(func, iparams, MAX_REG_ARGS, fparams, MAX_FREG_ARGS,
+                            &iparam_count, &fparam_count);
+
+  int size = 0;
+  int n = MAX_REG_ARGS - iparam_count;
+  if (n > 0) {
+    size = n * POINTER_SIZE;
+    ADDI(SP, SP, IM(-size));
+    for (int i = iparam_count, offset = 0; i < MAX_REG_ARGS; ++i, offset += POINTER_SIZE)
+      SD(kRegParam64s[i], IMMEDIATE_OFFSET(offset, SP));
+  }
+  return size;
+#endif
 }
 
 static void move_params_to_assigned(Function *func) {
@@ -366,7 +392,6 @@ static void move_params_to_assigned(Function *func) {
   extern const char *kFReg64s[];
 
   // static const char *kRegParam32s[] = {W0, W1, W2, W3, W4, W5, W6, W7};
-  static const char *kRegParam64s[] = {A0, A1, A2, A3, A4, A5, A6, A7};
   // static const char **kRegParamTable[] = {kRegParam32s, kRegParam32s, kRegParam32s, kRegParam64s};
   // const char *kFRegParam32s[] = {S0, S1, S2, S3, S4, S5, S6, S7};
   const char *kFRegParam64s[] = {FA0, FA1, FA2, FA3, FA4, FA5, FA6, FA7};
@@ -426,22 +451,6 @@ static void move_params_to_assigned(Function *func) {
       }
     }
   }
-
-#if VAARG_ON_STACK
-  bool vaargs = false;
-#else
-  bool vaargs = func->type->func.vaargs;
-#endif
-  if (vaargs) {
-    for (int i = iparam_count; i < MAX_REG_ARGS; ++i) {
-      int offset = (i - MAX_REG_ARGS - MAX_FREG_ARGS) * POINTER_SIZE;
-      SD(kRegParam64s[i], IMMEDIATE_OFFSET(offset, FP));
-    }
-    // for (int i = fparam_count; i < MAX_FREG_ARGS; ++i) {
-    //   int offset = (i - MAX_FREG_ARGS) * POINTER_SIZE;
-    //   SD(kFRegParam64s[i], IMMEDIATE_OFFSET(offset, FP));
-    // }
-  }
 }
 
 static void emit_defun(Function *func) {
@@ -491,7 +500,15 @@ static void emit_defun(Function *func) {
   bool fp_saved = false;  // Frame pointer saved?
   bool ra_saved = false;  // Return Address register saved?
   unsigned long used_reg_bits = fnbe->ra->used_reg_bits;
+  int vaarg_params_saved = 0;
   if (!no_stmt) {
+    if (func->type->func.vaargs) {
+      vaarg_params_saved = put_vaarg_params(func);
+
+      // Re-align frame size.
+      frame_size = ALIGN(fnbe->frame_size + vaarg_params_saved, 16) - vaarg_params_saved;
+    }
+
     fp_saved = frame_size > 0 || fnbe->ra->flag & RAF_STACK_FRAME;
     ra_saved = (func->flag & FUNCF_HAS_FUNCALL) != 0;
 
@@ -542,6 +559,8 @@ static void emit_defun(Function *func) {
         ADD(SP, SP, IM(16));
       }
     }
+    if (vaarg_params_saved > 0)
+      ADD(SP, SP, IM(vaarg_params_saved));
 
     RET();
   }
