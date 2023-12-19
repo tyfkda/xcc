@@ -16,6 +16,8 @@ LIB_DIR:=lib
 # NO_VLA:=1
 # NO_WCHAR:=1
 
+# HOST_CC_PREFIX=riscv64-unknown-elf-
+
 ifeq ("$(ARCHTYPE)", "")
   ARCHTYPE:=x64
   ARCH:=$(shell arch)
@@ -48,6 +50,10 @@ CFLAGS+=-D__NO_VLA
 endif
 ifneq ("$(NO_WCHAR)","")
 CFLAGS+=-D__NO_WCHAR
+endif
+
+ifneq ("$(HOST_CC_PREFIX)","")
+CFLAGS+=-DHOST_CC_PREFIX=$(HOST_CC_PREFIX)
 endif
 
 # For release build:

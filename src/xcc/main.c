@@ -260,6 +260,13 @@ int main(int argc, char *argv[]) {
 #if !defined(AS_USE_CC)
   char *as_path = join_exe_prefix(xccpath, prefix, "as");
   char *ld_path = join_exe_prefix(xccpath, prefix, "ld");
+#elif defined(HOST_CC_PREFIX)
+#define S(x)   S2(x)
+#define S2(x)  #x
+  char *as_path = S(HOST_CC_PREFIX) "as";
+  char *ld_path = S(HOST_CC_PREFIX) "gcc";
+#undef S2
+#undef S
 #else
   char *as_path = "/usr/bin/as";
   char *ld_path = "/usr/bin/cc";
