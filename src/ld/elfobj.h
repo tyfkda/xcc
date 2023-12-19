@@ -4,17 +4,10 @@
 #include <stdint.h>
 #include <stdio.h>
 
-#if defined(__XV6)
-
-#else
-// *nix
-
 #if defined(__linux__)
 #include <elf.h>
 #else
 #include "../../include/elf.h"
-#endif
-
 #endif
 
 typedef struct Name Name;

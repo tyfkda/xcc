@@ -6,13 +6,11 @@
 #  define NO_STD_LIB
 # endif
 
-#elif !defined(__XV6) && !defined(__linux__)
+#elif !defined(__linux__)
 # define AS_USE_CC
 #endif
 
-#if !defined(__XV6)
 #define USE_ALLOCA
-#endif
 
 #if defined(USE_ALLOCA)
 #include <alloca.h>

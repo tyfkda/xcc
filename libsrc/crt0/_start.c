@@ -6,14 +6,7 @@
 
 char **environ;
 
-#if defined(__XV6)
-void _start(void) {
-  __asm("call main\n"
-        "mov %eax, %edi\n"
-        "jmp exit");
-}
-
-#elif defined(__linux__)
+#if defined(__linux__)
 
 #include "stdio.h"  // fflush
 #include "../stdio/_fileman.h"

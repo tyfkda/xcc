@@ -107,9 +107,7 @@ static int compile(const char *src, Vector *cpp_cmd, Vector *cc1_cmd, int ofd) {
         if (cc_pid != -1) {
           if (r != 0) {
             // Illegal: cpp exit with failure.
-#if !defined(__XV6)
             kill(cc_pid, SIGKILL);
-#endif
             break;
           }
           close(cc_fd[0]);
@@ -119,9 +117,7 @@ static int compile(const char *src, Vector *cpp_cmd, Vector *cc1_cmd, int ofd) {
         cc_pid = -1;
         if (cpp_pid != -1) {
           // Illegal: cc dies earlier than cpp.
-#if !defined(__XV6)
           kill(cpp_pid, SIGKILL);
-#endif
           break;
         }
       }
@@ -186,10 +182,8 @@ static int compile_csource(const char *source_fn, enum OutType out_type, const c
     vec_push(ld_cmd, objfn);
 
   if (res != 0 && as_pid != -1) {
-#if !defined(__XV6)
     kill(as_pid, SIGKILL);
     remove(ofn);
-#endif
   }
   if (as_pid != -1) {
     close(as_fd[0]);
@@ -556,7 +550,6 @@ int main(int argc, char *argv[]) {
       }
     }
 
-#if !defined(__XV6)
     if (out_type <= OutAssembly && outfn != NULL && strcmp(outfn, "-") != 0) {
       close(STDOUT_FILENO);
       ofd = open(outfn, O_WRONLY | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
@@ -565,7 +558,6 @@ int main(int argc, char *argv[]) {
         exit(1);
       }
     }
-#endif
 
     enum SourceType st = src_type;
     if (src != NULL) {

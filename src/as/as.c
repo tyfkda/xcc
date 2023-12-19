@@ -6,6 +6,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <strings.h>  // strncasecmp
+#include <sys/stat.h>
 #include <unistd.h>
 
 #include "asm_x86.h"
@@ -16,24 +17,8 @@
 #include "table.h"
 #include "util.h"
 
-#define PROG_START   (0x100)
-
-#if defined(__XV6)
-// XV6
-#include "../kernel/syscall.h"
-#include "../kernel/traps.h"
-
-#define START_ADDRESS    0x1000
-
-#else
-// *nix
-
-#include <sys/stat.h>
-
-#define START_ADDRESS    (0x01000000 + PROG_START)
-
-#endif
-
+#define PROG_START      (0x100)
+#define START_ADDRESS   (0x01000000 + PROG_START)
 #define LOAD_ADDRESS    START_ADDRESS
 #define DATA_ALIGN      (0x1000)
 

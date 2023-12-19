@@ -1,4 +1,3 @@
-#if !defined(__XV6)
 #include "unistd.h"
 #include "stdio.h"  // EOF
 
@@ -39,4 +38,3 @@ void *sbrk(intptr_t increment) {
     return (void*)-1;
   return p;
 }
-#endif

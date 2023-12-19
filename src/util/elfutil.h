@@ -5,20 +5,10 @@
 #include <stdint.h>  // ssize_t
 #include <stdio.h>  // FILE
 
-#if defined(__XV6)
-// XV6
-#include "../kernel/types.h"
-#include "../kernel/elf.h"
-
-#else
-// *nix
-
 #ifdef __APPLE__
 #include "../../include/elf.h"
 #else
 #include <elf.h>
-#endif
-
 #endif
 
 #include "table.h"

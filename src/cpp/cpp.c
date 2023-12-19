@@ -11,9 +11,7 @@ int main(int argc, char *argv[]) {
 
   // Predefeined macros.
   define_macro("__XCC");
-#if defined(__XV6)
-  define_macro("__XV6");
-#elif defined(__linux__)
+#if defined(__linux__)
   define_macro("__linux__");
 #elif defined(__APPLE__)
   define_macro("__APPLE__");

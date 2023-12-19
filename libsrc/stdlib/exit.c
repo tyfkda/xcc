@@ -1,12 +1,6 @@
 #include "stdlib.h"
 
-#if defined(__XV6)
-void exit(int code) {
-  __asm("mov $2, %eax\n"  // SYS_exit
-        "int $64");
-}
-
-#elif defined(__linux__) || defined(__WASM)
+#if defined(__linux__) || defined(__WASM)
 #include "stdbool.h"
 
 #if defined(__WASM)

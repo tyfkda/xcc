@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <strings.h>
+#include <sys/stat.h>
 
 #include "archive.h"
 #include "elfobj.h"
@@ -15,24 +16,8 @@
 
 static const char kDefaultEntryName[] = "_start";
 
-#define PROG_START   (0x100)
-
-#if defined(__XV6)
-// XV6
-#include "../kernel/syscall.h"
-#include "../kernel/traps.h"
-
-#define START_ADDRESS    0x1000
-
-#else
-// *nix
-
-#include <sys/stat.h>
-
-#define START_ADDRESS    (0x01000000 + PROG_START)
-
-#endif
-
+#define PROG_START      (0x100)
+#define START_ADDRESS   (0x01000000 + PROG_START)
 #define LOAD_ADDRESS    START_ADDRESS
 #define DATA_ALIGN      (0x1000)
 
