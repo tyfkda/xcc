@@ -363,13 +363,13 @@ static bool is_asm(Stmt *stmt) {
 static void move_params_to_assigned(Function *func) {
   extern const char *kReg64s[];
   extern const int ArchRegParamMapping[];
-  // extern const char *kFReg32s[], *kFReg64s[];
+  extern const char *kFReg64s[];
 
   // static const char *kRegParam32s[] = {W0, W1, W2, W3, W4, W5, W6, W7};
   static const char *kRegParam64s[] = {A0, A1, A2, A3, A4, A5, A6, A7};
   // static const char **kRegParamTable[] = {kRegParam32s, kRegParam32s, kRegParam32s, kRegParam64s};
   // const char *kFRegParam32s[] = {S0, S1, S2, S3, S4, S5, S6, S7};
-  // const char *kFRegParam64s[] = {D0, D1, D2, D3, D4, D5, D6, D7};
+  const char *kFRegParam64s[] = {FA0, FA1, FA2, FA3, FA4, FA5, FA6, FA7};
   static const int kPow2Table[] = {-1, 0, 1, -1, 2, -1, -1, -1, 3};
 #define kPow2TableSize ((int)(sizeof(kPow2Table) / sizeof(*kPow2Table)))
 
@@ -410,22 +410,22 @@ static void move_params_to_assigned(Function *func) {
       MV(dst, src);
     }
   }
-  // for (int i = 0; i < fparam_count; ++i) {
-  //   RegParamInfo *p = &fparams[i];
-  //   VReg *vreg = p->vreg;
-  //   const char *src = (p->type->flonum.kind >= FL_DOUBLE ? kFRegParam64s : kFRegParam32s)[p->index];
-  //   if (vreg->flag & VRF_SPILLED) {
-  //     int offset = vreg->frame.offset;
-  //     assert(offset != 0);
-  //     assert(offset != 0);
-  //     SD(src, IMMEDIATE_OFFSET(offset, FP));
-  //   } else {
-  //     if (p->index != vreg->phys) {
-  //       const char *dst = (p->type->flonum.kind >= FL_DOUBLE ? kFReg64s : kFReg32s)[vreg->phys];
-  //       FMOV(dst, src);
-  //     }
-  //   }
-  // }
+  for (int i = 0; i < fparam_count; ++i) {
+    RegParamInfo *p = &fparams[i];
+    VReg *vreg = p->vreg;
+    const char *src = kFRegParam64s[p->index];
+    if (vreg->flag & VRF_SPILLED) {
+      int offset = vreg->frame.offset;
+      assert(offset != 0);
+      assert(offset != 0);
+      SD(src, IMMEDIATE_OFFSET(offset, FP));
+    } else {
+      if (p->index != vreg->phys) {
+        const char *dst = kFReg64s[vreg->phys];
+        FMV_D(dst, src);
+      }
+    }
+  }
 
 #if VAARG_ON_STACK
   bool vaargs = false;
