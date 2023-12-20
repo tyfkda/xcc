@@ -515,6 +515,74 @@ Type *parse_pointer(Type *type) {
   return type;
 }
 
+static const char kConstIntExpected[] = "constant integer expected";
+
+static ssize_t parse_array_size(Expr **pvla) {
+  ssize_t length = LEN_UND;
+
+  Expr *expr = parse_expr();
+  switch (expr->kind) {
+  case EX_FIXNUM:
+    length = expr->fixnum;
+    break;
+  case EX_VAR:
+    {
+      VarInfo *varinfo = scope_find(expr->var.scope, expr->var.name, NULL);
+      assert(varinfo != NULL);
+      if (expr->type->qualifier & TQ_CONST) {
+        switch (expr->type->kind) {
+        case TY_FLONUM:
+          parse_error(PE_WARNING, expr->token, kConstIntExpected);
+          // Fallthrough
+        case TY_FIXNUM:
+          {
+            Initializer *init = is_global_scope(expr->var.scope) ? varinfo->global.init
+                                                                  : varinfo->local.init;
+            assert(init != NULL);
+            assert(init->kind == IK_SINGLE);
+            switch (init->single->kind) {
+            case EX_FIXNUM:
+              length = init->single->fixnum;
+              break;
+#ifndef __NO_FLONUM
+            case EX_FLONUM:
+              length = init->single->flonum;
+              break;
+#endif
+            // TODO: Compound literal?
+            default:  assert(false); break;
+            }
+          }
+          break;
+        default:
+          parse_error(PE_NOFATAL, expr->token, kConstIntExpected);
+          length = 1;
+          break;
+        }
+        break;
+      }
+    }
+    // Fallthrough
+  default:
+    if (is_fixnum(expr->type->kind)) {
+      *pvla = expr;
+      length = LEN_VLA;
+    } else {
+      parse_error(PE_NOFATAL, expr->token, kConstIntExpected);
+      length = 1;
+    }
+    break;
+  }
+
+  if (length < 0 && *pvla == NULL) {
+    parse_error(PE_NOFATAL, expr->token, "Array size must be greater than 0, but %zd", length);
+    length = 1;
+  }
+  return length;
+}
+
+static Vector *parsing_funparams;
+
 // <direct-declarator> ::= <identifier>
 //                       | ( <declarator> )
 //                       | <direct-declarator> [ {<constant-expression>}? ]
@@ -526,7 +594,6 @@ static Type *parse_direct_declarator_suffix(Type *type) {
     if (match(TK_RESTRICT))
       type = qualified_type(type, TQ_RESTRICT);
 
-    static const char kConstIntExpected[] = "constant integer expected";
     ssize_t length = LEN_UND;
     Expr *vla = NULL;
     if (match(TK_RBRACKET)) {
@@ -541,66 +608,18 @@ static Type *parse_direct_declarator_suffix(Type *type) {
         consume(kind, NULL);
       }
 
-      Expr *expr = parse_expr();
+      Token *var = match(TK_IDENT);
+      if (var != NULL && parsing_funparams != NULL &&
+          var_find(parsing_funparams, var->ident) >= 0) {
+        // VLA in function parameter: just ignore it.
+        // TODO: Store the varname to handle VLA.
+      } else {
+        if (var != NULL)
+          unget_token(var);
+        length = parse_array_size(&vla);
+      }
+
       consume(TK_RBRACKET, "`]' expected");
-
-      switch (expr->kind) {
-      case EX_FIXNUM:
-        length = expr->fixnum;
-        break;
-      case EX_VAR:
-        {
-          VarInfo *varinfo = scope_find(expr->var.scope, expr->var.name, NULL);
-          assert(varinfo != NULL);
-          if (expr->type->qualifier & TQ_CONST) {
-            switch (expr->type->kind) {
-            case TY_FLONUM:
-              parse_error(PE_WARNING, expr->token, kConstIntExpected);
-              // Fallthrough
-            case TY_FIXNUM:
-              {
-                Initializer *init = is_global_scope(expr->var.scope) ? varinfo->global.init
-                                                                     : varinfo->local.init;
-                assert(init != NULL);
-                assert(init->kind == IK_SINGLE);
-                switch (init->single->kind) {
-                case EX_FIXNUM:
-                  length = init->single->fixnum;
-                  break;
-#ifndef __NO_FLONUM
-                case EX_FLONUM:
-                  length = init->single->flonum;
-                  break;
-#endif
-                // TODO: Compound literal?
-                default:  assert(false); break;
-                }
-              }
-              break;
-            default:
-              parse_error(PE_NOFATAL, expr->token, kConstIntExpected);
-              length = 1;
-              break;
-            }
-            break;
-          }
-        }
-        // Fallthrough
-      default:
-        if (is_fixnum(expr->type->kind)) {
-          vla = expr;
-          length = LEN_VLA;
-        } else {
-          parse_error(PE_NOFATAL, expr->token, kConstIntExpected);
-          length = 1;
-        }
-        break;
-      }
-
-      if (length < 0 && vla == NULL) {
-        parse_error(PE_NOFATAL, expr->token, "Array size must be greater than 0, but %zd", length);
-        length = 1;
-      }
     }
     const Type *basetype = type;
     Type *subtype = parse_direct_declarator_suffix(type);
@@ -690,13 +709,16 @@ Type *parse_var_def(Type **prawType, int *pstorage, Token **pident) {
 }
 
 Vector *parse_funparams(bool *pvaargs) {
+  Vector *bak_parsing_funparams = parsing_funparams;
+  parsing_funparams = NULL;
+
   Vector *vars = NULL;
   bool vaargs = false;
   if (match(TK_RPAR)) {
     // Arbitrary funparams.
     vaargs = true;
   } else {
-    vars = new_vector();
+    parsing_funparams = vars = new_vector();
     for (;;) {
       if (match(TK_ELLIPSIS)) {
         vaargs = true;
@@ -751,6 +773,7 @@ Vector *parse_funparams(bool *pvaargs) {
     }
   }
   *pvaargs = vaargs;
+  parsing_funparams = bak_parsing_funparams;
   return vars;
 }
 
