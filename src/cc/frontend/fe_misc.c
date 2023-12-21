@@ -699,7 +699,10 @@ Expr *extract_bitfield_value(Expr *src, const MemberInfo *minfo) {
     tmp = new_expr_bop(EX_BITAND, tmp->type, tmp->token, tmp,
                        new_expr_fixlit(tmp->type, tmp->token, mask));
   } else {
-#if XCC_TARGET_ARCH == XCC_ARCH_AARCH64 || XCC_TARGET_ARCH == XCC_ARCH_WASM
+#if XCC_TARGET_ARCH == XCC_ARCH_RISCV64
+    const unsigned int MINREGSIZE = 8;
+    int w = MAX(type_size(type), MINREGSIZE) * TARGET_CHAR_BIT;
+#elif XCC_TARGET_ARCH == XCC_ARCH_AARCH64 || XCC_TARGET_ARCH == XCC_ARCH_WASM
     const unsigned int MINREGSIZE = 4;
     int w = MAX(type_size(type), MINREGSIZE) * TARGET_CHAR_BIT;
 #else

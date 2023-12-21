@@ -777,8 +777,13 @@ void alloc_stack_variables_onto_stack_frame(Function *func) {
   int param_offset = calculate_func_param_bottom(func);
   fnbe->vaarg_frame_info.offset = param_offset;
 
-  if (func->type->func.vaargs)
+  if (func->type->func.vaargs) {
+#if VAARG_FP_AS_GP
+    // Register parameters are put below stack frame, so not added to frame_size.
+#else
     frame_size = (MAX_REG_ARGS + MAX_FREG_ARGS) * POINTER_SIZE;
+#endif
+  }
 
   bool require_stack_frame = false;
 

@@ -53,13 +53,6 @@ void add_builtin_function(const char *str, Type *type, BuiltinFunctionProc *proc
     scope_add(global_scope, name, type, 0);
 }
 
-inline enum ConditionKind swap_cond(enum ConditionKind cond) {
-  assert(COND_EQ <= cond && cond <= COND_GT);
-  if (cond >= COND_LT)
-    cond = (COND_GT + COND_LT) - cond;
-  return cond;
-}
-
 struct CompareExpr {
   enum ConditionKind cond;
   VReg *lhs, *rhs;
@@ -454,6 +447,9 @@ static VReg *gen_funcall(Expr *expr) {
     int size;
     bool stack_arg;
     bool is_flo;
+#if VAARG_FP_AS_GP
+    bool fp_as_gp;
+#endif
   } ArgInfo;
 
   ArgInfo *arg_infos = NULL;
@@ -475,6 +471,13 @@ static VReg *gen_funcall(Expr *expr) {
       assert(arg->type->kind != TY_ARRAY);
       p->size = type_size(arg->type);
       p->is_flo = is_flonum(arg->type);
+#if VAARG_FP_AS_GP
+      p->fp_as_gp = false;
+      if (functype->func.vaargs && functype->func.params != NULL && i >= functype->func.params->len) {
+        p->is_flo = false;
+        p->fp_as_gp = true;
+      }
+#endif
       p->stack_arg = is_stack_param(arg->type);
 #if VAARG_ON_STACK
       if (functype->func.vaargs && functype->func.params != NULL && i >= functype->func.params->len)
@@ -524,7 +527,13 @@ static VReg *gen_funcall(Expr *expr) {
           ++iregarg;
           int index = reg_arg_count - iregarg + arg_start;
           assert(index < MAX_REG_ARGS);
-          new_ir_pusharg(vreg, index);
+          IR *ir = new_ir_pusharg(vreg, index);
+#if !VAARG_FP_AS_GP
+          UNUSED(ir);
+#else
+          if (p->fp_as_gp)
+            ir->pusharg.fp_as_gp = true;
+#endif
         }
       } else {
         enum VRegSize offset_type = 2;  //{.size = 4, .align = 4};  // TODO:

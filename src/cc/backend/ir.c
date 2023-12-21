@@ -11,6 +11,8 @@
 static enum VRegSize vtVoidPtr = VRegSize8;
 static enum VRegSize vtBool    = VRegSize4;
 
+inline enum ConditionKind swap_cond(enum ConditionKind cond);
+
 // Virtual register
 
 void spill_vreg(VReg *vreg) {
@@ -37,6 +39,15 @@ static IR *new_ir(enum IrKind kind) {
 
 VReg *new_const_vreg(int64_t value, enum VRegSize vsize) {
   return reg_alloc_spawn_const(curra, value, vsize);
+}
+
+IR *new_ir_bop_raw(enum IrKind kind, VReg *dst, VReg *opr1, VReg *opr2, int flag) {
+  IR *ir = new_ir(kind);
+  ir->flag = flag;
+  ir->dst = dst;
+  ir->opr1 = opr1;
+  ir->opr2 = opr2;
+  return ir;
 }
 
 VReg *new_ir_bop(enum IrKind kind, VReg *opr1, VReg *opr2, enum VRegSize vsize, int flag) {
@@ -153,11 +164,9 @@ VReg *new_ir_bop(enum IrKind kind, VReg *opr1, VReg *opr2, enum VRegSize vsize, 
     }
   }
 
-  IR *ir = new_ir(kind);
-  ir->flag = flag;
-  ir->opr1 = opr1;
-  ir->opr2 = opr2;
-  return ir->dst = reg_alloc_spawn(curra, vsize, opr1->flag & VRF_MASK);
+  VReg *dst = reg_alloc_spawn(curra, vsize, opr1->flag & VRF_MASK);
+  new_ir_bop_raw(kind, dst, opr1, opr2, flag);
+  return dst;
 }
 
 VReg *new_ir_unary(enum IrKind kind, VReg *opr, enum VRegSize vsize, int flag) {
@@ -243,11 +252,15 @@ void new_ir_tjmp(VReg *val, BB **bbs, size_t len) {
   ir->tjmp.len = len;
 }
 
-void new_ir_pusharg(VReg *vreg, int index) {
+IR *new_ir_pusharg(VReg *vreg, int index) {
   assert(index >= 0);
   IR *ir = new_ir(IR_PUSHARG);
   ir->opr1 = vreg;
   ir->pusharg.index = index;
+#if VAARG_FP_AS_GP
+  ir->pusharg.fp_as_gp = false;
+#endif
+  return ir;
 }
 
 IR *new_ir_precall(int arg_count, int stack_args_size) {

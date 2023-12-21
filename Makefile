@@ -16,8 +16,6 @@ LIB_DIR:=lib
 # NO_VLA:=1
 # NO_WCHAR:=1
 
-# HOST_CC_PREFIX=riscv64-unknown-elf-
-
 ifeq ("$(ARCHTYPE)", "")
   ARCHTYPE:=x64
   ARCH:=$(shell arch)
@@ -52,6 +50,10 @@ ifneq ("$(NO_WCHAR)","")
 CFLAGS+=-D__NO_WCHAR
 endif
 
+ifneq ("$(PLATFORM)","")
+PLATFORM_UPPER:=$(shell echo "$(PLATFORM)" | tr \'[a-z]\' \'[A-Z]\')
+CFLAGS+=-DXCC_TARGET_PLATFORM=XCC_PLATFORM_$(PLATFORM_UPPER)
+endif
 ifneq ("$(HOST_CC_PREFIX)","")
 CFLAGS+=-DHOST_CC_PREFIX=$(HOST_CC_PREFIX)
 endif
@@ -136,6 +138,13 @@ clean:
 		wcc cc.wasm a.wasm public release $(WCC_LIBS)
 	@$(MAKE) -C libsrc clean
 	@$(MAKE) -C tests clean
+
+# Run tests on RISC-V simulator.
+.PHONY: test-riscv64
+test-riscv64:
+	$(MAKE) ARCHTYPE:=riscv64 PLATFORM:=posix HOST_CC_PREFIX=riscv64-unknown-elf-
+	$(MAKE) -C tests clean && \
+		$(MAKE) RUN_EXE="$(CURDIR)/tool/run-riscv64" NO_LINK_TEST=1 -C tests all
 
 ### Library
 

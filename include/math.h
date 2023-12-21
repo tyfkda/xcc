@@ -47,7 +47,7 @@ int isfinite(double x);
 int isnan(double x);
 int isinf(double x);
 
-#if defined(__APPLE__) || defined(__GNUC__)
+#if defined(__APPLE__) || defined(__GNUC__) || defined(__riscv)
 // isfinite, isinf and isnan is defined by macro and not included in lib file,
 // so it will be link error.
 #include <stdint.h>

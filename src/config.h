@@ -61,6 +61,11 @@
 #define VAARG_ON_STACK  1
 #endif
 
+#if !defined(VAARG_FP_AS_GP) && XCC_TARGET_ARCH == XCC_ARCH_RISCV64
+// Pass floating-point arguments in general-purpose registers for variadic arguments.
+#define VAARG_FP_AS_GP  1
+#endif
+
 #if !defined(MANGLE_PREFIX) && XCC_TARGET_PLATFORM == XCC_PLATFORM_APPLE
 #define MANGLE_PREFIX  "_"
 #endif
