@@ -168,9 +168,9 @@ static void ei_iofs(IR *ir) {
 static void ei_sofs(IR *ir) {
   assert(ir->opr1->flag & VRF_CONST);
   const char *dst = kReg64s[ir->dst->phys];
-  int ofs = ir->opr1->frame.offset;
+  int ofs = ir->opr1->fixnum;
   if (ofs < 4096 && ofs > -4096) {
-    ADD(dst, SP, IM(ir->opr1->fixnum));
+    ADD(dst, SP, IM(ofs));
   } else {
     mov_immediate(dst, ofs, true, false);
     ADD(dst, dst, SP);

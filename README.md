@@ -6,7 +6,7 @@ XCC
 
 C compiler running on Linux or MacOS.
 
-  * Supporting architecture: x86-64, aarch64 (arm64), wasm
+  * Supporting architecture: x86-64, aarch64 (arm64), riscv64, wasm
   * Binary format: ELF64
 
 

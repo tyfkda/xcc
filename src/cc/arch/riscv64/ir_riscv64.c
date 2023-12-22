@@ -18,38 +18,20 @@ static void pop_caller_save_regs(Vector *saves);
 
 // Register allocator
 
-// AArch64: Calling Convention
-//   X8(XR):              Indirect return value address.
-//   X16(IP0), X17(IP1):  Intra-Procedure-call scratch registers.
-//   X18(PR):             Platform register. Used for some operating-system-specific special purpose or an additional caller-saved register.
-//   X29(FP):             Frame pointer (Callee save)
-
-// static const char *kReg32s[PHYSICAL_REG_MAX] = {
-//   W0, W1, W2, W3, W4, W5, W6, W7, W8, W9, W16,            // Temporary
-//   W19, W20, W21, W22, W23, W24, W25, W26, W27, W28, W29,  // Callee save
-//   W10, W11, W12, W13, W14, W15, W18};                     // Caller save
-// static const char *kReg64s[PHYSICAL_REG_MAX] = {
-//   X0, X1, X2, X3, X4, X5, X6, X7, X8, X9, X16,            // Temporary
-//   X19, X20, X21, X22, X23, X24, X25, X26, X27, X28, X29,  // Callee save
-//   X10, X11, X12, X13, X14, X15, X18};                     // Caller save
 const char *kReg64s[PHYSICAL_REG_MAX] = {
   A0, A1, A2, A3, A4, A5, A6, A7,                         // Temporary
   S2, S3, S4, S5, S6, S7, S8, S9, S10, S11, FP,           // Callee save
-  T0, T1, T2};                                            // Caller save
+  T0, T1, T2, T3, T4, T5, T6};                            // Caller save
 
 #define GET_A0_INDEX()   0
-// #define GET_X16_INDEX()  10
 
 #define CALLEE_SAVE_REG_COUNT  ((int)(sizeof(kCalleeSaveRegs) / sizeof(*kCalleeSaveRegs)))
 static const int kCalleeSaveRegs[] = {8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18};
 
 #define CALLER_SAVE_REG_COUNT  ((int)(sizeof(kCallerSaveRegs) / sizeof(*kCallerSaveRegs)))
-static const int kCallerSaveRegs[] = {19, 20, 21};
+static const int kCallerSaveRegs[] = {19, 20, 21, 22, 23, 24, 25};
 
 const int ArchRegParamMapping[] = {0, 1, 2, 3, 4, 5, 6, 7};
-
-// const char **kRegSizeTable[] = {kReg32s, kReg32s, kReg32s, kReg64s};
-// static const char *kZeroRegTable[] = {WZR, WZR, WZR, XZR};
 
 // Break s1 in store, mod and tjmp
 static const char *kTmpReg = S1;
@@ -74,12 +56,6 @@ static const int kCallerSaveFRegs[] = {20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 3
 static unsigned long detect_extra_occupied(RegAlloc *ra, IR *ir) {
   UNUSED(ir);
   unsigned long ioccupy = 0;
-  // switch (ir->kind) {
-  // case IR_JMP: case IR_TJMP: case IR_CALL:
-  //   ioccupy = 1UL << GET_X16_INDEX();
-  //   break;
-  // default: break;
-  // }
   if (ra->flag & RAF_STACK_FRAME)
     ioccupy |= 1UL << GET_FPREG_INDEX();
   return ioccupy;
@@ -102,20 +78,15 @@ bool is_im12(intptr_t x) {
   return x <= ((1L << 11) - 1) && x >= -(1L << 11);
 }
 
-void mov_immediate(const char *dst, int64_t value, bool is_unsigned) {
-  UNUSED(is_unsigned);
-  LI(dst, IM(value));
-}
-
 static void ei_bofs(IR *ir) {
   const char *dst = kReg64s[ir->dst->phys];
   int ofs = ir->bofs.frameinfo->offset;
-  // if (ofs < 4096 && ofs > -4096) {
+  if (is_im12(ofs)) {
     ADDI(dst, FP, IM(ofs));
-  // } else {
-  //   mov_immediate(dst, ofs, true, false);
-  //   ADD(dst, dst, FP);
-  // }
+  } else {
+    LI(dst, IM(ofs));
+    ADD(dst, dst, FP);
+  }
 }
 
 static void ei_iofs(IR *ir) {
@@ -124,25 +95,20 @@ static void ei_iofs(IR *ir) {
     label = MANGLE(label);
   label = quote_label(label);
   const char *dst = kReg64s[ir->dst->phys];
-  // if (!is_got(ir->iofs.label)) {
-    LUI(dst, LABEL_OFFSET_HI(label));
-    ADDI(dst, dst, LABEL_OFFSET_LO(label));
-  // } else {
-  //   ADRP(dst, LABEL_AT_GOTPAGE(label));
-  //   LDR(dst, fmt("[%s,#%s]", dst, LABEL_AT_GOTPAGEOFF(label)));
-  // }
+  LUI(dst, LABEL_OFFSET_HI(label));
+  ADDI(dst, dst, LABEL_OFFSET_LO(label));
 }
 
 static void ei_sofs(IR *ir) {
   assert(ir->opr1->flag & VRF_CONST);
   const char *dst = kReg64s[ir->dst->phys];
-  // int ofs = ir->opr1->frame.offset;
-  // if (ofs < 4096 && ofs > -4096) {
-    ADDI(dst, SP, IM(ir->opr1->fixnum));
-  // } else {
-  //   mov_immediate(dst, ofs, true, false);
-  //   ADD(dst, dst, SP);
-  // }
+  int ofs = ir->opr1->fixnum;
+  if (is_im12(ofs)) {
+    ADDI(dst, SP, IM(ofs));
+  } else {
+    LI(dst, IM(ofs));
+    ADD(dst, dst, SP);
+  }
 }
 
 #define ei_load_s  ei_load
@@ -154,10 +120,10 @@ static void ei_load(IR *ir) {
     src = IMMEDIATE_OFFSET0(kReg64s[ir->opr1->phys]);
   } else {
     assert(ir->opr1->flag & VRF_SPILLED);
-    if (ir->opr1->frame.offset >= -4096 && ir->opr1->frame.offset <= 4096) {
+    if (is_im12(ir->opr1->frame.offset)) {
       src = IMMEDIATE_OFFSET(ir->opr1->frame.offset, FP);
     } else {
-      mov_immediate(kTmpReg, ir->opr1->frame.offset, false);
+      LI(kTmpReg, IM(ir->opr1->frame.offset));
       ADD(kTmpReg, kTmpReg, FP);
       src = IMMEDIATE_OFFSET0(kTmpReg);
     }
@@ -204,10 +170,10 @@ static void ei_store(IR *ir) {
     target = IMMEDIATE_OFFSET0(kReg64s[ir->opr2->phys]);
   } else {
     assert(ir->opr2->flag & VRF_SPILLED);
-    if (ir->opr2->frame.offset >= -4096 && ir->opr2->frame.offset <= 4096) {
+    if (is_im12(ir->opr2->frame.offset)) {
       target = IMMEDIATE_OFFSET(ir->opr2->frame.offset, FP);
     } else {
-      mov_immediate(kTmpReg, ir->opr2->frame.offset, false);
+      LI(kTmpReg, IM(ir->opr2->frame.offset));
       ADD(kTmpReg, kTmpReg, FP);
       target = IMMEDIATE_OFFSET0(kTmpReg);
     }
@@ -224,7 +190,7 @@ static void ei_store(IR *ir) {
     if (ir->opr1->fixnum == 0)
       src = ZERO;
     else
-      mov_immediate(src = kTmpReg, ir->opr1->fixnum, ir->flag & IRF_UNSIGNED);
+      LI(src = kTmpReg, IM(ir->opr1->fixnum));
   } else {
     src = kReg64s[ir->opr1->phys];
   }
@@ -408,7 +374,7 @@ static void ei_result(IR *ir) {
     int dstphys = ir->dst != NULL ? ir->dst->phys : GET_A0_INDEX();
     const char *dst = kReg64s[dstphys];
     if (ir->opr1->flag & VRF_CONST) {
-      mov_immediate(dst, ir->opr1->fixnum, ir->flag & IRF_UNSIGNED);
+      LI(dst, IM(ir->opr1->fixnum));
     } else if (ir->opr1->phys != dstphys) {  // Source is not return register.
       MV(dst, kReg64s[ir->opr1->phys]);
     }
@@ -444,7 +410,7 @@ static void ei_mov(IR *ir) {
     assert(!(ir->dst->flag & VRF_CONST));
     const char *dst = kReg64s[ir->dst->phys];
     if (ir->opr1->flag & VRF_CONST) {
-      mov_immediate(dst, ir->opr1->fixnum, ir->flag & IRF_UNSIGNED);
+      LI(dst, IM(ir->opr1->fixnum));
     } else {
       if (ir->opr1->phys != ir->dst->phys) {
         MV(dst, kReg64s[ir->opr1->phys]);
@@ -657,7 +623,7 @@ static void ei_precall(IR *ir) {
   ir->precall.stack_aligned = align_stack;
 
   if (align_stack > 0) {
-    SUB(SP, SP, IM(align_stack));
+    ADDI(SP, SP, IM(-align_stack));
   }
 }
 
@@ -703,7 +669,7 @@ static void ei_call(IR *ir) {
   IR *precall = ir->call.precall;
   int align_stack = precall->precall.stack_aligned + precall->precall.stack_args_size;
   if (align_stack != 0) {
-    ADD(SP, SP, IM(align_stack));
+    ADDI(SP, SP, IM(align_stack));
   }
 
   // Resore caller save registers.
@@ -848,16 +814,15 @@ void pop_callee_save_regs(unsigned long used, unsigned long fused) {
 }
 
 int calculate_func_param_bottom(Function *func) {
-  const char *saves[(N + 1) & ~1];
+  const char *saves[ALIGN(N, 2)];
   FuncBackend *fnbe = func->extra;
-  unsigned long used = fnbe->ra->used_reg_bits; //, fused = fnbe->ra->used_freg_bits;
+  unsigned long used = fnbe->ra->used_reg_bits, fused = fnbe->ra->used_freg_bits;
   int count = enum_callee_save_regs(used, CALLEE_SAVE_REG_COUNT, kCalleeSaveRegs, kReg64s, saves);
-  // int fcount = enum_callee_save_regs(fused, CALLEE_SAVE_FREG_COUNT, kCalleeSaveFRegs, kFReg64s,
-  //                                    saves);
-  int fcount = 0;
-  int callee_save_count = ALIGN(count, 2) + ALIGN(fcount, 2);
+  int fcount = enum_callee_save_regs(fused, CALLEE_SAVE_FREG_COUNT, kCalleeSaveFRegs, kFReg64s,
+                                     &saves[count]);
+  int total = count + fcount;
 
-  return (callee_save_count * POINTER_SIZE) + (POINTER_SIZE * 2);  // Return address, saved base pointer.
+  return (ALIGN(total, 2) * POINTER_SIZE) + (POINTER_SIZE * 2);  // Return address, saved base pointer.
 }
 #undef N
 
@@ -986,12 +951,6 @@ void tweak_irs(FuncBackend *fnbe) {
         if (ir->opr1->flag & VRF_CONST)
           swap_opr12(ir);
         if (ir->opr2->flag & VRF_CONST) {
-          // if (ir->opr2->fixnum < 0) {
-          //   ir->kind = IR_SUB;
-          //   VReg *old = ir->opr2;
-          //   ir->opr2 = reg_alloc_spawn_const(ra, -old->fixnum, old->vsize);
-          //   ir->opr2->flag = old->flag;
-          // }
           if (ir->opr2->fixnum > 0x0fff || ir->opr2->fixnum < -0x0fff)
             insert_const_mov(&ir->opr2, ra, irs, j++);
         }
@@ -1008,12 +967,6 @@ void tweak_irs(FuncBackend *fnbe) {
           insert_const_mov(&ir->opr1, ra, irs, j++);
         }
         if (ir->opr2->flag & VRF_CONST) {
-          // if (ir->opr2->fixnum < 0) {
-          //   ir->kind = IR_ADD;
-          //   VReg *old = ir->opr2;
-          //   ir->opr2 = reg_alloc_spawn_const(ra, -old->fixnum, old->vsize);
-          //   ir->opr2->flag = old->flag;
-          // }
           if (ir->opr2->fixnum > 0x0fff || ir->opr2->fixnum < -0x0fff)
             insert_const_mov(&ir->opr2, ra, irs, j++);
         }
@@ -1063,8 +1016,7 @@ void tweak_irs(FuncBackend *fnbe) {
               insert_const_mov(&ir->opr2, ra, irs, j++);
             break;
           case COND_LT: case COND_GE:
-            if ((ir->opr2->flag & VRF_CONST) &&
-                (ir->opr2->fixnum < -4096 || ir->opr2->fixnum > 4096))
+            if ((ir->opr2->flag & VRF_CONST) && !is_im12(ir->opr2->fixnum))
               insert_const_mov(&ir->opr2, ra, irs, j++);
             break;
           default:

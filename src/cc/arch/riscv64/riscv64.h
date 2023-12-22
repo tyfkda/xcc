@@ -62,6 +62,10 @@
 #define T0    "t0"
 #define T1    "t1"
 #define T2    "t2"
+#define T3    "t3"
+#define T4    "t4"
+#define T5    "t5"
+#define T6    "t6"
 
 #define FA0   "fa0"
 #define FA1   "fa1"
@@ -212,8 +216,8 @@
 #define FCVT_D_S(o1, o2)      EMIT_ASM("fcvt.d.s", o1, o2)   // double <- float
 #define FCVT_S_D(o1, o2)      EMIT_ASM("fcvt.s.d", o1, o2)   // float <- double
 
-#define FMV_X_W(o1, o2)      EMIT_ASM("fmv.x.w", o1, o2)  // int <- float(hex)
-#define FMV_X_D(o1, o2)      EMIT_ASM("fmv.x.d", o1, o2)  // int <- double(hex)
+#define FMV_X_W(o1, o2)       EMIT_ASM("fmv.x.w", o1, o2)    // int <- float(hex)
+#define FMV_X_D(o1, o2)       EMIT_ASM("fmv.x.d", o1, o2)    // int <- double(hex)
 
 #define FEQ_D(o1, o2, o3)     EMIT_ASM("feq.d", o1, o2, o3)
 #define FEQ_S(o1, o2, o3)     EMIT_ASM("feq.s", o1, o2, o3)
@@ -221,5 +225,3 @@
 #define FLT_S(o1, o2, o3)     EMIT_ASM("flt.s", o1, o2, o3)
 #define FLE_D(o1, o2, o3)     EMIT_ASM("fle.d", o1, o2, o3)
 #define FLE_S(o1, o2, o3)     EMIT_ASM("fle.s", o1, o2, o3)
-
-void mov_immediate(const char *dst, int64_t value, bool is_unsigned);

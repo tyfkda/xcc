@@ -391,9 +391,6 @@ static void move_params_to_assigned(Function *func) {
   extern const int ArchRegParamMapping[];
   extern const char *kFReg64s[];
 
-  // static const char *kRegParam32s[] = {W0, W1, W2, W3, W4, W5, W6, W7};
-  // static const char **kRegParamTable[] = {kRegParam32s, kRegParam32s, kRegParam32s, kRegParam64s};
-  // const char *kFRegParam32s[] = {S0, S1, S2, S3, S4, S5, S6, S7};
   const char *kFRegParam64s[] = {FA0, FA1, FA2, FA3, FA4, FA5, FA6, FA7};
   static const int kPow2Table[] = {-1, 0, 1, -1, 2, -1, -1, -1, 3};
 #define kPow2TableSize ((int)(sizeof(kPow2Table) / sizeof(*kPow2Table)))
@@ -416,13 +413,7 @@ static void move_params_to_assigned(Function *func) {
     if (vreg->flag & VRF_SPILLED) {
       int offset = vreg->frame.offset;
       assert(offset != 0);
-      const char *dst;
-      // if (offset >= -256) {
-        dst = IMMEDIATE_OFFSET(offset, FP);
-      // } else {
-      //   mov_immediate(X9, offset, true, false);  // x9 broken.
-      //   dst = REG_OFFSET(FP, X9, NULL);
-      // }
+      const char *dst = IMMEDIATE_OFFSET(offset, FP);
       switch (pow) {
       case 0:  SB(src, dst); break;
       case 1:  SH(src, dst); break;
@@ -514,7 +505,6 @@ static void emit_defun(Function *func) {
 
     // TODO: Handle fp_saved and ra_saved individually.
     if (fp_saved || ra_saved) {
-      // STP(FP, LR, PRE_INDEX(SP, -16));
       ADDI(SP, SP, IM(-16));
       SD(RA, IMMEDIATE_OFFSET(8, SP));
       SD(FP, IMMEDIATE_OFFSET0(SP));
@@ -529,14 +519,7 @@ static void emit_defun(Function *func) {
     if (fp_saved) {
       MV(FP, SP);
       if (frame_size > 0) {
-        const char *value;
-        // if (frame_size <= 0x0fff) {
-          value = IM(-frame_size);
-          ADDI(SP, SP, value);
-        // } else {
-        //   // Break x17
-        //   mov_immediate(value = X17, frame_size, true, false);
-        // }
+        ADDI(SP, SP, IM(-frame_size));
       }
     }
 
@@ -556,11 +539,11 @@ static void emit_defun(Function *func) {
       if (fp_saved || ra_saved) {
         LD(FP, IMMEDIATE_OFFSET0(SP));
         LD(RA, IMMEDIATE_OFFSET(8, SP));
-        ADD(SP, SP, IM(16));
+        ADDI(SP, SP, IM(16));
       }
     }
     if (vaarg_params_saved > 0)
-      ADD(SP, SP, IM(vaarg_params_saved));
+      ADDI(SP, SP, IM(vaarg_params_saved));
 
     RET();
   }

@@ -141,10 +141,13 @@ clean:
 
 # Run tests on RISC-V simulator.
 .PHONY: test-riscv64
-test-riscv64:
-	$(MAKE) ARCHTYPE:=riscv64 PLATFORM:=posix HOST_CC_PREFIX=riscv64-unknown-elf-
+test-riscv64:	cross-compile-riscv64
 	$(MAKE) -C tests clean && \
 		$(MAKE) RUN_EXE="$(CURDIR)/tool/run-riscv64" NO_LINK_TEST=1 -C tests all
+
+.PHONY: cross-compile-riscv64
+cross-compile-riscv64:
+	$(MAKE) ARCHTYPE:=riscv64 PLATFORM:=posix HOST_CC_PREFIX=riscv64-unknown-elf-
 
 ### Library
 
