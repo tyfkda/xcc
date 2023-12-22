@@ -14,18 +14,6 @@
 #ifndef LABEL_INDIRECT
 #define LABEL_INDIRECT(label, x)  label_indirect(label, x)
 #endif
-#ifndef NUM
-#define NUM(x)  num(x)
-#endif
-#ifndef HEXNUM
-#define HEXNUM(x)  hexnum(x)
-#endif
-#ifndef FLONUM
-#define FLONUM(x)  flonum(x)
-#endif
-#ifndef MANGLE
-#define MANGLE(label)  mangle(label)
-#endif
 #ifndef GOTPCREL
 #define GOTPCREL(label)  gotpcrel(label)
 #endif
@@ -185,31 +173,6 @@
 #define CWTL()         EMIT_ASM("cwtl")
 #define CLTD()         EMIT_ASM("cltd")
 #define CQTO()         EMIT_ASM("cqto")
-
-#define _BYTE(x)       EMIT_ASM(".byte", x)
-#define _SHORT(x)      EMIT_ASM(".short", x)
-#define _LONG(x)       EMIT_ASM(".long", x)
-#define _QUAD(x)       EMIT_ASM(".quad", x)
-#define _FLOAT(x)      EMIT_ASM(".float", x)
-#define _DOUBLE(x)     EMIT_ASM(".double", x)
-#define _GLOBL(x)      EMIT_ASM(".globl", x)
-#define _COMM(x, y)    EMIT_ASM(".comm", x, y)
-#define _ASCII(x)      EMIT_ASM(".ascii", x)
-#define _SECTION(x)    EMIT_ASM(".section", x)
-#define _TEXT()        EMIT_ASM(".text")
-#define _DATA()        EMIT_ASM(".data")
-
-#define EMIT_ALIGN(x)  emit_align_p2(x)
-
-#if XCC_TARGET_PLATFORM == XCC_PLATFORM_APPLE
-#define _RODATA()      _SECTION("__DATA,__const")
-#define _LOCAL(x)      ((void)0)
-#else
-#define _RODATA()      _SECTION(".rodata")
-#define _LOCAL(x)      EMIT_ASM(".local", x)
-#endif
-
-#define _BSS(label, size, align)  emit_bss(label, size, align)
 
 
 // SIMD

@@ -19,18 +19,6 @@
 #ifndef LABEL_OFFSET_LO
 #define LABEL_OFFSET_LO(label)  label_offset_lo(label)
 #endif
-#ifndef NUM
-#define NUM(x)  num(x)
-#endif
-#ifndef HEXNUM
-#define HEXNUM(x)  hexnum(x)
-#endif
-#ifndef FLONUM
-#define FLONUM(x)  flonum(x)
-#endif
-#ifndef MANGLE
-#define MANGLE(label)  mangle(label)
-#endif
 
 #define _UXTW(shift)  fmt("uxtw #%d", shift)
 #define _LSL(shift)   fmt("lsl #%d", shift)
@@ -171,26 +159,6 @@
 #define SLTI(o1, o2, o3)      EMIT_ASM("slti", o1, o2, o3)
 #define SLTU(o1, o2, o3)      EMIT_ASM("sltu", o1, o2, o3)
 #define SLTIU(o1, o2, o3)     EMIT_ASM("sltiu", o1, o2, o3)
-
-#define _BYTE(x)       EMIT_ASM(".byte", x)
-#define _SHORT(x)      EMIT_ASM(".short", x)  // Or .hword
-#define _LONG(x)       EMIT_ASM(".long", x)
-#define _QUAD(x)       EMIT_ASM(".quad", x)
-#define _FLOAT(x)      EMIT_ASM(".float", x)
-#define _DOUBLE(x)     EMIT_ASM(".double", x)
-#define _GLOBL(x)      EMIT_ASM(".globl", x)
-#define _COMM(x, y)    EMIT_ASM(".comm", x, y)
-#define _ASCII(x)      EMIT_ASM(".ascii", x)
-#define _SECTION(x)    EMIT_ASM(".section", x)
-#define _TEXT()        EMIT_ASM(".text")
-#define _DATA()        EMIT_ASM(".data")
-
-#define EMIT_ALIGN(x)  emit_align_p2(x)
-
-#define _RODATA()      _SECTION(".rodata")
-#define _LOCAL(x)      EMIT_ASM(".local", x)
-
-#define _BSS(label, size, align)  emit_bss(label, size, align)
 
 
 #define FMV_D(o1, o2)         EMIT_ASM("fmv.d", o1, o2)  // dst <- src

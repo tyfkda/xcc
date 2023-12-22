@@ -6,6 +6,8 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "cc_misc.h"
+#include "fe_misc.h"
 #include "fe_misc.h"
 #include "initializer.h"
 #include "parser.h"
@@ -15,80 +17,23 @@
 #include "var.h"
 #include "wasm_util.h"
 
-static void eval_initial_value(Expr *expr, Expr **pvar, Fixnum *poffset) {
-  switch (expr->kind) {
-  case EX_FIXNUM:
-    if (!is_const(expr))
-      assert(!"initializer type error");
-    *poffset = expr->fixnum;
-    break;
-  case EX_VAR:
-    assert(*pvar == NULL);
-    *pvar = expr;
-    break;
-  case EX_ADD:
-  case EX_SUB:
-    {
-      Expr *var1 = NULL, *var2 = NULL;
-      Fixnum offset1 = 0, offset2 = 0;
-      eval_initial_value(expr->bop.lhs, &var1, &offset1);
-      eval_initial_value(expr->bop.rhs, &var2, &offset2);
-      if (var1 != NULL) {
-        assert(var2 == NULL);
-        *pvar = var1;
-      } else if (var2 != NULL) {
-        assert(expr->kind == EX_ADD);
-        *pvar = var2;
-      }
-      if (expr->kind == EX_SUB)
-        offset2 = -offset2;
-      *poffset = offset1 + offset2;
-    }
-    break;
-  case EX_REF:
-  case EX_DEREF:
-  case EX_CAST:
-    eval_initial_value(expr->unary.sub, pvar, poffset);
-    return;
-  case EX_MEMBER:
-    {
-      eval_initial_value(expr->member.target, pvar, poffset);
-      const MemberInfo *minfo = expr->member.info;
-      *poffset += minfo->offset;
-    }
-    break;
-  case EX_COMPLIT:
-    assert(expr->complit.var->kind == EX_VAR);
-    eval_initial_value(expr->complit.var, pvar, poffset);
-    break;
-  default: assert(false); break;
-  }
-}
+static void emit_global_number(void *ud, const Type *type, Expr *var, Fixnum offset) {
+  DataStorage *ds = ud;
 
-static void construct_primitive_global(DataStorage *ds, const VarInfo *varinfo) {
-  const Type *type = varinfo->type;
-  Initializer *init = varinfo->global.init;
   switch (type->kind) {
   case TY_FIXNUM:
   case TY_PTR:
     {
-      Fixnum v = 0;
-      if (init != NULL) {
-        assert(init->kind == IK_SINGLE);
-        Expr *var = NULL;
-        Fixnum offset = 0;
-        eval_initial_value(init->single, &var, &offset);
-        if (var != NULL) {
-          if (var->type->kind == TY_FUNC) {
-            assert(offset == 0);
-            v = get_indirect_function_index(var->var.name);
-          } else {
-            GVarInfo *info = get_gvar_info(var);
-            assert(!is_prim_type(info->varinfo->type) || (info->varinfo->storage & VS_REF_TAKEN));
-            v = info->non_prim.address;
-          }
+      Fixnum v = offset;
+      if (var != NULL) {
+        if (var->type->kind == TY_FUNC) {
+          assert(offset == 0);
+          v += get_indirect_function_index(var->var.name);
+        } else {
+          GVarInfo *info = get_gvar_info(var);
+          assert(!is_prim_type(info->varinfo->type) || (info->varinfo->storage & VS_REF_TAKEN));
+          v += info->non_prim.address;
         }
-        v += offset;
       }
       data_push(ds, type_size(type) <= I32_SIZE ? OP_I32_CONST : OP_I64_CONST);
       emit_leb128(ds, -1, v);
@@ -97,24 +42,14 @@ static void construct_primitive_global(DataStorage *ds, const VarInfo *varinfo) 
 #ifndef __NO_FLONUM
   case TY_FLONUM:
     {
-      Flonum v = 0;
-      if (init != NULL) {
-        assert(init->kind == IK_SINGLE);
-        Expr *expr = init->single;
-        switch (expr->kind) {
-        case EX_FLONUM:
-          v = expr->flonum;
-          break;
-        default: assert(false); break;
-        }
-      }
+      assert(var == NULL);
       if (type->flonum.kind < FL_DOUBLE) {
         data_push(ds, OP_F32_CONST);
-        float f = v;
+        uint32_t f = offset;
         data_append(ds, (unsigned char*)&f, sizeof(float));  // TODO: Endian
       } else {
         data_push(ds, OP_F64_CONST);
-        double d = v;
+        uint64_t d = offset;
         data_append(ds, (unsigned char*)&d, sizeof(double));  // TODO: Endian
       }
     }
@@ -124,15 +59,15 @@ static void construct_primitive_global(DataStorage *ds, const VarInfo *varinfo) 
   }
 }
 
-static int emit_align(DataStorage *ds, int offset, int align) {
-  int d = offset % align;
-  if (d > 0) {
-    d = align - d;
-    for (int i = 0; i < d; ++i)
-      data_push(ds, 0);
-    offset += d;
-  }
-  return offset;
+static void construct_primitive_global(DataStorage *ds, const VarInfo *varinfo) {
+  static const ConstructInitialValueVTable kVtable = {
+    // Only .emit_number is required.
+    .emit_number = emit_global_number,
+  };
+
+  const Type *type = varinfo->type;
+  Initializer *init = varinfo->global.init;
+  construct_initial_value(type, init, &kVtable, ds);
 }
 
 static void emit_fixnum(DataStorage *ds, Fixnum v, size_t size) {
@@ -140,169 +75,55 @@ static void emit_fixnum(DataStorage *ds, Fixnum v, size_t size) {
   data_append(ds, (unsigned char *)&v, size);
 }
 
-#ifndef __NO_BITFIELD
-static int construct_initial_value_bitfield(DataStorage *ds, const StructInfo *sinfo,
-                                            const Initializer *init, int start, int *poffset) {
-  const MemberInfo *member = &sinfo->members[start];
-  const Type *et = get_fixnum_type(member->bitfield.base_kind, false, 0);
-
-  int offset = *poffset;
-  int align = align_size(et);
-  offset = emit_align(ds, offset, align);
-
-  int i = start;
-  Fixnum x = calc_bitfield_initial_value(sinfo, init, &i);
-
-  emit_fixnum(ds, x, type_size(et));
-  *poffset = offset += type_size(et);
-
-  return i;
+static void emit_align(void *ud, int align) {
+  DataStorage *ds = ud;
+  int offset = ds->len;
+  int d = offset % align;
+  if (d > 0) {
+    d = align - d;
+    for (int i = 0; i < d; ++i)
+      data_push(ds, 0);
+  }
 }
-#endif
-
-static void construct_initial_value(DataStorage *ds, const Type *type, const Initializer *init) {
-  assert(init == NULL || init->kind != IK_DOT);
-
-  switch (type->kind) {
-  case TY_FIXNUM:
-  case TY_PTR:
-    {
-      Expr *var = NULL;
-      Fixnum v = 0;
-      if (init != NULL) {
-        assert(init->kind == IK_SINGLE);
-        eval_initial_value(init->single, &var, &v);
-      }
-      if (var != NULL) {
-        if (var->type->kind == TY_FUNC) {
-          assert(v == 0);
-          v = get_indirect_function_index(var->var.name);
-        } else {
-          assert(var->kind == EX_VAR);
-          const GVarInfo *info = get_gvar_info(var);
-          assert(!is_prim_type(info->varinfo->type) || (info->varinfo->storage & VS_REF_TAKEN));
-          v += info->non_prim.address;
-        }
-      }
-
-      emit_fixnum(ds, v, type_size(type));
+static void emit_number(void *ud, const Type *type, Expr *var, Fixnum offset) {
+  Fixnum v = offset;
+  if (var != NULL) {
+    assert(var->kind == EX_VAR);
+    if (var->type->kind == TY_FUNC) {
+      assert(v == 0);
+      v = get_indirect_function_index(var->var.name);
+    } else {
+      assert(var->kind == EX_VAR);
+      const GVarInfo *info = get_gvar_info(var);
+      assert(!is_prim_type(info->varinfo->type) || (info->varinfo->storage & VS_REF_TAKEN));
+      v += info->non_prim.address;
     }
-    break;
-  case TY_FLONUM:
-#ifndef __NO_FLONUM
-    {
-      Flonum v = 0;
-      if (init != NULL) {
-        assert(init->kind == IK_SINGLE);
-        Expr *expr = init->single;
-        switch (expr->kind) {
-        case EX_FLONUM:
-          v = expr->flonum;
-          break;
-        default: assert(false); break;
-        }
-      }
-      if (type->flonum.kind < FL_DOUBLE) {
-        float f = v;
-        data_append(ds, (unsigned char*)&f, sizeof(float));  // TODO: Endian
-      } else {
-        double d = v;
-        data_append(ds, (unsigned char*)&d, sizeof(double));  // TODO: Endian
-      }
-    }
-#else
-    assert(false);
-#endif
-    break;
-  case TY_ARRAY:
-    if (init == NULL || init->kind == IK_MULTI) {
-      const Type *elem_type = type->pa.ptrof;
-      size_t index = 0;
-      if (init != NULL) {
-        Vector *init_array = init->multi;
-        size_t len = init_array->len;
-        for (size_t i = 0; i < len; ++i, ++index) {
-          const Initializer *init_elem = init_array->data[i];
-          construct_initial_value(ds, elem_type, init_elem);
-        }
-      }
-      // Padding
-      for (size_t i = index, n = type->pa.length; i < n; ++i)
-        construct_initial_value(ds, elem_type, NULL);
-      break;
-    }
-    if (init->kind == IK_SINGLE) {
-      Expr *e = strip_cast(init->single);
-      if (e->kind == EX_STR && is_char_type(type->pa.ptrof, init->single->str.kind)) {
-        size_t src_size = e->str.len * type_size(e->type->pa.ptrof);
-        size_t size = type_size(type);
-        if (size > src_size) {
-          unsigned char *buf = calloc_or_die(size);
-          assert(buf != NULL);
-          memcpy(buf, init->single->str.buf, src_size);
-          data_append(ds, buf, size);
-          free(buf);
-        } else {
-          data_append(ds, (unsigned char*)e->str.buf, size);
-        }
-        break;
-      }
-    }
-    error("Illegal initializer");
-    break;
-  case TY_STRUCT:
-    {
-      assert(init == NULL || init->kind == IK_MULTI);
-
-      const StructInfo *sinfo = type->struct_.info;
-      int count = 0;
-      int offset = 0;
-      for (int i = 0, n = sinfo->member_count; i < n; ++i) {
-        const MemberInfo *member = &sinfo->members[i];
-#ifndef __NO_BITFIELD
-        if (member->bitfield.width > 0) {
-          i = construct_initial_value_bitfield(ds, sinfo, init, i, &offset);
-          ++count;
-          continue;
-        }
-#endif
-        const Initializer *mem_init;
-        if (init == NULL) {
-          if (sinfo->is_union)
-            continue;
-          mem_init = NULL;
-        } else {
-          mem_init = init->multi->data[i];
-        }
-        if (mem_init != NULL || !sinfo->is_union) {
-          int align = align_size(member->type);
-          offset = emit_align(ds, offset, align);
-          construct_initial_value(ds, member->type, mem_init);
-          ++count;
-          offset += type_size(member->type);
-        }
-      }
-      if (sinfo->is_union && count <= 0) {
-        const MemberInfo *member = &sinfo->members[0];
-        construct_initial_value(ds, member->type, NULL);
-        offset += type_size(member->type);
-      }
-
-      size_t size = type_size(type);
-      if (size != (size_t)offset) {
-        assert(size > (size_t)offset);
-        // Put padding.
-        int d = size - offset;
-        for (int i = 0; i < d; ++i)
-          data_push(ds, 0);
-      }
-    }
-    break;
-  case TY_FUNC: case TY_VOID: assert(false); break;
+  }
+  DataStorage *ds = ud;
+  emit_fixnum(ds, v, type_size(type));
+}
+static void emit_string(void *ud, Expr *str, size_t size) {
+  assert(str->kind == EX_STR);
+  DataStorage *ds = ud;
+  size_t src_size = str->str.len * type_size(str->type->pa.ptrof);
+  if (size > src_size) {
+    unsigned char *buf = calloc_or_die(size);
+    assert(buf != NULL);
+    memcpy(buf, str->str.buf, src_size);
+    data_append(ds, buf, size);
+    free(buf);
+  } else {
+    data_append(ds, (unsigned char*)str->str.buf, size);
   }
 }
 
 static void construct_data_segment(DataStorage *ds) {
+  static const ConstructInitialValueVTable kVtable = {
+    .emit_align = emit_align,
+    .emit_number = emit_number,
+    .emit_string = emit_string,
+  };
+
   // Enumerate global variables.
   const Name *name;
   GVarInfo *info;
@@ -328,7 +149,7 @@ static void construct_data_segment(DataStorage *ds) {
       data_append(ds, zerobuf, sz);
     }
 
-    construct_initial_value(ds, varinfo->type, varinfo->global.init);
+    construct_initial_value(varinfo->type, varinfo->global.init, &kVtable, ds);
 
     address = adr + type_size(varinfo->type);
     assert(ds->len == address);

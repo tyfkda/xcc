@@ -267,6 +267,14 @@ Type *get_fixnum_type(enum FixnumKind kind, bool is_unsigned, int qualifier) {
   return &kFixnumTypeTable[is_unsigned][qualifier & 3][kind];
 }
 
+Type *get_fixnum_type_from_size(size_t size) {
+  for (enum FixnumKind kind = FX_CHAR; kind <= FX_LLONG; ++kind) {
+    if (size == fixnum_size_table[kind])
+      return get_fixnum_type(kind, false, 0);
+  }
+  return NULL;
+}
+
 Type *ptrof(Type *type) {
   Type *ptr = malloc_or_die(sizeof(*ptr));
   ptr->kind = TY_PTR;

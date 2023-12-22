@@ -7,9 +7,13 @@
 #include <stdint.h>  // int64_t
 #include <stdlib.h>  // realloc
 
+#include "ast.h"
+#include "cc_misc.h"
 #include "ir.h"
 #include "table.h"
+#include "type.h"
 #include "util.h"
+#include "var.h"
 
 static FILE *emit_fp;
 
@@ -155,4 +159,102 @@ bool function_not_returned(FuncBackend *fnbe) {
     }
   }
   return false;
+}
+
+static void emit_align(void *ud, int align) {
+  UNUSED(ud);
+  EMIT_ALIGN(align);
+}
+static void emit_number(void *ud, const Type *type, Expr *var, int64_t offset) {
+  UNUSED(ud);
+  const char *output;
+  if (var == NULL) {
+    output = is_flonum(type) ? hexnum(offset) : num(offset);
+  } else {
+    const Name *name = var->var.name;
+    Scope *scope;
+    VarInfo *varinfo = scope_find(var->var.scope, name, &scope);
+    assert(varinfo != NULL);
+    if (!is_global_scope(scope) && varinfo->storage & VS_STATIC) {
+      varinfo = varinfo->static_.gvar;
+      assert(varinfo != NULL);
+      name = varinfo->name;
+    }
+
+    char *label = fmt_name(name);
+    if ((varinfo->storage & VS_STATIC) == 0)
+      label = mangle(label);
+    label = quote_label(label);
+    if (offset == 0) {
+      output = label;
+    } else {
+      output = fmt("%s + %" PRId64, label, offset);
+    }
+  }
+
+  switch (type_size(type)) {
+  case 1: _BYTE(output); break;
+  case 2: _SHORT(output); break;
+  case 4: _LONG(output); break;
+  case 8: _QUAD(output); break;
+  default: assert(false); break;
+  }
+}
+static void emit_string(void *ud, Expr *str, size_t size) {
+  UNUSED(ud);
+  assert(str->kind == EX_STR);
+  size_t src_size = str->str.len * type_size(str->type->pa.ptrof);
+  if (src_size > size)
+    src_size = size;
+
+  StringBuffer sb;
+  sb_init(&sb);
+  sb_append(&sb, "\"", NULL);
+  escape_string(str->str.buf, src_size, &sb);
+  if (size > src_size) {
+    static const char NULCHR[] = "\\0";
+    for (size_t i = 0, n = size - src_size; i < n; ++i)
+      sb_append(&sb, NULCHR, NULL);
+  }
+  sb_append(&sb, "\"", NULL);
+  const char *escaped = sb_to_string(&sb);
+  _ASCII(escaped);
+}
+
+void emit_varinfo(const VarInfo *varinfo, const Initializer *init) {
+  static const ConstructInitialValueVTable kVtable = {
+    .emit_align = emit_align,
+    .emit_number = emit_number,
+    .emit_string = emit_string,
+  };
+
+  const Name *name = varinfo->name;
+  if (init != NULL) {
+    if (varinfo->type->qualifier & TQ_CONST)
+      _RODATA();
+    else
+      _DATA();
+  }
+
+  char *label = fmt_name(name);
+  if ((varinfo->storage & VS_STATIC) == 0) {  // global
+    label = quote_label(MANGLE(label));
+    _GLOBL(label);
+  } else {
+    label = quote_label(label);
+    _LOCAL(label);
+  }
+
+  if (init != NULL) {
+    EMIT_ALIGN(align_size(varinfo->type));
+    EMIT_LABEL(label);
+    construct_initial_value(varinfo->type, init, &kVtable, NULL);
+  } else {
+    size_t size = type_size(varinfo->type);
+    if (size < 1)
+      size = 1;
+
+    size_t align = align_size(varinfo->type);
+    _BSS(label, size, align);
+  }
 }

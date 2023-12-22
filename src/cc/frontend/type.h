@@ -146,6 +146,7 @@ bool is_void_ptr(const Type *type);
 bool is_prim_type(const Type *type);
 inline bool ptr_or_array(const Type *type)  { return type->kind == TY_PTR || type->kind == TY_ARRAY; }
 Type *get_fixnum_type(enum FixnumKind kind, bool is_unsigned, int qualifier);
+Type *get_fixnum_type_from_size(size_t size);
 Type *ptrof(Type *type);
 Type *arrayof(Type *type, ssize_t length);
 Type *array_to_ptr(Type *type);

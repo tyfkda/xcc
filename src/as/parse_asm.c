@@ -290,7 +290,7 @@ static enum DirectiveType find_directive(const char *p, size_t n) {
       return i + 1;
     }
   }
-  return -1;
+  return NODIRECTIVE;
 }
 
 static enum RegType find_register(const char **pp) {
