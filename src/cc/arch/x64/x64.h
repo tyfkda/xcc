@@ -187,7 +187,7 @@
 #define CQTO()         EMIT_ASM("cqto")
 
 #define _BYTE(x)       EMIT_ASM(".byte", x)
-#define _WORD(x)       EMIT_ASM(".word", x)
+#define _SHORT(x)      EMIT_ASM(".short", x)
 #define _LONG(x)       EMIT_ASM(".long", x)
 #define _QUAD(x)       EMIT_ASM(".quad", x)
 #define _FLOAT(x)      EMIT_ASM(".float", x)

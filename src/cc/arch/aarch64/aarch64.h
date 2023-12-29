@@ -244,7 +244,7 @@
 #define ADRP(o1, o2)          EMIT_ASM("adrp", o1, o2)
 
 #define _BYTE(x)       EMIT_ASM(".byte", x)
-#define _WORD(x)       EMIT_ASM(".short", x)  // Or .hword
+#define _SHORT(x)      EMIT_ASM(".short", x)  // Or .hword
 #define _LONG(x)       EMIT_ASM(".long", x)
 #define _QUAD(x)       EMIT_ASM(".quad", x)
 #define _FLOAT(x)      EMIT_ASM(".float", x)

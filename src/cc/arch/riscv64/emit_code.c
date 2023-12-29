@@ -107,7 +107,7 @@ static int construct_initial_value_bitfield(const StructInfo *sinfo, const Initi
   const char *output = NUM(x);
   switch (et->fixnum.kind) {
   case FX_CHAR:  _BYTE(output); break;
-  case FX_SHORT: _WORD(output); break;
+  case FX_SHORT: _SHORT(output); break;
   case FX_LONG: case FX_LLONG:
     _QUAD(output);
     break;
@@ -209,7 +209,7 @@ static void construct_initial_value(const Type *type, const Initializer *init) {
       } else {
         switch (type->fixnum.kind) {
         case FX_CHAR:  _BYTE(output); break;
-        case FX_SHORT: _WORD(output); break;
+        case FX_SHORT: _SHORT(output); break;
         case FX_LONG: case FX_LLONG:
           _QUAD(output);
           break;
@@ -307,7 +307,7 @@ static void construct_initial_value(const Type *type, const Initializer *init) {
         int d = size - offset;
         switch (d) {
         case 1:  _BYTE(NUM(0)); break;
-        case 2:  _WORD(NUM(0)); break;
+        case 2:  _SHORT(NUM(0)); break;
         case 4:  _LONG(NUM(0)); break;
         case 8:  _QUAD(NUM(0)); break;
         default:

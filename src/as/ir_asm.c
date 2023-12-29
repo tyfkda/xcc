@@ -10,10 +10,10 @@
 #include "table.h"
 #include "util.h"
 
-#define BYTE_SIZE  (1)
-#define WORD_SIZE  (2)
-#define LONG_SIZE  (4)
-#define QUAD_SIZE  (8)
+#define BYTE_SIZE   (1)
+#define SHORT_SIZE  (2)
+#define LONG_SIZE   (4)
+#define QUAD_SIZE   (8)
 
 static LabelInfo *new_label(int section, uintptr_t address) {
   LabelInfo *info = malloc_or_die(sizeof(*info));
@@ -137,8 +137,8 @@ bool calc_label_address(uintptr_t start_address, Vector **section_irs, Table *la
       case IR_EXPR_BYTE:
         address += BYTE_SIZE;
         break;
-      case IR_EXPR_WORD:
-        address += WORD_SIZE;
+      case IR_EXPR_SHORT:
+        address += SHORT_SIZE;
         break;
       case IR_EXPR_LONG:
         address += LONG_SIZE;
@@ -367,7 +367,7 @@ bool resolve_relative_address(Vector **section_irs, Table *label_table, Vector *
         }
         break;
       case IR_EXPR_BYTE:
-      case IR_EXPR_WORD:
+      case IR_EXPR_SHORT:
       case IR_EXPR_LONG:
       case IR_EXPR_QUAD:
         {
@@ -427,7 +427,7 @@ void emit_irs(Vector **section_irs) {
         align_section_size(sec, ir->align);
         break;
       case IR_EXPR_BYTE:
-      case IR_EXPR_WORD:
+      case IR_EXPR_SHORT:
       case IR_EXPR_LONG:
       case IR_EXPR_QUAD:
         {

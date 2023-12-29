@@ -220,7 +220,7 @@ static const char *kDirectiveTable[] = {
   "align",
   "p2align",
   "byte",
-  "word",
+  "short",
   "long",
   "quad",
   "comm",
@@ -1108,7 +1108,7 @@ void handle_directive(ParseInfo *info, enum DirectiveType dir, Vector **section_
     break;
 
   case DT_BYTE:
-  case DT_WORD:
+  case DT_SHORT:
   case DT_LONG:
   case DT_QUAD:
     {

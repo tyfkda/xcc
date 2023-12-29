@@ -50,7 +50,7 @@ enum IrKind {
   IR_BSS,
   IR_ALIGN,
   IR_EXPR_BYTE,
-  IR_EXPR_WORD,
+  IR_EXPR_SHORT,
   IR_EXPR_LONG,
   IR_EXPR_QUAD,
 };
