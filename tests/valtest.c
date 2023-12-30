@@ -1910,9 +1910,8 @@ int extern_array_wo_size[] = {11, 22, 33};
 
 #if !defined(__NO_VLA) && !defined(__STDC_NO_VLA__)
 TEST(vla) {
-  int n = 3;
-
   {
+    int n = 3;
     int arr[n];
     EXPECT("vla size", n * sizeof(int), sizeof(arr));
     for (int i = 0; i < n; ++i)
@@ -1924,24 +1923,34 @@ TEST(vla) {
   }
 
   {
+    int n = 3;
     typedef long ARR[n];
     EXPECT("vla size", n * sizeof(long), sizeof(ARR));
   }
 
   {
-    typedef short ARR2[n][n];
-    ARR2 arr2;
-    EXPECT("vla[][] size", n * n * sizeof(short), sizeof(arr2));
-    for (int i = 0; i < n; ++i)
-      for (int j = 0; j < n; ++j)
-        arr2[i][j] = i * 10 + j + 1;
-    short total = 0;
-    for (int i = 0; i < n; ++i) {
-      short *p = arr2[i];
-      for (int j = 0; j < n; ++j)
-        total += p[j];
-    }
-    EXPECT("vla[][]", 108, total);
+    int n2 = 3;
+    int arr2[++n2];
+    EXPECT("vla side-effect", 4 * sizeof(int), sizeof(arr2));
+
+    int n3 = 2;
+    int arr3[n3][n3];
+    n3 = -1;
+    EXPECT("vla size var modified", 4 * sizeof(int), sizeof(arr3));
+
+    int n4 = 3;
+    typedef char ARR4[n4++];
+    ARR4 arr4;
+    EXPECT("typedef vla side-effect", 3 * sizeof(char), sizeof(arr4));
+  }
+
+  {
+    int n = 4;
+    typedef short ARR[n][n];
+    n = 0;
+    ARR arr;
+    EXPECT("vla[][] size", 16 * sizeof(short), sizeof(arr));
+    EXPECT("vla[0][] size", 4 * sizeof(short), sizeof(arr[0]));
   }
 } END_TEST()
 #endif

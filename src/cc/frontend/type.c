@@ -283,6 +283,7 @@ Type *ptrof(Type *type) {
   ptr->pa.length = 0;
 #ifndef __NO_VLA
   ptr->pa.vla = NULL;
+  ptr->pa.size_var = NULL;
 #endif
   return ptr;
 }
@@ -295,6 +296,7 @@ Type *arrayof(Type *type, ssize_t length) {
   arr->pa.length = length;
 #ifndef __NO_VLA
   arr->pa.vla = NULL;
+  arr->pa.size_var = NULL;
 #endif
   return arr;
 }

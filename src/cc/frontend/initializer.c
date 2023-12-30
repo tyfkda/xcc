@@ -910,17 +910,33 @@ Initializer *check_vardecl(Type **ptype, const Token *ident, int storage, Initia
       if (init != NULL)
         parse_error(PE_NOFATAL, ident, "Variable length array with initializer");
 
-      // Transform VLA to `alloca(vla * type_size(elem))`.
+      Expr *assign_sizevar = NULL;
+      Expr *size_var;
+      if (type->pa.size_var != NULL) {
+        // `size_varname` for typedef'd type is already assigned.
+        size_var = type->pa.size_var;
+      } else {
+        Expr *e = assign_sizevar = reserve_vla_type_size(type);
+        while (e->kind == EX_COMMA)
+          e = e->bop.rhs;
+        assert(e->kind == EX_ASSIGN);
+        size_var = e->bop.lhs;
+      }
+      assert(size_var->kind == EX_VAR);
+
+      // Transform VLA to `alloca(size_var)`.
       const Token *tok = ident;
       Vector *params = new_vector();
       vec_push(params, &tySize);
       Type *functype = new_func_type(&tyVoidPtr, params, false);
       Expr *alloca_var = new_expr_variable(alloc_name("alloca", NULL, false), functype, tok,
                                            global_scope);
-      Expr *size_expr = calc_type_size(type);
       Vector *args = new_vector();
-      vec_push(args, size_expr);
+      vec_push(args, size_var);
       Expr *call_alloca = new_expr_funcall(tok, alloca_var, functype->func.ret, args);
+      if (assign_sizevar != NULL)
+        call_alloca = new_expr_bop(EX_COMMA, functype->func.ret, tok, assign_sizevar, call_alloca);
+
       init = new_initializer(IK_SINGLE, tok);
       init->single = make_cast(ptrof(type->pa.ptrof), tok, call_alloca, false);
     }

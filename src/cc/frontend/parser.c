@@ -200,6 +200,23 @@ static Vector *parse_vardecl_cont(Type *rawType, Type *type, int storage, Token 
     assert(!is_global_scope(curscope));
 
     if (tmp_storage & VS_TYPEDEF) {
+#ifndef __NO_VLA
+      if (type->kind == TY_PTR && type->pa.vla != NULL) {
+        Expr *assign_sizevar = reserve_vla_type_size(type);
+        Expr *e = assign_sizevar;
+        while (e->kind == EX_COMMA)
+          e = e->bop.rhs;
+        assert(e->kind == EX_ASSIGN);
+        Expr *size_var = e->bop.lhs;
+        assert(size_var->kind == EX_VAR);
+
+        VarDecl *decl = new_vardecl(size_var->var.name);
+        decl->init_stmt = new_stmt_expr(assign_sizevar);
+        if (decls == NULL)
+          decls = new_vector();
+        vec_push(decls, decl);
+      }
+#endif
       def_type(type, ident);
       continue;
     }
@@ -707,8 +724,13 @@ static Declaration *parse_global_var_decl(Type *rawtype, int storage, Type *type
       type = parse_type_suffix(type);
 
     if (storage & VS_TYPEDEF) {
-      if (ident != NULL)
+      if (ident != NULL) {
+#ifndef __NO_VLA
+        if (is_global_scope(curscope) && type->kind == TY_PTR && type->pa.vla != NULL)
+          parse_error(PE_NOFATAL, ident, "Variable length array cannot use in global scope");
+#endif
         def_type(type, ident);
+      }
     } else {
       if (type->kind == TY_VOID) {
         if (ident != NULL)

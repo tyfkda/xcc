@@ -100,6 +100,7 @@ Expr *new_expr_str(const Token *token, const char *str, ssize_t len, enum StrKin
   type->pa.length = len;
 #ifndef __NO_VLA
   type->pa.vla = NULL;
+  type->pa.size_var = NULL;
 #endif
 
   Expr *expr = new_expr(EX_STR, type, token);

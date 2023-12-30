@@ -184,23 +184,35 @@ void ensure_struct(Type *type, const Token *token, Scope *scope) {
 
 Expr *calc_type_size(const Type *type) {
 #ifndef __NO_VLA
-  Expr *expr = NULL;
-  for (; type != NULL;) {
-    Expr *e = NULL;
-    if (ptr_or_array(type) && type->pa.vla != NULL) {
-      e = type->pa.vla;
-      type = type->pa.ptrof;
-    } else {
-      e = new_expr_fixlit(&tySize, NULL, type_size(type));
-      type = NULL;
-    }
-    expr = expr == NULL ? e : new_expr_num_bop(EX_MUL, NULL, expr, e);
+  if (ptr_or_array(type) && type->pa.vla != NULL) {
+    assert(type->pa.size_var != NULL);
+    return type->pa.size_var;
   }
-  return expr;
-#else
-  return new_expr_fixlit(&tySize, NULL, type_size(type));
 #endif
+  return new_expr_fixlit(&tySize, NULL, type_size(type));
 }
+
+#ifndef __NO_VLA
+Expr *reserve_vla_type_size(Type *type) {
+  assert(ptr_or_array(type) && type->pa.vla != NULL);
+  assert(!is_global_scope(curscope));
+
+  // If VLA is nested, calculate subtype first.
+  Type *subtype = type->pa.ptrof;
+  Expr *sub = (ptr_or_array(subtype) && subtype->pa.vla != NULL) ? reserve_vla_type_size(subtype)
+                                                                 : NULL;
+
+  Expr *var = alloc_tmp_var(curscope, &tySize);
+  Expr *value = new_expr_num_bop(EX_MUL, type->pa.vla->token, type->pa.vla,
+                                 calc_type_size(type->pa.ptrof));
+  Expr *assign = new_expr_bop(EX_ASSIGN, &tySize, type->pa.vla->token, var, value);
+  type->pa.size_var = var;
+
+  if (sub != NULL)
+    assign = new_expr_bop(EX_COMMA, &tySize, assign->token, sub, assign);
+  return assign;
+}
+#endif
 
 bool check_cast(const Type *dst, const Type *src, bool zero, bool is_explicit, const Token *token) {
   bool ok = can_cast(dst, src, zero, is_explicit);

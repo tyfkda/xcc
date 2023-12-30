@@ -96,6 +96,7 @@ typedef struct Type {
       ssize_t length;  // of array. Positive value, or LEN_UND, LEN_FAM or LEN_VLA.
 #ifndef __NO_VLA
       Expr *vla;  // Variable length array.
+      Expr *size_var;
 #endif
     } pa;
     struct {
