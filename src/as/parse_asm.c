@@ -1154,9 +1154,9 @@ void handle_directive(ParseInfo *info, enum DirectiveType dir, Vector **section_
       }
       int size;
       switch (dir) {
-      case DT_FLOAT:   size = sizeof(float); break;
+      default: assert(false); // Fallthrough
       case DT_DOUBLE:  size = sizeof(double); break;
-      default: assert(false); break;
+      case DT_FLOAT:   size = sizeof(float); break;
       }
       unsigned char *buf = malloc_or_die(size);
       if (dir == DT_FLOAT) {

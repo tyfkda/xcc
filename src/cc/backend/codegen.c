@@ -870,6 +870,7 @@ void alloc_stack_variables_onto_stack_frame(Function *func) {
 
   fnbe->frame_size = frame_size;
   assert(!(require_stack_frame || frame_size > 0) || (fnbe->ra->flag & RAF_STACK_FRAME));
+  UNUSED(require_stack_frame);
 }
 
 bool gen_defun(Function *func) {

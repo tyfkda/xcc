@@ -1,5 +1,9 @@
 #ifdef __NO_FLONUM
-int main() {return 0;}
+#include <stdio.h>
+int main() {
+  printf("  skipped\n");
+  return 0;
+}
 #else
 
 #ifdef USE_SINGLE
