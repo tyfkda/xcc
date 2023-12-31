@@ -384,9 +384,9 @@ Type *create_enum_type(const Name *name) {
   return type;
 }
 
-// Compare type for function parameter: Ignore const-ness if the type is value type.
+// Compare type for function parameter: Ignore const-ness.
 extern inline bool same_type_func_param(const Type *type1, const Type *type2) {
-  return same_type_without_qualifier(type1, type2, !ptr_or_array(type1));
+  return same_type_without_qualifier(type1, type2, true);
 }
 
 bool same_type_without_qualifier(const Type *type1, const Type *type2, bool ignore_qualifier) {
