@@ -81,7 +81,7 @@ void check_type_combination(const TypeCombination *tc, const Token *tok) {
          tc->unsigned_num <= 0 && tc->signed_num <= 0)
       )
   ) {
-    parse_error(PE_FATAL, tok, "Illegal type combination");
+    parse_error(PE_NOFATAL, tok, "Illegal type combination");
   }
 }
 

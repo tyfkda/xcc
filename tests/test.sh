@@ -100,6 +100,7 @@ test_basic() {
   try 'cast array to pointer' 44 'int a[3][2] = {11,22,33,44,55,66}; int *p = a; return p[3]; //-WNOERR'
   try_direct 'variable definition overwrite' 123 'int x; int x = 123; int main(void) {return x;}'
   compile_error 'variable definition conflict' 'int x = 0; int x = 123; int main(void) {return x;}'
+  compile_error 'illegal type combination' 'int main(void) {long short x = 99; return x;}'
   compile_error 'assign array to struct' 'int main(void) {int a[3][2] = {11,22,33,44,55,66}; struct { int a[3][2]; } s; s = a; return s.a[1][1]; } //-WNOERR'
   try_direct 'direct addressing' 99 'int main(int argc) {if (argc < 0) { *(volatile short*)0x12 = 0x34; return *(volatile int*)0x5678; } return 99;}'
   try_direct 'restrict for array in funparam' 83 'int sub(int arr[restrict]) { return arr[0]; } int main(void) { int a[] = {83}; return sub(a); }'

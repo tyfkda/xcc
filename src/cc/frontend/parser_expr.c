@@ -314,6 +314,8 @@ Type *parse_raw_type(int *pstorage) {
   TypeCombination tc = {0};
   Token *tok = NULL;
   for (;;) {
+    if (tok != NULL)
+      check_type_combination(&tc, tok);  // Check for last token
     tok = match(-1);
     switch (tok->kind) {
     case TK_UNSIGNED:
@@ -386,7 +388,7 @@ Type *parse_raw_type(int *pstorage) {
 
     if (tok->kind == TK_STRUCT || tok->kind == TK_UNION) {
       if (!no_type_combination(&tc, 0, 0))
-        parse_error(PE_FATAL, tok, "Illegal type combination");
+        parse_error(PE_NOFATAL, tok, "Illegal type combination");
 
       bool is_union = tok->kind == TK_UNION;
       const Name *name = NULL;
@@ -421,7 +423,7 @@ Type *parse_raw_type(int *pstorage) {
       type = create_struct_type(sinfo, name, tc.qualifier);
     } else if (tok->kind == TK_ENUM) {
       if (!no_type_combination(&tc, 0, 0))
-        parse_error(PE_FATAL, tok, "Illegal type combination");
+        parse_error(PE_NOFATAL, tok, "Illegal type combination");
 
       type = parse_enum();
     } else if (tok->kind == TK_IDENT) {
