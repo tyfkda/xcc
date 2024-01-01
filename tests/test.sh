@@ -99,8 +99,8 @@ test_basic() {
   try 'data-bss alignment' 0 'static char data = 123; static int bss; return (long)&bss & 3;'
   try 'cast array to pointer' 44 'int a[3][2] = {11,22,33,44,55,66}; int *p = a; return p[3]; //-WNOERR'
   try_direct 'variable definition overwrite' 123 'int x; int x = 123; int main(void) {return x;}'
-  compile_error 'variable definition conflict' 123 'int x = 0; int x = 123; int main(void) {return x;}'
-  compile_error 'int main(void) {int a[3][2] = {11,22,33,44,55,66}; struct { int a[3][2]; } s; s = a; return s.a[1][1]; } //-WNOERR'
+  compile_error 'variable definition conflict' 'int x = 0; int x = 123; int main(void) {return x;}'
+  compile_error 'assign array to struct' 'int main(void) {int a[3][2] = {11,22,33,44,55,66}; struct { int a[3][2]; } s; s = a; return s.a[1][1]; } //-WNOERR'
   try_direct 'direct addressing' 99 'int main(int argc) {if (argc < 0) { *(volatile short*)0x12 = 0x34; return *(volatile int*)0x5678; } return 99;}'
   try_direct 'restrict for array in funparam' 83 'int sub(int arr[restrict]) { return arr[0]; } int main(void) { int a[] = {83}; return sub(a); }'
 
@@ -129,7 +129,6 @@ test_bitfield() {
 
   compile_error 'bit width 0' 'void main(){struct {int x:0;} s;}'
   compile_error 'bit width neg' 'void main(){struct {int x:-1;} s;}'
-  compile_error 'bit width zero with name' 'void main(){struct {int q:0;} s;}'
   compile_error 'require bit width' 'void main(){struct {int x:;} s;}'
   compile_error 'bit size over' 'void main(){struct {int x:33;} s;}'
   compile_error 'prohibit &' 'void main(){struct {int x:1;} s; int *p = &s.x;}'
@@ -257,7 +256,7 @@ test_error() {
   try 'use goto to skip first' 54 'int acc=0, i=1; goto inner; for (; i<=10;) {acc += i; inner: ++i;} return acc;  //-WCC'
   compile_error 'after noreturn function' '#include <stdlib.h>\nint main(){ exit(0); return 1; }'
   compile_error 'noreturn should not return' 'void sub(void) __attribute__((noreturn));\nvoid sub(void){}\nint main(){ sub(); }'
-  compile_error 'noreturn should be void' 'int sub(void) __attribute__((noreturn));\nint sub(void){}\nint main(){ sub(); }'
+  compile_error 'noreturn should be void' '#include <stdlib.h>\nint sub(void) __attribute__((noreturn));\nint sub(void){exit(0);}\nint main(){ sub(); }'
 
   compile_error 'enum and global' 'enum Foo { BAR }; int BAR; void main(){}'
   compile_error 'global and enum' 'int BAR; enum Foo { BAR }; void main(){}'
