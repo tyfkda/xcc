@@ -58,9 +58,11 @@ static int put_vaarg_params(Function *func) {
   int size = 0;
   int n = MAX_REG_ARGS - iparam_count;
   if (n > 0) {
-    size = n * POINTER_SIZE;
+    int size_org = n * POINTER_SIZE;
+    size = ALIGN(n, 2) * POINTER_SIZE;
+    int offset = size - size_org;
     ADDI(SP, SP, IM(-size));
-    for (int i = iparam_count, offset = 0; i < MAX_REG_ARGS; ++i, offset += POINTER_SIZE)
+    for (int i = iparam_count; i < MAX_REG_ARGS; ++i, offset += POINTER_SIZE)
       SD(kRegParam64s[i], IMMEDIATE_OFFSET(offset, SP));
   }
   return size;

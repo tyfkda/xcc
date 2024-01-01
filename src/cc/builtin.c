@@ -38,14 +38,62 @@ static VReg *gen_builtin_va_start(Expr *expr) {
   const VarInfo *varinfo = scope_find(ap->var.scope, ap->var.name, &scope);
   assert(varinfo != NULL);
   if (is_global_scope(scope) || !is_local_storage(varinfo)) {
-    parse_error(PE_FATAL, ap->token, "Must be local variable");
+    parse_error(PE_NOFATAL, ap->token, "Must be local variable");
     return NULL;
+  }
+
+  Expr *var = strip_cast(args->data[1]);
+  if (var->kind == EX_REF)
+    var = var->unary.sub;
+
+  const Vector *params = curfunc->params;
+  assert(params != NULL);
+  assert(params->len > 0);
+
+  bool is_last = false;
+  if (var->kind == EX_VAR) {
+    assert(curfunc->type->func.vaargs);
+    VarInfo *varinfo = params->data[params->len - 1];
+    is_last = equal_name(var->var.name, varinfo->name);
+  }
+  if (!is_last) {
+    parse_error(PE_NOFATAL, var->token, "Must be last function argument");
+    return NULL;
+  }
+
+  int offset = 0;
+  int gn = 0, fn = 0;
+  for (int i = 0; i < params->len; ++i) {
+    VarInfo *info = params->data[i];
+    const Type *t = info->type;
+    int size = 0, align = 0;
+    if (t->kind == TY_STRUCT) {
+      size = type_size(t);
+      align = align_size(t);
+    } else {
+      if (is_flonum(t)) {
+        if (fn >= MAX_FREG_ARGS)
+          size = align = POINTER_SIZE;
+        ++fn;
+      } else {
+        if (gn >= MAX_REG_ARGS)
+          size = align = POINTER_SIZE;
+        ++gn;
+      }
+    }
+    if (size > 0)
+      offset = ALIGN(offset, align) + size;
   }
 
   FuncBackend *fnbe = curfunc->extra;
   FrameInfo *fi = &fnbe->vaarg_frame_info;
-  VReg *ptr = new_ir_bofs(fi);
-  new_ir_mov(varinfo->local.vreg, ptr, IRF_UNSIGNED);
+  VReg *p = new_ir_bofs(fi);
+  if (offset > 0) {
+    enum VRegSize vsize = to_vsize(&tyVoidPtr);
+    p = new_ir_bop(IR_ADD, p, new_const_vreg(offset, vsize), vsize,
+                   IRF_UNSIGNED);
+  }
+  new_ir_mov(varinfo->local.vreg, p, IRF_UNSIGNED);
   return NULL;
 }
 #elif XCC_TARGET_ARCH == XCC_ARCH_RISCV64
@@ -57,31 +105,60 @@ static VReg *gen_builtin_va_start(Expr *expr) {
   Expr *var = strip_cast(args->data[1]);
   if (var->kind == EX_REF)
     var = var->unary.sub;
-  int gn = -1;
-  if (var->kind == EX_VAR) {
-    const Vector *params = curfunc->params;
-    int g = 0;
-    for (int i = 0; i < params->len; ++i) {
-      VarInfo *info = params->data[i];
-      const Type *t = info->type;
-      if (t->kind != TY_STRUCT) {
-        ++g;
-      }
 
-      if (info->name != NULL && equal_name(info->name, var->var.name)) {
-        gn = g;
-        break;
-      }
+  const Vector *params = curfunc->params;
+  assert(params != NULL);
+  assert(params->len > 0);
+
+  bool is_last = false;
+  if (var->kind == EX_VAR) {
+    assert(curfunc->type->func.vaargs);
+    VarInfo *varinfo = params->data[params->len - 1];
+    is_last = equal_name(var->var.name, varinfo->name);
+  }
+  if (!is_last) {
+    parse_error(PE_NOFATAL, var->token, "Must be last function argument");
+    return NULL;
+  }
+
+  int gn = 0;
+  for (int i = 0; i < params->len; ++i) {
+    VarInfo *info = params->data[i];
+    const Type *t = info->type;
+    if (t->kind != TY_STRUCT) {
+      if (!is_flonum(t))
+        ++gn;
     }
   }
-  if (gn < 0) {
-    parse_error(PE_FATAL, var->token, "Must be function argument");
-    return NULL;
+
+  int offset = 0;
+  if (gn >= MAX_REG_ARGS) {
+    offset = (gn - MAX_REG_ARGS) * POINTER_SIZE;
+  } else {
+    // Check whether register arguments saved on stack has padding.
+    RegParamInfo iparams[MAX_REG_ARGS];
+    RegParamInfo fparams[MAX_FREG_ARGS];
+    int iparam_count = 0;
+    int fparam_count = 0;
+    enumerate_register_params(curfunc, iparams, MAX_REG_ARGS, fparams, MAX_FREG_ARGS,
+                              &iparam_count, &fparam_count);
+
+    int n = MAX_REG_ARGS - iparam_count;
+    if (n > 0) {
+      int size_org = n * POINTER_SIZE;
+      int size = ALIGN(n, 2) * POINTER_SIZE;
+      offset = size - size_org;
+    }
   }
 
   FuncBackend *fnbe = curfunc->extra;
   FrameInfo *fi = &fnbe->vaarg_frame_info;
   VReg *p = new_ir_bofs(fi);
+  if (offset > 0) {
+    enum VRegSize vsize = to_vsize(&tyVoidPtr);
+    p = new_ir_bop(IR_ADD, p, new_const_vreg(offset, vsize), vsize,
+                   IRF_UNSIGNED);
+  }
 
   // (void)(ap = fp + <vaarg saved offset>)
   VReg *ap = gen_expr(args->data[0]);
@@ -97,41 +174,43 @@ static VReg *gen_builtin_va_start(Expr *expr) {
   Expr *var = strip_cast(args->data[1]);
   if (var->kind == EX_REF)
     var = var->unary.sub;
-  int gn = -1, fn = -1;
-  if (var->kind == EX_VAR) {
-    const Vector *params = curfunc->params;
-    int g = 0, f = 0;
-    for (int i = 0; i < params->len; ++i) {
-      VarInfo *info = params->data[i];
-      const Type *t = info->type;
-      if (t->kind != TY_STRUCT) {
-        if (is_flonum(t))
-          ++f;
-        else
-          ++g;
-      }
 
-      if (info->name != NULL && equal_name(info->name, var->var.name)) {
-        gn = g;
-        fn = f;
-        break;
-      }
-    }
+  const Vector *params = curfunc->params;
+  assert(params != NULL);
+  assert(params->len > 0);
+
+  bool is_last = false;
+  if (var->kind == EX_VAR) {
+    assert(curfunc->type->func.vaargs);
+    VarInfo *varinfo = params->data[params->len - 1];
+    is_last = equal_name(var->var.name, varinfo->name);
   }
-  if (gn < 0) {
-    parse_error(PE_FATAL, var->token, "Must be function argument");
+  if (!is_last) {
+    parse_error(PE_NOFATAL, var->token, "Must be last function argument");
     return NULL;
+  }
+
+  int gn = 0, fn = 0;
+  for (int i = 0; i < params->len; ++i) {
+    VarInfo *info = params->data[i];
+    const Type *t = info->type;
+    if (t->kind != TY_STRUCT) {
+      if (is_flonum(t))
+        ++fn;
+      else
+        ++gn;
+    }
   }
 
   // ap->gp_offset = gn * POINTER_SIZE
   VReg *ap = gen_expr(args->data[0]);
   VReg *gp_offset = ap;
-  new_ir_store(gp_offset, new_const_vreg(gn * POINTER_SIZE, to_vsize(&tyInt)), 0);
+  new_ir_store(gp_offset, new_const_vreg(MIN(gn, MAX_REG_ARGS) * POINTER_SIZE, to_vsize(&tyInt)), 0);
 
   // ap->fp_offset = (MAX_REG_ARGS + fn) * POINTER_SIZE
   VReg *fp_offset = new_ir_bop(IR_ADD, ap, new_const_vreg(type_size(&tyInt), to_vsize(&tySize)),
                                ap->vsize, IRF_UNSIGNED);
-  new_ir_store(fp_offset, new_const_vreg((MAX_REG_ARGS + fn) * POINTER_SIZE, to_vsize(&tySize)), 0);
+  new_ir_store(fp_offset, new_const_vreg((MAX_REG_ARGS + MIN(fn, MAX_FREG_ARGS)) * POINTER_SIZE, to_vsize(&tySize)), 0);
 
   // ap->overflow_arg_area = 2 * POINTER_SIZE
   {
@@ -142,6 +221,11 @@ static VReg *gen_builtin_va_start(Expr *expr) {
     FuncBackend *fnbe = curfunc->extra;
     FrameInfo *fi = &fnbe->vaarg_frame_info;
     VReg *p = new_ir_bofs(fi);
+    int gs = MAX(gn - MAX_REG_ARGS, 0), fs = MAX(fn - MAX_FREG_ARGS, 0);
+    if (gs > 0 || fs > 0) {
+      p = new_ir_bop(IR_ADD, p, new_const_vreg((gs + fs) * POINTER_SIZE, vsize), vsize,
+                     IRF_UNSIGNED);
+    }
     new_ir_store(overflow_arg_area, p, 0);
   }
 

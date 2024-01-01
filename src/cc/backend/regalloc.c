@@ -228,7 +228,11 @@ static void detect_live_interval_flags(RegAlloc *ra, BBContainer *bbcon, int vre
       // Update function parameter register occupation after setting it.
       if (ir->kind == IR_PUSHARG) {
         VReg *opr1 = ir->opr1;
-        if (opr1->flag & VRF_FLONUM) {
+        if (opr1->flag & VRF_FLONUM
+#if VAARG_FP_AS_GP
+            && !ir->pusharg.fp_as_gp
+#endif
+        ) {
           int n = ir->pusharg.index;
           // Assume same order on FP-register.
           fargset |= 1UL << n;

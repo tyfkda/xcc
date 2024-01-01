@@ -85,6 +85,14 @@ int vaargs(int n, ...) {
   return acc;
 }
 
+int vaargs_before_many(int a, int b, int c, int d, int e, int f, int g, int h, int i, ...) {
+  va_list ap;
+  va_start(ap, i);
+  int x = va_arg(ap, int);
+  va_end(ap);
+  return a + b + c + d + e + f + g + h + i + x;
+}
+
 int static_local(void) {
   static int x = 42;
   return ++x;
@@ -823,6 +831,8 @@ TEST(all) {
     char c = 'A';
     EXPECT("vaargs char", 65, vaargs(1, c));
   }
+  EXPECT("vaargs before many", 145, vaargs_before_many(1, 2, 3, 4, 5, 6, 7, 8, 9, 100));
+
   EXPECT("static local var", 44, (static_local(), static_local()));
   EXPECT("null initializer", 0L, (long)null);
   {
