@@ -581,10 +581,12 @@ static void traverse_vardecl(Stmt *stmt) {
   if (decls != NULL) {
     for (int i = 0, n = decls->len; i < n; ++i) {
       VarDecl *decl = decls->data[i];
-      VarInfo *varinfo = scope_find(curscope, decl->ident, NULL);
-      assert(varinfo != NULL);
-      if (!(varinfo->storage & (VS_EXTERN | VS_STATIC)))
-        traverse_initializer(varinfo->local.init);
+      if (decl->ident != NULL) {
+        VarInfo *varinfo = scope_find(curscope, decl->ident, NULL);
+        assert(varinfo != NULL);
+        if (!(varinfo->storage & (VS_EXTERN | VS_STATIC)))
+          traverse_initializer(varinfo->local.init);
+      }
       traverse_stmt(decl->init_stmt);
     }
   }

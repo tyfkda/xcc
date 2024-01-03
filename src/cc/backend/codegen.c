@@ -621,8 +621,10 @@ static void gen_vardecl(Vector *decls) {
   for (int i = 0; i < decls->len; ++i) {
     VarDecl *decl = decls->data[i];
     if (decl->init_stmt != NULL) {
-      VarInfo *varinfo = scope_find(curscope, decl->ident, NULL);
-      gen_clear_local_var(varinfo);
+      if (decl->ident != NULL) {
+        VarInfo *varinfo = scope_find(curscope, decl->ident, NULL);
+        gen_clear_local_var(varinfo);
+      }
       gen_stmt(decl->init_stmt);
     }
   }

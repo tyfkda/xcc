@@ -199,10 +199,15 @@ static Vector *parse_vardecl_cont(Type *rawType, Type *type, int storage, Token 
 
     assert(!is_global_scope(curscope));
 
+#ifndef __NO_VLA
+    if (type->kind == TY_ARRAY && type->pa.vla != NULL)
+      type = array_to_ptr(type);
+#endif
+
     if (tmp_storage & VS_TYPEDEF) {
 #ifndef __NO_VLA
-      if (type->kind == TY_PTR && type->pa.vla != NULL) {
-        Expr *assign_sizevar = reserve_vla_type_size(type);
+      Expr *assign_sizevar = reserve_vla_type_size(type);
+      if (assign_sizevar != NULL) {
         Expr *e = assign_sizevar;
         while (e->kind == EX_COMMA)
           e = e->bop.rhs;
@@ -220,6 +225,21 @@ static Vector *parse_vardecl_cont(Type *rawType, Type *type, int storage, Token 
       def_type(type, ident);
       continue;
     }
+
+#ifndef __NO_VLA
+    if (curfunc != NULL) {
+      Expr *size = calc_vla_size(type);
+      if (size != NULL) {
+        // If the type has VLA, assign its size to the temporary variable
+        // adding dummy declaration (decl.ident = NULL).
+        if (decls == NULL)
+          decls = new_vector();
+        VarDecl *decl = new_vardecl(NULL);
+        decl->init_stmt = new_stmt_expr(size);
+        vec_push(decls, decl);
+      }
+    }
+#endif
 
     VarInfo *varinfo = add_var_to_scope(curscope, ident, type, tmp_storage);
     Initializer *init = (type->kind != TY_FUNC && match(TK_ASSIGN)) ? parse_initializer() : NULL;
@@ -670,6 +690,22 @@ static Function *define_func(Type *functype, const Token *ident, const Vector *p
   return func;
 }
 
+static void modify_funparam_vla_type(Type *type, Scope *scope) {
+  if (type->kind == TY_ARRAY && type->pa.vla != NULL) {
+    type->kind = TY_PTR;  // array_to_ptr, but must apply the change to the original type.
+  }
+
+  for (;;) {
+    if (!ptr_or_array(type))
+      break;
+    if (type->pa.vla != NULL) {
+      assert(type->pa.vla->kind == EX_VAR);
+      type->pa.vla->var.scope = scope;  // Fix scope, which set in `parse_direct_declarator_suffix()`
+    }
+    type = type->pa.ptrof;
+  }
+}
+
 static Declaration *parse_defun(Type *functype, int storage, Token *ident, const Token *tok) {
   assert(functype->kind == TY_FUNC);
 
@@ -702,10 +738,38 @@ static Declaration *parse_defun(Type *functype, int storage, Token *ident, const
   func->scopes = new_vector();
   Scope *scope = enter_scope(func);
   scope->vars = top_vars;
+
+#ifndef __NO_VLA
+  Vector *vla_inits = NULL;  // <Stmt*>
+  for (int i = 0; i < top_vars->len; ++i) {
+    VarInfo *vi = top_vars->data[i];
+    Type *type = vi->type;
+    Expr *vla_size = calc_vla_size(type);
+    if (vla_size != NULL) {
+      if (vla_inits == NULL)
+        vla_inits = new_vector();
+      vec_push(vla_inits, new_stmt_expr(vla_size));
+    }
+    modify_funparam_vla_type(type, scope);
+  }
+#endif
+
   func->body_block = parse_block(tok, scope);
   assert(is_global_scope(curscope));
   match(TK_SEMICOL);  // Ignore redundant semicolon.
   curfunc = NULL;
+
+#ifndef __NO_VLA
+  if (vla_inits != NULL) {
+    assert(func->body_block->kind == ST_BLOCK);
+    assert(func->body_block->block.stmts != NULL);
+    Vector *stmts = func->body_block->block.stmts;
+    for (int i = vla_inits->len; i-- > 0; ) {
+      Stmt *stmt = vla_inits->data[i];
+      vec_insert(stmts, 0, stmt);
+    }
+  }
+#endif
 
   check_goto_labels(func);
   check_func_reachability(func);
@@ -725,6 +789,11 @@ static Declaration *parse_global_var_decl(Type *rawtype, int storage, Type *type
     if (!(type->kind == TY_PTR && type->pa.ptrof->kind == TY_FUNC) &&
         type->kind != TY_VOID)
       type = parse_type_suffix(type);
+
+#ifndef __NO_VLA
+    if (type->kind == TY_ARRAY && type->pa.vla != NULL)
+      type = array_to_ptr(type);
+#endif
 
     if (storage & VS_TYPEDEF) {
       if (ident != NULL) {

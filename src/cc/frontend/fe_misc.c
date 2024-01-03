@@ -194,23 +194,41 @@ Expr *calc_type_size(const Type *type) {
 
 #ifndef __NO_VLA
 Expr *reserve_vla_type_size(Type *type) {
-  assert(ptr_or_array(type) && type->pa.vla != NULL);
   assert(!is_global_scope(curscope));
+  if (!ptr_or_array(type))
+    return NULL;
 
   // If VLA is nested, calculate subtype first.
   Type *subtype = type->pa.ptrof;
-  Expr *sub = (ptr_or_array(subtype) && subtype->pa.vla != NULL) ? reserve_vla_type_size(subtype)
-                                                                 : NULL;
+  Expr *sub = reserve_vla_type_size(subtype);
+  if (type->pa.vla == NULL)
+    return sub;
 
+  const Token *token = type->pa.vla->token;
   Expr *var = alloc_tmp_var(curscope, &tySize);
-  Expr *value = new_expr_num_bop(EX_MUL, type->pa.vla->token, type->pa.vla,
+  Expr *value = new_expr_num_bop(EX_MUL, token, make_cast(&tySize, token, type->pa.vla, false),
                                  calc_type_size(type->pa.ptrof));
-  Expr *assign = new_expr_bop(EX_ASSIGN, &tySize, type->pa.vla->token, var, value);
+  Expr *assign = new_expr_bop(EX_ASSIGN, &tySize, token, var, value);
   type->pa.size_var = var;
 
   if (sub != NULL)
     assign = new_expr_bop(EX_COMMA, &tySize, assign->token, sub, assign);
   return assign;
+}
+
+Expr *calc_vla_size(Type *type) {
+  for (;;) {
+    if (ptr_or_array(type) && type->pa.vla != NULL) {
+      if (type->pa.size_var != NULL)
+        break;
+      return reserve_vla_type_size(type);
+    }
+
+    if (type->kind != TY_PTR)
+      break;
+    type = type->pa.ptrof;
+  }
+  return NULL;
 }
 #endif
 
@@ -1025,6 +1043,8 @@ void check_funcall_args(Expr *func, Vector *args, Scope *scope) {
     if (i < paramc) {
       Type *type = types->data[i];
       ensure_struct(type, func->token, scope);
+      if (type->kind == TY_ARRAY)
+        type = array_to_ptr(type);  // Needed for VLA.
       arg = make_cast(type, arg->token, arg, false);
 
       if (type->kind == TY_STRUCT) {

@@ -1919,6 +1919,17 @@ int extern_array_wo_size[] = {11, 22, 33};
 //
 
 #if !defined(__NO_VLA) && !defined(__STDC_NO_VLA__)
+int vla_funparam(int n, int a[n][n], int (*p)[n]) {
+  int acc = 0;
+  for (int i = 0; i < n; ++i)
+    for (int j = 0; j < n; ++j)
+      acc += a[i][j];
+  for (int i = 0; i < n; ++i)
+    for (int j = 0; j < n; ++j)
+      acc += p[i][j];
+  return acc;
+}
+
 TEST(vla) {
   {
     int n = 3;
@@ -1944,9 +1955,11 @@ TEST(vla) {
     EXPECT("vla side-effect", 4 * sizeof(int), sizeof(arr2));
 
     int n3 = 2;
-    int arr3[n3][n3];
+    int arr31[n3][n3];
+    int arr32[3][n3];
     n3 = -1;
-    EXPECT("vla size var modified", 4 * sizeof(int), sizeof(arr3));
+    EXPECT("vla size var modified", 4 * sizeof(int), sizeof(arr31));
+    EXPECT("vla size var modified 2", 6 * sizeof(int), sizeof(arr32));
 
     int n4 = 3;
     typedef char ARR4[n4++];
@@ -1961,6 +1974,24 @@ TEST(vla) {
     ARR arr;
     EXPECT("vla[][] size", 16 * sizeof(short), sizeof(arr));
     EXPECT("vla[0][] size", 4 * sizeof(short), sizeof(arr[0]));
+  }
+
+  {
+    int n = 3;
+    const char s[] = "AbcDefGhi";
+    char (*p)[n] = (void*)s;  // p is a pointer to char[n].
+    EXPECT("vla ptr", 'G', *p[2]);
+    EXPECT("vla sizeof(ptr)", sizeof(char*), sizeof(p));
+    EXPECT("vla sizeof(*ptr)", 3 * sizeof(char), sizeof(*p));
+
+    typedef char (*PPP)[n];
+    EXPECT("typedef vla sizeof(*ptr)", 3 * sizeof(char), sizeof(*(PPP)NULL));
+  }
+
+  {
+    int a[2][2] = {{1000, 200}, {30, 4}};
+    int (*p)[2] = a;
+    EXPECT("vla size", 2468, vla_funparam(2, a, p));
   }
 } END_TEST()
 #endif

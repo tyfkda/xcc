@@ -614,10 +614,11 @@ static Type *parse_direct_declarator_suffix(Type *type) {
       }
 
       Token *var = match(TK_IDENT);
+      int index;
       if (var != NULL && parsing_funparams != NULL &&
-          var_find(parsing_funparams, var->ident) >= 0) {
-        // VLA in function parameter: just ignore it.
-        // TODO: Store the varname to handle VLA.
+          (index = var_find(parsing_funparams, var->ident)) >= 0) {
+        VarInfo *varinfo = parsing_funparams->data[index];
+        vla = new_expr_variable(var->ident, varinfo->type, var, curscope);  // TODO: curscopeはその関数のルートスコープにする必要がある
       } else {
         if (var != NULL)
           unget_token(var);
@@ -629,22 +630,14 @@ static Type *parse_direct_declarator_suffix(Type *type) {
     const Type *basetype = type;
     Type *subtype = parse_direct_declarator_suffix(type);
 #ifndef __NO_VLA
-    if (subtype->kind == TY_PTR && subtype->pa.vla != NULL) {
-      // Nested VLA: Back to array type.
-      Expr *sub_vla = subtype->pa.vla;
-      Type *orgtype = subtype;
-      subtype = arrayof(orgtype->pa.ptrof, -1);
-      subtype->qualifier = orgtype->qualifier;
-      subtype->pa.vla = sub_vla;
-      if (vla == NULL) {
-        // If subtype is VLA, make whole array as VLA.
-        vla = new_expr_fixlit(&tySize, tok, length);
-      }
+    if (vla == NULL && subtype->kind == TY_ARRAY && subtype->pa.vla != NULL) {
+      // If subtype is VLA, then make parent VLA, too.
+      vla = new_expr_fixlit(&tySize, tok, length);
     }
     if (vla != NULL) {
       // VLA: Convert most outer type as a pointer, not an array.
-      type = ptrof(subtype);
-      type->pa.vla = make_cast(&tySize, tok, vla, false);
+      type = arrayof(subtype, LEN_VLA);
+      type->pa.vla = vla;
       type->qualifier |= TQ_CONST;  // Make VLA is not modified.
     } else
 #endif
@@ -756,7 +749,11 @@ Vector *parse_funparams(bool *pvaargs) {
 
         // Treat array or function as its pointer type automatically.
         switch (type->kind) {
-        case TY_ARRAY:  type = array_to_ptr(type); break;
+        case TY_ARRAY:
+          // Keep VLAs to calculate array size in `parse_defun`.
+          if (type->pa.vla == NULL)
+            type = array_to_ptr(type);
+          break;
         case TY_FUNC:   type = ptrof(type); break;
         default: break;
         }
@@ -941,6 +938,11 @@ static Expr *parse_sizeof(const Token *token) {
     type = parse_var_def(NULL, NULL, NULL);
     if (type != NULL) {
       consume(TK_RPAR, "`)' expected");
+#ifndef __NO_VLA
+      Expr *vla_size = calc_vla_size(type);
+      if (vla_size != NULL)
+        return new_expr_bop(EX_COMMA, &tySize, token, vla_size, calc_type_size(type));
+#endif
     } else {
       unget_token((Token*)tok);
       Expr *expr = parse_unary();

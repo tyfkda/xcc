@@ -305,6 +305,10 @@ Type *array_to_ptr(Type *type) {
   assert(type->kind == TY_ARRAY);
   Type *p = ptrof(type->pa.ptrof);
   p->qualifier |= type->qualifier & TQ_FORSTRLITERAL;
+#ifndef __NO_VLA
+  p->pa.vla = type->pa.vla;
+  p->pa.size_var = type->pa.size_var;
+#endif
   return p;
 }
 
@@ -406,7 +410,7 @@ bool same_type_without_qualifier(const Type *type1, const Type *type2, bool igno
       return type1->flonum.kind == type2->flonum.kind;
     case TY_ARRAY:
       if (type1->pa.length != type2->pa.length &&
-          type1->pa.length != -1 && type2->pa.length != -1)
+          type1->pa.length >= 0 && type2->pa.length >= 0)  // Relax size check for VLA.
         return false;
       // Fallthrough
     case TY_PTR:

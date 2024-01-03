@@ -865,6 +865,9 @@ Fixnum calc_bitfield_initial_value(const StructInfo *sinfo, const Initializer *i
 void construct_initializing_stmts(Vector *decls) {
   for (int i = 0; i < decls->len; ++i) {
     VarDecl *decl = decls->data[i];
+    if (decl->ident == NULL)
+      continue;
+
     Scope *scope;
     VarInfo *varinfo = scope_find(curscope, decl->ident, &scope);
     assert(scope == curscope);
@@ -933,12 +936,12 @@ Initializer *check_vardecl(Type **ptype, const Token *ident, int storage, Initia
                                            global_scope);
       Vector *args = new_vector();
       vec_push(args, size_var);
-      Expr *call_alloca = new_expr_funcall(tok, alloca_var, functype->func.ret, args);
+      Expr *call_alloca = new_expr_funcall(tok, alloca_var, &tyVoidPtr, args);
       if (assign_sizevar != NULL)
-        call_alloca = new_expr_bop(EX_COMMA, functype->func.ret, tok, assign_sizevar, call_alloca);
+        call_alloca = new_expr_bop(EX_COMMA, &tyVoidPtr, tok, assign_sizevar, call_alloca);
 
       init = new_initializer(IK_SINGLE, tok);
-      init->single = make_cast(ptrof(type->pa.ptrof), tok, call_alloca, false);
+      init->single = make_cast(type, tok, call_alloca, false);
     }
 #endif
   }
