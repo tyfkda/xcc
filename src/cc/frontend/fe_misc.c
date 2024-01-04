@@ -141,8 +141,8 @@ void define_enum_member(Type *type, const Token *ident, int value) {
   varinfo->enum_member.value = value;
 }
 
-Scope *enter_scope(Function *func, Vector *vars) {
-  Scope *scope = new_scope(curscope, vars);
+Scope *enter_scope(Function *func) {
+  Scope *scope = new_scope(curscope);
   curscope = scope;
   vec_push(func->scopes, scope);
   return scope;
@@ -1628,7 +1628,8 @@ static Stmt *duplicate_inline_function_stmt(Function *targetfunc, Scope *targets
             var_add(vars, name, vi->type, vi->storage & ~VS_PARAM);
           }
         }
-        scope = enter_scope(curfunc, vars);
+        scope = enter_scope(curfunc);
+        scope->vars = vars;
         targetscope = stmt->block.scope;
       }
       assert(stmt->block.stmts != NULL);

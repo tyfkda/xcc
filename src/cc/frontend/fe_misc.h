@@ -60,7 +60,7 @@ VarInfo *add_var_to_scope(Scope *scope, const Token *ident, Type *type, int stor
 Expr *alloc_tmp_var(Scope *scope, Type *type);
 void define_enum_member(Type *type, const Token *ident, int value);
 
-Scope *enter_scope(Function *func, Vector *vars);
+Scope *enter_scope(Function *func);
 void exit_scope(void);
 
 void ensure_struct(Type *type, const Token *token, Scope *scope);

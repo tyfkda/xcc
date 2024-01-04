@@ -30,7 +30,7 @@ Type *parse_var_def(Type **prawType, int *pstorage, Token **pident);
 Expr *parse_const_fixnum(void);
 Expr *parse_assign(void);
 Expr *parse_expr(void);
-Stmt *parse_block(const Token *tok, Vector *vars);
+Stmt *parse_block(const Token *tok, Scope *scope);
 Initializer *parse_initializer(void);
 
 Token *consume(enum TokenKind kind, const char *error);

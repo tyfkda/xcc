@@ -385,7 +385,7 @@ static Stmt *parse_for(const Token *tok) {
     if (type != NULL) {
       if (ident == NULL)
         parse_error(PE_FATAL, NULL, "ident expected");
-      scope = enter_scope(curfunc, NULL);
+      scope = enter_scope(curfunc);
       decls = parse_vardecl_cont(rawType, type, storage, ident);
     } else {
       pre = parse_expr();
@@ -540,8 +540,9 @@ static Vector *parse_stmts(const Token **prbrace) {
   }
 }
 
-Stmt *parse_block(const Token *tok, Vector *vars) {
-  Scope *scope = enter_scope(curfunc, vars);
+Stmt *parse_block(const Token *tok, Scope *scope) {
+  if (scope == NULL)
+    scope = enter_scope(curfunc);
   const Token *rbrace;
   Vector *stmts = parse_stmts(&rbrace);
   Stmt *stmt = new_stmt_block(tok, stmts, scope, rbrace);
@@ -699,7 +700,9 @@ static Declaration *parse_defun(Type *functype, int storage, Token *ident, const
     ensure_struct(vi->type, tok, curscope);
   }
   func->scopes = new_vector();
-  func->body_block = parse_block(tok, top_vars);
+  Scope *scope = enter_scope(func);
+  scope->vars = top_vars;
+  func->body_block = parse_block(tok, scope);
   assert(is_global_scope(curscope));
   match(TK_SEMICOL);  // Ignore redundant semicolon.
   curfunc = NULL;

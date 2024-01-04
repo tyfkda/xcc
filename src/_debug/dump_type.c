@@ -18,7 +18,7 @@ int main(int argc, char *argv[]) {
 
   init_lexer();
 
-  Scope *scope = new_scope(global_scope, NULL);
+  Scope *scope = new_scope(global_scope);
   curscope = scope;
 
   for (int i = 1; i < argc; ++i) {

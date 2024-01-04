@@ -41,7 +41,8 @@ Scope *global_scope;
 static Table global_var_table;
 
 void init_global(void) {
-  global_scope = new_scope(NULL, new_vector());
+  global_scope = new_scope(NULL);
+  global_scope->vars = new_vector();
   table_init(&global_var_table);
 }
 
@@ -68,10 +69,10 @@ static VarInfo *define_global(const Name *name, Type *type, int storage) {
 
 // Scope
 
-Scope *new_scope(Scope *parent, Vector *vars) {
+Scope *new_scope(Scope *parent) {
   Scope *scope = calloc_or_die(sizeof(*scope));
   scope->parent = parent;
-  scope->vars = vars;
+  scope->vars = NULL;
   return scope;
 }
 

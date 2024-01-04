@@ -286,7 +286,7 @@ int main(int argc, char *argv[]) {
     parse(toplevel);
   }
 
-  Scope *scope = new_scope(global_scope, NULL);
+  Scope *scope = new_scope(global_scope);
   curscope = scope;
 
   for (; i < argc; ++i) {
