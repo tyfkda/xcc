@@ -376,7 +376,7 @@ static int insert_load_store_spilled_irs(RegAlloc *ra, BBContainer *bbcon) {
     [IR_NEG]     = D12, [IR_BITNOT]  = D12, [IR_COND]    = D12,
     [IR_JMP]     = D12, [IR_TJMP]    = D12, [IR_PRECALL] = D12, [IR_PUSHARG] = D12,
     [IR_CALL]    = D12, [IR_RESULT]  = D12, [IR_SUBSP]   = D12, [IR_CAST]    = D12,
-    [IR_MOV]     = D12, [IR_ASM]     = D12,
+    [IR_MOV]     = D12, [IR_KEEP]    = D12, [IR_ASM]     = D12,
 
     [IR_BOFS]    = D__, [IR_IOFS]    = D__, [IR_SOFS]    = D__,
 

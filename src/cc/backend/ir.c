@@ -316,6 +316,14 @@ IR *new_ir_mov(VReg *dst, VReg *src, int flag) {
   return ir;
 }
 
+IR *new_ir_keep(VReg *dst, VReg *opr1, VReg *opr2) {
+  IR *ir = new_ir(IR_KEEP);
+  ir->dst = dst;
+  ir->opr1 = opr1;
+  ir->opr2 = opr2;
+  return ir;
+}
+
 void new_ir_asm(const char *asm_, VReg *dst) {
   IR *ir = new_ir(IR_ASM);
   ir->asm_.str = asm_;

@@ -418,6 +418,10 @@ static void ei_mov(IR *ir) {
   }
 }
 
+static void ei_keep(IR *ir) {
+  UNUSED(ir);
+}
+
 static void ei_neg(IR *ir) {
   assert(!(ir->opr1->flag & VRF_CONST));
   NEG(kReg64s[ir->dst->phys], kReg64s[ir->opr1->phys]);
@@ -590,17 +594,18 @@ static void ei_jmp(IR *ir) {
 }
 
 static void ei_tjmp(IR *ir) {
-  const char *dst = kTmpReg;
+  assert(ir->opr2 != NULL);
+  const char *opr2 = kReg64s[ir->opr2->phys];
   const Name *table_label = alloc_label();
   char *label = fmt_name(table_label);
-  LA(dst, label);
+  LA(opr2, label);
   // dst = label + (opr1 << 3)
   assert(!(ir->opr1->flag & VRF_CONST));
   const char *opr1 = kReg64s[ir->opr1->phys];
   SLLI(opr1, opr1, IM(3));
-  ADD(dst, dst, opr1);
-  LD(dst, IMMEDIATE_OFFSET0(dst));
-  JR(dst);
+  ADD(opr2, opr2, opr1);
+  LD(opr2, IMMEDIATE_OFFSET0(opr2));
+  JR(opr2);
 
   _RODATA();
   EMIT_ALIGN(8);
@@ -879,7 +884,7 @@ void emit_bb_irs(BBContainer *bbcon) {
     [IR_COND] = ei_cond, [IR_JMP] = ei_jmp, [IR_TJMP] = ei_tjmp,
     [IR_PRECALL] = ei_precall, [IR_PUSHARG] = ei_pusharg, [IR_CALL] = ei_call,
     [IR_RESULT] = ei_result, [IR_SUBSP] = ei_subsp, [IR_CAST] = ei_cast,
-    [IR_MOV] = ei_mov, [IR_ASM] = ei_asm,
+    [IR_MOV] = ei_mov, [IR_KEEP] = ei_keep, [IR_ASM] = ei_asm,
   };
 
   for (int i = 0; i < bbcon->bbs->len; ++i) {
@@ -1049,8 +1054,19 @@ void tweak_irs(FuncBackend *fnbe) {
         }
         break;
       case IR_TJMP:
-        // Make sure opr1 can be broken.
-        insert_tmp_mov(&ir->opr1, ra, irs, j++);
+        {
+          // Make sure opr1 can be broken.
+          insert_tmp_mov(&ir->opr1, ra, irs, j++);
+
+          // Allocate temporary register to use calculation.
+          VReg *tmp = reg_alloc_spawn(ra, VRegSize8, 0);
+          IR *keep = new_ir_keep(tmp, NULL, NULL);  // Notify the register begins to be used.
+          vec_insert(irs, j++, keep);
+
+          // Store to opr2.
+          assert(ir->opr2 == NULL);
+          ir->opr2 = tmp;
+        }
         break;
       case IR_PUSHARG:
         if (ir->opr1->flag & VRF_CONST)

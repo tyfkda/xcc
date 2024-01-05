@@ -69,12 +69,10 @@ static unsigned long detect_extra_occupied(RegAlloc *ra, IR *ir) {
       ioccupy = 1UL << GET_CREG_INDEX();
     break;
   case IR_CALL:
-    if (ir->call.vaarg_start < 0)
-      break;
-    // Break %al if function is vaarg.
-    // Fallthrough
-  case IR_TJMP:
-    ioccupy = 1UL << GET_AREG_INDEX();
+    if (ir->call.vaarg_start >= 0) {
+      // Break %al if function is vaarg.
+      ioccupy = 1UL << GET_AREG_INDEX();
+    }
     break;
   default: break;
   }
@@ -572,9 +570,7 @@ static void ei_jmp(IR *ir) {
 }
 
 static void ei_tjmp(IR *ir) {
-  // Break %rax
   int phys = ir->opr1->phys;
-  assert(phys != GET_AREG_INDEX());
   const int powd = 3;
   int pows = ir->opr1->vsize;
   assert(0 <= pows && pows < 4);
@@ -587,9 +583,12 @@ static void ei_tjmp(IR *ir) {
     }
   }
 
+  assert(ir->opr2 != NULL);
+  const char *opr2 = kReg64s[ir->opr2->phys];
+
   const Name *table_label = alloc_label();
-  LEA(LABEL_INDIRECT(fmt_name(table_label), RIP), RAX);
-  JMP(fmt("*%s", OFFSET_INDIRECT(0, RAX, kReg64s[phys], 8)));
+  LEA(LABEL_INDIRECT(fmt_name(table_label), RIP), opr2);
+  JMP(fmt("*%s", OFFSET_INDIRECT(0, opr2, kReg64s[phys], 8)));
 
   _RODATA();  // gcc warns, should be put into .data section?
   EMIT_ALIGN(8);
@@ -859,6 +858,10 @@ static void ei_mov(IR *ir) {
   }
 }
 
+static void ei_keep(IR *ir) {
+  UNUSED(ir);
+}
+
 static void ei_asm(IR *ir) {
   EMIT_ASM(ir->asm_.str);
   if (ir->dst != NULL) {
@@ -995,7 +998,7 @@ void emit_bb_irs(BBContainer *bbcon) {
     [IR_COND] = ei_cond, [IR_JMP] = ei_jmp, [IR_TJMP] = ei_tjmp,
     [IR_PRECALL] = ei_precall, [IR_PUSHARG] = ei_pusharg, [IR_CALL] = ei_call,
     [IR_RESULT] = ei_result, [IR_SUBSP] = ei_subsp, [IR_CAST] = ei_cast,
-    [IR_MOV] = ei_mov, [IR_ASM] = ei_asm,
+    [IR_MOV] = ei_mov, [IR_KEEP] = ei_keep, [IR_ASM] = ei_asm,
   };
 
   for (int i = 0; i < bbcon->bbs->len; ++i) {
@@ -1092,6 +1095,18 @@ void tweak_irs(FuncBackend *fnbe) {
           insert_const_mov(&ir->opr2, ra, irs, j++);
         break;
 
+      case IR_TJMP:
+        {
+          // Allocate temporary register to use calculation.
+          VReg *tmp = reg_alloc_spawn(ra, VRegSize8, 0);
+          IR *keep = new_ir_keep(tmp, NULL, NULL);  // Notify the register begins to be used.
+          vec_insert(irs, j++, keep);
+
+          // Store to opr2.
+          assert(ir->opr2 == NULL);
+          ir->opr2 = tmp;
+        }
+        break;
       case IR_CALL:
         if (ir->opr1 != NULL && (ir->opr1->flag & VRF_CONST)) {
           insert_const_mov(&ir->opr1, ra, irs, j++);

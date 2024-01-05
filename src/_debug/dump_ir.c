@@ -41,7 +41,7 @@ static void dump_ir(FILE *fp, IR *ir) {
     "ADD", "SUB", "MUL", "DIV", "MOD", "BITAND", "BITOR", "BITXOR", "LSHIFT", "RSHIFT",
     "NEG", "BITNOT", "COND", "JMP", "TJMP",
     "PRECALL", "PUSHARG", "CALL", "RESULT", "SUBSP",
-    "CAST", "MOV", "ASM",
+    "CAST", "MOV", "KEEP", "ASM",
   };
   static char *kCond[] = {NULL, "MP", "EQ", "NE", "LT", "LE", "GE", "GT", NULL, "MP", "EQ", "NE", "ULT", "ULE", "UGE", "UGT"};
   static char *kCond2[] = {NULL, "MP", "==", "!=", "<", "<=", ">=", ">", NULL, "MP", "==", "!=", "<", "<=", ">=", ">"};
@@ -86,7 +86,9 @@ static void dump_ir(FILE *fp, IR *ir) {
     dump_vreg(fp, ir->opr1);
     for (size_t i = 0; i < ir->tjmp.len; ++i)
       fprintf(fp, "%s%.*s", i == 0 ? ", [" : ", ", NAMES(((BB*)ir->tjmp.bbs[i])->label));
-    fprintf(fp, "]\n");
+    fprintf(fp, "]");
+    if (ir->opr2 != NULL) {fprintf(fp, " (tmp="); dump_vreg(fp, ir->opr2); fprintf(fp, ")");}
+    fprintf(fp, "\n");
     break;
   case IR_PRECALL: fprintf(fp, "\n"); break;
   case IR_PUSHARG: fprintf(fp, "%d, ", ir->pusharg.index); dump_vreg(fp, ir->opr1); fprintf(fp, "\n"); break;
@@ -102,6 +104,17 @@ static void dump_ir(FILE *fp, IR *ir) {
   case IR_SUBSP:  dump_vreg(fp, ir->opr1); fprintf(fp, "\n"); break;
   case IR_CAST:   dump_vreg(fp, ir->dst); fprintf(fp, " = "); dump_vreg(fp, ir->opr1); fprintf(fp, "\n"); break;
   case IR_MOV:    dump_vreg(fp, ir->dst); fprintf(fp, " = "); dump_vreg(fp, ir->opr1); fprintf(fp, "\n"); break;
+  case IR_KEEP:
+    if (ir->dst != NULL) { fprintf(fp, "dst:"); dump_vreg(fp, ir->dst); fprintf(fp, ", "); }
+    if (ir->opr1 != NULL) {
+      dump_vreg(fp, ir->opr1);
+      if (ir->opr2 != NULL) {
+        fprintf(fp, ", ");
+        dump_vreg(fp, ir->opr2);
+      }
+    }
+    fprintf(fp, "\n");
+    break;
   case IR_ASM:    fprintf(fp, "\"%s\"\n", ir->asm_.str); break;
   }
 }
@@ -238,7 +251,7 @@ void do_dump_ir(Vector *decls) {
     optimize(fnbe->ra, fnbe->bbcon);
 
     prepare_register_allocation(func);
-    // tweak_irs(fnbe);
+    tweak_irs(fnbe);
     analyze_reg_flow(fnbe->bbcon);
 
     alloc_physical_registers(fnbe->ra, fnbe->bbcon);

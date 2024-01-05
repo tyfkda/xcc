@@ -79,7 +79,7 @@ enum IrKind {
   IR_BITNOT,
   IR_COND,    // dst <- (opr1 @@ opr2) ? 1 : 0
   IR_JMP,     // Non conditional jump, or conditional jmp (opr1 @@ opr2)
-  IR_TJMP,    // Table jump
+  IR_TJMP,    // Table jump (opr1).  opr2 is NULL, but it might be used to keep temporary vreg.
   IR_PRECALL, // Prepare for call
   IR_PUSHARG,
   IR_CALL,    // Call label or opr1
@@ -87,6 +87,7 @@ enum IrKind {
   IR_SUBSP,   // RSP -= value
   IR_CAST,    // dst <= opr1
   IR_MOV,     // dst = opr1
+  IR_KEEP,    // To keep live vregs.
   IR_ASM,     // assembler code
 };
 
@@ -193,6 +194,7 @@ VReg *new_ir_call(const Name *label, bool global, VReg *freg, int total_arg_coun
 void new_ir_result(VReg *dst, VReg *vreg, int flag);
 void new_ir_subsp(VReg *value, VReg *dst);
 IR *new_ir_cast(VReg *vreg, enum VRegSize dstsize, int vflag);
+IR *new_ir_keep(VReg *dst, VReg *opr1, VReg *opr2);
 void new_ir_asm(const char *asm_, VReg *dst);
 
 IR *new_ir_load_spilled(VReg *vreg, VReg *src, int flag);

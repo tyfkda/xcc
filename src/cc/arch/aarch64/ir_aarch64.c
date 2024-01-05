@@ -494,6 +494,10 @@ static void ei_mov(IR *ir) {
   }
 }
 
+static void ei_keep(IR *ir) {
+  UNUSED(ir);
+}
+
 static void cmp_vregs(VReg *opr1, VReg *opr2) {
   assert(opr1 != NULL && opr2 != NULL);
   if (opr1->flag & VRF_FLONUM) {
@@ -602,7 +606,8 @@ static void ei_tjmp(IR *ir) {
   int pows = ir->opr1->vsize;
   assert(0 <= pows && pows < 4);
 
-  const char *dst = kTmpRegTable[3];
+  assert(ir->opr2 != NULL);
+  const char *dst = kRegSizeTable[3][ir->opr2->phys];
   const Name *table_label = alloc_label();
   char *label = fmt_name(table_label);
   ADRP(dst, LABEL_AT_PAGE(label));
@@ -919,7 +924,7 @@ void emit_bb_irs(BBContainer *bbcon) {
     [IR_COND] = ei_cond, [IR_JMP] = ei_jmp, [IR_TJMP] = ei_tjmp,
     [IR_PRECALL] = ei_precall, [IR_PUSHARG] = ei_pusharg, [IR_CALL] = ei_call,
     [IR_RESULT] = ei_result, [IR_SUBSP] = ei_subsp, [IR_CAST] = ei_cast,
-    [IR_MOV] = ei_mov, [IR_ASM] = ei_asm,
+    [IR_MOV] = ei_mov, [IR_KEEP] = ei_keep, [IR_ASM] = ei_asm,
   };
 
   for (int i = 0; i < bbcon->bbs->len; ++i) {
@@ -1040,6 +1045,18 @@ void tweak_irs(FuncBackend *fnbe) {
             (ir->opr2->flag & VRF_CONST) &&
             (ir->opr2->fixnum > 0x0fff || ir->opr2->fixnum < -0x0fff))
           insert_const_mov(&ir->opr2, ra, irs, j++);
+        break;
+      case IR_TJMP:
+        {
+          // Allocate temporary register to use calculation.
+          VReg *tmp = reg_alloc_spawn(ra, VRegSize8, 0);
+          IR *keep = new_ir_keep(tmp, NULL, NULL);  // Notify the register begins to be used.
+          vec_insert(irs, j++, keep);
+
+          // Store to opr2.
+          assert(ir->opr2 == NULL);
+          ir->opr2 = tmp;
+        }
         break;
       case IR_PUSHARG:
         if (ir->opr1->flag & VRF_CONST)
