@@ -565,13 +565,14 @@ static void ei_mod(IR *ir) {
   const char **regs = kRegSizeTable[pow];
   const char *num = regs[ir->opr1->phys];
   const char *div = regs[ir->opr2->phys];
-  const char *tmp = kTmpRegTable[pow];
-  if (!(ir->flag & IRF_UNSIGNED))
-    SDIV(tmp, num, div);
-  else
-    UDIV(tmp, num, div);
+  assert(ir->dst->phys != ir->opr1->phys);
+  assert(ir->dst->phys != ir->opr2->phys);
   const char *dst = regs[ir->dst->phys];
-  MSUB(dst, tmp, div, num);
+  if (!(ir->flag & IRF_UNSIGNED))
+    SDIV(dst, num, div);
+  else
+    UDIV(dst, num, div);
+  MSUB(dst, dst, div, num);
 }
 
 static void ei_bitand(IR *ir) {
@@ -1055,6 +1056,11 @@ void tweak_irs(FuncBackend *fnbe) {
           insert_tmp_mov(&ir->opr1, irs, j++);
         if (ir->opr2->flag & VRF_CONST)
           insert_tmp_mov(&ir->opr2, irs, j++);
+        if (ir->kind == IR_MOD) {
+          // Make sure dst != opr1 && dst != opr2, keep opr1 and opr2 alive.
+          IR *keep = new_ir_keep(NULL, ir->opr1, ir->opr2);
+          vec_insert(irs, ++j, keep);
+        }
         break;
       case IR_LSHIFT:
       case IR_RSHIFT:
