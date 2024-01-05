@@ -369,7 +369,12 @@ static void ei_load(IR *ir) {
     assert(ir->opr1->flag & VRF_SPILLED);
     if (is_im9(ir->opr1->frame.offset)) {
       src = IMMEDIATE_OFFSET(FP, ir->opr1->frame.offset);
+    } else if (!(ir->dst->flag & VRF_FLONUM)) {
+      const char *tmp = kRegSizeTable[3][ir->dst->phys];
+      mov_immediate(tmp, ir->opr1->frame.offset, true, false);
+      src = REG_OFFSET(FP, tmp, NULL);
     } else {
+      // FLONUMでim9を超えるオフセットの場合にのみテンポラリレジスタが必要。
       const char *tmp = kTmpRegTable[3];
       mov_immediate(tmp, ir->opr1->frame.offset, true, false);
       src = REG_OFFSET(FP, tmp, NULL);
@@ -432,11 +437,15 @@ static void ei_store(IR *ir) {
     case SZ_DOUBLE:  src = kFReg64s[ir->opr1->phys]; break;
     }
   } else if (ir->opr1->flag & VRF_CONST) {
-    if (ir->opr1->fixnum == 0)
+    if (ir->opr1->fixnum == 0) {
       src = kZeroRegTable[pow];
-    else
+    } else {
+      // ここでもテンポラリレジスタを使用している。
+      // STORE_Sの場合、!is_im9でテンポラリレジスタを使用する場合と衝突しないか？
+assert(!(ir->kind != IR_STORE && !is_im9(ir->opr2->frame.offset)));
       mov_immediate(src = kTmpRegTable[pow], ir->opr1->fixnum, pow >= 3,
                     ir->flag & IRF_UNSIGNED);
+    }
   } else {
     src = kRegSizeTable[pow][ir->opr1->phys];
   }
