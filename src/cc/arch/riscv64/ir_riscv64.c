@@ -1058,6 +1058,11 @@ void tweak_irs(FuncBackend *fnbe) {
         if (ir->opr1->flag & VRF_CONST)
           insert_const_mov(&ir->opr1, ra, irs, j++);
         break;
+      case IR_CALL:
+        if (ir->opr1 != NULL && (ir->opr1->flag & VRF_CONST)) {
+          insert_const_mov(&ir->opr1, ra, irs, j++);
+        }
+        break;
 
       default: break;
       }
