@@ -140,6 +140,7 @@ enum TokenKind {
   TK_STRUCT,
   TK_UNION,
   TK_ENUM,
+  TK_BOOL,
   TK_SIZEOF,
   TK_ALIGNOF,
   TK_TYPEDEF,
@@ -283,7 +284,7 @@ typedef struct Expr {
   };
 } Expr;
 
-Expr *new_expr_fixlit(Type *type, const Token *token, const Fixnum fixnum);
+Expr *new_expr_fixlit(Type *type, const Token *token, Fixnum fixnum);
 #ifndef __NO_FLONUM
 Expr *new_expr_flolit(Type *type, const Token *token, double flonum);
 #endif

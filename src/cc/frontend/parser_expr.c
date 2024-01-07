@@ -308,6 +308,7 @@ static StructInfo *parse_struct(bool is_union) {
 Type *parse_raw_type(int *pstorage) {
   static const char MULTIPLE_STORAGE_SPECIFIED[] = "multiple storage specified";
   static const char MULTIPLE_QUALIFIER_SPECIFIED[] = "multiple qualifier specified";
+  static const char ILLEGAL_TYPE_COMBINATION[] = "illegal type combination";
 
   Type *type = NULL;
 
@@ -388,7 +389,7 @@ Type *parse_raw_type(int *pstorage) {
 
     if (tok->kind == TK_STRUCT || tok->kind == TK_UNION) {
       if (!no_type_combination(&tc, 0, 0))
-        parse_error(PE_NOFATAL, tok, "Illegal type combination");
+        parse_error(PE_NOFATAL, tok, ILLEGAL_TYPE_COMBINATION);
 
       bool is_union = tok->kind == TK_UNION;
       const Name *name = NULL;
@@ -423,9 +424,14 @@ Type *parse_raw_type(int *pstorage) {
       type = create_struct_type(sinfo, name, tc.qualifier);
     } else if (tok->kind == TK_ENUM) {
       if (!no_type_combination(&tc, 0, 0))
-        parse_error(PE_NOFATAL, tok, "Illegal type combination");
+        parse_error(PE_NOFATAL, tok, ILLEGAL_TYPE_COMBINATION);
 
       type = parse_enum();
+    } else if (tok->kind == TK_BOOL) {
+      if (!no_type_combination(&tc, 0, 0))
+        parse_error(PE_NOFATAL, tok, ILLEGAL_TYPE_COMBINATION);
+
+      type = &tyBool;
     } else if (tok->kind == TK_IDENT) {
       if (no_type_combination(&tc, 0, 0)) {
         Token *next = match(-1);
@@ -994,7 +1000,7 @@ static Expr *parse_cast_expr(void) {
       Expr *sub = parse_cast_expr();
       sub = str_to_char_array_var(curscope, sub);
       check_cast(type, sub->type, is_zero(sub), true, token);
-      if (is_const(sub) && type->kind != TY_VOID)
+      if (type->kind != TY_VOID && (is_const(sub) || is_bool(type)))
         return make_cast(type, token, sub, true);
       return sub->type->kind != TY_VOID ? new_expr_cast(type, token, sub) : sub;
     }

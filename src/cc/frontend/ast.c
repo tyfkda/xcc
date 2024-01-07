@@ -66,8 +66,10 @@ static Expr *new_expr(enum ExprKind kind, Type *type, const Token *token) {
   return expr;
 }
 
-Expr *new_expr_fixlit(Type *type, const Token *token, const Fixnum fixnum) {
+Expr *new_expr_fixlit(Type *type, const Token *token, Fixnum fixnum) {
   assert(type->kind == TY_FIXNUM || type->kind == TY_PTR);
+  if (type->fixnum.kind == FX_BOOL)
+    fixnum = fixnum != 0;
   Expr *expr = new_expr(EX_FIXNUM, type, token);
   expr->fixnum = fixnum;
   return expr;

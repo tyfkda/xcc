@@ -17,7 +17,7 @@ Type tyEnum =          {.kind=TY_FIXNUM, .fixnum={.kind=FX_ENUM}};
 Type tyVoid =          {.kind=TY_VOID};
 Type tyConstVoid =     {.kind=TY_VOID, .qualifier=TQ_CONST};
 Type tyVoidPtr =       {.kind=TY_PTR, .pa={.ptrof=&tyVoid}};
-Type tyBool =          {.kind=TY_FIXNUM, .fixnum={.kind=FX_INT,   .is_unsigned=false}};
+Type tyBool =          {.kind=TY_FIXNUM, .fixnum={.kind=FX_BOOL,   .is_unsigned=false}};
 Type tySize =          {.kind=TY_FIXNUM, .fixnum={.kind=FX_LONG,  .is_unsigned=true}};
 Type tySSize =         {.kind=TY_FIXNUM, .fixnum={.kind=FX_LONG,  .is_unsigned=false}};
 Type tyFloat =         {.kind=TY_FLONUM, .flonum={.kind=FL_FLOAT}};
@@ -43,8 +43,8 @@ static Type kFixnumTypeTable[2][4][FX_LLONG + 1] = {
 };
 #undef FIXNUM_TABLE
 
-size_t fixnum_size_table[]  = {1, 2, 4, 8, 8, 4};
-int    fixnum_align_table[] = {1, 2, 4, 8, 8, 4};
+size_t fixnum_size_table[]  = {1, 2, 4, 8, 8, 4, 4};
+int    fixnum_align_table[] = {1, 2, 4, 8, 8, 4, 4};
 
 size_t flonum_size_table[]  = {4, 8, 8};
 int    flonum_align_table[] = {4, 8, 8};
@@ -234,6 +234,7 @@ size_t align_size(const Type *type) {
 // Make sure inline function is out.
 extern inline bool is_fixnum(enum TypeKind kind);
 extern inline bool is_flonum(const Type *type);
+extern inline bool is_bool(const Type *type);
 extern inline bool ptr_or_array(const Type *type);
 
 bool is_number(const Type *type) {
@@ -263,7 +264,7 @@ bool is_prim_type(const Type *type) {
 }
 
 Type *get_fixnum_type(enum FixnumKind kind, bool is_unsigned, int qualifier) {
-  assert(kind != FX_ENUM);
+  assert(kind <= FX_LLONG);
   return &kFixnumTypeTable[is_unsigned][qualifier & 3][kind];
 }
 
@@ -638,16 +639,26 @@ void print_type_recur(FILE *fp, const Type *type, PrintTypeChain *parent) {
   case TY_FIXNUM:
     {
       enum FixnumKind kind = type->fixnum.kind;
-      if (kind == FX_ENUM) {
-        if (type->fixnum.enum_.ident != NULL)
-          fprintf(fp, "enum %.*s", NAMES(type->fixnum.enum_.ident));
-        else
-          fprintf(fp, "enum (anonymous)");
-      } else {
-        static const char *names[] = {"char", "short", "int", "long", "long long"};
-        assert(kind >= 0 && kind < sizeof(names) / sizeof(*names));
-        const char *sign = type->fixnum.is_unsigned ? "unsigned " : "";
-        fprintf(fp, "%s%s", sign, names[kind]);
+      switch (kind) {
+      case FX_ENUM:
+        {
+          if (type->fixnum.enum_.ident != NULL)
+            fprintf(fp, "enum %.*s", NAMES(type->fixnum.enum_.ident));
+          else
+            fprintf(fp, "enum (anonymous)");
+        }
+        break;
+      case FX_BOOL:
+        fprintf(fp, "bool");
+        break;
+      default:
+        {
+          static const char *names[] = {"char", "short", "int", "long", "long long"};
+          assert(kind >= 0 && kind < sizeof(names) / sizeof(*names));
+          const char *sign = type->fixnum.is_unsigned ? "unsigned " : "";
+          fprintf(fp, "%s%s", sign, names[kind]);
+        }
+        break;
       }
       call_print_type_chain(parent, fp);
     }

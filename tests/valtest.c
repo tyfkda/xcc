@@ -861,6 +861,20 @@ TEST(all) {
     EXPECT("64bit literal 4", 0x1234, (x >> 48) & 0xffff);
   }
 
+  {
+    EXPECT("_Bool from int", true, ({int x = -123; (_Bool)x;}));
+    EXPECT("_Bool from ulong", true, ({unsigned long x = 9876UL; (_Bool)x;}));
+    EXPECT("_Bool from double", true, ({double x = 12.34; (_Bool)x;}));
+
+    size_t m = 3;
+    size_t n = 8;
+    EXPECT("ternary _Bool 1", -1, m < n ? -1: m != n);
+    EXPECT("ternary _Bool 2",  1, n < m ? -1: n != m);
+
+    _Bool t1 = true, t2 = true;
+    EXPECT("_Bool + _Bool",  2, t1 + t2);
+  }
+
 #ifndef __NO_WCHAR
   EXPECT("wide character", 0x1f600, L'😀');
   {

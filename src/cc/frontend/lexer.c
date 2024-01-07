@@ -61,6 +61,7 @@ static const struct {
   {"struct", TK_STRUCT},
   {"union", TK_UNION},
   {"enum", TK_ENUM},
+  {"_Bool", TK_BOOL},
   {"sizeof", TK_SIZEOF},
   {"_Alignof", TK_ALIGNOF},
   {"typedef", TK_TYPEDEF},

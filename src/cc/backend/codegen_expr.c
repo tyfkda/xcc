@@ -166,6 +166,7 @@ static VReg *gen_cast(Expr *expr) {
   Expr *src = expr->unary.sub;
   VReg *vreg = gen_expr(src);
   const Type *dst_type = expr->type;
+  assert(!is_bool(dst_type));
 
   switch (dst_type->kind) {
   case TY_VOID:

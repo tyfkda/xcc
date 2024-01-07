@@ -266,7 +266,11 @@ Expr *make_cast(Type *type, const Token *token, Expr *sub, bool is_explicit) {
     switch (sub->kind) {
     case EX_FLONUM:
       if (type->kind == TY_FIXNUM) {
-        Fixnum fixnum = sub->flonum;
+        Fixnum fixnum;
+        if (is_bool(type))
+          fixnum = sub->flonum != 0;
+        else
+          fixnum = wrap_value(sub->flonum, type_size(type), type->fixnum.is_unsigned);
         return new_expr_fixlit(type, sub->token, fixnum);
       }
       assert(type->kind == TY_FLONUM);
@@ -286,10 +290,19 @@ Expr *make_cast(Type *type, const Token *token, Expr *sub, bool is_explicit) {
 #endif
 
     assert(sub->kind == EX_FIXNUM);
-    sub->fixnum = wrap_value(sub->fixnum, type_size(type), type->fixnum.is_unsigned);
+    assert(!is_flonum(type));
+    Fixnum value;
+    if (is_bool(type))
+      value = sub->fixnum != 0;
+    else
+      value = wrap_value(sub->fixnum, type_size(type), type->fixnum.is_unsigned);
+    sub->fixnum = value;
     sub->type = type;
     return sub;
   }
+
+  if (is_bool(type))
+    return make_cond(sub);
 
   return new_expr_cast(type, token, sub);
 }
@@ -345,11 +358,11 @@ static bool cast_numbers(Expr **pLhs, Expr **pRhs, bool make_int) {
   }
   enum FixnumKind lkind = ltype->fixnum.kind;
   enum FixnumKind rkind = rtype->fixnum.kind;
-  if (ltype->fixnum.kind == FX_ENUM) {
+  if (ltype->fixnum.kind >= FX_ENUM) {
     ltype = &tyInt;
     lkind = FX_INT;
   }
-  if (rtype->fixnum.kind == FX_ENUM) {
+  if (rtype->fixnum.kind >= FX_ENUM) {
     rtype = &tyInt;
     rkind = FX_INT;
   }
@@ -360,10 +373,9 @@ static bool cast_numbers(Expr **pLhs, Expr **pRhs, bool make_int) {
   } else {
     int l = (lkind << 1) | (ltype->fixnum.is_unsigned ? 1 : 0);
     int r = (rkind << 1) | (rtype->fixnum.is_unsigned ? 1 : 0);
-    if (l > r)
-      *pRhs = make_cast(ltype, rhs->token, rhs, false);
-    else if (l < r)
-      *pLhs = make_cast(rtype, lhs->token, lhs, false);
+    Type *type = l > r ? ltype : rtype;
+    *pLhs = make_cast(type, lhs->token, lhs, false);
+    *pRhs = make_cast(type, rhs->token, rhs, false);
   }
   return true;
 }
@@ -499,7 +511,8 @@ Expr *make_refer(const Token *tok, Expr *expr) {
 
 Expr *promote_to_int(Expr *expr) {
   assert(expr->type->kind == TY_FIXNUM);
-  if (expr->type->fixnum.kind >= FX_INT)
+  enum FixnumKind kind = expr->type->fixnum.kind;
+  if (kind >= FX_INT && kind <= FX_LLONG)
     return expr;
   Type *type = get_fixnum_type(FX_INT, expr->type->fixnum.is_unsigned, expr->type->qualifier);
   return make_cast(type, expr->token, expr, false);
@@ -620,10 +633,14 @@ Expr *new_expr_addsub(enum ExprKind kind, const Token *tok, Expr *lhs, Expr *rhs
 #endif
       enum FixnumKind lnt = ltype->fixnum.kind;
       enum FixnumKind rnt = rtype->fixnum.kind;
-      if (lnt == FX_ENUM)
+      if (lnt >= FX_ENUM) {
+        ltype = &tyInt;
         lnt = FX_INT;
-      if (rnt == FX_ENUM)
+      }
+      if (rnt >= FX_ENUM) {
+        rtype = &tyInt;
         rnt = FX_INT;
+      }
 
       Fixnum lval = lhs->fixnum;
       Fixnum rval = rhs->fixnum;
@@ -636,7 +653,7 @@ Expr *new_expr_addsub(enum ExprKind kind, const Token *tok, Expr *lhs, Expr *rhs
         value = -1;
         break;
       }
-      Type *type = lnt >= rnt ? lhs->type : rhs->type;
+      Type *type = lnt >= rnt ? ltype : rtype;
       if (type->fixnum.kind < FX_INT)
         type = &tyInt;
       return new_expr_fixlit(type, lhs->token,
@@ -1140,10 +1157,11 @@ Type *choose_ternary_result_type(Expr *tval, Expr *fval) {
     }
     assert(is_fixnum(ttype->kind));
     assert(is_fixnum(ftype->kind));
-    if (ttype->fixnum.kind > ftype->fixnum.kind)
-      return ttype;
-    else
-      return ftype;
+    if (ttype->fixnum.kind >= FX_ENUM)
+      ttype = &tyInt;
+    if (ftype->fixnum.kind >= FX_ENUM)
+      ftype = &tyInt;
+    return ttype->fixnum.kind > ftype->fixnum.kind ? ttype : ftype;
   }
   return NULL;
 }
