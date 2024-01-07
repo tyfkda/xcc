@@ -497,18 +497,29 @@ static Token *read_num(const char **pp) {
   }
 #endif
   enum TokenKind tt = TK_INTLIT;
-  if (tolower(*p) == 'u') {
-    is_unsigned = true;
-    ++p;
-  }
-  if (tolower(*p) == 'l') {
-    tt = TK_LONGLIT;
-    ++p;
-    if (tolower(*p) == 'l') {
-      tt = TK_LLONGLIT;
-      ++p;
+  int unsigned_count = 0, long_count = 0;
+  for (;; ++p) {
+    int c = tolower(*p);
+    if (c == 'u') {
+      if (unsigned_count > 0)
+        lex_error(p, "Illegal unsigned literal");
+      is_unsigned = true;
+      ++unsigned_count;
+      continue;
+    } else if (c == 'l') {
+      switch (long_count) {
+      case 0:  tt = TK_LONGLIT; break;
+      case 1:  tt = TK_LLONGLIT; break;
+      default:
+        lex_error(p, "Illegal long literal");
+        break;
+      }
+      ++long_count;
+      continue;
     }
-  } else {
+    break;
+  }
+  if (tt == TK_INTLIT) {
     const int INT_BYTES = 4;  // TODO: Detect.
     int bits = INT_BYTES * TARGET_CHAR_BIT;
     unsigned long long threshold = 1UL << (bits - (is_unsigned ? 0 : 1));
