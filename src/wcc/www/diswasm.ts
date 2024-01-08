@@ -3,18 +3,20 @@
 'use strict'
 
 const enum Section {
-  CUSTOM    = 0,
-  TYPE      = 1,
-  IMPORT    = 2,
-  FUNC      = 3,
-  TABLE     = 4,
-  MEMORY    = 5,
-  GLOBAL    = 6,
-  EXPORT    = 7,
-  ELEM      = 9,
-  CODE      = 10,
-  DATA      = 11,
-  TAG       = 13,
+  CUSTOM      = 0,
+  TYPE        = 1,
+  IMPORT      = 2,
+  FUNC        = 3,
+  TABLE       = 4,
+  MEMORY      = 5,
+  GLOBAL      = 6,
+  EXPORT      = 7,
+  START       = 8,
+  ELEM        = 9,
+  CODE        = 10,
+  DATA        = 11,
+  DATA_COUNT  = 12,
+  TAG         = 13,
 }
 
 // Wasm opcode
@@ -217,8 +219,66 @@ const enum WasmType {
 
 const enum ImportKind {
   FUNC = 0,
+  TABLE = 1,
   MEMORY = 2,
   GLOBAL = 3,
+}
+
+enum Custom {
+  LINKING = 'linking',
+  RELOC_CODE = 'reloc.CODE',
+  RELOC_DATA = 'reloc.DATA',
+}
+
+const LINKING_VERSION = 2
+
+const enum LinkingType {
+  WASM_SEGMENT_INFO = 5,
+  WASM_INIT_FUNCS,  // 6
+  WASM_COMDAT_INFO,  // 7
+  WASM_SYMBOL_TABLE,  // 8
+}
+
+const enum SymInfoKind {
+  SYMTAB_FUNCTION,  // 0
+  SYMTAB_DATA,      // 1
+  SYMTAB_GLOBAL,    // 2
+  SYMTAB_SECTION,   // 3
+  SYMTAB_EVENT,     // 4
+  SYMTAB_TABLE,     // 5
+}
+
+const enum SymFlags {
+  WASM_SYM_BINDING_WEAK       = 1 << 0,
+  WASM_SYM_BINDING_LOCAL      = 1 << 1,
+  WASM_SYM_VISIBILITY_HIDDEN  = 1 << 2,
+  WASM_SYM_UNDEFINED          = 1 << 4,
+  WASM_SYM_EXPORTED           = 1 << 5,
+  WASM_SYM_EXPLICIT_NAME      = 1 << 6,
+  WASM_SYM_NO_STRIP           = 1 << 7,
+  WASM_SYM_TLS                = 1 << 8,
+  WASM_SYM_ABSOLUTE           = 1 << 9,
+}
+
+const enum RelocType {
+  R_WASM_FUNCTION_INDEX_LEB,       //  0
+  R_WASM_TABLE_INDEX_SLEB,         //  1
+  R_WASM_TABLE_INDEX_I32,          //  2
+  R_WASM_MEMORY_ADDR_LEB,          //  3
+  R_WASM_MEMORY_ADDR_SLEB,         //  4
+  R_WASM_MEMORY_ADDR_I32,          //  5
+  R_WASM_TYPE_INDEX_LEB,           //  6
+  R_WASM_GLOBAL_INDEX_LEB,         //  7
+  R_WASM_FUNCTION_OFFSET_I32,      //  8
+  R_WASM_SECTION_OFFSET_I32,       //  9
+  R_WASM_TAG_INDEX_LEB,            // 10  ::EVENT_INDEX_LEB
+  R_WASM_GLOBAL_INDEX_I32 = 13,    // 13
+  R_WASM_MEMORY_ADDR_LEB64,        // 14
+  R_WASM_MEMORY_ADDR_SLEB64,       // 15
+  R_WASM_MEMORY_ADDR_I64,          // 16
+  R_WASM_TABLE_INDEX_SLEB64 = 18,  // 18
+  R_WASM_TABLE_INDEX_I64,          // 19
+  R_WASM_TABLE_NUMBER_LEB,         // 20
 }
 
 const enum OpKind {
@@ -561,20 +621,34 @@ class BufferReader {
 }
 
 type FuncTypeInfo = {type: string, params: Array<Type>, results: Array<Type>}
+type FuncRefTypeInfo = {type: string, flag: number, initial: number}
 class Type {
-  private type: number | FuncTypeInfo
+  private type: number | FuncTypeInfo | FuncRefTypeInfo
 
-  constructor(type: number | FuncTypeInfo) {
+  constructor(type: number | FuncTypeInfo | FuncRefTypeInfo) {
     this.type = type
   }
 
-  public getType(): number | FuncTypeInfo { return this.type }
+  public getType(): number | FuncTypeInfo | FuncRefTypeInfo { return this.type }
 
   public toString(): string {
     if (typeof(this.type) === 'object') {
-      const params = this.type.params.length === 0 ? '' : ` (param ${this.type.params.map(param => `${param}`).join(' ')})`
-      const results = this.type.results.length === 0 ? '' : ` (result ${this.type.results.map(param => `${param}`).join(' ')})`
-      return `(func${params}${results})`
+      switch (this.type.type) {
+      case 'func':
+        {
+          const t = this.type as FuncTypeInfo
+          const params = t.params.length === 0 ? '' : ` (param ${t.params.map(param => `${param}`).join(' ')})`
+          const results = t.results.length === 0 ? '' : ` (result ${t.results.map(param => `${param}`).join(' ')})`
+          return `(${t.type}${params}${results})`
+        }
+      case 'funcref':
+        {
+          const t = this.type as FuncRefTypeInfo
+          return `(${t.type} (flag ${t.flag}) (initial ${t.initial}))`
+        }
+      default:
+        throw `Unhandled: ${this.type}`
+      }
     } else {
       switch (this.type) {
       case WasmType.VOID:  return 'void'
@@ -601,9 +675,15 @@ function readType(bufferReader: BufferReader): Type {
     {
       const numParams = bufferReader.readUleb128()
       const params = [...Array(numParams)].map(() => readType(bufferReader))
-      const num_results = bufferReader.readUleb128()
-      const results = [...Array(num_results)].map(() => readType(bufferReader))
-      return new Type({type: 'func', params: params, results: results})
+      const numResults = bufferReader.readUleb128()
+      const results = [...Array(numResults)].map(() => readType(bufferReader))
+      return new Type({type: 'func', params, results})
+    }
+  case WasmType.FUNCREF:
+    {
+      const flag = bufferReader.readu8()
+      const initial = bufferReader.readLeb128()
+      return new Type({type: 'funcref', flag, initial})
     }
   default:
     throw `Unhnadled type: at 0x${(bufferReader.getOffset() - 1).toString(16)}`
@@ -705,6 +785,8 @@ export class DisWasm {
   private codes = new Array<Array<Inst>>()
   private importFuncCount = 0
   private funcs = new Map<number, [string, string]>()
+  private importGlobalCount = 0
+  private globals = new Map<number, [string, string]>()
   private log: (s: string)=>void = console.log
 
   constructor(buffer: ArrayBuffer, private opts: any = {}) {
@@ -734,7 +816,7 @@ export class DisWasm {
 
   private loadSections(): void {
     const SectionNames = [
-      null,
+      'CUSTOM',
       'TYPE',
       'IMPORT',
       'FUNC',
@@ -742,11 +824,11 @@ export class DisWasm {
       'MEMORY',
       'GLOBAL',
       'EXPORT',
-      null,
+      'START',
       'ELEM',
       'CODE',
       'DATA',
-      null,
+      'DATA_COUNT',
       'TAG',
     ]
 
@@ -759,6 +841,7 @@ export class DisWasm {
       this.log(`\n;;=== 0x${offset.toString(16)}: ${SectionNames[sec] || `(section ${sec})`}, len=${len}`)
       switch (sec) {
       case Section.CUSTOM:
+        this.readCustomSection()
         break
 
       case Section.TYPE:
@@ -801,6 +884,10 @@ export class DisWasm {
         this.readDataSection()
         break
 
+      case Section.DATA_COUNT:
+        this.readDataCountSection()
+        break
+
       case Section.TAG:
         break
 
@@ -809,6 +896,165 @@ export class DisWasm {
       }
 
       this.bufferReader.setOffset(section_start_offset + len)
+    }
+  }
+
+  private readCustomSection(): void {
+    const kSymInfoKindNames = ['function', 'data', 'global', 'section', 'event', 'table']
+    const kRelocTypeNames: Record<RelocType, string> = {
+      [RelocType.R_WASM_FUNCTION_INDEX_LEB]:   "FUNCTION_INDEX_LEB",
+      [RelocType.R_WASM_TABLE_INDEX_SLEB]:     "TABLE_INDEX_SLEB",
+      [RelocType.R_WASM_TABLE_INDEX_I32]:      "TABLE_INDEX_I32",
+      [RelocType.R_WASM_MEMORY_ADDR_LEB]:      "MEMORY_ADDR_LEB",
+      [RelocType.R_WASM_MEMORY_ADDR_SLEB]:     "MEMORY_ADDR_SLEB",
+      [RelocType.R_WASM_MEMORY_ADDR_I32]:      "MEMORY_ADDR_I32",
+      [RelocType.R_WASM_TYPE_INDEX_LEB]:       "TYPE_INDEX_LEB",
+      [RelocType.R_WASM_GLOBAL_INDEX_LEB]:     "GLOBAL_INDEX_LEB",
+      [RelocType.R_WASM_FUNCTION_OFFSET_I32]:  "FUNCTION_OFFSET_I32",
+      [RelocType.R_WASM_SECTION_OFFSET_I32]:   "SECTION_OFFSET_I32",
+      [RelocType.R_WASM_TAG_INDEX_LEB]:        "TAG_INDEX_LEB",
+      [RelocType.R_WASM_GLOBAL_INDEX_I32]:     "GLOBAL_INDEX_I32",
+      [RelocType.R_WASM_MEMORY_ADDR_LEB64]:    "MEMORY_ADDR_LEB64",
+      [RelocType.R_WASM_MEMORY_ADDR_SLEB64]:   "MEMORY_ADDR_SLEB64",
+      [RelocType.R_WASM_MEMORY_ADDR_I64]:      "MEMORY_ADDR_I64",
+      [RelocType.R_WASM_TABLE_INDEX_SLEB64]:   "TABLE_INDEX_SLEB64",
+      [RelocType.R_WASM_TABLE_INDEX_I64]:      "TABLE_INDEX_I64",
+      [RelocType.R_WASM_TABLE_NUMBER_LEB]:     "TABLE_NUMBER_LEB",
+    }
+
+    const kSymFlagNames: Map<SymFlags, string> = new Map([
+      [SymFlags.WASM_SYM_BINDING_WEAK,       "BINDING_WEAK"],
+      [SymFlags.WASM_SYM_BINDING_LOCAL,      "BINDING_LOCAL"],
+      [SymFlags.WASM_SYM_VISIBILITY_HIDDEN,  "VISIBILITY_HIDDEN"],
+      [SymFlags.WASM_SYM_UNDEFINED,          "UNDEFINED"],
+      [SymFlags.WASM_SYM_EXPORTED,           "EXPORTED"],
+      [SymFlags.WASM_SYM_EXPLICIT_NAME,      "EXPLICIT_NAME"],
+      [SymFlags.WASM_SYM_NO_STRIP,           "NO_STRIP"],
+      [SymFlags.WASM_SYM_TLS,                "TLS"],
+      [SymFlags.WASM_SYM_ABSOLUTE,           "ABSOLUTE"],
+    ])
+
+    const customSectionOffset = this.bufferReader.getOffset()
+    const name = this.bufferReader.readString()
+
+    // Special handling for wasm object file.
+    switch (name) {
+    case Custom.LINKING:
+      {
+        const version = this.bufferReader.readUleb128()
+        const subsectype = this.bufferReader.readu8()
+        /*const payloadLen =*/ this.bufferReader.readUleb128()
+        // const subsecOffset = this.bufferReader.getOffset()
+
+        if (version !== LINKING_VERSION)
+          throw new Error(`Unsupported linking version: ${version}`)
+
+        switch (subsectype) {
+        case LinkingType.WASM_SYMBOL_TABLE:
+          {
+            this.log(`${this.addr(customSectionOffset)}(custom "${name}" (symtab`)
+
+            const count = this.bufferReader.readUleb128()
+            for (let i = 0; i < count; ++i) {
+              const offset = this.bufferReader.getOffset()
+              const kind = this.bufferReader.readu8()
+              const flags = this.bufferReader.readUleb128()
+
+              switch (kind) {
+              case SymInfoKind.SYMTAB_FUNCTION:
+              case SymInfoKind.SYMTAB_GLOBAL:
+                {
+                  const index = this.bufferReader.readUleb128()
+                  let symname = null
+
+                  switch (kind) {
+                  case SymInfoKind.SYMTAB_FUNCTION:
+                    if (index < this.importFuncCount && !(flags & SymFlags.WASM_SYM_EXPLICIT_NAME)) {
+                      symname = this.funcs.get(index)?.join('.')
+                    } else {
+                      symname = this.bufferReader.readString()
+                    }
+                    break
+                  case SymInfoKind.SYMTAB_GLOBAL:
+                    if (index < this.importGlobalCount && !(flags & SymFlags.WASM_SYM_EXPLICIT_NAME)) {
+                      symname = this.globals.get(index)?.join('.')
+                    } else {
+                      symname = this.bufferReader.readString()
+                    }
+                    break
+                  default: break
+                  }
+
+                  const flagNames: Array<string> = []
+                  kSymFlagNames.forEach((value, key) => { if ((flags & key) !== 0) flagNames.push(value) })
+                  this.log(`${this.addr(offset)}  (${kSymInfoKindNames[kind]} (index ${index}) (name "${symname}") (flags ${flagNames.join(' ')}))`)
+                }
+                break
+              case SymInfoKind.SYMTAB_DATA:
+                {
+                  const symname = this.bufferReader.readString()
+                  if (flags & SymFlags.WASM_SYM_UNDEFINED) {
+                    this.log(`${this.addr(offset)}  (${kSymInfoKindNames[kind]} (name "${symname}"))`)
+                  } else {
+                    const index = this.bufferReader.readUleb128()
+                    const suboffset = this.bufferReader.readUleb128()
+                    const size = this.bufferReader.readUleb128()
+                    this.log(`${this.addr(offset)}  (${kSymInfoKindNames[kind]} (name "${symname}") (index ${index}) (offset ${suboffset}) (size ${size}))`)
+                  }
+                }
+                break
+              case SymInfoKind.SYMTAB_EVENT:
+                {
+                  const typeindex = this.bufferReader.readUleb128()
+                  const symname = this.bufferReader.readString()
+                  this.log(`${this.addr(offset)}  (${kSymInfoKindNames[kind]} (name "${symname}") (typeindex ${typeindex}))`)
+                }
+                break
+              default:
+                throw `${kind} is not supported`
+              }
+            }
+            this.log('))')
+          }
+          break
+        default:
+          break
+        }
+      }
+      break
+    case Custom.RELOC_CODE:
+    case Custom.RELOC_DATA:
+      {
+        const sectionIndex = this.bufferReader.readUleb128()
+        const count = this.bufferReader.readUleb128()
+        this.log(`${this.addr(customSectionOffset)}(custom "${name}" (section-index ${sectionIndex})`)
+        for (let i = 0; i < count; ++i) {
+          const type = this.bufferReader.readu8()
+          const offset = this.bufferReader.readUleb128()
+          const index = this.bufferReader.readUleb128()
+
+          let addend = 0
+          switch (type) {
+          case RelocType.R_WASM_MEMORY_ADDR_LEB:
+          case RelocType.R_WASM_MEMORY_ADDR_SLEB:
+          case RelocType.R_WASM_MEMORY_ADDR_I32:
+          case RelocType.R_WASM_MEMORY_ADDR_LEB64:
+          case RelocType.R_WASM_MEMORY_ADDR_SLEB64:
+          case RelocType.R_WASM_MEMORY_ADDR_I64:
+          case RelocType.R_WASM_FUNCTION_OFFSET_I32:
+          case RelocType.R_WASM_SECTION_OFFSET_I32:
+            addend = this.bufferReader.readUleb128()
+            break
+          default: break
+          }
+          this.log(`  (${kRelocTypeNames[type as RelocType]} (offset ${offset}) (index ${index}) (addend ${addend}))`)
+        }
+        this.log('  )')
+      }
+      break
+    default:
+      this.log(`${this.addr(customSectionOffset)}(custom "${name}")`)
+      break
     }
   }
 
@@ -829,14 +1075,45 @@ export class DisWasm {
       const modName = this.bufferReader.readString()
       const name = this.bufferReader.readString()
       const kind = this.bufferReader.readu8()
-      if (kind !== ImportKind.FUNC)
+      switch (kind) {
+      case ImportKind.FUNC:
+        {
+          const typeIndex = this.bufferReader.readUleb128()
+          const index = this.funcs.size
+          this.log(`${this.addr(offset)}(import "${modName}" "${name}" (func $${name} (type ${typeIndex})))  ;; ${index}`)
+          this.funcs.set(index, [modName, name])
+        }
+        break
+      case ImportKind.TABLE:
+        {
+          const tt = readType(this.bufferReader)
+          this.log(`${this.addr(offset)}(import "${modName}" "${name}" (table ${tt}))`)
+        }
+        break
+      case ImportKind.MEMORY:
+        {
+          // TODO: Confirm
+          const index = this.bufferReader.readUleb128()
+          const size = this.bufferReader.readUleb128()
+          this.log(`${this.addr(offset)}(import "${modName}" "${name}" (memory ${size} (;index=${index};)))`)
+        }
+        break
+      case ImportKind.GLOBAL:
+        {
+          // TODO: Confirm
+          const type = readType(this.bufferReader)
+          const mutable = this.bufferReader.readu8()
+          const index = this.globals.size
+          this.log(`${this.addr(offset)}(import "${modName}" "${name}" (global ${type} (mutable ${mutable})))  ;; ${index}`)
+          this.globals.set(index, [modName, name])
+        }
+        break
+      default:
         throw(`Illegal import kind: ${kind}`)
-      const typeIndex = this.bufferReader.readUleb128()
-      const funcNo = this.funcs.size
-      this.log(`${this.addr(offset)}(import "${modName}" "${name}" (func $${name} (type ${typeIndex})))  ;; ${funcNo}`)
-      this.funcs.set(funcNo, [modName, name])
+      }
     }
     this.importFuncCount = this.funcs.size
+    this.importGlobalCount = this.globals.size
   }
 
   private readFuncSection(): void {
@@ -1051,6 +1328,12 @@ export class DisWasm {
 
       this.log(`${this.addr(offset)}(data (;${i};) (i32.const ${start}) "${data.join('')}")`)
     }
+  }
+
+  private readDataCountSection(): void {
+    const offset = this.bufferReader.getOffset()
+    const count = this.bufferReader.readUleb128()
+    this.log(`;;${this.addr(offset)}(data-count ${count})`)
   }
 
   private addr(adr: number): string {
