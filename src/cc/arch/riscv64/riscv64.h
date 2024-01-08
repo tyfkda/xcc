@@ -97,7 +97,7 @@
 #define CGEU  "geu"
 
 #define LI(o1, o2)            EMIT_ASM("li", o1, o2)
-#define LUI(o1, o2)           EMIT_ASM("lui", o1, o2)
+#define LA(o1, o2)            EMIT_ASM("la", o1, o2)
 #define ADD(o1, o2, o3)       EMIT_ASM("add", o1, o2, o3)
 #define ADDI(o1, o2, o3)      EMIT_ASM("addi", o1, o2, o3)
 #define ADDW(o1, o2, o3)      EMIT_ASM("addw", o1, o2, o3)

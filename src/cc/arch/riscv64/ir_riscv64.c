@@ -95,8 +95,7 @@ static void ei_iofs(IR *ir) {
     label = MANGLE(label);
   label = quote_label(label);
   const char *dst = kReg64s[ir->dst->phys];
-  LUI(dst, LABEL_OFFSET_HI(label));
-  ADDI(dst, dst, LABEL_OFFSET_LO(label));
+  LA(dst, label);
 }
 
 static void ei_sofs(IR *ir) {
@@ -594,8 +593,7 @@ static void ei_tjmp(IR *ir) {
   const char *dst = kTmpReg;
   const Name *table_label = alloc_label();
   char *label = fmt_name(table_label);
-  LUI(dst, LABEL_OFFSET_HI(label));
-  ADDI(dst, dst, LABEL_OFFSET_LO(label));
+  LA(dst, label);
   // dst = label + (opr1 << 3)
   assert(!(ir->opr1->flag & VRF_CONST));
   const char *opr1 = kReg64s[ir->opr1->phys];

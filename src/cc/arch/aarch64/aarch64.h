@@ -207,7 +207,6 @@
 #define SXTW(o1, o2)          EMIT_ASM("sxtw", o1, o2)
 #define ADD(o1, o2, o3)       EMIT_ASM("add", o1, o2, o3)
 #define SUB(o1, o2, o3)       EMIT_ASM("sub", o1, o2, o3)
-#define SUBS(o1, o2, o3)      EMIT_ASM("subs", o1, o2, o3)
 #define MUL(o1, o2, o3)       EMIT_ASM("mul", o1, o2, o3)
 #define SDIV(o1, o2, o3)      EMIT_ASM("sdiv", o1, o2, o3)
 #define UDIV(o1, o2, o3)      EMIT_ASM("udiv", o1, o2, o3)
