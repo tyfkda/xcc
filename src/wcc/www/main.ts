@@ -14,7 +14,7 @@ const editor = (() => {
   const editor = ace.edit('editor')
   editor.setOptions({
     fontSize: FONT_SIZE,
-    tabSize: 2,
+    tabSize: 4,
     useSoftTabs: true,
     printMarginColumn: false,
   })
@@ -101,7 +101,7 @@ const terminal = (() => {
   terminal.$blockScrolling = Infinity
   terminal.setOptions({
     fontSize: FONT_SIZE,
-    tabSize: 2,
+    tabSize: 4,
     useSoftTabs: true,
     printMarginColumn: false,
     showLineNumbers: false,
