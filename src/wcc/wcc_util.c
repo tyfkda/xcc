@@ -14,6 +14,7 @@
 const char SP_NAME[] = "__stack_pointer";  // Variable name for stack pointer (global).
 
 bool verbose;
+enum OutType out_type;
 Table func_info_table;
 Table gvar_info_table;
 Vector *functypes;  // <DataStorage*>

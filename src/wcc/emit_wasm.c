@@ -12,6 +12,7 @@
 #include "util.h"
 #include "var.h"
 #include "wasm.h"
+#include "wasm_obj.h"
 
 static void emit_global_number(void *ud, const Type *type, Expr *var, Fixnum offset) {
   DataStorage *ds = ud;
@@ -190,11 +191,24 @@ static void emit_type_section(EmitWasm *ew) {
 }
 
 static void emit_import_section(EmitWasm *ew) {
+  static const char env_module_name[] = "env";
+
   DataStorage imports_section;
   data_init(&imports_section);
   data_open_chunk(&imports_section);
   data_open_chunk(&imports_section);
   uint32_t imports_count = 0;
+
+  if (out_type < OutExecutable) {
+    static const char kMemoryName[] = "__linear_memory";
+    data_string(&imports_section, env_module_name, sizeof(env_module_name) - 1);  // import module name
+    data_string(&imports_section, kMemoryName, sizeof(kMemoryName) - 1);  // import name
+    data_push(&imports_section, IMPORT_MEMORY);  // import kind
+    data_uleb128(&imports_section, -1, 0);  // index
+    data_uleb128(&imports_section, -1, 0);  // size
+    ++imports_count;
+  }
+
   {
     const char *module_name = ew->import_module_name;
     size_t module_name_len = strlen(module_name);
@@ -254,6 +268,9 @@ static void emit_function_section(EmitWasm *ew) {
 }
 
 static void emit_table_section(EmitWasm *ew) {
+  if (out_type < OutExecutable)
+    return;
+
   DataStorage table_section;
   data_init(&table_section);
   data_open_chunk(&table_section);
@@ -268,6 +285,9 @@ static void emit_table_section(EmitWasm *ew) {
 }
 
 static void emit_memory_section(EmitWasm *ew) {
+  if (out_type < OutExecutable)
+    return;
+
   DataStorage memory_section;
   data_init(&memory_section);
   data_open_chunk(&memory_section);
@@ -318,6 +338,9 @@ static void emit_global_section(EmitWasm *ew) {
 }
 
 static void emit_export_section(EmitWasm *ew, Vector *exports) {
+  if (out_type < OutExecutable)
+    return;
+
   DataStorage exports_section;
   data_init(&exports_section);
   data_open_chunk(&exports_section);
@@ -482,6 +505,26 @@ static void emit_data_section(EmitWasm *ew) {
   fwrite(datasec.buf, datasec.len, 1, ew->ofp);
 }
 
+static void emit_linking_section(EmitWasm *ew) {
+  DataStorage linking_section;
+  static const char kLinkingName[] = "linking";
+  const int LINK_VERSION = 2;
+  data_init(&linking_section);
+  data_open_chunk(&linking_section);
+  data_string(&linking_section, kLinkingName, sizeof(kLinkingName) - 1);
+  data_uleb128(&linking_section, -1, LINK_VERSION);
+  data_push(&linking_section, LT_WASM_SYMBOL_TABLE);  // subsec type
+  data_uleb128(&linking_section, -1, 0);  // count
+  // TODO:
+
+  if (linking_section.len > 0) {
+    data_close_chunk(&linking_section, -1);
+
+    fputc(SEC_CUSTOM, ew->ofp);
+    fwrite(linking_section.buf, linking_section.len, 1, ew->ofp);
+  }
+}
+
 void emit_wasm(FILE *ofp, Vector *exports, const char *import_module_name,
                uint32_t address_bottom) {
   write_wasm_header(ofp);
@@ -526,4 +569,8 @@ void emit_wasm(FILE *ofp, Vector *exports, const char *import_module_name,
 
   // Data.
   emit_data_section(ew);
+
+  if (out_type < OutExecutable) {
+    emit_linking_section(ew);
+  }
 }

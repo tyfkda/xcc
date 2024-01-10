@@ -89,9 +89,17 @@ void install_builtins(void);
 void emit_wasm(FILE *ofp, Vector *exports, const char *import_module_name, uint32_t address_bottom);
 
 // wcc_util
+enum OutType {
+  // OutPreprocess,
+  // OutAssembly,
+  OutObject,
+  OutExecutable,
+};
+
 extern const char SP_NAME[];
 
 extern bool verbose;
+extern enum OutType out_type;
 extern Table func_info_table;
 extern Table gvar_info_table;
 extern Table indirect_function_table;

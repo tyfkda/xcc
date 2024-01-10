@@ -665,11 +665,13 @@ static void add_builtins(void) {
     init->single = new_expr_fixlit(varinfo->type, NULL, 0);  // Dummy
     varinfo->global.init = init;
 
-    register_gvar_info(varinfo->name, varinfo);
+    GVarInfo *info = register_gvar_info(varinfo->name, varinfo);
+    if (out_type < OutExecutable)
+      info->flag |= GVF_UNRESOLVED;
   }
 
   // Break address.
-  {
+  if (out_type >= OutExecutable) {
     const Name *name = alloc_name(BREAK_ADDRESS_NAME, NULL, false);
     VarInfo *varinfo = add_global_var(&tyVoidPtr, name);
     Initializer *init = new_initializer(IK_SINGLE, NULL);
