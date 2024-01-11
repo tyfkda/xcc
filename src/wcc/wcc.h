@@ -89,14 +89,11 @@ void add_builtin_function(const char *str, Type *type, BuiltinFunctionProc *proc
 #define ADD_CODE(...)  do { unsigned char buf[] = {__VA_ARGS__}; add_code(buf, sizeof(buf)); } while (0)
 void add_code(const unsigned char* buf, size_t size);
 
-void gen_builtin_setjmp(Expr *expr);
-void gen_builtin_longjmp(Expr *expr);
-void gen_builtin_try_catch_longjmp(Expr *expr);
+void install_builtins(void);
 
 // emit_wasm
 
 void emit_wasm(FILE *ofp, Vector *exports, const char *import_module_name, uint32_t address_bottom);
-void install_builtins(void);
 
 // wcc_util
 typedef struct DataStorage {
@@ -111,7 +108,7 @@ void data_reserve(DataStorage *data, size_t capacity);
 void data_insert(DataStorage *data, ssize_t pos, const unsigned char *buf, size_t size);
 void data_append(DataStorage *data, const unsigned char *buf, size_t size);
 void data_push(DataStorage *data, unsigned char c);
-void data_concat(DataStorage *data, DataStorage *data2);
+void data_concat(DataStorage *dst, DataStorage *src);
 
 typedef struct FuncExtra {
   Vector *funcall_results;  // [0]=Expr*, [1]=VarInfo*

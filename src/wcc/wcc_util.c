@@ -52,6 +52,6 @@ void data_push(DataStorage *data, unsigned char c) {
   data_insert(data, -1, buf, 1);
 }
 
-void data_concat(DataStorage *data, DataStorage *data2) {
-  data_insert(data, -1, data2->buf, data2->len);
+void data_concat(DataStorage *dst, DataStorage *src) {
+  data_insert(dst, -1, src->buf, src->len);
 }
