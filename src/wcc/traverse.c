@@ -44,7 +44,7 @@ static void wasm_func_type(const Type *type, DataStorage *ds) {
   data_init(ds);
   data_reserve(ds, 3 + param_count + 3);
 
-  emit_uleb128(ds, -1, (int)ret_param + param_count + (type->func.vaargs ? 1 : 0));  // num params
+  data_uleb128(ds, -1, (int)ret_param + param_count + (type->func.vaargs ? 1 : 0));  // num params
   if (ret_param)
     data_push(ds, to_wtype(&tyVoidPtr));
   if (params != NULL) {

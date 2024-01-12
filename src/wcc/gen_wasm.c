@@ -19,8 +19,8 @@
 
 #define CODE  (((FuncExtra*)curfunc->extra)->code)
 
-#define ADD_LEB128(x)  emit_leb128(CODE, -1, x)
-#define ADD_ULEB128(x) emit_uleb128(CODE, -1, x)
+#define ADD_LEB128(x)  data_leb128(CODE, -1, x)
+#define ADD_ULEB128(x) data_uleb128(CODE, -1, x)
 
 // TODO: Endian.
 #define ADD_F32(x)     do { float f = (x); add_code((unsigned char*)&f, sizeof(f)); } while (0)
@@ -30,34 +30,6 @@ static void gen_lval(Expr *expr);
 
 void add_code(const unsigned char *buf, size_t size) {
   data_append(CODE, buf, size);
-}
-
-void emit_leb128(DataStorage *data, ssize_t pos, int64_t val) {
-  unsigned char buf[12], *p = buf;
-  const int64_t MAX = 1 << 6;
-  for (;;) {
-    if (val < MAX && val >= -MAX) {
-      *p++ = val & 0x7f;
-      data_insert(data, pos, buf, p - buf);
-      return;
-    }
-    *p++ = (val & 0x7f) | 0x80;
-    val >>= 7;
-  }
-}
-
-void emit_uleb128(DataStorage *data, ssize_t pos, uint64_t val) {
-  unsigned char buf[12], *p = buf;
-  const uint64_t MAX = 1 << 7;
-  for (;;) {
-    if (val < MAX) {
-      *p++ = val & 0x7f;
-      data_insert(data, pos, buf, p - buf);
-      return;
-    }
-    *p++ = (val & 0x7f) | 0x80;
-    val >>= 7;
-  }
 }
 
 ////////////////////////////////////////////////
@@ -1520,13 +1492,13 @@ static uint32_t allocate_local_variables(Function *func, DataStorage *data) {
     if (local_counts[i] > 0)
       ++local_index_count;
   }
-  emit_uleb128(data, -1, local_index_count);
+  data_uleb128(data, -1, local_index_count);
   int variadic = func->type->func.vaargs;
   unsigned int local_indices[4];
   for (int i = 0; i < 4; ++i) {
     unsigned int count = local_counts[i];
     if (count > 0) {
-      emit_uleb128(data, -1, count);
+      data_uleb128(data, -1, count);
       data_push(data, WT_I32 - i);
     }
     local_indices[i] = i == 0 ? ret_param + variadic + pparam_count
@@ -1677,7 +1649,7 @@ static void gen_defun(Function *func) {
 
   ADD_CODE(OP_END);
 
-  emit_uleb128(code, 0, code->len);  // Insert code size at the top.
+  data_uleb128(code, 0, code->len);  // Insert code size at the top.
 
   curfunc = NULL;
   assert(cur_depth == 0);

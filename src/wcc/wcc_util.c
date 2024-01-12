@@ -55,3 +55,31 @@ void data_push(DataStorage *data, unsigned char c) {
 void data_concat(DataStorage *dst, DataStorage *src) {
   data_insert(dst, -1, src->buf, src->len);
 }
+
+void data_leb128(DataStorage *data, ssize_t pos, int64_t val) {
+  unsigned char buf[12], *p = buf;
+  const int64_t MAX = 1 << 6;
+  for (;;) {
+    if (val < MAX && val >= -MAX) {
+      *p++ = val & 0x7f;
+      data_insert(data, pos, buf, p - buf);
+      return;
+    }
+    *p++ = (val & 0x7f) | 0x80;
+    val >>= 7;
+  }
+}
+
+void data_uleb128(DataStorage *data, ssize_t pos, uint64_t val) {
+  unsigned char buf[12], *p = buf;
+  const uint64_t MAX = 1 << 7;
+  for (;;) {
+    if (val < MAX) {
+      *p++ = val & 0x7f;
+      data_insert(data, pos, buf, p - buf);
+      return;
+    }
+    *p++ = (val & 0x7f) | 0x80;
+    val >>= 7;
+  }
+}
