@@ -135,11 +135,14 @@ void data_uleb128(DataStorage *data, ssize_t pos, uint64_t val);
 void data_string(DataStorage *data, const void *str, size_t len);
 void data_open_chunk(DataStorage *data);
 void data_close_chunk(DataStorage *data, ssize_t num);
+void data_varuint32(DataStorage *data, ssize_t pos, uint64_t val);
 
 typedef struct FuncExtra {
   Vector *funcall_results;  // [0]=Expr*, [1]=VarInfo*
   DataStorage *code;
+  Vector *reloc_code;  // <RelocInfo*>
   int setjmp_count;
+  size_t offset;  // from code section top (exclude section size).
 } FuncExtra;
 
 Expr *get_sp_var(void);

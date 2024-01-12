@@ -596,7 +596,9 @@ static void traverse_defun(Function *func) {
   if (func->scopes == NULL)  // Prototype definition
     return;
 
-  func->extra = calloc_or_die(sizeof(FuncExtra));
+  FuncExtra *extra = calloc_or_die(sizeof(FuncExtra));
+  extra->reloc_code = new_vector();
+  func->extra = extra;
 
   Type *functype = func->type;
   assert(func->params != NULL);
@@ -773,7 +775,7 @@ uint32_t traverse_ast(Vector *decls, Vector *exports, uint32_t stack_size) {
       init->single->fixnum = sp_bottom;
       VERBOSE("SP bottom: 0x%x  (size=0x%x)\n", sp_bottom, stack_size);
     }
-    {  // Break address.
+    if (out_type >= OutExecutable) {  // Break address.
       VarInfo *varinfo = scope_find(global_scope, alloc_name(BREAK_ADDRESS_NAME, NULL, false), NULL);
       assert(varinfo != NULL);
       Initializer *init = varinfo->global.init;

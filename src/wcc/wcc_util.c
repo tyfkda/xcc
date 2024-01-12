@@ -168,6 +168,16 @@ void data_string(DataStorage *data, const void *str, size_t len) {
   data_append(data, (const unsigned char*)str, len);
 }
 
+void data_varuint32(DataStorage *data, ssize_t pos, uint64_t val) {
+  unsigned char buf[5], *p = buf;
+  for (int i = 0; i < 4; ++i) {
+    *p++ = (val & 0x7f) | 0x80;
+    val >>= 7;
+  }
+  *p++ = val & 0x7f;
+  data_insert(data, pos, buf, p - buf);
+}
+
 void data_open_chunk(DataStorage *data) {
   Vector *stack = data->chunk_stack;
   if (stack == NULL)

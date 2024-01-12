@@ -16,11 +16,13 @@
 #include "util.h"
 #include "var.h"
 #include "wasm.h"
+#include "wasm_obj.h"
 
 #define CODE  (((FuncExtra*)curfunc->extra)->code)
 
 #define ADD_LEB128(x)  data_leb128(CODE, -1, x)
 #define ADD_ULEB128(x) data_uleb128(CODE, -1, x)
+#define ADD_VARUINT32(x)  data_varuint32(CODE, -1, x)
 
 // TODO: Endian.
 #define ADD_F32(x)     do { float f = (x); add_code((unsigned char*)&f, sizeof(f)); } while (0)
@@ -263,7 +265,20 @@ static void gen_funcall_by_name(const Name *funcname) {
   FuncInfo *info = table_get(&func_info_table, funcname);
   assert(info != NULL);
   ADD_CODE(OP_CALL);
-  ADD_ULEB128(info->index);
+  if (out_type >= OutExecutable) {
+    ADD_ULEB128(info->index);
+  } else {
+    FuncExtra *extra = curfunc->extra;
+    DataStorage *code = extra->code;
+    RelocInfo *ri = calloc_or_die(sizeof(*ri));
+    ri->type = R_WASM_FUNCTION_INDEX_LEB;
+    ri->offset = code->len;
+    ri->addend = 0;
+    ri->index = info->index;
+    vec_push(extra->reloc_code, ri);
+
+    ADD_VARUINT32(info->index);
+  }
 }
 
 static void gen_funcall(Expr *expr) {
@@ -1628,7 +1643,9 @@ static void gen_defun(Function *func) {
 
   ADD_CODE(OP_END);
 
+  size_t before = code->len;
   data_uleb128(code, 0, code->len);  // Insert code size at the top.
+  extra->offset = code->len - before;
 
   curfunc = NULL;
   assert(cur_depth == 0);

@@ -170,8 +170,10 @@ typedef struct {
   FILE *ofp;
   const char *import_module_name;
   uint32_t address_bottom;
+  uint32_t section_index;
   uint32_t function_count;
   int32_t table_start_index;
+  uint32_t code_section_index;
 } EmitWasm;
 
 static void emit_type_section(EmitWasm *ew) {
@@ -188,6 +190,7 @@ static void emit_type_section(EmitWasm *ew) {
 
   fputc(SEC_TYPE, ew->ofp);
   fwrite(types_section.buf, types_section.len, 1, ew->ofp);
+  ++ew->section_index;
 }
 
 static void emit_import_section(EmitWasm *ew) {
@@ -236,6 +239,7 @@ static void emit_import_section(EmitWasm *ew) {
 
     fputc(SEC_IMPORT, ew->ofp);
     fwrite(imports_section.buf, imports_section.len, 1, ew->ofp);
+    ++ew->section_index;
   }
 }
 
@@ -264,6 +268,7 @@ static void emit_function_section(EmitWasm *ew) {
 
     fputc(SEC_FUNC, ew->ofp);
     fwrite(functions_section.buf, functions_section.len, 1, ew->ofp);
+    ++ew->section_index;
   }
 }
 
@@ -282,6 +287,7 @@ static void emit_table_section(EmitWasm *ew) {
 
   fputc(SEC_TABLE, ew->ofp);
   fwrite(table_section.buf, table_section.len, 1, ew->ofp);
+  ++ew->section_index;
 }
 
 static void emit_memory_section(EmitWasm *ew) {
@@ -304,6 +310,7 @@ static void emit_memory_section(EmitWasm *ew) {
 
   fputc(SEC_MEMORY, ew->ofp);
   fwrite(memory_section.buf, memory_section.len, 1, ew->ofp);
+  ++ew->section_index;
 }
 
 static void emit_global_section(EmitWasm *ew) {
@@ -334,6 +341,7 @@ static void emit_global_section(EmitWasm *ew) {
 
     fputc(SEC_GLOBAL, ew->ofp);
     fwrite(globals_section.buf, globals_section.len, 1, ew->ofp);
+    ++ew->section_index;
   }
 }
 
@@ -389,6 +397,7 @@ static void emit_export_section(EmitWasm *ew, Vector *exports) {
 
   fputc(SEC_EXPORT, ew->ofp);
   fwrite(exports_section.buf, exports_section.len, 1, ew->ofp);
+  ++ew->section_index;
 }
 
 static void emit_elems_section(EmitWasm *ew) {
@@ -427,6 +436,7 @@ static void emit_elems_section(EmitWasm *ew) {
 
     fputc(SEC_ELEM, ew->ofp);
     fwrite(elems_section.buf, elems_section.len, 1, ew->ofp);
+    ++ew->section_index;
   }
 }
 
@@ -446,6 +456,7 @@ static void emit_tag_section(EmitWasm *ew) {
 
     fputc(SEC_TAG, ew->ofp);
     fwrite(tag_section.buf, tag_section.len, 1, ew->ofp);
+    ++ew->section_index;
   }
 }
 
@@ -460,18 +471,24 @@ static void emit_code_section(EmitWasm *ew) {
   {
     const Name *name;
     FuncInfo *info;
+    size_t offset = codesec.len;
     for (int it = 0; (it = table_iterate(&func_info_table, it, &name, (void**)&info)) != -1; ) {
       Function *func = info->func;
       if (func == NULL || info->flag == 0)
         continue;
-      DataStorage *code = ((FuncExtra*)func->extra)->code;
+      FuncExtra* extra = func->extra;
+      DataStorage *code = extra->code;
       data_concat(&codesec, code);
+
+      extra->offset += offset;
+      offset += code->len;
     }
   }
   data_close_chunk(&codesec, -1);
 
   fputc(SEC_CODE, ew->ofp);
   fwrite(codesec.buf, codesec.len, 1, ew->ofp);
+  ++ew->section_index;
 }
 
 static void emit_data_section(EmitWasm *ew) {
@@ -503,6 +520,7 @@ static void emit_data_section(EmitWasm *ew) {
 
   fputc(SEC_DATA, ew->ofp);
   fwrite(datasec.buf, datasec.len, 1, ew->ofp);
+  ++ew->section_index;
 }
 
 static void emit_linking_section(EmitWasm *ew) {
@@ -514,14 +532,100 @@ static void emit_linking_section(EmitWasm *ew) {
   data_string(&linking_section, kLinkingName, sizeof(kLinkingName) - 1);
   data_uleb128(&linking_section, -1, LINK_VERSION);
   data_push(&linking_section, LT_WASM_SYMBOL_TABLE);  // subsec type
-  data_uleb128(&linking_section, -1, 0);  // count
-  // TODO:
+
+  data_open_chunk(&linking_section);  // Payload start.
+  data_open_chunk(&linking_section);
+  uint32_t count = 0;
+  // Functions
+  for (int k = 0; k < 2; ++k) {  // To match function index and linking order, do twice.
+    const Name *name;
+    FuncInfo *info;
+    for (int it = 0; (it = table_iterate(&func_info_table, it, &name, (void**)&info)) != -1; ) {
+      if (info->flag == 0 ||
+          (k == 0 && info->func != NULL) ||  // Put external function first.
+          (k == 1 && info->func == NULL))    // Defined function later.
+        continue;
+
+      int flags = 0;
+      if (info->func == NULL)
+        flags |= WASM_SYM_UNDEFINED;
+      if (info->varinfo->storage & VS_STATIC)
+        flags |= WASM_SYM_VISIBILITY_HIDDEN;
+
+      data_push(&linking_section, SIK_SYMTAB_FUNCTION);  // kind
+      data_uleb128(&linking_section, -1, flags);
+      data_uleb128(&linking_section, -1, info->index);
+
+      if (info->func != NULL) {  // Defined function: put name. otherwise not required.
+        data_string(&linking_section, name->chars, name->bytes);
+      }
+      ++count;
+    }
+  }
+  data_close_chunk(&linking_section, count);
+  data_close_chunk(&linking_section, -1);  // Put payload size.
 
   if (linking_section.len > 0) {
     data_close_chunk(&linking_section, -1);
 
     fputc(SEC_CUSTOM, ew->ofp);
     fwrite(linking_section.buf, linking_section.len, 1, ew->ofp);
+    ++ew->section_index;
+  }
+}
+
+static void emit_reloc_section(EmitWasm *ew) {
+  static const char kRelocCode[] = "reloc.CODE";
+
+  typedef struct {
+    Function *func;
+    RelocInfo *reloc;
+  } CodeReloc;
+
+  Vector *code_reloc_all = new_vector();
+
+  const Name *name;
+  FuncInfo *info;
+  for (int it = 0; (it = table_iterate(&func_info_table, it, &name, (void**)&info)) != -1; ) {
+    Function *func = info->func;
+    if (func == NULL || info->flag == 0)
+      continue;
+
+    FuncExtra *extra = func->extra;
+    Vector *reloc_code = extra->reloc_code;
+    for (int i = 0; i < reloc_code->len; ++i) {
+      CodeReloc *cr = calloc_or_die(sizeof(*cr));
+      cr->func = func;
+      cr->reloc = reloc_code->data[i];
+      vec_push(code_reloc_all, cr);
+    }
+  }
+
+  if (code_reloc_all->len > 0) {
+    DataStorage reloc_code_section;
+    data_init(&reloc_code_section);
+    data_open_chunk(&reloc_code_section);
+    data_string(&reloc_code_section, kRelocCode, sizeof(kRelocCode) - 1);
+    data_uleb128(&reloc_code_section, -1, ew->code_section_index);
+
+    int count = code_reloc_all->len;
+    data_uleb128(&reloc_code_section, -1, count);
+    for (int i = 0; i < count; ++i) {
+      CodeReloc *cr = code_reloc_all->data[i];
+      Function *func = cr->func;
+      RelocInfo *reloc = cr->reloc;
+      FuncExtra *extra = func->extra;
+
+      data_push(&reloc_code_section, reloc->type);
+      data_uleb128(&reloc_code_section, -1, reloc->offset + extra->offset);
+      data_uleb128(&reloc_code_section, -1, reloc->index);
+      // TODO: addend?
+    }
+    data_close_chunk(&reloc_code_section, -1);
+
+    fputc(SEC_CUSTOM, ew->ofp);
+    fwrite(reloc_code_section.buf, reloc_code_section.len, 1, ew->ofp);
+    ++ew->section_index;
   }
 }
 
@@ -565,6 +669,7 @@ void emit_wasm(FILE *ofp, Vector *exports, const char *import_module_name,
   emit_elems_section(ew);
 
   // Code.
+  ew->code_section_index = ew->section_index;
   emit_code_section(ew);
 
   // Data.
@@ -572,5 +677,6 @@ void emit_wasm(FILE *ofp, Vector *exports, const char *import_module_name,
 
   if (out_type < OutExecutable) {
     emit_linking_section(ew);
+    emit_reloc_section(ew);
   }
 }
