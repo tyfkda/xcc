@@ -10,6 +10,7 @@ typedef struct DataStorage DataStorage;
 typedef struct Expr Expr;
 typedef struct Function Function;
 typedef struct Name Name;
+typedef struct Scope Scope;
 typedef struct Table Table;
 typedef struct Token Token;
 typedef struct Type Type;
@@ -135,3 +136,4 @@ typedef struct FuncExtra {
 
 Expr *get_sp_var(void);
 unsigned char to_wtype(const Type *type);
+bool is_global_datsec_var(const VarInfo *varinfo, Scope *scope);  // Whether this global variable put on data section.

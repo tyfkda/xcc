@@ -208,3 +208,19 @@ unsigned char to_wtype(const Type *type) {
   }
   return WT_I32;
 }
+
+bool is_global_datsec_var(const VarInfo *varinfo, Scope *scope) {
+#define PUT_GLOBAL_ON_DATA_SECTION  (1)
+
+  if (!is_global_scope(scope) && is_local_storage(varinfo))
+    return false;
+#if !PUT_GLOBAL_ON_DATA_SECTION
+  if (is_prim_type(varinfo->type) && !(varinfo->storage & VS_REF_TAKEN))
+    return false;
+#else
+  // Special: Stack pointer.
+  if (equal_name(varinfo->name, alloc_name(SP_NAME, NULL, false)))
+    return false;
+#endif
+  return true;
+}

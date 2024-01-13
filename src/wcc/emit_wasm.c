@@ -137,8 +137,7 @@ static Vector *construct_data_segment(void) {
 #endif
   for (int it = 0; (it = table_iterate(&gvar_info_table, it, &name, (void**)&info)) != -1; ) {
     const VarInfo *varinfo = info->varinfo;
-    if ((is_prim_type(varinfo->type) && !(varinfo->storage & VS_REF_TAKEN)) ||
-        varinfo->global.init == NULL)
+    if (varinfo->global.init == NULL || !is_global_datsec_var(varinfo, global_scope))
       continue;
 #ifndef NDEBUG
     uint32_t adr = info->non_prim.address;
@@ -298,8 +297,7 @@ static void emit_global_section(EmitWasm *ew) {
     GVarInfo *info;
     for (int it = 0; (it = table_iterate(&gvar_info_table, it, &name, (void**)&info)) != -1; ) {
       const VarInfo *varinfo = info->varinfo;
-      if (!is_prim_type(varinfo->type) || (varinfo->storage & VS_REF_TAKEN) ||
-          (info->flag & GVF_UNRESOLVED))
+      if ((info->flag & GVF_UNRESOLVED) || is_global_datsec_var(varinfo, global_scope))
         continue;
       unsigned char wt = to_wtype(varinfo->type);
       data_push(&globals_section, wt);

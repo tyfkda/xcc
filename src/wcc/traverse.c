@@ -347,7 +347,7 @@ static void te_incdec(Expr **pexpr, bool needval) {
     target = target->complit.var;
   if (target->kind == EX_VAR) {
     VarInfo *varinfo = scope_find(target->var.scope, target->var.name, NULL);
-    if (!(varinfo->storage & VS_REF_TAKEN))
+    if (!(varinfo->storage & VS_REF_TAKEN) && !is_global_datsec_var(varinfo, target->var.scope))
       return;
   }
 
@@ -366,7 +366,10 @@ static void te_incdec(Expr **pexpr, bool needval) {
   Expr *assign_p = new_expr_bop(EX_ASSIGN, &tyVoid, token, p, make_refer(token, target));
   Expr *deref_p = new_expr_deref(token, p);
   Expr *one = type->kind == TY_PTR ? new_expr_fixlit(&tySize, token, type_size(type->pa.ptrof))
-                                   : new_expr_fixlit(type, token, 1);
+#ifndef __NO_FLONUM
+                                   : type->kind == TY_FLONUM ? new_expr_flolit(type, token, 1)
+#endif
+                                                             : new_expr_fixlit(type, token, 1);
   Expr *assign_tmp = new_expr_bop(EX_ASSIGN, &tyVoid, token, tmp,
                                   !post ? new_expr_bop(op, type, token, deref_p, one) : deref_p);
   Expr *assign_deref_p = new_expr_bop(EX_ASSIGN, &tyVoid, token, deref_p,
@@ -735,8 +738,7 @@ uint32_t traverse_ast(Vector *decls, Vector *exports, uint32_t stack_size) {
         VERBOSE("---- BSS  0x%x\n", address);
       for (int it = 0; (it = table_iterate(&gvar_info_table, it, &name, (void**)&info)) != -1; ) {
         const VarInfo *varinfo = info->varinfo;
-        if ((is_prim_type(varinfo->type) && !(varinfo->storage & VS_REF_TAKEN)) ||
-            (varinfo->global.init == NULL) == (k == 0))
+        if ((varinfo->global.init == NULL) == (k == 0) || !is_global_datsec_var(varinfo, global_scope))
           continue;
         // Mapped to memory
         address = ALIGN(address, align_size(varinfo->type));
@@ -752,7 +754,7 @@ uint32_t traverse_ast(Vector *decls, Vector *exports, uint32_t stack_size) {
     uint32_t index = 0;
     for (int it = 0; (it = table_iterate(&gvar_info_table, it, &name, (void**)&info)) != -1; ) {
       const VarInfo *varinfo = info->varinfo;
-      if (!is_prim_type(varinfo->type) || (varinfo->storage & VS_REF_TAKEN))
+      if (is_global_datsec_var(varinfo, global_scope))
         continue;
       info->prim.index = index++;
       VERBOSE("%2d: %.*s\n", info->prim.index, NAMES(name));

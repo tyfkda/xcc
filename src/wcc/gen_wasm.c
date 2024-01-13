@@ -439,7 +439,8 @@ static void gen_ref_sub(Expr *expr) {
       Scope *scope;
       const VarInfo *varinfo = scope_find(expr->var.scope, expr->var.name, &scope);
       assert(varinfo != NULL && scope == expr->var.scope);
-      assert(!is_prim_type(expr->type) || varinfo->storage & VS_REF_TAKEN);
+      assert(!is_prim_type(expr->type) || varinfo->storage & VS_REF_TAKEN ||
+             is_global_datsec_var(varinfo, scope));
       if (is_global_scope(scope) || !is_local_storage(varinfo)) {
         if (varinfo->type->kind == TY_FUNC) {
           uint32_t indirect_func = get_indirect_function_index(expr->var.name);
@@ -500,7 +501,7 @@ static void gen_var(Expr *expr, bool needval) {
       Scope *scope;
       const VarInfo *varinfo = scope_find(expr->var.scope, expr->var.name, &scope);
       assert(varinfo != NULL && scope == expr->var.scope);
-      if (varinfo->storage & VS_REF_TAKEN) {
+      if ((varinfo->storage & VS_REF_TAKEN) || is_global_datsec_var(varinfo, scope)) {
         gen_lval(expr);
         gen_load(expr->type);
       } else if (!is_global_scope(scope) && is_local_storage(varinfo)) {
@@ -561,6 +562,7 @@ static void gen_set_to_var(Expr *var) {
     ADD_CODE(OP_LOCAL_SET);
     ADD_ULEB128(vreg->prim.local_index);
   } else {
+    assert(!is_global_datsec_var(varinfo, var->var.scope));
     GVarInfo *info = get_gvar_info(var);
     ADD_CODE(OP_GLOBAL_SET);
     ADD_ULEB128(info->prim.index);
@@ -736,6 +738,7 @@ static void gen_incdec(Expr *expr, bool needval) {
     ADD_CODE(needval ? OP_LOCAL_TEE : OP_LOCAL_SET);
     ADD_ULEB128(vreg->prim.local_index);
   } else {
+    assert(!is_global_datsec_var(varinfo, scope));
     GVarInfo *info = get_gvar_info(target);
     ADD_CODE(OP_GLOBAL_SET);
     ADD_ULEB128(info->prim.index);
@@ -756,7 +759,7 @@ static void gen_assign_sub(Expr *lhs, Expr *rhs) {
     if (lhs->kind == EX_VAR) {
       const VarInfo *varinfo = scope_find(lhs->var.scope, lhs->var.name, NULL);
       assert(varinfo != NULL);
-      if (!(varinfo->storage & VS_REF_TAKEN)) {
+      if (!(varinfo->storage & VS_REF_TAKEN) && !is_global_datsec_var(varinfo, lhs->var.scope)) {
         gen_expr(rhs, true);
         gen_set_to_var(lhs);
         break;
