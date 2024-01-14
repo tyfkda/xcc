@@ -948,6 +948,9 @@ TEST(basic) {
 
     enum Num num = Zero;
     EXPECT_FALSE(num == One);
+
+    static enum Num num2 = Two;
+    EXPECT_TRUE(num2 == Two);
   }
 
   // empty block

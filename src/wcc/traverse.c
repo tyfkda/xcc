@@ -714,8 +714,7 @@ uint32_t traverse_ast(Vector *decls, Vector *exports, uint32_t stack_size) {
   // Global scope
   for (int i = 0, len = global_scope->vars->len; i < len; ++i) {
     VarInfo *varinfo = global_scope->vars->data[i];
-    if (varinfo->storage & VS_EXTERN || varinfo->type->kind == TY_FUNC ||
-        (varinfo->type->kind == TY_FIXNUM && varinfo->type->fixnum.kind == FX_ENUM))
+    if (varinfo->storage & (VS_EXTERN | VS_ENUM_MEMBER) || varinfo->type->kind == TY_FUNC)
       continue;
     register_gvar_info(varinfo->name, varinfo);
     traverse_initializer(varinfo->global.init);
