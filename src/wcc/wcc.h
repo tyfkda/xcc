@@ -95,6 +95,7 @@ void emit_wasm(FILE *ofp, Vector *exports, const char *import_module_name, uint3
 
 // wcc_util
 typedef struct DataStorage {
+  Vector *chunk_stack;
   unsigned char *buf;
   size_t capacity;
   size_t len;
@@ -109,6 +110,9 @@ void data_push(DataStorage *data, unsigned char c);
 void data_concat(DataStorage *dst, DataStorage *src);
 void data_leb128(DataStorage *data, ssize_t pos, int64_t val);
 void data_uleb128(DataStorage *data, ssize_t pos, uint64_t val);
+void data_string(DataStorage *data, const void *str, size_t len);
+void data_open_chunk(DataStorage *data);
+void data_close_chunk(DataStorage *data, ssize_t num);
 
 typedef struct FuncExtra {
   Vector *funcall_results;  // [0]=Expr*, [1]=VarInfo*

@@ -158,24 +158,30 @@ static int compare_indirect(const void *pa, const void *pb) {
   return (int)qa->indirect_index - (int)qb->indirect_index;
 }
 
-void emit_wasm(FILE *ofp, Vector *exports, const char *import_module_name,
-               uint32_t address_bottom) {
-  emit_wasm_header(ofp);
+//
 
-  // Types.
+static void emit_type_section(FILE *ofp) {
   DataStorage types_section;
   data_init(&types_section);
+  data_open_chunk(&types_section);
+  data_open_chunk(&types_section);
   for (int i = 0, len = functypes->len; i < len; ++i) {
     const DataStorage *wt = functypes->data[i];
     data_push(&types_section, WT_FUNC);  // func
     data_append(&types_section, wt->buf, wt->len);
   }
-  data_uleb128(&types_section, 0, functypes->len);  // num types
-  data_uleb128(&types_section, 0, types_section.len);  // Size
+  data_close_chunk(&types_section, functypes->len);
+  data_close_chunk(&types_section, -1);
 
-  // Imports.
+  fputc(SEC_TYPE, ofp);
+  fwrite(types_section.buf, types_section.len, 1, ofp);
+}
+
+static void emit_import_section(FILE *ofp, const char *import_module_name) {
   DataStorage imports_section;
   data_init(&imports_section);
+  data_open_chunk(&imports_section);
+  data_open_chunk(&imports_section);
   uint32_t imports_count = 0;
   {
     const char *module_name = import_module_name;
@@ -200,30 +206,27 @@ void emit_wasm(FILE *ofp, Vector *exports, const char *import_module_name,
         error("Import: `%.*s' is not public", NAMES(name));
       }
 
-      FuncInfo *info = table_get(&func_info_table, name);
-      assert(info != NULL && info->func == NULL);
-
-      uint32_t type_index = info->type_index;
-
-      data_uleb128(&imports_section, -1, module_name_len);  // string length
-      data_append(&imports_section, (const unsigned char*)module_name,
-                  module_name_len);  // import module name
-      int name_len = name->bytes;
-      data_uleb128(&imports_section, -1, name_len);  // string length
-      data_append(&imports_section, (const unsigned char*)name->chars, name_len);  // import name
+      data_string(&imports_section, module_name, module_name_len);  // import module name
+      data_string(&imports_section, name->chars, name->bytes);  // import name
       data_push(&imports_section, IMPORT_FUNC);  // import kind
-      data_uleb128(&imports_section, -1, type_index);  // import signature index
+      data_uleb128(&imports_section, -1, info->type_index);  // import signature index
       ++imports_count;
     }
   }
   if (imports_count > 0) {
-    data_uleb128(&imports_section, 0, imports_count);  // num imports
-    data_uleb128(&imports_section, 0, imports_section.len);  // Size
-  }
+    data_close_chunk(&imports_section, imports_count);
+    data_close_chunk(&imports_section, -1);
 
-  // Functions.
+    fputc(SEC_IMPORT, ofp);
+    fwrite(imports_section.buf, imports_section.len, 1, ofp);
+  }
+}
+
+static uint32_t emit_function_section(FILE *ofp) {
   DataStorage functions_section;
   data_init(&functions_section);
+  data_open_chunk(&functions_section);
+  data_open_chunk(&functions_section);
   uint32_t function_count = 0;
   {
     const Name *name;
@@ -237,34 +240,54 @@ void emit_wasm(FILE *ofp, Vector *exports, const char *import_module_name,
       data_uleb128(&functions_section, -1, type_index);  // function i signature index
     }
   }
-  data_uleb128(&functions_section, 0, function_count);  // num functions
-  data_uleb128(&functions_section, 0, functions_section.len);  // Size
+  if (function_count > 0) {
+    data_close_chunk(&functions_section, function_count);  // num functions
+    data_close_chunk(&functions_section, -1);
 
-  // Table.
+    fputc(SEC_FUNC, ofp);
+    fwrite(functions_section.buf, functions_section.len, 1, ofp);
+  }
+  return function_count;
+}
+
+static void emit_table_section(FILE *ofp, int table_start_index) {
   DataStorage table_section;
   data_init(&table_section);
-  // TODO: Output table only when it is needed.
-  int table_start_index = 1;
+  data_open_chunk(&table_section);
   data_leb128(&table_section, -1, 1);  // num tables
   data_push(&table_section, WT_FUNCREF);
   data_push(&table_section, 0x00);  // limits: flags
   data_leb128(&table_section, -1, table_start_index + indirect_function_table.count);  // initial
+  data_close_chunk(&table_section, -1);
 
-  // Memory.
+  fputc(SEC_TABLE, ofp);
+  fwrite(table_section.buf, table_section.len, 1, ofp);
+}
+
+static void emit_memory_section(FILE *ofp, uint32_t address_bottom) {
   DataStorage memory_section;
   data_init(&memory_section);
+  data_open_chunk(&memory_section);
+  data_open_chunk(&memory_section);
   {
     uint32_t page_count = (address_bottom + MEMORY_PAGE_SIZE - 1) / MEMORY_PAGE_SIZE;
     if (page_count <= 0)
       page_count = 1;
-    data_uleb128(&memory_section, -1, 1);  // count?
-    data_uleb128(&memory_section, -1, 0);  // index?
+    data_uleb128(&memory_section, -1, 0);  // index
     data_uleb128(&memory_section, -1, page_count);
+    data_close_chunk(&memory_section, 1);  // count
+    data_close_chunk(&memory_section, -1);
   }
 
-  // Globals.
+  fputc(SEC_MEMORY, ofp);
+  fwrite(memory_section.buf, memory_section.len, 1, ofp);
+}
+
+static void emit_global_section(FILE *ofp) {
   DataStorage globals_section;
   data_init(&globals_section);
+  data_open_chunk(&globals_section);
+  data_open_chunk(&globals_section);
   uint32_t globals_count = 0;
   {
     const Name *name;
@@ -283,13 +306,19 @@ void emit_wasm(FILE *ofp, Vector *exports, const char *import_module_name,
     }
   }
   if (globals_count > 0) {
-    data_uleb128(&globals_section, 0, globals_count);  // num globals
-    data_uleb128(&globals_section, 0, globals_section.len);  // Size
-  }
+    data_close_chunk(&globals_section, globals_count);  // num globals
+    data_close_chunk(&globals_section, -1);  // num globals
 
-  // Exports.
+    fputc(SEC_GLOBAL, ofp);
+    fwrite(globals_section.buf, globals_section.len, 1, ofp);
+  }
+}
+
+static void emit_export_section(FILE *ofp, Vector *exports) {
   DataStorage exports_section;
   data_init(&exports_section);
+  data_open_chunk(&exports_section);
+  data_open_chunk(&exports_section);
   int num_exports = 0;
   for (int i = 0; i < exports->len; ++i) {
     const Name *name = exports->data[i];
@@ -309,9 +338,7 @@ void emit_wasm(FILE *ofp, Vector *exports, const char *import_module_name,
 
     uint32_t func_index = info->index;
 
-    int name_len = name->bytes;
-    data_uleb128(&exports_section, -1, name_len);  // string length
-    data_append(&exports_section, (const unsigned char*)name->chars, name_len);  // export name
+    data_string(&exports_section, name->chars, name->bytes);  // export name
     data_uleb128(&exports_section, -1, IMPORT_FUNC);  // export kind
     data_uleb128(&exports_section, -1, func_index);  // export func index
     ++num_exports;
@@ -324,8 +351,7 @@ void emit_wasm(FILE *ofp, Vector *exports, const char *import_module_name,
       const VarInfo *varinfo = info->varinfo;
       if (!info->is_export || !is_prim_type(varinfo->type) || (varinfo->storage & VS_REF_TAKEN))
         continue;
-      data_uleb128(&exports_section, -1, name->bytes);  // string length
-      data_append(&exports_section, (const unsigned char*)name->chars, name->bytes);  // export name
+      data_string(&exports_section, name->chars, name->bytes);  // export name
       data_push(&exports_section, EXPORT_GLOBAL);  // export kind
       data_uleb128(&exports_section, -1, info->prim.index);  // export global index
       ++num_exports;
@@ -333,19 +359,24 @@ void emit_wasm(FILE *ofp, Vector *exports, const char *import_module_name,
   }
   /*if (memory_section.len > 0)*/ {  // TODO: Export only if memory exists
     static const char name[] = "memory";
-    data_uleb128(&exports_section, -1, sizeof(name) - 1);  // string length
-    data_append(&exports_section, (const unsigned char*)name, sizeof(name) - 1);  // export name
+    data_string(&exports_section, name, sizeof(name) - 1);  // export name
     data_uleb128(&exports_section, -1, IMPORT_MEMORY);  // export kind
     data_uleb128(&exports_section, -1, 0);  // export global index
     ++num_exports;
   }
-  data_uleb128(&exports_section, 0, num_exports);  // num exports
-  data_uleb128(&exports_section, 0, exports_section.len);  // Size
+  data_close_chunk(&exports_section, num_exports);  // num exports
+  data_close_chunk(&exports_section, -1);
 
-  // Elements.
+  fputc(SEC_EXPORT, ofp);
+  fwrite(exports_section.buf, exports_section.len, 1, ofp);
+}
+
+static void emit_elems_section(FILE *ofp, int table_start_index) {
   DataStorage elems_section;
   data_init(&elems_section);
   if (indirect_function_table.count > 0) {
+    data_open_chunk(&elems_section);
+
     int count = indirect_function_table.count;
     FuncInfo **indirect_funcs = ALLOCA(sizeof(*indirect_funcs) * count);
 
@@ -371,85 +402,39 @@ void emit_wasm(FILE *ofp, Vector *exports, const char *import_module_name,
       VERBOSE("%2d: %.*s (%d)\n", i + 1, NAMES(info->func->name), (int)info->index);
       data_leb128(&elems_section, -1, info->index);  // elem function index
     }
+    data_close_chunk(&elems_section, -1);
     VERBOSES("\n");
-  }
 
-  // Tag.
+    fputc(SEC_ELEM, ofp);
+    fwrite(elems_section.buf, elems_section.len, 1, ofp);
+  }
+}
+
+static void emit_tag_section(FILE *ofp) {
   DataStorage tag_section;
   data_init(&tag_section);
   if (tags->len > 0) {
+    data_open_chunk(&tag_section);
+    data_open_chunk(&tag_section);
     for (int i = 0; i < tags->len; ++i) {
       int typeindex = VOIDP2INT(tags->data[i]);
       int attribute = 0;
       data_uleb128(&tag_section, -1, attribute);
       data_uleb128(&tag_section, -1, typeindex);
     }
-    data_uleb128(&tag_section, 0, tags->len);  // tag count
-    data_uleb128(&tag_section, 0, tag_section.len);  // Size
+    data_close_chunk(&tag_section, tags->len);  // tag count
+    data_close_chunk(&tag_section, -1);
+
+    fputc(SEC_TAG, ofp);
+    fwrite(tag_section.buf, tag_section.len, 1, ofp);
   }
+}
 
-  // Combine all sections.
-  DataStorage sections;
-  data_init(&sections);
-  // Types
-  data_push(&sections, SEC_TYPE);  // Section "Type" (1)
-  data_concat(&sections, &types_section);
-
-  // Imports
-  if (imports_count > 0) {
-    data_push(&sections, SEC_IMPORT);  // Section "Import" (2)
-    data_append(&sections, imports_section.buf, imports_section.len);
-  }
-
-  // Functions
-  data_push(&sections, SEC_FUNC);  // Section "Function" (3)
-  data_append(&sections, functions_section.buf, functions_section.len);
-
-  // Table.
-  if (table_section.len > 0) {
-    data_push(&sections, SEC_TABLE);  // Section "Table" (4)
-    data_uleb128(&sections, -1, table_section.len);
-    data_append(&sections, table_section.buf, table_section.len);
-  }
-
-  // Memory.
-  if (memory_section.len > 0) {
-    data_push(&sections, SEC_MEMORY);  // Section "Memory" (5)
-    data_uleb128(&sections, -1, memory_section.len);
-    data_append(&sections, memory_section.buf, memory_section.len);
-  }
-
-  // Tag (must put earlier than Global section.)
-  if (tag_section.len > 0) {
-    data_push(&sections, SEC_TAG);  // Section "Tag" (13)
-    data_append(&sections, tag_section.buf, tag_section.len);
-  }
-
-  // Globals
-  if (globals_count > 0) {
-    data_push(&sections, SEC_GLOBAL);  // Section "Global" (6)
-    data_append(&sections, globals_section.buf, globals_section.len);
-  }
-
-  // Exports
-  data_push(&sections, SEC_EXPORT);  // Section "Export" (7)
-  data_append(&sections, exports_section.buf, exports_section.len);
-
-  // Elements
-  if (elems_section.len > 0) {
-    data_push(&sections, SEC_ELEM);  // Section "Elem" (9)
-    data_uleb128(&sections, -1, elems_section.len);
-    data_append(&sections, elems_section.buf, elems_section.len);
-  }
-
-  fwrite(sections.buf, sections.len, 1, ofp);
-
+static void emit_code_section(FILE *ofp, uint32_t function_count) {
   DataStorage codesec;
   data_init(&codesec);
-
-  data_push(&codesec, SEC_CODE);  // Section "Code" (10)
-  size_t size_pos = codesec.len;
-  size_t total_code_size = 0;
+  data_open_chunk(&codesec);
+  data_open_chunk(&codesec);
   {
     const Name *name;
     FuncInfo *info;
@@ -458,50 +443,74 @@ void emit_wasm(FILE *ofp, Vector *exports, const char *import_module_name,
       if (func == NULL || info->flag == 0)
         continue;
       DataStorage *code = ((FuncExtra*)func->extra)->code;
-      // function body i.
-      total_code_size += code->len;
+      data_concat(&codesec, code);
     }
   }
+  data_close_chunk(&codesec, function_count);  // num functions
+  data_close_chunk(&codesec, -1);
 
-  // Put num function first, and insert total size after.
-  data_uleb128(&codesec, -1, function_count);  // num functions
-  data_uleb128(&codesec, size_pos, (codesec.len - size_pos) + total_code_size);  // Size
+  fputc(SEC_CODE, ofp);
   fwrite(codesec.buf, codesec.len, 1, ofp);
+}
 
-  {
-    const Name *name;
-    FuncInfo *info;
-    for (int it = 0; (it = table_iterate(&func_info_table, it, &name, (void**)&info)) != -1; ) {
-      Function *func = info->func;
-      if (func == NULL || info->flag == 0)
-        continue;
-      DataStorage *code = ((FuncExtra*)func->extra)->code;
-      fwrite(code->buf, code->len, 1, ofp);
-    }
+static void emit_data_section(FILE *ofp) {
+  DataStorage datasec;
+  data_init(&datasec);
+  data_open_chunk(&datasec);
+  data_open_chunk(&datasec);
+  construct_data_segment(&datasec);
+  if (datasec.len > 0) {
+    data_close_chunk(&datasec, -1);  // data segment size
+
+    static const unsigned char seg_info[] = {
+      0x01,             // num data segments
+      0x00,             // segment flags
+      OP_I32_CONST, 0,  // i32.const 0
+      OP_END,
+    };
+    data_insert(&datasec, 0, seg_info, sizeof(seg_info));
+    data_close_chunk(&datasec, -1);
+
+    fputc(SEC_DATA, ofp);
+    fwrite(datasec.buf, datasec.len, 1, ofp);
   }
+}
 
-  // Data
-  {
-    DataStorage datasec;
-    data_init(&datasec);
-    construct_data_segment(&datasec);
-    if (datasec.len > 0) {
-      static const unsigned char seg_info[] = {
-        0x01,             // num data segments
-        0x00,             // segment flags
-        OP_I32_CONST, 0,  // i32.const 0
-        OP_END,
-      };
-      size_t datasize = datasec.len;
-      data_insert(&datasec, 0, seg_info, sizeof(seg_info));
-      data_uleb128(&datasec, sizeof(seg_info), datasize);  // data segment size
+void emit_wasm(FILE *ofp, Vector *exports, const char *import_module_name,
+               uint32_t address_bottom) {
+  emit_wasm_header(ofp);
 
-      static const unsigned char sec[] = {SEC_DATA};
-      size_t section_size = datasec.len;
-      data_insert(&datasec, 0, sec, sizeof(sec));
-      data_uleb128(&datasec, sizeof(sec), section_size);  // section size
+  // Types.
+  emit_type_section(ofp);
 
-      fwrite(datasec.buf, datasec.len, 1, ofp);
-    }
-  }
+  // Imports.
+  emit_import_section(ofp, import_module_name);
+
+  // Functions.
+  uint32_t function_count = emit_function_section(ofp);
+
+  // Table.
+  int table_start_index = 1;  // TODO: Output table only when it is needed.
+  emit_table_section(ofp, table_start_index);
+
+  // Memory.
+  emit_memory_section(ofp, address_bottom);
+
+  // Tag (must put earlier than Global section.)
+  emit_tag_section(ofp);
+
+  // Globals.
+  emit_global_section(ofp);
+
+  // Exports.
+  emit_export_section(ofp, exports);
+
+  // Elements.
+  emit_elems_section(ofp, table_start_index);
+
+  // Code.
+  emit_code_section(ofp, function_count);
+
+  // Data.
+  emit_data_section(ofp);
 }
