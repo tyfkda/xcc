@@ -27,6 +27,7 @@ extern Table builtin_function_table;
 extern Vector *functypes;  // <DataStorage*>
 extern Vector *tags;  // <int>
 extern Table indirect_function_table;
+extern Table unresolved_gvar_table;
 extern uint32_t data_end_address;
 extern bool verbose;
 

@@ -22,6 +22,7 @@ Table gvar_info_table;
 Table builtin_function_table;
 Vector *functypes;  // <DataStorage*>
 Table indirect_function_table;
+Table unresolved_gvar_table;
 
 static Stmt *branching_stmt;
 
@@ -163,17 +164,11 @@ GVarInfo *get_gvar_info(Expr *expr) {
       varinfo = varinfo->static_.gvar;
     }
   }
-  GVarInfo *info = NULL;
-  if (varinfo == NULL) {
-    parse_error(PE_FATAL, expr->token, "Variable not found: %.*s", NAMES(expr->var.name));
-  } else {
-    info = get_gvar_info_from_name(varinfo->name);
-    if (info == NULL) {
-      fprintf(stderr, "Global variable not found: %.*s\n", NAMES(expr->var.name));
-      ++compile_error_count;
-      // Returns dummy.
-      info = register_gvar_info(varinfo->name, varinfo);
-    }
+  GVarInfo *info = get_gvar_info_from_name(varinfo->name);
+  if (info == NULL) {
+    table_put(&unresolved_gvar_table, varinfo->name, varinfo);
+    // Returns dummy.
+    info = register_gvar_info(varinfo->name, varinfo);
   }
   return info;
 }
