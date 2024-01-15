@@ -702,10 +702,22 @@ static void traverse_decl(Declaration *decl) {
 
 static void add_builtins(void) {
   // Stack pointer.
-  add_global_var(&tyVoidPtr, alloc_name(SP_NAME, NULL, false));
+  {
+    const Name *name = alloc_name(SP_NAME, NULL, false);
+    VarInfo *varinfo = add_global_var(&tyVoidPtr, name);
+    Initializer *init = new_initializer(IK_SINGLE, NULL);
+    init->single = new_expr_fixlit(varinfo->type, NULL, 0);  // Dummy
+    varinfo->global.init = init;
+  }
 
   // Break address.
-  add_global_var(&tyVoidPtr, alloc_name(BREAK_ADDRESS_NAME, NULL, false));
+  {
+    const Name *name = alloc_name(BREAK_ADDRESS_NAME, NULL, false);
+    VarInfo *varinfo = add_global_var(&tyVoidPtr, name);
+    Initializer *init = new_initializer(IK_SINGLE, NULL);
+    init->single = new_expr_fixlit(varinfo->type, NULL, 0);  // Dummy
+    varinfo->global.init = init;
+  }
 }
 
 uint32_t traverse_ast(Vector *decls, Vector *exports, uint32_t stack_size) {
@@ -805,21 +817,21 @@ uint32_t traverse_ast(Vector *decls, Vector *exports, uint32_t stack_size) {
     VERBOSES("\n");
 
     // Set initial values.
+    sp_bottom = ALIGN(address + stack_size, 16);
     {  // Stack pointer.
-      sp_bottom = ALIGN(address + stack_size, 16);
-      GVarInfo *info = get_gvar_info_from_name(alloc_name(SP_NAME, NULL, false));
-      assert(info != NULL);
-      Initializer *init = new_initializer(IK_SINGLE, NULL);
-      init->single = new_expr_fixlit(info->varinfo->type, NULL, sp_bottom);
-      info->varinfo->global.init = init;
+      VarInfo *varinfo = scope_find(global_scope, alloc_name(SP_NAME, NULL, false), NULL);
+      assert(varinfo != NULL);
+      Initializer *init = varinfo->global.init;
+      assert(init != NULL && init->kind == IK_SINGLE && init->single->kind == EX_FIXNUM);
+      init->single->fixnum = sp_bottom;
       VERBOSE("SP bottom: 0x%x  (size=0x%x)\n", sp_bottom, stack_size);
     }
     {  // Break address.
-      GVarInfo *info = get_gvar_info_from_name(alloc_name(BREAK_ADDRESS_NAME, NULL, false));
-      assert(info != NULL);
-      Initializer *init = new_initializer(IK_SINGLE, NULL);
-      init->single = new_expr_fixlit(info->varinfo->type, NULL, sp_bottom);
-      info->varinfo->global.init = init;
+      VarInfo *varinfo = scope_find(global_scope, alloc_name(BREAK_ADDRESS_NAME, NULL, false), NULL);
+      assert(varinfo != NULL);
+      Initializer *init = varinfo->global.init;
+      assert(init != NULL && init->kind == IK_SINGLE && init->single->kind == EX_FIXNUM);
+      init->single->fixnum = sp_bottom;
       VERBOSE("Break address: 0x%x\n", sp_bottom);
     }
   }
