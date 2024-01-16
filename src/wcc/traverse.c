@@ -249,6 +249,11 @@ static void te_var(Expr **pexpr, bool needval) {
   if (expr->type->kind == TY_FUNC) {
     register_indirect_function(expr->var.name);
     traverse_func_expr(pexpr);
+  } else {
+    if (out_type < OutExecutable && is_global_scope(expr->var.scope)) {
+      // Register used global variable even if the entity is `extern`.
+      get_gvar_info(expr);
+    }
   }
 }
 
@@ -710,6 +715,33 @@ uint32_t traverse_ast(Vector *decls, Vector *exports, uint32_t stack_size) {
     register_func_info(name, NULL, FF_REFERRED);
   }
 
+  // Linking information.
+  if (out_type < OutExecutable) {
+    uint32_t symbol_index = 0;
+    const Name *name;
+    FuncInfo *info;
+    for (int it = 0; (it = table_iterate(&func_info_table, it, &name, (void**)&info)) != -1; ) {
+      if (info->flag == 0)
+        continue;
+      ++symbol_index;
+    }
+
+    // Assign linking index to globals.
+    uint32_t global_index = 0;
+    uint32_t data_index = 0;
+    for (int i = 0, len = global_scope->vars->len; i < len; ++i) {
+      VarInfo *varinfo = global_scope->vars->data[i];
+      if (varinfo->storage & VS_ENUM_MEMBER || varinfo->type->kind == TY_FUNC)
+        continue;
+      GVarInfo *info = get_gvar_info_from_name(varinfo->name);
+      if (info == NULL)
+        continue;
+      uint32_t index = !is_global_datsec_var(varinfo, global_scope) ? global_index++ : !(varinfo->storage & VS_EXTERN) ? data_index++ : (uint32_t)-1;
+      info->non_prim.item_index = index;
+      info->non_prim.symbol_index = symbol_index++;
+    }
+  }
+
   {
     // Enumerate functions.
     VERBOSES("### Functions\n");
@@ -767,21 +799,23 @@ uint32_t traverse_ast(Vector *decls, Vector *exports, uint32_t stack_size) {
 
     // Set initial values.
     sp_bottom = ALIGN(address + stack_size, 16);
-    {  // Stack pointer.
-      VarInfo *varinfo = scope_find(global_scope, alloc_name(SP_NAME, NULL, false), NULL);
-      assert(varinfo != NULL);
-      Initializer *init = varinfo->global.init;
-      assert(init != NULL && init->kind == IK_SINGLE && init->single->kind == EX_FIXNUM);
-      init->single->fixnum = sp_bottom;
-      VERBOSE("SP bottom: 0x%x  (size=0x%x)\n", sp_bottom, stack_size);
-    }
-    if (out_type >= OutExecutable) {  // Break address.
-      VarInfo *varinfo = scope_find(global_scope, alloc_name(BREAK_ADDRESS_NAME, NULL, false), NULL);
-      assert(varinfo != NULL);
-      Initializer *init = varinfo->global.init;
-      assert(init != NULL && init->kind == IK_SINGLE && init->single->kind == EX_FIXNUM);
-      init->single->fixnum = sp_bottom;
-      VERBOSE("Break address: 0x%x\n", sp_bottom);
+    if (out_type >= OutExecutable) {
+      {  // Stack pointer.
+        VarInfo *varinfo = scope_find(global_scope, alloc_name(SP_NAME, NULL, false), NULL);
+        assert(varinfo != NULL);
+        Initializer *init = varinfo->global.init;
+        assert(init != NULL && init->kind == IK_SINGLE && init->single->kind == EX_FIXNUM);
+        init->single->fixnum = sp_bottom;
+        VERBOSE("SP bottom: 0x%x  (size=0x%x)\n", sp_bottom, stack_size);
+      }
+      {  // Break address.
+        VarInfo *varinfo = scope_find(global_scope, alloc_name(BREAK_ADDRESS_NAME, NULL, false), NULL);
+        assert(varinfo != NULL);
+        Initializer *init = varinfo->global.init;
+        assert(init != NULL && init->kind == IK_SINGLE && init->single->kind == EX_FIXNUM);
+        init->single->fixnum = sp_bottom;
+        VERBOSE("Break address: 0x%x\n", sp_bottom);
+      }
     }
   }
 

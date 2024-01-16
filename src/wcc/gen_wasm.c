@@ -464,7 +464,20 @@ static void gen_ref_sub(Expr *expr) {
         } else {
           GVarInfo *info = get_gvar_info(expr);
           ADD_CODE(OP_I32_CONST);
-          ADD_LEB128(info->non_prim.address);
+          if (out_type >= OutExecutable) {
+            ADD_LEB128(info->non_prim.address);
+          } else {
+            FuncExtra *extra = curfunc->extra;
+            DataStorage *code = extra->code;
+            RelocInfo *ri = calloc_or_die(sizeof(*ri));
+            ri->type = R_WASM_MEMORY_ADDR_LEB;
+            ri->offset = code->len;
+            ri->addend = 0;
+            ri->index = info->non_prim.symbol_index;
+            vec_push(extra->reloc_code, ri);
+
+            ADD_VARUINT32(info->non_prim.address);
+          }
         }
       } else {
         VReg *vreg = varinfo->local.vreg;

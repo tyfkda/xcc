@@ -562,6 +562,34 @@ static void emit_linking_section(EmitWasm *ew) {
       ++count;
     }
   }
+  {  // Globals
+    for (int i = 0, len = global_scope->vars->len; i < len; ++i) {
+      VarInfo *varinfo = global_scope->vars->data[i];
+      if (varinfo->storage & VS_ENUM_MEMBER || varinfo->type->kind == TY_FUNC)
+        continue;
+      GVarInfo *info = get_gvar_info_from_name(varinfo->name);
+      if (info == NULL)
+        continue;
+
+      int flags = 0;
+      if (info->flag & GVF_UNRESOLVED)
+        flags |= WASM_SYM_UNDEFINED;
+      if (varinfo->storage & VS_STATIC)
+        flags |= WASM_SYM_VISIBILITY_HIDDEN;
+
+      data_push(&linking_section, SIK_SYMTAB_DATA);  // kind
+      data_uleb128(&linking_section, -1, flags);
+      const Name *name = varinfo->name;
+      data_string(&linking_section, name->chars, name->bytes);
+      if (!(info->flag & GVF_UNRESOLVED)) {  // Defined function: put name. otherwise not required.
+        data_uleb128(&linking_section, -1, info->non_prim.item_index);
+        data_uleb128(&linking_section, -1, 0);  // TODO: offset
+        data_uleb128(&linking_section, -1, type_size(varinfo->type));  // size
+      }
+
+      ++count;
+    }
+  }
   data_close_chunk(&linking_section, count);
   data_close_chunk(&linking_section, -1);  // Put payload size.
 
@@ -619,6 +647,19 @@ static void emit_reloc_section(EmitWasm *ew) {
       data_push(&reloc_code_section, reloc->type);
       data_uleb128(&reloc_code_section, -1, reloc->offset + extra->offset);
       data_uleb128(&reloc_code_section, -1, reloc->index);
+      switch (reloc->type) {
+      case R_WASM_MEMORY_ADDR_LEB:
+      case R_WASM_MEMORY_ADDR_SLEB:
+      case R_WASM_MEMORY_ADDR_I32:
+      case R_WASM_MEMORY_ADDR_LEB64:
+      case R_WASM_MEMORY_ADDR_SLEB64:
+      case R_WASM_MEMORY_ADDR_I64:
+      case R_WASM_FUNCTION_OFFSET_I32:
+      case R_WASM_SECTION_OFFSET_I32:
+        data_uleb128(&reloc_code_section, -1, reloc->addend);
+        break;
+      default: break;
+      }
       // TODO: addend?
     }
     data_close_chunk(&reloc_code_section, -1);

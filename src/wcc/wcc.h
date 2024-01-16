@@ -34,7 +34,7 @@ typedef struct {
   Function *func;
   VarInfo *varinfo;
   const Name *bpname;
-  uint32_t index;
+  uint32_t index;  // also represents symbol_index (because functions are put first in symbol table.)
   int flag;
   uint32_t type_index;
   uint32_t indirect_index;
@@ -52,6 +52,8 @@ typedef struct {
     } prim;
     struct {
       uint32_t address;
+      uint32_t item_index;    // global, or data
+      uint32_t symbol_index;  // index in symbol table.
     } non_prim;
   };
 } GVarInfo;
