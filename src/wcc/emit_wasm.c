@@ -113,43 +113,49 @@ static void emit_string(void *ud, Expr *str, size_t size) {
   }
 }
 
-static void construct_data_segment(DataStorage *ds) {
+static void construct_data_segment_sub(DataStorage *ds, const VarInfo *varinfo) {
   static const ConstructInitialValueVTable kVtable = {
     .emit_align = emit_align,
     .emit_number = emit_number,
     .emit_string = emit_string,
   };
+  construct_initial_value(varinfo->type, varinfo->global.init, &kVtable, ds);
+}
 
+typedef struct {
+  GVarInfo *gvarinfo;
+  DataStorage ds;
+} DataSegment;
+
+static Vector *construct_data_segment(void) {
   // Enumerate global variables.
+  Vector *segments = new_vector();
   const Name *name;
   GVarInfo *info;
+#ifndef NDEBUG
   uint32_t address = 0;
-
-  unsigned char *zerobuf = NULL;
-  size_t zerosz = 0;
-
+#endif
   for (int it = 0; (it = table_iterate(&gvar_info_table, it, &name, (void**)&info)) != -1; ) {
     const VarInfo *varinfo = info->varinfo;
     if ((is_prim_type(varinfo->type) && !(varinfo->storage & VS_REF_TAKEN)) ||
         varinfo->global.init == NULL)
       continue;
+#ifndef NDEBUG
     uint32_t adr = info->non_prim.address;
     assert(adr >= address);
-    if (adr > address) {
-      uint32_t sz = adr - address;
-      if (sz > zerosz) {
-        zerobuf = realloc_or_die(zerobuf, sz);
-        memset(zerobuf + zerosz, 0x00, sz - zerosz);
-        zerosz = sz;
-      }
-      data_append(ds, zerobuf, sz);
-    }
+#endif
 
-    construct_initial_value(varinfo->type, varinfo->global.init, &kVtable, ds);
+    DataSegment *segment = malloc_or_die(sizeof(*segment));
+    segment->gvarinfo = info;
+    data_init(&segment->ds);
+    construct_data_segment_sub(&segment->ds, varinfo);
+    vec_push(segments, segment);
 
+#ifndef NDEBUG
     address = adr + type_size(varinfo->type);
-    assert(ds->len == address);
+#endif
   }
+  return segments;
 }
 
 static int compare_indirect(const void *pa, const void *pb) {
@@ -454,26 +460,36 @@ static void emit_code_section(FILE *ofp, uint32_t function_count) {
 }
 
 static void emit_data_section(FILE *ofp) {
+  Vector *segments = construct_data_segment();
+  if (segments->len <= 0)
+    return;
+
   DataStorage datasec;
   data_init(&datasec);
   data_open_chunk(&datasec);
   data_open_chunk(&datasec);
-  construct_data_segment(&datasec);
-  if (datasec.len > 0) {
-    data_close_chunk(&datasec, -1);  // data segment size
 
-    static const unsigned char seg_info[] = {
-      0x01,             // num data segments
-      0x00,             // segment flags
-      OP_I32_CONST, 0,  // i32.const 0
-      OP_END,
-    };
-    data_insert(&datasec, 0, seg_info, sizeof(seg_info));
-    data_close_chunk(&datasec, -1);
-
-    fputc(SEC_DATA, ofp);
-    fwrite(datasec.buf, datasec.len, 1, ofp);
+  VERBOSES("### Data\n");
+  for (int i = 0; i < segments->len; ++i) {
+    DataSegment *segment = segments->data[i];
+    data_push(&datasec, 0);  // flags
+    // Init (address).
+    uint32_t address = segment->gvarinfo->non_prim.address;
+    VERBOSE("%04x: %.*s (size=%zu)\n", address, NAMES(segment->gvarinfo->varinfo->name),
+            type_size(segment->gvarinfo->varinfo->type));
+    data_push(&datasec, OP_I32_CONST);
+    data_leb128(&datasec, -1, address);
+    data_push(&datasec, OP_END);
+    // Content
+    data_uleb128(&datasec, -1, segment->ds.len);
+    data_concat(&datasec, &segment->ds);
   }
+  VERBOSES("\n");
+  data_close_chunk(&datasec, segments->len);
+  data_close_chunk(&datasec, -1);
+
+  fputc(SEC_DATA, ofp);
+  fwrite(datasec.buf, datasec.len, 1, ofp);
 }
 
 void emit_wasm(FILE *ofp, Vector *exports, const char *import_module_name,
