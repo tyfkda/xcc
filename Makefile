@@ -36,7 +36,7 @@ OPTIMIZE:=-O2 -g3
 CFLAGS:=-ansi -std=c11 -pedantic -MMD -Wall -Wextra -Werror -Wold-style-definition \
 	-Wno-missing-field-initializers -Wno-empty-body \
 	-D_DEFAULT_SOURCE $(OPTIMIZE) \
-	-I$(CC1_FE_DIR) -I$(CC1_BE_DIR) -I$(CC1_ARCH_DIR) -I$(AS_DIR) -I$(UTIL_DIR)
+	-I$(CC1_FE_DIR) -I$(CC1_BE_DIR) -I$(CC1_ARCH_DIR) -I$(UTIL_DIR)
 ifneq ("$(NO_FLONUM)","")
 CFLAGS+=-D__NO_FLONUM
 endif
@@ -86,10 +86,9 @@ cc1_SRCS:=$(wildcard $(CC1_FE_DIR)/*.c) $(wildcard $(CC1_BE_DIR)/*.c) $(wildcard
 cpp_SRCS:=$(wildcard $(CPP_DIR)/*.c) \
 	$(CC1_DIR)/lexer.c $(UTIL_DIR)/util.c $(UTIL_DIR)/table.c
 as_SRCS:=$(wildcard $(AS_DIR)/*.c) \
-	$(UTIL_DIR)/util.c $(UTIL_DIR)/elfutil.c $(UTIL_DIR)/table.c
+	$(UTIL_DIR)/gen_section.c $(UTIL_DIR)/util.c $(UTIL_DIR)/elfutil.c $(UTIL_DIR)/table.c
 ld_SRCS:=$(wildcard $(LD_DIR)/*.c) \
-	$(AS_DIR)/gen_section.c \
-	$(UTIL_DIR)/util.c $(UTIL_DIR)/elfutil.c $(UTIL_DIR)/table.c
+	$(UTIL_DIR)/gen_section.c $(UTIL_DIR)/util.c $(UTIL_DIR)/elfutil.c $(UTIL_DIR)/table.c
 
 .PHONY: all
 all:	exes libs
