@@ -298,7 +298,8 @@ static void emit_global_section(EmitWasm *ew) {
     GVarInfo *info;
     for (int it = 0; (it = table_iterate(&gvar_info_table, it, &name, (void**)&info)) != -1; ) {
       const VarInfo *varinfo = info->varinfo;
-      if (!is_prim_type(varinfo->type) || varinfo->storage & VS_REF_TAKEN)
+      if (!is_prim_type(varinfo->type) || (varinfo->storage & VS_REF_TAKEN) ||
+          (info->flag & GVF_UNRESOLVED))
         continue;
       unsigned char wt = to_wtype(varinfo->type);
       data_push(&globals_section, wt);
@@ -347,7 +348,7 @@ static void emit_export_section(EmitWasm *ew, Vector *exports) {
     GVarInfo *info;
     for (int it = 0; (it = table_iterate(&gvar_info_table, it, &name, (void**)&info)) != -1; ) {
       const VarInfo *varinfo = info->varinfo;
-      if (!info->is_export || !is_prim_type(varinfo->type) || (varinfo->storage & VS_REF_TAKEN))
+      if (!(info->flag & GVF_EXPORT) || !is_prim_type(varinfo->type) || (varinfo->storage & VS_REF_TAKEN))
         continue;
       data_string(&exports_section, name->chars, name->bytes);  // export name
       data_push(&exports_section, IMPORT_GLOBAL);  // export kind

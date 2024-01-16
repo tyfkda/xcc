@@ -32,7 +32,7 @@ GVarInfo *register_gvar_info(const Name *name, VarInfo *varinfo) {
 #endif
   GVarInfo *info = calloc_or_die(sizeof(*info));
   info->varinfo = varinfo;
-  info->is_export = false;
+  info->flag = 0;
   table_put(&gvar_info_table, name, info);
   return info;
 }

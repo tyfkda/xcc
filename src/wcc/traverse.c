@@ -131,6 +131,7 @@ GVarInfo *get_gvar_info(Expr *expr) {
     table_put(&unresolved_gvar_table, varinfo->name, varinfo);
     // Returns dummy.
     info = register_gvar_info(varinfo->name, varinfo);
+    info->flag |= GVF_UNRESOLVED;
   }
   return info;
 }
@@ -660,6 +661,8 @@ static void add_builtins(void) {
     Initializer *init = new_initializer(IK_SINGLE, NULL);
     init->single = new_expr_fixlit(varinfo->type, NULL, 0);  // Dummy
     varinfo->global.init = init;
+
+    register_gvar_info(varinfo->name, varinfo);
   }
 
   // Break address.
@@ -669,12 +672,12 @@ static void add_builtins(void) {
     Initializer *init = new_initializer(IK_SINGLE, NULL);
     init->single = new_expr_fixlit(varinfo->type, NULL, 0);  // Dummy
     varinfo->global.init = init;
+
+    register_gvar_info(varinfo->name, varinfo);
   }
 }
 
 uint32_t traverse_ast(Vector *decls, Vector *exports, uint32_t stack_size) {
-  add_builtins();
-
   // Global scope
   for (int i = 0, len = global_scope->vars->len; i < len; ++i) {
     VarInfo *varinfo = global_scope->vars->data[i];
@@ -683,6 +686,8 @@ uint32_t traverse_ast(Vector *decls, Vector *exports, uint32_t stack_size) {
     register_gvar_info(varinfo->name, varinfo);
     traverse_initializer(varinfo->global.init);
   }
+
+  add_builtins();
 
   for (int i = 0, len = decls->len; i < len; ++i) {
     Declaration *decl = decls->data[i];

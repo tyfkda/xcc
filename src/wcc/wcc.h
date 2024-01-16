@@ -39,9 +39,12 @@ typedef struct {
   uint32_t indirect_index;
 } FuncInfo;
 
+#define GVF_EXPORT      (1 << 0)
+#define GVF_UNRESOLVED  (1 << 1)
+
 typedef struct {
   VarInfo *varinfo;
-  bool is_export;
+  int flag;
   union {
     struct {
       uint32_t index;

@@ -379,7 +379,7 @@ int main(int argc, char *argv[]) {
 
   if (export_stack_pointer) {
     GVarInfo *info = get_gvar_info_from_name(alloc_name(SP_NAME, NULL, false));
-    info->is_export = true;
+    info->flag |= GVF_EXPORT;
   }
 
   gen(toplevel);
