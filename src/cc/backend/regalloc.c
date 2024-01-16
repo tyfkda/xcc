@@ -85,8 +85,11 @@ static void remove_active(LiveInterval **active, int active_count, int start, in
 static int sort_live_interval(const void *pa, const void *pb) {
   LiveInterval *a = *(LiveInterval**)pa, *b = *(LiveInterval**)pb;
   int d = a->start - b->start;
-  if (d == 0)
+  if (d == 0) {
     d = b->end - a->end;
+    if (d == 0)
+      d = a->virt - b->virt;
+  }
   return d;
 }
 
