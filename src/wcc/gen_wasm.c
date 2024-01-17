@@ -540,7 +540,20 @@ static void gen_var(Expr *expr, bool needval) {
       } else {
         GVarInfo *info = get_gvar_info(expr);
         ADD_CODE(OP_GLOBAL_GET);
-        ADD_ULEB128(info->non_prim.address);
+        if (out_type >= OutExecutable) {
+          ADD_ULEB128(info->non_prim.address);
+        } else {
+          FuncExtra *extra = curfunc->extra;
+          DataStorage *code = extra->code;
+          RelocInfo *ri = calloc_or_die(sizeof(*ri));
+          ri->type = R_WASM_GLOBAL_INDEX_LEB;
+          ri->offset = code->len;
+          ri->addend = 0;
+          ri->index = info->non_prim.symbol_index;
+          vec_push(extra->reloc_code, ri);
+
+          ADD_VARUINT32(0);
+        }
       }
     }
     break;
@@ -593,7 +606,20 @@ static void gen_set_to_var(Expr *var) {
     assert(!is_global_datsec_var(varinfo, var->var.scope));
     GVarInfo *info = get_gvar_info(var);
     ADD_CODE(OP_GLOBAL_SET);
-    ADD_ULEB128(info->prim.index);
+    if (out_type >= OutExecutable) {
+      ADD_ULEB128(info->prim.index);
+    } else {
+      FuncExtra *extra = curfunc->extra;
+      DataStorage *code = extra->code;
+      RelocInfo *ri = calloc_or_die(sizeof(*ri));
+      ri->type = R_WASM_GLOBAL_INDEX_LEB;
+      ri->offset = code->len;
+      ri->addend = 0;
+      ri->index = info->non_prim.symbol_index;
+      vec_push(extra->reloc_code, ri);
+
+      ADD_VARUINT32(0);
+    }
   }
 }
 

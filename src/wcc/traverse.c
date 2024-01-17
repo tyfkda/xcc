@@ -729,16 +729,20 @@ uint32_t traverse_ast(Vector *decls, Vector *exports, uint32_t stack_size) {
     // Assign linking index to globals.
     uint32_t global_index = 0;
     uint32_t data_index = 0;
-    for (int i = 0, len = global_scope->vars->len; i < len; ++i) {
-      VarInfo *varinfo = global_scope->vars->data[i];
-      if (varinfo->storage & VS_ENUM_MEMBER || varinfo->type->kind == TY_FUNC)
-        continue;
-      GVarInfo *info = get_gvar_info_from_name(varinfo->name);
-      if (info == NULL)
-        continue;
-      uint32_t index = !is_global_datsec_var(varinfo, global_scope) ? global_index++ : !(varinfo->storage & VS_EXTERN) ? data_index++ : (uint32_t)-1;
-      info->non_prim.item_index = index;
-      info->non_prim.symbol_index = symbol_index++;
+    for (int k = 0; k < 2; ++k) {  // 0=unresolved, 1=resolved
+      for (int i = 0, len = global_scope->vars->len; i < len; ++i) {
+        VarInfo *varinfo = global_scope->vars->data[i];
+        if (varinfo->storage & VS_ENUM_MEMBER || varinfo->type->kind == TY_FUNC)
+          continue;
+        GVarInfo *info = get_gvar_info_from_name(varinfo->name);
+        if (info == NULL)
+          continue;
+        if ((k == 0) == ((info->flag & GVF_UNRESOLVED) == 0))
+          continue;
+        uint32_t index = !is_global_datsec_var(varinfo, global_scope) ? global_index++ : !(varinfo->storage & VS_EXTERN) ? data_index++ : (uint32_t)-1;
+        info->non_prim.item_index = index;
+        info->non_prim.symbol_index = symbol_index++;
+      }
     }
   }
 
@@ -765,35 +769,45 @@ uint32_t traverse_ast(Vector *decls, Vector *exports, uint32_t stack_size) {
     // Enumerate global variables.
     const uint32_t START_ADDRESS = 1;  // Avoid valid poiter is NULL.
     uint32_t address = START_ADDRESS;
-    const Name *name;
-    GVarInfo *info;
 
     VERBOSE("### Memory  0x%x\n", address);
     for (int k = 0; k < 2; ++k) {  // 0: data, 1: bss
       if (k == 1)
         VERBOSE("---- BSS  0x%x\n", address);
-      for (int it = 0; (it = table_iterate(&gvar_info_table, it, &name, (void**)&info)) != -1; ) {
-        const VarInfo *varinfo = info->varinfo;
+      for (int i = 0, len = global_scope->vars->len; i < len; ++i) {
+        VarInfo *varinfo = global_scope->vars->data[i];
+        if (varinfo->storage & (VS_EXTERN | VS_ENUM_MEMBER) || varinfo->type->kind == TY_FUNC)
+          continue;
         if ((varinfo->global.init == NULL) == (k == 0) || !is_global_datsec_var(varinfo, global_scope))
           continue;
+        GVarInfo *info = get_gvar_info_from_name(varinfo->name);
+        if (info == NULL)
+          continue;
+
         // Mapped to memory
         address = ALIGN(address, align_size(varinfo->type));
         info->non_prim.address = address;
         size_t size = type_size(varinfo->type);
         address += size;
-        VERBOSE("%04x: %.*s  (size=0x%lx)\n", info->non_prim.address, NAMES(name), size);
+        VERBOSE("%04x: %.*s  (size=0x%lx)\n", info->non_prim.address, NAMES(varinfo->name), size);
       }
     }
 
     // Primitive types (Globals).
     VERBOSES("\n### Globals\n");
     uint32_t index = 0;
-    for (int it = 0; (it = table_iterate(&gvar_info_table, it, &name, (void**)&info)) != -1; ) {
-      const VarInfo *varinfo = info->varinfo;
+    for (int i = 0, len = global_scope->vars->len; i < len; ++i) {
+      VarInfo *varinfo = global_scope->vars->data[i];
+      if (varinfo->storage & VS_ENUM_MEMBER || varinfo->type->kind == TY_FUNC)
+        continue;
       if (is_global_datsec_var(varinfo, global_scope))
         continue;
+      GVarInfo *info = get_gvar_info_from_name(varinfo->name);
+      if (info == NULL)
+        continue;
+
       info->prim.index = index++;
-      VERBOSE("%2d: %.*s\n", info->prim.index, NAMES(name));
+      VERBOSE("%2d: %.*s\n", info->prim.index, NAMES(varinfo->name));
     }
     VERBOSES("\n");
 

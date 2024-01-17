@@ -131,15 +131,19 @@ typedef struct {
 static Vector *construct_data_segment(void) {
   // Enumerate global variables.
   Vector *segments = new_vector();
-  const Name *name;
-  GVarInfo *info;
 #ifndef NDEBUG
   uint32_t address = 0;
 #endif
-  for (int it = 0; (it = table_iterate(&gvar_info_table, it, &name, (void**)&info)) != -1; ) {
-    const VarInfo *varinfo = info->varinfo;
+  for (int i = 0, len = global_scope->vars->len; i < len; ++i) {
+    VarInfo *varinfo = global_scope->vars->data[i];
+    if (varinfo->storage & VS_ENUM_MEMBER || varinfo->type->kind == TY_FUNC)
+      continue;
     if (varinfo->global.init == NULL || !is_global_datsec_var(varinfo, global_scope))
       continue;
+    GVarInfo *info = get_gvar_info_from_name(varinfo->name);
+    if (info == NULL)
+      continue;
+
 #ifndef NDEBUG
     uint32_t adr = info->non_prim.address;
     assert(adr >= address);
@@ -174,6 +178,7 @@ typedef struct {
   uint32_t function_count;
   int32_t table_start_index;
   uint32_t code_section_index;
+  uint32_t import_global_count;
 } EmitWasm;
 
 static void emit_type_section(EmitWasm *ew) {
@@ -201,6 +206,7 @@ static void emit_import_section(EmitWasm *ew) {
   data_open_chunk(&imports_section);
   data_open_chunk(&imports_section);
   uint32_t imports_count = 0;
+  uint32_t global_count = 0;
 
   if (out_type < OutExecutable) {
     static const char kMemoryName[] = "__linear_memory";
@@ -233,6 +239,32 @@ static void emit_import_section(EmitWasm *ew) {
       ++imports_count;
     }
   }
+
+  {
+    const char *module_name = ew->import_module_name;
+    size_t module_name_len = strlen(module_name);
+
+    for (int i = 0, len = global_scope->vars->len; i < len; ++i) {
+      VarInfo *varinfo = global_scope->vars->data[i];
+      if (varinfo->storage & VS_ENUM_MEMBER || varinfo->type->kind == TY_FUNC)
+        continue;
+      if (is_global_datsec_var(varinfo, global_scope))
+        continue;
+      GVarInfo *info = get_gvar_info_from_name(varinfo->name);
+      if (info == NULL || !(info->flag & GVF_UNRESOLVED))
+        continue;
+
+      const Name *name = varinfo->name;
+      data_string(&imports_section, module_name, module_name_len);  // import module name
+      data_string(&imports_section, name->chars, name->bytes);  // import name
+      data_push(&imports_section, IMPORT_GLOBAL);  // import kind
+      data_push(&imports_section, to_wtype(varinfo->type));  // type
+      data_push(&imports_section, !(varinfo->type->qualifier & TQ_CONST));  // mutable
+      ++imports_count;
+      ++global_count;
+    }
+  }
+
   if (imports_count > 0) {
     data_close_chunk(&imports_section, imports_count);
     data_close_chunk(&imports_section, -1);
@@ -241,6 +273,8 @@ static void emit_import_section(EmitWasm *ew) {
     fwrite(imports_section.buf, imports_section.len, 1, ew->ofp);
     ++ew->section_index;
   }
+
+  ew->import_global_count = global_count;
 }
 
 static void emit_function_section(EmitWasm *ew) {
@@ -320,10 +354,14 @@ static void emit_global_section(EmitWasm *ew) {
   data_open_chunk(&globals_section);
   uint32_t globals_count = 0;
   {
-    const Name *name;
-    GVarInfo *info;
-    for (int it = 0; (it = table_iterate(&gvar_info_table, it, &name, (void**)&info)) != -1; ) {
-      const VarInfo *varinfo = info->varinfo;
+    for (int i = 0, len = global_scope->vars->len; i < len; ++i) {
+      VarInfo *varinfo = global_scope->vars->data[i];
+      if (varinfo->storage & VS_ENUM_MEMBER || varinfo->type->kind == TY_FUNC)
+        continue;
+      GVarInfo *info = get_gvar_info_from_name(varinfo->name);
+      if (info == NULL)
+        continue;
+
       if ((info->flag & GVF_UNRESOLVED) || is_global_datsec_var(varinfo, global_scope))
         continue;
       unsigned char wt = to_wtype(varinfo->type);
@@ -562,13 +600,16 @@ static void emit_linking_section(EmitWasm *ew) {
       ++count;
     }
   }
-  {  // Globals
+  // Globals
+  for (int k = 0; k < 2; ++k) {  // 0=unresolved, 1=resolved
     for (int i = 0, len = global_scope->vars->len; i < len; ++i) {
       VarInfo *varinfo = global_scope->vars->data[i];
       if (varinfo->storage & VS_ENUM_MEMBER || varinfo->type->kind == TY_FUNC)
         continue;
       GVarInfo *info = get_gvar_info_from_name(varinfo->name);
       if (info == NULL)
+        continue;
+      if ((k == 0 && !(info->flag & GVF_UNRESOLVED)) || (k != 0 && (info->flag & GVF_UNRESOLVED)))
         continue;
 
       int flags = 0;
@@ -577,14 +618,25 @@ static void emit_linking_section(EmitWasm *ew) {
       if (varinfo->storage & VS_STATIC)
         flags |= WASM_SYM_VISIBILITY_HIDDEN;
 
-      data_push(&linking_section, SIK_SYMTAB_DATA);  // kind
-      data_uleb128(&linking_section, -1, flags);
-      const Name *name = varinfo->name;
-      data_string(&linking_section, name->chars, name->bytes);
-      if (!(info->flag & GVF_UNRESOLVED)) {  // Defined function: put name. otherwise not required.
+      if (is_global_datsec_var(varinfo, global_scope)) {
+        data_push(&linking_section, SIK_SYMTAB_DATA);  // kind
+        data_uleb128(&linking_section, -1, flags);
+        const Name *name = varinfo->name;
+        data_string(&linking_section, name->chars, name->bytes);
+        if (!(info->flag & GVF_UNRESOLVED)) {  // Defined global: put name. otherwise not required.
+          data_uleb128(&linking_section, -1, info->non_prim.item_index);
+          data_uleb128(&linking_section, -1, 0);  // offset (must start from the begining)
+          data_uleb128(&linking_section, -1, type_size(varinfo->type));  // size
+        }
+      } else {
+        data_push(&linking_section, SIK_SYMTAB_GLOBAL);  // kind
+        data_uleb128(&linking_section, -1, flags);
         data_uleb128(&linking_section, -1, info->non_prim.item_index);
-        data_uleb128(&linking_section, -1, 0);  // TODO: offset
-        data_uleb128(&linking_section, -1, type_size(varinfo->type));  // size
+        // if (!(info->flag & GVF_UNRESOLVED)) {
+        if (info->non_prim.item_index >= ew->import_global_count) {
+          const Name *name = varinfo->name;
+          data_string(&linking_section, name->chars, name->bytes);
+        }
       }
 
       ++count;

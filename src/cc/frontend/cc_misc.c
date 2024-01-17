@@ -166,6 +166,7 @@ void construct_initial_value(const Type *type, const Initializer *init,
     if (init->kind == IK_SINGLE) {
       Expr *e = strip_cast(init->single);
       if (e->kind == EX_STR && is_char_type(type->pa.ptrof, e->str.kind)) {
+        assert(vtable->emit_string != NULL);
         (*vtable->emit_string)(ud, e, type_size(type));
         break;
       }
@@ -198,6 +199,7 @@ void construct_initial_value(const Type *type, const Initializer *init,
         if (mem_init != NULL || !sinfo->is_union) {
           int align = align_size(member->type);
           if (offset % align != 0) {
+            assert(vtable->emit_align != NULL);
             (*vtable->emit_align)(ud, align);
             offset = ALIGN(offset, align);
           }
