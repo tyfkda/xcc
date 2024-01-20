@@ -1595,11 +1595,11 @@ static void gen_defun(Function *func) {
     spvar = get_sp_var();
     // local.bp = global.sp;
     gen_expr_stmt(new_expr_bop(EX_ASSIGN, &tyVoid, NULL, bpvar, spvar));
-    // global.sp -= frame_size;
+    // global.sp = local.bp - frame_size;
     if (frame_size > 0) {
       gen_expr_stmt(new_expr_bop(
           EX_ASSIGN, &tyVoid, NULL, spvar,
-          new_expr_bop(EX_SUB, &tySize, NULL, spvar, new_expr_fixlit(&tySize, NULL, frame_size))));
+          new_expr_bop(EX_SUB, &tySize, NULL, bpvar, new_expr_fixlit(&tySize, NULL, frame_size))));
     }
   }
   // Store ref-taken parameters to stack frame.
