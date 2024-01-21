@@ -1,0 +1,17 @@
+#!/bin/sh
+
+# Before v20, node.js requires `--experimental-wasm-eh` option, but v20 raise error.
+# so check node.js whether the option is available or not.
+
+OPTION='--experimental-wasm-eh'
+node ${OPTION} --version > /dev/null 2>&1
+exitcode="$?"
+
+option='';
+if [[ "$exitcode" -eq 0 ]]; then
+  option="${OPTION}"
+fi
+
+CURRENT=$(cd $(dirname $0);pwd)
+npx node ${option} --no-warnings=ExperimentalWarning ${CURRENT}/runwasi.js "$@"
+exit "$?"

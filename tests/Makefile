@@ -165,7 +165,7 @@ test-wcc-sh:
 	@echo '## test.sh'
 	@$(eval AWASM := $(shell basename `mktemp -u`).wasm)
 	@XCC="$(WCC)" RE_SKIP='\/\/-WCC' \
-		AOUT="$(AWASM)" RUN_AOUT="node ../tool/runwasi.js $(AWASM)" \
+		AOUT="$(AWASM)" RUN_AOUT="../tool/runwasi $(AWASM)" \
 		./test.sh
 
 valtest_WCCSRCS:=$(VAL_SRCS)
@@ -176,7 +176,7 @@ define DEFINE_WCCTEST_TARGET
 .PHONY: test-wcc-$(1)
 test-wcc-$(1):	$(1).wasm
 	@echo "## $(1)"
-	node ../tool/runwasi.js $$<
+	../tool/runwasi $$<
 
 $(1).wasm:	$$($(1)_WCCSRCS) # $(WCC)
 	$(WCC) -o $$@ $$^

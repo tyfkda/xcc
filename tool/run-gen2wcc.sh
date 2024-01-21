@@ -10,7 +10,7 @@ if [ ! -e "$WCCWASM" ]; then
     exit 1
 fi
 
-npx node "$PRJROOT/tool/runwasi.js" \
+"$PRJROOT/tool/runwasi" \
         --dir=. \
         --dir=/tmp \
         "--mapdir=/usr/include::$PRJROOT/include" \

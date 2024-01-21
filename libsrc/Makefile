@@ -89,7 +89,7 @@ define DEFINE_WCCTEST_TARGET
 .PHONY: test-wcc-$(1)
 test-wcc-$(1):	$(1)_test.wasm
 	@echo '## $(1) test'
-	node ../tool/runwasi.js --dir=. $$<
+	../tool/runwasi --dir=. $$<
 
 $(1)_test.wasm:	tests/$(1)_test.c # $(WCC)
 	$(WCC) -o$$@ $$^
