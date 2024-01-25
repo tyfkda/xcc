@@ -201,6 +201,8 @@ WCC_LIBS:=$(LIBSRC_DIR)/_wasm/crt0.c $(LIBSRC_DIR)/_wasm/libc.c
 wcc: $(PARENT_DEPS) $(WCC_OBJS) $(WCC_LIBS)
 	$(CC) -o $@ $(WCC_OBJS) $(LDFLAGS)
 
+-include $(WCC_OBJ_DIR)/*.d
+
 define DEFINE_WCCOBJ_TARGET
 $(WCC_OBJ_DIR)/%.o: $(1)/%.c $(PARENT_DEPS)
 	@mkdir -p $(WCC_OBJ_DIR)
