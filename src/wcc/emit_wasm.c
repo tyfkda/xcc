@@ -166,7 +166,15 @@ static int compare_indirect(const void *pa, const void *pb) {
 
 //
 
-static void emit_type_section(FILE *ofp) {
+typedef struct {
+  FILE *ofp;
+  const char *import_module_name;
+  uint32_t address_bottom;
+  uint32_t function_count;
+  int32_t table_start_index;
+} EmitWasm;
+
+static void emit_type_section(EmitWasm *ew) {
   DataStorage types_section;
   data_init(&types_section);
   data_open_chunk(&types_section);
@@ -179,18 +187,18 @@ static void emit_type_section(FILE *ofp) {
   data_close_chunk(&types_section, functypes->len);
   data_close_chunk(&types_section, -1);
 
-  fputc(SEC_TYPE, ofp);
-  fwrite(types_section.buf, types_section.len, 1, ofp);
+  fputc(SEC_TYPE, ew->ofp);
+  fwrite(types_section.buf, types_section.len, 1, ew->ofp);
 }
 
-static void emit_import_section(FILE *ofp, const char *import_module_name) {
+static void emit_import_section(EmitWasm *ew) {
   DataStorage imports_section;
   data_init(&imports_section);
   data_open_chunk(&imports_section);
   data_open_chunk(&imports_section);
   uint32_t imports_count = 0;
   {
-    const char *module_name = import_module_name;
+    const char *module_name = ew->import_module_name;
     size_t module_name_len = strlen(module_name);
 
     const Name *name;
@@ -223,12 +231,12 @@ static void emit_import_section(FILE *ofp, const char *import_module_name) {
     data_close_chunk(&imports_section, imports_count);
     data_close_chunk(&imports_section, -1);
 
-    fputc(SEC_IMPORT, ofp);
-    fwrite(imports_section.buf, imports_section.len, 1, ofp);
+    fputc(SEC_IMPORT, ew->ofp);
+    fwrite(imports_section.buf, imports_section.len, 1, ew->ofp);
   }
 }
 
-static uint32_t emit_function_section(FILE *ofp) {
+static void emit_function_section(EmitWasm *ew) {
   DataStorage functions_section;
   data_init(&functions_section);
   data_open_chunk(&functions_section);
@@ -246,37 +254,37 @@ static uint32_t emit_function_section(FILE *ofp) {
       data_uleb128(&functions_section, -1, type_index);  // function i signature index
     }
   }
+  ew->function_count = function_count;
   if (function_count > 0) {
     data_close_chunk(&functions_section, function_count);  // num functions
     data_close_chunk(&functions_section, -1);
 
-    fputc(SEC_FUNC, ofp);
-    fwrite(functions_section.buf, functions_section.len, 1, ofp);
+    fputc(SEC_FUNC, ew->ofp);
+    fwrite(functions_section.buf, functions_section.len, 1, ew->ofp);
   }
-  return function_count;
 }
 
-static void emit_table_section(FILE *ofp, int table_start_index) {
+static void emit_table_section(EmitWasm *ew) {
   DataStorage table_section;
   data_init(&table_section);
   data_open_chunk(&table_section);
   data_leb128(&table_section, -1, 1);  // num tables
   data_push(&table_section, WT_FUNCREF);
   data_push(&table_section, 0x00);  // limits: flags
-  data_leb128(&table_section, -1, table_start_index + indirect_function_table.count);  // initial
+  data_leb128(&table_section, -1, ew->table_start_index + indirect_function_table.count);  // initial
   data_close_chunk(&table_section, -1);
 
-  fputc(SEC_TABLE, ofp);
-  fwrite(table_section.buf, table_section.len, 1, ofp);
+  fputc(SEC_TABLE, ew->ofp);
+  fwrite(table_section.buf, table_section.len, 1, ew->ofp);
 }
 
-static void emit_memory_section(FILE *ofp, uint32_t address_bottom) {
+static void emit_memory_section(EmitWasm *ew) {
   DataStorage memory_section;
   data_init(&memory_section);
   data_open_chunk(&memory_section);
   data_open_chunk(&memory_section);
   {
-    uint32_t page_count = (address_bottom + MEMORY_PAGE_SIZE - 1) / MEMORY_PAGE_SIZE;
+    uint32_t page_count = (ew->address_bottom + MEMORY_PAGE_SIZE - 1) / MEMORY_PAGE_SIZE;
     if (page_count <= 0)
       page_count = 1;
     data_uleb128(&memory_section, -1, 0);  // index
@@ -285,11 +293,11 @@ static void emit_memory_section(FILE *ofp, uint32_t address_bottom) {
     data_close_chunk(&memory_section, -1);
   }
 
-  fputc(SEC_MEMORY, ofp);
-  fwrite(memory_section.buf, memory_section.len, 1, ofp);
+  fputc(SEC_MEMORY, ew->ofp);
+  fwrite(memory_section.buf, memory_section.len, 1, ew->ofp);
 }
 
-static void emit_global_section(FILE *ofp) {
+static void emit_global_section(EmitWasm *ew) {
   DataStorage globals_section;
   data_init(&globals_section);
   data_open_chunk(&globals_section);
@@ -315,12 +323,12 @@ static void emit_global_section(FILE *ofp) {
     data_close_chunk(&globals_section, globals_count);  // num globals
     data_close_chunk(&globals_section, -1);  // num globals
 
-    fputc(SEC_GLOBAL, ofp);
-    fwrite(globals_section.buf, globals_section.len, 1, ofp);
+    fputc(SEC_GLOBAL, ew->ofp);
+    fwrite(globals_section.buf, globals_section.len, 1, ew->ofp);
   }
 }
 
-static void emit_export_section(FILE *ofp, Vector *exports) {
+static void emit_export_section(EmitWasm *ew, Vector *exports) {
   DataStorage exports_section;
   data_init(&exports_section);
   data_open_chunk(&exports_section);
@@ -373,11 +381,11 @@ static void emit_export_section(FILE *ofp, Vector *exports) {
   data_close_chunk(&exports_section, num_exports);  // num exports
   data_close_chunk(&exports_section, -1);
 
-  fputc(SEC_EXPORT, ofp);
-  fwrite(exports_section.buf, exports_section.len, 1, ofp);
+  fputc(SEC_EXPORT, ew->ofp);
+  fwrite(exports_section.buf, exports_section.len, 1, ew->ofp);
 }
 
-static void emit_elems_section(FILE *ofp, int table_start_index) {
+static void emit_elems_section(EmitWasm *ew) {
   DataStorage elems_section;
   data_init(&elems_section);
   if (indirect_function_table.count > 0) {
@@ -400,7 +408,7 @@ static void emit_elems_section(FILE *ofp, int table_start_index) {
     data_leb128(&elems_section, -1, 1);  // num elem segments
     data_leb128(&elems_section, -1, 0);  // segment flags
     data_push(&elems_section, OP_I32_CONST);
-    data_leb128(&elems_section, -1, table_start_index);  // start index
+    data_leb128(&elems_section, -1, ew->table_start_index);  // start index
     data_push(&elems_section, OP_END);
     data_leb128(&elems_section, -1, count);  // num elems
     for (int i = 0; i < count; ++i) {
@@ -411,12 +419,12 @@ static void emit_elems_section(FILE *ofp, int table_start_index) {
     data_close_chunk(&elems_section, -1);
     VERBOSES("\n");
 
-    fputc(SEC_ELEM, ofp);
-    fwrite(elems_section.buf, elems_section.len, 1, ofp);
+    fputc(SEC_ELEM, ew->ofp);
+    fwrite(elems_section.buf, elems_section.len, 1, ew->ofp);
   }
 }
 
-static void emit_tag_section(FILE *ofp) {
+static void emit_tag_section(EmitWasm *ew) {
   DataStorage tag_section;
   data_init(&tag_section);
   if (tags->len > 0) {
@@ -431,16 +439,16 @@ static void emit_tag_section(FILE *ofp) {
     data_close_chunk(&tag_section, tags->len);  // tag count
     data_close_chunk(&tag_section, -1);
 
-    fputc(SEC_TAG, ofp);
-    fwrite(tag_section.buf, tag_section.len, 1, ofp);
+    fputc(SEC_TAG, ew->ofp);
+    fwrite(tag_section.buf, tag_section.len, 1, ew->ofp);
   }
 }
 
-static void emit_code_section(FILE *ofp, uint32_t function_count) {
+static void emit_code_section(EmitWasm *ew) {
   DataStorage codesec;
   data_init(&codesec);
   data_open_chunk(&codesec);
-  data_open_chunk(&codesec);
+  data_uleb128(&codesec, -1, ew->function_count);  // num functions
   {
     const Name *name;
     FuncInfo *info;
@@ -452,14 +460,13 @@ static void emit_code_section(FILE *ofp, uint32_t function_count) {
       data_concat(&codesec, code);
     }
   }
-  data_close_chunk(&codesec, function_count);  // num functions
   data_close_chunk(&codesec, -1);
 
-  fputc(SEC_CODE, ofp);
-  fwrite(codesec.buf, codesec.len, 1, ofp);
+  fputc(SEC_CODE, ew->ofp);
+  fwrite(codesec.buf, codesec.len, 1, ew->ofp);
 }
 
-static void emit_data_section(FILE *ofp) {
+static void emit_data_section(EmitWasm *ew) {
   Vector *segments = construct_data_segment();
   if (segments->len <= 0)
     return;
@@ -488,45 +495,52 @@ static void emit_data_section(FILE *ofp) {
   data_close_chunk(&datasec, segments->len);
   data_close_chunk(&datasec, -1);
 
-  fputc(SEC_DATA, ofp);
-  fwrite(datasec.buf, datasec.len, 1, ofp);
+  fputc(SEC_DATA, ew->ofp);
+  fwrite(datasec.buf, datasec.len, 1, ew->ofp);
 }
 
 void emit_wasm(FILE *ofp, Vector *exports, const char *import_module_name,
                uint32_t address_bottom) {
   emit_wasm_header(ofp);
 
+  EmitWasm ew_body = {
+    .ofp = ofp,
+    .import_module_name = import_module_name,
+    .address_bottom = address_bottom,
+    .table_start_index = 1,  // TODO: Output table only when it is needed.
+  };
+  EmitWasm *ew = &ew_body;
+
   // Types.
-  emit_type_section(ofp);
+  emit_type_section(ew);
 
   // Imports.
-  emit_import_section(ofp, import_module_name);
+  emit_import_section(ew);
 
   // Functions.
-  uint32_t function_count = emit_function_section(ofp);
+  emit_function_section(ew);
 
   // Table.
-  int table_start_index = 1;  // TODO: Output table only when it is needed.
-  emit_table_section(ofp, table_start_index);
+  emit_table_section(ew);
 
   // Memory.
-  emit_memory_section(ofp, address_bottom);
+  emit_memory_section(ew);
 
   // Tag (must put earlier than Global section.)
-  emit_tag_section(ofp);
+  emit_tag_section(ew);
 
   // Globals.
-  emit_global_section(ofp);
+  emit_global_section(ew);
 
   // Exports.
-  emit_export_section(ofp, exports);
+  emit_export_section(ew, exports);
 
   // Elements.
-  emit_elems_section(ofp, table_start_index);
+  emit_elems_section(ew);
 
   // Code.
-  emit_code_section(ofp, function_count);
+  emit_code_section(ew);
 
   // Data.
-  emit_data_section(ofp);
+  emit_data_section(ew);
 }
