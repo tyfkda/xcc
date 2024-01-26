@@ -93,8 +93,11 @@ typedef struct {
       uint32_t offset;
       uint32_t size;
       uint32_t p2align;
+      uint32_t address;
     } data;
   };
+
+  uint32_t combined_index;
 } SymbolInfo;
 
 typedef struct WasmObj {
@@ -112,4 +115,9 @@ typedef struct WasmObj {
   struct {
     Vector *symtab;     // <SymbolInfo*>
   } linking;
+  Vector *types;  // <int>
+  struct {
+    struct DataSegmentForLink *segments;
+    uint32_t count;
+  } data;
 } WasmObj;
