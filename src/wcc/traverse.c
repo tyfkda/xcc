@@ -742,23 +742,19 @@ uint32_t traverse_ast(Vector *decls, Vector *exports, uint32_t stack_size) {
   }
 
   {
-    // Enumerate imported functions.
+    // Enumerate functions.
     VERBOSES("### Functions\n");
     const Name *name;
     FuncInfo *info;
     int32_t index = 0;
-    for (int it = 0; (it = table_iterate(&func_info_table, it, &name, (void**)&info)) != -1; ) {
-      if (info->func != NULL)
-        continue;
-      info->index = index++;
-      VERBOSE("%2d: %.*s  (import)\n", info->index, NAMES(name));
-    }
-    // Enumerate defined and refered functions.
-    for (int it = 0; (it = table_iterate(&func_info_table, it, &name, (void**)&info)) != -1; ) {
-      if (info->func == NULL || info->flag == 0)
-        continue;
-      info->index = index++;
-      VERBOSE("%2d: %.*s\n", info->index, NAMES(name));
+    for (int k = 0; k < 2; ++k) {  // 0: import, 1: defined-and-referred
+      for (int it = 0; (it = table_iterate(&func_info_table, it, &name, (void**)&info)) != -1; ) {
+        if ((k == 0 && info->func != NULL) ||
+            (k != 0 && (info->func == NULL || info->flag == 0)))
+          continue;
+        info->index = index++;
+        VERBOSE("%2d: %.*s%s\n", info->index, NAMES(name), k == 0 ? "  (import)" : "");
+      }
     }
     VERBOSES("\n");
   }
@@ -771,32 +767,22 @@ uint32_t traverse_ast(Vector *decls, Vector *exports, uint32_t stack_size) {
     const Name *name;
     GVarInfo *info;
 
-    // Enumerate data and bss.
     VERBOSE("### Memory  0x%x\n", address);
-    for (int it = 0; (it = table_iterate(&gvar_info_table, it, &name, (void**)&info)) != -1; ) {
-      const VarInfo *varinfo = info->varinfo;
-      if ((is_prim_type(varinfo->type) && !(varinfo->storage & VS_REF_TAKEN)) ||
-          varinfo->global.init == NULL)
-        continue;
-      // Mapped to memory, with initializer
-      address = ALIGN(address, align_size(varinfo->type));
-      info->non_prim.address = address;
-      size_t size = type_size(varinfo->type);
-      address += size;
-      VERBOSE("%04x: %.*s  (size=0x%lx)\n", info->non_prim.address, NAMES(name), size);
-    }
-    VERBOSE("---- BSS  0x%x\n", address);
-    // Mapped to memory, without initialzer (BSS).
-    for (int it = 0; (it = table_iterate(&gvar_info_table, it, &name, (void**)&info)) != -1; ) {
-      const VarInfo *varinfo = info->varinfo;
-      if ((is_prim_type(varinfo->type) && !(varinfo->storage & VS_REF_TAKEN)) ||
-          varinfo->global.init != NULL)
-        continue;
-      address = ALIGN(address, align_size(varinfo->type));
-      info->non_prim.address = address;
-      size_t size = type_size(varinfo->type);
-      address += size;
-      VERBOSE("%04x: %.*s  (size=0x%lx)\n", info->non_prim.address, NAMES(name), size);
+    for (int k = 0; k < 2; ++k) {  // 0: data, 1: bss
+      if (k == 1)
+        VERBOSE("---- BSS  0x%x\n", address);
+      for (int it = 0; (it = table_iterate(&gvar_info_table, it, &name, (void**)&info)) != -1; ) {
+        const VarInfo *varinfo = info->varinfo;
+        if ((is_prim_type(varinfo->type) && !(varinfo->storage & VS_REF_TAKEN)) ||
+            (varinfo->global.init == NULL) == (k == 0))
+          continue;
+        // Mapped to memory
+        address = ALIGN(address, align_size(varinfo->type));
+        info->non_prim.address = address;
+        size_t size = type_size(varinfo->type);
+        address += size;
+        VERBOSE("%04x: %.*s  (size=0x%lx)\n", info->non_prim.address, NAMES(name), size);
+      }
     }
 
     // Primitive types (Globals).
