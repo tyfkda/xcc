@@ -29,7 +29,7 @@ int main(int argc, char *argv[]) {
     OPT_ENTRY_POINT,
     OPT_STACK_SIZE,
   };
-  static const struct option options[] = {
+  static const struct option kOptions[] = {
     {"o", required_argument},  // Specify output filename
     {"-verbose", no_argument, OPT_VERBOSE},
     {"-entry-point", required_argument, OPT_ENTRY_POINT},
@@ -39,7 +39,7 @@ int main(int argc, char *argv[]) {
   };
 
   int opt;
-  while ((opt = optparse(argc, argv, options)) != -1) {
+  while ((opt = optparse(argc, argv, kOptions)) != -1) {
     switch (opt) {
     default: assert(false); break;
     case 'o':

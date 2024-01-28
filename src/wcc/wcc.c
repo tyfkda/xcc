@@ -49,6 +49,33 @@ static void remove_tmp_files(void) {
   }
 }
 
+static bool add_lib(Vector *lib_paths, const char *fn, Vector *sources) {
+  for (int i = 0; i < lib_paths->len; ++i) {
+    char *path = JOIN_PATHS(lib_paths->data[i], fn);
+    if (is_file(path)) {
+      vec_push(sources, path);
+      return true;
+    }
+    free(path);
+  }
+  return false;
+}
+
+// search 'wlibXXX.a' from library paths.
+static const char *search_library(Vector *lib_paths, const char *libname) {
+  char libfn[128];  // TODO: Avoid overflow.
+  snprintf(libfn, sizeof(libfn), "wlib%s.a", libname);
+
+  for (int i = 0; i < lib_paths->len; ++i) {
+    const char *dir = lib_paths->data[i];
+    const char *path = JOIN_PATHS(dir, libfn);
+    if (is_file(path)) {
+      return path;
+    }
+  }
+  return NULL;
+}
+
 static void init_compiler(void) {
   table_init(&func_info_table);
   table_init(&gvar_info_table);
@@ -70,18 +97,6 @@ static void init_compiler(void) {
 static void compile1(FILE *ifp, const char *filename, Vector *decls) {
   set_source_file(ifp, filename);
   parse(decls);
-}
-
-static bool add_lib(Vector *lib_paths, const char *fn, Vector *sources) {
-  for (int i = 0; i < lib_paths->len; ++i) {
-    char *path = JOIN_PATHS(lib_paths->data[i], fn);
-    if (is_file(path)) {
-      vec_push(sources, path);
-      return true;
-    }
-    free(path);
-  }
-  return false;
 }
 
 static void preprocess_and_compile(FILE *ppout, const char *filename, Vector *toplevel) {
@@ -239,6 +254,7 @@ static void parse_options(int argc, char *argv[], Options *opts) {
     {"I", required_argument},  // Add include path
     {"isystem", required_argument, OPT_ISYSTEM},  // Add system include path
     {"idirafter", required_argument, OPT_IDIRAFTER},  // Add include path (after)
+    {"l", required_argument},  // Library
     {"L", required_argument},  // Add library path
     {"D", required_argument},  // Define macro
     {"o", required_argument},  // Specify output filename
@@ -317,6 +333,23 @@ static void parse_options(int argc, char *argv[], Options *opts) {
       break;
     case 'D':
       define_macro(optarg);
+      break;
+    case 'l':
+      {
+        char *p;
+        if (strncmp(argv[optind - 1], "-l", 2) == 0) {
+          // -lfoobar
+          // file order matters, so add to sources.
+          p = argv[optind - 1];
+        } else {
+          StringBuffer sb;
+          sb_init(&sb);
+          sb_append(&sb, "-l", optarg);
+          sb_append(&sb, optarg, NULL);
+          p = sb_to_string(&sb);
+        }
+        vec_push(opts->sources, p);
+      }
       break;
     case 'L':
       vec_push(opts->lib_paths, optarg);
@@ -418,7 +451,7 @@ static int do_link(Vector *obj_files, Options *opts) {
   return 1;
 #else
   if (!opts->nostdlib)
-    add_lib(opts->lib_paths, "wcrt0.a", obj_files);
+    vec_insert(obj_files, 0, JOIN_PATHS(opts->root, "lib/wcrt0.a"));
   if (!opts->nodefaultlibs && !opts->nostdlib)
     add_lib(opts->lib_paths, "wlibc.a", obj_files);
 
@@ -450,6 +483,7 @@ static int do_link(Vector *obj_files, Options *opts) {
 static int do_compile(Options *opts) {
   Vector *obj_files = new_vector();
 
+  int error_count = 0;
   for (int i = 0; i < opts->sources->len; ++i) {
     char *src = opts->sources->data[i];
     const char *outfn = opts->ofn;
@@ -458,7 +492,18 @@ static int do_compile(Options *opts) {
         continue;
       if (*src == '-') {
         assert(src[1] == 'l');
+#if USE_EMCC_AS_LINKER
+        UNUSED(search_library);
         vec_push(obj_files, src);
+#else
+        const char *path = search_library(opts->lib_paths, optarg);
+        if (path != NULL) {
+          vec_push(obj_files, path);
+        } else {
+          fprintf(stderr, "%s: library not found\n", optarg);
+          ++error_count;
+        }
+#endif
         continue;
       }
 
@@ -494,6 +539,8 @@ static int do_compile(Options *opts) {
       break;
     }
   }
+  if (error_count > 0)
+    return 1;
 
   if (opts->out_type < OutExecutable)
     return 0;
@@ -501,11 +548,15 @@ static int do_compile(Options *opts) {
 }
 
 int main(int argc, char *argv[]) {
+#if defined(__WASM)
+  const char *root = "/usr";
+#else
   const char *root = dirname(strdup(argv[0]));
   if (!is_fullpath(root)) {
     char *cwd = getcwd(NULL, 0);
     root = JOIN_PATHS(cwd, root);
   }
+#endif
 
   Options opts = {
     .exports = new_vector(),
@@ -531,11 +582,7 @@ int main(int argc, char *argv[]) {
   }
 
   if (!opts.nostdinc) {
-#if defined(__WASM)
-    add_inc_path(INC_AFTER, "/usr/include");
-#else
     add_inc_path(INC_AFTER, JOIN_PATHS(root, "include"));
-#endif
   }
 
   if (opts.out_type >= OutExecutable && opts.entry_point == NULL) {
@@ -555,11 +602,7 @@ int main(int argc, char *argv[]) {
   VERBOSES("\n");
 
   if (opts.out_type >= OutExecutable) {
-#if defined(__WASM)
-    vec_push(opts.lib_paths, "/usr/lib");
-#else
-    vec_push(opts.lib_paths, JOIN_PATHS(root, "./lib"));
-#endif
+    vec_push(opts.lib_paths, JOIN_PATHS(root, "lib"));
   }
 
   atexit(remove_tmp_files);

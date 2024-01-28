@@ -729,6 +729,21 @@ static void dump_map_file(LinkEditor *ld, FILE *fp) {
   }
 }
 
+// search 'libXXX.a' from library paths.
+static const char *search_library(Vector *lib_paths, const char *libname) {
+  char libfn[128];  // TODO: Avoid overflow.
+  snprintf(libfn, sizeof(libfn), "lib%s.a", libname);
+
+  for (int i = 0; i < lib_paths->len; ++i) {
+    const char *dir = lib_paths->data[i];
+    const char *path = JOIN_PATHS(dir, libfn);
+    if (is_file(path)) {
+      return path;
+    }
+  }
+  return NULL;
+}
+
 int main(int argc, char *argv[]) {
   const char *ofn = NULL;
   const char *entry = kDefaultEntryName;
@@ -742,17 +757,31 @@ int main(int argc, char *argv[]) {
     OPT_NO_PIE,
   };
 
-  static const struct option options[] = {
+  static const struct option kOptions[] = {
     {"o", required_argument},  // Specify output filename
     {"e", required_argument},  // Entry name
+    {"l", required_argument},  // Library
+    {"L", required_argument},  // Add library path
     {"Map", required_argument, OPT_OUTMAP},  // Output map file
     {"-version", no_argument, 'V'},
 
     {"no-pie", no_argument, OPT_NO_PIE},
     {NULL},
   };
-  int opt;
-  while ((opt = optparse(argc, argv, options)) != -1) {
+
+  Vector *sources = new_vector();
+  Vector *lib_paths = new_vector();
+  int error_count = 0;
+  for (;;) {
+    int opt = optparse(argc, argv, kOptions);
+    if (opt == -1) {
+      if (optind >= argc)
+        break;
+
+      vec_push(sources, argv[optind++]);
+      continue;
+    }
+
     switch (opt) {
     case 'V':
       show_version("ld");
@@ -762,6 +791,20 @@ int main(int argc, char *argv[]) {
       break;
     case 'e':
       entry = optarg;
+      break;
+    case 'l':
+      {
+        const char *path = search_library(lib_paths, optarg);
+        if (path != NULL) {
+          vec_push(sources, path);
+        } else {
+          fprintf(stderr, "%s: library not found\n", optarg);
+          ++error_count;
+        }
+      }
+      break;
+    case 'L':
+      vec_push(lib_paths, optarg);
       break;
     case OPT_OUTMAP:
       outmapfn = optarg;
@@ -774,9 +817,10 @@ int main(int argc, char *argv[]) {
       break;
     }
   }
+  if (error_count > 0)
+    return 1;
 
-  int iarg = optind;
-  if (iarg >= argc)
+  if (sources->len == 0)
     error("no input");
 
   if (ofn == NULL)
@@ -785,10 +829,10 @@ int main(int argc, char *argv[]) {
   section_aligns[SEC_DATA] = DATA_ALIGN;
 
   LinkEditor *ld = malloc_or_die(sizeof(*ld));
-  ld_init(ld, argc - iarg);
-  for (int i = iarg; i < argc; ++i) {
-    char *src = argv[i];
-    ld_load(ld, i - iarg, src);
+  ld_init(ld, sources->len);
+  for (int i = 0; i < sources->len; ++i) {
+    char *src = sources->data[i];
+    ld_load(ld, i, src);
   }
 
   const Name *entry_name = alloc_name(entry, NULL, false);

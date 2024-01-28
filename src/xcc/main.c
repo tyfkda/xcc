@@ -294,6 +294,7 @@ static void parse_options(int argc, char *argv[], Options *opts) {
     OPT_ISYSTEM,
     OPT_IDIRAFTER,
     OPT_LINKOPTION,
+    OPT_SHARED,
 
     OPT_ANSI,
     OPT_STD,
@@ -313,10 +314,12 @@ static void parse_options(int argc, char *argv[], Options *opts) {
     {"o", required_argument},  // Specify output filename
     {"x", required_argument},  // Specify code type
     {"l", required_argument},  // Library
+    {"L", required_argument},  // Add library path
     {"nodefaultlibs", no_argument, OPT_NODEFAULTLIBS},
     {"nostdlib", no_argument, OPT_NOSTDLIB},
     {"nostdinc", no_argument, OPT_NOSTDINC},
     {"Xlinker", required_argument, OPT_LINKOPTION},
+    {"shared", no_argument, OPT_SHARED},
     {"-help", no_argument, OPT_HELP},
     {"-version", no_argument, OPT_VERSION},
     {"dumpversion", no_argument, OPT_DUMP_VERSION},
@@ -423,6 +426,9 @@ static void parse_options(int argc, char *argv[], Options *opts) {
     case OPT_LINKOPTION:
       vec_push(opts->ld_cmd, optarg);
       break;
+    case OPT_SHARED:
+      vec_push(opts->linker_options, "-shared");
+      break;
     case 'f':
       if (strncmp(optarg, "use-ld", 6) == 0) {
         if (optarg[6] == '=') {
@@ -438,13 +444,25 @@ static void parse_options(int argc, char *argv[], Options *opts) {
       }
       break;
     case 'l':
-      if (strncmp(argv[optind - 1], "-l", 2) == 0) {
-        // -lfoobar
-        // file order matters, so add to sources.
-        vec_push(opts->sources, argv[optind - 1]);
-      } else {
-        assert(!"TODO");
+      {
+        char *p;
+        if (strncmp(argv[optind - 1], "-l", 2) == 0) {
+          // -lfoobar
+          // file order matters, so add to sources.
+          p = argv[optind - 1];
+        } else {
+          StringBuffer sb;
+          sb_init(&sb);
+          sb_append(&sb, "-l", optarg);
+          sb_append(&sb, optarg, NULL);
+          p = sb_to_string(&sb);
+        }
+        vec_push(opts->sources, p);
       }
+      break;
+    case 'L':
+      vec_push(opts->ld_cmd, "-L");
+      vec_push(opts->ld_cmd, optarg);
       break;
     case '?':
       if (strcmp(argv[optind - 1], "-") == 0) {
@@ -474,7 +492,8 @@ static void parse_options(int argc, char *argv[], Options *opts) {
   }
 }
 
-static int do_compile(Options *opts) {
+static int do_compile(Options *opts, const char *root) {
+  UNUSED(root);
   int ofd = STDOUT_FILENO;
   int res = 0;
   for (int i = 0; i < opts->sources->len; ++i) {
@@ -485,6 +504,7 @@ static int do_compile(Options *opts) {
         continue;
       if (*src == '-') {
         assert(src[1] == 'l');
+        // Pass to the linker.
         vec_push(opts->ld_cmd, src);
         continue;
       }
@@ -537,6 +557,16 @@ static int do_compile(Options *opts) {
   }
 
   if (res == 0 && opts->out_type >= OutExecutable) {
+    if (!opts->use_ld) {
+#if !defined(USE_SYS_LD)
+      if (!opts->nostdlib) {
+        vec_insert(opts->ld_cmd, 1, JOIN_PATHS(root, "lib/crt0.a"));
+        if (!opts->nodefaultlibs)
+          vec_push(opts->ld_cmd, "-lc");
+      }
+#endif
+    }
+
     vec_push(opts->ld_cmd, NULL);
     pid_t ld_pid = exec_with_ofd((char**)opts->ld_cmd->data, -1);
     waitpid(ld_pid, &res, 0);
@@ -658,17 +688,12 @@ int main(int argc, char *argv[]) {
 
   if (opts.out_type >= OutExecutable && !opts.use_ld) {
 #if !defined(USE_SYS_LD) || defined(NO_STD_LIB)
-    if (!opts.nostdlib)
-      vec_push(opts.sources, JOIN_PATHS(root, "lib/crt0.a"));
-    if (!opts.nodefaultlibs && !opts.nostdlib)
-      vec_push(opts.sources, JOIN_PATHS(root, "lib/libc.a"));
-# if defined(NO_STD_LIB)
-    vec_push(ld_cmd, "-nostdlib");
-# endif
+    vec_push(opts.ld_cmd, "-L");
+    vec_push(opts.ld_cmd, JOIN_PATHS(root, "lib"));
 #endif
   }
 
   atexit(remove_tmp_files);
 
-  return do_compile(&opts);
+  return do_compile(&opts, root);
 }
