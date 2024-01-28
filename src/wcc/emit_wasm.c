@@ -67,13 +67,19 @@ static void construct_primitive_global(DataStorage *ds, const VarInfo *varinfo) 
   construct_initial_value(type, init, &kVtable, ds);
 }
 
+typedef struct {
+  DataStorage *ds;
+  Vector *reloc_data;
+} EmitDataParam;
+
 static void emit_fixnum(DataStorage *ds, Fixnum v, size_t size) {
   // Assume endian and CHAR_BIT are same on host and target.
   data_append(ds, (unsigned char*)&v, size);
 }
 
 static void emit_align(void *ud, int align) {
-  DataStorage *ds = ud;
+  EmitDataParam *edp = ud;
+  DataStorage *ds = edp->ds;
   int offset = ds->len;
   int d = offset % align;
   if (d > 0) {
@@ -83,6 +89,8 @@ static void emit_align(void *ud, int align) {
   }
 }
 static void emit_number(void *ud, const Type *type, Expr *var, Fixnum offset) {
+  EmitDataParam *edp = ud;
+  DataStorage *ds = edp->ds;
   Fixnum v = offset;
   if (var != NULL) {
     assert(var->kind == EX_VAR);
@@ -94,14 +102,27 @@ static void emit_number(void *ud, const Type *type, Expr *var, Fixnum offset) {
       const GVarInfo *info = get_gvar_info(var);
       assert(!is_prim_type(info->varinfo->type) || (info->varinfo->storage & VS_REF_TAKEN));
       v += info->non_prim.address;
+
+      if (out_type < OutExecutable) {
+        RelocInfo *ri = calloc_or_die(sizeof(*ri));
+        ri->type = R_WASM_MEMORY_ADDR_I32;
+        ri->offset = ds->len;
+        ri->addend = offset;
+        ri->index = info->non_prim.symbol_index;
+
+        Vector *reloc_data = edp->reloc_data;
+        if (reloc_data == NULL)
+          edp->reloc_data = reloc_data = new_vector();
+        vec_push(reloc_data, ri);
+      }
     }
   }
-  DataStorage *ds = ud;
   emit_fixnum(ds, v, type_size(type));
 }
 static void emit_string(void *ud, Expr *str, size_t size) {
   assert(str->kind == EX_STR);
-  DataStorage *ds = ud;
+  EmitDataParam *edp = ud;
+  DataStorage *ds = edp->ds;
   size_t src_size = str->str.len * type_size(str->type->pa.ptrof);
   if (size > src_size) {
     unsigned char *buf = calloc_or_die(size);
@@ -114,18 +135,24 @@ static void emit_string(void *ud, Expr *str, size_t size) {
   }
 }
 
-static void construct_data_segment_sub(DataStorage *ds, const VarInfo *varinfo) {
+static Vector *construct_data_segment_sub(DataStorage *ds, const VarInfo *varinfo) {
   static const ConstructInitialValueVTable kVtable = {
     .emit_align = emit_align,
     .emit_number = emit_number,
     .emit_string = emit_string,
   };
-  construct_initial_value(varinfo->type, varinfo->global.init, &kVtable, ds);
+  EmitDataParam edp = {
+    .ds = ds,
+    .reloc_data = NULL,
+  };
+  construct_initial_value(varinfo->type, varinfo->global.init, &kVtable, &edp);
+  return edp.reloc_data;
 }
 
 typedef struct {
   GVarInfo *gvarinfo;
   DataStorage ds;
+  Vector *reloc_data;
 } DataSegment;
 
 static Vector *construct_data_segment(void) {
@@ -152,7 +179,7 @@ static Vector *construct_data_segment(void) {
     DataSegment *segment = malloc_or_die(sizeof(*segment));
     segment->gvarinfo = info;
     data_init(&segment->ds);
-    construct_data_segment_sub(&segment->ds, varinfo);
+    segment->reloc_data = construct_data_segment_sub(&segment->ds, varinfo);
     vec_push(segments, segment);
 
 #ifndef NDEBUG
@@ -170,18 +197,7 @@ static int compare_indirect(const void *pa, const void *pb) {
 
 //
 
-typedef struct {
-  FILE *ofp;
-  const char *import_module_name;
-  uint32_t address_bottom;
-  uint32_t section_index;
-  uint32_t function_count;
-  int32_t table_start_index;
-  uint32_t code_section_index;
-  uint32_t import_global_count;
-} EmitWasm;
-
-static void emit_type_section(EmitWasm *ew) {
+void emit_type_section(EmitWasm *ew) {
   DataStorage types_section;
   data_init(&types_section);
   data_open_chunk(&types_section);
@@ -306,7 +322,7 @@ static void emit_function_section(EmitWasm *ew) {
   }
 }
 
-static void emit_table_section(EmitWasm *ew) {
+void emit_table_section(EmitWasm *ew) {
   if (out_type < OutExecutable)
     return;
 
@@ -324,7 +340,7 @@ static void emit_table_section(EmitWasm *ew) {
   ++ew->section_index;
 }
 
-static void emit_memory_section(EmitWasm *ew) {
+void emit_memory_section(EmitWasm *ew) {
   if (out_type < OutExecutable)
     return;
 
@@ -438,7 +454,7 @@ static void emit_export_section(EmitWasm *ew, Vector *exports) {
   ++ew->section_index;
 }
 
-static void emit_elems_section(EmitWasm *ew) {
+void emit_elems_section(EmitWasm *ew) {
   DataStorage elems_section;
   data_init(&elems_section);
   if (indirect_function_table.count > 0) {
@@ -478,7 +494,7 @@ static void emit_elems_section(EmitWasm *ew) {
   }
 }
 
-static void emit_tag_section(EmitWasm *ew) {
+void emit_tag_section(EmitWasm *ew) {
   DataStorage tag_section;
   data_init(&tag_section);
   if (tags->len > 0) {
@@ -529,36 +545,50 @@ static void emit_code_section(EmitWasm *ew) {
   ++ew->section_index;
 }
 
-static void emit_data_section(EmitWasm *ew) {
+static Vector *emit_data_section(EmitWasm *ew) {
   Vector *segments = construct_data_segment();
-  if (segments->len <= 0)
-    return;
+  Vector *reloc_data = NULL;
+  if (segments->len > 0) {
+    reloc_data = new_vector();
 
-  VERBOSES("### Data\n");
-  DataStorage datasec;
-  data_init(&datasec);
-  data_open_chunk(&datasec);
-  data_uleb128(&datasec, -1, segments->len);
-  for (int i = 0; i < segments->len; ++i) {
-    DataSegment *segment = segments->data[i];
-    data_push(&datasec, 0);  // flags
-    // Init (address).
-    uint32_t address = segment->gvarinfo->non_prim.address;
-    VERBOSE("%04x: %.*s (size=%zu)\n", address, NAMES(segment->gvarinfo->varinfo->name),
-            type_size(segment->gvarinfo->varinfo->type));
-    data_push(&datasec, OP_I32_CONST);
-    data_leb128(&datasec, -1, address);
-    data_push(&datasec, OP_END);
-    // Content
-    data_uleb128(&datasec, -1, segment->ds.len);
-    data_concat(&datasec, &segment->ds);
+    VERBOSES("### Data\n");
+    DataStorage datasec;
+    data_init(&datasec);
+    data_open_chunk(&datasec);
+    data_uleb128(&datasec, -1, segments->len);
+    for (int i = 0; i < segments->len; ++i) {
+      DataSegment *segment = segments->data[i];
+      data_push(&datasec, 0);  // flags
+      // Init (address).
+      uint32_t address = segment->gvarinfo->non_prim.address;
+      VERBOSE("%04x: %.*s (size=%zu)\n", address, NAMES(segment->gvarinfo->varinfo->name),
+              type_size(segment->gvarinfo->varinfo->type));
+      data_push(&datasec, OP_I32_CONST);
+      data_leb128(&datasec, -1, address);
+      data_push(&datasec, OP_END);
+      // Content
+      data_uleb128(&datasec, -1, segment->ds.len);
+      uint32_t offset = datasec.len;
+      data_concat(&datasec, &segment->ds);
+
+      // Reloc data.
+      Vector *relocs = segment->reloc_data;
+      if (relocs != NULL) {
+        for (int i = 0; i < relocs->len; ++i) {
+          RelocInfo *reloc = relocs->data[i];
+          reloc->offset += offset;
+          vec_push(reloc_data, reloc);
+        }
+      }
+    }
+    data_close_chunk(&datasec, -1);
+    VERBOSES("\n");
+
+    fputc(SEC_DATA, ew->ofp);
+    fwrite(datasec.buf, datasec.len, 1, ew->ofp);
+    ++ew->section_index;
   }
-  data_close_chunk(&datasec, -1);
-  VERBOSES("\n");
-
-  fputc(SEC_DATA, ew->ofp);
-  fwrite(datasec.buf, datasec.len, 1, ew->ofp);
-  ++ew->section_index;
+  return reloc_data;
 }
 
 static void emit_linking_section(EmitWasm *ew) {
@@ -654,9 +684,46 @@ static void emit_linking_section(EmitWasm *ew) {
   }
 }
 
-static void emit_reloc_section(EmitWasm *ew) {
-  static const char kRelocCode[] = "reloc.CODE";
+static void emit_reloc_section(EmitWasm *ew, int section_index, Vector *relocs, const char *name) {
+  assert(relocs != NULL);
+  if (relocs->len > 0) {
+    DataStorage ds;
+    data_init(&ds);
+    data_open_chunk(&ds);
+    data_string(&ds, name, strlen(name));
+    data_uleb128(&ds, -1, section_index);
 
+    int count = relocs->len;
+    data_uleb128(&ds, -1, count);
+    for (int i = 0; i < count; ++i) {
+      RelocInfo *reloc = relocs->data[i];
+      data_push(&ds, reloc->type);
+      data_uleb128(&ds, -1, reloc->offset);
+      data_uleb128(&ds, -1, reloc->index);
+      switch (reloc->type) {
+      case R_WASM_MEMORY_ADDR_LEB:
+      case R_WASM_MEMORY_ADDR_SLEB:
+      case R_WASM_MEMORY_ADDR_I32:
+      case R_WASM_MEMORY_ADDR_LEB64:
+      case R_WASM_MEMORY_ADDR_SLEB64:
+      case R_WASM_MEMORY_ADDR_I64:
+      case R_WASM_FUNCTION_OFFSET_I32:
+      case R_WASM_SECTION_OFFSET_I32:
+        data_uleb128(&ds, -1, reloc->addend);
+        break;
+      default: break;
+      }
+      // TODO: addend?
+    }
+    data_close_chunk(&ds, -1);
+
+    fputc(SEC_CUSTOM, ew->ofp);
+    fwrite(ds.buf, ds.len, 1, ew->ofp);
+    ++ew->section_index;
+  }
+}
+
+static void emit_reloc_code_section(EmitWasm *ew) {
   typedef struct {
     Function *func;
     RelocInfo *reloc;
@@ -681,45 +748,28 @@ static void emit_reloc_section(EmitWasm *ew) {
     }
   }
 
-  if (code_reloc_all->len > 0) {
-    DataStorage reloc_code_section;
-    data_init(&reloc_code_section);
-    data_open_chunk(&reloc_code_section);
-    data_string(&reloc_code_section, kRelocCode, sizeof(kRelocCode) - 1);
-    data_uleb128(&reloc_code_section, -1, ew->code_section_index);
-
-    int count = code_reloc_all->len;
-    data_uleb128(&reloc_code_section, -1, count);
+  int count = code_reloc_all->len;
+  if (count > 0) {
     for (int i = 0; i < count; ++i) {
       CodeReloc *cr = code_reloc_all->data[i];
       Function *func = cr->func;
       RelocInfo *reloc = cr->reloc;
       FuncExtra *extra = func->extra;
-
-      data_push(&reloc_code_section, reloc->type);
-      data_uleb128(&reloc_code_section, -1, reloc->offset + extra->offset);
-      data_uleb128(&reloc_code_section, -1, reloc->index);
-      switch (reloc->type) {
-      case R_WASM_MEMORY_ADDR_LEB:
-      case R_WASM_MEMORY_ADDR_SLEB:
-      case R_WASM_MEMORY_ADDR_I32:
-      case R_WASM_MEMORY_ADDR_LEB64:
-      case R_WASM_MEMORY_ADDR_SLEB64:
-      case R_WASM_MEMORY_ADDR_I64:
-      case R_WASM_FUNCTION_OFFSET_I32:
-      case R_WASM_SECTION_OFFSET_I32:
-        data_uleb128(&reloc_code_section, -1, reloc->addend);
-        break;
-      default: break;
-      }
-      // TODO: addend?
+      reloc->offset += extra->offset;
+      code_reloc_all->data[i] = reloc;  // Replace from CodeReloc* to RelocInfo*
     }
-    data_close_chunk(&reloc_code_section, -1);
 
-    fputc(SEC_CUSTOM, ew->ofp);
-    fwrite(reloc_code_section.buf, reloc_code_section.len, 1, ew->ofp);
-    ++ew->section_index;
+    static const char kRelocCode[] = "reloc.CODE";
+    emit_reloc_section(ew, ew->code_section_index, code_reloc_all, kRelocCode);
   }
+}
+
+static void emit_reloc_data_section(EmitWasm *ew, Vector *reloc_data) {
+  if (reloc_data == NULL)
+    return;
+
+  static const char kRelocData[] = "reloc.DATA";
+  emit_reloc_section(ew, ew->data_section_index, reloc_data, kRelocData);
 }
 
 void emit_wasm(FILE *ofp, Vector *exports, const char *import_module_name,
@@ -766,10 +816,12 @@ void emit_wasm(FILE *ofp, Vector *exports, const char *import_module_name,
   emit_code_section(ew);
 
   // Data.
-  emit_data_section(ew);
+  ew->data_section_index = ew->section_index;
+  Vector *reloc_data = emit_data_section(ew);
 
   if (out_type < OutExecutable) {
     emit_linking_section(ew);
-    emit_reloc_section(ew);
+    emit_reloc_code_section(ew);
+    emit_reloc_data_section(ew, reloc_data);
   }
 }

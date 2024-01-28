@@ -88,7 +88,25 @@ void add_code(const unsigned char* buf, size_t size);
 void install_builtins(void);
 
 // emit_wasm
+typedef struct {
+  FILE *ofp;
+  const char *import_module_name;
+  uint32_t address_bottom;
+  uint32_t section_index;
+  uint32_t function_count;
+  int32_t table_start_index;
+  uint32_t code_section_index;
+  uint32_t data_section_index;
+  uint32_t import_global_count;
+} EmitWasm;
+
 void emit_wasm(FILE *ofp, Vector *exports, const char *import_module_name, uint32_t address_bottom);
+
+void emit_type_section(EmitWasm *ew);
+void emit_table_section(EmitWasm *ew);
+void emit_memory_section(EmitWasm *ew);
+void emit_tag_section(EmitWasm *ew);
+void emit_elems_section(EmitWasm *ew);
 
 // wcc_util
 enum OutType {
