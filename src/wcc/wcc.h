@@ -17,6 +17,8 @@ typedef struct Type Type;
 typedef struct VarInfo VarInfo;
 typedef struct Vector Vector;
 
+#define DEFAULT_STACK_SIZE  (8 * 1024)
+
 #define I32_SIZE  (4)  //sizeof(int32_t)
 
 #define INDIRECT_FUNCTION_TABLE_START_INDEX  (1)  // To avoid 0, which is used as NULL.

@@ -202,7 +202,7 @@ wcc: $(PARENT_DEPS) $(WCC_OBJS) $(WCC_LIBS)
 	$(CC) -o $@ $(WCC_OBJS) $(LDFLAGS)
 
 WCCLD_SRCS:=$(DEBUG_DIR)/wcc-ld.c $(WCC_DIR)/wasm_linker.c \
-	$(WCC_DIR)/wcc_util.c \
+	$(WCC_DIR)/wcc_util.c $(WCC_DIR)/emit_wasm.c $(WCC_DIR)/traverse.c $(WCC_DIR)/traverse_setjmp.c \
 	$(wildcard $(CC1_FE_DIR)/*.c) \
 	$(UTIL_DIR)/util.c $(UTIL_DIR)/table.c
 WCCLD_OBJS:=$(addprefix $(WCC_OBJ_DIR)/,$(notdir $(WCCLD_SRCS:.c=.o)))

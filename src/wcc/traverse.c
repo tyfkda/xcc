@@ -579,9 +579,9 @@ static void traverse_vardecl(Stmt *stmt) {
           register_func_info(decl->ident, NULL, varinfo, 0);
         } else if (varinfo->storage & VS_EXTERN) {
           assert(!is_global_scope(curscope));
-          if (out_type < OutExecutable) {
+          if (out_type < OutExecutable && scope_find(global_scope, decl->ident, NULL) == NULL) {
             // Register into global to output linking information.
-            GVarInfo *info = register_gvar_info(decl->ident, varinfo);  // TODO: Confirm.
+            GVarInfo *info = register_gvar_info(decl->ident, varinfo);
             info->flag |= GVF_UNRESOLVED;
           }
         }

@@ -1,4 +1,5 @@
 #include "unistd.h"
+#include "../wasi.h"
 
 off_t lseek(int fd, off_t offset, int whence) {
   size_t size;

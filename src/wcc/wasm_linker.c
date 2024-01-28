@@ -244,6 +244,21 @@ static void read_elem_section(WasmObj *wasmobj, unsigned char *p) {
   wasmobj->elem.count = count;
 }
 
+static Vector *read_func_section(WasmObj *wasmobj) {
+  WasmSection *sec = find_section(wasmobj, SEC_FUNC);
+  if (sec == NULL)
+    return NULL;
+
+  unsigned char *p = sec->start;
+  Vector *func_types = new_vector();
+  uint32_t num = read_uleb128(p, &p);
+  for (uint32_t i = 0; i < num; ++i) {
+    uint32_t index = read_uleb128(p, &p);
+    vec_push(func_types, INT2VOIDP(index));
+  }
+  return func_types;
+}
+
 static void read_linking(WasmObj *wasmobj, unsigned char *p, unsigned char *end) {
   uint32_t version = read_uleb128(p, &p);
 
@@ -264,6 +279,7 @@ static void read_linking(WasmObj *wasmobj, unsigned char *p, unsigned char *end)
     switch (linking_type) {
     case LT_WASM_SYMBOL_TABLE:
       {
+        Vector *func_types = read_func_section(wasmobj);
         uint32_t count = read_uleb128(p, &p);
         for (uint32_t i = 0; i < count; ++i) {
           enum SymInfoKind kind = *p++;
@@ -288,6 +304,23 @@ static void read_linking(WasmObj *wasmobj, unsigned char *p, unsigned char *end)
               sym->kind = kind;
               sym->flags = flags;
               sym->local_index = index;
+
+              if (kind == SIK_SYMTAB_FUNCTION) {
+                uint32_t func_type;
+                if (index < (uint32_t)import->len) {
+                  SymbolInfo *p = wasmobj->import.functions->data[index];
+                  if (p->kind != SIK_SYMTAB_FUNCTION)
+                    error("symbol is not function: %.*s", NAMES(sym->name));
+                  func_type = p->func.type_index;
+                } else {
+                  uint32_t i = index - wasmobj->import.functions->len;
+                  if (func_types == NULL || i >= (uint32_t)func_types->len)
+                    error("illegal function type index: %.*s", NAMES(sym->name));
+                  func_type = VOIDP2INT(func_types->data[i]);
+                }
+                sym->func.type_index = func_type;
+              }
+
               vec_push(wasmobj->linking.symtab, sym);
             }
             break;
@@ -451,6 +484,8 @@ static WasmObj *read_wasm(FILE *fp, const char *filename, size_t filesize) {
       sec->start = p;
       sec->size = size;
       sec->id = id;
+      wasmobj->sections = sections;
+      wasmobj->section_count = count;
 
       switch (id) {
       case SEC_TYPE:
@@ -828,6 +863,264 @@ static void apply_relocation(WasmLinker *linker) {
   }
 }
 
+static void out_import_section(WasmLinker *linker) {
+  DataStorage imports_section;
+  data_init(&imports_section);
+  data_open_chunk(&imports_section);
+  data_open_chunk(&imports_section);
+  uint32_t imports_count = 0;
+
+  const Name *name;
+  SymbolInfo *sym;
+  for (int it = 0; (it = table_iterate(&linker->unresolved, it, &name, (void**)&sym)) != -1; ) {
+    if (sym->kind != SIK_SYMTAB_FUNCTION)
+      continue;
+    const Name *modname = sym->module_name;
+    assert(modname != NULL);
+    const Name *name = sym->name;
+
+    data_string(&imports_section, modname->chars, modname->bytes);  // import module name
+    data_string(&imports_section, name->chars, name->bytes);  // import name
+    data_push(&imports_section, IMPORT_FUNC);  // import kind
+    data_uleb128(&imports_section, -1, sym->func.type_index);  // import signature index
+    ++imports_count;
+  }
+
+  if (imports_count > 0) {
+    data_close_chunk(&imports_section, imports_count);
+    data_close_chunk(&imports_section, -1);
+
+    fputc(SEC_IMPORT, linker->ofp);
+    fwrite(imports_section.buf, imports_section.len, 1, linker->ofp);
+  }
+}
+
+static void out_function_section(WasmLinker *linker) {
+  DataStorage functions_section;
+  data_init(&functions_section);
+  data_open_chunk(&functions_section);
+  data_open_chunk(&functions_section);
+  uint32_t function_count = 0;
+
+  for (int i = 0; i < linker->files->len; ++i) {
+    WasmObj *wasmobj = ((File*)linker->files->data[i])->wasmobj;
+    Vector *symtab = wasmobj->linking.symtab;
+    for (int j = 0; j < symtab->len; ++j) {
+      SymbolInfo *sym = symtab->data[j];
+      if (sym->kind != SIK_SYMTAB_FUNCTION || (sym->flags & WASM_SYM_UNDEFINED))
+        continue;
+      assert(sym->combined_index == function_count + linker->unresolved_func_count);
+      ++function_count;
+      int type_index = sym->func.type_index;
+      data_uleb128(&functions_section, -1, type_index);  // function i signature index
+    }
+  }
+
+  if (function_count > 0) {
+    data_close_chunk(&functions_section, function_count);  // num functions
+    data_close_chunk(&functions_section, -1);
+
+    fputc(SEC_FUNC, linker->ofp);
+    fwrite(functions_section.buf, functions_section.len, 1, linker->ofp);
+  }
+}
+
+static void out_table_section(WasmLinker *linker) {
+  Table *indirect_functions = &linker->indirect_functions;
+  if (indirect_functions->count == 0)
+    return;
+
+  DataStorage table_section;
+  data_init(&table_section);
+  data_open_chunk(&table_section);
+  data_leb128(&table_section, -1, 1);  // num tables
+  data_push(&table_section, WT_FUNCREF);
+  data_push(&table_section, 0x00);  // limits: flags
+  data_leb128(&table_section, -1, INDIRECT_FUNCTION_TABLE_START_INDEX + indirect_functions->count);  // initial
+  data_close_chunk(&table_section, -1);
+
+  fputc(SEC_TABLE, linker->ofp);
+  fwrite(table_section.buf, table_section.len, 1, linker->ofp);
+}
+
+static void out_global_section(WasmLinker *linker) {
+  DataStorage globals_section;
+  data_init(&globals_section);
+  data_open_chunk(&globals_section);
+  data_open_chunk(&globals_section);
+  uint32_t globals_count = 0;
+  {
+    const Name *name;
+    SymbolInfo *sym;
+    for (int it = 0; (it = table_iterate(&linker->defined, it, &name, (void**)&sym)) != -1; ) {
+      if (sym->kind != SIK_SYMTAB_GLOBAL)
+        continue;
+      assert(sym->combined_index == globals_count);
+
+      uint8_t wtype = sym->global.wtype;
+      data_push(&globals_section, wtype);
+      data_push(&globals_section, sym->global.mut);
+      switch (wtype) {
+      case WT_I32: case WT_I64:
+        data_push(&globals_section, wtype == WT_I32 ? OP_I32_CONST : OP_I64_CONST);
+        data_leb128(&globals_section, -1, sym->global.ivalue);
+        data_push(&globals_section, OP_END);
+        break;
+      case WT_F32:
+        data_push(&globals_section, OP_F32_CONST);
+        data_append(&globals_section, (void*)&sym->global.f32value, sizeof(sym->global.f32value));  // !Endian
+        data_push(&globals_section, OP_END);
+        break;
+      case WT_F64:
+        data_push(&globals_section, OP_F64_CONST);
+        data_append(&globals_section, (void*)&sym->global.f64value, sizeof(sym->global.f64value));  // !Endian
+        data_push(&globals_section, OP_END);
+        break;
+      default: assert(false); break;
+      }
+      ++globals_count;
+    }
+  }
+  if (globals_count > 0) {
+    data_close_chunk(&globals_section, globals_count);  // num functions
+    data_close_chunk(&globals_section, -1);
+
+    fputc(SEC_GLOBAL, linker->ofp);
+    fwrite(globals_section.buf, globals_section.len, 1, linker->ofp);
+  }
+}
+
+static void out_export_section(WasmLinker *linker, Vector *exports) {
+  DataStorage exports_section;
+  data_init(&exports_section);
+  data_open_chunk(&exports_section);
+  data_open_chunk(&exports_section);
+  int num_exports = 0;
+  for (int i = 0; i < exports->len; ++i) {
+    const Name *name = exports->data[i];
+    SymbolInfo *sym = table_get(&linker->defined, name);
+    if (sym == NULL) {
+      error("Export: `%.*s' not found", NAMES(name));
+    }
+
+    switch (sym->kind) {
+    case SIK_SYMTAB_FUNCTION:
+    case SIK_SYMTAB_GLOBAL:
+      data_string(&exports_section, name->chars, name->bytes);  // export name
+      data_uleb128(&exports_section, -1, sym->kind == SIK_SYMTAB_FUNCTION ? IMPORT_FUNC : IMPORT_GLOBAL);  // export kind
+      data_uleb128(&exports_section, -1, sym->combined_index);  // export func index
+      break;
+    default: assert(false); break;
+    }
+    ++num_exports;
+  }
+  /*if (memory_section.len > 0)*/ {  // TODO: Export only if memory exists
+    static const char name[] = "memory";
+    data_string(&exports_section, name, sizeof(name) - 1);  // export name
+    data_uleb128(&exports_section, -1, IMPORT_MEMORY);  // export kind
+    data_uleb128(&exports_section, -1, 0);  // export global index
+    ++num_exports;
+  }
+  data_close_chunk(&exports_section, num_exports);  // num exports
+  data_close_chunk(&exports_section, -1);
+
+  fputc(SEC_EXPORT, linker->ofp);
+  fwrite(exports_section.buf, exports_section.len, 1, linker->ofp);
+}
+
+static void out_elems_section(WasmLinker *linker) {
+  Table *indirect_functions = &linker->indirect_functions;
+  if (indirect_functions->count == 0)
+    return;
+
+  DataStorage elems_section;
+  data_init(&elems_section);
+  data_open_chunk(&elems_section);
+
+  // Enumerate imported functions.
+  data_leb128(&elems_section, -1, 1);  // num elem segments
+  data_leb128(&elems_section, -1, 0);  // segment flags
+  data_push(&elems_section, OP_I32_CONST);
+  data_leb128(&elems_section, -1, INDIRECT_FUNCTION_TABLE_START_INDEX);  // start index
+  data_push(&elems_section, OP_END);
+  data_leb128(&elems_section, -1, indirect_functions->count);  // num elems
+  const Name *name;
+  SymbolInfo *sym;
+  for (int it = 0; (it = table_iterate(indirect_functions, it, &name, (void**)&sym)) != -1; ) {
+    data_leb128(&elems_section, -1, sym->combined_index);  // elem function index
+  }
+  data_close_chunk(&elems_section, -1);
+
+  fputc(SEC_ELEM, linker->ofp);
+  fwrite(elems_section.buf, elems_section.len, 1, linker->ofp);
+}
+
+static void out_code_section(WasmLinker *linker) {
+  DataStorage codesec;
+  data_init(&codesec);
+  data_open_chunk(&codesec);
+  data_open_chunk(&codesec);
+
+  uint32_t code_count = 0;
+  for (int i = 0; i < linker->files->len; ++i) {
+    WasmObj *wasmobj = ((File*)linker->files->data[i])->wasmobj;
+    WasmSection *sec = find_section(wasmobj, SEC_CODE);
+    if (sec == NULL)
+      continue;
+    unsigned char *p = sec->start;
+    uint32_t num = read_uleb128(p, &p);
+    data_append(&codesec, p, sec->size - (p - sec->start));
+    code_count += num;
+  }
+
+  data_close_chunk(&codesec, code_count);
+  data_close_chunk(&codesec, -1);
+
+  fputc(SEC_CODE, linker->ofp);
+  fwrite(codesec.buf, codesec.len, 1, linker->ofp);
+}
+
+static void out_data_section(WasmLinker *linker) {
+  DataStorage datasec;
+  data_init(&datasec);
+  data_open_chunk(&datasec);
+  data_open_chunk(&datasec);
+
+  uint32_t data_count = 0;
+  for (int i = 0; i < linker->files->len; ++i) {
+    WasmObj *wasmobj = ((File*)linker->files->data[i])->wasmobj;
+    DataSegmentForLink *segments = wasmobj->data.segments;
+    for (uint32_t j = 0, count = wasmobj->data.count; j < count; ++j) {
+      DataSegmentForLink *segment = &segments[j];
+      uint32_t size = segment->size;
+      const unsigned char *content = segment->content;
+      uint32_t non_zero_size;
+      for (non_zero_size = size; non_zero_size > 0; --non_zero_size) {
+        if (content[non_zero_size - 1] != 0x00)
+          break;
+      }
+      if (non_zero_size == 0)  // BSS
+        continue;
+
+      data_push(&datasec, 0);  // flags
+      // Init (address).
+      uint32_t address = segment->start;
+      data_push(&datasec, OP_I32_CONST);
+      data_leb128(&datasec, -1, address);
+      data_push(&datasec, OP_END);
+      // Content
+      data_uleb128(&datasec, -1, non_zero_size);
+      data_append(&datasec, segment->content, non_zero_size);
+      ++data_count;
+    }
+  }
+  data_close_chunk(&datasec, data_count);
+  data_close_chunk(&datasec, -1);
+
+  fputc(SEC_DATA, linker->ofp);
+  fwrite(datasec.buf, datasec.len, 1, linker->ofp);
+}
+
 //
 
 void linker_init(WasmLinker *linker) {
@@ -865,7 +1158,7 @@ bool read_wasm_obj(WasmLinker *linker, const char *filename) {
   return true;
 }
 
-bool link_wasm_objs(WasmLinker *linker, Vector *exports) {
+bool link_wasm_objs(WasmLinker *linker, Vector *exports, uint32_t stack_size) {
   for (int i = 0; i < exports->len; ++i) {
     const Name *name = exports->data[i];
     table_put(&linker->unresolved, name, NULL);
@@ -879,6 +1172,78 @@ bool link_wasm_objs(WasmLinker *linker, Vector *exports) {
   renumber_func_types(linker);
   renumber_indirect_functions(linker);
   apply_relocation(linker);
+
+  uint32_t address_bottom = ALIGN(linker->data_end_address + stack_size, 16);
+  linker->address_bottom = address_bottom;
+  {
+    SymbolInfo *spsym = table_get(&linker->defined, linker->sp_name);
+    if (spsym != NULL) {
+      if (spsym->kind != SIK_SYMTAB_GLOBAL)
+        error("illegal symbol for stack pointer: %.*s", NAMES(linker->sp_name));
+      spsym->global.ivalue = address_bottom;
+    }
+
+    SymbolInfo *curbrksym = table_get(&linker->defined, linker->curbrk_name);
+    if (curbrksym != NULL) {
+      if (curbrksym->kind != SIK_SYMTAB_GLOBAL)
+        error("illegal symbol for break address: %.*s", NAMES(linker->curbrk_name));
+      curbrksym->global.ivalue = address_bottom;
+    }
+  }
+  return true;
+}
+
+bool linker_emit_wasm(WasmLinker *linker, const char *ofn, Vector *exports) {
+  FILE *ofp = fopen(ofn, "wb");
+  if (ofp == NULL) {
+    fprintf(stderr, "cannot open: %s\n", ofn);
+    return false;
+  }
+
+  linker->ofp = ofp;
+
+  write_wasm_header(ofp);
+
+  EmitWasm ew_body = {
+    .ofp = ofp,
+    .address_bottom = linker->address_bottom,
+  };
+  EmitWasm *ew = &ew_body;
+
+  // Types.
+  emit_type_section(ew);
+
+  // Imports.
+  out_import_section(linker);
+
+  // Functions.
+  out_function_section(linker);
+
+  // Table.
+  out_table_section(linker);
+
+  // Memory.
+  emit_memory_section(ew);
+
+  // Tag (must put earlier than Global section.)
+  emit_tag_section(ew);
+
+  // Globals.
+  out_global_section(linker);
+
+  // Exports.
+  out_export_section(linker, exports);
+
+  // Elements.
+  out_elems_section(linker);
+
+  // Code.
+  out_code_section(linker);
+
+  // Data.
+  out_data_section(linker);
+
+  fclose(ofp);
 
   return true;
 }
