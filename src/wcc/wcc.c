@@ -388,7 +388,8 @@ int main(int argc, char *argv[]) {
   if (unresolved_gvar_table.count > 0) {
     const Name *name;
     VarInfo *varinfo;
-    for (int it = 0; (it = table_iterate(&unresolved_gvar_table, it, &name, (void**)&varinfo)) != -1; ) {
+    for (int it = 0;
+         (it = table_iterate(&unresolved_gvar_table, it, &name, (void**)&varinfo)) != -1; ) {
       fprintf(stderr, "Global variable not resolved: %.*s\n", NAMES(name));
     }
     ++compile_error_count;

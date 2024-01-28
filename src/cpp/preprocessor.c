@@ -258,7 +258,7 @@ static void handle_include(const char *p, Stream *stream, bool is_next) {
   const char *orgp = p = skip_whitespaces(p);
 
   if (*p != '<')
-    p = preprocess_one_line(p, stream, NULL);;
+    p = preprocess_one_line(p, stream, NULL);
   char close;
   bool sys = false;
 

@@ -1,11 +1,7 @@
 #pragma once
 
-#include <stdbool.h>
-
 typedef struct Name Name;
-typedef struct StringBuffer StringBuffer;
 typedef struct Table Table;
-typedef struct Token Token;
 typedef struct Vector Vector;
 
 typedef struct Macro {
