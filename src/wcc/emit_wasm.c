@@ -206,16 +206,7 @@ static void emit_import_section(EmitWasm *ew) {
     for (int it = 0; (it = table_iterate(&func_info_table, it, &name, (void**)&info)) != -1; ) {
       if (info->flag == 0 || info->func != NULL)
         continue;
-      const Type *type = info->type;
-      assert(type != NULL && type->kind == TY_FUNC);
-
-      VarInfo *varinfo = scope_find(global_scope, name, NULL);
-      if (varinfo == NULL) {
-        error("Import: `%.*s' not found", NAMES(name));
-      }
-      if (varinfo->type->kind != TY_FUNC) {
-        error("Import: `%.*s' is not function", NAMES(name));
-      }
+      VarInfo *varinfo = info->varinfo;
       if (varinfo->storage & VS_STATIC) {
         error("Import: `%.*s' is not public", NAMES(name));
       }
@@ -336,25 +327,19 @@ static void emit_export_section(EmitWasm *ew, Vector *exports) {
   int num_exports = 0;
   for (int i = 0; i < exports->len; ++i) {
     const Name *name = exports->data[i];
-    VarInfo *varinfo = scope_find(global_scope, name, NULL);
-    if (varinfo == NULL) {
+    FuncInfo *info = table_get(&func_info_table, name);
+    if (info == NULL) {
       error("Export: `%.*s' not found", NAMES(name));
     }
-    if (varinfo->type->kind != TY_FUNC) {
-      error("Export: `%.*s' is not function", NAMES(name));
-    }
+    assert(info->func != NULL);
+    VarInfo *varinfo = info->varinfo;
     if (varinfo->storage & VS_STATIC) {
       error("Export: `%.*s' is not public", NAMES(name));
     }
 
-    FuncInfo *info = table_get(&func_info_table, name);
-    assert(info != NULL && info->func != NULL);
-
-    uint32_t func_index = info->index;
-
     data_string(&exports_section, name->chars, name->bytes);  // export name
     data_uleb128(&exports_section, -1, IMPORT_FUNC);  // export kind
-    data_uleb128(&exports_section, -1, func_index);  // export func index
+    data_uleb128(&exports_section, -1, info->index);  // export func index
     ++num_exports;
   }
   // Export globals.
