@@ -13,15 +13,10 @@
 #include "util.h"
 #include "var.h"
 
-const char SP_NAME[] = "__stack_pointer";  // Variable name for stack pointer (global).
 const char BREAK_ADDRESS_NAME[] = "__curbrk";
 const char VA_ARGS_NAME[] = ".._VA_ARGS";
 
-Table func_info_table;
-Table gvar_info_table;
 Table builtin_function_table;
-Vector *functypes;  // <DataStorage*>
-Table indirect_function_table;
 Table unresolved_gvar_table;
 
 static Stmt *branching_stmt;
@@ -72,22 +67,7 @@ static void wasm_func_type(const Type *type, DataStorage *ds) {
 int getsert_func_type_index(const Type *type, bool reg) {
   DataStorage ds;
   wasm_func_type(type, &ds);
-  int len = functypes->len;
-  for (int i = 0; i < len; ++i) {
-    const DataStorage *t = functypes->data[i];
-    if (ds.len == t->len && memcmp(ds.buf, t->buf, ds.len) == 0) {
-      data_release(&ds);
-      return i;
-    }
-  }
-  if (reg) {
-    int index = functypes->len;
-    DataStorage *p = malloc_or_die(sizeof(*p));
-    *p = ds;
-    vec_push(functypes, p);
-    return index;
-  }
-  return -1;
+  return getsert_func_type(ds.buf, ds.len, reg);
 }
 
 extern int get_func_type_index(const Type *type);
@@ -118,7 +98,7 @@ static FuncInfo *register_func_info(const Name *funcname, Function *func, int fl
 //   if (table_get(&func_info_table, funcname) == NULL) {
 //     Type *functype = (*callback)();
 //     scope_add(global_scope, funcname, functype, 0);
-//     register_func_info(funcname, NULL, FF_REFERED);
+//     register_func_info(funcname, NULL, FF_REFERRED);
 //   }
 // }
 
@@ -127,32 +107,11 @@ static uint32_t register_indirect_function(const Name *name) {
   if (table_try_get(&indirect_function_table, name, (void**)&info))
     return info->indirect_index;
 
-  info = register_func_info(name, NULL, FF_INDIRECT);
+  info = register_func_info(name, NULL, FF_INDIRECT | FF_REFERRED);
   uint32_t index = indirect_function_table.count + 1;
   info->indirect_index = index;
   table_put(&indirect_function_table, name, info);
   return index;
-}
-
-uint32_t get_indirect_function_index(const Name *name) {
-  FuncInfo *info = table_get(&indirect_function_table, name);
-  assert(info != NULL && info->indirect_index > 0);
-  return info->indirect_index;
-}
-
-static GVarInfo *register_gvar_info(const Name *name, VarInfo *varinfo) {
-#if !defined(NDEBUG)
-  assert(!table_try_get(&gvar_info_table, name, NULL));
-#endif
-  GVarInfo *info = calloc_or_die(sizeof(*info));
-  info->varinfo = varinfo;
-  info->is_export = false;
-  table_put(&gvar_info_table, name, info);
-  return info;
-}
-
-GVarInfo *get_gvar_info_from_name(const Name *name) {
-  return table_get(&gvar_info_table, name);
 }
 
 GVarInfo *get_gvar_info(Expr *expr) {
@@ -221,7 +180,7 @@ static void traverse_func_expr(Expr **pexpr) {
     }
     if (global && type->kind == TY_FUNC) {
       if (!table_try_get(&builtin_function_table, expr->var.name, NULL))
-        register_func_info(expr->var.name, NULL, FF_REFERED);
+        register_func_info(expr->var.name, NULL, FF_REFERRED);
     } else {
       assert(type->kind == TY_PTR && type->pa.ptrof->kind == TY_FUNC);
       getsert_func_type_index(type->pa.ptrof, true);
@@ -741,7 +700,7 @@ uint32_t traverse_ast(Vector *decls, Vector *exports, uint32_t stack_size) {
     FuncInfo *info = table_get(&func_info_table, name);
     if (info == NULL)
       error("`%.*s' not found", NAMES(name));
-    register_func_info(name, NULL, FF_REFERED);
+    register_func_info(name, NULL, FF_REFERRED);
   }
 
   {

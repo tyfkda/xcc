@@ -18,21 +18,16 @@ typedef struct Vector Vector;
 
 #define I32_SIZE  (4)  //sizeof(int32_t)
 
-extern const char SP_NAME[];
 extern const char VA_ARGS_NAME[];
 
-extern Table func_info_table;
-extern Table gvar_info_table;
 extern Table builtin_function_table;
 extern Vector *functypes;  // <DataStorage*>
-extern Vector *tags;  // <int>
-extern Table indirect_function_table;
 extern Table unresolved_gvar_table;
 extern uint32_t data_end_address;
-extern bool verbose;
 
-#define VERBOSES(str)  do { if (verbose) printf("%s", str); } while (0)
-#define VERBOSE(fmt, ...)  do { if (verbose) printf(fmt, __VA_ARGS__); } while (0)
+#define FF_REFERRED  (1 << 0)
+#define FF_INDIRECT  (1 << 1)
+#define FF_INLINING  (1 << 2)
 
 typedef struct {
   Function *func;
@@ -57,10 +52,6 @@ typedef struct {
   };
 } GVarInfo;
 
-#define FF_REFERED   (1 << 0)
-#define FF_INDIRECT  (1 << 1)
-#define FF_INLINING  (1 << 2)
-
 // traverse
 uint32_t traverse_ast(Vector *decls, Vector *exports, uint32_t stack_size);
 
@@ -69,7 +60,6 @@ GVarInfo *get_gvar_info_from_name(const Name *name);
 GVarInfo *get_gvar_info(Expr *expr);
 int getsert_func_type_index(const Type *type, bool reg);
 inline int get_func_type_index(const Type *type)  { return getsert_func_type_index(type, false); }
-uint32_t get_indirect_function_index(const Name *name);
 
 void modify_ast_for_setjmp(int n);
 
@@ -77,8 +67,6 @@ void modify_ast_for_setjmp(int n);
 void gen(Vector *decls);
 void gen_expr(Expr *expr, bool needval);
 void gen_expr_stmt(Expr *expr);
-unsigned char to_wtype(const Type *type);
-Expr *get_sp_var(void);
 
 typedef void (*BuiltinFunctionProc)(Expr *expr);
 void add_builtin_function(const char *str, Type *type, BuiltinFunctionProc *proc,
@@ -90,10 +78,28 @@ void add_code(const unsigned char* buf, size_t size);
 void install_builtins(void);
 
 // emit_wasm
-
 void emit_wasm(FILE *ofp, Vector *exports, const char *import_module_name, uint32_t address_bottom);
 
 // wcc_util
+extern const char SP_NAME[];
+
+extern bool verbose;
+extern Table func_info_table;
+extern Table gvar_info_table;
+extern Table indirect_function_table;
+extern Vector *tags;  // <int>
+
+#define VERBOSES(str)  do { if (verbose) printf("%s", str); } while (0)
+#define VERBOSE(fmt, ...)  do { if (verbose) printf(fmt, __VA_ARGS__); } while (0)
+
+uint32_t get_indirect_function_index(const Name *name);
+GVarInfo *register_gvar_info(const Name *name, VarInfo *varinfo);
+GVarInfo *get_gvar_info_from_name(const Name *name);
+int getsert_func_type(unsigned char *buf, size_t size, bool reg);
+int getsert_tag(int typeindex);
+
+void write_wasm_header(FILE *ofp);
+
 typedef struct DataStorage {
   Vector *chunk_stack;
   unsigned char *buf;
@@ -119,3 +125,6 @@ typedef struct FuncExtra {
   DataStorage *code;
   int setjmp_count;
 } FuncExtra;
+
+Expr *get_sp_var(void);
+unsigned char to_wtype(const Type *type);

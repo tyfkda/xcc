@@ -15,7 +15,7 @@
 #include "type.h"
 #include "util.h"
 #include "var.h"
-#include "wasm_util.h"
+#include "wasm.h"
 
 #define CODE  (((FuncExtra*)curfunc->extra)->code)
 
@@ -36,17 +36,6 @@ void add_code(const unsigned char *buf, size_t size) {
 
 static void gen_cond(Expr *cond, bool tf, bool needval);
 
-Expr *get_sp_var(void) {
-  static Expr *spvar;
-  if (spvar == NULL) {
-    const Name *spname = alloc_name(SP_NAME, NULL, false);
-    GVarInfo *info = get_gvar_info_from_name(spname);
-    assert(info != NULL);
-    spvar = new_expr_variable(spname, info->varinfo->type, NULL, global_scope);
-  }
-  return spvar;
-}
-
 // Local variable information for WASM
 struct VReg {
   int32_t param_index;
@@ -66,19 +55,6 @@ static void gen_stmts(Vector *stmts, bool is_last);
 static int cur_depth;
 static int break_depth;
 static int continue_depth;
-
-unsigned char to_wtype(const Type *type) {
-  switch (type->kind) {
-  case TY_FIXNUM: return type_size(type) <= I32_SIZE ? WT_I32 : WT_I64;
-  case TY_FLONUM: return type->flonum.kind < FL_DOUBLE ? WT_F32 : WT_F64;
-  case TY_PTR:
-  case TY_ARRAY:
-    // Pointer and array is handled as an index of linear memroy.
-    return WT_I32;
-  default: assert(!"Illegal"); break;
-  }
-  return WT_I32;
-}
 
 static unsigned char get_func_ret_wtype(const Type *rettype) {
   return rettype->kind == TY_VOID ? WT_VOID
@@ -1684,19 +1660,6 @@ void gen(Vector *decls) {
 }
 
 ////////////////////////////////////////////////
-
-Vector *tags;
-
-int getsert_tag(int typeindex) {
-  int len = tags->len;
-  for (int i = 0; i < len; ++i) {
-    int t = VOIDP2INT(tags->data[i]);
-    if (t == typeindex)
-      return i;
-  }
-  vec_push(tags, INT2VOIDP(typeindex));
-  return len;
-}
 
 static int register_longjmp_tag(void) {
   // Exception type: (void*, int)

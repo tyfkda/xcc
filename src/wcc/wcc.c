@@ -17,13 +17,11 @@
 #include "table.h"
 #include "util.h"
 #include "var.h"
-#include "wasm_util.h"
+#include "wasm.h"
 
 static const char DEFAULT_IMPORT_MODULE_NAME[] = "wasi_snapshot_preview1";
 
 #define DEFAULT_STACK_SIZE  (8 * 1024)
-
-bool verbose;
 
 static void init_compiler(void) {
   table_init(&func_info_table);

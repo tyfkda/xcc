@@ -11,7 +11,7 @@
 #include "type.h"
 #include "util.h"
 #include "var.h"
-#include "wasm_util.h"
+#include "wasm.h"
 
 static void emit_global_number(void *ud, const Type *type, Expr *var, Fixnum offset) {
   DataStorage *ds = ud;
@@ -68,7 +68,7 @@ static void construct_primitive_global(DataStorage *ds, const VarInfo *varinfo) 
 
 static void emit_fixnum(DataStorage *ds, Fixnum v, size_t size) {
   // Assume endian and CHAR_BIT are same on host and target.
-  data_append(ds, (unsigned char *)&v, size);
+  data_append(ds, (unsigned char*)&v, size);
 }
 
 static void emit_align(void *ud, int align) {
@@ -178,13 +178,12 @@ static void emit_type_section(EmitWasm *ew) {
   DataStorage types_section;
   data_init(&types_section);
   data_open_chunk(&types_section);
-  data_open_chunk(&types_section);
+  data_uleb128(&types_section, -1, functypes->len);  // num types
   for (int i = 0, len = functypes->len; i < len; ++i) {
     const DataStorage *wt = functypes->data[i];
     data_push(&types_section, WT_FUNC);  // func
     data_append(&types_section, wt->buf, wt->len);
   }
-  data_close_chunk(&types_section, functypes->len);
   data_close_chunk(&types_section, -1);
 
   fputc(SEC_TYPE, ew->ofp);
@@ -351,7 +350,7 @@ static void emit_export_section(EmitWasm *ew, Vector *exports) {
       if (!info->is_export || !is_prim_type(varinfo->type) || (varinfo->storage & VS_REF_TAKEN))
         continue;
       data_string(&exports_section, name->chars, name->bytes);  // export name
-      data_push(&exports_section, EXPORT_GLOBAL);  // export kind
+      data_push(&exports_section, IMPORT_GLOBAL);  // export kind
       data_uleb128(&exports_section, -1, info->prim.index);  // export global index
       ++num_exports;
     }
@@ -414,14 +413,13 @@ static void emit_tag_section(EmitWasm *ew) {
   data_init(&tag_section);
   if (tags->len > 0) {
     data_open_chunk(&tag_section);
-    data_open_chunk(&tag_section);
+    data_uleb128(&tag_section, -1, tags->len);  // tag count
     for (int i = 0; i < tags->len; ++i) {
       int typeindex = VOIDP2INT(tags->data[i]);
       int attribute = 0;
       data_uleb128(&tag_section, -1, attribute);
       data_uleb128(&tag_section, -1, typeindex);
     }
-    data_close_chunk(&tag_section, tags->len);  // tag count
     data_close_chunk(&tag_section, -1);
 
     fputc(SEC_TAG, ew->ofp);
@@ -430,6 +428,9 @@ static void emit_tag_section(EmitWasm *ew) {
 }
 
 static void emit_code_section(EmitWasm *ew) {
+  if (ew->function_count <= 0)
+    return;
+
   DataStorage codesec;
   data_init(&codesec);
   data_open_chunk(&codesec);
@@ -456,12 +457,11 @@ static void emit_data_section(EmitWasm *ew) {
   if (segments->len <= 0)
     return;
 
+  VERBOSES("### Data\n");
   DataStorage datasec;
   data_init(&datasec);
   data_open_chunk(&datasec);
-  data_open_chunk(&datasec);
-
-  VERBOSES("### Data\n");
+  data_uleb128(&datasec, -1, segments->len);
   for (int i = 0; i < segments->len; ++i) {
     DataSegment *segment = segments->data[i];
     data_push(&datasec, 0);  // flags
@@ -476,9 +476,8 @@ static void emit_data_section(EmitWasm *ew) {
     data_uleb128(&datasec, -1, segment->ds.len);
     data_concat(&datasec, &segment->ds);
   }
-  VERBOSES("\n");
-  data_close_chunk(&datasec, segments->len);
   data_close_chunk(&datasec, -1);
+  VERBOSES("\n");
 
   fputc(SEC_DATA, ew->ofp);
   fwrite(datasec.buf, datasec.len, 1, ew->ofp);
@@ -486,7 +485,7 @@ static void emit_data_section(EmitWasm *ew) {
 
 void emit_wasm(FILE *ofp, Vector *exports, const char *import_module_name,
                uint32_t address_bottom) {
-  emit_wasm_header(ofp);
+  write_wasm_header(ofp);
 
   EmitWasm ew_body = {
     .ofp = ofp,

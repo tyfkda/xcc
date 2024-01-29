@@ -39,7 +39,7 @@ core
 libsrc/_wasm/crt0.c
 libsrc/_wasm/libc.c
 
-a.wasm
+*.wasm
 /wcc
 /cc.wasm
 /gen3cc.wasm

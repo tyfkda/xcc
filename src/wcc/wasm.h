@@ -3,27 +3,34 @@
 #include <stdint.h>
 #include <stdio.h>
 
+#define WASM_BINARY_MAGIC  {'\0', 'a', 's', 'm'}
+#define WASM_BINARY_VERSION  (1)
+
 typedef struct {
   char magic[4];
   uint32_t binary_version;
-} WASM_HEADER;
+} WasmHeader;
 
-#define SEC_TYPE      (1)
-#define SEC_IMPORT    (2)
-#define SEC_FUNC      (3)
-#define SEC_TABLE     (4)
-#define SEC_MEMORY    (5)
-#define SEC_GLOBAL    (6)
-#define SEC_EXPORT    (7)
-#define SEC_ELEM      (9)
-#define SEC_CODE      (10)
-#define SEC_DATA      (11)
-#define SEC_TAG       (13)
+#define SEC_CUSTOM      (0)
+#define SEC_TYPE        (1)
+#define SEC_IMPORT      (2)
+#define SEC_FUNC        (3)
+#define SEC_TABLE       (4)
+#define SEC_MEMORY      (5)
+#define SEC_GLOBAL      (6)
+#define SEC_EXPORT      (7)
+#define SEC_START       (8)
+#define SEC_ELEM        (9)
+#define SEC_CODE        (10)
+#define SEC_DATA        (11)
+#define SEC_DATA_COUNT  (12)
+#define SEC_TAG         (13)
 
-// Import kind
+// Import and export kind
 #define IMPORT_FUNC    (0)
+#define IMPORT_TABLE   (1)
 #define IMPORT_MEMORY  (2)
-#define EXPORT_GLOBAL  (3)
+#define IMPORT_GLOBAL  (3)
 
 // Wasm opcode
 #define OP_UNREACHABLE    (0x00)
@@ -179,5 +186,3 @@ typedef struct {
 #define WT_I32            (0x7f)
 
 #define MEMORY_PAGE_SIZE  65536
-
-void emit_wasm_header(FILE *ofp);
