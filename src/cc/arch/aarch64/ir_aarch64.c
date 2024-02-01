@@ -22,6 +22,7 @@ static void pop_caller_save_regs(Vector *saves);
 //   X8(XR):              Indirect return value address.
 //   X16(IP0), X17(IP1):  Intra-Procedure-call scratch registers.
 //   X18(PR):             Platform register. Used for some operating-system-specific special purpose or an additional caller-saved register.
+//                        Apple: The platforms reserve register x18. Don’t use this register.
 //   X29(FP):             Frame pointer (Callee save)
 
 static const char *kReg32s[PHYSICAL_REG_MAX] = {
@@ -76,7 +77,12 @@ static const int kCallerSaveFRegs[] = {16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 2
 static unsigned long detect_extra_occupied(RegAlloc *ra, IR *ir) {
   unsigned long ioccupy = 0;
   switch (ir->kind) {
-  case IR_JMP: case IR_TJMP: case IR_CALL:
+  case IR_CALL:
+    // X16 and X17 are IP0 and IP1, intra-procedure-call temporary registers. These can be used by
+    // call veneers and similar code, or as temporary registers for intermediate values between
+    // subroutine calls. They are corruptible by a function. Veneers are small pieces of code which
+    // are automatically inserted by the linker, for example when the branch target is out of range
+    // of the branch instruction.
     ioccupy = 1UL << GET_X16_INDEX();
     break;
   default: break;
