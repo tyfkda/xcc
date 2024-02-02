@@ -19,7 +19,7 @@ end_test_suite() {
     printf "${CLEAR_LINE}  ${SUITE_NAME}: ${GREEN}OK: ${TEST_COUNT}${RESET_COLOR}\n"
   else
     printf "${CLEAR_LINE}    ${RED}${BOLD}ERROR: ${ERROR_COUNT}/${TEST_COUNT}${RESET_COLOR}\n"
-    FAILED_SUITE_COUNT=$(($FAILED_SUITE_COUNT + 1))
+    FAILED_SUITE_COUNT=$((FAILED_SUITE_COUNT + 1))
   fi
 }
 

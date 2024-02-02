@@ -3,5 +3,5 @@
 # Execute RISC-V executable on Spike
 
 # Eliminate "bbl loader" message
-spike $RISCV/riscv64-unknown-elf/bin/pk $@ | tail -n +2
-exit ${PIPESTATUS[0]}
+spike "$RISCV/riscv64-unknown-elf/bin/pk" "$@" | tail -n +2
+exit "${PIPESTATUS[0]}"

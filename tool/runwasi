@@ -8,10 +8,10 @@ node ${OPTION} --version > /dev/null 2>&1
 exitcode="$?"
 
 option='';
-if [[ "$exitcode" -eq 0 ]]; then
+if [ "$exitcode" -eq 0 ]; then
   option="${OPTION}"
 fi
 
-CURRENT=$(cd $(dirname $0);pwd)
-npx node ${option} --no-warnings=ExperimentalWarning ${CURRENT}/runwasi.js "$@"
+CURRENT=$(cd "$(dirname "$0")";pwd)
+npx node ${option} --no-warnings=ExperimentalWarning "${CURRENT}/runwasi.js" "$@"
 exit "$?"
