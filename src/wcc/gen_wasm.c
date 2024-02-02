@@ -402,7 +402,19 @@ static void gen_funcall(Expr *expr) {
     int index = get_func_type_index(functype);
     assert(index >= 0);
     ADD_CODE(OP_CALL_INDIRECT);
-    ADD_ULEB128(index);  // signature index
+    if (out_type >= OutExecutable) {
+      ADD_ULEB128(index);  // signature index
+    } else {
+      FuncExtra *extra = curfunc->extra;
+      DataStorage *code = extra->code;
+      RelocInfo *ri = calloc_or_die(sizeof(*ri));
+      ri->type = R_WASM_TYPE_INDEX_LEB;
+      ri->index = index;
+      ri->offset = code->len;
+      vec_push(extra->reloc_code, ri);
+
+      ADD_VARUINT32(index);
+    }
     ADD_ULEB128(0);      // table index
   }
 
@@ -458,9 +470,23 @@ static void gen_ref_sub(Expr *expr) {
              is_global_datsec_var(varinfo, scope));
       if (is_global_scope(scope) || !is_local_storage(varinfo)) {
         if (varinfo->type->kind == TY_FUNC) {
-          uint32_t indirect_func = get_indirect_function_index(expr->var.name);
           ADD_CODE(OP_I32_CONST);
-          ADD_LEB128(indirect_func);
+          if (out_type >= OutExecutable) {
+            uint32_t indirect_func = get_indirect_function_index(expr->var.name);
+            ADD_LEB128(indirect_func);
+          } else {
+            FuncInfo *info = table_get(&indirect_function_table, expr->var.name);
+            assert(info != NULL && info->indirect_index > 0);
+            FuncExtra *extra = curfunc->extra;
+            DataStorage *code = extra->code;
+            RelocInfo *ri = calloc_or_die(sizeof(*ri));
+            ri->type = R_WASM_TABLE_INDEX_SLEB;
+            ri->offset = code->len;
+            ri->index = info->index;
+            vec_push(extra->reloc_code, ri);
+
+            ADD_VARUINT32(info->indirect_index);
+          }
         } else {
           GVarInfo *info = get_gvar_info(expr);
           ADD_CODE(OP_I32_CONST);

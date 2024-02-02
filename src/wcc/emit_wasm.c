@@ -97,6 +97,23 @@ static void emit_number(void *ud, const Type *type, Expr *var, Fixnum offset) {
     if (var->type->kind == TY_FUNC) {
       assert(v == 0);
       v = get_indirect_function_index(var->var.name);
+
+      if (out_type < OutExecutable) {
+        FuncInfo *info = table_get(&func_info_table, var->var.name);
+        if (info == NULL)
+          error("`%.*s' not found", NAMES(var->var.name));
+
+        RelocInfo *ri = calloc_or_die(sizeof(*ri));
+        ri->type = R_WASM_TABLE_INDEX_I32;
+        ri->offset = ds->len;
+        ri->addend = offset;
+        ri->index = info->index;
+
+        Vector *reloc_data = edp->reloc_data;
+        if (reloc_data == NULL)
+          edp->reloc_data = reloc_data = new_vector();
+        vec_push(reloc_data, ri);
+      }
     } else {
       assert(var->kind == EX_VAR);
       const GVarInfo *info = get_gvar_info(var);
@@ -231,6 +248,16 @@ static void emit_import_section(EmitWasm *ew) {
     data_push(&imports_section, IMPORT_MEMORY);  // import kind
     data_uleb128(&imports_section, -1, 0);  // index
     data_uleb128(&imports_section, -1, 0);  // size
+    ++imports_count;
+  }
+  if (indirect_function_table.count > 0 && out_type < OutExecutable) {
+    static const char kTableName[] = "__indirect_function_table";
+    data_string(&imports_section, env_module_name, sizeof(env_module_name) - 1);  // import module name
+    data_string(&imports_section, kTableName, sizeof(kTableName) - 1);  // import name
+    data_push(&imports_section, IMPORT_TABLE);  // import kind
+    data_push(&imports_section, WT_FUNCREF);
+    data_push(&imports_section, 0x00);  // limits: flags
+    data_leb128(&imports_section, -1, ew->table_start_index);  // initial
     ++imports_count;
   }
 
@@ -482,7 +509,7 @@ void emit_elems_section(EmitWasm *ew) {
     data_leb128(&elems_section, -1, count);  // num elems
     for (int i = 0; i < count; ++i) {
       FuncInfo *info = indirect_funcs[i];
-      VERBOSE("%2d: %.*s (%d)\n", i + 1, NAMES(info->func->name), (int)info->index);
+      VERBOSE("%2d: %.*s (%u)\n", i + 1, NAMES(info->varinfo->name), info->index);
       data_leb128(&elems_section, -1, info->index);  // elem function index
     }
     data_close_chunk(&elems_section, -1);
