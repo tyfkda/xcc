@@ -178,30 +178,45 @@ static Vector *construct_data_segment(void) {
 #ifndef NDEBUG
   uint32_t address = 0;
 #endif
-  for (int i = 0, len = global_scope->vars->len; i < len; ++i) {
-    VarInfo *varinfo = global_scope->vars->data[i];
-    if (varinfo->storage & VS_ENUM_MEMBER || varinfo->type->kind == TY_FUNC)
-      continue;
-    if (varinfo->global.init == NULL || !is_global_datsec_var(varinfo, global_scope))
-      continue;
-    GVarInfo *info = get_gvar_info_from_name(varinfo->name);
-    if (info == NULL)
-      continue;
+  for (int k = 0; k < 2; ++k) {  // 0=data, 1=bss
+    for (int i = 0, len = global_scope->vars->len; i < len; ++i) {
+      VarInfo *varinfo = global_scope->vars->data[i];
+      if (varinfo->storage & (VS_EXTERN | VS_ENUM_MEMBER) || varinfo->type->kind == TY_FUNC)
+        continue;
+      if ((k == 0 && (varinfo->global.init == NULL || !is_global_datsec_var(varinfo, global_scope))) ||
+          (k != 0 && varinfo->global.init != NULL))
+        continue;
+      GVarInfo *info = get_gvar_info_from_name(varinfo->name);
+      if (info == NULL)
+        continue;
 
 #ifndef NDEBUG
-    uint32_t adr = info->non_prim.address;
-    assert(adr >= address);
+      uint32_t adr = info->non_prim.address;
+      assert(adr >= address);
 #endif
 
-    DataSegment *segment = malloc_or_die(sizeof(*segment));
-    segment->gvarinfo = info;
-    data_init(&segment->ds);
-    segment->reloc_data = construct_data_segment_sub(&segment->ds, varinfo);
-    vec_push(segments, segment);
+      DataSegment *segment = malloc_or_die(sizeof(*segment));
+      segment->gvarinfo = info;
+      data_init(&segment->ds);
+      if (k == 0) {
+        segment->reloc_data = construct_data_segment_sub(&segment->ds, varinfo);
+      } else {
+        // Output BSS as zero-filled data to tell its size.
+        DataStorage *ds = &segment->ds;
+        size_t start = ds->len;
+        size_t size = type_size(varinfo->type);
+        data_reserve(ds, start + size);
+        memset(ds->buf + start, 0, size);
+        ds->len += size;
+      }
+      vec_push(segments, segment);
 
 #ifndef NDEBUG
-    address = adr + type_size(varinfo->type);
+      address = adr + type_size(varinfo->type);
 #endif
+    }
+    if (out_type >= OutExecutable)
+      break;
   }
   return segments;
 }
