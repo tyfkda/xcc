@@ -673,7 +673,7 @@ static void emit_linking_section(EmitWasm *ew) {
     }
   }
   // Globals
-  for (int k = 0; k < 2; ++k) {  // 0=unresolved, 1=resolved
+  for (int k = 0; k < 3; ++k) {  // 0=unresolved, 1=resolved(data), 2=resolved(bss)
     for (int i = 0, len = global_scope->vars->len; i < len; ++i) {
       VarInfo *varinfo = global_scope->vars->data[i];
       if (varinfo->storage & VS_ENUM_MEMBER || varinfo->type->kind == TY_FUNC)
@@ -681,7 +681,8 @@ static void emit_linking_section(EmitWasm *ew) {
       GVarInfo *info = get_gvar_info_from_name(varinfo->name);
       if (info == NULL)
         continue;
-      if ((k == 0 && !(info->flag & GVF_UNRESOLVED)) || (k != 0 && (info->flag & GVF_UNRESOLVED)))
+      if ((k == 0 && !(info->flag & GVF_UNRESOLVED)) ||
+          (k != 0 && ((info->flag & GVF_UNRESOLVED) || (varinfo->global.init == NULL) == (k == 1))))
         continue;
 
       int flags = 0;

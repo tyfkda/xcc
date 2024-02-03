@@ -723,12 +723,16 @@ static void add_builtins(void) {
 
 uint32_t traverse_ast(Vector *decls, Vector *exports, uint32_t stack_size) {
   // Global scope
-  for (int i = 0, len = global_scope->vars->len; i < len; ++i) {
-    VarInfo *varinfo = global_scope->vars->data[i];
-    if (varinfo->storage & (VS_EXTERN | VS_ENUM_MEMBER) || varinfo->type->kind == TY_FUNC)
-      continue;
-    register_gvar_info(varinfo->name, varinfo);
-    traverse_initializer(varinfo->global.init);
+  for (int k = 0; k < 2; ++k) {  // 0=register, 1=traverse
+    for (int i = 0, len = global_scope->vars->len; i < len; ++i) {
+      VarInfo *varinfo = global_scope->vars->data[i];
+      if (varinfo->storage & (VS_EXTERN | VS_ENUM_MEMBER) || varinfo->type->kind == TY_FUNC)
+        continue;
+      if (k == 0)
+        register_gvar_info(varinfo->name, varinfo);
+      else
+        traverse_initializer(varinfo->global.init);
+    }
   }
 
   add_builtins();
@@ -761,7 +765,7 @@ uint32_t traverse_ast(Vector *decls, Vector *exports, uint32_t stack_size) {
     // Assign linking index to globals.
     uint32_t global_index = 0;
     uint32_t data_index = 0;
-    for (int k = 0; k < 2; ++k) {  // 0=unresolved, 1=resolved
+    for (int k = 0; k < 3; ++k) {  // 0=unresolved, 1=resolved(data), 2=resolved(bss)
       for (int i = 0, len = global_scope->vars->len; i < len; ++i) {
         VarInfo *varinfo = global_scope->vars->data[i];
         if (varinfo->storage & VS_ENUM_MEMBER || varinfo->type->kind == TY_FUNC)
@@ -769,7 +773,8 @@ uint32_t traverse_ast(Vector *decls, Vector *exports, uint32_t stack_size) {
         GVarInfo *info = get_gvar_info_from_name(varinfo->name);
         if (info == NULL)
           continue;
-        if ((k == 0) == ((info->flag & GVF_UNRESOLVED) == 0))
+        if ((k == 0 && !(info->flag & GVF_UNRESOLVED)) ||
+            (k != 0 && ((info->flag & GVF_UNRESOLVED) || (varinfo->global.init == NULL) == (k == 1))))
           continue;
         uint32_t index = !is_global_datsec_var(varinfo, global_scope) ? global_index++ : !(varinfo->storage & VS_EXTERN) ? data_index++ : (uint32_t)-1;
         info->non_prim.item_index = index;
