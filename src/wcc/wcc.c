@@ -342,6 +342,15 @@ int main(int argc, char *argv[]) {
 #endif
   }
 
+#if USE_EMCC_AS_LINKER
+  bool do_emcc_link = false;
+  if (out_type >= OutExecutable) {
+    do_emcc_link = true;
+    out_type = OutObject;
+  }
+  if (import_module_name == DEFAULT_IMPORT_MODULE_NAME)
+    import_module_name = "env";
+#endif
   if (out_type >= OutExecutable && entry_point == NULL)
     entry_point = "_start";
   if (entry_point != NULL)
@@ -404,16 +413,32 @@ int main(int argc, char *argv[]) {
   if (error_warning && compile_warning_count != 0)
     return 2;
 
-  const char *outfn = ofn;
-  if (outfn == NULL) {
-    if (out_type == OutObject) {
-      char *src = sources->data[0];  // TODO:
-      outfn = change_ext(basename(src), "o");
-    } else {
-      outfn = "a.wasm";
+  FILE *ofp;
+#if USE_EMCC_AS_LINKER
+  char *tmpfn;
+  if (do_emcc_link) {
+    char template[] = "/tmp/xcc-XXXXXX.o";
+    int obj_fd = mkstemps(template, 2);
+    if (obj_fd == -1) {
+      perror("Failed to open output file");
+      exit(1);
     }
+    tmpfn = strdup(template);
+    ofp = fdopen(obj_fd, "wb");
+  } else
+#endif
+  {
+    const char *outfn = ofn;
+    if (outfn == NULL) {
+      if (out_type == OutObject) {
+        char *src = sources->data[0];  // TODO:
+        outfn = change_ext(basename(src), "o");
+      } else {
+        outfn = "a.wasm";
+      }
+    }
+    ofp = fopen(outfn, "wb");
   }
-  FILE *ofp = fopen(outfn, "wb");
   if (ofp == NULL) {
     error("Cannot open output file");
   } else {
@@ -421,6 +446,25 @@ int main(int argc, char *argv[]) {
     assert(compile_error_count == 0);
     fclose(ofp);
   }
+
+#if USE_EMCC_AS_LINKER
+  if (do_emcc_link) {
+    char *finalfn = (char*)ofn;
+    if (finalfn == NULL) {
+      finalfn = "a.wasm";
+    } else {
+      finalfn = change_ext(finalfn, "wasm");
+    }
+
+    char *argv[] = {
+      "emcc",
+      "-o", finalfn,
+      tmpfn,
+      NULL,
+    };
+    return execvp("emcc", argv);
+  }
+#endif
 
   return 0;
 }

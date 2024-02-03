@@ -597,7 +597,7 @@ static void traverse_stmts(Vector *stmts) {
   }
 }
 
-static void traverse_defun(Function *func) {
+static void traverse_defun(Function *func, Vector *exports) {
   if (func->scopes == NULL)  // Prototype definition
     return;
 
@@ -607,7 +607,38 @@ static void traverse_defun(Function *func) {
 
   Type *functype = func->type;
   assert(func->params != NULL);
-  if (equal_name(func->name, alloc_name("main", NULL, false))) {
+  const Name *main_name = alloc_name("main", NULL, false);
+  if (equal_name(func->name, main_name)) {
+#if USE_EMCC_AS_LINKER
+    const Name *newname = NULL;
+    switch (func->params->len) {
+    case 0:  newname = alloc_name("__main_void", NULL, false);  break;
+    case 2:  newname = alloc_name("__main_argc_argv", NULL, false);  break;
+    default:
+      error("main function must take no argument or two arguments");
+      break;
+    }
+
+    // Rename two arguments `main` to `__main_argc_argv`.
+    VarInfo *org_varinfo = scope_find(global_scope, main_name, NULL);
+    assert(org_varinfo != NULL);
+    func->name = newname;
+    VarInfo *varinfo = scope_add(global_scope, newname, functype, org_varinfo->storage);
+    varinfo->global.func = func;
+
+    // Clear `main` function.
+    assert(org_varinfo->global.func == func);
+    org_varinfo->global.func = NULL;
+
+    // Replace exports.
+    for (int i = 0; i < exports->len; ++i) {
+      if (equal_name(exports->data[i], main_name)) {
+        exports->data[i] = (void*)newname;
+        break;
+      }
+    }
+#else
+    UNUSED(exports);
     // Force `main' function takes two arguments.
     if (func->params->len < 1) {
       assert(func->scopes->len > 0);
@@ -625,6 +656,7 @@ static void traverse_defun(Function *func) {
       vec_push((Vector*)func->params, scope_add(scope, name, type, 0));
       vec_push((Vector*)functype->func.params, type);
     }
+#endif
   }
   if (functype->func.vaargs) {
     Type *tyvalist = find_typedef(curscope, alloc_name("__builtin_va_list", NULL, false), NULL);
@@ -647,13 +679,13 @@ static void traverse_defun(Function *func) {
   // Static variables are traversed through global variables.
 }
 
-static void traverse_decl(Declaration *decl) {
+static void traverse_decl(Declaration *decl, Vector *exports) {
   if (decl == NULL)
     return;
 
   switch (decl->kind) {
   case DCL_DEFUN:
-    traverse_defun(decl->defun.func);
+    traverse_defun(decl->defun.func, exports);
     break;
   case DCL_VARDECL:
     break;
@@ -703,7 +735,7 @@ uint32_t traverse_ast(Vector *decls, Vector *exports, uint32_t stack_size) {
 
   for (int i = 0, len = decls->len; i < len; ++i) {
     Declaration *decl = decls->data[i];
-    traverse_decl(decl);
+    traverse_decl(decl, exports);
   }
 
   // Check exports

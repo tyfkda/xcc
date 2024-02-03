@@ -1408,6 +1408,17 @@ static void check_func_return(Function *func) {
   Type *type = func->type;
   Type *rettype = type->func.ret;
   const Token *rbrace = func->body_block->block.rbrace;
+
+  static const Name *main_name;
+  if (main_name == NULL)
+    main_name = alloc_name("main", NULL, false);
+  if (equal_name(func->name, main_name)) {
+    if (rettype->kind == TY_VOID) {
+      // Force return type to `int' for `main' function.
+      type->func.ret = rettype = &tyInt;
+    }
+  }
+
   if (func->flag & FUNCF_NORETURN) {
     if (rettype->kind != TY_VOID) {
       parse_error(PE_WARNING, rbrace, "`noreturn' function should not return value");
@@ -1420,7 +1431,7 @@ static void check_func_return(Function *func) {
   } else if (rettype->kind != TY_VOID && !(func->body_block->reach & REACH_STOP)) {
     Vector *stmts = func->body_block->block.stmts;
     if (stmts->len == 0 || ((Stmt*)stmts->data[stmts->len - 1])->kind != ST_ASM) {
-      if (equal_name(func->name, alloc_name("main", NULL, false))) {
+      if (equal_name(func->name, main_name)) {
         // Return 0 if `return` statement is omitted in `main` function.
         if (!is_fixnum(rettype->kind) || rettype->fixnum.kind != FX_INT) {
           parse_error(PE_WARNING, rbrace, "`main' return type should be `int'");
