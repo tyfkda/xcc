@@ -1746,21 +1746,13 @@ void gen(Vector *decls) {
 
 ////////////////////////////////////////////////
 
-static int register_longjmp_tag(void) {
-  // Exception type: (void*, int)
-  Vector *params = new_vector();
-  vec_push(params, &tyInt);
-  vec_push(params, &tyVoidPtr);
-  Type *functype = new_func_type(&tyVoid, params, false);
-  int typeindex = getsert_func_type_index(functype, true);
-  return getsert_tag(typeindex);
-}
-
 static void gen_builtin_setjmp(Expr *expr, enum BuiltinFunctionPhase phase) {
   if (phase == BFP_TRAVERSE) {
     FuncExtra *extra = curfunc->extra;
     assert(extra != NULL);
     ++extra->setjmp_count;
+
+    register_longjmp_tag();
     return;
   }
 
@@ -1770,6 +1762,8 @@ static void gen_builtin_setjmp(Expr *expr, enum BuiltinFunctionPhase phase) {
 }
 
 static void gen_builtin_longjmp(Expr *expr, enum BuiltinFunctionPhase phase) {
+  if (phase == BFP_TRAVERSE)
+    register_longjmp_tag();
   if (phase != BFP_GEN)
     return;
 
@@ -1793,9 +1787,22 @@ static void gen_builtin_longjmp(Expr *expr, enum BuiltinFunctionPhase phase) {
   }
 
   gen_expr(args->data[0], true);
-  int tag = register_longjmp_tag();
+  TagInfo *ti = register_longjmp_tag();
   ADD_CODE(OP_THROW);
-  ADD_ULEB128(tag);
+  if (out_type >= OutExecutable) {
+    ADD_ULEB128(ti->index);
+  } else {
+    FuncExtra *extra = curfunc->extra;
+    DataStorage *code = extra->code;
+    RelocInfo *ri = calloc_or_die(sizeof(*ri));
+    ri->type = R_WASM_TAG_INDEX_LEB;
+    ri->offset = code->len;
+    ri->addend = 0;
+    ri->index = ti->symbol_index;
+    vec_push(extra->reloc_code, ri);
+
+    ADD_VARUINT32(ti->index);
+  }
 }
 
 static void gen_builtin_try_catch_longjmp(Expr *expr, enum BuiltinFunctionPhase phase) {
@@ -1815,8 +1822,21 @@ static void gen_builtin_try_catch_longjmp(Expr *expr, enum BuiltinFunctionPhase 
         gen_stmt(try_block_expr->block, false);
         ADD_CODE(OP_BR, 2);
       } ADD_CODE(OP_CATCH); {
-        int tag = register_longjmp_tag();
-        ADD_ULEB128(tag);
+        TagInfo *ti = register_longjmp_tag();
+        if (out_type >= OutExecutable) {
+          ADD_ULEB128(ti->index);
+        } else {
+          FuncExtra *extra = curfunc->extra;
+          DataStorage *code = extra->code;
+          RelocInfo *ri = calloc_or_die(sizeof(*ri));
+          ri->type = R_WASM_TAG_INDEX_LEB;
+          ri->offset = code->len;
+          ri->addend = 0;
+          ri->index = ti->symbol_index;
+          vec_push(extra->reloc_code, ri);
+
+          ADD_VARUINT32(ti->index);
+        }
 
         // Assume env has no side effect.
         Expr *env = args->data[0];

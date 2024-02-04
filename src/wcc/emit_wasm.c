@@ -543,10 +543,10 @@ void emit_tag_section(EmitWasm *ew) {
     data_open_chunk(&tag_section);
     data_uleb128(&tag_section, -1, tags->len);  // tag count
     for (int i = 0; i < tags->len; ++i) {
-      int typeindex = VOIDP2INT(tags->data[i]);
+      TagInfo *t = tags->data[i];
       int attribute = 0;
       data_uleb128(&tag_section, -1, attribute);
-      data_uleb128(&tag_section, -1, typeindex);
+      data_uleb128(&tag_section, -1, t->typeindex);
     }
     data_close_chunk(&tag_section, -1);
 
@@ -712,6 +712,19 @@ static void emit_linking_section(EmitWasm *ew) {
         }
       }
 
+      ++count;
+    }
+  }
+  if (tags->len > 0) {  // Tag
+    assert(tags->len == 1);
+    static const char kTagName[] = "__c_longjmp";
+    for (int i = 0, len = tags->len; i < len; ++i) {
+      // TagInfo *ti = tags->data[i];
+      int flags = 0;
+      data_push(&linking_section, SIK_SYMTAB_EVENT);  // kind
+      data_uleb128(&linking_section, -1, flags);
+      data_uleb128(&linking_section, -1, i);
+      data_string(&linking_section, kTagName, sizeof(kTagName) - 1);
       ++count;
     }
   }

@@ -781,6 +781,12 @@ uint32_t traverse_ast(Vector *decls, Vector *exports, uint32_t stack_size) {
         info->non_prim.symbol_index = symbol_index++;
       }
     }
+
+    // Tag
+    for (int i = 0, len = tags->len; i < len; ++i) {
+      TagInfo *ti = tags->data[i];
+      ti->symbol_index = symbol_index++;
+    }
   }
 
   {

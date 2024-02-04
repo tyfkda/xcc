@@ -59,15 +59,29 @@ int getsert_func_type(unsigned char *buf, size_t size, bool reg) {
   return -1;
 }
 
-int getsert_tag(int typeindex) {
-  int len = tags->len;
-  for (int i = 0; i < len; ++i) {
-    int t = VOIDP2INT(tags->data[i]);
-    if (t == typeindex)
-      return i;
+TagInfo *getsert_tag(int typeindex) {
+  uint32_t len = tags->len;
+  for (uint32_t i = 0; i < len; ++i) {
+    TagInfo *t = tags->data[i];
+    if (t->typeindex == typeindex)
+      return t;
   }
-  vec_push(tags, INT2VOIDP(typeindex));
-  return len;
+
+  TagInfo *t = calloc_or_die(sizeof(*t));
+  t->typeindex = typeindex;
+  t->index = len;
+  vec_push(tags, t);
+  return t;
+}
+
+TagInfo *register_longjmp_tag(void) {
+  // Exception type: (void*, int)
+  Vector *params = new_vector();
+  vec_push(params, &tyInt);
+  vec_push(params, &tyVoidPtr);
+  Type *functype = new_func_type(&tyVoid, params, false);
+  int typeindex = getsert_func_type_index(functype, true);
+  return getsert_tag(typeindex);
 }
 
 //

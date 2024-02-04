@@ -60,6 +60,12 @@ typedef struct {
   };
 } GVarInfo;
 
+typedef struct {
+  int typeindex;
+  uint32_t index;
+  uint32_t symbol_index;
+} TagInfo;
+
 // traverse
 uint32_t traverse_ast(Vector *decls, Vector *exports, uint32_t stack_size);
 
@@ -125,7 +131,7 @@ extern enum OutType out_type;
 extern Table func_info_table;
 extern Table gvar_info_table;
 extern Table indirect_function_table;
-extern Vector *tags;  // <int>
+extern Vector *tags;  // <TagInfo*>
 
 #define VERBOSES(str)  do { if (verbose) printf("%s", str); } while (0)
 #define VERBOSE(fmt, ...)  do { if (verbose) printf(fmt, __VA_ARGS__); } while (0)
@@ -134,7 +140,8 @@ uint32_t get_indirect_function_index(const Name *name);
 GVarInfo *register_gvar_info(const Name *name, VarInfo *varinfo);
 GVarInfo *get_gvar_info_from_name(const Name *name);
 int getsert_func_type(unsigned char *buf, size_t size, bool reg);
-int getsert_tag(int typeindex);
+TagInfo *getsert_tag(int typeindex);
+TagInfo *register_longjmp_tag(void);
 
 void write_wasm_header(FILE *ofp);
 
