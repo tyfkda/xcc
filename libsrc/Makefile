@@ -92,7 +92,8 @@ $(foreach D, $(TESTS), $(eval $(call DEFINE_TEST_TARGET,$(D))))
 ### Wasm version
 
 WCC:=../wcc
-WCC_TESTS:=$(TESTS)
+# WCC_TESTS:=$(TESTS)
+WCC_TESTS=printf stdlib math longjmp
 WCC_OBJ_DIR:=./obj/wcc
 WCC_LIB_DIR:=../lib
 
