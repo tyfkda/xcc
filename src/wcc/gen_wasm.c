@@ -271,7 +271,7 @@ static void gen_funcall(Expr *expr) {
   if (func->kind == EX_VAR && is_global_scope(func->var.scope)) {
     void *proc = table_get(&builtin_function_table, func->var.name);
     if (proc != NULL) {
-      (*(BuiltinFunctionProc*)proc)(expr);
+      (*(BuiltinFunctionProc*)proc)(expr, BFP_GEN);
       return;
     }
   }
@@ -1671,13 +1671,23 @@ static int register_longjmp_tag(void) {
   return getsert_tag(typeindex);
 }
 
-static void gen_builtin_setjmp(Expr *expr) {
+static void gen_builtin_setjmp(Expr *expr, enum BuiltinFunctionPhase phase) {
+  if (phase == BFP_TRAVERSE) {
+    FuncExtra *extra = curfunc->extra;
+    assert(extra != NULL);
+    ++extra->setjmp_count;
+    return;
+  }
+
   UNUSED(expr);
   // Handled by traverse.
   assert(!"Unexpected");
 }
 
-static void gen_builtin_longjmp(Expr *expr) {
+static void gen_builtin_longjmp(Expr *expr, enum BuiltinFunctionPhase phase) {
+  if (phase != BFP_GEN)
+    return;
+
   assert(expr->kind == EX_FUNCALL);
   Vector *args = expr->funcall.args;
   assert(args->len == 2);
@@ -1703,7 +1713,10 @@ static void gen_builtin_longjmp(Expr *expr) {
   ADD_ULEB128(tag);
 }
 
-static void gen_builtin_try_catch_longjmp(Expr *expr) {
+static void gen_builtin_try_catch_longjmp(Expr *expr, enum BuiltinFunctionPhase phase) {
+  if (phase != BFP_GEN)
+    return;
+
   assert(expr->kind == EX_FUNCALL);
   Vector *args = expr->funcall.args;
   assert(args->len == 3);
@@ -1839,7 +1852,10 @@ static Expr *proc_builtin_va_copy(const Token *ident) {
   return new_expr_cast(&tyVoid, ident, assign);
 }
 
-static void gen_alloca(Expr *expr) {
+static void gen_alloca(Expr *expr, enum BuiltinFunctionPhase phase) {
+  if (phase != BFP_GEN)
+    return;
+
   const int stack_align = 8;  // TODO
   assert(expr->kind == EX_FUNCALL);
   Vector *args = expr->funcall.args;
@@ -1859,12 +1875,18 @@ static void gen_alloca(Expr *expr) {
   gen_expr(spvar, true);
 }
 
-static void gen_builtin_memory_size(Expr *expr) {
+static void gen_builtin_memory_size(Expr *expr, enum BuiltinFunctionPhase phase) {
+  if (phase != BFP_GEN)
+    return;
+
   assert(expr->kind == EX_FUNCALL);
   ADD_CODE(OP_MEMORY_SIZE, 0x00);
 }
 
-static void gen_builtin_memory_grow(Expr *expr) {
+static void gen_builtin_memory_grow(Expr *expr, enum BuiltinFunctionPhase phase) {
+  if (phase != BFP_GEN)
+    return;
+
   assert(expr->kind == EX_FUNCALL);
   Vector *args = expr->funcall.args;
   assert(args->len == 1);

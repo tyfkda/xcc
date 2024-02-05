@@ -179,8 +179,11 @@ static void traverse_func_expr(Expr **pexpr) {
       global = (varinfo->storage & VS_EXTERN) != 0;
     }
     if (global && type->kind == TY_FUNC) {
-      if (!table_try_get(&builtin_function_table, expr->var.name, NULL))
+      BuiltinFunctionProc *proc;
+      if (!table_try_get(&builtin_function_table, expr->var.name, (void**)&proc))
         register_func_info(expr->var.name, NULL, FF_REFERRED);
+      else
+        (*proc)(expr, BFP_TRAVERSE);
     } else {
       assert(type->kind == TY_PTR && type->pa.ptrof->kind == TY_FUNC);
       getsert_func_type_index(type->pa.ptrof, true);
@@ -235,14 +238,6 @@ static void traverse_funcall(Expr **pexpr, bool needval) {
   traverse_func_expr(&expr->funcall.func);
   for (int i = 0, n = args->len; i < n; ++i)
     traverse_expr((Expr**)&args->data[i], true);
-
-  // setjmp?
-  if (expr->funcall.func->kind == EX_VAR && is_global_scope(expr->funcall.func->var.scope) &&
-      equal_name(expr->funcall.func->var.name, alloc_name("__builtin_setjmp", NULL, false))) {
-    FuncExtra *extra = curfunc->extra;
-    assert(extra != NULL);
-    ++extra->setjmp_count;
-  }
 }
 
 static void te_noop(Expr **pexpr, bool needval) { UNUSED(pexpr); UNUSED(needval); }

@@ -68,7 +68,11 @@ void gen(Vector *decls);
 void gen_expr(Expr *expr, bool needval);
 void gen_expr_stmt(Expr *expr);
 
-typedef void (*BuiltinFunctionProc)(Expr *expr);
+enum BuiltinFunctionPhase {
+  BFP_TRAVERSE,
+  BFP_GEN,
+};
+typedef void (*BuiltinFunctionProc)(Expr *expr, enum BuiltinFunctionPhase phase);
 void add_builtin_function(const char *str, Type *type, BuiltinFunctionProc *proc,
                           bool add_to_scope);
 
