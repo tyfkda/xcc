@@ -6,6 +6,8 @@
 #include <stdio.h>
 #include <sys/types.h>  // ssize_t
 
+// #define USE_EMCC_AS_LINKER  1
+
 typedef struct DataStorage DataStorage;
 typedef struct Expr Expr;
 typedef struct Function Function;
@@ -34,7 +36,7 @@ typedef struct {
   Function *func;
   VarInfo *varinfo;
   const Name *bpname;
-  uint32_t index;
+  uint32_t index;  // also represents symbol_index (because functions are put first in symbol table.)
   int flag;
   uint32_t type_index;
   uint32_t indirect_index;
@@ -52,9 +54,17 @@ typedef struct {
     } prim;
     struct {
       uint32_t address;
+      uint32_t item_index;    // global, or data
+      uint32_t symbol_index;  // index in symbol table.
     } non_prim;
   };
 } GVarInfo;
+
+typedef struct {
+  int typeindex;
+  uint32_t index;
+  uint32_t symbol_index;
+} TagInfo;
 
 // traverse
 uint32_t traverse_ast(Vector *decls, Vector *exports, uint32_t stack_size);
@@ -86,16 +96,42 @@ void add_code(const unsigned char* buf, size_t size);
 void install_builtins(void);
 
 // emit_wasm
+typedef struct {
+  FILE *ofp;
+  const char *import_module_name;
+  uint32_t address_bottom;
+  uint32_t section_index;
+  uint32_t function_count;
+  int32_t table_start_index;
+  uint32_t code_section_index;
+  uint32_t data_section_index;
+  uint32_t import_global_count;
+} EmitWasm;
+
 void emit_wasm(FILE *ofp, Vector *exports, const char *import_module_name, uint32_t address_bottom);
 
+void emit_type_section(EmitWasm *ew);
+void emit_table_section(EmitWasm *ew);
+void emit_memory_section(EmitWasm *ew);
+void emit_tag_section(EmitWasm *ew);
+void emit_elems_section(EmitWasm *ew);
+
 // wcc_util
+enum OutType {
+  // OutPreprocess,
+  // OutAssembly,
+  OutObject,
+  OutExecutable,
+};
+
 extern const char SP_NAME[];
 
 extern bool verbose;
+extern enum OutType out_type;
 extern Table func_info_table;
 extern Table gvar_info_table;
 extern Table indirect_function_table;
-extern Vector *tags;  // <int>
+extern Vector *tags;  // <TagInfo*>
 
 #define VERBOSES(str)  do { if (verbose) printf("%s", str); } while (0)
 #define VERBOSE(fmt, ...)  do { if (verbose) printf(fmt, __VA_ARGS__); } while (0)
@@ -104,7 +140,8 @@ uint32_t get_indirect_function_index(const Name *name);
 GVarInfo *register_gvar_info(const Name *name, VarInfo *varinfo);
 GVarInfo *get_gvar_info_from_name(const Name *name);
 int getsert_func_type(unsigned char *buf, size_t size, bool reg);
-int getsert_tag(int typeindex);
+TagInfo *getsert_tag(int typeindex);
+TagInfo *register_longjmp_tag(void);
 
 void write_wasm_header(FILE *ofp);
 
@@ -127,11 +164,14 @@ void data_uleb128(DataStorage *data, ssize_t pos, uint64_t val);
 void data_string(DataStorage *data, const void *str, size_t len);
 void data_open_chunk(DataStorage *data);
 void data_close_chunk(DataStorage *data, ssize_t num);
+void data_varuint32(DataStorage *data, ssize_t pos, uint64_t val);
 
 typedef struct FuncExtra {
   Vector *funcall_results;  // [0]=Expr*, [1]=VarInfo*
   DataStorage *code;
+  Vector *reloc_code;  // <RelocInfo*>
   int setjmp_count;
+  size_t offset;  // from code section top (exclude section size).
 } FuncExtra;
 
 Expr *get_sp_var(void);

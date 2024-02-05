@@ -14,6 +14,7 @@
 const char SP_NAME[] = "__stack_pointer";  // Variable name for stack pointer (global).
 
 bool verbose;
+enum OutType out_type;
 Table func_info_table;
 Table gvar_info_table;
 Vector *functypes;  // <DataStorage*>
@@ -58,15 +59,29 @@ int getsert_func_type(unsigned char *buf, size_t size, bool reg) {
   return -1;
 }
 
-int getsert_tag(int typeindex) {
-  int len = tags->len;
-  for (int i = 0; i < len; ++i) {
-    int t = VOIDP2INT(tags->data[i]);
-    if (t == typeindex)
-      return i;
+TagInfo *getsert_tag(int typeindex) {
+  uint32_t len = tags->len;
+  for (uint32_t i = 0; i < len; ++i) {
+    TagInfo *t = tags->data[i];
+    if (t->typeindex == typeindex)
+      return t;
   }
-  vec_push(tags, INT2VOIDP(typeindex));
-  return len;
+
+  TagInfo *t = calloc_or_die(sizeof(*t));
+  t->typeindex = typeindex;
+  t->index = len;
+  vec_push(tags, t);
+  return t;
+}
+
+TagInfo *register_longjmp_tag(void) {
+  // Exception type: (void*, int)
+  Vector *params = new_vector();
+  vec_push(params, &tyInt);
+  vec_push(params, &tyVoidPtr);
+  Type *functype = new_func_type(&tyVoid, params, false);
+  int typeindex = getsert_func_type_index(functype, true);
+  return getsert_tag(typeindex);
 }
 
 //
@@ -165,6 +180,16 @@ void data_uleb128(DataStorage *data, ssize_t pos, uint64_t val) {
 void data_string(DataStorage *data, const void *str, size_t len) {
   data_uleb128(data, -1, len);
   data_append(data, (const unsigned char*)str, len);
+}
+
+void data_varuint32(DataStorage *data, ssize_t pos, uint64_t val) {
+  unsigned char buf[5], *p = buf;
+  for (int i = 0; i < 4; ++i) {
+    *p++ = (val & 0x7f) | 0x80;
+    val >>= 7;
+  }
+  *p++ = val & 0x7f;
+  data_insert(data, pos, buf, p - buf);
 }
 
 void data_open_chunk(DataStorage *data) {

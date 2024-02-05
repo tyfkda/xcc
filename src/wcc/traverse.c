@@ -249,6 +249,11 @@ static void te_var(Expr **pexpr, bool needval) {
   if (expr->type->kind == TY_FUNC) {
     register_indirect_function(expr->var.name);
     traverse_func_expr(pexpr);
+  } else {
+    if (out_type < OutExecutable && is_global_scope(expr->var.scope)) {
+      // Register used global variable even if the entity is `extern`.
+      get_gvar_info(expr);
+    }
   }
 }
 
@@ -592,15 +597,48 @@ static void traverse_stmts(Vector *stmts) {
   }
 }
 
-static void traverse_defun(Function *func) {
+static void traverse_defun(Function *func, Vector *exports) {
   if (func->scopes == NULL)  // Prototype definition
     return;
 
-  func->extra = calloc_or_die(sizeof(FuncExtra));
+  FuncExtra *extra = calloc_or_die(sizeof(FuncExtra));
+  extra->reloc_code = new_vector();
+  func->extra = extra;
 
   Type *functype = func->type;
   assert(func->params != NULL);
-  if (equal_name(func->name, alloc_name("main", NULL, false))) {
+  const Name *main_name = alloc_name("main", NULL, false);
+  if (equal_name(func->name, main_name)) {
+#if USE_EMCC_AS_LINKER
+    const Name *newname = NULL;
+    switch (func->params->len) {
+    case 0:  newname = alloc_name("__main_void", NULL, false);  break;
+    case 2:  newname = alloc_name("__main_argc_argv", NULL, false);  break;
+    default:
+      error("main function must take no argument or two arguments");
+      break;
+    }
+
+    // Rename two arguments `main` to `__main_argc_argv`.
+    VarInfo *org_varinfo = scope_find(global_scope, main_name, NULL);
+    assert(org_varinfo != NULL);
+    func->name = newname;
+    VarInfo *varinfo = scope_add(global_scope, newname, functype, org_varinfo->storage);
+    varinfo->global.func = func;
+
+    // Clear `main` function.
+    assert(org_varinfo->global.func == func);
+    org_varinfo->global.func = NULL;
+
+    // Replace exports.
+    for (int i = 0; i < exports->len; ++i) {
+      if (equal_name(exports->data[i], main_name)) {
+        exports->data[i] = (void*)newname;
+        break;
+      }
+    }
+#else
+    UNUSED(exports);
     // Force `main' function takes two arguments.
     if (func->params->len < 1) {
       assert(func->scopes->len > 0);
@@ -618,6 +656,7 @@ static void traverse_defun(Function *func) {
       vec_push((Vector*)func->params, scope_add(scope, name, type, 0));
       vec_push((Vector*)functype->func.params, type);
     }
+#endif
   }
   if (functype->func.vaargs) {
     Type *tyvalist = find_typedef(curscope, alloc_name("__builtin_va_list", NULL, false), NULL);
@@ -640,13 +679,13 @@ static void traverse_defun(Function *func) {
   // Static variables are traversed through global variables.
 }
 
-static void traverse_decl(Declaration *decl) {
+static void traverse_decl(Declaration *decl, Vector *exports) {
   if (decl == NULL)
     return;
 
   switch (decl->kind) {
   case DCL_DEFUN:
-    traverse_defun(decl->defun.func);
+    traverse_defun(decl->defun.func, exports);
     break;
   case DCL_VARDECL:
     break;
@@ -665,11 +704,13 @@ static void add_builtins(void) {
     init->single = new_expr_fixlit(varinfo->type, NULL, 0);  // Dummy
     varinfo->global.init = init;
 
-    register_gvar_info(varinfo->name, varinfo);
+    GVarInfo *info = register_gvar_info(varinfo->name, varinfo);
+    if (out_type < OutExecutable)
+      info->flag |= GVF_UNRESOLVED;
   }
 
   // Break address.
-  {
+  if (out_type >= OutExecutable) {
     const Name *name = alloc_name(BREAK_ADDRESS_NAME, NULL, false);
     VarInfo *varinfo = add_global_var(&tyVoidPtr, name);
     Initializer *init = new_initializer(IK_SINGLE, NULL);
@@ -682,19 +723,23 @@ static void add_builtins(void) {
 
 uint32_t traverse_ast(Vector *decls, Vector *exports, uint32_t stack_size) {
   // Global scope
-  for (int i = 0, len = global_scope->vars->len; i < len; ++i) {
-    VarInfo *varinfo = global_scope->vars->data[i];
-    if (varinfo->storage & (VS_EXTERN | VS_ENUM_MEMBER) || varinfo->type->kind == TY_FUNC)
-      continue;
-    register_gvar_info(varinfo->name, varinfo);
-    traverse_initializer(varinfo->global.init);
+  for (int k = 0; k < 2; ++k) {  // 0=register, 1=traverse
+    for (int i = 0, len = global_scope->vars->len; i < len; ++i) {
+      VarInfo *varinfo = global_scope->vars->data[i];
+      if (varinfo->storage & (VS_EXTERN | VS_ENUM_MEMBER) || varinfo->type->kind == TY_FUNC)
+        continue;
+      if (k == 0)
+        register_gvar_info(varinfo->name, varinfo);
+      else
+        traverse_initializer(varinfo->global.init);
+    }
   }
 
   add_builtins();
 
   for (int i = 0, len = decls->len; i < len; ++i) {
     Declaration *decl = decls->data[i];
-    traverse_decl(decl);
+    traverse_decl(decl, exports);
   }
 
   // Check exports
@@ -704,6 +749,44 @@ uint32_t traverse_ast(Vector *decls, Vector *exports, uint32_t stack_size) {
     if (info == NULL)
       error("`%.*s' not found", NAMES(name));
     register_func_info(name, NULL, FF_REFERRED);
+  }
+
+  // Linking information.
+  if (out_type < OutExecutable) {
+    uint32_t symbol_index = 0;
+    const Name *name;
+    FuncInfo *info;
+    for (int it = 0; (it = table_iterate(&func_info_table, it, &name, (void**)&info)) != -1; ) {
+      if (info->flag == 0)
+        continue;
+      ++symbol_index;
+    }
+
+    // Assign linking index to globals.
+    uint32_t global_index = 0;
+    uint32_t data_index = 0;
+    for (int k = 0; k < 3; ++k) {  // 0=unresolved, 1=resolved(data), 2=resolved(bss)
+      for (int i = 0, len = global_scope->vars->len; i < len; ++i) {
+        VarInfo *varinfo = global_scope->vars->data[i];
+        if (varinfo->storage & VS_ENUM_MEMBER || varinfo->type->kind == TY_FUNC)
+          continue;
+        GVarInfo *info = get_gvar_info_from_name(varinfo->name);
+        if (info == NULL)
+          continue;
+        if ((k == 0 && !(info->flag & GVF_UNRESOLVED)) ||
+            (k != 0 && ((info->flag & GVF_UNRESOLVED) || (varinfo->global.init == NULL) == (k == 1))))
+          continue;
+        uint32_t index = !is_global_datsec_var(varinfo, global_scope) ? global_index++ : !(varinfo->storage & VS_EXTERN) ? data_index++ : (uint32_t)-1;
+        info->non_prim.item_index = index;
+        info->non_prim.symbol_index = symbol_index++;
+      }
+    }
+
+    // Tag
+    for (int i = 0, len = tags->len; i < len; ++i) {
+      TagInfo *ti = tags->data[i];
+      ti->symbol_index = symbol_index++;
+    }
   }
 
   {
@@ -729,55 +812,67 @@ uint32_t traverse_ast(Vector *decls, Vector *exports, uint32_t stack_size) {
     // Enumerate global variables.
     const uint32_t START_ADDRESS = 1;  // Avoid valid poiter is NULL.
     uint32_t address = START_ADDRESS;
-    const Name *name;
-    GVarInfo *info;
 
     VERBOSE("### Memory  0x%x\n", address);
     for (int k = 0; k < 2; ++k) {  // 0: data, 1: bss
       if (k == 1)
         VERBOSE("---- BSS  0x%x\n", address);
-      for (int it = 0; (it = table_iterate(&gvar_info_table, it, &name, (void**)&info)) != -1; ) {
-        const VarInfo *varinfo = info->varinfo;
+      for (int i = 0, len = global_scope->vars->len; i < len; ++i) {
+        VarInfo *varinfo = global_scope->vars->data[i];
+        if (varinfo->storage & (VS_EXTERN | VS_ENUM_MEMBER) || varinfo->type->kind == TY_FUNC)
+          continue;
         if ((varinfo->global.init == NULL) == (k == 0) || !is_global_datsec_var(varinfo, global_scope))
           continue;
+        GVarInfo *info = get_gvar_info_from_name(varinfo->name);
+        if (info == NULL)
+          continue;
+
         // Mapped to memory
         address = ALIGN(address, align_size(varinfo->type));
         info->non_prim.address = address;
         size_t size = type_size(varinfo->type);
         address += size;
-        VERBOSE("%04x: %.*s  (size=0x%lx)\n", info->non_prim.address, NAMES(name), size);
+        VERBOSE("%04x: %.*s  (size=0x%lx)\n", info->non_prim.address, NAMES(varinfo->name), size);
       }
     }
 
     // Primitive types (Globals).
     VERBOSES("\n### Globals\n");
     uint32_t index = 0;
-    for (int it = 0; (it = table_iterate(&gvar_info_table, it, &name, (void**)&info)) != -1; ) {
-      const VarInfo *varinfo = info->varinfo;
+    for (int i = 0, len = global_scope->vars->len; i < len; ++i) {
+      VarInfo *varinfo = global_scope->vars->data[i];
+      if (varinfo->storage & VS_ENUM_MEMBER || varinfo->type->kind == TY_FUNC)
+        continue;
       if (is_global_datsec_var(varinfo, global_scope))
         continue;
+      GVarInfo *info = get_gvar_info_from_name(varinfo->name);
+      if (info == NULL)
+        continue;
+
       info->prim.index = index++;
-      VERBOSE("%2d: %.*s\n", info->prim.index, NAMES(name));
+      VERBOSE("%2d: %.*s\n", info->prim.index, NAMES(varinfo->name));
     }
     VERBOSES("\n");
 
     // Set initial values.
     sp_bottom = ALIGN(address + stack_size, 16);
-    {  // Stack pointer.
-      VarInfo *varinfo = scope_find(global_scope, alloc_name(SP_NAME, NULL, false), NULL);
-      assert(varinfo != NULL);
-      Initializer *init = varinfo->global.init;
-      assert(init != NULL && init->kind == IK_SINGLE && init->single->kind == EX_FIXNUM);
-      init->single->fixnum = sp_bottom;
-      VERBOSE("SP bottom: 0x%x  (size=0x%x)\n", sp_bottom, stack_size);
-    }
-    {  // Break address.
-      VarInfo *varinfo = scope_find(global_scope, alloc_name(BREAK_ADDRESS_NAME, NULL, false), NULL);
-      assert(varinfo != NULL);
-      Initializer *init = varinfo->global.init;
-      assert(init != NULL && init->kind == IK_SINGLE && init->single->kind == EX_FIXNUM);
-      init->single->fixnum = sp_bottom;
-      VERBOSE("Break address: 0x%x\n", sp_bottom);
+    if (out_type >= OutExecutable) {
+      {  // Stack pointer.
+        VarInfo *varinfo = scope_find(global_scope, alloc_name(SP_NAME, NULL, false), NULL);
+        assert(varinfo != NULL);
+        Initializer *init = varinfo->global.init;
+        assert(init != NULL && init->kind == IK_SINGLE && init->single->kind == EX_FIXNUM);
+        init->single->fixnum = sp_bottom;
+        VERBOSE("SP bottom: 0x%x  (size=0x%x)\n", sp_bottom, stack_size);
+      }
+      {  // Break address.
+        VarInfo *varinfo = scope_find(global_scope, alloc_name(BREAK_ADDRESS_NAME, NULL, false), NULL);
+        assert(varinfo != NULL);
+        Initializer *init = varinfo->global.init;
+        assert(init != NULL && init->kind == IK_SINGLE && init->single->kind == EX_FIXNUM);
+        init->single->fixnum = sp_bottom;
+        VERBOSE("Break address: 0x%x\n", sp_bottom);
+      }
     }
   }
 

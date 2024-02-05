@@ -119,15 +119,16 @@ int main(int argc, char *argv[]) {
     root = JOIN_PATHS(cwd, root);
   }
 
-  const char *ofn = "a.wasm";
+  const char *ofn = NULL;
   const char *import_module_name = DEFAULT_IMPORT_MODULE_NAME;
   Vector *exports = new_vector();
   uint32_t stack_size = DEFAULT_STACK_SIZE;
-  const char *entry_point = "_start";
+  const char *entry_point = NULL;
   bool nodefaultlibs = false, nostdlib = false, nostdinc = false;
   Vector *lib_paths = new_vector();
   bool export_all = false;
   bool export_stack_pointer = false;
+  out_type = OutExecutable;
 
   FILE *ppout = tmpfile();
   if (ppout == NULL)
@@ -180,6 +181,7 @@ int main(int argc, char *argv[]) {
     OPT_MMD,
   };
   static const struct option options[] = {
+    {"c", no_argument},  // Output .o
     {"I", required_argument},  // Add include path
     {"isystem", required_argument, OPT_ISYSTEM},  // Add system include path
     {"idirafter", required_argument, OPT_IDIRAFTER},  // Add include path (after)
@@ -216,6 +218,9 @@ int main(int argc, char *argv[]) {
     default: assert(false); break;
     case 'o':
       ofn = optarg;
+      break;
+    case 'c':
+      out_type = OutObject;
       break;
     case 'e':
       if (*optarg != '\0') {
@@ -337,9 +342,20 @@ int main(int argc, char *argv[]) {
 #endif
   }
 
+#if USE_EMCC_AS_LINKER
+  bool do_emcc_link = false;
+  if (out_type >= OutExecutable) {
+    do_emcc_link = true;
+    out_type = OutObject;
+  }
+  if (import_module_name == DEFAULT_IMPORT_MODULE_NAME)
+    import_module_name = "env";
+#endif
+  if (out_type >= OutExecutable && entry_point == NULL)
+    entry_point = "_start";
   if (entry_point != NULL)
     vec_push(exports, alloc_name(entry_point, NULL, false));
-  if (exports->len == 0 && !export_all) {
+  if (exports->len == 0 && !(export_all || out_type < OutExecutable)) {
     error("no exports (require -e<xxx>)\n");
   }
 
@@ -350,9 +366,8 @@ int main(int argc, char *argv[]) {
   }
   VERBOSES("\n");
 
-  // if (out_type >= OutExecutable)
   Vector *libs = new_vector();
-  {
+  if (out_type >= OutExecutable) {
 #if defined(__WASM)
     vec_push(lib_paths, "/usr/lib");
 #else
@@ -367,7 +382,7 @@ int main(int argc, char *argv[]) {
   Vector *toplevel = new_vector();
 
   preprocess_and_compile(ppout, sources, toplevel);
-  if (export_all)
+  if (export_all || out_type < OutExecutable)
     export_non_static_functions(exports);
   preprocess_and_compile(ppout, libs, toplevel);
 
@@ -383,7 +398,7 @@ int main(int argc, char *argv[]) {
   }
 
   gen(toplevel);
-  if (unresolved_gvar_table.count > 0) {
+  if (out_type >= OutExecutable && unresolved_gvar_table.count > 0) {
     const Name *name;
     VarInfo *varinfo;
     for (int it = 0;
@@ -398,14 +413,58 @@ int main(int argc, char *argv[]) {
   if (error_warning && compile_warning_count != 0)
     return 2;
 
-  FILE *fp = fopen(ofn, "wb");
-  if (fp == NULL) {
+  FILE *ofp;
+#if USE_EMCC_AS_LINKER
+  char *tmpfn;
+  if (do_emcc_link) {
+    char template[] = "/tmp/xcc-XXXXXX.o";
+    int obj_fd = mkstemps(template, 2);
+    if (obj_fd == -1) {
+      perror("Failed to open output file");
+      exit(1);
+    }
+    tmpfn = strdup(template);
+    ofp = fdopen(obj_fd, "wb");
+  } else
+#endif
+  {
+    const char *outfn = ofn;
+    if (outfn == NULL) {
+      if (out_type == OutObject) {
+        char *src = sources->data[0];  // TODO:
+        outfn = change_ext(basename(src), "o");
+      } else {
+        outfn = "a.wasm";
+      }
+    }
+    ofp = fopen(outfn, "wb");
+  }
+  if (ofp == NULL) {
     error("Cannot open output file");
   } else {
-    emit_wasm(fp, exports, import_module_name, address_bottom);
+    emit_wasm(ofp, exports, import_module_name, address_bottom);
     assert(compile_error_count == 0);
-    fclose(fp);
+    fclose(ofp);
   }
+
+#if USE_EMCC_AS_LINKER
+  if (do_emcc_link) {
+    char *finalfn = (char*)ofn;
+    if (finalfn == NULL) {
+      finalfn = "a.wasm";
+    } else {
+      finalfn = change_ext(finalfn, "wasm");
+    }
+
+    char *argv[] = {
+      "emcc",
+      "-o", finalfn,
+      tmpfn,
+      NULL,
+    };
+    return execvp("emcc", argv);
+  }
+#endif
 
   return 0;
 }
