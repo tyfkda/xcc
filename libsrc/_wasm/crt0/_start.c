@@ -39,6 +39,7 @@ static int find_preopens(void) {
 }
 
 void _start(void) {
+#define main  __main_argc_argv
   extern int main(int, char**);
   char **argv;
   int argc, len;
@@ -59,4 +60,5 @@ void _start(void) {
   atexit(_atexit_proc);
   int ec = main(argc, argv);
   exit(ec);
+#undef main
 }

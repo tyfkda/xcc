@@ -19,6 +19,8 @@
 #include "var.h"
 #include "wasm.h"
 
+// #define USE_EMCC_AS_LINKER  1
+
 static const char DEFAULT_IMPORT_MODULE_NAME[] = "wasi_snapshot_preview1";
 
 #define DEFAULT_STACK_SIZE  (8 * 1024)

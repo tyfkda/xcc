@@ -6,8 +6,6 @@
 #include <stdio.h>
 #include <sys/types.h>  // ssize_t
 
-// #define USE_EMCC_AS_LINKER  1
-
 typedef struct DataStorage DataStorage;
 typedef struct Expr Expr;
 typedef struct Function Function;

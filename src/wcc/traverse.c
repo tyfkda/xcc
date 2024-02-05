@@ -609,10 +609,23 @@ static void traverse_defun(Function *func, Vector *exports) {
   assert(func->params != NULL);
   const Name *main_name = alloc_name("main", NULL, false);
   if (equal_name(func->name, main_name)) {
-#if USE_EMCC_AS_LINKER
     const Name *newname = NULL;
     switch (func->params->len) {
-    case 0:  newname = alloc_name("__main_void", NULL, false);  break;
+    case 0:
+      {  // Add two parameters.
+        assert(func->scopes->len > 0);
+        Scope *scope = func->scopes->data[0];
+        const Name *name1 = alloc_label();
+        Type *type1 = &tyInt;
+        vec_push((Vector*)func->params, scope_add(scope, name1, type1, 0));
+        vec_push((Vector*)functype->func.params, type1);
+
+        Type *type2 = ptrof(ptrof(&tyChar));
+        const Name *name2 = alloc_label();
+        vec_push((Vector*)func->params, scope_add(scope, name2, type2, 0));
+        vec_push((Vector*)functype->func.params, type2);
+      }
+      // Fallthrough.
     case 2:  newname = alloc_name("__main_argc_argv", NULL, false);  break;
     default:
       error("main function must take no argument or two arguments");
@@ -637,26 +650,6 @@ static void traverse_defun(Function *func, Vector *exports) {
         break;
       }
     }
-#else
-    UNUSED(exports);
-    // Force `main' function takes two arguments.
-    if (func->params->len < 1) {
-      assert(func->scopes->len > 0);
-      const Name *name = alloc_label();
-      Type *type = &tyInt;
-      Scope *scope = func->scopes->data[0];
-      vec_push((Vector*)func->params, scope_add(scope, name, type, 0));
-      vec_push((Vector*)functype->func.params, type);
-    }
-    if (func->params->len < 2) {
-      assert(func->scopes->len > 0);
-      Type *type = ptrof(ptrof(&tyChar));
-      const Name *name = alloc_label();
-      Scope *scope = func->scopes->data[0];
-      vec_push((Vector*)func->params, scope_add(scope, name, type, 0));
-      vec_push((Vector*)functype->func.params, type);
-    }
-#endif
   }
   if (functype->func.vaargs) {
     Type *tyvalist = find_typedef(curscope, alloc_name("__builtin_va_list", NULL, false), NULL);
