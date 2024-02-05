@@ -1732,14 +1732,11 @@ static void gen_builtin_try_catch_longjmp(Expr *expr) {
           gen_set_to_var(var);
         else
           ADD_CODE(OP_DROP);
-
-        // Restore stack pointer.
-        GVarInfo *info = get_gvar_info_from_name(alloc_name(SP_NAME, NULL, false));
-        assert(info != NULL);
-        gen_expr(env, true);
-        ADD_CODE(OP_I32_LOAD, 2, 0,
-                 OP_GLOBAL_SET);
-        ADD_ULEB128(info->prim.index);
+        // Restore stack pointer: sp = *env;
+        const Token *token = expr->token;
+        Expr *spvar = get_sp_var();
+        gen_expr(new_expr_bop(EX_ASSIGN, &tyVoid, token, spvar,
+                              new_expr_unary(EX_DEREF, spvar->type, token, env)), false);
       } ADD_CODE(OP_END);
       ADD_CODE(OP_BR, 0);  // loop.
       cur_depth -= 3;
