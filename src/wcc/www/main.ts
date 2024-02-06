@@ -192,13 +192,14 @@ function start() {
     editor.focus()
 
     // Compile
-    const extraOptions = compileAndDump ? ['-nostdlib', '--entry-point=', '--export-all-non-static'] : undefined
+    const objFn = 'main.o'
+    const extraOptions = compileAndDump ? ['-c', '-o', objFn, '--import-module-name=env'] : undefined
     const compiledPath = await compile(editor.getValue(), extraOptions)
     if (compiledPath == null)
       return
 
     if (compileAndDump) {
-      const compiledCode = await wccRunner.readFile(compiledPath)!
+      const compiledCode = await wccRunner.readFile(objFn)!
       const disWasm = new DisWasm(compiledCode!.buffer)
       disWasm.setLogFunc(s => Util.putTerminal(`${s}\n`))
       disWasm.dump()

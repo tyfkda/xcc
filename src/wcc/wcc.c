@@ -297,7 +297,7 @@ int main(int argc, char *argv[]) {
       verbose = true;
       break;
     case OPT_ENTRY_POINT:
-      entry_point = *optarg != '\0' ? optarg : NULL;
+      entry_point = optarg;
       break;
     case OPT_EXPORT_STACK_POINTER:
       export_stack_pointer = true;
@@ -355,7 +355,7 @@ int main(int argc, char *argv[]) {
 #endif
   if (out_type >= OutExecutable && entry_point == NULL)
     entry_point = "_start";
-  if (entry_point != NULL)
+  if (entry_point != NULL && *entry_point != '\0')
     vec_push(exports, alloc_name(entry_point, NULL, false));
   if (exports->len == 0 && !(export_all || out_type < OutExecutable)) {
     error("no exports (require -e<xxx>)\n");
