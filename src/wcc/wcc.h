@@ -123,6 +123,7 @@ enum OutType {
 };
 
 extern const char SP_NAME[];
+extern const char BREAK_ADDRESS_NAME[];
 
 extern bool verbose;
 extern enum OutType out_type;
@@ -139,7 +140,6 @@ GVarInfo *register_gvar_info(const Name *name, VarInfo *varinfo);
 GVarInfo *get_gvar_info_from_name(const Name *name);
 int getsert_func_type(unsigned char *buf, size_t size, bool reg);
 TagInfo *getsert_tag(int typeindex);
-TagInfo *register_longjmp_tag(void);
 
 void write_wasm_header(FILE *ofp);
 

@@ -13,7 +13,6 @@
 #include "util.h"
 #include "var.h"
 
-const char BREAK_ADDRESS_NAME[] = "__curbrk";
 const char VA_ARGS_NAME[] = ".._VA_ARGS";
 
 Table builtin_function_table;

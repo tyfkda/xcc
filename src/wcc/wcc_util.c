@@ -12,6 +12,7 @@
 #include "wasm.h"
 
 const char SP_NAME[] = "__stack_pointer";  // Variable name for stack pointer (global).
+const char BREAK_ADDRESS_NAME[] = "__curbrk";
 
 bool verbose;
 enum OutType out_type;
@@ -72,16 +73,6 @@ TagInfo *getsert_tag(int typeindex) {
   t->index = len;
   vec_push(tags, t);
   return t;
-}
-
-TagInfo *register_longjmp_tag(void) {
-  // Exception type: (void*, int)
-  Vector *params = new_vector();
-  vec_push(params, &tyInt);
-  vec_push(params, &tyVoidPtr);
-  Type *functype = new_func_type(&tyVoid, params, false);
-  int typeindex = getsert_func_type_index(functype, true);
-  return getsert_tag(typeindex);
 }
 
 //

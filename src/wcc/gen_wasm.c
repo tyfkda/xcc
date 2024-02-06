@@ -1746,6 +1746,16 @@ void gen(Vector *decls) {
 
 ////////////////////////////////////////////////
 
+static TagInfo *register_longjmp_tag(void) {
+  // Exception type: (void*, int)
+  Vector *params = new_vector();
+  vec_push(params, &tyInt);
+  vec_push(params, &tyVoidPtr);
+  Type *functype = new_func_type(&tyVoid, params, false);
+  int typeindex = getsert_func_type_index(functype, true);
+  return getsert_tag(typeindex);
+}
+
 static void gen_builtin_setjmp(Expr *expr, enum BuiltinFunctionPhase phase) {
   if (phase == BFP_TRAVERSE) {
     FuncExtra *extra = curfunc->extra;
