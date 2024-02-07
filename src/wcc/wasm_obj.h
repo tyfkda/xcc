@@ -60,7 +60,7 @@ enum RelocType {
 typedef struct {
   uint32_t offset;  // from its function top (not section top).
   uint32_t index;
-  uint32_t addend;
+  int32_t addend;
   uint8_t type;     // enum RelocType
 } RelocInfo;
 
@@ -120,4 +120,9 @@ typedef struct WasmObj {
     struct DataSegmentForLink *segments;
     uint32_t count;
   } data;
+  struct {
+    RelocInfo *relocs;
+    uint32_t section_index;
+    uint32_t count;
+  } reloc[2];  // 0=code, 1=data
 } WasmObj;

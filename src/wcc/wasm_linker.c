@@ -14,6 +14,23 @@
 #include "wasm_obj.h"
 #include "wcc.h"
 
+static int64_t read_leb128(unsigned char *p, unsigned char **next) {
+  int64_t result = 0;
+  int shift = 0;
+  for (;;) {
+    unsigned char byte = *p++;
+    result |= (byte & 0x7f) << shift;
+    if ((byte & 0x80) == 0) {
+      if ((byte & 0x40) != 0)
+        result -= (int64_t)1 << shift;
+      break;
+    }
+    shift += 7;
+  }
+  *next = p;
+  return result;
+}
+
 static uint64_t read_uleb128(unsigned char *p, unsigned char **next) {
   uint64_t result = 0;
   int shift = 0;
@@ -313,6 +330,51 @@ static void read_linking(WasmObj *wasmobj, unsigned char *p, unsigned char *end)
   }
 }
 
+static void read_reloc(WasmObj *wasmobj, unsigned char *p, int is_data) {
+  uint32_t section_index = read_uleb128(p, &p);
+  uint32_t count = read_uleb128(p, &p);
+
+  if (section_index >= (uint32_t)wasmobj->section_count ||
+      wasmobj->sections[section_index].id != (is_data ? SEC_DATA : SEC_CODE)) {
+    error("invalid section for relocation: section index=%d", section_index);
+  }
+
+  RelocInfo *relocs = NULL;
+  if (count > 0) {
+    relocs = calloc_or_die(sizeof(*relocs) * count);
+    for (uint32_t i = 0; i < count; ++i) {
+      uint8_t type = *p++;
+      uint32_t offset = read_uleb128(p, &p);
+      uint32_t index = read_uleb128(p, &p);
+
+      int32_t addend = 0;
+      switch (type) {
+      case R_WASM_MEMORY_ADDR_LEB:
+      case R_WASM_MEMORY_ADDR_SLEB:
+      case R_WASM_MEMORY_ADDR_I32:
+      case R_WASM_MEMORY_ADDR_LEB64:
+      case R_WASM_MEMORY_ADDR_SLEB64:
+      case R_WASM_MEMORY_ADDR_I64:
+      case R_WASM_FUNCTION_OFFSET_I32:
+      case R_WASM_SECTION_OFFSET_I32:
+        addend = read_leb128(p, &p);
+        break;
+      default: break;
+      }
+
+      RelocInfo *p = &relocs[i];
+      p->type = type;
+      p->offset = offset;
+      p->index = index;
+      p->addend = addend;
+    }
+  }
+
+  wasmobj->reloc[is_data].relocs = relocs;
+  wasmobj->reloc[is_data].section_index = section_index;
+  wasmobj->reloc[is_data].count = count;
+}
+
 static WasmObj *read_wasm(FILE *fp, const char *filename, size_t filesize) {
   static const char MAGIC[] = WASM_BINARY_MAGIC;
 
@@ -374,6 +436,10 @@ static WasmObj *read_wasm(FILE *fp, const char *filename, size_t filesize) {
           if (match_string(p, "linking", &q)) {
             linking_section_index = count;
             read_linking(wasmobj, q, sec->start + size);
+          } else if (match_string(p, "reloc.CODE", &q)) {
+            read_reloc(wasmobj, q, 0);
+          } else if (match_string(p, "reloc.DATA", &q)) {
+            read_reloc(wasmobj, q, 1);
           }
         }
         break;
@@ -580,6 +646,61 @@ static void remap_data_address(WasmLinker *linker) {
   linker->data_end_address = address;
 }
 
+static void put_varuint32(unsigned char *p, uint32_t x, RelocInfo *reloc) {
+  if (!(p[0] & 0x80) || !(p[1] & 0x80) || !(p[2] & 0x80) || !(p[3] & 0x80) || (p[4] & 0x80))
+    error("Illegal reloc varuint32: at 0x%x", reloc->offset);
+
+  for (uint32_t count = 0; ; ++count) {
+    assert(count <= 5);
+    if (!(*p & 0x80)) {
+      assert(x <= 0x7f);
+      *p = x & 0x7f;
+      break;
+    }
+    *p++ = (x & 0x7f) | 0x80;
+    x >>= 7;
+  }
+}
+
+static void apply_relocation(WasmLinker *linker) {
+  for (int i = 0; i < linker->files->len; ++i) {
+    WasmObj *wasmobj = ((File*)linker->files->data[i])->wasmobj;
+    Vector *symtab = wasmobj->linking.symtab;
+    for (int j = 0; j < 2; ++j) {
+      uint32_t count = wasmobj->reloc[j].count;
+      if (count == 0)
+        continue;
+
+      uint32_t section_index = wasmobj->reloc[j].section_index;
+      WasmSection *sec = &wasmobj->sections[section_index];
+      RelocInfo *relocs = wasmobj->reloc[j].relocs;
+      for (uint32_t k = 0; k < count; ++k) {
+        RelocInfo *p = &relocs[k];
+        if (p->index >= (uint32_t)symtab->len)
+          error("illegal index for reloc: %d", p->index);
+        SymbolInfo *sym = symtab->data[p->index];
+        SymbolInfo *target = sym;
+        if (!table_try_get(&linker->defined, sym->name, (void**)&target))
+          table_try_get(&linker->unresolved, sym->name, (void**)&target);
+        unsigned char *q = sec->start + p->offset;
+
+        switch (p->type) {
+        case R_WASM_FUNCTION_INDEX_LEB:
+        case R_WASM_GLOBAL_INDEX_LEB:
+          put_varuint32(q, target->combined_index, p);
+          break;
+        case R_WASM_MEMORY_ADDR_LEB:
+          put_varuint32(q, target->data.address, p);
+          break;
+        default:
+          error("Relocation not handled: type=%d", p->type);
+          break;
+        }
+      }
+    }
+  }
+}
+
 //
 
 void linker_init(WasmLinker *linker) {
@@ -628,6 +749,7 @@ bool link_wasm_objs(WasmLinker *linker, Vector *exports) {
   remap_data_address(linker);
   renumber_symbols(linker);
   renumber_func_types(linker);
+  apply_relocation(linker);
 
   return true;
 }

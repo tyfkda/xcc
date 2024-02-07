@@ -790,7 +790,7 @@ static void emit_reloc_section(EmitWasm *ew, int section_index, Vector *relocs, 
       case R_WASM_MEMORY_ADDR_I64:
       case R_WASM_FUNCTION_OFFSET_I32:
       case R_WASM_SECTION_OFFSET_I32:
-        data_uleb128(&ds, -1, reloc->addend);
+        data_leb128(&ds, -1, reloc->addend);
         break;
       default: break;
       }
