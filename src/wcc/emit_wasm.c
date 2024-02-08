@@ -170,6 +170,7 @@ typedef struct {
   GVarInfo *gvarinfo;
   DataStorage ds;
   Vector *reloc_data;
+  uint32_t p2align;
 } DataSegment;
 
 static Vector *construct_data_segment(void) {
@@ -195,8 +196,13 @@ static Vector *construct_data_segment(void) {
       assert(adr >= address);
 #endif
 
-      DataSegment *segment = malloc_or_die(sizeof(*segment));
+      DataSegment *segment = calloc_or_die(sizeof(*segment));
       segment->gvarinfo = info;
+      size_t align = align_size(varinfo->type);
+      uint32_t p2align;
+      for (p2align = 0; align > (1U << p2align); ++p2align)
+        ;
+      segment->p2align = p2align;
       data_init(&segment->ds);
       if (k == 0) {
         segment->reloc_data = construct_data_segment_sub(&segment->ds, varinfo);
@@ -591,6 +597,7 @@ static void emit_code_section(EmitWasm *ew) {
 
 static Vector *emit_data_section(EmitWasm *ew) {
   Vector *segments = construct_data_segment();
+  ew->data_segments = segments;
   Vector *reloc_data = NULL;
   if (segments->len > 0) {
     reloc_data = new_vector();
@@ -643,8 +650,9 @@ static void emit_linking_section(EmitWasm *ew) {
   data_open_chunk(&linking_section);
   data_string(&linking_section, kLinkingName, sizeof(kLinkingName) - 1);
   data_uleb128(&linking_section, -1, LINK_VERSION);
-  data_push(&linking_section, LT_WASM_SYMBOL_TABLE);  // subsec type
 
+  // Symbol table.
+  data_push(&linking_section, LT_WASM_SYMBOL_TABLE);  // subsec type
   data_open_chunk(&linking_section);  // Payload start.
   data_open_chunk(&linking_section);
   uint32_t count = 0;
@@ -732,6 +740,22 @@ static void emit_linking_section(EmitWasm *ew) {
   }
   data_close_chunk(&linking_section, count);
   data_close_chunk(&linking_section, -1);  // Put payload size.
+
+  // Data segments.
+  Vector *segments = ew->data_segments;
+  if (segments->len > 0) {
+    data_push(&linking_section, LT_WASM_SEGMENT_INFO);  // subsec type
+    data_open_chunk(&linking_section);  // Payload start.
+    data_uleb128(&linking_section, -1, segments->len);
+    for (int i = 0; i < segments->len; ++i) {
+      DataSegment *segment = segments->data[i];
+      VarInfo *varinfo = segment->gvarinfo->varinfo;
+      data_string(&linking_section, varinfo->name->chars, varinfo->name->bytes);
+      data_uleb128(&linking_section, -1, segment->p2align);
+      data_uleb128(&linking_section, -1, 0);  // flags
+    }
+    data_close_chunk(&linking_section, -1);
+  }
 
   if (linking_section.len > 0) {
     data_close_chunk(&linking_section, -1);

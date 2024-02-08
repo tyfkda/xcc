@@ -97,6 +97,7 @@ void install_builtins(void);
 typedef struct {
   FILE *ofp;
   const char *import_module_name;
+  Vector *data_segments;
   uint32_t address_bottom;
   uint32_t section_index;
   uint32_t function_count;
