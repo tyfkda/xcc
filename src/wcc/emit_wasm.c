@@ -670,7 +670,7 @@ static void emit_linking_section(EmitWasm *ew) {
       if (info->func == NULL)
         flags |= WASM_SYM_UNDEFINED;
       if (info->varinfo->storage & VS_STATIC)
-        flags |= WASM_SYM_VISIBILITY_HIDDEN;
+        flags |= WASM_SYM_BINDING_LOCAL | WASM_SYM_VISIBILITY_HIDDEN;
 
       data_push(&linking_section, SIK_SYMTAB_FUNCTION);  // kind
       data_uleb128(&linking_section, -1, flags);
@@ -699,7 +699,7 @@ static void emit_linking_section(EmitWasm *ew) {
       if (info->flag & GVF_UNRESOLVED)
         flags |= WASM_SYM_UNDEFINED;
       if (varinfo->storage & VS_STATIC)
-        flags |= WASM_SYM_VISIBILITY_HIDDEN;
+        flags |= WASM_SYM_BINDING_LOCAL | WASM_SYM_VISIBILITY_HIDDEN;
 
       if (is_global_datsec_var(varinfo, global_scope)) {
         data_push(&linking_section, SIK_SYMTAB_DATA);  // kind
