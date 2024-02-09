@@ -107,8 +107,7 @@ static uint32_t register_indirect_function(const Name *name) {
     return info->indirect_index;
 
   info = register_func_info(name, NULL, FF_INDIRECT | FF_REFERRED);
-  uint32_t index = indirect_function_table.count + 1;
-  info->indirect_index = index;
+  uint32_t index = indirect_function_table.count;
   table_put(&indirect_function_table, name, info);
   return index;
 }
@@ -732,6 +731,16 @@ uint32_t traverse_ast(Vector *decls, Vector *exports, uint32_t stack_size) {
   for (int i = 0, len = decls->len; i < len; ++i) {
     Declaration *decl = decls->data[i];
     traverse_decl(decl, exports);
+  }
+
+  // Indirect functions.
+  {
+    const Name *name;
+    FuncInfo *info;
+    uint32_t index = INDIRECT_FUNCTION_TABLE_START_INDEX;
+    for (int it = 0;
+         (it = table_iterate(&indirect_function_table, it, &name, (void**)&info)) != -1; )
+      info->indirect_index = index++;
   }
 
   // Check exports

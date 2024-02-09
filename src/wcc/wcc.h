@@ -19,6 +19,8 @@ typedef struct Vector Vector;
 
 #define I32_SIZE  (4)  //sizeof(int32_t)
 
+#define INDIRECT_FUNCTION_TABLE_START_INDEX  (1)  // To avoid 0, which is used as NULL.
+
 extern const char VA_ARGS_NAME[];
 
 extern Table builtin_function_table;
@@ -101,7 +103,6 @@ typedef struct {
   uint32_t address_bottom;
   uint32_t section_index;
   uint32_t function_count;
-  int32_t table_start_index;
   uint32_t code_section_index;
   uint32_t data_section_index;
   uint32_t import_global_count;

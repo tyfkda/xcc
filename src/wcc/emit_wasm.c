@@ -227,12 +227,6 @@ static Vector *construct_data_segment(void) {
   return segments;
 }
 
-static int compare_indirect(const void *pa, const void *pb) {
-  const FuncInfo *qa = *(const FuncInfo**)pa;
-  const FuncInfo *qb = *(const FuncInfo**)pb;
-  return (int)qa->indirect_index - (int)qb->indirect_index;
-}
-
 //
 
 void emit_type_section(EmitWasm *ew) {
@@ -278,7 +272,7 @@ static void emit_import_section(EmitWasm *ew) {
     data_push(&imports_section, IMPORT_TABLE);  // import kind
     data_push(&imports_section, WT_FUNCREF);
     data_push(&imports_section, 0x00);  // limits: flags
-    data_leb128(&imports_section, -1, ew->table_start_index);  // initial
+    data_leb128(&imports_section, -1, INDIRECT_FUNCTION_TABLE_START_INDEX);  // initial
     ++imports_count;
   }
 
@@ -382,7 +376,7 @@ void emit_table_section(EmitWasm *ew) {
   data_leb128(&table_section, -1, 1);  // num tables
   data_push(&table_section, WT_FUNCREF);
   data_push(&table_section, 0x00);  // limits: flags
-  data_leb128(&table_section, -1, ew->table_start_index + indirect_function_table.count);  // initial
+  data_leb128(&table_section, -1, INDIRECT_FUNCTION_TABLE_START_INDEX + indirect_function_table.count);  // initial
   data_close_chunk(&table_section, -1);
 
   fputc(SEC_TABLE, ew->ofp);
@@ -505,43 +499,35 @@ static void emit_export_section(EmitWasm *ew, Vector *exports) {
 }
 
 void emit_elems_section(EmitWasm *ew) {
+  int count = indirect_function_table.count;
+  if (count == 0)
+    return;
+
   DataStorage elems_section;
   data_init(&elems_section);
-  if (indirect_function_table.count > 0) {
-    data_open_chunk(&elems_section);
+  data_open_chunk(&elems_section);
 
-    int count = indirect_function_table.count;
-    FuncInfo **indirect_funcs = ALLOCA(sizeof(*indirect_funcs) * count);
-
-    // Enumerate imported functions.
-    VERBOSES("### Indirect functions\n");
-    const Name *name;
-    FuncInfo *info;
-    int index = 0;
-    for (int it = 0; (it = table_iterate(&indirect_function_table, it, &name, (void**)&info)) != -1;
-         ++index)
-      indirect_funcs[index] = info;
-
-    qsort(indirect_funcs, count, sizeof(*indirect_funcs), compare_indirect);
-
-    data_leb128(&elems_section, -1, 1);  // num elem segments
-    data_leb128(&elems_section, -1, 0);  // segment flags
-    data_push(&elems_section, OP_I32_CONST);
-    data_leb128(&elems_section, -1, ew->table_start_index);  // start index
-    data_push(&elems_section, OP_END);
-    data_leb128(&elems_section, -1, count);  // num elems
-    for (int i = 0; i < count; ++i) {
-      FuncInfo *info = indirect_funcs[i];
-      VERBOSE("%2d: %.*s (%u)\n", i + 1, NAMES(info->varinfo->name), info->index);
-      data_leb128(&elems_section, -1, info->index);  // elem function index
-    }
-    data_close_chunk(&elems_section, -1);
-    VERBOSES("\n");
-
-    fputc(SEC_ELEM, ew->ofp);
-    fwrite(elems_section.buf, elems_section.len, 1, ew->ofp);
-    ++ew->section_index;
+  // Enumerate imported functions.
+  VERBOSES("### Indirect functions\n");
+  data_leb128(&elems_section, -1, 1);  // num elem segments
+  data_leb128(&elems_section, -1, 0);  // segment flags
+  data_push(&elems_section, OP_I32_CONST);
+  data_leb128(&elems_section, -1, INDIRECT_FUNCTION_TABLE_START_INDEX);  // start index
+  data_push(&elems_section, OP_END);
+  data_leb128(&elems_section, -1, count);  // num elems
+  const Name *name;
+  FuncInfo *info;
+  for (int it = 0;
+        (it = table_iterate(&indirect_function_table, it, &name, (void**)&info)) != -1; ) {
+    VERBOSE("%.*s (%u)\n", NAMES(info->varinfo->name), info->index);
+    data_leb128(&elems_section, -1, info->index);  // elem function index
   }
+  data_close_chunk(&elems_section, -1);
+  VERBOSES("\n");
+
+  fputc(SEC_ELEM, ew->ofp);
+  fwrite(elems_section.buf, elems_section.len, 1, ew->ofp);
+  ++ew->section_index;
 }
 
 void emit_tag_section(EmitWasm *ew) {
@@ -862,7 +848,6 @@ void emit_wasm(FILE *ofp, Vector *exports, const char *import_module_name,
     .ofp = ofp,
     .import_module_name = import_module_name,
     .address_bottom = address_bottom,
-    .table_start_index = 1,  // TODO: Output table only when it is needed.
   };
   EmitWasm *ew = &ew_body;
 
