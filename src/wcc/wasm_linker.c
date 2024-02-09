@@ -212,6 +212,38 @@ static void read_data_section(WasmObj *wasmobj, unsigned char *p) {
   wasmobj->data.count = count;
 }
 
+typedef struct ElemSegmentForLink {
+  uint32_t *content;
+  uint32_t start;
+  uint32_t count;
+} ElemSegmentForLink;
+
+static void read_elem_section(WasmObj *wasmobj, unsigned char *p) {
+  ElemSegmentForLink *segments = NULL;
+  uint32_t count = 0;
+  count = read_uleb128(p, &p);
+  segments = calloc_or_die(sizeof(*segments) * count);
+  for (uint32_t i = 0; i < count; ++i) {
+    read_uleb128(p, &p);  // flag
+    ElemSegmentForLink *segment = &segments[i];
+    if (*p++ != OP_I32_CONST || (segment->start = read_uleb128(p, &p), *p++ != OP_END)) {
+      error("malformed elem section");
+    }
+    uint32_t count = read_uleb128(p, &p);
+    uint32_t *content = calloc_or_die(sizeof(*content) * count);
+    for (uint32_t j = 0; j < count; ++j) {
+      uint32_t index = read_uleb128(p, &p);
+      content[j] = index;
+    }
+
+    segment->count = count;
+    segment->content = content;
+  }
+
+  wasmobj->elem.segments = segments;
+  wasmobj->elem.count = count;
+}
+
 static void read_linking(WasmObj *wasmobj, unsigned char *p, unsigned char *end) {
   uint32_t version = read_uleb128(p, &p);
 
@@ -430,6 +462,9 @@ static WasmObj *read_wasm(FILE *fp, const char *filename, size_t filesize) {
       case SEC_DATA:
         read_data_section(wasmobj, p);
         break;
+      case SEC_ELEM:
+        read_elem_section(wasmobj, p);
+        break;
       case SEC_CUSTOM:
         {
           unsigned char *q;
@@ -612,7 +647,6 @@ static void renumber_func_types(WasmLinker *linker) {
         error("illegal type index for %.*s: %d\n", NAMES(sym->name), sym->func.type_index);
       sym->func.type_index = VOIDP2INT(type_indices->data[sym->func.type_index]);
     }
-    free_vector(type_indices);
   }
 }
 
@@ -646,6 +680,69 @@ static void remap_data_address(WasmLinker *linker) {
   linker->data_end_address = address;
 }
 
+static void renumber_indirect_functions(WasmLinker *linker) {
+  Table *indirect_functions = &linker->indirect_functions;
+  for (int i = 0; i < linker->files->len; ++i) {
+    WasmObj *wasmobj = ((File*)linker->files->data[i])->wasmobj;
+
+    uint32_t segnum = wasmobj->elem.count;
+    ElemSegmentForLink *segments = wasmobj->elem.segments;
+    for (uint32_t i = 0; i < segnum; ++i) {
+      ElemSegmentForLink *segment = &segments[i];
+      uint32_t count = segment->count;
+      for (uint32_t j = 0; j < count; ++j) {
+        uint32_t index = segment->content[j];
+        SymbolInfo *sym = NULL;
+        {
+          Vector *symtab = wasmobj->linking.symtab;
+          for (int k = 0; k < symtab->len; ++k) {
+            SymbolInfo *p = symtab->data[k];
+            if (p->kind == SIK_SYMTAB_FUNCTION && p->local_index == index) {
+              sym = p;
+              break;
+            }
+          }
+        }
+        if (sym == NULL) {
+          error("indirect function not found: %d", index);
+        }
+        if (!(sym->flags & WASM_SYM_BINDING_LOCAL)) {
+          const Name *name = sym->name;
+          if (!table_try_get(&linker->defined, name, (void**)&sym)) {
+            if (!table_try_get(&linker->unresolved, name, (void**)&sym)) {
+              error("indirect function not found: %.*s", NAMES(name));
+            }
+          }
+        }
+        table_put(indirect_functions, sym->name, sym);
+      }
+    }
+  }
+
+  const Name *name;
+  SymbolInfo *sym;
+  uint32_t index = INDIRECT_FUNCTION_TABLE_START_INDEX;
+  for (int it = 0; (it = table_iterate(indirect_functions, it, &name, (void**)&sym)) != -1; ) {
+    sym->func.indirect_index = index++;
+  }
+}
+
+static void put_varint32(unsigned char *p, int32_t x, RelocInfo *reloc) {
+  if (!(p[0] & 0x80) || !(p[1] & 0x80) || !(p[2] & 0x80) || !(p[3] & 0x80) || (p[4] & 0x80))
+    error("Illegal reloc varint32: at 0x%x", reloc->offset);
+
+  for (uint32_t count = 0; ; ++count) {
+    assert(count <= 5);
+    if (!(*p & 0x80)) {
+      assert(x <= 0x7f);
+      *p = x & 0x7f;
+      break;
+    }
+    *p++ = (x & 0x7f) | 0x80;
+    x >>= 7;
+  }
+}
+
 static void put_varuint32(unsigned char *p, uint32_t x, RelocInfo *reloc) {
   if (!(p[0] & 0x80) || !(p[1] & 0x80) || !(p[2] & 0x80) || !(p[3] & 0x80) || (p[4] & 0x80))
     error("Illegal reloc varuint32: at 0x%x", reloc->offset);
@@ -659,6 +756,13 @@ static void put_varuint32(unsigned char *p, uint32_t x, RelocInfo *reloc) {
     }
     *p++ = (x & 0x7f) | 0x80;
     x >>= 7;
+  }
+}
+
+static void put_i32(unsigned char *p, int32_t x) {
+  for (int i = 0; i < 4; ++i) {
+    *p++ = x;
+    x >>= 8;
   }
 }
 
@@ -676,13 +780,27 @@ static void apply_relocation(WasmLinker *linker) {
       RelocInfo *relocs = wasmobj->reloc[j].relocs;
       for (uint32_t k = 0; k < count; ++k) {
         RelocInfo *p = &relocs[k];
+        unsigned char *q = sec->start + p->offset;
+        switch (p->type) {
+        case R_WASM_TYPE_INDEX_LEB:
+          {
+            assert(wasmobj->types != NULL);
+            if (p->index >= (uint32_t)wasmobj->types->len)
+              error("illegal type index: %d", p->index);
+            uint32_t index = VOIDP2INT(wasmobj->types->data[p->index]);
+            put_varuint32(q, index, p);
+          }
+          continue;
+        default: break;
+        }
+
+        // Symbol resolution.
         if (p->index >= (uint32_t)symtab->len)
           error("illegal index for reloc: %d", p->index);
         SymbolInfo *sym = symtab->data[p->index];
         SymbolInfo *target = sym;
         if (!table_try_get(&linker->defined, sym->name, (void**)&target))
           table_try_get(&linker->unresolved, sym->name, (void**)&target);
-        unsigned char *q = sec->start + p->offset;
 
         switch (p->type) {
         case R_WASM_FUNCTION_INDEX_LEB:
@@ -691,6 +809,15 @@ static void apply_relocation(WasmLinker *linker) {
           break;
         case R_WASM_MEMORY_ADDR_LEB:
           put_varuint32(q, target->data.address, p);
+          break;
+        case R_WASM_MEMORY_ADDR_I32:
+          put_i32(q, target->data.address + p->addend);
+          break;
+        case R_WASM_TABLE_INDEX_SLEB:
+          put_varint32(q, target->func.indirect_index, p);
+          break;
+        case R_WASM_TABLE_INDEX_I32:
+          put_i32(q, target->func.indirect_index);
           break;
         default:
           error("Relocation not handled: type=%d", p->type);
@@ -709,6 +836,7 @@ void linker_init(WasmLinker *linker) {
 
   table_init(&linker->defined);
   table_init(&linker->unresolved);
+  table_init(&linker->indirect_functions);
 
   linker->sp_name = alloc_name(SP_NAME, NULL, false);
   linker->curbrk_name = alloc_name(BREAK_ADDRESS_NAME, NULL, false);
@@ -749,6 +877,7 @@ bool link_wasm_objs(WasmLinker *linker, Vector *exports) {
   remap_data_address(linker);
   renumber_symbols(linker);
   renumber_func_types(linker);
+  renumber_indirect_functions(linker);
   apply_relocation(linker);
 
   return true;

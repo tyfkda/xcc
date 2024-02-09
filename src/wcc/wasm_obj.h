@@ -79,6 +79,7 @@ typedef struct {
   union {
     struct {
       uint32_t type_index;
+      uint32_t indirect_index;
     } func;
     struct {
       uint8_t wtype;
@@ -120,6 +121,10 @@ typedef struct WasmObj {
     struct DataSegmentForLink *segments;
     uint32_t count;
   } data;
+  struct {
+    struct ElemSegmentForLink *segments;
+    uint32_t count;
+  } elem;
   struct {
     RelocInfo *relocs;
     uint32_t section_index;

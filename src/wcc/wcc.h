@@ -136,7 +136,7 @@ extern bool verbose;
 extern enum OutType out_type;
 extern Table func_info_table;
 extern Table gvar_info_table;
-extern Table indirect_function_table;
+extern Table indirect_function_table;  // <FuncInfo*>
 extern Vector *tags;  // <TagInfo*>
 
 #define VERBOSES(str)  do { if (verbose) printf("%s", str); } while (0)
