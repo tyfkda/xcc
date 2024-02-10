@@ -273,7 +273,7 @@ test-wcc-self-hosting:
 	$(MAKE) -C tests clean && $(MAKE) WCC="$(TARGET_CC)" -C tests test-wcc
 
 $(WCC_TARGET)cc.wasm:	$(WCC_SRCS) $(WCC_LIBS) $(WCC_PARENT)
-	$(HOST_WCC) -o $@ \
+	$(HOST_WCC) -o $@ $(WCC_CFLAGS) \
 		-I$(CC1_FE_DIR) -I$(CPP_DIR) -I$(UTIL_DIR) \
 		$(WCC_SRCS)
 
