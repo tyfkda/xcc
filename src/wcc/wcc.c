@@ -353,8 +353,11 @@ int main(int argc, char *argv[]) {
   if (import_module_name == DEFAULT_IMPORT_MODULE_NAME)
     import_module_name = "env";
 #endif
-  if (out_type >= OutExecutable && entry_point == NULL)
+  if (out_type >= OutExecutable && entry_point == NULL) {
     entry_point = "_start";
+    if (exports->len == 0)
+      vec_push(exports, alloc_name("main", NULL, false));
+  }
   if (entry_point != NULL && *entry_point != '\0')
     vec_push(exports, alloc_name(entry_point, NULL, false));
   if (exports->len == 0 && !(export_all || out_type < OutExecutable)) {

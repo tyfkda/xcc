@@ -71,7 +71,7 @@ int getsert_func_type_index(const Type *type, bool reg) {
 
 extern int get_func_type_index(const Type *type);
 
-static FuncInfo *register_func_info(const Name *funcname, Function *func, int flag) {
+static FuncInfo *register_func_info(const Name *funcname, Function *func, VarInfo *varinfo, int flag) {
   assert(func == NULL || func->type->kind == TY_FUNC);
   FuncInfo *info;
   if (!table_try_get(&func_info_table, funcname, (void**)&info)) {
@@ -79,10 +79,12 @@ static FuncInfo *register_func_info(const Name *funcname, Function *func, int fl
     table_put(&func_info_table, funcname, info);
     info->type_index = (uint32_t)-1;
 
-    VarInfo *varinfo = scope_find(global_scope, funcname, NULL);
-    assert(varinfo != NULL);
-    assert(varinfo->type->kind == TY_FUNC);
-    assert(func == NULL || same_type(varinfo->type, func->type));
+    if (varinfo == NULL) {
+      varinfo = scope_find(global_scope, funcname, NULL);
+      assert(varinfo != NULL);
+      assert(varinfo->type->kind == TY_FUNC);
+      assert(func == NULL || same_type(varinfo->type, func->type));
+    }
     info->varinfo = varinfo;
   }
   if (func != NULL)
@@ -93,20 +95,12 @@ static FuncInfo *register_func_info(const Name *funcname, Function *func, int fl
   return info;
 }
 
-// static void register_func_info_if_not_exist(const Name *funcname, Type *(*callback)(void)) {
-//   if (table_get(&func_info_table, funcname) == NULL) {
-//     Type *functype = (*callback)();
-//     scope_add(global_scope, funcname, functype, 0);
-//     register_func_info(funcname, NULL, FF_REFERRED);
-//   }
-// }
-
 static uint32_t register_indirect_function(const Name *name) {
   FuncInfo *info;
   if (table_try_get(&indirect_function_table, name, (void**)&info))
     return info->indirect_index;
 
-  info = register_func_info(name, NULL, FF_INDIRECT | FF_REFERRED);
+  info = register_func_info(name, NULL, NULL, FF_INDIRECT | FF_REFERRED);
   uint32_t index = indirect_function_table.count;
   table_put(&indirect_function_table, name, info);
   return index;
@@ -114,21 +108,30 @@ static uint32_t register_indirect_function(const Name *name) {
 
 GVarInfo *get_gvar_info(Expr *expr) {
   assert(expr->kind == EX_VAR);
+  const Name *name = expr->var.name;
   Scope *scope;
-  VarInfo *varinfo = scope_find(expr->var.scope, expr->var.name, &scope);
+  VarInfo *varinfo = scope_find(expr->var.scope, name, &scope);
   assert(varinfo != NULL && scope == expr->var.scope);
   if (!is_global_scope(scope)) {
     if (varinfo->storage & VS_EXTERN) {
-      varinfo = scope_find(scope = global_scope, expr->var.name, &scope);
+      VarInfo *gvi = scope_find(global_scope, name, NULL);
+      if (gvi == NULL) {
+        // Register dummy.
+        gvi = scope_add(global_scope, name, expr->type, VS_EXTERN);
+      }
+      varinfo = gvi;
+      scope = global_scope;
     } else if (varinfo->storage & VS_STATIC) {
       varinfo = varinfo->static_.gvar;
+      name = varinfo->name;
     }
   }
-  GVarInfo *info = get_gvar_info_from_name(varinfo->name);
+  assert(varinfo != NULL);
+  GVarInfo *info = get_gvar_info_from_name(name);
   if (info == NULL) {
-    table_put(&unresolved_gvar_table, varinfo->name, varinfo);
+    table_put(&unresolved_gvar_table, name, varinfo);
     // Returns dummy.
-    info = register_gvar_info(varinfo->name, varinfo);
+    info = register_gvar_info(name, varinfo);
     info->flag |= GVF_UNRESOLVED;
   }
   return info;
@@ -180,7 +183,7 @@ static void traverse_func_expr(Expr **pexpr) {
     if (global && type->kind == TY_FUNC) {
       BuiltinFunctionProc *proc;
       if (!table_try_get(&builtin_function_table, expr->var.name, (void**)&proc))
-        register_func_info(expr->var.name, NULL, FF_REFERRED);
+        register_func_info(expr->var.name, NULL, NULL, FF_REFERRED);
       else
         (*proc)(expr, BFP_TRAVERSE);
     } else {
@@ -251,7 +254,7 @@ static void te_var(Expr **pexpr, bool needval) {
     if (out_type < OutExecutable && is_global_scope(expr->var.scope)) {
       // Register used global variable even if the entity is `extern`.
       get_gvar_info(expr);
-    }
+      }
   }
 }
 
@@ -543,6 +546,10 @@ static void traverse_vardecl(Stmt *stmt) {
       if (decl->ident != NULL) {
         VarInfo *varinfo = scope_find(curscope, decl->ident, NULL);
         assert(varinfo != NULL);
+        if (varinfo->type->kind == TY_FUNC) {
+          // Local extern function declaration.
+          register_func_info(decl->ident, NULL, varinfo, 0);
+        }
         if (!(varinfo->storage & (VS_EXTERN | VS_STATIC)))
           traverse_initializer(varinfo->local.init);
       }
@@ -657,7 +664,7 @@ static void traverse_defun(Function *func, Vector *exports) {
     scope_add(func->scopes->data[0], name, tyvalist, 0);
   }
 
-  register_func_info(func->name, func, 0);
+  register_func_info(func->name, func, NULL, 0);
   curfunc = func;
   traverse_stmt(func->body_block);
   if (compile_error_count == 0) {
@@ -749,7 +756,7 @@ uint32_t traverse_ast(Vector *decls, Vector *exports, uint32_t stack_size) {
     FuncInfo *info = table_get(&func_info_table, name);
     if (info == NULL)
       error("`%.*s' not found", NAMES(name));
-    register_func_info(name, NULL, FF_REFERRED);
+    register_func_info(name, NULL, NULL, FF_REFERRED);
   }
 
   // Linking information.
@@ -798,8 +805,7 @@ uint32_t traverse_ast(Vector *decls, Vector *exports, uint32_t stack_size) {
     int32_t index = 0;
     for (int k = 0; k < 2; ++k) {  // 0: import, 1: defined-and-referred
       for (int it = 0; (it = table_iterate(&func_info_table, it, &name, (void**)&info)) != -1; ) {
-        if ((k == 0 && info->func != NULL) ||
-            (k != 0 && (info->func == NULL || info->flag == 0)))
+        if (info->flag == 0 || (k == 0) == (info->func != NULL))
           continue;
         info->index = index++;
         VERBOSE("%2d: %.*s%s\n", info->index, NAMES(name), k == 0 ? "  (import)" : "");
