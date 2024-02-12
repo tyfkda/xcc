@@ -13,15 +13,6 @@
 #ifndef IMMEDIATE_OFFSET0
 #define IMMEDIATE_OFFSET0(reg)  immediate_offset(0, reg)
 #endif
-#ifndef LABEL_OFFSET_HI
-#define LABEL_OFFSET_HI(label)  label_offset_hi(label)
-#endif
-#ifndef LABEL_OFFSET_LO
-#define LABEL_OFFSET_LO(label)  label_offset_lo(label)
-#endif
-
-#define _UXTW(shift)  fmt("uxtw #%d", shift)
-#define _LSL(shift)   fmt("lsl #%d", shift)
 
 #define ZERO  "zero"  // x0: Zero register
 #define RA    "ra"    // x1: Return Address

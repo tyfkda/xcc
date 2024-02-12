@@ -27,14 +27,6 @@ char *immediate_offset(int offset, const char *reg) {
   return offset != 0 ? fmt("%d(%s)", offset, reg) : fmt("(%s)", reg);
 }
 
-char *label_offset_hi(char *label) {
-  return fmt("%%hi(%s)", label);
-}
-
-char *label_offset_lo(char *label) {
-  return fmt("%%lo(%s)", label);
-}
-
 ////////////////////////////////////////////////
 
 static const char *kRegParam64s[] = {A0, A1, A2, A3, A4, A5, A6, A7};
