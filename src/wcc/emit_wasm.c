@@ -183,8 +183,8 @@ static Vector *construct_data_segment(void) {
       VarInfo *varinfo = global_scope->vars->data[i];
       if (varinfo->storage & (VS_EXTERN | VS_ENUM_MEMBER) || varinfo->type->kind == TY_FUNC)
         continue;
-      if ((k == 0 && (varinfo->global.init == NULL || !is_global_datsec_var(varinfo, global_scope))) ||
-          (k != 0 && varinfo->global.init != NULL))
+      if ((k == 0) == (varinfo->global.init == NULL) ||
+          !is_global_datsec_var(varinfo, global_scope))
         continue;
       GVarInfo *info = get_gvar_info_from_name(varinfo->name);
       if (info == NULL)
@@ -367,6 +367,8 @@ static void emit_function_section(EmitWasm *ew) {
 void emit_table_section(EmitWasm *ew) {
   if (out_type < OutExecutable)
     return;
+  if (indirect_function_table.count <= 0)
+    return;
 
   DataStorage table_section;
   data_init(&table_section);
@@ -394,7 +396,7 @@ void emit_memory_section(EmitWasm *ew) {
     uint32_t page_count = (ew->address_bottom + MEMORY_PAGE_SIZE - 1) / MEMORY_PAGE_SIZE;
     if (page_count <= 0)
       page_count = 1;
-    data_uleb128(&memory_section, -1, 0);  // index
+    data_uleb128(&memory_section, -1, 0);  // limits (no maximum page size)
     data_uleb128(&memory_section, -1, page_count);
     data_close_chunk(&memory_section, 1);  // count
     data_close_chunk(&memory_section, -1);
