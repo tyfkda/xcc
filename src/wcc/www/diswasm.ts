@@ -1300,6 +1300,18 @@ export class DisWasm {
           break
         case OpKind.LOAD:
         case OpKind.STORE:
+          {
+            const align = inst.operands[0]
+            const offset = inst.operands[1]
+            const attrs = []
+            if (offset !== 0)
+              attrs.push(`offset=${offset}`)
+            if (!(((inst.opstr.startsWith('i32') || inst.opstr.startsWith('f32')) && align === 2) ||
+                  ((inst.opstr.startsWith('i64') || inst.opstr.startsWith('f64')) && align === 3)))
+              attrs.push(`align=${1 << (align as number)}`)
+            if (attrs.length > 0)
+              operands = attrs.join(' ')
+          }
           break
         case OpKind.BR_TABLE:
           operands = `${(inst.operands[0] as Array<number>).join(' ')} ${inst.operands[1]}`
