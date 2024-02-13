@@ -1,7 +1,7 @@
 #include "unistd.h"
 #include "stdio.h"  // EOF
 
-extern char *__curbrk;
+extern void *__curbrk;
 #define CURBRK  __curbrk
 
 #define HEAP_ALIGN  (8)

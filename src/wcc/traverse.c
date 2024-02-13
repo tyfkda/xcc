@@ -695,28 +695,33 @@ static void traverse_decl(Declaration *decl, Vector *exports) {
 }
 
 static void add_builtins(void) {
-  // Stack pointer.
-  {
-    const Name *name = alloc_name(SP_NAME, NULL, false);
-    VarInfo *varinfo = add_global_var(&tyVoidPtr, name);
-    Initializer *init = new_initializer(IK_SINGLE, NULL);
-    init->single = new_expr_fixlit(varinfo->type, NULL, 0);  // Dummy
-    varinfo->global.init = init;
+  const Name *names[2];
+  names[0] = alloc_name(SP_NAME, NULL, false);
+  int n = 1;
+  if (out_type >= OutExecutable)
+    names[n++] = alloc_name(BREAK_ADDRESS_NAME, NULL, false);
 
-    GVarInfo *info = register_gvar_info(varinfo->name, varinfo);
+  for (int i = 0; i < n; ++i) {
+    const Name *name = names[i];
+    VarInfo *varinfo = scope_find(global_scope, name, NULL);
+    if (varinfo == NULL) {
+      varinfo = add_global_var(&tyVoidPtr, name);
+    } else {
+      if (!same_type(varinfo->type, &tyVoidPtr))
+        parse_error(PE_NOFATAL, NULL, "Illegal type: %.*s", NAMES(name));
+      if (out_type >= OutExecutable)
+        varinfo->storage &= ~VS_EXTERN;
+    }
+    GVarInfo *info = get_gvar_info_from_name(name);
+    if (info == NULL)
+      info = register_gvar_info(name, varinfo);
     if (out_type < OutExecutable)
       info->flag |= GVF_UNRESOLVED;
-  }
-
-  // Break address.
-  if (out_type >= OutExecutable) {
-    const Name *name = alloc_name(BREAK_ADDRESS_NAME, NULL, false);
-    VarInfo *varinfo = add_global_var(&tyVoidPtr, name);
-    Initializer *init = new_initializer(IK_SINGLE, NULL);
-    init->single = new_expr_fixlit(varinfo->type, NULL, 0);  // Dummy
-    varinfo->global.init = init;
-
-    register_gvar_info(varinfo->name, varinfo);
+    if (out_type >= OutExecutable && varinfo->global.init == NULL) {
+      Initializer *init = new_initializer(IK_SINGLE, NULL);
+      init->single = new_expr_fixlit(varinfo->type, NULL, 0);  // Dummy
+      varinfo->global.init = init;
+    }
   }
 }
 
@@ -869,16 +874,16 @@ uint32_t traverse_ast(Vector *decls, Vector *exports, uint32_t stack_size) {
         VarInfo *varinfo = scope_find(global_scope, alloc_name(SP_NAME, NULL, false), NULL);
         assert(varinfo != NULL);
         Initializer *init = varinfo->global.init;
-        assert(init != NULL && init->kind == IK_SINGLE && init->single->kind == EX_FIXNUM);
-        init->single->fixnum = sp_bottom;
+          assert(init != NULL && init->kind == IK_SINGLE && init->single->kind == EX_FIXNUM);
+          init->single->fixnum = sp_bottom;
         VERBOSE("SP bottom: 0x%x  (size=0x%x)\n", sp_bottom, stack_size);
       }
       {  // Break address.
         VarInfo *varinfo = scope_find(global_scope, alloc_name(BREAK_ADDRESS_NAME, NULL, false), NULL);
         assert(varinfo != NULL);
         Initializer *init = varinfo->global.init;
-        assert(init != NULL && init->kind == IK_SINGLE && init->single->kind == EX_FIXNUM);
-        init->single->fixnum = sp_bottom;
+          assert(init != NULL && init->kind == IK_SINGLE && init->single->kind == EX_FIXNUM);
+          init->single->fixnum = sp_bottom;
         VERBOSE("Break address: 0x%x\n", sp_bottom);
       }
     }
