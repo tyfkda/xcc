@@ -791,8 +791,8 @@ uint32_t traverse_ast(Vector *decls, Vector *exports, uint32_t stack_size) {
             (k != 0 && ((info->flag & GVF_UNRESOLVED) || (varinfo->global.init == NULL) == (k == 1))))
           continue;
         uint32_t index = !is_global_datsec_var(varinfo, global_scope) ? global_index++ : !(varinfo->storage & VS_EXTERN) ? data_index++ : (uint32_t)-1;
-        info->non_prim.item_index = index;
-        info->non_prim.symbol_index = symbol_index++;
+        info->item_index = index;
+        info->symbol_index = symbol_index++;
       }
     }
 

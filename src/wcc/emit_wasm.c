@@ -125,7 +125,7 @@ static void emit_number(void *ud, const Type *type, Expr *var, Fixnum offset) {
         ri->type = R_WASM_MEMORY_ADDR_I32;
         ri->offset = ds->len;
         ri->addend = offset;
-        ri->index = info->non_prim.symbol_index;
+        ri->index = info->symbol_index;
 
         Vector *reloc_data = edp->reloc_data;
         if (reloc_data == NULL)
@@ -693,16 +693,15 @@ static void emit_linking_section(EmitWasm *ew) {
         const Name *name = varinfo->name;
         data_string(&linking_section, name->chars, name->bytes);
         if (!(info->flag & GVF_UNRESOLVED)) {  // Defined global: put name. otherwise not required.
-          data_uleb128(&linking_section, -1, info->non_prim.item_index);
+          data_uleb128(&linking_section, -1, info->item_index);
           data_uleb128(&linking_section, -1, 0);  // offset (must start from the begining)
           data_uleb128(&linking_section, -1, type_size(varinfo->type));  // size
         }
       } else {
         data_push(&linking_section, SIK_SYMTAB_GLOBAL);  // kind
         data_uleb128(&linking_section, -1, flags);
-        data_uleb128(&linking_section, -1, info->non_prim.item_index);
-        // if (!(info->flag & GVF_UNRESOLVED)) {
-        if (info->non_prim.item_index >= ew->import_global_count) {
+        data_uleb128(&linking_section, -1, info->item_index);
+        if (info->item_index >= ew->import_global_count) {
           const Name *name = varinfo->name;
           data_string(&linking_section, name->chars, name->bytes);
         }

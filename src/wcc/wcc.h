@@ -54,10 +54,12 @@ typedef struct {
     } prim;
     struct {
       uint32_t address;
-      uint32_t item_index;    // global, or data
-      uint32_t symbol_index;  // index in symbol table.
     } non_prim;
   };
+
+  // For object format.
+  uint32_t item_index;    // global, or data
+  uint32_t symbol_index;  // index in symbol table.
 } GVarInfo;
 
 typedef struct {

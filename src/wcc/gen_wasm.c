@@ -499,7 +499,7 @@ static void gen_ref_sub(Expr *expr) {
             ri->type = R_WASM_MEMORY_ADDR_LEB;
             ri->offset = code->len;
             ri->addend = 0;
-            ri->index = info->non_prim.symbol_index;
+            ri->index = info->symbol_index;
             vec_push(extra->reloc_code, ri);
 
             ADD_VARUINT32(info->non_prim.address);
@@ -567,7 +567,7 @@ static void gen_var(Expr *expr, bool needval) {
         GVarInfo *info = get_gvar_info(expr);
         ADD_CODE(OP_GLOBAL_GET);
         if (out_type >= OutExecutable) {
-          ADD_ULEB128(info->non_prim.address);
+          ADD_ULEB128(info->prim.index);
         } else {
           FuncExtra *extra = curfunc->extra;
           DataStorage *code = extra->code;
@@ -575,10 +575,10 @@ static void gen_var(Expr *expr, bool needval) {
           ri->type = R_WASM_GLOBAL_INDEX_LEB;
           ri->offset = code->len;
           ri->addend = 0;
-          ri->index = info->non_prim.symbol_index;
+          ri->index = info->symbol_index;
           vec_push(extra->reloc_code, ri);
 
-          ADD_VARUINT32(0);
+          ADD_VARUINT32(info->prim.index);
         }
       }
     }
@@ -641,10 +641,10 @@ static void gen_set_to_var(Expr *var) {
       ri->type = R_WASM_GLOBAL_INDEX_LEB;
       ri->offset = code->len;
       ri->addend = 0;
-      ri->index = info->non_prim.symbol_index;
+      ri->index = info->symbol_index;
       vec_push(extra->reloc_code, ri);
 
-      ADD_VARUINT32(0);
+      ADD_VARUINT32(info->prim.index);
     }
   }
 }
