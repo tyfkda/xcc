@@ -765,8 +765,7 @@ uint32_t traverse_ast(Vector *decls, Vector *exports, uint32_t stack_size) {
     register_func_info(name, NULL, NULL, FF_REFERRED);
   }
 
-  // Linking information.
-  if (out_type < OutExecutable) {
+  {
     uint32_t symbol_index = 0;
     const Name *name;
     FuncInfo *info;
@@ -780,6 +779,8 @@ uint32_t traverse_ast(Vector *decls, Vector *exports, uint32_t stack_size) {
     uint32_t global_index = 0;
     uint32_t data_index = 0;
     for (int k = 0; k < 3; ++k) {  // 0=unresolved, 1=resolved(data), 2=resolved(bss)
+      static const char *kTitle[] = {"import", "data", "bss"};
+      VERBOSE("### Globals(%s)\n", kTitle[k]);
       for (int i = 0, len = global_scope->vars->len; i < len; ++i) {
         VarInfo *varinfo = global_scope->vars->data[i];
         if (varinfo->storage & VS_ENUM_MEMBER || varinfo->type->kind == TY_FUNC)
@@ -790,9 +791,15 @@ uint32_t traverse_ast(Vector *decls, Vector *exports, uint32_t stack_size) {
         if ((k == 0 && !(info->flag & GVF_UNRESOLVED)) ||
             (k != 0 && ((info->flag & GVF_UNRESOLVED) || (varinfo->global.init == NULL) == (k == 1))))
           continue;
-        uint32_t index = !is_global_datsec_var(varinfo, global_scope) ? global_index++ : !(varinfo->storage & VS_EXTERN) ? data_index++ : (uint32_t)-1;
-        info->item_index = index;
+        if (!is_global_datsec_var(varinfo, global_scope)) {
+          info->item_index = info->prim.index = global_index++;
+        } else if (!(varinfo->storage & VS_EXTERN)) {
+          info->item_index = data_index++;
+        } else {
+          info->item_index = (uint32_t)-1;
+        }
         info->symbol_index = symbol_index++;
+        VERBOSE("%2d: %.*s (%d)\n", info->item_index, NAMES(varinfo->name), info->symbol_index);
       }
     }
 
@@ -848,24 +855,6 @@ uint32_t traverse_ast(Vector *decls, Vector *exports, uint32_t stack_size) {
         VERBOSE("%04x: %.*s  (size=0x%lx)\n", info->non_prim.address, NAMES(varinfo->name), size);
       }
     }
-
-    // Primitive types (Globals).
-    VERBOSES("\n### Globals\n");
-    uint32_t index = 0;
-    for (int i = 0, len = global_scope->vars->len; i < len; ++i) {
-      VarInfo *varinfo = global_scope->vars->data[i];
-      if (varinfo->storage & VS_ENUM_MEMBER || varinfo->type->kind == TY_FUNC)
-        continue;
-      if (is_global_datsec_var(varinfo, global_scope))
-        continue;
-      GVarInfo *info = get_gvar_info_from_name(varinfo->name);
-      if (info == NULL)
-        continue;
-
-      info->prim.index = index++;
-      VERBOSE("%2d: %.*s\n", info->prim.index, NAMES(varinfo->name));
-    }
-    VERBOSES("\n");
 
     // Set initial values.
     sp_bottom = ALIGN(address + stack_size, 16);

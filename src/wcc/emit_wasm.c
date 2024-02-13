@@ -413,7 +413,7 @@ static void emit_global_section(EmitWasm *ew) {
   data_open_chunk(&globals_section);
   data_open_chunk(&globals_section);
   uint32_t globals_count = 0;
-  {
+  for (int k = 0; k < 2; ++k) {  // 0=resolved(data), 1=resolved(bss)
     for (int i = 0, len = global_scope->vars->len; i < len; ++i) {
       VarInfo *varinfo = global_scope->vars->data[i];
       if (varinfo->storage & VS_ENUM_MEMBER || varinfo->type->kind == TY_FUNC)
@@ -422,7 +422,8 @@ static void emit_global_section(EmitWasm *ew) {
       if (info == NULL)
         continue;
 
-      if ((info->flag & GVF_UNRESOLVED) || is_global_datsec_var(varinfo, global_scope))
+      if ((info->flag & GVF_UNRESOLVED) || is_global_datsec_var(varinfo, global_scope) ||
+          (varinfo->global.init == NULL) == (k == 0))
         continue;
       unsigned char wt = to_wtype(varinfo->type);
       data_push(&globals_section, wt);
