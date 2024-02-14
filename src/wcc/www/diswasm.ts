@@ -228,6 +228,20 @@ enum Custom {
   LINKING = 'linking',
   RELOC_CODE = 'reloc.CODE',
   RELOC_DATA = 'reloc.DATA',
+  NAME = 'name',
+}
+
+const enum CustomNameType {
+  MODULE,
+  FUNCTION,
+  LOCAL,
+  LABEL,
+  TYPE,
+  TABLE,
+  MEMORY,
+  GLOBAL,
+  ELEMENT,
+  DATASEG,
 }
 
 const LINKING_VERSION = 2
@@ -288,6 +302,7 @@ const enum OpKind {
   LOAD,
   STORE,
   BR_TABLE,
+  GLOBAL,
   CALL,
   CALL_INDIRECT,
   OMIT_OPERANDS,
@@ -327,7 +342,7 @@ const InstTable = new Map([
   [Opcode.LOCAL_GET, {op: 'local.get', operands: [OperandKind.ULEB128]}],
   [Opcode.LOCAL_SET, {op: 'local.set', operands: [OperandKind.ULEB128]}],
   [Opcode.LOCAL_TEE, {op: 'local.tee', operands: [OperandKind.ULEB128]}],
-  [Opcode.GLOBAL_GET, {op: 'global.get', operands: [OperandKind.ULEB128]}],
+  [Opcode.GLOBAL_GET, {op: 'global.get', operands: [OperandKind.ULEB128], opKind: OpKind.GLOBAL}],
   [Opcode.GLOBAL_SET, {op: 'global.set', operands: [OperandKind.ULEB128]}],
   [Opcode.I32_LOAD, {op: 'i32.load', operands: [OperandKind.ULEB128, OperandKind.ULEB128], opKind: OpKind.LOAD}],
   [Opcode.I64_LOAD, {op: 'i64.load', operands: [OperandKind.ULEB128, OperandKind.ULEB128], opKind: OpKind.LOAD}],
@@ -787,6 +802,7 @@ export class DisWasm {
   private funcs = new Map<number, [string, string]>()
   private importGlobalCount = 0
   private globals = new Map<number, [string, string]>()
+  private names = new Map<number, string>()  // CustomNameType + index * 100
   private log: (s: string)=>void = console.log
 
   constructor(buffer: ArrayBuffer, private opts: any = {}) {
@@ -800,8 +816,10 @@ export class DisWasm {
   public dump(): void {
     if (!this.checkHeader())
       throw Error('No wasm header')
+
     this.log('(module')
     this.log(`;; WASM version: ${this.version}`)
+    this.findNameInfo()
     this.loadSections()
     this.log(')')
   }
@@ -812,6 +830,167 @@ export class DisWasm {
       return false
     this.version = this.bufferReader.readi32()
     return true
+  }
+
+  private findNameInfo(): void {
+    const offsetSaved = this.bufferReader.getOffset()
+    let len = 0
+    let offset = 0
+    let importFuncCount = 0
+    let importGlobalCount = 0
+    for (; !this.bufferReader.isEof(); this.bufferReader.setOffset(offset + len)) {
+      const sec = this.bufferReader.readu8() as Section
+      len = this.bufferReader.readUleb128()
+      offset = this.bufferReader.getOffset()
+      if (sec === Section.IMPORT) {
+        const num = this.bufferReader.readUleb128()
+        for (let i = 0; i < num; ++i) {
+          /*const modName =*/ this.bufferReader.readString()
+          /*const name =*/ this.bufferReader.readString()
+          const kind = this.bufferReader.readu8()
+          switch (kind) {
+          case ImportKind.FUNC:
+            {
+              /*const typeIndex =*/ this.bufferReader.readUleb128()
+              /*const index =*/ this.funcs.size
+              ++importFuncCount
+            }
+            break
+          case ImportKind.TABLE:
+            {
+              /*const tt =*/ readType(this.bufferReader)
+              // this.log(`${this.addr(offset)}(import "${modName}" "${name}" (table ${tt}))`)
+            }
+            break
+          case ImportKind.MEMORY:
+            {
+              // TODO: Confirm
+              /*const index =*/ this.bufferReader.readUleb128()
+              /*const size =*/ this.bufferReader.readUleb128()
+              // this.log(`${this.addr(offset)}(import "${modName}" "${name}" (memory ${size} (;index=${index};)))`)
+            }
+            break
+          case ImportKind.GLOBAL:
+            {
+              // TODO: Confirm
+              /*const type =*/ readType(this.bufferReader)
+              /*const mutable =*/ this.bufferReader.readu8()
+              // const index = this.globals.size
+              // const typename = mutable !== 0 ? `(mut ${type})` : `${type}`
+              // this.log(`${this.addr(offset)}(import "${modName}" "${name}" (global ${typename}))  ;; ${index}`)
+              // this.globals.set(index, [modName, name])
+              ++importGlobalCount
+            }
+            break
+          default:
+            throw(`Illegal import kind: ${kind}`)
+          }
+        }
+      } else if (sec === Section.CUSTOM) {
+        const customSectionOffset = this.bufferReader.getOffset()
+        const name = this.bufferReader.readString()
+        if (name === Custom.LINKING) {
+          const version = this.bufferReader.readUleb128()
+          if (version !== LINKING_VERSION)
+            continue
+
+          while (this.bufferReader.getOffset() < customSectionOffset + len) {
+            const subsectype = this.bufferReader.readu8()
+            const payloadLen = this.bufferReader.readUleb128()
+            const subsecOffset = this.bufferReader.getOffset()
+
+            if (subsectype === LinkingType.WASM_SYMBOL_TABLE) {
+              const count = this.bufferReader.readUleb128()
+              for (let i = 0; i < count; ++i) {
+                const kind = this.bufferReader.readu8()
+                const flags = this.bufferReader.readUleb128()
+
+                switch (kind) {
+                case SymInfoKind.SYMTAB_FUNCTION:
+                case SymInfoKind.SYMTAB_GLOBAL:
+                  {
+                    const index = this.bufferReader.readUleb128()
+
+                    switch (kind) {
+                    case SymInfoKind.SYMTAB_FUNCTION:
+                      if (index >= importFuncCount || (flags & SymFlags.WASM_SYM_EXPLICIT_NAME)) {
+                        const symname = this.bufferReader.readString()
+                        this.setCustomName(CustomNameType.FUNCTION, index, symname)
+                      }
+                      break
+                    case SymInfoKind.SYMTAB_GLOBAL:
+                      if (index >= importGlobalCount || (flags & SymFlags.WASM_SYM_EXPLICIT_NAME)) {
+                        const symname = this.bufferReader.readString()
+                        this.setCustomName(CustomNameType.GLOBAL, index, symname)
+                      }
+                      break
+                    default: break
+                    }
+                  }
+                  break
+                case SymInfoKind.SYMTAB_DATA:
+                  {
+                    /*const symname =*/ this.bufferReader.readString()
+                    if (!(flags & SymFlags.WASM_SYM_UNDEFINED)) {
+                      /*const index =*/ this.bufferReader.readUleb128()
+                      /*const suboffset =*/ this.bufferReader.readUleb128()
+                      /*const size =*/ this.bufferReader.readUleb128()
+                      // this.setCustomName(CustomNameType.DATASEG, index, symname)
+                    }
+                  }
+                  break
+                case SymInfoKind.SYMTAB_EVENT:
+                  {
+                    /*const typeindex =*/ this.bufferReader.readUleb128()
+                    /*const symname =*/ this.bufferReader.readString()
+                  }
+                  break
+                default:  break
+                }
+              }
+            }
+            this.bufferReader.setOffset(subsecOffset + payloadLen)
+          }
+          break
+        }
+        if (name === Custom.NAME) {
+          while (this.bufferReader.getOffset() < customSectionOffset + len) {
+            const nametype = this.bufferReader.readu8()
+            const payloadLen = this.bufferReader.readUleb128()
+            const subsecOffset2 = this.bufferReader.getOffset()
+
+            switch (nametype) {
+            case CustomNameType.MODULE:
+            case CustomNameType.FUNCTION:
+            case CustomNameType.LOCAL:
+            case CustomNameType.LABEL:
+            case CustomNameType.TYPE:
+            case CustomNameType.TABLE:
+            case CustomNameType.MEMORY:
+            case CustomNameType.GLOBAL:
+            case CustomNameType.ELEMENT:
+            case CustomNameType.DATASEG:
+              {
+                const count = this.bufferReader.readUleb128()
+                for (let i = 0; i < count; ++i) {
+                  const index = this.bufferReader.readUleb128()
+                  const name = this.bufferReader.readString()
+                  this.setCustomName(nametype as CustomNameType, index, name)
+                }
+              }
+              break
+            default:
+              console.assert(`Illegal name type: ${nametype}`)
+              break
+            }
+
+            this.bufferReader.setOffset(subsecOffset2 + payloadLen)
+          }
+          break
+        }
+      }
+    }
+    this.bufferReader.setOffset(offsetSaved)
   }
 
   private loadSections(): void {
@@ -933,6 +1112,19 @@ export class DisWasm {
       [SymFlags.WASM_SYM_TLS,                'TLS'],
       [SymFlags.WASM_SYM_ABSOLUTE,           'ABSOLUTE'],
     ])
+
+    const kNameTypeNames: Record<CustomNameType, string> = {
+      [CustomNameType.MODULE]:               'module',
+      [CustomNameType.FUNCTION]:             'func',
+      [CustomNameType.LOCAL]:                'local',
+      [CustomNameType.LABEL]:                'label',
+      [CustomNameType.TYPE]:                 'type',
+      [CustomNameType.TABLE]:                'table',
+      [CustomNameType.MEMORY]:               'memory',
+      [CustomNameType.GLOBAL]:               'global',
+      [CustomNameType.ELEMENT]:              'element',
+      [CustomNameType.DATASEG]:              'dataseg',
+    }
 
     const customSectionOffset = this.bufferReader.getOffset()
     const name = this.bufferReader.readString()
@@ -1080,6 +1272,48 @@ export class DisWasm {
         this.log(';;   )')
       }
       break
+    case Custom.NAME:
+      {
+        this.log(`${this.addr(customSectionOffset)};; (custom "${name}"`)
+        while (this.bufferReader.getOffset() < customSectionOffset + len) {
+          const subsecOffset1 = this.bufferReader.getOffset()
+          const nametype = this.bufferReader.readu8()
+          const payloadLen = this.bufferReader.readUleb128()
+          const subsecOffset2 = this.bufferReader.getOffset()
+
+          switch (nametype) {
+          case CustomNameType.MODULE:
+          case CustomNameType.FUNCTION:
+          case CustomNameType.LOCAL:
+          case CustomNameType.LABEL:
+          case CustomNameType.TYPE:
+          case CustomNameType.TABLE:
+          case CustomNameType.MEMORY:
+          case CustomNameType.GLOBAL:
+          case CustomNameType.ELEMENT:
+          case CustomNameType.DATASEG:
+            {
+              const count = this.bufferReader.readUleb128()
+              for (let i = 0; i < count; ++i) {
+                const offset = this.bufferReader.getOffset()
+                const index = this.bufferReader.readUleb128()
+                const name = this.bufferReader.readString()
+                const tname = kNameTypeNames[nametype as CustomNameType]
+                this.log(`${this.addr(offset)};;   (${tname}:${index} "${name}")`)
+                this.names.set(nametype + index * 100, name)
+              }
+            }
+            break
+          default:
+            this.log(`${this.addr(subsecOffset1)};;   (nametype=${nametype})`)
+            break
+          }
+
+          this.bufferReader.setOffset(subsecOffset2 + payloadLen)
+        }
+        this.log(';;   )')
+      }
+      break
     default:
       this.log(`${this.addr(customSectionOffset)};; (custom "${name}")`)
       break
@@ -1147,9 +1381,11 @@ export class DisWasm {
 
   private readFuncSection(): void {
     const num = this.bufferReader.readUleb128()
+    this.log(`;; func: #${num}`)
     for (let i = 0; i < num; ++i) {
       const typeIndex = this.bufferReader.readUleb128()
       this.functions.push(typeIndex)
+      this.log(`;;   func ${i + this.importFuncCount}: type=#${typeIndex}`)
     }
   }
 
@@ -1183,6 +1419,17 @@ export class DisWasm {
     }
   }
 
+  private getCustomName(t: CustomNameType, index: number): string | undefined {
+    const nameIndex = (t as number) + index * 100
+    const name = this.names.get(nameIndex)
+    return name == null ? name : `$${name}`  // '$' is prepended.
+  }
+
+  private setCustomName(t: CustomNameType, index: number, name: string): void {
+    const nameIndex = (t as number) + index * 100
+    this.names.set(nameIndex, name)
+  }
+
   private readGlobalSection(): void {
     const num = this.bufferReader.readUleb128()
     for (let i = 0; i < num; ++i) {
@@ -1190,7 +1437,8 @@ export class DisWasm {
       const type = readType(this.bufferReader)
       const mut = this.bufferReader.readu8()
       const value = readGlobalValue(this.bufferReader)
-      this.log(`${this.addr(offset)}(global ${mut !== 0 ? `(mut ${type})` : `${type}`} (${type}.const ${value}))  ;; ${i}`)
+      const name = this.getCustomName(CustomNameType.GLOBAL, i) ?? `(;$i;)`
+      this.log(`${this.addr(offset)}(global ${name} ${mut !== 0 ? `(mut ${type})` : `${type}`} (${type}.const ${value}))`)
       this.bufferReader.readu8()  // Skip OP_END
     }
   }
@@ -1222,8 +1470,11 @@ export class DisWasm {
            this.bufferReader.readu8() !== Opcode.END))
         throw 'Unsupported elem section'
       const count = this.bufferReader.readUleb128()
-      const indices = [...Array(count)].map(_ => this.bufferReader.readUleb128())
-      this.log(`(elem (i32.const ${start}) func ${indices.join(' ')})  ;; ${i}`)
+      const elements = [...Array(count)].map(_ => {
+        const index = this.bufferReader.readUleb128()
+        return this.getCustomName(CustomNameType.FUNCTION, index) ?? `${index}`
+      })
+      this.log(`(elem (i32.const ${start}) func ${elements.join(' ')})  ;; ${i}`)
     }
   }
 
@@ -1234,7 +1485,10 @@ export class DisWasm {
       const typeIndex = this.functions[i]
       const funcNo = i + this.importFuncCount
       let funcComment = `(;${funcNo};)`
-      if (this.funcs.has(funcNo)) {
+      const customName = this.getCustomName(CustomNameType.FUNCTION, funcNo)
+      if (customName != null) {
+        funcComment = `${customName} ${funcComment}`
+      } else if (this.funcs.has(funcNo)) {
         const [_mod, name] = this.funcs.get(funcNo)!
         funcComment = `$${name} ${funcComment}`
       }
@@ -1318,10 +1572,27 @@ export class DisWasm {
         case OpKind.BR_TABLE:
           operands = `${(inst.operands[0] as Array<number>).join(' ')} ${inst.operands[1]}`
           break
+        case OpKind.GLOBAL:
+          {
+            const no = inst.operands[0] as number
+            const customName = this.getCustomName(CustomNameType.GLOBAL, no)
+            if (customName != null) {
+              operands = customName
+            } else if (this.globals.has(no)) {
+              const [_mod, name] = this.globals.get(no)!
+              operands = `$${name}`
+            } else {
+              operands = `${no}`
+            }
+          }
+          break
         case OpKind.CALL:
           {
             const funcNo = inst.operands[0] as number
-            if (this.funcs.has(funcNo)) {
+            const customName = this.getCustomName(CustomNameType.FUNCTION, funcNo)
+            if (customName != null) {
+              operands = customName
+            } else if (this.funcs.has(funcNo)) {
               const [_mod, name] = this.funcs.get(funcNo)!
               operands = `$${name}`
             } else {
@@ -1379,7 +1650,8 @@ export class DisWasm {
         data[j] = escapeChar(c)
       }
 
-      this.log(`${this.addr(offset)}(data (;${i};) (i32.const ${start}) "${data.join('')}")`)
+      const name = this.getCustomName(CustomNameType.DATASEG, i) ?? `(;${i};)`
+      this.log(`${this.addr(offset)}(data ${name} (i32.const ${start}) "${data.join('')}")`)
     }
   }
 
