@@ -7,6 +7,7 @@
 
 #include "ast.h"
 #include "cc_misc.h"
+#include "fe_misc.h"  // satisfy_inline_criteria
 #include "table.h"
 #include "type.h"
 #include "util.h"
@@ -348,6 +349,8 @@ static void emit_function_section(EmitWasm *ew) {
       Function *func = info->func;
       if (func == NULL || info->flag == 0)
         continue;
+      if (satisfy_inline_criteria(info->varinfo) && !(info->varinfo->storage & VS_STATIC))
+        continue;
       ++function_count;
       int type_index = info->type_index;
       data_uleb128(&functions_section, -1, type_index);  // function i signature index
@@ -567,6 +570,8 @@ static void emit_code_section(EmitWasm *ew) {
       Function *func = info->func;
       if (func == NULL || info->flag == 0)
         continue;
+      if (satisfy_inline_criteria(info->varinfo) && !(info->varinfo->storage & VS_STATIC))
+        continue;
       FuncExtra* extra = func->extra;
       DataStorage *code = extra->code;
       data_concat(&codesec, code);
@@ -651,6 +656,8 @@ static void emit_linking_section(EmitWasm *ew) {
       if (info->flag == 0 ||
           (k == 0 && info->func != NULL) ||  // Put external function first.
           (k == 1 && info->func == NULL))    // Defined function later.
+        continue;
+      if (satisfy_inline_criteria(info->varinfo) && !(info->varinfo->storage & VS_STATIC))
         continue;
 
       int flags = 0;
@@ -804,6 +811,8 @@ static void emit_reloc_code_section(EmitWasm *ew) {
   for (int it = 0; (it = table_iterate(&func_info_table, it, &name, (void**)&info)) != -1; ) {
     Function *func = info->func;
     if (func == NULL || info->flag == 0)
+      continue;
+    if (satisfy_inline_criteria(info->varinfo) && !(info->varinfo->storage & VS_STATIC))
       continue;
 
     FuncExtra *extra = func->extra;

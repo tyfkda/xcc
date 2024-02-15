@@ -772,6 +772,8 @@ uint32_t traverse_ast(Vector *decls, Vector *exports, uint32_t stack_size) {
     for (int it = 0; (it = table_iterate(&func_info_table, it, &name, (void**)&info)) != -1; ) {
       if (info->flag == 0)
         continue;
+      if (satisfy_inline_criteria(info->varinfo) && !(info->varinfo->storage & VS_STATIC))
+        continue;
       ++symbol_index;
     }
 
@@ -819,6 +821,8 @@ uint32_t traverse_ast(Vector *decls, Vector *exports, uint32_t stack_size) {
     for (int k = 0; k < 2; ++k) {  // 0: import, 1: defined-and-referred
       for (int it = 0; (it = table_iterate(&func_info_table, it, &name, (void**)&info)) != -1; ) {
         if (info->flag == 0 || (k == 0) == (info->func != NULL))
+          continue;
+        if (satisfy_inline_criteria(info->varinfo) && !(info->varinfo->storage & VS_STATIC))
           continue;
         info->index = index++;
         VERBOSE("%2d: %.*s%s\n", info->index, NAMES(name), k == 0 ? "  (import)" : "");
