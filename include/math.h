@@ -54,24 +54,24 @@ int isinf(double x);
 #include <stdint.h>
 #define isfinite(x)  ({ \
   const int64_t __mask = ((((int64_t)1 << 11) - 1) << 52); \
-  double __tmp = (x); \
-  int64_t __q = *(int64_t*)&__tmp; \
-  (__q & __mask) != __mask; \
+  union { double d; int64_t q; } __u; \
+  __u.d = (x); \
+  (__u.q & __mask) != __mask; \
 })
 
 #define isinf(x)  ({ \
   const int64_t __mask = ((((int64_t)1 << 11) - 1) << 52); \
   const int64_t __mask2 = ((((int64_t)1 << 12) - 1) << 51); \
-  double __tmp = (x); \
-  int64_t __q = *(int64_t*)&__tmp; \
-  (__q & __mask2) == __mask; \
+  union { double d; int64_t q; } __u; \
+  __u.d = (x); \
+  (__u.q & __mask2) == __mask; \
 })
 
 #define isnan(x)  ({ \
   const int64_t __mask2 = ((((int64_t)1 << 12) - 1) << 51); \
-  double __tmp = (x); \
-  int64_t __q = *(int64_t*)&__tmp; \
-  (__q & __mask2) == __mask2; \
+  union { double d; int64_t q; } __u; \
+  __u.d = (x); \
+  (__u.q & __mask2) == __mask2; \
 })
 
 #endif

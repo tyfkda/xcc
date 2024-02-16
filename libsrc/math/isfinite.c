@@ -5,7 +5,8 @@
 #ifndef __NO_FLONUM
 #undef isfinite
 int isfinite(double x) {
-  int64_t q = *(int64_t*)&x;
-  return (q & EXPO_MASK) != EXPO_MASK;
+  union { double d; int64_t q; } u;
+  u.d = x;
+  return (u.q & EXPO_MASK) != EXPO_MASK;
 }
 #endif
