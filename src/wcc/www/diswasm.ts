@@ -1306,8 +1306,10 @@ export class DisWasm {
             const attrs = []
             if (offset !== 0)
               attrs.push(`offset=${offset}`)
-            if (!(((inst.opstr.startsWith('i32') || inst.opstr.startsWith('f32')) && align === 2) ||
-                  ((inst.opstr.startsWith('i64') || inst.opstr.startsWith('f64')) && align === 3)))
+            if (!((inst.opstr.match(/(load8|store8)/) && align === 0) ||
+                  (inst.opstr.match(/(load16|store16)/) && align === 1) ||
+                  (inst.opstr.match(/(^i32|^f32|load32|store32)/) && align === 2) ||
+                  (inst.opstr.match(/(^i64|^f64)/) && align === 3)))
               attrs.push(`align=${1 << (align as number)}`)
             if (attrs.length > 0)
               operands = attrs.join(' ')
