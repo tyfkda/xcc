@@ -729,10 +729,10 @@ static void emit_linking_section(EmitWasm *ew) {
   if (tags->len > 0) {  // Tag
     for (int i = 0, len = tags->len; i < len; ++i) {
       TagInfo *ti = tags->data[i];
-      int flags = 0;
+      int flags = WASM_SYM_BINDING_WEAK;
       data_push(&linking_section, SIK_SYMTAB_EVENT);  // kind
       data_uleb128(&linking_section, -1, flags);
-      data_uleb128(&linking_section, -1, i);
+      data_uleb128(&linking_section, -1, ti->typeindex);
       data_string(&linking_section, ti->name->chars, ti->name->bytes);
       ++count;
     }

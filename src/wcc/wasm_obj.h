@@ -96,6 +96,9 @@ typedef struct {
       uint32_t p2align;
       uint32_t address;
     } data;
+    struct {
+      uint32_t typeindex;
+    } tag;
   };
 
   uint32_t combined_index;

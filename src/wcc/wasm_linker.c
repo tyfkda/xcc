@@ -348,6 +348,23 @@ static void read_linking(WasmObj *wasmobj, unsigned char *p, unsigned char *end)
               vec_push(wasmobj->linking.symtab, sym);
             }
             break;
+          case SIK_SYMTAB_EVENT:
+            {
+              uint32_t typeindex = read_uleb128(p, &p);
+              const Name *symname = read_wasm_string(p, &p);
+              if (typeindex >= (uint32_t)wasmobj->types->len)
+                error("illegal type index for event: %.*s", NAMES(symname));
+
+              SymbolInfo *sym = calloc_or_die(sizeof(*sym));
+              sym->module_name = NULL;
+              sym->name = symname;
+              sym->kind = kind;
+              sym->flags = flags;
+              sym->local_index = -1;  // Unused.
+              sym->tag.typeindex = typeindex;
+              vec_push(wasmobj->linking.symtab, sym);
+            }
+            break;
 
           default:
             error("linking not handled: %d", linking_type);
@@ -604,7 +621,8 @@ static bool resolve_symbols(WasmLinker *linker) {
         table_put(&linker->defined, name, (void*)sym);
         break;
       }
-
+      // Fallthrough.
+    case SIK_SYMTAB_EVENT:
       fprintf(stderr, "Unresolved: %.*s\n", NAMES(name));
       ++err_count;
       break;
@@ -639,6 +657,15 @@ static void renumber_symbols(WasmLinker *linker) {
         break;
       case SIK_SYMTAB_GLOBAL:
         // Handled differently (just below).
+        break;
+      case SIK_SYMTAB_EVENT:
+        {
+          if (sym->tag.typeindex >= (uint32_t)wasmobj->types->len)
+            error("illegal type index for event: %.*s", NAMES(sym->name));
+          uint32_t typeindex = VOIDP2INT(wasmobj->types->data[sym->tag.typeindex]);
+          TagInfo *ti = getsert_tag(sym->name, typeindex);
+          sym->combined_index = ti->index;
+        }
         break;
       }
     }
@@ -826,6 +853,15 @@ static void apply_relocation(WasmLinker *linker) {
             put_varuint32(q, index, p);
           }
           continue;
+        case R_WASM_TAG_INDEX_LEB:
+          {
+            if (p->index >= (uint32_t)symtab->len)
+              error("illegal symbol index: %d", p->index);
+            SymbolInfo *sym = symtab->data[p->index];
+            put_varuint32(q, sym->combined_index, p);
+          }
+          continue;
+
         default: break;
         }
 
