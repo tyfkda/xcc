@@ -63,6 +63,7 @@ typedef struct {
 } GVarInfo;
 
 typedef struct {
+  const Name *name;
   int typeindex;
   uint32_t index;
   uint32_t symbol_index;
@@ -143,7 +144,7 @@ uint32_t get_indirect_function_index(const Name *name);
 GVarInfo *register_gvar_info(const Name *name, VarInfo *varinfo);
 GVarInfo *get_gvar_info_from_name(const Name *name);
 int getsert_func_type(unsigned char *buf, size_t size, bool reg);
-TagInfo *getsert_tag(int typeindex);
+TagInfo *getsert_tag(const Name *name, int typeindex);
 
 void write_wasm_header(FILE *ofp);
 

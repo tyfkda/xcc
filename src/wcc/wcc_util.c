@@ -60,15 +60,19 @@ int getsert_func_type(unsigned char *buf, size_t size, bool reg) {
   return -1;
 }
 
-TagInfo *getsert_tag(int typeindex) {
+TagInfo *getsert_tag(const Name *name, int typeindex) {
   uint32_t len = tags->len;
   for (uint32_t i = 0; i < len; ++i) {
     TagInfo *t = tags->data[i];
-    if (t->typeindex == typeindex)
+    if (equal_name(t->name, name)) {
+      if (t->typeindex != typeindex)
+        error("Tag type mismatch: %.*s", NAMES(name));
       return t;
+    }
   }
 
   TagInfo *t = calloc_or_die(sizeof(*t));
+  t->name = name;
   t->typeindex = typeindex;
   t->index = len;
   vec_push(tags, t);

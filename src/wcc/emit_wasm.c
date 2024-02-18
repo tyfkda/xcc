@@ -719,15 +719,13 @@ static void emit_linking_section(EmitWasm *ew) {
     }
   }
   if (tags->len > 0) {  // Tag
-    assert(tags->len == 1);
-    static const char kTagName[] = "__c_longjmp";
     for (int i = 0, len = tags->len; i < len; ++i) {
-      // TagInfo *ti = tags->data[i];
+      TagInfo *ti = tags->data[i];
       int flags = 0;
       data_push(&linking_section, SIK_SYMTAB_EVENT);  // kind
       data_uleb128(&linking_section, -1, flags);
       data_uleb128(&linking_section, -1, i);
-      data_string(&linking_section, kTagName, sizeof(kTagName) - 1);
+      data_string(&linking_section, ti->name->chars, ti->name->bytes);
       ++count;
     }
   }
