@@ -550,6 +550,13 @@ static void traverse_vardecl(Stmt *stmt) {
         if (varinfo->type->kind == TY_FUNC) {
           // Local extern function declaration.
           register_func_info(decl->ident, NULL, varinfo, 0);
+        } else if (varinfo->storage & VS_EXTERN) {
+          assert(!is_global_scope(curscope));
+          if (out_type < OutExecutable) {
+            // Register into global to output linking information.
+            GVarInfo *info = register_gvar_info(decl->ident, varinfo);  // TODO: Confirm.
+            info->flag |= GVF_UNRESOLVED;
+          }
         }
         if (!(varinfo->storage & (VS_EXTERN | VS_STATIC)))
           traverse_initializer(varinfo->local.init);
@@ -783,12 +790,10 @@ uint32_t traverse_ast(Vector *decls, Vector *exports, uint32_t stack_size) {
     for (int k = 0; k < 3; ++k) {  // 0=unresolved, 1=resolved(data), 2=resolved(bss)
       static const char *kTitle[] = {"import", "data", "bss"};
       VERBOSE("### Globals(%s)\n", kTitle[k]);
-      for (int i = 0, len = global_scope->vars->len; i < len; ++i) {
-        VarInfo *varinfo = global_scope->vars->data[i];
+      GVarInfo *info;
+      for (int it = 0; (it = table_iterate(&gvar_info_table, it, &name, (void**)&info)) != -1; ) {
+        const VarInfo *varinfo = info->varinfo;
         if (varinfo->storage & VS_ENUM_MEMBER || varinfo->type->kind == TY_FUNC)
-          continue;
-        GVarInfo *info = get_gvar_info_from_name(varinfo->name);
-        if (info == NULL)
           continue;
         if ((k == 0 && !(info->flag & GVF_UNRESOLVED)) ||
             (k != 0 && ((info->flag & GVF_UNRESOLVED) || (varinfo->global.init == NULL) == (k == 1))))
@@ -841,14 +846,13 @@ uint32_t traverse_ast(Vector *decls, Vector *exports, uint32_t stack_size) {
     for (int k = 0; k < 2; ++k) {  // 0: data, 1: bss
       if (k == 1)
         VERBOSE("---- BSS  0x%x\n", address);
-      for (int i = 0, len = global_scope->vars->len; i < len; ++i) {
-        VarInfo *varinfo = global_scope->vars->data[i];
+      const Name *name;
+      GVarInfo *info;
+      for (int it = 0; (it = table_iterate(&gvar_info_table, it, &name, (void**)&info)) != -1; ) {
+        const VarInfo *varinfo = info->varinfo;
         if (varinfo->storage & (VS_EXTERN | VS_ENUM_MEMBER) || varinfo->type->kind == TY_FUNC)
           continue;
         if ((varinfo->global.init == NULL) == (k == 0) || !is_global_datsec_var(varinfo, global_scope))
-          continue;
-        GVarInfo *info = get_gvar_info_from_name(varinfo->name);
-        if (info == NULL)
           continue;
 
         // Mapped to memory

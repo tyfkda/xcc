@@ -181,15 +181,14 @@ static Vector *construct_data_segment(void) {
   uint32_t address = 0;
 #endif
   for (int k = 0; k < 2; ++k) {  // 0=data, 1=bss
-    for (int i = 0, len = global_scope->vars->len; i < len; ++i) {
-      VarInfo *varinfo = global_scope->vars->data[i];
+    const Name *name;
+    GVarInfo *info;
+    for (int it = 0; (it = table_iterate(&gvar_info_table, it, &name, (void**)&info)) != -1; ) {
+      const VarInfo *varinfo = info->varinfo;
       if (varinfo->storage & (VS_EXTERN | VS_ENUM_MEMBER) || varinfo->type->kind == TY_FUNC)
         continue;
       if ((k == 0) == (varinfo->global.init == NULL) ||
           !is_global_datsec_var(varinfo, global_scope))
-        continue;
-      GVarInfo *info = get_gvar_info_from_name(varinfo->name);
-      if (info == NULL)
         continue;
 
 #ifndef NDEBUG
@@ -417,12 +416,11 @@ static void emit_global_section(EmitWasm *ew) {
   data_open_chunk(&globals_section);
   uint32_t globals_count = 0;
   for (int k = 0; k < 2; ++k) {  // 0=resolved(data), 1=resolved(bss)
-    for (int i = 0, len = global_scope->vars->len; i < len; ++i) {
-      VarInfo *varinfo = global_scope->vars->data[i];
+    const Name *name;
+    GVarInfo *info;
+    for (int it = 0; (it = table_iterate(&gvar_info_table, it, &name, (void**)&info)) != -1; ) {
+      const VarInfo *varinfo = info->varinfo;
       if (varinfo->storage & VS_ENUM_MEMBER || varinfo->type->kind == TY_FUNC)
-        continue;
-      GVarInfo *info = get_gvar_info_from_name(varinfo->name);
-      if (info == NULL)
         continue;
 
       if ((info->flag & GVF_UNRESOLVED) || is_global_datsec_var(varinfo, global_scope) ||
@@ -678,8 +676,10 @@ static void emit_linking_section(EmitWasm *ew) {
   }
   // Globals
   for (int k = 0; k < 3; ++k) {  // 0=unresolved, 1=resolved(data), 2=resolved(bss)
-    for (int i = 0, len = global_scope->vars->len; i < len; ++i) {
-      VarInfo *varinfo = global_scope->vars->data[i];
+    const Name *name;
+    GVarInfo *info;
+    for (int it = 0; (it = table_iterate(&gvar_info_table, it, &name, (void**)&info)) != -1; ) {
+      const VarInfo *varinfo = info->varinfo;
       if (varinfo->storage & VS_ENUM_MEMBER || varinfo->type->kind == TY_FUNC)
         continue;
       GVarInfo *info = get_gvar_info_from_name(varinfo->name);
