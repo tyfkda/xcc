@@ -321,12 +321,13 @@ void modify_ast_for_setjmp(int n) {
   //   if (var == 0) { ... } else { ... }
   // to:
   //   int var = 0;
+  //   jmpbuf[0] = __stack_pointer;
   //   for (;;) {
-  //     __try({
+  //     __try_catch_longjmp(({
   //       if (var == 0) { ... } else { ... }
   //       break;
-  //     }), /*catch*/ ({
-  //       var = param;
+  //     }), var, /*catch*/ ({
+  //       var = jmpbuf[1];
   //     });
   //   }
 

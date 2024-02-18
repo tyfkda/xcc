@@ -3,7 +3,7 @@
 #include <stdint.h>  // uintptr_t
 
 #if defined(__WASM)
-typedef uintptr_t jmp_buf[1];  // Stack pointer.
+typedef uintptr_t jmp_buf[2];  // 0=Stack pointer, 1=longjmp-result.
 
 #elif defined(__aarch64__)
 typedef uintptr_t jmp_buf[192 / 8];

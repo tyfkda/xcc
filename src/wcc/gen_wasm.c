@@ -1748,9 +1748,8 @@ void gen(Vector *decls) {
 
 static TagInfo *register_longjmp_tag(void) {
   static const char kTagName[] = "__c_longjmp";
-  // Exception type: (int result, jmp_buf* env)
+  // Exception type: (jmp_buf* env)
   Vector *params = new_vector();
-  vec_push(params, &tyInt);
   vec_push(params, &tyVoidPtr);
   Type *functype = new_func_type(&tyVoid, params, false);
   int typeindex = getsert_func_type_index(functype, true);
@@ -1783,6 +1782,9 @@ static void gen_builtin_longjmp(Expr *expr, enum BuiltinFunctionPhase phase) {
   Vector *args = expr->funcall.args;
   assert(args->len == 2);
 
+  Expr *env = args->data[0];  // TODO: Assume no side effect.
+  // env[1] = result == 0 ? 1 : result;
+  gen_expr(env, true);
   // result == 0 ? 1 : result
   Expr *result = args->data[1];
   if (is_const(result)) {
@@ -1797,8 +1799,9 @@ static void gen_builtin_longjmp(Expr *expr, enum BuiltinFunctionPhase phase) {
     gen_expr(args->data[1], true);  // Assume result has no side effect.
     ADD_CODE(OP_SELECT);
   }
+  ADD_CODE(OP_I32_STORE, 2, 4);
 
-  gen_expr(args->data[0], true);
+  gen_expr(env, true);
   TagInfo *ti = register_longjmp_tag();
   ADD_CODE(OP_THROW);
   if (out_type >= OutExecutable) {
@@ -1858,10 +1861,12 @@ static void gen_builtin_try_catch_longjmp(Expr *expr, enum BuiltinFunctionPhase 
                  OP_RETHROW, 1,
                  OP_END);
         Expr *var = args->data[1];
-        if (var != NULL)
+        if (var != NULL) {
+          // var = env[1];
+          gen_expr(env, true);
+          ADD_CODE(OP_I32_LOAD, 2, 4);
           gen_set_to_var(var);
-        else
-          ADD_CODE(OP_DROP);
+        }
         // Restore stack pointer: sp = *env;
         const Token *token = expr->token;
         Expr *spvar = get_sp_var();
