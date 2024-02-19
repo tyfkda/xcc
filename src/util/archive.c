@@ -7,14 +7,7 @@
 // https://sourceware.org/git/?p=binutils-gdb.git;a=blob;f=include/aout/ar.h;h=471a859fc57c7d8207193718610980f6bf2f83b3;hb=2cb5c79dad39dd438fb0f7372ac04cf5aa2a7db7
 #include <ar.h>
 
-#include "elfobj.h"
 #include "util.h"
-
-static void read_or_die(FILE *fp, void *buf, size_t size, const char *msg) {
-  size_t count = fread(buf, size, 1, fp);
-  if (count != 1)
-    error(msg);
-}
 
 // 4bytes big endian
 static uint32_t read4be(FILE *fp) {
@@ -76,46 +69,4 @@ Archive *load_archive(const char *filename) {
     }
   }
   return ar;
-}
-
-ElfObj *load_archive_elfobj(Archive *ar, uint32_t offset) {
-  Vector *contents = ar->contents;
-  for (int i = 0; i < contents->len; i += 2) {
-    if (VOIDP2INT(contents->data[i]) == offset) {
-      // Already loaded.
-      return NULL;
-    }
-  }
-
-  fseek(ar->fp, offset, SEEK_SET);
-
-  struct ar_hdr hdr;
-  read_or_die(ar->fp, &hdr, sizeof(hdr), "hdr");
-  if (memcmp(hdr.ar_fmag, ARFMAG, sizeof(hdr.ar_fmag)) != 0)
-    error("Malformed archive");
-
-  ArContent *content = malloc_or_die(sizeof(*content) + sizeof(hdr.ar_name));
-
-  memcpy(content->name, hdr.ar_name, sizeof(hdr.ar_name));
-  char *p = memchr(content->name, '/', sizeof(hdr.ar_name));
-  if (p == NULL)
-    p = &content->name[sizeof(hdr.ar_name)];
-  *p = '\0';
-
-  char sizestr[sizeof(hdr.ar_size) + 1];
-  memcpy(sizestr, hdr.ar_size, sizeof(hdr.ar_size));
-  sizestr[sizeof(hdr.ar_size)] = '\0';
-  content->size = strtoul(sizestr, NULL, 10);
-
-  ElfObj *elfobj = malloc_or_die(sizeof(*elfobj));
-  content->elfobj = elfobj;
-  elfobj_init(elfobj);
-  if (!read_elf(elfobj, ar->fp, content->name)) {
-    error("Failed to extract .o: %s", content->name);
-  }
-
-  vec_push(contents, INT2VOIDP(offset));
-  vec_push(contents, content);
-
-  return elfobj;
 }

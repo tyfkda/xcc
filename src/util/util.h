@@ -27,6 +27,7 @@ int isoctal(int c);
 int xvalue(char c);
 bool starts_with(const char *str, const char *prefix);
 int most_significant_bit(size_t x);
+void read_or_die(FILE *fp, void *buf, size_t size, const char *msg);
 void *malloc_or_die(size_t size);
 void *calloc_or_die(size_t size);  // No `count` argument.
 void *realloc_or_die(void *ptr, size_t size);

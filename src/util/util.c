@@ -59,6 +59,12 @@ int most_significant_bit(size_t x) {
   }
 }
 
+void read_or_die(FILE *fp, void *buf, size_t size, const char *msg) {
+  size_t count = fread(buf, size, 1, fp);
+  if (count != 1)
+    error(msg);
+}
+
 void *malloc_or_die(size_t size) {
   void *p = malloc(size);
   if (p == NULL) {

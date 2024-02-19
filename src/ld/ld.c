@@ -1,3 +1,4 @@
+#include <ar.h>
 #include <assert.h>
 #include <fcntl.h>
 #include <stdbool.h>
@@ -20,6 +21,56 @@ static const char kDefaultEntryName[] = "_start";
 #define START_ADDRESS   (0x01000000 + PROG_START)
 #define LOAD_ADDRESS    START_ADDRESS
 #define DATA_ALIGN      (0x1000)
+
+//
+
+typedef struct {
+  ElfObj *elfobj;
+  size_t size;
+  char name[1];  // [sizeof(((struct ar_hdr*)0)->ar_name) + 1]
+} ArContent;
+
+ElfObj *load_archive_elfobj(Archive *ar, uint32_t offset) {
+  Vector *contents = ar->contents;
+  for (int i = 0; i < contents->len; i += 2) {
+    if (VOIDP2INT(contents->data[i]) == offset) {
+      // Already loaded.
+      return NULL;
+    }
+  }
+
+  fseek(ar->fp, offset, SEEK_SET);
+
+  struct ar_hdr hdr;
+  read_or_die(ar->fp, &hdr, sizeof(hdr), "hdr");
+  if (memcmp(hdr.ar_fmag, ARFMAG, sizeof(hdr.ar_fmag)) != 0)
+    error("Malformed archive");
+
+  ArContent *content = malloc_or_die(sizeof(*content) + sizeof(hdr.ar_name));
+
+  memcpy(content->name, hdr.ar_name, sizeof(hdr.ar_name));
+  char *p = memchr(content->name, '/', sizeof(hdr.ar_name));
+  if (p == NULL)
+    p = &content->name[sizeof(hdr.ar_name)];
+  *p = '\0';
+
+  char sizestr[sizeof(hdr.ar_size) + 1];
+  memcpy(sizestr, hdr.ar_size, sizeof(hdr.ar_size));
+  sizestr[sizeof(hdr.ar_size)] = '\0';
+  content->size = strtoul(sizestr, NULL, 10);
+
+  ElfObj *elfobj = malloc_or_die(sizeof(*elfobj));
+  content->elfobj = elfobj;
+  elfobj_init(elfobj);
+  if (!read_elf(elfobj, ar->fp, content->name)) {
+    error("Failed to extract .o: %s", content->name);
+  }
+
+  vec_push(contents, INT2VOIDP(offset));
+  vec_push(contents, content);
+
+  return elfobj;
+}
 
 //
 
