@@ -72,6 +72,10 @@ Compile C to WebAssembly/WASI binary.
 
 [Online demo](https://tyfkda.github.io/xcc/)
 
+#### Requirements
+
+  * `llvm-ar`
+
 #### Build
 
 ```sh

@@ -15,15 +15,23 @@ endif
 
 ### Library
 
-CRT0_SRCS:=$(wildcard $(SRC_DIR)/crt0/*.c)
+CRT0_DIR:=$(SRC_DIR)/crt0
+MATH_DIR:=$(SRC_DIR)/math
+MISC_DIR:=$(SRC_DIR)/misc
+STDIO_DIR:=$(SRC_DIR)/stdio
+STDLIB_DIR:=$(SRC_DIR)/stdlib
+STRING_DIR:=$(SRC_DIR)/string
+UNISTD_DIR:=$(SRC_DIR)/unistd
+
+CRT0_SRCS:=$(wildcard $(CRT0_DIR)/*.c)
 
 LIBC_SRCS:=\
-	$(wildcard $(SRC_DIR)/math/*.c) \
-	$(wildcard $(SRC_DIR)/misc/*.c) \
-	$(wildcard $(SRC_DIR)/stdio/*.c) \
-	$(wildcard $(SRC_DIR)/stdlib/*.c) \
-	$(wildcard $(SRC_DIR)/string/*.c) \
-	$(wildcard $(SRC_DIR)/unistd/*.c) \
+	$(wildcard $(MATH_DIR)/*.c) \
+	$(wildcard $(MISC_DIR)/*.c) \
+	$(wildcard $(STDIO_DIR)/*.c) \
+	$(wildcard $(STDLIB_DIR)/*.c) \
+	$(wildcard $(STRING_DIR)/*.c) \
+	$(wildcard $(UNISTD_DIR)/*.c) \
 
 CRT0_OBJS:=$(addprefix $(OBJ_DIR)/,$(notdir $(CRT0_SRCS:.c=.o)))
 LIBC_OBJS:=$(addprefix $(OBJ_DIR)/,$(notdir $(LIBC_SRCS:.c=.o)))
@@ -33,7 +41,7 @@ libs: $(LIBS)
 
 .PHONY: clean
 clean:	clean-test
-	rm -rf $(OBJ_DIR) $(LIB_DIR)
+	rm -rf $(OBJ_DIR) $(LIB_DIR) $(WCC_OBJ_DIR) $(WCC_LIB_DIR)
 
 $(LIB_DIR)/crt0.a:	$(CRT0_OBJS)
 	@mkdir -p $(LIB_DIR)
@@ -43,9 +51,13 @@ $(LIB_DIR)/libc.a:	$(LIBC_OBJS)
 	@mkdir -p $(LIB_DIR)
 	$(AR) r $@ $^
 
-$(OBJ_DIR)/%.o: $(SRC_DIR)/**/%.c
+define DEFINE_OBJ_TARGET
+$(OBJ_DIR)/%.o: $(1)/%.c $(PARENT_DEPS)
 	@mkdir -p $(OBJ_DIR)
-	$(CC) -c -o $@ -Werror -ffreestanding $(CFLAGS) $<
+	$(CC) -c -o $$@ -Werror -ffreestanding $(CFLAGS) $$<
+endef
+LIB_SRC_DIRS:=$(CRT0_DIR) $(MATH_DIR) $(MISC_DIR) $(STDIO_DIR) $(STDLIB_DIR) $(STRING_DIR) $(UNISTD_DIR)
+$(foreach D, $(LIB_SRC_DIRS), $(eval $(call DEFINE_OBJ_TARGET,$(D))))
 
 ### Test
 
@@ -81,6 +93,48 @@ $(foreach D, $(TESTS), $(eval $(call DEFINE_TEST_TARGET,$(D))))
 
 WCC:=../wcc
 WCC_TESTS:=$(TESTS)
+WCC_OBJ_DIR:=./obj/wcc
+WCC_LIB_DIR:=../lib
+
+WCC_LIBS:=$(WCC_LIB_DIR)/wcrt0.a $(WCC_LIB_DIR)/wlibc.a
+
+WASM_UNISTD_DIR:=$(SRC_DIR)/_wasm/unistd
+WASM_CRT0_DIR:=$(SRC_DIR)/_wasm/crt0
+
+WCC_CRT0_SRCS:=$(wildcard $(WASM_CRT0_DIR)/*.c)
+
+WCC_LIBC_SRCS:=\
+	$(wildcard $(MATH_DIR)/*.c) \
+	$(wildcard $(MISC_DIR)/*.c) \
+	$(wildcard $(STDIO_DIR)/*.c) \
+	$(wildcard $(STDLIB_DIR)/*.c) \
+	$(wildcard $(STRING_DIR)/*.c) \
+	$(wildcard $(WASM_UNISTD_DIR)/*.c) \
+
+WCC_CRT0_OBJS:=$(addprefix $(WCC_OBJ_DIR)/,$(notdir $(WCC_CRT0_SRCS:.c=.o)))
+WCC_LIBC_OBJS:=$(addprefix $(WCC_OBJ_DIR)/,$(notdir $(WCC_LIBC_SRCS:.c=.o)))
+
+echo-wcc-libc-objs:
+	@echo $(WCC_LIBC_OBJS)
+
+$(WCC_LIB_DIR)/wcrt0.a:	$(WCC_CRT0_OBJS)
+	@mkdir -p $(WCC_LIB_DIR)
+	$(AR) r $@ $^
+
+$(WCC_LIB_DIR)/wlibc.a:	$(WCC_LIBC_OBJS)
+	@mkdir -p $(WCC_LIB_DIR)
+	$(AR) r $@ $^
+
+define DEFINE_WCCOBJ_TARGET
+$(WCC_OBJ_DIR)/%.o: $(1)/%.c
+	@mkdir -p $(WCC_OBJ_DIR)
+	$(CC) -c -o $$@ -Werror $(WCC_CFLAGS) $$<
+endef
+WCC_SRC_DIRS:=$(MATH_DIR) $(MISC_DIR) $(STDIO_DIR) $(STDLIB_DIR) $(STRING_DIR) $(WASM_UNISTD_DIR) $(WASM_CRT0_DIR)
+$(foreach D, $(WCC_SRC_DIRS), $(eval $(call DEFINE_WCCOBJ_TARGET,$(D))))
+
+.PHONY: wcc-libs
+wcc-libs: $(WCC_LIBS)
 
 .PHONY: test-wcc
 test-wcc:	$(foreach D, $(WCC_TESTS), $(addprefix test-wcc-,$(D)))
