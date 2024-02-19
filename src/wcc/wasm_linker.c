@@ -1,13 +1,16 @@
 #include "../../config.h"
 #include "wasm_linker.h"
 
+#include <ar.h>
 #include <assert.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 
+#include "archive.h"
 #include "table.h"
 #include "util.h"
 #include "wasm.h"
@@ -547,10 +550,70 @@ static WasmObj *read_wasm(FILE *fp, const char *filename, size_t filesize) {
 
 //
 
+typedef struct {
+  WasmObj *wasmobj;
+  size_t size;
+  char name[1];  // [sizeof(((struct ar_hdr*)0)->ar_name) + 1]
+} ArContent;
+
+#define FOREACH_FILE_ARCONTENT(ar, content, body) \
+  {Vector *contents = (ar)->contents; \
+  for (int i = 0; i < contents->len; i += 2) { \
+    ArContent *content = contents->data[i + 1]; \
+    body \
+  }}
+
+WasmObj *load_archive_wasmobj(Archive *ar, uint32_t offset) {
+  Vector *contents = ar->contents;
+  for (int i = 0; i < contents->len; i += 2) {
+    if (VOIDP2INT(contents->data[i]) == offset) {
+      // Already loaded.
+      return NULL;
+    }
+  }
+
+  fseek(ar->fp, offset, SEEK_SET);
+
+  struct ar_hdr hdr;
+  read_or_die(ar->fp, &hdr, sizeof(hdr), "hdr");
+  if (memcmp(hdr.ar_fmag, ARFMAG, sizeof(hdr.ar_fmag)) != 0)
+    error("Malformed archive");
+
+  ArContent *content = malloc_or_die(sizeof(*content) + sizeof(hdr.ar_name));
+
+  memcpy(content->name, hdr.ar_name, sizeof(hdr.ar_name));
+  char *p = memchr(content->name, '/', sizeof(hdr.ar_name));
+  if (p == NULL)
+    p = &content->name[sizeof(hdr.ar_name)];
+  *p = '\0';
+
+  char sizestr[sizeof(hdr.ar_size) + 1];
+  memcpy(sizestr, hdr.ar_size, sizeof(hdr.ar_size));
+  sizestr[sizeof(hdr.ar_size)] = '\0';
+  content->size = strtoul(sizestr, NULL, 10);
+
+  WasmObj *wasmobj = read_wasm(ar->fp, content->name, content->size);
+  if (wasmobj == NULL)
+    return false;
+  content->wasmobj = wasmobj;
+
+  vec_push(contents, INT2VOIDP(offset));
+  vec_push(contents, content);
+
+  return wasmobj;
+}
+
+//
+
 struct File {
   const char *filename;
+  enum {
+    FK_WASMOBJ,
+    FK_ARCHIVE,
+  } kind;
   union {
     WasmObj *wasmobj;
+    Archive *archive;
   };
 };
 
@@ -578,13 +641,46 @@ static int resolve_symbols_wasmobj(WasmLinker *linker, WasmObj *wasmobj) {
   return err_count;
 }
 
+static int resolve_symbols_archive(WasmLinker *linker, Archive *ar) {
+  Table *unresolved = &linker->unresolved;
+  Table *table = &ar->symbol_table;
+  for (;;) {
+    bool retry = false;
+    const Name *name;
+    void *dummy;
+    for (int it = 0; (it = table_iterate(unresolved, it, &name, &dummy)) != -1;) {
+      ArSymbol *symbol;
+      if (!table_try_get(table, name, (void**)&symbol))
+        continue;
+      table_delete(unresolved, name);
+
+      WasmObj *wasmobj = load_archive_wasmobj(ar, symbol->offset);
+      if (wasmobj != NULL) {
+        resolve_symbols_wasmobj(linker, wasmobj);
+        retry = true;
+        break;
+      }
+    }
+    if (!retry)
+      break;
+  }
+  return 0;
+}
+
 static bool resolve_symbols(WasmLinker *linker) {
   int err_count = 0;
 
   // Traverse all wasmobj files and enumerate defined and unresolved symbols.
   for (int i = 0; i < linker->files->len; ++i) {
     File *file = linker->files->data[i];
-    err_count += resolve_symbols_wasmobj(linker, file->wasmobj);
+    switch (file->kind) {
+    case FK_WASMOBJ:
+      err_count += resolve_symbols_wasmobj(linker, file->wasmobj);
+      break;
+    case FK_ARCHIVE:
+      err_count += resolve_symbols_archive(linker, file->archive);
+      break;
+    }
   }
 
   // Enumerate unresolved: import
@@ -633,6 +729,49 @@ static bool resolve_symbols(WasmLinker *linker) {
   return err_count == 0;
 }
 
+static void renumber_symbols_wasmobj(WasmObj *wasmobj, uint32_t *defined_count) {
+  Vector *symtab = wasmobj->linking.symtab;
+  uint32_t import_count[3];
+  import_count[SIK_SYMTAB_FUNCTION] = wasmobj->import.functions->len;
+  import_count[SIK_SYMTAB_DATA] = 0;
+  for (int j = 0; j < symtab->len; ++j) {
+    SymbolInfo *sym = symtab->data[j];
+    if (sym->flags & WASM_SYM_UNDEFINED)
+      continue;
+    switch (sym->kind) {
+    default: assert(false); // Fallthrough to suppress warning.
+    case SIK_SYMTAB_FUNCTION:
+    case SIK_SYMTAB_DATA:
+      sym->combined_index = sym->local_index + defined_count[sym->kind] - import_count[sym->kind];
+      break;
+    case SIK_SYMTAB_GLOBAL:
+      // Handled differently (just below).
+      break;
+    case SIK_SYMTAB_EVENT:
+      {
+        if (sym->tag.typeindex >= (uint32_t)wasmobj->types->len)
+          error("illegal type index for event: %.*s", NAMES(sym->name));
+        uint32_t typeindex = VOIDP2INT(wasmobj->types->data[sym->tag.typeindex]);
+        TagInfo *ti = getsert_tag(sym->name, typeindex);
+        sym->combined_index = ti->index;
+      }
+      break;
+    }
+  }
+
+  // Increment count_table according to defined counts.
+  static const int kSecTable[] = {SEC_FUNC, SEC_DATA};
+  for (size_t i = 0; i < sizeof(kSecTable) / sizeof(kSecTable[0]); ++i) {
+    int secidx = kSecTable[i];
+    WasmSection *sec = find_section(wasmobj, secidx);
+    if (sec != NULL) {
+      unsigned char *p = sec->start;
+      uint32_t num = read_uleb128(p, &p);
+      defined_count[i] += num;
+    }
+  }
+}
+
 static void renumber_symbols(WasmLinker *linker) {
   // Enumerate defined functions and data.
   uint32_t defined_count[] = {
@@ -640,46 +779,16 @@ static void renumber_symbols(WasmLinker *linker) {
     [SIK_SYMTAB_DATA] = 0,
   };
   for (int i = 0; i < linker->files->len; ++i) {
-    WasmObj *wasmobj = ((File*)linker->files->data[i])->wasmobj;
-    Vector *symtab = wasmobj->linking.symtab;
-    uint32_t import_count[3];
-    import_count[SIK_SYMTAB_FUNCTION] = wasmobj->import.functions->len;
-    import_count[SIK_SYMTAB_DATA] = 0;
-    for (int j = 0; j < symtab->len; ++j) {
-      SymbolInfo *sym = symtab->data[j];
-      if (sym->flags & WASM_SYM_UNDEFINED)
-        continue;
-      switch (sym->kind) {
-      default: assert(false); // Fallthrough to suppress warning.
-      case SIK_SYMTAB_FUNCTION:
-      case SIK_SYMTAB_DATA:
-        sym->combined_index = sym->local_index + defined_count[sym->kind] - import_count[sym->kind];
-        break;
-      case SIK_SYMTAB_GLOBAL:
-        // Handled differently (just below).
-        break;
-      case SIK_SYMTAB_EVENT:
-        {
-          if (sym->tag.typeindex >= (uint32_t)wasmobj->types->len)
-            error("illegal type index for event: %.*s", NAMES(sym->name));
-          uint32_t typeindex = VOIDP2INT(wasmobj->types->data[sym->tag.typeindex]);
-          TagInfo *ti = getsert_tag(sym->name, typeindex);
-          sym->combined_index = ti->index;
-        }
-        break;
-      }
-    }
-
-    // Increment count_table according to defined counts.
-    static const int kSecTable[] = {SEC_FUNC, SEC_DATA};
-    for (size_t i = 0; i < sizeof(kSecTable) / sizeof(kSecTable[0]); ++i) {
-      int secidx = kSecTable[i];
-      WasmSection *sec = find_section(wasmobj, secidx);
-      if (sec != NULL) {
-        unsigned char *p = sec->start;
-        uint32_t num = read_uleb128(p, &p);
-        defined_count[i] += num;
-      }
+    File *file = linker->files->data[i];
+    switch (file->kind) {
+    case FK_WASMOBJ:
+      renumber_symbols_wasmobj(file->wasmobj, defined_count);
+      break;
+    case FK_ARCHIVE:
+      FOREACH_FILE_ARCONTENT(file->archive, content, {
+        renumber_symbols_wasmobj(content->wasmobj, defined_count);
+      });
+      break;
     }
   }
 
@@ -696,91 +805,131 @@ static void renumber_symbols(WasmLinker *linker) {
   }
 }
 
+static void renumber_func_types_wasmobj(WasmObj *wasmobj) {
+  Vector *type_indices = wasmobj->types;
+  Vector *symtab = wasmobj->linking.symtab;
+  for (int j = 0; j < symtab->len; ++j) {
+    SymbolInfo *sym = symtab->data[j];
+    if (sym->kind != SIK_SYMTAB_FUNCTION)
+      continue;
+    if (sym->func.type_index >= (uint32_t)type_indices->len)
+      error("illegal type index for %.*s: %d\n", NAMES(sym->name), sym->func.type_index);
+    sym->func.type_index = VOIDP2INT(type_indices->data[sym->func.type_index]);
+  }
+}
+
 static void renumber_func_types(WasmLinker *linker) {
   for (int i = 0; i < linker->files->len; ++i) {
-    WasmObj *wasmobj = ((File*)linker->files->data[i])->wasmobj;
-    Vector *type_indices = wasmobj->types;
-    Vector *symtab = wasmobj->linking.symtab;
-    for (int j = 0; j < symtab->len; ++j) {
-      SymbolInfo *sym = symtab->data[j];
-      if (sym->kind != SIK_SYMTAB_FUNCTION)
-        continue;
-      if (sym->func.type_index >= (uint32_t)type_indices->len)
-        error("illegal type index for %.*s: %d\n", NAMES(sym->name), sym->func.type_index);
-      sym->func.type_index = VOIDP2INT(type_indices->data[sym->func.type_index]);
+    File *file = linker->files->data[i];
+    switch (file->kind) {
+    case FK_WASMOBJ:
+      renumber_func_types_wasmobj(file->wasmobj);
+      break;
+    case FK_ARCHIVE:
+      FOREACH_FILE_ARCONTENT(file->archive, content, {
+        renumber_func_types_wasmobj(content->wasmobj);
+      });
+      break;
     }
   }
+}
+
+static uint32_t remap_data_address_wasmobj(WasmObj *wasmobj, uint32_t address) {
+  address = ALIGN(address, 16);  // TODO:
+  uint32_t max = address;
+  for (uint32_t j = 0; j < wasmobj->data.count; ++j) {
+    DataSegmentForLink *d = &wasmobj->data.segments[j];
+    d->start += address;
+    uint32_t end = d->start + d->size;
+    if (end > max)
+      max = end;
+  }
+  address = max;
+
+  Vector *symtab = wasmobj->linking.symtab;
+  for (int k = 0; k < symtab->len; ++k) {
+    SymbolInfo *sym = symtab->data[k];
+    if (sym->kind != SIK_SYMTAB_DATA || sym->flags & WASM_SYM_UNDEFINED)
+      continue;
+    if (sym->local_index >= wasmobj->data.count)
+      error("illegal index for data segment %.*s: %d\n", NAMES(sym->name), sym->local_index);
+    DataSegmentForLink *d = &wasmobj->data.segments[sym->local_index];
+    uint32_t addr = d->start + sym->data.offset;
+    sym->data.address = addr;
+  }
+  return address;
 }
 
 static void remap_data_address(WasmLinker *linker) {
   uint32_t address = 0;
   for (int i = 0; i < linker->files->len; ++i) {
-    WasmObj *wasmobj = ((File*)linker->files->data[i])->wasmobj;
-    address = ALIGN(address, 16);  // TODO:
-    uint32_t max = address;
-    for (uint32_t j = 0; j < wasmobj->data.count; ++j) {
-      DataSegmentForLink *d = &wasmobj->data.segments[j];
-      d->start += address;
-      uint32_t end = d->start + d->size;
-      if (end > max)
-        max = end;
-    }
-    address = max;
-
-    Vector *symtab = wasmobj->linking.symtab;
-    for (int k = 0; k < symtab->len; ++k) {
-      SymbolInfo *sym = symtab->data[k];
-      if (sym->kind != SIK_SYMTAB_DATA || sym->flags & WASM_SYM_UNDEFINED)
-        continue;
-      if (sym->local_index >= wasmobj->data.count)
-        error("illegal index for data segment %.*s: %d\n", NAMES(sym->name), sym->local_index);
-      DataSegmentForLink *d = &wasmobj->data.segments[sym->local_index];
-      uint32_t addr = d->start + sym->data.offset;
-      sym->data.address = addr;
+    File *file = linker->files->data[i];
+    switch (file->kind) {
+    case FK_WASMOBJ:
+      address = remap_data_address_wasmobj(file->wasmobj, address);
+      break;
+    case FK_ARCHIVE:
+      FOREACH_FILE_ARCONTENT(file->archive, content, {
+        address = remap_data_address_wasmobj(content->wasmobj, address);
+      });
+      break;
     }
   }
   linker->data_end_address = address;
 }
 
-static void renumber_indirect_functions(WasmLinker *linker) {
+static void renumber_indirect_functions_wasmobj(WasmLinker *linker, WasmObj *wasmobj) {
   Table *indirect_functions = &linker->indirect_functions;
-  for (int i = 0; i < linker->files->len; ++i) {
-    WasmObj *wasmobj = ((File*)linker->files->data[i])->wasmobj;
-
-    uint32_t segnum = wasmobj->elem.count;
-    ElemSegmentForLink *segments = wasmobj->elem.segments;
-    for (uint32_t i = 0; i < segnum; ++i) {
-      ElemSegmentForLink *segment = &segments[i];
-      uint32_t count = segment->count;
-      for (uint32_t j = 0; j < count; ++j) {
-        uint32_t index = segment->content[j];
-        SymbolInfo *sym = NULL;
-        {
-          Vector *symtab = wasmobj->linking.symtab;
-          for (int k = 0; k < symtab->len; ++k) {
-            SymbolInfo *p = symtab->data[k];
-            if (p->kind == SIK_SYMTAB_FUNCTION && p->local_index == index) {
-              sym = p;
-              break;
-            }
+  uint32_t segnum = wasmobj->elem.count;
+  ElemSegmentForLink *segments = wasmobj->elem.segments;
+  for (uint32_t i = 0; i < segnum; ++i) {
+    ElemSegmentForLink *segment = &segments[i];
+    uint32_t count = segment->count;
+    for (uint32_t j = 0; j < count; ++j) {
+      uint32_t index = segment->content[j];
+      SymbolInfo *sym = NULL;
+      {
+        Vector *symtab = wasmobj->linking.symtab;
+        for (int k = 0; k < symtab->len; ++k) {
+          SymbolInfo *p = symtab->data[k];
+          if (p->kind == SIK_SYMTAB_FUNCTION && p->local_index == index) {
+            sym = p;
+            break;
           }
         }
-        if (sym == NULL) {
-          error("indirect function not found: %d", index);
-        }
-        if (!(sym->flags & WASM_SYM_BINDING_LOCAL)) {
-          const Name *name = sym->name;
-          if (!table_try_get(&linker->defined, name, (void**)&sym)) {
-            if (!table_try_get(&linker->unresolved, name, (void**)&sym)) {
-              error("indirect function not found: %.*s", NAMES(name));
-            }
-          }
-        }
-        table_put(indirect_functions, sym->name, sym);
       }
+      if (sym == NULL) {
+        error("indirect function not found: %d", index);
+      }
+      if (!(sym->flags & WASM_SYM_BINDING_LOCAL)) {
+        const Name *name = sym->name;
+        if (!table_try_get(&linker->defined, name, (void**)&sym)) {
+          if (!table_try_get(&linker->unresolved, name, (void**)&sym)) {
+            error("indirect function not found: %.*s", NAMES(name));
+          }
+        }
+      }
+      table_put(indirect_functions, sym->name, sym);
+    }
+  }
+}
+
+static void renumber_indirect_functions(WasmLinker *linker) {
+  for (int i = 0; i < linker->files->len; ++i) {
+    File *file = linker->files->data[i];
+    switch (file->kind) {
+    case FK_WASMOBJ:
+      renumber_indirect_functions_wasmobj(linker, file->wasmobj);
+      break;
+    case FK_ARCHIVE:
+      FOREACH_FILE_ARCONTENT(file->archive, content, {
+        renumber_indirect_functions_wasmobj(linker, content->wasmobj);
+      });
+      break;
     }
   }
 
+  Table *indirect_functions = &linker->indirect_functions;
   const Name *name;
   SymbolInfo *sym;
   uint32_t index = INDIRECT_FUNCTION_TABLE_START_INDEX;
@@ -828,73 +977,86 @@ static void put_i32(unsigned char *p, int32_t x) {
   }
 }
 
-static void apply_relocation(WasmLinker *linker) {
-  for (int i = 0; i < linker->files->len; ++i) {
-    WasmObj *wasmobj = ((File*)linker->files->data[i])->wasmobj;
-    Vector *symtab = wasmobj->linking.symtab;
-    for (int j = 0; j < 2; ++j) {
-      uint32_t count = wasmobj->reloc[j].count;
-      if (count == 0)
+static void apply_relocation_wasmobj(WasmLinker *linker, WasmObj *wasmobj) {
+  Vector *symtab = wasmobj->linking.symtab;
+  for (int j = 0; j < 2; ++j) {
+    uint32_t count = wasmobj->reloc[j].count;
+    if (count == 0)
+      continue;
+
+    uint32_t section_index = wasmobj->reloc[j].section_index;
+    WasmSection *sec = &wasmobj->sections[section_index];
+    RelocInfo *relocs = wasmobj->reloc[j].relocs;
+    for (uint32_t k = 0; k < count; ++k) {
+      RelocInfo *p = &relocs[k];
+      unsigned char *q = sec->start + p->offset;
+      switch (p->type) {
+      case R_WASM_TYPE_INDEX_LEB:
+        {
+          assert(wasmobj->types != NULL);
+          if (p->index >= (uint32_t)wasmobj->types->len)
+            error("illegal type index: %d", p->index);
+          uint32_t index = VOIDP2INT(wasmobj->types->data[p->index]);
+          put_varuint32(q, index, p);
+        }
+        continue;
+      case R_WASM_TAG_INDEX_LEB:
+        {
+          if (p->index >= (uint32_t)symtab->len)
+            error("illegal symbol index: %d", p->index);
+          SymbolInfo *sym = symtab->data[p->index];
+          put_varuint32(q, sym->combined_index, p);
+        }
         continue;
 
-      uint32_t section_index = wasmobj->reloc[j].section_index;
-      WasmSection *sec = &wasmobj->sections[section_index];
-      RelocInfo *relocs = wasmobj->reloc[j].relocs;
-      for (uint32_t k = 0; k < count; ++k) {
-        RelocInfo *p = &relocs[k];
-        unsigned char *q = sec->start + p->offset;
-        switch (p->type) {
-        case R_WASM_TYPE_INDEX_LEB:
-          {
-            assert(wasmobj->types != NULL);
-            if (p->index >= (uint32_t)wasmobj->types->len)
-              error("illegal type index: %d", p->index);
-            uint32_t index = VOIDP2INT(wasmobj->types->data[p->index]);
-            put_varuint32(q, index, p);
-          }
-          continue;
-        case R_WASM_TAG_INDEX_LEB:
-          {
-            if (p->index >= (uint32_t)symtab->len)
-              error("illegal symbol index: %d", p->index);
-            SymbolInfo *sym = symtab->data[p->index];
-            put_varuint32(q, sym->combined_index, p);
-          }
-          continue;
-
-        default: break;
-        }
-
-        // Symbol resolution.
-        if (p->index >= (uint32_t)symtab->len)
-          error("illegal index for reloc: %d", p->index);
-        SymbolInfo *sym = symtab->data[p->index];
-        SymbolInfo *target = sym;
-        if (!table_try_get(&linker->defined, sym->name, (void**)&target))
-          table_try_get(&linker->unresolved, sym->name, (void**)&target);
-
-        switch (p->type) {
-        case R_WASM_FUNCTION_INDEX_LEB:
-        case R_WASM_GLOBAL_INDEX_LEB:
-          put_varuint32(q, target->combined_index, p);
-          break;
-        case R_WASM_MEMORY_ADDR_LEB:
-          put_varuint32(q, target->data.address, p);
-          break;
-        case R_WASM_MEMORY_ADDR_I32:
-          put_i32(q, target->data.address + p->addend);
-          break;
-        case R_WASM_TABLE_INDEX_SLEB:
-          put_varint32(q, target->func.indirect_index, p);
-          break;
-        case R_WASM_TABLE_INDEX_I32:
-          put_i32(q, target->func.indirect_index);
-          break;
-        default:
-          error("Relocation not handled: type=%d", p->type);
-          break;
-        }
+      default: break;
       }
+
+      // Symbol resolution.
+      if (p->index >= (uint32_t)symtab->len)
+        error("illegal index for reloc: %d", p->index);
+      SymbolInfo *sym = symtab->data[p->index];
+      SymbolInfo *target = sym;
+      if (!table_try_get(&linker->defined, sym->name, (void**)&target))
+        table_try_get(&linker->unresolved, sym->name, (void**)&target);
+
+      switch (p->type) {
+      case R_WASM_FUNCTION_INDEX_LEB:
+      case R_WASM_GLOBAL_INDEX_LEB:
+        put_varuint32(q, target->combined_index, p);
+        break;
+      case R_WASM_MEMORY_ADDR_LEB:
+        put_varuint32(q, target->data.address, p);
+        break;
+      case R_WASM_MEMORY_ADDR_I32:
+        put_i32(q, target->data.address + p->addend);
+        break;
+      case R_WASM_TABLE_INDEX_SLEB:
+        put_varint32(q, target->func.indirect_index, p);
+        break;
+      case R_WASM_TABLE_INDEX_I32:
+        put_i32(q, target->func.indirect_index);
+        break;
+      default:
+        error("Relocation not handled: type=%d", p->type);
+        break;
+      }
+    }
+  }
+}
+
+static void apply_relocation(WasmLinker *linker) {
+  for (int i = 0; i < linker->files->len; ++i) {
+    File *file = linker->files->data[i];
+    switch (file->kind) {
+    case FK_WASMOBJ:
+      apply_relocation_wasmobj(linker, file->wasmobj);
+      break;
+    case FK_ARCHIVE:
+      FOREACH_FILE_ARCONTENT(file->archive, content, {
+        apply_relocation_wasmobj(linker, content->wasmobj);
+      });
+      break;
     }
   }
 }
@@ -931,6 +1093,21 @@ static void out_import_section(WasmLinker *linker) {
   }
 }
 
+static uint32_t out_function_section_wasmobj(WasmObj *wasmobj, DataStorage *functions_section) {
+  Vector *symtab = wasmobj->linking.symtab;
+  uint32_t function_count = 0;
+  for (int j = 0; j < symtab->len; ++j) {
+    SymbolInfo *sym = symtab->data[j];
+    if (sym->kind != SIK_SYMTAB_FUNCTION || (sym->flags & WASM_SYM_UNDEFINED))
+      continue;
+    // assert(sym->combined_index == function_count + linker->unresolved_func_count);
+    ++function_count;
+    int type_index = sym->func.type_index;
+    data_uleb128(functions_section, -1, type_index);  // function i signature index
+  }
+  return function_count;
+}
+
 static void out_function_section(WasmLinker *linker) {
   DataStorage functions_section;
   data_init(&functions_section);
@@ -939,16 +1116,21 @@ static void out_function_section(WasmLinker *linker) {
   uint32_t function_count = 0;
 
   for (int i = 0; i < linker->files->len; ++i) {
-    WasmObj *wasmobj = ((File*)linker->files->data[i])->wasmobj;
-    Vector *symtab = wasmobj->linking.symtab;
-    for (int j = 0; j < symtab->len; ++j) {
-      SymbolInfo *sym = symtab->data[j];
-      if (sym->kind != SIK_SYMTAB_FUNCTION || (sym->flags & WASM_SYM_UNDEFINED))
-        continue;
-      assert(sym->combined_index == function_count + linker->unresolved_func_count);
-      ++function_count;
-      int type_index = sym->func.type_index;
-      data_uleb128(&functions_section, -1, type_index);  // function i signature index
+    File *file = linker->files->data[i];
+    switch (file->kind) {
+    case FK_WASMOBJ:
+      function_count += out_function_section_wasmobj(file->wasmobj, &functions_section);
+      break;
+    case FK_ARCHIVE:
+      {
+        Archive *ar = file->archive;
+        Vector *contents = ar->contents;
+        for (int i = 0; i < contents->len; i += 2) {
+          ArContent *content = contents->data[i + 1];
+          function_count += out_function_section_wasmobj(content->wasmobj, &functions_section);
+        }
+      }
+      break;
     }
   }
 
@@ -1091,6 +1273,16 @@ static void out_elems_section(WasmLinker *linker) {
   fwrite(elems_section.buf, elems_section.len, 1, linker->ofp);
 }
 
+static uint32_t out_code_section_wasmobj(WasmObj *wasmobj, DataStorage *codesec) {
+  WasmSection *sec = find_section(wasmobj, SEC_CODE);
+  if (sec == NULL)
+    return 0;
+  unsigned char *p = sec->start;
+  uint32_t num = read_uleb128(p, &p);
+  data_append(codesec, p, sec->size - (p - sec->start));
+  return num;
+}
+
 static void out_code_section(WasmLinker *linker) {
   DataStorage codesec;
   data_init(&codesec);
@@ -1099,14 +1291,22 @@ static void out_code_section(WasmLinker *linker) {
 
   uint32_t code_count = 0;
   for (int i = 0; i < linker->files->len; ++i) {
-    WasmObj *wasmobj = ((File*)linker->files->data[i])->wasmobj;
-    WasmSection *sec = find_section(wasmobj, SEC_CODE);
-    if (sec == NULL)
-      continue;
-    unsigned char *p = sec->start;
-    uint32_t num = read_uleb128(p, &p);
-    data_append(&codesec, p, sec->size - (p - sec->start));
-    code_count += num;
+    File *file = linker->files->data[i];
+    switch (file->kind) {
+    case FK_WASMOBJ:
+      code_count += out_code_section_wasmobj(file->wasmobj, &codesec);
+      break;
+    case FK_ARCHIVE:
+      {
+        Archive *ar = file->archive;
+        Vector *contents = ar->contents;
+        for (int i = 0; i < contents->len; i += 2) {
+          ArContent *content = contents->data[i + 1];
+          code_count += out_code_section_wasmobj(content->wasmobj, &codesec);
+        }
+      }
+      break;
+    }
   }
 
   data_close_chunk(&codesec, code_count);
@@ -1114,6 +1314,35 @@ static void out_code_section(WasmLinker *linker) {
 
   fputc(SEC_CODE, linker->ofp);
   fwrite(codesec.buf, codesec.len, 1, linker->ofp);
+}
+
+static uint32_t out_data_section_wasmobj(WasmObj *wasmobj, DataStorage *datasec) {
+  DataSegmentForLink *segments = wasmobj->data.segments;
+  uint32_t data_count = 0;
+  for (uint32_t j = 0, count = wasmobj->data.count; j < count; ++j) {
+    DataSegmentForLink *segment = &segments[j];
+    uint32_t size = segment->size;
+    const unsigned char *content = segment->content;
+    uint32_t non_zero_size;
+    for (non_zero_size = size; non_zero_size > 0; --non_zero_size) {
+      if (content[non_zero_size - 1] != 0x00)
+        break;
+    }
+    if (non_zero_size == 0)  // BSS
+      continue;
+
+    data_push(datasec, 0);  // flags
+    // Init (address).
+    uint32_t address = segment->start;
+    data_push(datasec, OP_I32_CONST);
+    data_leb128(datasec, -1, address);
+    data_push(datasec, OP_END);
+    // Content
+    data_uleb128(datasec, -1, non_zero_size);
+    data_append(datasec, segment->content, non_zero_size);
+    ++data_count;
+  }
+  return data_count;
 }
 
 static void out_data_section(WasmLinker *linker) {
@@ -1124,30 +1353,21 @@ static void out_data_section(WasmLinker *linker) {
 
   uint32_t data_count = 0;
   for (int i = 0; i < linker->files->len; ++i) {
-    WasmObj *wasmobj = ((File*)linker->files->data[i])->wasmobj;
-    DataSegmentForLink *segments = wasmobj->data.segments;
-    for (uint32_t j = 0, count = wasmobj->data.count; j < count; ++j) {
-      DataSegmentForLink *segment = &segments[j];
-      uint32_t size = segment->size;
-      const unsigned char *content = segment->content;
-      uint32_t non_zero_size;
-      for (non_zero_size = size; non_zero_size > 0; --non_zero_size) {
-        if (content[non_zero_size - 1] != 0x00)
-          break;
+    File *file = linker->files->data[i];
+    switch (file->kind) {
+    case FK_WASMOBJ:
+      data_count += out_data_section_wasmobj(file->wasmobj, &datasec);
+      break;
+    case FK_ARCHIVE:
+      {
+        Archive *ar = file->archive;
+        Vector *contents = ar->contents;
+        for (int i = 0; i < contents->len; i += 2) {
+          ArContent *content = contents->data[i + 1];
+          data_count += out_data_section_wasmobj(content->wasmobj, &datasec);
+        }
       }
-      if (non_zero_size == 0)  // BSS
-        continue;
-
-      data_push(&datasec, 0);  // flags
-      // Init (address).
-      uint32_t address = segment->start;
-      data_push(&datasec, OP_I32_CONST);
-      data_leb128(&datasec, -1, address);
-      data_push(&datasec, OP_END);
-      // Content
-      data_uleb128(&datasec, -1, non_zero_size);
-      data_append(&datasec, segment->content, non_zero_size);
-      ++data_count;
+      break;
     }
   }
   data_close_chunk(&datasec, data_count);
@@ -1172,26 +1392,52 @@ void linker_init(WasmLinker *linker) {
 }
 
 bool read_wasm_obj(WasmLinker *linker, const char *filename) {
-  FILE *fp;
-  if (!is_file(filename) || (fp = fopen(filename, "r")) == NULL) {
-    fprintf(stderr, "cannot open: %s\n", filename);
-    return false;
-  }
-
-  fseek(fp, 0, SEEK_END);
-  long filesize = ftell(fp);
-  fseek(fp, 0, SEEK_SET);
-
-  WasmObj *wasmobj = read_wasm(fp, filename, filesize);
-  fclose(fp);
-  if (wasmobj == NULL)
-    return false;
-
   File *file = calloc_or_die(sizeof(*file));
   file->filename = filename;
-  file->wasmobj = wasmobj;
-  vec_push(linker->files, file);
+
+  char *ext = get_ext(filename);
+  if (strcasecmp(ext, "o") == 0) {
+    FILE *fp;
+    if (!is_file(filename) || (fp = fopen(filename, "r")) == NULL) {
+      fprintf(stderr, "cannot open: %s\n", filename);
+      return false;
+    }
+
+    fseek(fp, 0, SEEK_END);
+    long filesize = ftell(fp);
+    fseek(fp, 0, SEEK_SET);
+
+    WasmObj *wasmobj = read_wasm(fp, filename, filesize);
+    fclose(fp);
+    if (wasmobj == NULL)
+      return false;
+
+    file->kind = FK_WASMOBJ;
+    file->wasmobj = wasmobj;
+    vec_push(linker->files, file);
+  } else if (strcasecmp(ext, "a") == 0) {
+    Archive *archive = load_archive(filename);
+    if (archive == NULL) {
+      fprintf(stderr, "load failed: %s\n", filename);
+      return false;
+    }
+    file->kind = FK_ARCHIVE;
+    file->archive = archive;
+    vec_push(linker->files, file);
+  } else {
+    error("Unsupported file: %s", filename);
+  }
   return true;
+}
+
+static void verbose_symbols(WasmObj *wasmobj, enum SymInfoKind kind) {
+  Vector *symtab = wasmobj->linking.symtab;
+  for (int j = 0; j < symtab->len; ++j) {
+    SymbolInfo *sym = symtab->data[j];
+    if (sym->flags & WASM_SYM_UNDEFINED || sym->kind != kind)
+      continue;
+    printf("%2d: %.*s\n", sym->combined_index, NAMES(sym->name));
+  }
 }
 
 bool link_wasm_objs(WasmLinker *linker, Vector *exports, uint32_t stack_size) {
@@ -1246,13 +1492,16 @@ bool link_wasm_objs(WasmLinker *linker, Vector *exports, uint32_t stack_size) {
     // Defined.
     for (int i = 0; i < linker->files->len; ++i) {
       File *file = linker->files->data[i];
-      WasmObj *wasmobj = file->wasmobj;
-      Vector *symtab = wasmobj->linking.symtab;
-      for (int j = 0; j < symtab->len; ++j) {
-        SymbolInfo *sym = symtab->data[j];
-        if (sym->flags & WASM_SYM_UNDEFINED || sym->kind != SIK_SYMTAB_FUNCTION)
-          continue;
-        printf("%2d: %.*s\n", sym->combined_index, NAMES(sym->name));
+      switch (file->kind) {
+      case FK_WASMOBJ:
+        verbose_symbols(file->wasmobj, SIK_SYMTAB_FUNCTION);
+        break;
+      case FK_ARCHIVE:
+        for (int j = 0; j < file->archive->contents->len; j += 2) {
+          ArContent *content = file->archive->contents->data[j + 1];
+          verbose_symbols(content->wasmobj, SIK_SYMTAB_FUNCTION);
+        }
+        break;
       }
     }
 
@@ -1266,13 +1515,16 @@ bool link_wasm_objs(WasmLinker *linker, Vector *exports, uint32_t stack_size) {
     printf("### Data\n");
     for (int i = 0; i < linker->files->len; ++i) {
       File *file = linker->files->data[i];
-      WasmObj *wasmobj = file->wasmobj;
-      Vector *symtab = wasmobj->linking.symtab;
-      for (int j = 0; j < symtab->len; ++j) {
-        SymbolInfo *sym = symtab->data[j];
-        if (sym->flags & WASM_SYM_UNDEFINED || sym->kind != SIK_SYMTAB_DATA)
-          continue;
-        printf("%2d: %.*s\n", sym->combined_index, NAMES(sym->name));
+      switch (file->kind) {
+      case FK_WASMOBJ:
+        verbose_symbols(file->wasmobj, SIK_SYMTAB_DATA);
+        break;
+      case FK_ARCHIVE:
+        for (int j = 0; j < file->archive->contents->len; j += 2) {
+          ArContent *content = file->archive->contents->data[j + 1];
+          verbose_symbols(content->wasmobj, SIK_SYMTAB_DATA);
+        }
+        break;
       }
     }
   }

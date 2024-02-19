@@ -94,9 +94,7 @@ typedef struct {
 } LinkEditor;
 
 void ld_init(LinkEditor *ld, int nfiles) {
-  size_t size = sizeof(*ld->files) * nfiles;
-  ld->files = malloc_or_die(size);
-  memset(ld->files, 0x00, size);
+  ld->files = calloc_or_die(sizeof(*ld->files) * nfiles);
   ld->nfiles = nfiles;
 
   for (int secno = 0; secno < SEC_BSS + 1; ++secno) {

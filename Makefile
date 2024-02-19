@@ -193,7 +193,7 @@ WCC_DIR:=src/wcc
 WCC_CFLAGS:=$(CFLAGS) -I$(CPP_DIR)
 
 WCC_SRCS:=$(wildcard $(WCC_DIR)/*.c) \
-	$(wildcard $(CC1_FE_DIR)/*.c) \
+	$(wildcard $(CC1_FE_DIR)/*.c) $(UTIL_DIR)/archive.c \
 	$(CPP_DIR)/preprocessor.c $(CPP_DIR)/pp_parser.c $(CPP_DIR)/macro.c \
 	$(UTIL_DIR)/util.c $(UTIL_DIR)/table.c
 WCC_OBJS:=$(addprefix $(WCC_OBJ_DIR)/,$(notdir $(WCC_SRCS:.c=.o)))
@@ -210,7 +210,7 @@ wcc-libs:
 WCCLD_SRCS:=$(DEBUG_DIR)/wcc-ld.c $(WCC_DIR)/wasm_linker.c \
 	$(WCC_DIR)/wcc_util.c $(WCC_DIR)/emit_wasm.c $(WCC_DIR)/traverse.c $(WCC_DIR)/traverse_setjmp.c \
 	$(wildcard $(CC1_FE_DIR)/*.c) \
-	$(UTIL_DIR)/util.c $(UTIL_DIR)/table.c
+	$(UTIL_DIR)/util.c $(UTIL_DIR)/table.c $(UTIL_DIR)/archive.c
 WCCLD_OBJS:=$(addprefix $(WCC_OBJ_DIR)/,$(notdir $(WCCLD_SRCS:.c=.o)))
 
 wcc-ld: $(WCCLD_OBJS)
