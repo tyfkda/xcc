@@ -290,8 +290,16 @@ static void emit_import_section(EmitWasm *ew) {
         error("Import: `%.*s' is not public", NAMES(name));
       }
 
-      data_string(&imports_section, module_name, module_name_len);  // import module name
-      data_string(&imports_section, name->chars, name->bytes);  // import name
+      const char *modname = module_name;
+      size_t modnamelen = module_name_len;
+      if (info->module_name != NULL) {
+        modname = info->module_name->chars;
+        modnamelen = info->module_name->bytes;
+      }
+      const Name *fn = info->func_name;
+
+      data_string(&imports_section, modname, modnamelen);  // import module name
+      data_string(&imports_section, fn->chars, fn->bytes);  // import name
       data_push(&imports_section, IMPORT_FUNC);  // import kind
       data_uleb128(&imports_section, -1, info->type_index);  // import signature index
       ++imports_count;

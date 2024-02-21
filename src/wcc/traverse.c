@@ -78,6 +78,7 @@ static FuncInfo *register_func_info(const Name *funcname, Function *func, VarInf
     info = calloc_or_die(sizeof(*info));
     table_put(&func_info_table, funcname, info);
     info->type_index = (uint32_t)-1;
+    info->func_name = funcname;
 
     if (varinfo == NULL) {
       varinfo = scope_find(global_scope, funcname, NULL);
@@ -92,6 +93,32 @@ static FuncInfo *register_func_info(const Name *funcname, Function *func, VarInf
   if (info->type_index == (uint32_t)-1)
     info->type_index = getsert_func_type_index(info->varinfo->type, true);
   info->flag |= flag;
+
+  Table *attributes = NULL;
+  if (func != NULL)
+    attributes = func->attributes;
+  if (attributes == NULL && varinfo != NULL && varinfo->global.funcdecl != NULL) {
+    assert(varinfo->global.funcdecl->defun.func != NULL);
+    attributes = varinfo->global.funcdecl->defun.func->attributes;
+  }
+  if (attributes != NULL) {
+    const Vector *params;
+    if (table_try_get(attributes, alloc_name("import_module", NULL, false), (void**)&params)) {
+      const Token *token = params->len > 0 ? params->data[0] : NULL;
+      if (params->len != 1 && token->kind != TK_STR)
+        parse_error(PE_NOFATAL, token, "import_module: string expected");
+      else
+        info->module_name = alloc_name(token->str.buf, token->str.buf + token->str.len - 1, false);
+    }
+    if (table_try_get(attributes, alloc_name("import_name", NULL, false), (void**)&params)) {
+      const Token *token = params->len > 0 ? params->data[0] : NULL;
+      if (params->len != 1 && token->kind != TK_STR)
+        parse_error(PE_NOFATAL, token, "import_name: string expected");
+      else
+        info->func_name = alloc_name(token->str.buf, token->str.buf + token->str.len - 1, false);
+    }
+  }
+
   return info;
 }
 

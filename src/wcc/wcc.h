@@ -35,6 +35,8 @@ extern uint32_t data_end_address;
 typedef struct {
   Function *func;
   VarInfo *varinfo;
+  const Name *module_name;
+  const Name *func_name;
   const Name *bpname;
   uint32_t index;  // also represents symbol_index (because functions are put first in symbol table.)
   int flag;

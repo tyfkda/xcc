@@ -348,7 +348,7 @@ Declaration *new_decl_asm(Expr *str) {
 
 // Function
 
-Function *new_func(Type *type, const Name *name, const Vector *params, int flag) {
+Function *new_func(Type *type, const Name *name, const Vector *params, Table *attributes, int flag) {
   assert(type->kind == TY_FUNC);
   Function *func = malloc_or_die(sizeof(*func));
   func->type = type;
@@ -360,6 +360,7 @@ Function *new_func(Type *type, const Name *name, const Vector *params, int flag)
   func->label_table = NULL;
   func->gotos = NULL;
   func->extra = NULL;
+  func->attributes = attributes;
   func->flag = flag;
 
   return func;

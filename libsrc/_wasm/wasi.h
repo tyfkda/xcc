@@ -3,6 +3,8 @@
 #include <stddef.h>  // size_t
 #include <stdint.h>
 
+#define WASI_MODULE  __attribute__((import_module("wasi_snapshot_preview1")))
+
 // Fdflags
 #define FDFLAGS_APPEND           (1 << 0)
 #define FDFLAGS_DSYNC            (1 << 1)
@@ -97,25 +99,25 @@ enum Filetype {
   FILETYPE_SYMBOLIC_LINK,
 };
 
-int args_sizes_get(int *pargc, int *plen);
-int args_get(char **pargv, char *pstr);
-void proc_exit(int) __attribute__((noreturn));
+WASI_MODULE int args_sizes_get(int *pargc, int *plen);
+WASI_MODULE int args_get(char **pargv, char *pstr);
+WASI_MODULE void proc_exit(int) __attribute__((noreturn));
 
-int fd_prestat_get(int fd, Prestat *prestat);
-int fd_prestat_dir_name(int fd, char *out, size_t size);
+WASI_MODULE int fd_prestat_get(int fd, Prestat *prestat);
+WASI_MODULE int fd_prestat_dir_name(int fd, char *out, size_t size);
 
-int path_open(int fd, int dirflags, const char *path, size_t path_len, int oflags,
-              uint64_t fs_rights_base, uint64_t fs_rights_inherting, uint16_t fdflags,
-              uint32_t *opend_fd);
-int path_unlink_file(int fd, const char *path, size_t path_len);
-int path_filestat_get(int fd, int flags, const char *path, size_t path_len, Filestat *out);
+WASI_MODULE int path_open(int fd, int dirflags, const char *path, size_t path_len, int oflags,
+                         uint64_t fs_rights_base, uint64_t fs_rights_inherting, uint16_t fdflags,
+                         uint32_t *opend_fd);
+WASI_MODULE int path_unlink_file(int fd, const char *path, size_t path_len);
+WASI_MODULE int path_filestat_get(int fd, int flags, const char *path, size_t path_len, Filestat *out);
 
-int fd_read(int fd, const void *iov, int count, size_t *out);
-int fd_write(int fd, const void *iov, int count, size_t *out);
-int fd_close(int fd);
-int fd_seek(int fd, int64_t offset, int whence, size_t *psize);
-int fd_filestat_get(int fd, Filestat *out);
+WASI_MODULE int fd_read(int fd, const void *iov, int count, size_t *out);
+WASI_MODULE int fd_write(int fd, const void *iov, int count, size_t *out);
+WASI_MODULE int fd_close(int fd);
+WASI_MODULE int fd_seek(int fd, int64_t offset, int whence, size_t *psize);
+WASI_MODULE int fd_filestat_get(int fd, Filestat *out);
 
-int clock_time_get(int clockid, uint64_t precision, uint64_t *out);
+WASI_MODULE int clock_time_get(int clockid, uint64_t precision, uint64_t *out);
 
-int random_get(void *buf, size_t buf_len);
+WASI_MODULE int random_get(void *buf, size_t buf_len);

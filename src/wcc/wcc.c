@@ -21,7 +21,7 @@
 
 // #define USE_EMCC_AS_LINKER  1
 
-static const char DEFAULT_IMPORT_MODULE_NAME[] = "wasi_snapshot_preview1";
+static const char DEFAULT_IMPORT_MODULE_NAME[] = "env";
 
 #define DEFAULT_STACK_SIZE  (8 * 1024)
 
@@ -350,8 +350,6 @@ int main(int argc, char *argv[]) {
     do_emcc_link = true;
     out_type = OutObject;
   }
-  if (import_module_name == DEFAULT_IMPORT_MODULE_NAME)
-    import_module_name = "env";
 #endif
   if (out_type >= OutExecutable && entry_point == NULL) {
     entry_point = "_start";

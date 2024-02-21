@@ -619,48 +619,66 @@ static Stmt *parse_stmt(void) {
   return new_stmt_expr(str_to_char_array_var(curscope, val));
 }
 
-extern inline int parse_attribute(void) {
-  if (consume(TK_LPAR, "`(' expected") == NULL) {
+static Table *parse_attribute(Table *attributes) {  // <Token*>
+  // __attribute__((name1, name2(p, q, ...), ...))
+
+  if (consume(TK_LPAR, "`(' expected") == NULL || consume(TK_LPAR, "`(' expected") == NULL) {
     match(TK_RPAR);
-    return 0;
+    match(TK_RPAR);
+    return NULL;
   }
 
-  int paren_count = 0;
-  int flag = 0;
-  for (bool loop = true; loop; ) {
-    Token *tok = match(-1);
-    if (tok->kind == TK_EOF) {
-      parse_error(PE_NOFATAL, tok, "`)' expected");
+  for (;;) {
+    if (match(TK_RPAR))
       break;
+
+    const Token *name = consume(TK_IDENT, "attribute name expected");
+    if (name == NULL)
+      break;
+
+    Vector *params = NULL;
+    if (match(TK_LPAR)) {
+      params = new_vector();
+      if (!match(TK_RPAR)) {
+        for (;;) {
+          Token *token = match(-1);
+          if (token->kind == TK_EOF) {
+            parse_error(PE_NOFATAL, token, "`)' expected");
+            break;
+          }
+          vec_push(params, token);
+          if (!match(TK_COMMA)) {
+            if (!match(TK_RPAR))
+              parse_error(PE_NOFATAL, token, "`)' expected");
+            break;
+          }
+        }
+      }
     }
-    switch (tok->kind) {
-    case TK_LPAR:
-      ++paren_count;
+    if (attributes == NULL)
+      attributes = alloc_table();
+    table_put(attributes, name->ident, params);
+
+    if (!match(TK_COMMA)) {
+      if (!match(TK_RPAR))
+        parse_error(PE_NOFATAL, NULL, "`)' expected");
       break;
-    case TK_RPAR:
-      if (paren_count <= 0) {
-        loop = false;
-        break;
-      }
-      --paren_count;
-      break;
-    case TK_IDENT:
-      {
-        static const char kNoreturn[] = "noreturn";
-        if (tok->end - tok->begin == sizeof(kNoreturn) - 1 &&
-            memcmp(tok->begin, kNoreturn, sizeof(kNoreturn) - 1) == 0)
-          flag |= FUNCF_NORETURN;
-      }
-      break;
-    default: break;
     }
   }
-  return flag;
+
+  consume(TK_RPAR, "`)' expected");
+  return attributes;
 }
 
 static Function *define_func(Type *functype, const Token *ident, const Vector *param_vars,
-                             int storage, int flag) {
-  Function *func = new_func(functype, ident->ident, functype->func.param_vars, flag);
+                             int storage, Table *attributes) {
+  int flag = 0;
+  if (attributes != NULL) {
+    if (table_try_get(attributes, alloc_name("noreturn", NULL, false), NULL))
+      flag |= FUNCF_NORETURN;
+  }
+
+  Function *func = new_func(functype, ident->ident, functype->func.param_vars, attributes, flag);
   func->params = param_vars;
   VarInfo *varinfo = scope_find(global_scope, func->name, NULL);
   if (varinfo == NULL) {
@@ -673,6 +691,18 @@ static Function *define_func(Type *functype, const Token *ident, const Vector *p
         int merge_flag = (flag | predecl->defun.func->flag) & FUNCF_NORETURN;
         func->flag |= merge_flag;
         predecl->defun.func->flag |= merge_flag;
+
+        if (attributes != NULL) {
+          if (predecl->defun.func->attributes != NULL) {
+            const Name *name;
+            Vector *params;
+            for (int it = 0; (it = table_iterate(predecl->defun.func->attributes, it, &name, (void**)&params)) != -1; ) {
+              if (!table_try_get(attributes, name, NULL))
+                table_put(attributes, name, params);
+            }
+          }
+          predecl->defun.func->attributes = attributes;
+        }
       }
     }
 
@@ -706,7 +736,8 @@ static void modify_funparam_vla_type(Type *type, Scope *scope) {
   }
 }
 
-static Declaration *parse_defun(Type *functype, int storage, Token *ident, const Token *tok) {
+static Declaration *parse_defun(Type *functype, int storage, Token *ident, const Token *tok,
+                                Table *attributes) {
   assert(functype->kind == TY_FUNC);
 
   const Vector *param_vars = functype->func.param_vars;
@@ -717,7 +748,7 @@ static Declaration *parse_defun(Type *functype, int storage, Token *ident, const
     param_vars = new_vector();
   }
 
-  Function *func = define_func(functype, ident, param_vars, storage, 0);
+  Function *func = define_func(functype, ident, param_vars, storage, attributes);
   VarInfo *varinfo = scope_find(global_scope, ident->ident, NULL);
   assert(varinfo != NULL);
   if (varinfo->global.func != NULL) {
@@ -779,12 +810,12 @@ static Declaration *parse_defun(Type *functype, int storage, Token *ident, const
   return decl;
 }
 
-static Declaration *parse_global_var_decl(Type *rawtype, int storage, Type *type, Token *ident) {
+static Declaration *parse_global_var_decl(Type *rawtype, int storage, Type *type, Token *ident,
+                                          Table *attributes) {
   Vector *decls = NULL;
   for (;;) {
-    int attr = 0;
-    if (match(TK_ATTRIBUTE))
-      attr = parse_attribute();
+    while (match(TK_ATTRIBUTE))
+      attributes = parse_attribute(attributes);
 
     if (!(type->kind == TY_PTR && type->pa.ptrof->kind == TY_FUNC) &&
         type->kind != TY_VOID)
@@ -813,7 +844,7 @@ static Declaration *parse_global_var_decl(Type *rawtype, int storage, Type *type
           parse_error(PE_NOFATAL, NULL, "ident expected");
         } else {
           Function *func = define_func(type, ident, type->func.param_vars, storage | VS_EXTERN,
-                                       attr);
+                                       attributes);
           VarInfo *varinfo = scope_find(global_scope, ident->ident, NULL);
           assert(varinfo != NULL);
 
@@ -852,6 +883,8 @@ static Declaration *parse_global_var_decl(Type *rawtype, int storage, Type *type
     if (!match(TK_COMMA))
       break;
 
+    attributes = NULL;  // TODO: Confirm.
+
     // Next declaration.
     type = parse_declarator(rawtype, &ident);
   }
@@ -867,6 +900,10 @@ static Declaration *parse_declaration(void) {
       parse_error(PE_NOFATAL, asm_->token, "no argument required");
     return new_decl_asm(asm_->asm_.str);
   }
+
+  Table *attributes = NULL;
+  while (match(TK_ATTRIBUTE))
+    attributes = parse_attribute(attributes);
 
   Type *rawtype = NULL;
   int storage;
@@ -894,12 +931,12 @@ static Declaration *parse_declaration(void) {
 
       const Token *tok = match(TK_LBRACE);
       if (tok != NULL)
-        return parse_defun(type, storage, ident, tok);
+        return parse_defun(type, storage, ident, tok, attributes);
       // Function prototype declaration:
       // Join with global variable declaration to handle multiple prototype declarations.
     }
 
-    return parse_global_var_decl(rawtype, storage, type, ident);
+    return parse_global_var_decl(rawtype, storage, type, ident, attributes);
   }
   parse_error(PE_NOFATAL, NULL, "Unexpected token");
   match(-1);  // Drop the token.

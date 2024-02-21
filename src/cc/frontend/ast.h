@@ -467,6 +467,7 @@ typedef struct Function {
   Table *label_table;  // <const Name*, Stmt*>
   Vector *gotos;  // <Stmt*>
   void *extra;
+  Table *attributes;
   int flag;
 } Function;
 
@@ -474,7 +475,7 @@ typedef struct Function {
 #define FUNCF_STACK_MODIFIED  (1 << 1)
 #define FUNCF_HAS_FUNCALL     (1 << 2)
 
-Function *new_func(Type *type, const Name *name, const Vector *params, int flag);
+Function *new_func(Type *type, const Name *name, const Vector *params, Table *attributes, int flag);
 
 // Declaration
 
