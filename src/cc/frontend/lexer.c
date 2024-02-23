@@ -469,16 +469,15 @@ static Token *read_num(const char **pp) {
       base = 16;
       is_unsigned = true;
       p += 2;
-      c = tolower(*p);
 #ifndef __NO_FLONUM
-      if (c == '.')  // Hex float literal.
+      if (*p == '.')  // Hex float literal.
         return read_flonum(pp, 16);
 #endif
-      if (!isxdigit(c))
-        lex_error(p, "Hexadecimal expected");
+    } else if (c == 'b') {
+      base = 2;
+      is_unsigned = true;
+      p += 2;
     } else if (isdigit(c)) {
-      if (c >= '8')
-        lex_error(p, "Octal expected");
       base = 8;
       is_unsigned = true;
     }

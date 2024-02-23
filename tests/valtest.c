@@ -116,6 +116,7 @@ TEST(all) {
   EXPECT("decimal", 42, 42);
   EXPECT("hex", 18, 0x12);
   EXPECT("octal", 83, 0123);
+  EXPECT("binary", 14953, 0b0011101001101001);
   EXPECT("negative", -42, (x=42, -x));
   EXPECT("0 - x", -42, (x=42, 0-x));
   EXPECT("long", 123, 123L);

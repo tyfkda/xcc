@@ -55,11 +55,13 @@ TEST(strtoll) {
   EXPECT_PTREQ(s + 10, p);
   EXPECT_EQ(-987, strtoll(s="-987_65", &p, 10));
   EXPECT_PTREQ(s + 4, p);
-  EXPECT_EQ(067, strtoll(s="+678-90", &p, 8));
+  EXPECT_EQ(55, strtoll(s="+678-90", &p, 8));  // 067
   EXPECT_PTREQ(s + 3, p);
-  EXPECT_EQ(0x89abc, strtoll(s="89abcxyz", &p, 16));
+  EXPECT_EQ(563900, strtoll(s="89abcxyz", &p, 16));  // 0x89abc
   EXPECT_PTREQ(s + 5, p);
-  EXPECT_EQ(0x7fffffffffffffffLL, strtoll(s="fedcba9876543210", &p, 16));
+  EXPECT_EQ(150, strtoull(s="100101102", &p, 2));
+  EXPECT_PTREQ(s + 8, p);
+  EXPECT_EQ(9223372036854775807, strtoll(s="fedcba9876543210", &p, 16));  // Clamped to 0x7fffffffffffffffLL.
   EXPECT_PTREQ(s + 16, p);
   EXPECT_EQ(-0x8000000000000000LL, strtoll(s="-92233720368547758070", &p, 10));
   EXPECT_PTREQ(s + 21, p);
@@ -75,13 +77,15 @@ TEST(strtoull) {
   EXPECT_PTREQ(s + 3, p);
   EXPECT_EQ(4567, strtoull(s="\t\n  004567.789", &p, 10));
   EXPECT_PTREQ(s + 10, p);
-  EXPECT_EQ(067, strtoull(s="+678-90", &p, 8));
+  EXPECT_EQ(55, strtoull(s="+678-90", &p, 8));  // 067
   EXPECT_PTREQ(s + 3, p);
-  EXPECT_EQ(0x89abc, strtoull(s="89abcxyz", &p, 16));
+  EXPECT_EQ(563900, strtoull(s="89abcxyz", &p, 16));  // 0x89abc
   EXPECT_PTREQ(s + 5, p);
-  EXPECT_EQ(0xfedcba9876543210ULL, strtoull(s="fedcba9876543210", &p, 16));
+  EXPECT_EQ(150, strtoull(s="100101102", &p, 2));
+  EXPECT_PTREQ(s + 8, p);
+  EXPECT_EQ(18364758544493064720ULL, strtoull(s="fedcba9876543210", &p, 16)); // 0xfedcba9876543210ULL
   EXPECT_PTREQ(s + 16, p);
-  EXPECT_EQ(0xffffffffffffffffULL, strtoull(s="18446744073709551616", &p, 10));
+  EXPECT_EQ(0xffffffffffffffffULL, strtoull(s="18446744073709551616", &p, 10));  // 18446744073709551616 is 0x1_0000_0000_0000_0000ULL, but clamped.
   EXPECT_PTREQ(s + 20, p);
 
   EXPECT_EQ(0, strtoull(s="+ 333", &p, 10));
