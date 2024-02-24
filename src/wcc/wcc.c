@@ -20,6 +20,7 @@
 #include "wasm.h"
 
 // #define USE_EMCC_AS_LINKER  1
+// #define USE_WCCLD_AS_LINKER  1
 
 static const char DEFAULT_IMPORT_MODULE_NAME[] = "env";
 
@@ -342,7 +343,7 @@ int main(int argc, char *argv[]) {
 #endif
   }
 
-#if USE_EMCC_AS_LINKER
+#if USE_EMCC_AS_LINKER || USE_WCCLD_AS_LINKER
   bool do_emcc_link = false;
   if (out_type >= OutExecutable) {
     do_emcc_link = true;
@@ -415,7 +416,7 @@ int main(int argc, char *argv[]) {
     return 2;
 
   FILE *ofp;
-#if USE_EMCC_AS_LINKER
+#if USE_EMCC_AS_LINKER || USE_WCCLD_AS_LINKER
   char *tmpfn;
   if (do_emcc_link) {
     char template[] = "/tmp/xcc-XXXXXX.o";
@@ -448,7 +449,7 @@ int main(int argc, char *argv[]) {
     fclose(ofp);
   }
 
-#if USE_EMCC_AS_LINKER
+#if USE_EMCC_AS_LINKER || USE_WCCLD_AS_LINKER
   if (do_emcc_link) {
     char *finalfn = (char*)ofn;
     if (finalfn == NULL) {
@@ -457,13 +458,25 @@ int main(int argc, char *argv[]) {
       finalfn = change_ext(finalfn, "wasm");
     }
 
+#if USE_EMCC_AS_LINKER
+    char *cc = "emcc";
+#else  // if USE_WCCLD_AS_LINKER
+    char *cc = JOIN_PATHS(root, "wcc-ld");
+#endif
+
     char *argv[] = {
-      "emcc",
+      cc,
       "-o", finalfn,
       tmpfn,
+#if USE_WCCLD_AS_LINKER
+      JOIN_PATHS(root, "lib/wcrt0.a"),
+      JOIN_PATHS(root, "lib/wlibc.a"),
+#endif
       NULL,
     };
-    return execvp("emcc", argv);
+    execvp(cc, argv);
+    perror(cc);
+    return 1;
   }
 #endif
 
