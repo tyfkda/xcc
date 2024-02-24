@@ -2,10 +2,10 @@
 
 'use strict'
 
-import fs from 'fs'
+import fsPromise from 'node:fs/promises'
 import {DisWasm} from '../src/wcc/www/diswasm'
 
-function main(argv: string[]) {
+async function main(argv: string[]) {
   const program = require('commander')
   program
     .option('--dump-addr', 'Dump address')
@@ -18,7 +18,7 @@ function main(argv: string[]) {
     process.exit(1)
   }
 
-  const content = fs.readFileSync(args[0])
+  const content = await fsPromise.readFile(args[0])
   const buffer = new Uint8Array(content).buffer
   const diswasm = new DisWasm(buffer, opts)
   try {

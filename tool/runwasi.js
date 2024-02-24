@@ -3,13 +3,14 @@
 'use strict'
 
 const fs = require('fs')
+const fsPromises = require('fs').promises
 const path = require('path')
 const { WASI } = require('@wasmer/wasi')
 
-function getRealpaths(map) {
-  Object.keys(map).forEach(key => {
+async function getRealpaths(map) {
+  const promises = Object.keys(map).map(async key => {
     try {
-      map[key] = fs.realpathSync(map[key])
+      map[key] = await fsPromises.realpath(map[key])
     } catch (e) {
       if (e.code === 'ENOENT') {
         console.error(`Error: "${map[key]}" not exist`)
@@ -19,6 +20,7 @@ function getRealpaths(map) {
       process.exit(1)
     }
   })
+  await Promise.all(promises)
   return map
 }
 
@@ -53,11 +55,11 @@ function getRealpaths(map) {
       fs,
       path,
     },
-    preopens: getRealpaths(preopens),
+    preopens: await getRealpaths(preopens),
   })
 
   try {
-    const wasmBin = fs.readFileSync(wasmFileName)
+    const wasmBin = await fsPromises.readFile(wasmFileName)
     const wasmModule = await WebAssembly.compile(wasmBin)
     const importObject = Object.assign({}, wasi.getImports(wasmModule))
     const instance = await WebAssembly.instantiate(wasmModule, importObject)
