@@ -679,6 +679,13 @@ Expr *new_expr_addsub(enum ExprKind kind, const Token *tok, Expr *lhs, Expr *rhs
         rtype = array_to_ptr(rtype);
       if (!same_type_without_qualifier(ltype, rtype, true))
         parse_error(PE_FATAL, tok, "Different pointer diff");
+      if (is_void_ptr(ltype)) {
+        // void* - void*
+        parse_error(PE_WARNING, tok, "Pointer subtraction of void*");
+        ltype = rtype = ptrof(&tyChar);
+        lhs = new_expr_cast(ltype, lhs->token, lhs);
+        rhs = new_expr_cast(rtype, rhs->token, rhs);
+      }
       // ((size_t)lhs - (size_t)rhs) / sizeof(*lhs)
       ensure_struct(ltype->pa.ptrof, tok, curscope);
       if (is_const(lhs) && is_const(rhs)) {
