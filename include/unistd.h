@@ -34,18 +34,21 @@ int close(int fd);
 ssize_t read(int fd, void *buf, size_t size);
 off_t lseek(int fd, off_t offset, int whence);
 int unlink(const char *pathname);
+char *getcwd(char *buffer, size_t size);
+
+int brk(void *addr);
+void *sbrk(intptr_t increment);
+
+#if !defined(__WASM)
 int unlinkat(int dirfd, const char *pathname, int flags);
 int dup(int);
 int pipe(int *);
 int pipe2(int *pipefd, int flag);
 int isatty(int fd);
-char *getcwd(char *buffer, size_t size);
 int chdir(const char *path);
 
 pid_t fork(void);
 long clone3(struct clone_args *cl_args, size_t size);
 int execvp(const char *, char *const[]);
 int execve(const char *, char *const[], char *const[]);
-
-int brk(void *addr);
-void *sbrk(intptr_t increment);
+#endif
