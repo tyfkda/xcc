@@ -279,10 +279,10 @@ static void te_var(Expr **pexpr, bool needval) {
     register_indirect_function(expr->var.name);
     traverse_func_expr(pexpr);
   } else {
-    if (out_type < OutExecutable && is_global_scope(expr->var.scope)) {
+    if (is_global_scope(expr->var.scope)) {
       // Register used global variable even if the entity is `extern`.
       get_gvar_info(expr);
-      }
+    }
   }
 }
 
@@ -579,7 +579,7 @@ static void traverse_vardecl(Stmt *stmt) {
           register_func_info(decl->ident, NULL, varinfo, 0);
         } else if (varinfo->storage & VS_EXTERN) {
           assert(!is_global_scope(curscope));
-          if (out_type < OutExecutable && scope_find(global_scope, decl->ident, NULL) == NULL) {
+          if (scope_find(global_scope, decl->ident, NULL) == NULL) {
             // Register into global to output linking information.
             GVarInfo *info = register_gvar_info(decl->ident, varinfo);
             info->flag |= GVF_UNRESOLVED;
@@ -732,8 +732,6 @@ static void add_builtins(void) {
   const Name *names[2];
   names[0] = alloc_name(SP_NAME, NULL, false);
   int n = 1;
-  if (out_type >= OutExecutable)
-    names[n++] = alloc_name(BREAK_ADDRESS_NAME, NULL, false);
 
   for (int i = 0; i < n; ++i) {
     const Name *name = names[i];
@@ -743,19 +741,11 @@ static void add_builtins(void) {
     } else {
       if (!same_type(varinfo->type, &tyVoidPtr))
         parse_error(PE_NOFATAL, NULL, "Illegal type: %.*s", NAMES(name));
-      if (out_type >= OutExecutable)
-        varinfo->storage &= ~VS_EXTERN;
     }
     GVarInfo *info = get_gvar_info_from_name(name);
     if (info == NULL)
       info = register_gvar_info(name, varinfo);
-    if (out_type < OutExecutable)
-      info->flag |= GVF_UNRESOLVED;
-    if (out_type >= OutExecutable && varinfo->global.init == NULL) {
-      Initializer *init = new_initializer(IK_SINGLE, NULL);
-      init->single = new_expr_fixlit(varinfo->type, NULL, 0);  // Dummy
-      varinfo->global.init = init;
-    }
+    info->flag |= GVF_UNRESOLVED;
   }
 }
 
@@ -804,7 +794,7 @@ uint32_t traverse_ast(Vector *decls, Vector *exports, uint32_t stack_size) {
     const Name *name;
     FuncInfo *info;
     for (int it = 0; (it = table_iterate(&func_info_table, it, &name, (void**)&info)) != -1; ) {
-      if (info->flag == 0)
+      if (info->flag == 0 && info->func == NULL)
         continue;
       if (satisfy_inline_criteria(info->varinfo) && !(info->varinfo->storage & VS_STATIC))
         continue;
@@ -852,7 +842,8 @@ uint32_t traverse_ast(Vector *decls, Vector *exports, uint32_t stack_size) {
     int32_t index = 0;
     for (int k = 0; k < 2; ++k) {  // 0: import, 1: defined-and-referred
       for (int it = 0; (it = table_iterate(&func_info_table, it, &name, (void**)&info)) != -1; ) {
-        if (info->flag == 0 || (k == 0) == (info->func != NULL))
+        if ((k == 0 && (info->func != NULL || info->flag == 0)) ||  // Put external function first.
+            (k == 1 && info->func == NULL))                         // Defined function later.
           continue;
         if (satisfy_inline_criteria(info->varinfo) && !(info->varinfo->storage & VS_STATIC))
           continue;
@@ -893,24 +884,6 @@ uint32_t traverse_ast(Vector *decls, Vector *exports, uint32_t stack_size) {
 
     // Set initial values.
     sp_bottom = ALIGN(address + stack_size, 16);
-    if (out_type >= OutExecutable) {
-      {  // Stack pointer.
-        VarInfo *varinfo = scope_find(global_scope, alloc_name(SP_NAME, NULL, false), NULL);
-        assert(varinfo != NULL);
-        Initializer *init = varinfo->global.init;
-          assert(init != NULL && init->kind == IK_SINGLE && init->single->kind == EX_FIXNUM);
-          init->single->fixnum = sp_bottom;
-        VERBOSE("SP bottom: 0x%x  (size=0x%x)\n", sp_bottom, stack_size);
-      }
-      {  // Break address.
-        VarInfo *varinfo = scope_find(global_scope, alloc_name(BREAK_ADDRESS_NAME, NULL, false), NULL);
-        assert(varinfo != NULL);
-        Initializer *init = varinfo->global.init;
-          assert(init != NULL && init->kind == IK_SINGLE && init->single->kind == EX_FIXNUM);
-          init->single->fixnum = sp_bottom;
-        VERBOSE("Break address: 0x%x\n", sp_bottom);
-      }
-    }
   }
 
   return sp_bottom;

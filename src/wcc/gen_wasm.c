@@ -265,20 +265,16 @@ static void gen_funcall_by_name(const Name *funcname) {
   FuncInfo *info = table_get(&func_info_table, funcname);
   assert(info != NULL);
   ADD_CODE(OP_CALL);
-  if (out_type >= OutExecutable) {
-    ADD_ULEB128(info->index);
-  } else {
-    FuncExtra *extra = curfunc->extra;
-    DataStorage *code = extra->code;
-    RelocInfo *ri = calloc_or_die(sizeof(*ri));
-    ri->type = R_WASM_FUNCTION_INDEX_LEB;
-    ri->offset = code->len;
-    ri->addend = 0;
-    ri->index = info->index;
-    vec_push(extra->reloc_code, ri);
+  FuncExtra *extra = curfunc->extra;
+  DataStorage *code = extra->code;
+  RelocInfo *ri = calloc_or_die(sizeof(*ri));
+  ri->type = R_WASM_FUNCTION_INDEX_LEB;
+  ri->offset = code->len;
+  ri->addend = 0;
+  ri->index = info->index;
+  vec_push(extra->reloc_code, ri);
 
-    ADD_VARUINT32(info->index);
-  }
+  ADD_VARUINT32(info->index);
 }
 
 static void gen_funcall(Expr *expr) {
@@ -402,19 +398,15 @@ static void gen_funcall(Expr *expr) {
     int index = get_func_type_index(functype);
     assert(index >= 0);
     ADD_CODE(OP_CALL_INDIRECT);
-    if (out_type >= OutExecutable) {
-      ADD_ULEB128(index);  // signature index
-    } else {
-      FuncExtra *extra = curfunc->extra;
-      DataStorage *code = extra->code;
-      RelocInfo *ri = calloc_or_die(sizeof(*ri));
-      ri->type = R_WASM_TYPE_INDEX_LEB;
-      ri->index = index;
-      ri->offset = code->len;
-      vec_push(extra->reloc_code, ri);
+    FuncExtra *extra = curfunc->extra;
+    DataStorage *code = extra->code;
+    RelocInfo *ri = calloc_or_die(sizeof(*ri));
+    ri->type = R_WASM_TYPE_INDEX_LEB;
+    ri->index = index;
+    ri->offset = code->len;
+    vec_push(extra->reloc_code, ri);
 
-      ADD_VARUINT32(index);
-    }
+    ADD_VARUINT32(index);
     ADD_ULEB128(0);      // table index
   }
 
@@ -471,39 +463,30 @@ static void gen_ref_sub(Expr *expr) {
       if (is_global_scope(scope) || !is_local_storage(varinfo)) {
         if (varinfo->type->kind == TY_FUNC) {
           ADD_CODE(OP_I32_CONST);
-          if (out_type >= OutExecutable) {
-            uint32_t indirect_func = get_indirect_function_index(expr->var.name);
-            ADD_LEB128(indirect_func);
-          } else {
-            FuncInfo *info = table_get(&indirect_function_table, expr->var.name);
-            assert(info != NULL && info->indirect_index > 0);
-            FuncExtra *extra = curfunc->extra;
-            DataStorage *code = extra->code;
-            RelocInfo *ri = calloc_or_die(sizeof(*ri));
-            ri->type = R_WASM_TABLE_INDEX_SLEB;
-            ri->offset = code->len;
-            ri->index = info->index;  // Assume that symtab index is same as function index.
-            vec_push(extra->reloc_code, ri);
+          FuncInfo *info = table_get(&indirect_function_table, expr->var.name);
+          assert(info != NULL && info->indirect_index > 0);
+          FuncExtra *extra = curfunc->extra;
+          DataStorage *code = extra->code;
+          RelocInfo *ri = calloc_or_die(sizeof(*ri));
+          ri->type = R_WASM_TABLE_INDEX_SLEB;
+          ri->offset = code->len;
+          ri->index = info->index;  // Assume that symtab index is same as function index.
+          vec_push(extra->reloc_code, ri);
 
-            ADD_VARUINT32(info->indirect_index);
-          }
+          ADD_VARUINT32(info->indirect_index);
         } else {
           GVarInfo *info = get_gvar_info(expr);
           ADD_CODE(OP_I32_CONST);
-          if (out_type >= OutExecutable) {
-            ADD_LEB128(info->non_prim.address);
-          } else {
-            FuncExtra *extra = curfunc->extra;
-            DataStorage *code = extra->code;
-            RelocInfo *ri = calloc_or_die(sizeof(*ri));
-            ri->type = R_WASM_MEMORY_ADDR_LEB;
-            ri->offset = code->len;
-            ri->addend = 0;
-            ri->index = info->symbol_index;
-            vec_push(extra->reloc_code, ri);
+          FuncExtra *extra = curfunc->extra;
+          DataStorage *code = extra->code;
+          RelocInfo *ri = calloc_or_die(sizeof(*ri));
+          ri->type = R_WASM_MEMORY_ADDR_LEB;
+          ri->offset = code->len;
+          ri->addend = 0;
+          ri->index = info->symbol_index;
+          vec_push(extra->reloc_code, ri);
 
-            ADD_VARUINT32(info->non_prim.address);
-          }
+          ADD_VARUINT32(info->non_prim.address);
         }
       } else {
         VReg *vreg = varinfo->local.vreg;
@@ -566,20 +549,16 @@ static void gen_var(Expr *expr, bool needval) {
       } else {
         GVarInfo *info = get_gvar_info(expr);
         ADD_CODE(OP_GLOBAL_GET);
-        if (out_type >= OutExecutable) {
-          ADD_ULEB128(info->prim.index);
-        } else {
-          FuncExtra *extra = curfunc->extra;
-          DataStorage *code = extra->code;
-          RelocInfo *ri = calloc_or_die(sizeof(*ri));
-          ri->type = R_WASM_GLOBAL_INDEX_LEB;
-          ri->offset = code->len;
-          ri->addend = 0;
-          ri->index = info->symbol_index;
-          vec_push(extra->reloc_code, ri);
+        FuncExtra *extra = curfunc->extra;
+        DataStorage *code = extra->code;
+        RelocInfo *ri = calloc_or_die(sizeof(*ri));
+        ri->type = R_WASM_GLOBAL_INDEX_LEB;
+        ri->offset = code->len;
+        ri->addend = 0;
+        ri->index = info->symbol_index;
+        vec_push(extra->reloc_code, ri);
 
-          ADD_VARUINT32(info->prim.index);
-        }
+        ADD_VARUINT32(info->prim.index);
       }
     }
     break;
@@ -632,20 +611,16 @@ static void gen_set_to_var(Expr *var) {
     assert(!is_global_datsec_var(varinfo, var->var.scope));
     GVarInfo *info = get_gvar_info(var);
     ADD_CODE(OP_GLOBAL_SET);
-    if (out_type >= OutExecutable) {
-      ADD_ULEB128(info->prim.index);
-    } else {
-      FuncExtra *extra = curfunc->extra;
-      DataStorage *code = extra->code;
-      RelocInfo *ri = calloc_or_die(sizeof(*ri));
-      ri->type = R_WASM_GLOBAL_INDEX_LEB;
-      ri->offset = code->len;
-      ri->addend = 0;
-      ri->index = info->symbol_index;
-      vec_push(extra->reloc_code, ri);
+    FuncExtra *extra = curfunc->extra;
+    DataStorage *code = extra->code;
+    RelocInfo *ri = calloc_or_die(sizeof(*ri));
+    ri->type = R_WASM_GLOBAL_INDEX_LEB;
+    ri->offset = code->len;
+    ri->addend = 0;
+    ri->index = info->symbol_index;
+    vec_push(extra->reloc_code, ri);
 
-      ADD_VARUINT32(info->prim.index);
-    }
+    ADD_VARUINT32(info->prim.index);
   }
 }
 
@@ -1804,20 +1779,16 @@ static void gen_builtin_longjmp(Expr *expr, enum BuiltinFunctionPhase phase) {
   gen_expr(env, true);
   TagInfo *ti = register_longjmp_tag();
   ADD_CODE(OP_THROW);
-  if (out_type >= OutExecutable) {
-    ADD_ULEB128(ti->index);
-  } else {
-    FuncExtra *extra = curfunc->extra;
-    DataStorage *code = extra->code;
-    RelocInfo *ri = calloc_or_die(sizeof(*ri));
-    ri->type = R_WASM_TAG_INDEX_LEB;
-    ri->offset = code->len;
-    ri->addend = 0;
-    ri->index = ti->symbol_index;
-    vec_push(extra->reloc_code, ri);
+  FuncExtra *extra = curfunc->extra;
+  DataStorage *code = extra->code;
+  RelocInfo *ri = calloc_or_die(sizeof(*ri));
+  ri->type = R_WASM_TAG_INDEX_LEB;
+  ri->offset = code->len;
+  ri->addend = 0;
+  ri->index = ti->symbol_index;
+  vec_push(extra->reloc_code, ri);
 
-    ADD_VARUINT32(ti->index);
-  }
+  ADD_VARUINT32(ti->index);
 }
 
 static void gen_builtin_try_catch_longjmp(Expr *expr, enum BuiltinFunctionPhase phase) {
@@ -1838,20 +1809,16 @@ static void gen_builtin_try_catch_longjmp(Expr *expr, enum BuiltinFunctionPhase 
         ADD_CODE(OP_BR, 2);
       } ADD_CODE(OP_CATCH); {
         TagInfo *ti = register_longjmp_tag();
-        if (out_type >= OutExecutable) {
-          ADD_ULEB128(ti->index);
-        } else {
-          FuncExtra *extra = curfunc->extra;
-          DataStorage *code = extra->code;
-          RelocInfo *ri = calloc_or_die(sizeof(*ri));
-          ri->type = R_WASM_TAG_INDEX_LEB;
-          ri->offset = code->len;
-          ri->addend = 0;
-          ri->index = ti->symbol_index;
-          vec_push(extra->reloc_code, ri);
+        FuncExtra *extra = curfunc->extra;
+        DataStorage *code = extra->code;
+        RelocInfo *ri = calloc_or_die(sizeof(*ri));
+        ri->type = R_WASM_TAG_INDEX_LEB;
+        ri->offset = code->len;
+        ri->addend = 0;
+        ri->index = ti->symbol_index;
+        vec_push(extra->reloc_code, ri);
 
-          ADD_VARUINT32(ti->index);
-        }
+        ADD_VARUINT32(ti->index);
 
         // Assume env has no side effect.
         Expr *env = args->data[0];

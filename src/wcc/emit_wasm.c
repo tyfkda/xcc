@@ -99,40 +99,36 @@ static void emit_number(void *ud, const Type *type, Expr *var, Fixnum offset) {
       assert(v == 0);
       v = get_indirect_function_index(var->var.name);
 
-      if (out_type < OutExecutable) {
-        FuncInfo *info = table_get(&func_info_table, var->var.name);
-        if (info == NULL)
-          error("`%.*s' not found", NAMES(var->var.name));
+      FuncInfo *info = table_get(&func_info_table, var->var.name);
+      if (info == NULL)
+        error("`%.*s' not found", NAMES(var->var.name));
 
-        RelocInfo *ri = calloc_or_die(sizeof(*ri));
-        ri->type = R_WASM_TABLE_INDEX_I32;
-        ri->offset = ds->len;
-        ri->addend = offset;
-        ri->index = info->index;
+      RelocInfo *ri = calloc_or_die(sizeof(*ri));
+      ri->type = R_WASM_TABLE_INDEX_I32;
+      ri->offset = ds->len;
+      ri->addend = offset;
+      ri->index = info->index;
 
-        Vector *reloc_data = edp->reloc_data;
-        if (reloc_data == NULL)
-          edp->reloc_data = reloc_data = new_vector();
-        vec_push(reloc_data, ri);
-      }
+      Vector *reloc_data = edp->reloc_data;
+      if (reloc_data == NULL)
+        edp->reloc_data = reloc_data = new_vector();
+      vec_push(reloc_data, ri);
     } else {
       assert(var->kind == EX_VAR);
       const GVarInfo *info = get_gvar_info(var);
       assert(!is_prim_type(info->varinfo->type) || (info->varinfo->storage & VS_REF_TAKEN));
       v += info->non_prim.address;
 
-      if (out_type < OutExecutable) {
-        RelocInfo *ri = calloc_or_die(sizeof(*ri));
-        ri->type = R_WASM_MEMORY_ADDR_I32;
-        ri->offset = ds->len;
-        ri->addend = offset;
-        ri->index = info->symbol_index;
+      RelocInfo *ri = calloc_or_die(sizeof(*ri));
+      ri->type = R_WASM_MEMORY_ADDR_I32;
+      ri->offset = ds->len;
+      ri->addend = offset;
+      ri->index = info->symbol_index;
 
-        Vector *reloc_data = edp->reloc_data;
-        if (reloc_data == NULL)
-          edp->reloc_data = reloc_data = new_vector();
-        vec_push(reloc_data, ri);
-      }
+      Vector *reloc_data = edp->reloc_data;
+      if (reloc_data == NULL)
+        edp->reloc_data = reloc_data = new_vector();
+      vec_push(reloc_data, ri);
     }
   }
   emit_fixnum(ds, v, type_size(type));
@@ -221,8 +217,6 @@ static Vector *construct_data_segment(void) {
       address = adr + type_size(varinfo->type);
 #endif
     }
-    if (out_type >= OutExecutable)
-      break;
   }
   return segments;
 }
@@ -256,7 +250,7 @@ static void emit_import_section(EmitWasm *ew) {
   uint32_t imports_count = 0;
   uint32_t global_count = 0;
 
-  if (out_type < OutExecutable) {
+  {
     static const char kMemoryName[] = "__linear_memory";
     data_string(&imports_section, env_module_name, sizeof(env_module_name) - 1);  // import module name
     data_string(&imports_section, kMemoryName, sizeof(kMemoryName) - 1);  // import name
@@ -265,7 +259,7 @@ static void emit_import_section(EmitWasm *ew) {
     data_uleb128(&imports_section, -1, 0);  // size
     ++imports_count;
   }
-  if (indirect_function_table.count > 0 && out_type < OutExecutable) {
+  if (indirect_function_table.count > 0) {
     static const char kTableName[] = "__indirect_function_table";
     data_string(&imports_section, env_module_name, sizeof(env_module_name) - 1);  // import module name
     data_string(&imports_section, kTableName, sizeof(kTableName) - 1);  // import name
@@ -353,8 +347,7 @@ static void emit_function_section(EmitWasm *ew) {
     const Name *name;
     FuncInfo *info;
     for (int it = 0; (it = table_iterate(&func_info_table, it, &name, (void**)&info)) != -1; ) {
-      Function *func = info->func;
-      if (func == NULL || info->flag == 0)
+      if (info->func == NULL)
         continue;
       if (satisfy_inline_criteria(info->varinfo) && !(info->varinfo->storage & VS_STATIC))
         continue;
@@ -372,49 +365,6 @@ static void emit_function_section(EmitWasm *ew) {
     fwrite(functions_section.buf, functions_section.len, 1, ew->ofp);
     ++ew->section_index;
   }
-}
-
-void emit_table_section(EmitWasm *ew) {
-  if (out_type < OutExecutable)
-    return;
-  if (indirect_function_table.count <= 0)
-    return;
-
-  DataStorage table_section;
-  data_init(&table_section);
-  data_open_chunk(&table_section);
-  data_leb128(&table_section, -1, 1);  // num tables
-  data_push(&table_section, WT_FUNCREF);
-  data_push(&table_section, 0x00);  // limits: flags
-  data_leb128(&table_section, -1, INDIRECT_FUNCTION_TABLE_START_INDEX + indirect_function_table.count);  // initial
-  data_close_chunk(&table_section, -1);
-
-  fputc(SEC_TABLE, ew->ofp);
-  fwrite(table_section.buf, table_section.len, 1, ew->ofp);
-  ++ew->section_index;
-}
-
-void emit_memory_section(EmitWasm *ew) {
-  if (out_type < OutExecutable)
-    return;
-
-  DataStorage memory_section;
-  data_init(&memory_section);
-  data_open_chunk(&memory_section);
-  data_open_chunk(&memory_section);
-  {
-    uint32_t page_count = (ew->address_bottom + MEMORY_PAGE_SIZE - 1) / MEMORY_PAGE_SIZE;
-    if (page_count <= 0)
-      page_count = 1;
-    data_uleb128(&memory_section, -1, 0);  // limits (no maximum page size)
-    data_uleb128(&memory_section, -1, page_count);
-    data_close_chunk(&memory_section, 1);  // count
-    data_close_chunk(&memory_section, -1);
-  }
-
-  fputc(SEC_MEMORY, ew->ofp);
-  fwrite(memory_section.buf, memory_section.len, 1, ew->ofp);
-  ++ew->section_index;
 }
 
 static void emit_global_section(EmitWasm *ew) {
@@ -453,62 +403,7 @@ static void emit_global_section(EmitWasm *ew) {
   }
 }
 
-static void emit_export_section(EmitWasm *ew, Vector *exports) {
-  if (out_type < OutExecutable)
-    return;
-
-  DataStorage exports_section;
-  data_init(&exports_section);
-  data_open_chunk(&exports_section);
-  data_open_chunk(&exports_section);
-  int num_exports = 0;
-  for (int i = 0; i < exports->len; ++i) {
-    const Name *name = exports->data[i];
-    FuncInfo *info = table_get(&func_info_table, name);
-    if (info == NULL) {
-      error("Export: `%.*s' not found", NAMES(name));
-    }
-    assert(info->func != NULL);
-    VarInfo *varinfo = info->varinfo;
-    if (varinfo->storage & VS_STATIC) {
-      error("Export: `%.*s' is not public", NAMES(name));
-    }
-
-    data_string(&exports_section, name->chars, name->bytes);  // export name
-    data_uleb128(&exports_section, -1, IMPORT_FUNC);  // export kind
-    data_uleb128(&exports_section, -1, info->index);  // export func index
-    ++num_exports;
-  }
-  // Export globals.
-  {
-    const Name *name;
-    GVarInfo *info;
-    for (int it = 0; (it = table_iterate(&gvar_info_table, it, &name, (void**)&info)) != -1; ) {
-      const VarInfo *varinfo = info->varinfo;
-      if (!(info->flag & GVF_EXPORT) || !is_prim_type(varinfo->type) || (varinfo->storage & VS_REF_TAKEN))
-        continue;
-      data_string(&exports_section, name->chars, name->bytes);  // export name
-      data_push(&exports_section, IMPORT_GLOBAL);  // export kind
-      data_uleb128(&exports_section, -1, info->prim.index);  // export global index
-      ++num_exports;
-    }
-  }
-  /*if (memory_section.len > 0)*/ {  // TODO: Export only if memory exists
-    static const char name[] = "memory";
-    data_string(&exports_section, name, sizeof(name) - 1);  // export name
-    data_uleb128(&exports_section, -1, IMPORT_MEMORY);  // export kind
-    data_uleb128(&exports_section, -1, 0);  // export global index
-    ++num_exports;
-  }
-  data_close_chunk(&exports_section, num_exports);  // num exports
-  data_close_chunk(&exports_section, -1);
-
-  fputc(SEC_EXPORT, ew->ofp);
-  fwrite(exports_section.buf, exports_section.len, 1, ew->ofp);
-  ++ew->section_index;
-}
-
-void emit_elems_section(EmitWasm *ew) {
+static void emit_elems_section(EmitWasm *ew) {
   int count = indirect_function_table.count;
   if (count == 0)
     return;
@@ -574,7 +469,7 @@ static void emit_code_section(EmitWasm *ew) {
     size_t offset = codesec.len;
     for (int it = 0; (it = table_iterate(&func_info_table, it, &name, (void**)&info)) != -1; ) {
       Function *func = info->func;
-      if (func == NULL || info->flag == 0)
+      if (func == NULL)
         continue;
       if (satisfy_inline_criteria(info->varinfo) && !(info->varinfo->storage & VS_STATIC))
         continue;
@@ -659,9 +554,8 @@ static void emit_linking_section(EmitWasm *ew) {
     const Name *name;
     FuncInfo *info;
     for (int it = 0; (it = table_iterate(&func_info_table, it, &name, (void**)&info)) != -1; ) {
-      if (info->flag == 0 ||
-          (k == 0 && info->func != NULL) ||  // Put external function first.
-          (k == 1 && info->func == NULL))    // Defined function later.
+      if ((k == 0 && (info->func != NULL || info->flag == 0)) ||  // Put external function first.
+          (k == 1 && info->func == NULL))                         // Defined function later.
         continue;
       if (satisfy_inline_criteria(info->varinfo) && !(info->varinfo->storage & VS_STATIC))
         continue;
@@ -816,7 +710,7 @@ static void emit_reloc_code_section(EmitWasm *ew) {
   FuncInfo *info;
   for (int it = 0; (it = table_iterate(&func_info_table, it, &name, (void**)&info)) != -1; ) {
     Function *func = info->func;
-    if (func == NULL || info->flag == 0)
+    if (func == NULL)
       continue;
     if (satisfy_inline_criteria(info->varinfo) && !(info->varinfo->storage & VS_STATIC))
       continue;
@@ -855,8 +749,7 @@ static void emit_reloc_data_section(EmitWasm *ew, Vector *reloc_data) {
   emit_reloc_section(ew, ew->data_section_index, reloc_data, kRelocData);
 }
 
-void emit_wasm(FILE *ofp, Vector *exports, const char *import_module_name,
-               uint32_t address_bottom) {
+void emit_wasm(FILE *ofp, const char *import_module_name, uint32_t address_bottom) {
   write_wasm_header(ofp);
 
   EmitWasm ew_body = {
@@ -875,20 +768,11 @@ void emit_wasm(FILE *ofp, Vector *exports, const char *import_module_name,
   // Functions.
   emit_function_section(ew);
 
-  // Table.
-  emit_table_section(ew);
-
-  // Memory.
-  emit_memory_section(ew);
-
   // Tag (must put earlier than Global section.)
   emit_tag_section(ew);
 
   // Globals.
   emit_global_section(ew);
-
-  // Exports.
-  emit_export_section(ew, exports);
 
   // Elements.
   emit_elems_section(ew);
@@ -901,9 +785,8 @@ void emit_wasm(FILE *ofp, Vector *exports, const char *import_module_name,
   ew->data_section_index = ew->section_index;
   Vector *reloc_data = emit_data_section(ew);
 
-  if (out_type < OutExecutable) {
-    emit_linking_section(ew);
-    emit_reloc_code_section(ew);
-    emit_reloc_data_section(ew, reloc_data);
-  }
+  // Linking.
+  emit_linking_section(ew);
+  emit_reloc_code_section(ew);
+  emit_reloc_data_section(ew, reloc_data);
 }

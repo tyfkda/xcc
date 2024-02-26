@@ -115,13 +115,10 @@ typedef struct {
   uint32_t import_global_count;
 } EmitWasm;
 
-void emit_wasm(FILE *ofp, Vector *exports, const char *import_module_name, uint32_t address_bottom);
+void emit_wasm(FILE *ofp, const char *import_module_name, uint32_t address_bottom);
 
 void emit_type_section(EmitWasm *ew);
-void emit_table_section(EmitWasm *ew);
-void emit_memory_section(EmitWasm *ew);
 void emit_tag_section(EmitWasm *ew);
-void emit_elems_section(EmitWasm *ew);
 
 // wcc_util
 enum OutType {
@@ -135,7 +132,6 @@ extern const char SP_NAME[];
 extern const char BREAK_ADDRESS_NAME[];
 
 extern bool verbose;
-extern enum OutType out_type;
 extern Table func_info_table;
 extern Table gvar_info_table;
 extern Table indirect_function_table;  // <FuncInfo*>

@@ -18,6 +18,7 @@
 #include "util.h"
 #include "var.h"
 #include "wasm.h"
+#include "wasm_linker.h"
 
 // #define USE_EMCC_AS_LINKER  1
 // #define USE_WCCLD_AS_LINKER  1
@@ -129,7 +130,7 @@ int main(int argc, char *argv[]) {
   Vector *lib_paths = new_vector();
   bool export_all = false;
   bool export_stack_pointer = false;
-  out_type = OutExecutable;
+  enum OutType final_out_type = OutExecutable;
 
   FILE *ppout = tmpfile();
   if (ppout == NULL)
@@ -221,7 +222,7 @@ int main(int argc, char *argv[]) {
       ofn = optarg;
       break;
     case 'c':
-      out_type = OutObject;
+      final_out_type = OutObject;
       break;
     case 'e':
       if (*optarg != '\0') {
@@ -343,21 +344,14 @@ int main(int argc, char *argv[]) {
 #endif
   }
 
-#if USE_EMCC_AS_LINKER || USE_WCCLD_AS_LINKER
-  bool do_emcc_link = false;
-  if (out_type >= OutExecutable) {
-    do_emcc_link = true;
-    out_type = OutObject;
-  }
-#endif
-  if (out_type >= OutExecutable && entry_point == NULL) {
+  if (final_out_type >= OutExecutable && entry_point == NULL) {
     entry_point = "_start";
-    if (exports->len == 0)
-      vec_push(exports, alloc_name("main", NULL, false));
+    // if (exports->len == 0)
+    //   vec_push(exports, alloc_name("main", NULL, false));
   }
   if (entry_point != NULL && *entry_point != '\0')
     vec_push(exports, alloc_name(entry_point, NULL, false));
-  if (exports->len == 0 && !(export_all || out_type < OutExecutable)) {
+  if (exports->len == 0 && !(export_all || final_out_type < OutExecutable)) {
     error("no exports (require -e<xxx>)\n");
   }
 
@@ -368,29 +362,29 @@ int main(int argc, char *argv[]) {
   }
   VERBOSES("\n");
 
-  Vector *libs = new_vector();
-  if (out_type >= OutExecutable) {
+//   Vector *libs = new_vector();
+  if (final_out_type >= OutExecutable) {
 #if defined(__WASM)
     vec_push(lib_paths, "/usr/lib");
 #else
-    vec_push(lib_paths, JOIN_PATHS(root, "./libsrc/_wasm"));
+    vec_push(lib_paths, JOIN_PATHS(root, "./lib"));
 #endif
-    if (!nostdlib)
-      add_lib(lib_paths, "crt0.c", libs);
-    if (!nodefaultlibs && !nostdlib)
-      add_lib(lib_paths, "libc.c", libs);
+    // if (!nostdlib)
+    //   add_lib(lib_paths, "crt0.c", libs);
+    // if (!nodefaultlibs && !nostdlib)
+    //   add_lib(lib_paths, "libc.c", libs);
   }
 
   Vector *toplevel = new_vector();
 
   preprocess_and_compile(ppout, sources, toplevel);
-  if (export_all || out_type < OutExecutable)
+  if (export_all || final_out_type < OutExecutable)
     export_non_static_functions(exports);
-  preprocess_and_compile(ppout, libs, toplevel);
+  // preprocess_and_compile(ppout, libs, toplevel);
 
   fclose(ppout);
 
-  uint32_t address_bottom = traverse_ast(toplevel, exports, stack_size);
+  uint32_t address_bottom = traverse_ast(toplevel, new_vector(), stack_size);
   if (compile_error_count != 0)
     return 1;
 
@@ -400,15 +394,15 @@ int main(int argc, char *argv[]) {
   }
 
   gen(toplevel);
-  if (out_type >= OutExecutable && unresolved_gvar_table.count > 0) {
-    const Name *name;
-    VarInfo *varinfo;
-    for (int it = 0;
-         (it = table_iterate(&unresolved_gvar_table, it, &name, (void**)&varinfo)) != -1; ) {
-      fprintf(stderr, "Global variable not resolved: %.*s\n", NAMES(name));
-    }
-    ++compile_error_count;
-  }
+  // if (final_out_type >= OutExecutable && unresolved_gvar_table.count > 0) {
+  //   const Name *name;
+  //   VarInfo *varinfo;
+  //   for (int it = 0;
+  //        (it = table_iterate(&unresolved_gvar_table, it, &name, (void**)&varinfo)) != -1; ) {
+  //     fprintf(stderr, "Global variable not resolved: %.*s\n", NAMES(name));
+  //   }
+  //   ++compile_error_count;
+  // }
 
   if (compile_error_count != 0)
     return 1;
@@ -416,9 +410,8 @@ int main(int argc, char *argv[]) {
     return 2;
 
   FILE *ofp;
-#if USE_EMCC_AS_LINKER || USE_WCCLD_AS_LINKER
-  char *tmpfn;
-  if (do_emcc_link) {
+  char *tmpfn = NULL;
+  if (final_out_type >= OutExecutable) {
     char template[] = "/tmp/xcc-XXXXXX.o";
     int obj_fd = mkstemps(template, 2);
     if (obj_fd == -1) {
@@ -427,30 +420,28 @@ int main(int argc, char *argv[]) {
     }
     tmpfn = strdup(template);
     ofp = fdopen(obj_fd, "wb");
-  } else
-#endif
-  {
+  } else {
     const char *outfn = ofn;
     if (outfn == NULL) {
-      if (out_type == OutObject) {
-        char *src = sources->data[0];  // TODO:
-        outfn = change_ext(basename(src), "o");
-      } else {
-        outfn = "a.wasm";
-      }
+      char *src = sources->data[0];  // TODO:
+      outfn = src != NULL ? change_ext(basename(src), "o") : "a.o";
     }
     ofp = fopen(outfn, "wb");
   }
   if (ofp == NULL) {
     error("Cannot open output file");
   } else {
-    emit_wasm(ofp, exports, import_module_name, address_bottom);
+    emit_wasm(ofp, import_module_name, address_bottom);
     assert(compile_error_count == 0);
     fclose(ofp);
   }
 
+  if (final_out_type >= OutExecutable) {
 #if USE_EMCC_AS_LINKER || USE_WCCLD_AS_LINKER
-  if (do_emcc_link) {
+    UNUSED(nodefaultlibs);
+    UNUSED(nostdlib);
+    UNUSED(add_lib);
+
     char *finalfn = (char*)ofn;
     if (finalfn == NULL) {
       finalfn = "a.wasm";
@@ -477,8 +468,37 @@ int main(int argc, char *argv[]) {
     execvp(cc, argv);
     perror(cc);
     return 1;
-  }
+#else
+    Vector *obj_files = new_vector();
+    vec_push(obj_files, tmpfn);
+    if (!nostdlib)
+      add_lib(lib_paths, "wcrt0.a", obj_files);
+    if (!nodefaultlibs && !nostdlib)
+      add_lib(lib_paths, "wlibc.a", obj_files);
+
+    const char *outfn = ofn != NULL ? ofn : "a.wasm";
+
+    functypes = new_vector();
+    tags = new_vector();
+    table_init(&indirect_function_table);
+
+    WasmLinker linker_body;
+    WasmLinker *linker = &linker_body;
+    linker_init(linker);
+
+    for (int i = 0; i < obj_files->len; ++i) {
+      const char *objfn = obj_files->data[i];
+      if (!read_wasm_obj(linker, objfn)) {
+        fprintf(stderr, "error: failed to read wasm object file: %s\n", objfn);
+        return 1;
+      }
+    }
+
+    if (!link_wasm_objs(linker, exports, stack_size) ||
+        !linker_emit_wasm(linker, outfn, exports))
+      return 2;
 #endif
+  }
 
   return 0;
 }
