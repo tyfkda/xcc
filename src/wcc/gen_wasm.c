@@ -357,9 +357,13 @@ static void gen_funcall(Expr *expr) {
         if (size > 0) {
           sarg_offset = ALIGN(sarg_offset, align_size(arg->type));
           // _memcpy(global.sp + sarg_offset, &arg, size);
-          gen_expr(new_expr_bop(EX_ADD, &tySize, NULL, spvar,
-                                new_expr_fixlit(&tySize, NULL, sarg_offset)),
-                   true);
+          if (sarg_offset != 0) {
+            gen_expr(new_expr_bop(EX_ADD, &tySize, NULL, spvar,
+                                  new_expr_fixlit(&tySize, NULL, sarg_offset)),
+                     true);
+          } else {
+            gen_expr(spvar, true);
+          }
           gen_expr(arg, true);
 
           ADD_CODE(OP_I32_CONST);
@@ -371,9 +375,14 @@ static void gen_funcall(Expr *expr) {
     } else {
       assert(!is_stack_param(arg->type));
       // *(global.sp + sarg_siz + vaarg_offset) = arg
-      gen_expr(new_expr_bop(EX_ADD, &tySize, NULL, spvar,
-                            new_expr_fixlit(&tySize, NULL, sarg_siz + vaarg_offset)),
-               true);
+      int offset = sarg_siz + vaarg_offset;
+      if (offset != 0) {
+        gen_expr(new_expr_bop(EX_ADD, &tySize, NULL, spvar,
+                              new_expr_fixlit(&tySize, NULL, offset)),
+                 true);
+      } else {
+        gen_expr(spvar, true);
+      }
       const Type *t = arg->type;
       assert(!(t->kind == TY_FIXNUM && t->fixnum.kind < FX_INT));
       vaarg_offset += type_size(t);
