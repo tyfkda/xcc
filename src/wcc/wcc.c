@@ -362,12 +362,12 @@ int main(int argc, char *argv[]) {
     error("no exports (require -e<xxx>)\n");
   }
 
-  VERBOSES("### Exports\n");
+  VERBOSE("### Exports\n");
   for (int i = 0; i < exports->len; ++i) {
     const Name *name = exports->data[i];
     VERBOSE("%.*s\n", NAMES(name));
   }
-  VERBOSES("\n");
+  VERBOSE("\n");
 
   Vector *libs = new_vector();
   if (out_type >= OutExecutable) {

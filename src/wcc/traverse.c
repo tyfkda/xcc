@@ -846,7 +846,7 @@ uint32_t traverse_ast(Vector *decls, Vector *exports, uint32_t stack_size) {
 
   {
     // Enumerate functions.
-    VERBOSES("### Functions\n");
+    VERBOSE("### Functions\n");
     const Name *name;
     FuncInfo *info;
     int32_t index = 0;
@@ -860,7 +860,7 @@ uint32_t traverse_ast(Vector *decls, Vector *exports, uint32_t stack_size) {
         VERBOSE("%2d: %.*s%s\n", info->index, NAMES(name), k == 0 ? "  (import)" : "");
       }
     }
-    VERBOSES("\n");
+    VERBOSE("\n");
   }
 
   uint32_t sp_bottom;
