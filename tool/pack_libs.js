@@ -1,47 +1,76 @@
 'use strict'
 
 const {assert} = require('console')
-const fs = require('fs')
+const fsPromise = require('fs').promises
+const {zip} = require('fflate')
+
+function isBinFile(fileName) {
+  return fileName.match(/\.(wasm)$/) != null
+}
 
 function replaceRelativeInclude(content) {
   return content.replace(/^(#include\s+)"\..+\/([\w\d\-_.]+)"$/gm, '$1"$2"')
 }
 
-function readFile(path) {
-  const content = fs.readFileSync(path, 'utf8')
-  return replaceRelativeInclude(content)
+async function readFile(path) {
+  if (isBinFile(path)) {
+    return await fsPromise.readFile(path)
+  } else {
+    const text = await fsPromise.readFile(path, 'utf8')
+    return replaceRelativeInclude(text)
+  }
 }
 
-function mapFileJson(json) {
+async function collectFiles(json) {
   switch (typeof json) {
   case 'string':
-    return readFile(json)
+    return await readFile(json)
   case 'object':
     if (Array.isArray(json)) {
-      const files = json.map((fn) => readFile(fn))
-      return files.join('\n')
+      const contents = await Promise.all(json.map((fn) => readFile(fn)))
+      return contents.join('\n')
     } else {
-      Object.keys(json).map(key => json[key] = mapFileJson(json[key]))
-      return json
+      const files = {}
+      await Promise.all(Object.keys(json).map(async key => {
+        let result = await collectFiles(json[key])
+        if (result != null) {
+          if (typeof result === 'string') {
+            // Convert to Uint8Array.
+            result = new TextEncoder().encode(result)
+          }
+          files[key] = result
+        }
+      }))
+      return files
     }
+    break
   default:
     assert(false)
     break
   }
+  return null
 }
 
-function main() {
+async function main() {
   const argv = process.argv
-  if (argv.length < 3) {
-    console.error('argv < 3')
+  if (argv.length < 4) {
+    console.error('argv < 4')
     process.exit(1)
   }
 
   const fn = argv[2]
-  const content = fs.readFileSync(fn, 'utf8')
+  const dstfn = argv[3]
+
+  const content = await fsPromise.readFile(fn, 'utf8')
   const json = JSON.parse(content)
-  const result = mapFileJson(json)
-  console.log(JSON.stringify(result))
+  const files = await collectFiles(json)
+  zip(files, {level: 9}, async (err, data) => {
+    if (err) {
+      console.error(err)
+      process.exit(1)
+    }
+    await fsPromise.writeFile(dstfn, data)
+  })
 }
 
 main()

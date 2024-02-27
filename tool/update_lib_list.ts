@@ -1,11 +1,11 @@
 import { assert } from 'console'
-import fs from 'node:fs/promises'
+import fsPromise from 'node:fs/promises'
 import path from 'path'
 
 const JSON_FN = 'src/wcc/www/lib_list.json'
 
 async function readIncludeFiles(fn: string): Promise<Array<string>> {
-  const content = await fs.readFile(fn, 'utf8')
+  const content = await fsPromise.readFile(fn, 'utf8')
   const files = content.split('\n')
     .map(line => {
       const m = line.match(/^#include\s+<(.+)>$/)
@@ -21,13 +21,13 @@ function updateJsonLibContent(fileList: Record<string, any>, fn: string, fileEnt
 }
 
 async function updateJson(contentMap: Map<string, Array<string>>): Promise<void> {
-  const content = await fs.readFile(JSON_FN, 'utf8')
+  const content = await fsPromise.readFile(JSON_FN, 'utf8')
   const json = JSON.parse(content) as object
 
   contentMap.forEach((fileEntries, fn) => updateJsonLibContent(json, fn, fileEntries))
 
   const updated = JSON.stringify(json, null, 2)
-  await fs.writeFile(JSON_FN, `${updated}\n`)
+  await fsPromise.writeFile(JSON_FN, `${updated}\n`)
 }
 
 async function main(): Promise<void> {

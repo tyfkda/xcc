@@ -282,18 +282,14 @@ $(WCC_TARGET)cc.wasm:	$(WCC_SRCS) $(WCC_LIBS) $(WCC_PARENT)
 ASSETS_DIR:=public
 
 .PHONY:	assets
-assets:	$(ASSETS_DIR)/cc.wasm $(ASSETS_DIR)/libs.json
-
-$(ASSETS_DIR)/cc.wasm:	cc.wasm
-	@mkdir -p $(ASSETS_DIR)
-	cp cc.wasm $@
+assets:	$(ASSETS_DIR)/wccfiles.zip
 
 $(WCC_DIR)/www/lib_list.json:	$(LIBSRC_DIR)/_wasm/crt0.c $(LIBSRC_DIR)/_wasm/libc.c
 	npx ts-node tool/update_lib_list.ts --base=./libsrc $^
 
-$(ASSETS_DIR)/libs.json:	$(WCC_DIR)/www/lib_list.json
+$(ASSETS_DIR)/wccfiles.zip:	$(WCC_DIR)/www/lib_list.json cc.wasm
 	@mkdir -p $(ASSETS_DIR)
-	node tool/pack_libs.js $(WCC_DIR)/www/lib_list.json > $@
+	npx ts-node tool/pack_libs.js $(WCC_DIR)/www/lib_list.json $@
 
 .PHONY: release-wcc
 release-wcc:	assets

@@ -1,9 +1,9 @@
 import path from 'path-browserify'
+import {unzip} from 'fflate'
 
 const WASI_WORKER_PATH = 'wasi_worker.js'
 
-const WCC_PATH = 'cc.wasm'
-const LIBS_PATH = 'libs.json'
+const PACKED_ZIP_PATH = 'wccfiles.zip'
 
 const CC_PATH = '/usr/bin/cc'
 const USER = 'wasm'
@@ -69,34 +69,30 @@ export class WccRunner {
     const recursiveTrue = {recursive: true}
 
     await Promise.all([
-      loadFromServer(WCC_PATH, {binary: true})
-        .then(async (wasm) => {
-          await this.mkdir(path.dirname(CC_PATH), recursiveTrue)
-          await this.writeFile(CC_PATH, new Uint8Array(wasm as ArrayBuffer))
-        }),
-
-      loadFromServer(LIBS_PATH)
-        .then(async (libs) => {
-          const setFiles = async (path: string, json: any) => {
-            for (const key of Object.keys(json)) {
-              const newPath = `${path}/${key}`
-              if (typeof json[key] === 'string') {
-                await this.writeFile(newPath, json[key])
-              } else {
-                await this.mkdir(newPath, recursiveTrue)
-                await setFiles(newPath, json[key])
-              }
+      loadFromServer(PACKED_ZIP_PATH, {binary: true})
+        .then((binary) => new Promise((resolve, reject) => {
+          unzip(new Uint8Array(binary as ArrayBuffer), (err, unzipped) => {
+            if (err) {
+              reject(err)
+              return
             }
-          }
-
-          await setFiles('', JSON.parse(libs as string))
-        }),
+            const promises = Object.entries(unzipped).map(async ([filename, data]) => {
+              if (data == null || data.byteLength === 0)  // Skip directories.
+                return
+              const filepath = `/${filename}`
+              await this.mkdir(path.dirname(filepath), recursiveTrue)
+              await this.writeFile(filepath, data)
+            })
+            resolve(Promise.all(promises))
+          })
+        })),
 
       this.mkdir(TMP_PATH, recursiveTrue),
 
-      this.mkdir(this.curDir, recursiveTrue)
-        .then(_ => this.chdir(this.curDir)),
+      this.mkdir(this.curDir, recursiveTrue),
     ])
+
+    await this.chdir(this.curDir)
   }
 
   public async writeFile(filePath: string, content: string|Uint8Array): Promise<void> {

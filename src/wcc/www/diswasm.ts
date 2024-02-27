@@ -1437,7 +1437,7 @@ export class DisWasm {
       const type = readType(this.bufferReader)
       const mut = this.bufferReader.readu8()
       const value = readGlobalValue(this.bufferReader)
-      const name = this.getCustomName(CustomNameType.GLOBAL, i) ?? `(;$i;)`
+      const name = this.getCustomName(CustomNameType.GLOBAL, i) ?? `(;${i};)`
       this.log(`${this.addr(offset)}(global ${name} ${mut !== 0 ? `(mut ${type})` : `${type}`} (${type}.const ${value}))`)
       this.bufferReader.readu8()  // Skip OP_END
     }
