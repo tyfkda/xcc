@@ -764,12 +764,12 @@ int main(int argc, char *argv[]) {
     add_inc_path(INC_AFTER, JOIN_PATHS(root, "include"));
   }
 
-  VERBOSES("### Exports\n");
+  VERBOSE("### Exports\n");
   const Name *name;
   for (int it = 0; (it = table_iterate(opts.exports, it, &name, NULL)) != -1; ) {
     VERBOSE("%.*s\n", NAMES(name));
   }
-  VERBOSES("\n");
+  VERBOSE("\n");
 
   if (opts.out_type >= OutExecutable) {
     vec_push(opts.lib_paths, JOIN_PATHS(root, "lib"));

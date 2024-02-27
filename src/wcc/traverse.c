@@ -1042,7 +1042,7 @@ static inline void assign_symbol_index(void) {
 
 static inline void assign_function_index(void) {
   // Enumerate functions.
-  VERBOSES("### Functions\n");
+  VERBOSE("### Functions\n");
   const Name *name;
   FuncInfo *finfo;
   int32_t index = 0;
@@ -1057,7 +1057,7 @@ static inline void assign_function_index(void) {
       VERBOSE("%2d: %.*s%s\n", finfo->index, NAMES(name), k == 0 ? "  (import)" : "");
     }
   }
-  VERBOSES("\n");
+  VERBOSE("\n");
 }
 
 static inline void assign_data_address(void) {
