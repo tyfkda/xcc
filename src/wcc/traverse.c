@@ -817,7 +817,7 @@ void traverse_ast(Vector *decls) {
 
   {
     // Enumerate functions.
-    VERBOSES("### Functions\n");
+    VERBOSE("### Functions\n");
     const Name *name;
     FuncInfo *info;
     int32_t index = 0;
@@ -832,7 +832,7 @@ void traverse_ast(Vector *decls) {
         VERBOSE("%2d: %.*s%s\n", info->index, NAMES(name), k == 0 ? "  (import)" : "");
       }
     }
-    VERBOSES("\n");
+    VERBOSE("\n");
   }
 
   {

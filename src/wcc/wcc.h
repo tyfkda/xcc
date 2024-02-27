@@ -134,8 +134,7 @@ extern Table gvar_info_table;
 extern Table indirect_function_table;  // <FuncInfo*>
 extern Vector *tags;  // <TagInfo*>
 
-#define VERBOSES(str)  do { if (verbose) printf("%s", str); } while (0)
-#define VERBOSE(fmt, ...)  do { if (verbose) printf(fmt, __VA_ARGS__); } while (0)
+#define VERBOSE(fmt, ...)  do { if (verbose) printf(fmt, ##__VA_ARGS__); } while (0)
 
 uint32_t get_indirect_function_index(const Name *name);
 GVarInfo *register_gvar_info(const Name *name, VarInfo *varinfo);

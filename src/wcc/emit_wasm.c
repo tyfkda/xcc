@@ -413,7 +413,7 @@ static void emit_elems_section(EmitWasm *ew) {
   data_open_chunk(&elems_section);
 
   // Enumerate imported functions.
-  VERBOSES("### Indirect functions\n");
+  VERBOSE("### Indirect functions\n");
   data_leb128(&elems_section, -1, 1);  // num elem segments
   data_leb128(&elems_section, -1, 0);  // segment flags
   data_push(&elems_section, OP_I32_CONST);
@@ -428,7 +428,7 @@ static void emit_elems_section(EmitWasm *ew) {
     data_leb128(&elems_section, -1, info->index);  // elem function index
   }
   data_close_chunk(&elems_section, -1);
-  VERBOSES("\n");
+  VERBOSE("\n");
 
   fputc(SEC_ELEM, ew->ofp);
   fwrite(elems_section.buf, elems_section.len, 1, ew->ofp);
@@ -495,7 +495,7 @@ static Vector *emit_data_section(EmitWasm *ew) {
   if (segments->len > 0) {
     reloc_data = new_vector();
 
-    VERBOSES("### Data\n");
+    VERBOSE("### Data\n");
     DataStorage datasec;
     data_init(&datasec);
     data_open_chunk(&datasec);
@@ -526,7 +526,7 @@ static Vector *emit_data_section(EmitWasm *ew) {
       }
     }
     data_close_chunk(&datasec, -1);
-    VERBOSES("\n");
+    VERBOSE("\n");
 
     fputc(SEC_DATA, ew->ofp);
     fwrite(datasec.buf, datasec.len, 1, ew->ofp);

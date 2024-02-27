@@ -151,6 +151,8 @@ test_macro() {
 
   try ', ## empty' 'foo(fmt)'          "#define FOO(fmt, ...)  foo(fmt, ## __VA_ARGS__)\nFOO(fmt)"
   try ', ## some'  'foo(fmt,1, 2, 3)'  "#define FOO(fmt, ...)  foo(fmt, ## __VA_ARGS__)\nFOO(fmt, 1, 2, 3)"
+  try '__VA_OPT__ empty' 'foo(fmt  )'          "#define FOO(fmt, ...)  foo(fmt __VA_OPT__(,) __VA_ARGS__)\nFOO(fmt)"
+  try '__VA_OPT__ some'  'foo(fmt , 1, 2, 3)'  "#define FOO(fmt, ...)  foo(fmt __VA_OPT__(,) __VA_ARGS__)\nFOO(fmt, 1, 2, 3)"
 
   end_test_suite
 }

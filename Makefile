@@ -35,7 +35,7 @@ CC1_BE_DIR:=$(CC1_DIR)/backend
 
 OPTIMIZE:=-O2 -g3
 CFLAGS:=-ansi -std=c11 -pedantic -MMD -Wall -Wextra -Werror -Wold-style-definition \
-	-Wno-missing-field-initializers -Wno-empty-body \
+	-Wno-missing-field-initializers -Wno-empty-body -Wno-gnu-zero-variadic-macro-arguments \
 	-D_DEFAULT_SOURCE $(OPTIMIZE) -I$(UTIL_DIR)
 ifneq ("$(NO_FLONUM)","")
 CFLAGS+=-D__NO_FLONUM
