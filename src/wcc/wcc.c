@@ -680,12 +680,12 @@ int main(int argc, char *argv[]) {
     add_inc_path(INC_AFTER, JOIN_PATHS(root, "include"));
   }
 
-  VERBOSES("### Exports\n");
+  VERBOSE("### Exports\n");
   for (int i = 0; i < opts.exports->len; ++i) {
     const Name *name = opts.exports->data[i];
     VERBOSE("%.*s\n", NAMES(name));
   }
-  VERBOSES("\n");
+  VERBOSE("\n");
 
   if (opts.out_type >= OutExecutable) {
     vec_push(opts.lib_paths, JOIN_PATHS(root, "lib"));
