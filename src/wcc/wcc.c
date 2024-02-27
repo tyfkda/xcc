@@ -337,10 +337,8 @@ int main(int argc, char *argv[]) {
   if (!nostdinc) {
 #if defined(__WASM)
     add_inc_path(INC_AFTER, "/usr/include");
-    add_inc_path(INC_AFTER, "/usr/local/include");
 #else
     add_inc_path(INC_AFTER, JOIN_PATHS(root, "include"));
-    add_inc_path(INC_AFTER, JOIN_PATHS(root, "libsrc"));
 #endif
   }
 

@@ -275,7 +275,7 @@ wcc-self-hosting:	$(WCC_TARGET)cc.wasm
 test-wcc-self-hosting:
 	$(MAKE) -C tests clean && $(MAKE) WCC="$(TARGET_CC)" -C tests test-wcc
 
-$(WCC_TARGET)cc.wasm:	$(WCC_SRCS) wcc-libs $(WCC_PARENT)
+$(WCC_TARGET)cc.wasm:	$(WCC_SRCS) wcc $(WCC_PARENT)
 	$(HOST_WCC) -o $@ $(WCC_CFLAGS) \
 		-I$(CC1_FE_DIR) -I$(CPP_DIR) -I$(UTIL_DIR) \
 		$(WCC_SRCS)
@@ -287,10 +287,7 @@ ASSETS_DIR:=public
 .PHONY:	assets
 assets:	$(ASSETS_DIR)/wccfiles.zip
 
-$(WCC_DIR)/www/lib_list.json:	$(LIBSRC_DIR)/_wasm/crt0.c $(LIBSRC_DIR)/_wasm/libc.c
-	npx ts-node tool/update_lib_list.ts --base=./libsrc $^
-
-$(ASSETS_DIR)/wccfiles.zip:	$(WCC_DIR)/www/lib_list.json cc.wasm
+$(ASSETS_DIR)/wccfiles.zip:	$(WCC_DIR)/www/lib_list.json cc.wasm wcc-libs
 	@mkdir -p $(ASSETS_DIR)
 	npx ts-node tool/pack_libs.js $(WCC_DIR)/www/lib_list.json $@
 
