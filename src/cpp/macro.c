@@ -202,6 +202,10 @@ static Vector *subst(Macro *macro, Table *param_table, Vector *args, HideSet *hs
       expanded_args[i] = NULL;
   }
 
+  static const Name *va_opt;
+  if (va_opt == NULL && macro->vaargs_ident != NULL)
+    va_opt = alloc_name("__VA_OPT__", NULL, false);
+
   for (int i = 0; i < body->len; ++i) {
     const Token *tok = body->data[i];
 
@@ -278,6 +282,27 @@ static Vector *subst(Macro *macro, Table *param_table, Vector *args, HideSet *hs
             expanded_args[j] = expanded;
           }
           vec_concat(os, expanded);
+          continue;
+        }
+      }
+
+      // Handle GNU extension: __VA_OPT__
+      if (macro->vaargs_ident != NULL && equal_name(tok->ident, va_opt) &&
+          i + 2 < body->len && ((Token*)body->data[i + 1])->kind == TK_LPAR) {
+        int j;
+        for (j = i + 2; j < body->len; ++j) {
+          if (((Token*)body->data[j])->kind == TK_RPAR)
+            break;
+        }
+        if (j < body->len) {
+          Vector *arg = args->data[args->len - 1];
+          if (arg->len > 0) {  // vaargs is not empty
+            // TODO: expand?
+            for (int k = i + 2; k < j; ++k) {
+              vec_push(os, body->data[k]);
+            }
+          }
+          i = j;
           continue;
         }
       }
