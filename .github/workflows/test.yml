@@ -27,7 +27,9 @@ jobs:
       run: make test-gen2
 
     - name: setup
-      run: npm ci
+      run: |
+        npm ci
+        sudo apt update && sudo apt install llvm-dev
     - name: make wcc
       run: make -j8 wcc
     - name: test wcc
