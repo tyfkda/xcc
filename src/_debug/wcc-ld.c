@@ -12,7 +12,6 @@
 #include "util.h"
 
 static void init(void) {
-  out_type = OutExecutable;
   functypes = new_vector();
   tags = new_vector();
   table_init(&indirect_function_table);

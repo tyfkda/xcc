@@ -5,7 +5,7 @@ const fsPromise = require('fs').promises
 const {zip} = require('fflate')
 
 function isBinFile(fileName) {
-  return fileName.match(/\.(wasm)$/) != null
+  return fileName.match(/\.(wasm|a)$/) != null
 }
 
 function replaceRelativeInclude(content) {

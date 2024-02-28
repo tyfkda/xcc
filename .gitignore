@@ -36,9 +36,6 @@ core
 
 ### wasm
 
-libsrc/_wasm/crt0.c
-libsrc/_wasm/libc.c
-
 *.wasm
 /wcc
 /wcc-ld

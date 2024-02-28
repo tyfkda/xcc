@@ -14,6 +14,5 @@ fi
         --dir=. \
         --dir=/tmp \
         "--mapdir=/usr/include::$PRJROOT/include" \
-        "--mapdir=/usr/lib::$PRJROOT/libsrc/_wasm" \
-        "--mapdir=/usr/local/include::$PRJROOT/libsrc" \
+        "--mapdir=/usr/lib::$PRJROOT/lib" \
     "$WCCWASM" -- "$@"

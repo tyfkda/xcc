@@ -134,7 +134,7 @@ test-libs:	all
 clean:
 	rm -rf $(EXES) $(OBJ_DIR) a.out gen2* gen3* tmp.s \
 		dump_expr* dump_ir* dump_type* \
-		wcc wcc-ld cc.wasm a.wasm public release $(WCC_LIBS)
+		wcc wcc-ld cc.wasm a.wasm public release $(WCC_LIBS) $(WCC_OBJ_DIR) $(WCC_LIB_DIR)
 	@$(MAKE) -C libsrc clean
 	@$(MAKE) -C tests clean
 
@@ -187,24 +187,30 @@ test-self-hosting:	self-hosting
 ### Wasm version
 
 WCC_OBJ_DIR:=obj/wcc
+WCC_LIB_DIR:=lib
 
 WCC_DIR:=src/wcc
 WCC_CFLAGS:=$(CFLAGS) -I$(CPP_DIR)
 
 WCC_SRCS:=$(wildcard $(WCC_DIR)/*.c) \
-	$(wildcard $(CC1_FE_DIR)/*.c) \
+	$(wildcard $(CC1_FE_DIR)/*.c) $(UTIL_DIR)/archive.c \
 	$(CPP_DIR)/preprocessor.c $(CPP_DIR)/pp_parser.c $(CPP_DIR)/macro.c \
 	$(UTIL_DIR)/util.c $(UTIL_DIR)/table.c
 WCC_OBJS:=$(addprefix $(WCC_OBJ_DIR)/,$(notdir $(WCC_SRCS:.c=.o)))
-WCC_LIBS:=$(LIBSRC_DIR)/_wasm/crt0.c $(LIBSRC_DIR)/_wasm/libc.c
+WCC_LIBS:=$(WCC_LIB_DIR)/wcrt0.a $(WCC_LIB_DIR)/wlibc.a
 
-wcc: $(PARENT_DEPS) $(WCC_OBJS) $(WCC_LIBS)
+wcc: $(PARENT_DEPS) $(WCC_OBJS)
 	$(CC) -o $@ $(WCC_OBJS) $(LDFLAGS)
+	$(MAKE) wcc-libs
+
+.PHONY: wcc-libs
+wcc-libs:
+	$(MAKE) CC=../wcc AR=llvm-ar -C libsrc wcc-libs
 
 WCCLD_SRCS:=$(DEBUG_DIR)/wcc-ld.c $(WCC_DIR)/wasm_linker.c \
 	$(WCC_DIR)/wcc_util.c $(WCC_DIR)/emit_wasm.c $(WCC_DIR)/traverse.c $(WCC_DIR)/traverse_setjmp.c \
 	$(wildcard $(CC1_FE_DIR)/*.c) \
-	$(UTIL_DIR)/util.c $(UTIL_DIR)/table.c
+	$(UTIL_DIR)/util.c $(UTIL_DIR)/table.c $(UTIL_DIR)/archive.c
 WCCLD_OBJS:=$(addprefix $(WCC_OBJ_DIR)/,$(notdir $(WCCLD_SRCS:.c=.o)))
 
 wcc-ld: $(WCCLD_OBJS)
@@ -227,18 +233,6 @@ WCC_LIBC_SRCS:=$(wildcard $(LIBSRC_DIR)/math/*.c) \
 	$(wildcard $(LIBSRC_DIR)/stdlib/*.c) \
 	$(wildcard $(LIBSRC_DIR)/string/*.c) \
 	$(wildcard $(LIBSRC_DIR)/_wasm/unistd/*.c)
-
-define GENERATE_INCLUDE_SRCS
-	(cd $(LIBSRC_DIR); \
-	for dir in $1; do \
-		find $${dir} -name '*.c' -exec echo '#include <{}>' \; | sort; \
-	done)
-endef
-
-$(LIBSRC_DIR)/_wasm/crt0.c:	$(WCC_CRT0_SRCS)
-	$(call GENERATE_INCLUDE_SRCS,_wasm/crt0) > $@
-$(LIBSRC_DIR)/_wasm/libc.c:	$(WCC_LIBC_SRCS)
-	$(call GENERATE_INCLUDE_SRCS,math misc stdio stdlib string _wasm/unistd) > $@
 
 .PHONY: test-wcc
 test-wcc:	wcc
@@ -281,7 +275,7 @@ wcc-self-hosting:	$(WCC_TARGET)cc.wasm
 test-wcc-self-hosting:
 	$(MAKE) -C tests clean && $(MAKE) WCC="$(TARGET_CC)" -C tests test-wcc
 
-$(WCC_TARGET)cc.wasm:	$(WCC_SRCS) $(WCC_LIBS) $(WCC_PARENT)
+$(WCC_TARGET)cc.wasm:	$(WCC_SRCS) wcc $(WCC_PARENT)
 	$(HOST_WCC) -o $@ $(WCC_CFLAGS) \
 		-I$(CC1_FE_DIR) -I$(CPP_DIR) -I$(UTIL_DIR) \
 		$(WCC_SRCS)
@@ -293,10 +287,7 @@ ASSETS_DIR:=public
 .PHONY:	assets
 assets:	$(ASSETS_DIR)/wccfiles.zip
 
-$(WCC_DIR)/www/lib_list.json:	$(LIBSRC_DIR)/_wasm/crt0.c $(LIBSRC_DIR)/_wasm/libc.c
-	npx ts-node tool/update_lib_list.ts --base=./libsrc $^
-
-$(ASSETS_DIR)/wccfiles.zip:	$(WCC_DIR)/www/lib_list.json cc.wasm
+$(ASSETS_DIR)/wccfiles.zip:	$(WCC_DIR)/www/lib_list.json cc.wasm wcc-libs
 	@mkdir -p $(ASSETS_DIR)
 	npx ts-node tool/pack_libs.js $(WCC_DIR)/www/lib_list.json $@
 
