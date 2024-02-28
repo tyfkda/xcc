@@ -1226,6 +1226,57 @@ bool link_wasm_objs(WasmLinker *linker, Vector *exports, uint32_t stack_size) {
       curbrksym->global.ivalue = address_bottom;
     }
   }
+
+  if (verbose) {
+    const Name *name;
+    SymbolInfo *sym;
+
+    printf("### Functions\n");
+    uint32_t imports_count = 0;
+    // Import.
+    for (int it = 0; (it = table_iterate(&linker->unresolved, it, &name, (void**)&sym)) != -1; ) {
+      if (sym->kind != SIK_SYMTAB_FUNCTION)
+        continue;
+      const Name *modname = sym->module_name;
+      assert(modname != NULL);
+      const Name *name = sym->name;
+      printf("%2d: %.*s.%.*s (import)\n", imports_count, NAMES(modname), NAMES(name));
+      ++imports_count;
+    }
+    // Defined.
+    for (int i = 0; i < linker->files->len; ++i) {
+      File *file = linker->files->data[i];
+      WasmObj *wasmobj = file->wasmobj;
+      Vector *symtab = wasmobj->linking.symtab;
+      for (int j = 0; j < symtab->len; ++j) {
+        SymbolInfo *sym = symtab->data[j];
+        if (sym->flags & WASM_SYM_UNDEFINED || sym->kind != SIK_SYMTAB_FUNCTION)
+          continue;
+        printf("%2d: %.*s\n", sym->combined_index, NAMES(sym->name));
+      }
+    }
+
+    printf("### Globals\n");
+    for (int it = 0; (it = table_iterate(&linker->defined, it, &name, (void**)&sym)) != -1; ) {
+      if (sym->kind != SIK_SYMTAB_GLOBAL)
+        continue;
+      printf("%2d: %.*s\n", sym->combined_index, NAMES(sym->name));
+    }
+
+    printf("### Data\n");
+    for (int i = 0; i < linker->files->len; ++i) {
+      File *file = linker->files->data[i];
+      WasmObj *wasmobj = file->wasmobj;
+      Vector *symtab = wasmobj->linking.symtab;
+      for (int j = 0; j < symtab->len; ++j) {
+        SymbolInfo *sym = symtab->data[j];
+        if (sym->flags & WASM_SYM_UNDEFINED || sym->kind != SIK_SYMTAB_DATA)
+          continue;
+        printf("%2d: %.*s\n", sym->combined_index, NAMES(sym->name));
+      }
+    }
+  }
+
   return true;
 }
 
