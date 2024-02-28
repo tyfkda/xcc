@@ -238,8 +238,9 @@ bool is_global_datsec_var(const VarInfo *varinfo, Scope *scope) {
   if (is_prim_type(varinfo->type) && !(varinfo->storage & VS_REF_TAKEN))
     return false;
 #else
-  // Special: Stack pointer.
-  if (equal_name(varinfo->name, alloc_name(SP_NAME, NULL, false)))
+  // Special: Stack pointer and break address.
+  if (equal_name(varinfo->name, alloc_name(SP_NAME, NULL, false)) ||
+      equal_name(varinfo->name, alloc_name(BREAK_ADDRESS_NAME, NULL, false)))
     return false;
 #endif
   return true;

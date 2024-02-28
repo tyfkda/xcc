@@ -482,7 +482,7 @@ static void gen_ref_sub(Expr *expr) {
             RelocInfo *ri = calloc_or_die(sizeof(*ri));
             ri->type = R_WASM_TABLE_INDEX_SLEB;
             ri->offset = code->len;
-            ri->index = info->index;
+            ri->index = info->index;  // Assume that symtab index is same as function index.
             vec_push(extra->reloc_code, ri);
 
             ADD_VARUINT32(info->indirect_index);

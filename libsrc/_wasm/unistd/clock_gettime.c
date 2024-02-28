@@ -1,7 +1,7 @@
 #include "time.h"
-
 #include "stddef.h"  // NULL
 #include "stdint.h"
+#include "../wasi.h"
 
 int clock_gettime(clockid_t clk_id, struct timespec *tp) {
   if (tp == NULL)

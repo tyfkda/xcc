@@ -310,14 +310,14 @@ static void emit_import_section(EmitWasm *ew) {
     const char *module_name = ew->import_module_name;
     size_t module_name_len = strlen(module_name);
 
-    for (int i = 0, len = global_scope->vars->len; i < len; ++i) {
-      VarInfo *varinfo = global_scope->vars->data[i];
-      if (varinfo->storage & VS_ENUM_MEMBER || varinfo->type->kind == TY_FUNC)
+    const Name *name;
+    GVarInfo *info;
+    for (int it = 0; (it = table_iterate(&gvar_info_table, it, &name, (void**)&info)) != -1; ) {
+      if (!(info->flag & GVF_UNRESOLVED))
         continue;
-      if (is_global_datsec_var(varinfo, global_scope))
-        continue;
-      GVarInfo *info = get_gvar_info_from_name(varinfo->name);
-      if (info == NULL || !(info->flag & GVF_UNRESOLVED))
+      VarInfo *varinfo = info->varinfo;
+      if (varinfo->storage & VS_ENUM_MEMBER || varinfo->type->kind == TY_FUNC ||
+          is_global_datsec_var(varinfo, global_scope))
         continue;
 
       const Name *name = varinfo->name;
@@ -729,10 +729,10 @@ static void emit_linking_section(EmitWasm *ew) {
   if (tags->len > 0) {  // Tag
     for (int i = 0, len = tags->len; i < len; ++i) {
       TagInfo *ti = tags->data[i];
-      int flags = 0;
+      int flags = WASM_SYM_BINDING_WEAK;
       data_push(&linking_section, SIK_SYMTAB_EVENT);  // kind
       data_uleb128(&linking_section, -1, flags);
-      data_uleb128(&linking_section, -1, i);
+      data_uleb128(&linking_section, -1, ti->typeindex);
       data_string(&linking_section, ti->name->chars, ti->name->bytes);
       ++count;
     }
@@ -790,7 +790,7 @@ static void emit_reloc_section(EmitWasm *ew, int section_index, Vector *relocs, 
       case R_WASM_MEMORY_ADDR_I64:
       case R_WASM_FUNCTION_OFFSET_I32:
       case R_WASM_SECTION_OFFSET_I32:
-        data_uleb128(&ds, -1, reloc->addend);
+        data_leb128(&ds, -1, reloc->addend);
         break;
       default: break;
       }

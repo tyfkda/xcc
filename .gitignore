@@ -41,6 +41,7 @@ libsrc/_wasm/libc.c
 
 *.wasm
 /wcc
+/wcc-ld
 /cc.wasm
 /gen3cc.wasm
 /tests/*.wasm

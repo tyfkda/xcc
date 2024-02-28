@@ -1,6 +1,7 @@
 #include "time.h"
 #include "stddef.h"  // NULL
 #include "stdint.h"
+#include "../wasi.h"
 
 time_t time(time_t *timer) {
   uint64_t t;

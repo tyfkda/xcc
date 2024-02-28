@@ -1,5 +1,14 @@
 #pragma once
 
+#include <stdbool.h>
+#include <stddef.h>  // size_t
+#include <stdint.h>
+
+typedef struct Name Name;
+typedef struct Vector Vector;
+
+#define LINKING_VERSION   (2)
+
 enum LinkingType {
   LT_WASM_SEGMENT_INFO        = 5,
   LT_WASM_INIT_FUNCS          = 6,
@@ -51,6 +60,77 @@ enum RelocType {
 typedef struct {
   uint32_t offset;  // from its function top (not section top).
   uint32_t index;
-  uint32_t addend;
+  int32_t addend;
   uint8_t type;     // enum RelocType
 } RelocInfo;
+
+typedef struct {
+  unsigned char *start;
+  size_t size;
+  uint8_t id;
+} WasmSection;
+
+typedef struct {
+  const Name *module_name;
+  const Name *name;
+  enum SymInfoKind kind;
+  uint32_t flags;
+  uint32_t local_index;  // Local index.
+  union {
+    struct {
+      uint32_t type_index;
+      uint32_t indirect_index;
+    } func;
+    struct {
+      uint8_t wtype;
+      uint8_t mut;
+      union {
+        int64_t ivalue;
+        float f32value;
+        double f64value;
+      };
+    } global;
+    struct {
+      uint32_t offset;
+      uint32_t size;
+      uint32_t p2align;
+      uint32_t address;
+    } data;
+    struct {
+      uint32_t typeindex;
+    } tag;
+  };
+
+  uint32_t combined_index;
+} SymbolInfo;
+
+typedef struct WasmObj {
+  unsigned char *buffer;
+  size_t bufsiz;
+
+  WasmSection *sections;
+  int section_count;
+  uint32_t version;
+
+  struct {
+    Vector *functions;  // <SymbolInfo*>
+    Vector *globals;    // <SymbolInfo*>
+  } import;
+  struct {
+    Vector *symtab;     // <SymbolInfo*>
+  } linking;
+  Vector *types;  // <int>
+  struct {
+    struct DataSegmentForLink *segments;
+    uint32_t count;
+  } data;
+  struct {
+    struct ElemSegmentForLink *segments;
+    uint32_t count;
+  } elem;
+  struct {
+    RelocInfo *relocs;
+    uint32_t section_index;
+    uint32_t count;
+  } reloc[2];  // 0=code, 1=data
+} WasmObj;

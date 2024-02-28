@@ -343,7 +343,7 @@ const InstTable = new Map([
   [Opcode.LOCAL_SET, {op: 'local.set', operands: [OperandKind.ULEB128]}],
   [Opcode.LOCAL_TEE, {op: 'local.tee', operands: [OperandKind.ULEB128]}],
   [Opcode.GLOBAL_GET, {op: 'global.get', operands: [OperandKind.ULEB128], opKind: OpKind.GLOBAL}],
-  [Opcode.GLOBAL_SET, {op: 'global.set', operands: [OperandKind.ULEB128]}],
+  [Opcode.GLOBAL_SET, {op: 'global.set', operands: [OperandKind.ULEB128], opKind: OpKind.GLOBAL}],
   [Opcode.I32_LOAD, {op: 'i32.load', operands: [OperandKind.ULEB128, OperandKind.ULEB128], opKind: OpKind.LOAD}],
   [Opcode.I64_LOAD, {op: 'i64.load', operands: [OperandKind.ULEB128, OperandKind.ULEB128], opKind: OpKind.LOAD}],
   [Opcode.F32_LOAD, {op: 'f32.load', operands: [OperandKind.ULEB128, OperandKind.ULEB128], opKind: OpKind.LOAD}],
@@ -1068,6 +1068,7 @@ export class DisWasm {
         break
 
       case Section.TAG:
+        this.readTagSection()
         break
 
       default:
@@ -1444,7 +1445,7 @@ export class DisWasm {
   }
 
   private readExportSection(): void {
-    const KindNames = ['func', 'table', 'memory', 'global']
+    const KindNames = ['func', 'table', 'memory', 'global', 'tag']
     const FUNC = 0
 
     const num = this.bufferReader.readUleb128()
@@ -1659,6 +1660,16 @@ export class DisWasm {
     const offset = this.bufferReader.getOffset()
     const count = this.bufferReader.readUleb128()
     this.log(`;;${this.addr(offset)}(data-count ${count})`)
+  }
+
+  private readTagSection(): void {
+    const num = this.bufferReader.readUleb128()
+    for (let i = 0; i < num; ++i) {
+      const offset = this.bufferReader.getOffset()
+      const attribute = this.bufferReader.readUleb128()
+      const typeIndex = this.bufferReader.readUleb128()
+      this.log(`;;${this.addr(offset)}(tag ${typeIndex} ${attribute})`)
+    }
   }
 
   private addr(adr: number): string {

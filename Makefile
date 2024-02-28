@@ -134,7 +134,7 @@ test-libs:	all
 clean:
 	rm -rf $(EXES) $(OBJ_DIR) a.out gen2* gen3* tmp.s \
 		dump_expr* dump_ir* dump_type* \
-		wcc cc.wasm a.wasm public release $(WCC_LIBS)
+		wcc wcc-ld cc.wasm a.wasm public release $(WCC_LIBS)
 	@$(MAKE) -C libsrc clean
 	@$(MAKE) -C tests clean
 
@@ -201,6 +201,15 @@ WCC_LIBS:=$(LIBSRC_DIR)/_wasm/crt0.c $(LIBSRC_DIR)/_wasm/libc.c
 wcc: $(PARENT_DEPS) $(WCC_OBJS) $(WCC_LIBS)
 	$(CC) -o $@ $(WCC_OBJS) $(LDFLAGS)
 
+WCCLD_SRCS:=$(DEBUG_DIR)/wcc-ld.c $(WCC_DIR)/wasm_linker.c \
+	$(WCC_DIR)/wcc_util.c $(WCC_DIR)/emit_wasm.c $(WCC_DIR)/traverse.c $(WCC_DIR)/traverse_setjmp.c \
+	$(wildcard $(CC1_FE_DIR)/*.c) \
+	$(UTIL_DIR)/util.c $(UTIL_DIR)/table.c
+WCCLD_OBJS:=$(addprefix $(WCC_OBJ_DIR)/,$(notdir $(WCCLD_SRCS:.c=.o)))
+
+wcc-ld: $(WCCLD_OBJS)
+	$(CC) -o $@ $(WCCLD_OBJS) $(LDFLAGS)
+
 -include $(WCC_OBJ_DIR)/*.d
 
 define DEFINE_WCCOBJ_TARGET
@@ -208,7 +217,7 @@ $(WCC_OBJ_DIR)/%.o: $(1)/%.c $(PARENT_DEPS)
 	@mkdir -p $(WCC_OBJ_DIR)
 	$(CC) $(WCC_CFLAGS) -DXCC_TARGET_ARCH=XCC_ARCH_WASM -c -o $$@ $$<
 endef
-WCC_SRC_DIRS:=$(WCC_DIR) $(CC1_FE_DIR) $(CC1_BE_DIR) $(CC1_DIR) $(CPP_DIR) $(UTIL_DIR)
+WCC_SRC_DIRS:=$(WCC_DIR) $(DEBUG_DIR) $(CC1_FE_DIR) $(CC1_BE_DIR) $(CC1_DIR) $(CPP_DIR) $(UTIL_DIR)
 $(foreach D, $(WCC_SRC_DIRS), $(eval $(call DEFINE_WCCOBJ_TARGET,$(D))))
 
 WCC_CRT0_SRCS:=$(wildcard $(LIBSRC_DIR)/_wasm/crt0/*.c)

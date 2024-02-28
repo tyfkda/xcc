@@ -1,5 +1,6 @@
 #include "unistd.h"
 #include "errno.h"
+#include "string.h"
 #include "../wasi.h"
 
 extern int max_preopen_fd;

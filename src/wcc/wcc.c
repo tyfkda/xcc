@@ -23,8 +23,6 @@
 
 static const char DEFAULT_IMPORT_MODULE_NAME[] = "env";
 
-#define DEFAULT_STACK_SIZE  (8 * 1024)
-
 static void init_compiler(void) {
   table_init(&func_info_table);
   functypes = new_vector();
