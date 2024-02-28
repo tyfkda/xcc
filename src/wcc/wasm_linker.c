@@ -1161,13 +1161,13 @@ static void out_table_section(WasmLinker *linker) {
   fwrite(table_section.buf, table_section.len, 1, linker->ofp);
 }
 
-static void out_memory_section(EmitWasm *ew) {
+static void out_memory_section(WasmLinker *linker) {
   DataStorage memory_section;
   data_init(&memory_section);
   data_open_chunk(&memory_section);
   data_open_chunk(&memory_section);
   {
-    uint32_t page_count = (ew->address_bottom + MEMORY_PAGE_SIZE - 1) / MEMORY_PAGE_SIZE;
+    uint32_t page_count = (linker->address_bottom + MEMORY_PAGE_SIZE - 1) / MEMORY_PAGE_SIZE;
     if (page_count <= 0)
       page_count = 1;
     data_uleb128(&memory_section, -1, 0);  // limits (no maximum page size)
@@ -1176,9 +1176,8 @@ static void out_memory_section(EmitWasm *ew) {
     data_close_chunk(&memory_section, -1);
   }
 
-  fputc(SEC_MEMORY, ew->ofp);
-  fwrite(memory_section.buf, memory_section.len, 1, ew->ofp);
-  ++ew->section_index;
+  fputc(SEC_MEMORY, linker->ofp);
+  fwrite(memory_section.buf, memory_section.len, 1, linker->ofp);
 }
 
 static void out_global_section(WasmLinker *linker) {
@@ -1565,7 +1564,6 @@ bool linker_emit_wasm(WasmLinker *linker, const char *ofn, Vector *exports) {
 
   EmitWasm ew_body = {
     .ofp = ofp,
-    .address_bottom = linker->address_bottom,
   };
   EmitWasm *ew = &ew_body;
 
@@ -1582,7 +1580,7 @@ bool linker_emit_wasm(WasmLinker *linker, const char *ofn, Vector *exports) {
   out_table_section(linker);
 
   // Memory.
-  out_memory_section(ew);
+  out_memory_section(linker);
 
   // Tag (must put earlier than Global section.)
   emit_tag_section(ew);

@@ -1390,16 +1390,15 @@ static void gen_if(Stmt *stmt, bool is_last) {
 }
 
 static void gen_vardecl(Vector *decls) {
-  if (curfunc != NULL) {
-    for (int i = 0; i < decls->len; ++i) {
-      VarDecl *decl = decls->data[i];
-      if (decl->init_stmt != NULL) {
-        if (decl->ident != NULL) {
-          VarInfo *varinfo = scope_find(curscope, decl->ident, NULL);
-          gen_clear_local_var(varinfo);
-        }
-        gen_stmt(decl->init_stmt, false);
+  assert(curfunc != NULL);
+  for (int i = 0; i < decls->len; ++i) {
+    VarDecl *decl = decls->data[i];
+    if (decl->init_stmt != NULL) {
+      if (decl->ident != NULL) {
+        VarInfo *varinfo = scope_find(curscope, decl->ident, NULL);
+        gen_clear_local_var(varinfo);
       }
+      gen_stmt(decl->init_stmt, false);
     }
   }
 }

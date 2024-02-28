@@ -73,6 +73,7 @@ typedef struct Vector {
 
 Vector *new_vector(void);
 void free_vector(Vector *vec);
+void vec_init(Vector *vec);
 void vec_clear(Vector *vec);
 void vec_push(Vector *vec, const void *elem);
 void *vec_pop(Vector *vec);

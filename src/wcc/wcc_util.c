@@ -205,14 +205,10 @@ void data_close_chunk(DataStorage *data, ssize_t num) {
 //
 
 Expr *get_sp_var(void) {
-  static Expr *spvar;
-  if (spvar == NULL) {
-    const Name *spname = alloc_name(SP_NAME, NULL, false);
-    GVarInfo *info = get_gvar_info_from_name(spname);
-    assert(info != NULL);
-    spvar = new_expr_variable(spname, info->varinfo->type, NULL, global_scope);
-  }
-  return spvar;
+  const Name *spname = alloc_name(SP_NAME, NULL, false);
+  GVarInfo *info = get_gvar_info_from_name(spname);
+  assert(info != NULL);
+  return new_expr_variable(spname, info->varinfo->type, NULL, global_scope);
 }
 
 unsigned char to_wtype(const Type *type) {

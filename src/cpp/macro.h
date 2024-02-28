@@ -15,6 +15,7 @@ Macro *new_macro(Vector *params, const Name *vaargs_ident, Vector *body);
 
 //
 
+void macro_init(void);
 void macro_add(const Name *name, Macro *macro);
 Macro *macro_get(const Name *name);
 void macro_delete(const Name *name);

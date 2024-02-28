@@ -7,6 +7,7 @@
 #include <stdio.h>
 #include <stdlib.h>  // exit, free
 #include <string.h>  // strdup
+#include <strings.h>  // strcasecmp
 #include <sys/stat.h>
 #include <unistd.h>  // getcwd
 
@@ -27,6 +28,7 @@ static const char DEFAULT_IMPORT_MODULE_NAME[] = "env";
 
 static void init_compiler(void) {
   table_init(&func_info_table);
+  table_init(&gvar_info_table);
   functypes = new_vector();
   tags = new_vector();
   table_init(&indirect_function_table);
@@ -59,48 +61,24 @@ static bool add_lib(Vector *lib_paths, const char *fn, Vector *sources) {
   return false;
 }
 
-static void export_non_static_functions(Vector *exports) {
-  Table table;
-  table_init(&table);
-  for (int i = 0; i < exports->len; ++i)
-    table_put(&table, exports->data[i], exports->data[i]);
-
-  Vector *gvars = global_scope->vars;
-  for (int i = 0; i < gvars->len; ++i) {
-    VarInfo *vi = gvars->data[i];
-    const Name *name = vi->name;
-    if (vi->type->kind != TY_FUNC ||
-        vi->global.func == NULL || (vi->storage & VS_STATIC) ||
-        table_try_get(&builtin_function_table, vi->name, NULL) ||
-        table_try_get(&table, name, NULL))
-      continue;
-    vec_push(exports, name);
-  }
-}
-
-static void preprocess_and_compile(FILE *ppout, Vector *sources, Vector *toplevel) {
-  size_t pos = ftell(ppout);
-
+static void preprocess_and_compile(FILE *ppout, const char *filename, Vector *toplevel) {
   // Set lexer for preprocess.
   init_lexer_for_preprocessor();
 
   // Preprocess.
-  for (int i = 0; i < sources->len; ++i) {
-    const char *filename = sources->data[i];
-    FILE *ifp;
-    if (filename != NULL) {
-      if (!is_file(filename) || (ifp = fopen(filename, "r")) == NULL)
-        error("Cannot open file: %s\n", filename);
-    } else {
-      ifp = stdin;
-      filename = "*stdin*";
-    }
-    fprintf(ppout, "# 1 \"%s\" 1\n", filename);
-    preprocess(ifp, filename);
-    if (ifp != stdin)
-      fclose(ifp);
+  FILE *ifp;
+  if (filename != NULL) {
+    if (!is_file(filename) || (ifp = fopen(filename, "r")) == NULL)
+      error("Cannot open file: %s\n", filename);
+  } else {
+    ifp = stdin;
+    filename = "*stdin*";
   }
-  if (fseek(ppout, pos, SEEK_SET) != 0) {
+  fprintf(ppout, "# 1 \"%s\" 1\n", filename);
+  preprocess(ifp, filename);
+  if (ifp != stdin)
+    fclose(ifp);
+  if (fseek(ppout, 0, SEEK_SET) != 0) {
     error("fseek failed");
   }
 
@@ -114,24 +92,7 @@ static void preprocess_and_compile(FILE *ppout, Vector *sources, Vector *topleve
     exit(1);
 }
 
-int main(int argc, char *argv[]) {
-  const char *root = dirname(strdup(argv[0]));
-  if (!is_fullpath(root)) {
-    char *cwd = getcwd(NULL, 0);
-    root = JOIN_PATHS(cwd, root);
-  }
-
-  const char *ofn = NULL;
-  const char *import_module_name = DEFAULT_IMPORT_MODULE_NAME;
-  Vector *exports = new_vector();
-  uint32_t stack_size = DEFAULT_STACK_SIZE;
-  const char *entry_point = NULL;
-  bool nodefaultlibs = false, nostdlib = false, nostdinc = false;
-  Vector *lib_paths = new_vector();
-  bool export_all = false;
-  bool export_stack_pointer = false;
-  enum OutType final_out_type = OutExecutable;
-
+int compile_csource(const char *src, enum OutType out_type, const char *ofn, Vector *ld_cmd, const char *import_module_name) {
   FILE *ppout = tmpfile();
   if (ppout == NULL)
     error("cannot open temporary file");
@@ -152,12 +113,79 @@ int main(int argc, char *argv[]) {
 
   init_compiler();
 
+  Vector *toplevel = new_vector();
+
+  preprocess_and_compile(ppout, src, toplevel);
+
+  fclose(ppout);
+
+  traverse_ast(toplevel);
+  if (compile_error_count != 0)
+    return 1;
+
+  gen(toplevel);
+
+  if (compile_error_count != 0)
+    return 1;
+  if (error_warning && compile_warning_count != 0)
+    return 2;
+
+  FILE *ofp;
+  const char *outfn = NULL;
+  if (out_type >= OutExecutable) {
+    char template[] = "/tmp/xcc-XXXXXX.o";
+    int obj_fd = mkstemps(template, 2);
+    if (obj_fd == -1) {
+      perror("Failed to open output file");
+      exit(1);
+    }
+    char *tmpfn = strdup(template);
+    ofp = fdopen(obj_fd, "wb");
+    outfn = tmpfn;
+  } else {
+    outfn = ofn;
+    if (outfn == NULL) {
+      // char *src = sources->data[0];  // TODO:
+      outfn = src != NULL ? change_ext(basename((char*)src), "o") : "a.o";
+    }
+    ofp = fopen(outfn, "wb");
+  }
+  if (ofp == NULL) {
+    error("Cannot open output file");
+  } else {
+    emit_wasm(ofp, import_module_name);
+    assert(compile_error_count == 0);
+    fclose(ofp);
+  }
+
+  vec_push(ld_cmd, outfn);
+  return 0;
+}
+
+int main(int argc, char *argv[]) {
+  const char *root = dirname(strdup(argv[0]));
+  if (!is_fullpath(root)) {
+    char *cwd = getcwd(NULL, 0);
+    root = JOIN_PATHS(cwd, root);
+  }
+
+  const char *ofn = NULL;
+  const char *import_module_name = DEFAULT_IMPORT_MODULE_NAME;
+  Vector *exports = new_vector();
+  uint32_t stack_size = DEFAULT_STACK_SIZE;
+  const char *entry_point = NULL;
+  bool nodefaultlibs = false, nostdlib = false, nostdinc = false;
+  Vector *lib_paths = new_vector();
+  enum OutType out_type = OutExecutable;
+
+  Vector *obj_files = new_vector();
+
   enum SourceType {
     UnknownSource,
     // Assembly,
     Clanguage,
-    // ObjectFile,
-    // ArchiveFile,
+    ObjectFile,
+    ArchiveFile,
   };
   enum SourceType src_type = UnknownSource;
 
@@ -171,8 +199,6 @@ int main(int argc, char *argv[]) {
     OPT_NOSTDINC,
     OPT_ISYSTEM,
     OPT_IDIRAFTER,
-    OPT_EXPORT_ALL_NON_STATIC,
-    OPT_EXPORT_STACK_POINTER,
 
     OPT_WARNING,
     OPT_OPTIMIZE,
@@ -200,8 +226,6 @@ int main(int argc, char *argv[]) {
     {"-verbose", no_argument, OPT_VERBOSE},
     {"-entry-point", required_argument, OPT_ENTRY_POINT},
     {"-stack-size", required_argument, OPT_STACK_SIZE},
-    {"-export-all-non-static", no_argument, OPT_EXPORT_ALL_NON_STATIC},
-    {"-export-stack-pointer", no_argument, OPT_EXPORT_STACK_POINTER},
 
     // Suppress warnings
     {"O", required_argument, OPT_OPTIMIZE},
@@ -214,15 +238,23 @@ int main(int argc, char *argv[]) {
     {NULL},
   };
   Vector *sources = new_vector();
-  int opt;
-  while ((opt = optparse(argc, argv, options)) != -1) {
+  for (;;) {
+    int opt = optparse(argc, argv, options);
+    if (opt == -1) {
+      if (optind >= argc)
+        break;
+
+      vec_push(sources, argv[optind++]);
+      continue;
+    }
+
     switch (opt) {
     default: assert(false); break;
     case 'o':
       ofn = optarg;
       break;
     case 'c':
-      final_out_type = OutObject;
+      out_type = OutObject;
       break;
     case 'e':
       if (*optarg != '\0') {
@@ -255,8 +287,6 @@ int main(int argc, char *argv[]) {
     case 'x':
       if (strcmp(optarg, "c") == 0) {
         src_type = Clanguage;
-      // } else if (strcmp(optarg, "assembler") == 0) {
-      //   src_type = Assembly;
       } else {
         error("language not recognized: %s", optarg);
       }
@@ -278,9 +308,6 @@ int main(int argc, char *argv[]) {
     case OPT_NOSTDINC:
       nostdinc = true;
       break;
-    case OPT_EXPORT_ALL_NON_STATIC:
-      export_all = true;
-      break;
     case OPT_STACK_SIZE:
       {
         int size = atoi(optarg);
@@ -298,9 +325,6 @@ int main(int argc, char *argv[]) {
       break;
     case OPT_ENTRY_POINT:
       entry_point = optarg;
-      break;
-    case OPT_EXPORT_STACK_POINTER:
-      export_stack_pointer = true;
       break;
     case '?':
       if (strcmp(argv[optind - 1], "-") == 0) {
@@ -324,10 +348,6 @@ int main(int argc, char *argv[]) {
     }
   }
 
-  int iarg = optind;
-  for (int i = iarg; i < argc; ++i)
-    vec_push(sources, argv[i]);
-
   if (sources->len == 0) {
     fprintf(stderr, "No input files\n\n");
     // usage(stderr);
@@ -342,14 +362,12 @@ int main(int argc, char *argv[]) {
 #endif
   }
 
-  if (final_out_type >= OutExecutable && entry_point == NULL) {
+  if (out_type >= OutExecutable && entry_point == NULL) {
     entry_point = "_start";
-    // if (exports->len == 0)
-    //   vec_push(exports, alloc_name("main", NULL, false));
   }
   if (entry_point != NULL && *entry_point != '\0')
     vec_push(exports, alloc_name(entry_point, NULL, false));
-  if (exports->len == 0 && !(export_all || final_out_type < OutExecutable)) {
+  if (exports->len == 0 && out_type >= OutExecutable) {
     error("no exports (require -e<xxx>)\n");
   }
 
@@ -360,81 +378,60 @@ int main(int argc, char *argv[]) {
   }
   VERBOSES("\n");
 
-//   Vector *libs = new_vector();
-  if (final_out_type >= OutExecutable) {
+  if (out_type >= OutExecutable) {
 #if defined(__WASM)
     vec_push(lib_paths, "/usr/lib");
 #else
     vec_push(lib_paths, JOIN_PATHS(root, "./lib"));
 #endif
-    // if (!nostdlib)
-    //   add_lib(lib_paths, "crt0.c", libs);
-    // if (!nodefaultlibs && !nostdlib)
-    //   add_lib(lib_paths, "libc.c", libs);
   }
 
-  Vector *toplevel = new_vector();
-
-  preprocess_and_compile(ppout, sources, toplevel);
-  if (export_all || final_out_type < OutExecutable)
-    export_non_static_functions(exports);
-  // preprocess_and_compile(ppout, libs, toplevel);
-
-  fclose(ppout);
-
-  uint32_t address_bottom = traverse_ast(toplevel, new_vector(), stack_size);
-  if (compile_error_count != 0)
-    return 1;
-
-  if (export_stack_pointer) {
-    GVarInfo *info = get_gvar_info_from_name(alloc_name(SP_NAME, NULL, false));
-    info->flag |= GVF_EXPORT;
-  }
-
-  gen(toplevel);
-  // if (final_out_type >= OutExecutable && unresolved_gvar_table.count > 0) {
-  //   const Name *name;
-  //   VarInfo *varinfo;
-  //   for (int it = 0;
-  //        (it = table_iterate(&unresolved_gvar_table, it, &name, (void**)&varinfo)) != -1; ) {
-  //     fprintf(stderr, "Global variable not resolved: %.*s\n", NAMES(name));
-  //   }
-  //   ++compile_error_count;
-  // }
-
-  if (compile_error_count != 0)
-    return 1;
-  if (error_warning && compile_warning_count != 0)
-    return 2;
-
-  FILE *ofp;
-  char *tmpfn = NULL;
-  if (final_out_type >= OutExecutable) {
-    char template[] = "/tmp/xcc-XXXXXX.o";
-    int obj_fd = mkstemps(template, 2);
-    if (obj_fd == -1) {
-      perror("Failed to open output file");
-      exit(1);
-    }
-    tmpfn = strdup(template);
-    ofp = fdopen(obj_fd, "wb");
-  } else {
+  for (int i = 0; i < sources->len; ++i) {
+    char *src = sources->data[i];
     const char *outfn = ofn;
-    if (outfn == NULL) {
-      char *src = sources->data[0];  // TODO:
-      outfn = src != NULL ? change_ext(basename(src), "o") : "a.o";
+    if (src != NULL) {
+      if (*src == '\0')
+        continue;
+      if (*src == '-') {
+        assert(src[1] == 'l');
+        vec_push(obj_files, src);
+        continue;
+      }
+
+      if (outfn == NULL) {
+        if (out_type == OutObject)
+          outfn = change_ext(basename(src), "o");
+      }
     }
-    ofp = fopen(outfn, "wb");
-  }
-  if (ofp == NULL) {
-    error("Cannot open output file");
-  } else {
-    emit_wasm(ofp, import_module_name, address_bottom);
-    assert(compile_error_count == 0);
-    fclose(ofp);
+
+    enum SourceType st = src_type;
+    if (src != NULL) {
+      char *ext = get_ext(src);
+      if      (strcasecmp(ext, "c") == 0)  st = Clanguage;
+      else if (strcasecmp(ext, "o") == 0)  st = ObjectFile;
+      else if (strcasecmp(ext, "a") == 0)  st = ArchiveFile;
+    }
+
+    switch (st) {
+    case UnknownSource:
+      fprintf(stderr, "Unknown source type: %s\n", src);
+      return 1;  // exit
+    case Clanguage:
+      {
+        int res = compile_csource(src, out_type, outfn, obj_files, import_module_name);
+        if (res != 0)
+          return 1;  // exit
+      }
+      break;
+    case ObjectFile:
+    case ArchiveFile:
+      if (out_type >= OutExecutable)
+        vec_push(obj_files, src);
+      break;
+    }
   }
 
-  if (final_out_type >= OutExecutable) {
+  if (out_type >= OutExecutable) {
 #if USE_EMCC_AS_LINKER || USE_WCCLD_AS_LINKER
     UNUSED(nodefaultlibs);
     UNUSED(nostdlib);
@@ -467,8 +464,6 @@ int main(int argc, char *argv[]) {
     perror(cc);
     return 1;
 #else
-    Vector *obj_files = new_vector();
-    vec_push(obj_files, tmpfn);
     if (!nostdlib)
       add_lib(lib_paths, "wcrt0.a", obj_files);
     if (!nodefaultlibs && !nostdlib)

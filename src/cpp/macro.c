@@ -320,6 +320,11 @@ static Vector *subst(Macro *macro, Table *param_table, Vector *args, HideSet *hs
 
 static Table macro_table;  // <Name, Macro*>
 
+void macro_init(void) {
+  table_init(&macro_table);
+  vec_init(&hideset_array);
+}
+
 void macro_add(const Name *name, Macro *macro) {
   table_put(&macro_table, name, macro);
 }

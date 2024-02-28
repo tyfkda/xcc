@@ -16,7 +16,6 @@
 const char VA_ARGS_NAME[] = ".._VA_ARGS";
 
 Table builtin_function_table;
-Table unresolved_gvar_table;
 
 static Stmt *branching_stmt;
 
@@ -156,7 +155,6 @@ GVarInfo *get_gvar_info(Expr *expr) {
   assert(varinfo != NULL);
   GVarInfo *info = get_gvar_info_from_name(name);
   if (info == NULL) {
-    table_put(&unresolved_gvar_table, name, varinfo);
     // Returns dummy.
     info = register_gvar_info(name, varinfo);
     info->flag |= GVF_UNRESOLVED;
@@ -637,7 +635,7 @@ static void traverse_stmts(Vector *stmts) {
   }
 }
 
-static void traverse_defun(Function *func, Vector *exports) {
+static void traverse_defun(Function *func) {
   if (func->scopes == NULL)  // Prototype definition
     return;
 
@@ -682,14 +680,6 @@ static void traverse_defun(Function *func, Vector *exports) {
     // Clear `main` function.
     assert(org_varinfo->global.func == func);
     org_varinfo->global.func = NULL;
-
-    // Replace exports.
-    for (int i = 0; i < exports->len; ++i) {
-      if (equal_name(exports->data[i], main_name)) {
-        exports->data[i] = (void*)newname;
-        break;
-      }
-    }
   }
   if (functype->func.vaargs) {
     Type *tyvalist = find_typedef(curscope, alloc_name("__builtin_va_list", NULL, false), NULL);
@@ -712,13 +702,13 @@ static void traverse_defun(Function *func, Vector *exports) {
   // Static variables are traversed through global variables.
 }
 
-static void traverse_decl(Declaration *decl, Vector *exports) {
+static void traverse_decl(Declaration *decl) {
   if (decl == NULL)
     return;
 
   switch (decl->kind) {
   case DCL_DEFUN:
-    traverse_defun(decl->defun.func, exports);
+    traverse_defun(decl->defun.func);
     break;
   case DCL_VARDECL:
     break;
@@ -749,7 +739,7 @@ static void add_builtins(void) {
   }
 }
 
-uint32_t traverse_ast(Vector *decls, Vector *exports, uint32_t stack_size) {
+void traverse_ast(Vector *decls) {
   // Global scope
   for (int k = 0; k < 2; ++k) {  // 0=register, 1=traverse
     for (int i = 0, len = global_scope->vars->len; i < len; ++i) {
@@ -767,7 +757,7 @@ uint32_t traverse_ast(Vector *decls, Vector *exports, uint32_t stack_size) {
 
   for (int i = 0, len = decls->len; i < len; ++i) {
     Declaration *decl = decls->data[i];
-    traverse_decl(decl, exports);
+    traverse_decl(decl);
   }
 
   // Indirect functions.
@@ -778,15 +768,6 @@ uint32_t traverse_ast(Vector *decls, Vector *exports, uint32_t stack_size) {
     for (int it = 0;
          (it = table_iterate(&indirect_function_table, it, &name, (void**)&info)) != -1; )
       info->indirect_index = index++;
-  }
-
-  // Check exports
-  for (int i = 0; i < exports->len; ++i) {
-    const Name *name = exports->data[i];
-    FuncInfo *info = table_get(&func_info_table, name);
-    if (info == NULL)
-      error("`%.*s' not found", NAMES(name));
-    register_func_info(name, NULL, NULL, FF_REFERRED);
   }
 
   {
@@ -854,7 +835,6 @@ uint32_t traverse_ast(Vector *decls, Vector *exports, uint32_t stack_size) {
     VERBOSES("\n");
   }
 
-  uint32_t sp_bottom;
   {
     // Enumerate global variables.
     const uint32_t START_ADDRESS = 1;  // Avoid valid poiter is NULL.
@@ -881,10 +861,5 @@ uint32_t traverse_ast(Vector *decls, Vector *exports, uint32_t stack_size) {
         VERBOSE("%04x: %.*s  (size=0x%lx)\n", info->non_prim.address, NAMES(varinfo->name), size);
       }
     }
-
-    // Set initial values.
-    sp_bottom = ALIGN(address + stack_size, 16);
   }
-
-  return sp_bottom;
 }

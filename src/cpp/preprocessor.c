@@ -627,6 +627,11 @@ void init_preprocessor(FILE *ofp) {
   key_file = alloc_name("__FILE__", NULL, false);
   key_line = alloc_name("__LINE__", NULL, false);
 
+  // Keep sys_inc_paths.
+
+  vec_init(&pragma_once_files);
+
+  macro_init();
   init_lexer_for_preprocessor();
 }
 

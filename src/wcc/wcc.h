@@ -27,7 +27,6 @@ extern const char VA_ARGS_NAME[];
 
 extern Table builtin_function_table;
 extern Vector *functypes;  // <DataStorage*>
-extern Table unresolved_gvar_table;
 extern uint32_t data_end_address;
 
 #define FF_REFERRED  (1 << 0)
@@ -74,7 +73,7 @@ typedef struct {
 } TagInfo;
 
 // traverse
-uint32_t traverse_ast(Vector *decls, Vector *exports, uint32_t stack_size);
+void traverse_ast(Vector *decls);
 
 bool is_stack_param(const Type *type);
 GVarInfo *get_gvar_info_from_name(const Name *name);
@@ -107,7 +106,6 @@ typedef struct {
   FILE *ofp;
   const char *import_module_name;
   Vector *data_segments;
-  uint32_t address_bottom;
   uint32_t section_index;
   uint32_t function_count;
   uint32_t code_section_index;
@@ -115,7 +113,7 @@ typedef struct {
   uint32_t import_global_count;
 } EmitWasm;
 
-void emit_wasm(FILE *ofp, const char *import_module_name, uint32_t address_bottom);
+void emit_wasm(FILE *ofp, const char *import_module_name);
 
 void emit_type_section(EmitWasm *ew);
 void emit_tag_section(EmitWasm *ew);

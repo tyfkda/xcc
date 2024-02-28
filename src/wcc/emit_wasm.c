@@ -749,13 +749,12 @@ static void emit_reloc_data_section(EmitWasm *ew, Vector *reloc_data) {
   emit_reloc_section(ew, ew->data_section_index, reloc_data, kRelocData);
 }
 
-void emit_wasm(FILE *ofp, const char *import_module_name, uint32_t address_bottom) {
+void emit_wasm(FILE *ofp, const char *import_module_name) {
   write_wasm_header(ofp);
 
   EmitWasm ew_body = {
     .ofp = ofp,
     .import_module_name = import_module_name,
-    .address_bottom = address_bottom,
   };
   EmitWasm *ew = &ew_body;
 
