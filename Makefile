@@ -192,6 +192,16 @@ WCC_LIB_DIR:=lib
 WCC_DIR:=src/wcc
 WCC_CFLAGS:=$(CFLAGS) -I$(CPP_DIR)
 
+ifneq ("$(HOST_TARGET)","")
+# Self hosting
+WCC_GEN:=$(WCC_TARGET)
+ifeq ("$(WCC_GEN)", "")
+WCC_GEN:=gen2
+endif
+WCC_OBJ_DIR:=obj/$(WCC_GEN)wcc
+WCC_CFLAGS+=-DSELF_HOSTING
+endif
+
 WCC_SRCS:=$(wildcard $(WCC_DIR)/*.c) \
 	$(wildcard $(CC1_FE_DIR)/*.c) $(UTIL_DIR)/archive.c \
 	$(CPP_DIR)/preprocessor.c $(CPP_DIR)/pp_parser.c $(CPP_DIR)/macro.c \
@@ -199,7 +209,7 @@ WCC_SRCS:=$(wildcard $(WCC_DIR)/*.c) \
 WCC_OBJS:=$(addprefix $(WCC_OBJ_DIR)/,$(notdir $(WCC_SRCS:.c=.o)))
 WCC_LIBS:=$(WCC_LIB_DIR)/wcrt0.a $(WCC_LIB_DIR)/wlibc.a
 
-wcc: $(PARENT_DEPS) $(WCC_OBJS)
+wcc: $(WCC_OBJS)
 	$(CC) -o $@ $(WCC_OBJS) $(LDFLAGS)
 	$(MAKE) wcc-libs
 
@@ -219,7 +229,7 @@ wcc-ld: $(WCCLD_OBJS)
 -include $(WCC_OBJ_DIR)/*.d
 
 define DEFINE_WCCOBJ_TARGET
-$(WCC_OBJ_DIR)/%.o: $(1)/%.c $(PARENT_DEPS)
+$(WCC_OBJ_DIR)/%.o: $(1)/%.c  # $(WCC_PARENT_DEPS)
 	@mkdir -p $(WCC_OBJ_DIR)
 	$(CC) $(WCC_CFLAGS) -DXCC_TARGET_ARCH=XCC_ARCH_WASM -c -o $$@ $$<
 endef
@@ -248,21 +258,18 @@ wcc-on-xcc:	all
 ifeq ("$(HOST_WCC)", "")
   HOST_WCC=./wcc
 endif
-ifeq ("$(WCC_PARENT)", "")
-  WCC_PARENT=wcc
-endif
 
 .PHONY: wcc-gen2
 wcc-gen2:	wcc
-	$(MAKE) HOST_TARGET=wcc WCC_TARGET= wcc-self-hosting
+	$(MAKE) HOST_TARGET=wcc HOST_WCC="./wcc" CC="./wcc" WCC_TARGET= wcc-self-hosting
 .PHONY: test-wcc-gen2
 test-wcc-gen2: wcc-gen2
 	$(MAKE) TARGET_CC="../tool/run-gen2wcc.sh" test-wcc-self-hosting
 
 .PHONY: wcc-gen3
 wcc-gen3:	wcc-gen2
-	$(MAKE) HOST_TARGET=gen2 HOST_WCC="./tool/run-gen2wcc.sh" WCC_TARGET=gen3 WCC_PARENT=cc.wasm \
-		wcc-self-hosting
+	$(MAKE) HOST_TARGET=gen2 HOST_WCC="./tool/run-gen2wcc.sh" CC="./tool/run-gen2wcc.sh" \
+		WCC_TARGET=gen3 wcc-self-hosting
 
 .PHONY: wcc-diff-gen23
 wcc-diff-gen23:	wcc-gen2 wcc-gen3
@@ -275,10 +282,8 @@ wcc-self-hosting:	$(WCC_TARGET)cc.wasm
 test-wcc-self-hosting:
 	$(MAKE) -C tests clean && $(MAKE) WCC="$(TARGET_CC)" -C tests test-wcc
 
-$(WCC_TARGET)cc.wasm:	$(WCC_SRCS) wcc $(WCC_PARENT)
-	$(HOST_WCC) -o $@ $(WCC_CFLAGS) \
-		-I$(CC1_FE_DIR) -I$(CPP_DIR) -I$(UTIL_DIR) \
-		$(WCC_SRCS)
+$(WCC_TARGET)cc.wasm:	$(WCC_OBJS)  # $(WCC_PARENT)
+	$(HOST_WCC) -o $@ $(WCC_OBJS)
 
 #### www
 
@@ -287,7 +292,7 @@ ASSETS_DIR:=public
 .PHONY:	assets
 assets:	$(ASSETS_DIR)/wccfiles.zip
 
-$(ASSETS_DIR)/wccfiles.zip:	$(WCC_DIR)/www/lib_list.json cc.wasm wcc-libs
+$(ASSETS_DIR)/wccfiles.zip:	$(WCC_DIR)/www/lib_list.json wcc-gen2
 	@mkdir -p $(ASSETS_DIR)
 	npx ts-node tool/pack_libs.js $(WCC_DIR)/www/lib_list.json $@
 
