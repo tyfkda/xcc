@@ -26,6 +26,15 @@
 
 static const char DEFAULT_IMPORT_MODULE_NAME[] = "env";
 
+static Vector remove_on_exit;
+
+static void remove_tmp_files(void) {
+  for (int i = 0; i < remove_on_exit.len; ++i) {
+    const char *fn = remove_on_exit.data[i];
+    remove(fn);
+  }
+}
+
 static void init_compiler(void) {
   table_init(&func_info_table);
   table_init(&gvar_info_table);
@@ -92,7 +101,8 @@ static void preprocess_and_compile(FILE *ppout, const char *filename, Vector *to
     exit(1);
 }
 
-int compile_csource(const char *src, enum OutType out_type, const char *ofn, Vector *ld_cmd, const char *import_module_name) {
+int compile_csource(const char *src, enum OutType out_type, const char *ofn, Vector *ld_cmd,
+                    const char *import_module_name) {
   FILE *ppout = tmpfile();
   if (ppout == NULL)
     error("cannot open temporary file");
@@ -142,6 +152,7 @@ int compile_csource(const char *src, enum OutType out_type, const char *ofn, Vec
     char *tmpfn = strdup(template);
     ofp = fdopen(obj_fd, "wb");
     outfn = tmpfn;
+    vec_push(&remove_on_exit, tmpfn);
   } else {
     outfn = ofn;
     if (outfn == NULL) {
@@ -385,6 +396,8 @@ int main(int argc, char *argv[]) {
     vec_push(lib_paths, JOIN_PATHS(root, "./lib"));
 #endif
   }
+
+  atexit(remove_tmp_files);
 
   for (int i = 0; i < sources->len; ++i) {
     char *src = sources->data[i];

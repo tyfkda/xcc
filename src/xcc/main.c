@@ -80,6 +80,15 @@ static pid_t pipe_exec(char **command, int ofd, int fd[2]) {
   return pid;
 }
 
+static Vector remove_on_exit;
+
+static void remove_tmp_files(void) {
+  for (int i = 0; i < remove_on_exit.len; ++i) {
+    const char *fn = remove_on_exit.data[i];
+    remove(fn);
+  }
+}
+
 static int compile(const char *src, Vector *cpp_cmd, Vector *cc1_cmd, int ofd) {
   int ofd2 = ofd;
   int cc_fd[2];
@@ -164,6 +173,7 @@ static int compile_csource(const char *source_fn, enum OutType out_type, const c
         exit(1);
       }
       objfn = strdup(template);
+      vec_push(&remove_on_exit, objfn);
     }
   }
 
@@ -539,6 +549,8 @@ int main(int argc, char *argv[]) {
     UNUSED(nostdlib);
 #endif
   }
+
+  atexit(remove_tmp_files);
 
   int res = 0;
   for (int i = 0; i < sources->len; ++i) {

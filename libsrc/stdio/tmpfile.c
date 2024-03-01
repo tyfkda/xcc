@@ -8,6 +8,7 @@ FILE *tmpfile(void) {
   int fd = mkstemp(template);
   FILE *fp = NULL;
   if (fd >= 0) {
+    unlink(template);
     fp = fdopen(fd, "w+");
     if (fp == NULL) {
       close(fd);
