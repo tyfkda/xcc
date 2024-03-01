@@ -27,7 +27,6 @@ extern const char VA_ARGS_NAME[];
 
 extern Table builtin_function_table;
 extern Vector *functypes;  // <DataStorage*>
-extern uint32_t data_end_address;
 
 #define FF_REFERRED  (1 << 0)
 #define FF_INDIRECT  (1 << 1)

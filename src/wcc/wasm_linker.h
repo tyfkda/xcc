@@ -16,7 +16,6 @@ typedef struct {
   Table defined, unresolved;
   Table indirect_functions;
   uint32_t unresolved_func_count;
-  uint32_t data_end_address;
   uint32_t address_bottom;
 
   const Name *sp_name;

@@ -1,4 +1,4 @@
-#include "../../config.h"
+#include "../config.h"
 #include "wasm_linker.h"
 
 #include <ar.h>
@@ -860,8 +860,7 @@ static uint32_t remap_data_address_wasmobj(WasmObj *wasmobj, uint32_t address) {
   return address;
 }
 
-static void remap_data_address(WasmLinker *linker) {
-  uint32_t address = 0;
+static uint32_t remap_data_address(WasmLinker *linker, uint32_t address) {
   for (int i = 0; i < linker->files->len; ++i) {
     File *file = linker->files->data[i];
     switch (file->kind) {
@@ -875,7 +874,7 @@ static void remap_data_address(WasmLinker *linker) {
       break;
     }
   }
-  linker->data_end_address = address;
+  return address;
 }
 
 static void renumber_indirect_functions_wasmobj(WasmLinker *linker, WasmObj *wasmobj) {
@@ -1468,20 +1467,20 @@ bool link_wasm_objs(WasmLinker *linker, Vector *exports, uint32_t stack_size) {
   if (!resolve_symbols(linker))
     return false;
 
-  remap_data_address(linker);
+  uint32_t data_end_address = remap_data_address(linker, stack_size);
   renumber_symbols(linker);
   renumber_func_types(linker);
   renumber_indirect_functions(linker);
   apply_relocation(linker);
 
-  uint32_t address_bottom = ALIGN(linker->data_end_address + stack_size, 16);
+  uint32_t address_bottom = ALIGN(data_end_address, 16);
   linker->address_bottom = address_bottom;
   {
     SymbolInfo *spsym = table_get(&linker->defined, linker->sp_name);
     if (spsym != NULL) {
       if (spsym->kind != SIK_SYMTAB_GLOBAL)
         error("illegal symbol for stack pointer: %.*s", NAMES(linker->sp_name));
-      spsym->global.ivalue = address_bottom;
+      spsym->global.ivalue = stack_size;
     }
 
     SymbolInfo *curbrksym = table_get(&linker->defined, linker->curbrk_name);
