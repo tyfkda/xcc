@@ -1,7 +1,7 @@
 #include "math.h"
 
 #ifndef __NO_FLONUM
-extern double normalize_radian(double x);
+extern double _normalize_radian(double x);
 
 double cos(double x) {
   static const double TABLE[] = {
@@ -17,7 +17,7 @@ double cos(double x) {
     -1 / (18.0 * 17 * 16 * 15 * 14 * 13 * 12 * 11 * 10 * 9 * 8 * 7 * 6 * 5 * 4 * 3 * 2 * 1),
   };
 
-  x = normalize_radian(x);
+  x = _normalize_radian(x);
 
   double v = 0;
   double xx = x * x;

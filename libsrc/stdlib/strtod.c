@@ -5,7 +5,7 @@
 #include "stdint.h"
 #include "../math/_ieee.h"
 
-bool parse_sign(const char **pp);
+extern bool _parse_sign(const char **pp);
 
 #ifndef __NO_FLONUM
 static double ipow(double base, long x) {
@@ -62,7 +62,7 @@ static double strtod_hex(const char *p, const char **pp) {
   }
   if (tolower(*p) == 'p') {
     const char *q = p + 1;
-    bool neg2 = parse_sign(&q);
+    bool neg2 = _parse_sign(&q);
     double order = strtod_i(q, &p);
     if (q == p) {
       // Error.
@@ -84,7 +84,7 @@ double strtod(const char * restrict p, char ** restrict pp) {
   for (; isspace(*p); ++p)
     ;
 
-  bool neg = parse_sign(&p);
+  bool neg = _parse_sign(&p);
 
   static const struct {
     const char *str;
@@ -120,7 +120,7 @@ double strtod(const char * restrict p, char ** restrict pp) {
     }
     if (tolower(*p) == 'e') {
       const char *q = p + 1;
-      bool neg2 = parse_sign(&q);
+      bool neg2 = _parse_sign(&q);
       double order = strtod_i(q, &p);
       if (q == p) {
         // Error.

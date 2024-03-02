@@ -3,16 +3,8 @@
 #include "limits.h"  // CHAR_BIT
 #include "stdbool.h"
 
-extern unsigned long long strtoull_sub(const char *p, char **pp, int base, unsigned long long max);
-
-bool parse_sign(const char **pp) {
-  const char *p = *pp;
-  char c = *p;
-  bool negative = c == '-';
-  if (c == '+' || c == '-')
-    *pp = p + 1;
-  return negative;
-}
+extern bool _parse_sign(const char **pp);
+extern unsigned long long _strtoull_sub(const char *p, char **pp, int base, unsigned long long max);
 
 long long strtoll(const char *p, char **pp, int base) {
   const char *orig = p;
@@ -20,13 +12,13 @@ long long strtoll(const char *p, char **pp, int base) {
   for (; isspace(*p); ++p)
     ;
 
-  bool neg = parse_sign(&p);
+  bool neg = _parse_sign(&p);
   char *q;
   long long result;
   if (!neg) {
-    result = strtoull_sub(p, &q, base, (1ULL << (sizeof(long long) * CHAR_BIT - 1)) - 1);
+    result = _strtoull_sub(p, &q, base, (1ULL << (sizeof(long long) * CHAR_BIT - 1)) - 1);
   } else {
-    result = -strtoull_sub(p, &q, base, 1ULL << (sizeof(long long) * CHAR_BIT - 1));
+    result = -_strtoull_sub(p, &q, base, 1ULL << (sizeof(long long) * CHAR_BIT - 1));
   }
   if (pp != 0)
     *pp = q == p ? (char*)orig : q;

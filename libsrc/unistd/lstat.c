@@ -13,7 +13,7 @@ int lstat(const char *pathname, struct stat *buf) {
 }
 #elif defined(__NR_newfstatat)
 #include "fcntl.h"  // AT_FDCWD
-int stat(const char *pathname, struct stat *buf) {
-  return fstatat(AT_FDCWD, pathname, buf, 0);  // TODO: Check flag.
+int lstat(const char *pathname, struct stat *buf) {
+  return fstatat(AT_FDCWD, pathname, buf, AT_SYMLINK_NOFOLLOW);
 }
 #endif
