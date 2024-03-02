@@ -1496,7 +1496,7 @@ static uint32_t allocate_local_variables(Function *func, DataStorage *data) {
         size_t size = type_size(varinfo->type);
         if (size < 1)
           size = 1;
-        frame_size += size;
+        frame_size = ALIGN(frame_size, align_size(varinfo->type)) + size;
       } else if (!is_stack_param(varinfo->type)) {
         if (param_index < 0) {
           unsigned char wt = to_wtype(varinfo->type);
@@ -1563,7 +1563,8 @@ static uint32_t allocate_local_variables(Function *func, DataStorage *data) {
       bool stack_param = is_stack_param(varinfo->type);
       if ((!stack_param && varinfo->storage & VS_REF_TAKEN) ||  // `&` taken wasm local var.
           (stack_param && param_index < 0)) {                   // non-prim variable (not function parameter)
-        vreg->non_prim.offset = ALIGN(frame_offset, align_size(varinfo->type)) - frame_size;
+        frame_offset = ALIGN(frame_offset, align_size(varinfo->type));
+        vreg->non_prim.offset = frame_offset - frame_size;
         size_t size = type_size(varinfo->type);
         if (size < 1)
           size = 1;
