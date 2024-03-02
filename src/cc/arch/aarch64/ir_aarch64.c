@@ -105,7 +105,15 @@ const RegAllocSettings kArchRegAllocSettings = {
 
 //
 
-static bool is_im48(intptr_t x) {
+extern inline bool is_im9(intptr_t x) {
+  return x <= ((1L << 8) - 1) && x >= -(1L << 8);
+}
+
+extern inline bool is_im13(intptr_t x) {
+  return x <= ((1L << 12) - 1) && x >= -(1L << 12);
+}
+
+extern inline bool is_im48(intptr_t x) {
   return x <= ((1L << 47) - 1) && x >= -(1L << 47);
 }
 
@@ -148,7 +156,7 @@ static bool is_got(const Name *name) {
 static void ei_bofs(IR *ir) {
   const char *dst = kReg64s[ir->dst->phys];
   int ofs = ir->bofs.frameinfo->offset;
-  if (ofs < 4096 && ofs > -4096) {
+  if (is_im13(ofs)) {
     ADD(dst, FP, IM(ofs));
   } else {
     mov_immediate(dst, ofs, true, false);
@@ -175,7 +183,7 @@ static void ei_sofs(IR *ir) {
   assert(ir->opr1->flag & VRF_CONST);
   const char *dst = kReg64s[ir->dst->phys];
   int ofs = ir->opr1->fixnum;
-  if (ofs < 4096 && ofs > -4096) {
+  if (is_im13(ofs)) {
     ADD(dst, SP, IM(ofs));
   } else {
     mov_immediate(dst, ofs, true, false);
@@ -192,7 +200,7 @@ static void ei_load(IR *ir) {
     src = IMMEDIATE_OFFSET0(kReg64s[ir->opr1->phys]);
   } else {
     assert(ir->opr1->flag & VRF_SPILLED);
-    if (ir->opr1->frame.offset >= -256 && ir->opr1->frame.offset <= 256) {
+    if (is_im9(ir->opr1->frame.offset)) {
       src = IMMEDIATE_OFFSET(FP, ir->opr1->frame.offset);
     } else {
       const char *tmp = kTmpRegTable[3];
@@ -241,7 +249,7 @@ static void ei_store(IR *ir) {
     target = IMMEDIATE_OFFSET0(kReg64s[ir->opr2->phys]);
   } else {
     assert(ir->opr2->flag & VRF_SPILLED);
-    if (ir->opr2->frame.offset >= -256 && ir->opr2->frame.offset <= 256) {
+    if (is_im9(ir->opr2->frame.offset)) {
       target = IMMEDIATE_OFFSET(FP, ir->opr2->frame.offset);
     } else {
       const char *tmp = kTmpRegTable[3];

@@ -1392,11 +1392,11 @@ static unsigned char *asm_jmp_deii(Inst *inst, Code *code) {
     long offset = offset_expr != NULL ? offset_expr->fixnum : 0;
     long scale = scale_expr != NULL ? scale_expr->fixnum : 1;
     if (is_im32(offset) && 1 <= scale && scale <= 8 && IS_POWER_OF_2(scale)) {
-      short offset_bit = offset == 0 ? 0x20 : is_im8(offset) ? 0x60 : 0xa0;
       short b = inst->src.indirect_with_index.base_reg.no;
       short scale_bit = kPow2Table[scale];
       short i = inst->src.indirect_with_index.index_reg.no;
       short prefix = inst->src.indirect_with_index.base_reg.x | (inst->src.indirect_with_index.index_reg.x << 1);
+      short offset_bit = offset == 0 && b != RBP - RAX ? 0x20 : is_im8(offset) ? 0x60 : 0xa0;
       short buf[] = {
         prefix != 0 ? 0x40 | prefix : -1,
         0xff,
@@ -1405,7 +1405,7 @@ static unsigned char *asm_jmp_deii(Inst *inst, Code *code) {
       };
       unsigned char *p = code->buf;
       p = put_code_filtered(p, buf, ARRAY_SIZE(buf));
-      if (offset != 0) {
+      if (offset != 0 || b == RBP - RAX) {
         if (is_im8(offset)) {
           *p++ = IM8(offset);
         } else {
