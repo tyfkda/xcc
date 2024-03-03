@@ -3,7 +3,7 @@
 
 #include <assert.h>
 #include <limits.h>  // CHAR_BIT
-#include <stdlib.h>  // free
+#include <stdlib.h>  // free, qsort
 #include <string.h>
 
 #include "ir.h"

@@ -5,7 +5,7 @@
 #include <inttypes.h>
 #include <limits.h>  // CHAR_BIT
 #include <stdbool.h>
-#include <stdlib.h>
+#include <stdlib.h>  // qsort
 #include <string.h>
 
 #include "arch_config.h"

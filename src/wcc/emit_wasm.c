@@ -2,7 +2,7 @@
 #include "wcc.h"
 
 #include <assert.h>
-#include <stdlib.h>  // free, qsort
+#include <stdlib.h>  // free
 #include <string.h>
 
 #include "ast.h"

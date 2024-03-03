@@ -3,7 +3,6 @@
 
 #include <assert.h>
 #include <stdbool.h>
-#include <stdlib.h>  // qsort
 
 #include "fe_misc.h"
 #include "lexer.h"
