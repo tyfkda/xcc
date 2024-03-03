@@ -449,6 +449,7 @@ int main(int argc, char *argv[]) {
     UNUSED(nodefaultlibs);
     UNUSED(nostdlib);
     UNUSED(add_lib);
+    UNUSED(stack_size);
 
     char *finalfn = (char*)ofn;
     if (finalfn == NULL) {
@@ -463,16 +464,15 @@ int main(int argc, char *argv[]) {
     char *cc = JOIN_PATHS(root, "wcc-ld");
 #endif
 
-    char *argv[] = {
-      cc,
-      "-o", finalfn,
-      tmpfn,
+    vec_insert(obj_files, 0, cc);
+    vec_insert(obj_files, 1, "-o");
+    vec_insert(obj_files, 2, finalfn);
 #if USE_WCCLD_AS_LINKER
-      JOIN_PATHS(root, "lib/wcrt0.a"),
-      JOIN_PATHS(root, "lib/wlibc.a"),
+    vec_push(obj_files, JOIN_PATHS(root, "lib/wcrt0.a"));
+    vec_push(obj_files, JOIN_PATHS(root, "lib/wlibc.a"));
 #endif
-      NULL,
-    };
+    vec_push(obj_files, NULL);
+    char **argv = (char**)obj_files->data;
     execvp(cc, argv);
     perror(cc);
     return 1;
