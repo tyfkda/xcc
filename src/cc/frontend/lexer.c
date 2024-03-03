@@ -103,7 +103,7 @@ static const struct {
   {">>", TK_RSHIFT},
 };
 
-static const char kSingleOperatorTypeMap[] = {  // enum TokenKind
+static const char kOperatorMap[] = {  // enum TokenKind
   ['+'] = TK_ADD,
   ['-'] = TK_SUB,
   ['*'] = TK_MUL,
@@ -115,17 +115,20 @@ static const char kSingleOperatorTypeMap[] = {  // enum TokenKind
   ['<'] = TK_LT,
   ['>'] = TK_GT,
   ['!'] = TK_NOT,
+  ['='] = TK_ASSIGN,
+  ['.'] = TK_DOT,
+};
+
+static const char kPunctMap[] = {  // enum TokenKind
   ['('] = TK_LPAR,
   [')'] = TK_RPAR,
   ['{'] = TK_LBRACE,
   ['}'] = TK_RBRACE,
   ['['] = TK_LBRACKET,
   [']'] = TK_RBRACKET,
-  ['='] = TK_ASSIGN,
   [':'] = TK_COLON,
   [';'] = TK_SEMICOL,
   [','] = TK_COMMA,
-  ['.'] = TK_DOT,
   ['?'] = TK_QUESTION,
   ['~'] = TK_TILDA,
 };
@@ -726,13 +729,22 @@ static Token *get_op_token(const char **pp) {
     return alloc_token(kind, lexer.line, p, q);
   }
 
-  if (c < sizeof(kSingleOperatorTypeMap)) {
-    enum TokenKind single = kSingleOperatorTypeMap[c];
+  if (c < sizeof(kPunctMap)) {
+    enum TokenKind kind = kPunctMap[c];
+    if (kind != 0) {
+      const char *q = p + 1;
+      *pp = q;
+      return alloc_token(kind, lexer.line, p, q);
+    }
+  }
+
+  if (c < sizeof(kOperatorMap)) {
+    enum TokenKind single = kOperatorMap[c];
     if (single != 0) {
       int n;
       for (n = 1; n < 3; ++n) {
         unsigned char c = *(unsigned char*)(p + n);
-        if (c >= sizeof(kSingleOperatorTypeMap) || kSingleOperatorTypeMap[c] == 0)
+        if (c >= sizeof(kOperatorMap) || kOperatorMap[c] == 0)
           break;
       }
 
