@@ -961,10 +961,7 @@ Initializer *check_vardecl(Type **ptype, const Token *ident, int storage, Initia
       varinfo->local.init = init;
     }
   } else {
-    VarInfo *gvarinfo = scope_find(global_scope, ident->ident, NULL);
-    assert(gvarinfo != NULL);
-    gvarinfo->global.init = init = check_global_initializer(type, init);
-    gvarinfo->type = type;
+    init = check_global_initializer(type, init);
   }
   return init;
 }
