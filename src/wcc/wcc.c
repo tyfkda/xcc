@@ -71,9 +71,6 @@ static bool add_lib(Vector *lib_paths, const char *fn, Vector *sources) {
 }
 
 static void preprocess_and_compile(FILE *ppout, const char *filename, Vector *toplevel) {
-  // Set lexer for preprocess.
-  init_lexer_for_preprocessor();
-
   // Preprocess.
   FILE *ifp;
   if (filename != NULL) {
@@ -173,33 +170,29 @@ int compile_csource(const char *src, enum OutType out_type, const char *ofn, Vec
   return 0;
 }
 
-int main(int argc, char *argv[]) {
-  const char *root = dirname(strdup(argv[0]));
-  if (!is_fullpath(root)) {
-    char *cwd = getcwd(NULL, 0);
-    root = JOIN_PATHS(cwd, root);
-  }
+enum SourceType {
+  UnknownSource,
+  // Assembly,
+  Clanguage,
+  ObjectFile,
+  ArchiveFile,
+};
 
-  const char *ofn = NULL;
-  const char *import_module_name = DEFAULT_IMPORT_MODULE_NAME;
-  Vector *exports = new_vector();
-  uint32_t stack_size = DEFAULT_STACK_SIZE;
-  const char *entry_point = NULL;
-  bool nodefaultlibs = false, nostdlib = false, nostdinc = false;
-  Vector *lib_paths = new_vector();
-  enum OutType out_type = OutExecutable;
+typedef struct {
+  Vector *exports;
+  Vector *lib_paths;
+  Vector *sources;
+  const char *root;
+  const char *ofn;
+  const char *import_module_name;
+  const char *entry_point;
+  enum OutType out_type;
+  enum SourceType src_type;
+  uint32_t stack_size;
+  bool nodefaultlibs, nostdlib, nostdinc;
+} Options;
 
-  Vector *obj_files = new_vector();
-
-  enum SourceType {
-    UnknownSource,
-    // Assembly,
-    Clanguage,
-    ObjectFile,
-    ArchiveFile,
-  };
-  enum SourceType src_type = UnknownSource;
-
+static void parse_options(int argc, char *argv[], Options *opts) {
   enum {
     OPT_VERBOSE = 256,
     OPT_ENTRY_POINT,
@@ -219,7 +212,7 @@ int main(int argc, char *argv[]) {
     OPT_PEDANTIC,
     OPT_MMD,
   };
-  static const struct option options[] = {
+  static const struct option kOptions[] = {
     {"c", no_argument},  // Output .o
     {"I", required_argument},  // Add include path
     {"isystem", required_argument, OPT_ISYSTEM},  // Add system include path
@@ -248,24 +241,23 @@ int main(int argc, char *argv[]) {
 
     {NULL},
   };
-  Vector *sources = new_vector();
   for (;;) {
-    int opt = optparse(argc, argv, options);
+    int opt = optparse(argc, argv, kOptions);
     if (opt == -1) {
       if (optind >= argc)
         break;
 
-      vec_push(sources, argv[optind++]);
+      vec_push(opts->sources, argv[optind++]);
       continue;
     }
 
     switch (opt) {
     default: assert(false); break;
     case 'o':
-      ofn = optarg;
+      opts->ofn = optarg;
       break;
     case 'c':
-      out_type = OutObject;
+      opts->out_type = OutObject;
       break;
     case 'e':
       if (*optarg != '\0') {
@@ -273,7 +265,7 @@ int main(int argc, char *argv[]) {
         for (;;) {
           const char *p = strchr(s, ',');
           const Name *name = alloc_name(s, p, false);
-          vec_push(exports, name);
+          vec_push(opts->exports, name);
           if (p == NULL)
             break;
           s = p + 1;
@@ -293,11 +285,11 @@ int main(int argc, char *argv[]) {
       define_macro(optarg);
       break;
     case 'L':
-      vec_push(lib_paths, optarg);
+      vec_push(opts->lib_paths, optarg);
       break;
     case 'x':
       if (strcmp(optarg, "c") == 0) {
-        src_type = Clanguage;
+        opts->src_type = Clanguage;
       } else {
         error("language not recognized: %s", optarg);
       }
@@ -311,13 +303,13 @@ int main(int argc, char *argv[]) {
       }
       break;
     case OPT_NODEFAULTLIBS:
-      nodefaultlibs = true;
+      opts->nodefaultlibs = true;
       break;
     case OPT_NOSTDLIB:
-      nostdlib = true;
+      opts->nostdlib = true;
       break;
     case OPT_NOSTDINC:
-      nostdinc = true;
+      opts->nostdinc = true;
       break;
     case OPT_STACK_SIZE:
       {
@@ -325,24 +317,24 @@ int main(int argc, char *argv[]) {
         if (size <= 0) {
           error("stack-size must be positive");
         }
-        stack_size = size;
+        opts->stack_size = size;
       }
       break;
     case OPT_IMPORT_MODULE_NAME:
-      import_module_name = optarg;
+      opts->import_module_name = optarg;
       break;
     case OPT_VERBOSE:
       verbose = true;
       break;
     case OPT_ENTRY_POINT:
-      entry_point = optarg;
+      opts->entry_point = optarg;
       break;
     case '?':
       if (strcmp(argv[optind - 1], "-") == 0) {
-        if (src_type == UnknownSource) {
+        if (opts->src_type == UnknownSource) {
           error("-x required");
         }
-        vec_push(sources, NULL);
+        vec_push(opts->sources, NULL);
       } else {
         fprintf(stderr, "Warning: unknown option: %s\n", argv[optind - 1]);
       }
@@ -358,50 +350,75 @@ int main(int argc, char *argv[]) {
       break;
     }
   }
+}
 
-  if (sources->len == 0) {
-    fprintf(stderr, "No input files\n\n");
-    // usage(stderr);
-    return 1;
+static int do_link(Vector *obj_files, Options *opts) {
+#if USE_EMCC_AS_LINKER || USE_WCCLD_AS_LINKER
+  UNUSED(add_lib);
+
+  char *finalfn = (char*)opts->ofn;
+  if (finalfn == NULL) {
+    finalfn = "a.wasm";
+  } else {
+    finalfn = change_ext(finalfn, "wasm");
   }
 
-  if (!nostdinc) {
-#if defined(__WASM)
-    add_inc_path(INC_AFTER, "/usr/include");
-#else
-    add_inc_path(INC_AFTER, JOIN_PATHS(root, "include"));
+#if USE_EMCC_AS_LINKER
+  char *cc = "emcc";
+#else  // if USE_WCCLD_AS_LINKER
+  const char *root = opts->root;
+  char *cc = JOIN_PATHS(root, "wcc-ld");
 #endif
-  }
 
-  if (out_type >= OutExecutable && entry_point == NULL) {
-    entry_point = "_start";
-  }
-  if (entry_point != NULL && *entry_point != '\0')
-    vec_push(exports, alloc_name(entry_point, NULL, false));
-  if (exports->len == 0 && out_type >= OutExecutable) {
-    error("no exports (require -e<xxx>)\n");
-  }
-
-  VERBOSES("### Exports\n");
-  for (int i = 0; i < exports->len; ++i) {
-    const Name *name = exports->data[i];
-    VERBOSE("%.*s\n", NAMES(name));
-  }
-  VERBOSES("\n");
-
-  if (out_type >= OutExecutable) {
-#if defined(__WASM)
-    vec_push(lib_paths, "/usr/lib");
-#else
-    vec_push(lib_paths, JOIN_PATHS(root, "./lib"));
+  vec_insert(obj_files, 0, cc);
+  vec_insert(obj_files, 1, "-o");
+  vec_insert(obj_files, 2, finalfn);
+#if USE_WCCLD_AS_LINKER
+  vec_push(obj_files, JOIN_PATHS(root, "lib/wcrt0.a"));
+  vec_push(obj_files, JOIN_PATHS(root, "lib/wlibc.a"));
 #endif
+  vec_push(obj_files, NULL);
+  char **argv = (char**)obj_files->data;
+  execvp(cc, argv);
+  perror(cc);
+  return 1;
+#else
+  if (!opts->nostdlib)
+    add_lib(opts->lib_paths, "wcrt0.a", obj_files);
+  if (!opts->nodefaultlibs && !opts->nostdlib)
+    add_lib(opts->lib_paths, "wlibc.a", obj_files);
+
+  const char *outfn = opts->ofn != NULL ? opts->ofn : "a.wasm";
+
+  functypes = new_vector();
+  tags = new_vector();
+  table_init(&indirect_function_table);
+
+  WasmLinker linker_body;
+  WasmLinker *linker = &linker_body;
+  linker_init(linker);
+
+  for (int i = 0; i < obj_files->len; ++i) {
+    const char *objfn = obj_files->data[i];
+    if (!read_wasm_obj(linker, objfn)) {
+      fprintf(stderr, "error: failed to read wasm object file: %s\n", objfn);
+      return 1;
+    }
   }
 
-  atexit(remove_tmp_files);
+  if (!link_wasm_objs(linker, opts->exports, opts->stack_size) ||
+      !linker_emit_wasm(linker, outfn, opts->exports))
+    return 2;
+  return 0;
+#endif
+}
 
-  for (int i = 0; i < sources->len; ++i) {
-    char *src = sources->data[i];
-    const char *outfn = ofn;
+static int do_compile(Options *opts) {
+  Vector *obj_files = new_vector();
+
+  for (int i = 0; i < opts->sources->len; ++i) {
+    char *src = opts->sources->data[i];
+    const char *outfn = opts->ofn;
     if (src != NULL) {
       if (*src == '\0')
         continue;
@@ -412,12 +429,12 @@ int main(int argc, char *argv[]) {
       }
 
       if (outfn == NULL) {
-        if (out_type == OutObject)
+        if (opts->out_type == OutObject)
           outfn = change_ext(basename(src), "o");
       }
     }
 
-    enum SourceType st = src_type;
+    enum SourceType st = opts->src_type;
     if (src != NULL) {
       char *ext = get_ext(src);
       if      (strcasecmp(ext, "c") == 0)  st = Clanguage;
@@ -431,80 +448,87 @@ int main(int argc, char *argv[]) {
       return 1;  // exit
     case Clanguage:
       {
-        int res = compile_csource(src, out_type, outfn, obj_files, import_module_name);
+        int res = compile_csource(src, opts->out_type, outfn, obj_files, opts->import_module_name);
         if (res != 0)
           return 1;  // exit
       }
       break;
     case ObjectFile:
     case ArchiveFile:
-      if (out_type >= OutExecutable)
+      if (opts->out_type >= OutExecutable)
         vec_push(obj_files, src);
       break;
     }
   }
 
-  if (out_type >= OutExecutable) {
-#if USE_EMCC_AS_LINKER || USE_WCCLD_AS_LINKER
-    UNUSED(nodefaultlibs);
-    UNUSED(nostdlib);
-    UNUSED(add_lib);
-    UNUSED(stack_size);
+  if (opts->out_type < OutExecutable)
+    return 0;
+  return do_link(obj_files, opts);
+}
 
-    char *finalfn = (char*)ofn;
-    if (finalfn == NULL) {
-      finalfn = "a.wasm";
-    } else {
-      finalfn = change_ext(finalfn, "wasm");
-    }
+int main(int argc, char *argv[]) {
+  const char *root = dirname(strdup(argv[0]));
+  if (!is_fullpath(root)) {
+    char *cwd = getcwd(NULL, 0);
+    root = JOIN_PATHS(cwd, root);
+  }
 
-#if USE_EMCC_AS_LINKER
-    char *cc = "emcc";
-#else  // if USE_WCCLD_AS_LINKER
-    char *cc = JOIN_PATHS(root, "wcc-ld");
-#endif
+  Options opts = {
+    .exports = new_vector(),
+    .lib_paths = new_vector(),
+    .sources = new_vector(),
+    .root = root,
+    .ofn = NULL,
+    .import_module_name = DEFAULT_IMPORT_MODULE_NAME,
+    .entry_point = NULL,
+    .out_type = OutExecutable,
+    .src_type = UnknownSource,
+    .stack_size = DEFAULT_STACK_SIZE,
+    .nodefaultlibs = false,
+    .nostdlib = false,
+    .nostdinc = false,
+  };
+  parse_options(argc, argv, &opts);
 
-    vec_insert(obj_files, 0, cc);
-    vec_insert(obj_files, 1, "-o");
-    vec_insert(obj_files, 2, finalfn);
-#if USE_WCCLD_AS_LINKER
-    vec_push(obj_files, JOIN_PATHS(root, "lib/wcrt0.a"));
-    vec_push(obj_files, JOIN_PATHS(root, "lib/wlibc.a"));
-#endif
-    vec_push(obj_files, NULL);
-    char **argv = (char**)obj_files->data;
-    execvp(cc, argv);
-    perror(cc);
+  if (opts.sources->len == 0) {
+    fprintf(stderr, "No input files\n\n");
+    // usage(stderr);
     return 1;
+  }
+
+  if (!opts.nostdinc) {
+#if defined(__WASM)
+    add_inc_path(INC_AFTER, "/usr/include");
 #else
-    if (!nostdlib)
-      add_lib(lib_paths, "wcrt0.a", obj_files);
-    if (!nodefaultlibs && !nostdlib)
-      add_lib(lib_paths, "wlibc.a", obj_files);
-
-    const char *outfn = ofn != NULL ? ofn : "a.wasm";
-
-    functypes = new_vector();
-    tags = new_vector();
-    table_init(&indirect_function_table);
-
-    WasmLinker linker_body;
-    WasmLinker *linker = &linker_body;
-    linker_init(linker);
-
-    for (int i = 0; i < obj_files->len; ++i) {
-      const char *objfn = obj_files->data[i];
-      if (!read_wasm_obj(linker, objfn)) {
-        fprintf(stderr, "error: failed to read wasm object file: %s\n", objfn);
-        return 1;
-      }
-    }
-
-    if (!link_wasm_objs(linker, exports, stack_size) ||
-        !linker_emit_wasm(linker, outfn, exports))
-      return 2;
+    add_inc_path(INC_AFTER, JOIN_PATHS(root, "include"));
 #endif
   }
 
-  return 0;
+  if (opts.out_type >= OutExecutable && opts.entry_point == NULL) {
+    opts.entry_point = "_start";
+  }
+  if (opts.entry_point != NULL && *opts.entry_point != '\0')
+    vec_push(opts.exports, alloc_name(opts.entry_point, NULL, false));
+  if (opts.exports->len == 0 && opts.out_type >= OutExecutable) {
+    error("no exports (require -e<xxx>)\n");
+  }
+
+  VERBOSES("### Exports\n");
+  for (int i = 0; i < opts.exports->len; ++i) {
+    const Name *name = opts.exports->data[i];
+    VERBOSE("%.*s\n", NAMES(name));
+  }
+  VERBOSES("\n");
+
+  if (opts.out_type >= OutExecutable) {
+#if defined(__WASM)
+    vec_push(opts.lib_paths, "/usr/lib");
+#else
+    vec_push(opts.lib_paths, JOIN_PATHS(root, "./lib"));
+#endif
+  }
+
+  atexit(remove_tmp_files);
+
+  return do_compile(&opts);
 }

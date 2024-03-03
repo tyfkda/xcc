@@ -261,67 +261,29 @@ static char *join_exe_prefix(const char *xccpath, const char *prefix, const char
   return sb_to_string(&sb);
 }
 
-int main(int argc, char *argv[]) {
-  const char *xccpath = argv[0];
-  const char *root = dirname(strdup(xccpath));
-  const char *prefix = get_exe_prefix(xccpath);
-  char *cpp_path = join_exe_prefix(xccpath, prefix, "cpp");
-  char *cc1_path = join_exe_prefix(xccpath, prefix, "cc1");
-#if !defined(AS_USE_CC)
-  char *as_path = join_exe_prefix(xccpath, prefix, "as");
-  char *ld_path = join_exe_prefix(xccpath, prefix, "ld");
-#elif defined(HOST_CC_PREFIX)
-#define S(x)   S2(x)
-#define S2(x)  #x
-  char *as_path = S(HOST_CC_PREFIX) "as";
-  char *ld_path = S(HOST_CC_PREFIX) "gcc";
-#undef S2
-#undef S
-#else
-  char *as_path = "/usr/bin/as";
-  char *ld_path = "/usr/bin/cc";
-#endif
-  bool nodefaultlibs = false, nostdlib = false, nostdinc = false;
-  bool use_ld = false;
+enum SourceType {
+  UnknownSource,
+  Assembly,
+  Clanguage,
+  ObjectFile,
+  ArchiveFile,
+};
 
-  Vector *cpp_cmd = new_vector();
-  vec_push(cpp_cmd, cpp_path);
-  vec_push(cpp_cmd, "-D__LP64__");  // Memory model.
-#if XCC_TARGET_ARCH == XCC_ARCH_X64
-  vec_push(cpp_cmd, "-D__x86_64__");
-#elif XCC_TARGET_ARCH == XCC_ARCH_AARCH64
-  vec_push(cpp_cmd, "-D__aarch64__");
-#elif XCC_TARGET_ARCH == XCC_ARCH_RISCV64
-  vec_push(cpp_cmd, "-D__riscv");
-#endif
-#if XCC_TARGET_PLATFORM == XCC_PLATFORM_APPLE
-  vec_push(cpp_cmd, "-D__APPLE__");
-#elif XCC_TARGET_PLATFORM == XCC_PLATFORM_POSIX
-  vec_push(cpp_cmd, "-D__linux__");
-#endif
+typedef struct {
+  Vector *cpp_cmd;
+  Vector *cc1_cmd;
+  Vector *as_cmd;
+  Vector *ld_cmd;
+  Vector *sources;
+  Vector *linker_options;
+  const char *ofn;
+  enum OutType out_type;
+  enum SourceType src_type;
+  bool nodefaultlibs, nostdlib, nostdinc;
+  bool use_ld;
+} Options;
 
-  Vector *cc1_cmd = new_vector();
-  vec_push(cc1_cmd, cc1_path);
-
-  Vector *as_cmd = new_vector();
-  vec_push(as_cmd, as_path);
-
-  Vector *ld_cmd = new_vector();
-  vec_push(ld_cmd, ld_path);
-
-  enum OutType out_type = OutExecutable;
-
-  enum SourceType {
-    UnknownSource,
-    Assembly,
-    Clanguage,
-    ObjectFile,
-    ArchiveFile,
-  };
-  enum SourceType src_type = UnknownSource;
-
-  const char *ofn = NULL;
-
+static void parse_options(int argc, char *argv[], Options *opts) {
   enum {
     OPT_HELP = 128,
     OPT_VERSION,
@@ -339,7 +301,7 @@ int main(int argc, char *argv[]) {
     OPT_NO_PIE,
   };
 
-  static const struct option options[] = {
+  static const struct option kOptions[] = {
     {"c", no_argument},  // Output .o
     {"E", no_argument},  // Output preprocess result
     {"S", no_argument},  // Output assembly code
@@ -370,15 +332,14 @@ int main(int argc, char *argv[]) {
 
     {NULL},
   };
-  Vector *sources = new_vector();
-  Vector *linker_options = new_vector();
+
   for (;;) {
-    int opt = optparse(argc, argv, options);
+    int opt = optparse(argc, argv, kOptions);
     if (opt == -1) {
       if (optind >= argc)
         break;
 
-      vec_push(sources, argv[optind++]);
+      vec_push(opts->sources, argv[optind++]);
       continue;
     }
 
@@ -386,109 +347,109 @@ int main(int argc, char *argv[]) {
     default: assert(false); break;
     case OPT_HELP:
       usage(stdout);
-      return 0;
+      exit(0);
     case OPT_VERSION:
       show_version("xcc");
-      return 0;
+      exit(0);
     case 'I':
-      vec_push(cpp_cmd, "-I");
-      vec_push(cpp_cmd, optarg);
+      vec_push(opts->cpp_cmd, "-I");
+      vec_push(opts->cpp_cmd, optarg);
       break;
     case OPT_ISYSTEM:
-      vec_push(cpp_cmd, "-isystem");
-      vec_push(cpp_cmd, optarg);
+      vec_push(opts->cpp_cmd, "-isystem");
+      vec_push(opts->cpp_cmd, optarg);
       break;
     case OPT_IDIRAFTER:
-      vec_push(cpp_cmd, "-idirafter");
-      vec_push(cpp_cmd, optarg);
+      vec_push(opts->cpp_cmd, "-idirafter");
+      vec_push(opts->cpp_cmd, optarg);
       break;
     case 'D':
-      vec_push(cpp_cmd, "-D");
-      vec_push(cpp_cmd, optarg);
+      vec_push(opts->cpp_cmd, "-D");
+      vec_push(opts->cpp_cmd, optarg);
       break;
     case 'o':
-      ofn = optarg;
-      vec_push(linker_options, "-o");
-      vec_push(linker_options, ofn);
+      opts->ofn = optarg;
+      vec_push(opts->linker_options, "-o");
+      vec_push(opts->linker_options, opts->ofn);
       break;
     case 'c':
-      out_type = OutObject;
+      opts->out_type = OutObject;
       // vec_push(as_cmd, "-c");
       break;
     case 'E':
-      out_type = OutPreprocess;
-      if (src_type == UnknownSource)
-        src_type = Clanguage;
+      opts->out_type = OutPreprocess;
+      if (opts->src_type == UnknownSource)
+        opts->src_type = Clanguage;
       break;
     case 'S':
-      out_type = OutAssembly;
+      opts->out_type = OutAssembly;
       break;
     case 'x':
       if (strcmp(optarg, "c") == 0) {
-        src_type = Clanguage;
+        opts->src_type = Clanguage;
       } else if (strcmp(optarg, "assembler") == 0) {
-        src_type = Assembly;
+        opts->src_type = Assembly;
       } else {
         error("language not recognized: %s", optarg);
       }
       break;
     case 'W':
       if (strncmp(argv[optind - 1], "-Wl,", 4) == 0) {
-        if (use_ld)
-          vec_push(linker_options, argv[optind - 1]);
+        if (opts->use_ld)
+          vec_push(opts->linker_options, argv[optind - 1]);
         else
-          vec_push(ld_cmd, argv[optind - 1] + 4);
+          vec_push(opts->ld_cmd, argv[optind - 1] + 4);
       } else {
-        vec_push(cc1_cmd, "-W");
-        vec_push(cc1_cmd, optarg);
+        vec_push(opts->cc1_cmd, "-W");
+        vec_push(opts->cc1_cmd, optarg);
       }
       break;
     case OPT_NODEFAULTLIBS:
-      nodefaultlibs = true;
-      vec_push(linker_options, "-nodefaultlibs");
+      opts->nodefaultlibs = true;
+      vec_push(opts->linker_options, "-nodefaultlibs");
       break;
     case OPT_NOSTDLIB:
-      nostdlib = true;
-      vec_push(linker_options, "-nostdlib");
+      opts->nostdlib = true;
+      vec_push(opts->linker_options, "-nostdlib");
       break;
     case OPT_NOSTDINC:
-      nostdinc = true;
+      opts->nostdinc = true;
       break;
     case OPT_LINKOPTION:
-      vec_push(ld_cmd, optarg);
+      vec_push(opts->ld_cmd, optarg);
       break;
     case 'f':
       if (strncmp(optarg, "use-ld", 6) == 0) {
         if (optarg[6] == '=') {
-          ld_cmd->data[0] = &optarg[7];
+          opts->ld_cmd->data[0] = &optarg[7];
         } else if (optarg[6] == '\0' && optind < argc) {
-          ld_cmd->data[0] = argv[optind++];
+          opts->ld_cmd->data[0] = argv[optind++];
         } else {
           fprintf(stderr, "extra argument required for '-fuse-ld");
         }
-        use_ld = true;
+        opts->use_ld = true;
       } else {
-        vec_push(linker_options, argv[optind - 1]);
+        vec_push(opts->linker_options, argv[optind - 1]);
       }
       break;
     case 'l':
       if (strncmp(argv[optind - 1], "-l", 2) == 0) {
         // -lfoobar
         // file order matters, so add to sources.
-        vec_push(sources, argv[optind - 1]);
+        vec_push(opts->sources, argv[optind - 1]);
       } else {
         assert(!"TODO");
       }
       break;
     case '?':
       if (strcmp(argv[optind - 1], "-") == 0) {
-        if (src_type == UnknownSource) {
+        if (opts->src_type == UnknownSource) {
           error("-x required");
         }
-        vec_push(sources, NULL);
+        vec_push(opts->sources, NULL);
       } else {
         fprintf(stderr, "Warning: unknown option: %s\n", argv[optind - 1]);
-        vec_push(linker_options, argv[optind - 1]);
+        vec_push(opts->linker_options, argv[optind - 1]);
       }
       break;
 
@@ -500,80 +461,36 @@ int main(int argc, char *argv[]) {
     case OPT_MMD:
     case OPT_NO_PIE:
       // Silently ignored.
-      vec_push(linker_options, argv[optind - 1]);
+      vec_push(opts->linker_options, argv[optind - 1]);
       break;
     }
   }
+}
 
-  if (sources->len == 0) {
-    fprintf(stderr, "No input files\n\n");
-    usage(stderr);
-    return 1;
-  }
-
-  if (!nostdinc) {
-    vec_push(cpp_cmd, "-idirafter");
-    vec_push(cpp_cmd, JOIN_PATHS(root, "include"));
-  }
-
-  vec_push(cpp_cmd, NULL);  // Buffer for src.
-  vec_push(cpp_cmd, NULL);  // Terminator.
-  vec_push(cc1_cmd, NULL);  // Buffer for label prefix.
-  vec_push(cc1_cmd, NULL);  // Terminator.
-  vec_push(as_cmd, "-o");
-  vec_push(as_cmd, ofn);
-  vec_push(as_cmd, NULL);  // Terminator.
-
-  if (use_ld) {
-    // Pass through command line options.
-    for (int i = 0; i < linker_options->len; ++i)
-      vec_push(ld_cmd, linker_options->data[i]);
-  } else {
-    vec_push(ld_cmd, "-o");
-    vec_push(ld_cmd, ofn != NULL ? ofn : "a.out");
-  }
-
+static int do_compile(Options *opts) {
   int ofd = STDOUT_FILENO;
-
-  if (out_type >= OutExecutable && !use_ld) {
-#if !defined(AS_USE_CC) || defined(NO_STD_LIB)
-    if (!nostdlib)
-      vec_push(sources, JOIN_PATHS(root, "lib/crt0.a"));
-    if (!nodefaultlibs && !nostdlib)
-      vec_push(sources, JOIN_PATHS(root, "lib/libc.a"));
-# if defined(NO_STD_LIB)
-    vec_push(ld_cmd, "-nostdlib");
-# endif
-#else
-    UNUSED(nodefaultlibs);
-    UNUSED(nostdlib);
-#endif
-  }
-
-  atexit(remove_tmp_files);
-
   int res = 0;
-  for (int i = 0; i < sources->len; ++i) {
-    char *src = sources->data[i];
-    const char *outfn = ofn;
+  for (int i = 0; i < opts->sources->len; ++i) {
+    char *src = opts->sources->data[i];
+    const char *outfn = opts->ofn;
     if (src != NULL) {
       if (*src == '\0')
         continue;
       if (*src == '-') {
         assert(src[1] == 'l');
-        vec_push(ld_cmd, src);
+        vec_push(opts->ld_cmd, src);
         continue;
       }
 
       if (outfn == NULL) {
-        if (out_type == OutObject)
+        if (opts->out_type == OutObject)
           outfn = change_ext(basename(src), "o");
-        else if (out_type == OutAssembly)
+        else if (opts->out_type == OutAssembly)
           outfn = change_ext(basename(src), "s");
       }
     }
 
-    if (out_type <= OutAssembly && outfn != NULL && strcmp(outfn, "-") != 0) {
+    if (opts->out_type <= OutAssembly && outfn != NULL && strcmp(outfn, "-") != 0) {
       close(STDOUT_FILENO);
       ofd = open(outfn, O_WRONLY | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
       if (ofd == -1) {
@@ -582,7 +499,7 @@ int main(int argc, char *argv[]) {
       }
     }
 
-    enum SourceType st = src_type;
+    enum SourceType st = opts->src_type;
     if (src != NULL) {
       char *ext = get_ext(src);
       if      (strcasecmp(ext, "c") == 0)  st = Clanguage;
@@ -597,26 +514,134 @@ int main(int argc, char *argv[]) {
       res = -1;
       break;
     case Clanguage:
-      res = compile_csource(src, out_type, outfn, ofd, cpp_cmd, cc1_cmd, as_cmd, ld_cmd);
+      res = compile_csource(src, opts->out_type, outfn, ofd, opts->cpp_cmd, opts->cc1_cmd, opts->as_cmd, opts->ld_cmd);
       break;
     case Assembly:
-      res = compile_asm(src, out_type, outfn, ofd, as_cmd, ld_cmd);
+      res = compile_asm(src, opts->out_type, outfn, ofd, opts->as_cmd, opts->ld_cmd);
       break;
     case ObjectFile:
     case ArchiveFile:
-      if (out_type >= OutExecutable)
-        vec_push(ld_cmd, src);
+      if (opts->out_type >= OutExecutable)
+        vec_push(opts->ld_cmd, src);
       break;
     }
     if (res != 0)
       break;
   }
 
-  if (res == 0 && out_type >= OutExecutable) {
-    vec_push(ld_cmd, NULL);
-    pid_t ld_pid = exec_with_ofd((char**)ld_cmd->data, -1);
+  if (res == 0 && opts->out_type >= OutExecutable) {
+    vec_push(opts->ld_cmd, NULL);
+    pid_t ld_pid = exec_with_ofd((char**)opts->ld_cmd->data, -1);
     waitpid(ld_pid, &res, 0);
   }
 
   return res == 0 ? 0 : 1;
+}
+
+int main(int argc, char *argv[]) {
+  const char *xccpath = argv[0];
+  const char *root = dirname(strdup(xccpath));
+  const char *prefix = get_exe_prefix(xccpath);
+  char *cpp_path = join_exe_prefix(xccpath, prefix, "cpp");
+  char *cc1_path = join_exe_prefix(xccpath, prefix, "cc1");
+#if !defined(AS_USE_CC)
+  char *as_path = join_exe_prefix(xccpath, prefix, "as");
+  char *ld_path = join_exe_prefix(xccpath, prefix, "ld");
+#elif defined(HOST_CC_PREFIX)
+#define S(x)   S2(x)
+#define S2(x)  #x
+  char *as_path = S(HOST_CC_PREFIX) "as";
+  char *ld_path = S(HOST_CC_PREFIX) "gcc";
+#undef S2
+#undef S
+#else
+  char *as_path = "/usr/bin/as";
+  char *ld_path = "/usr/bin/cc";
+#endif
+
+  Vector *cpp_cmd = new_vector();
+  vec_push(cpp_cmd, cpp_path);
+  vec_push(cpp_cmd, "-D__LP64__");  // Memory model.
+#if XCC_TARGET_ARCH == XCC_ARCH_X64
+  vec_push(cpp_cmd, "-D__x86_64__");
+#elif XCC_TARGET_ARCH == XCC_ARCH_AARCH64
+  vec_push(cpp_cmd, "-D__aarch64__");
+#elif XCC_TARGET_ARCH == XCC_ARCH_RISCV64
+  vec_push(cpp_cmd, "-D__riscv");
+#endif
+#if XCC_TARGET_PLATFORM == XCC_PLATFORM_APPLE
+  vec_push(cpp_cmd, "-D__APPLE__");
+#elif XCC_TARGET_PLATFORM == XCC_PLATFORM_POSIX
+  vec_push(cpp_cmd, "-D__linux__");
+#endif
+
+  Vector *cc1_cmd = new_vector();
+  vec_push(cc1_cmd, cc1_path);
+
+  Vector *as_cmd = new_vector();
+  vec_push(as_cmd, as_path);
+
+  Vector *ld_cmd = new_vector();
+  vec_push(ld_cmd, ld_path);
+
+  Options opts = {
+    .cpp_cmd = cpp_cmd,
+    .cc1_cmd = cc1_cmd,
+    .as_cmd = as_cmd,
+    .ld_cmd = ld_cmd,
+    .sources = new_vector(),
+    .linker_options = new_vector(),
+    .ofn = NULL,
+    .out_type = OutExecutable,
+    .src_type = UnknownSource,
+    .nodefaultlibs = false,
+    .nostdlib = false,
+    .nostdinc = false,
+    .use_ld = false,
+  };
+  parse_options(argc, argv, &opts);
+
+  if (opts.sources->len == 0) {
+    fprintf(stderr, "No input files\n\n");
+    usage(stderr);
+    return 1;
+  }
+
+  if (!opts.nostdinc) {
+    vec_push(cpp_cmd, "-idirafter");
+    vec_push(cpp_cmd, JOIN_PATHS(root, "include"));
+  }
+
+  vec_push(cpp_cmd, NULL);  // Buffer for src.
+  vec_push(cpp_cmd, NULL);  // Terminator.
+  vec_push(cc1_cmd, NULL);  // Buffer for label prefix.
+  vec_push(cc1_cmd, NULL);  // Terminator.
+  vec_push(as_cmd, "-o");
+  vec_push(as_cmd, opts.ofn);
+  vec_push(as_cmd, NULL);  // Terminator.
+
+  if (opts.use_ld) {
+    // Pass through command line options.
+    for (int i = 0; i < opts.linker_options->len; ++i)
+      vec_push(ld_cmd, opts.linker_options->data[i]);
+  } else {
+    vec_push(ld_cmd, "-o");
+    vec_push(ld_cmd, opts.ofn != NULL ? opts.ofn : "a.out");
+  }
+
+  if (opts.out_type >= OutExecutable && !opts.use_ld) {
+#if !defined(AS_USE_CC) || defined(NO_STD_LIB)
+    if (!opts.nostdlib)
+      vec_push(opts.sources, JOIN_PATHS(root, "lib/crt0.a"));
+    if (!opts.nodefaultlibs && !opts.nostdlib)
+      vec_push(opts.sources, JOIN_PATHS(root, "lib/libc.a"));
+# if defined(NO_STD_LIB)
+    vec_push(ld_cmd, "-nostdlib");
+# endif
+#endif
+  }
+
+  atexit(remove_tmp_files);
+
+  return do_compile(&opts);
 }
