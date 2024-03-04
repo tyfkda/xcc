@@ -654,7 +654,7 @@ void print_type_recur(FILE *fp, const Type *type, PrintTypeChain *parent) {
       default:
         {
           static const char *names[] = {"char", "short", "int", "long", "long long"};
-          assert(kind >= 0 && kind < sizeof(names) / sizeof(*names));
+          assert(kind >= 0 && kind < (int)ARRAY_SIZE(names));
           const char *sign = type->fixnum.is_unsigned ? "unsigned " : "";
           fprintf(fp, "%s%s", sign, names[kind]);
         }

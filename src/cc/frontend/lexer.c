@@ -168,14 +168,14 @@ static void init_reserved_word_table(void) {
 
   if (!for_preprocess) {
     // Reserved words.
-    for (int i = 0, n = (int)(sizeof(kReservedWords) / sizeof(*kReservedWords)); i < n; ++i) {
+    for (int i = 0; i < (int)ARRAY_SIZE(kReservedWords); ++i) {
       const Name *key = alloc_name(kReservedWords[i].str, NULL, false);
       table_put(&reserved_word_table, key, INT2VOIDP(kReservedWords[i].kind));
     }
   }
 
   // Multi-char operators.
-  for (int i = 0, n = (int)(sizeof(kMultiOperators) / sizeof(*kMultiOperators)); i < n; ++i) {
+  for (int i = 0; i < (int)ARRAY_SIZE(kMultiOperators); ++i) {
     const Name *key = alloc_name(kMultiOperators[i].ident, NULL, false);
     table_put(&reserved_word_table, key, INT2VOIDP(kMultiOperators[i].kind));
   }

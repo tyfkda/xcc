@@ -468,7 +468,7 @@ static void traverse_expr(Expr **pexpr, bool needval) {
     [EX_BLOCK] = te_block,
   };
 
-  assert(expr->kind < (int)sizeof(table) / sizeof(*table));
+  assert(expr->kind < (int)ARRAY_SIZE(table));
   assert(table[expr->kind] != NULL);
   (*table[expr->kind])(pexpr, needval);
 }

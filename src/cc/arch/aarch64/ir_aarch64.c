@@ -37,10 +37,10 @@ static const char *kReg64s[PHYSICAL_REG_MAX] = {
 #define GET_X0_INDEX()   0
 #define GET_X16_INDEX()  10
 
-#define CALLEE_SAVE_REG_COUNT  ((int)(sizeof(kCalleeSaveRegs) / sizeof(*kCalleeSaveRegs)))
+#define CALLEE_SAVE_REG_COUNT  ((int)ARRAY_SIZE(kCalleeSaveRegs))
 static const int kCalleeSaveRegs[] = {11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21};
 
-#define CALLER_SAVE_REG_COUNT  ((int)(sizeof(kCallerSaveRegs) / sizeof(*kCallerSaveRegs)))
+#define CALLER_SAVE_REG_COUNT  ((int)ARRAY_SIZE(kCallerSaveRegs))
 static const int kCallerSaveRegs[] = {22, 23, 24, 25, 26, 27};
 
 const int ArchRegParamMapping[] = {0, 1, 2, 3, 4, 5, 6, 7};
@@ -68,10 +68,10 @@ const char *kFReg64s[PHYSICAL_FREG_MAX] = {
 
 #define GET_D0_INDEX()   0
 
-#define CALLEE_SAVE_FREG_COUNT  ((int)(sizeof(kCalleeSaveFRegs) / sizeof(*kCalleeSaveFRegs)))
+#define CALLEE_SAVE_FREG_COUNT  ((int)ARRAY_SIZE(kCalleeSaveFRegs))
 static const int kCalleeSaveFRegs[] = {8, 9, 10, 11, 12, 13, 14, 15};
 
-#define CALLER_SAVE_FREG_COUNT  ((int)(sizeof(kCallerSaveFRegs) / sizeof(*kCallerSaveFRegs)))
+#define CALLER_SAVE_FREG_COUNT  ((int)ARRAY_SIZE(kCallerSaveFRegs))
 static const int kCallerSaveFRegs[] = {16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31};
 
 static unsigned long detect_extra_occupied(RegAlloc *ra, IR *ir) {
@@ -873,7 +873,7 @@ static Vector *push_caller_save_regs(unsigned long living) {
     },
   };
 
-  for (int i = 0; i < (int)(sizeof(table) / sizeof(*table)); ++i) {
+  for (int i = 0; i < (int)ARRAY_SIZE(table); ++i) {
     const char **reg_names = table[i].reg_names;
     int count = table[i].count;
     int bitoffset = table[i].bitoffset;
@@ -943,7 +943,7 @@ void emit_bb_irs(BBContainer *bbcon) {
     EMIT_LABEL(fmt_name(bb->label));
     for (int j = 0; j < bb->irs->len; ++j) {
       IR *ir = bb->irs->data[j];
-      assert(ir->kind < (int)(sizeof(table) / sizeof(*table)));
+      assert(ir->kind < (int)ARRAY_SIZE(table));
       assert(table[ir->kind] != NULL);
       (*table[ir->kind])(ir);
     }

@@ -17,6 +17,7 @@
 #define UINT2VOIDP(i)  ((void*)(uintptr_t)(i))
 #define VOIDP2INT(p)   ((intptr_t)(p))
 #define VOIDP2UINT(p)  ((uintptr_t)(p))
+#define ARRAY_SIZE(array)  (sizeof(array) / sizeof(*(array)))
 
 typedef struct Name Name;
 

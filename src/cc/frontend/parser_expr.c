@@ -853,7 +853,7 @@ static Expr *parse_prim(void) {
       {TK_WCHARLIT, FX_INT, true},  // TODO: Must match with target's wchar_t
 #endif
     };
-    for (int i = 0, n = sizeof(TABLE) / sizeof(*TABLE); i < n; ++i) {
+    for (int i = 0; i < (int)ARRAY_SIZE(TABLE); ++i) {
       if ((tok = match(TABLE[i].tk)) != NULL) {
         Type *type = get_fixnum_type(TABLE[i].fx, TABLE[i].is_unsigned, 0);
         Fixnum fixnum = tok->fixnum;
@@ -1366,7 +1366,7 @@ Expr *parse_assign(void) {
 
   Expr *expr = parse_conditional();
 
-  for (int i = 0; i < (int)(sizeof(kAssignWithOps) / sizeof(*kAssignWithOps)); ++i) {
+  for (int i = 0; i < (int)ARRAY_SIZE(kAssignWithOps); ++i) {
     Token *tok;
     if ((tok = match(kAssignWithOps[i])) != NULL) {
       Expr *lhs = expr, *rhs = parse_assign();

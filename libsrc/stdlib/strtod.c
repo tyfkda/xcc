@@ -94,7 +94,7 @@ double strtod(const char * restrict p, char ** restrict pp) {
     {"inf", 1.0 / 0.0, -1.0 / 0.0},
     {"nan", 0.0 / 0.0, 0.0 / 0.0},
   };
-  for (int i = 0, n = sizeof(CONST) / sizeof(*CONST); i < n; ++i) {
+  for (int i = 0; i < (int)(sizeof(CONST) / sizeof(*CONST)); ++i) {
     const char *str = CONST[i].str;
     size_t len = strlen(str);
     if (strncmp(p, str, len) == 0) {

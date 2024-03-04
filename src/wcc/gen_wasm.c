@@ -1006,7 +1006,7 @@ void gen_expr(Expr *expr, bool needval) {
     [EX_COMPLIT] = gen_complit, [EX_BLOCK] = gen_block_expr,
   };
 
-  assert(expr->kind < (int)sizeof(table) / sizeof(*table));
+  assert(expr->kind < (int)ARRAY_SIZE(table));
   assert(table[expr->kind] != NULL);
   (*table[expr->kind])(expr, needval);
 }

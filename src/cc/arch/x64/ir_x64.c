@@ -34,10 +34,10 @@ const char *kRegSizeTable[][PHYSICAL_REG_MAX] = {
 #define GET_DREG_INDEX()  3  // ArchRegParamMapping[2]
 #define GET_BPREG_INDEX() 12
 
-#define CALLEE_SAVE_REG_COUNT  ((int)(sizeof(kCalleeSaveRegs) / sizeof(*kCalleeSaveRegs)))
+#define CALLEE_SAVE_REG_COUNT  ((int)ARRAY_SIZE(kCalleeSaveRegs))
 static const int kCalleeSaveRegs[] = {7, 8, 9, 10, 11, 12};
 
-#define CALLER_SAVE_REG_COUNT  ((int)(sizeof(kCallerSaveRegs) / sizeof(*kCallerSaveRegs)))
+#define CALLER_SAVE_REG_COUNT  ((int)ARRAY_SIZE(kCallerSaveRegs))
 static const int kCallerSaveRegs[] = {13, 14};
 
 const int ArchRegParamMapping[] = {1, 2, 3, 4, 5, 6};
@@ -54,7 +54,7 @@ const char *kFReg64s[PHYSICAL_FREG_MAX] = {
 
 #define GET_XMM0_INDEX()   0
 
-#define CALLER_SAVE_FREG_COUNT  ((int)(sizeof(kCallerSaveFRegs) / sizeof(*kCallerSaveFRegs)))
+#define CALLER_SAVE_FREG_COUNT  ((int)ARRAY_SIZE(kCallerSaveFRegs))
 static const int kCallerSaveFRegs[] = {8, 9, 10, 11, 12, 13, 14, 15};
 
 static unsigned long detect_extra_occupied(RegAlloc *ra, IR *ir) {
@@ -1017,7 +1017,7 @@ void emit_bb_irs(BBContainer *bbcon) {
     EMIT_LABEL(fmt_name(bb->label));
     for (int j = 0; j < bb->irs->len; ++j) {
       IR *ir = bb->irs->data[j];
-      assert(ir->kind < (int)(sizeof(table) / sizeof(*table)));
+      assert(ir->kind < (int)ARRAY_SIZE(table));
       assert(table[ir->kind] != NULL);
       (*table[ir->kind])(ir);
     }

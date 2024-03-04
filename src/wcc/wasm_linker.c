@@ -761,7 +761,7 @@ static void renumber_symbols_wasmobj(WasmObj *wasmobj, uint32_t *defined_count) 
 
   // Increment count_table according to defined counts.
   static const int kSecTable[] = {SEC_FUNC, SEC_DATA};
-  for (size_t i = 0; i < sizeof(kSecTable) / sizeof(kSecTable[0]); ++i) {
+  for (size_t i = 0; i < ARRAY_SIZE(kSecTable); ++i) {
     int secidx = kSecTable[i];
     WasmSection *sec = find_section(wasmobj, secidx);
     if (sec != NULL) {

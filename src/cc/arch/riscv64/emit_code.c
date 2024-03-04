@@ -68,7 +68,7 @@ static void move_params_to_assigned(Function *func) {
 
   const char *kFRegParam64s[] = {FA0, FA1, FA2, FA3, FA4, FA5, FA6, FA7};
   static const int kPow2Table[] = {-1, 0, 1, -1, 2, -1, -1, -1, 3};
-#define kPow2TableSize ((int)(sizeof(kPow2Table) / sizeof(*kPow2Table)))
+#define kPow2TableSize ((int)ARRAY_SIZE(kPow2Table))
 
   RegParamInfo iparams[MAX_REG_ARGS];
   RegParamInfo fparams[MAX_FREG_ARGS];

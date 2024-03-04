@@ -278,13 +278,12 @@ static int find_match_index(const char **pp, const char **table, size_t count) {
 }
 
 static enum Opcode find_opcode(ParseInfo *info) {
-  return find_match_index(&info->p, kOpTable, sizeof(kOpTable) / sizeof(*kOpTable)) + 1;
+  return find_match_index(&info->p, kOpTable, ARRAY_SIZE(kOpTable)) + 1;
 }
 
 static enum DirectiveType find_directive(const char *p, size_t n) {
   const char **table = kDirectiveTable;
-  size_t count = sizeof(kDirectiveTable) / sizeof(*kDirectiveTable);
-  for (size_t i = 0; i < count; ++i) {
+  for (size_t i = 0; i < ARRAY_SIZE(kDirectiveTable); ++i) {
     const char *name = table[i];
     if (strncasecmp(p, name, n) == 0 && name[n] == '\0') {
       return i + 1;
@@ -295,7 +294,7 @@ static enum DirectiveType find_directive(const char *p, size_t n) {
 
 static enum RegType find_register(const char **pp) {
   const char *p = *pp;
-  for (int i = 0, len = sizeof(kRegisters) / sizeof(*kRegisters); i < len; ++i) {
+  for (int i = 0; i < (int)ARRAY_SIZE(kRegisters); ++i) {
     const char *name = kRegisters[i].name;
     size_t n = strlen(name);
     if (strncmp(p, name, n) == 0) {
@@ -313,7 +312,7 @@ static enum RegXmmType find_xmm_register(const char **pp) {
     ;
   size_t l = q - p;
 
-  for (int i = 0, len = sizeof(kXmmRegisters) / sizeof(*kXmmRegisters); i < len; ++i) {
+  for (int i = 0; i < (int)ARRAY_SIZE(kXmmRegisters); ++i) {
     const char *name = kXmmRegisters[i];
     size_t n = strlen(name);
     if (l == n && strncmp(p, name, n) == 0) {

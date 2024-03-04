@@ -389,7 +389,7 @@ static int insert_load_store_spilled_irs(RegAlloc *ra, BBContainer *bbcon) {
     Vector *irs = bb->irs;
     for (int j = 0; j < irs->len; ++j) {
       IR *ir = irs->data[j];
-      assert(ir->kind < sizeof(kSpillTable) / sizeof(*kSpillTable));
+      assert(ir->kind < (int)ARRAY_SIZE(kSpillTable));
       int flag = kSpillTable[ir->kind];
       assert(flag != 0);
       if (flag == ___)

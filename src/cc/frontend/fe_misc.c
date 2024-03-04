@@ -72,7 +72,7 @@ const enum FixnumKind kLongKinds[] = {
 void check_type_combination(const TypeCombination *tc, const Token *tok) {
   if (tc->unsigned_num > 1 || tc->signed_num > 1 ||
       tc->char_num > 1 || tc->short_num > 1 || tc->int_num > 1 ||
-      tc->long_num >= (int)(sizeof(kLongKinds) / sizeof(*kLongKinds)) ||
+      tc->long_num >= (int)ARRAY_SIZE(kLongKinds) ||
       ((tc->char_num > 0) + (tc->short_num > 0) + (tc->long_num > 0) > 1) ||
       tc->float_num > 1 || tc->double_num > 1 ||
       ((tc->float_num > 0 || tc->double_num > 0) &&

@@ -896,7 +896,7 @@ VReg *gen_expr(Expr *expr) {
     [EX_COMPLIT] = gen_complit, [EX_BLOCK] = gen_block_expr,
   };
 
-  assert(expr->kind < (int)sizeof(table) / sizeof(*table));
+  assert(expr->kind < (int)ARRAY_SIZE(table));
   assert(table[expr->kind] != NULL);
   return (*table[expr->kind])(expr);
 }

@@ -9,8 +9,6 @@
 #include "parse_asm.h"
 #include "util.h"
 
-#define ARRAY_SIZE(array)  (sizeof(array) / sizeof(*(array)))
-
 #ifndef PUT_CODE
 #define PUT_CODE(p, ...)  do { unsigned char buf[] = {__VA_ARGS__}; memcpy(p, buf, sizeof(buf)); } while (0)
 #endif
@@ -1632,7 +1630,7 @@ void assemble_inst(Inst *inst, const ParseInfo *info, Code *code) {
   code->len = 0;
 
   const AsmInstTable *pt = NULL;
-  if (inst->op < (enum Opcode)(sizeof(table) / sizeof(*table)) && table[inst->op] != NULL) {
+  if (inst->op < (enum Opcode)ARRAY_SIZE(table) && table[inst->op] != NULL) {
     for (const AsmInstTable *p = table[inst->op]; p->func != NULL; ++p) {
       if (inst->src.type == p->src_type && inst->dst.type == p->dst_type) {
         pt = p;
