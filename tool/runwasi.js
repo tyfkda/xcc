@@ -32,7 +32,7 @@ async function getRealpaths(map) {
     preopens[virt] = actual
   }
 
-  const program = require('commander')
+  const {program} = require('commander')
   program
     .option('--dir <directory>', 'Make a directory accessible', handleDir)
     .option('--mapdir <virtual-path::actual-path>', 'Map actual as virtual path', handleMapDir)

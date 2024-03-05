@@ -6,7 +6,7 @@ import fsPromise from 'node:fs/promises'
 import {DisWasm} from '../src/wcc/www/diswasm'
 
 async function main(argv: string[]) {
-  const program = require('commander')
+  const {program} = require('commander')
   program
     .option('--dump-addr', 'Dump address')
     .parse(argv)

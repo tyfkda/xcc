@@ -15,12 +15,12 @@ const KEY_CODE = 'wcc-code'
 
 function start() {
   const editor = monaco.editor.create(document.getElementById('editor')!, {
-    value: '',
     language: 'c',
     minimap: {
       enabled: false,
     },
     fontSize: FONT_SIZE,
+    renderWhitespace: 'trailing',
   })
   let editorSavedVersionId = 0
   editor.getModel()!.updateOptions({ tabSize: 4 })
@@ -71,7 +71,6 @@ function start() {
   }
 
   const terminal = monaco.editor.create(document.getElementById('terminal')!, {
-    value: '',
     language: 'txt',
     lineNumbers: 'off',
     minimap: {

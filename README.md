@@ -74,6 +74,7 @@ Compile C to WebAssembly/WASI binary.
 
 #### Requirements
 
+  * node.js
   * `llvm-ar`
 
 #### Build
@@ -113,6 +114,8 @@ Command line options:
 $ ./tool/runwasi hello.wasm
 Hello, world!
 ```
+
+You can use WASM runtime (Wasmtime, Wasmer, etc.).
 
 #### Missing features
 
