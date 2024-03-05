@@ -2011,6 +2011,12 @@ TEST(vla) {
     int (*p)[2] = a;
     EXPECT("vla size", 2468, vla_funparam(2, a, p));
   }
+
+  {
+    int size = 41;
+    typedef struct {char c[size];} S;
+    EXPECT("vla member", size, sizeof(S));
+  }
 } END_TEST()
 #endif
 
