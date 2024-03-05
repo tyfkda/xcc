@@ -254,14 +254,15 @@ static StructInfo *parse_struct(bool is_union) {
 #endif
 
       switch (type->kind) {
+      case TY_ARRAY:
 #ifndef __NO_VLA
-      case TY_PTR:
         if (type->pa.vla != NULL) {
           parse_error(PE_NOFATAL, ident, "VLA not allowed in struct/union");
+          // To continue compile.
+          type->pa.vla = NULL;
+          type->pa.length = 1;
         }
-        break;
 #endif
-      case TY_ARRAY:
         if (type->pa.length == LEN_UND) {
           assert(ident != NULL);
           flex_arr_mem = ident;
