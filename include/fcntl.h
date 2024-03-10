@@ -20,6 +20,9 @@
 #define S_IXOTH         (0001)
 
 #define AT_FDCWD  -100
+#define AT_SYMLINK_NOFOLLOW  0x100
+#define AT_SYMLINK_FOLLOW    0x400
+#define AT_EACCESS           0x200
 
 int open(const char *fn, int flag, ...);
 int openat(int dirfd, const char *fn, int flag, ...);
