@@ -252,11 +252,7 @@ enum ExprKind {
 };
 
 #ifndef __NO_FLONUM
-#if defined(__XCC)
 typedef long double Flonum;
-#else
-typedef double Flonum;
-#endif
 #endif
 
 typedef struct Expr {

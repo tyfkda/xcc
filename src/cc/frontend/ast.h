@@ -22,11 +22,7 @@ typedef int64_t  Fixnum;
 typedef uint64_t UFixnum;
 
 #ifndef __NO_FLONUM
-#ifdef __XCC
 typedef long double Flonum;
-#else
-typedef double Flonum;  // TODO: long double
-#endif
 #endif
 
 enum StrKind {

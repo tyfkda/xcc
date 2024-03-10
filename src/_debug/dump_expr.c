@@ -114,7 +114,7 @@ void dump_expr(FILE *fp, Expr *expr) {
   case EX_FLONUM:
     {
       char buf[64];
-      snprintf(buf, sizeof(buf) - 4, "%g", expr->flonum);
+      snprintf(buf, sizeof(buf) - 4, "%Lg", expr->flonum);
       if (strchr(buf, '.') == NULL)
         strcat(buf, ".0");
       switch (expr->type->flonum.kind) {

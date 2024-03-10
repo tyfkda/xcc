@@ -252,10 +252,10 @@ int vfprintf(FILE *fp, const char *fmt_, va_list ap) {
       }
     }
 
-    if (c == 'l') {
+    if (tolower(c) == 'l') {
       nlong = 1;
       c = fmt[++i];
-      if (c == 'l') {
+      if (tolower(c) == 'l') {
         nlong = 2;
         c = fmt[++i];
       }
