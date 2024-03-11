@@ -22,7 +22,11 @@ enum VRegSize to_vsize(const Type *type) {
   const int MAX_REG_SIZE = 8;
   assert(is_prim_type(type));
   int size = type_size(type);
-  assert(1 <= size && size <= MAX_REG_SIZE && IS_POWER_OF_2(size));
+#ifndef __NO_FLONUM
+  if (type->kind == TY_FLONUM && size == 16)
+    return VRegSize8 + 1;
+#endif
+  assert(1 <= size && (size <= MAX_REG_SIZE) && IS_POWER_OF_2(size));
   UNUSED(MAX_REG_SIZE);
   return most_significant_bit(size);
 }

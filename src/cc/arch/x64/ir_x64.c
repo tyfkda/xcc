@@ -40,8 +40,9 @@ const int ArchRegParamMapping[] = {1, 2, 3, 4, 5, 6};
 #define kReg32s  (kRegSizeTable[2])
 #define kReg64s  (kRegSizeTable[3])
 
-#define SZ_FLOAT   VRegSize4
-#define SZ_DOUBLE  VRegSize8
+#define SZ_FLOAT    VRegSize4
+#define SZ_DOUBLE   VRegSize8
+#define SZ_LDOUBLE  (VRegSize8 + 1)
 const char *kFReg64s[PHYSICAL_FREG_MAX] = {
   XMM0, XMM1, XMM2, XMM3, XMM4, XMM5, XMM6, XMM7,
   XMM8, XMM9, XMM10, XMM11, XMM12, XMM13, XMM14, XMM15};
@@ -202,15 +203,17 @@ static void cmp_vregs(VReg *opr1, VReg *opr2, int cond) {
   if (opr1->flag & VRF_FLONUM) {
     assert((opr2->flag & (VRF_FLONUM | VRF_CONST)) == VRF_FLONUM);
     if ((cond & COND_MASK) <= COND_NE) {
-      switch (opr1->vsize) {
+      switch ((int)opr1->vsize) {
       case SZ_FLOAT: UCOMISS(kFReg64s[opr2->phys], kFReg64s[opr1->phys]); break;
       case SZ_DOUBLE: UCOMISD(kFReg64s[opr2->phys], kFReg64s[opr1->phys]); break;
+      case SZ_LDOUBLE: UCOMISD(kFReg64s[opr2->phys], kFReg64s[opr1->phys]); break;  // TODO: 80bit
       default: assert(false); break;
       }
     } else {
-      switch (opr1->vsize) {
+      switch ((int)opr1->vsize) {
       case SZ_FLOAT: COMISS(kFReg64s[opr2->phys], kFReg64s[opr1->phys]); break;
       case SZ_DOUBLE: COMISD(kFReg64s[opr2->phys], kFReg64s[opr1->phys]); break;
+      case SZ_LDOUBLE: COMISD(kFReg64s[opr2->phys], kFReg64s[opr1->phys]); break;  // TODO: 80bit
       default: assert(false); break;
       }
     }
@@ -269,9 +272,10 @@ static void ei_load(IR *ir) {
   }
 
   if (ir->dst->flag & VRF_FLONUM) {
-    switch (ir->dst->vsize) {
+    switch ((int)ir->dst->vsize) {
     case SZ_FLOAT:  MOVSS(src, kFReg64s[ir->dst->phys]); break;
     case SZ_DOUBLE: MOVSD(src, kFReg64s[ir->dst->phys]); break;
+    case SZ_LDOUBLE: MOVSD(src, kFReg64s[ir->dst->phys]); break;  // TODO: 80bit
     default: assert(false); break;
     }
   } else {
@@ -299,9 +303,10 @@ static void ei_store(IR *ir) {
   }
 
   if (ir->opr1->flag & VRF_FLONUM) {
-    switch (ir->opr1->vsize) {
+    switch ((int)ir->opr1->vsize) {
     case SZ_FLOAT:  MOVSS(kFReg64s[ir->opr1->phys], target); break;
     case SZ_DOUBLE: MOVSD(kFReg64s[ir->opr1->phys], target); break;
+    case SZ_LDOUBLE: MOVSD(kFReg64s[ir->opr1->phys], target); break;  // TODO: 80bit
     default: assert(false); break;
     }
   } else {
@@ -328,9 +333,10 @@ static void ei_add(IR *ir) {
     assert(!(ir->opr1->flag & VRF_CONST));
     assert(!(ir->opr2->flag & VRF_CONST));
     const char **regs = kFReg64s;
-    switch (ir->dst->vsize) {
+    switch ((int)ir->dst->vsize) {
     case SZ_FLOAT: ADDSS(regs[ir->opr2->phys], regs[ir->dst->phys]); break;
     case SZ_DOUBLE: ADDSD(regs[ir->opr2->phys], regs[ir->dst->phys]); break;
+    case SZ_LDOUBLE: ADDSD(regs[ir->opr2->phys], regs[ir->dst->phys]); break;  // TODO: 80bit
     default: assert(false); break;
     }
   } else {
@@ -360,9 +366,10 @@ static void ei_sub(IR *ir) {
     assert(!(ir->opr1->flag & VRF_CONST));
     assert(!(ir->opr2->flag & VRF_CONST));
     const char **regs = kFReg64s;
-    switch (ir->dst->vsize) {
+    switch ((int)ir->dst->vsize) {
     case SZ_FLOAT: SUBSS(regs[ir->opr2->phys], regs[ir->dst->phys]); break;
     case SZ_DOUBLE: SUBSD(regs[ir->opr2->phys], regs[ir->dst->phys]); break;
+    case SZ_LDOUBLE: SUBSD(regs[ir->opr2->phys], regs[ir->dst->phys]); break;  // TODO: 80bit
     default: assert(false); break;
     }
   } else {
@@ -391,9 +398,10 @@ static void ei_mul(IR *ir) {
   if (ir->dst->flag & VRF_FLONUM) {
     assert(ir->dst->phys == ir->opr1->phys);
     const char **regs = kFReg64s;
-    switch (ir->dst->vsize) {
+    switch ((int)ir->dst->vsize) {
     case SZ_FLOAT: MULSS(regs[ir->opr2->phys], regs[ir->dst->phys]); break;
     case SZ_DOUBLE: MULSD(regs[ir->opr2->phys], regs[ir->dst->phys]); break;
+    case SZ_LDOUBLE: MULSD(regs[ir->opr2->phys], regs[ir->dst->phys]); break;  // TODO: 80bit
     default: assert(false); break;
     }
   } else {
@@ -417,9 +425,10 @@ static void ei_div(IR *ir) {
   if (ir->dst->flag & VRF_FLONUM) {
     assert(ir->dst->phys == ir->opr1->phys);
     const char **regs = kFReg64s;
-    switch (ir->dst->vsize) {
+    switch ((int)ir->dst->vsize) {
     case SZ_FLOAT: DIVSS(regs[ir->opr2->phys], regs[ir->dst->phys]); break;
     case SZ_DOUBLE: DIVSD(regs[ir->opr2->phys], regs[ir->dst->phys]); break;
+    case SZ_LDOUBLE: DIVSD(regs[ir->opr2->phys], regs[ir->dst->phys]); break;  // TODO: 80bit
     default: assert(false); break;
     }
   } else if (ir->dst->vsize == VRegSize1) {
@@ -600,9 +609,10 @@ static void ei_neg(IR *ir) {
     assert(!(ir->opr1->flag & VRF_CONST));
     assert(ir->dst->phys != ir->opr1->phys);
     VReg *dst = ir->dst, *opr1 = ir->opr1;
-    switch (opr1->vsize) {
+    switch ((int)opr1->vsize) {
     case SZ_FLOAT:
     case SZ_DOUBLE:
+    case SZ_LDOUBLE:
       {
         bool single = opr1->vsize == SZ_FLOAT;
         const Name *signbit_label = alloc_label();
@@ -658,10 +668,20 @@ static void ei_cast(IR *ir) {
       // flonum->flonum
       assert(ir->dst->vsize != ir->opr1->vsize);
       // Assume flonum are just two types.
-      switch (ir->dst->vsize) {
-      case SZ_FLOAT: CVTSD2SS(kFReg64s[ir->opr1->phys], kFReg64s[ir->dst->phys]); break;
-      case SZ_DOUBLE: CVTSS2SD(kFReg64s[ir->opr1->phys], kFReg64s[ir->dst->phys]); break;
-      default: assert(false); break;
+      if (ir->opr1->vsize == SZ_FLOAT) {
+        switch ((int)ir->dst->vsize) {
+        case SZ_FLOAT: MOVSS(kFReg64s[ir->opr1->phys], kFReg64s[ir->dst->phys]); break;
+        case SZ_DOUBLE: CVTSS2SD(kFReg64s[ir->opr1->phys], kFReg64s[ir->dst->phys]); break;
+        case SZ_LDOUBLE: CVTSS2SD(kFReg64s[ir->opr1->phys], kFReg64s[ir->dst->phys]); break;  // TODO: 80bit
+        default: assert(false); break;
+        }
+      } else {  // case SZ_DOUBLE: case SZ_LDOUBLE:
+        switch ((int)ir->dst->vsize) {
+        case SZ_FLOAT: CVTSD2SS(kFReg64s[ir->opr1->phys], kFReg64s[ir->dst->phys]); break;
+        case SZ_DOUBLE: MOVSD(kFReg64s[ir->opr1->phys], kFReg64s[ir->dst->phys]); break;
+        case SZ_LDOUBLE: MOVSD(kFReg64s[ir->opr1->phys], kFReg64s[ir->dst->phys]); break;  // TODO: 80bit
+        default: assert(false); break;
+        }
       }
     } else {
       // fix->flonum
@@ -676,16 +696,18 @@ static void ei_cast(IR *ir) {
       const char *s = kRegSizeTable[pows][ir->opr1->phys];
       const char *d = kFReg64s[ir->dst->phys];
       if (!(ir->flag & IRF_UNSIGNED)) {
-        switch (ir->dst->vsize) {
+        switch ((int)ir->dst->vsize) {
         case SZ_FLOAT:   CVTSI2SS(s, d); break;
         case SZ_DOUBLE:  CVTSI2SD(s, d); break;
+        case SZ_LDOUBLE:  CVTSI2SD(s, d); break;  // TODO: 80bit
         default: assert(false); break;
         }
       } else if (pows < 3) {
         const char *s64 = kReg64s[ir->opr1->phys];
-        switch (ir->dst->vsize) {
+        switch ((int)ir->dst->vsize) {
         case SZ_FLOAT:   CVTSI2SS(s64, d); break;
         case SZ_DOUBLE:  CVTSI2SD(s64, d); break;
+        case SZ_LDOUBLE:  CVTSI2SD(s64, d); break;  // TODO: 80bit
         default: assert(false); break;
         }
       } else {
@@ -695,9 +717,10 @@ static void ei_cast(IR *ir) {
         const Name *skiplabel = alloc_label();
         TEST(s, s);
         JS(fmt_name(neglabel));
-        switch (ir->dst->vsize) {
+        switch ((int)ir->dst->vsize) {
         case SZ_FLOAT:   CVTSI2SS(s, d); break;
         case SZ_DOUBLE:  CVTSI2SD(s, d); break;
+        case SZ_LDOUBLE:  CVTSI2SD(s, d); break;  // TODO: 80bit
         default: assert(false); break;
         }
         JMP(fmt_name(skiplabel));
@@ -705,9 +728,10 @@ static void ei_cast(IR *ir) {
         PUSH(RAX);  // Push %rax to avoid Break
         MOV(s, RAX);
         SHR(IM(1), RAX);
-        switch (ir->dst->vsize) {
+        switch ((int)ir->dst->vsize) {
         case SZ_FLOAT:   CVTSI2SS(RAX, d); ADDSS(d, d); break;
         case SZ_DOUBLE:  CVTSI2SD(RAX, d); ADDSD(d, d); break;
+        case SZ_LDOUBLE:  CVTSI2SD(RAX, d); ADDSD(d, d); break;  // TODO: 80bit
         default: assert(false); break;
         }
         POP(RAX);  // Pop %rax
@@ -720,9 +744,10 @@ static void ei_cast(IR *ir) {
     int powd = ir->dst->vsize;
     if (powd < 2)
       powd = 2;
-    switch (ir->opr1->vsize) {
+    switch ((int)ir->opr1->vsize) {
     case SZ_FLOAT:   CVTTSS2SI(kFReg64s[ir->opr1->phys], kRegSizeTable[powd][ir->dst->phys]); break;
     case SZ_DOUBLE:  CVTTSD2SI(kFReg64s[ir->opr1->phys], kRegSizeTable[powd][ir->dst->phys]); break;
+    case SZ_LDOUBLE:  CVTTSD2SI(kFReg64s[ir->opr1->phys], kRegSizeTable[powd][ir->dst->phys]); break;
     default: assert(false); break;
     }
   } else {
@@ -758,9 +783,10 @@ static void emit_mov(int dstphys, VReg *opr1) {
   if (opr1->flag & VRF_FLONUM) {
     assert(!(opr1->flag & VRF_CONST));
     if (opr1->phys != dstphys) {
-      switch (opr1->vsize) {
+      switch ((int)opr1->vsize) {
       case SZ_FLOAT: MOVSS(kFReg64s[opr1->phys], kFReg64s[dstphys]); break;
       case SZ_DOUBLE: MOVSD(kFReg64s[opr1->phys], kFReg64s[dstphys]); break;
+      case SZ_LDOUBLE: MOVSD(kFReg64s[opr1->phys], kFReg64s[dstphys]); break;  // TODO: 80bit
       default: assert(false); break;
       }
     }
@@ -952,9 +978,10 @@ static void ei_pusharg(IR *ir) {
     assert(!(ir->opr1->flag & VRF_CONST));
     // Assume parameter registers are arranged from index 0.
     if (ir->pusharg.index != ir->opr1->phys) {
-      switch (ir->opr1->vsize) {
+      switch ((int)ir->opr1->vsize) {
       case SZ_FLOAT: MOVSS(kFReg64s[ir->opr1->phys], kFReg64s[ir->pusharg.index]); break;
       case SZ_DOUBLE: MOVSD(kFReg64s[ir->opr1->phys], kFReg64s[ir->pusharg.index]); break;
+      case SZ_LDOUBLE: MOVSD(kFReg64s[ir->opr1->phys], kFReg64s[ir->pusharg.index]); break;
       default: assert(false); break;
       }
     }

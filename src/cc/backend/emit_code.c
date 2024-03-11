@@ -19,6 +19,8 @@
 
 static FILE *emit_fp;
 
+#define VRegSize16  (VRegSize8 + 1)
+
 char *fmt(const char *fm, ...) {
 #define N  8
 #define MIN_SIZE  16
@@ -201,6 +203,10 @@ static void emit_number(void *ud, const Type *type, Expr *var, int64_t offset) {
   case 2: _SHORT(output); break;
   case 4: _LONG(output); break;
   case 8: _QUAD(output); break;
+  case 16:
+    _QUAD(output);
+    _QUAD("0");
+    break;
   default: assert(false); break;
   }
 }
@@ -452,7 +458,7 @@ static inline void emit_const_floats(Function *func) {
     _LOCAL(label);
     EMIT_ALIGN(1 << vreg->vsize);
     EMIT_LABEL(label);
-    switch (vreg->vsize) {
+    switch ((int)vreg->vsize) {
     case VRegSize4:
       {
         union { float f; uint32_t l; } u;
@@ -465,6 +471,14 @@ static inline void emit_const_floats(Function *func) {
         union { double d; uint64_t q; } u;
         u.d = vreg->flonum.value;
         _QUAD(hexnum(u.q));
+      }
+      break;
+    case VRegSize16:
+      {
+        union { double d; uint64_t q; } u;
+        u.d = vreg->flonum.value;
+        _QUAD(hexnum(u.q));
+        _QUAD(hexnum(0));
       }
       break;
     default: assert(false); break;

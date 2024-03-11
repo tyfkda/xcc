@@ -43,8 +43,8 @@ static Type kFixnumTypeTable[2][4][FX_LLONG + 1] = {
 size_t fixnum_size_table[]  = {1, 2, 4, 8, 8, 4, 4};
 int    fixnum_align_table[] = {1, 2, 4, 8, 8, 4, 4};
 
-size_t flonum_size_table[]  = {4, 8, 8};
-int    flonum_align_table[] = {4, 8, 8};
+size_t flonum_size_table[]  = {4, 8, 16};
+int    flonum_align_table[] = {4, 8, 16};
 
 void set_fixnum_size(enum FixnumKind kind, size_t size, int align) {
   fixnum_size_table[kind] = size;
