@@ -126,7 +126,7 @@ TEST(vsnprintf) {
 
   EXPECT("Pointer:0x1234", "Pointer:%p", (void*)(intptr_t)0x1234);
   EXPECT("Pointer:  0x1234", "Pointer:%8p", (void*)(intptr_t)0x1234);
-  EXPECT("NullPointer:0x0", "NullPointer:%p", NULL);
+  EXPECT("NullPointer:0", "NullPointer:%p", NULL);
 
 #ifndef __NO_FLONUM
   EXPECT("Float:1.234000", "Float:%f", 1.234);

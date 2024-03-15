@@ -21,7 +21,7 @@
 #include "wasm.h"
 #include "wasm_linker.h"
 
-// #define USE_EMCC_AS_LINKER  1
+#define USE_EMCC_AS_LINKER  1
 // #define USE_WCCLD_AS_LINKER  1
 
 static const char DEFAULT_IMPORT_MODULE_NAME[] = "env";

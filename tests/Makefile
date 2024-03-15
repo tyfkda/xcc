@@ -179,6 +179,6 @@ test-wcc-$(1):	$(1).wasm
 	../tool/runwasi $$<
 
 $(1).wasm:	$$($(1)_WCCSRCS) # $(WCC)
-	$(WCC) -o $$@ $$^
+	$(WCC) -o $$@ $$^ -lm
 endef
 $(foreach D, $(WCC_TESTS), $(eval $(call DEFINE_WCCTEST_TARGET,$(D))))
