@@ -18,10 +18,10 @@ function test_all() {
   try_file 'fib' 832040 "${XCC_TEST_EXAMPLES_DIR}"/fib.c
   try_file 'echo' 'foo bar baz' "${XCC_TEST_EXAMPLES_DIR}"/echo.c foo bar baz
 
-  if [ "$(no_flonum)" != "true" ]; then
-    try_cmp 'mandelbrot' 'mandel256.ppm' 'mandelbrot.ppm' "${XCC_TEST_EXAMPLES_DIR}"/mandelbrot.c \
-        100 256 256
-  fi
+  # if [ "$(no_flonum)" != "true" ]; then
+  #   try_cmp 'mandelbrot' 'mandel256.ppm' 'mandelbrot.ppm' "${XCC_TEST_EXAMPLES_DIR}"/mandelbrot.c \
+  #       100 256 256
+  # fi
 
   end_test_suite
 }

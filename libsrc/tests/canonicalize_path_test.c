@@ -10,6 +10,9 @@
 #endif
 
 ssize_t _canonicalize_path(char *buf, ssize_t size, const char *path);
+// #ifndef __XCC
+#include "../libsrc/_wasm/unistd/_canonicalize_path.c"
+// #endif
 
 static char *canonicalize(const char *base, const char *path, char *buf) {
   strncpy(buf, base, PATH_MAX);

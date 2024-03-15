@@ -133,10 +133,10 @@ TEST(frexp) {
   EXPECT_EQ(0, e);
   e = 1234;
   EXPECT(HUGE_VAL, frexp(HUGE_VAL, &e));
-  EXPECT_EQ(0, e);
+  // EXPECT_EQ(0, e);  unspecified.
   e = 5678;
   EXPECT_NAN(frexp(NAN, &e));
-  EXPECT_EQ(0, e);
+  // EXPECT_EQ(0, e);  unspecified.
 
   EXPECT((uint64_t)0x1fffffffffffff / (double)(1ULL << 53), frexp(DBL_MAX, &e));
   EXPECT_EQ(1024, e);
