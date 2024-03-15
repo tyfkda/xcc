@@ -759,8 +759,12 @@ Vector *parse_funparams(bool *pvaargs) {
         // Treat array or function as its pointer type automatically.
         switch (type->kind) {
         case TY_ARRAY:
+#ifndef __NO_VLA
           // Keep VLAs to calculate array size in `parse_defun`.
-          if (type->pa.vla == NULL)
+          if (type->pa.vla != NULL)
+            ;
+          else
+#endif
             type = array_to_ptr(type);
           break;
         case TY_FUNC:   type = ptrof(type); break;

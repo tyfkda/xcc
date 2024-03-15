@@ -865,7 +865,9 @@ TEST(all) {
   {
     EXPECT("_Bool from int", true, ({int x = -123; (_Bool)x;}));
     EXPECT("_Bool from ulong", true, ({unsigned long x = 9876UL; (_Bool)x;}));
+#ifndef __NO_FLONUM
     EXPECT("_Bool from double", true, ({double x = 12.34; (_Bool)x;}));
+#endif
 
     size_t m = 3;
     size_t n = 8;

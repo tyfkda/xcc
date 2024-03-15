@@ -722,6 +722,7 @@ static Function *define_func(Type *functype, const Token *ident, const Vector *p
   return func;
 }
 
+#ifndef __NO_VLA
 static void modify_funparam_vla_type(Type *type, Scope *scope) {
   if (type->kind == TY_ARRAY && type->pa.vla != NULL) {
     type->kind = TY_PTR;  // array_to_ptr, but must apply the change to the original type.
@@ -737,6 +738,7 @@ static void modify_funparam_vla_type(Type *type, Scope *scope) {
     type = type->pa.ptrof;
   }
 }
+#endif
 
 static Declaration *parse_defun(Type *functype, int storage, Token *ident, const Token *tok,
                                 Table *attributes) {
