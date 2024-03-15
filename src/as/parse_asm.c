@@ -219,6 +219,7 @@ static const char *kDirectiveTable[] = {
   "data",
   "align",
   "p2align",
+  "type",
   "byte",
   "short",
   "long",
@@ -403,13 +404,28 @@ static const Name *parse_label(ParseInfo *info) {
     return alloc_name(start + 1, p - 1, false);
   }
 
-  if (!is_label_first_chr(*p))
+  unsigned char *q = (unsigned char*)p;
+  int uc = *q;
+  int ucc = isutf8first(uc) - 1;
+  if (!(ucc > 0 || is_label_first_chr(uc)))
     return NULL;
 
-  do {
-    ++p;
-  } while (is_label_chr(*p));
-  info->p = p;
+  for (;;) {
+    uc = *++q;
+    if (ucc > 0) {
+      if (!isutf8follow(uc)) {
+        parse_error(info, "Illegal byte sequence");
+        return NULL;
+      }
+      --ucc;
+      continue;
+    }
+    if ((ucc = isutf8first(uc) - 1) > 0)
+      continue;
+    if (!is_label_chr(uc))
+      break;
+  }
+  info->p = p = (char*)q;
   return alloc_name(start, p, false);
 }
 
@@ -1103,6 +1119,35 @@ void handle_directive(ParseInfo *info, enum DirectiveType dir, Vector **section_
       if (!immediate(&info->p, &align))
         parse_error(info, ".align: number expected");
       vec_push(irs, new_ir_align(1 << align));
+    }
+    break;
+
+  case DT_TYPE:
+    {
+      const Name *label = parse_label(info);
+      if (label == NULL) {
+        parse_error(info, ".comm: label expected");
+        break;
+      }
+      if (*info->p != ',') {
+        parse_error(info, ".comm: `,' expected");
+        break;
+      }
+      info->p = skip_whitespaces(info->p + 1);
+      enum LabelKind kind = LK_NONE;
+      if (strcmp(info->p, "@function") == 0) {
+        kind = LK_FUNC;
+      } else if (strcmp(info->p, "@object") == 0) {
+        kind = LK_OBJECT;
+      } else {
+        parse_error(info, "illegal .type");
+        break;
+      }
+
+      LabelInfo *info = add_label_table(label_table, label, current_section, false, false);
+      if (info != NULL) {
+        info->kind = kind;
+      }
     }
     break;
 

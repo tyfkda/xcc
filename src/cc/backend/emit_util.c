@@ -244,6 +244,9 @@ void emit_varinfo(const VarInfo *varinfo, const Initializer *init) {
     label = quote_label(label);
     _LOCAL(label);
   }
+#if XCC_TARGET_PLATFORM != XCC_PLATFORM_APPLE
+  EMIT_ASM(".type", fmt("%.*s", NAMES(name)), "@object");
+#endif
 
   if (init != NULL) {
     EMIT_ALIGN(align_size(varinfo->type));

@@ -15,13 +15,20 @@ typedef struct Vector Vector;
 #define LF_GLOBAL   (1 << 0)
 #define LF_DEFINED  (1 << 1)
 
+enum LabelKind {
+  LK_NONE,
+  LK_FUNC,
+  LK_OBJECT,
+};
+
 typedef struct {
   int section;
   int flag;
   uintptr_t address;
+  enum LabelKind kind;
 } LabelInfo;
 
-bool add_label_table(Table *label_table, const Name *label, int section, bool define, bool global);
+LabelInfo *add_label_table(Table *label_table, const Name *label, int section, bool define, bool global);
 
 enum UnresolvedKind {
   UNRES_EXTERN,

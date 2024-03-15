@@ -114,6 +114,8 @@ typedef struct {
 #define STB_GLOBAL  (1)
 
 #define STT_NOTYPE   (0)
+#define STT_OBJECT   (1)
+#define STT_FUNC     (2)
 #define STT_SECTION  (3)
 
 #define ELF64_ST_BIND(info)          ((info) >> 4)

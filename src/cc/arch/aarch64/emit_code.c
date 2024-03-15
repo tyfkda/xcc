@@ -168,6 +168,9 @@ static void emit_defun(Function *func) {
     _LOCAL(label);
   }
   EMIT_ALIGN(4);
+#if XCC_TARGET_PLATFORM != XCC_PLATFORM_APPLE
+  EMIT_ASM(".type", fmt("%.*s", NAMES(func->name)), "@function");
+#endif
   EMIT_LABEL(label);
 
   bool no_stmt = true;

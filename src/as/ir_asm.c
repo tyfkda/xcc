@@ -20,16 +20,17 @@ static LabelInfo *new_label(int section, uintptr_t address) {
   info->section = section;
   info->flag = 0;
   info->address = address;
+  info->kind = LK_NONE;
   return info;
 }
 
-bool add_label_table(Table *label_table, const Name *label, int section, bool define, bool global) {
+LabelInfo *add_label_table(Table *label_table, const Name *label, int section, bool define, bool global) {
   LabelInfo *info = table_get(label_table, label);
   if (info != NULL) {
     if (define) {
       if ((info->flag & LF_DEFINED) != 0) {
         fprintf(stderr, "`%.*s' already defined\n", NAMES(label));
-        return false;
+        return NULL;
       }
       info->address = 1;
       info->section = section;
@@ -42,7 +43,7 @@ bool add_label_table(Table *label_table, const Name *label, int section, bool de
     info->flag |= LF_DEFINED;
   if (global)
     info->flag |= LF_GLOBAL;
-  return true;
+  return info;
 }
 
 IR *new_ir_label(const Name *label) {

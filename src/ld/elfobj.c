@@ -91,7 +91,7 @@ static bool load_symtab(ElfObj *elfobj) {
     for (uint32_t i = 0; i < count; ++i) {
       Elf64_Sym *sym = &symbols[i];
       unsigned char type = ELF64_ST_TYPE(sym->st_info);
-      if (type == STT_NOTYPE && str[sym->st_name] != '\0') {
+      if (type != STT_SECTION && str[sym->st_name] != '\0') {
         const Name *name = alloc_name(&str[sym->st_name], NULL, false);
         table_put(symbol_table, name, sym);
       }

@@ -102,7 +102,13 @@ static int output_obj(const char *ofn, Table *label_table, Vector *unresolved) {
       if (!(info->flag & LF_GLOBAL) || !(info->flag & LF_DEFINED))
         continue;
       sym = symtab_add(&symtab, name);
-      sym->st_info = ELF64_ST_INFO(STB_GLOBAL, STT_NOTYPE);
+      int type;
+      switch (info->kind) {
+      case LK_NONE:    type = STT_NOTYPE; break;
+      case LK_FUNC:    type = STT_FUNC; break;
+      case LK_OBJECT:  type = STT_OBJECT; break;
+      }
+      sym->st_info = ELF64_ST_INFO(STB_GLOBAL, type);
       sym->st_value = info->address - section_start_addresses[info->section];
       sym->st_shndx = info->section + 1;  // Symbol index for Local section.
     }

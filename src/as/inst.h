@@ -309,6 +309,7 @@ enum DirectiveType {
   DT_DATA,
   DT_ALIGN,
   DT_P2ALIGN,
+  DT_TYPE,
   DT_BYTE,
   DT_SHORT,
   DT_LONG,
