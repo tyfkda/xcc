@@ -196,6 +196,90 @@ static int printscientific(FILE *fp, long double x, int order, int suborder, boo
 }
 #endif
 
+struct printf_info {
+  wchar_t spec;  // Format letter
+  wchar_t pad;   // Padding
+  int width;
+  int prec;      // Precision
+  unsigned char left;      // -n
+  unsigned char showsign;  // +
+  unsigned char nlong;
+};
+
+typedef int (*printf_function)(FILE *stream, const struct printf_info *info,
+                               const void *const *args);
+
+int fmt_d(FILE *stream, const struct printf_info *info, const void *const *args) {
+  long long x;
+  switch (info->nlong) {
+  case 0:  x = *(int*)args[0]; break;
+  case 1:  x = *(long*)args[0]; break;
+  default: x = *(long long*)args[0]; break;  // case 2:
+  }
+
+  char buf[PRINTF_BUFSIZ];
+#define bufend  (buf + sizeof(buf))
+
+  bool negative = x < 0;
+  unsigned long long ux = negative ? -x : x;
+  int order = info->width;
+  int o = 0;
+  if (negative || order > 0 || info->showsign)
+    o += sprintsign(stream, negative, info->showsign, &order);
+  char *p = snprintullong2(bufend, ux, 10, kHexDigits);
+  o += snprintstr(stream, p, order, info->prec, info->left, info->pad);
+  return o;
+#undef bufend
+}
+
+int fmt_u(FILE *stream, const struct printf_info *info, const void *const *args) {
+  unsigned long long x;
+  switch (info->nlong) {
+  case 0:  x = *(unsigned int*)args[0]; break;
+  case 1:  x = *(unsigned long*)args[0]; break;
+  default: x = *(unsigned long long*)args[0]; break;  // case 2:
+  }
+
+  char buf[PRINTF_BUFSIZ];
+#define bufend  (buf + sizeof(buf))
+
+  char *p = snprintullong2(bufend, x, 10, kHexDigits);
+  if (info->showsign)
+    *(--p) = '+';
+  return snprintstr(stream, p, info->width, info->prec, info->left, info->pad);
+#undef bufend
+}
+
+#ifndef __NO_FLONUM
+int fmt_f(FILE *stream, const struct printf_info *info, const void *const *args) {
+  long double x;
+  switch (info->nlong) {
+  case 0:  x = *(double*)args[0]; break;
+  default: x = *(long double*)args[0]; break;
+  }
+  if (info->spec == 'f')
+    return printfloat(stream, x, info->width, info->prec, info->showsign, info->left, info->pad);
+  else
+    return printscientific(stream, x, info->width, info->prec, info->showsign, info->left, info->pad);
+}
+#endif
+
+// static printf_function table[('z' + 1) - 'A'] = {
+//   ['d' - 'A'] = fmt_d,
+//   ['u' - 'A'] = fmt_u,
+//   ['z' - 'A'] = fmt_z,
+//   ['x' - 'A'] = fmt_x,
+//   ['X' - 'A'] = fmt_X,
+//   ['p' - 'A'] = fmt_p,
+//   ['s' - 'A'] = fmt_s,
+//   ['c' - 'A'] = fmt_c,
+//   ['%' - 'A'] = fmt_percent,
+// #ifndef __NO_FLONUM
+//   ['f' - 'A'] = fmt_f,
+//   ['g' - 'A'] = fmt_g,
+// #endif
+// };
+
 int vfprintf(FILE *fp, const char *fmt_, va_list ap) {
   char buf[PRINTF_BUFSIZ];
 #define bufend  (buf + sizeof(buf))
@@ -214,82 +298,91 @@ int vfprintf(FILE *fp, const char *fmt_, va_list ap) {
     }
 
     // Handle '%'
-    char padding = ' ';
-    int order = 0, suborder = 0;
-    bool sign = false;
-    bool leftalign = false;
-    int nlong = 0;
+    struct printf_info info;
+    info.pad = ' ';
+    info.width = 0;
+    info.prec = 0;
+    info.left = false;
+    info.showsign = false;
+    info.nlong = 0;
+
     c = fmt[++i];
 
     if (c == '+') {
-      sign = true;
+      info.showsign = true;
       c = fmt[++i];
     } else if (c == '-') {
-      leftalign = true;
+      info.left = true;
       c = fmt[++i];
     }
     if (c == '0') {
-      padding = '0';
+      info.pad = '0';
       c = fmt[++i];
     }
     if (c >= '1' && c <= '9') {
-      order = c - '0';
+      int width = c - '0';
       while (c = fmt[++i], c >= '0' && c <= '9')
-        order = order * 10 + (c - '0');
+        width = width * 10 + (c - '0');
+      info.width = width;
     } else if (c == '*') {
-      order = va_arg(ap, int);
+      info.width = va_arg(ap, int);
       c = fmt[++i];
     }
     if (c == '.') {
       c = fmt[++i];
       if (isdigit(c)) {
+        int prec = 0;
         do {
-          suborder = suborder * 10 + (c - '0');
+          prec = prec * 10 + (c - '0');
         } while (isdigit(c = fmt[++i]));
+        info.prec = prec;
       } else if (c == '*') {
-        suborder = va_arg(ap, int);
+        info.prec = va_arg(ap, int);
         c = fmt[++i];
       }
     }
 
     if (tolower(c) == 'l') {
-      nlong = 1;
+      info.nlong = 1;
       c = fmt[++i];
       if (tolower(c) == 'l') {
-        nlong = 2;
+        info.nlong = 2;
         c = fmt[++i];
       }
     }
 
+    info.spec = c;
     switch (c) {
     case 'd':
       {
-        long long x;
-        switch (nlong) {
-        case 0:  x = va_arg(ap, int); break;
-        case 1:  x = va_arg(ap, long); break;
-        default: x = va_arg(ap, long long); break;  // case 2:
+        void *args[1];
+        union {
+          int i;
+          long l;
+          long long ll;
+        } x;
+        switch (info.nlong) {
+        case 0:   x.i = va_arg(ap, int); args[0] = &x.i; break;
+        case 1:   x.l = va_arg(ap, long); args[0] = &x.l; break;
+        default:  x.ll = va_arg(ap, long long); args[0] = &x.ll; break;  // case 2:
         }
-        bool negative = x < 0;
-        unsigned long long ux = negative ? -x : x;
-        if (negative || order > 0 || sign)
-          o += sprintsign(fp, negative, sign, &order);
-        char *p = snprintullong2(bufend, ux, 10, kHexDigits);
-        o += snprintstr(fp, p, order, suborder, leftalign, padding);
+        o += fmt_d(fp, &info, (const void**)args);
       }
       break;
     case 'u':
       {
-        unsigned long long x;
-        switch (nlong) {
-        case 0:  x = va_arg(ap, unsigned int); break;
-        case 1:  x = va_arg(ap, unsigned long); break;
-        default: x = va_arg(ap, unsigned long long); break;  // case 2:
+        void *args[1];
+        union {
+          unsigned int i;
+          unsigned long l;
+          unsigned long long ll;
+        } x;
+        switch (info.nlong) {
+        case 0:   x.i = va_arg(ap, unsigned int); args[0] = &x.i; break;
+        case 1:   x.l = va_arg(ap, unsigned long); args[0] = &x.l; break;
+        default:  x.ll = va_arg(ap, unsigned long long); args[0] = &x.ll; break;  // case 2:
         }
-        char *p = snprintullong2(bufend, x, 10, kHexDigits);
-        if (sign)
-          *(--p) = '+';
-        o += snprintstr(fp, p, order, suborder, leftalign, padding);
+        o += fmt_u(fp, &info, (const void**)args);
       }
       break;
     case 'z':
@@ -299,7 +392,7 @@ int vfprintf(FILE *fp, const char *fmt_, va_list ap) {
           {
             ++i;
             size_t x = va_arg(ap, size_t);
-            o += snprintullong(fp, x, 10, kHexDigits, order, padding);
+            o += snprintullong(fp, x, 10, kHexDigits, info.width, info.pad);
           }
           break;
         case 'd':
@@ -308,10 +401,11 @@ int vfprintf(FILE *fp, const char *fmt_, va_list ap) {
             ssize_t x = va_arg(ap, ssize_t);
             bool negative = x < 0;
             size_t ux = negative ? -x : x;
-            if (negative || order > 0 || sign)
-              o += sprintsign(fp, negative, sign, &order);
+            int order = info.width;
+            if (negative || order > 0 || info.showsign)
+              o += sprintsign(fp, negative, info.showsign, &order);
             char *p = snprintullong2(bufend, ux, 10, kHexDigits);
-            o += snprintstr(fp, p, order, suborder, leftalign, padding);
+            o += snprintstr(fp, p, order, info.prec, info.left, info.pad);
           }
           break;
         default: break;  // TODO: error
@@ -322,12 +416,12 @@ int vfprintf(FILE *fp, const char *fmt_, va_list ap) {
       {
         const char *digits = c == 'x' ? kHexDigits : kUpperHexDigits;
         unsigned long long x;
-        switch (nlong) {
+        switch (info.nlong) {
         case 0:  x = va_arg(ap, unsigned int); break;
         case 1:  x = va_arg(ap, unsigned long); break;
         default: x = va_arg(ap, unsigned long long); break;  // case 2:
         }
-        o += snprintullong(fp, x, 16, digits, order, padding);
+        o += snprintullong(fp, x, 16, digits, info.width, info.pad);
       }
       break;
     case 'p':
@@ -337,7 +431,7 @@ int vfprintf(FILE *fp, const char *fmt_, va_list ap) {
         p -= 2;
         p[0] = '0';
         p[1] = 'x';
-        o += snprintstr(fp, p, order, suborder, leftalign, padding);
+        o += snprintstr(fp, p, info.width, info.prec, info.left, info.pad);
       }
       break;
     case 's':
@@ -345,7 +439,7 @@ int vfprintf(FILE *fp, const char *fmt_, va_list ap) {
         const char *s = va_arg(ap, const char*);
         if (s == NULL)
           s = "(null)";
-        o += snprintstr(fp, s, order, suborder, leftalign, ' ');
+        o += snprintstr(fp, s, info.width, info.prec, info.left, ' ');
       }
       break;
     case 'c':
@@ -358,23 +452,18 @@ int vfprintf(FILE *fp, const char *fmt_, va_list ap) {
       break;
 #ifndef __NO_FLONUM
     case 'f':
-      {
-        long double x;
-        switch (nlong) {
-        case 0:  x = va_arg(ap, double); break;
-        default: x = va_arg(ap, long double); break;
-        }
-        o += printfloat(fp, x, order, suborder, sign, leftalign, padding);
-      }
-      break;
     case 'g':
       {
-        long double x;
-        switch (nlong) {
-        case 0:  x = va_arg(ap, double); break;
-        default: x = va_arg(ap, long double); break;
+        void *args[1];
+        union {
+          double d;
+          long double ld;
+        } x;
+        switch (info.nlong) {
+        case 0:   x.d = va_arg(ap, double); args[0] = &x.d; break;
+        default:  x.ld = va_arg(ap, long double); args[0] = &x.ld; break;
         }
-        o += printscientific(fp, x, order, suborder, sign, leftalign, padding);
+        o += fmt_f(fp, &info, (const void**)args);
       }
       break;
 #endif
