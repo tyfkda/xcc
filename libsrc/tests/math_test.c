@@ -132,10 +132,10 @@ TEST(frexp) {
   EXPECT_EQ(0, e);
   e = 1234;
   EXPECT(HUGE_VAL, frexp(HUGE_VAL, &e));
-  EXPECT_EQ(0, e);
+  // EXPECT_EQ(0, e);  unspecified.
   e = 5678;
   EXPECT_NAN(frexp(NAN, &e));
-  EXPECT_EQ(0, e);
+  // EXPECT_EQ(0, e);  unspecified.
 }
 
 TEST(isinf) {
