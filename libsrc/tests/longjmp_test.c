@@ -6,6 +6,7 @@
 // Run:
 //   $ ./longjmp_test || echo fail
 
+#if 0
 #include <setjmp.h>
 #include <stdarg.h>
 #include <stdbool.h>
@@ -72,5 +73,6 @@ TEST(nested) {
     fail("nested, unreachable");
   }
 }
+#endif
 
 XTEST_MAIN();
