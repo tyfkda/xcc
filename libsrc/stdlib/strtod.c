@@ -50,7 +50,7 @@ static double strtod_i2(const char *p, const char **pp) {
   return result;
 }
 
-#define strtod_h(p, pp)  strtoull(p, pp, 16)
+#define strtod_h(p, pp)  strtoull(p, (char**)(pp), 16)
 
 static double strtod_hex(const char *p, const char **pp) {
   double result = strtod_h(p, &p);
@@ -78,7 +78,8 @@ static double strtod_hex(const char *p, const char **pp) {
   return result;
 }
 
-double strtod(const char * restrict p, char ** restrict pp) {
+double strtod(const char * restrict p_, char ** restrict pp) {
+  const char *p = p_;
   const char *orig = p;
 
   for (; isspace(*p); ++p)
