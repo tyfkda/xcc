@@ -624,13 +624,21 @@ static int resolve_symbols_wasmobj(WasmLinker *linker, WasmObj *wasmobj) {
     SymbolInfo *sym = symtab->data[i];
     if (sym->flags & WASM_SYM_UNDEFINED) {
       SymbolInfo *pre;
-      if (!table_try_get(&linker->defined, sym->name, (void**)&pre) || pre == NULL)
+      if (!table_try_get(&linker->defined, sym->name, (void**)&pre) || pre == NULL) {
         table_put(&linker->unresolved, sym->name, (void*)sym);
+      } else if (sym->kind != pre->kind) {
+        fprintf(stderr, "different symbol type: %.*s\n", NAMES(sym->name));
+        ++err_count;
+      }
     } else if (!(sym->flags & (WASM_SYM_BINDING_LOCAL | WASM_SYM_VISIBILITY_HIDDEN))) {
-      SymbolInfo *defsym = table_get(&linker->defined, sym->name);
-      if (defsym != NULL && !(defsym->flags & WASM_SYM_BINDING_WEAK) &&
-          !(sym->flags & WASM_SYM_BINDING_WEAK)) {
+      SymbolInfo *sym2;
+      if ((sym2 = table_get(&linker->defined, sym->name)) != NULL &&
+          !(sym2->flags & WASM_SYM_BINDING_WEAK) && !(sym->flags & WASM_SYM_BINDING_WEAK)) {
         fprintf(stderr, "duplicate symbol: %.*s\n", NAMES(sym->name));
+        ++err_count;
+      } else if ((sym2 = table_get(&linker->unresolved, sym->name)) != NULL &&
+                 sym2->kind != sym->kind) {
+        fprintf(stderr, "different symbol type: %.*s\n", NAMES(sym->name));
         ++err_count;
       } else {
         table_put(&linker->defined, sym->name, (void*)sym);
@@ -954,16 +962,15 @@ static void put_varint32(unsigned char *p, int32_t x, RelocInfo *reloc) {
 }
 
 static void put_varuint32(unsigned char *p, uint32_t x, RelocInfo *reloc) {
-  if (!(p[0] & 0x80) || !(p[1] & 0x80) || !(p[2] & 0x80) || !(p[3] & 0x80) || (p[4] & 0x80))
-    error("Illegal reloc varuint32: at 0x%x", reloc->offset);
-
-  for (uint32_t count = 0; ; ++count) {
-    assert(count <= 5);
+  for (uint32_t count = 0;; ++count) {
     if (!(*p & 0x80)) {
-      assert(x <= 0x7f);
+      if (x > 0x7f)
+        error("Cannot fit reloc varuint32: at 0x%x in %s", reloc->offset);
       *p = x & 0x7f;
       break;
     }
+    if (count >= 5)
+      error("Malformed varuint32: at 0x%x in %s", reloc->offset);
     *p++ = (x & 0x7f) | 0x80;
     x >>= 7;
   }
