@@ -28,6 +28,20 @@ static const char DEFAULT_IMPORT_MODULE_NAME[] = "env";
 
 static Vector remove_on_exit;
 
+static void usage(FILE *fp) {
+  fprintf(
+      fp,
+      "Usage: wcc [options] file...\n"
+      "Options:\n"
+      "  -I <path>             Add include path\n"
+      "  -D <label[=value]>    Define label\n"
+      "  -o <filename>         Set output filename (Default: a.wasm)\n"
+      "  -c                    Output object file\n"
+      "  --entry-point=<name>  Specify entry point (Defulat: _start)\n"
+      "  --stack-size=<size>   Output object file (Default: 8192)\n"
+  );
+}
+
 static void remove_tmp_files(void) {
   for (int i = 0; i < remove_on_exit.len; ++i) {
     const char *fn = remove_on_exit.data[i];
@@ -194,7 +208,10 @@ typedef struct {
 
 static void parse_options(int argc, char *argv[], Options *opts) {
   enum {
-    OPT_VERBOSE = 256,
+    OPT_HELP = 128,
+    OPT_VERSION,
+    OPT_DUMP_VERSION,
+    OPT_VERBOSE,
     OPT_ENTRY_POINT,
     OPT_STACK_SIZE,
     OPT_IMPORT_MODULE_NAME,
@@ -230,6 +247,9 @@ static void parse_options(int argc, char *argv[], Options *opts) {
     {"-verbose", no_argument, OPT_VERBOSE},
     {"-entry-point", required_argument, OPT_ENTRY_POINT},
     {"-stack-size", required_argument, OPT_STACK_SIZE},
+    {"-help", no_argument, OPT_HELP},
+    {"-version", no_argument, OPT_VERSION},
+    {"dumpversion", no_argument, OPT_DUMP_VERSION},
 
     // Suppress warnings
     {"O", required_argument, OPT_OPTIMIZE},
@@ -253,6 +273,15 @@ static void parse_options(int argc, char *argv[], Options *opts) {
 
     switch (opt) {
     default: assert(false); break;
+    case OPT_HELP:
+      usage(stdout);
+      exit(0);
+    case OPT_VERSION:
+      show_version("wcc");
+      exit(0);
+    case OPT_DUMP_VERSION:
+      show_version(NULL);
+      exit(0);
     case 'o':
       opts->ofn = optarg;
       break;
@@ -492,7 +521,7 @@ int main(int argc, char *argv[]) {
 
   if (opts.sources->len == 0) {
     fprintf(stderr, "No input files\n\n");
-    // usage(stderr);
+    usage(stderr);
     return 1;
   }
 

@@ -263,7 +263,10 @@ bool is_file(const char *path) {
 }
 
 void show_version(const char *exe) {
-  printf("%s %s\n", exe, VERSION);
+  if (exe != NULL)
+    printf("%s %s\n", exe, VERSION);
+  else
+    printf("%s\n", VERSION);
 }
 
 void error(const char *fmt, ...) {

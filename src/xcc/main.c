@@ -287,6 +287,7 @@ static void parse_options(int argc, char *argv[], Options *opts) {
   enum {
     OPT_HELP = 128,
     OPT_VERSION,
+    OPT_DUMP_VERSION,
     OPT_NODEFAULTLIBS,
     OPT_NOSTDLIB,
     OPT_NOSTDINC,
@@ -318,6 +319,7 @@ static void parse_options(int argc, char *argv[], Options *opts) {
     {"Xlinker", required_argument, OPT_LINKOPTION},
     {"-help", no_argument, OPT_HELP},
     {"-version", no_argument, OPT_VERSION},
+    {"dumpversion", no_argument, OPT_DUMP_VERSION},
 
     // Suppress warnings
     {"W", required_argument},
@@ -350,6 +352,9 @@ static void parse_options(int argc, char *argv[], Options *opts) {
       exit(0);
     case OPT_VERSION:
       show_version("xcc");
+      exit(0);
+    case OPT_DUMP_VERSION:
+      show_version(NULL);
       exit(0);
     case 'I':
       vec_push(opts->cpp_cmd, "-I");
