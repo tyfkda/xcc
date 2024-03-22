@@ -242,5 +242,6 @@
 #define UCVTF(o1, o2)      EMIT_ASM("ucvtf", o1, o2)  // float <- unsigned int
 #define FCVT(o1, o2)       EMIT_ASM("fcvt", o1, o2)  // float <- float
 #define FCVTZS(o1, o2)     EMIT_ASM("fcvtzs", o1, o2)  // int <- float
+#define FCVTZU(o1, o2)     EMIT_ASM("fcvtzu", o1, o2)  // unsigned int <- float
 
 void mov_immediate(const char *dst, int64_t value, bool b64, bool is_unsigned);

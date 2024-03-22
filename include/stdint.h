@@ -33,8 +33,17 @@ typedef uint64_t uintptr_t;
 typedef long long  intmax_t;
 typedef unsigned long long  uintmax_t;
 
+#define INT32_MIN   (((int32_t)-1) << (sizeof(int32_t) * 8 - 1))
+#define INT32_MAX   ((int32_t)((((uint32_t)1) << (sizeof(int32_t) * 8 - 1)) - 1))
+#define UINT32_MAX  ((uint32_t)-1)
+
+#define INT64_MIN   (((int64_t)-1) << (sizeof(int64_t) * 8 - 1))
+#define INT64_MAX   ((int64_t)((((uint64_t)1) << (sizeof(int64_t) * 8 - 1)) - 1))
+#define UINT64_MAX  ((uint64_t)-1)
+
 #define INTPTR_MAX  ((((intptr_t)1) << (sizeof(intptr_t) * 8 - 1)) - 1)
 #define INTPTR_MIN  (((intptr_t)-1) << (sizeof(intptr_t) * 8 - 1))
 
+#define INTMAX_MIN   (((intmax_t)-1) << (sizeof(intmax_t) * 8 - 1))
 #define INTMAX_MAX   ((intmax_t)((((uintmax_t)1) << (sizeof(intmax_t) * 8 - 1)) - 1))
 #define UINTMAX_MAX  ((uintmax_t)-1)

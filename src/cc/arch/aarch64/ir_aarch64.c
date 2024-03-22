@@ -732,10 +732,18 @@ static void ei_cast(IR *ir) {
   } else if (ir->opr1->flag & VRF_FLONUM) {
     // flonum->fix
     int powd = ir->dst->vsize;
-    switch (ir->opr1->vsize) {
-    case SZ_FLOAT:   FCVTZS(kRegSizeTable[powd][ir->dst->phys], kFReg32s[ir->opr1->phys]); break;
-    case SZ_DOUBLE:  FCVTZS(kRegSizeTable[powd][ir->dst->phys], kFReg64s[ir->opr1->phys]); break;
-    default: assert(false); break;
+    if (ir->flag & IRF_UNSIGNED) {
+      switch (ir->opr1->vsize) {
+      case SZ_FLOAT:   FCVTZU(kRegSizeTable[powd][ir->dst->phys], kFReg32s[ir->opr1->phys]); break;
+      case SZ_DOUBLE:  FCVTZU(kRegSizeTable[powd][ir->dst->phys], kFReg64s[ir->opr1->phys]); break;
+      default: assert(false); break;
+      }
+    } else {
+      switch (ir->opr1->vsize) {
+      case SZ_FLOAT:   FCVTZS(kRegSizeTable[powd][ir->dst->phys], kFReg32s[ir->opr1->phys]); break;
+      case SZ_DOUBLE:  FCVTZS(kRegSizeTable[powd][ir->dst->phys], kFReg64s[ir->opr1->phys]); break;
+      default: assert(false); break;
+      }
     }
   } else {
     // fix->fix

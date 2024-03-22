@@ -282,7 +282,7 @@ typedef struct Expr {
 
 Expr *new_expr_fixlit(Type *type, const Token *token, Fixnum fixnum);
 #ifndef __NO_FLONUM
-Expr *new_expr_flolit(Type *type, const Token *token, double flonum);
+Expr *new_expr_flolit(Type *type, const Token *token, Flonum flonum);
 #endif
 Expr *new_expr_str(const Token *token, const char *str, ssize_t len, enum StrKind kind);  // `len` includes last '\0'.
 Expr *new_expr_bop(enum ExprKind kind, Type *type, const Token *token, Expr *lhs, Expr *rhs);

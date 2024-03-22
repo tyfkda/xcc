@@ -76,7 +76,7 @@ Expr *new_expr_fixlit(Type *type, const Token *token, Fixnum fixnum) {
 }
 
 #ifndef __NO_FLONUM
-Expr *new_expr_flolit(Type *type, const Token *token, double flonum) {
+Expr *new_expr_flolit(Type *type, const Token *token, Flonum flonum) {
   assert(type->kind == TY_FLONUM);
   Expr *expr = new_expr(EX_FLONUM, type, token);
   expr->flonum = flonum;

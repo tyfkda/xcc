@@ -37,6 +37,14 @@ TEST(mix) {
     a += 56.78;
     EXPECT_NEAR(69.12f, a);
   }
+
+  {
+    double d = 0xf123456789012345LLU;
+    uint64_t x = d;
+    char buf[32];
+    snprintf(buf, sizeof(buf), "%" PRIx64, x);
+    EXPECT_STREQ("ulltof", "f123456789012000", buf);
+  }
 #endif
 } END_TEST()
 
