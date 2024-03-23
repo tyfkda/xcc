@@ -166,12 +166,22 @@
 #define FSD(o1, o2)           EMIT_ASM("fsd", o1, o2)
 #define FSW(o1, o2)           EMIT_ASM("fsw", o1, o2)
 
-#define FCVT_W_D(o1, o2)      EMIT_ASM("fcvt.w.d", o1, o2, "rtz")  // int <- double
-#define FCVT_W_S(o1, o2)      EMIT_ASM("fcvt.w.s", o1, o2, "rtz")  // int <- float
+#define FCVT_W_D(o1, o2)      EMIT_ASM("fcvt.w.d", o1, o2, "rtz")   // int <- double
+#define FCVT_W_S(o1, o2)      EMIT_ASM("fcvt.w.s", o1, o2, "rtz")   // int <- float
+#define FCVT_WU_D(o1, o2)     EMIT_ASM("fcvt.wu.d", o1, o2, "rtz")  // unsigned int <- double
+#define FCVT_WU_S(o1, o2)     EMIT_ASM("fcvt.wu.s", o1, o2, "rtz")  // unsigned int <- float
+#define FCVT_L_D(o1, o2)      EMIT_ASM("fcvt.l.d", o1, o2, "rtz")   // long <- double
+#define FCVT_L_S(o1, o2)      EMIT_ASM("fcvt.l.s", o1, o2, "rtz")   // long <- float
+#define FCVT_LU_D(o1, o2)     EMIT_ASM("fcvt.lu.d", o1, o2, "rtz")  // unsigned long <- double
+#define FCVT_LU_S(o1, o2)     EMIT_ASM("fcvt.lu.s", o1, o2, "rtz")  // unsigned long <- float
 #define FCVT_D_W(o1, o2)      EMIT_ASM("fcvt.d.w", o1, o2)   // double <- int
 #define FCVT_D_WU(o1, o2)     EMIT_ASM("fcvt.d.wu", o1, o2)  // double <- unsigned int
 #define FCVT_S_W(o1, o2)      EMIT_ASM("fcvt.s.w", o1, o2)   // float <- int
 #define FCVT_S_WU(o1, o2)     EMIT_ASM("fcvt.s.wu", o1, o2)  // float <- unsigned int
+#define FCVT_D_L(o1, o2)      EMIT_ASM("fcvt.d.l", o1, o2)   // double <- long
+#define FCVT_D_LU(o1, o2)     EMIT_ASM("fcvt.d.lu", o1, o2)  // double <- unsigned long
+#define FCVT_S_L(o1, o2)      EMIT_ASM("fcvt.s.l", o1, o2)   // float <- long
+#define FCVT_S_LU(o1, o2)     EMIT_ASM("fcvt.s.lu", o1, o2)  // float <- unsigned long
 #define FCVT_D_S(o1, o2)      EMIT_ASM("fcvt.d.s", o1, o2)   // double <- float
 #define FCVT_S_D(o1, o2)      EMIT_ASM("fcvt.s.d", o1, o2)   // float <- double
 

@@ -709,24 +709,62 @@ static void ei_cast(IR *ir) {
       assert(0 <= pows && pows < 4);
 
       const char *src = kReg64s[ir->opr1->phys];
-      switch (ir->dst->vsize) {
-      case SZ_FLOAT:
-        if (ir->flag & IRF_UNSIGNED)  FCVT_S_WU(kFReg32s[ir->dst->phys], src);
-        else                          FCVT_S_W(kFReg32s[ir->dst->phys], src);
-        break;
-      case SZ_DOUBLE:
-        if (ir->flag & IRF_UNSIGNED)  FCVT_D_WU(kFReg32s[ir->dst->phys], src);
-        else                          FCVT_D_W(kFReg32s[ir->dst->phys], src);
-        break;
-      default: assert(false); break;
+      if (ir->opr1->vsize < VRegSize8) {
+        switch (ir->dst->vsize) {
+        case SZ_FLOAT:
+          if (ir->flag & IRF_UNSIGNED)  FCVT_S_WU(kFReg32s[ir->dst->phys], src);
+          else                          FCVT_S_W(kFReg32s[ir->dst->phys], src);
+          break;
+        case SZ_DOUBLE:
+          if (ir->flag & IRF_UNSIGNED)  FCVT_D_WU(kFReg32s[ir->dst->phys], src);
+          else                          FCVT_D_W(kFReg32s[ir->dst->phys], src);
+          break;
+        default: assert(false); break;
+        }
+      } else {
+        switch (ir->dst->vsize) {
+        case SZ_FLOAT:
+          if (ir->flag & IRF_UNSIGNED)  FCVT_S_LU(kFReg32s[ir->dst->phys], src);
+          else                          FCVT_S_L(kFReg32s[ir->dst->phys], src);
+          break;
+        case SZ_DOUBLE:
+          if (ir->flag & IRF_UNSIGNED)  FCVT_D_LU(kFReg32s[ir->dst->phys], src);
+          else                          FCVT_D_L(kFReg32s[ir->dst->phys], src);
+          break;
+        default: assert(false); break;
+        }
       }
     }
   } else if (ir->opr1->flag & VRF_FLONUM) {
     // flonum->fix
-    switch (ir->opr1->vsize) {
-    case SZ_FLOAT:   FCVT_W_S(kReg64s[ir->dst->phys], kFReg32s[ir->opr1->phys]); break;
-    case SZ_DOUBLE:  FCVT_W_D(kReg64s[ir->dst->phys], kFReg64s[ir->opr1->phys]); break;
-    default: assert(false); break;
+    if (ir->dst->vsize < VRegSize8) {
+      if (ir->flag & IRF_UNSIGNED) {
+        switch (ir->opr1->vsize) {
+        case SZ_FLOAT:   FCVT_W_S(kReg64s[ir->dst->phys], kFReg32s[ir->opr1->phys]); break;
+        case SZ_DOUBLE:  FCVT_W_D(kReg64s[ir->dst->phys], kFReg64s[ir->opr1->phys]); break;
+        default: assert(false); break;
+        }
+      } else {
+        switch (ir->opr1->vsize) {
+        case SZ_FLOAT:   FCVT_WU_S(kReg64s[ir->dst->phys], kFReg32s[ir->opr1->phys]); break;
+        case SZ_DOUBLE:  FCVT_WU_D(kReg64s[ir->dst->phys], kFReg64s[ir->opr1->phys]); break;
+        default: assert(false); break;
+        }
+      }
+    } else {
+      if (ir->flag & IRF_UNSIGNED) {
+        switch (ir->opr1->vsize) {
+        case SZ_FLOAT:   FCVT_LU_S(kReg64s[ir->dst->phys], kFReg32s[ir->opr1->phys]); break;
+        case SZ_DOUBLE:  FCVT_LU_D(kReg64s[ir->dst->phys], kFReg64s[ir->opr1->phys]); break;
+        default: assert(false); break;
+        }
+      } else {
+        switch (ir->opr1->vsize) {
+        case SZ_FLOAT:   FCVT_L_S(kReg64s[ir->dst->phys], kFReg32s[ir->opr1->phys]); break;
+        case SZ_DOUBLE:  FCVT_L_D(kReg64s[ir->dst->phys], kFReg64s[ir->opr1->phys]); break;
+        default: assert(false); break;
+        }
+      }
     }
   } else {
     // fix->fix
@@ -811,7 +849,7 @@ void pop_callee_save_regs(unsigned long used, unsigned long fused) {
     FLD(saves[i + count], IMMEDIATE_OFFSET((total - 1 - count - i) * POINTER_SIZE, SP));
   }
   for (int i = count; i-- > 0; ) {
-    LD(saves[i], IMMEDIATE_OFFSET((count - 1 - i) * POINTER_SIZE, SP));
+    LD(saves[i], IMMEDIATE_OFFSET((total - 1 - i) * POINTER_SIZE, SP));
   }
   ADDI(SP, SP, IM(POINTER_SIZE * ALIGN(total, 2)));
 }
@@ -1006,12 +1044,17 @@ void tweak_irs(FuncBackend *fnbe) {
           switch (cond) {
           case COND_EQ: case COND_NE:
             assert(!(ir->opr1->flag & VRF_CONST));
-            if (!(ir->opr2->flag & VRF_CONST) || ir->opr2->fixnum != 0) {
-              IR *sub = new_ir_bop_raw(IR_SUB, ir->dst, ir->opr1, ir->opr2, ir->flag);
+            if ((!(ir->opr2->flag & VRF_CONST) || ir->opr2->fixnum != 0) &&
+                !(ir->opr1->flag & VRF_FLONUM)) {
+              VReg *dst = ir->dst;
+              if (dst->vsize != ir->opr1->vsize)
+                dst = reg_alloc_spawn(ra, ir->opr1->vsize, ir->opr1->flag & VRF_MASK);
+
+              IR *sub = new_ir_bop_raw(IR_SUB, dst, ir->opr1, ir->opr2, ir->flag);
               vec_insert(irs, j++, sub);
 
-              ir->opr1 = ir->dst;
-              ir->opr2 = reg_alloc_spawn_const(ra, 0, ir->dst->vsize);
+              ir->opr1 = dst;
+              ir->opr2 = reg_alloc_spawn_const(ra, 0, dst->vsize);
             }
             break;
           case COND_LE: case COND_GT:
