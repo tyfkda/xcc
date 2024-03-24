@@ -85,11 +85,21 @@
 #error "Unsupported programming model"
 #endif
 
-// Elf
+//
+
 #if XCC_TARGET_ARCH == XCC_ARCH_X64
 #define MACHINE_TYPE  EM_X86_64
+#define MINREGSIZE  (1)
+
 #elif XCC_TARGET_ARCH == XCC_ARCH_AARCH64
 #define MACHINE_TYPE  EM_AARCH64
+#define MINREGSIZE  (4)
+
 #elif XCC_TARGET_ARCH == XCC_ARCH_RISCV64
 #define MACHINE_TYPE  EM_RISCV
+#define MINREGSIZE  (8)
+
+#elif XCC_TARGET_ARCH == XCC_ARCH_WASM
+#define MINREGSIZE  (4)
+
 #endif
