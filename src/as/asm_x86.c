@@ -269,6 +269,24 @@ static unsigned char *asm_mov_rd(Inst *inst, Code *code) {
   return p;
 }
 
+static unsigned char *asm_mov_sr(Inst *inst, Code *code) {
+  if (inst->src.segment.reg == FS && inst->dst.reg.size == REG64) {
+    Expr *offset = inst->src.segment.offset;
+    if (offset == NULL || offset->kind == EX_FIXNUM) {
+      uint64_t value = offset == NULL ? 0 : offset->fixnum;
+      short buf[] = {
+        0x64, 0x48, 0x8b, 0x04, 0x25,
+      };
+      unsigned char *p = code->buf;
+      p = put_code_filtered(p, buf, ARRAY_SIZE(buf));
+      PUT_CODE(p, IM32(value));
+      p += 4;
+      return p;
+    }
+  }
+  return NULL;
+}
+
 static unsigned char *asm_movbwlq_imi(Inst *inst, Code *code) {
   long offset = inst->dst.indirect.offset->fixnum;
   unsigned char sno = 0;
@@ -1506,6 +1524,7 @@ static const AsmInstTable *table[] = {
     {asm_mov_iir, INDIRECT_WITH_INDEX, REG},
     {asm_mov_dr, DIRECT, REG},
     {asm_mov_rd, REG, DIRECT},
+    {asm_mov_sr, SEGMENT_OFFSET, REG},
     {NULL} },
   [MOVB] = table_movbwlq,  [MOVW] = table_movbwlq,  [MOVL] = table_movbwlq,  [MOVQ] = table_movbwlq,
   [MOVSX] = table_movszx,  [MOVZX] = table_movszx,

@@ -205,6 +205,13 @@ static const struct {
   {"r15", R15},
 
   {"rip", RIP},
+
+  {"cs", CS},
+  {"ds", DS},
+  {"es", ES},
+  {"fs", FS},
+  {"gs", GS},
+  {"ss", SS},
 };
 
 static const char kXmmRegisters[][6] = {
@@ -256,6 +263,10 @@ inline bool is_reg32(enum RegType reg) {
 
 inline bool is_reg64(enum RegType reg) {
   return reg >= RAX && reg <= R15;
+}
+
+inline bool is_segment(enum RegType reg) {
+  return reg >= CS && reg <= SS;
 }
 
 static int find_match_index(const char **pp, const char **table, size_t count) {
@@ -454,6 +465,18 @@ static enum RegType parse_direct_register(ParseInfo *info, Operand *operand) {
   }
 
   enum RegType reg = find_register(&info->p);
+  if (is_segment(reg)) {
+    Expr *offset = NULL;
+    if (*info->p == ':') {
+      ++info->p;
+      offset = parse_expr(info);
+    }
+    operand->type = SEGMENT_OFFSET;
+    operand->segment.reg = reg;
+    operand->segment.offset = offset;
+    return true;
+  }
+
   enum RegSize size;
   int no;
   if (is_reg8(reg)) {

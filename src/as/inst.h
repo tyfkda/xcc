@@ -205,6 +205,14 @@ enum RegType {
   R15,
 
   RIP,
+
+  // Segment register
+  CS,
+  DS,
+  ES,
+  FS,
+  GS,
+  SS,
 };
 
 enum RegXmmType {
@@ -237,6 +245,7 @@ enum OperandType {
   DEREF_INDIRECT,  // *ofs(%rax)
   DEREF_INDIRECT_WITH_INDEX,  // *(%rax, %rcx, 4)
   REG_XMM,
+  SEGMENT_OFFSET,
 };
 
 enum ExprKind {
@@ -292,6 +301,10 @@ typedef struct {
       Reg index_reg;
     } indirect_with_index;
     enum RegXmmType regxmm;
+    struct {
+      enum RegType reg;
+      Expr *offset;
+    } segment;
   };
 } Operand;
 
