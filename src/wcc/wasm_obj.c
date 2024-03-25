@@ -86,6 +86,7 @@ void wasmobj_init(WasmObj *wasmobj) {
   wasmobj->import.globals = new_vector();
   wasmobj->import.tables = NULL;
   wasmobj->linking.symtab = new_vector();
+  wasmobj->linking.func_symtab = new_vector();
   wasmobj->linking.exists = false;
 }
 
@@ -310,6 +311,7 @@ static inline unsigned char *read_linking_symbol_general(
       func_type = VOIDP2INT(func_types->data[i]);
     }
     sym->func.type_index = func_type;
+    vec_push(wasmobj->linking.func_symtab, sym);
   }
 
   vec_push(wasmobj->linking.symtab, sym);
@@ -545,6 +547,55 @@ static void read_custom_section(WasmObj *wasmobj, unsigned char *p, unsigned cha
   }
 }
 
+static inline void retrieve_elements_symbol_index(WasmObj *wasmobj) {
+  if (!wasmobj->linking.exists || wasmobj->elem.count <= 0)
+    return;
+
+  // Usually, function index is same as symbol index.
+  // If some function has an alias and its alias is used as a function pointer,
+  // element differs.
+
+  for (int i = 0; i < (int)ARRAY_SIZE(wasmobj->reloc); ++i) {
+    RelocInfo *relocs = wasmobj->reloc[i].relocs;
+    uint32_t reloc_count = wasmobj->reloc[i].count;
+    WasmSection *section = &wasmobj->sections[wasmobj->reloc[i].section_index];
+    for (uint32_t ireloc = 0; ireloc < reloc_count; ++ireloc) {
+      RelocInfo *reloc = &relocs[ireloc];
+      uint64_t funcidx = -1;
+
+      switch (reloc->type) {
+      default:  continue;
+
+      case R_WASM_TABLE_INDEX_SLEB:
+      case R_WASM_TABLE_INDEX_SLEB64:
+        {
+          unsigned char *dummy;
+          funcidx = read_uleb128(section->start + reloc->offset, &dummy);
+        }
+        break;
+      case R_WASM_TABLE_INDEX_I32:
+        funcidx = *(uint32_t*)(section->start + reloc->offset);
+        break;
+      case R_WASM_TABLE_INDEX_I64:
+        funcidx = *(uint64_t*)(section->start + reloc->offset);
+        break;
+      }
+
+      uint32_t symidx = reloc->index;
+      // Replace correspoinding element from function index to symbol index.
+      for (uint32_t iseg = 0; iseg < wasmobj->elem.count; ++iseg) {
+        ElemSegmentForLink *segment = &wasmobj->elem.segments[iseg];
+        if (funcidx >= segment->start && funcidx < segment->start + segment->count) {
+          assert(segment->content[funcidx - segment->start] == funcidx ||
+                 segment->content[funcidx - segment->start] == symidx);
+          segment->content[funcidx - segment->start] = symidx;
+          break;
+        }
+      }
+    }
+  }
+}
+
 static void read_wasm_sections(WasmObj *wasmobj) {
   WasmSection *sections = NULL;
   unsigned char *p = wasmobj->buffer;
@@ -576,6 +627,8 @@ static void read_wasm_sections(WasmObj *wasmobj) {
 
     p += size;
   }
+
+  retrieve_elements_symbol_index(wasmobj);
 }
 
 WasmObj *read_wasm(FILE *fp, const char *filename, size_t filesize) {

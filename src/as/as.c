@@ -104,6 +104,20 @@ static void parse_file(FILE *fp, ParseInfo *parser) {
         vec_push(irs, new_ir_code(&code));
     }
   }
+
+  // Ensure alias label exists.
+  Table *label_table = parser->label_table;
+  const Name *name;
+  LabelInfo *label;
+  for (int it = 0; (it = table_iterate(label_table, it, &name, (void**)&label)) != -1; ) {
+    const Name *alias = label->alias;
+    if (alias == NULL)
+      continue;
+    if (!table_try_get(label_table, alias, NULL)) {
+      fprintf(stderr, "`%.*s' not exist\n", NAMES(alias));
+      ++parser->error_count;
+    }
+  }
 }
 
 static void drop_all(FILE *fp) {

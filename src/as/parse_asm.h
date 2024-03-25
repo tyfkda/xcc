@@ -35,6 +35,7 @@ enum DirectiveType {
   DT_LOCAL,
   DT_WEAK,
   DT_EXTERN,
+  DT_SET,
 #ifndef __NO_FLONUM
   DT_FLOAT,
   DT_DOUBLE,
@@ -78,7 +79,7 @@ typedef struct ParseInfo {
   const Token *prefetched;
 
   Table *section_infos;  // <SectionInfo*>
-  Table *label_table;
+  Table *label_table;  // <LabelInfo*>
   SectionInfo *current_section;
 } ParseInfo;
 
@@ -192,6 +193,7 @@ enum LabelKind {
 
 typedef struct {
   SectionInfo *section;
+  const Name *alias;
   int flag;
   uint64_t address;
   enum LabelKind kind;

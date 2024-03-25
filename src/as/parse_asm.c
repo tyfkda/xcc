@@ -69,6 +69,7 @@ static const char *kDirectiveTable[] = {
   "local",
   WEAK,
   "extern",
+  "set",
 #ifndef __NO_FLONUM
   "float",
   "double",
@@ -113,6 +114,7 @@ SectionInfo *set_current_section(ParseInfo *parser, const char *name, const char
 static LabelInfo *new_label(SectionInfo *section) {
   LabelInfo *label = calloc_or_die(sizeof(*label));
   label->section = section;
+  label->alias = NULL;
   label->flag = 0;
   label->address = 0;
   label->kind = LK_NONE;
@@ -1064,6 +1066,25 @@ static bool dir_section(ParseInfo *parser, enum DirectiveType dir) {
   return true;
 }
 
+static bool dir_set(ParseInfo *parser, enum DirectiveType dir) {
+  UNUSED(dir);
+  const Name *name = parse_label(parser);
+  parser->p = skip_whitespaces(parser->p);
+  if (*parser->p != ',')
+    return parse_error(parser, ".comm: `,' expected");
+  parser->p = skip_whitespaces(parser->p + 1);
+  const Name *alias = parse_label(parser);
+
+  LabelInfo *label;
+  if (!table_try_get(parser->label_table, name, (void**)&label)) {
+    parse_error(parser, "failed");
+    return false;
+  }
+
+  label->alias = alias;
+  return true;
+}
+
 #if XCC_TARGET_PLATFORM == XCC_PLATFORM_APPLE
 static bool dir_subsections_via_symbols(ParseInfo *parser, enum DirectiveType dir) {
   // TODO: Handle this flag.
@@ -1090,6 +1111,7 @@ static inline bool handle_directive(ParseInfo *parser, enum DirectiveType dir) {
     [DT_ZERO] = dir_zero,
     [DT_GLOBL] = dir_label_attrib, [DT_LOCAL] = dir_label_attrib, [DT_WEAK] = dir_label_attrib,
     [DT_EXTERN] = NULL,
+    [DT_SET] = dir_set,
   #ifndef __NO_FLONUM
     [DT_FLOAT] = dir_float, [DT_DOUBLE] = dir_float,
   #endif
@@ -1104,6 +1126,31 @@ static inline bool handle_directive(ParseInfo *parser, enum DirectiveType dir) {
   return (*func)(parser, dir);
 }
 
+#if XCC_TARGET_PLATFORM == XCC_PLATFORM_APPLE
+static bool parse_label_expression(Line *line, ParseInfo *parser, const Name *name) {
+  UNUSED(line);
+  const Name *alias = parse_label(parser);
+  if (alias == NULL) {
+    return parse_error(parser, "illegal");
+  }
+
+  // TODO: parse expression.
+
+  LabelInfo *label;
+  if (!table_try_get(parser->label_table, name, (void**)&label)) {
+    label = add_label_table(parser->label_table, name, parser->current_section, true, false);
+  }
+  label->alias = alias;
+
+  LabelInfo *alias_label;
+  if (table_try_get(parser->label_table, name, (void**)&alias_label)) {
+    alias_label->flag |= LF_REFERRED;
+  }
+
+  return true;
+}
+#endif
+
 bool parse_line(Line *line, ParseInfo *parser) {
   memset(line, 0, sizeof(*line));
   line->label = NULL;
@@ -1115,11 +1162,17 @@ bool parse_line(Line *line, ParseInfo *parser) {
   const char *q = get_label_end(parser);
   const char *r = skip_whitespaces(q);
   if (*r == ':') {
-    const Name *label = unquote_label(p, q);
-    if (label == NULL)
+    const Name *name = unquote_label(p, q);
+    if (name == NULL)
       return parse_error(parser, "illegal label");
-    line->label = label;
+    line->label = name;
     parser->p = p = skip_whitespaces(r + 1);
+#if XCC_TARGET_PLATFORM == XCC_PLATFORM_APPLE
+  } else if (q > p && *r == '=') {
+    const Name *name = unquote_label(p, q);
+    parser->p = skip_whitespaces(r + 1);
+    return parse_label_expression(line, parser, name);
+#endif
   } else if (*p == '.') {
     enum DirectiveType dir = find_directive(p + 1, q - p - 1);
     if (dir == NODIRECTIVE) {

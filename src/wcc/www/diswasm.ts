@@ -1518,7 +1518,8 @@ export class DisWasm {
 
   private setCustomName(t: CustomNameType, index: number, name: string): void {
     const nameIndex = (t as number) + index * 100
-    this.names.set(nameIndex, name)
+    if (!this.names.has(nameIndex))
+      this.names.set(nameIndex, name)
   }
 
   private readGlobalSection(): void {

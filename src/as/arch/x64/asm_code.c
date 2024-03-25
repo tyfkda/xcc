@@ -1000,6 +1000,24 @@ static unsigned char *asm_subq_imi(Inst *inst, Code *code) {
   return NULL;
 }
 
+static unsigned char *asm_sub_srr(Inst *inst, Code *code) {
+  if (inst->opr[0].segment.reg == FS && inst->opr[1].reg.size == REG64) {
+    Expr *offset = inst->opr[0].segment.offset;
+    if (offset == NULL || offset->kind == EX_FIXNUM) {
+      uint64_t value = offset == NULL ? 0 : offset->fixnum;
+      short buf[] = {
+        0x64, 0x48, 0x2b, 0x04, 0x25,
+      };
+      unsigned char *p = code->buf;
+      p = put_code_filtered(p, buf, ARRAY_SIZE(buf));
+      PUT_CODE(p, IM32(value));
+      p += 4;
+      return p;
+    }
+  }
+  return NULL;
+}
+
 static unsigned char *asm_mul_r(Inst *inst, Code *code) {
   enum RegSize size = inst->opr[0].reg.size;
   unsigned char *p = code->buf;
@@ -1614,6 +1632,7 @@ static const AsmInstFunc table[] = {
   [SUB_IR] = asm_sub_ir,
   [SUB_IIR] = asm_sub_iir,
   [SUBQ] = asm_subq_imi,
+  [SUB_SRR] = asm_sub_srr,
   [MUL] = asm_mul_r,
   [DIV] = asm_div_r,
   [IDIV] = asm_idiv_r,

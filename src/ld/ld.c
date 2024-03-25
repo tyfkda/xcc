@@ -1213,7 +1213,9 @@ static const SectionGroupData kSectionGroups[] = {
   [SEC_TEXT] = {
     .start_address = CODE_START_ADDRESS,
     .elems = (ElemData[]) {
+      {.kind = LEK_SECTION, .section = {.name = ".init"}},
       {.kind = LEK_SECTION, .section = {.name = ".text"}},
+      {.kind = LEK_SECTION, .section = {.name = ".fini"}},
       {.kind = LEK_SECTION, .section = {.name = ".rodata"}},
       {.kind = -1},
     },

@@ -134,6 +134,7 @@ static void resolve_symbols_auto_fill(WasmLinker *linker) {
     sym->module_name = NULL;
     sym->name = call_ctors_name;
     vec_push(obj->linking.symtab, sym);
+    vec_push(obj->linking.func_symtab, sym);
 
     // Function
     int section_count = 1;
@@ -379,11 +380,10 @@ static void renumber_symbols(WasmLinker *linker) {
 
 static void renumber_func_types_wasmobj(WasmObj *wasmobj) {
   Vector *type_indices = wasmobj->types;
-  Vector *symtab = wasmobj->linking.symtab;
-  for (int i = 0; i < symtab->len; ++i) {
-    SymbolInfo *sym = symtab->data[i];
-    if (sym->kind != SIK_SYMTAB_FUNCTION)
-      continue;
+  Vector *func_symtab = wasmobj->linking.func_symtab;
+  for (int i = 0; i < func_symtab->len; ++i) {
+    SymbolInfo *sym = func_symtab->data[i];
+    assert(sym->kind == SIK_SYMTAB_FUNCTION);
     if (sym->func.type_index >= (uint32_t)type_indices->len)
       error("illegal type index for %.*s: %d\n", NAMES(sym->name), sym->func.type_index);
     sym->func.type_index = VOIDP2INT(type_indices->data[sym->func.type_index]);
@@ -464,20 +464,14 @@ static void renumber_indirect_functions_wasmobj(WasmLinker *linker, WasmObj *was
   Vector *indirect_functions = linker->indirect_functions;
   uint32_t segnum = wasmobj->elem.count;
   ElemSegmentForLink *segments = wasmobj->elem.segments;
-  Vector *symtab = wasmobj->linking.symtab;
+  Vector *func_symtab = wasmobj->linking.func_symtab;
   for (uint32_t i = 0; i < segnum; ++i) {
     ElemSegmentForLink *segment = &segments[i];
     uint32_t count = segment->count;
     for (uint32_t j = 0; j < count; ++j) {
       uint32_t index = segment->content[j];
-      SymbolInfo *sym = NULL;
-      for (int k = 0; k < symtab->len; ++k) {
-        SymbolInfo *p = symtab->data[k];
-        if (p->kind == SIK_SYMTAB_FUNCTION && p->local_index == index) {
-          sym = p;
-          break;
-        }
-      }
+      assert(index < (uint32_t)func_symtab->len);
+      SymbolInfo *sym = func_symtab->data[index];
       if (sym == NULL) {
         error("indirect function not found: %d", index);
       }
@@ -615,7 +609,7 @@ static void apply_relocation_wasmobj(WasmLinker *linker, WasmObj *wasmobj) {
         switch (kTable[type].val) {
         case COMBIDX:  value = target->combined_index; break;
         case MEMADDR:  value = target->data.address + p->addend; break;
-        case FUNCIDX:  value = target->func.indirect_index; break;
+        case FUNCIDX:  value = target->func.indirect_index; assert(value > 0); break;
         default: assert(false); break;
         }
         switch (kTable[type].dst) {

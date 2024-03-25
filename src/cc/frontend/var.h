@@ -54,6 +54,7 @@ typedef struct VarInfo {
         };
       };
       Vector *referred_globals;  // <VarInfo*>
+      const struct VarInfo *alias;
     } global;
     struct {
       struct VarInfo *svar;  // which points to static variable.

@@ -94,16 +94,22 @@ static void construct_symtab(Symtab *symtab, Table *label_table, uint64_t start_
         assert(false);
       }
 
-      if (label->section != NULL && label->flag & LF_COMM) {
+      LabelInfo *target = label;
+      if (label->alias != NULL) {
+        target = table_get(label_table, label->alias);
+        assert(target != NULL);
+      }
+
+      if (target->section != NULL && target->flag & LF_COMM) {
         // .comm
-        assert(label->align > 0 && IS_POWER_OF_2(label->align));
-        SET_COMM_ALIGN(sym->n_desc, most_significant_bit(label->align));
-        sym->n_value = label->size;
+        assert(target->align > 0 && IS_POWER_OF_2(target->align));
+        SET_COMM_ALIGN(sym->n_desc, most_significant_bit(target->align));
+        sym->n_value = target->size;
       } else if (sect) {
         type |= N_SECT;
-        sym->n_sect = label->section->index;
+        sym->n_sect = target->section->index;
         sym->n_desc = label->flag & LF_WEAK ? N_WEAK_DEF : 0;
-        sym->n_value = (label->flag & LF_DEFINED) ? label->address - start_address : 0;
+        sym->n_value = (target->flag & LF_DEFINED) ? target->address - start_address : 0;
       }
       sym->n_type = type;
     }

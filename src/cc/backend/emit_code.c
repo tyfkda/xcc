@@ -539,6 +539,40 @@ static void emit_defun(Function *func) {
   }
 }
 
+static inline void emit_alias(const VarInfo *varinfo, const VarInfo *alias) {
+  const Type *type = varinfo->type;
+  size_t size = type_size(type);
+  Initializer *init = alias->global.init;
+  if (init != NULL && size > 0) {
+    if (is_cstring(varinfo, init))
+      _CSTRING();
+    else if (type->qualifier & TQ_CONST)
+      _RODATA();
+    else
+      _DATA();
+  } else {
+    if (!cc_flags.common) {
+      _BSS();
+    }
+  }
+
+  bool global = (varinfo->storage & VS_STATIC) == 0;
+  const Name *name = varinfo->ident->ident;
+  char *label = format_func_name(name, global);
+  if (varinfo->storage & VS_WEAK)
+    _WEAK(label);
+  else if (global)
+    _GLOBL(label);
+  else
+    _LOCAL(label);
+  const char *alias_label = format_func_name(alias->ident->ident, (alias->storage & VS_STATIC) == 0);
+#if XCC_TARGET_PLATFORM == XCC_PLATFORM_APPLE
+  emit_asm_raw(fmt("%s = %s\n", label, alias_label));
+#else
+  EMIT_ASM(".set", fmt("%s,%s", label, alias_label));
+#endif
+}
+
 void emit_code(Vector *decls) {
   for (int i = 0, len = decls->len; i < len; ++i) {
     Declaration *decl = decls->data[i];
@@ -561,6 +595,11 @@ void emit_code(Vector *decls) {
   for (int i = 0; i < global_scope->vars->len; ++i) {
     VarInfo *varinfo = global_scope->vars->data[i];
     int storage = varinfo->storage;
+    const VarInfo *alias = varinfo->global.alias;
+    if (alias != NULL) {
+      emit_alias(varinfo, alias);
+      continue;
+    }
     if (varinfo->type->kind == TY_FUNC ||
         (storage & (VS_EXTERN | VS_ENUM_MEMBER)) ||
         (storage & (VS_STATIC | VS_USED)) == VS_STATIC)  // Static variable but not used.

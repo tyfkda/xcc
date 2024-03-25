@@ -410,6 +410,12 @@ static inline void gen_funargs(Expr *expr) {
 static inline void gen_funcall_by_name(const Name *funcname) {
   FuncInfo *finfo = table_get(&func_info_table, funcname);
   assert(finfo != NULL);
+  FuncInfo *target = finfo;
+  const VarInfo *alias = finfo->varinfo->global.alias;
+  if (alias != NULL) {
+    target = table_get(&func_info_table, alias->ident->ident);
+    assert(target != NULL);
+  }
   ADD_CODE(OP_CALL);
 
   FuncExtra *extra = curfunc->extra;
@@ -420,7 +426,7 @@ static inline void gen_funcall_by_name(const Name *funcname) {
   ri->addend = 0;
   ri->index = finfo->index;
   vec_push(extra->reloc_code, ri);
-  ADD_VARUINT32(finfo->index);
+  ADD_VARUINT32(target->index);
 }
 
 static inline void gen_funcall_indirect(Expr *func) {

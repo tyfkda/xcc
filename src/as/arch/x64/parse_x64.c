@@ -556,12 +556,13 @@ const ParseInstTable kParseInstTable[] = {
     &(ParseOpArray){ADD_IIR, {IIND, R8 | R16 | R32 | R64}},
   } },
   [R_ADDQ] = { 1, (const ParseOpArray*[]){ &(ParseOpArray){ADDQ, {IMM, IND}} } },
-  [R_SUB] = { 7, (const ParseOpArray*[]){
+  [R_SUB] = { 8, (const ParseOpArray*[]){
     &(ParseOpArray){SUB_RR, {R8, R8}},     &(ParseOpArray){SUB_RR, {R16, R16}},
     &(ParseOpArray){SUB_RR, {R32, R32}},   &(ParseOpArray){SUB_RR, {R64, R64}},
     &(ParseOpArray){SUB_IMR, {IMM, R8 | R16 | R32 | R64}},
     &(ParseOpArray){SUB_IR, {IND, R8 | R16 | R32 | R64}},
     &(ParseOpArray){SUB_IIR, {IIND, R8 | R16 | R32 | R64}},
+    &(ParseOpArray){SUB_SRR, {SEG, R8 | R16 | R32 | R64}},
   } },
   [R_SUBQ] = { 1, (const ParseOpArray*[]){ &(ParseOpArray){SUBQ, {IMM, IND}} } },
   [R_MUL] = { 1, (const ParseOpArray*[]){ &(ParseOpArray){MUL, {R8 | R16 | R32 | R64}} } },

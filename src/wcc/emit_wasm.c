@@ -290,6 +290,8 @@ static void emit_import_section(EmitWasm *ew) {
       if (varinfo->storage & VS_STATIC) {
         error("Import: `%.*s' is not public", NAMES(name));
       }
+      if (varinfo->global.alias != NULL)
+        continue;
 
       const char *modname = module_name;
       size_t modnamelen = module_name_len;
@@ -462,8 +464,16 @@ static void emit_elems_section(EmitWasm *ew) {
   FuncInfo *finfo;
   for (int it = 0;
        (it = table_iterate(&indirect_function_table, it, &name, (void**)&finfo)) != -1; ) {
-    VERBOSE("%.*s (%u)\n", NAMES(name), finfo->index);
-    data_leb128(&elems_section, -1, finfo->index);  // elem function index
+    FuncInfo *target = finfo;
+    const VarInfo *alias = finfo->varinfo->global.alias;
+    if (alias == NULL) {
+      VERBOSE("%.*s (%u)\n", NAMES(name), target->index);
+    } else {
+      target = table_get(&func_info_table, alias->ident->ident);
+      assert(target != NULL);
+      VERBOSE("%.*s (alias: %u)\n", NAMES(name), target->index);
+    }
+    data_leb128(&elems_section, -1, target->index);  // elem function index
   }
   data_close_chunk(&elems_section, -1);
   VERBOSES("\n");
@@ -579,9 +589,9 @@ static Vector *emit_data_section(EmitWasm *ew) {
 }
 
 static void emit_linking_symtab_function_sub(
-    DataStorage *linking_section, FuncInfo *finfo, const Name *name) {
+    DataStorage *linking_section, FuncInfo *finfo, const Name *name, FuncInfo *alias) {
   int flags = 0;
-  if (finfo->func == NULL)
+  if (finfo->func == NULL && alias == NULL)
     flags |= WASM_SYM_UNDEFINED;
   if (finfo->varinfo->storage & VS_STATIC)
     flags |= WASM_SYM_BINDING_LOCAL | WASM_SYM_VISIBILITY_HIDDEN;
@@ -594,15 +604,17 @@ static void emit_linking_symtab_function_sub(
 
   data_push(linking_section, SIK_SYMTAB_FUNCTION);  // kind
   data_uleb128(linking_section, -1, flags);
-  data_uleb128(linking_section, -1, finfo->index);
+  data_uleb128(linking_section, -1, alias != NULL ? alias->index : finfo->index);
 
   if (finfo->func != NULL ||  // Defined function: put name. otherwise not required.
-      flags & WASM_SYM_EXPLICIT_NAME) {
+      alias != NULL || flags & WASM_SYM_EXPLICIT_NAME) {
     data_string(linking_section, name->chars, name->bytes);
   }
 }
 
 static inline uint32_t emit_linking_symtab_function(DataStorage *linking_section, Vector *decls) {
+  Vector alias_funcs;
+  vec_init(&alias_funcs);
   uint32_t count = 0;
   // To match function index and linking order, do twice.
   { // Put external function first.
@@ -611,7 +623,11 @@ static inline uint32_t emit_linking_symtab_function(DataStorage *linking_section
     for (int it = 0; (it = table_iterate(&func_info_table, it, &name, (void**)&finfo)) != -1; ) {
       if (finfo->func != NULL || finfo->flag == 0 || is_function_omitted(finfo->varinfo, NULL))
         continue;
-      emit_linking_symtab_function_sub(linking_section, finfo, name);
+      if (finfo->varinfo->global.alias != NULL) {
+        vec_push(&alias_funcs, finfo);
+        continue;
+      }
+      emit_linking_symtab_function_sub(linking_section, finfo, name, NULL);
       ++count;
     }
   }
@@ -628,14 +644,57 @@ static inline uint32_t emit_linking_symtab_function(DataStorage *linking_section
       if (is_function_omitted(finfo->varinfo, func->attributes))
         continue;
       const Name *name = func->ident->ident;
-      emit_linking_symtab_function_sub(linking_section, finfo, name);
+      emit_linking_symtab_function_sub(linking_section, finfo, name, NULL);
       ++count;
     }
   }
+  // Alias.
+  for (int i = 0; i < alias_funcs.len; ++i) {
+    FuncInfo *finfo = alias_funcs.data[i];
+    FuncInfo *alias = table_get(&func_info_table, finfo->varinfo->global.alias->ident->ident);
+    assert(alias != NULL);
+    emit_linking_symtab_function_sub(linking_section, finfo, finfo->func_name, alias);
+    ++count;
+  }
+  vec_release(&alias_funcs);
   return count;
 }
 
+static void emit_linking_symtab_global_sub(
+    EmitWasm *ew, DataStorage *linking_section,GVarInfo *gvinfo, int flags, GVarInfo *alias) {
+  if ((gvinfo->flag & GVF_UNRESOLVED) && alias == NULL)
+    flags |= WASM_SYM_UNDEFINED;
+  const VarInfo *varinfo = gvinfo->varinfo;
+  if (varinfo->storage & VS_STATIC)
+    flags |= WASM_SYM_BINDING_LOCAL | WASM_SYM_VISIBILITY_HIDDEN;
+  if (varinfo->storage & VS_WEAK)
+    flags |= WASM_SYM_BINDING_WEAK;
+
+  uint32_t item_index = alias != NULL ? alias->item_index : gvinfo->item_index;
+  if (is_global_datasec_var(varinfo, global_scope)) {
+    data_push(linking_section, SIK_SYMTAB_DATA);  // kind
+    data_uleb128(linking_section, -1, flags);
+    const Name *name = varinfo->ident->ident;
+    data_string(linking_section, name->chars, name->bytes);
+    if (!(gvinfo->flag & GVF_UNRESOLVED) || alias != NULL) {  // Defined global: put name. otherwise not required.
+      data_uleb128(linking_section, -1, item_index);
+      data_uleb128(linking_section, -1, 0);  // offset (must start from the begining)
+      data_uleb128(linking_section, -1, type_size(varinfo->type));  // size
+    }
+  } else {
+    data_push(linking_section, SIK_SYMTAB_GLOBAL);  // kind
+    data_uleb128(linking_section, -1, flags);
+    data_uleb128(linking_section, -1, item_index);
+    if (gvinfo->item_index >= ew->import_global_count) {
+      const Name *name = varinfo->ident->ident;
+      data_string(linking_section, name->chars, name->bytes);
+    }
+  }
+}
+
 static inline uint32_t emit_linking_symtab_global(EmitWasm *ew, DataStorage *linking_section) {
+  Vector alias_vars;
+  vec_init(&alias_vars);
   uint32_t count = 0;
   for (int k = 0; k < 3; ++k) {  // 0=unresolved, 1=resolved(data), 2=resolved(bss)
     const Name *name;
@@ -651,39 +710,35 @@ static inline uint32_t emit_linking_symtab_global(EmitWasm *ew, DataStorage *lin
       GVarInfo *gvinfo = get_gvar_info_from_name(varinfo->ident->ident);
       if (gvinfo == NULL)
         continue;
-      if ((k == 0 && !(gvinfo->flag & GVF_UNRESOLVED)) ||
-          (k != 0 && ((gvinfo->flag & GVF_UNRESOLVED) || (varinfo->global.init == NULL) == (k == 1))))
-        continue;
-
-      int flags = flags_bss;
-      if (gvinfo->flag & GVF_UNRESOLVED)
-        flags |= WASM_SYM_UNDEFINED;
-      if (varinfo->storage & VS_STATIC)
-        flags |= WASM_SYM_BINDING_LOCAL | WASM_SYM_VISIBILITY_HIDDEN;
-
-      if (is_global_datasec_var(varinfo, global_scope)) {
-        data_push(linking_section, SIK_SYMTAB_DATA);  // kind
-        data_uleb128(linking_section, -1, flags);
-        const Name *name = varinfo->ident->ident;
-        data_string(linking_section, name->chars, name->bytes);
-        if (!(gvinfo->flag & GVF_UNRESOLVED)) {  // Defined global: put name. otherwise not required.
-          data_uleb128(linking_section, -1, gvinfo->item_index);
-          data_uleb128(linking_section, -1, 0);  // offset (must start from the begining)
-          data_uleb128(linking_section, -1, type_size(varinfo->type));  // size
+      switch (k) {
+      case 0:
+        if (!(gvinfo->flag & GVF_UNRESOLVED))
+          continue;
+        if (varinfo->global.alias != NULL) {
+          vec_push(&alias_vars, gvinfo);
+          continue;
         }
-      } else {
-        data_push(linking_section, SIK_SYMTAB_GLOBAL);  // kind
-        data_uleb128(linking_section, -1, flags);
-        data_uleb128(linking_section, -1, gvinfo->item_index);
-        if (gvinfo->item_index >= ew->import_global_count) {
-          const Name *name = varinfo->ident->ident;
-          data_string(linking_section, name->chars, name->bytes);
-        }
+        break;
+      default:
+        if ((gvinfo->flag & GVF_UNRESOLVED) ||
+            (varinfo->global.init == NULL) == (k == 1))
+          continue;
+        break;
       }
 
+      emit_linking_symtab_global_sub(ew, linking_section, gvinfo, flags_bss, NULL);
       ++count;
     }
   }
+  // Alias.
+  for (int i = 0; i < alias_vars.len; ++i) {
+    GVarInfo *gvinfo = alias_vars.data[i];
+    GVarInfo *alias = table_get(&gvar_info_table, gvinfo->varinfo->global.alias->ident->ident);
+    assert(alias != NULL);
+    emit_linking_symtab_global_sub(ew, linking_section, gvinfo, 0, alias);
+    ++count;
+  }
+  vec_release(&alias_vars);
   return count;
 }
 

@@ -606,14 +606,14 @@ static inline Stmt *parse_return(const Token *tok) {
   return new_stmt_return(tok, val);
 }
 
-static Vector *parse_asm_arg(void) {
+static Vector *parse_asm_arg(bool param) {
   const Token *constraint = match(TK_STR);
   if (constraint == NULL)
     return NULL;
 
   Vector *result = new_vector();
   for (;;) {
-    if (consume(TK_LPAR, "`(' expected")) {
+    if (param && consume(TK_LPAR, "`(' expected")) {
       Expr *expr = parse_assign();
       consume(TK_RPAR, "`)' expected");
 
@@ -645,13 +645,21 @@ static Stmt *parse_asm(const Token *tok) {
     return new_stmt(ST_EMPTY, tok);
   }
 
-  Vector *outputs = NULL, *inputs = NULL;
+  Vector *outputs = NULL, *inputs = NULL, *clobbers, *labels;
   if (match(TK_COLON)) {
-    outputs = parse_asm_arg();
+    outputs = parse_asm_arg(true);
     if (match(TK_COLON)) {
-      inputs = parse_asm_arg();
+      inputs = parse_asm_arg(true);
+      if (match(TK_COLON)) {
+        clobbers = parse_asm_arg(false);
+        if (match(TK_COLON)) {
+          labels = parse_asm_arg(false);
+        }
+      }
     }
   }
+  UNUSED(clobbers);  // TODO
+  UNUSED(labels);  // TODO
 
   consume(TK_RPAR, "`)' expected");
   consume(TK_SEMICOL, "`;' expected");
@@ -877,9 +885,44 @@ static bool is_weak_attr(Table *attributes) {
           table_try_get(attributes, alloc_cname("__weak__"), NULL));
 }
 
-static void handle_attribute(VarInfo *varinfo, Table *attributes) {
+static void handle_attribute(
+    VarInfo *varinfo, Table *attributes, Initializer *init, const Token *err_token) {
   if (is_weak_attr(attributes))
     varinfo->storage |= VS_WEAK;
+
+  const Name *alias_name = alloc_name("__alias__", NULL, false);
+  const Name *alias_name2 = alloc_name("alias", NULL, false);
+  Vector *exprs;
+  if (table_try_get(attributes, alias_name, (void**)&exprs) ||
+      table_try_get(attributes, alias_name2, (void**)&exprs)) {
+    const Expr *target;
+    if (init != NULL) {
+      parse_error(PE_NOFATAL, init->token, "__alias__ with initializer");
+      return;
+    }
+    if (exprs->len != 1 ||
+        (target = exprs->data[0], target->kind != EX_STR || target->str.kind != STR_CHAR)) {
+      const Token *tok = exprs->len > 0 ? ((Expr*)exprs->data[0])->token : err_token;
+      parse_error(PE_NOFATAL, tok, "string expected for `__alias__'");
+      return;
+    }
+
+    const Name *target_name = alloc_name(target->str.buf, NULL, false);
+    VarInfo *target_varinfo = scope_find(global_scope, target_name, NULL);
+    if (target_varinfo == NULL) {
+      parse_error(PE_NOFATAL, target->token, "`%.*s' undefined", NAMES(target_name));
+      return;
+    }
+
+    // Add referred.
+    Vector *refs = varinfo->global.referred_globals;
+    if (refs == NULL)
+      varinfo->global.referred_globals = refs = new_vector();
+    vec_push(refs, target_varinfo);
+
+    varinfo->global.alias = target_varinfo;
+    target_varinfo->storage |= VS_USED;  // TODO!
+  }
 }
 
 // <function-definition> ::= {<declaration-specifier>}* <declarator> {<declaration>}* <compound-statement>
@@ -904,7 +947,7 @@ static Declaration *parse_defun(Type *functype, int storage, Token *ident, const
     varinfo->global.func = func;
   }
   if (attributes != NULL)
-    handle_attribute(varinfo, attributes);
+    handle_attribute(varinfo, attributes, NULL, ident);
 
   assert(curfunc == NULL);
   assert(is_global_scope(curscope));
@@ -1036,7 +1079,7 @@ static void parse_global_var_decl(ParsedTypeInfo *tinfo, Type *type, Vector *dec
       }
 
       if (varinfo != NULL && attributes != NULL)
-        handle_attribute(varinfo, attributes);
+        handle_attribute(varinfo, attributes, init, tinfo->ident);
     }
 
     if (!match(TK_COMMA))

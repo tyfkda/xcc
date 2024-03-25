@@ -86,6 +86,7 @@ typedef struct {
   enum SymInfoKind kind;
   uint32_t flags;
   uint32_t local_index;  // Local index.
+  uint32_t combined_index;
   union {
     struct {
       uint32_t type_index;
@@ -115,8 +116,6 @@ typedef struct {
       uint8_t wtype;
     } table;
   };
-
-  uint32_t combined_index;
 } SymbolInfo;
 
 typedef struct DataSegmentForLink {
@@ -152,8 +151,9 @@ typedef struct WasmObj {
     Vector *tables;     // <SymbolInfo*>
   } import;
   struct {
-    Vector *symtab;     // <SymbolInfo*>
+    Vector *symtab;      // <SymbolInfo*>
     Vector *init_funcs;  // <SymbolInfo*>
+    Vector *func_symtab; // <SymbolInfo*>
     bool exists;
   } linking;
   Vector *types;  // <int>

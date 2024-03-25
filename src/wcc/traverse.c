@@ -1010,6 +1010,8 @@ static inline void assign_symbol_index(void) {
   }
 
   // Assign linking index to globals.
+  Vector alias_vars;
+  vec_init(&alias_vars);
   uint32_t global_index = 0;
   uint32_t data_index = 0;
   for (int k = 0; k < 3; ++k) {  // 0=unresolved, 1=resolved(data), 2=resolved(bss)
@@ -1020,9 +1022,21 @@ static inline void assign_symbol_index(void) {
       const VarInfo *varinfo = gvinfo->varinfo;
       assert(!(varinfo->storage & VS_ENUM_MEMBER || varinfo->type->kind == TY_FUNC));
       assert(!((varinfo->storage & (VS_STATIC | VS_USED)) == VS_STATIC));
-      if ((k == 0 && !(gvinfo->flag & GVF_UNRESOLVED)) ||
-          (k != 0 && ((gvinfo->flag & GVF_UNRESOLVED) || (varinfo->global.init == NULL) == (k == 1))))
-        continue;
+      switch (k) {
+      case 0:
+        if (!(gvinfo->flag & GVF_UNRESOLVED))
+          continue;
+        if (varinfo->global.alias != NULL) {
+          vec_push(&alias_vars, gvinfo);
+          continue;
+        }
+        break;
+      default:
+        if ((gvinfo->flag & GVF_UNRESOLVED) ||
+            (varinfo->global.init == NULL) == (k == 1))
+          continue;
+        break;
+      }
       if (!is_global_datasec_var(varinfo, global_scope)) {
         gvinfo->item_index = gvinfo->prim.index = global_index++;
       } else if (!(varinfo->storage & VS_EXTERN)) {
@@ -1035,6 +1049,22 @@ static inline void assign_symbol_index(void) {
               gvinfo->symbol_index);
     }
   }
+  if (alias_vars.len > 0) {
+    VERBOSES("### Globals(alias)\n");
+    // Alias.
+    for (int i = 0; i < alias_vars.len; ++i) {
+      GVarInfo *gvinfo = alias_vars.data[i];
+      const VarInfo *varinfo = gvinfo->varinfo;
+      const VarInfo *target = varinfo->global.alias;
+      GVarInfo *target2 = table_get(&gvar_info_table, target->ident->ident);
+      assert(target2 != NULL);
+      gvinfo->item_index = target2->item_index;
+      gvinfo->symbol_index = symbol_index++;
+      VERBOSE("%2d: %.*s (%d)\n", gvinfo->item_index, NAMES(varinfo->ident->ident),
+              gvinfo->symbol_index);
+    }
+  }
+  vec_release(&alias_vars);
 
   // Table
   for (int i = 0, len = tables->len; i < len; ++i) {
@@ -1054,12 +1084,18 @@ static inline void assign_function_index(Vector *decls) {
   VERBOSES("### Functions\n");
   int32_t index = 0;
 
+  Vector alias_funcs;
+  vec_init(&alias_funcs);
   { // Put external function first.
     const Name *name;
     FuncInfo *finfo;
     for (int it = 0; (it = table_iterate(&func_info_table, it, &name, (void**)&finfo)) != -1; ) {
       if (finfo->func != NULL || finfo->flag == 0 || is_function_omitted(finfo->varinfo, NULL))
         continue;
+      if (finfo->varinfo->global.alias != NULL) {
+        vec_push(&alias_funcs, finfo);
+        continue;
+      }
       finfo->index = index++;
       VERBOSE("%2d: %.*s  (import)\n", finfo->index, NAMES(name));
     }
@@ -1081,6 +1117,13 @@ static inline void assign_function_index(Vector *decls) {
       VERBOSE("%2d: %.*s\n", finfo->index, NAMES(name));
     }
   }
+  // Alias.
+  for (int i = 0; i < alias_funcs.len; ++i) {
+    FuncInfo *finfo = alias_funcs.data[i];
+    finfo->index = index++;
+    VERBOSE("%2d: %.*s  (alias: %.*s)\n", finfo->index, NAMES(finfo->func_name), NAMES(finfo->varinfo->global.alias->ident->ident));
+  }
+  vec_release(&alias_funcs);
   VERBOSES("\n");
 }
 

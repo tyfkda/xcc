@@ -71,6 +71,7 @@ const SHT_DYNSYM        = 11
 const SHT_INIT_ARRAY    = 14
 const SHT_FINI_ARRAY    = 15
 const SHT_PREINIT_ARRAY = 16
+const SHT_GNU_HASH      = 0x6ffffff6
 
 const SHT_LOPROC        = 0x70000000
 const SHT_HIPROC        = 0x7fffffff
@@ -147,6 +148,7 @@ const SectionTypeNames = new Map([
   [SHT_INIT_ARRAY, 'SHT_INIT_ARRAY'],
   [SHT_FINI_ARRAY, 'SHT_FINI_ARRAY'],
   [SHT_PREINIT_ARRAY, 'SHT_PREINIT_ARRAY'],
+  [SHT_GNU_HASH, 'SHT_GNU_HASH'],
   [SHT_RISCV_ATTRIBUTES, 'SHT_RISCV_ATTRIBUTES'],
 ])
 
@@ -284,9 +286,13 @@ class ElfAnalyzer {
     default:
       {
         let type = SectionTypeNames.get(section.sh_type)
-        const m = type.match(/^SHT_(.*)/)
-        if (m)
-          type = m[1].toLowerCase()
+        if (type == null) {
+          type = `0x${section.sh_type.toString(16)}`
+        } else {
+          const m = type.match(/^SHT_(.*)/)
+          if (m)
+            type = m[1].toLowerCase()
+        }
         return {type}
       }
     }

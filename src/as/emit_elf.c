@@ -64,23 +64,29 @@ static int construct_symtab(Symtab *symtab, Vector *sections, Table *label_table
       continue;
     }
     sym = symtab_add(symtabs[bind], name);
+
+    LabelInfo *target = label;
+    if (label->alias != NULL) {
+      target = table_get(label_table, label->alias);
+      assert(target != NULL);
+    }
     int type;
-    switch (label->kind) {
+    switch (target->kind) {
     default: assert(false);  // Fallthrough to suppress warning.
     case LK_NONE:    type = STT_NOTYPE; break;
     case LK_FUNC:    type = STT_FUNC; break;
     case LK_OBJECT:  type = STT_OBJECT; break;
     }
     sym->st_info = ELF64_ST_INFO(bind, type);
-    sym->st_value = (label->flag & LF_DEFINED) ? label->address - label->section->start_address : 0;
-    sym->st_size = label->size;
-    assert(label->section == NULL || label->section->index > 0);
+    sym->st_value = (target->flag & LF_DEFINED) ? target->address - target->section->start_address : 0;
+    sym->st_size = target->size;
+    assert(target->section == NULL || target->section->index > 0);
     Elf64_Section shndx = SHN_UNDEF;
-    if (label->section != NULL) {
-      if ((label->flag & (LF_COMM | LF_GLOBAL)) == (LF_COMM | LF_GLOBAL))
+    if (target->section != NULL) {
+      if ((target->flag & (LF_COMM | LF_GLOBAL)) == (LF_COMM | LF_GLOBAL))
         shndx = SHN_COMMON;
       else
-        shndx = label->section->index;  // Symbol index for Local section.
+        shndx = target->section->index;  // Symbol index for Local section.
     }
     sym->st_shndx = shndx;
   }
