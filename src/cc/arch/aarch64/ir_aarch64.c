@@ -155,11 +155,11 @@ static bool is_got(const Name *name) {
 
 static void ei_bofs(IR *ir) {
   const char *dst = kReg64s[ir->dst->phys];
-  int ofs = ir->bofs.frameinfo->offset;
-  if (is_im13(ofs)) {
-    ADD(dst, FP, IM(ofs));
+  int64_t offset = ir->bofs.frameinfo->offset + ir->bofs.offset;
+  if (is_im13(offset)) {
+    ADD(dst, FP, IM(offset));
   } else {
-    mov_immediate(dst, ofs, true, false);
+    mov_immediate(dst, offset, true, false);
     ADD(dst, dst, FP);
   }
 }
@@ -171,11 +171,11 @@ static void ei_iofs(IR *ir) {
   label = quote_label(label);
   const char *dst = kReg64s[ir->dst->phys];
   if (!is_got(ir->iofs.label)) {
-    ADRP(dst, LABEL_AT_PAGE(label));
-    ADD(dst, dst, LABEL_AT_PAGEOFF(label));
+    ADRP(dst, LABEL_AT_PAGE(label, ir->iofs.offset));
+    ADD(dst, dst, LABEL_AT_PAGEOFF(label, ir->iofs.offset));
   } else {
-    ADRP(dst, LABEL_AT_GOTPAGE(label));
-    LDR(dst, fmt("[%s,#%s]", dst, LABEL_AT_GOTPAGEOFF(label)));
+    ADRP(dst, LABEL_AT_GOTPAGE(label, ir->iofs.offset));
+    LDR(dst, fmt("[%s,#%s]", dst, LABEL_AT_GOTPAGEOFF(label, ir->iofs.offset)));
   }
 }
 
@@ -610,8 +610,8 @@ static void ei_tjmp(IR *ir) {
   const char *dst = kRegSizeTable[3][ir->opr2->phys];
   const Name *table_label = alloc_label();
   char *label = fmt_name(table_label);
-  ADRP(dst, LABEL_AT_PAGE(label));
-  ADD(dst, dst, LABEL_AT_PAGEOFF(label));
+  ADRP(dst, LABEL_AT_PAGE(label, 0));
+  ADD(dst, dst, LABEL_AT_PAGEOFF(label, 0));
   // dst = label + (opr1 << 3)
   LDR(dst, REG_OFFSET(dst, kRegSizeTable[pows][phys], pows < powd ? _UXTW(3) : _LSL(3)));
   BR(dst);

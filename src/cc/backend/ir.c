@@ -38,6 +38,7 @@ static IR *new_ir(enum IrKind kind) {
 }
 
 VReg *new_const_vreg(int64_t value, enum VRegSize vsize) {
+  assert(curra != NULL);
   return reg_alloc_spawn_const(curra, value, vsize);
 }
 
@@ -197,6 +198,7 @@ VReg *new_ir_bofs(FrameInfo *fi) {
   assert(fi != NULL);
   IR *ir = new_ir(IR_BOFS);
   ir->bofs.frameinfo = fi;
+  ir->bofs.offset = 0;
   return ir->dst = reg_alloc_spawn(curra, vtVoidPtr, 0);
 }
 
@@ -204,6 +206,7 @@ VReg *new_ir_iofs(const Name *label, bool global) {
   IR *ir = new_ir(IR_IOFS);
   ir->iofs.label = label;
   ir->iofs.global = global;
+  ir->iofs.offset = 0;
   return ir->dst = reg_alloc_spawn(curra, vtVoidPtr, 0);
 }
 

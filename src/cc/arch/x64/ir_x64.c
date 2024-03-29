@@ -105,7 +105,8 @@ static bool is_got(const Name *name) {
 }
 
 static void ei_bofs(IR *ir) {
-  LEA(OFFSET_INDIRECT(ir->bofs.frameinfo->offset, RBP, NULL, 1), kReg64s[ir->dst->phys]);
+  int64_t offset = ir->bofs.frameinfo->offset + ir->bofs.offset;
+  LEA(OFFSET_INDIRECT(offset, RBP, NULL, 1), kReg64s[ir->dst->phys]);
 }
 
 static void ei_iofs(IR *ir) {
@@ -115,9 +116,9 @@ static void ei_iofs(IR *ir) {
   label = quote_label(label);
   const char *dst = kReg64s[ir->dst->phys];
   if (!is_got(ir->iofs.label))
-    LEA(LABEL_INDIRECT(label, RIP), dst);
+    LEA(LABEL_INDIRECT(label, ir->iofs.offset, RIP), dst);
   else
-    MOV(LABEL_INDIRECT(GOTPCREL(label), RIP), dst);
+    MOV(LABEL_INDIRECT(GOTPCREL(label), ir->iofs.offset, RIP), dst);
 }
 
 static void ei_sofs(IR *ir) {
@@ -587,7 +588,7 @@ static void ei_tjmp(IR *ir) {
   const char *opr2 = kReg64s[ir->opr2->phys];
 
   const Name *table_label = alloc_label();
-  LEA(LABEL_INDIRECT(fmt_name(table_label), RIP), opr2);
+  LEA(LABEL_INDIRECT(fmt_name(table_label), 0, RIP), opr2);
   JMP(fmt("*%s", OFFSET_INDIRECT(0, opr2, kReg64s[phys], 8)));
 
   _RODATA();  // gcc warns, should be put into .data section?

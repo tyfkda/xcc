@@ -50,7 +50,12 @@ char *offset_indirect(int offset, const char *base, const char *index, int scale
   }
 }
 
-char *label_indirect(const char *label, const char *reg) {
+char *label_indirect(const char *label, int64_t offset, const char *reg) {
+  if (offset > 0) {
+    return fmt("%s+%" PRId64 "(%s)", label, offset, reg);
+  } else if (offset < 0) {
+    return fmt("%s-%" PRId64 "(%s)", label, -offset, reg);
+  }
   return fmt("%s(%s)", label, reg);
 }
 

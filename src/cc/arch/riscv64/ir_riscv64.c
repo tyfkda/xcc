@@ -3,6 +3,7 @@
 #include "ir.h"
 
 #include <assert.h>
+#include <inttypes.h>
 #include <stdlib.h>  // malloc
 #include <string.h>
 
@@ -80,11 +81,11 @@ bool is_im12(intptr_t x) {
 
 static void ei_bofs(IR *ir) {
   const char *dst = kReg64s[ir->dst->phys];
-  int ofs = ir->bofs.frameinfo->offset;
-  if (is_im12(ofs)) {
-    ADDI(dst, FP, IM(ofs));
+  int64_t offset = ir->bofs.frameinfo->offset + ir->bofs.offset;
+  if (is_im12(offset)) {
+    ADDI(dst, FP, IM(offset));
   } else {
-    LI(dst, IM(ofs));
+    LI(dst, IM(offset));
     ADD(dst, dst, FP);
   }
 }
@@ -95,7 +96,17 @@ static void ei_iofs(IR *ir) {
     label = MANGLE(label);
   label = quote_label(label);
   const char *dst = kReg64s[ir->dst->phys];
-  LA(dst, label);
+  if (ir->iofs.offset == 0)
+    LA(dst, label);
+  else {
+    int64_t offset = ir->iofs.offset;
+    char op = '+';
+    if (offset < 0) {
+      op = '-';
+      offset = -offset;
+    }
+    LA(dst, fmt("%s %c %" PRId64, label, op, offset));
+  }
 }
 
 static void ei_sofs(IR *ir) {

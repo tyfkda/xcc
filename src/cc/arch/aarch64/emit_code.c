@@ -41,7 +41,22 @@ char *reg_offset(const char *base, const char *reg, const char *shift) {
   return fmt("[%s,%s]", base, reg);
 }
 
-char *label_at_page(char *label, int flag) {
+char *label_at_page(char *label, int flag, int64_t offset) {
+  if (offset != 0) {
+#if XCC_TARGET_PLATFORM == XCC_PLATFORM_APPLE
+    static const char *s[] = {
+      "%s+%" PRId64 "@PAGE", "%s+%" PRId64 "@PAGEOFF",
+      "%s+%" PRId64 "@GOTPAGE", "%s+%" PRId64 "@GOTPAGEOFF",
+    };
+#else
+    static const char *s[] = {
+      "%s+%" PRId64, ":lo12:%s+%" PRId64,
+      ":got:%s+%" PRId64, ":got_lo12:%s+%" PRId64,
+    };
+#endif
+    return fmt(s[flag], label, offset);
+  }
+
 #if XCC_TARGET_PLATFORM == XCC_PLATFORM_APPLE
   static const char *s[] = {
     "%s@PAGE", "%s@PAGEOFF",

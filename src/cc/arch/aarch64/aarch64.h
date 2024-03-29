@@ -23,16 +23,16 @@
 #define REG_OFFSET(base, reg, scale)  reg_offset(base, reg, scale)
 #endif
 #ifndef LABEL_AT_PAGE
-#define LABEL_AT_PAGE(label)  label_at_page(label, 0)
+#define LABEL_AT_PAGE(label, offset)  label_at_page(label, 0, offset)
 #endif
 #ifndef LABEL_AT_PAGEOFF
-#define LABEL_AT_PAGEOFF(label)  label_at_page(label, 1)
+#define LABEL_AT_PAGEOFF(label, offset)  label_at_page(label, 1, offset)
 #endif
 #ifndef LABEL_AT_GOTPAGE
-#define LABEL_AT_GOTPAGE(label)  label_at_page(label, 2)
+#define LABEL_AT_GOTPAGE(label, offset)  label_at_page(label, 2, offset)
 #endif
 #ifndef LABEL_AT_GOTPAGEOFF
-#define LABEL_AT_GOTPAGEOFF(label)  label_at_page(label, 3)
+#define LABEL_AT_GOTPAGEOFF(label, offset)  label_at_page(label, 3, offset)
 #endif
 
 #define _UXTW(shift)  fmt("uxtw #%d", shift)

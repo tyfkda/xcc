@@ -12,7 +12,7 @@
 #define OFFSET_INDIRECT(ofs, base, index, scale)  offset_indirect(ofs, base, index, scale)
 #endif
 #ifndef LABEL_INDIRECT
-#define LABEL_INDIRECT(label, x)  label_indirect(label, x)
+#define LABEL_INDIRECT(label, offset, x)  label_indirect(label, offset, x)
 #endif
 #ifndef GOTPCREL
 #define GOTPCREL(label)  gotpcrel(label)

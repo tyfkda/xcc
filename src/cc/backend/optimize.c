@@ -196,7 +196,61 @@ static void remove_unused_vregs(RegAlloc *ra, BBContainer *bbcon) {
 
 //
 
+static void peephole(RegAlloc *ra, BB *bb) {
+  for (int i = 0; i < bb->irs->len; ++i) {
+    IR *ir = bb->irs->data[i];
+    switch (ir->kind) {
+    case IR_BOFS:
+    case IR_IOFS:
+      if (i < bb->irs->len - 1) {
+        IR *next = bb->irs->data[i + 1];
+        if ((next->kind == IR_ADD || next->kind == IR_SUB) &&
+            next->opr1 == ir->dst && next->opr2->flag & VRF_CONST) {
+          // Overwrite next IR. Current IR should be eliminated because of dst is unused.
+          VReg *dst = next->dst;
+          int64_t offset = next->opr2->fixnum;
+          if (next->kind == IR_SUB)
+            offset = -offset;
+          *next = *ir;
+          next->dst = dst;
+          if (ir->kind == IR_BOFS)
+            next->bofs.offset += offset;
+          else
+            next->iofs.offset += offset;
+        }
+      }
+      break;
+    case IR_ADD:
+      if (ir->opr2->flag & VRF_CONST && i < bb->irs->len - 1) {
+        IR *next = bb->irs->data[i + 1];
+        if ((next->kind == IR_ADD || next->kind == IR_SUB) &&
+            next->opr1 == ir->dst && next->opr2->flag & VRF_CONST) {
+          // Overwrite next IR. Current IR should be eliminated because of dst is unused.
+          VReg *dst = next->dst;
+          VReg *opr2 = ir->opr2;
+          int64_t value = next->opr2->fixnum;
+          if (next->kind == IR_SUB)
+            value = -value;
+          value += opr2->fixnum;
+          *next = *ir;
+          next->dst = dst;
+          next->opr2 = reg_alloc_spawn_const(ra, value, opr2->vsize);
+        }
+      }
+      break;
+    default:
+      break;
+    }
+  }
+}
+
 void optimize(RegAlloc *ra, BBContainer *bbcon) {
+  // Peephole
+  for (int i = 0; i < bbcon->bbs->len; ++i) {
+    BB *bb = bbcon->bbs->data[i];
+    peephole(ra, bb);
+  }
+
   remove_unused_vregs(ra, bbcon);
   remove_unnecessary_bb(bbcon);
   detect_from_bbs(bbcon);

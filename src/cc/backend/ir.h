@@ -128,9 +128,11 @@ typedef struct IR {
   union {
     struct {
       FrameInfo *frameinfo;
+      int64_t offset;
     } bofs;
     struct {
       const Name *label;
+      int64_t offset;
       bool global;
     } iofs;
     struct {
