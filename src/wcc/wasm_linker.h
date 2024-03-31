@@ -4,7 +4,7 @@
 #include <stdint.h>
 #include <stdio.h>
 
-#include <table.h>
+#include "table.h"
 
 typedef struct File File;
 typedef struct Vector Vector;

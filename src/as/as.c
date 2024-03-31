@@ -409,9 +409,6 @@ static int output_obj(const char *ofn, Table *label_table, Vector *unresolved) {
 
 int main(int argc, char *argv[]) {
   const char *ofn = NULL;
-  enum {
-    OPT_LOCAL_LABEL_PREFIX = 256,
-  };
   static const struct option options[] = {
     {"o", required_argument},  // Specify output filename
     {"-version", no_argument, 'V'},
