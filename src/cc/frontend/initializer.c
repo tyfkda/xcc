@@ -400,7 +400,11 @@ static void store_to_current_position(InitFlattener *flattener, Initializer *ini
       elem_init = reserve_init_for_multi(elem_type, init->token);
       target->multi->data[index] = elem_init;
     }
-    assert(elem_init->kind == IK_MULTI);
+    if (elem_init->kind != IK_MULTI) {
+      parse_error(PE_WARNING, init->token, "Initializer overlapped");
+      elem_init = reserve_init_for_multi(elem_type, init->token);
+      target->multi->data[index] = elem_init;
+    }
     type = elem_type;
     target = elem_init;
   }
