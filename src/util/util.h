@@ -57,15 +57,6 @@ int64_t wrap_value(int64_t value, int size, bool is_unsigned);
 
 // Container
 
-typedef struct Buffer {
-  unsigned char *data;
-  size_t capa;
-  size_t size;
-} Buffer;
-
-void buf_put(Buffer *buf, const void *data, size_t bytes);
-void buf_align(Buffer *buf, int align);
-
 typedef struct Vector {
   void **data;
   int capacity;
@@ -81,6 +72,30 @@ void *vec_pop(Vector *vec);
 void vec_insert(Vector *vec, int pos, const void *elem);
 void vec_remove_at(Vector *vec, int index);
 bool vec_contains(Vector *vec, void *elem);
+
+// DataStorage
+
+typedef struct DataStorage {
+  Vector *chunk_stack;
+  unsigned char *buf;
+  size_t capacity;
+  size_t len;
+} DataStorage;
+
+void data_release(DataStorage *data);
+void data_init(DataStorage *data);
+void data_reserve(DataStorage *data, size_t capacity);
+void data_insert(DataStorage *data, ssize_t pos, const unsigned char *buf, size_t size);
+void data_append(DataStorage *data, const unsigned char *buf, size_t size);
+void data_push(DataStorage *data, unsigned char c);
+void data_align(DataStorage *data, int align);
+void data_concat(DataStorage *dst, DataStorage *src);
+void data_leb128(DataStorage *data, ssize_t pos, int64_t val);
+void data_uleb128(DataStorage *data, ssize_t pos, uint64_t val);
+void data_string(DataStorage *data, const void *str, size_t len);
+void data_open_chunk(DataStorage *data);
+void data_close_chunk(DataStorage *data, ssize_t num);
+void data_varuint32(DataStorage *data, ssize_t pos, uint64_t val);
 
 // StringBuffer
 

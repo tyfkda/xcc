@@ -145,27 +145,6 @@ TagInfo *getsert_tag(const Name *name, int typeindex);
 
 void write_wasm_header(FILE *ofp);
 
-typedef struct DataStorage {
-  Vector *chunk_stack;
-  unsigned char *buf;
-  size_t capacity;
-  size_t len;
-} DataStorage;
-
-void data_release(DataStorage *data);
-void data_init(DataStorage *data);
-void data_reserve(DataStorage *data, size_t capacity);
-void data_insert(DataStorage *data, ssize_t pos, const unsigned char *buf, size_t size);
-void data_append(DataStorage *data, const unsigned char *buf, size_t size);
-void data_push(DataStorage *data, unsigned char c);
-void data_concat(DataStorage *dst, DataStorage *src);
-void data_leb128(DataStorage *data, ssize_t pos, int64_t val);
-void data_uleb128(DataStorage *data, ssize_t pos, uint64_t val);
-void data_string(DataStorage *data, const void *str, size_t len);
-void data_open_chunk(DataStorage *data);
-void data_close_chunk(DataStorage *data, ssize_t num);
-void data_varuint32(DataStorage *data, ssize_t pos, uint64_t val);
-
 typedef struct FuncExtra {
   Vector *funcall_results;  // [0]=Expr*, [1]=VarInfo*
   DataStorage *code;
