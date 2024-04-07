@@ -65,6 +65,16 @@ struct proghdr {
 #define ET_REL   (1)  // Relocatable file
 #define ET_EXEC  (2)  // Executable file
 
+// Flags
+// RISC-V
+#define EF_RISCV_RVC               (0x01)
+#define EF_RISCV_FLOAT_ABI_SOFT    (0x00)
+#define EF_RISCV_FLOAT_ABI_SINGLE  (0x02)
+#define EF_RISCV_FLOAT_ABI_DOUBLE  (0x04)
+#define EF_RISCV_FLOAT_ABI_QUAD    (0x06)
+#define EF_RISCV_RVE               (0x08)
+#define EF_RISCV_TSO               (0x10)
+
 // Values for Proghdr type
 #define PT_LOAD  (1)
 

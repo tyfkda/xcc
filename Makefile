@@ -28,6 +28,7 @@ ifeq ("$(ARCHTYPE)", "")
 endif
 ARCHTYPE_UPPER:=$(shell echo "$(ARCHTYPE)" | tr \'[a-z]\' \'[A-Z]\')
 
+AS_ARCH_DIR:=$(AS_DIR)/arch/$(ARCHTYPE)
 CC1_ARCH_DIR:=$(CC1_DIR)/arch/$(ARCHTYPE)
 CC1_FE_DIR:=$(CC1_DIR)/frontend
 CC1_BE_DIR:=$(CC1_DIR)/backend
@@ -85,10 +86,13 @@ cc1_SRCS:=$(wildcard $(CC1_FE_DIR)/*.c) $(wildcard $(CC1_BE_DIR)/*.c) $(wildcard
 cpp_SRCS:=$(wildcard $(CPP_DIR)/*.c) \
 	$(CC1_DIR)/lexer.c $(UTIL_DIR)/util.c $(UTIL_DIR)/table.c
 as_SRCS:=$(wildcard $(AS_DIR)/*.c) \
+	$(wildcard $(AS_ARCH_DIR)/*.c) \
 	$(UTIL_DIR)/gen_section.c $(UTIL_DIR)/util.c $(UTIL_DIR)/elfutil.c $(UTIL_DIR)/table.c
 ld_SRCS:=$(wildcard $(LD_DIR)/*.c) $(UTIL_DIR)/archive.c \
 	$(UTIL_DIR)/gen_section.c $(UTIL_DIR)/util.c $(UTIL_DIR)/elfutil.c $(UTIL_DIR)/table.c
 
+src_as_CFLAGS:=-I$(AS_DIR) -I$(AS_ARCH_DIR)
+src_as_arch_$(ARCHTYPE)_CFLAGS:=-I$(AS_DIR) -I$(AS_ARCH_DIR)
 src_cc_CFLAGS:=-I$(CC1_FE_DIR) -I$(CC1_BE_DIR) -I$(CC1_ARCH_DIR)  # arch required for builtin.c
 src_cc_frontend_CFLAGS:=-I$(CC1_FE_DIR)
 src_cc_backend_CFLAGS:=-I$(CC1_FE_DIR) -I$(CC1_BE_DIR) -I$(CC1_ARCH_DIR)
@@ -123,7 +127,7 @@ $(OBJ_DIR)/%.o: $(1)/%.c $(PARENT_DEPS)
 		-c -o $$@ $$<
 endef
 XCC_SRC_DIRS:=$(XCC_DIR) $(CC1_FE_DIR) $(CC1_BE_DIR) $(CC1_DIR) $(CC1_ARCH_DIR) $(CPP_DIR) \
-	$(AS_DIR) $(LD_DIR) $(UTIL_DIR) $(DEBUG_DIR)
+	$(AS_DIR) $(AS_ARCH_DIR) $(LD_DIR) $(UTIL_DIR) $(DEBUG_DIR)
 $(foreach D, $(XCC_SRC_DIRS), $(eval $(call DEFINE_OBJ_TARGET,$(D))))
 
 .PHONY: test

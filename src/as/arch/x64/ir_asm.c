@@ -1,4 +1,4 @@
-#include "../config.h"
+#include "../../../config.h"
 #include "ir_asm.h"
 
 #include <assert.h>
@@ -7,6 +7,7 @@
 
 #include "gen_section.h"
 #include "inst.h"
+#include "parse_asm.h"
 #include "table.h"
 #include "util.h"
 
@@ -158,77 +159,6 @@ static void put_value(unsigned char *p, intptr_t value, int size) {
     *p++ = value;
     value >>= 8;
   }
-}
-
-typedef struct {
-  const Name *label;
-  int64_t offset;
-} Value;
-
-static Value calc_expr(Table *label_table, const Expr *expr) {
-  assert(expr != NULL);
-  switch (expr->kind) {
-  case EX_LABEL:
-    return (Value){.label = expr->label, .offset = 0};
-  case EX_FIXNUM:
-    return (Value){.label = NULL, .offset = expr->fixnum};
-  case EX_ADD:
-  case EX_SUB:
-  case EX_MUL:
-  case EX_DIV:
-    {
-      Value lhs = calc_expr(label_table, expr->bop.lhs);
-      Value rhs = calc_expr(label_table, expr->bop.rhs);
-      if (rhs.label != NULL) {
-        if (expr->kind == EX_SUB && lhs.label != NULL) {
-          LabelInfo *llabel, *rlabel;
-          if (table_try_get(label_table, lhs.label, (void**)&llabel) &&
-              table_try_get(label_table, rhs.label, (void**)&rlabel)) {
-            return (Value){.label = NULL, .offset = llabel->address - rlabel->address};
-          } else {
-            error("Unresolved");
-          }
-        }
-        if (expr->kind != EX_ADD || lhs.label != NULL) {
-          error("Illegal expression");
-        }
-        // offset + label
-        return (Value){.label = rhs.label, .offset = lhs.offset + rhs.offset};
-      }
-      if (lhs.label != NULL) {
-        if (expr->kind != EX_ADD) {
-          error("Illegal expression");
-        }
-        // label + offset
-        return (Value){.label = lhs.label, .offset = lhs.offset + rhs.offset};
-      }
-
-      assert(lhs.label == NULL && rhs.label == NULL);
-      switch (expr->kind) {
-      case EX_ADD:  lhs.offset += rhs.offset; break;
-      case EX_SUB:  lhs.offset -= rhs.offset; break;
-      case EX_MUL:  lhs.offset *= rhs.offset; break;
-      case EX_DIV:  lhs.offset /= rhs.offset; break;
-      default: assert(false); break;
-      }
-      return lhs;
-    }
-
-  case EX_POS:
-  case EX_NEG:
-    {
-      Value value = calc_expr(label_table, expr->unary.sub);
-      if (value.label != NULL) {
-        error("Illegal expression");
-      }
-      if (expr->kind == EX_NEG)
-        value.offset = -value.offset;
-      return value;
-    }
-
-  default: assert(false); break;
-  }
-  return (Value){.label = NULL, .offset = 0};
 }
 
 static bool make_jmp_long(IR *ir) {

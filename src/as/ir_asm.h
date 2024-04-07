@@ -5,7 +5,7 @@
 #include <stddef.h>  // size_t
 #include <stdint.h>  // uintptr_t
 
-#include "asm_x86.h"  // Code
+#include "asm_code.h"  // Code
 
 typedef struct Expr Expr;
 typedef struct Name Name;
