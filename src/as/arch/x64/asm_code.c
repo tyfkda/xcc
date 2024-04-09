@@ -1,5 +1,5 @@
-#include "../config.h"
-#include "asm_x86.h"
+#include "../../../config.h"
+#include "asm_code.h"
 
 #include <assert.h>
 #include <stdlib.h>  // exit

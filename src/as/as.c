@@ -9,7 +9,7 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
-#include "asm_x86.h"
+#include "asm_code.h"
 #include "elfutil.h"
 #include "gen_section.h"
 #include "ir_asm.h"
@@ -130,7 +130,12 @@ static int output_obj(const char *ofn, Table *label_table, Vector *unresolved) {
   uintptr_t entry = 0;
   int phnum = 0;
   int shnum = 11;
-  out_elf_header(ofp, entry, phnum, shnum);
+#if XCC_TARGET_ARCH == XCC_ARCH_RISCV64
+  const int flags = EF_RISCV_RVC | EF_RISCV_FLOAT_ABI_DOUBLE;
+#else
+  const int flags = 0;
+#endif
+  out_elf_header(ofp, entry, phnum, shnum, flags);
 
   uintptr_t addr = sizeof(Elf64_Ehdr);
   uintptr_t code_ofs = addr;
@@ -398,7 +403,7 @@ static int output_obj(const char *ofn, Table *label_table, Vector *unresolved) {
     fwrite(&shstrtabsec, sizeof(shstrtabsec), 1, ofp);
 
     // Write section table offset.
-    fseek(ofp, 0x28, SEEK_SET);
+    fseek(ofp, offsetof(Elf64_Ehdr, e_shoff), SEEK_SET);
     putnum(ofp, sh_ofs, 8);
   }
 

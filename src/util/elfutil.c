@@ -72,7 +72,7 @@ Elf64_Sym *symtab_add(Symtab *symtab, const Name *name) {
 
 //
 
-void out_elf_header(FILE *fp, uintptr_t entry, int phnum, int shnum) {
+void out_elf_header(FILE *fp, uintptr_t entry, int phnum, int shnum, int flags) {
   Elf64_Ehdr ehdr = {
     .e_ident     = { ELFMAG0, ELFMAG1, ELFMAG2 ,ELFMAG3,
                      ELFCLASS64, ELFDATA2LSB, EV_CURRENT, ELFOSABI_SYSV },
@@ -82,7 +82,7 @@ void out_elf_header(FILE *fp, uintptr_t entry, int phnum, int shnum) {
     .e_entry     = entry,
     .e_phoff     = phnum > 0 ? sizeof(Elf64_Ehdr) : 0,
     .e_shoff     = 0, // dummy
-    .e_flags     = 0x0,
+    .e_flags     = flags,
     .e_ehsize    = sizeof(Elf64_Ehdr),
     .e_phentsize = phnum > 0 ? sizeof(Elf64_Phdr) : 0,
     .e_phnum     = phnum,

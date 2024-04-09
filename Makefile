@@ -28,6 +28,7 @@ ifeq ("$(ARCHTYPE)", "")
 endif
 ARCHTYPE_UPPER:=$(shell echo "$(ARCHTYPE)" | tr \'[a-z]\' \'[A-Z]\')
 
+AS_ARCH_DIR:=$(AS_DIR)/arch/$(ARCHTYPE)
 CC1_ARCH_DIR:=$(CC1_DIR)/arch/$(ARCHTYPE)
 CC1_FE_DIR:=$(CC1_DIR)/frontend
 CC1_BE_DIR:=$(CC1_DIR)/backend
@@ -35,8 +36,7 @@ CC1_BE_DIR:=$(CC1_DIR)/backend
 OPTIMIZE:=-O2 -g3
 CFLAGS:=-ansi -std=c11 -pedantic -MMD -Wall -Wextra -Werror -Wold-style-definition \
 	-Wno-missing-field-initializers -Wno-empty-body \
-	-D_DEFAULT_SOURCE $(OPTIMIZE) \
-	-I$(CC1_FE_DIR) -I$(CC1_BE_DIR) -I$(CC1_ARCH_DIR) -I$(UTIL_DIR)
+	-D_DEFAULT_SOURCE $(OPTIMIZE) -I$(UTIL_DIR)
 ifneq ("$(NO_FLONUM)","")
 CFLAGS+=-D__NO_FLONUM
 endif
@@ -86,9 +86,19 @@ cc1_SRCS:=$(wildcard $(CC1_FE_DIR)/*.c) $(wildcard $(CC1_BE_DIR)/*.c) $(wildcard
 cpp_SRCS:=$(wildcard $(CPP_DIR)/*.c) \
 	$(CC1_DIR)/lexer.c $(UTIL_DIR)/util.c $(UTIL_DIR)/table.c
 as_SRCS:=$(wildcard $(AS_DIR)/*.c) \
+	$(wildcard $(AS_ARCH_DIR)/*.c) \
 	$(UTIL_DIR)/gen_section.c $(UTIL_DIR)/util.c $(UTIL_DIR)/elfutil.c $(UTIL_DIR)/table.c
 ld_SRCS:=$(wildcard $(LD_DIR)/*.c) $(UTIL_DIR)/archive.c \
 	$(UTIL_DIR)/gen_section.c $(UTIL_DIR)/util.c $(UTIL_DIR)/elfutil.c $(UTIL_DIR)/table.c
+
+src_as_CFLAGS:=-I$(AS_DIR) -I$(AS_ARCH_DIR)
+src_as_arch_$(ARCHTYPE)_CFLAGS:=-I$(AS_DIR) -I$(AS_ARCH_DIR)
+src_cc_CFLAGS:=-I$(CC1_FE_DIR) -I$(CC1_BE_DIR) -I$(CC1_ARCH_DIR)  # arch required for builtin.c
+src_cc_frontend_CFLAGS:=-I$(CC1_FE_DIR)
+src_cc_backend_CFLAGS:=-I$(CC1_FE_DIR) -I$(CC1_BE_DIR) -I$(CC1_ARCH_DIR)
+src_cc_arch_$(ARCHTYPE)_CFLAGS:=-I$(CC1_FE_DIR) -I$(CC1_BE_DIR)
+src_cpp_CFLAGS:=-I$(CC1_FE_DIR)
+src__debug_CFLAGS:=-I$(CC1_FE_DIR) -I$(CC1_BE_DIR)
 
 .PHONY: all
 all:	exes libs
@@ -112,10 +122,12 @@ $(foreach D, $(EXES), $(eval $(call DEFINE_EXE_TARGET,$(D))))
 define DEFINE_OBJ_TARGET
 $(OBJ_DIR)/%.o: $(1)/%.c $(PARENT_DEPS)
 	@mkdir -p $(OBJ_DIR)
-	$(CC) $(CFLAGS) -DXCC_TARGET_ARCH=XCC_ARCH_$(ARCHTYPE_UPPER)  -c -o $$@ $$<
+	$(CC) $(CFLAGS) -DXCC_TARGET_ARCH=XCC_ARCH_$(ARCHTYPE_UPPER) \
+		$$($(subst /,_,$(1))_CFLAGS) \
+		-c -o $$@ $$<
 endef
 XCC_SRC_DIRS:=$(XCC_DIR) $(CC1_FE_DIR) $(CC1_BE_DIR) $(CC1_DIR) $(CC1_ARCH_DIR) $(CPP_DIR) \
-	$(AS_DIR) $(LD_DIR) $(UTIL_DIR) $(DEBUG_DIR)
+	$(AS_DIR) $(AS_ARCH_DIR) $(LD_DIR) $(UTIL_DIR) $(DEBUG_DIR)
 $(foreach D, $(XCC_SRC_DIRS), $(eval $(call DEFINE_OBJ_TARGET,$(D))))
 
 .PHONY: test
@@ -190,7 +202,7 @@ WCC_OBJ_DIR:=obj/wcc
 WCC_LIB_DIR:=lib
 
 WCC_DIR:=src/wcc
-WCC_CFLAGS:=$(CFLAGS) -I$(CPP_DIR)
+WCC_CFLAGS:=$(CFLAGS) -I$(CPP_DIR) -I$(CC1_FE_DIR)
 
 ifneq ("$(HOST_TARGET)","")
 # Self hosting

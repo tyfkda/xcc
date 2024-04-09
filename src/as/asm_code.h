@@ -1,4 +1,4 @@
-// Generate code for X86
+// Generate code for each architecture.
 
 #pragma once
 
