@@ -63,11 +63,16 @@ inline bool assemble_error(const ParseInfo *info, const char *message) {
 
 #define C_LI(rd, imm)       MAKE_CODE16(inst, code, 0x4001 | (IMM(imm, 5, 5) << 12) | (rd << 7) | (IMM(imm, 4, 0) << 2))
 #define C_LUI(rd, imm)      MAKE_CODE16(inst, code, 0x6001 | (IMM(imm, 5, 5) << 12) | (rd << 7) | (IMM(imm, 4, 0) << 2))
+#define C_ADDI(rd, imm)     MAKE_CODE16(inst, code, 0x0001 | (IMM(imm, 5, 5) << 12) | (rd << 7) | (IMM(imm, 4, 0) << 2))
 #define C_ADDIW(rd, imm)    MAKE_CODE16(inst, code, 0x2001 | (IMM(imm, 5, 5) << 12) | (rd << 7) | (IMM(imm, 4, 0) << 2))
+#define C_LDSP(rd, imm)     MAKE_CODE16(inst, code, 0xe002 | (IMM(imm, 5, 5) << 12) | (rd << 7) | (IMM(imm, 4, 3) << 5) | (IMM(imm, 8, 6) << 2))
+#define C_SDSP(rs, imm)     MAKE_CODE16(inst, code, 0xe002 | (IMM(imm, 5, 3) << 10) | (IMM(imm, 8, 6) << 7) | (rs << 2))
 #define C_JR(rs)            MAKE_CODE16(inst, code, 0x8002 | (rs << 7))
 
 #define ADDI(rd, rs, imm)   ITYPE(imm, rs, 0x00, rd, 0x13)
 #define ADDIW(rd, rs, imm)  ITYPE(imm, rs, 0x00, rd, 0x1b)
+#define AUIPC(rd, imm)      UTYPE(imm, rd, 0x17)
+#define JALR(rd, rs, imm)   ITYPE(imm, rs, 0x00, rd, 0x67)
 #define RET()               C_JR(RA)
 
 #define LI(rd, imm)         ADDI(rd, ZERO, imm)
@@ -100,6 +105,56 @@ static unsigned char *asm_li(Inst *inst, Code *code) {
   return code->buf;
 }
 
+static unsigned char *asm_addi(Inst *inst, Code *code) {
+  int rd = inst->opr1.reg.no;
+  int rs = inst->opr2.reg.no;
+  int64_t imm =inst->opr3.immediate;
+  if (rd == rs && is_im6(imm) && imm != 0) {
+    C_ADDI(rd, imm);
+  } else {
+    // TODO:
+    return NULL;
+  }
+  return code->buf;
+}
+
+static unsigned char *asm_ld(Inst *inst, Code *code) {
+  int rd = inst->opr1.reg.no;
+  Expr *offset = inst->opr2.indirect.offset;
+  if (offset == NULL || offset->kind == EX_FIXNUM) {
+    int64_t imm = offset != NULL ? offset->fixnum : 0;
+    int base_reg = inst->opr2.indirect.reg.no;
+    if (imm >= 0 && imm < (1 << 9) && (imm & 7) == 0 && base_reg == SP) {
+      imm >>= 3;
+      C_LDSP(rd, imm);
+      return code->buf;
+    }
+  }
+  return NULL;
+}
+
+static unsigned char *asm_sd(Inst *inst, Code *code) {
+  int rd = inst->opr1.reg.no;
+  Expr *offset = inst->opr2.indirect.offset;
+  if (offset == NULL || offset->kind == EX_FIXNUM) {
+    int64_t imm = offset != NULL ? offset->fixnum : 0;
+    int base_reg = inst->opr2.indirect.reg.no;
+    if (imm >= 0 && imm < (1 << 9) && (imm & 7) == 0 && base_reg == SP) {
+      imm >>= 3;
+      C_SDSP(rd, imm);
+      return code->buf;
+    }
+  }
+  return NULL;
+}
+
+static unsigned char *asm_call_d(Inst *inst, Code *code) {
+  UNUSED(inst);
+  AUIPC(RA, 0);
+  JALR(RA, RA, 0);
+  return code->buf;
+}
+
 static unsigned char *asm_ret(Inst *inst, Code *code) {
   RET();
   return code->buf;
@@ -119,6 +174,10 @@ typedef struct {
 static const AsmInstTable *table[] = {
   [NOOP] = (const AsmInstTable[]){ {asm_noop, NOOPERAND, NOOPERAND, NOOPERAND}, {NULL} },
   [LI] = (const AsmInstTable[]){ {asm_li, REG, IMMEDIATE, NOOPERAND}, {NULL} },
+  [ADDI] = (const AsmInstTable[]){ {asm_addi, REG, REG, IMMEDIATE}, {NULL} },
+  [LD] = (const AsmInstTable[]){ {asm_ld, REG, INDIRECT, NOOPERAND}, {NULL} },
+  [SD] = (const AsmInstTable[]){ {asm_sd, REG, INDIRECT, NOOPERAND}, {NULL} },
+  [CALL] = (const AsmInstTable[]){ {asm_call_d, DIRECT, NOOPERAND, NOOPERAND}, {NULL} },
   [RET] = (const AsmInstTable[]){ {asm_ret, NOOPERAND, NOOPERAND, NOOPERAND}, {NULL} },
 };
 

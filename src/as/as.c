@@ -222,6 +222,27 @@ static int output_obj(const char *ofn, Table *label_table, Vector *unresolved) {
         }
       }
       break;
+    case UNRES_RISCV_CALL:
+      {
+        Elf64_Sym *sym = symtab_add(&symtab, u->label);
+        sym->st_info = ELF64_ST_INFO(STB_GLOBAL, STT_NOTYPE);
+        size_t index = sym - symtab.buf;
+
+        rela->r_offset = u->offset;
+        rela->r_info = ELF64_R_INFO(index, R_RISCV_CALL);
+        rela->r_addend = u->add;
+      }
+      break;
+    case UNRES_RISCV_RELAX:
+      {
+        Elf64_Sym *sym = symtab_add(&symtab, u->label);
+        sym->st_info = ELF64_ST_INFO(STB_GLOBAL, STT_NOTYPE);
+
+        rela->r_offset = u->offset;
+        rela->r_info = ELF64_R_INFO(0, R_RISCV_RELAX);
+        rela->r_addend = u->add;
+      }
+      break;
     }
   }
 
