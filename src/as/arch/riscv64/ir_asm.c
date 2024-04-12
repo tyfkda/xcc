@@ -130,12 +130,58 @@ bool resolve_relative_address(Vector **section_irs, Table *label_table, Vector *
         {
           Inst *inst = ir->code.inst;
           switch (inst->op) {
+          case LA:
+            assert(inst->opr3.type == DIRECT);
+            if (inst->opr2.type == DIRECT) {
+              Value value = calc_expr(label_table, inst->opr2.direct.expr);
+              if (value.label != NULL) {
+                uintptr_t offset = address - start_address;
+                UnresolvedInfo *info;
+                info = calloc_or_die(sizeof(*info));
+                info->kind = UNRES_RISCV_PCREL_HI20;
+                info->label = value.label;
+                info->src_section = sec;
+                info->offset = offset;
+                info->add = value.offset;
+                vec_push(unresolved, info);
+
+                info = calloc_or_die(sizeof(*info));
+                info->kind = UNRES_RISCV_RELAX;
+                info->label = value.label;
+                info->src_section = sec;
+                info->offset = offset;
+                info->add = value.offset;
+                vec_push(unresolved, info);
+
+                // hilabel points to AUIPC instruction, just above one.
+                assert(inst->opr3.direct.expr->kind == EX_LABEL);
+                const Name *hilabel = inst->opr3.direct.expr->label;
+                info = calloc_or_die(sizeof(*info));
+                info->kind = UNRES_RISCV_PCREL_LO12_I;
+                info->label = hilabel;
+                info->src_section = sec;
+                info->offset = offset + 4;
+                info->add = 0;
+                vec_push(unresolved, info);
+
+                info = calloc_or_die(sizeof(*info));
+                info->kind = UNRES_RISCV_RELAX;
+                info->label = hilabel;
+                info->src_section = sec;
+                info->offset = offset + 4;
+                info->add = 0;
+                vec_push(unresolved, info);
+                break;
+              }
+            }
+            break;
           case CALL:
             if (inst->opr1.type == DIRECT) {
               Value value = calc_expr(label_table, inst->opr1.direct.expr);
               if (value.label != NULL) {
                 // Put rela even if the label is defined in the same object file.
-                UnresolvedInfo *info = malloc_or_die(sizeof(*info));
+                UnresolvedInfo *info;
+                info = calloc_or_die(sizeof(*info));
                 info->kind = UNRES_RISCV_CALL;
                 info->label = value.label;
                 info->src_section = sec;
@@ -143,7 +189,7 @@ bool resolve_relative_address(Vector **section_irs, Table *label_table, Vector *
                 info->add = value.offset;
                 vec_push(unresolved, info);
 
-                info = malloc_or_die(sizeof(*info));
+                info = calloc_or_die(sizeof(*info));
                 info->kind = UNRES_RISCV_RELAX;
                 info->label = value.label;
                 info->src_section = sec;

@@ -20,6 +20,8 @@ enum UnresolvedKind {
 
   UNRES_RISCV_CALL,
   UNRES_RISCV_RELAX,
+  UNRES_RISCV_PCREL_HI20,
+  UNRES_RISCV_PCREL_LO12_I,
 };
 
 typedef struct {

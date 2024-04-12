@@ -10,6 +10,7 @@ typedef struct Expr Expr;
 enum Opcode {
   NOOP,
   LI,
+  LA,
   ADDI,
   LD,
   SD,
@@ -32,7 +33,7 @@ enum OperandType {
   NOOPERAND,
   REG,        // reg
   IMMEDIATE,  // 1234
-  DIRECT,     // foobar
+  DIRECT,     // foobar + 345
   INDIRECT,   // ofs(reg)
 };
 

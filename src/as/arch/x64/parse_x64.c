@@ -416,7 +416,8 @@ static bool parse_operand(ParseInfo *info, Operand *operand) {
   return false;
 }
 
-void parse_inst(ParseInfo *info, Inst *inst) {
+void parse_inst(ParseInfo *info, Line *line) {
+  Inst *inst  = &line->inst;
   Operand *opr_table[] = {&inst->src, &inst->dst};
   for (int i = 0; i < (int)ARRAY_SIZE(opr_table); ++i)
     opr_table[i]->type = NOOPERAND;

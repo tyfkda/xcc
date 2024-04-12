@@ -268,6 +268,17 @@ static int output_obj(const char *ofn, Table *label_table, Vector *unresolved) {
         rela->r_addend = u->add;
       }
       break;
+    case UNRES_RISCV_PCREL_HI20:
+    case UNRES_RISCV_PCREL_LO12_I:
+      {
+        int symidx = symtab_find(&symtab, u->label);
+        assert(symidx >= 0);
+
+        rela->r_offset = u->offset;
+        rela->r_info = ELF64_R_INFO(symidx, u->kind == UNRES_RISCV_PCREL_HI20 ? R_RISCV_PCREL_HI20 : R_RISCV_PCREL_LO12_I);
+        rela->r_addend = u->add;
+      }
+      break;
     }
   }
 

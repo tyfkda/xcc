@@ -353,7 +353,7 @@ static const Token *match(ParseInfo *info, enum TokenKind kind) {
   return token;
 }
 
-static Expr *new_expr(enum ExprKind kind) {
+Expr *new_expr(enum ExprKind kind) {
   Expr *expr = malloc_or_die(sizeof(*expr));
   expr->kind = kind;
   return expr;
@@ -535,7 +535,7 @@ Line *parse_line(ParseInfo *info) {
       info->p = r;
     } else if (*p != '\0') {
       info->p = p;
-      parse_inst(info, &line->inst);
+      parse_inst(info, line);
       check_line_end(info);
     }
   }
@@ -679,11 +679,11 @@ void handle_directive(ParseInfo *info, enum DirectiveType dir, Vector **section_
     {
       const Name *label = parse_label(info);
       if (label == NULL) {
-        parse_error(info, ".comm: label expected");
+        parse_error(info, ".type: label expected");
         break;
       }
       if (*info->p != ',') {
-        parse_error(info, ".comm: `,' expected");
+        parse_error(info, ".type: `,' expected");
         break;
       }
       info->p = skip_whitespaces(info->p + 1);

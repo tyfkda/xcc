@@ -89,11 +89,12 @@ Line *parse_line(ParseInfo *info);
 void handle_directive(ParseInfo *info, enum DirectiveType dir, Vector **section_irs,
                       Table *label_table);
 void parse_error(const ParseInfo *info, const char *message);
-void parse_inst(ParseInfo *info, Inst *inst);
+void parse_inst(ParseInfo *info, Line *line);
 
 bool immediate(const char **pp, int64_t *value);
 const Name *unquote_label(const char *p, const char *q);
 Expr *parse_expr(ParseInfo *info);
+Expr *new_expr(enum ExprKind kind);
 
 typedef struct {
   const Name *label;

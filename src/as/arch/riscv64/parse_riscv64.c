@@ -6,11 +6,13 @@
 #include <string.h>
 #include <strings.h>
 
+#include "table.h"
 #include "util.h"
 
 // Align with Opcode.
 static const char *kOpTable[] = {
   "li",
+  "la",
   "addi",
   "ld",
   "sd",
@@ -201,17 +203,25 @@ static bool parse_operand(ParseInfo *info, Operand *operand) {
       operand->immediate = expr->fixnum;
       return true;
     }
-    if (expr->kind == EX_LABEL) {
-      operand->type = DIRECT;
-      operand->direct.expr = expr;
-      return true;
-    }
+    operand->type = DIRECT;
+    operand->direct.expr = expr;
+    return true;
   }
 
   return false;
 }
 
-void parse_inst(ParseInfo *info, Inst *inst) {
+static const Name *alloc_dummy_label(void) {
+  // TODO: Ensure label is unique.
+  static int label_no;
+  ++label_no;
+  char buf[2 + sizeof(int) * 3 + 1];
+  snprintf(buf, sizeof(buf), "._%d", label_no);
+  return alloc_name(buf, NULL, true);
+}
+
+void parse_inst(ParseInfo *info, Line *line) {
+  Inst *inst  = &line->inst;
   Operand *opr_table[] = {&inst->opr1, &inst->opr2, &inst->opr3};
   for (int i = 0; i < (int)ARRAY_SIZE(opr_table); ++i)
     opr_table[i]->type = NOOPERAND;
@@ -227,5 +237,26 @@ void parse_inst(ParseInfo *info, Inst *inst) {
         break;
       info->p = skip_whitespaces(info->p + 1);
     }
+  }
+
+  // Tweak for instruction.
+  switch (inst->op) {
+  case LA:
+    // Store corresponding label to opr3.
+    if (line->label == NULL) {
+      // Generate unique label.
+      const Name *label = alloc_dummy_label();
+      line->label = label;
+    }
+    if (inst->opr3.type == NOOPERAND) {
+      Expr *expr = new_expr(EX_LABEL);
+      expr->label = line->label;
+
+      Operand *opr = &inst->opr3;
+      opr->type = DIRECT;
+      opr->direct.expr = expr;
+    }
+    break;
+  default: break;
   }
 }
