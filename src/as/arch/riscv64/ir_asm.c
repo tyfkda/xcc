@@ -1,9 +1,16 @@
 #include "../../../config.h"
 #include "ir_asm.h"
 
+#include <assert.h>
+
 #include "gen_section.h"
 #include "table.h"
 #include "util.h"
+
+#define BYTE_SIZE   (1)
+#define SHORT_SIZE  (2)
+#define LONG_SIZE   (4)
+#define QUAD_SIZE   (8)
 
 static LabelInfo *new_label(int section, uintptr_t address) {
   LabelInfo *info = malloc_or_die(sizeof(*info));
@@ -79,11 +86,68 @@ IR *new_ir_expr(enum IrKind kind, const Expr *expr) {
   return ir;
 }
 
+static uintptr_t align_next_section(enum SectionType sec, uintptr_t address) {
+  size_t align = section_aligns[sec];
+  if (align > 1)
+    address = ALIGN(address, align);
+  return address;
+}
+
 bool calc_label_address(uintptr_t start_address, Vector **section_irs, Table *label_table) {
-  UNUSED(start_address);
-  UNUSED(section_irs);
-  UNUSED(label_table);
-  return true;
+  bool settle = true;
+  uintptr_t address = start_address;
+  for (int sec = 0; sec < SECTION_COUNT; ++sec) {
+    address = align_next_section(sec, address);
+    section_start_addresses[sec] = address;
+
+    Vector *irs = section_irs[sec];
+    for (int i = 0, len = irs->len; i < len; ++i) {
+      IR *ir = irs->data[i];
+      ir->address = address;
+      switch (ir->kind) {
+      case IR_LABEL:
+        {
+          LabelInfo *info;
+          if (!table_try_get(label_table, ir->label, (void**)&info)) {
+            fprintf(stderr, "[%.*s] not found\n", NAMES(ir->label));
+            assert(!"Unexpected");
+          } else {
+            info->address = address;
+          }
+        }
+        break;
+      case IR_CODE:
+        address += ir->code.len;
+        break;
+      case IR_DATA:
+        address += ir->data.len;
+        break;
+      case IR_BSS:
+        address += ir->bss;
+        break;
+      case IR_ALIGN:
+        ir->address = address = ALIGN(address, ir->align);
+        if ((size_t)ir->align > section_aligns[sec]) {
+          section_aligns[sec] = ir->align;
+          settle = false;
+        }
+        break;
+      case IR_EXPR_BYTE:
+        address += BYTE_SIZE;
+        break;
+      case IR_EXPR_SHORT:
+        address += SHORT_SIZE;
+        break;
+      case IR_EXPR_LONG:
+        address += LONG_SIZE;
+        break;
+      case IR_EXPR_QUAD:
+        address += QUAD_SIZE;
+        break;
+      }
+    }
+  }
+  return settle;
 }
 
 bool resolve_relative_address(Vector **section_irs, Table *label_table, Vector *unresolved) {
