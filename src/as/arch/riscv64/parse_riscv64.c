@@ -11,6 +11,10 @@
 // Align with Opcode.
 static const char *kOpTable[] = {
   "li",
+  "addi",
+  "ld",
+  "sd",
+  "call",
   "ret",
 };
 
@@ -156,6 +160,27 @@ static enum RegType find_register(const char **pp) {
   return NOREG;
 }
 
+static bool parse_indirect_register(ParseInfo *info, Expr *offset, Operand *operand) {
+  // Already read "(".
+  enum RegType base_reg = find_register(&info->p);
+  if (base_reg == NOREG) {
+    parse_error(info, "register expected");
+    return false;
+  }
+  if (*info->p != ')') {
+    parse_error(info, "`)' expected");
+    return false;
+  }
+  ++info->p;
+
+  char no = base_reg - X0;
+  operand->type = INDIRECT;
+  operand->indirect.reg.no = no;
+  operand->indirect.offset = offset;
+
+  return true;
+}
+
 static bool parse_operand(ParseInfo *info, Operand *operand) {
   enum RegType reg = find_register(&info->p);
   if (reg != NOREG) {
@@ -165,10 +190,20 @@ static bool parse_operand(ParseInfo *info, Operand *operand) {
   }
 
   Expr *expr = parse_expr(info);
+  if (*info->p == '(') {
+    info->p += 1;
+    return parse_indirect_register(info, expr, operand);
+  }
+
   if (expr != NULL) {
     if (expr->kind == EX_FIXNUM) {
       operand->type = IMMEDIATE;
       operand->immediate = expr->fixnum;
+      return true;
+    }
+    if (expr->kind == EX_LABEL) {
+      operand->type = DIRECT;
+      operand->direct.expr = expr;
       return true;
     }
   }

@@ -35,6 +35,9 @@ enum UnresolvedKind {
   UNRES_EXTERN_PC32,
   UNRES_OTHER_SECTION,
   UNRES_ABS64,
+
+  UNRES_RISCV_CALL,
+  UNRES_RISCV_RELAX,
 };
 
 typedef struct {

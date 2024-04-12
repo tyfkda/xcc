@@ -1,9 +1,19 @@
 #include "../../../config.h"
 #include "ir_asm.h"
 
+#include <assert.h>
+#include <stdlib.h>  // exit
+
 #include "gen_section.h"
+#include "inst.h"
+#include "parse_asm.h"
 #include "table.h"
 #include "util.h"
+
+#define BYTE_SIZE   (1)
+#define SHORT_SIZE  (2)
+#define LONG_SIZE   (4)
+#define QUAD_SIZE   (8)
 
 static LabelInfo *new_label(int section, uintptr_t address) {
   LabelInfo *info = malloc_or_die(sizeof(*info));
@@ -79,18 +89,135 @@ IR *new_ir_expr(enum IrKind kind, const Expr *expr) {
   return ir;
 }
 
+static uintptr_t align_next_section(enum SectionType sec, uintptr_t address) {
+  size_t align = section_aligns[sec];
+  if (align > 1)
+    address = ALIGN(address, align);
+  return address;
+}
+
 bool calc_label_address(uintptr_t start_address, Vector **section_irs, Table *label_table) {
-  UNUSED(start_address);
-  UNUSED(section_irs);
-  UNUSED(label_table);
-  return true;
+  bool settle = true;
+  uintptr_t address = start_address;
+  for (int sec = 0; sec < SECTION_COUNT; ++sec) {
+    address = align_next_section(sec, address);
+    section_start_addresses[sec] = address;
+
+    Vector *irs = section_irs[sec];
+    for (int i = 0, len = irs->len; i < len; ++i) {
+      IR *ir = irs->data[i];
+      ir->address = address;
+      switch (ir->kind) {
+      case IR_LABEL:
+        {
+          LabelInfo *info;
+          if (!table_try_get(label_table, ir->label, (void**)&info)) {
+            fprintf(stderr, "[%.*s] not found\n", NAMES(ir->label));
+            assert(!"Unexpected");
+          } else {
+            info->address = address;
+          }
+        }
+        break;
+      case IR_CODE:
+        address += ir->code.len;
+        break;
+      case IR_DATA:
+        address += ir->data.len;
+        break;
+      case IR_BSS:
+        address += ir->bss;
+        break;
+      case IR_ALIGN:
+        ir->address = address = ALIGN(address, ir->align);
+        if ((size_t)ir->align > section_aligns[sec]) {
+          section_aligns[sec] = ir->align;
+          settle = false;
+        }
+        break;
+      case IR_EXPR_BYTE:
+        address += BYTE_SIZE;
+        break;
+      case IR_EXPR_SHORT:
+        address += SHORT_SIZE;
+        break;
+      case IR_EXPR_LONG:
+        address += LONG_SIZE;
+        break;
+      case IR_EXPR_QUAD:
+        address += QUAD_SIZE;
+        break;
+      }
+    }
+  }
+  return settle;
 }
 
 bool resolve_relative_address(Vector **section_irs, Table *label_table, Vector *unresolved) {
-  UNUSED(section_irs);
-  UNUSED(label_table);
-  UNUSED(unresolved);
-  return true;
+  assert(unresolved != NULL);
+  Table unresolved_labels;
+  table_init(&unresolved_labels);
+  vec_clear(unresolved);
+  bool size_upgraded = false;
+  for (int sec = 0; sec < SECTION_COUNT; ++sec) {
+    Vector *irs = section_irs[sec];
+    uintptr_t start_address = irs->len > 0 ? ((IR*)irs->data[0])->address : 0;
+    for (int i = 0, len = irs->len; i < len; ++i) {
+      IR *ir = irs->data[i];
+      uintptr_t address = ir->address;
+      switch (ir->kind) {
+      case IR_CODE:
+        {
+          Inst *inst = ir->code.inst;
+          switch (inst->op) {
+          case CALL:
+            if (inst->opr1.type == DIRECT) {
+              Value value = calc_expr(label_table, inst->opr1.direct.expr);
+              if (value.label != NULL) {
+                // Put rela even if the label is defined in the same object file.
+                UnresolvedInfo *info = malloc_or_die(sizeof(*info));
+                info->kind = UNRES_RISCV_CALL;
+                info->label = value.label;
+                info->src_section = sec;
+                info->offset = address - start_address;
+                info->add = value.offset;
+                vec_push(unresolved, info);
+
+                info = malloc_or_die(sizeof(*info));
+                info->kind = UNRES_RISCV_RELAX;
+                info->label = value.label;
+                info->src_section = sec;
+                info->offset = address - start_address;
+                info->add = value.offset;
+                vec_push(unresolved, info);
+                break;
+              }
+            }
+            break;
+          default:
+            break;
+          }
+        }
+        break;
+      default:
+        break;
+      }
+    }
+  }
+
+  if (unresolved_labels.count > 0 && unresolved == NULL) {
+    for (int i = 0; ;) {
+      const Name *name;
+      void *dummy;
+      i = table_iterate(&unresolved_labels, i, &name, &dummy);
+      if (i < 0)
+        break;
+      fprintf(stderr, "Undefined reference: `%.*s'\n", NAMES(name));
+    }
+    exit(1);
+  }
+
+  return !size_upgraded;
 }
 
 void emit_irs(Vector **section_irs) {
