@@ -563,8 +563,18 @@ static void ei_cond(IR *ir) {
 
   assert(!(ir->dst->flag & VRF_CONST));
   const char *dst = kReg32s[ir->dst->phys];  // Assume bool is 4 byte.
+  int cond = ir->cond.kind;
   // On aarch64, flag for comparing flonum is signed.
-  switch (ir->cond.kind & (COND_MASK | COND_UNSIGNED)) {
+  if (cond & COND_FLONUM) {
+    cond &= COND_MASK;
+    switch (cond) {
+    case COND_LT:  CSET(dst, CMI); return;
+    case COND_LE:  CSET(dst, CLS); return;
+    default: break;
+    }
+  }
+
+  switch (cond) {
   case COND_EQ | COND_UNSIGNED:  // Fallthrough
   case COND_EQ:  CSET(dst, CEQ); break;
 
@@ -586,13 +596,22 @@ static void ei_cond(IR *ir) {
 
 static void ei_jmp(IR *ir) {
   const char *label = fmt_name(ir->jmp.bb->label);
-  int cond = ir->jmp.cond & (COND_MASK | COND_UNSIGNED);
+  int cond = ir->jmp.cond;
   if (cond == COND_ANY) {
     BRANCH(label);
     return;
   }
 
   cmp_vregs(ir->opr1, ir->opr2);
+
+  if (cond & COND_FLONUM) {
+    cond &= COND_MASK;
+    switch (cond) {
+    case COND_LT:  Bcc(CMI, label); return;
+    case COND_LE:  Bcc(CLS, label); return;
+    default: break;
+    }
+  }
 
   // On aarch64, flag for comparing flonum is signed.
   switch (cond) {

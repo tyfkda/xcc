@@ -85,7 +85,7 @@
 #define FSUB(sz, rd, rn, rm)                       MAKE_CODE32(inst, code, 0x1e203800U | ((sz) << 22) | ((rm) << 16) | ((rn) << 5) | (rd))
 #define FMUL(sz, rd, rn, rm)                       MAKE_CODE32(inst, code, 0x1e200800U | ((sz) << 22) | ((rm) << 16) | ((rn) << 5) | (rd))
 #define FDIV(sz, rd, rn, rm)                       MAKE_CODE32(inst, code, 0x1e201800U | ((sz) << 22) | ((rm) << 16) | ((rn) << 5) | (rd))
-#define FCMP(sz, rd, rn)                           MAKE_CODE32(inst, code, 0x1e602000U | ((sz) << 22) | ((rn) << 16) | ((rd) << 5))
+#define FCMP(sz, rd, rn)                           MAKE_CODE32(inst, code, 0x1e202000U | ((sz) << 22) | ((rn) << 16) | ((rd) << 5))
 #define FNEG(sz, rd, rn)                           MAKE_CODE32(inst, code, 0x1e214000U | ((sz) << 22) | ((rn) << 5) | (rd))
 #define FSQRT(sz, rd, rn)                          MAKE_CODE32(inst, code, 0x1e21c000U | ((sz) << 22) | ((rn) << 5) | (rd))
 

@@ -2,7 +2,7 @@
 #include "stdint.h"
 #include "stdio.h"
 #include "stdlib.h"  // exit
-#include "math.h"
+#include "math.h"  // HUGE_VAL, NAN
 
 #include "./xtest.h"
 
@@ -79,4 +79,58 @@ TEST(number) {
     uint64_t ul = (uint64_t)-1L;
     expecti64("from unsigned max", 1, (x = ul, x >= 0));
   }
+} END_TEST()
+
+TEST(nan) {
+  const int X = 0x4567, Y = 0x9abc;
+  Number inf = HUGE_VAL;
+  Number nan = NAN;
+
+  EXPECT_TRUE(inf == inf);
+  EXPECT_FALSE(nan == inf);
+  EXPECT_FALSE(nan == -inf);
+  EXPECT_FALSE(nan == nan);
+  EXPECT_TRUE(!(nan == nan));
+  EXPECT_EQ(X, inf == inf ? X : Y);
+  EXPECT_EQ(Y, nan == inf ? X : Y);
+  EXPECT_EQ(Y, nan == -inf ? X : Y);
+  EXPECT_EQ(Y, nan == nan ? X : Y);
+  EXPECT_FALSE(inf != inf);
+  EXPECT_TRUE(nan != inf);
+  EXPECT_TRUE(nan != -inf);
+  EXPECT_TRUE(nan != nan);
+  EXPECT_EQ(Y, inf != inf ? X : Y);
+  EXPECT_EQ(X, nan != inf ? X : Y);
+  EXPECT_EQ(X, nan != -inf ? X : Y);
+  EXPECT_EQ(X, nan != nan ? X : Y);
+
+  EXPECT_FALSE(nan > 0);
+  EXPECT_FALSE(nan >= 0);
+  EXPECT_FALSE(nan < 0);
+  EXPECT_FALSE(nan <= 0);
+  EXPECT_EQ(Y, nan > 0 ? X : Y);
+  EXPECT_EQ(Y, nan >= 0 ? X : Y);
+  EXPECT_EQ(Y, nan < 0 ? X : Y);
+  EXPECT_EQ(Y, nan <= 0 ? X : Y);
+  EXPECT_FALSE(0 < nan);
+  EXPECT_FALSE(0 <= nan);
+  EXPECT_FALSE(0 > nan);
+  EXPECT_FALSE(0 >= nan);
+  EXPECT_EQ(Y, 0 < nan ? X : Y);
+  EXPECT_EQ(Y, 0 <= nan ? X : Y);
+  EXPECT_EQ(Y, 0 > nan ? X : Y);
+  EXPECT_EQ(Y, 0 >= nan ? X : Y);
+
+  EXPECT_FALSE(nan > nan);
+  EXPECT_FALSE(nan >= nan);
+  EXPECT_FALSE(nan < nan);
+  EXPECT_FALSE(nan <= nan);
+  EXPECT_FALSE(nan > inf);
+  EXPECT_FALSE(nan >= inf);
+  EXPECT_FALSE(nan < inf);
+  EXPECT_FALSE(nan <= inf);
+  EXPECT_FALSE(nan > -inf);
+  EXPECT_FALSE(nan >= -inf);
+  EXPECT_FALSE(nan < -inf);
+  EXPECT_FALSE(nan <= -inf);
 } END_TEST()

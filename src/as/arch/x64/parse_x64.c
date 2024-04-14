@@ -42,12 +42,12 @@ enum RawOpcode {
   R_INT, R_SYSCALL,
 
   R_MOVSD, R_ADDSD, R_SUBSD, R_MULSD, R_DIVSD, R_XORPD,
-  R_UCOMISD,
+  R_COMISD, R_UCOMISD,
   R_CVTSI2SD, R_CVTTSD2SI,
   R_SQRTSD,
 
   R_MOVSS, R_ADDSS, R_SUBSS, R_MULSS, R_DIVSS, R_XORPS,
-  R_UCOMISS,
+  R_COMISS, R_UCOMISS,
   R_CVTSI2SS, R_CVTTSS2SI,
 
   R_CVTSD2SS, R_CVTSS2SD,
@@ -85,12 +85,12 @@ const char *kRawOpTable[] = {
   "int", "syscall",
 
   "movsd", "addsd", "subsd", "mulsd", "divsd", "xorpd",
-  "ucomisd",
+  "comisd", "ucomisd",
   "cvtsi2sd",  "cvttsd2si",
   "sqrtsd",
 
   "movss", "addss", "subss", "mulss", "divss", "xorps",
-  "ucomiss",
+  "comiss", "ucomiss",
   "cvtsi2ss",  "cvttss2si",
   "cvtsd2ss",  "cvtss2sd",
   NULL,
@@ -674,7 +674,9 @@ const ParseInstTable kParseInstTable[] = {
   [R_DIVSS] = { 1, (const ParseOpArray*[]){ &(ParseOpArray){DIVSS, {XMM, XMM}}, } },
   [R_XORPD] = { 1, (const ParseOpArray*[]){ &(ParseOpArray){XORPD, {XMM, XMM}}, } },
   [R_XORPS] = { 1, (const ParseOpArray*[]){ &(ParseOpArray){XORPS, {XMM, XMM}}, } },
+  [R_COMISD] = { 1, (const ParseOpArray*[]){ &(ParseOpArray){COMISD, {XMM, XMM}}, } },
   [R_UCOMISD] = { 1, (const ParseOpArray*[]){ &(ParseOpArray){UCOMISD, {XMM, XMM}}, } },
+  [R_COMISS] = { 1, (const ParseOpArray*[]){ &(ParseOpArray){COMISS, {XMM, XMM}}, } },
   [R_UCOMISS] = { 1, (const ParseOpArray*[]){ &(ParseOpArray){UCOMISS, {XMM, XMM}}, } },
   [R_CVTSI2SD] = { 1, (const ParseOpArray*[]){ &(ParseOpArray){CVTSI2SD, {R32 | R64, XMM}}, } },
   [R_CVTSI2SS] = { 1, (const ParseOpArray*[]){ &(ParseOpArray){CVTSI2SS, {R32 | R64, XMM}}, } },

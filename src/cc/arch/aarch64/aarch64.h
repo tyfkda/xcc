@@ -178,14 +178,20 @@
 // Condition
 #define CEQ  "eq"
 #define CNE  "ne"
+#define CHS  "hs"
+#define CLO  "lo"
+#define CMI  "mi"
+#define CPL  "pl"
+#define CVS  "vs"
+#define CVC  "vc"
+#define CHI  "hi"
+#define CLS  "ls"
+#define CGE  "ge"
 #define CLT  "lt"
 #define CGT  "gt"
 #define CLE  "le"
-#define CGE  "ge"
-#define CLO  "lo"
-#define CHI  "hi"
-#define CLS  "ls"
-#define CHS  "hs"
+#define CAL  "al"
+#define CNV  "nv"
 
 #define MOV(o1, o2)           EMIT_ASM("mov", o1, o2)
 #define MOVK(o1, o2, o3)      EMIT_ASM("movk", o1, o2, o3)

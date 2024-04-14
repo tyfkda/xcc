@@ -51,6 +51,7 @@ TEST(mix) {
 int main(void) {
   return RUN_ALL_TESTS(
     test_number,
+    test_nan,
     test_mix,
   );
 }
