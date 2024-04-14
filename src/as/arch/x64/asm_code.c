@@ -580,7 +580,7 @@ static unsigned char *asm_xorpd_xx(Inst *inst, Code *code) {
 }
 #define asm_xorps_xx  asm_xorpd_xx
 
-static unsigned char *assemble_ucomisd(Inst *inst, Code *code, bool single) {
+static unsigned char *assemble_ucomisd(Inst *inst, Code *code, unsigned char opc, bool single) {
   unsigned char *p = code->buf;
   if (inst->opr[0].type == REG_XMM && inst->opr[1].type == REG_XMM) {
     unsigned char sno = inst->opr[0].regxmm - XMM0;
@@ -589,15 +589,17 @@ static unsigned char *assemble_ucomisd(Inst *inst, Code *code, bool single) {
       single ? -1 : 0x66,
       sno >= 8 || dno >= 8 ? (unsigned char)0x40 | ((sno & 8) >> 3) | ((dno & 8) >> 1) : -1,
       0x0f,
-      0x2e,
+      opc,
       (unsigned char)0xc0 | ((dno & 7) << 3) | (sno & 7),
     };
     p = put_code_filtered(p, buf, ARRAY_SIZE(buf));
   }
   return p;
 }
-static unsigned char *asm_ucomisd_xx(Inst *inst, Code *code) { return assemble_ucomisd(inst, code, false); }
-static unsigned char *asm_ucomiss_xx(Inst *inst, Code *code) { return assemble_ucomisd(inst, code, true); }
+static unsigned char *asm_comisd_xx(Inst *inst, Code *code) { return assemble_ucomisd(inst, code, 0x2f, false); }
+static unsigned char *asm_comiss_xx(Inst *inst, Code *code) { return assemble_ucomisd(inst, code, 0x2f, true); }
+static unsigned char *asm_ucomisd_xx(Inst *inst, Code *code) { return assemble_ucomisd(inst, code, 0x2e, false); }
+static unsigned char *asm_ucomiss_xx(Inst *inst, Code *code) { return assemble_ucomisd(inst, code, 0x2e, true); }
 
 static unsigned char *assemble_cvtsi2sd(Inst *inst, Code *code, bool single) {
   unsigned char *p = code->buf;
@@ -1587,18 +1589,13 @@ static const AsmInstFunc table[] = {
   [MOVSS_XX] = asm_movss_xx,
   [MOVSS_IX] = asm_movss_ix,
   [MOVSS_XI] = asm_movss_xi,
-  [ADDSD] = asm_addsd_xx,
-  [ADDSS] = asm_addss_xx,
-  [SUBSD] = asm_subsd_xx,
-  [SUBSS] = asm_subss_xx,
-  [MULSD] = asm_mulsd_xx,
-  [MULSS] = asm_mulss_xx,
-  [DIVSD] = asm_divsd_xx,
-  [DIVSS] = asm_divss_xx,
-  [XORPD] = asm_xorpd_xx,
-  [XORPS] = asm_xorps_xx,
-  [UCOMISD] = asm_ucomisd_xx,
-  [UCOMISS] = asm_ucomiss_xx,
+  [ADDSD] = asm_addsd_xx, [ADDSS] = asm_addss_xx,
+  [SUBSD] = asm_subsd_xx, [SUBSS] = asm_subss_xx,
+  [MULSD] = asm_mulsd_xx, [MULSS] = asm_mulss_xx,
+  [DIVSD] = asm_divsd_xx, [DIVSS] = asm_divss_xx,
+  [XORPD] = asm_xorpd_xx, [XORPS] = asm_xorps_xx,
+  [COMISD] = asm_comisd_xx, [UCOMISD] = asm_ucomisd_xx,
+  [COMISS] = asm_comiss_xx, [UCOMISS] = asm_ucomiss_xx,
   [CVTSI2SD] = asm_cvtsi2sd_rx,
   [CVTSI2SS] = asm_cvtsi2ss_rx,
   [CVTTSD2SI] = asm_cvttsd2si_xr,

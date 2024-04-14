@@ -809,6 +809,35 @@ static VReg *gen_relation(Expr *expr) {
   case COND_ANY:
     return new_const_vreg(cmp.cond == COND_ANY, to_vsize(&tyBool));
   default:
+#if XCC_TARGET_ARCH == XCC_ARCH_X64 && !defined(__NO_FLONUM)
+    if (cmp.cond & COND_FLONUM) {
+      switch (cmp.cond & ~COND_FLONUM) {
+      case COND_EQ:
+      case COND_NE:
+        {
+          // Convert to branch.
+          VReg *result = add_new_vreg(&tyBool);
+
+          BB *fbb = new_bb();
+          BB *tbb = new_bb();
+          BB *nbb = new_bb();
+          new_ir_cjmp(cmp.lhs, cmp.rhs, cmp.cond, tbb);
+
+          set_curbb(fbb);
+          new_ir_mov(result, new_const_vreg(0, result->vsize), 0);
+          new_ir_jmp(nbb);
+
+          set_curbb(tbb);
+          new_ir_mov(result, new_const_vreg(1, result->vsize), 0);
+
+          set_curbb(nbb);
+          return result;
+        }
+        break;
+      default:  break;
+      }
+    }
+#endif
     return new_ir_cond(cmp.lhs, cmp.rhs, cmp.cond);
   }
 }

@@ -6,6 +6,8 @@ int main() {
 }
 #else
 
+#include <math.h>
+
 #ifdef USE_SINGLE
 typedef float Number;
 #define NUMBER_TYPE_SIZE  (4)
@@ -44,6 +46,36 @@ TEST(mix) {
     char buf[32];
     snprintf(buf, sizeof(buf), "%" PRIx64, x);
     EXPECT_STREQ("ulltof", "f123456789012000", buf);
+  }
+
+  {
+    double inf = HUGE_VAL;
+    double nan = NAN;
+    EXPECT_TRUE(inf == inf);
+    EXPECT_FALSE(nan == inf);
+    EXPECT_FALSE(nan == -inf);
+    EXPECT_FALSE(nan == nan);
+    EXPECT_EQ(1, inf == inf ? 1 : 0);
+    EXPECT_EQ(0, nan == inf ? 1 : 0);
+    EXPECT_EQ(0, nan == -inf ? 1 : 0);
+    EXPECT_EQ(0, nan == nan ? 1 : 0);
+    EXPECT_FALSE(inf != inf);
+    EXPECT_TRUE(nan != inf);
+    EXPECT_TRUE(nan != -inf);
+    EXPECT_TRUE(nan != nan);
+    EXPECT_EQ(0, inf != inf ? 1 : 0);
+    EXPECT_EQ(1, nan != inf ? 1 : 0);
+    EXPECT_EQ(1, nan != -inf ? 1 : 0);
+    EXPECT_EQ(1, nan != nan ? 1 : 0);
+
+    EXPECT_FALSE(nan > 0);
+    EXPECT_FALSE(nan >= 0);
+    EXPECT_FALSE(nan < 0);
+    EXPECT_FALSE(nan <= 0);
+    EXPECT_EQ(0, nan > 0 ? 1 : 0);
+    EXPECT_EQ(0, nan >= 0 ? 1 : 0);
+    EXPECT_EQ(0, nan < 0 ? 1 : 0);
+    EXPECT_EQ(0, nan <= 0 ? 1 : 0);
   }
 #endif
 } END_TEST()
