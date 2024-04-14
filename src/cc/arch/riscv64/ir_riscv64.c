@@ -435,7 +435,15 @@ static void ei_keep(IR *ir) {
 
 static void ei_neg(IR *ir) {
   assert(!(ir->opr1->flag & VRF_CONST));
-  NEG(kReg64s[ir->dst->phys], kReg64s[ir->opr1->phys]);
+  if (ir->opr1->flag & VRF_FLONUM) {
+    switch (ir->opr1->vsize) {
+    default: assert(false); // Fallthrough
+    case SZ_FLOAT:   FNEG_S(kFReg32s[ir->dst->phys], kFReg32s[ir->opr1->phys]); break;
+    case SZ_DOUBLE:  FNEG_D(kFReg64s[ir->dst->phys], kFReg64s[ir->opr1->phys]); break;
+    }
+  } else {
+    NEG(kReg64s[ir->dst->phys], kReg64s[ir->opr1->phys]);
+  }
 }
 
 static void ei_bitnot(IR *ir) {
@@ -969,7 +977,7 @@ static void swap_opr12(IR *ir) {
 
 static void insert_const_mov(VReg **pvreg, RegAlloc *ra, Vector *irs, int i) {
   VReg *c = *pvreg;
-  VReg *tmp = reg_alloc_spawn(ra, c->vsize, 0);
+  VReg *tmp = reg_alloc_spawn(ra, c->vsize, c->flag & VRF_MASK);
   IR *mov = new_ir_mov(tmp, c, ((IR*)irs->data[i])->flag);
   vec_insert(irs, i, mov);
   *pvreg = tmp;

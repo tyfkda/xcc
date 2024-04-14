@@ -529,10 +529,20 @@ static void cmp_vregs(VReg *opr1, VReg *opr2) {
 
 static void ei_neg(IR *ir) {
   assert(!(ir->dst->flag & VRF_CONST));
-  int pow = ir->dst->vsize;
-  assert(0 <= pow && pow < 4);
-  const char **regs = kRegSizeTable[pow];
-  SUB(regs[ir->dst->phys], kZeroRegTable[pow], regs[ir->opr1->phys]);
+  if (ir->opr1->flag & VRF_FLONUM) {
+    const char **table;
+    switch (ir->dst->vsize) {
+    default: assert(false); // Fallthrough
+    case SZ_FLOAT:   table = kFReg32s; break;
+    case SZ_DOUBLE:  table = kFReg64s; break;
+    }
+    FNEG(table[ir->dst->phys], table[ir->opr1->phys]);
+  } else {
+    int pow = ir->dst->vsize;
+    assert(0 <= pow && pow < 4);
+    const char **regs = kRegSizeTable[pow];
+    SUB(regs[ir->dst->phys], kZeroRegTable[pow], regs[ir->opr1->phys]);
+  }
 }
 
 static void ei_bitnot(IR *ir) {
@@ -968,7 +978,7 @@ static void swap_opr12(IR *ir) {
 
 static void insert_const_mov(VReg **pvreg, RegAlloc *ra, Vector *irs, int i) {
   VReg *c = *pvreg;
-  VReg *tmp = reg_alloc_spawn(ra, c->vsize, 0);
+  VReg *tmp = reg_alloc_spawn(ra, c->vsize, c->flag & VRF_MASK);
   IR *mov = new_ir_mov(tmp, c, ((IR*)irs->data[i])->flag);
   vec_insert(irs, i, mov);
   *pvreg = tmp;

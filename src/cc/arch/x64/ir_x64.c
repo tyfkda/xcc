@@ -489,12 +489,49 @@ static void cmp_vregs(VReg *opr1, VReg *opr2) {
 }
 
 static void ei_neg(IR *ir) {
-  assert(ir->dst->phys == ir->opr1->phys);
   assert(!(ir->dst->flag & VRF_CONST));
-  int pow = ir->dst->vsize;
-  assert(0 <= pow && pow < 4);
-  const char **regs = kRegSizeTable[pow];
-  NEG(regs[ir->dst->phys]);
+  if (ir->opr1->flag & VRF_FLONUM) {
+    assert(ir->dst->phys != ir->opr1->phys);
+    VReg *dst = ir->dst, *opr1 = ir->opr1;
+    switch (opr1->vsize) {
+    case SZ_FLOAT:
+    case SZ_DOUBLE:
+      {
+        bool single = opr1->vsize == SZ_FLOAT;
+        const Name *signbit_label = alloc_label();
+        const char *dreg = kFReg64s[dst->phys];
+        // TODO: MOVSD(LABEL_INDIRECT(fmt_name(signbit_label), 0, RIP), dreg);
+        PUSH(RAX);
+        LEA(LABEL_INDIRECT(fmt_name(signbit_label), 0, RIP), RAX);
+        if (single)
+          MOVSS(INDIRECT(RAX, NULL, 1), dreg);
+        else
+          MOVSD(INDIRECT(RAX, NULL, 1), dreg);
+        POP(RAX);
+        if (single)
+          XORPS(kFReg64s[opr1->phys], dreg);
+        else
+          XORPD(kFReg64s[opr1->phys], dreg);
+
+        _RODATA();  // gcc warns, should be put into .data section?
+        EMIT_ALIGN(8);
+        EMIT_LABEL(fmt_name(signbit_label));
+        if (single)
+          _LONG(hexnum(1U << 31));
+        else
+          _QUAD(hexnum(1UL << 63));
+        _TEXT();
+      }
+      break;
+    default: assert(false); break;
+    }
+  } else {
+    assert(ir->dst->phys == ir->opr1->phys);
+    int pow = ir->dst->vsize;
+    assert(0 <= pow && pow < 4);
+    const char **regs = kRegSizeTable[pow];
+    NEG(regs[ir->dst->phys]);
+  }
 }
 
 static void ei_bitnot(IR *ir) {
@@ -1025,14 +1062,36 @@ void emit_bb_irs(BBContainer *bbcon) {
   }
 }
 
+static void insert_const_mov(VReg **pvreg, RegAlloc *ra, Vector *irs, int i) {
+  VReg *c = *pvreg;
+  VReg *tmp = reg_alloc_spawn(ra, c->vsize, c->flag & VRF_MASK);
+  IR *mov = new_ir_mov(tmp, c, ((IR*)irs->data[i])->flag);
+  vec_insert(irs, i, mov);
+  *pvreg = tmp;
+}
+
+#define insert_tmp_mov  insert_const_mov
+
 // Rewrite `A = B op C` to `A = B; A = A op C`.
-static void convert_3to2(BBContainer *bbcon) {
+static void convert_3to2(FuncBackend *fnbe) {
+  BBContainer *bbcon = fnbe->bbcon;
   for (int i = 0; i < bbcon->bbs->len; ++i) {
     BB *bb = bbcon->bbs->data[i];
     Vector *irs = bb->irs;
     for (int j = 0; j < irs->len; ++j) {
       IR *ir = irs->data[j];
       switch (ir->kind) {
+      case IR_NEG:  // unary ops
+        if (ir->dst->flag & VRF_FLONUM) {
+          // To use two xmm registers, keep opr1 and assign dst and opr1 in different register.
+          assert(ir->dst->virt != ir->opr1->virt);
+          insert_tmp_mov(&ir->opr1, fnbe->ra, irs, j++);
+
+          IR *keep = new_ir_keep(NULL, ir->opr1, NULL);
+          vec_insert(irs, ++j, keep);
+          break;
+        }
+        // Fallthrough
       case IR_ADD:  // binops
       case IR_SUB:
       case IR_MUL:
@@ -1043,7 +1102,6 @@ static void convert_3to2(BBContainer *bbcon) {
       case IR_BITXOR:
       case IR_LSHIFT:
       case IR_RSHIFT:
-      case IR_NEG:  // unary ops
       case IR_BITNOT:
         {
           assert(!(ir->dst->flag & VRF_CONST));
@@ -1059,16 +1117,8 @@ static void convert_3to2(BBContainer *bbcon) {
   }
 }
 
-static void insert_const_mov(VReg **pvreg, RegAlloc *ra, Vector *irs, int i) {
-  VReg *c = *pvreg;
-  VReg *tmp = reg_alloc_spawn(ra, c->vsize, 0);
-  IR *mov = new_ir_mov(tmp, c, ((IR*)irs->data[i])->flag);
-  vec_insert(irs, i, mov);
-  *pvreg = tmp;
-}
-
 void tweak_irs(FuncBackend *fnbe) {
-  convert_3to2(fnbe->bbcon);
+  convert_3to2(fnbe);
 
   BBContainer *bbcon = fnbe->bbcon;
   RegAlloc *ra = fnbe->ra;

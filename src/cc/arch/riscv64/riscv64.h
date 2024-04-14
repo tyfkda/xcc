@@ -161,6 +161,8 @@
 #define FMUL_S(o1, o2, o3)    EMIT_ASM("fmul.s", o1, o2, o3)
 #define FDIV_D(o1, o2, o3)    EMIT_ASM("fdiv.d", o1, o2, o3)
 #define FDIV_S(o1, o2, o3)    EMIT_ASM("fdiv.s", o1, o2, o3)
+#define FNEG_D(o1, o2)        EMIT_ASM("fneg.d", o1, o2)
+#define FNEG_S(o1, o2)        EMIT_ASM("fneg.s", o1, o2)
 #define FLD(o1, o2)           EMIT_ASM("fld", o1, o2)
 #define FLW(o1, o2)           EMIT_ASM("flw", o1, o2)
 #define FSD(o1, o2)           EMIT_ASM("fsd", o1, o2)

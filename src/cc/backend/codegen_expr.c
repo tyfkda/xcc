@@ -791,12 +791,6 @@ static VReg *gen_pos(Expr *expr) {
 
 static VReg *gen_neg(Expr *expr) {
   VReg *vreg = gen_expr(expr->unary.sub);
-#ifndef __NO_FLONUM
-  if (is_flonum(expr->type)) {
-    VReg *zero = gen_expr(new_expr_flolit(expr->type, NULL, 0.0));
-    return gen_arith(EX_SUB, expr->type, zero, vreg);
-  }
-#endif
   return new_ir_unary(IR_NEG, vreg, to_vsize(expr->type), is_unsigned(expr->type) ? IRF_UNSIGNED : 0);
 }
 

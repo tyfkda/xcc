@@ -693,17 +693,18 @@ static void gen_neg(Expr *expr, bool needval) {
     case TY_FIXNUM:
       ADD_CODE(type_size(expr->type) <= I32_SIZE ? OP_I32_CONST : OP_I64_CONST);
       ADD_LEB128(0);
+      gen_expr(expr->unary.sub, true);
+      gen_arith(EX_SUB, expr->type);
       break;
     case TY_FLONUM:
 #ifndef __NO_FLONUM
+      gen_expr(expr->unary.sub, true);
       switch (expr->type->flonum.kind) {
       case FL_FLOAT:
-        ADD_CODE(OP_F32_CONST);
-        ADD_F32(0);
+        ADD_CODE(OP_F32_NEG);
         break;
       case FL_DOUBLE: case FL_LDOUBLE:
-        ADD_CODE(OP_F64_CONST);
-        ADD_F64(0);
+        ADD_CODE(OP_F64_NEG);
         break;
       }
 #else
@@ -712,9 +713,6 @@ static void gen_neg(Expr *expr, bool needval) {
       break;
     default: assert(false); break;
     }
-
-    gen_expr(expr->unary.sub, true);
-    gen_arith(EX_SUB, expr->type);
   } else {
     gen_expr(expr->unary.sub, false);
   }

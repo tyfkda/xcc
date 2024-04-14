@@ -553,6 +553,26 @@ static unsigned char *asm_mulss_xx(Inst *inst, Code *code) { return assemble_bop
 static unsigned char *asm_divsd_xx(Inst *inst, Code *code) { return assemble_bop_sd(inst, code, false, 0x5e); }
 static unsigned char *asm_divss_xx(Inst *inst, Code *code) { return assemble_bop_sd(inst, code, true, 0x5e); }
 
+static unsigned char *asm_xorpd_xx(Inst *inst, Code *code) {
+  bool single = inst->op == XORPS;
+  unsigned char *p = code->buf;
+  if (inst->src.type == REG_XMM && inst->dst.type == REG_XMM) {
+    unsigned char sno = inst->src.regxmm - XMM0;
+    unsigned char dno = inst->dst.regxmm - XMM0;
+    short buf[] = {
+      single ? 0x66 : -1,
+      sno >= 8 || dno >= 8 ? (unsigned char)0x40 | ((sno & 8) >> 3) | ((dno & 8) >> 1) : -1,
+      0x0f,
+      0x57,
+      (unsigned char)0xc0 | ((dno & 7) << 3) | (sno & 7),
+    };
+    p = put_code_filtered(p, buf, ARRAY_SIZE(buf));
+  }
+
+  return p;
+}
+#define asm_xorps_xx  asm_xorpd_xx
+
 static unsigned char *assemble_ucomisd(Inst *inst, Code *code, bool single) {
   unsigned char *p = code->buf;
   if (inst->src.type == REG_XMM && inst->dst.type == REG_XMM) {
@@ -1633,6 +1653,8 @@ static const AsmInstTable *table[] = {
   [MULSS] = (const AsmInstTable[]){ {asm_mulss_xx, REG_XMM, REG_XMM}, {NULL} },
   [DIVSD] = (const AsmInstTable[]){ {asm_divsd_xx, REG_XMM, REG_XMM}, {NULL} },
   [DIVSS] = (const AsmInstTable[]){ {asm_divss_xx, REG_XMM, REG_XMM}, {NULL} },
+  [XORPD] = (const AsmInstTable[]){ {asm_xorpd_xx, REG_XMM, REG_XMM}, {NULL} },
+  [XORPS] = (const AsmInstTable[]){ {asm_xorps_xx, REG_XMM, REG_XMM}, {NULL} },
   [UCOMISD] = (const AsmInstTable[]){ {asm_ucomisd_xx, REG_XMM, REG_XMM}, {NULL} },
   [UCOMISS] = (const AsmInstTable[]){ {asm_ucomiss_xx, REG_XMM, REG_XMM}, {NULL} },
   [CVTSI2SD] = (const AsmInstTable[]){ {asm_cvtsi2sd_rx, REG, REG_XMM}, {NULL} },

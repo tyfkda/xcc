@@ -121,8 +121,10 @@ static int printfloat(FILE *fp, long double x,
     return snprintstr(fp, s, order, suborder, leftalign, ' ');
   }
 
-  int o = sprintsign(fp, x < 0, sign, &order);
-  x = x < 0 ? -x : x;
+  bool neg = signbit(x);
+  if (neg)
+    x = -x;
+  int o = sprintsign(fp, neg, sign, &order);
 
   unsigned long long int_part = x;
   suborder = suborder > 0 ? suborder : 6;
@@ -164,8 +166,10 @@ static int printscientific(FILE *fp, long double x, int order, int suborder, boo
     return snprintstr(fp, s, order, suborder, leftalign, ' ');
   }
 
-  int o = sprintsign(fp, x < 0, sign, &order);
-  x = x < 0 ? -x : x;
+  bool neg = signbit(x);
+  if (neg)
+    x = -x;
+  int o = sprintsign(fp, neg, sign, &order);
 
   int e = normalize_float(&x);
   unsigned long long int_part = x;

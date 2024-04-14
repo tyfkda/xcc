@@ -136,14 +136,8 @@ double strtod(const char * restrict p_, char ** restrict pp) {
   }
   if (p == op)
     p = orig;
-  if (neg) {
-    if (result != 0) {
-      result = -result;
-    } else {
-      uint64_t *p = (uint64_t*)&result;
-      *p ^= (uint64_t)SIGN_MASK;
-    }
-  }
+  if (neg)
+    result = -result;
 
   if (pp != NULL)
     *pp = (char*)p;
