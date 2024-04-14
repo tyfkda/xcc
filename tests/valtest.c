@@ -220,6 +220,7 @@ TEST(all) {
   EXPECT("not false", 1, (x=1, !(x == 0)));
   EXPECT("not str", 0, !"abc");
   EXPECT("bit not", 0x12345678, (x=0xedcba987, ~x));
+  EXPECT("bit not (u32)", 0xffffffff, ~(uint32_t)0);
   {
     int x = 1;
     int y = ++x;

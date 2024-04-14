@@ -1077,7 +1077,8 @@ static Expr *parse_unary(void) {
     }
     expr = promote_to_int(expr);
     if (is_const(expr)) {
-      expr->fixnum = ~expr->fixnum;
+      Type *type = expr->type;
+      expr->fixnum = wrap_value(~expr->fixnum, type_size(type), type->fixnum.is_unsigned);
       return expr;
     }
     return new_expr_unary(EX_BITNOT, expr->type, tok, expr);
