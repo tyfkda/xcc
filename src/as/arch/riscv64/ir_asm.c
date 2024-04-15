@@ -2,7 +2,7 @@
 #include "ir_asm.h"
 
 #include <assert.h>
-#include <stdlib.h>  // exit
+#include <stdint.h>
 
 #include "gen_section.h"
 #include "inst.h"
@@ -155,8 +155,6 @@ bool calc_label_address(uintptr_t start_address, Vector **section_irs, Table *la
 
 bool resolve_relative_address(Vector **section_irs, Table *label_table, Vector *unresolved) {
   assert(unresolved != NULL);
-  Table unresolved_labels;
-  table_init(&unresolved_labels);
   vec_clear(unresolved);
   bool size_upgraded = false;
   for (int sec = 0; sec < SECTION_COUNT; ++sec) {
@@ -203,18 +201,6 @@ bool resolve_relative_address(Vector **section_irs, Table *label_table, Vector *
         break;
       }
     }
-  }
-
-  if (unresolved_labels.count > 0 && unresolved == NULL) {
-    for (int i = 0; ;) {
-      const Name *name;
-      void *dummy;
-      i = table_iterate(&unresolved_labels, i, &name, &dummy);
-      if (i < 0)
-        break;
-      fprintf(stderr, "Undefined reference: `%.*s'\n", NAMES(name));
-    }
-    exit(1);
   }
 
   return !size_upgraded;
