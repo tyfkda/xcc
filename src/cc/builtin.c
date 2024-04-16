@@ -1,5 +1,10 @@
 #include "../config.h"
 #include <assert.h>
+#include <stdlib.h>
+
+#ifndef __NO_FLONUM
+#include <math.h>
+#endif
 
 #include "arch_config.h"
 #include "ast.h"
@@ -20,6 +25,33 @@ static Expr *proc_builtin_type_kind(const Token *ident) {
 
   return new_expr_fixlit(&tySize, ident, type->kind);
 }
+
+#ifndef __NO_FLONUM
+static Expr *proc_builtin_nan(const Token *ident) {
+  consume(TK_LPAR, "`(' expected");
+  Expr *fmt = parse_expr();
+  consume(TK_RPAR, "`)' expected");
+
+  uint64_t significand = 0;
+  if (fmt->kind == EX_STR) {
+    const char *p = fmt->str.buf;
+    int base = 10;
+    if (p[0] == '0' && (p[1] == 'x' || p[1] == 'X')) {
+      p += 2;
+      base = 16;
+    }
+    significand = strtoull(p, NULL, base);
+  } else {
+    parse_error(PE_NOFATAL, fmt->token, "String literal expected");
+  }
+
+  const uint64_t MASK = (1UL << 52) - 1UL;
+  union { double d; uint64_t q; } u;
+  u.d = NAN;
+  u.q = (u.q & ~MASK) | (significand & MASK);
+  return new_expr_flolit(&tyDouble, ident, u.d);
+}
+#endif
 
 #if VAARG_ON_STACK
 static VReg *gen_builtin_va_start(Expr *expr) {
@@ -266,8 +298,13 @@ static VReg *gen_alloca(Expr *expr) {
 }
 
 void install_builtins(void) {
-  static BuiltinExprProc p_reg_class = &proc_builtin_type_kind;
-  add_builtin_expr_ident("__builtin_type_kind", &p_reg_class);
+  static BuiltinExprProc p_type_kind = &proc_builtin_type_kind;
+  add_builtin_expr_ident("__builtin_type_kind", &p_type_kind);
+
+#ifndef __NO_FLONUM
+  static BuiltinExprProc p_nan = &proc_builtin_nan;
+  add_builtin_expr_ident("__builtin_nan", &p_nan);
+#endif
 
   {
 #if VAARG_ON_STACK || XCC_TARGET_ARCH == XCC_ARCH_RISCV64

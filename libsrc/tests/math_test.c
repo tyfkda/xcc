@@ -129,9 +129,24 @@ TEST(isinf) {
 
 TEST(isnan) {
   EXPECT_TRUE(isnan(NAN));
+  EXPECT_TRUE(isnan(copysign(NAN, -1)));
   EXPECT_FALSE(isnan(1.23));
   EXPECT_FALSE(isnan(0.0));
   EXPECT_FALSE(isnan(HUGE_VAL));
+} END_TEST()
+
+TEST(copysign_signbit) {
+  double pzero = 0.0;
+  double nzero = -0.0;
+  EXPECT_DEQ(123, copysign(-123, pzero));
+  EXPECT_DEQ(-456, copysign(+456, nzero));
+  EXPECT_EQ(1, signbit(copysign(pzero, -1)));
+  EXPECT_EQ(0, signbit(copysign(nzero, +1)));
+
+  EXPECT_EQ(0, signbit(NAN));
+  double nnan = copysign(NAN, -1);
+  EXPECT_EQ(1, signbit(nnan));
+  EXPECT_EQ(0, signbit(copysign(nnan, +1)));
 } END_TEST()
 
 TEST(negative_zero) {
@@ -157,6 +172,7 @@ int main() {
     test_frexp,
     test_isinf,
     test_isnan,
+    test_copysign_signbit,
     test_negative_zero,
   );
 }

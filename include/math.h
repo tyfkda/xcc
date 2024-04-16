@@ -14,8 +14,9 @@
 #define M_LOG10E    (0.434294481903252)
 #define M_LN2       (0.693147180559945)
 #define M_LN10      (2.302585092994046)
-#define NAN         (0.0 / 0.0)
-#define HUGE_VAL    (1.0 / 0.0)
+#define NAN         (__builtin_nan("0x7ff8000000000000"))
+#define INFINITY    (1.0 / 0.0)
+#define HUGE_VAL    INFINITY
 
 double sin(double);
 double cos(double);
@@ -77,9 +78,9 @@ double copysign(double x, double f);
 })
 
 #define signbit(x)  ({ \
-  union { double d; uint64_t xx; } __u; \
+  union { double d; uint64_t q; } __u; \
   __u.d = (x); \
-  __u.d != 0 ? __u.d < 0 : __u.xx >> 63; \
+  __u.q >> 63; \
 })
 
 #endif

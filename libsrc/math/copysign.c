@@ -14,8 +14,6 @@ double copysign(double x, double f) {
       S(OP_LOCAL_GET) ",1,"  // local.get 1
       S(OP_F64_COPYSIGN));   // f64.copysign
 #else
-  if (isnan(x))
-    return x;
   union { double d; int64_t q; } u;
   u.d = x;
   u.q = (u.q & ~SIGN_MASK) | ((uint64_t)signbit(f) << SIGN_POS);

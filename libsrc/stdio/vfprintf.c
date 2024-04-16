@@ -102,7 +102,7 @@ static int sprintsign(FILE *fp, bool negative, bool force, int *porder) {
 }
 
 #ifndef __NO_FLONUM
-#include "math.h"  // isfinite
+#include "math.h"  // isfinite, signbit
 
 static long double pow10(int order) {
   long double a = 1, x = 10;
@@ -114,12 +114,17 @@ static long double pow10(int order) {
   return a;
 }
 
+static int printnonfinite(FILE *fp, long double x,
+                          int order, int suborder, bool sign, bool leftalign, char padding) {
+  static const char *ss[] = { "inf", "-inf", "nan", "-nan" };
+  int index = (isnan(x) ? 2 : 0) | (signbit(x) ? 1 : 0);
+  return snprintstr(fp, ss[index], order, suborder, leftalign, ' ');
+}
+
 static int printfloat(FILE *fp, long double x,
                       int order, int suborder, bool sign, bool leftalign, char padding) {
-  if (!isfinite(x)) {
-    const char *s = isnan(x) ? "nan" : x > 0 ? "inf" : "-inf";
-    return snprintstr(fp, s, order, suborder, leftalign, ' ');
-  }
+  if (!isfinite(x))
+    return printnonfinite(fp, x, order, suborder, sign, leftalign, padding);
 
   bool neg = signbit(x);
   if (neg)
@@ -161,10 +166,8 @@ static int normalize_float(long double *px) {
 
 static int printscientific(FILE *fp, long double x, int order, int suborder, bool sign,
                            bool leftalign, char padding) {
-  if (!isfinite(x)) {
-    const char *s = isnan(x) ? "nan" : x > 0 ? "inf" : "-inf";
-    return snprintstr(fp, s, order, suborder, leftalign, ' ');
-  }
+  if (!isfinite(x))
+    return printnonfinite(fp, x, order, suborder, sign, leftalign, padding);
 
   bool neg = signbit(x);
   if (neg)

@@ -5,8 +5,12 @@
 #include <assert.h>
 #include <limits.h>
 #include <stdio.h>
-#include <stdlib.h>  // free
+#include <stdlib.h>  // free, strtoull
 #include <string.h>
+
+#ifndef __NO_FLONUM
+#include <math.h>
+#endif
 
 #include "ast.h"
 #include "fe_misc.h"  // curfunc
@@ -1853,6 +1857,33 @@ static void gen_builtin_try_catch_longjmp(Expr *expr, enum BuiltinFunctionPhase 
   } ADD_CODE(OP_END);
 }
 
+#ifndef __NO_FLONUM
+static Expr *proc_builtin_nan(const Token *ident) {
+  consume(TK_LPAR, "`(' expected");
+  Expr *fmt = parse_expr();
+  consume(TK_RPAR, "`)' expected");
+
+  uint64_t significand = 0;
+  if (fmt->kind == EX_STR) {
+    const char *p = fmt->str.buf;
+    int base = 10;
+    if (p[0] == '0' && (p[1] == 'x' || p[1] == 'X')) {
+      p += 2;
+      base = 16;
+    }
+    significand = strtoull(p, NULL, base);
+  } else {
+    parse_error(PE_NOFATAL, fmt->token, "String literal expected");
+  }
+
+  const uint64_t MASK = (1UL << 52) - 1UL;
+  union { double d; uint64_t q; } u;
+  u.d = NAN;
+  u.q = (u.q & ~MASK) | (significand & MASK);
+  return new_expr_flolit(&tyDouble, ident, u.d);
+}
+#endif
+
 static Expr *proc_builtin_va_start(const Token *ident) {
   if (curfunc == NULL || !curfunc->type->func.vaargs) {
     parse_error(PE_FATAL, ident, "`va_start' can only be used in a variadic function");
@@ -1997,6 +2028,11 @@ void install_builtins(void) {
     const Name *name = alloc_name("__builtin_va_list", NULL, false);
     add_typedef(global_scope, name, type);
   }
+
+#ifndef __NO_FLONUM
+  static BuiltinExprProc p_nan = &proc_builtin_nan;
+  add_builtin_expr_ident("__builtin_nan", &p_nan);
+#endif
 
   static BuiltinExprProc p_va_start = &proc_builtin_va_start;
   static BuiltinExprProc p_va_end = &proc_builtin_va_end;
