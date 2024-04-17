@@ -82,10 +82,12 @@ static void remove_unnecessary_bb(BBContainer *bbcon) {
           IR *ir0 = is_last_jmp(pbb);
           if (ir0 != NULL && ir0->jmp.cond != COND_ANY) {  // Fallthrough pass exists.
             if (ir0->jmp.bb == bb->next) {                 // Skip jmp: Fix bb connection.
-              // Invert prev jmp condition and change jmp destination.
-              ir0->jmp.cond = invert_cond(ir0->jmp.cond);
-              ir0->jmp.bb = ir_jmp->jmp.bb;
-              remove = true;
+              if (!(ir0->opr1->flag & VRF_FLONUM) || (ir0->cond.kind & COND_MASK) <= COND_NE) {
+                // Invert prev jmp condition and change jmp destination.
+                ir0->jmp.cond = invert_cond(ir0->jmp.cond);
+                ir0->jmp.bb = ir_jmp->jmp.bb;
+                remove = true;
+              }
             }
           }
         }
