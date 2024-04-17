@@ -17,17 +17,17 @@
 #endif
 
 void make_code16(Inst *inst, Code *code, unsigned short *buf, int len) {
-  assert(len <= (int)sizeof(code->buf));
+  assert(code->len + len <= (int)sizeof(code->buf));
   code->inst = inst;
-  code->len = len;
-  memcpy(code->buf, buf, len);
+  memcpy(code->buf + code->len, buf, len);
+  code->len += len;
 }
 
 void make_code32(Inst *inst, Code *code, unsigned int *buf, int len) {
-  assert(len <= (int)sizeof(code->buf));
+  assert(code->len + len <= (int)sizeof(code->buf));
   code->inst = inst;
-  code->len = len;
-  memcpy(code->buf, buf, len);
+  memcpy(code->buf + code->len, buf, len);
+  code->len += len;
 }
 
 inline bool assemble_error(const ParseInfo *info, const char *message) {

@@ -17,17 +17,17 @@
 #endif
 
 void make_code16(Inst *inst, Code *code, unsigned short *buf, int len) {
-  assert(len <= (int)sizeof(code->buf));
+  assert(code->len + len <= (int)sizeof(code->buf));
   code->inst = inst;
-  code->len = len;
-  memcpy(code->buf, buf, len);
+  memcpy(code->buf + code->len, buf, len);
+  code->len += len;
 }
 
 void make_code32(Inst *inst, Code *code, unsigned int *buf, int len) {
-  assert(len <= (int)sizeof(code->buf));
+  assert(code->len + len <= (int)sizeof(code->buf));
   code->inst = inst;
-  code->len = len;
-  memcpy(code->buf, buf, len);
+  memcpy(code->buf + code->len, buf, len);
+  code->len += len;
 }
 
 inline bool is_im6(int64_t x) {
@@ -65,7 +65,7 @@ inline bool assemble_error(const ParseInfo *info, const char *message) {
 #define C_LUI(rd, imm)      MAKE_CODE16(inst, code, 0x6001 | (IMM(imm, 5, 5) << 12) | (rd << 7) | (IMM(imm, 4, 0) << 2))
 #define C_ADDI(rd, imm)     MAKE_CODE16(inst, code, 0x0001 | (IMM(imm, 5, 5) << 12) | (rd << 7) | (IMM(imm, 4, 0) << 2))
 #define C_ADDIW(rd, imm)    MAKE_CODE16(inst, code, 0x2001 | (IMM(imm, 5, 5) << 12) | (rd << 7) | (IMM(imm, 4, 0) << 2))
-#define C_LDSP(rd, imm)     MAKE_CODE16(inst, code, 0xe002 | (IMM(imm, 5, 5) << 12) | (rd << 7) | (IMM(imm, 4, 3) << 5) | (IMM(imm, 8, 6) << 2))
+#define C_LDSP(rd, imm)     MAKE_CODE16(inst, code, 0x6002 | (IMM(imm, 5, 5) << 12) | (rd << 7) | (IMM(imm, 4, 3) << 5) | (IMM(imm, 8, 6) << 2))
 #define C_SDSP(rs, imm)     MAKE_CODE16(inst, code, 0xe002 | (IMM(imm, 5, 3) << 10) | (IMM(imm, 8, 6) << 7) | (rs << 2))
 #define C_JR(rs)            MAKE_CODE16(inst, code, 0x8002 | (rs << 7))
 
@@ -125,7 +125,6 @@ static unsigned char *asm_ld(Inst *inst, Code *code) {
     int64_t imm = offset != NULL ? offset->fixnum : 0;
     int base_reg = inst->opr2.indirect.reg.no;
     if (imm >= 0 && imm < (1 << 9) && (imm & 7) == 0 && base_reg == SP) {
-      imm >>= 3;
       C_LDSP(rd, imm);
       return code->buf;
     }
@@ -140,7 +139,6 @@ static unsigned char *asm_sd(Inst *inst, Code *code) {
     int64_t imm = offset != NULL ? offset->fixnum : 0;
     int base_reg = inst->opr2.indirect.reg.no;
     if (imm >= 0 && imm < (1 << 9) && (imm & 7) == 0 && base_reg == SP) {
-      imm >>= 3;
       C_SDSP(rd, imm);
       return code->buf;
     }

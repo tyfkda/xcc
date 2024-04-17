@@ -25,10 +25,10 @@ static unsigned char *put_code_filtered(unsigned char *p, const short *buf, size
 }
 
 void make_code(Inst *inst, Code *code, unsigned char *buf, int len) {
-  assert(len <= (int)sizeof(code->buf));
+  assert(code->len + len <= (int)sizeof(code->buf));
   code->inst = inst;
-  code->len = len;
-  memcpy(code->buf, buf, len);
+  memcpy(code->buf + code->len, buf, len);
+  code->len += len;
 }
 
 inline char opr_regno(const Reg *reg) {

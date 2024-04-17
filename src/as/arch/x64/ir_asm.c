@@ -167,6 +167,7 @@ static bool make_jmp_long(IR *ir) {
   Inst *inst = ir->code.inst;
   // Change to long offset, and recalculate.
   ir->code.flag |= INST_LONG_OFFSET;
+  ir->code.len = 0;
   if (inst->op == JMP)
     MAKE_CODE(inst, &ir->code, 0xe9, IM32(-1));
   else
