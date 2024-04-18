@@ -12,8 +12,9 @@ enum Opcode {
   LI,
   LA,
   ADDI,
-  LD,
-  SD,
+  LB, LH, LW, LD,
+  LBU, LHU, LWU,
+  SB, SH, SW, SD,
   CALL,
   RET,
 };

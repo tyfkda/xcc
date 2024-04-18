@@ -14,8 +14,9 @@ static const char *kOpTable[] = {
   "li",
   "la",
   "addi",
-  "ld",
-  "sd",
+  "lb", "lh", "lw", "ld",
+  "lbu", "lhu", "lwu",
+  "sb", "sh", "sw", "sd",
   "call",
   "ret",
 };

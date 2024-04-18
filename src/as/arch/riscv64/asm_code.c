@@ -61,22 +61,39 @@ inline bool assemble_error(const ParseInfo *info, const char *message) {
 #define UTYPE(imm, rd, opcode)                       MAKE_CODE32(inst, code, (IMM(imm, 31, 12) << 12) | ((rd) << 7) | (opcode)) // U-type
 #define JTYPE(imm, rd, opcode)                       MAKE_CODE32(inst, code, (IMM(imm, 20, 20) << 31) | (IMM(imm, 10, 1) << 20) | (IMM(imm, 11, 11) << 19) | (IMM(imm, 19, 12) << 12) | ((rd) << 7) | (opcode)) // J-type
 
-#define C_LI(rd, imm)       MAKE_CODE16(inst, code, 0x4001 | (IMM(imm, 5, 5) << 12) | ((rd) << 7) | (IMM(imm, 4, 0) << 2))
-#define C_LUI(rd, imm)      MAKE_CODE16(inst, code, 0x6001 | (IMM(imm, 5, 5) << 12) | ((rd) << 7) | (IMM(imm, 4, 0) << 2))
-#define C_ADDI(rd, imm)     MAKE_CODE16(inst, code, 0x0001 | (IMM(imm, 5, 5) << 12) | ((rd) << 7) | (IMM(imm, 4, 0) << 2))
-#define C_ADDIW(rd, imm)    MAKE_CODE16(inst, code, 0x2001 | (IMM(imm, 5, 5) << 12) | ((rd) << 7) | (IMM(imm, 4, 0) << 2))
-#define C_LDSP(rd, imm)     MAKE_CODE16(inst, code, 0x6002 | (IMM(imm, 5, 5) << 12) | ((rd) << 7) | (IMM(imm, 4, 3) << 5) | (IMM(imm, 8, 6) << 2))
-#define C_SDSP(rs, imm)     MAKE_CODE16(inst, code, 0xe002 | (IMM(imm, 5, 3) << 10) | (IMM(imm, 8, 6) << 7) | ((rs) << 2))
-#define C_JR(rs)            MAKE_CODE16(inst, code, 0x8002 | ((rs) << 7))
+#define W_ADDI(rd, rs, imm)   ITYPE(imm, rs, 0x00, rd, 0x13)
+#define W_ADDIW(rd, rs, imm)  ITYPE(imm, rs, 0x00, rd, 0x1b)
+#define W_LB(rd, ofs, rs)     ITYPE(ofs, rs, 0x00, rd, 0x03)
+#define W_LH(rd, ofs, rs)     ITYPE(ofs, rs, 0x01, rd, 0x03)
+#define W_LW(rd, ofs, rs)     ITYPE(ofs, rs, 0x02, rd, 0x03)
+#define W_LD(rd, ofs, rs)     ITYPE(ofs, rs, 0x03, rd, 0x03)
+#define W_LBU(rd, ofs, rs)    ITYPE(ofs, rs, 0x04, rd, 0x03)
+#define W_LHU(rd, ofs, rs)    ITYPE(ofs, rs, 0x05, rd, 0x03)
+#define W_LWU(rd, ofs, rs)    ITYPE(ofs, rs, 0x06, rd, 0x03)
+#define W_SB(rs2, ofs, rs1)   STYPE(ofs, rs2, rs1, 0x00, 0x23)
+#define W_SH(rs2, ofs, rs1)   STYPE(ofs, rs2, rs1, 0x01, 0x23)
+#define W_SW(rs2, ofs, rs1)   STYPE(ofs, rs2, rs1, 0x02, 0x23)
+#define W_SD(rs2, ofs, rs1)   STYPE(ofs, rs2, rs1, 0x03, 0x23)
+#define W_AUIPC(rd, imm)      UTYPE(imm, rd, 0x17)
+#define W_JALR(rd, rs, imm)   ITYPE(imm, rs, 0x00, rd, 0x67)
 
-#define ADDI(rd, rs, imm)   ITYPE(imm, rs, 0x00, rd, 0x13)
-#define ADDIW(rd, rs, imm)  ITYPE(imm, rs, 0x00, rd, 0x1b)
-#define AUIPC(rd, imm)      UTYPE(imm, rd, 0x17)
-#define JALR(rd, rs, imm)   ITYPE(imm, rs, 0x00, rd, 0x67)
-#define RET()               C_JR(RA)
+#define C_LI(rd, imm)         MAKE_CODE16(inst, code, 0x4001 | (IMM(imm, 5, 5) << 12) | ((rd) << 7) | (IMM(imm, 4, 0) << 2))
+#define C_LUI(rd, imm)        MAKE_CODE16(inst, code, 0x6001 | (IMM(imm, 5, 5) << 12) | ((rd) << 7) | (IMM(imm, 4, 0) << 2))
+#define C_ADDI(rd, imm)       MAKE_CODE16(inst, code, 0x0001 | (IMM(imm, 5, 5) << 12) | ((rd) << 7) | (IMM(imm, 4, 0) << 2))
+#define C_ADDIW(rd, imm)      MAKE_CODE16(inst, code, 0x2001 | (IMM(imm, 5, 5) << 12) | ((rd) << 7) | (IMM(imm, 4, 0) << 2))
+#define C_LW(rd, imm, rs)     MAKE_CODE16(inst, code, 0x4000 | (IMM(imm, 5, 3) << 10) | (to_rvc_reg(rs) << 7) | (IMM(imm, 2, 2) << 6) | (IMM(imm, 6, 6) << 5) | (to_rvc_reg(rd) << 2))
+#define C_LD(rd, imm, rs)     MAKE_CODE16(inst, code, 0x6000 | (IMM(imm, 5, 3) << 10) | (to_rvc_reg(rs) << 7) | (IMM(imm, 7, 6) << 5) | (to_rvc_reg(rd) << 2))
+#define C_SW(rs2, imm, rs1)   MAKE_CODE16(inst, code, 0xc000 | (IMM(imm, 5, 3) << 10) | (to_rvc_reg(rs1) << 7) | (IMM(imm, 7, 6) << 5) | (to_rvc_reg(rs2) << 2))
+#define C_SD(rs2, imm, rs1)   MAKE_CODE16(inst, code, 0xe000 | (IMM(imm, 5, 3) << 10) | (to_rvc_reg(rs1) << 7) | (IMM(imm, 7, 6) << 5) | (to_rvc_reg(rs2) << 2))
+#define C_LDSP(rd, imm)       MAKE_CODE16(inst, code, 0x6002 | (IMM(imm, 5, 5) << 12) | ((rd) << 7) | (IMM(imm, 4, 3) << 5) | (IMM(imm, 8, 6) << 2))
+#define C_SDSP(rs, imm)       MAKE_CODE16(inst, code, 0xe002 | (IMM(imm, 5, 3) << 10) | (IMM(imm, 8, 6) << 7) | ((rs) << 2))
+#define C_JR(rs)              MAKE_CODE16(inst, code, 0x8002 | ((rs) << 7))
 
-#define LI(rd, imm)         ADDI(rd, ZERO, imm)
-#define MV(rd, rs)          ADDI(rd, rs, 0)
+#define P_RET()               C_JR(RA)
+#define P_LI(rd, imm)         W_ADDI(rd, ZERO, imm)
+
+extern inline bool is_rvc_reg(int reg)  { return reg >= 8 && reg <= 15; }  // X8~X15
+extern inline int to_rvc_reg(int reg)  { return reg - 8; }
 
 static unsigned char *asm_noop(Inst *inst, Code *code) {
   UNUSED(inst);
@@ -90,14 +107,14 @@ static unsigned char *asm_li(Inst *inst, Code *code) {
   if (is_im6(imm)) {
     C_LI(rd, imm);
   } else if (is_im12(imm)) {
-    LI(rd, imm);
+    P_LI(rd, imm);
   } else if (is_im18(imm)) {
     int h = imm >> 12, l = imm & 0xfff;
     C_LUI(rd, h);
     if (is_im6(imm))
       C_ADDIW(rd, l);
     else
-      ADDIW(rd, rd, l);
+      W_ADDIW(rd, rd, l);
   } else {
     // TODO:
     return NULL;
@@ -107,8 +124,8 @@ static unsigned char *asm_li(Inst *inst, Code *code) {
 
 static unsigned char *asm_la(Inst *inst, Code *code) {
   int rd = inst->opr1.reg.no;
-  AUIPC(rd, 0);
-  ADDI(rd, rd, 0);
+  W_AUIPC(rd, 0);
+  W_ADDI(rd, rd, 0);
   return code->buf;
 }
 
@@ -129,25 +146,91 @@ static unsigned char *asm_ld(Inst *inst, Code *code) {
   int rd = inst->opr1.reg.no;
   Expr *offset = inst->opr2.indirect.offset;
   if (offset == NULL || offset->kind == EX_FIXNUM) {
-    int64_t imm = offset != NULL ? offset->fixnum : 0;
-    int base_reg = inst->opr2.indirect.reg.no;
-    if (imm >= 0 && imm < (1 << 9) && (imm & 7) == 0 && base_reg == SP) {
-      C_LDSP(rd, imm);
+    int64_t ofs = offset != NULL ? offset->fixnum : 0;
+    int rs = inst->opr2.indirect.reg.no;
+    switch (inst->op) {
+    case LB:
+      // TODO: Check offset range.
+      W_LB(rd, ofs, rs);
       return code->buf;
+    case LH:
+      // TODO: Check offset range.
+      W_LH(rd, ofs, rs);
+      return code->buf;
+    case LW:
+      if (ofs >= 0 && ofs < (1 << 7) && (ofs & 3) == 0 && is_rvc_reg(rd) && is_rvc_reg(rs)) {
+        C_LW(rd, ofs, rs);
+        return code->buf;
+      }
+      // TODO: Check offset range.
+      W_LW(rd, ofs, rs);
+      return code->buf;
+    case LD:
+      if (ofs >= 0 && ofs < (1 << 9) && (ofs & 7) == 0 && rs == SP) {
+        C_LDSP(rd, ofs);
+        return code->buf;
+      }
+      if (ofs >= 0 && ofs < (1 << 8) && (ofs & 7) == 0 && is_rvc_reg(rd) && is_rvc_reg(rs)) {
+        C_LD(rd, ofs, rs);
+        return code->buf;
+      }
+      // TODO: Check offset range.
+      W_LD(rd, ofs, rs);
+      return code->buf;
+    case LBU:
+      // TODO: Check offset range.
+      W_LBU(rd, ofs, rs);
+      return code->buf;
+    case LHU:
+      // TODO: Check offset range.
+      W_LHU(rd, ofs, rs);
+      return code->buf;
+    case LWU:
+      // TODO: Check offset range.
+      W_LWU(rd, ofs, rs);
+      return code->buf;
+    default: break;
     }
   }
   return NULL;
 }
 
 static unsigned char *asm_sd(Inst *inst, Code *code) {
-  int rd = inst->opr1.reg.no;
   Expr *offset = inst->opr2.indirect.offset;
   if (offset == NULL || offset->kind == EX_FIXNUM) {
-    int64_t imm = offset != NULL ? offset->fixnum : 0;
-    int base_reg = inst->opr2.indirect.reg.no;
-    if (imm >= 0 && imm < (1 << 9) && (imm & 7) == 0 && base_reg == SP) {
-      C_SDSP(rd, imm);
+    int64_t ofs = offset != NULL ? offset->fixnum : 0;
+    int rs2 = inst->opr1.reg.no;
+    int rs1 = inst->opr2.indirect.reg.no;
+    switch (inst->op) {
+    case SB:
+      // TODO: Check offset range.
+      W_SB(rs2, ofs, rs1);
       return code->buf;
+    case SH:
+      // TODO: Check offset range.
+      W_SH(rs2, ofs, rs1);
+      return code->buf;
+    case SW:
+      if (ofs >= 0 && ofs < (1 << 7) && (ofs & 3) == 0 && is_rvc_reg(rs1) && is_rvc_reg(rs2)) {
+        C_SW(rs2, ofs, rs1);
+        return code->buf;
+      }
+      // TODO: Check offset range.
+      W_SW(rs2, ofs, rs1);
+      return code->buf;
+    case SD:
+      if (ofs >= 0 && ofs < (1 << 9) && (ofs & 7) == 0 && rs1 == SP) {
+        C_SDSP(rs2, ofs);
+        return code->buf;
+      }
+      if (ofs >= 0 && ofs < (1 << 8) && (ofs & 7) == 0 && is_rvc_reg(rs1) && is_rvc_reg(rs2)) {
+        C_SD(rs2, ofs, rs1);
+        return code->buf;
+      }
+      // TODO: Check offset range.
+      W_SD(rs2, ofs, rs1);
+      return code->buf;
+    default: break;
     }
   }
   return NULL;
@@ -155,13 +238,13 @@ static unsigned char *asm_sd(Inst *inst, Code *code) {
 
 static unsigned char *asm_call_d(Inst *inst, Code *code) {
   UNUSED(inst);
-  AUIPC(RA, 0);
-  JALR(RA, RA, 0);
+  W_AUIPC(RA, 0);
+  W_JALR(RA, RA, 0);
   return code->buf;
 }
 
 static unsigned char *asm_ret(Inst *inst, Code *code) {
-  RET();
+  P_RET();
   return code->buf;
 }
 
@@ -176,13 +259,22 @@ typedef struct {
   int flag;
 } AsmInstTable;
 
+static const AsmInstTable table_ld[] ={
+    {asm_ld, REG, INDIRECT, NOOPERAND},
+    {NULL} };
+
+static const AsmInstTable table_sd[] ={
+    {asm_sd, REG, INDIRECT, NOOPERAND},
+    {NULL} };
+
 static const AsmInstTable *table[] = {
   [NOOP] = (const AsmInstTable[]){ {asm_noop, NOOPERAND, NOOPERAND, NOOPERAND}, {NULL} },
   [LI] = (const AsmInstTable[]){ {asm_li, REG, IMMEDIATE, NOOPERAND}, {NULL} },
   [LA] = (const AsmInstTable[]){ {asm_la, REG, DIRECT, DIRECT}, {NULL} },
   [ADDI] = (const AsmInstTable[]){ {asm_addi, REG, REG, IMMEDIATE}, {NULL} },
-  [LD] = (const AsmInstTable[]){ {asm_ld, REG, INDIRECT, NOOPERAND}, {NULL} },
-  [SD] = (const AsmInstTable[]){ {asm_sd, REG, INDIRECT, NOOPERAND}, {NULL} },
+  [LB] = table_ld, [LH] = table_ld, [LW] = table_ld, [LD] = table_ld,
+  [LBU] = table_ld, [LHU] = table_ld, [LWU] = table_ld,
+  [SB] = table_sd, [SH] = table_sd, [SW] = table_sd, [SD] = table_sd,
   [CALL] = (const AsmInstTable[]){ {asm_call_d, DIRECT, NOOPERAND, NOOPERAND}, {NULL} },
   [RET] = (const AsmInstTable[]){ {asm_ret, NOOPERAND, NOOPERAND, NOOPERAND}, {NULL} },
 };
