@@ -251,6 +251,18 @@ static int output_obj(const char *ofn, Table *label_table, Vector *unresolved) {
         }
       }
       break;
+    case UNRES_RISCV_BRANCH:
+    case UNRES_RISCV_RVC_BRANCH:
+      {
+        Elf64_Sym *sym = symtab_add(&symtab, u->label);
+        size_t index = sym - symtab.buf;
+
+        rela->r_offset = u->offset;
+        rela->r_info = ELF64_R_INFO(index, u->kind == UNRES_RISCV_RVC_BRANCH ? R_RISCV_RVC_BRANCH
+                                                                             : R_RISCV_BRANCH);
+        rela->r_addend = u->add;
+      }
+      break;
     case UNRES_RISCV_CALL:
       {
         int symidx = symtab_find(&symtab, u->label);
@@ -258,13 +270,6 @@ static int output_obj(const char *ofn, Table *label_table, Vector *unresolved) {
 
         rela->r_offset = u->offset;
         rela->r_info = ELF64_R_INFO(symidx, R_RISCV_CALL);
-        rela->r_addend = u->add;
-      }
-      break;
-    case UNRES_RISCV_RELAX:
-      {
-        rela->r_offset = u->offset;
-        rela->r_info = ELF64_R_INFO(0, R_RISCV_RELAX);
         rela->r_addend = u->add;
       }
       break;
@@ -276,6 +281,23 @@ static int output_obj(const char *ofn, Table *label_table, Vector *unresolved) {
 
         rela->r_offset = u->offset;
         rela->r_info = ELF64_R_INFO(symidx, u->kind == UNRES_RISCV_PCREL_HI20 ? R_RISCV_PCREL_HI20 : R_RISCV_PCREL_LO12_I);
+        rela->r_addend = u->add;
+      }
+      break;
+    case UNRES_RISCV_RVC_JUMP:
+      {
+        int symidx = symtab_find(&symtab, u->label);
+        assert(symidx >= 0);
+
+        rela->r_offset = u->offset;
+        rela->r_info = ELF64_R_INFO(symidx, R_RISCV_RVC_JUMP);
+        rela->r_addend = u->add;
+      }
+      break;
+    case UNRES_RISCV_RELAX:
+      {
+        rela->r_offset = u->offset;
+        rela->r_info = ELF64_R_INFO(0, R_RISCV_RELAX);
         rela->r_addend = u->add;
       }
       break;

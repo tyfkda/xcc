@@ -175,6 +175,43 @@ bool resolve_relative_address(Vector **section_irs, Table *label_table, Vector *
               }
             }
             break;
+          case J:
+            if (inst->opr1.type == DIRECT) {
+              Value value = calc_expr(label_table, inst->opr1.direct.expr);
+              if (value.label != NULL) {
+                // Put rela even if the label is defined in the same object file.
+                UnresolvedInfo *info;
+                info = calloc_or_die(sizeof(*info));
+                info->kind = UNRES_RISCV_RVC_JUMP;
+                info->label = value.label;
+                info->src_section = sec;
+                info->offset = address - start_address;
+                info->add = value.offset;
+                vec_push(unresolved, info);
+                break;
+              }
+            }
+            break;
+          case BEQ: case BNE: case BLT: case BGE: case BLTU: case BGEU:
+            if (inst->opr3.type == DIRECT) {
+              Value value = calc_expr(label_table, inst->opr3.direct.expr);
+              if (value.label != NULL) {
+                assert(inst->opr2.type == REG);
+                bool comp = inst->opr2.reg.no == 0 && is_rvc_reg(inst->opr1.reg.no) &&
+                  (inst->op == BEQ || inst->op == BNE);
+                // Put rela even if the label is defined in the same object file.
+                UnresolvedInfo *info;
+                info = calloc_or_die(sizeof(*info));
+                info->kind = comp ? UNRES_RISCV_RVC_BRANCH : UNRES_RISCV_BRANCH;
+                info->label = value.label;
+                info->src_section = sec;
+                info->offset = address - start_address;
+                info->add = value.offset;
+                vec_push(unresolved, info);
+                break;
+              }
+            }
+            break;
           case CALL:
             if (inst->opr1.type == DIRECT) {
               Value value = calc_expr(label_table, inst->opr1.direct.expr);

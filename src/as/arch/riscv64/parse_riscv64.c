@@ -11,12 +11,16 @@
 
 // Align with Opcode.
 static const char *kOpTable[] = {
+  "mv",
   "li",
   "la",
-  "addi",
+  "add", "addw",
+  "addi", "addiw",
   "lb", "lh", "lw", "ld",
   "lbu", "lhu", "lwu",
   "sb", "sh", "sw", "sd",
+  "j",
+  "beq", "bne", "blt", "bge", "bltu", "bgeu",
   "call",
   "ret",
 };

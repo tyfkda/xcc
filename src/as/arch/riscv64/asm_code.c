@@ -61,6 +61,8 @@ inline bool assemble_error(const ParseInfo *info, const char *message) {
 #define UTYPE(imm, rd, opcode)                       MAKE_CODE32(inst, code, (IMM(imm, 31, 12) << 12) | ((rd) << 7) | (opcode)) // U-type
 #define JTYPE(imm, rd, opcode)                       MAKE_CODE32(inst, code, (IMM(imm, 20, 20) << 31) | (IMM(imm, 10, 1) << 20) | (IMM(imm, 11, 11) << 19) | (IMM(imm, 19, 12) << 12) | ((rd) << 7) | (opcode)) // J-type
 
+#define W_ADD(rd, rs1, rs2)   RTYPE(0x00, rs2, rs1, 0x00, rd, 0x33)
+#define W_ADDW(rd, rs1, rs2)  RTYPE(0x00, rs2, rs1, 0x00, rd, 0x3b)
 #define W_ADDI(rd, rs, imm)   ITYPE(imm, rs, 0x00, rd, 0x13)
 #define W_ADDIW(rd, rs, imm)  ITYPE(imm, rs, 0x00, rd, 0x1b)
 #define W_LB(rd, ofs, rs)     ITYPE(ofs, rs, 0x00, rd, 0x03)
@@ -76,9 +78,13 @@ inline bool assemble_error(const ParseInfo *info, const char *message) {
 #define W_SD(rs2, ofs, rs1)   STYPE(ofs, rs2, rs1, 0x03, 0x23)
 #define W_AUIPC(rd, imm)      UTYPE(imm, rd, 0x17)
 #define W_JALR(rd, rs, imm)   ITYPE(imm, rs, 0x00, rd, 0x67)
+#define W_BXX(funct3, rs1, rs2, ofs)  STYPE(ofs, rs2, rs1, funct3, 0x63)
 
+#define C_MV(rd, rs)          MAKE_CODE16(inst, code, 0x8002 | ((rd) << 7) | ((rs) << 2))
 #define C_LI(rd, imm)         MAKE_CODE16(inst, code, 0x4001 | (IMM(imm, 5, 5) << 12) | ((rd) << 7) | (IMM(imm, 4, 0) << 2))
 #define C_LUI(rd, imm)        MAKE_CODE16(inst, code, 0x6001 | (IMM(imm, 5, 5) << 12) | ((rd) << 7) | (IMM(imm, 4, 0) << 2))
+#define C_ADD(rd, rs)         MAKE_CODE16(inst, code, 0x9002 | ((rd) << 7) | ((rs) << 2))
+#define C_ADDW(rd, rs)        MAKE_CODE16(inst, code, 0x9c21 | (to_rvc_reg(rd) << 7) | (to_rvc_reg(rs) << 2))
 #define C_ADDI(rd, imm)       MAKE_CODE16(inst, code, 0x0001 | (IMM(imm, 5, 5) << 12) | ((rd) << 7) | (IMM(imm, 4, 0) << 2))
 #define C_ADDIW(rd, imm)      MAKE_CODE16(inst, code, 0x2001 | (IMM(imm, 5, 5) << 12) | ((rd) << 7) | (IMM(imm, 4, 0) << 2))
 #define C_LW(rd, imm, rs)     MAKE_CODE16(inst, code, 0x4000 | (IMM(imm, 5, 3) << 10) | (to_rvc_reg(rs) << 7) | (IMM(imm, 2, 2) << 6) | (IMM(imm, 6, 6) << 5) | (to_rvc_reg(rd) << 2))
@@ -87,18 +93,79 @@ inline bool assemble_error(const ParseInfo *info, const char *message) {
 #define C_SD(rs2, imm, rs1)   MAKE_CODE16(inst, code, 0xe000 | (IMM(imm, 5, 3) << 10) | (to_rvc_reg(rs1) << 7) | (IMM(imm, 7, 6) << 5) | (to_rvc_reg(rs2) << 2))
 #define C_LDSP(rd, imm)       MAKE_CODE16(inst, code, 0x6002 | (IMM(imm, 5, 5) << 12) | ((rd) << 7) | (IMM(imm, 4, 3) << 5) | (IMM(imm, 8, 6) << 2))
 #define C_SDSP(rs, imm)       MAKE_CODE16(inst, code, 0xe002 | (IMM(imm, 5, 3) << 10) | (IMM(imm, 8, 6) << 7) | ((rs) << 2))
+#define C_J()                 MAKE_CODE16(inst, code, 0xa001)
 #define C_JR(rs)              MAKE_CODE16(inst, code, 0x8002 | ((rs) << 7))
+#define C_BEQZ(rs)            MAKE_CODE16(inst, code, 0xc001 | (to_rvc_reg(rs) << 7))
+#define C_BNEZ(rs)            MAKE_CODE16(inst, code, 0xe001 | (to_rvc_reg(rs) << 7))
 
 #define P_RET()               C_JR(RA)
 #define P_LI(rd, imm)         W_ADDI(rd, ZERO, imm)
 
-extern inline bool is_rvc_reg(int reg)  { return reg >= 8 && reg <= 15; }  // X8~X15
-extern inline int to_rvc_reg(int reg)  { return reg - 8; }
+extern inline bool is_rvc_reg(int reg);
+extern inline int to_rvc_reg(int reg);
+
+static unsigned char *asm_3r(Inst *inst, Code *code) {
+  assert(inst->opr1.type == REG);
+  assert(inst->opr2.type == REG);
+  assert(inst->opr3.type == REG);
+  int rd = inst->opr1.reg.no;
+  int rs1 = inst->opr2.reg.no;
+  int rs2 = inst->opr3.reg.no;
+  if (rd == rs1) {
+    if (inst->op == ADD) {
+      C_ADD(rd, rs2);
+      return code->buf;
+    }
+
+    if (is_rvc_reg(rd) && is_rvc_reg(rs2)) {
+      switch (inst->op) {
+      case ADDW:  C_ADDW(rd, rs2); return code->buf;
+      default: break;
+      }
+    }
+  }
+
+  switch (inst->op) {
+  case ADD:    W_ADD(rd, rs1, rs2); break;
+  case ADDW:   W_ADDW(rd, rs1, rs2); break;
+  default: assert(false); return NULL;
+  }
+  return code->buf;
+}
+
+static unsigned char *asm_2ri(Inst *inst, Code *code) {
+  assert(inst->opr1.type == REG);
+  assert(inst->opr2.type == REG);
+  assert(inst->opr3.type == IMMEDIATE);
+  int rd = inst->opr1.reg.no;
+  int rs = inst->opr2.reg.no;
+  int64_t imm =inst->opr3.immediate;
+  if (rd == rs && is_im6(imm)) {
+    switch (inst->op) {
+    case ADDI:   if (imm != 0) { C_ADDI(rd, imm); return code->buf; } break;
+    case ADDIW:  C_ADDIW(rd, imm); return code->buf;
+    default: break;
+    }
+  }
+  switch (inst->op) {
+  case ADDI:   W_ADDI(rd, rs, imm); break;
+  case ADDIW:  W_ADDIW(rd, rs, imm); break;
+  default: assert(false); return NULL;
+  }
+  return code->buf;
+}
 
 static unsigned char *asm_noop(Inst *inst, Code *code) {
   UNUSED(inst);
   unsigned char *p = code->buf;
   return p;
+}
+
+static unsigned char *asm_mv(Inst *inst, Code *code) {
+  int rd = inst->opr1.reg.no;
+  int rs = inst->opr2.reg.no;
+  C_MV(rd, rs);
+  return code->buf;
 }
 
 static unsigned char *asm_li(Inst *inst, Code *code) {
@@ -126,19 +193,6 @@ static unsigned char *asm_la(Inst *inst, Code *code) {
   int rd = inst->opr1.reg.no;
   W_AUIPC(rd, 0);
   W_ADDI(rd, rd, 0);
-  return code->buf;
-}
-
-static unsigned char *asm_addi(Inst *inst, Code *code) {
-  int rd = inst->opr1.reg.no;
-  int rs = inst->opr2.reg.no;
-  int64_t imm =inst->opr3.immediate;
-  if (rd == rs && is_im6(imm) && imm != 0) {
-    C_ADDI(rd, imm);
-  } else {
-    // TODO:
-    return NULL;
-  }
   return code->buf;
 }
 
@@ -236,6 +290,37 @@ static unsigned char *asm_sd(Inst *inst, Code *code) {
   return NULL;
 }
 
+static unsigned char *asm_j(Inst *inst, Code *code) {
+  UNUSED(inst);
+  // TODO: Non compact instruction?
+  // imm[11|4|9:8|10|6|7|3:1|5]
+  C_J();
+  return code->buf;
+}
+
+#define _BEQ   0x0
+#define _BNE   0x1
+#define _BLT   0x4
+#define _BGE   0x5
+#define _BLTU  0x6
+#define _BGEU  0x7
+
+static unsigned char *asm_bxx(Inst *inst, Code *code) {
+  int rs1 = inst->opr1.reg.no;
+  int rs2 = inst->opr2.reg.no;
+  if (rs2 == ZERO && is_rvc_reg(rs1)) {
+    switch (inst->op) {
+    case BEQ:  C_BEQZ(rs1); return code->buf;
+    case BNE:  C_BNEZ(rs1); return code->buf;
+    default: break;
+    }
+  }
+  static const int kFunct3Table[] = { _BEQ, _BNE, _BLT, _BGE, _BLTU, _BGEU };
+  int funct3 = kFunct3Table[inst->op - BEQ];
+  W_BXX(funct3, rs1, rs2, 0);
+  return code->buf;
+}
+
 static unsigned char *asm_call_d(Inst *inst, Code *code) {
   UNUSED(inst);
   W_AUIPC(RA, 0);
@@ -259,6 +344,14 @@ typedef struct {
   int flag;
 } AsmInstTable;
 
+static const AsmInstTable table_3r[] ={
+    {asm_3r, REG, REG, REG},
+    {NULL} };
+
+static const AsmInstTable table_2ri[] ={
+    {asm_2ri, REG, REG, IMMEDIATE},
+    {NULL} };
+
 static const AsmInstTable table_ld[] ={
     {asm_ld, REG, INDIRECT, NOOPERAND},
     {NULL} };
@@ -267,14 +360,23 @@ static const AsmInstTable table_sd[] ={
     {asm_sd, REG, INDIRECT, NOOPERAND},
     {NULL} };
 
+static const AsmInstTable table_bxx[] ={
+    {asm_bxx, REG, REG, DIRECT},
+    {NULL} };
+
 static const AsmInstTable *table[] = {
   [NOOP] = (const AsmInstTable[]){ {asm_noop, NOOPERAND, NOOPERAND, NOOPERAND}, {NULL} },
+  [MV] = (const AsmInstTable[]){ {asm_mv, REG, REG, NOOPERAND}, {NULL} },
   [LI] = (const AsmInstTable[]){ {asm_li, REG, IMMEDIATE, NOOPERAND}, {NULL} },
   [LA] = (const AsmInstTable[]){ {asm_la, REG, DIRECT, DIRECT}, {NULL} },
-  [ADDI] = (const AsmInstTable[]){ {asm_addi, REG, REG, IMMEDIATE}, {NULL} },
+  [ADD] = table_3r, [ADDW] = table_3r,
+  [ADDI] = table_2ri, [ADDIW] = table_2ri,
   [LB] = table_ld, [LH] = table_ld, [LW] = table_ld, [LD] = table_ld,
   [LBU] = table_ld, [LHU] = table_ld, [LWU] = table_ld,
   [SB] = table_sd, [SH] = table_sd, [SW] = table_sd, [SD] = table_sd,
+  [J] = (const AsmInstTable[]){ {asm_j, DIRECT, NOOPERAND, NOOPERAND}, {NULL} },
+  [BEQ] = table_bxx, [BNE] = table_bxx, [BLT] = table_bxx, [BGE] = table_bxx,
+  [BLTU] = table_bxx, [BGEU] = table_bxx,
   [CALL] = (const AsmInstTable[]){ {asm_call_d, DIRECT, NOOPERAND, NOOPERAND}, {NULL} },
   [RET] = (const AsmInstTable[]){ {asm_ret, NOOPERAND, NOOPERAND, NOOPERAND}, {NULL} },
 };

@@ -9,12 +9,16 @@ typedef struct Expr Expr;
 // Must match the order with kOpTable in parse_riscv64.c
 enum Opcode {
   NOOP,
+  MV,
   LI,
   LA,
-  ADDI,
+  ADD, ADDW,
+  ADDI, ADDIW,
   LB, LH, LW, LD,
   LBU, LHU, LWU,
   SB, SH, SW, SD,
+  J,
+  BEQ, BNE, BLT, BGE, BLTU, BGEU,
   CALL,
   RET,
 };
@@ -59,3 +63,6 @@ typedef struct Inst {
   Operand opr2;
   Operand opr3;
 } Inst;
+
+inline bool is_rvc_reg(int reg)  { return reg >= 8 && reg <= 15; }  // X8~X15
+inline int to_rvc_reg(int reg)  { return reg - 8; }
