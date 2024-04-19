@@ -65,6 +65,18 @@ inline bool assemble_error(const ParseInfo *info, const char *message) {
 #define W_ADDW(rd, rs1, rs2)  RTYPE(0x00, rs2, rs1, 0x00, rd, 0x3b)
 #define W_ADDI(rd, rs, imm)   ITYPE(imm, rs, 0x00, rd, 0x13)
 #define W_ADDIW(rd, rs, imm)  ITYPE(imm, rs, 0x00, rd, 0x1b)
+#define W_SUB(rd, rs1, rs2)   RTYPE(0x20, rs2, rs1, 0x00, rd, 0x33)
+#define W_SUBW(rd, rs1, rs2)  RTYPE(0x20, rs2, rs1, 0x00, rd, 0x3b)
+#define W_MUL(rd, rs1, rs2)   RTYPE(0x01, rs2, rs1, 0x00, rd, 0x33)
+#define W_MULW(rd, rs1, rs2)  RTYPE(0x01, rs2, rs1, 0x00, rd, 0x3b)
+#define W_DIV(rd, rs1, rs2)   RTYPE(0x01, rs2, rs1, 0x04, rd, 0x33)
+#define W_DIVU(rd, rs1, rs2)  RTYPE(0x01, rs2, rs1, 0x05, rd, 0x33)
+#define W_DIVW(rd, rs1, rs2)  RTYPE(0x01, rs2, rs1, 0x04, rd, 0x3b)
+#define W_DIVUW(rd, rs1, rs2) RTYPE(0x01, rs2, rs1, 0x05, rd, 0x3b)
+#define W_REM(rd, rs1, rs2)   RTYPE(0x01, rs2, rs1, 0x06, rd, 0x33)
+#define W_REMU(rd, rs1, rs2)  RTYPE(0x01, rs2, rs1, 0x07, rd, 0x33)
+#define W_REMW(rd, rs1, rs2)  RTYPE(0x01, rs2, rs1, 0x06, rd, 0x3b)
+#define W_REMUW(rd, rs1, rs2) RTYPE(0x01, rs2, rs1, 0x07, rd, 0x3b)
 #define W_LB(rd, ofs, rs)     ITYPE(ofs, rs, 0x00, rd, 0x03)
 #define W_LH(rd, ofs, rs)     ITYPE(ofs, rs, 0x01, rd, 0x03)
 #define W_LW(rd, ofs, rs)     ITYPE(ofs, rs, 0x02, rd, 0x03)
@@ -87,6 +99,9 @@ inline bool assemble_error(const ParseInfo *info, const char *message) {
 #define C_ADDW(rd, rs)        MAKE_CODE16(inst, code, 0x9c21 | (to_rvc_reg(rd) << 7) | (to_rvc_reg(rs) << 2))
 #define C_ADDI(rd, imm)       MAKE_CODE16(inst, code, 0x0001 | (IMM(imm, 5, 5) << 12) | ((rd) << 7) | (IMM(imm, 4, 0) << 2))
 #define C_ADDIW(rd, imm)      MAKE_CODE16(inst, code, 0x2001 | (IMM(imm, 5, 5) << 12) | ((rd) << 7) | (IMM(imm, 4, 0) << 2))
+#define C_ADDI16SP(imm)       MAKE_CODE16(inst, code, 0x6101 | (IMM(imm, 9, 9) << 12) | (IMM(imm, 4, 4) << 6) | (IMM(imm, 6, 6) << 5) | (IMM(imm, 8, 7) << 3) | (IMM(imm, 5, 5) << 2))
+#define C_SUB(rd, rs)         MAKE_CODE16(inst, code, 0x8c01 | (to_rvc_reg(rd) << 7) | (to_rvc_reg(rs) << 2))
+#define C_SUBW(rd, rs)        MAKE_CODE16(inst, code, 0x9c01 | (to_rvc_reg(rd) << 7) | (to_rvc_reg(rs) << 2))
 #define C_LW(rd, imm, rs)     MAKE_CODE16(inst, code, 0x4000 | (IMM(imm, 5, 3) << 10) | (to_rvc_reg(rs) << 7) | (IMM(imm, 2, 2) << 6) | (IMM(imm, 6, 6) << 5) | (to_rvc_reg(rd) << 2))
 #define C_LD(rd, imm, rs)     MAKE_CODE16(inst, code, 0x6000 | (IMM(imm, 5, 3) << 10) | (to_rvc_reg(rs) << 7) | (IMM(imm, 7, 6) << 5) | (to_rvc_reg(rd) << 2))
 #define C_SW(rs2, imm, rs1)   MAKE_CODE16(inst, code, 0xc000 | (IMM(imm, 5, 3) << 10) | (to_rvc_reg(rs1) << 7) | (IMM(imm, 7, 6) << 5) | (to_rvc_reg(rs2) << 2))
@@ -120,6 +135,8 @@ static unsigned char *asm_3r(Inst *inst, Code *code) {
     if (is_rvc_reg(rd) && is_rvc_reg(rs2)) {
       switch (inst->op) {
       case ADDW:  C_ADDW(rd, rs2); return code->buf;
+      case SUB:   C_SUB(rd, rs2); return code->buf;
+      case SUBW:  C_SUBW(rd, rs2); return code->buf;
       default: break;
       }
     }
@@ -128,6 +145,18 @@ static unsigned char *asm_3r(Inst *inst, Code *code) {
   switch (inst->op) {
   case ADD:    W_ADD(rd, rs1, rs2); break;
   case ADDW:   W_ADDW(rd, rs1, rs2); break;
+  case SUB:    W_SUB(rd, rs1, rs2); break;
+  case SUBW:   W_SUBW(rd, rs1, rs2); break;
+  case MUL:    W_MUL(rd, rs1, rs2); break;
+  case MULW:   W_MULW(rd, rs1, rs2); break;
+  case DIV:    W_DIV(rd, rs1, rs2); break;
+  case DIVW:   W_DIVW(rd, rs1, rs2); break;
+  case DIVU:   W_DIVU(rd, rs1, rs2); break;
+  case DIVUW:  W_DIVUW(rd, rs1, rs2); break;
+  case REM:    W_REM(rd, rs1, rs2); break;
+  case REMW:   W_REMW(rd, rs1, rs2); break;
+  case REMU:   W_REMU(rd, rs1, rs2); break;
+  case REMUW:  W_REMUW(rd, rs1, rs2); break;
   default: assert(false); return NULL;
   }
   return code->buf;
@@ -140,11 +169,18 @@ static unsigned char *asm_2ri(Inst *inst, Code *code) {
   int rd = inst->opr1.reg.no;
   int rs = inst->opr2.reg.no;
   int64_t imm =inst->opr3.immediate;
-  if (rd == rs && is_im6(imm)) {
-    switch (inst->op) {
-    case ADDI:   if (imm != 0) { C_ADDI(rd, imm); return code->buf; } break;
-    case ADDIW:  C_ADDIW(rd, imm); return code->buf;
-    default: break;
+  if (rd == rs) {
+    if (is_im6(imm)) {
+      switch (inst->op) {
+      case ADDI:   if (imm != 0) { C_ADDI(rd, imm); return code->buf; } break;
+      case ADDIW:  C_ADDIW(rd, imm); return code->buf;
+      default: break;
+      }
+    }
+
+    if (rd == SP && is_im6(imm >> 4) && (imm & 0xf) == 0 && imm != 0) {
+      C_ADDI16SP(imm);
+      return code->buf;
     }
   }
   switch (inst->op) {
@@ -371,6 +407,10 @@ static const AsmInstTable *table[] = {
   [LA] = (const AsmInstTable[]){ {asm_la, REG, DIRECT, DIRECT}, {NULL} },
   [ADD] = table_3r, [ADDW] = table_3r,
   [ADDI] = table_2ri, [ADDIW] = table_2ri,
+  [SUB] = table_3r, [SUBW] = table_3r,
+  [MUL] = table_3r, [MULW] = table_3r,
+  [DIV] = table_3r, [DIVU] = table_3r, [DIVW] = table_3r, [DIVUW] = table_3r,
+  [REM] = table_3r, [REMU] = table_3r, [REMW] = table_3r, [REMUW] = table_3r,
   [LB] = table_ld, [LH] = table_ld, [LW] = table_ld, [LD] = table_ld,
   [LBU] = table_ld, [LHU] = table_ld, [LWU] = table_ld,
   [SB] = table_sd, [SH] = table_sd, [SW] = table_sd, [SD] = table_sd,
