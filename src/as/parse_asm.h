@@ -101,3 +101,6 @@ typedef struct {
 } Value;
 
 Value calc_expr(Table *label_table, const Expr *expr);
+
+bool is_label_first_chr(char c);
+bool is_label_chr(char c);

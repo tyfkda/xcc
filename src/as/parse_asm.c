@@ -88,11 +88,11 @@ bool immediate(const char **pp, int64_t *value) {
   return true;
 }
 
-inline bool is_label_first_chr(char c) {
+bool is_label_first_chr(char c) {
   return isalpha(c) || c == '_' || c == '.';
 }
 
-inline bool is_label_chr(char c) {
+bool is_label_chr(char c) {
   return is_label_first_chr(c) || isdigit(c);
 }
 
