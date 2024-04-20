@@ -3,6 +3,7 @@
 
 #ifndef ELF_NOT_SUPPORTED
 
+#include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>  // realloc
 #include <string.h>  // memcpy
@@ -48,15 +49,19 @@ void symtab_init(Symtab *symtab) {
   symtab->count = 0;
 }
 
+int symtab_find(Symtab *symtab, const Name *name) {
+  intptr_t index;
+  if (table_try_get(&symtab->indices, name, (void**)&index))
+    return index;
+  return -1;
+}
+
 Elf64_Sym *symtab_add(Symtab *symtab, const Name *name) {
   uint32_t offset = strtab_add(&symtab->strtab, name);
   if (name->bytes > 0) {
-    for (int i = 0; i < symtab->count; ++i) {
-      uintptr_t index;
-      if (table_try_get(&symtab->indices, name, (void**)&index)) {
-        return &symtab->buf[index];
-      }
-    }
+    int index = symtab_find(symtab, name);
+    if (index >= 0)
+      return &symtab->buf[index];
   }
 
   int old_count = symtab->count;
@@ -68,6 +73,24 @@ Elf64_Sym *symtab_add(Symtab *symtab, const Name *name) {
   sym->st_name = offset;
   table_put(&symtab->indices, name, INT2VOIDP(old_count));
   return sym;
+}
+
+void symtab_concat(Symtab *dest, Symtab *src) {
+  int n = src->count;
+  const Name **names = alloca(sizeof(*names) * n);
+  const Name *name;
+  intptr_t index;
+  for (int it = 0; (it = table_iterate(&src->indices, it, &name, (void**)&index)) != -1; ) {
+    assert(index < n);
+    names[index] = name;
+  }
+  for (int i = 0; i < n; ++i) {
+    const Name *name = names[i];
+    Elf64_Sym *p = symtab_add(dest, name);
+    Elf64_Word st_name_bak = p->st_name;
+    memcpy(p, &src->buf[i], sizeof(*p));
+    p->st_name = st_name_bak;
+  }
 }
 
 //

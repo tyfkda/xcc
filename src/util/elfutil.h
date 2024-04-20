@@ -33,7 +33,9 @@ typedef struct {
 } Symtab;
 
 void symtab_init(Symtab *symtab);
+int symtab_find(Symtab *symtab, const Name *name);
 Elf64_Sym *symtab_add(Symtab *symtab, const Name *name);
+void symtab_concat(Symtab *dest, Symtab *src);
 
 //
 

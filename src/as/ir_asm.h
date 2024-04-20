@@ -12,8 +12,9 @@ typedef struct Name Name;
 typedef struct Table Table;
 typedef struct Vector Vector;
 
-#define LF_GLOBAL   (1 << 0)
-#define LF_DEFINED  (1 << 1)
+#define LF_GLOBAL    (1 << 0)
+#define LF_DEFINED   (1 << 1)
+#define LF_REFERRED  (1 << 2)
 
 enum LabelKind {
   LK_NONE,
