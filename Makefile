@@ -164,7 +164,7 @@ test-riscv64:	cross-compile-riscv64
 
 .PHONY: cross-compile-riscv64
 cross-compile-riscv64:
-	$(MAKE) ARCHTYPE:=riscv64 PLATFORM:=posix HOST_CC_PREFIX=riscv64-unknown-elf-
+	$(MAKE) ARCHTYPE:=riscv64 PLATFORM:=posix HOST_CC_PREFIX=$(shell ./tool/find-riscv-toolchain)-
 
 ### Library
 

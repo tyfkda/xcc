@@ -1,7 +1,21 @@
 #!/bin/bash
 
+THISDIR=$(cd "$(dirname "$0")";pwd)
+
 # Execute RISC-V executable on Spike
+prefix=`${THISDIR}/find-riscv-toolchain` || exit 1
+pk="${RISCV}/${prefix}/bin/pk"
 
 # Eliminate "bbl loader" message
-spike "$RISCV/riscv64-unknown-elf/bin/pk" "$@" | tail -n +2
+first=1
+spike "$RISCV/$prefix/bin/pk" "$@" | while read LINE
+do
+  if [[ $first -eq 1 ]]; then
+    first=0
+    if [[ "$LINE" =~ bbl\ loader ]]; then
+      continue
+    fi
+  fi
+  echo "$LINE"
+done
 exit "${PIPESTATUS[0]}"
