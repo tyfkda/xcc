@@ -73,6 +73,19 @@ inline bool assemble_error(const ParseInfo *info, const char *message) {
 #define W_REMU(rd, rs1, rs2)  RTYPE(0x01, rs2, rs1, 0x07, rd, 0x33)
 #define W_REMW(rd, rs1, rs2)  RTYPE(0x01, rs2, rs1, 0x06, rd, 0x3b)
 #define W_REMUW(rd, rs1, rs2) RTYPE(0x01, rs2, rs1, 0x07, rd, 0x3b)
+#define W_AND(rd, rs1, rs2)   RTYPE(0x00, rs2, rs1, 0x07, rd, 0x33)
+#define W_ANDI(rd, rs, imm)   ITYPE(imm, rs, 0x07, rd, 0x13)
+#define W_OR(rd, rs1, rs2)    RTYPE(0x00, rs2, rs1, 0x06, rd, 0x33)
+#define W_ORI(rd, rs, imm)    ITYPE(imm, rs, 0x06, rd, 0x13)
+#define W_XOR(rd, rs1, rs2)   RTYPE(0x00, rs2, rs1, 0x04, rd, 0x33)
+#define W_XORI(rd, rs, imm)   ITYPE(imm, rs, 0x04, rd, 0x13)
+#define W_SLL(rd, rs1, rs2)   RTYPE(0x00, rs2, rs1, 0x01, rd, 0x33)
+#define W_SLLI(rd, rs, imm)   ITYPE((imm) & 63, rs, 0x01, rd, 0x13)
+#define W_SLLIW(rd, rs, imm)  ITYPE((imm) & 31, rs, 0x01, rd, 0x1b)
+#define W_SRL(rd, rs1, rs2)   RTYPE(0x00, rs2, rs1, 0x05, rd, 0x33)
+#define W_SRLI(rd, rs, imm)   ITYPE((imm) & 63, rs, 0x05, rd, 0x13)
+#define W_SRA(rd, rs1, rs2)   RTYPE(0x20, rs2, rs1, 0x05, rd, 0x33)
+#define W_SRAI(rd, rs, imm)   ITYPE(0x400 | ((imm) & 63), rs, 0x05, rd, 0x13)
 #define W_LB(rd, ofs, rs)     ITYPE(ofs, rs, 0x00, rd, 0x03)
 #define W_LH(rd, ofs, rs)     ITYPE(ofs, rs, 0x01, rd, 0x03)
 #define W_LW(rd, ofs, rs)     ITYPE(ofs, rs, 0x02, rd, 0x03)
@@ -98,6 +111,13 @@ inline bool assemble_error(const ParseInfo *info, const char *message) {
 #define C_ADDI16SP(imm)       MAKE_CODE16(inst, code, 0x6101 | (IMM(imm, 9, 9) << 12) | (IMM(imm, 4, 4) << 6) | (IMM(imm, 6, 6) << 5) | (IMM(imm, 8, 7) << 3) | (IMM(imm, 5, 5) << 2))
 #define C_SUB(rd, rs)         MAKE_CODE16(inst, code, 0x8c01 | (to_rvc_reg(rd) << 7) | (to_rvc_reg(rs) << 2))
 #define C_SUBW(rd, rs)        MAKE_CODE16(inst, code, 0x9c01 | (to_rvc_reg(rd) << 7) | (to_rvc_reg(rs) << 2))
+#define C_AND(rd, rs)         MAKE_CODE16(inst, code, 0x8c61 | (to_rvc_reg(rd) << 7) | (to_rvc_reg(rs) << 2))
+#define C_ANDI(rd, imm)       MAKE_CODE16(inst, code, 0x8801 | (IMM(imm, 5, 5) << 12) | (to_rvc_reg(rd) << 7) | (IMM(imm, 4, 0) << 2))
+#define C_OR(rd, rs)          MAKE_CODE16(inst, code, 0x8c41 | (to_rvc_reg(rd) << 7) | (to_rvc_reg(rs) << 2))
+#define C_XOR(rd, rs)         MAKE_CODE16(inst, code, 0x8c21 | (to_rvc_reg(rd) << 7) | (to_rvc_reg(rs) << 2))
+#define C_SLLI(rd, imm)       MAKE_CODE16(inst, code, 0x0002 | (IMM(imm, 5, 5) << 12) | ((rd) << 7) | (IMM(imm, 4, 0) << 2))
+#define C_SRLI(rd, imm)       MAKE_CODE16(inst, code, 0x8001 | (IMM(imm, 5, 5) << 12) | (to_rvc_reg(rd) << 7) | (IMM(imm, 4, 0) << 2))
+#define C_SRAI(rd, imm)       MAKE_CODE16(inst, code, 0x8401 | (IMM(imm, 5, 5) << 12) | (to_rvc_reg(rd) << 7) | (IMM(imm, 4, 0) << 2))
 #define C_LW(rd, imm, rs)     MAKE_CODE16(inst, code, 0x4000 | (IMM(imm, 5, 3) << 10) | (to_rvc_reg(rs) << 7) | (IMM(imm, 2, 2) << 6) | (IMM(imm, 6, 6) << 5) | (to_rvc_reg(rd) << 2))
 #define C_LD(rd, imm, rs)     MAKE_CODE16(inst, code, 0x6000 | (IMM(imm, 5, 3) << 10) | (to_rvc_reg(rs) << 7) | (IMM(imm, 7, 6) << 5) | (to_rvc_reg(rd) << 2))
 #define C_SW(rs2, imm, rs1)   MAKE_CODE16(inst, code, 0xc000 | (IMM(imm, 5, 3) << 10) | (to_rvc_reg(rs1) << 7) | (IMM(imm, 7, 6) << 5) | (to_rvc_reg(rs2) << 2))
@@ -133,6 +153,9 @@ static unsigned char *asm_3r(Inst *inst, Code *code) {
       case ADDW:  C_ADDW(rd, rs2); return code->buf;
       case SUB:   C_SUB(rd, rs2); return code->buf;
       case SUBW:  C_SUBW(rd, rs2); return code->buf;
+      case AND:   C_AND(rd, rs2); return code->buf;
+      case OR:    C_OR(rd, rs2); return code->buf;
+      case XOR:   C_XOR(rd, rs2); return code->buf;
       default: break;
       }
     }
@@ -153,6 +176,12 @@ static unsigned char *asm_3r(Inst *inst, Code *code) {
   case REMW:   W_REMW(rd, rs1, rs2); break;
   case REMU:   W_REMU(rd, rs1, rs2); break;
   case REMUW:  W_REMUW(rd, rs1, rs2); break;
+  case AND:    W_AND(rd, rs1, rs2); break;
+  case OR:     W_OR(rd, rs1, rs2); break;
+  case XOR:    W_XOR(rd, rs1, rs2); break;
+  case SLL:    W_SLL(rd, rs1, rs2); break;
+  case SRL:    W_SRL(rd, rs1, rs2); break;
+  case SRA:    W_SRA(rd, rs1, rs2); break;
   default: assert(false); return NULL;
   }
   return code->buf;
@@ -170,6 +199,23 @@ static unsigned char *asm_2ri(Inst *inst, Code *code) {
       switch (inst->op) {
       case ADDI:   if (imm != 0) { C_ADDI(rd, imm); return code->buf; } break;
       case ADDIW:  C_ADDIW(rd, imm); return code->buf;
+      case ANDI:   if (is_rvc_reg(rd)) { C_ANDI(rd, imm); return code->buf; } break;
+      case SLLI:
+        if (rd != 0 && imm != 0) {
+          C_SLLI(rd, imm);
+          return code->buf;
+        }
+        break;
+      case SRLI:
+        if (is_rvc_reg(rd)) {
+          C_SRLI(rd, imm); return code->buf;
+        }
+        break;
+      case SRAI:
+        if (is_rvc_reg(rd)) {
+          C_SRAI(rd, imm); return code->buf;
+        }
+        break;
       default: break;
       }
     }
@@ -182,6 +228,13 @@ static unsigned char *asm_2ri(Inst *inst, Code *code) {
   switch (inst->op) {
   case ADDI:   W_ADDI(rd, rs, imm); break;
   case ADDIW:  W_ADDIW(rd, rs, imm); break;
+  case ANDI:   W_ANDI(rd, rs, imm); break;
+  case ORI:    W_ORI(rd, rs, imm); break;
+  case XORI:   W_XORI(rd, rs, imm); break;
+  case SLLI:   W_SLLI(rd, rs, imm); break;
+  case SLLIW:  W_SLLIW(rd, rs, imm); break;
+  case SRLI:   W_SRLI(rd, rs, imm); break;
+  case SRAI:   W_SRAI(rd, rs, imm); break;
   default: assert(false); return NULL;
   }
   return code->buf;
@@ -411,6 +464,12 @@ static const AsmInstTable *table[] = {
   [MUL] = table_3r, [MULW] = table_3r,
   [DIV] = table_3r, [DIVU] = table_3r, [DIVW] = table_3r, [DIVUW] = table_3r,
   [REM] = table_3r, [REMU] = table_3r, [REMW] = table_3r, [REMUW] = table_3r,
+  [AND] = table_3r, [ANDI] = table_2ri,
+  [OR] = table_3r, [ORI] = table_2ri,
+  [XOR] = table_3r, [XORI] = table_2ri,
+  [SLL] = table_3r, [SLLI] = table_2ri, [SLLIW] = table_2ri,
+  [SRL] = table_3r, [SRLI] = table_2ri, [SRLIW] = table_2ri,
+  [SRA] = table_3r, [SRAI] = table_2ri,
   [LB] = table_ld, [LH] = table_ld, [LW] = table_ld, [LD] = table_ld,
   [LBU] = table_ld, [LHU] = table_ld, [LWU] = table_ld,
   [SB] = table_sd, [SH] = table_sd, [SW] = table_sd, [SD] = table_sd,
