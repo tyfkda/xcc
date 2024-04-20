@@ -38,10 +38,6 @@ inline bool is_im12(int64_t x) {
   return x <= ((1L << 11) - 1) && x >= -(1L << 11);
 }
 
-inline bool is_im18(int64_t x) {
-  return x <= ((1L << 17) - 1) && x >= -(1L << 17);
-}
-
 inline bool assemble_error(const ParseInfo *info, const char *message) {
   parse_error(info, message);
   return false;
@@ -211,10 +207,14 @@ static unsigned char *asm_li(Inst *inst, Code *code) {
     C_LI(rd, imm);
   } else if (is_im12(imm)) {
     P_LI(rd, imm);
-  } else if (is_im18(imm)) {
+  } else if (is_im32(imm)) {
     int h = imm >> 12, l = imm & 0xfff;
+    if (l >= 0x800) {
+      l = l - 0x1000;
+      h += 1;
+    }
     C_LUI(rd, h);
-    if (is_im6(imm))
+    if (is_im6(l))
       C_ADDIW(rd, l);
     else
       W_ADDIW(rd, rd, l);
