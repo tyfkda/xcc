@@ -360,21 +360,6 @@ static bool read_next_line(void) {
   return true;
 }
 
-const char *block_comment_start(const char *p) {
-  const char *q = skip_whitespaces(p);
-  return (*q == '/' && q[1] == '*') ? q : NULL;
-}
-
-const char *block_comment_end(const char *p) {
-  for (;;) {
-    p = strchr(p, '*');
-    if (p == NULL)
-      return NULL;
-    if (*(++p) == '/')
-      return p + 1;
-  }
-}
-
 static const char *skip_block_comment(const char *p) {
   for (;;) {
     p = block_comment_end(p);

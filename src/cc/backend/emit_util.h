@@ -60,7 +60,7 @@ bool function_not_returned(FuncBackend *fnbe);
 
 #if XCC_TARGET_PLATFORM == XCC_PLATFORM_APPLE
 #define _RODATA()      _SECTION("__DATA,__const")
-#define _LOCAL(x)      ((void)0)
+#define _LOCAL(x)      emit_comment(".local %s", x)
 #else
 #define _RODATA()      _SECTION(".rodata")
 #define _LOCAL(x)      EMIT_ASM(".local", x)

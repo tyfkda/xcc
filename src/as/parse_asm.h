@@ -92,7 +92,6 @@ void parse_error(const ParseInfo *info, const char *message);
 void parse_inst(ParseInfo *info, Inst *inst);
 
 bool immediate(const char **pp, int64_t *value);
-const char *skip_until_delimiter(const char *p);
 const Name *unquote_label(const char *p, const char *q);
 Expr *parse_expr(ParseInfo *info);
 

@@ -178,13 +178,12 @@ static void emit_defun(Function *func) {
     label = quote_label(MANGLE(label));
     _GLOBL(label);
   } else {
-    emit_comment("%.*s: static func", NAMES(func->name));
     label = quote_label(label);
     _LOCAL(label);
   }
   EMIT_ALIGN(4);
 #if XCC_TARGET_PLATFORM != XCC_PLATFORM_APPLE
-  EMIT_ASM(".type", fmt("%.*s", NAMES(func->name)), "@function");
+  EMIT_ASM(".type", quote_label(fmt_name(func->name)), "@function");
 #endif
   EMIT_LABEL(label);
 

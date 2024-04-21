@@ -309,6 +309,21 @@ const char *skip_whitespaces(const char *s) {
   return s;
 }
 
+const char *block_comment_start(const char *p) {
+  const char *q = skip_whitespaces(p);
+  return (*q == '/' && q[1] == '*') ? q : NULL;
+}
+
+const char *block_comment_end(const char *p) {
+  for (;;) {
+    p = strchr(p, '*');
+    if (p == NULL)
+      return NULL;
+    if (*(++p) == '/')
+      return p + 1;
+  }
+}
+
 int64_t wrap_value(int64_t value, int size, bool is_unsigned) {
   if (is_unsigned) {
     switch (size) {

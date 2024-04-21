@@ -245,7 +245,7 @@ void emit_varinfo(const VarInfo *varinfo, const Initializer *init) {
     _LOCAL(label);
   }
 #if XCC_TARGET_PLATFORM != XCC_PLATFORM_APPLE
-  EMIT_ASM(".type", fmt("%.*s", NAMES(name)), "@object");
+  EMIT_ASM(".type", quote_label(fmt_name(name)), "@object");
 #endif
 
   if (init != NULL) {

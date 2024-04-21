@@ -53,6 +53,8 @@ bool is_im8(intptr_t x);
 bool is_im16(intptr_t x);
 bool is_im32(intptr_t x);
 const char *skip_whitespaces(const char *s);
+const char *block_comment_start(const char *p);
+const char *block_comment_end(const char *p);
 int64_t wrap_value(int64_t value, int size, bool is_unsigned);
 
 // Container

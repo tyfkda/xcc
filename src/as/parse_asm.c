@@ -96,21 +96,47 @@ inline bool is_label_chr(char c) {
   return is_label_first_chr(c) || isdigit(c);
 }
 
-const char *skip_until_delimiter(const char *p) {
+static const char *get_label_end(ParseInfo *info) {
+  const char *start = info->p;
+  const char *p = start;
   if (*p == '"') {
     ++p;
-    for (char c; c = *p, c != '\0'; ++p) {
-      if (c == '"') {
-        ++p;
+    for (;;) {
+      char c = *p;
+      if (c == '\0') {
+        parse_error(info, "String not closed");
         break;
       }
+
+      ++p;
+      if (c == '"')
+        break;
       if (c == '\\')
         ++p;
     }
+    start += 2;
   } else {
-    for (char c; c = *p, !isspace(c) && c != ':' && c != '\0'; ++p)
-      ;
+    const unsigned char *q = (const unsigned char*)p;
+    int ucc = 0;
+    for (;;) {
+      int uc = *++q;
+      if (ucc > 0) {
+        if (!isutf8follow(uc)) {
+          parse_error(info, "Illegal byte sequence");
+          return NULL;
+        }
+        --ucc;
+        continue;
+      }
+      if ((ucc = isutf8first(uc) - 1) > 0)
+        continue;
+      if (!is_label_chr(uc))
+        break;
+    }
+    p = (const char*)q;
   }
+  if (p <= start)
+    parse_error(info, "Empty label");
   return p;
 }
 
@@ -119,45 +145,18 @@ const Name *unquote_label(const char *p, const char *q) {
     return alloc_name(p, q, false);
   if (q[-1] != '"' || q == p + 2)
     return NULL;
-  // TODO: Unquote
+  // TODO: Unescape
   return alloc_name(p + 1, q - 1, false);
 }
 
 static const Name *parse_label(ParseInfo *info) {
-  const char *p = info->p;
-  const char *start = p;
-  if (*p == '"') {
-    p = skip_until_delimiter(p);
-    if (p[-1] != '"' || p == start + 2)
-      return NULL;
-
-    info->p = p;
-    return alloc_name(start + 1, p - 1, false);
-  }
-
-  unsigned char *q = (unsigned char*)p;
-  int uc = *q;
-  int ucc = isutf8first(uc) - 1;
-  if (!(ucc > 0 || is_label_first_chr(uc)))
+  const char *start = info->p;
+  const char *p = get_label_end(info);
+  if (p == start)
     return NULL;
 
-  for (;;) {
-    uc = *++q;
-    if (ucc > 0) {
-      if (!isutf8follow(uc)) {
-        parse_error(info, "Illegal byte sequence");
-        return NULL;
-      }
-      --ucc;
-      continue;
-    }
-    if ((ucc = isutf8first(uc) - 1) > 0)
-      continue;
-    if (!is_label_chr(uc))
-      break;
-  }
-  info->p = p = (char*)q;
-  return alloc_name(start, p, false);
+  info->p = p;
+  return unquote_label(start, p);
 }
 
 static const Name *parse_section_name(ParseInfo *info) {
@@ -457,6 +456,24 @@ Expr *parse_expr(ParseInfo *info) {
   return parse_add(info);
 }
 
+static void check_line_end(ParseInfo *info) {
+  const char *p = info->p;
+  for (;;) {
+    const char *q = block_comment_start(p);
+    if (q == NULL)
+      break;
+    p = block_comment_end(q);
+    if (p == NULL) {
+      parse_error(info, "Block comment not closed");
+      return;
+    }
+  }
+  p = skip_whitespaces(p);
+  if (*p != '\0' && !(*p == '/' && p[1] == '/')) {
+    parse_error(info, "Syntax error");
+  }
+}
+
 Line *parse_line(ParseInfo *info) {
   Line *line = calloc_or_die(sizeof(*line));
   line->label = NULL;
@@ -464,13 +481,13 @@ Line *parse_line(ParseInfo *info) {
   line->dir = NODIRECTIVE;
 
   const char *p = skip_whitespaces(info->rawline);
-  const char *q = skip_until_delimiter(p);
+  info->p = p;
+  const char *q = get_label_end(info);
   const char *r = skip_whitespaces(q);
   if (*r == ':') {
     const Name *label = unquote_label(p, q);
     if (label == NULL) {
       parse_error(info, "Illegal label");
-      err = true;
     } else {
       info->p = p;
       line->label = label;
@@ -488,10 +505,7 @@ Line *parse_line(ParseInfo *info) {
     } else if (*p != '\0') {
       info->p = p;
       parse_inst(info, &line->inst);
-      if (*info->p != '\0' && !(*info->p == '/' && info->p[1] == '/')) {
-        parse_error(info, "Syntax error");
-        err = true;
-      }
+      check_line_end(info);
     }
   }
   return line;
