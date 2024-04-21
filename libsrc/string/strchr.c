@@ -1,8 +1,10 @@
 #include "string.h"
 
 char *strchr(const char *s, int c) {
-  for (; *s != '\0'; ++s)
+  for (;; ++s) {
     if (*s == c)
       return (char*)s;
-  return 0;
+    if (*s == '\0')
+      return NULL;
+  }
 }

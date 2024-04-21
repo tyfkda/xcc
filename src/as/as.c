@@ -26,6 +26,8 @@ static void parse_file(FILE *fp, const char *filename, Vector **section_irs, Tab
   ParseInfo info;
   info.filename = filename;
   info.lineno = 1;
+  info.rawline = info.p = NULL;
+  info.prefetched = NULL;
   for (;; ++info.lineno) {
     char *rawline = NULL;
     size_t capa = 0;

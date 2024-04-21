@@ -2,8 +2,10 @@
 
 char *strrchr(const char *s, int c) {
   char *last = NULL;
-  for (; *s != '\0'; ++s)
+  for (;; ++s) {
     if (*s == c)
       last = (char*)s;
-  return last;
+    if (*s == '\0')
+      return last;
+  }
 }

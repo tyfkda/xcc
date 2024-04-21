@@ -39,8 +39,7 @@ typedef struct ParseInfo {
   const char *rawline;
   const char *p;
 
-  Token *token;
-  const char *next;
+  const Token *prefetched;
 } ParseInfo;
 
 typedef struct Line {

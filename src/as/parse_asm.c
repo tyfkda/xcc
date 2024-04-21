@@ -175,6 +175,7 @@ static const Name *parse_section_name(ParseInfo *info) {
 }
 
 enum TokenKind {
+  TK_EOF,
   TK_UNKNOWN,
   TK_LABEL,
   TK_FIXNUM,
@@ -197,7 +198,7 @@ typedef struct Token {
 } Token;
 
 static Token *new_token(enum TokenKind kind) {
-  Token *token = malloc_or_die(sizeof(*token));
+  Token *token = calloc_or_die(sizeof(*token));
   token->kind = kind;
   return token;
 }
@@ -209,7 +210,7 @@ static Token *read_flonum(ParseInfo *info, int base) {
   Flonum val = strtold(start, &next);
   Token *tok = new_token(TK_FLONUM);
   tok->flonum = val;
-  info->next = next;
+  info->p = next;
 
   if (base == 16) {
     // Check exponent part exists.
@@ -228,79 +229,97 @@ static Token *read_flonum(ParseInfo *info, int base) {
 #endif
 
 static const Token *fetch_token(ParseInfo *info) {
-  if (info->token != NULL)
-    return info->token;
-
+  static const Token kTokEOF = {.kind = TK_EOF};
   const char *start = skip_whitespaces(info->p);
   const char *p = start;
   char c = *p;
-  if (isdigit(c)) {
-    int base = 10;
-    if (c == '0' && tolower(p[1]) == 'x') {
+  switch (c) {
+  case '\0':
+    return &kTokEOF;
+  case '0': case '1': case '2': case '3': case '4': case '5': case '6': case '7': case '8': case '9':
+    {
+      int base = 10;
+      if (c == '0' && tolower(p[1]) == 'x') {
 #ifndef __NO_FLONUM
-      if (c == '.')  // Hex float literal.
-        return read_flonum(info, 16);
+        if (c == '.')  // Hex float literal.
+          return read_flonum(info, 16);
 #endif
-      if (isxdigit(p[2])) {
-        p += 2;
-        base = 16;
+        if (isxdigit(p[2])) {
+          p += 2;
+          base = 16;
+        }
+      }
+      char *q;
+      unsigned long long v = strtoull(p, &q, base);
+#ifndef __NO_FLONUM
+      if (*q == '.' || tolower(*q) == 'e') {
+        info->p = p;
+        return read_flonum(info, 10);
+      }
+#endif
+      Token *token = new_token(TK_FIXNUM);
+      token->fixnum = v;
+      info->p = q;
+      return token;
+    }
+  case '"':
+    {
+      info->p = p;
+      const Name *label = parse_label(info);
+      if (label != NULL) {
+        Token *token = new_token(TK_LABEL);
+        token->label = label;
+        return token;
       }
     }
-    char *q;
-    unsigned long long v = strtoull(p, &q, base);
+    break;
+  case '+': case '-': case '*': case '/':
+    {
+      enum TokenKind kind;
+      switch (c) {
+      default: assert(false); // To suppress warning.
+      case '+':  kind = TK_ADD; break;
+      case '-':  kind = TK_SUB; break;
+      case '*':  kind = TK_MUL; break;
+      case '/':  kind = TK_DIV; break;
+      }
+      info->p = p + 1;
+      return new_token(kind);
+    }
 #ifndef __NO_FLONUM
-    if (*q == '.' || tolower(*q) == 'e') {
+  case '.':
+    if (isdigit(p[1])) {
       info->p = p;
       return read_flonum(info, 10);
     }
+    break;
 #endif
-    Token *token = new_token(TK_FIXNUM);
-    token->fixnum = v;
-    info->next = q;
-    return token;
-#ifndef __NO_FLONUM
-  } else if (c == '.' && isdigit(p[1])) {
-    info->p = p;
-    return read_flonum(info, 10);
-#endif
-  } else if (is_label_first_chr(c)) {
+  default: break;
+  }
+
+  if (is_label_first_chr(c)) {
     while (c = *++p, is_label_chr(c))
       ;
     Token *token = new_token(TK_LABEL);
     token->label = alloc_name(start, p, false);
-    info->next = p;
+    info->p = p;
     return token;
-  } else if (c == '"') {
-    p = skip_until_delimiter(p);
-    if (p[-1] == '"') {
-      const Name *label = unquote_label(start + 1, p - 1);
-      if (label != NULL) {
-        Token *token = new_token(TK_LABEL);
-        token->label = label;
-        info->next = p;
-        return token;
-      }
-    }
-  } else {
-    static const char kSingleOpTable[] = "+-*/";
-    static const enum TokenKind kTokenTable[] = {TK_ADD, TK_SUB, TK_MUL, TK_DIV};
-    const char *q = strchr(kSingleOpTable, c);
-    if (q != NULL) {
-      info->next = p + 1;
-      return new_token(kTokenTable[q - kSingleOpTable]);
-    }
   }
 
-  static const Token kTokUnknown = {TK_UNKNOWN};
+  static const Token kTokUnknown = {.kind = TK_UNKNOWN};
   return &kTokUnknown;
 }
 
 static const Token *match(ParseInfo *info, enum TokenKind kind) {
-  const Token *token = fetch_token(info);
-  if (token->kind != kind)
+  const Token *token = info->prefetched;
+  if (token == NULL)
+    token = fetch_token(info);
+
+  if (token->kind != kind) {
+    info->prefetched = token;
     return NULL;
-  info->token = NULL;
-  info->p = info->next;
+  }
+  info->prefetched = NULL;
   return token;
 }
 
@@ -434,8 +453,7 @@ static Expr *parse_add(ParseInfo *info) {
 }
 
 Expr *parse_expr(ParseInfo *info) {
-  info->token = NULL;
-  info->next = NULL;
+  info->prefetched = NULL;
   return parse_add(info);
 }
 
