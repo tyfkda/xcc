@@ -126,6 +126,7 @@ inline bool assemble_error(const ParseInfo *info, const char *message) {
 #define C_SDSP(rs, imm)       MAKE_CODE16(inst, code, 0xe002 | (IMM(imm, 5, 3) << 10) | (IMM(imm, 8, 6) << 7) | ((rs) << 2))
 #define C_J()                 MAKE_CODE16(inst, code, 0xa001)
 #define C_JR(rs)              MAKE_CODE16(inst, code, 0x8002 | ((rs) << 7))
+#define C_JALR(rs)            MAKE_CODE16(inst, code, 0x9002 | ((rs) << 7))
 #define C_BEQZ(rs)            MAKE_CODE16(inst, code, 0xc001 | (to_rvc_reg(rs) << 7))
 #define C_BNEZ(rs)            MAKE_CODE16(inst, code, 0xe001 | (to_rvc_reg(rs) << 7))
 
@@ -387,6 +388,18 @@ static unsigned char *asm_j(Inst *inst, Code *code) {
   return code->buf;
 }
 
+static unsigned char *asm_jr(Inst *inst, Code *code) {
+  int rs = inst->opr1.reg.no;
+  C_JR(rs);
+  return code->buf;
+}
+
+static unsigned char *asm_jalr(Inst *inst, Code *code) {
+  int rs = inst->opr1.reg.no;
+  C_JALR(rs);
+  return code->buf;
+}
+
 #define _BEQ   0x0
 #define _BNE   0x1
 #define _BLT   0x4
@@ -474,6 +487,8 @@ static const AsmInstTable *table[] = {
   [LBU] = table_ld, [LHU] = table_ld, [LWU] = table_ld,
   [SB] = table_sd, [SH] = table_sd, [SW] = table_sd, [SD] = table_sd,
   [J] = (const AsmInstTable[]){ {asm_j, DIRECT, NOOPERAND, NOOPERAND}, {NULL} },
+  [JR] = (const AsmInstTable[]){ {asm_jr, REG, NOOPERAND, NOOPERAND}, {NULL} },
+  [JALR] = (const AsmInstTable[]){ {asm_jalr, REG, NOOPERAND, NOOPERAND}, {NULL} },
   [BEQ] = table_bxx, [BNE] = table_bxx, [BLT] = table_bxx, [BGE] = table_bxx,
   [BLTU] = table_bxx, [BGEU] = table_bxx,
   [CALL] = (const AsmInstTable[]){ {asm_call_d, DIRECT, NOOPERAND, NOOPERAND}, {NULL} },

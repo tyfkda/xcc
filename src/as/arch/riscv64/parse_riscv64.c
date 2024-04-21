@@ -30,6 +30,8 @@ static const char *kOpTable[] = {
   "lbu", "lhu", "lwu",
   "sb", "sh", "sw", "sd",
   "j",
+  "jr",
+  "jalr",
   "beq", "bne", "blt", "bge", "bltu", "bgeu",
   "call",
   "ret",

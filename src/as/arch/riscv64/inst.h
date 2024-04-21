@@ -28,6 +28,8 @@ enum Opcode {
   LBU, LHU, LWU,
   SB, SH, SW, SD,
   J,
+  JR,
+  JALR,
   BEQ, BNE, BLT, BGE, BLTU, BGEU,
   CALL,
   RET,
