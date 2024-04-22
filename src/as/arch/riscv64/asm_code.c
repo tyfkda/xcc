@@ -86,6 +86,10 @@ inline bool assemble_error(const ParseInfo *info, const char *message) {
 #define W_SRLI(rd, rs, imm)   ITYPE((imm) & 63, rs, 0x05, rd, 0x13)
 #define W_SRA(rd, rs1, rs2)   RTYPE(0x20, rs2, rs1, 0x05, rd, 0x33)
 #define W_SRAI(rd, rs, imm)   ITYPE(0x400 | ((imm) & 63), rs, 0x05, rd, 0x13)
+#define W_SLT(rd, rs1, rs2)   RTYPE(0x00, rs2, rs1, 0x02, rd, 0x33)
+#define W_SLTU(rd, rs1, rs2)  RTYPE(0x00, rs2, rs1, 0x03, rd, 0x33)
+#define W_SLTI(rd, rs, imm)   ITYPE(imm, rs, 0x02, rd, 0x13)
+#define W_SLTIU(rd, rs, imm)  ITYPE(imm, rs, 0x03, rd, 0x13)
 #define W_LB(rd, ofs, rs)     ITYPE(ofs, rs, 0x00, rd, 0x03)
 #define W_LH(rd, ofs, rs)     ITYPE(ofs, rs, 0x01, rd, 0x03)
 #define W_LW(rd, ofs, rs)     ITYPE(ofs, rs, 0x02, rd, 0x03)
@@ -140,6 +144,10 @@ inline bool assemble_error(const ParseInfo *info, const char *message) {
 #define P_ZEXT_B(rd, rs)      W_ANDI(rd, rs, 0xff)
 #define P_ZEXT_H(rd, rs)      do { if ((rd) == (rs) && (rs) != 0) C_SLLI(rd, 48); else W_SLLI(rd, rs, 48); C_SRLI(rd, 48); } while (0)
 #define P_ZEXT_W(rd, rs)      do { if ((rd) == (rs) && (rs) != 0) C_SLLI(rd, 32); else W_SLLI(rd, rs, 32); C_SRLI(rd, 32); } while (0)
+#define P_SEQZ(rd, rs)        W_SLTIU(rd, rs, 1)
+#define P_SNEZ(rd, rs)        W_SLTU(rd, ZERO, rs)
+#define P_SLTZ(rd, rs)        W_SLT(rd, rs, ZERO)
+#define P_SGTZ(rd, rs)        W_SLT(rd, ZERO, rs)
 
 extern inline bool is_rvc_reg(int reg);
 extern inline int to_rvc_reg(int reg);
@@ -191,6 +199,8 @@ static unsigned char *asm_3r(Inst *inst, Code *code) {
   case SLL:    W_SLL(rd, rs1, rs2); break;
   case SRL:    W_SRL(rd, rs1, rs2); break;
   case SRA:    W_SRA(rd, rs1, rs2); break;
+  case SLT:    W_SLT(rd, rs1, rs2); break;
+  case SLTU:   W_SLTU(rd, rs1, rs2); break;
   default: assert(false); return NULL;
   }
   return code->buf;
@@ -244,6 +254,8 @@ static unsigned char *asm_2ri(Inst *inst, Code *code) {
   case SLLIW:  W_SLLIW(rd, rs, imm); break;
   case SRLI:   W_SRLI(rd, rs, imm); break;
   case SRAI:   W_SRAI(rd, rs, imm); break;
+  case SLTI:   W_SLTI(rd, rs, imm); break;
+  case SLTIU:  W_SLTIU(rd, rs, imm); break;
   default: assert(false); return NULL;
   }
   return code->buf;
@@ -263,6 +275,10 @@ static unsigned char *asm_2r(Inst *inst, Code *code) {
   case ZEXT_B: P_ZEXT_B(rd, rs); break;
   case ZEXT_H: P_ZEXT_H(rd, rs); break;
   case ZEXT_W: P_ZEXT_W(rd, rs); break;
+  case SEQZ:   P_SEQZ(rd, rs); break;
+  case SNEZ:   P_SNEZ(rd, rs); break;
+  case SLTZ:   P_SLTZ(rd, rs); break;
+  case SGTZ:   P_SGTZ(rd, rs); break;
   default: assert(false); return NULL;
   }
   return code->buf;
@@ -521,6 +537,8 @@ static const AsmInstTable *table[] = {
   [LB] = table_ld, [LH] = table_ld, [LW] = table_ld, [LD] = table_ld,
   [LBU] = table_ld, [LHU] = table_ld, [LWU] = table_ld,
   [SB] = table_sd, [SH] = table_sd, [SW] = table_sd, [SD] = table_sd,
+  [SLT] = table_3r, [SLTI] = table_2ri, [SLTU] = table_3r, [SLTIU] = table_2ri,
+  [SEQZ] = table_2r, [SNEZ] = table_2r, [SLTZ] = table_2r, [SGTZ] = table_2r,
   [J] = (const AsmInstTable[]){ {asm_j, DIRECT, NOOPERAND, NOOPERAND}, {NULL} },
   [JR] = (const AsmInstTable[]){ {asm_jr, REG, NOOPERAND, NOOPERAND}, {NULL} },
   [JALR] = (const AsmInstTable[]){ {asm_jalr, REG, NOOPERAND, NOOPERAND}, {NULL} },

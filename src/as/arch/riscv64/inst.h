@@ -31,6 +31,8 @@ enum Opcode {
   LB, LH, LW, LD,
   LBU, LHU, LWU,
   SB, SH, SW, SD,
+  SLT, SLTU, SLTI, SLTIU,
+  SEQZ, SNEZ, SLTZ, SGTZ,
   J,
   JR,
   JALR,
