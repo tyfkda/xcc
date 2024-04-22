@@ -13,7 +13,11 @@ typedef struct Code {
   Inst *inst;
   char flag;
   char len;
+#if XCC_TARGET_ARCH == XCC_ARCH_RISCV64
+  unsigned char buf[26];
+#else
   unsigned char buf[14];
+#endif
 } Code;
 
 void assemble_inst(Inst *inst, const ParseInfo *info, Code *code);

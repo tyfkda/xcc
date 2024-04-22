@@ -101,13 +101,14 @@ inline bool assemble_error(const ParseInfo *info, const char *message) {
 #define W_SH(rs2, ofs, rs1)   STYPE(ofs, rs2, rs1, 0x01, 0x23)
 #define W_SW(rs2, ofs, rs1)   STYPE(ofs, rs2, rs1, 0x02, 0x23)
 #define W_SD(rs2, ofs, rs1)   STYPE(ofs, rs2, rs1, 0x03, 0x23)
+#define W_LUI(rd, imm)        UTYPE(imm, rd, 0x37)
 #define W_AUIPC(rd, imm)      UTYPE(imm, rd, 0x17)
 #define W_JALR(rd, rs, imm)   ITYPE(imm, rs, 0x00, rd, 0x67)
 #define W_BXX(funct3, rs1, rs2, ofs)  STYPE(ofs, rs2, rs1, funct3, 0x63)
 
 #define C_MV(rd, rs)          MAKE_CODE16(inst, code, 0x8002 | ((rd) << 7) | ((rs) << 2))
 #define C_LI(rd, imm)         MAKE_CODE16(inst, code, 0x4001 | (IMM(imm, 5, 5) << 12) | ((rd) << 7) | (IMM(imm, 4, 0) << 2))
-#define C_LUI(rd, imm)        MAKE_CODE16(inst, code, 0x6001 | (IMM(imm, 5, 5) << 12) | ((rd) << 7) | (IMM(imm, 4, 0) << 2))
+#define C_LUI(rd, imm)        MAKE_CODE16(inst, code, 0x6001 | (IMM(imm, 17, 17) << 12) | ((rd) << 7) | (IMM(imm, 16, 12) << 2))
 #define C_ADD(rd, rs)         MAKE_CODE16(inst, code, 0x9002 | ((rd) << 7) | ((rs) << 2))
 #define C_ADDW(rd, rs)        MAKE_CODE16(inst, code, 0x9c21 | (to_rvc_reg(rd) << 7) | (to_rvc_reg(rs) << 2))
 #define C_ADDI(rd, imm)       MAKE_CODE16(inst, code, 0x0001 | (IMM(imm, 5, 5) << 12) | ((rd) << 7) | (IMM(imm, 4, 0) << 2))
@@ -297,28 +298,44 @@ static unsigned char *asm_mv(Inst *inst, Code *code) {
   return code->buf;
 }
 
-static unsigned char *asm_li(Inst *inst, Code *code) {
+static void li_sub(Inst *inst, Code *code, int64_t imm) {
   int rd = inst->opr1.reg.no;
-  int64_t imm =inst->opr2.immediate;
   if (is_im6(imm)) {
     C_LI(rd, imm);
   } else if (is_im12(imm)) {
     P_LI(rd, imm);
   } else if (is_im32(imm)) {
-    int h = imm >> 12, l = imm & 0xfff;
+    int l = imm & 0xfff;
     if (l >= 0x800) {
       l = l - 0x1000;
-      h += 1;
+      imm += 1 << 12;
     }
-    C_LUI(rd, h);
+    if (is_im6(imm >> 12))
+      C_LUI(rd, imm);
+    else
+      W_LUI(rd, imm);
     if (is_im6(l))
       C_ADDIW(rd, l);
     else
       W_ADDIW(rd, rd, l);
   } else {
-    // TODO:
-    return NULL;
+    int32_t l = (int32_t)imm & ((1 << 12) - 1);
+    imm >>= 12;
+    if (l >= (1 << 11)) {
+      l = l - (1 << 12);
+      ++imm;
+    }
+    li_sub(inst, code, imm);
+    C_SLLI(rd, 12);
+    if (is_im6(l))
+      C_ADDI(rd, l);
+    else
+      W_ADDI(rd, rd, l);
   }
+}
+
+static unsigned char *asm_li(Inst *inst, Code *code) {
+  li_sub(inst, code, inst->opr2.immediate);
   return code->buf;
 }
 
