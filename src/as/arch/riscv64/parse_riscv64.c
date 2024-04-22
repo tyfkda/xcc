@@ -23,6 +23,10 @@ static const char *kOpTable[] = {
   "and", "andi",
   "or", "ori",
   "xor", "xori",
+  "neg",
+  "not",
+  "sext.b", "sext.h", "sext.w",
+  "zext.b", "zext.h", "zext.w",
   "sll", "slli", "slliw",
   "srl", "srli", "srliw",
   "sra", "srai",
@@ -146,7 +150,7 @@ static int find_match_index(const char **pp, const char **table, size_t count) {
   const char *p = *pp;
   const char *start = p;
 
-  while (isalnum(*p))
+  while (isalnum(*p) || *p == '.')
     ++p;
   if (*p == '\0' || isspace(*p)) {
     size_t n = p - start;

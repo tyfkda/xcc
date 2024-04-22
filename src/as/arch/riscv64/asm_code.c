@@ -132,6 +132,14 @@ inline bool assemble_error(const ParseInfo *info, const char *message) {
 
 #define P_RET()               C_JR(RA)
 #define P_LI(rd, imm)         W_ADDI(rd, ZERO, imm)
+#define P_NEG(rd, rs)         W_SUB(rd, ZERO, rs)
+#define P_NOT(rd, rs)         W_XORI(rd, rs, -1)
+#define P_SEXT_B(rd, rs)      do { if ((rd) == (rs) && (rs) != 0) C_SLLI(rd, 56); else W_SLLI(rd, rs, 56); C_SRAI(rd, 56); } while (0)
+#define P_SEXT_H(rd, rs)      do { if ((rd) == (rs) && (rs) != 0) C_SLLI(rd, 48); else W_SLLI(rd, rs, 48); C_SRAI(rd, 48); } while (0)
+#define P_SEXT_W(rd, rs)      do { if ((rd) == (rs)) C_ADDIW(rd, 0); else W_ADDIW(rd, rs, 0); } while (0)
+#define P_ZEXT_B(rd, rs)      W_ANDI(rd, rs, 0xff)
+#define P_ZEXT_H(rd, rs)      do { if ((rd) == (rs) && (rs) != 0) C_SLLI(rd, 48); else W_SLLI(rd, rs, 48); C_SRLI(rd, 48); } while (0)
+#define P_ZEXT_W(rd, rs)      do { if ((rd) == (rs) && (rs) != 0) C_SLLI(rd, 32); else W_SLLI(rd, rs, 32); C_SRLI(rd, 32); } while (0)
 
 extern inline bool is_rvc_reg(int reg);
 extern inline int to_rvc_reg(int reg);
@@ -236,6 +244,25 @@ static unsigned char *asm_2ri(Inst *inst, Code *code) {
   case SLLIW:  W_SLLIW(rd, rs, imm); break;
   case SRLI:   W_SRLI(rd, rs, imm); break;
   case SRAI:   W_SRAI(rd, rs, imm); break;
+  default: assert(false); return NULL;
+  }
+  return code->buf;
+}
+
+static unsigned char *asm_2r(Inst *inst, Code *code) {
+  assert(inst->opr1.type == REG);
+  assert(inst->opr2.type == REG);
+  int rd = inst->opr1.reg.no;
+  int rs = inst->opr2.reg.no;
+  switch (inst->op) {
+  case NEG:    P_NEG(rd, rs); break;
+  case NOT:    P_NOT(rd, rs); break;
+  case SEXT_B: P_SEXT_B(rd, rs); break;
+  case SEXT_H: P_SEXT_H(rd, rs); break;
+  case SEXT_W: P_SEXT_W(rd, rs); break;
+  case ZEXT_B: P_ZEXT_B(rd, rs); break;
+  case ZEXT_H: P_ZEXT_H(rd, rs); break;
+  case ZEXT_W: P_ZEXT_W(rd, rs); break;
   default: assert(false); return NULL;
   }
   return code->buf;
@@ -454,6 +481,10 @@ static const AsmInstTable table_2ri[] ={
     {asm_2ri, REG, REG, IMMEDIATE},
     {NULL} };
 
+static const AsmInstTable table_2r[] ={
+    {asm_2r, REG, REG, NOOPERAND},
+    {NULL} };
+
 static const AsmInstTable table_ld[] ={
     {asm_ld, REG, INDIRECT, NOOPERAND},
     {NULL} };
@@ -480,6 +511,10 @@ static const AsmInstTable *table[] = {
   [AND] = table_3r, [ANDI] = table_2ri,
   [OR] = table_3r, [ORI] = table_2ri,
   [XOR] = table_3r, [XORI] = table_2ri,
+  [NEG] = table_2r,
+  [NOT] = table_2r,
+  [SEXT_B] = table_2r, [SEXT_H] = table_2r, [SEXT_W] = table_2r,
+  [ZEXT_B] = table_2r, [ZEXT_H] = table_2r, [ZEXT_W] = table_2r,
   [SLL] = table_3r, [SLLI] = table_2ri, [SLLIW] = table_2ri,
   [SRL] = table_3r, [SRLI] = table_2ri, [SRLIW] = table_2ri,
   [SRA] = table_3r, [SRAI] = table_2ri,
