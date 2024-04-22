@@ -236,17 +236,22 @@ static int output_obj(const char *ofn, Table *label_table, Vector *unresolved) {
       break;
     case UNRES_ABS64:
       {
+#if XCC_TARGET_ARCH == XCC_ARCH_RISCV64
+        const int type = R_RISCV_64;
+#else  // #elif XCC_TARGET_ARCH == XCC_ARCH_X64
+        const int type = R_X86_64_64;
+#endif
         LabelInfo *label = table_get(label_table, u->label);
-        if (label == NULL || label->flag & LF_GLOBAL) {
+        if (label == NULL || label->flag & (LF_GLOBAL | LF_REFERRED)) {
           int symidx = symtab_find(&symtab, u->label);
           assert(symidx >= 0);
 
           rela->r_offset = u->offset;
-          rela->r_info = ELF64_R_INFO(symidx, R_X86_64_64);
+          rela->r_info = ELF64_R_INFO(symidx, type);
           rela->r_addend = u->add;
         } else {
           rela->r_offset = u->offset;
-          rela->r_info = ELF64_R_INFO(label->section + 1, R_X86_64_64);
+          rela->r_info = ELF64_R_INFO(label->section + 1, type);
           rela->r_addend = u->add + (label->address - section_start_addresses[label->section]);
         }
       }

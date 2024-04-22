@@ -207,10 +207,13 @@ static void resolve_rela_elfobj(LinkEditor *ld, ElfObj *elfobj) {
       uintptr_t address = 0;
       switch (ELF64_ST_BIND(sym->st_info)) {
       case STB_LOCAL:
-        {
+        if (ELF64_ST_TYPE(sym->st_info) == STT_SECTION) {
           assert(ELF64_R_SYM(rela->r_info) < elfobj->ehdr.e_shnum);
           const ElfSectionInfo *s = &elfobj->section_infos[ELF64_R_SYM(rela->r_info)];
           address = s->progbits.address;
+        } else {
+          uintptr_t sectop = elfobj->section_infos[sym->st_shndx].progbits.address;
+          address = sectop + sym->st_value;
         }
         break;
       case STB_GLOBAL:
