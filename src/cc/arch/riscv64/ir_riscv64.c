@@ -796,16 +796,18 @@ static void ei_cast(IR *ir) {
     const char *dst = kReg64s[ir->dst->phys], *src = kReg64s[ir->opr1->phys];
 
     if (ir->flag & IRF_UNSIGNED) {
-      const char *shift = IM((8 - (1 << pow)) * TARGET_CHAR_BIT);
-      SLLI(dst, src, shift);
-      SRLI(dst, dst, shift);
+      switch (pow) {
+      case 0:  ZEXT_B(dst, src); break;
+      case 1:  ZEXT_H(dst, src); break;
+      case 2:  ZEXT_W(dst, src); break;
+      default: assert(false); break;
+      }
     } else {
-      if (pow < 2) {
-        const char *shift = IM((4 - (1 << pows)) * TARGET_CHAR_BIT);
-        SLLIW(dst, src, shift);
-        SRAI(dst, dst, shift);
-      } else {
-        SEXTW(dst, src);
+      switch (pow) {
+      case 0:  SEXT_B(dst, src); break;
+      case 1:  SEXT_H(dst, src); break;
+      case 2:  SEXT_W(dst, src); break;
+      default: assert(false); break;
       }
     }
   }

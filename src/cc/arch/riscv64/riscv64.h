@@ -116,6 +116,7 @@
 #define SLLIW(o1, o2, o3)     EMIT_ASM("slliw", o1, o2, o3)  // Logical left shift, 32bit
 #define SRL(o1, o2, o3)       EMIT_ASM("srl", o1, o2, o3)    // Logical right shift
 #define SRLI(o1, o2, o3)      EMIT_ASM("srli", o1, o2, o3)   // Logical right shift
+#define SRLIW(o1, o2, o3)     EMIT_ASM("srliw", o1, o2, o3)  // Logical right shift
 #define SRA(o1, o2, o3)       EMIT_ASM("sra", o1, o2, o3)    // Arithmetic right shift
 #define SRAI(o1, o2, o3)      EMIT_ASM("srai", o1, o2, o3)   // Arithmetic right shift
 #define J(o1)                 EMIT_ASM("j", o1)              // => jal zero, o1
@@ -140,7 +141,12 @@
 #define MV(o1, o2)            EMIT_ASM("mv", o1, o2)         // => addi o1, o2, 0
 #define NEG(o1, o2)           EMIT_ASM("neg", o1, o2)        // => sub o1, zero, o2
 #define NOT(o1, o2)           EMIT_ASM("not", o1, o2)        // => xori o1, o2, -1
-#define SEXTW(o1, o2)         EMIT_ASM("sext.w", o1, o2)     // => addiw o1, o2, 0
+#define SEXT_B(o1, o2)        EMIT_ASM("sext.b", o1, o2)     // => slli & srai 48
+#define SEXT_H(o1, o2)        EMIT_ASM("sext.h", o1, o2)     // => slli & srai 56
+#define SEXT_W(o1, o2)        EMIT_ASM("sext.w", o1, o2)     // => addiw o1, o2, 0
+#define ZEXT_B(o1, o2)        EMIT_ASM("zext.b", o1, o2)
+#define ZEXT_H(o1, o2)        EMIT_ASM("zext.h", o1, o2)
+#define ZEXT_W(o1, o2)        EMIT_ASM("zext.w", o1, o2)
 
 #define SEQZ(o1, o2)          EMIT_ASM("seqz", o1, o2)
 #define SNEZ(o1, o2)          EMIT_ASM("snez", o1, o2)
