@@ -32,7 +32,7 @@
 #endif
 
 #define RUN_ALL_TESTS(...)  ({ \
-  void (*tests[])(void) = {__VA_ARGS__}; \
+  static void (*const tests[])(void) = {__VA_ARGS__}; \
   for (size_t i = 0; i < sizeof(tests)/sizeof(*tests); ++i) \
     (*tests[i])(); \
   failed_suite_count < 255 ? failed_suite_count : 255; })
