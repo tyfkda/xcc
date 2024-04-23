@@ -165,6 +165,9 @@ void gen_cond_jmp(Expr *cond, bool tf, BB *bb) {
 static VReg *gen_cast(Expr *expr) {
   Expr *src = expr->unary.sub;
   Type *dst_type = expr->type;
+  if (is_bool(dst_type))
+    return gen_expr(make_cond(src));
+
   int dst_size = type_size(dst_type);
 #if XCC_TARGET_ARCH == XCC_ARCH_X64 && !defined(__NO_FLONUM)
   // On x64, cannot cast from double to uint64_t directly.

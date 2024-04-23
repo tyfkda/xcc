@@ -1007,7 +1007,11 @@ static Expr *parse_cast_expr(void) {
       Expr *sub = parse_cast_expr();
       sub = str_to_char_array_var(curscope, sub);
       check_cast(type, sub->type, is_zero(sub), true, token);
-      if (type->kind != TY_VOID && (is_const(sub) || is_bool(type)))
+
+      // Do not reduce cast expression using `make_cast`
+      // because it ignores `(int)x = 1`.
+
+      if (type->kind != TY_VOID && is_const(sub))
         return make_cast(type, token, sub, true);
       return sub->type->kind != TY_VOID ? new_expr_cast(type, token, sub) : sub;
     }

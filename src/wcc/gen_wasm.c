@@ -863,9 +863,16 @@ static void gen_comma(Expr *expr, bool needval) {
 }
 
 static void gen_cast(Expr *expr, bool needval) {
-  gen_expr(expr->unary.sub, needval);
+  Expr *src = expr->unary.sub;
+  Type *dst_type = expr->type;
+  if (is_bool(dst_type)) {
+    gen_expr(make_cond(src), needval);
+    return;
+  }
+
+  gen_expr(src, needval);
   if (needval)
-    gen_cast_to(expr->type, expr->unary.sub->type);
+    gen_cast_to(dst_type, src->type);
 }
 
 static void gen_ref(Expr *expr, bool needval) {

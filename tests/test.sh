@@ -265,6 +265,7 @@ test_error() {
   compile_error 'dup enum elem' 'enum Foo { BAR, BAR }; void main(){}'
   compile_error '+x =' 'void main(){ int x; +x = 45; }'
   compile_error '(int)x = ' 'void main(){ int x; (int)x = 32; }'
+  compile_error '(_Bool)x = ' 'void main(){ _Bool x; (_Bool)x = 32; }'
   compile_error 'compound literal =' 'struct Foo {int x;}; void main(){ struct Foo foo = {1}; (struct Foo){66} = foo; }'
   compile_error 'compound literal w/o brace' 'void main(){ ++(int)55; }'
   compile_error 'param and first scope' 'void main(int x){ int x; }'
