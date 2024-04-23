@@ -44,6 +44,8 @@ static const char *kOpTable[] = {
 
   "fadd.d", "fsub.d", "fmul.d", "fdiv.d",
   "fmv.d", "fneg.d",
+  "feq.d", "flt.d", "fle.d",
+  "feq.s", "flt.s", "fle.s",
   "fld", "flw", "fsd", "fsw",
 };
 

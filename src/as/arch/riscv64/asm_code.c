@@ -110,6 +110,12 @@ inline bool assemble_error(const ParseInfo *info, const char *message) {
 #define W_FSUB_D(rd, rs1, rs2)   RTYPE(0x05, rs2, rs1, 0x07, rd, 0x53)
 #define W_FMUL_D(rd, rs1, rs2)   RTYPE(0x09, rs2, rs1, 0x07, rd, 0x53)
 #define W_FDIV_D(rd, rs1, rs2)   RTYPE(0x0d, rs2, rs1, 0x07, rd, 0x53)
+#define W_FEQ_D(rd, rs1, rs2)    RTYPE(0x51, rs2, rs1, 0x02, rd, 0x53)
+#define W_FLT_D(rd, rs1, rs2)    RTYPE(0x51, rs2, rs1, 0x01, rd, 0x53)
+#define W_FLE_D(rd, rs1, rs2)    RTYPE(0x51, rs2, rs1, 0x00, rd, 0x53)
+#define W_FEQ_S(rd, rs1, rs2)    RTYPE(0x50, rs2, rs1, 0x02, rd, 0x53)
+#define W_FLT_S(rd, rs1, rs2)    RTYPE(0x50, rs2, rs1, 0x01, rd, 0x53)
+#define W_FLE_S(rd, rs1, rs2)    RTYPE(0x50, rs2, rs1, 0x00, rd, 0x53)
 #define W_FLD(rd, ofs, rs)       ITYPE(ofs, rs, 0x03, rd, 0x07)
 #define W_FLW(rd, ofs, rs)       ITYPE(ofs, rs, 0x02, rd, 0x07)
 #define W_FSD(rs2, ofs, rs1)     STYPE(ofs, rs2, rs1, 0x03, 0x27)
@@ -546,6 +552,25 @@ static unsigned char *asm_2fr(Inst *inst, Code *code) {
   return code->buf;
 }
 
+static unsigned char *asm_fcmp(Inst *inst, Code *code) {
+  assert(inst->opr1.type == REG);
+  assert(inst->opr2.type == FREG);
+  assert(inst->opr3.type == FREG);
+  int rd = inst->opr1.freg;
+  int rs1 = inst->opr2.freg;
+  int rs2 = inst->opr3.freg;
+  switch (inst->op) {
+  case FEQ_D:  W_FEQ_D(rd, rs1, rs2); break;
+  case FLT_D:  W_FLT_D(rd, rs1, rs2); break;
+  case FLE_D:  W_FLE_D(rd, rs1, rs2); break;
+  case FEQ_S:  W_FEQ_S(rd, rs1, rs2); break;
+  case FLT_S:  W_FLT_S(rd, rs1, rs2); break;
+  case FLE_S:  W_FLE_S(rd, rs1, rs2); break;
+  default: assert(false); return NULL;
+  }
+  return code->buf;
+}
+
 static unsigned char *asm_fld(Inst *inst, Code *code) {
   int rd = inst->opr1.freg;
   Expr *offset = inst->opr2.indirect.offset;
@@ -643,6 +668,10 @@ static const AsmInstTable table_2fr[] ={
     {asm_2fr, FREG, FREG, NOOPERAND},
     {NULL} };
 
+static const AsmInstTable table_fcmp[] ={
+    {asm_fcmp, REG, FREG, FREG},
+    {NULL} };
+
 static const AsmInstTable table_fld[] ={
     {asm_fld, FREG, INDIRECT, NOOPERAND},
     {NULL} };
@@ -687,6 +716,8 @@ static const AsmInstTable *table[] = {
 
   [FADD_D] = table_3fr, [FSUB_D] = table_3fr, [FMUL_D] = table_3fr, [FDIV_D] = table_3fr,
   [FMV_D] = table_2fr, [FNEG_D] = table_2fr,
+  [FEQ_D] = table_fcmp, [FLT_D] = table_fcmp, [FLE_D] = table_fcmp,
+  [FEQ_S] = table_fcmp, [FLT_S] = table_fcmp, [FLE_S] = table_fcmp,
   [FLD] = table_fld, [FLW] = table_fld, [FSD] = table_fsd, [FSW] = table_fsd,
 };
 
