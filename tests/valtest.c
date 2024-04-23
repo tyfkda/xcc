@@ -904,8 +904,8 @@ long proto_in_func(short x) { return x + 1; }
 typedef int SameTypedefAllowed;
 typedef int SameTypedefAllowed;
 
-int f27(void){return 27;}
-int f53(void){return 53;}
+int fc27(void){return 27;}
+int fc53(void){return 53;}
 void mul2p(int *p) {*p *= 2;}
 const char *retstr(void){ return "foo"; }
 
@@ -1158,7 +1158,7 @@ TTT:;
     EXPECT("ternary ptr:0", 98, *q);
 
     int selector = 0;
-    EXPECT("ternary w/ func", 53, (selector ? f27 : f53)());
+    EXPECT("ternary w/ func", 53, (selector ? fc27 : fc53)());
 
     char buf[16] = "";
     selector ? (void)strcpy(buf, "true") : (void)strcpy(buf, "false");
