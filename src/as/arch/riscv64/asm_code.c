@@ -106,6 +106,11 @@ inline bool assemble_error(const ParseInfo *info, const char *message) {
 #define W_JALR(rd, rs, imm)   ITYPE(imm, rs, 0x00, rd, 0x67)
 #define W_BXX(funct3, rs1, rs2, ofs)  STYPE(ofs, rs2, rs1, funct3, 0x63)
 
+#define W_FADD_D(rd, rs1, rs2)   RTYPE(0x01, rs2, rs1, 0x07, rd, 0x53)
+#define W_FSUB_D(rd, rs1, rs2)   RTYPE(0x05, rs2, rs1, 0x07, rd, 0x53)
+#define W_FMUL_D(rd, rs1, rs2)   RTYPE(0x09, rs2, rs1, 0x07, rd, 0x53)
+#define W_FDIV_D(rd, rs1, rs2)   RTYPE(0x0d, rs2, rs1, 0x07, rd, 0x53)
+
 #define C_MV(rd, rs)          MAKE_CODE16(inst, code, 0x8002 | ((rd) << 7) | ((rs) << 2))
 #define C_LI(rd, imm)         MAKE_CODE16(inst, code, 0x4001 | (IMM(imm, 5, 5) << 12) | ((rd) << 7) | (IMM(imm, 4, 0) << 2))
 #define C_LUI(rd, imm)        MAKE_CODE16(inst, code, 0x6001 | (IMM(imm, 17, 17) << 12) | ((rd) << 7) | (IMM(imm, 16, 12) << 2))
@@ -495,6 +500,24 @@ static unsigned char *asm_ret(Inst *inst, Code *code) {
   return code->buf;
 }
 
+static unsigned char *asm_3fr(Inst *inst, Code *code) {
+  assert(inst->opr1.type == FREG);
+  assert(inst->opr2.type == FREG);
+  assert(inst->opr3.type == FREG);
+  int rd = inst->opr1.freg;
+  int rs1 = inst->opr2.freg;
+  int rs2 = inst->opr3.freg;
+
+  switch (inst->op) {
+  case FADD_D:  W_FADD_D(rd, rs1, rs2); break;
+  case FSUB_D:  W_FSUB_D(rd, rs1, rs2); break;
+  case FMUL_D:  W_FMUL_D(rd, rs1, rs2); break;
+  case FDIV_D:  W_FDIV_D(rd, rs1, rs2); break;
+  default: assert(false); return NULL;
+  }
+  return code->buf;
+}
+
 ////////////////////////////////////////////////
 
 typedef unsigned char *(*AsmInstFunc)(Inst *inst, Code *code);
@@ -530,6 +553,10 @@ static const AsmInstTable table_bxx[] ={
     {asm_bxx, REG, REG, DIRECT},
     {NULL} };
 
+static const AsmInstTable table_3fr[] ={
+    {asm_3fr, FREG, FREG, FREG},
+    {NULL} };
+
 static const AsmInstTable *table[] = {
   [NOOP] = (const AsmInstTable[]){ {asm_noop, NOOPERAND, NOOPERAND, NOOPERAND}, {NULL} },
   [MV] = (const AsmInstTable[]){ {asm_mv, REG, REG, NOOPERAND}, {NULL} },
@@ -563,6 +590,8 @@ static const AsmInstTable *table[] = {
   [BLTU] = table_bxx, [BGEU] = table_bxx,
   [CALL] = (const AsmInstTable[]){ {asm_call_d, DIRECT, NOOPERAND, NOOPERAND}, {NULL} },
   [RET] = (const AsmInstTable[]){ {asm_ret, NOOPERAND, NOOPERAND, NOOPERAND}, {NULL} },
+
+  [FADD_D] = table_3fr, [FSUB_D] = table_3fr, [FMUL_D] = table_3fr, [FDIV_D] = table_3fr,
 };
 
 void assemble_inst(Inst *inst, const ParseInfo *info, Code *code) {
